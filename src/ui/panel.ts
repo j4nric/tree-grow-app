@@ -2,19 +2,29 @@ import { STAGES } from '../content/stages';
 import { UPGRADES } from '../content/upgrades';
 import { getRates, stageProgress, steadyEnergyRate, upgradeCost, upgradeLevel } from '../core/formulas';
 import type { GameState } from '../core/state';
+import { createFloatLayer, restartAnimation } from './feedback';
 import { formatNumber, formatRate } from './format';
 
 export interface PanelActions {
   onGrow(): void;
-  onBuy(id: string): void;
+  /** Gibt true zurück, wenn der Kauf geklappt hat (für die Bestätigungs-Animation). */
+  onBuy(id: string): boolean;
   onReset(): void;
 }
+
+/** Ressourcen, die beim Klick auf „Wachsen“ als schwebende Zahl erscheinen. */
+const CLICK_RESOURCES = [
+  { id: 'water', icon: '💧' },
+  { id: 'light', icon: '☀️' },
+] as const;
 
 interface UpgradeRow {
   root: HTMLElement;
   button: HTMLButtonElement;
   level: HTMLElement;
   cost: HTMLElement;
+  /** Bezahlbarkeit im letzten Frame – null vor dem ersten Update. */
+  affordable: boolean | null;
 }
 
 /**
@@ -42,7 +52,30 @@ export function createPanel(container: HTMLElement, actions: PanelActions) {
   `;
   const ref = (name: string) => container.querySelector<HTMLElement>(`[data-ref="${name}"]`)!;
 
-  ref('grow').addEventListener('click', actions.onGrow);
+  const floats = createFloatLayer(document.body);
+  /** Zuletzt angezeigter Spielstand – nur gelesen, um Zuwächse durch Klicks zu erkennen. */
+  let current: GameState | null = null;
+
+  const grow = ref('grow');
+  grow.addEventListener('click', (event) => {
+    const before = current ? { ...current.resources } : null;
+    actions.onGrow();
+    if (!current || !before) return;
+
+    // Klickpunkt; bei Tastatur-Auslösung (detail 0) die Button-Mitte
+    const rect = grow.getBoundingClientRect();
+    const fromPointer = event.detail > 0 && (event.clientX !== 0 || event.clientY !== 0);
+    const x = fromPointer ? event.clientX : rect.left + rect.width / 2;
+    const y = fromPointer ? event.clientY : rect.top + rect.height / 2;
+
+    CLICK_RESOURCES.forEach(({ id, icon }, i) => {
+      const gained = current!.resources[id] - before[id];
+      if (gained <= 0) return;
+      // Leicht versetzt, damit sich die beiden Zahlen nicht überdecken
+      floats.spawn(`+${formatNumber(gained)} ${icon}`, x + (i === 0 ? -30 : 30), y - 14);
+      restartAnimation(ref(id), 'pop');
+    });
+  });
   ref('reset').addEventListener('click', actions.onReset);
 
   const rows = new Map<string, UpgradeRow>();
@@ -58,17 +91,25 @@ export function createPanel(container: HTMLElement, actions: PanelActions) {
       <button class="buy"><span class="cost"></span> 🍬</button>
     `;
     const button = root.querySelector<HTMLButtonElement>('.buy')!;
-    button.addEventListener('click', () => actions.onBuy(upgrade.id));
-    list.append(root);
-    rows.set(upgrade.id, {
+    const row: UpgradeRow = {
       root,
       button,
       level: root.querySelector<HTMLElement>('.level')!,
       cost: root.querySelector<HTMLElement>('.cost')!,
+      affordable: null,
+    };
+    button.addEventListener('click', () => {
+      if (!actions.onBuy(upgrade.id)) return;
+      restartAnimation(root, 'bought');
+      restartAnimation(row.level, 'bump');
+      restartAnimation(ref('energy'), 'pop');
     });
+    list.append(root);
+    rows.set(upgrade.id, row);
   }
 
   function update(state: GameState): void {
+    current = state;
     const rates = getRates(state);
     const stage = STAGES[state.stage]!;
     const next = STAGES[state.stage + 1];
@@ -91,12 +132,19 @@ export function createPanel(container: HTMLElement, actions: PanelActions) {
       const row = rows.get(upgrade.id)!;
       const unlocked = upgrade.unlockStage <= state.stage;
       row.root.hidden = !unlocked;
-      if (!unlocked) continue;
+      if (!unlocked) {
+        row.affordable = null;
+        continue;
+      }
       const level = upgradeLevel(state, upgrade.id);
       const cost = upgradeCost(upgrade, level);
       row.level.textContent = level > 0 ? `(${level})` : '';
       row.cost.textContent = formatNumber(cost);
-      row.button.disabled = state.resources.energy < cost;
+      const affordable = state.resources.energy >= cost;
+      row.button.disabled = !affordable;
+      // Kurz hervorheben, wenn das Upgrade gerade bezahlbar geworden ist
+      if (affordable && row.affordable === false) restartAnimation(row.root, 'ready');
+      row.affordable = affordable;
     }
   }
 
