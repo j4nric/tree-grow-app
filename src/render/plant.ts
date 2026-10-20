@@ -33,8 +33,27 @@ export interface LeafCluster {
   b: number;
 }
 
+/**
+ * Ein Ast als Ganzes (zwei Teilstücke) mit Verweisen auf seine Kinder – für Ankerpunkte
+ * (Tiere in der Krone). Kinder: [0] = Leittrieb, danach Seitenäste.
+ */
+export interface Branch {
+  level: number;
+  x1: number;
+  y1: number;
+  mx: number;
+  my: number;
+  x2: number;
+  y2: number;
+  w1: number;
+  w2: number;
+  children: number[];
+}
+
 export interface PlantGeometry {
   segments: Segment[];
+  /** Nur beim Baum gefüllt (bei Wurzeln leer). Index 0 = Stamm. */
+  branches: Branch[];
   leaves: LeafCluster[];
   minX: number;
   maxX: number;
@@ -59,7 +78,7 @@ export interface LeafPalette {
 }
 
 function emptyGeometry(): PlantGeometry {
-  return { segments: [], leaves: [], minX: 0, maxX: 0, minY: 0, maxY: 0, maxLevel: 0, tipX: 0, tipY: 0 };
+  return { segments: [], branches: [], leaves: [], minX: 0, maxX: 0, minY: 0, maxY: 0, maxLevel: 0, tipX: 0, tipY: 0 };
 }
 
 function extend(geo: PlantGeometry, x: number, y: number, r = 0): void {
@@ -105,9 +124,9 @@ function growBranch(
   angle: number,
   length: number,
   width: number,
-): void {
+): number {
   const grow = clamp01(depth - level);
-  if (grow <= 0) return;
+  if (grow <= 0) return -1;
   const rand = mulberry32(seed);
   // Immer gleich viele Zufallswerte ziehen.
   const rv: number[] = [];
@@ -128,6 +147,9 @@ function growBranch(
   const wEnd = width * 0.72;
   geo.segments.push({ x1: x, y1: y, x2: mx, y2: my, w1: width, w2: wMid });
   geo.segments.push({ x1: mx, y1: my, x2: ex, y2: ey, w1: wMid, w2: wEnd });
+  const index = geo.branches.length;
+  const branch: Branch = { level, x1: x, y1: y, mx, my, x2: ex, y2: ey, w1: width, w2: wEnd, children: [] };
+  geo.branches.push(branch);
   // Astbreite mit einrechnen (am Fuß inkl. Verdickung).
   extend(geo, x, y, width * 0.8);
   extend(geo, ex, ey, wEnd * 0.5);
@@ -150,11 +172,11 @@ function growBranch(
     }
   }
 
-  if (depth - (level + 1) <= 0) return;
+  if (depth - (level + 1) <= 0) return index;
 
   const childSeed = (i: number) => hash2(seed, i + 1);
   // Leittrieb setzt den Ast fort …
-  growBranch(
+  const leader = growBranch(
     geo,
     depth,
     childSeed(0),
@@ -165,6 +187,7 @@ function growBranch(
     length * (level === 0 ? 0.62 : 0.72 + rv[2]! * 0.12),
     wEnd * 0.8,
   );
+  if (leader >= 0) branch.children.push(leader);
   // … Seitenäste zweigen ab (1–2, am Stamm immer 2).
   const sides = level === 0 || rv[3]! < 0.5 ? 2 : 1;
   const firstSide = rv[4]! < 0.5 ? 1 : -1;
@@ -172,7 +195,7 @@ function growBranch(
   for (let i = 0; i < sides; i++) {
     const s = i === 0 ? firstSide : -firstSide;
     const r1 = i === 0 ? rv[5]! : rv[6]!;
-    growBranch(
+    const side = growBranch(
       geo,
       depth,
       childSeed(i + 1),
@@ -183,7 +206,9 @@ function growBranch(
       length * (level === 0 ? 0.62 : 0.6 + r1 * 0.16),
       wEnd * 0.62,
     );
+    if (side >= 0) branch.children.push(side);
   }
+  return index;
 }
 
 function addLeaf(geo: PlantGeometry, x: number, y: number, r: number, level: number, a: number, b: number): void {
