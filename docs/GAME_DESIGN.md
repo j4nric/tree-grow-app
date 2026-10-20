@@ -1,5 +1,11 @@
 # Game Design – Vom Samen zum Wald
 
+> **Hinweis:** [`DESIGN_V2.md`](DESIGN_V2.md) richtet das Spiel neu aus (Tiere und
+> Pflanzen per Kartenwahl, Wachstum/Zufriedenheit/Samen/Harmonie statt
+> Wasser/Licht/Energie). Dieses Dokument beschreibt den **aktuellen Code (v1)** und
+> bleibt maßgeblich für dessen Zahlen, bis die v2-Umsetzung (Roadmap, Phase
+> „Neuausrichtung v2“) sie ersetzt.
+
 ## Vision
 
 Ein ruhiges, grafisches Incremental Game. Du bist ein Samen und wächst – sichtbar –

@@ -1,5 +1,11 @@
 # Ökosystem – Tiere ziehen ein (Designkonzept)
 
+> **Überführt:** Dieses Konzept ist in [`DESIGN_V2.md`](DESIGN_V2.md) aufgegangen
+> (Neuausrichtung v2: Begegnungen mit Kartenwahl, Zufriedenheit, Samen als einzige
+> Währung). Arten, Nischen, Wechselwirkungen, Pflegemaßnahmen und
+> Lebensgemeinschaften wurden dorthin übertragen und angepasst (Abschnitt 5.4 dort).
+> Dieses Dokument bleibt nur als Hintergrund erhalten; **maßgeblich ist DESIGN_V2.md.**
+
 > **Status:** Konzept, noch nicht implementiert. Alle Zahlen sind **vorläufige
 > Startwerte** und müssen per Simulation gebalanced werden (siehe Abschnitt 9).
 > Wenn Teile umgesetzt werden, wandern Regeln und Tabellen nach `GAME_DESIGN.md`.
