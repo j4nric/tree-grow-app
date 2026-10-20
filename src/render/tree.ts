@@ -1,33 +1,39 @@
 /**
- * Zeichnet die Szene (Himmel, Boden, Wurzeln, Baum/Wald) auf ein Canvas.
- * Liest nur den Wachstumswert – verändert nie den Spielstand.
+ * Zeichnet die Szene (Himmel, Boden, Wurzeln, Baum/Wald, Tiere) auf ein Canvas.
+ * Liest nur den Wachstumswert (und optional Tiere) – verändert nie den Spielstand.
  *
  * Aufbau in Ebenen, die in Offscreen-Canvases gecacht werden:
- *   1. Hintergrund: Himmel, Hügel, Erde, Wurzeln, Samen   (neu bei Größe/growth)
+ *   0. Kulisse: Himmel, Hügel, Erde, Grasnarbe             (neu nur bei Größenänderung)
+ *   1. Hintergrund: Kulisse + Wurzeln, Samen               (neu bei growth, aus 0 kopiert)
  *   2. Wolken: kleine Sprites, pro Frame nur verschoben
- *   3. Nachbarbäume (Hain/Wald), blasser                   (neu bei Größe/growth)
- *   4. Hauptbaum                                           (neu bei Größe/growth)
- * Wind ist nur eine Scherung der gecachten Baum-Ebenen um die Bodenlinie.
+ *   3. Nachbarbäume (Hain/Wald), blasser                   (neu bei growth)
+ *   4. Hauptbaum                                           (neu bei growth)
+ *   5. Tiere: gecachte Sprites je Art, pro Frame nur drawImage
+ * Wind ist nur eine Scherung der gecachten Baum-Ebenen um die Bodenlinie; Tiere am
+ * Baum werden um denselben Betrag verschoben.
+ * Größenänderungen werden entprellt: Bis die neue Größe ~150 ms stabil ist, wird das
+ * alte Bild skaliert gezeigt.
  */
 
-import {
-  buildRoots,
-  buildTree,
-  paintLeaves,
-  paintWood,
-  trunkWidthOf,
-  type LeafPalette,
-  type PlantGeometry,
-  type WoodColors,
-} from './plant';
+import { createAnchorResolver, type AnchorResolver } from './anchors';
+import { drawAnimals, SpriteCache, type SceneAnimal } from './animals';
+import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
+import { paintLeaves, paintWood, type LeafPalette, type WoodColors } from './plant';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
-import { clamp01, hash2, mix, mulberry32, smooth01 } from './util';
+import { clamp01, mix, mulberry32, smooth01 } from './util';
+
+export type { AnimalFamily, SceneAnimal } from './animals';
+export { nicheAnchors, SCENE_NICHES, type NicheAnchor, type SceneNiche } from './anchors';
 
 export interface SceneInput {
   /** Kontinuierlicher Wachstumswert aus core/formulas.ts `growth()`. */
   growth: number;
   /** Laufzeit in Sekunden, für sanftes Wiegen im Wind und ziehende Wolken. */
   time: number;
+  /** Tiere in den Nischen des Hauptbaums (Standard: keine). */
+  animals?: readonly SceneAnimal[];
+  /** Bewegung reduzieren (prefers-reduced-motion): Tiere ruhen, kein Wind, Wolken stehen. */
+  reducedMotion?: boolean;
 }
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
@@ -36,9 +42,10 @@ const REDRAW_STEP = 0.005;
 const REDRAW_SETTLE_SECONDS = 1;
 /** Höchstens so oft (s) neu zeichnen – bei schnellem Wachstum bleibt die Bildrate stabil. */
 const REDRAW_MIN_INTERVAL = 0.2;
+/** So lange (s) muss eine neue Canvas-Größe stabil sein, bevor neu aufgebaut wird. */
+const RESIZE_SETTLE_SECONDS = 0.15;
 /** Ab diesem Wachstumswert (Stufe „Hain“) erscheinen weitere Bäume. */
 const GROVE_GROWTH = 5;
-const MAIN_SEED = 7;
 
 const WOOD: WoodColors = { base: '#6b4a30', shade: '#563a25', light: '#866244' };
 /** Junger, noch grüner Trieb – verholzt in den ersten Stufen allmählich. */
@@ -72,22 +79,26 @@ const NEIGHBORS: { x: number; far: boolean }[] = [
   { x: 0.23, far: true },
 ];
 
-interface Layout {
-  width: number;
-  height: number;
-  dpr: number;
-  groundY: number;
-  /** Höchster erlaubter Punkt der Bäume. */
-  top: number;
-  /** Verfügbare Höhe über dem Boden. */
-  avail: number;
-  soilH: number;
-  cx: number;
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
-interface Cache {
+/** Alles, was zu einer Canvas-Größe gehört. */
+interface SizeCache {
   key: string;
-  layout: Layout | null;
+  /** Gerätepixel des Canvas. */
+  pw: number;
+  ph: number;
+  dpr: number;
+  layout: Layout;
+  /** Statische Kulisse (Himmel, Hügel, Erde): hängt nur von der Größe ab. */
+  scenery: HTMLCanvasElement;
+  /** Grasnarbe als schmaler Streifen ab Gerätepixel-Zeile `grassTop` (liegt über den Wurzeln). */
+  grass: HTMLCanvasElement;
+  grassTop: number;
   background: HTMLCanvasElement;
   back: HTMLCanvasElement;
   front: HTMLCanvasElement;
@@ -97,13 +108,16 @@ interface Cache {
   frontRect: Rect | null;
   growth: number;
   drawnAt: number;
+  anchors: AnchorResolver | null;
 }
 
-interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+interface Cache {
+  size: SizeCache | null;
+  /** Neue Größe, die noch auf Stabilität wartet. */
+  pendingKey: string;
+  pendingSince: number;
+  sprites: SpriteCache;
+  spriteKey: string;
 }
 
 /** Vereinigt einen Bereich (CSS-Pixel) mit `r` und gibt das Ergebnis zurück. */
@@ -129,7 +143,8 @@ function drawRect(ctx: CanvasRenderingContext2D, layer: HTMLCanvasElement, r: Re
   ctx.drawImage(layer, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h);
 }
 
-let cache: Cache | null = null;
+/** Ein Cache je Canvas – so können mehrere Szenen nebeneinander laufen (z. B. Demo). */
+const caches = new WeakMap<HTMLCanvasElement, Cache>();
 
 export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, input: SceneInput): void {
   if (width <= 0 || height <= 0) return;
@@ -137,63 +152,134 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const ph = ctx.canvas.height;
   if (pw <= 0 || ph <= 0) return;
   const dpr = pw / width || 1;
-  const g = Math.max(0, input.growth);
+  const g = Math.max(0, Number.isFinite(input.growth) ? input.growth : 0);
+  const time = input.time;
 
+  let cache = caches.get(ctx.canvas);
   if (!cache) {
-    cache = {
-      key: '',
-      layout: null,
-      background: document.createElement('canvas'),
-      back: document.createElement('canvas'),
-      front: document.createElement('canvas'),
-      clouds: [],
-      backRect: null,
-      frontRect: null,
-      growth: NaN,
-      drawnAt: 0,
-    };
+    cache = { size: null, pendingKey: '', pendingSince: 0, sprites: new SpriteCache(), spriteKey: '' };
+    caches.set(ctx.canvas, cache);
   }
-  const key = `${pw}x${ph}/${width}x${height}`;
-  if (cache.key !== key) {
-    cache.key = key;
-    const layout = makeLayout(width, height, dpr);
-    cache.layout = layout;
-    for (const c of [cache.background, cache.back, cache.front]) {
-      c.width = pw;
-      c.height = ph;
-    }
-    cache.clouds = createClouds(width, layout.groundY, dpr);
-    cache.growth = NaN;
-  }
-  const layout = cache.layout!;
 
-  const delta = Math.abs(g - cache.growth);
-  const since = input.time - cache.drawnAt;
+  // Größenänderung entprellen: altes Bild skaliert zeigen, bis die Größe stabil ist.
+  const key = `${pw}x${ph}/${width}x${height}`;
+  let sc = cache.size;
+  if (sc && sc.key === key) {
+    cache.pendingKey = '';
+  } else {
+    if (cache.pendingKey !== key) {
+      cache.pendingKey = key;
+      cache.pendingSince = time;
+    }
+    const waited = time - cache.pendingSince;
+    if (!sc || waited >= RESIZE_SETTLE_SECONDS || waited < 0) {
+      sc = buildSizeCache(sc, key, width, height, pw, ph, dpr);
+      cache.size = sc;
+      cache.pendingKey = '';
+    }
+  }
+
+  const delta = Math.abs(g - sc.growth);
+  const since = time - sc.drawnAt;
   const clockReset = since < 0;
   const due = (delta >= REDRAW_STEP && since >= REDRAW_MIN_INTERVAL) || (delta > 0 && since > REDRAW_SETTLE_SECONDS);
-  if (Number.isNaN(cache.growth) || clockReset || due) {
-    renderLayers(cache, layout, g);
-    cache.growth = g;
-    cache.drawnAt = input.time;
+  if (Number.isNaN(sc.growth) || clockReset || due) {
+    renderLayers(sc, g);
+    sc.growth = g;
+    sc.drawnAt = time;
   }
 
-  // Zusammensetzen in Gerätepixeln – nur drawImage und günstige Transformationen.
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(cache.background, 0, 0);
-  drawClouds(ctx, cache.clouds, width, input.time, dpr);
-  const groundPx = layout.groundY * dpr;
-  if (cache.backRect) {
-    const k = windSkew(input.time, 1.9) * 0.7;
-    ctx.setTransform(1, 0, k, 1, -k * groundPx, 0);
-    drawRect(ctx, cache.back, cache.backRect);
+  // Sprites einer alten Tiergröße/Pixeldichte verwerfen.
+  const spriteKey = `${sc.anchors?.size}/${sc.dpr}`;
+  if (cache.spriteKey !== spriteKey) {
+    cache.sprites.clear();
+    cache.spriteKey = spriteKey;
   }
-  if (cache.frontRect) {
-    const k = windSkew(input.time, 0);
-    ctx.setTransform(1, 0, k, 1, -k * groundPx, 0);
-    drawRect(ctx, cache.front, cache.frontRect);
+
+  compose(ctx, sc, cache.sprites, input, pw / sc.pw, ph / sc.ph);
+}
+
+/** Setzt die gecachten Ebenen zusammen – nur drawImage und günstige Transformationen. */
+function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, sprites: SpriteCache, input: SceneInput, sx: number, sy: number): void {
+  const { dpr, layout } = sc;
+  const reduced = input.reducedMotion === true;
+  const time = input.time;
+  ctx.save();
+  ctx.setTransform(sx, 0, 0, sy, 0, 0);
+  ctx.drawImage(sc.background, 0, 0);
+  drawClouds(ctx, sc.clouds, layout.width, reduced ? 0 : time, dpr);
+  const groundPx = layout.groundY * dpr;
+  if (sc.backRect) {
+    const kb = reduced ? 0 : windSkew(time, 1.9) * 0.7;
+    ctx.setTransform(sx, 0, sx * kb, sy, -sx * kb * groundPx, 0);
+    drawRect(ctx, sc.back, sc.backRect);
+  }
+  const k = reduced ? 0 : windSkew(time, 0);
+  if (sc.frontRect) {
+    ctx.setTransform(sx, 0, sx * k, sy, -sx * k * groundPx, 0);
+    drawRect(ctx, sc.front, sc.frontRect);
+  }
+  const animals = input.animals;
+  if (animals && animals.length > 0 && sc.anchors) {
+    drawAnimals(ctx, animals, sc.anchors, sprites, { time, windSkew: k, reducedMotion: reduced, dpr, sx, sy });
   }
   ctx.restore();
+}
+
+/** Legt die Ebenen für eine Canvas-Größe an und zeichnet die statische Kulisse. */
+function buildSizeCache(
+  old: SizeCache | null,
+  key: string,
+  width: number,
+  height: number,
+  pw: number,
+  ph: number,
+  dpr: number,
+): SizeCache {
+  const layout = makeLayout(width, height);
+  const sized = (c: HTMLCanvasElement | undefined) => {
+    const canvas = c ?? document.createElement('canvas');
+    canvas.width = pw;
+    canvas.height = ph;
+    return canvas;
+  };
+  const sc: SizeCache = {
+    key,
+    pw,
+    ph,
+    dpr,
+    layout,
+    scenery: sized(old?.scenery),
+    grass: old?.grass ?? document.createElement('canvas'),
+    grassTop: 0,
+    background: sized(old?.background),
+    back: sized(old?.back),
+    front: sized(old?.front),
+    clouds: createClouds(width, layout.groundY, dpr),
+    backRect: null,
+    frontRect: null,
+    growth: NaN,
+    drawnAt: 0,
+    anchors: null,
+  };
+
+  const sky = layerContext(sc.scenery, dpr);
+  paintSky(sky, width, layout.groundY);
+  paintHills(sky, width, height, layout.groundY);
+  paintSoil(sky, width, height, layout.groundY);
+
+  // Grasnarbe nur als Streifen um die Bodenlinie (Halme reichen bis 1,2 × bladeH hinauf).
+  const above = Math.max(4, height * 0.016) * 1.2 + 2;
+  const below = Math.max(4, height * 0.014) + 2;
+  sc.grassTop = Math.max(0, Math.floor((layout.groundY - above) * dpr));
+  sc.grass.width = pw;
+  sc.grass.height = Math.max(1, Math.min(ph, Math.ceil((layout.groundY + below) * dpr)) - sc.grassTop);
+  const gc = sc.grass.getContext('2d')!;
+  gc.setTransform(1, 0, 0, 1, 0, 0);
+  gc.clearRect(0, 0, sc.grass.width, sc.grass.height);
+  gc.setTransform(dpr, 0, 0, dpr, 0, -sc.grassTop);
+  paintGrass(gc, width, height, layout.groundY);
+  return sc;
 }
 
 /** Sanftes, unregelmäßiges Wiegen als Scherfaktor (oben verschoben, Fuß fest). */
@@ -205,53 +291,12 @@ function windSkew(time: number, phase: number): number {
   );
 }
 
-function makeLayout(width: number, height: number, dpr: number): Layout {
-  const groundY = Math.round(height * 0.8);
-  const top = Math.max(8, height * 0.045);
-  return {
-    width,
-    height,
-    dpr,
-    groundY,
-    top,
-    avail: groundY - top,
-    soilH: height - groundY,
-    cx: width / 2,
-  };
-}
-
 function layerContext(canvas: HTMLCanvasElement, dpr: number): CanvasRenderingContext2D {
   const c = canvas.getContext('2d')!;
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, canvas.width, canvas.height);
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   return c;
-}
-
-/** Zielhöhe eines Baums als Anteil der verfügbaren Höhe – wächst stetig mit g. */
-function heightFraction(g: number): number {
-  return 0.13 + 0.82 * Math.pow(clamp01((g - 1) / 7), 0.9);
-}
-
-interface PlacedTree {
-  geo: PlantGeometry;
-  scale: number;
-  x: number;
-  y: number;
-}
-
-/**
- * Baut einen Baum und skaliert ihn so, dass er die Zielhöhe erreicht, aber nie über
- * `maxHeight` (inkl. Blätter) hinaus- oder breiter als `maxHalfWidth` je Seite wird.
- */
-function placeTree(g: number, seed: number, x: number, y: number, maxHeight: number, maxHalfWidth: number): PlacedTree {
-  const geo = buildTree(g, seed);
-  let segTop = 0;
-  for (const s of geo.segments) segTop = Math.min(segTop, s.y1, s.y2);
-  const target = maxHeight * heightFraction(g);
-  const half = Math.max(-geo.minX, geo.maxX, 1e-6);
-  const scale = Math.min(target / Math.max(-segTop, 1e-6), maxHeight / Math.max(-geo.minY, 1e-6), maxHalfWidth / half);
-  return { geo, scale, x, y };
 }
 
 /** Umriss eines platzierten Baums in CSS-Pixeln: [x0, y0, x1, y1]. */
@@ -301,24 +346,26 @@ function neighborTrees(g: number, layout: Layout): NeighborTree[] {
   return result;
 }
 
-function renderLayers(cache: Cache, layout: Layout, g: number): void {
-  const { dpr } = layout;
+function renderLayers(sc: SizeCache, g: number): void {
+  const { dpr, layout } = sc;
   const neighbors = neighborTrees(g, layout);
 
-  // Hauptbaum zuerst berechnen – Wurzeln richten sich nach seiner Stammdicke.
-  const scale1 = placeTree(1, MAIN_SEED, 0, 0, layout.avail, layout.width * 0.5).scale;
-  const main = g >= 1 ? placeTree(g, MAIN_SEED, layout.cx, layout.groundY, layout.avail, layout.width * 0.5) : null;
+  // Hauptbaum zuerst berechnen – Wurzeln und Tier-Ankerpunkte richten sich nach ihm.
+  const scale1 = sproutScale(layout);
+  const main = placeMainTree(layout, g);
+  sc.anchors = createAnchorResolver(layout, g, main);
 
-  // --- Hintergrund ---
-  const bg = layerContext(cache.background, dpr);
-  paintSky(bg, layout.width, layout.groundY);
-  paintHills(bg, layout.width, layout.height, layout.groundY);
-  paintSoil(bg, layout.width, layout.height, layout.groundY);
+  // --- Hintergrund: statische Kulisse kopieren, Wurzeln, Grasnarbe darüber ---
+  const bg = layerContext(sc.background, dpr);
+  bg.setTransform(1, 0, 0, 1, 0, 0);
+  bg.drawImage(sc.scenery, 0, 0);
+  bg.setTransform(dpr, 0, 0, dpr, 0, 0);
   paintUnderground(bg, layout, g, scale1, main, neighbors);
-  paintGrass(bg, layout.width, layout.height, layout.groundY);
+  bg.setTransform(1, 0, 0, 1, 0, 0);
+  bg.drawImage(sc.grass, 0, sc.grassTop);
 
   // --- Nachbarbäume: hintere Reihe blasser als die vordere ---
-  const back = layerContext(cache.back, dpr);
+  const back = layerContext(sc.back, dpr);
   let backRect: Rect | null = null;
   for (const far of [true, false]) {
     const haze = far ? 0.5 : 0.25;
@@ -334,12 +381,11 @@ function renderLayers(cache: Cache, layout: Layout, g: number): void {
   }
 
   // --- Hauptbaum bzw. Keimling ---
-  const front = layerContext(cache.front, dpr);
-  const pw = cache.front.width;
-  const ph = cache.front.height;
-  cache.backRect = toDeviceRect(backRect, dpr, pw, ph);
+  const front = layerContext(sc.front, dpr);
+  const { pw, ph } = sc;
+  sc.backRect = toDeviceRect(backRect, dpr, pw, ph);
   if (main) {
-    cache.frontRect = toDeviceRect(unionRect(null, ...treeBounds(main)), dpr, pw, ph);
+    sc.frontRect = toDeviceRect(unionRect(null, ...treeBounds(main)), dpr, pw, ph);
     const lignin = smooth01((g - 1) / 2);
     paintTree(front, main, mixWood(STEM, WOOD, lignin), PALETTES[0]!);
     // Keimblätter verblassen, während die ersten Blattbüschel wachsen.
@@ -349,7 +395,7 @@ function renderLayers(cache: Cache, layout: Layout, g: number): void {
     }
   } else {
     paintSprout(front, layout, g, scale1);
-    cache.frontRect = toDeviceRect(
+    sc.frontRect = toDeviceRect(
       unionRect(null, layout.cx - scale1, layout.groundY - scale1 * 1.4, layout.cx + scale1, layout.groundY + 4),
       dpr,
       pw,
@@ -439,13 +485,8 @@ function paintUnderground(
 
   if (main) {
     // Wurzeln wachsen mit dem Baum in die Tiefe und Breite.
-    const depth = 1 + (g - 1) * 0.75;
-    const roots = buildRoots(depth, hash2(MAIN_SEED, 77));
-    const reach = soilH * (0.38 + 0.5 * smooth01((g - 1) / 5));
-    const half = Math.max(-roots.minX, roots.maxX, 1e-6);
-    const scale = Math.min(reach / Math.max(roots.maxY, 1e-6), (layout.width * 0.46) / half);
-    const trunkPx = trunkWidthOf(g) * main.scale;
-    paintWood(ctx, roots, cx, groundY, scale, (trunkPx * 0.8) / scale, ROOT);
+    const roots = placeRoots(layout, g, main);
+    paintWood(ctx, roots.geo, cx, groundY, roots.scale, roots.widthScale, ROOT);
 
     // Pilzfäden verbinden im Wald die Wurzeln der Bäume.
     const fungus = 0.4 * smooth01(g - 6);
