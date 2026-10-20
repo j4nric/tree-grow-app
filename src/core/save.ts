@@ -1,7 +1,21 @@
-import { stageForEnergy } from './formulas';
-import { RESOURCE_IDS, SAVE_VERSION, createInitialState, type GameState } from './state';
+import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
+import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY, V1_KEEPSAKE_MIN_ENERGY, V1_KEEPSAKE_MIN_STAGE } from '../content/memory';
+import { SPECIES_BY_ID } from '../content/species';
+import { NICHE_IDS } from '../content/types';
+import { nicheSlots, stageForWaypoint, waypointsForGrowth } from './formulas';
+import { isValidRngState, normalizeSeed } from './rng';
+import { SAVE_VERSION, createInitialState, type GameState, type PendingEncounter } from './state';
 
 export const SAVE_KEY = 'tree-grow-save';
+
+/** Ergebnis des Ladens: der Spielstand und ob er aus einem v1-Stand neu angelegt wurde. */
+export interface LoadResult {
+  state: GameState;
+  /** Der gespeicherte Stand war v1 (Wasser/Licht/Energie) und wurde durch einen Neustart ersetzt. */
+  migratedFromV1: boolean;
+  /** Andenken „Die alte Eiche“ (+5 Waldgedächtnis) wurde vergeben. */
+  keepsake: boolean;
+}
 
 export function serialize(state: GameState): string {
   return JSON.stringify(state);
@@ -12,7 +26,7 @@ export function serialize(state: GameState): string {
  * Startwerte ersetzt, damit ein alter Spielstand das Spiel nie zum Absturz bringt.
  * Gibt null zurück, wenn gar nichts Brauchbares vorliegt.
  */
-export function deserialize(raw: string | null, now: number): GameState | null {
+export function loadGame(raw: string | null, now: number): LoadResult | null {
   if (!raw) return null;
   let data: unknown;
   try {
@@ -22,24 +36,83 @@ export function deserialize(raw: string | null, now: number): GameState | null {
   }
   if (!isRecord(data)) return null;
 
-  const state = createInitialState(now);
-  // Hier künftig Migrationen ergänzen: if (data.version === 1) { ... }
-  state.version = SAVE_VERSION;
+  const version = typeof data.version === 'number' && Number.isFinite(data.version) ? data.version : 1;
+  if (version < 2) return migrateV1(data, now);
+  return { state: loadV2(data, now), migratedFromV1: false, keepsake: false };
+}
 
-  if (isRecord(data.resources)) {
-    for (const id of RESOURCE_IDS) state.resources[id] = finiteOr(data.resources[id], 0);
+/** Wie loadGame, aber nur der Spielstand. */
+export function deserialize(raw: string | null, now: number): GameState | null {
+  return loadGame(raw, now)?.state ?? null;
+}
+
+/**
+ * v1 → v2: sauberer Neustart (Wasser/Licht/Energie/Upgrades haben keine Entsprechung).
+ * Wer in v1 mindestens „Junger Baum“ erreicht hat, bekommt das Andenken „Die alte
+ * Eiche“: +5 Waldgedächtnis. Keine Offline-Zeit – die Uhr startet jetzt.
+ */
+function migrateV1(data: Record<string, unknown>, now: number): LoadResult {
+  const oldLastTick = finiteOr(data.lastTick, now);
+  const state = createInitialState(now, now + oldLastTick);
+  const keepsake =
+    finiteOr(data.stage, 0) >= V1_KEEPSAKE_MIN_STAGE || finiteOr(data.totalEnergy, 0) >= V1_KEEPSAKE_MIN_ENERGY;
+  if (keepsake) {
+    state.meta.forestMemory += V1_KEEPSAKE_MEMORY;
+    state.meta.journal.keepsakes.push(V1_KEEPSAKE_ID);
   }
-  if (isRecord(data.upgrades)) {
-    for (const [id, level] of Object.entries(data.upgrades)) {
-      const n = Math.floor(finiteOr(level, 0));
-      if (n > 0) state.upgrades[id] = n;
+  return { state, migratedFromV1: true, keepsake };
+}
+
+/** Robustes Laden eines v2-Stands (DESIGN_V2.md, 12.3). */
+function loadV2(data: Record<string, unknown>, now: number): GameState {
+  const lastTick = finiteOr(data.lastTick, now);
+  const state = createInitialState(now);
+  state.version = SAVE_VERSION;
+  state.lastTick = lastTick;
+  state.totalGrowth = Math.max(0, finiteOr(data.totalGrowth, 0));
+  state.seeds = Math.max(0, finiteOr(data.seeds, 0));
+  // Wegpunkt und Stufe immer aus dem Gesamt-Wachstum ableiten.
+  state.waypoint = waypointsForGrowth(state.totalGrowth);
+  state.stage = stageForWaypoint(state.waypoint);
+
+  // Nischen: unbekannte Arten und Duplikate verwerfen, jede Art in ihre eigene Nische,
+  // auf die aktuelle Platzzahl kürzen.
+  const slots = nicheSlots(state.stage);
+  const niches = isRecord(data.niches) ? data.niches : {};
+  const seen = new Set<string>();
+  for (const nicheId of NICHE_IDS) {
+    for (const id of stringArray(niches[nicheId])) {
+      const sp = SPECIES_BY_ID.get(id);
+      if (!sp || seen.has(id)) continue;
+      seen.add(id);
+      if (state.niches[sp.niche].length < slots[sp.niche]) state.niches[sp.niche].push(id);
     }
   }
-  state.totalEnergy = Math.max(finiteOr(data.totalEnergy, 0), 0);
-  // Stufe immer aus der Energie ableiten: passt alte Spielstände an geänderte
-  // Schwellen an und verhindert unstimmige (z. B. von Hand bearbeitete) Stände.
-  state.stage = stageForEnergy(state.totalEnergy);
-  state.lastTick = finiteOr(data.lastTick, now);
+
+  // Offene Begegnungen: ungültige Karten entfernen, leere verwerfen, höchstens 3.
+  if (Array.isArray(data.pendingEncounters)) {
+    for (const raw of data.pendingEncounters) {
+      if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) break;
+      if (!isRecord(raw)) continue;
+      const cards = unique(stringArray(raw.cards).filter((id) => SPECIES_BY_ID.has(id))).slice(0, CARDS_PER_ENCOUNTER);
+      if (cards.length === 0) continue;
+      const encounter: PendingEncounter = {
+        type: 'animal',
+        cards,
+        rerolls: Math.max(0, Math.floor(finiteOr(raw.rerolls, 0))),
+      };
+      state.pendingEncounters.push(encounter);
+    }
+  }
+
+  state.rngState = isValidRngState(data.rngState) ? data.rngState : normalizeSeed(lastTick);
+
+  const meta = isRecord(data.meta) ? data.meta : {};
+  state.meta.forestMemory = Math.max(0, finiteOr(meta.forestMemory, 0));
+  const journal = isRecord(meta.journal) ? meta.journal : {};
+  state.meta.journal.species = unique(stringArray(journal.species).filter((id) => SPECIES_BY_ID.has(id)));
+  for (const id of seen) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
+  state.meta.journal.keepsakes = unique(stringArray(journal.keepsakes));
   return state;
 }
 
@@ -51,9 +124,9 @@ export function saveToStorage(state: GameState, storage: Storage = localStorage)
   }
 }
 
-export function loadFromStorage(now: number, storage: Storage = localStorage): GameState | null {
+export function loadFromStorage(now: number, storage: Storage = localStorage): LoadResult | null {
   try {
-    return deserialize(storage.getItem(SAVE_KEY), now);
+    return loadGame(storage.getItem(SAVE_KEY), now);
   } catch {
     return null;
   }
@@ -73,4 +146,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function finiteOr(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }

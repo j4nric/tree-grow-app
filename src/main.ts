@@ -1,8 +1,8 @@
 import { STAGES } from './content/stages';
 import { growth } from './core/formulas';
 import { clearStorage, loadFromStorage, saveToStorage } from './core/save';
-import { createInitialState } from './core/state';
-import { buyUpgrade, clickGrow, simulateOffline, tick } from './core/tick';
+import { createInitialState, type GameState } from './core/state';
+import { chooseCard, declineEncounter, rerollEncounter, simulateOffline, tick } from './core/tick';
 import { drawScene } from './render/tree';
 import { formatDuration, formatNumber } from './ui/format';
 import { createPanel } from './ui/panel';
@@ -16,29 +16,53 @@ const ctx = canvas.getContext('2d')!;
 const banner = document.querySelector<HTMLElement>('#stage-banner')!;
 const toast = document.querySelector<HTMLElement>('#toast')!;
 
-let state = loadFromStorage(Date.now()) ?? createInitialState(Date.now());
+/** Neues Spiel: Der Zufallsgenerator bekommt einmalig die Uhrzeit als Startwert. */
+const newGame = (): GameState => createInitialState(Date.now(), Date.now());
+
+const loaded = loadFromStorage(Date.now());
+let state = loaded?.state ?? newGame();
 
 let shownStage = state.stage;
 let lastFrame = performance.now();
 let lastSave = performance.now();
 
+if (loaded?.migratedFromV1) {
+  // Alter v1-Stand: Neustart, sofort als v2 speichern, damit die Meldung nur einmal kommt.
+  saveToStorage(state);
+  showToast(
+    loaded.keepsake
+      ? 'Dein Wald beginnt neu – mit Erinnerungen. Andenken „Die alte Eiche“: +5 Waldgedächtnis.'
+      : 'Dein Wald beginnt neu – das Spiel hat sich verändert.',
+  );
+}
+
 catchUp();
 
 const panel = createPanel(document.querySelector<HTMLElement>('#panel')!, {
-  onGrow: () => clickGrow(state),
-  onBuy: (id) => buyUpgrade(state, id),
+  onChoose: (e, c, replace) => afterAction(chooseCard(state, e, c, replace).ok),
+  onDecline: (e) => afterAction(declineEncounter(state, e).ok),
+  onReroll: (e) => afterAction(rerollEncounter(state, e).ok),
   onReset: () => {
     clearStorage();
-    state = createInitialState(Date.now());
+    state = newGame();
     shownStage = state.stage;
+    saveToStorage(state);
   },
 });
+
+/** Entscheidungen sofort speichern – sie sollen ein Neuladen sicher überstehen. */
+function afterAction(ok: boolean): boolean {
+  if (ok) saveToStorage(state);
+  return ok;
+}
 
 function frame(now: number): void {
   const dt = Math.min((now - lastFrame) / 1000, MAX_FRAME_SECONDS);
   lastFrame = now;
-  tick(state, dt);
+  const report = tick(state, dt);
   state.lastTick = Date.now();
+  // Neue Begegnung: gleich speichern, damit Neuladen dieselben Karten zeigt.
+  if (report.waypoints > 0) saveToStorage(state);
 
   if (state.stage !== shownStage) {
     shownStage = state.stage;
@@ -92,10 +116,16 @@ function showToast(text: string): void {
 function catchUp(): void {
   const seconds = (Date.now() - state.lastTick) / 1000;
   if (seconds > MAX_FRAME_SECONDS) {
-    const gained = simulateOffline(state, seconds);
-    if (seconds > 60 && gained > 0) {
-      showToast(`Willkommen zurück! In ${formatDuration(seconds)} hast du ${formatNumber(gained)} Energie gesammelt.`);
+    const report = simulateOffline(state, seconds);
+    if (seconds > 60 && report.growth > 0) {
+      const waiting = state.pendingEncounters.length;
+      const encounters = waiting === 1 ? '1 Begegnung wartet' : `${waiting} Begegnungen warten`;
+      showToast(
+        `Willkommen zurück! In ${formatDuration(seconds)}: +${formatNumber(report.growth)} 🌿, ` +
+          `+${formatNumber(report.seeds)} 🌰, ${encounters}.`,
+      );
     }
+    if (report.waypoints > 0) saveToStorage(state);
   }
   state.lastTick = Date.now();
   lastFrame = performance.now();

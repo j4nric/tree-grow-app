@@ -159,92 +159,201 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-.grow-button {
-  width: 100%;
-  min-height: 48px;
-  padding: 14px;
-  border: none;
-  border-radius: 10px;
-  background: var(--accent);
-  color: white;
-  font-size: 1.1rem;
-  font-weight: 600;
-  transition: transform 0.05s;
+/* --- Begegnungen (v2-Prototyp, schlicht) ------------------------------- */
+.waypoint {
+  margin-bottom: 4px;
 }
 
-.grow-button:hover {
-  background: var(--accent-dark);
+.progress.small {
+  height: 5px;
 }
 
-.grow-button:active {
-  transform: scale(0.98);
+.panel h2 .count {
+  color: var(--accent-dark);
 }
 
-.upgrades {
+.encounters {
+  display: grid;
+  gap: 12px;
+}
+
+.encounter {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fbf8ec;
+}
+
+.encounter.rerolled {
+  animation: bought 0.45s ease-out;
+}
+
+.encounter-title {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.cards {
   display: grid;
   gap: 8px;
 }
 
-.upgrade {
+.card {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 4px solid #8fb36f; /* Seltenheit: Moos */
+  border-radius: 10px;
+  background: white;
+}
+
+.card.rarity-1 {
+  border-left-color: #d39a2c; /* Bernstein */
+}
+
+.card.rarity-2 {
+  border-left-color: #8a5cc2; /* Amethyst */
+}
+
+.card.rarity-3 {
+  border-left-color: #c9a227; /* Gold */
+}
+
+.card p {
+  margin: 0;
+}
+
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.card-name {
+  font-size: 1.05rem;
+}
+
+.card-niche,
+.card-effect,
+.preview {
+  font-size: 0.82rem;
+}
+
+.card-niche,
+.preview {
+  color: var(--muted);
+}
+
+.replace {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 10px;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.replace select {
+  font: inherit;
+  min-height: 36px;
+  max-width: 100%;
+}
+
+.choose,
+.secondary {
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.choose {
+  margin-top: 4px;
+  border: none;
+  background: var(--accent);
+  color: white;
+}
+
+.choose:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+
+.secondary {
+  border: 1px solid var(--accent);
+  background: white;
+  color: var(--accent-dark);
+}
+
+.choose:disabled,
+.secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.encounter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.encounter-actions button {
+  flex: 1 1 140px;
+}
+
+/* --- Nischen ----------------------------------------------------------- */
+.niches {
+  display: grid;
+  gap: 8px;
+}
+
+.niche {
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 10px;
 }
 
-/* Kurz aufleuchten, sobald ein Upgrade bezahlbar wird */
-.upgrade.ready {
-  animation: ready 1.2s ease-out;
+.niche.arrived {
+  animation: bought 0.6s ease-out;
 }
 
-/* Bestätigung nach erfolgreichem Kauf: grüner Rand + Puls */
-.upgrade.bought {
-  animation: bought 0.45s ease-out;
-}
-
-.upgrade[hidden] {
-  display: none;
-}
-
-.upgrade-text {
-  flex: 1;
-  min-width: 0;
+.niche.closed {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.upgrade-text small {
+  justify-content: space-between;
+  gap: 8px;
   color: var(--muted);
+  border-style: dashed;
 }
 
-.level {
-  display: inline-block;
-  color: var(--muted);
-  font-weight: normal;
-}
-
-.level.bump {
-  animation: bump 0.4s ease-out;
-}
-
-.buy {
-  flex-shrink: 0;
-  min-width: 90px;
-  min-height: 44px;
-  padding: 8px 10px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: white;
-  color: var(--accent-dark);
+.niche-head {
+  display: flex;
+  justify-content: space-between;
   font-weight: 600;
 }
 
-.buy:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.niche ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.niche li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.niche li.free,
+.niche small {
+  color: var(--muted);
 }
 
 footer {
@@ -280,7 +389,7 @@ footer {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
-/* Schwebende Zahlen beim Klick auf „Wachsen“ */
+/* Schwebende Zahlen (z. B. Samen beim Ablehnen) */
 .float-layer {
   /* Am Dokument verankert, damit die Zahlen beim Scrollen mitwandern */
   position: absolute;
@@ -329,13 +438,6 @@ footer {
   }
 }
 
-@keyframes bump {
-  40% {
-    transform: translateY(-5px) scale(1.15);
-    color: var(--accent-dark);
-  }
-}
-
 @keyframes bought {
   0% {
     border-color: var(--accent);
@@ -353,14 +455,6 @@ footer {
   }
 }
 
-@keyframes ready {
-  0%,
-  40% {
-    border-color: var(--accent);
-    background: #eef6e6;
-  }
-}
-
 /* Weniger Bewegung: keine Sprünge/Skalierung, nur kurzes Einblenden */
 @media (prefers-reduced-motion: reduce) {
   .float-number {
@@ -368,14 +462,12 @@ footer {
   }
 
   .resources b.pop,
-  .level.bump,
-  .upgrade.bought,
-  .upgrade.ready {
+  .encounter.rerolled,
+  .niche.arrived {
     animation-name: highlight;
     animation-timing-function: linear;
   }
 
-  .grow-button,
   .progress-bar {
     transition: none;
   }
