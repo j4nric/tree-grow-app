@@ -231,10 +231,10 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           ],
         },
         "rngState": 3708559431,
-        "seeds": 8606,
+        "seeds": 11934,
         "stage": 5,
-        "totalGrowth": 111800,
-        "waypoint": 20,
+        "totalGrowth": 160105,
+        "waypoint": 27,
       }
     `);
   });
