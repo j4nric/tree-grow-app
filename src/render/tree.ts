@@ -16,9 +16,10 @@
  */
 
 import { createAnchorResolver, type AnchorResolver } from './anchors';
-import { drawAnimals, SpriteCache, type SceneAnimal } from './animals';
+import { AnimalLayer, type AnimalFrame, type SceneAnimal } from './animals';
 import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
 import { paintLeaves, paintWood, type LeafPalette, type WoodColors } from './plant';
+import { ResizeGate } from './resize';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
 import { clamp01, mix, mulberry32, smooth01 } from './util';
 
@@ -42,8 +43,12 @@ const REDRAW_STEP = 0.005;
 const REDRAW_SETTLE_SECONDS = 1;
 /** Höchstens so oft (s) neu zeichnen – bei schnellem Wachstum bleibt die Bildrate stabil. */
 const REDRAW_MIN_INTERVAL = 0.2;
-/** So lange (s) muss eine neue Canvas-Größe stabil sein, bevor neu aufgebaut wird. */
-const RESIZE_SETTLE_SECONDS = 0.15;
+/**
+ * Ersatz für die Zeitregeln, falls die Zeit steht (Pause, feste Demo-Zeit): nach so vielen
+ * Frames wird eine Wachstumsänderung trotzdem nachgezogen (klein / groß).
+ */
+const REDRAW_SETTLE_FRAMES = 60;
+const REDRAW_MIN_FRAMES = 12;
 /** Ab diesem Wachstumswert (Stufe „Hain“) erscheinen weitere Bäume. */
 const GROVE_GROWTH = 5;
 
@@ -108,17 +113,22 @@ interface SizeCache {
   frontRect: Rect | null;
   growth: number;
   drawnAt: number;
+  /** Frames seit dem letzten Neuzeichnen der Ebenen. */
+  framesSinceDraw: number;
   anchors: AnchorResolver | null;
 }
 
 interface Cache {
   size: SizeCache | null;
-  /** Neue Größe, die noch auf Stabilität wartet. */
-  pendingKey: string;
-  pendingSince: number;
-  sprites: SpriteCache;
-  spriteKey: string;
+  /** Entprellt Größenänderungen. */
+  gate: ResizeGate;
+  /** Tier-Ebene mit Sprite-Cache und vorberechnetem Plan. */
+  animals: AnimalLayer;
+  spriteKey: number;
 }
+
+/** Wiederverwendete Frame-Daten für die Tier-Ebene (keine Allokation pro Frame). */
+const animalFrame: AnimalFrame = { time: 0, windSkew: 0, reducedMotion: false, dpr: 1, sx: 1, sy: 1 };
 
 /** Vereinigt einen Bereich (CSS-Pixel) mit `r` und gibt das Ergebnis zurück. */
 function unionRect(r: Rect | null, x0: number, y0: number, x1: number, y1: number): Rect {
@@ -153,57 +163,64 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   if (pw <= 0 || ph <= 0) return;
   const dpr = pw / width || 1;
   const g = Math.max(0, Number.isFinite(input.growth) ? input.growth : 0);
-  const time = input.time;
+  // Ungültige Zeit (NaN/∞) wie 0 behandeln; die Frame-Zählung übernimmt dann.
+  const time = Number.isFinite(input.time) ? input.time : 0;
 
   let cache = caches.get(ctx.canvas);
   if (!cache) {
-    cache = { size: null, pendingKey: '', pendingSince: 0, sprites: new SpriteCache(), spriteKey: '' };
+    cache = { size: null, gate: new ResizeGate(), animals: new AnimalLayer(), spriteKey: -1 };
     caches.set(ctx.canvas, cache);
   }
 
   // Größenänderung entprellen: altes Bild skaliert zeigen, bis die Größe stabil ist.
-  const key = `${pw}x${ph}/${width}x${height}`;
   let sc = cache.size;
-  if (sc && sc.key === key) {
-    cache.pendingKey = '';
-  } else {
-    if (cache.pendingKey !== key) {
-      cache.pendingKey = key;
-      cache.pendingSince = time;
-    }
-    const waited = time - cache.pendingSince;
-    if (!sc || waited >= RESIZE_SETTLE_SECONDS || waited < 0) {
-      sc = buildSizeCache(sc, key, width, height, pw, ph, dpr);
-      cache.size = sc;
-      cache.pendingKey = '';
-    }
+  const key = sc && sc.pw === pw && sc.ph === ph && sc.layout.width === width && sc.layout.height === height ? sc.key : sizeKey(pw, ph, width, height);
+  if (cache.gate.shouldRebuild(key, sc ? sc.key : null, input.time)) {
+    sc = buildSizeCache(sc, key, width, height, pw, ph, dpr);
+    cache.size = sc;
   }
+  sc = sc!;
 
   const delta = Math.abs(g - sc.growth);
   const since = time - sc.drawnAt;
+  const frames = ++sc.framesSinceDraw;
   const clockReset = since < 0;
-  const due = (delta >= REDRAW_STEP && since >= REDRAW_MIN_INTERVAL) || (delta > 0 && since > REDRAW_SETTLE_SECONDS);
+  const due =
+    (delta >= REDRAW_STEP && (since >= REDRAW_MIN_INTERVAL || frames >= REDRAW_MIN_FRAMES)) ||
+    (delta > 0 && (since > REDRAW_SETTLE_SECONDS || frames >= REDRAW_SETTLE_FRAMES));
   if (Number.isNaN(sc.growth) || clockReset || due) {
     renderLayers(sc, g);
     sc.growth = g;
     sc.drawnAt = time;
+    sc.framesSinceDraw = 0;
   }
 
-  // Sprites einer alten Tiergröße/Pixeldichte verwerfen.
-  const spriteKey = `${sc.anchors?.size}/${sc.dpr}`;
+  // Sprites einer alten Tiergröße/Pixeldichte verwerfen (numerischer Schlüssel, kein String pro Frame).
+  const spriteKey = (sc.anchors?.size ?? 0) * 100_000 + Math.round(sc.dpr * 1000);
   if (cache.spriteKey !== spriteKey) {
-    cache.sprites.clear();
+    cache.animals.sprites.clear();
     cache.spriteKey = spriteKey;
   }
 
-  compose(ctx, sc, cache.sprites, input, pw / sc.pw, ph / sc.ph);
+  compose(ctx, sc, cache.animals, input, time, pw / sc.pw, ph / sc.ph);
+}
+
+function sizeKey(pw: number, ph: number, width: number, height: number): string {
+  return `${pw}x${ph}/${width}x${height}`;
 }
 
 /** Setzt die gecachten Ebenen zusammen – nur drawImage und günstige Transformationen. */
-function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, sprites: SpriteCache, input: SceneInput, sx: number, sy: number): void {
+function compose(
+  ctx: CanvasRenderingContext2D,
+  sc: SizeCache,
+  layer: AnimalLayer,
+  input: SceneInput,
+  time: number,
+  sx: number,
+  sy: number,
+): void {
   const { dpr, layout } = sc;
   const reduced = input.reducedMotion === true;
-  const time = input.time;
   ctx.save();
   ctx.setTransform(sx, 0, 0, sy, 0, 0);
   ctx.drawImage(sc.background, 0, 0);
@@ -221,7 +238,14 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, sprites: SpriteCa
   }
   const animals = input.animals;
   if (animals && animals.length > 0 && sc.anchors) {
-    drawAnimals(ctx, animals, sc.anchors, sprites, { time, windSkew: k, reducedMotion: reduced, dpr, sx, sy });
+    const f = animalFrame;
+    f.time = time;
+    f.windSkew = k;
+    f.reducedMotion = reduced;
+    f.dpr = dpr;
+    f.sx = sx;
+    f.sy = sy;
+    layer.draw(ctx, animals, sc.anchors, f);
   }
   ctx.restore();
 }
@@ -260,6 +284,7 @@ function buildSizeCache(
     frontRect: null,
     growth: NaN,
     drawnAt: 0,
+    framesSinceDraw: 0,
     anchors: null,
   };
 

@@ -101,11 +101,11 @@ describe('Tier-Ankerpunkte', () => {
     expect(r.get('crown', 2)).toEqual(r.get('crown', 2));
   });
 
-  it('Tiergröße bleibt zwischen 16 und 28 px', () => {
+  it('Tiergröße bleibt zwischen 20 und 36 px', () => {
     for (const [w, h] of [...SIZES, [100, 100] as [number, number], [4000, 3000] as [number, number]]) {
       const s = animalSize(w, h);
-      expect(s).toBeGreaterThanOrEqual(16);
-      expect(s).toBeLessThanOrEqual(28);
+      expect(s).toBeGreaterThanOrEqual(20);
+      expect(s).toBeLessThanOrEqual(36);
     }
   });
 });

@@ -707,30 +707,45 @@ const DEFS: Record<string, SpriteDef> = {
   mycel: { x0: -0.8, y0: -0.04, x1: 0.8, y1: 1.0, paint: (c) => paintMycel(c) },
 };
 
-/** Sprite-Cache je Art, Frame, Variante, Größe und Pixeldichte. */
+/**
+ * Sprite-Cache je Art, Frame, Variante, Größe und Pixeldichte.
+ * Schlüssel: Art (String, ohne Neuanlage) → numerischer Schlüssel – pro Frame entstehen
+ * keine neuen Strings.
+ */
 export class SpriteCache {
-  private sprites = new Map<string, Sprite>();
+  private byKind = new Map<string, Map<number, Sprite>>();
+  private total = 0;
 
   get(kind: string, frame: number, muted: boolean, size: number, dpr: number): Sprite {
-    const px = Math.max(4, Math.round(size));
-    const key = `${kind}/${frame}/${muted ? 1 : 0}/${px}/${dpr}`;
-    let s = this.sprites.get(key);
+    const px = Math.max(4, Math.min(4095, Math.round(size)));
+    const key = ((Math.round(dpr * 64) * 4096 + px) * 4 + (frame & 3)) * 2 + (muted ? 1 : 0);
+    let map = this.byKind.get(kind);
+    if (!map) {
+      map = new Map();
+      this.byKind.set(kind, map);
+    }
+    let s = map.get(key);
     if (!s) {
       // Sicherheitsnetz: nie unbegrenzt viele Sprites ansammeln.
-      if (this.sprites.size > 400) this.sprites.clear();
+      if (this.total >= 400) {
+        this.clear();
+        return this.get(kind, frame, muted, size, dpr);
+      }
       s = muted ? desaturate(this.get(kind, frame, false, size, dpr)) : renderSprite(DEFS[kind] ?? DEFS.insect!, frame, px, dpr);
-      this.sprites.set(key, s);
+      map.set(key, s);
+      this.total++;
     }
     return s;
   }
 
   /** Alte Größen verwerfen (z. B. nach einer Größenänderung). */
   clear(): void {
-    this.sprites.clear();
+    this.byKind.clear();
+    this.total = 0;
   }
 
   get count(): number {
-    return this.sprites.size;
+    return this.total;
   }
 }
 
@@ -754,7 +769,7 @@ function desaturate(src: Sprite): Sprite {
   const canvas = document.createElement('canvas');
   canvas.width = src.canvas.width;
   canvas.height = src.canvas.height;
-  const c = canvas.getContext('2d')!;
+  const c = canvas.getContext('2d', { willReadFrequently: true })!;
   c.drawImage(src.canvas, 0, 0);
   try {
     const img = c.getImageData(0, 0, canvas.width, canvas.height);
@@ -789,23 +804,6 @@ export interface AnimalFrame {
 
 const NICHE_ORDER: Record<string, number> = { roots: 0, litter: 1, edge: 2, bark: 3, hollows: 4, crown: 5 };
 
-/** Zeichnet alle Tiere. Der Kontext wird in Gerätepixeln angesprochen (eigene Transformationen). */
-export function drawAnimals(
-  ctx: CanvasRenderingContext2D,
-  animals: readonly SceneAnimal[],
-  anchors: AnchorResolver,
-  sprites: SpriteCache,
-  f: AnimalFrame,
-): void {
-  if (animals.length === 0) return;
-  const list = animals.length > 1 ? [...animals].sort((a, b) => (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9)) : animals;
-  for (const animal of list) {
-    const anchor = anchors.get(animal.niche, animal.slot);
-    if (anchor) drawAnimal(ctx, animal, anchor, anchors, sprites, f);
-  }
-  ctx.globalAlpha = 1;
-}
-
 interface Pose {
   x: number;
   y: number;
@@ -813,150 +811,240 @@ interface Pose {
   dir: number;
   /** Drehung (rad), z. B. −π/2 für Krabbeln den Stamm hinauf. */
   rot: number;
-  scale: number;
   frame: number;
 }
 
-function drawAnimal(
-  ctx: CanvasRenderingContext2D,
-  animal: SceneAnimal,
-  anchor: NicheAnchor,
-  anchors: AnchorResolver,
-  sprites: SpriteCache,
-  f: AnimalFrame,
-): void {
+interface Deco {
+  name: string;
+  x: number;
+  y: number;
+  size: number;
+}
+
+/** Alles, was sich für ein Tier nur ändert, wenn sich Tierliste oder Baum ändern. */
+interface PlanEntry {
+  /** Index in der aktuellen Tierliste (Zufriedenheit wird pro Frame frisch gelesen). */
+  index: number;
+  kind: string;
+  info: KindInfo;
+  seed: number;
+  phase: number;
+  niche: string;
+  /** Sprite-Größe in px. */
+  size: number;
+  /** Ruhelage ohne Wind. */
+  x: number;
+  y: number;
+  dir: number;
+  rot: number;
+  travel: number;
+  vertical: boolean;
+  /** Wind: Verschiebung = windSkew · windArm (0 für Tiere am Boden). */
+  windArm: number;
+  /** Dekos vor bzw. nach dem Tier (Blumen, Laub, Erdloch, Höhle …). */
+  before: Deco[];
+  after: Deco[];
+  /** Wiederverwendetes Pose-Objekt (keine Allokation pro Frame). */
+  pose: Pose;
+}
+
+/** Merkmale eines Tiers, von denen der Plan abhängt. */
+interface Signature {
+  id: string;
+  family: string;
+  niche: string;
+  slot: number;
+}
+
+/**
+ * Tier-Ebene einer Szene: Sprite-Cache und ein vorberechneter Plan (Reihenfolge, Art,
+ * Lage, Dekos). Der Plan wird nur neu gebaut, wenn sich Ankerpunkte (Baum/Größe) oder
+ * Arten/Nischen/Plätze der Tiere ändern – auch wenn jedes Frame ein neues Array kommt.
+ */
+export class AnimalLayer {
+  readonly sprites = new SpriteCache();
+  private plan: PlanEntry[] = [];
+  private signature: Signature[] = [];
+  private anchors: AnchorResolver | null = null;
+  /** Wie oft der Plan gebaut wurde (für Tests). */
+  builds = 0;
+
+  draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame): void {
+    if (animals.length === 0) return;
+    if (anchors !== this.anchors || !this.matches(animals)) this.rebuild(animals, anchors);
+    for (const e of this.plan) {
+      drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  private matches(animals: readonly SceneAnimal[]): boolean {
+    const sig = this.signature;
+    if (sig.length !== animals.length) return false;
+    for (let i = 0; i < sig.length; i++) {
+      const a = animals[i]!;
+      const s = sig[i]!;
+      if (s.id !== a.id || s.family !== a.family || s.niche !== a.niche || s.slot !== a.slot) return false;
+    }
+    return true;
+  }
+
+  private rebuild(animals: readonly SceneAnimal[], anchors: AnchorResolver): void {
+    this.builds++;
+    this.anchors = anchors;
+    this.signature = animals.map((a) => ({ id: a.id, family: a.family, niche: a.niche, slot: a.slot }));
+    const plan: PlanEntry[] = [];
+    animals.forEach((animal, index) => {
+      const anchor = anchors.get(animal.niche, animal.slot);
+      if (anchor) plan.push(planEntry(animal, index, anchor, anchors));
+    });
+    // Stabile Sortierung: Boden zuerst, Krone zuletzt.
+    plan.sort((a, b) => (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9) || a.index - b.index);
+    this.plan = plan;
+  }
+}
+
+function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anchors: AnchorResolver): PlanEntry {
   const kind = animalKind(animal);
   const info = KINDS[kind] ?? KINDS.insect!;
   const S = anchors.size;
   const groundY = anchors.layout.groundY;
-  const happy = clamp01(Number.isFinite(animal.happiness) ? animal.happiness : 0.5);
+  const seed = hash2(hashString(String(animal.id ?? '')), anchor.slot * 31 + (NICHE_ORDER[anchor.niche] ?? 0));
+  const niche = anchor.niche;
+  const ax = anchor.x;
+  const ay = anchor.y;
+  const e: PlanEntry = {
+    index,
+    kind,
+    info,
+    seed,
+    phase: (seed & 1023) / 97,
+    niche,
+    size: S * info.size,
+    x: ax,
+    y: ay,
+    dir: anchor.side === 1 ? -1 : 1,
+    rot: 0,
+    travel: 0,
+    vertical: false,
+    windArm: anchor.onTree ? anchor.y - groundY : 0,
+    before: [],
+    after: [],
+    pose: { x: 0, y: 0, dir: 1, rot: 0, frame: 0 },
+  };
+
+  if (kind === 'mushroom' || kind === 'bracket') {
+    e.dir = anchor.side;
+    if (kind === 'mushroom' && niche === 'roots') {
+      // Fruchtkörper an der Oberfläche, Geflecht reicht hinab zu den Wurzeln.
+      e.x = anchor.surfaceX;
+      e.y = groundY + 1;
+      e.before.push({ name: 'mycel', x: anchor.surfaceX, y: groundY + 1, size: e.size * 1.1 });
+    }
+    return e;
+  }
+
+  switch (niche) {
+    case 'roots':
+      e.before.push({ name: 'burrow', x: ax, y: ay, size: S });
+      e.y = ay + S * (kind === 'earthworm' ? 0.06 : 0.12);
+      e.travel = S * 0.18;
+      break;
+    case 'litter':
+      e.before.push({ name: 'litter', x: ax, y: ay, size: S });
+      e.travel = S * 0.4;
+      if (kind === 'earthworm') e.y = ay - S * 0.04;
+      break;
+    case 'edge':
+      e.before.push({ name: 'flowers', x: ax, y: ay, size: S * 1.15 });
+      if (info.motion === 'hover') {
+        e.y = ay - S * 1.15;
+      } else if (kind === 'insect' || kind === 'oakmoth' || kind === 'barkbeetle') {
+        // Kleine Krabbler sitzen auf der Blüte.
+        e.y = ay - S * 0.72;
+        e.x = ax + S * 0.21;
+      } else {
+        e.x = ax + anchor.side * S * 0.55;
+        e.travel = S * 0.3;
+      }
+      break;
+    case 'crown':
+      e.travel = S * 0.12;
+      if (info.motion === 'hover') e.y = ay - S * 0.3;
+      break;
+    case 'bark':
+      if (info.cling) {
+        e.dir = -anchor.side;
+      } else if (info.motion === 'hop' || info.motion === 'sniff') {
+        e.dir = anchor.side;
+      } else {
+        // Krabbler laufen auf der Rinde den Stamm hinauf.
+        e.vertical = true;
+        e.x = anchor.trunkX + anchor.side * anchor.trunkHalf * 0.35;
+        e.rot = -Math.PI / 2;
+        e.travel = Math.min(S * 0.35, anchor.trunkHalf * 3);
+      }
+      break;
+    case 'hollows': {
+      // Die Höhle passt sich dem (anfangs schmalen) Stamm an; in Zehntelschritten,
+      // damit nur wenige Sprite-Größen entstehen.
+      const fit = Math.round(clamp((anchor.trunkHalf * 2.5) / (0.72 * S), 0.6, 1) * 10) / 10;
+      e.before.push({ name: 'hollow', x: ax, y: ay, size: S * fit });
+      e.after.push({ name: 'hollowLip', x: ax, y: ay, size: S * fit });
+      e.y = ay - S * 0.06 * fit;
+      e.size *= 0.78 * fit;
+      e.dir = anchor.side;
+      break;
+    }
+  }
+  return e;
+}
+
+function drawEntry(
+  ctx: CanvasRenderingContext2D,
+  e: PlanEntry,
+  happiness: number,
+  S: number,
+  sprites: SpriteCache,
+  f: AnimalFrame,
+): void {
+  const happy = clamp01(Number.isFinite(happiness) ? happiness : 0.5);
   const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6);
   const muted = 1 - smooth01((happy - 0.15) / 0.3);
-  const seed = hash2(hashString(animal.id), anchor.slot * 31 + (NICHE_ORDER[anchor.niche] ?? 0));
-  const phase = (seed & 1023) / 97;
-  const t = f.time;
-  const size = S * info.size;
-
   // Mit dem Baum im Wind schwingen (gleiche Scherung wie die Baumebene).
-  const wx = anchor.onTree ? f.windSkew * (anchor.y - groundY) : 0;
-  const ax = anchor.x + wx;
-  const ay = anchor.y;
+  const wx = f.windSkew * e.windArm;
 
-  const pose: Pose = { x: ax, y: ay, dir: anchor.side === 1 ? -1 : 1, rot: 0, scale: 1, frame: 0 };
-  const decoBefore: [string, number, number, number][] = [];
-  const decoAfter: [string, number, number, number][] = [];
-  const niche = anchor.niche;
-  const isFungus = kind === 'mushroom' || kind === 'bracket';
-  let travel = 0; // Bewegungsspielraum (px) beim Krabbeln
-  let vertical = false;
+  const pose = e.pose;
+  pose.x = e.x + wx;
+  pose.y = e.y;
+  pose.dir = e.dir;
+  pose.rot = e.rot;
+  pose.frame = 0;
+  animate(e, pose, act, f.time, S, f.reducedMotion);
+  if (pose.frame >= e.info.frames) pose.frame = 0;
 
-  if (isFungus) {
-    if (kind === 'bracket') {
-      pose.x = anchor.x + wx;
-      pose.dir = anchor.side;
-    } else if (niche === 'roots') {
-      // Fruchtkörper an der Oberfläche, Geflecht reicht hinab zu den Wurzeln.
-      pose.x = anchor.surfaceX;
-      pose.y = groundY + 1;
-      decoBefore.push(['mycel', anchor.surfaceX, groundY + 1, size * 1.1]);
-      pose.dir = anchor.side;
-    } else {
-      pose.dir = anchor.side;
-    }
-  } else {
-    switch (niche) {
-      case 'roots':
-        decoBefore.push(['burrow', ax, ay, S]);
-        pose.y = ay + S * 0.12;
-        travel = S * 0.18;
-        if (kind === 'earthworm') pose.y = ay + S * 0.06;
-        else if (kind === 'woodpecker') pose.rot = 0;
-        break;
-      case 'litter':
-        decoBefore.push(['litter', ax, ay, S]);
-        travel = S * 0.4;
-        if (kind === 'earthworm') pose.y = ay - S * 0.04;
-        break;
-      case 'edge':
-        decoBefore.push(['flowers', ax, ay, S * 1.15]);
-        if (info.motion === 'hover') {
-          pose.y = ay - S * 1.15;
-        } else if (kind === 'insect' || kind === 'oakmoth' || kind === 'barkbeetle') {
-          pose.y = ay - S * 0.72;
-          pose.x = ax + S * 0.21;
-        } else {
-          pose.x = ax + anchor.side * S * 0.55;
-          travel = S * 0.3;
-        }
-        break;
-      case 'crown':
-        travel = S * 0.12;
-        if (info.motion === 'hover') pose.y = ay - S * 0.3;
-        break;
-      case 'bark':
-        if (info.cling) {
-          pose.dir = -anchor.side;
-        } else if (info.motion === 'hop' || info.motion === 'sniff') {
-          pose.dir = anchor.side;
-        } else {
-          // Krabbler laufen auf der Rinde den Stamm hinauf.
-          vertical = true;
-          pose.x = anchor.trunkX + wx + anchor.side * anchor.trunkHalf * 0.35;
-          pose.rot = -Math.PI / 2;
-          travel = Math.min(S * 0.35, anchor.trunkHalf * 3);
-        }
-        break;
-      case 'hollows': {
-        // Die Höhle passt sich dem (anfangs schmalen) Stamm an; in Zehntelschritten,
-        // damit nur wenige Sprite-Größen entstehen.
-        const fit = Math.round(clamp((anchor.trunkHalf * 2.5) / (0.72 * S), 0.6, 1) * 10) / 10;
-        decoBefore.push(['hollow', ax, ay, S * fit]);
-        decoAfter.push(['hollowLip', ax, ay, S * fit]);
-        pose.y = ay - S * 0.06 * fit;
-        pose.scale = 0.78 * fit;
-        pose.dir = anchor.side;
-        break;
-      }
-    }
-  }
-
-  animate(info, pose, act, t, phase, seed, travel, vertical, S, niche, f.reducedMotion);
-  if (pose.frame >= info.frames) pose.frame = 0;
-
-  for (const [name, x, y, s] of decoBefore) blit(ctx, sprites.get(name, 0, false, s, f.dpr), x, y, 1, 0, 1, f);
-  const spriteSize = size * pose.scale;
+  for (const d of e.before) blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
   if (muted < 0.99) {
-    blit(ctx, sprites.get(kind, pose.frame, false, spriteSize, f.dpr), pose.x, pose.y, pose.dir, pose.rot, 1, f);
+    blit(ctx, sprites.get(e.kind, pose.frame, false, e.size, f.dpr), pose.x, pose.y, pose.dir, pose.rot, 1, f);
   }
   if (muted > 0.01) {
-    blit(ctx, sprites.get(kind, pose.frame, true, spriteSize, f.dpr), pose.x, pose.y, pose.dir, pose.rot, muted < 0.99 ? muted : 1, f);
+    blit(ctx, sprites.get(e.kind, pose.frame, true, e.size, f.dpr), pose.x, pose.y, pose.dir, pose.rot, muted < 0.99 ? muted : 1, f);
   }
-  for (const [name, x, y, s] of decoAfter) blit(ctx, sprites.get(name, 0, false, s, f.dpr), x, y, 1, 0, 1, f);
+  for (const d of e.after) blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
 }
 
 /** Bewegung als günstige Verschiebung/Spiegelung; Stärke folgt der Zufriedenheit. */
-function animate(
-  info: KindInfo,
-  pose: Pose,
-  act: number,
-  t: number,
-  phase: number,
-  seed: number,
-  travel: number,
-  vertical: boolean,
-  S: number,
-  niche: string,
-  reduced: boolean,
-): void {
+function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, reduced: boolean): void {
+  const info = e.info;
   if (reduced || act <= 0.01) {
-    if (info.motion === 'hover' && niche === 'edge') pose.y += S * 0.43; // ruht auf der Blüte
+    if (info.motion === 'hover' && e.niche === 'edge') pose.y += S * 0.43; // ruht auf der Blüte
     return;
   }
   switch (info.motion) {
     case 'hop':
     case 'sniff': {
       const period = 7 - 4.2 * act;
-      const u = t / period + phase;
+      const u = t / period + e.phase;
       const n = Math.floor(u);
       const local = (u - n) * period;
       const dur = info.motion === 'hop' ? 0.34 : 0.5;
@@ -965,18 +1053,17 @@ function animate(
         pose.y -= Math.sin((local / dur) * Math.PI) * S * amp * act;
       }
       // Ab und zu umdrehen (beim Hüpfen).
-      if (niche !== 'hollows' && (hash2(seed, n) & 3) === 0) pose.dir = -pose.dir;
+      if (e.niche !== 'hollows' && (hash2(e.seed, n) & 3) === 0) pose.dir = -pose.dir;
       break;
     }
     case 'peck': {
       const period = 4.5 - 2 * act;
-      const local = ((t / period + phase) % 1) * period;
+      const local = ((t / period + e.phase) % 1) * period;
       if (local < 0.8) pose.x += pose.dir * S * 0.07 * Math.max(0, Math.sin(local * TAU * 5));
       break;
     }
     case 'hover': {
-      const w = 1.3;
-      const p = t * w + phase;
+      const p = t * 1.3 + e.phase;
       pose.x += S * 0.32 * act * Math.sin(p);
       pose.y += S * 0.14 * act * Math.sin(p * 2);
       pose.dir = Math.cos(p) >= 0 ? 1 : -1;
@@ -987,14 +1074,14 @@ function animate(
     case 'inch':
     case 'wiggle': {
       const slow = info.motion === 'crawl' ? 0.55 : 0.3;
-      const p = t * slow + phase;
-      const off = travel * act * Math.sin(p);
+      const p = t * slow + e.phase;
+      const off = e.travel * act * Math.sin(p);
       const vel = Math.cos(p);
-      if (vertical) pose.y -= off;
+      if (e.vertical) pose.y -= off;
       else pose.x += off;
-      if (travel > 0 && Math.abs(vel) > 0.15) {
-        if (vertical) pose.dir = vel >= 0 ? 1 : -1;
-        else pose.dir = vel >= 0 ? 1 : -1;
+      if (e.travel > 0 && Math.abs(vel) > 0.15) {
+        // In Laufrichtung schauen (auf der Rinde: hinauf bzw. hinab).
+        pose.dir = vel >= 0 ? 1 : -1;
         const rate = info.motion === 'crawl' ? 8 : info.motion === 'inch' ? 1.6 : 2.4;
         pose.frame = Math.floor(t * rate) % 2;
       } else if (info.motion === 'wiggle') {

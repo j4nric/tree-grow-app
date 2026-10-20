@@ -39,9 +39,9 @@ export interface NicheAnchor {
   surfaceX: number;
 }
 
-/** Grundgröße eines Tiers in CSS-Pixeln (16–28 px je nach Canvas). */
+/** Grundgröße eines Tiers in CSS-Pixeln (20–36 px je nach Canvas). */
 export function animalSize(width: number, height: number): number {
-  return Math.round(clamp(Math.min(width * 0.055, height * 0.04), 16, 28));
+  return Math.round(clamp(Math.min(width * 0.072, height * 0.052), 20, 36));
 }
 
 /** Liefert Ankerpunkte (gemerkt) für eine feste Szene: Größe + Wachstum. */
@@ -96,22 +96,23 @@ export function nicheAnchors(width: number, height: number, growth: number, slot
 
 /** Stammhöhen (Anteil) und Seiten der Plätze an der Rinde bzw. der Höhlen. */
 const BARK_SLOTS: [number, -1 | 1][] = [
-  [0.24, 1],
-  [0.62, -1],
+  [0.28, 1],
+  [0.72, -1],
   [0.96, -1],
-  [0.72, 1],
-  [0.34, -1],
+  [0.5, 1],
+  [0.42, -1],
 ];
 /**
  * Höhlen liegen höhenversetzt zwischen den Rindenplätzen. Die Reihenfolge folgt dem
  * Öffnen der Plätze (Rinde 0, Rinde 1 + Höhle 0, Höhle 1, Rinde 2, Höhle 2), damit
- * gleichzeitig belegte Plätze möglichst weit auseinanderliegen.
+ * gleichzeitig belegte Plätze möglichst weit auseinanderliegen: Rindenkrabbler laufen
+ * links (−1), die ersten Höhlen liegen rechts (1) über dem Specht.
  */
 const HOLLOW_SLOTS: [number, -1 | 1][] = [
-  [0.82, 1],
-  [0.44, -1],
-  [0.08, 1],
-  [0.53, 1],
+  [0.84, 1],
+  [0.56, 1],
+  [0.3, -1],
+  [0.12, -1],
   [0.9, -1],
 ];
 /** Wurzelraum: Lage relativ zur Wurzelbreite (u) und Erdtiefe (v). */
@@ -144,7 +145,7 @@ function computeAnchor(
       const y = groundY + clamp(v0 * soilH, size * 0.7, soilH - size * 0.5);
       const side = u0 < 0 ? -1 : 1;
       // Pilze an der Oberfläche: in der Lücke zwischen Laubstreu und Waldsaum.
-      const inner = trunkBaseHalf(g, main, layout) + size * 2.9;
+      const inner = trunkBaseHalf(g, main, layout) + size * 3.0;
       const outer = Math.max(inner, width * 0.33 - size * 0.8);
       const frac = [0.5, 0.15, 0.85][Math.floor(slot / 2) % 3]!;
       const surfaceX = cx + side * (inner + (outer - inner) * frac);
@@ -154,7 +155,7 @@ function computeAnchor(
     case 'litter': {
       const side = slot % 2 === 0 ? -1 : 1;
       const k = Math.floor(slot / 2);
-      const x = cx + side * (trunkBaseHalf(g, main, layout) + size * (1.0 + 1.25 * k));
+      const x = cx + side * (trunkBaseHalf(g, main, layout) + size * (1.0 + 1.4 * k));
       a = { ...base, x, y: groundY + 2, side };
       break;
     }
@@ -170,7 +171,9 @@ function computeAnchor(
       const [t, side] = niche === 'bark' ? cycle(BARK_SLOTS, slot, 0.05) : cycle(HOLLOW_SLOTS, slot, 0.04);
       const p = trunkPoint(layout, main, t);
       const x = niche === 'bark' ? p.x + side * p.half : p.x + side * p.half * 0.35;
-      a = { ...base, x, y: p.y, side, onTree: true, trunkX: p.x, trunkHalf: p.half };
+      // Rindenbewohner (z. B. der Specht mit Stützschwanz) brauchen Abstand zum Boden.
+      const y = niche === 'bark' ? Math.min(p.y, layout.groundY - size) : p.y;
+      a = { ...base, x, y, side, onTree: true, trunkX: p.x, trunkHalf: p.half };
       break;
     }
     case 'crown': {
