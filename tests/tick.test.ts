@@ -132,6 +132,19 @@ describe('simulateOffline', () => {
     expect(report.autoDeclined).toBe(report.waypoints - MAX_PENDING_ENCOUNTERS);
   });
 
+  it('gleich mit Platz-Schaffern (Borkenkäfer öffnet Höhlen) über den Alten Baum hinaus', () => {
+    const online = stateAt(3, ['barkbeetle', 'earthworm'], 4242);
+    const offline = structuredClone(online);
+    for (let i = 0; i < 2 * 3600; i++) tick(online, 1);
+    simulateOffline(offline, 2 * 3600);
+    expect(online.stage).toBeGreaterThanOrEqual(4);
+    expect(evaluate(online).slots.hollows).toBeGreaterThanOrEqual(2);
+    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
+    expect(offline.rngState).toBe(online.rngState);
+    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
+    expect(offline.seeds).toBeCloseTo(online.seeds, 6);
+  });
+
   it('auch mit Frame-Schritten (60 fps) und Entscheidungen dazwischen', () => {
     const a = createInitialState(0, 7);
     const b = createInitialState(0, 7);
@@ -221,6 +234,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "edge": [
             "bee",
           ],
+          "hollows": [],
           "litter": [
             "robin",
             "centipede",

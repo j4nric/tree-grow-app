@@ -7,7 +7,10 @@ import {
   evaluate,
   evaluateEcosystem,
   growth,
+  hasSpecies,
+  nicheOverflow,
   nicheSlots,
+  nichesAfterChoice,
   secondsToNextWaypoint,
   stageForWaypoint,
   stageProgress,
@@ -15,9 +18,9 @@ import {
   waypointProgress,
   waypointsForGrowth,
 } from '../src/core/formulas';
-import { createInitialState } from '../src/core/state';
+import { MAX_FOREST_MEMORY, createInitialState } from '../src/core/state';
 import { evaluate as referenceEvaluate, emptyEco } from '../scripts/v2/model';
-import { stateAt } from './helpers';
+import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
 describe('evaluate', () => {
   it('leerer Samen: Harmonie 5 (Tragfähigkeit), 1,05 🌿/s', () => {
@@ -84,10 +87,35 @@ describe('evaluate', () => {
     expect(evaluate(state).harmony).toBeCloseTo(before.harmony);
   });
 
+  it('Waldgedächtnis ist auf MAX_FOREST_MEMORY begrenzt', () => {
+    const state = stateAt(2);
+    state.meta.forestMemory = MAX_FOREST_MEMORY;
+    const capped = evaluate(state).growth;
+    for (const huge of [1e9, Number.MAX_VALUE]) {
+      state.meta.forestMemory = huge;
+      expect(evaluate(state).growth).toBe(capped);
+    }
+    state.meta.forestMemory = Infinity; // ungültig → zählt nicht
+    expect(evaluate(state).growth).toBeCloseTo(evaluate(stateAt(2)).growth);
+  });
+
+  it('das gecachte Ergebnis ist tief eingefroren', () => {
+    const ev = evaluate(stateAt(3, ['earthworm', 'oakmoth']));
+    for (const part of [ev, ev.animals, ev.animals.earthworm, ev.animals.earthworm!.needs, ev.slots, ev.genusCounts, ev.traitTiers, ev.breakdown]) {
+      expect(Object.isFrozen(part)).toBe(true);
+    }
+    expect(() => {
+      (ev.slots as Record<string, number>).roots = 99;
+    }).toThrow(TypeError);
+    expect(() => (ev.animals.earthworm!.needs as boolean[]).push(true)).toThrow(TypeError);
+    // Vorschauen bleiben veränderbar (nicht geteilt).
+    expect(Object.isFrozen(evaluateEcosystem({ stage: 1, niches: stateAt(1).niches, forestMemory: 0 }))).toBe(false);
+  });
+
   it('übersteht unbekannte Arten und ungültige Stufen', () => {
     const ev = evaluateEcosystem({
       stage: 99,
-      niches: { roots: ['gibt-es-nicht'], litter: [], edge: [], crown: [], bark: [] },
+      niches: { roots: ['gibt-es-nicht'], litter: [], edge: [], crown: [], bark: [], hollows: [] },
       forestMemory: 0,
     });
     expect(Number.isFinite(ev.growth)).toBe(true);
@@ -108,6 +136,8 @@ describe('evaluate', () => {
         expect(ours.growth, label).toBeCloseTo(ref.growth, 9);
         expect(ours.seeds, label).toBeCloseTo(ref.seeds, 9);
         expect(ours.avgHappiness, label).toBeCloseTo(ref.avgHappiness, 9);
+        // Plätze inkl. „+1 Höhlen“ von Borkenkäfer und Buntspecht
+        expect(ours.slots, label).toEqual(ref.slots);
       }
     }
   });
@@ -140,6 +170,52 @@ describe('Wegpunkte und Stufen', () => {
     expect(nicheSlots(1).roots).toBe(1);
     expect(nicheSlots(99).roots).toBe(0);
     expect(Object.keys(nicheSlots(3))).toEqual([...NICHE_IDS]);
+  });
+
+  it('nicheSlots mit Tieren: Borkenkäfer und Buntspecht schaffen je +1 Platz Höhlen', () => {
+    const at = (stage: number, ids: string[]) => nicheSlots(stage, stateAt(stage, ids).niches);
+    expect(nicheSlots(3).hollows).toBe(0);
+    expect(at(3, []).hollows).toBe(0);
+    expect(at(3, ['barkbeetle']).hollows).toBe(1); // Höhlen öffnen vor dem Alten Baum
+    expect(at(4, ['barkbeetle']).hollows).toBe(2);
+    expect(at(4, ['barkbeetle', 'woodpecker']).hollows).toBe(3);
+    expect(at(7, ['barkbeetle', 'woodpecker']).hollows).toBe(5);
+    expect(at(4, ['barkbeetle']).bark).toBe(2); // andere Nischen unverändert
+    // Unbekannte Arten und fehlende Nischen stören nicht.
+    expect(nicheSlots(4, { bark: ['gibt-es-nicht', 'barkbeetle'] }).hollows).toBe(2);
+    expect(nicheSlots(4, {}).hollows).toBe(1);
+  });
+
+  it('nicheSlots: Platz-Wirkungen öffnen keine geschlossene Nische ohne opensEarly', () => {
+    const builder = fakeSpecies({ id: 'test-builder', niche: 'roots', effects: [{ kind: 'slot', niche: 'crown', amount: 1 }] });
+    withFakeSpecies([builder], () => {
+      expect(nicheSlots(1, { roots: ['test-builder'] }).crown).toBe(0); // Krone erst ab Junger Baum
+      expect(nicheSlots(3, { roots: ['test-builder'] }).crown).toBe(3);
+    });
+  });
+
+  it('nicheOverflow und nichesAfterChoice: entlassene Platz-Schaffer dürfen niemanden obdachlos machen', () => {
+    const owl = fakeSpecies({ id: 'test-owl', niche: 'hollows' });
+    const nuthatch = fakeSpecies({ id: 'test-nuthatch', niche: 'bark' });
+    withFakeSpecies([owl, nuthatch], () => {
+      const state = stateAt(3, ['barkbeetle']);
+      state.niches.hollows.push('test-owl'); // 1/1 Höhlenplatz dank Borkenkäfer
+      expect(nicheOverflow(3, state.niches).hollows).toBe(0);
+      expect(nichesAfterChoice(state, 'test-nuthatch', 'barkbeetle')).toBeNull();
+      expect(nichesAfterChoice(state, 'woodpecker', 'barkbeetle')!.bark).toEqual(['woodpecker']);
+      expect(nichesAfterChoice(state, 'test-nuthatch', 'gibt-es-nicht')).toBeNull();
+      expect(nichesAfterChoice(state, 'test-nuthatch')).toBeNull(); // Stamm 1/1 voll
+      state.niches.hollows.length = 0;
+      expect(nichesAfterChoice(state, 'test-nuthatch', 'barkbeetle')!.bark).toEqual(['test-nuthatch']);
+      expect(state.niches.bark).toEqual(['barkbeetle']); // Eingabe unverändert
+    });
+  });
+
+  it('hasSpecies', () => {
+    const state = stateAt(3, ['robin']);
+    expect(hasSpecies(state, 'robin')).toBe(true);
+    expect(hasSpecies(state, 'bee')).toBe(false);
+    expect(hasSpecies({ niches: {} as typeof state.niches }, 'robin')).toBe(false);
   });
 
   it('growth() = Stufe + Fortschritt, stetig und in [0, 8]', () => {

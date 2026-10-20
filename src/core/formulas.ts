@@ -6,7 +6,7 @@ import { MAIN_TREE_NUTS_STAGE, MAIN_TREE_TAGS, MAIN_TREE_WEIGHT, STAGES } from '
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
 import { GENERA, NICHE_IDS, type Condition, type Effect, type Genus, type NicheId, type PlantGroup, type Tag } from '../content/types';
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
-import type { GameState } from './state';
+import { MAX_FOREST_MEMORY, type GameState } from './state';
 
 /*
  * Rechenmodell v2 (Prototyp): Zufriedenheit, Harmonie, Wachstum/s, Samen/s.
@@ -92,11 +92,34 @@ const HUNTERS_OF: ReadonlyMap<string, readonly string[]> = new Map(
   ]),
 );
 
-/** Plätze je Nische auf einer Stufe. */
-export function nicheSlots(stage: number): Record<NicheId, number> {
+/**
+ * Plätze je Nische auf einer Stufe. Mit `niches` zählen auch die Plätze, die Tiere
+ * schaffen (Wirkung `slot`, z. B. Borkenkäfer → +1 Höhlen). Solche Plätze öffnen eine
+ * geschlossene Nische nur, wenn sie `opensEarly` hat (DESIGN_V2.md, Abschnitt 3).
+ */
+export function nicheSlots(stage: number, niches?: Partial<Record<NicheId, readonly string[]>>): Record<NicheId, number> {
   const slots = {} as Record<NicheId, number>;
   for (const id of NICHE_IDS) slots[id] = NICHES_BY_ID.get(id)!.slots[stage] ?? 0;
+  if (!niches) return slots;
+  const extra = {} as Record<NicheId, number>;
+  for (const id of NICHE_IDS) extra[id] = 0;
+  for (const id of NICHE_IDS) {
+    for (const sid of niches[id] ?? []) {
+      for (const e of SPECIES_BY_ID.get(sid)?.effects ?? []) if (e.kind === 'slot') extra[e.niche] += e.amount;
+    }
+  }
+  for (const id of NICHE_IDS) {
+    if (slots[id] > 0 || NICHES_BY_ID.get(id)!.opensEarly) slots[id] = Math.max(0, slots[id] + extra[id]);
+  }
   return slots;
+}
+
+/** Wie viele Tiere je Nische keinen Platz haben (0, wenn alles passt). */
+export function nicheOverflow(stage: number, niches: Partial<Record<NicheId, readonly string[]>>): Record<NicheId, number> {
+  const slots = nicheSlots(stage, niches);
+  const out = {} as Record<NicheId, number>;
+  for (const id of NICHE_IDS) out[id] = Math.max(0, (niches[id]?.length ?? 0) - slots[id]);
+  return out;
 }
 
 /** Bekannte Arten des Ökosystems in Nischen-Reihenfolge (unbekannte IDs werden übersprungen). */
@@ -205,7 +228,8 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
         controls.push({ tag: e.tag, strength: (e.pct / 100) * scale });
         break;
       case 'damage':
-        break; // wird unten gesondert behandelt
+      case 'slot':
+        break; // Fraß unten gesondert, Plätze in nicheSlots()
     }
   };
   for (const a of animals) for (const e of a.effects) apply(e, status[a.id]!.happiness);
@@ -249,7 +273,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const multiplier = 1 + harmony / HARMONY_DIVISOR;
 
   // Wachstum und Samen (Waldgedächtnis: +2 % je Punkt)
-  const memory = 1 + FOREST_MEMORY_BONUS * Math.max(0, finite(eco.forestMemory));
+  const memory = 1 + FOREST_MEMORY_BONUS * Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(eco.forestMemory)));
   const factor = Math.max(MIN_GROWTH_FACTOR, 1 + growthBonus - damage);
   const growth = stage.treeGrowth * (1 + groupGrowth.trees) * factor * multiplier * memory;
   const seeds = stage.treeSeeds * (1 + groupSeeds.trees) * (1 + seedsBonus) * multiplier * memory;
@@ -262,7 +286,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     breakdown: { variety, happiness: happinessPoints, pyramid },
     animals: status,
     avgHappiness,
-    slots: nicheSlots(eco.stage),
+    slots: nicheSlots(eco.stage, eco.niches),
     genusCounts,
     traitTiers,
     growthBonus,
@@ -277,13 +301,25 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
 
 /**
  * Abgeleitete Werte des Spielstands. Gecacht: Sie ändern sich nur durch Aktionen und
- * Stufenwechsel, nicht pro Tick. Das Ergebnis nicht verändern (wird geteilt).
+ * Stufenwechsel, nicht pro Tick. Das Ergebnis wird geteilt und ist darum tief
+ * eingefroren – Schreibversuche werfen im Strict Mode einen Fehler.
  */
 export function evaluate(state: GameState): Readonly<Evaluation> {
   const key = ecosystemKey(state);
   if (cache && cache.key === key) return cache.value;
-  const value = evaluateEcosystem({ stage: state.stage, niches: state.niches, forestMemory: state.meta.forestMemory });
+  const value = deepFreeze(
+    evaluateEcosystem({ stage: state.stage, niches: state.niches, forestMemory: state.meta.forestMemory }),
+  );
   cache = { key, value };
+  return value;
+}
+
+/** Friert ein Objekt samt aller verschachtelten Objekte und Arrays ein. */
+function deepFreeze<T>(value: T): T {
+  if (typeof value === 'object' && value !== null && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value)) deepFreeze(v);
+  }
   return value;
 }
 
@@ -369,10 +405,15 @@ export function cardStatus(state: GameState, encounterIndex: number, cardIndex: 
   const id = state.pendingEncounters[encounterIndex]?.cards[cardIndex];
   const sp = id === undefined ? undefined : SPECIES_BY_ID.get(id);
   if (!sp) return 'invalid';
-  if (NICHE_IDS.some((n) => state.niches[n].includes(sp.id))) return 'present';
-  const slots = nicheSlots(state.stage)[sp.niche];
+  if (hasSpecies(state, sp.id)) return 'present';
+  const slots = nicheSlots(state.stage, state.niches)[sp.niche];
   if (slots <= 0) return 'closed';
-  return state.niches[sp.niche].length < slots ? 'free' : 'full';
+  return (state.niches[sp.niche]?.length ?? 0) < slots ? 'free' : 'full';
+}
+
+/** Lebt die Art irgendwo im Ökosystem? */
+export function hasSpecies(state: Pick<GameState, 'niches'>, speciesId: string): boolean {
+  return NICHE_IDS.some((n) => (state.niches[n] ?? []).includes(speciesId));
 }
 
 /**
@@ -388,16 +429,38 @@ export function previewChoice(
   const status = cardStatus(state, encounterIndex, cardIndex);
   const sp = SPECIES_BY_ID.get(state.pendingEncounters[encounterIndex]?.cards[cardIndex] ?? '');
   if (!sp || (status !== 'free' && status !== 'full')) return null;
-  const niches = { ...state.niches };
-  const occupants = state.niches[sp.niche];
-  if (replaceSpeciesId !== undefined) {
-    if (!occupants.includes(replaceSpeciesId)) return null;
-    niches[sp.niche] = occupants.map((x) => (x === replaceSpeciesId ? sp.id : x));
-  } else {
-    if (status === 'full') return null;
-    niches[sp.niche] = [...occupants, sp.id];
-  }
+  const niches = nichesAfterChoice(state, sp.id, replaceSpeciesId);
+  if (!niches) return null;
   return evaluateEcosystem({ stage: state.stage, niches, forestMemory: state.meta.forestMemory });
+}
+
+/**
+ * Nischen nach dem Einzug von `speciesId` (optional anstelle von `replaceSpeciesId`).
+ * null, wenn der Ersatz nicht in der Nische lebt oder danach irgendwo mehr Tiere ohne
+ * Platz wären als vorher – die Nische ist voll, oder der entlassene Borkenkäfer hat
+ * Höhlenplätze geschaffen, die noch belegt sind.
+ * Prüft nicht, ob die Art schon lebt oder die Nische offen ist (siehe cardStatus).
+ */
+export function nichesAfterChoice(
+  state: Pick<GameState, 'stage' | 'niches'>,
+  speciesId: string,
+  replaceSpeciesId?: string,
+): Record<NicheId, string[]> | null {
+  const sp = SPECIES_BY_ID.get(speciesId);
+  if (!sp) return null;
+  const niches = {} as Record<NicheId, string[]>;
+  for (const id of NICHE_IDS) niches[id] = [...(state.niches[id] ?? [])];
+  const occupants = niches[sp.niche];
+  if (replaceSpeciesId !== undefined) {
+    const at = occupants.indexOf(replaceSpeciesId);
+    if (at < 0) return null;
+    occupants[at] = sp.id;
+  } else {
+    occupants.push(sp.id);
+  }
+  const before = nicheOverflow(state.stage, state.niches);
+  const after = nicheOverflow(state.stage, niches);
+  return NICHE_IDS.every((id) => after[id] <= before[id]) ? niches : null;
 }
 
 /** Samen für „Ablehnen“. */

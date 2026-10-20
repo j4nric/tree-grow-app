@@ -3,9 +3,9 @@ import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY } from '../src/content/memory';
 import { thresholdFor } from '../src/core/formulas';
 import { isValidRngState, normalizeSeed } from '../src/core/rng';
 import { deserialize, loadFromStorage, loadGame, saveToStorage, serialize, SAVE_KEY } from '../src/core/save';
-import { SAVE_VERSION, createInitialState } from '../src/core/state';
+import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState } from '../src/core/state';
 import { tick } from '../src/core/tick';
-import { stateAt } from './helpers';
+import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
 /** Gültiger v2-Stand als Rohdaten, einzelne Felder überschreibbar. */
 function rawV2(patch: Record<string, unknown> = {}): string {
@@ -206,6 +206,48 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
     expect(s.meta.forestMemory).toBe(3);
     expect(s.meta.journal.species).toEqual(['bee', 'earthworm', 'robin']);
     expect(s.meta.journal.keepsakes).toEqual(['old-oak']);
+  });
+
+  it('v2-Stand ohne Nische „hollows“ (vor Höhlen & Totholz) lädt mit leerer Höhle', () => {
+    const old = JSON.parse(rawV2());
+    delete old.niches.hollows;
+    const s = deserialize(JSON.stringify(old), 0)!;
+    expect(s.niches.hollows).toEqual([]);
+    expect(s.niches.roots).toEqual(['earthworm']);
+    expect(deserialize(rawV2({ niches: { roots: ['earthworm'], hollows: 'kaputt' } }), 0)!.niches.hollows).toEqual([]);
+  });
+
+  it('Platz-Schaffer zählen beim Kürzen, die gespeicherte Reihenfolge bleibt', () => {
+    const owl = fakeSpecies({ id: 'test-owl', niche: 'hollows' });
+    withFakeSpecies([owl], () => {
+      // Junger Baum: Höhle nur offen, weil der Borkenkäfer lebt – auch wenn er später steht.
+      const s = deserialize(rawV2({ niches: { roots: ['test-owl', 'barkbeetle'] } }), 0)!;
+      expect(s.niches.bark).toEqual(['barkbeetle']);
+      expect(s.niches.hollows).toEqual(['test-owl']);
+      const without = deserialize(rawV2({ niches: { hollows: ['test-owl'] } }), 0)!;
+      expect(without.niches.hollows).toEqual([]);
+      expect(without.meta.journal.species).toContain('test-owl'); // hat hier gelebt
+    });
+    const grown = deserialize(rawV2({ totalGrowth: thresholdFor(12), niches: { bark: ['woodpecker', 'barkbeetle'] } }), 0)!;
+    expect(grown.niches.bark).toEqual(['woodpecker', 'barkbeetle']);
+  });
+
+  it('Waldgedächtnis, Samen und Wachstum: Grenzen und Unendlich', () => {
+    const big = deserialize(rawV2({ meta: { forestMemory: 1e9 } }), 0)!;
+    expect(big.meta.forestMemory).toBe(MAX_FOREST_MEMORY);
+    // „1e400“ ergibt in JSON.parse Infinity – wird begrenzt statt verworfen.
+    const raw = rawV2({ seeds: 1, totalGrowth: 2, meta: { forestMemory: 3 } })
+      .replace('"seeds":1', '"seeds":1e400')
+      .replace('"totalGrowth":2', '"totalGrowth":1e400')
+      .replace('"forestMemory":3', '"forestMemory":-1e400');
+    const s = deserialize(raw, 0)!;
+    expect(s.seeds).toBe(Number.MAX_VALUE);
+    expect(s.totalGrowth).toBe(Number.MAX_VALUE);
+    expect(s.meta.forestMemory).toBe(0);
+    expect(s.stage).toBe(7);
+    // Weiterspielen bleibt endlich.
+    tick(s, 3600);
+    expect(Number.isFinite(s.seeds) && Number.isFinite(s.totalGrowth)).toBe(true);
   });
 
   it('zukünftige Versionen werden so gut wie möglich geladen', () => {

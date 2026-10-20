@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DECLINE_SEEDS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../src/content/encounters';
 import { cardStatus, evaluate, previewChoice, rerollCost } from '../src/core/formulas';
-import { chooseCard, declineEncounter, rerollEncounter } from '../src/core/tick';
-import { stateAt } from './helpers';
+import { canReroll, chooseCard, declineEncounter, rerollBlocker, rerollEncounter } from '../src/core/tick';
+import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
 /** Junger Baum (Krone 2 Plätze) mit einer offenen Begegnung. */
 function withEncounter(animals: string[], cards: string[], seed = 1) {
@@ -64,6 +64,34 @@ describe('chooseCard', () => {
     expect(chooseCard(state, 3, 0)).toEqual({ ok: false, error: 'no-encounter' });
     expect(chooseCard(state, -1, 0)).toEqual({ ok: false, error: 'no-encounter' });
     expect(chooseCard(state, NaN, 0)).toEqual({ ok: false, error: 'no-encounter' });
+  });
+});
+
+describe('chooseCard mit Höhlen & Totholz', () => {
+  const owl = fakeSpecies({ id: 'test-owl', niche: 'hollows' });
+  const nuthatch = fakeSpecies({ id: 'test-nuthatch', niche: 'bark' });
+
+  it('Borkenkäfer öffnet einen Höhlenplatz schon im Jungen Baum', () => {
+    withFakeSpecies([owl], () => {
+      const closed = withEncounter([], ['test-owl']);
+      expect(cardStatus(closed, 0, 0)).toBe('closed');
+      const open = withEncounter(['barkbeetle'], ['test-owl']);
+      expect(cardStatus(open, 0, 0)).toBe('free');
+      expect(chooseCard(open, 0, 0)).toEqual({ ok: true });
+      expect(open.niches.hollows).toEqual(['test-owl']);
+      expect(evaluate(open).slots.hollows).toBe(1);
+    });
+  });
+
+  it('wer den Borkenkäfer entlässt, darf den Höhlenbewohner nicht obdachlos machen', () => {
+    withFakeSpecies([owl, nuthatch], () => {
+      const state = withEncounter(['barkbeetle'], ['test-nuthatch']);
+      state.niches.hollows.push('test-owl');
+      const before = structuredClone(state);
+      expect(previewChoice(state, 0, 0, 'barkbeetle')).toBeNull();
+      expect(chooseCard(state, 0, 0, 'barkbeetle')).toEqual({ ok: false, error: 'invalid-replace' });
+      expect(state).toEqual(before);
+    });
   });
 });
 
@@ -133,12 +161,70 @@ describe('rerollEncounter', () => {
     expect(rerollEncounter(state, 4)).toEqual({ ok: false, error: 'no-encounter' });
   });
 
+  it('schließt die bisherigen Karten aus, wenn genug andere Arten passen', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const state = withEncounter([], ['robin', 'bee', 'oakmoth'], seed);
+      state.seeds = 1000;
+      expect(rerollEncounter(state, 0).ok).toBe(true);
+      const cards = state.pendingEncounters[0]!.cards;
+      expect(cards).toHaveLength(3);
+      for (const old of ['robin', 'bee', 'oakmoth']) expect(cards, `Seed ${seed}`).not.toContain(old);
+    }
+  });
+
+  it('füllt mit alten Karten auf, wenn zu wenige andere Arten passen', () => {
+    // Setzling: nur Rotkehlchen, Wildbiene, Regenwurm, Rollassel kommen in Frage.
+    for (let seed = 1; seed <= 20; seed++) {
+      const state = stateAt(2, [], seed);
+      state.pendingEncounters.push({ type: 'animal', cards: ['robin', 'bee', 'earthworm'], rerolls: 0 });
+      state.seeds = 1000;
+      expect(canReroll(state, 0)).toBe(true);
+      expect(rerollEncounter(state, 0).ok).toBe(true);
+      const cards = state.pendingEncounters[0]!.cards;
+      expect(cards[0]).toBe('woodlouse'); // die neue Art zuerst
+      expect(cards).toHaveLength(3);
+      expect(new Set(cards).size).toBe(3);
+    }
+  });
+
+  it('dieselben Karten wären das Ergebnis: kostet nichts, Zufall bleibt unverändert', () => {
+    const state = stateAt(1); // Keimling: nur der Regenwurm
+    state.pendingEncounters.push({ type: 'animal', cards: ['earthworm'], rerolls: 0 });
+    state.seeds = 100;
+    const before = structuredClone(state);
+    expect(rerollBlocker(state, 0)).toBe('no-alternatives');
+    expect(canReroll(state, 0)).toBe(false);
+    expect(rerollEncounter(state, 0)).toEqual({ ok: false, error: 'no-alternatives' });
+    expect(state).toEqual(before);
+  });
+
+  it('canReroll / rerollBlocker nennen den Grund und ändern nichts', () => {
+    const state = withEncounter([], ['bluetit'], 3);
+    const before = structuredClone(state);
+    expect(rerollBlocker(state, 0)).toBe('too-expensive');
+    expect(canReroll(state, 0)).toBe(false);
+    expect(rerollBlocker(state, 1)).toBe('no-encounter');
+    expect(canReroll(state, NaN)).toBe(false);
+    expect(state).toEqual(before);
+    state.seeds = NaN; // kaputte Samen: nie würfeln
+    expect(canReroll(state, 0)).toBe(false);
+    state.seeds = REROLL_BASE_COST;
+    expect(rerollBlocker(state, 0)).toBeNull();
+    expect(canReroll(state, 0)).toBe(true);
+    // Die Vorschau zieht denselben Zufall wie der echte Wurf.
+    const probe = structuredClone(state);
+    expect(rerollEncounter(state, 0).ok).toBe(true);
+    expect(state.rngState).not.toBe(probe.rngState);
+    expect(state.seeds).toBe(0);
+  });
+
   it('keine Art verfügbar: kostet nichts, Zufall bleibt unverändert', () => {
     const state = stateAt(1, ['earthworm']); // Keimling: nur der Regenwurm, und der lebt schon hier
     state.pendingEncounters.push({ type: 'animal', cards: ['earthworm'], rerolls: 0 });
     state.seeds = 100;
     const before = structuredClone(state);
     expect(rerollEncounter(state, 0)).toEqual({ ok: false, error: 'no-cards' });
+    expect(canReroll(state, 0)).toBe(false);
     expect(state).toEqual(before);
   });
 });

@@ -1,17 +1,17 @@
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS, RARITY_WEIGHTS } from '../content/encounters';
 import { SPECIES, SPECIES_BY_ID } from '../content/species';
-import { NICHE_IDS } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import {
   cardStatus,
   declineReward,
   evaluate,
   nicheSlots,
+  nichesAfterChoice,
   rerollCost,
   stageForWaypoint,
   thresholdFor,
 } from './formulas';
-import { pick, weightedIndex } from './rng';
+import { pick, weightedIndex, type RngHolder } from './rng';
 import { allAnimals, type GameState } from './state';
 
 /** Offline-Fortschritt wird auf diese Dauer begrenzt. */
@@ -109,21 +109,27 @@ export function allWaypointsReached(state: GameState): boolean {
  * Zieht bis zu drei verschiedene Tierkarten: erst eine Seltenheit nach Gewicht, dann
  * gleichverteilt eine Art dieser Seltenheit, die freigeschaltet ist, deren Nische
  * offen ist und die noch nicht im Ökosystem lebt (DESIGN_V2.md, 7.3).
+ * Arten in `exclude` (beim Neu würfeln: die bisherigen Karten) kommen nur zum Auffüllen
+ * dran, wenn die übrigen Arten nicht für alle Karten reichen.
+ * Zufall aus `rng` (Standard: der Spielstand selbst).
  */
-export function drawAnimals(state: GameState): string[] {
-  const slots = nicheSlots(state.stage);
+export function drawAnimals(state: GameState, exclude: readonly string[] = [], rng: RngHolder = state): string[] {
+  const slots = nicheSlots(state.stage, state.niches);
   const present = new Set(allAnimals(state));
   const eligible = SPECIES.filter((s) => s.unlock <= state.stage && slots[s.niche] > 0 && !present.has(s.id));
+  const pools = [eligible.filter((s) => !exclude.includes(s.id)), eligible.filter((s) => exclude.includes(s.id))];
   const weights = RARITY_WEIGHTS[state.stage] ?? RARITY_WEIGHTS[RARITY_WEIGHTS.length - 1]!;
   const cards: string[] = [];
-  for (let i = 0; i < CARDS_PER_ENCOUNTER; i++) {
-    const byRarity = [0, 1, 2, 3].map((r) => eligible.filter((s) => s.rarity === r && !cards.includes(s.id)));
-    const r = weightedIndex(
-      state,
-      weights.map((w, idx) => (byRarity[idx]!.length > 0 ? w : 0)),
-    );
-    if (r < 0) break;
-    cards.push(pick(state, byRarity[r]!).id);
+  for (const pool of pools) {
+    while (cards.length < CARDS_PER_ENCOUNTER) {
+      const byRarity = [0, 1, 2, 3].map((r) => pool.filter((s) => s.rarity === r && !cards.includes(s.id)));
+      const r = weightedIndex(
+        rng,
+        weights.map((w, idx) => (byRarity[idx]!.length > 0 ? w : 0)),
+      );
+      if (r < 0) break;
+      cards.push(pick(rng, byRarity[r]!).id);
+    }
   }
   return cards;
 }
@@ -140,7 +146,10 @@ export type ActionError =
   | 'niche-full'
   | 'invalid-replace'
   | 'too-expensive'
-  | 'no-cards';
+  /** Keine Art kommt in Frage. */
+  | 'no-cards'
+  /** Neu würfeln brächte nur dieselben Karten (zu wenige passende Arten). */
+  | 'no-alternatives';
 
 export type ActionResult = { ok: true } | { ok: false; error: ActionError };
 
@@ -165,15 +174,15 @@ export function chooseCard(
   if (status === 'present') return fail('present');
   if (status === 'closed') return fail('closed');
   const sp = SPECIES_BY_ID.get(encounter.cards[cardIndex]!)!;
-  const occupants = state.niches[sp.niche];
-  if (replaceSpeciesId !== undefined) {
-    const at = occupants.indexOf(replaceSpeciesId);
-    if (at < 0) return fail('invalid-replace');
-    occupants[at] = sp.id;
-  } else {
-    if (status === 'full') return fail('niche-full');
-    occupants.push(sp.id);
+  if (replaceSpeciesId !== undefined && !state.niches[sp.niche].includes(replaceSpeciesId)) {
+    return fail('invalid-replace');
   }
+  if (replaceSpeciesId === undefined && status === 'full') return fail('niche-full');
+  // Entlassene Tiere können Plätze mitnehmen (Borkenkäfer → Höhlen): nur erlaubt,
+  // wenn danach kein Tier ohne Platz dasteht.
+  const niches = nichesAfterChoice(state, sp.id, replaceSpeciesId);
+  if (!niches) return fail('invalid-replace');
+  for (const id of Object.keys(niches) as (keyof typeof niches)[]) state.niches[id] = niches[id];
   if (!state.meta.journal.species.includes(sp.id)) state.meta.journal.species.push(sp.id);
   state.pendingEncounters.splice(encounterIndex, 1);
   return { ok: true };
@@ -189,26 +198,41 @@ export function declineEncounter(state: GameState, encounterIndex: number): Acti
 
 /**
  * Würfelt die Karten einer Begegnung neu (kostet Samen, jedes weitere Mal doppelt so
- * viel). Kommt keine Art in Frage, bleibt alles unverändert und es kostet nichts.
+ * viel). Die bisherigen Karten kommen nur zum Auffüllen wieder. Kommt keine Art in
+ * Frage oder wären es dieselben Karten, bleibt alles unverändert und es kostet nichts.
  */
 export function rerollEncounter(state: GameState, encounterIndex: number): ActionResult {
-  const encounter = state.pendingEncounters[encounterIndex];
-  if (!encounter) return fail('no-encounter');
-  const cost = rerollCost(state, encounterIndex);
-  if (state.seeds < cost) return fail('too-expensive');
-  const saved = state.rngState;
-  const cards = drawAnimals(state);
-  if (cards.length === 0) {
-    state.rngState = saved;
-    return fail('no-cards');
-  }
-  state.seeds -= cost;
-  encounter.cards = cards;
+  const blocker = rerollBlocker(state, encounterIndex);
+  if (blocker) return fail(blocker);
+  const encounter = state.pendingEncounters[encounterIndex]!;
+  state.seeds -= rerollCost(state, encounterIndex);
+  encounter.cards = drawAnimals(state, encounter.cards);
   encounter.rerolls++;
   return { ok: true };
 }
 
-/** Für Tests und Werkzeuge: Lebt die Art irgendwo im Ökosystem? */
-export function hasSpecies(state: GameState, speciesId: string): boolean {
-  return NICHE_IDS.some((n) => state.niches[n].includes(speciesId));
+/** Kann diese Begegnung jetzt neu gewürfelt werden? (Für den Knopf in der UI.) */
+export function canReroll(state: GameState, encounterIndex: number): boolean {
+  return rerollBlocker(state, encounterIndex) === null;
+}
+
+/**
+ * Warum „Neu würfeln“ gerade nicht geht – null, wenn es geht. Verändert den Spielstand
+ * nicht (der Zufall wird auf einer Kopie des Generators vorgezogen).
+ */
+export function rerollBlocker(
+  state: GameState,
+  encounterIndex: number,
+): 'no-encounter' | 'no-cards' | 'no-alternatives' | 'too-expensive' | null {
+  const encounter = state.pendingEncounters[encounterIndex];
+  if (!encounter) return 'no-encounter';
+  const cards = drawAnimals(state, encounter.cards, { rngState: state.rngState });
+  if (cards.length === 0) return 'no-cards';
+  if (sameSet(cards, encounter.cards)) return 'no-alternatives';
+  if (!(state.seeds >= rerollCost(state, encounterIndex))) return 'too-expensive';
+  return null;
+}
+
+function sameSet(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((x) => b.includes(x)) && b.every((x) => a.includes(x));
 }
