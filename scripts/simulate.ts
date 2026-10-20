@@ -18,13 +18,19 @@ import {
   declineReward,
   evaluate,
   previewChoice,
-  rerollCost,
   secondsToNextWaypoint,
   type Evaluation,
 } from '../src/core/formulas';
 import { normalizeSeed, randomInt, type RngHolder } from '../src/core/rng';
 import { allAnimals, createInitialState, type GameState } from '../src/core/state';
-import { allWaypointsReached, chooseCard, declineEncounter, rerollEncounter, tick } from '../src/core/tick';
+import {
+  allWaypointsReached,
+  chooseCard,
+  declineEncounter,
+  rerollBlocker,
+  rerollEncounter,
+  tick,
+} from '../src/core/tick';
 
 // ---------------------------------------------------------------------------
 // Optionen einer Begegnung
@@ -88,10 +94,13 @@ function best(options: Option[], value: (o: Option) => number): Option | null {
   return top;
 }
 
-/** Höchstens ein Wurf je Begegnung, und nur, wenn die Samen reichen. */
+/**
+ * Höchstens ein Wurf je Begegnung, und nur, wenn die Logik ihn zulässt (Samen reichen,
+ * es gibt andere Karten – rerollBlocker liefert sonst 'too-expensive' / 'no-alternatives').
+ */
 function canReroll(state: GameState): boolean {
   const enc = state.pendingEncounters[0];
-  return !!enc && enc.rerolls < 1 && state.seeds >= rerollCost(state, 0);
+  return !!enc && enc.rerolls < 1 && rerollBlocker(state, 0) === null;
 }
 
 /** Nimmt die beste Option, wenn sie verbessert; sonst einmal neu würfeln, sonst ablehnen. */

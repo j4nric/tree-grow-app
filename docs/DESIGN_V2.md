@@ -515,8 +515,8 @@ Bedingung oder Partnerschaft.
 | Hain, Wald, Urwald | 55 % | 20 % | 15 % | 10 % | ~5:15 min |
 
 Prototyp (nur Tierbegegnungen, keine Pflanzen; Simulation 15.4, Median der Wartezeit
-je Begegnung): Keimling 22 s · Setzling 1:04 min · Junger Baum 2:46 min · Alter Baum
-5:03 min · Hain 7:13 min · Wald 9:03 min.
+je Begegnung): Keimling 22 s · Setzling 1:04 min · Junger Baum 2:42 min · Alter Baum
+4:45 min · Hain 7:11 min · Wald 9:01 min.
 
 Bis zum Hain sind es 20 Begegnungen (~12 Tiere), bis zum Urwald 36. Zwischen den
 Begegnungen gibt es Samen-Entscheidungen (Pflanze setzen, Pflege).
@@ -1116,19 +1116,25 @@ Gattungszahlen (und damit das Verhältnis der Strategien) anzufassen.
 | Hain | ~ 60 min | 1:49 h | 1:01 h |
 | Wald | (~ 1:40 h) | 3:46 h | 1:59 h |
 | Urwald | (~ 2:20 h) | > 6 h | 3:12 h |
-| Takt im Alter Baum / Hain (Median) | ~ 4–5 min | 9:23 / 14:29 min | 5:03 / 7:13 min |
+| Takt im Alter Baum / Hain (Median) | ~ 4–5 min | 9:23 / 14:29 min | 4:45 / 7:11 min |
 
 **Ergebnisse (500 Durchgänge je Strategie, k^3,2)**
+
+Stand nach PR #8 (Nische Höhlen & Totholz, Borkenkäfer/Buntspecht +1 Höhlenplatz,
+Neu würfeln schließt die aktuellen Karten aus und ist bei 'no-alternatives' gesperrt).
+Der Simulator fragt dafür `rerollBlocker` ab. Stufenzeiten und Harmonie blieben praktisch
+gleich; es wird seltener (sinnlos) neu gewürfelt, darum steigt der Anteil echter Wahl
+beim Harmonie-Spieler von 43 % auf 52 %.
 
 | Strategie | Hain nach (Median) | ⚖️ Harmonie | 🌿/s | 🌰/s | Ø Zufriedenheit | Tiere V/I/B | echte Wahl |
 |---|---|---|---|---|---|---|---|
 | Zufällig | 1:07 h | 52,5 | 27,9 | 2,10 | 60 % | 2,7 / 3,0 / 2,3 | 73 % |
-| Gierig nach Harmonie | 1:01 h | 56,2 | 32,3 | 1,47 | 67 % | 2,0 / 2,0 / 3,0 | 43 % |
-| Gierig nach Wachstum | 57:47 min | 56,2 | 32,3 | 1,47 | 67 % | 2,0 / 2,0 / 3,0 | 51 % |
+| Gierig nach Harmonie | 1:01 h | 56,2 | 32,3 | 1,47 | 67 % | 2,0 / 2,0 / 3,0 | 52 % |
+| Gierig nach Wachstum | 57:46 min | 56,2 | 32,3 | 1,47 | 67 % | 2,0 / 2,0 / 3,0 | 57 % |
 | Immer die seltenste Karte | 1:01 h | 55,8 | 30,6 | 1,57 | 66 % | 2,4 / 2,0 / 2,6 | 68 % |
-| Vögel stapeln | 1:10 h | 53,6 | 26,7 | 1,72 | 66 % | 3,0 / 2,0 / 1,3 | 82 % |
-| Insekten stapeln | 1:03 h | 53,5 | 31,0 | 1,88 | 61 % | 2,0 / 3,0 / 3,0 | 71 % |
-| Bodenleben stapeln | 59:13 min | 56,1 | 32,3 | 1,46 | 69 % | 2,0 / 1,6 / 3,0 | 52 % |
+| Vögel stapeln | 1:10 h | 53,5 | 26,5 | 1,73 | 66 % | 3,0 / 2,0 / 1,3 | 76 % |
+| Insekten stapeln | 1:03 h | 53,5 | 31,0 | 1,88 | 61 % | 2,0 / 3,0 / 3,0 | 70 % |
+| Bodenleben stapeln | 59:02 min | 55,9 | 32,2 | 1,46 | 69 % | 1,9 / 1,6 / 3,0 | 65 % |
 
 **Stufen und Takt – Gierig nach Harmonie** (Kennzahlen beim Erreichen der Stufe, vor der
 Wahl an diesem Wegpunkt; Takt = Wartezeit je Begegnung *während* der Stufe)
@@ -1137,11 +1143,11 @@ Wahl an diesem Wegpunkt; Takt = Wartezeit je Begegnung *während* der Stufe)
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | Keimling | < 30 s | 4 s | 4 s – 4 s | 5 | 2,1 | 0,16 | 0 % | 0,0 | 2,0 | 22 s | 33 s |
 | Setzling | ~ 1 min | 49 s | 49 s – 49 s | 38 | 5,1 | 0,35 | 75 % | 1,0 | 3,0 | 1:04 min | 1:39 min |
-| Junger Baum | ~ 4 min | 4:09 min | 4:09 min – 4:09 min | 49 | 9,4 | 0,64 | 58 % | 3,0 | 6,0 | 2:46 min | 4:36 min |
-| Alter Baum | ~ 20 min | 21:02 min | 21:02 min – 21:07 min | 51 | 16,7 | 0,98 | 60 % | 4,0 | 8,0 | 5:03 min | 8:39 min |
-| Hain | ~ 60 min | 1:01 h | 1:01 h – 1:02 h | 56 | 32,3 | 1,47 | 67 % | 7,0 | 8,0 | 7:13 min | 9:47 min |
-| Wald | – | 1:59 h | 1:59 h – 2:00 h | 56 | 48,5 | 2,12 | 67 % | 7,0 | 8,0 | 9:03 min | 11:26 min |
-| Urwald | – | 3:12 h | 3:12 h – 3:13 h | 56 | 68,6 | 2,94 | 67 % | 7,0 | 0,0 | – | – |
+| Junger Baum | ~ 4 min | 4:09 min | 4:09 min – 4:09 min | 49 | 9,4 | 0,64 | 58 % | 3,0 | 6,0 | 2:42 min | 4:36 min |
+| Alter Baum | ~ 20 min | 21:02 min | 21:02 min – 21:02 min | 51 | 16,7 | 0,98 | 60 % | 4,0 | 8,0 | 4:45 min | 7:17 min |
+| Hain | ~ 60 min | 1:01 h | 1:01 h – 1:01 h | 56 | 32,3 | 1,47 | 67 % | 7,0 | 8,0 | 7:11 min | 9:41 min |
+| Wald | – | 1:59 h | 1:59 h – 1:59 h | 56 | 48,5 | 2,12 | 67 % | 7,0 | 8,0 | 9:01 min | 11:20 min |
+| Urwald | – | 3:12 h | 3:12 h – 3:12 h | 56 | 68,7 | 2,94 | 67 % | 7,0 | 0,0 | – | – |
 
 Der Zufallsspieler braucht 22:17 min bis zum Alter Baum und 1:07 h bis zum Hain.
 
@@ -1149,15 +1155,15 @@ Der Zufallsspieler braucht 22:17 min bis zum Alter Baum und 1:07 h bis zum Hain.
 
 | Zeit | Stufe (Median) | Bestand 🌰 | verdient passiv | verdient Ablehnen | ausgegeben (Neu würfeln) | Bestand in Minuten Produktion |
 |---|---|---|---|---|---|---|
-| 5 min | Junger Baum | 120 | 123 | 11 | 14 | 3,1 |
-| 10 min | Junger Baum | 300 | 318 | 25 | 43 | 7,7 |
-| 20 min | Junger Baum | 680 | 708 | 35 | 63 | 17,4 |
-| 30 min | Alter Baum | 1262 | 1295 | 37 | 71 | 18,8 |
-| 45 min | Alter Baum | 2176 | 2217 | 45 | 87 | 36,9 |
-| 60 min | Alter Baum | 3049 | 3100 | 55 | 107 | 51,9 |
-| 90 min | Hain | 5609 | 5686 | 80 | 157 | 63,7 |
-| 120 min | Wald | 8242 | 8337 | 98 | 193 | 72,0 |
-| 180 min | Wald | 15833 | 15960 | 130 | 257 | 124,4 |
+| 5 min | Junger Baum | 129 | 123 | 10 | 4 | 3,3 |
+| 10 min | Junger Baum | 309 | 318 | 25 | 34 | 7,9 |
+| 20 min | Junger Baum | 689 | 708 | 35 | 54 | 17,7 |
+| 30 min | Alter Baum | 1280 | 1305 | 35 | 60 | 18,3 |
+| 45 min | Alter Baum | 2200 | 2215 | 45 | 60 | 37,5 |
+| 60 min | Alter Baum | 3091 | 3096 | 55 | 60 | 52,6 |
+| 90 min | Hain | 5714 | 5694 | 80 | 60 | 64,9 |
+| 120 min | Wald | 8390 | 8350 | 100 | 60 | 65,9 |
+| 180 min | Wald | 16055 | 15985 | 130 | 60 | 126,2 |
 
 **Begegnungen bis Hain (Mittel je Durchgang)** – „eindeutig“ und „keine Karte lohnt“
 beziehen sich auf Begegnungen mit mindestens zwei spielbaren Karten.
@@ -1165,12 +1171,12 @@ beziehen sich auf Begegnungen mit mindestens zwei spielbaren Karten.
 | Strategie | Begegnungen | davon Nische voll | neu gewürfelt | abgelehnt | autom. abgelehnt | gewählt gewöhnlich / selten | eindeutig | keine Karte lohnt |
 |---|---|---|---|---|---|---|---|---|
 | Zufällig | 18,0 | 13,4 | 0,0 | 3,7 | 1,0 | 10,8 / 3,5 | 22 % | 6 % |
-| Gierig nach Harmonie | 18,0 | 11,7 | 10,7 | 10,0 | 1,0 | 6,0 / 2,0 | 27 % | 49 % |
-| Gierig nach Wachstum | 18,0 | 14,1 | 11,4 | 10,9 | 1,0 | 5,1 / 2,0 | 5 % | 45 % |
+| Gierig nach Harmonie | 18,0 | 12,0 | 6,0 | 10,0 | 1,0 | 6,0 / 2,0 | 28 % | 38 % |
+| Gierig nach Wachstum | 18,0 | 14,2 | 0,7 | 10,9 | 1,0 | 5,1 / 2,0 | 7 % | 36 % |
 | Immer die seltenste Karte | 18,0 | 13,6 | 0,0 | 0,0 | 1,0 | 11,4 / 6,6 | 16 % | 20 % |
-| Vögel stapeln | 18,0 | 5,3 | 13,7 | 10,1 | 1,0 | 6,1 / 1,8 | 14 % | 5 % |
-| Insekten stapeln | 18,0 | 11,0 | 14,2 | 9,0 | 1,0 | 7,0 / 2,0 | 25 % | 4 % |
-| Bodenleben stapeln | 18,0 | 12,3 | 12,8 | 5,2 | 1,0 | 8,8 / 4,0 | 14 % | 36 % |
+| Vögel stapeln | 18,0 | 5,0 | 1,8 | 10,2 | 1,0 | 6,0 / 1,8 | 17 % | 8 % |
+| Insekten stapeln | 18,0 | 11,0 | 0,3 | 9,0 | 1,0 | 7,0 / 2,0 | 24 % | 6 % |
+| Bodenleben stapeln | 18,0 | 12,1 | 6,8 | 4,5 | 1,0 | 9,0 / 4,4 | 15 % | 21 % |
 
 **Bewertung**
 
@@ -1178,25 +1184,25 @@ beziehen sich auf Begegnungen mit mindestens zwei spielbaren Karten.
   (Hain 1:01 h, leicht darüber wie gewünscht). Wald und Urwald sind langsam (1:59 h /
   3:12 h), weil nach dem Hain nichts Neues mehr hinzukommt – der Prototyp endet
   inhaltlich beim Hain.
-- **Takt:** früh 22 s – 1 min, Junger Baum ~2:45 min, Alter Baum ~5 min, Hain ~7 min
+- **Takt:** früh 22 s – 1 min, Junger Baum ~2:40 min, Alter Baum ~4:45 min, Hain ~7 min
   (max. < 10 min). Ab dem Hain wird es zäh; das löst sich erst mit mehr Arten,
   Pflanzen- und Ereignisbegegnungen.
 - **Strategien:** Harmonie- und Wachstums-Streben landen im Prototyp beim selben
   Ökosystem (2 Vögel, 2 Insekten, 3 Bodenleben; ⚖️ 56); Wachstums-Streben ist nur
   durch die Reihenfolge ~5 % schneller. Bodenleben stapeln ist ebenso schnell
-  (59 min) bei gleicher Harmonie – kein Stapeln *dominiert* (keins ist > 10 % schneller
+  (59 min) bei fast gleicher Harmonie – kein Stapeln *dominiert* (keins ist > 10 % schneller
   und harmonischer), aber Bodenleben ist der natürliche Kern jedes guten Ökosystems.
   Vögel stapeln ist am langsamsten (1:10 h, die Vögel brauchen Sträucher und mehrere
   Bäume, die es noch nicht gibt). Zufall: −4 Harmonie, +10 % Zeit.
 - **Echte Wahl:** Der Zufallsspieler hat in 73 % der Begegnungen eine echte Abwägung;
-  beim Harmonie-Spieler lohnt in gut der Hälfte der Begegnungen keine Karte, weil nach ~7 Tieren
+  beim Harmonie-Spieler hat gut die Hälfte (52 %) eine echte Wahl, in 38 % lohnt keine Karte, weil nach ~7 Tieren
   nur noch Arten kommen, die die Harmonie senken (Schädlinge, Arten ohne Sträucher/
   zweiten Baum). Mit 9 Arten ist das erwartbar; 2.2 (32 Arten) behebt das.
 - **Volle Nischen** betreffen bei fast allen Strategien 11–14 von 18 Begegnungen
   (Vögel stapeln: 5) – Tauschen ist im Prototyp Alltag.
 
 **Samen-Senke:** Samen häufen sich an: bis zum Hain verdient der Harmonie-Spieler
-~3.200 🌰 (≈ 98 % passiv, ≈ 2 % durch Ablehnen) und gibt nur ~110 🌰 für ~11 Würfe
+~3.150 🌰 (≈ 98 % passiv, ≈ 2 % durch Ablehnen) und gibt nur ~60 🌰 für ~6 Würfe
 aus; der Bestand entspricht beim Hain ~50 Minuten Produktion. **Bis zu den Pflanzen (2.1)
 akzeptabel**, weil es im Prototyp nichts zu kaufen gibt und das Ziel des Prototyps die
 Kartenwahl ist. Ablehnen (+5) und Neu würfeln (10, ×2) bleiben unverändert: Höhere
