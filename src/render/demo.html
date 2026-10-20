@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Renderer-Demo – Tiere im Baum</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #1d2a22;
+        font: 13px system-ui, sans-serif;
+        color: #f3efe4;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+      .controls {
+        position: fixed;
+        left: 8px;
+        top: 8px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: rgba(20, 30, 24, 0.72);
+      }
+      .controls.hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div class="controls" id="controls">
+      <label>Wachstum <input id="growth" type="range" min="0" max="8" step="0.01" /></label>
+      <span id="growth-value"></span>
+      <label>Zufriedenheit <input id="happy" type="range" min="0" max="1" step="0.01" /></label>
+      <label><input id="reduced" type="checkbox" /> weniger Bewegung</label>
+      <span id="stats"></span>
+    </div>
+    <script type="module" src="./demo.ts"></script>
+  </body>
+</html>
