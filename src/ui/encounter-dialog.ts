@@ -112,7 +112,13 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   noticeBox.hidden = true;
   let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
-  inner.append(header, cardsBox, swipeHint, noticeBox, actions);
+  // Warum Neuwürfeln gerade nicht geht – sichtbar und für Screenreader am Knopf.
+  const rerollHint = el('p', 'encounter-reroll-hint');
+  rerollHint.id = `${prefix}-reroll-hint`;
+  rerollHint.hidden = true;
+  reroll.setAttribute('aria-describedby', rerollHint.id);
+
+  inner.append(header, cardsBox, swipeHint, noticeBox, actions, rerollHint);
   dialog.append(inner);
   root.append(dialog);
 
@@ -396,9 +402,13 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     }
 
     reroll.hidden = view.rerollCost === null;
+    if (view.rerollCost === null) rerollHint.hidden = true;
     if (view.rerollCost !== null) {
       setText(reroll, rerollLabel(view.rerollCost));
-      reroll.title = view.canReroll ? '' : 'Nicht genug Samen';
+      const reason = view.canReroll ? '' : (view.rerollDisabledReason ?? 'Nicht genug Samen');
+      reroll.title = reason;
+      setText(rerollHint, reason ? `Neu würfeln: ${reason}` : '');
+      rerollHint.hidden = !reason;
     }
     decline.hidden = view.declineReward === null;
     if (view.declineReward !== null) setText(decline, declineLabel(view.declineReward));

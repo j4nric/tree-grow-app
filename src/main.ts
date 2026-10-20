@@ -87,7 +87,8 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'niche-full': 'Die Nische ist voll – wähle, wer weichen soll.',
   'invalid-replace': 'Dieses Tier lebt nicht in der Nische.',
   'too-expensive': 'Nicht genug Samen zum Neuwürfeln.',
-  'no-cards': 'Gerade kommt keine andere Art in Frage.',
+  'no-cards': 'Gerade kommt keine Art in Frage.',
+  'no-alternatives': 'Keine anderen Tiere verfügbar.',
 };
 
 catchUp();

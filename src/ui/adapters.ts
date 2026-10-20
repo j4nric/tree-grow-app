@@ -7,7 +7,7 @@
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
 import { NICHES, NICHES_BY_ID } from '../content/niches';
-import { GENUS_INFO, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
+import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
 import { STAGES } from '../content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
 import { GENERA, type Condition, type Effect, type NicheId, type PlantGroup, type Tag } from '../content/types';
@@ -25,7 +25,7 @@ import {
   type Evaluation,
 } from '../core/formulas';
 import type { GameState } from '../core/state';
-import { allWaypointsReached } from '../core/tick';
+import { allWaypointsReached, rerollBlocker } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
 import type {
   AnimalView,
@@ -161,6 +161,14 @@ export function effectView(effect: Effect): EffectView {
       return { label: `Fraß −${pct(effect.pct)} 🌿`, tone: 'bad' };
     case 'control':
       return { label: `jagt ${TAG_NAMES[effect.tag]} (−${pct(effect.pct)} Fraß)`, tone: 'good' };
+    case 'slot': {
+      const name = NICHES_BY_ID.get(effect.niche)?.name ?? effect.niche;
+      const places = Math.abs(effect.amount) === 1 ? 'Platz' : 'Plätze';
+      return {
+        label: `${sign(effect.amount)}${formatNumber(Math.abs(effect.amount))} ${places} ${name}`,
+        tone: effect.amount < 0 ? 'bad' : 'good',
+      };
+    }
   }
 }
 
@@ -187,6 +195,13 @@ export function moodText(species: Species, status: AnimalStatus | undefined): st
 // ---------------------------------------------------------------------------
 // Ökosystem-Übersicht
 // ---------------------------------------------------------------------------
+
+/** Namen der Arten, die in dieser Nische Plätze schaffen (Wirkung `slot`). */
+function slotProviders(nicheId: NicheId): string[] {
+  return SPECIES.filter((s) => s.effects.some((e) => e.kind === 'slot' && e.niche === nicheId && e.amount > 0)).map(
+    (s) => s.name,
+  );
+}
 
 /** Name der Stufe, ab der eine Nische Plätze hat (oder null, wenn nie). */
 function nicheOpensAt(nicheId: NicheId): string | null {
@@ -243,6 +258,12 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
     if (capacity <= 0) {
       const at = nicheOpensAt(niche.id);
       if (at) view.unlockHint = `öffnet bei „${at}“`;
+      // Nischen, die Tiere früher öffnen können (Höhlen & Totholz): Wer schafft Platz?
+      const openers = niche.opensEarly ? slotProviders(niche.id) : [];
+      if (openers.length > 0) {
+        const who = openers.join(' oder ');
+        view.unlockHint = view.unlockHint ? `${view.unlockHint} – oder früher durch ${who}` : `öffnet durch ${who}`;
+      }
     }
     return view;
   });
@@ -354,15 +375,19 @@ export function toCardView(
     after = previewChoice(state, encounterIndex, cardIndex);
     if (after) preview = previewView(now, after, sp.id);
   } else if (status === 'full') {
-    replaceOptions = state.niches[sp.niche].map((occupant) => {
+    // Nur Tausche, die der Kern erlaubt: Wer z. B. Höhlenplätze schafft, die noch
+    // bewohnt sind, kann nicht entlassen werden (previewChoice → null).
+    replaceOptions = [];
+    for (const occupant of state.niches[sp.niche]) {
       const result = previewChoice(state, encounterIndex, cardIndex, occupant);
-      const option: ReplaceOptionView = { id: occupant, name: SPECIES_BY_ID.get(occupant)?.name ?? occupant };
-      if (result) {
-        option.preview = previewView(now, result, sp.id);
-        after ??= result;
-      }
-      return option;
-    });
+      if (!result) continue;
+      after ??= result;
+      replaceOptions.push({
+        id: occupant,
+        name: SPECIES_BY_ID.get(occupant)?.name ?? occupant,
+        preview: previewView(now, result, sp.id),
+      });
+    }
     preview = replaceOptions[0]?.preview ?? NO_CHANGE;
   } else if (status === 'present') {
     after = now;
@@ -390,7 +415,8 @@ export function toCardView(
     card.nicheFull = true;
     card.replaceOptions = replaceOptions;
   }
-  const reason = DISABLED_REASONS[status];
+  const reason =
+    status === 'full' && replaceOptions?.length === 0 ? 'Kein Tausch möglich' : DISABLED_REASONS[status];
   if (reason) card.disabledReason = reason;
   return card;
 }
@@ -402,6 +428,7 @@ const NICHE_TITLES: Readonly<Record<NicheId, string>> = {
   edge: 'Etwas summt am Waldsaum …',
   crown: 'Etwas regt sich in der Krone …',
   bark: 'Etwas klopft an der Rinde …',
+  hollows: 'Etwas huscht durchs Totholz …',
 };
 
 export function encounterTitle(nicheIds: readonly string[]): string {
@@ -409,6 +436,14 @@ export function encounterTitle(nicheIds: readonly string[]): string {
   if (unique.length === 1 && unique[0]! in NICHE_TITLES) return NICHE_TITLES[unique[0] as NicheId];
   return 'Etwas regt sich am Baum … wer darf einziehen?';
 }
+
+/** Warum „Neu würfeln“ gerade nicht geht. */
+export const REROLL_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof rerollBlocker>>, string>> = {
+  'no-encounter': 'Diese Begegnung gibt es nicht mehr',
+  'no-cards': 'Gerade kommt keine Art in Frage',
+  'no-alternatives': 'Keine anderen Tiere verfügbar',
+  'too-expensive': 'Nicht genug Samen',
+};
 
 /** Eine wartende Begegnung für den Kartenwahl-Dialog. Null, wenn es sie nicht gibt. */
 export function toEncounterView(
@@ -421,13 +456,15 @@ export function toEncounterView(
   const cards = encounter.cards
     .map((_, c) => toCardView(state, encounterIndex, c, now))
     .filter((c): c is CardView => c !== null);
-  const cost = rerollCost(state, encounterIndex);
-  return {
+  const blocker = rerollBlocker(state, encounterIndex);
+  const view: EncounterView = {
     kind: 'animal',
     title: encounterTitle(cards.map((c) => c.niche ?? '')),
     cards,
-    rerollCost: cost,
-    canReroll: state.seeds >= cost,
+    rerollCost: rerollCost(state, encounterIndex),
+    canReroll: blocker === null,
     declineReward: declineReward(),
   };
+  if (blocker) view.rerollDisabledReason = REROLL_BLOCKERS[blocker];
+  return view;
 }

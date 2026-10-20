@@ -11,7 +11,7 @@ import {
   toEcosystemView,
   toEncounterView,
 } from '../src/ui/adapters';
-import { stateAt } from './helpers';
+import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
 /** Junger Baum (Krone 2, Laubstreu 2 Plätze) mit einer offenen Begegnung. */
 function withEncounter(animals: string[], cards: string[], seed = 1) {
@@ -27,10 +27,12 @@ describe('toEcosystemView', () => {
     const state = stateAt(0);
     const view = toEcosystemView(state, evaluate(state));
     expect(view.stageName).toBe('Samen');
-    expect(view.niches.map((n) => n.id)).toEqual(['roots', 'litter', 'edge', 'crown', 'bark']);
+    expect(view.niches.map((n) => n.id)).toEqual(['roots', 'litter', 'edge', 'crown', 'bark', 'hollows']);
     expect(view.niches.every((n) => n.capacity === 0 && n.animals.length === 0)).toBe(true);
     expect(view.niches[0]!.unlockHint).toBe('öffnet bei „Keimling“');
     expect(view.niches[3]!.unlockHint).toBe('öffnet bei „Junger Baum“');
+    // Höhlen öffnen sich auch durch Tiere, die Plätze schaffen
+    expect(view.niches[5]!.unlockHint).toBe('öffnet bei „Alter Baum“ – oder früher durch Buntspecht oder Borkenkäfer');
     expect(view.families.map((f) => [f.id, f.icon, f.count])).toEqual([
       ['birds', '🐦', 0],
       ['insects', '🐝', 0],
@@ -123,6 +125,10 @@ describe('Stimmung und Texte', () => {
     });
     expect(effectView({ kind: 'groupSeeds', group: 'flowers', pct: 40 }).label).toBe('Blumen +40 % 🌰');
     expect(effectView({ kind: 'water', amount: 2 }).label).toBe('+2 💧');
+    expect(effectView({ kind: 'slot', niche: 'hollows', amount: 1 })).toEqual({
+      label: '+1 Platz Höhlen & Totholz',
+      tone: 'good',
+    });
   });
 
   it('Harmoniestufen nach Design (9.1)', () => {
@@ -234,6 +240,7 @@ describe('toEncounterView', () => {
     let view = toEncounterView(state, 0)!;
     expect(view.rerollCost).toBe(REROLL_BASE_COST);
     expect(view.canReroll).toBe(false);
+    expect(view.rerollDisabledReason).toBe('Nicht genug Samen');
     expect(view.declineReward).toBe(DECLINE_SEEDS);
 
     state.seeds = REROLL_BASE_COST;
@@ -243,6 +250,35 @@ describe('toEncounterView', () => {
     view = toEncounterView(state, 0)!;
     expect(view.rerollCost).toBe(REROLL_BASE_COST * 2);
     expect(view.canReroll).toBe(false);
+  });
+
+  it('Plätze aus Tieren: Höhlen öffnen sich durch den Borkenkäfer', () => {
+    const state = stateAt(3, ['barkbeetle']);
+    const hollows = toEcosystemView(state, evaluate(state)).niches.find((n) => n.id === 'hollows')!;
+    expect(hollows.capacity).toBe(1);
+    expect(hollows.unlockHint).toBeUndefined();
+  });
+
+  it('Tausch, der einen Höhlenbewohner ohne Platz ließe, wird nicht angeboten', () => {
+    const owl = fakeSpecies({ id: 'test-owl', niche: 'hollows' });
+    const bark = fakeSpecies({ id: 'test-bark', niche: 'bark', name: 'Testrinde' });
+    withFakeSpecies([owl, bark], () => {
+      const state = stateAt(3, ['barkbeetle', 'test-owl']);
+      state.pendingEncounters.push({ type: 'animal', cards: ['test-bark'], rerolls: 0 });
+      const card = toEncounterView(state, 0)!.cards[0]!;
+      expect(card.nicheFull).toBe(true);
+      expect(card.replaceOptions).toEqual([]);
+      expect(card.disabledReason).toBe('Kein Tausch möglich');
+    });
+  });
+
+  it('Neu würfeln gesperrt mit Grund, wenn keine anderen Tiere in Frage kommen', () => {
+    const state = stateAt(1);
+    state.seeds = 1000;
+    state.pendingEncounters.push({ type: 'animal', cards: ['earthworm'], rerolls: 0 });
+    const view = toEncounterView(state, 0)!;
+    expect(view.canReroll).toBe(false);
+    expect(view.rerollDisabledReason).toBe('Keine anderen Tiere verfügbar');
   });
 
   it('gibt null für fehlende Begegnungen', () => {

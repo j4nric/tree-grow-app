@@ -1312,6 +1312,17 @@ dialog.encounter::backdrop {
   display: none;
 }
 
+.encounter-reroll-hint {
+  margin: -6px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.encounter-reroll-hint[hidden] {
+  display: none;
+}
+
 /* ---------- Mobil ---------- */
 
 @media (max-width: 640px) {

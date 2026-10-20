@@ -96,8 +96,10 @@ export interface EncounterView {
   cards: CardView[];
   /** Kosten fürs Neuwürfeln in 🌰; `null` = Neuwürfeln hier nicht möglich (Ereignisse). */
   rerollCost: number | null;
-  /** Genug Samen fürs Neuwürfeln? */
+  /** Geht Neuwürfeln gerade (genug Samen, andere Arten verfügbar)? */
   canReroll: boolean;
+  /** Grund, falls Neuwürfeln nicht geht, z. B. „Keine anderen Tiere verfügbar“. */
+  rerollDisabledReason?: string;
   /** Samen fürs Ablehnen; `null` = Ablehnen nicht möglich. */
   declineReward: number | null;
 }
