@@ -2,9 +2,8 @@ import type { Condition, Effect, Genus, Level, NicheId, Rarity, Tag } from './ty
 
 /**
  * Tierarten des v2-Prototyps: 3 Gattungen × 3 Arten (docs/DESIGN_V2.md, 5.3 und 13).
- * Zahlen aus scripts/v2/content.ts. Die „+1 Platz Höhlen“-Wirkungen von Borkenkäfer
- * und Buntspecht entfallen im Prototyp, weil es die Nische Höhlen & Totholz noch
- * nicht gibt.
+ * Zahlen aus scripts/v2/content.ts. Borkenkäfer (Totholz) und Buntspecht (gezimmerte
+ * Höhle) bringen je +1 Platz in „Höhlen & Totholz“.
  */
 export interface Species {
   id: string;
@@ -64,8 +63,8 @@ export const SPECIES: readonly Species[] = [
   {
     id: 'woodpecker', name: 'Buntspecht', genus: 'birds', rarity: 1, level: 'predator', niche: 'bark', unlock: 4,
     food: ['kaefer', 'insekten', 'nuesse'], needs: [{ kind: 'tag', tag: 'totholz' }], provides: ['hoehle'],
-    effects: [{ kind: 'control', tag: 'kaefer', pct: 60 }, { kind: 'growth', pct: 4 }],
-    summary: 'jagt Käfer (−60 % Fraß), zimmert Baumhöhlen, +4 % 🌿',
+    effects: [{ kind: 'control', tag: 'kaefer', pct: 60 }, { kind: 'slot', niche: 'hollows', amount: 1 }, { kind: 'growth', pct: 4 }],
+    summary: 'jagt Käfer (−60 % Fraß), +1 Platz Höhlen, +4 % 🌿',
     text: 'Klopft, horcht, hackt. Seine alten Höhlen sind begehrter Wohnraum.',
   },
 
@@ -91,8 +90,8 @@ export const SPECIES: readonly Species[] = [
   {
     id: 'barkbeetle', name: 'Borkenkäfer', genus: 'insects', rarity: 0, level: 'herbivore', niche: 'bark', unlock: 3,
     food: ['laub', 'nadeln'], needs: [], provides: ['insekten', 'kaefer', 'totholz'],
-    effects: [{ kind: 'damage', pct: 8 }],
-    summary: 'Fraß −8 % 🌿, schafft Totholz',
+    effects: [{ kind: 'damage', pct: 8 }, { kind: 'slot', niche: 'hollows', amount: 1 }],
+    summary: 'Fraß −8 % 🌿, schafft Totholz: +1 Platz Höhlen',
     text: 'Zeichnet feine Gänge unter die Rinde. Schön anzusehen, schlecht für den Baum.',
   },
 

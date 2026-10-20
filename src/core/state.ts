@@ -9,6 +9,12 @@ import { normalizeSeed } from './rng';
  */
 export const SAVE_VERSION = 2;
 
+/**
+ * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+2 % je Punkt → höchstens
+ * ×21). Schützt vor manipulierten oder kaputten Spielständen.
+ */
+export const MAX_FOREST_MEMORY = 1000;
+
 export interface PendingEncounter {
   /** Im Prototyp gibt es nur Tierbegegnungen. */
   type: 'animal';
@@ -32,7 +38,13 @@ export interface GameState {
   niches: Record<NicheId, string[]>;
   /** Bereits gezogene, noch offene Begegnungen (max. MAX_PENDING_ENCOUNTERS). */
   pendingEncounters: PendingEncounter[];
-  /** Zustand des Zufallsgenerators (mulberry32, uint32, nie 0). */
+  /**
+   * Zustand des Zufallsgenerators (mulberry32, ganze Zahl in 0 … 2³²−1).
+   * Startwerte sind ≠ 0 (normalizeSeed). Der Zustand läuft aber mit ungerader Schrittweite
+   * durch alle 2³² Werte und kann darum im Spiel 0 erreichen (1 : 2³² je Zug) – für
+   * mulberry32 unschädlich. Wird genau dann gespeichert, setzt das Laden den Zustand aus
+   * lastTick neu (isValidRngState lehnt 0 ab); das kostet nur die Reproduzierbarkeit.
+   */
   rngState: number;
   /** Überdauert den Neuen Zyklus. */
   meta: {

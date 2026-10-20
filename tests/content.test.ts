@@ -67,8 +67,7 @@ describe('Inhalte v2', () => {
         provides: ref.provides,
         text: ref.text,
       });
-      // Einzige Abweichung: „+1 Platz Höhlen“ entfällt (die Nische gibt es im Prototyp nicht).
-      expect(s.effects).toEqual(ref.effects.filter((e) => e.kind !== 'slot'));
+      expect(s.effects).toEqual(ref.effects);
     }
     STAGES.forEach((stage, i) => {
       expect(stage.name).toBe(reference.STAGE_NAMES[i]);
@@ -78,12 +77,25 @@ describe('Inhalte v2', () => {
       expect(stage.light).toBe(reference.LIGHT_BUDGET[i]);
       expect(stage.water).toBe(reference.WATER_BUDGET[i]);
     });
+    expect([...NICHE_IDS]).toEqual([...reference.NICHES]);
     for (const n of NICHES) expect(n.slots).toEqual(reference.NICHE_SLOTS[n.id]);
     for (const g of GENERA) expect(TRAITS[g].map((t) => t.effects)).toEqual(reference.TRAITS[g]);
     expect(TRAIT_THRESHOLDS).toEqual(reference.TRAIT_THRESHOLDS);
     expect(RARITY_WEIGHTS).toEqual(reference.RARITY_WEIGHTS);
     expect(WAYPOINT_COUNT).toBe(reference.WAYPOINT_COUNT);
     for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(waypointThreshold(k)).toBe(reference.waypointThreshold(k));
+  });
+
+  it('Höhlen & Totholz: öffnet mit dem Alten Baum, früher nur durch Platz-Wirkungen', () => {
+    const hollows = NICHES_BY_ID.get('hollows')!;
+    expect(hollows.slots.findIndex((n) => n > 0)).toBe(4);
+    expect(hollows.opensEarly).toBe(true);
+    expect(NICHES.filter((n) => n.opensEarly).map((n) => n.id)).toEqual(['hollows']);
+    const slotGivers = SPECIES.filter((s) => s.effects.some((e) => e.kind === 'slot')).map((s) => s.id);
+    expect(slotGivers.sort()).toEqual(['barkbeetle', 'woodpecker']);
+    for (const s of SPECIES) {
+      for (const e of s.effects) if (e.kind === 'slot') expect(NICHES_BY_ID.has(e.niche) && e.amount > 0).toBe(true);
+    }
   });
 
   it('Stufen, Nischen und Wegpunkte passen zusammen', () => {
