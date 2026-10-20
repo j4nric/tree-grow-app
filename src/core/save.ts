@@ -4,7 +4,7 @@ import { SPECIES_BY_ID } from '../content/species';
 import { NICHE_IDS } from '../content/types';
 import { nicheSlots, stageForWaypoint, waypointsForGrowth } from './formulas';
 import { isValidRngState, normalizeSeed } from './rng';
-import { SAVE_VERSION, createInitialState, type GameState, type PendingEncounter } from './state';
+import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState, type GameState, type PendingEncounter } from './state';
 
 export const SAVE_KEY = 'tree-grow-save';
 
@@ -69,23 +69,44 @@ function loadV2(data: Record<string, unknown>, now: number): GameState {
   const state = createInitialState(now);
   state.version = SAVE_VERSION;
   state.lastTick = lastTick;
-  state.totalGrowth = Math.max(0, finiteOr(data.totalGrowth, 0));
-  state.seeds = Math.max(0, finiteOr(data.seeds, 0));
+  // ±Infinity (z. B. „1e400“ im JSON) wird auf den größten endlichen Wert begrenzt.
+  state.totalGrowth = clampedOr(data.totalGrowth, 0, 0, Number.MAX_VALUE);
+  state.seeds = clampedOr(data.seeds, 0, 0, Number.MAX_VALUE);
   // Wegpunkt und Stufe immer aus dem Gesamt-Wachstum ableiten.
   state.waypoint = waypointsForGrowth(state.totalGrowth);
   state.stage = stageForWaypoint(state.waypoint);
 
   // Nischen: unbekannte Arten und Duplikate verwerfen, jede Art in ihre eigene Nische,
-  // auf die aktuelle Platzzahl kürzen.
-  const slots = nicheSlots(state.stage);
+  // auf die aktuelle Platzzahl kürzen. Fehlende Nischen (z. B. „hollows“ aus älteren
+  // v2-Ständen) bleiben leer. Arten, die Plätze schaffen (Borkenkäfer → Höhlen), ziehen
+  // zuerst ein, damit ihre Plätze beim Kürzen schon zählen; danach gilt wieder die
+  // gespeicherte Reihenfolge.
   const niches = isRecord(data.niches) ? data.niches : {};
-  const seen = new Set<string>();
+  const candidates: string[] = [];
   for (const nicheId of NICHE_IDS) {
-    for (const id of stringArray(niches[nicheId])) {
-      const sp = SPECIES_BY_ID.get(id);
-      if (!sp || seen.has(id)) continue;
-      seen.add(id);
-      if (state.niches[sp.niche].length < slots[sp.niche]) state.niches[sp.niche].push(id);
+    for (const id of stringArray(niches[nicheId])) if (SPECIES_BY_ID.has(id) && !candidates.includes(id)) candidates.push(id);
+  }
+  const createsSlots = (id: string) => SPECIES_BY_ID.get(id)!.effects.some((e) => e.kind === 'slot');
+  // Alle gespeicherten Arten haben hier gelebt – auch gekürzte bleiben im Tagebuch.
+  const seen = new Set<string>(candidates);
+  for (const id of [...candidates.filter(createsSlots), ...candidates.filter((x) => !createsSlots(x))]) {
+    const sp = SPECIES_BY_ID.get(id)!;
+    if (state.niches[sp.niche].length >= nicheSlots(state.stage, state.niches)[sp.niche]) continue;
+    state.niches[sp.niche].push(id);
+  }
+  for (const nicheId of NICHE_IDS) {
+    state.niches[nicheId].sort((a, b) => candidates.indexOf(a) - candidates.indexOf(b));
+  }
+  // Sicherheitsnetz: Kürzen kann Platz-Schaffer entfernt haben – überzählige Tiere von hinten entlassen.
+  for (let changed = true; changed; ) {
+    changed = false;
+    const slots = nicheSlots(state.stage, state.niches);
+    for (const nicheId of NICHE_IDS) {
+      if (state.niches[nicheId].length > slots[nicheId]) {
+        state.niches[nicheId].pop();
+        changed = true;
+        break;
+      }
     }
   }
 
@@ -108,7 +129,7 @@ function loadV2(data: Record<string, unknown>, now: number): GameState {
   state.rngState = isValidRngState(data.rngState) ? data.rngState : normalizeSeed(lastTick);
 
   const meta = isRecord(data.meta) ? data.meta : {};
-  state.meta.forestMemory = Math.max(0, finiteOr(meta.forestMemory, 0));
+  state.meta.forestMemory = clampedOr(meta.forestMemory, 0, 0, MAX_FOREST_MEMORY);
   const journal = isRecord(meta.journal) ? meta.journal : {};
   state.meta.journal.species = unique(stringArray(journal.species).filter((id) => SPECIES_BY_ID.has(id)));
   for (const id of seen) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
@@ -146,6 +167,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function finiteOr(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+/** Zahl in [min, max]; NaN und Nicht-Zahlen → fallback, ±Infinity → Grenze. */
+function clampedOr(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
 }
 
 function stringArray(value: unknown): string[] {
