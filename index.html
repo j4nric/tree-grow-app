@@ -9,12 +9,19 @@
   <body>
     <main class="layout">
       <section class="scene">
-        <canvas id="scene"></canvas>
-        <div class="stage-banner" id="stage-banner"></div>
+        <canvas id="scene" role="img" aria-label="Dein Baum und seine Bewohner"></canvas>
+        <div class="stage-banner" id="stage-banner" aria-live="polite"></div>
+        <div class="scene-dock" id="scene-dock"></div>
       </section>
-      <aside class="panel" id="panel"></aside>
+      <aside class="panel" id="panel">
+        <h1>Vom Samen zum Wald</h1>
+        <div id="ecosystem"></div>
+        <footer>
+          <button type="button" class="link-button" id="reset">Spielstand löschen</button>
+        </footer>
+      </aside>
     </main>
-    <div class="toast" id="toast" hidden></div>
+    <div class="toast" id="toast" role="status" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -46,6 +46,8 @@ export interface EncounterDialog {
    */
   show(view: EncounterView, queued: number): void;
   hide(): void;
+  /** Kurzer Hinweis im Dialog, z. B. wenn eine Aktion nicht geklappt hat. */
+  notice(text: string): void;
   readonly open: boolean;
 }
 
@@ -105,7 +107,12 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   later.hidden = !callbacks.onDefer;
   actions.append(reroll, decline, later);
 
-  inner.append(header, cardsBox, swipeHint, actions);
+  const noticeBox = el('p', 'encounter-notice');
+  noticeBox.setAttribute('role', 'status');
+  noticeBox.hidden = true;
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  inner.append(header, cardsBox, swipeHint, noticeBox, actions);
   dialog.append(inner);
   root.append(dialog);
 
@@ -233,6 +240,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     const rarity = card.rarity;
     const item = el('article', `encounter-card family-${card.family}${rarity ? ` rarity-${rarity}` : ''}`);
     item.setAttribute('role', 'listitem');
+    item.dataset.species = card.id;
     item.setAttribute('aria-labelledby', `${prefix}-card-${index}-name`);
     item.style.setProperty('--deal-delay', `${index * 70}ms`);
 
@@ -377,6 +385,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       cardsBox.replaceChildren(...cards.map((c) => c.root));
       cardsBox.dataset.count = String(cards.length);
       if (newEncounter) {
+        clearNotice();
         cardsBox.scrollLeft = 0;
         guardUntil = performance.now() + INPUT_GUARD_MS;
       }
@@ -406,7 +415,21 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     }
   }
 
+  function clearNotice(): void {
+    clearTimeout(noticeTimer);
+    noticeBox.hidden = true;
+    noticeBox.textContent = '';
+  }
+
+  function notice(text: string): void {
+    clearTimeout(noticeTimer);
+    noticeBox.textContent = text;
+    noticeBox.hidden = false;
+    noticeTimer = setTimeout(clearNotice, 4000);
+  }
+
   function resetState(): void {
+    clearNotice();
     dialog.classList.remove('dealing');
     idSignature = '';
     contentSignature = '';
@@ -426,6 +449,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   return {
     show,
     hide,
+    notice,
     get open() {
       return dialog.open && current !== null;
     },
