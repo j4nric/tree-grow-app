@@ -18,18 +18,11 @@ const toast = document.querySelector<HTMLElement>('#toast')!;
 
 let state = loadFromStorage(Date.now()) ?? createInitialState(Date.now());
 
-const offlineSeconds = (Date.now() - state.lastTick) / 1000;
-if (offlineSeconds > 60) {
-  const gained = simulateOffline(state, offlineSeconds);
-  if (gained > 0) {
-    showToast(`Willkommen zurück! In ${formatDuration(offlineSeconds)} hast du ${formatNumber(gained)} Energie gesammelt.`);
-  }
-}
-state.lastTick = Date.now();
-
 let shownStage = state.stage;
 let lastFrame = performance.now();
 let lastSave = performance.now();
+
+catchUp();
 
 const panel = createPanel(document.querySelector<HTMLElement>('#panel')!, {
   onGrow: () => clickGrow(state),
@@ -90,8 +83,25 @@ function showToast(text: string): void {
   setTimeout(() => (toast.hidden = true), 6000);
 }
 
+/**
+ * Rechnet die Zeit seit dem letzten Tick nach – beim Start und wenn ein Tab aus dem
+ * Hintergrund zurückkehrt (dort pausiert requestAnimationFrame).
+ */
+function catchUp(): void {
+  const seconds = (Date.now() - state.lastTick) / 1000;
+  if (seconds > MAX_FRAME_SECONDS) {
+    const gained = simulateOffline(state, seconds);
+    if (seconds > 60 && gained > 0) {
+      showToast(`Willkommen zurück! In ${formatDuration(seconds)} hast du ${formatNumber(gained)} Energie gesammelt.`);
+    }
+  }
+  state.lastTick = Date.now();
+  lastFrame = performance.now();
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') saveToStorage(state);
+  else catchUp();
 });
 window.addEventListener('beforeunload', () => saveToStorage(state));
 

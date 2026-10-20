@@ -1,4 +1,4 @@
-import { STAGES } from '../content/stages';
+import { stageForEnergy } from './formulas';
 import { RESOURCE_IDS, SAVE_VERSION, createInitialState, type GameState } from './state';
 
 export const SAVE_KEY = 'tree-grow-save';
@@ -35,8 +35,10 @@ export function deserialize(raw: string | null, now: number): GameState | null {
       if (n > 0) state.upgrades[id] = n;
     }
   }
-  state.totalEnergy = finiteOr(data.totalEnergy, 0);
-  state.stage = Math.min(Math.max(Math.floor(finiteOr(data.stage, 0)), 0), STAGES.length - 1);
+  state.totalEnergy = Math.max(finiteOr(data.totalEnergy, 0), 0);
+  // Stufe immer aus der Energie ableiten: passt alte Spielstände an geänderte
+  // Schwellen an und verhindert unstimmige (z. B. von Hand bearbeitete) Stände.
+  state.stage = stageForEnergy(state.totalEnergy);
   state.lastTick = finiteOr(data.lastTick, now);
   return state;
 }
