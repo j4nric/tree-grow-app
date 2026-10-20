@@ -8,6 +8,8 @@ import { chooseCard, declineEncounter, tick } from '../src/core/tick';
  * v1-Balancetest; der Simulator wird in Welle B auf v2 umgestellt).
  * Ein harmonie-orientierter Spieler entscheidet alle 5 Sekunden.
  */
+const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
+
 function resolveForHarmony(state: GameState): void {
   while (state.pendingEncounters.length > 0) {
     const now = evaluate(state).harmony;
@@ -44,7 +46,8 @@ describe('v2-Prototyp: Durchlauf', () => {
     expect(state.stage).toBe(5);
     expect(allAnimals(state).length).toBeGreaterThanOrEqual(5);
     expect(evaluate(state).harmony).toBeGreaterThan(30);
-    console.log(
+    // Protokoll nur auf Wunsch: SIM_LOG=1 npx vitest run tests/smoke-v2.test.ts
+    if (env.SIM_LOG) console.log(
       'Stufenzeiten (s):',
       reached.map((t) => Math.round(t)),
       'Harmonie',

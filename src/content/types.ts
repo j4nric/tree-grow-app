@@ -17,9 +17,9 @@ export type Rarity = 0 | 1 | 2 | 3;
 /** Ebene der Nahrungspyramide (Pflanzen sind die unterste Ebene). */
 export type Level = 'herbivore' | 'predator' | 'decomposer';
 
-/** Nischen am Hauptbaum, die der Prototyp braucht. */
-export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark';
-export const NICHE_IDS: readonly NicheId[] = ['roots', 'litter', 'edge', 'crown', 'bark'];
+/** Nischen am Hauptbaum (DESIGN_V2.md, Abschnitt 3). */
+export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows';
+export const NICHE_IDS: readonly NicheId[] = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows'];
 
 /** Nahrungs- und Lebensraum-Merkmale. Hauptbaum und Tiere stellen sie bereit. */
 export type Tag =
@@ -55,4 +55,9 @@ export type Effect =
   /** Fraßschaden in % Wachstum – nicht mit Zufriedenheit skaliert, durch Räuber gemindert. */
   | { kind: 'damage'; pct: number }
   /** Mindert den Schaden aller Tiere, die `tag` bereitstellen, um pct · Zufriedenheit. */
-  | { kind: 'control'; tag: Tag; pct: number };
+  | { kind: 'control'; tag: Tag; pct: number }
+  /**
+   * Zusätzliche Plätze in einer Nische, solange die Art im Ökosystem lebt – unabhängig
+   * von ihrer Zufriedenheit. Öffnet nur Nischen mit `opensEarly` vor ihrer Stufe.
+   */
+  | { kind: 'slot'; niche: NicheId; amount: number };

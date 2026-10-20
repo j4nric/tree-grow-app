@@ -1,4 +1,4 @@
-import { SPECIES_BY_ID } from '../src/content/species';
+import { SPECIES_BY_ID, type Species } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { thresholdFor } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
@@ -14,4 +14,36 @@ export function stateAt(stage: number, animals: string[] = [], seed = 1): GameSt
     state.meta.journal.species.push(id);
   }
   return state;
+}
+
+/**
+ * Registriert für die Dauer von `fn` zusätzliche Test-Arten (z. B. einen Höhlenbewohner,
+ * den der Prototyp noch nicht hat). Die Logik sucht Arten über SPECIES_BY_ID.
+ */
+export function withFakeSpecies<T>(species: Species[], fn: () => T): T {
+  const map = SPECIES_BY_ID as Map<string, Species>;
+  for (const s of species) map.set(s.id, s);
+  try {
+    return fn();
+  } finally {
+    for (const s of species) map.delete(s.id);
+  }
+}
+
+/** Test-Art mit schlichten Standardwerten. */
+export function fakeSpecies(patch: Partial<Species> & Pick<Species, 'id' | 'niche'>): Species {
+  return {
+    name: patch.id,
+    genus: 'birds',
+    rarity: 0,
+    level: 'predator',
+    unlock: 1,
+    food: ['insekten'],
+    needs: [],
+    provides: [],
+    effects: [],
+    summary: '-',
+    text: '-',
+    ...patch,
+  };
 }
