@@ -10,6 +10,7 @@ import {
   refreshEcosystemView,
   toEcosystemView,
   toEncounterView,
+  toSceneAnimals,
 } from '../src/ui/adapters';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
@@ -293,5 +294,20 @@ describe('toEncounterView', () => {
 
   it('gibt null für fehlende Begegnungen', () => {
     expect(toEncounterView(stateAt(3), 0)).toBeNull();
+  });
+});
+
+describe('toSceneAnimals', () => {
+  it('liefert Art, Gattung, Nische, Platz und Zufriedenheit für den Renderer', () => {
+    const state = stateAt(3, ['earthworm', 'bluetit', 'oakmoth', 'robin']);
+    const ev = evaluate(state);
+    expect(toSceneAnimals(state, ev)).toEqual([
+      { id: 'earthworm', family: 'soil', niche: 'roots', slot: 0, happiness: ev.animals.earthworm!.happiness },
+      { id: 'robin', family: 'birds', niche: 'litter', slot: 0, happiness: ev.animals.robin!.happiness },
+      { id: 'bluetit', family: 'birds', niche: 'crown', slot: 0, happiness: ev.animals.bluetit!.happiness },
+      { id: 'oakmoth', family: 'insects', niche: 'crown', slot: 1, happiness: ev.animals.oakmoth!.happiness },
+    ]);
+    const empty = stateAt(0);
+    expect(toSceneAnimals(empty, evaluate(empty))).toEqual([]);
   });
 });

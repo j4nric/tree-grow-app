@@ -25,6 +25,7 @@ import {
   type Evaluation,
 } from '../core/formulas';
 import type { GameState } from '../core/state';
+import type { SceneAnimal } from '../render/tree';
 import { allWaypointsReached, rerollBlocker } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
 import type {
@@ -480,4 +481,24 @@ export function toEncounterView(
   };
   if (blocker) view.rerollDisabledReason = REROLL_BLOCKERS[blocker];
   return view;
+}
+
+// ---------------------------------------------------------------------------
+// Szene: Tiere für den Renderer
+// ---------------------------------------------------------------------------
+
+/**
+ * Tiere für `drawScene` – Art, Gattung, Nische, Platz und Zufriedenheit.
+ * Nur neu bauen, wenn sich die Auswertung ändert (main.ts cacht das Array).
+ */
+export function toSceneAnimals(state: GameState, evaluation: Readonly<Evaluation>): SceneAnimal[] {
+  const out: SceneAnimal[] = [];
+  for (const niche of NICHES) {
+    (state.niches[niche.id] ?? []).forEach((id, slot) => {
+      const sp = SPECIES_BY_ID.get(id);
+      if (!sp) return;
+      out.push({ id, family: sp.genus, niche: niche.id, slot, happiness: evaluation.animals[id]?.happiness ?? 0 });
+    });
+  }
+  return out;
 }

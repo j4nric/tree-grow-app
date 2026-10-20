@@ -1332,6 +1332,20 @@ dialog.encounter::backdrop {
 /* ---------- Mobil ---------- */
 
 @media (max-width: 640px) {
+  /* Szene ist niedrig: Stapel nach oben rechts, damit Wurzelraum und Tiere frei bleiben */
+  .scene-dock {
+    top: 12px;
+    right: 12px;
+    bottom: auto;
+    left: auto;
+  }
+
+  .encounter-stack {
+    min-height: 44px;
+    padding: 6px 12px 6px 10px;
+    font-size: 0.9rem;
+  }
+
   dialog.encounter {
     width: calc(100vw - 16px);
     max-height: calc(100dvh - 16px);

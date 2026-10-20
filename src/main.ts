@@ -11,8 +11,8 @@ import {
   type ActionError,
   type ActionResult,
 } from './core/tick';
-import { drawScene } from './render/tree';
-import { refreshEcosystemView, toEcosystemView, toEncounterView } from './ui/adapters';
+import { drawScene, type SceneInput } from './render/tree';
+import { refreshEcosystemView, toEcosystemView, toEncounterView, toSceneAnimals } from './ui/adapters';
 import { createEcosystemPanel } from './ui/ecosystem-panel';
 import { createEncounterDialog } from './ui/encounter-dialog';
 import { createEncounterStack } from './ui/encounter-stack';
@@ -74,6 +74,11 @@ let dialogWanted = false;
 let encounterDirty = true;
 let shownCanReroll: boolean | null = null;
 let shownQueued = -1;
+
+/** Eingabe für den Renderer – ein Objekt für alle Frames, keine Allokationen pro Frame. */
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+const scene: SceneInput = { growth: 0, time: 0, animals: [], reducedMotion: reducedMotionQuery.matches };
+reducedMotionQuery.addEventListener('change', () => (scene.reducedMotion = reducedMotionQuery.matches));
 
 /** Seitenleiste: Struktur nur neu bauen, wenn sich die (gecachte) Auswertung ändert. */
 let ecoView: EcosystemView | null = null;
@@ -149,6 +154,8 @@ function refreshPanel(): void {
   if (!ecoView || ev !== ecoEvaluation) {
     ecoEvaluation = ev;
     ecoView = toEcosystemView(state, ev);
+    // Tiere für die Szene nur bei Änderungen am Ökosystem neu bauen.
+    scene.animals = toSceneAnimals(state, ev);
   } else {
     refreshEcosystemView(ecoView, state);
   }
@@ -220,10 +227,12 @@ function frame(now: number): void {
     showBanner(STAGES[state.stage]!.name, STAGES[state.stage]!.description);
   }
 
+  refreshViews();
   resizeCanvas();
   const rect = canvas.getBoundingClientRect();
-  drawScene(ctx, rect.width, rect.height, { growth: growth(state), time: now / 1000 });
-  refreshViews();
+  scene.growth = growth(state);
+  scene.time = now / 1000;
+  drawScene(ctx, rect.width, rect.height, scene);
 
   if (now - lastSave > AUTOSAVE_MS) {
     saveToStorage(state);
