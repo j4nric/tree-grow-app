@@ -39,9 +39,21 @@ Wasser/Licht/Energie und Upgrades. Die offenen Punkte aus Phase 2b gelten für v
 entfallen weitgehend mit der Umstellung.
 
 - [x] Designdokument v2 + Monte-Carlo-Prototyp `scripts/v2/` + `tests/design-v2.test.ts` (`game-designer`)
-- [ ] PO: offene Fragen aus DESIGN_V2.md, Abschnitt 14 beantworten
+- [x] Offene Fragen entschieden (DESIGN_V2.md, Abschnitt 14) – Empfehlungen übernommen
 
 ### Schritt 1 – spielbarer Prototyp „nur Begegnungen + Kartenwahl“ (3 Gattungen × 3 Tiere)
+
+Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
+
+- **Welle A (parallel):** Kern v2 = 1.1–1.4 inkl. einfacher Bedienung und angepasster
+  e2e-Tests in einem PR (`core-engineer`) · Kartenwahl-Dialog und Ökosystem-Übersicht als
+  eigenständige Komponenten mit View-Model (`ui-dev`) · Tier-Ebene im Renderer mit
+  Ankerpunkten je Nische (`renderer`)
+- **Welle B (parallel, nach A):** Komponenten und Tier-Ebene verdrahten (`ui-dev`) ·
+  1.6 Simulator auf echte Logik (`game-designer`) · 1.7 e2e (`qa-tester`)
+- **1.8 Playtest** übernimmt das Team selbst (Playwright-Durchläufe, Screenshots), danach
+  Schritt 2.
+
 
 - [ ] 1.1 Inhalte v2 als Daten: Arten, Nischen, Gattungsboni, Wegpunkte + Inhaltstests (`game-designer`)
 - [ ] 1.2 GameState v2, `SAVE_VERSION = 2`, Migration „Neustart mit Andenken“, `rngState` (`core-engineer`)

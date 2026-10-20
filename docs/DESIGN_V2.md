@@ -921,26 +921,25 @@ Danach (Roadmap Phase 3/4): Jahreszeiten, Amphibien-Erweiterung, Hauptbaum-Arten
 
 ---
 
-## 14. Offene Fragen an den Product Owner
+## 14. Entscheidungen des Product Owners
 
-1. **Offline-Überlauf:** Was passiert, wenn offline mehr als 3 Wegpunkte erreicht
-   werden? *Empfehlung:* Überzählige Begegnungen werden automatisch abgelehnt und als
-   Samen gutgeschrieben – nichts verfällt, und niemand muss nach dem Urlaub 20 Karten
-   durchklicken. (Alternative: unbegrenzt aufstauen.)
-2. **Alte Spielstände:** Sauberer Neustart mit Andenken (+5 Waldgedächtnis ab „Junger
-   Baum“) oder eine Umrechnung von Energie in Samen? *Empfehlung:* Neustart – die
-   v1-Werte passen nicht ins neue Modell, und es gibt noch kaum Spieler.
-3. **Wachstum gegen Harmonie:** In der Simulation erreicht ein Spieler, der nur auf
-   Wachstum wählt, den Hain ~19 % früher, hat aber ~6 % weniger Harmonie. Soll das so
-   bleiben? *Empfehlung:* ja – ein milder Zielkonflikt („schnell oder schön“), den das
-   Waldgedächtnis beim Neuen Zyklus zugunsten der Harmonie auflöst. Falls Harmonie im
-   Zyklus selbst stärker zählen soll: Multiplikator `1 + H/80` statt `H/100`.
-4. **Jede Art nur einmal?** Erlaubt v2.0 Duplikate (zwei Meisenpaare)? *Empfehlung:*
-   nein – Vielfalt ist der Kern, Duplikate machen Stapeln zu leicht. Später ggf. als
-   Fähigkeit („Kolonie“) für einzelne Arten.
-5. **Klick-Button „Wachsen“:** In v1 ein optionaler Schub. *Empfehlung:* in v2
-   streichen – Entscheidungen ersetzen das Klicken, das passt zum ruhigen Spiel. Der
-   Platz in der Oberfläche gehört dem Begegnungs-Stapel.
+Der Product Owner hat die Entscheidungen an das Entwicklungsteam delegiert; es gelten die
+Empfehlungen (Stand 20.10.2026):
+
+1. **Offline-Überlauf:** Mehr als 3 offene Begegnungen werden automatisch abgelehnt und
+   als Samen gutgeschrieben (wie „Ablehnen“). Nichts verfällt ersatzlos.
+2. **Alte Spielstände:** Sauberer Neustart mit Andenken (+5 Waldgedächtnis, wenn der
+   v1-Stand mindestens „Junger Baum“ erreicht hatte) und der Meldung „Dein Wald beginnt
+   neu – mit Erinnerungen.“
+3. **Wachstum gegen Harmonie:** bleibt ein milder Zielkonflikt, Multiplikator `1 + H/100`.
+   Das Waldgedächtnis beim Neuen Zyklus belohnt Harmonie. Nach dem Balancing (2.10) neu
+   bewerten.
+4. **Duplikate:** Jede Art höchstens einmal im Ökosystem. Kolonien ggf. später als
+   Fähigkeit einzelner Arten.
+5. **Klick-Button „Wachsen“:** entfällt in v2. Der Platz gehört dem Begegnungs-Stapel.
+
+Weitere Designentscheidungen trifft das Team selbst und dokumentiert sie hier bzw. in den
+PR-Beschreibungen.
 
 ---
 
