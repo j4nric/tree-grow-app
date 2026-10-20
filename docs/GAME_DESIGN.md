@@ -32,12 +32,15 @@ Blätter ──► ☀️ Licht  ─┘    (begrenzt durch                      
 |---|---|---|---|
 | 0 | Samen | 0 | Samen im Boden, Keim schiebt sich heraus |
 | 1 | Keimling | 10 | Erste Verzweigung |
-| 2 | Setzling | 100 | Dünner Stamm, erste Blätter |
-| 3 | Junger Baum | 1.000 | Krone verzweigt sich |
-| 4 | Alter Baum | 10.000 | Dicker Stamm, volle Krone |
-| 5 | Hain | 100.000 | Weitere Bäume erscheinen |
-| 6 | Wald | 1.000.000 | Viele Bäume |
-| 7 | Urwald | 10.000.000 | Dichter Wald |
+| 2 | Setzling | 300 | Dünner Stamm, erste Blätter |
+| 3 | Junger Baum | 3.000 | Krone verzweigt sich |
+| 4 | Alter Baum | 40.000 | Dicker Stamm, volle Krone |
+| 5 | Hain | 300.000 | Weitere Bäume erscheinen |
+| 6 | Wald | 3.000.000 | Viele Bäume |
+| 7 | Urwald | 30.000.000 | Dichter Wald |
+
+Die Schwellen bis „Hain“ sind per Simulation gebalanced (siehe „Balancing-Ziele“).
+„Wald“ und „Urwald“ sind nur grob mit Faktor 10 fortgeschrieben.
 
 Die Stufe richtet sich nach der **in diesem Durchgang insgesamt erzeugten Energie**,
 nicht nach dem aktuellen Vorrat – Ausgeben wird also nie bestraft.
@@ -48,15 +51,23 @@ Kosten: `baseCost · costGrowth^Stufe`
 
 | ID | Name | ab Stufe | Basis | Wachstum | Effekt pro Stufe |
 |---|---|---|---|---|---|
-| root-hairs | Wurzelhaare | Samen | 5 | 1,15 | +0,5 Wasser/s |
-| cotyledon | Keimblatt | Samen | 5 | 1,15 | +0,5 Licht/s |
-| chlorophyll | Chlorophyll | Keimling | 20 | 1,20 | +1 Photosynthese/s |
+| root-hairs | Wurzelhaare | Samen | 12 | 1,30 | +0,5 Wasser/s |
+| cotyledon | Keimblatt | Samen | 12 | 1,30 | +0,5 Licht/s |
+| chlorophyll | Chlorophyll | Keimling | 30 | 1,22 | +1 Photosynthese/s |
 | taproot | Pfahlwurzel | Setzling | 120 | 1,17 | +3 Wasser/s |
 | canopy | Blätterkrone | Setzling | 120 | 1,17 | +3 Licht/s |
-| chloroplasts | Chloroplasten | Junger Baum | 900 | 1,22 | +8 Photosynthese/s |
+| chloroplasts | Chloroplasten | Junger Baum | 1.400 | 1,24 | +8 Photosynthese/s |
+| root-network | Wurzelgeflecht | Alter Baum | 4.000 | 1,33 | +20 Wasser/s |
+| leader-shoot | Wipfeltrieb | Alter Baum | 4.000 | 1,33 | +20 Licht/s |
+| stomata | Spaltöffnungen | Alter Baum | 7.500 | 1,30 | +50 Photosynthese/s |
+| root-grafts | Wurzelverwachsung | Hain | 15.000 | 1,30 | +60 Wasser/s |
+| shade-leaves | Schattenblätter | Hain | 15.000 | 1,30 | +60 Licht/s |
+| young-growth | Jungwuchs | Hain | 25.000 | 1,30 | +150 Photosynthese/s |
 
-> ⚠️ Die Zahlen sind ein erster Wurf und **nicht gebalanced**. Ab „Alter Baum“ fehlen
-> Upgrades – das ist die erste Aufgabe für den `game-designer`.
+Wasser- und Licht-Upgrades einer Stufe sind bewusst symmetrisch, damit die
+Entscheidung „Wurzeln, Blätter oder Photosynthese?“ allein vom aktuellen Engpass abhängt.
+Die Hain-Upgrades kosten beim Erreichen des Hains (~200 Energie/s) etwa 1–2 Minuten
+Produktion, damit es direkt etwas Neues zu kaufen gibt.
 
 ## Geplante Systeme (noch nicht implementiert)
 
@@ -104,3 +115,36 @@ Kosten: `baseCost · costGrowth^Stufe`
 | Erstes Prestige sinnvoll | 1–2 Stunden |
 
 Zwischen zwei Käufen sollen am Anfang selten mehr als ~30 Sekunden vergehen.
+
+### Simulation
+
+`scripts/simulate.ts` spielt das Spiel mit der echten Logik (`tick`, `clickGrow`,
+`buyUpgrade`) in 0,1-s-Schritten durch. `tests/balance.test.ts` prüft die Ziele mit
+Toleranz Faktor 2 und gibt die Tabelle aus:
+
+```bash
+npx vitest run tests/balance.test.ts --silent=false
+```
+
+**Standardspieler:** klickt 2 Minuten lang 3×/s, bis Minute 10 noch 1×/s, danach gar
+nicht mehr. Er kauft das Upgrade, das min(Wasser/s, Licht/s, Photosynthese) erhöht
+(Klicks zählen als Wasser/Licht mit) und dabei die kürzeste Summe aus „Wartezeit bis
+bezahlbar“ und „Amortisationszeit“ hat. Hilft kein Upgrade direkt, verbessert er das
+knappste freigeschaltete Glied.
+
+| Meilenstein | Ziel | Simuliert (vorher) | Simuliert (jetzt) | Energie/s beim Erreichen |
+|---|---|---|---|---|
+| Keimling | < 30 s | 10 s | 10 s | – (nur Klicks) |
+| Setzling | ~ 2 min | 0:53 min | 1:51 min | 1,5 |
+| Junger Baum | ~ 8 min | 3:00 min | 7:26 min | 13 |
+| Alter Baum | ~ 25 min | 10:16 min | 26:18 min | 54 |
+| Hain | ~ 60 min | 32:48 min | 59:30 min | 205 |
+| Wald | – | 153 min | 132 min | 964 |
+
+„Vorher“ = alte Zahlen (Schwellen in Zehnerpotenzen, ohne Upgrades ab „Alter Baum“)
+mit derselben Strategie. Längste Wartezeit zwischen zwei Käufen bis „Junger Baum“:
+30 s (die Zeit bis zum ersten Kauf, Chlorophyll). Danach liegen typischerweise
+40–90 s zwischen Käufen, vereinzelt bis ~2 min.
+
+**Gelegenheitsspieler** (klickt nur in der ersten Minute 1×/s): Setzling 3:29 min,
+Junger Baum 9:59 min, Alter Baum 28:42 min, Hain 61:57 min.
