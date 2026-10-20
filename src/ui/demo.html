@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UI-Demo – Vom Samen zum Wald (v2)</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <style>
+      /* Nur für die Demo-Seite */
+      .demo-scene {
+        padding: 24px;
+        background: linear-gradient(#cfe6f5, #eaf3df 70%, #c9b28a);
+      }
+      .demo-title {
+        margin: 0 0 12px;
+        font-size: 1.2rem;
+      }
+      .demo-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Nur zum Prüfen der v2-Komponenten, nicht im Spiel eingebunden. -->
+    <main class="layout">
+      <section class="scene demo-scene">
+        <h1 class="demo-title">Komponenten-Demo (v2)</h1>
+        <div class="demo-controls" id="demo-controls"></div>
+        <p class="demo-log" id="demo-log" aria-live="polite"></p>
+      </section>
+      <aside class="panel" id="panel"></aside>
+    </main>
+    <script type="module" src="./demo.ts"></script>
+  </body>
+</html>
