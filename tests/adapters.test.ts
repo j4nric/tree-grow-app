@@ -31,8 +31,8 @@ describe('toEcosystemView', () => {
     expect(view.niches.every((n) => n.capacity === 0 && n.animals.length === 0)).toBe(true);
     expect(view.niches[0]!.unlockHint).toBe('öffnet bei „Keimling“');
     expect(view.niches[3]!.unlockHint).toBe('öffnet bei „Junger Baum“');
-    // Höhlen öffnen sich auch durch Tiere, die Plätze schaffen
-    expect(view.niches[5]!.unlockHint).toBe('öffnet bei „Alter Baum“ – oder früher durch Buntspecht oder Borkenkäfer');
+    // Höhlen haben im Prototyp noch keine Bewohner-Art
+    expect(view.niches[5]!.unlockHint).toBe('Bewohner folgen bald');
     expect(view.families.map((f) => [f.id, f.icon, f.count])).toEqual([
       ['birds', '🐦', 0],
       ['insects', '🐝', 0],
@@ -252,14 +252,22 @@ describe('toEncounterView', () => {
     expect(view.canReroll).toBe(false);
   });
 
-  it('Plätze aus Tieren: Höhlen öffnen sich durch den Borkenkäfer', () => {
-    const state = stateAt(3, ['barkbeetle']);
-    const hollows = toEcosystemView(state, evaluate(state)).niches.find((n) => n.id === 'hollows')!;
-    expect(hollows.capacity).toBe(1);
-    expect(hollows.unlockHint).toBeUndefined();
+  it('Höhlen: ohne Bewohner-Art verschlossen, mit Bewohner Plätze aus dem Borkenkäfer', () => {
+    const empty = stateAt(3, ['barkbeetle']);
+    const locked = toEcosystemView(empty, evaluate(empty)).niches.find((n) => n.id === 'hollows')!;
+    expect(locked.capacity).toBe(0);
+    expect(locked.unlockHint).toBe('Bewohner folgen bald');
+
+    withFakeSpecies([fakeSpecies({ id: 'test-owl', niche: 'hollows' })], () => {
+      const state = stateAt(3, ['barkbeetle', 'test-owl']);
+      const hollows = toEcosystemView(state, evaluate(state)).niches.find((n) => n.id === 'hollows')!;
+      expect(hollows.capacity).toBe(1);
+      expect(hollows.animals.map((a) => a.id)).toEqual(['test-owl']);
+      expect(hollows.unlockHint).toBeUndefined();
+    });
   });
 
-  it('Tausch, der einen Höhlenbewohner ohne Platz ließe, wird nicht angeboten', () => {
+  it('Tausch, der einen Höhlenbewohner ohne Platz ließe, ist gesperrt', () => {
     const owl = fakeSpecies({ id: 'test-owl', niche: 'hollows' });
     const bark = fakeSpecies({ id: 'test-bark', niche: 'bark', name: 'Testrinde' });
     withFakeSpecies([owl, bark], () => {
@@ -267,7 +275,9 @@ describe('toEncounterView', () => {
       state.pendingEncounters.push({ type: 'animal', cards: ['test-bark'], rerolls: 0 });
       const card = toEncounterView(state, 0)!.cards[0]!;
       expect(card.nicheFull).toBe(true);
-      expect(card.replaceOptions).toEqual([]);
+      expect(card.replaceOptions).toEqual([
+        { id: 'barkbeetle', name: 'Borkenkäfer', disabledReason: 'Höhlenbewohner verlören ihren Platz' },
+      ]);
       expect(card.disabledReason).toBe('Kein Tausch möglich');
     });
   });

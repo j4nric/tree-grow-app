@@ -254,8 +254,18 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
     const animals = (state.niches[niche.id] ?? [])
       .map((id) => animalView(id, evaluation))
       .filter((a): a is AnimalView => a !== null);
-    const view: NicheView = { id: niche.id, icon: niche.icon, label: niche.name, capacity, animals };
-    if (capacity <= 0) {
+    // Nischen ohne mögliche Bewohner (Höhlen im Prototyp) bleiben verschlossen statt „0/1 belegt“.
+    const inhabitable = animals.length > 0 || SPECIES.some((s) => s.niche === niche.id);
+    const view: NicheView = {
+      id: niche.id,
+      icon: niche.icon,
+      label: niche.name,
+      capacity: inhabitable ? capacity : 0,
+      animals,
+    };
+    if (!inhabitable) {
+      view.unlockHint = 'Bewohner folgen bald';
+    } else if (capacity <= 0) {
       const at = nicheOpensAt(niche.id);
       if (at) view.unlockHint = `öffnet bei „${at}“`;
       // Nischen, die Tiere früher öffnen können (Höhlen & Totholz): Wer schafft Platz?
@@ -330,6 +340,9 @@ export function previewView(
   return preview;
 }
 
+/** Grund, warum ein Tier bei voller Nische nicht weichen kann (nichesAfterChoice → null). */
+export const REPLACE_BLOCKED = 'Höhlenbewohner verlören ihren Platz';
+
 const NO_CHANGE: PreviewView = { harmonyDelta: 0, growthDelta: 0 };
 
 const DISABLED_REASONS: Record<string, string> = {
@@ -376,19 +389,19 @@ export function toCardView(
     if (after) preview = previewView(now, after, sp.id);
   } else if (status === 'full') {
     // Nur Tausche, die der Kern erlaubt: Wer z. B. Höhlenplätze schafft, die noch
-    // bewohnt sind, kann nicht entlassen werden (previewChoice → null).
-    replaceOptions = [];
-    for (const occupant of state.niches[sp.niche]) {
+    // bewohnt sind, kann nicht entlassen werden (previewChoice → null) – gesperrt zeigen.
+    replaceOptions = state.niches[sp.niche].map((occupant) => {
+      const option: ReplaceOptionView = { id: occupant, name: SPECIES_BY_ID.get(occupant)?.name ?? occupant };
       const result = previewChoice(state, encounterIndex, cardIndex, occupant);
-      if (!result) continue;
-      after ??= result;
-      replaceOptions.push({
-        id: occupant,
-        name: SPECIES_BY_ID.get(occupant)?.name ?? occupant,
-        preview: previewView(now, result, sp.id),
-      });
-    }
-    preview = replaceOptions[0]?.preview ?? NO_CHANGE;
+      if (result) {
+        after ??= result;
+        option.preview = previewView(now, result, sp.id);
+      } else {
+        option.disabledReason = REPLACE_BLOCKED;
+      }
+      return option;
+    });
+    preview = replaceOptions.find((o) => o.preview)?.preview ?? NO_CHANGE;
   } else if (status === 'present') {
     after = now;
   } else if (status === 'closed') {
@@ -416,7 +429,7 @@ export function toCardView(
     card.replaceOptions = replaceOptions;
   }
   const reason =
-    status === 'full' && replaceOptions?.length === 0 ? 'Kein Tausch möglich' : DISABLED_REASONS[status];
+    status === 'full' && !replaceOptions?.some((o) => !o.disabledReason) ? 'Kein Tausch möglich' : DISABLED_REASONS[status];
   if (reason) card.disabledReason = reason;
   return card;
 }
@@ -440,7 +453,7 @@ export function encounterTitle(nicheIds: readonly string[]): string {
 /** Warum „Neu würfeln“ gerade nicht geht. */
 export const REROLL_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof rerollBlocker>>, string>> = {
   'no-encounter': 'Diese Begegnung gibt es nicht mehr',
-  'no-cards': 'Gerade kommt keine Art in Frage',
+  'no-cards': 'Keine passenden Tiere',
   'no-alternatives': 'Keine anderen Tiere verfügbar',
   'too-expensive': 'Nicht genug Samen',
 };

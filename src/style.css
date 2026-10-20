@@ -1312,6 +1312,12 @@ dialog.encounter::backdrop {
   display: none;
 }
 
+.card-replace-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6a4500;
+}
+
 .encounter-reroll-hint {
   margin: -6px 0 0;
   font-size: 0.8rem;

@@ -58,6 +58,8 @@ export interface ReplaceOptionView {
   name: string;
   /** Vorschau inklusive Tausch; fehlt sie, gilt die Vorschau der Karte. */
   preview?: PreviewView;
+  /** Dieses Tier kann nicht weichen (mit Begründung) – Option wird gesperrt angezeigt. */
+  disabledReason?: string;
 }
 
 /** Eine Karte in einer Begegnung (Tier, Pflanze, Ereignis-Option oder Gast). */

@@ -271,6 +271,8 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     if (card.nicheLabel) item.append(el('p', 'card-niche', `Nische: ${card.nicheLabel}`));
 
     const options = card.replaceOptions ?? [];
+    /** Tauschbare Tiere; gesperrte Optionen (z. B. Höhlenbewohner verlören ihren Platz) bleiben sichtbar. */
+    const usable = options.filter((o) => !o.disabledReason);
     let replaceText: HTMLElement | null = null;
     let select: HTMLSelectElement | null = null;
     if (card.nicheFull) {
@@ -282,13 +284,20 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
         label.append(el('span', '', 'Wen entlassen?'));
         select = el('select', 'card-replace-select');
         for (const option of options) {
-          const opt = el('option', '', option.name);
+          const opt = el('option', '', option.disabledReason ? `${option.name} – ${option.disabledReason}` : option.name);
           opt.value = option.id;
+          opt.disabled = Boolean(option.disabledReason);
           select.append(opt);
         }
-        if (keepReplaceId && options.some((o) => o.id === keepReplaceId)) select.value = keepReplaceId;
+        if (usable[0]) select.value = usable[0].id;
+        if (keepReplaceId && usable.some((o) => o.id === keepReplaceId)) select.value = keepReplaceId;
         label.append(select);
         box.append(label);
+      } else {
+        // Nur ein Tier in der Nische: Kann es nicht weichen, steht der Grund hier.
+        for (const option of options.filter((o) => o.disabledReason)) {
+          box.append(el('p', 'card-replace-note', `${option.name}: ${option.disabledReason}`));
+        }
       }
       item.append(box);
     }
@@ -330,7 +339,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     item.append(choose);
 
     const selectedReplace = () =>
-      card.nicheFull ? (options.find((o) => o.id === select?.value) ?? options[0]) : undefined;
+      card.nicheFull ? (usable.find((o) => o.id === select?.value) ?? usable[0]) : undefined;
 
     const refresh = () => {
       const replaced = selectedReplace();

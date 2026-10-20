@@ -217,6 +217,8 @@ test('Neu würfeln kostet Samen, Ablehnen bringt Samen, Escape legt zurück', as
   await expect(reroll).toBeEnabled();
   await reroll.click();
   await expect(dialog(page).getByRole('button', { name: /Neu würfeln \(−20 🌰\)/ })).toBeDisabled();
+  // Der Grund steht sichtbar im Dialog (nicht nur im title-Attribut).
+  await expect(dialog(page).getByText('Neu würfeln: Nicht genug Samen')).toBeVisible();
   expect(await readNumber(seedsValue(page))).toBeLessThan(5);
   expect((await savedState(page)).pendingEncounters[0].rerolls).toBe(1);
 
