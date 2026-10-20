@@ -435,3 +435,1003 @@ footer {
     border-top: 1px solid var(--border);
   }
 }
+
+/* ======================================================================
+   v2-Komponenten: Kartenwahl-Dialog und Ökosystem-Übersicht
+   ====================================================================== */
+
+:root {
+  /* Seltenheit als Edelstein: Moos, Bernstein, Amethyst, Gold */
+  --rarity-common: #5f8f3e;
+  --rarity-common-text: #3f6b25;
+  --rarity-rare: #c98d16;
+  --rarity-rare-text: #8a5a00;
+  --rarity-special: #8a5cc2;
+  --rarity-special-text: #6b3fa0;
+  --rarity-legendary: #d4a514;
+  --rarity-legendary-text: #7a5800;
+  --bad: #a3341f;
+  --bad-bg: #f8e4df;
+  --good-bg: #e6f2e0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Gattungsfarben: --fam (Rahmen/Akzent), --fam-bg (Fläche), --fam-text (Text auf Fläche) */
+.family-birds {
+  --fam: #3d7fb8;
+  --fam-bg: #e4eef7;
+  --fam-text: #24527a;
+}
+.family-insects {
+  --fam: #c99a12;
+  --fam-bg: #fbf1d3;
+  --fam-text: #6f5200;
+}
+.family-mammals {
+  --fam: #9a6a3c;
+  --fam-bg: #f3e7da;
+  --fam-text: #6a4422;
+}
+.family-soil {
+  --fam: #8a5a44;
+  --fam-bg: #f1e3dc;
+  --fam-text: #5e3727;
+}
+.family-fungi {
+  --fam: #b5473a;
+  --fam-bg: #f6e0dc;
+  --fam-text: #7f2a20;
+}
+.family-plants {
+  --fam: #3f8f3a;
+  --fam-bg: #e6f2e0;
+  --fam-text: #2f6f2b;
+}
+.family-event {
+  --fam: #5b6b7a;
+  --fam-bg: #e7ebef;
+  --fam-text: #36424e;
+}
+
+.rarity-common {
+  --gem: var(--rarity-common);
+  --gem-text: var(--rarity-common-text);
+}
+.rarity-rare {
+  --gem: var(--rarity-rare);
+  --gem-text: var(--rarity-rare-text);
+}
+.rarity-special {
+  --gem: var(--rarity-special);
+  --gem-text: var(--rarity-special-text);
+}
+.rarity-legendary {
+  --gem: var(--rarity-legendary);
+  --gem-text: var(--rarity-legendary-text);
+}
+
+.tone-good {
+  --tone: var(--accent-dark);
+  --tone-bg: var(--good-bg);
+}
+.tone-bad {
+  --tone: var(--bad);
+  --tone-bg: var(--bad-bg);
+}
+.tone-neutral {
+  --tone: var(--muted);
+  --tone-bg: #efece0;
+}
+
+/* ---------- Kartenwahl-Dialog ---------- */
+
+dialog.encounter {
+  width: min(1040px, calc(100vw - 24px));
+  max-width: none;
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+dialog.encounter::backdrop {
+  background: rgba(44, 42, 34, 0.45);
+}
+
+.encounter-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+
+.encounter-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.encounter-kind {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.encounter-title {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.encounter-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.encounter-subtitle[hidden] {
+  display: none;
+}
+
+.encounter-queue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.encounter-queue[hidden] {
+  display: none;
+}
+
+/* Kleiner Kartenstapel als Symbol für wartende Begegnungen */
+.queue-pips {
+  display: inline-flex;
+}
+
+.queue-pips .pip {
+  width: 12px;
+  height: 16px;
+  margin-left: -5px;
+  border: 1.5px solid var(--muted);
+  border-radius: 3px;
+  background: var(--panel);
+}
+
+.queue-pips .pip:first-child {
+  margin-left: 0;
+}
+
+.encounter-cards {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.encounter-cards[data-count='1'],
+.encounter-cards[data-count='2'] {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.encounter-swipe {
+  display: none;
+  margin: -6px 0 0;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* Vorgaben ohne Spezifität, damit .family-* und .rarity-* sie überschreiben */
+:where(.encounter-card) {
+  --fam: #6f6a58;
+  --fam-bg: #efece0;
+  --fam-text: var(--text);
+  --gem: var(--border);
+  --gem-text: var(--muted);
+}
+
+.encounter-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-bottom: 12px;
+  border: 2px solid var(--gem);
+  border-radius: 14px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+}
+
+.encounter-card:focus-within {
+  box-shadow:
+    0 0 0 3px rgba(31, 95, 191, 0.25),
+    0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.encounter-card.rarity-special,
+.encounter-card.rarity-legendary {
+  border-width: 3px;
+}
+
+.encounter-card.rarity-legendary {
+  background: linear-gradient(180deg, #fffaea 0%, white 45%);
+  box-shadow:
+    0 0 0 1px rgba(212, 165, 20, 0.35),
+    0 4px 18px rgba(212, 165, 20, 0.25);
+}
+
+.encounter-card > :not(.card-band) {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
+.card-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  padding: 8px 12px;
+  background: var(--fam-bg);
+  border-bottom: 3px solid var(--fam);
+  color: var(--fam-text);
+  font-size: 0.75rem;
+}
+
+.card-family {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.card-family-icon {
+  font-size: 1.1rem;
+}
+
+.card-rarity {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: white;
+  border: 1px solid var(--gem);
+  color: var(--gem-text);
+  font-weight: 700;
+}
+
+.card-rarity .gem {
+  color: var(--gem);
+}
+
+.card-name {
+  margin-top: 2px;
+  margin-bottom: 0;
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.card-niche {
+  margin-top: -4px;
+  margin-bottom: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.card-replace {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--rarity-rare);
+  border-radius: 6px;
+  background: #fff4d6;
+  font-size: 0.85rem;
+}
+
+.card-replace-text {
+  margin: 0;
+  font-weight: 600;
+  color: #6a4500;
+}
+
+.card-replace-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-replace-select {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid #d9c38a;
+  border-radius: 8px;
+  background: white;
+  color: var(--text);
+  font: inherit;
+}
+
+.card-replace-select:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 1px;
+}
+
+.card-conditions,
+.card-effects {
+  list-style: none;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+  font-size: 0.875rem;
+}
+
+.card-conditions li,
+.card-effects li {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.card-conditions .mark,
+.card-effects .mark {
+  flex-shrink: 0;
+  width: 1em;
+  text-align: center;
+  font-weight: 700;
+}
+
+.card-conditions .met .mark {
+  color: var(--accent-dark);
+}
+
+.card-conditions .unmet {
+  color: var(--muted);
+}
+
+.card-conditions .unmet .mark {
+  color: var(--bad);
+}
+
+.card-effects li .mark {
+  color: var(--tone);
+  font-size: 0.7rem;
+}
+
+.card-effects li.tone-bad {
+  color: var(--bad);
+}
+
+.card-preview {
+  list-style: none;
+  margin-top: 2px;
+  margin-bottom: 0;
+  padding: 8px 0 0;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preview-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--tone-bg);
+  color: var(--tone);
+  font-weight: 700;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-flavor {
+  margin-top: 0;
+  margin-bottom: 0;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.card-choose {
+  margin-top: auto;
+  min-height: 44px;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+
+.card-choose:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+
+.card-choose:disabled {
+  background: #e7e3d4;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.encounter-card.chosen {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(63, 143, 58, 0.25);
+}
+
+.encounter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.encounter-button {
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.encounter-button[hidden] {
+  display: none;
+}
+
+.encounter-button.secondary {
+  border: 1px solid var(--accent);
+  background: white;
+  color: var(--accent-dark);
+}
+
+.encounter-button.secondary:hover:not(:disabled) {
+  background: #eef6e6;
+}
+
+.encounter-button.quiet {
+  border: none;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+}
+
+.encounter-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Karten werden ausgeteilt; legendäre Karten schimmern einmal kurz */
+.encounter.dealing .encounter-card {
+  animation: deal 0.35s ease-out both;
+  animation-delay: var(--deal-delay, 0ms);
+}
+
+.encounter-card.rarity-legendary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 236, 160, 0.55) 50%, transparent 65%);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+
+.encounter.dealing .encounter-card.rarity-legendary::after {
+  animation: shimmer 1.4s ease-in-out 0.5s 1 both;
+}
+
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(120%);
+  }
+}
+
+/* ---------- Ökosystem-Übersicht ---------- */
+
+.eco {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.eco-stage {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+
+.eco-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.eco-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+
+.eco-stat-label {
+  display: flex;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.eco-stat-value {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+  transform-origin: left center;
+  white-space: nowrap;
+}
+
+.eco-stat-value.pop {
+  animation: pop 0.3s ease-out;
+}
+
+.eco-stat-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.eco-stat-harmony {
+  border-color: #cfe2c4;
+  background: #f4f9ef;
+}
+
+.eco-harmony {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+
+.eco-harmony summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+  cursor: pointer;
+  list-style: none;
+}
+
+.eco-harmony summary::-webkit-details-marker {
+  display: none;
+}
+
+.eco-harmony summary::before {
+  content: '▸';
+  margin-right: 8px;
+  transition: transform 0.15s;
+}
+
+.eco-harmony[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.eco-harmony summary:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+.eco-parts {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px;
+  display: grid;
+  gap: 4px;
+  font-size: 0.875rem;
+}
+
+.eco-parts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.eco-parts li[hidden] {
+  display: none;
+}
+
+.eco-parts b {
+  color: var(--tone);
+  font-variant-numeric: tabular-nums;
+}
+
+.eco-parts-total {
+  margin: 6px 12px 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.panel .eco-title {
+  margin: 8px 0 -4px;
+}
+
+/* Gattungsleiste (à la TFT): kompakte Kacheln, Name per Antippen/Hover */
+.family-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+  gap: 6px;
+}
+
+.family-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 2px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  color: var(--text);
+}
+
+.family-chip.active {
+  border-color: var(--fam);
+  background: var(--fam-bg);
+  color: var(--fam-text);
+}
+
+.family-chip.empty {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.family-chip[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px var(--fam);
+}
+
+.family-chip.tier-up {
+  animation: tier-up 0.9s ease-out;
+}
+
+.family-icon {
+  font-size: 1.1rem;
+}
+
+.family-count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.family-pips {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.family-pip {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 18px;
+  border-radius: 4px;
+  background: #efece0;
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.family-pip.reached {
+  background: var(--fam);
+  color: white;
+}
+
+.family-detail {
+  margin: -4px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f6f4ea;
+  font-size: 0.8rem;
+}
+
+.family-detail[hidden] {
+  display: none;
+}
+
+/* Nischen mit Platz-Kacheln */
+.niche-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.niche-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+}
+
+.niche-title {
+  font-weight: 600;
+}
+
+.niche-slots {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.niche.full .niche-slots {
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.niche.locked {
+  color: var(--muted);
+}
+
+.niche-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.niche-hint[hidden] {
+  display: none;
+}
+
+.slot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+}
+
+.slot {
+  --ring: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+
+.slot[hidden] {
+  display: none;
+}
+
+.slot.empty {
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.slot.filled {
+  border-left: 4px solid var(--gem);
+}
+
+.slot.visitor {
+  border-style: dashed;
+}
+
+.slot.happy-high {
+  --ring: var(--accent);
+}
+
+.slot.happy-mid {
+  --ring: #c98d16;
+}
+
+.slot.happy-low {
+  --ring: #b8703c;
+}
+
+/* Zufriedenheitsring: Kreisbogen = Zufriedenheit (--h von 0 bis 1) */
+.slot-ring {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 3px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ring) calc(var(--h, 0) * 360deg), #e7e3d4 0);
+}
+
+.slot.empty .slot-ring {
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 1.5px dashed var(--border);
+}
+
+.slot-icon {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: white;
+  font-size: 0.95rem;
+}
+
+.slot-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.slot-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.slot.empty .slot-name {
+  font-weight: normal;
+}
+
+.slot-mood {
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.slot.arrive {
+  animation: arrive 0.5s ease-out;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes tier-up {
+  0%,
+  30% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--fam) 35%, transparent);
+  }
+}
+
+/* ---------- Mobil ---------- */
+
+@media (max-width: 640px) {
+  dialog.encounter {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .encounter-inner {
+    padding: 16px 12px;
+  }
+
+  .encounter-title {
+    font-size: 1.15rem;
+  }
+
+  /* Karten nebeneinander zum Wischen; die nächste Karte lugt hervor */
+  .encounter-cards,
+  .encounter-cards[data-count='1'],
+  .encounter-cards[data-count='2'] {
+    grid-auto-columns: 85%;
+    width: auto;
+    max-width: none;
+    margin: 0 -12px;
+    padding: 4px 12px 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 12px;
+  }
+
+  .encounter-cards[data-count='1'] {
+    grid-auto-columns: 100%;
+  }
+
+  .encounter-card {
+    scroll-snap-align: center;
+  }
+
+  .encounter-swipe {
+    display: block;
+  }
+
+  .encounter-cards[data-count='1'] + .encounter-swipe {
+    display: none;
+  }
+
+  .encounter-actions .encounter-button {
+    flex: 1 1 140px;
+  }
+}
+
+/* ---------- Weniger Bewegung ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .encounter.dealing .encounter-card {
+    animation: none;
+  }
+
+  .encounter-card.rarity-legendary::after {
+    display: none;
+  }
+
+  .encounter-card,
+  .eco-harmony summary::before {
+    transition: none;
+  }
+
+  .eco-stat-value.pop,
+  .family-chip.tier-up,
+  .slot.arrive {
+    animation-name: highlight;
+    animation-timing-function: linear;
+  }
+}
