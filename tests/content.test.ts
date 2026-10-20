@@ -5,7 +5,7 @@ import { BASE_HAPPINESS, GENUS_INFO, RARITY_NAMES, SPECIES, TAG_NAMES } from '..
 import { STAGES } from '../src/content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../src/content/traits';
 import { GENERA, NICHE_IDS, PLANT_GROUPS } from '../src/content/types';
-import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../src/content/waypoints';
+import { WAYPOINT_BASE, WAYPOINT_COUNT, WAYPOINT_POWER, WAYPOINT_THRESHOLDS, waypointThreshold } from '../src/content/waypoints';
 import * as reference from '../scripts/v2/content';
 
 const unique = (ids: string[]) => new Set(ids).size === ids.length;
@@ -83,7 +83,11 @@ describe('Inhalte v2', () => {
     expect(TRAIT_THRESHOLDS).toEqual(reference.TRAIT_THRESHOLDS);
     expect(RARITY_WEIGHTS).toEqual(reference.RARITY_WEIGHTS);
     expect(WAYPOINT_COUNT).toBe(reference.WAYPOINT_COUNT);
-    for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(waypointThreshold(k)).toBe(reference.waypointThreshold(k));
+    // Bewusste Abweichung: Der Prototyp ohne Pflanzen nutzt einen flacheren Exponenten
+    // (DESIGN_V2.md 15.4); die Wegpunkte liegen darum früher, nie später als im Design.
+    expect(WAYPOINT_BASE).toBe(reference.WAYPOINT_BASE);
+    expect(WAYPOINT_POWER).toBeLessThanOrEqual(reference.WAYPOINT_POWER);
+    for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(waypointThreshold(k)).toBeLessThanOrEqual(reference.waypointThreshold(k));
   });
 
   it('Höhlen & Totholz: öffnet mit dem Alten Baum, früher nur durch Platz-Wirkungen', () => {
@@ -115,7 +119,7 @@ describe('Inhalte v2', () => {
     for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(WAYPOINT_THRESHOLDS[k]).toBeGreaterThan(WAYPOINT_THRESHOLDS[k - 1]!);
     expect(waypointThreshold(0)).toBe(0);
     expect(waypointThreshold(1)).toBe(4);
-    expect(waypointThreshold(3)).toBe(168);
+    expect(waypointThreshold(3)).toBe(135);
     expect(RARITY_WEIGHTS).toHaveLength(STAGES.length);
   });
 
