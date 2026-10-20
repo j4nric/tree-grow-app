@@ -134,6 +134,16 @@ body {
   align-items: baseline;
 }
 
+.resources b {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  transform-origin: right center;
+}
+
+.resources b.pop {
+  animation: pop 0.25s ease-out;
+}
+
 .resources small {
   color: var(--muted);
   text-align: right;
@@ -144,8 +154,14 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 2px;
+}
+
 .grow-button {
   width: 100%;
+  min-height: 48px;
   padding: 14px;
   border: none;
   border-radius: 10px;
@@ -178,12 +194,23 @@ button {
   border-radius: 10px;
 }
 
+/* Kurz aufleuchten, sobald ein Upgrade bezahlbar wird */
+.upgrade.ready {
+  animation: ready 1.2s ease-out;
+}
+
+/* Bestätigung nach erfolgreichem Kauf: grüner Rand + Puls */
+.upgrade.bought {
+  animation: bought 0.45s ease-out;
+}
+
 .upgrade[hidden] {
   display: none;
 }
 
 .upgrade-text {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -194,12 +221,19 @@ button {
 }
 
 .level {
+  display: inline-block;
   color: var(--muted);
   font-weight: normal;
 }
 
+.level.bump {
+  animation: bump 0.4s ease-out;
+}
+
 .buy {
+  flex-shrink: 0;
   min-width: 90px;
+  min-height: 44px;
   padding: 8px 10px;
   border: 1px solid var(--accent);
   border-radius: 8px;
@@ -219,6 +253,8 @@ footer {
 }
 
 .link-button {
+  min-height: 44px;
+  padding: 0 12px;
   border: none;
   background: none;
   color: var(--muted);
@@ -237,6 +273,145 @@ footer {
   background: var(--text);
   color: white;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Schwebende Zahlen beim Klick auf „Wachsen“ */
+.float-layer {
+  /* Am Dokument verankert, damit die Zahlen beim Scrollen mitwandern */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.float-number {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(255, 253, 246, 0.9);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--accent-dark);
+  white-space: nowrap;
+  animation: float-up 0.9s ease-out forwards;
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -30%) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -70%) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--drift, 0px)), -260%) scale(1);
+  }
+}
+
+@keyframes pop {
+  40% {
+    transform: scale(1.18);
+    color: var(--accent-dark);
+  }
+}
+
+@keyframes bump {
+  40% {
+    transform: translateY(-5px) scale(1.15);
+    color: var(--accent-dark);
+  }
+}
+
+@keyframes bought {
+  0% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0 rgba(63, 143, 58, 0.5);
+    transform: scale(1);
+  }
+  35% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 6px rgba(63, 143, 58, 0.15);
+    transform: scale(1.015);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(63, 143, 58, 0);
+    transform: scale(1);
+  }
+}
+
+@keyframes ready {
+  0%,
+  40% {
+    border-color: var(--accent);
+    background: #eef6e6;
+  }
+}
+
+/* Weniger Bewegung: keine Sprünge/Skalierung, nur kurzes Einblenden */
+@media (prefers-reduced-motion: reduce) {
+  .float-number {
+    animation: float-fade 0.6s linear forwards;
+  }
+
+  .resources b.pop,
+  .level.bump,
+  .upgrade.bought,
+  .upgrade.ready {
+    animation-name: highlight;
+    animation-timing-function: linear;
+  }
+
+  .grow-button,
+  .progress-bar {
+    transition: none;
+  }
+
+  .stage-banner.visible {
+    animation-name: banner-fade;
+  }
+}
+
+@keyframes float-fade {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes highlight {
+  0%,
+  50% {
+    color: var(--accent-dark);
+    border-color: var(--accent);
+  }
+}
+
+@keyframes banner-fade {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
 }
 
 @media (max-width: 760px) {
