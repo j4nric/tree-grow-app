@@ -45,14 +45,15 @@ describe('Formeln', () => {
   it('Stufe folgt der Gesamtenergie', () => {
     expect(stageForEnergy(0)).toBe(0);
     expect(stageForEnergy(10)).toBe(1);
-    expect(stageForEnergy(99)).toBe(1);
+    expect(stageForEnergy(299)).toBe(1);
+    expect(stageForEnergy(300)).toBe(2);
     expect(stageForEnergy(1e12)).toBe(STAGES.length - 1);
   });
 
   it('Wachstum liegt zwischen aktueller und nächster Stufe', () => {
     const state = createInitialState(0);
     state.stage = 2;
-    state.totalEnergy = 316; // halbe log-Strecke zwischen 100 und 1000
+    state.totalEnergy = 949; // halbe log-Strecke zwischen 300 und 3000
     expect(growth(state)).toBeCloseTo(2.5, 1);
   });
 });

@@ -36,7 +36,7 @@ describe('buyUpgrade', () => {
     state.resources.energy = 100;
     expect(buyUpgrade(state, 'root-hairs')).toBe(true);
     expect(state.upgrades['root-hairs']).toBe(1);
-    expect(state.resources.energy).toBe(95);
+    expect(state.resources.energy).toBe(88);
   });
 
   it('lehnt zu teure, gesperrte und unbekannte Upgrades ab', () => {
