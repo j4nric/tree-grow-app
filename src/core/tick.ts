@@ -1,5 +1,5 @@
 import { UPGRADES_BY_ID } from '../content/upgrades';
-import { CLICK_AMOUNT, getRates, stageForEnergy, upgradeCost, upgradeLevel } from './formulas';
+import { clickYield, getRates, stageForEnergy, upgradeCost, upgradeLevel } from './formulas';
 import type { GameState } from './state';
 
 /** Offline-Fortschritt wird auf diese Dauer begrenzt. */
@@ -30,10 +30,11 @@ export function tick(state: GameState, dt: number): void {
   }
 }
 
-/** Spieler klickt auf „Wachsen“: etwas Wasser und Licht sofort. */
+/** Spieler klickt auf „Wachsen“: Wasser und Licht sofort (optionaler Schub, siehe clickYield). */
 export function clickGrow(state: GameState): void {
-  state.resources.water += CLICK_AMOUNT;
-  state.resources.light += CLICK_AMOUNT;
+  const gained = clickYield(getRates(state));
+  state.resources.water += gained.water;
+  state.resources.light += gained.light;
 }
 
 /** Kauft eine Stufe des Upgrades. Gibt false zurück, wenn gesperrt oder zu teuer. */

@@ -7,7 +7,7 @@
  */
 import { STAGES } from '../src/content/stages';
 import { UPGRADES, type Upgrade } from '../src/content/upgrades';
-import { getRates, steadyEnergyRate, upgradeCost, upgradeLevel, type Rates } from '../src/core/formulas';
+import { clickYield, getRates, steadyEnergyRate, upgradeCost, upgradeLevel, type Rates } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
 import { buyUpgrade, clickGrow, tick } from '../src/core/tick';
 
@@ -28,15 +28,26 @@ export interface SimOptions {
   clicks: readonly ClickPhase[];
 }
 
+/** Nicht-Klicker: kauft nur, klickt nie. Für ihn gelten die Zielzeiten. */
+export const NO_CLICKS: readonly ClickPhase[] = [];
+
+/** Aktiver Spieler: anfangs eifrig, dann ermüdet der Finger, später nur noch zuschauen. */
+export const ACTIVE_CLICKS: readonly ClickPhase[] = [
+  { until: 120, perSecond: 3 },
+  { until: 600, perSecond: 1 },
+];
+
+/** Dauerklicker: 3×/s in den ersten 2 Minuten, danach das ganze Spiel 1×/s (Obergrenze). */
+export const ALWAYS_CLICKS: readonly ClickPhase[] = [
+  { until: 120, perSecond: 3 },
+  { until: Infinity, perSecond: 1 },
+];
+
 export const DEFAULT_OPTIONS: SimOptions = {
   dt: 0.1,
   maxSeconds: 3 * 60 * 60,
   targetStage: 5,
-  // Anfangs eifrig klicken, dann ermüdet der Finger, später nur noch zuschauen.
-  clicks: [
-    { until: 120, perSecond: 3 },
-    { until: 600, perSecond: 1 },
-  ],
+  clicks: NO_CLICKS,
 };
 
 export interface Purchase {
@@ -44,6 +55,18 @@ export interface Purchase {
   id: string;
   level: number;
   cost: number;
+}
+
+/** Takt innerhalb eines Abschnitts (von Erreichen der Stufe bis zur nächsten). */
+export interface SectionStats {
+  /** Stufen-Index, ab dem der Abschnitt läuft. */
+  stage: number;
+  /** Anzahl der Kaufmomente in diesem Abschnitt (Käufe im selben Schritt zählen einmal). */
+  purchases: number;
+  /** Median der Wartezeiten vor den Kaufmomenten dieses Abschnitts (Sekunden), null ohne Kauf. */
+  medianGap: number | null;
+  /** Längste Wartezeit vor einem Kauf dieses Abschnitts (Sekunden), null ohne Kauf. */
+  maxGap: number | null;
 }
 
 export interface SimResult {
@@ -58,6 +81,8 @@ export interface SimResult {
   maxGapAt: number;
   /** Längste Wartezeit, die vor dem Erreichen von „Junger Baum“ (Index 3) begann. */
   maxGapEarly: number;
+  /** Takt pro Abschnitt; ein Kauf zählt zum Abschnitt der Stufe, in der er stattfindet. */
+  sections: SectionStats[];
   endTime: number;
   endState: GameState;
 }
@@ -88,9 +113,14 @@ function effectDimension(upgrade: Upgrade): keyof Rates {
  * das sich mit einem freigeschalteten Upgrade verbessern lässt – dort das Upgrade
  * mit dem besten Effekt pro Kosten.
  */
-export function chooseUpgrade(state: GameState, clickRate: number): Upgrade | null {
+export function chooseUpgrade(state: GameState, clicksPerSecond: number): Upgrade | null {
   const base = getRates(state);
-  const rates: Rates = { ...base, water: base.water + clickRate, light: base.light + clickRate };
+  const perClick = clickYield(base);
+  const rates: Rates = {
+    ...base,
+    water: base.water + clicksPerSecond * perClick.water,
+    light: base.light + clicksPerSecond * perClick.light,
+  };
   const current = steadyEnergyRate(rates);
   const unlocked = UPGRADES.filter((u) => u.unlockStage <= state.stage);
   if (unlocked.length === 0) return null;
@@ -139,6 +169,8 @@ export function simulate(options: Partial<SimOptions> = {}): SimResult {
   let maxGap = 0;
   let maxGapAt = 0;
   let maxGapEarly = 0;
+  /** Stufen-Index → Wartezeiten vor den Käufen in diesem Abschnitt. */
+  const gapsByStage: number[][] = STAGES.map(() => []);
 
   const steps = Math.ceil(opts.maxSeconds / opts.dt);
   for (let step = 0; step < steps; step++) {
@@ -172,6 +204,8 @@ export function simulate(options: Partial<SimOptions> = {}): SimResult {
         maxGapAt = time;
       }
       if (lastBuy < (stageTimes[3] ?? Infinity) && gap > maxGapEarly) maxGapEarly = gap;
+      // Mehrere Käufe im selben Schritt zählen als ein Kaufmoment.
+      if (gap > opts.dt / 2) gapsByStage[state.stage]!.push(gap);
       lastBuy = time;
       purchases.push({ time, id: choice.id, level: level + 1, cost });
     }
@@ -179,7 +213,30 @@ export function simulate(options: Partial<SimOptions> = {}): SimResult {
     if (state.stage >= opts.targetStage) break;
   }
 
-  return { stageTimes, stageRates, purchases, maxGap, maxGapAt, maxGapEarly, endTime: time, endState: state };
+  const sections: SectionStats[] = gapsByStage.map((gaps, stage) => ({
+    stage,
+    purchases: gaps.length,
+    medianGap: gaps.length > 0 ? median(gaps) : null,
+    maxGap: gaps.length > 0 ? Math.max(...gaps) : null,
+  }));
+
+  return {
+    stageTimes,
+    stageRates,
+    purchases,
+    maxGap,
+    maxGapAt,
+    maxGapEarly,
+    sections,
+    endTime: time,
+    endState: state,
+  };
+}
+
+export function median(values: readonly number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
 export function formatTime(seconds: number | null): string {
@@ -189,17 +246,24 @@ export function formatTime(seconds: number | null): string {
   return m > 0 ? `${m}:${String(s % 60).padStart(2, '0')} min` : `${s} s`;
 }
 
-/** Lesbare Tabelle: Stufe, Spielzeit, längste Wartezeiten, Upgrade-Stände am Ende. */
+/**
+ * Lesbare Tabelle: Stufe, Spielzeit, Energie/s beim Erreichen und der Takt im
+ * Abschnitt *ab* dieser Stufe (Käufe, Median- und Maximal-Wartezeit).
+ */
 export function formatReport(result: SimResult): string {
   const lines: string[] = [
-    'Stufe            | Schwelle   | Spielzeit  | Energie/s',
-    '-----------------|------------|------------|----------',
+    'Stufe            | Schwelle   | Spielzeit  | Energie/s | Käufe | Takt Median | Takt max',
+    '-----------------|------------|------------|-----------|-------|-------------|---------',
   ];
   STAGES.forEach((stage, i) => {
     const rate = result.stageRates[i];
+    const section = result.sections[i]!;
+    const reached = result.stageTimes[i] !== null;
     lines.push(
       `${stage.name.padEnd(16)} | ${String(stage.threshold).padStart(10)} | ${formatTime(result.stageTimes[i] ?? null).padStart(10)} | ` +
-        (rate === null || rate === undefined ? '—' : rate.toFixed(1)),
+        `${(rate === null || rate === undefined ? '—' : rate.toFixed(1)).padStart(9)} | ` +
+        `${(reached ? String(section.purchases) : '—').padStart(5)} | ` +
+        `${formatTime(section.medianGap).padStart(11)} | ${formatTime(section.maxGap).padStart(8)}`,
     );
   });
   lines.push('');

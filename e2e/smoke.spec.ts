@@ -97,30 +97,39 @@ test('Spiel startet ohne Fehler mit Titel und Canvas', async ({ page }) => {
   await page.waitForTimeout(500);
 });
 
+test('Der Samen wächst ohne Klicks von selbst', async ({ page }) => {
+  await openGame(page);
+  // Grundproduktion: Wasser und Licht fließen von selbst, die Photosynthese macht daraus Energie.
+  await expect.poll(() => readNumber(resource(page, 'energy')), { timeout: 5_000 }).toBeGreaterThanOrEqual(2);
+  await expect(page.locator('[data-ref="energy-rate"]')).not.toHaveText('0/s');
+});
+
 test('„Wachsen“ bringt Wasser und Licht, daraus entsteht Energie', async ({ page }) => {
   await openGame(page);
-  await expect(resource(page, 'energy')).toHaveText('0');
+  // Ohne Klicks verbraucht die Photosynthese die Grundproduktion sofort – es bleibt kaum Vorrat.
+  expect(await readNumber(resource(page, 'water'))).toBeLessThan(1);
+  expect(await readNumber(resource(page, 'light'))).toBeLessThan(1);
 
   const clicks = 20;
   // clickCount löst 20 einzelne click-Events in schneller Folge aus (ohne 20× Stabilitätsprüfung).
   await growButton(page).click({ clickCount: clicks });
 
-  // Photosynthese baut Wasser/Licht mit 1/s ab – nach 20 schnellen Klicks ist noch genug da.
-  await expect.poll(() => readNumber(resource(page, 'water'))).toBeGreaterThan(0);
-  await expect.poll(() => readNumber(resource(page, 'light'))).toBeGreaterThan(0);
+  // Am Anfang bringt jeder Klick mindestens 1 Wasser und 1 Licht. Grundproduktion und
+  // Photosynthese laufen gleich schnell (1/s), der Vorrat aus den Klicks bleibt also stehen.
+  await expect.poll(() => readNumber(resource(page, 'water'))).toBeGreaterThanOrEqual(clicks - 1);
+  await expect.poll(() => readNumber(resource(page, 'light'))).toBeGreaterThanOrEqual(clicks - 1);
 
-  await expect.poll(() => readNumber(resource(page, 'energy'))).toBeGreaterThan(0);
-
-  // Ohne Upgrades gilt: jedes umgewandelte Wasser wird genau eine Energie.
-  const water = await readNumber(resource(page, 'water'));
-  const energy = await readNumber(resource(page, 'energy'));
-  expect(water + energy).toBeCloseTo(clicks, 0);
+  const energyBefore = await readNumber(resource(page, 'energy'));
+  await expect.poll(() => readNumber(resource(page, 'energy'))).toBeGreaterThan(energyBefore);
 });
 
 test('Upgrade kaufen: Stufe (1) erscheint, Energie sinkt', async ({ page, context }) => {
   await seedSave(context, { resources: { energy: 100 }, totalEnergy: 5 });
   await openGame(page);
-  await expect(resource(page, 'energy')).toHaveText('100');
+  // Die Grundproduktion legt sofort etwas Energie drauf.
+  const energyStart = await readNumber(resource(page, 'energy'));
+  expect(energyStart).toBeGreaterThanOrEqual(100);
+  expect(energyStart).toBeLessThan(105);
 
   const row = upgradeRow(page, 'Wurzelhaare');
   await expect(row).toBeVisible();
@@ -128,7 +137,8 @@ test('Upgrade kaufen: Stufe (1) erscheint, Energie sinkt', async ({ page, contex
   await row.getByRole('button').click();
 
   await expect(row).toContainText('(1)');
-  await expect.poll(() => readNumber(resource(page, 'energy'))).toBeLessThan(100);
+  // Wurzelhaare kosten 12 – das holt die Grundproduktion (1/s) nicht so schnell wieder auf.
+  await expect.poll(() => readNumber(resource(page, 'energy'))).toBeLessThan(energyStart - 5);
 });
 
 test('Fortschritt bleibt nach Neuladen erhalten', async ({ page, context }) => {
@@ -145,8 +155,11 @@ test('Fortschritt bleibt nach Neuladen erhalten', async ({ page, context }) => {
   await page.reload();
   await expect(stageLabel(page)).toContainText('Stufe:');
   await expect(upgradeRow(page, 'Keimblatt')).toContainText('(2)');
-  // Keimblatt erzeugt nur Licht, ohne Wasser entsteht keine Energie – der Wert bleibt gleich.
-  await expect.poll(() => readNumber(resource(page, 'energy'))).toBeCloseTo(energyBefore, 0);
+  // Nichts geht verloren; die Grundproduktion legt nur ein paar Energie pro Sekunde drauf
+  // (kein falscher Offline-Bonus, kein Rücksetzen auf den Startwert 100).
+  const energyAfter = await readNumber(resource(page, 'energy'));
+  expect(energyAfter).toBeGreaterThanOrEqual(energyBefore);
+  expect(energyAfter).toBeLessThan(energyBefore + 30);
 
   const saved = await page.evaluate((key) => localStorage.getItem(key), SAVE_KEY);
   expect(JSON.parse(saved ?? '{}').upgrades).toMatchObject({ cotyledon: 2 });
@@ -172,15 +185,16 @@ test('„Spielstand löschen“ setzt nach Bestätigung zurück', async ({ page,
   await page.getByRole('button', { name: /Wirklich alles löschen/ }).click();
   await expect(page.getByRole('button', { name: 'Spielstand löschen' })).toBeVisible();
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
-  await expect(resource(page, 'energy')).toHaveText('0');
-  await expect(resource(page, 'water')).toHaveText('0');
+  // Zurück auf null – seitdem nur ein paar Sekunden Grundproduktion (statt 500 Energie / 10 Wasser).
+  expect(await readNumber(resource(page, 'energy'))).toBeLessThan(5);
+  expect(await readNumber(resource(page, 'water'))).toBeLessThan(5);
   await expect(upgradeRow(page, 'Wurzelhaare')).not.toContainText('(');
   await expect(upgradeRow(page, 'Chlorophyll')).toBeHidden();
 
   // Auch nach dem Neuladen bleibt der Stand zurückgesetzt.
   await page.reload();
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
-  await expect(resource(page, 'energy')).toHaveText('0');
+  expect(await readNumber(resource(page, 'energy'))).toBeLessThan(10);
 });
 
 test('Offline-Fortschritt zeigt Willkommens-Meldung', async ({ page, context }) => {
@@ -197,7 +211,8 @@ test('Offline-Fortschritt zeigt Willkommens-Meldung', async ({ page, context }) 
   await expect(toast).toBeVisible();
   await expect(toast).toContainText('Willkommen zurück');
   await expect(toast).toContainText('Energie');
-  // 2 Wasser/s, 2 Licht/s, Photosynthese 1/s → in einer Stunde 3.600 Energie.
+  // 1 + 2 Wasser/s, 1 + 2 Licht/s (Grundproduktion + Upgrades), Photosynthese 1/s
+  // → in einer Stunde 3.600 Energie. Ohne die Offline-Zeit wären es nur wenige.
   await expect.poll(() => readNumber(resource(page, 'energy'))).toBeGreaterThanOrEqual(3600);
 });
 
