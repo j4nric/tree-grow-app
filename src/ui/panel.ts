@@ -76,7 +76,25 @@ export function createPanel(container: HTMLElement, actions: PanelActions) {
       restartAnimation(ref(id), 'pop');
     });
   });
-  ref('reset').addEventListener('click', actions.onReset);
+  // Löschen braucht einen zweiten Klick – ohne confirm(), das nicht überall angezeigt wird.
+  const reset = ref('reset');
+  let resetTimer: ReturnType<typeof setTimeout> | undefined;
+  const disarmReset = () => {
+    clearTimeout(resetTimer);
+    resetTimer = undefined;
+    reset.textContent = 'Spielstand löschen';
+    reset.classList.remove('armed');
+  };
+  reset.addEventListener('click', () => {
+    if (resetTimer === undefined) {
+      reset.textContent = 'Wirklich alles löschen? Zum Bestätigen erneut klicken';
+      reset.classList.add('armed');
+      resetTimer = setTimeout(disarmReset, 4000);
+      return;
+    }
+    disarmReset();
+    actions.onReset();
+  });
 
   const rows = new Map<string, UpgradeRow>();
   const list = ref('upgrades');

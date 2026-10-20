@@ -28,7 +28,6 @@ const panel = createPanel(document.querySelector<HTMLElement>('#panel')!, {
   onGrow: () => clickGrow(state),
   onBuy: (id) => buyUpgrade(state, id),
   onReset: () => {
-    if (!confirm('Wirklich von vorne anfangen? Der gesamte Fortschritt geht verloren.')) return;
     clearStorage();
     state = createInitialState(Date.now());
     shownStage = state.stage;

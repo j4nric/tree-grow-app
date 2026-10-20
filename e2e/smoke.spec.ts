@@ -162,18 +162,15 @@ test('„Spielstand löschen“ setzt nach Bestätigung zurück', async ({ page,
   await openGame(page);
   await expect(stageLabel(page)).toHaveText('Stufe: Setzling');
 
-  // Abbrechen lässt den Stand unverändert.
-  page.once('dialog', (dialog) => dialog.dismiss());
+  // Ein einzelner Klick fragt nur nach und lässt den Stand unverändert.
   await page.getByRole('button', { name: 'Spielstand löschen' }).click();
+  await expect(page.getByRole('button', { name: /Wirklich alles löschen/ })).toBeVisible();
   await expect(stageLabel(page)).toHaveText('Stufe: Setzling');
   await expect(upgradeRow(page, 'Wurzelhaare')).toContainText('(3)');
 
-  // Bestätigen setzt zurück.
-  page.once('dialog', (dialog) => {
-    expect(dialog.type()).toBe('confirm');
-    void dialog.accept();
-  });
-  await page.getByRole('button', { name: 'Spielstand löschen' }).click();
+  // Der zweite Klick bestätigt und setzt zurück.
+  await page.getByRole('button', { name: /Wirklich alles löschen/ }).click();
+  await expect(page.getByRole('button', { name: 'Spielstand löschen' })).toBeVisible();
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
   await expect(resource(page, 'energy')).toHaveText('0');
   await expect(resource(page, 'water')).toHaveText('0');

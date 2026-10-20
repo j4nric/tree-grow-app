@@ -262,6 +262,11 @@ footer {
   text-decoration: underline;
 }
 
+.link-button.armed {
+  color: #a3341f;
+  font-weight: 600;
+}
+
 .toast {
   position: fixed;
   bottom: 20px;
