@@ -18,13 +18,35 @@ Blätter ──► ☀️ Licht  ─┘    (begrenzt durch                      
                                                Gesamtenergie ──► nächste Stufe
 ```
 
-- Wasser und Licht werden produziert und gesammelt.
+- Wasser und Licht werden produziert und gesammelt. **Der Samen wächst von selbst:**
+  Grundproduktion 1 Wasser/s und 1 Licht/s (`BASE_WATER`, `BASE_LIGHT`), Photosynthese
+  1/s (`BASE_PHOTOSYNTHESIS`). Das Spiel läuft also komplett ohne Klicks.
 - **Photosynthese** wandelt pro Sekunde bis zu *Kapazität* Einheiten Wasser + Licht
   in Energie um (1 Wasser + 1 Licht → 1 Energie).
 - Energie im Gleichgewicht = `min(Wasser/s, Licht/s, Kapazität)`.
   → Der Spieler muss Wurzeln, Blätter und Photosynthese **ausbalancieren**. Das ist
   die zentrale Entscheidung des frühen Spiels.
-- Der Button „Wachsen“ gibt sofort +1 Wasser und +1 Licht (aktives Spiel am Anfang).
+- Der Button „Wachsen“ ist ein **optionaler Schub**: Ein Klick bringt sofort
+  *eine Sekunde* der eigenen Wasser- und Lichtproduktion, mindestens aber +1 Wasser und
+  +1 Licht (`CLICK_SECONDS = 1`, `CLICK_AMOUNT = 1`; Formel je Ressource:
+  `max(1, 1 s · Rate)`). Klicken ist nie nötig.
+
+### Entscheidung: Klicken (Playtest 1)
+
+- **Problem:** Ohne Klicks passierte nichts – ständiges Klicken war Pflicht und nervig.
+- **Lösung:** Passive Grundproduktion. Alle Zielzeiten gelten für einen Spieler, der
+  **gar nicht klickt** und nur kauft.
+- **Klick-Ertrag wächst mit:** Ein fester Ertrag (+1) wäre ab dem Setzling bedeutungslos
+  (bei 50 Wasser/s brächte ein Klick 2 % einer Sekunde). „1 Klick = 1 Sekunde
+  Wachstum“ ist leicht zu verstehen und bleibt das ganze Spiel über gleich wertvoll.
+- **Warum moderat:** Der Klick bringt nur Wasser und Licht, keine Energie. Er läuft
+  also durch den Photosynthese-Engpass – wer viel klickt, muss trotzdem in
+  Photosynthese investieren, und mehr Klicks pro Sekunde haben abnehmenden Ertrag.
+  Simuliert: wer am Anfang eifrig klickt, ist bis zum jungen Baum ~27 % schneller;
+  wer das ganze Spiel 1×/s klickt, erreicht den Hain ~29 % früher (Tabellen unten).
+  Mit `CLICK_SECONDS = 2` wären es ~34 %, mit 0,5 ~15 % – 1 ist der Mittelweg.
+- **Der leere Start** (die ersten ~30 s ohne wirklich sinnvollen Kauf) bleibt bewusst
+  so (Entscheidung Product Owner).
 
 ## Wachstumsstufen (MVP, implementiert)
 
@@ -56,17 +78,24 @@ Kosten: `baseCost · costGrowth^Stufe`
 | chlorophyll | Chlorophyll | Keimling | 30 | 1,22 | +1 Photosynthese/s |
 | taproot | Pfahlwurzel | Setzling | 120 | 1,17 | +3 Wasser/s |
 | canopy | Blätterkrone | Setzling | 120 | 1,17 | +3 Licht/s |
-| chloroplasts | Chloroplasten | Junger Baum | 1.400 | 1,24 | +8 Photosynthese/s |
-| root-network | Wurzelgeflecht | Alter Baum | 4.000 | 1,33 | +20 Wasser/s |
-| leader-shoot | Wipfeltrieb | Alter Baum | 4.000 | 1,33 | +20 Licht/s |
-| stomata | Spaltöffnungen | Alter Baum | 7.500 | 1,30 | +50 Photosynthese/s |
-| root-grafts | Wurzelverwachsung | Hain | 15.000 | 1,30 | +60 Wasser/s |
-| shade-leaves | Schattenblätter | Hain | 15.000 | 1,30 | +60 Licht/s |
-| young-growth | Jungwuchs | Hain | 25.000 | 1,30 | +150 Photosynthese/s |
+| chloroplasts | Chloroplasten | Junger Baum | 700 | 1,11 | +4 Photosynthese/s |
+| root-network | Wurzelgeflecht | Alter Baum | 2.000 | 1,15 | +10 Wasser/s |
+| leader-shoot | Wipfeltrieb | Alter Baum | 2.000 | 1,15 | +10 Licht/s |
+| stomata | Spaltöffnungen | Alter Baum | 3.000 | 1,14 | +20 Photosynthese/s |
+| root-grafts | Wurzelverwachsung | Hain | 7.500 | 1,14 | +30 Wasser/s |
+| shade-leaves | Schattenblätter | Hain | 7.500 | 1,14 | +30 Licht/s |
+| young-growth | Jungwuchs | Hain | 12.500 | 1,14 | +75 Photosynthese/s |
 
 Wasser- und Licht-Upgrades einer Stufe sind bewusst symmetrisch, damit die
 Entscheidung „Wurzeln, Blätter oder Photosynthese?“ allein vom aktuellen Engpass abhängt.
-Die Hain-Upgrades kosten beim Erreichen des Hains (~200 Energie/s) etwa 1–2 Minuten
+
+**Feine Stufen ab „Junger Baum“ (Takt):** Die teuren Upgrades ab Chloroplasten haben
+halbe Kosten und halben Effekt pro Stufe, dafür ein Kostenwachstum von etwa der Wurzel
+des alten Faktors (1,24 → 1,11; 1,33 → 1,15; 1,30 → 1,14). Zwei neue Stufen kosten
+damit ungefähr so viel wie früher eine (insgesamt ~7 % teurer), aber kein einzelner
+Kauf kostet mehr als ~1 Minute Produktion. Vorher kosteten z. B. Spaltöffnungen beim
+Erreichen des alten Baums (~57 Energie/s) über 2 Minuten Produktion.
+Die Hain-Upgrades kosten beim Erreichen des Hains (~215 Energie/s) etwa 35–60 Sekunden
 Produktion, damit es direkt etwas Neues zu kaufen gibt.
 
 ## Geplante Systeme (noch nicht implementiert)
@@ -105,7 +134,9 @@ Produktion, damit es direkt etwas Neues zu kaufen gibt.
 
 ## Balancing-Ziele
 
-| Meilenstein | Ziel-Spielzeit (aktiv) |
+Alle Ziele gelten für einen Spieler, der **nie klickt** und nur kauft.
+
+| Meilenstein | Ziel-Spielzeit (ohne Klicks) |
 |---|---|
 | Keimling | < 30 Sekunden |
 | Setzling | ~ 2 Minuten |
@@ -114,37 +145,69 @@ Produktion, damit es direkt etwas Neues zu kaufen gibt.
 | Hain | ~ 1 Stunde |
 | Erstes Prestige sinnvoll | 1–2 Stunden |
 
-Zwischen zwei Käufen sollen am Anfang selten mehr als ~30 Sekunden vergehen.
+**Takt:** Zwischen zwei Käufen sollen bis einschließlich Hain etwa 45 Sekunden
+vergehen, früh gern weniger, aber nirgends deutlich mehr als ~60 Sekunden.
+Die Zielzeiten pro Stufe mussten dafür nicht angepasst werden.
 
 ### Simulation
 
 `scripts/simulate.ts` spielt das Spiel mit der echten Logik (`tick`, `clickGrow`,
-`buyUpgrade`) in 0,1-s-Schritten durch. `tests/balance.test.ts` prüft die Ziele mit
-Toleranz Faktor 2 und gibt die Tabelle aus:
+`buyUpgrade`) in 0,1-s-Schritten durch. `tests/balance.test.ts` prüft die Zielzeiten
+für den Nicht-Klicker mit Toleranz Faktor 2, den Takt (je Abschnitt Keimling bis Alter
+Baum: Median ≤ 60 s, längste Wartezeit ≤ 90 s) und dass Klicken spürbar, aber nicht
+mehr als doppelt so schnell macht. Die Tabellen landen im Testprotokoll:
 
 ```bash
 npx vitest run tests/balance.test.ts --silent=false
 ```
 
-**Standardspieler:** klickt 2 Minuten lang 3×/s, bis Minute 10 noch 1×/s, danach gar
-nicht mehr. Er kauft das Upgrade, das min(Wasser/s, Licht/s, Photosynthese) erhöht
-(Klicks zählen als Wasser/Licht mit) und dabei die kürzeste Summe aus „Wartezeit bis
-bezahlbar“ und „Amortisationszeit“ hat. Hilft kein Upgrade direkt, verbessert er das
-knappste freigeschaltete Glied.
+**Strategie (alle Spielertypen):** Kauft das Upgrade, das min(Wasser/s, Licht/s,
+Photosynthese) erhöht (Klicks zählen als Wasser/Licht mit) und dabei die kürzeste Summe
+aus „Wartezeit bis bezahlbar“ und „Amortisationszeit“ hat. Hilft kein Upgrade direkt,
+verbessert er das knappste freigeschaltete Glied.
 
-| Meilenstein | Ziel | Simuliert (vorher) | Simuliert (jetzt) | Energie/s beim Erreichen |
+**Spielertypen:**
+- **Nicht-Klicker** (Standard, für ihn gelten die Ziele): klickt nie.
+- **Aktiver Spieler:** klickt 2 Minuten lang 3×/s, bis Minute 10 noch 1×/s, danach
+  nicht mehr (das frühere Standardprofil).
+- **Dauerklicker:** 3×/s in den ersten 2 Minuten, danach das ganze Spiel 1×/s
+  (Obergrenze für den Nutzen von Klicks).
+
+**Takt:** Eine Zeile gilt für den Abschnitt *ab* dieser Stufe bis zur nächsten. Gezählt
+werden Kaufmomente (mehrere Käufe im selben Schritt zählen einmal); die Wartezeit ist
+die Zeit seit dem vorigen Kauf (bzw. seit Spielstart).
+
+#### Nicht-Klicker
+
+| Stufe | Ziel | Zeit vorher | Zeit jetzt | Energie/s | Käufe im Abschnitt | Takt Median | Takt max |
+|---|---|---|---|---|---|---|---|
+| Keimling | < 30 s | nie (ohne Klick keine Produktion) | 10 s | 1 | 12 | 11 s | 30 s |
+| Setzling | ~ 2 min | nie | 2:34 min | 3 | 20 | 16 s | 30 s |
+| Junger Baum | ~ 8 min | nie | 8:20 min | 13 | 61 | 14 s | 54 s |
+| Alter Baum | ~ 25 min | nie | 25:17 min | 57 | 69 | 24 s | 58 s |
+| Hain | ~ 60 min | nie | 55:28 min | 216 | 124 | 29 s | 1:52 min |
+| Wald | – | nie | 125:36 min | 965 | – | – | – |
+
+#### Aktiver Spieler
+
+| Stufe | Zeit vorher | Takt vorher (Median / max) | Zeit jetzt | Takt jetzt (Median / max) |
 |---|---|---|---|---|
-| Keimling | < 30 s | 10 s | 10 s | – (nur Klicks) |
-| Setzling | ~ 2 min | 0:53 min | 1:51 min | 1,5 |
-| Junger Baum | ~ 8 min | 3:00 min | 7:26 min | 13 |
-| Alter Baum | ~ 25 min | 10:16 min | 26:18 min | 54 |
-| Hain | ~ 60 min | 32:48 min | 59:30 min | 205 |
-| Wald | – | 153 min | 132 min | 964 |
+| Keimling | 10 s | 5 s / 30 s | 10 s | 13 s / 30 s |
+| Setzling | 1:51 min | 16 s / 24 s | 1:43 min | 15 s / 28 s |
+| Junger Baum | 7:26 min | 16 s / 1:14 min | 6:03 min | 11 s / 47 s |
+| Alter Baum | 26:18 min | 19 s / 1:53 min | 21:48 min | 24 s / 57 s |
+| Hain | 59:30 min | 40 s / 3:50 min | 51:58 min | – |
 
-„Vorher“ = alte Zahlen (Schwellen in Zehnerpotenzen, ohne Upgrades ab „Alter Baum“)
-mit derselben Strategie. Längste Wartezeit zwischen zwei Käufen bis „Junger Baum“:
-30 s (die Zeit bis zum ersten Kauf, Chlorophyll). Danach liegen typischerweise
-40–90 s zwischen Käufen, vereinzelt bis ~2 min.
+„Vorher“ = Stand vor Playtest 1 (keine Grundproduktion, Klick = +1, grobe Upgrades).
+Der **Dauerklicker** erreicht jetzt Setzling 1:43 min, Junger Baum 6:03 min, Alter Baum
+19:12 min, Hain 39:25 min (Takt max 47 s).
 
-**Gelegenheitsspieler** (klickt nur in der ersten Minute 1×/s): Setzling 3:29 min,
-Junger Baum 9:59 min, Alter Baum 28:42 min, Hain 61:57 min.
+**Bewertung Takt:** Die längste Wartezeit bis zum Hain liegt jetzt bei 58 s (vorher bis
+zu 2 Minuten, ab Hain fast 4 Minuten). Der Median liegt mit 11–24 s unter den angepeilten
+45 s, weil zwischen den großen Käufen günstige „Nachkäufe“ liegen (z. B. Wurzelhaare
+für ein paar hundert Energie). Gröbere Upgrades würden den Median kaum heben
+(vorher 16–19 s), aber die Maxima wieder verdoppeln.
+
+**Offen:** Im Abschnitt Hain → Wald wachsen die Wartezeiten nach ~35 Minuten wieder über
+60 s (bis ~2 min), weil es nach den Hain-Upgrades nichts Neues mehr gibt. Das gehört
+zur Aufgabe „Wald und Urwald balancen“.

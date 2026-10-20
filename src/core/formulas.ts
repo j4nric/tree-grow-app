@@ -2,10 +2,14 @@ import { STAGES } from '../content/stages';
 import { UPGRADES, type Upgrade } from '../content/upgrades';
 import type { GameState } from './state';
 
-/** Grundwerte ohne Upgrades. */
+/** Grundwerte ohne Upgrades: Der Samen zieht von Anfang an selbst etwas Wasser und Licht. */
+export const BASE_WATER = 1;
+export const BASE_LIGHT = 1;
 export const BASE_PHOTOSYNTHESIS = 1;
-/** Ressourcen, die ein Klick auf „Wachsen“ bringt. */
+/** Mindestmenge Wasser und Licht, die ein Klick auf „Wachsen“ bringt. */
 export const CLICK_AMOUNT = 1;
+/** Ein Klick bringt zusätzlich so viele Sekunden der eigenen Wasser- bzw. Lichtproduktion. */
+export const CLICK_SECONDS = 1;
 
 export interface Rates {
   /** Wasser pro Sekunde. */
@@ -26,7 +30,7 @@ export function upgradeCost(upgrade: Upgrade, level: number): number {
 }
 
 export function getRates(state: GameState): Rates {
-  const rates: Rates = { water: 0, light: 0, photosynthesis: BASE_PHOTOSYNTHESIS };
+  const rates: Rates = { water: BASE_WATER, light: BASE_LIGHT, photosynthesis: BASE_PHOTOSYNTHESIS };
   for (const upgrade of UPGRADES) {
     const level = upgradeLevel(state, upgrade.id);
     if (level === 0) continue;
@@ -41,6 +45,17 @@ export function getRates(state: GameState): Rates {
     }
   }
   return rates;
+}
+
+/**
+ * Ertrag eines Klicks auf „Wachsen“: je Ressource max(CLICK_AMOUNT, CLICK_SECONDS · Rate).
+ * Wächst mit der Produktion, damit Klicken später nicht bedeutungslos wird.
+ */
+export function clickYield(rates: Rates): { water: number; light: number } {
+  return {
+    water: Math.max(CLICK_AMOUNT, CLICK_SECONDS * rates.water),
+    light: Math.max(CLICK_AMOUNT, CLICK_SECONDS * rates.light),
+  };
 }
 
 /** Energie pro Sekunde im Gleichgewicht: begrenzt durch das knappste Glied. */

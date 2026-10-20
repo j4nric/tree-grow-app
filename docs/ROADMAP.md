@@ -25,7 +25,7 @@ Aufgaben derselben Phase ohne gemeinsame Dateien können parallel laufen.
 
 ## Phase 2b – Nacharbeiten
 
-- [ ] Designentscheidungen: leerer Start, Start ohne Klick, Tempo im Mittelspiel (`game-designer`)
+- [x] Designentscheidungen: leerer Start, Start ohne Klick, Tempo im Mittelspiel (`game-designer`)
 - [ ] Wald und Urwald balancen, Samen-Formel an neue Schwellen anpassen (`game-designer`)
 - [ ] Renderer: statische Kulisse getrennt cachen, Größenänderung entprellen (`renderer`)
 - [ ] Seitenleiste: DOM-Referenzen einmal merken statt `querySelector` pro Frame (`ui-dev`)

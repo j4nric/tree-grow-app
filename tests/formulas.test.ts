@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { STAGES } from '../src/content/stages';
 import { UPGRADES, UPGRADES_BY_ID } from '../src/content/upgrades';
-import { BASE_PHOTOSYNTHESIS, getRates, growth, stageForEnergy, steadyEnergyRate, upgradeCost } from '../src/core/formulas';
+import {
+  BASE_LIGHT,
+  BASE_PHOTOSYNTHESIS,
+  BASE_WATER,
+  CLICK_AMOUNT,
+  CLICK_SECONDS,
+  clickYield,
+  getRates, growth, stageForEnergy, steadyEnergyRate, upgradeCost } from '../src/core/formulas';
 import { createInitialState } from '../src/core/state';
 
 describe('Inhalte', () => {
@@ -30,12 +37,28 @@ describe('Formeln', () => {
 
   it('Raten summieren Upgrade-Effekte', () => {
     const state = createInitialState(0);
-    expect(getRates(state)).toEqual({ water: 0, light: 0, photosynthesis: BASE_PHOTOSYNTHESIS });
+    expect(getRates(state)).toEqual({ water: BASE_WATER, light: BASE_LIGHT, photosynthesis: BASE_PHOTOSYNTHESIS });
     state.upgrades['root-hairs'] = 4;
     state.upgrades['chlorophyll'] = 2;
     const rates = getRates(state);
-    expect(rates.water).toBeCloseTo(2);
+    expect(rates.water).toBeCloseTo(BASE_WATER + 2);
+    expect(rates.light).toBeCloseTo(BASE_LIGHT);
     expect(rates.photosynthesis).toBeCloseTo(BASE_PHOTOSYNTHESIS + 2);
+  });
+
+  it('Der Samen wächst ohne Upgrades und ohne Klicks von selbst', () => {
+    const rates = getRates(createInitialState(0));
+    expect(BASE_WATER).toBeGreaterThan(0);
+    expect(BASE_LIGHT).toBeGreaterThan(0);
+    expect(steadyEnergyRate(rates)).toBeGreaterThan(0);
+  });
+
+  it('Klick-Ertrag: mindestens CLICK_AMOUNT, später CLICK_SECONDS Sekunden Produktion', () => {
+    expect(clickYield({ water: 0, light: 0, photosynthesis: 1 })).toEqual({ water: CLICK_AMOUNT, light: CLICK_AMOUNT });
+    const late = clickYield({ water: 200, light: 150, photosynthesis: 180 });
+    expect(late.water).toBeCloseTo(CLICK_SECONDS * 200);
+    expect(late.light).toBeCloseTo(CLICK_SECONDS * 150);
+    expect(late.water).toBeGreaterThan(CLICK_AMOUNT);
   });
 
   it('Energie wird durch das knappste Glied begrenzt', () => {
