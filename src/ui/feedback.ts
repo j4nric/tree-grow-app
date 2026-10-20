@@ -21,16 +21,29 @@ export function prefersReducedMotion(): boolean {
  * Startet eine CSS-Animation (über eine Klasse) neu, auch wenn sie gerade läuft.
  * Die Klasse wird nach Ende wieder entfernt.
  */
+const cleanups = new WeakMap<HTMLElement, Map<string, () => void>>();
+
 export function restartAnimation(el: HTMLElement, className: string): void {
+  // Vorherigen Aufräum-Listener für diese Klasse entfernen, sonst sammeln sie sich
+  // beim Dauerklicken an (ein Neustart löst kein animationend aus).
+  let byClass = cleanups.get(el);
+  if (!byClass) cleanups.set(el, (byClass = new Map()));
+  byClass.get(className)?.();
+
   el.classList.remove(className);
   void el.offsetWidth; // Reflow erzwingen, damit die Animation neu startet
   el.classList.add(className);
   const done = (event: AnimationEvent) => {
-    if (event.target !== el) return;
+    if (event.target !== el || !el.classList.contains(className)) return;
     el.classList.remove(className);
+    detach();
+  };
+  const detach = () => {
     el.removeEventListener('animationend', done);
+    byClass.delete(className);
   };
   el.addEventListener('animationend', done);
+  byClass.set(className, detach);
 }
 
 /** Ebene für schwebende Zahlen (über der ganzen Seite, nicht klickbar). Koordinaten wie clientX/Y. */

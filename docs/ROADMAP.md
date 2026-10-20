@@ -13,15 +13,23 @@ Aufgaben derselben Phase ohne gemeinsame Dateien können parallel laufen.
 - [x] Seitenleiste mit Ressourcen, Stufenfortschritt, Upgrades
 - [x] CLAUDE.md, Game Design, Agent-Definitionen, CI
 
-## Phase 2 – Spielbares MVP (parallelisierbar)
+## Phase 2 – Spielbares MVP ✅
 
-- [ ] **Balancing-Simulator** – Skript, das eine Spielstrategie simuliert und die Zeit
+- [x] **Balancing-Simulator** – Skript, das eine Spielstrategie simuliert und die Zeit
       bis zu jeder Stufe ausgibt (`game-designer`)
-- [ ] **Upgrades bis „Hain“** ergänzen und auf die Zeitziele balancen (`game-designer`)
-- [ ] **Renderer aufwerten** – Baum in Offscreen-Canvas cachen, dichtere Krone,
+- [x] **Upgrades bis „Hain“** ergänzen und auf die Zeitziele balancen (`game-designer`)
+- [x] **Renderer aufwerten** – Baum in Offscreen-Canvas cachen, dichtere Krone,
       Wurzeln unter der Erde sichtbar, Himmel mit Wolken (`renderer`)
-- [ ] **Feedback beim Klicken** – schwebende „+1 💧“-Zahlen, Partikel, Kauf-Animation (`ui-dev`)
-- [ ] **Playwright-Smoke-Test** – Spiel starten, wachsen, kaufen, neu laden (`qa-tester`)
+- [x] **Feedback beim Klicken** – schwebende „+1 💧“-Zahlen, Partikel, Kauf-Animation (`ui-dev`)
+- [x] **Playwright-Smoke-Test** – Spiel starten, wachsen, kaufen, neu laden (`qa-tester`)
+
+## Phase 2b – Nacharbeiten
+
+- [ ] Designentscheidungen: leerer Start, Start ohne Klick, Tempo im Mittelspiel (`game-designer`)
+- [ ] Wald und Urwald balancen, Samen-Formel an neue Schwellen anpassen (`game-designer`)
+- [ ] Renderer: statische Kulisse getrennt cachen, Größenänderung entprellen (`renderer`)
+- [ ] Seitenleiste: DOM-Referenzen einmal merken statt `querySelector` pro Frame (`ui-dev`)
+- [ ] Schwebende Zahlen sollen das Ressourcen-Label nicht überdecken (`ui-dev`)
 
 ## Phase 3 – Tiefe
 

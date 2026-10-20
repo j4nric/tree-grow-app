@@ -135,6 +135,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   if (width <= 0 || height <= 0) return;
   const pw = ctx.canvas.width;
   const ph = ctx.canvas.height;
+  if (pw <= 0 || ph <= 0) return;
   const dpr = pw / width || 1;
   const g = Math.max(0, input.growth);
 

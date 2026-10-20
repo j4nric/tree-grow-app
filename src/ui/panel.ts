@@ -149,16 +149,18 @@ export function createPanel(container: HTMLElement, actions: PanelActions) {
     for (const upgrade of UPGRADES) {
       const row = rows.get(upgrade.id)!;
       const unlocked = upgrade.unlockStage <= state.stage;
-      row.root.hidden = !unlocked;
-      if (!unlocked) {
+      const level = upgradeLevel(state, upgrade.id);
+      // Gekaufte Upgrades bleiben sichtbar, auch wenn die Stufe (z. B. nach neuen
+      // Schwellen) wieder darunter liegt – kaufbar sind sie erst nach Freischaltung.
+      row.root.hidden = !unlocked && level === 0;
+      if (row.root.hidden) {
         row.affordable = null;
         continue;
       }
-      const level = upgradeLevel(state, upgrade.id);
       const cost = upgradeCost(upgrade, level);
       row.level.textContent = level > 0 ? `(${level})` : '';
       row.cost.textContent = formatNumber(cost);
-      const affordable = state.resources.energy >= cost;
+      const affordable = unlocked && state.resources.energy >= cost;
       row.button.disabled = !affordable;
       // Kurz hervorheben, wenn das Upgrade gerade bezahlbar geworden ist
       if (affordable && row.affordable === false) restartAnimation(row.root, 'ready');

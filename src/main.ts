@@ -76,10 +76,13 @@ function showBanner(title: string, text: string): void {
   banner.classList.add('visible');
 }
 
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
 function showToast(text: string): void {
   toast.textContent = text;
   toast.hidden = false;
-  setTimeout(() => (toast.hidden = true), 6000);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (toast.hidden = true), 6000);
 }
 
 /**
