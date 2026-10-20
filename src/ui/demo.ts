@@ -214,23 +214,50 @@ const encounters: Record<string, EncounterView> = {
 const log = document.getElementById('demo-log')!;
 const panel = createEcosystemPanel(document.getElementById('panel')!);
 let queued = 2;
+let decisions = 0;
+const order = ['animal', 'plant', 'event'] as const;
+let shownKey: (typeof order)[number] = 'animal';
+
+function note(text: string): void {
+  decisions += 1;
+  log.dataset.decisions = String(decisions);
+  log.textContent = `${decisions}. ${text}`;
+}
+
+/** Wie im Spiel: Nach einer Entscheidung kommt sofort die nächste wartende Begegnung. */
+function next(): void {
+  if (queued <= 0) {
+    dialog.hide();
+    return;
+  }
+  queued -= 1;
+  shownKey = order[(order.indexOf(shownKey) + 1) % order.length]!;
+  dialog.show(encounters[shownKey]!, queued);
+}
+
 const dialog = createEncounterDialog(document.body, {
   onChoose(index, replaceId) {
-    log.textContent = `Gewählt: Karte ${index + 1}${replaceId ? `, ersetzt ${replaceId}` : ''}`;
-    dialog.hide();
+    note(`Gewählt: Karte ${index + 1}${replaceId ? `, ersetzt ${replaceId}` : ''}`);
+    next();
   },
   onDecline() {
-    log.textContent = 'Abgelehnt';
-    dialog.hide();
+    note('Abgelehnt');
+    next();
   },
   onReroll() {
-    log.textContent = 'Neu gewürfelt';
+    note('Neu gewürfelt');
+    // Gleiche Karten, aber jetzt reicht der Samen nicht mehr: Inhalt wird aktualisiert.
+    const view = encounters[shownKey]!;
+    dialog.show({ ...view, canReroll: false, rerollCost: (view.rerollCost ?? 0) * 2 }, queued);
   },
   onDefer() {
-    log.textContent = 'Später';
+    note('Später');
     dialog.hide();
   },
 });
+
+// Für Playwright-Prüfungen der Demo
+(window as unknown as { demo: unknown }).demo = { dialog, encounters };
 
 const controls = document.getElementById('demo-controls')!;
 for (const [key, label] of [
@@ -242,7 +269,10 @@ for (const [key, label] of [
   button.type = 'button';
   button.className = 'encounter-button secondary';
   button.textContent = label;
-  button.addEventListener('click', () => dialog.show(encounters[key]!, queued));
+  button.addEventListener('click', () => {
+    shownKey = key;
+    dialog.show(encounters[key]!, queued);
+  });
   controls.append(button);
 }
 
@@ -254,6 +284,11 @@ function frame(now: number) {
 requestAnimationFrame(frame);
 
 const params = new URLSearchParams(location.search);
-queued = Number(params.get('queued') ?? 2);
+// Ungültige Werte (z. B. ?queued=abc oder negativ) → 0
+const queuedParam = Number(params.get('queued') ?? 2);
+queued = Number.isFinite(queuedParam) && queuedParam > 0 ? Math.floor(queuedParam) : 0;
 const initial = params.get('enc') ?? 'animal';
-if (encounters[initial]) dialog.show(encounters[initial], queued);
+if (initial === 'animal' || initial === 'plant' || initial === 'event') {
+  shownKey = initial;
+  dialog.show(encounters[initial]!, queued);
+}

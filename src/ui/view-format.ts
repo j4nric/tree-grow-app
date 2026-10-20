@@ -15,9 +15,14 @@ export const RARITY_LABELS: Record<Rarity, string> = {
 /** Typografisches Minus statt Bindestrich. */
 const MINUS = '−';
 
+/** Auf eine Nachkommastelle runden – wie in der Anzeige. */
+function roundDisplay(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 /** Vorzeichenbehaftete Zahl: „+6“, „−7“, „±0“. */
 export function formatSigned(value: number): string {
-  const rounded = Math.round(value * 10) / 10;
+  const rounded = roundDisplay(value);
   if (rounded === 0) return '±0';
   const text = formatNumber(Math.abs(rounded));
   return rounded > 0 ? `+${text}` : `${MINUS}${text}`;
@@ -34,10 +39,17 @@ export function formatPercent(fraction: number): string {
   return `${Math.round(clamped * 100)} %`;
 }
 
+/** Bewertung passend zur Anzeige von `formatSigned`: was als „±0“ erscheint, ist neutral. */
 export function toneOf(value: number): Tone {
-  if (value > 0.0001) return 'good';
-  if (value < -0.0001) return 'bad';
+  const rounded = roundDisplay(value);
+  if (rounded > 0) return 'good';
+  if (rounded < 0) return 'bad';
   return 'neutral';
+}
+
+/** Bewertung eines Bruchteils passend zu `formatSignedPercent` (0,0003 → „±0 %“ → neutral). */
+export function percentToneOf(fraction: number): Tone {
+  return toneOf(fraction * 100);
 }
 
 /** Symbol zur Bewertung – damit gut/schlecht nicht nur über Farbe erkennbar ist. */
@@ -74,16 +86,16 @@ export function previewParts(preview: PreviewView): PreviewPart[] {
       icon: '🌿',
       value: formatSignedPercent(preview.growthDelta),
       text: `Wachstum ${formatSignedPercent(preview.growthDelta)}`,
-      tone: toneOf(preview.growthDelta),
+      tone: percentToneOf(preview.growthDelta),
     },
   ];
-  if (preview.seedDelta !== undefined && toneOf(preview.seedDelta) !== 'neutral') {
+  if (preview.seedDelta !== undefined && percentToneOf(preview.seedDelta) !== 'neutral') {
     parts.push({
       key: 'seeds',
       icon: '🌰',
       value: formatSignedPercent(preview.seedDelta),
       text: `Samen ${formatSignedPercent(preview.seedDelta)}`,
-      tone: toneOf(preview.seedDelta),
+      tone: percentToneOf(preview.seedDelta),
     });
   }
   if (preview.happiness !== undefined) {

@@ -11,6 +11,7 @@ import {
   formatSignedPercent,
   happinessLevel,
   nicheSlotsLabel,
+  percentToneOf,
   previewParts,
   queuedText,
   replaceHint,
@@ -51,6 +52,9 @@ describe('Bewertung', () => {
     expect(toneOf(0.1)).toBe('good');
     expect(toneOf(-2)).toBe('bad');
     expect(toneOf(0)).toBe('neutral');
+    expect(toneOf(0.04)).toBe('neutral'); // erscheint als „±0“
+    expect(percentToneOf(0.0003)).toBe('neutral'); // erscheint als „±0 %“
+    expect(percentToneOf(-0.002)).toBe('bad');
     expect(new Set([toneSymbol('good'), toneSymbol('bad'), toneSymbol('neutral')]).size).toBe(3);
   });
 
@@ -70,6 +74,13 @@ describe('Vorschau', () => {
     expect(parts.map((p) => p.key)).toEqual(['harmony', 'growth']);
     expect(parts[0]).toMatchObject({ text: 'Harmonie +6', value: '+6', tone: 'good' });
     expect(parts[1]).toMatchObject({ text: `Wachstum ${MINUS}7${NBSP}%`, tone: 'bad' });
+  });
+
+  it('leitet den Ton aus dem gerundeten Wert ab', () => {
+    const parts = previewParts({ harmonyDelta: 0.02, growthDelta: 0.0003, seedDelta: 0.0002 });
+    expect(parts.map((p) => p.key)).toEqual(['harmony', 'growth']);
+    expect(parts[0]).toMatchObject({ value: '±0', tone: 'neutral' });
+    expect(parts[1]).toMatchObject({ value: `±0${NBSP}%`, tone: 'neutral' });
   });
 
   it('zeigt Samen nur, wenn sie sich ändern, und Zufriedenheit neutral', () => {

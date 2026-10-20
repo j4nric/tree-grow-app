@@ -4,12 +4,16 @@
  * Reine Darstellung: zeigt ein `EncounterView` an und meldet Entscheidungen über
  * Callbacks. Spielregeln (Kosten, Vorschau, Ersetzen) kommen fertig aus dem View-Model.
  *
- * Tastatur: Tab/Umschalt+Tab, Pfeiltasten wechseln zwischen den Karten, Enter/Leertaste
- * wählt die fokussierte Karte. Der Fokus bleibt im Dialog (modales <dialog>).
+ * Tastatur: Tab/Umschalt+Tab, Pfeiltasten wechseln zwischen den wählbaren Karten,
+ * Enter/Leertaste wählt die fokussierte Karte. Der Fokus bleibt im Dialog (modales <dialog>).
+ *
+ * Schutz vor versehentlichen Doppel-Eingaben: Nach Wählen, Ablehnen oder Neu würfeln
+ * sind alle Knöpfe gesperrt, bis `show()` erneut aufgerufen wird. Erscheint eine neue
+ * Begegnung, werden Eingaben kurz ignoriert (gehaltenes Enter, Doppelklick).
  */
-import { el, srOnly } from './dom';
+import { el, setText, srOnly } from './dom';
 import { prefersReducedMotion } from './feedback';
-import type { CardView, EncounterKind, EncounterView, PreviewView } from './view-model';
+import type { CardView, EncounterKind, EncounterView, PreviewView, ReplaceOptionView } from './view-model';
 import {
   RARITY_LABELS,
   declineLabel,
@@ -25,14 +29,20 @@ export interface EncounterCallbacks {
   onChoose(cardIndex: number, replaceId?: string): void;
   onDecline(): void;
   onReroll(): void;
-  /** Optional: Begegnung zurücklegen („Später“, auch per Escape). Fehlt er, bleibt der Dialog offen. */
+  /**
+   * Optional: Begegnung zurücklegen („Später“-Knopf und Escape). Wird auch gemeldet,
+   * wenn der Browser den Dialog selbst schließt (z. B. zweites Escape).
+   */
   onDefer?(): void;
 }
 
 export interface EncounterDialog {
   /**
-   * Zeigt (oder aktualisiert) die Begegnung. Darf wiederholt aufgerufen werden:
-   * Die Karten werden nur neu aufgebaut, wenn sich ihre IDs ändern.
+   * Zeigt oder aktualisiert die Begegnung; darf wiederholt aufgerufen werden.
+   * Neue Karten-IDs → neue Begegnung (Austeilen, Fokus auf erste wählbare Karte,
+   * kurze Eingabesperre). Gleiche IDs, aber geänderter Inhalt → Karten werden mit dem
+   * neuen Inhalt neu aufgebaut; Fokus und Ersetzen-Auswahl bleiben erhalten.
+   * Jeder Aufruf hebt die Sperre nach einer Entscheidung auf.
    */
   show(view: EncounterView, queued: number): void;
   hide(): void;
@@ -46,27 +56,34 @@ const KIND_LABELS: Record<EncounterKind, string> = {
   visitor: '🦢 Besuch auf der Durchreise',
 };
 
+/** So lange werden Eingaben nach dem Erscheinen einer neuen Begegnung ignoriert. */
+const INPUT_GUARD_MS = 300;
+
+/** Zähler für eindeutige IDs, falls mehrere Dialoge existieren. */
+let instanceCount = 0;
+
 interface CardRefs {
+  card: CardView;
   root: HTMLElement;
   choose: HTMLButtonElement;
-  previewList: HTMLElement;
-  replaceText: HTMLElement | null;
   select: HTMLSelectElement | null;
+  selectedReplace(): ReplaceOptionView | undefined;
 }
 
 export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCallbacks): EncounterDialog {
+  const prefix = `encounter-${++instanceCount}`;
   const dialog = el('dialog', 'encounter');
-  dialog.setAttribute('aria-labelledby', 'encounter-title');
-  dialog.setAttribute('aria-describedby', 'encounter-queue');
+  dialog.setAttribute('aria-labelledby', `${prefix}-title`);
+  dialog.setAttribute('aria-describedby', `${prefix}-queue`);
 
   const inner = el('div', 'encounter-inner');
   const header = el('header', 'encounter-header');
   const kind = el('p', 'encounter-kind');
   const title = el('h2', 'encounter-title');
-  title.id = 'encounter-title';
+  title.id = `${prefix}-title`;
   const subtitle = el('p', 'encounter-subtitle');
   const queue = el('p', 'encounter-queue');
-  queue.id = 'encounter-queue';
+  queue.id = `${prefix}-queue`;
   const queueText = el('span');
   const queuePips = el('span', 'queue-pips');
   queuePips.setAttribute('aria-hidden', 'true');
@@ -93,36 +110,86 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   root.append(dialog);
 
   let cards: CardRefs[] = [];
-  let signature = '';
+  /** Karten-IDs der angezeigten Begegnung. */
+  let idSignature = '';
+  /** Vollständiger Karteninhalt – erkennt Änderungen bei gleichen IDs. */
+  let contentSignature = '';
   let current: EncounterView | null = null;
   let returnFocus: HTMLElement | null = null;
+  let queuedShown = -1;
+  /** Nach einer Entscheidung gesperrt, bis show() erneut kommt. */
+  let busy = false;
+  /** Bis zu diesem Zeitpunkt (performance.now) werden Eingaben ignoriert. */
+  let guardUntil = 0;
 
-  reroll.addEventListener('click', () => callbacks.onReroll());
-  decline.addEventListener('click', () => callbacks.onDecline());
-  later.addEventListener('click', () => callbacks.onDefer?.());
+  const inputBlocked = () => busy || performance.now() < guardUntil;
 
-  // Escape: nur schließen, wenn „Später“ erlaubt ist – sonst bleibt die Wahl offen.
-  dialog.addEventListener('cancel', (event) => {
-    event.preventDefault();
+  /** Führt eine Entscheidung genau einmal aus und sperrt danach alle Knöpfe. */
+  function decide(action: () => void): void {
+    if (inputBlocked()) return;
+    busy = true;
+    applyDisabled();
+    action();
+  }
+
+  reroll.addEventListener('click', () => decide(() => callbacks.onReroll()));
+  decline.addEventListener('click', () => decide(() => callbacks.onDecline()));
+  later.addEventListener('click', () => {
+    if (inputBlocked()) return;
     callbacks.onDefer?.();
   });
 
-  // Pfeiltasten springen zwischen den „Wählen“-Knöpfen der Karten.
+  // Gehaltenes Enter/Leertaste (Auto-Repeat) darf keine Karte auslösen.
+  dialog.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.repeat && (event.key === 'Enter' || event.key === ' ')) event.preventDefault();
+    },
+    true,
+  );
+
+  // Escape: nur „Später“, wenn erlaubt – sonst bleibt die Wahl offen.
+  dialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    if (!inputBlocked()) callbacks.onDefer?.();
+  });
+
+  // Schließt der Browser den Dialog trotzdem (z. B. zweites Escape), Zustand aufräumen.
+  // `close` kommt asynchron: Nach hide() ist `current` schon null; wurde inzwischen
+  // erneut show() aufgerufen, ist der Dialog wieder offen – dann nichts tun.
+  dialog.addEventListener('close', () => {
+    if (current === null || dialog.open) return;
+    const wasShowing = current !== null;
+    resetState();
+    if (wasShowing) callbacks.onDefer?.();
+  });
+
+  // Pfeiltasten springen zwischen den wählbaren Karten; gesperrte werden übersprungen.
   cardsBox.addEventListener('keydown', (event) => {
     const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
     if (!keys.includes(event.key)) return;
     // Im Auswahlfeld (Ersetzen) behalten die Pfeiltasten ihre normale Bedeutung.
     if (event.target instanceof HTMLSelectElement) return;
-    const buttons = cards.map((c) => c.choose);
+    const enabled = cards.map((c, i) => (c.choose.disabled ? -1 : i)).filter((i) => i >= 0);
+    if (enabled.length === 0) return;
+    event.preventDefault();
     const index = cards.findIndex((c) => c.root.contains(document.activeElement));
-    let next = index;
-    if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = buttons.length - 1;
+    let next: number;
+    if (event.key === 'Home') next = enabled[0]!;
+    else if (event.key === 'End') next = enabled[enabled.length - 1]!;
     else {
       const step = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
-      next = index < 0 ? 0 : (index + step + buttons.length) % buttons.length;
+      next = enabled[0]!;
+      if (index >= 0) {
+        for (let k = 1; k <= cards.length; k++) {
+          const candidate = (index + step * k + cards.length * k) % cards.length;
+          if (!cards[candidate]!.choose.disabled) {
+            next = candidate;
+            break;
+          }
+        }
+      }
     }
-    event.preventDefault();
     focusCard(next);
   });
 
@@ -135,6 +202,17 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       block: 'nearest',
       inline: 'center',
     });
+  }
+
+  /** Setzt `disabled` aller Knöpfe aus Sperre, Kartenzustand und Samen. */
+  function applyDisabled(): void {
+    for (const refs of cards) {
+      refs.choose.disabled = busy || Boolean(refs.card.disabledReason);
+      if (refs.select) refs.select.disabled = busy;
+    }
+    reroll.disabled = busy || !current?.canReroll;
+    decline.disabled = busy;
+    later.disabled = busy;
   }
 
   function renderPreview(list: HTMLElement, preview: PreviewView): void {
@@ -151,21 +229,12 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     );
   }
 
-  function selectedReplace(card: CardView, refs: CardRefs) {
-    const options = card.replaceOptions ?? [];
-    if (refs.select) return options.find((o) => o.id === refs.select!.value) ?? options[0];
-    return options[0];
-  }
-
-  function buildCard(card: CardView, index: number): CardRefs {
+  function buildCard(card: CardView, index: number, keepReplaceId?: string): CardRefs {
     const rarity = card.rarity;
-    const item = el(
-      'article',
-      `encounter-card family-${card.family}${rarity ? ` rarity-${rarity}` : ''}`,
-    );
+    const item = el('article', `encounter-card family-${card.family}${rarity ? ` rarity-${rarity}` : ''}`);
     item.setAttribute('role', 'listitem');
+    item.setAttribute('aria-labelledby', `${prefix}-card-${index}-name`);
     item.style.setProperty('--deal-delay', `${index * 70}ms`);
-    const nameId = `encounter-card-${index}-name`;
 
     const band = el('div', 'card-band');
     const family = el('span', 'card-family');
@@ -182,21 +251,18 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     }
 
     const name = el('h3', 'card-name', card.name);
-    name.id = nameId;
+    name.id = `${prefix}-card-${index}-name`;
     item.append(band, name);
 
-    if (card.nicheLabel) {
-      const niche = el('p', 'card-niche', `Nische: ${card.nicheLabel}`);
-      item.append(niche);
-    }
+    if (card.nicheLabel) item.append(el('p', 'card-niche', `Nische: ${card.nicheLabel}`));
 
+    const options = card.replaceOptions ?? [];
     let replaceText: HTMLElement | null = null;
     let select: HTMLSelectElement | null = null;
     if (card.nicheFull) {
       const box = el('div', 'card-replace');
       replaceText = el('p', 'card-replace-text');
       box.append(replaceText);
-      const options = card.replaceOptions ?? [];
       if (options.length > 1) {
         const label = el('label', 'card-replace-label');
         label.append(el('span', '', 'Wen entlassen?'));
@@ -206,6 +272,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
           opt.value = option.id;
           select.append(opt);
         }
+        if (keepReplaceId && options.some((o) => o.id === keepReplaceId)) select.value = keepReplaceId;
         label.append(select);
         box.append(label);
       }
@@ -246,81 +313,114 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
 
     const choose = el('button', 'card-choose');
     choose.type = 'button';
-    choose.setAttribute('aria-describedby', nameId);
     item.append(choose);
 
-    const refs: CardRefs = { root: item, choose, previewList, replaceText, select };
+    const selectedReplace = () =>
+      card.nicheFull ? (options.find((o) => o.id === select?.value) ?? options[0]) : undefined;
 
     const refresh = () => {
-      const replaced = card.nicheFull ? selectedReplace(card, refs) : undefined;
+      const replaced = selectedReplace();
       if (replaceText) replaceText.textContent = replaceHint(card.nicheLabel ?? '', replaced?.name);
       renderPreview(previewList, replaced?.preview ?? card.preview);
       choose.textContent = card.disabledReason ?? 'Wählen';
-      choose.disabled = Boolean(card.disabledReason);
-      const swap = card.nicheFull && replaced ? ` (ersetzt ${replaced.name})` : '';
+      const swap = replaced ? ` (ersetzt ${replaced.name})` : '';
       choose.setAttribute('aria-label', `${card.name} wählen${swap}`);
     };
     refresh();
     select?.addEventListener('change', refresh);
 
     choose.addEventListener('click', () => {
-      const replaced = card.nicheFull ? selectedReplace(card, refs) : undefined;
-      item.classList.add('chosen');
-      callbacks.onChoose(index, replaced?.id);
+      if (card.disabledReason) return;
+      decide(() => {
+        item.classList.add('chosen');
+        callbacks.onChoose(index, selectedReplace()?.id);
+      });
     });
-    return refs;
+    return { card, root: item, choose, select, selectedReplace };
   }
 
   function show(view: EncounterView, queued: number): void {
     current = view;
-    kind.textContent = KIND_LABELS[view.kind];
-    title.textContent = view.title;
-    subtitle.textContent = view.subtitle ?? '';
+    busy = false;
+    setText(kind, KIND_LABELS[view.kind]);
+    setText(title, view.title);
+    setText(subtitle, view.subtitle ?? '');
     subtitle.hidden = !view.subtitle;
 
-    queueText.textContent = queuedText(queued);
+    setText(queueText, queuedText(queued));
     queue.hidden = queued <= 0;
-    queuePips.replaceChildren(...Array.from({ length: Math.min(queued, 3) }, () => el('span', 'pip')));
+    const pips = Math.max(0, Math.min(queued, 3));
+    if (pips !== queuedShown) {
+      queuedShown = pips;
+      queuePips.replaceChildren(...Array.from({ length: pips }, () => el('span', 'pip')));
+    }
 
-    const nextSignature = view.cards.map((c) => c.id).join('|');
-    const rebuilt = nextSignature !== signature;
-    if (rebuilt) {
-      signature = nextSignature;
-      cards = view.cards.map(buildCard);
+    const nextIds = view.cards.map((c) => c.id).join('|');
+    const nextContent = JSON.stringify(view.cards);
+    const newEncounter = nextIds !== idSignature;
+    const contentChanged = newEncounter || nextContent !== contentSignature;
+
+    if (contentChanged) {
+      // Bei gleicher Begegnung: Fokus und Ersetzen-Auswahl über den Neuaufbau retten.
+      const focusedIndex = newEncounter ? -1 : cards.findIndex((c) => c.root.contains(document.activeElement));
+      const kept = new Map(newEncounter ? [] : cards.map((c) => [c.card.id, c.select?.value]));
+      idSignature = nextIds;
+      contentSignature = nextContent;
+      cards = view.cards.map((card, i) => buildCard(card, i, kept.get(card.id)));
+
+      // Austeil-Animation nur für neue Begegnungen, nicht beim Aktualisieren.
+      dialog.classList.remove('dealing');
+      if (newEncounter && !prefersReducedMotion()) {
+        void dialog.offsetWidth;
+        dialog.classList.add('dealing');
+      }
       cardsBox.replaceChildren(...cards.map((c) => c.root));
       cardsBox.dataset.count = String(cards.length);
-      cardsBox.scrollLeft = 0;
+      if (newEncounter) {
+        cardsBox.scrollLeft = 0;
+        guardUntil = performance.now() + INPUT_GUARD_MS;
+      }
+      applyDisabled();
+      if (focusedIndex >= 0 && cards[focusedIndex] && !cards[focusedIndex].choose.disabled) {
+        cards[focusedIndex].choose.focus({ preventScroll: true });
+      }
     }
 
     reroll.hidden = view.rerollCost === null;
     if (view.rerollCost !== null) {
-      reroll.textContent = rerollLabel(view.rerollCost);
-      reroll.disabled = !view.canReroll;
+      setText(reroll, rerollLabel(view.rerollCost));
       reroll.title = view.canReroll ? '' : 'Nicht genug Samen';
     }
     decline.hidden = view.declineReward === null;
-    if (view.declineReward !== null) decline.textContent = declineLabel(view.declineReward);
+    if (view.declineReward !== null) setText(decline, declineLabel(view.declineReward));
+    applyDisabled();
 
     if (!dialog.open) {
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       dialog.showModal();
-      dialog.classList.toggle('dealing', !prefersReducedMotion());
     }
-    if (rebuilt) {
+    if (newEncounter || !dialog.contains(document.activeElement)) {
       const first = cards.findIndex((c) => !c.choose.disabled);
       if (first >= 0) cards[first]!.choose.focus({ preventScroll: true });
-      else (reroll.hidden ? decline : reroll).focus();
+      else [reroll, decline, later].find((b) => !b.hidden && !b.disabled)?.focus();
     }
+  }
+
+  function resetState(): void {
+    dialog.classList.remove('dealing');
+    idSignature = '';
+    contentSignature = '';
+    current = null;
+    busy = false;
+    const target = returnFocus;
+    returnFocus = null;
+    if (target?.isConnected) target.focus();
   }
 
   function hide(): void {
     if (!dialog.open) return;
     dialog.close();
-    dialog.classList.remove('dealing');
-    signature = '';
-    current = null;
-    returnFocus?.focus?.();
-    returnFocus = null;
+    resetState();
   }
 
   return {

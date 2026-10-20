@@ -36,7 +36,10 @@ interface FamilyChip {
   root: HTMLButtonElement;
   icon: HTMLElement;
   count: HTMLElement;
+  pipBox: HTMLElement;
   pips: HTMLElement[];
+  /** Schwellen, für die die Pips gebaut sind (z. B. „2|3|5“). */
+  thresholdsKey: string;
   sr: HTMLElement;
   tier: number;
   description: string;
@@ -59,6 +62,11 @@ interface NicheRow {
   hint: HTMLElement;
   list: HTMLElement;
   slots: SlotTile[];
+}
+
+/** Anteil 0–1; NaN/Infinity aus dem Kern werden zu 0, damit keine kaputten Breiten entstehen. */
+function unitInterval(value: number): number {
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 }
 
 export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
@@ -168,15 +176,19 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
     count.setAttribute('aria-hidden', 'true');
     const pipBox = el('span', 'family-pips');
     pipBox.setAttribute('aria-hidden', 'true');
-    const pips = family.thresholds.map((t) => {
-      const pip = el('span', 'family-pip', String(t));
-      pipBox.append(pip);
-      return pip;
-    });
     const sr = srOnly();
     button.append(icon, count, pipBox, sr);
     button.addEventListener('click', () => selectFamily(family.id));
-    return { root: button, icon, count, pips, sr, tier: -1, description: '' };
+    const chip: FamilyChip = { root: button, icon, count, pipBox, pips: [], thresholdsKey: '', sr, tier: -1, description: '' };
+    buildPips(chip, family.thresholds);
+    return chip;
+  }
+
+  /** Baut die Schwellen-Pips (nur beim Anlegen oder wenn sich die Schwellen ändern). */
+  function buildPips(chip: FamilyChip, thresholds: number[]): void {
+    chip.thresholdsKey = thresholds.join('|');
+    chip.pips = thresholds.map((t) => el('span', 'family-pip', String(t)));
+    chip.pipBox.replaceChildren(...chip.pips);
   }
 
   function updateFamilies(families: FamilyView[]): void {
@@ -187,6 +199,7 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
         chip = buildFamilyChip(family);
         familyChips.set(family.id, chip);
       }
+      if (family.thresholds.join('|') !== chip.thresholdsKey) buildPips(chip, family.thresholds);
       const { activeTier } = familyProgress(family.count, family.thresholds);
       setText(chip.count, familyCountLabel(family.count, family.thresholds));
       chip.pips.forEach((pip, i) => pip.classList.toggle('reached', i <= activeTier));
@@ -206,6 +219,13 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
     if (order !== familyOrder) {
       familyOrder = order;
       familyBar.replaceChildren(...families.map((f) => familyChips.get(f.id)!.root));
+      // Verschwundene Gattungen vergessen; war eine davon ausgewählt, Detailzeile leeren.
+      const present = new Set(families.map((f) => f.id));
+      for (const id of [...familyChips.keys()]) {
+        if (present.has(id)) continue;
+        familyChips.delete(id);
+        if (selectedFamily === id) selectFamily(id);
+      }
     }
   }
 
@@ -236,7 +256,8 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
       setText(tile.sr, '');
       return;
     }
-    const level = happinessLevel(animal.happiness);
+    const happiness = unitInterval(animal.happiness);
+    const level = happinessLevel(happiness);
     const className = `slot filled rarity-${animal.rarity} family-${animal.family} happy-${level}${animal.visitor ? ' visitor' : ''}`;
     const arrived = tile.animalId !== null && tile.animalId !== animal.id;
     const firstFill = tile.animalId === null && tile.root.classList.contains('empty');
@@ -246,8 +267,8 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
     if (arrived || (firstFill && seenFirstUpdate)) restartAnimation(tile.root, 'arrive');
     setText(tile.icon, animal.familyIcon);
     setText(tile.name, animal.name);
-    setText(tile.mood, `${formatPercent(animal.happiness)} · ${animal.mood}`);
-    setVar(tile.ring, '--h', animal.happiness.toFixed(3));
+    setText(tile.mood, `${formatPercent(happiness)} · ${animal.mood}`);
+    setVar(tile.ring, '--h', happiness.toFixed(3));
     setText(tile.sr, `, ${RARITY_LABELS[animal.rarity]}${animal.visitor ? ', zu Gast' : ''}`);
   }
 
@@ -295,12 +316,14 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
     if (order !== nicheOrder) {
       nicheOrder = order;
       nicheList.replaceChildren(...niches.map((n) => nicheRows.get(n.id)!.root));
+      const present = new Set(niches.map((n) => n.id));
+      for (const id of [...nicheRows.keys()]) if (!present.has(id)) nicheRows.delete(id);
     }
   }
 
   function update(view: EcosystemView): void {
     setText(stage, `Stufe: ${view.stageName}`);
-    const pct = Math.min(100, Math.max(0, view.stageProgress * 100));
+    const pct = unitInterval(view.stageProgress) * 100;
     const width = `${pct.toFixed(1)}%`;
     if (bar.style.width !== width) bar.style.width = width;
     setAttr(progress, 'aria-valuenow', String(Math.round(pct)));
