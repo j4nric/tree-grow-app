@@ -1,10 +1,15 @@
 # Game Design – Vom Samen zum Wald
 
-> **Hinweis:** [`DESIGN_V2.md`](DESIGN_V2.md) richtet das Spiel neu aus (Tiere und
-> Pflanzen per Kartenwahl, Wachstum/Zufriedenheit/Samen/Harmonie statt
-> Wasser/Licht/Energie). Dieses Dokument beschreibt den **aktuellen Code (v1)** und
-> bleibt maßgeblich für dessen Zahlen, bis die v2-Umsetzung (Roadmap, Phase
-> „Neuausrichtung v2“) sie ersetzt.
+> **Stand des Codes: v2-Prototyp.** Der Code setzt jetzt den Prototyp aus
+> [`DESIGN_V2.md`](DESIGN_V2.md) (Roadmap-Schritte 1.1–1.4) um: Wachstum, Samen und
+> Harmonie; Begegnungen an Wegpunkten mit Kartenwahl; 3 Gattungen × 3 Tiere, noch ohne
+> Pflanzen; Spielstand v2 (v1-Stände starten neu, ab „Junger Baum“ mit +5
+> Waldgedächtnis). Regeln und Zahlen stehen in `DESIGN_V2.md` bzw. `src/content/`.
+> Ablehnen bringt vorerst fest 5 🌰, Neu würfeln kostet 10 🌰 (verdoppelt sich je Wurf).
+>
+> Der Rest dieses Dokuments beschreibt **v1** (Wasser/Licht/Energie, Upgrades,
+> Klick-Button) und ist nur noch historisch. `scripts/simulate.ts` und
+> `tests/balance.test.ts` sind entfernt; Simulator und Balancing werden auf v2 umgestellt.
 
 ## Vision
 
