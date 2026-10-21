@@ -27,7 +27,10 @@ export const TREE_RUNS_MAX = 300;
 export const TREE_RUNS = Math.min(requested ?? 30, TREE_RUNS_MAX);
 /** Durchgänge über mehrere Zyklen (balance-cycles.test.ts). */
 export const CYCLE_RUNS_MAX = 200;
-export const CYCLE_RUNS = Math.min(requested ?? 20, CYCLE_RUNS_MAX);
+// 40 statt 20 seit Schritt 2.11: Das Waldgedächtnis hängt jetzt steil an H_max über 100,
+// mit 20 Durchgängen schwankte das Verhältnis Wachstum/Harmonie in Zyklus 2 je Seed-Fenster
+// zwischen 0,87 und 1,11 (mit 40: 0,87–1,06; DESIGN_V2.md 15.4, Stand 2.11).
+export const CYCLE_RUNS = Math.min(requested ?? 40, CYCLE_RUNS_MAX);
 /** Zyklen am Stück. */
 export const CYCLES = 3;
 

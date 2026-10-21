@@ -109,7 +109,9 @@
     },
     "memory": {
       "bonus": 0.01,
-      "harmonyDivisor": 5,
+      "harmonyThreshold": 100,
+      "perHarmonyPoint": 3,
+      "harmonyMaxPoints": 45,
       "perNewSpecies": 1,
       "perRegularSlot": 25
     }

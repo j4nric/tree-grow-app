@@ -31,13 +31,23 @@ export const KEEPSAKE_INFO: Readonly<Record<string, { name: string; icon: string
 /** Neuer Zyklus ist ab dieser Stufe möglich (Index in STAGES: Hain). */
 export const NEW_CYCLE_MIN_STAGE = 5;
 /**
- * Waldgedächtnis beim Neuen Zyklus: 1 Punkt je so viel höchster Harmonie (H_max).
- * Seit Schritt 2.10 5 statt 10 (und 1 statt 2 Punkte je neuer Art): Vorher bekam der
- * Wachstums-Spieler klar mehr Gedächtnis als der Harmonie-Spieler (36 gegen 33), weil er
- * öfter tauscht und so mehr Arten entdeckt; jetzt im ersten Zyklus etwa gleich viel
- * (~33 Punkte, ein Stammgast), ab dem zweiten mehr für den Harmonie-Spieler.
+ * Waldgedächtnis beim Neuen Zyklus aus der höchsten Harmonie des Zyklus (H_max):
+ * MEMORY_PER_HARMONY_POINT Punkte je Harmoniepunkt über MEMORY_HARMONY_THRESHOLD,
+ * höchstens MEMORY_HARMONY_MAX_POINTS (erreicht bei 115). Die Obergrenze hält das
+ * Gedächtnis für späte Neustarts (Wald, Urwald: H_max 140–175) nahe am Stand 2.10
+ * (Urwald ~66 statt ~55 Punkte); ohne sie brächte ein Urwald-Zyklus über 200 Punkte.
+ *
+ * Schritt 2.11 (DESIGN_V2.md 15.4): Harmonie lohnt sich über die Zyklen, nicht über das
+ * Tempo im ersten Zyklus. Mit `floor(H_max / 5)` (2.10) bekamen Harmonie- und
+ * Wachstums-Spieler gleich viel Gedächtnis (je ~33 Punkte), weil ihre Harmonie beim Hain
+ * nur ~8 Punkte auseinanderliegt (110 gegen 103); der Wachstums-Spieler blieb in jedem
+ * Zyklus ~13 % schneller. Erst die Punkte über 100 zählen, dafür dreifach: Der
+ * Harmonie-Spieler bringt ~38, der Wachstums-Spieler ~27 Punkte mit – ab Zyklus 2 ist
+ * die Harmonie-Spielweise gleichauf (Hain Wachstum/Harmonie 0,997, Zyklus 3 1,087).
  */
-export const MEMORY_HARMONY_DIVISOR = 5;
+export const MEMORY_HARMONY_THRESHOLD = 100;
+export const MEMORY_PER_HARMONY_POINT = 3;
+export const MEMORY_HARMONY_MAX_POINTS = 45;
 /** Waldgedächtnis beim Neuen Zyklus: Punkte je Art, die in diesem Zyklus neu ins Tagebuch kam. */
 export const MEMORY_PER_NEW_SPECIES = 1;
 /** Je so viele Punkte Waldgedächtnis gibt es einen Platz für einen Stammgast. */

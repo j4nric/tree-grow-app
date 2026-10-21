@@ -16,7 +16,9 @@ import { DECLINE_SEEDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } f
 import { SEED_SECONDS_MIN_SEEDS } from '../content/events';
 import {
   FOREST_MEMORY_BONUS,
-  MEMORY_HARMONY_DIVISOR,
+  MEMORY_HARMONY_MAX_POINTS,
+  MEMORY_HARMONY_THRESHOLD,
+  MEMORY_PER_HARMONY_POINT,
   MEMORY_PER_NEW_SPECIES,
   MEMORY_PER_REGULAR_SLOT,
 } from '../content/memory';
@@ -1215,12 +1217,14 @@ function finite(value: number): number {
 // ---------------------------------------------------------------------------
 
 /**
- * Waldgedächtnis, das ein Neuer Zyklus einbringt: `floor(H_max / 10) + 2 · neue Arten`,
+ * Waldgedächtnis, das ein Neuer Zyklus einbringt (Schritt 2.11):
+ * `min(45, 3 · max(0, floor(H_max) − 100)) + neue Arten` (Zahlen in content/memory.ts),
  * begrenzt, sodass der Bestand MAX_FOREST_MEMORY nicht übersteigt. Negative Harmonie
  * zählt als 0; NaN und Unsinn ergeben 0 statt kaputter Spielstände.
  */
 export function cycleMemoryGain(maxHarmony: number, newSpeciesCount: number, forestMemory: number): number {
-  const harmonyPoints = Math.floor(Math.max(0, finite(maxHarmony)) / MEMORY_HARMONY_DIVISOR);
+  const above = Math.max(0, Math.floor(finite(maxHarmony)) - MEMORY_HARMONY_THRESHOLD);
+  const harmonyPoints = Math.min(MEMORY_HARMONY_MAX_POINTS, MEMORY_PER_HARMONY_POINT * above);
   const speciesPoints = MEMORY_PER_NEW_SPECIES * Math.max(0, Math.floor(finite(newSpeciesCount)));
   const room = MAX_FOREST_MEMORY - Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
   return Math.min(room, harmonyPoints + speciesPoints);

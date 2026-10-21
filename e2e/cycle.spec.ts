@@ -14,7 +14,7 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
 
   const panel = page.locator('[data-ref="cycle-panel"]');
   await expect(panel.locator('[data-ref="cycle-blocker"]')).toBeHidden();
-  // 5 neue Arten → mindestens 10 Punkte, Prozent in Klammern.
+  // 5 neue Arten → mindestens 5 Punkte (Harmonie zählt erst über 100, seit 2.11), Prozent in Klammern.
   await expect(panel.locator('[data-ref="cycle-gain"]')).toHaveText(/^\+\d+ Waldgedächtnis \(\+\d+ %\)$/);
   const before = await savedState(page);
   expect(before.meta?.forestMemory ?? 0).toBe(0);
@@ -34,7 +34,7 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
   expect(after.stage).toBe(0);
   expect(after.waypoint).toBe(0);
   expect(after.cycle.number).toBe(2);
-  expect(after.meta.forestMemory).toBeGreaterThanOrEqual(10);
+  expect(after.meta.forestMemory).toBeGreaterThanOrEqual(5);
   expect(after.meta.journal.species).toEqual(expect.arrayContaining(['earthworm', 'vole', 'robin', 'bee', 'bluetit']));
   expect(after.niches.roots).toEqual([]);
   expect(after.plants).toEqual([]);
