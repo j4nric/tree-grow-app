@@ -712,7 +712,7 @@ test.describe('Feinschliff mobil (390×844)', () => {
     expect(await legendSeen()).toBe('1');
   });
 
-  test('lange Gründe: Tier-Kacheln bleiben flach, der volle Text per Tooltip und Tippen', async ({ page, context }) => {
+  test('lange Gründe: Tier-Kacheln bleiben flach, der volle Text per Tooltip und in den Tierdetails', async ({ page, context }) => {
     // Rotbuche statt Eiche: ohne deren Insekten-Bonus bleibt die Biene unter 70 % und
     // nennt zwei Gründe (DESIGN_V2.md 17.3).
     const state = createInitialState(Date.now(), 123456789);
@@ -740,13 +740,12 @@ test.describe('Feinschliff mobil (390×844)', () => {
       lineHeight: parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.3,
     }));
     expect(height).toBeLessThanOrEqual(lineHeight * 2 + 1);
-    // Wirklich gekürzt – und per Tippen bzw. Tastatur vollständig lesbar
+    // Wirklich gekürzt – Tippen auf die Kachel öffnet die Tierdetails mit allen Gründen
     expect(await mood.evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
     await mood.click();
-    await expect(mood).toHaveAttribute('aria-expanded', 'true');
-    expect(await mood.evaluate((e) => e.scrollHeight <= e.clientHeight + 1)).toBe(true);
-    await mood.press('Enter');
-    await expect(mood).toHaveAttribute('aria-expanded', 'false');
+    const detail = page.locator('[data-ref="animal-detail"]');
+    await expect(detail).toBeVisible();
+    await expect(detail.locator('[data-ref="detail-happiness"]')).toContainText(full.split(' · ')[0]!);
   });
 });
 
@@ -837,7 +836,7 @@ test('Hohe Harmonie (≥ 90): warme Stimmung der Szene lädt ohne Konsolenfehler
   await expect(stageLabel(page)).toHaveText('Stufe: Hain');
   const harmony = page.locator('[data-ref="harmony"]');
   expect(await readNumber(harmony)).toBeGreaterThanOrEqual(90);
-  await expect(harmony.locator('..')).toContainText(/Blühender Mischwald|Urwald/);
+  await expect(harmony.locator('..')).toContainText(/Blühender Mischwald|Ursprüngliche Wildnis/);
   // Einige Frames mit Überblendung, Sonnenstrahlen und Pollen laufen lassen.
   await page.waitForTimeout(1500);
   const box = await page.locator('canvas#scene').boundingBox();

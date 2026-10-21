@@ -204,7 +204,10 @@ export interface GameState {
   cycle: CycleState;
   /** Überdauert den Neuen Zyklus. */
   meta: {
-    /** Dauerhafter Bonus: je Punkt +2 % Wachstum und Samen. */
+    /**
+     * Dauerhafter Bonus: je Punkt +1 % Wachstum und Samen (FOREST_MEMORY_BONUS in
+     * content/memory.ts; bis Schritt 2.10 +2 %).
+     */
     forestMemory: number;
     /**
      * Stammgäste: entdeckte Arten, die automatisch einziehen, sobald in ihrer Nische ein

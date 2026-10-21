@@ -147,6 +147,19 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     Urwald 0,99 / 1,03, Urwald 1,45 × Hain; Urwald-Schwelle 10 unter dem typischen
     Harmonie-Spieler, Wachstums-Spieler dort ohne Bonus (DESIGN_V2.md 15.4 „Stand Abgleich
     Sperrklinke“, Entscheidung 12)
+- [x] Playtest „frühes Spiel“ (`game-designer`): Pflege ab Setzling (Kompost 200 🌰 neu,
+  Laub liegen lassen 200 statt 750 🌰), Nistkästen 650 statt 1.100 🌰; Simulator-Kennzahlen
+  „längste Pause ohne Entscheidung“ und „Samen ungenutzt“ mit Prüfungen; längste Pause in
+  den ersten 6 min 1:41 → 1:08 min bei gleichem Tempo; Harmoniestufe „Urwald“ heißt jetzt
+  „Ursprüngliche Wildnis“ (DESIGN_V2.md 15.4 „Stand Playtest frühes Spiel“, Entscheidung 13)
+  - [ ] offen (`core-engineer`): Ablehnen nach Samen-Sekunden – 10 s, mindestens 5 🌰, auch
+    beim Weiterziehen online/offline; Formel, Aufrufe in `tick.ts`, Meldungen und Tests in
+    DESIGN_V2.md 7.9 (nicht im Branch, weil `tick.ts` parallel für Spielstand v10 geändert wird)
+- [x] Tierdetails (`ui-developer`): Tier-Kacheln der Nischen öffnen per Klick/Tippen/Enter
+  einen Dialog mit Zufriedenheit und Gründen, Beitrag (Chips wie bei der Auswahl),
+  Wirkungen, Fähigkeiten, Lebensgemeinschaften (ohne Spoiler), Stammgast-Status und
+  Tagebuch-Text; live gedrosselt, Esc gibt den Fokus an die Kachel zurück; Einstieg
+  `openAnimalDetail()` auch für Klicks in der Szene (DESIGN_V2.md 11.2)
 
 ## Phase 3 – Tiefe
 
@@ -209,7 +222,7 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 
 ## Phase 5 – Veröffentlichung
 
-- [ ] Deployment auf GitHub Pages
+- [x] Deployment auf GitHub Pages (Workflow `.github/workflows/pages.yml`, Quelle „GitHub Actions“ in den Repo-Einstellungen)
 - [x] Spielstand exportieren/importieren (Text-Code „VSZW1:…“ mit Prüfsumme, Bestätigung per zweitem Klick)
 - [x] Spielanleitung „❓“ (Zahlen aus content/core, Platzhalter für Ereignisse, Gäste, Pflege)
   und Hinweis „Neu hier?“ beim ersten Start (`ui-dev`)

@@ -325,6 +325,13 @@ export interface RunResult {
    * Erreichen (`arrive`, vor der Wahl) und nach der Wahl (`after`), dazu H_max nach der Wahl.
    */
   memoryPath: MemoryPathPoint[];
+  /**
+   * Frühes Spiel (Playtest-Befund „zäher Abschnitt“): Zeitpunkte (s) aller Entscheidungen in
+   * den ersten EARLY_SECONDS – aufgelöste Begegnung, gesetzte Pflanze, gekaufte Pflege –, und
+   * der höchste Samenbestand vor EARLY_SEED_STAGE (Samen ohne Verwendung; danach spart der
+   * Spieler gezielt auf Pflege).
+   */
+  early: { actions: number[]; seedPeak: number };
   final: Snapshot;
 }
 
@@ -365,6 +372,11 @@ export interface RunOptions {
   /** Art des Hauptbaums (Standard: Stieleiche wie im ersten Zyklus). */
   mainTree?: MainTreeId;
 }
+
+/** Frühes Spiel: Kennzahlen „längste Pause ohne Entscheidung“ und „Samen ungenutzt“ (s). */
+export const EARLY_SECONDS = 600;
+/** „Samen ungenutzt“: höchster Bestand vor dieser Stufe (Junger Baum). */
+export const EARLY_SEED_STAGE = 3;
 
 /** Zeitpunkte (Minuten) für den Samen-Verlauf. */
 export const SAMPLE_MINUTES: readonly number[] = [5, 10, 20, 30, 45, 60, 90, 120, 180];
@@ -408,7 +420,11 @@ export function runGame(
     decisions: [],
     variety: [],
     memoryPath: [],
+    early: { actions: [], seedPeak: 0 },
     final: null as unknown as Snapshot,
+  };
+  const act = () => {
+    if (time <= EARLY_SECONDS) result.early.actions.push(time);
   };
   const cycleWaypoint = STAGES[NEW_CYCLE_MIN_STAGE]!.waypoint;
   const snapshot = (): Snapshot => {
@@ -472,6 +488,7 @@ export function runGame(
       if (!plantSeed(state, plan).ok) break;
       book.spentPlants += cost;
       counts.plantsBought++;
+      act();
     }
     const plan = nextPlan();
     // Pflege: kaufen, was die Strategie anspart, sobald es reicht (Pflanzen haben Vorrang).
@@ -488,6 +505,7 @@ export function runGame(
         if (!buyCare(state, target).ok) break;
         book.spentCare += before - state.seeds;
         counts.careBought++;
+        act();
       }
     }
     const ev = evaluate(state);
@@ -508,6 +526,8 @@ export function runGame(
     const seedsBefore = state.seeds;
     const report = tick(state, dt);
     time += dt;
+    // Samen steigen zwischen zwei Halten nur – der Höchststand liegt also an einem Halt.
+    if (stageBefore < EARLY_SEED_STAGE) result.early.seedPeak = Math.max(result.early.seedPeak, state.seeds);
     const autoSeeds = report.autoDeclined * declineReward();
     book.earnedPassive += state.seeds - seedsBefore - autoSeeds;
     book.earnedDecline += autoSeeds;
@@ -519,7 +539,9 @@ export function runGame(
       if (report.interludes > 0) {
         result.gaps.push({ stage: state.stage, seconds: time - lastWaypointTime });
         lastWaypointTime = time;
+        const n = counts.encounters;
         resolveAll(state, strategy, rng, counts, book, result.decisions, result.variety, time);
+        if (counts.encounters > n) act();
       }
       continue;
     }
@@ -527,7 +549,9 @@ export function runGame(
     lastWaypointTime = time;
     for (let s = stageBefore + 1; s <= state.stage; s++) result.stages[s] = snapshot();
     const arrive = state.waypoint >= cycleWaypoint ? previewNewCycle(state).memoryGain : null;
+    const seen = counts.encounters;
     resolveAll(state, strategy, rng, counts, book, result.decisions, result.variety, time);
+    if (counts.encounters > seen) act();
     if (arrive !== null) {
       const after = previewNewCycle(state);
       result.memoryPath.push({ waypoint: state.waypoint, arrive, after: after.memoryGain, maxHarmony: after.maxHarmony });
@@ -1062,6 +1086,52 @@ export function longestDrought(run: RunResult, stage: number): number | null {
   return Math.max(longest, end - last);
 }
 
+/**
+ * Längste Pause ohne Entscheidung (s) in den ersten `horizon` Sekunden eines Durchgangs:
+ * größter Abstand zwischen Spielstart, den Entscheidungen (RunResult.early) und dem Ende
+ * des Fensters (bzw. des Durchgangs, falls er früher endet).
+ */
+export function longestPause(run: RunResult, horizon = EARLY_SECONDS): number {
+  const end = Math.min(horizon, run.final.time);
+  const points = [0, ...run.early.actions.filter((t) => t <= end), end];
+  let longest = 0;
+  for (let i = 1; i < points.length; i++) longest = Math.max(longest, points[i]! - points[i - 1]!);
+  return longest;
+}
+
+/** Frühes Spiel je Strategie: Pausen ohne Entscheidung, Entscheidungen, Samen ungenutzt. */
+export function earlyStats(summary: Summary, horizon = EARLY_SECONDS) {
+  const pauses = summary.runs.map((r) => longestPause(r, horizon));
+  const at5 = summary.runs.map((r) => r.samples[SAMPLE_MINUTES.indexOf(5)]).filter((x): x is Snapshot => x != null);
+  return {
+    pauseMedian: median(pauses),
+    pauseP90: quantile(pauses, 0.9),
+    pauseMax: Math.max(...pauses),
+    /** Entscheidungen im Fenster (Mittel). */
+    actions: mean(summary.runs.map((r) => r.early.actions.filter((t) => t <= horizon).length)),
+    /** Höchster Samenbestand vor EARLY_SEED_STAGE (Mittel und 90 %). */
+    seedPeak: mean(summary.runs.map((r) => r.early.seedPeak)),
+    seedPeakP90: quantile(summary.runs.map((r) => r.early.seedPeak), 0.9),
+    /** Nach 5 Minuten: Stufe (Median), Harmonie (Mittel). */
+    stageAt5: Math.round(median(at5.map((x) => x.stage))),
+    harmonyAt5: mean(at5.map((x) => x.harmony)),
+  };
+}
+
+export function earlyTable(summaries: Summary[], horizon = EARLY_SECONDS): string {
+  const lines = [
+    `| Strategie | längste Pause ohne Entscheidung (erste ${fmt(horizon / 60)} min) Median / 90 % / max | Entscheidungen | Samen ungenutzt: Höchststand vor ${STAGES[EARLY_SEED_STAGE]!.name} Ø / 90 % | nach 5 min: Stufe / ⚖️ |`,
+    '|---|---|---|---|---|',
+  ];
+  for (const s of summaries) {
+    const e = earlyStats(s, horizon);
+    lines.push(
+      `| ${s.strategy.name} | ${formatTime(e.pauseMedian)} / ${formatTime(e.pauseP90)} / ${formatTime(e.pauseMax)} | ${fmt(e.actions, 1)} | ${fmt(e.seedPeak)} / ${fmt(e.seedPeakP90)} | ${STAGES[e.stageAt5]?.name ?? '–'} / ${fmt(e.harmonyAt5, 1)} |`,
+    );
+  }
+  return lines.join('\n');
+}
+
 /** Vielfalt aller Begegnungen vor Erreichen von `beforeStage` (Ziele: DESIGN_V2.md 7.7). */
 export function varietyBefore(summary: Summary, beforeStage: number) {
   const vs = summary.runs.flatMap((r) => r.variety.filter((v) => v.stage < beforeStage));
@@ -1259,6 +1329,12 @@ export function report(summaries: Summary[], focusStage: number): string {
     `#### Begegnungen bis ${name} (Mittel je Durchgang)`,
     '',
     miscTable(summaries, focusStage),
+    '',
+    '#### Frühes Spiel – Pausen ohne Entscheidung und ungenutzte Samen (erste 6 bzw. 10 Minuten)',
+    '',
+    earlyTable(summaries, 360),
+    '',
+    earlyTable(summaries),
   ].join('\n');
 }
 

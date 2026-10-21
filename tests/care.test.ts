@@ -48,8 +48,8 @@ describe('Pflege: Kauf und Wirkung', () => {
     const state = stateAt(3, [], 1);
     state.seeds = 1000;
     const result = buyCare(state, 'leaf-litter');
-    expect(result).toEqual({ ok: true, seeds: -750 });
-    expect(state.seeds).toBe(250);
+    expect(result).toEqual({ ok: true, seeds: -200 });
+    expect(state.seeds).toBe(800);
     expect(careRank(state, 'leaf-litter')).toBe(1);
     expect(state.cycle.care).toEqual({ 'leaf-litter': 1 });
     expect(nextCareRank(state, 'leaf-litter')).toBe(CARE_BY_ID.get('leaf-litter')!.ranks[1]);

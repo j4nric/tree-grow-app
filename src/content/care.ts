@@ -8,9 +8,18 @@ import type { Condition, Effect, Tag } from './types';
  * Pflege ist die Samen-Senke des Spiels: Jede Maßnahme hat 1–3 Stufen („Ränge“), die
  * nacheinander mit Samen gekauft werden. Ein gekaufter Rang wirkt bis zum Neuen Zyklus;
  * die Wirkungen aller gekauften Ränge addieren sich. Die Kosten steigen je Rang stark
- * (mindestens ×3, bis ×8,6), Rang 1 gibt es ab Junger bzw. Alter Baum, spätere Ränge erst
+ * (mindestens ×3), Rang 1 gibt es ab Setzling, Junger oder Alter Baum, spätere Ränge erst
  * ab Alter Baum, Hain oder Wald (`minStage`) – so wächst die Senke mit dem Einkommen mit,
  * und kein einzelner Kauf ist Pflicht.
+ *
+ * Frühes Spiel (Playtest, DESIGN_V2.md 8 und 15.4): Im Setzling ist der Pflanzring nach
+ * zwei Pflanzen voll, bis zum Jungen Baum vergehen gut drei Minuten mit nur zwei
+ * Begegnungen, und die Samen lagen brach (Bestand bis ~300, im Playtest 820). Zwei kleine
+ * Ränge zu je 200 🌰 ab Setzling (Kompost, Laub liegen lassen) und günstigere Nistkästen
+ * (650 statt 1.100 🌰) legen etwa jede Minute eine Entscheidung zwischen die Wegpunkte:
+ * längste Pause in den ersten 6 Minuten im Median 1:41 → 1:08 min (Harmonie-Spieler), bei
+ * gleichem Tempo. Kompost bringt bewusst Feuchte statt eines Platzes – ein Wurzelraum-Platz
+ * für den ganzen Zyklus machte alle ~5 % schneller und den Wachstums-Spieler zu schnell.
  *
  * Wirkungen nutzen dieselben Typen wie die Ereignisse (events.ts):
  * - `cycle`: eine Wirkung bis zum Neuen Zyklus, Faktor 1. Für Pflege zusätzlich erlaubt:
@@ -57,25 +66,34 @@ const slot = (niche: 'litter' | 'hollows' | 'crown' | 'edge' | 'bark'): CareEffe
 });
 
 export const CARE: readonly CareMeasure[] = [
-  // --- ab Junger Baum ---------------------------------------------------------
+  // --- ab Setzling (kleine Ränge, je 200 🌰) ------------------------------------
+  {
+    id: 'compost', name: 'Kompost', icon: '♻️',
+    text: 'Eine Handvoll Kompost an den Wurzeln hält den Boden feucht – ein Festmahl für das Bodenleben.',
+    boughtText: 'Kompost eingearbeitet',
+    ranks: [
+      { cost: 200, minStage: 2, effects: [{ kind: 'habitat', tag: 'feucht' }], summary: 'Feuchte (für Regenwurm & Co.)' },
+    ],
+  },
   {
     id: 'leaf-litter', name: 'Laub liegen lassen', icon: '🍂',
     text: 'Im Herbst bleibt das Laub, wo es fällt.',
     boughtText: 'Laub bleibt liegen',
     ranks: [
-      { cost: 750, minStage: 3, effects: [slot('litter')], summary: '+1 Platz Laubstreu' },
+      { cost: 200, minStage: 2, effects: [slot('litter')], summary: '+1 Platz Laubstreu' },
       {
         cost: 7_000, minStage: 5, summary: '+2 💧, +3 ⚖️',
         effects: [{ kind: 'cycle', effect: { kind: 'water', amount: 2 } }, { kind: 'cycle', effect: { kind: 'harmony', points: 3 } }],
       },
     ],
   },
+  // --- ab Junger Baum ---------------------------------------------------------
   {
     id: 'nest-boxes', name: 'Nistkästen', icon: '🏠',
     text: 'Ein Holzkasten mit kleinem Flugloch. Gemütlich – und leicht zu finden.',
     boughtText: 'Nistkästen angebracht',
     ranks: [
-      { cost: 1_100, minStage: 3, effects: [{ kind: 'habitat', tag: 'hoehle' }, slot('hollows')], summary: 'Baumhöhle, +1 Platz Höhlen' },
+      { cost: 650, minStage: 3, effects: [{ kind: 'habitat', tag: 'hoehle' }, slot('hollows')], summary: 'Baumhöhle, +1 Platz Höhlen' },
       { cost: 11_000, minStage: 5, effects: [slot('crown')], summary: '+1 Platz Krone' },
     ],
   },

@@ -5,7 +5,7 @@
  *   1 „Lebendiges Gefüge“   nur noch ein Hauch Grau
  *   2 „Stimmiges Ökosystem“ neutral (wie ohne Angabe)
  *   3 „Blühender Mischwald“ warmes Licht, Sonnenstrahlen durch die Krone, Pollen und Blütenblätter
- *   4 „Urwald“              goldenes Licht, kräftigere Strahlen, dazu Glühwürmchen-Lichter
+ *   4 „Ursprüngliche Wildnis“ goldenes Licht, kräftigere Strahlen, dazu Glühwürmchen-Lichter
  *
  * Günstig pro Frame: Schleier, Sonnenschein und Strahlen liegen gemeinsam in einer
  * gecachten Licht-Ebene (halbe Auflösung, nur bei geänderter Stimmung neu gezeichnet);

@@ -459,9 +459,10 @@ describe('Lebensgemeinschaften: Inhalte', () => {
 });
 
 describe('Pflegemaßnahmen (DESIGN_V2.md 8)', () => {
-  it('6–8 Maßnahmen, IDs eindeutig (auch gegenüber Arten, Pflanzen, Ereignissen, Gästen)', () => {
+  it('6–9 Maßnahmen, IDs eindeutig (auch gegenüber Arten, Pflanzen, Ereignissen, Gästen)', () => {
+    // 9 seit dem Playtest „frühes Spiel“ (Kompost ab Setzling, DESIGN_V2.md 8.1).
     expect(CARE.length).toBeGreaterThanOrEqual(6);
-    expect(CARE.length).toBeLessThanOrEqual(8);
+    expect(CARE.length).toBeLessThanOrEqual(9);
     const ids = [
       ...CARE.map((c) => c.id),
       ...SPECIES.map((x) => x.id),
@@ -503,13 +504,16 @@ describe('Pflegemaßnahmen (DESIGN_V2.md 8)', () => {
     }
   });
 
-  it('Ränge: 1–3, Kosten steigen stark, Freischaltung ab Junger Baum und nie rückwärts', () => {
+  it('Ränge: 1–3, Kosten steigen stark, Freischaltung ab Setzling und nie rückwärts', () => {
     for (const c of CARE) {
       expect(c.ranks.length, c.id).toBeGreaterThanOrEqual(1);
       expect(c.ranks.length, c.id).toBeLessThanOrEqual(3);
-      expect(c.ranks[0]!.minStage, c.id).toBeGreaterThanOrEqual(3);
+      // Ab Setzling (seit dem Playtest „frühes Spiel“): kleine erste Ränge geben den
+      // Samen früh einen Zweck; teure Ränge erst ab Junger Baum.
+      expect(c.ranks[0]!.minStage, c.id).toBeGreaterThanOrEqual(2);
       c.ranks.forEach((r, i) => {
-        expect(r.cost, `${c.id} Rang ${i + 1}`).toBeGreaterThanOrEqual(500);
+        expect(r.cost, `${c.id} Rang ${i + 1}`).toBeGreaterThanOrEqual(r.minStage <= 2 ? 100 : 500);
+        if (r.minStage <= 2) expect(r.cost, `${c.id} Rang ${i + 1} (Setzling)`).toBeLessThanOrEqual(400);
         expect(r.cost, `${c.id} Rang ${i + 1}`).toBeLessThanOrEqual(50_000);
         expect(r.minStage).toBeLessThan(STAGES.length);
         expect(r.summary.length).toBeGreaterThan(0);

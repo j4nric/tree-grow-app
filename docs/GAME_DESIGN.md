@@ -10,7 +10,7 @@
 > Waldgedächtnis und Stammgästen (Schritt 2.8, siehe `DESIGN_V2.md` Abschnitt 10);
 > Ereignisse mit Wahl und Durchreisende mit Zeit- und Zyklus-Boni, ab dem Hain mit
 > Zwischenhalt (Schritt 2.4, `DESIGN_V2.md` 7.4–7.8); Pflegemaßnahmen als Samen-Senke
-> (8 Maßnahmen mit 1–3 Rängen, wirken bis zum Neuen Zyklus; Schritt 2.7, `DESIGN_V2.md` 8);
+> (9 Maßnahmen mit 1–3 Rängen ab Setzling, wirken bis zum Neuen Zyklus; Schritt 2.7, `DESIGN_V2.md` 8);
 > Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus; 14 Ereignisse, davon je Jahreszeit ein
 > eigenes: Spätfrost, Hitzewelle, Laubfall, Schneebruch) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
@@ -21,7 +21,8 @@
 > v6-Stände werden auf die neue Wegpunkt-Kurve umgerechnet – gleicher Wegpunkt, gleicher
 > Anteil bis zum nächsten; ihr Waldgedächtnis bleibt in Punkten gleich, wirkt aber mit +1 %
 > je Punkt). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
-> Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰, Neu würfeln
+> Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰 (entschieden:
+> künftig 10 Samen-Sekunden, mindestens 5 🌰 – Umsetzung offen, `DESIGN_V2.md` 7.9), Neu würfeln
 > kostet 10 🌰 (verdoppelt sich je Wurf). Seit Spielstand v8 gibt es eine
 > Langzeit-Statistik über alle Zyklen (`DESIGN_V2.md` 12.5); bei v7-Ständen beginnt sie
 > beim laufenden Zyklus, ab Zyklus 2 gilt die Stieleiche zusätzlich als gewachsen.
@@ -36,6 +37,43 @@
 > `tests/balance-cycles.test.ts`, `tests/balance-restart.test.ts` und
 > `tests/seasons-balance.test.ts` (Einstellungen in
 > `tests/balance-setup.ts`). Großer Lauf mit allen Tabellen: `npm run balance`.
+
+## Frühes Spiel (Playtest, v2, umgesetzt)
+
+Details, verworfene Hebel und alle Tabellen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 8,
+15.4 („Stand Playtest frühes Spiel“) und 14 (Entscheidung 13). Kein neues Spielstand-Feld.
+
+- **Befund:** Im ersten Spiel war 2:30–4:20 zäh – Pflanzring im Setzling voll, Pflege erst
+  ab Junger Baum, Samen ohne Verwendung, Begegnungen 35 → 60 → 110 s auseinander.
+- **Lösung:** Pflege beginnt im Setzling mit zwei kleinen Rängen; die Nistkästen werden
+  günstiger. Wegpunktkurve, Pflanzring und Neu würfeln bleiben.
+- **Neue Kennzahlen** im Simulator: längste Pause ohne Entscheidung (Begegnung, Pflanze,
+  Pflege) in den ersten 6 bzw. 10 Minuten und der höchste Samenbestand vor dem Jungen Baum.
+
+| Zahl (`src/content/care.ts`) | vorher | jetzt |
+|---|---|---|
+| 🪱 Kompost (neu) | – | ab Setzling, 200 🌰: Feuchte |
+| 🍂 Laub liegen lassen, Rang 1 | Junger Baum, 750 🌰 | **Setzling, 200 🌰** |
+| 🏠 Nistkästen, Rang 1 | 1.100 🌰 | **650 🌰** |
+
+| Kennzahl (500 Durchgänge, `npm run balance`) | vorher | jetzt | Ziel |
+|---|---|---|---|
+| Längste Pause erste 6 min, Median: Harmonie / Wachstum / Zufall | 1:41 / 1:34 / 2:15 min | **1:08 / 1:05 / 1:38 min** | ~30–60 s; Prüfung ≤ 75 s, jede Strategie < 105 s |
+| Längste Pause erste 10 min, Median (Harmonie) | 2:05 min | 2:06 min | nicht zäher |
+| Samen ungenutzt vor dem Jungen Baum, Harmonie / Zufall | 312 / 584 🌰 | **200 / 277 🌰** | < 250 🌰 |
+| Setzling / Junger Baum (Harmonie) | 46 s / 4:11 min | 46 s / 4:11 min | ~45 s / ~4 min |
+| Hain Harmonie / Wachstum | 1:04:08 h / 54:42 min | 1:03:48 h / 54:30 min | 55–65 min |
+| Hain Wachstum / Harmonie, Zyklus 1 / 2 / 3 | 0,865 / 1,005 / 1,039 | 0,867 / 0,978 / 1,021 | ≥ 0,85 / ≥ 0,97 / ≥ 1 |
+| 🌰-Bestand beim Hain (Harmonie, min Produktion) | 8,2 | 9,1 | < 10 |
+
+Die Wegpunkte im Setzling liegen von Natur aus ~60 s auseinander – ohne die
+Wegpunktkurve (Teil des Spielstands) anzufassen, bleibt der Median knapp über einer Minute.
+Ein Wurzelraum-Platz für den Kompost (erste Fassung) machte alle ~5 % schneller und den
+Wachstums-Spieler 15,4 % schneller als den Harmonie-Spieler – darum bringt der Kompost
+Feuchte statt eines Platzes.
+
+**Außerdem:** Die Harmoniestufe ab 120 heißt jetzt „Ursprüngliche Wildnis“ (vorher „Urwald“,
+gleichnamig mit der Wachstumsstufe).
 
 ## Jahreszeiten (v2, umgesetzt)
 
