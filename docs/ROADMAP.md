@@ -225,6 +225,11 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 
 - [x] Deployment auf GitHub Pages (Workflow `.github/workflows/pages.yml`, Quelle „GitHub Actions“ in den Repo-Einstellungen)
 - [x] Spielstand exportieren/importieren (Text-Code „VSZW1:…“ mit Prüfsumme, Bestätigung per zweitem Klick)
+- [x] Konto und Gerätesync (`core-engineer`): Benutzername + Passwort, eigener Sync-Server
+  (`server/`, Node 22, SQLite, Server-Sent Events), optimistische Versionierung, sofortiger
+  Push nach Aktionen, Übernahme fremder Aktionen, Sicherung vor dem ersten Abgleich,
+  Offline-Retry; Abschnitt „Konto“ in ⚙️ nur mit `VITE_SYNC_URL`; Betrieb per Docker
+  Compose (eigener Caddy oder vorhandener Proxy), Anleitung `docs/KONTO.md`
 - [x] Spielanleitung „❓“ (Zahlen aus content/core, Platzhalter für Ereignisse, Gäste, Pflege)
   und Hinweis „Neu hier?“ beim ersten Start (`ui-dev`)
 - [x] Einstellungen „⚙️“ in localStorage: Bewegung reduzieren (Automatisch/An/Aus),

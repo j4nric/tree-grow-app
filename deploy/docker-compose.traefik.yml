@@ -1,0 +1,22 @@
+# Optional für Betriebsart B mit einem vorhandenen Traefik (Docker-Provider):
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --build
+# TRAEFIK_NETWORK = Name des Docker-Netzwerks, in dem Traefik läuft (docker network ls),
+# TRAEFIK_ENTRYPOINT / TRAEFIK_CERTRESOLVER wie in eurer Traefik-Konfiguration.
+
+services:
+  sync:
+    networks:
+      - vszw-net
+      - traefik
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik}
+      traefik.http.routers.vszw-sync.rule: Host(`${SYNC_PUBLIC_HOST}`)
+      traefik.http.routers.vszw-sync.entrypoints: ${TRAEFIK_ENTRYPOINT:-websecure}
+      traefik.http.routers.vszw-sync.tls.certresolver: ${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      traefik.http.services.vszw-sync.loadbalancer.server.port: '8787'
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-traefik}
+    external: true
