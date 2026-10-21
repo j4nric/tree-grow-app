@@ -4,6 +4,7 @@ import { nicheSlots, stageForWaypoint, thresholdFor, waypointProgress, waypoints
 import { isValidRngState, normalizeSeed } from '../src/core/rng';
 import {
   deserialize,
+  growthToCurrentCurve,
   loadFromStorage,
   loadGame,
   saveToStorage,
@@ -14,15 +15,16 @@ import {
   V2_WAYPOINT_POWER,
   V6_WAYPOINT_BASE,
   V6_WAYPOINT_POWER,
-  v2GrowthToV3,
+  v2GrowthToCurrent,
   v6GrowthToV7,
   v6Threshold,
+  v7GrowthToV6,
 } from '../src/core/save';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState, type GameState } from '../src/core/state';
 import { interludeThreshold, recordDiscoveries, tick } from '../src/core/tick';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
-/** Gültiger aktueller Stand (v4) als Rohdaten, einzelne Felder überschreibbar. */
+/** Gültiger aktueller Stand (SAVE_VERSION) als Rohdaten, einzelne Felder überschreibbar. */
 function rawV4(patch: Record<string, unknown> = {}): string {
   return JSON.stringify({ ...JSON.parse(serialize(stateAt(3, ['earthworm', 'robin'], 9))), ...patch });
 }
@@ -239,20 +241,20 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
     expect(s.waypoint).toBe(20 + report.waypoints);
   });
 
-  it('v2GrowthToV3: gleicher Wegpunkt, gleicher Bruchteil, Grenzfälle', () => {
+  it('v2GrowthToCurrent: gleicher Wegpunkt, gleicher Bruchteil, Grenzfälle', () => {
     for (let k = 0; k < 36; k++) {
-      expect(v2GrowthToV3(v2Threshold(k)), `k=${k}`).toBe(thresholdFor(k));
+      expect(v2GrowthToCurrent(v2Threshold(k)), `k=${k}`).toBe(thresholdFor(k));
       const mid = (v2Threshold(k) + v2Threshold(k + 1)) / 2;
-      expect(v2GrowthToV3(mid), `k=${k}`).toBeCloseTo((thresholdFor(k) + thresholdFor(k + 1)) / 2, 6);
+      expect(v2GrowthToCurrent(mid), `k=${k}`).toBeCloseTo((thresholdFor(k) + thresholdFor(k + 1)) / 2, 6);
     }
-    expect(v2GrowthToV3(v2Threshold(36))).toBe(thresholdFor(36));
-    expect(v2GrowthToV3(2 * v2Threshold(36))).toBeCloseTo(2 * thresholdFor(36));
-    for (const bad of [0, -5, NaN]) expect(v2GrowthToV3(bad)).toBe(0);
-    expect(v2GrowthToV3(Number.MAX_VALUE)).toBe(Number.MAX_VALUE);
+    expect(v2GrowthToCurrent(v2Threshold(36))).toBe(thresholdFor(36));
+    expect(v2GrowthToCurrent(2 * v2Threshold(36))).toBeCloseTo(2 * thresholdFor(36));
+    for (const bad of [0, -5, NaN]) expect(v2GrowthToCurrent(bad)).toBe(0);
+    expect(v2GrowthToCurrent(Number.MAX_VALUE)).toBe(Number.MAX_VALUE);
     // monoton
     let last = 0;
     for (let g = 0; g < 2e6; g += 997) {
-      const v = v2GrowthToV3(g);
+      const v = v2GrowthToCurrent(g);
       expect(v).toBeGreaterThanOrEqual(last);
       last = v;
     }
@@ -278,6 +280,73 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
       expect(v).toBeGreaterThanOrEqual(last);
       last = v;
     }
+  });
+
+  it('Umrechnung überspringt nie einen Wegpunkt: knapp darunter bleibt darunter (Gleitkomma)', () => {
+    // Größte Gleitkommazahl unter x: Ein Bruchteil knapp unter 1 kann auf genau 1 runden.
+    const prev = (x: number) => {
+      const f = new Float64Array([x]);
+      new BigInt64Array(f.buffer)[0]! -= 1n;
+      return f[0]!;
+    };
+    for (let k = 0; k < 36; k++) {
+      for (const [name, convert, threshold] of [
+        ['v6', v6GrowthToV7, v6Threshold],
+        ['v2', v2GrowthToCurrent, v2Threshold],
+      ] as const) {
+        const g = convert(prev(threshold(k + 1)));
+        expect(g, `${name} k=${k}`).toBeLessThan(thresholdFor(k + 1));
+        expect(waypointsForGrowth(g), `${name} k=${k}`).toBe(k);
+        expect(waypointsForGrowth(convert(threshold(k + 1))), `${name} k=${k}`).toBe(k + 1);
+      }
+    }
+  });
+
+  it('growthToCurrentCurve begrenzt unter den nächsten Wegpunkt (sonst rundet z. B. 0,01 · k^4,9 darüber)', () => {
+    const prev = (x: number) => {
+      const f = new Float64Array([x]);
+      new BigInt64Array(f.buffer)[0]! -= 1n;
+      return f[0]!;
+    };
+    // Ohne Begrenzung landen hier Hunderte Fälle genau auf dem nächsten Wegpunkt.
+    for (let scale = 0.01; scale < 1e3; scale *= 3.7) {
+      for (const power of [2.3, 3.4, 4.9]) {
+        const threshold = (j: number) => scale * Math.pow(j, power);
+        for (let k = 0; k < 36; k++) {
+          expect(waypointsForGrowth(growthToCurrentCurve(prev(threshold(k + 1)), threshold)), `${scale} · k^${power}, k=${k}`).toBe(k);
+        }
+      }
+    }
+  });
+
+  it('v7GrowthToV6 ist die Umkehrung von v6GrowthToV7 (Rundlauf, e2e-Fixtures)', () => {
+    expect(v7GrowthToV6(0)).toBe(0);
+    expect(v7GrowthToV6(NaN)).toBe(0);
+    for (let k = 0; k <= 36; k++) expect(v7GrowthToV6(thresholdFor(k)), `k=${k}`).toBe(v6Threshold(k));
+    for (const x of [0.5, 7, 123.4, 5_000, 16_341, 99_999.9, 1e6, 3e6, 1e9]) {
+      expect(v6GrowthToV7(v7GrowthToV6(x)) / x, `x=${x}`).toBeCloseTo(1, 9);
+      expect(v7GrowthToV6(v6GrowthToV7(x)) / x, `x=${x}`).toBeCloseTo(1, 9);
+    }
+    // Ein v6-Stand mit v7GrowthToV6(g) lädt auf derselben Stufe und bei g.
+    for (const k of [3, 12, 20, 35]) {
+      const g = thresholdFor(k) + 0.4 * (thresholdFor(k + 1) - thresholdFor(k));
+      const s = deserialize(rawV4({ version: 6, totalGrowth: v7GrowthToV6(g) }), 0)!;
+      expect(s.waypoint).toBe(k);
+      expect(s.totalGrowth / g).toBeCloseTo(1, 9);
+    }
+  });
+
+  it('v6 → v7: Waldgedächtnis-Punkte bleiben, Hinweis „neu gewichtet“ nur mit Gedächtnis oder Andenken', () => {
+    const meta = (forestMemory: number, keepsakes: string[] = []) => ({ meta: { forestMemory, journal: { species: [], keepsakes } } });
+    const withMemory = loadGame(rawV4({ version: 6, ...meta(37) }), 0)!;
+    expect(withMemory.state.meta.forestMemory).toBe(37);
+    expect(withMemory.memoryReweighted).toBe(true);
+    expect(loadGame(rawV4({ version: 4, ...meta(0, ['old-oak']) }), 0)!.memoryReweighted).toBe(true);
+    expect(loadGame(rawV4({ version: 6, ...meta(0) }), 0)!.memoryReweighted).toBe(false);
+    // Aktueller Stand: kein Hinweis (sonst käme er bei jedem Laden).
+    expect(loadGame(rawV4({ version: SAVE_VERSION, ...meta(37) }), 0)!.memoryReweighted).toBe(false);
+    // v1: Neustart, das Andenken gilt schon mit +1 % je Punkt.
+    expect(loadGame(JSON.stringify({ version: 1, stage: 5 }), 0)!.memoryReweighted).toBe(false);
   });
 
   it('akzeptiert alle 32 Arten und die neuen Gattungen (Schritt 2.2)', () => {

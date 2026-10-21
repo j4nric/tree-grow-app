@@ -6,7 +6,9 @@
 
 /**
  * Jeder Punkt Waldgedächtnis: +1 % Wachstum und Samen (bis Schritt 2.10: +2 %). Mit +2 %
- * war der zweite Zyklus 42 % schneller bis zum Hain; Ziel sind 20–35 % (DESIGN_V2.md 15.4).
+ * war der zweite Zyklus 44,3 % schneller bis zum Hain, jetzt 28,8 %; Ziel sind 20–35 %
+ * (DESIGN_V2.md 15.4). Gespeicherte Punkte bleiben beim Laden alter Stände unverändert
+ * (bewusst, siehe DESIGN_V2.md 14) – sie wirken nur halb so stark.
  */
 export const FOREST_MEMORY_BONUS = 0.01;
 

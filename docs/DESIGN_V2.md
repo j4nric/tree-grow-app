@@ -1100,7 +1100,7 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
   `floor(H_max / 10) + 2 · neue Arten` und +2 % je Punkt, siehe 14 und 15.4). `H_max`
   ist die höchste Harmonie des Zyklus – Umbauen kurz vor dem Neustart wird nie bestraft.
   Beispiel erster Zyklus bis Hain: H_max ≈ 105, ~11 Arten → 21 + 11 = 32 Punkte → +32 %,
-  ein Stammgast-Platz; der zweite Zyklus ist damit ~27 % schneller bis zum Hain. (Bewusst
+  ein Stammgast-Platz; der zweite Zyklus ist damit ~29 % schneller bis zum Hain (28,8 %, 15.4). (Bewusst
   kein ausgebbares Gut: Samen bleiben die einzige Währung.)
 - **Stammgäste:** je 25 Punkte Waldgedächtnis ein Platz für eine entdeckte Art, die
   automatisch einzieht, sobald ihre Nische öffnet – das „Startdeck“ des Roguelites.
@@ -1334,7 +1334,7 @@ Lebensraum: Borkenkäfer → Totholz → Rollassel, Specht → Höhle → Meise.
 |---|---|---|---|
 | 1.1 | `game-designer` | Inhalte v2 als Daten: `content/species.ts`, `niches.ts`, `traits.ts`, `waypoints.ts` (9 Arten, 4 Nischen), Typen, Inhaltstests (IDs, Verweise) | – |
 | 1.2 | `core-engineer` | GameState v2, `SAVE_VERSION = 2`, Migration „Neustart mit Andenken“, robustes Laden, `rngState` + Generator; Tests | – |
-| 1.3 | `core-engineer` | `evaluate(state)` (Zufriedenheit, Harmonie, 🌿/s), Wegpunkte, `tick` → Begegnungs-Warteschlange (max. 3), Offline; Golden Test gegen `scripts/v2` | 1.1, 1.2 |
+| 1.3 | `core-engineer` | `evaluate(state)` (Zufriedenheit, Harmonie, 🌿/s), Wegpunkte, `tick` → Begegnungs-Warteschlange (max. 3), Offline; Golden Test gegen `scripts/v2` (entfernt in 2.10) | 1.1, 1.2 |
 | 1.4 | `core-engineer` | Aktionen `chooseCard`, `declineEncounter`, `rerollEncounter` (Samen: vorerst feste Kosten) + Tests | 1.3 |
 | 1.5 | `ui-dev` | Kartenwahl-Dialog mit Vorschau, Nischen-Liste, Harmonie-Anzeige; Upgrade-Panel und Klick-Button entfernen | 1.4 |
 | 1.6 | `game-designer` | `scripts/simulate.ts` + `balance.test.ts` auf die echte v2-Logik umstellen, Takt und Stufenzeiten prüfen, Tabellen in `GAME_DESIGN.md` | 1.4 |
@@ -1417,8 +1417,17 @@ Empfehlungen (Stand 20.10.2026):
       (1 + H/80) hätte kaum etwas geändert (5 Punkte Harmonie = 2,8 % statt 2,5 %). Damit
       bleibt Entscheidung 3 (`1 + H/100`) – neu bewertet und bestätigt.
     - **Waldgedächtnis +1 % je Punkt** (statt +2 %), `floor(H_max / 5) + neue Arten`
-      (statt `/ 10` und 2 je Art): Zyklus 2 war 42 % schneller; Harmonie zählt jetzt mehr
-      als das Entdecken vieler Arten.
+      (statt `/ 10` und 2 je Art): Zyklus 2 war 44,3 % schneller, jetzt 28,8 %; Harmonie
+      zählt jetzt mehr als das Entdecken vieler Arten. Gespeicherte Punkte bleiben beim
+      Laden unverändert (bewusst, siehe nächster Punkt).
+    - **Gespeichertes Waldgedächtnis wird nicht umgerechnet** (Migration v6 → v7): Wer
+      vor 2.10 z. B. 40 Punkte gesammelt hat, behält 40 Punkte – sie bringen jetzt +40 %
+      statt +80 %. Keine Verdopplung, weil ein Zyklus mit der neuen Formel ungefähr gleich
+      viele Punkte bringt wie mit der alten (H_max / 5 + 1 je Art statt H_max / 10 + 2 je
+      Art) und die Stammgast-Plätze (je 25 Punkte) sonst verdoppelt würden. Beim ersten
+      Laden eines solchen Stands (Gedächtnis > 0 oder Andenken) zeigt das Spiel einmal
+      „Das Waldgedächtnis wurde neu gewichtet: +1 % je Punkt.“ (`LoadResult.memoryReweighted`,
+      nicht Teil des Spielstands).
     - **Pflege teurer** (×1,25 bis ×1,8 je Stufe) und **Zwischenhalt 70 %** (statt 50 %),
       weil die gestreckte Kurve mehr Samen und längere Abschnitte bringt.
     - **Buche:** +1 Wurzelraum erst ab Alter Baum; **Kiefer:** +1 ☀️ statt +2.
@@ -1616,7 +1625,7 @@ Zyklen 200 Durchgänge.
 | Wegpunkte (`waypoints.ts`) | 3,5 · k^3,4 | **3,5 · k^3,5** | Hain nach 44 statt 60 min; Exponent statt Basis 4 streckt vor allem das späte Spiel (3) |
 | 🌿-Wirkungen der Arten (`species.ts`, `growth`/`groupGrowth`) | Prototyp | **×0,75** (gerundet, z. B. Regenwurm 8 → 6 %, Steinpilz Bäume 20 → 15 %) | Wachstums-Spieler 17,4 % schneller |
 | 🌿-Gattungsboni (`traits.ts`) | Vögel 20, Säuger/Boden 12 / 25, Pilze Bäume 10 / 30 % | **×0,6**: 12, 7 / 15, 6 / 18 % | dto.; der Wachstums-Spieler erreicht die mittlere Stufe viel öfter |
-| Waldgedächtnis (`memory.ts`) | +2 % je Punkt; H_max / 10 + 2 je Art | **+1 % je Punkt; H_max / 5 + 1 je Art** | Zyklus 2 war 44 % schneller; Wachstum bekam mehr Gedächtnis als Harmonie |
+| Waldgedächtnis (`memory.ts`) | +2 % je Punkt; H_max / 10 + 2 je Art | **+1 % je Punkt; H_max / 5 + 1 je Art** | Zyklus 2 war 44,3 % statt 28,8 % schneller; Wachstum bekam mehr Gedächtnis als Harmonie. Gespeicherte Punkte bleiben (14) |
 | Pflege-Kosten (`care.ts`) | 600 – 30.000 🌰 | **750 – 45.000 🌰** (×1,25 / ×1,35 / ×1,8 / ×1,5 je Stufe) | Senke trägt die längeren Abschnitte |
 | Zwischenhalt (`encounters.ts`) | 50 % | **70 %** | längste Durststrecke im Hain sonst 11 min |
 | Rotbuche (`trees.ts`) | +1 Wurzelraum ab Keimling | **ab Alter Baum** | Wachstums-Spieler mit Buche sonst 7 % vor der Eiche |
@@ -1730,7 +1739,17 @@ kennt und mit 2.10 andere 🌿-Zahlen hätte), `design-v2.test.ts` simulierte de
 selbst. Ersetzt durch Invarianten-Tests (Harmonie = Summe der Bausteine, Wertebereiche,
 jede Lebensgemeinschaft vollständig/unvollständig/mit Lichterabend), feste mulberry32-Werte
 in `rng.test.ts`, Kurztext-Prüfungen in `content.test.ts` und die Render-Tests mit den
-Listen aus `src/content`.
+Listen aus `src/content`. Den Abgleich Formeln ↔ Zahlen übernimmt `tests/golden.test.ts`:
+gezielte Regeln (Wirkung = pct × Zufriedenheit, Platz-Arten +1 Platz, Gattungsboni genau
+ab 2/3/5 Arten, jede Pflanze einzeln und doppelt) und eine eingefrorene Golden-Tabelle
+(`tests/__snapshots__/golden.json`: `evaluateEcosystem` je Art, Pflanze und Baumart auf
+jeder Stufe, dazu Pflanzen, `plantCost`, Stufenbudgets, Nischenplätze, Seltenheits- und
+Begegnungsgewichte). Gewollte Zahlenänderungen: `npx vitest run tests/golden.test.ts -u`.
+
+Die Balancing-Tests prüfen im normalen Check weitere Grenzen (Hain 52–68 min, Wachstums-
+Spieler ≥ 0,80 × Harmonie, Baumarten ±8 %), weil der Median mit wenigen Durchgängen je nach
+Seed-Startwert schwankt (gemessen: Hain bis 65,5 min, 0,83 × Harmonie, Kiefer −5,4 %); die
+Ziele oben gelten im großen Lauf (`npm run balance`).
 
 **Testlaufzeit:** `npm run check` 41,6 s → 24,4 s (4 Kerne): Balancing in vier parallelen
 Dateien mit weniger Durchgängen, `planPlant` je Zustand nur einmal gerechnet (gleiche
@@ -2073,9 +2092,9 @@ kommen vom langsameren Takt (er wächst langsamer), nicht von fehlenden guten Ka
 #### Stand Schritt 2.3: Lebensgemeinschaften, Harmonie vollständig (500 Durchgänge je Strategie, historisch)
 
 **Keine geänderten Zahlen.** Die 9 Lebensgemeinschaften (`src/content/communities.ts`,
-Abschnitt 9.2) stammen 1:1 aus `scripts/v2/content.ts`; „Lichterabend“ (Glühwürmchen)
+Abschnitt 9.2) stammen 1:1 aus `scripts/v2/content.ts` (entfernt in 2.10); „Lichterabend“ (Glühwürmchen)
 wirkt jetzt (+3 ⚖️ je aktiver Lebensgemeinschaft). `evaluate` stimmt nun für **alle**
-Ökosysteme exakt mit `scripts/v2/model.ts` überein (bis auf Ereignisse und
+Ökosysteme exakt mit `scripts/v2/model.ts` (entfernt in 2.10) überein (bis auf Ereignisse und
 Durchreisende, die es noch nicht gibt). Die Harmonie ist damit vollständig laut 9.1:
 Vielfalt + 30 · Ø Zufriedenheit + Pyramide (≤ 20, −4 je unbewachtem Schädling) +
 Lebensgemeinschaften + Sonderpunkte der Tiere. Neu im Simulator: Tabelle
@@ -2170,7 +2189,7 @@ bestehender, „entdeckt“ = Ø Einträge im Naturtagebuch)
 #### Stand Schritt 2.2: alle 32 Arten (500 Durchgänge je Strategie, historisch)
 
 **Keine geänderten Zahlen.** Alle Arten-, Gattungs-, Seltenheits-, Pflanzen- und
-Stufenzahlen sind die aus `scripts/v2/content.ts` (Inhaltstest prüft das, `evaluate`
+Stufenzahlen sind die aus `scripts/v2/content.ts` (entfernt in 2.10; Inhaltstest prüft das, `evaluate`
 wird gegen `scripts/v2/model.ts` verglichen – ohne Lebensgemeinschaften). Mit 32 Arten
 liegt der Harmonie-Spieler beim Hain bei ⚖️ 88 und ~66 🌿/s (Schritt 2.1: ⚖️ 78 /
 ~47 🌿/s; volles Design mit Lebensgemeinschaften, Ereignissen und Durchreisenden:
@@ -2260,7 +2279,7 @@ selten / besonders / legendär (legendäre Arten gibt es erst ab dem Hain).
   Glühwürmchens („Lichterabend“: +3 ⚖️ je Lebensgemeinschaft) vorerst nicht; die Zahl
   steht als `COMMUNITY_BOOST_HARMONY` in `src/content/abilities.ts` bereit.
 - **Fähigkeiten** wirken, solange ihre Art lebt – unabhängig von ihrer Zufriedenheit
-  und je einmal (wie `scripts/v2/model.ts`). „Landschaft der Angst“ trifft im Code jede
+  und je einmal (wie `scripts/v2/model.ts`, entfernt in 2.10). „Landschaft der Angst“ trifft im Code jede
   Beute des Jägers (Arten, die ein Nahrungsmerkmal von ihm bereitstellen) – mit den
   heutigen Inhalten genau das Reh.
 - **Erscheinungsbedingungen** prüfen nur, was im Ökosystem da ist: „sonnig“/„schattig“
@@ -2307,7 +2326,7 @@ selten / besonders / legendär (legendäre Arten gibt es erst ab dem Hain).
 
 **Geänderte Zahlen:** `WAYPOINT_POWER` zurück auf **3,4** (Design), dafür
 `WAYPOINT_BASE` 4 → **3,5** (`src/content/waypoints.ts`). Alle Pflanzen-, Tier-,
-Stufen- und Begegnungszahlen sind unverändert die aus `scripts/v2/content.ts`
+Stufen- und Begegnungszahlen sind unverändert die aus `scripts/v2/content.ts` (entfernt in 2.10)
 (Inhaltstest prüft das). Begründung: Mit Pflanzen, aber nur 9 statt 32 Arten liegt der
 Harmonie-Spieler beim Hain bei ⚖️ 78 und ~47 🌿/s statt ⚖️ 96 und ~69 🌿/s im vollen
 Design; mit Basis 4 dauerte der Hain 1:09 h (Alter Baum 23:12 min). Die kleinere Basis
@@ -2880,7 +2899,8 @@ Hauptbaum. Naturtagebuch, Reiter Andenken: optional die gewachsenen Hauptbaum-Ar
 **Tests (Vorschlag):** Freischaltung aus dem Tagebuch; `startNewCycle` mit gesperrter
 Art scheitert ohne Änderung; Eiche = heutiges Verhalten (alle bisherigen Tests grün);
 Kiefer ohne Nüsse (Eichhörnchen hungrig, Mastjahr und Bergfinken nicht wählbar), mit
-Nadeln; Buche: Wurzelraum ab Keimling 2 Plätze, −2 ☀️ erst ab Alter Baum; Kiefer im
+Nadeln; Buche: Wurzelraum ab Alter Baum 4 statt 3 Plätze (seit 2.10; vorher ab Keimling
+2 Plätze), −2 ☀️ erst ab Alter Baum; Kiefer im
 Winter ohne Abzug; Migration; Simulator: `mainTree` als echte Option.
 
 **Umgesetzt:** wie oben. `unlockedTrees` / `isTreeUnlocked` in `tick.ts`; beim Laden zählt

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { SPECIES } from '../src/content/species';
+import { SEASON_SECONDS } from '../src/content/seasons';
 import { STAGES } from '../src/content/stages';
 import { cycleMemoryGain, evaluate, regularSlots } from '../src/core/formulas';
 import { MAX_CYCLE_NUMBER, deserialize, loadGame, serialize, v6Threshold } from '../src/core/save';
+import { seasonIdAt } from '../src/core/season';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, allAnimals, createCycle, createInitialState, type GameState } from '../src/core/state';
 import {
   chooseCard,
@@ -278,6 +280,35 @@ describe('Stammgäste', () => {
     expect(offline.cycle.elapsed).toBeCloseTo(online.cycle.elapsed, 6);
     expect(offline.meta).toEqual(online.meta);
     expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
+    expect(offline.seeds).toBeCloseTo(online.seeds, 6);
+  });
+
+  it('online und offline gleich genau an einer Jahreszeitengrenze (Frühling → Sommer)', () => {
+    const online = groveState(4321);
+    startNewCycle(online, 0);
+    expect(online.cycle.elapsed).toBe(0);
+    const offline = structuredClone(online);
+    // Bis genau auf die Grenze: online in Sekunden-Schritten, offline in einem Stück.
+    const seen: string[] = [];
+    for (let i = 0; i < SEASON_SECONDS; i++) seen.push(...tick(online, 1).seasons);
+    const report = simulateOffline(offline, SEASON_SECONDS);
+    expect(online.cycle.elapsed).toBe(SEASON_SECONDS);
+    expect(offline.cycle.elapsed).toBe(SEASON_SECONDS);
+    expect(seen).toEqual(['summer']);
+    expect(report.seasons).toEqual(seen);
+    expect(seasonIdAt(offline.cycle.elapsed)).toBe('summer');
+    expect(evaluate(offline)).toEqual(evaluate(online));
+    expect(offline.waypoint).toBe(online.waypoint);
+    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
+    expect(offline.rngState).toBe(online.rngState);
+    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
+    expect(offline.seeds).toBeCloseTo(online.seeds, 6);
+    // Von der Grenze aus geht es gleich weiter (kein doppelter Wechsel, keine verlorene Zeit).
+    const a = tick(online, 0.5);
+    const b = simulateOffline(offline, 0.5);
+    expect(a.seasons).toEqual([]);
+    expect(b.seasons).toEqual([]);
+    expect(offline.cycle.elapsed).toBe(online.cycle.elapsed);
     expect(offline.seeds).toBeCloseTo(online.seeds, 6);
   });
 });

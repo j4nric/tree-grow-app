@@ -18,7 +18,8 @@
 > verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege;
 > v5-Stände beginnen beim Laden im Frühling und wachsen als Stieleiche weiter; v3- bis
 > v6-Stände werden auf die neue Wegpunkt-Kurve umgerechnet – gleicher Wegpunkt, gleicher
-> Anteil bis zum nächsten). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
+> Anteil bis zum nächsten; ihr Waldgedächtnis bleibt in Punkten gleich, wirkt aber mit +1 %
+> je Punkt). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
 > Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰, Neu würfeln
 > kostet 10 🌰 (verdoppelt sich je Wurf).
 >
@@ -114,6 +115,19 @@ Systemen (Pflege, Ereignisse, Gäste, Jahreszeiten), 500 Durchgänge, `npm run b
 | 🌰-Bestand beim Hain < 10 min Produktion | 4,9 min | 8,4 min |
 | Zyklus 2 20–35 % schneller bis Hain | 44,3 % | 28,8 % |
 | erster Stammgast nach 1–2 Zyklen | nach 1 | nach 1 (33 Punkte) |
+
+**Bewusste Entscheidung Waldgedächtnis:** Gespeicherte Punkte werden beim Laden alter
+Stände (v2–v6) **nicht** umgerechnet – 40 Punkte bleiben 40 Punkte und bringen jetzt +40 %
+statt +80 %. Eine Verdopplung wäre falsch: Ein Zyklus bringt mit der neuen Formel ungefähr
+gleich viele Punkte wie mit der alten, und die Stammgast-Plätze (je 25 Punkte) würden sich
+verdoppeln. Wer Waldgedächtnis oder ein Andenken hat, sieht beim ersten Laden einmal den
+Hinweis „Das Waldgedächtnis wurde neu gewichtet: +1 % je Punkt.“ (`DESIGN_V2.md` 14).
+
+**Tests:** Die Balancing-Tests prüfen im normalen Check (wenige Durchgänge, feste Seeds)
+weitere Grenzen (Hain 52–68 min, Wachstums-Spieler ≥ 0,80 × Harmonie, Baumarten ±8 %),
+die Ziele oben nur im großen Lauf (`npm run balance`). Formeln und Zahlen hält
+`tests/golden.test.ts` fest (gezielte Regeln und eine Golden-Tabelle
+`tests/__snapshots__/golden.json`); gewollte Zahlenänderungen dort mit `-u` übernehmen.
 
 ## Vision
 

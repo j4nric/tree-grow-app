@@ -150,7 +150,11 @@ export function tick(state: GameState, dt: number): TickReport {
     const interlude = interludeThreshold(state);
     const toInterlude = rate > 0 && interlude < Infinity ? Math.max(0, interlude - state.totalGrowth) / rate : Infinity;
     const toExpiry = nextExpiry(state);
-    const toSeason = secondsToNextSeason(state.cycle.elapsed);
+    let toSeason = secondsToNextSeason(state.cycle.elapsed);
+    // Endet der Schritt nur Rundungsrauschen vor der Grenze (Restzeit und Spielzeit werden
+    // getrennt aufsummiert), gilt die Grenze als erreicht – sonst landet offline (ein
+    // großer Tick mit Halten) bei 179,99999999999997 s, online (ganze Sekunden) bei 180 s.
+    if (toSeason > remaining && toSeason - remaining <= SEASON_SNAP_SECONDS) toSeason = remaining;
     const step = Math.min(remaining, toNext, toInterlude, toExpiry, toSeason);
     state.seeds = capped(state.seeds + ev.seeds * step);
     remaining -= step;
@@ -176,6 +180,9 @@ export function tick(state: GameState, dt: number): TickReport {
   }
   return report;
 }
+
+/** Toleranz für das Erreichen einer Jahreszeitengrenze (Gleitkomma-Rest, siehe tick). */
+export const SEASON_SNAP_SECONDS = 1e-9;
 
 /** So viele Jahreszeitwechsel merkt sich ein TickReport höchstens (die letzten; 8 h offline = 160). */
 export const MAX_REPORTED_SEASONS = 160;

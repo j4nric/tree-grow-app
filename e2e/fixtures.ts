@@ -1,7 +1,7 @@
 import { test as base, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS } from '../src/content/waypoints';
+import { WAYPOINT_THRESHOLDS } from '../src/content/waypoints';
 import { CONFIRM_MIN_MS } from '../src/ui/confirm';
-import { v6Threshold } from '../src/core/save';
+import { v7GrowthToV6 } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
 
 export { SAVE_VERSION } from '../src/core/state';
@@ -38,17 +38,10 @@ export const waypoint = (k: number): number => WAYPOINT_THRESHOLDS[k]!;
 /**
  * Gesamt-Wachstum der aktuellen Kurve → dieselbe Stelle (Wegpunkt und Anteil bis zum
  * nächsten) auf der Kurve der Stände v3–v6 (3,5 · k^3,4). Umkehrung der Migration
- * v6 → v7 (`v6GrowthToV7`, Balancing 2.10): Ein v3-Stand mit `legacyGrowth(waypoint(k) + x)`
- * lädt genau bei `waypoint(k) + x`.
+ * v6 → v7 (`v7GrowthToV6` in src/core/save.ts, Rundlauf per Vitest abgesichert): Ein
+ * v3-Stand mit `legacyGrowth(waypoint(k) + x)` lädt genau bei `waypoint(k) + x`.
  */
-export function legacyGrowth(growth: number): number {
-  if (!(growth > 0)) return 0;
-  let k = 0;
-  while (k < WAYPOINT_COUNT && growth >= waypoint(k + 1)) k++;
-  if (k >= WAYPOINT_COUNT) return v6Threshold(WAYPOINT_COUNT) * (growth / waypoint(WAYPOINT_COUNT));
-  const share = (growth - waypoint(k)) / (waypoint(k + 1) - waypoint(k));
-  return v6Threshold(k) + share * (v6Threshold(k + 1) - v6Threshold(k));
-}
+export const legacyGrowth = v7GrowthToV6;
 
 export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows';
 
