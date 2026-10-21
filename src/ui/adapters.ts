@@ -78,7 +78,7 @@ import {
 } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
 import { memoryBonusLabel, treeLabel } from './cycle-view';
-import { RARITY_LABELS, formatSigned, formatSignedPercent, preferredReplaceOption, waitingText } from './view-format';
+import { RARITY_LABELS, formatSigned, formatSignedPercent, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
 import type {
   ActiveBonusView,
@@ -1166,7 +1166,7 @@ export function toEncounterView(
     cards,
     rerollCost: rerollCost(state, encounterIndex),
     canReroll: blocker === null,
-    declineReward: declineReward(),
+    declineReward: declineReward(state),
   };
   if (isPlant) view.subtitle = plantEncounterSubtitle(state, now);
   if (blocker) view.rerollDisabledReason = (isPlant ? PLANT_REROLL_BLOCKERS : REROLL_BLOCKERS)[blocker];
@@ -1576,11 +1576,12 @@ export function toScenePlants(state: Pick<GameState, 'plants'>, evaluation: Read
 
 /**
  * Kurzer Hinweis, wenn ein Wegpunkt ohne Begegnung vorbeiging (TickReport.autoDeclined):
- * Es gab nichts Passendes – oder der Stapel war voll. Dafür gibt es Samen wie beim Ablehnen.
+ * Es gab nichts Passendes – oder der Stapel war voll. Dafür gibt es Samen wie beim Ablehnen;
+ * `seeds` ist deren Summe (TickReport.declinedSeeds – die Rate kann je Wegpunkt steigen).
  */
-export function autoDeclineText(autoDeclined: number, stackFull: boolean): string {
+export function autoDeclineText(autoDeclined: number, stackFull: boolean, seeds: number): string {
   const n = Math.max(1, autoDeclined);
-  const reward = `+${formatNumber(n * declineReward())} 🌰`;
+  const reward = `+${seedsLabel(Math.max(0, seeds))} 🌰`;
   if (stackFull) return `Stapel voll – ${n === 1 ? 'eine Begegnung zog' : 'Begegnungen zogen'} weiter · ${reward}`;
   return `Niemand zog ein · ${reward}`;
 }
@@ -1589,9 +1590,10 @@ export function autoDeclineText(autoDeclined: number, stackFull: boolean): strin
  * Hinweis für automatisch abgelehnte Begegnungen eines Ticks: „Stapel voll – …“ nur, wenn
  * der Stapel wirklich voll war (TickReport.declinedStackFull), sonst „Niemand zog ein“.
  */
-export function tickDeclineText(report: Pick<OfflineReport, 'autoDeclined' | 'declinedStackFull'>): string {
+export function tickDeclineText(report: Pick<OfflineReport, 'autoDeclined' | 'declinedStackFull' | 'declinedSeeds'>): string {
   // Nur wenn alle wegen des vollen Stapels weiterzogen; bei gemischten Gründen neutral.
-  return autoDeclineText(report.autoDeclined, report.declinedStackFull > 0 && report.declinedStackFull === report.autoDeclined);
+  const stackFull = report.declinedStackFull > 0 && report.declinedStackFull === report.autoDeclined;
+  return autoDeclineText(report.autoDeclined, stackFull, report.declinedSeeds);
 }
 
 /** Inhalt des Stufen-Banners in der Szene. */
@@ -1628,7 +1630,7 @@ export type CatchUpNotice = { kind: 'welcome'; text: string; namesStage: boolean
  */
 export function catchUpNotice(
   away: number,
-  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedStackFull'>,
+  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedStackFull' | 'declinedSeeds'>,
   waiting: number,
   stages?: StageProgress,
 ): CatchUpNotice {
@@ -1666,7 +1668,7 @@ function welcomeAmount(value: number, icon: string): string {
  */
 export function welcomeText(
   away: number,
-  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined'>,
+  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedSeeds'>,
   waiting: number,
   stages?: StageProgress,
 ): string {
@@ -1679,7 +1681,7 @@ export function welcomeText(
   const grew = reached ? `wuchs dein Baum bis zur Stufe „${reached}“` : 'ist dein Wald gewachsen';
   let text = `Willkommen zurück! In ${formatDuration(report.seconds)}${capped} ${grew}${yieldText}.`;
   const n = report.autoDeclined;
-  const thanks = `+${formatNumber(n * declineReward())} 🌰`;
+  const thanks = `+${seedsLabel(Math.max(0, report.declinedSeeds))} 🌰`;
   if (waiting > 0) {
     text += ` ${waiting === 1 ? '1 Begegnung wartet' : `${formatNumber(waiting)} Begegnungen warten`} auf dich`;
     if (n > 0) text += ` – ${formatNumber(n)} weitere ${n === 1 ? 'zog' : 'zogen'} weiter und ${n === 1 ? 'ließ' : 'ließen'} ${thanks} da`;
@@ -1694,10 +1696,8 @@ export function welcomeText(
 // Ereignisse und Durchreisende (Schritt 2.4)
 // ---------------------------------------------------------------------------
 
-/** Samen für Knöpfe und Karten: ganze Zahlen, darunter eine Nachkommastelle. */
-export function seedsLabel(seeds: number): string {
-  return formatNumber(seeds >= 10 ? Math.round(seeds) : Math.round(seeds * 10) / 10);
-}
+/** Samen für Knöpfe und Karten – der Helfer liegt in view-format.ts (auch für declineLabel). */
+export { seedsLabel };
 
 /** Relative Änderung (0,05 = +5 %); 0, wenn vorher nichts da war. */
 function relative(after: number, before: number): number {

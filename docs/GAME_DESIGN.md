@@ -21,8 +21,8 @@
 > v6-Stände werden auf die neue Wegpunkt-Kurve umgerechnet – gleicher Wegpunkt, gleicher
 > Anteil bis zum nächsten; ihr Waldgedächtnis bleibt in Punkten gleich, wirkt aber mit +1 %
 > je Punkt). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
-> Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰 (entschieden:
-> künftig 10 Samen-Sekunden, mindestens 5 🌰 – Umsetzung offen, `DESIGN_V2.md` 7.9), Neu würfeln
+> Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt 10 Samen-Sekunden, mindestens 5 🌰 –
+> von Hand wie beim Weiterziehen online und offline (`DESIGN_V2.md` 7.9), Neu würfeln
 > kostet 10 🌰 (verdoppelt sich je Wurf). Seit Spielstand v8 gibt es eine
 > Langzeit-Statistik über alle Zyklen (`DESIGN_V2.md` 12.5); bei v7-Ständen beginnt sie
 > beim laufenden Zyklus, ab Zyklus 2 gilt die Stieleiche zusätzlich als gewachsen.

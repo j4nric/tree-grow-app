@@ -50,6 +50,7 @@ import {
   stageBannerView,
   type StageBannerView,
 } from './ui/adapters';
+import { seedsLabel } from './ui/view-format';
 import { achievementUnlockedText, achievementsBackfilledText, toAchievementTimeProgress } from './ui/achievement-view';
 import { createBonusPanel } from './ui/bonus-panel';
 import { createCarePanel } from './ui/care-panel';
@@ -626,7 +627,8 @@ function floatSeeds(amount: number): void {
   const target = document.querySelector<HTMLElement>('[data-ref="seeds"]');
   if (!target || amount <= 0) return;
   const rect = target.getBoundingClientRect();
-  floats.spawn(`+${formatNumber(amount)} 🌰`, rect.left + rect.width / 2, rect.top);
+  // Gerundet wie der Knopf („Ablehnen (+144 🌰)“), damit beide dieselbe Zahl zeigen.
+  floats.spawn(`+${seedsLabel(amount)} 🌰`, rect.left + rect.width / 2, rect.top);
 }
 
 /**
@@ -872,6 +874,8 @@ function frame(now: number): void {
   // Neue Begegnung wartet: ein weiches „Pling“.
   if (report.encounters > 0) sound.cue('encounter');
   const tickNote = tickNoteText(report);
+  // Automatisch abgelehnte Begegnungen: ihre Samen schweben am Vorrat hoch (wie von Hand).
+  if (report.declinedSeeds > 0) floatSeeds(report.declinedSeeds);
   let seasonText: string | null = null;
   if (report.seasons.length > 0) {
     // Neue Jahreszeit: Raten ändern sich – Ansichten neu bauen, kurz Bescheid geben.

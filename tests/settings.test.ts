@@ -3,7 +3,7 @@ import { ACHIEVEMENTS } from '../src/content/achievements';
 import { COMMUNITIES } from '../src/content/communities';
 import { CARE } from '../src/content/care';
 import {
-  DECLINE_SEEDS,
+  DECLINE_SEED_SECONDS,
   INTERLUDE_CHANCE,
   INTERLUDE_STAGE,
   MAX_PENDING_ENCOUNTERS,
@@ -237,7 +237,7 @@ describe('Spielanleitung', () => {
     expect(text('growth')).toContain(`${formatNumber(WAYPOINT_COUNT)} Wegpunkte`);
     expect(text('growth')).toContain(STAGES[STAGES.length - 1]!.name);
     expect(text('encounters')).toContain(`höchstens ${formatNumber(MAX_PENDING_ENCOUNTERS)}`);
-    expect(text('encounters')).toContain(`+${formatNumber(DECLINE_SEEDS)} 🌰`);
+    expect(text('encounters')).toContain(`Ablehnen bringt die Samen von ${formatNumber(DECLINE_SEED_SECONDS)} Sekunden, mindestens 5 🌰`);
     expect(text('encounters')).toContain(`${formatNumber(REROLL_BASE_COST)} 🌰`);
     expect(text('niches')).toContain(`${formatNumber(NICHES.length)} Nischen`);
     expect(text('plants')).toContain(`${formatNumber(PLANTS.length)} verschiedene`);

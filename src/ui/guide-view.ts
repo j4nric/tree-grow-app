@@ -8,7 +8,7 @@ import { CARE, CARE_BY_ID } from '../content/care';
 import { COMMUNITIES } from '../content/communities';
 import {
   CARDS_PER_ENCOUNTER,
-  DECLINE_SEEDS,
+  DECLINE_SEED_SECONDS,
   INTERLUDE_CHANCE,
   INTERLUDE_STAGE,
   MAX_PENDING_ENCOUNTERS,
@@ -127,7 +127,7 @@ export function guideSections(): GuideSection[] {
       title: 'Begegnungen und Kartenwahl',
       paragraphs: [
         `An jedem Wegpunkt wartet eine Begegnung mit bis zu ${formatNumber(CARDS_PER_ENCOUNTER)} Karten: ein Tier, das einziehen möchte, oder eine Pflanze, die keimt. Die Vorschau auf jeder Karte zeigt, was sich ändert.`,
-        `Begegnungen warten ruhig im Stapel am Bildrand – höchstens ${formatNumber(MAX_PENDING_ENCOUNTERS)}. Ablehnen bringt +${formatNumber(DECLINE_SEEDS)} 🌰, Neu würfeln kostet ${formatNumber(REROLL_BASE_COST)} 🌰, jedes weitere Mal ×${formatNumber(REROLL_COST_GROWTH)} in derselben Begegnung.`,
+        `Begegnungen warten ruhig im Stapel am Bildrand – höchstens ${formatNumber(MAX_PENDING_ENCOUNTERS)}. Ablehnen bringt die Samen von ${formatNumber(DECLINE_SEED_SECONDS)} Sekunden, mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰, Neu würfeln kostet ${formatNumber(REROLL_BASE_COST)} 🌰, jedes weitere Mal ×${formatNumber(REROLL_COST_GROWTH)} in derselben Begegnung.`,
       ],
     },
     {
