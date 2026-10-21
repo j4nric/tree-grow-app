@@ -127,7 +127,7 @@ describe('Balancing v2 (echte Logik)', () => {
       // Ab Setzling (fast) immer drei Karten.
       expect(v.fewCardsShare, s.strategy.name).toBeLessThan(0.05);
     }
-    // Harmonie-Spieler: längste Strecke ohne lohnende Karte (Ziel < 15 min, gemessen ~9:30 min im 90-%-Quantil).
+    // Harmonie-Spieler: längste Strecke ohne lohnende Karte (Ziel < 15 min, gemessen ~8:40 min im 90-%-Quantil).
     const h = varietyBefore(harmony, HAIN);
     expect(h.droughtMedian).toBeLessThan(10 * 60);
     expect(h.droughtP90).toBeLessThan(15 * 60);

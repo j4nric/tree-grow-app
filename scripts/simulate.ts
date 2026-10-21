@@ -708,6 +708,21 @@ export function varietyBefore(summary: Summary, beforeStage: number) {
   };
 }
 
+export function varietySummaryTable(summaries: Summary[], beforeStage: number): string {
+  const pct = (x: number) => `${fmt(x * 100)} %`;
+  const lines = [
+    '| Strategie | gleiches Set wie vorige | 1–2 Karten (ab Setzling) | Neu würfeln möglich | lohnend | längste Durststrecke Median / 90 % / max |',
+    '|---|---|---|---|---|---|',
+  ];
+  for (const s of summaries) {
+    const v = varietyBefore(s, beforeStage);
+    lines.push(
+      `| ${s.strategy.name} | ${pct(v.sameShare)} | ${pct(v.fewCardsShare)} | ${pct(v.rerollOpenShare)} | ${pct(v.worthShare)} | ${formatTime(v.droughtMedian)} / ${formatTime(v.droughtP90)} / ${formatTime(v.droughtMax)} |`,
+    );
+  }
+  return lines.join('\n');
+}
+
 export function varietyTable(summary: Summary, upTo: number): string {
   const lines = [
     '| Stufe | Begegnungen | gleiches Set wie vorige (Tier / Pflanze) | nur 1–2 Karten | Neu würfeln möglich | gesperrt: zu teuer / keine Alternative | lohnend | längste Durststrecke Median / 90 % / max |',
@@ -851,6 +866,10 @@ export function report(summaries: Summary[], focusStage: number): string {
     '',
     varietyTable(harmony, STAGES.length - 2),
     ...(random ? ['', '#### Vielfalt der Begegnungen – Zufällig', '', varietyTable(random, STAGES.length - 2)] : []),
+    '',
+    `#### Vielfalt bis ${name} je Strategie`,
+    '',
+    varietySummaryTable(summaries, focusStage),
     '',
     `#### Begegnungen bis ${name} (Mittel je Durchgang)`,
     '',
