@@ -19,6 +19,8 @@ import {
   dropOneBackup,
   migrateLegacyBackups,
   migrateLegacyMeta,
+  parseMeta,
+  BASE_KEY,
   readBackups,
   readMeta,
   writeMeta,
@@ -111,9 +113,10 @@ export interface AccountCore {
   restore(id: string): string | null;
   /**
    * Gleich wird der Spielstand gespeichert: Liegt dort der Stand eines anderen Tabs mit noch
-   * nicht gesendeter Aktion, wird er vorher gesichert (backupOtherTab).
+   * nicht gesendeter Aktion, wird er vorher gesichert (backupOtherTab). false = das ließ sich
+   * nicht sichern (Speicher voll) – gespeichert wird trotzdem, der laufende Wald geht vor.
    */
-  beforePersist(): void;
+  beforePersist(): boolean;
   /** Der Spielstand `raw` wurde eben gespeichert: Abgleich-Angaben dazu schreiben (gleicher Takt). */
   persisted(raw: string): void;
   /** Speicher voll: eine Sicherung weichen lassen, damit der Spielstand passt. false = keine mehr. */
@@ -152,11 +155,15 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
    * (persisted), damit beides im localStorage immer zusammenpasst.
    */
   let memory: LocalMeta = readMeta(storage);
+  /** Länge des Spielstands, den dieser Tab zuletzt gespeichert hat (schneller Vergleich). */
+  let savedLength: number | undefined;
   /** Prüfsumme des Spielstands, den dieser Tab zuletzt gespeichert hat (beim Laden: der gespeicherte). */
   let savedHash: string | null = (() => {
     try {
       const raw = storage.getItem(SAVE_KEY);
-      return raw === null ? null : checksum(raw);
+      if (raw === null) return null;
+      savedLength = raw.length;
+      return checksum(raw);
     } catch {
       return null;
     }
@@ -167,6 +174,33 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
    * über einen Stand mit offener Aktion speichern will, sichert ihn vorher unter dieser Kennung.
    */
   const tabId = deps.newDeviceId();
+  /**
+   * Geerbte Kennungen: Der beim Laden gespeicherte Stand stammt (laut passenden Angaben) von
+   * einem früheren Tab – meist diesem Tab vor dem Neuladen – bzw. hat selbst diese Prüfsumme.
+   * Was andere Tabs bis jetzt davon gesichert haben, ist in diesem Spiel enthalten; sobald es
+   * gesendet ist, räumt dieser Tab auch diese Sicherungen ab (sonst blieben sie verwaist).
+   */
+  const startedAt = deps.clock();
+  let inherited: string[] = (() => {
+    const writers = savedHash === null ? [] : [`save-${savedHash}`];
+    const meta = parseMeta((() => {
+      try {
+        return storage.getItem(BASE_KEY);
+      } catch {
+        return null;
+      }
+    })());
+    if (meta?.tab && meta.save !== null && meta.save === savedHash) writers.push(meta.tab);
+    return writers;
+  })();
+
+  /** Nichts mehr offen: eigene und geerbte 'other-tab'-Sicherungen entfernen. */
+  function dropOwnOtherTabBackups(): void {
+    let changed = dropWriterBackups(storage, tabId);
+    for (const writer of inherited) changed = dropWriterBackups(storage, writer, startedAt) || changed;
+    inherited = [];
+    if (changed) view.setBackups(backups());
+  }
 
   /**
    * Abgleich-Angaben schreiben – nie aus einem angehaltenen Tab. Mit der Prüfsumme des zuletzt
@@ -187,8 +221,11 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
    * (Speicher voll), wird trotzdem gespeichert: Der laufende Wald geht vor (wie beim
    * Platzmachen für den Spielstand).
    */
-  function guardOtherTab(): void {
-    if (!stale) backupOtherTab(storage, savedHash, deps.clock(), (code) => game.progressOf(code));
+  function guardOtherTab(): boolean {
+    if (stale) return true;
+    const result = backupOtherTab(storage, savedHash, deps.clock(), (code) => game.progressOf(code), savedLength);
+    if (result === 'saved') view.setBackups(backups());
+    return result !== 'failed';
   }
 
   function hostFor(account: AccountUser, fresh: boolean): SyncHost {
@@ -224,7 +261,7 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
         memory = { owner: account.name, base };
         // Nichts mehr offen (gesendet bzw. übernommen, Verlorenes liegt dann als 'lost-action'
         // im Ring): Sicherungen, die andere Tabs von diesem Tab angelegt haben, sind überholt.
-        if (!base.pending) dropWriterBackups(storage, tabId);
+        if (!base.pending) dropOwnOtherTabBackups();
         // Spielstand und Angaben zusammen speichern (persisted schreibt die Angaben).
         game.save();
       },
@@ -372,6 +409,7 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
     beforePersist: guardOtherTab,
     persisted(raw) {
       savedHash = checksum(raw);
+      savedLength = raw.length;
       if (!stale) writeMeta(storage, memory, savedHash, tabId);
     },
     makeRoom: () => dropOneBackup(storage),

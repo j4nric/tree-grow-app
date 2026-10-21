@@ -812,6 +812,9 @@ function ecosystemKey(state: GameState, withSeason = true): string {
  * bekämen sonst den Cache-Wert des ersten. Sonderzahlen werden zu `"#NaN"` usw.
  */
 function keyJson(value: unknown): string {
+  const plain = JSON.stringify(value);
+  // Ohne `null` gab es keine Sonderzahl (Normalfall) – kein Replacer nötig.
+  if (!plain.includes('null')) return plain;
   return JSON.stringify(value, (_k, v: unknown) =>
     typeof v === 'number' && !Number.isFinite(v) ? `#${v}` : v,
   );

@@ -212,10 +212,14 @@ const REASONS: readonly BackupReason[] = [
   'legacy',
 ];
 
-/** Wie wichtig eine Sicherung ist: Das Sicherheitsnetz (meist ohne Verlust) zählt am wenigsten. */
+/**
+ * Wie wichtig eine Sicherung ist: Das Sicherheitsnetz (meist ohne Verlust) zählt am wenigsten.
+ * Stände anderer Tabs ('other-tab') sind meist überholt (der Tab hat später gesendet) und
+ * weichen deshalb vor überholten Aktionen und ersten Anmeldungen.
+ */
 export function backupPriority(reason: BackupReason): number {
   if (reason === 'before-take') return 0;
-  if (reason === 'legacy') return 1;
+  if (reason === 'legacy' || reason === 'other-tab') return 1;
   return 2;
 }
 
@@ -290,6 +294,8 @@ export function addBackup(storage: Storage, entry: Omit<BackupEntry, 'id'>): str
   // Die neue Sicherung eines Tabs ersetzt seine ältere (sein Spiel wächst nur weiter).
   const entries = readBackups(storage).filter((e) => entry.writer === undefined || e.writer !== entry.writer || e.code === entry.code);
   const same = entries.find((e) => e.code === entry.code);
+  // Derselbe Tab mit demselben Stand (z. B. jeder Autosave): nichts neu schreiben.
+  if (same && entry.writer !== undefined && same.writer === entry.writer && same.reason === entry.reason) return same.id;
   if (same) {
     if (backupPriority(entry.reason) > backupPriority(same.reason)) same.reason = entry.reason;
     if (entry.owner !== null && same.owner === null) same.owner = entry.owner;
@@ -320,45 +326,58 @@ export function addBackup(storage: Storage, entry: Omit<BackupEntry, 'id'>): str
   return id;
 }
 
+/** Ergebnis von backupOtherTab: nichts zu sichern, gesichert, Sicherung gescheitert. */
+export type OtherTabBackup = 'none' | 'saved' | 'failed';
+
 /**
  * Bevor ein Tab den gemeinsamen Spielstand überschreibt: Stammt der gespeicherte Stand von
- * einem anderen Tab (Angaben nicht zu `savedHash`, dem zuletzt hier gespeicherten) und könnte
- * er Aktionen enthalten, die noch nicht in der Cloud sind, wären sie verloren, sobald jener Tab
- * geschlossen ist (z. B. offline). „Könnte“ heißt: Er gehört zu einem Konto und hat laut seinen
- * Angaben eine offene Aktion, keine bekannte Grundlage (z. B. nach einem Absturz) oder Angaben,
- * die nicht zu ihm passen. Dann diesen Stand als 'other-tab' sichern – je Tab nur die neueste.
- * Rein lokale Stände (keine Angaben) bleiben wie bisher. Rückgabe: false = es gab so einen
- * Stand, er ließ sich aber nicht sichern.
+ * einem anderen Tab (Angaben nicht zum zuletzt hier gespeicherten Stand mit Prüfsumme
+ * `savedHash` und Länge `savedLength`) und könnte er Aktionen enthalten, die noch nicht in der
+ * Cloud sind, wären sie verloren, sobald jener Tab geschlossen ist (z. B. offline). „Könnte“
+ * heißt: Er gehört zu einem Konto und hat laut seinen Angaben eine offene Aktion, keine bekannte
+ * Grundlage (z. B. nach einem Absturz) oder Angaben, die nicht zu ihm passen. Dann diesen Stand
+ * als 'other-tab' sichern – je Tab nur die neueste. Rein lokale Stände (keine Angaben) bleiben
+ * wie bisher.
+ *
+ * Schneller Weg: Passen die Angaben zum eigenen Stand und hat der gespeicherte Stand dessen
+ * Länge, wird nicht gerechnet. Übrig bleibt nur ein anderer Tab, dessen Angaben nicht
+ * geschrieben werden konnten und dessen Stand zufällig genau so lang ist – dann ist ohnehin
+ * unbekannt, ob er offene Aktionen hat.
  */
 export function backupOtherTab(
   storage: Storage,
   savedHash: string | null,
   now: number,
   progressOf: (code: string) => Progress | null,
-): boolean {
+  savedLength?: number,
+): OtherTabBackup {
   try {
     const meta = parseMeta(storage.getItem(BASE_KEY));
-    // Schneller Weg (Normalfall): keine Angaben oder die zum eigenen, zuletzt gespeicherten Stand.
-    if (!meta || (meta.save !== null && meta.save === savedHash)) return true;
+    if (!meta) return 'none';
     const code = storage.getItem(SAVE_KEY);
-    if (code === null) return true;
+    if (code === null) return 'none';
+    if (meta.save !== null && meta.save === savedHash && (savedLength === undefined || code.length === savedLength)) return 'none';
     const hash = checksum(code);
-    if (hash === savedHash) return true;
+    if (hash === savedHash) return 'none';
     const paired = meta.save === hash;
-    if (paired && meta.base && !meta.base.pending) return true;
+    if (paired && meta.base && !meta.base.pending) return 'none';
     const writer = paired && meta.tab ? meta.tab : `save-${hash}`;
-    return addBackup(storage, { code, owner: meta.owner, at: now, reason: 'other-tab', progress: progressOf(code), writer }) !== null;
+    const id = addBackup(storage, { code, owner: meta.owner, at: now, reason: 'other-tab', progress: progressOf(code), writer });
+    return id === null ? 'failed' : 'saved';
   } catch {
-    return false;
+    return 'failed';
   }
 }
 
-/** Die 'other-tab'-Sicherungen von `writer` entfernen (seine Aktionen sind jetzt in der Cloud). */
-export function dropWriterBackups(storage: Storage, writer: string): void {
+/**
+ * Die 'other-tab'-Sicherungen von `writer` entfernen (seine Aktionen sind jetzt in der Cloud) –
+ * mit `notAfter` nur die bis zu diesem Zeitpunkt angelegten. Rückgabe: Es wurde etwas entfernt.
+ */
+export function dropWriterBackups(storage: Storage, writer: string, notAfter = Infinity): boolean {
   const entries = readBackups(storage);
-  const rest = entries.filter((e) => e.writer !== writer);
-  if (rest.length === entries.length) return;
-  writeRing(storage, rest);
+  const rest = entries.filter((e) => e.writer !== writer || e.at > notAfter);
+  if (rest.length === entries.length) return false;
+  return writeRing(storage, rest);
 }
 
 /**

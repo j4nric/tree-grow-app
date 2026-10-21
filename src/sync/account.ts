@@ -106,7 +106,7 @@ export function startAccount(options: AccountOptions): AccountController {
   return {
     markAction: () => core?.markAction(),
     flush: () => void core?.flush(),
-    beforePersist: () => core?.beforePersist(),
+    beforePersist: () => void core?.beforePersist(),
     persisted: (raw) => core?.persisted(raw),
     makeRoom: () => core?.makeRoom() ?? false,
     backupCurrent: () => void core?.backupCurrent(),
