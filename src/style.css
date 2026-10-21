@@ -94,12 +94,6 @@ body {
   letter-spacing: 0.05em;
 }
 
-.stage-name {
-  margin: 0 0 8px;
-  font-weight: 600;
-  color: var(--accent-dark);
-}
-
 .progress {
   height: 8px;
   border-radius: 4px;
@@ -119,36 +113,6 @@ body {
   color: var(--muted);
 }
 
-.resources {
-  list-style: none;
-  margin: 16px 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.resources li {
-  display: grid;
-  grid-template-columns: 1fr auto 70px;
-  gap: 8px;
-  align-items: baseline;
-}
-
-.resources b {
-  display: inline-block;
-  font-variant-numeric: tabular-nums;
-  transform-origin: right center;
-}
-
-.resources b.pop {
-  animation: pop 0.25s ease-out;
-}
-
-.resources small {
-  color: var(--muted);
-  text-align: right;
-}
-
 button {
   font: inherit;
   cursor: pointer;
@@ -157,203 +121,6 @@ button {
 button:focus-visible {
   outline: 3px solid #1f5fbf;
   outline-offset: 2px;
-}
-
-/* --- Begegnungen (v2-Prototyp, schlicht) ------------------------------- */
-.waypoint {
-  margin-bottom: 4px;
-}
-
-.progress.small {
-  height: 5px;
-}
-
-.panel h2 .count {
-  color: var(--accent-dark);
-}
-
-.encounters {
-  display: grid;
-  gap: 12px;
-}
-
-.encounter {
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: #fbf8ec;
-}
-
-.encounter.rerolled {
-  animation: bought 0.45s ease-out;
-}
-
-.encounter-title {
-  margin: 0 0 8px;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.cards {
-  display: grid;
-  gap: 8px;
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-left: 4px solid #8fb36f; /* Seltenheit: Moos */
-  border-radius: 10px;
-  background: white;
-}
-
-.card.rarity-1 {
-  border-left-color: #d39a2c; /* Bernstein */
-}
-
-.card.rarity-2 {
-  border-left-color: #8a5cc2; /* Amethyst */
-}
-
-.card.rarity-3 {
-  border-left-color: #c9a227; /* Gold */
-}
-
-.card p {
-  margin: 0;
-}
-
-.card-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.card-name {
-  font-size: 1.05rem;
-}
-
-.card-niche,
-.card-effect,
-.preview {
-  font-size: 0.82rem;
-}
-
-.card-niche,
-.preview {
-  color: var(--muted);
-}
-
-.replace {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
-}
-
-.replace select {
-  font: inherit;
-  min-height: 36px;
-  max-width: 100%;
-}
-
-.choose,
-.secondary {
-  min-height: 44px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  font-weight: 600;
-}
-
-.choose {
-  margin-top: 4px;
-  border: none;
-  background: var(--accent);
-  color: white;
-}
-
-.choose:hover:not(:disabled) {
-  background: var(--accent-dark);
-}
-
-.secondary {
-  border: 1px solid var(--accent);
-  background: white;
-  color: var(--accent-dark);
-}
-
-.choose:disabled,
-.secondary:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.encounter-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.encounter-actions button {
-  flex: 1 1 140px;
-}
-
-/* --- Nischen ----------------------------------------------------------- */
-.niches {
-  display: grid;
-  gap: 8px;
-}
-
-.niche {
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.niche.arrived {
-  animation: bought 0.6s ease-out;
-}
-
-.niche.closed {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--muted);
-  border-style: dashed;
-}
-
-.niche-head {
-  display: flex;
-  justify-content: space-between;
-  font-weight: 600;
-}
-
-.niche ul {
-  list-style: none;
-  margin: 4px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.niche li {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 0.9rem;
-}
-
-.niche li.free,
-.niche small {
-  color: var(--muted);
 }
 
 footer {
@@ -387,6 +154,7 @@ footer {
   background: var(--text);
   color: white;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  z-index: 20;
 }
 
 /* Schwebende Zahlen (z. B. Samen beim Ablehnen) */
@@ -438,34 +206,10 @@ footer {
   }
 }
 
-@keyframes bought {
-  0% {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 0 rgba(63, 143, 58, 0.5);
-    transform: scale(1);
-  }
-  35% {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 6px rgba(63, 143, 58, 0.15);
-    transform: scale(1.015);
-  }
-  100% {
-    box-shadow: 0 0 0 8px rgba(63, 143, 58, 0);
-    transform: scale(1);
-  }
-}
-
 /* Weniger Bewegung: keine Sprünge/Skalierung, nur kurzes Einblenden */
 @media (prefers-reduced-motion: reduce) {
   .float-number {
     animation: float-fade 0.6s linear forwards;
-  }
-
-  .resources b.pop,
-  .encounter.rerolled,
-  .niche.arrived {
-    animation-name: highlight;
-    animation-timing-function: linear;
   }
 
   .progress-bar {
@@ -1453,9 +1197,155 @@ dialog.encounter::backdrop {
   }
 }
 
+/* ---------- Begegnungs-Stapel am Rand der Szene ---------- */
+
+.scene-dock {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  max-width: calc(100% - 32px);
+}
+
+.encounter-stack {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  min-height: 52px;
+  padding: 8px 16px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 253, 246, 0.95);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  color: var(--text);
+  font-weight: 600;
+  text-align: left;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+}
+
+.encounter-stack[hidden] {
+  display: none;
+}
+
+.encounter-stack:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+/* Kleiner Kartenstapel: bis zu drei gefächerte Karten */
+.stack-cards {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 38px;
+}
+
+.stack-card {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid var(--rarity-common);
+  border-radius: 5px;
+  background: white;
+}
+
+.stack-card:nth-child(1) {
+  transform: rotate(-10deg) translateX(-3px);
+  background: #eef4e6;
+}
+
+.stack-card:nth-child(2) {
+  transform: rotate(6deg) translateX(2px);
+  background: #f6f9f0;
+}
+
+.encounter-stack[data-count='1'] .stack-card:nth-child(-n + 2),
+.encounter-stack[data-count='2'] .stack-card:nth-child(1) {
+  display: none;
+}
+
+.stack-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+}
+
+.stack-text {
+  min-width: 0;
+}
+
+.encounter-stack.nudge {
+  animation: nudge 0.7s ease-out;
+}
+
+@keyframes nudge {
+  0% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-6px) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(0) rotate(1.5deg);
+  }
+  75% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Kurzer Hinweis im Dialog, z. B. „Nicht genug Samen“ */
+.encounter-notice {
+  margin: 0 auto;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.encounter-notice[hidden] {
+  display: none;
+}
+
+.card-replace-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6a4500;
+}
+
+.encounter-reroll-hint {
+  margin: -6px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.encounter-reroll-hint[hidden] {
+  display: none;
+}
+
 /* ---------- Mobil ---------- */
 
 @media (max-width: 640px) {
+  /* Szene ist niedrig: Stapel nach oben rechts, damit Wurzelraum und Tiere frei bleiben */
+  .scene-dock {
+    top: 12px;
+    right: 12px;
+    bottom: auto;
+    left: auto;
+  }
+
+  .encounter-stack {
+    min-height: 44px;
+    padding: 6px 12px 6px 10px;
+    font-size: 0.9rem;
+  }
+
   dialog.encounter {
     width: calc(100vw - 16px);
     max-height: calc(100dvh - 16px);
@@ -1516,11 +1406,13 @@ dialog.encounter::backdrop {
   }
 
   .encounter-card,
+  .encounter-stack,
   .eco-harmony summary::before {
     transition: none;
   }
 
   .eco-stat-value.pop,
+  .encounter-stack.nudge,
   .family-chip.tier-up,
   .slot.arrive {
     animation-name: highlight;
