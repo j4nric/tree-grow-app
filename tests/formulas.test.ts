@@ -303,7 +303,10 @@ describe('Pflanzring und Kosten', () => {
   it('plantsAfterChoice: Duplikate erlaubt, Ring voll → nur mit Ersatz', () => {
     const state = stateAt(2); // Setzling: 2 Plätze
     expect(plantsAfterChoice(state, 'hazel')).toEqual(['hazel']);
+    state.plants = ['moss'];
+    expect(plantsAfterChoice(state, 'hazel', 'moss')).toBeNull(); // Ring noch frei
     state.plants = ['hazel', 'moss'];
+    expect(plantsAfterChoice(state, 'moss', 'moss')).toBeNull(); // dieselbe Pflanze
     expect(plantsAfterChoice(state, 'hazel')).toBeNull();
     expect(plantsAfterChoice(state, 'hazel', 'moss')).toEqual(['hazel', 'hazel']);
     expect(plantsAfterChoice(state, 'hazel', 'birch')).toBeNull();

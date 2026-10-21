@@ -217,6 +217,24 @@ describe('chooseCard: „Etwas keimt“ (Pflanzenkarten)', () => {
     expect(state.plants).toEqual(['moss', 'hazel']);
   });
 
+  it('gesperrte Pflanze (erst auf späterer Stufe): Karte ist geschlossen', () => {
+    const state = withPlantEncounter([], ['birch', 'hazel']); // Setzling, Birke ab Junger Baum
+    expect(cardStatus(state, 0, 0)).toBe('closed');
+    expect(chooseCard(state, 0, 0)).toEqual({ ok: false, error: 'closed' });
+    expect(cardStatus(state, 0, 1)).toBe('free');
+  });
+
+  it('Ersatz nur bei vollem Ring und nur durch eine andere Pflanze', () => {
+    const free = withPlantEncounter(['moss'], ['hazel', 'moss']);
+    expect(chooseCard(free, 0, 0, 'moss')).toEqual({ ok: false, error: 'invalid-replace' });
+    expect(free.plants).toEqual(['moss']);
+    const full = withPlantEncounter(['moss', 'fern'], ['hazel', 'moss']);
+    expect(chooseCard(full, 0, 1, 'moss')).toEqual({ ok: false, error: 'invalid-replace' });
+    expect(previewChoice(full, 0, 1, 'moss')).toBeNull();
+    expect(chooseCard(full, 0, 1, 'fern')).toEqual({ ok: true });
+    expect(full.plants).toEqual(['moss', 'moss']);
+  });
+
   it('unbekannte Pflanze, geschlossener Ring, Tier-ID in Pflanzen-Begegnung', () => {
     const state = withPlantEncounter([], ['gibt-es-nicht', 'earthworm']);
     expect(cardStatus(state, 0, 0)).toBe('invalid');

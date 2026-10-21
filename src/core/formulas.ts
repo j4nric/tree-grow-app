@@ -503,9 +503,11 @@ export function cardStatus(state: GameState, encounterIndex: number, cardIndex: 
   const id = encounter?.cards[cardIndex];
   if (encounter === undefined || id === undefined) return 'invalid';
   if (encounter.type === 'plant') {
-    if (!PLANTS_BY_ID.has(id)) return 'invalid';
+    const plant = PLANTS_BY_ID.get(id);
+    if (!plant) return 'invalid';
     const slots = plantSlots(state.stage);
-    if (slots <= 0) return 'closed';
+    // Gesperrte Pflanzen (später freigeschaltet) behandeln wie einen geschlossenen Ring.
+    if (slots <= 0 || plant.unlock > state.stage) return 'closed';
     return state.plants.length < slots ? 'free' : 'full';
   }
   const sp = SPECIES_BY_ID.get(id);
@@ -626,7 +628,9 @@ export function previewPlant(state: GameState, plantId: string): Evaluation | nu
 /**
  * Pflanzring nach dem Keimen von `plantId` (optional anstelle von `replacePlantId`,
  * dessen erstes Vorkommen ersetzt wird). null, wenn die Pflanze unbekannt ist, der
- * Ersatz nicht im Ring wächst oder der Ring ohne Ersatz voll ist.
+ * Ersatz nicht im Ring wächst oder dieselbe Pflanze ist (Tausch ohne Wirkung), ein
+ * Ersatz bei freiem Ring genannt wird (Pflanzen sterben nicht – bei Platz wird nur
+ * dazugesetzt) oder der Ring ohne Ersatz voll ist.
  */
 export function plantsAfterChoice(
   state: Pick<GameState, 'stage' | 'plants'>,
@@ -637,7 +641,7 @@ export function plantsAfterChoice(
   const plants = [...state.plants];
   if (replacePlantId !== undefined) {
     const at = plants.indexOf(replacePlantId);
-    if (at < 0) return null;
+    if (at < 0 || replacePlantId === plantId || plants.length < plantSlots(state.stage)) return null;
     plants[at] = plantId;
     return plants;
   }

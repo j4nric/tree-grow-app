@@ -1204,7 +1204,10 @@ beziehen sich auf Begegnungen mit mindestens zwei spielbaren Karten (Tier und Pf
 - **Pflanze setzen bei vollem Ring** ist nicht möglich (`'ring-full'`); ersetzen geht
   nur über „Etwas keimt“ (Karte wählen und eine Pflanze im Ring nennen).
 - **Migration v2 → v3:** Samen-Bestand aus Prototyp-Ständen wird auf die Kosten der
-  ersten zwei Pflanzen begrenzt (20 + 38 = 58 🌰), Pflanzenring leer.
+  ersten zwei Pflanzen begrenzt (20 + 38 = 58 🌰), Pflanzenring leer. Das
+  Gesamt-Wachstum wird von der Prototyp-Kurve (4 · k^3,2) auf dieselbe Stelle der neuen
+  Kurve umgerechnet (gleicher Wegpunkt, gleicher Bruchteil) – niemand wird
+  zurückgestuft, keine Nische gekürzt.
 
 **Bewertung**
 

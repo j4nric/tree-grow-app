@@ -349,7 +349,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "hazel",
         ],
         "rngState": 797569569,
-        "seeds": 56434,
+        "seeds": 56444,
         "stage": 5,
         "totalGrowth": 230663,
         "waypoint": 26,

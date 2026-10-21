@@ -103,14 +103,14 @@ function reachWaypoint(state: GameState, report: TickReport): void {
   report.waypoints++;
   if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) {
     // Warteschlange voll: überzählige Begegnung gleich ablehnen – nichts verfällt.
-    state.seeds += declineReward();
+    state.seeds = capped(state.seeds + declineReward());
     report.autoDeclined++;
     return;
   }
   const encounter = drawEncounter(state);
   if (!encounter) {
     // Weder Art noch Pflanze kommt in Frage: wie Ablehnen.
-    state.seeds += declineReward();
+    state.seeds = capped(state.seeds + declineReward());
     report.autoDeclined++;
     return;
   }
@@ -294,7 +294,7 @@ export function unlockedPlants(state: Pick<GameState, 'stage'>): string[] {
 /** Lehnt eine Begegnung ab und schreibt Samen gut. */
 export function declineEncounter(state: GameState, encounterIndex: number): ActionResult {
   if (!state.pendingEncounters[encounterIndex]) return fail('no-encounter');
-  state.seeds += declineReward();
+  state.seeds = capped(state.seeds + declineReward());
   state.pendingEncounters.splice(encounterIndex, 1);
   return { ok: true };
 }

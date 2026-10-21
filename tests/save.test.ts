@@ -2,7 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY } from '../src/content/memory';
 import { thresholdFor } from '../src/core/formulas';
 import { isValidRngState, normalizeSeed } from '../src/core/rng';
-import { deserialize, loadFromStorage, loadGame, saveToStorage, serialize, SAVE_KEY, V2_SEED_CAP } from '../src/core/save';
+import {
+  deserialize,
+  loadFromStorage,
+  loadGame,
+  saveToStorage,
+  serialize,
+  SAVE_KEY,
+  V2_SEED_CAP,
+  V2_WAYPOINT_BASE,
+  V2_WAYPOINT_POWER,
+  v2GrowthToV3,
+} from '../src/core/save';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState } from '../src/core/state';
 import { tick } from '../src/core/tick';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
@@ -12,11 +23,14 @@ function rawV3(patch: Record<string, unknown> = {}): string {
   return JSON.stringify({ ...JSON.parse(serialize(stateAt(3, ['earthworm', 'robin'], 9))), ...patch });
 }
 
+/** Gesamt-Wachstum für Wegpunkt k auf der Kurve der v2-Stände (4 · k^3,2). */
+const v2Threshold = (k: number) => Math.round(V2_WAYPOINT_BASE * Math.pow(k, V2_WAYPOINT_POWER));
+
 /** Ein Spielstand des Prototyps (v2, ohne Pflanzen), wie ihn das Spiel vor 2.1 schrieb. */
 function rawV2(patch: Record<string, unknown> = {}): string {
   return JSON.stringify({
     version: 2,
-    totalGrowth: thresholdFor(12) + 10,
+    totalGrowth: v2Threshold(12) + 10,
     seeds: 3091.5,
     waypoint: 12,
     stage: 4,
@@ -134,6 +148,47 @@ describe('Migration v1 → v2', () => {
 });
 
 describe('Migration v2 → v3 (Pflanzen)', () => {
+  it('Wegpunkt und Stufe bleiben: Gesamt-Wachstum wird auf die neue Kurve umgerechnet', () => {
+    // Hain im Prototyp: 4 · 20^3,2 + 10 – mit der neuen Kurve wäre das nur Wegpunkt 17.
+    const full = {
+      roots: ['earthworm'],
+      litter: ['robin', 'woodlouse', 'centipede'],
+      edge: ['bee'],
+      crown: ['bluetit', 'oakmoth'],
+      bark: ['barkbeetle', 'woodpecker'],
+      hollows: [],
+    };
+    const s = deserialize(rawV2({ totalGrowth: v2Threshold(20) + 10, niches: full }), 0)!;
+    expect(s).toMatchObject({ waypoint: 20, stage: 5 });
+    expect(s.niches).toEqual(full); // niemand wird entlassen
+    expect(s.totalGrowth).toBeGreaterThanOrEqual(thresholdFor(20));
+    expect(s.totalGrowth).toBeLessThan(thresholdFor(21));
+    // Weiterspielen: der nächste Wegpunkt ist 21, nicht noch einmal 18.
+    s.pendingEncounters = [];
+    const report = tick(s, 3600);
+    expect(report.waypoints).toBeGreaterThan(0);
+    expect(s.waypoint).toBe(20 + report.waypoints);
+  });
+
+  it('v2GrowthToV3: gleicher Wegpunkt, gleicher Bruchteil, Grenzfälle', () => {
+    for (let k = 0; k < 36; k++) {
+      expect(v2GrowthToV3(v2Threshold(k)), `k=${k}`).toBe(thresholdFor(k));
+      const mid = (v2Threshold(k) + v2Threshold(k + 1)) / 2;
+      expect(v2GrowthToV3(mid), `k=${k}`).toBeCloseTo((thresholdFor(k) + thresholdFor(k + 1)) / 2, 6);
+    }
+    expect(v2GrowthToV3(v2Threshold(36))).toBe(thresholdFor(36));
+    expect(v2GrowthToV3(2 * v2Threshold(36))).toBeCloseTo(2 * thresholdFor(36));
+    for (const bad of [0, -5, NaN]) expect(v2GrowthToV3(bad)).toBe(0);
+    expect(v2GrowthToV3(Number.MAX_VALUE)).toBe(Number.MAX_VALUE);
+    // monoton
+    let last = 0;
+    for (let g = 0; g < 2e6; g += 997) {
+      const v = v2GrowthToV3(g);
+      expect(v).toBeGreaterThanOrEqual(last);
+      last = v;
+    }
+  });
+
   it('Prototyp-Stand: Fortschritt bleibt, Samen werden auf die ersten zwei Pflanzen begrenzt', () => {
     expect(V2_SEED_CAP).toBeCloseTo(20 + 38);
     const result = loadGame(rawV2(), 5_000)!;
@@ -194,6 +249,11 @@ describe('Robustes Laden v3: Pflanzen', () => {
       { type: 'animal', cards: ['hazel', 'robin'], rerolls: 0 }, // Pflanzen-ID in Tierbegegnung
       { type: 'plant', cards: ['moss', 'anemone', 'fern', 'nettle'], rerolls: 0 },
     ];
+    // Junger Baum: Rotbuche (ab Alter Baum) ist gesperrt und fällt weg.
+    expect(
+      deserialize(rawV3({ pendingEncounters: [{ type: 'plant', cards: ['beech', 'birch'], rerolls: 0 }] }), 0)!
+        .pendingEncounters,
+    ).toEqual([{ type: 'plant', cards: ['birch'], rerolls: 0 }]);
     const s = deserialize(rawV3({ pendingEncounters: pending }), 0)!;
     expect(s.pendingEncounters).toEqual([
       { type: 'plant', cards: ['hazel'], rerolls: 1 },
