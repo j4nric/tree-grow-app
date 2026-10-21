@@ -2781,7 +2781,6 @@ body[data-motion='reduce'] .slot.arrive {
   font-size: 0.72rem;
 }
 
-<<<<<<< HEAD
 /* Wahl des Hauptbaums (cycle-panel.ts) – schlicht */
 .cycle-tree-current {
   font-size: 0.875rem;
@@ -2848,11 +2847,8 @@ body[data-motion='reduce'] .slot.arrive {
   font-variant-numeric: tabular-nums;
 }
 
-/* Aktive Boni aus Ereignissen und Gästen (bonus-panel.ts) – schlicht */
-=======
 /* Aktive Boni aus Ereignissen und Gästen (bonus-panel.ts): je Quelle eine Zeile,
    Zeit-Boni mit dezentem Restzeit-Balken. */
->>>>>>> origin/main
 .bonuses {
   margin-top: 12px;
 }
