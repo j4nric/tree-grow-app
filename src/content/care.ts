@@ -68,11 +68,11 @@ const slot = (niche: 'litter' | 'hollows' | 'crown' | 'edge' | 'bark'): CareEffe
 export const CARE: readonly CareMeasure[] = [
   // --- ab Setzling (kleine Ränge, je 200 🌰) ------------------------------------
   {
-    id: 'compost', name: 'Kompost', icon: '🪱',
+    id: 'compost', name: 'Kompost', icon: '♻️',
     text: 'Eine Handvoll Kompost an den Wurzeln hält den Boden feucht – ein Festmahl für das Bodenleben.',
     boughtText: 'Kompost eingearbeitet',
     ranks: [
-      { cost: 200, minStage: 2, effects: [{ kind: 'habitat', tag: 'feucht' }], summary: 'Feuchte' },
+      { cost: 200, minStage: 2, effects: [{ kind: 'habitat', tag: 'feucht' }], summary: 'Feuchte (für Regenwurm & Co.)' },
     ],
   },
   {

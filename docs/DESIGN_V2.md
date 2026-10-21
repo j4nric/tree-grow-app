@@ -1991,7 +1991,7 @@ zufällige, oft teure Ränge spart – keine Prüfung, Simulator-Eigenheit.
 
 **Prüfungen** (`tests/balance.test.ts`, „Frühes Spiel“; Check mit 40 Durchgängen, in 8
 Seed-Fenstern geprüft: Harmonie-Median 65–74 s, 90 % 79–92 s, schlechteste Strategie
-93–100 s, 10 Minuten 113–127 s, Samen 200): Harmonie- und Wachstums-Spieler Pause erste
+93–106 s, 10 Minuten 113–127 s, Samen 200): Harmonie- und Wachstums-Spieler Pause erste
 6 min im Median ≤ 75 s (Check 85 s), 90 % ≤ 95 s (Check 110 s); jede Strategie im Median
 < 105 s (Check 120 s); die ersten 10 Minuten nicht zäher als vorher (Harmonie-Median
 ≤ 2:15 min, Check 2:30 min); Samen ungenutzt vor dem Jungen Baum im Mittel < 250 🌰

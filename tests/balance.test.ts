@@ -97,7 +97,7 @@ describe('Balancing v2 (echte Logik, alle Systeme)', () => {
     }
   });
 
-  it('Harmonie-Strategie hat die höchste Harmonie beim Hain (mindestens 1 Punkt Vorsprung)', () => {
+  it('Harmonie-Strategie hat die höchste Harmonie beim Hain (großer Lauf: ≥ 1 Punkt Vorsprung, Check: niemand ≥ 5 vorn)', () => {
     // Ziel (großer Lauf): mindestens 1 Punkt vor jeder anderen Strategie. „Bodenleben
     // stapeln“ liegt nur ~2 Punkte dahinter (500 Durchgänge: 106,7 gegen 104,8); mit 40
     // Durchgängen schwankt der Abstand je Seed-Fenster stark (8 Fenster: vor dem Playtest
