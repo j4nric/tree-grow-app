@@ -118,6 +118,7 @@ describe('Durchreisende zeichnen', () => {
     crownY: 0,
     crownRx: 0,
     crownRy: 0,
+    crownTaken: [],
   });
 
   function draw(list: SceneVisitor[], depth: 'sky' | 'front', f: VisitorFrame): StubCanvas['calls'] {
