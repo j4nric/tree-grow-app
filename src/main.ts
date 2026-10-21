@@ -251,6 +251,9 @@ function announceDiscoveries(result: ActionResult): void {
 
 /** „Neuen Zyklus beginnen“ (schon bestätigt): Waldgedächtnis gutschreiben, Baum beginnt neu. */
 function newCycle(): void {
+  // Alter Baum für die Übergangs-Sequenz der Szene (vor dem Reset festhalten).
+  const fromGrowth = growth(state);
+  const fromPlants = scene.plants;
   const result = startNewCycle(state, Date.now());
   if (!result.ok) {
     const blocker = newCycleBlocker(state);
@@ -258,6 +261,8 @@ function newCycle(): void {
     return;
   }
   shownStage = state.stage;
+  // Gleicher Takt wie scene.time (rAF-Zeitstempel / 1000); das Feld darf stehen bleiben.
+  scene.cycleTransition = { startedAt: performance.now() / 1000, fromGrowth, fromPlants };
   closeEncounters();
   closePlantPicker();
   encounterSerial++;
@@ -366,6 +371,7 @@ function refreshPanel(now: number): void {
     cyclePanel.update(toCyclePanelView(state));
     const ev = evaluate(state);
     if (journal.open) journal.update(toJournalView(state, ev));
+    scene.forestMemory = state.meta.forestMemory;
     if (!ecoView || ev !== ecoEvaluation) {
       ecoEvaluation = ev;
       ecoView = toEcosystemView(state, ev);
