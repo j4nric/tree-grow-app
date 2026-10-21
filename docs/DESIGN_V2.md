@@ -1188,7 +1188,7 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
 - Das Panel „Neuer Zyklus“ nennt die Regel mit der aktuellen Schwelle (vor dem Hain die
   des Hains), und zwar die erste ganze höchste Harmonie, die wirklich mehr als den Sockel
   bringt: „Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste
-  Harmonie ab 110 zählt extra: bis zu +3 je Punkt (bis 124). Die Schwelle steigt mit dem
+  Harmonie ab 110 zählt extra: etwa +3 je Punkt (bis 124). Die Schwelle steigt mit dem
   Wachstum bis 150 im Urwald.“ An ganzen Schwellen ist das T + 1 (Hain „ab 101“). An
   krummen bringt der erste Punkt weniger: Wegpunkt 23 (T 109,375) bringt 110 nur +1;
   Wegpunkt 27 (T 121,875) bringt 122 nach dem Abrunden gar nichts, das Panel nennt „ab

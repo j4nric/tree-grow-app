@@ -154,7 +154,7 @@ export function cycleViewKey(view: CyclePanelView): string {
  * Regel für das Waldgedächtnis (Schritt 2.11, gleitende Schwelle seit 2.11b, content/memory.ts)
  * mit Schwelle und Obergrenze des erreichten Wegpunkts (vor dem Hain: die des Hains), z. B.
  * „Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie
- * ab 110 zählt extra: bis zu +3 je Punkt (bis 124). Die Schwelle steigt mit dem Wachstum bis
+ * ab 110 zählt extra: etwa +3 je Punkt (bis 124). Die Schwelle steigt mit dem Wachstum bis
  * 150 im Urwald.“ Genannt wird die erste ganze Harmonie, die wirklich mehr als den Sockel
  * bringt (bonusFrom): An krummen Schwellen bringt der erste Punkt weniger als +3 (Wegpunkt 23,
  * Schwelle 109,375: 110 bringt +1) oder nach dem Abrunden nichts (Wegpunkt 27, Schwelle
@@ -166,7 +166,7 @@ export function memoryRuleText(bonus: MemoryHarmonyBonus): string {
   return (
     `Waldgedächtnis: 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} Punkte höchster Harmonie` +
     (MEMORY_PER_NEW_SPECIES === 1 ? ' und je neue Art. ' : ` und ${formatNumber(MEMORY_PER_NEW_SPECIES)} je neue Art. `) +
-    `Höchste Harmonie ab ${formatNumber(bonus.bonusFrom)} zählt extra: bis zu +${formatNumber(MEMORY_PER_HARMONY_POINT)} je Punkt (bis ${formatNumber(bonus.fullAt)}).` +
+    `Höchste Harmonie ab ${formatNumber(bonus.bonusFrom)} zählt extra: etwa +${formatNumber(MEMORY_PER_HARMONY_POINT)} je Punkt (bis ${formatNumber(bonus.fullAt)}).` +
     (bonus.threshold < top.threshold ? ` Die Schwelle steigt mit dem Wachstum bis ${formatNumber(Math.floor(top.threshold))} im ${last}.` : '')
   );
 }

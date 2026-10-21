@@ -18,7 +18,7 @@ import { MEMORY_HARMONY_DIVISOR } from '../src/content/memory';
 import { stateAt } from './helpers';
 
 const MEMORY_RULE =
-  'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie ab 101 zählt extra: bis zu +3 je Punkt (bis 115). Die Schwelle steigt mit dem Wachstum bis 150 im Urwald.';
+  'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie ab 101 zählt extra: etwa +3 je Punkt (bis 115). Die Schwelle steigt mit dem Wachstum bis 150 im Urwald.';
 
 describe('View-Model „Neuer Zyklus“', () => {
   it('gesperrt: zeigt den Grund, keine Vorschau, keinen Knopf', () => {
@@ -51,7 +51,7 @@ describe('View-Model „Neuer Zyklus“', () => {
     urwald.cycle.newSpecies = ['earthworm', 'robin'];
     // Oben angekommen: kein Hinweis mehr aufs Steigen.
     expect(toCyclePanelView(urwald).memoryRule).toBe(
-      'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie ab 151 zählt extra: bis zu +3 je Punkt (bis 163).',
+      'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie ab 151 zählt extra: etwa +3 je Punkt (bis 163).',
     );
     expect(toCyclePanelView(urwald).gain).toBe('+30 Waldgedächtnis (+30 %)');
   });

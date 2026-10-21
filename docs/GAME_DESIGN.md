@@ -107,7 +107,7 @@ Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 10, 15.4 („St
   ließ die Vorschau beim Stufenwechsel fallen (bis 26 Punkte im Mittel) – Wachsen darf sich
   nie wie ein Verlust anfühlen. Das Panel „Neuer Zyklus“ nennt die erste ganze Harmonie
   mit Bonus („ab 101“ im Hain; an krummen Schwellen exakt nach Formel, z. B. Wegpunkt 27
-  „ab 123“) und „bis zu +3 je Punkt“, die Spielanleitung die Werte je Stufe.
+  „ab 123“) und „etwa +3 je Punkt“ (einzelne Schritte 2–4 wegen gemeinsamer Abrundung), die Spielanleitung die Werte je Stufe.
 
 | Zahl (`src/content/memory.ts`, `MEMORY_HARMONY_RULES`) | vorher | jetzt |
 |---|---|---|
