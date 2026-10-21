@@ -4,6 +4,8 @@ import {
   DECLINE_SEEDS,
   ENCOUNTER_WEIGHTS,
   MAX_PENDING_ENCOUNTERS,
+  PLANT_WEIGHT_IN_RING,
+  PLANT_WEIGHT_RING_FULL,
   RARITY_WEIGHTS,
   REROLL_BASE_COST,
   SCRIPTED_ENCOUNTERS,
@@ -218,6 +220,13 @@ describe('Inhalte v2', () => {
       for (const x of w) expect(x).toBeGreaterThanOrEqual(0);
     }
     for (const t of SCRIPTED_ENCOUNTERS) expect(['animal', 'plant']).toContain(t);
+  });
+
+  it('Vielfalt-Gewichte (DESIGN_V2.md 7.7): dämpfen nur, schließen nie aus', () => {
+    for (const w of [PLANT_WEIGHT_RING_FULL, PLANT_WEIGHT_IN_RING]) {
+      expect(w).toBeGreaterThan(0);
+      expect(w).toBeLessThanOrEqual(1);
+    }
   });
 
   it('Stufen, Nischen und Wegpunkte passen zusammen', () => {

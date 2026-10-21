@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENCOUNTER_WEIGHTS, MAX_PENDING_ENCOUNTERS } from '../src/content/encounters';
+import { ENCOUNTER_WEIGHTS, MAX_PENDING_ENCOUNTERS, PLANT_WEIGHT_RING_FULL } from '../src/content/encounters';
 import { PLANTS_BY_ID } from '../src/content/plants';
 import { SPECIES_BY_ID } from '../src/content/species';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
@@ -127,6 +127,45 @@ describe('tick', () => {
     }
   });
 
+  it('voller Pflanzring: „Etwas keimt“ kommt seltener (PLANT_WEIGHT_RING_FULL)', () => {
+    const stage = 3; // Junger Baum: 3 Pflanzplätze
+    const n = 4000;
+    let plants = 0;
+    for (let seed = 1; seed <= n; seed++) {
+      const state = stateAt(stage, [], seed);
+      state.waypoint = 10;
+      state.plants = ['hazel', 'hazel', 'birch'];
+      if (drawEncounter(state)!.type === 'plant') plants++;
+    }
+    const [animal, plant] = ENCOUNTER_WEIGHTS[stage]!;
+    const expected = (plant * PLANT_WEIGHT_RING_FULL) / (animal + plant * PLANT_WEIGHT_RING_FULL);
+    expect(plants / n).toBeCloseTo(expected, 1);
+    expect(plants / n).toBeLessThan(plant / (animal + plant) - 0.05);
+  });
+
+  it('Pflanzenkarten: was schon im Ring wächst, kommt seltener (PLANT_WEIGHT_IN_RING)', () => {
+    const n = 3000;
+    let hazel = 0;
+    let anemone = 0;
+    for (let seed = 1; seed <= n; seed++) {
+      const state = stateAt(3, [], seed);
+      state.plants = ['hazel'];
+      const cards = drawPlants(state);
+      if (cards.includes('hazel')) hazel++;
+      if (cards.includes('anemone')) anemone++;
+    }
+    // Ungewichtet läge jede der 11 Pflanzen bei 3/11 ≈ 27 %.
+    expect(hazel / n).toBeLessThan(0.17);
+    expect(hazel / n).toBeGreaterThan(0.05); // Duplikate bleiben möglich
+    // Exakt: Anemone ≈ 0,289, Hasel ≈ 0,109.
+    expect(anemone / n).toBeGreaterThan(2 * (hazel / n));
+    // Ausschluss beim Neu würfeln geht weiterhin vor der Gewichtung.
+    const state = stateAt(1, [], 3);
+    state.plants = ['moss'];
+    expect(drawPlants(state, ['anemone']).sort()).toEqual(['anemone', 'moss']);
+    expect(drawPlants(state, ['anemone'])[0]).toBe('moss');
+  });
+
   it('Pflanzenkarten: verschieden, freigeschaltet, Duplikate im Ring erlaubt', () => {
     for (let seed = 1; seed <= 50; seed++) {
       const state = stateAt(3, [], seed);
@@ -213,7 +252,9 @@ describe('simulateOffline', () => {
   });
 
   it('gleich mit Begleitpflanzen (Versorgung < 1) und Pflanzen-Begegnungen', () => {
-    const online = stateAt(2, ['bee'], 314);
+    // Seed 301: Der Ring ist voll (halbes Pflanzengewicht), es muss trotzdem eine
+    // Pflanzen-Begegnung kommen – die Vorbedingung unten prüft das.
+    const online = stateAt(2, ['bee'], 301);
     online.plants = ['fern', 'fern']; // Setzling: Wasser 3 < Bedarf 4 → V = 3/4
     expect(evaluate(online).supply).toBeLessThan(1);
     const offline = structuredClone(online);
@@ -328,80 +369,77 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       harmony: Math.round(ev.harmony * 100) / 100,
     }).toMatchInlineSnapshot(`
       {
-        "communities": [
-          "caterpillar-watch",
-          "night-shift",
-        ],
-        "harmony": 85.71,
+        "communities": [],
+        "harmony": 76.72,
         "journal": [
           "earthworm",
           "woodlouse",
           "vole",
           "mole",
-          "centipede",
-          "woodpecker",
+          "slug",
           "bluetit",
           "oakmoth",
-          "owl",
-          "bee",
           "tinder",
-          "deer",
-          "chanterelle",
-          "hedgehog",
-          "bat",
+          "bee",
+          "fox",
+          "glowworm",
+          "barkbeetle",
+          "robin",
           "peacock",
-          "porcini",
+          "stagbeetle",
+          "owl",
         ],
         "journalPlants": [
           "anemone",
           "hazel",
-          "rowan",
           "foxglove",
-          "moss",
+          "fern",
+          "elder",
+          "nettle",
         ],
         "niches": {
           "bark": [
-            "woodpecker",
             "tinder",
+            "barkbeetle",
           ],
           "crown": [
             "bluetit",
             "oakmoth",
           ],
           "edge": [
-            "bee",
-            "deer",
             "peacock",
+            "fox",
+            "glowworm",
           ],
           "hollows": [
+            "stagbeetle",
             "owl",
-            "bat",
           ],
           "litter": [
+            "robin",
+            "slug",
             "woodlouse",
-            "centipede",
-            "hedgehog",
           ],
           "roots": [
-            "porcini",
+            "mole",
             "vole",
-            "chanterelle",
+            "earthworm",
           ],
         },
         "plants": [
-          "rowan",
+          "elder",
           "hazel",
           "hazel",
           "hazel",
           "hazel",
-          "hazel",
+          "nettle",
           "hazel",
         ],
-        "rngState": 2877323870,
-        "seeds": 60521,
+        "rngState": 2309429397,
+        "seeds": 60579,
         "stage": 5,
-        "totalGrowth": 248549,
-        "waypoint": 26,
+        "totalGrowth": 179639,
+        "waypoint": 24,
       }
     `);
   });
