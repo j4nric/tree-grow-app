@@ -13,10 +13,11 @@
  */
 import { el, setText, srOnly } from './dom';
 import { prefersReducedMotion } from './feedback';
-import type { CardView, EncounterKind, EncounterView, FactView, PreviewView, ReplaceOptionView } from './view-model';
+import type { CardView, ConditionView, EncounterKind, EncounterView, FactView, PreviewView, ReplaceOptionView } from './view-model';
 import {
   RARITY_LABELS,
   declineLabel,
+  preferredReplaceOption,
   previewParts,
   queuedText,
   replaceHint,
@@ -83,6 +84,11 @@ function legendSeen(): boolean {
   }
 }
 
+/** Schmaler Bildschirm (wie die Mobil-Ansicht im CSS). */
+function narrowScreen(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 640px)').matches;
+}
+
 function markLegendSeen(): void {
   try {
     localStorage.setItem(LEGEND_SEEN_KEY, '1');
@@ -123,6 +129,25 @@ export function renderFacts(facts: readonly FactView[]): HTMLElement {
   return list;
 }
 
+/** Bedingungen mit Haken/Kreuz und ggf. kurzer Erklärung (z. B. bei knappem Futter). */
+export function renderConditions(list: HTMLElement, conditions: readonly ConditionView[]): void {
+  list.replaceChildren(
+    ...conditions.map((condition) => {
+      const li = el('li', condition.met ? 'met' : 'unmet');
+      const mark = el('span', 'mark', condition.met ? '✓' : '✗');
+      mark.setAttribute('aria-hidden', 'true');
+      const text = el('span', 'condition-text', condition.label);
+      li.append(mark, text, srOnly(condition.met ? ' (erfüllt)' : ' (fehlt)'));
+      if (condition.hint) {
+        // Sichtbar statt nur als Tooltip – auf Touch-Geräten gibt es kein Hover.
+        text.append(el('span', 'condition-hint', condition.hint));
+        li.title = condition.hint;
+      }
+      return li;
+    }),
+  );
+}
+
 /** Vorschau-Chips (Harmonie, Wachstum, Samen, …) in eine Liste schreiben. */
 export function renderPreviewChips(list: HTMLElement, preview: PreviewView): void {
   list.replaceChildren(
@@ -136,6 +161,34 @@ export function renderPreviewChips(list: HTMLElement, preview: PreviewView): voi
       return item;
     }),
   );
+}
+
+/**
+ * Lebensgemeinschaften, die die Wahl vervollständigt oder auflöst, z. B.
+ * ✨ „vervollständigt Humusküche (+8 Harmonie)“ (Symbol für Screenreader verborgen).
+ * Leer → Liste versteckt.
+ */
+export function renderCommunityHints(list: HTMLElement, preview: PreviewView): void {
+  const hints = preview.communities ?? [];
+  list.hidden = hints.length === 0;
+  list.replaceChildren(
+    ...hints.map((hint) => {
+      const item = el('li', `tone-${hint.tone}`);
+      const icon = el('span', 'card-community-icon', hint.icon);
+      icon.setAttribute('aria-hidden', 'true');
+      item.append(icon, ` ${hint.label}`);
+      return item;
+    }),
+  );
+}
+
+/** Liste für renderCommunityHints (einmal je Karte angelegt). */
+export function communityHintList(): HTMLElement {
+  const list = el('ul', 'card-communities');
+  list.setAttribute('aria-label', 'Lebensgemeinschaften');
+  list.dataset.ref = 'card-communities';
+  list.hidden = true;
+  return list;
 }
 
 export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCallbacks): EncounterDialog {
@@ -199,6 +252,9 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     legendList.append(li);
   }
   legend.append(legendSummary, legendList);
+  legend.addEventListener('toggle', () => {
+    if (legend.open) markLegendSeen();
+  });
   let legendChecked = false;
 
   inner.append(header, cardsBox, swipeHint, legend, noticeBox, actions, rerollHint);
@@ -361,7 +417,9 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
           opt.disabled = Boolean(option.disabledReason);
           select.append(opt);
         }
-        if (usable[0]) select.value = usable[0].id;
+        // Vorauswahl: eine Option, die keine Lebensgemeinschaft auflöst (falls es eine gibt).
+        const preferred = preferredReplaceOption(options);
+        if (preferred) select.value = preferred.id;
         if (keepReplaceId && usable.some((o) => o.id === keepReplaceId)) select.value = keepReplaceId;
         label.append(select);
         box.append(label);
@@ -374,23 +432,12 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       item.append(box);
     }
 
+    // Bedingungen – bei voller Nische je nach gewähltem Tausch (siehe refresh unten).
+    let conditionList: HTMLElement | null = null;
     if (card.conditions && card.conditions.length > 0) {
-      const list = el('ul', 'card-conditions');
-      list.setAttribute('aria-label', 'Bedingungen');
-      for (const condition of card.conditions) {
-        const li = el('li', condition.met ? 'met' : 'unmet');
-        const mark = el('span', 'mark', condition.met ? '✓' : '✗');
-        mark.setAttribute('aria-hidden', 'true');
-        const text = el('span', 'condition-text', condition.label);
-        li.append(mark, text, srOnly(condition.met ? ' (erfüllt)' : ' (fehlt)'));
-        if (condition.hint) {
-          // Sichtbar statt nur als Tooltip – auf Touch-Geräten gibt es kein Hover.
-          text.append(el('span', 'condition-hint', condition.hint));
-          li.title = condition.hint;
-        }
-        list.append(li);
-      }
-      item.append(list);
+      conditionList = el('ul', 'card-conditions');
+      conditionList.setAttribute('aria-label', 'Bedingungen');
+      item.append(conditionList);
     }
 
     if (card.effects.length > 0) {
@@ -408,7 +455,8 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
 
     const previewList = el('ul', 'card-preview');
     previewList.setAttribute('aria-label', 'Vorschau');
-    item.append(previewList);
+    const communityList = communityHintList();
+    item.append(previewList, communityList);
 
     if (card.flavor) item.append(el('p', 'card-flavor', card.flavor));
 
@@ -417,7 +465,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     item.append(choose);
 
     const selectedReplace = () =>
-      card.nicheFull ? (usable.find((o) => o.id === select?.value) ?? usable[0]) : undefined;
+      card.nicheFull ? (usable.find((o) => o.id === select?.value) ?? preferredReplaceOption(options)) : undefined;
 
     const refresh = () => {
       const replaced = selectedReplace();
@@ -427,6 +475,8 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
           : replaceHint(card.nicheLabel ?? '', replaced?.name);
       }
       renderPreviewChips(previewList, replaced?.preview ?? card.preview);
+      renderCommunityHints(communityList, replaced?.preview ?? card.preview);
+      if (conditionList) renderConditions(conditionList, replaced?.conditions ?? card.conditions ?? []);
       choose.textContent = card.disabledReason ?? 'Wählen';
       const swap = replaced ? ` (ersetzt ${replaced.name})` : '';
       choose.setAttribute('aria-label', `${card.name} wählen${swap}`);
@@ -511,8 +561,13 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     if (!legendChecked) {
       // Einmal pro Seite prüfen: Erste Begegnung überhaupt → Legende aufgeklappt zeigen.
       legendChecked = true;
-      legend.open = !legendSeen();
-      markLegendSeen();
+      // Auf schmalen Bildschirmen bleibt sie zu (deutliches „?“), damit Karten und
+      // Aktionen ohne Scrollen sichtbar sind; der Merker wird erst gesetzt, wenn sie
+      // wirklich einmal offen war.
+      if (!legendSeen() && !narrowScreen()) {
+        legend.open = true;
+        markLegendSeen();
+      }
     }
 
     if (!dialog.open) {

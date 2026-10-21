@@ -50,5 +50,7 @@ export function weightedIndex(rng: RngHolder, weights: readonly number[]): numbe
     r -= Math.max(0, weights[i]!);
     if (r < 0) return i;
   }
-  return weights.length - 1;
+  // Rundungsrest: letzter Index mit Gewicht > 0 (nie einer, der gar nicht ziehbar ist).
+  for (let i = weights.length - 1; i >= 0; i--) if (weights[i]! > 0) return i;
+  return -1;
 }

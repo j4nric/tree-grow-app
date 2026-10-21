@@ -119,13 +119,17 @@ describe('Begleitpflanzen: Lage', () => {
       for (const g of GROWTHS) {
         const anchors = createAnchorResolver(layout, g, placeMainTree(layout, g));
         const spots: number[] = [];
+        /** Waldsaum-Plätze der hinteren Reihe (schmale Bildschirme): liegen hinter Moosen am Stammfuß. */
+        const backSpots: number[] = [];
         for (let s = 0; s < 4; s++) {
-          spots.push(anchors.get('litter', s)!.x, anchors.get('edge', s)!.x, anchors.get('roots', s)!.surfaceX);
+          const edge = anchors.get('edge', s)!;
+          spots.push(anchors.get('litter', s)!.x, anchors.get('roots', s)!.surfaceX);
+          (edge.depth === 1 ? backSpots : spots).push(edge.x);
         }
         for (const p of layoutFlora(layout, g, ALL_PLANTS)) {
           // Niedrige Pflanzen: Mitte nicht auf einem Tierplatz; Bäume: Stamm daneben.
           const clear = isTree(p) ? treeTrunkHalf(p) + S * 0.3 : S * 0.5;
-          for (const x of spots) {
+          for (const x of p.group === 'mosses' ? spots : [...spots, ...backSpots]) {
             expect(Math.abs(p.x - x), `${p.id} bei g=${g}, ${w}×${h}, Platz x=${x.toFixed(1)}`).toBeGreaterThanOrEqual(clear - 0.05);
           }
         }

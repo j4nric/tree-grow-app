@@ -12,7 +12,12 @@ import {
 } from '../content/abilities';
 import { COMMUNITIES, type CommunityMember } from '../content/communities';
 import { DECLINE_SEEDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
-import { FOREST_MEMORY_BONUS } from '../content/memory';
+import {
+  FOREST_MEMORY_BONUS,
+  MEMORY_HARMONY_DIVISOR,
+  MEMORY_PER_NEW_SPECIES,
+  MEMORY_PER_REGULAR_SLOT,
+} from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
 import { PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, type Plant } from '../content/plants';
 import { BASE_HAPPINESS, SPECIES, SPECIES_BY_ID, type Species } from '../content/species';
@@ -272,6 +277,23 @@ export function memberOptions(member: CommunityMember): readonly string[] {
 /** IDs der aktiven Lebensgemeinschaften einer Auswertung. */
 export function activeCommunities(ev: Pick<Evaluation, 'communities'>): string[] {
   return ev.communities.filter((c) => c.active).map((c) => c.id);
+}
+
+/**
+ * Welche Lebensgemeinschaften entstehen bzw. zerfallen zwischen zwei Auswertungen (z. B.
+ * jetzt und previewChoice)? `completed` mit der Harmonie danach, `broken` mit der
+ * Harmonie davor – jeweils in der Reihenfolge von COMMUNITIES.
+ */
+export function communityChanges(
+  before: Pick<Evaluation, 'communities'>,
+  after: Pick<Evaluation, 'communities'>,
+): { completed: CommunityStatus[]; broken: CommunityStatus[] } {
+  const was = new Map(before.communities.map((c) => [c.id, c]));
+  const is = new Map(after.communities.map((c) => [c.id, c]));
+  return {
+    completed: after.communities.filter((c) => c.active && !was.get(c.id)?.active),
+    broken: before.communities.filter((c) => c.active && !is.get(c.id)?.active),
+  };
 }
 
 /** Reine Berechnung ohne Cache – für Vorschauen und Tests. */
@@ -943,4 +965,26 @@ function fraction(value: number, from: number, to: number): number {
 
 function finite(value: number): number {
   return Number.isFinite(value) ? value : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Neuer Zyklus: Waldgedächtnis und Stammgäste (DESIGN_V2.md, Abschnitt 10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Waldgedächtnis, das ein Neuer Zyklus einbringt: `floor(H_max / 10) + 2 · neue Arten`,
+ * begrenzt, sodass der Bestand MAX_FOREST_MEMORY nicht übersteigt. Negative Harmonie
+ * zählt als 0; NaN und Unsinn ergeben 0 statt kaputter Spielstände.
+ */
+export function cycleMemoryGain(maxHarmony: number, newSpeciesCount: number, forestMemory: number): number {
+  const harmonyPoints = Math.floor(Math.max(0, finite(maxHarmony)) / MEMORY_HARMONY_DIVISOR);
+  const speciesPoints = MEMORY_PER_NEW_SPECIES * Math.max(0, Math.floor(finite(newSpeciesCount)));
+  const room = MAX_FOREST_MEMORY - Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
+  return Math.min(room, harmonyPoints + speciesPoints);
+}
+
+/** Plätze für Stammgäste: einer je 25 Punkte Waldgedächtnis. */
+export function regularSlots(forestMemory: number): number {
+  const memory = Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
+  return Math.floor(memory / MEMORY_PER_REGULAR_SLOT);
 }

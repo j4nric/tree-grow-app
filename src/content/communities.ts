@@ -16,6 +16,8 @@ export type CommunityMember = string | readonly string[];
 export interface Community {
   id: string;
   name: string;
+  /** Symbol in der Seitenleiste (erst nach der Entdeckung sichtbar). */
+  icon: string;
   members: readonly CommunityMember[];
   /** Harmonie-Punkte, solange die Gemeinschaft besteht (nicht mit Zufriedenheit skaliert). */
   harmony: number;
@@ -27,39 +29,39 @@ export interface Community {
 
 export const COMMUNITIES: readonly Community[] = [
   {
-    id: 'humus', name: 'Humusküche', members: ['earthworm', 'woodlouse', ['chanterelle', 'porcini']],
+    id: 'humus', name: 'Humusküche', icon: '🪱', members: ['earthworm', 'woodlouse', ['chanterelle', 'porcini']],
     harmony: 8, effects: [{ kind: 'growth', pct: 5 }], hint: 'Aus Laub wird Erde, aus Erde wird Leben.',
   },
   {
-    id: 'caterpillar-watch', name: 'Raupenwacht', members: ['oakmoth', 'bluetit', ['bat', 'woodant']],
+    id: 'caterpillar-watch', name: 'Raupenwacht', icon: '🐛', members: ['oakmoth', 'bluetit', ['bat', 'woodant']],
     harmony: 8, effects: [], hint: 'Tags und nachts wird die Krone bewacht.',
   },
   {
-    id: 'deadwood', name: 'Totholz-Kette', members: ['barkbeetle', 'woodpecker', 'tinder', ['owl', 'bat']],
+    id: 'deadwood', name: 'Totholz-Kette', icon: '🪵', members: ['barkbeetle', 'woodpecker', 'tinder', ['owl', 'bat']],
     harmony: 10, effects: [], hint: 'Was stirbt, schafft Wohnraum.',
   },
   {
-    id: 'night-shift', name: 'Nachtschicht', members: ['owl', 'bat', ['hedgehog', 'glowworm']],
+    id: 'night-shift', name: 'Nachtschicht', icon: '🦉', members: ['owl', 'bat', ['hedgehog', 'glowworm']],
     harmony: 6, effects: [], hint: 'Wenn du schläfst, arbeiten sie.',
   },
   {
-    id: 'seed-couriers', name: 'Samenboten', members: ['squirrel', 'jay', 'bee'],
+    id: 'seed-couriers', name: 'Samenboten', icon: '🌰', members: ['squirrel', 'jay', 'bee'],
     harmony: 8, effects: [{ kind: 'seeds', pct: 10 }], hint: 'Blüte, Frucht und Versteck.',
   },
   {
-    id: 'wild-edge', name: 'Wilder Waldsaum', members: ['deer', 'fox', 'wolf'],
+    id: 'wild-edge', name: 'Wilder Waldsaum', icon: '🦊', members: ['deer', 'fox', 'wolf'],
     harmony: 10, effects: [], hint: 'Erst der Jäger bringt den Wald ins Gleichgewicht.',
   },
   {
-    id: 'flower-hem', name: 'Blütensaum', members: ['bee', 'peacock', 'nettle', ['strawberry', 'foxglove']],
+    id: 'flower-hem', name: 'Blütensaum', icon: '🌸', members: ['bee', 'peacock', 'nettle', ['strawberry', 'foxglove']],
     harmony: 6, effects: [], hint: 'Wo Brennnesseln stehen dürfen, tanzen Falter.',
   },
   {
-    id: 'birch-bond', name: 'Birkenbund', members: ['birch', 'flyagaric', 'moss'],
+    id: 'birch-bond', name: 'Birkenbund', icon: '🌳', members: ['birch', 'flyagaric', 'moss'],
     harmony: 6, effects: [], hint: 'Weiß, rot und grün – ein altes Bündnis.',
   },
   {
-    id: 'damp-ground', name: 'Feuchter Grund', members: ['moss', 'fern', ['slug', 'salamander']],
+    id: 'damp-ground', name: 'Feuchter Grund', icon: '💧', members: ['moss', 'fern', ['slug', 'salamander']],
     harmony: 6, effects: [], hint: 'Im Schatten, wo es nie ganz trocknet.',
   },
 ];

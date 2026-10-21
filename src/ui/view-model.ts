@@ -56,6 +56,21 @@ export interface PreviewView {
   supply?: number;
   /** Änderung der Versorgung gegenüber jetzt (−0,2 = 20 Prozentpunkte weniger). */
   supplyDelta?: number;
+  /**
+   * Lebensgemeinschaften, die diese Wahl vervollständigt (`tone: 'good'`) oder auflöst
+   * (`tone: 'bad'`), z. B. ✨ + „vervollständigt Humusküche (+8 Harmonie)“.
+   */
+  communities?: CommunityHintView[];
+}
+
+/**
+ * Hinweis auf einer Karte, dass die Wahl eine Lebensgemeinschaft vervollständigt oder
+ * auflöst. `icon` ist Schmuck (für Screenreader verborgen), `label` der Text ohne Emoji.
+ */
+export interface CommunityHintView {
+  icon: string;
+  label: string;
+  tone: Tone;
 }
 
 /**
@@ -77,6 +92,8 @@ export interface ReplaceOptionView {
   preview?: PreviewView;
   /** Dieses Tier kann nicht weichen (mit Begründung) – Option wird gesperrt angezeigt. */
   disabledReason?: string;
+  /** Bedingungen inklusive Tausch (z. B. Futter nicht mehr knapp); fehlen sie, gelten die der Karte. */
+  conditions?: ConditionView[];
 }
 
 /** Eine Karte in einer Begegnung (Tier, Pflanze, Ereignis-Option oder Gast). */
@@ -199,6 +216,51 @@ export interface EcosystemView {
   families: FamilyView[];
   niches: NicheView[];
   plantRing: PlantRingView;
+  communities: CommunityListView;
+}
+
+/**
+ * Zustand einer Lebensgemeinschaft in der Seitenleiste:
+ * `active` besteht gerade, `near` fehlt nur noch wenig (≥ 50 % der Mitglieder da),
+ * `open` alles andere.
+ */
+export type CommunityState = 'active' | 'near' | 'open';
+
+/** Eine Lebensgemeinschaft in der Übersicht. */
+export interface CommunityView {
+  id: string;
+  /** Symbol; bei noch nicht entdeckten Gemeinschaften „❔“. */
+  icon: string;
+  /** Name; bei noch nicht entdeckten Gemeinschaften „???“. */
+  name: string;
+  /** Schon einmal entdeckt (stand im Naturtagebuch)? */
+  discovered: boolean;
+  state: CommunityState;
+  /** Erfüllte Mitglieder von `total`. */
+  present: number;
+  total: number;
+  /** Fortschritt 0–1 (`present / total`). */
+  progress: number;
+  /** Harmonie-Beitrag, solange sie besteht (nur bei `active` > 0). */
+  harmony: number;
+  /** Extra-Wirkungen als Text, z. B. „+5 % 🌿“ (leer, wenn keine). */
+  effects: string;
+  /** „fehlt: Pfifferling oder Steinpilz“ – nur bei `near`. */
+  missingText?: string;
+  /** Rätselhinweis für noch nicht entdeckte Gemeinschaften. */
+  hint?: string;
+}
+
+/** Alle Lebensgemeinschaften für die Seitenleiste (aktive zuerst, dann die nächsten). */
+export interface CommunityListView {
+  items: CommunityView[];
+  activeCount: number;
+  /** Summe der Harmonie aller aktiven Gemeinschaften. */
+  harmony: number;
+  /** Kurzfassung für die zugeklappte Zeile, z. B. „1 von 9 aktiv · +8 ⚖️“. */
+  summary: string;
+  /** Dieselbe Kurzfassung ohne Emojis für Screenreader, z. B. „1 von 9 aktiv, +8 Harmonie“. */
+  summaryText: string;
 }
 
 /** Eine Begleitpflanze im Pflanzring. */

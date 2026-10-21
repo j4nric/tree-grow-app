@@ -5,8 +5,14 @@ import { SPECIES_BY_ID } from '../src/content/species';
 import { evaluate, nextPlantCost, previewChoice, previewPlant } from '../src/core/formulas';
 import { MAX_OFFLINE_SECONDS, unlockedPlants } from '../src/core/tick';
 import { formatDuration, formatNumber } from '../src/ui/format';
-import { seedsLine } from '../src/ui/view-format';
+import { preferredReplaceOption, seedsLine } from '../src/ui/view-format';
+import type { CommunityHintView } from '../src/ui/view-model';
 import {
+  communityListView,
+  communityPreview,
+  discoveryText,
+  missingMembersText,
+  toPlantCardView,
   PLANT_BLOCKERS,
   PLANT_ENCOUNTER_TITLE,
   PLANT_REROLL_BLOCKERS,
@@ -22,6 +28,8 @@ import {
   MOOD_REASON_BELOW,
   SCENE_GROUP_OF,
   autoDeclineText,
+  catchUpNotice,
+  WELCOME_MIN_SECONDS,
   foodCompetitors,
   huntersOf,
   disturbersOf,
@@ -404,9 +412,9 @@ describe('toSceneAnimals', () => {
     const animals = toSceneAnimals(state, evaluate(state));
     expect(animals.find((a) => a.id === 'woodpecker')?.rarity).toBe(SPECIES_BY_ID.get('woodpecker')!.rarity);
     expect(animals.find((a) => a.id === 'centipede')?.rarity).toBe(1);
-    withFakeSpecies([fakeSpecies({ id: 'owl', niche: 'crown', rarity: 3 })], () => {
-      const s = stateAt(4, ['owl']);
-      expect(toSceneAnimals(s, evaluate(s))).toEqual([expect.objectContaining({ id: 'owl', rarity: 3 })]);
+    withFakeSpecies([fakeSpecies({ id: 'test-legend', niche: 'crown', rarity: 3 })], () => {
+      const s = stateAt(4, ['test-legend']);
+      expect(toSceneAnimals(s, evaluate(s))).toEqual([expect.objectContaining({ id: 'test-legend', rarity: 3 })]);
     });
   });
 });
@@ -496,13 +504,13 @@ describe('Stimmung: Gründe unter 70 %', () => {
   });
 
   it('Störer (AnimalStatus.disturbers): „wird gestört von …“', () => {
-    const noisy = fakeSpecies({ id: 'jay', name: 'Eichelhäher', niche: 'crown', level: 'herbivore', food: ['nuesse'], effects: [{ kind: 'disturb', target: 'oakmoth' }] });
+    const noisy = fakeSpecies({ id: 'test-jay', name: 'Testhäher', niche: 'crown', level: 'herbivore', food: ['nuesse'], effects: [{ kind: 'disturb', target: 'oakmoth' }] });
     withFakeSpecies([noisy], () => {
       const moth = SPECIES_BY_ID.get('oakmoth')!;
-      const present = ['oakmoth', 'jay', 'bluetit'];
-      expect(disturbersOf(moth, present)).toEqual(['jay']);
+      const present = ['oakmoth', 'test-jay', 'bluetit'];
+      expect(disturbersOf(moth, present)).toEqual(['test-jay']);
       const status = { happiness: 0.6, food: 1, needs: [], hunters: 1, disturbers: 1 };
-      expect(moodText(moth, status, present)).toBe('wird gestört von Eichelhäher · ist auf der Hut vor Blaumeise');
+      expect(moodText(moth, status, present)).toBe('wird gestört von Testhäher · ist auf der Hut vor Blaumeise');
       expect(moodText(moth, status)).toBe('wird gestört · ist auf der Hut');
       expect(moodText(moth, { happiness: 0.9, food: 1, needs: [], hunters: 0, disturbers: 0 }, present)).toBe('fühlt sich wohl');
     });
@@ -536,12 +544,17 @@ describe('Stimmung: Gründe unter 70 %', () => {
   it('bei voller Nische zählt das Tier, das weicht, nicht als Konkurrent', () => {
     // Laubstreu voll (Rollassel, Rotkehlchen); eine Laub fressende Test-Art ersetzt die
     // Rollassel (erste Option). Danach teilen sich Regenwurm, Eichenwickler und sie das Laub.
-    withFakeSpecies([fakeSpecies({ id: 'slug', name: 'Nacktschnecke', niche: 'litter', food: ['laub'], level: 'herbivore' })], () => {
-      const state = withEncounter(['earthworm', 'oakmoth', 'woodlouse', 'robin'], ['slug']);
+    withFakeSpecies([fakeSpecies({ id: 'test-slug', name: 'Testschnecke', niche: 'litter', food: ['laub'], level: 'herbivore' })], () => {
+      const state = withEncounter(['earthworm', 'oakmoth', 'woodlouse', 'robin'], ['test-slug']);
       const card = toEncounterView(state, 0)!.cards[0]!;
       expect(card.nicheFull).toBe(true);
       expect(card.replaceOptions![0]!.id).toBe('woodlouse');
       expect(card.conditions![0]!.hint).toBe('teilt sich das Futter mit Regenwurm und Eichenwickler');
+      // Jede Tausch-Option hat eigene Bedingungen: Wer weicht, ist kein Konkurrent mehr.
+      const [louse, robin] = card.replaceOptions!;
+      expect(louse!.conditions![0]!.hint).toBe('teilt sich das Futter mit Regenwurm und Eichenwickler');
+      expect(robin!.id).toBe('robin');
+      expect(robin!.conditions![0]!.hint).toBe('teilt sich das Futter mit Regenwurm, Rollassel und 1 weitere');
     });
   });
 });
@@ -827,5 +840,182 @@ describe('Auswahl „Pflanze setzen“', () => {
     toEncounterView(state, 0);
     toEcosystemView(state, evaluate(state));
     expect(JSON.stringify(state)).toBe(before);
+  });
+});
+
+describe('catchUpNotice', () => {
+  const report = { seconds: 0, growth: 0, seeds: 0, autoDeclined: 0 };
+
+  it('nach langer Abwesenheit die Willkommens-Meldung (sie nennt verpasste Begegnungen selbst)', () => {
+    const r = { ...report, seconds: 3600, growth: 500, seeds: 20, autoDeclined: 2 };
+    expect(catchUpNotice(3600, r, 3, true)).toEqual({ kind: 'welcome', text: welcomeText(3600, r, 3) });
+  });
+
+  it('kurz weg (2–60 s) mit verpasster Begegnung: der kurze Hinweis wie im laufenden Spiel', () => {
+    const r = { ...report, seconds: 20, growth: 120, seeds: 4, autoDeclined: 1 };
+    expect(catchUpNotice(20, r, 3, true)).toEqual({ kind: 'note', text: autoDeclineText(1, true) });
+    expect(catchUpNotice(WELCOME_MIN_SECONDS, r, 0, false)).toEqual({ kind: 'note', text: autoDeclineText(1, false) });
+  });
+
+  it('nichts verpasst und kurz weg: keine Meldung', () => {
+    expect(catchUpNotice(20, { ...report, seconds: 20, growth: 120 }, 1, false)).toBeNull();
+    expect(catchUpNotice(3600, { ...report, seconds: 3600 }, 0, false)).toBeNull();
+  });
+});
+
+describe('Lebensgemeinschaften', () => {
+  const completes = (name: string, harmony: number): CommunityHintView => ({
+    icon: '✨',
+    label: `vervollständigt ${name} (+${harmony} Harmonie)`,
+    tone: 'good',
+  });
+  const breaks = (name: string, harmony: number): CommunityHintView => ({
+    icon: '⚠️',
+    label: `löst ${name} auf (−${harmony} Harmonie)`,
+    tone: 'bad',
+  });
+
+  it('communityListView: aktive zuerst mit Harmonie, Unentdeckte als „???“ nur mit Hinweis und Fortschritt', () => {
+    // Humusküche aktiv; Raupenwacht 2/3 (fehlt Braunes Langohr oder Rote Waldameise), noch unentdeckt
+    const state = withEncounter(['earthworm', 'woodlouse', 'chanterelle', 'oakmoth', 'bluetit'], []);
+    const ev = evaluate(state);
+    const view = communityListView(ev, ['humus']);
+    expect(view.items).toHaveLength(9);
+    expect(view.activeCount).toBe(1);
+    expect(view.harmony).toBe(8);
+    expect(view.summary).toBe('1 von 9 aktiv · +8 ⚖️');
+    expect(view.summaryText).toBe('1 von 9 aktiv, +8 Harmonie');
+
+    const [humus, watch] = view.items;
+    expect(humus).toMatchObject({
+      id: 'humus', name: 'Humusküche', icon: '🪱', state: 'active', discovered: true, harmony: 8, effects: '+5 % 🌿',
+    });
+    expect(humus!.missingText).toBeUndefined();
+    // Kein Spoiler: unentdeckt → kein „fehlt: …“, nur Rätselhinweis und 2/3.
+    expect(watch).toMatchObject({
+      id: 'caterpillar-watch', name: '???', icon: '❔', state: 'near', discovered: false, present: 2, total: 3, harmony: 0,
+      hint: 'Tags und nachts wird die Krone bewacht.',
+    });
+    expect(watch!.missingText).toBeUndefined();
+    expect(watch!.progress).toBeCloseTo(2 / 3);
+    // Entdeckt (stand schon im Tagebuch): Name und „fehlt: …“.
+    const known = communityListView(ev, ['humus', 'caterpillar-watch']).items[1]!;
+    expect(known).toMatchObject({
+      name: 'Raupenwacht', icon: '🐛', discovered: true, state: 'near',
+      missingText: 'fehlt: Braunes Langohr oder Rote Waldameise',
+    });
+    expect(known.hint).toBeUndefined();
+    // Der Rest: nach Fortschritt absteigend, unter 50 % ohne „fehlt“.
+    const rest = view.items.slice(2);
+    expect(rest.every((c) => c.state !== 'active')).toBe(true);
+    for (let i = 1; i < rest.length; i++) expect(rest[i - 1]!.progress).toBeGreaterThanOrEqual(rest[i]!.progress);
+    for (const c of rest.filter((c) => c.progress < 0.5)) {
+      expect(c.state).toBe('open');
+      expect(c.missingText).toBeUndefined();
+    }
+  });
+
+  it('entdeckte, aber zerfallene Gemeinschaft behält ihren Namen', () => {
+    const ev = evaluate(stateAt(3, ['earthworm', 'woodlouse']));
+    const humus = communityListView(ev, ['humus']).items.find((c) => c.id === 'humus')!;
+    expect(humus).toMatchObject({ name: 'Humusküche', discovered: true, state: 'near', missingText: 'fehlt: Pfifferling oder Steinpilz' });
+    expect(humus.hint).toBeUndefined();
+    const none = communityListView(evaluate(stateAt(0)), []);
+    expect(none.summary).toBe('0 von 9 aktiv');
+    expect(none.summaryText).toBe('0 von 9 aktiv');
+    expect(none.items.every((c) => c.name === '???' && c.state === 'open')).toBe(true);
+  });
+
+  it('missingMembersText nennt Alternativen mit „oder“ und Mitglieder mit Komma', () => {
+    expect(missingMembersText([['woodlouse'], ['chanterelle', 'porcini']])).toBe('Rollassel, Pfifferling oder Steinpilz');
+    expect(missingMembersText([['fern']])).toBe('Wurmfarn');
+  });
+
+  it('communityPreview und Karten: „vervollständigt …“ aus dem Vergleich mit previewChoice', () => {
+    const state = withEncounter(['earthworm', 'woodlouse'], ['chanterelle', 'bluetit']);
+    const now = evaluate(state);
+    expect(communityPreview(now, previewChoice(state, 0, 0)!)).toEqual([completes('Humusküche', 8)]);
+    const view = toEncounterView(state, 0, now)!;
+    expect(view.cards[0]!.preview.communities).toEqual([completes('Humusküche', 8)]);
+    expect(view.cards[1]!.preview.communities).toBeUndefined();
+    expect(communityPreview(previewChoice(state, 0, 0)!, now)).toEqual([breaks('Humusküche', 8)]);
+  });
+
+  it('Tausch bei voller Nische: Rollassel löst die Humusküche auf, Rotkehlchen nicht – vorausgewählt ist das Rotkehlchen', () => {
+    // Laubstreu voll (Rollassel, Rotkehlchen); die Nacktschnecke ersetzt eines davon.
+    const state = withEncounter(['earthworm', 'chanterelle', 'woodlouse', 'robin'], ['slug']);
+    const card = toEncounterView(state, 0)!.cards[0]!;
+    expect(card.nicheFull).toBe(true);
+    const [louse, robin] = card.replaceOptions!;
+    expect(louse!.id).toBe('woodlouse');
+    expect(louse!.preview!.communities).toEqual([breaks('Humusküche', 8)]);
+    expect(robin!.id).toBe('robin');
+    expect(robin!.preview!.communities).toBeUndefined();
+    // Vorauswahl und Karten-Vorschau: die Option, die nichts auflöst.
+    expect(preferredReplaceOption(card.replaceOptions!)?.id).toBe('robin');
+    expect(card.preview).toEqual(robin!.preview);
+  });
+
+  it('Steinpilz statt Pfifferling: die Humusküche bleibt, kein Hinweis', () => {
+    // Wurzelraum voll (Regenwurm, Pfifferling); der Steinpilz ersetzt eines davon.
+    const state = withEncounter(['earthworm', 'chanterelle', 'woodlouse'], ['porcini']);
+    const card = toEncounterView(state, 0)!.cards[0]!;
+    const [worm, chanterelle] = card.replaceOptions!;
+    expect(worm!.id).toBe('earthworm');
+    expect(worm!.preview!.communities).toEqual([breaks('Humusküche', 8)]);
+    expect(chanterelle!.id).toBe('chanterelle');
+    expect(chanterelle!.preview!.communities).toBeUndefined();
+    // Nicht die erste, sondern die unschädliche Option ist vorausgewählt.
+    expect(preferredReplaceOption(card.replaceOptions!)?.id).toBe('chanterelle');
+    expect(card.preview.communities).toBeUndefined();
+  });
+
+  it('preferredReplaceOption: gesperrte Optionen nie, sonst die erste, wenn alle etwas auflösen', () => {
+    const bad = { communities: [breaks('Humusküche', 8)], harmonyDelta: -8, growthDelta: 0 };
+    expect(
+      preferredReplaceOption([
+        { id: 'a', name: 'A', disabledReason: 'gesperrt' },
+        { id: 'b', name: 'B', preview: bad },
+        { id: 'c', name: 'C', preview: bad },
+      ])?.id,
+    ).toBe('b');
+    expect(preferredReplaceOption([{ id: 'a', name: 'A', disabledReason: 'gesperrt' }])).toBeUndefined();
+  });
+
+  it('eine Karte vervollständigt zwei Gemeinschaften auf einmal', () => {
+    // Wildbiene: Samenboten (Eichhörnchen, Eichelhäher, Wildbiene) und Blütensaum
+    // (Wildbiene, Tagpfauenauge, Große Brennnessel, Wald-Erdbeere oder Roter Fingerhut)
+    const state = withEncounter(['squirrel', 'jay', 'peacock'], ['bee']);
+    state.plants = ['nettle', 'strawberry'];
+    const card = toEncounterView(state, 0)!.cards[0]!;
+    expect(card.preview.communities).toEqual([completes('Samenboten', 8), completes('Blütensaum', 6)]);
+    expect(discoveryText(['seed-couriers', 'flower-hem'])).toBe('Neue Lebensgemeinschaften: Samenboten und Blütensaum 🌱');
+  });
+
+  it('Pflanzenkarten und „Pflanze setzen“ zeigen den Hinweis ebenfalls', () => {
+    // Feuchter Grund: Frauenhaarmoos, Wurmfarn, Nacktschnecke oder Feuersalamander
+    const state = stateAt(3, ['slug']);
+    state.plants = ['moss'];
+    state.pendingEncounters.push({ type: 'plant', cards: ['fern', 'birch'], rerolls: 0 });
+    const hint = [completes('Feuchter Grund', 6)];
+    expect(toPlantCardView(state, 0, 0)!.preview.communities).toEqual(hint);
+    expect(toPlantCardView(state, 0, 1)!.preview.communities).toBeUndefined();
+    state.seeds = 1e6;
+    const offer = toPlantPickerView(state).offers.find((o) => o.card.id === 'fern')!;
+    expect(offer.card.preview.communities).toEqual(hint);
+  });
+
+  it('discoveryText: eine oder mehrere neue Gemeinschaften, sonst null', () => {
+    expect(discoveryText(['humus'])).toBe('Neue Lebensgemeinschaft: Humusküche 🌱');
+    expect(discoveryText(['humus', 'damp-ground'])).toBe('Neue Lebensgemeinschaften: Humusküche und Feuchter Grund 🌱');
+    expect(discoveryText([])).toBeNull();
+    expect(discoveryText(undefined)).toBeNull();
+  });
+
+  it('toEcosystemView enthält die Gemeinschaften aus dem Naturtagebuch', () => {
+    const state = stateAt(3, ['earthworm', 'woodlouse', 'porcini']);
+    state.meta.journal.communities = ['humus'];
+    const view = toEcosystemView(state, evaluate(state));
+    expect(view.communities.items[0]).toMatchObject({ id: 'humus', state: 'active', icon: '🪱' });
   });
 });

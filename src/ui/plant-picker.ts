@@ -10,7 +10,7 @@
  * gesperrt, bis `show()` erneut kommt oder der Dialog schließt.
  */
 import { el, setText } from './dom';
-import { renderFacts, renderPreviewChips } from './encounter-dialog';
+import { communityHintList, renderCommunityHints, renderFacts, renderPreviewChips } from './encounter-dialog';
 import type { PlantOfferView, PlantPickerView } from './view-model';
 import { seedsLine, toneSymbol } from './view-format';
 
@@ -124,7 +124,9 @@ export function createPlantPicker(root: HTMLElement, callbacks: PlantPickerCallb
     const preview = el('ul', 'card-preview');
     preview.setAttribute('aria-label', 'Vorschau');
     renderPreviewChips(preview, card.preview);
-    item.append(preview);
+    const communities = communityHintList();
+    renderCommunityHints(communities, card.preview);
+    item.append(preview, communities);
 
     const button = el('button', 'card-choose picker-choose');
     button.type = 'button';

@@ -7,6 +7,7 @@
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
 import { ABILITY_INFO } from '../content/abilities';
+import { COMMUNITIES_BY_ID } from '../content/communities';
 import { NICHES, NICHES_BY_ID } from '../content/niches';
 import { PLANT_GROUP_INFO, PLANTS_BY_ID, type Plant } from '../content/plants';
 import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
@@ -25,6 +26,7 @@ import {
   UNGUARDED_PENALTY,
   cardStatus,
   choiceBlocker,
+  communityChanges,
   declineReward,
   evaluate,
   evaluateEcosystem,
@@ -52,9 +54,13 @@ import {
   type OfflineReport,
 } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
+import { preferredReplaceOption } from './view-format';
 import type {
   AnimalView,
   CardView,
+  CommunityHintView,
+  CommunityListView,
+  CommunityView,
   ConditionView,
   EcosystemView,
   EffectView,
@@ -453,6 +459,7 @@ export function toEcosystemView(state: GameState, evaluation: Readonly<Evaluatio
     families: familyViews(evaluation),
     niches: nicheViews(state, evaluation),
     plantRing: plantRingView(state, evaluation),
+    communities: communityListView(evaluation, state.meta.journal.communities),
   };
   refreshEcosystemView(view, state);
   return view;
@@ -467,6 +474,114 @@ export function refreshEcosystemView(view: EcosystemView, state: GameState): voi
   view.stageProgress = waypointProgress(state);
   view.progressHint = progressHint(state);
   refreshPlantRing(view.plantRing, state);
+}
+
+// ---------------------------------------------------------------------------
+// Lebensgemeinschaften
+// ---------------------------------------------------------------------------
+
+/** Symbol einer Lebensgemeinschaft (aus content; Fallback ✨). */
+export function communityIcon(id: string): string {
+  return COMMUNITIES_BY_ID.get(id)?.icon ?? '✨';
+}
+
+/** Ab diesem Anteil erfüllter Mitglieder gilt eine Gemeinschaft als „fast fertig“. */
+export const COMMUNITY_NEAR_AT = 0.5;
+
+/** Name einer Art oder Pflanze (unbekannte IDs bleiben, wie sie sind). */
+function memberName(id: string): string {
+  return SPECIES_BY_ID.get(id)?.name ?? PLANTS_BY_ID.get(id)?.name ?? id;
+}
+
+/**
+ * Fehlende Mitglieder als Text: je Mitglied die Alternativen mit „oder“, die Mitglieder mit
+ * Komma, z. B. „Rollassel, Pfifferling oder Steinpilz“.
+ */
+export function missingMembersText(missing: readonly (readonly string[])[]): string {
+  return missing.map((options) => options.map(memberName).join(' oder ')).join(', ');
+}
+
+/** Name einer Gemeinschaft (Fallback: ID). */
+function communityName(id: string): string {
+  return COMMUNITIES_BY_ID.get(id)?.name ?? id;
+}
+
+/**
+ * Lebensgemeinschaften für die Seitenleiste aus `evaluate(state).communities`.
+ * `discovered`: IDs im Naturtagebuch (`meta.journal.communities`). Noch nicht entdeckte
+ * Gemeinschaften erscheinen als „???“ mit Fortschritt und Rätselhinweis. Fehlt nur noch
+ * wenig (≥ 50 %), nennt die Zeile die fehlenden Arten bzw. Pflanzen.
+ * Reihenfolge: aktive, dann nach Fortschritt (bei Gleichstand wie im Inhalt).
+ */
+export function communityListView(
+  evaluation: Readonly<Pick<Evaluation, 'communities'>>,
+  discovered: readonly string[],
+): CommunityListView {
+  const items: CommunityView[] = evaluation.communities.map((status) => {
+    const community = COMMUNITIES_BY_ID.get(status.id);
+    const known = status.active || discovered.includes(status.id);
+    const progress = status.total > 0 ? Math.min(1, Math.max(0, status.present / status.total)) : 0;
+    const state = status.active ? 'active' : progress >= COMMUNITY_NEAR_AT ? 'near' : 'open';
+    const view: CommunityView = {
+      id: status.id,
+      icon: known ? communityIcon(status.id) : '❔',
+      name: known ? communityName(status.id) : '???',
+      discovered: known,
+      state,
+      present: status.present,
+      total: status.total,
+      progress,
+      harmony: status.active ? status.harmony : 0,
+      effects: (community?.effects ?? []).map((e) => effectView(e).label).join(' · '),
+    };
+    // „fehlt: …“ nur für schon entdeckte – Unentdeckte verraten nur Hinweis und Fortschritt.
+    if (state === 'near' && known && status.missing.length > 0) {
+      view.missingText = `fehlt: ${missingMembersText(status.missing)}`;
+    }
+    if (!known && community) view.hint = community.hint;
+    return view;
+  });
+  const rank = (v: CommunityView) => (v.state === 'active' ? 2 : v.progress);
+  const order = new Map(items.map((v, i) => [v.id, i]));
+  items.sort((a, b) => rank(b) - rank(a) || order.get(a.id)! - order.get(b.id)!);
+  const active = items.filter((v) => v.state === 'active');
+  const harmony = active.reduce((sum, v) => sum + v.harmony, 0);
+  const count = `${formatNumber(active.length)} von ${formatNumber(items.length)} aktiv`;
+  const summary = count + (harmony > 0 ? ` · +${formatNumber(harmony)} ⚖️` : '');
+  const summaryText = count + (harmony > 0 ? `, +${formatNumber(harmony)} Harmonie` : '');
+  return { items, activeCount: active.length, harmony, summary, summaryText };
+}
+
+/**
+ * Was eine Wahl an Lebensgemeinschaften ändert (Vergleich jetzt ↔ Vorschau aus dem Kern):
+ * ✨ „vervollständigt Humusküche (+8 Harmonie)“ bzw. ⚠️ „löst Humusküche auf (−8 Harmonie)“.
+ * Der Name wird auch bei noch unentdeckten genannt – das ist der Moment der Entdeckung.
+ */
+export function communityPreview(
+  now: Readonly<Pick<Evaluation, 'communities'>>,
+  after: Readonly<Pick<Evaluation, 'communities'>>,
+): CommunityHintView[] {
+  const { completed, broken } = communityChanges(now, after);
+  return [
+    ...completed.map((c) => ({
+      icon: '✨',
+      label: `vervollständigt ${communityName(c.id)} (+${formatNumber(c.harmony)} Harmonie)`,
+      tone: 'good' as const,
+    })),
+    ...broken.map((c) => ({
+      icon: '⚠️',
+      label: `löst ${communityName(c.id)} auf (−${formatNumber(c.harmony)} Harmonie)`,
+      tone: 'bad' as const,
+    })),
+  ];
+}
+
+/** Entdeckungs-Meldung, z. B. „Neue Lebensgemeinschaft: Humusküche 🌱“ – null, wenn nichts neu ist. */
+export function discoveryText(ids: readonly string[] | undefined): string | null {
+  if (!ids || ids.length === 0) return null;
+  const names = ids.map(communityName);
+  if (names.length === 1) return `Neue Lebensgemeinschaft: ${names[0]} 🌱`;
+  return `Neue Lebensgemeinschaften: ${listNames(names, names.length)} 🌱`;
 }
 
 // ---------------------------------------------------------------------------
@@ -487,6 +602,8 @@ export function previewView(
   };
   const happiness = speciesId === undefined ? undefined : after.animals[speciesId]?.happiness;
   if (happiness !== undefined) preview.happiness = happiness;
+  const communities = communityPreview(now, after);
+  if (communities.length > 0) preview.communities = communities;
   return preview;
 }
 
@@ -553,12 +670,18 @@ export function toCardView(
           afterReplaced = occupant;
         }
         option.preview = previewView(now, result, sp.id);
+        // Bedingungen je Tausch: Wer weicht, teilt danach kein Futter mehr.
+        option.conditions = conditionViews(
+          sp,
+          result.animals[sp.id],
+          allAnimals(state).filter((id) => id !== occupant),
+        );
       } else {
         option.disabledReason = REPLACE_BLOCKED;
       }
       return option;
     });
-    preview = replaceOptions.find((o) => o.preview)?.preview ?? NO_CHANGE;
+    preview = preferredReplaceOption(replaceOptions)?.preview ?? NO_CHANGE;
   } else if (status === 'present') {
     after = now;
   } else if (status === 'closed') {
@@ -834,7 +957,7 @@ export function toPlantCardView(
     card.replaceOptions = options;
     card.fullText = 'Pflanzring voll';
     card.replacePrompt = 'Welche Pflanze weicht?';
-    card.preview = options.find((o) => o.preview)?.preview ?? NO_CHANGE;
+    card.preview = preferredReplaceOption(options)?.preview ?? NO_CHANGE;
     if (!options.some((o) => !o.disabledReason)) card.disabledReason = 'Kein Tausch möglich';
     return card;
   }
@@ -1068,6 +1191,29 @@ export function autoDeclineText(autoDeclined: number, stackFull: boolean): strin
   const reward = `+${formatNumber(n * declineReward())} 🌰`;
   if (stackFull) return `Stapel voll – ${n === 1 ? 'eine Begegnung zog' : 'Begegnungen zogen'} weiter · ${reward}`;
   return `Niemand zog ein · ${reward}`;
+}
+
+/** Ab dieser Abwesenheit (s) gibt es eine Willkommens-Meldung. */
+export const WELCOME_MIN_SECONDS = 60;
+
+export type CatchUpNotice = { kind: 'welcome' | 'note'; text: string } | null;
+
+/**
+ * Was nach dem Nachrechnen (Start, Tab zurück, Ruhezustand) gemeldet wird: nach längerer
+ * Abwesenheit die Willkommens-Meldung (sie nennt verpasste Begegnungen selbst), sonst –
+ * falls Wegpunkte ohne Begegnung vorbeigingen – der kurze Hinweis wie im laufenden Spiel.
+ */
+export function catchUpNotice(
+  away: number,
+  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined'>,
+  waiting: number,
+  stackFull: boolean,
+): CatchUpNotice {
+  if (away > WELCOME_MIN_SECONDS && report.growth > 0) {
+    return { kind: 'welcome', text: welcomeText(away, report, waiting) };
+  }
+  if (report.autoDeclined > 0) return { kind: 'note', text: autoDeclineText(report.autoDeclined, stackFull) };
+  return null;
 }
 
 /** Willkommens-Meldung nach Abwesenheit (DESIGN_V2.md, 7.6). */

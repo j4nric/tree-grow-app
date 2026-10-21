@@ -5,9 +5,11 @@
 > Schritt 2.1 um: Wachstum, Samen und Harmonie; Begegnungen an Wegpunkten mit
 > Kartenwahl („Tier zieht ein“ und „Etwas keimt“); 3 Gattungen × 3 Tiere; 14
 > Begleitpflanzen mit Licht-/Wasser-Versorgung, Pflanzring und „Pflanze setzen“
-> (20 · 1,9^n 🌰); Wegpunkte bei 3,5 · k^3,4; Spielstand v3 (v1-Stände starten neu, ab
-> „Junger Baum“ mit +5 Waldgedächtnis; v2-Stände behalten ihren Fortschritt, Samen
-> werden auf 58 begrenzt). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
+> (20 · 1,9^n 🌰); Wegpunkte bei 3,5 · k^3,4; Neuer Zyklus ab „Hain“ mit Naturtagebuch,
+> Waldgedächtnis und Stammgästen (Schritt 2.8, siehe `DESIGN_V2.md` Abschnitt 10);
+> Spielstand v4 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
+> v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
+> verlustfrei als erster Zyklus weiter). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
 > Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰, Neu würfeln
 > kostet 10 🌰 (verdoppelt sich je Wurf).
 >

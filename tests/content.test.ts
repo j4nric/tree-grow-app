@@ -14,6 +14,7 @@ import {
   REROLL_BASE_COST,
   SCRIPTED_ENCOUNTERS,
 } from '../src/content/encounters';
+import { COMMUNITIES } from '../src/content/communities';
 import { NICHES, NICHES_BY_ID } from '../src/content/niches';
 import { PLANTS, PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, PLANT_GROUP_INFO } from '../src/content/plants';
 import { ABILITY_INFO } from '../src/content/abilities';
@@ -438,5 +439,14 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
     expect(EVENTS.some((e) => e.minStage <= INTERLUDE_STAGE && !e.appears)).toBe(true);
     expect(VISITORS.some((v) => v.minStage <= INTERLUDE_STAGE && !v.appears)).toBe(true);
     for (const v of VISITORS) expect(ENCOUNTER_WEIGHTS[v.minStage]![3], v.id).toBeGreaterThan(0);
+  });
+});
+
+describe('Lebensgemeinschaften: Inhalte', () => {
+  it('jede Gemeinschaft hat ein eigenes Symbol (Seitenleiste)', () => {
+    for (const c of COMMUNITIES) expect(c.icon.trim().length, c.id).toBeGreaterThan(0);
+    expect(unique(COMMUNITIES.map((c) => c.icon))).toBe(true);
+    expect(unique(COMMUNITIES.map((c) => c.id))).toBe(true);
+    expect(unique(COMMUNITIES.map((c) => c.name))).toBe(true);
   });
 });

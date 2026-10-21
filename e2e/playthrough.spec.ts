@@ -88,7 +88,7 @@ async function decide(page: Page): Promise<Decision> {
 }
 
 test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', async ({ page, context }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   // Uhr anhalten: Zeit vergeht nur über fastForward/runFor → jeder Lauf ist gleich.
   await page.clock.install({ time: new Date('2026-10-21T08:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-21T08:00:01Z'));
@@ -160,7 +160,7 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
   expect(plantsChosen.length, JSON.stringify(decisions)).toBeGreaterThanOrEqual(2);
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(3);
+  expect(saved.version).toBe(4);
   expect(saved.waypoint).toBeGreaterThanOrEqual(12);
   // Jeder Wegpunkt bringt höchstens eine Begegnung: entschieden oder noch wartend (die von
   // „Alter Baum“ bleibt offen). Ohne passende Art entfällt sie (z. B. Wegpunkt 2 im

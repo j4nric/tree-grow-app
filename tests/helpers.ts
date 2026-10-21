@@ -22,11 +22,16 @@ export function stateAt(stage: number, animals: string[] = [], seed = 1): GameSt
  */
 export function withFakeSpecies<T>(species: Species[], fn: () => T): T {
   const map = SPECIES_BY_ID as Map<string, Species>;
+  // Überschriebene echte Arten danach wiederherstellen, statt sie zu löschen.
+  const previous = species.map((s) => [s.id, map.get(s.id)] as const);
   for (const s of species) map.set(s.id, s);
   try {
     return fn();
   } finally {
-    for (const s of species) map.delete(s.id);
+    for (const [id, original] of previous) {
+      if (original) map.set(id, original);
+      else map.delete(id);
+    }
   }
 }
 

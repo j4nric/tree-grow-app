@@ -780,6 +780,22 @@ dialog.encounter::backdrop {
   gap: 10px;
 }
 
+/* Kartenwahl: Aktionen bleiben am unteren Rand sichtbar, auch wenn der Dialog scrollt */
+dialog.encounter:not(.plant-picker) {
+  /* Fokus nicht unter der klebenden Aktionsleiste verstecken (WCAG 2.4.11) */
+  scroll-padding-bottom: 72px;
+}
+
+dialog.encounter:not(.plant-picker) .encounter-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 0 -20px;
+  padding: 10px 20px;
+  background: var(--panel);
+  box-shadow: 0 -1px 0 var(--border);
+}
+
 .encounter-button {
   min-height: 44px;
   padding: 8px 16px;
@@ -976,6 +992,155 @@ dialog.encounter::backdrop {
   font-size: 0.875rem;
   font-weight: 700;
   text-align: right;
+}
+
+/* Lebensgemeinschaften (aufklappbar, gleiche Hülle wie die Harmonie-Aufschlüsselung) */
+.eco-communities summary {
+  flex-wrap: wrap;
+  column-gap: 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.eco-communities-count {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.community-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.community {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 3px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.community-icon {
+  grid-row: 1 / span 2;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.community-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.community-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.community-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.community-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.community-track {
+  grid-column: 2 / span 2;
+  height: 4px;
+  border-radius: 999px;
+  background: #ece8da;
+  overflow: hidden;
+}
+
+.community-bar {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: #9bb98a;
+}
+
+.community.state-active {
+  background: var(--good-bg);
+}
+
+.community.state-active .community-value {
+  color: var(--accent-dark);
+}
+
+.community.state-active .community-track {
+  display: none;
+}
+
+.community.state-active .community-icon {
+  grid-row: 1;
+}
+
+.community.state-near .community-note {
+  color: #8a5a00;
+}
+
+.community.state-near .community-bar {
+  background: var(--rarity-rare);
+}
+
+.community.undiscovered .community-name {
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+.community.undiscovered .community-note {
+  font-style: italic;
+}
+
+.community.formed {
+  animation: community-formed 1.2s ease-out;
+}
+
+@keyframes community-formed {
+  0%,
+  30% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+
+/* Kartenvorschau: „✨ vervollständigt Humusküche (+8 Harmonie)“ */
+.card-communities {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.card-communities li {
+  color: var(--accent-dark);
+}
+
+.card-communities li.tone-bad {
+  color: var(--bad);
+}
+
+.card-communities[hidden] {
+  display: none;
 }
 
 .panel .eco-title {
@@ -1218,6 +1383,22 @@ dialog.encounter::backdrop {
   font-size: 0.72rem;
   color: var(--muted);
   overflow-wrap: anywhere;
+  /* Höchstens zwei Zeilen, damit lange Gründe die Kacheln nicht aufblähen */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.slot-mood[role='button'] {
+  cursor: pointer;
+}
+
+.slot-mood.expanded {
+  -webkit-line-clamp: unset;
+  line-clamp: none;
+  overflow: visible;
 }
 
 .slot.arrive {
@@ -1808,6 +1989,11 @@ dialog.plant-picker {
     flex: 1 1 140px;
   }
 
+  dialog.encounter:not(.plant-picker) .encounter-actions {
+    margin: 0 -12px;
+    padding: 8px 12px;
+  }
+
   dialog.plant-picker {
     width: calc(100vw - 16px);
   }
@@ -1844,6 +2030,7 @@ dialog.plant-picker {
   .eco-stat-value.pop,
   .encounter-stack.nudge,
   .family-chip.tier-up,
+  .community.formed,
   .slot.arrive {
     animation-name: highlight;
     animation-timing-function: linear;
@@ -1863,8 +2050,9 @@ dialog.plant-picker {
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  padding: 0 10px;
-  border-radius: 10px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
   cursor: pointer;
   list-style: none;
 }
@@ -1920,4 +2108,91 @@ dialog.plant-picker {
   flex-shrink: 0;
   min-width: 2.2em;
   text-align: center;
+}
+
+/* Neuer Zyklus und Stammgäste (cycle-panel.ts) */
+.cycle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 16px;
+}
+
+.cycle p {
+  margin: 0;
+}
+
+.cycle [hidden] {
+  display: none;
+}
+
+.cycle-memory {
+  font-size: 0.875rem;
+}
+
+.cycle-gain {
+  font-weight: 700;
+  color: var(--accent-dark);
+}
+
+.cycle-button {
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: white;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.cycle-button:hover {
+  background: #eef6e6;
+}
+
+.cycle-button.armed {
+  border-color: #a3341f;
+  background: #fbeee9;
+  color: #a3341f;
+}
+
+.cycle-regulars-title {
+  margin: 12px 0 0;
+  font-size: 0.875rem;
+}
+
+.cycle-regular-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cycle-regular {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  color: var(--text);
+  text-align: left;
+}
+
+.cycle-regular.selected {
+  border-color: var(--accent);
+  background: #eef6e6;
+}
+
+.cycle-regular:disabled {
+  opacity: 0.5;
+}
+
+.cycle-regular-niche {
+  color: var(--muted);
+  font-size: 0.72rem;
 }
