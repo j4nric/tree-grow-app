@@ -55,15 +55,17 @@ describe('toEcosystemView', () => {
     expect(view.niches.every((n) => n.capacity === 0 && n.animals.length === 0)).toBe(true);
     expect(view.niches[0]!.unlockHint).toBe('öffnet bei „Keimling“');
     expect(view.niches[3]!.unlockHint).toBe('öffnet bei „Junger Baum“');
-    // Höhlen haben im Prototyp noch keine Bewohner-Art
-    expect(view.niches[5]!.unlockHint).toBe('Bewohner folgen bald');
+    // Höhlen öffnen mit dem Alten Baum – oder früher durch Arten, die Plätze schaffen.
+    expect(view.niches[5]!.unlockHint).toMatch(/^öffnet bei „Alter Baum“ – oder früher durch .*Borkenkäfer/);
     expect(view.families.map((f) => [f.id, f.icon, f.count])).toEqual([
       ['birds', '🐦', 0],
       ['insects', '🐝', 0],
+      ['mammals', '🦔', 0],
       ['soil', '🪱', 0],
+      ['fungi', '🍄', 0],
     ]);
     expect(view.families[0]!.thresholds).toEqual([2, 3, 5]);
-    expect(view.families[2]!.bonuses[0]).toBe('+2 Wasser');
+    expect(view.families[3]!.bonuses[0]).toBe('+2 Wasser');
     expect(view.harmonyTier).toBe('Zarte Anfänge');
     expect(view.progressHint).toMatch(/^Nächste Begegnung in /);
   });
@@ -104,6 +106,21 @@ describe('toEcosystemView', () => {
     const guardedParts = toEcosystemView(guarded, evaluate(guarded)).harmonyParts;
     expect(guardedParts).toHaveLength(3);
     expect(sum(guardedParts.map((p) => p.value))).toBeCloseTo(evaluate(guarded).harmony, 9);
+  });
+
+  it('Harmonie-Aufschlüsselung enthält die Harmonie besonderer Arten (Glühwürmchen, Hirschkäfer)', () => {
+    const state = stateAt(5, ['glowworm', 'stagbeetle', 'slug', 'earthworm']);
+    state.plants = ['anemone', 'moss'];
+    const ev = evaluate(state);
+    expect(ev.breakdown.extra).toBeGreaterThan(0);
+    const parts = toEcosystemView(state, ev).harmonyParts;
+    expect(parts.find((p) => p.label === 'Besondere Arten')!.value).toBeCloseTo(ev.breakdown.extra, 12);
+    expect(sum(parts.map((p) => p.value))).toBeCloseTo(ev.harmony, 9);
+  });
+
+  it('Lichterabend ist bis zu den Lebensgemeinschaften als „(bald)“ markiert', () => {
+    expect(effectView({ kind: 'ability', id: 'communityBoost' }).label).toMatch(/^Lichterabend: .*\(bald\)$/);
+    expect(effectView({ kind: 'ability', id: 'nightWatch' }).label).not.toContain('(bald)');
   });
 
   it('refreshEcosystemView aktualisiert nur Samen und Fortschritt', () => {
@@ -278,11 +295,15 @@ describe('toEncounterView', () => {
     expect(view.canReroll).toBe(false);
   });
 
-  it('Höhlen: ohne Bewohner-Art verschlossen, mit Bewohner Plätze aus dem Borkenkäfer', () => {
-    const empty = stateAt(3, ['barkbeetle']);
-    const locked = toEcosystemView(empty, evaluate(empty)).niches.find((n) => n.id === 'hollows')!;
+  it('Höhlen: vor dem Alten Baum verschlossen, Plätze aus dem Borkenkäfer öffnen sie früher', () => {
+    const young = stateAt(3);
+    const locked = toEcosystemView(young, evaluate(young)).niches.find((n) => n.id === 'hollows')!;
     expect(locked.capacity).toBe(0);
-    expect(locked.unlockHint).toBe('Bewohner folgen bald');
+    expect(locked.unlockHint).toMatch(/^öffnet bei „Alter Baum“/);
+    const early = stateAt(3, ['barkbeetle']);
+    const open = toEcosystemView(early, evaluate(early)).niches.find((n) => n.id === 'hollows')!;
+    expect(open.capacity).toBe(1);
+    expect(open.animals).toEqual([]);
 
     withFakeSpecies([fakeSpecies({ id: 'test-owl', niche: 'hollows' })], () => {
       const state = stateAt(3, ['barkbeetle', 'test-owl']);
@@ -309,9 +330,9 @@ describe('toEncounterView', () => {
   });
 
   it('Neu würfeln gesperrt mit Grund, wenn keine anderen Tiere in Frage kommen', () => {
-    const state = stateAt(1);
+    const state = stateAt(1); // Keimling: nur Regenwurm, Wühlmaus und Pfifferling
     state.seeds = 1000;
-    state.pendingEncounters.push({ type: 'animal', cards: ['earthworm'], rerolls: 0 });
+    state.pendingEncounters.push({ type: 'animal', cards: ['earthworm', 'vole', 'chanterelle'], rerolls: 0 });
     const view = toEncounterView(state, 0)!;
     expect(view.canReroll).toBe(false);
     expect(view.rerollDisabledReason).toBe('Keine anderen Tiere verfügbar');
@@ -578,12 +599,16 @@ describe('Pflanzen: Begegnung „Etwas keimt“', () => {
     const state = withPlantEncounter(2, [], ['anemone', 'moss'], ['bee']);
     const [anemone, moss] = toEncounterView(state, 0)!.cards;
     expect(anemone!.effects).toEqual([
-      { label: '🌸 Nektar für Wildbiene', tone: 'good' },
-      { label: '🌱 bietet Kräuter', tone: 'neutral' },
-      { label: `${PLANT_GROUP_INFO.flowers.icon} Wildbiene wünscht sich Blumen`, tone: 'good' },
+      // Seit Schritt 2.2 profitieren mehr Arten (Tagpfauenauge, Wühlmaus, Reh, Glühwürmchen …).
+      { label: '🌸 Nektar für Wildbiene und Tagpfauenauge', tone: 'good' },
+      { label: '🌱 Kräuter für Wühlmaus, Reh und 2 weitere', tone: 'neutral' },
+      { label: `${PLANT_GROUP_INFO.flowers.icon} Wildbiene, Glühwürmchen und 2 weitere wünschen sich Blumen`, tone: 'good' },
     ]);
     // Der Regenwurm lebt noch nicht: neutral
-    expect(moss!.effects).toEqual([{ label: '💧 Feuchte für Regenwurm', tone: 'neutral' }]);
+    expect(moss!.effects).toEqual([
+      { label: '💧 Feuchte für Glühwürmchen, Regenwurm und 4 weitere', tone: 'neutral' },
+      { label: `${PLANT_GROUP_INFO.mosses.icon} Feuersalamander wünscht sich Moose & Farne`, tone: 'neutral' },
+    ]);
     expect(moss!.facts![3]).toMatchObject({ label: 'speichert Wasser', value: '+2', text: 'speichert 2 Wasser' });
     expect(plantProvidesViews(PLANTS_BY_ID.get('moss')!, stateAt(1, ['earthworm']))[0]!.tone).toBe('good');
   });

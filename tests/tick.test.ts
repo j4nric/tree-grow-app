@@ -61,14 +61,16 @@ describe('tick', () => {
     expect(state.waypoint).toBe(0);
   });
 
-  it('erster Wegpunkt nach ~4 s: Keimling und eine Begegnung mit dem Regenwurm', () => {
+  it('erster Wegpunkt nach ~4 s: Keimling und eine Begegnung mit den Wurzelraum-Gästen', () => {
     const state = createInitialState(0, 42);
     const report = tick(state, 4);
     expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0 });
     expect(state.waypoint).toBe(1);
     expect(state.stage).toBe(1);
-    // Im Keimling ist nur der Regenwurm freigeschaltet → genau eine Karte.
-    expect(state.pendingEncounters).toEqual([{ type: 'animal', cards: ['earthworm'], rerolls: 0 }]);
+    // Im Keimling sind nur Regenwurm, Wühlmaus und Pfifferling freigeschaltet → genau diese drei.
+    expect(state.pendingEncounters).toHaveLength(1);
+    expect(state.pendingEncounters[0]).toMatchObject({ type: 'animal', rerolls: 0 });
+    expect([...state.pendingEncounters[0]!.cards].sort()).toEqual(['chanterelle', 'earthworm', 'vole']);
   });
 
   it('über mehrere Wegpunkte in einem Schritt: jeder Wegpunkt wird einzeln gezählt', () => {
@@ -94,9 +96,9 @@ describe('tick', () => {
   });
 
   it('Tierbegegnung ohne passende Art wird zu „Etwas keimt“', () => {
-    // Wegpunkt 1 (Tier, festgelegt), aber der einzige Keimling-Gast lebt schon hier.
+    // Wegpunkt 1 (Tier, festgelegt), aber alle Keimling-Gäste leben schon hier.
     const state = createInitialState(0, 8);
-    state.niches.roots.push('earthworm');
+    state.niches.roots.push('earthworm', 'vole', 'chanterelle');
     state.totalGrowth = thresholdFor(1) - 0.001;
     const report = tick(state, 1);
     expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0 });
@@ -224,6 +226,25 @@ describe('simulateOffline', () => {
     expect(offline.seeds).toBeCloseTo(online.seeds, 6);
   });
 
+  it('gleich mit Fähigkeiten, Störung, Erscheinungsbedingungen und Glückspilz (Schritt 2.2)', () => {
+    // Alter Baum: Fliegenpilz (Glückspilz) verschiebt die Seltenheit, Wühlmaus lässt den
+    // Waldkauz erscheinen, Eichhörnchen stört, Hallimasch hält die Versorgung oben.
+    const online = stateAt(4, ['flyagaric', 'vole', 'squirrel', 'bluetit', 'honeyfungus', 'barkbeetle'], 777);
+    online.plants = ['birch', 'birch', 'birch'];
+    const ev = evaluate(online);
+    expect(ev.abilities).toEqual(['rarityBoost', 'minSupply']);
+    expect(ev.supply).toBe(0.9);
+    const offline = structuredClone(online);
+    for (let i = 0; i < 3 * 3600; i++) tick(online, 1);
+    simulateOffline(offline, 3 * 3600);
+    expect(online.stage).toBeGreaterThanOrEqual(5);
+    expect(offline.waypoint).toBe(online.waypoint);
+    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
+    expect(offline.rngState).toBe(online.rngState);
+    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
+    expect(offline.seeds).toBeCloseTo(online.seeds, 6);
+  });
+
   it('gleich mit Platz-Schaffern (Borkenkäfer öffnet Höhlen) über den Alten Baum hinaus', () => {
     const online = stateAt(3, ['barkbeetle', 'earthworm'], 4242);
     const offline = structuredClone(online);
@@ -305,53 +326,68 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       harmony: Math.round(ev.harmony * 100) / 100,
     }).toMatchInlineSnapshot(`
       {
-        "harmony": 67.48,
+        "harmony": 71.71,
         "journal": [
           "earthworm",
-          "robin",
-          "bee",
           "woodlouse",
-          "oakmoth",
-          "bluetit",
+          "vole",
+          "mole",
           "centipede",
           "woodpecker",
-          "barkbeetle",
+          "bluetit",
+          "oakmoth",
+          "owl",
+          "bee",
+          "tinder",
+          "deer",
+          "chanterelle",
+          "hedgehog",
+          "bat",
+          "peacock",
+          "porcini",
         ],
         "niches": {
           "bark": [
             "woodpecker",
-            "barkbeetle",
+            "tinder",
           ],
           "crown": [
-            "oakmoth",
             "bluetit",
+            "oakmoth",
           ],
           "edge": [
             "bee",
+            "deer",
+            "peacock",
           ],
-          "hollows": [],
+          "hollows": [
+            "owl",
+            "bat",
+          ],
           "litter": [
             "woodlouse",
             "centipede",
-            "robin",
+            "hedgehog",
           ],
           "roots": [
-            "earthworm",
+            "porcini",
+            "vole",
+            "chanterelle",
           ],
         },
         "plants": [
-          "fern",
+          "rowan",
           "hazel",
           "hazel",
-          "fern",
+          "hazel",
           "hazel",
           "hazel",
           "hazel",
         ],
-        "rngState": 797569569,
-        "seeds": 56444,
+        "rngState": 2877323870,
+        "seeds": 58238,
         "stage": 5,
-        "totalGrowth": 230663,
+        "totalGrowth": 239421,
         "waypoint": 26,
       }
     `);

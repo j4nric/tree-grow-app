@@ -6,6 +6,7 @@
  * Hier stehen nur Anzeige-Entscheidungen (Texte, Symbole, Reihenfolge). Alle Zahlen
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
+import { ABILITY_INFO } from '../content/abilities';
 import { NICHES, NICHES_BY_ID } from '../content/niches';
 import { PLANT_GROUP_INFO, PLANTS_BY_ID, type Plant } from '../content/plants';
 import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
@@ -34,6 +35,7 @@ import {
   previewPlant,
   rerollCost,
   secondsToNextWaypoint,
+  slotEffects,
   waypointProgress,
   type AnimalStatus,
   type ChoiceError,
@@ -129,6 +131,12 @@ export function conditionName(condition: Condition): string {
       return condition.min > 1 ? `${condition.min}× ${GROUP_NAMES[condition.group]}` : GROUP_NAMES[condition.group];
     case 'sunny':
       return 'sonniger Platz';
+    case 'shady':
+      return 'schattiger Platz';
+    case 'species':
+      return SPECIES_BY_ID.get(condition.id)?.name ?? PLANTS_BY_ID.get(condition.id)?.name ?? condition.id;
+    case 'genus':
+      return `${condition.min > 1 ? `${condition.min}× ` : ''}${GENUS_INFO[condition.genus].name}`;
   }
 }
 
@@ -140,6 +148,12 @@ function conditionIcon(condition: Condition): string {
       return GROUP_ICONS[condition.group];
     case 'sunny':
       return '☀️';
+    case 'shady':
+      return '🌲';
+    case 'species':
+      return SPECIES_BY_ID.has(condition.id) ? GENUS_INFO[SPECIES_BY_ID.get(condition.id)!.genus].icon : '🌱';
+    case 'genus':
+      return GENUS_INFO[condition.genus].icon;
   }
 }
 
@@ -206,6 +220,16 @@ export function effectView(effect: Effect): EffectView {
         label: `${sign(effect.amount)}${formatNumber(Math.abs(effect.amount))} ${places} ${name}`,
         tone: effect.amount < 0 ? 'bad' : 'good',
       };
+    }
+    case 'harmony':
+      return { label: `${sign(effect.points)}${formatNumber(Math.abs(effect.points))} ⚖️`, tone: effect.points < 0 ? 'bad' : 'good' };
+    case 'disturb':
+      return { label: `stört ${SPECIES_BY_ID.get(effect.target)?.name ?? effect.target}`, tone: 'bad' };
+    case 'ability': {
+      const info = ABILITY_INFO[effect.id];
+      // Lebensgemeinschaften kommen erst mit Schritt 2.3 – bis dahin wirkt Lichterabend nicht.
+      const soon = effect.id === 'communityBoost' ? ' (bald)' : '';
+      return { label: `${info.name}: ${info.text}${soon}`, tone: 'good' };
     }
   }
 }
@@ -324,7 +348,7 @@ export function moodText(species: Species, status: AnimalStatus | undefined, pre
 
 /** Namen der Arten, die in dieser Nische Plätze schaffen (Wirkung `slot`). */
 function slotProviders(nicheId: NicheId): string[] {
-  return SPECIES.filter((s) => s.effects.some((e) => e.kind === 'slot' && e.niche === nicheId && e.amount > 0)).map(
+  return SPECIES.filter((s) => slotEffects(s).some((e) => e.niche === nicheId && e.amount > 0)).map(
     (s) => s.name,
   );
 }
@@ -365,6 +389,8 @@ export function harmonyParts(evaluation: Readonly<Evaluation>): HarmonyPartView[
     { label: 'Nahrungspyramide', value: evaluation.breakdown.pyramid + penalty },
   ];
   if (penalty > 0) parts.push({ label: 'Unbewachte Schädlinge', value: -penalty });
+  // Harmonie-Wirkungen besonderer Arten (Glühwürmchen, Hirschkäfer).
+  if (evaluation.breakdown.extra !== 0) parts.push({ label: 'Besondere Arten', value: evaluation.breakdown.extra });
   return parts;
 }
 

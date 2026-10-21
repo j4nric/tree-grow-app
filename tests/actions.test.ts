@@ -404,23 +404,23 @@ describe('rerollEncounter', () => {
   });
 
   it('füllt mit alten Karten auf, wenn zu wenige andere Arten passen', () => {
-    // Setzling: nur Rotkehlchen, Wildbiene, Regenwurm, Rollassel kommen in Frage.
+    // Keimling: nur Regenwurm, Wühlmaus und Pfifferling (Wurzelraum) kommen in Frage.
     for (let seed = 1; seed <= 20; seed++) {
-      const state = stateAt(2, [], seed);
-      state.pendingEncounters.push({ type: 'animal', cards: ['robin', 'bee', 'earthworm'], rerolls: 0 });
+      const state = stateAt(1, [], seed);
+      state.pendingEncounters.push({ type: 'animal', cards: ['earthworm', 'vole'], rerolls: 0 });
       state.seeds = 1000;
       expect(canReroll(state, 0)).toBe(true);
       expect(rerollEncounter(state, 0).ok).toBe(true);
       const cards = state.pendingEncounters[0]!.cards;
-      expect(cards[0]).toBe('woodlouse'); // die neue Art zuerst
+      expect(cards[0]).toBe('chanterelle'); // die neue Art zuerst
       expect(cards).toHaveLength(3);
       expect(new Set(cards).size).toBe(3);
     }
   });
 
   it('dieselben Karten wären das Ergebnis: kostet nichts, Zufall bleibt unverändert', () => {
-    const state = stateAt(1); // Keimling: nur der Regenwurm
-    state.pendingEncounters.push({ type: 'animal', cards: ['earthworm'], rerolls: 0 });
+    const state = stateAt(1); // Keimling: nur Regenwurm, Wühlmaus und Pfifferling
+    state.pendingEncounters.push({ type: 'animal', cards: ['earthworm', 'vole', 'chanterelle'], rerolls: 0 });
     state.seeds = 100;
     const before = structuredClone(state);
     expect(rerollBlocker(state, 0)).toBe('no-alternatives');
@@ -450,7 +450,8 @@ describe('rerollEncounter', () => {
   });
 
   it('keine Art verfügbar: kostet nichts, Zufall bleibt unverändert', () => {
-    const state = stateAt(1, ['earthworm']); // Keimling: nur der Regenwurm, und der lebt schon hier
+    // Keimling: nur Regenwurm, Wühlmaus und Pfifferling – alle leben schon hier.
+    const state = stateAt(1, ['earthworm', 'vole', 'chanterelle']);
     state.pendingEncounters.push({ type: 'animal', cards: ['earthworm'], rerolls: 0 });
     state.seeds = 100;
     const before = structuredClone(state);

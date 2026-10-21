@@ -10,11 +10,12 @@ import {
 } from '../src/content/encounters';
 import { NICHES, NICHES_BY_ID } from '../src/content/niches';
 import { PLANTS, PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, PLANT_GROUP_INFO } from '../src/content/plants';
-import { BASE_HAPPINESS, GENUS_INFO, RARITY_NAMES, SPECIES, TAG_NAMES } from '../src/content/species';
+import { ABILITY_INFO } from '../src/content/abilities';
+import { BASE_HAPPINESS, GENUS_INFO, RARITY_NAMES, SPECIES, SPECIES_BY_ID, TAG_NAMES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../src/content/traits';
 import { ENCOUNTER_TYPES, GENERA, NICHE_IDS, PLANT_GROUPS } from '../src/content/types';
-import { plantCost } from '../src/core/formulas';
+import { plantCost, slotEffects } from '../src/core/formulas';
 import { WAYPOINT_BASE, WAYPOINT_COUNT, WAYPOINT_POWER, WAYPOINT_THRESHOLDS, waypointThreshold } from '../src/content/waypoints';
 import * as reference from '../scripts/v2/content';
 
@@ -32,11 +33,43 @@ describe('Inhalte v2', () => {
     expect(unique([...SPECIES.map((s) => s.id), ...PLANTS.map((p) => p.id)])).toBe(true);
   });
 
-  it('der Prototyp hat 3 Gattungen × 3 Arten, je mindestens 2 gewöhnliche', () => {
+  it('32 Arten in 5 Gattungen (6–8 je Gattung), Seltenheit 14 / 8 / 5 / 5 (DESIGN_V2.md 5.2)', () => {
+    expect(SPECIES).toHaveLength(32);
+    expect(GENERA).toEqual(['birds', 'insects', 'mammals', 'soil', 'fungi']);
     for (const g of GENERA) {
       const of = SPECIES.filter((s) => s.genus === g);
-      expect(of).toHaveLength(3);
-      expect(of.filter((s) => s.rarity === 0).length).toBeGreaterThanOrEqual(2);
+      expect(of.length, g).toBeGreaterThanOrEqual(5);
+      expect(of.length, g).toBeLessThanOrEqual(8);
+      expect(of.filter((s) => s.rarity === 0).length, g).toBeGreaterThanOrEqual(2);
+      // Jede Gattung hat genau eine legendäre Art, frühestens ab dem Hain.
+      const legendary = of.filter((s) => s.rarity === 3);
+      expect(legendary, g).toHaveLength(1);
+      expect(legendary[0]!.unlock, g).toBeGreaterThanOrEqual(5);
+      expect(GENUS_INFO[g].name.length).toBeGreaterThan(0);
+      expect(GENUS_INFO[g].icon.length).toBeGreaterThan(0);
+    }
+    expect([0, 1, 2, 3].map((r) => SPECIES.filter((s) => s.rarity === r).length)).toEqual([14, 8, 5, 5]);
+    // Dieselben IDs wie das Referenzmodell – die Grafik-Ebene erwartet sie.
+    expect(SPECIES.map((s) => s.id).sort()).toEqual(reference.SPECIES.map((s) => s.id).sort());
+  });
+
+  it('besondere und legendäre Arten haben Erscheinungsbedingung und Fähigkeit, die übrigen nicht', () => {
+    for (const s of SPECIES) {
+      const abilities = s.effects.filter((e) => e.kind === 'ability');
+      if (s.rarity >= 2) {
+        expect(s.appears?.length, `${s.id}: erscheint, wenn …`).toBeGreaterThan(0);
+        expect(abilities, `${s.id}: Fähigkeit`).toHaveLength(1);
+      } else {
+        expect(s.appears, s.id).toBeUndefined();
+        expect(abilities, s.id).toHaveLength(0);
+      }
+    }
+    // Jede Fähigkeit gehört zu genau einer Art und hat Name und Text.
+    const used = SPECIES.flatMap((s) => s.effects.flatMap((e) => (e.kind === 'ability' ? [e.id] : [])));
+    expect([...used].sort()).toEqual(Object.keys(ABILITY_INFO).sort());
+    for (const info of Object.values(ABILITY_INFO)) {
+      expect(info.name.length).toBeGreaterThan(0);
+      expect(info.text.length).toBeGreaterThan(0);
     }
   });
 
@@ -51,13 +84,18 @@ describe('Inhalte v2', () => {
       // Die Nische ist offen, sobald die Art freigeschaltet ist.
       expect(NICHES_BY_ID.get(s.niche)!.slots[s.unlock], `${s.id}: Nische offen ab unlock`).toBeGreaterThan(0);
       for (const t of [...s.food, ...s.provides]) expect(TAG_NAMES[t], `${s.id}: Merkmal ${t}`).toBeDefined();
-      for (const c of s.needs) {
+      for (const c of [...s.needs, ...(s.appears ?? [])]) {
         if (c.kind === 'tag') expect(TAG_NAMES[c.tag]).toBeDefined();
         if (c.kind === 'group') expect(PLANT_GROUPS).toContain(c.group);
+        if (c.kind === 'species') expect(SPECIES_BY_ID.has(c.id) || PLANTS_BY_ID.has(c.id), `${s.id}: ${c.id}`).toBe(true);
+        if (c.kind === 'species') expect(c.id, s.id).not.toBe(s.id);
+        if (c.kind === 'genus') expect(GENERA).toContain(c.genus);
       }
       for (const e of s.effects) {
         if (e.kind === 'control') expect(TAG_NAMES[e.tag]).toBeDefined();
         if (e.kind === 'groupSeeds' || e.kind === 'groupGrowth') expect(PLANT_GROUPS).toContain(e.group);
+        if (e.kind === 'disturb') expect(SPECIES_BY_ID.has(e.target) && e.target !== s.id, `${s.id}: stört ${e.target}`).toBe(true);
+        if (e.kind === 'ability') expect(ABILITY_INFO[e.id], `${s.id}: ${e.id}`).toBeDefined();
       }
       expect(s.food.length).toBeGreaterThan(0);
       expect(s.summary.length).toBeGreaterThan(0);
@@ -82,6 +120,7 @@ describe('Inhalte v2', () => {
         text: ref.text,
       });
       expect(s.effects).toEqual(ref.effects);
+      expect(s.appears, s.id).toEqual(ref.appears);
     }
     expect(PLANTS.map((p) => p.id)).toEqual(reference.PLANTS.map((p) => p.id));
     for (const p of PLANTS) {
@@ -106,11 +145,13 @@ describe('Inhalte v2', () => {
     expect([...NICHE_IDS]).toEqual([...reference.NICHES]);
     for (const n of NICHES) expect(n.slots).toEqual(reference.NICHE_SLOTS[n.id]);
     for (const g of GENERA) expect(TRAITS[g].map((t) => t.effects)).toEqual(reference.TRAITS[g]);
+    for (const g of GENERA) expect(TRAITS[g].map((t) => t.text)).toEqual(reference.TRAIT_TEXT[g]);
+    for (const g of GENERA) expect(GENUS_INFO[g].name).toBe(reference.GENUS_NAMES[g]);
     expect(TRAIT_THRESHOLDS).toEqual(reference.TRAIT_THRESHOLDS);
     expect(RARITY_WEIGHTS).toEqual(reference.RARITY_WEIGHTS);
     expect(WAYPOINT_COUNT).toBe(reference.WAYPOINT_COUNT);
-    // Exponent wie im Design. Bewusste Abweichung: Mit 9 statt 32 Arten liegen die
-    // Wegpunkte um 12,5 % früher (Basis 3,5 statt 4, DESIGN_V2.md 15.4) – nie später.
+    // Exponent wie im Design. Bewusste Abweichung: Wegpunkte 12,5 % früher (Basis 3,5
+    // statt 4, DESIGN_V2.md 15.4) – nie später.
     expect(WAYPOINT_POWER).toBe(reference.WAYPOINT_POWER);
     expect(WAYPOINT_BASE).toBeLessThanOrEqual(reference.WAYPOINT_BASE);
     for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(waypointThreshold(k)).toBeLessThanOrEqual(reference.waypointThreshold(k));
@@ -121,16 +162,16 @@ describe('Inhalte v2', () => {
     expect(hollows.slots.findIndex((n) => n > 0)).toBe(4);
     expect(hollows.opensEarly).toBe(true);
     expect(NICHES.filter((n) => n.opensEarly).map((n) => n.id)).toEqual(['hollows']);
-    const slotGivers = SPECIES.filter((s) => s.effects.some((e) => e.kind === 'slot')).map((s) => s.id);
-    expect(slotGivers.sort()).toEqual(['barkbeetle', 'woodpecker']);
+    const slotGivers = SPECIES.filter((s) => slotEffects(s).length > 0).map((s) => s.id);
+    expect(slotGivers.sort()).toEqual(['barkbeetle', 'blackwoodpecker', 'woodpecker']);
     for (const s of SPECIES) {
-      for (const e of s.effects) if (e.kind === 'slot') expect(NICHES_BY_ID.has(e.niche) && e.amount > 0).toBe(true);
+      for (const e of slotEffects(s)) expect(NICHES_BY_ID.has(e.niche) && e.amount > 0).toBe(true);
     }
   });
 
   it('Platz-Wirkungen betreffen nie die eigene Nische (sonst könnte eine Art sich selbst Platz machen)', () => {
     for (const s of SPECIES) {
-      for (const e of s.effects) if (e.kind === 'slot') expect(e.niche, s.id).not.toBe(s.niche);
+      for (const e of slotEffects(s)) expect(e.niche, s.id).not.toBe(s.niche);
     }
   });
 
