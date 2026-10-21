@@ -488,8 +488,8 @@ describe('Stimmung: Gründe unter 70 %', () => {
     expect(moodText(moth, low)).toBe('ist auf der Hut');
   });
 
-  it('Störer (ab Schritt 2.2: AnimalStatus.disturbers): „wird gestört von …“', () => {
-    const noisy = fakeSpecies({ id: 'jay', name: 'Eichelhäher', niche: 'crown', level: 'herbivore', food: ['nuesse'], effects: [{ kind: 'disturb', target: 'oakmoth' } as never] });
+  it('Störer (AnimalStatus.disturbers): „wird gestört von …“', () => {
+    const noisy = fakeSpecies({ id: 'jay', name: 'Eichelhäher', niche: 'crown', level: 'herbivore', food: ['nuesse'], effects: [{ kind: 'disturb', target: 'oakmoth' }] });
     withFakeSpecies([noisy], () => {
       const moth = SPECIES_BY_ID.get('oakmoth')!;
       const present = ['oakmoth', 'jay', 'bluetit'];
@@ -497,14 +497,13 @@ describe('Stimmung: Gründe unter 70 %', () => {
       const status = { happiness: 0.6, food: 1, needs: [], hunters: 1, disturbers: 1 };
       expect(moodText(moth, status, present)).toBe('wird gestört von Eichelhäher · ist auf der Hut vor Blaumeise');
       expect(moodText(moth, status)).toBe('wird gestört · ist auf der Hut');
-      // Ohne das Feld (Stand vor 2.2) bleibt alles wie bisher.
-      expect(moodText(moth, { happiness: 0.9, food: 1, needs: [], hunters: 0 }, present)).toBe('fühlt sich wohl');
+      expect(moodText(moth, { happiness: 0.9, food: 1, needs: [], hunters: 0, disturbers: 0 }, present)).toBe('fühlt sich wohl');
     });
   });
 
   it('ab 70 % nur der wichtigste Grund, darunter höchstens zwei', () => {
     const species = SPECIES_BY_ID.get('bluetit')!;
-    const status = { happiness: 0.8, food: 0.5, needs: [false, false], hunters: 1 };
+    const status = { happiness: 0.8, food: 0.5, needs: [false, false], hunters: 1, disturbers: 0 };
     expect(moodText(species, status)).toBe('wünscht sich 2× Bäume');
     expect(moodText(species, { ...status, happiness: 0.3 })).toBe('wünscht sich 2× Bäume · wünscht sich Baumhöhle');
   });

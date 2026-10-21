@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
+import { SPECIES_BY_ID } from '../src/content/species';
 import {
   dialog,
   expect,
@@ -148,7 +149,11 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
   await expect(stageLabel(page)).toHaveText('Stufe: Alter Baum');
   const chosen = decisions.filter((d) => d.chosen && d.kind === 'animal');
   expect(chosen.length, `ein vernünftiger Spieler findet mehrere passende Tiere: ${JSON.stringify(decisions)}`).toBeGreaterThanOrEqual(4);
-  expect(decisions[0]!.offered, 'die erste Begegnung ist immer der Regenwurm').toEqual(['earthworm']);
+  // Die erste Begegnung (Keimling) ist ein Tier – nur Arten, die schon am Keimling leben können.
+  expect(decisions[0]!.kind, 'die erste Begegnung ist ein Tier').toBe('animal');
+  for (const id of decisions[0]!.offered) {
+    expect(SPECIES_BY_ID.get(id)?.unlock, `${id} an der ersten Begegnung`).toBeLessThanOrEqual(1);
+  }
   // Wegpunkt 2 bringt immer „Etwas keimt“ – ab dann wächst mindestens eine Begleitpflanze.
   expect(decisions[1]!.kind, 'die zweite Begegnung ist eine Pflanze').toBe('plant');
   const plantsChosen = decisions.filter((d) => d.chosen && d.kind === 'plant');

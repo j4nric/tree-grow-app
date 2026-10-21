@@ -274,22 +274,13 @@ export function huntersOf(species: Species, present: readonly string[]): string[
 
 /**
  * Anwesende Arten, die diese Art stören (Wirkung `disturb` mit `target` = diese Art) – nur
- * für die Namen; die Anzahl liefert der Kern ab Schritt 2.2 in `AnimalStatus.disturbers`.
- * Defensiv gelesen, damit es auch mit Ständen ohne diese Wirkung funktioniert.
+ * für die Namen; die Anzahl (und damit den Abzug) liefert der Kern in `AnimalStatus.disturbers`.
  */
 export function disturbersOf(species: Species, present: readonly string[]): string[] {
   return present.filter((id) => {
     if (id === species.id) return false;
-    const effects = (SPECIES_BY_ID.get(id)?.effects ?? []) as readonly { kind: string; target?: string }[];
-    return effects.some((e) => e.kind === 'disturb' && e.target === species.id);
+    return (SPECIES_BY_ID.get(id)?.effects ?? []).some((e) => e.kind === 'disturb' && e.target === species.id);
   });
-}
-
-/** Anzahl der Störer aus dem Kern (Feld ab Schritt 2.2; fehlt es, 0). */
-function disturberCount(status: AnimalStatus): number {
-  const n = (status as AnimalStatus & { disturbers?: unknown }).disturbers;
-  if (typeof n === 'number' && Number.isFinite(n)) return n;
-  return Array.isArray(n) ? n.length : 0;
 }
 
 /** Erklärung für knappes Futter: „teilt sich das Futter mit Amsel“ oder „wenig Futter da“. */
@@ -315,7 +306,7 @@ export function moodReasons(species: Species, status: AnimalStatus, present: rea
   species.needs.forEach((need, i) => {
     if (!status.needs[i]) reasons.push(`wünscht sich ${conditionName(need)}`);
   });
-  if (disturberCount(status) > 0) {
+  if (status.disturbers > 0) {
     const names = named(disturbersOf(species, present));
     reasons.push(names.length > 0 ? `wird gestört von ${listNames(names)}` : 'wird gestört');
   }
