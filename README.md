@@ -16,6 +16,7 @@ npm run balance # großer Balancing-Lauf: 500 Durchgänge, alle Tabellen (DESIGN
 
 - [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) – Spielregeln, Zahlen, geplante Systeme
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) – Aufgaben nach Phasen
+- [`docs/KONTO.md`](docs/KONTO.md) – optionales Konto mit Gerätesync (Sync-Server in `server/`)
 - [`CLAUDE.md`](CLAUDE.md) – Architektur und Regeln für Entwickler und Claude-Agenten
 
 ## Mit Claude-Agenten arbeiten

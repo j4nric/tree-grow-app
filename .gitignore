@@ -4,6 +4,8 @@ dist/
 .DS_Store
 test-results/
 playwright-report/
+# Server-Einstellungen auf dem vServer (aus deploy/.env.example)
+deploy/.env
 blob-report/
 
 # Temporäre Worktrees von Claude-Subagenten

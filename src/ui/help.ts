@@ -265,6 +265,8 @@ export interface Help {
   readonly open: boolean;
   /** Hinweis im offenen Dialog zeigen; false, wenn keiner offen ist. */
   notice(text: string): boolean;
+  /** Weiterer Abschnitt am Ende der Einstellungen (z. B. „Konto“). */
+  addSettingsSection(section: HTMLElement): void;
 }
 
 export interface HelpOptions {
@@ -342,6 +344,9 @@ export function createHelp(root: HTMLElement, prefs: Preferences, options: HelpO
       if (!modal) return false;
       modal.notice(text);
       return true;
+    },
+    addSettingsSection(section) {
+      settings.body.append(section);
     },
   };
 }
