@@ -170,7 +170,9 @@ test('Stammgast zieht bei offenem Tagebuch ein: Hinweis im Dialog, kein Toast, �
   await expect(journal(page).locator('.encounter-notice')).toHaveText('Stammgast Rotkehlchen ist eingezogen.');
   await expect(robin).toContainText('lebt gerade hier');
   await expect(page.locator('#live-status')).toHaveText('');
-  await expect(page.locator('#toast')).toBeHidden();
+  // Der v3-Stand mit Waldgedächtnis zeigt beim Laden den Hinweis zur Neugewichtung (2.10);
+  // der Einzug selbst darf keinen Toast auslösen.
+  await expect(page.locator('#toast')).not.toContainText('Rotkehlchen');
   await expect(page.locator('.float-note')).toHaveCount(0);
   expect((await savedState(page)).niches.litter).toEqual(['robin']);
 });
