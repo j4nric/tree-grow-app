@@ -120,9 +120,17 @@ export function nicheAnchors(width: number, height: number, growth: number, slot
  * Gras, Laub und Blumen-Füße), alles Sichtbare des Tümpels samt Bewohnern liegt tiefer.
  * Die Tiere und Pflanzen an der Oberfläche reichen höchstens POND_SURFACE_CLEAR unter die
  * Bodenlinie, die Wurzelraum-Tiere liegen tiefer als POND_DEPTH (Tests in
- * tests/render-anchors.test.ts). Seggen wachsen nur in der Senke, nie über die Narbe.
+ * tests/render-anchors.test.ts).
+ *
+ * Tiefer darf die Senke nicht werden (schmal liegt Wurzelraum-Platz 2 knapp darunter),
+ * darum wächst sie in die Breite: so breit, dass fünf Bewohner nebeneinander Platz haben
+ * (POND_HALF_WIDTH_MAX), höchstens bis kurz vor den Stamm, mindestens POND_HALF_WIDTH.
  */
 export const POND_HALF_WIDTH = 1.9;
+/** Halbe Breite, in der fünf Bewohner in voller Größe nebeneinander passen. */
+export const POND_HALF_WIDTH_MAX = 3.4;
+/** So viel Abstand (Tiergrößen) hält der rechte Rand der Senke von der Stammmitte. */
+const POND_TRUNK_CLEAR = 1.2;
 /** Oberkante der Senke (unter der Bodenlinie). */
 export const POND_LIP = 0.25;
 /** Wasseroberfläche. */
@@ -142,18 +150,33 @@ export interface PondGeometry {
   size: number;
   /** Wasseroberfläche (CSS-Pixel). */
   waterY: number;
+  /** Halbe Breite der Senke in Tiergrößen (auf 0,05 gerundet – wenige Sprite-Varianten). */
+  halfWidth: number;
+  /**
+   * Größte Zeichengröße der Amphibien relativ zu S: Auf kleinen Bildschirmen (S < 30 px)
+   * etwas größer, damit sie lesbar bleiben; bei vielen Bewohnern rücken sie enger und
+   * werden notfalls kleiner (animals.ts, `pondPlaces`).
+   */
+  maxScale: number;
 }
 
 /** Lage des Waldtümpels – hängt nur von der Canvas-Größe ab (nicht vom Wachstum). */
 export function pondGeometry(layout: Layout, size: number): PondGeometry {
-  const x = Math.min(layout.cx - size, POND_HALF_WIDTH * size + size * 0.1);
+  const margin = size * 0.1;
+  const room = (layout.cx - POND_TRUNK_CLEAR * size - margin) / (2 * size);
+  const halfWidth = Math.floor(clamp(room, POND_HALF_WIDTH, POND_HALF_WIDTH_MAX) * 20) / 20;
+  const x = Math.min(layout.cx - size, halfWidth * size + margin);
   const y = layout.groundY;
-  return { x, y, size, lipY: y + POND_LIP * size, waterY: y + POND_WATER_Y * size };
+  const maxScale = Math.round(clamp(30 / size, 1, 1.2) * 20) / 20;
+  return { x, y, size, lipY: y + POND_LIP * size, waterY: y + POND_WATER_Y * size, halfWidth, maxScale };
 }
 
-/** Plätze im Tümpel: waagerechter Versatz in Tiergrößen (die Art entscheidet, ob sie taucht). */
-// Höchstens ±1,25: Kröte bzw. Frosch samt Wasser davor (±0,58) bleiben in der Senke.
-const POND_SLOTS = [-0.8, 0.75, -0.05, 1.25, -1.25];
+/**
+ * Nominelle Plätze im Tümpel: waagerechter Versatz als Anteil der nutzbaren halben Breite.
+ * Wo ein Tier tatsächlich sitzt, hängt von allen Bewohnern ab (animals.ts, `pondPlaces`):
+ * Kröte und Frösche an den flachen Rändern, Molche nebeneinander in der Mitte.
+ */
+const POND_SLOTS = [-0.8, 0.75, -0.05, 1, -1];
 
 // ---------------------------------------------------------------------------
 
@@ -266,7 +289,7 @@ function computeAnchor(
     case 'pond': {
       const pond = pondGeometry(layout, size);
       const off = POND_SLOTS[slot % POND_SLOTS.length]!;
-      const u = off - Math.sign(off) * 0.2 * Math.floor(slot / POND_SLOTS.length);
+      const u = (off - Math.sign(off) * 0.1 * Math.floor(slot / POND_SLOTS.length)) * (pond.halfWidth - 0.6);
       // Zum Stamm hin schauen: Plätze links der Mitte blicken nach rechts.
       a = { ...base, x: pond.x + u * size, y: pond.waterY, side: u < 0 ? -1 : 1 };
       break;

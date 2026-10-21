@@ -464,12 +464,23 @@ Breite). Der Tümpel liegt darum als Senke **unter der Grasnarbe** im Erdschnitt
 Bildrand: Die Mulde beginnt 0,25 Tiergrößen unter der Bodenlinie, das Wasser bei 0,55,
 der Grund bei 1,0 – darüber stehen Gras, Laub, Blumen, Pflanzen und Tiere der Oberfläche
 unverändert, darunter liegen die Wurzelraum-Tiere. Seggen und Rohrkolben wachsen nur in
-der Mulde. Kröte und Frosch stehen im flachen Wasser (der Kopf bleibt unter der Narbe),
-der Molch schwimmt in der Mitte. Gezeichnet wird der Tümpel in der Tier-Ebene nach dem
+der Mulde. Kröte und Frösche stehen im flachen Wasser (der Kopf bleibt unter der Narbe),
+die Molche schwimmen in der Mitte. Tiefer darf die Mulde nicht werden (schmal liegt ein
+Wurzelraum-Platz knapp darunter), darum ist sie so breit, dass fünf Bewohner nebeneinander
+Platz haben: halbe Breite 3,4 Tiergrößen, höchstens bis 1,2 Tiergrößen vor die Stammmitte,
+mindestens 1,9 (1280 px: ~245 px, 390 px: ~157 px; flacher Grund, steile Ränder). Die Lage
+der Bewohner hängt von allen Bewohnern ab (`pondPlaces` in `animals.ts`, nur beim Neuaufbau
+des Plans berechnet): Kröte und Frösche nach Platz abwechselnd am linken und rechten Rand,
+von außen nach innen, zur Mitte blickend; die Molche gleichmäßig verteilt in der tiefen
+Mitte, jeder in einem eigenen Streifen, leicht höhenversetzt, und sie wenden um die eigene
+Körpermitte. Auf kleinen Bildschirmen (Tiergröße < 30 px) zeichnen sich Amphibien bis zu
+20 % größer; passen nicht alle hinein, werden alle gemeinsam kleiner (höchstens um ein
+Fünftel, 320 px mit fünf Bewohnern: 19 px). Gezeichnet wird der Tümpel in der Tier-Ebene nach dem
 Wurzelraum (Erdlöcher, Pilzgeflecht läuft hinter der Senke weiter) und vor allen übrigen
 Tieren; ein gecachtes Sprite, im Winter mit überblendeter Eisdecke, Lage gemerkt
 (`AnchorResolver.pond()`). Tests: keine Überlappung mit Laubstreu, Waldsaum, Wurzelraum
-und den 14 Begleitpflanzen bei 320×480 bis 1920×1080, Stufen 4–8
+und den 14 Begleitpflanzen bei 320×480 bis 1920×1080, Stufen 4–8, und keine Überlappung
+der Bewohner untereinander für 1–5 Bewohner in allen Belegungen
 (`tests/render-anchors.test.ts`). Unbekannte Amphibien bekommen die Zeichnung der Kröte.
 Ist der Tümpel offen, aber noch keine Amphibie freigeschaltet (Regen im Jungen Baum),
 zeigt die Seitenleiste „Bewohner ab „Alter Baum““. Pflege mit Plätzen lässt passende
@@ -2225,9 +2236,11 @@ Tabelle oben.
   schwimmen in der Mitte). Ohne Zoom sind die Tiere auf dem Handy kaum zu erkennen. Offen
   für den `renderer` (siehe unten).
 
-**Offen:** (1) `renderer`: Tümpel mit der Zahl der Plätze breiter zeichnen oder Plätze 3–4 ans
+**Offen:** (1) ~~`renderer`: Tümpel mit der Zahl der Plätze breiter zeichnen oder Plätze 3–4 ans
 Ufer setzen, zwei schwimmende Molche nicht auf dieselbe Stelle legen; auf schmalen Bildschirmen
-Amphibien größer. (2) Stammgäste: Der Harmonie-Spieler wählt 0,15 Amphibien je Neustart als
+Amphibien größer.~~ Umgesetzt: breitere Senke für fünf Bewohner, Frösche und Kröte an den
+Rändern, Molche in eigenen Streifen, kleine Bildschirme bis 20 % größere Amphibien (5.5,
+„Darstellung“). (2) Stammgäste: Der Harmonie-Spieler wählt 0,15 Amphibien je Neustart als
 Stammgast – sie ziehen erst ein, wenn der Tümpel wieder offen ist. Ein Hinweis bei der Wahl
 („zieht ein, sobald der Waldtümpel angelegt ist“) wäre eine kleine Aufgabe für `ui-dev`.
 (3) Amphibien-Gäste (Moorfrosch-Balz) erst mit Gästen am Boden im Renderer.

@@ -10,7 +10,7 @@
  * Gesichter. Bei `reducedMotion` stehen alle Tiere still.
  */
 
-import { POND_DEPTH, POND_HALF_WIDTH, POND_LIP, POND_WATER_Y, type AnchorResolver, type NicheAnchor } from './anchors';
+import { POND_DEPTH, POND_LIP, POND_WATER_Y, type AnchorResolver, type NicheAnchor } from './anchors';
 import { amphibianActivity, edgeBare, edgePetals, edgeSeedHeads, fireflySeason, insectActivity, pondIce } from './phenology';
 import { ell, eye, line, OUTLINE, outline, paintBird, poly, TAU, type BirdColors, type SpriteDef } from './sprite-kit';
 import { SPECIES_DEFS, SPECIES_INFO, type KindInfo } from './species-sprites';
@@ -698,25 +698,35 @@ function paintMycel(c: CanvasRenderingContext2D): void {
 }
 
 /**
- * Waldtümpel im Erdschnitt, ganz unter der Grasnarbe (anchors.ts): Senke ab POND_LIP,
- * Wasser ab POND_WATER_Y, Seggen nur in der Senke. Mitte der Bodenlinie auf (0, 0).
+ * Mulde des Tümpels: steile Ränder, flacher Grund – so ist das Wasser fast auf der ganzen
+ * Breite tief genug für Molche. `inset` rückt den Umriss nach innen (Schlammrand, Eis).
  */
-function paintPond(c: CanvasRenderingContext2D): void {
-  const rx = POND_HALF_WIDTH;
+function pondBowl(c: CanvasRenderingContext2D, rx: number, inset: number): void {
+  const x = rx - inset;
+  const d = POND_DEPTH - inset * 0.6;
+  const run = Math.min(1.4, x * 0.6);
+  c.beginPath();
+  c.moveTo(-x, POND_LIP);
+  c.bezierCurveTo(-x + 0.04, d - 0.08, -x + run * 0.6, d, -x + run, d);
+  c.lineTo(x - run, d);
+  c.bezierCurveTo(x - run * 0.6, d, x - 0.04, d - 0.08, x, POND_LIP);
+  c.closePath();
+}
+
+/**
+ * Waldtümpel im Erdschnitt, ganz unter der Grasnarbe (anchors.ts): Senke ab POND_LIP,
+ * Wasser ab POND_WATER_Y, Seggen nur in der Senke. Mitte der Bodenlinie auf (0, 0),
+ * halbe Breite `rx` (Tiergrößen, je Canvas-Größe: `PondGeometry.halfWidth`).
+ */
+function paintPond(c: CanvasRenderingContext2D, rx: number): void {
   const lip = POND_LIP;
-  const ry = POND_DEPTH - lip;
   const water = POND_WATER_Y;
-  const bowl = (inset: number) => {
-    c.beginPath();
-    c.ellipse(0, lip, rx - inset, ry - inset * 0.6, 0, 0, Math.PI);
-    c.closePath();
-  };
   // Schlammrand, darin die Mulde (über dem Wasser etwas heller: feuchte Erde im Schatten).
   c.fillStyle = '#3f3022';
-  bowl(0);
+  pondBowl(c, rx, 0);
   c.fill();
   c.save();
-  bowl(0.1);
+  pondBowl(c, rx, 0.1);
   c.clip();
   c.fillStyle = '#5a4733';
   c.fillRect(-rx, lip, rx * 2, water - lip);
@@ -725,50 +735,69 @@ function paintPond(c: CanvasRenderingContext2D): void {
   g.addColorStop(1, '#2e4b4f');
   c.fillStyle = g;
   c.fillRect(-rx, water, rx * 2, POND_DEPTH - water);
-  // Lichtreflexe und abgesunkenes Laub am Grund
-  ell(c, -0.5, water + 0.1, 0.45, 0.022, 0, 'rgba(225, 245, 240, 0.35)');
-  ell(c, 0.6, water + 0.2, 0.3, 0.018, 0, 'rgba(225, 245, 240, 0.25)');
-  ell(c, -0.25, POND_DEPTH - 0.1, 0.14, 0.04, 0.3, 'rgba(120, 84, 44, 0.6)');
-  ell(c, 0.35, POND_DEPTH - 0.11, 0.12, 0.035, -0.4, 'rgba(140, 98, 50, 0.55)');
+  // Lichtreflexe und abgesunkenes Laub am Grund (verteilt über die Breite)
+  ell(c, -0.26 * rx, water + 0.1, 0.24 * rx, 0.022, 0, 'rgba(225, 245, 240, 0.35)');
+  ell(c, 0.32 * rx, water + 0.2, 0.16 * rx, 0.018, 0, 'rgba(225, 245, 240, 0.25)');
+  ell(c, -0.13 * rx, POND_DEPTH - 0.1, 0.14, 0.04, 0.3, 'rgba(120, 84, 44, 0.6)');
+  ell(c, 0.18 * rx, POND_DEPTH - 0.11, 0.12, 0.035, -0.4, 'rgba(140, 98, 50, 0.55)');
+  if (rx > 2.5) ell(c, -0.55 * rx, POND_DEPTH - 0.12, 0.1, 0.03, 0.5, 'rgba(120, 84, 44, 0.5)');
   line(c, [-rx, water, rx, water], 'rgba(220, 240, 236, 0.75)', 0.03);
   // Seggen und ein Rohrkolben am Ufer – wachsen aus dem Wasser, enden unter der Narbe.
-  for (const [x, h, lean] of [
-    [-1.55, 0.26, -0.06],
-    [-1.45, 0.2, 0.05],
-    [1.42, 0.22, -0.06],
-    [1.52, 0.27, 0.05],
+  for (const [dx, h, lean] of [
+    [-0.35, 0.26, -0.06],
+    [-0.45, 0.2, 0.05],
+    [0.48, 0.22, -0.06],
+    [0.38, 0.27, 0.05],
   ] as const) {
+    const x = dx < 0 ? -rx - dx : rx - dx;
     poly(c, [x - 0.025, water + 0.02, x + lean, water - h, x + 0.025, water + 0.02], '#5f8a3e');
   }
-  line(c, [1.3, water + 0.02, 1.29, lip + 0.05], '#6b8a42', 0.025);
-  ell(c, 1.29, lip + 0.1, 0.035, 0.07, 0, '#6b4a2b');
+  const cat = rx - 0.6;
+  line(c, [cat, water + 0.02, cat - 0.01, lip + 0.05], '#6b8a42', 0.025);
+  ell(c, cat - 0.01, lip + 0.1, 0.035, 0.07, 0, '#6b4a2b');
   c.restore();
 }
 
 /** Eisdecke des Tümpels (Winter), gleiche Maße wie `paintPond`. */
-function paintPondIce(c: CanvasRenderingContext2D): void {
+function paintPondIce(c: CanvasRenderingContext2D, rx: number): void {
   c.save();
-  c.beginPath();
-  c.ellipse(0, POND_LIP, POND_HALF_WIDTH - 0.1, POND_DEPTH - POND_LIP - 0.06, 0, 0, Math.PI);
-  c.closePath();
+  pondBowl(c, rx, 0.1);
   c.clip();
   c.fillStyle = 'rgba(222, 236, 244, 0.9)';
-  c.fillRect(-POND_HALF_WIDTH, POND_WATER_Y - 0.03, POND_HALF_WIDTH * 2, 0.12);
+  c.fillRect(-rx, POND_WATER_Y - 0.03, rx * 2, 0.12);
   c.fillStyle = 'rgba(190, 214, 228, 0.35)';
-  c.fillRect(-POND_HALF_WIDTH, POND_WATER_Y + 0.09, POND_HALF_WIDTH * 2, POND_DEPTH);
+  c.fillRect(-rx, POND_WATER_Y + 0.09, rx * 2, POND_DEPTH);
   c.restore();
-  line(c, [-1.1, POND_WATER_Y + 0.02, -0.6, POND_WATER_Y + 0.04], 'rgba(255, 255, 255, 0.8)', 0.02);
-  line(c, [0.3, POND_WATER_Y + 0.03, 0.8, POND_WATER_Y + 0.02], 'rgba(255, 255, 255, 0.8)', 0.02);
+  const k = rx / 1.9;
+  line(c, [-1.1 * k, POND_WATER_Y + 0.02, -0.6 * k, POND_WATER_Y + 0.04], 'rgba(255, 255, 255, 0.8)', 0.02);
+  line(c, [0.3 * k, POND_WATER_Y + 0.03, 0.8 * k, POND_WATER_Y + 0.02], 'rgba(255, 255, 255, 0.8)', 0.02);
 }
 
 /** Flaches Wasser vor Kröte und Frosch: Ihre Füße stehen im Tümpel. Wasserlinie auf (0, 0). */
 function paintPondWade(c: CanvasRenderingContext2D): void {
   c.fillStyle = 'rgba(110, 156, 148, 0.6)';
   c.beginPath();
-  c.ellipse(0, 0, 0.55, 0.16, 0, 0, Math.PI);
+  c.ellipse(0, 0, 0.45, 0.15, 0, 0, Math.PI);
   c.closePath();
   c.fill();
-  line(c, [-0.5, 0, 0.5, 0], 'rgba(220, 240, 236, 0.75)', 0.03);
+  line(c, [-0.42, 0, 0.42, 0], 'rgba(220, 240, 236, 0.75)', 0.03);
+}
+
+/** Halbe Breite des Wassers vor Kröte und Frosch (Zeicheneinheiten, wie `pondWade`). */
+const WADE_HALF = 0.48;
+
+/**
+ * Sprite-Name des Tümpels (bzw. seiner Eisdecke) für die halbe Breite `rx` – die Zeichnung
+ * wird beim ersten Abruf angelegt. Je Canvas-Größe gibt es nur eine Breite.
+ */
+function pondSpriteName(ice: boolean, rx: number): string {
+  const name = `${ice ? 'pondIce' : 'pond'}@${rx}`;
+  if (!DEFS[name]) {
+    DEFS[name] = ice
+      ? { x0: -rx - 0.02, y0: 0.22, x1: rx + 0.02, y1: 1.04, paint: (c) => paintPondIce(c, rx) }
+      : { x0: -rx - 0.02, y0: 0.22, x1: rx + 0.02, y1: 1.04, paint: (c) => paintPond(c, rx) };
+  }
+  return name;
 }
 
 const DEFS: Record<string, SpriteDef> = {
@@ -799,9 +828,7 @@ const DEFS: Record<string, SpriteDef> = {
   hollow: { x0: -0.4, y0: -0.84, x1: 0.4, y1: 0.06, paint: (c) => paintHollow(c) },
   hollowLip: { x0: -0.4, y0: -0.84, x1: 0.4, y1: 0.12, paint: (c) => paintHollowLip(c) },
   mycel: { x0: -0.8, y0: -0.04, x1: 0.8, y1: 1.0, paint: (c) => paintMycel(c) },
-  pond: { x0: -2.0, y0: 0.22, x1: 2.0, y1: 1.04, paint: (c) => paintPond(c) },
-  pondIce: { x0: -2.0, y0: 0.22, x1: 2.0, y1: 1.04, paint: (c) => paintPondIce(c) },
-  pondWade: { x0: -0.58, y0: -0.04, x1: 0.58, y1: 0.18, paint: (c) => paintPondWade(c) },
+  pondWade: { x0: -WADE_HALF, y0: -0.04, x1: WADE_HALF, y1: 0.17, paint: (c) => paintPondWade(c) },
   shimmer: { x0: -1, y0: -1, x1: 1, y1: 1, paint: (c) => paintShimmer(c) },
   sparkle: { x0: -0.5, y0: -0.5, x1: 0.5, y1: 0.5, paint: (c) => paintSparkle(c) },
   ...SPECIES_DEFS,
@@ -1045,6 +1072,11 @@ interface PlanEntry {
   perchDrop: number;
   /** Wiederverwendetes Pose-Objekt (keine Allokation pro Frame). */
   pose: Pose;
+  /**
+   * Wendet um die eigene Körpermitte statt um den Ankerpunkt (Molche im Tümpel): So bleibt
+   * der belegte Streifen beim Umdrehen gleich breit.
+   */
+  pivot: boolean;
 }
 
 /** Merkmale eines Tiers, von denen der Plan abhängt. */
@@ -1107,9 +1139,10 @@ export class AnimalLayer {
     this.anchors = anchors;
     this.signature = animals.map((a) => ({ id: a.id, family: a.family, niche: a.niche, slot: normSlot(a.slot), rarity: animalRarity(a) }));
     const plan: PlanEntry[] = [];
+    const ponds = pondPlaces(animals, anchors);
     animals.forEach((animal, index) => {
       const anchor = anchors.get(animal.niche, animal.slot);
-      if (anchor) plan.push(planEntry(animal, index, anchor, anchors));
+      if (anchor) plan.push(planEntry(animal, index, anchor, anchors, ponds[index]));
     });
     // Stabile Sortierung: hintere Reihe zuerst, dann Boden … Krone.
     plan.sort((a, b) => b.depth - a.depth || (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9) || a.index - b.index);
@@ -1126,14 +1159,23 @@ export function animalBounds(
   anchors: AnchorResolver,
   /** Dekos, die nicht zählen (z. B. 'mycel': läuft hinter dem Tümpel weiter). */
   ignore: readonly string[] = [],
+  /**
+   * Alle Tiere der Szene (muss `animal` enthalten): Im Tümpel hängt die Lage eines
+   * Bewohners von den übrigen ab. Ohne Angabe lebt das Tier allein im Tümpel.
+   */
+  scene?: readonly SceneAnimal[],
 ): { x0: number; x1: number; y0: number; y1: number } | null {
   const anchor = anchors.get(animal.niche, animal.slot);
   if (!anchor) return null;
-  const e = planEntry(animal, 0, anchor, anchors);
+  const all = scene ?? [animal];
+  const place = animal.niche === 'pond' ? pondPlaces(all, anchors)[Math.max(0, all.indexOf(animal))] : null;
+  const e = planEntry(animal, 0, anchor, anchors, place);
   const def = DEFS[e.kind] ?? DEFS.insect!;
-  const half = Math.max(-def.x0, def.x1) * e.size + e.travel;
+  // Wendet das Tier um die Körpermitte, belegt es nur seine eigene Breite um diese Mitte.
+  const half = (e.pivot ? ((def.x1 - def.x0) / 2) * e.size : Math.max(-def.x0, def.x1) * e.size) + e.travel;
+  const cx = e.pivot ? e.x + e.midX * e.size * e.dir : e.x;
   const lift = e.info.motion === 'hop' ? 0.17 * anchors.size : e.info.motion === 'sniff' ? 0.05 * anchors.size : 0;
-  const box = { x0: e.x - half, x1: e.x + half, y0: e.y + def.y0 * e.size - lift, y1: e.y + def.y1 * e.size };
+  const box = { x0: cx - half, x1: cx + half, y0: e.y + def.y0 * e.size - lift, y1: e.y + def.y1 * e.size };
   for (const d of [...e.before, ...e.after]) {
     const dd = DEFS[d.name];
     if (!dd || ignore.includes(d.name)) continue;
@@ -1145,10 +1187,98 @@ export function animalBounds(
   return box;
 }
 
+// ---------------------------------------------------------------------------
+// Waldtümpel: Lage der Bewohner
+// ---------------------------------------------------------------------------
+
+/** Lage eines Tümpelbewohners, berechnet aus allen Bewohnern (`pondPlaces`). */
+export interface PondPlace {
+  /** Watende: Fußpunkt; Schwimmer: Körpermitte (CSS-Pixel). */
+  x: number;
+  /** Blickrichtung: 1 nach rechts, −1 nach links. */
+  dir: 1 | -1;
+  /** Größe relativ zur Tiergröße S. */
+  scale: number;
+  /** Nummer unter den Schwimmern (Höhenversatz), sonst 0. */
+  row: number;
+}
+
+/** Schwimmweg der Molche je Seite und Lücke zwischen zwei Bewohnern (Tiergrößen). */
+const SWIM_TRAVEL = 0.1;
+const POND_GAP = 0.08;
+/** Molche höchstens so groß (relativ zu S) – sonst ragte der Kamm weit aus dem Wasser. */
+const SWIM_SCALE_MAX = 1.05;
+/** Abstand der äußeren Bewohner zum Rand der Senke (Tiergrößen). */
+const POND_RIM = 0.1;
+
+/**
+ * Plätze aller Tümpelbewohner in `animals` (gleiche Reihenfolge; null für alle anderen).
+ *
+ * Die Senke kann nicht tiefer werden (anchors.ts), also stehen die Bewohner nebeneinander
+ * und überlappen sich nie: Kröte und Frösche (nach Platz) abwechselnd am linken und
+ * rechten flachen Rand, von außen nach innen; die Molche in der tiefen Mitte, gleichmäßig
+ * verteilt, jeder in seinem eigenen Streifen. Passen nicht alle in voller Größe hinein,
+ * werden sie gemeinsam kleiner (in Schritten von 0,025 – wenige Sprite-Größen). Wird nur
+ * beim Neuaufbau des Plans bzw. beim Tippen berechnet, nie pro Frame.
+ */
+export function pondPlaces(animals: readonly SceneAnimal[], anchors: AnchorResolver): (PondPlace | null)[] {
+  const out: (PondPlace | null)[] = animals.map(() => null);
+  const idx: number[] = [];
+  animals.forEach((a, i) => {
+    if (a.niche === 'pond' && anchors.get('pond', a.slot)) idx.push(i);
+  });
+  if (idx.length === 0) return out;
+  idx.sort((i, j) => normSlot(animals[i]!.slot) - normSlot(animals[j]!.slot) || i - j);
+  const p = anchors.pond();
+  const S = p.size;
+  const items = idx.map((i) => {
+    const kind = animalKind(animals[i]!);
+    const info = KINDS[kind] ?? KINDS.insect!;
+    const def = DEFS[kind] ?? DEFS.insect!;
+    const swim = info.swim === true;
+    // Breite in Tiergrößen (bei Maßstab 1): Schwimmer samt Weg, Watende samt Wasser davor.
+    const w = swim ? (def.x1 - def.x0) * info.size + 2 * SWIM_TRAVEL : 2 * Math.max(Math.max(-def.x0, def.x1) * info.size, WADE_HALF);
+    return { i, swim, w };
+  });
+  const inner = 2 * (p.halfWidth - POND_RIM);
+  // Lücken: zwischen Nachbarn und zur Mitte hin (höchstens eine je Bewohner).
+  let need = POND_GAP * items.length;
+  for (const it of items) need += it.w;
+  const k = Math.max(0.5, Math.floor(Math.min(p.maxScale, inner / need) * 40) / 40);
+  const gap = POND_GAP * k;
+  const waders = items.filter((it) => !it.swim);
+  const swimmers = items.filter((it) => it.swim);
+  // Watende: links von außen nach innen bzw. rechts von außen nach innen.
+  let left = -inner / 2;
+  let right = inner / 2;
+  waders.forEach((it, n) => {
+    const w = it.w * k;
+    if (n % 2 === 0) {
+      out[it.i] = { x: p.x + (left + w / 2) * S, dir: 1, scale: k, row: 0 };
+      left += w + gap;
+    } else {
+      out[it.i] = { x: p.x + (right - w / 2) * S, dir: -1, scale: k, row: 0 };
+      right -= w + gap;
+    }
+  });
+  // Schwimmer: gleichmäßig in der Mitte verteilt, zur Mitte bzw. abwechselnd blickend.
+  let used = 0;
+  for (const it of swimmers) used += it.w * k;
+  const space = Math.max(0, (right - left - used) / (swimmers.length + 1));
+  let at = left + space;
+  swimmers.forEach((it, n) => {
+    const w = it.w * k;
+    const c = at + w / 2;
+    out[it.i] = { x: p.x + c * S, dir: c < -0.05 ? 1 : c > 0.05 ? -1 : n % 2 === 0 ? 1 : -1, scale: k, row: n };
+    at += w + space;
+  });
+  return out;
+}
+
 /** Kleine Krabbler, die am Waldsaum auf der Blüte sitzen. */
 const ON_BLOSSOM = new Set(['insect', 'oakmoth', 'barkbeetle', 'woodlouse', 'stagbeetle']);
 
-function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anchors: AnchorResolver): PlanEntry {
+function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anchors: AnchorResolver, pondPlace?: PondPlace | null): PlanEntry {
   const kind = animalKind(animal);
   const info = KINDS[kind] ?? KINDS.insect!;
   const def = DEFS[kind] ?? DEFS.insect!;
@@ -1184,6 +1314,7 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
     midR: Math.max(def.x1 - def.x0, def.y1 - def.y0) * 0.62,
     perchDrop: 0,
     pose: { x: 0, y: 0, dir: 1, rot: 0, frame: 0 },
+    pivot: false,
   };
 
   if (info.fungus) {
@@ -1252,19 +1383,29 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
       }
       break;
     case 'pond': {
-      // Alles bleibt in der Senke unter der Grasnarbe (anchors.ts, POND_LIP).
+      // Alles bleibt in der Senke unter der Grasnarbe (anchors.ts, POND_LIP). Wo das Tier
+      // sitzt und wie groß es ist, hängt von allen Bewohnern ab (`pondPlaces`).
       const pond = anchors.pond();
+      const place = pondPlace ?? pondPlaces([animal], anchors)[0]!;
+      e.dir = place.dir;
       if (info.swim) {
-        // Schwimmt in der Mitte unter der Wasseroberfläche hin und her (Mitte = Körper),
-        // dort, wo die Mulde tief genug ist.
-        e.x = pond.x + clamp(ax - pond.x, -0.3 * S, 0.3 * S);
-        e.y = pond.waterY + S * 0.2;
-        e.travel = S * 0.3;
+        // Schwimmt unter der Wasseroberfläche in seinem Streifen hin und her und wendet um
+        // die Körpermitte; zwei Molche schwimmen leicht höhenversetzt.
+        e.size = S * info.size * Math.min(place.scale, SWIM_SCALE_MAX);
+        e.pivot = true;
+        e.travel = SWIM_TRAVEL * S * place.scale;
+        e.x = place.x - e.midX * e.size * e.dir;
+        const top = pond.waterY - 0.06 * S;
+        const bottom = pond.y + (POND_DEPTH - 0.05) * S;
+        const want = pond.waterY + S * (place.row % 2 === 0 ? 0.2 : 0.27);
+        e.y = clamp(want, top - def.y0 * e.size, bottom - def.y1 * e.size);
       } else {
-        // Sitzt im flachen Wasser: Kopf genau unter der Narbe, Füße im Wasser.
+        // Sitzt im flachen Wasser am Rand: Kopf genau unter der Narbe, Füße im Wasser.
         // Leichtes Wippen (`sniff`, 0,05 S) eingerechnet.
+        e.size = S * info.size * place.scale;
+        e.x = place.x;
         e.y = pond.lipY + S * 0.07 - def.y0 * e.size;
-        e.after.push({ name: 'pondWade', x: ax, y: pond.waterY, size: S });
+        e.after.push({ name: 'pondWade', x: place.x, y: pond.waterY, size: S * place.scale });
       }
       break;
     }
@@ -1340,6 +1481,8 @@ function placePose(e: PlanEntry, happy: number, S: number, f: Pick<AnimalFrame, 
   pose.rot = e.rot;
   pose.frame = 0;
   animate(e, pose, act, f.time, S, f.reducedMotion);
+  // Um die Körpermitte wenden (Molche): Beim Spiegeln bleibt die Mitte stehen.
+  if (e.pivot && pose.dir !== e.dir) pose.x += (e.dir - pose.dir) * e.midX * e.size;
   if (!(pose.frame >= 0 && pose.frame < e.info.frames)) pose.frame = 0;
   // Winter: ohne Blüten ruht das Insekt an der Rosette am Boden (Schwirrer nur, wenn sie ruhen).
   if (e.perchDrop > 0 && seasonNow.bare > 0) {
@@ -1383,10 +1526,11 @@ export function hitTestAnimals(
   updateSeason(f.season ?? null);
   let best: AnimalHit | null = null;
   let bestD = Infinity;
+  const ponds = pondPlaces(animals, anchors);
   animals.forEach((animal, index) => {
     const anchor = anchors.get(animal.niche, animal.slot);
     if (!anchor) return;
-    const e = planEntry(animal, index, anchor, anchors);
+    const e = planEntry(animal, index, anchor, anchors, ponds[index]);
     const happy = clamp01(Number.isFinite(animal.happiness) ? animal.happiness : 0.5);
     const pose = placePose(e, happy, anchors.size, f);
     const m = spriteMid(e, pose, hitMid);
@@ -1449,8 +1593,8 @@ function drawSparkles(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, m
 function drawPond(ctx: CanvasRenderingContext2D, anchors: AnchorResolver, sprites: SpriteCache, f: AnimalFrame): void {
   const p = anchors.pond();
   const dpr = f.spriteDpr ?? f.dpr;
-  blit(ctx, sprites.get('pond', 0, false, p.size, dpr), p.x, p.y, 1, 0, 1, f);
-  if (seasonNow.ice > 0.01) blit(ctx, sprites.get('pondIce', 0, false, p.size, dpr), p.x, p.y, 1, 0, seasonNow.ice, f);
+  blit(ctx, sprites.get(pondSpriteName(false, p.halfWidth), 0, false, p.size, dpr), p.x, p.y, 1, 0, 1, f);
+  if (seasonNow.ice > 0.01) blit(ctx, sprites.get(pondSpriteName(true, p.halfWidth), 0, false, p.size, dpr), p.x, p.y, 1, 0, seasonNow.ice, f);
 }
 
 /** Wiederverwendeter Punkt für die Sprite-Mitte (keine Allokation pro Frame). */

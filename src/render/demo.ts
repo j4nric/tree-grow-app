@@ -30,6 +30,7 @@
  *  vis      Durchreisende, kommagetrennt: cranes,bramblings,hummingbird-moth
  *           (Platz = Reihenfolge); in der Übersicht (gallery=1) immer dabei
  *  pond     1 = Waldtümpel mit Amphibien (ab Stufe Alter Baum: Erdkröte, Grasfrosch, Bergmolch, Laubfrosch, Kammmolch)
+ *  pondn    Anzahl der Tümpelbewohner 0–5 (Standard 4; Reihenfolge wie oben, mit v verschoben)
  */
 
 import { animalKinds, SpriteCache } from './animals';
@@ -151,7 +152,7 @@ function animalsFor(g: number, set: string, happy: number | null, variant: numbe
   const stage = Math.max(0, Math.min(7, Math.floor(g)));
   const list: SceneAnimal[] = [];
   for (const [niche, species] of Object.entries(BY_NICHE)) {
-    const n = niche === 'pond' && !pond ? 0 : SLOTS[niche]![stage]!;
+    const n = niche === 'pond' ? (pond && SLOTS.pond![stage]! > 0 ? pondCount : 0) : SLOTS[niche]![stage]!;
     for (let slot = 0; slot < n; slot++) {
       const [id, family] = species[(slot + variant * n) % species.length]!;
       if (list.some((a) => a.id === id)) continue;
@@ -189,6 +190,8 @@ const plantMode = params.get('plants') ?? 'stage';
 const vigor = params.has('vig') ? Number(params.get('vig')) : null;
 const gallery = params.get('gallery') === '1';
 const pond = params.get('pond') === '1';
+/** Tümpelbewohner (0–5; Standard 4 wie Pflege Rang 2). */
+const pondCount = Math.max(0, Math.min(5, Math.round(Number(params.get('pondn') ?? 4)) || 0));
 let happy: number | null = params.has('h') ? Number(params.get('h')) : null;
 const fixedTime = params.has('t') ? Number(params.get('t')) : null;
 const cycleButton = document.querySelector<HTMLButtonElement>('#cycle')!;
