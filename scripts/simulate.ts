@@ -13,6 +13,10 @@
  *
  * Ausführen (Tabellen im Protokoll, DESIGN_V2.md Abschnitt 15.4):
  *   SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts
+ *
+ * Optional (`RunOptions.seasons`, `RunOptions.mainTree`): Jahreszeiten und Baumarten im
+ * groben Modell aus scripts/season-model.ts, solange die Logik fehlt (DESIGN_V2.md 16.5,
+ * 17.4; Tabellen: tests/seasons-balance.test.ts).
  */
 import { COMMUNITIES } from '../src/content/communities';
 import { GENUS_INFO, SPECIES_BY_ID } from '../src/content/species';
@@ -48,6 +52,7 @@ import {
   tick,
   unlockedPlants,
 } from '../src/core/tick';
+import { Environment, secondsToSeasonEnd, type EnvironmentOptions } from './season-model';
 
 // ---------------------------------------------------------------------------
 // Optionen einer Begegnung
@@ -304,7 +309,7 @@ export interface VarietyStat {
   worthwhile: boolean;
 }
 
-export interface RunOptions {
+export interface RunOptions extends EnvironmentOptions {
   seed: number;
   /** Simulation endet mit Erreichen dieser Stufe. */
   targetStage: number;
@@ -315,7 +320,18 @@ export interface RunOptions {
 export const SAMPLE_MINUTES: readonly number[] = [5, 10, 20, 30, 45, 60, 90, 120, 180];
 
 export function runGame(strategy: Strategy, options: RunOptions): RunResult {
+  // Jahreszeiten und Baumarten (grobes Modell, scripts/season-model.ts) – nur auf Wunsch.
+  const env = new Environment(options);
+  try {
+    return runGameIn(strategy, options, env);
+  } finally {
+    env.restore();
+  }
+}
+
+function runGameIn(strategy: Strategy, options: RunOptions, env: Environment): RunResult {
   const state = createInitialState(0, options.seed);
+  env.apply(state, 0);
   const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
   let time = 0;
   let lastWaypointTime = 0;
@@ -369,6 +385,7 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   let sample = 0;
 
   while (state.stage < options.targetStage && time < options.maxSeconds && !allWaypointsReached(state)) {
+    env.apply(state, time);
     // Pflanzen setzen, solange es sich lohnt und die Samen reichen.
     for (let plan = planPlant(state, strategy, counts); plan !== null; plan = planPlant(state, strategy, counts)) {
       const cost = nextPlantCost(state);
@@ -387,7 +404,8 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     // Zwischenhalt und Ablauf von Boni: dort anhalten, damit Zeitpunkte und Raten stimmen.
     const interlude = interludeThreshold(state);
     const toInterlude = interlude < Infinity && ev.growth > 0 ? Math.max(0, interlude - state.totalGrowth) / ev.growth : Infinity;
-    const dt = Math.min(toWaypoint, toPlant, nextSample - time, nextExpiry(state), toInterlude, options.maxSeconds - time);
+    const toSeason = options.seasons ? secondsToSeasonEnd(time) : Infinity;
+    const dt = Math.min(toWaypoint, toPlant, nextSample - time, nextExpiry(state), toInterlude, toSeason, options.maxSeconds - time);
     if (!(dt < Infinity)) break;
     const seedsBefore = state.seeds;
     const report = tick(state, dt);
@@ -1025,6 +1043,29 @@ export function extrasTable(summaries: Summary[]): string {
     const c = s.runs.map((r) => r.final.counts);
     const extra = `${fmt(mean(c.map((x) => x.events)), 1)} / ${fmt(mean(c.map((x) => x.visitors)), 1)} (${fmt(mean(c.map((x) => x.hosted)), 1)})`;
     lines.push(`| ${s.strategy.name} | ${times.join(' | ')} | ${fmt(stageStats(s, 5).harmony, 1)} | ${d.join(' | ')} | ${extra} |`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Jahreszeiten und Baumarten (grobes Modell, DESIGN_V2.md 16.5 und 17.4): je Variante
+ * Stufenzeiten, Harmonie, Ø Zufriedenheit und Wachstum beim Hain, längste Durststrecke
+ * (90 %) im Alten Baum und im Hain, Pflanzenbegegnungen bis Hain, Ereignisse / Gäste.
+ */
+export function environmentTable(rows: readonly { label: string; summary: Summary }[]): string {
+  const lines = [
+    '| Variante | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Ø 😊 beim Hain | 🌿/s beim Hain | Durststrecke Alter Baum / Hain (90 %) | Pflanzenbegegnungen bis Hain | Ereignisse / Gäste |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|',
+  ];
+  for (const { label, summary } of rows) {
+    const times = [3, 4, 5, 6, 7].map((st) => formatTime(stageStats(summary, st).time));
+    const hain = stageStats(summary, 5);
+    const d = [4, 5].map((st) => formatTime(varietyStats(summary, st).droughtP90)).join(' / ');
+    const c = summary.runs.map((r) => r.final.counts);
+    const extra = `${fmt(mean(c.map((x) => x.events)), 1)} / ${fmt(mean(c.map((x) => x.visitors)), 1)}`;
+    lines.push(
+      `| ${label} | ${times.join(' | ')} | ${fmt(hain.harmony, 1)} | ${fmt(100 * hain.happiness)} % | ${fmt(hain.growth, 1)} | ${d} | ${fmt(hain.counts.plantEncounters, 1)} | ${extra} |`,
+    );
   }
   return lines.join('\n');
 }
