@@ -1470,6 +1470,13 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   font-weight: 600;
 }
 
+/* Fokusziel, wenn eine Art bei offenen Tierdetails auszieht (tabindex="-1"). */
+.niche-title:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .niche-slots {
   font-size: 0.75rem;
   color: var(--muted);
@@ -3890,10 +3897,6 @@ dialog.animal-detail {
   display: grid;
   gap: 6px;
   font-size: 0.875rem;
-}
-
-.detail-abilities li.inactive {
-  color: var(--muted);
 }
 
 .detail-community {

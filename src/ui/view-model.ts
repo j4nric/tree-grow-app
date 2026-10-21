@@ -566,29 +566,32 @@ export interface DetailFactorView {
   tone: Tone;
 }
 
-/** Eine Fähigkeit der Art in der Tierdetail-Ansicht. */
+/**
+ * Eine Fähigkeit der Art in der Tierdetail-Ansicht. Fähigkeiten wirken, solange die Art
+ * lebt – darum ohne „aktiv“-Kennzeichen.
+ */
 export interface DetailAbilityView {
   name: string;
   text: string;
-  /** Wirkt gerade (laut Auswertung). */
-  active: boolean;
 }
 
 /**
- * Eine Lebensgemeinschaft, zu der die Art gehört. Unentdeckte erscheinen neutral wie im
- * Naturtagebuch: „???“, ohne Name und ohne ID (Schlüssel `unknown-community-n`).
+ * Eine Lebensgemeinschaft, zu der die Art gehört. Unentdeckte stehen zusammengefasst in
+ * einem Eintrag (Schlüssel `unknown-communities`): nur ihre Anzahl, ohne Name, ID,
+ * Rätselhinweis oder Fortschritt – „x/3“ an der Art verriete die übrigen Mitglieder.
  */
 export interface DetailCommunityView {
   key: string;
   discovered: boolean;
   icon: string;
+  /** Name; bei Unentdeckten der Satz „Gehört zu einer noch unentdeckten …“. */
   name: string;
   active: boolean;
-  /** z. B. „2/3 Mitglieder“ – solange sie nicht besteht. */
+  /** z. B. „2/3 Mitglieder – fehlt: …“ – nur entdeckte, solange sie nicht bestehen. */
   progress?: string;
   /** Wirkung, z. B. „+8 Harmonie · +5 % 🌿“ (nur entdeckte). */
   effect?: string;
-  /** Rätselhinweis (nur unentdeckte). */
+  /** Zusatz für Unentdeckte, z. B. Verweis auf die Rätselhinweise im Tagebuch. */
   hint?: string;
 }
 
@@ -615,6 +618,11 @@ export interface AnimalDetailView {
    * relativ; `happiness` = aktuelle Zufriedenheit (für den 😊-Chip).
    */
   contribution: PreviewView;
+  /**
+   * Erklärung unter den Beitrags-Chips; bei Platz-Schaffern (Schwarzspecht, Borkenkäfer …)
+   * mit dem Hinweis, dass ohne sie Plätze wegfielen – das zeigen die Chips nicht.
+   */
+  contributionNote: string;
   /** Futter und Wünsche mit ✓/✗ (Futter mit Anteil und Konkurrenz). */
   conditions: ConditionView[];
   /** Weitere Einflüsse: Störer, Räuber, Jahreszeit, Baumart, Fähigkeiten. */

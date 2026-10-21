@@ -37,6 +37,19 @@ export interface EcosystemPanel {
   update(view: EcosystemView): void;
   /** Knopf „Pflanze setzen“ – z. B. um den Fokus nach dem Schließen der Auswahl zurückzugeben. */
   readonly plantButton: HTMLButtonElement;
+  /**
+   * Überschrift einer Nische (per Skript fokussierbar) – Fokusziel, wenn eine Art bei
+   * offenen Tierdetails auszieht und ihre Kachel verschwindet. null, wenn unbekannt.
+   */
+  nicheFocusTarget(nicheId: string): HTMLElement | null;
+}
+
+/**
+ * Wird die Kachel zum Knopf für die Tierdetails? Nur bei eingezogenen Tieren (nicht bei
+ * freien Plätzen oder durchreisenden Gästen) und nur, wenn jemand die Details öffnen kann.
+ */
+export function slotOpensDetails(animal: Pick<AnimalView, 'visitor'> | undefined, canOpen: boolean): boolean {
+  return canOpen && animal !== undefined && !animal.visitor;
 }
 
 export interface EcosystemPanelCallbacks {
@@ -511,8 +524,9 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     // Lange Gründe sind optisch auf zwei Zeilen gekürzt – voller Text im Tooltip und in den Tierdetails.
     setAttr(tile.mood, 'title', mood);
     setVar(tile.ring, '--h', happiness.toFixed(3));
-    setText(tile.sr, `, ${RARITY_LABELS[animal.rarity]}${animal.visitor ? ', zu Gast' : ''}. Details ansehen`);
-    placeParts(tile, Boolean(callbacks.onOpenAnimal));
+    const opens = slotOpensDetails(animal, Boolean(callbacks.onOpenAnimal));
+    setText(tile.sr, `, ${RARITY_LABELS[animal.rarity]}${animal.visitor ? ', zu Gast' : ''}${opens ? '. Details ansehen' : ''}`);
+    placeParts(tile, opens);
   }
 
   function buildNiche(niche: NicheView): NicheRow {
@@ -706,5 +720,12 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     seenFirstUpdate = true;
   }
 
-  return { update, plantButton };
+  function nicheFocusTarget(nicheId: string): HTMLElement | null {
+    const row = nicheRows.get(nicheId);
+    if (!row || !row.root.isConnected) return null;
+    if (!row.title.hasAttribute('tabindex')) row.title.setAttribute('tabindex', '-1');
+    return row.title;
+  }
+
+  return { update, plantButton, nicheFocusTarget };
 }

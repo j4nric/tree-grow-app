@@ -511,15 +511,7 @@ function refreshPanel(now: number): void {
     // Zeit-Erfolge („Ein ganzes Jahr“, „Geduld der Bäume“): Fortschritt nur als Text.
     journal.updateAchievementProgress(toAchievementTimeProgress(state));
   }
-  // Tierdetails: gedrosselt wie die Statistik; zieht die Art aus, schließt der Dialog.
-  // Zeichnet sich nichts ab (gleiche Auswertung), reicht einmal je DETAIL_REFRESH_MS.
-  const detailId = animalDetail.speciesId;
-  const detailEv = evaluate(state);
-  if (detailId && (detailEv !== detailEvaluation || now - lastDetailRefresh >= DETAIL_REFRESH_MS)) {
-    detailEvaluation = detailEv;
-    lastDetailRefresh = now;
-    animalDetail.update(toAnimalDetailView(state, detailId, detailEv));
-  }
+  refreshAnimalDetail();
   // Restzeiten der Boni laufen – gedrosselt wie die Zahlen der Seitenleiste.
   bonusPanel.update(activeBonusViews(state));
   refreshCare();
@@ -544,10 +536,31 @@ function refreshCare(): void {
   carePanel.update(toCareViews(state, ev));
 }
 let careEvaluation: Readonly<Evaluation> | null = null;
-/** Tierdetails: zuletzt genutzte Auswertung und Zeitpunkt (gedrosselt, siehe refreshPanel). */
+
+/**
+ * Offene Tierdetails nachziehen. Alles darin hängt an der (gecachten) Auswertung – auch
+ * die Jahreszeit steckt in ihrem Schlüssel –, dazu Stammgäste und entdeckte
+ * Gemeinschaften aus dem Spielstand. Nur neu bauen, wenn sich davon etwas ändert. Zieht
+ * die Art aus, schließt der Dialog und der Fokus geht an die Überschrift ihrer Nische.
+ */
+function refreshAnimalDetail(): void {
+  const detailId = animalDetail.speciesId;
+  if (!detailId) {
+    detailEvaluation = null;
+    return;
+  }
+  const ev = evaluate(state);
+  const extra = `${state.meta.regulars.join(',')}|${state.meta.journal.communities.join(',')}|${state.meta.forestMemory}`;
+  if (ev === detailEvaluation && extra === detailExtra) return;
+  detailEvaluation = ev;
+  detailExtra = extra;
+  const view = toAnimalDetailView(state, detailId, ev);
+  const niche = animalDetail.nicheId;
+  animalDetail.update(view, view ? null : niche ? panel.nicheFocusTarget(niche) : null);
+}
+/** Tierdetails: zuletzt genutzte Auswertung und Spielstand-Teile außerhalb davon. */
 let detailEvaluation: Readonly<Evaluation> | null = null;
-let lastDetailRefresh = 0;
-const DETAIL_REFRESH_MS = 1000;
+let detailExtra = '';
 
 function refreshViews(now: number): void {
   refreshSeasonBadge();

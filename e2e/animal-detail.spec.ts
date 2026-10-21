@@ -82,11 +82,39 @@ test('Tierdetails: keine Spoiler für unentdeckte Lebensgemeinschaften', async (
   await openGame(page);
   await tile(page, 'roots', 'earthworm').click();
   const dialog = detail(page);
-  await expect(dialog.locator('[data-ref="detail-communities"]')).toContainText('???');
-  await expect(dialog.locator('[data-ref="detail-communities"]')).toContainText('2/3 Mitglieder');
+  const communities = dialog.locator('[data-ref="detail-communities"]');
+  await expect(communities).toContainText('noch unentdeckten Lebensgemeinschaft');
+  // Kein Fortschritt an der Art – „2/3“ verriete, dass die übrigen Mitglieder schon da sind.
+  await expect(communities).not.toContainText('Mitglieder');
   // Weder Name noch ID im Dialog – auch nicht in Attributen.
   const html = await dialog.evaluate((d) => d.outerHTML);
   expect(html).not.toContain('Humusküche');
   expect(html).not.toContain('"humus"');
   await expect(dialog.locator('[data-community]')).toHaveCount(0);
+});
+
+test('Tierdetails: freie Plätze sind keine Knöpfe', async ({ page, context }) => {
+  await seed(context);
+  await openGame(page);
+  const crown = niche(page, 'crown');
+  await expect(crown.locator('button.slot-open')).toHaveCount(2);
+  await expect(crown.locator('.slot.empty button')).toHaveCount(0);
+});
+
+test('Tierdetails: Ziehen vom Karteninhalt auf den Hintergrund schließt nicht', async ({ page, context }) => {
+  await seed(context);
+  await openGame(page);
+  await tile(page, 'crown', 'bluetit').click();
+  const dialog = detail(page);
+  await expect(dialog).toBeVisible();
+  // Textauswahl: Maus auf der Karte drücken, außerhalb loslassen.
+  const title = await dialog.locator('#animal-detail-title').boundingBox();
+  await page.mouse.move(title!.x + 5, title!.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(2, 2, { steps: 4 });
+  await page.mouse.up();
+  await expect(dialog).toBeVisible();
+  // Ein echter Klick auf den Hintergrund schließt.
+  await page.mouse.click(2, 2);
+  await expect(dialog).toBeHidden();
 });

@@ -7,7 +7,7 @@
  * Inhalt wird nur neu gebaut, wenn sich die Ansicht wirklich ändert (gedrosselt aus
  * main.ts). Escape oder „Schließen“ schließen, der Fokus geht an den Auslöser zurück.
  */
-import { el, setText, srOnly } from './dom';
+import { el, setText } from './dom';
 import { hyphenate } from './hyphenate';
 import { renderConditions, renderPreviewChips } from './encounter-dialog';
 import { RARITY_LABELS, formatPercent, happinessLevel, toneSymbol } from './view-format';
@@ -19,13 +19,19 @@ export interface AnimalDetailDialog {
    * Fokus beim Schließen zurückgeht – Standard ist das gerade fokussierte Element.
    */
   show(view: AnimalDetailView, returnFocus?: HTMLElement | null): void;
-  /** Aktualisiert den offenen Dialog; `null` (Art lebt nicht mehr hier) schließt ihn. */
-  update(view: AnimalDetailView | null): void;
+  /**
+   * Aktualisiert den offenen Dialog; `null` (Art lebt nicht mehr hier) schließt ihn. Dann
+   * bekommt `fallbackFocus` (z. B. die Nischen-Überschrift) den Fokus statt der Kachel,
+   * die mit der Art verschwindet.
+   */
+  update(view: AnimalDetailView | null, fallbackFocus?: HTMLElement | null): void;
   hide(): void;
   notice(text: string): void;
   readonly open: boolean;
   /** Art im offenen Dialog (sonst null). */
   readonly speciesId: string | null;
+  /** Nische der Art im offenen Dialog (sonst null). */
+  readonly nicheId: string | null;
 }
 
 /** Abschnitt mit Überschrift; `body` wird bei Bedarf geleert und neu gefüllt. */
@@ -84,7 +90,8 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
 
   const contribution = el('ul', 'card-preview detail-contribution');
   contribution.setAttribute('aria-label', 'Beitrag zum Ökosystem');
-  const contributionNote = el('p', 'detail-note', 'Unterschied zu deinem Ökosystem ohne diese Art.');
+  const contributionNote = el('p', 'detail-note');
+  contributionNote.dataset.ref = 'detail-contribution-note';
   const contributionBody = el('div');
   contributionBody.append(contribution, contributionNote);
 
@@ -136,6 +143,7 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
   root.append(dialog);
 
   let current: string | null = null;
+  let currentNiche: string | null = null;
   let signature = '';
   let returnFocus: HTMLElement | null = null;
 
@@ -144,6 +152,7 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
     if (next === signature) return;
     signature = next;
     current = view.id;
+    currentNiche = view.nicheId;
     dialog.dataset.species = view.id;
 
     const level = happinessLevel(view.happiness);
@@ -163,6 +172,7 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
     moodValue.setAttribute('aria-label', `Zufriedenheit ${formatPercent(view.happiness)}`);
 
     renderPreviewChips(contribution, view.contribution);
+    setText(contributionNote, view.contributionNote);
     renderConditions(conditions, view.conditions);
     factors.replaceChildren(
       ...view.factors.map((factor) => {
@@ -188,9 +198,8 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
 
     abilities.replaceChildren(
       ...view.abilities.map((ability) => {
-        const li = el('li', ability.active ? 'active' : 'inactive');
+        const li = el('li');
         li.append(el('b', '', ability.name), el('span', '', ` – ${ability.text}`));
-        if (!ability.active) li.append(el('span', 'detail-note', ' (wirkt gerade nicht)'));
         return li;
       }),
     );
@@ -204,12 +213,7 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
         const icon = el('span', 'community-icon', c.icon);
         icon.setAttribute('aria-hidden', 'true');
         const text = el('span', 'community-text');
-        const name = el('span', 'community-name', c.name);
-        if (!c.discovered) {
-          name.setAttribute('aria-hidden', 'true');
-          text.append(srOnly('Noch unentdeckte Lebensgemeinschaft'));
-        }
-        text.append(name);
+        text.append(el('span', 'community-name', c.name));
         const state = c.active ? 'besteht gerade' : (c.progress ?? '');
         if (state) text.append(el('span', 'community-note', state));
         if (c.effect) text.append(el('span', 'community-note', c.effect));
@@ -251,6 +255,7 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
   function cleanup(): void {
     clearNotice();
     current = null;
+    currentNiche = null;
     signature = '';
     delete dialog.dataset.species;
     const target = returnFocus;
@@ -266,17 +271,29 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
   close.addEventListener('click', hide);
   // Escape schließt (Standard des <dialog>); aufräumen und Fokus zurück in `close`.
   dialog.addEventListener('close', cleanup);
-  // Klick auf den abgedunkelten Hintergrund schließt ebenfalls.
+  // Klick auf den abgedunkelten Hintergrund schließt ebenfalls – aber nur, wenn er dort
+  // auch begann (sonst schlösse eine Textauswahl, die außerhalb der Karte endet).
+  let downOnBackdrop = false;
+  dialog.addEventListener('pointerdown', (event) => {
+    downOnBackdrop = event.target === dialog;
+  });
   dialog.addEventListener('click', (event) => {
-    if (event.target === dialog) hide();
+    const fromBackdrop = downOnBackdrop;
+    downOnBackdrop = false;
+    if (event.target === dialog && fromBackdrop) hide();
   });
 
   return {
     show,
-    update(view) {
+    update(view, fallbackFocus) {
       if (!dialog.open) return;
-      if (!view) hide();
-      else render(view);
+      if (view) {
+        render(view);
+        return;
+      }
+      // Die Kachel der Art verschwindet gleich – sonst landete der Fokus auf <body>.
+      if (fallbackFocus) returnFocus = fallbackFocus;
+      hide();
     },
     hide,
     notice(text) {
@@ -290,6 +307,9 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
     },
     get speciesId() {
       return dialog.open ? current : null;
+    },
+    get nicheId() {
+      return dialog.open ? currentNiche : null;
     },
   };
 }

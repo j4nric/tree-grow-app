@@ -23,7 +23,10 @@ import {
   evaluateEcosystem,
   mainTreeOf,
   memberOptions,
+  nicheOverflow,
   regularSlots,
+  slotBonuses,
+  slotEffects,
   type AnimalStatus,
   type Evaluation,
 } from '../core/formulas';
@@ -115,10 +118,15 @@ function factorViews(state: GameState, sp: Species, status: AnimalStatus | undef
   const genusName = GENUS_INFO[sp.genus].name;
   const sum = (list: readonly { genus: string; points: number }[]) =>
     list.filter((e) => e.genus === sp.genus).reduce((s, e) => s + e.points, 0) / 100;
+  const treeId = state.cycle?.mainTree !== undefined ? mainTreeOf(state.cycle.mainTree).id : undefined;
   if (state.cycle?.elapsed !== undefined) {
     const seasonId = seasonIdAt(state.cycle.elapsed);
     const season = SEASONS_BY_ID.get(seasonId);
-    const value = sum(environmentEffects(state.stage, seasonId).happiness);
+    // Anteil der Jahreszeit mit Baum gerechnet: Ein winterfester Hauptbaum (Kiefer)
+    // streicht Abzüge der Jahreszeit – die zählen hier dann auch nicht.
+    const value =
+      sum(environmentEffects(state.stage, seasonId, treeId).happiness) -
+      sum(environmentEffects(state.stage, undefined, treeId).happiness);
     if (season) {
       factors.push({
         key: 'season',
@@ -128,8 +136,8 @@ function factorViews(state: GameState, sp: Species, status: AnimalStatus | undef
       });
     }
   }
-  if (state.cycle?.mainTree !== undefined) {
-    const tree = mainTreeOf(state.cycle.mainTree);
+  if (treeId !== undefined) {
+    const tree = mainTreeOf(treeId);
     const value = sum(environmentEffects(state.stage, undefined, tree.id).happiness);
     if (value !== 0) factors.push({ key: 'tree', icon: tree.icon, label: `${tree.name}: ${points(value)}`, tone: value > 0 ? 'good' : 'bad' });
   }
@@ -145,20 +153,24 @@ function factorViews(state: GameState, sp: Species, status: AnimalStatus | undef
   return factors;
 }
 
-/** Lebensgemeinschaften mit dieser Art – unentdeckte ohne Name und ID (wie im Tagebuch). */
+/**
+ * Lebensgemeinschaften mit dieser Art. Unentdeckte nur als Anzahl in einem Eintrag – ohne
+ * Name, ID, Rätselhinweis und Fortschritt: „2/3 Mitglieder“ an einer bestimmten Art
+ * verriete, dass die übrigen Mitglieder schon da sind (Spoiler-Regel, DESIGN_V2 9.2).
+ */
 function communityViews(state: GameState, sp: Species, ev: Readonly<Evaluation>): DetailCommunityView[] {
   const discovered = state.meta.journal.communities;
   const status = new Map(ev.communities.map((c) => [c.id, c]));
   let hidden = 0;
-  return COMMUNITIES.filter((c) => c.members.some((m) => memberOptions(m).includes(sp.id))).map((c) => {
+  const out: DetailCommunityView[] = [];
+  for (const c of COMMUNITIES) {
+    if (!c.members.some((m) => memberOptions(m).includes(sp.id))) continue;
     const s = status.get(c.id);
     const active = s?.active ?? false;
-    const progress = s && !active ? `${formatNumber(s.present)}/${formatNumber(s.total)} Mitglieder` : undefined;
     // Wie in der Seitenleiste: Was gerade besteht, gilt als entdeckt.
     if (!active && !discovered.includes(c.id)) {
-      const view: DetailCommunityView = { key: `unknown-community-${hidden++}`, discovered: false, icon: '❔', name: '???', active: false, hint: c.hint };
-      if (progress) view.progress = progress;
-      return view;
+      hidden++;
+      continue;
     }
     const view: DetailCommunityView = {
       key: c.id,
@@ -168,9 +180,50 @@ function communityViews(state: GameState, sp: Species, ev: Readonly<Evaluation>)
       active,
       effect: [`+${formatNumber(s?.harmony || c.harmony)} Harmonie`, ...c.effects.map((e) => effectView(e).label)].join(' · '),
     };
-    if (progress) view.progress = `${progress} – fehlt: ${missingMembersText(s!.missing)}`;
-    return view;
-  });
+    if (s && !active) {
+      view.progress = `${formatNumber(s.present)}/${formatNumber(s.total)} Mitglieder – fehlt: ${missingMembersText(s.missing)}`;
+    }
+    out.push(view);
+  }
+  if (hidden > 0) {
+    out.push({
+      key: 'unknown-communities',
+      discovered: false,
+      icon: '❔',
+      name:
+        hidden === 1
+          ? 'Gehört zu einer noch unentdeckten Lebensgemeinschaft'
+          : `Gehört zu ${formatNumber(hidden)} noch unentdeckten Lebensgemeinschaften`,
+      active: false,
+      hint: 'Rätselhinweise stehen im Naturtagebuch.',
+    });
+  }
+  return out;
+}
+
+const CONTRIBUTION_NOTE = 'Unterschied zu deinem Ökosystem ohne diese Art.';
+
+/**
+ * Erklärung zum Beitrag. Platz-Schaffer (Wirkung `slot`, Baumeister): Ohne sie fielen
+ * Plätze weg und Bewohner müssten ausziehen – die Chips rechnen mit allen Bewohnern.
+ */
+function contributionNote(state: GameState, sp: Species, nichesWithout: GameState['niches']): string {
+  const made = new Map<string, number>();
+  for (const e of slotEffects(sp)) made.set(e.niche, (made.get(e.niche) ?? 0) + e.amount);
+  if (made.size === 0) return CONTRIBUTION_NOTE;
+  const list = [...made]
+    .map(([id, n]) => {
+      const niche = NICHES_BY_ID.get(id as NicheId);
+      return `${niche ? `${niche.icon} ${niche.name}` : id} +${formatNumber(n)}`;
+    })
+    .join(', ');
+  const overflow = nicheOverflow(state.stage, nichesWithout, slotBonuses(state));
+  const leaving = [...made.keys()].reduce((sum, id) => sum + (overflow[id as NicheId] ?? 0), 0);
+  const consequence =
+    leaving > 0
+      ? `Ohne sie fielen diese Plätze weg und ${leaving === 1 ? 'ein Bewohner müsste' : `${formatNumber(leaving)} Bewohner müssten`} ausziehen – das zeigt der Beitrag nicht.`
+      : 'Ohne sie fielen diese Plätze weg – gerade müsste deswegen niemand ausziehen.';
+  return `${CONTRIBUTION_NOTE} Schafft Plätze (${list}). ${consequence}`;
 }
 
 /**
@@ -204,7 +257,7 @@ export function toAnimalDetailView(
   for (const e of sp.effects) {
     if (e.kind === 'ability') {
       const info = ABILITY_INFO[e.id];
-      abilities.push({ name: info.name, text: info.text, active: now.abilities.includes(e.id) });
+      abilities.push({ name: info.name, text: info.text });
     } else {
       effects.push(effectView(e));
     }
@@ -234,6 +287,7 @@ export function toAnimalDetailView(
     happiness: status?.happiness ?? 0,
     mood: moodText(sp, status, present),
     contribution,
+    contributionNote: contributionNote(state, sp, niches),
     conditions,
     factors: factorViews(state, sp, status, now),
     effects,
