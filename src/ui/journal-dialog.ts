@@ -194,6 +194,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     if (c.members) body.append(el('p', 'journal-facts', c.members));
     if (c.effect) body.append(el('p', 'journal-effect', c.effect));
     if (c.hint) body.append(el('p', 'journal-text', c.hint));
+    if (c.progress) body.append(el('p', 'journal-progress', c.progress));
     if (c.active) body.append(el('p', 'journal-present', 'besteht gerade'));
     li.append(icon, body);
     return li;

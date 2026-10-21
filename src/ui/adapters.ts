@@ -679,11 +679,17 @@ export function toJournalView(state: GameState, evaluation: Readonly<Pick<Evalua
     };
   });
 
+  const statusById = new Map(evaluation.communities.map((c) => [c.id, c]));
   const active = new Set(evaluation.communities.filter((c) => c.active).map((c) => c.id));
+  /** Fortschritt „x/y“ wie in der Seitenleiste (nur, solange sie nicht besteht). */
+  const progressOf = (id: string, total: number) => {
+    const status = statusById.get(id);
+    return status && !status.active ? `${ofTotal(status.present, status.total || total)} Mitglieder` : undefined;
+  };
   let hiddenCommunities = 0;
   const communities: JournalCommunityView[] = COMMUNITIES.map((c) => {
     if (!journal.communities.includes(c.id)) {
-      return {
+      const hidden: JournalCommunityView = {
         key: `unknown-community-${hiddenCommunities++}`,
         discovered: false,
         icon: '❔',
@@ -691,17 +697,24 @@ export function toJournalView(state: GameState, evaluation: Readonly<Pick<Evalua
         active: false,
         hint: c.hint,
       };
+      const progress = progressOf(c.id, c.members.length);
+      if (progress) hidden.progress = progress;
+      return hidden;
     }
     const effect = [`+${formatNumber(c.harmony)} Harmonie`, ...c.effects.map((e) => effectView(e).label)].join(' · ');
-    return {
+    const known: JournalCommunityView = {
       key: c.id,
       discovered: true,
       icon: c.icon,
       name: c.name,
       active: active.has(c.id),
+      // Alle Mitglieder, auch noch unentdeckte – gewollt, wie „fehlt: …“ (DESIGN_V2.md 9.2).
       members: missingMembersText(c.members.map((m) => memberOptions(m))),
       effect,
     };
+    const progress = progressOf(c.id, c.members.length);
+    if (progress) known.progress = progress;
+    return known;
   });
 
   const keepsakes: JournalKeepsakeView[] = journal.keepsakes.map((id) => {

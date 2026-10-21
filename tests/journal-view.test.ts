@@ -83,8 +83,22 @@ describe('toJournalView (Naturtagebuch)', () => {
       members: 'Regenwurm, Rollassel, Pfifferling oder Steinpilz',
       effect: '+8 Harmonie · +5 % 🌿',
     });
-    expect(view.communities.find((c) => c.key === 'damp-ground')).toMatchObject({ name: 'Feuchter Grund', active: false });
+    expect(view.communities.find((c) => c.key === 'damp-ground')).toMatchObject({
+      name: 'Feuchter Grund',
+      active: false,
+      progress: '0/3 Mitglieder',
+    });
     expect(view.communities.filter((c) => !c.discovered)).toHaveLength(7);
+  });
+
+  it('Fortschritt „x/y“ auch bei unentdeckten Gemeinschaften (wie in der Seitenleiste)', () => {
+    // Raupenwacht 2/3 (Eichenwickler, Blaumeise), noch nicht entdeckt.
+    const state = stateAt(3, ['oakmoth', 'bluetit']);
+    const view = toJournalView(state, evaluate(state));
+    const watch = view.communities[COMMUNITIES.findIndex((c) => c.id === 'caterpillar-watch')]!;
+    expect(watch).toMatchObject({ discovered: false, name: '???', progress: '2/3 Mitglieder' });
+    expect(watch.hint).toBe('Tags und nachts wird die Krone bewacht.');
+    expect(view.communities.every((c) => c.progress !== undefined)).toBe(true);
   });
 
   it('Andenken „Die alte Eiche“ und unbekannte Andenken neutral', () => {
