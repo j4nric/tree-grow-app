@@ -19,6 +19,7 @@ import {
   declineEncounter,
   plantBlocker,
   plantSeed,
+  recordDiscoveries,
   rerollBlocker,
   rerollEncounter,
   unlockedPlants,
@@ -323,6 +324,37 @@ describe('plantSeed: Pflanzen mit Samen setzen', () => {
     expect(unlockedPlants(stateAt(0))).toEqual([]);
     expect(unlockedPlants(stateAt(1)).sort()).toEqual(['anemone', 'moss']);
     expect(unlockedPlants(stateAt(4))).toHaveLength(14);
+  });
+});
+
+describe('Naturtagebuch: Pflanzen und Lebensgemeinschaften', () => {
+  it('chooseCard und plantSeed merken Pflanzen und entdeckte Lebensgemeinschaften', () => {
+    // Humusküche: Regenwurm, Rollassel, Pfifferling oder Steinpilz
+    const state = withEncounter(['earthworm', 'woodlouse'], ['chanterelle']);
+    expect(state.meta.journal.communities).toEqual([]);
+    expect(chooseCard(state, 0, 0).ok).toBe(true);
+    expect(state.meta.journal.communities).toEqual(['humus']);
+    // Pflanzenkarte keimt → im Tagebuch; Feuchter Grund braucht noch den Wurmfarn.
+    state.pendingEncounters.push({ type: 'plant', cards: ['moss'], rerolls: 0 });
+    expect(chooseCard(state, 0, 0).ok).toBe(true);
+    expect(state.meta.journal.plants).toEqual(['moss']);
+    state.niches.litter.push('slug');
+    state.seeds = 1e6;
+    expect(plantSeed(state, 'fern').ok).toBe(true);
+    expect(state.meta.journal.plants).toEqual(['moss', 'fern']);
+    expect(state.meta.journal.communities).toEqual(['humus', 'damp-ground']);
+    // Doppelt gesetzt: kein doppelter Eintrag.
+    expect(plantSeed(state, 'fern').ok).toBe(true);
+    expect(state.meta.journal.plants).toEqual(['moss', 'fern']);
+  });
+
+  it('entdeckt bleibt entdeckt; recordDiscoveries meldet nur Neues', () => {
+    const state = stateAt(3, ['earthworm', 'woodlouse', 'porcini']);
+    expect(recordDiscoveries(state)).toEqual(['humus']);
+    expect(recordDiscoveries(state)).toEqual([]);
+    state.niches.roots = ['earthworm'];
+    expect(recordDiscoveries(state)).toEqual([]);
+    expect(state.meta.journal.communities).toEqual(['humus']);
   });
 });
 

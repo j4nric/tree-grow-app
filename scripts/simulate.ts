@@ -12,6 +12,7 @@
  * Ausführen (Tabellen im Protokoll, DESIGN_V2.md Abschnitt 15.4):
  *   SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts
  */
+import { COMMUNITIES } from '../src/content/communities';
 import { GENUS_INFO, SPECIES_BY_ID } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { GENERA, type Genus } from '../src/content/types';
@@ -239,6 +240,11 @@ export interface Snapshot {
   /** Versorgung V der Begleitpflanzen (0–1). */
   supply: number;
   genus: Record<Genus, number>;
+  /** Aktive Lebensgemeinschaften (IDs) und ihre Harmonie (inkl. Lichterabend). */
+  communities: string[];
+  communityHarmony: number;
+  /** Im Naturtagebuch entdeckte Lebensgemeinschaften (auch gerade nicht aktive). */
+  discovered: number;
   /** Samen-Bestand. */
   seeds: number;
   /** Bisher verdient: passiv (Baum × Harmonie) und durch (automatisches) Ablehnen. */
@@ -332,6 +338,9 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
       plants: state.plants.length,
       supply: ev.supply,
       genus,
+      communities: ev.communities.filter((c) => c.active).map((c) => c.id),
+      communityHarmony: ev.breakdown.communities,
+      discovered: state.meta.journal.communities.length,
       seeds: state.seeds,
       ...book,
       counts: { ...counts, rarityTaken: [...counts.rarityTaken] },
@@ -580,6 +589,13 @@ export function stageStats(summary: Summary, stage: number) {
     plants: m((s) => s.plants),
     supply: m((s) => s.supply),
     genus: GENERA.map((g) => m((s) => s.genus[g])),
+    communities: m((s) => s.communities.length),
+    communityHarmony: m((s) => s.communityHarmony),
+    discovered: m((s) => s.discovered),
+    /** Anteil der Durchgänge, in denen die Lebensgemeinschaft gerade aktiv ist (je ID). */
+    communityShare: Object.fromEntries(
+      COMMUNITIES.map((c) => [c.id, reached.filter((s) => s.communities.includes(c.id)).length / Math.max(1, reached.length)]),
+    ) as Record<string, number>,
     seeds: m((s) => s.seeds),
     earnedPassive: m((s) => s.earnedPassive),
     earnedDecline: m((s) => s.earnedDecline),
@@ -724,6 +740,27 @@ export function strategyTable(summaries: Summary[], stage: number): string {
   return lines.join('\n');
 }
 
+/** Lebensgemeinschaften beim Erreichen einer Stufe: Anzahl, Harmonie-Anteil, häufigste. */
+export function communityTable(summaries: Summary[], stage: number): string {
+  const lines = [
+    '| Strategie | aktiv (Ø) | ⚖️ daraus | Anteil an ⚖️ | entdeckt (Ø) | häufigste (Anteil der Durchgänge) |',
+    '|---|---|---|---|---|---|',
+  ];
+  for (const s of summaries) {
+    const st = stageStats(s, stage);
+    const top = COMMUNITIES.map((c) => ({ name: c.name, share: st.communityShare[c.id] ?? 0 }))
+      .filter((c) => c.share >= 0.05)
+      .sort((a, b) => b.share - a.share)
+      .slice(0, 3)
+      .map((c) => `${c.name} ${fmt(c.share * 100)} %`)
+      .join(', ');
+    lines.push(
+      `| ${s.strategy.name} | ${fmt(st.communities, 2)} | ${fmt(st.communityHarmony, 1)} | ${fmt((st.communityHarmony / Math.max(1e-9, st.harmony)) * 100)} % | ${fmt(st.discovered, 2)} | ${top || '–'} |`,
+    );
+  }
+  return lines.join('\n');
+}
+
 export function stageTable(summary: Summary, targets: readonly (string | null)[]): string {
   const lines = [
     '| Stufe | Ziel | Median | 10–90 % | ⚖️ | 🌿/s | 🌰/s | Ø Zufr. | Tiere / Pflanzen | Begegnungen im Abschnitt | Takt Median | Takt max |',
@@ -795,6 +832,10 @@ export function report(summaries: Summary[], focusStage: number): string {
     `#### Strategien beim Erreichen von „${name}“ (${harmony.runs.length} Durchgänge je Strategie)`,
     '',
     strategyTable(summaries, focusStage),
+    '',
+    `#### Lebensgemeinschaften beim Erreichen von „${name}“`,
+    '',
+    communityTable(summaries, focusStage),
     '',
     '#### Stufen und Takt – Gierig nach Harmonie',
     '',

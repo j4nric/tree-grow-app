@@ -1,3 +1,4 @@
+import { MAX_PENDING_ENCOUNTERS } from './content/encounters';
 import { STAGES } from './content/stages';
 import { evaluate, growth, nextPlantCost, rerollCost, type Evaluation } from './core/formulas';
 import { clearStorage, loadFromStorage, saveToStorage } from './core/save';
@@ -16,11 +17,13 @@ import {
 import { drawScene, type SceneInput } from './render/tree';
 import { PLANTS_BY_ID } from './content/plants';
 import {
+  autoDeclineText,
   refreshEcosystemView,
   toEcosystemView,
   toEncounterView,
   toPlantPickerView,
   toSceneAnimals,
+  toScenePlants,
   welcomeText,
 } from './ui/adapters';
 import { createEcosystemPanel } from './ui/ecosystem-panel';
@@ -126,7 +129,13 @@ let pickerSeedsShown = -1;
 let pickerSeedsAt = -Infinity;
 
 /** Eingabe für den Renderer – ein Objekt für alle Frames, keine Allokationen pro Frame. */
-const scene: SceneInput = { growth: 0, time: 0, animals: [], reducedMotion: reducedMotionQuery.matches };
+const scene: SceneInput = {
+  growth: 0,
+  time: 0,
+  animals: [],
+  plants: [],
+  reducedMotion: reducedMotionQuery.matches,
+};
 
 // --- Oberfläche ----------------------------------------------------------------------
 
@@ -299,8 +308,9 @@ function refreshPanel(now: number): void {
     if (!ecoView || ev !== ecoEvaluation) {
       ecoEvaluation = ev;
       ecoView = toEcosystemView(state, ev);
-      // Tiere für die Szene nur bei Änderungen am Ökosystem neu bauen.
+      // Tiere und Pflanzen für die Szene nur bei Änderungen am Ökosystem neu bauen.
       scene.animals = toSceneAnimals(state, ev);
+      scene.plants = toScenePlants(state, ev);
     } else {
       refreshEcosystemView(ecoView, state);
     }
@@ -325,6 +335,16 @@ function floatSeeds(amount: number): void {
   if (!target || amount <= 0) return;
   const rect = target.getBoundingClientRect();
   floats.spawn(`+${formatNumber(amount)} 🌰`, rect.left + rect.width / 2, rect.top);
+}
+
+/**
+ * Ein Wegpunkt ging ohne Begegnung vorbei (nichts Passendes oder Stapel voll): dezenter
+ * Hinweis über der Szene, die Samen dafür schweben am Vorrat hoch.
+ */
+function noteAutoDeclined(count: number): void {
+  const stackFull = state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width > 0) floats.spawn(autoDeclineText(count, stackFull), rect.left + rect.width / 2, rect.top + rect.height * 0.3, 'note');
 }
 
 function showBanner(title: string, text: string): void {
@@ -392,6 +412,7 @@ function frame(now: number): void {
     encounterDirty = true;
     ecoDirty = true;
   }
+  if (report.autoDeclined > 0) noteAutoDeclined(report.autoDeclined);
 
   if (state.stage !== shownStage) {
     shownStage = state.stage;

@@ -358,12 +358,15 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       plants: state.plants,
       niches: state.niches,
       journal: state.meta.journal.species,
+      journalPlants: state.meta.journal.plants,
+      communities: state.meta.journal.communities,
       rngState: state.rngState,
       totalGrowth: Math.round(state.totalGrowth),
       seeds: Math.round(state.seeds),
       harmony: Math.round(ev.harmony * 100) / 100,
     }).toMatchInlineSnapshot(`
       {
+        "communities": [],
         "harmony": 76.72,
         "journal": [
           "earthworm",
@@ -382,6 +385,14 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "peacock",
           "stagbeetle",
           "owl",
+        ],
+        "journalPlants": [
+          "anemone",
+          "hazel",
+          "foxglove",
+          "fern",
+          "elder",
+          "nettle",
         ],
         "niches": {
           "bark": [
