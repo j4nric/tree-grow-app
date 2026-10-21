@@ -42,6 +42,9 @@ body {
   top: 24px;
   left: 50%;
   transform: translate(-50%, -12px);
+  /* Ohne feste Breite stünde wegen left: 50 % nur die halbe Szene zur Verfügung → unnötige Umbrüche */
+  width: max-content;
+  max-width: calc(100% - 32px);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1707,6 +1710,11 @@ dialog.plant-picker {
     right: 12px;
     bottom: auto;
     left: auto;
+  }
+
+  /* Stufen-Banner unter den Stapel schieben – sonst verdeckt der Stapel den Stufennamen */
+  .stage-banner {
+    top: 72px;
   }
 
   .encounter-stack {
