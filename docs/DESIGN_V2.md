@@ -737,8 +737,8 @@ type PendingEncounterType = 'animal' | 'plant' | 'event' | 'visitor';
 // Ereignis/Gast: cards = [id], rerolls = 0. Neu würfeln ist dort gesperrt.
 ```
 
-**Ziehen (`drawEncounter`, `reachWaypoint`):** `DRAWABLE_TYPES` um `event`/`visitor`
-erweitern. Kandidaten: `minStage <= stage`, nicht in `cycle.seen`, `speciesAppears(state,
+**Ziehen (`drawEncounter`, `reachWaypoint`):** Alle vier Typen werden nach
+`ENCOUNTER_WEIGHTS` gezogen (die frühere Liste `DRAWABLE_TYPES` ist entfallen). Kandidaten: `minStage <= stage`, nicht in `cycle.seen`, `speciesAppears(state,
 x)`; zufällig gleichverteilt (`pick` mit dem Zufall des Spielstands). Kein Kandidat →
 Tier, sonst Pflanze (wie heute). Ist `cycle.forced` gesetzt, wird die Begegnung am
 nächsten Wegpunkt (ab Wegpunkt 4) genau so gebaut wie in `EventEffect` beschrieben und
@@ -778,9 +778,18 @@ die UI kennt `EncounterKind` 'event'/'visitor' schon (`src/ui/view-model.ts`).
 
 - Spielstand v5; Migration v4 → v5 setzt die neuen Felder leer. Steht ein Stand schon
   hinter dem Zwischenhalt seines Abschnitts, gilt dieser als ausgewertet (kein Ereignis
-  direkt nach dem Update). Beim Laden zählen Boni, Zeit-Boni und Habitate nur, wenn ein
-  Ereignis sie genau so vergibt (Schutz vor manipulierten Ständen); Restdauern werden auf
-  die Dauer begrenzt.
+  direkt nach dem Update). Beim Laden (Schutz vor manipulierten Ständen): Boni und
+  Zeit-Boni nur, wenn ein Ereignis aus `seen` sie genau so vergibt, je (Quelle, Wirkung)
+  höchstens einmal; Habitate je Merkmal höchstens so oft, wie die Ereignisse in `seen` es
+  vergeben können; aktive Gäste nur aus `seen`; `forced` nur mit IDs, die ein
+  `nextEncounter` desselben Typs vorgibt; in der Warteschlange keine doppelten Ereignisse
+  oder Gäste, keine Gäste, die schon rasten, keine Ereignisse, deren Wirkungen schon
+  vergeben sind. Restdauern werden auf die Dauer begrenzt.
+- Samen-Sekunden rechnen zur Samenrate **ohne** Zeit-Boni und Gäste (`seedSecondsRate`),
+  damit sich Samen-Optionen nicht durch vorher gewählte Zeit-Boni aufblähen lassen.
+- `hostBlocker` meldet `'already-active'`, wenn der Gast schon rastet. `TickReport`
+  meldet mit `interludesReached` auch Zwischenhalte ohne Ergebnis – `main.ts` speichert
+  dann sofort, damit Neuladen den Zufall nicht neu würfelt.
 - Aktionen: `chooseEventOption(state, i, option)`, `hostVisitor(state, i)`,
   `farewellVisitor(state, i)`, Blocker `eventOptionBlocker` / `hostBlocker` als Codes.
   `declineEncounter` und Neu würfeln gehen bei Ereignissen und Gästen nicht ('wrong-type').
@@ -1522,8 +1531,8 @@ reichen (Zufall: jeder zweite).
 | Strategie | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Durststrecke Alter Baum 90 % / max | Hain 90 % / max | Wald 90 % / max | Ereignisse / Gäste (bewirtet) je Durchgang |
 |---|---|---|---|---|---|---|---|---|---|
 | Zufällig | 24:00 min | 1:14 h | 2:14 h | 3:14 h | 71,9 | 12:46 min / 20:53 min | 12:08 min / 14:50 min | 10:35 min / 14:02 min | 7,1 / 6,3 (3,1) |
-| Gierig nach Harmonie | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 | 7:58 min / 11:54 min | 7:39 min / 12:18 min | 9:13 min / 19:19 min | 7,4 / 6,1 (6,1) |
-| Gierig nach Wachstum | 14:37 min | 37:31 min | 1:04 h | 1:33 h | 94,1 | 7:15 min / 13:47 min | 5:02 min / 6:47 min | 5:13 min / 8:11 min | 7,7 / 6,0 (6,0) |
+| Gierig nach Harmonie | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 | 7:58 min / 11:54 min | 7:39 min / 12:18 min | 9:09 min / 19:19 min | 7,4 / 6,1 (6,1) |
+| Gierig nach Wachstum | 14:37 min | 37:31 min | 1:04 h | 1:33 h | 94,1 | 7:15 min / 13:47 min | 5:01 min / 6:47 min | 5:13 min / 8:11 min | 7,7 / 6,0 (6,0) |
 
 Bewertung: Durststrecken im Hain und Wald liegen im 90-%-Quantil unter 10 min (Ziel
 < 11 min). Der Harmonie-Spieler erreicht den Hain in ~46 min – am unteren Rand des
@@ -1602,23 +1611,23 @@ kauft einen beliebigen kaufbaren Rang. „ohne“ = Durchgänge mit Ereignissen 
 
 | Strategie | Pflege | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | 🌰-Bestand beim Hain (min Produktion) | im Wald | für Pflege bis Hain / Wald | Ränge bis Hain / Urwald |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Gierig nach Harmonie | ohne | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 | 14729 (24,5) | 45458 (33,0) | – | – |
-| Gierig nach Wachstum | ohne | 14:37 min | 37:31 min | 1:04 h | 1:33 h | 94,1 | 9931 (21,9) | 29873 (30,6) | – | – |
-| Zufällig | ohne | 24:00 min | 1:14 h | 2:14 h | 3:14 h | 71,9 | 31916 (49,2) | 93867 (72,7) | – | – |
-| Gierig nach Harmonie | mit | 16:57 min | 43:18 min | 1:13 h | 1:44 h | 105,5 | 2864 (3,8) | 8852 (4,7) | 14630 / 50670 | 6,9 / 15,6 |
-| Gierig nach Wachstum | mit | 14:37 min | 36:43 min | 1:01 h | 1:27 h | 96,9 | 1828 (4,0) | 2723 (2,6) | 8285 / 27321 | 4,7 / 12,6 |
-| Zufällig | mit | 23:44 min | 1:10 h | 2:01 h | 2:48 h | 77,8 | 12282 (16,9) | 31985 (17,8) | 19230 / 64650 | 7,9 / 16,9 |
+| Gierig nach Harmonie | ohne | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 | 14719 (24,5) | 45516 (32,8) | – | – |
+| Gierig nach Wachstum | ohne | 14:37 min | 37:31 min | 1:04 h | 1:33 h | 94,1 | 9929 (21,9) | 29821 (30,5) | – | – |
+| Zufällig | ohne | 24:00 min | 1:14 h | 2:14 h | 3:14 h | 71,9 | 31914 (49,2) | 93869 (72,7) | – | – |
+| Gierig nach Harmonie | mit | 16:57 min | 43:18 min | 1:13 h | 1:44 h | 105,5 | 2862 (3,8) | 8807 (4,7) | 14630 / 50670 | 6,9 / 15,6 |
+| Gierig nach Wachstum | mit | 14:37 min | 36:43 min | 1:01 h | 1:27 h | 96,9 | 1833 (4,0) | 2844 (2,7) | 8285 / 27021 | 4,7 / 12,5 |
+| Zufällig | mit | 23:44 min | 1:10 h | 2:01 h | 2:48 h | 77,8 | 12281 (16,9) | 31971 (17,8) | 19230 / 64650 | 7,9 / 16,9 |
 
 | Maßnahme | Gierig nach Harmonie: Ränge bis Hain / Urwald | Gierig nach Wachstum: Ränge bis Hain / Urwald | Zufällig: Ränge bis Hain / Urwald |
 |---|---|---|---|
-| 🍂 Laub liegen lassen | 1,00 / 2,00 | 1,00 / 2,00 | 1,00 / 2,00 |
+| 🍂 Laub liegen lassen | 1,00 / 2,00 | 1,00 / 1,99 | 1,00 / 2,00 |
 | 🏠 Nistkästen | 1,00 / 2,00 | 1,00 / 2,00 | 1,00 / 2,00 |
-| 🌼 Wildblumen-Saum | 1,66 / 2,98 | 0,20 / 1,66 | 1,95 / 3,00 |
+| 🌼 Wildblumen-Saum | 1,66 / 2,98 | 0,20 / 1,65 | 1,95 / 3,00 |
 | 🪵 Totholzhaufen | 1,00 / 2,00 | 0,76 / 2,00 | 1,00 / 2,00 |
-| ☀️ Lichte Krone | 0,94 / 1,68 | 0,60 / 1,26 | 0,18 / 0,52 |
-| 🌳 Dichte Krone | 0,01 / 0,06 | 0,08 / 0,32 | 0,81 / 2,42 |
-| 💧 Waldtümpel | 0,28 / 1,98 | 0,14 / 1,44 | 0,98 / 2,00 |
-| 🐝 Insektenhotel | 1,00 / 2,89 | 0,94 / 1,92 | 0,97 / 2,96 |
+| ☀️ Lichte Krone | 0,94 / 1,65 | 0,60 / 1,22 | 0,18 / 0,52 |
+| 🌳 Dichte Krone | 0,01 / 0,06 | 0,08 / 0,32 | 0,81 / 2,41 |
+| 💧 Waldtümpel | 0,28 / 1,98 | 0,14 / 1,47 | 0,98 / 2,00 |
+| 🐝 Insektenhotel | 1,00 / 2,88 | 0,94 / 1,89 | 0,97 / 2,97 |
 
 Bewertung: Pflege ist die Samen-Senke – der Bestand beim Hain fällt beim Harmonie-Spieler
 von ~25 auf ~4 Minuten Produktion, im Wald von ~33 auf ~5. Das Tempo ändert sich kaum

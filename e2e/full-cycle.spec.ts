@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { SPECIES_BY_ID } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
+import { CONFIRM_MIN_MS } from '../src/ui/confirm';
 import {
   dialog,
   expect,
@@ -17,7 +18,7 @@ import {
 /**
  * Voller Zyklus mit festem Seed (Roadmap 2.9).
  *
- * Neues Spiel (v4, fester Zufalls-Seed), Testuhr angehalten: Zeit vergeht nur über
+ * Neues Spiel (v5, fester Zufalls-Seed, Waldgedächtnis knapp unter einem Stammgast-Platz), Testuhr angehalten: Zeit vergeht nur über
  * `page.clock` (Sprünge < 60 s, damit keine Willkommens-Meldung kommt). Strategie, bewusst
  * einfach und deterministisch: bei jeder Begegnung die erste wählbare Karte (mit der
  * vorausgewählten Ersetzung), sonst ablehnen; eine Pflanze setzen, sobald die Samen reichen
@@ -28,11 +29,13 @@ import {
  */
 
 const START = new Date('2026-10-21T08:00:00Z');
-/**
- * Fester Seed. Seit Schritt 2.4 (Ereignisse und Gäste ziehen mit) verläuft der Zyklus
- * anders; mit 20261022 reicht das Waldgedächtnis wieder für einen Stammgast-Platz.
- */
 const RNG_SEED = 20261022;
+/**
+ * Start-Waldgedächtnis knapp unter einem Stammgast-Platz (25): Jeder Zyklus bringt
+ * mindestens einen Punkt, also gibt es danach sicher einen Platz – unabhängig davon, wie
+ * der Seed verläuft (robust gegen neue Inhalte, die den Zufall verschieben).
+ */
+const START_MEMORY = 24;
 const HAIN = STAGES[NEW_CYCLE_MIN_STAGE]!.name;
 
 async function stageIndex(page: Page): Promise<number> {
@@ -112,7 +115,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   // Uhr anhalten: Zeit vergeht nur über fastForward/runFor → jeder Lauf ist gleich.
   await page.clock.install({ time: START });
   await page.clock.pauseAt(new Date(START.getTime() + 1000));
-  await seedNewGame(context, RNG_SEED, START);
+  await seedNewGame(context, RNG_SEED, START, START_MEMORY);
   await openGame(page);
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
   const fresh = await savedState(page);
@@ -187,19 +190,21 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
 
   await newCycleButton.click();
   await expect(newCycleButton).toContainText('Zum Bestätigen erneut klicken');
+  // Der zweite Klick zählt erst nach der Schutzzeit gegen Doppelklicks (ui/confirm.ts).
+  await page.clock.fastForward(CONFIRM_MIN_MS + 50);
   await newCycleButton.click();
   await page.clock.runFor(50);
 
   await expect(page.locator('#toast')).toContainText('Zyklus 2 beginnt');
   await expect(cyclePanel(page).locator('[data-ref="cycle-title"]')).toBeFocused();
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
-  await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${gain} ·`);
+  await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${START_MEMORY + gain} ·`);
   const cycle2 = await savedState(page);
   expect(cycle2.version).toBe(5);
   expect(cycle2.cycle.number).toBe(2);
   expect(cycle2.stage).toBe(0);
   expect(cycle2.waypoint).toBe(0);
-  expect(cycle2.meta.forestMemory, 'Waldgedächtnis = Vorschau').toBe(gain);
+  expect(cycle2.meta.forestMemory, 'Waldgedächtnis = Start + Vorschau').toBe(START_MEMORY + gain);
   expect(cycle2.meta.journal.species, 'Tagebuch bleibt').toEqual(journal);
   expect(cycle2.plants).toEqual([]);
   expect(Object.values(cycle2.niches as Record<string, string[]>).flat()).toEqual([]);
@@ -210,16 +215,17 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
 
   // --- Stammgast wählen und einziehen lassen ------------------------------------------
   const regulars = page.locator('[data-ref="regulars"]');
-  expect(gain, 'mit diesem Seed reicht das Waldgedächtnis für einen Stammgast-Platz').toBeGreaterThanOrEqual(25);
+  const slots = Math.floor((START_MEMORY + gain) / 25);
+  expect(slots, 'mindestens ein Stammgast-Platz').toBeGreaterThanOrEqual(1);
   await expect(regulars).toBeVisible();
-  await expect(regulars).toContainText('Stammgäste 0/1');
+  await expect(regulars).toContainText(`Stammgäste 0/${slots}`);
   const option = regulars.locator('[data-regular]:not([disabled])').first();
   const regular = (await option.getAttribute('data-regular')) ?? '';
   const species = SPECIES_BY_ID.get(regular)!;
   expect(species, regular).toBeTruthy();
   await option.click();
   await expect(regulars.locator(`[data-regular="${regular}"]`)).toHaveAttribute('aria-pressed', 'true');
-  await expect(regulars).toContainText('Stammgäste 1/1');
+  await expect(regulars).toContainText(`Stammgäste 1/${slots}`);
   expect((await savedState(page)).meta.regulars).toEqual([regular]);
   trail.push(`regular:${regular}`);
 
@@ -259,7 +265,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
     expect(after[key], key).toEqual(before[key]);
   }
   await expect(cyclePanel(page).locator('.cycle-sub')).toHaveText('Zyklus 2');
-  await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${gain} ·`);
+  await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${START_MEMORY + gain} ·`);
   await expect(regulars.locator(`[data-regular="${regular}"]`)).toHaveAttribute('aria-pressed', 'true');
   await expect(niche(page, species.niche).locator(`[data-species="${regular}"]`)).toBeVisible();
 

@@ -34,6 +34,10 @@ import {
 } from './state';
 
 export const SAVE_KEY = 'tree-grow-save';
+/** Obergrenzen beim Laden: Andenken (Anzahl, Länge der ID) und Neuwürfe je Begegnung. */
+export const MAX_KEEPSAKES = 100;
+export const MAX_KEEPSAKE_ID_LENGTH = 64;
+export const MAX_REROLLS = 1000;
 
 /** Obergrenze für die Zyklus-Nummer beim Laden (Schutz vor kaputten Ständen). */
 export const MAX_CYCLE_NUMBER = 1e9;
@@ -162,7 +166,10 @@ function migrateV2(state: GameState): void {
  * H_max ergänzt loadGame aus dem aktuellen Ökosystem; Stammgäste gibt es noch keine.
  */
 function migrateV3(state: GameState): void {
-  state.cycle = createCycle(1);
+  // Nur die v4-Felder setzen: Was das Laden schon ergänzt hat (z. B. wartende Ereignisse
+  // in `seen`), bleibt erhalten.
+  state.cycle.number = 1;
+  state.cycle.maxHarmony = 0;
   state.cycle.newSpecies = [...state.meta.journal.species];
   state.meta.regulars = [];
 }
@@ -262,10 +269,18 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
       const single = type === 'event' || type === 'visitor';
       const cards = unique(stringArray(raw.cards).filter(valid)).slice(0, single ? 1 : CARDS_PER_ENCOUNTER);
       if (cards.length === 0) continue;
+      if (single) {
+        const id = cards[0]!;
+        // Jedes Ereignis und jeder Gast höchstens einmal: keine Doppel in der Warteschlange,
+        // kein Gast, der schon rastet, kein Ereignis, dessen Wirkungen schon vergeben sind.
+        if (state.pendingEncounters.some((e) => e.cards[0] === id && e.type === type)) continue;
+        if (type === 'visitor' && state.cycle.visitors.some((v) => v.id === id)) continue;
+        if (type === 'event' && [...state.cycle.bonuses, ...state.cycle.timed].some((b) => b.source === id)) continue;
+      }
       const encounter: PendingEncounter = {
         type,
         cards,
-        rerolls: single ? 0 : Math.max(0, Math.floor(finiteOr(raw.rerolls, 0))),
+        rerolls: single ? 0 : Math.floor(clampedOr(raw.rerolls, 0, 0, MAX_REROLLS)),
       };
       state.pendingEncounters.push(encounter);
       // Wartende Ereignisse und Gäste sind gezogen, also gesehen.
@@ -282,7 +297,10 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   const journal = isRecord(meta.journal) ? meta.journal : {};
   state.meta.journal.species = unique(stringArray(journal.species).filter((id) => SPECIES_BY_ID.has(id)));
   for (const id of seen) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
-  state.meta.journal.keepsakes = unique(stringArray(journal.keepsakes));
+  // Andenken sind freie IDs: Anzahl und Länge begrenzen (fremde oder manipulierte Stände).
+  state.meta.journal.keepsakes = unique(stringArray(journal.keepsakes))
+    .filter((id) => id.length > 0 && id.length <= MAX_KEEPSAKE_ID_LENGTH)
+    .slice(0, MAX_KEEPSAKES);
   // Pflanzen und Lebensgemeinschaften im Tagebuch (seit Schritt 2.3, ohne neue Version):
   // fehlen sie (ältere Stände), ergänzt loadGame sie per recordDiscoveries aus dem Ökosystem.
   state.meta.journal.plants = unique(stringArray(journal.plants).filter((id) => PLANTS_BY_ID.has(id)));
@@ -321,22 +339,47 @@ function loadCycleExtras(raw: Record<string, unknown>, state: GameState): void {
   const cycle: CycleState = createCycle(1);
   if (typeof raw.startedAt === 'number' && Number.isFinite(raw.startedAt)) cycle.startedAt = raw.startedAt;
   cycle.seen = unique(stringArray(raw.seen).filter((id) => EVENTS_BY_ID.has(id) || VISITORS_BY_ID.has(id)));
+  // Wirkungen nur von Ereignissen, die in diesem Zyklus gezogen wurden, und je (Quelle,
+  // Wirkung) höchstens einmal – so lassen sich Boni nicht durch Kopieren vervielfachen.
+  const seen = new Set(cycle.seen);
+  const taken = new Set<string>();
+  const once = (kind: string, source: string, effect: unknown) => {
+    const key = `${kind}|${source}|${JSON.stringify(effect)}`;
+    if (taken.has(key)) return false;
+    taken.add(key);
+    return true;
+  };
   for (const b of Array.isArray(raw.bonuses) ? raw.bonuses : []) {
-    if (!isRecord(b) || typeof b.source !== 'string') continue;
+    if (!isRecord(b) || typeof b.source !== 'string' || !seen.has(b.source)) continue;
     const effect = eventEffects(b.source, 'cycle').find((e) => sameJson(e.effect, b.effect))?.effect;
-    if (effect) cycle.bonuses.push({ source: b.source, effect: effect as CycleEffect } satisfies CycleBonus);
+    if (effect && once('cycle', b.source, effect)) cycle.bonuses.push({ source: b.source, effect: effect as CycleEffect } satisfies CycleBonus);
   }
-  const habitatTags = new Set<string>(EVENTS.flatMap((e) => e.options.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'habitat' ? [x.tag] : [])))));
-  cycle.habitats = stringArray(raw.habitats).filter((t) => habitatTags.has(t)) as Tag[];
+  // Habitate: je Merkmal höchstens so oft, wie die gezogenen Ereignisse es vergeben können.
+  const allowed = new Map<string, number>();
+  for (const id of cycle.seen) {
+    const perTag = new Map<string, number>();
+    for (const option of EVENTS_BY_ID.get(id)?.options ?? []) {
+      const counts = new Map<string, number>();
+      for (const e of option.effects) if (e.kind === 'habitat') counts.set(e.tag, (counts.get(e.tag) ?? 0) + 1);
+      for (const [tag, n] of counts) perTag.set(tag, Math.max(perTag.get(tag) ?? 0, n));
+    }
+    for (const [tag, n] of perTag) allowed.set(tag, (allowed.get(tag) ?? 0) + n);
+  }
+  for (const tag of stringArray(raw.habitats)) {
+    const left = allowed.get(tag) ?? 0;
+    if (left <= 0) continue;
+    allowed.set(tag, left - 1);
+    cycle.habitats.push(tag as Tag);
+  }
   for (const t of Array.isArray(raw.timed) ? raw.timed : []) {
-    if (!isRecord(t) || typeof t.source !== 'string') continue;
+    if (!isRecord(t) || typeof t.source !== 'string' || !seen.has(t.source)) continue;
     const timed = eventEffects(t.source, 'timed').find((e) => sameJson(e.effect, t.effect));
     const remaining = finiteOr(t.remaining, 0);
-    if (!timed || !(remaining > 0)) continue;
+    if (!timed || !(remaining > 0) || !once('timed', t.source, timed.effect)) continue;
     cycle.timed.push({ source: t.source, effect: timed.effect as TimedEffect, remaining: Math.min(remaining, timed.seconds) } satisfies TimedBonus);
   }
   for (const v of Array.isArray(raw.visitors) ? raw.visitors : []) {
-    if (!isRecord(v) || typeof v.id !== 'string') continue;
+    if (!isRecord(v) || typeof v.id !== 'string' || !seen.has(v.id)) continue;
     const visitor = VISITORS_BY_ID.get(v.id);
     const remaining = finiteOr(v.remaining, 0);
     if (!visitor || !(remaining > 0) || cycle.visitors.some((x) => x.id === v.id)) continue;
@@ -344,7 +387,11 @@ function loadCycleExtras(raw: Record<string, unknown>, state: GameState): void {
   }
   if (isRecord(raw.forced) && (raw.forced.type === 'animal' || raw.forced.type === 'plant')) {
     const type = raw.forced.type;
-    const ids = unique(stringArray(raw.forced.ids).filter((id) => (type === 'plant' ? PLANTS_BY_ID.has(id) : SPECIES_BY_ID.has(id))));
+    // Nur IDs, die ein Ereignis wirklich als nächste Begegnung desselben Typs vorgibt.
+    const offered = new Set(
+      EVENTS.flatMap((e) => e.options.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'nextEncounter' && x.type === type ? x.ids : [])))),
+    );
+    const ids = unique(stringArray(raw.forced.ids).filter((id) => offered.has(id)));
     if (ids.length > 0) cycle.forced = { type, ids };
   }
   cycle.interlude = Math.floor(clampedOr(raw.interlude, 0, 0, WAYPOINT_COUNT));
@@ -404,4 +451,129 @@ function stringArray(value: unknown): string[] {
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+// ---------------------------------------------------------------------------
+// Spielstand als Text-Code (Exportieren / Importieren)
+// ---------------------------------------------------------------------------
+
+/** Präfix des Text-Codes („Vom Samen zum Wald“, Format 1). */
+export const EXPORT_PREFIX = 'VSZW1:';
+/** Längere Codes werden gar nicht erst dekodiert (Schutz vor riesigen Eingaben). */
+export const MAX_EXPORT_CODE_LENGTH = 200_000;
+
+/** Warum ein Code nicht geladen werden konnte. */
+export type ImportError =
+  /** Leere Eingabe. */
+  | 'empty'
+  /** Länger als MAX_EXPORT_CODE_LENGTH. */
+  | 'too-large'
+  /** Kein Code dieses Spiels (Präfix, Aufbau oder Zeichen falsch). */
+  | 'format'
+  /** Prüfsumme passt nicht – der Code wurde unvollständig oder verändert kopiert. */
+  | 'checksum'
+  /** Der Inhalt ist kein brauchbarer Spielstand. */
+  | 'invalid';
+
+export type ImportResult = { ok: true; result: LoadResult } | { ok: false; error: ImportError };
+
+/**
+ * Spielstand als Text-Code: `VSZW1:<Base64url des JSON>.<Prüfsumme>`. Deterministisch
+ * (gleicher Stand → gleicher Code), nur URL-sichere Zeichen, ohne Zeilenumbrüche.
+ */
+export function exportCode(state: GameState): string {
+  return codeFromJson(serialize(state));
+}
+
+/** Kodiert einen gespeicherten Stand (JSON-Text, auch ältere Versionen) als Text-Code. */
+export function codeFromJson(json: string): string {
+  const payload = base64UrlEncode(new TextEncoder().encode(json));
+  return `${EXPORT_PREFIX}${payload}.${checksum(payload)}`;
+}
+
+/**
+ * Liest einen Text-Code und lädt ihn wie einen gespeicherten Stand (loadGame: robust,
+ * mit Migration alter Versionen). Leerraum (Zeilenumbrüche beim Kopieren) wird ignoriert.
+ * Die Uhr startet beim Import neu (`lastTick = now`) – ein Import bringt keine
+ * Offline-Zeit. Verändert nichts außerhalb des Ergebnisses.
+ */
+export function importCode(code: string, now: number): ImportResult {
+  // Grobe Prüfung vor dem Entfernen des Leerraums (riesige Eingaben gar nicht erst anfassen).
+  if (code.length > 2 * MAX_EXPORT_CODE_LENGTH) return { ok: false, error: 'too-large' };
+  const compact = code.replace(/\s+/g, '');
+  if (compact.length === 0) return { ok: false, error: 'empty' };
+  if (compact.length > MAX_EXPORT_CODE_LENGTH) return { ok: false, error: 'too-large' };
+  if (!compact.startsWith(EXPORT_PREFIX)) return { ok: false, error: 'format' };
+  const body = compact.slice(EXPORT_PREFIX.length);
+  const dot = body.lastIndexOf('.');
+  if (dot <= 0) return { ok: false, error: 'format' };
+  const payload = body.slice(0, dot);
+  const sum = body.slice(dot + 1);
+  if (!/^[A-Za-z0-9_-]+$/.test(payload) || !/^[0-9a-f]{8}$/.test(sum)) return { ok: false, error: 'format' };
+  if (checksum(payload) !== sum) return { ok: false, error: 'checksum' };
+  const bytes = base64UrlDecode(payload);
+  if (!bytes) return { ok: false, error: 'format' };
+  let json: string;
+  try {
+    json = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return { ok: false, error: 'invalid' };
+  }
+  let result: LoadResult | null;
+  try {
+    result = loadGame(json, now);
+  } catch {
+    // z. B. zu tief verschachteltes JSON – lieber „ungültig“ als ein Absturz.
+    return { ok: false, error: 'invalid' };
+  }
+  if (!result) return { ok: false, error: 'invalid' };
+  result.state.lastTick = now;
+  return { ok: true, result };
+}
+
+/** FNV-1a (32 Bit) über die Zeichen – einfach und deterministisch, als 8 Hex-Ziffern. */
+function checksum(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+const BASE64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+/** Base64url ohne Auffüllzeichen (eigene Umsetzung, damit der Kern ohne btoa auskommt). */
+function base64UrlEncode(bytes: Uint8Array): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i]!;
+    const b = bytes[i + 1];
+    const c = bytes[i + 2];
+    const n = (a << 16) | ((b ?? 0) << 8) | (c ?? 0);
+    out += BASE64URL[(n >> 18) & 63]! + BASE64URL[(n >> 12) & 63]!;
+    if (b !== undefined) out += BASE64URL[(n >> 6) & 63]!;
+    if (c !== undefined) out += BASE64URL[n & 63]!;
+  }
+  return out;
+}
+
+/** Gegenstück zu base64UrlEncode; null bei unmöglicher Länge oder fremden Zeichen. */
+function base64UrlDecode(text: string): Uint8Array | null {
+  if (text.length % 4 === 1) return null;
+  const out = new Uint8Array(Math.floor((text.length * 3) / 4));
+  let o = 0;
+  for (let i = 0; i < text.length; i += 4) {
+    const chunk = text.slice(i, i + 4);
+    let n = 0;
+    for (let k = 0; k < 4; k++) {
+      const v = k < chunk.length ? BASE64URL.indexOf(chunk[k]!) : 0;
+      if (v < 0) return null;
+      n = (n << 6) | v;
+    }
+    out[o++] = (n >> 16) & 255;
+    if (chunk.length > 2) out[o++] = (n >> 8) & 255;
+    if (chunk.length > 3) out[o++] = n & 255;
+  }
+  return out.subarray(0, o);
 }

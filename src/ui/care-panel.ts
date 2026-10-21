@@ -71,6 +71,8 @@ export function createCarePanel(root: HTMLElement, callbacks: CarePanelCallbacks
         button.type = 'button';
         button.dataset.buyCare = item.id;
         button.disabled = !item.canBuy;
+        // Sperrgrund auch für Screenreader (der Text steht sonst nur daneben).
+        if (!item.canBuy && item.blocker) button.setAttribute('aria-label', `Kaufen (${item.cost}) – gesperrt: ${item.blocker}`);
         button.addEventListener('click', () => callbacks.onBuy(item.id));
         li.append(button);
       }

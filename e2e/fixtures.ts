@@ -1,5 +1,6 @@
 import { test as base, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { WAYPOINT_THRESHOLDS } from '../src/content/waypoints';
+import { CONFIRM_MIN_MS } from '../src/ui/confirm';
 import { createInitialState } from '../src/core/state';
 
 /**
@@ -93,8 +94,10 @@ export async function seedV3(context: BrowserContext, seed: SeedV3): Promise<voi
  * fest, wenn sich die Startzeit des Tests ändert. `now` = Beginn des Zyklus,
  * `lastTick` = Browser-Uhr beim Laden.
  */
-export async function seedNewGame(context: BrowserContext, rngSeed: number, now: Date): Promise<void> {
-  await seedRaw(context, createInitialState(now.getTime(), rngSeed), 0);
+export async function seedNewGame(context: BrowserContext, rngSeed: number, now: Date, forestMemory = 0): Promise<void> {
+  const state = createInitialState(now.getTime(), rngSeed);
+  state.meta.forestMemory = forestMemory;
+  await seedRaw(context, state, 0);
 }
 
 /** Liest eine deutsch formatierte Zahl (z. B. „1.234,5“, „2,1/s“ oder „−4,7“). */
@@ -145,6 +148,15 @@ export async function openStack(page: Page): Promise<void> {
 
 export async function savedState(page: Page): Promise<Record<string, any>> {
   return JSON.parse((await page.evaluate((key) => localStorage.getItem(key), SAVE_KEY)) ?? '{}');
+}
+
+/**
+ * Bestätigungen per zweitem Klick nehmen den zweiten Klick erst nach CONFIRM_MIN_MS an
+ * (Schutz vor Doppelklicks). Mit installierter Testuhr (`page.clock`) die Uhr vorstellen.
+ */
+export async function waitForConfirm(page: Page, options: { clock?: boolean } = {}): Promise<void> {
+  if (options.clock) await page.clock.runFor(CONFIRM_MIN_MS + 50);
+  else await page.waitForTimeout(CONFIRM_MIN_MS + 50);
 }
 
 /** Überlappen sich zwei Rechtecke (mit mehr als einem Pixel)? */

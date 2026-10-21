@@ -1060,12 +1060,24 @@ function copyNiches(niches: Partial<Record<NicheId, readonly string[]>>): Record
 }
 
 /**
- * Samen-Sekunden in Samen: Sekunden × aktuelle Samenrate (mit aktiven Boni), mindestens
- * SEED_SECONDS_MIN_SEEDS (Ereignisse und Gäste, DESIGN_V2.md 7.4/7.5). NaN und
- * negative Sekunden zählen als 0; das Ergebnis ist immer endlich.
+ * Samenrate, nach der Samen-Sekunden gerechnet werden: ohne Zeit-Boni und ohne Gäste
+ * (sonst ließen sich Samen-Optionen durch vorher gewählte Zeit-Boni aufblähen).
+ * Zyklus-Boni und Habitate zählen mit – sie sind Teil des Ökosystems.
+ */
+export function seedSecondsRate(state: GameState): number {
+  const c = state.cycle;
+  if (!c || ((c.timed ?? []).length === 0 && (c.visitors ?? []).length === 0)) return evaluate(state).seeds;
+  return evaluateEcosystem(ecosystemOf({ ...state, cycle: { ...c, timed: [], visitors: [] } })).seeds;
+}
+
+/**
+ * Samen-Sekunden in Samen: Sekunden × Samenrate ohne Zeit-Boni und Gäste
+ * (seedSecondsRate), mindestens SEED_SECONDS_MIN_SEEDS (Ereignisse und Gäste,
+ * DESIGN_V2.md 7.4/7.5). NaN und negative Sekunden zählen als 0; das Ergebnis ist
+ * immer endlich.
  */
 export function seedSeconds(state: GameState, seconds: number): number {
-  const rate = evaluate(state).seeds;
+  const rate = seedSecondsRate(state);
   const value = Math.max(0, finite(seconds)) * (Number.isFinite(rate) && rate > 0 ? rate : 0);
   return Math.min(Number.MAX_VALUE, Math.max(SEED_SECONDS_MIN_SEEDS, value));
 }

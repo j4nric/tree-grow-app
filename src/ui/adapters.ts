@@ -733,7 +733,8 @@ export function toJournalView(state: GameState, evaluation: Readonly<Pick<Evalua
   });
 
   const keepsakes: JournalKeepsakeView[] = journal.keepsakes.map((id) => {
-    const info = KEEPSAKE_INFO[id];
+    // Nur eigene Einträge: IDs wie „__proto__“ oder „toString“ dürfen nichts Geerbtes finden.
+    const info = Object.hasOwn(KEEPSAKE_INFO, id) ? KEEPSAKE_INFO[id] : undefined;
     return { key: id, icon: info?.icon ?? '🎁', name: info?.name ?? 'Andenken', text: info?.text ?? '' };
   });
 
@@ -1574,6 +1575,28 @@ export function bonusEffectLabel(effect: CycleEffect | TimedEffect | VisitorEffe
   }
 }
 
+/**
+ * Signatur der Bezahlbarkeit der Aktionen einer Begegnung: Neu würfeln (Tier/Pflanze)
+ * bzw. Bewirten (Gast). Ändert sie sich (z. B. weil die Samen jetzt reichen), muss der
+ * Dialog neu gebaut werden – sonst bleibt ein Knopf gesperrt.
+ */
+export function encounterActionKey(state: GameState, encounterIndex: number): string {
+  const encounter = state.pendingEncounters[encounterIndex];
+  if (!encounter) return '';
+  if (encounter.type === 'visitor') return `host:${hostBlocker(state, encounterIndex) ?? 'ok'}`;
+  if (encounter.type === 'event') return 'event';
+  return `reroll:${state.seeds >= rerollCost(state, encounterIndex)}`;
+}
+
+/** Restzeit für die Seitenleiste: ab einer Minute auf ganze Minuten aufgerundet. */
+export function remainingLabel(seconds: number): string {
+  const s = Math.max(0, Math.ceil(Number.isFinite(seconds) ? seconds : 0));
+  return s >= 60 ? `noch ${formatNumber(Math.ceil(s / 60))} Min.` : `noch ${formatNumber(s)} Sek.`;
+}
+
+/** Symbol je Merkmal aus Ereignissen (Habitate). */
+const HABITAT_ICONS: Partial<Record<Tag, string>> = { totholz: '🪵', feucht: '💧', hoehle: '🕳️' };
+
 /** Text für „gilt bis zum Neuen Zyklus“. */
 export const UNTIL_NEW_CYCLE = 'bis zum Neuen Zyklus';
 
@@ -1590,7 +1613,7 @@ export function activeBonusViews(state: GameState): ActiveBonusView[] {
       icon: event?.icon ?? '⏳',
       name: event?.name ?? t.source,
       effect: bonusEffectLabel(t.effect),
-      remaining: `noch ${formatDuration(Math.ceil(t.remaining))}`,
+      remaining: remainingLabel(t.remaining),
       left: t.remaining,
     });
   }
@@ -1602,7 +1625,7 @@ export function activeBonusViews(state: GameState): ActiveBonusView[] {
       icon: visitor.icon,
       name: visitor.name,
       effect: visitor.summary.replace(/ für \d+ min$/, ''),
-      remaining: `noch ${formatDuration(Math.ceil(v.remaining))}`,
+      remaining: remainingLabel(v.remaining),
       left: v.remaining,
     });
   }
@@ -1613,7 +1636,7 @@ export function activeBonusViews(state: GameState): ActiveBonusView[] {
     out.push({ id: `cycle:${i}`, icon: event?.icon ?? '🌳', name: event?.name ?? b.source, effect: bonusEffectLabel(b.effect), remaining: UNTIL_NEW_CYCLE });
   });
   state.cycle.habitats.forEach((tag, i) => {
-    out.push({ id: `habitat:${i}`, icon: '🪵', name: TAG_NAMES[tag] ?? tag, effect: 'Lebensraum', remaining: UNTIL_NEW_CYCLE });
+    out.push({ id: `habitat:${i}`, icon: HABITAT_ICONS[tag] ?? '🌿', name: TAG_NAMES[tag] ?? tag, effect: 'Lebensraum', remaining: UNTIL_NEW_CYCLE });
   });
   return out;
 }

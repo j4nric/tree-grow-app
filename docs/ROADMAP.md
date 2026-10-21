@@ -97,6 +97,8 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 - ~~Nährstoffe + Pilznetzwerk als Automatisierung~~ – in v2 aufgegangen (Gattung Pilze,
   Hallimasch „Waldweites Netz“); Humus-Kreislauf als optionale Erweiterung (DESIGN_V2.md 2.6)
 - [ ] Jahreszeiten (Logik: `core-engineer`, Grafik: `renderer`) – nach v2, wirkt auf Zufriedenheit und Begegnungen
+  - [x] Grafik (renderer): `SceneInput.season` 0–4 – Laubfarben, kahle Bäume, Blüten, Schnee, fallende Blätter
+  - [ ] Logik (core): Jahreszeit im Spielstand, Wirkung auf Zufriedenheit und Begegnungen
 - ~~Zufallsereignisse mit gespeichertem Seed~~ – in v2 aufgegangen (Begegnungen, `rngState`)
 - [ ] Statistik-Seite (Spielzeit, Gesamt-Wachstum, entdeckte Arten) (`ui-dev`)
 - [ ] Gattung Amphibien mit Waldtümpel (Erdkröte, Bergmolch) als Erweiterung (`game-designer`)
@@ -112,5 +114,5 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 ## Phase 5 – Veröffentlichung
 
 - [ ] Deployment auf GitHub Pages
-- [ ] Spielstand exportieren/importieren (Text-Code)
+- [x] Spielstand exportieren/importieren (Text-Code „VSZW1:…“ mit Prüfsumme, Bestätigung per zweitem Klick)
 - [ ] Sound & Musik (optional)
