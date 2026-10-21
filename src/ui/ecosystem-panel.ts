@@ -334,6 +334,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
       setText(tile.icon, '');
       setText(tile.name, 'frei');
       setText(tile.mood, '');
+      tile.mood.removeAttribute('title');
       setText(tile.sr, '');
       return;
     }
@@ -349,7 +350,10 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     if (arrived || (firstFill && seenFirstUpdate)) restartAnimation(tile.root, 'arrive');
     setText(tile.icon, animal.familyIcon);
     setText(tile.name, animal.name);
-    setText(tile.mood, `${formatPercent(happiness)} · ${animal.mood}`);
+    const mood = `${formatPercent(happiness)} · ${animal.mood}`;
+    setText(tile.mood, mood);
+    // Lange Gründe sind optisch auf zwei Zeilen gekürzt – der volle Text steht im Tooltip.
+    setAttr(tile.mood, 'title', mood);
     setVar(tile.ring, '--h', happiness.toFixed(3));
     setText(tile.sr, `, ${RARITY_LABELS[animal.rarity]}${animal.visitor ? ', zu Gast' : ''}`);
   }

@@ -550,19 +550,173 @@ test('Knappes Futter: Karte und Seitenleiste nennen, mit wem das Futter geteilt 
   await expect(niche(page, 'roots')).toContainText('teilt sich das Futter mit');
 });
 
+/** Drei wartende Begegnungen – der Stapel ist voll. */
+const FULL_STACK = [
+  { type: 'animal' as const, cards: ['bluetit'], rerolls: 0 },
+  { type: 'animal' as const, cards: ['oakmoth'], rerolls: 0 },
+  { type: 'animal' as const, cards: ['robin'], rerolls: 0 },
+];
+
+/** Testuhr anhalten: Zeit vergeht nur über runFor – Frames laufen alle ~16 ms. */
+async function pauseClock(page: Page): Promise<void> {
+  await page.clock.install({ time: new Date('2026-10-21T08:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-21T08:00:01Z'));
+}
+
 test('Wegpunkt bei vollem Stapel: dezenter Hinweis mit den Samen dafür', async ({ page, context }) => {
-  await seedV3(context, {
-    totalGrowth: waypoint(7) - 0.3,
-    pendingEncounters: [
-      { type: 'animal', cards: ['bluetit'], rerolls: 0 },
-      { type: 'animal', cards: ['oakmoth'], rerolls: 0 },
-      { type: 'animal', cards: ['robin'], rerolls: 0 },
-    ],
-  });
+  await pauseClock(page);
+  await seedV3(context, { totalGrowth: waypoint(7) - 1, pendingEncounters: FULL_STACK });
   await openGame(page);
   await expect(stack(page)).toHaveText(/3 Begegnungen warten/);
-  await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/, {
-    timeout: 8_000,
+  await expect(page.locator('.float-note')).toHaveCount(0);
+  // Eine Sekunde in Einzelframes: Der Wegpunkt fällt sicher in tick() eines Frames,
+  // nicht ins Nachrechnen (catchUp) nach einem Zeitsprung.
+  await page.clock.runFor(1000);
+  await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/);
+  await expect(page.locator('#toast')).toBeHidden();
+  const saved = await savedState(page);
+  expect(saved.pendingEncounters).toHaveLength(3);
+  expect(saved.waypoint).toBe(7);
+});
+
+test('Tab kommt nach 20 s zurück, ein Wegpunkt bei vollem Stapel verpasst: Hinweis statt Willkommen', async ({
+  page,
+  context,
+}) => {
+  await pauseClock(page);
+  // 20 s weg: Das Nachrechnen beim Start überquert Wegpunkt 7 (Junger Baum wächst ~6/s).
+  await seedV3(context, { totalGrowth: waypoint(7) - 30, pendingEncounters: FULL_STACK, lastTickOffsetMs: -20_000 });
+  await openGame(page);
+  await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/);
+  await expect(page.locator('#toast')).toBeHidden();
+  expect((await savedState(page)).waypoint).toBe(7);
+});
+
+test('Echter v2-Spielstand (alte Wegpunkt-Kurve): lädt ohne Fehler, Stufe und Tiere bleiben', async ({
+  page,
+  context,
+}) => {
+  // v2 (Prototyp ohne Pflanzen): Wegpunkt k bei 4 · k^3,2 – „Alter Baum“ ab Wegpunkt 12.
+  const v2Waypoint = (k: number) => Math.round(4 * Math.pow(k, 3.2));
+  const niches = {
+    roots: ['earthworm'],
+    litter: ['robin', 'woodlouse'],
+    edge: [],
+    crown: ['bluetit', 'oakmoth'],
+    bark: ['barkbeetle'],
+    hollows: [],
+  };
+  await seedRaw(
+    context,
+    {
+      version: 2,
+      totalGrowth: v2Waypoint(12) + (v2Waypoint(13) - v2Waypoint(12)) / 2,
+      seeds: 5000,
+      waypoint: 12,
+      stage: 4,
+      niches,
+      pendingEncounters: [{ type: 'animal', cards: ['woodpecker'], rerolls: 0 }],
+      rngState: 987654321,
+      meta: { forestMemory: 0, journal: { species: Object.values(niches).flat(), keepsakes: [] } },
+    },
+    0,
+  );
+  await openGame(page);
+  await expect(stageLabel(page)).toHaveText('Stufe: Alter Baum');
+  for (const [id, list] of Object.entries(niches)) {
+    for (const animal of list) await expect(niche(page, id).locator(`[data-species="${animal}"]`)).toBeVisible();
+  }
+  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+
+  // Neuladen speichert (beforeunload) und lädt den umgerechneten v3-Stand: alles bleibt.
+  await page.reload();
+  await expect(stageLabel(page)).toHaveText('Stufe: Alter Baum');
+  await expect(niche(page, 'crown').locator('[data-species="bluetit"]')).toBeVisible();
+  const saved = await savedState(page);
+  expect(saved.version).toBe(3);
+  // Gleicher Wegpunkt, auf die neue Kurve umgerechnet (etwa in der Mitte zum nächsten).
+  expect(saved.waypoint).toBe(12);
+  expect(saved.totalGrowth).toBeGreaterThan(waypoint(12));
+  expect(saved.totalGrowth).toBeLessThan(waypoint(13));
+  expect(saved.niches).toEqual(niches);
+  expect(saved.plants).toEqual([]);
+  // Prototyp-Samen werden begrenzt (erste zwei Pflanzen = 58 🌰).
+  expect(saved.seeds).toBeLessThan(80);
+});
+
+test('Volle Nische: Futter-Erklärung folgt der gewählten Ersetzen-Option', async ({ page, context }) => {
+  await seedV3(context, {
+    totalGrowth: waypoint(6) + 1,
+    niches: { roots: ['earthworm'], litter: ['robin', 'woodlouse'] },
+    pendingEncounters: [{ type: 'animal', cards: ['centipede'], rerolls: 0 }],
   });
-  expect((await savedState(page)).pendingEncounters).toHaveLength(3);
+  await openGame(page);
+  await openStack(page);
+  const centipede = card(page, 'centipede');
+  // Rotkehlchen weicht: Der Steinläufer hat Würmer und Insekten für sich.
+  await expect(centipede.getByRole('combobox')).toHaveValue('robin');
+  await expect(centipede).not.toContainText('teilt sich das Futter');
+  // Rollassel weicht: Insekten fehlen, die Würmer teilt er mit dem Rotkehlchen.
+  await centipede.getByRole('combobox').selectOption('woodlouse');
+  await expect(centipede).toContainText('(knapp)');
+  await expect(centipede).toContainText('teilt sich das Futter mit Rotkehlchen');
+  await centipede.getByRole('combobox').selectOption('robin');
+  await expect(centipede).not.toContainText('teilt sich das Futter');
+});
+
+test.describe('Feinschliff mobil (390×844)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test('erste Begegnung: Legende zu, Wählen und Ablehnen ohne Scrollen sichtbar – auch aufgeklappt', async ({
+    page,
+    context,
+  }) => {
+    await seedV3(context, {
+      totalGrowth: waypoint(6) + 1,
+      niches: { roots: ['earthworm'], litter: ['woodlouse'] },
+      pendingEncounters: [{ type: 'animal', cards: ['oakmoth', 'bluetit', 'robin'], rerolls: 0 }],
+    });
+    await openGame(page);
+    await stack(page).tap();
+    await expect(dialog(page)).toBeVisible();
+    await settle(page);
+    const legend = dialog(page).locator('.encounter-legend');
+    await expect(legend).not.toHaveAttribute('open', '');
+    await expect(legend.getByText('Was bedeuten die Symbole?')).toBeVisible();
+    const choose = card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler wählen' });
+    const decline = dialog(page).getByRole('button', { name: /Ablehnen/ });
+    await expect(choose).toBeInViewport();
+    await expect(decline).toBeInViewport();
+
+    // Aufgeklappt: Die Aktionsleiste bleibt am unteren Rand.
+    await legend.getByText('Was bedeuten die Symbole?').tap();
+    await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
+    await expect(decline).toBeInViewport();
+  });
+
+  test('lange Gründe: Tier-Kacheln bleiben flach, der volle Text steht im Tooltip', async ({ page, context }) => {
+    await seedV3(context, {
+      totalGrowth: waypoint(12) + 1,
+      plants: ['birch', 'hazel', 'anemone', 'moss', 'rowan'],
+      niches: {
+        roots: ['earthworm'],
+        litter: ['robin', 'woodlouse'],
+        edge: ['bee'],
+        crown: ['bluetit', 'oakmoth'],
+        bark: ['woodpecker', 'barkbeetle'],
+      },
+    });
+    await openGame(page);
+    const bee = niche(page, 'edge').locator('[data-species="bee"]');
+    const mood = bee.locator('.slot-mood');
+    await expect(mood).toHaveAttribute('title', /·/);
+    const full = (await mood.getAttribute('title'))!;
+    expect(await mood.textContent()).toBe(full);
+    // Höchstens zwei Textzeilen
+    const { height, lineHeight } = await mood.evaluate((e) => ({
+      height: e.getBoundingClientRect().height,
+      lineHeight: parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.3,
+    }));
+    expect(height).toBeLessThanOrEqual(lineHeight * 2 + 1);
+  });
 });

@@ -780,6 +780,17 @@ dialog.encounter::backdrop {
   gap: 10px;
 }
 
+/* Kartenwahl: Aktionen bleiben am unteren Rand sichtbar, auch wenn der Dialog scrollt */
+dialog.encounter:not(.plant-picker) .encounter-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 0 -20px;
+  padding: 10px 20px;
+  background: var(--panel);
+  box-shadow: 0 -1px 0 var(--border);
+}
+
 .encounter-button {
   min-height: 44px;
   padding: 8px 16px;
@@ -1218,6 +1229,12 @@ dialog.encounter::backdrop {
   font-size: 0.72rem;
   color: var(--muted);
   overflow-wrap: anywhere;
+  /* Höchstens zwei Zeilen, damit lange Gründe die Kacheln nicht aufblähen */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 .slot.arrive {
@@ -1808,6 +1825,11 @@ dialog.plant-picker {
     flex: 1 1 140px;
   }
 
+  dialog.encounter:not(.plant-picker) .encounter-actions {
+    margin: 0 -12px;
+    padding: 8px 12px;
+  }
+
   dialog.plant-picker {
     width: calc(100vw - 16px);
   }
@@ -1863,8 +1885,9 @@ dialog.plant-picker {
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  padding: 0 10px;
-  border-radius: 10px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
   cursor: pointer;
   list-style: none;
 }

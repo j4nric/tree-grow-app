@@ -554,6 +554,12 @@ export function toCardView(
           afterReplaced = occupant;
         }
         option.preview = previewView(now, result, sp.id);
+        // Bedingungen je Tausch: Wer weicht, teilt danach kein Futter mehr.
+        option.conditions = conditionViews(
+          sp,
+          result.animals[sp.id],
+          allAnimals(state).filter((id) => id !== occupant),
+        );
       } else {
         option.disabledReason = REPLACE_BLOCKED;
       }
@@ -1069,6 +1075,29 @@ export function autoDeclineText(autoDeclined: number, stackFull: boolean): strin
   const reward = `+${formatNumber(n * declineReward())} 🌰`;
   if (stackFull) return `Stapel voll – ${n === 1 ? 'eine Begegnung zog' : 'Begegnungen zogen'} weiter · ${reward}`;
   return `Niemand zog ein · ${reward}`;
+}
+
+/** Ab dieser Abwesenheit (s) gibt es eine Willkommens-Meldung. */
+export const WELCOME_MIN_SECONDS = 60;
+
+export type CatchUpNotice = { kind: 'welcome' | 'note'; text: string } | null;
+
+/**
+ * Was nach dem Nachrechnen (Start, Tab zurück, Ruhezustand) gemeldet wird: nach längerer
+ * Abwesenheit die Willkommens-Meldung (sie nennt verpasste Begegnungen selbst), sonst –
+ * falls Wegpunkte ohne Begegnung vorbeigingen – der kurze Hinweis wie im laufenden Spiel.
+ */
+export function catchUpNotice(
+  away: number,
+  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined'>,
+  waiting: number,
+  stackFull: boolean,
+): CatchUpNotice {
+  if (away > WELCOME_MIN_SECONDS && report.growth > 0) {
+    return { kind: 'welcome', text: welcomeText(away, report, waiting) };
+  }
+  if (report.autoDeclined > 0) return { kind: 'note', text: autoDeclineText(report.autoDeclined, stackFull) };
+  return null;
 }
 
 /** Willkommens-Meldung nach Abwesenheit (DESIGN_V2.md, 7.6). */
