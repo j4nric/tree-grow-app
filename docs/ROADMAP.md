@@ -107,10 +107,12 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     erreichbar (Grenze ≈ 0,90), siehe DESIGN_V2.md 15.4 „Untersuchung Schritt 2.11“; Tempo
     Wald/Urwald liegt schon bei 1,15 / 1,20 × Ziel
   - [x] Entscheidung (Option 1): `1 + H/100` bleibt; Harmonie lohnt sich über die Zyklen –
-    Waldgedächtnis `min(45, 3 · (H_max − 100)) + neue Arten`, ab Zyklus 2 Harmonie
-    gleichauf (DESIGN_V2.md 15.4 „Stand Schritt 2.11“, Entscheidung 11)
-  - [ ] offen: Vorteil der Harmonie auch bei Neustart im Wald/Urwald; Zufallsspieler
-    bekommt kaum noch Gedächtnis aus Harmonie
+    Waldgedächtnis `⌊H_max/5⌋ + min(45, 3 · (H_max − 100)) + neue Arten`, ab Zyklus 2
+    Harmonie gleichauf, Gelegenheitsspieler unverändert; Regel im Panel „Neuer Zyklus“
+    (DESIGN_V2.md 15.4 „Stand Schritt 2.11“, Entscheidung 11)
+  - [ ] offen (`core-engineer`): stufenabhängige Schwelle für den Harmonie-Bonus – bei
+    Neustart im Wald/Urwald haben beide Spielweisen H_max über 115, dort kein
+    Harmonie-Vorsprung, und ein Urwald-Zyklus bringt ~100 statt ~55 Punkte
 
 ## Phase 3 – Tiefe
 

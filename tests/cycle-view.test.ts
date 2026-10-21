@@ -26,21 +26,22 @@ describe('View-Model „Neuer Zyklus“', () => {
     expect(view.memory).toBe('Waldgedächtnis 0 · +0 % Wachstum und Samen');
   });
 
-  it('ab dem Hain: Vorschau „+41 Waldgedächtnis (+41 %)“ und neue Stammgast-Plätze', () => {
+  it('ab dem Hain: Vorschau „+43 Waldgedächtnis (+43 %)“ und neue Stammgast-Plätze', () => {
     const state = stateAt(5, ['earthworm']);
-    // 3 · (110 − 100) + 11 Arten = 41 (Formel seit Schritt 2.11)
-    state.cycle.maxHarmony = 110.4;
+    // 104 / 5 + 3 · (104 − 100) + 11 Arten = 20 + 12 + 11 = 43 (Formel seit Schritt 2.11)
+    state.cycle.maxHarmony = 104.4;
     state.cycle.newSpecies = SPECIES.slice(0, 11).map((s) => s.id);
     const view = toCyclePanelView(state);
     expect(view.allowed).toBe(true);
     expect(view.blocker).toBeNull();
-    expect(view.gain).toBe('+41 Waldgedächtnis (+41 %)');
-    expect(view.gainDetail).toBe('Höchste Harmonie 110 · 11 neue Arten');
+    expect(view.gain).toBe('+43 Waldgedächtnis (+43 %)');
+    expect(view.memoryRule).toBe('Waldgedächtnis: 1 Punkt je 5 Harmonie und je neue Art. Harmonie über 100 zählt extra: +3 je Punkt (bis 115).');
+    expect(view.gainDetail).toBe('Höchste Harmonie 104 · 11 neue Arten');
     expect(view.slotsGain).toBe('+1 Platz für Stammgäste');
     state.meta.forestMemory = 20;
     expect(toCyclePanelView(state).slotsGain).toBe('+2 Plätze für Stammgäste');
     state.cycle.newSpecies = ['earthworm'];
-    expect(toCyclePanelView(state).gainDetail).toBe('Höchste Harmonie 110 · 1 neue Art');
+    expect(toCyclePanelView(state).gainDetail).toBe('Höchste Harmonie 104 · 1 neue Art');
   });
 
   it('Stammgäste: ohne Platz ausgeblendet, sonst alle entdeckten Arten zum Wählen', () => {

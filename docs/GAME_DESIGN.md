@@ -96,26 +96,29 @@ Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 15.4 („Stand 
   Harmonie-Spieler im ersten Zyklus über ~0,90 × Tempo des Wachstums-Spielers, weil
   dieser die echte Rate samt Multiplikator maximiert und Harmonie fast von selbst mitnimmt.
 - **Entschieden:** Multiplikator bleibt `1 + H/100`, Wegpunkt-Kurve und Spielstand v7
-  bleiben. Harmonie wirkt über das Waldgedächtnis beim Neuen Zyklus.
-- **Ziel:** Zyklus 1: Wachstum höchstens ~15 % schneller; ab Zyklus 2: Harmonie-Spielweise
-  mindestens gleichauf; Zyklus 2 insgesamt 18–37 % schneller bis zum Hain.
+  bleiben. Harmonie wirkt über das Waldgedächtnis beim Neuen Zyklus: zum Sockel wie
+  bisher kommt ein Bonus für Harmonie über 100. Das Panel „Neuer Zyklus“ und die
+  Spielanleitung nennen die Regel.
+- **Ziele:** Zyklus 1: Wachstum höchstens ~15 % schneller; ab Zyklus 2: Harmonie-Spielweise
+  mindestens gleichauf; ruhige Gelegenheitsspieler nicht schlechter als vorher (Zyklus 2
+  ≥ 20 % schneller); Zyklus 2 für den Harmonie-Spieler höchstens 45 % schneller.
 
 | Zahl (`src/content/memory.ts`) | vorher | jetzt |
 |---|---|---|
-| Waldgedächtnis aus Harmonie | ⌊H_max / 5⌋ | **3 je Punkt über 100, höchstens 45** (ab 115) |
+| Waldgedächtnis aus Harmonie | ⌊H_max / 5⌋ | ⌊H_max / 5⌋ **+ 3 je Punkt über 100, höchstens 45** (ab 115) |
 | je neu entdeckter Art | 1 | 1 |
 
 | Kennzahl (200 Durchgänge, jeder Zyklus bis Hain) | vorher | jetzt |
 |---|---|---|
-| Hain Wachstum / Harmonie, Zyklus 1 / 2 / 3 | 0,858 / 0,857 / 0,873 | 0,859 / **0,997** / **1,087** |
-| Zyklus 2 schneller bis Hain, Harmonie / Wachstum | 28,8 % / 28,9 % | 32,7 % / 21,8 % |
-| Waldgedächtnis Zyklus 1, Harmonie / Wachstum | 33,4 / 33,2 | 37,9 / 26,9 |
-| Summe bis Hain über drei Zyklen, Harmonie / Wachstum | 2:26:07 h / 2:05:55 h | 2:19:46 h / 2:13:33 h |
-| Stammgäste gewählt in Zyklus 3, Harmonie / Wachstum | 2,0 / 2,0 | 2,5 / 1,4 |
+| Hain Wachstum / Harmonie, Zyklus 1 / 2 / 3 | 0,858 / 0,857 / 0,873 | 0,859 / **0,973** / **1,044** |
+| Zyklus 2 schneller bis Hain, Harmonie / Wachstum / Zufall | 28,8 / 28,9 / 22,9 % | 41,6 / 33,8 / 22,9 % |
+| Waldgedächtnis Zyklus 1, Harmonie / Wachstum / Zufall | 33,4 / 33,2 / 29,1 | 59,4 / 47,3 / 30,0 |
+| Summe bis Hain über drei Zyklen, Harmonie / Wachstum | 2:26:07 h / 2:05:55 h | 2:06:26 h / 1:57:35 h |
+| Stammgäste gewählt in Zyklus 3, Harmonie / Wachstum | 2,0 / 2,0 | 4,5 / 3,3 |
 
 Offen: Wer erst im Wald oder Urwald neu startet, hat in beiden Spielweisen H_max über 115
-und bekommt dieselben 45 Punkte – dort bleibt der Wachstums-Spieler ~15 % schneller.
-Der Zufallsspieler (H_max ~81) bekommt nur noch Punkte für neue Arten.
+und bekommt den vollen Bonus – dort bleibt der Wachstums-Spieler ~13 % schneller, und ein
+Urwald-Zyklus bringt ~100 statt ~55 Punkte (stufenabhängige Schwelle, `core-engineer`).
 
 ## Balancing 2.10 (v2, umgesetzt)
 

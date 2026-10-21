@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ARCHITECT } from '../src/content/abilities';
 import { ENCOUNTER_WEIGHTS, INTERLUDE_CHANCE, INTERLUDE_POSITION, INTERLUDE_STAGE, INTERLUDE_WEIGHTS, PLANT_WEIGHT_IN_RING, PLANT_WEIGHT_RING_FULL, RARITY_WEIGHTS, SCRIPTED_ENCOUNTERS } from '../src/content/encounters';
-import { FOREST_MEMORY_BONUS, MEMORY_HARMONY_MAX_POINTS, MEMORY_HARMONY_THRESHOLD, MEMORY_PER_HARMONY_POINT, MEMORY_PER_NEW_SPECIES, MEMORY_PER_REGULAR_SLOT } from '../src/content/memory';
+import { FOREST_MEMORY_BONUS, MEMORY_HARMONY_DIVISOR, MEMORY_HARMONY_MAX_POINTS, MEMORY_HARMONY_THRESHOLD, MEMORY_PER_HARMONY_POINT, MEMORY_PER_NEW_SPECIES, MEMORY_PER_REGULAR_SLOT } from '../src/content/memory';
 import { NICHES } from '../src/content/niches';
 import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
@@ -216,6 +216,7 @@ describe('Formeln ↔ Zahlen: Golden-Tabelle', () => {
       traits: Object.fromEntries(GENERA.map((g) => [g, TRAITS[g].map((t) => t.text)])),
       memory: {
         bonus: FOREST_MEMORY_BONUS,
+        harmonyDivisor: MEMORY_HARMONY_DIVISOR,
         harmonyThreshold: MEMORY_HARMONY_THRESHOLD,
         perHarmonyPoint: MEMORY_PER_HARMONY_POINT,
         harmonyMaxPoints: MEMORY_HARMONY_MAX_POINTS,
