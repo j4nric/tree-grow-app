@@ -217,6 +217,12 @@ mit (`divisor` in `MEMORY_HARMONY_RULES`, `memoryHarmonyBonus` in `core/formulas
 Mit 200 Durchgängen in vier Seed-Fenstern streut Zyklus 2 je Fenster um ±0,04; ≥ 0,97 gilt
 im Mittel der Fenster, nicht in jedem einzelnen (`DESIGN_V2.md` 15.4).
 
+**Nachtrag nach dem frühen Spiel (#52):** Mit 100 Durchgängen fiel Wald Zyklus 2 auf 0,967.
+Keine Regelvariante verschiebt das um mehr als ~0,005 (der Wald-Gewinn hängt fast nur am
+gemerkten Hain-Wert); es war Streuung (200 Durchgänge im selben Fenster: 0,984). Die Zahlen
+bleiben, der große Lauf rechnet den Neustart jetzt mit 200 Durchgängen: Wald 0,984 / 1,057,
+Urwald 0,987 / 1,036, Urwald 1,44 × Hain, Zufall Zyklus 2 29 / 32 % schneller.
+
 ## Schritt 2.11: Harmonie lohnt sich über die Zyklen (v2, umgesetzt)
 
 Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 15.4 („Stand Schritt

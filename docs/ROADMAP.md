@@ -146,7 +146,8 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     Obergrenze, Teiler gleitet als kleine Formeländerung mit); großer Lauf Wald 1,03 / 1,07,
     Urwald 0,99 / 1,03, Urwald 1,45 × Hain; Urwald-Schwelle 10 unter dem typischen
     Harmonie-Spieler, Wachstums-Spieler dort ohne Bonus (DESIGN_V2.md 15.4 „Stand Abgleich
-    Sperrklinke“, Entscheidung 12)
+    Sperrklinke“, Entscheidung 12); nach dem frühen Spiel (#52) Regeln unverändert, großer
+    Lauf für den Neustart mit 200 Durchgängen (Wald 0,98 / 1,06, Urwald 0,99 / 1,04)
 - [x] Playtest „frühes Spiel“ (`game-designer`): Pflege ab Setzling (Kompost 200 🌰 neu,
   Laub liegen lassen 200 statt 750 🌰), Nistkästen 650 statt 1.100 🌰; Simulator-Kennzahlen
   „längste Pause ohne Entscheidung“ und „Samen ungenutzt“ mit Prüfungen; längste Pause in

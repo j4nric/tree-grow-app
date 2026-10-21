@@ -80,7 +80,7 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
       expect(gain(WALD), s.id).toBeGreaterThan(gain(HAIN));
       expect(gain(URWALD), s.id).toBeGreaterThan(gain(WALD));
     }
-    // Harmonie-Spieler, Zyklus 1 (großer Lauf 1,45 und 88; 2.11b 1,46 und 88, mit Sperrklinke
+    // Harmonie-Spieler, Zyklus 1 (großer Lauf 1,44 und 87 nach dem frühen Spiel, vorher 1,45 und 88; 2.11b 1,46 und 88, mit Sperrklinke
     // vor dem Abgleich 1,53 und 93; mit der Hain-Schwelle 1,65 und 100; Check-Fenster 1,29–1,76
     // und 78–93).
     const harmony = (stage: number) => restartGain(row(stage, HARMONY.id), 0);

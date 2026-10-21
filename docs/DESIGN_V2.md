@@ -1954,7 +1954,7 @@ sie in Nischen-Reihenfolge.
 
 ```bash
 npm run check      # Balancing-Tests mit wenigen Durchgängen (feste Seeds), ~25 s gesamt
-npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200, Neustart 100), alle Tabellen, ~8 min
+npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200, Neustart 200), alle Tabellen, ~14 min
 ```
 
 Die Tests liegen in fünf Dateien, die Vitest parallel rechnet (Einstellungen in
@@ -2087,6 +2087,33 @@ liegt die Schwelle (148) über der typischen Harmonie des Harmonie-Spielers (143
 überholt sie im Lauf der Stufe Wald (Wegpunkt 29: 151 gegen 150). Wer genau beim Erreichen
 des Walds neu beginnt, bekommt dort vor allem den gemerkten Hain-Wert. (3) Der Teiler ist
 zwischen den Stufen krumm (Panel „je 5,4 Punkte“).
+
+**Nachtrag nach dem Merge des frühen Spiels (#52: Kompost 200 🌰 ab Setzling, Laub Rang 1
+200 🌰, Nistkästen 650 🌰; #55):** Der große Lauf (damals 100 Durchgänge) scheiterte knapp:
+Wald Zyklus 2 0,967 (Ziel > 0,97). Gemessen mit 200 Durchgängen in vier Seed-Fenstern
+(1000 / 500 / 4500 / 31337), Zyklus 2:
+
+| Regel (Wald D / T / C → Urwald D / T / C) | Wald je Fenster | Mittel | Urwald je Fenster | Mittel | Urwald-Gewinn Harmonie (1000) |
+|---|---|---|---|---|---|
+| **6 / 148 / 48 → 7 / 164 / 48 (bleibt)** | 0,984 / 0,946 / 0,984 / 0,979 | **0,973** | 0,987 / 0,958 / 0,976 / 0,995 | **0,979** | 87,0 |
+| 6 / 152 / 48 → 7 / 164 / 48 | 0,988 / 0,957 / 0,982 / 0,980 | 0,977 | 0,990 / 0,969 / 0,980 / 0,992 | 0,983 | 86,4 |
+| 6,5 / 150 / 50 → 7,5 / 164 / 52 | 0,988 / 0,957 / 0,985 / 0,981 | 0,978 | 0,998 / 0,974 / 0,985 / 0,993 | 0,987 | 86,9 |
+| 6 / 150 / 48 → 7 / 164 / 48 (nur 1000 / 500) | 0,988 / 0,957 | – | 0,990 / 0,960 | – | 86,7 |
+| 6,5 / 148 / 50 → 7 / 164 / 50 (nur 1000 / 500) | 0,988 / 0,949 | – | 1,000 / 0,968 | – | 87,3 |
+
+Keine Regel verschiebt Wald Zyklus 2 um mehr als ~0,005: Beim Neustart im Wald bestimmt
+fast nur der gemerkte Wert vom Ende des Hain-Wegpunkts den Gewinn (Hain-Regel, fest nach
+(c)), die Regel zwischen Hain und Wald ändert ihn um ≤ 1 Punkt. Die 0,967 waren Streuung der
+Stichprobe: dasselbe Seed-Fenster mit 200 statt 100 Durchgängen ergibt 0,984. **Entscheidung:**
+Regeln bleiben (die steilere Wald-Schwelle 152 brächte +0,004 und läge noch weiter über der
+Harmonie bei Ankunft im Wald); der große Lauf rechnet den Neustart mit **200 Durchgängen**
+(`RESTART_RUNS_MAX`, `tests/balance-setup.ts`; Laufzeit ~14 statt ~8 min).
+
+Großer Lauf danach (200 Durchgänge, Fenster 1000): Wachstum/Harmonie Zyklus 2 / 3 Hain
+0,978 / 1,021, **Wald 0,984 / 1,057**, **Urwald 0,987 / 1,036**; Gewinn Zyklus 1 Hain
+60,5 / 49,7 / 30,8, Wald 77,3 / 60,9 / 40,9, Urwald 87,0 / 67,9 / 46,8 (Harmonie /
+Wachstum / Zufall), Urwald / Hain beim Harmonie-Spieler **1,44**; Zufallsspieler Zyklus 2
+28,9 % (Wald) bzw. 31,8 % (Urwald) schneller; Vorschau sinkt nie.
 
 #### Stand Sperrklinke – Vorschau sinkt nie (Spielstand v10, Neustart 100 Durchgänge)
 
