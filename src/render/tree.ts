@@ -17,8 +17,9 @@
  *   6. Tiere: gecachte Sprites je Art, pro Frame nur drawImage
  *   7. Stimmung (optional, Harmoniestufe): Strahlen-Sprite, Partikel, Lichtfarbe
  *   Durchreisende (optional): Kraniche hinter dem Baum, Schwärme und Falter davor
- * Wind ist nur eine Scherung der gecachten Baum-Ebenen um die Bodenlinie; Tiere am
- * Baum werden um denselben Betrag verschoben. Tiere liegen immer über den Pflanzen.
+ * Wind ist nur eine Scherung der gecachten Baum-Ebenen um die Bodenlinie – gezeichnet als
+ * waagerecht verschobene Streifen statt schiefer Kopie (wind.ts); Tiere am Baum werden
+ * um denselben Betrag verschoben. Tiere liegen immer über den Pflanzen.
  * Größenänderungen werden entprellt: Bis die neue Größe ~150 ms stabil ist, wird das
  * alte Bild skaliert gezeigt (`ResizeGate`). Der Game Loop entprellt schon den
  * Backing-Store des Canvas (`CanvasSizer`, ~100 ms) und setzt `sizeSettled` – dann wird
@@ -52,6 +53,7 @@ import { ResizeGate, seasonStepKey, sizeKey } from './resize';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
 import { clamp01, mix, mulberry32, smooth01 } from './util';
 import { VisitorLayer, type SceneVisitor, type VisitorFrame } from './visitors';
+import { ShearBands, windQuantum, windSkew } from './wind';
 
 export type { AnimalFamily, SceneAnimal } from './animals';
 export { nicheAnchors, SCENE_NICHES, type NicheAnchor, type SceneNiche } from './anchors';
@@ -358,6 +360,34 @@ function drawRect(ctx: CanvasRenderingContext2D, layer: HTMLCanvasElement, r: Re
   ctx.drawImage(layer, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h);
 }
 
+/** Wiederverwendete Streifen für den Wind (keine Allokation pro Frame). */
+const shearBands = new ShearBands();
+
+/**
+ * Kopiert den Bereich `r` einer Baum-Ebene im Wind: Scherung `k` um die Bodenlinie,
+ * angenähert durch waagerecht verschobene Streifen (siehe wind.ts). Bei k = 0 genau
+ * eine unverschobene Kopie.
+ */
+function drawSheared(
+  ctx: CanvasRenderingContext2D,
+  layer: HTMLCanvasElement,
+  r: Rect,
+  k: number,
+  groundPx: number,
+  quantum: number,
+  sx: number,
+  sy: number,
+): void {
+  ctx.setTransform(sx, 0, 0, sy, 0, 0);
+  const b = shearBands;
+  const n = b.update(r.y, r.h, groundPx, k, quantum);
+  for (let i = 0; i < n; i++) {
+    const y = b.y[i]!;
+    const h = b.h[i]!;
+    ctx.drawImage(layer, r.x, y, r.w, h, r.x + b.dx[i]!, y, r.w, h);
+  }
+}
+
 /** Ein Cache je Canvas – so können mehrere Szenen nebeneinander laufen (z. B. Demo). */
 const caches = new WeakMap<HTMLCanvasElement, Cache>();
 
@@ -564,17 +594,16 @@ function compose(
   }
 
   const groundPx = layout.groundY * dpr;
+  const quantum = windQuantum(dpr);
   if (sc.backRect) {
     const kb = reduced ? 0 : windSkew(time, 1.9) * 0.7;
-    ctx.setTransform(sx, 0, sx * kb, sy, -sx * kb * groundPx, 0);
-    drawRect(ctx, sc.back, sc.backRect);
+    drawSheared(ctx, sc.back, sc.backRect, kb, groundPx, quantum, sx, sy);
   }
   // Wildschweine auf der Wiese: vor den Begleitpflanzen, hinter dem Hauptbaum.
   if (visitors) cache.visitors.draw(ctx, visitors, 'meadow', vf);
   const k = reduced ? 0 : windSkew(time, 0);
   if (sc.frontRect) {
-    ctx.setTransform(sx, 0, sx * k, sy, -sx * k * groundPx, 0);
-    drawRect(ctx, sc.front, sc.frontRect);
+    drawSheared(ctx, sc.front, sc.frontRect, k, groundPx, quantum, sx, sy);
   }
   if (visitors) {
     vf.windSkew = k;
@@ -784,15 +813,6 @@ function paintStatic(sc: SizeCache, look: SeasonLook | null): void {
   gc.clearRect(0, 0, sc.grass.width, sc.grass.height);
   gc.setTransform(dpr, 0, 0, dpr, 0, -sc.grassTop);
   paintGrass(gc, width, height, layout.groundY, look);
-}
-
-/** Sanftes, unregelmäßiges Wiegen als Scherfaktor (oben verschoben, Fuß fest). */
-function windSkew(time: number, phase: number): number {
-  return (
-    0.009 * Math.sin(time * 0.55 + phase) +
-    0.004 * Math.sin(time * 1.37 + phase * 1.7) +
-    0.0015 * Math.sin(time * 3.1 + phase * 0.6)
-  );
 }
 
 function layerContext(canvas: HTMLCanvasElement, dpr: number): CanvasRenderingContext2D {
