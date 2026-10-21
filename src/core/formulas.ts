@@ -279,6 +279,23 @@ export function activeCommunities(ev: Pick<Evaluation, 'communities'>): string[]
   return ev.communities.filter((c) => c.active).map((c) => c.id);
 }
 
+/**
+ * Welche Lebensgemeinschaften entstehen bzw. zerfallen zwischen zwei Auswertungen (z. B.
+ * jetzt und previewChoice)? `completed` mit der Harmonie danach, `broken` mit der
+ * Harmonie davor – jeweils in der Reihenfolge von COMMUNITIES.
+ */
+export function communityChanges(
+  before: Pick<Evaluation, 'communities'>,
+  after: Pick<Evaluation, 'communities'>,
+): { completed: CommunityStatus[]; broken: CommunityStatus[] } {
+  const was = new Map(before.communities.map((c) => [c.id, c]));
+  const is = new Map(after.communities.map((c) => [c.id, c]));
+  return {
+    completed: after.communities.filter((c) => c.active && !was.get(c.id)?.active),
+    broken: before.communities.filter((c) => c.active && !is.get(c.id)?.active),
+  };
+}
+
 /** Reine Berechnung ohne Cache – für Vorschauen und Tests. */
 export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const stage = STAGES[eco.stage] ?? STAGES[0]!;

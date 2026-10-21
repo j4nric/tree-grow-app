@@ -276,9 +276,18 @@ export type ActionError =
   /** Stammgast: alle Plätze belegt. */
   | 'no-regular-slot';
 
-export type ActionResult = { ok: true } | { ok: false; error: ActionError };
+/**
+ * Ergebnis einer Spieleraktion. `discovered`: Lebensgemeinschaften, die durch die Aktion
+ * zum ersten Mal entstanden sind (chooseCard, plantSeed) – für die Entdeckungs-Meldung.
+ * Fehlt, wenn nichts Neues entdeckt wurde.
+ */
+export type ActionResult = { ok: true; discovered?: string[] } | { ok: false; error: ActionError };
 
 const fail = (error: ActionError): ActionResult => ({ ok: false, error });
+
+/** Erfolg; `discovered` nur, wenn wirklich etwas Neues entstanden ist. */
+const discoveryResult = (discovered: string[]): ActionResult =>
+  discovered.length > 0 ? { ok: true, discovered } : { ok: true };
 
 /**
  * Wählt eine Karte, die Begegnung ist danach erledigt.
@@ -311,8 +320,7 @@ export function chooseCard(
     if (!state.cycle.newSpecies.includes(id)) state.cycle.newSpecies.push(id);
   }
   state.pendingEncounters.splice(encounterIndex, 1);
-  recordDiscoveries(state);
-  return { ok: true };
+  return discoveryResult(recordDiscoveries(state));
 }
 
 /**
@@ -321,7 +329,8 @@ export function chooseCard(
  * trägt chooseCard selbst ein. Führt außerdem die höchste Harmonie des Zyklus (H_max)
  * nach. Läuft nach jeder Änderung am Ökosystem: chooseCard, plantSeed, Wegpunkt (Stufe,
  * Stammgäste), Neuer Zyklus und Laden.
- * Gibt die neu entdeckten Lebensgemeinschaften zurück (für eine Entdeckungs-Meldung).
+ * Gibt die neu entdeckten Lebensgemeinschaften zurück (chooseCard und plantSeed reichen
+ * sie als `discovered` an die UI weiter).
  */
 export function recordDiscoveries(state: GameState): string[] {
   const journal = state.meta.journal;
@@ -342,8 +351,7 @@ export function plantSeed(state: GameState, plantId: string): ActionResult {
   if (blocker) return fail(blocker);
   state.seeds -= nextPlantCost(state);
   state.plants.push(plantId);
-  recordDiscoveries(state);
-  return { ok: true };
+  return discoveryResult(recordDiscoveries(state));
 }
 
 /** Warum „Pflanze setzen“ gerade nicht geht – null, wenn es geht. Ändert nichts. */

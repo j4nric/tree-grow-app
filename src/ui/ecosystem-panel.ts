@@ -10,6 +10,8 @@ import { restartAnimation } from './feedback';
 import { formatNumber, formatRate } from './format';
 import type {
   AnimalView,
+  CommunityListView,
+  CommunityView,
   EcosystemView,
   FamilyView,
   HarmonyPartView,
@@ -47,6 +49,18 @@ interface PlantTile {
   name: HTMLElement;
   sub: HTMLElement;
   plantId: string | null;
+}
+
+interface CommunityRow {
+  root: HTMLElement;
+  icon: HTMLElement;
+  name: HTMLElement;
+  note: HTMLElement;
+  value: HTMLElement;
+  bar: HTMLElement;
+  sr: HTMLElement;
+  /** Zuletzt gezeigter Zustand – für das Aufleuchten, wenn sie gerade entstanden ist. */
+  state: CommunityView['state'] | null;
 }
 
 interface PartRow {
@@ -139,6 +153,23 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
   details.append(summary, partsList, partsTotal);
   const partRows: PartRow[] = [];
 
+  // Lebensgemeinschaften (aufklappbar): aktive, fast fertige, noch unentdeckte „???“
+  const communities = el('details', 'eco-harmony eco-communities');
+  communities.dataset.ref = 'communities';
+  const communitySummary = el('summary');
+  const communityTitle = el('span', 'eco-communities-title', 'Lebensgemeinschaften');
+  const communityCount = el('span', 'eco-communities-count');
+  communityCount.dataset.ref = 'communities-summary';
+  // Sichtbar mit ⚖️, vorgelesen als „+8 Harmonie“.
+  communityCount.setAttribute('aria-hidden', 'true');
+  const communityCountSr = srOnly();
+  communitySummary.append(communityTitle, communityCount, communityCountSr);
+  const communityList = el('ul', 'community-list');
+  communityList.setAttribute('aria-label', 'Lebensgemeinschaften');
+  communities.append(communitySummary, communityList);
+  const communityRows = new Map<string, CommunityRow>();
+  let communityOrder = '';
+
   // Gattungsleiste
   const familiesTitle = el('h2', 'eco-title', 'Gattungen');
   const familyBar = el('div', 'family-bar');
@@ -208,7 +239,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
   action.append(plantButton, plantHint);
   ring.append(ringHint, supplyBox, plantList, groupCaption, groupBox, action);
 
-  panel.append(head, stats, details, ringTitle, ring, familiesTitle, familyBar, familyDetail, nichesTitle, nicheList);
+  panel.append(head, stats, details, communities, ringTitle, ring, familiesTitle, familyBar, familyDetail, nichesTitle, nicheList);
   root.append(panel);
 
   let lastHarmony: number | null = null;
@@ -234,6 +265,75 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
       if (row.root.className !== className) row.root.className = className;
     });
     setText(partsTotal, `Summe: ${formatNumber(Math.round(total))}`);
+  }
+
+  function buildCommunityRow(id: string): CommunityRow {
+    const li = el('li', 'community');
+    li.dataset.community = id;
+    const icon = el('span', 'community-icon');
+    icon.setAttribute('aria-hidden', 'true');
+    const text = el('span', 'community-text');
+    const name = el('span', 'community-name');
+    const note = el('span', 'community-note');
+    text.append(name, note);
+    const value = el('span', 'community-value');
+    value.setAttribute('aria-hidden', 'true');
+    const track = el('span', 'community-track');
+    track.setAttribute('aria-hidden', 'true');
+    const bar = el('span', 'community-bar');
+    track.append(bar);
+    const sr = srOnly();
+    // Vorgelesen: Zustand (sr) direkt nach dem verborgenen Symbol, dann Name und Notiz.
+    li.append(icon, sr, text, value, track);
+    return { root: li, icon, name, note, value, bar, sr, state: null };
+  }
+
+  function updateCommunities(view: CommunityListView): void {
+    setText(communityCount, view.summary);
+    setText(communityCountSr, `: ${view.summaryText}`);
+    for (const item of view.items) {
+      let row = communityRows.get(item.id);
+      if (!row) {
+        row = buildCommunityRow(item.id);
+        communityRows.set(item.id, row);
+      }
+      const className = `community state-${item.state}${item.discovered ? '' : ' undiscovered'}`;
+      if (row.root.className.replace(' formed', '') !== className) row.root.className = className;
+      // Gerade entstanden: kurz aufleuchten (nicht beim ersten Aufbau)
+      if (item.state === 'active' && row.state !== null && row.state !== 'active' && seenFirstUpdate) {
+        restartAnimation(row.root, 'formed');
+      }
+      row.state = item.state;
+      setText(row.icon, item.icon);
+      setText(row.name, item.name);
+      const note =
+        item.state === 'active' ? item.effects : (item.missingText ?? (item.discovered ? '' : (item.hint ?? '')));
+      setText(row.note, note);
+      row.note.hidden = !note;
+      const active = item.state === 'active';
+      setText(row.value, active ? `+${formatNumber(item.harmony)} ⚖️` : `${formatNumber(item.present)}/${formatNumber(item.total)}`);
+      const width = `${(unitInterval(item.progress) * 100).toFixed(1)}%`;
+      if (row.bar.style.width !== width) row.bar.style.width = width;
+      // „???“ liest ein Screenreader schlecht vor – dort steht „noch unentdeckt“.
+      if (item.discovered) row.name.removeAttribute('aria-hidden');
+      else setAttr(row.name, 'aria-hidden', 'true');
+      const members = `${formatNumber(item.present)} von ${formatNumber(item.total)} Mitgliedern`;
+      setText(
+        row.sr,
+        active
+          ? `Aktiv, +${formatNumber(item.harmony)} Harmonie: `
+          : item.discovered
+            ? `${members}: `
+            : `Noch unentdeckte Lebensgemeinschaft, ${members}. `,
+      );
+    }
+    const order = view.items.map((i) => i.id).join('|');
+    if (order !== communityOrder) {
+      communityOrder = order;
+      communityList.replaceChildren(...view.items.map((i) => communityRows.get(i.id)!.root));
+      const present = new Set(view.items.map((i) => i.id));
+      for (const id of [...communityRows.keys()]) if (!present.has(id)) communityRows.delete(id);
+    }
   }
 
   function selectFamily(id: string | null): void {
@@ -551,6 +651,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     lastHarmony = harmonyRounded;
 
     updateParts(view.harmonyParts, view.harmony);
+    updateCommunities(view.communities);
     updatePlantRing(view.plantRing);
     updateFamilies(view.families);
     updateNiches(view.niches);
