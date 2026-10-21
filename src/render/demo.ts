@@ -1,49 +1,71 @@
 /**
  * Testseite für den Renderer (nicht Teil des Spiels): zeigt die Szene mit Tieren in
- * ihren Nischen. Aufruf: /src/render/demo.html?g=3.5&h=0.8&ui=0&reduced=1&set=all
+ * ihren Nischen und Begleitpflanzen. Aufruf:
+ *   /src/render/demo.html?g=3.5&h=0.8&ui=0&reduced=1&set=all&v=1&plants=stage
  *
  *  g        Wachstumswert (Standard 3.5)
  *  h        Zufriedenheit aller Tiere; ohne Angabe: gemischte Werte
- *  set      'proto' = nur die 9 Prototyp-Arten, 'all' = Plätze je Stufe füllen (Standard), 'none' = keine Tiere
+ *  set      'all' = Plätze je Stufe mit Arten füllen (Standard), 'proto' = nur die
+ *           9 Prototyp-Arten, 'none' = keine Tiere
+ *  v        Variante 0, 1, 2 …: verschiebt die Artenauswahl je Nische – so sind über
+ *           einige Varianten alle 32 Arten zu sehen
+ *  plants   'stage' = Pflanzplätze je Stufe füllen (Standard), 'all' = alle 14 Pflanzen,
+ *           'none' = leere Liste (Nachbarbäume als Kulisse), 'off' = keine Liste (wie bisher)
+ *  vig      Versorgung aller Pflanzen 0–1; ohne Angabe: gemischte Werte
+ *  gallery  1 = Übersicht aller Tier- und Pflanzenzeichnungen statt der Szene
  *  ui=0     Bedienelemente ausblenden (für Screenshots)
  *  reduced  1 = weniger Bewegung
  *  t        feste Zeit in Sekunden (für reproduzierbare Screenshots)
+ *  rate     Wachstum pro Sekunde, z. B. 0.05 – misst die Kosten beim Neuaufbau der Ebenen
  */
 
-import { drawScene, type SceneAnimal } from './tree';
+import { animalKinds, SpriteCache } from './animals';
+import { layoutFlora, PLANT_SPECIES, type PlacedPlant } from './flora';
+import { paintPlant } from './flora-paint';
+import { drawScene, type SceneAnimal, type ScenePlant } from './tree';
 
 type Fam = SceneAnimal['family'];
 
-/** Beispielarten je Nische (Reihenfolge = Platz). */
+/** Alle 32 Arten (scripts/v2/content.ts) je Nische; Reihenfolge = Platz. */
 const BY_NICHE: Record<string, [string, Fam][]> = {
   roots: [
     ['earthworm', 'soil'],
     ['vole', 'mammals'],
     ['chanterelle', 'fungi'],
     ['mole', 'mammals'],
+    ['flyagaric', 'fungi'],
+    ['porcini', 'fungi'],
+    ['honeyfungus', 'fungi'],
   ],
   litter: [
     ['robin', 'birds'],
-    ['woodlouse', 'soil'],
-    ['centipede', 'soil'],
+    ['hedgehog', 'mammals'],
+    ['woodant', 'insects'],
     ['snail', 'soil'],
+    ['salamander', 'soil'],
+    ['woodlouse', 'soil'],
+    ['slug', 'soil'],
+    ['centipede', 'soil'],
   ],
   edge: [
     ['bee', 'insects'],
+    ['deer', 'mammals'],
     ['peacock', 'insects'],
     ['fox', 'mammals'],
+    ['wolf', 'mammals'],
     ['glowworm', 'insects'],
   ],
   crown: [
     ['bluetit', 'birds'],
-    ['oakmoth', 'insects'],
-    ['jay', 'birds'],
     ['squirrel', 'mammals'],
+    ['jay', 'birds'],
+    ['oakmoth', 'insects'],
   ],
   bark: [
     ['woodpecker', 'birds'],
-    ['barkbeetle', 'insects'],
     ['tinder', 'fungi'],
+    ['blackwoodpecker', 'birds'],
+    ['barkbeetle', 'insects'],
   ],
   hollows: [
     ['owl', 'birds'],
@@ -74,9 +96,30 @@ const PROTO: [string, Fam, string, number][] = [
   ['centipede', 'soil', 'litter', 2],
 ];
 
-const MIXED_HAPPINESS = [0.95, 0.8, 0.6, 0.9, 0.25, 0.7, 0.1, 0.85, 0.5, 0.75, 0.4, 0.9];
+/** Pflanzring (Reihenfolge = Platz): gemischt, damit jede Stufe alle Gruppen zeigt. */
+const PLANT_RING: [string, ScenePlant['group']][] = [
+  ['hazel', 'shrubs'],
+  ['anemone', 'flowers'],
+  ['fern', 'mosses'],
+  ['birch', 'trees'],
+  ['foxglove', 'flowers'],
+  ['moss', 'mosses'],
+  ['bramble', 'shrubs'],
+  ['beech', 'trees'],
+  ['strawberry', 'flowers'],
+  ['rowan', 'trees'],
+  ['elder', 'shrubs'],
+  ['nettle', 'flowers'],
+  ['pine', 'trees'],
+  ['hartstongue', 'mosses'],
+];
+/** Pflanzplätze je Stufe (scripts/v2/content.ts `PLANT_SLOTS`). */
+const PLANT_SLOTS = [0, 1, 2, 3, 5, 7, 9, 12];
 
-function animalsFor(g: number, set: string, happy: number | null): SceneAnimal[] {
+const MIXED_HAPPINESS = [0.95, 0.8, 0.6, 0.9, 0.25, 0.7, 0.1, 0.85, 0.5, 0.75, 0.4, 0.9];
+const MIXED_VIGOR = [1, 0.85, 0.95, 0.7, 1, 0.4, 0.9, 1, 0.6, 0.95, 0.8, 1, 0.75, 0.9];
+
+function animalsFor(g: number, set: string, happy: number | null, variant: number): SceneAnimal[] {
   const h = (i: number) => happy ?? MIXED_HAPPINESS[i % MIXED_HAPPINESS.length]!;
   if (set === 'none') return [];
   if (set === 'proto') {
@@ -86,12 +129,21 @@ function animalsFor(g: number, set: string, happy: number | null): SceneAnimal[]
   const list: SceneAnimal[] = [];
   for (const [niche, species] of Object.entries(BY_NICHE)) {
     const n = SLOTS[niche]![stage]!;
-    for (let slot = 0; slot < n && slot < species.length; slot++) {
-      const [id, family] = species[slot]!;
+    for (let slot = 0; slot < n; slot++) {
+      const [id, family] = species[(slot + variant * n) % species.length]!;
+      if (list.some((a) => a.id === id)) continue;
       list.push({ id, family, niche, slot, happiness: h(list.length) });
     }
   }
   return list;
+}
+
+function plantsFor(g: number, mode: string, vigor: number | null): ScenePlant[] | undefined {
+  if (mode === 'off') return undefined;
+  if (mode === 'none') return [];
+  const stage = Math.max(0, Math.min(7, Math.floor(g)));
+  const n = mode === 'all' ? PLANT_RING.length : PLANT_SLOTS[stage]!;
+  return PLANT_RING.slice(0, n).map(([id, group], slot) => ({ id, group, slot, vigor: vigor ?? MIXED_VIGOR[slot]! }));
 }
 
 const params = new URLSearchParams(location.search);
@@ -105,8 +157,16 @@ const stats = document.querySelector<HTMLElement>('#stats')!;
 
 let g = Number(params.get('g') ?? 3.5);
 const set = params.get('set') ?? 'all';
+const variant = Number(params.get('v') ?? 0) || 0;
+const plantMode = params.get('plants') ?? 'stage';
+const vigor = params.has('vig') ? Number(params.get('vig')) : null;
+const gallery = params.get('gallery') === '1';
 let happy: number | null = params.has('h') ? Number(params.get('h')) : null;
 const fixedTime = params.has('t') ? Number(params.get('t')) : null;
+/** Wachstum pro Sekunde (0 = steht). */
+const rate = Number(params.get('rate') ?? 0) || 0;
+const startG = g;
+let lastNow = 0;
 reducedInput.checked =
   params.get('reduced') === '1' || (!params.has('reduced') && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 if (params.get('ui') === '0') document.querySelector('#controls')!.classList.add('hidden');
@@ -119,10 +179,105 @@ happyInput.addEventListener('input', () => (happy = Number(happyInput.value)));
 const samples: number[] = [];
 declare global {
   interface Window {
-    __demo: { frameTimes: number[]; frames: number; animals: number };
+    __demo: { frameTimes: number[]; frames: number; animals: number; plants: number };
   }
 }
-window.__demo = { frameTimes: samples, frames: 0, animals: 0 };
+window.__demo = { frameTimes: samples, frames: 0, animals: 0, plants: 0 };
+
+/** Übersicht: alle Tierzeichnungen und Pflanzen groß, mit Begrenzungsrahmen. */
+function drawGallery(): void {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.round(rect.width * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#e9efe2';
+  ctx.fillRect(0, 0, rect.width, rect.height);
+  const sprites = new SpriteCache();
+  const kinds = animalKinds();
+  const sz = Number(params.get('gs') ?? 56);
+  const cell = Math.round(sz * 2.15);
+  const cols = Math.max(1, Math.floor(rect.width / cell));
+  ctx.font = '11px system-ui';
+  ctx.textAlign = 'center';
+  kinds.forEach((kind, i) => {
+    const cx = (i % cols) * cell + cell / 2;
+    const cy = Math.floor(i / cols) * cell + cell * 0.68;
+    const s = sprites.get(kind, Number(params.get('frame') ?? 0), false, sz, dpr);
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+    ctx.strokeRect(cx - s.ox, cy - s.oy, s.w, s.h);
+    ctx.drawImage(s.canvas, cx - s.ox, cy - s.oy, s.w, s.h);
+    ctx.fillStyle = '#334';
+    ctx.fillText(kind, cx, Math.floor(i / cols) * cell + cell - 6);
+  });
+  // Pflanzen in einer Reihe darunter
+  const top = Math.ceil(kinds.length / cols) * cell + 10;
+  const ids = [...Object.keys(PLANT_SPECIES), 'shrub', 'flower'];
+  const pcols = Math.max(1, Math.floor(rect.width / 130));
+  ids.forEach((id, i) => {
+    const group = PLANT_SPECIES[id] ?? (id === 'shrub' ? 'shrubs' : 'flowers');
+    const x = (i % pcols) * 130 + 65;
+    const y = top + Math.floor(i / pcols) * 170 + 150;
+    const placed: PlacedPlant = {
+      index: 0,
+      id,
+      kind: id,
+      group,
+      slot: 0,
+      x,
+      y,
+      hw: 0,
+      h: 0,
+      depth: 0,
+      haze: 0,
+      vigor: vigor ?? 1,
+      grow: 1,
+      seed: 17 + i,
+      tree: null,
+    };
+    if (group === 'trees') {
+      const fake = layoutFlora(
+        { width: 130, height: 330, groundY: 160, top: 8, avail: 152, soilH: 170, cx: 65 },
+        7,
+        [{ id, group, slot: 0, vigor: vigor ?? 1 }],
+      )[0];
+      if (fake?.tree) {
+        placed.tree = fake.tree;
+        placed.tree.x = x;
+        placed.tree.y = y;
+        placed.hw = fake.hw;
+      }
+    } else {
+      const S = 30;
+      const size: Record<string, [number, number]> = {
+        hazel: [2.5, 1.35],
+        bramble: [1.45, 1.45],
+        elder: [2.8, 1.35],
+        shrub: [2.1, 1.25],
+        anemone: [0.5, 0.7],
+        nettle: [1.5, 0.45],
+        strawberry: [0.48, 0.58],
+        foxglove: [2, 0.42],
+        flower: [0.8, 0.55],
+        moss: [0.32, 0.6],
+        fern: [1.25, 0.85],
+        hartstongue: [0.8, 0.6],
+      };
+      const [h, w] = size[id] ?? [1, 1];
+      placed.h = h * S * 1.4;
+      placed.hw = w * S * 1.4;
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(x - 60, y);
+    ctx.lineTo(x + 60, y);
+    ctx.stroke();
+    paintPlant(ctx, placed);
+    ctx.fillStyle = '#334';
+    ctx.fillText(id, x, y + 14);
+  });
+  window.__demo.frames = 999;
+}
 
 function frame(now: number): void {
   const dpr = window.devicePixelRatio || 1;
@@ -133,12 +288,20 @@ function frame(now: number): void {
     canvas.width = w;
     canvas.height = h;
   }
-  const animals = animalsFor(g, set, happy);
+  if (rate > 0) {
+    // Wachstum laufen lassen (zum Messen der Neuaufbau-Kosten), zwischen Start und 8.
+    g += rate * Math.min(0.05, Math.max(0, (now - lastNow) / 1000));
+    if (g > 8) g = startG;
+  }
+  lastNow = now;
+  const animals = animalsFor(g, set, happy, variant);
+  const plants = plantsFor(g, plantMode, vigor);
   const t0 = performance.now();
   drawScene(ctx, rect.width, rect.height, {
     growth: g,
     time: fixedTime ?? now / 1000,
     animals,
+    plants,
     reducedMotion: reducedInput.checked,
   });
   const dt = performance.now() - t0;
@@ -146,12 +309,18 @@ function frame(now: number): void {
   if (samples.length > 300) samples.shift();
   window.__demo.frames++;
   window.__demo.animals = animals.length;
+  window.__demo.plants = plants?.length ?? 0;
   if (window.__demo.frames % 30 === 0) {
     const sorted = [...samples].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
-    stats.textContent = `${animals.length} Tiere · drawScene Median ${median.toFixed(2)} ms`;
+    stats.textContent = `${animals.length} Tiere · ${plants?.length ?? 0} Pflanzen · drawScene Median ${median.toFixed(2)} ms`;
   }
   growthValue.textContent = g.toFixed(2);
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
+if (gallery) {
+  document.querySelector('#controls')!.classList.add('hidden');
+  drawGallery();
+} else {
+  requestAnimationFrame(frame);
+}

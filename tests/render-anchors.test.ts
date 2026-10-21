@@ -111,12 +111,18 @@ describe('Tier-Ankerpunkte', () => {
 });
 
 describe('Tier-Zeichnungen', () => {
-  it('nutzen eigene Zeichnungen für die Prototyp-Arten und sonst die Gattung', () => {
+  it('nutzen eigene Zeichnungen je Art und für unbekannte Arten die Gattung', () => {
     expect(animalKind({ id: 'robin', family: 'birds', niche: 'litter' })).toBe('robin');
     expect(animalKind({ id: 'centipede', family: 'soil', niche: 'litter' })).toBe('centipede');
-    expect(animalKind({ id: 'owl', family: 'birds', niche: 'hollows' })).toBe('bird');
-    expect(animalKind({ id: 'fox', family: 'mammals', niche: 'edge' })).toBe('mammal');
-    expect(animalKind({ id: 'chanterelle', family: 'fungi', niche: 'roots' })).toBe('mushroom');
-    expect(animalKind({ id: 'tinder', family: 'fungi', niche: 'bark' })).toBe('bracket');
+    expect(animalKind({ id: 'owl', family: 'birds', niche: 'hollows' })).toBe('owl');
+    expect(animalKind({ id: 'fox', family: 'mammals', niche: 'edge' })).toBe('fox');
+    expect(animalKind({ id: 'chanterelle', family: 'fungi', niche: 'roots' })).toBe('chanterelle');
+    expect(animalKind({ id: 'tinder', family: 'fungi', niche: 'bark' })).toBe('tinder');
+    expect(animalKind({ id: 'raven', family: 'birds', niche: 'crown' })).toBe('bird');
+    expect(animalKind({ id: 'lynx', family: 'mammals', niche: 'edge' })).toBe('mammal');
+    // Hutpilze am Holz werden zu Konsolen, Konsolen am Boden zu Hutpilzen.
+    expect(animalKind({ id: 'flyagaric', family: 'fungi', niche: 'bark' })).toBe('bracket');
+    expect(animalKind({ id: 'tinder', family: 'fungi', niche: 'roots' })).toBe('mushroom');
+    expect(animalKind({ id: 'unknown', family: 'fungi', niche: 'hollows' })).toBe('bracket');
   });
 });
