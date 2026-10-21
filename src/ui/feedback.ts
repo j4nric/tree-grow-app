@@ -7,6 +7,8 @@
 const MAX_FLOATS = 16;
 /** Sicherheitsnetz, falls `animationend` nicht feuert (z. B. Tab im Hintergrund). */
 const FLOAT_FALLBACK_MS = 2000;
+/** Dasselbe für kurze Hinweise (`note`), die länger stehen bleiben. */
+const NOTE_FALLBACK_MS = 4000;
 
 const reducedMotion =
   typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -53,11 +55,15 @@ export function createFloatLayer(parent: HTMLElement) {
   layer.setAttribute('aria-hidden', 'true');
   parent.append(layer);
 
-  function spawn(text: string, x: number, y: number): void {
+  /**
+   * `note`: kurzer Hinweissatz statt einer Zahl – bleibt länger stehen, darf umbrechen
+   * und steigt nur wenig (z. B. „Niemand zog ein · +5 🌰“).
+   */
+  function spawn(text: string, x: number, y: number, variant?: 'note'): void {
     while (layer.childElementCount >= MAX_FLOATS) layer.firstElementChild!.remove();
 
     const el = document.createElement('span');
-    el.className = 'float-number';
+    el.className = variant === 'note' ? 'float-number float-note' : 'float-number';
     el.textContent = text;
     // Leichte seitliche Drift, damit schnelle Klicks nicht exakt übereinanderliegen
     const drift = prefersReducedMotion() ? 0 : Math.round((Math.random() - 0.5) * 24);
@@ -70,7 +76,7 @@ export function createFloatLayer(parent: HTMLElement) {
 
     const remove = () => el.remove();
     el.addEventListener('animationend', remove, { once: true });
-    setTimeout(remove, FLOAT_FALLBACK_MS);
+    setTimeout(remove, variant === 'note' ? NOTE_FALLBACK_MS : FLOAT_FALLBACK_MS);
   }
 
   return { spawn };

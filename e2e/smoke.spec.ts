@@ -505,3 +505,64 @@ test.describe('Pflanzen mobil (390×844)', () => {
     await expectNoHorizontalScroll(page);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Feinschliff aus dem Playtest: Legende, Futter-Erklärung, verpasste Begegnungen
+// ---------------------------------------------------------------------------
+
+test('Legende der Vorschau-Symbole: bei der ersten Begegnung offen, danach zugeklappt', async ({ page, context }) => {
+  await seedV3(context, {
+    totalGrowth: waypoint(6) + 1,
+    pendingEncounters: [{ type: 'animal', cards: ['bluetit', 'oakmoth'], rerolls: 0 }],
+  });
+  await openGame(page);
+  await openStack(page);
+  const legend = dialog(page).locator('.encounter-legend');
+  await expect(legend).toHaveAttribute('open', '');
+  for (const text of ['Harmonie', 'Wachstum pro Sekunde', 'Samen pro Sekunde', 'erwartete Zufriedenheit', 'Licht und Wasser']) {
+    await expect(legend).toContainText(text);
+  }
+
+  // Beim nächsten Besuch zugeklappt, aber jederzeit aufklappbar.
+  await page.reload();
+  await openStack(page);
+  await expect(legend).not.toHaveAttribute('open', '');
+  await expect(legend.getByText('erwartete Zufriedenheit')).toBeHidden();
+  await legend.getByText('Was bedeuten die Symbole?').click();
+  await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
+});
+
+test('Knappes Futter: Karte und Seitenleiste nennen, mit wem das Futter geteilt wird', async ({ page, context }) => {
+  // Laub vom Hauptbaum reicht für zwei – Regenwurm, Rollassel und Eichenwickler teilen es.
+  await seedV3(context, {
+    totalGrowth: waypoint(6) + 1,
+    niches: { roots: ['earthworm'], litter: ['woodlouse'] },
+    pendingEncounters: [{ type: 'animal', cards: ['oakmoth'], rerolls: 0 }],
+  });
+  await openGame(page);
+  await expect(niche(page, 'roots')).toContainText('wünscht sich Feuchte');
+  await openStack(page);
+  await expect(card(page, 'oakmoth')).toContainText('(knapp)');
+  await expect(card(page, 'oakmoth')).toContainText('teilt sich das Futter mit Regenwurm und Rollassel');
+  await card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler wählen' }).click();
+  await expect(dialog(page)).toBeHidden();
+  // Unter 70 %: Der Regenwurm nennt jetzt auch die Futterkonkurrenz.
+  await expect(niche(page, 'roots')).toContainText('teilt sich das Futter mit');
+});
+
+test('Wegpunkt bei vollem Stapel: dezenter Hinweis mit den Samen dafür', async ({ page, context }) => {
+  await seedV3(context, {
+    totalGrowth: waypoint(7) - 0.3,
+    pendingEncounters: [
+      { type: 'animal', cards: ['bluetit'], rerolls: 0 },
+      { type: 'animal', cards: ['oakmoth'], rerolls: 0 },
+      { type: 'animal', cards: ['robin'], rerolls: 0 },
+    ],
+  });
+  await openGame(page);
+  await expect(stack(page)).toHaveText(/3 Begegnungen warten/);
+  await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/, {
+    timeout: 8_000,
+  });
+  expect((await savedState(page)).pendingEncounters).toHaveLength(3);
+});

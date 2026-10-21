@@ -59,6 +59,38 @@ const KIND_LABELS: Record<EncounterKind, string> = {
   visitor: '🦢 Besuch auf der Durchreise',
 };
 
+/** Legende der Vorschau-Symbole (dieselben wie in `previewParts`) und der Haken/Kreuze. */
+export const PREVIEW_LEGEND: readonly { icon: string; text: string }[] = [
+  { icon: '⚖️', text: 'Harmonie – mehr Harmonie lässt alles schneller wachsen' },
+  { icon: '🌿', text: 'Wachstum pro Sekunde' },
+  { icon: '🌰', text: 'Samen pro Sekunde' },
+  { icon: '😊', text: 'erwartete Zufriedenheit des Tiers' },
+  { icon: '☀️💧', text: 'Versorgung der Pflanzen mit Licht und Wasser' },
+  { icon: '✓ ✗', text: 'Futter und Wünsche erfüllt oder nicht' },
+];
+
+/**
+ * Merker (unabhängig vom Spielstand): Die Legende wurde schon einmal gezeigt. Danach
+ * bleibt sie zugeklappt; ohne localStorage (privater Modus) einfach jedes Mal offen.
+ */
+const LEGEND_SEEN_KEY = 'tree-grow-legend-seen';
+
+function legendSeen(): boolean {
+  try {
+    return localStorage.getItem(LEGEND_SEEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markLegendSeen(): void {
+  try {
+    localStorage.setItem(LEGEND_SEEN_KEY, '1');
+  } catch {
+    // Speichern nicht möglich – dann klappt die Legende beim nächsten Mal wieder auf.
+  }
+}
+
 /** So lange werden Eingaben nach dem Erscheinen einer neuen Begegnung ignoriert. */
 const INPUT_GUARD_MS = 300;
 
@@ -152,7 +184,24 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   rerollHint.hidden = true;
   reroll.setAttribute('aria-describedby', rerollHint.id);
 
-  inner.append(header, cardsBox, swipeHint, noticeBox, actions, rerollHint);
+  // Aufklappbare Legende der Vorschau-Symbole – beim allerersten Mal offen.
+  const legend = el('details', 'encounter-legend');
+  const legendSummary = el('summary', 'encounter-legend-summary');
+  const legendMark = el('span', 'legend-mark', '?');
+  legendMark.setAttribute('aria-hidden', 'true');
+  legendSummary.append(legendMark, el('span', '', 'Was bedeuten die Symbole?'));
+  const legendList = el('ul', 'encounter-legend-list');
+  for (const entry of PREVIEW_LEGEND) {
+    const li = el('li');
+    const icon = el('span', 'legend-icon', entry.icon);
+    icon.setAttribute('aria-hidden', 'true');
+    li.append(icon, el('span', '', entry.text));
+    legendList.append(li);
+  }
+  legend.append(legendSummary, legendList);
+  let legendChecked = false;
+
+  inner.append(header, cardsBox, swipeHint, legend, noticeBox, actions, rerollHint);
   dialog.append(inner);
   root.append(dialog);
 
@@ -332,7 +381,13 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
         const li = el('li', condition.met ? 'met' : 'unmet');
         const mark = el('span', 'mark', condition.met ? '✓' : '✗');
         mark.setAttribute('aria-hidden', 'true');
-        li.append(mark, el('span', '', condition.label), srOnly(condition.met ? ' (erfüllt)' : ' (fehlt)'));
+        const text = el('span', 'condition-text', condition.label);
+        li.append(mark, text, srOnly(condition.met ? ' (erfüllt)' : ' (fehlt)'));
+        if (condition.hint) {
+          // Sichtbar statt nur als Tooltip – auf Touch-Geräten gibt es kein Hover.
+          text.append(el('span', 'condition-hint', condition.hint));
+          li.title = condition.hint;
+        }
         list.append(li);
       }
       item.append(list);
@@ -452,6 +507,13 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     decline.hidden = view.declineReward === null;
     if (view.declineReward !== null) setText(decline, declineLabel(view.declineReward));
     applyDisabled();
+
+    if (!legendChecked) {
+      // Einmal pro Seite prüfen: Erste Begegnung überhaupt → Legende aufgeklappt zeigen.
+      legendChecked = true;
+      legend.open = !legendSeen();
+      markLegendSeen();
+    }
 
     if (!dialog.open) {
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
