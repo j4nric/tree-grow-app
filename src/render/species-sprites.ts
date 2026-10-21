@@ -426,14 +426,7 @@ function paintPeacock(c: CanvasRenderingContext2D, frame: number): void {
 
 /** Glühwürmchen im Flug mit leuchtendem Hinterleib; Mitte auf (0, 0). */
 function paintGlowworm(c: CanvasRenderingContext2D): void {
-  const glow = c.createRadialGradient(-0.12, 0.04, 0, -0.12, 0.04, 0.55);
-  glow.addColorStop(0, 'rgba(236, 255, 150, 0.9)');
-  glow.addColorStop(0.3, 'rgba(210, 245, 120, 0.4)');
-  glow.addColorStop(1, 'rgba(200, 240, 110, 0)');
-  c.fillStyle = glow;
-  c.beginPath();
-  c.arc(-0.12, 0.04, 0.55, 0, TAU);
-  c.fill();
+  // Der Lichtschein ist ein eigenes Sprite (animals.ts, `glowHalo`) und folgt der Jahreszeit.
   ell(c, 0.02, -0.12, 0.16, 0.06, -0.5, 'rgba(235, 242, 245, 0.7)');
   outline(c, 0.07, () => {
     ellPath(c, 0, 0, 0.22, 0.1, 0.1);

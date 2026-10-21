@@ -637,6 +637,15 @@ export function leafKeep(l: LeafCluster): number {
 }
 
 /**
+ * Größe der Blattbüschel bei einer Laubmenge < 1: Die letzten Büschel vor dem
+ * Kahlwerden (und die ersten im Frühling) sind kleiner – so wirken sie nicht wie Früchte.
+ * Ab etwa 0,7 volle Größe.
+ */
+export function leafShrink(amount: number): number {
+  return amount >= 1 ? 1 : 0.6 + 0.4 * smooth01(amount / 0.7);
+}
+
+/**
  * Zeichnet die Blattbüschel: je Büschel ein dunkler Schatten, drei Blattballen in einem
  * von drei Grüntönen (oben heller, innen dunkler) und ein Glanzlicht. Innere Ebenen
  * zuerst, damit äußere Büschel Schatten auf die inneren werfen.
@@ -661,16 +670,18 @@ export function paintLeaves(
   }
   const span = Math.max(bottom - top, 1e-6);
   const maxLevel = geo.maxLevel;
+  // Wenige verbliebene Blätter: kleinere Büschel (Radius in Zeichenpixeln).
+  const k = scale * leafShrink(amount);
 
   for (let level = 0; level <= maxLevel; level++) {
-    const group = geo.leaves.filter((l) => l.level === level && l.r * scale >= 0.5 && (amount >= 1 || leafKeep(l) < amount));
+    const group = geo.leaves.filter((l) => l.level === level && l.r * k >= 0.5 && (amount >= 1 || leafKeep(l) < amount));
     if (group.length === 0) continue;
 
     ctx.fillStyle = palette.shadow;
     ctx.beginPath();
     circleCount = 0;
     for (const l of group) {
-      const R = l.r * scale;
+      const R = l.r * k;
       const cx = ox + l.x * scale + R * 0.12;
       const cy = oy + l.y * scale + R * 0.18;
       circle(ctx, cx, cy, R);
@@ -690,7 +701,7 @@ export function paintLeaves(
       ctx.beginPath();
       circleCount = 0;
       for (const l of list) {
-        const R = l.r * scale;
+        const R = l.r * k;
         const cx = ox + l.x * scale;
         const cy = oy + l.y * scale;
         const a = l.a * Math.PI * 2;
@@ -711,7 +722,7 @@ export function paintLeaves(
     circleCount = 0;
     for (const l of group) {
       if (l.b < 0.35) continue;
-      const R = l.r * scale;
+      const R = l.r * k;
       const cx = ox + l.x * scale - R * 0.25;
       const cy = oy + l.y * scale - R * 0.32;
       const hr = R * 0.38;
