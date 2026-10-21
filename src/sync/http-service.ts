@@ -15,6 +15,8 @@ export interface HttpDeps {
   storage: Storage;
   /** Fehlt (z. B. in Node), gibt es keine Live-Änderungen – der Abgleich bemerkt sie beim nächsten Push. */
   EventSource?: typeof EventSource;
+  /** Uhr des Geräts (Standard: Date.now) – nur für den Abstand zur Serverzeit (serverOffset). */
+  now?: () => number;
 }
 
 interface StoredSession {
@@ -45,6 +47,9 @@ export function apiBase(url: string): string {
 export function createHttpService(baseUrl: string, deps: HttpDeps): AccountService {
   const base = apiBase(baseUrl);
   const listeners: ((user: AccountUser | null) => void)[] = [];
+  /** Zuletzt gemessener Abstand Serverzeit − Geräteuhr (ms); null, bis der Server geantwortet hat. */
+  let serverOffsetMs: number | null = null;
+  const deviceNow = deps.now ?? (() => Date.now());
 
   function loadSession(): StoredSession | null {
     try {
@@ -146,6 +151,8 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
     // Alter allein nach der Uhr des Servers – die Uhren der Geräte dürfen falsch gehen.
     const serverTime = finite(row.serverTime);
     const updatedAt = finite(row.updatedAt);
+    // Abstand der Uhren für den Tageswechsel der Tagesziele (Laufzeit der Antwort vernachlässigt).
+    if (serverTime !== undefined) serverOffsetMs = serverTime - deviceNow();
     if (serverTime !== undefined && updatedAt !== undefined) remote.ageMs = Math.max(0, serverTime - updatedAt);
     return remote;
   }
@@ -272,5 +279,6 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
     },
     sessionUser: () => loadSession()?.username ?? null,
     backend: (user) => backendFor(user.name),
+    serverOffset: () => serverOffsetMs,
   };
 }

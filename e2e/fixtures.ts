@@ -14,8 +14,20 @@ export { SAVE_VERSION } from '../src/core/state';
 
 export const SAVE_KEY = 'tree-grow-save';
 
-/** Sammelt Konsolenfehler und unbehandelte Seitenfehler; jeder Test muss fehlerfrei enden. */
-export const test = base.extend<{ pageErrors: string[] }>({
+/**
+ * Sammelt Konsolenfehler und unbehandelte Seitenfehler; jeder Test muss fehlerfrei enden.
+ * Tagesziele sind in e2e-Tests aus (`window.__VSZW_DAILY__ = false`), sonst brächte das echte
+ * Datum Ziele, Belohnungen und Hinweise in fremde Tests. Einschalten: `test.use({ daily: true })`.
+ */
+export const test = base.extend<{ pageErrors: string[]; daily: boolean; dailySwitch: void }>({
+  daily: [false, { option: true }],
+  dailySwitch: [
+    async ({ context, daily }, use) => {
+      if (!daily) await context.addInitScript(() => ((window as unknown as { __VSZW_DAILY__?: boolean }).__VSZW_DAILY__ = false));
+      await use();
+    },
+    { auto: true },
+  ],
   pageErrors: [
     async ({ page }, use) => {
       const errors: string[] = [];

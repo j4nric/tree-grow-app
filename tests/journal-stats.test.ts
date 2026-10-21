@@ -38,8 +38,11 @@ describe('toJournalStats (Reiter „Statistik“)', () => {
     expect(stats.map((s) => s.key)).toEqual([
       'cycle', 'time', 'tree', 'stage', 'growth', 'seeds', 'harmony', 'species', 'plants', 'communities', 'memory', 'regulars',
       'total-time', 'total-growth', 'total-harmony', 'total-cards', 'total-events', 'total-visitors', 'total-plants',
-      'total-care', 'total-trees',
+      'total-care', 'total-trees', 'total-daily-goals', 'total-daily-streak',
     ]);
+    // Tagesziele (seit v12): noch nichts erfüllt.
+    expect(statOf(stats, 'total-daily-goals')).toMatchObject({ value: '0', detail: 'an 0 Tagen alle' });
+    expect(statOf(stats, 'total-daily-streak').value).toBe('0 Tage');
     // Nur der Abschnitt „Über alle Zyklen“ ist markiert.
     expect(stats.filter((s) => s.section === 'total').every((s) => s.key.startsWith('total-'))).toBe(true);
     expect(stats.filter((s) => s.key.startsWith('total-')).every((s) => s.section === 'total')).toBe(true);

@@ -72,6 +72,12 @@ describe('HTTP-Dienst gegen den Sync-Server', () => {
     expect(await backend.insert({ data: 'S1', version: 1, device: 'A', actionVersion: 1, schema: 9 })).toBe('ok');
     clock += 7000;
     expect((await backend.fetch())?.ageMs).toBe(7000);
+    // Abstand zur Serverzeit (Tageswechsel der Tagesziele): Geräteuhr hier eine Minute nach.
+    const late = createHttpService(url, { fetch, storage: new MemoryStorage(), now: () => clock - 60_000 });
+    expect(late.serverOffset!()).toBeNull();
+    await late.signIn('eiche', 'geheim123');
+    await late.backend({ name: 'eiche' }).fetch();
+    expect(late.serverOffset!()).toBe(60_000);
     full = true;
     await expect(backend.update(1, { data: 'S2', version: 2, device: 'A', schema: 9 })).rejects.toMatchObject({ code: 'storage-full' });
     await expect(createHttpService(url, { fetch, storage: new MemoryStorage() }).register('buche', 'geheim123')).rejects.toMatchObject({

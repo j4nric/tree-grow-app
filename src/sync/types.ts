@@ -83,4 +83,9 @@ export interface AccountService {
   sessionUser(): string | null;
   /** Zugriff auf den Stand genau dieses Kontos (gehört die Sitzung inzwischen einem anderen: 'unauthorized'). */
   backend(user: AccountUser): SyncBackend;
+  /**
+   * Abstand Serverzeit − Geräteuhr (ms) aus der letzten Antwort mit `serverTime`; null, solange
+   * keine kam. Optional (Test-Dienste ohne Server). Für den Tageswechsel der Tagesziele.
+   */
+  serverOffset?(): number | null;
 }

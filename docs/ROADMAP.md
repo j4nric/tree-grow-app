@@ -276,9 +276,10 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   Icons aus `scripts/generate-icons.ts`, Service Worker von Hand in `src/pwa/service-worker.ts`
   (beim Bauen als `dist/sw.js` mit Dateiliste und Inhalts-Version), Anmeldung und Hinweis
   „Neue Version verfügbar – neu laden“ in `src/ui/pwa.ts`; e2e in `e2e/pwa.spec.ts`
-- [ ] Tagesziele (Design `game-designer`, Logik `core-engineer`, Anzeige `ui-dev`): 2–3
+- [x] Tagesziele (Design `game-designer`, Logik `core-engineer`, Anzeige `ui-dev`): 2–3
   Aufgaben pro Tag aus dem Naturtagebuch, Belohnung Samen bzw. seltene Begegnung;
   deterministisch aus Datum + Seed, Tageswechsel bei aktivem Konto nach Serverzeit
+  (Spielstand v12, `DESIGN_V2.md` 20)
 
 **Welle 2 – Lebendiger Alltag**
 

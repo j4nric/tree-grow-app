@@ -42,6 +42,7 @@ import {
   secondsToNextWaypoint,
   type Evaluation,
 } from '../src/core/formulas';
+import { updateDaily } from '../src/core/daily';
 import { normalizeSeed, randomInt, type RngHolder } from '../src/core/rng';
 import { allAnimals, createInitialState, type GameState, type PendingEncounterType } from '../src/core/state';
 import {
@@ -304,6 +305,10 @@ export interface Snapshot {
   spentVisitors: number;
   /** Nur mit `care`: für Pflege ausgegeben. */
   spentCare: number;
+  /** Nur mit `daily`: Samen aus erfüllten Tageszielen (DESIGN_V2.md 20.6). */
+  earnedDaily: number;
+  /** Nur mit `daily`: erfüllte Tagesziele. */
+  dailyDone: number;
   /** Gekaufte Ränge je Maßnahme. */
   careRanks: Record<string, number>;
   counts: Counts;
@@ -370,6 +375,16 @@ export interface RunOptions {
   care?: boolean;
   /** Art des Hauptbaums (Standard: Stieleiche wie im ersten Zyklus). */
   mainTree?: MainTreeId;
+  /**
+   * Tagesziele mitspielen (DESIGN_V2.md 20.6): die Ziele dieses Tages („JJJJ-MM-TT“) entstehen
+   * beim Start; jede gespielte Sekunde zählt als aktiv. Der Spieler verfolgt sie nicht
+   * gezielt – sie werden erfüllt, wenn seine Strategie sie ohnehin erfüllt. Standard: aus
+   * (alle übrigen Tabellen ohne Tagesziele).
+   */
+  daily?: string;
+  /** Mit `daily`: Tageswechsel nach so vielen Sekunden (der Folgetag bringt neue Ziele). */
+  dailyNextDayAt?: number;
+  dailyNextDay?: string;
 }
 
 /** Frühes Spiel: Kennzahlen „längste Pause ohne Entscheidung“ und „Samen ungenutzt“ (s). */
@@ -395,7 +410,17 @@ export function runGame(
   const rng: RngHolder = from?.rng ?? { rngState: normalizeSeed(options.seed * 7919 + 17) };
   let time = 0;
   let lastWaypointTime = 0;
-  const book = { earnedPassive: 0, earnedDecline: 0, spent: 0, spentPlants: 0, earnedExtras: 0, spentVisitors: 0, spentCare: 0 };
+  const book = { earnedPassive: 0, earnedDecline: 0, spent: 0, spentPlants: 0, earnedExtras: 0, spentVisitors: 0, spentCare: 0, earnedDaily: 0, dailyDone: 0 };
+  // Tagesziele (nur mit `daily`): Belohnungen getrennt verbuchen.
+  const daily = (activeSeconds: number, produced?: { growth: number; seeds: number }) => {
+    if (!options.daily) return;
+    const day = options.dailyNextDay && time >= (options.dailyNextDayAt ?? Infinity) ? options.dailyNextDay : options.daily;
+    const before = state.seeds;
+    const result = updateDaily(state, day, { activeSeconds, produced });
+    book.earnedDaily += state.seeds - before;
+    book.dailyDone += result.completed.length;
+  };
+  daily(0);
   const counts: Counts = {
     encounters: 0,
     plantEncounters: 0,
@@ -523,12 +548,15 @@ export function runGame(
     const dt = Math.min(toWaypoint, toPlant, nextSample - time, nextExpiry(state), toInterlude, toSeason, toCare, options.maxSeconds - time);
     if (!(dt < Infinity)) break;
     const seedsBefore = state.seeds;
+    const growthBefore = state.totalGrowth;
     const report = tick(state, dt);
     time += dt;
     // Samen steigen zwischen zwei Halten nur – der Höchststand liegt also an einem Halt.
     if (stageBefore < EARLY_SEED_STAGE) result.early.seedPeak = Math.max(result.early.seedPeak, state.seeds);
     const autoSeeds = report.declinedSeeds;
     book.earnedPassive += state.seeds - seedsBefore - autoSeeds;
+    // Tagesziele erst nach der Buchung: ihre Belohnung zählt nur in earnedDaily.
+    daily(dt, { growth: state.totalGrowth - growthBefore, seeds: state.seeds - seedsBefore - autoSeeds });
     book.earnedDecline += autoSeeds;
     counts.autoDeclined += report.autoDeclined;
     counts.regulars += report.regulars.length;

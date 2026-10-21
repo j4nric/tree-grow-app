@@ -1,6 +1,7 @@
 import { CARE } from './content/care';
 import { NOON_PHASE } from './content/daytime';
 import { checkAchievements } from './core/achievements';
+import { dayKeyOf, updateDaily, type DailyUpdateOptions } from './core/daily';
 import { dayPhaseAt, evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
 import { sceneSeason } from './core/season';
@@ -55,6 +56,8 @@ import {
 import { seedsLabel } from './ui/view-format';
 import { achievementUnlockedText, achievementsBackfilledText, toAchievementTimeProgress } from './ui/achievement-view';
 import { createBonusPanel } from './ui/bonus-panel';
+import { createDailyPanel } from './ui/daily-panel';
+import { dailyCompletedText, toDailyView } from './ui/daily-view';
 import { createCarePanel } from './ui/care-panel';
 import { createCyclePanel } from './ui/cycle-panel';
 import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText, toCyclePanelView, withRegulars } from './ui/cycle-view';
@@ -97,6 +100,8 @@ const PANEL_REFRESH_MS = 200;
  * Jahreszeitwechseln sofort, nach Aktionen immer (act).
  */
 const ACHIEVEMENT_CHECK_MS = 1000;
+/** Tagesziele im Game Loop höchstens so oft nachführen (aktiv gespielte Zeit wird gesammelt). */
+const DAILY_CHECK_MS = 1000;
 
 /**
  * Konto (optional): nur mit der Build-Variable VITE_SYNC_URL (Adresse des Sync-Servers) –
@@ -226,6 +231,14 @@ let ecoEvaluation: Readonly<Evaluation> | null = null;
 let lastPanelRefresh = -Infinity;
 /** Letzte gedrosselte Prüfung der Erfolge im Game Loop (performance.now). */
 let lastAchievementCheck = -Infinity;
+/** Letzte gedrosselte Prüfung der Tagesziele und seither aktiv gespielte Sekunden. */
+let lastDailyCheck = -Infinity;
+let dailySeconds = 0;
+/** Seither aktiv gutgeschriebenes Wachstum bzw. erzeugte Samen (für Wachstums- und Samen-Ziele). */
+let dailyGrowth = 0;
+let dailyProduced = 0;
+/** Zuletzt gesehener Abstand zur Serverzeit (null = noch keiner). */
+let dailyOffset: number | null = null;
 
 /** Der Spieler hat „Pflanze setzen“ geöffnet. */
 let pickerWanted = false;
@@ -294,6 +307,7 @@ const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosyst
   onShowCare: (id) => carePanel.reveal(id),
 });
 const bonusPanel = createBonusPanel(document.querySelector<HTMLElement>('#bonuses')!);
+const dailyPanel = createDailyPanel(document.querySelector<HTMLElement>('#daily')!);
 const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!, {
   onBuy: (id) => act(buyCare(state, id), false),
   onFeedback: (text, x, y) => floats.spawn(text, x, y, 'note'),
@@ -383,8 +397,12 @@ function openJournal(): void {
  */
 function act(result: ActionResult, resolves: boolean, type?: PendingEncounterType): boolean {
   let unlocked: string[] = [];
+  let dailyText = '';
   if (result.ok) {
     unlocked = checkAchievements(state);
+    // Tagesziele: Aktionen zählen sofort (Begegnungen, Pflanze, Pflege, Zustände).
+    // Ohne schwebende Zahl: Die Aktion zeigt ihre Samen schon (z. B. Ablehnen) – der Hinweis nennt die Belohnung.
+    dailyText = runDaily({}, false);
     // Erst vormerken, dann speichern: so stehen Spielstand und „offen“ im selben Schreibvorgang.
     account?.markAction();
     persist();
@@ -400,9 +418,44 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
   }
   if (unlocked.length > 0) sound.cue('achievement');
   const regulars = result.regulars && result.regulars.length > 0 ? regularsArrivedText(result.regulars) : '';
-  const text = joinNotes(discoveryText(result.discovered), regulars, achievementUnlockedText(unlocked));
+  const text = joinNotes(discoveryText(result.discovered), regulars, achievementUnlockedText(unlocked), dailyText);
   if (text) notify(text);
   return true;
+}
+
+/**
+ * Heutiger Tag für die Tagesziele („JJJJ-MM-TT“, lokale Zeit). Mit angemeldetem Konto zählt
+ * die Uhr des Servers, sobald der Abgleich ihre Antwort kennt (Abstand aus `serverTime`).
+ * Davor – beim Start und beim Nachrechnen der Offline-Zeit, bevor das Konto geladen ist –
+ * gilt die Geräteuhr; eine falsch gestellte Uhr kann also einen falschen Tag bringen. Der
+ * Game Loop prüft nach der ersten Server-Antwort sofort erneut; ein Tag, der mehr als einen
+ * Tag in der Zukunft liegt, setzt core/daily.ts auf heute zurück. Zeitzone: die des Geräts.
+ */
+function today(): string {
+  // Nur in e2e-Builds (VITE_E2E): `window.__VSZW_DAILY__ = false` schaltet die Tagesziele ab.
+  if (import.meta.env.VITE_E2E && (window as unknown as { __VSZW_DAILY__?: unknown }).__VSZW_DAILY__ === false) return '';
+  const d = new Date(Date.now() + (account?.serverOffsetMs() ?? 0));
+  return dayKeyOf(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
+
+/**
+ * Tagesziele nachführen (Tageswechsel, Fortschritt, Belohnung). Speichert bei Änderungen,
+ * markiert betroffene Ansichten und gibt den Hinweis zurück ('' wenn nichts erfüllt wurde).
+ * `float`: gutgeschriebene Samen am Vorrat hochschweben lassen.
+ */
+function runDaily(options: DailyUpdateOptions, float = true): string {
+  const seedsBefore = state.seeds;
+  const queued = state.pendingEncounters.length;
+  const result = updateDaily(state, today(), options);
+  if (!result.rolled && result.completed.length === 0) return '';
+  persist();
+  ecoDirty = true;
+  if (result.completed.length === 0) return '';
+  if (state.pendingEncounters.length !== queued) encounterDirty = true;
+  pickerDirty = true;
+  sound.cue('achievement');
+  if (float) floatSeeds(state.seeds - seedsBefore);
+  return dailyCompletedText(result.completed, result.perfect, state.meta.daily.streak);
 }
 
 /** Mehrere Hinweise als ein Text (leere weglassen); '' wenn nichts bleibt. */
@@ -593,6 +646,7 @@ function refreshPanel(now: number): void {
   refreshAnimalDetail();
   // Restzeiten der Boni laufen – gedrosselt wie die Zahlen der Seitenleiste.
   bonusPanel.update(activeBonusViews(state));
+  dailyPanel.update(toDailyView(state, today()));
   refreshCare();
 }
 
@@ -769,6 +823,8 @@ function replaceState(next: GameState): void {
   encounterDirty = true;
   ecoDirty = true;
   pickerDirty = true;
+  // Tagesziele des neuen Stands (Tageswechsel; Import zählt nicht als aktives Spiel).
+  runDaily({ offline: true });
   persist();
   refreshViews(performance.now());
 }
@@ -895,8 +951,13 @@ function frame(now: number): void {
   }
   const dt = Math.min(Math.max(0, (now - lastFrame) / 1000), MAX_FRAME_SECONDS);
   lastFrame = now;
+  const growthBefore = state.totalGrowth;
+  const seedsBefore = state.seeds;
   const report = tick(state, dt);
   state.lastTick = Date.now();
+  // Tagesziele: tatsächlich gutgeschriebenes Wachstum und erzeugte Samen (ohne automatisches Ablehnen).
+  dailyGrowth += Math.max(0, state.totalGrowth - growthBefore);
+  dailyProduced += Math.max(0, state.seeds - seedsBefore - report.declinedSeeds);
   if (report.waypoints > 0 || report.encounters > 0 || report.interludesReached > 0 || report.expired.length > 0) {
     // Neue Begegnung, Zwischenhalt (auch ohne Ergebnis – der Zufall ist verbraucht) oder
     // abgelaufener Bonus: gleich speichern, damit Neuladen nichts neu würfelt, und
@@ -930,16 +991,32 @@ function frame(now: number): void {
       sound.cue('achievement');
     }
   }
+  // Tagesziele: aktiv gespielte Zeit sammeln, gedrosselt auswerten (Tageswechsel um Mitternacht).
+  dailySeconds += dt;
+  // Erste Antwort des Servers (Abstand der Uhren bekannt bzw. geändert): Tag sofort neu prüfen.
+  const offset = account?.serverOffsetMs() ?? null;
+  if (offset !== dailyOffset) {
+    dailyOffset = offset;
+    lastDailyCheck = -Infinity;
+  }
+  let dailyText: string | null = null;
+  if (now - lastDailyCheck >= DAILY_CHECK_MS) {
+    lastDailyCheck = now;
+    dailyText = runDaily({ activeSeconds: dailySeconds, produced: { growth: dailyGrowth, seeds: dailyProduced } }) || null;
+    dailySeconds = 0;
+    dailyGrowth = 0;
+    dailyProduced = 0;
+  }
   const stageChanged = state.stage !== shownStage;
   // Neue Stufe ohne offenen Dialog: Der Erfolg steht im Stufen-Banner, nicht zusätzlich als Toast.
   const bannerAchievement = stageChanged && !overlayOpen() ? achievementText : null;
   if (overlayOpen()) {
     // Ein Hinweisfeld im Dialog: alles in einem Text, sonst verdrängt der letzte die übrigen.
-    const text = joinNotes(tickNote, seasonText, achievementText);
+    const text = joinNotes(tickNote, seasonText, achievementText, dailyText);
     if (text) notify(text);
   } else {
     if (tickNote) noteText(tickNote);
-    const tickText = joinNotes(seasonText, bannerAchievement ? null : achievementText);
+    const tickText = joinNotes(seasonText, bannerAchievement ? null : achievementText, dailyText);
     if (tickText) notify(tickText);
   }
 
@@ -1003,6 +1080,11 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
     ecoDirty = true;
   }
   extraNotice = joinNotes(extraNotice, achievementsBackfilledText(achievementsBackfilled, unlocked));
+  // Tagesziele: Tageswechsel und nur Ziele, die offline zählen dürfen (Zustände des Waldes).
+  extraNotice = joinNotes(extraNotice, runDaily({ offline: true }));
+  dailySeconds = 0;
+  dailyGrowth = 0;
+  dailyProduced = 0;
   if (report) {
     const notice = catchUpNotice(away, report, state.pendingEncounters.length, { from: stageBefore, to: state.stage });
     if (notice?.kind === 'welcome') {

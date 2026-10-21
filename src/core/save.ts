@@ -1,12 +1,14 @@
 import { ACHIEVEMENTS_BY_ID } from '../content/achievements';
 import { CARE } from '../content/care';
 import { COMMUNITIES_BY_ID } from '../content/communities';
+import { DAILY_GOALS_BY_KIND, DAILY_GOAL_COUNT, type DailyGoalKind } from '../content/daily';
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
 import { EVENTS, EVENTS_BY_ID, type CycleEffect, type TimedEffect } from '../content/events';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY, V1_KEEPSAKE_MIN_ENERGY, V1_KEEPSAKE_MIN_STAGE, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { PLANTS_BY_ID } from '../content/plants';
 import { SPECIES_BY_ID } from '../content/species';
-import { NICHE_IDS, type Tag } from '../content/types';
+import { SEASON_IDS, type SeasonId } from '../content/seasons';
+import { GENERA, NICHE_IDS, type Genus, type Tag } from '../content/types';
 import { VISITORS_BY_ID } from '../content/visitors';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { DEFAULT_MAIN_TREE, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
@@ -23,6 +25,7 @@ import {
   waypointsForGrowth,
 } from './formulas';
 import { checkAchievements } from './achievements';
+import { isDayKey } from './daily';
 import { isValidRngState, normalizeSeed } from './rng';
 import { normalizeElapsed } from './season';
 import { MAX_STAT_COUNT, interludeThreshold, isTreeUnlocked, recordDiscoveries } from './tick';
@@ -30,10 +33,14 @@ import {
   MAX_FOREST_MEMORY,
   SAVE_VERSION,
   createCycle,
+  createDaily,
   createInitialState,
   createStats,
+  dailySeedOf,
   type CycleBonus,
   type CycleState,
+  type DailyGoal,
+  type DailyState,
   type GameState,
   type LifetimeStats,
   type PendingEncounter,
@@ -526,7 +533,91 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   // migrateV8). Ob sie erfüllt sind, lässt sich nicht prüfen (frühere Zyklen) – sie bleiben.
   state.meta.achievements =
     version >= 9 ? unique(stringArray(meta.achievements)).filter((id) => ACHIEVEMENTS_BY_ID.has(id)) : [];
+  // Seit v12: Tagesziele (ältere Stände: migrateV11 – neuer Startwert aus dem Zufall des
+  // Stands, noch kein Tag, keine Serie).
+  state.meta.daily = version >= 12 ? loadDaily(meta.daily, state) : migrateV11(state);
   return state;
+}
+
+/**
+ * v11 → v12 (Tagesziele, DESIGN_V2.md 20): eigener Startwert aus dem Zufallsgenerator des
+ * Stands (fest, solange der Stand nicht weiterläuft – zweimal Laden ergibt dasselbe), noch
+ * kein Tag, keine Serie. Die ersten Ziele entstehen beim ersten Tageswechsel im Spiel.
+ */
+function migrateV11(state: GameState): DailyState {
+  return createDaily(dailySeedOf(state.rngState));
+}
+
+/** Obergrenze der Zähler der Tagesziele (Serie, erfüllte Ziele, perfekte Tage). */
+export const MAX_DAILY_COUNT = 1e9;
+
+/**
+ * Tagesziele robust laden (seit v12): Startwert gültig (sonst aus dem Zufall des Stands),
+ * Tage nur als gültiges „JJJJ-MM-TT“, Ziele nur bekannte Arten mit allen Parametern, die
+ * sie brauchen (Gattung, Jahreszeit, Lebensgemeinschaft, Schwelle), Zielwert endlich und
+ * > 0, Fortschritt in [0, Zielwert], höchstens DAILY_GOAL_COUNT. Zähler ganzzahlig ≥ 0,
+ * beste Serie nie unter der laufenden. Ohne gültigen Tag keine Ziele.
+ */
+function loadDaily(raw: unknown, state: GameState): DailyState {
+  const r = isRecord(raw) ? raw : {};
+  const daily = createDaily(isValidRngState(r.seed) ? r.seed : dailySeedOf(state.rngState));
+  // createDaily mischt den Startwert: den gespeicherten unverändert übernehmen.
+  if (isValidRngState(r.seed)) daily.seed = r.seed;
+  const count = (value: unknown) => Math.floor(clampedOr(value, 0, 0, MAX_DAILY_COUNT));
+  daily.day = isDayKey(r.day) ? r.day : '';
+  daily.lastDay = isDayKey(r.lastDay) ? r.lastDay : '';
+  daily.streak = daily.lastDay ? count(r.streak) : 0;
+  daily.bestStreak = Math.max(daily.streak, count(r.bestStreak));
+  daily.goalsDone = count(r.goalsDone);
+  daily.perfectDays = count(r.perfectDays);
+  if (daily.day && Array.isArray(r.goals)) {
+    for (const g of r.goals) {
+      if (daily.goals.length >= DAILY_GOAL_COUNT) break;
+      const goal = loadDailyGoal(g);
+      if (goal && !daily.goals.some((x) => x.kind === goal.kind)) daily.goals.push(goal);
+    }
+  }
+  return daily;
+}
+
+function loadDailyGoal(raw: unknown): DailyGoal | null {
+  if (!isRecord(raw) || typeof raw.kind !== 'string' || !DAILY_GOALS_BY_KIND.has(raw.kind as DailyGoalKind)) return null;
+  const kind = raw.kind as DailyGoalKind;
+  const target = finiteOr(raw.target, 0);
+  if (!(target > 0)) return null;
+  const goal: DailyGoal = {
+    kind,
+    target,
+    progress: clampedOr(raw.progress, 0, 0, target),
+    reward: raw.reward === 'rare' ? 'rare' : 'seeds',
+    done: raw.done === true,
+  };
+  if (goal.done) goal.progress = target;
+  const genus = typeof raw.genus === 'string' && GENERA.includes(raw.genus as Genus) ? (raw.genus as Genus) : undefined;
+  const season = typeof raw.season === 'string' && SEASON_IDS.includes(raw.season as SeasonId) ? (raw.season as SeasonId) : undefined;
+  const community = typeof raw.community === 'string' && COMMUNITIES_BY_ID.has(raw.community) ? raw.community : undefined;
+  const harmony = typeof raw.harmony === 'number' && Number.isFinite(raw.harmony) && raw.harmony >= 0 ? raw.harmony : undefined;
+  switch (kind) {
+    case 'observe':
+      if (!genus || !season) return null;
+      Object.assign(goal, { genus, season });
+      break;
+    case 'satisfaction':
+      if (!genus) return null;
+      goal.genus = genus;
+      break;
+    case 'community':
+      if (!community) return null;
+      goal.community = community;
+      break;
+    case 'harmony':
+      if (harmony === undefined) return null;
+      goal.harmony = harmony;
+      break;
+    default:
+      break;
+  }
+  return goal;
 }
 
 /** Alle Wirkungen einer Art aus allen Ereignis-Optionen (für die Prüfung beim Laden). */
