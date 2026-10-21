@@ -106,5 +106,5 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 ## Phase 5 – Veröffentlichung
 
 - [ ] Deployment auf GitHub Pages
-- [ ] Spielstand exportieren/importieren (Text-Code)
+- [x] Spielstand exportieren/importieren (Text-Code „VSZW1:…“ mit Prüfsumme, Bestätigung per zweitem Klick)
 - [ ] Sound & Musik (optional)
