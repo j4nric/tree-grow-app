@@ -679,6 +679,74 @@ function paintNewt(c: CanvasRenderingContext2D, frame: number): void {
   eye(c, 0.36, -0.02, 0.022);
 }
 
+/**
+ * Laubfrosch: klein, glatt und grasgrün mit dunklem Seitenstreif und Haftscheiben an den
+ * Zehen; sitzt wie der Grasfrosch mit den Füßen auf (0, 0).
+ */
+function paintTreefrog(c: CanvasRenderingContext2D): void {
+  const body = '#5fae3a';
+  const dark = '#3f7f27';
+  outline(c, 0.08, () => {
+    ellPath(c, -0.06, -0.2, 0.26, 0.15, -0.3);
+    ellPath(c, 0.2, -0.3, 0.14, 0.11, -0.2);
+    ellPath(c, -0.2, -0.09, 0.19, 0.07, 0.25);
+  });
+  ell(c, -0.2, -0.09, 0.19, 0.07, 0.25, dark);
+  line(c, [-0.04, -0.03, 0.1, 0, 0.2, 0], dark, 0.035);
+  ell(c, -0.06, -0.2, 0.26, 0.15, -0.3, body);
+  ell(c, 0.2, -0.3, 0.14, 0.11, -0.2, body);
+  ell(c, 0.0, -0.12, 0.19, 0.05, -0.3, '#e9efd2');
+  // Dunkler Seitenstreif vom Auge bis zur Flanke, heller Saum darüber
+  line(c, [0.28, -0.31, 0.12, -0.25, -0.06, -0.16, -0.24, -0.12], '#3a3a2c', 0.022);
+  line(c, [0.28, -0.34, 0.12, -0.28, -0.06, -0.19], '#f3f0c8', 0.012);
+  // Vorderbein mit Haftscheibe
+  line(c, [0.12, -0.12, 0.17, -0.02, 0.22, 0], dark, 0.035);
+  ell(c, 0.235, -0.005, 0.022, 0.018, 0, '#c9a24a');
+  ell(c, 0.22, -0.375, 0.05, 0.045, 0, '#c9a24a');
+  eye(c, 0.225, -0.375, 0.027);
+}
+
+/**
+ * Kammmolch im Wasser: dunkel, fast schwarz, mit gezacktem Rückenkamm (Laichzeit),
+ * weiß getupften Flanken und gelb-orange geflecktem Bauch; Körpermitte auf (0, 0).
+ */
+function paintCrestedNewt(c: CanvasRenderingContext2D, frame: number): void {
+  const back = '#33302b';
+  const k = frame === 0 ? 0.04 : -0.04;
+  for (const [x, s] of [
+    [-0.18, 1],
+    [0.2, -1],
+  ] as const) {
+    line(c, [x, 0.04, x + k * s - 0.04, 0.12], '#26231f', 0.04);
+  }
+  const tail = [-0.27, -0.07, -0.55, -0.1, -0.8, 0.0, -0.55, 0.05, -0.27, 0.06];
+  // Gezackter Kamm über Rücken und Schwanz
+  const crest = [-0.72, -0.03, -0.66, -0.12, -0.6, -0.08, -0.52, -0.17, -0.44, -0.11, -0.36, -0.2, -0.28, -0.12, -0.2, -0.22, -0.12, -0.12, -0.04, -0.21, 0.04, -0.11, 0.12, -0.18, 0.2, -0.08];
+  outline(c, 0.07, () => {
+    polyPath(c, tail);
+    polyPath(c, crest);
+    ellPath(c, 0, 0, 0.31, 0.08);
+    ellPath(c, 0.34, -0.005, 0.11, 0.065);
+  });
+  poly(c, crest, '#2a2723');
+  poly(c, tail, back);
+  ell(c, 0, 0, 0.31, 0.08, 0, back);
+  ell(c, 0.34, -0.005, 0.11, 0.065, 0, back);
+  // Gelb-oranger Bauch mit dunklen Flecken, weiße Tupfen an der Flanke
+  ell(c, 0.03, 0.05, 0.27, 0.028, 0, '#e9a227');
+  for (const x of [-0.18, -0.06, 0.08, 0.2]) ell(c, x, 0.052, 0.02, 0.012, 0, '#2a2723');
+  for (const [x, y] of [
+    [-0.22, 0.0],
+    [-0.1, 0.02],
+    [0.04, -0.01],
+    [0.16, 0.015],
+    [-0.42, 0.0],
+  ] as const) {
+    ell(c, x, y, 0.012, 0.01, 0, '#e8e6df');
+  }
+  eye(c, 0.39, -0.02, 0.022);
+}
+
 // ---------------------------------------------------------------------------
 // Pilze
 // ---------------------------------------------------------------------------
@@ -875,6 +943,9 @@ export const SPECIES_INFO: Record<string, KindInfo> = {
   toad: { size: 1, motion: 'sniff', frames: 1 },
   frog: { size: 0.95, motion: 'sniff', frames: 1 },
   newt: { size: 1, motion: 'crawl', frames: 2, swim: true },
+  // Playtest Amphibien: Laubfrosch sitzt wie der Grasfrosch, der Kammmolch schwimmt.
+  treefrog: { size: 0.85, motion: 'sniff', frames: 1 },
+  crestednewt: { size: 1.1, motion: 'crawl', frames: 2, swim: true },
   // Pilze
   chanterelle: { size: 0.95, motion: 'still', frames: 1, fungus: 'cap' },
   porcini: { size: 1.1, motion: 'still', frames: 1, fungus: 'cap' },
@@ -905,6 +976,8 @@ export const SPECIES_DEFS: Record<string, SpriteDef> = {
   toad: { x0: -0.46, y0: -0.42, x1: 0.46, y1: 0.06, paint: (c) => paintToad(c) },
   frog: { x0: -0.48, y0: -0.48, x1: 0.42, y1: 0.06, paint: (c) => paintFrog(c) },
   newt: { x0: -0.8, y0: -0.16, x1: 0.47, y1: 0.16, paint: paintNewt },
+  treefrog: { x0: -0.46, y0: -0.48, x1: 0.4, y1: 0.06, paint: (c) => paintTreefrog(c) },
+  crestednewt: { x0: -0.86, y0: -0.27, x1: 0.5, y1: 0.18, paint: paintCrestedNewt },
   chanterelle: { x0: -0.46, y0: -0.54, x1: 0.44, y1: 0.06, paint: (c) => paintChanterelle(c) },
   porcini: { x0: -0.46, y0: -0.58, x1: 0.44, y1: 0.06, paint: (c) => paintPorcini(c) },
   flyagaric: { x0: -0.48, y0: -0.7, x1: 0.44, y1: 0.08, paint: (c) => paintFlyagaric(c) },

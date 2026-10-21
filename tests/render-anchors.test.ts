@@ -249,7 +249,9 @@ describe('Tier-Zeichnungen', () => {
     expect(animalKind({ id: 'toad', family: 'amphibians', niche: 'pond' })).toBe('toad');
     expect(animalKind({ id: 'frog', family: 'amphibians', niche: 'pond' })).toBe('frog');
     expect(animalKind({ id: 'newt', family: 'amphibians', niche: 'pond' })).toBe('newt');
-    expect(animalKind({ id: 'treefrog', family: 'amphibians', niche: 'pond' })).toBe('toad');
+    expect(animalKind({ id: 'treefrog', family: 'amphibians', niche: 'pond' })).toBe('treefrog');
+    expect(animalKind({ id: 'crestednewt', family: 'amphibians', niche: 'pond' })).toBe('crestednewt');
+    expect(animalKind({ id: 'unknown', family: 'amphibians', niche: 'pond' })).toBe('toad');
   });
 });
 
@@ -268,8 +270,8 @@ describe('Waldtümpel im Erdschnitt', () => {
     ['toad', 0],
     ['frog', 1],
     ['newt', 2],
-    ['toad', 3],
-    ['frog', 4],
+    ['treefrog', 3],
+    ['crestednewt', 4],
   ] as const;
   /** Laubstreu, Waldsaum (inkl. Sonderplätze und Großtiere) und Wurzelraum (Pilze mit Geflecht, Tiere mit Erdloch). */
   const OTHERS: [string, SceneAnimal['family'], string][] = [

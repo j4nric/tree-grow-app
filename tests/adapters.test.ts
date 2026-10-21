@@ -711,8 +711,8 @@ describe('Pflanzen: Begegnung „Etwas keimt“', () => {
     ]);
     // Der Regenwurm lebt noch nicht: neutral
     expect(moss!.effects).toEqual([
-      // Seit der Erweiterung Amphibien brauchen auch Erdkröte, Grasfrosch und Bergmolch Feuchte.
-      { label: '💧 Feuchte für Glühwürmchen, Regenwurm und 7 weitere', tone: 'neutral' },
+      // Seit der Erweiterung Amphibien brauchen auch die fünf Tümpelbewohner Feuchte.
+      { label: '💧 Feuchte für Glühwürmchen, Regenwurm und 9 weitere', tone: 'neutral' },
       { label: `${PLANT_GROUP_INFO.mosses.icon} Feuersalamander und Bergmolch wünschen sich Moose & Farne`, tone: 'neutral' },
     ]);
     expect(moss!.facts![3]).toMatchObject({ label: 'speichert Wasser', value: '+2', text: 'speichert 2 Wasser' });

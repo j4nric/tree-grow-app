@@ -62,6 +62,8 @@ export interface EcosystemPanelCallbacks {
    * `button` = die Kachel (bekommt beim Schließen den Fokus zurück).
    */
   onOpenAnimal?(nicheId: string, index: number, speciesId: string, button: HTMLButtonElement): void;
+  /** „Zur Pflege“ bei einer verschlossenen Nische (Waldtümpel): Pflegemaßnahme zeigen. */
+  onShowCare?(careId: string): void;
 }
 
 interface PlantTile {
@@ -122,6 +124,8 @@ interface NicheRow {
   title: HTMLElement;
   slotsLabel: HTMLElement;
   hint: HTMLElement;
+  hintText: HTMLElement;
+  careButton: HTMLButtonElement;
   list: HTMLElement;
   slots: SlotTile[];
 }
@@ -537,10 +541,22 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     const slotsLabel = el('span', 'niche-slots');
     headRow.append(title, slotsLabel);
     const hint = el('p', 'niche-hint');
+    const hintText = el('span', 'niche-hint-text');
+    // Playtest Amphibien: Der Weg zum Waldtümpel führt über die Pflege – oft zugeklappt
+    // und weiter unten. Der Knopf öffnet sie direkt bei der Maßnahme.
+    const careButton = el('button', 'niche-care-link', 'Zur Pflege');
+    careButton.type = 'button';
+    careButton.dataset.ref = 'niche-care-link';
+    careButton.hidden = true;
+    careButton.addEventListener('click', () => {
+      const id = careButton.dataset.careLink;
+      if (id) callbacks.onShowCare?.(id);
+    });
+    hint.append(hintText, careButton);
     const list = el('ul', 'slot-list');
     list.setAttribute('aria-label', `Plätze in ${niche.label}`);
     li.append(headRow, hint, list);
-    return { root: li, title, slotsLabel, hint, list, slots: [] };
+    return { root: li, title, slotsLabel, hint, hintText, careButton, list, slots: [] };
   }
 
   function updateNiches(niches: NicheView[]): void {
@@ -559,8 +575,14 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
       setText(row.slotsLabel, nicheSlotsLabel(used, niche.capacity));
       // Hinweis bei verschlossenen Nischen – und bei offenen, in die noch niemand einziehen darf.
       const showHint = !!niche.unlockHint && (locked || used === 0);
-      setText(row.hint, showHint ? niche.unlockHint! : '');
+      setText(row.hintText, showHint ? niche.unlockHint! : '');
       row.hint.hidden = !showHint;
+      const link = locked && niche.careLink && callbacks.onShowCare ? niche.careLink : '';
+      if (row.careButton.dataset.careLink !== link) {
+        row.careButton.dataset.careLink = link;
+        row.careButton.hidden = !link;
+        row.careButton.setAttribute('aria-label', `Zur Pflege: ${niche.label} öffnen`);
+      }
 
       const needed = locked ? 0 : Math.max(niche.capacity, used);
       while (row.slots.length < needed) {

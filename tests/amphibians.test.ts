@@ -53,7 +53,7 @@ describe('Waldtümpel (Nische ohne Plätze aus der Stufe)', () => {
     expect(toEcosystemView(state, evaluate(state)).niches.find((n) => n.id === 'pond')!.unlockHint).toBeUndefined();
   });
 
-  it('Pflege „Waldtümpel“: Rang 1 öffnet 2 Plätze, Rang 2 (Hain) einen dritten', () => {
+  it('Pflege „Waldtümpel“: Rang 1 öffnet 2 Plätze, Rang 2 (Hain) zwei weitere', () => {
     const state = oldTree();
     state.seeds = 1e6;
     expect(buyCare(state, 'pond').ok).toBe(true);
@@ -62,7 +62,7 @@ describe('Waldtümpel (Nische ohne Plätze aus der Stufe)', () => {
     expect(buyCare(state, 'pond').ok).toBe(false);
     state.stage = 5;
     expect(buyCare(state, 'pond').ok).toBe(true);
-    expect(nicheSlots(state.stage, state.niches, slotBonuses(state)).pond).toBe(3);
+    expect(nicheSlots(state.stage, state.niches, slotBonuses(state)).pond).toBe(4);
   });
 
   it('Seitenleiste und Szene: Tümpel mit Plätzen und Bewohnern, sonst verschlossen mit Hinweis', () => {
@@ -70,19 +70,43 @@ describe('Waldtümpel (Nische ohne Plätze aus der Stufe)', () => {
     expect(scenePond(evaluate(closed))).toBe(false);
     const closedView = toEcosystemView(closed, evaluate(closed)).niches.find((n) => n.id === 'pond')!;
     expect(closedView).toMatchObject({ label: 'Waldtümpel', capacity: 0, unlockHint: 'öffnet durch Pflege „Waldtümpel“ (ab „Alter Baum“)' });
+    // Playtest: Ab „Alter Baum“ führt „Zur Pflege“ direkt zur Maßnahme – davor (Junger Baum) nicht.
+    expect(closedView.careLink).toBe('pond');
+    const young = stateAt(3, [], 3);
+    expect(toEcosystemView(young, evaluate(young)).niches.find((n) => n.id === 'pond')!.careLink).toBeUndefined();
     const open = oldTree(['toad'], 1);
     expect(scenePond(evaluate(open))).toBe(true);
     const view = toEcosystemView(open, evaluate(open));
+    expect(view.niches.find((n) => n.id === 'pond')!.careLink).toBeUndefined();
     expect(view.niches.find((n) => n.id === 'pond')).toMatchObject({ capacity: 2, animals: [{ id: 'toad', family: 'amphibians' }] });
     expect(view.families.find((f) => f.id === 'amphibians')).toMatchObject({ icon: '🐸', label: 'Amphibien', count: 1 });
     expect(toSceneAnimals(open, evaluate(open))).toContainEqual(expect.objectContaining({ id: 'toad', niche: 'pond', family: 'amphibians' }));
   });
 
-  it('mit Tümpel kommen Erdkröte, Grasfrosch und Bergmolch als Karten', () => {
+  it('mit Tümpel kommen Erdkröte, Grasfrosch, Bergmolch und Laubfrosch als Karten, der Kammmolch erst im Hain', () => {
     const state = oldTree([], 1);
     const seen = new Set<string>();
-    for (let i = 0; i < 200; i++) for (const id of drawAnimals(state)) seen.add(id);
-    for (const id of ['toad', 'frog', 'newt']) expect(seen.has(id), id).toBe(true);
+    for (let i = 0; i < 300; i++) for (const id of drawAnimals(state)) seen.add(id);
+    for (const id of ['toad', 'frog', 'newt', 'treefrog']) expect(seen.has(id), id).toBe(true);
+    expect(seen.has('crestednewt')).toBe(false);
+    state.stage = 5;
+    for (let i = 0; i < 300; i++) for (const id of drawAnimals(state)) seen.add(id);
+    expect(seen.has('crestednewt')).toBe(true);
+  });
+
+  it('Gattungsstufe 5: alle fünf Amphibien mit voller Pflege und einem Ereignis-Platz → +12 % Wachstum', () => {
+    const state = oldTree(['toad', 'frog', 'newt', 'treefrog'], 2);
+    state.stage = 5;
+    expect(evaluate(state).slots.pond).toBe(4);
+    expect(evaluate(state).traitTiers.amphibians).toBe(2);
+    const four = evaluate(state).growthBonus;
+    state.cycle.bonuses.push({ source: 'rain', effect: { kind: 'slot', niche: 'pond', amount: 1 } });
+    state.niches.pond.push('crestednewt');
+    const five = evaluate(state);
+    expect(five.genusCounts.amphibians).toBe(5);
+    expect(five.traitTiers.amphibians).toBe(3);
+    const z = five.animals.crestednewt!.happiness;
+    expect(five.growthBonus).toBeCloseTo(four + 0.12 + 0.06 * z, 9);
   });
 
   it('Regenreicher Frühling: „Waldtümpel entstehen lassen“ öffnet einen Platz (Zyklus)', () => {
@@ -180,6 +204,6 @@ describe('Amphibien im Ökosystem', () => {
     state.cycle.seen.push('toad-migration');
     expect(chooseEventOption(state, 0, 1).ok).toBe(true);
     expect(evaluate(state).slots.pond).toBe(3);
-    expect(state.cycle.forced).toMatchObject({ type: 'animal', ids: ['frog', 'newt'] });
+    expect(state.cycle.forced).toMatchObject({ type: 'animal', ids: ['frog', 'newt', 'treefrog', 'crestednewt'] });
   });
 });

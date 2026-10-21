@@ -187,6 +187,15 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   durch Pflege „Waldtümpel“ bzw. Regenreicher Frühling/Krötenwanderung), Frühling = Laichzeit,
   Ereignis Krötenwanderung, Lebensgemeinschaften Tümpelleben und Schneckenwacht, Tümpel und
   Sprites im Renderer; Spielstand v11 (`DESIGN_V2.md` 5.5, 12.8)
+  - [x] Playtest Amphibien und mittleres Spiel (`game-designer`): Amphibien wurden nicht zu
+    selten gewählt (56 %), sondern zu selten angeboten (4,1 Begegnungen bis Urwald) → Laubfrosch
+    und Kammmolch (selten) im Waldtümpel, Pflege „Waldtümpel“ Rang 2 +2 Plätze, Gattungsstufe 5
+    als seltenes Spätziel (5 % Harmonie, 24 % Stapler); Ringelnatter verworfen; Knopf „Zur
+    Pflege“ an der verschlossenen Nische; Zeichnungen für Laubfrosch und Kammmolch; kein neues
+    Spielstand-Feld (`DESIGN_V2.md` 5.5 und 15.4 „Stand Playtest Amphibien“)
+  - [ ] Tümpel-Darstellung mit 4–5 Bewohnern entzerren, Amphibien auf schmalen Bildschirmen
+    größer (`renderer`, `DESIGN_V2.md` 15.4 „Stand Playtest Amphibien“, Offen 1)
+  - [ ] Stammgast-Wahl: Hinweis, dass Amphibien erst mit dem Waldtümpel einziehen (`ui-dev`)
 - [x] Winter-Ereignis „Schneebruch“ und weitere Ereignisse je Jahreszeit (`game-designer`) – 4 neue
   Ereignisse nur mit vorhandenen Wirkungstypen (keine Logik, kein neues Spielstand-Format):
   Spätfrost (Frühling), Hitzewelle (Sommer), Laubfall (Herbst), Schneebruch (Winter);

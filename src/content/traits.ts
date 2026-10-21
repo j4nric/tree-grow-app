@@ -6,7 +6,7 @@ import type { Effect, Genus } from './types';
  * Wirkungen werden NICHT mit Zufriedenheit skaliert. Zahlen ursprünglich aus dem
  * Prototyp (scripts/v2, entfernt in Schritt 2.10).
  * Jede Grundgattung hat 6–8 Arten (DESIGN_V2.md 5.1); wer eine Gattung stapelt, erreicht
- * die 5. Die Amphibien (Erweiterung, 3 Arten) erreichen höchstens die Stufe 3.
+ * die 5. Die Amphibien (Erweiterung, 5 Arten) erreichen die 5 nur mit allen Arten und einem Tümpelplatz aus einem Ereignis.
  */
 export const TRAIT_THRESHOLDS: readonly number[] = [2, 3, 5];
 
@@ -61,8 +61,8 @@ export const TRAITS: Readonly<Record<Genus, readonly TraitTier[]>> = {
     },
     { effects: [{ kind: 'growth', pct: 18 }], text: '+18 % Wachstum' },
   ],
-  // Erweiterung (DESIGN_V2.md 5.5): nur 3 Arten – die Stufe 5 erreicht nur, wer dazu
-  // künftige Amphibien-Gäste hat; sie steht für die spätere Erweiterung bereit.
+  // Erweiterung (DESIGN_V2.md 5.5): 5 Arten, die Pflege öffnet 4 Tümpelplätze – die Stufe 5
+  // braucht den fünften Platz aus „Regenreicher Frühling“ oder „Krötenwanderung“ (Playtest).
   amphibians: [
     { effects: [{ kind: 'control', tag: 'schnecken', pct: 25 }], text: 'Schneckenschaden −25 %' },
     {

@@ -273,7 +273,7 @@ export const EVENTS: readonly GameEvent[] = [
         label: 'Laichplätze schaffen', summary: '+1 Platz Waldtümpel (Zyklus), nächste Begegnung: Amphibien',
         effects: [
           { kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 1 } },
-          { kind: 'nextEncounter', type: 'animal', ids: ['frog', 'newt'] },
+          { kind: 'nextEncounter', type: 'animal', ids: ['frog', 'newt', 'treefrog', 'crestednewt'] },
         ],
       },
     ],

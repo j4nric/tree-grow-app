@@ -401,10 +401,14 @@ function slotProviders(nicheId: NicheId): string[] {
  * Pflegemaßnahmen, deren erster Rang Plätze in der Nische schafft (z. B. „Waldtümpel“) –
  * für Nischen ohne Plätze aus der Stufe und ohne Tiere, die sie öffnen.
  */
-function careSlotProviders(nicheId: NicheId): string[] {
+function careSlotMeasures(nicheId: NicheId) {
   return CARE.filter((m) =>
     m.ranks[0]?.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === nicheId && e.effect.amount > 0),
-  ).map((m) => `Pflege „${m.name}“ (ab „${STAGES[m.ranks[0]!.minStage]?.name ?? '?'}“)`);
+  );
+}
+
+function careSlotProviders(nicheId: NicheId): string[] {
+  return careSlotMeasures(nicheId).map((m) => `Pflege „${m.name}“ (ab „${STAGES[m.ranks[0]!.minStage]?.name ?? '?'}“)`);
 }
 
 /** Name der Stufe, ab der eine Nische Plätze hat (oder null, wenn nie). */
@@ -489,7 +493,12 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
       }
       // Waldtümpel: öffnet nur durch Pflege (oder Ereignisse – die bleiben eine Überraschung).
       const care = !view.unlockHint && niche.opensEarly ? careSlotProviders(niche.id) : [];
-      if (care.length > 0) view.unlockHint = `öffnet durch ${care.join(' oder ')}`;
+      if (care.length > 0) {
+        view.unlockHint = `öffnet durch ${care.join(' oder ')}`;
+        // Playtest Amphibien: Steht die Maßnahme schon in der Pflege-Liste, führt ein Knopf hin.
+        const ready = careSlotMeasures(niche.id).find((m) => m.ranks[0]!.minStage <= state.stage);
+        if (ready) view.careLink = ready.id;
+      }
     } else if (animals.length === 0) {
       // Offen, aber noch niemand darf einziehen (Waldtümpel aus dem Regen im Jungen Baum):
       // ab wann die ersten Bewohner kommen.

@@ -147,6 +147,29 @@ test('Pflege auf dem Handy: zugeklappt mit Zusammenfassung, aufklappbar, ohne Qu
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
 
+test('Mobil: „Zur Pflege“ beim verschlossenen Waldtümpel öffnet die Pflege bei der Maßnahme', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedV3(context, {
+    totalGrowth: waypoint(12) + 1, // Alter Baum: Pflege „Waldtümpel“ steht in der Liste
+    seeds: 10_000,
+    niches: { roots: ['earthworm'] },
+  });
+  await openGame(page);
+  const pond = niche(page, 'pond');
+  await expect(pond).toContainText('öffnet durch Pflege „Waldtümpel“');
+  // Schmal ist die Pflege zugeklappt – der Knopf am Hinweis führt hin (Playtest Amphibien).
+  const details = page.locator('[data-ref="care"] details');
+  await expect(details).not.toHaveAttribute('open', '');
+  await pond.getByRole('button', { name: 'Zur Pflege: Waldtümpel öffnen' }).click();
+  await expect(details).toHaveAttribute('open', '');
+  const item = page.locator('[data-ref="care"] [data-care="pond"]');
+  await expect(item.locator('[data-care-title="pond"]')).toBeFocused();
+  await expect(item).toBeInViewport();
+  await item.locator('[data-buy-care="pond"]').click();
+  await expect(pond).toContainText('0/2 belegt');
+  await expect(pond.locator('[data-ref="niche-care-link"]')).toBeHidden();
+});
+
 test('Pflege: nach einem Mausklick wird neu sortiert, sobald die Maus die Liste verlässt', async ({ page, context }) => {
   await seedV3(context, {
     totalGrowth: waypoint(20) + 1, // Hain

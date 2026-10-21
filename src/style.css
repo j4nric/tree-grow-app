@@ -1682,6 +1682,24 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   display: none;
 }
 
+.niche-care-link {
+  margin-left: 0.4rem;
+  min-height: 32px;
+  padding: 0.2rem 0.6rem;
+  font: inherit;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--accent-dark);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.niche-care-link[hidden] {
+  display: none;
+}
+
 .slot-list {
   list-style: none;
   margin: 0;

@@ -171,11 +171,11 @@ export const CARE: readonly CareMeasure[] = [
         effects: [{ kind: 'habitat', tag: 'feucht' }, { kind: 'cycle', effect: { kind: 'water', amount: 3 } }, slot('pond', 2)],
       },
       {
-        cost: 22_500, minStage: 5, summary: '+3 💧, +2 ⚖️, +1 Platz Waldtümpel',
+        cost: 22_500, minStage: 5, summary: '+3 💧, +2 ⚖️, +2 Plätze Waldtümpel',
         effects: [
           { kind: 'cycle', effect: { kind: 'water', amount: 3 } },
           { kind: 'cycle', effect: { kind: 'harmony', points: 2 } },
-          slot('pond'),
+          slot('pond', 2),
         ],
       },
     ],

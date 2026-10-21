@@ -27,7 +27,7 @@ import { WAYPOINT_BASE, WAYPOINT_COUNT, WAYPOINT_POWER, WAYPOINT_THRESHOLDS, way
 import { EVENTS, EVENTS_BY_ID, SEED_SECONDS_MIN_SEEDS, type EventEffect } from '../src/content/events';
 import { VISITORS, VISITORS_BY_ID } from '../src/content/visitors';
 import { CARE, CARE_BY_ID } from '../src/content/care';
-import type { Condition } from '../src/content/types';
+import type { Condition, Effect } from '../src/content/types';
 import { MEMORY_HARMONY_DIVISOR, MEMORY_HARMONY_RULES, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import {
   EVENT_SEASONS,
@@ -75,27 +75,34 @@ describe('Inhalte v2', () => {
     expect([0, 1, 2, 3].map((r) => core.filter((s) => s.rarity === r).length)).toEqual([14, 8, 5, 5]);
   });
 
-  it('Erweiterung Amphibien (DESIGN_V2.md 5.5): 3 Arten im Waldtümpel, ab Alter Baum, mittlere Gattungsstufe erreichbar', () => {
+  it('Erweiterung Amphibien (DESIGN_V2.md 5.5): 5 Arten im Waldtümpel, Gattungsstufe 5 nur mit Ereignis-Platz', () => {
     const amphibians = SPECIES.filter((s) => s.genus === 'amphibians');
-    expect(amphibians.map((s) => s.id)).toEqual(['toad', 'frog', 'newt']);
-    expect(amphibians.map((s) => s.rarity)).toEqual([0, 0, 1]);
-    expect(SPECIES).toHaveLength(35);
+    expect(amphibians.map((s) => s.id)).toEqual(['toad', 'frog', 'newt', 'treefrog', 'crestednewt']);
+    expect(amphibians.map((s) => s.rarity)).toEqual([0, 0, 1, 1, 1]);
+    expect(SPECIES).toHaveLength(37);
     for (const s of amphibians) {
       expect(s.niche, s.id).toBe('pond');
-      expect(s.unlock, s.id).toBe(4);
+      expect(s.unlock, s.id).toBeGreaterThanOrEqual(4);
       // Ohne Feuchte kein Tümpelleben.
       expect(s.needs, s.id).toContainEqual({ kind: 'tag', tag: 'feucht' });
     }
-    // Nur Amphibien leben im Tümpel; mit 3 Arten ist die Schwelle 3 erreichbar, 5 nicht.
+    // Zwei Seiten des Tümpels: Sonne (Frösche, 🌰) und Schatten (Kröte, Molche, 🌿).
+    const sunny = amphibians.filter((s) => s.needs.some((n) => n.kind === 'sunny')).map((s) => s.id);
+    expect(sunny).toEqual(['frog', 'treefrog']);
+    for (const id of sunny) expect(SPECIES_BY_ID.get(id)!.effects.some((e) => e.kind === 'seeds'), id).toBe(true);
+    // Nur Amphibien leben im Tümpel; alle Stufen der Gattung sind mit 5 Arten erreichbar.
     expect(SPECIES.filter((s) => s.niche === 'pond')).toEqual(amphibians);
-    expect(amphibians.length).toBeGreaterThanOrEqual(TRAIT_THRESHOLDS[1]!);
-    expect(amphibians.length).toBeLessThan(TRAIT_THRESHOLDS[2]!);
-    // Der Tümpel bietet mit voller Pflege (oder Pflege + Ereignis) Platz für alle drei.
+    expect(amphibians.length).toBe(TRAIT_THRESHOLDS[2]!);
+    // Volle Pflege öffnet 4 Plätze – den fünften bringt ein Ereignis (Regen, Krötenwanderung).
+    const pondSlots = (effects: readonly Effect[]) =>
+      effects.reduce((n, e) => n + (e.kind === 'slot' && e.niche === 'pond' ? e.amount : 0), 0);
     const pondCare = CARE_BY_ID.get('pond')!;
-    const pondSlots = pondCare.ranks
-      .flatMap((r) => r.effects)
-      .reduce((n, e) => n + (e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === 'pond' ? e.effect.amount : 0), 0);
-    expect(pondSlots).toBe(amphibians.length);
+    expect(pondSlots(pondCare.ranks.flatMap((r) => r.effects.flatMap((e) => (e.kind === 'cycle' ? [e.effect] : []))))).toBe(4);
+    for (const id of ['rain', 'toad-migration']) {
+      const event = EVENTS.find((e) => e.id === id)!;
+      const best = Math.max(...event.options.map((o) => pondSlots(o.effects.flatMap((e) => (e.kind === 'cycle' ? [e.effect] : [])))));
+      expect(best, id).toBe(1);
+    }
   });
 
   it('besondere und legendäre Arten haben Erscheinungsbedingung und Fähigkeit, die übrigen nicht', () => {
@@ -216,7 +223,7 @@ describe('Inhalte v2', () => {
     for (const s of SPECIES) expect(slotEffects(s).some((e) => e.niche === 'pond'), s.id).toBe(false);
     const careRanks = CARE_BY_ID.get('pond')!.ranks;
     expect(careRanks[0]!.effects).toContainEqual({ kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 2 } });
-    expect(careRanks[1]!.effects).toContainEqual({ kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 1 } });
+    expect(careRanks[1]!.effects).toContainEqual({ kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 2 } });
     const pondEvents = EVENTS.filter((e) =>
       e.options.some((o) => o.effects.some((x) => x.kind === 'cycle' && x.effect.kind === 'slot' && x.effect.niche === 'pond')),
     );
