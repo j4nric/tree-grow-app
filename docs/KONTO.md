@@ -47,6 +47,15 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
   Konto (das Gerät merkt sich, mit welchem Konto es zuletzt abgeglichen hat), gewinnt der
   Stand aus dem Konto. Sonst gewinnt der weiter fortgeschrittene (Zyklus, dann
   Gesamt-Wachstum, dann Spielzeit).
+- **Mehrere Tabs:** Die Sitzung liegt im `localStorage` und gilt für alle Tabs des Browsers.
+  Jeder Tab schreibt nur mit der Sitzung des Kontos, mit dem er gestartet ist. Meldet sich ein
+  anderer Tab ab, ist auch dieser Tab abgemeldet; meldet sich ein anderer Tab mit einem
+  (anderen) Konto an, hält dieser Tab den Abgleich an und bittet um „Neu laden“ – sein Spiel
+  im Speicher gehört nicht zu diesem Konto. Die Grundlage des Abgleichs liegt je Konto
+  (`vszw-sync-base:<name>`).
+- **Sicherungen laden:** Im Konto-Abschnitt lädt „Sicherung vor dem Sync wiederherstellen“
+  den gesicherten Stand dieses Geräts bzw. den aus dem Konto (zweiter Schritt als
+  Bestätigung, ersetzt den aktuellen Wald; angemeldet geht er wie eine Aktion ans Konto).
 - **Abmelden:** sendet vorher den letzten Stand. Klappt das nicht (offline), weist der
   Konto-Abschnitt darauf hin; ein zweiter Tipp („Trotzdem abmelden“) meldet trotzdem ab – der
   Stand bleibt auf dem Gerät.
@@ -82,10 +91,13 @@ wertlos. Abmelden löscht die offenen Tickets der Sitzung. Regeln: Benutzername 
 | Was | Grenze |
 |---|---|
 | Anmelden und Registrieren je IP | 20 Versuche in 15 Minuten |
-| Fehlgeschlagene Anmeldungen je Benutzername | 10 in 15 Minuten (danach gesperrt, auch mit richtigem Passwort; Erfolg setzt zurück) |
+| Fehlgeschlagene Anmeldungen je Benutzername **und IP** | 10 in 15 Minuten (diese IP ist dann für dieses Konto gesperrt; Erfolg setzt zurück) |
+| Fehlgeschlagene Anmeldungen je Benutzername über alle IPs | 100 in 15 Minuten (gegen verteiltes Raten; eine einzelne fremde IP kann ein Konto so nicht aussperren) |
+| Neue Konten je IP | 3 je Stunde (`REGISTRATIONS_PER_IP_HOUR`) – eine IP allein kann das Gesamtkontingent nicht aufbrauchen |
 | Neue Konten insgesamt | 30 je Stunde |
+| Sitzungen (angemeldete Geräte) je Konto | 20 – bei der 21. Anmeldung endet die älteste |
 | Konten insgesamt | `MAX_ACCOUNTS` (Standard 1000) → 403 `registration-closed` |
-| Freier Platz auf dem Daten-Volume | unter `MIN_FREE_MB` (Standard 512) → 507 für Registrieren und Schreiben (Lesen geht) |
+| Freier Platz auf dem Daten-Volume | unter `MIN_FREE_MB` (Standard 512) → 507 für Registrieren, Anmelden und Schreiben (Lesen geht) |
 | Offene Event-Streams | 8 je Konto, 16 je IP, 2000 insgesamt |
 | Offene Tickets | 4 je Sitzung (das älteste verfällt), 10 000 insgesamt |
 | Anfrage empfangen | Kopf 20 s, ganze Anfrage 30 s (gilt nicht für die offene Antwort eines Event-Streams) |
@@ -93,7 +105,7 @@ wertlos. Abmelden löscht die offenen Tickets der Sitzung. Regeln: Benutzername 
 Die IP für diese Grenzen ist die Adresse der Verbindung. Nur wenn sie privat ist (der Proxy im
 Docker-Netz oder auf demselben Server) **und** `TRUST_PROXY=1` gesetzt ist, zählt der letzte
 Eintrag von `X-Forwarded-For` – den hat der eigene Proxy angehängt; frühere Einträge kann der
-Client frei erfinden.
+Client frei erfinden. IPv6-Adressen zählen je /64-Netz (ein Anschluss hat meist ein ganzes /64).
 
 ## Einrichtung Schritt für Schritt
 
@@ -118,8 +130,12 @@ Mit eigener Domain: A-Eintrag (z. B. `sync.example.org`) auf die Server-IP setze
 
 ```bash
 curl -fsSL https://get.docker.com | sh     # Docker Engine + Compose-Plugin
-docker compose version                     # prüfen
+docker compose version                     # prüfen: mindestens 2.24
 ```
+
+Nötig ist **Docker Compose 2.24 oder neuer** (`docker-compose.proxy-net.yml` nutzt `!reset`);
+`setup.sh` prüft das und bricht sonst mit einem Hinweis ab. Ältere Versionen über die
+Paketquelle von Docker aktualisieren (`sudo apt-get install --only-upgrade docker-compose-plugin`).
 
 Ist Docker schon da (andere Apps), nichts neu installieren.
 
@@ -399,8 +415,17 @@ docker run --rm -v vszw-data:/data -v "$PWD/vszw-backups:/restore:ro" alpine \
 docker compose start sync
 ```
 
-Für Sicherungen außerhalb des Servers den Ordner regelmäßig (z. B. per Cron und `docker cp`)
-wegkopieren.
+**Wichtig: Kopien außerhalb des Servers.** Die täglichen Sicherungen liegen im selben Volume
+auf demselben Datenträger wie die Datenbank – gegen einen defekten oder gelöschten Server,
+ein versehentlich gelöschtes Volume (`docker volume rm`, `docker compose down -v`) oder einen
+Fehler beim Anbieter helfen sie nicht. Deshalb regelmäßig (z. B. täglich per Cron) auf einen
+anderen Rechner kopieren, etwa vom eigenen Rechner aus:
+
+```bash
+mkdir -p ~/vszw-backups && ssh deploy@<server> 'docker cp vszw-sync:/data/backups -' | tar -x -C ~/vszw-backups
+```
+
+und gelegentlich prüfen, dass sich eine Kopie öffnen lässt (siehe oben).
 
 ## Aktualisieren
 

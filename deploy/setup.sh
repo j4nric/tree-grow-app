@@ -29,6 +29,17 @@ fail() { printf 'Fehler: %s\n' "$*" >&2; exit 1; }
 
 command -v docker >/dev/null || fail "Docker ist nicht installiert (siehe docs/KONTO.md)."
 docker compose version >/dev/null 2>&1 || fail "„docker compose“ fehlt (Docker-Compose-Plugin installieren)."
+# docker-compose.proxy-net.yml nutzt `!reset` – das kennt Docker Compose erst ab 2.24.
+COMPOSE_VERSION="$(docker compose version --short 2>/dev/null | sed 's/^v//')"
+if [[ "$COMPOSE_VERSION" =~ ^([0-9]+)\.([0-9]+) ]]; then
+  major="${BASH_REMATCH[1]}"
+  minor="${BASH_REMATCH[2]}"
+  if (( major < 2 || (major == 2 && minor < 24) )); then
+    fail "Docker Compose ${COMPOSE_VERSION} ist zu alt – nötig ist mindestens 2.24 (für „!reset“). Docker aktualisieren (siehe docs/KONTO.md)."
+  fi
+else
+  say "Hinweis: Version von Docker Compose nicht erkannt („${COMPOSE_VERSION}“) – nötig ist mindestens 2.24."
+fi
 
 # Werte aus der Umgebung haben Vorrang vor einer vorhandenen deploy/.env.
 ENV_SYNC_PUBLIC_HOST="${SYNC_PUBLIC_HOST:-}"

@@ -29,6 +29,7 @@ services:
       BACKUP_KEEP: ${BACKUP_KEEP:-7}
       MAX_ACCOUNTS: ${MAX_ACCOUNTS:-1000}
       MIN_FREE_MB: ${MIN_FREE_MB:-512}
+      REGISTRATIONS_PER_IP_HOUR: ${REGISTRATIONS_PER_IP_HOUR:-3}
     volumes:
       - vszw-data:/data
     ports:
