@@ -785,10 +785,13 @@ let cache: { key: string; value: Evaluation } | null = null;
  * Cache-Schlüssel: alles, was die Auswertung ändert – auch Zyklus-Boni, Habitate, aktive
  * Zeit-Boni und Gäste (ihre IDs bzw. Wirkungen, nicht die Restdauer).
  */
-function ecosystemKey(state: GameState): string {
+function ecosystemKey(state: GameState, withSeason = true): string {
   let key = `${state.stage}|${state.meta.forestMemory}|${(state.plants ?? []).join(',')}`;
   // Jahreszeit nur als Index (nicht `elapsed` – sonst wäre der Cache jede Sekunde ungültig).
-  if (state.cycle) key += `|s:${seasonIndex(state.cycle.elapsed)}|m:${mainTreeOf(state.cycle.mainTree).id}`;
+  if (state.cycle) {
+    if (withSeason) key += `|s:${seasonIndex(state.cycle.elapsed)}`;
+    key += `|m:${mainTreeOf(state.cycle.mainTree).id}`;
+  }
   for (const id of NICHE_IDS) key += `|${(state.niches[id] ?? []).join(',')}`;
   const c = state.cycle;
   if (c) {
@@ -1162,7 +1165,8 @@ function copyNiches(niches: Partial<Record<NicheId, readonly string[]>>): Record
 export function seedSecondsRate(state: GameState): number {
   const c = state.cycle;
   if (!c) return evaluate(state).seeds;
-  const key = `${ecosystemKey(state)}|seed-seconds`;
+  // Ohne Jahreszeit im Schlüssel: Die Rate hängt nicht von ihr ab.
+  const key = ecosystemKey(state, false);
   if (seedRateCache && seedRateCache.key === key) return seedRateCache.value;
   const eco = ecosystemOf({ ...state, cycle: { ...c, timed: [], visitors: [] } });
   delete eco.season;

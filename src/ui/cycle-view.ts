@@ -68,6 +68,8 @@ export interface CyclePanelView {
   tree: string;
   /** Alle Arten für die Wahl beim Neuen Zyklus (MAIN_TREES-Reihenfolge). */
   trees: TreeOptionView[];
+  /** Vorauswahl: die laufende Art, ist sie gesperrt (z. B. nach einem Import), die erste freie. */
+  defaultTree: MainTreeId;
 }
 
 /** „einer Eichel“, „einer Buchecker“, „einem Kiefernsamen“ (Dativ der Frucht). */
@@ -118,6 +120,7 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
     regularsTitle: `Stammgäste ${state.meta.regulars.length}/${slots}`,
     regulars,
     tree: treeLabel(state.cycle.mainTree),
+    defaultTree: preview.trees.find((t) => t.id === preview.mainTree && t.unlocked)?.id ?? preview.trees.find((t) => t.unlocked)?.id ?? 'oak',
     trees: preview.trees.map(({ id, unlocked }) => {
       const t = MAIN_TREES_BY_ID.get(id)!;
       return {

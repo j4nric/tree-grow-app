@@ -320,6 +320,35 @@ describe('tick und Offline mit Jahreszeiten (DESIGN_V2.md 16.6)', () => {
     expect(report.seasons.at(-1)).toBe('spring');
   });
 
+  it('Schnellvorlauf mit Zeit-Bonus und Gast im übersprungenen Zeitraum = kleine Schritte', () => {
+    const a = stateWith(7, ['earthworm', 'vole', 'bee'], 'spring');
+    a.waypoint = WAYPOINT_COUNT;
+    a.cycle.seen = ['midsummer', 'cranes'];
+    a.cycle.timed = [{ source: 'midsummer', effect: { kind: 'growth', pct: 30 }, remaining: 3 * YEAR_SECONDS + 100 }];
+    a.cycle.visitors = [{ id: 'cranes', remaining: 5 * YEAR_SECONDS + 7 }];
+    const b = structuredClone(a);
+    const big = tick(a, 10 * YEAR_SECONDS + 50);
+    const expired: string[] = [];
+    for (let i = 0; i < 10 * 720 + 50; i++) expired.push(...tick(b, 1).expired);
+    expect(big.expired).toEqual(['midsummer', 'cranes']);
+    expect(expired).toEqual(big.expired);
+    expect(a.cycle.timed).toEqual([]);
+    expect(a.cycle.visitors).toEqual([]);
+    expect(a.cycle.elapsed).toBeCloseTo(b.cycle.elapsed, 6);
+    expect(a.seeds / b.seeds).toBeCloseTo(1, 9);
+    expect(a.totalGrowth / b.totalGrowth).toBeCloseTo(1, 9);
+  });
+
+  it('an der Obergrenze steht das Jahr still: der letzte Wechsel wird genau einmal gemeldet', () => {
+    const state = stateWith(7, [], 'winter');
+    state.waypoint = WAYPOINT_COUNT;
+    state.cycle.elapsed = MAX_ELAPSED - 10;
+    expect(tick(state, 20).seasons).toEqual(['spring']);
+    expect(state.cycle.elapsed).toBe(MAX_ELAPSED);
+    expect(tick(state, 10 * YEAR_SECONDS).seasons).toEqual([]);
+    expect(state.cycle.elapsed).toBe(MAX_ELAPSED);
+  });
+
   it('8 h offline: 160 Wechsel, Ergebnis wie in Ein-Stunden-Schritten', () => {
     const a = stateAt(2, ['earthworm', 'robin'], 99);
     const b = structuredClone(a);
@@ -404,6 +433,15 @@ describe('Samen-Sekunden und Cache', () => {
     expect(evaluate(state).seeds).not.toBeCloseTo(autumn, 3);
     expect(seedSeconds(state, 120)).toBeCloseTo(value, 9);
     expect(seedSecondsRate(state)).toBeCloseTo(evaluateEcosystem({ ...ecosystemOf(state), season: undefined }).seeds, 9);
+  });
+
+  it('Samen-Sekunden: dieselbe Rate in allen vier Jahreszeiten', () => {
+    const state = stateWith(5, ['chanterelle', 'vole', 'bee', 'earthworm'], 'spring');
+    const rates = (['spring', 'summer', 'autumn', 'winter'] as const).map((x) => {
+      state.cycle.elapsed = at(x);
+      return seedSecondsRate(state);
+    });
+    expect(new Set(rates).size).toBe(1);
   });
 
   it('Baumart zählt für Samen-Sekunden mit (sie ist Teil des Ökosystems)', () => {
@@ -525,12 +563,48 @@ describe('Spielstand v6 (Migration v5 → v6)', () => {
     expect(v6({ elapsed: -5 }).elapsed).toBe(0);
     expect(v6({ elapsed: 'abc' }).elapsed).toBe(0);
     expect(v6({ elapsed: null }).elapsed).toBe(0);
-    expect(v6({ elapsed: '__INF__' }).elapsed).toBe(0);
+    // +Infinity wie normalizeElapsed: Obergrenze (ein Vielfaches eines Jahres).
+    expect(v6({ elapsed: '__INF__' }).elapsed).toBe(MAX_ELAPSED);
+    expect(MAX_ELAPSED % YEAR_SECONDS).toBe(0);
     expect(v6({ elapsed: 1e20 }).elapsed).toBe(MAX_ELAPSED);
     expect(v6({ mainTree: 'maple' }).mainTree).toBe('oak');
     expect(v6({ mainTree: 42 }).mainTree).toBe('oak');
     expect(v6({ mainTree: 'beech' }).mainTree).toBe('oak'); // nicht freigeschaltet
     expect(v6({ mainTree: 'beech' }, ['beech']).mainTree).toBe('beech');
+  });
+
+  it('Pflanzen jenseits der Ringgröße schalten nichts frei (kein Setzen gesperrter Arten per Import)', () => {
+    const s = stateAt(1, [], 5); // Keimling: 1 Pflanzplatz
+    const raw = JSON.parse(serialize(s));
+    raw.plants = ['anemone', 'beech', 'pine'];
+    raw.meta.journal.plants = [];
+    raw.cycle.mainTree = 'pine';
+    let loaded = loadGame(JSON.stringify(raw), 0)!.state;
+    expect(loaded.plants).toEqual(['anemone']);
+    expect(loaded.cycle.mainTree).toBe('oak');
+    expect(loaded.meta.journal.plants).toEqual(['anemone']);
+    // Wächst die Kiefer wirklich im Ring, zählt sie.
+    raw.plants = ['pine'];
+    loaded = loadGame(JSON.stringify(raw), 0)!.state;
+    expect(loaded.cycle.mainTree).toBe('pine');
+    // Unbekannte IDs im Tagebuch zählen nicht.
+    raw.plants = [];
+    raw.meta.journal.plants = ['pine-x'];
+    expect(loadGame(JSON.stringify(raw), 0)!.state.cycle.mainTree).toBe('oak');
+  });
+
+  it('v5 mit fremder Art in den Rohdaten: Nischen werden mit den Plätzen der Eiche gekürzt', () => {
+    const s = stateAt(1, [], 5);
+    s.niches.roots = ['earthworm', 'vole'];
+    s.meta.journal.plants = ['beech'];
+    const raw = JSON.parse(serialize(s));
+    raw.version = 5;
+    raw.cycle.mainTree = 'beech';
+    raw.cycle.elapsed = 400;
+    const loaded = loadGame(JSON.stringify(raw), 0)!.state;
+    expect(loaded.cycle).toMatchObject({ mainTree: 'oak', elapsed: 0 });
+    expect(loaded.niches.roots).toEqual(['earthworm']);
+    expect(evaluate(loaded).slots.roots).toBe(1);
   });
 
   it('Laden kürzt Nischen mit den Plätzen der Baumart (Buche: 2 im Wurzelraum ab Keimling)', () => {

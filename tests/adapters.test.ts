@@ -529,6 +529,25 @@ describe('Stimmung: Gründe unter 70 %', () => {
     expect(moodText(species, { ...status, happiness: 0.3 })).toBe('wünscht sich 2× Bäume · wünscht sich Baumhöhle');
   });
 
+  it('Stieleiche: Insekten +10 % 😊 – über 70 % nur noch der wichtigste Grund', () => {
+    const animals = ['earthworm', 'woodlouse', 'oakmoth', 'barkbeetle'];
+    const beech = stateAt(3, animals);
+    beech.cycle.mainTree = 'beech';
+    const oak = stateAt(3, animals); // Standard: Stieleiche
+    const zBeech = evaluate(beech).animals.oakmoth!.happiness;
+    const status = evaluate(oak).animals.oakmoth!;
+    expect(status.happiness).toBeCloseTo(Math.min(1, zBeech + 0.1));
+    expect(zBeech).toBeLessThan(0.7);
+    expect(status.happiness).toBeGreaterThanOrEqual(0.7);
+    const moth = SPECIES_BY_ID.get('oakmoth')!;
+    const present = allAnimals(oak);
+    expect(moodText(moth, status, present)).not.toContain('·');
+    expect(moodText(moth, evaluate(beech).animals.oakmoth!, present)).toContain('teilt sich das Futter mit Regenwurm');
+    // Die Seitenleiste zeigt dasselbe.
+    const view = toEcosystemView(oak, evaluate(oak));
+    expect(view.niches.flatMap((n) => n.animals).find((a) => a.id === 'oakmoth')!.mood).toBe(moodText(moth, status, present));
+  });
+
   it('Seitenleiste zeigt die Gründe mit den echten Mitbewohnern', () => {
     const state = stateAt(3, ['earthworm', 'woodlouse', 'oakmoth', 'barkbeetle']);
     state.cycle.mainTree = 'beech'; // wie oben: ohne Insekten-Bonus der Eiche

@@ -2815,6 +2815,11 @@ body[data-motion='reduce'] .slot.arrive {
   border: 2px solid var(--border);
   border-radius: 10px;
   background: white;
+}
+
+/* Label ohne eigene Box: Knopf, Symbol und Name stehen im Raster der Zeile. */
+.cycle-tree-label {
+  display: contents;
   cursor: pointer;
 }
 
@@ -2829,8 +2834,11 @@ body[data-motion='reduce'] .slot.arrive {
 }
 
 .cycle-tree.locked {
-  cursor: default;
   opacity: 0.6;
+}
+
+.cycle-tree.locked .cycle-tree-label {
+  cursor: default;
 }
 
 .cycle-tree-info {
@@ -2840,11 +2848,34 @@ body[data-motion='reduce'] .slot.arrive {
 }
 
 /* Jahreszeit in der Kopfzeile (season-badge.ts) */
-.season-badge {
+.season {
   margin: 0 0 8px;
+}
+
+.season-badge {
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
   color: var(--muted);
   font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.season-badge[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+.season-effects {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+}
+
+.season-effects[hidden] {
+  display: none;
 }
 
 /* Aktive Boni aus Ereignissen und Gästen (bonus-panel.ts): je Quelle eine Zeile,

@@ -152,37 +152,57 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
     if (focused) items.find((i) => i.id === focused)?.toggle.focus({ preventScroll: true });
   }
 
-  /** Radiogruppe neu bauen; die Wahl bleibt, solange die Art wählbar ist. */
+  /** Einträge der Radiogruppe, einmal angelegt (Art-ID → Elemente). */
+  const treeItems = new Map<MainTreeId, { row: HTMLElement; input: HTMLInputElement; name: HTMLElement; info: HTMLElement }>();
+
+  /** Eintrag für eine Art anlegen: Radioknopf mit Name im Label, Eigenheit/Hinweis per aria-describedby. */
+  function createTreeItem(id: MainTreeId, icon: string) {
+    const row = el('div', 'cycle-tree');
+    row.dataset.tree = id;
+    const label = el('label', 'cycle-tree-label');
+    const input = el('input');
+    input.type = 'radio';
+    input.name = 'cycle-tree';
+    input.value = id;
+    input.dataset.tree = id;
+    const infoId = `cycle-tree-info-${id}`;
+    input.setAttribute('aria-describedby', infoId);
+    input.addEventListener('change', () => {
+      if (input.checked) chosen = id;
+    });
+    const iconEl = el('span', 'cycle-tree-icon', icon);
+    iconEl.setAttribute('aria-hidden', 'true');
+    const name = el('span', 'cycle-tree-name');
+    label.append(input, iconEl, name);
+    const info = el('small', 'cycle-tree-info');
+    info.id = infoId;
+    row.append(label, info);
+    treeList.append(row);
+    const item = { row, input, name, info };
+    treeItems.set(id, item);
+    return item;
+  }
+
+  /**
+   * Radiogruppe aktualisieren (angelegt wird nur beim ersten Mal – Fokus und Auswahl
+   * bleiben erhalten). Die Wahl bleibt, solange die Art wählbar ist. Vorausgewählt ist die
+   * laufende Art; ist sie (z. B. nach einem Import) gesperrt, die erste freie.
+   */
   function updateTrees(view: CyclePanelView): void {
-    current = view.trees.find((t) => t.current)?.id ?? 'oak';
+    current = view.defaultTree;
     // Neuer Zyklus begonnen: wieder die (neue) laufende Art vorauswählen.
     if (current !== shownCurrent) chosen = null;
     shownCurrent = current;
     if (chosen !== null && !view.trees.some((t) => t.id === chosen && t.unlocked)) chosen = null;
     trees.hidden = !view.allowed;
-    const focused = (document.activeElement as HTMLElement | null)?.dataset?.tree;
-    const items = view.trees.map((t) => {
-      const label = el('label', `cycle-tree${t.unlocked ? '' : ' locked'}`);
-      label.dataset.tree = t.id;
-      const input = el('input');
-      input.type = 'radio';
-      input.name = 'cycle-tree';
-      input.value = t.id;
-      input.dataset.tree = t.id;
-      input.checked = t.id === (chosen ?? current);
-      input.disabled = !t.unlocked;
-      input.addEventListener('change', () => {
-        if (input.checked) chosen = t.id;
-      });
-      const icon = el('span', 'cycle-tree-icon', t.icon);
-      icon.setAttribute('aria-hidden', 'true');
-      const name = el('span', 'cycle-tree-name', t.current ? `${t.name} (jetzt)` : t.name);
-      const info = el('small', 'cycle-tree-info', t.hint ?? t.summary);
-      label.append(input, icon, name, info);
-      return { label, input, id: t.id };
-    });
-    treeList.replaceChildren(...items.map((i) => i.label));
-    if (focused) items.find((i) => i.id === focused)?.input.focus({ preventScroll: true });
+    for (const t of view.trees) {
+      const item = treeItems.get(t.id) ?? createTreeItem(t.id, t.icon);
+      item.row.classList.toggle('locked', !t.unlocked);
+      item.input.disabled = !t.unlocked;
+      item.input.checked = t.id === (chosen ?? current);
+      setText(item.name, t.current ? `${t.name} (jetzt)` : t.name);
+      setText(item.info, t.hint ?? t.summary);
+    }
   }
 
   return { update, focus: () => title.focus({ preventScroll: false }), element: section, disarm };

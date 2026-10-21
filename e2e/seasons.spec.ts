@@ -26,6 +26,14 @@ test('kurz vor dem Wechsel: nach dem Wechsel zeigt die Kopfzeile die neue Jahres
   await openGame(page);
   await expect(season(page)).toContainText('🌱 Frühling · noch 0:0');
   await expect(season(page)).toHaveAttribute('title', /Frühling: \+10 % 🌿/);
+  // Wirkungen auch per Tastatur: Knopf klappt eine sichtbare Zeile auf.
+  const effects = page.locator('[data-ref="season-effects"]');
+  await expect(effects).toBeHidden();
+  await season(page).focus();
+  await page.keyboard.press('Enter');
+  await expect(season(page)).toHaveAttribute('aria-expanded', 'true');
+  await expect(effects).toBeVisible();
+  await expect(effects).toHaveText(/Frühling: \+10 % 🌿/);
 
   await page.clock.runFor(3_000);
   await expect(season(page)).toHaveText(/^☀️ Sommer · noch (3:00|2:5\d) min$/);
@@ -59,10 +67,18 @@ test('Neuer Zyklus mit der Rotbuche: Auswahl, Sperrhinweis, Spielstand und Anzei
   await expect(radio('oak')).toBeChecked();
   await expect(radio('beech')).toBeEnabled();
   await expect(radio('pine')).toBeDisabled();
-  await expect(choice.locator('label[data-tree="pine"]')).toContainText('Lass einmal eine Waldkiefer im Pflanzring wachsen.');
+  // Eigenheit bzw. Sperrhinweis als Beschreibung des Knopfs (aria-describedby).
+  await expect(radio('pine')).toHaveAccessibleDescription('Lass einmal eine Waldkiefer im Pflanzring wachsen.');
+  await expect(radio('beech')).toHaveAccessibleDescription(/Pilze \+15 %/);
+  await expect(radio('beech')).toHaveAccessibleName('Rotbuche');
 
-  await choice.locator('label[data-tree="beech"]').click();
+  // Wahl per Klick auf den Namen; die Gruppe wird dabei nicht neu gebaut (Fokus bleibt).
+  await choice.locator('.cycle-tree[data-tree="beech"]').getByText('Rotbuche').click();
   await expect(radio('beech')).toBeChecked();
+  await expect(radio('beech')).toBeFocused();
+  await page.clock.runFor(1_000);
+  await expect(radio('beech')).toBeChecked();
+  await expect(radio('beech')).toBeFocused();
 
   const button = cyclePanel(page).locator('[data-ref="new-cycle"]');
   await button.click();

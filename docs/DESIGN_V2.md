@@ -2555,7 +2555,10 @@ Pflanzenfaktor nur mit freiem Ring; Kraniche nicht im Winter; Neuer Zyklus setzt
 
 **Umgesetzt:** wie oben, gemeinsam mit 17.5 in Spielstand v6. Festlegungen:
 `src/core/season.ts` (reine Helfer, auch für die Szene je Frame); `elapsed` wird beim Laden
-auf [0, 10¹²] begrenzt, ab der Obergrenze steht das Jahr still. Bei langen Zeitsprüngen
+auf [0, MAX_ELAPSED] begrenzt (10⁹ Jahre, ein Vielfaches eines Jahres; +∞ → Obergrenze),
+ab der Obergrenze steht das Jahr still. Stände vor v6 beginnen immer im Frühling als Eiche –
+dort stehende Felder zählen nicht. Baumarten schalten nur gültige Tagebuch-Pflanzen und
+Pflanzen frei, die nach dem Kürzen auf den Ring wirklich wachsen. Bei langen Zeitsprüngen
 rechnet `tick` ganze Jahre am Stück (exakt: Σ Rate je Jahreszeit × 180 s), sofern darin
 kein Wegpunkt, Zwischenhalt oder Ablauf liegt – so bleiben auch riesige Sprünge schnell.
 `TickReport.seasons` merkt sich höchstens die letzten 160 Wechsel. `seedSecondsRate`

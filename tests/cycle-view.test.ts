@@ -118,6 +118,16 @@ describe('View-Model „Neuer Zyklus“: Wahl des Hauptbaums (DESIGN_V2.md 17.2)
     expect(toCyclePanelView(state).trees.find((t) => t.current)!.id).toBe('beech');
   });
 
+  it('Vorauswahl: die laufende Art, ist sie gesperrt, die erste freie', () => {
+    const state = stateAt(5, ['earthworm']);
+    state.meta.journal.plants.push('pine');
+    expect(toCyclePanelView(state).defaultTree).toBe('oak');
+    state.cycle.mainTree = 'pine';
+    expect(toCyclePanelView(state).defaultTree).toBe('pine');
+    state.cycle.mainTree = 'beech'; // gesperrt (nicht im Tagebuch)
+    expect(toCyclePanelView(state).defaultTree).toBe('oak');
+  });
+
   it('Toast und Frucht nennen die Art des neuen Zyklus', () => {
     expect(newCycleToast(5, 2)).toContain('Aus einer Eichel wächst ein neuer Baum.');
     expect(newCycleToast(5, 2, [], 'beech')).toContain('Aus einer Buchecker wächst ein neuer Baum.');

@@ -21,7 +21,7 @@ import {
   waypointsForGrowth,
 } from './formulas';
 import { isValidRngState, normalizeSeed } from './rng';
-import { MAX_ELAPSED } from './season';
+import { normalizeElapsed } from './season';
 import { interludeThreshold, isTreeUnlocked, recordDiscoveries } from './tick';
 import {
   MAX_FOREST_MEMORY,
@@ -221,10 +221,16 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   const cycle = isRecord(data.cycle) ? data.cycle : {};
   const meta = isRecord(data.meta) ? data.meta : {};
   const journal = isRecord(meta.journal) ? meta.journal : {};
-  // Pflanzen im Tagebuch schalten Baumarten frei. Was gerade im Ring wächst, trägt
-  // loadGame ohnehin nach (recordDiscoveries) – es zählt darum schon hier.
-  const knownPlants = [...stringArray(journal.plants), ...stringArray(data.plants)];
-  loadCycleExtras(cycle, state, knownPlants);
+  // Begleitpflanzen: unbekannte IDs verwerfen (Duplikate sind erlaubt), auf den Pflanzring
+  // kürzen. Vor dem Zyklus, denn sie schalten Baumarten frei.
+  state.plants = stringArray(data.plants)
+    .filter((id) => PLANTS_BY_ID.has(id))
+    .slice(0, plantSlots(state.stage));
+  // Pflanzen im Tagebuch schalten Baumarten frei. Was gerade (gültig) im Ring wächst, trägt
+  // loadGame ohnehin nach (recordDiscoveries) – es zählt darum schon hier. Rohdaten jenseits
+  // des Rings zählen nicht (sonst ließe sich eine gesperrte Art per Import setzen).
+  const knownPlants = [...stringArray(journal.plants).filter((id) => PLANTS_BY_ID.has(id)), ...state.plants];
+  loadCycleExtras(cycle, state, knownPlants, version);
   // Platz-Boni aus Ereignissen, Pflege und der Baumart (seit v6) zählen beim Kürzen mit.
   const bonusSlots = slotBonuses(state);
 
@@ -261,11 +267,6 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
       }
     }
   }
-
-  // Begleitpflanzen: unbekannte IDs verwerfen (Duplikate sind erlaubt), auf den Pflanzring kürzen.
-  state.plants = stringArray(data.plants)
-    .filter((id) => PLANTS_BY_ID.has(id))
-    .slice(0, plantSlots(state.stage));
 
   // Offene Begegnungen: ungültige Karten entfernen, leere verwerfen, höchstens 3.
   // Pflanzen-Begegnungen („Etwas keimt“) haben Pflanzen-IDs als Karten, Ereignisse und
@@ -352,17 +353,20 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringif
  * Lädt die Zyklusfelder für Ereignisse und Gäste (seit v5) robust: Boni, Zeit-Boni und
  * Habitate nur, wenn ein Ereignis sie wirklich vergibt (Schutz vor manipulierten
  * Ständen), Restdauern begrenzt auf (0, Dauer], Gäste nur bekannte. Seit v6 auch
- * Spielzeit (endlich, ≥ 0, sonst 0) und Hauptbaum (bekannt und über `knownPlants`
- * freigeschaltet, sonst DEFAULT_MAIN_TREE).
+ * Spielzeit (wie normalizeElapsed, keine Zahl → 0) und Hauptbaum (bekannt und über
+ * `knownPlants` freigeschaltet, sonst DEFAULT_MAIN_TREE). Ältere Stände (< v6) kannten
+ * beides nicht: Was dort steht, zählt nicht (Frühling, Eiche) – so kürzt loadV2 die
+ * Nischen auch nicht mit den Plätzen einer fremden Art.
  */
-function loadCycleExtras(raw: Record<string, unknown>, state: GameState, knownPlants: readonly string[]): void {
+function loadCycleExtras(raw: Record<string, unknown>, state: GameState, knownPlants: readonly string[], version: number): void {
   const cycle: CycleState = createCycle(1);
-  // NaN, ±Infinity, negative Werte → 0 (Frühling); sehr große auf MAX_ELAPSED begrenzt.
-  const elapsed = finiteOr(raw.elapsed, 0);
-  cycle.elapsed = elapsed > 0 ? Math.min(elapsed, MAX_ELAPSED) : 0;
-  const tree = typeof raw.mainTree === 'string' ? MAIN_TREES_BY_ID.get(raw.mainTree as MainTreeId) : undefined;
-  const known: Pick<GameState, 'meta'> = { ...state, meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...knownPlants] } } };
-  cycle.mainTree = tree && isTreeUnlocked(known, tree.id) ? tree.id : DEFAULT_MAIN_TREE;
+  if (version >= 6) {
+    // −Infinity und negative Werte → 0 (Frühling), +Infinity und sehr große → MAX_ELAPSED.
+    cycle.elapsed = typeof raw.elapsed === 'number' ? normalizeElapsed(raw.elapsed) : 0;
+    const tree = typeof raw.mainTree === 'string' ? MAIN_TREES_BY_ID.get(raw.mainTree as MainTreeId) : undefined;
+    const known: Pick<GameState, 'meta'> = { ...state, meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...knownPlants] } } };
+    cycle.mainTree = tree && isTreeUnlocked(known, tree.id) ? tree.id : DEFAULT_MAIN_TREE;
+  }
   if (typeof raw.startedAt === 'number' && Number.isFinite(raw.startedAt)) cycle.startedAt = raw.startedAt;
   cycle.seen = unique(stringArray(raw.seen).filter((id) => EVENTS_BY_ID.has(id) || VISITORS_BY_ID.has(id)));
   // Wirkungen nur von Ereignissen, die in diesem Zyklus gezogen wurden, und je (Quelle,

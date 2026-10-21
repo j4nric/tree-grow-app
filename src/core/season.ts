@@ -1,4 +1,4 @@
-import { SEASONS, SEASON_IDS, SEASON_SECONDS, type Season, type SeasonId } from '../content/seasons';
+import { SEASONS, SEASON_IDS, SEASON_SECONDS, YEAR_SECONDS, type Season, type SeasonId } from '../content/seasons';
 
 /*
  * Jahreszeiten (DESIGN_V2.md 16.2, 16.6): reine Rechnungen über die Spielzeit des
@@ -7,11 +7,12 @@ import { SEASONS, SEASON_IDS, SEASON_SECONDS, type Season, type SeasonId } from 
  */
 
 /**
- * Obergrenze für `cycle.elapsed` (≈ 31.700 Jahre Spielzeit). Darüber wird die Zahl zu
- * grob, um Jahreszeitgrenzen sauber zu treffen; das Laden begrenzt darauf, und ab hier
- * steht das Jahr still (kein Halt mehr in tick).
+ * Obergrenze für `cycle.elapsed`: 10⁹ Jahre zu 720 s (≈ 23.000 Jahre Echtzeit). Darüber
+ * würde die Zahl zu grob, um Jahreszeitgrenzen sauber zu treffen; das Laden begrenzt
+ * darauf, und ab hier steht das Jahr still (kein Halt mehr in tick). Ein Vielfaches eines
+ * Jahres: Die letzte Grenze liegt genau auf der Obergrenze, nie dahinter.
  */
-export const MAX_ELAPSED = 1e12;
+export const MAX_ELAPSED = YEAR_SECONDS * 1e9;
 
 /** Gültige Spielzeit: endlich, ≥ 0 und ≤ MAX_ELAPSED; alles andere zählt als 0 bzw. Grenze. */
 export function normalizeElapsed(elapsed: number): number {
