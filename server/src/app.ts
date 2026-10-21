@@ -14,7 +14,7 @@
  *   POST /api/events/ticket                                  → 200 {ticket, expiresIn}
  *   GET  /api/events?ticket=…  (text/event-stream: `ready`, `save`)
  *   GET  /api/health                                         → 200 {ok: true}
- *   GET  /api/admin/backup  (Bearer ADMIN_BACKUP_TOKEN)       → 200 SQLite-Datei | 401 | 404 (aus) | 429 | 507
+ *   GET  /api/admin/backup  (Bearer ADMIN_BACKUP_TOKEN)       → 200 SQLite-Datei | 401 | 403 (Origin) | 404 (aus) | 429 | 507
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
@@ -46,6 +46,8 @@ export const SESSION_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Gültigkeit eines SSE-Tickets (einmalig verwendbar). */
 export const TICKET_MS = 60_000;
+/** Höchstdauer eines Abrufs von /api/admin/backup (Erstellen + Senden). */
+export const ADMIN_BACKUP_TIMEOUT_MS = 15 * 60_000;
 const MAX_DEVICE_ID = 100;
 /** Höchste Spielstand-Version, die der Server annimmt (Schutz vor Unsinn, nicht vor neuen Spielen). */
 const MAX_SCHEMA = 1_000_000;
@@ -122,6 +124,8 @@ export interface AppOptions {
   adminBackup?: { token: string; dir: string } | null;
   /** Protokoll für Admin-Zugriffe (Standard console.log) – nie mit Token. */
   log?: (line: string) => void;
+  /** Höchstdauer eines Sicherungs-Abrufs, danach wird die Verbindung beendet (Standard 15 min). */
+  adminBackupTimeoutMs?: number;
 }
 
 export interface App {
@@ -129,7 +133,7 @@ export interface App {
   /** Offene Event-Streams schließen, Timer stoppen. */
   close(): void;
   /** Zähler für Tests und Logs. */
-  stats(): { tickets: number; streams: number };
+  stats(): { tickets: number; streams: number; adminBackupRunning: boolean };
 }
 
 interface SaveRow {
@@ -206,6 +210,7 @@ export function createApp(options: AppOptions): App {
   const log = options.log ?? ((line: string) => console.log(line));
   /** Läuft gerade eine Admin-Sicherung? Nie zwei gleichzeitig (Speicherplatz, Zwischendatei). */
   let adminBackupRunning = false;
+  const adminBackupTimeoutMs = options.adminBackupTimeoutMs ?? ADMIN_BACKUP_TIMEOUT_MS;
 
   // Tickets: je Sitzung höchstens ticketsPerSession (älteste fallen weg), insgesamt
   // höchstens ticketsTotal. Abgelaufene räumt ein Timer weg; beim Einlösen zählt die Uhr.
@@ -568,16 +573,18 @@ export function createApp(options: AppOptions): App {
 
   /**
    * Frische Sicherung der Datenbank als Datei-Stream – für die Kopie außerhalb des Servers
-   * (.github/workflows/backup.yml). Ohne konfiguriertes Token gibt es den Endpunkt nicht (404).
-   * Jeder Versuch zählt fürs Rate-Limit; das Protokoll nennt Ergebnis und IP, nie das Token.
+   * (.github/workflows/backup.yml). Ohne konfiguriertes Token gibt es den Endpunkt nicht (404);
+   * aus dem Browser (mit Origin-Kopf) nie (403). Jeder Versuch zählt fürs Rate-Limit; das
+   * Protokoll nennt Ergebnis und IP, nie das Token, und eine Sperre nur einmal je Fenster.
    */
   async function adminBackup(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const config = options.adminBackup;
     if (!config) throw new HttpError(404, 'not-found');
+    if (req.headers.origin !== undefined) throw new HttpError(403, 'origin');
     const address = ip(req);
-    const wait = adminLimiter.take(address, now());
+    const { wait, first } = adminLimiter.takeDetailed(address, now());
     if (wait > 0) {
-      log(`Admin-Sicherung abgelehnt (429, zu viele Versuche) von ${address}`);
+      if (first) log(`Admin-Sicherung gesperrt (429, zu viele Versuche) für ${address} – weitere Versuche im Zeitfenster ohne Eintrag`);
       throw rateLimited(wait);
     }
     const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '');
@@ -587,34 +594,44 @@ export function createApp(options: AppOptions): App {
     }
     if (adminBackupRunning) throw rateLimited(60_000, 'busy');
     requireStorage();
+    // Gesperrt bis die Antwort ganz gesendet oder abgebrochen ist – nie zwei Sicherungen
+    // (Zwischendatei, Speicherplatz) und nie zwei Downloads gleichzeitig.
     adminBackupRunning = true;
-    let handle: FileHandle;
+    let handle: FileHandle | null = null;
+    // Harte Obergrenze für den ganzen Abruf: ein Client, der nur tröpfchenweise liest, hält
+    // die Sperre nicht ewig.
+    const timer = setTimeout(() => res.destroy(), adminBackupTimeoutMs);
+    timer.unref?.();
     try {
       handle = await backupToHandle(db, config.dir);
-    } finally {
-      adminBackupRunning = false;
-    }
-    let size: number;
-    try {
-      size = (await handle.stat()).size;
-    } catch (error) {
-      await handle.close();
-      throw error;
-    }
-    res.writeHead(200, {
-      'Content-Type': 'application/vnd.sqlite3',
-      'Content-Length': String(size),
-      'Content-Disposition': `attachment; filename="${backupName(now())}"`,
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-    });
-    log(`Admin-Sicherung abgerufen (${size} Bytes) von ${address}`);
-    try {
+      const { size } = await handle.stat();
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.sqlite3',
+        'Content-Length': String(size),
+        'Content-Disposition': `attachment; filename="${backupName(now())}"`,
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      log(`Admin-Sicherung abgerufen (${size} Bytes) von ${address}`);
+      const stream = handle.createReadStream();
       // Der Stream schließt die Datei am Ende oder bei einem Abbruch selbst.
-      await pipeline(handle.createReadStream(), res);
-    } catch {
-      // Verbindung abgebrochen: hart beenden, damit der Client keine halbe Datei für ganz hält.
-      res.destroy();
+      handle = null;
+      try {
+        await pipeline(stream, res);
+      } catch {
+        // Alles gelesen und gesendet, der Client hat nur sofort nach dem letzten Byte getrennt
+        // (z. B. curl, noch bevor res.end lief): in Ordnung.
+        if (!res.writableEnded && stream.bytesRead < size) {
+          // Verbindung abgebrochen oder Zeit abgelaufen: hart beenden, damit der Client keine
+          // halbe Datei für ganz hält.
+          log(`Admin-Sicherung abgebrochen für ${address}`);
+          res.destroy();
+        }
+      }
+    } finally {
+      clearTimeout(timer);
+      adminBackupRunning = false;
+      await handle?.close().catch(() => {});
     }
   }
 
@@ -675,6 +692,6 @@ export function createApp(options: AppOptions): App {
       tickets.clear();
       ticketsBySession.clear();
     },
-    stats: () => ({ tickets: tickets.size, streams: streamCount }),
+    stats: () => ({ tickets: tickets.size, streams: streamCount, adminBackupRunning }),
   };
 }

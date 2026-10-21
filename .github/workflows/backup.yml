@@ -1,13 +1,18 @@
 name: Sicherung
 
 # Holt täglich eine frische Sicherung der Sync-Datenbank vom Server (GET /api/admin/backup),
-# verschlüsselt sie (AES-256-CBC, PBKDF2) und legt sie 30 Tage als Artefakt ab – eine Kopie
-# außerhalb des Servers. Anleitung und Wiederherstellung: docs/KONTO.md, „Sicherungen“.
+# verschlüsselt sie (AES-256-CBC, PBKDF2 mit 600 000 Runden) und legt sie samt SHA-256 des
+# Chiffrats 30 Tage als Artefakt ab – eine Kopie außerhalb des Servers.
+# Anleitung und Wiederherstellung: docs/KONTO.md, „Sicherungen“.
+#
+# ACHTUNG: Das Repository ist öffentlich – Artefakte kann jeder angemeldete GitHub-Nutzer
+# herunterladen. Die Passphrase muss deshalb zufällig sein (openssl rand -base64 32);
+# unter 32 Zeichen bricht der Lauf mit einem Fehler ab.
 #
 # Einmalig nötig (Settings → Secrets and variables → Actions):
 #   Secret   SYNC_BACKUP_TOKEN  = ADMIN_BACKUP_TOKEN aus deploy/.env auf dem Server
-#   Secret   BACKUP_PASSPHRASE  = lange Passphrase zum Verschlüsseln (gut aufheben!)
-#   Variable SYNC_URL           (optional) Adresse des Sync-Servers ohne „/“ am Ende
+#   Secret   BACKUP_PASSPHRASE  = openssl rand -base64 32 (zusätzlich sicher aufheben!)
+#   Variable SYNC_URL           (optional) https-Adresse des Sync-Servers ohne „/“ am Ende
 # Fehlen die Secrets, endet der Lauf grün mit einem Hinweis.
 
 on:
@@ -28,19 +33,34 @@ jobs:
     timeout-minutes: 20
     env:
       SYNC_URL: ${{ vars.SYNC_URL || 'https://sync.62-83-23-90.sslip.io' }}
+      # PBKDF2-Runden – beim Entschlüsseln exakt gleich angeben (docs/KONTO.md).
+      PBKDF2_ITER: '600000'
     steps:
       - name: Secrets prüfen
         id: config
         env:
           HAS_TOKEN: ${{ secrets.SYNC_BACKUP_TOKEN != '' }}
-          HAS_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE != '' }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
-          if [ "$HAS_TOKEN" != "true" ] || [ "$HAS_PASSPHRASE" != "true" ]; then
+          if [ "$HAS_TOKEN" != "true" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
             echo "::notice title=Sicherung übersprungen::Secrets SYNC_BACKUP_TOKEN und BACKUP_PASSPHRASE fehlen (Anleitung: docs/KONTO.md, Abschnitt Sicherungen)."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          # Öffentliches Repository: Jeder angemeldete Nutzer kann das Artefakt laden – eine
+          # kurze Passphrase wäre offline zu erraten.
+          if [ "${#BACKUP_PASSPHRASE}" -lt 32 ]; then
+            echo "::error title=Passphrase zu kurz::BACKUP_PASSPHRASE hat weniger als 32 Zeichen. Neu erzeugen mit: openssl rand -base64 32 (docs/KONTO.md)."
+            exit 1
+          fi
+          case "$SYNC_URL" in
+            https://*) ;;
+            *)
+              echo "::error title=SYNC_URL::SYNC_URL muss mit https:// beginnen."
+              exit 1
+              ;;
+          esac
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
 
       - name: Sicherung vom Server holen
         if: steps.config.outputs.enabled == 'true'
@@ -52,9 +72,9 @@ jobs:
           dir="$RUNNER_TEMP/sicherung"
           mkdir -p "$dir"
           # Das Token nur über eine Header-Datei an curl geben – nie in der Kommandozeile
-          # (Prozessliste) und nie im Log.
+          # (Prozessliste) und nie im Log. Nur https, keine Weiterleitungen (das Token ginge mit).
           printf 'Authorization: Bearer %s\n' "$SYNC_BACKUP_TOKEN" > "$dir/auth-header"
-          status="$(curl --silent --show-error --location --max-time 600 \
+          status="$(curl --proto '=https' --silent --show-error --max-time 600 \
             --retry 2 --retry-delay 30 --retry-connrefused \
             --header @"$dir/auth-header" \
             --output "$dir/saves.db" --write-out '%{http_code}' \
@@ -65,7 +85,8 @@ jobs:
             rm -f "$dir/saves.db"
             exit 1
           fi
-          # Ist es wirklich eine vollständige, unbeschädigte SQLite-Datenbank?
+          # Ist es wirklich eine vollständige, unbeschädigte SQLite-Datenbank? (Ausgabe ohne
+          # Zahlen über Konten oder Spielstände – das Log ist öffentlich.)
           python3 - "$dir/saves.db" <<'PY'
           import sqlite3, sys
           path = sys.argv[1]
@@ -74,14 +95,12 @@ jobs:
                   sys.exit('Keine SQLite-Datei')
           # immutable: nur lesen, keine -wal/-shm-Dateien anlegen (die Sicherung ist im WAL-Modus).
           db = sqlite3.connect(f'file:{path}?mode=ro&immutable=1', uri=True)
-          check = db.execute('PRAGMA integrity_check').fetchone()[0]
-          if check != 'ok':
-              sys.exit(f'integrity_check: {check}')
-          users = db.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-          saves = db.execute('SELECT COUNT(*) FROM saves').fetchone()[0]
-          print(f'Sicherung geprüft: {users} Konten, {saves} Spielstände')
+          if db.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
+              sys.exit('integrity_check fehlgeschlagen')
+          db.execute('SELECT 1 FROM users LIMIT 1').fetchall()
+          db.execute('SELECT 1 FROM saves LIMIT 1').fetchall()
+          print('integrity ok')
           PY
-          echo "Größe: $(stat -c %s "$dir/saves.db") Bytes"
 
       - name: Verschlüsseln und Entschlüsseln prüfen
         if: steps.config.outputs.enabled == 'true'
@@ -94,23 +113,27 @@ jobs:
           dir="$RUNNER_TEMP/sicherung"
           name="vszw-sicherung-$(date -u +%Y-%m-%d-%H%M)"
           mkdir -p "$dir/out"
-          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+          openssl enc -aes-256-cbc -pbkdf2 -iter "$PBKDF2_ITER" -salt \
             -pass env:BACKUP_PASSPHRASE -in "$dir/saves.db" -out "$dir/out/$name.db.enc"
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter "$PBKDF2_ITER" \
             -pass env:BACKUP_PASSPHRASE -in "$dir/out/$name.db.enc" -out "$dir/check.db"
           cmp "$dir/saves.db" "$dir/check.db"
           echo "Entschlüsseln geprüft."
+          # Prüfsumme des Chiffrats: CBC erkennt Veränderungen nicht selbst – vor dem
+          # Entschlüsseln mit sha256sum -c prüfen.
+          (cd "$dir/out" && sha256sum "$name.db.enc" > "$name.db.enc.sha256")
           # Unverschlüsselt bleibt nichts liegen.
           rm -f "$dir"/saves.db* "$dir/check.db"
           echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "file=$dir/out/$name.db.enc" >> "$GITHUB_OUTPUT"
+          echo "dir=$dir/out" >> "$GITHUB_OUTPUT"
 
       - name: Als Artefakt ablegen (30 Tage)
         if: steps.config.outputs.enabled == 'true'
-        uses: actions/upload-artifact@v4
+        # actions/upload-artifact v4.6.2, per Commit festgelegt.
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ${{ steps.encrypt.outputs.name }}
-          path: ${{ steps.encrypt.outputs.file }}
+          path: ${{ steps.encrypt.outputs.dir }}
           retention-days: 30
           if-no-files-found: error
           # Verschlüsselte Daten lassen sich nicht komprimieren.

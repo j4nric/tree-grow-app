@@ -50,6 +50,12 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    # Logs begrenzen (höchstens 3 × 10 MB), damit sie den Datenträger nie füllen.
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
 
   caddy:
     profiles: ['caddy']

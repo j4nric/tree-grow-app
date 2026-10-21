@@ -1,8 +1,9 @@
 name: Überwachung
 
 # Prüft stündlich, ob Sync-Server und Spielseite erreichbar sind. Bei einem Ausfall (nach
-# drei Versuchen mit wachsender Pause) öffnet der Lauf ein Issue mit dem Label „ausfall“ bzw.
-# kommentiert das offene; läuft wieder alles, schließt er es mit einem Kommentar.
+# drei Versuchen mit wachsender Pause) öffnet der Lauf ein Issue mit dem Label „ausfall“.
+# Ist schon eins offen, kommentiert er nur, wenn sich das Fehlerbild ändert oder der letzte
+# Bericht mindestens 6 Stunden alt ist. Läuft wieder alles, schließt er das Issue.
 # Optional: Repository-Variablen SYNC_URL und PAGES_URL (Standard siehe unten).
 
 on:
@@ -32,26 +33,27 @@ jobs:
         run: |
           set -uo pipefail
           report="$RUNNER_TEMP/bericht.md"
+          key="$RUNNER_TEMP/kennung.txt"
           : > "$report"
+          : > "$key"
           failed=0
 
-          # Ein Versuch der Prüfung „$1“; Ergebnis in $detail. 0 = in Ordnung.
+          # Ein Versuch der Prüfung „$1“. Ergebnis: $summary (kurz, ohne Server-Text – bestimmt
+          # das Fehlerbild) und $raw (Server-Antwort bzw. curl-Meldung). 0 = in Ordnung.
           probe() {
             local body code
             body="$(mktemp)"
             code="$(curl --silent --show-error --max-time 20 --output "$body" --write-out '%{http_code}' "$2" 2>"$body.err")" || code="${code:-000}"
+            raw="$(cat "$body.err"; head -c 300 "$body")"
             case "$1" in
               health)
                 if [ "$code" = "200" ] && [ "$(cat "$body")" = '{"ok":true}' ]; then return 0; fi
-                detail="HTTP ${code}, Antwort: $(head -c 200 "$body" | tr -d '\r' | tr '\n' ' ')$(cat "$body.err")"
+                if [ "$code" = "200" ]; then summary="HTTP 200, aber nicht {\"ok\":true}"; else summary="HTTP ${code}"; fi
                 ;;
               pages)
                 if [ "$code" = "200" ] && grep -qF "$GAME_TITLE" "$body"; then return 0; fi
-                if [ "$code" = "200" ]; then
-                  detail="HTTP 200, aber ohne den Titel (${GAME_TITLE})"
-                else
-                  detail="HTTP ${code} $(cat "$body.err")"
-                fi
+                if [ "$code" = "200" ]; then summary="HTTP 200, aber ohne den Titel (${GAME_TITLE})"; else summary="HTTP ${code}"; fi
+                raw="$(cat "$body.err")"
                 ;;
             esac
             return 1
@@ -65,11 +67,20 @@ jobs:
                 echo "OK  ${url} (Versuch ${attempt})"
                 return 0
               fi
-              echo "::warning::${url}: Versuch ${attempt} fehlgeschlagen – ${detail}"
+              echo "::warning::${url}: Versuch ${attempt} fehlgeschlagen – ${summary}"
               [ "$attempt" -lt 3 ] && sleep $((15 * 3 ** (attempt - 1)))
             done
             failed=1
-            printf -- '- **%s** – %s\n' "$url" "$detail" >> "$report"
+            printf '%s – %s\n' "$url" "$summary" >> "$key"
+            {
+              printf -- '- **%s** – %s\n' "$url" "$summary"
+              if [ -n "$raw" ]; then
+                # Server-Text nur im Codeblock (ohne Backticks, damit er ihn nicht verlassen kann).
+                printf '\n  ```text\n'
+                printf '%s\n' "$raw" | tr -d '`\r' | sed 's/^/  /'
+                printf '  ```\n'
+              fi
+            } >> "$report"
             return 1
           }
 
@@ -82,6 +93,7 @@ jobs:
             echo "status=ok" >> "$GITHUB_OUTPUT"
           fi
           echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
 
       - name: Issue „ausfall“ öffnen, kommentieren oder schließen
         env:
@@ -89,7 +101,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
           STATUS: ${{ steps.probe.outputs.status }}
           REPORT: ${{ steps.probe.outputs.report }}
+          KEY_FILE: ${{ steps.probe.outputs.key }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # So lange ohne neuen Kommentar, solange das Fehlerbild gleich bleibt.
+          REPEAT_HOURS: '6'
         run: |
           set -euo pipefail
           now="$(date -u '+%Y-%m-%d %H:%M UTC')"
@@ -99,6 +114,8 @@ jobs:
           fi
           open="$(gh issue list --label ausfall --state open --limit 1 --json number --jq '.[0].number // empty')"
           if [ "$STATUS" = "fail" ]; then
+            # Kennung des Fehlerbilds: welche Adresse mit welchem Ergebnis (ohne Server-Text).
+            key="$(sha256sum "$KEY_FILE" | cut -c1-16)"
             body="$RUNNER_TEMP/issue.md"
             {
               echo "Ausfall festgestellt am ${now} (nach je drei Versuchen):"
@@ -108,15 +125,30 @@ jobs:
               echo "Lauf: ${RUN_URL}"
               echo
               echo "Erste Hilfe auf dem Server: \`docker ps\`, \`docker logs --tail 100 vszw-sync\`, \`curl ${SYNC_URL%/}/api/health\` (siehe docs/KONTO.md)."
+              echo
+              echo "<!-- ausfall-kennung: ${key} -->"
             } > "$body"
-            if [ -n "$open" ]; then
-              gh issue comment "$open" --body-file "$body"
-              echo "Issue #${open} kommentiert."
-            else
+            if [ -z "$open" ]; then
               gh label create ausfall --color B60205 --description "Automatisch: Sync-Server oder Spielseite nicht erreichbar" 2>/dev/null || true
               gh issue create --title "Ausfall: Sync-Server oder Spielseite nicht erreichbar" --label ausfall --body-file "$body"
+            else
+              # Letzter Bericht (Issue-Text oder Kommentar) mit Kennung: Zeitpunkt und Kennung.
+              last="$(gh issue view "$open" --json body,createdAt,comments --jq '
+                ([{body: .body, at: .createdAt}] + [.comments[] | {body: .body, at: .createdAt}])
+                | map(select(.body | test("ausfall-kennung: [0-9a-f]+")))
+                | last // empty
+                | "\(.at) \(.body | capture("ausfall-kennung: (?<k>[0-9a-f]+)").k)"')"
+              last_at="${last%% *}"
+              last_key="${last#* }"
+              age=$(( $(date +%s) - $(date -d "${last_at:-1970-01-01T00:00:00Z}" +%s) ))
+              if [ "$last_key" != "$key" ] || [ "$age" -ge $((REPEAT_HOURS * 3600)) ]; then
+                gh issue comment "$open" --body-file "$body"
+                echo "Issue #${open} kommentiert."
+              else
+                echo "Issue #${open}: Fehlerbild unverändert, letzter Bericht vor $((age / 60)) Minuten – kein neuer Kommentar."
+              fi
             fi
-            echo "::error title=Ausfall::$(tr '\n' ' ' < "$REPORT")"
+            echo "::error title=Ausfall::$(tr '\n' ' ' < "$KEY_FILE")"
           elif [ -n "$open" ]; then
             gh issue close "$open" --comment "Wieder erreichbar seit ${now}: Sync-Server und Spielseite antworten. Lauf: ${RUN_URL}"
             echo "Issue #${open} geschlossen."

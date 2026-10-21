@@ -68,6 +68,13 @@ new_token() {
   fi
 }
 NEW_ADMIN_TOKEN=""
+# Eine vorhandene .env enthält Geheimnisse (ADMIN_BACKUP_TOKEN) – nur der Besitzer darf lesen.
+if [[ "$ENV_EXISTS" == 1 ]]; then
+  ENV_PERMS="$(stat -c %a .env 2>/dev/null || stat -f %Lp .env 2>/dev/null || true)"
+  if [[ "$ENV_PERMS" =~ ^[0-7]+$ && "${ENV_PERMS: -2}" != "00" ]]; then
+    say "Warnung: deploy/.env ist für andere lesbar (Rechte ${ENV_PERMS}). Bitte einschränken:  chmod 600 .env"
+  fi
+fi
 [[ "$ADMIN_TOKEN_STATE" != set ]] && NEW_ADMIN_TOKEN="$(new_token)"
 if [[ -f .env ]]; then
   set -a
@@ -302,12 +309,15 @@ if [[ -n "$NEW_ADMIN_TOKEN" ]]; then
     say ""
     say "  ADMIN_BACKUP_TOKEN=${NEW_ADMIN_TOKEN}"
     say ""
-    say "und danach den Container neu erstellen:  ${COMPOSE[*]} up -d"
+    say "und danach die Rechte einschränken und den Container neu erstellen:"
+    say "  chmod 600 .env"
+    say "  ${COMPOSE[*]} up -d"
   else
     say "deploy/.env hat noch kein ADMIN_BACKUP_TOKEN. setup.sh ändert die Datei nie –"
     say "bitte selbst anhängen (im Ordner deploy/) und den Container neu erstellen:"
     say ""
     say "  printf '\\nADMIN_BACKUP_TOKEN=%s\\n' '${NEW_ADMIN_TOKEN}' >> .env"
+    say "  chmod 600 .env"
     say "  ${COMPOSE[*]} up -d"
   fi
   say ""

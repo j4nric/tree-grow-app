@@ -6,11 +6,15 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp, type App, type AppOptions } from '../src/app';
 import { ADMIN_TOKEN_MIN, parseAdminToken, tokensEqual } from '../src/auth';
 import { backupToHandle } from '../src/backup';
 import { openDb, type Db } from '../src/db';
+import { RateLimiter } from '../src/rate-limit';
+
+// Große Sicherungen (40 MB Ballast) brauchen unter Last mehrere Sekunden.
+vi.setConfig({ testTimeout: 30_000 });
 
 const TOKEN = 'a'.repeat(20) + 'B7-_x'.repeat(10);
 
@@ -56,6 +60,30 @@ afterEach(async () => {
   dir = '';
 });
 
+/** ~40 MB Daten, damit das Senden nicht in die Puffer des Sockets passt. */
+function ballast(target: Db): void {
+  target.exec(
+    'CREATE TABLE ballast (x BLOB); WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 40) INSERT INTO ballast SELECT zeroblob(1000000) FROM n;',
+  );
+}
+
+async function waitFor(check: () => Promise<boolean> | boolean, ms = 20_000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!(await check())) {
+    if (Date.now() > end) throw new Error('Zeit abgelaufen');
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+/** Status eines Abrufs; der Körper wird ganz gelesen (sonst hält der Server die Sperre). */
+async function statusOf(token?: string): Promise<number> {
+  const res = await fetchBackup(token);
+  await res.arrayBuffer().catch(() => {});
+  // Der Server gibt die Sperre erst nach dem letzten Byte frei – kurz darauf warten.
+  await waitFor(() => !app!.stats().adminBackupRunning);
+  return res.status;
+}
+
 function fetchBackup(token?: string, headers: Record<string, string> = {}) {
   return fetch(`${base}/api/admin/backup`, {
     headers: { ...(token !== undefined ? { Authorization: `Bearer ${token}` } : {}), ...headers },
@@ -66,7 +94,7 @@ describe('GET /api/admin/backup', () => {
   it('ohne Token in der Konfiguration: 404, auch mit beliebigem Token', async () => {
     await start({ adminBackup: null });
     expect((await fetchBackup()).status).toBe(404);
-    expect((await fetchBackup(TOKEN)).status).toBe(404);
+    expect((await statusOf(TOKEN))).toBe(404);
     expect(logs).toEqual([]);
   });
 
@@ -114,24 +142,88 @@ describe('GET /api/admin/backup', () => {
   it('Rate-Limit je IP zählt jeden Versuch (auch falsche Token); nach dem Fenster wieder frei', async () => {
     await start({ limits: { adminBackup: { limit: 2, windowMs: 60_000 } } });
     expect((await fetchBackup('falsch')).status).toBe(401);
-    expect((await fetchBackup(TOKEN)).status).toBe(200);
+    expect((await statusOf(TOKEN))).toBe(200);
     const blocked = await fetchBackup(TOKEN);
     expect(blocked.status).toBe(429);
     expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
-    expect(logs.at(-1)).toContain('429');
+    // Weitere Versuche im selben Fenster: abgelehnt, aber nur ein Protokolleintrag.
+    for (let i = 0; i < 5; i++) expect((await fetchBackup('falsch')).status).toBe(429);
+    expect(logs.filter((l) => l.includes('429'))).toHaveLength(1);
     clock += 60_000;
-    expect((await fetchBackup(TOKEN)).status).toBe(200);
+    expect((await statusOf(TOKEN))).toBe(200);
+    // Neues Fenster, neue Sperre → wieder genau ein Eintrag mehr.
+    await statusOf(TOKEN);
+    await statusOf(TOKEN);
+    await statusOf(TOKEN);
+    expect(logs.filter((l) => l.includes('429'))).toHaveLength(2);
+  });
+
+  it('Anfrage mit Origin-Kopf (Browser): 403, auch von der erlaubten Herkunft', async () => {
+    await start({ allowedOrigins: ['https://j4nric.github.io'] });
+    const res = await fetchBackup(TOKEN, { Origin: 'https://j4nric.github.io' });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'origin' });
+    expect((await statusOf(TOKEN))).toBe(200);
+  });
+
+  it('nie zwei Abrufe gleichzeitig: 429 busy, bis der erste fertig oder abgebrochen ist', async () => {
+    await start({ limits: { adminBackup: { limit: 100, windowMs: 60_000 } } });
+    ballast(db!);
+    const first = await fetchBackup(TOKEN);
+    expect(first.status).toBe(200);
+    // Der erste Körper wird (noch) nicht gelesen – der Server hängt im Senden.
+    const busy = await fetchBackup(TOKEN);
+    expect(busy.status).toBe(429);
+    expect(await busy.json()).toEqual({ error: 'busy' });
+    await first.body?.cancel();
+    await waitFor(async () => (await statusOf(TOKEN)) === 200);
+  });
+
+  it('Höchstdauer: ein Client, der nicht liest, wird getrennt und die Sperre frei', async () => {
+    await start({ limits: { adminBackup: { limit: 100, windowMs: 60_000 } }, adminBackupTimeoutMs: 1000 });
+    ballast(db!);
+    // Je nach Rechner endet die Zeit schon beim Erstellen (fetch scheitert) oder beim Senden.
+    let slow: Response | null = null;
+    try {
+      slow = await fetchBackup(TOKEN);
+    } catch {
+      // vor den Kopfzeilen getrennt
+    }
+    await waitFor(() => logs.some((l) => l.startsWith('Admin-Sicherung abgebrochen')));
+    if (slow) {
+      expect(slow.status).toBe(200);
+      // Der Rest fehlt: der Client hält die halbe Datei nie für ganz.
+      await expect(slow.arrayBuffer()).rejects.toThrow();
+    }
+    // Sperre frei: eine kleine Sicherung geht wieder durch.
+    db!.exec('DROP TABLE ballast; VACUUM;');
+    await waitFor(async () => (await statusOf(TOKEN)) === 200);
   });
 
   it('Datenträger fast voll: 507 statt einer weiteren Datei', async () => {
     await start({ storageOk: () => false });
-    expect((await fetchBackup(TOKEN)).status).toBe(507);
+    expect((await statusOf(TOKEN))).toBe(507);
   });
 
   it('nur GET', async () => {
     await start();
     const res = await fetch(`${base}/api/admin/backup`, { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` } });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('RateLimiter.takeDetailed', () => {
+  it('first nur beim ersten abgelehnten Versuch je Fenster (auch bei Grenze 0)', () => {
+    const limiter = new RateLimiter(2, 1000);
+    expect(limiter.takeDetailed('a', 0)).toEqual({ wait: 0, first: false });
+    expect(limiter.takeDetailed('a', 1)).toEqual({ wait: 0, first: false });
+    expect(limiter.takeDetailed('a', 2)).toEqual({ wait: 998, first: true });
+    expect(limiter.takeDetailed('a', 3)).toEqual({ wait: 997, first: false });
+    expect(limiter.takeDetailed('a', 1000)).toEqual({ wait: 0, first: false });
+    const zero = new RateLimiter(0, 1000);
+    expect(zero.takeDetailed('a', 0).first).toBe(false);
+    expect(zero.takeDetailed('a', 0)).toEqual({ wait: 1000, first: true });
+    expect(zero.takeDetailed('a', 0).first).toBe(false);
   });
 });
 
