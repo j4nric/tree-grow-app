@@ -7,6 +7,7 @@
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
 import { ABILITY_INFO } from '../content/abilities';
+import { CARE, CARE_BY_ID } from '../content/care';
 import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
 import { EVENTS_BY_ID, type CycleEffect, type TimedEffect } from '../content/events';
 import { KEEPSAKE_INFO } from '../content/memory';
@@ -54,7 +55,12 @@ import type { SceneAnimal, ScenePlant, ScenePlantGroup, SceneVisitor } from '../
 import {
   MAX_OFFLINE_SECONDS,
   allWaypointsReached,
+  careBlocker,
+  careRank,
   chooseEventOption,
+  nextCareRank,
+  previewCare,
+  type CareBlocker,
   eventOptionSeeds,
   hostBlocker,
   plantBlocker,
@@ -69,6 +75,7 @@ import { memoryBonusLabel } from './cycle-view';
 import { RARITY_LABELS, preferredReplaceOption } from './view-format';
 import type {
   ActiveBonusView,
+  CareView,
   AnimalView,
   CardView,
   CommunityHintView,
@@ -1614,4 +1621,67 @@ export function activeBonusViews(state: GameState): ActiveBonusView[] {
 /** Bewirtete Gäste für den Renderer (nur neu bauen, wenn sich das Ökosystem ändert). */
 export function toSceneVisitors(state: GameState): SceneVisitor[] {
   return state.cycle.visitors.map((v, i) => ({ id: v.id, slot: i }));
+}
+
+// ---------------------------------------------------------------------------
+// Pflegemaßnahmen (Schritt 2.7)
+// ---------------------------------------------------------------------------
+
+/** Blocker-Texte für die Pflege-Liste; `requires` nennt die Bedingung der Maßnahme. */
+export function careBlockerText(blocker: CareBlocker, id: string): string {
+  const measure = CARE_BY_ID.get(id);
+  switch (blocker) {
+    case 'unknown-care':
+      return 'Diese Pflege gibt es nicht';
+    case 'maxed':
+      return 'Voll ausgebaut';
+    case 'stage':
+      return 'Erst auf einer späteren Stufe';
+    case 'excluded': {
+      const other = measure?.excludes?.map((x) => CARE_BY_ID.get(x)?.name).filter(Boolean)[0];
+      return other ? `Verträgt sich nicht mit „${other}“` : 'Verträgt sich nicht mit anderer Pflege';
+    }
+    case 'requires':
+      return `Braucht ${(measure?.requires ?? []).map(conditionName).join(', ')}`;
+    case 'too-expensive':
+      return 'Nicht genug Samen';
+  }
+}
+
+/**
+ * Pflege-Liste für die Seitenleiste: alle Maßnahmen, die auf dieser Stufe schon gekauft
+ * wurden oder deren nächster Rang höchstens eine Stufe entfernt ist. Mit Kosten,
+ * Kurzwirkung, Blocker-Text und Vorschau (previewCare).
+ */
+export function toCareViews(state: GameState, now: Readonly<Evaluation> = evaluate(state)): CareView[] {
+  const out: CareView[] = [];
+  for (const measure of CARE) {
+    const rank = careRank(state, measure.id);
+    const next = nextCareRank(state, measure.id);
+    const first = measure.ranks[0]!;
+    // Ganz neue Maßnahmen erst zeigen, wenn ihre Stufe erreicht ist (nicht alles auf einmal).
+    if (rank === 0 && first.minStage > state.stage) continue;
+    const blocker = careBlocker(state, measure.id);
+    let blockerText = blocker ? careBlockerText(blocker, measure.id) : null;
+    if (blocker === 'stage' && next) blockerText = `Ab Stufe „${STAGES[next.minStage]?.name ?? ''}“`;
+    const after = next ? previewCare(state, measure.id) : null;
+    out.push({
+      id: measure.id,
+      icon: measure.icon,
+      name: measure.name,
+      rank: next ? `Rang ${rank + 1}/${measure.ranks.length}` : 'voll ausgebaut',
+      next: next?.summary ?? null,
+      cost: next ? `${formatNumber(next.cost)} 🌰` : null,
+      blocker: blocker === 'maxed' ? null : blockerText,
+      canBuy: blocker === null,
+      preview: after
+        ? {
+            harmonyDelta: after.harmony - now.harmony,
+            growthDelta: now.growth > 0 ? after.growth / now.growth - 1 : 0,
+            seedDelta: now.seeds > 0 ? after.seeds / now.seeds - 1 : 0,
+          }
+        : null,
+    });
+  }
+  return out;
 }

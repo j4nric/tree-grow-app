@@ -2463,3 +2463,57 @@ dialog.plant-picker {
   margin-left: auto;
   color: var(--muted);
 }
+
+/* Pflege-Liste (care-panel.ts) – schlicht */
+.care {
+  margin-top: 12px;
+}
+
+.care[hidden] {
+  display: none;
+}
+
+.care-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.care-item p {
+  margin: 0;
+}
+
+.care-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.care-rank {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.care-next {
+  font-size: 0.85rem;
+}
+
+.care-buy {
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: white;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.care-buy:disabled {
+  opacity: 0.5;
+}

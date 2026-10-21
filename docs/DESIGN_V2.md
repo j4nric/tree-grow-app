@@ -801,27 +801,120 @@ umstellen und `scripts/extras.ts` löschen.
 
 ## 8. Pflegemaßnahmen
 
-Einmal mit Samen gekauft, danach **kostenlos ein- und ausschaltbar**. Jede hat genau
-**einen klaren Gewinner und einen klaren Verlierer**. „Dichte“ und „Lichte Krone“
-schließen sich aus. Kosten etwa 3–5 Minuten Samenproduktion bei Freischaltung
-(Junger Baum ~2 🌰/s, Alter Baum ~4 🌰/s, Hain ~10 🌰/s).
+Pflege ist die **Samen-Senke** des Spiels (Befund seit 2.1: Pflanzen binden bis zum Hain
+nur ~1.700 🌰, der Bestand wächst auf 25–35 Minuten Produktion). Inhalte:
+`src/content/care.ts`; Logik offen (Umsetzungsnotiz 8.2).
 
-| Maßnahme | ab | Kosten | Gewinner | Verlierer | Text |
-|---|---|---|---|---|---|
-| Laub liegen lassen | Junger Baum | 400 🌰 | +1 Platz Laubstreu; Bodenleben +15 % Zufriedenheit | Wildbiene −20 % Zufriedenheit (kein offener Boden); Schneckenfraß +50 % | „Im Herbst bleibt das Laub, wo es fällt.“ |
-| Pilzfreundlicher Boden | Junger Baum | 400 🌰 | Pilze +20 % Zufriedenheit, Pilz-Wirkung ×1,25 | Maulwurf −30 % Zufriedenheit (zerreißt die Fäden) | „Nicht umgraben, nicht stören – das Geflecht wächst.“ |
-| Nistkästen | Junger Baum | 500 🌰 | Merkmal Baumhöhle; +1 Platz Höhlen (nur Vögel, Fledermäuse) | Störung durch Eichhörnchen und Eichelhäher doppelt | „Ein Holzkasten mit kleinem Flugloch. Gemütlich – und leicht zu finden.“ |
-| Dichte Krone | Alter Baum | 1.000 🌰 | +1 Platz Krone; Kronenvögel +15 % Zufriedenheit; zählt als schattig | −2 ☀️ (Waldsaum weniger sonnig) | „Ein Dach aus Blättern, unter dem Vögel sicher brüten.“ |
-| Lichte Krone | Alter Baum | 1.000 🌰 | +3 ☀️; Bestäuber +20 % Zufriedenheit | −1 Platz Krone; Vögel −10 % Zufriedenheit | „Ein paar Äste weniger – Sonnenflecken tanzen über den Boden.“ |
-| Blühender Efeu | Alter Baum | 800 🌰 | Insekten +20 % Zufriedenheit; +10 % 🌰 | −1 Platz Stamm & Rinde; Spechte −15 % Zufriedenheit | „Blüht spät im Jahr, wenn sonst nichts mehr blüht.“ |
-| Totholz liegen lassen | Alter Baum | 1.200 🌰 | Merkmal Totholz; +1 Platz Höhlen; Höhlenbewohner +10 % | Borkenkäferfraß +50 % | „Ein toter Baum lebt länger als ein lebender.“ |
-| Wildwiese | Hain | 3.000 🌰 | +1 Platz Waldsaum; zählt als sonnig; Bestäuber +20 % | Wühlmausfraß +50 %; −1 Pflanzplatz | „Margeriten, Klee und hohes Gras am Waldrand.“ |
-| Waldtümpel | Hain | 3.000 🌰 | Merkmal Feuchte; +3 💧; Langohr +20 % (Insekten über dem Wasser) | Schneckenfraß ×2; Igel −20 % Zufriedenheit | „Eine feuchte Senke, in der sich der Regen sammelt.“ |
-| Wildschutzzaun | Hain | 2.500 🌰 | Rehfraß −50 % | Rotfuchs und Wolf −30 % Zufriedenheit; Reh zählt weiter als unbewacht | „Ein Zaun schützt den Jungwuchs – und hält auch die Jäger draußen.“ |
+**Regeln (Stand Schritt 2.7 – Inhalte):**
 
-Überführt aus `ECOSYSTEM.md`: alle zehn Maßnahmen, Energie-Kosten → Samen,
-Prozent-Boni → Zufriedenheit; „Bejagung“ heißt jetzt „Wildschutzzaun“ (stimmiger für
-ein friedliches Spiel). Pflegemaßnahmen sind im Prototyp **nicht** simuliert.
+- 8 Maßnahmen mit je **1–3 Rängen**, die nacheinander mit Samen gekauft werden. Ein
+  gekaufter Rang wirkt **bis zum Neuen Zyklus**; die Wirkungen aller Ränge addieren
+  sich. Kein Ein-/Ausschalten, kein Verkaufen.
+- **Kostenkurve:** feste Samen je Rang, je Rang grob ×6–10 teurer; spätere Ränge erst ab
+  Hain bzw. Wald. Bei Freischaltung kosten die Ränge des Jungen Baums 5–8 Minuten
+  Produktion (600–900 🌰 bei ~2 🌰/s), die des Alten Baums 8–25 min (2.000–6.000 🌰 bei
+  ~4 🌰/s), die des Hains 7–20 min (~10 🌰/s) und die des Walds 15–23 min (~22 🌰/s). Vor dem Hain gibt es Ränge für 19.700 🌰 – mehr, als bis
+  dahin übrig ist: Man muss wählen, was zuerst kommt.
+- **Wirkungen** nutzen die Typen der Ereignisse (`events.ts`): `cycle` (Licht, Wasser,
+  Platz, Harmonie und – nur für Pflege – dauerhafte 🌿/🌰-Boni) und `habitat`
+  (Merkmal). Keine neuen Wirkungstypen.
+- **Zielkonflikt:** „Lichte Krone“ und „Dichte Krone“ schließen sich aus; die Dichte
+  Krone kostet im ersten Rang 2 ☀️. Sonst ist der Verlierer jeder Maßnahme der Preis:
+  Samen für Pflege fehlen für Pflanzen, Neu würfeln und Gäste.
+
+### 8.1 Katalog
+
+| Maßnahme | ID | Bedingung | Rang 1 | Rang 2 | Rang 3 | Text |
+|---|---|---|---|---|---|---|
+| 🍂 Laub liegen lassen | `leaf-litter` | – | Junger Baum, 600 🌰: +1 Platz Laubstreu | Hain, 4.000 🌰: +2 💧, +3 ⚖️ | – | „Im Herbst bleibt das Laub, wo es fällt.“ |
+| 🏠 Nistkästen | `nest-boxes` | – | Junger Baum, 900 🌰: Baumhöhle, +1 Platz Höhlen | Hain, 6.000 🌰: +1 Platz Krone | – | „Ein Holzkasten mit kleinem Flugloch. Gemütlich – und leicht zu finden.“ |
+| 🌼 Wildblumen-Saum | `wildflower-hem` | – | Junger Baum, 700 🌰: Blumen +40 % 🌰 | Alter Baum, 6.000 🌰: +1 Platz Waldsaum | Wald, 20.000 🌰: Blumen +40 % 🌿 und 🌰 | „Margeriten, Klee und hohes Gras am Rand des Baums.“ |
+| 🪵 Totholzhaufen | `deadwood-pile` | – | Alter Baum, 2.500 🌰: Totholz | Hain, 8.000 🌰: +1 Platz Stamm & Rinde, +2 ⚖️ | – | „Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.“ |
+| ☀️ Lichte Krone | `light-crown` | nicht mit Dichter Krone | Alter Baum, 3.000 🌰: +3 ☀️ | Hain, 10.000 🌰: +2 ☀️ | Wald, 30.000 🌰: +2 ☀️ | „Ein paar Äste weniger – Sonnenflecken tanzen über den Boden.“ |
+| 🌳 Dichte Krone | `dense-crown` | nicht mit Lichter Krone | Alter Baum, 3.000 🌰: +1 Platz Krone, −2 ☀️ | Hain, 10.000 🌰: Bäume +10 % 🌿 | Wald, 30.000 🌰: Bäume +10 % 🌿 | „Ein Dach aus Blättern, unter dem Vögel sicher brüten.“ |
+| 💧 Waldtümpel | `pond` | – | Alter Baum, 4.000 🌰: Feuchte, +3 💧 | Hain, 12.000 🌰: +3 💧, +2 ⚖️ | – | „Eine feuchte Senke, in der sich der Regen sammelt.“ |
+| 🐝 Insektenhotel | `insect-hotel` | ≥ 1 Insekt | Alter Baum, 2.000 🌰: +3 ⚖️ | Hain, 7.000 🌰: Blumen und Sträucher +25 % 🌰 | Wald, 25.000 🌰: +4 ⚖️ | „Hohle Stängel und gebohrte Löcher – jedes Zimmer ist bald belegt.“ |
+
+Summe: vor dem Hain 19.700 🌰, Hain-Ränge 47.000 🌰, Wald-Ränge 75.000 🌰 (mit nur
+einer der beiden Kronen).
+
+**Was sich gegenüber dem Entwurf ändert:** Die zehn Maßnahmen des Entwurfs (aus
+`ECOSYSTEM.md`) brauchten neue Wirkungstypen (Zufriedenheit je Gattung oder Art,
+Fraß-Multiplikatoren, Pflanzplätze, Ein-/Ausschalten). Für die erste Fassung sind sie
+auf die vorhandenen Typen reduziert. „Pilzfreundlicher Boden“, „Blühender Efeu“,
+„Wildwiese“ und „Wildschutzzaun“ entfallen vorerst, neu sind „Wildblumen-Saum“ und
+„Insektenhotel“. Mit eigenen Zufriedenheits-Wirkungen (neuer Typ, Aufgabe für später)
+kämen die Verlierer des Entwurfs zurück. Ränge statt Einmalkauf, weil eine Senke mit dem
+Einkommen mitwachsen muss: Einmalkäufe zu 400–3.000 🌰 wären bis zum Hain bezahlt, danach
+gäbe es wieder nichts zu kaufen.
+
+**Simulation** (500 Durchgänge, mit Ereignissen und Gästen aus 2.4, Modell in
+`scripts/extras.ts`, Tabelle in 15.4): Der Samenbestand des Harmonie-Spielers beim Hain
+sinkt von 26 auf **5 Minuten Produktion**, im Wald von 37 auf **6 Minuten**. Hain nach
+**44:45 min** statt 46:34 min (0,75 × Ziel – im Korridor). Harmonie- und
+Wachstums-Spieler setzen andere Schwerpunkte (z. B. Wildblumen-Saum bis zum Hain 1,65
+gegen 0,21 Ränge, Lichte gegen Dichte Krone 84 : 15 % bzw. 49 : 50 %).
+
+### 8.2 Umsetzungsnotiz für den core-engineer (Schritt 2.7, Logik)
+
+Baut auf v4 und der Ereignis-Logik (2.4, Abschnitt 7.8) auf; nutzt deren Wirkungspfad.
+
+**Spielstand** (mit der nächsten `SAVE_VERSION`, Migration ergänzt ein leeres Objekt):
+
+```ts
+interface CycleState {
+  // … (v4, 2.4)
+  /** Gekaufte Pflege-Ränge je Maßnahme (ID → 1 … ranks.length). Fehlt = 0. */
+  care: Record<string, number>;
+}
+```
+
+`createCycle()` setzt `care` beim Neuen Zyklus auf `{}`. Gespeichert werden nur die
+Ränge; die Wirkungen kommen immer aus `CARE_BY_ID`.
+
+**Aktion** `buyCare(state, id): ActionResult` und `careBlocker(state, id)` (für die UI,
+Muster wie `plantBlocker`/`rerollBlocker`). Blocker in dieser Reihenfolge:
+
+| Blocker | Bedingung |
+|---|---|
+| `'unknown'` | ID nicht in `CARE_BY_ID` |
+| `'maxed'` | alle Ränge gekauft |
+| `'stage'` | `state.stage < ranks[rang].minStage` |
+| `'excluded'` | eine Maßnahme aus `excludes` hat schon einen Rang |
+| `'requires'` | `requires` nicht erfüllt (`speciesAppears(state, { appears: requires })`) |
+| `'too-expensive'` | `state.seeds < ranks[rang].cost` |
+
+Kauf: Samen abziehen, `care[id]++`, danach `maxHarmony` nachführen (wie bei jeder
+Änderung am Ökosystem). Die Bedingung gilt nur beim Kauf; fällt sie später weg (das
+Insekt wird entlassen), bleibt die Wirkung.
+
+**Bewerten (`evaluate`):** Für jede Maßnahme die Wirkungen der Ränge `0 … care[id]−1`
+einsammeln und genauso behandeln wie die Ereignis-Wirkungen aus 7.8: `cycle` über
+`apply(e, 1)` (inkl. negativer Lichtwerte; Licht/Wasser nie unter 0 im Ergebnis), `slot`
+in `nicheSlots` (mit `opensEarly`), `habitat` als Angebot (`SUPPLY_PLANT`) und in
+`appearsContext`. `care` gehört in den Cache-Schlüssel `ecosystemKey`. Ein Platz aus
+Pflege geht nie verloren (kein Verkaufen) – kein Überlauf-Fall.
+
+**Zeit/Offline:** Pflege wirkt dauerhaft, also keine Restdauer und nichts in `tick`.
+
+**Umgesetzt (Schritt 2.7, Logik):** wie oben, additiv in v5 (Abschnitt 14, Punkt 8).
+Aktionen `buyCare(state, id)`, `careBlocker(state, id)`, `careRank`, `nextCareRank`,
+`previewCare`; der Blocker für eine unbekannte Maßnahme heißt `'unknown-care'` (statt
+`'unknown'`, weil die Codes mit den übrigen Aktionsfehlern zusammenlaufen). Wirkungen
+laufen über denselben Weg wie die Ereignis-Boni (`cycleEffects`, `cycleSlotBonuses`,
+Habitate in `ecosystemOf`); Licht und Wasser werden nach allen Wirkungen auf ≥ 0
+begrenzt. Beim Laden zählen nur bekannte Maßnahmen, Ränge ganzzahlig in 1 … ranks.length.
+Die Seitenleiste zeigt eine schlichte Liste „Pflege“ (`src/ui/care-panel.ts`, View
+`toCareViews`): Maßnahmen ab ihrer Stufe mit nächstem Rang, Kosten, Wirkung, Vorschau,
+Blocker-Text und Kaufen-Knopf.
+
+**UI (für ui-dev):** Liste der Maßnahmen mit nächstem Rang, Kosten, Kurzwirkung
+(`summary`), Blocker-Text und Vorschau (`previewCare` analog `previewPlant`).
+
+**Tests (Vorschlag):** jeder Blocker; Kauf zieht genau die Kosten ab und erhöht den Rang;
+Wirkungen addieren sich über Ränge; Ausschluss beider Kronen; negative Lichtwirkung;
+Slot öffnet Höhlen vor dem Alten Baum (Nistkästen im Jungen Baum); Neuer Zyklus setzt
+`care` zurück; Migration. Danach den Simulator auf die echte Logik umstellen.
 
 ---
 
@@ -1239,6 +1332,10 @@ Empfehlungen (Stand 20.10.2026):
    Ab dem Hain gibt es zusätzlich den Zwischenhalt (7.2), damit die Durststrecken
    kürzer werden, ohne Tierbegegnungen zu verdrängen.
 
+8. **Pflege ohne neue Version (Team, Schritt 2.7):** `cycle.care` kommt additiv in v5
+   (wie das Tagebuch in v3). Fehlt das Feld in einem gespeicherten v5-Stand, ergänzt das
+   Laden `{}`; eine Migration oder neue `SAVE_VERSION` gibt es dafür nicht.
+
 Weitere Designentscheidungen trifft das Team selbst und dokumentiert sie hier bzw. in den
 PR-Beschreibungen.
 
@@ -1494,6 +1591,101 @@ Varianten (Harmonie-Spieler, 200 Durchgänge, Durststrecke 90 % Hain / Wald):
 Ereignisse/Gäste als es gibt (und im Schnitt > 4 bzw. > 3), Stufenzeiten des Harmonie-
 Spielers 0,7–1,35 × Ziel und Hain höchstens 10 % schneller als ohne, Durststrecke (90 %)
 im Hain und im Wald kürzer als ohne und im Wald < 11 min.
+
+#### Stand Schritt 2.7 – Logik: Pflegemaßnahmen echt (100 Durchgänge)
+
+Simulator mit der echten Logik (`runGame(…, { care: true })`, `buyCare`, `previewCare`).
+Strategien sparen den Rang mit dem besten Wert je Samen an (Vorschau über 30 min,
+Plätze/Merkmale pauschal 3 % bzw. 2 %), Pflanzen haben Vorrang; der Zufallsspieler
+kauft einen beliebigen kaufbaren Rang. „ohne“ = Durchgänge mit Ereignissen und Gästen
+(Stand 2.4), „mit“ = zusätzlich Pflege.
+
+| Strategie | Pflege | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | 🌰-Bestand beim Hain (min Produktion) | im Wald | für Pflege bis Hain / Wald | Ränge bis Hain / Urwald |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Gierig nach Harmonie | ohne | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 | 14729 (24,5) | 45458 (33,0) | – | – |
+| Gierig nach Wachstum | ohne | 14:37 min | 37:31 min | 1:04 h | 1:33 h | 94,1 | 9931 (21,9) | 29873 (30,6) | – | – |
+| Zufällig | ohne | 24:00 min | 1:14 h | 2:14 h | 3:14 h | 71,9 | 31916 (49,2) | 93867 (72,7) | – | – |
+| Gierig nach Harmonie | mit | 16:57 min | 43:18 min | 1:13 h | 1:44 h | 105,5 | 2864 (3,8) | 8852 (4,7) | 14630 / 50670 | 6,9 / 15,6 |
+| Gierig nach Wachstum | mit | 14:37 min | 36:43 min | 1:01 h | 1:27 h | 96,9 | 1828 (4,0) | 2723 (2,6) | 8285 / 27321 | 4,7 / 12,6 |
+| Zufällig | mit | 23:44 min | 1:10 h | 2:01 h | 2:48 h | 77,8 | 12282 (16,9) | 31985 (17,8) | 19230 / 64650 | 7,9 / 16,9 |
+
+| Maßnahme | Gierig nach Harmonie: Ränge bis Hain / Urwald | Gierig nach Wachstum: Ränge bis Hain / Urwald | Zufällig: Ränge bis Hain / Urwald |
+|---|---|---|---|
+| 🍂 Laub liegen lassen | 1,00 / 2,00 | 1,00 / 2,00 | 1,00 / 2,00 |
+| 🏠 Nistkästen | 1,00 / 2,00 | 1,00 / 2,00 | 1,00 / 2,00 |
+| 🌼 Wildblumen-Saum | 1,66 / 2,98 | 0,20 / 1,66 | 1,95 / 3,00 |
+| 🪵 Totholzhaufen | 1,00 / 2,00 | 0,76 / 2,00 | 1,00 / 2,00 |
+| ☀️ Lichte Krone | 0,94 / 1,68 | 0,60 / 1,26 | 0,18 / 0,52 |
+| 🌳 Dichte Krone | 0,01 / 0,06 | 0,08 / 0,32 | 0,81 / 2,42 |
+| 💧 Waldtümpel | 0,28 / 1,98 | 0,14 / 1,44 | 0,98 / 2,00 |
+| 🐝 Insektenhotel | 1,00 / 2,89 | 0,94 / 1,92 | 0,97 / 2,96 |
+
+Bewertung: Pflege ist die Samen-Senke – der Bestand beim Hain fällt beim Harmonie-Spieler
+von ~25 auf ~4 Minuten Produktion, im Wald von ~33 auf ~5. Das Tempo ändert sich kaum
+(Hain 45:44 → 43:18 min), die Harmonie steigt um ~5. Harmonie- und Wachstums-Spieler
+setzen andere Schwerpunkte (Wildblumen-Saum, Waldtümpel); die Dichte Krone wählt fast
+nur der Zufall.
+
+#### Stand Schritt 2.7 – Inhalte: Pflegemaßnahmen im Modell (500 Durchgänge, historisch)
+
+`runGame(…, { events: true, care: true })`: Pflege kommt zu Ereignissen und Gästen
+(Stand 2.4) hinzu; verglichen wird mit und ohne Pflege. Modell (`scripts/extras.ts`):
+
+- Gekaufte Ränge wirken wie die Zyklus-Wirkungen der Ereignisse (Faktoren auf die
+  echten Raten). `slot` und `habitat` wirken im Modell nicht – das Modell unterschätzt
+  den Nutzen, die echte Logik wird etwas schneller sein.
+- Strategie: Pflanzen haben Vorrang (für eine geplante Pflanze wird zurückgelegt).
+  Bewertende Strategien sparen auf den Rang mit dem besten Wert je Samen (Wachstums-
+  Sekunden + 0,4 × Samen-Sekunden über 30 min; Platz pauschal +3 %, Merkmal +2 %) und
+  kaufen, sobald es reicht. Der Zufallsspieler nimmt einen beliebigen, je Zustand
+  festen Rang.
+
+| Strategie | Pflege | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | 🌰-Bestand beim Hain (min Produktion) | im Wald | für Pflege bis Hain / Wald | Ränge bis Hain / Urwald |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Gierig nach Harmonie | ohne | 17:17 min | 46:34 min | 1:19 h | 1:55 h | 98,7 | 14674 (26,0) | 43434 (37,4) | – | – |
+| Gierig nach Wachstum | ohne | 14:25 min | 37:01 min | 1:04 h | 1:34 h | 94,3 | 10186 (22,6) | 30321 (33,7) | – | – |
+| Zufällig | ohne | 23:40 min | 1:12 h | 2:14 h | 3:14 h | 73,0 | 32172 (48,5) | 94266 (76,5) | – | – |
+| Gierig nach Harmonie | **mit** | 17:17 min | **44:45 min** | 1:15 h | 1:50 h | 98,7 | **2918 (5,2)** | **6923 (6,0)** | 14532 / 48692 | 6,9 / 15,3 |
+| Gierig nach Wachstum | **mit** | 14:26 min | 36:44 min | 1:02 h | 1:31 h | 94,3 | 1760 (3,9) | 3222 (3,6) | 8768 / 28455 | 5,0 / 12,8 |
+| Zufällig | **mit** | 23:40 min | 1:11 h | 2:08 h | 2:57 h | 73,0 | 17082 (25,8) | 44170 (35,9) | 19472 / 65818 | 7,9 / 16,9 |
+
+| Maßnahme | Gierig nach Harmonie: Ränge bis Hain / Urwald | Gierig nach Wachstum | Zufällig |
+|---|---|---|---|
+| 🍂 Laub liegen lassen | 1,00 / 2,00 | 1,00 / 1,99 | 1,00 / 2,00 |
+| 🏠 Nistkästen | 1,00 / 2,00 | 1,00 / 2,00 | 1,00 / 2,00 |
+| 🌼 Wildblumen-Saum | 1,65 / 2,92 | 0,21 / 1,94 | 1,97 / 3,00 |
+| 🪵 Totholzhaufen | 1,00 / 2,00 | 0,75 / 2,00 | 1,00 / 2,00 |
+| ☀️ Lichte Krone | 0,84 / 1,29 | 0,49 / 0,57 | 0,17 / 0,51 |
+| 🌳 Dichte Krone | 0,15 / 0,45 | 0,50 / 1,10 | 0,83 / 2,46 |
+| 💧 Waldtümpel | 0,26 / 1,90 | 0,06 / 1,34 | 1,00 / 2,00 |
+| 🐝 Insektenhotel | 0,98 / 2,75 | 0,95 / 1,86 | 0,97 / 2,99 |
+
+Vorher (Entwurf der Kosten mit ~½ der Preise vor dem Hain, 200 Durchgänge): alles vor dem
+Hain wurde gekauft, Hain nach 44:02 min (0,73 × Ziel) ohne Ereignisse – zu schnell und
+keine Wahl. Darum kosten die Ränge vor dem Hain jetzt 600–6.000 🌰 (Summe 19.700).
+
+**Bewertung**
+
+- **Ziel erreicht:** Samen haben ab dem Alten Baum durchgehend Verwendung; der Bestand
+  des Harmonie-Spielers bleibt bei 4–8 Minuten Produktion (30/60/90 min: 3,9 / 4,8 /
+  7,6 min bei 200 Durchgängen) statt 17 → 35 Minuten.
+- **Tempo:** Hain 44:45 min = 0,75 × Ziel (Korridor 0,7–1,3), 4 % schneller als ohne
+  Pflege. Weil `slot`/`habitat` nicht modelliert sind, wird die echte Logik eher bei
+  0,72–0,74 liegen – der offene Wechsel auf `WAYPOINT_BASE` 4 (15.4, Schritt 2.2) würde
+  wieder Luft schaffen.
+- **Kein Pflichtkauf:** Die billigen ersten Ränge (Laub, Nistkästen, Insektenhotel)
+  kauft jede bewertende Strategie, weil Ränge billig und Plätze/Merkmale pauschal
+  bewertet sind; danach trennen sich die Wege (Wildblumen, Tümpel, Krone). Im Spiel
+  entscheidet die echte Wirkung der Plätze und Merkmale – nach der Logik neu messen.
+- **Zufallsspieler** profitiert wenig: Er kauft wahllos und behält ~26 Minuten Reserve.
+- **Harmonie** beim Hain unverändert (98,7): Die Harmonie-Wirkungen der Pflege kommen
+  vor allem nach dem Hain.
+
+`tests/balance.test.ts` prüft: deterministisch, Samen nie negativ, Bestand (in Minuten
+Produktion) beim Hain und im Wald für Harmonie- und Wachstums-Spieler höchstens halb so
+groß wie ohne und unter 10 min, Hain 0,7–1,3 × Ziel und höchstens 10 % schneller als
+ohne Pflege, mindestens zwei Maßnahmen mit verschiedenem Schwerpunkt der beiden
+Strategien, beide Kronen kommen vor.
 
 #### Stand Begegnungs-Vielfalt (500 Durchgänge je Strategie)
 

@@ -10,6 +10,7 @@ import {
   NO_WATER_GROUP,
   RARITY_BOOST_POINTS,
 } from '../content/abilities';
+import { CARE, type CareCycleEffect } from '../content/care';
 import { COMMUNITIES, type CommunityMember } from '../content/communities';
 import { DECLINE_SEEDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
 import { SEED_SECONDS_MIN_SEEDS } from '../content/events';
@@ -95,13 +96,34 @@ export interface SlotBonus {
 }
 
 /** Laufender Zyklus, soweit evaluate ihn braucht (fehlt er, gibt es keine Zusatz-Wirkungen). */
-export type CycleExtras = Partial<Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats'>>;
+export type CycleExtras = Partial<Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats' | 'care'>>;
 
-/** Zusatz-Wirkungen des Zyklus: Zyklus-Boni, aktive Zeit-Boni, Wirkungen bewirteter Gäste. */
+/**
+ * Wirkungen der gekauften Pflege-Ränge (DESIGN_V2.md 8.2): je Maßnahme die Ränge
+ * 0 … care[id]−1. Unbekannte IDs und unsinnige Ränge zählen nicht.
+ */
+export function careEffects(care: Readonly<Record<string, number>> | undefined): { effects: CareCycleEffect[]; habitats: Tag[] } {
+  const effects: CareCycleEffect[] = [];
+  const habitats: Tag[] = [];
+  if (!care) return { effects, habitats };
+  for (const measure of CARE) {
+    const ranks = Math.min(measure.ranks.length, Math.max(0, Math.floor(finite(care[measure.id] ?? 0))));
+    for (let r = 0; r < ranks; r++) {
+      for (const e of measure.ranks[r]!.effects) {
+        if (e.kind === 'cycle') effects.push(e.effect);
+        else habitats.push(e.tag);
+      }
+    }
+  }
+  return { effects, habitats };
+}
+
+/** Zusatz-Wirkungen des Zyklus: Zyklus-Boni, Pflege, aktive Zeit-Boni, Wirkungen bewirteter Gäste. */
 export function cycleEffects(cycle: CycleExtras | undefined): Effect[] {
   const out: Effect[] = [];
   if (!cycle) return out;
   for (const b of cycle.bonuses ?? []) out.push(b.effect);
+  out.push(...careEffects(cycle.care).effects);
   for (const t of cycle.timed ?? []) if (t.remaining > 0) out.push(t.effect);
   for (const v of cycle.visitors ?? []) {
     const visitor = VISITORS_BY_ID.get(v.id);
@@ -110,9 +132,9 @@ export function cycleEffects(cycle: CycleExtras | undefined): Effect[] {
   return out;
 }
 
-/** Zusätzliche Plätze aus Zyklus-Boni (z. B. Sturmnacht: +1 Höhlen & Totholz). */
+/** Zusätzliche Plätze aus Zyklus-Boni und Pflege (z. B. Sturmnacht: +1 Höhlen & Totholz). */
 export function cycleSlotBonuses(cycle: CycleExtras | undefined): SlotBonus[] {
-  return slotBonusesOf((cycle?.bonuses ?? []).map((b) => b.effect));
+  return slotBonusesOf([...(cycle?.bonuses ?? []).map((b) => b.effect), ...careEffects(cycle?.care).effects]);
 }
 
 /** Platz-Wirkungen unter den Zusatz-Wirkungen. */
@@ -138,7 +160,7 @@ export function ecosystemOf(
     plants: patch.plants ?? state.plants,
     forestMemory: state.meta.forestMemory,
     extraEffects: cycleEffects(state.cycle),
-    habitats: state.cycle?.habitats ?? [],
+    habitats: [...(state.cycle?.habitats ?? []), ...careEffects(state.cycle?.care).habitats],
     guestGenera: genera,
   };
 }
@@ -572,6 +594,9 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     // Hüter der Feuchte: Moose & Farne brauchen kein Wasser (Moos speichert weiter).
     waterNeed += abilities.has('mossNoWater') && p.group === NO_WATER_GROUP ? Math.min(0, p.water) : p.water;
   }
+  // Negative Wirkungen (Dichte Krone: −2 ☀️) drücken Licht und Wasser nie unter 0.
+  light = Math.max(0, light);
+  water = Math.max(0, water);
   let supply = 1;
   if (lightNeed > 0) supply = Math.min(supply, light / lightNeed);
   if (waterNeed > 0) supply = Math.min(supply, water / waterNeed);
@@ -684,6 +709,8 @@ function ecosystemKey(state: GameState): string {
     key += `|h:${(c.habitats ?? []).join(',')}|v:${(c.visitors ?? []).map((v) => v.id).join(',')}`;
     if ((c.bonuses ?? []).length > 0) key += `|b:${JSON.stringify(c.bonuses.map((b) => b.effect))}`;
     if ((c.timed ?? []).length > 0) key += `|t:${JSON.stringify(c.timed.map((t) => t.effect))}`;
+    const care = Object.entries(c.care ?? {}).filter(([, r]) => r > 0);
+    if (care.length > 0) key += `|c:${care.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([id, r]) => `${id}=${r}`).join(',')}`;
   }
   return key;
 }
