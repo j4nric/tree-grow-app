@@ -80,7 +80,7 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 - [x] 2.2 Alle 5 Gattungen, 32 Arten, Gattungsboni, Seltenheit, Fähigkeiten (`game-designer` + `core-engineer`)
 - [x] 2.3 Lebensgemeinschaften, vollständige Harmonie (`game-designer`)
 - [x] 2.4 Ereignisse mit Wahl, Durchreisende (`core-engineer` + `game-designer`)
-  - [x] Inhalte: 10 Ereignisse (`src/content/events.ts`), 8 Durchreisende
+  - [x] Inhalte: 10 Ereignisse (seit Phase 3: 14) (`src/content/events.ts`), 8 Durchreisende
     (`src/content/visitors.ts`), Gewichte und Zwischenhalt ab Hain (`encounters.ts`),
     grobes Modell im Simulator (`scripts/extras.ts`), DESIGN_V2.md 7.2/7.4/7.5 (`game-designer`)
   - [x] Logik nach Umsetzungsnotiz DESIGN_V2.md 7.8 (SAVE_VERSION 5), Simulator auf echte
@@ -135,7 +135,10 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     Gesamtspielzeit über alle Zyklen bräuchte ein neues Spielstand-Feld – siehe
     „Langzeit-Statistik“ in Phase 4.
 - [ ] Gattung Amphibien mit Waldtümpel (Erdkröte, Bergmolch) als Erweiterung (`game-designer`)
-- [ ] Winter-Ereignis „Schneebruch“ und weitere Ereignisse je Jahreszeit (`game-designer` + `core-engineer`)
+- [x] Winter-Ereignis „Schneebruch“ und weitere Ereignisse je Jahreszeit (`game-designer`) – 4 neue
+  Ereignisse nur mit vorhandenen Wirkungstypen (keine Logik, kein neues Spielstand-Format):
+  Spätfrost (Frühling), Hitzewelle (Sommer), Laubfall (Herbst), Schneebruch (Winter);
+  DESIGN_V2.md 7.4 und 16.4
 
 ## Phase 4 – Prestige & Langzeitspiel
 

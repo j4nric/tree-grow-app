@@ -294,9 +294,9 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
     expect(VISITORS_BY_ID.size).toBe(VISITORS.length);
   });
 
-  it('8–10 Ereignisse mit Name, Symbol, Text und 2–3 Optionen', () => {
+  it('8–16 Ereignisse mit Name, Symbol, Text und 2–3 Optionen', () => {
     expect(EVENTS.length).toBeGreaterThanOrEqual(8);
-    expect(EVENTS.length).toBeLessThanOrEqual(10);
+    expect(EVENTS.length).toBeLessThanOrEqual(16);
     for (const e of EVENTS) {
       expect(e.name.length, e.id).toBeGreaterThan(0);
       expect(e.icon.length, e.id).toBeGreaterThan(0);
@@ -703,6 +703,14 @@ describe('Jahreszeiten: Inhalte (DESIGN_V2.md 16)', () => {
       expect(EVENTS.some((e) => e.minStage <= 3 && !e.appears && inSeason(EVENT_SEASONS, e.id)), s).toBe(true);
       expect(VISITORS.some((v) => v.minStage <= INTERLUDE_STAGE && !v.appears && inSeason(VISITOR_SEASONS, v.id)), s).toBe(true);
     }
+  });
+
+  it('jede Jahreszeit hat ein eigenes Ereignis ab Junger Baum ohne Bedingung (DESIGN_V2.md 16.4)', () => {
+    for (const s of SEASON_IDS) {
+      const own = EVENTS.filter((e) => e.minStage <= 3 && !e.appears && EVENT_SEASONS[e.id]?.length === 1 && EVENT_SEASONS[e.id]![0] === s);
+      expect(own.length, s).toBeGreaterThanOrEqual(1);
+    }
+    expect(EVENT_SEASONS['snow-break']).toEqual(['winter']);
   });
 });
 

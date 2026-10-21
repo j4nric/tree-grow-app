@@ -141,6 +141,63 @@ export const EVENTS: readonly GameEvent[] = [
       { label: 'Pilze sammeln', summary: '1½ min 🌰 sofort', effects: [{ kind: 'seedsNow', seconds: 90 }] },
     ],
   },
+  // Jahreszeiten-Ereignisse (EVENT_SEASONS in seasons.ts, DESIGN_V2.md 16.4)
+  {
+    id: 'late-frost', name: 'Spätfrost', icon: '🧊', minStage: 3,
+    text: 'Eine klare Mainacht – der Frost hat die jungen Blätter geschwärzt.',
+    options: [
+      {
+        label: 'Neu austreiben lassen', summary: '+30 % 🌿 für 5 min',
+        effects: [{ kind: 'timed', seconds: 300, effect: { kind: 'growth', pct: 30 } }],
+      },
+      {
+        label: 'Den Frühblühern das Licht lassen', summary: 'Blumen +60 % 🌿 für 8 min',
+        effects: [{ kind: 'timed', seconds: 480, effect: { kind: 'groupGrowth', group: 'flowers', pct: 60 } }],
+      },
+      { label: 'Reserven schonen', summary: '1½ min 🌰 sofort', effects: [{ kind: 'seedsNow', seconds: 90 }] },
+    ],
+  },
+  {
+    id: 'heatwave', name: 'Hitzewelle', icon: '🌡️', minStage: 3,
+    text: 'Wochenlang kein Regen – schon im Juli rascheln die ersten gelben Blätter.',
+    options: [
+      // Hydraulischer Lift: Tiefe Wurzeln heben nachts Wasser in den trockenen Oberboden.
+      { label: 'Tiefer wurzeln', summary: '+2 💧 (Zyklus)', effects: [{ kind: 'cycle', effect: { kind: 'water', amount: 2 } }] },
+      {
+        label: 'Früh reifen lassen', summary: '+50 % 🌰 für 6 min',
+        effects: [{ kind: 'timed', seconds: 360, effect: { kind: 'seeds', pct: 50 } }],
+      },
+    ],
+  },
+  {
+    id: 'leaf-fall', name: 'Laubfall', icon: '🍁', minStage: 3,
+    text: 'Ein Herbststurm hat die Krone geleert – knöcheltief liegt das Laub.',
+    options: [
+      {
+        label: 'Laub liegen lassen', summary: 'nächste Begegnung: Laubbewohner',
+        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['hedgehog', 'earthworm', 'woodlouse', 'centipede'] }],
+      },
+      { label: 'Zu Humus werden lassen', summary: '+4 ⚖️ (Zyklus)', effects: [{ kind: 'cycle', effect: { kind: 'harmony', points: 4 } }] },
+    ],
+  },
+  {
+    id: 'snow-break', name: 'Schneebruch', icon: '🌨️', minStage: 3,
+    text: 'Nasser Schnee lastet auf der Krone – krachend bricht ein Ast.',
+    options: [
+      {
+        label: 'Totholz liegen lassen', summary: 'Totholz, nächste Begegnung: Totholzbewohner',
+        effects: [
+          { kind: 'habitat', tag: 'totholz' },
+          { kind: 'nextEncounter', type: 'animal', ids: ['tinder', 'woodlouse', 'woodpecker', 'stagbeetle'] },
+        ],
+      },
+      {
+        label: 'Reisig aufschichten', summary: '+1 Platz Laubstreu (Zyklus)',
+        effects: [{ kind: 'cycle', effect: { kind: 'slot', niche: 'litter', amount: 1 } }],
+      },
+      { label: 'Äste räumen', summary: '2 min 🌰 sofort', effects: [{ kind: 'seedsNow', seconds: 120 }] },
+    ],
+  },
   // --- ab Alter Baum ----------------------------------------------------------
   {
     id: 'windthrow', name: 'Windwurf', icon: '🌪️', minStage: 4,

@@ -142,7 +142,9 @@ export const VISITOR_SEASONS: Readonly<Record<string, readonly SeasonId[]>> = {
 /**
  * Ereignisse, die nur in bestimmten Jahreszeiten kommen (fehlt eins: ganzjährig).
  * Prüfung wie bei VISITOR_SEASONS. Sturm, Windwurf, Blitz und Vogelsaat bleiben ganzjährig,
- * damit in jeder Jahreszeit Ereignisse in Frage kommen.
+ * damit in jeder Jahreszeit Ereignisse in Frage kommen. Dazu hat jede Jahreszeit ein
+ * eigenes Ereignis ab Junger Baum ohne Bedingung (Spätfrost, Hitzewelle, Laubfall,
+ * Schneebruch).
  */
 export const EVENT_SEASONS: Readonly<Record<string, readonly SeasonId[]>> = {
   rain: ['spring'], // „Regenreicher Frühling“
@@ -151,4 +153,8 @@ export const EVENT_SEASONS: Readonly<Record<string, readonly SeasonId[]>> = {
   'mast-year': ['autumn'], // Eicheln reifen im Herbst
   'bee-swarm': ['spring', 'summer'], // Schwarmzeit Mai bis Juli
   'ant-trail': ['spring', 'summer', 'autumn'], // Waldameisen ruhen im Winter
+  'late-frost': ['spring'], // „Eisheilige“: Frostnächte bis Mitte Mai
+  heatwave: ['summer'],
+  'leaf-fall': ['autumn'],
+  'snow-break': ['winter'], // Nassschnee bricht Äste
 };
