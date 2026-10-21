@@ -57,25 +57,35 @@ const throwing = {
 };
 
 describe('Einstellungen', () => {
-  it('Standard: Automatisch, kurz, normale Hinweisdauer', () => {
+  it('Standard: Automatisch, kurz, normale Hinweisdauer, Klang aus', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
-    expect(DEFAULT_SETTINGS).toEqual({ motion: 'auto', numbers: 'short', longToasts: false });
+    expect(DEFAULT_SETTINGS).toEqual({ motion: 'auto', numbers: 'short', longToasts: false, sound: 'off' });
   });
 
   it('robust: kaputtes JSON und unbekannte Werte → Standard (feldweise)', () => {
     expect(parseSettings('{kaputt')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('[1,2]')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('"on"')).toEqual(DEFAULT_SETTINGS);
-    expect(parseSettings(JSON.stringify({ motion: 'turbo', numbers: 'long', longToasts: 'ja' }))).toEqual({
+    expect(parseSettings(JSON.stringify({ motion: 'turbo', numbers: 'long', longToasts: 'ja', sound: 'laut' }))).toEqual({
       motion: 'auto',
       numbers: 'long',
       longToasts: false,
+      sound: 'off',
+    });
+    // Ältere Einstellungen ohne Klang: Klang bleibt aus, der Rest bleibt erhalten.
+    expect(parseSettings(JSON.stringify({ motion: 'on', numbers: 'short', longToasts: true }))).toEqual({
+      motion: 'on',
+      numbers: 'short',
+      longToasts: true,
+      sound: 'off',
     });
   });
 
   it('Roundtrip über serializeSettings', () => {
-    const s = { motion: 'on' as const, numbers: 'long' as const, longToasts: true };
-    expect(parseSettings(serializeSettings(s))).toEqual(s);
+    for (const sound of ['off', 'quiet', 'normal'] as const) {
+      const s = { motion: 'on' as const, numbers: 'long' as const, longToasts: true, sound };
+      expect(parseSettings(serializeSettings(s))).toEqual(s);
+    }
   });
 
   it('Bewegung reduzieren: An/Aus überschreiben das System, Automatisch folgt ihm', () => {
@@ -93,9 +103,9 @@ describe('Einstellungen', () => {
 
   it('Laden und Speichern, auch ohne funktionierenden Speicher', () => {
     const storage = memoryStorage();
-    saveSettings({ motion: 'off', numbers: 'long', longToasts: true }, storage);
+    saveSettings({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet' }, storage);
     expect(storage.data.get(SETTINGS_KEY)).toBeTruthy();
-    expect(loadSettings(storage)).toEqual({ motion: 'off', numbers: 'long', longToasts: true });
+    expect(loadSettings(storage)).toEqual({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet' });
     expect(loadSettings(throwing)).toEqual(DEFAULT_SETTINGS);
     expect(() => saveSettings(DEFAULT_SETTINGS, throwing)).not.toThrow();
     expect(loadSettings(null)).toEqual(DEFAULT_SETTINGS);
@@ -246,6 +256,7 @@ describe('Spielanleitung', () => {
     // Früchte aller Hauptbaum-Arten (DESIGN_V2.md 17).
     for (const fruit of ['Eichel', 'Buchecker', 'Kiefernsamen']) expect(text('cycle')).toContain(fruit);
     expect(text('seasons')).toContain(`${formatNumber(SEASON_SECONDS / 60)} Minuten`);
+    expect(text('seasons')).toContain('⚙️ Einstellungen → Klang');
     for (const season of SEASONS) expect(text('seasons')).toContain(season.summary);
   });
 });

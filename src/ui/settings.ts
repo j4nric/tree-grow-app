@@ -1,6 +1,6 @@
 /**
  * Einstellungen der Oberfläche (nicht Teil des Spielstands): Bewegung, Zahlenformat,
- * Dauer der Hinweise. Gespeichert in localStorage unter eigenem Schlüssel – „Spielstand
+ * Dauer der Hinweise, Klang. Gespeichert in localStorage unter eigenem Schlüssel – „Spielstand
  * löschen“ und Export/Import berühren sie nicht.
  *
  * Reine Funktionen (plus robustes Laden/Speichern) – getestet in tests/settings.test.ts.
@@ -10,18 +10,27 @@ import type { NumberStyle } from './format';
 /** Bewegung reduzieren: automatisch (prefers-reduced-motion), immer an oder immer aus. */
 export type MotionSetting = 'auto' | 'on' | 'off';
 
+/** Klangkulisse: aus (Standard), leise oder normal. */
+export type SoundLevel = 'off' | 'quiet' | 'normal';
+
 export interface Settings {
   motion: MotionSetting;
   numbers: NumberStyle;
   /** Hinweise (Toasts) länger anzeigen. */
   longToasts: boolean;
+  sound: SoundLevel;
 }
 
 export const SETTINGS_KEY = 'tree-grow-settings';
 /** Merker: Der Hinweis „Neu hier? Spielanleitung öffnen“ wurde schon gezeigt. */
 export const GUIDE_HINT_KEY = 'tree-grow-guide-hint-seen';
 
-export const DEFAULT_SETTINGS: Readonly<Settings> = { motion: 'auto', numbers: 'short', longToasts: false };
+export const DEFAULT_SETTINGS: Readonly<Settings> = {
+  motion: 'auto',
+  numbers: 'short',
+  longToasts: false,
+  sound: 'off',
+};
 
 /** Anzeigedauer der Hinweise (Toasts) in ms. */
 export const TOAST_MS = 6000;
@@ -29,6 +38,7 @@ export const LONG_TOAST_MS = 12000;
 
 const MOTIONS: readonly MotionSetting[] = ['auto', 'on', 'off'];
 const NUMBER_STYLES: readonly NumberStyle[] = ['short', 'long'];
+export const SOUND_LEVELS: readonly SoundLevel[] = ['off', 'quiet', 'normal'];
 
 /** Liest gespeicherte Einstellungen; Unbekanntes oder Kaputtes → Standard (feldweise). */
 export function parseSettings(raw: string | null | undefined): Settings {
@@ -43,11 +53,17 @@ export function parseSettings(raw: string | null | undefined): Settings {
     motion: MOTIONS.includes(record.motion as MotionSetting) ? (record.motion as MotionSetting) : DEFAULT_SETTINGS.motion,
     numbers: NUMBER_STYLES.includes(record.numbers as NumberStyle) ? (record.numbers as NumberStyle) : DEFAULT_SETTINGS.numbers,
     longToasts: typeof record.longToasts === 'boolean' ? record.longToasts : DEFAULT_SETTINGS.longToasts,
+    sound: SOUND_LEVELS.includes(record.sound as SoundLevel) ? (record.sound as SoundLevel) : DEFAULT_SETTINGS.sound,
   };
 }
 
 export function serializeSettings(settings: Settings): string {
-  return JSON.stringify({ motion: settings.motion, numbers: settings.numbers, longToasts: settings.longToasts });
+  return JSON.stringify({
+    motion: settings.motion,
+    numbers: settings.numbers,
+    longToasts: settings.longToasts,
+    sound: settings.sound,
+  });
 }
 
 /** Wirksame Einstellung „weniger Bewegung“: „auto“ folgt dem System. */
