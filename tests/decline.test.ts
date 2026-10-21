@@ -61,11 +61,36 @@ describe('declineReward: Samen-Sekunden', () => {
     expect(rates.size).toBeGreaterThan(1);
   });
 
-  it('immer endlich und mindestens 5 🌰, auch bei riesigen Raten', () => {
+  it('auf jeder Stufe endlich und mindestens 5 🌰', () => {
     for (let stage = 0; stage <= 7; stage++) {
       const r = declineReward(stateAt(stage));
       expect(Number.isFinite(r)).toBe(true);
       expect(r).toBeGreaterThanOrEqual(SEED_SECONDS_MIN_SEEDS);
+    }
+  });
+
+  it('kaputter Zustand (Rate Infinity oder NaN): Untergrenze statt Unsinn; riesige Rate bleibt endlich', () => {
+    // Ein unsinniger Harmonie-Bonus treibt die Samenrate auf Infinity, NaN bzw. ~1e305.
+    const broken = (points: number): GameState => {
+      const state = grove();
+      state.cycle.bonuses.push({ source: 'test', effect: { kind: 'harmony', points } });
+      return state;
+    };
+    const inf = broken(Infinity);
+    expect(seedSecondsRate(inf)).toBe(Infinity);
+    expect(declineReward(inf)).toBe(SEED_SECONDS_MIN_SEEDS);
+    const huge = broken(1e308);
+    expect(seedSecondsRate(huge)).toBeGreaterThan(1e300);
+    expect(Number.isFinite(declineReward(huge))).toBe(true);
+    // Nach `huge`: Infinity und NaN haben im Raten-Cache denselben Schlüssel (JSON: null).
+    const nan = broken(NaN);
+    expect(seedSecondsRate(nan)).toBeNaN();
+    expect(declineReward(nan)).toBe(SEED_SECONDS_MIN_SEEDS);
+    // Ablehnen von Hand schreibt dann nur endliche Samen gut.
+    for (const state of [inf, nan, huge]) {
+      state.pendingEncounters = [card(['bee'])];
+      declineEncounter(state, 0);
+      expect(Number.isFinite(state.seeds)).toBe(true);
     }
   });
 });

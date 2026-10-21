@@ -1821,10 +1821,10 @@ Empfehlungen (Stand 20.10.2026):
     Entscheidung in den ersten 6 min 1:41 → 1:08 min (Harmonie-Spieler), Tempo und
     Verhältnisse unverändert. (b) Ablehnen bringt künftig 10 Samen-Sekunden, mindestens
     5 🌰 – überall, wo bisher fest 5 🌰 gutgeschrieben wurden (von Hand, Stapel voll online
-    und offline, keine Karte); umgesetzt (7.9). (c) Die Harmoniestufe ab 120 heißt „Ursprüngliche Wildnis“ statt „Urwald“ –
-    die Wachstumsstufe gleichen Namens bleibt; kein Erfolg nennt die Harmoniestufe
-    („Uralt und voller Leben“ meint die Wachstumsstufe), Spielstand unberührt (die Stufe
-    ist reine Anzeige).
+    und offline, keine Karte); umgesetzt (7.9). (c) Die Harmoniestufe ab 120 heißt
+    „Ursprüngliche Wildnis“ statt „Urwald“ – die Wachstumsstufe gleichen Namens bleibt;
+    kein Erfolg nennt die Harmoniestufe („Uralt und voller Leben“ meint die
+    Wachstumsstufe), Spielstand unberührt (die Stufe ist reine Anzeige).
 
 Weitere Designentscheidungen trifft das Team selbst und dokumentiert sie hier bzw. in den
 PR-Beschreibungen.
@@ -2305,8 +2305,8 @@ vorher 107,0 gegen 105,5), mit 40 Durchgängen schwankt der Abstand je Seed-Fens
 mehrere Punkte (8 Fenster, vorher −2,9 bis +4,9, nachher −3,8 bis +3,3). Der große Lauf
 prüft weiter ≥ 1 Punkt Vorsprung, der Check nur, dass niemand 5 Punkte vorn liegt.
 
-**Ablehnen nach Samen-Sekunden:** umgesetzt (7.9). Vorab
-einem vorläufigen Patch gemessen: bis zum Hain 113 statt 12 🌰 durch Ablehnen
+**Ablehnen nach Samen-Sekunden:** umgesetzt (7.9). Vorab mit einem vorläufigen Patch
+gemessen: bis zum Hain 113 statt 12 🌰 durch Ablehnen
 (Harmonie-Spieler), Tempo unverändert.
 
 #### Stand Schritt 2.11b – gleitende Schwelle beim Neustart (Neustart 100 Durchgänge)

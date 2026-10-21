@@ -78,7 +78,7 @@ import {
 } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
 import { memoryBonusLabel, treeLabel } from './cycle-view';
-import { RARITY_LABELS, formatSigned, formatSignedPercent, preferredReplaceOption, waitingText } from './view-format';
+import { RARITY_LABELS, formatSigned, formatSignedPercent, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
 import type {
   ActiveBonusView,
@@ -1696,10 +1696,8 @@ export function welcomeText(
 // Ereignisse und Durchreisende (Schritt 2.4)
 // ---------------------------------------------------------------------------
 
-/** Samen für Knöpfe und Karten: ganze Zahlen, darunter eine Nachkommastelle. */
-export function seedsLabel(seeds: number): string {
-  return formatNumber(seeds >= 10 ? Math.round(seeds) : Math.round(seeds * 10) / 10);
-}
+/** Samen für Knöpfe und Karten – der Helfer liegt in view-format.ts (auch für declineLabel). */
+export { seedsLabel };
 
 /** Relative Änderung (0,05 = +5 %); 0, wenn vorher nichts da war. */
 function relative(after: number, before: number): number {
