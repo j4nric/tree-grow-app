@@ -3,7 +3,7 @@
  * Getestet in tests/ui-view.test.ts.
  */
 import { formatNumber } from './format';
-import type { PreviewView, Rarity, ReplaceOptionView, Tone } from './view-model';
+import type { EncounterView, PreviewView, Rarity, ReplaceOptionView, Tone } from './view-model';
 
 export const RARITY_LABELS: Record<Rarity, string> = {
   common: 'gewöhnlich',
@@ -68,27 +68,32 @@ export interface PreviewPart {
 }
 
 /**
- * Vorschau einer Karte als Liste von Zeilen.
- * Harmonie und Wachstum erscheinen immer, Samen nur wenn angegeben und ≠ 0,
- * Zufriedenheit nur bei Tieren.
+ * Vorschau einer Karte als Liste von Zeilen. Einheitliche Regel für alle Karten (Tiere,
+ * Pflanzen, Ereignis-Optionen, Gäste): Änderungen (Harmonie, Wachstum, Samen) erscheinen
+ * nur, wenn sie in der Anzeige ≠ 0 sind – kein „±0“-Chip. Zustände (Zufriedenheit bei
+ * Tieren, Versorgung bei Pflanzen) stehen immer da. Ohne Änderung → Chip „keine Änderung“
+ * (siehe `previewChips`) bzw. bei Ereignis-Optionen und Gästen keine Vorschau.
  */
 export function previewParts(preview: PreviewView): PreviewPart[] {
-  const parts: PreviewPart[] = [
-    {
+  const parts: PreviewPart[] = [];
+  if (toneOf(preview.harmonyDelta) !== 'neutral') {
+    parts.push({
       key: 'harmony',
       icon: '⚖️',
       value: formatSigned(preview.harmonyDelta),
       text: `Harmonie ${formatSigned(preview.harmonyDelta)}`,
       tone: toneOf(preview.harmonyDelta),
-    },
-    {
+    });
+  }
+  if (percentToneOf(preview.growthDelta) !== 'neutral') {
+    parts.push({
       key: 'growth',
       icon: '🌿',
       value: formatSignedPercent(preview.growthDelta),
       text: `Wachstum ${formatSignedPercent(preview.growthDelta)}`,
       tone: percentToneOf(preview.growthDelta),
-    },
-  ];
+    });
+  }
   if (preview.seedDelta !== undefined && percentToneOf(preview.seedDelta) !== 'neutral') {
     parts.push({
       key: 'seeds',
@@ -119,6 +124,27 @@ export function previewParts(preview: PreviewView): PreviewPart[] {
     });
   }
   return parts;
+}
+
+/** Vorschau ohne jede Änderung an Harmonie, Wachstum und Samen. */
+export const NO_CHANGE_TEXT = 'keine Änderung an Harmonie, Wachstum und Samen';
+
+/** Teile, die eine Änderung beschreiben (im Gegensatz zu Zuständen wie Zufriedenheit). */
+const CHANGE_KEYS: ReadonlySet<PreviewPart['key']> = new Set(['harmony', 'growth', 'seeds']);
+
+/** Ändert die Wahl etwas an Harmonie, Wachstum oder Samen (gerundet ≠ 0)? */
+export function hasPreviewChanges(parts: readonly PreviewPart[]): boolean {
+  return parts.some((p) => CHANGE_KEYS.has(p.key));
+}
+
+/**
+ * Chips einer Tier-/Pflanzenkarte. Einheitliche Regel: Fehlt jede Änderung, steht vorn
+ * ein Chip „keine Änderung“ – auch wenn Zustands-Chips (Zufriedenheit, Versorgung) folgen,
+ * damit „ändert nichts“ nie mit „Vorschau fehlt“ verwechselt wird. 'none' = dieser Chip.
+ */
+export function previewChips(preview: PreviewView): Array<PreviewPart | 'none'> {
+  const parts = previewParts(preview);
+  return hasPreviewChanges(parts) ? parts : ['none', ...parts];
 }
 
 /** Stufe der Zufriedenheit für die Farbe des Rings. */
@@ -164,6 +190,11 @@ export function familyDescription(
     parts.push(`ab ${next}: ${nextBonus ?? ''}`.trim());
   }
   return parts.join(' · ');
+}
+
+/** „1 Begegnung wartet“ / „3 Begegnungen warten“. */
+export function waitingText(count: number): string {
+  return count === 1 ? '1 Begegnung wartet' : `${formatNumber(count)} Begegnungen warten`;
 }
 
 /** „noch 2 weitere Begegnungen warten“ – leer, wenn keine wartet. */
@@ -227,4 +258,57 @@ export function formatHarmonyPart(value: number): string {
 export function preferredReplaceOption(options: readonly ReplaceOptionView[]): ReplaceOptionView | undefined {
   const usable = options.filter((o) => !o.disabledReason);
   return usable.find((o) => !o.preview?.communities?.some((c) => c.tone === 'bad')) ?? usable[0];
+}
+
+// ---------------------------------------------------------------------------
+// Legende der Symbole im Kartenwahl-Dialog
+// ---------------------------------------------------------------------------
+
+export type LegendKey = 'harmony' | 'growth' | 'seeds' | 'happiness' | 'supply' | 'conditions' | 'tone';
+
+export interface LegendEntry {
+  key: LegendKey;
+  icon: string;
+  text: string;
+}
+
+/** Alle Einträge der Legende in fester Reihenfolge (Vorschau-Symbole, Haken/Kreuze, ▲/▼). */
+export const PREVIEW_LEGEND: readonly LegendEntry[] = [
+  { key: 'harmony', icon: '⚖️', text: 'Harmonie – mehr Harmonie lässt alles schneller wachsen' },
+  { key: 'growth', icon: '🌿', text: 'Wachstum pro Sekunde' },
+  { key: 'seeds', icon: '🌰', text: 'Samen pro Sekunde' },
+  { key: 'happiness', icon: '😊', text: 'erwartete Zufriedenheit des Tiers' },
+  { key: 'supply', icon: '☀️💧', text: 'Versorgung der Pflanzen mit Licht und Wasser' },
+  { key: 'conditions', icon: '✓ ✗', text: 'Futter und Wünsche erfüllt oder nicht' },
+  { key: 'tone', icon: '▲ ▼', text: 'Wirkung: Vorteil oder Nachteil' },
+];
+
+/**
+ * Nur die Legenden-Einträge, deren Symbole in dieser Begegnung wirklich vorkommen – in
+ * Vorschau-Chips, Kennzahlen, Wirkungszeilen oder Bedingungen. So erklärt die Legende bei
+ * einem Ereignis keine Zufriedenheit und keine Haken. Leer → Legende ausblenden.
+ */
+export function legendEntries(view: EncounterView): LegendEntry[] {
+  const found = new Set<LegendKey>();
+  const scan = (text: string) => {
+    if (text.includes('⚖️')) found.add('harmony');
+    if (text.includes('🌿')) found.add('growth');
+    // „+480 🌰 sofort“ ist ein Vorrat, keine Rate – nur Prozente zählen als „pro Sekunde“.
+    if (/%\s*🌰/.test(text)) found.add('seeds');
+    if (text.includes('☀️') || text.includes('💧')) found.add('supply');
+  };
+  for (const card of view.cards) {
+    const previews = [card.preview, ...(card.replaceOptions ?? []).map((o) => o.preview)];
+    for (const preview of previews) {
+      if (preview) for (const part of previewParts(preview)) found.add(part.key);
+    }
+    for (const fact of card.facts ?? []) scan(fact.icon);
+    for (const effect of card.effects) scan(effect.label);
+    if ((card.conditions?.length ?? 0) > 0 || (card.replaceOptions ?? []).some((o) => (o.conditions?.length ?? 0) > 0)) {
+      found.add('conditions');
+    }
+    // Ereignis-Optionen und Gäste markieren ihre Wirkungszeilen mit ▲/•/▼.
+    if ((view.kind === 'event' || view.kind === 'visitor') && card.effects.length > 0) found.add('tone');
+  }
+  return PREVIEW_LEGEND.filter((entry) => found.has(entry.key));
 }

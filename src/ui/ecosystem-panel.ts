@@ -6,6 +6,7 @@
  * nur, wenn neue Gattungen, Nischen oder Plätze hinzukommen (selten).
  */
 import { el, setAttr, setText, setVar, srOnly } from './dom';
+import { hyphenate } from './hyphenate';
 import { restartAnimation } from './feedback';
 import { formatNumber, formatRate } from './format';
 import type {
@@ -41,6 +42,8 @@ export interface EcosystemPanel {
 export interface EcosystemPanelCallbacks {
   /** „Pflanze setzen“ gedrückt: Auswahl öffnen. */
   onOpenPlantPicker?(): void;
+  /** „N Begegnungen warten – ansehen“ gedrückt: Kartenwahl-Dialog öffnen. */
+  onOpenEncounters?(): void;
 }
 
 interface PlantTile {
@@ -132,7 +135,20 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
   progress.append(bar);
   const progressHint = el('p', 'hint');
   progressHint.dataset.ref = 'progress-hint';
-  head.append(stage, progress, progressHint);
+  // Warten Begegnungen, steht statt des Countdowns ein Knopf, der den Stapel öffnet – auf
+  // dem Handy ist der Stapel in der Szene beim Lesen der Seitenleiste oft weggescrollt.
+  const pendingButton = el('button', 'pending-button');
+  pendingButton.type = 'button';
+  pendingButton.dataset.ref = 'pending-encounters';
+  pendingButton.setAttribute('aria-haspopup', 'dialog');
+  pendingButton.hidden = true;
+  const pendingIcon = el('span', 'pending-icon', '🐾');
+  pendingIcon.setAttribute('aria-hidden', 'true');
+  const pendingText = el('span', 'pending-text');
+  const pendingCta = el('span', 'pending-cta', 'ansehen');
+  pendingButton.append(pendingIcon, pendingText, pendingCta);
+  pendingButton.addEventListener('click', () => callbacks.onOpenEncounters?.());
+  head.append(stage, progress, progressHint, pendingButton);
 
   // Kennzahlen
   const stats = el('div', 'eco-stats');
@@ -314,7 +330,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
       }
       row.state = item.state;
       setText(row.icon, item.icon);
-      setText(row.name, item.name);
+      setText(row.name, hyphenate(item.name));
       const note =
         item.state === 'active' ? item.effects : (item.missingText ?? (item.discovered ? '' : (item.hint ?? '')));
       setText(row.note, note);
@@ -471,7 +487,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     if (tile.root.dataset.species !== animal.id) tile.root.dataset.species = animal.id;
     if (arrived || (firstFill && seenFirstUpdate)) restartAnimation(tile.root, 'arrive');
     setText(tile.icon, animal.familyIcon);
-    setText(tile.name, animal.name);
+    setText(tile.name, hyphenate(animal.name));
     const mood = `${formatPercent(happiness)} · ${animal.mood}`;
     setText(tile.mood, mood);
     // Lange Gründe sind optisch auf zwei Zeilen gekürzt – voller Text im Tooltip und per Tippen.
@@ -567,7 +583,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     tile.plantId = plant.id;
     if (tile.root.dataset.plant !== plant.id) tile.root.dataset.plant = plant.id;
     setText(tile.icon, plant.groupIcon);
-    setText(tile.name, plant.name);
+    setText(tile.name, hyphenate(plant.name));
     setText(tile.sub, plant.groupLabel);
   }
 
@@ -647,7 +663,14 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     const width = `${pct.toFixed(1)}%`;
     if (bar.style.width !== width) bar.style.width = width;
     setAttr(progress, 'aria-valuenow', String(Math.round(pct)));
+    const pending = callbacks.onOpenEncounters ? view.pendingEncounters : 0;
     setText(progressHint, view.progressHint);
+    progressHint.hidden = pending > 0;
+    pendingButton.hidden = pending <= 0;
+    if (pending > 0) {
+      setText(pendingText, view.progressHint);
+      setAttr(pendingButton, 'aria-label', `${view.progressHint} – ansehen`);
+    }
 
     setStatValue(growth.value, formatRate(view.growthPerSec));
     setText(growth.sub, `mit ⚖️ ${formatMultiplier(view.harmonyMultiplier)}`);

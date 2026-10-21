@@ -17,6 +17,7 @@
 import { sortCareViews } from './adapters';
 import { REPEAT_GUARD_MS, isDeliberateConfirm, isKeyRepeat } from './confirm';
 import { el, setText, srOnly } from './dom';
+import { hyphenate } from './hyphenate';
 import { prefersReducedMotion, restartAnimation } from './feedback';
 import { formatNumber } from './format';
 import { formatSigned, formatSignedPercent } from './view-format';
@@ -77,8 +78,8 @@ function narrowScreen(): boolean {
 }
 
 const GROUP_LABELS: Record<CareView['group'], string> = {
-  buyable: 'kaufbar',
-  saving: 'zu wenig Samen',
+  buyable: 'nächster Rang kaufbar',
+  saving: 'zu wenig Samen für den nächsten Rang',
   locked: 'gesperrt',
   maxed: 'voll ausgebaut',
 };
@@ -148,7 +149,7 @@ export function createCarePanel(root: HTMLElement, callbacks: CarePanelCallbacks
     const icon = el('span', 'care-icon', item.icon);
     icon.setAttribute('aria-hidden', 'true');
     const rank = el('small', 'care-rank', item.group === 'maxed' ? `✓ ${item.rank}` : item.rank);
-    head.append(icon, el('span', 'care-name', item.name), rank);
+    head.append(icon, el('span', 'care-name', hyphenate(item.name)), rank);
     if (item.group !== 'maxed') head.append(srOnly(` (${GROUP_LABELS[item.group]})`));
     li.append(head);
 

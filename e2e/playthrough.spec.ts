@@ -210,7 +210,10 @@ test.describe('Stufen-Banner', () => {
     await openGame(page);
     const banner = page.locator('#stage-banner');
     await expect(banner).toContainText('Hain');
-    const text = banner.locator('span');
+    // Der gleichzeitig freigeschaltete Erfolg steht im Banner (kein zweiter Hinweis daneben).
+    await expect(banner.locator('.stage-banner-extra')).toContainText('Nicht mehr allein');
+    await expect(page.locator('#toast')).not.toContainText('Nicht mehr allein');
+    const text = banner.locator('span').first();
     const { height, fontSize } = await text.evaluate((e) => ({
       height: e.getBoundingClientRect().height,
       fontSize: parseFloat(getComputedStyle(e).fontSize),

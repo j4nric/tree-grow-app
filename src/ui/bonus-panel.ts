@@ -7,6 +7,7 @@
  * (neuer/abgelaufener Bonus); Restzeit und Balken werden an Ort und Stelle gesetzt.
  */
 import { el, setText, setVar } from './dom';
+import { hyphenate } from './hyphenate';
 import type { ActiveBonusView } from './view-model';
 
 export interface BonusPanel {
@@ -45,7 +46,7 @@ export function createBonusPanel(root: HTMLElement): BonusPanel {
     const icon = el('span', 'bonus-icon', b.icon);
     icon.setAttribute('aria-hidden', 'true');
     const left = el('small', 'bonus-left', b.remaining);
-    li.append(icon, el('span', 'bonus-name', b.name), left, el('span', 'bonus-effect', b.effect));
+    li.append(icon, el('span', 'bonus-name', hyphenate(b.name)), left, el('span', 'bonus-effect', b.effect));
     let bar: HTMLElement | null = null;
     if (timed && b.progress !== null) {
       // Rein optisch – die Restzeit steht als Text daneben.
