@@ -198,7 +198,7 @@ describe('Stimmung und Texte', () => {
     expect(harmonyTier(30)).toBe('Lebendiges Gefüge');
     expect(harmonyTier(89.9)).toBe('Stimmiges Ökosystem');
     expect(harmonyTier(90)).toBe('Blühender Mischwald');
-    expect(harmonyTier(150)).toBe('Urwald');
+    expect(harmonyTier(150)).toBe('Ursprüngliche Wildnis');
     expect(harmonyTier(Number.NaN)).toBe('Zarte Anfänge');
   });
 
@@ -1094,7 +1094,7 @@ describe('harmonyTierIndex (Stimmung der Szene)', () => {
   it('passt zu den Namen der Harmoniestufen', () => {
     expect(harmonyTier(0)).toBe('Zarte Anfänge');
     expect(harmonyTier(95)).toBe('Blühender Mischwald');
-    expect(harmonyTier(130)).toBe('Urwald');
+    expect(harmonyTier(130)).toBe('Ursprüngliche Wildnis');
     for (const h of [0, 30, 60, 90, 120]) {
       expect(HARMONY_TIERS[HARMONY_TIERS.length - 1 - harmonyTierIndex(h)]!.label).toBe(harmonyTier(h));
     }

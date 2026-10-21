@@ -130,6 +130,14 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     (DESIGN_V2.md 15.4 „Stand Schritt 2.11b“, Entscheidung 12)
   - [ ] offen (`core-engineer`): „Sperrklinke“ für die Vorschau (größte Vorschau des Zyklus
     im Spielstand), damit sie auch bei gleicher H_max nie kurz sinkt (DESIGN_V2.md 15.4)
+- [x] Playtest „frühes Spiel“ (`game-designer`): Pflege ab Setzling (Kompost 200 🌰 neu,
+  Laub liegen lassen 200 statt 750 🌰), Nistkästen 650 statt 1.100 🌰; Simulator-Kennzahlen
+  „längste Pause ohne Entscheidung“ und „Samen ungenutzt“ mit Prüfungen; längste Pause in
+  den ersten 6 min 1:41 → 1:08 min bei gleichem Tempo; Harmoniestufe „Urwald“ heißt jetzt
+  „Ursprüngliche Wildnis“ (DESIGN_V2.md 15.4 „Stand Playtest frühes Spiel“, Entscheidung 13)
+  - [ ] offen (`core-engineer`): Ablehnen nach Samen-Sekunden – 10 s, mindestens 5 🌰, auch
+    beim Weiterziehen online/offline; Formel, Aufrufe in `tick.ts`, Meldungen und Tests in
+    DESIGN_V2.md 7.9 (nicht im Branch, weil `tick.ts` parallel für Spielstand v10 geändert wird)
 
 ## Phase 3 – Tiefe
 

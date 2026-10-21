@@ -168,7 +168,7 @@ const stats = document.querySelector<HTMLElement>('#stats')!;
 const harmonyInput = document.querySelector<HTMLInputElement>('#harmony')!;
 const harmonyValue = document.querySelector<HTMLElement>('#harmony-value')!;
 const visitorInputs = [...document.querySelectorAll<HTMLInputElement>('input.visitor')];
-const TIER_NAMES = ['Zarte Anfänge', 'Lebendiges Gefüge', 'Stimmiges Ökosystem', 'Blühender Mischwald', 'Urwald'];
+const TIER_NAMES = ['Zarte Anfänge', 'Lebendiges Gefüge', 'Stimmiges Ökosystem', 'Blühender Mischwald', 'Ursprüngliche Wildnis'];
 
 let g = Number(params.get('g') ?? 3.5);
 const set = params.get('set') ?? 'all';
