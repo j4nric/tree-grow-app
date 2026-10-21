@@ -143,14 +143,41 @@ der Form gleich; die Regel endet mit „– Erreichtes bleibt.“, die Spielanle
 Vorschau sinkt nie“. v9-Stände starten mit ihrer aktuellen Vorschau. Details:
 [`DESIGN_V2.md`](DESIGN_V2.md) 10, 12.7, 15.4 („Stand Sperrklinke“).
 
-**Balancing-Folge (offen, `game-designer`):** Die Sperrklinke hält beim Wachstums-Spieler
-die Spitzen fest, an denen seine Harmonie gerade über der gleitenden Schwelle lag. Bei
-Neustart im Wald/Urwald bekommt er dadurch deutlich mehr (Zyklus 1: Wald 58,0 → 69,2,
-Urwald 72,4 → 83,7), der Harmonie-Spieler nur etwas mehr (76,8 → 82,9 bzw. 88,4 → 92,5).
-Mit den Zahlen aus 2.11b halten zwei Ziele im großen Lauf nicht mehr: Wachstum/Harmonie in
-Zyklus 2 / 3 Wald 0,947 / 0,951, Urwald 0,912 / 0,926 (Ziel ≥ 0,97), Urwald/Hain beim
-Harmonie-Spieler 1,53 (Ziel ≤ 1,5). Kandidaten für `MEMORY_HARMONY_RULES` siehe
-`DESIGN_V2.md` 15.4.
+**Balancing-Folge:** Die Sperrklinke hielt beim Wachstums-Spieler die Spitzen fest, an
+denen seine Harmonie gerade über der gleitenden Schwelle lag. Mit den Zahlen aus 2.11b
+hielten zwei Ziele im großen Lauf nicht mehr (Wald/Urwald Zyklus 2 / 3 ≥ 0,97, Urwald ≤ 1,5
+× Hain). Nachjustiert im Abschnitt unten.
+
+### Abgleich mit der Sperrklinke (umgesetzt)
+
+Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md) 10, 14 (Entscheidung 12) und 15.4
+(„Stand Abgleich Sperrklinke“). Neues Ziel (e) des Product Owners: Die Urwald-Schwelle liegt
+~10 unter der typischen Harmonie des Harmonie-Spielers (174), und der Wachstums-Spieler
+bekommt dort deutlich weniger Bonus. Kleine Formeländerung: Der **Sockel-Teiler gleitet**
+mit (`divisor` in `MEMORY_HARMONY_RULES`, `memoryHarmonyBonus` in `core/formulas.ts`).
+
+| Zahl (`src/content/memory.ts`, `MEMORY_HARMONY_RULES`) | 2.11b | jetzt |
+|---|---|---|
+| Hain (Wegpunkt 20): Teiler / Schwelle / Obergrenze | 5 / 100 / 45 (voll ab 115) | unverändert |
+| Wald (Wegpunkt 28) | 5 / 125 / 41,5 (ab 139), linear dazwischen | **6 / 148 / 48** (ab 164), Stützstelle |
+| Urwald (Wegpunkt 36) | 5 / 150 / 38 (ab 163) | **7 / 164 / 48** (ab 180) |
+| je Wegpunkt Hain → Wald | Schwelle +3,125 | Teiler +0,125, Schwelle **+6**, Obergrenze +0,375 |
+| je Wegpunkt Wald → Urwald | Schwelle +3,125 | Teiler +0,125, Schwelle **+2** |
+
+| Kennzahl (großer Lauf, 100 Durchgänge) | vor dem Abgleich (Sperrklinke, 150 / 38) | jetzt | Ziel |
+|---|---|---|---|
+| Wachstum / Harmonie Zyklus 2 / 3, Neustart Wald | 0,947 / 0,951 | **1,026 / 1,072** | ≥ 0,97 |
+| … Neustart Urwald | 0,912 / 0,926 | **0,993 / 1,031** | ≥ 0,97 |
+| … Neustart Hain | 0,982 / 1,006 | unverändert | ≥ 0,97 |
+| Gewinn Zyklus 1 Wald, Harmonie / Wachstum / Zufall | 82,9 / 69,2 / 43,7 | 77,7 / 60,1 / 39,1 | mehr als Hain (60,6 / 48,8 / 30,0) |
+| Gewinn Zyklus 1 Urwald, Harmonie / Wachstum / Zufall | 92,5 / 83,7 / 57,6 | 87,9 / 68,0 / 44,7 | Harmonie ≤ ~1,5 × Hain |
+| Gewinn Urwald / Hain, Harmonie-Spieler | 1,53 | **1,45** | ≤ ~1,5 |
+| Zyklus 2 schneller, Zufall: Wald / Urwald | 29,2 / 36,9 % | 28,0 / 31,6 % | ≥ 20 % |
+| Bonus über dem Sockel im Urwald bei typischer H_max (Harmonie 174 / Wachstum 155) | 38 / 15 | **30 / 0** | Harmonie spürbar, Wachstum deutlich weniger |
+| Vorschau sinkt beim Erreichen eines Wegpunkts | nie | nie | nie |
+
+Mit 200 Durchgängen in vier Seed-Fenstern streut Zyklus 2 je Fenster um ±0,04; ≥ 0,97 gilt
+im Mittel der Fenster, nicht in jedem einzelnen (`DESIGN_V2.md` 15.4).
 
 ## Schritt 2.11: Harmonie lohnt sich über die Zyklen (v2, umgesetzt)
 

@@ -113,7 +113,7 @@ describe('Speichern & Laden v2', () => {
 describe('Spielstand v10: Sperrklinke der Vorschau (cycle.bestHarmonyMemory)', () => {
   /**
    * Wald (Wegpunkt 28) mit H_max 120, erreicht schon im Hain: dort brachte das 24 + 45 = 69
-   * Punkte, mit der Wald-Schwelle 125 nur noch 24.
+   * Punkte, mit der Wald-Regel (Teiler 6, Schwelle 148) nur noch 20.
    */
   function forestState(): GameState {
     const state = stateAt(5, ['earthworm', 'robin', 'bee'], 21);
@@ -139,7 +139,7 @@ describe('Spielstand v10: Sperrklinke der Vorschau (cycle.bestHarmonyMemory)', (
   it('merkt den besten Wert und übersteht einen Roundtrip', () => {
     const state = forestState();
     expect(state.cycle.maxHarmony).toBe(120);
-    expect(harmonyMemoryGain(120, 28)).toBe(24);
+    expect(harmonyMemoryGain(120, 28)).toBe(20);
     expect(state.cycle.bestHarmonyMemory).toBe(69);
     expect(previewNewCycle(state).memoryGain).toBe(69 + 3);
     const loaded = deserialize(serialize(state), 0)!;
@@ -152,11 +152,11 @@ describe('Spielstand v10: Sperrklinke der Vorschau (cycle.bestHarmonyMemory)', (
     const result = loadGame(raw(state, 9, { bestHarmonyMemory: undefined }), 0)!;
     const s = result.state;
     expect(s.version).toBe(SAVE_VERSION);
-    expect(s.cycle.bestHarmonyMemory).toBe(24);
+    expect(s.cycle.bestHarmonyMemory).toBe(20);
     // Genau die Vorschau, die der v9-Stand zeigte (Formel ohne Sperrklinke).
     expect(previewNewCycle(s).memoryGain).toBe(cycleMemoryGain(120, 3, s.meta.forestMemory, 28));
     // Ein v9-Stand mit einem (unbekannten) Feld zählt es nicht.
-    expect(loadGame(raw(state, 9, { bestHarmonyMemory: 69 }), 0)!.state.cycle.bestHarmonyMemory).toBe(24);
+    expect(loadGame(raw(state, 9, { bestHarmonyMemory: 69 }), 0)!.state.cycle.bestHarmonyMemory).toBe(20);
     // Danach als v10 verlustfrei weiter.
     expect(deserialize(serialize(s), 0)).toEqual(s);
   });
@@ -164,12 +164,12 @@ describe('Spielstand v10: Sperrklinke der Vorschau (cycle.bestHarmonyMemory)', (
   it('robustes Laden: fehlend, NaN, negativ, krumm, riesig, manipuliert', () => {
     const state = forestState();
     const load = (value: unknown) => deserialize(raw(state, SAVE_VERSION, { bestHarmonyMemory: value }), 0)!.cycle.bestHarmonyMemory;
-    // Fehlend oder Unsinn → 0, dann hebt das Laden auf die aktuelle Vorschau (24).
-    expect(load(undefined)).toBe(24);
-    expect(load(null)).toBe(24);
-    expect(load('69')).toBe(24);
-    expect(load(-5)).toBe(24);
-    expect(load(0)).toBe(24);
+    // Fehlend oder Unsinn → 0, dann hebt das Laden auf die aktuelle Vorschau (20).
+    expect(load(undefined)).toBe(20);
+    expect(load(null)).toBe(20);
+    expect(load('69')).toBe(20);
+    expect(load(-5)).toBe(20);
+    expect(load(0)).toBe(20);
     // Gültig: bleibt, Brüche abgerundet.
     expect(load(50.7)).toBe(50);
     // Mehr, als H_max an irgendeinem Wegpunkt bringt (Hain-Regel: 69), ist manipuliert.

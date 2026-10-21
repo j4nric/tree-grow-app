@@ -250,9 +250,14 @@ describe('Spielanleitung', () => {
     expect(text('cycle')).toContain(`+${formatNumber(FOREST_MEMORY_BONUS * 100)} %`);
     expect(text('cycle')).toContain(`Je ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Punkte`);
     // Waldgedächtnis-Regel (Schritt 2.11): Einzahl bei 1 Punkt je Art; Schwelle gleitet mit dem
-    // Wegpunkt (Schritt 2.11b), genannt für Hain, Wald und Urwald – im Hain wie in 2.11.
+    // Wegpunkt (Schritt 2.11b), genannt für Hain, Wald und Urwald – im Hain wie in 2.11. Der
+    // Sockel-Teiler gleitet mit (Abgleich mit der Sperrklinke): im Hain 5, im Wald 6, im Urwald 7.
     expect(text('cycle')).toContain('1 Punkt je neu entdeckter Art');
-    expect(text('cycle')).toContain('Bonus gibt es im Hain ab 101 (bis 115), im Wald ab 126 (bis 139) und im Urwald ab 151 (bis 163)');
+    expect(text('cycle')).toContain('1 Punkt je 5 Punkte deiner höchsten Harmonie in diesem Zyklus (im Wald je 6 und im Urwald je 7 – später zählt mehr, was über der Schwelle liegt).');
+    expect(text('cycle')).toContain('Bonus gibt es im Hain ab 101 (bis 115), im Wald ab 149 (bis 164) und im Urwald ab 165 (bis 180)');
+    for (let stage = NEW_CYCLE_MIN_STAGE + 1; stage < STAGES.length; stage++) {
+      expect(text('cycle')).toContain(`im ${STAGES[stage]!.name} je ${formatNumber(memoryHarmonyBonus(STAGES[stage]!.waypoint).divisor)}`);
+    }
     for (let stage = NEW_CYCLE_MIN_STAGE; stage < STAGES.length; stage++) {
       const b = memoryHarmonyBonus(STAGES[stage]!.waypoint);
       expect(text('cycle')).toContain(`im ${STAGES[stage]!.name} ab ${formatNumber(b.bonusFrom)} (bis ${formatNumber(b.fullAt)})`);

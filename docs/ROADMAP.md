@@ -141,9 +141,12 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     gutgeschrieben wird `max(gemerkt, aktuell) + neue Arten`; Migration v9 → v10 mit der
     aktuellen Vorschau; Vorschau sinkt an keinem Wegpunkt (DESIGN_V2.md 10, 12.7, 15.4
     „Stand Sperrklinke“)
-  - [ ] offen (`game-designer`): `MEMORY_HARMONY_RULES` nach der Sperrklinke nachjustieren –
-    Wald/Urwald Zyklus 2 / 3 ≥ 0,97 und Urwald ≤ 1,5 × Hain halten im großen Lauf nicht mehr
-    (DESIGN_V2.md 15.4 „Stand Sperrklinke“, Kandidaten dort)
+  - [x] `MEMORY_HARMONY_RULES` nach der Sperrklinke nachjustiert (`game-designer`): Hain
+    5 / 100 / 45 → Wald 6 / 148 / 48 → Urwald 7 / 164 / 48 (Sockel-Teiler / Schwelle /
+    Obergrenze, Teiler gleitet als kleine Formeländerung mit); großer Lauf Wald 1,03 / 1,07,
+    Urwald 0,99 / 1,03, Urwald 1,45 × Hain; Urwald-Schwelle 10 unter dem typischen
+    Harmonie-Spieler, Wachstums-Spieler dort ohne Bonus (DESIGN_V2.md 15.4 „Stand Abgleich
+    Sperrklinke“, Entscheidung 12)
 
 ## Phase 3 – Tiefe
 
