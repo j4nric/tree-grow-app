@@ -37,11 +37,28 @@ function groveState(seed = 5): GameState {
 }
 
 describe('Waldgedächtnis-Formel (DESIGN_V2.md 10)', () => {
-  it('floor(H_max/5) + neue Arten – Beispiel aus dem Design: 105, 11 Arten → 32 (seit Schritt 2.10)', () => {
-    expect(cycleMemoryGain(105, 11, 0)).toBe(32);
-    expect(cycleMemoryGain(4.99, 0, 0)).toBe(0);
+  it('H = round(H_max): floor(H/5) + 3 je Punkt über 100 (höchstens 45) + neue Arten (seit Schritt 2.11)', () => {
+    // Beispiele aus DESIGN_V2.md 15.4: Harmonie-Spieler beim Hain ~110, Wachstums-Spieler ~103,
+    // Gelegenheitsspieler ~81 (nur Sockel und Arten, wie vor 2.11).
+    expect(cycleMemoryGain(110.4, 12, 0)).toBe(22 + 30 + 12);
+    expect(cycleMemoryGain(102.8, 13, 0)).toBe(20 + 9 + 13); // 102,8 → 103
+    expect(cycleMemoryGain(81, 13, 0)).toBe(16 + 13);
+    // Gerundet wie die Anzeige „Höchste Harmonie“: ab 100,5 gilt 101 und zählt extra.
+    expect(cycleMemoryGain(100.4, 0, 0)).toBe(20);
+    expect(cycleMemoryGain(100.5, 0, 0)).toBe(20 + 3);
+    expect(cycleMemoryGain(100.6, 0, 0)).toBe(20 + 3);
+    expect(cycleMemoryGain(100.99, 11, 0)).toBe(20 + 3 + 11);
+    expect(cycleMemoryGain(101, 0, 0)).toBe(20 + 3);
+    // Auch der Sockel rechnet mit dem gerundeten Wert.
+    expect(cycleMemoryGain(4.49, 0, 0)).toBe(0);
+    expect(cycleMemoryGain(4.5, 0, 0)).toBe(1);
     expect(cycleMemoryGain(5, 0, 0)).toBe(1);
     expect(cycleMemoryGain(0, 0, 0)).toBe(0);
+    // Ab 115 (gerundet) ist der Bonus voll: 45 Punkte.
+    expect(cycleMemoryGain(114.4, 0, 0)).toBe(22 + 42);
+    expect(cycleMemoryGain(114.6, 0, 0)).toBe(23 + 45);
+    expect(cycleMemoryGain(115, 0, 0)).toBe(23 + 45);
+    expect(cycleMemoryGain(174, 21, 0)).toBe(34 + 45 + 21);
   });
 
   it('Obergrenze MAX_FOREST_MEMORY: der Gewinn füllt höchstens bis zur Grenze auf', () => {
@@ -54,7 +71,8 @@ describe('Waldgedächtnis-Formel (DESIGN_V2.md 10)', () => {
   it('negative Harmonie, NaN und negative Anzahlen ergeben 0 statt Abzug', () => {
     expect(cycleMemoryGain(-50, 0, 0)).toBe(0);
     expect(cycleMemoryGain(NaN, NaN, NaN)).toBe(0);
-    expect(cycleMemoryGain(30, -4, 0)).toBe(6);
+    expect(cycleMemoryGain(130, -4, 0)).toBe(26 + 45);
+    expect(cycleMemoryGain(30, 4, 0)).toBe(6 + 4);
   });
 
   it('Stammgast-Plätze: einer je 25 Punkte', () => {
@@ -170,7 +188,8 @@ describe('Neuer Zyklus', () => {
     const journal = structuredClone(state.meta.journal);
     expect(journal.plants).toEqual(['hazel', 'moss']);
     const { rngState, lastTick } = state;
-    const gain = Math.floor(state.cycle.maxHarmony / 5) + 4;
+    const h = state.cycle.maxHarmony;
+    const gain = Math.floor(h / 5) + Math.min(45, 3 * Math.max(0, Math.floor(h) - 100)) + 4;
     const preview = previewNewCycle(state);
     expect(preview).toMatchObject({ blocker: null, memoryGain: gain, memoryBefore: 30, memoryAfter: 30 + gain, newSpecies: 4 });
     const result = startNewCycle(state, 1);
@@ -199,12 +218,12 @@ describe('Neuer Zyklus', () => {
   it('Vorschau nennt neue Stammgast-Plätze', () => {
     const state = groveState();
     state.meta.forestMemory = 20;
-    state.cycle.maxHarmony = 105;
+    state.cycle.maxHarmony = 110;
     state.cycle.newSpecies = Array.from({ length: 11 }, (_, i) => SPECIES[i]!.id);
     const preview = previewNewCycle(state);
-    expect(preview.memoryGain).toBe(32);
+    expect(preview.memoryGain).toBe(22 + 30 + 11);
     expect(preview.regularSlotsBefore).toBe(0);
-    expect(preview.regularSlotsAfter).toBe(2);
+    expect(preview.regularSlotsAfter).toBe(3); // 20 + 63 = 83
   });
 
   it('der nächste Zyklus wächst wieder bis zum Keimling und zieht Karten', () => {
