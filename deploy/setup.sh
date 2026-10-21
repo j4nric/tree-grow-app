@@ -14,6 +14,9 @@
 #   4. legt deploy/.env an (eine vorhandene bleibt unverändert), startet die vszw-Container und gibt aus,
 #      was im vorhandenen Proxy zu ergänzen ist – fremde Konfigurationen ändert es nie.
 #   5. nennt die URL für die Repository-Variable VITE_SYNC_URL.
+#   6. erzeugt ein ADMIN_BACKUP_TOKEN für die Sicherung außerhalb des Servers, falls es in
+#      deploy/.env fehlt (neue .env: dort eingetragen; vorhandene .env: nur Anleitung zum
+#      Ergänzen) und nennt es für das Repository-Secret SYNC_BACKUP_TOKEN.
 #
 # Aufruf (im Ordner deploy/):   ./setup.sh
 # Optional: SYNC_PUBLIC_HOST=name.duckdns.org ./setup.sh · MODE=A|B · PROXY_NETWORK=<netz> · SYNC_PORT=8790
@@ -48,6 +51,24 @@ ENV_SYNC_PORT="${SYNC_PORT:-}"
 DEFAULT_PROXY_NETWORK=vszw-proxy
 ENV_EXISTS=0
 [[ -f .env ]] && ENV_EXISTS=1
+# Admin-Token für die Sicherung außerhalb des Servers: steht es schon (mit Wert) in .env?
+ADMIN_TOKEN_STATE='missing'
+if [[ "$ENV_EXISTS" == 1 ]]; then
+  if grep -Eq '^[[:space:]]*ADMIN_BACKUP_TOKEN=[^[:space:]]' .env; then
+    ADMIN_TOKEN_STATE='set'
+  elif grep -Eq '^[[:space:]]*ADMIN_BACKUP_TOKEN=' .env; then
+    ADMIN_TOKEN_STATE='empty'
+  fi
+fi
+new_token() {
+  if command -v openssl >/dev/null; then
+    openssl rand -hex 32
+  else
+    od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
+  fi
+}
+NEW_ADMIN_TOKEN=""
+[[ "$ADMIN_TOKEN_STATE" != set ]] && NEW_ADMIN_TOKEN="$(new_token)"
 if [[ -f .env ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -164,13 +185,18 @@ if [[ "$ENV_EXISTS" == 1 ]]; then
   # Für docker compose in diesem Lauf (Werte aus der Umgebung haben Vorrang vor .env).
   export SYNC_PUBLIC_HOST SYNC_PORT PROXY_NETWORK
 else
-  cat > .env <<ENVFILE
+  # Nur für den Besitzer lesbar: enthält das Admin-Token.
+  (
+    umask 077
+    cat > .env <<ENVFILE
 SYNC_PUBLIC_HOST=${SYNC_PUBLIC_HOST}
 ALLOWED_ORIGIN=${ALLOWED_ORIGIN}
 SYNC_PORT=${SYNC_PORT}
 BACKUP_KEEP=${BACKUP_KEEP}
 PROXY_NETWORK=${PROXY_NETWORK}
+ADMIN_BACKUP_TOKEN=${NEW_ADMIN_TOKEN}
 ENVFILE
+  )
   say ""
   say "deploy/.env geschrieben."
 fi
@@ -261,3 +287,31 @@ say ""
 say "  VITE_SYNC_URL=https://${SYNC_PUBLIC_HOST}"
 say ""
 say "Test (nach dem Proxy-Eintrag bzw. dem Zertifikat): curl https://${SYNC_PUBLIC_HOST}/api/health"
+
+# --- Sicherung außerhalb des Servers (GitHub-Workflow „Sicherung“) -------------------
+if [[ -n "$NEW_ADMIN_TOKEN" ]]; then
+  say ""
+  say "================================================================================"
+  say "Sicherung außerhalb des Servers (Anleitung: docs/KONTO.md, Abschnitt „Sicherungen“)"
+  say ""
+  if [[ "$ENV_EXISTS" == 0 ]]; then
+    say "Ein neues ADMIN_BACKUP_TOKEN steht in deploy/.env und ist schon aktiv."
+  elif [[ "$ADMIN_TOKEN_STATE" == empty ]]; then
+    say "In deploy/.env steht ADMIN_BACKUP_TOKEN ohne Wert. setup.sh ändert die Datei nie –"
+    say "bitte die Zeile mit einem Editor so ergänzen:"
+    say ""
+    say "  ADMIN_BACKUP_TOKEN=${NEW_ADMIN_TOKEN}"
+    say ""
+    say "und danach den Container neu erstellen:  ${COMPOSE[*]} up -d"
+  else
+    say "deploy/.env hat noch kein ADMIN_BACKUP_TOKEN. setup.sh ändert die Datei nie –"
+    say "bitte selbst anhängen (im Ordner deploy/) und den Container neu erstellen:"
+    say ""
+    say "  printf '\\nADMIN_BACKUP_TOKEN=%s\\n' '${NEW_ADMIN_TOKEN}' >> .env"
+    say "  ${COMPOSE[*]} up -d"
+  fi
+  say ""
+  say "Denselben Wert als Repository-Secret SYNC_BACKUP_TOKEN eintragen (GitHub → Settings →"
+  say "Secrets and variables → Actions → Secrets). Das Token ist geheim – nirgends sonst ablegen."
+  say "================================================================================"
+fi

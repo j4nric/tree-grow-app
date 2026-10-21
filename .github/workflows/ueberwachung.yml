@@ -1,0 +1,125 @@
+name: Überwachung
+
+# Prüft stündlich, ob Sync-Server und Spielseite erreichbar sind. Bei einem Ausfall (nach
+# drei Versuchen mit wachsender Pause) öffnet der Lauf ein Issue mit dem Label „ausfall“ bzw.
+# kommentiert das offene; läuft wieder alles, schließt er es mit einem Kommentar.
+# Optional: Repository-Variablen SYNC_URL und PAGES_URL (Standard siehe unten).
+
+on:
+  schedule:
+    - cron: '41 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ueberwachung
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SYNC_URL: ${{ vars.SYNC_URL || 'https://sync.62-83-23-90.sslip.io' }}
+      PAGES_URL: ${{ vars.PAGES_URL || 'https://j4nric.github.io/tree-grow-app/' }}
+      GAME_TITLE: Vom Samen zum Wald
+    steps:
+      - name: Dienste prüfen
+        id: probe
+        run: |
+          set -uo pipefail
+          report="$RUNNER_TEMP/bericht.md"
+          : > "$report"
+          failed=0
+
+          # Ein Versuch der Prüfung „$1“; Ergebnis in $detail. 0 = in Ordnung.
+          probe() {
+            local body code
+            body="$(mktemp)"
+            code="$(curl --silent --show-error --max-time 20 --output "$body" --write-out '%{http_code}' "$2" 2>"$body.err")" || code="${code:-000}"
+            case "$1" in
+              health)
+                if [ "$code" = "200" ] && [ "$(cat "$body")" = '{"ok":true}' ]; then return 0; fi
+                detail="HTTP ${code}, Antwort: $(head -c 200 "$body" | tr -d '\r' | tr '\n' ' ')$(cat "$body.err")"
+                ;;
+              pages)
+                if [ "$code" = "200" ] && grep -qF "$GAME_TITLE" "$body"; then return 0; fi
+                if [ "$code" = "200" ]; then
+                  detail="HTTP 200, aber ohne den Titel (${GAME_TITLE})"
+                else
+                  detail="HTTP ${code} $(cat "$body.err")"
+                fi
+                ;;
+            esac
+            return 1
+          }
+
+          # Drei Versuche mit wachsender Pause (15 s, 45 s), bevor es als Ausfall gilt.
+          check() {
+            local name="$1" url="$2" attempt
+            for attempt in 1 2 3; do
+              if probe "$name" "$url"; then
+                echo "OK  ${url} (Versuch ${attempt})"
+                return 0
+              fi
+              echo "::warning::${url}: Versuch ${attempt} fehlgeschlagen – ${detail}"
+              [ "$attempt" -lt 3 ] && sleep $((15 * 3 ** (attempt - 1)))
+            done
+            failed=1
+            printf -- '- **%s** – %s\n' "$url" "$detail" >> "$report"
+            return 1
+          }
+
+          check health "${SYNC_URL%/}/api/health"
+          check pages "$PAGES_URL"
+
+          if [ "$failed" = 1 ]; then
+            echo "status=fail" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=ok" >> "$GITHUB_OUTPUT"
+          fi
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+
+      - name: Issue „ausfall“ öffnen, kommentieren oder schließen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STATUS: ${{ steps.probe.outputs.status }}
+          REPORT: ${{ steps.probe.outputs.report }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          now="$(date -u '+%Y-%m-%d %H:%M UTC')"
+          if [ "$STATUS" != "ok" ] && [ "$STATUS" != "fail" ]; then
+            echo "::error::Die Prüfung lieferte kein Ergebnis."
+            exit 1
+          fi
+          open="$(gh issue list --label ausfall --state open --limit 1 --json number --jq '.[0].number // empty')"
+          if [ "$STATUS" = "fail" ]; then
+            body="$RUNNER_TEMP/issue.md"
+            {
+              echo "Ausfall festgestellt am ${now} (nach je drei Versuchen):"
+              echo
+              cat "$REPORT"
+              echo
+              echo "Lauf: ${RUN_URL}"
+              echo
+              echo "Erste Hilfe auf dem Server: \`docker ps\`, \`docker logs --tail 100 vszw-sync\`, \`curl ${SYNC_URL%/}/api/health\` (siehe docs/KONTO.md)."
+            } > "$body"
+            if [ -n "$open" ]; then
+              gh issue comment "$open" --body-file "$body"
+              echo "Issue #${open} kommentiert."
+            else
+              gh label create ausfall --color B60205 --description "Automatisch: Sync-Server oder Spielseite nicht erreichbar" 2>/dev/null || true
+              gh issue create --title "Ausfall: Sync-Server oder Spielseite nicht erreichbar" --label ausfall --body-file "$body"
+            fi
+            echo "::error title=Ausfall::$(tr '\n' ' ' < "$REPORT")"
+          elif [ -n "$open" ]; then
+            gh issue close "$open" --comment "Wieder erreichbar seit ${now}: Sync-Server und Spielseite antworten. Lauf: ${RUN_URL}"
+            echo "Issue #${open} geschlossen."
+          else
+            echo "Alles in Ordnung, kein offenes Ausfall-Issue."
+          fi

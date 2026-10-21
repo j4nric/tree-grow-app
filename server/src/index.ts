@@ -9,10 +9,13 @@
  *   MAX_ACCOUNTS     höchstens so viele Konten (Standard 1000)
  *   MIN_FREE_MB      darunter freier Platz auf dem Daten-Volume → 507 (Standard 512)
  *   REGISTRATIONS_PER_IP_HOUR  neue Konten je IP (IPv6: je /64) und Stunde (Standard 3)
+ *   ADMIN_BACKUP_TOKEN  geheimes Token (mind. 32 Zeichen) für GET /api/admin/backup (leer = Endpunkt aus)
  */
 import { mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { createApp } from './app';
+import { parseAdminToken } from './auth';
 import { runBackup } from './backup';
 import { openDb } from './db';
 import { DEFAULT_MIN_FREE_BYTES, DiskGuard, freeBytesOf } from './disk';
@@ -43,6 +46,11 @@ const disk =
     ? null
     : new DiskGuard(freeBytesOf(dirname(dbPath)), envInt('MIN_FREE_MB', DEFAULT_MIN_FREE_BYTES / 1024 / 1024) * 1024 * 1024);
 void disk?.refresh();
+const rawAdminToken = process.env.ADMIN_BACKUP_TOKEN ?? '';
+const adminToken = parseAdminToken(rawAdminToken);
+if (rawAdminToken.trim() && !adminToken) {
+  console.error('ADMIN_BACKUP_TOKEN ist zu kurz (mindestens 32 Zeichen) oder enthält Leerzeichen – /api/admin/backup bleibt aus.');
+}
 const app = createApp({
   db,
   allowedOrigins,
@@ -52,7 +60,10 @@ const app = createApp({
     registrationsPerIp: { limit: envInt('REGISTRATIONS_PER_IP_HOUR', 3), windowMs: 60 * 60_000 },
   },
   storageOk: () => disk?.ok() ?? true,
+  // Zwischendatei auf dem Daten-Volume (/tmp im Container ist nur 16 MB groß).
+  adminBackup: adminToken ? { token: adminToken, dir: dbPath === ':memory:' ? tmpdir() : dirname(dbPath) } : null,
 });
+if (adminToken) console.log('Admin-Sicherung über /api/admin/backup ist eingeschaltet.');
 // requestTimeout 30 s / headersTimeout 20 s: nur für das Empfangen der Anfrage –
 // Event-Streams bleiben offen (siehe http.ts).
 const server = createSyncServer(app);

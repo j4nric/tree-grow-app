@@ -1,0 +1,117 @@
+name: Sicherung
+
+# Holt täglich eine frische Sicherung der Sync-Datenbank vom Server (GET /api/admin/backup),
+# verschlüsselt sie (AES-256-CBC, PBKDF2) und legt sie 30 Tage als Artefakt ab – eine Kopie
+# außerhalb des Servers. Anleitung und Wiederherstellung: docs/KONTO.md, „Sicherungen“.
+#
+# Einmalig nötig (Settings → Secrets and variables → Actions):
+#   Secret   SYNC_BACKUP_TOKEN  = ADMIN_BACKUP_TOKEN aus deploy/.env auf dem Server
+#   Secret   BACKUP_PASSPHRASE  = lange Passphrase zum Verschlüsseln (gut aufheben!)
+#   Variable SYNC_URL           (optional) Adresse des Sync-Servers ohne „/“ am Ende
+# Fehlen die Secrets, endet der Lauf grün mit einem Hinweis.
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sicherung
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SYNC_URL: ${{ vars.SYNC_URL || 'https://sync.62-83-23-90.sslip.io' }}
+    steps:
+      - name: Secrets prüfen
+        id: config
+        env:
+          HAS_TOKEN: ${{ secrets.SYNC_BACKUP_TOKEN != '' }}
+          HAS_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE != '' }}
+        run: |
+          if [ "$HAS_TOKEN" != "true" ] || [ "$HAS_PASSPHRASE" != "true" ]; then
+            echo "::notice title=Sicherung übersprungen::Secrets SYNC_BACKUP_TOKEN und BACKUP_PASSPHRASE fehlen (Anleitung: docs/KONTO.md, Abschnitt Sicherungen)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sicherung vom Server holen
+        if: steps.config.outputs.enabled == 'true'
+        env:
+          SYNC_BACKUP_TOKEN: ${{ secrets.SYNC_BACKUP_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/sicherung"
+          mkdir -p "$dir"
+          # Das Token nur über eine Header-Datei an curl geben – nie in der Kommandozeile
+          # (Prozessliste) und nie im Log.
+          printf 'Authorization: Bearer %s\n' "$SYNC_BACKUP_TOKEN" > "$dir/auth-header"
+          status="$(curl --silent --show-error --location --max-time 600 \
+            --retry 2 --retry-delay 30 --retry-connrefused \
+            --header @"$dir/auth-header" \
+            --output "$dir/saves.db" --write-out '%{http_code}' \
+            "${SYNC_URL%/}/api/admin/backup")" || status="curl-fehler"
+          rm -f "$dir/auth-header"
+          if [ "$status" != "200" ]; then
+            echo "::error title=Sicherung fehlgeschlagen::Server antwortete mit ${status} (401: Token falsch, 404: ADMIN_BACKUP_TOKEN auf dem Server nicht gesetzt, 429: zu viele Abrufe)."
+            rm -f "$dir/saves.db"
+            exit 1
+          fi
+          # Ist es wirklich eine vollständige, unbeschädigte SQLite-Datenbank?
+          python3 - "$dir/saves.db" <<'PY'
+          import sqlite3, sys
+          path = sys.argv[1]
+          with open(path, 'rb') as f:
+              if f.read(16) != b'SQLite format 3\x00':
+                  sys.exit('Keine SQLite-Datei')
+          # immutable: nur lesen, keine -wal/-shm-Dateien anlegen (die Sicherung ist im WAL-Modus).
+          db = sqlite3.connect(f'file:{path}?mode=ro&immutable=1', uri=True)
+          check = db.execute('PRAGMA integrity_check').fetchone()[0]
+          if check != 'ok':
+              sys.exit(f'integrity_check: {check}')
+          users = db.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+          saves = db.execute('SELECT COUNT(*) FROM saves').fetchone()[0]
+          print(f'Sicherung geprüft: {users} Konten, {saves} Spielstände')
+          PY
+          echo "Größe: $(stat -c %s "$dir/saves.db") Bytes"
+
+      - name: Verschlüsseln und Entschlüsseln prüfen
+        if: steps.config.outputs.enabled == 'true'
+        id: encrypt
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/sicherung"
+          name="vszw-sicherung-$(date -u +%Y-%m-%d-%H%M)"
+          mkdir -p "$dir/out"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -pass env:BACKUP_PASSPHRASE -in "$dir/saves.db" -out "$dir/out/$name.db.enc"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -pass env:BACKUP_PASSPHRASE -in "$dir/out/$name.db.enc" -out "$dir/check.db"
+          cmp "$dir/saves.db" "$dir/check.db"
+          echo "Entschlüsseln geprüft."
+          # Unverschlüsselt bleibt nichts liegen.
+          rm -f "$dir"/saves.db* "$dir/check.db"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "file=$dir/out/$name.db.enc" >> "$GITHUB_OUTPUT"
+
+      - name: Als Artefakt ablegen (30 Tage)
+        if: steps.config.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.encrypt.outputs.name }}
+          path: ${{ steps.encrypt.outputs.file }}
+          retention-days: 30
+          if-no-files-found: error
+          # Verschlüsselte Daten lassen sich nicht komprimieren.
+          compression-level: 0

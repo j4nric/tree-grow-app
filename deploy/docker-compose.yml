@@ -30,6 +30,8 @@ services:
       MAX_ACCOUNTS: ${MAX_ACCOUNTS:-1000}
       MIN_FREE_MB: ${MIN_FREE_MB:-512}
       REGISTRATIONS_PER_IP_HOUR: ${REGISTRATIONS_PER_IP_HOUR:-3}
+      # Sicherung außerhalb des Servers (GET /api/admin/backup, docs/KONTO.md); leer = aus.
+      ADMIN_BACKUP_TOKEN: ${ADMIN_BACKUP_TOKEN:-}
     volumes:
       - vszw-data:/data
     ports:

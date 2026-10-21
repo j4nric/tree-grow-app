@@ -14,9 +14,12 @@
  *   POST /api/events/ticket                                  → 200 {ticket, expiresIn}
  *   GET  /api/events?ticket=…  (text/event-stream: `ready`, `save`)
  *   GET  /api/health                                         → 200 {ok: true}
+ *   GET  /api/admin/backup  (Bearer ADMIN_BACKUP_TOKEN)       → 200 SQLite-Datei | 401 | 404 (aus) | 429 | 507
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
+import type { FileHandle } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import {
   dummyPasswordHash,
   hashPassword,
@@ -24,8 +27,10 @@ import {
   isValidPassword,
   newToken,
   normalizeUsername,
+  tokensEqual,
   verifyPassword,
 } from './auth';
+import { backupName, backupToHandle } from './backup';
 import type { Db } from './db';
 import { clientIp, rateKey } from './net';
 import { RateLimiter } from './rate-limit';
@@ -72,6 +77,8 @@ export interface Limits {
   loginFailuresPerUser: { limit: number; windowMs: number };
   /** Sitzungen (angemeldete Geräte) je Konto; die ältesten fallen weg. */
   sessionsPerUser: number;
+  /** Abrufe von GET /api/admin/backup je IP (auch fehlgeschlagene) und Zeitfenster. */
+  adminBackup: { limit: number; windowMs: number };
 }
 
 export const DEFAULT_LIMITS: Limits = {
@@ -86,6 +93,7 @@ export const DEFAULT_LIMITS: Limits = {
   loginFailures: { limit: 10, windowMs: 15 * 60_000 },
   loginFailuresPerUser: { limit: 100, windowMs: 15 * 60_000 },
   sessionsPerUser: 20,
+  adminBackup: { limit: 6, windowMs: 60 * 60_000 },
 };
 
 export interface AppOptions {
@@ -107,6 +115,13 @@ export interface AppOptions {
   heartbeatMs?: number;
   /** Wie oft abgelaufene Tickets entfernt werden (Standard TICKET_MS). */
   sweepMs?: number;
+  /**
+   * Sicherung über das Netz (GET /api/admin/backup): geheimes Token (mindestens 32 Zeichen,
+   * siehe parseAdminToken) und Ordner für die Zwischendatei. Fehlt es, antwortet der Endpunkt 404.
+   */
+  adminBackup?: { token: string; dir: string } | null;
+  /** Protokoll für Admin-Zugriffe (Standard console.log) – nie mit Token. */
+  log?: (line: string) => void;
 }
 
 export interface App {
@@ -187,6 +202,10 @@ export function createApp(options: AppOptions): App {
   const registrationsPerIp = new RateLimiter(limits.registrationsPerIp.limit, limits.registrationsPerIp.windowMs);
   const loginFailures = new RateLimiter(limits.loginFailures.limit, limits.loginFailures.windowMs);
   const loginFailuresPerUser = new RateLimiter(limits.loginFailuresPerUser.limit, limits.loginFailuresPerUser.windowMs);
+  const adminLimiter = new RateLimiter(limits.adminBackup.limit, limits.adminBackup.windowMs);
+  const log = options.log ?? ((line: string) => console.log(line));
+  /** Läuft gerade eine Admin-Sicherung? Nie zwei gleichzeitig (Speicherplatz, Zwischendatei). */
+  let adminBackupRunning = false;
 
   // Tickets: je Sitzung höchstens ticketsPerSession (älteste fallen weg), insgesamt
   // höchstens ticketsTotal. Abgelaufene räumt ein Timer weg; beim Einlösen zählt die Uhr.
@@ -539,8 +558,63 @@ export function createApp(options: AppOptions): App {
         return;
       }
 
+      case 'GET /api/admin/backup':
+        return adminBackup(req, res);
+
       default:
         throw new HttpError(404, 'not-found');
+    }
+  }
+
+  /**
+   * Frische Sicherung der Datenbank als Datei-Stream – für die Kopie außerhalb des Servers
+   * (.github/workflows/backup.yml). Ohne konfiguriertes Token gibt es den Endpunkt nicht (404).
+   * Jeder Versuch zählt fürs Rate-Limit; das Protokoll nennt Ergebnis und IP, nie das Token.
+   */
+  async function adminBackup(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const config = options.adminBackup;
+    if (!config) throw new HttpError(404, 'not-found');
+    const address = ip(req);
+    const wait = adminLimiter.take(address, now());
+    if (wait > 0) {
+      log(`Admin-Sicherung abgelehnt (429, zu viele Versuche) von ${address}`);
+      throw rateLimited(wait);
+    }
+    const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '');
+    if (!match || !tokensEqual(match[1]!, config.token)) {
+      log(`Admin-Sicherung abgelehnt (401, falsches Token) von ${address}`);
+      throw new HttpError(401, 'unauthorized');
+    }
+    if (adminBackupRunning) throw rateLimited(60_000, 'busy');
+    requireStorage();
+    adminBackupRunning = true;
+    let handle: FileHandle;
+    try {
+      handle = await backupToHandle(db, config.dir);
+    } finally {
+      adminBackupRunning = false;
+    }
+    let size: number;
+    try {
+      size = (await handle.stat()).size;
+    } catch (error) {
+      await handle.close();
+      throw error;
+    }
+    res.writeHead(200, {
+      'Content-Type': 'application/vnd.sqlite3',
+      'Content-Length': String(size),
+      'Content-Disposition': `attachment; filename="${backupName(now())}"`,
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    log(`Admin-Sicherung abgerufen (${size} Bytes) von ${address}`);
+    try {
+      // Der Stream schließt die Datei am Ende oder bei einem Abbruch selbst.
+      await pipeline(handle.createReadStream(), res);
+    } catch {
+      // Verbindung abgebrochen: hart beenden, damit der Client keine halbe Datei für ganz hält.
+      res.destroy();
     }
   }
 
