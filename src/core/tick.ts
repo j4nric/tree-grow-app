@@ -9,6 +9,7 @@ import { SPECIES } from '../content/species';
 import { ENCOUNTER_TYPES } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import {
+  activeCommunities,
   appearsContext,
   declineReward,
   evaluate,
@@ -260,7 +261,22 @@ export function chooseCard(
   state.plants = outcome.plants;
   if (encounter.type === 'animal' && !state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
   state.pendingEncounters.splice(encounterIndex, 1);
+  recordDiscoveries(state);
   return { ok: true };
+}
+
+/**
+ * Trägt ins Naturtagebuch ein, was gerade im Ökosystem ist: wachsende Pflanzen und
+ * aktive Lebensgemeinschaften (je einmal, in der Reihenfolge der Entdeckung). Arten
+ * trägt chooseCard selbst ein. Gibt die neu entdeckten Lebensgemeinschaften zurück
+ * (für eine Entdeckungs-Meldung, die die UI noch anschließt).
+ */
+export function recordDiscoveries(state: GameState): string[] {
+  const journal = state.meta.journal;
+  for (const id of state.plants) if (!journal.plants.includes(id)) journal.plants.push(id);
+  const fresh = activeCommunities(evaluate(state)).filter((id) => !journal.communities.includes(id));
+  journal.communities.push(...fresh);
+  return fresh;
 }
 
 /**
@@ -272,6 +288,7 @@ export function plantSeed(state: GameState, plantId: string): ActionResult {
   if (blocker) return fail(blocker);
   state.seeds -= nextPlantCost(state);
   state.plants.push(plantId);
+  recordDiscoveries(state);
   return { ok: true };
 }
 
