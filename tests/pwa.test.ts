@@ -3,13 +3,21 @@ import {
   CACHE_PREFIX,
   cacheName,
   contentVersion,
+  killServiceWorkerSource,
   precacheList,
   routeRequest,
   serviceWorkerSource,
   staleCaches,
   type RouteInput,
 } from '../src/pwa/service-worker';
-import { shouldRegisterServiceWorker, watchForUpdate, type RegistrationLike, type WorkerLike } from '../src/ui/pwa';
+import {
+  controllerChangeAction,
+  shouldRegisterServiceWorker,
+  watchForUpdate,
+  withTimeout,
+  type RegistrationLike,
+  type WorkerLike,
+} from '../src/ui/pwa';
 
 const SCOPE = 'https://j4nric.github.io/tree-grow-app/';
 const get = (url: string, extra: Partial<RouteInput> = {}): RouteInput => ({ url, method: 'GET', mode: 'cors', accept: '*/*', ...extra });
@@ -54,6 +62,11 @@ describe('routeRequest', () => {
     expect(routeRequest(get(SCOPE, { mode: 'navigate' }), SCOPE)).toBe('page');
     expect(routeRequest(get(`${SCOPE}?x=1`, { mode: 'navigate' }), SCOPE)).toBe('page');
     expect(routeRequest(get(`${SCOPE}index.html`), SCOPE)).toBe('page');
+    expect(routeRequest(get(`${SCOPE}spiel/wald`, { mode: 'navigate' }), SCOPE)).toBe('page');
+    // Navigation auf eine Datei: nie die App-Seite als Ersatz
+    expect(routeRequest(get(`${SCOPE}icons/icon-512.png`, { mode: 'navigate' }), SCOPE)).toBe('static');
+    expect(routeRequest(get(`${SCOPE}ui/demo.html`, { mode: 'navigate' }), SCOPE)).toBe('static');
+    expect(routeRequest(get(`${SCOPE}assets/index-abc.js`, { mode: 'navigate' }), SCOPE)).toBe('asset');
   });
 
   it('gehashte Assets cache-first, Manifest und Icons aus dem Cache', () => {
@@ -136,6 +149,7 @@ function fakeWorker(files: string[], network: Map<string, string>) {
       fetched.push(url);
       if (!online) throw new TypeError('offline');
       const body = network.get(url);
+      if (body === 'HÄNGT') return new Promise<FakeResponse>(() => undefined); // Funkloch: keine Antwort
       return body === undefined ? new FakeResponse('404', false) : new FakeResponse(body);
     },
     caches: {
@@ -218,17 +232,79 @@ describe('erzeugter Service Worker', () => {
     for (const store of sw.stores.values()) for (const url of store.keys()) expect(url.startsWith(SCOPE)).toBe(true);
   });
 
-  it('online: Seite kommt frisch aus dem Netz und ersetzt die gecachte index.html; Assets ohne Netz', async () => {
+  it('online: Seite frisch aus dem Netz, die gecachte index.html bleibt die dieser Version', async () => {
     const net = network();
     const sw = fakeWorker(files, net);
     await sw.dispatch('install');
+    // Neuer Build liegt schon auf dem Server, dieser Worker ist noch aktiv
     net.set(SCOPE, '<html>v2');
     sw.fetched.length = 0;
     expect((await (await sw.fetchEvent(SCOPE, { mode: 'navigate' }))!).body).toBe('<html>v2');
     expect((await (await sw.fetchEvent(`${SCOPE}assets/index-abc.js`))!).body).toBe('code');
     expect(sw.fetched).toEqual([SCOPE]);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(sw.stores.get(cacheName('v1'))!.get(SCOPE)!.body).toBe('<html>v2');
+    // Kein weißer Bildschirm offline: v2 verwiese auf Assets, die dieser Cache nicht hat.
+    expect(sw.stores.get(cacheName('v1'))!.get(SCOPE)!.body).toBe('<html>v1');
+    sw.setOnline(false);
+    expect((await (await sw.fetchEvent(SCOPE, { mode: 'navigate' }))!).body).toBe('<html>v1');
+  });
+
+  it('Netz antwortet nicht: nach dem Zeitlimit kommt die Seite aus dem Cache', async () => {
+    const net = network();
+    const sw = fakeWorker(files, net);
+    await sw.dispatch('install');
+    net.set(SCOPE, 'HÄNGT');
+    const started = Date.now();
+    const response = await (await sw.fetchEvent(SCOPE, { mode: 'navigate' }))!;
+    expect(response.body).toBe('<html>v1');
+    expect(Date.now() - started).toBeGreaterThanOrEqual(40); // networkTimeoutMs = 50
+  });
+
+  it('offline ohne Cache (vor dem ersten Installieren): Netzfehler statt falscher Antwort', async () => {
+    const sw = fakeWorker(files, network());
+    sw.setOnline(false);
+    await expect(sw.fetchEvent(SCOPE, { mode: 'navigate' }).then((p) => p)).rejects.toThrow('offline');
+    await expect(sw.fetchEvent(`${SCOPE}assets/index-abc.js`).then((p) => p)).rejects.toThrow('offline');
+    await expect(sw.fetchEvent(`${SCOPE}manifest.webmanifest`).then((p) => p)).rejects.toThrow('offline');
+  });
+
+  it('Navigation auf Dateien mit Endung bekommt nie index.html', async () => {
+    const sw = fakeWorker(files, network());
+    await sw.dispatch('install');
+    sw.setOnline(false);
+    await expect(sw.fetchEvent(`${SCOPE}icons/fehlt.png`, { mode: 'navigate' }).then((p) => p)).rejects.toThrow('offline');
+  });
+});
+
+describe('Not-Aus-Service-Worker (VSZW_SW_KILL=1)', () => {
+  it('übernimmt sofort, löscht nur die eigenen Caches, meldet sich ab und lädt Fenster neu', async () => {
+    const listeners = new Map<string, Listener>();
+    const caches = new Set([cacheName('a'), cacheName('b'), 'fremd']);
+    const log: string[] = [];
+    const self = {
+      addEventListener: (type: string, fn: Listener) => listeners.set(type, fn),
+      skipWaiting: () => log.push('skipWaiting'),
+      caches: {
+        keys: async () => [...caches],
+        delete: async (key: string) => caches.delete(key),
+      },
+      registration: { unregister: async () => log.push('unregister') },
+      clients: {
+        matchAll: async () => [
+          { url: `${SCOPE}`, navigate: async (url: string) => void log.push(`navigate ${url}`) },
+          { url: `${SCOPE}?x=1`, navigate: async () => Promise.reject(new Error('nicht gesteuert')) },
+        ],
+      },
+    };
+    const source = killServiceWorkerSource();
+    expect(source).not.toContain('fetch');
+    new Function('self', source)(self);
+    listeners.get('install')!({});
+    let waited: Promise<unknown> | undefined;
+    listeners.get('activate')!({ waitUntil: (p: Promise<unknown>) => (waited = p) });
+    await waited;
+    expect([...caches]).toEqual(['fremd']);
+    expect(log).toEqual(['skipWaiting', 'unregister', `navigate ${SCOPE}`]);
   });
 });
 
@@ -273,6 +349,24 @@ describe('Anmeldung und Update-Hinweis', () => {
       },
     };
   }
+
+  it('withTimeout: wartet auf das Senden, höchstens bis zum Zeitlimit, auch bei Fehlern', async () => {
+    let order: string[] = [];
+    await withTimeout(new Promise((resolve) => setTimeout(() => resolve(order.push('gesendet')), 5)), 1000);
+    order.push('weiter');
+    expect(order).toEqual(['gesendet', 'weiter']);
+    order = [];
+    const started = Date.now();
+    await withTimeout(new Promise(() => undefined), 30);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(25);
+    await withTimeout(Promise.reject(new Error('offline')), 1000);
+  });
+
+  it('controllerchange: neu laden nach eigenem Klick, Hinweis in anderen Tabs, nichts beim ersten Mal', () => {
+    expect(controllerChangeAction({ hadController: true, reloadRequested: true })).toBe('reload');
+    expect(controllerChangeAction({ hadController: true, reloadRequested: false })).toBe('notify');
+    expect(controllerChangeAction({ hadController: false, reloadRequested: false })).toBe('none');
+  });
 
   it('meldet einen schon wartenden Worker sofort, aber nur mit bestehender Steuerung', () => {
     const waiting = new Worker();

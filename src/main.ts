@@ -1081,7 +1081,7 @@ function start(): void {
   setupServiceWorker({
     beforeReload: () => {
       persist();
-      account?.flush();
+      return account?.flush();
     },
   });
 

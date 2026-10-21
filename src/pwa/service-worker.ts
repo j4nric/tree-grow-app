@@ -8,10 +8,14 @@
  * deshalb nichts aus ihrer Umgebung verwenden (keine Importe, keine Modul-Konstanten).
  *
  * Strategien:
- * - index.html / Seitenaufrufe: zuerst Netz (frische Version), offline aus dem Cache.
+ * - index.html / Seitenaufrufe (Pfade ohne Dateiendung): zuerst Netz (Zeitlimit), sonst die
+ *   vorab gecachte index.html dieser Version (nie zur Laufzeit überschrieben).
  * - gehashte Dateien unter assets/: zuerst Cache (ändern sich nie).
  * - übrige eigene Dateien (Manifest, Icons): Cache, sonst Netz.
  * - NIE angefasst: andere Origins (Sync-Server), Event-Streams (SSE), /api/, alles außer GET.
+ *
+ * Not-Aus: Mit VSZW_SW_KILL=1 gebaut, wird statt dessen `swKill` ausgeliefert – er löscht
+ * die Caches, meldet sich ab und lädt offene Tabs neu (README „Not-Aus“).
  */
 
 /** Präfix aller Caches dieses Spiels; fremde Caches derselben Origin bleiben unberührt. */
@@ -95,7 +99,11 @@ export function routeRequest(req: RouteInput, scope: string): Route {
   // Sync-Server hinter derselben Adresse (Reverse-Proxy): ebenfalls nie.
   if (rel.indexOf('api/') === 0 || url.pathname.indexOf('/api/') !== -1) return 'bypass';
   if (rel === 'sw.js') return 'bypass';
-  if (req.mode === 'navigate' || rel === '' || rel === 'index.html') return 'page';
+  if (rel === '' || rel === 'index.html') return 'page';
+  // Navigation auf einen Pfad ohne Dateiendung (z. B. ./?x=1 oder ./spiel): App-Seite.
+  // Mit Endung (icons/icon-192.png, ui/demo.html …) nie durch index.html ersetzen.
+  const last = rel.split('/').pop() || '';
+  if (req.mode === 'navigate' && last.indexOf('.') === -1) return 'page';
   if (rel.indexOf('assets/') === 0) return 'asset';
   return 'static';
 }
@@ -157,19 +165,18 @@ export function swMain(
     sw.caches.open(CACHE).then((cache: any) => cache.put(key, copy));
   };
 
-  /** Seite: Netz mit Zeitlimit, sonst die gecachte index.html. */
+  /**
+   * Seite: Netz mit Zeitlimit, sonst die beim Installieren gecachte index.html. Die Antwort
+   * aus dem Netz wird bewusst NICHT gecacht: Eine neuere index.html (neuer Build, dieser
+   * Worker noch aktiv) verwiese auf Assets, die dieser Cache nicht kennt – offline gäbe das
+   * einen weißen Bildschirm. Die Kopie im Cache passt so immer zu den Assets daneben.
+   */
   const page = (request: any): Promise<any> => {
-    const network: Promise<any> = sw.fetch(request).then((response: any) => {
-      const url = new URL(request.url);
-      const isIndex = url.search === '' && (url.origin + url.pathname === indexUrl || url.origin + url.pathname === indexUrl + 'index.html');
-      if (isIndex) store(indexUrl, response);
-      return response;
-    });
+    const network: Promise<any> = sw.fetch(request);
     const timeout = new Promise<any>((resolve) => setTimeout(() => resolve(null), config.networkTimeoutMs));
-    const cached = (): Promise<any> => fromCache(indexUrl);
     return Promise.race([network.catch(() => null), timeout]).then((response) => {
       if (response) return response;
-      return cached().then((hit: any) => hit || network);
+      return fromCache(indexUrl).then((hit: any) => hit || network);
     });
   };
 
@@ -204,6 +211,35 @@ export function serviceWorkerSource(config: SwConfig): string {
     '/* Vom Samen zum Wald – Service Worker (erzeugt beim Bauen aus src/pwa/service-worker.ts) */',
     "'use strict';",
     `(${swMain.toString()})(self, ${JSON.stringify(config)}, ${routeRequest.toString()}, ${staleCaches.toString()});`,
+    '',
+  ].join('\n');
+}
+
+/**
+ * Not-Aus-Worker: übernimmt sofort, löscht alle Caches des Spiels, meldet sich ab und lädt
+ * offene Fenster neu (dann ohne Service Worker). Kein fetch-Handler: alles geht ans Netz.
+ * Läuft per `toString()` in sw.js – keine Modul-Bindungen.
+ */
+export function swKill(sw: any): void {
+  sw.addEventListener('install', () => sw.skipWaiting());
+  sw.addEventListener('activate', (event: any) => {
+    event.waitUntil(
+      sw.caches
+        .keys()
+        .then((keys: string[]) => Promise.all(keys.filter((key) => key.indexOf('vszw-shell-') === 0).map((key) => sw.caches.delete(key))))
+        .then(() => sw.registration.unregister())
+        .then(() => sw.clients.matchAll({ type: 'window' }))
+        .then((clients: any[]) => Promise.all(clients.map((client) => client.navigate(client.url).catch(() => undefined)))),
+    );
+  });
+}
+
+/** Quelltext des Not-Aus-sw.js. */
+export function killServiceWorkerSource(): string {
+  return [
+    '/* Vom Samen zum Wald – Not-Aus: Service Worker meldet sich ab (gebaut mit VSZW_SW_KILL=1) */',
+    "'use strict';",
+    `(${swKill.toString()})(self);`,
     '',
   ].join('\n');
 }

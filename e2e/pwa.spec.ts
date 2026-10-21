@@ -192,3 +192,29 @@ test('neue Version: Hinweis „Neue Version verfügbar – neu laden“ lädt ne
   // (Danach meldet das Spiel wieder „./sw.js“ an – für den Browser erneut eine neue Adresse.)
   expect(await page.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).toMatch(/\/sw\.js\?neu=1$/);
 });
+
+test('zwei Tabs: Aktualisiert einer, zeigt der andere „Neue Version aktiv – bitte neu laden“', async ({ page, context }) => {
+  await enableServiceWorker(context);
+  await openGame(page);
+  await waitForController(page);
+  const other = await context.newPage();
+  await openGame(other);
+  await waitForController(other);
+
+  await page.evaluate(() => navigator.serviceWorker.register('./sw.js?neu=1', { scope: './' }));
+  const hint = page.locator('[data-ref="update-hint"]');
+  const otherHint = other.locator('[data-ref="update-hint"]');
+  await expect(hint).toContainText('Neue Version verfügbar');
+  await expect(otherHint).toContainText('Neue Version verfügbar');
+
+  const navigation = page.waitForEvent('framenavigated');
+  await hint.getByRole('button', { name: 'neu laden' }).click();
+  await navigation;
+  // Der andere Tab läuft nicht still mit altem Code weiter
+  await expect(otherHint).toContainText('Neue Version aktiv – bitte');
+  const otherNavigation = other.waitForEvent('framenavigated');
+  await otherHint.getByRole('button', { name: 'neu laden' }).click();
+  await otherNavigation;
+  await openGame(other);
+  expect(await other.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).toMatch(/\/sw\.js\?neu=1$/);
+});
