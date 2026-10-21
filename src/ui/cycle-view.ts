@@ -5,7 +5,6 @@
  */
 import {
   FOREST_MEMORY_BONUS,
-  MEMORY_HARMONY_DIVISOR,
   MEMORY_PER_HARMONY_POINT,
   MEMORY_PER_NEW_SPECIES,
   NEW_CYCLE_MIN_STAGE,
@@ -151,23 +150,27 @@ export function cycleViewKey(view: CyclePanelView): string {
 }
 
 /**
- * Regel für das Waldgedächtnis (Schritt 2.11, gleitende Schwelle seit 2.11b, content/memory.ts)
- * mit Schwelle und Obergrenze des erreichten Wegpunkts (vor dem Hain: die des Hains), z. B.
- * „Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie
- * ab 110 zählt extra: etwa +3 je Punkt (bis 124). Die Schwelle steigt mit dem Wachstum bis
- * 150 im Urwald.“ Genannt wird die erste ganze Harmonie, die wirklich mehr als den Sockel
- * bringt (bonusFrom): An krummen Schwellen bringt der erste Punkt weniger als +3 (Wegpunkt 23,
- * Schwelle 109,375: 110 bringt +1) oder nach dem Abrunden nichts (Wegpunkt 27, Schwelle
- * 121,875: erst ab 123). Der letzte Satz fehlt, sobald die Schwelle oben angekommen ist.
+ * Regel für das Waldgedächtnis (Schritt 2.11, gleitende Schwelle seit 2.11b, gleitender
+ * Sockel-Teiler seit dem Abgleich mit der Sperrklinke, content/memory.ts) mit Teiler,
+ * Schwelle und Obergrenze des erreichten Wegpunkts (vor dem Hain: die des Hains), z. B.
+ * „Waldgedächtnis: 1 Punkt je 5,4 Punkte höchster Harmonie und je neue Art. Höchste Harmonie
+ * ab 119 zählt extra: etwa +3 je Punkt (bis 134). Die Schwelle steigt mit dem Wachstum bis
+ * 164 im Urwald, dort 1 Punkt je 7 – Erreichtes bleibt.“ (Wegpunkt 23; der Teiler 5,375 wird
+ * auf eine Stelle gerundet.) Sperrklinke seit v10: die Vorschau sinkt nie, auch wenn die
+ * Schwelle steigt; ein eigener Hinweis „bester Wert“ wäre eher verwirrend. Genannt wird die
+ * erste ganze Harmonie, die wirklich mehr als den Sockel bringt (bonusFrom; an krummen
+ * Schwellen kann das ⌈T⌉ + 1 sein). Der letzte Satz fehlt, sobald die Schwelle oben
+ * angekommen ist.
  */
 export function memoryRuleText(bonus: MemoryHarmonyBonus): string {
   const top = memoryHarmonyBonus(Infinity);
   const last = STAGES[STAGES.length - 1]?.name ?? 'Urwald';
+  const later = top.divisor !== bonus.divisor ? `, dort 1 Punkt je ${formatNumber(top.divisor)}` : '';
   return (
-    `Waldgedächtnis: 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} Punkte höchster Harmonie` +
+    `Waldgedächtnis: 1 Punkt je ${formatNumber(bonus.divisor)} Punkte höchster Harmonie` +
     (MEMORY_PER_NEW_SPECIES === 1 ? ' und je neue Art. ' : ` und ${formatNumber(MEMORY_PER_NEW_SPECIES)} je neue Art. `) +
     `Höchste Harmonie ab ${formatNumber(bonus.bonusFrom)} zählt extra: etwa +${formatNumber(MEMORY_PER_HARMONY_POINT)} je Punkt (bis ${formatNumber(bonus.fullAt)}).` +
-    (bonus.threshold < top.threshold ? ` Die Schwelle steigt mit dem Wachstum bis ${formatNumber(Math.floor(top.threshold))} im ${last}.` : '')
+    (bonus.threshold < top.threshold ? ` Die Schwelle steigt mit dem Wachstum bis ${formatNumber(Math.floor(top.threshold))} im ${last}${later} – Erreichtes bleibt.` : '')
   );
 }
 
