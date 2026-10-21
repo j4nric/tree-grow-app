@@ -7,9 +7,10 @@
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
 import { ABILITY_INFO } from '../content/abilities';
-import { COMMUNITIES_BY_ID } from '../content/communities';
+import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
+import { KEEPSAKE_INFO } from '../content/memory';
 import { NICHES, NICHES_BY_ID } from '../content/niches';
-import { PLANT_GROUP_INFO, PLANTS_BY_ID, type Plant } from '../content/plants';
+import { PLANT_GROUP_INFO, PLANTS, PLANTS_BY_ID, type Plant } from '../content/plants';
 import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
 import { STAGES } from '../content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
@@ -31,10 +32,12 @@ import {
   evaluate,
   evaluateEcosystem,
   hasSpecies,
+  memberOptions,
   nextPlantCost,
   plantSlots,
   previewChoice,
   previewPlant,
+  regularSlots,
   rerollCost,
   secondsToNextWaypoint,
   slotEffects,
@@ -49,12 +52,14 @@ import {
   MAX_OFFLINE_SECONDS,
   allWaypointsReached,
   plantBlocker,
+  regularBlocker,
   rerollBlocker,
   unlockedPlants,
   type OfflineReport,
 } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
-import { preferredReplaceOption } from './view-format';
+import { memoryBonusLabel } from './cycle-view';
+import { RARITY_LABELS, preferredReplaceOption } from './view-format';
 import type {
   AnimalView,
   CardView,
@@ -68,6 +73,10 @@ import type {
   FactView,
   FamilyView,
   HarmonyPartView,
+  JournalCommunityView,
+  JournalEntryView,
+  JournalKeepsakeView,
+  JournalView,
   NicheView,
   PlantGroupCountView,
   PlantPickerView,
@@ -590,6 +599,143 @@ export function discoveryText(ids: readonly string[] | undefined): string | null
   const names = ids.map(communityName);
   if (names.length === 1) return `Neue Lebensgemeinschaft: ${names[0]} 🌱`;
   return `Neue Lebensgemeinschaften: ${listNames(names, names.length)} 🌱`;
+}
+
+// ---------------------------------------------------------------------------
+// Naturtagebuch
+// ---------------------------------------------------------------------------
+
+/** „12/32“ */
+const ofTotal = (n: number, total: number) => `${formatNumber(n)}/${formatNumber(total)}`;
+
+/**
+ * Das Naturtagebuch (DESIGN_V2.md 10, 11.2): alle Arten, Pflanzen und Lebensgemeinschaften,
+ * entdeckte mit Angaben, unentdeckte als Silhouette mit „???“ – ohne Namen und ohne ID
+ * (Spoiler-Regel). Entdeckte Arten tragen den Stammgast-Schalter, sobald es Plätze gibt.
+ * `evaluation` (= evaluate(state)) liefert, welche Gemeinschaften gerade bestehen.
+ */
+export function toJournalView(state: GameState, evaluation: Readonly<Pick<Evaluation, 'communities'>>): JournalView {
+  const journal = state.meta.journal;
+  const present = new Set(allAnimals(state));
+  const slots = regularSlots(state.meta.forestMemory);
+
+  let hiddenSpecies = 0;
+  const species: JournalEntryView[] = SPECIES.map((sp) => {
+    const rarity = rarityKey(sp.rarity);
+    const icon = GENUS_INFO[sp.genus].icon;
+    if (!journal.species.includes(sp.id)) {
+      return {
+        key: `unknown-species-${hiddenSpecies++}`,
+        discovered: false,
+        icon,
+        name: '???',
+        family: sp.genus,
+        rarity,
+        facts: [RARITY_LABELS[rarity]],
+        present: false,
+      };
+    }
+    const entry: JournalEntryView = {
+      key: sp.id,
+      discovered: true,
+      icon,
+      name: sp.name,
+      family: sp.genus,
+      rarity,
+      facts: [GENUS_INFO[sp.genus].name, RARITY_LABELS[rarity], `Nische: ${NICHES_BY_ID.get(sp.niche)?.name ?? sp.niche}`],
+      text: sp.text,
+      present: present.has(sp.id),
+    };
+    if (slots > 0) {
+      const selected = state.meta.regulars.includes(sp.id);
+      entry.regular = { selected, disabled: !selected && regularBlocker(state, sp.id) !== null };
+    }
+    return entry;
+  });
+
+  let hiddenPlants = 0;
+  const plants: JournalEntryView[] = PLANTS.map((plant) => {
+    const group = PLANT_GROUP_INFO[plant.group];
+    if (!journal.plants.includes(plant.id)) {
+      return {
+        key: `unknown-plant-${hiddenPlants++}`,
+        discovered: false,
+        icon: group.icon,
+        name: '???',
+        family: plant.group,
+        facts: [`ab „${STAGES[plant.unlock]?.name ?? '…'}“`],
+        present: false,
+      };
+    }
+    return {
+      key: plant.id,
+      discovered: true,
+      icon: group.icon,
+      name: plant.name,
+      family: plant.group,
+      facts: [group.name, `ab „${STAGES[plant.unlock]?.name ?? '…'}“`],
+      text: plant.text,
+      present: state.plants.includes(plant.id),
+    };
+  });
+
+  const active = new Set(evaluation.communities.filter((c) => c.active).map((c) => c.id));
+  let hiddenCommunities = 0;
+  const communities: JournalCommunityView[] = COMMUNITIES.map((c) => {
+    if (!journal.communities.includes(c.id)) {
+      return {
+        key: `unknown-community-${hiddenCommunities++}`,
+        discovered: false,
+        icon: '❔',
+        name: '???',
+        active: false,
+        hint: c.hint,
+      };
+    }
+    const effect = [`+${formatNumber(c.harmony)} Harmonie`, ...c.effects.map((e) => effectView(e).label)].join(' · ');
+    return {
+      key: c.id,
+      discovered: true,
+      icon: c.icon,
+      name: c.name,
+      active: active.has(c.id),
+      members: missingMembersText(c.members.map((m) => memberOptions(m))),
+      effect,
+    };
+  });
+
+  const keepsakes: JournalKeepsakeView[] = journal.keepsakes.map((id) => {
+    const info = KEEPSAKE_INFO[id];
+    return { key: id, icon: info?.icon ?? '🎁', name: info?.name ?? 'Andenken', text: info?.text ?? '' };
+  });
+
+  const found = {
+    species: species.filter((e) => e.discovered).length,
+    plants: plants.filter((e) => e.discovered).length,
+    communities: communities.filter((e) => e.discovered).length,
+  };
+  const tabCounts = {
+    species: ofTotal(found.species, species.length),
+    plants: ofTotal(found.plants, plants.length),
+    communities: ofTotal(found.communities, communities.length),
+    keepsakes: formatNumber(keepsakes.length),
+  };
+  const memory = state.meta.forestMemory;
+  return {
+    counts: `${tabCounts.species} Arten · ${tabCounts.plants} Pflanzen · ${tabCounts.communities} Gemeinschaften`,
+    meta:
+      `Zyklus ${formatNumber(state.cycle.number)} · Waldgedächtnis ${formatNumber(memory)}` +
+      (memory > 0 ? ` (${memoryBonusLabel(memory)} Wachstum und Samen)` : ''),
+    regulars:
+      slots > 0
+        ? `Stammgäste ${ofTotal(state.meta.regulars.length, slots)} – sie ziehen in jedem Zyklus von selbst ein. Wähle sie bei den Arten.`
+        : null,
+    species,
+    plants,
+    communities,
+    keepsakes,
+    tabCounts,
+  };
 }
 
 // ---------------------------------------------------------------------------
