@@ -133,7 +133,6 @@ export function tick(state: GameState, dt: number): TickReport {
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
   // Kaputte Spielzeit (NaN, negativ, zu groß) nicht weiterschleppen.
   state.cycle.elapsed = normalizeElapsed(state.cycle.elapsed);
-  const growthBefore = state.totalGrowth;
   let remaining = dt;
   // Schleife endet: Jede Runde verbraucht die Restzeit oder erreicht einen Halt – davon
   // gibt es endlich viele (Wegpunkte, je ein Zwischenhalt, endlich viele Boni, eine
@@ -182,12 +181,9 @@ export function tick(state: GameState, dt: number): TickReport {
       state.totalGrowth = capped(state.totalGrowth + rate * step);
     }
   }
-  // Langzeit-Statistik: die ganze Spielzeit (auch über MAX_ELAPSED hinaus) und der
-  // Zuwachs an Wachstum – je Tick einmal, auch nach dem Schnellvorlauf über ganze Jahre.
-  const stats = state.meta.stats;
-  stats.playSeconds = capped(stats.playSeconds + dt);
-  const grown = state.totalGrowth - growthBefore;
-  if (grown > 0) stats.totalGrowth = capped(stats.totalGrowth + grown);
+  // Langzeit-Statistik: die ganze Spielzeit (auch über MAX_ELAPSED hinaus), je Tick einmal.
+  // Das Wachstum braucht hier nichts – es steht exakt in `totalGrowth` (lifetimeGrowth).
+  state.meta.stats.playSeconds = capped(state.meta.stats.playSeconds + dt);
   return report;
 }
 
@@ -846,6 +842,7 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   const tree = mainTree ?? state.cycle.mainTree;
   if (!isTreeUnlocked(state, tree)) return { ok: false, error: 'tree-locked' };
   state.meta.forestMemory = preview.memoryAfter;
+  state.meta.stats.completedCyclesGrowth = capped(state.meta.stats.completedCyclesGrowth + state.totalGrowth);
   state.totalGrowth = 0;
   state.seeds = 0;
   state.waypoint = 0;

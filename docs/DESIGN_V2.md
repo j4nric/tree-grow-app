@@ -1318,7 +1318,7 @@ Abgeschlossene Zyklen stehen schon in `cycle.number − 1` (kein eigenes Feld).
 | Feld | Bedeutung | gezählt in |
 |---|---|---|
 | `playSeconds` | Spielzeit aller Zyklen (Sekunden, auch über `MAX_ELAPSED` hinaus) | `tick` (+ dt) |
-| `totalGrowth` | Gesamt-Wachstum aller Zyklen | `tick` (Zuwachs von `totalGrowth`) |
+| `completedCyclesGrowth` | Wachstum aller abgeschlossenen Zyklen | `startNewCycle` (+ `totalGrowth` des endenden Zyklus) |
 | `bestHarmony` | höchste Harmonie aller Zyklen | überall, wo H_max nachgeführt wird |
 | `cardsChosen` | angenommene Begegnungen (Tier- oder Pflanzenkarte gewählt) | `chooseCard` |
 | `eventsDecided` | entschiedene Ereignisse | `chooseEventOption` |
@@ -1327,19 +1327,27 @@ Abgeschlossene Zyklen stehen schon in `cycle.number − 1` (kein eigenes Feld).
 | `careRanksBought` | gekaufte Pflege-Ränge | `buyCare` |
 | `grownTrees` | Hauptbaum-Arten, die schon einmal Hauptbaum waren (inkl. der aktuellen) | `startNewCycle`, Start: Eiche |
 
+- **Gesamt-Wachstum** aller Zyklen = `completedCyclesGrowth + totalGrowth`
+  (`lifetimeGrowth` in `core/formulas.ts`, die Anzeige nutzt sie). Exakt, ohne
+  Aufsummieren von Zuwächsen je Tick.
 - Nur Zahlen und eine kleine Liste, JSON-serialisierbar. Zähler ganzzahlig, höchstens
   `MAX_STAT_COUNT` (= `Number.MAX_SAFE_INTEGER`); Spielzeit und Wachstum höchstens
   `Number.MAX_VALUE`.
-- **Online = offline:** Spielzeit und Wachstum zählt `tick` einmal je Aufruf – auch nach dem
+- **Online = offline:** Die Spielzeit zählt `tick` einmal je Aufruf (+ dt) – auch nach dem
   Schnellvorlauf über ganze Jahre. Viele kleine Ticks und ein großer liefern dieselbe
-  Spielzeit und dasselbe Wachstum (bis auf Rundung), dieselben Zähler.
+  Spielzeit und dieselben Zähler; das Gesamt-Wachstum folgt `totalGrowth`.
 - **Migration v7 → v8:** Frühere Zyklen sind nicht bekannt. Die Statistik beginnt beim
-  laufenden Zyklus: Spielzeit = `cycle.elapsed`, Gesamt-Wachstum = `totalGrowth`, beste
-  Harmonie = H_max, `grownTrees = [cycle.mainTree]`, alle Zähler 0. Was ein älterer
-  Stand unter `meta.stats` mitbringt, zählt nicht.
+  laufenden Zyklus: Spielzeit = `cycle.elapsed`, `completedCyclesGrowth = 0` (Gesamt-Wachstum
+  also `totalGrowth`), beste Harmonie = H_max, alle Zähler 0. `grownTrees = [cycle.mainTree]`;
+  bei `cycle.number > 1` steht die Stieleiche (`DEFAULT_MAIN_TREE`) zusätzlich vorn, denn
+  jeder erste Zyklus beginnt mit ihr. Was ein älterer Stand unter `meta.stats` mitbringt,
+  zählt nicht.
 - **Robustes Laden (ab v8):** fehlende, kaputte oder negative Zahlen → 0, ±Infinity →
   Grenze, Brüche bei Zählern abgerundet. Untergrenzen aus dem laufenden Zyklus (über alle
-  Zyklen ist nie weniger als im laufenden: Spielzeit, Wachstum, H_max). `grownTrees`: nur
+  Zyklen ist nie weniger als im laufenden): H_max; Spielzeit ≥ `cycle.elapsed`, aber erst,
+  wenn sie um mehr als die Toleranz `PLAY_SECONDS_TOLERANCE` (1e-6 relativ, mindestens
+  1e-6 absolut) darunter liegt – beide werden getrennt aufsummiert, Rundungsrauschen darf
+  Speichern + Laden nicht verändern. `grownTrees`: nur
   bekannte, freigeschaltete Arten je einmal; die aktuelle kommt dazu, falls sie fehlt.
 - **Anzeige:** Naturtagebuch, Reiter „Statistik“, Abschnitt „Über alle Zyklen“; im Reiter
   „Andenken“ steht bei Hauptbaum-Arten aus `grownTrees` „schon gewachsen“.

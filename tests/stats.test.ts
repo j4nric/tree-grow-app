@@ -3,8 +3,8 @@ import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { SEASON_SECONDS, YEAR_SECONDS } from '../src/content/seasons';
 import { STAGES } from '../src/content/stages';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
-import { evaluate, thresholdFor } from '../src/core/formulas';
-import { exportCode, importCode, loadGame, serialize } from '../src/core/save';
+import { evaluate, lifetimeGrowth, thresholdFor } from '../src/core/formulas';
+import { PLAY_SECONDS_TOLERANCE, exportCode, importCode, loadGame, serialize } from '../src/core/save';
 import { MAX_ELAPSED } from '../src/core/season';
 import { SAVE_VERSION, createInitialState, createStats, type GameState } from '../src/core/state';
 import {
@@ -25,8 +25,8 @@ import { stateAt } from './helpers';
 
 /**
  * Langzeit-Statistik `meta.stats` (Spielstand v8, DESIGN_V2.md 12.5): Zähler in den
- * Aktionen, Spielzeit und Wachstum in tick (online = offline), Migration v7 → v8 und
- * robustes Laden.
+ * Aktionen, Spielzeit in tick (online = offline), Gesamt-Wachstum über alle Zyklen,
+ * Migration v7 → v8 und robustes Laden.
  */
 
 /** Hain mit Tieren, Pflanzen und offener Begegnung – bereit für den Neuen Zyklus. */
@@ -51,7 +51,7 @@ describe('Startwerte', () => {
     const s = createInitialState(0, 1);
     expect(s.meta.stats).toEqual({
       playSeconds: 0,
-      totalGrowth: 0,
+      completedCyclesGrowth: 0,
       bestHarmony: 0,
       cardsChosen: 0,
       eventsDecided: 0,
@@ -67,13 +67,14 @@ describe('Startwerte', () => {
 });
 
 describe('Spielzeit und Wachstum in tick', () => {
-  it('zählt dt und den Zuwachs an Wachstum', () => {
+  it('zählt dt; Gesamt-Wachstum ist im ersten Zyklus genau totalGrowth', () => {
     const s = stateAt(2, ['earthworm'], 3);
     const before = s.totalGrowth;
     tick(s, 10);
     tick(s, 2.5);
     expect(s.meta.stats.playSeconds).toBe(12.5);
-    expect(s.meta.stats.totalGrowth).toBeCloseTo(s.totalGrowth, 9);
+    expect(s.meta.stats.completedCyclesGrowth).toBe(0);
+    expect(lifetimeGrowth(s)).toBe(s.totalGrowth);
     expect(s.totalGrowth).toBeGreaterThan(before);
   });
 
@@ -89,12 +90,11 @@ describe('Spielzeit und Wachstum in tick', () => {
     const s = stateAt(STAGES.length - 1, ['earthworm'], 9);
     s.waypoint = WAYPOINT_COUNT;
     s.totalGrowth = thresholdFor(WAYPOINT_COUNT);
-    s.meta.stats.totalGrowth = s.totalGrowth;
     const years = 1000;
     tick(s, years * YEAR_SECONDS);
     expect(s.cycle.elapsed).toBe(years * YEAR_SECONDS);
     expect(s.meta.stats.playSeconds).toBe(years * YEAR_SECONDS);
-    expect(s.meta.stats.totalGrowth / s.totalGrowth).toBeCloseTo(1, 12);
+    expect(lifetimeGrowth(s)).toBe(s.totalGrowth);
     expect(s.totalGrowth).toBeGreaterThan(thresholdFor(WAYPOINT_COUNT));
   });
 
@@ -103,7 +103,7 @@ describe('Spielzeit und Wachstum in tick', () => {
     tick(s, MAX_ELAPSED * 4);
     expect(s.cycle.elapsed).toBeLessThanOrEqual(MAX_ELAPSED);
     expect(s.meta.stats.playSeconds).toBe(MAX_ELAPSED * 4);
-    expect(Number.isFinite(s.meta.stats.totalGrowth)).toBe(true);
+    expect(Number.isFinite(lifetimeGrowth(s))).toBe(true);
     s.meta.stats.playSeconds = Number.MAX_VALUE;
     tick(s, Number.MAX_VALUE);
     expect(s.meta.stats.playSeconds).toBe(Number.MAX_VALUE);
@@ -117,11 +117,9 @@ describe('Spielzeit und Wachstum in tick', () => {
     for (let i = 0; i < 2 * 3600; i++) tick(online, 1);
     simulateOffline(offline, 2 * 3600);
     expect(online.waypoint).toBeGreaterThan(NEW_CYCLE_MIN_STAGE);
-    const { totalGrowth: growthOn, ...restOn } = online.meta.stats;
-    const { totalGrowth: growthOff, ...restOff } = offline.meta.stats;
-    expect(restOff).toEqual(restOn);
+    expect(offline.meta.stats).toEqual(online.meta.stats);
     expect(offline.meta.stats.playSeconds).toBe(online.meta.stats.playSeconds);
-    expect(growthOff / growthOn).toBeCloseTo(1, 12);
+    expect(lifetimeGrowth(offline) / lifetimeGrowth(online)).toBeCloseTo(1, 12);
   });
 
   it('deterministisch: gleicher Stand, gleiche Folge → gleiche Statistik', () => {
@@ -137,6 +135,44 @@ describe('Spielzeit und Wachstum in tick', () => {
     };
     expect(run().meta.stats).toEqual(run().meta.stats);
     expect(serialize(run())).toBe(serialize(run()));
+  });
+});
+
+describe('Gesamt-Wachstum über alle Zyklen (lifetimeGrowth)', () => {
+  it('abgeschlossene Zyklen + laufender, exakt über mehrere Neue Zyklen', () => {
+    const s = groveState(8);
+    let sum = 0;
+    for (let i = 0; i < 3; i++) {
+      tick(s, 600);
+      s.stage = Math.max(s.stage, NEW_CYCLE_MIN_STAGE);
+      sum += s.totalGrowth;
+      expect(startNewCycle(s, 0).ok).toBe(true);
+      expect(s.meta.stats.completedCyclesGrowth).toBe(sum);
+    }
+    tick(s, 10);
+    expect(lifetimeGrowth(s)).toBe(sum + s.totalGrowth);
+  });
+
+  it('Grenzfälle: 0, NaN, negativ, riesig – endlich und ≥ 0', () => {
+    const s = createInitialState(0, 1);
+    expect(lifetimeGrowth(s)).toBe(0);
+    s.meta.stats.completedCyclesGrowth = Number.NaN;
+    s.totalGrowth = -5;
+    expect(lifetimeGrowth(s)).toBe(0);
+    s.meta.stats.completedCyclesGrowth = Number.MAX_VALUE;
+    s.totalGrowth = Number.MAX_VALUE;
+    expect(lifetimeGrowth(s)).toBe(Number.MAX_VALUE);
+    s.meta.stats.completedCyclesGrowth = Number.POSITIVE_INFINITY;
+    expect(lifetimeGrowth(s)).toBe(Number.MAX_VALUE);
+  });
+
+  it('Neuer Zyklus kappt bei Number.MAX_VALUE (JSON bleibt endlich)', () => {
+    const s = groveState(2);
+    s.meta.stats.completedCyclesGrowth = Number.MAX_VALUE;
+    s.totalGrowth = Number.MAX_VALUE;
+    expect(startNewCycle(s, 0).ok).toBe(true);
+    expect(s.meta.stats.completedCyclesGrowth).toBe(Number.MAX_VALUE);
+    expect(JSON.parse(serialize(s)).meta.stats.completedCyclesGrowth).toBe(Number.MAX_VALUE);
   });
 });
 
@@ -208,9 +244,11 @@ describe('Zähler in den Aktionen', () => {
     expect(best).toBe(s.cycle.maxHarmony);
     expect(best).toBeGreaterThan(0);
     const before = structuredClone(s.meta.stats);
+    const grown = s.totalGrowth;
     expect(startNewCycle(s, 0, 'pine').ok).toBe(true);
     expect(s.cycle.maxHarmony).toBeLessThan(best);
-    expect(s.meta.stats).toEqual({ ...before, grownTrees: ['oak', 'pine'] });
+    expect(s.meta.stats).toEqual({ ...before, completedCyclesGrowth: grown, grownTrees: ['oak', 'pine'] });
+    expect(lifetimeGrowth(s)).toBe(grown);
     // Wieder Kiefer, dann Eiche: keine Doppel.
     s.stage = NEW_CYCLE_MIN_STAGE;
     startNewCycle(s, 0, 'pine');
@@ -248,34 +286,48 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
     });
   }
 
-  it('v7 → v8: Startwerte aus dem laufenden Zyklus, Zähler 0', () => {
+  it('v7 → v8: Startwerte aus dem laufenden Zyklus, Zähler 0, ab Zyklus 2 auch die Eiche', () => {
     expect(SAVE_VERSION).toBe(8);
     const s = loadGame(rawV7(), 0)!.state;
     expect(s.version).toBe(8);
     expect(s.meta.stats).toEqual({
       playSeconds: 2 * YEAR_SECONDS + 42,
-      totalGrowth: s.totalGrowth,
+      completedCyclesGrowth: 0,
       bestHarmony: 1e4,
       cardsChosen: 0,
       eventsDecided: 0,
       visitorsHosted: 0,
       plantsPlanted: 0,
       careRanksBought: 0,
-      grownTrees: ['pine'],
+      // Jeder erste Zyklus beginnt mit der Stieleiche – sie steht vorn.
+      grownTrees: ['oak', 'pine'],
     });
+    expect(lifetimeGrowth(s)).toBe(s.totalGrowth);
+  });
+
+  it('v7 im ersten Zyklus: nur die aktuelle Baumart; Eiche ab Zyklus 2 nicht doppelt', () => {
+    const first = loadGame(rawV7((d) => ((d.cycle.number = 1), (d.cycle.mainTree = 'oak'))), 0)!.state;
+    expect(first.meta.stats.grownTrees).toEqual(['oak']);
+    const oakAgain = loadGame(rawV7((d) => (d.cycle.mainTree = 'oak')), 0)!.state;
+    expect(oakAgain.meta.stats.grownTrees).toEqual(['oak']);
   });
 
   it('v7 mit fremdem `meta.stats`: zählt nicht', () => {
-    const s = loadGame(rawV7((d) => (d.meta.stats = { cardsChosen: 999, grownTrees: ['oak', 'beech'] })), 0)!.state;
+    const s = loadGame(
+      rawV7((d) => (d.meta.stats = { cardsChosen: 999, completedCyclesGrowth: 1e9, grownTrees: ['beech'] })),
+      0,
+    )!.state;
     expect(s.meta.stats.cardsChosen).toBe(0);
-    expect(s.meta.stats.grownTrees).toEqual(['pine']);
+    expect(s.meta.stats.completedCyclesGrowth).toBe(0);
+    expect(s.meta.stats.grownTrees).toEqual(['oak', 'pine']);
   });
 
   it('ältere Stände (v1, v2, v5) bekommen ebenfalls gültige Startwerte', () => {
     const v1 = loadGame(JSON.stringify({ version: 1, stage: 4, totalEnergy: 1e6, lastTick: 5 }), 10)!.state;
     expect(v1.meta.stats).toEqual(createStats());
     const v2 = loadGame(JSON.stringify({ version: 2, totalGrowth: 500, seeds: 1, lastTick: 1 }), 10)!.state;
-    expect(v2.meta.stats).toMatchObject({ playSeconds: 0, totalGrowth: v2.totalGrowth, grownTrees: ['oak'] });
+    expect(v2.meta.stats).toMatchObject({ playSeconds: 0, completedCyclesGrowth: 0, grownTrees: ['oak'] });
+    expect(lifetimeGrowth(v2)).toBe(v2.totalGrowth);
     const v5 = loadGame(rawV7((d) => (d.version = 5)), 0)!.state;
     expect(v5.meta.stats).toMatchObject({ playSeconds: 0, grownTrees: ['oak'], cardsChosen: 0 });
   });
@@ -300,7 +352,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
       )!.state.meta.stats;
     const fallback = {
       playSeconds: 0,
-      totalGrowth: base.totalGrowth,
+      completedCyclesGrowth: 0,
       bestHarmony: base.cycle.maxHarmony,
       cardsChosen: 0,
       eventsDecided: 0,
@@ -312,7 +364,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
     for (const broken of [undefined, null, 'x', 42, [1, 2], {}]) expect(load(broken), String(broken)).toEqual(fallback);
     const s = load({
       playSeconds: '__INF__',
-      totalGrowth: -5,
+      completedCyclesGrowth: -5,
       bestHarmony: 'viel',
       cardsChosen: 3.9,
       eventsDecided: '__NINF__',
@@ -337,12 +389,37 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
     base.meta.journal.plants.push('pine', 'beech');
     base.cycle.elapsed = 1000;
     const s = loadGame(
-      raw(base, (d) => (d.meta.stats = { ...createStats(), playSeconds: 10, totalGrowth: 1, bestHarmony: 0, grownTrees: ['beech'] })),
+      raw(base, (d) => (d.meta.stats = { ...createStats(), playSeconds: 10, bestHarmony: 0, grownTrees: ['beech'] })),
       0,
     )!.state.meta.stats;
     expect(s.playSeconds).toBe(1000);
-    expect(s.totalGrowth).toBe(base.totalGrowth);
     expect(s.bestHarmony).toBe(base.cycle.maxHarmony);
     expect(s.grownTrees).toEqual(['beech', 'pine']);
+  });
+
+  it('Spielzeit: Untergrenze erst jenseits der Toleranz (Rundungsrauschen bleibt)', () => {
+    const base = groveState(5);
+    base.cycle.elapsed = 1000;
+    const load = (playSeconds: number) =>
+      loadGame(raw(base, (d) => (d.meta.stats.playSeconds = playSeconds)), 0)!.state.meta.stats.playSeconds;
+    const slack = 1000 * PLAY_SECONDS_TOLERANCE;
+    expect(load(1000 - slack / 2)).toBe(1000 - slack / 2);
+    expect(load(1000 - slack * 2)).toBe(1000);
+    // Kleine Spielzeit: mindestens die absolute Toleranz.
+    base.cycle.elapsed = 1e-7;
+    expect(load(0)).toBe(0);
+    base.cycle.elapsed = 1;
+    expect(load(0)).toBe(1);
+  });
+
+  it('Roundtrip nach echtem Spiel (Frames à 1/60 s): bitgenau gleich', () => {
+    // Spielzeit und `cycle.elapsed` werden getrennt aufsummiert und driften um Rundungsrauschen.
+    const s = groveState(21);
+    for (let i = 0; i < 600; i++) tick(s, 1 / 60);
+    expect(loadGame(serialize(s), 0)!.state).toEqual(s);
+    // 10 min am Stück, über eine Jahreszeitgrenze (dort wird elapsed exakt gesetzt).
+    for (let i = 0; i < 600 * 60; i++) tick(s, 1 / 60);
+    expect(s.cycle.elapsed).toBeGreaterThan(SEASON_SECONDS);
+    expect(loadGame(serialize(s), 0)!.state).toEqual(s);
   });
 });

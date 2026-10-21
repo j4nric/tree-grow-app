@@ -147,8 +147,8 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   Hauptbaum-Arten über alle Zyklen (neue Spielstand-Version mit Migration); Anzeige im
   Reiter „Statistik“, Grundlage für Erfolge
   - [x] Logik (core): Spielstand v8, Migration v7 → v8 (Startwerte aus dem laufenden
-    Zyklus), Zähler in den Aktionen, Spielzeit und Wachstum in `tick` (online = offline),
-    DESIGN_V2.md 12.5
+    Zyklus), Zähler in den Aktionen, Spielzeit in `tick` (online = offline), Gesamt-Wachstum
+    exakt aus abgeschlossenen Zyklen + `totalGrowth`, DESIGN_V2.md 12.5
   - [x] UI: Abschnitt „Über alle Zyklen“ im Reiter „Statistik“, „schon gewachsen“ bei den
     Hauptbaum-Arten im Reiter „Andenken“
 - [ ] Erfolge / Achievements, verknüpft mit dem Naturtagebuch (`ui-dev`)

@@ -82,8 +82,11 @@ export interface ForcedEncounter {
 export interface LifetimeStats {
   /** Spielzeit aller Zyklen in Sekunden (wie `cycle.elapsed`, online und offline gleich). */
   playSeconds: number;
-  /** Gesamt-Wachstum aller Zyklen (Summe der Zuwächse in `tick`). */
-  totalGrowth: number;
+  /**
+   * Wachstum aller abgeschlossenen Zyklen (Summe ihrer `totalGrowth` beim Neuen Zyklus).
+   * Gesamt-Wachstum über alle Zyklen = dieses Feld + `totalGrowth` (lifetimeGrowth).
+   */
+  completedCyclesGrowth: number;
   /** Höchste Harmonie aller Zyklen (wie `cycle.maxHarmony`, nie kleiner). */
   bestHarmony: number;
   /** Angenommene Begegnungen: Tier- oder Pflanzenkarte gewählt (chooseCard). */
@@ -104,7 +107,7 @@ export interface LifetimeStats {
 export function createStats(mainTree: MainTreeId = DEFAULT_MAIN_TREE): LifetimeStats {
   return {
     playSeconds: 0,
-    totalGrowth: 0,
+    completedCyclesGrowth: 0,
     bestHarmony: 0,
     cardsChosen: 0,
     eventsDecided: 0,

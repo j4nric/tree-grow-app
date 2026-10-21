@@ -19,8 +19,6 @@ export function stateAt(stage: number, animals: string[] = [], seed = 1): GameSt
   state.stage = stage;
   state.waypoint = STAGES[stage]!.waypoint;
   state.totalGrowth = thresholdFor(state.waypoint);
-  // Langzeit-Statistik passend dazu (über alle Zyklen nie weniger als im laufenden).
-  state.meta.stats.totalGrowth = state.totalGrowth;
   for (const id of animals) {
     state.niches[SPECIES_BY_ID.get(id)!.niche].push(id);
     state.meta.journal.species.push(id);

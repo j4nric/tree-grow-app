@@ -97,7 +97,7 @@ describe('toJournalStats (Reiter „Statistik“)', () => {
     const state = stateAt(0);
     state.meta.stats = {
       playSeconds: 2 * 86_400 + 3 * 3600 + 5,
-      totalGrowth: 1_234_567.8,
+      completedCyclesGrowth: 1_234_567.8,
       bestHarmony: 87.6,
       cardsChosen: 42,
       eventsDecided: 7,

@@ -39,6 +39,7 @@ import {
   ecosystemOf,
   evaluateEcosystem,
   hasSpecies,
+  lifetimeGrowth,
   memberOptions,
   nextPlantCost,
   plantSlots,
@@ -930,7 +931,7 @@ function toLifetimeStats(state: GameState): JournalStatView[] {
   };
   return [
     { key: 'total-time', label: 'Spielzeit', value: formatDuration(seconds), detail: cycleAgeText(seconds), section: 'total' },
-    { key: 'total-growth', label: 'Gesamt-Wachstum', value: `${formatNumber(Math.floor(shown(s.totalGrowth)))} 🌿`, section: 'total' },
+    { key: 'total-growth', label: 'Gesamt-Wachstum', value: `${formatNumber(Math.floor(lifetimeGrowth(state)))} 🌿`, section: 'total' },
     {
       key: 'total-harmony',
       label: 'Beste Harmonie',

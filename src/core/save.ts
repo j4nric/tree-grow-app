@@ -263,38 +263,55 @@ function migrateV5(state: GameState): void {
 /**
  * v7 → v8 (Langzeit-Statistik `meta.stats`, DESIGN_V2.md 12.5): Frühere Zyklen sind nicht
  * bekannt – die Statistik beginnt beim laufenden Zyklus: Spielzeit = `cycle.elapsed`,
- * Gesamt-Wachstum = `totalGrowth`, beste Harmonie = H_max, gewachsen ist die aktuelle
- * Baumart, alle Zähler 0. Was ein älterer Stand unter `meta.stats` mitbringt, zählt nicht.
- * Läuft nach den älteren Migrationen (Spielzeit und Baumart stehen dann fest).
+ * Wachstum abgeschlossener Zyklen = 0 (Gesamt-Wachstum also `totalGrowth`), beste
+ * Harmonie = H_max, alle Zähler 0. Gewachsen ist die aktuelle Baumart; ab Zyklus 2 auch
+ * die Stieleiche, denn jeder erste Zyklus beginnt mit ihr (DEFAULT_MAIN_TREE, zuerst).
+ * Was ein älterer Stand unter `meta.stats` mitbringt, zählt nicht. Läuft nach den älteren
+ * Migrationen (Spielzeit und Baumart stehen dann fest).
  */
 function migrateV7(state: GameState): void {
+  const grownTrees = unique(
+    state.cycle.number > 1 ? [DEFAULT_MAIN_TREE, state.cycle.mainTree] : [state.cycle.mainTree],
+  ) as MainTreeId[];
   state.meta.stats = {
     ...createStats(state.cycle.mainTree),
     playSeconds: state.cycle.elapsed,
-    totalGrowth: state.totalGrowth,
     bestHarmony: state.cycle.maxHarmony,
+    grownTrees,
   };
 }
 
 /**
+ * Relative Toleranz für die Untergrenze `playSeconds ≥ cycle.elapsed` beim Laden: Beide
+ * werden getrennt aufsummiert (Statistik je Tick um dt, `elapsed` je Schritt und an
+ * Jahreszeitgrenzen exakt gesetzt), liegen also nach echtem Spiel um Rundungsrauschen
+ * auseinander. Das darf Speichern + Laden nicht verändern.
+ */
+export const PLAY_SECONDS_TOLERANCE = 1e-6;
+
+/**
  * Langzeit-Statistik robust laden (seit v8): fehlende, kaputte oder negative Zahlen → 0,
  * ±Infinity → Grenze, Zähler ganzzahlig. Untergrenzen aus dem laufenden Zyklus – über alle
- * Zyklen ist nie weniger als im laufenden (Spielzeit, Wachstum, H_max, aktuelle Baumart).
- * Baumarten nur bekannte, freigeschaltete (`unlocked`) und je einmal, in gespeicherter
- * Reihenfolge; die aktuelle kommt dazu, falls sie fehlt.
+ * Zyklen ist nie weniger als im laufenden (Spielzeit bis auf Rundungsrauschen, H_max,
+ * aktuelle Baumart). Das Wachstum braucht keine: Gesamt = abgeschlossene Zyklen +
+ * `totalGrowth` (lifetimeGrowth). Baumarten nur bekannte, freigeschaltete (`unlocked`) und
+ * je einmal, in gespeicherter Reihenfolge; die aktuelle kommt dazu, falls sie fehlt.
  */
 function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) => boolean): LifetimeStats {
   const r = isRecord(raw) ? raw : {};
-  const amount = (value: unknown, min: number) => Math.max(min, clampedOr(value, 0, 0, Number.MAX_VALUE));
+  const amount = (value: unknown) => clampedOr(value, 0, 0, Number.MAX_VALUE);
   const count = (value: unknown) => Math.floor(clampedOr(value, 0, 0, MAX_STAT_COUNT));
   const grownTrees = unique(stringArray(r.grownTrees)).filter(
     (id): id is MainTreeId => MAIN_TREES_BY_ID.has(id as MainTreeId) && unlocked(id as MainTreeId),
   );
   if (!grownTrees.includes(state.cycle.mainTree)) grownTrees.push(state.cycle.mainTree);
+  const elapsed = state.cycle.elapsed;
+  let playSeconds = amount(r.playSeconds);
+  if (playSeconds < elapsed - Math.max(PLAY_SECONDS_TOLERANCE, elapsed * PLAY_SECONDS_TOLERANCE)) playSeconds = elapsed;
   return {
-    playSeconds: amount(r.playSeconds, state.cycle.elapsed),
-    totalGrowth: amount(r.totalGrowth, state.totalGrowth),
-    bestHarmony: amount(r.bestHarmony, state.cycle.maxHarmony),
+    playSeconds,
+    completedCyclesGrowth: amount(r.completedCyclesGrowth),
+    bestHarmony: Math.max(state.cycle.maxHarmony, amount(r.bestHarmony)),
     cardsChosen: count(r.cardsChosen),
     eventsDecided: count(r.eventsDecided),
     visitorsHosted: count(r.visitorsHosted),
