@@ -78,6 +78,11 @@ body {
 }
 
 .panel {
+  /*
+   * Bezugsrahmen für absolut positionierte Kinder (.sr-only): Ohne ihn ragen sie aus der
+   * scrollenden Seitenleiste heraus und machen die ganze Seite scrollbar (Szene rutscht weg).
+   */
+  position: relative;
   overflow-y: auto;
   padding: 20px;
   background: var(--panel);
@@ -279,6 +284,8 @@ footer {
   color: white;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   z-index: 20;
+  /* Nur ein Hinweis: Klicks gehen durch (sonst blockiert er 6–12 s die Knöpfe darunter). */
+  pointer-events: none;
 }
 
 /* Schwebende Zahlen (z. B. Samen beim Ablehnen) */
