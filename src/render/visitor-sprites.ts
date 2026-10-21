@@ -314,17 +314,18 @@ function paintSmallFlyer(c: CanvasRenderingContext2D, frame: number, back: strin
 
 
 export const VISITOR_DEFS: Record<string, SpriteDef> = {
-  'visitor:crane': { x0: -1.02, y0: -0.76, x1: 0.96, y1: 0.6, paint: paintCrane },
-  'visitor:brambling': { x0: -0.42, y0: -0.46, x1: 0.46, y1: 0.4, paint: paintBrambling },
-  'visitor:moth': { x0: -0.62, y0: -0.52, x1: 0.5, y1: 0.18, paint: paintHummingbirdMoth },
-  'visitor:flyer': { x0: -0.42, y0: -0.46, x1: 0.46, y1: 0.4, paint: paintFlyer },
-  'visitor:swallow': { x0: -0.4, y0: -0.46, x1: 0.66, y1: 0.4, paint: paintSwallow },
-  'visitor:boar': { x0: -0.8, y0: -0.74, x1: 0.62, y1: 0.05, paint: (c, f) => paintBoar(c, f, false) },
-  'visitor:piglet': { x0: -0.8, y0: -0.74, x1: 0.62, y1: 0.05, paint: (c, f) => paintBoar(c, f, true) },
-  'visitor:falcon': { x0: -0.6, y0: -0.64, x1: 0.68, y1: 0.46, paint: paintFalcon },
-  'visitor:stag': { x0: -0.62, y0: -0.62, x1: 0.62, y1: 0.62, paint: paintStagFlight },
-  'visitor:waxwing': { x0: -0.72, y0: -1.0, x1: 0.58, y1: 0.08, paint: (c) => paintWaxwing(c) },
+  'visitor:crane': { frames: 2, x0: -1.02, y0: -0.76, x1: 0.96, y1: 0.6, paint: paintCrane },
+  'visitor:brambling': { frames: 2, x0: -0.42, y0: -0.46, x1: 0.46, y1: 0.4, paint: paintBrambling },
+  'visitor:moth': { frames: 2, x0: -0.62, y0: -0.52, x1: 0.5, y1: 0.18, paint: paintHummingbirdMoth },
+  'visitor:flyer': { frames: 2, x0: -0.42, y0: -0.46, x1: 0.46, y1: 0.4, paint: paintFlyer },
+  'visitor:swallow': { frames: 2, x0: -0.4, y0: -0.46, x1: 0.66, y1: 0.4, paint: paintSwallow },
+  'visitor:boar': { frames: 4, x0: -0.8, y0: -0.74, x1: 0.62, y1: 0.05, paint: (c, f) => paintBoar(c, f, false) },
+  'visitor:piglet': { frames: 4, x0: -0.8, y0: -0.74, x1: 0.62, y1: 0.05, paint: (c, f) => paintBoar(c, f, true) },
+  'visitor:falcon': { frames: 3, x0: -0.6, y0: -0.64, x1: 0.68, y1: 0.46, paint: paintFalcon },
+  'visitor:stag': { frames: 2, x0: -0.62, y0: -0.62, x1: 0.62, y1: 0.62, paint: paintStagFlight },
+  'visitor:waxwing': { frames: 1, x0: -0.72, y0: -1.0, x1: 0.58, y1: 0.08, paint: (c) => paintWaxwing(c) },
   'visitor:waxwing-fly': {
+    frames: 2,
     x0: -0.42,
     y0: -0.46,
     x1: 0.46,

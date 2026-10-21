@@ -5,6 +5,10 @@ import { drawScene, type SceneAnimal } from '../src/render/tree';
 import {
   ABOVE_BIG_ANIMALS,
   boarPoses,
+  boarRoute,
+  mothGap,
+  waxwingPerches,
+  WAXWING_CLEARANCE,
   falconPose,
   freeIntervals,
   mothPose,
@@ -248,5 +252,158 @@ describe('Alle Gäste in der Szene', () => {
     expect(layer.updateBlocked(undefined, anchors)).toEqual([]);
     // Kleine Tiere am Waldsaum (Biene) blockieren nicht.
     expect(layer.updateBlocked([{ id: 'bee', family: 'insects', niche: 'edge', slot: 0 }], anchors)).toEqual([]);
+  });
+});
+
+describe('Gäste-Nachschliff', () => {
+  it('freeIntervals ist leer, wenn hi nicht größer als lo ist', () => {
+    expect(freeIntervals([], 10, 10, 0)).toEqual([]);
+    expect(freeIntervals([], 20, 10, 0)).toEqual([]);
+    expect(freeIntervals([0, 5], Number.NaN, 10, 0)).toEqual([]);
+  });
+
+  it('zwei Taubenschwänzchen auf einer Seite bekommen getrennte Bahnen', () => {
+    for (const [w, h] of SIZES) {
+      for (const set of EDGE_SETS) {
+        const f = frameFor(w, h, set, 0);
+        const half = f.size * 0.78 * 0.62;
+        const g0 = mothGap(f, 0, 0, 2);
+        const g1 = mothGap(f, 2, 1, 2);
+        if (g0 && g1) expect(g1[0] - g0[1], `${w}×${h}, Plätze ${set}`).toBeGreaterThanOrEqual(half * 2 - 1e-6);
+        // Über die Zeit: nie übereinander (gleiche Blütenhöhe, andere Bahn – oder höher).
+        for (let t = 0; t < 12; t += 0.37) {
+          const a = mothPose({ ...f, time: t }, 0, 11, g0, undefined, 0);
+          const b = mothPose({ ...f, time: t }, 2, 22, g1, undefined, 1);
+          const apart = Math.abs(a.x - b.x) >= half * 2 - 1e-6 || Math.abs(a.y - b.y) >= f.size * 0.5;
+          expect(apart, `${w}×${h}, Plätze ${set}, t=${t.toFixed(2)}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('zwei Rotten laufen in getrennten Lücken oder Bahnen', () => {
+    for (const [w, h] of SIZES) {
+      for (const set of EDGE_SETS) {
+        const f = frameFor(w, h, set, 0);
+        const half = f.size * 1.05 * 0.82;
+        const r0 = boarRoute(f, 0, 0, 2);
+        const r1 = boarRoute(f, 1, 1, 2);
+        if (!r0 || !r1) continue;
+        const [a0, b0] = [r0.a - half, r0.a + r0.range + half];
+        const [a1, b1] = [r1.a - half, r1.a + r1.range + half];
+        expect(b0 <= a1 + 1e-6 || b1 <= a0 + 1e-6, `${w}×${h}, Plätze ${set}`).toBe(true);
+      }
+    }
+  });
+
+  it('Seidenschwänze halten Abstand zu Tieren in der Krone und zwischen den Trupps', () => {
+    const layout = makeLayout(1200, 700);
+    const anchors = createAnchorResolver(layout, 6.5, placeMainTree(layout, 6.5));
+    const S = anchors.size;
+    const taken: number[] = [];
+    for (let slot = 0; slot < 4; slot++) {
+      const a = anchors.get('crown', slot)!;
+      taken.push(a.x, a.y);
+    }
+    const lane0 = waxwingPerches(anchors, taken, 6, 0, 2);
+    const lane1 = waxwingPerches(anchors, taken, 6, 1, 2);
+    expect(lane0.length).toBeGreaterThan(0);
+    expect(lane1.length).toBeGreaterThan(0);
+    const all = [...lane0, ...lane1];
+    for (let i = 0; i < all.length; i += 2) {
+      for (let k = 0; k < taken.length; k += 2) {
+        expect(Math.hypot(all[i]! - taken[k]!, all[i + 1]! - taken[k + 1]!)).toBeGreaterThanOrEqual(S * WAXWING_CLEARANCE - 1e-6);
+      }
+      for (let j = i + 2; j < all.length; j += 2) {
+        expect(Math.hypot(all[i]! - all[j]!, all[i + 1]! - all[j + 1]!)).toBeGreaterThanOrEqual(S * 0.6 - 1e-6);
+      }
+    }
+    // Allein: dieselbe Wahl wie die erste Bahn ohne zweiten Trupp, nur mehr Plätze.
+    expect(waxwingPerches(anchors, taken, 6).length).toBe(12);
+  });
+
+  it('verwendet Posen wieder (keine neuen Objekte pro Frame)', () => {
+    const f = frameFor(1200, 700, [1], 3);
+    const route = boarRoute(f, 0);
+    const out: ReturnType<typeof boarPoses> = [];
+    const a = boarPoses(f, 0, 7, route, out);
+    const first = a[0];
+    const b = boarPoses({ ...f, time: 3.5 }, 0, 7, route, out);
+    expect(b).toBe(out);
+    expect(b).toContain(first);
+    const pose = mothPose(f, 0, 3, null);
+    expect(mothPose({ ...f, time: 4 }, 0, 3, null, pose)).toBe(pose);
+    const flight: ReturnType<typeof swallowPoses> = [];
+    expect(swallowPoses(f, 1, flight)).toBe(flight);
+  });
+
+  it('zählt den Sprite-Cache nur in beginFrame weiter', () => {
+    const layer = new VisitorLayer();
+    const tick = vi.spyOn(layer.sprites, 'tick');
+    const canvas = makeCanvas(800, 600);
+    const f = { ...frameFor(1200, 700, [], 2), height: 700, dpr: 1, sx: 1, sy: 1, windSkew: 0, anchors: null, crownX: 0, crownY: 0, crownRx: 0, crownRy: 0, crownTaken: [] };
+    const visitors = ALL_GUESTS.map((id, slot) => ({ id, slot }));
+    layer.beginFrame(f.size, f.dpr);
+    for (const depth of ['sky', 'meadow', 'front'] as const) layer.draw(canvas.getContext('2d'), visitors, depth, f);
+    expect(tick).toHaveBeenCalledTimes(1);
+  });
+
+  it('die Rotte blendet bei geänderter Belegung aus und wieder ein, statt zu springen', () => {
+    // Stub, der auch die Deckkraft protokolliert.
+    const alphas: number[] = [];
+    const calls: { x: number; alpha: number }[] = [];
+    let alpha = 1;
+    let lastX = 0;
+    const ctx = new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          if (prop === 'globalAlpha') return alpha;
+          return (...args: unknown[]) => {
+            if (prop === 'setTransform') lastX = args[4] as number;
+            if (prop === 'drawImage') calls.push({ x: lastX, alpha });
+          };
+        },
+        set(_t, prop, value) {
+          if (prop === 'globalAlpha') {
+            alpha = value as number;
+            alphas.push(alpha);
+          }
+          return true;
+        },
+      },
+    ) as unknown as CanvasRenderingContext2D;
+    const layer = new VisitorLayer();
+    const base = { ...frameFor(1200, 700, [], 0), height: 700, dpr: 1, sx: 1, sy: 1, windSkew: 0, anchors: null, crownX: 0, crownY: 0, crownRx: 0, crownRy: 0, crownTaken: [] };
+    const blockedA = frameFor(1200, 700, [], 0).blocked;
+    const blockedB = frameFor(1200, 700, [0, 1, 2], 0).blocked;
+    const visitors = [{ id: 'boars', slot: 0 }];
+    const frame = (time: number, blocked: readonly number[]) => {
+      calls.length = 0;
+      layer.draw(ctx, visitors, 'meadow', { ...base, time, blocked });
+      return calls.slice();
+    };
+    const before = frame(1, blockedA);
+    expect(before.every((c) => c.alpha === 1)).toBe(true);
+    // Belegung ändert sich: zuerst die alte Stelle, blasser werdend …
+    const out1 = frame(1.1, blockedB);
+    expect(out1.length).toBeGreaterThan(0);
+    expect(out1[0]!.alpha).toBeLessThan(1);
+    const out2 = frame(1.4, blockedB);
+    expect(out2[0]!.alpha).toBeLessThan(out1[0]!.alpha);
+    // … dann die neue Stelle, kräftiger werdend, und schließlich voll.
+    const in1 = frame(1.7, blockedB);
+    const in2 = frame(2.0, blockedB);
+    expect(in2[0]!.alpha).toBeGreaterThan(in1[0]!.alpha);
+    // Ausgeblendet an der alten, eingeblendet an der neuen Stelle (kein Sprung im Sichtbaren).
+    expect(in1[0]!.x).not.toBeCloseTo(out2[0]!.x, 0);
+    const done = frame(2.4, blockedB);
+    expect(done.every((c) => c.alpha === 1)).toBe(true);
+    // Bei weniger Bewegung: sofort an der neuen Stelle (kein Überblenden).
+    const reduced = new VisitorLayer();
+    reduced.draw(ctx, visitors, 'meadow', { ...base, time: 1, blocked: blockedA, reducedMotion: true });
+    calls.length = 0;
+    reduced.draw(ctx, visitors, 'meadow', { ...base, time: 1.1, blocked: blockedB, reducedMotion: true });
+    expect(calls.every((c) => c.alpha === 1)).toBe(true);
   });
 });
