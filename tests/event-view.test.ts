@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EVENTS_BY_ID } from '../src/content/events';
+import { SPECIES_BY_ID } from '../src/content/species';
 import { VISITORS_BY_ID } from '../src/content/visitors';
 import { seedSeconds } from '../src/core/formulas';
 import { chooseEventOption, hostVisitor } from '../src/core/tick';
@@ -8,12 +9,15 @@ import {
   activeBonusViews,
   bonusEffectLabel,
   encounterActionKey,
+  eventOptionEffects,
+  nextEncounterText,
   remainingLabel,
   seedsLabel,
   toEncounterView,
   toEventView,
   toSceneVisitors,
   toVisitorView,
+  visitorEffectText,
 } from '../src/ui/adapters';
 import { stateAt } from './helpers';
 
@@ -25,13 +29,16 @@ describe('View: Ereignis', () => {
     const view = toEventView(state, 0)!;
     const storm = EVENTS_BY_ID.get('storm')!;
     expect(view.kind).toBe('event');
-    expect(view.title).toBe(`${storm.icon} ${storm.name}`);
+    expect(view.title).toBe(storm.name);
+    expect(view.icon).toBe(storm.icon);
     expect(view.subtitle).toBe(storm.text);
     expect(view.rerollCost).toBeNull();
     expect(view.declineReward).toBeNull();
     expect(view.cards.map((c) => c.chooseLabel)).toEqual(storm.options.map((o) => o.label));
     const seeds = seedSeconds(state, 120);
-    expect(view.cards[1]!.effects.map((e) => e.label)).toContain(`+${seedsLabel(seeds)} 🌰 sofort`);
+    expect(view.cards[1]!.effects.map((e) => e.label)).toEqual([`+${seedsLabel(seeds)} 🌰 sofort`]);
+    // Totholz-Option: Lebensraum zuerst, dann die Zyklus-Wirkung – mit „bis zum Neuen Zyklus“.
+    expect(view.cards[0]!.effects.map((e) => e.label)).toEqual([`Totholz, +1 Platz Höhlen & Totholz – ${UNTIL_NEW_CYCLE}`]);
     // Totholz + Platz: Vorschau zeigt die echte Wirkung (Harmonie ändert sich nicht negativ).
     expect(view.cards[0]!.preview.harmonyDelta).toBeGreaterThanOrEqual(0);
     // Die Ansicht ändert den Spielstand nicht (Vorschau auf einer Kopie).
@@ -39,12 +46,29 @@ describe('View: Ereignis', () => {
     expect(toEncounterView(state, 0)).toEqual(view);
   });
 
-  it('Vorschau einer Zeit-Option: mehr Wachstum', () => {
+  it('Vorschau einer Zeit-Option: mehr Wachstum; Wirkungszeile mit Dauer', () => {
     const state = stateAt(4, ['earthworm'], 1);
     state.pendingEncounters = [{ type: 'event', cards: ['midsummer'], rerolls: 0 }];
     const view = toEventView(state, 0)!;
+    expect(view.cards[0]!.effects.map((e) => e.label)).toEqual(['+30 % 🌿 für 6 Min.']);
     expect(view.cards[0]!.preview.growthDelta).toBeGreaterThan(0.2);
     expect(view.cards[1]!.preview.seedDelta).toBeGreaterThan(0.4);
+  });
+
+  it('Wirkungszeilen: nächste Begegnung, Zeit-Bonus plus Samen', () => {
+    const fungi = EVENTS_BY_ID.get('mushroom-autumn')!;
+    const forced = fungi.options.find((o) => o.effects.some((x) => x.kind === 'nextEncounter'))!;
+    expect(eventOptionEffects(forced, 0).map((e) => e.label)).toEqual([
+      'nächste Begegnung: Pfifferling, Steinpilz, Zunderschwamm oder Fliegenpilz',
+    ]);
+    expect(nextEncounterText('animal', ['jay', 'nope'])).toBe(`nächste Begegnung: ${SPECIES_BY_ID.get('jay')!.name}`);
+    expect(nextEncounterText('plant', [])).toBe('nächste Begegnung: eine Pflanze');
+    const ants = EVENTS_BY_ID.get('ant-trail')!;
+    const mixed = ants.options.find((o) => o.effects.some((x) => x.kind === 'timed') && o.effects.some((x) => x.kind === 'seedsNow'))!;
+    const labels = eventOptionEffects(mixed, 123).map((e) => e.label);
+    expect(labels).toHaveLength(2);
+    expect(labels[0]).toMatch(/ für \d+ Min\.$/);
+    expect(labels[1]).toBe('+123 🌰 sofort');
   });
 
   it('unbekannt oder falscher Typ: null', () => {
@@ -67,6 +91,13 @@ describe('View: Durchreisende', () => {
     let view = toVisitorView(state, 0)!;
     expect(view.kind).toBe('visitor');
     expect(view.subtitle).toBe(VISITORS_BY_ID.get('cranes')!.text);
+    // Bild-Symbol und Gattung im Kopf; Wirkung und Dauer stehen nur auf dem Knopf „Bewirten“,
+    // der Dank nur im Knopftext „Ziehen lassen (+Y 🌰)“ – keine Doppelungen.
+    expect(view.icon).toBe('🦢');
+    expect(view.facts).toEqual(['🐦 Vögel']);
+    expect(view.cards[1]!.effects).toEqual([]);
+    expect(view.cards[0]!.effects.map((e) => e.label)).toEqual(['+25 % 🌰 für 8 Min.', 'zählt für Vögel']);
+    expect(visitorEffectText(VISITORS_BY_ID.get('bramblings')!)).toBe('+12 % 🌿, +12 % 🌰 für 7 Min.');
     expect(view.cards.map((c) => c.chooseLabel)).toEqual([
       `Bewirten (−${seedsLabel(host)} 🌰)`,
       `Ziehen lassen (+${seedsLabel(thanks)} 🌰)`,
@@ -99,13 +130,44 @@ describe('View: aktive Boni und Szene', () => {
     hostVisitor(state, 0); // 10 min
     chooseEventOption(state, 0, 0); // Totholz, +1 Platz
     const views = activeBonusViews(state);
-    expect(views.map((v) => v.name)).toEqual(['Mittsommer', 'Wanderfalke', 'Sturmnacht', 'Totholz']);
-    expect(views[0]).toMatchObject({ icon: '☀️', effect: '+30 % 🌿', remaining: 'noch 6 Min.' });
-    expect(views[1]).toMatchObject({ effect: '+6 ⚖️', remaining: 'noch 10 Min.' });
-    expect(views[2]).toMatchObject({ effect: '+1 Platz Höhlen & Totholz', remaining: UNTIL_NEW_CYCLE });
-    expect(views[3]!.remaining).toBe(UNTIL_NEW_CYCLE);
+    // Totholz gehört zur Sturmnacht (gleiche Option) – eine Zeile je Quelle.
+    expect(views.map((v) => v.name)).toEqual(['Mittsommer', 'Wanderfalke', 'Sturmnacht']);
+    expect(views[0]).toMatchObject({ id: 'timed:midsummer', icon: '☀️', effect: '+30 % 🌿', remaining: 'noch 6 Min.', timed: true, progress: 1 });
+    expect(views[1]).toMatchObject({ effect: '+6 ⚖️', remaining: 'noch 10 Min.', progress: 1 });
+    expect(views[2]).toMatchObject({
+      id: 'cycle:storm',
+      effect: 'Totholz, +1 Platz Höhlen & Totholz',
+      remaining: UNTIL_NEW_CYCLE,
+      timed: false,
+      progress: null,
+    });
     expect(toSceneVisitors(state)).toEqual([{ id: 'peregrine', slot: 0 }]);
     expect(activeBonusViews(stateAt(5, [], 1))).toEqual([]);
+  });
+
+  it('Restanteil für den Balken; gleiche Quelle wird zusammengefasst', () => {
+    const state = stateAt(5, ['earthworm', 'woodant'], 1);
+    state.cycle.timed = [
+      { source: 'midsummer', effect: { kind: 'growth', pct: 30 }, remaining: 90 },
+      { source: 'midsummer', effect: { kind: 'seeds', pct: 60 }, remaining: 180 },
+    ];
+    state.cycle.visitors = [{ id: 'cranes', remaining: 120 }];
+    state.cycle.bonuses = [
+      { source: 'lightning', effect: { kind: 'light', amount: 2 } },
+      { source: 'rain', effect: { kind: 'water', amount: 3 } },
+    ];
+    // Feuchte gehört zum Regen; Totholz passt zu keiner gewählten Option (Blitz: nur Licht).
+    state.cycle.habitats = ['feucht', 'totholz'];
+    const views = activeBonusViews(state);
+    expect(views.map((v) => v.id)).toEqual(['visitor:cranes', 'timed:midsummer', 'cycle:lightning', 'cycle:rain', 'habitat:0']);
+    expect(views[0]!.progress).toBeCloseTo(120 / VISITORS_BY_ID.get('cranes')!.stay);
+    expect(views[1]).toMatchObject({ effect: '+30 % 🌿, +60 % 🌰', remaining: 'noch 3 Min.' });
+    expect(views[1]!.progress).toBeCloseTo(180 / 360);
+    expect(views[3]!.effect).toBe('Feuchte, +3 💧');
+    expect(views[4]).toMatchObject({ icon: '🪵', effect: 'Lebensraum', progress: null });
+    // Unbekannte Quelle: kein Balken, aber eine Zeile.
+    state.cycle.timed = [{ source: 'nope', effect: { kind: 'growth', pct: 5 }, remaining: 30 }];
+    expect(activeBonusViews(state).find((v) => v.id === 'timed:nope')).toMatchObject({ timed: true, progress: null });
   });
 
   it('Kurzformen der Wirkungen', () => {

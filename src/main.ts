@@ -198,8 +198,11 @@ const bonusPanel = createBonusPanel(document.querySelector<HTMLElement>('#bonuse
 const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!, {
   onBuy: (id) => {
     const result = buyCare(state, id);
-    if (act(result, false)) announceDiscoveries(result);
+    if (!act(result, false)) return false;
+    announceDiscoveries(result);
+    return true;
   },
+  onFeedback: (text, x, y) => floats.spawn(text, x, y, 'note'),
 });
 const seasonBadge = createSeasonBadge(document.querySelector<HTMLElement>('#season')!);
 /** Ganze Sekunde Spielzeit, zu der das Abzeichen zuletzt aktualisiert wurde. */

@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { expect, niche, openGame, savedState, seedV3, test, waypoint } from './fixtures';
 
 /**
@@ -92,4 +93,79 @@ test('Pflege: Doppelklick und gehaltene Enter-Taste kaufen nur einen Rang', asyn
   await expect(pond).toContainText('Rang 2/2');
   await page.waitForTimeout(450);
   expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 1, pond: 1 });
+});
+
+/** data-care-IDs der Pflege-Liste in Anzeige-Reihenfolge. */
+const careIds = (page: Page) =>
+  page.locator('[data-ref="care"] [data-care]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.care!));
+
+test('Pflege: kaufbar zuerst, Reihenfolge bleibt beim Kauf stehen, Bestätigung schwebt', async ({ page, context }) => {
+  await seedV3(context, {
+    totalGrowth: waypoint(20) + 1, // Hain
+    seeds: 2600,
+    niches: { roots: ['earthworm'], edge: ['bee'] },
+  });
+  await openGame(page);
+  const care = page.locator('[data-ref="care"]');
+  const groups = await care.locator('[data-care]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.group!));
+  const rank: Record<string, number> = { buyable: 0, saving: 1, locked: 2, maxed: 3 };
+  const ranks = groups.map((g) => rank[g]!);
+  expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+  expect(groups[0]).toBe('buyable');
+  await expect(care.locator('[data-ref="care-summary"]')).toHaveText(/\d+ kaufbar/);
+  await expect(care.locator('[data-care="insect-hotel"] [data-ref="care-preview"]')).toContainText('+3 ⚖️');
+
+  const order = await careIds(page);
+  const boxes = care.locator('[data-buy-care="nest-boxes"]');
+  await boxes.focus();
+  await page.keyboard.press('Enter');
+  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('Rang 2/2');
+  // Bestätigung: schwebender Hinweis und Statuszeile für Screenreader.
+  await expect(page.locator('.float-layer')).toContainText('Nistkästen angebracht');
+  await expect(care.getByRole('status')).toHaveText('Nistkästen angebracht');
+  // Fokus in der Liste: nichts springt.
+  expect(await careIds(page)).toEqual(order);
+  await expect(boxes).toBeFocused();
+
+  // Fokus verlässt die Liste → neu sortiert (Nistkästen ist jetzt zu teuer und rutscht nach hinten).
+  await page.locator('[data-ref="guide-open"]').focus();
+  await expect.poll(async () => (await careIds(page)).indexOf('nest-boxes')).toBeGreaterThan(order.indexOf('nest-boxes'));
+});
+
+test('Pflege auf dem Handy: zugeklappt mit Zusammenfassung, aufklappbar, ohne Querscrollen', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 1000, niches: { roots: ['earthworm'] } });
+  await openGame(page);
+  const care = page.locator('[data-ref="care"]');
+  const buy = care.locator('[data-buy-care="leaf-litter"]');
+  await expect(care.locator('[data-ref="care-summary"]')).toHaveText('3 kaufbar');
+  await expect(buy).toBeHidden();
+  await care.getByText('Pflege', { exact: true }).click();
+  await expect(buy).toBeVisible();
+  expect((await buy.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+});
+
+test('Pflege: nach einem Mausklick wird neu sortiert, sobald die Maus die Liste verlässt', async ({ page, context }) => {
+  await seedV3(context, {
+    totalGrowth: waypoint(20) + 1, // Hain
+    seeds: 2600,
+    niches: { roots: ['earthworm'], edge: ['bee'] },
+  });
+  await openGame(page);
+  const care = page.locator('[data-ref="care"]');
+  const order = await careIds(page);
+  const boxes = care.locator('[data-buy-care="nest-boxes"]');
+  await boxes.click();
+  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('Rang 2/2');
+  const note = page.locator('.float-layer .float-note').filter({ hasText: 'Nistkästen angebracht' });
+  const noteBox = (await note.boundingBox())!;
+  const nameBox = (await care.locator('[data-care="nest-boxes"] .care-name').boundingBox())!;
+  expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(nameBox.y + 2);
+  // Direkt nach dem Kauf (Maus noch in der Liste, Haltezeit): nichts springt.
+  expect(await careIds(page)).toEqual(order);
+  // Maus raus – der per Klick fokussierte Knopf hält die Liste nicht fest; nach der
+  // Haltezeit rutscht „Nistkästen“ (jetzt zu teuer) nach hinten.
+  await page.mouse.move(5, 5);
+  await expect.poll(async () => (await careIds(page)).indexOf('nest-boxes')).toBeGreaterThan(order.indexOf('nest-boxes'));
 });
