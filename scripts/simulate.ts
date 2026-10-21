@@ -320,7 +320,20 @@ export interface RunResult {
   decisions: DecisionStat[];
   /** Vielfalt: eine Zeile je Begegnung (erste Ziehung), siehe VarietyStat. */
   variety: VarietyStat[];
+  /**
+   * Vorschau „Neuer Zyklus“ ab dem Hain je Wegpunkt (Schritt 2.11b): Gedächtnis-Gewinn beim
+   * Erreichen (`arrive`, vor der Wahl) und nach der Wahl (`after`), dazu H_max nach der Wahl.
+   */
+  memoryPath: MemoryPathPoint[];
   final: Snapshot;
+}
+
+/** Ein Punkt in RunResult.memoryPath. */
+export interface MemoryPathPoint {
+  waypoint: number;
+  arrive: number;
+  after: number;
+  maxHarmony: number;
 }
 
 /**
@@ -394,8 +407,10 @@ export function runGame(
     gaps: [],
     decisions: [],
     variety: [],
+    memoryPath: [],
     final: null as unknown as Snapshot,
   };
+  const cycleWaypoint = STAGES[NEW_CYCLE_MIN_STAGE]!.waypoint;
   const snapshot = (): Snapshot => {
     const ev = evaluate(state);
     const genus = Object.fromEntries(GENERA.map((g) => [g, 0])) as Record<Genus, number>;
@@ -511,7 +526,12 @@ export function runGame(
     result.gaps.push({ stage: stageBefore, seconds: time - lastWaypointTime });
     lastWaypointTime = time;
     for (let s = stageBefore + 1; s <= state.stage; s++) result.stages[s] = snapshot();
+    const arrive = state.waypoint >= cycleWaypoint ? previewNewCycle(state).memoryGain : null;
     resolveAll(state, strategy, rng, counts, book, result.decisions, result.variety, time);
+    if (arrive !== null) {
+      const after = previewNewCycle(state);
+      result.memoryPath.push({ waypoint: state.waypoint, arrive, after: after.memoryGain, maxHarmony: after.maxHarmony });
+    }
   }
   result.final = snapshot();
   return result;
@@ -1413,6 +1433,62 @@ export function restartTable(rows: readonly RestartRow[]): string {
     lines.push(
       `| ${STAGES[row.stage]?.name ?? row.stage} | ${row.strategy.name} | ${list((c) => formatTime(restartTime(row, c)))} | ${list((c) => fmt(mean(row.runs.map((r) => r[c]!.maxHarmony)), 1))} | ${list((c) => fmt(restartGain(row, c), 1))} | ${hain ? fmt(restartGain(row, 0) / restartGain(hain, 0), 2) : '–'} | ${formatTime(total)} | ${ratio} |`,
     );
+  }
+  return lines.join('\n');
+}
+
+/** Verlauf der Vorschau „Neuer Zyklus“ zwischen Hain und Ziel-Stufe (memoryPath) je Zyklus. */
+export interface MemoryPathStats {
+  /** Anteil der Wegpunkte, an denen die Vorschau beim Erreichen unter dem Wert davor liegt. */
+  dropShare: number;
+  /** Mittlerer Rückgang in diesen Fällen (negativ) und der größte. */
+  meanDrop: number;
+  worstDrop: number;
+  /** Mittelwert der Vorschau (nach der Wahl) je Wegpunkt ab dem Hain. */
+  meanPath: number[];
+  /** Größte Delle im Mittelwert-Verlauf (≤ 0). */
+  worstMeanDip: number;
+}
+
+export function memoryPathStats(runs: readonly CycleRun[][], c: number): MemoryPathStats {
+  let steps = 0;
+  let drops = 0;
+  let sum = 0;
+  let worst = 0;
+  const byWaypoint = new Map<number, number[]>();
+  for (const run of runs) {
+    const path = run[c]?.result.memoryPath ?? [];
+    for (const p of path) byWaypoint.set(p.waypoint, [...(byWaypoint.get(p.waypoint) ?? []), p.after]);
+    for (let i = 1; i < path.length; i++) {
+      steps++;
+      const d = path[i]!.arrive - path[i - 1]!.after;
+      if (d < 0) {
+        drops++;
+        sum += d;
+        worst = Math.min(worst, d);
+      }
+    }
+  }
+  const meanPath = [...byWaypoint.keys()].sort((a, b) => a - b).map((w) => mean(byWaypoint.get(w)!));
+  const worstMeanDip = Math.min(0, ...meanPath.slice(1).map((v, i) => v - meanPath[i]!));
+  return { dropShare: steps ? drops / steps : 0, meanDrop: drops ? sum / drops : 0, worstDrop: worst, meanPath, worstMeanDip };
+}
+
+/** Tabelle zu memoryPathStats: je Zeile Strategie und Zyklus. */
+export function memoryPathTable(rows: readonly RestartRow[]): string {
+  const lines = [
+    '| Neustart | Strategie | Zyklus | Vorschau sinkt beim Erreichen | Rückgang Mittel / größter | Mittelwert je Wegpunkt ab Hain | größte Delle im Mittel |',
+    '|---|---|---|---|---|---|---|',
+  ];
+  for (const row of rows) {
+    if (row.stage === NEW_CYCLE_MIN_STAGE) continue;
+    const cycles = row.runs[0]?.length ?? 0;
+    for (let c = 0; c < cycles; c++) {
+      const st = memoryPathStats(row.runs, c);
+      lines.push(
+        `| ${STAGES[row.stage]?.name ?? row.stage} | ${row.strategy.name} | ${c + 1} | ${fmt(st.dropShare * 100)} % | ${fmt(st.meanDrop, 1)} / ${fmt(st.worstDrop)} | ${st.meanPath.map((v) => fmt(v)).join(' ')} | ${fmt(st.worstMeanDip, 1)} |`,
+      );
+    }
   }
   return lines.join('\n');
 }

@@ -24,7 +24,9 @@ import {
 } from '../src/core/tick';
 import { stateAt } from './helpers';
 
-const HAIN = NEW_CYCLE_MIN_STAGE;
+const HAIN_STAGE = NEW_CYCLE_MIN_STAGE;
+/** Wegpunkt des Hains – hier gilt die Hain-Regel aus 2.11 (Parameter von cycleMemoryGain). */
+const HAIN = STAGES[NEW_CYCLE_MIN_STAGE]!.waypoint;
 
 /** Spielstand im Hain mit Tieren, Pflanzen, einer offenen Begegnung und Tagebuch. */
 function groveState(seed = 5): GameState {
@@ -63,52 +65,104 @@ describe('Waldgedächtnis-Formel (DESIGN_V2.md 10)', () => {
     expect(cycleMemoryGain(174, 21, 0, HAIN)).toBe(34 + 45 + 21);
   });
 
-  it('Schwelle je erreichter Stufe (Schritt 2.11b): Hain über 100, Wald über 120, Urwald über 150', () => {
-    const WALD = HAIN + 1;
-    const URWALD = HAIN + 2;
-    expect(STAGES[WALD]!.id).toBe('forest');
-    expect(STAGES[URWALD]!.id).toBe('ancient-forest');
-    expect(memoryHarmonyBonus(HAIN)).toEqual({ stage: HAIN, threshold: 100, maxPoints: 45, fullAt: 115 });
-    expect(memoryHarmonyBonus(WALD)).toEqual({ stage: WALD, threshold: 120, maxPoints: 36, fullAt: 132 });
-    expect(memoryHarmonyBonus(URWALD)).toEqual({ stage: URWALD, threshold: 150, maxPoints: 36, fullAt: 162 });
-    // Vor dem Hain (nur Vorschau), hinter dem Urwald und bei Unsinn: nächstliegende Regel.
-    expect(memoryHarmonyBonus(0)).toEqual(memoryHarmonyBonus(HAIN));
-    expect(memoryHarmonyBonus(HAIN - 1)).toEqual(memoryHarmonyBonus(HAIN));
-    expect(memoryHarmonyBonus(NaN)).toEqual(memoryHarmonyBonus(HAIN));
-    expect(memoryHarmonyBonus(-3)).toEqual(memoryHarmonyBonus(HAIN));
+  it('Schwelle gleitet mit dem Wegpunkt (Schritt 2.11b): Hain 100 / 45 → Wald 125 / 41,5 → Urwald 150 / 38', () => {
+    const WALD = STAGES[HAIN_STAGE + 1]!.waypoint;
+    const URWALD = STAGES[HAIN_STAGE + 2]!.waypoint;
+    expect([HAIN, WALD, URWALD]).toEqual([20, 28, 36]);
+    expect(memoryHarmonyBonus(HAIN)).toEqual({ waypoint: 20, threshold: 100, maxPoints: 45, shownThreshold: 100, fullAt: 115 });
+    expect(memoryHarmonyBonus(WALD)).toEqual({ waypoint: 28, threshold: 125, maxPoints: 41.5, shownThreshold: 125, fullAt: 139 });
+    expect(memoryHarmonyBonus(URWALD)).toEqual({ waypoint: 36, threshold: 150, maxPoints: 38, shownThreshold: 150, fullAt: 163 });
+    // Krumm dazwischen: Wegpunkt 23 → Schwelle 109,375, Obergrenze 43,6875; Panel „über 109 (bis 124)“.
+    expect(memoryHarmonyBonus(23)).toMatchObject({ threshold: 109.375, maxPoints: 43.6875, shownThreshold: 109, fullAt: 124 });
+    // Vor dem Hain (nur Vorschau), hinter dem Urwald und bei Unsinn: nächstliegende Stützstelle.
+    for (const w of [0, 12, 19, 19.9, NaN, -3]) expect(memoryHarmonyBonus(w), String(w)).toEqual(memoryHarmonyBonus(HAIN));
     expect(memoryHarmonyBonus(99)).toEqual(memoryHarmonyBonus(URWALD));
+    expect(memoryHarmonyBonus(Infinity)).toEqual(memoryHarmonyBonus(URWALD));
+    expect(memoryHarmonyBonus(20.7)).toEqual(memoryHarmonyBonus(HAIN)); // nur ganze Wegpunkte
     expect(cycleMemoryGain(110.4, 12, 0, 0)).toBe(cycleMemoryGain(110.4, 12, 0, HAIN));
     // Typische Werte aus der Simulation (DESIGN_V2.md 15.4, Stand 2.11b): Harmonie- /
-    // Wachstums- / Gelegenheitsspieler im Wald H_max ~143 / 127 / 108, im Urwald ~175 / 154 / 131.
-    expect(cycleMemoryGain(143, 16, 0, WALD)).toBe(28 + 36 + 16);
-    expect(cycleMemoryGain(127, 17, 0, WALD)).toBe(25 + 21 + 17);
-    expect(cycleMemoryGain(108, 17, 0, WALD)).toBe(21 + 17);
-    expect(cycleMemoryGain(175, 21, 0, URWALD)).toBe(35 + 36 + 21);
-    expect(cycleMemoryGain(154, 22, 0, URWALD)).toBe(30 + 12 + 22);
-    expect(cycleMemoryGain(131, 21, 0, URWALD)).toBe(26 + 21);
-    // Gerundet wie die Anzeige; voll ab Schwelle + 12.
-    expect(cycleMemoryGain(120.4, 0, 0, WALD)).toBe(24);
-    expect(cycleMemoryGain(120.5, 0, 0, WALD)).toBe(24 + 3);
-    expect(cycleMemoryGain(131.4, 0, 0, WALD)).toBe(26 + 33);
-    expect(cycleMemoryGain(132, 0, 0, WALD)).toBe(26 + 36);
+    // Wachstums- / Gelegenheitsspieler im Wald H_max ~143 / 128 / 109, im Urwald ~174 / 157 / 135.
+    expect(cycleMemoryGain(143, 16, 0, WALD)).toBe(70 + 16); // ⌊28,6 + 41,5⌋
+    expect(cycleMemoryGain(127, 17, 0, WALD)).toBe(25 + 6 + 17); // ⌊25,4 + 6⌋
+    expect(cycleMemoryGain(107, 17, 0, WALD)).toBe(21 + 17);
+    expect(cycleMemoryGain(174, 21, 0, URWALD)).toBe(34 + 38 + 21); // ⌊34,8 + 38⌋
+    expect(cycleMemoryGain(157, 22, 0, URWALD)).toBe(31 + 21 + 22); // ⌊31,4 + 21⌋
+    expect(cycleMemoryGain(135, 21, 0, URWALD)).toBe(27 + 21);
+    // Krumme Schwelle: Wegpunkt 23, H 110 → ⌊22 + 3 · 0,625⌋ = 23; H 109 → 21.
+    expect(cycleMemoryGain(110, 0, 0, 23)).toBe(23);
+    expect(cycleMemoryGain(109, 0, 0, 23)).toBe(21);
+    // Gerundet wie die Anzeige; voll ab Schwelle + Obergrenze / 3.
+    expect(cycleMemoryGain(150.4, 0, 0, URWALD)).toBe(30);
     expect(cycleMemoryGain(150.5, 0, 0, URWALD)).toBe(30 + 3);
-    expect(cycleMemoryGain(162, 0, 0, URWALD)).toBe(32 + 36);
-    expect(cycleMemoryGain(195, 0, 0, URWALD)).toBe(39 + 36);
+    expect(cycleMemoryGain(162, 0, 0, URWALD)).toBe(32 + 36); // ⌊32,4 + 36⌋, voll erst ab 163
+    expect(cycleMemoryGain(163, 0, 0, URWALD)).toBe(32 + 38);
+    expect(cycleMemoryGain(195, 0, 0, URWALD)).toBe(39 + 38);
+    expect(cycleMemoryGain(139, 0, 0, WALD)).toBe(Math.floor(139 / 5 + 41.5));
     // Unsinn bleibt 0, die Obergrenze gilt auch hier.
     expect(cycleMemoryGain(NaN, NaN, NaN, URWALD)).toBe(0);
-    expect(cycleMemoryGain(175, 21, MAX_FOREST_MEMORY - 5, URWALD)).toBe(5);
+    expect(cycleMemoryGain(174, 21, MAX_FOREST_MEMORY - 5, URWALD)).toBe(5);
   });
 
-  it('Vorschau und Neuer Zyklus rechnen mit der erreichten Stufe', () => {
+  it('Gewinn sinkt nie, solange H_max je Wegpunkt um mindestens 3 steigt (alle Start-H_max 80–200)', () => {
+    // Die Schwelle steigt um 3,125 je Wegpunkt. Bleibt H_max gleich, sinkt der Gewinn darum um
+    // bis zu ~9 Punkte (das lässt sich ohne Gedächtnis im Spielstand nicht vermeiden: der Hain
+    // gibt 115 Harmonie schon 68 Punkte, der Urwald darf höchstens ~1,5 × Hain bringen,
+    // DESIGN_V2.md 15.4). Typische Verläufe steigen aber schneller: Mittel der Simulation
+    // Hain → Urwald je Wegpunkt Harmonie +4,0, Wachstum +3,3, Zufall +3,2.
+    for (const slope of [3, 3.2, 4.1, 5]) {
+      for (let h0 = 80; h0 <= 200; h0++) {
+        for (let w = HAIN; w < 36; w++) {
+          const now = cycleMemoryGain(h0 + slope * (w - HAIN), 0, 0, w);
+          const next = cycleMemoryGain(h0 + slope * (w + 1 - HAIN), 0, 0, w + 1);
+          expect(next, `H_max ${h0} + ${slope} je Wegpunkt, Wegpunkt ${w}`).toBeGreaterThanOrEqual(now);
+        }
+      }
+    }
+    // Und monoton in H_max und neuen Arten bei festem Wegpunkt.
+    for (let w = HAIN; w <= 36; w++) {
+      for (let h = 0; h < 220; h++) {
+        expect(cycleMemoryGain(h + 1, 5, 0, w)).toBeGreaterThanOrEqual(cycleMemoryGain(h, 5, 0, w));
+        expect(cycleMemoryGain(h, 6, 0, w)).toBeGreaterThan(cycleMemoryGain(h, 5, 0, w));
+      }
+    }
+  });
+
+  it('typische Verläufe aus der Simulation (Mittelwerte Hain → Urwald, Zyklus 1–3) steigen an jedem Wegpunkt', () => {
+    // [H_max beim Hain, beim Urwald, neue Arten beim Hain, beim Urwald], dazwischen linear
+    // (npm run balance, DESIGN_V2.md 15.4 „Stand Schritt 2.11b“).
+    const paths: Record<string, [number, number, number, number]> = {
+      'Harmonie Z1': [110, 174, 12, 21],
+      'Wachstum Z1': [104, 157, 13, 22],
+      'Zufall Z1': [84, 135, 13, 21],
+      'Harmonie Z2': [116, 185, 4, 4],
+      'Wachstum Z2': [107, 158, 4, 4],
+      'Zufall Z2': [88, 141, 4, 4],
+      'Harmonie Z3': [119, 193, 2, 2],
+      'Wachstum Z3': [109, 166, 2, 2],
+    };
+    for (const [name, [h0, h1, s0, s1]] of Object.entries(paths)) {
+      let previous = -1;
+      for (let w = HAIN; w <= 36; w++) {
+        const t = (w - HAIN) / (36 - HAIN);
+        const gain = cycleMemoryGain(h0 + t * (h1 - h0), Math.floor(s0 + t * (s1 - s0)), 0, w);
+        expect(gain, `${name}, Wegpunkt ${w}`).toBeGreaterThanOrEqual(previous);
+        previous = gain;
+      }
+    }
+  });
+
+  it('Vorschau und Neuer Zyklus rechnen mit dem erreichten Wegpunkt', () => {
     const state = groveState();
     state.cycle.maxHarmony = 140;
     state.cycle.newSpecies = Array.from({ length: 10 }, (_, i) => SPECIES[i]!.id);
     expect(previewNewCycle(state)).toMatchObject({ memoryGain: 28 + 45 + 10, harmonyBonus: memoryHarmonyBonus(HAIN) });
-    state.stage = HAIN + 1;
-    expect(previewNewCycle(state)).toMatchObject({ memoryGain: 28 + 36 + 10, harmonyBonus: { threshold: 120, fullAt: 132 } });
-    state.stage = HAIN + 2;
+    state.waypoint = 28;
+    state.stage = HAIN_STAGE + 1;
+    expect(previewNewCycle(state)).toMatchObject({ memoryGain: 69 + 10, harmonyBonus: { threshold: 125, fullAt: 139 } }); // ⌊28 + 41,5⌋
+    state.waypoint = 36;
+    state.stage = HAIN_STAGE + 2;
     const preview = previewNewCycle(state);
-    expect(preview).toMatchObject({ memoryGain: 28 + 0 + 10, harmonyBonus: { threshold: 150, fullAt: 162 } });
+    expect(preview).toMatchObject({ memoryGain: 28 + 0 + 10, harmonyBonus: { threshold: 150, fullAt: 163 } });
     const memory = state.meta.forestMemory;
     expect(startNewCycle(state, 0).ok).toBe(true);
     expect(state.meta.forestMemory).toBe(memory + preview.memoryGain);

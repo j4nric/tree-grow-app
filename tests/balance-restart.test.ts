@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { GROWTH, HARMONY, RANDOM, monteCarloCycles, restartGain, restartTable, restartTime, type RestartRow } from '../scripts/simulate';
+import { GROWTH, HARMONY, RANDOM, memoryPathStats, memoryPathTable, monteCarloCycles, restartGain, restartTable, restartTime, type RestartRow } from '../scripts/simulate';
 import { CYCLES, FULL, HAIN, MAX_SECONDS, RESTART_RUNS, URWALD, WALD } from './balance-setup';
 
 /**
  * Neuer Zyklus erst später (Schritt 2.11b, DESIGN_V2.md 10 und 15.4): Jeder Zyklus läuft bis
- * Hain, Wald oder Urwald, dann Neustart. Der Harmonie-Bonus des Waldgedächtnisses hat je
- * erreichter Stufe eine eigene Schwelle (content/memory.ts, MEMORY_HARMONY_RULES).
+ * Hain, Wald oder Urwald, dann Neustart. Schwelle und Obergrenze des Harmonie-Bonus gleiten
+ * mit dem Wegpunkt (content/memory.ts, MEMORY_HARMONY_RULES; Hain 100 / 45 → Urwald 150 / 36).
  *
  * Ziele: (a) ab Zyklus 2 ist die Harmonie-Spielweise in jeder Stufe mindestens gleichauf
  * (Wachstum/Harmonie ≥ 0,97), (b) ein späterer Neustart bringt moderat mehr Gedächtnis als
@@ -28,7 +28,7 @@ const ratio = (stage: number, c: number) => restartTime(row(stage, GROWTH.id), c
 
 describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je Stufe)', () => {
   it('Protokoll', () => {
-    if (FULL) console.log(restartTable(rows));
+    if (FULL) console.log(`${restartTable(rows)}\n\n${memoryPathTable(rows)}`);
     expect(rows).toHaveLength(3 * strategies.length);
   });
 
@@ -75,6 +75,20 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
       const r = row(stage, RANDOM.id);
       expect(restartGain(r, 0), `Stufe ${stage}`).toBeGreaterThan(restartGain(row(HAIN, RANDOM.id), 0));
       expect(1 - restartTime(r, 1) / restartTime(r, 0), `Stufe ${stage}`).toBeGreaterThan(0.2);
+    }
+  });
+
+  it('Vorschau beim Wachsen: kein Sprung beim Stufenwechsel, Rückgang je Wegpunkt klein', () => {
+    // Die Schwelle steigt um 3,125 je Wegpunkt. Bleibt H_max an einem Wegpunkt gleich, sinkt die
+    // Vorschau um höchstens ~10 Punkte (3 · 3,125 plus Rundung) – vorher (Schwelle je Stufe)
+    // sprang sie beim Erreichen von Wald bzw. Urwald im Mittel um 14–26 Punkte.
+    for (const r of rows) {
+      if (r.stage === HAIN) continue;
+      for (let c = 0; c < CYCLES; c++) {
+        const st = memoryPathStats(r.runs, c);
+        expect(st.worstDrop, `${r.strategy.id} Stufe ${r.stage} Zyklus ${c + 1}`).toBeGreaterThanOrEqual(-10);
+        expect(st.worstMeanDip, `${r.strategy.id} Stufe ${r.stage} Zyklus ${c + 1} Mittel`).toBeGreaterThanOrEqual(FULL ? -1.5 : -4);
+      }
     }
   });
 });

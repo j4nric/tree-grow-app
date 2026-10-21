@@ -14,7 +14,8 @@ import {
 } from '../src/ui/cycle-view';
 import { stateAt } from './helpers';
 
-const MEMORY_RULE = 'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie über 100 zählt im Hain extra: +3 je Punkt (bis 115).';
+const MEMORY_RULE =
+  'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie über 100 zählt extra: +3 je Punkt (bis 115). Die Schwelle steigt mit dem Wachstum bis 150 im Urwald.';
 
 describe('View-Model „Neuer Zyklus“', () => {
   it('gesperrt: zeigt den Grund, keine Vorschau, keinen Knopf', () => {
@@ -30,19 +31,24 @@ describe('View-Model „Neuer Zyklus“', () => {
     expect(view.memoryRule).toBe(MEMORY_RULE);
   });
 
-  it('Regel nennt die Schwelle der erreichten Stufe (Schritt 2.11b): Wald über 120, Urwald über 150', () => {
+  it('Regel nennt die Schwelle des erreichten Wegpunkts (Schritt 2.11b), krumme abgerundet', () => {
     const wald = stateAt(6, ['earthworm']);
-    // 140 / 5 + min(36, 3 · (140 − 120)) + 2 Arten = 28 + 36 + 2 = 66
+    // Wegpunkt 28: Schwelle 125, Obergrenze 41,5 → ⌊140 / 5 + 41,5⌋ + 2 Arten = 69 + 2 = 71
     wald.cycle.maxHarmony = 140;
     wald.cycle.newSpecies = ['earthworm', 'robin'];
     const view = toCyclePanelView(wald);
-    expect(view.memoryRule).toBe(MEMORY_RULE.replace('über 100 zählt im Hain', 'über 120 zählt im Wald').replace('bis 115', 'bis 132'));
-    expect(view.gain).toBe('+66 Waldgedächtnis (+66 %)');
+    expect(view.memoryRule).toBe(MEMORY_RULE.replace('über 100', 'über 125').replace('bis 115', 'bis 139'));
+    expect(view.gain).toBe('+71 Waldgedächtnis (+71 %)');
+    // Wegpunkt 23: Schwelle 109,375 → „über 109“, voll ab 124.
+    wald.waypoint = 23;
+    wald.stage = 5;
+    expect(toCyclePanelView(wald).memoryRule).toBe(MEMORY_RULE.replace('über 100', 'über 109').replace('bis 115', 'bis 124'));
     const urwald = stateAt(7, ['earthworm']);
     urwald.cycle.maxHarmony = 140;
     urwald.cycle.newSpecies = ['earthworm', 'robin'];
+    // Oben angekommen: kein Hinweis mehr aufs Steigen.
     expect(toCyclePanelView(urwald).memoryRule).toBe(
-      MEMORY_RULE.replace('über 100 zählt im Hain', 'über 150 zählt im Urwald').replace('bis 115', 'bis 162'),
+      'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie über 150 zählt extra: +3 je Punkt (bis 163).',
     );
     expect(toCyclePanelView(urwald).gain).toBe('+30 Waldgedächtnis (+30 %)');
   });

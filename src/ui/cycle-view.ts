@@ -14,7 +14,7 @@ import { NICHES_BY_ID } from '../content/niches';
 import { GENUS_INFO, SPECIES_BY_ID } from '../content/species';
 import { STAGES } from '../content/stages';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
-import { regularSlots, type MemoryHarmonyBonus } from '../core/formulas';
+import { memoryHarmonyBonus, regularSlots, type MemoryHarmonyBonus } from '../core/formulas';
 import { allAnimals, type GameState } from '../core/state';
 import { previewNewCycle, regularBlocker, type NewCycleBlocker } from '../core/tick';
 import { formatNumber } from './format';
@@ -61,7 +61,7 @@ export interface CyclePanelView {
   gain: string | null;
   /** Woraus sich der Gewinn zusammensetzt, z. B. „Höchste Harmonie 96 · 12 neue Arten“. */
   gainDetail: string | null;
-  /** Regel für das Waldgedächtnis mit der Schwelle der erreichten Stufe (immer sichtbar), siehe memoryRuleText. */
+  /** Regel für das Waldgedächtnis mit der Schwelle des erreichten Wegpunkts (immer sichtbar), siehe memoryRuleText. */
   memoryRule: string;
   /** Neue Stammgast-Plätze durch diesen Zyklus, z. B. „+1 Platz für Stammgäste“; sonst null. */
   slotsGain: string | null;
@@ -151,17 +151,21 @@ export function cycleViewKey(view: CyclePanelView): string {
 }
 
 /**
- * Regel für das Waldgedächtnis (Schritt 2.11, Schwelle je Stufe seit 2.11b, content/memory.ts)
- * mit Schwelle und Obergrenze der erreichten Stufe (vor dem Hain: die des Hains), z. B.
+ * Regel für das Waldgedächtnis (Schritt 2.11, gleitende Schwelle seit 2.11b, content/memory.ts)
+ * mit Schwelle und Obergrenze des erreichten Wegpunkts (vor dem Hain: die des Hains), z. B.
  * „Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie
- * über 100 zählt im Hain extra: +3 je Punkt (bis 115).“
+ * über 109 zählt extra: +3 je Punkt (bis 124). Die Schwelle steigt mit dem Wachstum bis 150
+ * im Urwald.“ Krumme Schwellen nennt sie abgerundet (109,375 → „über 109“: genau ab 110
+ * gibt es Bonus). Der letzte Satz fehlt, sobald die Schwelle oben angekommen ist.
  */
 export function memoryRuleText(bonus: MemoryHarmonyBonus): string {
-  const stage = STAGES[bonus.stage]?.name ?? 'Hain';
+  const top = memoryHarmonyBonus(Infinity);
+  const last = STAGES[STAGES.length - 1]?.name ?? 'Urwald';
   return (
     `Waldgedächtnis: 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} Punkte höchster Harmonie` +
     (MEMORY_PER_NEW_SPECIES === 1 ? ' und je neue Art. ' : ` und ${formatNumber(MEMORY_PER_NEW_SPECIES)} je neue Art. `) +
-    `Höchste Harmonie über ${formatNumber(bonus.threshold)} zählt im ${stage} extra: +${formatNumber(MEMORY_PER_HARMONY_POINT)} je Punkt (bis ${formatNumber(bonus.fullAt)}).`
+    `Höchste Harmonie über ${formatNumber(bonus.shownThreshold)} zählt extra: +${formatNumber(MEMORY_PER_HARMONY_POINT)} je Punkt (bis ${formatNumber(bonus.fullAt)}).` +
+    (bonus.threshold < top.threshold ? ` Die Schwelle steigt mit dem Wachstum bis ${formatNumber(top.shownThreshold)} im ${last}.` : '')
   );
 }
 

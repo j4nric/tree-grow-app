@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ARCHITECT } from '../src/content/abilities';
 import { ENCOUNTER_WEIGHTS, INTERLUDE_CHANCE, INTERLUDE_POSITION, INTERLUDE_STAGE, INTERLUDE_WEIGHTS, PLANT_WEIGHT_IN_RING, PLANT_WEIGHT_RING_FULL, RARITY_WEIGHTS, SCRIPTED_ENCOUNTERS } from '../src/content/encounters';
-import { FOREST_MEMORY_BONUS, MEMORY_HARMONY_DIVISOR, MEMORY_PER_HARMONY_POINT, MEMORY_PER_NEW_SPECIES, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
+import { FOREST_MEMORY_BONUS, MEMORY_HARMONY_DIVISOR, MEMORY_PER_HARMONY_POINT, MEMORY_PER_NEW_SPECIES, MEMORY_PER_REGULAR_SLOT } from '../src/content/memory';
 import { NICHES } from '../src/content/niches';
 import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
@@ -218,21 +218,19 @@ describe('Formeln ↔ Zahlen: Golden-Tabelle', () => {
         bonus: FOREST_MEMORY_BONUS,
         harmonyDivisor: MEMORY_HARMONY_DIVISOR,
         perHarmonyPoint: MEMORY_PER_HARMONY_POINT,
-        // Harmonie-Bonus je erreichter Stufe (seit Schritt 2.11b): Schwelle, Obergrenze, voll ab.
-        harmonyBonusByStage: Object.fromEntries(
-          STAGES.slice(NEW_CYCLE_MIN_STAGE).map((s, i) => {
-            const b = memoryHarmonyBonus(NEW_CYCLE_MIN_STAGE + i);
-            return [s.id, `über ${b.threshold}: +${MEMORY_PER_HARMONY_POINT} je Punkt, höchstens ${b.maxPoints} (voll ab ${b.fullAt})`];
-          }),
-        ),
+        // Harmonie-Bonus je Wegpunkt ab Hain (seit Schritt 2.11b, gleitend): Schwelle, Obergrenze, voll ab.
+        harmonyBonusByWaypoint: Array.from({ length: 17 }, (_, i) => {
+          const b = memoryHarmonyBonus(20 + i);
+          return `Wegpunkt ${b.waypoint}: über ${b.threshold}, höchstens ${b.maxPoints} (Panel über ${b.shownThreshold}, voll ab ${b.fullAt})`;
+        }),
         perNewSpecies: MEMORY_PER_NEW_SPECIES,
         perRegularSlot: MEMORY_PER_REGULAR_SLOT,
         // Gewinn ohne neue Arten je höchster Harmonie – H_max wird gerundet wie die Anzeige.
         gainByMaxHarmony: Object.fromEntries(
-          STAGES.slice(NEW_CYCLE_MIN_STAGE).map((s, i) => [
-            s.id,
+          [20, 24, 28, 32, 36].map((w) => [
+            `Wegpunkt ${w}`,
             [4.4, 4.5, 81, 100.4, 100.5, 103, 110.4, 114.6, 120, 130, 140, 150, 160, 175, 195].map(
-              (h) => `H_max ${h} → ${cycleMemoryGain(h, 0, 0, NEW_CYCLE_MIN_STAGE + i)}`,
+              (h) => `H_max ${h} → ${cycleMemoryGain(h, 0, 0, w)}`,
             ),
           ]),
         ),

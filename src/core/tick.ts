@@ -773,7 +773,7 @@ export interface NewCyclePreview {
   newSpecies: number;
   /** Gewinn an Waldgedächtnis (schon auf MAX_FOREST_MEMORY begrenzt). */
   memoryGain: number;
-  /** Schwelle und Obergrenze des Harmonie-Bonus für die erreichte Stufe (memoryHarmonyBonus). */
+  /** Schwelle und Obergrenze des Harmonie-Bonus für den erreichten Wegpunkt (memoryHarmonyBonus). */
   harmonyBonus: MemoryHarmonyBonus;
   memoryBefore: number;
   memoryAfter: number;
@@ -796,13 +796,13 @@ export function newCycleBlocker(state: GameState): NewCycleBlocker | null {
 /** Was ein Neuer Zyklus jetzt brächte. Ändert nichts. */
 export function previewNewCycle(state: GameState): NewCyclePreview {
   const memoryBefore = state.meta.forestMemory;
-  const memoryGain = cycleMemoryGain(state.cycle.maxHarmony, state.cycle.newSpecies.length, memoryBefore, state.stage);
+  const memoryGain = cycleMemoryGain(state.cycle.maxHarmony, state.cycle.newSpecies.length, memoryBefore, state.waypoint);
   return {
     blocker: newCycleBlocker(state),
     maxHarmony: state.cycle.maxHarmony,
     newSpecies: state.cycle.newSpecies.length,
     memoryGain,
-    harmonyBonus: memoryHarmonyBonus(state.stage),
+    harmonyBonus: memoryHarmonyBonus(state.waypoint),
     memoryBefore,
     memoryAfter: memoryBefore + memoryGain,
     regularSlotsBefore: regularSlots(memoryBefore),
