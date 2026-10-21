@@ -10,21 +10,21 @@
 > Ereignisse mit Wahl und Durchreisende mit Zeit- und Zyklus-Boni, ab dem Hain mit
 > Zwischenhalt (Schritt 2.4, `DESIGN_V2.md` 7.4–7.8); Pflegemaßnahmen als Samen-Senke
 > (8 Maßnahmen mit 1–3 Rängen, wirken bis zum Neuen Zyklus; Schritt 2.7, `DESIGN_V2.md` 8);
-> Spielstand v5 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
+> Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus) und Hauptbaum-Arten (Eiche, Buche,
+> Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
+> Spielstand v6 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
-> verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
+> verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege;
+> v5-Stände beginnen beim Laden im Frühling und wachsen als Stieleiche weiter). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
 > Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰, Neu würfeln
 > kostet 10 🌰 (verdoppelt sich je Wurf).
 >
-> Jahreszeiten und Hauptbaum-Arten sind **entworfen, aber noch nicht programmiert**
-> (Daten in `src/content/seasons.ts` und `src/content/trees.ts`, Grafik fertig) – siehe
-> die beiden folgenden Abschnitte.
->
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
-> `scripts/simulate.ts`, `tests/balance.test.ts` und `tests/balance-care.test.ts`.
+> `scripts/simulate.ts`, `tests/balance.test.ts`, `tests/balance-care.test.ts` und
+> `tests/seasons-balance.test.ts`.
 
-## Jahreszeiten (v2 – Design fertig, Logik offen)
+## Jahreszeiten (v2, umgesetzt)
 
 Details, Begründung und Umsetzungsnotiz: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 16.
 
@@ -46,17 +46,20 @@ Details, Begründung und Umsetzungsnotiz: [`DESIGN_V2.md`](DESIGN_V2.md), Abschn
 Ganzjährig: Wildschweine, Wanderfalke, Sturmnacht, Windwurf, Blitzschlag, Vogelsaat;
 die Ameisenstraße ruht nur im Winter.
 
-**Simulation** (grobes Modell `scripts/season-model.ts`, 200 Durchgänge, Harmonie-Spieler):
+Im Spiel: Abzeichen „🍂 Herbst · noch 1:20 min“ in der Kopfzeile (Wirkungen als
+Tooltip), kurzer Hinweis beim Wechsel, Abschnitt „Jahreszeiten“ in der Spielanleitung.
+
+**Simulation** (echte Logik, 200 Durchgänge, Harmonie-Spieler, Stieleiche; ohne Pflege):
 
 | | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain |
 |---|---|---|---|---|---|---|
-| ohne Jahreszeiten (heute) | 3:42 min | 17:20 min | 46:04 min | 1:18 h | 1:55 h | 100,3 |
-| mit Jahreszeiten | 3:26 min | 16:52 min | 44:36 min | 1:17 h | 1:53 h | 100,9 |
+| ohne Jahreszeiten (Stand 2.4, 100 Durchgänge) | – | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 |
+| mit Jahreszeiten | 3:26 min | 16:55 min | 45:46 min | 1:18 h | 1:53 h | 101,1 |
 
-## Hauptbaum-Arten (v2 – Design fertig, Logik offen)
+## Hauptbaum-Arten (v2, umgesetzt)
 
-Details und Umsetzungsnotiz: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 17. Grafik
-fertig (`SceneInput.mainTree`).
+Details und Umsetzungsnotiz: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 17. Die Wahl
+steht im Bereich „Neuer Zyklus“ (Radiogruppe, gesperrte Arten mit Hinweis).
 
 - Der erste Zyklus beginnt immer mit der **Stieleiche**.
 - **Buche und Kiefer** werden wählbar, sobald ihre Begleitpflanze (Rotbuche bzw.
@@ -69,10 +72,10 @@ fertig (`SceneInput.mainTree`).
 | 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Keimling); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum |
 | 🌲 Waldkiefer | Kiefernsamen | +2 ☀️, +1 💧; winterfest (kein Winter-Abzug); Merkmal Nadeln | keine Nüsse |
 
-**Simulation** (grobes Modell, 200 Durchgänge, mit Jahreszeiten, erster Zyklus ohne
-Waldgedächtnis, Harmonie-Spieler): Hain mit Eiche 44:26 min (⚖️ 101,5), Buche 43:50 min
-(102,2), Kiefer 42:40 min (100,6; ohne die fehlenden Nüsse, also etwas zu günstig).
-Pilze stapeln: Buche 43:28 min / ⚖️ 95,0 gegen Eiche 45:16 min / 89,4.
+**Simulation** (echte Logik, 200 Durchgänge, mit Jahreszeiten, erster Zyklus ohne
+Waldgedächtnis, Harmonie-Spieler): Hain mit Eiche 45:46 min (⚖️ 101,1), Buche 44:12 min
+(103,7), Kiefer 43:41 min (100,0). Die Kiefer liegt 4,6 % vor der Eiche (Wachstums-Spieler
+4,9 %) – unter der Schwelle von 5 %, ihr Licht bleibt bei +2 (`DESIGN_V2.md` 15.4).
 
 ## Vision
 
@@ -180,7 +183,7 @@ Produktion, damit es direkt etwas Neues zu kaufen gibt.
   günstige Upgrades.
 
 ### Jahreszeiten
-- In v2 entworfen: siehe Abschnitt „Jahreszeiten (v2 – Design fertig, Logik offen)“ oben.
+- In v2 umgesetzt: siehe Abschnitt „Jahreszeiten (v2, umgesetzt)“ oben.
   Die halbierte Winter-Produktion aus diesem v1-Entwurf ist verworfen (zwingt zum Warten);
   stattdessen −10 % 🌿 im Winter und +10 % im Frühling.
 
@@ -202,7 +205,7 @@ Produktion, damit es direkt etwas Neues zu kaufen gibt.
   Bienen bestäuben (Bonus auf Samen).
 
 ### Baumarten (späteres Spiel)
-- In v2 entworfen: siehe Abschnitt „Hauptbaum-Arten (v2 – Design fertig, Logik offen)“
+- In v2 umgesetzt: siehe Abschnitt „Hauptbaum-Arten (v2, umgesetzt)“
   oben. Nach dem ersten Neuen Zyklus: Eiche (ausgewogen), Buche (schattig, Pilze),
   Kiefer (Licht, winterfest) –
   jede Art mit eigener Grafik und eigenen Boni. Die Grafik ist fertig

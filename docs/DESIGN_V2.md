@@ -1531,6 +1531,50 @@ Neu im Simulator (Begegnungs-Vielfalt): Tabellen „Vielfalt der Begegnungen“ 
 (Harmonie-Spieler und Zufall) und „Vielfalt bis Hain je Strategie“ (`varietyStats`,
 `varietyBefore`, `longestDrought`).
 
+#### Stand Jahreszeiten und Hauptbaum-Arten – Logik (200 Durchgänge)
+
+Seit Spielstand v6 laufen die Jahreszeiten in **jedem** Durchgang mit (echte Logik, das
+grobe Modell `scripts/season-model.ts` ist entfernt). Der Simulator hält an jeder
+Jahreszeitgrenze an, damit Pflanzen- und Pflege-Käufe mit der richtigen Rate geplant werden;
+`RunOptions.mainTree` wählt die Art für den ersten Zyklus (ohne Freischaltung, damit die
+Arten vergleichbar sind; ohne Waldgedächtnis, ohne Pflege).
+
+```bash
+SIM_LOG=1 SIM_SEASON_ALL=1 SIM_SEASON_RUNS=200 npx vitest run tests/seasons-balance.test.ts --silent=false   # ~50 s
+```
+
+| Strategie | Art | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Ø 😊 beim Hain | 🌿/s beim Hain | Durststrecke Alter Baum / Hain (90 %) | Ereignisse / Gäste |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Gierig nach Harmonie | Eiche | 3:26 min | 16:55 min | 45:46 min | 1:18 h | 1:53 h | 101,1 | 91 % | 74,4 | 8:00 / 7:27 min | 6,9 / 5,9 |
+| Gierig nach Harmonie | Buche | 3:19 min | 15:46 min | 44:12 min | 1:15 h | 1:48 h | 103,7 | 89 % | 78,4 | 7:30 / 7:31 min | 7,0 / 5,8 |
+| Gierig nach Harmonie | Kiefer | 3:26 min | 16:11 min | 43:41 min | 1:16 h | 1:52 h | 100,0 | 90 % | 75,3 | 7:10 / 7:22 min | 6,7 / 6,0 |
+| Gierig nach Wachstum | Eiche | 3:15 min | 14:23 min | 36:55 min | 1:03 h | 1:31 h | 96,8 | 88 % | 91,8 | 6:50 / 5:06 min | 7,2 / 5,7 |
+| Gierig nach Wachstum | Buche | 3:09 min | 13:25 min | 34:59 min | 1:00 h | 1:27 h | 97,1 | 87 % | 94,2 | 6:06 / 4:52 min | 7,1 / 5,6 |
+| Gierig nach Wachstum | Kiefer | 3:15 min | 13:41 min | 35:06 min | 1:00 h | 1:28 h | 95,0 | 87 % | 93,2 | 7:33 / 5:05 min | 7,0 / 5,6 |
+| Zufällig | Eiche | 4:07 min | 23:19 min | 1:10 h | 2:07 h | 3:04 h | 75,9 | 82 % | 44,3 | 11:52 / 12:01 min | 6,6 / 6,0 |
+| Zufällig | Buche | 4:03 min | 22:05 min | 1:07 h | 2:04 h | 2:58 h | 75,6 | 81 % | 45,7 | 11:22 / 11:04 min | 6,6 / 6,1 |
+| Zufällig | Kiefer | 4:07 min | 22:40 min | 1:09 h | 2:08 h | 3:04 h | 73,7 | 81 % | 42,8 | 11:34 / 12:08 min | 6,5 / 5,7 |
+
+**Bewertung**
+
+- **Jahreszeiten:** Mit der Eiche liegt der Harmonie-Spieler beim Hain praktisch auf dem
+  Stand ohne Jahreszeiten (45:46 statt 45:44 min, Stand 2.4), die Harmonie steigt um 1
+  Punkt (101,1 statt 100,1). Das grobe Modell (16.5) sah 44:36 min. Durststrecken bleiben
+  gleich (90 % im Hain 7:27 min).
+- **Früh im Spiel** wirkt der Frühling voll: Der Setzling kommt nach ~41 s statt ~45 s.
+  `tests/balance.test.ts` lässt Stufen, die ganz im ersten Frühling liegen, darum um diesen
+  Bonus schneller sein (Untergrenze 0,7 / 1,1 × Ziel).
+- **Offene Frage Kiefer (17.4) beantwortet:** Mit echter Logik (ohne Nüsse) liegt die
+  Kiefer beim Hain 4,6 % (Harmonie-Spieler) bzw. 4,9 % (Wachstums-Spieler) vor der Eiche
+  – knapp **unter** der Schwelle von 5 %. Ihr Licht bleibt bei +2.
+- **Buche im Auge behalten:** Für den Wachstums-Spieler 5,2 % schneller als die Eiche
+  (34:59 statt 36:55 min), beim Harmonie-Spieler die höchste Harmonie (103,7). Innerhalb
+  der Prüfung (±10 %), beim Balancing (2.10) nachmessen.
+
+`tests/seasons-balance.test.ts` prüft im normalen Check (30 Durchgänge, bis zum Hain):
+Eiche im Korridor und höchstens 10 % neben dem Stand ohne Jahreszeiten, Harmonie höchstens
+2 Punkte darunter; jede Art innerhalb ±10 % der Eiche beim Hain und ±8 Punkte Harmonie.
+
 #### Stand Schritt 2.4 – Logik: Ereignisse und Durchreisende echt (100 Durchgänge)
 
 Seit der Logik zieht der Simulator Ereignisse, Gäste und Zwischenhalte mit der echten
@@ -2309,9 +2353,9 @@ dazu Basis 3,5) und 3. (Samen-Grenze 58 🌰 beim Laden); 2. ist noch offen:
 
 ## 16. Jahreszeiten
 
-> **Stand:** Design fertig, Logik offen. Daten in `src/content/seasons.ts`, Grafik fertig
-> (`SceneInput.season`), grobes Modell im Simulator (`scripts/season-model.ts`),
-> Umsetzungsnotiz 16.6.
+> **Stand:** umgesetzt (Spielstand v6). Daten in `src/content/seasons.ts`, Logik in
+> `src/core/season.ts`, `formulas.ts` und `tick.ts`, Anzeige in der Kopfzeile
+> (`src/ui/season-view.ts`), Kennzahlen mit echter Logik in 15.4.
 
 ### 16.1 Idee
 
@@ -2398,7 +2442,10 @@ Hain ohne Bedingung (Inhaltstest). Kommt für den gezogenen Typ nichts in Frage,
 wie bisher eine Tierbegegnung – es geht keine Begegnung verloren. Bewohner des
 Ökosystems ziehen nie fort (auch keine Vögel): Das wäre eine Strafe.
 
-### 16.5 Simulation (grobes Modell, 200 Durchgänge)
+### 16.5 Simulation (grobes Modell, 200 Durchgänge, historisch)
+
+> Ersetzt durch die Messung mit echter Logik in 15.4 („Stand Jahreszeiten und
+> Hauptbaum-Arten – Logik“); das Modell `scripts/season-model.ts` ist entfernt.
 
 `scripts/season-model.ts` bildet die Jahreszeiten mit vorhandener Mechanik nach:
 Wirkungen als Zeit-Boni bis zum Ende der Jahreszeit (tick hält an der Grenze an),
@@ -2493,13 +2540,22 @@ tick hält an jeder Grenze, viele kleine Ticks = ein großer = `simulateOffline`
 Pflanzenfaktor nur mit freiem Ring; Kraniche nicht im Winter; Neuer Zyklus setzt
 `elapsed` auf 0; Migration; Cache-Schlüssel wechselt mit der Jahreszeit.
 
+**Umgesetzt:** wie oben, gemeinsam mit 17.5 in Spielstand v6. Festlegungen:
+`src/core/season.ts` (reine Helfer, auch für die Szene je Frame); `elapsed` wird beim Laden
+auf [0, 10¹²] begrenzt, ab der Obergrenze steht das Jahr still. Bei langen Zeitsprüngen
+rechnet `tick` ganze Jahre am Stück (exakt: Σ Rate je Jahreszeit × 180 s), sofern darin
+kein Wegpunkt, Zwischenhalt oder Ablauf liegt – so bleiben auch riesige Sprünge schnell.
+`TickReport.seasons` merkt sich höchstens die letzten 160 Wechsel. `seedSecondsRate`
+rechnet ohne Jahreszeit, aber mit der Baumart (eigener Cache). Tests:
+`tests/seasons.test.ts`, `tests/season-view.test.ts`, `e2e/seasons.spec.ts`.
+
 ---
 
 ## 17. Hauptbaum-Arten
 
-> **Stand:** Design fertig, Logik offen. Daten in `src/content/trees.ts`, Grafik fertig
-> (`SceneInput.mainTree`: 'oak' | 'beech' | 'pine'), grobes Modell im Simulator,
-> Umsetzungsnotiz 17.5.
+> **Stand:** umgesetzt (Spielstand v6). Daten in `src/content/trees.ts`, Logik in
+> `formulas.ts` und `tick.ts`, Wahl im Bereich „Neuer Zyklus“; Kennzahlen mit echter
+> Logik in 15.4 – die Kiefer liegt 4,6 % vor der Eiche, ihr Licht bleibt bei +2.
 
 ### 17.1 Idee
 
@@ -2547,7 +2603,10 @@ sind dort selten knapp, die Zahl der Begegnungen begrenzt). Buche „Moose & Far
 +1 Platz Wurzelraum dagegen schon. Kiefer +2 💧 statt +1 – kein Unterschied, also die
 kleinere Zahl.
 
-### 17.4 Simulation (grobes Modell, 200 Durchgänge, mit Jahreszeiten)
+### 17.4 Simulation (grobes Modell, 200 Durchgänge, mit Jahreszeiten, historisch)
+
+> Mit echter Logik nachgemessen in 15.4: Eiche 45:46 min, Buche 44:12 min, Kiefer
+> 43:41 min beim Hain (Harmonie-Spieler).
 
 Erster Zyklus mit der jeweiligen Art (ohne Waldgedächtnis), damit die Arten vergleichbar
 sind. **Näherung:** Das Modell kann die fehlenden Nüsse der Kiefer nicht abbilden – sie
@@ -2604,3 +2663,10 @@ Art scheitert ohne Änderung; Eiche = heutiges Verhalten (alle bisherigen Tests 
 Kiefer ohne Nüsse (Eichhörnchen hungrig, Mastjahr und Bergfinken nicht wählbar), mit
 Nadeln; Buche: Wurzelraum ab Keimling 2 Plätze, −2 ☀️ erst ab Alter Baum; Kiefer im
 Winter ohne Abzug; Migration; Simulator: `mainTree` als echte Option.
+
+**Umgesetzt:** wie oben. `unlockedTrees` / `isTreeUnlocked` in `tick.ts`; beim Laden zählt
+für die Freischaltung auch, was gerade im Ring wächst. Gemeinsamer Platz-Helfer
+`slotBonuses(state)` (Zyklus-Boni, Pflege, Baumart). Ein reines `Ecosystem` ohne
+`mainTree` hat die Merkmale der Eiche, aber keine Eigenheiten. `MAIN_TREE_TAGS` /
+`MAIN_TREE_NUTS_STAGE` sind aus `stages.ts` entfernt. Der Sperrhinweis in der Auswahl ist
+`unlockHint` aus `trees.ts`.
