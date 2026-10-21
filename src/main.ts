@@ -40,7 +40,8 @@ import { createEncounterStack } from './ui/encounter-stack';
 import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
 import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
-import { IMPORT_ERROR_TEXTS, createSaveTransfer } from './ui/save-transfer';
+import { IMPORT_ERROR_TEXTS, createSaveTransfer, type SaveTransfer } from './ui/save-transfer';
+import { isDeliberateConfirm } from './ui/confirm';
 import { formatNumber } from './ui/format';
 import type { EcosystemView } from './ui/view-model';
 
@@ -114,6 +115,12 @@ let lastFrame = performance.now();
 let lastSave = performance.now();
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let resetTimer: ReturnType<typeof setTimeout> | undefined;
+/** Wann „Spielstand löschen“ scharf geschaltet wurde (performance.now) – gegen Doppelklicks. */
+let resetArmedAt = 0;
+/** Bereich „Spielstand exportieren oder importieren“ (ab start()). */
+let saveTransfer: SaveTransfer | undefined;
+/** Hinweis vor dem Import eines v1-Codes. */
+const V1_IMPORT_NOTE = 'Achtung: Das ist ein Spielstand der ersten Version – dein Wald beginnt damit neu.';
 
 /** Der Spieler hat den Stapel geöffnet; bleibt offen, bis „Später“ oder keine Begegnung mehr wartet. */
 let dialogWanted = false;
@@ -464,13 +471,17 @@ function disarmReset(): void {
   resetButton.classList.remove('armed');
 }
 
-function onReset(): void {
+function onReset(event: MouseEvent): void {
   if (resetTimer === undefined) {
+    if (event.detail > 1) return;
     resetButton.textContent = 'Wirklich alles löschen? Zum Bestätigen erneut klicken';
     resetButton.classList.add('armed');
+    resetArmedAt = performance.now();
     resetTimer = setTimeout(disarmReset, 4000);
     return;
   }
+  // Doppelklick oder gehaltene Enter-Taste bestätigen nicht.
+  if (!isDeliberateConfirm(event, resetArmedAt, performance.now())) return;
   disarmReset();
   clearStorage();
   replaceState(newGame());
@@ -479,6 +490,11 @@ function onReset(): void {
 /** Ersetzt den ganzen Spielstand (Löschen, Import): Dialoge zu, alles neu aufbauen, speichern. */
 function replaceState(next: GameState): void {
   state = next;
+  // Laufende Übergangs-Sequenz und offene Bestätigungen gehören zum alten Stand.
+  scene.cycleTransition = undefined;
+  disarmReset();
+  cyclePanel.disarm();
+  saveTransfer?.reset();
   shownStage = state.stage;
   closeEncounters();
   closePlantPicker();
@@ -495,20 +511,28 @@ function replaceState(next: GameState): void {
 
 /** Bereich „Spielstand exportieren oder importieren“ neben „Spielstand löschen“. */
 function setupSaveTransfer(): void {
-  createSaveTransfer(resetButton.parentElement!, {
+  saveTransfer = createSaveTransfer(resetButton.parentElement!, {
     getCode: () => exportCode(state),
     validate: (code) => {
       const result = importCode(code, Date.now());
-      return result.ok ? null : IMPORT_ERROR_TEXTS[result.error];
+      if (!result.ok) return { ok: false, message: IMPORT_ERROR_TEXTS[result.error] };
+      return result.result.migratedFromV1 ? { ok: true, note: V1_IMPORT_NOTE } : { ok: true };
     },
     onImport: (code) => {
       const result = importCode(code, Date.now());
       if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
-      disarmReset();
       replaceState(result.result.state);
+      if (result.result.migratedFromV1) showToast(v1NoticeText(result.result.keepsake));
       return null;
     },
   });
+}
+
+/** Meldung nach dem Laden eines v1-Stands (beim Start oder per Import). */
+function v1NoticeText(keepsake: boolean): string {
+  return keepsake
+    ? 'Dein Wald beginnt neu – mit Erinnerungen. Andenken „Die alte Eiche“: +5 Waldgedächtnis.'
+    : 'Dein Wald beginnt neu – das Spiel hat sich verändert.';
 }
 
 // --- Game Loop -----------------------------------------------------------------------
@@ -596,11 +620,7 @@ function start(): void {
   if (loaded?.migratedFromV1) {
     // Alter v1-Stand: Neustart, sofort als v2 speichern, damit die Meldung nur einmal kommt.
     saveToStorage(state);
-    showToast(
-      loaded.keepsake
-        ? 'Dein Wald beginnt neu – mit Erinnerungen. Andenken „Die alte Eiche“: +5 Waldgedächtnis.'
-        : 'Dein Wald beginnt neu – das Spiel hat sich verändert.',
-    );
+    showToast(v1NoticeText(loaded.keepsake));
   }
   catchUp();
 

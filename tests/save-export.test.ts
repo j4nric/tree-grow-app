@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   EXPORT_PREFIX,
   MAX_EXPORT_CODE_LENGTH,
+  MAX_KEEPSAKES,
+  MAX_KEEPSAKE_ID_LENGTH,
+  MAX_REROLLS,
   codeFromJson,
   exportCode,
   importCode,
@@ -135,5 +138,68 @@ describe('exportCode / importCode', () => {
       expect(imported.result.state).toEqual({ ...loaded.state, lastTick: 50_000 });
       expect(imported.result.state.version).toBe(SAVE_VERSION);
     }
+  });
+
+  it('UTF-8: Umlaute und Emoji in Andenken bleiben gleich', () => {
+    const state = richState();
+    state.meta.journal.keepsakes = ['old-oak', 'Grüße aus dem Wald 🌳', 'ß€✓'];
+    const imported = importCode(exportCode(state), 1);
+    expect(imported.ok && imported.result.state.meta.journal.keepsakes).toEqual(state.meta.journal.keepsakes);
+  });
+
+  it('Base64: Byte-Länge mod 3 = 0, 1 und 2 überstehen den Roundtrip', () => {
+    const seen = new Set<number>();
+    for (let k = 1; k <= 6; k++) {
+      const state = richState();
+      state.meta.journal.keepsakes = ['x'.repeat(k)];
+      const bytes = new TextEncoder().encode(serialize(state)).length;
+      seen.add(bytes % 3);
+      const imported = importCode(exportCode(state), 1);
+      expect(imported.ok && imported.result.state.meta.journal.keepsakes, `k=${k}`).toEqual(['x'.repeat(k)]);
+    }
+    expect([...seen].sort()).toEqual([0, 1, 2]);
+  });
+
+  it('Grenze: genau MAX_EXPORT_CODE_LENGTH wird geprüft, ein Zeichen mehr ist zu groß', () => {
+    expect(importCode('X'.repeat(MAX_EXPORT_CODE_LENGTH), 0)).toEqual({ ok: false, error: 'format' });
+    expect(importCode('X'.repeat(MAX_EXPORT_CODE_LENGTH + 1), 0)).toEqual({ ok: false, error: 'too-large' });
+    // Leerraum zählt nicht – außer bei riesigen Eingaben (grobe Prüfung vor dem Entfernen).
+    const code = exportCode(richState());
+    expect(importCode(' '.repeat(MAX_EXPORT_CODE_LENGTH) + code, 0).ok).toBe(true);
+    expect(importCode(' '.repeat(2 * MAX_EXPORT_CODE_LENGTH + 1) + code, 0)).toEqual({ ok: false, error: 'too-large' });
+  });
+
+  it('tief verschachteltes JSON und __proto__ führen nie zum Absturz', () => {
+    const deep = '{"version":4,"meta":' + '{"a":'.repeat(24_000) + '1' + '}'.repeat(24_000) + '}';
+    expect(() => importCode(codeFromJson(deep), 0)).not.toThrow();
+    const veryDeep = '['.repeat(200_000) + ']'.repeat(200_000);
+    expect(() => importCode(codeFromJson(veryDeep), 0)).not.toThrow();
+
+    const proto = JSON.stringify({ version: 4 }).replace(
+      '}',
+      ',"__proto__":{"polluted":true},"meta":{"__proto__":{"x":1},"journal":{"keepsakes":["__proto__","toString"]}}}',
+    );
+    const imported = importCode(codeFromJson(proto), 0);
+    expect(imported.ok).toBe(true);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(imported.ok && imported.result.state.meta.journal.keepsakes).toEqual(['__proto__', 'toString']);
+  });
+
+  it('Begrenzungen beim Laden: Andenken (Anzahl, Länge) und Neuwürfe', () => {
+    const raw = JSON.parse(serialize(richState()));
+    raw.meta.journal.keepsakes = [
+      'y'.repeat(MAX_KEEPSAKE_ID_LENGTH + 1),
+      '',
+      ...Array.from({ length: MAX_KEEPSAKES + 50 }, (_, i) => `k${i}`),
+    ];
+    raw.pendingEncounters = [{ type: 'animal', cards: ['bee'], rerolls: 1e12 }];
+    const imported = importCode(codeFromJson(JSON.stringify(raw)), 0);
+    expect(imported.ok).toBe(true);
+    if (!imported.ok) return;
+    const keepsakes = imported.result.state.meta.journal.keepsakes;
+    expect(keepsakes).toHaveLength(MAX_KEEPSAKES);
+    expect(keepsakes[0]).toBe('k0');
+    expect(keepsakes.every((k) => k.length > 0 && k.length <= MAX_KEEPSAKE_ID_LENGTH)).toBe(true);
+    expect(imported.result.state.pendingEncounters[0]!.rerolls).toBe(MAX_REROLLS);
   });
 });

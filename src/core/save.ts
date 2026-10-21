@@ -27,6 +27,10 @@ import {
 } from './state';
 
 export const SAVE_KEY = 'tree-grow-save';
+/** Obergrenzen beim Laden: Andenken (Anzahl, Länge der ID) und Neuwürfe je Begegnung. */
+export const MAX_KEEPSAKES = 100;
+export const MAX_KEEPSAKE_ID_LENGTH = 64;
+export const MAX_REROLLS = 1000;
 
 /** Obergrenze für die Zyklus-Nummer beim Laden (Schutz vor kaputten Ständen). */
 export const MAX_CYCLE_NUMBER = 1e9;
@@ -235,7 +239,7 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
       const encounter: PendingEncounter = {
         type,
         cards,
-        rerolls: Math.max(0, Math.floor(finiteOr(raw.rerolls, 0))),
+        rerolls: Math.floor(clampedOr(raw.rerolls, 0, 0, MAX_REROLLS)),
       };
       state.pendingEncounters.push(encounter);
     }
@@ -248,7 +252,10 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   const journal = isRecord(meta.journal) ? meta.journal : {};
   state.meta.journal.species = unique(stringArray(journal.species).filter((id) => SPECIES_BY_ID.has(id)));
   for (const id of seen) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
-  state.meta.journal.keepsakes = unique(stringArray(journal.keepsakes));
+  // Andenken sind freie IDs: Anzahl und Länge begrenzen (fremde oder manipulierte Stände).
+  state.meta.journal.keepsakes = unique(stringArray(journal.keepsakes))
+    .filter((id) => id.length > 0 && id.length <= MAX_KEEPSAKE_ID_LENGTH)
+    .slice(0, MAX_KEEPSAKES);
   // Pflanzen und Lebensgemeinschaften im Tagebuch (seit Schritt 2.3, ohne neue Version):
   // fehlen sie (ältere Stände), ergänzt loadGame sie per recordDiscoveries aus dem Ökosystem.
   state.meta.journal.plants = unique(stringArray(journal.plants).filter((id) => PLANTS_BY_ID.has(id)));
@@ -359,6 +366,8 @@ export function codeFromJson(json: string): string {
  * Offline-Zeit. Verändert nichts außerhalb des Ergebnisses.
  */
 export function importCode(code: string, now: number): ImportResult {
+  // Grobe Prüfung vor dem Entfernen des Leerraums (riesige Eingaben gar nicht erst anfassen).
+  if (code.length > 2 * MAX_EXPORT_CODE_LENGTH) return { ok: false, error: 'too-large' };
   const compact = code.replace(/\s+/g, '');
   if (compact.length === 0) return { ok: false, error: 'empty' };
   if (compact.length > MAX_EXPORT_CODE_LENGTH) return { ok: false, error: 'too-large' };
@@ -378,7 +387,13 @@ export function importCode(code: string, now: number): ImportResult {
   } catch {
     return { ok: false, error: 'invalid' };
   }
-  const result = loadGame(json, now);
+  let result: LoadResult | null;
+  try {
+    result = loadGame(json, now);
+  } catch {
+    // z. B. zu tief verschachteltes JSON – lieber „ungültig“ als ein Absturz.
+    return { ok: false, error: 'invalid' };
+  }
   if (!result) return { ok: false, error: 'invalid' };
   result.state.lastTick = now;
   return { ok: true, result };

@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
-import { expect, niche, openGame, savedState, seedV3, stageLabel, test, waypoint } from './fixtures';
+import { codeFromJson } from '../src/core/save';
+import { expect, niche, openGame, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Spielstand exportieren und importieren als Text-Code (Phase 5): Export, Löschen,
@@ -47,9 +48,13 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
   // Löschen (zwei Klicks) → neues Spiel.
   const reset = page.locator('#reset');
   await reset.click();
+  await waitForConfirm(page);
   await reset.click();
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
   await expect(niche(page, 'roots')).not.toContainText('Regenwurm');
+  // Nach dem Löschen steht kein alter Code mehr im Export-Feld.
+  await expect(transfer(page).locator('[data-ref="export-code"]')).toBeHidden();
+  expect(await transfer(page).locator('[data-ref="export-code"]').inputValue()).toBe('');
 
   // Importieren: erster Klick prüft und fragt nach, zweiter lädt.
   await transfer(page).locator('[data-ref="import-code"]').fill(code);
@@ -57,6 +62,7 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
   await importButton.click();
   await expect(importButton).toContainText('Zum Bestätigen erneut klicken');
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
+  await waitForConfirm(page);
   await importButton.click();
   await expect(transfer(page).locator('[data-ref="save-status"]')).toHaveText('Spielstand geladen.');
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
@@ -71,6 +77,8 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
 test('Ungültiger Code: klare Meldung, Spielstand bleibt unverändert', async ({ page, context }) => {
   await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'] } });
   await openGame(page);
+  await page.reload(); // im aktuellen Format speichern
+  await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
   const before = comparable(await savedState(page));
   await openTransfer(page);
   const status = transfer(page).locator('[data-ref="save-status"]');
@@ -96,6 +104,66 @@ test('Ungültiger Code: klare Meldung, Spielstand bleibt unverändert', async ({
   await expect(status).toContainText('unvollständig oder verändert');
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
   expect(comparable(await savedState(page))).toEqual(before);
+});
+
+test('Doppelklick überspringt keine Bestätigung – weder beim Import noch beim Löschen', async ({
+  page,
+  context,
+}) => {
+  await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'] } });
+  await openGame(page);
+  await page.reload(); // im aktuellen Format speichern
+  await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
+  const before = comparable(await savedState(page));
+
+  // Löschen per Doppelklick: nur scharf geschaltet, nichts gelöscht.
+  await page.locator('#reset').dblclick();
+  await expect(page.locator('#reset')).toContainText('Wirklich alles löschen');
+  await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
+
+  // Import eines anderen (gültigen) Stands per Doppelklick: nur nachgefragt.
+  await openTransfer(page);
+  const other = JSON.stringify({ ...(await savedState(page)), niches: { roots: [], litter: [], edge: [], crown: [], bark: [], hollows: [] } });
+  await transfer(page).locator('[data-ref="import-code"]').fill(codeFromJson(other));
+  const importButton = transfer(page).locator('[data-ref="import"]');
+  await importButton.dblclick();
+  await expect(importButton).toContainText('Zum Bestätigen erneut klicken');
+  await page.waitForTimeout(300);
+  await expect(niche(page, 'roots')).toContainText('Regenwurm');
+  expect(comparable(await savedState(page))).toEqual(before);
+});
+
+test('Bestätigung läuft nach 5 s ab (Testuhr)', async ({ page, context }) => {
+  await page.clock.install({ time: new Date('2026-10-21T08:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-21T08:00:01Z'));
+  await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'] } });
+  await openGame(page);
+  await openTransfer(page);
+  await transfer(page).locator('[data-ref="export"]').click();
+  const code = await transfer(page).locator('[data-ref="export-code"]').inputValue();
+  await transfer(page).locator('[data-ref="import-code"]').fill(code);
+  const importButton = transfer(page).locator('[data-ref="import"]');
+  await importButton.click();
+  await expect(importButton).toContainText('Zum Bestätigen erneut klicken');
+  await page.clock.runFor(4900);
+  await expect(importButton).toContainText('Zum Bestätigen erneut klicken');
+  await page.clock.runFor(200);
+  await expect(importButton).toHaveText('Importieren');
+});
+
+test('Import eines v1-Codes: Hinweis vorher und dieselbe Meldung wie beim Start', async ({ page, context }) => {
+  await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'] } });
+  await openGame(page);
+  await openTransfer(page);
+  const v1 = { version: 1, resources: { water: 12, light: 3, energy: 4200 }, stage: 3, totalEnergy: 5000, lastTick: 1000 };
+  await transfer(page).locator('[data-ref="import-code"]').fill(codeFromJson(JSON.stringify(v1)));
+  const importButton = transfer(page).locator('[data-ref="import"]');
+  await importButton.click();
+  await expect(transfer(page).locator('[data-ref="save-status"]')).toContainText('ersten Version');
+  await waitForConfirm(page);
+  await importButton.click();
+  await expect(page.locator('#toast')).toContainText('Dein Wald beginnt neu – mit Erinnerungen');
+  await expect(stageLabel(page)).toHaveText('Stufe: Samen');
 });
 
 test.describe('Mobil (390×844)', () => {

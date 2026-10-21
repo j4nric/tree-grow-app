@@ -7,19 +7,25 @@
  * Ein ungültiger Code ändert nichts – die Meldung sagt, warum.
  */
 import type { ImportError } from '../core/save';
+import { isDeliberateConfirm } from './confirm';
 import { el } from './dom';
 
 export interface SaveTransferCallbacks {
   /** Aktueller Spielstand als Text-Code. */
   getCode(): string;
-  /** Prüft einen Code, ohne etwas zu ändern: null = ladbar, sonst die Meldung. */
-  validate(code: string): string | null;
+  /**
+   * Prüft einen Code, ohne etwas zu ändern: `ok: false` mit Meldung, sonst `ok: true` und
+   * optional ein Hinweis vor dem Bestätigen (z. B. alter v1-Stand → Neustart).
+   */
+  validate(code: string): { ok: false; message: string } | { ok: true; note?: string };
   /** Lädt den Code (nach Bestätigung): null = geladen, sonst die Meldung. */
   onImport(code: string): string | null;
 }
 
 export interface SaveTransfer {
   readonly element: HTMLElement;
+  /** Nach Import oder Löschen: altes Export-Feld leeren und verstecken, Bestätigung entschärfen. */
+  reset(): void;
 }
 
 /** So lange bleibt „Zum Bestätigen erneut klicken“ scharf. */
@@ -89,6 +95,7 @@ export function createSaveTransfer(root: HTMLElement, callbacks: SaveTransferCal
   root.prepend(details);
 
   let armTimer: ReturnType<typeof setTimeout> | undefined;
+  let armedAt = 0;
 
   function say(text: string, tone: 'good' | 'bad' | 'neutral' = 'neutral'): void {
     status.textContent = text;
@@ -130,21 +137,28 @@ export function createSaveTransfer(root: HTMLElement, callbacks: SaveTransferCal
 
   importArea.addEventListener('input', disarm);
 
-  importButton.addEventListener('click', () => {
+  importButton.addEventListener('click', (event) => {
     const code = importArea.value;
     if (armTimer === undefined) {
+      // Zweiter Teil eines Doppelklicks, der schon entschärft wurde: ignorieren.
+      if (event.detail > 1) return;
       // Erst prüfen: Ein ungültiger Code braucht keine Bestätigung.
-      const problem = callbacks.validate(code);
-      if (problem) {
-        say(problem, 'bad');
+      const check = callbacks.validate(code);
+      if (!check.ok) {
+        say(check.message, 'bad');
         return;
       }
       importButton.textContent = 'Aktuellen Spielstand überschreiben? Zum Bestätigen erneut klicken';
       importButton.classList.add('armed');
-      say('Der Code ist gültig. Ein zweiter Klick ersetzt deinen aktuellen Spielstand.');
+      say(
+        `Der Code ist gültig.${check.note ? ` ${check.note}` : ''} Ein zweiter Klick ersetzt deinen aktuellen Spielstand.`,
+      );
+      armedAt = performance.now();
       armTimer = setTimeout(disarm, ARM_MS);
       return;
     }
+    // Doppelklick oder gehaltene Enter-Taste bestätigen nicht.
+    if (!isDeliberateConfirm(event, armedAt, performance.now())) return;
     disarm();
     const problem = callbacks.onImport(code);
     if (problem) {
@@ -155,5 +169,13 @@ export function createSaveTransfer(root: HTMLElement, callbacks: SaveTransferCal
     say('Spielstand geladen.', 'good');
   });
 
-  return { element: details };
+  function reset(): void {
+    disarm();
+    exportArea.value = '';
+    exportLabel.hidden = true;
+    copyButton.hidden = true;
+    exportButton.textContent = 'Code erzeugen';
+  }
+
+  return { element: details, reset };
 }
