@@ -14,6 +14,15 @@ export const V1_KEEPSAKE_MIN_ENERGY = 3_000;
 export const V1_KEEPSAKE_ID = 'old-oak';
 export const V1_KEEPSAKE_MEMORY = 5;
 
+/** Andenken im Naturtagebuch: Name, Symbol und kurzer Text (unbekannte IDs zeigt die UI neutral). */
+export const KEEPSAKE_INFO: Readonly<Record<string, { name: string; icon: string; text: string }>> = {
+  [V1_KEEPSAKE_ID]: {
+    name: 'Die alte Eiche',
+    icon: '🌳',
+    text: `Erinnerung an deinen ersten Baum: +${V1_KEEPSAKE_MEMORY} Waldgedächtnis.`,
+  },
+};
+
 /** Neuer Zyklus ist ab dieser Stufe möglich (Index in STAGES: Hain). */
 export const NEW_CYCLE_MIN_STAGE = 5;
 /** Waldgedächtnis beim Neuen Zyklus: 1 Punkt je so viel höchster Harmonie (H_max). */
