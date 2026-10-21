@@ -41,6 +41,8 @@ export interface CareMeasure {
   icon: string;
   /** Stimmungstext (ein Satz). */
   text: string;
+  /** Kurze Bestätigung nach dem Kauf, z. B. „Nistkästen angebracht“ (UI: schwebender Hinweis). */
+  boughtText: string;
   /** Bedingungen wie `Species.appears` (alle müssen beim Kauf erfüllt sein). */
   requires?: readonly Condition[];
   /** Maßnahmen, die sich mit dieser ausschließen (gegenseitig eingetragen). */
@@ -59,6 +61,7 @@ export const CARE: readonly CareMeasure[] = [
   {
     id: 'leaf-litter', name: 'Laub liegen lassen', icon: '🍂',
     text: 'Im Herbst bleibt das Laub, wo es fällt.',
+    boughtText: 'Laub bleibt liegen',
     ranks: [
       { cost: 600, minStage: 3, effects: [slot('litter')], summary: '+1 Platz Laubstreu' },
       {
@@ -70,6 +73,7 @@ export const CARE: readonly CareMeasure[] = [
   {
     id: 'nest-boxes', name: 'Nistkästen', icon: '🏠',
     text: 'Ein Holzkasten mit kleinem Flugloch. Gemütlich – und leicht zu finden.',
+    boughtText: 'Nistkästen angebracht',
     ranks: [
       { cost: 900, minStage: 3, effects: [{ kind: 'habitat', tag: 'hoehle' }, slot('hollows')], summary: 'Baumhöhle, +1 Platz Höhlen' },
       { cost: 6_000, minStage: 5, effects: [slot('crown')], summary: '+1 Platz Krone' },
@@ -78,6 +82,7 @@ export const CARE: readonly CareMeasure[] = [
   {
     id: 'wildflower-hem', name: 'Wildblumen-Saum', icon: '🌼',
     text: 'Margeriten, Klee und hohes Gras am Rand des Baums.',
+    boughtText: 'Wildblumen gesät',
     ranks: [
       {
         cost: 700, minStage: 3, summary: 'Blumen +40 % 🌰',
@@ -97,6 +102,7 @@ export const CARE: readonly CareMeasure[] = [
   {
     id: 'deadwood-pile', name: 'Totholzhaufen', icon: '🪵',
     text: 'Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.',
+    boughtText: 'Totholz aufgeschichtet',
     ranks: [
       { cost: 2_500, minStage: 4, effects: [{ kind: 'habitat', tag: 'totholz' }], summary: 'Totholz' },
       {
@@ -108,6 +114,7 @@ export const CARE: readonly CareMeasure[] = [
   {
     id: 'light-crown', name: 'Lichte Krone', icon: '☀️',
     text: 'Ein paar Äste weniger – Sonnenflecken tanzen über den Boden.',
+    boughtText: 'Krone gelichtet',
     excludes: ['dense-crown'],
     ranks: [
       { cost: 3_000, minStage: 4, effects: [{ kind: 'cycle', effect: { kind: 'light', amount: 3 } }], summary: '+3 ☀️' },
@@ -118,6 +125,7 @@ export const CARE: readonly CareMeasure[] = [
   {
     id: 'dense-crown', name: 'Dichte Krone', icon: '🌳',
     text: 'Ein Dach aus Blättern, unter dem Vögel sicher brüten.',
+    boughtText: 'Krone dicht gelassen',
     excludes: ['light-crown'],
     ranks: [
       {
@@ -137,6 +145,7 @@ export const CARE: readonly CareMeasure[] = [
   {
     id: 'pond', name: 'Waldtümpel', icon: '💧',
     text: 'Eine feuchte Senke, in der sich der Regen sammelt.',
+    boughtText: 'Tümpel angelegt',
     ranks: [
       {
         cost: 4_000, minStage: 4, summary: 'Feuchte, +3 💧',
@@ -151,6 +160,7 @@ export const CARE: readonly CareMeasure[] = [
   {
     id: 'insect-hotel', name: 'Insektenhotel', icon: '🐝',
     text: 'Hohle Stängel und gebohrte Löcher – jedes Zimmer ist bald belegt.',
+    boughtText: 'Insektenhotel aufgestellt',
     requires: [{ kind: 'genus', genus: 'insects', min: 1 }],
     ranks: [
       { cost: 2_000, minStage: 4, effects: [{ kind: 'cycle', effect: { kind: 'harmony', points: 3 } }], summary: '+3 ⚖️' },

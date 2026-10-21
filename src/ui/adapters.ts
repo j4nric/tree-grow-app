@@ -9,14 +9,14 @@
 import { ABILITY_INFO } from '../content/abilities';
 import { CARE, CARE_BY_ID } from '../content/care';
 import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
-import { EVENTS_BY_ID, type CycleEffect, type TimedEffect } from '../content/events';
+import { EVENTS_BY_ID, type CycleEffect, type EventOption, type TimedEffect } from '../content/events';
 import { KEEPSAKE_INFO } from '../content/memory';
 import { NICHES, NICHES_BY_ID } from '../content/niches';
 import { PLANT_GROUP_INFO, PLANTS, PLANTS_BY_ID, type Plant } from '../content/plants';
 import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
 import { STAGES } from '../content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
-import { VISITORS_BY_ID, VISITOR_FAREWELL_LABEL, VISITOR_HOST_LABEL, type VisitorEffect } from '../content/visitors';
+import { VISITORS_BY_ID, VISITOR_FAREWELL_LABEL, VISITOR_HOST_LABEL, type Visitor, type VisitorEffect } from '../content/visitors';
 import {
   GENERA,
   PLANT_GROUPS,
@@ -75,6 +75,7 @@ import { memoryBonusLabel } from './cycle-view';
 import { RARITY_LABELS, preferredReplaceOption } from './view-format';
 import type {
   ActiveBonusView,
+  CareGroup,
   CareView,
   AnimalView,
   CardView,
@@ -1445,6 +1446,48 @@ function relative(after: number, before: number): number {
 }
 
 /**
+ * Wirkungszeilen einer Ereignis-Option, aus den Daten statt aus dem Kurztext:
+ * „+480 🌰 sofort“, „+30 % 🌿 für 6 Min.“, „Totholz, +1 Platz Höhlen & Totholz – bis zum
+ * Neuen Zyklus“, „nächste Begegnung: Pfifferling, Steinpilz oder …“ (aus Typ und IDs).
+ */
+export function eventOptionEffects(option: EventOption, seeds: number): EffectView[] {
+  const out: EffectView[] = [];
+  const lasting: string[] = [];
+  for (const e of option.effects) {
+    if (e.kind === 'timed') out.push({ label: `${bonusEffectLabel(e.effect)} für ${formatDuration(e.seconds)}`, tone: 'good' });
+    else if (e.kind === 'habitat') lasting.unshift(TAG_NAMES[e.tag] ?? e.tag);
+    else if (e.kind === 'cycle') lasting.push(bonusEffectLabel(e.effect));
+    else if (e.kind === 'nextEncounter') out.push({ label: nextEncounterText(e.type, e.ids), tone: 'good' });
+  }
+  if (lasting.length > 0) out.unshift({ label: `${lasting.join(', ')} – ${UNTIL_NEW_CYCLE}`, tone: 'good' });
+  if (seeds > 0) out.push({ label: `+${seedsLabel(seeds)} 🌰 sofort`, tone: 'good' });
+  return out;
+}
+
+/** „A, B oder C“ – Aufzählung von Alternativen. */
+function orList(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} oder ${names[names.length - 1]}`;
+}
+
+/**
+ * Vorgabe für die nächste Begegnung als Text, z. B. „nächste Begegnung: Eichelhäher oder
+ * Eichhörnchen“; unbekannte IDs fallen weg. Ohne bekannte Namen: „nächste Begegnung: ein Tier“.
+ */
+export function nextEncounterText(type: 'animal' | 'plant', ids: readonly string[]): string {
+  const names = ids
+    .map((id) => (type === 'animal' ? SPECIES_BY_ID.get(id)?.name : PLANTS_BY_ID.get(id)?.name))
+    .filter((n): n is string => Boolean(n));
+  if (names.length === 0) return `nächste Begegnung: ${type === 'animal' ? 'ein Tier' : 'eine Pflanze'}`;
+  return `nächste Begegnung: ${orList(names)}`;
+}
+
+/** Wirkung eines Gastes mit Dauer, z. B. „+12 % 🌿, +12 % 🌰 für 7 Min.“. */
+export function visitorEffectText(visitor: Visitor): string {
+  return `${visitor.effects.map(bonusEffectLabel).join(', ')} für ${formatDuration(visitor.stay)}`;
+}
+
+/**
  * Ereignis mit Wahl als Begegnung im Kartenwahl-Dialog: eine Karte je Option, der Knopf
  * trägt den Text der Option. Wirkung in Kurzform, Samen-Optionen mit konkreter Zahl.
  * Die Vorschau rechnet die echte Aktion auf einer Kopie des Spielstands.
@@ -1458,9 +1501,7 @@ export function toEventView(
   const event = encounter?.type === 'event' ? EVENTS_BY_ID.get(encounter.cards[0] ?? '') : undefined;
   if (!event) return null;
   const cards: CardView[] = event.options.map((option, i) => {
-    const effects: EffectView[] = [{ label: option.summary, tone: 'good' }];
-    const seeds = eventOptionSeeds(state, event.id, i);
-    if (seeds > 0) effects.push({ label: `+${seedsLabel(seeds)} 🌰 sofort`, tone: 'good' });
+    const effects = eventOptionEffects(option, eventOptionSeeds(state, event.id, i));
     const copy = structuredClone(state);
     const ok = chooseEventOption(copy, encounterIndex, i).ok;
     const after = ok ? evaluate(copy) : now;
@@ -1483,7 +1524,8 @@ export function toEventView(
   });
   return {
     kind: 'event',
-    title: `${event.icon} ${event.name}`,
+    title: event.name,
+    icon: event.icon,
     subtitle: event.text,
     cards,
     rerollCost: null,
@@ -1520,9 +1562,8 @@ export function toVisitorView(
     familyLabel: genus.name,
     familyIcon: visitor.icon,
     effects: [
-      { label: visitor.summary, tone: 'good' },
+      { label: visitorEffectText(visitor), tone: 'good' },
       { label: `zählt für ${genus.name}`, tone: 'good' },
-      { label: `kostet ${seedsLabel(costs.host)} 🌰`, tone: 'bad' },
     ],
     preview: {
       harmonyDelta: after.harmony - now.harmony,
@@ -1538,14 +1579,18 @@ export function toVisitorView(
     family: visitor.genus,
     familyLabel: genus.name,
     familyIcon: visitor.icon,
-    effects: [{ label: `+${seedsLabel(costs.farewell)} 🌰 als Dank`, tone: 'good' }],
+    // Der Dank steht schon im Knopftext „Ziehen lassen (+Y 🌰)“.
+    effects: [],
     preview: { harmonyDelta: 0, growthDelta: 0, seedDelta: 0 },
     chooseLabel: `${VISITOR_FAREWELL_LABEL} (+${seedsLabel(costs.farewell)} 🌰)`,
   };
   return {
     kind: 'visitor',
-    title: `${visitor.icon} ${visitor.name}`,
+    title: visitor.name,
+    icon: visitor.icon,
     subtitle: visitor.text,
+    // Dauer und Wirkung stehen auf dem Knopf „Bewirten“ – im Kopf nur die Gattung.
+    facts: [`${genus.icon} ${genus.name}`],
     cards: [host, farewell],
     rerollCost: null,
     canReroll: false,
@@ -1600,22 +1645,66 @@ const HABITAT_ICONS: Partial<Record<Tag, string>> = { totholz: '🪵', feucht: '
 /** Text für „gilt bis zum Neuen Zyklus“. */
 export const UNTIL_NEW_CYCLE = 'bis zum Neuen Zyklus';
 
+/** Gleiche Wirkung (Art, Stärke, Gruppe)? Zum Wiederfinden der Dauer eines Zeit-Bonus. */
+function sameTimed(a: TimedEffect, b: TimedEffect): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** Volle Dauer eines Zeit-Bonus laut Ereignis (für den Fortschrittsbalken); 0, wenn unbekannt. */
+function timedDuration(source: string, effect: TimedEffect): number {
+  for (const option of EVENTS_BY_ID.get(source)?.options ?? []) {
+    for (const e of option.effects) if (e.kind === 'timed' && sameTimed(e.effect, effect)) return e.seconds;
+  }
+  return 0;
+}
+
+/** Anteil der Restzeit (1 = gerade begonnen, 0 = abgelaufen), auf 0 … 1 begrenzt. */
+function leftFraction(remaining: number, total: number): number | null {
+  if (!(total > 0) || !Number.isFinite(remaining)) return null;
+  return Math.min(1, Math.max(0, remaining / total));
+}
+
 /**
- * Aktive Boni für die Seitenleiste: Zeit-Boni und Gäste mit Restzeit (zuerst, kürzeste
- * Restzeit oben), dann Zyklus-Boni und Habitate. Leer, wenn nichts wirkt.
+ * Aktive Boni für die Seitenleiste, je Quelle eine Zeile:
+ * - Zeit-Boni eines Ereignisses und bewirtete Gäste mit Restzeit und Restanteil für den
+ *   Balken (kürzeste Restzeit oben),
+ * - danach Wirkungen bis zum Neuen Zyklus, je Ereignis zusammengefasst – ein Lebensraum
+ *   (z. B. Totholz) steht bei dem Ereignis, dessen Option ihn mit diesen Wirkungen vergibt.
+ *   Ohne passendes Ereignis bekommt er eine eigene Zeile.
+ * Leer, wenn nichts wirkt.
  */
 export function activeBonusViews(state: GameState): ActiveBonusView[] {
   const timed: (ActiveBonusView & { left: number })[] = [];
+  const timedBySource = new Map<string, ActiveBonusView & { left: number; total: number; effects: string[] }>();
   for (const t of state.cycle.timed) {
     const event = EVENTS_BY_ID.get(t.source);
-    timed.push({
-      id: `timed:${t.source}:${t.effect.kind}:${'group' in t.effect ? t.effect.group : ''}`,
-      icon: event?.icon ?? '⏳',
-      name: event?.name ?? t.source,
-      effect: bonusEffectLabel(t.effect),
-      remaining: remainingLabel(t.remaining),
-      left: t.remaining,
-    });
+    const total = timedDuration(t.source, t.effect);
+    let row = timedBySource.get(t.source);
+    if (!row) {
+      row = {
+        id: `timed:${t.source}`,
+        icon: event?.icon ?? '⏳',
+        name: event?.name ?? t.source,
+        effect: '',
+        remaining: '',
+        timed: true,
+        progress: null,
+        left: t.remaining,
+        total,
+        effects: [],
+      };
+      timedBySource.set(t.source, row);
+    }
+    row.effects.push(bonusEffectLabel(t.effect));
+    // Zusammengefasst zählt der längste Rest (meist gleich: dieselbe Wahl).
+    if (t.remaining >= row.left) {
+      row.left = t.remaining;
+      row.total = total;
+    }
+  }
+  for (const row of timedBySource.values()) {
+    const { total, effects, ...view } = row;
+    timed.push({ ...view, effect: effects.join(', '), remaining: remainingLabel(row.left), progress: leftFraction(row.left, total) });
   }
   for (const v of state.cycle.visitors) {
     const visitor = VISITORS_BY_ID.get(v.id);
@@ -1624,19 +1713,57 @@ export function activeBonusViews(state: GameState): ActiveBonusView[] {
       id: `visitor:${v.id}`,
       icon: visitor.icon,
       name: visitor.name,
-      effect: visitor.summary.replace(/ für \d+ min$/, ''),
+      effect: visitor.effects.map(bonusEffectLabel).join(', '),
       remaining: remainingLabel(v.remaining),
+      timed: true,
+      progress: leftFraction(v.remaining, visitor.stay),
       left: v.remaining,
     });
   }
   timed.sort((a, b) => a.left - b.left);
   const out: ActiveBonusView[] = timed.map(({ left: _left, ...view }) => view);
-  state.cycle.bonuses.forEach((b, i) => {
-    const event = EVENTS_BY_ID.get(b.source);
-    out.push({ id: `cycle:${i}`, icon: event?.icon ?? '🌳', name: event?.name ?? b.source, effect: bonusEffectLabel(b.effect), remaining: UNTIL_NEW_CYCLE });
-  });
-  state.cycle.habitats.forEach((tag, i) => {
-    out.push({ id: `habitat:${i}`, icon: HABITAT_ICONS[tag] ?? '🌿', name: TAG_NAMES[tag] ?? tag, effect: 'Lebensraum', remaining: UNTIL_NEW_CYCLE });
+
+  // Zyklus-Wirkungen je Quelle sammeln (Reihenfolge: erste Wirkung der Quelle).
+  const cycleRows = new Map<string, { source: string; habitats: string[]; effects: string[] }>();
+  for (const b of state.cycle.bonuses) {
+    let row = cycleRows.get(b.source);
+    if (!row) cycleRows.set(b.source, (row = { source: b.source, habitats: [], effects: [] }));
+    row.effects.push(bonusEffectLabel(b.effect));
+  }
+  const loose: Tag[] = [];
+  const usedHabitats = new Set<string>();
+  for (const tag of state.cycle.habitats) {
+    // Ein Ereignis, dessen Option diesen Lebensraum vergibt und dessen Zyklus-Wirkung hier steht.
+    // Genau die Option, die gewählt wurde: Lebensraum plus alle ihre Zyklus-Wirkungen.
+    const owner = [...cycleRows.values()].find((row) => {
+      if (usedHabitats.has(row.source)) return false;
+      return (EVENTS_BY_ID.get(row.source)?.options ?? []).some(
+        (o) =>
+          o.effects.some((e) => e.kind === 'habitat' && e.tag === tag) &&
+          o.effects.every((e) => e.kind !== 'cycle' || row.effects.includes(bonusEffectLabel(e.effect))),
+      );
+    });
+    if (!owner) {
+      loose.push(tag);
+      continue;
+    }
+    usedHabitats.add(owner.source);
+    owner.habitats.push(TAG_NAMES[tag] ?? tag);
+  }
+  for (const row of cycleRows.values()) {
+    const event = EVENTS_BY_ID.get(row.source);
+    out.push({
+      id: `cycle:${row.source}`,
+      icon: event?.icon ?? '🌳',
+      name: event?.name ?? row.source,
+      effect: [...row.habitats, ...row.effects].join(', '),
+      remaining: UNTIL_NEW_CYCLE,
+      timed: false,
+      progress: null,
+    });
+  }
+  loose.forEach((tag, i) => {
+    out.push({ id: `habitat:${i}`, icon: HABITAT_ICONS[tag] ?? '🌿', name: TAG_NAMES[tag] ?? tag, effect: 'Lebensraum', remaining: UNTIL_NEW_CYCLE, timed: false, progress: null });
   });
   return out;
 }
@@ -1671,6 +1798,36 @@ export function careBlockerText(blocker: CareBlocker, id: string): string {
   }
 }
 
+/** Kurze Bestätigung für den Kauf von Rang `rank` (1-basiert), z. B. „Nistkästen angebracht (Rang 2)“. */
+export function careBoughtText(id: string, rank: number): string {
+  const text = CARE_BY_ID.get(id)?.boughtText;
+  if (!text) return `${id}: Rang ${formatNumber(rank)}`;
+  return rank > 1 ? `${text} (Rang ${formatNumber(rank)})` : text;
+}
+
+/** Sortier-Rang der Gruppen: kaufbar zuerst, dann sparen, gesperrt, voll ausgebaut. */
+export const CARE_GROUP_ORDER: Readonly<Record<CareGroup, number>> = { buyable: 0, saving: 1, locked: 2, maxed: 3 };
+
+/**
+ * Anzeige-Reihenfolge der Pflege-Liste: nach Gruppe, innerhalb von „kaufbar“ und
+ * „sparen“ nach Kosten (günstigste zuerst), sonst in Katalog-Reihenfolge (stabil).
+ */
+export function sortCareViews(items: readonly CareView[]): CareView[] {
+  const cost = (v: CareView) => v.costSeeds ?? 0;
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const g = CARE_GROUP_ORDER[a.item.group] - CARE_GROUP_ORDER[b.item.group];
+      if (g !== 0) return g;
+      if (a.item.group === 'buyable' || a.item.group === 'saving') {
+        const c = cost(a.item) - cost(b.item);
+        if (c !== 0) return c;
+      }
+      return a.index - b.index;
+    })
+    .map((x) => x.item);
+}
+
 /**
  * Pflege-Liste für die Seitenleiste: alle Maßnahmen, die auf dieser Stufe schon gekauft
  * wurden oder deren nächster Rang höchstens eine Stufe entfernt ist. Mit Kosten,
@@ -1697,8 +1854,11 @@ export function toCareViews(state: GameState, now: Readonly<Evaluation> = evalua
       rank: next ? `Rang ${rank + 1}/${measure.ranks.length}` : 'voll ausgebaut',
       next: next?.summary ?? null,
       cost: next ? `${formatNumber(next.cost)} 🌰` : null,
+      costSeeds: next?.cost ?? null,
       blocker: blocker === 'maxed' ? null : blockerText,
       canBuy: blocker === null,
+      group: blocker === null ? 'buyable' : blocker === 'too-expensive' ? 'saving' : !next ? 'maxed' : 'locked',
+      boughtText: next ? careBoughtText(measure.id, rank + 1) : null,
       preview: after
         ? {
             harmonyDelta: after.harmony - now.harmony,
