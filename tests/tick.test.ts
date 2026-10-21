@@ -4,7 +4,7 @@ import { PLANTS, PLANTS_BY_ID, type Plant } from '../src/content/plants';
 import { SEASONS_BY_ID } from '../src/content/seasons';
 import { SPECIES_BY_ID } from '../src/content/species';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
-import { cardStatus, evaluate, thresholdFor } from '../src/core/formulas';
+import { cardStatus, declineReward, evaluate, thresholdFor } from '../src/core/formulas';
 import { allAnimals, createInitialState, type GameState } from '../src/core/state';
 import {
   MAX_OFFLINE_SECONDS,
@@ -72,6 +72,7 @@ describe('tick', () => {
       autoDeclined: 0,
       declinedStackFull: 0,
       declinedNoCards: 0,
+      declinedSeeds: 0,
       regulars: [],
       interludes: 0,
       interludesReached: 0,
@@ -120,6 +121,7 @@ describe('tick', () => {
       autoDeclined: 0,
       declinedStackFull: 0,
       declinedNoCards: 0,
+      declinedSeeds: 0,
       regulars: [],
       interludes: 0,
       interludesReached: 0,
@@ -233,6 +235,8 @@ describe('tick', () => {
       const report = tick(state, 1);
       expect(report).toMatchObject({ waypoints: 1, encounters: 0, autoDeclined: 1, declinedStackFull: 0, declinedNoCards: 1 });
       expect(state.pendingEncounters).toEqual([]);
+      // Samen wie beim Ablehnen von Hand (Keimling: Untergrenze), DESIGN_V2.md 7.9.
+      expect(report.declinedSeeds).toBe(declineReward(state));
     } finally {
       plants.push(...saved);
     }

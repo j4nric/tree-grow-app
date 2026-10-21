@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DECLINE_SEEDS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../src/content/encounters';
+import { REROLL_BASE_COST, REROLL_COST_GROWTH } from '../src/content/encounters';
+import { SEED_SECONDS_MIN_SEEDS } from '../src/content/events';
 import { PLANTS_BY_ID } from '../src/content/plants';
 import {
   cardStatus,
   choiceBlocker,
+  declineReward,
   encounterType,
   evaluate,
   nextPlantCost,
@@ -259,8 +261,9 @@ describe('chooseCard: „Etwas keimt“ (Pflanzenkarten)', () => {
       expect(['hazel', 'fern', 'nettle']).not.toContain(id);
     }
     expect(state.seeds).toBe(100 - REROLL_BASE_COST);
+    const reward = declineReward(state);
     expect(declineEncounter(state, 0)).toEqual({ ok: true });
-    expect(state.seeds).toBe(100 - REROLL_BASE_COST + DECLINE_SEEDS);
+    expect(state.seeds).toBe(100 - REROLL_BASE_COST + reward);
   });
 
   it('Keimling: nur zwei Pflanzen – Neu würfeln brächte dieselben Karten', () => {
@@ -390,11 +393,13 @@ describe('previewChoice', () => {
 describe('declineEncounter', () => {
   it('bringt Samen und entfernt die Begegnung', () => {
     const state = withEncounter([], ['bluetit']);
+    const reward = declineReward(state);
+    expect(reward).toBeGreaterThanOrEqual(SEED_SECONDS_MIN_SEEDS);
     expect(declineEncounter(state, 0)).toEqual({ ok: true });
-    expect(state.seeds).toBe(DECLINE_SEEDS);
+    expect(state.seeds).toBe(reward);
     expect(state.pendingEncounters).toHaveLength(0);
     expect(declineEncounter(state, 0)).toEqual({ ok: false, error: 'no-encounter' });
-    expect(state.seeds).toBe(DECLINE_SEEDS);
+    expect(state.seeds).toBe(reward);
   });
 });
 

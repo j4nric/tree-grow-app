@@ -522,9 +522,10 @@ Bedingung oder Partnerschaft.
 Inhalte: `src/content/events.ts` (7.4) und `src/content/visitors.ts` (7.5); Logik offen
 (Umsetzungsnotiz 7.8).
 
-- **Ablehnen** bringt immer Samen: +5 🌰 (`DECLINE_SEEDS` in content/encounters.ts).
-  **Entschieden, Umsetzung offen (7.9):** künftig 10 Samen-Sekunden, mindestens 5 🌰 –
-  wie „Ziehen lassen“ beim Gast, damit Ablehnen auch ab dem Hain noch etwas bringt.
+- **Ablehnen** bringt immer Samen: 10 Samen-Sekunden, mindestens 5 🌰
+  (`DECLINE_SEED_SECONDS` in content/encounters.ts, 7.9) – wie „Ziehen lassen“ beim Gast,
+  damit Ablehnen auch ab dem Hain noch etwas bringt. Gilt auch beim Weiterziehen (Stapel
+  voll, keine Karte), online wie offline.
 - **Neu würfeln** (Tier- und Pflanzenbegegnung) kostet 10 🌰, jedes weitere Mal in
   derselben Begegnung doppelt so viel (`REROLL_BASE_COST` × `REROLL_COST_GROWTH`^n).
 - Die ersten drei Begegnungen sind festgelegt: Tier, Pflanze, Tier (Einführung).
@@ -846,7 +847,7 @@ Wachstum, wie Wegpunkte) und kleinster Restdauer in `timed`/`visitors`. Jeden Sc
 von allen Restdauern abziehen, Einträge bei ≤ 0 entfernen (exakt an der Grenze anhalten,
 wie heute am Wegpunkt). So liefern viele kleine Ticks und `simulateOffline` dasselbe.
 Boni laufen auch offline ab; ein Gast in der Warteschlange rastet noch nicht.
-Überzählige Begegnungen am Wegpunkt werden wie bisher abgelehnt (`DECLINE_SEEDS`) –
+Überzählige Begegnungen am Wegpunkt werden wie bisher abgelehnt (`declineReward`, 7.9) –
 dabei wird nichts gezogen, also auch nichts als „gesehen“ markiert.
 
 **Darstellung:** Renderer bekommt `cycle.visitors.map((v, i) => ({ id: v.id, slot: i }))`;
@@ -886,7 +887,7 @@ umstellen und `scripts/extras.ts` löschen.
 
 ---
 
-### 7.9 Umsetzungsnotiz: Ablehnen nach Samen-Sekunden (Playtest, offen für den core-engineer)
+### 7.9 Umsetzungsnotiz: Ablehnen nach Samen-Sekunden (Playtest, umgesetzt)
 
 **Befund:** Ablehnen bringt fest +5 🌰 – im Setzling gut 5 Sekunden Samen, ab dem Hain
 (~14 🌰/s) ein Drittel Sekunde, also bedeutungslos. Gäste danken beim „Ziehen lassen“
@@ -899,7 +900,7 @@ dagegen mit Samen-Sekunden (7.5).
 unter der Samen-Option eines Ereignisses (60–150 s): Ablehnen bleibt der kleine Trost,
 keine Strategie.
 
-**Konsistenz – gilt überall, wo heute `declineReward()` steht:** Ablehnen von Hand,
+**Konsistenz – gilt überall, wo `declineReward(state)` steht:** Ablehnen von Hand,
 Weiterziehen bei vollem Stapel (online wie offline) und „niemand kam in Frage“. Der Betrag
 hängt von der Rate im Moment des Wegpunkts ab – offline also genau so viel, wie der
 Spieler an diesem Wegpunkt online bekommen hätte (online = offline). Die Offline-Meldung
@@ -932,6 +933,17 @@ Wald, Stand dieses Branches): Der Harmonie-Spieler verdient durch Ablehnen bis z
 113 statt 12 🌰, bis zum Wald 316 statt 16 🌰; Hain (1:00:36 h) und Wald (1:49 h) bleiben
 gleich, ebenso beim Wachstums- und Zufallsspieler. Die Zahl ist Gefühl, nicht Tempo – sie
 verschiebt kein Balancing-Ziel.
+
+**Umgesetzt** wie oben, ohne neues Spielstand-Feld (`SAVE_VERSION` unverändert). Der Betrag
+wird am Wegpunkt nach Stufenwechsel und Stammgästen gerechnet – also mit der Rate, die
+der Spieler dort beim Ablehnen von Hand bekäme. Knöpfe und Meldungen runden wie die
+Samen-Sekunden bei Gästen: ab 10 🌰 ganze Zahlen, darunter eine Nachkommastelle. Tests:
+`tests/decline.test.ts` (Untergrenze, Hain, Zeit-Bonus/Jahreszeit, Stapel voll = von Hand,
+online = offline, Samen am Maximum) und „niemand kam in Frage“ in `tests/tick.test.ts`.
+`npm run balance` (500 Durchgänge) bleibt grün, Tempo unverändert: Harmonie Hain / Wald /
+Urwald 1:03:43 / 1:54:05 / 2:47:28 h (vorher 1:03:48 / 1:54:15 / 2:47:44 h), Hain
+Wachstum / Zufall 54:30 min / 1:36:18 h; durch Ablehnen verdient der Harmonie-Spieler
+bis 60 min 127 🌰, bis 120 min 377 🌰.
 
 ## 8. Pflegemaßnahmen
 
@@ -1808,9 +1820,8 @@ Empfehlungen (Stand 20.10.2026):
     Neu würfeln bleiben (gemessen, 15.4 „Stand Playtest frühes Spiel“). Längste Pause ohne
     Entscheidung in den ersten 6 min 1:41 → 1:08 min (Harmonie-Spieler), Tempo und
     Verhältnisse unverändert. (b) Ablehnen bringt künftig 10 Samen-Sekunden, mindestens
-    5 🌰 – überall, wo heute fest 5 🌰 gutgeschrieben werden (von Hand, Stapel voll online
-    und offline, keine Karte); Umsetzung beim core-engineer (7.9), weil sie `tick.ts`
-    berührt. (c) Die Harmoniestufe ab 120 heißt „Ursprüngliche Wildnis“ statt „Urwald“ –
+    5 🌰 – überall, wo bisher fest 5 🌰 gutgeschrieben wurden (von Hand, Stapel voll online
+    und offline, keine Karte); umgesetzt (7.9). (c) Die Harmoniestufe ab 120 heißt „Ursprüngliche Wildnis“ statt „Urwald“ –
     die Wachstumsstufe gleichen Namens bleibt; kein Erfolg nennt die Harmoniestufe
     („Uralt und voller Leben“ meint die Wachstumsstufe), Spielstand unberührt (die Stufe
     ist reine Anzeige).
@@ -2294,7 +2305,7 @@ vorher 107,0 gegen 105,5), mit 40 Durchgängen schwankt der Abstand je Seed-Fens
 mehrere Punkte (8 Fenster, vorher −2,9 bis +4,9, nachher −3,8 bis +3,3). Der große Lauf
 prüft weiter ≥ 1 Punkt Vorsprung, der Check nur, dass niemand 5 Punkte vorn liegt.
 
-**Ablehnen nach Samen-Sekunden:** entschieden, Umsetzung beim core-engineer (7.9). Mit
+**Ablehnen nach Samen-Sekunden:** umgesetzt (7.9). Vorab
 einem vorläufigen Patch gemessen: bis zum Hain 113 statt 12 🌰 durch Ablehnen
 (Harmonie-Spieler), Tempo unverändert.
 

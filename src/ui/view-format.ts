@@ -208,8 +208,9 @@ export function rerollLabel(cost: number): string {
   return `Neu würfeln (${MINUS}${formatNumber(cost)} 🌰)`;
 }
 
+/** „Ablehnen (+N 🌰)“ – ab 10 ganze Samen, darunter eine Nachkommastelle (wie seedsLabel). */
 export function declineLabel(reward: number): string {
-  return `Ablehnen (+${formatNumber(reward)} 🌰)`;
+  return `Ablehnen (+${formatNumber(reward >= 10 ? Math.round(reward) : reward)} 🌰)`;
 }
 
 /** Hinweis bei voller Nische: „Nische Krone voll – ersetzt Rotkehlchen“. */

@@ -33,7 +33,6 @@ import { CARE } from '../src/content/care';
 import { EVENTS_BY_ID } from '../src/content/events';
 import {
   cardStatus,
-  declineReward,
   evaluate,
   nextPlantCost,
   plantSlots,
@@ -528,7 +527,7 @@ export function runGame(
     time += dt;
     // Samen steigen zwischen zwei Halten nur – der Höchststand liegt also an einem Halt.
     if (stageBefore < EARLY_SEED_STAGE) result.early.seedPeak = Math.max(result.early.seedPeak, state.seeds);
-    const autoSeeds = report.autoDeclined * declineReward();
+    const autoSeeds = report.declinedSeeds;
     book.earnedPassive += state.seeds - seedsBefore - autoSeeds;
     book.earnedDecline += autoSeeds;
     counts.autoDeclined += report.autoDeclined;

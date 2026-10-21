@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CARDS_PER_ENCOUNTER,
-  DECLINE_SEEDS,
+  DECLINE_SEED_SECONDS,
   ENCOUNTER_WEIGHTS,
   INTERLUDE_CHANCE,
   INTERLUDE_POSITION,
@@ -270,8 +270,10 @@ describe('Inhalte v2', () => {
   it('Begegnungs-Konstanten sind sinnvoll', () => {
     expect(CARDS_PER_ENCOUNTER).toBe(3);
     expect(MAX_PENDING_ENCOUNTERS).toBe(3);
-    expect(DECLINE_SEEDS).toBeGreaterThan(0);
-    expect(REROLL_BASE_COST).toBeGreaterThan(DECLINE_SEEDS);
+    // Ablehnen bleibt der kleine Trost: unter dem Dank eines Gastes und jeder Samen-Option (7.9).
+    expect(DECLINE_SEED_SECONDS).toBe(10);
+    expect(DECLINE_SEED_SECONDS).toBeLessThan(Math.min(...VISITORS.map((v) => v.farewellSeeds)));
+    expect(REROLL_BASE_COST).toBeGreaterThan(SEED_SECONDS_MIN_SEEDS);
   });
 });
 

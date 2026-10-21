@@ -163,6 +163,10 @@ describe('Texte im Dialog und in den Nischen', () => {
   it('beschriftet Neu würfeln und Ablehnen mit Samen', () => {
     expect(rerollLabel(36)).toBe(`Neu würfeln (${MINUS}36${NBSP}🌰)`);
     expect(declineLabel(1234)).toBe(`Ablehnen (+1.234${NBSP}🌰)`);
+    // Samen-Sekunden: ab 10 ganze Samen, darunter eine Nachkommastelle.
+    expect(declineLabel(143.6)).toBe(`Ablehnen (+144${NBSP}🌰)`);
+    expect(declineLabel(7.25)).toBe(`Ablehnen (+7,3${NBSP}🌰)`);
+    expect(declineLabel(5)).toBe(`Ablehnen (+5${NBSP}🌰)`);
   });
 
   it('weist auf volle Nischen hin', () => {
