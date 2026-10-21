@@ -1033,6 +1033,10 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
 
 .eco-stat-value.long {
   font-size: 0.95rem;
+  /* Auf sehr schmalen Kacheln (je nach Schrift) lieber umbrechen als überstehen */
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .eco-stat-value.pop {
