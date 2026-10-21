@@ -26,10 +26,10 @@ Aufgaben derselben Phase ohne gemeinsame Dateien können parallel laufen.
 ## Phase 2b – Nacharbeiten
 
 - [x] Designentscheidungen: leerer Start, Start ohne Klick, Tempo im Mittelspiel (`game-designer`)
-- [ ] Wald und Urwald balancen, Samen-Formel an neue Schwellen anpassen (`game-designer`)
-- [ ] Renderer: statische Kulisse getrennt cachen, Größenänderung entprellen (`renderer`)
-- [ ] Seitenleiste: DOM-Referenzen einmal merken statt `querySelector` pro Frame (`ui-dev`)
-- [ ] Schwebende Zahlen sollen das Ressourcen-Label nicht überdecken (`ui-dev`)
+- ~~Wald und Urwald balancen, Samen-Formel an neue Schwellen anpassen~~ – mit v2 entfallen, Tempo jetzt in Schritt 2.11
+- [ ] Renderer: statische Kulisse getrennt cachen, Größenänderung entprellen (`renderer`) – für v2 prüfen
+- ~~Seitenleiste: DOM-Referenzen einmal merken~~ – mit der v2-Seitenleiste entfallen
+- ~~Schwebende Zahlen über dem Ressourcen-Label~~ – mit v2 entfallen
 
 ## Neuausrichtung v2 – Ökosystem
 
@@ -55,31 +55,31 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   Schritt 2.
 
 
-- [ ] 1.1 Inhalte v2 als Daten: Arten, Nischen, Gattungsboni, Wegpunkte + Inhaltstests (`game-designer`)
-- [ ] 1.2 GameState v2, `SAVE_VERSION = 2`, Migration „Neustart mit Andenken“, `rngState` (`core-engineer`)
-- [ ] 1.3 `evaluate(state)`, Wegpunkte, Begegnungs-Warteschlange (max. 3), Offline (`core-engineer`)
-- [ ] 1.4 Aktionen `chooseCard`, `declineEncounter`, `rerollEncounter` (`core-engineer`)
-- [ ] 1.5 Kartenwahl-Dialog, Nischen-Liste, Harmonie-Anzeige; Upgrade-Panel und Klick entfernen (`ui-dev`)
-- [ ] 1.6 Simulator und `balance.test.ts` auf die echte v2-Logik umstellen (`game-designer`)
-- [ ] 1.7 Playwright: Karte wählen, Neuladen, gleiche offene Karten (`qa-tester`)
-- [ ] 1.8 Playtest des Prototyps mit dem PO
+- [x] 1.1 Inhalte v2 als Daten: Arten, Nischen, Gattungsboni, Wegpunkte + Inhaltstests (`game-designer`)
+- [x] 1.2 GameState v2, `SAVE_VERSION = 2`, Migration „Neustart mit Andenken“, `rngState` (`core-engineer`)
+- [x] 1.3 `evaluate(state)`, Wegpunkte, Begegnungs-Warteschlange (max. 3), Offline (`core-engineer`)
+- [x] 1.4 Aktionen `chooseCard`, `declineEncounter`, `rerollEncounter` (`core-engineer`)
+- [x] 1.5 Kartenwahl-Dialog, Nischen-Liste, Harmonie-Anzeige; Upgrade-Panel und Klick entfernen (`ui-dev`)
+- [x] 1.6 Simulator und `balance.test.ts` auf die echte v2-Logik umstellen (`game-designer`)
+- [x] 1.7 Playwright: Karte wählen, Neuladen, gleiche offene Karten (`qa-tester`)
+- [x] 1.8 Playtest des Prototyps mit dem PO
 
 ### Schritt 2 – Ausbau
 
-- [ ] 2.1 Pflanzen, Licht/Wasser-Versorgung, Samen, „Etwas keimt“, Pflanzen setzen (`game-designer` + `core-engineer`)
-- [ ] 2.2 Alle 5 Gattungen, 32 Arten, Gattungsboni, Seltenheit, Fähigkeiten (`game-designer` + `core-engineer`)
+- [x] 2.1 Pflanzen, Licht/Wasser-Versorgung, Samen, „Etwas keimt“, Pflanzen setzen (`game-designer` + `core-engineer`)
+- [x] 2.2 Alle 5 Gattungen, 32 Arten, Gattungsboni, Seltenheit, Fähigkeiten (`game-designer` + `core-engineer`)
 - [x] 2.3 Lebensgemeinschaften, vollständige Harmonie (`game-designer`)
 - [x] 2.4 Ereignisse mit Wahl, Durchreisende (`core-engineer` + `game-designer`)
   - [x] Inhalte: 10 Ereignisse (`src/content/events.ts`), 8 Durchreisende
     (`src/content/visitors.ts`), Gewichte und Zwischenhalt ab Hain (`encounters.ts`),
     grobes Modell im Simulator (`scripts/extras.ts`), DESIGN_V2.md 7.2/7.4/7.5 (`game-designer`)
-  - [ ] Logik nach Umsetzungsnotiz DESIGN_V2.md 7.8 (SAVE_VERSION 5), Simulator auf echte
+  - [x] Logik nach Umsetzungsnotiz DESIGN_V2.md 7.8 (SAVE_VERSION 5), Simulator auf echte
     Logik umstellen (`core-engineer`)
-- [ ] 2.5 Gattungsleiste, Pflanzenring, Harmonie-Aufschlüsselung (`ui-dev`)
+- [x] 2.5 Gattungsleiste, Pflanzenring, Harmonie-Aufschlüsselung (`ui-dev`)
   - [x] Lebensgemeinschaften-Ansicht: aufklappbare Übersicht in der Seitenleiste (aktive mit
     Harmonie, fast fertige mit „fehlt: …“, unentdeckte als „???“ mit Fortschritt), Hinweis
     „✨ vervollständigt …“ auf Karten und in „Pflanze setzen“, Entdeckungs-Meldung (`ui-dev`)
-- [ ] 2.6 Tiere und Pflanzen im Bild: Ankerpunkte, gecachte Sprites (`renderer`)
+- [x] 2.6 Tiere und Pflanzen im Bild: Ankerpunkte, gecachte Sprites (`renderer`)
 - [x] 2.7 Pflegemaßnahmen (`game-designer` + `core-engineer` + `ui-dev`)
   - [x] Inhalte: 8 Maßnahmen mit Rängen (`src/content/care.ts`), DESIGN_V2.md 8 (`game-designer`)
   - [x] Logik nach Umsetzungsnotiz DESIGN_V2.md 8.2, Simulator auf echter Logik (`core-engineer`)
@@ -99,7 +99,10 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     Zwischenhalt 70 %, Buche und Kiefer angeglichen (DESIGN_V2.md 15.4, Stand Schritt 2.10)
   - [x] Simulator über mehrere Zyklen (Waldgedächtnis, Stammgäste, Kartenpool), `npm run balance`
     als großer Lauf, schnellere Standardläufe; `scripts/v2/` und `tests/design-v2.test.ts` entfernt
-  - [ ] Offen: `npm run balance` in CLAUDE.md unter „Befehle“ eintragen (nur mit Freigabe des Nutzers)
+  - [x] `npm run balance` in CLAUDE.md unter „Befehle“ eingetragen
+
+- [ ] 2.11 Harmonie als spürbarer Hebel (Multiplikator stärker als `1 + H/100`), Tempo
+  Wald und Urwald auf 1,15–1,2 × Zeitziel, Simulator-Nachweis (`game-designer`)
 
 ## Phase 3 – Tiefe
 
@@ -119,6 +122,7 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 - ~~Zufallsereignisse mit gespeichertem Seed~~ – in v2 aufgegangen (Begegnungen, `rngState`)
 - [ ] Statistik-Seite (Spielzeit, Gesamt-Wachstum, entdeckte Arten) (`ui-dev`)
 - [ ] Gattung Amphibien mit Waldtümpel (Erdkröte, Bergmolch) als Erweiterung (`game-designer`)
+- [ ] Winter-Ereignis „Schneebruch“ und weitere Ereignisse je Jahreszeit (`game-designer` + `core-engineer`)
 
 ## Phase 4 – Prestige & Langzeitspiel
 
