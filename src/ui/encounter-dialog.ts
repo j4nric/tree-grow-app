@@ -562,8 +562,8 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     // bleibt sie zu (deutliches „?“), damit Karten und Aktionen ohne Scrollen sichtbar
     // sind – dort wird noch nicht entschieden: Weder `legendChecked` noch der Merker wird
     // gesetzt (der Merker erst, wenn sie wirklich offen war). Wird das Fenster später
-    // breit, klappt sie bei der nächsten Begegnung auf.
-    if (!legendChecked && !narrowScreen()) {
+    // breit, klappt sie bei der nächsten Begegnung auf (nie mitten in einer offenen).
+    if (!legendChecked && newEncounter && !narrowScreen()) {
       legendChecked = true;
       if (!legendSeen()) {
         legend.open = true;

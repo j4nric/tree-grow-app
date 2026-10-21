@@ -873,6 +873,8 @@ describe('tickDeclineText', () => {
     expect(tickDeclineText({ autoDeclined: 1, declinedStackFull: 1 })).toBe(autoDeclineText(1, true));
     expect(tickDeclineText({ autoDeclined: 1, declinedStackFull: 0 })).toBe(autoDeclineText(1, false));
     expect(tickDeclineText({ autoDeclined: 2, declinedStackFull: 0 })).toMatch(/^Niemand zog ein/);
+    // Gemischte Gründe: neutral statt „Stapel voll“
+    expect(tickDeclineText({ autoDeclined: 2, declinedStackFull: 1 })).toMatch(/^Niemand zog ein/);
   });
 });
 

@@ -1206,7 +1206,8 @@ export function autoDeclineText(autoDeclined: number, stackFull: boolean): strin
  * der Stapel wirklich voll war (TickReport.declinedStackFull), sonst „Niemand zog ein“.
  */
 export function tickDeclineText(report: Pick<OfflineReport, 'autoDeclined' | 'declinedStackFull'>): string {
-  return autoDeclineText(report.autoDeclined, report.declinedStackFull > 0);
+  // Nur wenn alle wegen des vollen Stapels weiterzogen; bei gemischten Gründen neutral.
+  return autoDeclineText(report.autoDeclined, report.declinedStackFull > 0 && report.declinedStackFull === report.autoDeclined);
 }
 
 /** Ab dieser Abwesenheit (s) gibt es eine Willkommens-Meldung. */
