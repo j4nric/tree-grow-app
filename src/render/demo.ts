@@ -17,12 +17,16 @@
  *  reduced  1 = weniger Bewegung
  *  t        feste Zeit in Sekunden (für reproduzierbare Screenshots)
  *  rate     Wachstum pro Sekunde, z. B. 0.05 – misst die Kosten beim Neuaufbau der Ebenen
+ *  ht       Harmoniestufe 0–4 (ohne Angabe: keine Stimmung, Look wie bisher)
+ *  vis      Durchreisende, kommagetrennt: cranes,bramblings,hummingbird-moth
+ *           (Platz = Reihenfolge); in der Übersicht (gallery=1) immer dabei
  */
 
 import { animalKinds, SpriteCache } from './animals';
 import { layoutFlora, LOW_SIZE, PLANT_SPECIES, type PlacedPlant } from './flora';
 import { paintPlant } from './flora-paint';
-import { drawScene, type SceneAnimal, type ScenePlant } from './tree';
+import { drawScene, type SceneAnimal, type ScenePlant, type SceneVisitor } from './tree';
+import { VISITOR_DEFS } from './visitor-sprites';
 
 type Fam = SceneAnimal['family'];
 
@@ -154,6 +158,10 @@ const growthValue = document.querySelector<HTMLElement>('#growth-value')!;
 const happyInput = document.querySelector<HTMLInputElement>('#happy')!;
 const reducedInput = document.querySelector<HTMLInputElement>('#reduced')!;
 const stats = document.querySelector<HTMLElement>('#stats')!;
+const harmonyInput = document.querySelector<HTMLInputElement>('#harmony')!;
+const harmonyValue = document.querySelector<HTMLElement>('#harmony-value')!;
+const visitorInputs = [...document.querySelectorAll<HTMLInputElement>('input.visitor')];
+const TIER_NAMES = ['Zarte Anfänge', 'Lebendiges Gefüge', 'Stimmiges Ökosystem', 'Blühender Mischwald', 'Urwald'];
 
 let g = Number(params.get('g') ?? 3.5);
 const set = params.get('set') ?? 'all';
@@ -174,6 +182,28 @@ growthInput.value = String(g);
 happyInput.value = String(happy ?? 0.7);
 growthInput.addEventListener('input', () => (g = Number(growthInput.value)));
 happyInput.addEventListener('input', () => (happy = Number(happyInput.value)));
+
+/** Harmoniestufe (undefined = aus) und Gäste. */
+let harmonyTier: number | undefined = params.has('ht') ? Number(params.get('ht')) : undefined;
+const showTier = () => (harmonyValue.textContent = harmonyTier === undefined ? 'aus' : TIER_NAMES[harmonyTier] ?? String(harmonyTier));
+harmonyInput.value = String(harmonyTier ?? -1);
+showTier();
+harmonyInput.addEventListener('input', () => {
+  const v = Number(harmonyInput.value);
+  harmonyTier = v < 0 ? undefined : v;
+  showTier();
+});
+let visitors: SceneVisitor[] = [];
+const visitorIds = (params.get('vis') ?? '').split(',').filter(Boolean);
+for (const box of visitorInputs) box.checked = visitorIds.includes(box.value);
+const readVisitors = () => {
+  // Reihenfolge der URL bleibt erhalten, neu angehakte Gäste kommen hinten dazu.
+  const on = visitorInputs.filter((b) => b.checked).map((b) => b.value);
+  const ids = [...visitorIds.filter((id) => on.includes(id) || !visitorInputs.some((b) => b.value === id)), ...on.filter((id) => !visitorIds.includes(id))];
+  visitors = ids.map((id, slot) => ({ id, slot }));
+};
+readVisitors();
+for (const box of visitorInputs) box.addEventListener('change', readVisitors);
 
 /** Zeitmessung von drawScene (ms) für die letzten Frames – auch für Playwright. */
 const samples: number[] = [];
@@ -210,8 +240,22 @@ function drawGallery(): void {
     ctx.fillStyle = '#334';
     ctx.fillText(kind, cx, Math.floor(i / cols) * cell + cell - 6);
   });
+  // Durchreisende (zwei Flügelbilder nebeneinander) in einer eigenen Zeile
+  const vtop = Math.ceil(kinds.length / cols) * cell;
+  Object.keys(VISITOR_DEFS).forEach((kind, i) => {
+    for (const fr of [0, 1]) {
+      const cx = (i * 2 + fr) * cell + cell / 2;
+      const cy = vtop + cell * 0.5;
+      const s = sprites.get(kind, fr, false, sz, dpr);
+      ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+      ctx.strokeRect(cx - s.ox, cy - s.oy, s.w, s.h);
+      ctx.drawImage(s.canvas, cx - s.ox, cy - s.oy, s.w, s.h);
+      ctx.fillStyle = '#334';
+      ctx.fillText(`${kind.replace('visitor:', '')} ${fr}`, cx, vtop + cell - 6);
+    }
+  });
   // Pflanzen in einer Reihe darunter
-  const top = Math.ceil(kinds.length / cols) * cell + 10;
+  const top = vtop + cell + 10;
   const ids = [...Object.keys(PLANT_SPECIES), 'shrub', 'flower'];
   const pcols = Math.max(1, Math.floor(rect.width / 130));
   ids.forEach((id, i) => {
@@ -289,6 +333,8 @@ function frame(now: number): void {
     animals,
     plants,
     reducedMotion: reducedInput.checked,
+    harmonyTier,
+    visitors,
   });
   const dt = performance.now() - t0;
   samples.push(dt);

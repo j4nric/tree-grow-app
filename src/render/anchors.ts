@@ -37,6 +37,13 @@ export interface NicheAnchor {
    * Laubstreu und Waldsaum, damit nichts überlappt). Sonst gleich `x`.
    */
   surfaceX: number;
+  /**
+   * Größenfaktor der Tiere an diesem Platz (1 = normal). Am Waldsaum schmaler Bildschirme
+   * stehen die Tiere etwas kleiner in einer hinteren Reihe.
+   */
+  scale: number;
+  /** Reihe: 0 vorn auf der Bodenlinie, 1 dahinter auf der Wiese (wird zuerst gezeichnet). */
+  depth: number;
 }
 
 /** Grundgröße eines Tiers in CSS-Pixeln (20–36 px je nach Canvas). */
@@ -135,7 +142,7 @@ function computeAnchor(
   rootReach: () => number,
 ): NicheAnchor {
   const { cx, groundY, width, height, soilH } = layout;
-  const base = { niche, slot, onTree: false, trunkX: cx, trunkHalf: 0, surfaceX: 0 };
+  const base = { niche, slot, onTree: false, trunkX: cx, trunkHalf: 0, surfaceX: 0, scale: 1, depth: 0 };
   let a: NicheAnchor;
   switch (niche) {
     case 'roots': {
@@ -145,8 +152,11 @@ function computeAnchor(
       const y = groundY + clamp(v0 * soilH, size * 0.7, soilH - size * 0.5);
       const side = u0 < 0 ? -1 : 1;
       // Pilze an der Oberfläche: in der Lücke zwischen Laubstreu und Waldsaum.
-      const inner = trunkBaseHalf(g, main, layout) + size * 3.0;
-      const outer = Math.max(inner, width * 0.33 - size * 0.8);
+      // Abstand zu den Blumentupfen des Waldsaums halten (beide Reihen).
+      const edge = edgeRow(layout, size);
+      const flowersIn = EDGE_REACH_IN * size * edge.scale;
+      const inner = Math.max(trunkBaseHalf(g, main, layout) + size * 3.0, edge.back ? edge.r[1]! + flowersIn + size * 0.6 : 0);
+      const outer = Math.max(inner, edge.r[0]! - flowersIn - size * 0.5);
       const frac = [0.5, 0.15, 0.85][Math.floor(slot / 2) % 3]!;
       const surfaceX = cx + side * (inner + (outer - inner) * frac);
       a = { ...base, x: cx + u0 * halfX, y, side, surfaceX };
@@ -162,8 +172,16 @@ function computeAnchor(
     case 'edge': {
       const side = slot % 2 === 0 ? 1 : -1;
       const k = Math.floor(slot / 2);
-      const x = cx + side * width * (0.33 + 0.075 * k);
-      a = { ...base, x, y: groundY + 1, side };
+      const row = edgeRow(layout, size);
+      if (k < 2) {
+        const back = row.back;
+        const y = back ? groundY + 1 - EDGE_BACK_LIFT * size : groundY + 1;
+        a = { ...base, x: cx + side * row.r[k]!, y, side, scale: row.scale, depth: back ? 1 : 0 };
+      } else {
+        // Weitere Plätze (nur mit Sonderplätzen): vorn, zwischen bzw. hinter den ersten beiden.
+        const r = row.back ? (row.r[0]! + row.r[1]!) / 2 : row.r[1]! + row.pitch * (k - 1);
+        a = { ...base, x: cx + side * r, y: groundY + 1, side, scale: row.scale };
+      }
       break;
     }
     case 'bark':
@@ -188,6 +206,70 @@ function computeAnchor(
   a.y = clamp(a.y, size, height - size * 0.4);
   a.surfaceX = niche === 'roots' ? clamp(a.surfaceX, m, width - m) : a.x;
   return a;
+}
+
+/**
+ * Waldsaum: Platzbedarf eines Großtiers (Reh, Fuchs, Wolf) samt Blumentupfen in
+ * Tiergrößen – nach außen (das Tier steht außen neben den Blumen) und zum Stamm hin.
+ * Gilt für den Platz des Ankerpunkts, skaliert mit `NicheAnchor.scale`.
+ */
+export const EDGE_REACH_OUT = 2.15;
+export const EDGE_REACH_IN = 0.6;
+/** Mindestlücke zwischen zwei Waldsaum-Plätzen (Tiergrößen). */
+const EDGE_GAP = 0.2;
+/** Hintere Reihe auf schmalen Bildschirmen: so viel höher (Tiergrößen) und höchstens so groß. */
+export const EDGE_BACK_LIFT = 0.5;
+const EDGE_BACK_SCALE = 0.75;
+
+/** Bereich [x0, x1] (CSS-Pixel), den ein Großtier samt Blumen an einem Waldsaum-Platz belegt. */
+export function edgeFootprint(a: NicheAnchor, size: number): [number, number] {
+  const out = EDGE_REACH_OUT * size * a.scale;
+  const inn = EDGE_REACH_IN * size * a.scale;
+  return a.side === 1 ? [a.x - inn, a.x + out] : [a.x - out, a.x + inn];
+}
+
+interface EdgeRow {
+  /** Hintere Reihe (schmaler Bildschirm)? */
+  back: boolean;
+  scale: number;
+  /** Abstand der Plätze k = 0, 1 je Seite von der Mitte (px). */
+  r: [number, number];
+  pitch: number;
+}
+
+const edgeMemo = new Map<string, EdgeRow>();
+
+/**
+ * Lage der ersten beiden Waldsaum-Plätze je Seite – hängt nur von der Canvas-Größe ab
+ * (nicht vom Wachstum), damit die Tiere nie wandern. Breit: beide vorn auf der
+ * Bodenlinie. Schmal: beide in einer hinteren Reihe zwischen Stamm (Stufe Urwald)
+ * und Bildrand, notfalls etwas kleiner – so überlappen Großtiere nie.
+ */
+function edgeRow(layout: Layout, size: number): EdgeRow {
+  const key = `${layout.width}x${layout.height}`;
+  let row = edgeMemo.get(key);
+  if (row) return row;
+  const { width } = layout;
+  const half = width / 2;
+  const m = size * 0.1;
+  const foot = (EDGE_REACH_IN + EDGE_REACH_OUT) * size;
+  const gap = EDGE_GAP * size;
+  const pitch = Math.max(width * 0.075, foot + gap);
+  const r0 = width * 0.33;
+  if (r0 + pitch + EDGE_REACH_OUT * size + m <= half) {
+    row = { back: false, scale: 1, r: [r0, r0 + pitch], pitch };
+  } else {
+    // Hintere Reihe: vom Bildrand nach innen bis knapp vor den ausgewachsenen Stamm.
+    const trunk = trunkBaseHalf(8, placeMainTree(layout, 8), layout);
+    const avail = half - m - (trunk + size * 0.25);
+    const scale = clamp((avail - gap) / (2 * foot), 0.5, EDGE_BACK_SCALE);
+    const a = half - m - EDGE_REACH_OUT * size * scale;
+    const p = foot * scale + gap;
+    row = { back: true, scale, r: [a, a - p], pitch: p };
+  }
+  if (edgeMemo.size > 16) edgeMemo.clear();
+  edgeMemo.set(key, row);
+  return row;
 }
 
 /** Wiederholt eine Platzliste zyklisch; weitere Runden werden leicht versetzt. */

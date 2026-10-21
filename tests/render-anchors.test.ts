@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { animalSize, createAnchorResolver, nicheAnchors, SCENE_NICHES } from '../src/render/anchors';
+import { animalSize, createAnchorResolver, EDGE_BACK_LIFT, edgeFootprint, nicheAnchors, SCENE_NICHES } from '../src/render/anchors';
 import { animalKind } from '../src/render/animals';
 import { makeLayout, placeMainTree } from '../src/render/layout';
 
@@ -49,8 +49,12 @@ describe('Tier-Ankerpunkte', () => {
             expect(a.onTree).toBe(true);
           }
         }
-        for (const n of ['litter', 'edge'] as const) {
-          for (const a of all[n]) expect(Math.abs(a.y - groundY)).toBeLessThan(4);
+        for (const a of all.litter) expect(Math.abs(a.y - groundY)).toBeLessThan(4);
+        // Waldsaum: vorn auf der Bodenlinie oder (schmal) in der hinteren Reihe auf der Wiese.
+        const size = animalSize(w, h);
+        for (const a of all.edge) {
+          expect(a.y).toBeLessThan(groundY + 4);
+          expect(a.y).toBeGreaterThan(groundY - EDGE_BACK_LIFT * size - 2);
         }
       }
     }
@@ -109,6 +113,70 @@ describe('Tier-Ankerpunkte', () => {
       const s = animalSize(w, h);
       expect(s).toBeGreaterThanOrEqual(20);
       expect(s).toBeLessThanOrEqual(36);
+    }
+  });
+});
+
+describe('Waldsaum auf allen Bildschirmbreiten', () => {
+  const WIDTHS: [number, number][] = [
+    [320, 568],
+    [390, 844],
+    [1200, 700],
+  ];
+  const STAGES = [2, 4, 6, 7.5, 8];
+
+  it('Großtiere (Reh, Fuchs, Wolf) auf Platz 0–3 überlappen sich nie und bleiben im Bild', () => {
+    for (const [w, h] of WIDTHS) {
+      const size = animalSize(w, h);
+      for (const g of STAGES) {
+        const edge = nicheAnchors(w, h, g, 4).edge;
+        const feet = edge.map((a) => edgeFootprint(a, size));
+        for (const [x0, x1] of feet) {
+          expect(x0).toBeGreaterThanOrEqual(0);
+          expect(x1).toBeLessThanOrEqual(w);
+        }
+        for (let i = 0; i < 4; i++) {
+          for (let j = i + 1; j < 4; j++) {
+            const [a0, a1] = feet[i]!;
+            const [b0, b1] = feet[j]!;
+            // Lücke zwischen den Bereichen, mindestens 0,15 Tiergrößen.
+            const gap = Math.max(b0 - a1, a0 - b1);
+            expect(gap, `Waldsaum ${i}/${j} bei g=${g}, ${w}×${h}`).toBeGreaterThanOrEqual(size * 0.15);
+          }
+        }
+      }
+    }
+  });
+
+  it('auf schmalen Bildschirmen stehen Großtiere kleiner in der hinteren Reihe', () => {
+    for (const [w, h] of WIDTHS) {
+      const edge = nicheAnchors(w, h, 7, 4).edge;
+      for (const a of edge) {
+        if (w < 600) {
+          expect(a.depth).toBe(1);
+          expect(a.scale).toBeLessThan(1);
+          expect(a.scale).toBeGreaterThanOrEqual(0.5);
+        } else {
+          expect(a.depth).toBe(0);
+          expect(a.scale).toBe(1);
+        }
+      }
+    }
+  });
+
+  it('Pilze an der Oberfläche berühren die Blumentupfen des Waldsaums nicht', () => {
+    for (const [w, h] of WIDTHS) {
+      const size = animalSize(w, h);
+      for (const g of STAGES) {
+        const all = nicheAnchors(w, h, g, 4);
+        for (const r of all.roots) {
+          for (const e of all.edge) {
+            // Pilz ≈ ±0,5 Tiergrößen, Blumentupfen ≈ ±0,55 (skaliert mit dem Platz).
+            const d = Math.abs(r.surfaceX - e.x) - size * 0.5 - size * 0.55 * e.scale;
+            expect(d, `Pilz ${r.slot} / Waldsaum ${e.slot} bei g=${g}, ${w}×${h}`).toBeGreaterThan(0);
+          }
+        }
+      }
     }
   });
 });

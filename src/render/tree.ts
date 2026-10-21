@@ -13,6 +13,8 @@
  *      beim Neuaufbau in Ebene 3 kopiert wird – pro Frame nur eine Kopie)
  *   5. Hauptbaum                                           (neu bei growth)
  *   6. Tiere: gecachte Sprites je Art, pro Frame nur drawImage
+ *   7. Stimmung (optional, Harmoniestufe): Strahlen-Sprite, Partikel, Lichtfarbe
+ *   Durchreisende (optional): Kraniche hinter dem Baum, Schwärme und Falter davor
  * Wind ist nur eine Scherung der gecachten Baum-Ebenen um die Bodenlinie; Tiere am
  * Baum werden um denselben Betrag verschoben. Tiere liegen immer über den Pflanzen.
  * Größenänderungen werden entprellt: Bis die neue Größe ~150 ms stabil ist, wird das
@@ -25,13 +27,17 @@ import { layoutFlora, type PlacedPlant, type ScenePlant } from './flora';
 import { paintPlant } from './flora-paint';
 import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
 import { paintLeaves, paintWood, type LeafPalette, type WoodColors } from './plant';
+import { MoodLayer, type MoodFrame } from './mood';
 import { ResizeGate } from './resize';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
 import { clamp01, mix, mulberry32, smooth01 } from './util';
+import { VisitorLayer, type SceneVisitor, type VisitorFrame } from './visitors';
 
 export type { AnimalFamily, SceneAnimal } from './animals';
 export { nicheAnchors, SCENE_NICHES, type NicheAnchor, type SceneNiche } from './anchors';
 export { SCENE_PLANT_GROUPS, type ScenePlant, type ScenePlantGroup } from './flora';
+export { MAX_HARMONY_TIER } from './mood';
+export type { SceneVisitor } from './visitors';
 
 export interface SceneInput {
   /** Kontinuierlicher Wachstumswert aus core/formulas.ts `growth()`. */
@@ -48,6 +54,19 @@ export interface SceneInput {
   plants?: readonly ScenePlant[];
   /** Bewegung reduzieren (prefers-reduced-motion): Tiere ruhen, kein Wind, Wolken stehen. */
   reducedMotion?: boolean;
+  /**
+   * Harmoniestufe 0–4 (DESIGN_V2.md 9.1: „Zarte Anfänge“ … „Urwald“) färbt die Szene:
+   * 0–1 leicht grau verschleiert, 2 neutral, 3 warmes Licht mit Sonnenstrahlen, Pollen
+   * und Blütenblättern, 4 zusätzlich Glühwürmchen. Wechsel werden sanft übergeblendet.
+   * Ohne Angabe sieht die Szene aus wie bisher.
+   */
+  harmonyTier?: number;
+  /**
+   * Durchreisende Gäste (scripts/v2/content.ts `VISITORS`, z. B. 'cranes', 'bramblings',
+   * 'hummingbird-moth'); `slot` verteilt mehrere Gäste. Unbekannte IDs erscheinen als
+   * kleiner Vogelschwarm. Ohne Angabe: keine Gäste.
+   */
+  visitors?: readonly SceneVisitor[];
 }
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
@@ -151,6 +170,10 @@ interface Cache {
   /** Tier-Ebene mit Sprite-Cache und vorberechnetem Plan. */
   animals: AnimalLayer;
   spriteKey: number;
+  /** Stimmung je Harmoniestufe (Überblendung, Strahlen- und Partikel-Sprites). */
+  mood: MoodLayer;
+  /** Durchreisende mit eigenem Sprite-Cache. */
+  visitors: VisitorLayer;
   /** Merkmale der zuletzt gezeichneten Pflanzenliste. */
   plantSig: PlantSig[] | null;
 }
@@ -198,6 +221,8 @@ function samePlants(sig: PlantSig[] | null, plants: readonly ScenePlant[] | unde
 
 /** Wiederverwendete Frame-Daten für die Tier-Ebene (keine Allokation pro Frame). */
 const animalFrame: AnimalFrame = { time: 0, windSkew: 0, reducedMotion: false, dpr: 1, sx: 1, sy: 1 };
+const moodFrame: MoodFrame = { width: 1, height: 1, groundY: 1, top: 0, dpr: 1, sx: 1, sy: 1, time: 0, reducedMotion: false };
+const visitorFrame: VisitorFrame = { width: 1, height: 1, groundY: 1, top: 0, size: 20, dpr: 1, sx: 1, sy: 1, time: 0, reducedMotion: false };
 
 /** Vereinigt einen Bereich (CSS-Pixel) mit `r` und gibt das Ergebnis zurück. */
 function unionRect(r: Rect | null, x0: number, y0: number, x1: number, y1: number): Rect {
@@ -237,7 +262,15 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
 
   let cache = caches.get(ctx.canvas);
   if (!cache) {
-    cache = { size: null, gate: new ResizeGate(), animals: new AnimalLayer(), spriteKey: -1, plantSig: null };
+    cache = {
+      size: null,
+      gate: new ResizeGate(),
+      animals: new AnimalLayer(),
+      spriteKey: -1,
+      mood: new MoodLayer(),
+      visitors: new VisitorLayer(),
+      plantSig: null,
+    };
     caches.set(ctx.canvas, cache);
   }
 
@@ -284,7 +317,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     cache.spriteKey = spriteKey;
   }
 
-  compose(ctx, sc, cache.animals, input, time, pw / sc.pw, ph / sc.ph);
+  compose(ctx, sc, cache, input, time, pw / sc.pw, ph / sc.ph);
 }
 
 function sizeKey(pw: number, ph: number, width: number, height: number): string {
@@ -295,7 +328,7 @@ function sizeKey(pw: number, ph: number, width: number, height: number): string 
 function compose(
   ctx: CanvasRenderingContext2D,
   sc: SizeCache,
-  layer: AnimalLayer,
+  cache: Cache,
   input: SceneInput,
   time: number,
   sx: number,
@@ -303,10 +336,43 @@ function compose(
 ): void {
   const { dpr, layout } = sc;
   const reduced = input.reducedMotion === true;
+  const layer = cache.animals;
   ctx.save();
   ctx.setTransform(sx, 0, 0, sy, 0, 0);
   ctx.drawImage(sc.background, 0, 0);
   drawClouds(ctx, sc.clouds, layout.width, reduced ? 0 : time, dpr);
+
+  // Stimmung und Gäste nur, wenn angegeben – sonst bleibt das Bild exakt wie bisher.
+  const level = cache.mood.update(input.harmonyTier, time, reduced);
+  const mf = moodFrame;
+  if (level !== null) {
+    mf.width = layout.width;
+    mf.height = layout.height;
+    mf.groundY = layout.groundY;
+    mf.top = layout.top;
+    mf.dpr = dpr;
+    mf.sx = sx;
+    mf.sy = sy;
+    mf.time = time;
+    mf.reducedMotion = reduced;
+  }
+  const visitors = input.visitors && input.visitors.length > 0 ? input.visitors : null;
+  const vf = visitorFrame;
+  if (visitors) {
+    vf.width = layout.width;
+    vf.height = layout.height;
+    vf.groundY = layout.groundY;
+    vf.top = layout.top;
+    vf.size = sc.anchors?.size ?? 24;
+    vf.dpr = dpr;
+    vf.sx = sx;
+    vf.sy = sy;
+    vf.time = time;
+    vf.reducedMotion = reduced;
+    cache.visitors.draw(ctx, visitors, 'sky', vf);
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+  }
+
   const groundPx = layout.groundY * dpr;
   if (sc.backRect) {
     const kb = reduced ? 0 : windSkew(time, 1.9) * 0.7;
@@ -318,6 +384,7 @@ function compose(
     ctx.setTransform(sx, 0, sx * k, sy, -sx * k * groundPx, 0);
     drawRect(ctx, sc.front, sc.frontRect);
   }
+  if (visitors) cache.visitors.draw(ctx, visitors, 'front', vf);
   const animals = input.animals;
   if (animals && animals.length > 0 && sc.anchors) {
     const f = animalFrame;
@@ -328,6 +395,10 @@ function compose(
     f.sx = sx;
     f.sy = sy;
     layer.draw(ctx, animals, sc.anchors, f);
+  }
+  if (level !== null) {
+    cache.mood.drawLight(ctx, level, mf);
+    cache.mood.drawParticles(ctx, level, mf);
   }
   ctx.restore();
 }
