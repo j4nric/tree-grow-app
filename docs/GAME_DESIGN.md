@@ -1,15 +1,19 @@
 # Game Design – Vom Samen zum Wald
 
-> **Stand des Codes: v2-Prototyp.** Der Code setzt jetzt den Prototyp aus
-> [`DESIGN_V2.md`](DESIGN_V2.md) (Roadmap-Schritte 1.1–1.4) um: Wachstum, Samen und
-> Harmonie; Begegnungen an Wegpunkten mit Kartenwahl; 3 Gattungen × 3 Tiere, noch ohne
-> Pflanzen; Spielstand v2 (v1-Stände starten neu, ab „Junger Baum“ mit +5
-> Waldgedächtnis). Regeln und Zahlen stehen in `DESIGN_V2.md` bzw. `src/content/`.
-> Ablehnen bringt vorerst fest 5 🌰, Neu würfeln kostet 10 🌰 (verdoppelt sich je Wurf).
+> **Stand des Codes: v2 mit Pflanzen.** Der Code setzt den Prototyp aus
+> [`DESIGN_V2.md`](DESIGN_V2.md) (Roadmap-Schritte 1.1–1.4) und die Pflanzen aus
+> Schritt 2.1 um: Wachstum, Samen und Harmonie; Begegnungen an Wegpunkten mit
+> Kartenwahl („Tier zieht ein“ und „Etwas keimt“); 3 Gattungen × 3 Tiere; 14
+> Begleitpflanzen mit Licht-/Wasser-Versorgung, Pflanzring und „Pflanze setzen“
+> (20 · 1,9^n 🌰); Wegpunkte bei 3,5 · k^3,4; Spielstand v3 (v1-Stände starten neu, ab
+> „Junger Baum“ mit +5 Waldgedächtnis; v2-Stände behalten ihren Fortschritt, Samen
+> werden auf 58 begrenzt). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
+> Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰, Neu würfeln
+> kostet 10 🌰 (verdoppelt sich je Wurf).
 >
 > Der Rest dieses Dokuments beschreibt **v1** (Wasser/Licht/Energie, Upgrades,
-> Klick-Button) und ist nur noch historisch. `scripts/simulate.ts` und
-> `tests/balance.test.ts` sind entfernt; Simulator und Balancing werden auf v2 umgestellt.
+> Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
+> `scripts/simulate.ts`, `tests/balance.test.ts`.
 
 ## Vision
 

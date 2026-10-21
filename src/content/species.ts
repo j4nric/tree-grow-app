@@ -129,6 +129,7 @@ export const TAG_NAMES: Readonly<Record<Tag, string>> = {
   nadeln: 'Nadeln',
   beeren: 'Beeren',
   nektar: 'Nektar',
+  kraut: 'Kräuter',
   feucht: 'Feuchte',
   totholz: 'Totholz',
   hoehle: 'Baumhöhle',

@@ -13,9 +13,9 @@ import {
 } from '../scripts/simulate';
 
 /**
- * Balancing des v2-Prototyps mit der echten Spiellogik (scripts/simulate.ts,
- * DESIGN_V2.md 15.4). Die Grenzen sind bewusst großzügig: Der Test soll grobe
- * Fehlentwicklungen zeigen, nicht einzelne Zahlen festnageln.
+ * Balancing des v2-Spiels (Tiere und Pflanzen) mit der echten Spiellogik
+ * (scripts/simulate.ts, DESIGN_V2.md 15.4). Die Grenzen sind bewusst großzügig: Der Test
+ * soll grobe Fehlentwicklungen zeigen, nicht einzelne Zahlen festnageln.
  *
  * Tabellen im Protokoll:   SIM_LOG=1 npx vitest run tests/balance.test.ts
  * Mehr Durchgänge (Doku):  SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts
@@ -29,7 +29,7 @@ const summaries = monteCarlo(STRATEGIES, RUNS, { targetStage: URWALD, maxSeconds
 const byId = (id: string) => summaries.find((s) => s.strategy.id === id)!;
 const harmony = byId(HARMONY.id);
 
-describe('Balancing v2-Prototyp (echte Logik)', () => {
+describe('Balancing v2 (echte Logik)', () => {
   it('Protokoll', () => {
     if (env.SIM_LOG) console.log(report(summaries, HAIN));
     expect(summaries.length).toBe(STRATEGIES.length);
@@ -53,7 +53,7 @@ describe('Balancing v2-Prototyp (echte Logik)', () => {
   it('Zeit bis zu den Stufen liegt im Zielkorridor (Harmonie-Spieler, eher etwas darüber)', () => {
     for (const t of STAGE_TARGETS) {
       const time = stageStats(harmony, t.stage).time;
-      // Keimling: nur Obergrenze. Sonst 0,7 – 1,35 × Ziel (ohne Pflanzen lieber langsamer).
+      // Keimling: nur Obergrenze. Sonst 0,7 – 1,35 × Ziel (lieber etwas langsamer).
       if (t.stage > 1) expect(time, `Stufe ${t.stage} (${t.label})`).toBeGreaterThan(0.7 * t.seconds);
       expect(time, `Stufe ${t.stage} (${t.label})`).toBeLessThan((t.stage === 1 ? 1 : 1.35) * t.seconds);
     }
@@ -70,9 +70,11 @@ describe('Balancing v2-Prototyp (echte Logik)', () => {
   });
 
   it('Harmonie-Strategie hat (fast) die höchste Harmonie beim Hain', () => {
+    // „Fast“: höchstens 1 Punkt darunter. Mit Pflanzen erreichen Stapler, die jede eigene
+    // Karte nehmen, ~0,5 Punkte mehr als das kurzsichtige Harmonie-Streben (DESIGN_V2.md 15.4).
     const best = stageStats(harmony, HAIN).harmony;
     for (const s of summaries) {
-      expect(stageStats(s, HAIN).harmony, s.strategy.name).toBeLessThanOrEqual(best + 0.5);
+      expect(stageStats(s, HAIN).harmony, s.strategy.name).toBeLessThanOrEqual(best + 1);
     }
     // Zufall ist spürbar schlechter als bewusstes Spiel.
     expect(stageStats(byId(RANDOM.id), HAIN).harmony).toBeLessThan(best - 1);
@@ -93,6 +95,18 @@ describe('Balancing v2-Prototyp (echte Logik)', () => {
     expect(g.time).toBeLessThanOrEqual(h.time * 1.02);
     expect(g.time).toBeGreaterThan(h.time * 0.75);
     expect(g.harmony).toBeGreaterThan(h.harmony * 0.85);
+  });
+
+  it('Pflanzen sind die Samen-Senke: jede Strategie setzt und pflanzt bis zum Hain', () => {
+    for (const s of summaries) {
+      const st = stageStats(s, HAIN);
+      expect(st.plants, s.strategy.name).toBeGreaterThanOrEqual(4);
+      expect(st.counts.plantsBought, s.strategy.name).toBeGreaterThan(1);
+      expect(st.counts.plantEncounters, s.strategy.name).toBeGreaterThan(2);
+      expect(st.spentPlants, s.strategy.name).toBeGreaterThan(0);
+    }
+    // Der Harmonie-Spieler hält die Pflanzen gut versorgt.
+    expect(stageStats(harmony, HAIN).supply).toBeGreaterThan(0.9);
   });
 
   it('es gibt echte Wahlen, aber nicht nur', () => {

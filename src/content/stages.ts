@@ -15,21 +15,23 @@ export interface Stage {
   treeGrowth: number;
   /** Grundsamen des Hauptbaums (🌰/s). */
   treeSeeds: number;
-  /** Licht, das Begleitpflanzen teilen (bestimmt im Prototyp nur „sonnig“). */
+  /** Licht ☀️, das die Begleitpflanzen teilen (Umweltgrenze, DESIGN_V2.md 2.5). */
   light: number;
-  /** Wasser, das Begleitpflanzen teilen. */
+  /** Wasser 💧, das die Begleitpflanzen teilen. */
   water: number;
+  /** Pflanzplätze um den Hauptbaum (Größe des Pflanzrings). */
+  plantSlots: number;
 }
 
 export const STAGES: readonly Stage[] = [
-  { id: 'seed', name: 'Samen', description: 'Ein kleiner Samen in dunkler Erde.', waypoint: 0, treeGrowth: 1, treeSeeds: 0.1, light: 0, water: 0 },
-  { id: 'sprout', name: 'Keimling', description: 'Die ersten Keimblätter durchbrechen den Boden.', waypoint: 1, treeGrowth: 2, treeSeeds: 0.15, light: 2, water: 2 },
-  { id: 'sapling', name: 'Setzling', description: 'Ein dünner Stamm reckt sich zum Licht.', waypoint: 3, treeGrowth: 3.5, treeSeeds: 0.25, light: 3, water: 3 },
-  { id: 'young-tree', name: 'Junger Baum', description: 'Äste verzweigen sich, die Krone wird dichter.', waypoint: 6, treeGrowth: 6, treeSeeds: 0.4, light: 5, water: 5 },
-  { id: 'old-tree', name: 'Alter Baum', description: 'Ein mächtiger Stamm mit tiefen Wurzeln.', waypoint: 12, treeGrowth: 10, treeSeeds: 0.6, light: 7, water: 7 },
-  { id: 'grove', name: 'Hain', description: 'Deine Samen sind aufgegangen – du bist nicht mehr allein.', waypoint: 20, treeGrowth: 16, treeSeeds: 0.9, light: 9, water: 9 },
-  { id: 'forest', name: 'Wald', description: 'Ein lebendiger Wald, verbunden durch Pilzfäden.', waypoint: 28, treeGrowth: 24, treeSeeds: 1.3, light: 12, water: 11 },
-  { id: 'ancient-forest', name: 'Urwald', description: 'Uralt, riesig und voller Leben.', waypoint: 36, treeGrowth: 34, treeSeeds: 1.8, light: 15, water: 14 },
+  { id: 'seed', name: 'Samen', description: 'Ein kleiner Samen in dunkler Erde.', waypoint: 0, treeGrowth: 1, treeSeeds: 0.1, light: 0, water: 0, plantSlots: 0 },
+  { id: 'sprout', name: 'Keimling', description: 'Die ersten Keimblätter durchbrechen den Boden.', waypoint: 1, treeGrowth: 2, treeSeeds: 0.15, light: 2, water: 2, plantSlots: 1 },
+  { id: 'sapling', name: 'Setzling', description: 'Ein dünner Stamm reckt sich zum Licht.', waypoint: 3, treeGrowth: 3.5, treeSeeds: 0.25, light: 3, water: 3, plantSlots: 2 },
+  { id: 'young-tree', name: 'Junger Baum', description: 'Äste verzweigen sich, die Krone wird dichter.', waypoint: 6, treeGrowth: 6, treeSeeds: 0.4, light: 5, water: 5, plantSlots: 3 },
+  { id: 'old-tree', name: 'Alter Baum', description: 'Ein mächtiger Stamm mit tiefen Wurzeln.', waypoint: 12, treeGrowth: 10, treeSeeds: 0.6, light: 7, water: 7, plantSlots: 5 },
+  { id: 'grove', name: 'Hain', description: 'Deine Samen sind aufgegangen – du bist nicht mehr allein.', waypoint: 20, treeGrowth: 16, treeSeeds: 0.9, light: 9, water: 9, plantSlots: 7 },
+  { id: 'forest', name: 'Wald', description: 'Ein lebendiger Wald, verbunden durch Pilzfäden.', waypoint: 28, treeGrowth: 24, treeSeeds: 1.3, light: 12, water: 11, plantSlots: 9 },
+  { id: 'ancient-forest', name: 'Urwald', description: 'Uralt, riesig und voller Leben.', waypoint: 36, treeGrowth: 34, treeSeeds: 1.8, light: 15, water: 14, plantSlots: 12 },
 ];
 
 /** Der Hauptbaum zählt als Baum und stellt diese Merkmale bereit. */

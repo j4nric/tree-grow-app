@@ -1,17 +1,18 @@
 import { DECLINE_SEEDS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
 import { FOREST_MEMORY_BONUS } from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
+import { PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, type Plant } from '../content/plants';
 import { BASE_HAPPINESS, SPECIES, SPECIES_BY_ID, type Species } from '../content/species';
 import { MAIN_TREE_NUTS_STAGE, MAIN_TREE_TAGS, MAIN_TREE_WEIGHT, STAGES } from '../content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
 import { GENERA, NICHE_IDS, type Condition, type Effect, type Genus, type NicheId, type PlantGroup, type Tag } from '../content/types';
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
-import { MAX_FOREST_MEMORY, type GameState } from './state';
+import { MAX_FOREST_MEMORY, type GameState, type PendingEncounterType } from './state';
 
 /*
- * Rechenmodell v2 (Prototyp): Zufriedenheit, Harmonie, Wachstum/s, Samen/s.
- * Formeln aus docs/DESIGN_V2.md, Abschnitt 2 und 9 – vereinfacht: keine Pflanzen,
- * keine Lebensgemeinschaften, keine Fähigkeiten. Referenz: scripts/v2/model.ts
+ * Rechenmodell v2: Zufriedenheit, Harmonie, Versorgung, Wachstum/s, Samen/s.
+ * Formeln aus docs/DESIGN_V2.md, Abschnitt 2 und 9 – noch ohne Lebensgemeinschaften,
+ * Fähigkeiten, Ereignisse und Durchreisende. Referenz: scripts/v2/model.ts
  * (ein Test vergleicht beide).
  */
 
@@ -24,6 +25,7 @@ export const PREDATION_MAX_HUNTERS = 2;
 export const SUNNY_MIN_LIGHT = 2;
 /** Futtereinheiten je Anbieter. */
 export const SUPPLY_MAIN_TREE = 2;
+export const SUPPLY_PLANT = 1;
 export const SUPPLY_ANIMAL = 1;
 /** Harmonie-Multiplikator: 1 + H / HARMONY_DIVISOR (Entscheidung PO). */
 export const HARMONY_DIVISOR = 100;
@@ -38,6 +40,8 @@ export const UNGUARDED_PENALTY = 4;
 export interface Ecosystem {
   stage: number;
   niches: Record<NicheId, readonly string[]>;
+  /** Begleitpflanzen (Duplikate erlaubt). Fehlt das Feld, wächst nur der Hauptbaum. */
+  plants?: readonly string[];
   forestMemory: number;
 }
 
@@ -78,8 +82,24 @@ export interface Evaluation {
   /** Schädlinge, deren Schaden zu mehr als der Hälfte wirkt. */
   unguarded: number;
   sunny: boolean;
+  /** Licht- und Wasserangebot (Stufe + Wirkungen der Tiere und Gattungsboni). */
   light: number;
   water: number;
+  /** Licht- und Wasserbedarf aller Begleitpflanzen (Wasser negativ: Moos speichert). */
+  lightNeed: number;
+  waterNeed: number;
+  /**
+   * Versorgung V der Begleitpflanzen in [0, 1] = min(1, Licht/Bedarf, Wasser/Bedarf).
+   * Bremst nur die Begleitpflanzen, nicht den Hauptbaum (DESIGN_V2.md 2.5).
+   */
+  supply: number;
+  /** Pflanzen je Gruppe, Hauptbaum zählt als Baum. */
+  groupCounts: Record<PlantGroup, number>;
+  /** Anteil der Begleitpflanzen an 🌿/s und 🌰/s (schon mit V, Boni und Harmonie). */
+  plantGrowth: number;
+  plantSeeds: number;
+  /** Pflanzplätze auf dieser Stufe (Größe des Pflanzrings). */
+  plantSlots: number;
 }
 
 /** Wer jagt wen (Räuber frisst ein Merkmal, das die Beute bereitstellt)? Statisch vorberechnet. */
@@ -122,6 +142,31 @@ export function nicheOverflow(stage: number, niches: Partial<Record<NicheId, rea
   return out;
 }
 
+/** Bekannte Begleitpflanzen (unbekannte IDs werden übersprungen). */
+function plantsIn(eco: Ecosystem): Plant[] {
+  const out: Plant[] = [];
+  for (const id of eco.plants ?? []) {
+    const p = PLANTS_BY_ID.get(id);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+/** Pflanzplätze auf einer Stufe (0 für unbekannte Stufen). */
+export function plantSlots(stage: number): number {
+  return STAGES[stage]?.plantSlots ?? 0;
+}
+
+/** Kosten der nächsten Pflanze, wenn schon `count` Begleitpflanzen wachsen: 20 · 1,9^count. */
+export function plantCost(count: number): number {
+  return PLANT_COST_BASE * Math.pow(PLANT_COST_GROWTH, Math.max(0, finite(count)));
+}
+
+/** Kosten der nächsten Pflanze in diesem Spielstand. */
+export function nextPlantCost(state: Pick<GameState, 'plants'>): number {
+  return plantCost(state.plants.length);
+}
+
 /** Bekannte Arten des Ökosystems in Nischen-Reihenfolge (unbekannte IDs werden übersprungen). */
 function speciesIn(eco: Ecosystem): Species[] {
   const out: Species[] = [];
@@ -138,16 +183,19 @@ function speciesIn(eco: Ecosystem): Species[] {
 export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const stage = STAGES[eco.stage] ?? STAGES[0]!;
   const animals = speciesIn(eco);
+  const plants = plantsIn(eco);
   const present = new Set(animals.map((a) => a.id));
 
-  // Pflanzengruppen: Im Prototyp gibt es nur den Hauptbaum (zählt als Baum).
+  // Pflanzengruppen (Hauptbaum zählt als Baum)
   const groupCount: Record<PlantGroup, number> = { trees: 1, shrubs: 0, flowers: 0, mosses: 0 };
+  for (const p of plants) groupCount[p.group]++;
 
   // Futterangebot und -nachfrage je Merkmal
-  const supply = new Map<Tag, number>();
-  const addSupply = (tag: Tag, n: number) => supply.set(tag, (supply.get(tag) ?? 0) + n);
+  const foodSupply = new Map<Tag, number>();
+  const addSupply = (tag: Tag, n: number) => foodSupply.set(tag, (foodSupply.get(tag) ?? 0) + n);
   for (const t of MAIN_TREE_TAGS) addSupply(t, SUPPLY_MAIN_TREE);
   if (eco.stage >= MAIN_TREE_NUTS_STAGE) addSupply('nuesse', SUPPLY_MAIN_TREE);
+  for (const p of plants) for (const t of p.provides) addSupply(t, SUPPLY_PLANT);
   for (const a of animals) for (const t of a.provides) addSupply(t, SUPPLY_ANIMAL);
   const demand = new Map<Tag, number>();
   for (const a of animals) for (const t of a.food) demand.set(t, (demand.get(t) ?? 0) + 1);
@@ -156,8 +204,9 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   for (const g of GENERA) genusCounts[g] = 0;
   for (const a of animals) genusCounts[a.genus]++;
 
-  // Sonnig: Licht, das nach den (noch nicht vorhandenen) Begleitpflanzen frei bleibt.
+  // Sonnig: Licht, das nach allen Begleitpflanzen frei bleibt (Tier-Lichtboni zählen voll).
   let openLight = stage.light;
+  for (const p of plants) openLight -= p.light;
   for (const a of animals) for (const e of a.effects) if (e.kind === 'light') openLight += e.amount;
   const sunny = openLight >= SUNNY_MIN_LIGHT;
 
@@ -166,7 +215,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
       case 'sunny':
         return sunny;
       case 'tag':
-        return (supply.get(c.tag) ?? 0) > 0;
+        return (foodSupply.get(c.tag) ?? 0) > 0;
       case 'group':
         return groupCount[c.group] >= c.min;
     }
@@ -178,7 +227,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   for (const a of animals) {
     let food = 0;
     for (const t of a.food) {
-      const s = supply.get(t) ?? 0;
+      const s = foodSupply.get(t) ?? 0;
       const d = demand.get(t) ?? 1;
       food = Math.max(food, Math.min(1, s / d));
     }
@@ -253,11 +302,23 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     }
   }
 
+  // Versorgung der Begleitpflanzen mit Licht und Wasser
+  let lightNeed = 0;
+  let waterNeed = 0;
+  for (const p of plants) {
+    lightNeed += p.light;
+    waterNeed += p.water;
+  }
+  let supply = 1;
+  if (lightNeed > 0) supply = Math.min(supply, light / lightNeed);
+  if (waterNeed > 0) supply = Math.min(supply, water / waterNeed);
+  supply = Math.max(0, Math.min(1, supply));
+
   // Nahrungspyramide (Hauptbaum zählt wie MAIN_TREE_WEIGHT Pflanzen)
   const herbivores = animals.filter((a) => a.level === 'herbivore').length;
   const predators = animals.filter((a) => a.level === 'predator');
   const decomposers = animals.filter((a) => a.level === 'decomposer').length;
-  const plantWeight = MAIN_TREE_WEIGHT;
+  const plantWeight = MAIN_TREE_WEIGHT + plants.length;
   const levels = (5 * [herbivores, predators.length, decomposers].filter((n) => n > 0).length) / 3;
   const carrying = herbivores > 0 ? 5 * Math.min(1, plantWeight / (1.5 * herbivores)) : 5;
   const fed = predators.length > 0 ? (5 * predators.reduce((s, p) => s + status[p.id]!.food, 0)) / predators.length : 0;
@@ -266,7 +327,10 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const pyramid = levels + carrying + fed + cycle - UNGUARDED_PENALTY * unguarded;
 
   // Harmonie = Vielfalt + Zufriedenheit + Pyramide
-  const variety = 3 * new Set(animals.map((a) => a.genus)).size + present.size;
+  // Vielfalt: 3 je Gattung und je Pflanzengruppe mit Begleitpflanzen, 1 je verschiedene Art.
+  const groups = new Set<string>(animals.map((a) => a.genus));
+  for (const p of plants) groups.add(`plant:${p.group}`);
+  const variety = 3 * groups.size + present.size + new Set(plants.map((p) => p.id)).size;
   const avgHappiness = animals.length > 0 ? happinessSum / animals.length : 0;
   const happinessPoints = 30 * avgHappiness;
   const harmony = variety + happinessPoints + pyramid;
@@ -274,9 +338,20 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
 
   // Wachstum und Samen (Waldgedächtnis: +2 % je Punkt)
   const memory = 1 + FOREST_MEMORY_BONUS * Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(eco.forestMemory)));
+  // Begleitpflanzen wachsen mit der Versorgung V, der Hauptbaum unabhängig davon.
+  let companionGrowth = 0;
+  let companionSeeds = 0;
+  for (const p of plants) {
+    companionGrowth += p.growth * (1 + groupGrowth[p.group]);
+    companionSeeds += p.seeds * (1 + groupSeeds[p.group]);
+  }
   const factor = Math.max(MIN_GROWTH_FACTOR, 1 + growthBonus - damage);
-  const growth = stage.treeGrowth * (1 + groupGrowth.trees) * factor * multiplier * memory;
-  const seeds = stage.treeSeeds * (1 + groupSeeds.trees) * (1 + seedsBonus) * multiplier * memory;
+  const tree = stage.treeGrowth * (1 + groupGrowth.trees);
+  const growthScale = factor * multiplier * memory;
+  const growth = (tree + supply * companionGrowth) * growthScale;
+  const treeSeeds = stage.treeSeeds * (1 + groupSeeds.trees);
+  const seedsScale = (1 + seedsBonus) * multiplier * memory;
+  const seeds = (treeSeeds + supply * companionSeeds) * seedsScale;
 
   return {
     growth,
@@ -296,6 +371,13 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     sunny,
     light,
     water,
+    lightNeed,
+    waterNeed,
+    supply,
+    groupCounts: groupCount,
+    plantGrowth: supply * companionGrowth * growthScale,
+    plantSeeds: supply * companionSeeds * seedsScale,
+    plantSlots: plantSlots(eco.stage),
   };
 }
 
@@ -308,7 +390,12 @@ export function evaluate(state: GameState): Readonly<Evaluation> {
   const key = ecosystemKey(state);
   if (cache && cache.key === key) return cache.value;
   const value = deepFreeze(
-    evaluateEcosystem({ stage: state.stage, niches: state.niches, forestMemory: state.meta.forestMemory }),
+    evaluateEcosystem({
+      stage: state.stage,
+      niches: state.niches,
+      plants: state.plants,
+      forestMemory: state.meta.forestMemory,
+    }),
   );
   cache = { key, value };
   return value;
@@ -326,7 +413,7 @@ function deepFreeze<T>(value: T): T {
 let cache: { key: string; value: Evaluation } | null = null;
 
 function ecosystemKey(state: GameState): string {
-  let key = `${state.stage}|${state.meta.forestMemory}`;
+  let key = `${state.stage}|${state.meta.forestMemory}|${(state.plants ?? []).join(',')}`;
   for (const id of NICHE_IDS) key += `|${(state.niches[id] ?? []).join(',')}`;
   return key;
 }
@@ -392,18 +479,38 @@ export function growth(state: GameState): number {
 export type CardStatus =
   /** Freier Platz – „Wählen“ geht direkt. */
   | 'free'
-  /** Nische voll – nur mit `replaceSpeciesId` (ein Tier entlassen). */
+  /** Nische bzw. Pflanzring voll – nur mit Ersatz (ein Tier entlassen / eine Pflanze ersetzen). */
   | 'full'
-  /** Die Art lebt schon im Ökosystem (z. B. aus einer früheren Begegnung gewählt). */
+  /** Die Art lebt schon im Ökosystem (nur Tiere; Pflanzen dürfen mehrfach wachsen). */
   | 'present'
-  /** Nische auf dieser Stufe noch geschlossen. */
+  /** Nische bzw. Pflanzring auf dieser Stufe noch geschlossen. */
   | 'closed'
-  /** Unbekannte Begegnung, Karte oder Art. */
+  /** Unbekannte Begegnung, Karte, Art oder Pflanze. */
   | 'invalid';
 
+/** Typ einer offenen Begegnung (undefined, wenn es sie nicht gibt). */
+export function encounterType(state: GameState, encounterIndex: number): PendingEncounterType | undefined {
+  return state.pendingEncounters[encounterIndex]?.type;
+}
+
+/**
+ * Zustand einer Karte. Für Tierkarten zählt die Nische der Art, für Pflanzenkarten
+ * („Etwas keimt“) der Pflanzring. Ob ein bestimmter Tausch erlaubt ist, sagt
+ * `choiceBlocker` (z. B. 'would-evict').
+ */
 export function cardStatus(state: GameState, encounterIndex: number, cardIndex: number): CardStatus {
-  const id = state.pendingEncounters[encounterIndex]?.cards[cardIndex];
-  const sp = id === undefined ? undefined : SPECIES_BY_ID.get(id);
+  const encounter = state.pendingEncounters[encounterIndex];
+  const id = encounter?.cards[cardIndex];
+  if (encounter === undefined || id === undefined) return 'invalid';
+  if (encounter.type === 'plant') {
+    const plant = PLANTS_BY_ID.get(id);
+    if (!plant) return 'invalid';
+    const slots = plantSlots(state.stage);
+    // Gesperrte Pflanzen (später freigeschaltet) behandeln wie einen geschlossenen Ring.
+    if (slots <= 0 || plant.unlock > state.stage) return 'closed';
+    return state.plants.length < slots ? 'free' : 'full';
+  }
+  const sp = SPECIES_BY_ID.get(id);
   if (!sp) return 'invalid';
   if (hasSpecies(state, sp.id)) return 'present';
   const slots = nicheSlots(state.stage, state.niches)[sp.niche];
@@ -416,22 +523,131 @@ export function hasSpecies(state: Pick<GameState, 'niches'>, speciesId: string):
   return NICHE_IDS.some((n) => (state.niches[n] ?? []).includes(speciesId));
 }
 
+/** Warum eine Karte nicht gewählt werden kann (gleiche Codes wie die Aktion chooseCard). */
+export type ChoiceError =
+  | 'no-encounter'
+  | 'no-card'
+  | 'present'
+  | 'closed'
+  /** Nische voll, kein Tier zum Entlassen genannt. */
+  | 'niche-full'
+  /** Pflanzring voll, keine Pflanze zum Ersetzen genannt. */
+  | 'ring-full'
+  /** Der genannte Ersatz lebt nicht in dieser Nische bzw. wächst nicht im Pflanzring. */
+  | 'invalid-replace'
+  /**
+   * Der Tausch nähme anderen Tieren den Platz: Das entlassene Tier schafft Plätze
+   * (Borkenkäfer → Höhlen), die noch bewohnt sind.
+   */
+  | 'would-evict';
+
+/** Ökosystem nach einer Wahl – oder der Grund, warum sie nicht geht. */
+export type ChoiceOutcome =
+  | { ok: true; niches: Record<NicheId, string[]>; plants: string[] }
+  | { ok: false; error: ChoiceError };
+
 /**
- * Wie sähe das Ökosystem aus, wenn diese Karte gewählt würde? null, wenn die Wahl so
- * nicht möglich ist. Für Vorschauen auf Karten (Zufriedenheit, Harmonie, 🌿/s).
+ * Rechnet die Wahl einer Karte durch, ohne den Spielstand zu ändern. Grundlage für
+ * chooseCard, previewChoice und choiceBlocker – alle drei sind darum immer einig.
+ * `replaceId`: bei Tierkarten eine Art der Nische, bei Pflanzenkarten eine Pflanze im Ring.
+ */
+export function resolveChoice(
+  state: GameState,
+  encounterIndex: number,
+  cardIndex: number,
+  replaceId?: string,
+): ChoiceOutcome {
+  const encounter = state.pendingEncounters[encounterIndex];
+  if (!encounter) return { ok: false, error: 'no-encounter' };
+  const status = cardStatus(state, encounterIndex, cardIndex);
+  if (status === 'invalid') return { ok: false, error: 'no-card' };
+  if (status === 'present') return { ok: false, error: 'present' };
+  if (status === 'closed') return { ok: false, error: 'closed' };
+  const id = encounter.cards[cardIndex]!;
+  if (encounter.type === 'plant') {
+    if (replaceId === undefined && status === 'full') return { ok: false, error: 'ring-full' };
+    const plants = plantsAfterChoice(state, id, replaceId);
+    if (!plants) return { ok: false, error: 'invalid-replace' };
+    return { ok: true, niches: copyNiches(state.niches), plants };
+  }
+  const sp = SPECIES_BY_ID.get(id)!;
+  if (replaceId !== undefined && !(state.niches[sp.niche] ?? []).includes(replaceId)) {
+    return { ok: false, error: 'invalid-replace' };
+  }
+  if (replaceId === undefined && status === 'full') return { ok: false, error: 'niche-full' };
+  // Entlassene Tiere können Plätze mitnehmen (Borkenkäfer → Höhlen): nur erlaubt,
+  // wenn danach kein Tier ohne Platz dasteht.
+  const niches = nichesAfterChoice(state, sp.id, replaceId);
+  if (!niches) return { ok: false, error: 'would-evict' };
+  return { ok: true, niches, plants: [...state.plants] };
+}
+
+/** Warum diese Wahl nicht geht – null, wenn chooseCard sie annähme. */
+export function choiceBlocker(
+  state: GameState,
+  encounterIndex: number,
+  cardIndex: number,
+  replaceId?: string,
+): ChoiceError | null {
+  const outcome = resolveChoice(state, encounterIndex, cardIndex, replaceId);
+  return outcome.ok ? null : outcome.error;
+}
+
+/**
+ * Wie sähe das Ökosystem aus, wenn diese Karte gewählt würde? null genau dann, wenn
+ * chooseCard die Wahl ablehnen würde (Grund: choiceBlocker). Für Vorschauen auf
+ * Tier- und Pflanzenkarten (Zufriedenheit, Harmonie, 🌿/s, 🌰/s).
  */
 export function previewChoice(
   state: GameState,
   encounterIndex: number,
   cardIndex: number,
-  replaceSpeciesId?: string,
+  replaceId?: string,
 ): Evaluation | null {
-  const status = cardStatus(state, encounterIndex, cardIndex);
-  const sp = SPECIES_BY_ID.get(state.pendingEncounters[encounterIndex]?.cards[cardIndex] ?? '');
-  if (!sp || (status !== 'free' && status !== 'full')) return null;
-  const niches = nichesAfterChoice(state, sp.id, replaceSpeciesId);
-  if (!niches) return null;
-  return evaluateEcosystem({ stage: state.stage, niches, forestMemory: state.meta.forestMemory });
+  const outcome = resolveChoice(state, encounterIndex, cardIndex, replaceId);
+  if (!outcome.ok) return null;
+  return evaluateEcosystem({
+    stage: state.stage,
+    niches: outcome.niches,
+    plants: outcome.plants,
+    forestMemory: state.meta.forestMemory,
+  });
+}
+
+/**
+ * Vorschau für „Pflanze setzen“ (Aktion plantSeed): das Ökosystem mit einer weiteren
+ * Pflanze. Prüft weder Kosten noch Freischaltung (siehe plantBlocker); null bei
+ * unbekannter Pflanze oder vollem Ring.
+ */
+export function previewPlant(state: GameState, plantId: string): Evaluation | null {
+  const plants = plantsAfterChoice(state, plantId);
+  if (!plants) return null;
+  return evaluateEcosystem({ stage: state.stage, niches: state.niches, plants, forestMemory: state.meta.forestMemory });
+}
+
+/**
+ * Pflanzring nach dem Keimen von `plantId` (optional anstelle von `replacePlantId`,
+ * dessen erstes Vorkommen ersetzt wird). null, wenn die Pflanze unbekannt ist, der
+ * Ersatz nicht im Ring wächst oder dieselbe Pflanze ist (Tausch ohne Wirkung), ein
+ * Ersatz bei freiem Ring genannt wird (Pflanzen sterben nicht – bei Platz wird nur
+ * dazugesetzt) oder der Ring ohne Ersatz voll ist.
+ */
+export function plantsAfterChoice(
+  state: Pick<GameState, 'stage' | 'plants'>,
+  plantId: string,
+  replacePlantId?: string,
+): string[] | null {
+  if (!PLANTS_BY_ID.has(plantId)) return null;
+  const plants = [...state.plants];
+  if (replacePlantId !== undefined) {
+    const at = plants.indexOf(replacePlantId);
+    if (at < 0 || replacePlantId === plantId || plants.length < plantSlots(state.stage)) return null;
+    plants[at] = plantId;
+    return plants;
+  }
+  if (plants.length >= plantSlots(state.stage)) return null;
+  plants.push(plantId);
+  return plants;
 }
 
 /**
@@ -448,8 +664,7 @@ export function nichesAfterChoice(
 ): Record<NicheId, string[]> | null {
   const sp = SPECIES_BY_ID.get(speciesId);
   if (!sp) return null;
-  const niches = {} as Record<NicheId, string[]>;
-  for (const id of NICHE_IDS) niches[id] = [...(state.niches[id] ?? [])];
+  const niches = copyNiches(state.niches);
   const occupants = niches[sp.niche];
   if (replaceSpeciesId !== undefined) {
     const at = occupants.indexOf(replaceSpeciesId);
@@ -461,6 +676,12 @@ export function nichesAfterChoice(
   const before = nicheOverflow(state.stage, state.niches);
   const after = nicheOverflow(state.stage, niches);
   return NICHE_IDS.every((id) => after[id] <= before[id]) ? niches : null;
+}
+
+function copyNiches(niches: Partial<Record<NicheId, readonly string[]>>): Record<NicheId, string[]> {
+  const out = {} as Record<NicheId, string[]>;
+  for (const id of NICHE_IDS) out[id] = [...(niches[id] ?? [])];
+  return out;
 }
 
 /** Samen für „Ablehnen“. */

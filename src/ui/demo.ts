@@ -71,6 +71,32 @@ function ecosystem(t: number): EcosystemView {
       { id: 'roots', icon: '🪱', label: 'Wurzelraum', capacity: 3, animals: [animals.regenwurm] },
       { id: 'meadow', icon: '🌾', label: 'Lichtung', capacity: 0, animals: [], unlockHint: 'öffnet sich bei Windwurf' },
     ],
+    plantRing: {
+      capacity: 5,
+      plants: [
+        { id: 'hazel', name: 'Hasel', group: 'shrubs', groupIcon: '🫐', groupLabel: 'Sträucher' },
+        { id: 'birch', name: 'Hänge-Birke', group: 'trees', groupIcon: '🌳', groupLabel: 'Bäume' },
+        { id: 'moss', name: 'Frauenhaarmoos', group: 'mosses', groupIcon: '🍃', groupLabel: 'Moose & Farne' },
+      ],
+      supply: 0.86,
+      supplyText: '☀️ Licht 86 % · 💧 Wasser 100 %',
+      meters: [
+        { key: 'light', icon: '☀️', label: 'Licht', ratio: 0.86, detail: 'Bedarf 7 von 6' },
+        { key: 'water', icon: '💧', label: 'Wasser', ratio: 1, detail: 'Bedarf 2 von 7' },
+      ],
+      shortageHint: 'Zu wenig Licht – Begleitpflanzen wachsen nur mit 86 %. Schattenpflanzen helfen.',
+      groups: [
+        { id: 'trees', icon: '🌳', label: 'Bäume', count: 2 },
+        { id: 'shrubs', icon: '🫐', label: 'Sträucher', count: 1 },
+        { id: 'flowers', icon: '🌸', label: 'Blumen & Kräuter', count: 0 },
+        { id: 'mosses', icon: '🍃', label: 'Moose & Farne', count: 1 },
+      ],
+      plantCost: 137.18,
+      plantCostLabel: '138',
+      canOpenPicker: true,
+      affordable: 312 + t * 2.1 >= 137,
+      plantHint: '',
+    },
   };
 }
 

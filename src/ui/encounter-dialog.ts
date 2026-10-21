@@ -13,7 +13,7 @@
  */
 import { el, setText, srOnly } from './dom';
 import { prefersReducedMotion } from './feedback';
-import type { CardView, EncounterKind, EncounterView, PreviewView, ReplaceOptionView } from './view-model';
+import type { CardView, EncounterKind, EncounterView, FactView, PreviewView, ReplaceOptionView } from './view-model';
 import {
   RARITY_LABELS,
   declineLabel,
@@ -21,11 +21,12 @@ import {
   queuedText,
   replaceHint,
   rerollLabel,
+  swapHint,
   toneSymbol,
 } from './view-format';
 
 export interface EncounterCallbacks {
-  /** Karte gewählt; bei voller Nische mit der ID des Tiers, das ersetzt wird. */
+  /** Karte gewählt; bei voller Nische bzw. vollem Pflanzring mit der ID dessen, was ersetzt wird. */
   onChoose(cardIndex: number, replaceId?: string): void;
   onDecline(): void;
   onReroll(): void;
@@ -70,6 +71,39 @@ interface CardRefs {
   choose: HTMLButtonElement;
   select: HTMLSelectElement | null;
   selectedReplace(): ReplaceOptionView | undefined;
+}
+
+/** Kennzahlen einer Karte (z. B. Pflanzen: Wachstum, Samen, Licht, Wasser) als kleines Raster. */
+export function renderFacts(facts: readonly FactView[]): HTMLElement {
+  const list = el('ul', 'card-facts');
+  list.setAttribute('aria-label', 'Kennzahlen');
+  for (const fact of facts) {
+    const li = el('li', 'card-fact');
+    const label = el('span', 'card-fact-label', fact.label);
+    const value = el('span', 'card-fact-value');
+    const icon = el('span', 'card-fact-icon', fact.icon);
+    value.append(icon, el('span', '', fact.value));
+    label.setAttribute('aria-hidden', 'true');
+    value.setAttribute('aria-hidden', 'true');
+    li.append(label, value, srOnly(fact.text));
+    list.append(li);
+  }
+  return list;
+}
+
+/** Vorschau-Chips (Harmonie, Wachstum, Samen, …) in eine Liste schreiben. */
+export function renderPreviewChips(list: HTMLElement, preview: PreviewView): void {
+  list.replaceChildren(
+    ...previewParts(preview).map((part) => {
+      const item = el('li', `preview-chip tone-${part.tone}`);
+      const icon = el('span', 'preview-icon', part.icon);
+      icon.setAttribute('aria-hidden', 'true');
+      const value = el('span', 'preview-value', part.value);
+      value.setAttribute('aria-hidden', 'true');
+      item.append(icon, value, srOnly(part.text));
+      return item;
+    }),
+  );
 }
 
 export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCallbacks): EncounterDialog {
@@ -228,25 +262,13 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     later.disabled = busy;
   }
 
-  function renderPreview(list: HTMLElement, preview: PreviewView): void {
-    list.replaceChildren(
-      ...previewParts(preview).map((part) => {
-        const item = el('li', `preview-chip tone-${part.tone}`);
-        const icon = el('span', 'preview-icon', part.icon);
-        icon.setAttribute('aria-hidden', 'true');
-        const value = el('span', 'preview-value', part.value);
-        value.setAttribute('aria-hidden', 'true');
-        item.append(icon, value, srOnly(part.text));
-        return item;
-      }),
-    );
-  }
-
-  function buildCard(card: CardView, index: number, keepReplaceId?: string): CardRefs {
+  function buildCard(card: CardView, index: number, kind: EncounterKind, keepReplaceId?: string): CardRefs {
     const rarity = card.rarity;
     const item = el('article', `encounter-card family-${card.family}${rarity ? ` rarity-${rarity}` : ''}`);
     item.setAttribute('role', 'listitem');
-    item.dataset.species = card.id;
+    item.dataset.card = card.id;
+    if (kind === 'plant') item.dataset.plant = card.id;
+    else item.dataset.species = card.id;
     item.setAttribute('aria-labelledby', `${prefix}-card-${index}-name`);
     item.style.setProperty('--deal-delay', `${index * 70}ms`);
 
@@ -269,6 +291,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     item.append(band, name);
 
     if (card.nicheLabel) item.append(el('p', 'card-niche', `Nische: ${card.nicheLabel}`));
+    if (card.facts && card.facts.length > 0) item.append(renderFacts(card.facts));
 
     const options = card.replaceOptions ?? [];
     /** Tauschbare Tiere; gesperrte Optionen (z. B. Höhlenbewohner verlören ihren Platz) bleiben sichtbar. */
@@ -281,7 +304,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       box.append(replaceText);
       if (options.length > 1) {
         const label = el('label', 'card-replace-label');
-        label.append(el('span', '', 'Wen entlassen?'));
+        label.append(el('span', '', card.replacePrompt ?? 'Wen entlassen?'));
         select = el('select', 'card-replace-select');
         for (const option of options) {
           const opt = el('option', '', option.disabledReason ? `${option.name} – ${option.disabledReason}` : option.name);
@@ -343,8 +366,12 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
 
     const refresh = () => {
       const replaced = selectedReplace();
-      if (replaceText) replaceText.textContent = replaceHint(card.nicheLabel ?? '', replaced?.name);
-      renderPreview(previewList, replaced?.preview ?? card.preview);
+      if (replaceText) {
+        replaceText.textContent = card.fullText
+          ? swapHint(card.fullText, replaced?.name)
+          : replaceHint(card.nicheLabel ?? '', replaced?.name);
+      }
+      renderPreviewChips(previewList, replaced?.preview ?? card.preview);
       choose.textContent = card.disabledReason ?? 'Wählen';
       const swap = replaced ? ` (ersetzt ${replaced.name})` : '';
       choose.setAttribute('aria-label', `${card.name} wählen${swap}`);
@@ -392,7 +419,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       const kept = new Map(newEncounter ? [] : cards.map((c) => [c.card.id, c.select?.value]));
       idSignature = nextIds;
       contentSignature = nextContent;
-      cards = view.cards.map((card, i) => buildCard(card, i, kept.get(card.id)));
+      cards = view.cards.map((card, i) => buildCard(card, i, view.kind, kept.get(card.id)));
 
       // Austeil-Animation nur für neue Begegnungen, nicht beim Aktualisieren.
       dialog.classList.remove('dealing');
