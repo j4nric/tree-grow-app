@@ -3,7 +3,8 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createApp, type App, type AppOptions } from '../src/app';
+import { MAX_BODY_BYTES, MAX_DATA_BYTES, createApp, type App, type AppOptions } from '../src/app';
+import { MAX_EXPORT_CODE_LENGTH } from '../../src/core/save';
 import { hashPassword, normalizeUsername, verifyPassword } from '../src/auth';
 import { openDb } from '../src/db';
 import { RateLimiter } from '../src/rate-limit';
@@ -159,7 +160,7 @@ describe('Spielstand', () => {
     expect(stale.status).toBe(409);
     expect(await stale.json()).toEqual({
       error: 'conflict',
-      current: { data: 'VSZW1:d.4', version: 3, actionVersion: 3, updatedAt: clock, deviceId: 'B' },
+      current: { data: 'VSZW1:d.4', version: 3, actionVersion: 3, updatedAt: clock, deviceId: 'B', schema: 0, serverTime: clock },
     });
     expect(await (await call('GET', '/api/save', undefined, token)).json()).toMatchObject({ data: 'VSZW1:d.4', version: 3, deviceId: 'B' });
   });
@@ -180,9 +181,12 @@ describe('Spielstand', () => {
 
   it('Größenlimit und ungültige Felder', async () => {
     const token = await register();
-    const big = 'x'.repeat(256 * 1024 + 1);
+    // Genau so groß wie ein Code, den das Spiel noch importieren kann (MAX_EXPORT_CODE_LENGTH).
+    expect(MAX_DATA_BYTES).toBe(MAX_EXPORT_CODE_LENGTH);
+    expect(MAX_BODY_BYTES).toBeGreaterThan(MAX_DATA_BYTES + 1000);
+    const big = 'x'.repeat(MAX_DATA_BYTES + 1);
     expect((await call('PUT', '/api/save', { data: big, baseVersion: 0, deviceId: 'A' }, token)).status).toBe(413);
-    expect((await call('PUT', '/api/save', { data: 'x'.repeat(256 * 1024), baseVersion: 0, deviceId: 'A' }, token)).status).toBe(200);
+    expect((await call('PUT', '/api/save', { data: 'x'.repeat(MAX_DATA_BYTES), baseVersion: 0, deviceId: 'A' }, token)).status).toBe(200);
     expect((await call('PUT', '/api/save', { data: 'x'.repeat(2_000_000), baseVersion: 1, deviceId: 'A' }, token)).status).toBe(413);
     for (const baseVersion of [-1, 1.5, Number.NaN, '1', null]) {
       expect((await call('PUT', '/api/save', { data: 'x', baseVersion, deviceId: 'A' }, token)).status).toBe(400);
@@ -247,7 +251,7 @@ describe('Server-Sent Events', () => {
     await call('PUT', '/api/save', { data: 'X', baseVersion: 0, deviceId: 'geraet-a' }, token);
     const events = await reading;
     expect(events[0]!.event).toBe('ready');
-    expect(JSON.parse(events.find((e) => e.event === 'save')!.data)).toEqual({ version: 1, actionVersion: 1, deviceId: 'geraet-a' });
+    expect(JSON.parse(events.find((e) => e.event === 'save')!.data)).toEqual({ version: 1, actionVersion: 1, deviceId: 'geraet-a', schema: 0 });
 
     const old = (await (await call('POST', '/api/events/ticket', undefined, token)).json()) as { ticket: string };
     clock += 61_000;

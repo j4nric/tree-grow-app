@@ -13,9 +13,12 @@ describe('HTTP-Dienst gegen den Sync-Server', () => {
   let server: Server;
   let app: App;
   let url: string;
+  let clock = 0;
+  let full = false;
 
   beforeEach(async () => {
-    app = createApp({ db: openDb(':memory:'), allowedOrigins: [] });
+    clock = 1_700_000_000_000;
+    app = createApp({ db: openDb(':memory:'), allowedOrigins: [], now: () => clock, storageOk: () => !full, limits: { maxAccounts: 3 } });
     server = createServer(app.handle);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
@@ -35,25 +38,46 @@ describe('HTTP-Dienst gegen den Sync-Server', () => {
     expect(await a.currentUser()).toEqual({ name: 'eiche' });
     const backendA = a.backend({ name: 'eiche' });
     expect(await backendA.fetch()).toBeNull();
-    expect(await backendA.insert({ data: 'S1', version: 1, device: 'A', actionVersion: 1 })).toBe('ok');
-    expect(await backendA.insert({ data: 'S1', version: 1, device: 'A', actionVersion: 1 })).toBe('conflict');
-    expect(await backendA.update(1, { data: 'S2', version: 2, device: 'A' })).toBe('ok');
-    expect(await backendA.fetch()).toEqual({ data: 'S2', version: 2, actionVersion: 1, device: 'A' });
+    expect(await backendA.insert({ data: 'S1', version: 1, device: 'A', actionVersion: 1, schema: 9 })).toBe('ok');
+    expect(await backendA.insert({ data: 'S1', version: 1, device: 'A', actionVersion: 1, schema: 9 })).toBe('conflict');
+    expect(await backendA.update(1, { data: 'S2', version: 2, device: 'A', schema: 9 })).toBe('ok');
+    expect(await backendA.fetch()).toEqual({ data: 'S2', version: 2, actionVersion: 1, device: 'A', schema: 9, ageMs: 0 });
 
     const b = createHttpService(url, { fetch, storage: new MemoryStorage() });
     await expect(b.register('eiche', 'anderes123')).rejects.toMatchObject({ code: 'taken' });
     await expect(b.signIn('eiche', 'falsch123')).rejects.toMatchObject({ code: 'credentials' });
     await expect(b.signIn('eiche', 'geheim123')).resolves.toEqual({ name: 'eiche' });
     const backendB = b.backend({ name: 'eiche' });
-    expect(await backendB.update(1, { data: 'alt', version: 2, device: 'B', actionVersion: 2 })).toBe('conflict');
-    expect(await backendB.update(2, { data: 'S3', version: 3, device: 'B', actionVersion: 3 })).toBe('ok');
-    expect(await backendA.fetch()).toEqual({ data: 'S3', version: 3, actionVersion: 3, device: 'B' });
+    expect(await backendB.update(1, { data: 'alt', version: 2, device: 'B', actionVersion: 2, schema: 9 })).toBe('conflict');
+    expect(await backendB.update(2, { data: 'S3', version: 3, device: 'B', actionVersion: 3, schema: 9 })).toBe('ok');
+    expect(await backendA.fetch()).toMatchObject({ data: 'S3', version: 3, actionVersion: 3, device: 'B' });
+    // Älteres Spiel (schema 8) darf den Stand von schema 9 nicht überschreiben.
+    expect(await backendB.update(3, { data: 'alt', version: 4, device: 'B', actionVersion: 4, schema: 8 })).toBe('outdated');
 
     // Abmelden auf A: Sitzung weg, B bleibt angemeldet.
     await a.signOut();
     expect(storageA.getItem(SESSION_KEY)).toBeNull();
     expect(await a.currentUser()).toBeNull();
     expect(await b.currentUser()).toEqual({ name: 'eiche' });
+  });
+
+  it('Alter nach Serverzeit, voller Server, keine neuen Konten', async () => {
+    full = false;
+    const service = createHttpService(url, { fetch, storage: new MemoryStorage() });
+    await service.register('eiche', 'geheim123');
+    const backend = service.backend({ name: 'eiche' });
+    expect(await backend.insert({ data: 'S1', version: 1, device: 'A', actionVersion: 1, schema: 9 })).toBe('ok');
+    clock += 7000;
+    expect((await backend.fetch())?.ageMs).toBe(7000);
+    full = true;
+    await expect(backend.update(1, { data: 'S2', version: 2, device: 'A', schema: 9 })).rejects.toMatchObject({ code: 'storage-full' });
+    await expect(createHttpService(url, { fetch, storage: new MemoryStorage() }).register('buche', 'geheim123')).rejects.toMatchObject({
+      code: 'storage-full',
+    });
+    full = false;
+    await service.register('buche', 'geheim123');
+    await service.register('linde', 'geheim123');
+    await expect(service.register('ahorn', 'geheim123')).rejects.toMatchObject({ code: 'registration-closed' });
   });
 
   it('abgelaufene Sitzung: vergessen und gemeldet; offline bleibt man angemeldet', async () => {

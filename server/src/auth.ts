@@ -12,14 +12,30 @@ export const USERNAME_MAX = 32;
 export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 200;
 
-const SCRYPT = { N: 16384, r: 8, p: 1 } as const;
+/** N = 2^15 (32 MB Speicher je Rechnung). Die Parameter stehen im Hash – ältere bleiben prüfbar. */
+export const SCRYPT = { N: 32768, r: 8, p: 1 } as const;
 const KEY_LENGTH = 64;
 const SALT_BYTES = 16;
+const MAXMEM = 64 * 1024 * 1024;
+/** Höchstens so viele scrypt-Rechnungen gleichzeitig (Speicherlimit des Containers: 256 MB). */
+const MAX_PARALLEL = 2;
 
-function scrypt(password: string, salt: Buffer, keylen: number, options: ScryptOptions): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    scryptCb(password, salt, keylen, options, (error, key) => (error ? reject(error) : resolve(key)));
-  });
+let active = 0;
+const waiting: (() => void)[] = [];
+
+async function scrypt(password: string, salt: Buffer, keylen: number, options: ScryptOptions): Promise<Buffer> {
+  // Freier Platz: belegen. Sonst warten – der Platz wird beim Freigeben direkt übergeben.
+  if (active < MAX_PARALLEL) active++;
+  else await new Promise<void>((resolve) => waiting.push(resolve));
+  try {
+    return await new Promise((resolve, reject) => {
+      scryptCb(password, salt, keylen, options, (error, key) => (error ? reject(error) : resolve(key)));
+    });
+  } finally {
+    const next = waiting.shift();
+    if (next) next();
+    else active--;
+  }
 }
 
 /**
@@ -40,7 +56,7 @@ export function isValidPassword(value: unknown): value is string {
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(SALT_BYTES);
-  const key = await scrypt(password, salt, KEY_LENGTH, { ...SCRYPT, maxmem: 64 * 1024 * 1024 });
+  const key = await scrypt(password, salt, KEY_LENGTH, { ...SCRYPT, maxmem: MAXMEM });
   return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt.toString('base64')}$${key.toString('base64')}`;
 }
 
@@ -54,7 +70,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
   const expected = Buffer.from(parts[5]!, 'base64');
   if (expected.length === 0) return false;
   try {
-    const key = await scrypt(password, salt, expected.length, { N, r, p, maxmem: 64 * 1024 * 1024 });
+    const key = await scrypt(password, salt, expected.length, { N, r, p, maxmem: MAXMEM });
     return timingSafeEqual(key, expected);
   } catch {
     return false;
