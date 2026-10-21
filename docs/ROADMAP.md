@@ -103,6 +103,10 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 
 - [ ] 2.11 Harmonie als spürbarer Hebel (Multiplikator stärker als `1 + H/100`), Tempo
   Wald und Urwald auf 1,15–1,2 × Zeitziel, Simulator-Nachweis (`game-designer`)
+  - [x] Untersuchung: Ziel G/H 0,95–1,05 ist mit keinem Multiplikator erreichbar (Grenze
+    ≈ 0,90), siehe DESIGN_V2.md 15.4 „Untersuchung Schritt 2.11“; Tempo Wald/Urwald
+    liegt schon bei 1,15 / 1,20 × Ziel
+  - [ ] Entscheidung PO zwischen den drei Optionen dort, danach Umsetzung
 
 ## Phase 3 – Tiefe
 

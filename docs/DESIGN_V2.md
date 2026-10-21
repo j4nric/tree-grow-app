@@ -1611,6 +1611,67 @@ nach dem Hain (Median < 9 min, 90 % < 11 min); Lebensgemeinschaften; Baumarten i
 ±5 % der Eiche; Zyklus 2 20–35 % schneller, erste Stammgäste nach 1–2 Zyklen, Harmonie
 bringt über drei Zyklen mindestens so viel Waldgedächtnis wie Wachstum.
 
+#### Untersuchung Schritt 2.11 – Harmonie als Hebel (offen, Entscheidung PO nötig)
+
+Frage: Lässt sich der Harmonie-Multiplikator so verstärken, dass Harmonie- und
+Wachstums-Spieler ungefähr gleich schnell sind (Zeit Wachstum / Zeit Harmonie
+0,95–1,05)? Gemessen mit dem Simulator wie in 2.10 (alle Systeme, Eiche), 150 Durchgänge
+je Variante (einzelne Zeilen 40 bzw. 100, markiert); jede Formel wirkt wie heute auf 🌿
+und 🌰. **Ergebnis: Mit keiner Formel erreichbar** – Spielzahlen bleiben unverändert.
+
+| Multiplikator M(H) | Hain Harmonie-Spieler | G/H Hain | G/H Wald | G/H Urwald | ⚖️ Hain H / G |
+|---|---|---|---|---|---|
+| `1 + H/100` (heute) | 1:03:26 h | 0,866 | 0,859 | 0,848 | 106,7 / 100,6 |
+| `1 + H/50` (100) | 42:40 min | 0,883 | 0,860 | – | 106,9 / 100,3 |
+| `1 + (H/100)²` | 1:06:44 h | 0,885 | 0,866 | 0,879 | 106,4 / 102,9 |
+| `(1 + H/100)²` | 33:03 min | 0,882 | 0,891 | 0,900 | 106,5 / 102,7 |
+| `1,0075^H` | 1:01:08 h | 0,881 | 0,864 | 0,866 | 106,5 / 102,2 |
+| `1,01^H` („jeder Punkt ×1,01“) | 48:29 min | 0,885 | 0,894 | 0,887 | 106,0 / 102,8 |
+| `1,015^H` | 31:04 min | 0,900 | 0,912 | 0,934 | 106,3 / 104,4 |
+| `1,02^H` / `1,03^H` / `1,05^H` (100) | 19:33 / 8:05 / 1:43 min | 0,888 / 0,888 / 0,866 | 0,907 / 0,891 / 0,855 | – | 107 / 108 (G ≥ H) |
+| Stimmungsstufen: `(1 + H/100) · 1,1^Stufe` | 49:16 min | 0,873 | 0,872 | 0,869 | 105,8 / 101,8 |
+| … `· 1,2^Stufe` | 39:48 min | 0,877 | 0,889 | 0,880 | 106,8 / 101,1 |
+| `(1 + H/100) · 1,15^⌊H/20⌋` | 35:57 min | 0,899 | 0,923 | 0,926 | 106,9 / 100,1 |
+| nur auf 🌰 stärker (`1 + H/50`, `(1 + H/100)²` bzw. `³`; 🌿 wie heute) (40) | ~1:02 h | 0,875–0,884 | 0,842–0,851 | 0,839–0,849 | |
+
+Gegenproben (je 100–150 Durchgänge, M wie heute, wenn nicht anders genannt):
+🌿-Wirkungen der Arten und Bäume-Boni halbiert 0,866 → 0,905 (Hain), zusammen mit
+`1,01^H` 0,930 / Wald 0,906; eine zusätzliche Pflege-Senke mit +10 % 🌿 je Rang (Samen
+werden wertvoller, der Harmonie-Spieler hat 60 % mehr davon) 0,877 bzw. mit `1,01^H` und
+`1,02^H` auf 🌰 0,895; gekaufte Pflanzen zwischen den Strategien getauscht ±2 Punkte.
+
+**Warum es nicht geht**
+
+- Der Wachstums-Spieler maximiert die *echte* 🌿-Rate – sie enthält den Multiplikator.
+  Je stärker Harmonie wirkt, desto mehr Harmonie nimmt er selbst mit (bei `1,02^H` und
+  steiler hat er beim Alten Baum sogar mehr Harmonie als der Harmonie-Spieler). Er ist
+  die bestmögliche kurzsichtige Mischung; der Harmonie-Spieler nimmt dagegen jeden
+  Bruchteil eines Harmoniepunkts, auch gegen −20 % 🌿. Die Grenze liegt bei G/H ≈ 0,90.
+- Harmonie ist fast „gratis“: Jede Art bringt Vielfalt, Zufriedenheit und Pyramide.
+  Selbst ein Spieler, der Harmonie ganz übersieht (wählt nach 🌿 ohne Multiplikator),
+  hat beim Hain nur ~10 Punkte (−10 %) weniger. Ein Multiplikator auf H kann aus 10 %
+  Unterschied nur mit sehr steilen Formeln 15 % Tempo machen – und die beschleunigen das
+  ganze Spiel (Hain 8–33 min) und verlangen eine neue Wegpunkt-Kurve (Spielstand v8).
+- Der Vorsprung beim Hain (🌿/s +14,6 %) setzt sich zusammen aus Arten-🌿 (+6,8 %),
+  Bäume-Bonus des Hauptbaums (+5,6 %), Begleitpflanzen (+35 % auf ~20 % Anteil, ≈ +7 %)
+  und Harmonie (−3 %). Wird eine Quelle gekürzt, weicht der Wachstums-Spieler auf die
+  nächste aus.
+
+**Optionen für die Entscheidung**
+
+1. Ziel anpassen: Harmonie lohnt sich über *andere* Belohnungen (Waldgedächtnis,
+   Stimmung, Lebensgemeinschaften); Tempo-Abstand bleibt ≤ 15 %. Optional `1,01^H`
+   („jeder Harmoniepunkt ×1,01“) für einen spürbareren Hebel (+1 % statt +0,5 % je
+   Punkt beim Hain, G/H ≈ 0,89) – braucht dann eine flachere Kurve für Hain/Wald/Urwald.
+2. Harmonie teurer machen statt stärker: Wachstums-Karten kosten spürbar Harmonie (z. B.
+   größere Abzüge für störende Arten, Fraß), sodass der Abstand der Strategien von ~6 auf
+   15–20 Punkte wächst – erst dann greift ein stärkerer Multiplikator. Großes Balancing
+   wie 2.10.
+3. Vergleich anders fassen: „reiner Wachstums-Spieler“ (sieht den Multiplikator nicht)
+   als Maßstab; mit `1,0125^H` liegt er beim Urwald gleichauf (1,02), beim Hain bei 0,91.
+
+Tempo Wald und Urwald ist unverändert im Ziel (2.10: 1,15 bzw. 1,20 × Zeitziel).
+
 #### Stand Schritt 2.10 – Balancing aller Zahlen (500 Durchgänge, alle Systeme)
 
 Gemessen mit allen Systemen (Pflege, Ereignisse, Gäste, Jahreszeiten, Eiche) und dem
