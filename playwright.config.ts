@@ -8,6 +8,12 @@ const PORT = Number(process.env.E2E_PORT ?? 4173);
 /** Sync-Server für die Konto-Tests (server/, SQLite im Speicher) – Standard: Spiel-Port + 1. */
 const SYNC_PORT = Number(process.env.E2E_SYNC_PORT ?? PORT + 1);
 const CI = !!process.env.CI;
+/*
+ * Netz-Emulation (setOffline, route) auch für Service Worker – sonst holte der Service
+ * Worker in e2e/pwa.spec.ts „offline“ trotzdem aus dem Netz. Ohne Wirkung auf die übrigen
+ * Tests: Dort meldet das Spiel keinen Service Worker an (src/ui/pwa.ts).
+ */
+process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS ??= '1';
 
 /**
  * End-to-End-Tests gegen den Produktions-Build (vite preview).

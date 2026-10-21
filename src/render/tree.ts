@@ -16,6 +16,10 @@
  *   5. Hauptbaum                                           (neu bei growth)
  *   6. Tiere: gecachte Sprites je Art, pro Frame nur drawImage
  *   7. Stimmung (optional, Harmoniestufe): Strahlen-Sprite, Partikel, Lichtfarbe
+ *   Tag und Nacht (optional, daylight.ts): getönte Kopien von Kulisse (mit Nacht- bzw.
+ *      Dämmerungshimmel), Baum-Ebenen und Erinnerungsbaum – neu nur bei neuer
+ *      Tönungsstufe oder neu gezeichneten Ebenen; pro Frame nur Sterne und Mond dazu.
+ *      Tiere, Gäste und Partikel liegen darüber und bleiben hell.
  *   Durchreisende (optional): Kraniche hinter dem Baum, Schwärme und Falter davor
  * Wind ist nur eine Scherung der gecachten Baum-Ebenen um die Bodenlinie – gezeichnet als
  * waagerecht verschobene Streifen statt schiefer Kopie (wind.ts); Tiere am Baum werden
@@ -42,6 +46,7 @@ import { paintNeedleClumps, paintPlant } from './flora-paint';
 import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
 import { paintLeaves, paintWood, TREE_FORMS, type LeafPalette, type WoodColors } from './plant';
 import { cycleElapsed, CycleTransition, type CycleGeometry, type OldForest } from './cycle';
+import { DayLayer, paintDaySky, tintCopy, tintInPlace, type DayFrame, type DayLevels } from './daylight';
 import { MoodLayer, type MoodFrame } from './mood';
 import {
   normalizeSpecies,
@@ -163,6 +168,16 @@ export interface SceneInput {
    * wie bisher.
    */
   camera?: Readonly<CameraView>;
+  /**
+   * Tageszeit als Tagesanteil 0–1 (DESIGN_V2.md 19): 0 Mitternacht, 0,25 Sonnenaufgang,
+   * 0,5 Mittag, 0,75 Sonnenuntergang; Werte außerhalb modulo 1, ungültige wie ohne Angabe.
+   * Am hellen Tag (etwa 0,27–0,73) und ohne Angabe sieht die Szene aus wie bisher. Dämmerung:
+   * warmer Horizont und warmes Licht; Nacht: dunkelblauer Himmel mit Sternen und Mond,
+   * gedämpfte Landschaft, Tiere bleiben hell, Glühwürmchen leuchten stärker. Sprünge (z. B.
+   * Neuer Zyklus) gleiten in wenigen Sekunden über; bei `reducedMotion` ändert sich das
+   * Bild nur in Stufen (DAY_BUCKETS je Tag) und ohne Funkeln.
+   */
+  dayPhase?: number;
 }
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
@@ -297,6 +312,33 @@ interface SizeCache {
   baseKey: string;
   /** Krone des Hauptbaums für Gäste (CSS-Pixel: Mitte x, y, Radien) oder null. */
   crown: [number, number, number, number] | null;
+  /**
+   * Zählen das Neuzeichnen der Ebenen (Wachstum: Hintergrund mit Wurzeln, Baum-Ebenen), der
+   * statischen Kulisse (Größe, Jahreszeit) und des Erinnerungsbaums – für die Tönung.
+   */
+  version: number;
+  staticVersion: number;
+  memoryVersion: number;
+  /** Getönte Kopien für Tag und Nacht (null = keine). */
+  tint: TintSet | null;
+}
+
+/**
+ * Getönte Kopien der Ebenen eines Satzes (Tag und Nacht): Kulisse mit Himmel in voller
+ * Größe, Baum-Ebenen und Erinnerungsbaum nur so groß wie ihr belegter Bereich.
+ */
+interface TintSet {
+  /** Tönungsstufe und Versionen (Ebenen, Kulisse, Erinnerungsbaum), mit denen getönt wurde. */
+  key: number;
+  version: number;
+  staticVersion: number;
+  memoryVersion: number;
+  background: HTMLCanvasElement;
+  back: HTMLCanvasElement | null;
+  front: HTMLCanvasElement | null;
+  memory: HTMLCanvasElement | null;
+  /** Wolken-Sprites (gleiche Reihenfolge wie `SizeCache.clouds`). */
+  clouds: HTMLCanvasElement[];
 }
 
 interface Cache {
@@ -335,6 +377,12 @@ interface Cache {
   season: number | null;
   /** Lichtschein am Samen (nur in der Stufe „Samen“). */
   seedGlow: SeedGlow;
+  /** Tag und Nacht (Überblendung, Tönungsstufe, Sterne, Mond). */
+  day: DayLayer;
+  /** Stärken der Tageszeit in diesem Frame (null = heller Tag oder ohne Angabe). */
+  dayNow: DayLevels | null;
+  /** Wie oft getönt wurde (für Tests). */
+  tintBuilds: number;
 }
 
 /**
@@ -384,6 +432,7 @@ const NO_ANIMALS: readonly SceneAnimal[] = [];
 /** Wiederverwendete Frame-Daten für die Tier-Ebene (keine Allokation pro Frame). */
 const animalFrame: AnimalFrame = { time: 0, windSkew: 0, reducedMotion: false, dpr: 1, sx: 1, sy: 1 };
 const seasonFrame: SeasonFrame = { width: 1, groundY: 1, top: 0, dpr: 1, sx: 1, sy: 1, time: 0, reducedMotion: false };
+const dayFrame: DayFrame = { width: 1, height: 1, groundY: 1, dpr: 1, sx: 1, sy: 1, tx: 0, ty: 0, baseDpr: 1, time: 0, reducedMotion: false };
 const moodFrame: MoodFrame = { width: 1, height: 1, groundY: 1, top: 0, dpr: 1, sx: 1, sy: 1, time: 0, reducedMotion: false };
 const visitorFrame: VisitorFrame = {
   width: 1,
@@ -450,6 +499,9 @@ function drawSheared(
   sy: number,
   tx: number,
   ty: number,
+  /** Ursprung der Quelle in Pixeln der Ebenen (getönte Kopie nur des Bereichs; sonst 0). */
+  srcX = 0,
+  srcY = 0,
 ): void {
   ctx.setTransform(sx, 0, 0, sy, tx, ty);
   const b = shearBands;
@@ -473,8 +525,102 @@ function drawSheared(
       x = x0;
       w = x1 - x0;
     }
-    ctx.drawImage(layer, x, y, w, h, x + dx, y, w, h);
+    ctx.drawImage(layer, x - srcX, y - srcY, w, h, x + dx, y, w, h);
   }
+}
+
+/**
+ * Tönt die Ebenen eines Satzes für die aktuelle Tönungsstufe (Tag und Nacht): Kulisse mit
+ * Nacht- bzw. Dämmerungshimmel und Lichtfarbe, Baum-Ebenen und Erinnerungsbaum nur in der
+ * Lichtfarbe. Neu nur bei neuer Stufe oder wenn die Ebenen neu gezeichnet wurden.
+ */
+function updateTint(sc: SizeCache, cache: Cache): void {
+  const day = cache.day;
+  const t = sc.tint;
+  const keyChanged = !t || t.key !== day.tintKey;
+  const full = keyChanged || t.staticVersion !== sc.staticVersion;
+  const layers = full || t.version !== sc.version;
+  const memory = full || t.memoryVersion !== sc.memoryVersion;
+  if (!layers && !memory) return;
+  const fill = day.tintFill;
+  const set: TintSet = t ?? {
+    key: -1,
+    version: -1,
+    staticVersion: -1,
+    memoryVersion: -1,
+    background: document.createElement('canvas'),
+    back: null,
+    front: null,
+    memory: null,
+    clouds: [],
+  };
+  if (layers) {
+    // Kulisse: Kopie, Himmel der Stufe darüber, dann die Lichtfarbe. Hat sich nur das
+    // Wachstum geändert (Wurzeln, Grasnarbe), genügt der Streifen ab der Grasnarbe.
+    const bg = set.background;
+    if (bg.width !== sc.pw || bg.height !== sc.ph) {
+      bg.width = sc.pw;
+      bg.height = sc.ph;
+    }
+    const y0 = full ? 0 : sc.grassTop;
+    const h = sc.ph - y0;
+    const c = bg.getContext('2d')!;
+    c.save();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.beginPath();
+    c.rect(0, y0, sc.pw, h);
+    c.clip();
+    c.globalCompositeOperation = 'copy';
+    c.drawImage(sc.background, 0, y0, sc.pw, h, 0, y0, sc.pw, h);
+    c.globalCompositeOperation = 'source-over';
+    sceneTransform(c, sc);
+    paintDaySky(c, day.tint, sc.layout.width, sc.layout.groundY);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalCompositeOperation = 'multiply';
+    c.fillStyle = fill;
+    c.fillRect(0, y0, sc.pw, h);
+    c.restore();
+    set.back = sc.backRect ? tintCopy(sc.back, sc.backRect, set.back, fill) : freeCanvas(set.back);
+    set.front = sc.frontRect ? tintCopy(sc.front, sc.frontRect, set.front, fill) : freeCanvas(set.front);
+    set.version = sc.version;
+    set.staticVersion = sc.staticVersion;
+  }
+  if (memory) {
+    const mr = sc.memoryRect;
+    set.memory = sc.memoryCanvas && mr ? tintCopy(sc.memoryCanvas, { x: 0, y: 0, w: mr.w, h: mr.h }, set.memory, fill) : freeCanvas(set.memory);
+    set.memoryVersion = sc.memoryVersion;
+  }
+  if (keyChanged) {
+    // Wolken dunkler als die Landschaft (Lichtfarbe zweimal), damit sie nicht leuchten.
+    sc.clouds.forEach((cl, i) => {
+      const r = { x: 0, y: 0, w: cl.sprite.width, h: cl.sprite.height };
+      set.clouds[i] = tintCopy(cl.sprite, r, set.clouds[i] ?? null, day.cloudFill);
+    });
+  }
+  set.key = day.tintKey;
+  sc.tint = set;
+  cache.tintBuilds++;
+}
+
+/** Gibt ein Canvas frei (Safari: Größe 0) und liefert null. */
+function freeCanvas(c: HTMLCanvasElement | null): null {
+  if (c) {
+    c.width = 0;
+    c.height = 0;
+  }
+  return null;
+}
+
+/** Gibt die getönten Kopien eines Satzes frei (heller Tag, neuer Satz). */
+function releaseTint(sc: SizeCache): void {
+  const t = sc.tint;
+  if (!t) return;
+  freeCanvas(t.background);
+  freeCanvas(t.back);
+  freeCanvas(t.front);
+  freeCanvas(t.memory);
+  for (const c of t.clouds) freeCanvas(c);
+  sc.tint = null;
 }
 
 /**
@@ -538,9 +684,15 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       camSince: 0,
       camFrames: 0,
       seedGlow: new SeedGlow(),
+      day: new DayLayer(),
+      dayNow: null,
+      tintBuilds: 0,
     };
     caches.set(ctx.canvas, cache);
   }
+
+  // Tageszeit dieses Frames (vor den Ebenen: der alte Wald des Zyklus-Übergangs wird getönt).
+  cache.dayNow = cache.day.update(input.dayPhase, time, input.reducedMotion === true);
 
   // Jahreszeit dieses Frames (gemerkt je Rundung – keine Allokation pro Frame).
   const look = seasonLook(input.season);
@@ -585,6 +737,9 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const sc = cam && detail && detail.layout.width === width && detail.layout.height === height && covers(detail, cam) ? detail : base;
 
   updateLayers(sc, base, cache, input, g, time, look);
+  // Tag und Nacht: getönte Kopien nur bei neuer Stufe oder neu gezeichneten Ebenen.
+  if (cache.dayNow) updateTint(sc, cache);
+  else if (sc.tint) releaseTint(sc);
 
   // Sprites einer alten Tiergröße verwerfen. Die Auflösung gehört nicht dazu: Sprites je
   // Auflösungsstufe (Kamera) bleiben erhalten – ihr Schlüssel im SpriteCache enthält sie.
@@ -667,6 +822,7 @@ const WIND_MAX_SKEW = 0.0145;
 
 /** Gibt den Speicher eines Ebenen-Satzes frei (Safari: Größe auf 0 setzen). */
 function releaseSizeCache(sc: SizeCache): void {
+  releaseTint(sc);
   for (const c of [sc.scenery, sc.grass, sc.background, sc.back, sc.front, sc.plants, sc.memoryCanvas]) {
     if (c) {
       c.width = 0;
@@ -688,6 +844,7 @@ function updateLayers(sc: SizeCache, base: SizeCache, cache: Cache, input: Scene
   if (seasonChanged) {
     paintStatic(sc, look);
     sc.seasonKey = seasonKey;
+    sc.staticVersion++;
   }
 
   // Art des Hauptbaums: bei einem Wechsel alle Baum-Ebenen und den Erinnerungsbaum neu.
@@ -715,7 +872,10 @@ function updateLayers(sc: SizeCache, base: SizeCache, cache: Cache, input: Scene
     const cycleKey = `${ct.startedAt}|${fromGrowth}|${base.key}|${fromTree}|${species}`;
     if (!cache.cycle.prepared || cache.cycle.key !== cycleKey || !samePlants(cache.cyclePlants, ct.fromPlants)) {
       cache.cyclePlants = ct.fromPlants ? ct.fromPlants.map(plantSig) : null;
-      cache.cycle.prepare(cycleKey, cycleGeometry(base), paintOldForest(base, fromGrowth, ct.fromPlants, look, fromTree), species);
+      const old = paintOldForest(base, fromGrowth, ct.fromPlants, look, fromTree);
+      // Nachts der alte Wald in der Lichtfarbe beim Start (bleibt für den Übergang so).
+      if (old && cache.dayNow) tintInPlace(old.canvas, cache.day.tintFill);
+      cache.cycle.prepare(cycleKey, cycleGeometry(base), old, species);
     }
   }
 
@@ -769,6 +929,10 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   const layer = cache.animals;
   // Auflösung der Sprites: Basis × 1, 2 oder 4 (je Stufe gecacht, nicht je Zoomwert).
   const spriteDpr = sc.zoom <= 1 ? dpr : sc.baseDpr * (sc.zoom <= 2 ? 2 : 4);
+  // Tag und Nacht: getönte Kopien der Ebenen (gleiche Lage, Baum-Ebenen nur ihr Bereich).
+  const day = cache.dayNow;
+  const tint = day ? sc.tint : null;
+  const bg = tint ? tint.background : sc.background;
   ctx.save();
   ctx.setTransform(sx, 0, 0, sy, m.cx, m.cy);
   const v = visible;
@@ -778,9 +942,26 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     v.y0 = Math.max(0, Math.floor(-m.cy / sy) - 1);
     v.x1 = Math.min(sc.pw, Math.ceil((ctx.canvas.width - m.cx) / sx) + 1);
     v.y1 = Math.min(sc.ph, Math.ceil((ctx.canvas.height - m.cy) / sy) + 1);
-    if (v.x1 > v.x0 && v.y1 > v.y0) ctx.drawImage(sc.background, v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0, v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0);
+    if (v.x1 > v.x0 && v.y1 > v.y0) ctx.drawImage(bg, v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0, v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0);
   } else {
-    ctx.drawImage(sc.background, 0, 0);
+    ctx.drawImage(bg, 0, 0);
+  }
+  // Tag und Nacht: Sterne und Mond direkt über der (getönten) Kulisse.
+  if (day) {
+    const df = dayFrame;
+    df.width = layout.width;
+    df.height = layout.height;
+    df.groundY = layout.groundY;
+    df.dpr = dpr;
+    df.sx = sx;
+    df.sy = sy;
+    df.tx = m.tx;
+    df.ty = m.ty;
+    df.baseDpr = sc.baseDpr;
+    df.time = time;
+    df.reducedMotion = reduced;
+    cache.day.drawLights(ctx, day, df);
+    ctx.setTransform(sx, 0, 0, sy, m.cx, m.cy);
   }
   // Spielbeginn: warmer, sanft pulsierender Schein am Samen (bis zum Keimling).
   // Beim Neuen Zyklus erst nach dem Aufleuchten aus cycle.ts (siehe seedGlowCycleFade).
@@ -792,11 +973,12 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   }
   if (sc.memoryCanvas && sc.memoryRect) {
     const r = sc.memoryRect;
-    ctx.drawImage(sc.memoryCanvas, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+    ctx.drawImage(tint?.memory ?? sc.memoryCanvas, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
   }
   // Wolken liegen in Szenen-Pixeln × dpr (ohne Ursprung der Ebenen).
   ctx.setTransform(sx, 0, 0, sy, m.tx, m.ty);
-  drawClouds(ctx, sc.clouds, layout.width, reduced ? 0 : time, dpr);
+  // Nachts treten die Wolken zurück (sie würden sonst über dem dunklen Himmel leuchten).
+  drawClouds(ctx, sc.clouds, layout.width, reduced ? 0 : time, dpr, day ? 0.9 * (1 - 0.35 * day.night) : 0.9, tint ? tint.clouds : null);
 
   // Stimmung und Gäste nur, wenn angegeben – sonst bleibt das Bild exakt wie bisher.
   const level = cache.mood.update(input.harmonyTier, time, reduced);
@@ -817,6 +999,8 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     // Ungerundete Jahreszeit: stufenlos, ohne Sprünge bei jeder Rundungsstufe.
     mf.bloom = bloomParticles(cache.season);
     mf.fireflies = fireflySeason(cache.season);
+    mf.sun = day ? day.sun : undefined;
+    mf.night = day ? day.night : undefined;
   }
   const visitors = input.visitors && input.visitors.length > 0 ? input.visitors : null;
   const vf = visitorFrame;
@@ -857,13 +1041,17 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   const quantum = windQuantum(dpr);
   if (sc.backRect) {
     const kb = reduced ? 0 : windSkew(time, 1.9) * 0.7;
-    drawSheared(ctx, sc.back, sc.backRect, kb, groundPx, quantum, sx, sy, m.cx, m.cy);
+    const r = sc.backRect;
+    if (tint?.back) drawSheared(ctx, tint.back, r, kb, groundPx, quantum, sx, sy, m.cx, m.cy, r.x, r.y);
+    else drawSheared(ctx, sc.back, r, kb, groundPx, quantum, sx, sy, m.cx, m.cy);
   }
   // Wildschweine auf der Wiese: vor den Begleitpflanzen, hinter dem Hauptbaum.
   if (visitors) cache.visitors.draw(ctx, visitors, 'meadow', vf);
   const k = reduced ? 0 : windSkew(time, 0);
   if (sc.frontRect) {
-    drawSheared(ctx, sc.front, sc.frontRect, k, groundPx, quantum, sx, sy, m.cx, m.cy);
+    const r = sc.frontRect;
+    if (tint?.front) drawSheared(ctx, tint.front, r, k, groundPx, quantum, sx, sy, m.cx, m.cy, r.x, r.y);
+    else drawSheared(ctx, sc.front, r, k, groundPx, quantum, sx, sy, m.cx, m.cy);
   }
   if (visitors) {
     vf.windSkew = k;
@@ -877,6 +1065,7 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     f.windSkew = k;
     f.reducedMotion = reduced;
     f.season = cache.season;
+    f.night = day ? day.night : 0;
     f.dpr = dpr;
     f.sx = sx;
     f.sy = sy;
@@ -942,6 +1131,7 @@ export function memoryGrowth(forestMemory: number | undefined): number {
 /** Erinnerungsbaum: fern und blass auf dem Hügel links – in ein eigenes Canvas (nur sein Bereich). */
 function renderMemory(sc: SizeCache, memory: number, look: SeasonLook | null, species: TreeSpecies): void {
   sc.memory = memory;
+  sc.memoryVersion++;
   sc.memoryRect = null;
   if (memory <= 0) {
     if (sc.memoryCanvas) {
@@ -1017,6 +1207,8 @@ function buildSizeCache(
   /** Detail-Ebenen: Ausschnitt (Anteile), Größe der ganzen Szene in Pixeln, Zoom. */
   view?: { oxN: number; oyN: number; fullW: number; fullH: number; zoom: number; baseDpr: number; baseKey: string; covL: number; covT: number },
 ): SizeCache {
+  // Getönte Kopien des alten Satzes passen nicht mehr (neue Größe bzw. neuer Ausschnitt).
+  if (old) releaseTint(old);
   const layout = makeLayout(width, height);
   const sized = (c: HTMLCanvasElement | undefined) => {
     const canvas = c ?? document.createElement('canvas');
@@ -1068,6 +1260,10 @@ function buildSizeCache(
     baseDpr: view?.baseDpr ?? dpr,
     baseKey: view?.baseKey ?? key,
     crown: null,
+    version: 0,
+    staticVersion: 0,
+    memoryVersion: 0,
+    tint: null,
   };
 
   paintStatic(sc, look);
@@ -1202,6 +1398,7 @@ function renderLayers(
   const leaves = look ? look.leaves : 1;
   const { dpr, layout } = sc;
   const withPlants = plants !== undefined;
+  sc.version++;
   const neighbors = neighborTrees(g, layout, withPlants);
 
   // Hauptbaum zuerst berechnen – Wurzeln und Tier-Ankerpunkte richten sich nach ihm.

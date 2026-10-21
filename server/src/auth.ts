@@ -91,3 +91,23 @@ export function newToken(): string {
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
+
+/** Mindestlänge des Admin-Tokens (ADMIN_BACKUP_TOKEN), z. B. `openssl rand -hex 32` = 64 Zeichen. */
+export const ADMIN_TOKEN_MIN = 32;
+
+/**
+ * Admin-Token aus der Umgebung: ohne Rand-Leerraum, 32–1000 druckbare ASCII-Zeichen ohne
+ * Leerzeichen – sonst null (Endpunkt bleibt aus).
+ */
+export function parseAdminToken(value: string | undefined): string | null {
+  const token = (value ?? '').trim();
+  if (token.length < ADMIN_TOKEN_MIN || token.length > 1000) return null;
+  return /^[\x21-\x7e]+$/.test(token) ? token : null;
+}
+
+/** Vergleicht zwei Token in konstanter Zeit (über ihre SHA-256-Hashes – auch die Länge verrät nichts). */
+export function tokensEqual(given: string, expected: string): boolean {
+  const a = createHash('sha256').update(given).digest();
+  const b = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(a, b);
+}

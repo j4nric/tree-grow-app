@@ -359,7 +359,8 @@ describe('Waldtümpel im Erdschnitt', () => {
     return out;
   }
 
-  it('1–5 Bewohner überlappen sich nie und bleiben samt Bewegung in der Senke (alle Belegungen)', () => {
+  // Alle Belegungen und Größen: unter paralleler Last (npm run check) mehr als 5 s.
+  it('1–5 Bewohner überlappen sich nie und bleiben samt Bewegung in der Senke (alle Belegungen)', { timeout: 30_000 }, () => {
     for (const [w, h] of POND_SIZES) {
       for (const g of [4, 6, 8]) {
         const layout = makeLayout(w, h);

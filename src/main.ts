@@ -1,7 +1,8 @@
 import { CARE } from './content/care';
+import { NOON_PHASE } from './content/daytime';
 import { checkAchievements } from './core/achievements';
 import { dayKeyOf, updateDaily, type DailyUpdateOptions } from './core/daily';
-import { evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
+import { dayPhaseAt, evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
 import { sceneSeason } from './core/season';
 import { createInitialState, type GameState } from './core/state';
@@ -74,6 +75,7 @@ import { IMPORT_ERROR_TEXTS, createSaveTransfer, type SaveTransfer } from './ui/
 import { isDeliberateConfirm } from './ui/confirm';
 import { formatNumber } from './ui/format';
 import { createSeasonBadge } from './ui/season-badge';
+import { setupServiceWorker } from './ui/pwa';
 import { seasonChangeText, toSeasonBadgeView } from './ui/season-view';
 import type { MainTreeId } from './content/trees';
 import type { EcosystemView } from './ui/view-model';
@@ -1039,6 +1041,8 @@ function frame(now: number): void {
   scene.time = now / 1000;
   // Jahreszeit stufenlos aus der Spielzeit (tick läuft jeden Frame), Art des Hauptbaums.
   scene.season = sceneSeason(state.cycle.elapsed);
+  // Tageszeit aus derselben Spielzeit (DESIGN_V2.md 19); Einstellung „Immer Tag“ → Mittag.
+  scene.dayPhase = preferences.settings.daytime === 'day' ? NOON_PHASE : dayPhaseAt(state.cycle.elapsed);
   scene.mainTree = state.cycle.mainTree;
   drawScene(ctx, size.width, size.height, scene);
   // Klang folgt der Szene (Jahreszeit, Harmoniestufe); gedrosselt, still ohne Web Audio.
@@ -1157,6 +1161,13 @@ function start(): void {
   window.addEventListener('beforeunload', () => {
     persist();
     account?.flush();
+  });
+  // Installierbare App: Offline-Start und Hinweis auf neue Versionen (nur im Build).
+  setupServiceWorker({
+    beforeReload: () => {
+      persist();
+      return account?.flush();
+    },
   });
 
   refreshViews(performance.now());

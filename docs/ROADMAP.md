@@ -266,13 +266,16 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
 
 **Welle 1 – Betrieb & kurze Besuche**
 
-- [ ] Sicherung außerhalb des Servers (`core-engineer`, Server/Deploy): tägliches,
+- [x] Sicherung außerhalb des Servers (`core-engineer`, Server/Deploy): tägliches,
   verschlüsseltes Backup des Sync-Servers als GitHub-Actions-Artefakt (Abruf über
   geschützten Admin-Endpunkt), Wiederherstellung dokumentiert in `docs/KONTO.md`
-- [ ] Überwachung (`core-engineer`): stündlicher Workflow prüft `sync…/api/health` und die
+- [x] Überwachung (`core-engineer`): stündlicher Workflow prüft `sync…/api/health` und die
   Spielseite, meldet Ausfälle als GitHub-Issue (schließt es wieder, wenn alles läuft)
-- [ ] Installierbare App / PWA (`ui-dev`): Manifest, Icons, Service Worker mit Offline-Start,
-  Update-Hinweis bei neuer Version; Sync bleibt online-only
+- [x] Installierbare App / PWA (`ui-dev`): Manifest, Icons, Service Worker mit Offline-Start,
+  Update-Hinweis bei neuer Version; Sync bleibt online-only – `public/manifest.webmanifest`,
+  Icons aus `scripts/generate-icons.ts`, Service Worker von Hand in `src/pwa/service-worker.ts`
+  (beim Bauen als `dist/sw.js` mit Dateiliste und Inhalts-Version), Anmeldung und Hinweis
+  „Neue Version verfügbar – neu laden“ in `src/ui/pwa.ts`; e2e in `e2e/pwa.spec.ts`
 - [x] Tagesziele (Design `game-designer`, Logik `core-engineer`, Anzeige `ui-dev`): 2–3
   Aufgaben pro Tag aus dem Naturtagebuch, Belohnung Samen bzw. seltene Begegnung;
   deterministisch aus Datum + Seed, Tageswechsel bei aktivem Konto nach Serverzeit
@@ -283,6 +286,11 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
 - [ ] Tag und Nacht (Grafik `renderer`, Wirkung `game-designer`): kurzer Tag-Nacht-Wechsel
   in der Szene, nachtaktive Arten (Fledermaus, Waldkauz, Glühwürmchen, Igel) mit
   Sichtbarkeit bzw. Effekten nur nachts
+  - [x] Grafik (renderer): `SceneInput.dayPhase` 0–1 aus `dayPhaseAt(cycle.elapsed)`
+    (`DAY_SECONDS` = 180 s = eine Jahreszeit, jede Jahreszeit ein ganzer Tag), Dämmerung, Nacht mit Sternen und Mond,
+    Glühwürmchen leuchten nachts stärker, Einstellung „Tageszeit“ (Wechsel / Immer Tag),
+    Demo `?phase=` – DESIGN_V2.md 19
+  - [ ] Wirkung (game-designer): nachtaktive Arten und ihre Effekte (Spielstand unverändert)
 - [ ] Wetterlagen (Design `game-designer`, Logik `core-engineer`, Grafik `renderer`):
   seltene, mehrminütige Zustände (Dürresommer, Sturm, Spätfrost, Borkenkäferjahr) mit
   Gegenmaßnahmen; ein vielfältiges Ökosystem dämpft die Folgen

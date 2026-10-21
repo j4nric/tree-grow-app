@@ -189,13 +189,26 @@ function paintCloud(c: CanvasRenderingContext2D, w: number, h: number, rand: () 
   draw('#ffffff', -h * 0.03, 0.93);
 }
 
-/** Zeichnet die Wolken (Koordinaten in Gerätepixeln). */
-export function drawClouds(ctx: CanvasRenderingContext2D, clouds: Cloud[], width: number, time: number, dpr: number): void {
-  ctx.globalAlpha = 0.9;
-  for (const cl of clouds) {
+/**
+ * Zeichnet die Wolken (Koordinaten in Gerätepixeln). Tag und Nacht: `sprites` sind getönte
+ * Kopien (gleiche Reihenfolge), `alpha` ist nachts kleiner.
+ */
+export function drawClouds(
+  ctx: CanvasRenderingContext2D,
+  clouds: Cloud[],
+  width: number,
+  time: number,
+  dpr: number,
+  alpha = 0.9,
+  sprites: readonly HTMLCanvasElement[] | null = null,
+): void {
+  if (alpha <= 0.01) return;
+  ctx.globalAlpha = alpha;
+  for (let i = 0; i < clouds.length; i++) {
+    const cl = clouds[i]!;
     const span = width + cl.w;
     const x = ((((cl.x0 + time * cl.speed) % span) + span) % span) - cl.w;
-    ctx.drawImage(cl.sprite, Math.round(x * dpr), Math.round(cl.y * dpr));
+    ctx.drawImage(sprites?.[i] ?? cl.sprite, Math.round(x * dpr), Math.round(cl.y * dpr));
   }
   ctx.globalAlpha = 1;
 }

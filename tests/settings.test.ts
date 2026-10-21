@@ -57,34 +57,38 @@ const throwing = {
 };
 
 describe('Einstellungen', () => {
-  it('Standard: Automatisch, kurz, normale Hinweisdauer, Klang aus', () => {
+  it('Standard: Automatisch, kurz, normale Hinweisdauer, Klang aus, Tag und Nacht wechseln', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
-    expect(DEFAULT_SETTINGS).toEqual({ motion: 'auto', numbers: 'short', longToasts: false, sound: 'off' });
+    expect(DEFAULT_SETTINGS).toEqual({ motion: 'auto', numbers: 'short', longToasts: false, sound: 'off', daytime: 'cycle' });
   });
 
   it('robust: kaputtes JSON und unbekannte Werte → Standard (feldweise)', () => {
     expect(parseSettings('{kaputt')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('[1,2]')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('"on"')).toEqual(DEFAULT_SETTINGS);
-    expect(parseSettings(JSON.stringify({ motion: 'turbo', numbers: 'long', longToasts: 'ja', sound: 'laut' }))).toEqual({
+    expect(parseSettings(JSON.stringify({ motion: 'turbo', numbers: 'long', longToasts: 'ja', sound: 'laut', daytime: 'dunkel' }))).toEqual({
       motion: 'auto',
       numbers: 'long',
       longToasts: false,
       sound: 'off',
+      daytime: 'cycle',
     });
-    // Ältere Einstellungen ohne Klang: Klang bleibt aus, der Rest bleibt erhalten.
+    // Ältere Einstellungen ohne Klang und Tageszeit: Klang bleibt aus, Tag und Nacht wechseln.
     expect(parseSettings(JSON.stringify({ motion: 'on', numbers: 'short', longToasts: true }))).toEqual({
       motion: 'on',
       numbers: 'short',
       longToasts: true,
       sound: 'off',
+      daytime: 'cycle',
     });
   });
 
   it('Roundtrip über serializeSettings', () => {
     for (const sound of ['off', 'quiet', 'normal'] as const) {
-      const s = { motion: 'on' as const, numbers: 'long' as const, longToasts: true, sound };
-      expect(parseSettings(serializeSettings(s))).toEqual(s);
+      for (const daytime of ['cycle', 'day'] as const) {
+        const s = { motion: 'on' as const, numbers: 'long' as const, longToasts: true, sound, daytime };
+        expect(parseSettings(serializeSettings(s))).toEqual(s);
+      }
     }
   });
 
@@ -103,9 +107,9 @@ describe('Einstellungen', () => {
 
   it('Laden und Speichern, auch ohne funktionierenden Speicher', () => {
     const storage = memoryStorage();
-    saveSettings({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet' }, storage);
+    saveSettings({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet', daytime: 'day' }, storage);
     expect(storage.data.get(SETTINGS_KEY)).toBeTruthy();
-    expect(loadSettings(storage)).toEqual({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet' });
+    expect(loadSettings(storage)).toEqual({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet', daytime: 'day' });
     expect(loadSettings(throwing)).toEqual(DEFAULT_SETTINGS);
     expect(() => saveSettings(DEFAULT_SETTINGS, throwing)).not.toThrow();
     expect(loadSettings(null)).toEqual(DEFAULT_SETTINGS);

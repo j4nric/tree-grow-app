@@ -4229,6 +4229,78 @@ Bäume“) läuft bei offenem Tagebuch gedrosselt mit (nur Texte, kein Neubau �
 zur Signatur). Die Spielanleitung hat einen kurzen Abschnitt „Erfolge“. Listen über `aria-labelledby` an den Abschnittsüberschriften; Reiter
 umbrechen mobil (360/390 px ohne Querscrollen).
 
+---
+
+## 19. Tag und Nacht
+
+Erster Teil von Phase 6, Welle 2: nur die **Grafik**. Die Tageszeit hat (noch) keine
+Wirkung auf Raten, Tiere oder Begegnungen; nachtaktive Arten folgen vom `game-designer`.
+Der Spielstand ist unverändert (kein neues Feld, kein `SAVE_VERSION`).
+
+### 19.1 Zeitmodell
+
+- **Ein Tag = eine Jahreszeit = 3 Minuten Spielzeit** (`DAY_SECONDS = SEASON_SECONDS =
+  180`, `src/content/daytime.ts`). Jede Jahreszeit erlebt genau einen ganzen Tag mit
+  Morgen, Mittag, Abend und Nacht – jedes Jahr gleich. Zuerst geplant waren 4 min (drei
+  Tage je Jahr): Dann fällt eine Tageszeit nur in drei von vier Jahreszeiten, und weil
+  jeder Zyklus gleich beginnt, sähe z. B. der Sommer nie Mitternacht.
+- Wie die Jahreszeit hängt die Tageszeit **nur an der Spielzeit des Zyklus**:
+  `dayPhaseAt(elapsed) = (elapsed / 180 + 0,3) mod 1` (`core/formulas.ts`), 0 Mitternacht,
+  0,25 Sonnenaufgang, 0,5 Mittag, 0,75 Sonnenuntergang. Jeder Zyklus – und damit jede
+  Jahreszeit – beginnt am Vormittag (0,3); die Abenddämmerung kommt nach gut einer
+  Minute, Mitternacht nach gut zwei. Der Wechsel der Jahreszeit fällt also immer in den
+  hellen Vormittag. Offline läuft der Tag mit.
+- Sonnenhöhe `−cos(2π · Tagesanteil)`: volle Nacht etwa ein Drittel des Tages
+  (0,83–0,17, ~60 s), heller Tag knapp die Hälfte (0,27–0,73, ~80 s), dazwischen je
+  ~15 s Dämmerung.
+- Einstellung **„Tageszeit“** in ⚙️ (Gerät, nicht Spielstand): „Wechsel – Tag, Dämmerung
+  und Nacht“ (Standard) oder „Immer Tag“ (die Szene zeigt dann Mittag).
+
+### 19.2 Darstellung (`src/render/daylight.ts`)
+
+- **Tag:** Bild wie ohne Angabe (am hellen Tag wird nichts zusätzlich gezeichnet).
+- **Dämmerung:** warmer Horizont – morgens rosig-pfirsich mit Schein links, abends orange
+  mit Schein rechts –, warmes Licht über der Landschaft, Wolken getönt.
+- **Nacht:** tiefblauer Himmel mit Sternen (leises Funkeln) und Mond (wandert in der Nacht
+  ein Stück nach rechts), Landschaft gedämpft und bläulich (multiply, mindestens ~45 % Rot
+  und ~65 % Blau bleiben), Wolken dunkler. Sonnenstrahlen und warmes Licht der
+  Harmoniestufe verschwinden, ihr grauer Schleier wird halbiert.
+- **Tiere bleiben hell:** Tiere, Gäste, Partikel und der Schein am Samen liegen über den
+  getönten Ebenen und werden nicht abgedunkelt – nachts gut erkennbar.
+- **Glühwürmchen:** Das Glühwürmchen (Waldsaum) bekommt nachts einen zweiten, größeren
+  Schein (additiv), die Glühwürmchen der Stimmung (ab Harmoniestufe 4) leuchten heller und
+  größer. Jahreszeit gilt weiter (im Winter kein Leuchten).
+- **Zusammenspiel:** Jahreszeit (Schnee bleibt hell-bläulich sichtbar), Kamera-Zoom (Sterne
+  bleiben fast gleich groß, Mond und Ebenen zoomen mit), Neuer Zyklus (der alte Wald wird
+  beim Start in der Lichtfarbe getönt; die Tageszeit springt mit dem Zyklus auf den
+  Vormittag und gleitet in wenigen Sekunden dorthin).
+- **Weniger Bewegung:** Tagesanteil nur in 48 Stufen je Tag, Sterne ohne Funkeln,
+  Sprünge (Neuer Zyklus, Einstellung) ohne Gleiten.
+- Demo: `src/render/demo.html?phase=0..1` (dazu ein Regler „Tageszeit“).
+
+### 19.3 Technik und Leistung
+
+- Pro Frame keine zusätzliche Fläche: Himmel und Lichtfarbe stecken in **getönten Kopien**
+  der gecachten Ebenen (Kulisse, Nachbarbäume/Pflanzen, Hauptbaum, Erinnerungsbaum,
+  Wolken-Sprites). Neu getönt wird nur bei einer neuen **Tönungsstufe** (Nacht und
+  Dämmerung je in 12 Stufen, ~55 Mal am Tag, in voller Nacht und am Tag nie) oder wenn die
+  Ebenen neu gezeichnet wurden (beim Wachsen nur der Streifen ab der Grasnarbe und die
+  Baum-Ebenen). Am hellen Tag werden die Kopien freigegeben.
+- Pro Frame dazu nur Sterne (28–90 kleine Sprites) und der Mond.
+- Messung `drawScene` (Render-Demo, Hain mit allen Tieren und Pflanzen, Harmonie 4,
+  Headless-Chromium, Median aus 3 Läufen à 4 s):
+
+  | Gerät | ohne Tageszeit | Mittag | Dämmerung | Nacht |
+  | --- | --- | --- | --- | --- |
+  | Desktop 1280×800 @1 | 0,5 ms | 0,5 ms | 0,7 ms | 0,7 ms |
+  | Mobil 390×844 @3 | 4,8 ms | 4,9 ms | 0,6 ms | 0,6 ms |
+
+  Nachts und in der Dämmerung also nicht langsamer (mobil in dieser Messung sogar
+  schneller – vermutlich, weil Chromium die frisch angelegten Kopien anders puffert; nicht
+  darauf verlassen). Neu getönt wird selten; ein Neuzeichnen beim Wachsen kostet nachts
+  etwas mehr (Streifen ab der Grasnarbe und Baum-Ebenen kopieren). Ein erster Ansatz mit
+  zwei Flächen „multiply“ pro Frame kostete mobil 20–32 ms und wurde verworfen.
+
 ## 20. Tagesziele
 
 Zwei bis drei kleine Aufgaben je Kalendertag aus dem Naturtagebuch – ein Grund für einen

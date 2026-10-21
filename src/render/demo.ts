@@ -222,6 +222,25 @@ seasonInput.addEventListener('input', () => {
   season = v < 0 ? undefined : v;
   showSeason();
 });
+/** Tageszeit (undefined = aus): ?phase=0..1 (0 Mitternacht, 0,5 Mittag). */
+const phaseInput = document.querySelector<HTMLInputElement>('#phase')!;
+const phaseValue = document.querySelector<HTMLElement>('#phase-value')!;
+let dayPhase: number | undefined = params.has('phase') && Number.isFinite(Number(params.get('phase'))) ? Number(params.get('phase')) : undefined;
+const showPhase = () => {
+  if (dayPhase === undefined) {
+    phaseValue.textContent = 'aus';
+    return;
+  }
+  const minutes = Math.round((((dayPhase % 1) + 1) % 1) * 24 * 60);
+  phaseValue.textContent = `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')} Uhr`;
+};
+phaseInput.value = String(dayPhase ?? -0.01);
+showPhase();
+phaseInput.addEventListener('input', () => {
+  const v = Number(phaseInput.value);
+  dayPhase = v < 0 ? undefined : v;
+  showPhase();
+});
 const memoryValue = document.querySelector<HTMLElement>('#memory-value')!;
 /** Waldgedächtnis (undefined = aus). */
 let forestMemory: number | undefined = params.has('mem') ? Number(params.get('mem')) || 0 : undefined;
@@ -431,6 +450,7 @@ function frame(now: number): void {
     cycleTransition,
     forestMemory,
     season,
+    dayPhase,
     mainTree,
     camera:
       camZoom > 1
