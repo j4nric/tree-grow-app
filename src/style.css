@@ -357,23 +357,25 @@ footer {
   }
 }
 
-/* Weniger Bewegung: keine Sprünge/Skalierung, nur kurzes Einblenden */
-@media (prefers-reduced-motion: reduce) {
-  .float-number {
-    animation: float-fade 0.6s linear forwards;
-  }
+/*
+ * Weniger Bewegung: keine Sprünge/Skalierung, nur kurzes Einblenden. Gesteuert über
+ * `data-motion="reduce"` am body (Einstellung „Bewegung reduzieren“; „Automatisch“
+ * folgt prefers-reduced-motion – siehe ui/help.ts).
+ */
+body[data-motion='reduce'] .float-number {
+  animation: float-fade 0.6s linear forwards;
+}
 
-  .float-note {
-    animation: float-fade 3s linear forwards;
-  }
+body[data-motion='reduce'] .float-note {
+  animation: float-fade 3s linear forwards;
+}
 
-  .progress-bar {
-    transition: none;
-  }
+body[data-motion='reduce'] .progress-bar {
+  transition: none;
+}
 
-  .stage-banner.visible {
-    animation-name: banner-fade;
-  }
+body[data-motion='reduce'] .stage-banner.visible {
+  animation-name: banner-fade;
 }
 
 @keyframes float-fade {
@@ -1027,6 +1029,14 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   font-variant-numeric: tabular-nums;
   transform-origin: left center;
   white-space: nowrap;
+}
+
+.eco-stat-value.long {
+  font-size: 0.95rem;
+  /* Auf sehr schmalen Kacheln (je nach Schrift) lieber umbrechen als überstehen */
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .eco-stat-value.pop {
@@ -2362,29 +2372,250 @@ dialog.plant-picker {
   }
 }
 
+/* ---------- Hilfe & Einstellungen ---------- */
+
+.help-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.help-button {
+  display: inline-flex;
+  flex: 1 1 140px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.help-button:hover {
+  background: #eef6e6;
+}
+
+.help-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 8px;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid #cfe2c4;
+  border-radius: 10px;
+  background: var(--good-bg);
+}
+
+.help-hint-text {
+  font-weight: 600;
+}
+
+.help-hint-open {
+  min-height: 44px;
+  padding: 0 8px;
+  border: none;
+  background: none;
+  color: var(--accent-dark);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.help-hint-close {
+  min-width: 44px;
+  min-height: 44px;
+  margin-left: auto;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.help-hint-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+dialog.help-dialog {
+  width: min(720px, calc(100vw - 24px));
+}
+
+.help-body {
+  display: grid;
+  gap: 12px;
+}
+
+.help-lead {
+  margin: 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.help-section {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+}
+
+.help-section.soon {
+  border-style: dashed;
+  background: #f6f4ec;
+}
+
+.help-section-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.help-section-icon {
+  font-size: 1.15rem;
+}
+
+.help-soon {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #ece8da;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.help-text {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.help-setting {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 14px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+}
+
+.help-setting legend {
+  padding: 0 4px;
+  font-weight: 700;
+}
+
+.help-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.help-choice:hover {
+  background: #f4f9ef;
+}
+
+.help-choice input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+.help-choice input:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 2px;
+}
+
+.help-dialog .encounter-title:focus {
+  outline: none;
+}
+
+@media (max-width: 640px) {
+  dialog.help-dialog {
+    width: calc(100vw - 16px);
+  }
+}
+
 /* ---------- Weniger Bewegung ---------- */
 
+/* Gesteuert über `data-motion="reduce"` am body (siehe oben bei den schwebenden Zahlen). */
+body[data-motion='reduce'] .encounter.dealing .encounter-card {
+  animation: none;
+}
+
+body[data-motion='reduce'] .encounter-card.rarity-legendary::after {
+  display: none;
+}
+
+body[data-motion='reduce'] .encounter-card,
+body[data-motion='reduce'] .encounter-stack,
+body[data-motion='reduce'] .eco-harmony summary::before,
+body[data-motion='reduce'] .plant-meter-bar {
+  transition: none;
+}
+
+body[data-motion='reduce'] .eco-stat-value.pop,
+body[data-motion='reduce'] .encounter-stack.nudge,
+body[data-motion='reduce'] .family-chip.tier-up,
+body[data-motion='reduce'] .community.formed,
+body[data-motion='reduce'] .slot.arrive {
+  animation-name: highlight;
+  animation-timing-function: linear;
+}
+
+/*
+ * Fallback, bevor ui/help.ts `data-motion` setzt (oder ohne JavaScript): Das System
+ * wünscht weniger Bewegung, und die Einstellung sagt nicht ausdrücklich „Aus“.
+ */
 @media (prefers-reduced-motion: reduce) {
-  .encounter.dealing .encounter-card {
-    animation: none;
+  body:not([data-motion='full']) .float-number {
+    animation: float-fade 0.6s linear forwards;
   }
 
-  .encounter-card.rarity-legendary::after {
-    display: none;
+  body:not([data-motion='full']) .float-note {
+    animation: float-fade 3s linear forwards;
   }
 
-  .encounter-card,
-  .encounter-stack,
-  .eco-harmony summary::before,
-  .plant-meter-bar {
+  body:not([data-motion='full']) .progress-bar {
     transition: none;
   }
 
-  .eco-stat-value.pop,
-  .encounter-stack.nudge,
-  .family-chip.tier-up,
-  .community.formed,
-  .slot.arrive {
+  body:not([data-motion='full']) .stage-banner.visible {
+    animation-name: banner-fade;
+  }
+
+  body:not([data-motion='full']) .encounter.dealing .encounter-card {
+    animation: none;
+  }
+
+  body:not([data-motion='full']) .encounter-card.rarity-legendary::after {
+    display: none;
+  }
+
+  body:not([data-motion='full']) .encounter-card,
+  body:not([data-motion='full']) .encounter-stack,
+  body:not([data-motion='full']) .eco-harmony summary::before,
+  body:not([data-motion='full']) .plant-meter-bar {
+    transition: none;
+  }
+
+  body:not([data-motion='full']) .eco-stat-value.pop,
+  body:not([data-motion='full']) .encounter-stack.nudge,
+  body:not([data-motion='full']) .family-chip.tier-up,
+  body:not([data-motion='full']) .community.formed,
+  body:not([data-motion='full']) .slot.arrive {
     animation-name: highlight;
     animation-timing-function: linear;
   }

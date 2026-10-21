@@ -501,9 +501,9 @@ Bedingung oder Partnerschaft.
 Inhalte: `src/content/events.ts` (7.4) und `src/content/visitors.ts` (7.5); Logik offen
 (Umsetzungsnotiz 7.8).
 
-- **Ablehnen** bringt immer Samen: 25 % der nächsten Pflanze.
-- **Neu würfeln** (Tier- und Pflanzenbegegnung) kostet 50 % der nächsten Pflanze,
-  jedes weitere Mal in derselben Begegnung doppelt so viel.
+- **Ablehnen** bringt immer Samen: +5 🌰 (`DECLINE_SEEDS` in content/encounters.ts).
+- **Neu würfeln** (Tier- und Pflanzenbegegnung) kostet 10 🌰, jedes weitere Mal in
+  derselben Begegnung doppelt so viel (`REROLL_BASE_COST` × `REROLL_COST_GROWTH`^n).
 - Die ersten drei Begegnungen sind festgelegt: Tier, Pflanze, Tier (Einführung).
 - **Voller Pflanzring:** „Etwas keimt“ kommt nur halb so oft (Gewicht × 0,5 – im
   Schatten der Begleitpflanzen keimt weniger). Pflanzen, die schon im Ring wachsen,

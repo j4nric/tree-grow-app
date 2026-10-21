@@ -15,7 +15,14 @@ const reducedMotion =
     ? window.matchMedia('(prefers-reduced-motion: reduce)')
     : null;
 
+/**
+ * Weniger Bewegung? Die Einstellung „Bewegung reduzieren“ setzt `data-motion` am body
+ * („reduce“ bzw. „full“) und hat Vorrang; ohne sie gilt prefers-reduced-motion.
+ */
 export function prefersReducedMotion(): boolean {
+  const forced = typeof document !== 'undefined' ? document.body?.dataset.motion : undefined;
+  if (forced === 'reduce') return true;
+  if (forced === 'full') return false;
   return reducedMotion?.matches ?? false;
 }
 

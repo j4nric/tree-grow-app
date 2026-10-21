@@ -47,6 +47,7 @@ import { createEncounterStack } from './ui/encounter-stack';
 import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
 import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
+import { createHelp, initPreferences, type Help } from './ui/help';
 import { IMPORT_ERROR_TEXTS, createSaveTransfer, type SaveTransfer } from './ui/save-transfer';
 import { isDeliberateConfirm } from './ui/confirm';
 import { formatNumber } from './ui/format';
@@ -65,7 +66,6 @@ const AUTOSAVE_MS = 10_000;
 const MAX_FRAME_SECONDS = 1;
 /** Seitenleiste ohne Änderungen am Ökosystem höchstens so oft aktualisieren (Samen, Fortschritt). */
 const PANEL_REFRESH_MS = 200;
-const TOAST_MS = 6000;
 
 const ERROR_TEXTS: Record<ActionError, string> = {
   'no-encounter': 'Diese Begegnung gibt es nicht mehr.',
@@ -110,7 +110,8 @@ const toast = document.querySelector<HTMLElement>('#toast')!;
 const liveStatus = document.querySelector<HTMLElement>('#live-status')!;
 const resetButton = document.querySelector<HTMLButtonElement>('#reset')!;
 const heading = document.querySelector<HTMLElement>('.panel h1')!;
-const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+/** Einstellungen (Bewegung, Zahlenformat, Hinweisdauer) – vor der ersten Anzeige angewendet. */
+const preferences = initPreferences();
 
 // --- Zustand -------------------------------------------------------------------------
 
@@ -148,6 +149,8 @@ let encounterSerial = 0;
 /** Ökosystem (Auswertung) hat sich geändert → Seitenleiste und Szene-Tiere neu bauen. */
 let ecoDirty = true;
 let ecoView: EcosystemView | null = null;
+/** Spielanleitung und Einstellungen (ab start()). */
+let help: Help | undefined;
 let ecoEvaluation: Readonly<Evaluation> | null = null;
 let lastPanelRefresh = -Infinity;
 
@@ -166,7 +169,7 @@ const scene: SceneInput = {
   time: 0,
   animals: [],
   plants: [],
-  reducedMotion: reducedMotionQuery.matches,
+  reducedMotion: preferences.reducedMotion,
   // Stimmung der Szene (Harmoniestufe 0–4); gesetzt, sobald die Auswertung vorliegt.
   harmonyTier: undefined,
 };
@@ -359,7 +362,7 @@ function notify(text: string): void {
   if (picker.open) picker.notice(text);
   else if (dialog.open) dialog.notice(text);
   else if (journal.open) journal.notice(text);
-  else showToast(text);
+  else if (!help?.notice(text)) showToast(text);
 }
 
 // --- Ansichten -----------------------------------------------------------------------
@@ -460,7 +463,7 @@ function noteTick(report: TickReport): void {
  * sichtbar und für Screenreader erreichbar.
  */
 function noteText(text: string): void {
-  if (picker.open || dialog.open || journal.open) {
+  if (picker.open || dialog.open || journal.open || help?.open) {
     notify(text);
     return;
   }
@@ -486,7 +489,7 @@ function showToast(text: string): void {
   toast.textContent = text;
   toast.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (toast.hidden = true), TOAST_MS);
+  toastTimer = setTimeout(() => (toast.hidden = true), preferences.toastMs());
 }
 
 // --- Spielstand löschen (zweiter Klick bestätigt, ohne confirm()) --------------------
@@ -655,7 +658,15 @@ function start(): void {
 
   resetButton.addEventListener('click', onReset);
   setupSaveTransfer();
-  reducedMotionQuery.addEventListener('change', () => (scene.reducedMotion = reducedMotionQuery.matches));
+  help = createHelp(document.querySelector<HTMLElement>('#help')!, preferences, { newGame: !loaded });
+  preferences.onChange(() => {
+    scene.reducedMotion = preferences.reducedMotion;
+    // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
+    ecoView = null;
+    ecoDirty = true;
+    encounterDirty = true;
+    pickerDirty = true;
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveToStorage(state);
     else catchUp();
