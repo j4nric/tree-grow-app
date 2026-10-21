@@ -7,16 +7,22 @@
  *   1. Hintergrund: Kulisse + Wurzeln, Samen               (neu bei growth, aus 0 kopiert)
  *   2. Wolken: kleine Sprites, pro Frame nur verschoben
  *   3. Nachbarbäume (Hain/Wald), blasser                   (neu bei growth)
- *   4. Hauptbaum                                           (neu bei growth)
- *   5. Tiere: gecachte Sprites je Art, pro Frame nur drawImage
+ *      – mit Begleitpflanzen nur noch als ferne Kulisse
+ *   4. Begleitpflanzen: Bäume, Sträucher, Blumen, Moose    (neu bei geänderter Liste
+ *      oder Größe, beim Wachsen höchstens alle PLANT_REDRAW_STEP; eigener Cache, der
+ *      beim Neuaufbau in Ebene 3 kopiert wird – pro Frame nur eine Kopie)
+ *   5. Hauptbaum                                           (neu bei growth)
+ *   6. Tiere: gecachte Sprites je Art, pro Frame nur drawImage
  * Wind ist nur eine Scherung der gecachten Baum-Ebenen um die Bodenlinie; Tiere am
- * Baum werden um denselben Betrag verschoben.
+ * Baum werden um denselben Betrag verschoben. Tiere liegen immer über den Pflanzen.
  * Größenänderungen werden entprellt: Bis die neue Größe ~150 ms stabil ist, wird das
  * alte Bild skaliert gezeigt.
  */
 
 import { createAnchorResolver, type AnchorResolver } from './anchors';
 import { AnimalLayer, type AnimalFrame, type SceneAnimal } from './animals';
+import { layoutFlora, type PlacedPlant, type ScenePlant } from './flora';
+import { paintPlant } from './flora-paint';
 import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
 import { paintLeaves, paintWood, type LeafPalette, type WoodColors } from './plant';
 import { ResizeGate } from './resize';
@@ -25,6 +31,7 @@ import { clamp01, mix, mulberry32, smooth01 } from './util';
 
 export type { AnimalFamily, SceneAnimal } from './animals';
 export { nicheAnchors, SCENE_NICHES, type NicheAnchor, type SceneNiche } from './anchors';
+export { SCENE_PLANT_GROUPS, type ScenePlant, type ScenePlantGroup } from './flora';
 
 export interface SceneInput {
   /** Kontinuierlicher Wachstumswert aus core/formulas.ts `growth()`. */
@@ -33,6 +40,12 @@ export interface SceneInput {
   time: number;
   /** Tiere in den Nischen des Hauptbaums (Standard: keine). */
   animals?: readonly SceneAnimal[];
+  /**
+   * Begleitpflanzen um den Hauptbaum (optional). Sobald die Liste übergeben wird (auch
+   * leer), erscheinen die automatischen Nachbarbäume ab „Hain“ nur noch als ferne
+   * Kulisse. Ohne Angabe sieht die Szene aus wie bisher.
+   */
+  plants?: readonly ScenePlant[];
   /** Bewegung reduzieren (prefers-reduced-motion): Tiere ruhen, kein Wind, Wolken stehen. */
   reducedMotion?: boolean;
 }
@@ -51,6 +64,10 @@ const REDRAW_SETTLE_FRAMES = 60;
 const REDRAW_MIN_FRAMES = 12;
 /** Ab diesem Wachstumswert (Stufe „Hain“) erscheinen weitere Bäume. */
 const GROVE_GROWTH = 5;
+/** Pflanzen-Ebene beim Wachsen höchstens nach dieser Änderung neu zeichnen. */
+const PLANT_REDRAW_STEP = 0.02;
+/** Beim Nachziehen (Wachstum steht) Pflanzen nur ab dieser Änderung neu zeichnen. */
+const PLANT_SETTLE_STEP = 0.002;
 
 const WOOD: WoodColors = { base: '#6b4a30', shade: '#563a25', light: '#866244' };
 /** Junger, noch grüner Trieb – verholzt in den ersten Stufen allmählich. */
@@ -111,6 +128,15 @@ interface SizeCache {
   /** Belegte Bereiche der Baum-Ebenen (Gerätepixel) – nur diese werden kopiert. */
   backRect: Rect | null;
   frontRect: Rect | null;
+  /** Begleitpflanzen (erst angelegt, wenn es welche gibt). */
+  plants: HTMLCanvasElement | null;
+  plantsRect: Rect | null;
+  /** Wachstum, mit dem die Pflanzen gezeichnet wurden (NaN = nie). */
+  plantsGrowth: number;
+  /** Mit Pflanzenliste gezeichnet (Nachbarbäume nur als Kulisse)? */
+  withPlants: boolean;
+  /** Fußpunkte der Begleitbäume (für Pilzfäden unter der Erde). */
+  companionXs: number[];
   growth: number;
   drawnAt: number;
   /** Frames seit dem letzten Neuzeichnen der Ebenen. */
@@ -125,6 +151,49 @@ interface Cache {
   /** Tier-Ebene mit Sprite-Cache und vorberechnetem Plan. */
   animals: AnimalLayer;
   spriteKey: number;
+  /** Merkmale der zuletzt gezeichneten Pflanzenliste. */
+  plantSig: PlantSig[] | null;
+}
+
+/**
+ * Merkmale einer Pflanze, von denen die Pflanzen-Ebene abhängt – normalisiert, damit
+ * ungültige Werte (NaN) nicht bei jedem Vergleich als „geändert“ gelten.
+ */
+interface PlantSig {
+  id: string;
+  group: string;
+  slot: number;
+  /** Versorgung, mit der zuletzt gezeichnet wurde. */
+  vigor: number;
+}
+
+/** Erst ab dieser Änderung der Versorgung neu zeichnen (Hysterese: kein Flackern an Grenzen). */
+const VIGOR_REDRAW_STEP = 0.05;
+
+function normSlot(slot: number): number {
+  return Number.isFinite(slot) ? Math.floor(slot) : -1;
+}
+
+function normVigor(v: number): number {
+  return Number.isFinite(v) ? clamp01(v) : 1;
+}
+
+function plantSig(p: ScenePlant): PlantSig {
+  return { id: String(p.id), group: String(p.group), slot: normSlot(p.slot), vigor: normVigor(p.vigor) };
+}
+
+function samePlants(sig: PlantSig[] | null, plants: readonly ScenePlant[] | undefined): boolean {
+  if (!plants) return sig === null;
+  if (!sig || sig.length !== plants.length) return false;
+  for (let i = 0; i < sig.length; i++) {
+    const p = plants[i]!;
+    const s = sig[i]!;
+    if (s.id !== String(p.id) || s.group !== String(p.group) || s.slot !== normSlot(p.slot)) return false;
+    // Versorgung vergleicht mit dem zuletzt gezeichneten Wert, nicht mit festen Stufen.
+    const v = normVigor(p.vigor);
+    if (Math.abs(v - s.vigor) >= VIGOR_REDRAW_STEP || (v !== s.vigor && (v === 0 || v === 1))) return false;
+  }
+  return true;
 }
 
 /** Wiederverwendete Frame-Daten für die Tier-Ebene (keine Allokation pro Frame). */
@@ -168,7 +237,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
 
   let cache = caches.get(ctx.canvas);
   if (!cache) {
-    cache = { size: null, gate: new ResizeGate(), animals: new AnimalLayer(), spriteKey: -1 };
+    cache = { size: null, gate: new ResizeGate(), animals: new AnimalLayer(), spriteKey: -1, plantSig: null };
     caches.set(ctx.canvas, cache);
   }
 
@@ -188,8 +257,21 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const due =
     (delta >= REDRAW_STEP && (since >= REDRAW_MIN_INTERVAL || frames >= REDRAW_MIN_FRAMES)) ||
     (delta > 0 && (since > REDRAW_SETTLE_SECONDS || frames >= REDRAW_SETTLE_FRAMES));
-  if (Number.isNaN(sc.growth) || clockReset || due) {
-    renderLayers(sc, g);
+  // Neue Pflanzenliste: alles neu (Nachbarbäume, Pilzfäden und Pflanzen hängen davon ab).
+  const plantsChanged = !samePlants(cache.plantSig, input.plants);
+  if (Number.isNaN(sc.growth) || clockReset || due || plantsChanged || sc.withPlants !== (input.plants !== undefined)) {
+    // Pflanzen beim Wachsen höchstens alle PLANT_REDRAW_STEP; beim Nachziehen (kleine
+    // Änderung) exakt – aber nur, wenn sich ihr Wachstum tatsächlich merklich geändert hat.
+    const plantDelta = Math.abs(g - sc.plantsGrowth);
+    const settle = delta < REDRAW_STEP;
+    const redrawPlants =
+      plantsChanged ||
+      Number.isNaN(sc.plantsGrowth) ||
+      plantDelta >= PLANT_REDRAW_STEP ||
+      (settle && plantDelta >= PLANT_SETTLE_STEP);
+    // Die Signatur hält fest, womit die Pflanzen zuletzt gezeichnet wurden.
+    if (redrawPlants) cache.plantSig = input.plants ? input.plants.map(plantSig) : null;
+    renderLayers(sc, g, input.plants, redrawPlants);
     sc.growth = g;
     sc.drawnAt = time;
     sc.framesSinceDraw = 0;
@@ -282,6 +364,11 @@ function buildSizeCache(
     clouds: createClouds(width, layout.groundY, dpr),
     backRect: null,
     frontRect: null,
+    plants: old?.plants ? sized(old.plants) : null,
+    plantsRect: null,
+    plantsGrowth: NaN,
+    withPlants: false,
+    companionXs: [],
     growth: NaN,
     drawnAt: 0,
     framesSinceDraw: 0,
@@ -358,34 +445,47 @@ interface NeighborTree {
   seed: number;
 }
 
-/** Sichtbare Nachbarbäume: erscheinen nacheinander als kleine Setzlinge und wachsen stetig. */
-function neighborTrees(g: number, layout: Layout): NeighborTree[] {
+/**
+ * Sichtbare Nachbarbäume: erscheinen nacheinander als kleine Setzlinge und wachsen stetig.
+ * Mit Begleitpflanzen (`backdrop`) nur die hintere Reihe – als ferne Kulisse.
+ */
+function neighborTrees(g: number, layout: Layout, backdrop = false): NeighborTree[] {
   if (g < GROVE_GROWTH) return [];
   const result: NeighborTree[] = [];
   NEIGHBORS.forEach((n, i) => {
     const appear = GROVE_GROWTH + i * 0.16;
-    if (g <= appear) return;
+    if (g <= appear || (backdrop && !n.far)) return;
     const cap = n.far ? 3.6 : 4.2;
     result.push({ x: layout.cx + n.x * layout.width, g: 1 + Math.min(cap, (g - appear) * 2.2), far: n.far, seed: 1000 + i });
   });
   return result;
 }
 
-function renderLayers(sc: SizeCache, g: number): void {
+function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | undefined, redrawPlants: boolean): void {
   const { dpr, layout } = sc;
-  const neighbors = neighborTrees(g, layout);
+  const withPlants = plants !== undefined;
+  const neighbors = neighborTrees(g, layout, withPlants);
 
   // Hauptbaum zuerst berechnen – Wurzeln und Tier-Ankerpunkte richten sich nach ihm.
   const scale1 = sproutScale(layout);
   const main = placeMainTree(layout, g);
   sc.anchors = createAnchorResolver(layout, g, main);
 
+  // --- Begleitpflanzen (eigene Ebene) ---
+  if (redrawPlants || sc.withPlants !== withPlants) {
+    const flora = plants && plants.length > 0 ? layoutFlora(layout, g, plants, { main, anchors: sc.anchors }) : [];
+    sc.companionXs = flora.filter((p) => p.tree).map((p) => p.x);
+    sc.plantsRect = renderPlants(sc, flora);
+    sc.plantsGrowth = g;
+    sc.withPlants = withPlants;
+  }
+
   // --- Hintergrund: statische Kulisse kopieren, Wurzeln, Grasnarbe darüber ---
   const bg = layerContext(sc.background, dpr);
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.scenery, 0, 0);
   bg.setTransform(dpr, 0, 0, dpr, 0, 0);
-  paintUnderground(bg, layout, g, scale1, main, neighbors);
+  paintUnderground(bg, layout, g, scale1, main, withPlants ? sc.companionXs : neighbors.map((n) => n.x));
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.grass, 0, sc.grassTop);
 
@@ -393,11 +493,12 @@ function renderLayers(sc: SizeCache, g: number): void {
   const back = layerContext(sc.back, dpr);
   let backRect: Rect | null = null;
   for (const far of [true, false]) {
-    const haze = far ? 0.5 : 0.25;
+    // Als Kulisse hinter Begleitpflanzen: blasser und etwas kleiner.
+    const haze = withPlants ? 0.62 : far ? 0.5 : 0.25;
     const baseY = layout.groundY - layout.height * (far ? 0.035 : 0.012);
     for (const n of neighbors) {
       if (n.far !== far) continue;
-      const maxH = (baseY - layout.top) * (far ? 0.5 : 0.66);
+      const maxH = (baseY - layout.top) * (withPlants ? 0.42 : far ? 0.5 : 0.66);
       const tree = placeTree(n.g, n.seed, n.x, baseY, maxH, layout.width * 0.14);
       backRect = unionRect(backRect, ...treeBounds(tree));
       const palette = PALETTES[n.seed % PALETTES.length]!;
@@ -409,6 +510,14 @@ function renderLayers(sc: SizeCache, g: number): void {
   const front = layerContext(sc.front, dpr);
   const { pw, ph } = sc;
   sc.backRect = toDeviceRect(backRect, dpr, pw, ph);
+  // Begleitpflanzen aus ihrem Cache vor die Kulisse kopieren: pro Frame bleibt es bei
+  // einer einzigen Kopie für die ganze hintere Ebene (wiegt sich gemeinsam im Wind).
+  const pr = sc.plantsRect;
+  if (sc.plants && pr) {
+    back.setTransform(1, 0, 0, 1, 0, 0);
+    drawRect(back, sc.plants, pr);
+    sc.backRect = unionRect(sc.backRect, pr.x, pr.y, pr.x + pr.w, pr.y + pr.h);
+  }
   if (main) {
     sc.frontRect = toDeviceRect(unionRect(null, ...treeBounds(main)), dpr, pw, ph);
     const lignin = smooth01((g - 1) / 2);
@@ -427,6 +536,27 @@ function renderLayers(sc: SizeCache, g: number): void {
       ph,
     );
   }
+}
+
+/** Zeichnet die Begleitpflanzen in ihre Ebene; gibt den belegten Bereich (Gerätepixel) zurück. */
+function renderPlants(sc: SizeCache, flora: PlacedPlant[]): Rect | null {
+  if (flora.length === 0) {
+    if (sc.plants) layerContext(sc.plants, sc.dpr);
+    return null;
+  }
+  if (!sc.plants) {
+    sc.plants = document.createElement('canvas');
+    sc.plants.width = sc.pw;
+    sc.plants.height = sc.ph;
+  }
+  const ctx = layerContext(sc.plants, sc.dpr);
+  let rect: Rect | null = null;
+  for (const p of flora) {
+    paintPlant(ctx, p);
+    const top = p.tree ? p.y + p.tree.geo.minY * p.tree.scale : p.y - p.h * 1.6;
+    rect = unionRect(rect, p.x - p.hw * 1.15, top - 4, p.x + p.hw * 1.15, p.y + 6);
+  }
+  return toDeviceRect(rect, sc.dpr, sc.pw, sc.ph);
 }
 
 /** Keimling oberhalb der Erde (g < 1). */
@@ -474,7 +604,8 @@ function paintUnderground(
   g: number,
   scale1: number,
   main: PlacedTree | null,
-  neighbors: NeighborTree[],
+  /** Fußpunkte der Bäume ringsum, die das Pilzgeflecht verbindet. */
+  treeXs: number[],
 ): void {
   const { cx, groundY, soilH } = layout;
   const seedY = groundY + soilH * 0.14;
@@ -521,13 +652,13 @@ function paintUnderground(
       ctx.globalAlpha = fungus;
       ctx.lineWidth = 0.7;
       ctx.beginPath();
-      for (const n of neighbors) {
+      for (const nx of treeXs) {
         const y1 = groundY + soilH * (0.3 + rand() * 0.4);
         const y2 = groundY + soilH * (0.15 + rand() * 0.3);
-        const x1 = cx + (n.x - cx) * 0.25;
-        const mx = (x1 + n.x) / 2;
+        const x1 = cx + (nx - cx) * 0.25;
+        const mx = (x1 + nx) / 2;
         ctx.moveTo(x1, y1);
-        ctx.bezierCurveTo(mx, y1 + soilH * (rand() - 0.3) * 0.4, mx, y2 - soilH * rand() * 0.2, n.x, y2);
+        ctx.bezierCurveTo(mx, y1 + soilH * (rand() - 0.3) * 0.4, mx, y2 - soilH * rand() * 0.2, nx, y2);
       }
       ctx.stroke();
       ctx.globalAlpha = 1;

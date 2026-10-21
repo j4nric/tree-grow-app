@@ -11,6 +11,8 @@
  */
 
 import type { AnchorResolver, NicheAnchor } from './anchors';
+import { ell, eye, line, OUTLINE, outline, paintBird, poly, TAU, type BirdColors, type SpriteDef } from './sprite-kit';
+import { SPECIES_DEFS, SPECIES_INFO, type KindInfo } from './species-sprites';
 import { clamp, clamp01, hash2, smooth01 } from './util';
 
 export type AnimalFamily = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi';
@@ -26,22 +28,17 @@ export interface SceneAnimal {
   slot: number;
   /** Zufriedenheit 0–1. */
   happiness: number;
+  /**
+   * Seltenheit 0 gewöhnlich · 1 selten · 2 besonders · 3 legendär (optional).
+   * Ohne Angabe gilt die Seltenheit der bekannten Art aus DESIGN_V2.md, sonst 0.
+   * Besondere Arten schimmern dezent, legendäre zusätzlich mit kleinen Funken.
+   */
+  rarity?: number;
 }
 
 // ---------------------------------------------------------------------------
 // Arten → Zeichnung und Verhalten
 // ---------------------------------------------------------------------------
-
-type Motion = 'hop' | 'peck' | 'hover' | 'crawl' | 'inch' | 'wiggle' | 'sniff' | 'still';
-
-interface KindInfo {
-  /** Größe relativ zur Grundgröße. */
-  size: number;
-  motion: Motion;
-  frames: number;
-  /** Klammert sich seitlich an die Rinde (Specht) statt darauf zu krabbeln. */
-  cling?: boolean;
-}
 
 const KINDS: Record<string, KindInfo> = {
   robin: { size: 1, motion: 'hop', frames: 1 },
@@ -53,15 +50,18 @@ const KINDS: Record<string, KindInfo> = {
   earthworm: { size: 1.05, motion: 'wiggle', frames: 2 },
   woodlouse: { size: 1.05, motion: 'crawl', frames: 2 },
   centipede: { size: 1.15, motion: 'crawl', frames: 2 },
-  // Gattungs-Ersatz für alle weiteren Arten
+  // Gattungs-Ersatz für unbekannte Arten
   bird: { size: 1, motion: 'hop', frames: 1 },
   insect: { size: 0.9, motion: 'crawl', frames: 2 },
   mammal: { size: 1.1, motion: 'sniff', frames: 1 },
-  snail: { size: 0.95, motion: 'crawl', frames: 1 },
-  mushroom: { size: 1, motion: 'still', frames: 1 },
-  bracket: { size: 1, motion: 'still', frames: 1 },
+  snail: { size: 1, motion: 'crawl', frames: 1 },
+  mushroom: { size: 1, motion: 'still', frames: 1, fungus: 'cap' },
+  bracket: { size: 1, motion: 'still', frames: 1, fungus: 'bracket' },
+  // Eigene Zeichnungen aller weiteren Arten (species-sprites.ts)
+  ...SPECIES_INFO,
 };
 
+/** Art-ID (scripts/v2/content.ts) → Zeichnung. */
 const SPECIES_KIND: Record<string, string> = {
   robin: 'robin',
   bluetit: 'bluetit',
@@ -72,6 +72,8 @@ const SPECIES_KIND: Record<string, string> = {
   earthworm: 'earthworm',
   woodlouse: 'woodlouse',
   centipede: 'centipede',
+  snail: 'snail',
+  ...Object.fromEntries(Object.keys(SPECIES_INFO).map((k) => [k, k])),
 };
 
 const FAMILY_KIND: Record<AnimalFamily, string> = {
@@ -82,27 +84,44 @@ const FAMILY_KIND: Record<AnimalFamily, string> = {
   fungi: 'mushroom',
 };
 
-/** Welche Zeichnung bekommt ein Tier? (Art, sonst Gattung; Pilze an der Rinde als Konsolen.) */
+/** Seltenheit der bekannten Arten (DESIGN_V2.md 5.3), falls `rarity` fehlt – nur ab „besonders“. */
+const SPECIES_RARITY: Record<string, number> = {
+  owl: 2,
+  glowworm: 2,
+  bat: 2,
+  snail: 2,
+  flyagaric: 2,
+  blackwoodpecker: 3,
+  stagbeetle: 3,
+  wolf: 3,
+  salamander: 3,
+  honeyfungus: 3,
+};
+
+/** Alle Zeichnungen (Arten und Ersatz) – z. B. für eine Übersicht in der Demo. */
+export function animalKinds(): string[] {
+  return Object.keys(KINDS);
+}
+
+/** Welche Zeichnung bekommt ein Tier? (Art, sonst Gattung; Hutpilze an der Rinde als Konsolen.) */
 export function animalKind(a: Pick<SceneAnimal, 'id' | 'family' | 'niche'>): string {
   const kind = SPECIES_KIND[a.id] ?? FAMILY_KIND[a.family] ?? 'insect';
-  if (kind === 'mushroom' && (a.niche === 'bark' || a.niche === 'hollows')) return 'bracket';
+  const fungus = KINDS[kind]?.fungus;
+  const onWood = a.niche === 'bark' || a.niche === 'hollows';
+  if (fungus === 'cap' && onWood) return 'bracket';
+  if (fungus === 'bracket' && !onWood) return 'mushroom';
   return kind;
+}
+
+/** Seltenheit für den Schimmer (0–3). */
+export function animalRarity(a: Pick<SceneAnimal, 'id' | 'rarity'>): number {
+  const r = a.rarity ?? SPECIES_RARITY[a.id] ?? 0;
+  return Number.isFinite(r) ? Math.max(0, Math.min(3, Math.floor(r))) : 0;
 }
 
 // ---------------------------------------------------------------------------
 // Sprites
 // ---------------------------------------------------------------------------
-
-type Paint = (c: CanvasRenderingContext2D, frame: number) => void;
-
-interface SpriteDef {
-  /** Begrenzung in Zeicheneinheiten (1 = Grundgröße), Ursprung = Ankerpunkt. */
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-  paint: Paint;
-}
 
 interface Sprite {
   canvas: HTMLCanvasElement;
@@ -111,95 +130,10 @@ interface Sprite {
   oy: number;
   w: number;
   h: number;
+  /** Generation des letzten Abrufs (SpriteCache). */
+  used: number;
 }
 
-const OUTLINE = 'rgba(46, 34, 24, 0.55)';
-const TAU = Math.PI * 2;
-
-function ell(c: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, rot: number, fill: string): void {
-  c.fillStyle = fill;
-  c.beginPath();
-  c.ellipse(x, y, rx, ry, rot, 0, TAU);
-  c.fill();
-}
-
-function poly(c: CanvasRenderingContext2D, pts: number[], fill: string): void {
-  c.fillStyle = fill;
-  c.beginPath();
-  c.moveTo(pts[0]!, pts[1]!);
-  for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i]!, pts[i + 1]!);
-  c.closePath();
-  c.fill();
-}
-
-function line(c: CanvasRenderingContext2D, pts: number[], color: string, width: number): void {
-  c.strokeStyle = color;
-  c.lineWidth = width;
-  c.lineCap = 'round';
-  c.lineJoin = 'round';
-  c.beginPath();
-  c.moveTo(pts[0]!, pts[1]!);
-  for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i]!, pts[i + 1]!);
-  c.stroke();
-}
-
-/** Umriss: zeichnet die Silhouette dicker in Dunkel, damit kleine Tiere sich abheben. */
-function outline(c: CanvasRenderingContext2D, width: number, build: () => void): void {
-  c.strokeStyle = OUTLINE;
-  c.lineWidth = width;
-  c.lineJoin = 'round';
-  c.beginPath();
-  build();
-  c.stroke();
-}
-
-function eye(c: CanvasRenderingContext2D, x: number, y: number, r: number): void {
-  ell(c, x, y, r, r, 0, '#1d1a17');
-  ell(c, x + r * 0.35, y - r * 0.35, r * 0.38, r * 0.38, 0, 'rgba(255,255,255,0.9)');
-}
-
-interface BirdColors {
-  back: string;
-  wing: string;
-  wingBar?: string;
-  tail: string;
-  head: string;
-  breast: string;
-  belly: string;
-  face?: string;
-  cheek?: string;
-  stripe?: string;
-  beak: string;
-  leg: string;
-}
-
-/** Kleiner Singvogel im Profil, Blick nach rechts, Füße auf (0, 0). */
-function paintBird(c: CanvasRenderingContext2D, col: BirdColors): void {
-  line(c, [-0.06, -0.18, -0.08, 0, -0.14, 0.01], col.leg, 0.05);
-  line(c, [0.06, -0.18, 0.07, 0, 0.13, 0.01], col.leg, 0.05);
-  const tail = [-0.24, -0.44, -0.66, -0.62, -0.62, -0.5, -0.22, -0.3];
-  outline(c, 0.11, () => {
-    c.moveTo(tail[0]!, tail[1]!);
-    for (let i = 2; i < tail.length; i += 2) c.lineTo(tail[i]!, tail[i + 1]!);
-    c.closePath();
-    c.moveTo(0.34, -0.4);
-    c.ellipse(0, -0.4, 0.35, 0.27, -0.12, 0, TAU);
-    c.moveTo(0.41, -0.68);
-    c.arc(0.21, -0.68, 0.2, 0, TAU);
-  });
-  poly(c, tail, col.tail);
-  ell(c, 0, -0.4, 0.35, 0.27, -0.12, col.back);
-  ell(c, 0.1, -0.36, 0.25, 0.22, 0, col.breast);
-  ell(c, 0.02, -0.21, 0.21, 0.09, 0, col.belly);
-  ell(c, -0.09, -0.43, 0.24, 0.14, 0.28, col.wing);
-  if (col.wingBar) line(c, [-0.24, -0.46, -0.02, -0.4], col.wingBar, 0.04);
-  ell(c, 0.21, -0.68, 0.2, 0.2, 0, col.head);
-  if (col.face) ell(c, 0.27, -0.6, 0.15, 0.15, 0, col.face);
-  if (col.cheek) ell(c, 0.25, -0.62, 0.12, 0.08, 0, col.cheek);
-  if (col.stripe) line(c, [0.13, -0.69, 0.36, -0.7], col.stripe, 0.045);
-  poly(c, [0.37, -0.72, 0.52, -0.67, 0.37, -0.63], col.beak);
-  eye(c, 0.29, -0.71, 0.048);
-}
 
 const BIRD_ROBIN: BirdColors = {
   back: '#8a7350',
@@ -705,7 +639,35 @@ const DEFS: Record<string, SpriteDef> = {
   hollow: { x0: -0.4, y0: -0.84, x1: 0.4, y1: 0.06, paint: (c) => paintHollow(c) },
   hollowLip: { x0: -0.4, y0: -0.84, x1: 0.4, y1: 0.12, paint: (c) => paintHollowLip(c) },
   mycel: { x0: -0.8, y0: -0.04, x1: 0.8, y1: 1.0, paint: (c) => paintMycel(c) },
+  shimmer: { x0: -1, y0: -1, x1: 1, y1: 1, paint: (c) => paintShimmer(c) },
+  sparkle: { x0: -0.5, y0: -0.5, x1: 0.5, y1: 0.5, paint: (c) => paintSparkle(c) },
+  ...SPECIES_DEFS,
 };
+
+/** Weicher, warmer Lichthof hinter besonderen und legendären Arten. */
+function paintShimmer(c: CanvasRenderingContext2D): void {
+  const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+  g.addColorStop(0, 'rgba(255, 248, 214, 0.85)');
+  g.addColorStop(0.45, 'rgba(255, 240, 190, 0.35)');
+  g.addColorStop(1, 'rgba(255, 236, 180, 0)');
+  c.fillStyle = g;
+  c.beginPath();
+  c.arc(0, 0, 1, 0, TAU);
+  c.fill();
+}
+
+/** Kleiner, vierzackiger Funke. */
+function paintSparkle(c: CanvasRenderingContext2D): void {
+  ell(c, 0, 0, 0.22, 0.22, 0, 'rgba(255, 244, 200, 0.45)');
+  c.fillStyle = '#fff8dc';
+  c.beginPath();
+  c.moveTo(0, -0.48);
+  c.quadraticCurveTo(0.05, -0.05, 0.48, 0);
+  c.quadraticCurveTo(0.05, 0.05, 0, 0.48);
+  c.quadraticCurveTo(-0.05, 0.05, -0.48, 0);
+  c.quadraticCurveTo(-0.05, -0.05, 0, -0.48);
+  c.fill();
+}
 
 /**
  * Sprite-Cache je Art, Frame, Variante, Größe und Pixeldichte.
@@ -715,6 +677,13 @@ const DEFS: Record<string, SpriteDef> = {
 export class SpriteCache {
   private byKind = new Map<string, Map<number, Sprite>>();
   private total = 0;
+  /** Generation (ein Frame): unbenutzte Sprites werden bei Überlauf zuerst verworfen. */
+  private gen = 0;
+
+  /** Neuer Frame – Sprites, die ab jetzt nicht mehr abgerufen werden, gelten als unbenutzt. */
+  tick(): void {
+    this.gen++;
+  }
 
   get(kind: string, frame: number, muted: boolean, size: number, dpr: number): Sprite {
     const px = Math.max(4, Math.min(4095, Math.round(size)));
@@ -727,15 +696,31 @@ export class SpriteCache {
     let s = map.get(key);
     if (!s) {
       // Sicherheitsnetz: nie unbegrenzt viele Sprites ansammeln.
-      if (this.total >= 400) {
-        this.clear();
+      if (this.total >= MAX_SPRITES) {
+        this.evict();
         return this.get(kind, frame, muted, size, dpr);
       }
       s = muted ? desaturate(this.get(kind, frame, false, size, dpr)) : renderSprite(DEFS[kind] ?? DEFS.insect!, frame, px, dpr);
       map.set(key, s);
       this.total++;
     }
+    s.used = this.gen;
     return s;
+  }
+
+  /** Verwirft alle Sprites, die in diesem Frame nicht gebraucht wurden; notfalls alle. */
+  private evict(): void {
+    let removed = 0;
+    for (const map of this.byKind.values()) {
+      for (const [key, s] of map) {
+        if (s.used < this.gen) {
+          map.delete(key);
+          removed++;
+        }
+      }
+    }
+    this.total -= removed;
+    if (removed === 0) this.clear();
   }
 
   /** Alte Größen verwerfen (z. B. nach einer Größenänderung). */
@@ -749,6 +734,9 @@ export class SpriteCache {
   }
 }
 
+/** Höchstzahl gecachter Sprites. */
+const MAX_SPRITES = 400;
+
 function renderSprite(def: SpriteDef, frame: number, size: number, dpr: number): Sprite {
   const pad = 1.5 / dpr;
   const w = (def.x1 - def.x0) * size + pad * 2;
@@ -761,7 +749,7 @@ function renderSprite(def: SpriteDef, frame: number, size: number, dpr: number):
   const oy = -def.y0 * size + pad;
   c.setTransform(size * dpr, 0, 0, size * dpr, ox * dpr, oy * dpr);
   def.paint(c, frame);
-  return { canvas, ox, oy, w: canvas.width / dpr, h: canvas.height / dpr };
+  return { canvas, ox, oy, w: canvas.width / dpr, h: canvas.height / dpr, used: 0 };
 }
 
 /** Entsättigte, leicht aufgehellte Variante – „ruht und wirkt matter“. */
@@ -844,6 +832,12 @@ interface PlanEntry {
   /** Dekos vor bzw. nach dem Tier (Blumen, Laub, Erdloch, Höhle …). */
   before: Deco[];
   after: Deco[];
+  /** Schimmer: 0 keiner, 2 Lichthof, 3 Lichthof + Funken. */
+  shimmer: number;
+  /** Mitte des Sprites relativ zum Ankerpunkt (Zeicheneinheiten, Blick nach rechts) und Radius. */
+  midX: number;
+  midY: number;
+  midR: number;
   /** Wiederverwendetes Pose-Objekt (keine Allokation pro Frame). */
   pose: Pose;
 }
@@ -854,6 +848,8 @@ interface Signature {
   family: string;
   niche: string;
   slot: number;
+  /** Normalisiert (0–3), damit NaN nicht bei jedem Vergleich als „geändert“ gilt. */
+  rarity: number;
 }
 
 /**
@@ -871,6 +867,7 @@ export class AnimalLayer {
 
   draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame): void {
     if (animals.length === 0) return;
+    this.sprites.tick();
     if (anchors !== this.anchors || !this.matches(animals)) this.rebuild(animals, anchors);
     for (const e of this.plan) {
       drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
@@ -884,7 +881,7 @@ export class AnimalLayer {
     for (let i = 0; i < sig.length; i++) {
       const a = animals[i]!;
       const s = sig[i]!;
-      if (s.id !== a.id || s.family !== a.family || s.niche !== a.niche || s.slot !== a.slot) return false;
+      if (s.id !== a.id || s.family !== a.family || s.niche !== a.niche || s.slot !== normSlot(a.slot) || s.rarity !== animalRarity(a)) return false;
     }
     return true;
   }
@@ -892,7 +889,7 @@ export class AnimalLayer {
   private rebuild(animals: readonly SceneAnimal[], anchors: AnchorResolver): void {
     this.builds++;
     this.anchors = anchors;
-    this.signature = animals.map((a) => ({ id: a.id, family: a.family, niche: a.niche, slot: a.slot }));
+    this.signature = animals.map((a) => ({ id: a.id, family: a.family, niche: a.niche, slot: normSlot(a.slot), rarity: animalRarity(a) }));
     const plan: PlanEntry[] = [];
     animals.forEach((animal, index) => {
       const anchor = anchors.get(animal.niche, animal.slot);
@@ -904,9 +901,13 @@ export class AnimalLayer {
   }
 }
 
+/** Kleine Krabbler, die am Waldsaum auf der Blüte sitzen. */
+const ON_BLOSSOM = new Set(['insect', 'oakmoth', 'barkbeetle', 'woodlouse', 'stagbeetle']);
+
 function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anchors: AnchorResolver): PlanEntry {
   const kind = animalKind(animal);
   const info = KINDS[kind] ?? KINDS.insect!;
+  const def = DEFS[kind] ?? DEFS.insect!;
   const S = anchors.size;
   const groundY = anchors.layout.groundY;
   const seed = hash2(hashString(String(animal.id ?? '')), anchor.slot * 31 + (NICHE_ORDER[anchor.niche] ?? 0));
@@ -930,17 +931,22 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
     windArm: anchor.onTree ? anchor.y - groundY : 0,
     before: [],
     after: [],
+    shimmer: animalRarity(animal) >= 2 ? animalRarity(animal) : 0,
+    midX: (def.x0 + def.x1) / 2,
+    midY: (def.y0 + def.y1) / 2,
+    midR: Math.max(def.x1 - def.x0, def.y1 - def.y0) * 0.62,
     pose: { x: 0, y: 0, dir: 1, rot: 0, frame: 0 },
   };
 
-  if (kind === 'mushroom' || kind === 'bracket') {
+  if (info.fungus) {
     e.dir = anchor.side;
-    if (kind === 'mushroom' && niche === 'roots') {
+    if (info.fungus === 'cap' && niche === 'roots') {
       // Fruchtkörper an der Oberfläche, Geflecht reicht hinab zu den Wurzeln.
       e.x = anchor.surfaceX;
       e.y = groundY + 1;
-      e.before.push({ name: 'mycel', x: anchor.surfaceX, y: groundY + 1, size: e.size * 1.1 });
+      e.before.push({ name: 'mycel', x: anchor.surfaceX, y: groundY + 1, size: S * 1.1 });
     }
+    if (niche !== 'bark' && niche !== 'hollows') keepInside(e, def, anchors.layout.width);
     return e;
   }
 
@@ -952,19 +958,20 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
       break;
     case 'litter':
       e.before.push({ name: 'litter', x: ax, y: ay, size: S });
-      e.travel = S * 0.4;
+      e.travel = info.motion === 'busy' ? 0 : S * 0.4;
       if (kind === 'earthworm') e.y = ay - S * 0.04;
       break;
     case 'edge':
       e.before.push({ name: 'flowers', x: ax, y: ay, size: S * 1.15 });
       if (info.motion === 'hover') {
         e.y = ay - S * 1.15;
-      } else if (kind === 'insect' || kind === 'oakmoth' || kind === 'barkbeetle') {
+      } else if (ON_BLOSSOM.has(kind)) {
         // Kleine Krabbler sitzen auf der Blüte.
         e.y = ay - S * 0.72;
         e.x = ax + S * 0.21;
       } else {
-        e.x = ax + anchor.side * S * 0.55;
+        // Größere Tiere stehen neben den Blumen, große etwas weiter weg.
+        e.x = ax + anchor.side * S * (0.3 + 0.25 * info.size);
         e.travel = S * 0.3;
       }
       break;
@@ -992,12 +999,20 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
       e.before.push({ name: 'hollow', x: ax, y: ay, size: S * fit });
       e.after.push({ name: 'hollowLip', x: ax, y: ay, size: S * fit });
       e.y = ay - S * 0.06 * fit;
-      e.size *= 0.78 * fit;
+      e.size = S * Math.min(info.size, 1.2) * 0.78 * fit;
       e.dir = anchor.side;
+      e.travel = 0;
       break;
     }
   }
+  if (niche === 'litter' || niche === 'edge' || niche === 'roots') keepInside(e, def, anchors.layout.width);
   return e;
+}
+
+/** Große Tiere am Boden nie über den Bildrand hinaus (auch gespiegelt und beim Laufen). */
+function keepInside(e: PlanEntry, def: SpriteDef, width: number): void {
+  const half = Math.max(-def.x0, def.x1) * e.size + e.travel;
+  if (width > half * 2) e.x = clamp(e.x, half, width - half);
 }
 
 function drawEntry(
@@ -1021,9 +1036,10 @@ function drawEntry(
   pose.rot = e.rot;
   pose.frame = 0;
   animate(e, pose, act, f.time, S, f.reducedMotion);
-  if (pose.frame >= e.info.frames) pose.frame = 0;
+  if (!(pose.frame >= 0 && pose.frame < e.info.frames)) pose.frame = 0;
 
   for (const d of e.before) blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
+  if (e.shimmer > 0) drawShimmer(ctx, e, pose, muted, sprites, f);
   if (muted < 0.99) {
     blit(ctx, sprites.get(e.kind, pose.frame, false, e.size, f.dpr), pose.x, pose.y, pose.dir, pose.rot, 1, f);
   }
@@ -1031,6 +1047,62 @@ function drawEntry(
     blit(ctx, sprites.get(e.kind, pose.frame, true, e.size, f.dpr), pose.x, pose.y, pose.dir, pose.rot, muted < 0.99 ? muted : 1, f);
   }
   for (const d of e.after) blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
+  if (e.shimmer === 3) drawSparkles(ctx, e, pose, muted, sprites, f);
+}
+
+/** Lichthof hinter seltenen Arten: ein gecachtes Sprite, das sanft pulsiert. */
+function drawShimmer(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, muted: number, sprites: SpriteCache, f: AnimalFrame): void {
+  const { x, y } = spriteMid(e, pose, mid);
+  const pulse = f.reducedMotion ? 0.85 : 0.75 + 0.25 * Math.sin(f.time * 1.6 + e.phase);
+  const base = e.shimmer === 3 ? 0.62 : 0.42;
+  const alpha = base * pulse * (1 - 0.5 * muted);
+  blit(ctx, sprites.get('shimmer', 0, false, e.size * e.midR, f.dpr), x, y, 1, 0, alpha, f);
+}
+
+/** Zwei kleine Funken, die abwechselnd an Rand des Tiers aufblitzen (nur legendäre Arten). */
+function drawSparkles(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, muted: number, sprites: SpriteCache, f: AnimalFrame): void {
+  const { x, y } = spriteMid(e, pose, mid);
+  const s = sprites.get('sparkle', 0, false, Math.max(8, e.size * 0.34), f.dpr);
+  const r = e.size * e.midR * 0.7;
+  for (let k = 0; k < 2; k++) {
+    const t = f.reducedMotion ? 0.3 + k * 0.4 : f.time * 0.9 + e.phase + k * 0.5;
+    const n = Math.floor(t);
+    const local = t - n;
+    // Jede Runde an einer neuen, per Seed bestimmten Stelle.
+    const ang = ((hash2(e.seed + k, n) & 1023) / 1024) * TAU;
+    const tw = f.reducedMotion ? 0.8 : Math.sin(local * Math.PI) ** 2;
+    if (tw < 0.03) continue;
+    blit(ctx, s, x + Math.cos(ang) * r, y + Math.sin(ang) * r * 0.8, 1, 0, tw * (1 - 0.6 * muted), f);
+  }
+}
+
+/** Wiederverwendeter Punkt für die Sprite-Mitte (keine Allokation pro Frame). */
+const mid = { x: 0, y: 0 };
+
+/** Mitte des Sprites in CSS-Pixeln (mit Spiegelung und Drehung), geschrieben nach `out`. */
+function spriteMid(e: PlanEntry, pose: Pose, out: { x: number; y: number }): { x: number; y: number } {
+  const mx = e.midX * e.size * pose.dir;
+  const my = e.midY * e.size;
+  if (pose.rot === 0) {
+    out.x = pose.x + mx;
+    out.y = pose.y + my;
+    return out;
+  }
+  const c = Math.cos(pose.rot);
+  const s = Math.sin(pose.rot);
+  out.x = pose.x + mx * c - my * s;
+  out.y = pose.y + mx * s + my * c;
+  return out;
+}
+
+/** Nachkommaanteil 0 ≤ v < 1, auch für negative Werte (z. B. negative Zeit). */
+function frac(v: number): number {
+  return v - Math.floor(v);
+}
+
+/** Platz für Signaturen: ungültige Werte einheitlich als −1. */
+function normSlot(slot: number): number {
+  return Number.isFinite(slot) ? Math.floor(slot) : -1;
 }
 
 /** Bewegung als günstige Verschiebung/Spiegelung; Stärke folgt der Zufriedenheit. */
@@ -1058,16 +1130,17 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
     }
     case 'peck': {
       const period = 4.5 - 2 * act;
-      const local = ((t / period + e.phase) % 1) * period;
+      const local = frac(t / period + e.phase) * period;
       if (local < 0.8) pose.x += pose.dir * S * 0.07 * Math.max(0, Math.sin(local * TAU * 5));
       break;
     }
     case 'hover': {
-      const p = t * 1.3 + e.phase;
+      const slow = e.kind === 'glowworm' ? 0.7 : 1.3;
+      const p = t * slow + e.phase;
       pose.x += S * 0.32 * act * Math.sin(p);
       pose.y += S * 0.14 * act * Math.sin(p * 2);
       pose.dir = Math.cos(p) >= 0 ? 1 : -1;
-      pose.frame = Math.floor(t * 14) % 2;
+      pose.frame = Math.floor(t * (e.kind === 'peacock' ? 5 : 14)) & 1;
       break;
     }
     case 'crawl':
@@ -1083,12 +1156,23 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
         // In Laufrichtung schauen (auf der Rinde: hinauf bzw. hinab).
         pose.dir = vel >= 0 ? 1 : -1;
         const rate = info.motion === 'crawl' ? 8 : info.motion === 'inch' ? 1.6 : 2.4;
-        pose.frame = Math.floor(t * rate) % 2;
+        pose.frame = Math.floor(t * rate) & 1;
       } else if (info.motion === 'wiggle') {
-        pose.frame = Math.floor(t * 2) % 2;
+        pose.frame = Math.floor(t * 2) & 1;
       }
       break;
     }
+    case 'blink': {
+      // Kurzes Blinzeln alle paar Sekunden (Kauz).
+      const period = 6 - 2.5 * act;
+      const local = frac(t / period + e.phase) * period;
+      pose.frame = local < 0.18 ? 1 : 0;
+      break;
+    }
+    case 'busy':
+      // Geschäftiges Gewusel an Ort und Stelle (Ameisen, Käferbeine).
+      pose.frame = Math.floor(t * (1.5 + 2.5 * act) + e.phase) & 1;
+      break;
     case 'still':
       break;
   }

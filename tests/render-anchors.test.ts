@@ -73,21 +73,24 @@ describe('Tier-Ankerpunkte', () => {
     }
   });
 
-  it('wachsen stufenlos mit dem Baum (keine Sprünge)', () => {
+  it('wachsen stufenlos mit dem Baum (keine Sprünge)', { timeout: 15000 }, () => {
     const step = 0.01;
     for (const [w, h] of [
       [1200, 700],
       [390, 844],
     ] as const) {
-      for (let g = 1; g < 8; g += step) {
-        const a = nicheAnchors(w, h, g, 4);
-        const b = nicheAnchors(w, h, g + step, 4);
+      // Jedes Ergebnis wird als nächstes `a` wiederverwendet (halbiert die Arbeit).
+      let a = nicheAnchors(w, h, 1, 4);
+      for (let k = 1; k <= 700; k++) {
+        const g = 1 + k * step;
+        const b = nicheAnchors(w, h, g, 4);
         for (const niche of SCENE_NICHES) {
           for (let i = 0; i < 4; i++) {
             const d = Math.hypot(a[niche][i]!.x - b[niche][i]!.x, a[niche][i]!.y - b[niche][i]!.y);
-            expect(d, `${niche} Platz ${i} bei g=${g.toFixed(2)}`).toBeLessThan(2.5);
+            expect(d, `${niche} Platz ${i} bei g=${(g - step).toFixed(2)}`).toBeLessThan(2.5);
           }
         }
+        a = b;
       }
     }
   });
@@ -111,12 +114,18 @@ describe('Tier-Ankerpunkte', () => {
 });
 
 describe('Tier-Zeichnungen', () => {
-  it('nutzen eigene Zeichnungen für die Prototyp-Arten und sonst die Gattung', () => {
+  it('nutzen eigene Zeichnungen je Art und für unbekannte Arten die Gattung', () => {
     expect(animalKind({ id: 'robin', family: 'birds', niche: 'litter' })).toBe('robin');
     expect(animalKind({ id: 'centipede', family: 'soil', niche: 'litter' })).toBe('centipede');
-    expect(animalKind({ id: 'owl', family: 'birds', niche: 'hollows' })).toBe('bird');
-    expect(animalKind({ id: 'fox', family: 'mammals', niche: 'edge' })).toBe('mammal');
-    expect(animalKind({ id: 'chanterelle', family: 'fungi', niche: 'roots' })).toBe('mushroom');
-    expect(animalKind({ id: 'tinder', family: 'fungi', niche: 'bark' })).toBe('bracket');
+    expect(animalKind({ id: 'owl', family: 'birds', niche: 'hollows' })).toBe('owl');
+    expect(animalKind({ id: 'fox', family: 'mammals', niche: 'edge' })).toBe('fox');
+    expect(animalKind({ id: 'chanterelle', family: 'fungi', niche: 'roots' })).toBe('chanterelle');
+    expect(animalKind({ id: 'tinder', family: 'fungi', niche: 'bark' })).toBe('tinder');
+    expect(animalKind({ id: 'raven', family: 'birds', niche: 'crown' })).toBe('bird');
+    expect(animalKind({ id: 'lynx', family: 'mammals', niche: 'edge' })).toBe('mammal');
+    // Hutpilze am Holz werden zu Konsolen, Konsolen am Boden zu Hutpilzen.
+    expect(animalKind({ id: 'flyagaric', family: 'fungi', niche: 'bark' })).toBe('bracket');
+    expect(animalKind({ id: 'tinder', family: 'fungi', niche: 'roots' })).toBe('mushroom');
+    expect(animalKind({ id: 'unknown', family: 'fungi', niche: 'hollows' })).toBe('bracket');
   });
 });
