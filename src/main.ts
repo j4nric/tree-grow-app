@@ -791,6 +791,13 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
       // Ein Toast für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt.
       notify([withRegulars(notice.text, report.regulars), extraNotice].filter(Boolean).join(' '));
       extraNotice = '';
+      // Die Begrüßung nennt die neue Stufe schon: kein zweites Stufen-Banner im nächsten Frame.
+      if (notice.namesStage) {
+        shownStage = state.stage;
+        encounterDirty = true;
+        ecoDirty = true;
+        pickerDirty = true;
+      }
     } else {
       // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.
       const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');

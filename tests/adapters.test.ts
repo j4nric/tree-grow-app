@@ -381,6 +381,16 @@ describe('welcomeText', () => {
     expect(welcomeText(3600, report, 0, { from: 4, to: 4 })).toContain('ist dein Wald gewachsen');
   });
 
+  it('lässt Einträge mit 0 weg und rundet kleine Werte nicht auf 0 ab', () => {
+    expect(welcomeText(3600, { ...report, seeds: 0 }, 0)).toBe('Willkommen zurück! In 1 Std. ist dein Wald gewachsen: +1.234 🌿.');
+    expect(welcomeText(3600, { ...report, seeds: 0.4 }, 0)).toBe('Willkommen zurück! In 1 Std. ist dein Wald gewachsen: +1.234 🌿, +0,4 🌰.');
+    expect(welcomeText(3600, { ...report, growth: 7.25, seeds: 0.01 }, 0)).toBe('Willkommen zurück! In 1 Std. ist dein Wald gewachsen: +7,3 🌿.');
+    expect(welcomeText(3600, { ...report, growth: 0.01, seeds: 0 }, 1)).toBe(
+      'Willkommen zurück! In 1 Std. ist dein Wald gewachsen. 1 Begegnung wartet auf dich.',
+    );
+    expect(welcomeText(3600, report, 0)).not.toContain('+0 ');
+  });
+
   it('nennt die simulierte statt der ungekürzten Abwesenheit', () => {
     const capped = { ...report, seconds: MAX_OFFLINE_SECONDS };
     expect(welcomeText(30 * 3600, capped, 3)).toMatch(/^Willkommen zurück! In 8 Std\. \(max\. 8 Std\.\) ist dein Wald gewachsen:/);
@@ -914,7 +924,17 @@ describe('catchUpNotice', () => {
 
   it('nach langer Abwesenheit die Willkommens-Meldung (sie nennt verpasste Begegnungen selbst)', () => {
     const r = { ...report, seconds: 3600, growth: 500, seeds: 20, autoDeclined: 2, declinedStackFull: 2 };
-    expect(catchUpNotice(3600, r, 3)).toEqual({ kind: 'welcome', text: welcomeText(3600, r, 3) });
+    expect(catchUpNotice(3600, r, 3)).toEqual({ kind: 'welcome', text: welcomeText(3600, r, 3), namesStage: false });
+  });
+
+  it('nennt die Begrüßung die neue Stufe, entfällt das Stufen-Banner (namesStage)', () => {
+    const r = { ...report, seconds: 3600, growth: 500, seeds: 20 };
+    const jumped = catchUpNotice(3600, r, 0, { from: 3, to: 4 });
+    expect(jumped).toMatchObject({ kind: 'welcome', namesStage: true });
+    expect(jumped!.text).toContain(`Stufe „${STAGES[4]!.name}“`);
+    expect(catchUpNotice(3600, r, 0, { from: 4, to: 4 })).toMatchObject({ kind: 'welcome', namesStage: false });
+    // Kurz weg: kein Willkommen, das Banner zeigt die Stufe wie gewohnt.
+    expect(catchUpNotice(20, { ...r, seconds: 20 }, 0, { from: 3, to: 4 })).toBeNull();
   });
 
   it('kurz weg (2–60 s) mit verpasster Begegnung: der kurze Hinweis wie im laufenden Spiel', () => {

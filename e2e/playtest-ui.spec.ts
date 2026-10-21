@@ -96,3 +96,48 @@ for (const width of [360, 390]) {
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
   });
 }
+
+test('Einspaltig 700 px: Stapel schwebt erst, wenn seine Stelle in der Szene aus dem Bild ist', async ({ page, context }) => {
+  await page.setViewportSize({ width: 700, height: 800 });
+  await seedV3(context, {
+    totalGrowth: waypoint(6) + 1,
+    niches: { roots: ['earthworm'] },
+    pendingEncounters: [{ type: 'animal', cards: ['bluetit'], rerolls: 0 }],
+  });
+  await openGame(page);
+  const dock = page.locator('#scene-dock');
+  await expect(stack(page)).toBeInViewport();
+  // Nur der obere Rand der Szene ist weggescrollt – der Stapel unten links ist noch zu sehen.
+  await page.evaluate(() => window.scrollTo(0, 80));
+  await settle(page);
+  await expect(dock).not.toHaveClass(/floating/);
+  await expect(stack(page)).toBeInViewport();
+  // Ganz unten: jetzt schwebt er und bleibt sichtbar.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect(dock).toHaveClass(/floating/);
+  await expect(stack(page)).toBeInViewport();
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+});
+
+test('Letzte Begegnung über den Seitenleisten-Knopf erledigt: Fokus landet auf der Überschrift', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await seedV3(context, {
+    totalGrowth: waypoint(6) + 1,
+    niches: { roots: ['earthworm'] },
+    pendingEncounters: [{ type: 'animal', cards: ['bluetit'], rerolls: 0 }],
+  });
+  await openGame(page);
+  const pending = page.locator('[data-ref="pending-encounters"]');
+  await pending.focus();
+  await page.keyboard.press('Enter');
+  await expect(dialog(page)).toBeVisible();
+  await settle(page);
+  await dialog(page).locator('.card-choose').first().click();
+  await expect(dialog(page)).toBeHidden();
+  await expect(pending).toBeHidden();
+  await expect(stack(page)).toBeHidden();
+  await expect(page.locator('.panel h1')).toBeFocused();
+  // Und der Fokus bleibt dort (nicht nachträglich auf body verloren).
+  await settle(page);
+  await expect(page.locator('.panel h1')).toBeFocused();
+});

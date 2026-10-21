@@ -72,9 +72,10 @@ export function createEncounterStack(root: HTMLElement, onOpen: () => void): Enc
 }
 
 /**
- * Beobachtet einen unsichtbaren Platzhalter an der Stelle des Stapels (oben in der Szene).
- * Ist er nicht mehr vollständig zu sehen, bekommt das Dock die Klasse `floating`. Ob das
- * Dock dann wirklich schwebt, entscheidet das CSS (nur im einspaltigen Mobil-Layout).
+ * Beobachtet einen unsichtbaren Platzhalter genau an der Stelle des Stapels in der Szene
+ * (das CSS legt ihn je Layout in dieselbe Ecke wie das Dock). Ist er nicht mehr vollständig
+ * zu sehen, bekommt das Dock die Klasse `floating`. Ob das Dock dann wirklich schwebt,
+ * entscheidet das CSS (nur im einspaltigen Layout ≤ 760 px).
  */
 function watchScroll(dock: HTMLElement): void {
   const scene = dock.parentElement;

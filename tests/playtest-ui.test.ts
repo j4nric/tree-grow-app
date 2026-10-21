@@ -16,10 +16,12 @@ import {
   toVisitorView,
   visitorPreviewNote,
 } from '../src/ui/adapters';
-import { SOFT_HYPHEN, hyphenPoints, hyphenate, stripHyphens } from '../src/ui/hyphenate';
+import { HYPHENATION, MIN_HYPHENATED_WORD, SOFT_HYPHEN, hyphenate, stripHyphens } from '../src/ui/hyphenate';
 import { legendEntries, waitingText } from '../src/ui/view-format';
 import type { EncounterView } from '../src/ui/view-model';
 import { stateAt } from './helpers';
+
+const CONTENT_MODULES = import.meta.glob('../src/content/*.ts', { eager: true });
 
 const show = (text: string) => text.replaceAll(SOFT_HYPHEN, '-');
 
@@ -128,7 +130,7 @@ describe('Gäste: Erklärung, wenn die Vorschau vom Nennwert abweicht', () => {
     state.pendingEncounters = [{ type: 'visitor', cards: ['bramblings'], rerolls: 0 }];
     const view = toVisitorView(state, 0)!;
     const host = view.cards[0]!;
-    expect(host.note).toMatch(/^Vorschau weicht vom Nennwert ab, weil er als Vogel für den Gattungsbonus zählt/);
+    expect(host.note).toMatch(/^Vorschau weicht vom Nennwert ab, weil der Gast als Vogel für den Gattungsbonus zählt/);
   });
 
   it('keine Erklärung, wenn Vorschau und Nennwert übereinstimmen', () => {
@@ -145,6 +147,20 @@ describe('Gäste: Erklärung, wenn die Vorschau vom Nennwert abweicht', () => {
     );
   });
 
+  it('Mehrzahl-Gast (Seidenschwänze): neutrale Formulierung ohne „er“', () => {
+    const waxwings = VISITORS_BY_ID.get('waxwings')!;
+    const text = visitorPreviewNote(waxwings, { harmonyDelta: 0, growthDelta: 0, seedDelta: 0.3 }, { harmonyDelta: 0, growthDelta: 0, seedDelta: 0.25 });
+    expect(text).toBe('Vorschau weicht vom Nennwert ab, weil der Gast als Vogel für den Gattungsbonus zählt.');
+    expect(text).not.toMatch(/\ber\b/);
+  });
+
+  it('kein Hinweis, wenn die Vorschau mit Gattung dem Nennwert entspricht (auch wenn die Gattung zählt)', () => {
+    const waxwings = VISITORS_BY_ID.get('waxwings')!;
+    expect(
+      visitorPreviewNote(waxwings, { harmonyDelta: 0, growthDelta: 0, seedDelta: 0.25 }, { harmonyDelta: 0, growthDelta: 0, seedDelta: 0.2 }),
+    ).toBeNull();
+  });
+
   it('beide Gründe in einem Satz', () => {
     const bramblings = VISITORS_BY_ID.get('bramblings')!;
     const text = visitorPreviewNote(
@@ -153,7 +169,7 @@ describe('Gäste: Erklärung, wenn die Vorschau vom Nennwert abweicht', () => {
       { harmonyDelta: 0, growthDelta: 0.095, seedDelta: 0.1 },
     );
     expect(text).toBe(
-      'Vorschau weicht vom Nennwert ab, weil er als Vogel für den Gattungsbonus zählt und sich die Wirkung mit Harmonie und deinen übrigen Boni verrechnet.',
+      'Vorschau weicht vom Nennwert ab, weil der Gast als Vogel für den Gattungsbonus zählt und sich die Wirkung mit Harmonie und deinen übrigen Boni verrechnet.',
     );
   });
 });
@@ -167,29 +183,42 @@ describe('Stufen-Banner mit gleichzeitigem Erfolg', () => {
 });
 
 describe('Weiche Trennstellen in langen Namen', () => {
-  it('trennt lange Namen an Silben, kurze bleiben unverändert', () => {
-    expect(show(hyphenate('Buschwindröschen'))).toBe('Busch-wind-rö-schen');
-    expect(show(hyphenate('Frauenhaarmoos'))).toBe('Frauen-haar-moos');
-    expect(show(hyphenate('Schwarzspecht'))).toBe('Schwarz-specht');
-    expect(show(hyphenate('Bienenschwarm'))).toBe('Bie-nen-schwarm');
-    expect(show(hyphenate('Nachtflieger'))).toBe('Nacht-flie-ger');
+  it('trennt Namen laut Tabelle, Wörter ohne Eintrag bleiben unverändert', () => {
+    expect(show(hyphenate('Buschwindröschen'))).toBe('Busch-wind-rös-chen');
+    expect(show(hyphenate('Lichterabend'))).toBe('Lich-ter-abend');
+    expect(show(hyphenate('Tagpfauenauge'))).toBe('Tag-pfau-en-au-ge');
+    expect(show(hyphenate('Weinbergschnecke'))).toBe('Wein-berg-schne-cke');
     expect(hyphenate('Rotkehlchen')).toBe('Rotkehlchen');
-    expect(hyphenate('Eiche')).toBe('Eiche');
+    expect(hyphenate('Lebensgemeinschaften')).toBe('Lebensgemeinschaften');
+    expect(hyphenate('hasOwnProperty')).toBe('hasOwnProperty');
+    expect(show(hyphenate('Hirschkäfer-Hochzeitsflug'))).toBe('Hirschkäfer-Hoch-zeits-flug');
   });
 
-  it('lässt an den Rändern mindestens drei Buchstaben und behält Leer- und Satzzeichen', () => {
-    for (const word of ['Taubenschwänzchen', 'Weinbergschnecke', 'Lebensgemeinschaften']) {
-      for (const p of hyphenPoints(word)) {
-        expect(p).toBeGreaterThanOrEqual(3);
-        expect(word.length - p).toBeGreaterThanOrEqual(3);
+  it('jedes Wort ab zwölf Buchstaben aus content-Namen hat einen Eintrag', () => {
+    const words = new Set<string>();
+    const seen = new Set<unknown>();
+    const walk = (value: unknown, key: string): void => {
+      if (typeof value === 'string') {
+        if (key !== 'name') return;
+        for (const w of value.match(/[A-Za-zÄÖÜäöüß]+/g) ?? []) if (w.length >= MIN_HYPHENATED_WORD) words.add(w);
+        return;
       }
-    }
-    expect(show(hyphenate('Kleiner Buschwindröschen-Saum'))).toBe('Kleiner Busch-wind-rö-schen-Saum');
+      if (!value || typeof value !== 'object' || seen.has(value)) return;
+      seen.add(value);
+      const entries = value instanceof Map ? [...value.entries()] : Object.entries(value);
+      for (const [k, v] of entries) walk(v, String(k));
+    };
+    for (const mod of Object.values(CONTENT_MODULES)) walk(mod, '');
+    expect(words.size).toBeGreaterThan(0);
+    const missing = [...words].filter((w) => !Object.hasOwn(HYPHENATION, w));
+    expect(missing).toEqual([]);
   });
 
-  it('nur für die Anzeige: ohne Trennzeichen wieder der Originalname', () => {
-    const name = 'Taubenschwänzchen';
-    expect(hyphenate(name)).not.toBe(name);
-    expect(stripHyphens(hyphenate(name))).toBe(name);
+  it('jeder Eintrag ergibt ohne Trennzeichen exakt sein Wort, ohne leere Silben', () => {
+    for (const [word, split] of Object.entries(HYPHENATION)) {
+      expect(split.replaceAll('|', '')).toBe(word);
+      expect(split.split('|').every((part) => part.length > 0)).toBe(true);
+      expect(stripHyphens(hyphenate(word))).toBe(word);
+    }
   });
 });

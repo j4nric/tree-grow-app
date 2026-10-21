@@ -21,6 +21,8 @@ import {
   declineLabel,
   legendEntries,
   preferredReplaceOption,
+  hasPreviewChanges,
+  previewChips,
   previewParts,
   queuedText,
   replaceHint,
@@ -148,20 +150,19 @@ export function renderConditions(list: HTMLElement, conditions: readonly Conditi
 
 /**
  * Vorschau-Chips (Harmonie, Wachstum, Samen, …) in eine Liste schreiben. Ändert die Wahl
- * nichts, steht dort ein einzelner neutraler Chip „keine Änderung“.
+ * nichts, steht vorn ein neutraler Chip „keine Änderung“ (auch vor Zustands-Chips, siehe
+ * `previewChips`).
  */
 export function renderPreviewChips(list: HTMLElement, preview: PreviewView): void {
-  const parts = previewParts(preview);
-  if (parts.length === 0) {
-    const item = el('li', 'preview-chip tone-neutral preview-none');
-    const value = el('span', 'preview-value', 'keine Änderung');
-    value.setAttribute('aria-hidden', 'true');
-    item.append(value, srOnly(NO_CHANGE_TEXT));
-    list.replaceChildren(item);
-    return;
-  }
   list.replaceChildren(
-    ...parts.map((part) => {
+    ...previewChips(preview).map((part) => {
+      if (part === 'none') {
+        const item = el('li', 'preview-chip tone-neutral preview-none');
+        const value = el('span', 'preview-value', 'keine Änderung');
+        value.setAttribute('aria-hidden', 'true');
+        item.append(value, srOnly(NO_CHANGE_TEXT));
+        return item;
+      }
       const item = el('li', `preview-chip tone-${part.tone}`);
       const icon = el('span', 'preview-icon', part.icon);
       icon.setAttribute('aria-hidden', 'true');
@@ -444,7 +445,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     previewList.id = `${prefix}-card-${index}-preview`;
     // Ändert die Wahl an den Raten nichts (z. B. Samen sofort), bleibt die Vorschau weg –
     // die Wirkungszeile sagt dort schon alles.
-    const changes = previewParts(card.preview).length > 0;
+    const changes = hasPreviewChanges(previewParts(card.preview));
     if (changes) renderPreviewChips(previewList, card.preview);
     previewList.hidden = !changes;
     const communityList = communityHintList();
@@ -498,8 +499,11 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       band.append(gem);
     }
 
-    const name = el('h3', 'card-name', hyphenate(card.name));
+    const shown = hyphenate(card.name);
+    const name = el('h3', 'card-name', shown);
     name.id = `${prefix}-card-${index}-name`;
+    // Ziel von aria-labelledby: Screenreader bekommen den Namen ohne weiche Trennstellen.
+    if (shown !== card.name) name.setAttribute('aria-label', card.name);
     item.append(band, name);
 
     if (card.nicheLabel) item.append(el('p', 'card-niche', `Nische: ${card.nicheLabel}`));

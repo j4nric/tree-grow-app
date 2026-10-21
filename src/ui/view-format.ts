@@ -71,8 +71,8 @@ export interface PreviewPart {
  * Vorschau einer Karte als Liste von Zeilen. Einheitliche Regel für alle Karten (Tiere,
  * Pflanzen, Ereignis-Optionen, Gäste): Änderungen (Harmonie, Wachstum, Samen) erscheinen
  * nur, wenn sie in der Anzeige ≠ 0 sind – kein „±0“-Chip. Zustände (Zufriedenheit bei
- * Tieren, Versorgung bei Pflanzen) stehen immer da. Leer → „keine Änderung“ (siehe
- * `NO_CHANGE_TEXT`) bzw. keine Vorschau.
+ * Tieren, Versorgung bei Pflanzen) stehen immer da. Ohne Änderung → Chip „keine Änderung“
+ * (siehe `previewChips`) bzw. bei Ereignis-Optionen und Gästen keine Vorschau.
  */
 export function previewParts(preview: PreviewView): PreviewPart[] {
   const parts: PreviewPart[] = [];
@@ -128,6 +128,24 @@ export function previewParts(preview: PreviewView): PreviewPart[] {
 
 /** Vorschau ohne jede Änderung an Harmonie, Wachstum und Samen. */
 export const NO_CHANGE_TEXT = 'keine Änderung an Harmonie, Wachstum und Samen';
+
+/** Teile, die eine Änderung beschreiben (im Gegensatz zu Zuständen wie Zufriedenheit). */
+const CHANGE_KEYS: ReadonlySet<PreviewPart['key']> = new Set(['harmony', 'growth', 'seeds']);
+
+/** Ändert die Wahl etwas an Harmonie, Wachstum oder Samen (gerundet ≠ 0)? */
+export function hasPreviewChanges(parts: readonly PreviewPart[]): boolean {
+  return parts.some((p) => CHANGE_KEYS.has(p.key));
+}
+
+/**
+ * Chips einer Tier-/Pflanzenkarte. Einheitliche Regel: Fehlt jede Änderung, steht vorn
+ * ein Chip „keine Änderung“ – auch wenn Zustands-Chips (Zufriedenheit, Versorgung) folgen,
+ * damit „ändert nichts“ nie mit „Vorschau fehlt“ verwechselt wird. 'none' = dieser Chip.
+ */
+export function previewChips(preview: PreviewView): Array<PreviewPart | 'none'> {
+  const parts = previewParts(preview);
+  return hasPreviewChanges(parts) ? parts : ['none', ...parts];
+}
 
 /** Stufe der Zufriedenheit für die Farbe des Rings. */
 export function happinessLevel(happiness: number): 'high' | 'mid' | 'low' {

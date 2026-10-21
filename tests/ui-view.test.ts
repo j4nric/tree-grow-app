@@ -12,6 +12,8 @@ import {
   happinessLevel,
   nicheSlotsLabel,
   percentToneOf,
+  hasPreviewChanges,
+  previewChips,
   previewParts,
   queuedText,
   replaceHint,
@@ -94,6 +96,23 @@ describe('Vorschau', () => {
     expect(parts[2]!.text).toBe(`Samen +12${NBSP}%`);
     expect(parts[3]).toMatchObject({ text: `Zufriedenheit 55${NBSP}%`, tone: 'neutral' });
     expect(previewParts({ harmonyDelta: 0, growthDelta: 0, happiness: 0.3 }).map((p) => p.key)).toEqual(['happiness']);
+  });
+});
+
+describe('„keine Änderung“-Chip', () => {
+  it('steht vorn, wenn nichts an Harmonie, Wachstum und Samen sich ändert – auch vor Zustands-Chips', () => {
+    expect(previewChips({ harmonyDelta: 0, growthDelta: 0 })).toEqual(['none']);
+    const chips = previewChips({ harmonyDelta: 0.01, growthDelta: 0, happiness: 0.3 });
+    expect(chips.map((c) => (c === 'none' ? c : c.key))).toEqual(['none', 'happiness']);
+    const plant = previewChips({ harmonyDelta: 0, growthDelta: 0, supply: 1, supplyDelta: 0 });
+    expect(plant.map((c) => (c === 'none' ? c : c.key))).toEqual(['none', 'supply']);
+  });
+
+  it('fehlt, sobald sich etwas ändert', () => {
+    const chips = previewChips({ harmonyDelta: 2, growthDelta: 0, happiness: 0.8 });
+    expect(chips).not.toContain('none');
+    expect(hasPreviewChanges(previewParts({ harmonyDelta: 0, growthDelta: 0, happiness: 0.8 }))).toBe(false);
+    expect(hasPreviewChanges(previewParts({ harmonyDelta: 0, growthDelta: 0.05 }))).toBe(true);
   });
 });
 

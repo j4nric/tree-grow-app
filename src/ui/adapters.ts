@@ -1615,7 +1615,11 @@ export function stageBannerView(stage: number, achievement: string | null = null
 /** Ab dieser Abwesenheit (s) gibt es eine Willkommens-Meldung. */
 export const WELCOME_MIN_SECONDS = 60;
 
-export type CatchUpNotice = { kind: 'welcome' | 'note'; text: string } | null;
+/**
+ * `namesStage`: Die Willkommens-Meldung nennt die offline erreichte Stufe – dann zeigt
+ * main.ts kein zusätzliches Stufen-Banner (sonst käme dieselbe Nachricht doppelt).
+ */
+export type CatchUpNotice = { kind: 'welcome'; text: string; namesStage: boolean } | { kind: 'note'; text: string } | null;
 
 /**
  * Was nach dem Nachrechnen (Start, Tab zurück, Ruhezustand) gemeldet wird: nach längerer
@@ -1629,7 +1633,7 @@ export function catchUpNotice(
   stages?: StageProgress,
 ): CatchUpNotice {
   if (away > WELCOME_MIN_SECONDS && report.growth > 0) {
-    return { kind: 'welcome', text: welcomeText(away, report, waiting, stages) };
+    return { kind: 'welcome', text: welcomeText(away, report, waiting, stages), namesStage: reachedStage(stages) !== undefined };
   }
   if (report.autoDeclined > 0) return { kind: 'note', text: tickDeclineText(report) };
   return null;
@@ -1639,6 +1643,20 @@ export function catchUpNotice(
 export interface StageProgress {
   from: number;
   to: number;
+}
+
+/** Name der offline erreichten Stufe; undefined, wenn keine neue Stufe dazukam. */
+function reachedStage(stages: StageProgress | undefined): string | undefined {
+  return stages && stages.to > stages.from ? STAGES[stages.to]?.name : undefined;
+}
+
+/**
+ * Ertrag für die Willkommens-Meldung: ab 10 ganze Zahlen (abgerundet), darunter eine
+ * Nachkommastelle – so wird aus 0,4 kein „+0“. '' , wenn gerundet nichts bleibt.
+ */
+function welcomeAmount(value: number, icon: string): string {
+  const shown = value >= 10 ? Math.floor(value) : Math.round(value * 10) / 10;
+  return shown > 0 ? `+${formatNumber(shown)} ${icon}` : '';
 }
 
 /**
@@ -1654,10 +1672,12 @@ export function welcomeText(
 ): string {
   // Simuliert werden höchstens MAX_OFFLINE_SECONDS – die Meldung nennt die tatsächliche Zeit.
   const capped = report.seconds < away ? ` (max. ${formatDuration(MAX_OFFLINE_SECONDS)})` : '';
-  const yieldText = `+${formatNumber(Math.floor(report.growth))} 🌿, +${formatNumber(Math.floor(report.seeds))} 🌰`;
-  const reached = stages && stages.to > stages.from ? STAGES[stages.to]?.name : undefined;
+  // Einträge, die gerundet 0 wären, fallen weg („+0 🌰“ wirkt wie ein Fehler).
+  const yields = [welcomeAmount(report.growth, '🌿'), welcomeAmount(report.seeds, '🌰')].filter(Boolean);
+  const yieldText = yields.length > 0 ? `: ${yields.join(', ')}` : '';
+  const reached = reachedStage(stages);
   const grew = reached ? `wuchs dein Baum bis zur Stufe „${reached}“` : 'ist dein Wald gewachsen';
-  let text = `Willkommen zurück! In ${formatDuration(report.seconds)}${capped} ${grew}: ${yieldText}.`;
+  let text = `Willkommen zurück! In ${formatDuration(report.seconds)}${capped} ${grew}${yieldText}.`;
   const n = report.autoDeclined;
   const thanks = `+${formatNumber(n * declineReward())} 🌰`;
   if (waiting > 0) {
@@ -1829,8 +1849,10 @@ export function toVisitorView(
     cycle: { ...state.cycle, visitors: [...state.cycle.visitors, { id: visitor.id, remaining: visitor.stay }] },
   });
   const after = evaluateEcosystem(hosted);
-  // Zum Vergleich: dieselbe Wirkung, ohne dass der Gast für seine Gattung zählt.
-  const withoutGenus = evaluateEcosystem({ ...hosted, guestGenera: ecosystemOf(state).guestGenera });
+  // Zum Vergleich: dieselbe Wirkung, ohne dass der Gast für seine Gattung zählt. Der neue
+  // Gast steht (mit voller Rastzeit) als letzter in `guestGenera` – ohne ihn bleiben genau
+  // die Gattungen des Ist-Zustands, den `now` bewertet (kein zweites ecosystemOf(state)).
+  const withoutGenus = evaluateEcosystem({ ...hosted, guestGenera: (hosted.guestGenera ?? []).slice(0, -1) });
   const hostPreview = {
     harmonyDelta: after.harmony - now.harmony,
     growthDelta: relative(after.growth, now.growth),
@@ -1915,9 +1937,10 @@ export function visitorPreviewNote(visitor: Visitor, withGenus: RatePreview, wit
     (kinds.has('harmony') && formatSigned(p.harmonyDelta) !== formatSigned(nominal.harmony)) ||
     (kinds.has('growth') && formatSignedPercent(p.growthDelta) !== formatSignedPercent(nominal.growth)) ||
     (kinds.has('seeds') && formatSignedPercent(p.seedDelta ?? 0) !== formatSignedPercent(nominal.seeds));
-  if (!genusCounts && !differs(withGenus)) return null;
+  // Nur wenn die angezeigte Vorschau tatsächlich vom Nennwert abweicht.
+  if (!differs(withGenus)) return null;
   const reasons: string[] = [];
-  if (genusCounts) reasons.push(`er als ${GENUS_SINGULAR[visitor.genus]} für den Gattungsbonus zählt`);
+  if (genusCounts) reasons.push(`der Gast als ${GENUS_SINGULAR[visitor.genus]} für den Gattungsbonus zählt`);
   if (differs(withoutGenus)) reasons.push('sich die Wirkung mit Harmonie und deinen übrigen Boni verrechnet');
   if (reasons.length === 0) return null;
   return `Vorschau weicht vom Nennwert ab, weil ${reasons.join(' und ')}.`;
