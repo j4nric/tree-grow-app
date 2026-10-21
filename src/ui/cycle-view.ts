@@ -113,7 +113,7 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
     allowed,
     blocker: preview.blocker ? newCycleBlockerText(preview.blocker) : null,
     gain: allowed ? `+${formatNumber(preview.memoryGain)} Waldgedächtnis (${memoryBonusLabel(preview.memoryGain)})` : null,
-    gainDetail: allowed ? `Höchste Harmonie ${formatNumber(Math.floor(preview.maxHarmony))} · ${species}` : null,
+    gainDetail: allowed ? `Höchste Harmonie ${formatNumber(Math.round(preview.maxHarmony))} · ${species}` : null,
     slotsGain: allowed && newSlots > 0 ? (newSlots === 1 ? '+1 Platz für Stammgäste' : `+${newSlots} Plätze für Stammgäste`) : null,
     memory: `Waldgedächtnis ${formatNumber(state.meta.forestMemory)} · ${memoryBonusLabel(state.meta.forestMemory)} Wachstum und Samen`,
     regularSlots: slots,
