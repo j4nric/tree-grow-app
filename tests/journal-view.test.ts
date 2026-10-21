@@ -21,7 +21,7 @@ describe('toJournalView (Naturtagebuch)', () => {
     expect(view.plants).toHaveLength(PLANTS.length);
     expect(view.communities).toHaveLength(COMMUNITIES.length);
     expect(view.keepsakes).toEqual([]);
-    expect(view.tabCounts).toEqual({ species: '0/32', plants: '0/14', communities: '0/9', keepsakes: '0' });
+    expect(view.tabCounts).toEqual({ species: '0/32', plants: '0/14', communities: '0/9', keepsakes: '1', stats: '' });
 
     const text = allText(view);
     for (const sp of SPECIES) {
@@ -105,7 +105,7 @@ describe('toJournalView (Naturtagebuch)', () => {
     const state = stateAt(0);
     state.meta.journal.keepsakes = [V1_KEEPSAKE_ID, 'mystery'];
     const view = toJournalView(state, evaluate(state));
-    expect(view.tabCounts.keepsakes).toBe('2');
+    expect(view.tabCounts.keepsakes).toBe('3'); // 2 Erinnerungen + Stieleiche
     expect(view.keepsakes[0]).toMatchObject({ key: 'old-oak', name: 'Die alte Eiche', icon: '🌳' });
     expect(view.keepsakes[0]!.text).toContain('+5 Waldgedächtnis');
     expect(view.keepsakes[1]).toEqual({ key: 'mystery', icon: '🎁', name: 'Andenken', text: '' });

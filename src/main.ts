@@ -33,6 +33,7 @@ import {
   discoveryText,
   refreshEcosystemView,
   toEcosystemView,
+  toJournalStats,
   toJournalView,
   toEncounterView,
   toPlantPickerView,
@@ -458,6 +459,8 @@ function refreshPanel(now: number): void {
   }
   lastPanelRefresh = now;
   panel.update(ecoView);
+  // Statistik im Naturtagebuch: Samen, Spielzeit usw. laufen – nur Texte, gedrosselt.
+  if (journal.open) journal.updateStats(toJournalStats(state, evaluate(state)));
   // Restzeiten der Boni laufen – gedrosselt wie die Zahlen der Seitenleiste.
   bonusPanel.update(activeBonusViews(state));
   refreshCare();

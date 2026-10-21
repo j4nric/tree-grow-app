@@ -164,6 +164,8 @@ export function tick(state: GameState, dt: number): TickReport {
     if (step === toSeason) {
       state.cycle.elapsed = nextSeasonBoundary(state.cycle.elapsed);
       reportSeason(report, seasonIdAt(state.cycle.elapsed));
+      // Die Jahreszeit hebt oder senkt die Harmonie: H_max hier nachführen.
+      raiseMaxHarmony(state, evaluate(state).harmony);
     } else {
       state.cycle.elapsed = normalizeElapsed(state.cycle.elapsed + step);
     }
@@ -214,10 +216,12 @@ function skipYears(state: GameState, remaining: number, report: TickReport): num
   const eco = ecosystemOf(state);
   let growth = 0;
   let seeds = 0;
+  const harmonies: number[] = [];
   for (const id of SEASON_IDS) {
     const ev = evaluateEcosystem({ ...eco, season: id });
     growth += (ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth : 0) * SEASON_SECONDS;
     seeds += ev.seeds * SEASON_SECONDS;
+    harmonies.push(ev.harmony);
   }
   // Wegpunkt und Zwischenhalt: nur Jahre, nach denen die Schwelle noch nicht erreicht ist.
   for (const threshold of [thresholdFor(state.waypoint + 1), interludeThreshold(state)]) {
@@ -228,6 +232,8 @@ function skipYears(state: GameState, remaining: number, report: TickReport): num
   state.totalGrowth = capped(state.totalGrowth + growth * years);
   state.cycle.elapsed = elapsed + years * YEAR_SECONDS;
   countDown(state, years * YEAR_SECONDS, report);
+  // Jede Jahreszeit wurde durchlaufen: H_max wie beim schrittweisen Wechsel nachführen.
+  for (const h of harmonies) raiseMaxHarmony(state, h);
   // Je Jahr die Wechsel Sommer, Herbst, Winter, Frühling (gemerkt werden nur die letzten).
   const reported = Math.min(years, Math.ceil(MAX_REPORTED_SEASONS / SEASON_IDS.length));
   for (let y = 0; y < reported; y++) {
@@ -587,8 +593,13 @@ export function recordDiscoveries(state: GameState): string[] {
   for (const id of state.plants) if (!journal.plants.includes(id)) journal.plants.push(id);
   const fresh = activeCommunities(ev).filter((id) => !journal.communities.includes(id));
   journal.communities.push(...fresh);
-  if (Number.isFinite(ev.harmony) && ev.harmony > state.cycle.maxHarmony) state.cycle.maxHarmony = ev.harmony;
+  raiseMaxHarmony(state, ev.harmony);
   return fresh;
+}
+
+/** Hebt die höchste Harmonie des Zyklus (H_max) auf `harmony`, falls größer. */
+function raiseMaxHarmony(state: GameState, harmony: number): void {
+  if (Number.isFinite(harmony) && harmony > state.cycle.maxHarmony) state.cycle.maxHarmony = harmony;
 }
 
 /**
