@@ -146,3 +146,27 @@ test('Gast ohne genug Samen: „Bewirten“ per aria-disabled gesperrt, fokussie
   await farewell.click();
   await expect(d).toBeHidden();
 });
+
+test('Ereignis-Karte: keine Spoiler für unentdeckte Arten – auch nicht in Attributen, mobil 360 px', async ({ page, context }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  // Pfifferling lebt schon hier (= entdeckt), die anderen Pilze des Pilzherbsts nicht.
+  await seedV3(context, {
+    totalGrowth: waypoint(12) + 1,
+    seeds: 100,
+    niches: { roots: ['earthworm', 'chanterelle'] },
+    pendingEncounters: [{ type: 'event', cards: ['mushroom-autumn'], rerolls: 0 }],
+  });
+  await openGame(page);
+  await openStack(page);
+  const d = dialog(page);
+  const forced = d.getByRole('button', { name: 'Den Hüten Zeit lassen' });
+  await expect(forced).toContainText('nächste Begegnung: Pfifferling oder 3 unbekannte Arten (🍄)');
+  // Weder Namen noch IDs der unentdeckten Pilze stehen irgendwo im DOM (Text, title, aria, data-*).
+  const html = await page.content();
+  for (const name of ['Steinpilz', 'Zunderschwamm', 'Fliegenpilz']) expect(html).not.toContain(name);
+  for (const id of ['porcini', 'tinder', 'flyagaric']) expect(html).not.toContain(`"${id}"`);
+  // Mobil: nichts läuft quer über.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  expect(await d.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+  expect(await d.locator('.encounter-cards').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+});

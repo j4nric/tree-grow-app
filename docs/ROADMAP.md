@@ -150,7 +150,7 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   Ereignisse nur mit vorhandenen Wirkungstypen (keine Logik, kein neues Spielstand-Format):
   Spätfrost (Frühling), Hitzewelle (Sommer), Laubfall (Herbst), Schneebruch (Winter);
   DESIGN_V2.md 7.4 und 16.4
-- [ ] Ereignis-Karten: unentdeckte Arten nicht mit Namen nennen (wie Tagebuch „???“) (`ui-dev`)
+- [x] Ereignis-Karten: unentdeckte Arten nicht mit Namen nennen (wie Tagebuch „???“) (`ui-dev`) – „Pfifferling oder 3 unbekannte Arten (🍄)“
 
 ## Phase 4 – Prestige & Langzeitspiel
 
