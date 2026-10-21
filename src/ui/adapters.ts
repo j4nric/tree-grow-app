@@ -112,7 +112,7 @@ const TAG_ICONS: Partial<Record<Tag, string>> = {
   feucht: '💧',
   totholz: '🪵',
   hoehle: '🕳️',
-  laub: '🍃',
+  laub: '🍂',
   nektar: '🌸',
 };
 
@@ -537,7 +537,7 @@ export function toEncounterView(
 
 /** Symbole für das, was Pflanzen bieten (nur Anzeige auf Pflanzenkarten). */
 const PROVIDE_ICONS: Partial<Record<Tag, string>> = {
-  laub: '🍃',
+  laub: '🍂',
   nuesse: '🥜',
   nadeln: '🌲',
   beeren: '🍒',
@@ -776,7 +776,11 @@ export function plantRingView(state: GameState, evaluation: Readonly<Evaluation>
   const plants: PlantSlotView[] = [];
   for (const id of state.plants) {
     const plant = PLANTS_BY_ID.get(id);
-    if (!plant) continue;
+    if (!plant) {
+      // Belegt trotzdem einen Platz – sonst stünde „2/3 belegt“ bei vollem Ring.
+      plants.push({ id, name: 'Unbekannte Pflanze', group: 'unknown', groupIcon: '❔', groupLabel: 'Unbekannt' });
+      continue;
+    }
     const group = PLANT_GROUP_INFO[plant.group];
     plants.push({ id, name: plant.name, group: plant.group, groupIcon: group.icon, groupLabel: group.name });
   }
@@ -796,6 +800,7 @@ export function plantRingView(state: GameState, evaluation: Readonly<Evaluation>
     meters: [light, water],
     groups,
     plantCost: 0,
+    plantCostLabel: '',
     canOpenPicker: capacity > 0 && state.plants.length < capacity && unlockedPlants(state).length > 0,
     affordable: false,
     plantHint: '',
@@ -813,8 +818,8 @@ export function plantRingView(state: GameState, evaluation: Readonly<Evaluation>
 /** Samen-abhängige Teile des Pflanzrings (Kosten, reicht es?, Hinweis). */
 export function refreshPlantRing(ring: PlantRingView, state: GameState): void {
   const cost = nextPlantCost(state);
-  // Anzeige aufgerundet: lieber eine Nuss zu viel ansagen als eine zu wenig.
-  ring.plantCost = Math.ceil(cost);
+  ring.plantCost = cost;
+  ring.plantCostLabel = plantCostLabel(cost);
   ring.affordable = state.seeds >= cost;
   if (ring.capacity <= 0) ring.plantHint = '';
   else if (state.plants.length >= ring.capacity) {
@@ -822,6 +827,14 @@ export function refreshPlantRing(ring: PlantRingView, state: GameState): void {
   } else if (!ring.canOpenPicker) ring.plantHint = 'Noch keine Pflanze zum Setzen freigeschaltet.';
   else if (!ring.affordable) ring.plantHint = `Noch ${formatNumber(Math.ceil(cost - state.seeds))} 🌰 bis zur nächsten Pflanze`;
   else ring.plantHint = '';
+}
+
+/**
+ * Pflanzkosten zur Anzeige: aufgerundet, damit „Noch X 🌰“ und die Kosten nie weniger
+ * versprechen, als abgezogen wird. Vergleiche laufen immer mit dem exakten Wert.
+ */
+export function plantCostLabel(cost: number): string {
+  return formatNumber(Math.ceil(cost));
 }
 
 /** Sperrgründe für „Pflanze setzen“ (plantBlocker). */
@@ -838,7 +851,8 @@ export const PLANT_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof plant
  * `disabledReason` – wie viele fehlen, zeigt der Dialog live.
  */
 export function toPlantPickerView(state: GameState, now: Readonly<Evaluation> = evaluate(state)): PlantPickerView {
-  const cost = Math.ceil(nextPlantCost(state));
+  const cost = nextPlantCost(state);
+  const costLabel = plantCostLabel(cost);
   const offers = unlockedPlants(state)
     .map((id) => PLANTS_BY_ID.get(id))
     .filter((p): p is Plant => p !== undefined)
@@ -848,11 +862,12 @@ export function toPlantPickerView(state: GameState, now: Readonly<Evaluation> = 
       if (after) card.preview = plantPreviewView(now, after);
       const blocker = plantBlocker(state, plant.id);
       if (blocker) card.disabledReason = PLANT_BLOCKERS[blocker];
-      return { card, cost };
+      return { card, cost, costLabel };
     });
   return {
     title: 'Pflanze setzen',
-    subtitle: `Pflanzring ${formatNumber(state.plants.length)}/${formatNumber(now.plantSlots)} belegt · jede Pflanze kostet jetzt ${formatNumber(cost)} 🌰`,
+    subtitle: `Pflanzring ${formatNumber(state.plants.length)}/${formatNumber(now.plantSlots)} belegt · jede Pflanze kostet jetzt ${costLabel} 🌰`,
+    cost,
     offers,
   };
 }

@@ -243,8 +243,10 @@ export interface PlantRingView {
   groups: PlantGroupCountView[];
   /** Hinweis für den verschlossenen Ring, z. B. „öffnet bei „Keimling““. */
   unlockHint?: string;
-  /** Kosten der nächsten Pflanze in 🌰. */
+  /** Exakte Kosten der nächsten Pflanze in 🌰 (für Vergleiche mit dem Samenvorrat). */
   plantCost: number;
+  /** Kosten zur Anzeige, aufgerundet, z. B. „138“. */
+  plantCostLabel: string;
   /** Knopf „Pflanze setzen“ anbieten (Ring offen und nicht voll, Pflanzen verfügbar)? */
   canOpenPicker: boolean;
   /** Reichen die Samen gerade für die nächste Pflanze? */
@@ -256,8 +258,10 @@ export interface PlantRingView {
 /** Eine Pflanze in der Auswahl „Pflanze setzen“. */
 export interface PlantOfferView {
   card: CardView;
-  /** Kosten in 🌰 (für alle Pflanzen gleich: nextPlantCost). */
+  /** Exakte Kosten in 🌰 (für alle Pflanzen gleich: nextPlantCost). */
   cost: number;
+  /** Kosten zur Anzeige, aufgerundet. */
+  costLabel: string;
 }
 
 /** Auswahl „Pflanze setzen“. */
@@ -265,5 +269,7 @@ export interface PlantPickerView {
   title: string;
   /** z. B. „Pflanzring 1/3 belegt · nächste Pflanze 38 🌰“. */
   subtitle: string;
+  /** Exakte Kosten der nächsten Pflanze – der Kopf zeigt live, ob die Samen reichen. */
+  cost: number;
   offers: PlantOfferView[];
 }

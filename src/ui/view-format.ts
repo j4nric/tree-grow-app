@@ -187,6 +187,16 @@ export function replaceHint(nicheLabel: string, replacedName: string | undefined
   return replacedName ? `${full} – ersetzt ${replacedName}` : full;
 }
 
+/**
+ * Samenvorrat im Kopf der Auswahl „Pflanze setzen“. `cost` ist exakt: Ob es reicht,
+ * entscheidet derselbe Vergleich wie im Kern; die fehlende Menge wird aufgerundet.
+ */
+export function seedsLine(seeds: number, cost: number): string {
+  const have = `Du hast ${formatNumber(Math.floor(Math.max(0, seeds)))} 🌰`;
+  if (!(cost > 0) || seeds >= cost) return have;
+  return `${have} – noch ${formatNumber(Math.ceil(cost - seeds))} 🌰 bis zur nächsten Pflanze`;
+}
+
 /** Hinweis bei vollem Platz mit gewähltem Ersatz: „Pflanzring voll – ersetzt Hasel“. */
 export function swapHint(fullText: string, replacedName: string | undefined): string {
   return replacedName ? `${fullText} – ersetzt ${replacedName}` : fullText;

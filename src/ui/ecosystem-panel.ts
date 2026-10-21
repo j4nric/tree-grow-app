@@ -500,12 +500,12 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     groupCaption.hidden = locked;
 
     plantButton.hidden = !view.canOpenPicker;
-    setText(plantButtonCost, `${formatNumber(view.plantCost)} 🌰`);
+    setText(plantButtonCost, `${view.plantCostLabel} 🌰`);
     plantButton.classList.toggle('affordable', view.affordable);
     setAttr(
       plantButton,
       'aria-label',
-      `Pflanze setzen – kostet ${formatNumber(view.plantCost)} Samen${view.affordable ? '' : ', noch nicht genug'}`,
+      `Pflanze setzen – kostet ${view.plantCostLabel} Samen${view.affordable ? '' : ', noch nicht genug'}`,
     );
     setText(plantHint, view.plantHint);
     plantHint.hidden = !view.plantHint;

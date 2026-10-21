@@ -11,9 +11,8 @@
  */
 import { el, setText } from './dom';
 import { renderFacts, renderPreviewChips } from './encounter-dialog';
-import { formatNumber } from './format';
 import type { PlantOfferView, PlantPickerView } from './view-model';
-import { toneSymbol } from './view-format';
+import { seedsLine, toneSymbol } from './view-format';
 
 export interface PlantPickerCallbacks {
   /** Pflanze gewählt (die Aktion selbst führt main.ts aus). */
@@ -30,13 +29,6 @@ export interface PlantPicker {
   hide(): void;
   notice(text: string): void;
   readonly open: boolean;
-}
-
-/** Text zum Samenvorrat im Kopf der Auswahl. */
-export function seedsLine(seeds: number, cost: number): string {
-  const have = `Du hast ${formatNumber(Math.floor(Math.max(0, seeds)))} 🌰`;
-  if (!(cost > 0) || seeds >= cost) return have;
-  return `${have} – noch ${formatNumber(Math.ceil(cost - seeds))} 🌰 bis zur nächsten Pflanze`;
 }
 
 /** Eingaben so lange nach dem Öffnen ignorieren (Doppelklick auf „Pflanze setzen“). */
@@ -78,7 +70,9 @@ export function createPlantPicker(root: HTMLElement, callbacks: PlantPickerCallb
   close.type = 'button';
   actions.append(close);
 
-  inner.append(header, noticeBox, list, actions);
+  // Hinweise stehen in der klebenden Leiste unten – dort sind sie auch nach dem Scrollen sichtbar.
+  actions.prepend(noticeBox);
+  inner.append(header, list, actions);
   dialog.append(inner);
   root.append(dialog);
 
@@ -134,12 +128,12 @@ export function createPlantPicker(root: HTMLElement, callbacks: PlantPickerCallb
 
     const button = el('button', 'card-choose picker-choose');
     button.type = 'button';
-    button.textContent = card.disabledReason ?? `Setzen (−${formatNumber(offer.cost)} 🌰)`;
+    button.textContent = card.disabledReason ?? `Setzen (−${offer.costLabel} 🌰)`;
     button.setAttribute(
       'aria-label',
       card.disabledReason
         ? `${card.name}: ${card.disabledReason}`
-        : `${card.name} setzen für ${formatNumber(offer.cost)} Samen`,
+        : `${card.name} setzen für ${offer.costLabel} Samen`,
     );
     button.addEventListener('click', () => {
       if (card.disabledReason || blocked()) return;
@@ -167,7 +161,7 @@ export function createPlantPicker(root: HTMLElement, callbacks: PlantPickerCallb
 
   function show(view: PlantPickerView, seeds: number): void {
     busy = false;
-    cost = view.offers[0]?.cost ?? 0;
+    cost = view.cost;
     setText(title, view.title);
     setText(subtitle, view.subtitle);
     updateSeeds(seeds);
@@ -188,7 +182,7 @@ export function createPlantPicker(root: HTMLElement, callbacks: PlantPickerCallb
       showing = true;
       clearNotice();
       dialog.showModal();
-      list.scrollTop = 0;
+      dialog.scrollTop = 0;
       guardUntil = performance.now() + INPUT_GUARD_MS;
       const first = rows.find((r) => !r.button.disabled);
       (first?.button ?? close).focus({ preventScroll: true });

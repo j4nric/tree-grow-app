@@ -5,6 +5,7 @@ import { SPECIES_BY_ID } from '../src/content/species';
 import { evaluate, nextPlantCost, previewChoice, previewPlant } from '../src/core/formulas';
 import { MAX_OFFLINE_SECONDS, unlockedPlants } from '../src/core/tick';
 import { formatDuration, formatNumber } from '../src/ui/format';
+import { seedsLine } from '../src/ui/view-format';
 import {
   PLANT_BLOCKERS,
   PLANT_ENCOUNTER_TITLE,
@@ -13,6 +14,7 @@ import {
   encounterTitle,
   harmonyTier,
   listNames,
+  plantCostLabel,
   plantProvidesViews,
   shortageHint,
   toPlantPickerView,
@@ -486,6 +488,15 @@ describe('Pflanzring in der Übersicht', () => {
     expect(ring.plantHint).toBe('');
   });
 
+  it('unbekannte Pflanze belegt trotzdem einen Platz', () => {
+    const { ring } = ringOf(2, ['hazel', 'dodo-plant']);
+    expect(ring.plants.map((p) => [p.id, p.name, p.group])).toEqual([
+      ['hazel', 'Hasel', 'shrubs'],
+      ['dodo-plant', 'Unbekannte Pflanze', 'unknown'],
+    ]);
+    expect(ring.canOpenPicker).toBe(false);
+  });
+
   it('Plätze, Pflanzen mit Gruppe, Gruppen-Zähler (Hauptbaum zählt als Baum)', () => {
     const { ring, ev } = ringOf(3, ['birch', 'hazel']);
     expect(ring.capacity).toBe(ev.plantSlots);
@@ -531,7 +542,8 @@ describe('Pflanzring in der Übersicht', () => {
   it('„Pflanze setzen“: Kosten, reicht es?, Hinweise – Samen per refresh aktualisiert', () => {
     const { state, ring } = ringOf(2, ['hazel'], 10);
     expect(ring.canOpenPicker).toBe(true);
-    expect(ring.plantCost).toBe(Math.ceil(nextPlantCost(state)));
+    expect(ring.plantCost).toBe(nextPlantCost(state));
+    expect(ring.plantCostLabel).toBe(formatNumber(Math.ceil(nextPlantCost(state))));
     expect(ring.affordable).toBe(false);
     expect(ring.plantHint).toBe(`Noch ${formatNumber(Math.ceil(nextPlantCost(state) - 10))} 🌰 bis zur nächsten Pflanze`);
 
@@ -554,16 +566,43 @@ describe('Auswahl „Pflanze setzen“', () => {
     state.seeds = 1000;
     const now = evaluate(state);
     const view = toPlantPickerView(state);
-    const cost = Math.ceil(nextPlantCost(state));
+    const cost = nextPlantCost(state);
+    const label = formatNumber(Math.ceil(cost));
     expect(view.title).toBe('Pflanze setzen');
-    expect(view.subtitle).toBe(`Pflanzring 1/2 belegt · jede Pflanze kostet jetzt ${formatNumber(cost)} 🌰`);
+    expect(view.subtitle).toBe(`Pflanzring 1/2 belegt · jede Pflanze kostet jetzt ${label} 🌰`);
+    expect(view.cost).toBe(cost);
     expect(view.offers.map((o) => o.card.id)).toEqual(unlockedPlants(state));
-    expect(view.offers.every((o) => o.cost === cost && !o.card.disabledReason)).toBe(true);
+    expect(view.offers.every((o) => o.cost === cost && o.costLabel === label && !o.card.disabledReason)).toBe(true);
     const nettle = view.offers.find((o) => o.card.id === 'nettle')!.card;
     const after = previewPlant(state, 'nettle')!;
     expect(nettle.preview.harmonyDelta).toBeCloseTo(after.harmony - now.harmony, 9);
     expect(nettle.preview.supply).toBe(after.supply);
     expect(nettle.facts).toHaveLength(4);
+  });
+
+  it('nicht ganzzahlige Kosten: Sperre und Anzeige folgen dem exakten Wert, Anzeige aufgerundet', () => {
+    // 3 Pflanzen → 20 · 1,9³ = 137,18 🌰
+    const state = stateAt(4);
+    state.plants = ['hazel', 'bramble', 'anemone'];
+    const cost = nextPlantCost(state);
+    expect(cost).toBeCloseTo(137.18, 9);
+    expect(plantCostLabel(cost)).toBe('138');
+
+    state.seeds = 137.5; // reicht – exakt wie plantBlocker
+    let view = toPlantPickerView(state);
+    expect(view.offers.every((o) => o.costLabel === '138' && !o.card.disabledReason)).toBe(true);
+    expect(seedsLine(state.seeds, view.cost)).toBe('Du hast 137 🌰');
+    let ring = toEcosystemView(state, evaluate(state)).plantRing;
+    expect(ring.affordable).toBe(true);
+    expect(ring.plantHint).toBe('');
+
+    state.seeds = 137.1; // reicht knapp nicht
+    view = toPlantPickerView(state);
+    expect(view.offers.every((o) => o.card.disabledReason === 'Nicht genug Samen')).toBe(true);
+    expect(seedsLine(state.seeds, view.cost)).toBe('Du hast 137 🌰 – noch 1 🌰 bis zur nächsten Pflanze');
+    ring = toEcosystemView(state, evaluate(state)).plantRing;
+    expect(ring.affordable).toBe(false);
+    expect(ring.plantHint).toBe('Noch 1 🌰 bis zur nächsten Pflanze');
   });
 
   it('zu teuer und Ring voll', () => {

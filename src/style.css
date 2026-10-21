@@ -1593,7 +1593,11 @@ dialog.encounter::backdrop {
   color: var(--muted);
 }
 
-/* Auswahl „Pflanze setzen“ – „Schließen“ bleibt beim Scrollen sichtbar */
+/* Auswahl „Pflanze setzen“ – „Schließen“ und Hinweise bleiben beim Scrollen sichtbar */
+.plant-picker .encounter-actions .encounter-notice {
+  flex-basis: 100%;
+}
+
 .plant-picker .encounter-actions {
   position: sticky;
   bottom: -20px;

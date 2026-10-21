@@ -69,6 +69,7 @@ const PLANT_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
   'no-cards': 'Keine passenden Pflanzen.',
   'no-alternatives': 'Keine anderen Pflanzen verfügbar.',
   'invalid-replace': 'Diese Pflanze kann gerade nicht weichen.',
+  closed: 'Der Pflanzring ist noch verschlossen.',
 };
 
 function errorText(error: ActionError, type: PendingEncounterType | undefined): string {
@@ -120,6 +121,9 @@ let pickerWanted = false;
 /** Ökosystem oder Samen-Lage geändert → Auswahl neu bauen. */
 let pickerDirty = true;
 let shownPickerAffordable: boolean | null = null;
+/** Zuletzt in der Auswahl gezeigte Samen (ganze Zahl) und wann – drosselt die Kopfzeile. */
+let pickerSeedsShown = -1;
+let pickerSeedsAt = -Infinity;
 
 /** Eingabe für den Renderer – ein Objekt für alle Frames, keine Allokationen pro Frame. */
 const scene: SceneInput = { growth: 0, time: 0, animals: [], reducedMotion: reducedMotionQuery.matches };
@@ -180,14 +184,16 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
 /** „Pflanze setzen“: Samen ausgeben, Auswahl schließen, kurz zeigen, was passiert ist. */
 function plant(plantId: string): void {
   const cost = nextPlantCost(state);
-  const ok = act(plantSeed(state, plantId), false);
-  if (!ok) return;
+  const result = plantSeed(state, plantId);
+  // Bei Erfolg schließt die Auswahl – vorher abmelden, damit act() sie nicht neu aufbaut.
+  if (result.ok) pickerWanted = false;
+  if (!act(result, false)) return;
   closePlantPicker();
   const ring = document.querySelector<HTMLElement>('[data-ref="plant-ring"]');
   const seedsEl = document.querySelector<HTMLElement>('[data-ref="seeds"]');
   if (seedsEl) {
     const rect = seedsEl.getBoundingClientRect();
-    floats.spawn(`−${formatNumber(cost)} 🌰`, rect.left + rect.width / 2, rect.top);
+    floats.spawn(`−${formatNumber(Math.ceil(cost))} 🌰`, rect.left + rect.width / 2, rect.top);
   }
   if (ring) {
     const rect = ring.getBoundingClientRect();
@@ -207,18 +213,28 @@ function closePlantPicker(): void {
   picker.hide();
 }
 
-/** Auswahl „Pflanze setzen“ nur bei Änderungen neu bauen; Samen-Zeile jeden Aufruf. */
-function refreshPicker(): void {
+/**
+ * Auswahl „Pflanze setzen“ nur bei Änderungen neu bauen (Ökosystem, Samen reichen
+ * (nicht mehr)); die Samen-Zeile nur bei neuer ganzer Zahl oder höchstens alle 200 ms.
+ */
+function refreshPicker(now = performance.now()): void {
   if (!pickerWanted) {
     if (picker.open) picker.hide();
     return;
   }
   const affordable = state.seeds >= nextPlantCost(state);
   if (!pickerDirty && picker.open && affordable === shownPickerAffordable) {
-    picker.updateSeeds(state.seeds);
+    const whole = Math.floor(state.seeds);
+    if (whole !== pickerSeedsShown || now - pickerSeedsAt >= PANEL_REFRESH_MS) {
+      pickerSeedsShown = whole;
+      pickerSeedsAt = now;
+      picker.updateSeeds(state.seeds);
+    }
     return;
   }
   pickerDirty = false;
+  pickerSeedsShown = Math.floor(state.seeds);
+  pickerSeedsAt = now;
   shownPickerAffordable = affordable;
   picker.show(toPlantPickerView(state, evaluate(state)), state.seeds);
 }
@@ -301,7 +317,7 @@ function refreshViews(now: number): void {
   refreshPanel(now);
   stack.update(state.pendingEncounters.length, state.pendingEncounters[0]?.type === 'plant' ? 'plant' : 'animal');
   refreshEncounter();
-  refreshPicker();
+  refreshPicker(now);
 }
 
 function floatSeeds(amount: number): void {
