@@ -11,6 +11,7 @@
  */
 
 import type { AnchorResolver, NicheAnchor } from './anchors';
+import { edgeBare, edgePetals, edgeSeedHeads, fireflySeason, insectActivity } from './phenology';
 import { ell, eye, line, OUTLINE, outline, paintBird, poly, TAU, type BirdColors, type SpriteDef } from './sprite-kit';
 import { SPECIES_DEFS, SPECIES_INFO, type KindInfo } from './species-sprites';
 import { clamp, clamp01, hash2, smooth01 } from './util';
@@ -539,8 +540,21 @@ function paintBracket(c: CanvasRenderingContext2D): void {
 
 // --- Deko an den Plätzen -----------------------------------------------------
 
-/** Blumen und Gras am Waldsaum, Fuß auf (0, 0). */
+/** Blüten am Waldsaum: Lage (x, y), Blütenblatt, Mitte, Radius. */
+const EDGE_FLOWERS: readonly (readonly [number, number, string, string, number])[] = [
+  [-0.2, -0.46, '#f4f1ea', '#e8b93a', 0.11],
+  [0.18, -0.62, '#d98fb4', '#f0d37a', 0.12],
+  [0.04, -0.34, '#f2d65a', '#c98a2a', 0.09],
+];
+
+/** Blumen und Gras am Waldsaum (Sommer: Grün und Blüten), Fuß auf (0, 0). */
 function paintFlowers(c: CanvasRenderingContext2D): void {
+  paintEdgeGreen(c);
+  paintEdgePetals(c);
+}
+
+/** Grüne Halme und Stängel der Waldsaum-Blumen (ohne Blüten). */
+function paintEdgeGreen(c: CanvasRenderingContext2D): void {
   for (const [x, h, lean] of [
     [-0.3, 0.32, -0.12],
     [-0.12, 0.42, -0.05],
@@ -549,17 +563,74 @@ function paintFlowers(c: CanvasRenderingContext2D): void {
   ] as const) {
     poly(c, [x - 0.04, 0, x + lean, -h, x + 0.04, 0], '#5f9a40');
   }
-  const flower = (x: number, y: number, petal: string, center: string, r: number) => {
-    line(c, [x * 0.6, 0, x, y], '#4f8a38', 0.04);
+  for (const [x, y] of EDGE_FLOWERS) line(c, [x * 0.6, 0, x, y], '#4f8a38', 0.04);
+}
+
+/** Nur die Blüten (Frühling und Sommer). */
+function paintEdgePetals(c: CanvasRenderingContext2D): void {
+  for (const [x, y, petal, center, r] of EDGE_FLOWERS) {
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * TAU - 0.3;
       ell(c, x + Math.cos(a) * r * 0.75, y + Math.sin(a) * r * 0.75, r * 0.55, r * 0.55, 0, petal);
     }
     ell(c, x, y, r * 0.45, r * 0.45, 0, center);
-  };
-  flower(-0.2, -0.46, '#f4f1ea', '#e8b93a', 0.11);
-  flower(0.18, -0.62, '#d98fb4', '#f0d37a', 0.12);
-  flower(0.04, -0.34, '#f2d65a', '#c98a2a', 0.09);
+  }
+}
+
+/** Verblühte Samenstände (Herbst): kleine braune Köpfe, einer als Pusteblume. */
+function paintEdgeSeeds(c: CanvasRenderingContext2D): void {
+  const [fx, fy, , , fr] = EDGE_FLOWERS[0]!;
+  // Pusteblume: helle Schirmchen um einen kleinen Kopf.
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * TAU;
+    line(c, [fx, fy, fx + Math.cos(a) * fr * 1.05, fy + Math.sin(a) * fr * 1.05], 'rgba(236, 230, 214, 0.85)', 0.012);
+    ell(c, fx + Math.cos(a) * fr * 1.1, fy + Math.sin(a) * fr * 1.1, fr * 0.16, fr * 0.16, 0, 'rgba(244, 240, 228, 0.9)');
+  }
+  ell(c, fx, fy, fr * 0.3, fr * 0.3, 0, '#9a7a4c');
+  for (const [x, y, , , r] of EDGE_FLOWERS.slice(1)) {
+    // Vertrocknete Köpfe, leicht nickend.
+    ell(c, x, y + r * 0.2, r * 0.5, r * 0.62, 0.2, '#7d5f3a');
+    ell(c, x - r * 0.12, y + r * 0.05, r * 0.22, r * 0.26, 0.2, '#a8875a');
+    line(c, [x - r * 0.5, y - r * 0.1, x - r * 0.8, y + r * 0.45], '#8a6a42', 0.02);
+    line(c, [x + r * 0.5, y - r * 0.1, x + r * 0.8, y + r * 0.45], '#8a6a42', 0.02);
+  }
+}
+
+/** Winter: dürre, geknickte Halme und eine flache grüne Blattrosette am Boden. */
+function paintEdgeBare(c: CanvasRenderingContext2D): void {
+  for (const [x, h, lean, col] of [
+    [-0.32, 0.3, -0.16, '#a08656'],
+    [-0.14, 0.42, -0.1, '#8c7247'],
+    [0.08, 0.34, 0.04, '#a88f5e'],
+    [0.22, 0.38, 0.14, '#94794b'],
+    [0.38, 0.24, 0.2, '#a08656'],
+  ] as const) {
+    poly(c, [x - 0.03, 0, x + lean, -h, x + 0.03, 0], col);
+  }
+  // Abgeknickte Stängel der Blumen vom Sommer.
+  for (const [x, y] of EDGE_FLOWERS) {
+    const mx = x * 0.8;
+    const my = y * 0.55;
+    line(c, [x * 0.6, 0, mx, my, mx + 0.1 * Math.sign(x || 1), my + 0.08], '#7e6440', 0.035);
+  }
+  // Rosette: kleine, dunkelgrüne Blätter flach am Boden.
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI + (i / 5) * Math.PI;
+    ell(c, 0.02 + Math.cos(a) * 0.1, -0.02 + Math.sin(a) * 0.05, 0.1, 0.035, a, i & 1 ? '#3f6a34' : '#4c7b3c');
+  }
+  ell(c, 0.02, -0.03, 0.03, 0.025, 0, '#5d8c45');
+}
+
+/** Weicher Lichtschein des Glühwürmchens (eigenes Sprite, folgt der Jahreszeit). */
+function paintGlowHalo(c: CanvasRenderingContext2D): void {
+  const glow = c.createRadialGradient(0, 0, 0, 0, 0, 0.55);
+  glow.addColorStop(0, 'rgba(236, 255, 150, 0.9)');
+  glow.addColorStop(0.3, 'rgba(210, 245, 120, 0.4)');
+  glow.addColorStop(1, 'rgba(200, 240, 110, 0)');
+  c.fillStyle = glow;
+  c.beginPath();
+  c.arc(0, 0, 0.55, 0, TAU);
+  c.fill();
 }
 
 /** Laubhäufchen, Mitte am Boden auf (0, 0). */
@@ -643,6 +714,11 @@ const DEFS: Record<string, SpriteDef> = {
   bracket: { x0: -0.22, y0: -0.36, x1: 0.3, y1: 0.36, paint: (c) => paintBracket(c) },
   // Deko
   flowers: { x0: -0.42, y0: -0.8, x1: 0.48, y1: 0.06, paint: (c) => paintFlowers(c) },
+  edgeGreen: { x0: -0.42, y0: -0.8, x1: 0.48, y1: 0.06, paint: (c) => paintEdgeGreen(c) },
+  edgePetals: { x0: -0.42, y0: -0.8, x1: 0.48, y1: 0.06, paint: (c) => paintEdgePetals(c) },
+  edgeSeeds: { x0: -0.42, y0: -0.8, x1: 0.48, y1: 0.06, paint: (c) => paintEdgeSeeds(c) },
+  edgeBare: { x0: -0.42, y0: -0.8, x1: 0.48, y1: 0.06, paint: (c) => paintEdgeBare(c) },
+  glowHalo: { x0: -0.56, y0: -0.56, x1: 0.56, y1: 0.56, paint: (c) => paintGlowHalo(c) },
   litter: { x0: -0.64, y0: -0.12, x1: 0.6, y1: 0.14, paint: (c) => paintLitter(c) },
   burrow: { x0: -0.66, y0: -0.28, x1: 0.66, y1: 0.32, paint: (c) => paintBurrow(c) },
   hollow: { x0: -0.4, y0: -0.84, x1: 0.4, y1: 0.06, paint: (c) => paintHollow(c) },
@@ -795,10 +871,29 @@ export interface AnimalFrame {
   /** Scherfaktor des Hauptbaums (Wind); Tiere am Baum werden mitverschoben. */
   windSkew: number;
   reducedMotion: boolean;
+  /**
+   * Ungerundete Jahreszeit 0–4 (`normalizeSeason`), null/fehlend = ohne Angabe (Sommerbild).
+   * Daraus pro Frame (phenology.ts): Bewegung der Insekten (Winterruhe), Blumen am
+   * Waldsaum (Blüte, Samenstände, dürre Halme) und das Leuchten der Glühwürmchen.
+   */
+  season?: number | null;
   dpr: number;
   /** Zusätzliche Skalierung (z. B. altes Bild während einer Größenänderung). */
   sx: number;
   sy: number;
+}
+
+/** Jahreszeit-Werte dieses Frames (einmal je Frame gerechnet, keine Allokation). */
+const seasonNow = { season: Number.NaN as number | null, insects: 1, petals: 1, seeds: 0, bare: 0, glow: 1 };
+
+function updateSeason(season: number | null): void {
+  if (seasonNow.season === season) return;
+  seasonNow.season = season;
+  seasonNow.insects = insectActivity(season);
+  seasonNow.petals = edgePetals(season);
+  seasonNow.seeds = edgeSeedHeads(season);
+  seasonNow.bare = edgeBare(season);
+  seasonNow.glow = fireflySeason(season);
 }
 
 const NICHE_ORDER: Record<string, number> = { roots: 0, litter: 1, edge: 2, bark: 3, hollows: 4, crown: 5 };
@@ -826,6 +921,8 @@ interface PlanEntry {
   index: number;
   kind: string;
   info: KindInfo;
+  /** Insekt (Gattung 'insects'): ruht im Winter. */
+  insect: boolean;
   seed: number;
   phase: number;
   niche: string;
@@ -851,6 +948,11 @@ interface PlanEntry {
   midX: number;
   midY: number;
   midR: number;
+  /**
+   * Insekt auf der Blüte am Waldsaum: so weit (px) sinkt es im Winter (ohne Blüten) zur
+   * Blattrosette am Boden; 0 = keins.
+   */
+  perchDrop: number;
   /** Wiederverwendetes Pose-Objekt (keine Allokation pro Frame). */
   pose: Pose;
 }
@@ -881,6 +983,7 @@ export class AnimalLayer {
   draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame): void {
     if (animals.length === 0) return;
     this.sprites.tick();
+    updateSeason(f.season ?? null);
     if (anchors !== this.anchors || !this.matches(animals)) this.rebuild(animals, anchors);
     for (const e of this.plan) {
       drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
@@ -931,6 +1034,7 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
     index,
     kind,
     info,
+    insect: animal.family === 'insects',
     seed,
     phase: (seed & 1023) / 97,
     niche,
@@ -949,6 +1053,7 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
     midX: (def.x0 + def.x1) / 2,
     midY: (def.y0 + def.y1) / 2,
     midR: Math.max(def.x1 - def.x0, def.y1 - def.y0) * 0.62,
+    perchDrop: 0,
     pose: { x: 0, y: 0, dir: 1, rot: 0, frame: 0 },
   };
 
@@ -983,12 +1088,16 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
       e.size = Se * info.size;
       e.depth = anchor.depth;
       e.before.push({ name: 'flowers', x: ax, y: ay, size: Se * 1.15 });
+      // Ruhende Insekten sitzen auf der Blüte (Höhe ay − 0,72·Se); im Winter ohne Blüten
+      // stattdessen tief an den dürren Halmen über der Rosette (ay − 0,22·Se).
       if (info.motion === 'hover') {
         e.y = ay - Se * 1.15;
+        if (e.insect) e.perchDrop = Se * 0.5;
       } else if (ON_BLOSSOM.has(kind)) {
         // Kleine Krabbler sitzen auf der Blüte.
         e.y = ay - Se * 0.72;
         e.x = ax + Se * 0.21;
+        e.perchDrop = Se * 0.5;
       } else {
         // Größere Tiere stehen neben den Blumen, große etwas weiter weg.
         e.x = ax + anchor.side * Se * (0.3 + 0.25 * info.size);
@@ -1045,7 +1154,8 @@ function drawEntry(
   f: AnimalFrame,
 ): void {
   const happy = clamp01(Number.isFinite(happiness) ? happiness : 0.5);
-  const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6);
+  const rest = e.insect ? clamp01(seasonNow.insects) : 1;
+  const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6) * rest;
   const muted = 1 - smooth01((happy - 0.15) / 0.3);
   // Mit dem Baum im Wind schwingen (gleiche Scherung wie die Baumebene).
   const wx = f.windSkew * e.windArm;
@@ -1058,9 +1168,22 @@ function drawEntry(
   pose.frame = 0;
   animate(e, pose, act, f.time, S, f.reducedMotion);
   if (!(pose.frame >= 0 && pose.frame < e.info.frames)) pose.frame = 0;
+  // Winter: ohne Blüten ruht das Insekt an der Rosette am Boden (Schwirrer nur, wenn sie ruhen).
+  if (e.perchDrop > 0 && seasonNow.bare > 0) {
+    pose.y += e.perchDrop * seasonNow.bare * (e.info.motion === 'hover' ? 1 - act : 1);
+  }
 
-  for (const d of e.before) blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
+  for (const d of e.before) {
+    if (d.name === 'flowers') drawEdgeFlowers(ctx, d, wx, sprites, f);
+    else blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
+  }
   if (e.shimmer > 0) drawShimmer(ctx, e, pose, muted, sprites, f);
+  if (e.kind === 'glowworm' && seasonNow.glow > 0.01) {
+    // Leuchten nur in der Glühwürmchen-Zeit; im Winter sitzt es dunkel am Boden.
+    const hx = pose.x - 0.12 * e.size * pose.dir;
+    const hy = pose.y + 0.04 * e.size;
+    blit(ctx, sprites.get('glowHalo', 0, false, e.size, f.dpr), hx, hy, 1, 0, seasonNow.glow * (1 - 0.5 * muted), f);
+  }
   if (muted < 0.99) {
     blit(ctx, sprites.get(e.kind, pose.frame, false, e.size, f.dpr), pose.x, pose.y, pose.dir, pose.rot, 1, f);
   }
@@ -1069,6 +1192,23 @@ function drawEntry(
   }
   for (const d of e.after) blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
   if (e.shimmer === 3) drawSparkles(ctx, e, pose, muted, sprites, f);
+}
+
+/**
+ * Blumen am Waldsaum in der Jahreszeit: im Sommer das bisherige Sprite (ein drawImage),
+ * sonst grüne bzw. dürre Halme mit Blüten oder Samenständen, weich überblendet.
+ */
+function drawEdgeFlowers(ctx: CanvasRenderingContext2D, d: Deco, wx: number, sprites: SpriteCache, f: AnimalFrame): void {
+  const { petals, seeds, bare } = seasonNow;
+  const x = d.x + wx;
+  if (petals >= 0.995 && seeds <= 0.005 && bare <= 0.005) {
+    blit(ctx, sprites.get('flowers', 0, false, d.size, f.dpr), x, d.y, 1, 0, 1, f);
+    return;
+  }
+  if (bare < 0.995) blit(ctx, sprites.get('edgeGreen', 0, false, d.size, f.dpr), x, d.y, 1, 0, 1 - bare, f);
+  if (bare > 0.005) blit(ctx, sprites.get('edgeBare', 0, false, d.size, f.dpr), x, d.y, 1, 0, bare, f);
+  if (seeds > 0.005) blit(ctx, sprites.get('edgeSeeds', 0, false, d.size, f.dpr), x, d.y, 1, 0, seeds, f);
+  if (petals > 0.005) blit(ctx, sprites.get('edgePetals', 0, false, d.size, f.dpr), x, d.y, 1, 0, petals, f);
 }
 
 /** Lichthof hinter seltenen Arten: ein gecachtes Sprite, das sanft pulsiert. */
@@ -1161,7 +1301,14 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
       pose.x += S * 0.32 * act * Math.sin(p);
       pose.y += S * 0.14 * act * Math.sin(p * 2);
       pose.dir = Math.cos(p) >= 0 ? 1 : -1;
-      pose.frame = Math.floor(t * (e.kind === 'peacock' ? 5 : 14)) & 1;
+      // Flügelschlag nur bei merklicher Aktivität: darunter in Schüben, die mit der
+      // Aktivität kürzer werden (feste Taktrate – kein Phasensprung bei sich ändernder
+      // Aktivität); kurz vor der Ruhe (act ≤ 0,2) Flügel still.
+      if (act > 0.2 && frac(t * 0.35 + e.phase) < smooth01((act - 0.2) / 0.6)) {
+        pose.frame = Math.floor(t * (e.kind === 'peacock' ? 5 : 14)) & 1;
+      }
+      // Mit nachlassender Aktivität (Winterruhe, Unzufriedenheit) stufenlos auf die Blüte sinken.
+      if (e.niche === 'edge') pose.y += (1 - act) * (e.size / info.size) * 0.43;
       break;
     }
     case 'crawl':

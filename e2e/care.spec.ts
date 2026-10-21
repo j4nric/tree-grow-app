@@ -15,7 +15,7 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
   const care = page.locator('[data-ref="care"]');
   const litter = care.locator('[data-care="leaf-litter"]');
   await expect(litter).toContainText('Laub liegen lassen');
-  await expect(litter).toContainText('Rang 1/2');
+  await expect(litter).toContainText('Rang 0/2');
   await expect(litter).toContainText('+1 Platz Laubstreu');
   await expect(niche(page, 'litter')).toContainText('1/2 belegt');
   // Maßnahmen ab Alter Baum (z. B. Lichte Krone) stehen noch nicht in der Liste.
@@ -24,7 +24,7 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
   await litter.getByRole('button', { name: 'Kaufen (200 🌰)' }).click();
 
   await expect(niche(page, 'litter')).toContainText('1/3 belegt');
-  await expect(litter).toContainText('Rang 2/2');
+  await expect(litter).toContainText('Rang 1/2');
   await expect(litter.locator('[data-ref="care-blocker"]')).toHaveText('Ab Stufe „Hain“');
   // Gesperrt per aria-disabled (nicht `disabled`): bleibt fokussierbar, Grund wird vorgelesen.
   const locked = litter.getByRole('button', { name: /Kaufen/ });
@@ -33,13 +33,13 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
   await expect(locked).toBeDisabled();
   // Klick auf den gesperrten Knopf kauft nichts.
   await locked.click({ force: true });
-  await expect(litter).toContainText('Rang 2/2');
+  await expect(litter).toContainText('Rang 1/2');
   const saved = await savedState(page);
   expect(saved.cycle.care).toEqual({ 'leaf-litter': 1 });
   expect(saved.seeds).toBeLessThan(300);
 
   await page.reload();
-  await expect(care.locator('[data-care="leaf-litter"]')).toContainText('Rang 2/2');
+  await expect(care.locator('[data-care="leaf-litter"]')).toContainText('Rang 1/2');
   await expect(niche(page, 'litter')).toContainText('1/3 belegt');
   expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 1 });
 });
@@ -56,7 +56,7 @@ test('Pflege per Tastatur: Fokus bleibt auf dem Knopf, nach dem letzten Rang auf
   await expect(buy).toHaveText('Kaufen (200 🌰)');
   await buy.focus();
   await page.keyboard.press('Enter');
-  await expect(litter).toContainText('Rang 2/2');
+  await expect(litter).toContainText('Rang 1/2');
   // Neu gebauter Knopf (nächster Rang) hat den Fokus übernommen.
   await expect(buy).toHaveText(/Kaufen \(7[.,]000 🌰\)/);
   await expect(buy).toBeFocused();
@@ -79,7 +79,7 @@ test('Pflege: Doppelklick und gehaltene Enter-Taste kaufen nur einen Rang', asyn
   const care = page.locator('[data-ref="care"]');
   const litter = care.locator('[data-care="leaf-litter"]');
   await litter.locator('[data-buy-care="leaf-litter"]').dblclick();
-  await expect(litter).toContainText('Rang 2/2');
+  await expect(litter).toContainText('Rang 1/2');
   await page.waitForTimeout(450);
   expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 1 });
 
@@ -90,7 +90,7 @@ test('Pflege: Doppelklick und gehaltene Enter-Taste kaufen nur einen Rang', asyn
   await page.keyboard.down('Enter');
   await page.keyboard.down('Enter');
   await page.keyboard.up('Enter');
-  await expect(pond).toContainText('Rang 2/2');
+  await expect(pond).toContainText('Rang 1/2');
   await page.waitForTimeout(450);
   expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 1, pond: 1 });
 });
@@ -119,7 +119,7 @@ test('Pflege: kaufbar zuerst, Reihenfolge bleibt beim Kauf stehen, Bestätigung 
   const boxes = care.locator('[data-buy-care="nest-boxes"]');
   await boxes.focus();
   await page.keyboard.press('Enter');
-  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('Rang 2/2');
+  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('Rang 1/2');
   // Bestätigung: schwebender Hinweis und Statuszeile für Screenreader.
   await expect(page.locator('.float-layer')).toContainText('Nistkästen angebracht');
   await expect(care.getByRole('status')).toHaveText('Nistkästen angebracht');
@@ -158,7 +158,7 @@ test('Pflege: nach einem Mausklick wird neu sortiert, sobald die Maus die Liste 
   const order = await careIds(page);
   const boxes = care.locator('[data-buy-care="nest-boxes"]');
   await boxes.click();
-  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('Rang 2/2');
+  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('Rang 1/2');
   const note = page.locator('.float-layer .float-note').filter({ hasText: 'Nistkästen angebracht' });
   const noteBox = (await note.boundingBox())!;
   const nameBox = (await care.locator('[data-care="nest-boxes"] .care-name').boundingBox())!;

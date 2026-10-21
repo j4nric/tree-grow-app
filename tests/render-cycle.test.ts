@@ -126,7 +126,10 @@ describe('Zyklus-Übergang in der Szene', () => {
   it('zeichnet während der Sequenz zusätzlich und danach wieder genau die Stufe 0', () => {
     const plain = (t: number) => signature(play(TIMES.filter((x) => x <= t), () => ({})).calls);
     const withCycle = (t: number) => signature(play(TIMES.filter((x) => x <= t), (x) => (x >= 1 ? from(1) : {})).calls);
-    for (const t of [1, 2, 3, 5]) expect(withCycle(t).length, `t=${t}`).toBeGreaterThan(plain(t).length);
+    // Während der Sequenz anders (der Schein am Samen ruht dafür bis 3,6 s – seedGlowCycleFade),
+    // ab 2 s (Eichel, Silhouette, Leuchten) auch mit mehr Aufrufen.
+    for (const t of [1, 2, 3, 5]) expect(withCycle(t), `t=${t}`).not.toEqual(plain(t));
+    for (const t of [3, 5]) expect(withCycle(t).length, `t=${t}`).toBeGreaterThan(plain(t).length);
     // Ende (1 + 5,5 s): pixelgleich – gleiche Aufrufe wie ohne das Feld.
     for (const t of [6.6, 8]) expect(withCycle(t), `t=${t}`).toEqual(plain(t));
   });
@@ -173,7 +176,7 @@ describe('Zyklus-Übergang in der Szene', () => {
     const now = signature(play([5], () => ({ ...from(5), growth: 0 })).calls);
     const far = signature(play([5], () => ({ ...from(9), growth: 0 })).calls);
     expect(soon).toEqual(now);
-    expect(soon.length).toBeGreaterThan(plain.length);
+    expect(soon).not.toEqual(plain);
     expect(far).toEqual(plain);
   });
 

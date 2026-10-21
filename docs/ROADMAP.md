@@ -103,6 +103,14 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     Stammgäste direkt wählbar; Statuszeile für Screenreader (`ui-dev`)
 - [x] 2.9 e2e: voller Zyklus mit festem Seed (`qa-tester`)
 - [x] Begegnungs-Vielfalt messen und verbessern: Pflanzengewicht bei vollem Ring, Ring-Pflanzen seltener (Playtest-Befund, `game-designer`)
+- [x] Bedienungs-Funde aus dem Playtest (UI, `ui-dev`)
+  - [x] Wartende Begegnungen: Knopf „N Begegnungen warten“ in der Seitenleiste statt Countdown;
+    mobil (einspaltig ≤ 760 px) schwebt der Stapel, sobald seine Stelle in der Szene weggescrollt ist
+  - [x] Pflege-Rang „Rang 0/2“, Legende nur mit vorkommenden Symbolen, einheitliche Vorschau-Chips
+  - [x] Gäste: Hinweis, warum die Vorschau vom Nennwert abweicht (nur bei echter Abweichung)
+  - [x] Lange Namen mit geprüfter Trenntabelle (`src/ui/hyphenate.ts`), Erfolg im Stufen-Banner
+  - [x] Willkommen-Meldung: erreichte Stufe vorn (dann kein zweites Stufen-Banner), Einträge mit 0
+    entfallen; Naturtagebuch-Reiter mobil in einer scrollbaren Zeile
 - [x] 2.10 Balancing aller Zahlen mit dem v2-Simulator, `scripts/v2/` aufräumen (`game-designer`)
   - [x] Wegpunkte 3,5 · k^3,5 (Spielstand v7, Migration v6 → v7 erhält den Wegpunkt-Fortschritt),
     🌿-Wirkungen der Arten ×0,75, Pflegekosten, Waldgedächtnis (+1 % je Punkt, H_max/5, 1 je Art),

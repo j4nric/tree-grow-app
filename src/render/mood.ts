@@ -33,6 +33,13 @@ export interface MoodFrame {
   sy: number;
   time: number;
   reducedMotion: boolean;
+  /**
+   * Jahreszeit (phenology.ts): Anteil der Pollen und Blütenblätter bzw. der Glühwürmchen
+   * 0–1 – im Herbst und Winter keine Blütenblätter, im Winter keine Glühwürmchen.
+   * Ohne Angabe 1.
+   */
+  bloom?: number;
+  fireflies?: number;
 }
 
 /** Normalisiert eine Harmoniestufe: undefiniert/ungültig → null, sonst 0–4. */
@@ -125,7 +132,9 @@ export class MoodLayer {
   /** Pollen, Blütenblätter und Glühwürmchen – ganz oben (nach der Lichtfarbe). */
   drawParticles(ctx: CanvasRenderingContext2D, level: number, f: MoodFrame): void {
     const mw = moodWeights(level);
-    if (mw.pollen <= 0.01 && mw.fireflies <= 0.01) return;
+    const pollen = mw.pollen * (f.bloom === undefined ? 1 : clamp01(f.bloom));
+    const fireflies = mw.fireflies * (f.fireflies === undefined ? 1 : clamp01(f.fireflies));
+    if (pollen <= 0.01 && fireflies <= 0.01) return;
     const t = f.reducedMotion ? 0 : f.time;
     const span = f.groundY - f.top;
     const small = f.width < 600;
@@ -134,7 +143,7 @@ export class MoodLayer {
       const p = this.particles[i]!;
       // Auf schmalen Bildschirmen jedes zweite Partikel weglassen.
       if (small && i % 2 === 1) continue;
-      const strength = p.kind === 2 ? mw.fireflies : mw.pollen;
+      const strength = p.kind === 2 ? fireflies : pollen;
       const a = clamp01((strength - p.from) / 0.3);
       if (a <= 0.01) continue;
       let x: number;

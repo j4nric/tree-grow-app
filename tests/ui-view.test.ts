@@ -12,6 +12,8 @@ import {
   happinessLevel,
   nicheSlotsLabel,
   percentToneOf,
+  hasPreviewChanges,
+  previewChips,
   previewParts,
   queuedText,
   replaceHint,
@@ -71,29 +73,46 @@ describe('Bewertung', () => {
 });
 
 describe('Vorschau', () => {
-  it('zeigt immer Harmonie und Wachstum', () => {
+  it('zeigt Harmonie und Wachstum, wenn sie sich ändern', () => {
     const parts = previewParts({ harmonyDelta: 6, growthDelta: -0.07 });
     expect(parts.map((p) => p.key)).toEqual(['harmony', 'growth']);
     expect(parts[0]).toMatchObject({ text: 'Harmonie +6', value: '+6', tone: 'good' });
     expect(parts[1]).toMatchObject({ text: `Wachstum ${MINUS}7${NBSP}%`, tone: 'bad' });
   });
 
-  it('leitet den Ton aus dem gerundeten Wert ab', () => {
-    const parts = previewParts({ harmonyDelta: 0.02, growthDelta: 0.0003, seedDelta: 0.0002 });
-    expect(parts.map((p) => p.key)).toEqual(['harmony', 'growth']);
-    expect(parts[0]).toMatchObject({ value: '±0', tone: 'neutral' });
-    expect(parts[1]).toMatchObject({ value: `±0${NBSP}%`, tone: 'neutral' });
+  it('einheitliche Regel: Änderungen nur, wenn sie gerundet ≠ 0 sind (kein „±0“-Chip)', () => {
+    // Was als „±0“ erschiene, fällt weg – bei allen Kartenarten gleich.
+    expect(previewParts({ harmonyDelta: 0.02, growthDelta: 0.0003, seedDelta: 0.0002 })).toEqual([]);
+    // Mittsommer-Fall: Option mit Harmonie, aber ohne Wachstum → nur der Harmonie-Chip.
+    expect(previewParts({ harmonyDelta: 4, growthDelta: 0, seedDelta: 0.1 }).map((p) => p.key)).toEqual(['harmony', 'seeds']);
+    expect(previewParts({ harmonyDelta: 0, growthDelta: 0.05, seedDelta: 0 }).map((p) => p.key)).toEqual(['growth']);
+    expect(previewParts({ harmonyDelta: 0, growthDelta: 0, seedDelta: 0 }).some((p) => p.value.includes('±0'))).toBe(false);
   });
 
-  it('zeigt Samen nur, wenn sie sich ändern, und Zufriedenheit neutral', () => {
-    expect(previewParts({ harmonyDelta: 1, growthDelta: 0, seedDelta: 0 }).map((p) => p.key)).toEqual([
-      'harmony',
-      'growth',
-    ]);
+  it('zeigt Samen nur, wenn sie sich ändern, und Zufriedenheit immer (neutral)', () => {
+    expect(previewParts({ harmonyDelta: 1, growthDelta: 0, seedDelta: 0 }).map((p) => p.key)).toEqual(['harmony']);
     const parts = previewParts({ harmonyDelta: 1, growthDelta: 0.06, seedDelta: 0.12, happiness: 0.55 });
     expect(parts.map((p) => p.key)).toEqual(['harmony', 'growth', 'seeds', 'happiness']);
     expect(parts[2]!.text).toBe(`Samen +12${NBSP}%`);
     expect(parts[3]).toMatchObject({ text: `Zufriedenheit 55${NBSP}%`, tone: 'neutral' });
+    expect(previewParts({ harmonyDelta: 0, growthDelta: 0, happiness: 0.3 }).map((p) => p.key)).toEqual(['happiness']);
+  });
+});
+
+describe('„keine Änderung“-Chip', () => {
+  it('steht vorn, wenn nichts an Harmonie, Wachstum und Samen sich ändert – auch vor Zustands-Chips', () => {
+    expect(previewChips({ harmonyDelta: 0, growthDelta: 0 })).toEqual(['none']);
+    const chips = previewChips({ harmonyDelta: 0.01, growthDelta: 0, happiness: 0.3 });
+    expect(chips.map((c) => (c === 'none' ? c : c.key))).toEqual(['none', 'happiness']);
+    const plant = previewChips({ harmonyDelta: 0, growthDelta: 0, supply: 1, supplyDelta: 0 });
+    expect(plant.map((c) => (c === 'none' ? c : c.key))).toEqual(['none', 'supply']);
+  });
+
+  it('fehlt, sobald sich etwas ändert', () => {
+    const chips = previewChips({ harmonyDelta: 2, growthDelta: 0, happiness: 0.8 });
+    expect(chips).not.toContain('none');
+    expect(hasPreviewChanges(previewParts({ harmonyDelta: 0, growthDelta: 0, happiness: 0.8 }))).toBe(false);
+    expect(hasPreviewChanges(previewParts({ harmonyDelta: 0, growthDelta: 0.05 }))).toBe(true);
   });
 });
 
@@ -166,8 +185,8 @@ describe('Pflanzen', () => {
       text: `Versorgung mit Licht und Wasser 75${NBSP}%`,
       tone: 'bad',
     });
-    expect(previewParts({ harmonyDelta: 0, growthDelta: 0, supply: 1, supplyDelta: 0 })[2]!.tone).toBe('neutral');
-    expect(previewParts({ harmonyDelta: 0, growthDelta: 0, supply: 0.8, supplyDelta: 0.1 })[2]!.tone).toBe('good');
+    expect(previewParts({ harmonyDelta: 0, growthDelta: 0, supply: 1, supplyDelta: 0 })[0]).toMatchObject({ key: 'supply', tone: 'neutral' });
+    expect(previewParts({ harmonyDelta: 0, growthDelta: 0, supply: 0.8, supplyDelta: 0.1 })[0]).toMatchObject({ key: 'supply', tone: 'good' });
   });
 
   it('Ersetzen-Hinweis für den Pflanzring', () => {
