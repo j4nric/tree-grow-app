@@ -1,6 +1,6 @@
 import { STAGES } from './content/stages';
 import { evaluate, growth, nextPlantCost, rerollCost, type Evaluation } from './core/formulas';
-import { clearStorage, loadFromStorage, saveToStorage } from './core/save';
+import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
 import { createInitialState, type GameState } from './core/state';
 import type { PendingEncounterType } from './core/state';
 import {
@@ -40,6 +40,7 @@ import { createEncounterStack } from './ui/encounter-stack';
 import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
 import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
+import { IMPORT_ERROR_TEXTS, createSaveTransfer } from './ui/save-transfer';
 import { formatNumber } from './ui/format';
 import type { EcosystemView } from './ui/view-model';
 
@@ -466,7 +467,12 @@ function onReset(): void {
   }
   disarmReset();
   clearStorage();
-  state = newGame();
+  replaceState(newGame());
+}
+
+/** Ersetzt den ganzen Spielstand (Löschen, Import): Dialoge zu, alles neu aufbauen, speichern. */
+function replaceState(next: GameState): void {
+  state = next;
   shownStage = state.stage;
   closeEncounters();
   closePlantPicker();
@@ -474,8 +480,29 @@ function onReset(): void {
   encounterSerial++;
   encounterDirty = true;
   ecoDirty = true;
+  pickerDirty = true;
   saveToStorage(state);
   refreshViews(performance.now());
+}
+
+// --- Spielstand exportieren / importieren (Text-Code) --------------------------------
+
+/** Bereich „Spielstand exportieren oder importieren“ neben „Spielstand löschen“. */
+function setupSaveTransfer(): void {
+  createSaveTransfer(resetButton.parentElement!, {
+    getCode: () => exportCode(state),
+    validate: (code) => {
+      const result = importCode(code, Date.now());
+      return result.ok ? null : IMPORT_ERROR_TEXTS[result.error];
+    },
+    onImport: (code) => {
+      const result = importCode(code, Date.now());
+      if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
+      disarmReset();
+      replaceState(result.result.state);
+      return null;
+    },
+  });
 }
 
 // --- Game Loop -----------------------------------------------------------------------
@@ -572,6 +599,7 @@ function start(): void {
   catchUp();
 
   resetButton.addEventListener('click', onReset);
+  setupSaveTransfer();
   reducedMotionQuery.addEventListener('change', () => (scene.reducedMotion = reducedMotionQuery.matches));
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveToStorage(state);

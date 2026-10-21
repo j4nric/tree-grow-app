@@ -313,3 +313,120 @@ function stringArray(value: unknown): string[] {
 function unique(values: string[]): string[] {
   return [...new Set(values)];
 }
+
+// ---------------------------------------------------------------------------
+// Spielstand als Text-Code (Exportieren / Importieren)
+// ---------------------------------------------------------------------------
+
+/** Präfix des Text-Codes („Vom Samen zum Wald“, Format 1). */
+export const EXPORT_PREFIX = 'VSZW1:';
+/** Längere Codes werden gar nicht erst dekodiert (Schutz vor riesigen Eingaben). */
+export const MAX_EXPORT_CODE_LENGTH = 200_000;
+
+/** Warum ein Code nicht geladen werden konnte. */
+export type ImportError =
+  /** Leere Eingabe. */
+  | 'empty'
+  /** Länger als MAX_EXPORT_CODE_LENGTH. */
+  | 'too-large'
+  /** Kein Code dieses Spiels (Präfix, Aufbau oder Zeichen falsch). */
+  | 'format'
+  /** Prüfsumme passt nicht – der Code wurde unvollständig oder verändert kopiert. */
+  | 'checksum'
+  /** Der Inhalt ist kein brauchbarer Spielstand. */
+  | 'invalid';
+
+export type ImportResult = { ok: true; result: LoadResult } | { ok: false; error: ImportError };
+
+/**
+ * Spielstand als Text-Code: `VSZW1:<Base64url des JSON>.<Prüfsumme>`. Deterministisch
+ * (gleicher Stand → gleicher Code), nur URL-sichere Zeichen, ohne Zeilenumbrüche.
+ */
+export function exportCode(state: GameState): string {
+  return codeFromJson(serialize(state));
+}
+
+/** Kodiert einen gespeicherten Stand (JSON-Text, auch ältere Versionen) als Text-Code. */
+export function codeFromJson(json: string): string {
+  const payload = base64UrlEncode(new TextEncoder().encode(json));
+  return `${EXPORT_PREFIX}${payload}.${checksum(payload)}`;
+}
+
+/**
+ * Liest einen Text-Code und lädt ihn wie einen gespeicherten Stand (loadGame: robust,
+ * mit Migration alter Versionen). Leerraum (Zeilenumbrüche beim Kopieren) wird ignoriert.
+ * Die Uhr startet beim Import neu (`lastTick = now`) – ein Import bringt keine
+ * Offline-Zeit. Verändert nichts außerhalb des Ergebnisses.
+ */
+export function importCode(code: string, now: number): ImportResult {
+  const compact = code.replace(/\s+/g, '');
+  if (compact.length === 0) return { ok: false, error: 'empty' };
+  if (compact.length > MAX_EXPORT_CODE_LENGTH) return { ok: false, error: 'too-large' };
+  if (!compact.startsWith(EXPORT_PREFIX)) return { ok: false, error: 'format' };
+  const body = compact.slice(EXPORT_PREFIX.length);
+  const dot = body.lastIndexOf('.');
+  if (dot <= 0) return { ok: false, error: 'format' };
+  const payload = body.slice(0, dot);
+  const sum = body.slice(dot + 1);
+  if (!/^[A-Za-z0-9_-]+$/.test(payload) || !/^[0-9a-f]{8}$/.test(sum)) return { ok: false, error: 'format' };
+  if (checksum(payload) !== sum) return { ok: false, error: 'checksum' };
+  const bytes = base64UrlDecode(payload);
+  if (!bytes) return { ok: false, error: 'format' };
+  let json: string;
+  try {
+    json = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return { ok: false, error: 'invalid' };
+  }
+  const result = loadGame(json, now);
+  if (!result) return { ok: false, error: 'invalid' };
+  result.state.lastTick = now;
+  return { ok: true, result };
+}
+
+/** FNV-1a (32 Bit) über die Zeichen – einfach und deterministisch, als 8 Hex-Ziffern. */
+function checksum(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+const BASE64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+/** Base64url ohne Auffüllzeichen (eigene Umsetzung, damit der Kern ohne btoa auskommt). */
+function base64UrlEncode(bytes: Uint8Array): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i]!;
+    const b = bytes[i + 1];
+    const c = bytes[i + 2];
+    const n = (a << 16) | ((b ?? 0) << 8) | (c ?? 0);
+    out += BASE64URL[(n >> 18) & 63]! + BASE64URL[(n >> 12) & 63]!;
+    if (b !== undefined) out += BASE64URL[(n >> 6) & 63]!;
+    if (c !== undefined) out += BASE64URL[n & 63]!;
+  }
+  return out;
+}
+
+/** Gegenstück zu base64UrlEncode; null bei unmöglicher Länge oder fremden Zeichen. */
+function base64UrlDecode(text: string): Uint8Array | null {
+  if (text.length % 4 === 1) return null;
+  const out = new Uint8Array(Math.floor((text.length * 3) / 4));
+  let o = 0;
+  for (let i = 0; i < text.length; i += 4) {
+    const chunk = text.slice(i, i + 4);
+    let n = 0;
+    for (let k = 0; k < 4; k++) {
+      const v = k < chunk.length ? BASE64URL.indexOf(chunk[k]!) : 0;
+      if (v < 0) return null;
+      n = (n << 6) | v;
+    }
+    out[o++] = (n >> 16) & 255;
+    if (chunk.length > 2) out[o++] = (n >> 8) & 255;
+    if (chunk.length > 3) out[o++] = n & 255;
+  }
+  return out.subarray(0, o);
+}
