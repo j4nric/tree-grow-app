@@ -29,6 +29,7 @@
  *           pan=1 lässt den Ausschnitt ständig kreisen (misst die Kosten während einer Geste)
  *  vis      Durchreisende, kommagetrennt: cranes,bramblings,hummingbird-moth
  *           (Platz = Reihenfolge); in der Übersicht (gallery=1) immer dabei
+ *  pond     1 = Waldtümpel mit Amphibien (ab Stufe Alter Baum: Erdkröte, Grasfrosch, Bergmolch)
  */
 
 import { animalKinds, SpriteCache } from './animals';
@@ -85,6 +86,11 @@ const BY_NICHE: Record<string, [string, Fam][]> = {
     ['bat', 'mammals'],
     ['stagbeetle', 'insects'],
   ],
+  pond: [
+    ['toad', 'amphibians'],
+    ['frog', 'amphibians'],
+    ['newt', 'amphibians'],
+  ],
 };
 
 /** Plätze je Nische und Stufe (wie DESIGN_V2.md, Abschnitt 3). */
@@ -95,6 +101,8 @@ const SLOTS: Record<string, number[]> = {
   crown: [0, 0, 0, 2, 2, 3, 4, 4],
   bark: [0, 0, 0, 1, 2, 2, 3, 3],
   hollows: [0, 0, 0, 0, 1, 2, 2, 3],
+  // Waldtümpel: nur mit ?pond=1 (im Spiel durch Pflege oder Ereignis).
+  pond: [0, 0, 0, 0, 3, 3, 3, 3],
 };
 
 const PROTO: [string, Fam, string, number][] = [
@@ -141,7 +149,7 @@ function animalsFor(g: number, set: string, happy: number | null, variant: numbe
   const stage = Math.max(0, Math.min(7, Math.floor(g)));
   const list: SceneAnimal[] = [];
   for (const [niche, species] of Object.entries(BY_NICHE)) {
-    const n = SLOTS[niche]![stage]!;
+    const n = niche === 'pond' && !pond ? 0 : SLOTS[niche]![stage]!;
     for (let slot = 0; slot < n; slot++) {
       const [id, family] = species[(slot + variant * n) % species.length]!;
       if (list.some((a) => a.id === id)) continue;
@@ -178,6 +186,7 @@ const variant = Number(params.get('v') ?? 0) || 0;
 const plantMode = params.get('plants') ?? 'stage';
 const vigor = params.has('vig') ? Number(params.get('vig')) : null;
 const gallery = params.get('gallery') === '1';
+const pond = params.get('pond') === '1';
 let happy: number | null = params.has('h') ? Number(params.get('h')) : null;
 const fixedTime = params.has('t') ? Number(params.get('t')) : null;
 const cycleButton = document.querySelector<HTMLButtonElement>('#cycle')!;
@@ -409,6 +418,7 @@ function frame(now: number): void {
     growth: g,
     time,
     animals,
+    pond,
     plants,
     reducedMotion: reducedInput.checked,
     harmonyTier,

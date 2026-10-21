@@ -397,6 +397,16 @@ function slotProviders(nicheId: NicheId): string[] {
   );
 }
 
+/**
+ * Pflegemaßnahmen, deren erster Rang Plätze in der Nische schafft (z. B. „Waldtümpel“) –
+ * für Nischen ohne Plätze aus der Stufe und ohne Tiere, die sie öffnen.
+ */
+function careSlotProviders(nicheId: NicheId): string[] {
+  return CARE.filter((m) =>
+    m.ranks[0]?.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === nicheId && e.effect.amount > 0),
+  ).map((m) => `Pflege „${m.name}“ (ab „${STAGES[m.ranks[0]!.minStage]?.name ?? '?'}“)`);
+}
+
 /** Name der Stufe, ab der eine Nische Plätze hat (oder null, wenn nie). */
 function nicheOpensAt(nicheId: NicheId): string | null {
   const niche = NICHES_BY_ID.get(nicheId);
@@ -477,6 +487,14 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
         const who = openers.join(' oder ');
         view.unlockHint = view.unlockHint ? `${view.unlockHint} – oder früher durch ${who}` : `öffnet durch ${who}`;
       }
+      // Waldtümpel: öffnet nur durch Pflege (oder Ereignisse – die bleiben eine Überraschung).
+      const care = !view.unlockHint && niche.opensEarly ? careSlotProviders(niche.id) : [];
+      if (care.length > 0) view.unlockHint = `öffnet durch ${care.join(' oder ')}`;
+    } else if (animals.length === 0) {
+      // Offen, aber noch niemand darf einziehen (Waldtümpel aus dem Regen im Jungen Baum):
+      // ab wann die ersten Bewohner kommen.
+      const first = Math.min(...SPECIES.filter((s) => s.niche === niche.id).map((s) => s.unlock));
+      if (first > state.stage) view.unlockHint = `Bewohner ab „${STAGES[first]?.name ?? '?'}“`;
     }
     return view;
   });
@@ -1114,6 +1132,7 @@ const NICHE_TITLES: Readonly<Record<NicheId, string>> = {
   crown: 'Etwas regt sich in der Krone …',
   bark: 'Etwas klopft an der Rinde …',
   hollows: 'Etwas huscht durchs Totholz …',
+  pond: 'Etwas plätschert im Tümpel …',
 };
 
 export function encounterTitle(nicheIds: readonly string[]): string {
@@ -1542,6 +1561,11 @@ export function toSceneAnimals(state: GameState, evaluation: Readonly<Evaluation
   return out;
 }
 
+/** Zeigt die Szene den Waldtümpel? Ja, sobald die Nische Plätze hat (Pflege oder Ereignis). */
+export function scenePond(evaluation: Readonly<Pick<Evaluation, 'slots'>>): boolean {
+  return (evaluation.slots.pond ?? 0) > 0;
+}
+
 /**
  * Pflanzengruppe aus content → Gruppe der Szene. Heute gleich benannt; die Tabelle hält
  * beide Seiten getrennt, damit eine neue Gruppe beim Typecheck auffällt.
@@ -1911,6 +1935,7 @@ export const GENUS_SINGULAR: Readonly<Record<Genus, string>> = {
   mammals: 'Säugetier',
   soil: 'Bodenlebewesen',
   fungi: 'Pilz',
+  amphibians: 'Amphibie',
 };
 
 type RatePreview = { harmonyDelta: number; growthDelta: number; seedDelta?: number };
@@ -1964,7 +1989,7 @@ export function bonusEffectLabel(effect: CycleEffect | TimedEffect | VisitorEffe
     case 'harmony':
       return `+${formatNumber(effect.points)} ⚖️`;
     case 'slot':
-      return `+${formatNumber(effect.amount)} Platz ${NICHES_BY_ID.get(effect.niche)?.name ?? ''}`.trim();
+      return `+${formatNumber(effect.amount)} ${effect.amount === 1 ? 'Platz' : 'Plätze'} ${NICHES_BY_ID.get(effect.niche)?.name ?? ''}`.trim();
   }
 }
 

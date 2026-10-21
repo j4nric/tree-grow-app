@@ -652,7 +652,7 @@ test('Echter v2-Spielstand (alte Wegpunkt-Kurve): lädt ohne Fehler, Stufe und T
   expect(saved.waypoint).toBe(12);
   expect(saved.totalGrowth).toBeGreaterThan(waypoint(12));
   expect(saved.totalGrowth).toBeLessThan(waypoint(13));
-  expect(saved.niches).toEqual(niches);
+  expect(saved.niches).toEqual({ ...niches, pond: [] }); // Waldtümpel (v11) leer ergänzt
   expect(saved.plants).toEqual([]);
   // Prototyp-Samen werden begrenzt (erste zwei Pflanzen = 58 🌰).
   expect(saved.seeds).toBeLessThan(80);
@@ -772,7 +772,7 @@ test.describe('Lebensgemeinschaften', () => {
 
     // Seitenleiste: zugeklappt mit Kurzfassung; aufgeklappt „???“ mit Rätselhinweis und
     // Fortschritt – ohne „fehlt: …“, solange die Gemeinschaft unentdeckt ist.
-    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('0 von 9 aktiv');
+    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('0 von 11 aktiv');
     await communities(page).locator('summary').click();
     await expect(community(page, 'humus')).toContainText('???');
     await expect(community(page, 'humus')).toContainText('Aus Laub wird Erde, aus Erde wird Leben.');
@@ -791,7 +791,7 @@ test.describe('Lebensgemeinschaften', () => {
     await expect(community(page, 'humus')).toContainText('Humusküche');
     await expect(community(page, 'humus')).toContainText('+8 ⚖️');
     await expect(community(page, 'humus')).toHaveClass(/state-active/);
-    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 9 aktiv · +8 ⚖️');
+    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 11 aktiv · +8 ⚖️');
 
     const saved = await savedState(page);
     expect(saved.meta.journal.communities).toEqual(['humus']);

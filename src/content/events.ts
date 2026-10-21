@@ -101,8 +101,12 @@ export const EVENTS: readonly GameEvent[] = [
     text: 'In einer Senke sammelt sich das Wasser.',
     options: [
       {
-        label: 'Waldtümpel entstehen lassen', summary: 'Feuchte, +3 💧 (Zyklus)',
-        effects: [{ kind: 'habitat', tag: 'feucht' }, { kind: 'cycle', effect: { kind: 'water', amount: 3 } }],
+        label: 'Waldtümpel entstehen lassen', summary: 'Feuchte, +3 💧, +1 Platz Waldtümpel (Zyklus)',
+        effects: [
+          { kind: 'habitat', tag: 'feucht' },
+          { kind: 'cycle', effect: { kind: 'water', amount: 3 } },
+          { kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 1 } },
+        ],
       },
       {
         label: 'Alles austreiben lassen', summary: '+25 % 🌿 für 5 min',
@@ -252,6 +256,25 @@ export const EVENTS: readonly GameEvent[] = [
       {
         label: 'Beeren reifen lassen', summary: '+40 % 🌰 für 6 min',
         effects: [{ kind: 'timed', seconds: 360, effect: { kind: 'seeds', pct: 40 } }],
+      },
+    ],
+  },
+  {
+    // Erweiterung Amphibien (DESIGN_V2.md 5.5): nur im Frühling (EVENT_SEASONS).
+    id: 'toad-migration', name: 'Krötenwanderung', icon: '🐸', minStage: 4,
+    text: 'In einer milden Regennacht machen sich die Kröten auf den Weg zum Tümpel.',
+    appears: [{ kind: 'species', id: 'toad' }],
+    options: [
+      {
+        label: 'Den Wanderweg frei lassen', summary: '+4 ⚖️ (Zyklus)',
+        effects: [{ kind: 'cycle', effect: { kind: 'harmony', points: 4 } }],
+      },
+      {
+        label: 'Laichplätze schaffen', summary: '+1 Platz Waldtümpel (Zyklus), nächste Begegnung: Amphibien',
+        effects: [
+          { kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 1 } },
+          { kind: 'nextEncounter', type: 'animal', ids: ['frog', 'newt'] },
+        ],
       },
     ],
   },

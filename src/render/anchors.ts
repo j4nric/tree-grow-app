@@ -12,7 +12,7 @@ import { normalizeSpecies, TREE_SPECIES, type Branch, type TreeSpecies } from '.
 import { clamp, clamp01, hash2, lerp } from './util';
 
 /** Nischen-IDs, die der Renderer kennt (wie in DESIGN_V2.md / src/content/niches.ts). */
-export const SCENE_NICHES = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows'] as const;
+export const SCENE_NICHES = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond'] as const;
 export type SceneNiche = (typeof SCENE_NICHES)[number];
 
 export function isSceneNiche(n: string): n is SceneNiche {
@@ -56,6 +56,8 @@ export interface AnchorResolver {
   readonly layout: Layout;
   readonly size: number;
   get(niche: string, slot: number): NicheAnchor | null;
+  /** Lage des Waldtümpels (gemerkt; hängt nur von der Canvas-Größe ab). */
+  pond(): PondGeometry;
 }
 
 export function createAnchorResolver(layout: Layout, g: number, main: PlacedTree | null): AnchorResolver {
@@ -66,9 +68,14 @@ export function createAnchorResolver(layout: Layout, g: number, main: PlacedTree
     if (!roots) roots = main ? placeRoots(layout, g, main) : { reach: layout.soilH * 0.38 };
     return roots.reach;
   };
+  let pond: PondGeometry | null = null;
   return {
     layout,
     size,
+    pond() {
+      if (!pond) pond = pondGeometry(layout, size);
+      return pond;
+    },
     get(niche, slot) {
       if (!isSceneNiche(niche) || !Number.isFinite(slot) || slot < 0) return null;
       const s = Math.floor(slot);
@@ -98,6 +105,55 @@ export function nicheAnchors(width: number, height: number, growth: number, slot
   }
   return result;
 }
+
+// ---------------------------------------------------------------------------
+// Waldtümpel
+// ---------------------------------------------------------------------------
+
+/**
+ * Waldtümpel in Tiergrößen S, gemessen ab der Bodenlinie `groundY` nach unten.
+ *
+ * Am Boden ist auf keiner Bildschirmbreite eine Strecke frei: Laubstreu, Waldsaum (samt
+ * Sonderplätzen), Pilze und Begleitpflanzen teilen sich die ganze Breite. Der Tümpel
+ * liegt darum **unter der Grasnarbe** im Erdschnitt am linken Bildrand – wie ein Blick
+ * in die Senke von vorn: Die Senke beginnt POND_LIP unter der Bodenlinie (darüber bleiben
+ * Gras, Laub und Blumen-Füße), alles Sichtbare des Tümpels samt Bewohnern liegt tiefer.
+ * Die Tiere und Pflanzen an der Oberfläche reichen höchstens POND_SURFACE_CLEAR unter die
+ * Bodenlinie, die Wurzelraum-Tiere liegen tiefer als POND_DEPTH (Tests in
+ * tests/render-anchors.test.ts). Seggen wachsen nur in der Senke, nie über die Narbe.
+ */
+export const POND_HALF_WIDTH = 1.9;
+/** Oberkante der Senke (unter der Bodenlinie). */
+export const POND_LIP = 0.25;
+/** Wasseroberfläche. */
+export const POND_WATER_Y = 0.55;
+/** Tiefster Punkt der Senke. */
+export const POND_DEPTH = 1.0;
+/** So weit reicht das Tiefste an der Oberfläche (Laubhäufchen, Blumen) unter die Bodenlinie. */
+export const POND_SURFACE_CLEAR = 0.2;
+
+export interface PondGeometry {
+  /** Mitte der Senke an der Bodenlinie (CSS-Pixel; `y` = groundY). */
+  x: number;
+  y: number;
+  /** Oberkante der Senke (CSS-Pixel). */
+  lipY: number;
+  /** Tiergröße S, auf die sich alle Maße beziehen. */
+  size: number;
+  /** Wasseroberfläche (CSS-Pixel). */
+  waterY: number;
+}
+
+/** Lage des Waldtümpels – hängt nur von der Canvas-Größe ab (nicht vom Wachstum). */
+export function pondGeometry(layout: Layout, size: number): PondGeometry {
+  const x = Math.min(layout.cx - size, POND_HALF_WIDTH * size + size * 0.1);
+  const y = layout.groundY;
+  return { x, y, size, lipY: y + POND_LIP * size, waterY: y + POND_WATER_Y * size };
+}
+
+/** Plätze im Tümpel: waagerechter Versatz in Tiergrößen (die Art entscheidet, ob sie taucht). */
+// Höchstens ±1,25: Kröte bzw. Frosch samt Wasser davor (±0,58) bleiben in der Senke.
+const POND_SLOTS = [-0.8, 0.75, -0.05, 1.25, -1.25];
 
 // ---------------------------------------------------------------------------
 
@@ -205,6 +261,14 @@ function computeAnchor(
     case 'crown': {
       const p = crownPoint(layout, g, main, slot);
       a = { ...base, x: p.x, y: p.y, side: p.x < cx ? -1 : 1, onTree: true };
+      break;
+    }
+    case 'pond': {
+      const pond = pondGeometry(layout, size);
+      const off = POND_SLOTS[slot % POND_SLOTS.length]!;
+      const u = off - Math.sign(off) * 0.2 * Math.floor(slot / POND_SLOTS.length);
+      // Zum Stamm hin schauen: Plätze links der Mitte blicken nach rechts.
+      a = { ...base, x: pond.x + u * size, y: pond.waterY, side: u < 0 ? -1 : 1 };
       break;
     }
   }

@@ -43,7 +43,7 @@ export const waypoint = (k: number): number => WAYPOINT_THRESHOLDS[k]!;
  */
 export const legacyGrowth = v7GrowthToV6;
 
-export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows';
+export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' | 'pond';
 
 export interface SeedV3 {
   totalGrowth?: number;

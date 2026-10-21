@@ -5,7 +5,8 @@ import type { Effect, Genus } from './types';
  * Gattung im Ökosystem, gilt der jeweilige Bonus zusätzlich (Stufen addieren sich).
  * Wirkungen werden NICHT mit Zufriedenheit skaliert. Zahlen ursprünglich aus dem
  * Prototyp (scripts/v2, entfernt in Schritt 2.10).
- * Jede Gattung hat 6–8 Arten (DESIGN_V2.md 5.1); wer eine Gattung stapelt, erreicht die 5.
+ * Jede Grundgattung hat 6–8 Arten (DESIGN_V2.md 5.1); wer eine Gattung stapelt, erreicht
+ * die 5. Die Amphibien (Erweiterung, 3 Arten) erreichen höchstens die Stufe 3.
  */
 export const TRAIT_THRESHOLDS: readonly number[] = [2, 3, 5];
 
@@ -59,5 +60,18 @@ export const TRAITS: Readonly<Record<Genus, readonly TraitTier[]>> = {
       text: '+3 Wasser, +2 Licht',
     },
     { effects: [{ kind: 'growth', pct: 18 }], text: '+18 % Wachstum' },
+  ],
+  // Erweiterung (DESIGN_V2.md 5.5): nur 3 Arten – die Stufe 5 erreicht nur, wer dazu
+  // künftige Amphibien-Gäste hat; sie steht für die spätere Erweiterung bereit.
+  amphibians: [
+    { effects: [{ kind: 'control', tag: 'schnecken', pct: 25 }], text: 'Schneckenschaden −25 %' },
+    {
+      effects: [
+        { kind: 'water', amount: 2 },
+        { kind: 'growth', pct: 5 },
+      ],
+      text: '+2 Wasser, +5 % Wachstum',
+    },
+    { effects: [{ kind: 'growth', pct: 12 }], text: '+12 % Wachstum' },
   ],
 };

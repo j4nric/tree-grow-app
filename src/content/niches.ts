@@ -29,6 +29,13 @@ export const NICHES: readonly Niche[] = [
     id: 'hollows', name: 'Höhlen & Totholz', icon: '🕳️', place: 'Spechthöhlen, tote Äste',
     slots: [0, 0, 0, 0, 1, 2, 2, 3], opensEarly: true,
   },
+  {
+    // Erweiterung Amphibien (DESIGN_V2.md 5.5): keine Plätze aus der Stufe. Der Tümpel
+    // entsteht durch die Pflege „Waldtümpel“ (+2, im Hain +1) oder das Ereignis
+    // „Regenreicher Frühling“ (+1) bzw. „Krötenwanderung“ (+1).
+    id: 'pond', name: 'Waldtümpel', icon: '🫧', place: 'Wasser und Ufer der Senke',
+    slots: [0, 0, 0, 0, 0, 0, 0, 0], opensEarly: true,
+  },
 ];
 
 export const NICHES_BY_ID: ReadonlyMap<NicheId, Niche> = new Map(NICHES.map((n) => [n.id, n]));

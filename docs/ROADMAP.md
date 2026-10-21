@@ -182,7 +182,11 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   - Zeigt nur, was der Spielstand schon hat (laufender Zyklus, Tagebuch). Eine
     Gesamtspielzeit über alle Zyklen bräuchte ein neues Spielstand-Feld – siehe
     „Langzeit-Statistik“ in Phase 4.
-- [ ] Gattung Amphibien mit Waldtümpel (Erdkröte, Bergmolch) als Erweiterung (`game-designer`)
+- [x] Gattung Amphibien mit Waldtümpel (Erdkröte, Bergmolch) als Erweiterung (`game-designer`) –
+  6. Gattung mit Erdkröte, Grasfrosch, Bergmolch in der neuen Nische Waldtümpel (öffnet nur
+  durch Pflege „Waldtümpel“ bzw. Regenreicher Frühling/Krötenwanderung), Frühling = Laichzeit,
+  Ereignis Krötenwanderung, Lebensgemeinschaften Tümpelleben und Schneckenwacht, Tümpel und
+  Sprites im Renderer; Spielstand v11 (`DESIGN_V2.md` 5.5, 12.8)
 - [x] Winter-Ereignis „Schneebruch“ und weitere Ereignisse je Jahreszeit (`game-designer`) – 4 neue
   Ereignisse nur mit vorhandenen Wirkungstypen (keine Logik, kein neues Spielstand-Format):
   Spätfrost (Frühling), Hitzewelle (Sommer), Laubfall (Herbst), Schneebruch (Winter);

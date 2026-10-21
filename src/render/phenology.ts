@@ -208,3 +208,36 @@ export function edgeSeedHeads(season: number | null): number {
 export function edgeBare(season: number | null): number {
   return atRaw(EDGE_BARE, season, 0);
 }
+
+/**
+ * Amphibien: Winterstarre von Spätherbst bis Vorfrühling (etwas länger als die Insekten),
+ * dafür im Frühling sofort munter – die Krötenwanderung beginnt in den ersten milden Nächten.
+ */
+const AMPHIBIAN_ACTIVITY: Points = [
+  [0, 1],
+  [2.1, 1],
+  [2.45, 0],
+  [3.4, 0],
+  [3.65, 1],
+  [4, 1],
+];
+
+/** Eis auf dem Waldtümpel: nur im tiefen Winter. */
+const POND_ICE: Points = [
+  [0, 0],
+  [2.6, 0],
+  [2.95, 1],
+  [3.3, 1],
+  [3.55, 0],
+  [4, 0],
+];
+
+/** Bewegung der Amphibien 0 (Winterstarre) – 1 (munter). Ungerundete Jahreszeit. */
+export function amphibianActivity(season: number | null): number {
+  return atRaw(AMPHIBIAN_ACTIVITY, season);
+}
+
+/** Eisdecke des Waldtümpels 0–1. Ungerundete Jahreszeit. */
+export function pondIce(season: number | null): number {
+  return atRaw(POND_ICE, season, 0);
+}

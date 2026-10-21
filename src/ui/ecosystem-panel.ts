@@ -557,8 +557,10 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
       const full = niche.capacity > 0 && used >= niche.capacity;
       row.root.classList.toggle('full', full);
       setText(row.slotsLabel, nicheSlotsLabel(used, niche.capacity));
-      setText(row.hint, locked ? (niche.unlockHint ?? '') : '');
-      row.hint.hidden = !locked || !niche.unlockHint;
+      // Hinweis bei verschlossenen Nischen – und bei offenen, in die noch niemand einziehen darf.
+      const showHint = !!niche.unlockHint && (locked || used === 0);
+      setText(row.hint, showHint ? niche.unlockHint! : '');
+      row.hint.hidden = !showHint;
 
       const needed = locked ? 0 : Math.max(niche.capacity, used);
       while (row.slots.length < needed) {

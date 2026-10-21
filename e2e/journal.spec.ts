@@ -32,7 +32,7 @@ test('Naturtagebuch: Zähler, Reiter, keine Spoiler, Esc gibt den Fokus zurück'
   await openJournal(page);
 
   await expect(journal(page).locator('[data-ref="journal-counts"]')).toHaveText(
-    '3/32 Arten · 1/14 Pflanzen · 0/9 Gemeinschaften',
+    '3/35 Arten · 1/14 Pflanzen · 0/11 Gemeinschaften',
   );
   await expect(journal(page).locator('[data-ref="journal-meta"]')).toHaveText(
     'Zyklus 1 · Waldgedächtnis 30 (+30 % Wachstum und Samen)',
@@ -41,7 +41,7 @@ test('Naturtagebuch: Zähler, Reiter, keine Spoiler, Esc gibt den Fokus zurück'
   const tit = journal(page).locator('[data-species="bluetit"]');
   await expect(tit).toContainText('Blaumeise');
   await expect(tit).toContainText('Vögel · gewöhnlich · Nische: Krone');
-  await expect(journal(page).locator('.journal-entry.unknown')).toHaveCount(29 + 13 + 9 + 2); // + 2 verborgene Hauptbaum-Arten (Andenken)
+  await expect(journal(page).locator('.journal-entry.unknown')).toHaveCount(32 + 13 + 11 + 2); // + 2 verborgene Hauptbaum-Arten (Andenken)
   // Keine Spoiler: Name und ID einer unentdeckten Art stehen nirgends im DOM.
   const html = await page.content();
   expect(html).not.toContain('Feuersalamander');

@@ -87,8 +87,12 @@ export const SEASONS: readonly Season[] = [
   {
     id: 'spring', name: 'Frühling', icon: '🌱', renderValue: 0,
     text: 'Der Saft steigt, überall bricht frisches Grün auf.',
-    summary: '+10 % 🌿 · „Etwas keimt“ öfter',
-    effects: [{ kind: 'growth', pct: 10 }],
+    summary: '+10 % 🌿 · „Etwas keimt“ öfter · Amphibien +15 % 😊',
+    // Laichzeit: Die Amphibien wandern zum Tümpel (DESIGN_V2.md 5.5).
+    effects: [
+      { kind: 'growth', pct: 10 },
+      { kind: 'happiness', genus: 'amphibians', points: 15 },
+    ],
     // Pflanzenbegegnungen ×1,5, solange der Ring Platz hat (Junger Baum: 25 → 37,5).
     encounterFactors: { plant: 1.5 },
   },
@@ -157,4 +161,5 @@ export const EVENT_SEASONS: Readonly<Record<string, readonly SeasonId[]>> = {
   heatwave: ['summer'],
   'leaf-fall': ['autumn'],
   'snow-break': ['winter'], // Nassschnee bricht Äste
+  'toad-migration': ['spring'], // Laichwanderung in milden Regennächten im März/April
 };

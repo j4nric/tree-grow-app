@@ -45,6 +45,7 @@ import {
   toCareViews,
   encounterActionKey,
   toSceneAnimals,
+  scenePond,
   toSceneVisitors,
   toScenePlants,
   stageBannerView,
@@ -395,7 +396,8 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
     return false;
   }
   if (unlocked.length > 0) sound.cue('achievement');
-  const text = joinNotes(discoveryText(result.discovered), achievementUnlockedText(unlocked));
+  const regulars = result.regulars && result.regulars.length > 0 ? regularsArrivedText(result.regulars) : '';
+  const text = joinNotes(discoveryText(result.discovered), regulars, achievementUnlockedText(unlocked));
   if (text) notify(text);
   return true;
 }
@@ -565,6 +567,7 @@ function refreshPanel(now: number): void {
       ecoView = toEcosystemView(state, ev);
       // Tiere und Pflanzen für die Szene nur bei Änderungen am Ökosystem neu bauen.
       scene.animals = toSceneAnimals(state, ev);
+      scene.pond = scenePond(ev);
       scene.plants = toScenePlants(state, ev);
       scene.visitors = toSceneVisitors(state);
       scene.harmonyTier = harmonyTierIndex(ev.harmony);

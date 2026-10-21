@@ -464,6 +464,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
             "woodlouse",
             "slug",
           ],
+          "pond": [],
           "roots": [
             "chanterelle",
             "vole",

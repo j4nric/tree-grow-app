@@ -208,6 +208,7 @@ describe('View: aktive Boni und Szene', () => {
     state.cycle.bonuses = [
       { source: 'lightning', effect: { kind: 'light', amount: 2 } },
       { source: 'rain', effect: { kind: 'water', amount: 3 } },
+      { source: 'rain', effect: { kind: 'slot', niche: 'pond', amount: 1 } },
     ];
     // Feuchte gehört zum Regen; Totholz passt zu keiner gewählten Option (Blitz: nur Licht).
     state.cycle.habitats = ['feucht', 'totholz'];
@@ -216,7 +217,7 @@ describe('View: aktive Boni und Szene', () => {
     expect(views[0]!.progress).toBeCloseTo(120 / VISITORS_BY_ID.get('cranes')!.stay);
     expect(views[1]).toMatchObject({ effect: '+30 % 🌿, +60 % 🌰', remaining: 'noch 3 Min.' });
     expect(views[1]!.progress).toBeCloseTo(180 / 360);
-    expect(views[3]!.effect).toBe('Feuchte, +3 💧');
+    expect(views[3]!.effect).toBe('Feuchte, +3 💧, +1 Platz Waldtümpel');
     expect(views[4]).toMatchObject({ icon: '🪵', effect: 'Lebensraum', progress: null });
     // Unbekannte Quelle: kein Balken, aber eine Zeile.
     state.cycle.timed = [{ source: 'nope', effect: { kind: 'growth', pct: 5 }, remaining: 30 }];

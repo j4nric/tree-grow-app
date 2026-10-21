@@ -56,10 +56,11 @@ describe('Inhalte v2', () => {
     expect(unique([...SPECIES.map((s) => s.id), ...PLANTS.map((p) => p.id)])).toBe(true);
   });
 
-  it('32 Arten in 5 Gattungen (6–8 je Gattung), Seltenheit 14 / 8 / 5 / 5 (DESIGN_V2.md 5.2)', () => {
-    expect(SPECIES).toHaveLength(32);
-    expect(GENERA).toEqual(['birds', 'insects', 'mammals', 'soil', 'fungi']);
-    for (const g of GENERA) {
+  it('32 Arten in 5 Grundgattungen (6–8 je Gattung), Seltenheit 14 / 8 / 5 / 5 (DESIGN_V2.md 5.2)', () => {
+    const core = SPECIES.filter((s) => s.genus !== 'amphibians');
+    expect(core).toHaveLength(32);
+    expect(GENERA).toEqual(['birds', 'insects', 'mammals', 'soil', 'fungi', 'amphibians']);
+    for (const g of GENERA.filter((x) => x !== 'amphibians')) {
       const of = SPECIES.filter((s) => s.genus === g);
       expect(of.length, g).toBeGreaterThanOrEqual(5);
       expect(of.length, g).toBeLessThanOrEqual(8);
@@ -71,7 +72,30 @@ describe('Inhalte v2', () => {
       expect(GENUS_INFO[g].name.length).toBeGreaterThan(0);
       expect(GENUS_INFO[g].icon.length).toBeGreaterThan(0);
     }
-    expect([0, 1, 2, 3].map((r) => SPECIES.filter((s) => s.rarity === r).length)).toEqual([14, 8, 5, 5]);
+    expect([0, 1, 2, 3].map((r) => core.filter((s) => s.rarity === r).length)).toEqual([14, 8, 5, 5]);
+  });
+
+  it('Erweiterung Amphibien (DESIGN_V2.md 5.5): 3 Arten im Waldtümpel, ab Alter Baum, mittlere Gattungsstufe erreichbar', () => {
+    const amphibians = SPECIES.filter((s) => s.genus === 'amphibians');
+    expect(amphibians.map((s) => s.id)).toEqual(['toad', 'frog', 'newt']);
+    expect(amphibians.map((s) => s.rarity)).toEqual([0, 0, 1]);
+    expect(SPECIES).toHaveLength(35);
+    for (const s of amphibians) {
+      expect(s.niche, s.id).toBe('pond');
+      expect(s.unlock, s.id).toBe(4);
+      // Ohne Feuchte kein Tümpelleben.
+      expect(s.needs, s.id).toContainEqual({ kind: 'tag', tag: 'feucht' });
+    }
+    // Nur Amphibien leben im Tümpel; mit 3 Arten ist die Schwelle 3 erreichbar, 5 nicht.
+    expect(SPECIES.filter((s) => s.niche === 'pond')).toEqual(amphibians);
+    expect(amphibians.length).toBeGreaterThanOrEqual(TRAIT_THRESHOLDS[1]!);
+    expect(amphibians.length).toBeLessThan(TRAIT_THRESHOLDS[2]!);
+    // Der Tümpel bietet mit voller Pflege (oder Pflege + Ereignis) Platz für alle drei.
+    const pondCare = CARE_BY_ID.get('pond')!;
+    const pondSlots = pondCare.ranks
+      .flatMap((r) => r.effects)
+      .reduce((n, e) => n + (e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === 'pond' ? e.effect.amount : 0), 0);
+    expect(pondSlots).toBe(amphibians.length);
   });
 
   it('besondere und legendäre Arten haben Erscheinungsbedingung und Fähigkeit, die übrigen nicht', () => {
@@ -102,8 +126,15 @@ describe('Inhalte v2', () => {
       expect(BASE_HAPPINESS[s.rarity]).toBeDefined();
       expect(s.unlock).toBeGreaterThanOrEqual(1);
       expect(s.unlock).toBeLessThan(STAGES.length);
-      // Die Nische ist offen, sobald die Art freigeschaltet ist.
-      expect(NICHES_BY_ID.get(s.niche)!.slots[s.unlock], `${s.id}: Nische offen ab unlock`).toBeGreaterThan(0);
+      // Die Nische ist offen, sobald die Art freigeschaltet ist – oder (Waldtümpel) kann
+      // ab dann durch eine Pflegemaßnahme geöffnet werden.
+      const careOpens = CARE.some(
+        (m) =>
+          m.ranks[0]!.minStage <= s.unlock &&
+          m.ranks[0]!.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === s.niche),
+      );
+      const open = NICHES_BY_ID.get(s.niche)!.slots[s.unlock]! > 0 || (NICHES_BY_ID.get(s.niche)!.opensEarly === true && careOpens);
+      expect(open, `${s.id}: Nische offen ab unlock`).toBe(true);
       for (const t of [...s.food, ...s.provides]) expect(TAG_NAMES[t], `${s.id}: Merkmal ${t}`).toBeDefined();
       for (const c of [...s.needs, ...(s.appears ?? [])]) {
         if (c.kind === 'tag') expect(TAG_NAMES[c.tag]).toBeDefined();
@@ -169,12 +200,27 @@ describe('Inhalte v2', () => {
     const hollows = NICHES_BY_ID.get('hollows')!;
     expect(hollows.slots.findIndex((n) => n > 0)).toBe(4);
     expect(hollows.opensEarly).toBe(true);
-    expect(NICHES.filter((n) => n.opensEarly).map((n) => n.id)).toEqual(['hollows']);
+    expect(NICHES.filter((n) => n.opensEarly).map((n) => n.id)).toEqual(['hollows', 'pond']);
     const slotGivers = SPECIES.filter((s) => slotEffects(s).length > 0).map((s) => s.id);
     expect(slotGivers.sort()).toEqual(['barkbeetle', 'blackwoodpecker', 'woodpecker']);
     for (const s of SPECIES) {
       for (const e of slotEffects(s)) expect(NICHES_BY_ID.has(e.niche) && e.amount > 0).toBe(true);
     }
+  });
+
+  it('Waldtümpel: nie Plätze aus der Stufe, öffnet nur durch Pflege und Ereignisse (DESIGN_V2.md 5.5)', () => {
+    const pond = NICHES_BY_ID.get('pond')!;
+    expect(pond.slots.every((n) => n === 0)).toBe(true);
+    expect(pond.opensEarly).toBe(true);
+    // Keine Art schafft Tümpelplätze – nur Pflege „Waldtümpel“ und die Ereignisse.
+    for (const s of SPECIES) expect(slotEffects(s).some((e) => e.niche === 'pond'), s.id).toBe(false);
+    const careRanks = CARE_BY_ID.get('pond')!.ranks;
+    expect(careRanks[0]!.effects).toContainEqual({ kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 2 } });
+    expect(careRanks[1]!.effects).toContainEqual({ kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 1 } });
+    const pondEvents = EVENTS.filter((e) =>
+      e.options.some((o) => o.effects.some((x) => x.kind === 'cycle' && x.effect.kind === 'slot' && x.effect.niche === 'pond')),
+    );
+    expect(pondEvents.map((e) => e.id)).toEqual(['rain', 'toad-migration']);
   });
 
   it('Platz-Wirkungen betreffen nie die eigene Nische (sonst könnte eine Art sich selbst Platz machen)', () => {
@@ -375,7 +421,9 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
           const ready = x.ids.filter((id) => {
             if (x.type === 'plant') return PLANTS_BY_ID.get(id)!.unlock <= e.minStage;
             const s = SPECIES_BY_ID.get(id)!;
-            return s.unlock <= e.minStage && NICHES_BY_ID.get(s.niche)!.slots[e.minStage]! > 0;
+            // Offen ab der Stufe – oder die Option schafft selbst Platz (Krötenwanderung: Waldtümpel).
+            const opens = o.effects.some((y) => y.kind === 'cycle' && y.effect.kind === 'slot' && y.effect.niche === s.niche);
+            return s.unlock <= e.minStage && (NICHES_BY_ID.get(s.niche)!.slots[e.minStage]! > 0 || opens);
           });
           expect(ready.length, `${e.id}: ${o.label} – ab Stufe ${e.minStage} möglich: ${ready.join(', ')}`)
             .toBeGreaterThanOrEqual(Math.max(Math.min(2, x.ids.length), x.ids.length - 1));
@@ -542,7 +590,10 @@ describe('Pflegemaßnahmen (DESIGN_V2.md 8)', () => {
           switch (x.kind) {
             case 'slot':
               expect(NICHES_BY_ID.has(x.niche), c.id).toBe(true);
-              expect(x.amount, c.id).toBe(1);
+              // Je Rang 1 Platz; nur eine Nische ohne Plätze aus der Stufe (Waldtümpel)
+              // öffnet mit 2 Plätzen, damit die Gattungsschwelle 2 erreichbar ist.
+              if (NICHES_BY_ID.get(x.niche)!.slots.some((n) => n > 0)) expect(x.amount, c.id).toBe(1);
+              else expect([1, 2], c.id).toContain(x.amount);
               positive++;
               break;
             case 'light':

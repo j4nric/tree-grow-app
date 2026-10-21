@@ -287,7 +287,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
   }
 
   it('v7 → v8: Startwerte aus dem laufenden Zyklus, Zähler 0, ab Zyklus 2 auch die Eiche', () => {
-    expect(SAVE_VERSION).toBe(10);
+    expect(SAVE_VERSION).toBe(11);
     const s = loadGame(rawV7(), 0)!.state;
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.meta.stats).toEqual({
