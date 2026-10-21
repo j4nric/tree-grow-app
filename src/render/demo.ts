@@ -19,6 +19,7 @@
  *           steht die Zeit – der Knopf „Zyklus-Übergang abspielen“ bleibt dann beim
  *           ersten Bild stehen; zum Abspielen ohne t aufrufen.
  *  mem      Waldgedächtnis (0–1000; ohne Angabe: kein Erinnerungsbaum)
+ *  season   Jahreszeit 0–4 (0 Frühling, 1 Sommer, 2 Herbst, 3 Winter; ohne Angabe: wie bisher)
  *  cyc      Zyklus-Übergang aus dem Wachstum g: die Szene zeigt Wachstum 0 und die
  *           Sequenz bei cyc Sekunden (mit t für feste Bilder, sonst läuft sie weiter)
  *  rate     Wachstum pro Sekunde, z. B. 0.05 – misst die Kosten beim Neuaufbau der Ebenen
@@ -178,6 +179,26 @@ let happy: number | null = params.has('h') ? Number(params.get('h')) : null;
 const fixedTime = params.has('t') ? Number(params.get('t')) : null;
 const cycleButton = document.querySelector<HTMLButtonElement>('#cycle')!;
 const memoryInput = document.querySelector<HTMLInputElement>('#memory')!;
+const seasonInput = document.querySelector<HTMLInputElement>('#season')!;
+const seasonValue = document.querySelector<HTMLElement>('#season-value')!;
+const SEASON_NAMES = ['Frühling', 'Sommer', 'Herbst', 'Winter'];
+/** Jahreszeit (undefined = aus); ?season=abc gilt als „aus“. */
+let season: number | undefined = params.has('season') && Number.isFinite(Number(params.get('season'))) ? Number(params.get('season')) : undefined;
+const showSeason = () => {
+  if (season === undefined) {
+    seasonValue.textContent = 'aus';
+    return;
+  }
+  const s = ((season % 4) + 4) % 4;
+  seasonValue.textContent = `${SEASON_NAMES[Math.round(s) % 4]} (${s.toFixed(2)})`;
+};
+seasonInput.value = String(season ?? -0.05);
+showSeason();
+seasonInput.addEventListener('input', () => {
+  const v = Number(seasonInput.value);
+  season = v < 0 ? undefined : v;
+  showSeason();
+});
 const memoryValue = document.querySelector<HTMLElement>('#memory-value')!;
 /** Waldgedächtnis (undefined = aus). */
 let forestMemory: number | undefined = params.has('mem') ? Number(params.get('mem')) || 0 : undefined;
@@ -380,6 +401,7 @@ function frame(now: number): void {
     visitors,
     cycleTransition,
     forestMemory,
+    season,
   });
   const dt = performance.now() - t0;
   samples.push(dt);
