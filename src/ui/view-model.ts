@@ -351,3 +351,88 @@ export interface PlantPickerView {
   cost: number;
   offers: PlantOfferView[];
 }
+
+/** Stammgast-Schalter an einer entdeckten Art im Naturtagebuch. */
+export interface JournalRegularView {
+  selected: boolean;
+  /** Nicht wählbar (alle Plätze belegt) – abwählen geht immer. */
+  disabled: boolean;
+}
+
+/**
+ * Eine Art oder Pflanze im Naturtagebuch. Unentdeckte erscheinen als Silhouette mit
+ * „???“: Gattungs- bzw. Gruppensymbol und Seltenheitsrahmen bleiben bewusst als Hinweis
+ * sichtbar, Name und ID stehen dagegen nirgends in der Ansicht (DESIGN_V2.md 11.2).
+ */
+export interface JournalEntryView {
+  /** Art- bzw. Pflanzen-ID; bei Unentdeckten ein neutraler Schlüssel („unknown-3“). */
+  key: string;
+  discovered: boolean;
+  /** Gattungs- bzw. Gruppensymbol (bei Unentdeckten als Silhouette gezeigt). */
+  icon: string;
+  /** Name; bei Unentdeckten „???“. */
+  name: string;
+  /** Gattung bzw. Gruppe als Schlüssel für die Farbe. */
+  family: FamilyKey;
+  /** Seltenheit (nur Arten). */
+  rarity?: Rarity;
+  /**
+   * Kurzangaben, z. B. ["Vögel", "selten", "Nische: Krone"] bzw. ["Sträucher", "ab „Setzling“"].
+   * Unentdeckte Arten nur mit der Seltenheit (["selten"]), unentdeckte Pflanzen nur mit
+   * der Stufe, ab der sie wachsen (["ab „Junger Baum“"]).
+   */
+  facts: string[];
+  /** Naturtext (nur entdeckte). */
+  text?: string;
+  /** Lebt bzw. wächst gerade im Ökosystem. */
+  present: boolean;
+  /** Stammgast-Schalter (nur entdeckte Arten, sobald es Plätze gibt). */
+  regular?: JournalRegularView;
+}
+
+/** Eine Lebensgemeinschaft im Naturtagebuch. */
+export interface JournalCommunityView {
+  /** ID; bei Unentdeckten ein neutraler Schlüssel. */
+  key: string;
+  discovered: boolean;
+  icon: string;
+  /** Name; bei Unentdeckten „???“. */
+  name: string;
+  /** Besteht gerade. */
+  active: boolean;
+  /**
+   * Mitglieder, z. B. „Regenwurm, Rollassel, Pfifferling oder Steinpilz“ (nur entdeckte
+   * Gemeinschaften). Nennt alle Mitglieder, auch noch unentdeckte Arten – gewollt, wie
+   * „fehlt: …“ in der Seitenleiste.
+   */
+  members?: string;
+  /** Wirkung, z. B. „+8 Harmonie · +5 % 🌿“ (nur entdeckte). */
+  effect?: string;
+  /** Rätselhinweis (nur unentdeckte). */
+  hint?: string;
+  /** Fortschritt, z. B. „2/3 Mitglieder“ – solange sie nicht besteht (auch bei unentdeckten). */
+  progress?: string;
+}
+
+export interface JournalKeepsakeView {
+  key: string;
+  icon: string;
+  name: string;
+  text: string;
+}
+
+/** Das Naturtagebuch (DESIGN_V2.md 10 und 11.2). */
+export interface JournalView {
+  /** z. B. „12/32 Arten · 5/14 Pflanzen · 2/9 Gemeinschaften“. */
+  counts: string;
+  /** z. B. „Zyklus 2 · Waldgedächtnis 30 (+60 % Wachstum und Samen)“. */
+  meta: string;
+  /** z. B. „Stammgäste 1/2 – wähle unten bei den Arten“; null, solange es keine Plätze gibt. */
+  regulars: string | null;
+  species: JournalEntryView[];
+  plants: JournalEntryView[];
+  communities: JournalCommunityView[];
+  keepsakes: JournalKeepsakeView[];
+  /** Zähler je Reiter, z. B. „12/32“. */
+  tabCounts: { species: string; plants: string; communities: string; keepsakes: string };
+}

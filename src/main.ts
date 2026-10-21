@@ -1,4 +1,3 @@
-import { MAX_PENDING_ENCOUNTERS } from './content/encounters';
 import { STAGES } from './content/stages';
 import { evaluate, growth, nextPlantCost, rerollCost, type Evaluation } from './core/formulas';
 import { clearStorage, loadFromStorage, saveToStorage } from './core/save';
@@ -24,11 +23,13 @@ import {
 import { drawScene, type SceneInput } from './render/tree';
 import { PLANTS_BY_ID } from './content/plants';
 import {
-  autoDeclineText,
+  harmonyTierIndex,
+  tickDeclineText,
   catchUpNotice,
   discoveryText,
   refreshEcosystemView,
   toEcosystemView,
+  toJournalView,
   toEncounterView,
   toPlantPickerView,
   activeBonusViews,
@@ -44,6 +45,7 @@ import { createEncounterDialog } from './ui/encounter-dialog';
 import { createEncounterStack } from './ui/encounter-stack';
 import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
+import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
 import { formatNumber } from './ui/format';
 import type { EcosystemView } from './ui/view-model';
 
@@ -100,6 +102,8 @@ const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const ctx = canvas.getContext('2d')!;
 const banner = document.querySelector<HTMLElement>('#stage-banner')!;
 const toast = document.querySelector<HTMLElement>('#toast')!;
+/** Unsichtbare Statuszeile: schwebende Hinweise auch für Screenreader. */
+const liveStatus = document.querySelector<HTMLElement>('#live-status')!;
 const resetButton = document.querySelector<HTMLButtonElement>('#reset')!;
 const heading = document.querySelector<HTMLElement>('.panel h1')!;
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -152,6 +156,8 @@ const scene: SceneInput = {
   animals: [],
   plants: [],
   reducedMotion: reducedMotionQuery.matches,
+  // Stimmung der Szene (Harmoniestufe 0–4); gesetzt, sobald die Auswertung vorliegt.
+  harmonyTier: undefined,
 };
 
 // --- Oberfläche ----------------------------------------------------------------------
@@ -204,7 +210,19 @@ const picker = createPlantPicker(document.body, {
   },
 });
 
+const journal = createJournalDialog(document.body, {
+  onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
+});
+createJournalButton(document.querySelector<HTMLElement>('#journal')!, openJournal);
+
 // --- Aktionen ------------------------------------------------------------------------
+
+/** „📖 Naturtagebuch“: andere Dialoge schließen, Tagebuch zeigen. */
+function openJournal(): void {
+  closeEncounters();
+  closePlantPicker();
+  journal.show(toJournalView(state, evaluate(state)));
+}
 
 /**
  * Führt das Ergebnis einer Spieleraktion nach: sofort speichern (Entscheidungen sollen
@@ -253,6 +271,9 @@ function announceDiscoveries(result: ActionResult): void {
 
 /** „Neuen Zyklus beginnen“ (schon bestätigt): Waldgedächtnis gutschreiben, Baum beginnt neu. */
 function newCycle(): void {
+  // Alter Baum für die Übergangs-Sequenz der Szene (vor dem Reset festhalten).
+  const fromGrowth = growth(state);
+  const fromPlants = scene.plants;
   const result = startNewCycle(state, Date.now());
   if (!result.ok) {
     const blocker = newCycleBlocker(state);
@@ -260,6 +281,8 @@ function newCycle(): void {
     return;
   }
   shownStage = state.stage;
+  // Gleicher Takt wie scene.time (rAF-Zeitstempel / 1000); das Feld darf stehen bleiben.
+  scene.cycleTransition = { startedAt: performance.now() / 1000, fromGrowth, fromPlants };
   closeEncounters();
   closePlantPicker();
   encounterSerial++;
@@ -324,6 +347,7 @@ function closeEncounters(): void {
 function notify(text: string): void {
   if (picker.open) picker.notice(text);
   else if (dialog.open) dialog.notice(text);
+  else if (journal.open) journal.notice(text);
   else showToast(text);
 }
 
@@ -366,6 +390,8 @@ function refreshPanel(now: number): void {
     // Neuer Zyklus und Stammgäste ändern sich nur mit Ökosystem, Wegpunkt oder Aktionen.
     cyclePanel.update(toCyclePanelView(state));
     const ev = evaluate(state);
+    if (journal.open) journal.update(toJournalView(state, ev));
+    scene.forestMemory = state.meta.forestMemory;
     if (!ecoView || ev !== ecoEvaluation) {
       ecoEvaluation = ev;
       ecoView = toEcosystemView(state, ev);
@@ -373,6 +399,7 @@ function refreshPanel(now: number): void {
       scene.animals = toSceneAnimals(state, ev);
       scene.plants = toScenePlants(state, ev);
       scene.visitors = toSceneVisitors(state);
+      scene.harmonyTier = harmonyTierIndex(ev.harmony);
     } else {
       refreshEcosystemView(ecoView, state);
     }
@@ -409,16 +436,27 @@ function floatSeeds(amount: number): void {
 function noteTick(report: TickReport): void {
   const parts: string[] = [];
   if (report.autoDeclined > 0) {
-    parts.push(autoDeclineText(report.autoDeclined, state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS));
+    parts.push(tickDeclineText(report));
   }
   if (report.regulars.length > 0) parts.push(regularsArrivedText(report.regulars));
   if (parts.length > 0) noteText(parts.join(' '));
 }
 
-/** Kurzer schwebender Hinweis über der Szene. */
+/**
+ * Kurzer schwebender Hinweis über der Szene. Ist der Kartenwahl-Dialog oder die
+ * Pflanzenauswahl offen, verdeckt sie die Szene – dann steht der Hinweis dort (notify),
+ * sichtbar und für Screenreader erreichbar.
+ */
 function noteText(text: string): void {
+  if (picker.open || dialog.open || journal.open) {
+    notify(text);
+    return;
+  }
   const rect = canvas.getBoundingClientRect();
   if (rect.width > 0) floats.spawn(text, rect.left + rect.width / 2, rect.top + rect.height * 0.3, 'note');
+  // Die schwebende Zahl ist für Screenreader verborgen – derselbe Text in der Statuszeile.
+  liveStatus.textContent = '';
+  requestAnimationFrame(() => (liveStatus.textContent = text));
 }
 
 function showBanner(title: string, text: string): void {
@@ -461,6 +499,7 @@ function onReset(): void {
   shownStage = state.stage;
   closeEncounters();
   closePlantPicker();
+  journal.hide();
   encounterSerial++;
   encounterDirty = true;
   ecoDirty = true;
@@ -531,8 +570,7 @@ function catchUp(): void {
   const away = (Date.now() - state.lastTick) / 1000;
   if (away > MAX_FRAME_SECONDS) {
     const report = simulateOffline(state, away);
-    const stackFull = state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS;
-    const notice = catchUpNotice(away, report, state.pendingEncounters.length, stackFull);
+    const notice = catchUpNotice(away, report, state.pendingEncounters.length);
     if (notice?.kind === 'welcome') notify(withRegulars(notice.text, report.regulars));
     else {
       // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.

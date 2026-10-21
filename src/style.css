@@ -2009,6 +2009,238 @@ dialog.plant-picker {
   }
 }
 
+/* ---------- Naturtagebuch ---------- */
+
+.journal-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.journal-button:hover {
+  background: #eef6e6;
+}
+
+.journal-button-icon {
+  font-size: 1.1rem;
+}
+
+.journal-meta,
+.journal-regulars {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.journal-regulars {
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.journal-regulars[hidden] {
+  display: none;
+}
+
+.journal-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.journal-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.journal-tab[aria-selected='true'] {
+  color: var(--accent-dark);
+  border-bottom-color: var(--accent);
+  background: #eef6e6;
+}
+
+.journal-tab-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.journal-panel:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.journal-panel[hidden] {
+  display: none;
+}
+
+.journal-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  align-items: start;
+  gap: 8px;
+}
+
+.journal-entry {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: start;
+  gap: 4px 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--gem, var(--fam, var(--border)));
+  border-radius: 10px;
+  background: white;
+}
+
+.journal-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--fam-bg, #efece0);
+  font-size: 1.2rem;
+}
+
+.journal-body {
+  min-width: 0;
+}
+
+.journal-name {
+  margin: 0;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.journal-facts,
+.journal-effect,
+.journal-text,
+.journal-progress,
+.journal-present {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.journal-facts {
+  color: var(--muted);
+}
+
+.journal-progress {
+  color: var(--muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.journal-effect {
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.journal-text {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.journal-present {
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.journal-community.active {
+  background: var(--good-bg);
+}
+
+/* Unentdeckt: Silhouette mit „???“, nur der Seltenheitsrahmen bleibt farbig */
+.journal-entry.unknown {
+  background: #f6f4ec;
+  border-style: dashed;
+  border-left-style: solid;
+}
+
+.journal-entry.unknown .journal-icon {
+  background: #e6e2d4;
+  /* Silhouette: das Symbol nur als einfarbiger Schatten */
+  color: transparent;
+  text-shadow: 0 0 0 rgba(60, 55, 40, 0.45);
+}
+
+.journal-entry.unknown .journal-name {
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+.journal-regular {
+  grid-column: 1 / -1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: white;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.journal-regular[aria-pressed='true'] {
+  background: var(--accent);
+  color: white;
+}
+
+.journal-regular:disabled {
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.journal-regular-star {
+  font-size: 1.05rem;
+}
+
+.journal-empty {
+  margin: 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .journal-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ---------- Weniger Bewegung ---------- */
 
 @media (prefers-reduced-motion: reduce) {

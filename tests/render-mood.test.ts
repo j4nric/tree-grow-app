@@ -93,7 +93,7 @@ describe('Durchreisende', () => {
     for (const v of VISITORS) expect(visitorKind(v.id), v.id).not.toBe('flock');
     expect(visitorKind('cranes')).toBe('cranes');
     expect(visitorKind('hummingbird-moth')).toBe('moth');
-    expect(visitorKind('waxwings')).toBe('flock');
+    expect(visitorKind('golden-eagle')).toBe('flock');
     expect(visitorDepth('cranes')).toBe('sky');
     expect(visitorDepth('moth')).toBe('front');
   });
@@ -111,6 +111,14 @@ describe('Durchreisende zeichnen', () => {
     sy: 1,
     time,
     reducedMotion,
+    windSkew: 0,
+    blocked: [],
+    anchors: null,
+    crownX: 0,
+    crownY: 0,
+    crownRx: 0,
+    crownRy: 0,
+    crownTaken: [],
   });
 
   function draw(list: SceneVisitor[], depth: 'sky' | 'front', f: VisitorFrame): StubCanvas['calls'] {
@@ -139,7 +147,7 @@ describe('Durchreisende zeichnen', () => {
     expect(at([{ id: 'hummingbird-moth', slot: 0 }])).not.toEqual(at([{ id: 'hummingbird-moth', slot: 2 }]));
     // Gleicher Platz, andere Art: eigener Seed.
     const flock = draw([{ id: 'bramblings', slot: 0 }], 'front', frame(0, true)).map((c) => c.args[4]);
-    const other = draw([{ id: 'waxwings', slot: 0 }], 'front', frame(0, true)).map((c) => c.args[4]);
+    const other = draw([{ id: 'golden-eagle', slot: 0 }], 'front', frame(0, true)).map((c) => c.args[4]);
     expect(flock.slice(0, 3)).not.toEqual(other.slice(0, 3));
     for (const time of [-0.5, -7.3, -100]) {
       const calls = draw(

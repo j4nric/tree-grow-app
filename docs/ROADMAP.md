@@ -82,6 +82,9 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 - [ ] 2.6 Tiere und Pflanzen im Bild: Ankerpunkte, gecachte Sprites (`renderer`)
 - [ ] 2.7 Pflegemaßnahmen (`game-designer` + `core-engineer` + `ui-dev`)
 - [x] 2.8 Neuer Zyklus, Naturtagebuch, Waldgedächtnis, Stammgäste (`core-engineer` + `game-designer` + `ui-dev`)
+  - [x] Naturtagebuch-Ansicht: Dialog „📖 Naturtagebuch“ mit Reitern Arten, Pflanzen,
+    Lebensgemeinschaften, Andenken; Unentdecktes als Silhouette „???“ ohne Spoiler;
+    Stammgäste direkt wählbar; Statuszeile für Screenreader (`ui-dev`)
 - [x] 2.9 e2e: voller Zyklus mit festem Seed (`qa-tester`)
 - [x] Begegnungs-Vielfalt messen und verbessern: Pflanzengewicht bei vollem Ring, Ring-Pflanzen seltener (Playtest-Befund, `game-designer`)
 - [ ] 2.10 Balancing aller Zahlen mit dem v2-Simulator, `scripts/v2/` aufräumen (`game-designer`)

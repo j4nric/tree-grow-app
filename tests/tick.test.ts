@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ENCOUNTER_WEIGHTS, MAX_PENDING_ENCOUNTERS, PLANT_WEIGHT_RING_FULL } from '../src/content/encounters';
-import { PLANTS_BY_ID } from '../src/content/plants';
+import { PLANTS, PLANTS_BY_ID, type Plant } from '../src/content/plants';
 import { SPECIES_BY_ID } from '../src/content/species';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
 import { cardStatus, evaluate, thresholdFor } from '../src/core/formulas';
@@ -65,7 +65,16 @@ describe('tick', () => {
   it('erster Wegpunkt nach ~4 s: Keimling und eine Begegnung mit den Wurzelraum-Gästen', () => {
     const state = createInitialState(0, 42);
     const report = tick(state, 4);
-    expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0, regulars: [], interludes: 0, expired: [] });
+    expect(report).toEqual({
+      waypoints: 1,
+      encounters: 1,
+      autoDeclined: 0,
+      declinedStackFull: 0,
+      declinedNoCards: 0,
+      regulars: [],
+      interludes: 0,
+      expired: [],
+    });
     expect(state.waypoint).toBe(1);
     expect(state.stage).toBe(1);
     // Im Keimling sind nur Regenwurm, Wühlmaus und Pfifferling freigeschaltet → genau diese drei.
@@ -102,7 +111,16 @@ describe('tick', () => {
     state.niches.roots.push('earthworm', 'vole', 'chanterelle');
     state.totalGrowth = thresholdFor(1) - 0.001;
     const report = tick(state, 1);
-    expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0, regulars: [], interludes: 0, expired: [] });
+    expect(report).toEqual({
+      waypoints: 1,
+      encounters: 1,
+      autoDeclined: 0,
+      declinedStackFull: 0,
+      declinedNoCards: 0,
+      regulars: [],
+      interludes: 0,
+      expired: [],
+    });
     expect(state.pendingEncounters[0]!.type).toBe('plant');
   });
 
@@ -192,6 +210,25 @@ describe('tick', () => {
     expect(report.waypoints).toBeGreaterThan(MAX_PENDING_ENCOUNTERS);
     expect(state.pendingEncounters).toHaveLength(MAX_PENDING_ENCOUNTERS);
     expect(report.autoDeclined).toBe(report.waypoints - MAX_PENDING_ENCOUNTERS);
+    // Grund: nur „Stapel voll“.
+    expect(report.declinedStackFull).toBe(report.autoDeclined);
+    expect(report.declinedNoCards).toBe(0);
+  });
+
+  it('autoDeclined getrennt nach Grund: nichts Passendes zählt nicht als „Stapel voll“', () => {
+    // Keimling: alle Arten des Wurzelraums leben schon, Pflanzen zeitweise entfernt.
+    const plants = PLANTS as Plant[];
+    const saved = plants.splice(0, plants.length);
+    try {
+      const state = createInitialState(0, 8);
+      state.niches.roots.push('earthworm', 'vole', 'chanterelle');
+      state.totalGrowth = thresholdFor(1) - 0.001;
+      const report = tick(state, 1);
+      expect(report).toMatchObject({ waypoints: 1, encounters: 0, autoDeclined: 1, declinedStackFull: 0, declinedNoCards: 1 });
+      expect(state.pendingEncounters).toEqual([]);
+    } finally {
+      plants.push(...saved);
+    }
   });
 
   it('Karten sind verschieden, freigeschaltet und leben noch nicht hier', () => {
@@ -254,6 +291,7 @@ describe('simulateOffline', () => {
     expect(offline.seeds).toBeCloseTo(online.seeds, 6);
     expect(report.waypoints).toBeGreaterThan(MAX_PENDING_ENCOUNTERS);
     expect(report.autoDeclined).toBe(report.waypoints - MAX_PENDING_ENCOUNTERS);
+    expect(report.declinedStackFull).toBe(report.autoDeclined);
   });
 
   it('gleich mit Begleitpflanzen (Versorgung < 1) und Pflanzen-Begegnungen', () => {

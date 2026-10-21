@@ -61,8 +61,12 @@ export interface TickReport {
   waypoints: number;
   /** Davon als Begegnung in die Warteschlange gelegt. */
   encounters: number;
-  /** Automatisch abgelehnt (Warteschlange voll oder keine Art verfügbar). */
+  /** Automatisch abgelehnt (Warteschlange voll oder keine Art verfügbar); Summe der beiden folgenden. */
   autoDeclined: number;
+  /** Davon abgelehnt, weil die Warteschlange voll war. */
+  declinedStackFull: number;
+  /** Davon abgelehnt, weil weder Art noch Pflanze in Frage kam. */
+  declinedNoCards: number;
   /** Eingezogene Stammgäste (Art-IDs, in Reihenfolge des Einzugs). */
   regulars: string[];
   /** Am Zwischenhalt (ab Hain) in die Warteschlange gelegte Ereignisse und Gäste. */
@@ -91,7 +95,16 @@ const EXPIRY_EPSILON = 1e-9;
  * `state.rngState`.
  */
 export function tick(state: GameState, dt: number): TickReport {
-  const report: TickReport = { waypoints: 0, encounters: 0, autoDeclined: 0, regulars: [], interludes: 0, expired: [] };
+  const report: TickReport = {
+    waypoints: 0,
+    encounters: 0,
+    autoDeclined: 0,
+    declinedStackFull: 0,
+    declinedNoCards: 0,
+    regulars: [],
+    interludes: 0,
+    expired: [],
+  };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
   let remaining = dt;
   // Schleife endet: Jede Runde verbraucht die Restzeit oder erreicht einen Halt – davon
@@ -219,6 +232,7 @@ function reachWaypoint(state: GameState, report: TickReport): void {
     // Warteschlange voll: überzählige Begegnung gleich ablehnen – nichts verfällt.
     state.seeds = capped(state.seeds + declineReward());
     report.autoDeclined++;
+    report.declinedStackFull++;
     return;
   }
   const encounter = drawEncounter(state);
@@ -226,6 +240,7 @@ function reachWaypoint(state: GameState, report: TickReport): void {
     // Weder Art noch Pflanze kommt in Frage: wie Ablehnen.
     state.seeds = capped(state.seeds + declineReward());
     report.autoDeclined++;
+    report.declinedNoCards++;
     return;
   }
   state.pendingEncounters.push(encounter);

@@ -15,7 +15,12 @@
  *  gallery  1 = Übersicht aller Tier- und Pflanzenzeichnungen statt der Szene
  *  ui=0     Bedienelemente ausblenden (für Screenshots)
  *  reduced  1 = weniger Bewegung
- *  t        feste Zeit in Sekunden (für reproduzierbare Screenshots)
+ *  t        feste Zeit in Sekunden (für reproduzierbare Screenshots). Achtung: Mit t
+ *           steht die Zeit – der Knopf „Zyklus-Übergang abspielen“ bleibt dann beim
+ *           ersten Bild stehen; zum Abspielen ohne t aufrufen.
+ *  mem      Waldgedächtnis (0–1000; ohne Angabe: kein Erinnerungsbaum)
+ *  cyc      Zyklus-Übergang aus dem Wachstum g: die Szene zeigt Wachstum 0 und die
+ *           Sequenz bei cyc Sekunden (mit t für feste Bilder, sonst läuft sie weiter)
  *  rate     Wachstum pro Sekunde, z. B. 0.05 – misst die Kosten beim Neuaufbau der Ebenen
  *  ht       Harmoniestufe 0–4 (ohne Angabe: keine Stimmung, Look wie bisher)
  *  vis      Durchreisende, kommagetrennt: cranes,bramblings,hummingbird-moth
@@ -171,6 +176,24 @@ const vigor = params.has('vig') ? Number(params.get('vig')) : null;
 const gallery = params.get('gallery') === '1';
 let happy: number | null = params.has('h') ? Number(params.get('h')) : null;
 const fixedTime = params.has('t') ? Number(params.get('t')) : null;
+const cycleButton = document.querySelector<HTMLButtonElement>('#cycle')!;
+const memoryInput = document.querySelector<HTMLInputElement>('#memory')!;
+const memoryValue = document.querySelector<HTMLElement>('#memory-value')!;
+/** Waldgedächtnis (undefined = aus). */
+let forestMemory: number | undefined = params.has('mem') ? Number(params.get('mem')) || 0 : undefined;
+memoryInput.value = String(forestMemory ?? 0);
+const showMemory = () => (memoryValue.textContent = forestMemory === undefined ? 'aus' : String(forestMemory));
+showMemory();
+memoryInput.addEventListener('input', () => {
+  forestMemory = Number(memoryInput.value);
+  showMemory();
+});
+/** Laufender Zyklus-Übergang (Startzeit in Sekunden) – die Szene springt dabei auf Wachstum 0. */
+let cycleTransition: { startedAt: number; fromGrowth: number; fromPlants?: readonly ScenePlant[] } | undefined;
+/** ?cyc=: Sequenz nach einigen Frames mit dem alten Baum bei dieser Sekunde anhalten. */
+const cycleAt = params.has('cyc') ? Number(params.get('cyc')) : null;
+let pendingCycle = false;
+cycleButton.addEventListener('click', () => (pendingCycle = true));
 /** Wachstum pro Sekunde (0 = steht). */
 const rate = Number(params.get('rate') ?? 0) || 0;
 const startG = g;
@@ -245,22 +268,24 @@ function drawGallery(): void {
     ctx.fillStyle = '#334';
     ctx.fillText(kind, cx, Math.floor(i / cols) * cell + cell - 6);
   });
-  // Durchreisende (zwei Flügelbilder nebeneinander) in einer eigenen Zeile
+  // Durchreisende: alle Bilder je Zeichnung (Anzahl aus `frames` der SpriteDef)
   const vtop = Math.ceil(kinds.length / cols) * cell;
-  Object.keys(VISITOR_DEFS).forEach((kind, i) => {
-    for (const fr of [0, 1]) {
-      const cx = (i * 2 + fr) * cell + cell / 2;
-      const cy = vtop + cell * 0.5;
+  let vi = 0;
+  for (const [kind, def] of Object.entries(VISITOR_DEFS)) {
+    for (let fr = 0; fr < (def.frames ?? 2); fr++, vi++) {
+      const cx = (vi % cols) * cell + cell / 2;
+      const row = vtop + Math.floor(vi / cols) * cell;
+      const cy = row + cell * 0.55;
       const s = sprites.get(kind, fr, false, sz, dpr);
       ctx.strokeStyle = 'rgba(0,0,0,0.12)';
       ctx.strokeRect(cx - s.ox, cy - s.oy, s.w, s.h);
       ctx.drawImage(s.canvas, cx - s.ox, cy - s.oy, s.w, s.h);
       ctx.fillStyle = '#334';
-      ctx.fillText(`${kind.replace('visitor:', '')} ${fr}`, cx, vtop + cell - 6);
+      ctx.fillText(`${kind.replace('visitor:', '')} ${fr}`, cx, row + cell - 6);
     }
-  });
+  }
   // Pflanzen in einer Reihe darunter
-  const top = vtop + cell + 10;
+  const top = vtop + Math.ceil(vi / cols) * cell + 10;
   const ids = [...Object.keys(PLANT_SPECIES), 'shrub', 'flower'];
   const pcols = Math.max(1, Math.floor(rect.width / 130));
   ids.forEach((id, i) => {
@@ -329,17 +354,32 @@ function frame(now: number): void {
     if (g > 8) g = startG;
   }
   lastNow = now;
+  const time = fixedTime ?? now / 1000;
+  if (cycleAt !== null && !cycleTransition) {
+    // Der alte Wald stammt aus dem Startwachstum – die Szene selbst zeigt schon Stufe 0.
+    cycleTransition = { startedAt: time - cycleAt, fromGrowth: startG, fromPlants: plantsFor(startG, plantMode, vigor) };
+    g = 0;
+  }
+  if (pendingCycle) {
+    // Neuer Zyklus: Spielstand zurück auf den Samen, die Szene spielt den Übergang.
+    pendingCycle = false;
+    cycleTransition = { startedAt: time, fromGrowth: g, fromPlants: plantsFor(g, plantMode, vigor) };
+    g = 0;
+    growthInput.value = '0';
+  }
   const animals = animalsFor(g, set, happy, variant);
   const plants = plantsFor(g, plantMode, vigor);
   const t0 = performance.now();
   drawScene(ctx, rect.width, rect.height, {
     growth: g,
-    time: fixedTime ?? now / 1000,
+    time,
     animals,
     plants,
     reducedMotion: reducedInput.checked,
     harmonyTier,
     visitors,
+    cycleTransition,
+    forestMemory,
   });
   const dt = performance.now() - t0;
   samples.push(dt);
