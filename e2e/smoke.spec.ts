@@ -8,7 +8,7 @@ import {
   readNumber,
   savedState,
   seedRaw,
-  seedV2,
+  seedV3,
   seedsValue,
   settle,
   stack,
@@ -78,7 +78,7 @@ test('Karte wählen: Tier zieht ein, nächste Begegnung folgt, Neuladen zeigt de
   context,
 }) => {
   // Junger Baum mit zwei offenen Begegnungen (Karten fest im Spielstand)
-  await seedV2(context, {
+  await seedV3(context, {
     totalGrowth: waypoint(6) + 1,
     seeds: 3,
     niches: { roots: ['earthworm'] },
@@ -119,7 +119,7 @@ test('Karte wählen: Tier zieht ein, nächste Begegnung folgt, Neuladen zeigt de
 });
 
 test('Neu würfeln kostet Samen, Ablehnen bringt Samen, Escape legt zurück', async ({ page, context }) => {
-  await seedV2(context, {
+  await seedV3(context, {
     totalGrowth: waypoint(6) + 1,
     seeds: 12,
     pendingEncounters: [
@@ -157,7 +157,7 @@ test('Doppelklick auf „Ablehnen“ lehnt bei gleich aussehenden Begegnungen nu
   context,
 }) => {
   // Keimling: beide Begegnungen bieten nur den Regenwurm an – sie sehen identisch aus.
-  await seedV2(context, {
+  await seedV3(context, {
     totalGrowth: waypoint(1) + 1,
     pendingEncounters: [
       { type: 'animal', cards: ['earthworm'], rerolls: 0 },
@@ -177,7 +177,7 @@ test('Doppelklick auf „Ablehnen“ lehnt bei gleich aussehenden Begegnungen nu
 });
 
 test('Volle Nische: Tier ersetzen', async ({ page, context }) => {
-  await seedV2(context, {
+  await seedV3(context, {
     totalGrowth: waypoint(6) + 1,
     niches: { litter: ['woodlouse', 'centipede'] },
     pendingEncounters: [{ type: 'animal', cards: ['robin'], rerolls: 0 }],
@@ -202,7 +202,7 @@ test('Volle Nische: Tier ersetzen', async ({ page, context }) => {
 });
 
 test('„Spielstand löschen“ setzt nach Bestätigung zurück', async ({ page, context }) => {
-  await seedV2(context, {
+  await seedV3(context, {
     totalGrowth: waypoint(6) + 1,
     seeds: 500,
     niches: { roots: ['earthworm'], crown: ['bluetit'] },
@@ -263,7 +263,7 @@ test('v1-Spielstand: Neustart mit Andenken-Meldung', async ({ page, context }) =
 });
 
 test('Offline-Fortschritt: Willkommens-Meldung, Begegnungen warten im Stapel', async ({ page, context }) => {
-  await seedV2(context, {
+  await seedV3(context, {
     totalGrowth: waypoint(3) + 1,
     niches: { roots: ['earthworm'] },
     lastTickOffsetMs: -60 * 60 * 1000,
@@ -283,7 +283,7 @@ test('Offline-Fortschritt: Willkommens-Meldung, Begegnungen warten im Stapel', a
 });
 
 test('Offline länger als 8 Stunden: Meldung nennt die simulierte Dauer', async ({ page, context }) => {
-  await seedV2(context, {
+  await seedV3(context, {
     totalGrowth: waypoint(3) + 1,
     niches: { roots: ['earthworm'] },
     lastTickOffsetMs: -30 * 60 * 60 * 1000,
@@ -296,7 +296,7 @@ test('Offline länger als 8 Stunden: Meldung nennt die simulierte Dauer', async 
 });
 
 test('ohne Offline-Zeit erscheint keine Willkommens-Meldung', async ({ page, context }) => {
-  await seedV2(context, { totalGrowth: waypoint(3) + 1 });
+  await seedV3(context, { totalGrowth: waypoint(3) + 1 });
   await openGame(page);
   await page.waitForTimeout(300);
   await expect(page.locator('#toast')).toBeHidden();
@@ -323,7 +323,7 @@ test.describe('Mobil (390×844)', () => {
     page,
     context,
   }) => {
-    await seedV2(context, {
+    await seedV3(context, {
       totalGrowth: waypoint(20) + 1,
       seeds: 9.87e8,
       forestMemory: 500,
@@ -357,33 +357,6 @@ test.describe('Mobil (390×844)', () => {
 // Pflanzen: Begegnung „Etwas keimt“, Pflanzring, „Pflanze setzen“
 // ---------------------------------------------------------------------------
 
-/** Gesamt-Wachstum der Wegpunkte im Spielstand v3 (3,5 · k^3,4, aufgerundet). */
-const WAYPOINT_V3 = { 1: 4, 2: 37, 3: 147, 6: 1549 } as const;
-
-interface SeedV3 {
-  totalGrowth: number;
-  seeds?: number;
-  plants?: string[];
-  niches?: Partial<Record<'roots' | 'litter' | 'edge' | 'crown' | 'bark', string[]>>;
-  pendingEncounters?: { type: 'animal' | 'plant'; cards: string[]; rerolls: number }[];
-}
-
-async function seedV3(context: BrowserContext, seed: SeedV3): Promise<void> {
-  const save = {
-    version: 3,
-    totalGrowth: seed.totalGrowth,
-    seeds: seed.seeds ?? 0,
-    waypoint: 0, // wird beim Laden aus totalGrowth abgeleitet
-    stage: 0,
-    plants: seed.plants ?? [],
-    niches: { roots: [], litter: [], edge: [], crown: [], bark: [], hollows: [], ...seed.niches },
-    pendingEncounters: seed.pendingEncounters ?? [],
-    rngState: 123456789,
-    meta: { forestMemory: 0, journal: { species: [], keepsakes: [] } },
-  };
-  await seedRaw(context, save, 0);
-}
-
 const plantCard = (page: Page, plant: string) => dialog(page).locator(`[data-plant="${plant}"]`);
 const plantRing = (page: Page) => page.locator('[data-ref="plant-ring"]');
 const plantOpen = (page: Page) => page.locator('[data-ref="plant-open"]');
@@ -391,7 +364,7 @@ const picker = (page: Page) => page.locator('[data-ref="plant-picker"]');
 
 test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring', async ({ page, context }) => {
   // Keimling kurz vor Wegpunkt 2 – die festgelegte zweite Begegnung ist „Etwas keimt“.
-  await seedV3(context, { totalGrowth: WAYPOINT_V3[2] - 2, niches: { roots: ['earthworm'] } });
+  await seedV3(context, { totalGrowth: waypoint(2) - 2, niches: { roots: ['earthworm'] } });
   await openGame(page);
   await expect(stageLabel(page)).toHaveText('Stufe: Keimling');
   await expect(plantRing(page)).toContainText('frei');
@@ -426,7 +399,7 @@ test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring',
 
 test('Pflanzring voll: „Welche Pflanze weicht?“ ersetzt die gewählte Pflanze', async ({ page, context }) => {
   await seedV3(context, {
-    totalGrowth: WAYPOINT_V3[3] + 1,
+    totalGrowth: waypoint(3) + 1,
     plants: ['hazel', 'bramble'],
     pendingEncounters: [{ type: 'plant', cards: ['nettle', 'strawberry', 'fern'], rerolls: 0 }],
   });
@@ -453,7 +426,7 @@ test('Pflanzring voll: „Welche Pflanze weicht?“ ersetzt die gewählte Pflanz
 });
 
 test('Pflanze setzen mit genug Samen: Samen sinken, Pflanze wächst, Auswahl schließt', async ({ page, context }) => {
-  await seedV3(context, { totalGrowth: WAYPOINT_V3[3] + 1, seeds: 30 });
+  await seedV3(context, { totalGrowth: waypoint(3) + 1, seeds: 30 });
   await openGame(page);
   await expect(plantOpen(page)).toBeVisible();
   await expect(plantOpen(page)).toContainText('20 🌰');
@@ -479,7 +452,7 @@ test('Pflanze setzen mit genug Samen: Samen sinken, Pflanze wächst, Auswahl sch
 });
 
 test('Pflanze setzen mit zu wenig Samen: gesperrt mit Grund, nichts ändert sich', async ({ page, context }) => {
-  await seedV3(context, { totalGrowth: WAYPOINT_V3[3] + 1, seeds: 5 });
+  await seedV3(context, { totalGrowth: waypoint(3) + 1, seeds: 5 });
   await openGame(page);
   await expect(page.locator('[data-ref="plant-hint"]')).toContainText('bis zur nächsten Pflanze');
   await plantOpen(page).click();
@@ -510,7 +483,7 @@ test.describe('Pflanzen mobil (390×844)', () => {
     context,
   }) => {
     await seedV3(context, {
-      totalGrowth: WAYPOINT_V3[6] + 1,
+      totalGrowth: waypoint(6) + 1,
       seeds: 500,
       plants: ['birch', 'rowan'],
       niches: { roots: ['earthworm'], litter: ['robin'], crown: ['bluetit'] },

@@ -32,11 +32,13 @@ export const waypoint = (k: number): number => WAYPOINT_THRESHOLDS[k]!;
 
 export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows';
 
-export interface SeedV2 {
+export interface SeedV3 {
   totalGrowth?: number;
   seeds?: number;
+  /** Begleitpflanzen im Pflanzring (Pflanzen-IDs, Duplikate erlaubt). */
+  plants?: string[];
   niches?: Partial<Record<NicheId, string[]>>;
-  pendingEncounters?: { type: 'animal'; cards: string[]; rerolls: number }[];
+  pendingEncounters?: { type: 'animal' | 'plant'; cards: string[]; rerolls: number }[];
   rngState?: number;
   forestMemory?: number;
   /** lastTick relativ zur Browser-Uhr beim Laden (ms, negativ = Vergangenheit). */
@@ -62,13 +64,19 @@ export async function seedRaw(context: BrowserContext, save: object, lastTickOff
   );
 }
 
-export async function seedV2(context: BrowserContext, seed: SeedV2): Promise<void> {
+/**
+ * Spielstand im aktuellen Format v3 (mit Pflanzring). Ältere Formate würden beim Laden
+ * migriert (Wegpunkt-Kurve umgerechnet, Samen begrenzt) – Tests mit Wegpunkt-Schwellen aus
+ * `waypoint()` und großen Samenzahlen brauchen darum v3.
+ */
+export async function seedV3(context: BrowserContext, seed: SeedV3): Promise<void> {
   const save = {
-    version: 2,
+    version: 3,
     totalGrowth: seed.totalGrowth ?? 0,
     seeds: seed.seeds ?? 0,
     waypoint: 0, // wird beim Laden aus totalGrowth abgeleitet
     stage: 0,
+    plants: seed.plants ?? [],
     niches: { roots: [], litter: [], edge: [], crown: [], bark: [], hollows: [], ...seed.niches },
     pendingEncounters: seed.pendingEncounters ?? [],
     rngState: seed.rngState ?? 123456789,
