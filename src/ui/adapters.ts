@@ -41,8 +41,8 @@ import {
   type ChoiceError,
   type Evaluation,
 } from '../core/formulas';
-import type { GameState } from '../core/state';
-import type { SceneAnimal } from '../render/tree';
+import { allAnimals, type GameState } from '../core/state';
+import type { SceneAnimal, ScenePlant, ScenePlantGroup } from '../render/tree';
 import {
   MAX_OFFLINE_SECONDS,
   allWaypointsReached,
@@ -164,13 +164,21 @@ export function foodLabel(species: Species): string {
 
 /**
  * Bedingungen einer Art mit Haken/Kreuz. `status` ist der Zustand der Art im
- * (ggf. hypothetischen) Ökosystem; ohne Status gilt nichts als erfüllt.
+ * (ggf. hypothetischen) Ökosystem; ohne Status gilt nichts als erfüllt. `present` sind die
+ * übrigen Tiere dort – damit „(knapp)“ erklärt, mit wem sich die Art das Futter teilt.
  */
-export function conditionViews(species: Species, status: AnimalStatus | undefined): ConditionView[] {
+export function conditionViews(
+  species: Species,
+  status: AnimalStatus | undefined,
+  present: readonly string[] = [],
+): ConditionView[] {
   const food = status?.food ?? 0;
-  const conditions: ConditionView[] = [
-    { label: food > 0 && food < 1 ? `${foodLabel(species)} (knapp)` : foodLabel(species), met: food > 0 },
-  ];
+  const foodRow: ConditionView = { label: foodLabel(species), met: food > 0 };
+  if (food > 0 && food < 1) {
+    foodRow.label += ' (knapp)';
+    foodRow.hint = scarceFoodText(species, present);
+  }
+  const conditions: ConditionView[] = [foodRow];
   species.needs.forEach((need, i) => {
     conditions.push({ label: `${conditionIcon(need)} ${conditionName(need)}`, met: status?.needs[i] ?? false });
   });
@@ -235,15 +243,94 @@ export function effectViews(species: Species): EffectView[] {
   return effects;
 }
 
-/** Kurze, freundliche Stimmung eines Tiers – nie traurig, eher ein Hinweis. */
-export function moodText(species: Species, status: AnimalStatus | undefined): string {
+/** Namen bekannter Arten (unbekannte IDs fallen weg). */
+function speciesNames(ids: readonly string[]): string[] {
+  return ids.map((id) => SPECIES_BY_ID.get(id)?.name).filter((n): n is string => n !== undefined);
+}
+
+/**
+ * Andere anwesende Arten, die dasselbe Futter fressen – nur zur Erklärung von „knapp“.
+ * Wie knapp es ist, rechnet der Kern (`AnimalStatus.food`).
+ */
+export function foodCompetitors(species: Species, present: readonly string[]): string[] {
+  return present.filter((id) => {
+    if (id === species.id) return false;
+    const other = SPECIES_BY_ID.get(id);
+    return other !== undefined && other.food.some((t) => species.food.includes(t));
+  });
+}
+
+/**
+ * Anwesende Räuber, die etwas fressen, das diese Art bietet – nur für die Namen im Text;
+ * die Anzahl (und damit den Abzug) liefert der Kern in `AnimalStatus.hunters`.
+ */
+export function huntersOf(species: Species, present: readonly string[]): string[] {
+  return present.filter((id) => {
+    if (id === species.id) return false;
+    const other = SPECIES_BY_ID.get(id);
+    return other?.level === 'predator' && other.food.some((t) => species.provides.includes(t));
+  });
+}
+
+/**
+ * Anwesende Arten, die diese Art stören (Wirkung `disturb` mit `target` = diese Art) – nur
+ * für die Namen; die Anzahl (und damit den Abzug) liefert der Kern in `AnimalStatus.disturbers`.
+ */
+export function disturbersOf(species: Species, present: readonly string[]): string[] {
+  return present.filter((id) => {
+    if (id === species.id) return false;
+    return (SPECIES_BY_ID.get(id)?.effects ?? []).some((e) => e.kind === 'disturb' && e.target === species.id);
+  });
+}
+
+/** Erklärung für knappes Futter: „teilt sich das Futter mit Amsel“ oder „wenig Futter da“. */
+export function scarceFoodText(species: Species, present: readonly string[]): string {
+  const rivals = speciesNames(foodCompetitors(species, present));
+  return rivals.length > 0 ? `teilt sich das Futter mit ${listNames(rivals)}` : 'wenig Futter da';
+}
+
+/** Unter dieser Zufriedenheit nennt die Stimmung bis zu zwei Gründe statt einem. */
+export const MOOD_REASON_BELOW = 0.7;
+
+/**
+ * Gründe, warum ein Tier nicht ganz zufrieden ist – wichtigste zuerst: kein Futter,
+ * fehlende Wünsche, Störer, knappes Futter (Konkurrenz), Räuberdruck. Leer = alles erfüllt.
+ */
+export function moodReasons(species: Species, status: AnimalStatus, present: readonly string[] = []): string[] {
+  const reasons: string[] = [];
+  // Namen (Konkurrenz, Räuber, Störer) nur, wenn sie den Grund erklären müssen – sonst
+  // bleiben die Kacheln in der Seitenleiste kurz.
+  const detailed = status.happiness < MOOD_REASON_BELOW;
+  const named = (ids: string[]) => (detailed ? speciesNames(ids) : []);
+  if (status.food <= 0) reasons.push('sucht Futter');
+  species.needs.forEach((need, i) => {
+    if (!status.needs[i]) reasons.push(`wünscht sich ${conditionName(need)}`);
+  });
+  if (status.disturbers > 0) {
+    const names = named(disturbersOf(species, present));
+    reasons.push(names.length > 0 ? `wird gestört von ${listNames(names)}` : 'wird gestört');
+  }
+  if (status.food > 0 && status.food < 1) {
+    const rivals = named(foodCompetitors(species, present));
+    reasons.push(rivals.length > 0 ? `teilt sich das Futter mit ${listNames(rivals)}` : 'findet wenig Futter');
+  }
+  if (status.hunters > 0) {
+    const hunters = named(huntersOf(species, present));
+    reasons.push(hunters.length > 0 ? `ist auf der Hut vor ${listNames(hunters)}` : 'ist auf der Hut');
+  }
+  return reasons;
+}
+
+/**
+ * Kurze, freundliche Stimmung eines Tiers – nie traurig, eher ein Hinweis. Unter ~70 %
+ * Zufriedenheit nennt sie bis zu zwei Gründe, z. B. „wünscht sich Feuchte ·
+ * teilt sich das Futter mit Amsel“. `present`: alle Tiere im Ökosystem.
+ */
+export function moodText(species: Species, status: AnimalStatus | undefined, present: readonly string[] = []): string {
   if (!status) return 'schaut sich um';
-  if (status.food <= 0) return 'sucht Futter';
-  const unmet = species.needs.findIndex((_, i) => !status.needs[i]);
-  if (unmet >= 0) return `wünscht sich ${conditionName(species.needs[unmet]!)}`;
-  if (status.food < 1) return 'findet wenig Futter';
-  if (status.hunters > 0) return 'ist auf der Hut';
-  return 'fühlt sich wohl';
+  const reasons = moodReasons(species, status, present);
+  if (reasons.length === 0) return 'fühlt sich wohl';
+  return reasons.slice(0, status.happiness < MOOD_REASON_BELOW ? 2 : 1).join(' · ');
 }
 
 // ---------------------------------------------------------------------------
@@ -264,7 +351,12 @@ function nicheOpensAt(nicheId: NicheId): string | null {
   return at >= 0 ? (STAGES[at]?.name ?? null) : null;
 }
 
-export function animalView(speciesId: string, evaluation: Readonly<Evaluation>): AnimalView | null {
+/** `present`: alle Tiere im Ökosystem – für die Gründe in der Stimmung (Futterkonkurrenz, Räuber). */
+export function animalView(
+  speciesId: string,
+  evaluation: Readonly<Evaluation>,
+  present: readonly string[] = [],
+): AnimalView | null {
   const sp = SPECIES_BY_ID.get(speciesId);
   if (!sp) return null;
   const status = evaluation.animals[sp.id];
@@ -275,7 +367,7 @@ export function animalView(speciesId: string, evaluation: Readonly<Evaluation>):
     familyIcon: GENUS_INFO[sp.genus].icon,
     rarity: rarityKey(sp.rarity),
     happiness: status?.happiness ?? 0,
-    mood: moodText(sp, status),
+    mood: moodText(sp, status, present),
   };
 }
 
@@ -305,10 +397,11 @@ export function familyViews(evaluation: Readonly<Evaluation>): FamilyView[] {
 }
 
 export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): NicheView[] {
+  const present = allAnimals(state);
   return NICHES.map((niche) => {
     const capacity = evaluation.slots[niche.id] ?? 0;
     const animals = (state.niches[niche.id] ?? [])
-      .map((id) => animalView(id, evaluation))
+      .map((id) => animalView(id, evaluation, present))
       .filter((a): a is AnimalView => a !== null);
     // Nischen ohne mögliche Bewohner (Höhlen im Prototyp) bleiben verschlossen statt „0/1 belegt“.
     const inhabitable = animals.length > 0 || SPECIES.some((s) => s.niche === niche.id);
@@ -441,6 +534,8 @@ export function toCardView(
   let replaceOptions: ReplaceOptionView[] | undefined;
   /** Zustand der Art nach dem Einzug – für Bedingungen ✓/✗. */
   let after: Readonly<Evaluation> | null = null;
+  /** Wer für `after` weicht – teilt sich danach kein Futter mehr. */
+  let afterReplaced: string | null = null;
   let blockedFree = false;
 
   if (status === 'free') {
@@ -454,7 +549,10 @@ export function toCardView(
       const option: ReplaceOptionView = { id: occupant, name: SPECIES_BY_ID.get(occupant)?.name ?? occupant };
       const result = previewChoice(state, encounterIndex, cardIndex, occupant);
       if (result) {
-        after ??= result;
+        if (!after) {
+          after = result;
+          afterReplaced = occupant;
+        }
         option.preview = previewView(now, result, sp.id);
       } else {
         option.disabledReason = REPLACE_BLOCKED;
@@ -479,7 +577,11 @@ export function toCardView(
     rarity: rarityKey(sp.rarity),
     niche: sp.niche,
     nicheLabel: `${niche.icon} ${niche.name}`,
-    conditions: conditionViews(sp, after?.animals[sp.id]),
+    conditions: conditionViews(
+      sp,
+      after?.animals[sp.id],
+      allAnimals(state).filter((id) => id !== afterReplaced),
+    ),
     effects: effectViews(sp),
     preview,
     flavor: sp.text,
@@ -903,7 +1005,8 @@ export function toPlantPickerView(state: GameState, now: Readonly<Evaluation> = 
 // ---------------------------------------------------------------------------
 
 /**
- * Tiere für `drawScene` – Art, Gattung, Nische, Platz und Zufriedenheit.
+ * Tiere für `drawScene` – Art, Gattung, Nische, Platz, Zufriedenheit und Seltenheit
+ * (0 gewöhnlich … 3 legendär; besondere und legendäre Tiere schimmern in der Szene).
  * Nur neu bauen, wenn sich die Auswertung ändert (main.ts cacht das Array).
  */
 export function toSceneAnimals(state: GameState, evaluation: Readonly<Evaluation>): SceneAnimal[] {
@@ -912,15 +1015,61 @@ export function toSceneAnimals(state: GameState, evaluation: Readonly<Evaluation
     (state.niches[niche.id] ?? []).forEach((id, slot) => {
       const sp = SPECIES_BY_ID.get(id);
       if (!sp) return;
-      out.push({ id, family: sp.genus, niche: niche.id, slot, happiness: evaluation.animals[id]?.happiness ?? 0 });
+      out.push({
+        id,
+        family: sp.genus,
+        niche: niche.id,
+        slot,
+        happiness: evaluation.animals[id]?.happiness ?? 0,
+        rarity: sp.rarity,
+      });
     });
   }
+  return out;
+}
+
+/**
+ * Pflanzengruppe aus content → Gruppe der Szene. Heute gleich benannt; die Tabelle hält
+ * beide Seiten getrennt, damit eine neue Gruppe beim Typecheck auffällt.
+ */
+export const SCENE_GROUP_OF: Readonly<Record<PlantGroup, ScenePlantGroup>> = {
+  trees: 'trees',
+  shrubs: 'shrubs',
+  flowers: 'flowers',
+  mosses: 'mosses',
+};
+
+/**
+ * Begleitpflanzen für `drawScene`: Art, Gruppe, Platz im Pflanzring und Wuchskraft
+ * (Versorgung V mit Licht und Wasser aus der Auswertung). Unbekannte Pflanzen fehlen,
+ * die übrigen behalten ihren Ring-Index als Platz. Nur bei Änderungen am Ökosystem
+ * neu bauen (main.ts cacht das Array wie die Tiere).
+ */
+export function toScenePlants(state: Pick<GameState, 'plants'>, evaluation: Readonly<Evaluation>): ScenePlant[] {
+  const vigor = Number.isFinite(evaluation.supply) ? Math.min(1, Math.max(0, evaluation.supply)) : 1;
+  const out: ScenePlant[] = [];
+  state.plants.forEach((id, slot) => {
+    const plant = PLANTS_BY_ID.get(id);
+    if (!plant) return;
+    out.push({ id, group: SCENE_GROUP_OF[plant.group], slot, vigor });
+  });
   return out;
 }
 
 // ---------------------------------------------------------------------------
 // Meldungen
 // ---------------------------------------------------------------------------
+
+/**
+ * Kurzer Hinweis, wenn ein Wegpunkt ohne Begegnung vorbeiging (TickReport.autoDeclined):
+ * Es gab nichts Passendes – oder der Stapel war voll. Dafür gibt es Samen wie beim Ablehnen.
+ */
+export function autoDeclineText(autoDeclined: number, stackFull: boolean): string {
+  const n = Math.max(1, autoDeclined);
+  const reward = `+${formatNumber(n * declineReward())} 🌰`;
+  if (stackFull) return `Stapel voll – ${n === 1 ? 'eine Begegnung zog' : 'Begegnungen zogen'} weiter · ${reward}`;
+  return `Niemand zog ein · ${reward}`;
+}
 
 /** Willkommens-Meldung nach Abwesenheit (DESIGN_V2.md, 7.6). */
 export function welcomeText(

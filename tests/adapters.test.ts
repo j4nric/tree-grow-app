@@ -19,12 +19,22 @@ import {
   shortageHint,
   toPlantPickerView,
   moodText,
+  MOOD_REASON_BELOW,
+  SCENE_GROUP_OF,
+  autoDeclineText,
+  foodCompetitors,
+  huntersOf,
+  disturbersOf,
   refreshEcosystemView,
   toEcosystemView,
   toEncounterView,
   toSceneAnimals,
+  toScenePlants,
   welcomeText,
 } from '../src/ui/adapters';
+import { PLANTS } from '../src/content/plants';
+import { SCENE_PLANT_GROUPS } from '../src/render/tree';
+import { allAnimals } from '../src/core/state';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
 /** Junger Baum (Krone 2, Laubstreu 2 Plätze) mit einer offenen Begegnung. */
@@ -134,10 +144,12 @@ describe('toEcosystemView', () => {
 });
 
 describe('Stimmung und Texte', () => {
-  it('Stimmung nennt den ersten fehlenden Wunsch, sonst „fühlt sich wohl“', () => {
+  it('Stimmung nennt fehlende Wünsche, sonst „fühlt sich wohl“', () => {
     const lonely = stateAt(3, ['bluetit']);
     const ev = evaluate(lonely);
-    expect(moodText(SPECIES_BY_ID.get('bluetit')!, ev.animals.bluetit)).toBe('sucht Futter');
+    // Unter 70 %: bis zu zwei Gründe
+    expect(ev.animals.bluetit!.happiness).toBeLessThan(MOOD_REASON_BELOW);
+    expect(moodText(SPECIES_BY_ID.get('bluetit')!, ev.animals.bluetit)).toBe('sucht Futter · wünscht sich 2× Bäume');
 
     const worm = stateAt(1, ['earthworm']);
     // Wurzelraum am Keimling: Laub ja, Feuchte nein
@@ -367,17 +379,174 @@ describe('welcomeText', () => {
 });
 
 describe('toSceneAnimals', () => {
-  it('liefert Art, Gattung, Nische, Platz und Zufriedenheit für den Renderer', () => {
+  it('liefert Art, Gattung, Nische, Platz, Zufriedenheit und Seltenheit für den Renderer', () => {
     const state = stateAt(3, ['earthworm', 'bluetit', 'oakmoth', 'robin']);
     const ev = evaluate(state);
     expect(toSceneAnimals(state, ev)).toEqual([
-      { id: 'earthworm', family: 'soil', niche: 'roots', slot: 0, happiness: ev.animals.earthworm!.happiness },
-      { id: 'robin', family: 'birds', niche: 'litter', slot: 0, happiness: ev.animals.robin!.happiness },
-      { id: 'bluetit', family: 'birds', niche: 'crown', slot: 0, happiness: ev.animals.bluetit!.happiness },
-      { id: 'oakmoth', family: 'insects', niche: 'crown', slot: 1, happiness: ev.animals.oakmoth!.happiness },
+      { id: 'earthworm', family: 'soil', niche: 'roots', slot: 0, happiness: ev.animals.earthworm!.happiness, rarity: 0 },
+      { id: 'robin', family: 'birds', niche: 'litter', slot: 0, happiness: ev.animals.robin!.happiness, rarity: 0 },
+      { id: 'bluetit', family: 'birds', niche: 'crown', slot: 0, happiness: ev.animals.bluetit!.happiness, rarity: 0 },
+      { id: 'oakmoth', family: 'insects', niche: 'crown', slot: 1, happiness: ev.animals.oakmoth!.happiness, rarity: 0 },
     ]);
     const empty = stateAt(0);
     expect(toSceneAnimals(empty, evaluate(empty))).toEqual([]);
+  });
+
+  it('gibt die Seltenheit der Art weiter (selten = 1, auch bei erfundenen Arten)', () => {
+    const state = stateAt(4, ['woodpecker', 'centipede']);
+    const animals = toSceneAnimals(state, evaluate(state));
+    expect(animals.find((a) => a.id === 'woodpecker')?.rarity).toBe(SPECIES_BY_ID.get('woodpecker')!.rarity);
+    expect(animals.find((a) => a.id === 'centipede')?.rarity).toBe(1);
+    withFakeSpecies([fakeSpecies({ id: 'owl', niche: 'crown', rarity: 3 })], () => {
+      const s = stateAt(4, ['owl']);
+      expect(toSceneAnimals(s, evaluate(s))).toEqual([expect.objectContaining({ id: 'owl', rarity: 3 })]);
+    });
+  });
+});
+
+describe('toScenePlants', () => {
+  it('jede Pflanzengruppe aus content hat eine Gruppe in der Szene', () => {
+    for (const plant of PLANTS) expect(SCENE_PLANT_GROUPS).toContain(SCENE_GROUP_OF[plant.group]);
+  });
+
+  it('liefert Art, Gruppe, Ring-Index als Platz und Versorgung als Wuchskraft', () => {
+    const state = stateAt(3);
+    state.plants = ['hazel', 'moss', 'hazel', 'birch'];
+    const ev = evaluate(state);
+    expect(toScenePlants(state, ev)).toEqual([
+      { id: 'hazel', group: 'shrubs', slot: 0, vigor: ev.supply },
+      { id: 'moss', group: 'mosses', slot: 1, vigor: ev.supply },
+      { id: 'hazel', group: 'shrubs', slot: 2, vigor: ev.supply },
+      { id: 'birch', group: 'trees', slot: 3, vigor: ev.supply },
+    ]);
+  });
+
+  it('Mangel an Licht/Wasser senkt die Wuchskraft aller Pflanzen', () => {
+    const state = stateAt(3);
+    state.plants = ['birch', 'rowan', 'birch'];
+    const ev = evaluate(state);
+    expect(ev.supply).toBeLessThan(1);
+    const plants = toScenePlants(state, ev);
+    expect(plants).toHaveLength(3);
+    for (const p of plants) expect(p.vigor).toBeCloseTo(ev.supply, 10);
+  });
+
+  it('unbekannte Pflanzen fehlen, die übrigen behalten ihren Platz; leerer Ring → leere Liste', () => {
+    const state = stateAt(3);
+    state.plants = ['gone', 'fern'];
+    expect(toScenePlants(state, evaluate(state))).toEqual([
+      { id: 'fern', group: 'mosses', slot: 1, vigor: evaluate(state).supply },
+    ]);
+    const empty = stateAt(0);
+    expect(toScenePlants(empty, evaluate(empty))).toEqual([]);
+  });
+
+  it('Wuchskraft bleibt in [0, 1], auch bei kaputten Werten', () => {
+    const plants = toScenePlants({ plants: ['hazel'] }, { supply: Number.NaN } as never);
+    expect(plants[0]!.vigor).toBe(1);
+    expect(toScenePlants({ plants: ['hazel'] }, { supply: 3 } as never)[0]!.vigor).toBe(1);
+  });
+});
+
+describe('Stimmung: Gründe unter 70 %', () => {
+  it('Futterkonkurrenz: nennt, mit wem das Tier das Futter teilt', () => {
+    // Laub vom Hauptbaum reicht für 2, hier fressen 4 davon.
+    const state = stateAt(3, ['earthworm', 'woodlouse', 'oakmoth', 'barkbeetle']);
+    const ev = evaluate(state);
+    const moth = SPECIES_BY_ID.get('oakmoth')!;
+    const status = ev.animals.oakmoth!;
+    expect(status.food).toBeGreaterThan(0);
+    expect(status.food).toBeLessThan(1);
+    const present = allAnimals(state);
+    expect(foodCompetitors(moth, present)).toEqual(['earthworm', 'woodlouse', 'barkbeetle']);
+    expect(moodText(moth, status, present)).toBe('teilt sich das Futter mit Regenwurm, Rollassel und 1 weitere');
+    // Ohne Liste der Mitbewohner: allgemeiner Grund
+    expect(moodText(moth, status)).toBe('findet wenig Futter');
+  });
+
+  it('fehlender Wunsch und Futterkonkurrenz: beide Gründe, wenn die Zufriedenheit unter 70 % liegt', () => {
+    const state = stateAt(3, ['earthworm', 'woodlouse', 'oakmoth']);
+    const ev = evaluate(state);
+    const worm = ev.animals.earthworm!;
+    expect(worm.happiness).toBeLessThan(MOOD_REASON_BELOW);
+    expect(moodText(SPECIES_BY_ID.get('earthworm')!, worm, allAnimals(state))).toBe(
+      'wünscht sich Feuchte · teilt sich das Futter mit Rollassel und Eichenwickler',
+    );
+  });
+
+  it('Räuberdruck: nennt den Jäger unter 70 %', () => {
+    const state = stateAt(3, ['oakmoth', 'bluetit']);
+    const ev = evaluate(state);
+    const moth = SPECIES_BY_ID.get('oakmoth')!;
+    expect(ev.animals.oakmoth!.hunters).toBe(1);
+    expect(huntersOf(moth, allAnimals(state))).toEqual(['bluetit']);
+    // Ab 70 % kurz, darunter mit Namen
+    expect(ev.animals.oakmoth!.happiness).toBeGreaterThanOrEqual(MOOD_REASON_BELOW);
+    expect(moodText(moth, ev.animals.oakmoth, allAnimals(state))).toBe('ist auf der Hut');
+    const low = { ...ev.animals.oakmoth!, happiness: 0.5 };
+    expect(moodText(moth, low, allAnimals(state))).toBe('ist auf der Hut vor Blaumeise');
+    expect(moodText(moth, low)).toBe('ist auf der Hut');
+  });
+
+  it('Störer (AnimalStatus.disturbers): „wird gestört von …“', () => {
+    const noisy = fakeSpecies({ id: 'jay', name: 'Eichelhäher', niche: 'crown', level: 'herbivore', food: ['nuesse'], effects: [{ kind: 'disturb', target: 'oakmoth' }] });
+    withFakeSpecies([noisy], () => {
+      const moth = SPECIES_BY_ID.get('oakmoth')!;
+      const present = ['oakmoth', 'jay', 'bluetit'];
+      expect(disturbersOf(moth, present)).toEqual(['jay']);
+      const status = { happiness: 0.6, food: 1, needs: [], hunters: 1, disturbers: 1 };
+      expect(moodText(moth, status, present)).toBe('wird gestört von Eichelhäher · ist auf der Hut vor Blaumeise');
+      expect(moodText(moth, status)).toBe('wird gestört · ist auf der Hut');
+      expect(moodText(moth, { happiness: 0.9, food: 1, needs: [], hunters: 0, disturbers: 0 }, present)).toBe('fühlt sich wohl');
+    });
+  });
+
+  it('ab 70 % nur der wichtigste Grund, darunter höchstens zwei', () => {
+    const species = SPECIES_BY_ID.get('bluetit')!;
+    const status = { happiness: 0.8, food: 0.5, needs: [false, false], hunters: 1, disturbers: 0 };
+    expect(moodText(species, status)).toBe('wünscht sich 2× Bäume');
+    expect(moodText(species, { ...status, happiness: 0.3 })).toBe('wünscht sich 2× Bäume · wünscht sich Baumhöhle');
+  });
+
+  it('Seitenleiste zeigt die Gründe mit den echten Mitbewohnern', () => {
+    const state = stateAt(3, ['earthworm', 'woodlouse', 'oakmoth', 'barkbeetle']);
+    const view = toEcosystemView(state, evaluate(state));
+    const moth = view.niches.flatMap((n) => n.animals).find((a) => a.id === 'oakmoth')!;
+    expect(moth.mood).toContain('teilt sich das Futter mit Regenwurm');
+  });
+
+  it('Karte erklärt „(knapp)“ beim Futter', () => {
+    const state = withEncounter(['earthworm', 'woodlouse'], ['oakmoth']);
+    const card = toEncounterView(state, 0)!.cards[0]!;
+    const food = card.conditions![0]!;
+    expect(food.label).toContain('(knapp)');
+    expect(food.hint).toBe('teilt sich das Futter mit Regenwurm und Rollassel');
+    // Reicht das Futter, gibt es keine Erklärung.
+    const calm = withEncounter([], ['oakmoth']);
+    expect(toEncounterView(calm, 0)!.cards[0]!.conditions![0]!.hint).toBeUndefined();
+  });
+
+  it('bei voller Nische zählt das Tier, das weicht, nicht als Konkurrent', () => {
+    // Laubstreu voll (Rollassel, Rotkehlchen); eine Laub fressende Test-Art ersetzt die
+    // Rollassel (erste Option). Danach teilen sich Regenwurm, Eichenwickler und sie das Laub.
+    withFakeSpecies([fakeSpecies({ id: 'slug', name: 'Nacktschnecke', niche: 'litter', food: ['laub'], level: 'herbivore' })], () => {
+      const state = withEncounter(['earthworm', 'oakmoth', 'woodlouse', 'robin'], ['slug']);
+      const card = toEncounterView(state, 0)!.cards[0]!;
+      expect(card.nicheFull).toBe(true);
+      expect(card.replaceOptions![0]!.id).toBe('woodlouse');
+      expect(card.conditions![0]!.hint).toBe('teilt sich das Futter mit Regenwurm und Eichenwickler');
+    });
+  });
+});
+
+describe('autoDeclineText', () => {
+  it('nichts Passendes: „Niemand zog ein“ mit den Samen fürs Ablehnen', () => {
+    expect(autoDeclineText(1, false)).toBe(`Niemand zog ein · +${formatNumber(DECLINE_SEEDS)} 🌰`);
+    expect(autoDeclineText(2, false)).toBe(`Niemand zog ein · +${formatNumber(2 * DECLINE_SEEDS)} 🌰`);
+  });
+
+  it('Stapel voll: sagt, dass die Begegnung weiterzog', () => {
+    expect(autoDeclineText(1, true)).toBe(`Stapel voll – eine Begegnung zog weiter · +${formatNumber(DECLINE_SEEDS)} 🌰`);
   });
 });
 

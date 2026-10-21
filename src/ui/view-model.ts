@@ -38,6 +38,8 @@ export interface EffectView {
 export interface ConditionView {
   label: string;
   met: boolean;
+  /** Kurze Erklärung darunter, z. B. bei knappem Futter „teilt sich das Futter mit Amsel“. */
+  hint?: string;
 }
 
 /** Vorschau: Was ändert sich, wenn diese Karte gewählt wird? */
