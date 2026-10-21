@@ -35,6 +35,56 @@ body {
   display: block;
   width: 100%;
   height: 100%;
+  /* Ohne Zoom scrollt die Seite über der Szene weiter; vergrößert setzt camera-input.ts „none“. */
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+#scene:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+/*
+ * Kamera-Bedienleiste unten rechts in der Szene. Der Begegnungs-Stapel liegt auf dem
+ * Desktop unten links und mobil (≤ 640 px) oben rechts – beide bleiben frei.
+ */
+.scene-camera {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+.scene-camera-button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 253, 246, 0.88);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.scene-camera-button:hover {
+  background: rgba(255, 253, 246, 0.98);
+}
+
+.scene-camera-button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.scene-camera-button[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .stage-banner {
