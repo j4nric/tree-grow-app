@@ -40,6 +40,7 @@ export const ACCOUNT_TEXTS = {
   restoreLocal: 'Stand dieses Geräts',
   restoreCloud: 'Stand aus dem Konto',
   restoreUndo: 'Stand vor dem Wiederherstellen',
+  restoreOwned: (label: string, owner: string) => `${label} (Konto ${owner})`,
   restoreCancel: 'Abbrechen',
   restored: 'Sicherung geladen.',
 } as const;

@@ -14,8 +14,9 @@ import {
   CLOUD_BACKUP_KEY,
   OWNER_KEY,
   baseKey,
-  readCloudBackupOwner,
-  writeCloudBackup,
+  markPending,
+  readBackup,
+  writeOwner,
   DEVICE_KEY,
   deviceId,
   parseBase,
@@ -132,15 +133,26 @@ describe('Speicher-Helfer', () => {
     expect(readBase(legacy, 'a')).toBeNull();
   });
 
-  it('Cloud-Sicherung merkt sich ihr Konto', () => {
+  it('Sicherungen merken sich ihr Konto; markPending markiert die Grundlage des Besitzers', () => {
     const storage = new MemoryStorage();
-    expect(readCloudBackupOwner(storage)).toBeNull();
-    writeCloudBackup(storage, 'CODE', 'eiche');
-    expect(storage.getItem(CLOUD_BACKUP_KEY)).toBe('CODE');
-    expect(readCloudBackupOwner(storage)).toBe('eiche');
+    expect(readBackup(storage, CLOUD_BACKUP_KEY)).toBeNull();
+    writeBackup(storage, 'CODE', CLOUD_BACKUP_KEY, 'eiche');
+    expect(readBackup(storage, CLOUD_BACKUP_KEY)).toEqual({ code: 'CODE', owner: 'eiche' });
+    writeBackup(storage, 'LOKAL');
+    expect(readBackup(storage, BACKUP_KEY)).toEqual({ code: 'LOKAL', owner: null });
+    // Ohne Besitzer nichts zu markieren.
+    markPending(storage);
+    expect(readOwner(storage)).toBeNull();
+    writeBase(storage, 'eiche', { version: 4, pending: false });
+    markPending(storage);
+    expect(readBase(storage, 'eiche')).toEqual({ version: 4, pending: true });
+    // Besitzer gelöscht (Sicherung ohne Konto geladen) → keine Grundlage mehr.
+    writeOwner(storage, null);
+    expect(readOwner(storage)).toBeNull();
+    expect(readBase(storage, 'eiche')).toBeNull();
     storage.blocked = true;
-    expect(readCloudBackupOwner(storage)).toBeNull();
-    expect(() => writeCloudBackup(storage, 'X', 'buche')).not.toThrow();
+    expect(readBackup(storage, BACKUP_KEY)).toBeNull();
+    expect(() => writeBackup(storage, 'X', CLOUD_BACKUP_KEY, 'buche')).not.toThrow();
   });
 
   it('Besitzer des lokalen Stands und Sicherungen beider Seiten', () => {
@@ -214,6 +226,10 @@ describe('Sitzung in mehreren Tabs', () => {
     expect(sessionChange('eiche', 'buche')).toBe('stale');
     // Hier abgemeldet, anderswo angemeldet: dieser Tab spielt einen anderen Stand → nicht anschließen.
     expect(sessionChange(null, 'buche')).toBe('stale');
+    // … außer es ist genau das Konto, zu dem der lokale Stand gehört: dann mitmachen.
+    expect(sessionChange(null, 'buche', 'buche')).toBe('signed-in');
+    expect(sessionChange(null, 'buche', 'eiche')).toBe('stale');
+    expect(sessionChange('eiche', 'buche', 'buche')).toBe('stale');
   });
 });
 

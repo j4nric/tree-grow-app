@@ -21,8 +21,6 @@ export const DEVICE_KEY = 'vszw-device-id';
 export const BACKUP_KEY = 'vszw-backup-before-sync';
 /** Sicherung des Cloud-Stands (Text-Code) bei der ersten Anmeldung, bevor ein Stand den anderen ersetzt. */
 export const CLOUD_BACKUP_KEY = 'vszw-backup-cloud-before-sync';
-/** Konto, aus dem die Cloud-Sicherung stammt (nur diesem Konto wird sie angeboten). */
-export const CLOUD_BACKUP_OWNER_KEY = 'vszw-backup-cloud-owner';
 /** Stand vor dem letzten „Sicherung wiederherstellen“ (damit auch das rückgängig zu machen ist). */
 export const RESTORE_UNDO_KEY = 'vszw-backup-before-restore';
 
@@ -74,8 +72,8 @@ export function readOwner(storage: Storage): string | null {
  * passt nicht mehr zu ihm (sonst würde B's Spiel als Fortsetzung in A's Konto geschrieben).
  */
 export function readBase(storage: Storage, userId: string): SyncBase | null {
-  const owner = readOwner(storage);
-  if (owner !== null && owner !== userId) return null;
+  // Kein (bekannter) Besitzer → keine Grundlage: dann entscheidet die erste Anmeldung (mit Sicherungen).
+  if (readOwner(storage) !== userId) return null;
   try {
     return parseBase(storage.getItem(baseKey(userId)), userId) ?? parseBase(storage.getItem(BASE_KEY), userId);
   } catch {
@@ -83,38 +81,67 @@ export function readBase(storage: Storage, userId: string): SyncBase | null {
   }
 }
 
-/** Grundlage je Konto schreiben (Tabs mit verschiedenen Konten stören sich nicht) und Besitzer merken. */
+/**
+ * Grundlage je Konto schreiben (Tabs mit verschiedenen Konten stören sich nicht) und Besitzer
+ * merken – den Besitzer zuerst: Scheitert das Schreiben dazwischen, gilt keine falsche Grundlage.
+ */
 export function writeBase(storage: Storage, userId: string, base: SyncBase): void {
   try {
-    storage.setItem(baseKey(userId), JSON.stringify({ user: userId, version: base.version, pending: base.pending }));
     storage.setItem(OWNER_KEY, userId);
+    storage.setItem(baseKey(userId), JSON.stringify({ user: userId, version: base.version, pending: base.pending }));
   } catch {
     // Speicher voll oder blockiert – der Abgleich klappt dann beim nächsten Start über den Fortschritt.
   }
 }
 
-export function writeBackup(storage: Storage, code: string, key: string = BACKUP_KEY): void {
+/** Besitzer des lokalen Stands setzen (null = keiner bekannt, z. B. nach dem Laden einer Sicherung ohne Konto). */
+export function writeOwner(storage: Storage, owner: string | null): void {
+  try {
+    if (owner) storage.setItem(OWNER_KEY, owner);
+    else storage.removeItem(OWNER_KEY);
+    // Der alte gemeinsame Eintrag nennt sonst weiter einen Besitzer.
+    storage.removeItem(BASE_KEY);
+  } catch {
+    // ignorieren
+  }
+}
+
+/**
+ * Lokale Änderung ohne laufenden Abgleich (abgemeldet): die Grundlage des Besitzers als
+ * „offen“ markieren. Beim nächsten Anmelden mit diesem Konto wird sie dann gesendet bzw. vor
+ * dem Übernehmen eines anderen Stands gesichert.
+ */
+export function markPending(storage: Storage): void {
+  const owner = readOwner(storage);
+  if (!owner) return;
+  const base = readBase(storage, owner);
+  if (base && !base.pending) writeBase(storage, owner, { version: base.version, pending: true });
+}
+
+/** Schlüssel für das Konto, zu dem eine Sicherung gehört. */
+export function backupOwnerKey(key: string): string {
+  return `${key}:owner`;
+}
+
+/**
+ * Text-Code sichern und dazu, zu welchem Konto er gehört (null = zu keinem, rein lokal).
+ * Der Code selbst bleibt ein normaler Export-Code (über „Importieren“ ladbar).
+ */
+export function writeBackup(storage: Storage, code: string, key: string = BACKUP_KEY, owner: string | null = null): void {
   try {
     storage.setItem(key, code);
+    if (owner) storage.setItem(backupOwnerKey(key), owner);
+    else storage.removeItem(backupOwnerKey(key));
   } catch {
     // ignorieren
   }
 }
 
-/** Cloud-Stand sichern und merken, aus welchem Konto er stammt. */
-export function writeCloudBackup(storage: Storage, code: string, owner: string): void {
+/** Gesicherter Code und sein Konto; null = keine Sicherung. */
+export function readBackup(storage: Storage, key: string): { code: string; owner: string | null } | null {
   try {
-    storage.setItem(CLOUD_BACKUP_KEY, code);
-    storage.setItem(CLOUD_BACKUP_OWNER_KEY, owner);
-  } catch {
-    // ignorieren
-  }
-}
-
-/** Konto der Cloud-Sicherung; null = unbekannt (ältere Sicherung ohne Angabe) oder unlesbar. */
-export function readCloudBackupOwner(storage: Storage): string | null {
-  try {
-    return storage.getItem(CLOUD_BACKUP_OWNER_KEY);
+    const code = storage.getItem(key);
+    return code ? { code, owner: storage.getItem(backupOwnerKey(key)) || null } : null;
   } catch {
     return null;
   }

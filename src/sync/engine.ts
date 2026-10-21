@@ -290,7 +290,9 @@ export class SyncEngine {
     } else {
       // remote ist hier gesetzt (decideInitial liefert 'take' nur mit Datensatz).
       const lost = !decision.firstLogin && this.pendingAction;
-      if (lost) this.host.backup();
+      // Sicherheitsnetz: Vor dem Ersetzen beim Start immer den lokalen Stand sichern (bei
+      // der ersten Anmeldung oben schon geschehen) – auch wenn keine offene Aktion bekannt ist.
+      if (!decision.firstLogin && localProgress) this.host.backup();
       this.take(remote!);
       if (decision.firstLogin) this.host.onEvent({ kind: 'first-login', winner: 'cloud' });
       else if (lost) this.host.onEvent({ kind: 'taken', lostLocal: true });

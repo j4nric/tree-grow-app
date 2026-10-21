@@ -5,6 +5,7 @@
  * Reine Darstellung: Anmelden, Registrieren und Abmelden erledigt der Aufrufer
  * (src/sync/account.ts); Fehler (AccountError) werden hier als ruhige Meldung gezeigt.
  */
+import type { BackupAvailability, BackupKind } from '../sync/controller';
 import { AccountError } from '../sync/types';
 import { ACCOUNT_TEXTS as T, accountErrorText, isValidPassword, normalizeUsername } from './account-view';
 import { el, setText } from './dom';
@@ -24,16 +25,7 @@ export interface AccountPanelCallbacks {
   onRestore(kind: BackupKind): string | null;
 }
 
-export type BackupKind = 'local' | 'cloud' | 'undo';
-
-export interface BackupAvailability {
-  /** Stand dieses Geräts vor dem Abgleich. */
-  local: boolean;
-  /** Stand aus dem Konto vor der ersten Anmeldung (nur für dasselbe Konto). */
-  cloud: boolean;
-  /** Stand vor dem letzten Wiederherstellen. */
-  undo: boolean;
-}
+export type { BackupAvailability, BackupKind };
 
 export interface AccountPanel {
   readonly element: HTMLElement;
@@ -155,9 +147,15 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
 
   let isStale = false;
   function setBackups(available: BackupAvailability): void {
-    restoreLocal.hidden = !available.local;
-    restoreCloud.hidden = !available.cloud;
-    restoreUndo.hidden = !available.undo;
+    for (const [button, offer, label] of [
+      [restoreLocal, available.local, T.restoreLocal],
+      [restoreCloud, available.cloud, T.restoreCloud],
+      [restoreUndo, available.undo, T.restoreUndo],
+    ] as const) {
+      button.hidden = !offer;
+      // Zu welchem Konto die Sicherung gehört, steht dabei (rein lokal: ohne Zusatz).
+      if (offer) setText(button, offer.owner ? T.restoreOwned(label, offer.owner) : label);
+    }
     // Veralteter Tab (anderes Konto in einem anderen Tab): nie etwas laden.
     restore.hidden = isStale || (!available.local && !available.cloud && !available.undo);
     if (restore.hidden) closeRestore();

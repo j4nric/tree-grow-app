@@ -91,6 +91,11 @@ describe('policy', () => {
       firstLogin: false,
     });
     expect(decideInitial({ remote, base: null, localProgress: P(0, 0, 0), remoteProgress: P(5, 0, 0), device: 'me', localForeign: false }).kind).toBe('push');
+    // Lokaler Stand gehört einem anderen Konto: auch mit „eigener“ Kennung nie pushen (A → B → A).
+    expect(decideInitial({ remote, base: null, localProgress: P(9, 0, 0), remoteProgress: P(1, 0, 0), device: 'me', localForeign: true })).toEqual({
+      kind: 'take',
+      firstLogin: true,
+    });
     // Leere Geräte-ID zählt nie als „eigen“.
     expect(decideInitial({ remote: { ...remote, device: '' }, base: 5, localProgress: null, remoteProgress: P(0, 0, 0), device: '', localForeign: false }).kind).toBe('take');
   });
@@ -449,7 +454,8 @@ describe('SyncEngine', () => {
     await a.engine.start();
     expect(a.data).toBe('1|0|fremd,');
     expect(a.events).toEqual([]);
-    expect(a.backups).toEqual([]);
+    // Sicherheitsnetz: vor dem Ersetzen beim Start wird der lokale Stand immer gesichert.
+    expect(a.backups).toEqual(['1|0|']);
   });
 
   it('unlesbarer Cloud-Stand: nie darüber schreiben, angehalten, später erneut geprüft', async () => {
@@ -607,6 +613,21 @@ describe('SyncEngine', () => {
     expect(a.data).toBe('1|0|a1,a2,');
     expect(cloud.row).toMatchObject({ data: '1|0|a1,a2,', version: 3, device: 'A' });
     expect(a.engine.status.phase).toBe('synced');
+  });
+
+  it('A → B → A im selben Tab mit derselben Geräte-Kennung: fremder lokaler Stand wird nie gepusht', async () => {
+    const { clock } = setup();
+    const cloudA = new FakeCloud();
+    cloudA.row = { data: '1|5|a-alt,', version: 3, actionVersion: 3, device: 'TAB' };
+    // Lokal liegt B's Spiel, der lokale Stand gehört B (foreign aus Sicht von A).
+    const tab = new Device(cloudA, 'TAB', clock, '7|0|b-spiel,');
+    tab.foreign = true;
+    await tab.engine.start();
+    expect(cloudA.row.data).toBe('1|5|a-alt,');
+    expect(cloudA.writes).toBe(0);
+    expect(tab.data).toBe('1|5|a-alt,');
+    expect(tab.backups).toEqual(['7|0|b-spiel,']);
+    expect(tab.cloudBackups).toEqual(['1|5|a-alt,']);
   });
 
   it('Alter nach Serverzeit wird beim Übernehmen weitergereicht', async () => {

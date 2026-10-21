@@ -124,8 +124,8 @@ export type InitialDecision =
 /**
  * Abgleich beim Anmelden bzw. beim Start mit bestehender Sitzung.
  * - Unlesbarer Cloud-Stand: blockiert (nie darüber schreiben).
- * - Stammt der Cloud-Stand von diesem Gerät (die Antwort auf den Push ging verloren): Er
- *   ist unsere eigene Linie, der lokale Stand ihre Fortsetzung → pushen.
+ * - Stammt der Cloud-Stand von diesem Gerät (die Antwort auf den Push ging verloren) und
+ *   gehört der lokale Stand zu diesem Konto: Er ist unsere eigene Linie → pushen.
  * - Kennt das Gerät die Linie (base): Gab es seitdem eine fremde Aktion → übernehmen, sonst
  *   ist der lokale Stand die Fortsetzung → pushen.
  * - Erste Anmeldung: Gehört der lokale Stand zu einem anderen Konto → Cloud. Sonst gewinnt
@@ -136,7 +136,11 @@ export function decideInitial(input: InitialInput): InitialDecision {
   if (!remote) return { kind: 'insert' };
   if (!input.remoteProgress) return { kind: 'blocked' };
   const known = base !== null && Number.isFinite(base);
-  if (remote.device !== '' && remote.device === input.device) return { kind: 'push', version: remote.version, firstLogin: false };
+  // Eigene Linie nur, wenn der lokale Stand auch zu diesem Konto gehört (die Geräte-ID wird
+  // zwar je Abgleich neu erzeugt, aber doppelt hält besser: nie ein fremdes Spiel pushen).
+  if (!input.localForeign && remote.device !== '' && remote.device === input.device) {
+    return { kind: 'push', version: remote.version, firstLogin: false };
+  }
   if (known) {
     return remote.actionVersion > base ? { kind: 'take', firstLogin: false } : { kind: 'push', version: remote.version, firstLogin: false };
   }
