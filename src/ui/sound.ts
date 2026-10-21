@@ -6,24 +6,36 @@
  * (rein, getestet); hier werden daraus Web-Audio-Knoten.
  *
  * - Standard „Aus“: Dann entsteht gar kein AudioContext.
- * - Autoplay-Regeln: Der AudioContext entsteht erst bei einer Nutzerinteraktion (Klick,
- *   Taste, Wahl in den Einstellungen) und wird bei der nächsten fortgesetzt, falls der
- *   Browser ihn angehalten hat.
+ * - Autoplay-Regeln: Der AudioContext entsteht erst bei einer Nutzerinteraktion (Zeiger,
+ *   Klick, Berührung, Taste, Wahl in den Einstellungen) und wird bei der nächsten
+ *   fortgesetzt, falls der Browser ihn angehalten hat (auch iOS-Zustand „interrupted“).
  * - Verborgener Tab: ausblenden und anhalten; beim Zurückkehren weich wieder einblenden.
  * - Ohne Web Audio (alte Browser, Tests) bleibt alles still – nichts wirft.
  *
- * Signalweg: Stimmen → Master (≤ −12 dBFS) → Kompressor → Begrenzer → Ausgang.
+ * Signalweg: Stimmen → Master → Sicherheits-Clipper (±0,25) → Ausgang. Die Anteile der
+ * Stimmen sind so bemessen (`peakBudget` in sound-plan.ts), dass ihre Summe ≤ 1 bleibt;
+ * mit dem Master (Normal 0,25) ist die Spitze also ≤ −12 dBFS, Leise 10 dB darunter.
+ * Kein Kompressor – dessen automatischer Ausgleichs-Gain hob die Spitzen bis −2 dBFS.
+ * Der Clipper greift nur, falls der Haushalt je verletzt würde.
  */
 import type { SoundLevel } from './settings';
 import {
   CUES,
-  PAD_VOICES,
+  CUE_ATTACK,
+  CUE_FLOOR,
+  CUE_OVERTONE,
+  MAX_MASTER_GAIN,
+  NOISE_PEAK,
+  PAD_FREQS,
   ambienceMix,
+  birdChance,
   cueAllowed,
+  cueLength,
   masterGain,
-  nextBirdDelay,
-  padChord,
+  padVoiceGains,
   planChirp,
+  planCueStart,
+  type ActiveCue,
   type CueKind,
 } from './sound-plan';
 
@@ -62,6 +74,41 @@ const SMOOTH = 0.6;
 const FADE = 0.4;
 /** Länge des Rausch-Puffers (s), läuft in Schleife. */
 const NOISE_SECONDS = 3;
+/** Biquad-Güte in dB (Web Audio): −6,02 dB ≙ Q 0,5 – kritisch gedämpft, kein Überschwingen. */
+const Q_NO_OVERSHOOT = 20 * Math.log10(0.5);
+/** Unterhalb dieser Änderung wird keine neue Automatisierung gesetzt (relativ bzw. absolut). */
+const MIN_CHANGE = 0.01;
+const MIN_CHANGE_ABS = 1e-4;
+/** Gesten, die einen AudioContext freischalten dürfen (iOS: erst touchend/click). */
+const GESTURES = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'] as const;
+
+/** Angehalten (auch iOS „interrupted“ nach Anruf o. Ä.) → bei Interaktion fortsetzen. */
+function isHalted(state: string): boolean {
+  return state === 'suspended' || state === 'interrupted';
+}
+
+/** Bisherige Automatisierung ab `t` verwerfen, aktuellen Wert halten (Fallback ohne cancelAndHoldAtTime). */
+function holdAt(param: AudioParam, t: number): void {
+  if (typeof param.cancelAndHoldAtTime === 'function') {
+    param.cancelAndHoldAtTime(t);
+  } else {
+    const v = param.value;
+    param.cancelScheduledValues(t);
+    param.setValueAtTime(v, t);
+  }
+}
+
+/** Kennlinie des Sicherheits-Clippers: Identität bis ±MAX_MASTER_GAIN, darüber flach. */
+function clipCurve() {
+  // Stützstellen bei −1, −0,75 … 1: ±0,25 liegt genau auf einer Stützstelle.
+  const n = 9;
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (2 * i) / (n - 1) - 1;
+    curve[i] = Math.max(-MAX_MASTER_GAIN, Math.min(MAX_MASTER_GAIN, x));
+  }
+  return curve;
+}
 
 function defaultEnv(): SoundEnv {
   const g = globalThis as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext };
@@ -79,7 +126,6 @@ interface Graph {
   windGain: GainNode;
   windFilter: BiquadFilterNode;
   padGain: GainNode;
-  padOscs: OscillatorNode[];
   padVoices: GainNode[];
 }
 
@@ -89,7 +135,12 @@ export function createSound(initial: SoundLevel, env: SoundEnv = defaultEnv()): 
   let failed = env.createContext === null;
   let hidden = env.doc.visibilityState === 'hidden';
   let lastUpdate = -Infinity;
-  let nextBird = Infinity;
+  /** Ende des laufenden Vogelrufs (Audio-Uhr) – Rufe überlappen nie. */
+  let birdBusyUntil = -Infinity;
+  /** Noch klingende Ereignis-Klänge (Audio-Uhr) für den Pegel-Haushalt. */
+  let activeCues: ActiveCue[] = [];
+  /** Zuletzt gesetzte Ziele je Parameter – nur spürbare Änderungen neu planen. */
+  let targets = new WeakMap<AudioParam, number>();
   let shownState: SoundState | null = null;
   let suspendTimer: ReturnType<typeof setTimeout> | undefined;
   const lastCue: Partial<Record<CueKind, number>> = {};
@@ -117,63 +168,52 @@ export function createSound(initial: SoundLevel, env: SoundEnv = defaultEnv()): 
       const ctx = env.createContext();
       const master = ctx.createGain();
       master.gain.value = 0;
-      const compressor = ctx.createDynamicsCompressor();
-      compressor.threshold.value = -24;
-      compressor.knee.value = 12;
-      compressor.ratio.value = 3;
-      compressor.attack.value = 0.02;
-      compressor.release.value = 0.3;
-      // Begrenzer: hartes Knie, hohe Ratio – fängt seltene Spitzen ab.
-      const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.value = -6;
-      limiter.knee.value = 0;
-      limiter.ratio.value = 20;
-      limiter.attack.value = 0.003;
-      limiter.release.value = 0.25;
-      master.connect(compressor).connect(limiter).connect(ctx.destination);
+      // Sicherheits-Clipper: bei eingehaltenem Haushalt wirkungslos (Identität).
+      const clipper = ctx.createWaveShaper();
+      clipper.curve = clipCurve();
+      clipper.oversample = 'none';
+      master.connect(clipper).connect(ctx.destination);
 
       // Wind: rosa gefärbtes Rauschen in Schleife → Tiefpass → Lautstärke.
       const noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * NOISE_SECONDS), ctx.sampleRate);
-      const loopLength = fillPinkNoise(noise.getChannelData(0), env.random);
+      const loopLength = fillPinkNoise(noise.getChannelData(0), env.random, ctx.sampleRate);
       const source = ctx.createBufferSource();
       source.buffer = noise;
       source.loop = true;
       source.loopStart = 0;
       source.loopEnd = loopLength / ctx.sampleRate;
-      const highpass = ctx.createBiquadFilter();
-      highpass.type = 'highpass';
-      highpass.frequency.value = 90;
       const windFilter = ctx.createBiquadFilter();
       windFilter.type = 'lowpass';
       windFilter.frequency.value = 600;
-      windFilter.Q.value = 0.4;
+      windFilter.Q.value = Q_NO_OVERSHOOT;
       const windGain = ctx.createGain();
       windGain.gain.value = 0;
-      source.connect(highpass).connect(windFilter).connect(windGain).connect(master);
+      source.connect(windFilter).connect(windGain).connect(master);
       source.start();
 
-      // Pad: weiche Dreiecksstimmen, leicht verstimmt, durch einen dunklen Tiefpass.
+      // Pad: je Halbton eine feste Dreiecksstimme, leicht verstimmt, durch einen dunklen
+      // Tiefpass. Beim Stufenwechsel blenden nur die Lautstärken.
       const padFilter = ctx.createBiquadFilter();
       padFilter.type = 'lowpass';
       padFilter.frequency.value = 800;
+      padFilter.Q.value = Q_NO_OVERSHOOT;
       const padGain = ctx.createGain();
       padGain.gain.value = 0;
       padFilter.connect(padGain).connect(master);
-      const padOscs: OscillatorNode[] = [];
       const padVoices: GainNode[] = [];
-      for (let i = 0; i < PAD_VOICES; i++) {
+      PAD_FREQS.forEach((freq, i) => {
         const osc = ctx.createOscillator();
         osc.type = 'triangle';
-        osc.frequency.value = 146.83;
+        osc.frequency.value = freq;
         osc.detune.value = (i % 2 === 0 ? 1 : -1) * (3 + i);
         const voice = ctx.createGain();
         voice.gain.value = 0;
         osc.connect(voice).connect(padFilter);
         osc.start();
-        padOscs.push(osc);
         padVoices.push(voice);
-      }
-      graph = { ctx, master, windGain, windFilter, padGain, padOscs, padVoices };
+      });
+      graph = { ctx, master, windGain, windFilter, padGain, padVoices };
+      targets = new WeakMap();
       ctx.addEventListener?.('statechange', publish);
       lastUpdate = -Infinity;
       return graph;
@@ -192,8 +232,8 @@ export function createSound(initial: SoundLevel, env: SoundEnv = defaultEnv()): 
     const target = masterGain(level, hidden);
     clearTimeout(suspendTimer);
     try {
-      if (target > 0 && ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
-      master.gain.cancelScheduledValues(ctx.currentTime);
+      if (target > 0 && isHalted(ctx.state)) void ctx.resume().catch(() => undefined);
+      holdAt(master.gain, ctx.currentTime);
       master.gain.setTargetAtTime(target, ctx.currentTime, FADE / 3);
       if (target === 0) {
         suspendTimer = setTimeout(() => {
@@ -210,40 +250,46 @@ export function createSound(initial: SoundLevel, env: SoundEnv = defaultEnv()): 
   /** Nutzerinteraktion: Kulisse anlegen bzw. fortsetzen (Autoplay-Regeln). */
   function unlock(): void {
     if (level === 'off' || hidden) return;
+    const fresh = !graph;
     const g = graph ?? build();
     if (!g) {
       publish();
       return;
     }
-    if (g.ctx.state !== 'running') applyMaster();
+    // Frisch angelegt: Master steht auf 0 und muss eingeblendet werden – auch wenn der
+    // Browser den Kontext in der Geste sofort „running“ anlegt (Chromium).
+    if (fresh || g.ctx.state !== 'running') applyMaster();
     else publish();
   }
 
   const onGesture = () => unlock();
-  env.doc.addEventListener('pointerdown', onGesture, { capture: true, passive: true });
-  env.doc.addEventListener('keydown', onGesture, { capture: true, passive: true });
+  for (const type of GESTURES) env.doc.addEventListener(type, onGesture, { capture: true, passive: true });
   env.doc.addEventListener('visibilitychange', () => {
     hidden = env.doc.visibilityState === 'hidden';
     applyMaster();
     publish();
   });
 
+  /** Parameter weich nachführen – nur bei spürbarer Änderung eine neue Automatisierung. */
+  function glide(param: AudioParam, target: number, t: number, timeConstant: number): void {
+    const prev = targets.get(param);
+    if (prev !== undefined && Math.abs(target - prev) <= Math.max(MIN_CHANGE_ABS, Math.abs(prev) * MIN_CHANGE)) return;
+    targets.set(param, target);
+    param.setTargetAtTime(target, t, timeConstant);
+  }
+
   function setPad(g: Graph, harmonyTier: number, amount: number): void {
-    const chord = padChord(harmonyTier);
     const t = g.ctx.currentTime;
-    g.padGain.gain.setTargetAtTime(amount, t, SMOOTH * 3);
-    for (let i = 0; i < PAD_VOICES; i++) {
-      const freq = chord[i];
-      if (freq !== undefined) g.padOscs[i]!.frequency.setTargetAtTime(freq, t, SMOOTH);
-      // Je Stimme gleich laut; Summe bleibt ≤ 1.
-      g.padVoices[i]!.gain.setTargetAtTime(freq === undefined ? 0 : 1 / PAD_VOICES, t, SMOOTH * 2);
-    }
+    glide(g.padGain.gain, amount, t, SMOOTH * 3);
+    padVoiceGains(harmonyTier).forEach((gain, i) => glide(g.padVoices[i]!.gain, gain, t, SMOOTH * 2));
   }
 
   function playChirp(g: Graph): void {
     const { ctx, master } = g;
     const chirp = planChirp(env.random);
     const t0 = ctx.currentTime + 0.05;
+    const last = chirp.notes[chirp.notes.length - 1];
+    birdBusyUntil = t0 + (last ? last.start + last.duration + 0.05 : 0);
     const out: AudioNode = typeof ctx.createStereoPanner === 'function' ? ctx.createStereoPanner() : master;
     if (out !== master) {
       (out as StereoPannerNode).pan.value = chirp.pan;
@@ -266,7 +312,7 @@ export function createSound(initial: SoundLevel, env: SoundEnv = defaultEnv()): 
       const shape = ctx.createGain();
       shape.gain.setValueAtTime(0, start);
       shape.gain.linearRampToValueAtTime(n.gain, start + Math.min(0.015, n.duration / 3));
-      shape.gain.exponentialRampToValueAtTime(0.0001, stop);
+      shape.gain.exponentialRampToValueAtTime(CUE_FLOOR, stop);
       osc.connect(shape).connect(out);
       osc.start(start);
       fm.start(start);
@@ -282,21 +328,20 @@ export function createSound(initial: SoundLevel, env: SoundEnv = defaultEnv()): 
     if (out !== master) setTimeout(() => out.disconnect(), (end - ctx.currentTime + 0.5) * 1000);
   }
 
-  function playCue(g: Graph, kind: CueKind): void {
+  function playCue(g: Graph, kind: CueKind, t0: number): void {
     const { ctx, master } = g;
-    const t0 = ctx.currentTime + 0.02;
     for (const tone of CUES[kind]) {
       const start = t0 + tone.start;
       const stop = start + tone.duration;
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0, start);
-      gain.gain.linearRampToValueAtTime(tone.gain, start + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, stop);
+      gain.gain.linearRampToValueAtTime(tone.gain, start + CUE_ATTACK);
+      gain.gain.exponentialRampToValueAtTime(CUE_FLOOR, stop);
       gain.connect(master);
       // Grundton plus leiser Oberton: weich, glockenähnlich.
       const partials: [number, number][] = [
         [tone.freq, 1],
-        [tone.freq * 2, 0.18],
+        [tone.freq * 2, CUE_OVERTONE],
       ];
       for (const [freq, amount] of partials) {
         const osc = ctx.createOscillator();
@@ -333,18 +378,17 @@ export function createSound(initial: SoundLevel, env: SoundEnv = defaultEnv()): 
       const g = graph;
       if (!g || level === 'off' || hidden || g.ctx.state !== 'running') return;
       if (now - lastUpdate < UPDATE_EVERY) return;
+      // Nach Pausen (verborgen, angehalten) zählt höchstens ein kurzer Schritt.
+      const dt = Number.isFinite(lastUpdate) ? now - lastUpdate : 0;
       lastUpdate = now;
       try {
         const mix = ambienceMix(view.season, now, view.harmonyTier);
         const t = g.ctx.currentTime;
-        g.windGain.gain.setTargetAtTime(mix.wind, t, SMOOTH);
-        g.windFilter.frequency.setTargetAtTime(mix.cutoff, t, SMOOTH);
+        glide(g.windGain.gain, mix.wind, t, SMOOTH);
+        glide(g.windFilter.frequency, mix.cutoff, t, SMOOTH);
         setPad(g, view.harmonyTier, mix.pad);
-        if (!Number.isFinite(nextBird)) nextBird = now + nextBirdDelay(mix.birdsPerMinute, env.random());
-        else if (now >= nextBird) {
-          if (mix.birdsPerMinute > 0) playChirp(g);
-          nextBird = now + nextBirdDelay(mix.birdsPerMinute, env.random());
-        }
+        // Poisson-Ausdünnung: je Schritt neu würfeln, Rate der aktuellen Jahreszeit.
+        if (env.random() < birdChance(mix.birdsPerMinute, dt) && t >= birdBusyUntil) playChirp(g);
       } catch {
         // ignorieren – ein ausgelassener Schritt fällt nicht auf
       }
@@ -354,9 +398,14 @@ export function createSound(initial: SoundLevel, env: SoundEnv = defaultEnv()): 
       if (!g || level === 'off' || hidden || g.ctx.state !== 'running') return;
       const now = g.ctx.currentTime;
       if (!cueAllowed(lastCue[kind], now)) return;
+      activeCues = activeCues.filter((c) => c.start + cueLength(c.kind) > now);
+      // Treffen Ereignisse zusammen, rückt der spätere Klang nach hinten (Pegel-Haushalt).
+      const start = planCueStart(activeCues, kind, now + 0.02);
+      if (start === null) return;
       lastCue[kind] = now;
+      activeCues.push({ kind, start });
       try {
-        playCue(g, kind);
+        playCue(g, kind, start);
       } catch {
         // ignorieren
       }
@@ -366,20 +415,35 @@ export function createSound(initial: SoundLevel, env: SoundEnv = defaultEnv()): 
 
 /**
  * Rosa gefärbtes Rauschen (Paul Kellets „economy“-Filter) – weicher als weißes Rauschen,
- * klingt eher nach Wind in Blättern. Der Anfang wird mit dem Ende überblendet, damit die
+ * klingt eher nach Wind in Blättern. Tiefes Brummen unter ≈ 90 Hz wird gleich hier
+ * entfernt, danach auf die Spitze `NOISE_PEAK` normiert (der Wind-Tiefpass ist kritisch
+ * gedämpft und hebt sie nicht an). Der Anfang wird mit dem Ende überblendet, damit die
  * Schleife nicht knackt: Gibt die Länge der nahtlosen Schleife zurück (≤ data.length).
  */
-export function fillPinkNoise(data: Float32Array, random: () => number): number {
+export function fillPinkNoise(data: Float32Array, random: () => number, sampleRate = 48000): number {
   let b0 = 0;
   let b1 = 0;
   let b2 = 0;
+  // Einpoliger Hochpass ≈ 90 Hz.
+  const a = Math.exp((-2 * Math.PI * 90) / sampleRate);
+  let prevIn = 0;
+  let prevOut = 0;
+  let peak = 0;
   for (let i = 0; i < data.length; i++) {
     const white = random() * 2 - 1;
     b0 = 0.99765 * b0 + white * 0.099046;
     b1 = 0.963 * b1 + white * 0.2965164;
     b2 = 0.57 * b2 + white * 1.0526913;
-    data[i] = Math.max(-0.95, Math.min(0.95, (b0 + b1 + b2 + white * 0.1848) * 0.15));
+    const pink = b0 + b1 + b2 + white * 0.1848;
+    const out = a * (prevOut + pink - prevIn);
+    prevIn = pink;
+    prevOut = out;
+    data[i] = out;
+    peak = Math.max(peak, Math.abs(out));
   }
+  const scale = peak > 0 ? NOISE_PEAK / peak : 0;
+  for (let i = 0; i < data.length; i++) data[i] = data[i]! * scale;
+  // Überblenden: |f·x + (1−f)·y| ≤ max(|x|, |y|) – die Spitze bleibt.
   const fade = Math.min(Math.floor(data.length / 4), 4000);
   const loop = data.length - fade;
   for (let i = 0; i < fade; i++) {
