@@ -96,8 +96,16 @@ export const HARMONY_TIERS: readonly { min: number; label: string }[] = [
 ];
 
 export function harmonyTier(harmony: number): string {
+  return HARMONY_TIERS[HARMONY_TIERS.length - 1 - harmonyTierIndex(harmony)]!.label;
+}
+
+/**
+ * Harmoniestufe als Index 0–4 für die Szene (`SceneInput.harmonyTier`): 0–29 → 0,
+ * 30–59 → 1, 60–89 → 2, 90–119 → 3, ab 120 → 4. Negative und ungültige Werte → 0.
+ */
+export function harmonyTierIndex(harmony: number): number {
   const h = Number.isFinite(harmony) ? harmony : 0;
-  return HARMONY_TIERS.find((t) => h >= t.min)!.label;
+  return HARMONY_TIERS.length - 1 - HARMONY_TIERS.findIndex((t) => h >= t.min);
 }
 
 const GROUP_NAMES: Readonly<Record<PlantGroup, string>> = {
@@ -1193,6 +1201,14 @@ export function autoDeclineText(autoDeclined: number, stackFull: boolean): strin
   return `Niemand zog ein · ${reward}`;
 }
 
+/**
+ * Hinweis für automatisch abgelehnte Begegnungen eines Ticks: „Stapel voll – …“ nur, wenn
+ * der Stapel wirklich voll war (TickReport.declinedStackFull), sonst „Niemand zog ein“.
+ */
+export function tickDeclineText(report: Pick<OfflineReport, 'autoDeclined' | 'declinedStackFull'>): string {
+  return autoDeclineText(report.autoDeclined, report.declinedStackFull > 0);
+}
+
 /** Ab dieser Abwesenheit (s) gibt es eine Willkommens-Meldung. */
 export const WELCOME_MIN_SECONDS = 60;
 
@@ -1205,14 +1221,13 @@ export type CatchUpNotice = { kind: 'welcome' | 'note'; text: string } | null;
  */
 export function catchUpNotice(
   away: number,
-  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined'>,
+  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedStackFull'>,
   waiting: number,
-  stackFull: boolean,
 ): CatchUpNotice {
   if (away > WELCOME_MIN_SECONDS && report.growth > 0) {
     return { kind: 'welcome', text: welcomeText(away, report, waiting) };
   }
-  if (report.autoDeclined > 0) return { kind: 'note', text: autoDeclineText(report.autoDeclined, stackFull) };
+  if (report.autoDeclined > 0) return { kind: 'note', text: tickDeclineText(report) };
   return null;
 }
 

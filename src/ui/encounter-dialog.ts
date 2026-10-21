@@ -558,13 +558,14 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     if (view.declineReward !== null) setText(decline, declineLabel(view.declineReward));
     applyDisabled();
 
-    if (!legendChecked) {
-      // Einmal pro Seite prüfen: Erste Begegnung überhaupt → Legende aufgeklappt zeigen.
+    // Erste Begegnung überhaupt → Legende aufgeklappt zeigen. Auf schmalen Bildschirmen
+    // bleibt sie zu (deutliches „?“), damit Karten und Aktionen ohne Scrollen sichtbar
+    // sind – dort wird noch nicht entschieden: Weder `legendChecked` noch der Merker wird
+    // gesetzt (der Merker erst, wenn sie wirklich offen war). Wird das Fenster später
+    // breit, klappt sie bei der nächsten Begegnung auf.
+    if (!legendChecked && !narrowScreen()) {
       legendChecked = true;
-      // Auf schmalen Bildschirmen bleibt sie zu (deutliches „?“), damit Karten und
-      // Aktionen ohne Scrollen sichtbar sind; der Merker wird erst gesetzt, wenn sie
-      // wirklich einmal offen war.
-      if (!legendSeen() && !narrowScreen()) {
+      if (!legendSeen()) {
         legend.open = true;
         markLegendSeen();
       }

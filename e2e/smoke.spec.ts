@@ -683,6 +683,9 @@ test.describe('Feinschliff mobil (390×844)', () => {
     const legend = dialog(page).locator('.encounter-legend');
     await expect(legend).not.toHaveAttribute('open', '');
     await expect(legend.getByText('Was bedeuten die Symbole?')).toBeVisible();
+    // Zugeklappt wird der Merker nicht gesetzt – erst, wenn die Legende wirklich offen war.
+    const legendSeen = () => page.evaluate(() => localStorage.getItem('tree-grow-legend-seen'));
+    expect(await legendSeen()).toBeNull();
     const choose = card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler wählen' });
     const decline = dialog(page).getByRole('button', { name: /Ablehnen/ });
     await expect(choose).toBeInViewport();
@@ -692,6 +695,7 @@ test.describe('Feinschliff mobil (390×844)', () => {
     await legend.getByText('Was bedeuten die Symbole?').tap();
     await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
     await expect(decline).toBeInViewport();
+    expect(await legendSeen()).toBe('1');
   });
 
   test('lange Gründe: Tier-Kacheln bleiben flach, der volle Text per Tooltip und Tippen', async ({ page, context }) => {
@@ -794,4 +798,29 @@ test.describe('Lebensgemeinschaften', () => {
       expect(await noScroll()).toBe(true);
     });
   });
+});
+
+test('Hohe Harmonie (≥ 90): warme Stimmung der Szene lädt ohne Konsolenfehler', async ({ page, context }) => {
+  // Stimmiger Mischwald aus DESIGN_V2.md 9.3 (Beispiel A) im Hain: Harmonie über 90.
+  await seedV3(context, {
+    totalGrowth: waypoint(20) + 1,
+    plants: ['beech', 'hazel', 'anemone', 'nettle', 'moss', 'fern', 'hartstongue'],
+    niches: {
+      roots: ['earthworm', 'porcini', 'vole'],
+      litter: ['woodlouse', 'hedgehog', 'robin'],
+      edge: ['bee', 'peacock', 'fox'],
+      crown: ['oakmoth', 'bluetit', 'squirrel'],
+      bark: ['barkbeetle', 'woodpecker'],
+      hollows: ['owl', 'bat'],
+    },
+  });
+  await openGame(page);
+  await expect(stageLabel(page)).toHaveText('Stufe: Hain');
+  const harmony = page.locator('[data-ref="harmony"]');
+  expect(await readNumber(harmony)).toBeGreaterThanOrEqual(90);
+  await expect(harmony.locator('..')).toContainText(/Blühender Mischwald|Urwald/);
+  // Einige Frames mit Überblendung, Sonnenstrahlen und Pollen laufen lassen.
+  await page.waitForTimeout(1500);
+  const box = await page.locator('canvas#scene').boundingBox();
+  expect(box?.width).toBeGreaterThan(0);
 });

@@ -19,6 +19,8 @@ import {
   effectView,
   encounterTitle,
   harmonyTier,
+  harmonyTierIndex,
+  HARMONY_TIERS,
   listNames,
   plantCostLabel,
   plantProvidesViews,
@@ -29,6 +31,7 @@ import {
   SCENE_GROUP_OF,
   autoDeclineText,
   catchUpNotice,
+  tickDeclineText,
   WELCOME_MIN_SECONDS,
   foodCompetitors,
   huntersOf,
@@ -844,22 +847,32 @@ describe('Auswahl „Pflanze setzen“', () => {
 });
 
 describe('catchUpNotice', () => {
-  const report = { seconds: 0, growth: 0, seeds: 0, autoDeclined: 0 };
+  const report = { seconds: 0, growth: 0, seeds: 0, autoDeclined: 0, declinedStackFull: 0 };
 
   it('nach langer Abwesenheit die Willkommens-Meldung (sie nennt verpasste Begegnungen selbst)', () => {
-    const r = { ...report, seconds: 3600, growth: 500, seeds: 20, autoDeclined: 2 };
-    expect(catchUpNotice(3600, r, 3, true)).toEqual({ kind: 'welcome', text: welcomeText(3600, r, 3) });
+    const r = { ...report, seconds: 3600, growth: 500, seeds: 20, autoDeclined: 2, declinedStackFull: 2 };
+    expect(catchUpNotice(3600, r, 3)).toEqual({ kind: 'welcome', text: welcomeText(3600, r, 3) });
   });
 
   it('kurz weg (2–60 s) mit verpasster Begegnung: der kurze Hinweis wie im laufenden Spiel', () => {
-    const r = { ...report, seconds: 20, growth: 120, seeds: 4, autoDeclined: 1 };
-    expect(catchUpNotice(20, r, 3, true)).toEqual({ kind: 'note', text: autoDeclineText(1, true) });
-    expect(catchUpNotice(WELCOME_MIN_SECONDS, r, 0, false)).toEqual({ kind: 'note', text: autoDeclineText(1, false) });
+    const full = { ...report, seconds: 20, growth: 120, seeds: 4, autoDeclined: 1, declinedStackFull: 1 };
+    expect(catchUpNotice(20, full, 3)).toEqual({ kind: 'note', text: autoDeclineText(1, true) });
+    // Nichts Passendes: kein „Stapel voll“, auch wenn danach 3 Begegnungen warten.
+    const none = { ...full, declinedStackFull: 0 };
+    expect(catchUpNotice(WELCOME_MIN_SECONDS, none, 3)).toEqual({ kind: 'note', text: autoDeclineText(1, false) });
   });
 
   it('nichts verpasst und kurz weg: keine Meldung', () => {
-    expect(catchUpNotice(20, { ...report, seconds: 20, growth: 120 }, 1, false)).toBeNull();
-    expect(catchUpNotice(3600, { ...report, seconds: 3600 }, 0, false)).toBeNull();
+    expect(catchUpNotice(20, { ...report, seconds: 20, growth: 120 }, 1)).toBeNull();
+    expect(catchUpNotice(3600, { ...report, seconds: 3600 }, 0)).toBeNull();
+  });
+});
+
+describe('tickDeclineText', () => {
+  it('„Stapel voll“ nur, wenn der Stapel wirklich voll war', () => {
+    expect(tickDeclineText({ autoDeclined: 1, declinedStackFull: 1 })).toBe(autoDeclineText(1, true));
+    expect(tickDeclineText({ autoDeclined: 1, declinedStackFull: 0 })).toBe(autoDeclineText(1, false));
+    expect(tickDeclineText({ autoDeclined: 2, declinedStackFull: 0 })).toMatch(/^Niemand zog ein/);
   });
 });
 
@@ -1017,5 +1030,25 @@ describe('Lebensgemeinschaften', () => {
     state.meta.journal.communities = ['humus'];
     const view = toEcosystemView(state, evaluate(state));
     expect(view.communities.items[0]).toMatchObject({ id: 'humus', state: 'active', icon: '🪱' });
+  });
+});
+
+describe('harmonyTierIndex (Stimmung der Szene)', () => {
+  it('Bänder aus DESIGN_V2.md 9.1: 0–29 → 0, 30–59 → 1, 60–89 → 2, 90–119 → 3, ab 120 → 4', () => {
+    const cases: [number, number][] = [
+      [-15, 0], [0, 0], [29.9, 0], [30, 1], [59, 1], [60, 2], [89.5, 2], [90, 3], [119, 3], [120, 4], [500, 4],
+    ];
+    for (const [h, tier] of cases) expect(harmonyTierIndex(h), String(h)).toBe(tier);
+    expect(harmonyTierIndex(Number.NaN)).toBe(0);
+    expect(harmonyTierIndex(Infinity)).toBe(0);
+  });
+
+  it('passt zu den Namen der Harmoniestufen', () => {
+    expect(harmonyTier(0)).toBe('Zarte Anfänge');
+    expect(harmonyTier(95)).toBe('Blühender Mischwald');
+    expect(harmonyTier(130)).toBe('Urwald');
+    for (const h of [0, 30, 60, 90, 120]) {
+      expect(HARMONY_TIERS[HARMONY_TIERS.length - 1 - harmonyTierIndex(h)]!.label).toBe(harmonyTier(h));
+    }
   });
 });
