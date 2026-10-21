@@ -1019,6 +1019,7 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
 }
 
 .community {
+  position: relative;
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr) auto;
   column-gap: 8px;

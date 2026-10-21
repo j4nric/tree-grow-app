@@ -348,6 +348,14 @@ describe('Naturtagebuch: Pflanzen und Lebensgemeinschaften', () => {
     expect(state.meta.journal.plants).toEqual(['moss', 'fern']);
   });
 
+  it('eine Wahl kann zwei Gemeinschaften auf einmal entdecken (`discovered` mit beiden IDs)', () => {
+    // Wildbiene vervollständigt Samenboten und Blütensaum.
+    const state = withEncounter(['squirrel', 'jay', 'peacock'], ['bee']);
+    state.plants = ['nettle', 'strawberry'];
+    expect(chooseCard(state, 0, 0)).toEqual({ ok: true, discovered: ['seed-couriers', 'flower-hem'] });
+    expect(state.meta.journal.communities).toEqual(['seed-couriers', 'flower-hem']);
+  });
+
   it('entdeckt bleibt entdeckt; recordDiscoveries meldet nur Neues', () => {
     const state = stateAt(3, ['earthworm', 'woodlouse', 'porcini']);
     expect(recordDiscoveries(state)).toEqual(['humus']);

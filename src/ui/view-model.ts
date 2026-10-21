@@ -58,9 +58,19 @@ export interface PreviewView {
   supplyDelta?: number;
   /**
    * Lebensgemeinschaften, die diese Wahl vervollständigt (`tone: 'good'`) oder auflöst
-   * (`tone: 'bad'`), fertig als Text, z. B. „✨ vervollständigt Humusküche (+8 Harmonie)“.
+   * (`tone: 'bad'`), z. B. ✨ + „vervollständigt Humusküche (+8 Harmonie)“.
    */
-  communities?: EffectView[];
+  communities?: CommunityHintView[];
+}
+
+/**
+ * Hinweis auf einer Karte, dass die Wahl eine Lebensgemeinschaft vervollständigt oder
+ * auflöst. `icon` ist Schmuck (für Screenreader verborgen), `label` der Text ohne Emoji.
+ */
+export interface CommunityHintView {
+  icon: string;
+  label: string;
+  tone: Tone;
 }
 
 /**
@@ -249,6 +259,8 @@ export interface CommunityListView {
   harmony: number;
   /** Kurzfassung für die zugeklappte Zeile, z. B. „1 von 9 aktiv · +8 ⚖️“. */
   summary: string;
+  /** Dieselbe Kurzfassung ohne Emojis für Screenreader, z. B. „1 von 9 aktiv, +8 Harmonie“. */
+  summaryText: string;
 }
 
 /** Eine Begleitpflanze im Pflanzring. */

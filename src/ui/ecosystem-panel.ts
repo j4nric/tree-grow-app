@@ -160,7 +160,10 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
   const communityTitle = el('span', 'eco-communities-title', 'Lebensgemeinschaften');
   const communityCount = el('span', 'eco-communities-count');
   communityCount.dataset.ref = 'communities-summary';
-  communitySummary.append(communityTitle, communityCount);
+  // Sichtbar mit ⚖️, vorgelesen als „+8 Harmonie“.
+  communityCount.setAttribute('aria-hidden', 'true');
+  const communityCountSr = srOnly();
+  communitySummary.append(communityTitle, communityCount, communityCountSr);
   const communityList = el('ul', 'community-list');
   communityList.setAttribute('aria-label', 'Lebensgemeinschaften');
   communities.append(communitySummary, communityList);
@@ -280,12 +283,14 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     const bar = el('span', 'community-bar');
     track.append(bar);
     const sr = srOnly();
-    li.append(icon, text, value, track, sr);
+    // Vorgelesen: Zustand (sr) direkt nach dem verborgenen Symbol, dann Name und Notiz.
+    li.append(icon, sr, text, value, track);
     return { root: li, icon, name, note, value, bar, sr, state: null };
   }
 
   function updateCommunities(view: CommunityListView): void {
     setText(communityCount, view.summary);
+    setText(communityCountSr, `: ${view.summaryText}`);
     for (const item of view.items) {
       let row = communityRows.get(item.id);
       if (!row) {
@@ -310,15 +315,16 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
       const width = `${(unitInterval(item.progress) * 100).toFixed(1)}%`;
       if (row.bar.style.width !== width) row.bar.style.width = width;
       // „???“ liest ein Screenreader schlecht vor – dort steht „noch unentdeckt“.
-      setAttr(row.name, 'aria-hidden', String(!item.discovered));
+      if (item.discovered) row.name.removeAttribute('aria-hidden');
+      else setAttr(row.name, 'aria-hidden', 'true');
       const members = `${formatNumber(item.present)} von ${formatNumber(item.total)} Mitgliedern`;
       setText(
         row.sr,
         active
-          ? ` – aktiv, +${formatNumber(item.harmony)} Harmonie`
+          ? `Aktiv, +${formatNumber(item.harmony)} Harmonie: `
           : item.discovered
-            ? ` – ${members}`
-            : `Noch unentdeckte Lebensgemeinschaft – ${members}`,
+            ? `${members}: `
+            : `Noch unentdeckte Lebensgemeinschaft, ${members}. `,
       );
     }
     const order = view.items.map((i) => i.id).join('|');

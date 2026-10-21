@@ -749,11 +749,13 @@ test.describe('Lebensgemeinschaften', () => {
     await openGame(page);
     await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
 
-    // Seitenleiste: zugeklappt mit Kurzfassung; aufgeklappt „???“ mit dem, was fehlt.
+    // Seitenleiste: zugeklappt mit Kurzfassung; aufgeklappt „???“ mit Rätselhinweis und
+    // Fortschritt – ohne „fehlt: …“, solange die Gemeinschaft unentdeckt ist.
     await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('0 von 9 aktiv');
     await communities(page).locator('summary').click();
     await expect(community(page, 'humus')).toContainText('???');
-    await expect(community(page, 'humus')).toContainText('fehlt: Pfifferling oder Steinpilz');
+    await expect(community(page, 'humus')).toContainText('Aus Laub wird Erde, aus Erde wird Leben.');
+    await expect(community(page, 'humus')).not.toContainText('fehlt');
     await expect(community(page, 'humus')).toContainText('2/3');
 
     await openStack(page);
@@ -783,7 +785,7 @@ test.describe('Lebensgemeinschaften', () => {
       await seedNearHumus(context);
       await openGame(page);
       await communities(page).locator('summary').click();
-      await expect(community(page, 'humus')).toContainText('fehlt:');
+      await expect(community(page, 'humus')).toContainText('Aus Laub wird Erde');
       const noScroll = () =>
         page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
       expect(await noScroll()).toBe(true);

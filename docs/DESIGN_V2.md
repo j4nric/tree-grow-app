@@ -684,7 +684,16 @@ Typische Werte (Simulation): Setzling ~50, Alter Baum ~75, Hain ~95, Urwald ~140
 
 ### 9.2 Lebensgemeinschaften
 
-Im Naturtagebuch als Silhouette mit Rätselhinweis, bis sie entdeckt sind.
+Im Naturtagebuch als Silhouette mit Rätselhinweis, bis sie entdeckt sind. Entdeckt ist
+eine Gemeinschaft, sobald sie zum ersten Mal besteht. Das bleibt so, auch wenn sie später
+wieder zerfällt.
+
+**Spoiler-Regel:** Solange eine Gemeinschaft unentdeckt ist, zeigt das Spiel nur ihren
+Rätselhinweis und den Fortschritt (z. B. „2/3“). Name, Symbol und „fehlt: …“ erscheinen
+erst nach der Entdeckung. Einzige gewollte Ausnahme ist die Kartenvorschau: Vervollständigt
+eine Karte eine Gemeinschaft, nennt sie den Namen („✨ vervollständigt Humusküche
+(+8 Harmonie)“). Das ist der Moment der Entdeckung, danach folgt die Meldung „Neue
+Lebensgemeinschaft: Humusküche 🌱“.
 
 | Lebensgemeinschaft | Mitglieder | ⚖️ | Extra | Hinweis |
 |---|---|---|---|---|
@@ -823,6 +832,17 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
   „Pflanze setzen“ (Kosten).
 - **Harmonie-Aufschlüsselung:** Vielfalt, Zufriedenheit, Pyramide (kleines Dreieck mit
   den Ebenen), Lebensgemeinschaften, Abzüge.
+- **Lebensgemeinschaften** (aufklappbar, anfangs zu): Die Kopfzeile zeigt eine
+  Kurzfassung wie „1 von 9 aktiv · +8 ⚖️“. Aufgeklappt stehen die aktiven Gemeinschaften
+  oben, mit Symbol, Name, Harmonie-Beitrag und Extra-Wirkung (z. B. „+5 % 🌿“). Darunter
+  folgen die übrigen nach Fortschritt, jeweils mit „x/y“ und kleinem Balken; ab 50 % ist
+  der Balken golden („fast fertig“). Entdeckte, aber gerade unvollständige Gemeinschaften
+  nennen dann „fehlt: Pfifferling oder Steinpilz“. Unentdeckte erscheinen als „???“ mit
+  Rätselhinweis und Fortschritt, ohne „fehlt“ (Spoiler-Regel, 9.2). Entsteht eine
+  Gemeinschaft, leuchtet ihre Zeile kurz auf.
+- **Kartenvorschau:** Tier- und Pflanzenkarten sowie „Pflanze setzen“ zeigen unter der
+  Vorschau „✨ vervollständigt …“ bzw. „⚠️ löst … auf“ samt Harmonie. Beim Ersetzen ist
+  eine Option vorausgewählt, die keine Gemeinschaft auflöst, sofern es eine gibt.
 - **Naturtagebuch** als eigener Reiter: Arten, Lebensgemeinschaften (Silhouetten mit
   Hinweis), Waldgedächtnis, Stammgäste.
 - **Pflege** als Schalterliste.

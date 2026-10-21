@@ -17,6 +17,7 @@ import type { CardView, ConditionView, EncounterKind, EncounterView, FactView, P
 import {
   RARITY_LABELS,
   declineLabel,
+  preferredReplaceOption,
   previewParts,
   queuedText,
   replaceHint,
@@ -164,12 +165,21 @@ export function renderPreviewChips(list: HTMLElement, preview: PreviewView): voi
 
 /**
  * Lebensgemeinschaften, die die Wahl vervollständigt oder auflöst, z. B.
- * „✨ vervollständigt Humusküche (+8 Harmonie)“. Leer → Liste versteckt.
+ * ✨ „vervollständigt Humusküche (+8 Harmonie)“ (Symbol für Screenreader verborgen).
+ * Leer → Liste versteckt.
  */
 export function renderCommunityHints(list: HTMLElement, preview: PreviewView): void {
   const hints = preview.communities ?? [];
   list.hidden = hints.length === 0;
-  list.replaceChildren(...hints.map((hint) => el('li', `tone-${hint.tone}`, hint.label)));
+  list.replaceChildren(
+    ...hints.map((hint) => {
+      const item = el('li', `tone-${hint.tone}`);
+      const icon = el('span', 'card-community-icon', hint.icon);
+      icon.setAttribute('aria-hidden', 'true');
+      item.append(icon, ` ${hint.label}`);
+      return item;
+    }),
+  );
 }
 
 /** Liste für renderCommunityHints (einmal je Karte angelegt). */
@@ -407,7 +417,9 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
           opt.disabled = Boolean(option.disabledReason);
           select.append(opt);
         }
-        if (usable[0]) select.value = usable[0].id;
+        // Vorauswahl: eine Option, die keine Lebensgemeinschaft auflöst (falls es eine gibt).
+        const preferred = preferredReplaceOption(options);
+        if (preferred) select.value = preferred.id;
         if (keepReplaceId && usable.some((o) => o.id === keepReplaceId)) select.value = keepReplaceId;
         label.append(select);
         box.append(label);
@@ -453,7 +465,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     item.append(choose);
 
     const selectedReplace = () =>
-      card.nicheFull ? (usable.find((o) => o.id === select?.value) ?? usable[0]) : undefined;
+      card.nicheFull ? (usable.find((o) => o.id === select?.value) ?? preferredReplaceOption(options)) : undefined;
 
     const refresh = () => {
       const replaced = selectedReplace();

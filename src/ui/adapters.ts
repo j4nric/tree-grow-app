@@ -54,9 +54,11 @@ import {
   type OfflineReport,
 } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
+import { preferredReplaceOption } from './view-format';
 import type {
   AnimalView,
   CardView,
+  CommunityHintView,
   CommunityListView,
   CommunityView,
   ConditionView,
@@ -478,21 +480,9 @@ export function refreshEcosystemView(view: EcosystemView, state: GameState): voi
 // Lebensgemeinschaften
 // ---------------------------------------------------------------------------
 
-/** Symbole der Lebensgemeinschaften (reine Anzeige). */
-const COMMUNITY_ICONS: Readonly<Record<string, string>> = {
-  humus: '🪱',
-  'caterpillar-watch': '🐛',
-  deadwood: '🪵',
-  'night-shift': '🦉',
-  'seed-couriers': '🌰',
-  'wild-edge': '🦊',
-  'flower-hem': '🌸',
-  'birch-bond': '🌳',
-  'damp-ground': '💧',
-};
-
+/** Symbol einer Lebensgemeinschaft (aus content; Fallback ✨). */
 export function communityIcon(id: string): string {
-  return COMMUNITY_ICONS[id] ?? '✨';
+  return COMMUNITIES_BY_ID.get(id)?.icon ?? '✨';
 }
 
 /** Ab diesem Anteil erfüllter Mitglieder gilt eine Gemeinschaft als „fast fertig“. */
@@ -544,7 +534,10 @@ export function communityListView(
       harmony: status.active ? status.harmony : 0,
       effects: (community?.effects ?? []).map((e) => effectView(e).label).join(' · '),
     };
-    if (state === 'near' && status.missing.length > 0) view.missingText = `fehlt: ${missingMembersText(status.missing)}`;
+    // „fehlt: …“ nur für schon entdeckte – Unentdeckte verraten nur Hinweis und Fortschritt.
+    if (state === 'near' && known && status.missing.length > 0) {
+      view.missingText = `fehlt: ${missingMembersText(status.missing)}`;
+    }
     if (!known && community) view.hint = community.hint;
     return view;
   });
@@ -553,27 +546,30 @@ export function communityListView(
   items.sort((a, b) => rank(b) - rank(a) || order.get(a.id)! - order.get(b.id)!);
   const active = items.filter((v) => v.state === 'active');
   const harmony = active.reduce((sum, v) => sum + v.harmony, 0);
-  const summary =
-    `${formatNumber(active.length)} von ${formatNumber(items.length)} aktiv` +
-    (harmony > 0 ? ` · +${formatNumber(harmony)} ⚖️` : '');
-  return { items, activeCount: active.length, harmony, summary };
+  const count = `${formatNumber(active.length)} von ${formatNumber(items.length)} aktiv`;
+  const summary = count + (harmony > 0 ? ` · +${formatNumber(harmony)} ⚖️` : '');
+  const summaryText = count + (harmony > 0 ? `, +${formatNumber(harmony)} Harmonie` : '');
+  return { items, activeCount: active.length, harmony, summary, summaryText };
 }
 
 /**
  * Was eine Wahl an Lebensgemeinschaften ändert (Vergleich jetzt ↔ Vorschau aus dem Kern):
- * „✨ vervollständigt Humusküche (+8 Harmonie)“ bzw. „löst Humusküche auf (−8 Harmonie)“.
+ * ✨ „vervollständigt Humusküche (+8 Harmonie)“ bzw. ⚠️ „löst Humusküche auf (−8 Harmonie)“.
+ * Der Name wird auch bei noch unentdeckten genannt – das ist der Moment der Entdeckung.
  */
 export function communityPreview(
   now: Readonly<Pick<Evaluation, 'communities'>>,
   after: Readonly<Pick<Evaluation, 'communities'>>,
-): EffectView[] {
+): CommunityHintView[] {
   const { completed, broken } = communityChanges(now, after);
   return [
     ...completed.map((c) => ({
-      label: `✨ vervollständigt ${communityName(c.id)} (+${formatNumber(c.harmony)} Harmonie)`,
+      icon: '✨',
+      label: `vervollständigt ${communityName(c.id)} (+${formatNumber(c.harmony)} Harmonie)`,
       tone: 'good' as const,
     })),
     ...broken.map((c) => ({
+      icon: '⚠️',
       label: `löst ${communityName(c.id)} auf (−${formatNumber(c.harmony)} Harmonie)`,
       tone: 'bad' as const,
     })),
@@ -685,7 +681,7 @@ export function toCardView(
       }
       return option;
     });
-    preview = replaceOptions.find((o) => o.preview)?.preview ?? NO_CHANGE;
+    preview = preferredReplaceOption(replaceOptions)?.preview ?? NO_CHANGE;
   } else if (status === 'present') {
     after = now;
   } else if (status === 'closed') {
@@ -961,7 +957,7 @@ export function toPlantCardView(
     card.replaceOptions = options;
     card.fullText = 'Pflanzring voll';
     card.replacePrompt = 'Welche Pflanze weicht?';
-    card.preview = options.find((o) => o.preview)?.preview ?? NO_CHANGE;
+    card.preview = preferredReplaceOption(options)?.preview ?? NO_CHANGE;
     if (!options.some((o) => !o.disabledReason)) card.disabledReason = 'Kein Tausch möglich';
     return card;
   }

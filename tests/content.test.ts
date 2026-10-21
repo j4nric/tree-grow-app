@@ -10,6 +10,7 @@ import {
   REROLL_BASE_COST,
   SCRIPTED_ENCOUNTERS,
 } from '../src/content/encounters';
+import { COMMUNITIES } from '../src/content/communities';
 import { NICHES, NICHES_BY_ID } from '../src/content/niches';
 import { PLANTS, PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, PLANT_GROUP_INFO } from '../src/content/plants';
 import { ABILITY_INFO } from '../src/content/abilities';
@@ -263,5 +264,14 @@ describe('Inhalte v2', () => {
     expect(MAX_PENDING_ENCOUNTERS).toBe(3);
     expect(DECLINE_SEEDS).toBeGreaterThan(0);
     expect(REROLL_BASE_COST).toBeGreaterThan(DECLINE_SEEDS);
+  });
+});
+
+describe('Lebensgemeinschaften: Inhalte', () => {
+  it('jede Gemeinschaft hat ein eigenes Symbol (Seitenleiste)', () => {
+    for (const c of COMMUNITIES) expect(c.icon.trim().length, c.id).toBeGreaterThan(0);
+    expect(unique(COMMUNITIES.map((c) => c.icon))).toBe(true);
+    expect(unique(COMMUNITIES.map((c) => c.id))).toBe(true);
+    expect(unique(COMMUNITIES.map((c) => c.name))).toBe(true);
   });
 });

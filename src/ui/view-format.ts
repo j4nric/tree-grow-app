@@ -3,7 +3,7 @@
  * Getestet in tests/ui-view.test.ts.
  */
 import { formatNumber } from './format';
-import type { PreviewView, Rarity, Tone } from './view-model';
+import type { PreviewView, Rarity, ReplaceOptionView, Tone } from './view-model';
 
 export const RARITY_LABELS: Record<Rarity, string> = {
   common: 'gewöhnlich',
@@ -218,4 +218,13 @@ export function formatMultiplier(value: number): string {
 /** Harmonie-Baustein mit Vorzeichen; Abzüge mit typografischem Minus. */
 export function formatHarmonyPart(value: number): string {
   return formatSigned(value);
+}
+
+/**
+ * Vorauswahl beim Ersetzen: die erste wählbare Option, die keine Lebensgemeinschaft
+ * auflöst – gibt es keine, die erste wählbare.
+ */
+export function preferredReplaceOption(options: readonly ReplaceOptionView[]): ReplaceOptionView | undefined {
+  const usable = options.filter((o) => !o.disabledReason);
+  return usable.find((o) => !o.preview?.communities?.some((c) => c.tone === 'bad')) ?? usable[0];
 }
