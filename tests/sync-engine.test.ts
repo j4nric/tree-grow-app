@@ -629,6 +629,26 @@ describe('SyncEngine', () => {
     expect(a.engine.version).toBe(1);
   });
 
+  it('stop während des ersten Abgleichs: danach keine Grundlage und kein Status mehr', async () => {
+    const { cloud, clock } = setup();
+    const a = new Device(cloud, 'A', clock, '1|3|');
+    const real = cloud.backend();
+    // Das Schreiben kommt erst nach dem Abmelden zurück.
+    const backend: SyncBackend = {
+      ...real,
+      insert: async (row) => {
+        a.engine.stop();
+        return real.insert(row);
+      },
+    };
+    const engine = new SyncEngine(backend, (a.engine as unknown as { host: SyncHost }).host, 'A');
+    (a as unknown as { engine: SyncEngine }).engine = engine;
+    const statuses = a.statuses.length;
+    await engine.start();
+    expect(a.base).toBeNull();
+    expect(a.statuses.slice(statuses).every((st) => st.phase !== 'synced')).toBe(true);
+  });
+
   it('flush pusht sofort; nach stop passiert nichts mehr', async () => {
     const { cloud, clock } = setup();
     const a = new Device(cloud, 'A', clock);

@@ -217,6 +217,8 @@ export class SyncEngine {
   }
 
   private succeeded(): void {
+    // Nach stop() (abgemeldet, anderes Konto) nichts mehr für dieses Konto speichern.
+    if (this.stopped) return;
     this.failures = 0;
     this.problem = null;
     this.lastSyncedAt = this.host.clock();
@@ -271,6 +273,7 @@ export class SyncEngine {
     }
     if (decision.kind === 'insert') {
       const result = this.written(await this.backend.insert(this.write(1, true)));
+      if (this.stopped) return;
       if (result === 'conflict') throw new Error('conflict'); // anderes Gerät war schneller → erneut
       this.known = 1;
       this.pendingAction = false;
@@ -278,7 +281,9 @@ export class SyncEngine {
       // Erste Anmeldung oder offene Aktion: die anderen Geräte sollen den Stand übernehmen.
       const action = decision.firstLogin || this.pendingAction;
       const write = this.write(decision.version + 1, action);
-      if (this.written(await this.backend.update(decision.version, write)) === 'conflict') throw new Error('conflict');
+      const result = this.written(await this.backend.update(decision.version, write));
+      if (this.stopped) return;
+      if (result === 'conflict') throw new Error('conflict');
       this.known = write.version;
       this.pendingAction = false;
       if (decision.firstLogin) this.host.onEvent({ kind: 'first-login', winner: 'local' });

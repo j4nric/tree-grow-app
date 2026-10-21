@@ -21,6 +21,10 @@ export const DEVICE_KEY = 'vszw-device-id';
 export const BACKUP_KEY = 'vszw-backup-before-sync';
 /** Sicherung des Cloud-Stands (Text-Code) bei der ersten Anmeldung, bevor ein Stand den anderen ersetzt. */
 export const CLOUD_BACKUP_KEY = 'vszw-backup-cloud-before-sync';
+/** Konto, aus dem die Cloud-Sicherung stammt (nur diesem Konto wird sie angeboten). */
+export const CLOUD_BACKUP_OWNER_KEY = 'vszw-backup-cloud-owner';
+/** Stand vor dem letzten „Sicherung wiederherstellen“ (damit auch das rückgängig zu machen ist). */
+export const RESTORE_UNDO_KEY = 'vszw-backup-before-restore';
 
 /** Liest die Grundlage für `userId`; fremdes Konto, kaputte Werte → null. */
 export function parseBase(raw: string | null, userId: string): SyncBase | null {
@@ -64,7 +68,14 @@ export function readOwner(storage: Storage): string | null {
   }
 }
 
+/**
+ * Grundlage für `userId` – aber nur, wenn der lokale Stand zuletzt mit genau diesem Konto
+ * abgeglichen wurde. Nach A → B → A gehört der lokale Stand zu B: Die alte Grundlage von A
+ * passt nicht mehr zu ihm (sonst würde B's Spiel als Fortsetzung in A's Konto geschrieben).
+ */
 export function readBase(storage: Storage, userId: string): SyncBase | null {
+  const owner = readOwner(storage);
+  if (owner !== null && owner !== userId) return null;
   try {
     return parseBase(storage.getItem(baseKey(userId)), userId) ?? parseBase(storage.getItem(BASE_KEY), userId);
   } catch {
@@ -87,6 +98,25 @@ export function writeBackup(storage: Storage, code: string, key: string = BACKUP
     storage.setItem(key, code);
   } catch {
     // ignorieren
+  }
+}
+
+/** Cloud-Stand sichern und merken, aus welchem Konto er stammt. */
+export function writeCloudBackup(storage: Storage, code: string, owner: string): void {
+  try {
+    storage.setItem(CLOUD_BACKUP_KEY, code);
+    storage.setItem(CLOUD_BACKUP_OWNER_KEY, owner);
+  } catch {
+    // ignorieren
+  }
+}
+
+/** Konto der Cloud-Sicherung; null = unbekannt (ältere Sicherung ohne Angabe) oder unlesbar. */
+export function readCloudBackupOwner(storage: Storage): string | null {
+  try {
+    return storage.getItem(CLOUD_BACKUP_OWNER_KEY);
+  } catch {
+    return null;
   }
 }
 

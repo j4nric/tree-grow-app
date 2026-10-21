@@ -39,6 +39,7 @@ export const ACCOUNT_TEXTS = {
   restoreHint: 'Welche Sicherung laden? Dein aktueller Wald wird dabei ersetzt.',
   restoreLocal: 'Stand dieses Geräts',
   restoreCloud: 'Stand aus dem Konto',
+  restoreUndo: 'Stand vor dem Wiederherstellen',
   restoreCancel: 'Abbrechen',
   restored: 'Sicherung geladen.',
 } as const;

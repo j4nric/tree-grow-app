@@ -21,14 +21,18 @@ export interface AccountPanelCallbacks {
   /** Welche Sicherungen von vor dem Abgleich es gibt. */
   backups(): BackupAvailability;
   /** Sicherung laden (ersetzt den aktuellen Stand); Rückgabe: Fehlertext oder null. */
-  onRestore(kind: 'local' | 'cloud'): string | null;
+  onRestore(kind: BackupKind): string | null;
 }
+
+export type BackupKind = 'local' | 'cloud' | 'undo';
 
 export interface BackupAvailability {
   /** Stand dieses Geräts vor dem Abgleich. */
   local: boolean;
-  /** Stand aus dem Konto vor der ersten Anmeldung. */
+  /** Stand aus dem Konto vor der ersten Anmeldung (nur für dasselbe Konto). */
   cloud: boolean;
+  /** Stand vor dem letzten Wiederherstellen. */
+  undo: boolean;
 }
 
 export interface AccountPanel {
@@ -137,19 +141,25 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
   const restoreCloud = el('button', 'save-button', T.restoreCloud);
   restoreCloud.type = 'button';
   restoreCloud.dataset.ref = 'account-restore-cloud';
+  const restoreUndo = el('button', 'save-button', T.restoreUndo);
+  restoreUndo.type = 'button';
+  restoreUndo.dataset.ref = 'account-restore-undo';
   const restoreCancel = el('button', 'save-button', T.restoreCancel);
   restoreCancel.type = 'button';
   const restoreRow = el('div', 'save-row');
-  restoreRow.append(restoreLocal, restoreCloud, restoreCancel);
+  restoreRow.append(restoreLocal, restoreCloud, restoreUndo, restoreCancel);
   restoreChoice.append(restoreHint, restoreRow);
   restore.append(restoreOpen, restoreChoice);
 
   section.append(title, lead, form, signedIn, staleBox, restore, status);
 
+  let isStale = false;
   function setBackups(available: BackupAvailability): void {
     restoreLocal.hidden = !available.local;
     restoreCloud.hidden = !available.cloud;
-    restore.hidden = !available.local && !available.cloud;
+    restoreUndo.hidden = !available.undo;
+    // Veralteter Tab (anderes Konto in einem anderen Tab): nie etwas laden.
+    restore.hidden = isStale || (!available.local && !available.cloud && !available.undo);
     if (restore.hidden) closeRestore();
   }
 
@@ -170,6 +180,7 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
   for (const [button, kind] of [
     [restoreLocal, 'local'],
     [restoreCloud, 'cloud'],
+    [restoreUndo, 'undo'],
   ] as const) {
     button.addEventListener('click', () => {
       const error = callbacks.onRestore(kind);
@@ -291,6 +302,8 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
       if (focusInside) signOut.focus({ preventScroll: true });
     },
     showStale(name) {
+      isStale = true;
+      setBackups({ local: false, cloud: false, undo: false });
       mode('stale');
       setText(staleText, T.stale(name));
       say('');

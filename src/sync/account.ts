@@ -3,15 +3,28 @@
  * Einstellungen, Anmeldung beim Sync-Server, je angemeldetem Konto ein SyncEngine.
  * Wird von main.ts nur geladen (dynamic import), wenn VITE_SYNC_URL gesetzt ist.
  */
-import { createAccountPanel } from '../ui/account-panel';
+import { createAccountPanel, type BackupAvailability } from '../ui/account-panel';
 import { isSyncProblem, syncEventText, syncStatusText } from '../ui/account-view';
 import { SAVE_VERSION } from '../core/state';
 import { createHttpService } from './http-service';
 import { SyncEngine, type CodeCheck, type SyncHost, type SyncStatus } from './engine';
 import type { Progress } from './policy';
 import { SESSION_KEY } from './http-service';
-import { BACKUP_KEY, CLOUD_BACKUP_KEY, deviceId, readBase, readOwner, writeBackup, writeBase } from './storage';
+import {
+  BACKUP_KEY,
+  CLOUD_BACKUP_KEY,
+  RESTORE_UNDO_KEY,
+  deviceId,
+  readBase,
+  readCloudBackupOwner,
+  readOwner,
+  writeBackup,
+  writeBase,
+  writeCloudBackup,
+} from './storage';
 import { AccountError, type AccountService, type AccountUser } from './types';
+
+const RESTORE_KEYS = { local: BACKUP_KEY, cloud: CLOUD_BACKUP_KEY, undo: RESTORE_UNDO_KEY } as const;
 
 const RESTORE_MISSING = 'Diese Sicherung gibt es nicht (mehr).';
 
@@ -36,6 +49,11 @@ export interface GameBridge {
   notify(text: string): void;
   /** Gesicherten Text-Code laden (wie „Importieren“); Rückgabe: Fehlertext oder null. */
   restore(code: string): string | null;
+  /**
+   * Dieser Tab darf den gemeinsamen lokalen Spielstand nicht mehr schreiben (ein anderer Tab
+   * spielt jetzt mit einem anderen Konto): alle Speicherungen sperren, bis neu geladen wird.
+   */
+  freeze(): void;
 }
 
 /**
@@ -78,6 +96,10 @@ export function startAccount(options: AccountOptions): AccountController {
   let user: AccountUser | null = null;
   let engine: SyncEngine | null = null;
   let status: SyncStatus | null = null;
+  /** Ein anderer Tab spielt mit einem anderen Konto: dieser Tab ist angehalten (bis neu geladen). */
+  let stale = false;
+  /** Erst nach der ersten Prüfung der Sitzung beim Start (currentUser) vergleichen. */
+  let known = false;
 
   const panel = createAccountPanel({
     onSignIn: async (name, password) => {
@@ -88,17 +110,22 @@ export function startAccount(options: AccountOptions): AccountController {
       if (!service) throw new AccountError('network');
       setUser(await service.register(name, password));
     },
-    backups: () => ({ local: hasItem(BACKUP_KEY), cloud: hasItem(CLOUD_BACKUP_KEY) }),
+    backups: availableBackups,
     onRestore: (kind) => {
+      if (stale) return RESTORE_MISSING;
+      if (!availableBackups()[kind]) return RESTORE_MISSING;
       let code: string | null = null;
       try {
-        code = storage.getItem(kind === 'local' ? BACKUP_KEY : CLOUD_BACKUP_KEY);
+        code = storage.getItem(RESTORE_KEYS[kind]);
       } catch {
         code = null;
       }
       if (!code) return RESTORE_MISSING;
+      // Vorher den aktuellen Stand sichern – auch das Wiederherstellen lässt sich so zurücknehmen.
+      const current = game.snapshot();
       const error = game.restore(code);
       if (error) return error;
+      writeBackup(storage, current, RESTORE_UNDO_KEY);
       // Bewusst geladen: wie eine Spieleraktion – die anderen Geräte übernehmen den Stand.
       engine?.markAction();
       return null;
@@ -109,7 +136,7 @@ export function startAccount(options: AccountOptions): AccountController {
       await engine?.flush();
       // Ließ sich nicht alles senden (offline …): erst nachfragen.
       if (!force && engine?.hasUnsent) return 'unsent';
-      await service.signOut();
+      await service.signOut(user ?? undefined);
       setUser(null);
       return 'done';
     },
@@ -130,7 +157,7 @@ export function startAccount(options: AccountOptions): AccountController {
       progressOf: game.progressOf,
       apply: game.adopt,
       backup: () => writeBackup(storage, game.snapshot()),
-      backupCloud: (data) => writeBackup(storage, data, CLOUD_BACKUP_KEY),
+      backupCloud: (data) => writeCloudBackup(storage, data, account.name),
       localIsForeign: () => {
         const owner = readOwner(storage);
         return owner !== null && owner !== account.name;
@@ -146,6 +173,16 @@ export function startAccount(options: AccountOptions): AccountController {
     };
   }
 
+  /** Welche Sicherungen angeboten werden: die Cloud-Sicherung nur dem Konto, aus dem sie stammt. */
+  function availableBackups(): BackupAvailability {
+    if (stale) return { local: false, cloud: false, undo: false };
+    return {
+      local: hasItem(BACKUP_KEY),
+      cloud: hasItem(CLOUD_BACKUP_KEY) && user !== null && readCloudBackupOwner(storage) === user.name,
+      undo: hasItem(RESTORE_UNDO_KEY),
+    };
+  }
+
   function hasItem(key: string): boolean {
     try {
       return !!storage.getItem(key);
@@ -155,15 +192,15 @@ export function startAccount(options: AccountOptions): AccountController {
   }
 
   /** Sitzung von einem anderen Tab geändert? Dann anhalten bzw. abmelden. */
-  let stale = false;
-  /** Erst nach der ersten Prüfung der Sitzung beim Start (currentUser) vergleichen. */
-  let known = false;
   function checkSession(): void {
     if (!service || stale || !known) return;
     const change = sessionChange(user?.name ?? null, service.sessionUser());
     if (change === 'signed-out') setUser(null);
     else if (change === 'stale') {
       stale = true;
+      // Ab jetzt nichts mehr in den gemeinsamen Spielstand schreiben – auch nicht beim
+      // Neuladen (beforeunload) oder per Wiederherstellen.
+      game.freeze();
       engine?.stop();
       engine = null;
       status = null;
@@ -212,7 +249,7 @@ export function startAccount(options: AccountOptions): AccountController {
     checkSession();
     void engine?.poll();
     renderSync();
-    panel.setBackups({ local: hasItem(BACKUP_KEY), cloud: hasItem(CLOUD_BACKUP_KEY) });
+    panel.setBackups(availableBackups());
   }, POLL_MS);
 
   return {

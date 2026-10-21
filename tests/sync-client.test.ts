@@ -6,12 +6,16 @@ import { codeFromJson, exportCode, importCode, isNewerSave, serialize } from '..
 import { SAVE_VERSION, createInitialState } from '../src/core/state';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from '../src/sync/config';
 import { sessionChange } from '../src/sync/account';
+import { decideInitial } from '../src/sync/policy';
 import { apiBase } from '../src/sync/http-service';
 import {
   BACKUP_KEY,
   BASE_KEY,
   CLOUD_BACKUP_KEY,
+  OWNER_KEY,
   baseKey,
+  readCloudBackupOwner,
+  writeCloudBackup,
   DEVICE_KEY,
   deviceId,
   parseBase,
@@ -104,6 +108,41 @@ describe('Spielstände neuerer Spielversionen', () => {
 });
 
 describe('Speicher-Helfer', () => {
+  it('A → B → A auf einem Gerät: die alte Grundlage von A gilt nicht mehr – Cloud gewinnt, nie das Spiel von B in A pushen', () => {
+    const storage = new MemoryStorage();
+    writeBase(storage, 'a', { version: 5, pending: false });
+    writeBase(storage, 'b', { version: 3, pending: false });
+    // Zurück bei A: Der lokale Stand gehört B.
+    expect(readOwner(storage)).toBe('b');
+    expect(readBase(storage, 'a')).toBeNull();
+    expect(readBase(storage, 'b')).toEqual({ version: 3, pending: false });
+    const decision = decideInitial({
+      remote: { version: 5, actionVersion: 5, device: 'x' },
+      base: readBase(storage, 'a')?.version ?? null,
+      localProgress: { cycle: 9, lifetimeGrowth: 9, playSeconds: 9 },
+      remoteProgress: { cycle: 1, lifetimeGrowth: 0, playSeconds: 0 },
+      device: 'me',
+      localForeign: readOwner(storage) !== 'a',
+    });
+    expect(decision).toEqual({ kind: 'take', firstLogin: true });
+    // Auch der alte gemeinsame Eintrag zählt nicht, wenn der Besitzer ein anderer ist.
+    const legacy = new MemoryStorage();
+    legacy.setItem(BASE_KEY, JSON.stringify({ user: 'a', version: 5, pending: false }));
+    legacy.setItem(OWNER_KEY, 'b');
+    expect(readBase(legacy, 'a')).toBeNull();
+  });
+
+  it('Cloud-Sicherung merkt sich ihr Konto', () => {
+    const storage = new MemoryStorage();
+    expect(readCloudBackupOwner(storage)).toBeNull();
+    writeCloudBackup(storage, 'CODE', 'eiche');
+    expect(storage.getItem(CLOUD_BACKUP_KEY)).toBe('CODE');
+    expect(readCloudBackupOwner(storage)).toBe('eiche');
+    storage.blocked = true;
+    expect(readCloudBackupOwner(storage)).toBeNull();
+    expect(() => writeCloudBackup(storage, 'X', 'buche')).not.toThrow();
+  });
+
   it('Besitzer des lokalen Stands und Sicherungen beider Seiten', () => {
     const storage = new MemoryStorage();
     expect(readOwner(storage)).toBeNull();
@@ -137,9 +176,10 @@ describe('Speicher-Helfer', () => {
     writeBase(storage, 'eiche', { version: 2, pending: false });
     expect(JSON.parse(storage.getItem(baseKey('eiche'))!)).toEqual({ user: 'eiche', version: 2, pending: false });
     expect(readBase(storage, 'eiche')).toEqual({ version: 2, pending: false });
-    // Je Konto eigener Eintrag: ein zweites Konto (anderer Tab) überschreibt nichts.
+    // Je Konto eigener Eintrag; gilt aber nur, solange der lokale Stand zu diesem Konto gehört.
     writeBase(storage, 'buche', { version: 7, pending: true });
-    expect(readBase(storage, 'eiche')).toEqual({ version: 2, pending: false });
+    expect(JSON.parse(storage.getItem(baseKey('eiche'))!)).toMatchObject({ version: 2 });
+    expect(readBase(storage, 'eiche')).toBeNull();
     expect(readBase(storage, 'buche')).toEqual({ version: 7, pending: true });
     expect(readOwner(storage)).toBe('buche');
     // Alter gemeinsamer Eintrag (vor der Aufteilung) wird noch gelesen.
