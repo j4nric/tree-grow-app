@@ -7,6 +7,7 @@
  */
 
 import type { PlacedPlant } from './flora';
+import { paintBlossoms, seasonColor, seasonLeaves, seasonWood, type SeasonLook } from './season';
 import { paintLeaves, paintWood, type LeafCluster, type LeafPalette, type PlantGeometry, type WoodColors } from './plant';
 import { SKY } from './scenery';
 import { clamp01, mix, mulberry32 } from './util';
@@ -18,14 +19,19 @@ const DRY = '#bdb27a';
 /** Farbanpassung je Pflanze: Welke (vigor) und Dunst (Tiefe). */
 type Tint = (hex: string) => string;
 
-function makeTint(p: PlacedPlant): Tint {
+/**
+ * Farbfilter einer Pflanze: Jahreszeit (optional), Welke, Dunst. Moose bleiben das
+ * ganze Jahr grün; ohne Jahreszeit (oder im Sommer) wie bisher.
+ */
+function makeTint(p: PlacedPlant, look: SeasonLook | null = null): Tint {
   const wilt = (1 - p.vigor) * 0.5;
   const haze = p.haze;
+  const season = p.group === 'mosses' ? null : look;
   const cache = new Map<string, string>();
   return (hex) => {
     let c = cache.get(hex);
     if (!c) {
-      c = mix(mix(hex, DRY, wilt), SKY.haze, haze);
+      c = mix(mix(seasonColor(hex, season), DRY, wilt), SKY.haze, haze);
       cache.set(hex, c);
     }
     return c;
@@ -51,13 +57,14 @@ function stroke(ctx: CanvasRenderingContext2D, pts: number[], color: string, wid
 }
 
 /** Zeichnet eine platzierte Pflanze. */
-export function paintPlant(ctx: CanvasRenderingContext2D, p: PlacedPlant): void {
-  const tint = makeTint(p);
+export function paintPlant(ctx: CanvasRenderingContext2D, p: PlacedPlant, look: SeasonLook | null = null): void {
   const rand = mulberry32(p.seed);
   if (p.tree) {
-    paintCompanionTree(ctx, p, tint);
+    // Bäume: Laub und Holz je Jahreszeit eigens, der Filter nur für Welke und Dunst.
+    paintCompanionTree(ctx, p, makeTint(p), look);
     return;
   }
+  const tint = makeTint(p, look);
   ctx.save();
   ctx.translate(p.x, p.y);
   switch (p.kind) {
@@ -160,22 +167,25 @@ function tintLeaves(l: LeafPalette, t: Tint): LeafPalette {
   return { shadow: t(l.shadow), tones: [t(l.tones[0]), t(l.tones[1]), t(l.tones[2])], highlight: t(l.highlight) };
 }
 
-function paintCompanionTree(ctx: CanvasRenderingContext2D, p: PlacedPlant, tint: Tint): void {
+function paintCompanionTree(ctx: CanvasRenderingContext2D, p: PlacedPlant, tint: Tint, look: SeasonLook | null): void {
   const t = p.tree!;
   const style = TREE_STYLES[p.kind] ?? TREE_STYLES.tree!;
-  paintWood(ctx, t.geo, t.x, t.y, t.scale, style.widthScale, tintWood(style.wood, tint));
+  paintWood(ctx, t.geo, t.x, t.y, t.scale, style.widthScale, tintWood(seasonWood(style.wood, look), tint));
   if (p.kind === 'birch') paintBirchMarks(ctx, t.geo, t.x, t.y, t.scale, style.widthScale, tint);
-  const palette = tintLeaves(style.leaves, tint);
   if (style.flatten < 1) {
-    paintNeedleClumps(ctx, t.geo, t.x, t.y, t.scale, style.leafScale, style.flatten, palette);
+    // Nadelbäume bleiben das ganze Jahr grün.
+    paintNeedleClumps(ctx, t.geo, t.x, t.y, t.scale, style.leafScale, style.flatten, tintLeaves(style.leaves, tint));
   } else {
     const geo: PlantGeometry =
       style.leafScale === 1
         ? t.geo
         : { ...t.geo, leaves: t.geo.leaves.map((l: LeafCluster) => ({ ...l, r: l.r * style.leafScale, y: l.y + l.r * (1 - style.leafScale) * 0.6 })) };
-    paintLeaves(ctx, geo, t.x, t.y, t.scale, palette);
+    const palette = tintLeaves(seasonLeaves(style.leaves, look), tint);
+    paintLeaves(ctx, geo, t.x, t.y, t.scale, palette, look ? look.leaves : 1);
+    if (look && look.blossom > 0) paintBlossoms(ctx, geo, t.x, t.y, t.scale, look.blossom * look.leaves);
   }
-  if (p.kind === 'rowan') paintRowanBerries(ctx, p, tint);
+  // Vogelbeeren nur, solange Laub da ist (Spätsommer bis Herbst).
+  if (p.kind === 'rowan' && (!look || look.leaves > 0.3)) paintRowanBerries(ctx, p, tint);
 }
 
 /** Schwarze Querstreifen auf der weißen Birkenrinde. */

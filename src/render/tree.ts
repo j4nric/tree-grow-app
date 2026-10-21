@@ -29,6 +29,7 @@ import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Lay
 import { paintLeaves, paintWood, type LeafPalette, type WoodColors } from './plant';
 import { cycleElapsed, CycleTransition, type CycleGeometry, type OldForest } from './cycle';
 import { MoodLayer, type MoodFrame } from './mood';
+import { paintSnowCover, SeasonParticles, seasonLeaves, seasonLook, seasonWood, type SeasonFrame, type SeasonLook } from './season';
 import { ResizeGate } from './resize';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
 import { clamp01, mix, mulberry32, smooth01 } from './util';
@@ -90,6 +91,16 @@ export interface SceneInput {
    * Ohne Angabe oder bei 0: kein Erinnerungsbaum.
    */
   forestMemory?: number;
+  /**
+   * Jahreszeit als stufenloser Wert 0–4: 0 Frühling · 1 Sommer · 2 Herbst · 3 Winter ·
+   * 4 wieder Frühling (Zwischenwerte blenden über, z. B. 1,5 Spätsommer). Werte
+   * außerhalb werden modulo 4 genommen, ungültige (NaN, ∞) wie ohne Angabe. Frühling:
+   * frisches Hellgrün, Blüten an Begleitbäumen; Herbst: gelb-orange-rotes Laub,
+   * fallende Blätter; Winter: kahle Laubbäume (Kiefern, Moose grün), dünne Schneedecke,
+   * leichter Schneefall, kühleres Licht. Ohne Angabe und bei 1 (Sommer) wie bisher.
+   * Neu gezeichnet wird erst ab einer Änderung von 0,05.
+   */
+  season?: number;
 }
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
@@ -190,6 +201,8 @@ interface SizeCache {
   memoryCanvas: HTMLCanvasElement | null;
   memoryRect: Rect | null;
   memory: number;
+  /** Jahreszeit (gerundet), mit der Kulisse und Ebenen gezeichnet sind (−1 = Sommer/ohne Angabe). */
+  seasonKey: number;
 }
 
 interface Cache {
@@ -211,6 +224,10 @@ interface Cache {
   cycleU: number;
   /** Merkmale der zuletzt gezeichneten Pflanzenliste. */
   plantSig: PlantSig[] | null;
+  /** Fallende Blätter und Schneeflocken. */
+  seasonParticles: SeasonParticles;
+  /** Jahreszeit dieses Frames (null = ohne Angabe). */
+  look: SeasonLook | null;
 }
 
 /**
@@ -256,6 +273,7 @@ function samePlants(sig: PlantSig[] | null, plants: readonly ScenePlant[] | unde
 
 /** Wiederverwendete Frame-Daten für die Tier-Ebene (keine Allokation pro Frame). */
 const animalFrame: AnimalFrame = { time: 0, windSkew: 0, reducedMotion: false, dpr: 1, sx: 1, sy: 1 };
+const seasonFrame: SeasonFrame = { width: 1, groundY: 1, top: 0, dpr: 1, sx: 1, sy: 1, time: 0, reducedMotion: false };
 const moodFrame: MoodFrame = { width: 1, height: 1, groundY: 1, top: 0, dpr: 1, sx: 1, sy: 1, time: 0, reducedMotion: false };
 const visitorFrame: VisitorFrame = {
   width: 1,
@@ -327,6 +345,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       cycle: new CycleTransition(),
       cyclePlants: null,
       cycleU: Number.NaN,
+      seasonParticles: new SeasonParticles(),
+      look: null,
       plantSig: null,
     };
     caches.set(ctx.canvas, cache);
@@ -341,6 +361,17 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   }
   sc = sc!;
 
+  // Jahreszeit (auf 0,05 gerundet): Kulisse und Grasnarbe neu, wenn sich die Rundung
+  // ändert; Baum-Ebenen, Pflanzen und Erinnerungsbaum folgen unten.
+  const look = seasonLook(input.season);
+  cache.look = look;
+  const seasonKey = look && !look.summer ? look.s : -1;
+  const seasonChanged = seasonKey !== sc.seasonKey;
+  if (seasonChanged) {
+    paintStatic(sc, look);
+    sc.seasonKey = seasonKey;
+  }
+
   // Neuer Zyklus: Zeitpunkt in der Sequenz (NaN = außerhalb). Der alte Wald wird beim
   // Start (und nach Größenänderungen) einmal aus `fromGrowth` gezeichnet.
   const reduced = input.reducedMotion === true;
@@ -354,13 +385,13 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     const cycleKey = `${ct.startedAt}|${fromGrowth}|${sc.key}`;
     if (!cache.cycle.prepared || cache.cycle.key !== cycleKey || !samePlants(cache.cyclePlants, ct.fromPlants)) {
       cache.cyclePlants = ct.fromPlants ? ct.fromPlants.map(plantSig) : null;
-      cache.cycle.prepare(cycleKey, cycleGeometry(sc), paintOldForest(sc, fromGrowth, ct.fromPlants));
+      cache.cycle.prepare(cycleKey, cycleGeometry(sc), paintOldForest(sc, fromGrowth, ct.fromPlants, look));
     }
   }
 
   // Erinnerungsbaum: eigenes Canvas, neu nur bei Größenänderung oder neuem Wachstum.
   const memory = memoryGrowth(input.forestMemory);
-  if (memory !== sc.memory) renderMemory(sc, memory);
+  if (memory !== sc.memory || seasonChanged) renderMemory(sc, memory, look);
 
   const delta = Math.abs(g - sc.growth);
   const since = time - sc.drawnAt;
@@ -376,6 +407,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     clockReset ||
     due ||
     plantsChanged ||
+    seasonChanged ||
     sc.withPlants !== (input.plants !== undefined)
   ) {
     // Pflanzen beim Wachsen höchstens alle PLANT_REDRAW_STEP; beim Nachziehen (kleine
@@ -384,12 +416,13 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     const settle = delta < REDRAW_STEP;
     const redrawPlants =
       plantsChanged ||
+      seasonChanged ||
       Number.isNaN(sc.plantsGrowth) ||
       plantDelta >= PLANT_REDRAW_STEP ||
       (settle && plantDelta >= PLANT_SETTLE_STEP);
     // Die Signatur hält fest, womit die Pflanzen zuletzt gezeichnet wurden.
     if (redrawPlants) cache.plantSig = input.plants ? input.plants.map(plantSig) : null;
-    renderLayers(sc, g, input.plants, redrawPlants);
+    renderLayers(sc, g, input.plants, redrawPlants, look);
     sc.growth = g;
     sc.drawnAt = time;
     sc.framesSinceDraw = 0;
@@ -505,6 +538,19 @@ function compose(
     f.sy = sy;
     layer.draw(ctx, animals, sc.anchors, f);
   }
+  // Fallende Blätter und Schnee (nur außerhalb des Sommers).
+  if (cache.look && !cache.look.summer) {
+    const sf = seasonFrame;
+    sf.width = layout.width;
+    sf.groundY = layout.groundY;
+    sf.top = layout.top;
+    sf.dpr = dpr;
+    sf.sx = sx;
+    sf.sy = sy;
+    sf.time = time;
+    sf.reducedMotion = reduced;
+    cache.seasonParticles.draw(ctx, cache.look, sf);
+  }
   if (level !== null) {
     cache.mood.drawLight(ctx, level, mf);
     cache.mood.drawParticles(ctx, level, mf);
@@ -545,7 +591,7 @@ export function memoryGrowth(forestMemory: number | undefined): number {
 }
 
 /** Erinnerungsbaum: fern und blass auf dem Hügel links – in ein eigenes Canvas (nur sein Bereich). */
-function renderMemory(sc: SizeCache, memory: number): void {
+function renderMemory(sc: SizeCache, memory: number, look: SeasonLook | null): void {
   sc.memory = memory;
   sc.memoryRect = null;
   if (memory <= 0) {
@@ -567,7 +613,7 @@ function renderMemory(sc: SizeCache, memory: number): void {
   canvas.height = r.h;
   const c = canvas.getContext('2d')!;
   c.setTransform(dpr, 0, 0, dpr, -r.x, -r.y);
-  paintTree(c, tree, hazeWood(WOOD, 0.7), hazePalette(PALETTES[2]!, 0.7));
+  paintTree(c, tree, hazeWood(seasonWood(WOOD, look), 0.7), hazePalette(seasonLeaves(PALETTES[2]!, look), 0.7), look ? look.leaves : 1);
   sc.memoryCanvas = canvas;
   sc.memoryRect = r;
 }
@@ -576,7 +622,7 @@ function renderMemory(sc: SizeCache, memory: number): void {
  * Der alte Wald für den Zyklus-Übergang: Nachbarbäume, Begleitpflanzen und Hauptbaum
  * aus `g` – wie in den Baum-Ebenen, aber ohne Wind, in ein Canvas nur so groß wie nötig.
  */
-function paintOldForest(sc: SizeCache, g: number, plants: readonly ScenePlant[] | undefined): OldForest | null {
+function paintOldForest(sc: SizeCache, g: number, plants: readonly ScenePlant[] | undefined, look: SeasonLook | null): OldForest | null {
   const { layout, dpr } = sc;
   const withPlants = plants !== undefined;
   const main = placeMainTree(layout, g);
@@ -594,9 +640,10 @@ function paintOldForest(sc: SizeCache, g: number, plants: readonly ScenePlant[] 
   canvas.height = r.h;
   const c = canvas.getContext('2d')!;
   c.setTransform(dpr, 0, 0, dpr, -r.x, -r.y);
-  for (const n of trees) paintTree(c, n.tree, hazeWood(WOOD, n.haze), hazePalette(n.palette, n.haze));
-  for (const p of flora) paintPlant(c, p);
-  if (main) paintTree(c, main, mixWood(STEM, WOOD, smooth01((g - 1) / 2)), PALETTES[0]!);
+  const leaves = look ? look.leaves : 1;
+  for (const n of trees) paintTree(c, n.tree, hazeWood(seasonWood(WOOD, look), n.haze), hazePalette(seasonLeaves(n.palette, look), n.haze), leaves);
+  for (const p of flora) paintPlant(c, p, look);
+  if (main) paintTree(c, main, seasonWood(mixWood(STEM, WOOD, smooth01((g - 1) / 2)), look), seasonLeaves(PALETTES[0]!, look), leaves);
   return {
     canvas,
     rect: { x: r.x / dpr, y: r.y / dpr, w: r.w / dpr, h: r.h / dpr },
@@ -649,11 +696,20 @@ function buildSizeCache(
     memoryCanvas: old?.memoryCanvas ?? null,
     memoryRect: null,
     memory: Number.NaN,
+    seasonKey: -1,
   };
 
+  paintStatic(sc, null);
+  return sc;
+}
+
+/** Statische Kulisse (Himmel, Hügel, Erde) und Grasnarbe – je Größe und Jahreszeit. */
+function paintStatic(sc: SizeCache, look: SeasonLook | null): void {
+  const { layout, dpr, pw, ph } = sc;
+  const { width, height } = layout;
   const sky = layerContext(sc.scenery, dpr);
-  paintSky(sky, width, layout.groundY);
-  paintHills(sky, width, height, layout.groundY);
+  paintSky(sky, width, layout.groundY, look);
+  paintHills(sky, width, height, layout.groundY, look);
   paintSoil(sky, width, height, layout.groundY);
 
   // Grasnarbe nur als Streifen um die Bodenlinie (Halme reichen bis 1,2 × bladeH hinauf).
@@ -666,8 +722,7 @@ function buildSizeCache(
   gc.setTransform(1, 0, 0, 1, 0, 0);
   gc.clearRect(0, 0, sc.grass.width, sc.grass.height);
   gc.setTransform(dpr, 0, 0, dpr, 0, -sc.grassTop);
-  paintGrass(gc, width, height, layout.groundY);
-  return sc;
+  paintGrass(gc, width, height, layout.groundY, look);
 }
 
 /** Sanftes, unregelmäßiges Wiegen als Scherfaktor (oben verschoben, Fuß fest). */
@@ -692,9 +747,9 @@ function treeBounds(t: PlacedTree): [number, number, number, number] {
   return [t.x + t.geo.minX * t.scale, t.y + t.geo.minY * t.scale, t.x + t.geo.maxX * t.scale, t.y + 4];
 }
 
-function paintTree(ctx: CanvasRenderingContext2D, t: PlacedTree, wood: WoodColors, palette: LeafPalette): void {
+function paintTree(ctx: CanvasRenderingContext2D, t: PlacedTree, wood: WoodColors, palette: LeafPalette, leaves = 1): void {
   paintWood(ctx, t.geo, t.x, t.y, t.scale, 1, wood);
-  paintLeaves(ctx, t.geo, t.x, t.y, t.scale, palette);
+  paintLeaves(ctx, t.geo, t.x, t.y, t.scale, palette, leaves);
 }
 
 function hazePalette(p: LeafPalette, haze: number): LeafPalette {
@@ -737,7 +792,8 @@ function neighborTrees(g: number, layout: Layout, backdrop = false): NeighborTre
   return result;
 }
 
-function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | undefined, redrawPlants: boolean): void {
+function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | undefined, redrawPlants: boolean, look: SeasonLook | null): void {
+  const leaves = look ? look.leaves : 1;
   const { dpr, layout } = sc;
   const withPlants = plants !== undefined;
   const neighbors = neighborTrees(g, layout, withPlants);
@@ -751,7 +807,7 @@ function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | 
   if (redrawPlants || sc.withPlants !== withPlants) {
     const flora = plants && plants.length > 0 ? layoutFlora(layout, g, plants, { main, anchors: sc.anchors }) : [];
     sc.companionXs = flora.filter((p) => p.tree).map((p) => p.x);
-    sc.plantsRect = renderPlants(sc, flora);
+    sc.plantsRect = renderPlants(sc, flora, look);
     sc.plantsGrowth = g;
     sc.withPlants = withPlants;
   }
@@ -764,13 +820,18 @@ function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | 
   paintUnderground(bg, layout, g, scale1, main, withPlants ? sc.companionXs : neighbors.map((n) => n.x));
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.grass, 0, sc.grassTop);
+  // Winter: dünne Schneedecke auf der Grasnarbe.
+  if (look && look.snow > 0) {
+    bg.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paintSnowCover(bg, layout.width, layout.height, layout.groundY, look.snow);
+  }
 
   // --- Nachbarbäume: hintere Reihe blasser als die vordere ---
   const back = layerContext(sc.back, dpr);
   let backRect: Rect | null = null;
   for (const n of placeNeighbors(neighbors, layout, withPlants)) {
     backRect = unionRect(backRect, ...treeBounds(n.tree));
-    paintTree(back, n.tree, hazeWood(WOOD, n.haze), hazePalette(n.palette, n.haze));
+    paintTree(back, n.tree, hazeWood(seasonWood(WOOD, look), n.haze), hazePalette(seasonLeaves(n.palette, look), n.haze), leaves);
   }
 
   // --- Hauptbaum bzw. Keimling ---
@@ -789,7 +850,7 @@ function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | 
     sc.mainBox = treeBounds(main);
     sc.frontRect = toDeviceRect(unionRect(null, ...sc.mainBox), dpr, pw, ph);
     const lignin = smooth01((g - 1) / 2);
-    paintTree(front, main, mixWood(STEM, WOOD, lignin), PALETTES[0]!);
+    paintTree(front, main, seasonWood(mixWood(STEM, WOOD, lignin), look), seasonLeaves(PALETTES[0]!, look), leaves);
     // Keimblätter verblassen, während die ersten Blattbüschel wachsen.
     const coty = 1 - clamp01((g - 1) / 0.8);
     if (coty > 0) {
@@ -830,7 +891,7 @@ function plantBounds(p: PlacedPlant): [number, number, number, number] {
 }
 
 /** Zeichnet die Begleitpflanzen in ihre Ebene; gibt den belegten Bereich (Gerätepixel) zurück. */
-function renderPlants(sc: SizeCache, flora: PlacedPlant[]): Rect | null {
+function renderPlants(sc: SizeCache, flora: PlacedPlant[], look: SeasonLook | null): Rect | null {
   if (flora.length === 0) {
     if (sc.plants) layerContext(sc.plants, sc.dpr);
     return null;
@@ -843,7 +904,7 @@ function renderPlants(sc: SizeCache, flora: PlacedPlant[]): Rect | null {
   const ctx = layerContext(sc.plants, sc.dpr);
   let rect: Rect | null = null;
   for (const p of flora) {
-    paintPlant(ctx, p);
+    paintPlant(ctx, p, look);
     rect = unionRect(rect, ...plantBounds(p));
   }
   return toDeviceRect(rect, sc.dpr, sc.pw, sc.ph);

@@ -431,6 +431,11 @@ function addSideStripe(
   );
 }
 
+/**
+ * Kreise im aktuellen Pfad seit dem letzten `beginPath` – wird mit jedem neuen Pfad
+ * auf 0 gesetzt, damit die Portionen (und damit das Bild bei halbtransparenten Lichtern)
+ * nicht davon abhängen, was vorher gezeichnet wurde.
+ */
 let circleCount = 0;
 
 /** Kreis zum aktuellen Pfad hinzufügen; füllt portionsweise (siehe BATCH). */
@@ -449,6 +454,12 @@ function circle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number):
  * von drei Grüntönen (oben heller, innen dunkler) und ein Glanzlicht. Innere Ebenen
  * zuerst, damit äußere Büschel Schatten auf die inneren werfen.
  */
+/** Fester Zufallswert eines Blattbüschels (0–1) – entscheidet, wann es im Herbst fällt. */
+function leafKeep(l: LeafCluster): number {
+  const v = l.a * 7.31 + l.b * 3.17;
+  return v - Math.floor(v);
+}
+
 export function paintLeaves(
   ctx: CanvasRenderingContext2D,
   geo: PlantGeometry,
@@ -456,8 +467,10 @@ export function paintLeaves(
   oy: number,
   scale: number,
   palette: LeafPalette,
+  /** Laubmenge 0–1 (Jahreszeiten): weniger Büschel, per Seed stabil; 1 = alle. */
+  amount = 1,
 ): void {
-  if (geo.leaves.length === 0) return;
+  if (geo.leaves.length === 0 || amount <= 0) return;
   let top = Infinity;
   let bottom = -Infinity;
   for (const leaf of geo.leaves) {
@@ -468,11 +481,12 @@ export function paintLeaves(
   const maxLevel = geo.maxLevel;
 
   for (let level = 0; level <= maxLevel; level++) {
-    const group = geo.leaves.filter((l) => l.level === level && l.r * scale >= 0.5);
+    const group = geo.leaves.filter((l) => l.level === level && l.r * scale >= 0.5 && (amount >= 1 || leafKeep(l) < amount));
     if (group.length === 0) continue;
 
     ctx.fillStyle = palette.shadow;
     ctx.beginPath();
+    circleCount = 0;
     for (const l of group) {
       const R = l.r * scale;
       const cx = ox + l.x * scale + R * 0.12;
@@ -492,6 +506,7 @@ export function paintLeaves(
       if (list.length === 0) continue;
       ctx.fillStyle = palette.tones[t]!;
       ctx.beginPath();
+      circleCount = 0;
       for (const l of list) {
         const R = l.r * scale;
         const cx = ox + l.x * scale;
@@ -511,6 +526,7 @@ export function paintLeaves(
     ctx.fillStyle = palette.highlight;
     ctx.globalAlpha = 0.55;
     ctx.beginPath();
+    circleCount = 0;
     for (const l of group) {
       if (l.b < 0.35) continue;
       const R = l.r * scale;
