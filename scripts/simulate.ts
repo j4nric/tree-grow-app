@@ -10,7 +10,7 @@
  * exakt).
  *
  * Ausführen (Tabellen im Protokoll, DESIGN_V2.md Abschnitt 15.4):
- *   SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts
+ *   npm run balance   (SIM_LOG=1, SIM_RUNS=500 für tests/balance*.test.ts)
  */
 import { CARE } from '../src/content/care';
 import { COMMUNITIES } from '../src/content/communities';
@@ -402,15 +402,28 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   result.stages[0] = snapshot();
   let sample = 0;
 
+  // planPlant bewertet jede Pflanze (teuer) und hängt nur vom Ökosystem, vom Wegpunkt und
+  // von der Zahl gesetzter Pflanzen ab – darum je Zustand nur einmal rechnen.
+  let planKey = '';
+  let planValue: string | null = null;
+  const nextPlan = (): string | null => {
+    const key = `${state.stage}|${state.waypoint}|${counts.plantsBought}|${state.meta.forestMemory}|${state.plants.join(',')}|${allAnimals(state).join(',')}`;
+    if (key !== planKey) {
+      planKey = key;
+      planValue = planPlant(state, strategy, counts);
+    }
+    return planValue;
+  };
+
   while (state.stage < options.targetStage && time < options.maxSeconds && !allWaypointsReached(state)) {
     // Pflanzen setzen, solange es sich lohnt und die Samen reichen.
-    for (let plan = planPlant(state, strategy, counts); plan !== null; plan = planPlant(state, strategy, counts)) {
+    for (let next = nextPlan(); next !== null; next = nextPlan()) {
       const cost = nextPlantCost(state);
-      if (!plantSeed(state, plan).ok) break;
+      if (!plantSeed(state, next).ok) break;
       book.spentPlants += cost;
       counts.plantsBought++;
     }
-    const plan = planPlant(state, strategy, counts);
+    const plan = nextPlan();
     if (extras) dropExpired(extras, time);
     // Pflege: kaufen, was die Strategie anspart, sobald es reicht (Pflanzen haben Vorrang).
     let careNeed: number | null = null;

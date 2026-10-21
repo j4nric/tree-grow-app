@@ -6,33 +6,32 @@ import {
   STAGE_TARGETS,
   STRATEGIES,
   decisionStats,
-  careTable,
-  extrasTable,
   monteCarlo,
   report,
   runGame,
   stageStats,
   varietyBefore,
-  varietyStats,
 } from '../scripts/simulate';
-import { CARE } from '../src/content/care';
-import { EVENTS } from '../src/content/events';
-import { VISITORS } from '../src/content/visitors';
+import { FULL, HAIN, MAX_SECONDS, RUNS, URWALD, env } from './balance-setup';
 
 /**
  * Balancing des v2-Spiels (Tiere und Pflanzen) mit der echten Spiellogik
  * (scripts/simulate.ts, DESIGN_V2.md 15.4). Die Grenzen sind bewusst großzügig: Der Test
  * soll grobe Fehlentwicklungen zeigen, nicht einzelne Zahlen festnageln.
  *
- * Tabellen im Protokoll:   SIM_LOG=1 npx vitest run tests/balance.test.ts
- * Mehr Durchgänge (Doku):  SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts
+ * Schnell (npm run check): 50 Durchgänge; Harmonie, Wachstum und Zufall bis zum Urwald,
+ * die übrigen Strategien nur bis zum Hain (alle Prüfungen hier betreffen den Hain).
+ * Alle Tabellen mit 500 Durchgängen: npm run balance
  */
-const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
-const RUNS = Number(env.SIM_RUNS ?? 100);
-const HAIN = 5;
-const URWALD = 7;
-
-const summaries = monteCarlo(STRATEGIES, RUNS, { targetStage: URWALD, maxSeconds: 6 * 3600 });
+const LONG = new Set([HARMONY.id, GROWTH.id, RANDOM.id]);
+const summaries = [
+  ...monteCarlo(
+    STRATEGIES.filter((s) => FULL || LONG.has(s.id)),
+    RUNS,
+    { targetStage: URWALD, maxSeconds: MAX_SECONDS },
+  ),
+  ...(FULL ? [] : monteCarlo(STRATEGIES.filter((s) => !LONG.has(s.id)), RUNS, { targetStage: HAIN, maxSeconds: MAX_SECONDS })),
+].sort((a, b) => STRATEGIES.indexOf(a.strategy) - STRATEGIES.indexOf(b.strategy));
 const byId = (id: string) => summaries.find((s) => s.strategy.id === id)!;
 const harmony = byId(HARMONY.id);
 
@@ -157,117 +156,5 @@ describe('Balancing v2 (echte Logik)', () => {
     const d = decisionStats(byId(RANDOM.id), HAIN);
     expect(d.realShare).toBeGreaterThan(0.3);
     expect(d.realShare).toBeLessThan(0.98);
-  });
-});
-
-/**
- * Ereignisse und Durchreisende (Schritt 2.4): Die Logik fehlt noch in src/core/ – der
- * Simulator modelliert sie grob (scripts/extras.ts, DESIGN_V2.md 15.4). Geprüft wird,
- * ob die Inhalte und der Takt (Gewichte + Zwischenhalt, encounters.ts) ihr Ziel
- * erreichen: kürzere Durststrecken nach dem Hain, Tempo bis zum Hain im Korridor.
- */
-describe('Ereignisse und Durchreisende (Modell)', () => {
-  const extraStrategies = [HARMONY, GROWTH, RANDOM];
-  const options = { targetStage: URWALD, maxSeconds: 6 * 3600, events: true };
-  const withExtras = monteCarlo(extraStrategies, RUNS, options);
-  const harmonyExtras = withExtras.find((s) => s.strategy.id === HARMONY.id)!;
-  const WALD = 6;
-
-  it('Protokoll', () => {
-    if (env.SIM_LOG) console.log(extrasTable(extraStrategies.map((s) => byId(s.id)), withExtras));
-    expect(withExtras.length).toBe(extraStrategies.length);
-  });
-
-  it('ist deterministisch und ohne NaN', () => {
-    const a = runGame(HARMONY, { seed: 9, ...options });
-    expect(runGame(HARMONY, { seed: 9, ...options })).toEqual(a);
-    for (const s of withExtras) for (const r of s.runs) expect(Number.isFinite(r.final.seeds) && r.final.seeds >= 0).toBe(true);
-  });
-
-  it('es kommen Ereignisse und Gäste – aber nie mehr, als es gibt', () => {
-    for (const r of harmonyExtras.runs) {
-      expect(r.final.counts.events).toBeLessThanOrEqual(EVENTS.length);
-      expect(r.final.counts.visitors).toBeLessThanOrEqual(VISITORS.length);
-    }
-    const c = harmonyExtras.runs.map((r) => r.final.counts);
-    expect(c.reduce((sum, x) => sum + x.events, 0) / c.length).toBeGreaterThan(4);
-    expect(c.reduce((sum, x) => sum + x.visitors, 0) / c.length).toBeGreaterThan(3);
-  });
-
-  it('Tempo bis zum Hain bleibt im Zielkorridor (Harmonie-Spieler)', () => {
-    for (const t of STAGE_TARGETS.filter((x) => x.stage > 1)) {
-      const time = stageStats(harmonyExtras, t.stage).time;
-      expect(time, t.label).toBeGreaterThan(0.7 * t.seconds);
-      expect(time, t.label).toBeLessThan(1.35 * t.seconds);
-    }
-    // Höchstens 10 % schneller als ohne.
-    expect(stageStats(harmonyExtras, HAIN).time).toBeGreaterThan(0.9 * stageStats(harmony, HAIN).time);
-  });
-
-  it('Durststrecken nach dem Hain werden kürzer (Harmonie-Spieler, 90-%-Quantil)', () => {
-    for (const stage of [HAIN, WALD]) {
-      const before = varietyStats(harmony, stage).droughtP90;
-      const after = varietyStats(harmonyExtras, stage).droughtP90;
-      expect(after, `Stufe ${stage}`).toBeLessThan(before);
-    }
-    expect(varietyStats(harmonyExtras, WALD).droughtP90).toBeLessThan(11 * 60);
-  });
-});
-
-/**
- * Pflegemaßnahmen (Schritt 2.7, Modell scripts/extras.ts): die Samen-Senke. Verglichen
- * wird mit Ereignissen und Gästen (Stand 2.4) – einmal ohne, einmal mit Pflege.
- */
-describe('Pflegemaßnahmen (Modell)', () => {
-  const careStrategies = [HARMONY, GROWTH, RANDOM];
-  const options = { targetStage: URWALD, maxSeconds: 6 * 3600, events: true };
-  const without = monteCarlo(careStrategies, RUNS, options);
-  const withCare = monteCarlo(careStrategies, RUNS, { ...options, care: true });
-  const find = (list: typeof without, id: string) => list.find((s) => s.strategy.id === id)!;
-  const WALD = 6;
-
-  it('Protokoll', () => {
-    if (env.SIM_LOG) console.log(careTable(without, withCare));
-    expect(withCare.length).toBe(careStrategies.length);
-  });
-
-  it('ist deterministisch und ohne negative Samen', () => {
-    const a = runGame(HARMONY, { seed: 11, ...options, care: true });
-    expect(runGame(HARMONY, { seed: 11, ...options, care: true })).toEqual(a);
-    for (const s of withCare) for (const r of s.runs) expect(r.final.seeds).toBeGreaterThanOrEqual(0);
-  });
-
-  it('senkt die Samenreserve beim Hain und im Wald deutlich (bewertende Strategien)', () => {
-    for (const id of [HARMONY.id, GROWTH.id]) {
-      for (const stage of [HAIN, WALD]) {
-        const before = stageStats(find(without, id), stage);
-        const after = stageStats(find(withCare, id), stage);
-        // Bestand in Minuten Produktion: höchstens halb so groß wie ohne Pflege, unter 10 min.
-        const minutes = (st: typeof before) => st.seeds / st.seedsRate / 60;
-        expect(minutes(after), `${id}, Stufe ${stage}`).toBeLessThan(0.5 * minutes(before));
-        expect(minutes(after), `${id}, Stufe ${stage}`).toBeLessThan(10);
-        expect(after.spentCare, `${id}, Stufe ${stage}`).toBeGreaterThan(0);
-      }
-    }
-  });
-
-  it('Hain-Tempo bleibt im Korridor, Pflege ist kein großer Sprung', () => {
-    const hain = STAGE_TARGETS.find((t) => t.stage === HAIN)!;
-    const time = stageStats(find(withCare, HARMONY.id), HAIN).time;
-    expect(time).toBeGreaterThan(0.7 * hain.seconds);
-    expect(time).toBeLessThan(1.3 * hain.seconds);
-    for (const id of [HARMONY.id, GROWTH.id]) {
-      expect(stageStats(find(withCare, id), HAIN).time, id).toBeGreaterThan(0.9 * stageStats(find(without, id), HAIN).time);
-    }
-  });
-
-  it('kein Pflichtkauf: Harmonie- und Wachstums-Spieler setzen andere Schwerpunkte', () => {
-    const ranksAt = (id: string, measure: string) =>
-      find(withCare, id).runs.reduce((sum, r) => sum + (r.stages[HAIN]?.careRanks[measure] ?? 0), 0) / RUNS;
-    const different = CARE.filter((c) => Math.abs(ranksAt(HARMONY.id, c.id) - ranksAt(GROWTH.id, c.id)) >= 0.3);
-    expect(different.length).toBeGreaterThanOrEqual(2);
-    // Die Kronen schließen sich aus: Beide kommen vor (je Strategie oder über die Strategien).
-    const crowns = ['light-crown', 'dense-crown'].map((m) => careStrategies.reduce((sum, s) => sum + ranksAt(s.id, m), 0));
-    for (const c of crowns) expect(c).toBeGreaterThan(0.1);
   });
 });

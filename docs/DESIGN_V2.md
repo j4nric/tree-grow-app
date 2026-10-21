@@ -1444,9 +1444,22 @@ Maß (Harmonie bzw. Wachstum) am stärksten verbessert – nichts, wenn keine ve
 der Zufallsspieler setzt irgendeine freigeschaltete Pflanze (wie `scripts/v2/sim.ts`).
 
 ```bash
-SIM_LOG=1 npx vitest run tests/balance.test.ts                 # 100 Durchgänge, ~8 s
-SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts    # Tabellen unten, ~3 min
+npm run check     # schnell: wenige Durchgänge mit festen Seeds (siehe unten)
+npm run balance   # SIM_LOG=1, SIM_RUNS=500: alle Tabellen unten, alle Strategien bis Urwald (~3–4 min)
 ```
+
+**Schnell im `npm run check`** (seit „Tests schneller“): Die Balancing-Tests liegen in
+drei Dateien, die Vitest parallel ausführt – `tests/balance.test.ts` (Spiel heute),
+`tests/balance-events.test.ts` (Ereignis-Modell, 2.4) und `tests/balance-care.test.ts`
+(Pflege-Modell, 2.7); gemeinsame Einstellungen in `tests/balance-setup.ts`. Ohne
+`SIM_RUNS` laufen 50 Durchgänge (Harmonie, Wachstum, Zufall bis Urwald, die übrigen
+Strategien nur bis zum Hain, alle Prüfungen betreffen den Hain), im Ereignis-Modell 60
+Durchgänge nur des Harmonie-Spielers, im Pflege-Modell 40 Durchgänge von Harmonie- und
+Wachstums-Spieler. Die Seeds sind fest, die Ergebnisse also deterministisch; die
+Schwellen haben bei diesen Stichproben Abstand (z. B. Harmonie-Vorsprung ≥ 3,7 statt
+> 1, Pilze 1,01 × statt > 0,9 × Hain-Zeit, Samenbestand mit Pflege 6,0 statt < 13,1
+Minuten Produktion). Der Simulator merkt sich die Pflanzenplanung je Zustand
+(`planPlant` lief vorher zweimal je Schleifenrunde) – gleiche Ergebnisse, ~35 % schneller.
 
 `tests/balance.test.ts` prüft großzügig: alle Strategien erreichen den Hain ohne NaN;
 deterministisch; Harmonie-Spieler: Stufenzeiten 0,7–1,35 × Ziel (Keimling < 30 s),
@@ -1525,10 +1538,12 @@ Varianten (Harmonie-Spieler, 200 Durchgänge, Durststrecke 90 % Hain / Wald):
 - Je Zyklus kommen im Schnitt 7,4 der 10 Ereignisse und 5,9 der 8 Gäste – genug Vorrat,
   aber mehr Zwischenhalte bräuchten mehr Inhalte.
 
-`tests/balance.test.ts` prüft das Modell zusätzlich: deterministisch, ohne NaN, nie mehr
+`tests/balance-events.test.ts` prüft das Modell: deterministisch, ohne NaN, nie mehr
 Ereignisse/Gäste als es gibt (und im Schnitt > 4 bzw. > 3), Stufenzeiten des Harmonie-
-Spielers 0,7–1,35 × Ziel und Hain höchstens 10 % schneller als ohne, Durststrecke (90 %)
-im Hain und im Wald kürzer als ohne und im Wald < 11 min.
+Spielers 0,7–1,35 × Ziel und Hain höchstens 10 % schneller als ohne; die längste
+Durststrecke nach dem Hain (Hain und Wald, Mittel je Durchgang) mindestens 8 % kürzer
+als ohne (gemessen −15 %), je Stufe nicht länger, im Wald 90 % < 11 min. (Das Mittel ist
+bei 60 Durchgängen stabiler als das 90-%-Quantil.)
 
 #### Stand Schritt 2.7 – Inhalte: Pflegemaßnahmen im Modell (500 Durchgänge)
 
@@ -1585,7 +1600,7 @@ keine Wahl. Darum kosten die Ränge vor dem Hain jetzt 600–6.000 🌰 (Summe 1
 - **Harmonie** beim Hain unverändert (98,7): Die Harmonie-Wirkungen der Pflege kommen
   vor allem nach dem Hain.
 
-`tests/balance.test.ts` prüft: deterministisch, Samen nie negativ, Bestand (in Minuten
+`tests/balance-care.test.ts` prüft: deterministisch, Samen nie negativ, Bestand (in Minuten
 Produktion) beim Hain und im Wald für Harmonie- und Wachstums-Spieler höchstens halb so
 groß wie ohne und unter 10 min, Hain 0,7–1,3 × Ziel und höchstens 10 % schneller als
 ohne Pflege, mindestens zwei Maßnahmen mit verschiedenem Schwerpunkt der beiden

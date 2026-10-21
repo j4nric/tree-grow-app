@@ -176,6 +176,7 @@ describe('Begleitpflanzen: Lage', () => {
   it('wächst stufenlos: Lage und Größe ändern sich bei kleinen Schritten nur wenig', { timeout: 15000 }, () => {
     // Volle Belegung des Pflanzrings (12 Plätze, scripts/v2/content.ts PLANT_SLOTS).
     const ring = ALL_PLANTS.slice(0, 12);
+    const worst = { x: { d: 0, at: '' }, h: { d: 0, at: '' } };
     for (const [w, h] of [
       [1200, 700],
       [390, 844],
@@ -185,14 +186,20 @@ describe('Begleitpflanzen: Lage', () => {
       let prev = layoutFlora(layout, 1.5, ring);
       for (let g = 1.52; g <= 8; g += 0.02) {
         const cur = layoutFlora(layout, g, ring);
+        expect(cur.length).toBe(prev.length);
         for (let i = 0; i < cur.length; i++) {
-          const msg = `${cur[i]!.id} bei g=${g.toFixed(2)}, ${w}×${h}`;
-          expect(Math.abs(cur[i]!.x - prev[i]!.x), msg).toBeLessThan(3);
-          expect(Math.abs(cur[i]!.h - prev[i]!.h), msg).toBeLessThan(3);
+          const at = `${cur[i]!.id} bei g=${g.toFixed(2)}, ${w}×${h}`;
+          const dx = Math.abs(cur[i]!.x - prev[i]!.x);
+          const dh = Math.abs(cur[i]!.h - prev[i]!.h);
+          if (!(dx <= worst.x.d)) worst.x = { d: dx, at };
+          if (!(dh <= worst.h.d)) worst.h = { d: dh, at };
         }
         prev = cur;
       }
     }
+    // Ein `expect` je Größe am Ende statt zehntausender (schneller, gleiche Aussage).
+    expect(worst.x.d, `Lage: ${worst.x.at}`).toBeLessThan(3);
+    expect(worst.h.d, `Größe: ${worst.h.at}`).toBeLessThan(3);
   });
 
   it('ignoriert ungültige Einträge', () => {
