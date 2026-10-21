@@ -129,7 +129,8 @@ const DRAWABLE_TYPES: readonly PendingEncounterType[] = ['animal', 'plant'];
 /**
  * Zieht die Begegnung für den gerade erreichten Wegpunkt (DESIGN_V2.md, 7.1/7.2): Die
  * ersten Wegpunkte sind festgelegt (Tier, Pflanze, Tier), danach entscheidet das
- * Gewicht der Stufe zwischen „Tier zieht ein“ und „Etwas keimt“. Kommt für den Typ
+ * Gewicht der Stufe zwischen „Tier zieht ein“ und „Etwas keimt“ (bei vollem Pflanzenring
+ * zählt „Etwas keimt“ nur mit PLANT_WEIGHT_RING_FULL). Kommt für den Typ
  * keine Karte in Frage, gibt es den anderen; null, wenn gar nichts passt.
  */
 export function drawEncounter(state: GameState): PendingEncounter | null {
@@ -162,7 +163,8 @@ export function drawCards(
 }
 
 /**
- * Zieht bis zu drei verschiedene Pflanzenkarten gleichverteilt aus allen Pflanzen, die
+ * Zieht bis zu drei verschiedene Pflanzenkarten gewichtet (schon im Ring:
+ * PLANT_WEIGHT_IN_RING, sonst 1) aus allen Pflanzen, die
  * auf dieser Stufe freigeschaltet sind – auch solche, die schon wachsen (Duplikate
  * erlaubt). Pflanzen in `exclude` kommen nur zum Auffüllen dran (wie bei drawAnimals).
  */

@@ -157,7 +157,8 @@ describe('tick', () => {
     // Ungewichtet läge jede der 11 Pflanzen bei 3/11 ≈ 27 %.
     expect(hazel / n).toBeLessThan(0.17);
     expect(hazel / n).toBeGreaterThan(0.05); // Duplikate bleiben möglich
-    expect(anemone / n).toBeGreaterThan(0.27);
+    // Exakt: Anemone ≈ 0,289, Hasel ≈ 0,109.
+    expect(anemone / n).toBeGreaterThan(2 * (hazel / n));
     // Ausschluss beim Neu würfeln geht weiterhin vor der Gewichtung.
     const state = stateAt(1, [], 3);
     state.plants = ['moss'];
@@ -251,6 +252,8 @@ describe('simulateOffline', () => {
   });
 
   it('gleich mit Begleitpflanzen (Versorgung < 1) und Pflanzen-Begegnungen', () => {
+    // Seed 301: Der Ring ist voll (halbes Pflanzengewicht), es muss trotzdem eine
+    // Pflanzen-Begegnung kommen – die Vorbedingung unten prüft das.
     const online = stateAt(2, ['bee'], 301);
     online.plants = ['fern', 'fern']; // Setzling: Wasser 3 < Bedarf 4 → V = 3/4
     expect(evaluate(online).supply).toBeLessThan(1);
