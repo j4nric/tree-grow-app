@@ -444,15 +444,18 @@ function refreshPanel(now: number): void {
 }
 
 /**
- * Pflege-Liste: Vorschauen nur neu rechnen, wenn sich das Ökosystem oder die Frage
- * „reichen die Samen?“ ändert (Liste der bezahlbaren Ränge).
+ * Pflege-Liste: Vorschauen nur neu rechnen, wenn sich das Ökosystem, die Frage „reichen
+ * die Samen?“ oder ein fehlender Betrag („Noch X 🌰“) ändert.
  */
 let careKey = '';
 function refreshCare(): void {
   const ev = evaluate(state);
-  // Welche nächsten Ränge sind bezahlbar? Nur dann ändern sich Knöpfe und Blocker-Texte.
+  // Je Maßnahme: bezahlbar (1), fehlender Betrag (aufgerundet) oder voll ausgebaut (-).
   let key = '';
-  for (const m of CARE) key += (nextCareRank(state, m.id)?.cost ?? Infinity) <= state.seeds ? '1' : '0';
+  for (const m of CARE) {
+    const cost = nextCareRank(state, m.id)?.cost;
+    key += (cost === undefined ? '-' : cost <= state.seeds ? '1' : Math.ceil(cost - state.seeds)) + ',';
+  }
   if (ev === careEvaluation && key === careKey) return;
   careEvaluation = ev;
   careKey = key;

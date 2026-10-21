@@ -81,9 +81,9 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     „✨ vervollständigt …“ auf Karten und in „Pflanze setzen“, Entdeckungs-Meldung (`ui-dev`)
 - [ ] 2.6 Tiere und Pflanzen im Bild: Ankerpunkte, gecachte Sprites (`renderer`)
 - [ ] 2.7 Pflegemaßnahmen (`game-designer` + `core-engineer` + `ui-dev`) – Inhalte und Logik fertig, schlichte Liste in der Seitenleiste; Feinschliff der UI offen
-  - [x] Inhalte: 8 Maßnahmen mit Rängen (`src/content/care.ts`), Modell im Simulator
-    (`scripts/extras.ts`), DESIGN_V2.md 8 (`game-designer`)
-  - [ ] Logik nach Umsetzungsnotiz DESIGN_V2.md 8.2 (`core-engineer`), Pflege-Ansicht (`ui-dev`)
+  - [x] Inhalte: 8 Maßnahmen mit Rängen (`src/content/care.ts`), DESIGN_V2.md 8 (`game-designer`)
+  - [x] Logik nach Umsetzungsnotiz DESIGN_V2.md 8.2, Simulator auf echter Logik (`core-engineer`)
+  - [x] Schlichte Pflege-Liste in der Seitenleiste (`src/ui/care-panel.ts`)
 - [x] 2.8 Neuer Zyklus, Naturtagebuch, Waldgedächtnis, Stammgäste (`core-engineer` + `game-designer` + `ui-dev`)
   - [x] Naturtagebuch-Ansicht: Dialog „📖 Naturtagebuch“ mit Reitern Arten, Pflanzen,
     Lebensgemeinschaften, Andenken; Unentdecktes als Silhouette „???“ ohne Spoiler;

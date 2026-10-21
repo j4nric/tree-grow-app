@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { evaluate } from '../src/core/formulas';
 import { toJournalView } from '../src/ui/adapters';
-import { CONFIRM_MIN_MS, isDeliberateConfirm } from '../src/ui/confirm';
+import { CONFIRM_MIN_MS, REPEAT_GUARD_MS, isDeliberateConfirm, isKeyRepeat } from '../src/ui/confirm';
 import { stateAt } from './helpers';
 
 describe('Bestätigung per zweitem Klick', () => {
@@ -12,6 +12,22 @@ describe('Bestätigung per zweitem Klick', () => {
     expect(isDeliberateConfirm({ detail: 2 }, 1000, 5000)).toBe(false);
     expect(isDeliberateConfirm({ detail: 1 }, 1000, 1000 + CONFIRM_MIN_MS - 1)).toBe(false);
     expect(isDeliberateConfirm({ detail: 0 }, 1000, 1050)).toBe(false);
+  });
+
+  it('Kauf-Sperre: eigener Mindestabstand, erster Kauf (−Infinity) immer frei', () => {
+    expect(isDeliberateConfirm({ detail: 1 }, -Infinity, 0, REPEAT_GUARD_MS)).toBe(true);
+    expect(isDeliberateConfirm({ detail: 1 }, 1000, 1000 + REPEAT_GUARD_MS, REPEAT_GUARD_MS)).toBe(true);
+    expect(isDeliberateConfirm({ detail: 1 }, 1000, 1000 + REPEAT_GUARD_MS - 1, REPEAT_GUARD_MS)).toBe(false);
+    expect(isDeliberateConfirm({ detail: 2 }, -Infinity, 0, REPEAT_GUARD_MS)).toBe(false);
+    // NaN als Zeit sperrt lieber, als doppelt zu kaufen.
+    expect(isDeliberateConfirm({ detail: 1 }, 1000, NaN, REPEAT_GUARD_MS)).toBe(false);
+  });
+
+  it('Tastenwiederholung nur bei gehaltenem Enter/Leertaste', () => {
+    expect(isKeyRepeat({ key: 'Enter', repeat: true })).toBe(true);
+    expect(isKeyRepeat({ key: ' ', repeat: true })).toBe(true);
+    expect(isKeyRepeat({ key: 'Enter', repeat: false })).toBe(false);
+    expect(isKeyRepeat({ key: 'Tab', repeat: true })).toBe(false);
   });
 });
 

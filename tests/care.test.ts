@@ -156,10 +156,55 @@ describe('Pflege: Speichern und Laden (additiv in v5)', () => {
   it('kaputte Ränge: begrenzt oder verworfen', () => {
     const raw = JSON.parse(serialize(stateAt(4, [], 1)));
     raw.cycle.care = { pond: 99, 'leaf-litter': 1.7, nope: 1, 'nest-boxes': -3, 'light-crown': 'zwei', 'dense-crown': NaN };
-    expect(deserialize(JSON.stringify(raw), 0)!.cycle.care).toEqual({ pond: 2, 'leaf-litter': 1 });
+    // Alter Baum (Stufe 4): Waldtümpel Rang 2 gibt es erst ab Stufe 5 → Rang 1.
+    expect(deserialize(JSON.stringify(raw), 0)!.cycle.care).toEqual({ pond: 1, 'leaf-litter': 1 });
     for (const care of [null, [1, 2], 'x']) {
       raw.cycle.care = care;
       expect(deserialize(JSON.stringify(raw), 0)!.cycle.care).toEqual({});
     }
+  });
+
+  it('Rang über der Stufe: auf den höchsten erlaubten Rang gekappt', () => {
+    const raw = JSON.parse(serialize(stateAt(5, [], 1)));
+    // Stufe 5: Lichte Krone Rang 3 erst ab 6; Insektenhotel 3 → 2; Totholz Rang 1 ab 4.
+    raw.cycle.care = { 'light-crown': 3, 'insect-hotel': 3, 'deadwood-pile': 2 };
+    expect(deserialize(JSON.stringify(raw), 0)!.cycle.care).toEqual({ 'light-crown': 2, 'insect-hotel': 2, 'deadwood-pile': 2 });
+    // Unter der Freischalt-Stufe (Junger Baum = 3): Maßnahmen ab Alter Baum fallen weg.
+    const young = JSON.parse(serialize(stateAt(3, [], 1)));
+    young.cycle.care = { pond: 2, 'leaf-litter': 2, 'wildflower-hem': 3 };
+    expect(deserialize(JSON.stringify(young), 0)!.cycle.care).toEqual({ 'leaf-litter': 1, 'wildflower-hem': 1 });
+  });
+
+  it('beide Kronen: nur die erste in CARE-Reihenfolge bleibt', () => {
+    const raw = JSON.parse(serialize(stateAt(6, [], 1)));
+    // Reihenfolge im JSON egal – maßgeblich ist CARE (Lichte vor Dichte Krone).
+    raw.cycle.care = { 'dense-crown': 3, 'light-crown': 1 };
+    expect(deserialize(JSON.stringify(raw), 0)!.cycle.care).toEqual({ 'light-crown': 1 });
+    // Ungültige Lichte Krone verdrängt die Dichte nicht.
+    raw.cycle.care = { 'dense-crown': 2, 'light-crown': 0 };
+    expect(deserialize(JSON.stringify(raw), 0)!.cycle.care).toEqual({ 'dense-crown': 2 });
+    const idx = (id: string) => CARE.findIndex((m) => m.id === id);
+    expect(idx('light-crown')).toBeLessThan(idx('dense-crown'));
+  });
+
+  it('`requires` wird beim Laden nicht geprüft (gilt nur beim Kauf)', () => {
+    const raw = JSON.parse(serialize(stateAt(4, [], 1))); // kein Insekt
+    raw.cycle.care = { 'insect-hotel': 1 };
+    expect(deserialize(JSON.stringify(raw), 0)!.cycle.care).toEqual({ 'insect-hotel': 1 });
+  });
+
+  it('unmögliche Pflege lässt H_max nicht künstlich steigen', () => {
+    const base = stateAt(4, ['bee', 'earthworm'], 1);
+    const raw = JSON.parse(serialize(base));
+    raw.cycle.maxHarmony = 0;
+    const legit = structuredClone(raw);
+    legit.cycle.care = { 'insect-hotel': 1, 'leaf-litter': 1, pond: 1 };
+    raw.cycle.care = { 'insect-hotel': 3, 'leaf-litter': 2, pond: 2, 'deadwood-pile': 0 };
+    const cheated = deserialize(JSON.stringify(raw), 0)!;
+    const fair = deserialize(JSON.stringify(legit), 0)!;
+    expect(cheated.cycle.care).toEqual(fair.cycle.care);
+    expect(fair.cycle.maxHarmony).toBeGreaterThan(0);
+    expect(cheated.cycle.maxHarmony).toBe(fair.cycle.maxHarmony);
+    expect(evaluate(cheated)).toEqual(evaluate(fair));
   });
 });

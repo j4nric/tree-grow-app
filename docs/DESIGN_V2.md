@@ -812,15 +812,17 @@ umstellen und `scripts/extras.ts` löschen.
 
 Pflege ist die **Samen-Senke** des Spiels (Befund seit 2.1: Pflanzen binden bis zum Hain
 nur ~1.700 🌰, der Bestand wächst auf 25–35 Minuten Produktion). Inhalte:
-`src/content/care.ts`; Logik offen (Umsetzungsnotiz 8.2).
+`src/content/care.ts`; Logik in `src/core/tick.ts` (`buyCare`, `careBlocker`) und
+`formulas.ts` (Umsetzungsnotiz 8.2).
 
-**Regeln (Stand Schritt 2.7 – Inhalte):**
+**Regeln (Stand Schritt 2.7):**
 
 - 8 Maßnahmen mit je **1–3 Rängen**, die nacheinander mit Samen gekauft werden. Ein
   gekaufter Rang wirkt **bis zum Neuen Zyklus**; die Wirkungen aller Ränge addieren
   sich. Kein Ein-/Ausschalten, kein Verkaufen.
-- **Kostenkurve:** feste Samen je Rang, je Rang grob ×6–10 teurer; spätere Ränge erst ab
-  Hain bzw. Wald. Bei Freischaltung kosten die Ränge des Jungen Baums 5–8 Minuten
+- **Kostenkurve:** feste Samen je Rang, je Rang mindestens ×3 teurer (×3–×8,6); Rang 1
+  ab Junger Baum bzw. Alter Baum, spätere Ränge ab Alter Baum (Wildblumen-Saum), Hain
+  bzw. Wald (Katalog 8.1). Bei Freischaltung kosten die Ränge des Jungen Baums 5–8 Minuten
   Produktion (600–900 🌰 bei ~2 🌰/s), die des Alten Baums 8–25 min (2.000–6.000 🌰 bei
   ~4 🌰/s), die des Hains 7–20 min (~10 🌰/s) und die des Walds 15–23 min (~22 🌰/s). Vor dem Hain gibt es Ränge für 19.700 🌰 – mehr, als bis
   dahin übrig ist: Man muss wählen, was zuerst kommt.
@@ -857,18 +859,16 @@ kämen die Verlierer des Entwurfs zurück. Ränge statt Einmalkauf, weil eine Se
 Einkommen mitwachsen muss: Einmalkäufe zu 400–3.000 🌰 wären bis zum Hain bezahlt, danach
 gäbe es wieder nichts zu kaufen.
 
-**Simulation** (500 Durchgänge, mit Ereignissen und Gästen aus 2.4, Modell in
-`scripts/extras.ts`, Tabelle in 15.4): Der Samenbestand des Harmonie-Spielers beim Hain
-sinkt von 26 auf **5 Minuten Produktion**, im Wald von 37 auf **6 Minuten**. Hain nach
-**44:45 min** statt 46:34 min (0,75 × Ziel – im Korridor). Harmonie- und
-Wachstums-Spieler setzen andere Schwerpunkte (z. B. Wildblumen-Saum bis zum Hain 1,65
-gegen 0,21 Ränge, Lichte gegen Dichte Krone 84 : 15 % bzw. 49 : 50 %).
+**Simulation:** Zahlen und Bewertung auf echter Logik in 15.4 („Stand Schritt 2.7 –
+Logik“): Der Samenbestand des Harmonie-Spielers beim Hain sinkt von ~25 auf ~4 Minuten
+Produktion, das Tempo ändert sich kaum.
 
 ### 8.2 Umsetzungsnotiz für den core-engineer (Schritt 2.7, Logik)
 
 Baut auf v4 und der Ereignis-Logik (2.4, Abschnitt 7.8) auf; nutzt deren Wirkungspfad.
 
-**Spielstand** (mit der nächsten `SAVE_VERSION`, Migration ergänzt ein leeres Objekt):
+**Spielstand** (additiv in v5, keine neue `SAVE_VERSION` – Abschnitt 14, Punkt 8; fehlt
+das Feld, ergänzt das Laden `{}`):
 
 ```ts
 interface CycleState {
@@ -912,10 +912,16 @@ Aktionen `buyCare(state, id)`, `careBlocker(state, id)`, `careRank`, `nextCareRa
 `'unknown'`, weil die Codes mit den übrigen Aktionsfehlern zusammenlaufen). Wirkungen
 laufen über denselben Weg wie die Ereignis-Boni (`cycleEffects`, `cycleSlotBonuses`,
 Habitate in `ecosystemOf`); Licht und Wasser werden nach allen Wirkungen auf ≥ 0
-begrenzt. Beim Laden zählen nur bekannte Maßnahmen, Ränge ganzzahlig in 1 … ranks.length.
+begrenzt. Beim Laden zählen nur bekannte Maßnahmen, Ränge ganzzahlig in 1 … ranks.length
+und höchstens bis zum letzten Rang, dessen `minStage` die aktuelle Stufe erlaubt; von sich
+ausschließenden Maßnahmen (Kronen) bleibt nur die erste in `CARE`-Reihenfolge. `requires`
+gilt bewusst nur beim Kauf, nicht beim Laden.
 Die Seitenleiste zeigt eine schlichte Liste „Pflege“ (`src/ui/care-panel.ts`, View
 `toCareViews`): Maßnahmen ab ihrer Stufe mit nächstem Rang, Kosten, Wirkung, Vorschau,
-Blocker-Text und Kaufen-Knopf.
+Blocker-Text (zu wenig Samen: „Noch X 🌰“, aufgerundet) und Kaufen-Knopf. Gesperrte
+Knöpfe tragen `aria-disabled` statt `disabled` (fokussierbar, Sperrgrund vorlesbar); nach
+dem letzten Rang geht der Fokus auf den Titel der Maßnahme. Doppelklick, gehaltene
+Enter-Taste und Klicks binnen 400 ms nach einem Kauf kaufen keinen weiteren Rang.
 
 **UI (für ui-dev):** Liste der Maßnahmen mit nächstem Rang, Kosten, Kurzwirkung
 (`summary`), Blocker-Text und Vorschau (`previewCare` analog `previewPlant`).
@@ -1634,6 +1640,11 @@ von ~25 auf ~4 Minuten Produktion, im Wald von ~33 auf ~5. Das Tempo ändert sic
 (Hain 45:44 → 43:18 min), die Harmonie steigt um ~5. Harmonie- und Wachstums-Spieler
 setzen andere Schwerpunkte (Wildblumen-Saum, Waldtümpel); die Dichte Krone wählt fast
 nur der Zufall.
+
+Geprüft in `tests/balance-care.test.ts` (eigene Datei, läuft parallel zu
+`balance.test.ts`): im normalen Check 40 Durchgänge je Strategie bis zum Wald, die volle
+Zahl (100 bzw. `SIM_RUNS`, bis zum Urwald) mit `SIM_LOG=1 npx vitest run
+tests/balance-care.test.ts`. Prüfungen wie unten beim Modell.
 
 #### Stand Schritt 2.7 – Inhalte: Pflegemaßnahmen im Modell (500 Durchgänge, historisch)
 

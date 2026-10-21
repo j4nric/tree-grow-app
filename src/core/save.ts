@@ -1,4 +1,4 @@
-import { CARE_BY_ID } from '../content/care';
+import { CARE } from '../content/care';
 import { COMMUNITIES_BY_ID } from '../content/communities';
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
 import { EVENTS, EVENTS_BY_ID, type CycleEffect, type TimedEffect } from '../content/events';
@@ -396,12 +396,17 @@ function loadCycleExtras(raw: Record<string, unknown>, state: GameState): void {
   }
   cycle.interlude = Math.floor(clampedOr(raw.interlude, 0, 0, WAYPOINT_COUNT));
   // Pflege (Schritt 2.7, additiv in v5): fehlt das Feld, bleibt es leer. Nur bekannte
-  // Maßnahmen, Ränge ganzzahlig in 1 … ranks.length.
+  // Maßnahmen, Ränge ganzzahlig und höchstens bis zum letzten Rang, den die aktuelle Stufe
+  // erlaubt. Schließen sich Maßnahmen aus (Lichte/Dichte Krone), bleibt nur die erste in
+  // CARE-Reihenfolge. `requires` gilt bewusst nur beim Kauf, nicht beim Laden.
   if (isRecord(raw.care)) {
-    for (const [id, rank] of Object.entries(raw.care)) {
-      const measure = CARE_BY_ID.get(id);
-      const r = Math.floor(clampedOr(rank, 0, 0, measure?.ranks.length ?? 0));
-      if (measure && r > 0) cycle.care[id] = r;
+    for (const measure of CARE) {
+      if (!Object.hasOwn(raw.care, measure.id)) continue;
+      let allowed = 0;
+      while (allowed < measure.ranks.length && measure.ranks[allowed]!.minStage <= state.stage) allowed++;
+      const r = Math.floor(clampedOr(raw.care[measure.id], 0, 0, allowed));
+      if (r <= 0 || (measure.excludes ?? []).some((x) => (cycle.care[x] ?? 0) > 0)) continue;
+      cycle.care[measure.id] = r;
     }
   }
   state.cycle = cycle;

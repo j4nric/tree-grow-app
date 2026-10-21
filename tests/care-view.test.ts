@@ -15,7 +15,12 @@ describe('View: Pflege-Liste', () => {
     const litter = views.find((v) => v.id === 'leaf-litter')!;
     expect(litter).toMatchObject({ rank: 'Rang 1/2', next: '+1 Platz Laubstreu', cost: '600 🌰', blocker: null, canBuy: true });
     const boxes = views.find((v) => v.id === 'nest-boxes')!;
-    expect(boxes).toMatchObject({ cost: '900 🌰', blocker: 'Nicht genug Samen', canBuy: false });
+    expect(boxes).toMatchObject({ cost: '900 🌰', blocker: 'Noch 250 🌰', canBuy: false });
+    // Aufgerundet: bei 899,2 Samen fehlt noch mehr als 0 – „Noch 1 🌰“, nie „Noch 0“.
+    state.seeds = 899.2;
+    expect(toCareViews(state).find((v) => v.id === 'nest-boxes')!.blocker).toBe('Noch 1 🌰');
+    state.seeds = 0;
+    expect(toCareViews(state).find((v) => v.id === 'nest-boxes')!.blocker).toBe('Noch 900 🌰');
   });
 
   it('nach dem Kauf: nächster Rang mit Stufen-Blocker, voll ausgebaut ohne Knopf', () => {

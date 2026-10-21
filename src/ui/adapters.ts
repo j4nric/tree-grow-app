@@ -1687,6 +1687,8 @@ export function toCareViews(state: GameState, now: Readonly<Evaluation> = evalua
     const blocker = careBlocker(state, measure.id);
     let blockerText = blocker ? careBlockerText(blocker, measure.id) : null;
     if (blocker === 'stage' && next) blockerText = `Ab Stufe „${STAGES[next.minStage]?.name ?? ''}“`;
+    // Wie beim Pflanzring: aufgerundet, damit „Noch X“ nie weniger verspricht als nötig.
+    if (blocker === 'too-expensive' && next) blockerText = `Noch ${formatNumber(Math.ceil(next.cost - state.seeds))} 🌰`;
     const after = next ? previewCare(state, measure.id) : null;
     out.push({
       id: measure.id,

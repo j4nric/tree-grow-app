@@ -8,8 +8,9 @@ import type { Condition, Effect, Tag } from './types';
  * Pflege ist die Samen-Senke des Spiels: Jede Maßnahme hat 1–3 Stufen („Ränge“), die
  * nacheinander mit Samen gekauft werden. Ein gekaufter Rang wirkt bis zum Neuen Zyklus;
  * die Wirkungen aller gekauften Ränge addieren sich. Die Kosten steigen je Rang stark
- * (grob ×6–10), spätere Ränge gibt es erst ab einer höheren Stufe – so wächst die Senke
- * mit dem Einkommen mit, und kein einzelner Kauf ist Pflicht.
+ * (mindestens ×3, bis ×8,6), Rang 1 gibt es ab Junger bzw. Alter Baum, spätere Ränge erst
+ * ab Alter Baum, Hain oder Wald (`minStage`) – so wächst die Senke mit dem Einkommen mit,
+ * und kein einzelner Kauf ist Pflicht.
  *
  * Wirkungen nutzen dieselben Typen wie die Ereignisse (events.ts):
  * - `cycle`: eine Wirkung bis zum Neuen Zyklus, Faktor 1. Für Pflege zusätzlich erlaubt:
