@@ -795,6 +795,11 @@ export interface AnimalFrame {
   /** Scherfaktor des Hauptbaums (Wind); Tiere am Baum werden mitverschoben. */
   windSkew: number;
   reducedMotion: boolean;
+  /**
+   * Bewegung der Insekten 0–1 (Jahreszeit, phenology.ts): 0 = Winterruhe – sie sitzen
+   * still (Bienen und Falter auf ihrer Blüte). Ohne Angabe 1.
+   */
+  insectActivity?: number;
   dpr: number;
   /** Zusätzliche Skalierung (z. B. altes Bild während einer Größenänderung). */
   sx: number;
@@ -826,6 +831,8 @@ interface PlanEntry {
   index: number;
   kind: string;
   info: KindInfo;
+  /** Insekt (Gattung 'insects'): ruht im Winter. */
+  insect: boolean;
   seed: number;
   phase: number;
   niche: string;
@@ -931,6 +938,7 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
     index,
     kind,
     info,
+    insect: animal.family === 'insects',
     seed,
     phase: (seed & 1023) / 97,
     niche,
@@ -1045,7 +1053,8 @@ function drawEntry(
   f: AnimalFrame,
 ): void {
   const happy = clamp01(Number.isFinite(happiness) ? happiness : 0.5);
-  const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6);
+  const rest = e.insect && f.insectActivity !== undefined ? clamp01(f.insectActivity) : 1;
+  const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6) * rest;
   const muted = 1 - smooth01((happy - 0.15) / 0.3);
   // Mit dem Baum im Wind schwingen (gleiche Scherung wie die Baumebene).
   const wx = f.windSkew * e.windArm;
@@ -1162,6 +1171,8 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
       pose.y += S * 0.14 * act * Math.sin(p * 2);
       pose.dir = Math.cos(p) >= 0 ? 1 : -1;
       pose.frame = Math.floor(t * (e.kind === 'peacock' ? 5 : 14)) & 1;
+      // Mit nachlassender Aktivität (Winterruhe, Unzufriedenheit) stufenlos auf die Blüte sinken.
+      if (e.niche === 'edge') pose.y += (1 - act) * (e.size / info.size) * 0.43;
       break;
     }
     case 'crawl':

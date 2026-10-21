@@ -8,9 +8,10 @@
 
 import type { PlacedPlant } from './flora';
 import { paintBlossoms, seasonColor, seasonLeaves, seasonWood, type SeasonLook } from './season';
-import { paintLeaves, paintWood, type LeafCluster, type LeafPalette, type PlantGeometry, type WoodColors } from './plant';
+import { elderBerries, elderFlowers, hazelCatkinBloom, hazelNuts, isEvergreen, plantLeafAmount, rowanBerries } from './phenology';
+import { leafKeep, leafShrink, paintLeaves, paintWood, type LeafCluster, type LeafPalette, type PlantGeometry, type WoodColors } from './plant';
 import { SKY } from './scenery';
-import { clamp01, mix, mulberry32 } from './util';
+import { clamp01, hash2, mix, mulberry32 } from './util';
 
 const TAU = Math.PI * 2;
 /** Farbe welker, schlecht versorgter Pflanzen. */
@@ -69,16 +70,16 @@ export function paintPlant(ctx: CanvasRenderingContext2D, p: PlacedPlant, look: 
   ctx.translate(p.x, p.y);
   switch (p.kind) {
     case 'hazel':
-      paintBush(ctx, p, tint, rand, HAZEL);
+      paintBush(ctx, p, tint, rand, HAZEL, look);
       break;
     case 'bramble':
       paintBramble(ctx, p, tint, rand);
       break;
     case 'elder':
-      paintBush(ctx, p, tint, rand, ELDER);
+      paintBush(ctx, p, tint, rand, ELDER, look);
       break;
     case 'shrub':
-      paintBush(ctx, p, tint, rand, SHRUB);
+      paintBush(ctx, p, tint, rand, SHRUB, look);
       break;
     case 'anemone':
       paintAnemone(ctx, p, tint, rand);
@@ -118,6 +119,7 @@ interface TreeStyle {
   widthScale: number;
   /** Blattbüschel: Größe und Abplattung. */
   leafScale: number;
+  /** Abplattung der Büschel; < 1 = flache Büschel (Kiefer: Nadeln, Eberesche: Fiederblätter). */
   flatten: number;
 }
 
@@ -172,21 +174,27 @@ function paintCompanionTree(ctx: CanvasRenderingContext2D, p: PlacedPlant, tint:
   const style = TREE_STYLES[p.kind] ?? TREE_STYLES.tree!;
   paintWood(ctx, t.geo, t.x, t.y, t.scale, style.widthScale, tintWood(seasonWood(style.wood, look), tint));
   if (p.kind === 'birch') paintBirchMarks(ctx, t.geo, t.x, t.y, t.scale, style.widthScale, tint);
+  const evergreen = isEvergreen(p.kind);
+  const amount = plantLeafAmount(p.kind, look);
   if (style.flatten < 1) {
-    // Nadelbäume bleiben das ganze Jahr grün.
-    paintNeedleClumps(ctx, t.geo, t.x, t.y, t.scale, style.leafScale, style.flatten, tintLeaves(style.leaves, tint));
+    // Flache Büschel. Nur Nadelbäume bleiben das ganze Jahr grün; die Eberesche färbt
+    // sich im Herbst und ist im Winter kahl.
+    const palette = tintLeaves(evergreen ? style.leaves : seasonLeaves(style.leaves, look), tint);
+    paintNeedleClumps(ctx, t.geo, t.x, t.y, t.scale, style.leafScale, style.flatten, palette, amount);
+    if (!evergreen && look && look.blossom > 0) paintBlossoms(ctx, t.geo, t.x, t.y, t.scale, look.blossom, amount);
   } else {
     const geo: PlantGeometry =
       style.leafScale === 1
         ? t.geo
         : { ...t.geo, leaves: t.geo.leaves.map((l: LeafCluster) => ({ ...l, r: l.r * style.leafScale, y: l.y + l.r * (1 - style.leafScale) * 0.6 })) };
     const palette = tintLeaves(seasonLeaves(style.leaves, look), tint);
-    paintLeaves(ctx, geo, t.x, t.y, t.scale, palette, look ? look.leaves : 1);
-    if (look && look.blossom > 0) paintBlossoms(ctx, geo, t.x, t.y, t.scale, look.blossom, look.leaves);
+    paintLeaves(ctx, geo, t.x, t.y, t.scale, palette, amount);
+    if (look && look.blossom > 0) paintBlossoms(ctx, geo, t.x, t.y, t.scale, look.blossom, amount);
   }
-  // Vogelbeeren nur im Sommer, Spätsommer und Herbst – nicht zur Blüte, nicht am kahlen Baum.
-  if (p.kind === 'rowan' && (!look || look.summer || (look.spring < 0.1 && look.blossom < 0.1 && look.leaves > 0.3))) {
-    paintRowanBerries(ctx, p, tint);
+  // Vogelbeeren nur im Spätsommer und Herbst (siehe phenology.ts).
+  if (p.kind === 'rowan') {
+    const berries = rowanBerries(look);
+    if (berries > 0.02) paintRowanBerries(ctx, p, tint, berries);
   }
 }
 
@@ -231,14 +239,18 @@ export function paintNeedleClumps(
   leafScale: number,
   flatten: number,
   palette: LeafPalette,
+  /** Laubmenge 0–1 (laubwerfende Arten mit flachen Büscheln): per Seed stabil wie `paintLeaves`. */
+  amount = 1,
 ): void {
-  const leaves = geo.leaves.filter((l) => l.level >= 1 || geo.maxLevel < 2);
+  if (amount <= 0) return;
+  const leaves = geo.leaves.filter((l) => (l.level >= 1 || geo.maxLevel < 2) && (amount >= 1 || leafKeep(l) < amount));
+  const shrink = leafShrink(amount);
   const pass = (color: string, dx: number, dy: number, k: number, filter: (l: LeafCluster) => boolean) => {
     ctx.fillStyle = color;
     ctx.beginPath();
     for (const l of leaves) {
       if (!filter(l)) continue;
-      const R = l.r * scale * leafScale * k;
+      const R = l.r * scale * leafScale * k * shrink;
       if (R < 0.6) continue;
       const x = ox + l.x * scale + dx * R;
       const y = oy + l.y * scale + dy * R;
@@ -257,9 +269,9 @@ export function paintNeedleClumps(
 }
 
 /** Eberesche: rote Beerendolden unter einigen Blattbüscheln. */
-function paintRowanBerries(ctx: CanvasRenderingContext2D, p: PlacedPlant, tint: Tint): void {
+function paintRowanBerries(ctx: CanvasRenderingContext2D, p: PlacedPlant, tint: Tint, season = 1): void {
   const t = p.tree!;
-  const amount = 0.3 + 0.7 * p.vigor;
+  const amount = (0.3 + 0.7 * p.vigor) * season;
   const grow = clamp01((p.grow - 0.15) / 0.4);
   if (grow <= 0) return;
   const rand = mulberry32(p.seed ^ 0x5bd1);
@@ -291,7 +303,7 @@ interface BushStyle {
   shadow: string;
   highlight: string;
   /** Zusätzliche Details (Kätzchen, Dolden …). */
-  extra: (ctx: CanvasRenderingContext2D, p: PlacedPlant, tint: Tint, blobs: Blob[], rand: () => number) => void;
+  extra: (ctx: CanvasRenderingContext2D, p: PlacedPlant, tint: Tint, blobs: Blob[], rand: () => number, look: SeasonLook | null) => void;
   /** Form: Breite der Krone oben relativ zur Basis (Holunder ist oben breiter). */
   top: number;
 }
@@ -304,23 +316,29 @@ const HAZEL: BushStyle = {
   tones: ['#58873a', '#6f9c48', '#88b45a'],
   highlight: '#bcd890',
   top: 0.9,
-  extra: (ctx, p, tint, blobs, rand) => {
-    // Haselnüsse in grüner Hülle und einige Kätzchen
+  extra: (ctx, p, tint, blobs, rand, look) => {
+    // Haselnüsse in grüner Hülle (Sommer, Herbst) und Kätzchen (das ganze Jahr, im
+    // Spätwinter lang und gelb blühend). Der Zufall wird immer gleich verbraucht.
     const n = Math.round(4 * (0.3 + 0.7 * p.vigor) * p.grow + 1);
+    const nuts = Math.round(n * hazelNuts(look));
     const r = p.h * 0.035;
     for (let i = 0; i < n; i++) {
       const b = blobs[Math.floor(rand() * blobs.length)]!;
       const x = b[0] + (rand() - 0.5) * b[2];
       const y = b[1] + b[2] * 0.3;
+      if (i >= nuts) continue;
       ellipse(ctx, x, y, r * 1.3, r * 0.9, 0, tint('#9cc06a'));
       ellipse(ctx, x - r * 0.5, y + r * 0.35, r * 0.75, r * 0.7, 0, tint('#9a6a3a'));
       ellipse(ctx, x + r * 0.5, y + r * 0.4, r * 0.7, r * 0.65, 0, tint('#8a5c30'));
     }
-    for (let i = 0; i < 3; i++) {
+    const bloom = hazelCatkinBloom(look);
+    const len = 3.2 * (1 + 0.9 * bloom);
+    const color = bloom > 0 ? mix(tint('#cdb866'), '#e9d25e', bloom) : tint('#cdb866');
+    for (let i = 0; i < 3 + Math.round(2 * bloom); i++) {
       const b = blobs[Math.floor(rand() * blobs.length)]!;
       const x = b[0] + (rand() - 0.5) * b[2] * 1.4;
       const y = b[1] + b[2] * 0.5;
-      stroke(ctx, [x, y, x + r * 0.4, y + r * 3.2], tint('#cdb866'), Math.max(1, r * 0.8));
+      stroke(ctx, [x, y, x + r * 0.4, y + r * len], color, Math.max(1, r * (0.8 + 0.3 * bloom)));
     }
   },
 };
@@ -331,16 +349,20 @@ const ELDER: BushStyle = {
   tones: ['#4f7c3a', '#64924a', '#7da85c'],
   highlight: '#b6d290',
   top: 1.15,
-  extra: (ctx, p, tint, blobs, rand) => {
-    // Flache Blütendolden (cremeweiß) und dunkle Beerendolden
+  extra: (ctx, p, tint, blobs, rand, look) => {
+    // Flache Blütendolden (cremeweiß, Frühsommer) und dunkle Beerendolden (Spätsommer, Herbst)
     const n = Math.round((3 + 3 * p.grow) * (0.35 + 0.65 * p.vigor));
     const r = p.h * 0.08;
     const dot = Math.max(0.7, r * 0.17);
+    const flowers = elderFlowers(look);
+    const fruit = elderBerries(look);
     for (let i = 0; i < n; i++) {
       const b = blobs[Math.floor(rand() * blobs.length)]!;
       const x = b[0] + (rand() - 0.5) * b[2];
       const y = b[1] - b[2] * (0.1 + rand() * 0.4);
       const berries = i % 3 === 2;
+      // Je Dolde ein fester Schwellwert: weniger Dolden außerhalb ihrer Zeit.
+      if (((hash2(p.seed, i + 7) & 1023) + 0.5) / 1024 > (berries ? fruit : flowers)) continue;
       // Dolde: viele kleine Punkte auf einer flachen Kuppel (Beeren hängen nach unten)
       const sag = berries ? 1 : -1;
       ctx.fillStyle = tint(berries ? '#3a2838' : '#e4dcbc');
@@ -377,8 +399,9 @@ const SHRUB: BushStyle = {
 };
 
 /** Busch aus Blattballen auf einigen Stämmchen. */
-function paintBush(ctx: CanvasRenderingContext2D, p: PlacedPlant, tint: Tint, rand: () => number, style: BushStyle): void {
+function paintBush(ctx: CanvasRenderingContext2D, p: PlacedPlant, tint: Tint, rand: () => number, style: BushStyle, look: SeasonLook | null): void {
   const { h, hw } = p;
+  const amount = plantLeafAmount(p.kind, look);
   // Stämmchen
   for (let i = 0; i < 5; i++) {
     const u = (i / 4 - 0.5) * 2;
@@ -397,8 +420,45 @@ function paintBush(ctx: CanvasRenderingContext2D, p: PlacedPlant, tint: Tint, ra
     blobs.push([x, y, r]);
   }
   blobs.sort((a, b) => b[1] - a[1]);
-  paintBlobs(ctx, blobs, tint(style.shadow), [tint(style.tones[0]), tint(style.tones[1]), tint(style.tones[2])], tint(style.highlight), h);
-  style.extra(ctx, p, tint, blobs, rand);
+  // Laubwerfend: Herbst und Winter lichten die Blattballen (per Seed stabil), darunter
+  // werden feine Zweige sichtbar – im Winter ist der Strauch kahl.
+  let shown = blobs;
+  if (amount < 1) {
+    paintBushTwigs(ctx, p, blobs, tint(style.stem));
+    const shrink = leafShrink(amount);
+    shown = blobs
+      .filter((_, i) => ((hash2(p.seed, i + 101) & 1023) + 0.5) / 1024 < amount)
+      .map(([x, y, r]): Blob => [x, y, r * shrink]);
+  }
+  if (shown.length > 0) {
+    paintBlobs(ctx, shown, tint(style.shadow), [tint(style.tones[0]), tint(style.tones[1]), tint(style.tones[2])], tint(style.highlight), h);
+  }
+  style.extra(ctx, p, tint, blobs, rand, look);
+}
+
+/** Feine Zweige eines laubwerfenden Strauchs: von den Stämmchen zu jedem Blattballen. */
+function paintBushTwigs(ctx: CanvasRenderingContext2D, p: PlacedPlant, blobs: Blob[], color: string): void {
+  const { h, hw } = p;
+  const w = Math.max(0.7, h * 0.014);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  blobs.forEach(([x, y, r], i) => {
+    // Ausgang: das nächstgelegene der fünf Stämmchen auf etwa halber Höhe.
+    const u = Math.max(-1, Math.min(1, Math.round((x / (hw * 0.45)) * 2) / 2));
+    const sx = u * hw * 0.35;
+    const sy = -h * 0.35;
+    const mx = (sx + x) / 2 + (x - sx) * 0.1;
+    const my = (sy + y) / 2 - r * 0.2;
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(mx, my, x, y);
+    // Kleine Gabel am Ende (Richtung per Seed).
+    const side = (hash2(p.seed, i + 211) & 1) === 0 ? -1 : 1;
+    ctx.moveTo(x - (x - sx) * 0.25, y - (y - sy) * 0.25);
+    ctx.lineTo(x - (x - sx) * 0.25 + side * r * 0.5, y - (y - sy) * 0.25 - r * 0.45);
+  });
+  ctx.stroke();
 }
 
 /** Blattballen mit Schatten, drei Tönen (oben heller) und Glanzlicht. */
