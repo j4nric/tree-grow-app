@@ -2,7 +2,8 @@ import { NICHE_IDS, type NicheId } from '../content/types';
 import { normalizeSeed } from './rng';
 
 /**
- * Spielstand v3 (v2-Spiel mit Begleitpflanzen). Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
+ * Spielstand v4 (v2-Spiel mit Begleitpflanzen und Neuem Zyklus). Reine Daten,
+ * JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
  * Bei Änderungen am Format: SAVE_VERSION erhöhen und Migration in save.ts ergänzen.
@@ -10,7 +11,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+2 % je Punkt → höchstens
@@ -30,8 +31,23 @@ export interface PendingEncounter {
   rerolls: number;
 }
 
+/** Der laufende Zyklus (DESIGN_V2.md, Abschnitt 10). Wird beim Neuen Zyklus neu angelegt. */
+export interface CycleState {
+  /** Nummer des Zyklus, ab 1. */
+  number: number;
+  /**
+   * Höchste Harmonie dieses Zyklus (H_max, nie unter 0). Wird nach jeder Änderung am
+   * Ökosystem nachgeführt (Karte wählen, Pflanze setzen, Stammgäste, Stufenwechsel, Laden).
+   */
+  maxHarmony: number;
+  /** Arten, die in diesem Zyklus zum ersten Mal ins Naturtagebuch kamen (je einmal). */
+  newSpecies: string[];
+  /** Beginn des Zyklus (ms seit Epoch); fehlt bei Ständen aus der Zeit vor v4. */
+  startedAt?: number;
+}
+
 export interface GameState {
-  version: 3;
+  version: 4;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */
@@ -57,10 +73,17 @@ export interface GameState {
    * lastTick neu (isValidRngState lehnt 0 ab); das kostet nur die Reproduzierbarkeit.
    */
   rngState: number;
+  /** Der laufende Zyklus (H_max, neu entdeckte Arten). */
+  cycle: CycleState;
   /** Überdauert den Neuen Zyklus. */
   meta: {
     /** Dauerhafter Bonus: je Punkt +2 % Wachstum und Samen. */
     forestMemory: number;
+    /**
+     * Stammgäste: entdeckte Arten, die automatisch einziehen, sobald in ihrer Nische ein
+     * Platz frei ist. Höchstens `regularSlots(forestMemory)` viele, in Wahl-Reihenfolge.
+     */
+    regulars: string[];
     journal: {
       /** Arten, die schon einmal im Ökosystem gelebt haben. */
       species: string[];
@@ -97,9 +120,17 @@ export function createInitialState(now: number, seed: number = now): GameState {
     niches: emptyNiches(),
     pendingEncounters: [],
     rngState: normalizeSeed(seed),
-    meta: { forestMemory: 0, journal: { species: [], plants: [], communities: [], keepsakes: [] } },
+    cycle: createCycle(1, now),
+    meta: { forestMemory: 0, regulars: [], journal: { species: [], plants: [], communities: [], keepsakes: [] } },
     lastTick: now,
   };
+}
+
+/** Ein frischer Zyklus mit dieser Nummer. */
+export function createCycle(number: number, now?: number): CycleState {
+  const cycle: CycleState = { number, maxHarmony: 0, newSpecies: [] };
+  if (now !== undefined && Number.isFinite(now)) cycle.startedAt = now;
+  return cycle;
 }
 
 /** Alle Tiere im Ökosystem in Nischen-Reihenfolge. */

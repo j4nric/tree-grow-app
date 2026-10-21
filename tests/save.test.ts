@@ -15,11 +15,11 @@ import {
   v2GrowthToV3,
 } from '../src/core/save';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState } from '../src/core/state';
-import { tick } from '../src/core/tick';
+import { recordDiscoveries, tick } from '../src/core/tick';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
-/** Gültiger aktueller Stand (v3) als Rohdaten, einzelne Felder überschreibbar. */
-function rawV3(patch: Record<string, unknown> = {}): string {
+/** Gültiger aktueller Stand (v4) als Rohdaten, einzelne Felder überschreibbar. */
+function rawV4(patch: Record<string, unknown> = {}): string {
   return JSON.stringify({ ...JSON.parse(serialize(stateAt(3, ['earthworm', 'robin'], 9))), ...patch });
 }
 
@@ -63,7 +63,9 @@ describe('Speichern & Laden v2', () => {
     state.meta.journal.species = ['earthworm'];
     state.meta.journal.plants = ['moss'];
     state.meta.forestMemory = 5;
-    expect(SAVE_VERSION).toBe(3);
+    // Von Hand geändertes Ökosystem: H_max nachführen wie nach einer Aktion.
+    recordDiscoveries(state);
+    expect(SAVE_VERSION).toBe(4);
     expect(deserialize(serialize(state), 999)).toEqual(state);
     expect(loadGame(serialize(state), 999)).toMatchObject({ migratedFromV1: false, keepsake: false });
   });
@@ -85,6 +87,7 @@ describe('Speichern & Laden v2', () => {
       removeItem: (k: string) => void data.delete(k),
     } as unknown as Storage;
     const state = stateAt(2, ['earthworm']);
+    recordDiscoveries(state);
     saveToStorage(state, storage);
     expect(data.has(SAVE_KEY)).toBe(true);
     expect(loadFromStorage(0, storage)?.state).toEqual(state);
@@ -107,7 +110,7 @@ describe('Migration v1 → v2', () => {
     expect(result.migratedFromV1).toBe(true);
     expect(result.keepsake).toBe(true);
     const s = result.state;
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(4);
     expect(s.plants).toEqual([]);
     expect(s.totalGrowth).toBe(0);
     expect(s.seeds).toBe(0);
@@ -191,7 +194,7 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
   });
 
   it('akzeptiert alle 32 Arten und die neuen Gattungen (Schritt 2.2)', () => {
-    const raw = rawV3({
+    const raw = rawV4({
       totalGrowth: thresholdFor(36),
       niches: {
         roots: ['honeyfungus', 'vole', 'mole', 'chanterelle'],
@@ -222,7 +225,7 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
     const result = loadGame(rawV2(), 5_000)!;
     expect(result).toMatchObject({ migratedFromV1: false, keepsake: false });
     const s = result.state;
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(4);
     expect(s.seeds).toBe(V2_SEED_CAP);
     expect(s.plants).toEqual([]);
     expect(s).toMatchObject({ stage: 4, waypoint: 12, rngState: 4242, lastTick: 1_000 });
@@ -260,13 +263,13 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
 describe('Robustes Laden v3: Pflanzen', () => {
   it('unbekannte Pflanzen verworfen, Duplikate erlaubt, auf den Pflanzring gekürzt', () => {
     // Junger Baum: 3 Pflanzplätze
-    const s = deserialize(rawV3({ plants: ['hazel', 'drache', 'hazel', 42, 'moss', 'fern', 'birch'] }), 0)!;
+    const s = deserialize(rawV4({ plants: ['hazel', 'drache', 'hazel', 42, 'moss', 'fern', 'birch'] }), 0)!;
     expect(s.plants).toEqual(['hazel', 'hazel', 'moss']);
     for (const plants of [undefined, null, 'hazel', { 0: 'hazel' }]) {
-      expect(deserialize(rawV3({ plants }), 0)!.plants).toEqual([]);
+      expect(deserialize(rawV4({ plants }), 0)!.plants).toEqual([]);
     }
     // Samen-Stufe: Ring geschlossen
-    expect(deserialize(rawV3({ totalGrowth: 0, plants: ['moss'] }), 0)!.plants).toEqual([]);
+    expect(deserialize(rawV4({ totalGrowth: 0, plants: ['moss'] }), 0)!.plants).toEqual([]);
   });
 
   it('Pflanzen-Begegnungen: nur bekannte Pflanzen, unbekannte Typen fallen weg', () => {
@@ -279,10 +282,10 @@ describe('Robustes Laden v3: Pflanzen', () => {
     ];
     // Junger Baum: Rotbuche (ab Alter Baum) ist gesperrt und fällt weg.
     expect(
-      deserialize(rawV3({ pendingEncounters: [{ type: 'plant', cards: ['beech', 'birch'], rerolls: 0 }] }), 0)!
+      deserialize(rawV4({ pendingEncounters: [{ type: 'plant', cards: ['beech', 'birch'], rerolls: 0 }] }), 0)!
         .pendingEncounters,
     ).toEqual([{ type: 'plant', cards: ['birch'], rerolls: 0 }]);
-    const s = deserialize(rawV3({ pendingEncounters: pending }), 0)!;
+    const s = deserialize(rawV4({ pendingEncounters: pending }), 0)!;
     expect(s.pendingEncounters).toEqual([
       { type: 'plant', cards: ['hazel'], rerolls: 1 },
       { type: 'animal', cards: ['robin'], rerolls: 0 },
@@ -293,35 +296,35 @@ describe('Robustes Laden v3: Pflanzen', () => {
 
 describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
   it('unbekannte Arten werden verworfen', () => {
-    const s = deserialize(rawV3({ niches: { roots: ['earthworm', 'drache'], litter: ['robin', 42, null] } }), 0)!;
+    const s = deserialize(rawV4({ niches: { roots: ['earthworm', 'drache'], litter: ['robin', 42, null] } }), 0)!;
     expect(s.niches.roots).toEqual(['earthworm']);
     expect(s.niches.litter).toEqual(['robin']);
   });
 
   it('Duplikate werden entfernt (auch über Nischen hinweg)', () => {
-    const s = deserialize(rawV3({ niches: { roots: ['earthworm', 'earthworm'], litter: ['robin', 'earthworm'] } }), 0)!;
+    const s = deserialize(rawV4({ niches: { roots: ['earthworm', 'earthworm'], litter: ['robin', 'earthworm'] } }), 0)!;
     expect(s.niches.roots).toEqual(['earthworm']);
     expect(s.niches.litter).toEqual(['robin']);
   });
 
   it('Arten in falscher Nische kommen in ihre eigene', () => {
-    const s = deserialize(rawV3({ niches: { roots: ['bluetit'] } }), 0)!;
+    const s = deserialize(rawV4({ niches: { roots: ['bluetit'] } }), 0)!;
     expect(s.niches.roots).toEqual([]);
     expect(s.niches.crown).toEqual(['bluetit']);
   });
 
   it('Nischen werden auf die aktuelle Platzzahl gekürzt', () => {
     // Junger Baum: Laubstreu 2 Plätze
-    const s = deserialize(rawV3({ niches: { litter: ['robin', 'woodlouse', 'centipede'] } }), 0)!;
+    const s = deserialize(rawV4({ niches: { litter: ['robin', 'woodlouse', 'centipede'] } }), 0)!;
     expect(s.niches.litter).toEqual(['robin', 'woodlouse']);
     // Samen: alle Nischen geschlossen
-    const seed = deserialize(rawV3({ totalGrowth: 0, niches: { roots: ['earthworm'] } }), 0)!;
+    const seed = deserialize(rawV4({ totalGrowth: 0, niches: { roots: ['earthworm'] } }), 0)!;
     expect(seed.niches.roots).toEqual([]);
   });
 
   it('fehlende oder kaputte Nischen ergeben leere Nischen', () => {
     for (const niches of [undefined, null, 'x', [1, 2], { roots: 'earthworm' }]) {
-      const s = deserialize(rawV3({ niches }), 0)!;
+      const s = deserialize(rawV4({ niches }), 0)!;
       expect(Object.values(s.niches).flat()).toEqual([]);
     }
   });
@@ -335,35 +338,35 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
       { type: 'animal', cards: ['earthworm'], rerolls: NaN },
       { type: 'animal', cards: ['woodlouse'], rerolls: 0 },
     ];
-    const s = deserialize(rawV3({ pendingEncounters: pending }), 0)!;
+    const s = deserialize(rawV4({ pendingEncounters: pending }), 0)!;
     expect(s.pendingEncounters).toEqual([
       { type: 'animal', cards: ['bluetit'], rerolls: 2 },
       { type: 'animal', cards: ['robin', 'bee', 'oakmoth'], rerolls: 0 },
       { type: 'animal', cards: ['earthworm'], rerolls: 0 },
     ]);
-    expect(deserialize(rawV3({ pendingEncounters: 'x' }), 0)!.pendingEncounters).toEqual([]);
+    expect(deserialize(rawV4({ pendingEncounters: 'x' }), 0)!.pendingEncounters).toEqual([]);
   });
 
   it('rngState 0 oder ungültig → aus lastTick neu gesetzt', () => {
     for (const rngState of [0, -1, 1.5, 2 ** 32, 'abc', null, undefined]) {
-      const s = deserialize(rawV3({ rngState, lastTick: 12_345 }), 0)!;
+      const s = deserialize(rawV4({ rngState, lastTick: 12_345 }), 0)!;
       expect(s.rngState, String(rngState)).toBe(normalizeSeed(12_345));
     }
-    expect(deserialize(rawV3({ rngState: 99 }), 0)!.rngState).toBe(99);
+    expect(deserialize(rawV4({ rngState: 99 }), 0)!.rngState).toBe(99);
   });
 
   it('Wegpunkt und Stufe werden aus totalGrowth abgeleitet', () => {
-    const tooHigh = deserialize(rawV3({ totalGrowth: 0, stage: 7, waypoint: 36 }), 0)!;
+    const tooHigh = deserialize(rawV4({ totalGrowth: 0, stage: 7, waypoint: 36 }), 0)!;
     expect(tooHigh).toMatchObject({ stage: 0, waypoint: 0 });
-    const tooLow = deserialize(rawV3({ totalGrowth: thresholdFor(12), stage: 0, waypoint: 0 }), 0)!;
+    const tooLow = deserialize(rawV4({ totalGrowth: thresholdFor(12), stage: 0, waypoint: 0 }), 0)!;
     expect(tooLow).toMatchObject({ stage: 4, waypoint: 12 });
-    const huge = deserialize(rawV3({ totalGrowth: 1e308 }), 0)!;
+    const huge = deserialize(rawV4({ totalGrowth: 1e308 }), 0)!;
     expect(huge).toMatchObject({ stage: 7, waypoint: 36 });
   });
 
   it('kaputte Zahlen werden ersetzt', () => {
     const s = deserialize(
-      rawV3({ totalGrowth: 'viel', seeds: -5, lastTick: 'gestern', meta: { forestMemory: -1, journal: 'x' } }),
+      rawV4({ totalGrowth: 'viel', seeds: -5, lastTick: 'gestern', meta: { forestMemory: -1, journal: 'x' } }),
       777,
     )!;
     expect(s.totalGrowth).toBe(0);
@@ -372,13 +375,13 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
     expect(s.meta.forestMemory).toBe(0);
     // Tagebuch kaputt: Die Arten aus den Nischen bleiben trotzdem verzeichnet.
     expect(s.meta.journal).toEqual({ species: ['earthworm', 'robin'], plants: [], communities: [], keepsakes: [] });
-    const nan = deserialize(rawV3({ seeds: Infinity, totalGrowth: NaN }), 0)!;
+    const nan = deserialize(rawV4({ seeds: Infinity, totalGrowth: NaN }), 0)!;
     expect(nan.seeds).toBe(0);
   });
 
   it('Tagebuch: unbekannte Arten verworfen, lebende Arten ergänzt', () => {
     const s = deserialize(
-      rawV3({ meta: { forestMemory: 3, journal: { species: ['bee', 'drache', 'bee'], keepsakes: ['old-oak', 1] } } }),
+      rawV4({ meta: { forestMemory: 3, journal: { species: ['bee', 'drache', 'bee'], keepsakes: ['old-oak', 1] } } }),
       0,
     )!;
     expect(s.meta.forestMemory).toBe(3);
@@ -389,21 +392,21 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
   it('Tagebuch: Pflanzen und Lebensgemeinschaften (seit 2.3) werden aus dem Ökosystem ergänzt', () => {
     // v3-Stand von vor Schritt 2.3: keine Felder plants/communities im Tagebuch.
     const old = JSON.parse(
-      rawV3({
+      rawV4({
         plants: ['moss', 'fern', 'moss'],
         niches: { roots: ['earthworm', 'chanterelle'], litter: ['woodlouse', 'slug'] },
       }),
     );
     old.meta.journal = { species: ['earthworm'], keepsakes: [] };
     const s = deserialize(JSON.stringify(old), 0)!;
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(4);
     expect(s.meta.journal.plants).toEqual(['moss', 'fern']);
     expect(s.meta.journal.communities).toEqual(['humus', 'damp-ground']);
     expect(s.meta.journal.species).toEqual(['earthworm', 'chanterelle', 'woodlouse', 'slug']);
     // Gespeicherte Einträge bleiben (auch wenn die Gemeinschaft gerade nicht besteht),
     // unbekannte und doppelte werden verworfen, kaputte Felder ersetzt.
     const kept = deserialize(
-      rawV3({
+      rawV4({
         meta: {
           forestMemory: 0,
           journal: { species: [], plants: ['birch', 'drache', 'birch', 7], communities: ['wild-edge', 'gibt-es-nicht', 'wild-edge'], keepsakes: [] },
@@ -414,7 +417,7 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
     expect(kept.meta.journal.plants).toEqual(['birch']);
     expect(kept.meta.journal.communities).toEqual(['wild-edge']);
     for (const broken of ['x', null, 42, { a: 1 }]) {
-      const b = deserialize(rawV3({ meta: { journal: { species: [], plants: broken, communities: broken } } }), 0)!;
+      const b = deserialize(rawV4({ meta: { journal: { species: [], plants: broken, communities: broken } } }), 0)!;
       expect(b.meta.journal.plants).toEqual([]);
       expect(b.meta.journal.communities).toEqual([]);
     }
@@ -423,34 +426,34 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
   });
 
   it('v2-Stand ohne Nische „hollows“ (vor Höhlen & Totholz) lädt mit leerer Höhle', () => {
-    const old = JSON.parse(rawV3());
+    const old = JSON.parse(rawV4());
     delete old.niches.hollows;
     const s = deserialize(JSON.stringify(old), 0)!;
     expect(s.niches.hollows).toEqual([]);
     expect(s.niches.roots).toEqual(['earthworm']);
-    expect(deserialize(rawV3({ niches: { roots: ['earthworm'], hollows: 'kaputt' } }), 0)!.niches.hollows).toEqual([]);
+    expect(deserialize(rawV4({ niches: { roots: ['earthworm'], hollows: 'kaputt' } }), 0)!.niches.hollows).toEqual([]);
   });
 
   it('Platz-Schaffer zählen beim Kürzen, die gespeicherte Reihenfolge bleibt', () => {
     const owl = fakeSpecies({ id: 'test-owl', niche: 'hollows' });
     withFakeSpecies([owl], () => {
       // Junger Baum: Höhle nur offen, weil der Borkenkäfer lebt – auch wenn er später steht.
-      const s = deserialize(rawV3({ niches: { roots: ['test-owl', 'barkbeetle'] } }), 0)!;
+      const s = deserialize(rawV4({ niches: { roots: ['test-owl', 'barkbeetle'] } }), 0)!;
       expect(s.niches.bark).toEqual(['barkbeetle']);
       expect(s.niches.hollows).toEqual(['test-owl']);
-      const without = deserialize(rawV3({ niches: { hollows: ['test-owl'] } }), 0)!;
+      const without = deserialize(rawV4({ niches: { hollows: ['test-owl'] } }), 0)!;
       expect(without.niches.hollows).toEqual([]);
       expect(without.meta.journal.species).toContain('test-owl'); // hat hier gelebt
     });
-    const grown = deserialize(rawV3({ totalGrowth: thresholdFor(12), niches: { bark: ['woodpecker', 'barkbeetle'] } }), 0)!;
+    const grown = deserialize(rawV4({ totalGrowth: thresholdFor(12), niches: { bark: ['woodpecker', 'barkbeetle'] } }), 0)!;
     expect(grown.niches.bark).toEqual(['woodpecker', 'barkbeetle']);
   });
 
   it('Waldgedächtnis, Samen und Wachstum: Grenzen und Unendlich', () => {
-    const big = deserialize(rawV3({ meta: { forestMemory: 1e9 } }), 0)!;
+    const big = deserialize(rawV4({ meta: { forestMemory: 1e9 } }), 0)!;
     expect(big.meta.forestMemory).toBe(MAX_FOREST_MEMORY);
     // „1e400“ ergibt in JSON.parse Infinity – wird begrenzt statt verworfen.
-    const raw = rawV3({ seeds: 1, totalGrowth: 2, meta: { forestMemory: 3 } })
+    const raw = rawV4({ seeds: 1, totalGrowth: 2, meta: { forestMemory: 3 } })
       .replace('"seeds":1', '"seeds":1e400')
       .replace('"totalGrowth":2', '"totalGrowth":1e400')
       .replace('"forestMemory":3', '"forestMemory":-1e400');
@@ -465,8 +468,8 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
   });
 
   it('zukünftige Versionen werden so gut wie möglich geladen', () => {
-    const s = deserialize(rawV3({ version: 4, somethingNew: true, plants: ['hazel'] }), 0)!;
-    expect(s.version).toBe(3);
+    const s = deserialize(rawV4({ version: 5, somethingNew: true, plants: ['hazel'] }), 0)!;
+    expect(s.version).toBe(4);
     expect(s.plants).toEqual(['hazel']);
     expect(s.niches.roots).toEqual(['earthworm']);
     expect(s).not.toHaveProperty('somethingNew');

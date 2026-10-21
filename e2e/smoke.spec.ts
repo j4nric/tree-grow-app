@@ -113,7 +113,7 @@ test('Karte wählen: Tier zieht ein, nächste Begegnung folgt, Neuladen zeigt de
   await expect(card(page, 'barkbeetle')).toBeVisible();
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(3);
+  expect(saved.version).toBe(4);
   expect(saved.niches.crown).toEqual(['bluetit']);
   expect(saved.pendingEncounters).toEqual([{ type: 'animal', cards: ['woodlouse', 'barkbeetle'], rerolls: 0 }]);
 });
@@ -251,7 +251,7 @@ test('v1-Spielstand: Neustart mit Andenken-Meldung', async ({ page, context }) =
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(3);
+  expect(saved.version).toBe(4);
   expect(saved.meta.forestMemory).toBe(5);
   expect(saved).not.toHaveProperty('upgrades');
 
@@ -628,12 +628,12 @@ test('Echter v2-Spielstand (alte Wegpunkt-Kurve): lädt ohne Fehler, Stufe und T
   }
   await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
 
-  // Neuladen speichert (beforeunload) und lädt den umgerechneten v3-Stand: alles bleibt.
+  // Neuladen speichert (beforeunload) und lädt den umgerechneten Stand (jetzt v4): alles bleibt.
   await page.reload();
   await expect(stageLabel(page)).toHaveText('Stufe: Alter Baum');
   await expect(niche(page, 'crown').locator('[data-species="bluetit"]')).toBeVisible();
   const saved = await savedState(page);
-  expect(saved.version).toBe(3);
+  expect(saved.version).toBe(4);
   // Gleicher Wegpunkt, auf die neue Kurve umgerechnet (etwa in der Mitte zum nächsten).
   expect(saved.waypoint).toBe(12);
   expect(saved.totalGrowth).toBeGreaterThan(waypoint(12));
