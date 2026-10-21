@@ -3,10 +3,13 @@
  * kommen aus content/ bzw. core/ – ändert sich das Balancing, stimmt die Anleitung
  * trotzdem. Getestet in tests/settings.test.ts (Abschnitt „Spielanleitung“).
  */
+import { CARE, CARE_BY_ID } from '../content/care';
 import { COMMUNITIES } from '../content/communities';
 import {
   CARDS_PER_ENCOUNTER,
   DECLINE_SEEDS,
+  INTERLUDE_CHANCE,
+  INTERLUDE_STAGE,
   MAX_PENDING_ENCOUNTERS,
   REROLL_BASE_COST,
   REROLL_COST_GROWTH,
@@ -20,9 +23,11 @@ import {
 } from '../content/memory';
 import { NICHES } from '../content/niches';
 import { PLANT_COST_BASE, PLANT_COST_GROWTH, PLANTS } from '../content/plants';
+import { EVENTS, SEED_SECONDS_MIN_SEEDS } from '../content/events';
 import { GENUS_INFO, SPECIES } from '../content/species';
 import { STAGES } from '../content/stages';
 import { TRAIT_THRESHOLDS } from '../content/traits';
+import { VISITORS, VISITOR_FAREWELL_LABEL, VISITOR_HOST_LABEL } from '../content/visitors';
 import { GENERA } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { HARMONY_DIVISOR } from '../core/formulas';
@@ -41,6 +46,14 @@ export interface GuideSection {
 /** Alle Namen aufzählen: „A, B und C“. */
 const all = (names: readonly string[]) => listNames(names, names.length);
 const pct = (fraction: number) => `${formatNumber(fraction * 100)} %`;
+/** Spanne „a–b“ (bzw. nur „a“, wenn alle gleich sind) im deutschen Zahlenformat. */
+export function span(values: readonly number[]): string {
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  return lo === hi ? formatNumber(lo) : `${formatNumber(lo)}–${formatNumber(hi)}`;
+}
+const minutes = (seconds: number) => Math.round((seconds / 60) * 10) / 10;
+const stageName = (index: number) => STAGES[index]?.name ?? STAGES[STAGES.length - 1]!.name;
 
 export function guideSections(): GuideSection[] {
   const firstStage = STAGES[0]!.name;
@@ -53,6 +66,25 @@ export function guideSections(): GuideSection[] {
     .sort((a, b) => a.min - b.min)
     .map((t) => `ab ${formatNumber(t.min)} „${t.label}“`);
   const lowestTier = HARMONY_TIERS.find((t) => !Number.isFinite(t.min))?.label ?? '';
+
+  const eventStage = stageName(Math.min(...EVENTS.map((e) => e.minStage)));
+  const visitorStage = stageName(Math.min(...VISITORS.map((v) => v.minStage)));
+  const careStage = stageName(Math.min(...CARE.map((c) => c.ranks[0]!.minStage)));
+  const interludeStage = stageName(INTERLUDE_STAGE);
+  const eventEffects = EVENTS.flatMap((e) => e.options.flatMap((o) => o.effects));
+  const timedSeconds = eventEffects.flatMap((x) => (x.kind === 'timed' ? [x.seconds] : []));
+  const seedSeconds = eventEffects.flatMap((x) => (x.kind === 'seedsNow' ? [x.seconds] : []));
+  const timedExample =
+    EVENTS.flatMap((e) => e.options).find((o) => o.effects.some((x) => x.kind === 'timed'))?.summary ?? '';
+  // Sich ausschließende Maßnahmen als Paare (jedes Paar nur einmal).
+  const exclusions: string[][] = [];
+  for (const measure of CARE) {
+    for (const other of measure.excludes ?? []) {
+      const name = CARE_BY_ID.get(other)?.name;
+      // In CARE-Reihenfolge: Das Paar zählt bei der zuerst genannten Maßnahme.
+      if (name && CARE.findIndex((c) => c.id === other) > CARE.indexOf(measure)) exclusions.push([measure.name, name]);
+    }
+  }
 
   return [
     {
@@ -131,22 +163,31 @@ export function guideSections(): GuideSection[] {
       id: 'events',
       icon: '⛈️',
       title: 'Ereignisse',
-      paragraphs: ['Sturm, Trockenheit und andere Ereignisse mit Wahl – kommt bald.'],
-      soon: true,
+      paragraphs: [
+        `Ab „${eventStage}“ kann statt eines Tiers oder einer Pflanze ein Ereignis kommen – ${formatNumber(EVENTS.length)} gibt es, z. B. ${listNames(EVENTS.map((e) => e.name), 3)}. Jedes kommt höchstens einmal pro Zyklus.`,
+        `Du wählst eine von ${span(EVENTS.map((e) => e.options.length))} Möglichkeiten, keine ist eine Strafe: Manche Wirkungen (mehr Licht, Wasser, Plätze oder ein Lebensraum wie Totholz) gelten bis zum Neuen Zyklus, Zeit-Boni wie „${timedExample}“ laufen ${span(timedSeconds.map(minutes))} Minuten Spielzeit – auch offline. Die Samen-Option bringt sofort so viele Samen, wie du in ${span(seedSeconds)} Sekunden sammelst.`,
+        `Ab „${interludeStage}“ gibt es zwischen zwei Wegpunkten einen Zwischenhalt: Mit ${pct(INTERLUDE_CHANCE)} Wahrscheinlichkeit wartet dort zusätzlich ein Ereignis oder ein Gast.`,
+      ],
     },
     {
       id: 'visitors',
       icon: '🦢',
       title: 'Durchreisende Gäste',
-      paragraphs: ['Kraniche, Bergfinken und andere Gäste, die nur kurz bleiben – kommt bald.'],
-      soon: true,
+      paragraphs: [
+        `Ab „${visitorStage}“ ziehen Gäste vorbei – ${formatNumber(VISITORS.length)} verschiedene, z. B. ${listNames(VISITORS.map((v) => v.name), 3)}. Jeder kommt höchstens einmal pro Zyklus und belegt keine Nische.`,
+        `${VISITOR_HOST_LABEL} kostet Samen-Sekunden: so viele Samen, wie du in ${span(VISITORS.map((v) => v.hostCost))} Sekunden sammelst. Dann rastet der Gast ${span(VISITORS.map((v) => minutes(v.stay)))} Minuten, bringt seine Wirkung und zählt für die Gattungsboni.`,
+        `${VISITOR_FAREWELL_LABEL} bringt als Dank sofort die Samen von ${span(VISITORS.map((v) => v.farewellSeeds))} Sekunden, mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰. Reichen deine Samen nicht zum Bewirten, bleibt nur das.`,
+      ],
     },
     {
       id: 'care',
       icon: '🧺',
       title: 'Pflege',
-      paragraphs: ['Pflegemaßnahmen für deinen Wald – kommt bald.'],
-      soon: true,
+      paragraphs: [
+        `Ab „${careStage}“ steckst du Samen in ${formatNumber(CARE.length)} Pflegemaßnahmen, z. B. ${listNames(CARE.map((c) => c.name), 3)}. Jede hat ${span(CARE.map((c) => c.ranks.length))} Ränge, die du nacheinander kaufst – jeder teurer als der vorige, spätere oft erst auf einer höheren Stufe.`,
+        `Gekaufte Ränge wirken bis zum Neuen Zyklus und addieren sich. Verkaufen geht nicht – überlege, was dein Wald gerade braucht.`,
+        ...exclusions.map((pair) => `${all(pair.map((n) => `„${n}“`))} schließen sich aus: Du kannst nur eine davon pflegen.`),
+      ],
     },
   ];
 }

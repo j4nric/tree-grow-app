@@ -1,16 +1,25 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { COMMUNITIES } from '../src/content/communities';
-import { DECLINE_SEEDS, MAX_PENDING_ENCOUNTERS, REROLL_BASE_COST } from '../src/content/encounters';
+import { CARE } from '../src/content/care';
+import {
+  DECLINE_SEEDS,
+  INTERLUDE_CHANCE,
+  INTERLUDE_STAGE,
+  MAX_PENDING_ENCOUNTERS,
+  REROLL_BASE_COST,
+} from '../src/content/encounters';
+import { EVENTS, SEED_SECONDS_MIN_SEEDS } from '../src/content/events';
 import { FOREST_MEMORY_BONUS, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { NICHES } from '../src/content/niches';
 import { PLANT_COST_BASE, PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { TRAIT_THRESHOLDS } from '../src/content/traits';
+import { VISITORS } from '../src/content/visitors';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
 import { HARMONY_DIVISOR } from '../src/core/formulas';
 import { LONG_NUMBER_LIMIT, formatNumber, getNumberStyle, setNumberStyle } from '../src/ui/format';
-import { guideSections } from '../src/ui/guide-view';
+import { guideSections, span } from '../src/ui/guide-view';
 import {
   DEFAULT_SETTINGS,
   GUIDE_HINT_KEY,
@@ -135,9 +144,8 @@ describe('Spielanleitung', () => {
   const sections = guideSections();
   const text = (id: string) => sections.find((s) => s.id === id)!.paragraphs.join(' ');
 
-  it('8 Abschnitte zum Spielablauf und 3 Platzhalter „kommt bald“', () => {
-    const main = sections.filter((s) => !s.soon);
-    expect(main.map((s) => s.id)).toEqual([
+  it('11 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
+    expect(sections.map((s) => s.id)).toEqual([
       'growth',
       'encounters',
       'niches',
@@ -146,14 +154,55 @@ describe('Spielanleitung', () => {
       'harmony',
       'cycle',
       'seeds',
+      'events',
+      'visitors',
+      'care',
     ]);
-    const soon = sections.filter((s) => s.soon);
-    expect(soon.map((s) => s.id)).toEqual(['events', 'visitors', 'care']);
-    for (const s of soon) expect(s.paragraphs.join(' ')).toContain('kommt bald');
     for (const s of sections) {
+      expect(s.soon, s.id).toBeFalsy();
+      expect(s.paragraphs.join(' '), s.id).not.toContain('kommt bald');
       expect(s.title.length, s.id).toBeGreaterThan(0);
       expect(s.paragraphs.length, s.id).toBeGreaterThan(0);
     }
+  });
+
+  it('span: Spanne „a–b“ oder ein Wert, deutsches Zahlenformat', () => {
+    expect(span([30, 60, 45])).toBe('30–60');
+    expect(span([15, 15])).toBe('15');
+    expect(span([1.5, 2000])).toBe(`${formatNumber(1.5)}–${formatNumber(2000)}`);
+  });
+
+  it('Ereignisse: Anzahl, einmal pro Zyklus, Stufe, Samen-Option und Zwischenhalt aus content', () => {
+    const t = text('events');
+    expect(t).toContain(`${formatNumber(EVENTS.length)} gibt es`);
+    expect(t).toContain('höchstens einmal pro Zyklus');
+    expect(t).toContain(`Ab „${STAGES[Math.min(...EVENTS.map((e) => e.minStage))]!.name}“`);
+    const effects = EVENTS.flatMap((e) => e.options.flatMap((o) => o.effects));
+    const seedSeconds = effects.flatMap((x) => (x.kind === 'seedsNow' ? [x.seconds] : []));
+    expect(t).toContain(`in ${span(seedSeconds)} Sekunden`);
+    expect(t).toContain(`Ab „${STAGES[INTERLUDE_STAGE]!.name}“ gibt es zwischen zwei Wegpunkten einen Zwischenhalt`);
+    expect(t).toContain(`${formatNumber(INTERLUDE_CHANCE * 100)} %`);
+  });
+
+  it('Gäste: Anzahl, Bewirten in Samen-Sekunden, Dank und Aufenthalt aus content', () => {
+    const t = text('visitors');
+    expect(t).toContain(`${formatNumber(VISITORS.length)} verschiedene`);
+    expect(t).toContain('höchstens einmal pro Zyklus');
+    expect(t).toContain(`Samen-Sekunden: so viele Samen, wie du in ${span(VISITORS.map((v) => v.hostCost))} Sekunden sammelst`);
+    expect(t).toContain(`die Samen von ${span(VISITORS.map((v) => v.farewellSeeds))} Sekunden`);
+    expect(t).toContain(`mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰`);
+    expect(t).toContain(`${span(VISITORS.map((v) => v.stay / 60))} Minuten`);
+  });
+
+  it('Pflege: Anzahl, Ränge, Stufe und die sich ausschließenden Kronen aus content', () => {
+    const t = text('care');
+    expect(t).toContain(`${formatNumber(CARE.length)} Pflegemaßnahmen`);
+    expect(t).toContain(`${span(CARE.map((c) => c.ranks.length))} Ränge`);
+    expect(t).toContain(`Ab „${STAGES[Math.min(...CARE.map((c) => c.ranks[0]!.minStage))]!.name}“`);
+    expect(t).toContain('bis zum Neuen Zyklus');
+    expect(t).toContain('„Lichte Krone“ und „Dichte Krone“ schließen sich aus');
+    // Jedes Ausschluss-Paar genau einmal.
+    expect(t.match(/schließen sich aus/g)).toHaveLength(CARE.filter((c) => c.excludes?.length).length / 2);
   });
 
   it('Zahlen stammen aus content und core', () => {
