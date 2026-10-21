@@ -18,6 +18,8 @@
  * „atmet“ mit 0,33 Hz und ±15 %. Nur die kleine, dunkle Eichel blendet in 0,25 s ein.
  */
 
+import type { TreeSpecies } from './plant';
+import { paintFruit } from './species';
 import { clamp01, smooth01 } from './util';
 
 /** Dauer der Sequenz in Sekunden (normal / weniger Bewegung). */
@@ -122,7 +124,8 @@ export class CycleTransition {
   }
 
   /** Bereitet die Sequenz vor: Farbe und Silhouette des alten Walds, Leuchten, Eichel. */
-  prepare(key: string, geo: CycleGeometry, forest: OldForest | null): void {
+  /** `species`: Art des neuen Baums – ihre Frucht fällt (Eichel, Buchecker, Zapfen). */
+  prepare(key: string, geo: CycleGeometry, forest: OldForest | null, species: TreeSpecies = 'oak'): void {
     this.release();
     this.key = key;
     const S = geo.size;
@@ -153,7 +156,7 @@ export class CycleTransition {
       this.glowR = S * 2.5;
     }
     this.glow = makeGlow(geo.dpr);
-    this.acorn = makeAcorn(S * 0.7, geo.dpr);
+    this.acorn = makeAcorn(S * 0.7, geo.dpr, species);
   }
 
   /** Gibt die Kopien frei (Safari: Größe vorher auf 0 setzen). */
@@ -239,41 +242,12 @@ function makeGlow(dpr: number): HTMLCanvasElement {
 }
 
 /** Eichel mit Hütchen; Ursprung unten Mitte (beim Zeichnen versetzt). */
-function makeAcorn(size: number, dpr: number): HTMLCanvasElement {
+function makeAcorn(size: number, dpr: number, species: TreeSpecies): HTMLCanvasElement {
   const w = Math.max(4, Math.round(size * dpr));
   const h = Math.max(5, Math.round(size * 1.25 * dpr));
   const c = canvasOf(w, h);
   const g = c.getContext('2d')!;
   g.scale(w, h / 1.25);
-  // Nuss
-  g.fillStyle = '#9a6a35';
-  g.beginPath();
-  g.ellipse(0.5, 0.72, 0.3, 0.42, 0, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = '#c08a4c';
-  g.beginPath();
-  g.ellipse(0.42, 0.66, 0.1, 0.22, -0.2, 0, Math.PI * 2);
-  g.fill();
-  // Hütchen mit Schuppen und Stiel
-  g.fillStyle = '#6e5232';
-  g.beginPath();
-  g.ellipse(0.5, 0.36, 0.36, 0.2, 0, Math.PI, 0);
-  g.lineTo(0.86, 0.42);
-  g.lineTo(0.14, 0.42);
-  g.closePath();
-  g.fill();
-  g.fillStyle = '#856540';
-  for (const x of [0.28, 0.44, 0.6, 0.74]) {
-    g.beginPath();
-    g.arc(x, 0.36, 0.05, 0, Math.PI * 2);
-    g.fill();
-  }
-  g.strokeStyle = '#5a4128';
-  g.lineWidth = 0.07;
-  g.lineCap = 'round';
-  g.beginPath();
-  g.moveTo(0.5, 0.18);
-  g.lineTo(0.56, 0.04);
-  g.stroke();
+  paintFruit(g, species);
   return c;
 }
