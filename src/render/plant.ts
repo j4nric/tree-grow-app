@@ -450,15 +450,19 @@ function circle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number):
 }
 
 /**
+ * Fester Zufallswert eines Blattbüschels (0–1) – entscheidet, wann es im Herbst fällt:
+ * Bei einer Laubmenge `amount` < 1 wird es nur gezeichnet, wenn `leafKeep < amount`.
+ */
+export function leafKeep(l: LeafCluster): number {
+  const v = l.a * 7.31 + l.b * 3.17;
+  return v - Math.floor(v);
+}
+
+/**
  * Zeichnet die Blattbüschel: je Büschel ein dunkler Schatten, drei Blattballen in einem
  * von drei Grüntönen (oben heller, innen dunkler) und ein Glanzlicht. Innere Ebenen
  * zuerst, damit äußere Büschel Schatten auf die inneren werfen.
  */
-/** Fester Zufallswert eines Blattbüschels (0–1) – entscheidet, wann es im Herbst fällt. */
-function leafKeep(l: LeafCluster): number {
-  const v = l.a * 7.31 + l.b * 3.17;
-  return v - Math.floor(v);
-}
 
 export function paintLeaves(
   ctx: CanvasRenderingContext2D,

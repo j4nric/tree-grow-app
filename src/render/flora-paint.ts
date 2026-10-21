@@ -182,10 +182,12 @@ function paintCompanionTree(ctx: CanvasRenderingContext2D, p: PlacedPlant, tint:
         : { ...t.geo, leaves: t.geo.leaves.map((l: LeafCluster) => ({ ...l, r: l.r * style.leafScale, y: l.y + l.r * (1 - style.leafScale) * 0.6 })) };
     const palette = tintLeaves(seasonLeaves(style.leaves, look), tint);
     paintLeaves(ctx, geo, t.x, t.y, t.scale, palette, look ? look.leaves : 1);
-    if (look && look.blossom > 0) paintBlossoms(ctx, geo, t.x, t.y, t.scale, look.blossom * look.leaves);
+    if (look && look.blossom > 0) paintBlossoms(ctx, geo, t.x, t.y, t.scale, look.blossom, look.leaves);
   }
-  // Vogelbeeren nur, solange Laub da ist (Spätsommer bis Herbst).
-  if (p.kind === 'rowan' && (!look || look.leaves > 0.3)) paintRowanBerries(ctx, p, tint);
+  // Vogelbeeren nur im Sommer, Spätsommer und Herbst – nicht zur Blüte, nicht am kahlen Baum.
+  if (p.kind === 'rowan' && (!look || look.summer || (look.spring < 0.1 && look.blossom < 0.1 && look.leaves > 0.3))) {
+    paintRowanBerries(ctx, p, tint);
+  }
 }
 
 /** Schwarze Querstreifen auf der weißen Birkenrinde. */

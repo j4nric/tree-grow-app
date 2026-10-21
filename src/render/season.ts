@@ -13,7 +13,7 @@
  * Sprites, pro Frame nur verschoben; bei `reducedMotion` stehen sie still.
  */
 
-import type { LeafPalette, PlantGeometry, WoodColors } from './plant';
+import { leafKeep, type LeafCluster, type LeafPalette, type PlantGeometry, type WoodColors } from './plant';
 import { clamp01, hash2, mix, smooth01 } from './util';
 
 /** Rundung des Jahreszeit-Werts – darunter wird nichts neu gezeichnet. */
@@ -125,9 +125,15 @@ export function seasonLook(season: number | undefined): SeasonLook | null {
     snow: curve(SNOW, q),
     fall: curve(FALL, q),
   };
+  // Praktisch Sommer (etwa 0,97–1,15): wie Sommer behandeln – kein Neuzeichnen dazwischen.
+  const w = SUMMER_EPSILON;
+  if (look.spring < w && look.autumn < w && look.blossom < w && look.snow < w && look.fall < w && look.leaves > 1 - w) look = SUMMER;
   LOOKS.set(q, look);
   return look;
 }
+
+/** Unterhalb dieser Gewichte (und Laub über 1 − ε) gilt eine Jahreszeit als Sommer. */
+export const SUMMER_EPSILON = 0.005;
 
 /** Gemerkte Aussehen je Rundung (höchstens 80) – pro Frame entsteht kein neues Objekt. */
 const LOOKS = new Map<number, SeasonLook>();
@@ -201,22 +207,34 @@ export function seasonSky(hex: string, look: SeasonLook | null): string {
 }
 
 /**
- * Blüten auf den Blattbüscheln eines Begleitbaums (Frühling): weiße und zartrosa
- * Tupfen, je Büschel per Seed – mehr bei höherem `amount`.
+ * Trägt das Büschel Nr. `i` Blüten? −1 nein, sonst die Farbe (0 weiß, 1 rosa). Nur auf
+ * Büscheln, die bei der Laubmenge `leaves` auch gezeichnet werden (keine Blüten an
+ * kahlen Zweigen); mehr Blüten bei höherem `amount`.
  */
-export function paintBlossoms(ctx: CanvasRenderingContext2D, geo: PlantGeometry, ox: number, oy: number, scale: number, amount: number): void {
-  if (amount <= 0.01 || geo.leaves.length === 0) return;
+export function blossomOn(l: LeafCluster, i: number, amount: number, leaves: number): number {
+  if (leaves < 1 && leafKeep(l) >= leaves) return -1;
+  const h = hash2(i + 1, 31);
+  if (((h >>> 1) & 1023) / 1024 > amount * 0.7) return -1;
+  return h & 1;
+}
+
+/**
+ * Blüten auf den Blattbüscheln eines Begleitbaums (Frühling): weiße und zartrosa
+ * Tupfen, je Büschel per Seed – nur auf gezeichneten Büscheln (siehe `blossomOn`).
+ */
+export function paintBlossoms(ctx: CanvasRenderingContext2D, geo: PlantGeometry, ox: number, oy: number, scale: number, amount: number, leaves = 1): void {
+  if (amount <= 0.01 || leaves <= 0 || geo.leaves.length === 0) return;
   for (const [color, pick] of [
     ['#fbf6f2', 0],
     ['#f4cddb', 1],
   ] as const) {
     ctx.fillStyle = color;
     ctx.beginPath();
-    let i = 0;
+    let i = -1;
     for (const l of geo.leaves) {
       i++;
-      const h = hash2(i, 31);
-      if ((h & 1) !== pick || ((h >>> 1) & 1023) / 1024 > amount * 0.7) continue;
+      if (blossomOn(l, i, amount, leaves) !== pick) continue;
+      const h = hash2(i + 1, 31);
       const R = l.r * scale;
       if (R < 1.5) continue;
       for (let k = 0; k < 3; k++) {
@@ -301,12 +319,20 @@ function particles(count: number, seed: number): Particle[] {
   return out;
 }
 
-/** Fallende Blätter (Herbst) und Schneefall (Winter) einer Szene – Sprites je Pixeldichte gecacht. */
+/** Auflösung (Gerätepixel) der Partikel-Sprites – einmal je Art gezeichnet, beim Zeichnen skaliert. */
+const LEAF_SPRITE_PX = 40;
+const FLAKE_SPRITE_PX = 24;
+
+/**
+ * Fallende Blätter (Herbst) und Schneefall (Winter) einer Szene. Je Art ein Sprite in
+ * fester Auflösung (drei Blatttöne, eine Flocke), einmal angelegt und nie verworfen;
+ * pro Frame entstehen weder Objekte noch Strings.
+ */
 export class SeasonParticles {
   private leaves = particles(MAX_LEAVES, 101);
   private flakes = particles(MAX_FLAKES, 202);
-  private sprites = new Map<string, HTMLCanvasElement>();
-  private spriteDpr = 0;
+  private leafSprites: HTMLCanvasElement[] | null = null;
+  private flakeSprite: HTMLCanvasElement | null = null;
 
   draw(ctx: CanvasRenderingContext2D, look: SeasonLook | null, f: SeasonFrame): void {
     if (!look || look.summer) return;
@@ -326,7 +352,7 @@ export class SeasonParticles {
         const y = f.top + span * (0.15 + 0.85 * fallen);
         const rot = f.reducedMotion ? p.phase : t * 1.6 * p.sway + p.phase;
         const size = base * 1.4 * p.size;
-        const sprite = this.sprite(`leaf${p.tone}`, size, k);
+        const sprite = this.leafSprite(p.tone);
         const c = Math.cos(rot);
         const s = Math.sin(rot);
         // Am Boden ausblenden.
@@ -343,7 +369,7 @@ export class SeasonParticles {
         const x = (p.u + 0.015 * Math.sin(t * 0.7 * p.sway + p.phase)) * f.width;
         const y = f.top * 0.3 + (f.groundY - f.top * 0.3) * fallen;
         const size = base * 0.75 * p.size;
-        const sprite = this.sprite('flake', size, k);
+        const sprite = this.flake();
         ctx.globalAlpha = 0.85 * look.snow * clamp01((1 - fallen) * 10);
         ctx.setTransform(f.sx * k, 0, 0, f.sy * k, f.sx * k * x, f.sy * k * y);
         ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
@@ -352,44 +378,53 @@ export class SeasonParticles {
     ctx.globalAlpha = 1;
   }
 
-  /** Kleine Sprites (Blatt in drei Herbsttönen, Flocke) je Größe und Pixeldichte. */
-  private sprite(kind: string, size: number, dpr: number): HTMLCanvasElement {
-    if (dpr !== this.spriteDpr) {
-      this.sprites.clear();
-      this.spriteDpr = dpr;
-    }
-    const px = Math.max(3, Math.round(size * dpr));
-    const key = `${kind}/${px}`;
-    let c = this.sprites.get(key);
-    if (c) return c;
-    c = document.createElement('canvas');
-    c.width = px;
-    c.height = px;
-    const g = c.getContext('2d')!;
-    const r = px / 2;
-    g.translate(r, r);
-    if (kind === 'flake') {
-      const grad = g.createRadialGradient(0, 0, 0, 0, 0, r);
-      grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-      grad.addColorStop(0.5, 'rgba(250, 252, 255, 0.85)');
-      grad.addColorStop(1, 'rgba(245, 250, 255, 0)');
-      g.fillStyle = grad;
-      g.fillRect(-r, -r, px, px);
-    } else {
-      const tone = AUTUMN_LEAVES.tones[Number(kind.slice(4)) as 0 | 1 | 2] ?? AUTUMN_LEAVES.tones[1];
-      g.fillStyle = tone;
-      g.beginPath();
-      g.ellipse(0, 0, r * 0.9, r * 0.45, 0, 0, Math.PI * 2);
-      g.fill();
-      g.strokeStyle = 'rgba(90, 50, 25, 0.6)';
-      g.lineWidth = Math.max(0.6, px * 0.06);
-      g.beginPath();
-      g.moveTo(-r * 0.85, 0);
-      g.lineTo(r * 0.85, 0);
-      g.stroke();
-    }
-    if (this.sprites.size > 48) this.sprites.clear();
-    this.sprites.set(key, c);
-    return c;
+  /** Blatt-Sprite in einem der drei Herbsttöne (einmal angelegt). */
+  private leafSprite(tone: number): HTMLCanvasElement {
+    if (!this.leafSprites) this.leafSprites = [0, 1, 2].map((t) => paintLeafSprite(AUTUMN_LEAVES.tones[t as 0 | 1 | 2]));
+    return this.leafSprites[tone % 3]!;
+  }
+
+  /** Flocken-Sprite (einmal angelegt). */
+  private flake(): HTMLCanvasElement {
+    if (!this.flakeSprite) this.flakeSprite = paintFlakeSprite();
+    return this.flakeSprite;
   }
 }
+
+function paintLeafSprite(tone: string): HTMLCanvasElement {
+  const px = LEAF_SPRITE_PX;
+  const c = document.createElement('canvas');
+  c.width = px;
+  c.height = px;
+  const g = c.getContext('2d')!;
+  const r = px / 2;
+  g.translate(r, r);
+  g.fillStyle = tone;
+  g.beginPath();
+  g.ellipse(0, 0, r * 0.9, r * 0.45, 0, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = 'rgba(90, 50, 25, 0.6)';
+  g.lineWidth = px * 0.06;
+  g.beginPath();
+  g.moveTo(-r * 0.85, 0);
+  g.lineTo(r * 0.85, 0);
+  g.stroke();
+  return c;
+}
+
+function paintFlakeSprite(): HTMLCanvasElement {
+  const px = FLAKE_SPRITE_PX;
+  const c = document.createElement('canvas');
+  c.width = px;
+  c.height = px;
+  const g = c.getContext('2d')!;
+  const r = px / 2;
+  const grad = g.createRadialGradient(r, r, 0, r, r, r);
+  grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+  grad.addColorStop(0.5, 'rgba(250, 252, 255, 0.85)');
+  grad.addColorStop(1, 'rgba(245, 250, 255, 0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, px, px);
+  return c;
+}
+

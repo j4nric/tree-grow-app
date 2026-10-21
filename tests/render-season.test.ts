@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MAX_FLAKES, MAX_LEAVES, normalizeSeason, seasonColor, seasonLeaves, seasonLook, seasonWood } from '../src/render/season';
+import { blossomOn, MAX_FLAKES, MAX_LEAVES, normalizeSeason, seasonColor, seasonLeaves, seasonLook, seasonWood } from '../src/render/season';
+import { buildTree, leafKeep, paintLeaves } from '../src/render/plant';
 import { drawScene, type SceneInput, type ScenePlant } from '../src/render/tree';
 
 /**
@@ -197,5 +198,64 @@ describe('Jahreszeit in der Szene', () => {
       const bad = calls.filter((c) => /NaN|Infinity/.test(c));
       expect(bad).toEqual([]);
     }
+  });
+});
+
+describe('Jahreszeit: Nachschliff', () => {
+  it('Blüten sitzen nur auf gezeichneten Büscheln (keine Blüten an kahlen Zweigen)', () => {
+    const geo = buildTree(6, 1234);
+    expect(geo.leaves.length).toBeGreaterThan(20);
+    for (const leaves of [0.2, 0.5, 0.8, 1]) {
+      let blossoms = 0;
+      geo.leaves.forEach((l, i) => {
+        if (blossomOn(l, i, 1, leaves) < 0) return;
+        blossoms++;
+        // paintLeaves zeichnet ein Büschel bei Laubmenge < 1 nur mit leafKeep < leaves.
+        if (leaves < 1) expect(leafKeep(l)).toBeLessThan(leaves);
+      });
+      expect(blossoms).toBeGreaterThan(0);
+    }
+    // Ohne Laub keine Blüten.
+    expect(geo.leaves.every((l, i) => blossomOn(l, i, 1, 0) < 0)).toBe(true);
+  });
+
+  it('Blattbüschel: gleiche Zeichenbefehle, egal was vorher gezeichnet wurde (Determinismus)', () => {
+    const record = (draw: (ctx: CanvasRenderingContext2D) => void) => {
+      const c = makeCanvas(100, 100);
+      draw(c.getContext('2d'));
+      return c.calls;
+    };
+    const palette = { shadow: '#2c5230', tones: ['#3a6e39', '#4d8942', '#68a14e'] as [string, string, string], highlight: '#a7cf7c' };
+    const a = buildTree(5.3, 77);
+    const b = buildTree(6.1, 7);
+    const fresh = record((ctx) => paintLeaves(ctx, b, 50, 90, 4, palette));
+    // Vorlauf mit einem anderen Baum (anderer Zählerstand) – das Ergebnis darf sich nicht ändern.
+    record((ctx) => paintLeaves(ctx, a, 50, 90, 3.3, palette, 0.6));
+    const after = record((ctx) => paintLeaves(ctx, b, 50, 90, 4, palette));
+    expect(after).toEqual(fresh);
+  });
+
+  it('Naht: 3,99 ist (gerundet) wieder Frühling 0; nahe Sommer gilt als Sommer', () => {
+    expect(seasonLook(3.99)).toBe(seasonLook(0));
+    expect(seasonLook(-0.01)).toBe(seasonLook(0));
+    expect(seasonLook(0.98)!.summer).toBe(true);
+    expect(seasonLook(1.1)!.summer).toBe(true);
+    expect(seasonLook(1.4)!.summer).toBe(false);
+    expect(seasonLook(0.9)!.summer).toBe(false);
+  });
+
+  it('Partikel-Sprites werden einmal angelegt und nicht neu erzeugt', () => {
+    const canvas = makeCanvas(W, H);
+    const ctx = canvas.getContext('2d');
+    drawScene(ctx, W, H, { growth: 6, time: 0, season: 2.3 });
+    drawScene(ctx, W, H, { growth: 6, time: 0.05, season: 2.3 });
+    const count = created.length;
+    for (let i = 0; i < 20; i++) drawScene(ctx, W, H, { growth: 6, time: 0.1 + i * 0.05, season: 2.3 });
+    expect(created.length).toBe(count);
+    // Winter dazu: genau ein weiteres Sprite (Flocke) – und die Ebenen einmal neu.
+    drawScene(ctx, W, H, { growth: 6, time: 2, season: 3.1 });
+    const winter = created.length;
+    for (let i = 0; i < 20; i++) drawScene(ctx, W, H, { growth: 6, time: 2.1 + i * 0.05, season: 3.1 });
+    expect(created.length).toBe(winter);
   });
 });

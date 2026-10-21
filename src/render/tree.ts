@@ -353,19 +353,22 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     caches.set(ctx.canvas, cache);
   }
 
+  // Jahreszeit dieses Frames (gemerkt je Rundung – keine Allokation pro Frame).
+  const look = seasonLook(input.season);
+  cache.look = look;
+
   // Größenänderung entprellen: altes Bild skaliert zeigen, bis die Größe stabil ist.
   let sc = cache.size;
   const key = sc && sc.pw === pw && sc.ph === ph && sc.layout.width === width && sc.layout.height === height ? sc.key : sizeKey(pw, ph, width, height);
   if (cache.gate.shouldRebuild(key, sc ? sc.key : null, input.time)) {
-    sc = buildSizeCache(sc, key, width, height, pw, ph, dpr);
+    // Kulisse gleich in der richtigen Jahreszeit (nicht zweimal malen).
+    sc = buildSizeCache(sc, key, width, height, pw, ph, dpr, look);
     cache.size = sc;
   }
   sc = sc!;
 
   // Jahreszeit (auf 0,05 gerundet): Kulisse und Grasnarbe neu, wenn sich die Rundung
   // ändert; Baum-Ebenen, Pflanzen und Erinnerungsbaum folgen unten.
-  const look = seasonLook(input.season);
-  cache.look = look;
   const seasonKey = look && !look.summer ? look.s : -1;
   const seasonChanged = seasonKey !== sc.seasonKey;
   if (seasonChanged) {
@@ -383,6 +386,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     if (cache.cycle.prepared) cache.cycle.release();
   } else {
     const fromGrowth = Number.isFinite(ct.fromGrowth) ? Math.max(0, ct.fromGrowth) : 0;
+    // Die Jahreszeit gehört bewusst nicht zum Schlüssel: Der alte Wald wird beim Start in
+    // der dann gültigen Jahreszeit gezeichnet und bleibt für den Übergang so eingefroren.
     const cycleKey = `${ct.startedAt}|${fromGrowth}|${sc.key}`;
     if (!cache.cycle.prepared || cache.cycle.key !== cycleKey || !samePlants(cache.cyclePlants, ct.fromPlants)) {
       cache.cyclePlants = ct.fromPlants ? ct.fromPlants.map(plantSig) : null;
@@ -554,6 +559,7 @@ function compose(
     sf.time = time;
     sf.reducedMotion = reduced;
     cache.seasonParticles.draw(ctx, cache.look, sf);
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
   }
   if (level !== null) {
     cache.mood.drawLight(ctx, level, mf);
@@ -664,6 +670,7 @@ function buildSizeCache(
   pw: number,
   ph: number,
   dpr: number,
+  look: SeasonLook | null,
 ): SizeCache {
   const layout = makeLayout(width, height);
   const sized = (c: HTMLCanvasElement | undefined) => {
@@ -703,7 +710,8 @@ function buildSizeCache(
     seasonKey: -1,
   };
 
-  paintStatic(sc, null);
+  paintStatic(sc, look);
+  sc.seasonKey = look && !look.summer ? look.s : -1;
   return sc;
 }
 
