@@ -191,6 +191,8 @@ const scene: SceneInput = {
   reducedMotion: preferences.reducedMotion,
   // Stimmung der Szene (Harmoniestufe 0–4); gesetzt, sobald die Auswertung vorliegt.
   harmonyTier: undefined,
+  // Die Größe kommt schon entprellt aus dem CanvasSizer: keine zweite Wartezeit im Renderer.
+  sizeSettled: true,
 };
 
 // --- Oberfläche ----------------------------------------------------------------------

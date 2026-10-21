@@ -5,6 +5,7 @@ import {
   canvasSize,
   CanvasSizeDebouncer,
   seasonStepKey,
+  settled,
   sizeKey,
 } from '../src/render/resize';
 import { seasonLook } from '../src/render/season';
@@ -53,7 +54,63 @@ describe('canvasSize', () => {
   });
 });
 
+describe('settled', () => {
+  it('Frame-Regel nur bei stehender Zeit, sonst entscheidet die Zeit', () => {
+    expect(settled(0, 100, 7, 6)).toBe(true);
+    expect(settled(0, 100, 6, 6)).toBe(false);
+    // Zeit läuft: viele Frames zählen nicht.
+    expect(settled(30, 100, 50, 6)).toBe(false);
+    expect(settled(100, 100, 2, 6)).toBe(true);
+    // Zurückgesprungen: sofort.
+    expect(settled(-1, 100, 1, 6)).toBe(true);
+  });
+});
+
+describe('canvasSize mit exakten Gerätepixeln', () => {
+  it('nimmt devicePixelContentBoxSize, wenn gültig', () => {
+    expect(canvasSize(800.4, 500.6, 2, { pw: 1600, ph: 1002 })).toMatchObject({ width: 800.4, pw: 1600, ph: 1002 });
+    expect(canvasSize(800.4, 500.6, 2, { pw: 1600, ph: 1002 }).key).toBe(sizeKey(1600, 1002, 800.4, 500.6));
+  });
+
+  it('ignoriert ungültige Gerätepixel und leere CSS-Größe', () => {
+    expect(canvasSize(800, 500, 2, { pw: 0, ph: 1000 })).toMatchObject({ pw: 1600, ph: 1000 });
+    expect(canvasSize(800, 500, 2, { pw: Number.NaN, ph: 1000 })).toMatchObject({ pw: 1600 });
+    expect(canvasSize(800, 500, 2, { pw: 1600.5, ph: 1000 })).toMatchObject({ pw: 1600 });
+    expect(canvasSize(0, 500, 2, { pw: 1600, ph: 1000 })).toMatchObject({ pw: 0, ph: 1000 });
+    expect(canvasSize(800, 500, 2, null)).toMatchObject({ pw: 1600, ph: 1000 });
+  });
+
+  it('ignoriert Gerätepixel, die nicht zur Pixeldichte passen (emulierte Pixeldichte)', () => {
+    // Headless-Chromium mit deviceScaleFactor 2 meldet CSS-Pixel als Gerätepixel.
+    expect(canvasSize(800, 500, 2, { pw: 800, ph: 500 })).toMatchObject({ pw: 1600, ph: 1000 });
+    expect(canvasSize(800, 500, 2, { pw: 1602, ph: 1000 })).toMatchObject({ pw: 1600, ph: 1000 });
+    expect(canvasSize(800.5, 500, 1, { pw: 801, ph: 500 })).toMatchObject({ pw: 801 });
+    expect(canvasSize(800.5, 500, 1, { pw: 800, ph: 500 })).toMatchObject({ pw: 800 });
+  });
+});
+
 describe('CanvasSizeDebouncer', () => {
+  it('bei 144 und 240 Hz wird erst nach ~100 ms übernommen, nicht nach 6 Frames', () => {
+    for (const hz of [144, 240]) {
+      const d = new CanvasSizeDebouncer();
+      const first = d.update(800, 500, 1, 0);
+      const dt = 1000 / hz;
+      let i = 1;
+      let t = dt;
+      while (d.update(700, 500, 1, i * dt) === first) {
+        i++;
+        t = i * dt;
+      }
+      expect(t - dt).toBeGreaterThanOrEqual(CANVAS_SETTLE_MS - 1e-9);
+      expect(t - dt).toBeLessThan(CANVAS_SETTLE_MS + dt + 1e-9);
+    }
+  });
+
+  it('übergibt exakte Gerätepixel an den Backing-Store', () => {
+    const d = new CanvasSizeDebouncer();
+    expect(d.update(800.3, 500, 1.5, 0, { pw: 1201, ph: 750 })).toMatchObject({ pw: 1201, ph: 750 }); // statt 1200
+  });
+
   it('übernimmt die erste Größe sofort', () => {
     const d = new CanvasSizeDebouncer();
     expect(d.update(800, 500, 2, 0)).toMatchObject({ pw: 1600, ph: 1000 });

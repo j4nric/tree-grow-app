@@ -20,8 +20,9 @@
  * Wind ist nur eine Scherung der gecachten Baum-Ebenen um die Bodenlinie; Tiere am
  * Baum werden um denselben Betrag verschoben. Tiere liegen immer über den Pflanzen.
  * Größenänderungen werden entprellt: Bis die neue Größe ~150 ms stabil ist, wird das
- * alte Bild skaliert gezeigt. (Der Game Loop entprellt zusätzlich den Backing-Store des
- * Canvas, siehe `CanvasSizeDebouncer`.)
+ * alte Bild skaliert gezeigt (`ResizeGate`). Der Game Loop entprellt schon den
+ * Backing-Store des Canvas (`CanvasSizer`, ~100 ms) und setzt `sizeSettled` – dann wird
+ * eine neue Größe sofort übernommen, ohne dass sich beide Wartezeiten addieren.
  * Pro Frame kostet die Kulisse damit eine Kopie (`background`, dazu der kleine Bereich des
  * Erinnerungsbaums – hineinbacken brachte messbar nichts); die Stimmungs-Ebene
  * liegt über bewegten Teilen (Wolken, Wind, Tiere) und lässt sich nicht hineinbacken.
@@ -129,6 +130,13 @@ export interface SceneInput {
    * `cycleTransition.fromTree`, fehlt sie oder ist unbekannt, diese Art) und Erinnerungsbaum. Ohne Angabe Eiche.
    */
   mainTree?: TreeSpecies;
+  /**
+   * Die übergebene Größe ist schon entprellt (z. B. per `CanvasSizer` im Game Loop): Eine
+   * neue Größe wird sofort neu aufgebaut, ohne eigene Wartezeit. Ohne Angabe wartet der
+   * Renderer selbst, bis die Größe ~150 ms stabil ist, und zeigt so lange das alte Bild
+   * skaliert.
+   */
+  sizeSettled?: boolean;
 }
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
@@ -386,10 +394,12 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const look = seasonLook(input.season);
   cache.look = look;
 
-  // Größenänderung entprellen: altes Bild skaliert zeigen, bis die Größe stabil ist.
+  // Größenänderung entprellen: altes Bild skaliert zeigen, bis die Größe stabil ist –
+  // außer der Aufrufer hat schon entprellt (`sizeSettled`).
   let sc = cache.size;
   const key = sc && sc.pw === pw && sc.ph === ph && sc.layout.width === width && sc.layout.height === height ? sc.key : sizeKey(pw, ph, width, height);
-  if (cache.gate.shouldRebuild(key, sc ? sc.key : null, input.time)) {
+  const builtKey = sc ? sc.key : null;
+  if (input.sizeSettled ? key !== builtKey : cache.gate.shouldRebuild(key, builtKey, input.time)) {
     // Kulisse gleich in der richtigen Jahreszeit (nicht zweimal malen).
     sc = buildSizeCache(sc, key, width, height, pw, ph, dpr, look);
     cache.size = sc;
