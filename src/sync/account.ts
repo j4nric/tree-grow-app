@@ -9,8 +9,11 @@ import { SAVE_VERSION } from '../core/state';
 import { createHttpService } from './http-service';
 import { SyncEngine, type CodeCheck, type SyncHost, type SyncStatus } from './engine';
 import type { Progress } from './policy';
-import { CLOUD_BACKUP_KEY, deviceId, readBase, readOwner, writeBackup, writeBase } from './storage';
+import { SESSION_KEY } from './http-service';
+import { BACKUP_KEY, CLOUD_BACKUP_KEY, deviceId, readBase, readOwner, writeBackup, writeBase } from './storage';
 import { AccountError, type AccountService, type AccountUser } from './types';
+
+const RESTORE_MISSING = 'Diese Sicherung gibt es nicht (mehr).';
 
 /** So oft prüft der Abgleich, ob ein Push fällig ist (und die Statuszeile läuft weiter). */
 const POLL_MS = 1000;
@@ -31,6 +34,19 @@ export interface GameBridge {
   adopt(code: string, ageMs?: number): boolean;
   /** Kurzer Hinweis. */
   notify(text: string): void;
+  /** Gesicherten Text-Code laden (wie „Importieren“); Rückgabe: Fehlertext oder null. */
+  restore(code: string): string | null;
+}
+
+/**
+ * Was ein Tab tun muss, wenn sich die gemeinsame Sitzung (localStorage, alle Tabs) geändert
+ * hat: 'none' – gleiches Konto; 'signed-out' – anderswo abgemeldet; 'stale' – anderswo mit
+ * einem (anderen) Konto angemeldet. Dann darf dieser Tab nichts mehr senden: Sein Spiel im
+ * Speicher gehört nicht zu diesem Konto → Abgleich anhalten, zum Neuladen auffordern.
+ */
+export function sessionChange(current: string | null, stored: string | null): 'none' | 'signed-out' | 'stale' {
+  if (stored === current) return 'none';
+  return stored === null ? 'signed-out' : 'stale';
 }
 
 export interface AccountOptions {
@@ -71,6 +87,21 @@ export function startAccount(options: AccountOptions): AccountController {
     onRegister: async (name, password) => {
       if (!service) throw new AccountError('network');
       setUser(await service.register(name, password));
+    },
+    backups: () => ({ local: hasItem(BACKUP_KEY), cloud: hasItem(CLOUD_BACKUP_KEY) }),
+    onRestore: (kind) => {
+      let code: string | null = null;
+      try {
+        code = storage.getItem(kind === 'local' ? BACKUP_KEY : CLOUD_BACKUP_KEY);
+      } catch {
+        code = null;
+      }
+      if (!code) return RESTORE_MISSING;
+      const error = game.restore(code);
+      if (error) return error;
+      // Bewusst geladen: wie eine Spieleraktion – die anderen Geräte übernehmen den Stand.
+      engine?.markAction();
+      return null;
     },
     onSignOut: async (force) => {
       if (!service) return 'done';
@@ -115,8 +146,35 @@ export function startAccount(options: AccountOptions): AccountController {
     };
   }
 
+  function hasItem(key: string): boolean {
+    try {
+      return !!storage.getItem(key);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Sitzung von einem anderen Tab geändert? Dann anhalten bzw. abmelden. */
+  let stale = false;
+  /** Erst nach der ersten Prüfung der Sitzung beim Start (currentUser) vergleichen. */
+  let known = false;
+  function checkSession(): void {
+    if (!service || stale || !known) return;
+    const change = sessionChange(user?.name ?? null, service.sessionUser());
+    if (change === 'signed-out') setUser(null);
+    else if (change === 'stale') {
+      stale = true;
+      engine?.stop();
+      engine = null;
+      status = null;
+      user = null;
+      panel.showStale(service.sessionUser() ?? '');
+    }
+  }
+
   function setUser(next: AccountUser | null): void {
-    if (!service) return;
+    if (!service || stale) return;
+    known = true;
     if ((next?.name ?? null) !== (user?.name ?? null)) {
       engine?.stop();
       engine = null;
@@ -138,16 +196,23 @@ export function startAccount(options: AccountOptions): AccountController {
     EventSource: typeof window.EventSource === 'function' ? window.EventSource : undefined,
   });
   service.onUserChange(setUser);
+  window.addEventListener('storage', (event) => {
+    if (event.key === SESSION_KEY || event.key === null) checkSession();
+  });
   service
     .currentUser()
     .then(setUser)
     .catch(() => {
+      known = true;
       if (!user) panel.showUnavailable();
     });
 
   setInterval(() => {
+    // Auch ohne storage-Ereignis (z. B. verpasst): nie mit einer fremden Sitzung weiterlaufen.
+    checkSession();
     void engine?.poll();
     renderSync();
+    panel.setBackups({ local: hasItem(BACKUP_KEY), cloud: hasItem(CLOUD_BACKUP_KEY) });
   }, POLL_MS);
 
   return {

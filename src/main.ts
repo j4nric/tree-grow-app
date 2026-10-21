@@ -759,6 +759,13 @@ function setupAccount(): void {
             return true;
           },
           notify: (text) => notify(text),
+          // Sicherung von vor dem Abgleich laden – wie „Importieren“.
+          restore: (code) => {
+            const result = importCode(code, Date.now());
+            if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
+            replaceState(result.result.state);
+            return null;
+          },
         },
       });
     })

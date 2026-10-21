@@ -4,8 +4,17 @@
  */
 import type { SyncBase } from './engine';
 
-/** Grundlage des lokalen Stands je Konto: { user, version, pending }. */
+/**
+ * Früher: eine gemeinsame Grundlage { user, version, pending } für alle Konten. Wird nur
+ * noch gelesen (Übergang); geschrieben wird je Konto unter baseKey(user).
+ */
 export const BASE_KEY = 'vszw-sync-base';
+/** Grundlage des lokalen Stands je Konto: { user, version, pending }. */
+export function baseKey(user: string): string {
+  return `${BASE_KEY}:${user}`;
+}
+/** Konto, mit dem der lokale Stand zuletzt abgeglichen wurde. */
+export const OWNER_KEY = 'vszw-sync-owner';
 /** Zufällige Geräte-ID (Echo des eigenen Pushs erkennen). */
 export const DEVICE_KEY = 'vszw-device-id';
 /** Sicherung des lokalen Stands (Text-Code), bevor ein Cloud-Stand ihn ersetzt. */
@@ -47,6 +56,8 @@ export function parseOwner(raw: string | null): string | null {
 
 export function readOwner(storage: Storage): string | null {
   try {
+    const owner = storage.getItem(OWNER_KEY);
+    if (owner) return owner;
     return parseOwner(storage.getItem(BASE_KEY));
   } catch {
     return null;
@@ -55,15 +66,17 @@ export function readOwner(storage: Storage): string | null {
 
 export function readBase(storage: Storage, userId: string): SyncBase | null {
   try {
-    return parseBase(storage.getItem(BASE_KEY), userId);
+    return parseBase(storage.getItem(baseKey(userId)), userId) ?? parseBase(storage.getItem(BASE_KEY), userId);
   } catch {
     return null;
   }
 }
 
+/** Grundlage je Konto schreiben (Tabs mit verschiedenen Konten stören sich nicht) und Besitzer merken. */
 export function writeBase(storage: Storage, userId: string, base: SyncBase): void {
   try {
-    storage.setItem(BASE_KEY, JSON.stringify({ user: userId, version: base.version, pending: base.pending }));
+    storage.setItem(baseKey(userId), JSON.stringify({ user: userId, version: base.version, pending: base.pending }));
+    storage.setItem(OWNER_KEY, userId);
   } catch {
     // Speicher voll oder blockiert – der Abgleich klappt dann beim nächsten Start über den Fortschritt.
   }

@@ -73,12 +73,19 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
     for (const listener of listeners) listener(null);
   }
 
-  async function request(method: string, path: string, body?: unknown, auth = true): Promise<{ status: number; json: unknown }> {
+  /**
+   * Anfrage an den Server. `auth`: false = ohne Token; true = mit der gespeicherten Sitzung;
+   * ein Benutzername = nur, wenn die gespeicherte Sitzung (noch) zu genau diesem Konto gehört.
+   * Die Sitzung liegt im localStorage, den alle Tabs teilen: Meldet sich ein anderer Tab mit
+   * einem anderen Konto an, darf dieser Tab nie mit dessen Token schreiben.
+   */
+  async function request(method: string, path: string, body?: unknown, auth: boolean | string = true): Promise<{ status: number; json: unknown }> {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    if (auth) {
+    if (auth !== false) {
       const session = loadSession();
       if (!session) throw new AccountError('unauthorized');
+      if (typeof auth === 'string' && session.username !== auth) throw new AccountError('unauthorized');
       headers.Authorization = `Bearer ${session.token}`;
     }
     let res: Response;
@@ -95,7 +102,7 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
         json = null;
       }
     }
-    if (res.status === 401 && auth) {
+    if (res.status === 401 && auth !== false) {
       expire();
       throw new AccountError('unauthorized');
     }
@@ -137,29 +144,30 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
     return remote;
   }
 
-  async function put(baseVersion: number, row: SaveWrite, action: boolean): Promise<WriteResult> {
+  async function put(user: string, baseVersion: number, row: SaveWrite, action: boolean): Promise<WriteResult> {
     const { status, json } = await request('PUT', '/api/save', {
       data: row.data,
       baseVersion,
       deviceId: row.device,
       action,
       schema: row.schema,
-    });
+    }, user);
     if (status === 200) return 'ok';
     if (status === 409) return 'conflict';
     if (status === 422 && (json as { error?: unknown } | null)?.error === 'outdated-client') return 'outdated';
     throw new AccountError(status === 507 ? 'storage-full' : 'server');
   }
 
-  const backend: SyncBackend = {
+  /** Zugriff auf den Stand von `user` – nie mit der Sitzung eines anderen Kontos. */
+  const backendFor = (user: string): SyncBackend => ({
     async fetch() {
-      const { status, json } = await request('GET', '/api/save');
+      const { status, json } = await request('GET', '/api/save', undefined, user);
       if (status === 204) return null;
       if (status !== 200) throw new AccountError('server');
       return toRemote(json);
     },
-    insert: (row) => put(0, row, true),
-    update: (expected, row) => put(expected, row, row.actionVersion !== undefined),
+    insert: (row) => put(user, 0, row, true),
+    update: (expected, row) => put(user, expected, row, row.actionVersion !== undefined),
     subscribe(listener) {
       const Source = deps.EventSource;
       if (!Source) return () => {};
@@ -180,7 +188,7 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
         if (stopped) return;
         let ticket: string;
         try {
-          const { status, json } = await request('POST', '/api/events/ticket');
+          const { status, json } = await request('POST', '/api/events/ticket', undefined, user);
           const value = (json as { ticket?: unknown } | null)?.ticket;
           if (status !== 200 || typeof value !== 'string') throw new AccountError('server');
           ticket = value;
@@ -223,7 +231,7 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
         source = null;
       };
     },
-  };
+  });
 
   return {
     async currentUser() {
@@ -252,6 +260,7 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
       }
       storeSession(null);
     },
-    backend: () => backend,
+    sessionUser: () => loadSession()?.username ?? null,
+    backend: (user) => backendFor(user.name),
   };
 }

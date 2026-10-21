@@ -78,5 +78,8 @@ export interface AccountService {
   signIn(username: string, password: string): Promise<AccountUser>;
   register(username: string, password: string): Promise<AccountUser>;
   signOut(): Promise<void>;
+  /** Konto der gespeicherten Sitzung (ohne Netz); kann sich durch einen anderen Tab ändern. */
+  sessionUser(): string | null;
+  /** Zugriff auf den Stand genau dieses Kontos (gehört die Sitzung inzwischen einem anderen: 'unauthorized'). */
   backend(user: AccountUser): SyncBackend;
 }

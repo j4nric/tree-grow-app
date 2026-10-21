@@ -346,6 +346,20 @@ footer {
   color: var(--muted);
 }
 
+.account-restore,
+.account-restore-choice,
+.account-stale {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.account-restore[hidden],
+.account-restore-choice[hidden],
+.account-stale[hidden] {
+  display: none;
+}
+
 .account-sync.tone-bad {
   color: var(--bad);
   font-weight: 600;

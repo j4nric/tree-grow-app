@@ -1,7 +1,7 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
-import { codeFromJson, serialize } from '../src/core/save';
+import { codeFromJson, exportCode, serialize } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, niche, openGame, seedV3, test, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, niche, openGame, readNumber, seedsValue, seedV3, test, waypoint } from './fixtures';
 
 /**
  * Konto und Gerätesync: Ohne VITE_SYNC_URL (so ist das e2e-Build gebaut) gibt es kein
@@ -220,6 +220,72 @@ syncTest('Abmelden mit noch nicht gesendeten Änderungen: erst Hinweis, dann tro
     await signOut.click();
     await expect(account(page).locator('[data-ref="account-status"]')).toHaveText(/Abgemeldet/);
     await expect(account(page).getByLabel('Benutzername')).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
+
+syncTest('zwei Tabs, ein Browser: Abmelden und anderes Konto im zweiten Tab halten den ersten an', async ({ browser, baseURL }) => {
+  syncTest.slow();
+  const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`;
+  const context = await browser.newContext({ baseURL, locale: 'de-DE' });
+  const tab1 = await context.newPage();
+  const tab2 = await context.newPage();
+  try {
+    await enableSync(context);
+    await openGame(tab1);
+    await openSettings(tab1);
+    await account(tab1).getByLabel('Benutzername').fill(`eins${suffix}`);
+    await account(tab1).getByLabel('Passwort').fill('geheim-wald-1');
+    await account(tab1).getByRole('button', { name: 'Konto anlegen' }).click();
+    await expect(account(tab1).locator('[data-ref="account-who"]')).toHaveText(`Angemeldet als eins${suffix}`);
+
+    // Tab 2 teilt die Sitzung; Abmelden dort meldet auch Tab 1 ab.
+    await openGame(tab2);
+    await openSettings(tab2);
+    await expect(account(tab2).locator('[data-ref="account-who"]')).toHaveText(`Angemeldet als eins${suffix}`);
+    await account(tab2).getByRole('button', { name: 'Abmelden' }).click();
+    await expect(account(tab2).getByLabel('Benutzername')).toBeVisible();
+    await expect(account(tab1).getByLabel('Benutzername')).toBeVisible();
+
+    // Tab 2 meldet sich mit einem anderen Konto an: Tab 1 gleicht nichts mehr ab.
+    await account(tab2).getByLabel('Benutzername').fill(`zwei${suffix}`);
+    await account(tab2).getByLabel('Passwort').fill('geheim-wald-1');
+    await account(tab2).getByRole('button', { name: 'Konto anlegen' }).click();
+    await expect(account(tab2).locator('[data-ref="account-who"]')).toHaveText(`Angemeldet als zwei${suffix}`);
+    await expect(account(tab1).locator('[data-ref="account-stale"]')).toContainText(`„zwei${suffix}“`);
+    await expect(account(tab1).getByRole('button', { name: 'Neu laden' })).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
+
+syncTest('Sicherung vor dem Sync im Konto-Abschnitt wiederherstellen (mit Bestätigung)', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, locale: 'de-DE' });
+  const page = await context.newPage();
+  try {
+    await enableSync(context);
+    const state = createInitialState(Date.now(), 7);
+    state.seeds = 4321;
+    await context.addInitScript((code) => {
+      if (!localStorage.getItem('vszw-backup-before-sync')) localStorage.setItem('vszw-backup-before-sync', code);
+    }, exportCode(state));
+    await openGame(page);
+    expect(await readNumber(seedsValue(page))).toBeLessThan(4321);
+    await openSettings(page);
+    const open = account(page).locator('[data-ref="account-restore"]');
+    await expect(open).toHaveText('Sicherung vor dem Sync wiederherstellen');
+    // Keine Cloud-Sicherung vorhanden → nur der Gerätestand wird angeboten.
+    await open.click();
+    await expect(account(page)).toContainText('Dein aktueller Wald wird dabei ersetzt.');
+    await expect(account(page).locator('[data-ref="account-restore-cloud"]')).toBeHidden();
+    await account(page).getByRole('button', { name: 'Abbrechen' }).click();
+    expect(await readNumber(seedsValue(page))).toBeLessThan(4321);
+    await open.click();
+    await account(page).locator('[data-ref="account-restore-local"]').click();
+    await expect(account(page).locator('[data-ref="account-status"]')).toHaveText('Sicherung geladen.');
+    await closeSettings(page);
+    expect(await readNumber(seedsValue(page))).toBeGreaterThanOrEqual(4321);
   } finally {
     await context.close();
   }

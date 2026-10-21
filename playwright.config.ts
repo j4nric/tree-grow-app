@@ -38,7 +38,8 @@ export default defineConfig({
       // selbst ist ohne VITE_SYNC_URL gebaut und zeigt sonst kein Konto.
       command: 'npm --prefix server run build && node --disable-warning=ExperimentalWarning server/dist/index.js',
       url: `http://localhost:${SYNC_PORT}/api/health`,
-      env: { PORT: String(SYNC_PORT), DB_PATH: ':memory:', ALLOWED_ORIGINS: `http://localhost:${PORT}` },
+      // Alle Konto-Tests registrieren von localhost aus: Grenze je IP hochsetzen.
+      env: { PORT: String(SYNC_PORT), DB_PATH: ':memory:', ALLOWED_ORIGINS: `http://localhost:${PORT}`, REGISTRATIONS_PER_IP_HOUR: '1000' },
       reuseExistingServer: !CI,
       timeout: 60_000,
     },

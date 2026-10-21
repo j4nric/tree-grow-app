@@ -5,11 +5,13 @@ import { MemoryStorage } from './memory-storage';
 import { codeFromJson, exportCode, importCode, isNewerSave, serialize } from '../src/core/save';
 import { SAVE_VERSION, createInitialState } from '../src/core/state';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from '../src/sync/config';
+import { sessionChange } from '../src/sync/account';
 import { apiBase } from '../src/sync/http-service';
 import {
   BACKUP_KEY,
   BASE_KEY,
   CLOUD_BACKUP_KEY,
+  baseKey,
   DEVICE_KEY,
   deviceId,
   parseBase,
@@ -133,8 +135,19 @@ describe('Speicher-Helfer', () => {
   it('readBase/writeBase und blockierter Speicher', () => {
     const storage = new MemoryStorage();
     writeBase(storage, 'eiche', { version: 2, pending: false });
-    expect(JSON.parse(storage.getItem(BASE_KEY)!)).toEqual({ user: 'eiche', version: 2, pending: false });
+    expect(JSON.parse(storage.getItem(baseKey('eiche'))!)).toEqual({ user: 'eiche', version: 2, pending: false });
     expect(readBase(storage, 'eiche')).toEqual({ version: 2, pending: false });
+    // Je Konto eigener Eintrag: ein zweites Konto (anderer Tab) überschreibt nichts.
+    writeBase(storage, 'buche', { version: 7, pending: true });
+    expect(readBase(storage, 'eiche')).toEqual({ version: 2, pending: false });
+    expect(readBase(storage, 'buche')).toEqual({ version: 7, pending: true });
+    expect(readOwner(storage)).toBe('buche');
+    // Alter gemeinsamer Eintrag (vor der Aufteilung) wird noch gelesen.
+    const legacy = new MemoryStorage();
+    legacy.setItem(BASE_KEY, JSON.stringify({ user: 'linde', version: 4, pending: true }));
+    expect(readBase(legacy, 'linde')).toEqual({ version: 4, pending: true });
+    expect(readBase(legacy, 'eiche')).toBeNull();
+    expect(readOwner(legacy)).toBe('linde');
     storage.blocked = true;
     expect(readBase(storage, 'eiche')).toBeNull();
     expect(() => writeBase(storage, 'eiche', { version: 3, pending: true })).not.toThrow();
@@ -150,6 +163,17 @@ describe('Speicher-Helfer', () => {
     expect(deviceId(storage, random)).toBe('geraet-2-abcdef');
     storage.blocked = true;
     expect(deviceId(storage, random)).toBe('geraet-3-abcdef');
+  });
+});
+
+describe('Sitzung in mehreren Tabs', () => {
+  it('sessionChange: gleich, abgemeldet, anderes Konto', () => {
+    expect(sessionChange('eiche', 'eiche')).toBe('none');
+    expect(sessionChange(null, null)).toBe('none');
+    expect(sessionChange('eiche', null)).toBe('signed-out');
+    expect(sessionChange('eiche', 'buche')).toBe('stale');
+    // Hier abgemeldet, anderswo angemeldet: dieser Tab spielt einen anderen Stand → nicht anschließen.
+    expect(sessionChange(null, 'buche')).toBe('stale');
   });
 });
 

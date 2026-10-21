@@ -32,6 +32,15 @@ export const ACCOUNT_TEXTS = {
   signOutUnsent:
     'Deine letzten Änderungen sind noch nicht im Konto (keine Verbindung). Sie bleiben auf diesem Gerät gespeichert. Erneut tippen, um trotzdem abzumelden.',
   signOutAnyway: 'Trotzdem abmelden',
+  stale: (name: string) =>
+    `In einem anderen Tab ist jetzt ${name ? `„${name}“` : 'ein anderes Konto'} angemeldet. Dieser Tab gleicht nichts mehr ab – lade die Seite neu, um mit diesem Konto weiterzuspielen.`,
+  reload: 'Neu laden',
+  restoreOpen: 'Sicherung vor dem Sync wiederherstellen',
+  restoreHint: 'Welche Sicherung laden? Dein aktueller Wald wird dabei ersetzt.',
+  restoreLocal: 'Stand dieses Geräts',
+  restoreCloud: 'Stand aus dem Konto',
+  restoreCancel: 'Abbrechen',
+  restored: 'Sicherung geladen.',
 } as const;
 
 /** Benutzername nach den Server-Regeln (klein geschrieben) oder null. */

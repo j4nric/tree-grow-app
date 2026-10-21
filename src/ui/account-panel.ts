@@ -18,6 +18,17 @@ export interface AccountPanelCallbacks {
    * abgemeldet, weil Änderungen noch nicht im Konto sind (Hinweis zeigen, erneut fragen).
    */
   onSignOut(force: boolean): Promise<'done' | 'unsent'>;
+  /** Welche Sicherungen von vor dem Abgleich es gibt. */
+  backups(): BackupAvailability;
+  /** Sicherung laden (ersetzt den aktuellen Stand); Rückgabe: Fehlertext oder null. */
+  onRestore(kind: 'local' | 'cloud'): string | null;
+}
+
+export interface BackupAvailability {
+  /** Stand dieses Geräts vor dem Abgleich. */
+  local: boolean;
+  /** Stand aus dem Konto vor der ersten Anmeldung. */
+  cloud: boolean;
 }
 
 export interface AccountPanel {
@@ -28,6 +39,10 @@ export interface AccountPanel {
   showSignedIn(name: string): void;
   /** Zeile zum Abgleich (nur angemeldet sichtbar); 'bad' = Abgleich angehalten. */
   setSync(text: string, tone?: 'neutral' | 'bad'): void;
+  /** Ein anderer Tab hat sich mit einem anderen Konto angemeldet: nur noch „Neu laden“. */
+  showStale(name: string): void;
+  /** Knopf „Sicherung … wiederherstellen“ nur zeigen, wenn es eine gibt. */
+  setBackups(available: BackupAvailability): void;
 }
 
 let fieldId = 0;
@@ -96,7 +111,72 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
   status.setAttribute('role', 'status');
   status.dataset.ref = 'account-status';
 
-  section.append(title, lead, form, signedIn, status);
+  // Anderer Tab, anderes Konto: nur noch neu laden.
+  const staleBox = el('div', 'account-stale');
+  staleBox.hidden = true;
+  const staleText = el('p', 'account-text');
+  staleText.dataset.ref = 'account-stale';
+  const reload = el('button', 'save-button', T.reload);
+  reload.type = 'button';
+  reload.addEventListener('click', () => window.location.reload());
+  staleBox.append(staleText, reload);
+
+  // Sicherungen von vor dem Abgleich laden – zwei Schritte statt confirm().
+  const restore = el('div', 'account-restore');
+  restore.hidden = true;
+  const restoreOpen = el('button', 'link-button', T.restoreOpen);
+  restoreOpen.type = 'button';
+  restoreOpen.dataset.ref = 'account-restore';
+  restoreOpen.setAttribute('aria-expanded', 'false');
+  const restoreChoice = el('div', 'account-restore-choice');
+  restoreChoice.hidden = true;
+  const restoreHint = el('p', 'account-text', T.restoreHint);
+  const restoreLocal = el('button', 'save-button', T.restoreLocal);
+  restoreLocal.type = 'button';
+  restoreLocal.dataset.ref = 'account-restore-local';
+  const restoreCloud = el('button', 'save-button', T.restoreCloud);
+  restoreCloud.type = 'button';
+  restoreCloud.dataset.ref = 'account-restore-cloud';
+  const restoreCancel = el('button', 'save-button', T.restoreCancel);
+  restoreCancel.type = 'button';
+  const restoreRow = el('div', 'save-row');
+  restoreRow.append(restoreLocal, restoreCloud, restoreCancel);
+  restoreChoice.append(restoreHint, restoreRow);
+  restore.append(restoreOpen, restoreChoice);
+
+  section.append(title, lead, form, signedIn, staleBox, restore, status);
+
+  function setBackups(available: BackupAvailability): void {
+    restoreLocal.hidden = !available.local;
+    restoreCloud.hidden = !available.cloud;
+    restore.hidden = !available.local && !available.cloud;
+    if (restore.hidden) closeRestore();
+  }
+
+  function closeRestore(): void {
+    restoreChoice.hidden = true;
+    restoreOpen.setAttribute('aria-expanded', 'false');
+  }
+
+  restoreOpen.addEventListener('click', () => {
+    setBackups(callbacks.backups());
+    restoreChoice.hidden = !restoreChoice.hidden;
+    restoreOpen.setAttribute('aria-expanded', String(!restoreChoice.hidden));
+  });
+  restoreCancel.addEventListener('click', () => {
+    closeRestore();
+    restoreOpen.focus();
+  });
+  for (const [button, kind] of [
+    [restoreLocal, 'local'],
+    [restoreCloud, 'cloud'],
+  ] as const) {
+    button.addEventListener('click', () => {
+      const error = callbacks.onRestore(kind);
+      closeRestore();
+      say(error ?? T.restored, error ? 'bad' : 'good');
+    });
+  }
 
   function say(text: string, tone: 'good' | 'bad' | 'neutral' = 'neutral'): void {
     status.textContent = text;
@@ -175,10 +255,11 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
     );
   });
 
-  function mode(which: 'loading' | 'unavailable' | 'out' | 'in'): void {
+  function mode(which: 'loading' | 'unavailable' | 'out' | 'in' | 'stale'): void {
     form.hidden = which !== 'out';
     signedIn.hidden = which !== 'in';
-    lead.hidden = which === 'in';
+    staleBox.hidden = which !== 'stale';
+    lead.hidden = which === 'in' || which === 'stale';
   }
 
   const panel: AccountPanel = {
@@ -209,11 +290,18 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
       say('');
       if (focusInside) signOut.focus({ preventScroll: true });
     },
+    showStale(name) {
+      mode('stale');
+      setText(staleText, T.stale(name));
+      say('');
+    },
+    setBackups,
     setSync(text, tone = 'neutral') {
       setText(sync, text);
       sync.className = `account-sync tone-${tone}`;
     },
   };
   panel.showLoading();
+  setBackups(callbacks.backups());
   return panel;
 }
