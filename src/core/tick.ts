@@ -71,6 +71,11 @@ export interface TickReport {
   regulars: string[];
   /** Am Zwischenhalt (ab Hain) in die Warteschlange gelegte Ereignisse und Gäste. */
   interludes: number;
+  /**
+   * Erreichte Zwischenhalte – auch ohne Ergebnis. Auch dann ändert sich der Spielstand
+   * (Zufall, `cycle.interlude`): main.ts speichert sofort, damit Neuladen nichts neu würfelt.
+   */
+  interludesReached: number;
   /** Abgelaufene Zeit-Boni (Ereignis-IDs) und abgereiste Gäste (Gast-IDs). */
   expired: string[];
 }
@@ -103,6 +108,7 @@ export function tick(state: GameState, dt: number): TickReport {
     declinedNoCards: 0,
     regulars: [],
     interludes: 0,
+    interludesReached: 0,
     expired: [],
   };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
@@ -185,6 +191,7 @@ export function interludeThreshold(state: GameState): number {
  */
 function reachInterlude(state: GameState, report: TickReport): void {
   state.cycle.interlude = state.waypoint;
+  report.interludesReached++;
   if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) return;
   if (random(state) >= INTERLUDE_CHANCE) return;
   const events = eligibleEvents(state);
@@ -393,7 +400,9 @@ export type ActionError =
   /** Aktion passt nicht zum Begegnungstyp (z. B. Ablehnen bei einem Ereignis). */
   | 'wrong-type'
   /** Ereignis: Diese Option gibt es nicht. */
-  | 'no-option';
+  | 'no-option'
+  /** Gast: rastet schon (nur bei manipulierten Ständen denkbar). */
+  | 'already-active';
 
 /**
  * Ergebnis einer Spieleraktion. `discovered`: Lebensgemeinschaften, die durch die Aktion
@@ -828,12 +837,13 @@ export function visitorSeeds(state: GameState, visitorId: string): { host: numbe
 export function hostBlocker(
   state: GameState,
   encounterIndex: number,
-): 'no-encounter' | 'wrong-type' | 'no-card' | 'too-expensive' | null {
+): 'no-encounter' | 'wrong-type' | 'no-card' | 'already-active' | 'too-expensive' | null {
   const encounter = state.pendingEncounters[encounterIndex];
   if (!encounter) return 'no-encounter';
   if (encounter.type !== 'visitor') return 'wrong-type';
   const costs = visitorSeeds(state, encounter.cards[0] ?? '');
   if (!costs) return 'no-card';
+  if (state.cycle.visitors.some((v) => v.id === encounter.cards[0])) return 'already-active';
   if (!(state.seeds >= costs.host)) return 'too-expensive';
   return null;
 }

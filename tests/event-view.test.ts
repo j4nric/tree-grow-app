@@ -7,6 +7,8 @@ import {
   UNTIL_NEW_CYCLE,
   activeBonusViews,
   bonusEffectLabel,
+  encounterActionKey,
+  remainingLabel,
   seedsLabel,
   toEncounterView,
   toEventView,
@@ -111,5 +113,34 @@ describe('View: aktive Boni und Szene', () => {
     expect(bonusEffectLabel({ kind: 'light', amount: 3 })).toBe('+3 ☀️');
     expect(bonusEffectLabel({ kind: 'water', amount: 3 })).toBe('+3 💧');
     expect(bonusEffectLabel({ kind: 'seeds', pct: 25 })).toBe('+25 % 🌰');
+  });
+});
+
+describe('View: Review #31', () => {
+  it('„Bewirten“ wird frei, wenn die Samen steigen – der Aktions-Schlüssel ändert sich dabei', () => {
+    const state = stateAt(4, ['earthworm', 'robin'], 1);
+    state.pendingEncounters = [{ type: 'visitor', cards: ['cranes'], rerolls: 0 }];
+    const locked = encounterActionKey(state, 0);
+    expect(toVisitorView(state, 0)!.cards[0]!.disabledReason).toBeDefined();
+    state.seeds += 1e4; // tick bringt Samen – main.ts vergleicht den Schlüssel je Frame
+    expect(encounterActionKey(state, 0)).not.toBe(locked);
+    expect(toVisitorView(state, 0)!.cards[0]!.disabledReason).toBeUndefined();
+    // Tierbegegnung: Neu würfeln bezahlbar oder nicht.
+    state.pendingEncounters = [{ type: 'animal', cards: ['vole'], rerolls: 0 }];
+    const rich = encounterActionKey(state, 0);
+    state.seeds = 0;
+    expect(encounterActionKey(state, 0)).not.toBe(rich);
+    expect(encounterActionKey(state, 5)).toBe('');
+  });
+
+  it('Restzeit auf Minuten aufgerundet, darunter Sekunden; Symbol je Habitat', () => {
+    expect(remainingLabel(299)).toBe('noch 5 Min.');
+    expect(remainingLabel(240)).toBe('noch 4 Min.');
+    expect(remainingLabel(59.2)).toBe('noch 1 Min.'); // 60 Sek. aufgerundet
+    expect(remainingLabel(42.3)).toBe('noch 43 Sek.');
+    expect(remainingLabel(NaN)).toBe('noch 0 Sek.');
+    const state = stateAt(5, [], 1);
+    state.cycle.habitats = ['totholz', 'feucht', 'hoehle'];
+    expect(activeBonusViews(state).map((v) => v.icon)).toEqual(['🪵', '💧', '🕳️']);
   });
 });

@@ -7,9 +7,11 @@
 > Begleitpflanzen mit Licht-/Wasser-Versorgung, Pflanzring und „Pflanze setzen“
 > (20 · 1,9^n 🌰); Wegpunkte bei 3,5 · k^3,4; Neuer Zyklus ab „Hain“ mit Naturtagebuch,
 > Waldgedächtnis und Stammgästen (Schritt 2.8, siehe `DESIGN_V2.md` Abschnitt 10);
-> Spielstand v4 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
+> Ereignisse mit Wahl und Durchreisende mit Zeit- und Zyklus-Boni, ab dem Hain mit
+> Zwischenhalt (Schritt 2.4, `DESIGN_V2.md` 7.4–7.8);
+> Spielstand v5 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
-> verlustfrei als erster Zyklus weiter). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
+> verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
 > Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰, Neu würfeln
 > kostet 10 🌰 (verdoppelt sich je Wurf).
 >

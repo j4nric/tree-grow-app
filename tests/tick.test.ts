@@ -73,6 +73,7 @@ describe('tick', () => {
       declinedNoCards: 0,
       regulars: [],
       interludes: 0,
+      interludesReached: 0,
       expired: [],
     });
     expect(state.waypoint).toBe(1);
@@ -119,6 +120,7 @@ describe('tick', () => {
       declinedNoCards: 0,
       regulars: [],
       interludes: 0,
+      interludesReached: 0,
       expired: [],
     });
     expect(state.pendingEncounters[0]!.type).toBe('plant');

@@ -737,8 +737,8 @@ type PendingEncounterType = 'animal' | 'plant' | 'event' | 'visitor';
 // Ereignis/Gast: cards = [id], rerolls = 0. Neu würfeln ist dort gesperrt.
 ```
 
-**Ziehen (`drawEncounter`, `reachWaypoint`):** `DRAWABLE_TYPES` um `event`/`visitor`
-erweitern. Kandidaten: `minStage <= stage`, nicht in `cycle.seen`, `speciesAppears(state,
+**Ziehen (`drawEncounter`, `reachWaypoint`):** Alle vier Typen werden nach
+`ENCOUNTER_WEIGHTS` gezogen (die frühere Liste `DRAWABLE_TYPES` ist entfallen). Kandidaten: `minStage <= stage`, nicht in `cycle.seen`, `speciesAppears(state,
 x)`; zufällig gleichverteilt (`pick` mit dem Zufall des Spielstands). Kein Kandidat →
 Tier, sonst Pflanze (wie heute). Ist `cycle.forced` gesetzt, wird die Begegnung am
 nächsten Wegpunkt (ab Wegpunkt 4) genau so gebaut wie in `EventEffect` beschrieben und
@@ -778,9 +778,18 @@ die UI kennt `EncounterKind` 'event'/'visitor' schon (`src/ui/view-model.ts`).
 
 - Spielstand v5; Migration v4 → v5 setzt die neuen Felder leer. Steht ein Stand schon
   hinter dem Zwischenhalt seines Abschnitts, gilt dieser als ausgewertet (kein Ereignis
-  direkt nach dem Update). Beim Laden zählen Boni, Zeit-Boni und Habitate nur, wenn ein
-  Ereignis sie genau so vergibt (Schutz vor manipulierten Ständen); Restdauern werden auf
-  die Dauer begrenzt.
+  direkt nach dem Update). Beim Laden (Schutz vor manipulierten Ständen): Boni und
+  Zeit-Boni nur, wenn ein Ereignis aus `seen` sie genau so vergibt, je (Quelle, Wirkung)
+  höchstens einmal; Habitate je Merkmal höchstens so oft, wie die Ereignisse in `seen` es
+  vergeben können; aktive Gäste nur aus `seen`; `forced` nur mit IDs, die ein
+  `nextEncounter` desselben Typs vorgibt; in der Warteschlange keine doppelten Ereignisse
+  oder Gäste, keine Gäste, die schon rasten, keine Ereignisse, deren Wirkungen schon
+  vergeben sind. Restdauern werden auf die Dauer begrenzt.
+- Samen-Sekunden rechnen zur Samenrate **ohne** Zeit-Boni und Gäste (`seedSecondsRate`),
+  damit sich Samen-Optionen nicht durch vorher gewählte Zeit-Boni aufblähen lassen.
+- `hostBlocker` meldet `'already-active'`, wenn der Gast schon rastet. `TickReport`
+  meldet mit `interludesReached` auch Zwischenhalte ohne Ergebnis – `main.ts` speichert
+  dann sofort, damit Neuladen den Zufall nicht neu würfelt.
 - Aktionen: `chooseEventOption(state, i, option)`, `hostVisitor(state, i)`,
   `farewellVisitor(state, i)`, Blocker `eventOptionBlocker` / `hostBlocker` als Codes.
   `declineEncounter` und Neu würfeln gehen bei Ereignissen und Gästen nicht ('wrong-type').
@@ -1425,8 +1434,8 @@ reichen (Zufall: jeder zweite).
 | Strategie | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Durststrecke Alter Baum 90 % / max | Hain 90 % / max | Wald 90 % / max | Ereignisse / Gäste (bewirtet) je Durchgang |
 |---|---|---|---|---|---|---|---|---|---|
 | Zufällig | 24:00 min | 1:14 h | 2:14 h | 3:14 h | 71,9 | 12:46 min / 20:53 min | 12:08 min / 14:50 min | 10:35 min / 14:02 min | 7,1 / 6,3 (3,1) |
-| Gierig nach Harmonie | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 | 7:58 min / 11:54 min | 7:39 min / 12:18 min | 9:13 min / 19:19 min | 7,4 / 6,1 (6,1) |
-| Gierig nach Wachstum | 14:37 min | 37:31 min | 1:04 h | 1:33 h | 94,1 | 7:15 min / 13:47 min | 5:02 min / 6:47 min | 5:13 min / 8:11 min | 7,7 / 6,0 (6,0) |
+| Gierig nach Harmonie | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 | 7:58 min / 11:54 min | 7:39 min / 12:18 min | 9:09 min / 19:19 min | 7,4 / 6,1 (6,1) |
+| Gierig nach Wachstum | 14:37 min | 37:31 min | 1:04 h | 1:33 h | 94,1 | 7:15 min / 13:47 min | 5:01 min / 6:47 min | 5:13 min / 8:11 min | 7,7 / 6,0 (6,0) |
 
 Bewertung: Durststrecken im Hain und Wald liegen im 90-%-Quantil unter 10 min (Ziel
 < 11 min). Der Harmonie-Spieler erreicht den Hain in ~46 min – am unteren Rand des

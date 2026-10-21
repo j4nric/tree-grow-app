@@ -1,5 +1,5 @@
 import { STAGES } from './content/stages';
-import { evaluate, growth, nextPlantCost, rerollCost, type Evaluation } from './core/formulas';
+import { evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { clearStorage, loadFromStorage, saveToStorage } from './core/save';
 import { createInitialState, type GameState } from './core/state';
 import type { PendingEncounterType } from './core/state';
@@ -33,6 +33,7 @@ import {
   toEncounterView,
   toPlantPickerView,
   activeBonusViews,
+  encounterActionKey,
   toSceneAnimals,
   toSceneVisitors,
   toScenePlants,
@@ -84,6 +85,7 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'no-regular-slot': 'Alle Plätze für Stammgäste sind belegt.',
   'wrong-type': 'Das geht bei dieser Begegnung nicht.',
   'no-option': 'Diese Möglichkeit gibt es nicht.',
+  'already-active': 'Dieser Gast rastet schon hier.',
 };
 
 /** Abweichende Texte, wenn die Aktion eine Pflanzenbegegnung („Etwas keimt“) betraf. */
@@ -126,7 +128,8 @@ let resetTimer: ReturnType<typeof setTimeout> | undefined;
 let dialogWanted = false;
 /** Begegnung oder Ökosystem haben sich geändert → Dialog-Inhalt neu bauen. */
 let encounterDirty = true;
-let shownCanReroll: boolean | null = null;
+/** Bezahlbarkeit der Aktionen im Dialog (Neu würfeln, Bewirten) beim letzten Aufbau. */
+let shownActionKey: string | null = null;
 let shownQueued = -1;
 /**
  * Zählt erledigte Begegnungen an der Spitze der Warteschlange. Damit erkennt der Dialog
@@ -372,13 +375,14 @@ function refreshEncounter(): void {
     return;
   }
   const queued = pending - 1;
-  const canReroll = state.seeds >= rerollCost(state, 0);
-  if (!encounterDirty && dialog.open && canReroll === shownCanReroll && queued === shownQueued) return;
+  // Ändert sich, ob Neu würfeln bzw. Bewirten bezahlbar ist, wird der Dialog neu gebaut.
+  const actionKey = encounterActionKey(state, 0);
+  if (!encounterDirty && dialog.open && actionKey === shownActionKey && queued === shownQueued) return;
   const view = toEncounterView(state, 0, evaluate(state));
   if (!view) return;
   view.key = String(encounterSerial);
   encounterDirty = false;
-  shownCanReroll = canReroll;
+  shownActionKey = actionKey;
   shownQueued = queued;
   dialog.show(view, queued);
 }
@@ -519,9 +523,10 @@ function frame(now: number): void {
   lastFrame = now;
   const report = tick(state, dt);
   state.lastTick = Date.now();
-  if (report.waypoints > 0 || report.encounters > 0 || report.expired.length > 0) {
-    // Neue Begegnung (auch am Zwischenhalt) oder abgelaufener Bonus: gleich speichern,
-    // damit Neuladen dieselben Karten zeigt, und Ansichten neu bauen.
+  if (report.waypoints > 0 || report.encounters > 0 || report.interludesReached > 0 || report.expired.length > 0) {
+    // Neue Begegnung, Zwischenhalt (auch ohne Ergebnis – der Zufall ist verbraucht) oder
+    // abgelaufener Bonus: gleich speichern, damit Neuladen nichts neu würfelt, und
+    // Ansichten neu bauen.
     saveToStorage(state);
     encounterDirty = true;
     ecoDirty = true;
@@ -577,7 +582,7 @@ function catchUp(): void {
       const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');
       if (text) noteText(text);
     }
-    if (report.waypoints > 0 || report.encounters > 0 || report.expired.length > 0) {
+    if (report.waypoints > 0 || report.encounters > 0 || report.interludesReached > 0 || report.expired.length > 0) {
       saveToStorage(state);
       encounterDirty = true;
       ecoDirty = true;

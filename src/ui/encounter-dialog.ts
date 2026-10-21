@@ -480,7 +480,9 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       if (conditionList) renderConditions(conditionList, replaced?.conditions ?? card.conditions ?? []);
       choose.textContent = card.disabledReason ?? card.chooseLabel ?? 'Wählen';
       const swap = replaced ? ` (ersetzt ${replaced.name})` : '';
-      choose.setAttribute('aria-label', card.chooseLabel && !card.disabledReason ? card.chooseLabel : `${card.name} wählen${swap}`);
+      // Der Sperrgrund gehört ins aria-label – der sichtbare Text allein reicht Screenreadern nicht.
+      const base = card.chooseLabel ?? `${card.name} wählen${swap}`;
+      choose.setAttribute('aria-label', card.disabledReason ? `${base} – gesperrt: ${card.disabledReason}` : base);
     };
     refresh();
     select?.addEventListener('change', refresh);

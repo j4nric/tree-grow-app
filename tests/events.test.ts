@@ -373,14 +373,14 @@ describe('Speichern und Laden (v5)', () => {
     const base = JSON.parse(serialize(stateAt(5, ['earthworm'], 1)));
     base.cycle = {
       ...base.cycle,
-      seen: ['storm', 'storm', 'nope', 3, 'cranes'],
+      seen: ['storm', 'storm', 'nope', 3, 'cranes', 'windthrow', 'midsummer'],
       bonuses: [
         { source: 'windthrow', effect: { kind: 'light', amount: 3 } },
         { source: 'windthrow', effect: { kind: 'light', amount: 300 } }, // so vergibt es kein Ereignis
         { source: 'nope', effect: { kind: 'harmony', points: 5 } },
         'Unsinn',
       ],
-      habitats: ['totholz', 'gold', 7],
+      habitats: ['totholz', 'totholz', 'gold', 7, 'feucht'],
       timed: [
         { source: 'midsummer', effect: { kind: 'growth', pct: 30 }, remaining: 1e9 },
         { source: 'midsummer', effect: { kind: 'seeds', pct: 60 }, remaining: -5 },
@@ -396,8 +396,9 @@ describe('Speichern und Laden (v5)', () => {
       { type: 'event', cards: ['ant-trail'], rerolls: 0 },
     ];
     const s = deserialize(JSON.stringify(base), 0)!;
-    expect(s.cycle.seen).toEqual(['storm', 'cranes', 'lightning', 'ant-trail']);
+    expect(s.cycle.seen).toEqual(['storm', 'cranes', 'windthrow', 'midsummer', 'lightning', 'ant-trail']);
     expect(s.cycle.bonuses).toEqual([{ source: 'windthrow', effect: { kind: 'light', amount: 3 } }]);
+    // Nur die Sturmnacht vergibt Totholz (einmal); Feuchte vergibt kein gezogenes Ereignis.
     expect(s.cycle.habitats).toEqual(['totholz']);
     expect(s.cycle.timed).toEqual([{ source: 'midsummer', effect: { kind: 'growth', pct: 30 }, remaining: 360 }]);
     expect(s.cycle.visitors).toEqual([{ id: 'cranes', remaining: VISITORS_BY_ID.get('cranes')!.stay }]);
@@ -409,5 +410,149 @@ describe('Speichern und Laden (v5)', () => {
       expect(t.cycle.forced).toBeNull();
       expect(t.cycle.timed).toEqual([]);
     }
+  });
+
+  it('Duplikate und Ungesehenes: Boni nur je (Quelle, Wirkung) einmal und nur aus gezogenen Ereignissen', () => {
+    const base = JSON.parse(serialize(stateAt(5, ['earthworm'], 1)));
+    base.cycle = {
+      ...base.cycle,
+      seen: ['windthrow', 'midsummer', 'cranes', 'storm'],
+      bonuses: [
+        { source: 'windthrow', effect: { kind: 'light', amount: 3 } },
+        { source: 'windthrow', effect: { kind: 'light', amount: 3 } }, // Kopie
+        { source: 'lightning', effect: { kind: 'light', amount: 2 } }, // nicht gezogen
+      ],
+      timed: [
+        { source: 'midsummer', effect: { kind: 'growth', pct: 30 }, remaining: 100 },
+        { source: 'midsummer', effect: { kind: 'growth', pct: 30 }, remaining: 100 }, // Kopie
+        { source: 'rain', effect: { kind: 'growth', pct: 25 }, remaining: 100 }, // nicht gezogen
+      ],
+      visitors: [{ id: 'peregrine', remaining: 100 }, { id: 'cranes', remaining: 100 }],
+      forced: { type: 'plant', ids: ['rowan', 'hazel', 'jay'] },
+    };
+    base.pendingEncounters = [
+      { type: 'event', cards: ['storm'], rerolls: 0 },
+      { type: 'event', cards: ['storm'], rerolls: 0 }, // doppelt
+      { type: 'visitor', cards: ['cranes'], rerolls: 0 }, // rastet schon
+      { type: 'event', cards: ['windthrow'], rerolls: 0 }, // Wirkung schon vergeben
+    ];
+    const s = deserialize(JSON.stringify(base), 0)!;
+    expect(s.cycle.bonuses).toEqual([{ source: 'windthrow', effect: { kind: 'light', amount: 3 } }]);
+    expect(s.cycle.timed).toEqual([{ source: 'midsummer', effect: { kind: 'growth', pct: 30 }, remaining: 100 }]);
+    expect(s.cycle.visitors).toEqual([{ id: 'cranes', remaining: 100 }]); // Wanderfalke nie gezogen
+    expect(s.cycle.forced).toEqual({ type: 'plant', ids: ['rowan'] }); // nur, was ein Ereignis vorgibt
+    expect(s.pendingEncounters).toEqual([event('storm')]);
+  });
+
+  it('Restdauer 1e-12 aus einem geladenen Stand läuft im nächsten Tick ab', () => {
+    const state = stateAt(5, ['earthworm'], 1);
+    state.cycle.seen = ['midsummer', 'cranes'];
+    state.cycle.timed = [{ source: 'midsummer', effect: { kind: 'growth', pct: 30 }, remaining: 1e-12 }];
+    state.cycle.visitors = [{ id: 'cranes', remaining: 1e-12 }];
+    const loaded = deserialize(serialize(state), 0)!;
+    expect(loaded.cycle.timed).toHaveLength(1);
+    const report = tick(loaded, 0.5);
+    expect(report.expired.sort()).toEqual(['cranes', 'midsummer']);
+    expect(loaded.cycle.timed).toEqual([]);
+    expect(loaded.cycle.visitors).toEqual([]);
+    expect(Number.isFinite(loaded.totalGrowth)).toBe(true);
+  });
+});
+
+describe('Härtung (Review #31)', () => {
+  it('hostBlocker: Gast rastet schon → already-active', () => {
+    const state = stateAt(4, ['earthworm'], 1);
+    state.seeds = 1e6;
+    state.cycle.visitors = [{ id: 'cranes', remaining: 100 }];
+    state.pendingEncounters = [guest('cranes')];
+    expect(hostBlocker(state, 0)).toBe('already-active');
+    expect(hostVisitor(state, 0)).toEqual({ ok: false, error: 'already-active' });
+  });
+
+  it('Samen-Sekunden zählen ohne Zeit-Boni und Gäste (nicht stapelbar)', () => {
+    const state = stateAt(5, ['earthworm', 'bee'], 1);
+    const plain = seedSeconds(state, 120);
+    state.cycle.timed = [{ source: 'midsummer', effect: { kind: 'seeds', pct: 60 }, remaining: 300 }];
+    state.cycle.visitors = [{ id: 'cranes', remaining: 300 }];
+    expect(evaluate(state).seeds).toBeGreaterThan(1.5 * (plain / 120));
+    expect(seedSeconds(state, 120)).toBeCloseTo(plain);
+  });
+
+  it('Zwischenhalt ohne Ergebnis wird gemeldet (main.ts speichert dann sofort)', () => {
+    const state = stateAt(5, ['earthworm'], 1);
+    state.pendingEncounters = Array.from({ length: MAX_PENDING_ENCOUNTERS }, () => ({ type: 'animal' as const, cards: ['vole'], rerolls: 0 }));
+    const half = interludeThreshold(state);
+    const report = tick(state, ((half - state.totalGrowth) / evaluate(state).growth) * 1.01);
+    expect(report.interludes).toBe(0);
+    expect(report.interludesReached).toBe(1);
+  });
+
+  it('dt = 1/60 (Frames) online gleich offline', () => {
+    const online = stateAt(5, ['earthworm', 'robin', 'bee'], 2024);
+    online.seeds = 1e5;
+    online.pendingEncounters = [event('midsummer'), guest('peregrine')];
+    chooseEventOption(online, 0, 0);
+    hostVisitor(online, 0);
+    const offline = structuredClone(online);
+    for (let i = 0; i < 20 * 60 * 60; i++) tick(online, 1 / 60);
+    simulateOffline(offline, 20 * 60);
+    expect(offline.cycle.timed).toEqual(online.cycle.timed);
+    expect(offline.cycle.visitors).toEqual(online.cycle.visitors);
+    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
+    expect(offline.rngState).toBe(online.rngState);
+    expect(offline.waypoint).toBe(online.waypoint);
+    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 3);
+    expect(offline.seeds).toBeCloseTo(online.seeds, 3);
+  });
+
+  it('Zeit-Bonus und Gast mit gleicher Restdauer laufen im selben Schritt ab', () => {
+    const state = stateAt(5, ['earthworm'], 1);
+    state.cycle.timed = [{ source: 'midsummer', effect: { kind: 'growth', pct: 30 }, remaining: 120 }];
+    state.cycle.visitors = [{ id: 'cranes', remaining: 120 }];
+    const before = evaluate(state);
+    let report = tick(state, 119.5);
+    expect(report.expired).toEqual([]);
+    report = tick(state, 1);
+    expect(report.expired.sort()).toEqual(['cranes', 'midsummer']);
+    expect(evaluate(state).growth).toBeLessThan(before.growth);
+  });
+
+  it('Ablauf genau auf einer Wegpunktgrenze: Wegpunkt und Ablauf beide, online gleich offline', () => {
+    const online = stateAt(5, ['earthworm', 'robin'], 31);
+    online.cycle.interlude = online.waypoint; // kein Zwischenhalt dazwischen
+    const rate = evaluate(online).growth;
+    const toNext = (thresholdFor(online.waypoint + 1) - online.totalGrowth) / rate;
+    // Bonus ohne Wirkung aufs Wachstum (Samen), damit die Grenze exakt bleibt.
+    online.cycle.timed = [{ source: 'midsummer', effect: { kind: 'seeds', pct: 60 }, remaining: toNext }];
+    const offline = structuredClone(online);
+    const steps = 100;
+    let expired: string[] = [];
+    let waypoints = 0;
+    for (let i = 0; i < steps; i++) {
+      const r = tick(online, (toNext + 1) / steps);
+      expired = expired.concat(r.expired);
+      waypoints += r.waypoints;
+    }
+    const report = simulateOffline(offline, toNext + 1);
+    expect(expired).toEqual(['midsummer']);
+    expect(report.expired).toEqual(['midsummer']);
+    expect(waypoints).toBe(1);
+    expect(report.waypoints).toBe(1);
+    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
+    expect(offline.rngState).toBe(online.rngState);
+    expect(offline.seeds).toBeCloseTo(online.seeds, 4);
+  });
+});
+
+describe('Laden: v3-Stand mit wartendem Ereignis', () => {
+  it('die Migration v3 → v4 behält `seen` – gewählte Boni überstehen das nächste Laden', () => {
+    const raw = JSON.parse(serialize(stateAt(4, ['earthworm'], 1)));
+    raw.version = 3;
+    delete raw.cycle;
+    raw.pendingEncounters = [event('midsummer')];
+    const s = deserialize(JSON.stringify(raw), 0)!;
+    expect(s.cycle.seen).toEqual(['midsummer']);
+    chooseEventOption(s, 0, 0);
+    expect(deserialize(serialize(s), 0)!.cycle.timed).toEqual(s.cycle.timed);
   });
 });
