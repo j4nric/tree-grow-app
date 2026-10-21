@@ -35,15 +35,17 @@ describe('toEcosystemView', () => {
     expect(view.niches.every((n) => n.capacity === 0 && n.animals.length === 0)).toBe(true);
     expect(view.niches[0]!.unlockHint).toBe('öffnet bei „Keimling“');
     expect(view.niches[3]!.unlockHint).toBe('öffnet bei „Junger Baum“');
-    // Höhlen haben im Prototyp noch keine Bewohner-Art
-    expect(view.niches[5]!.unlockHint).toBe('Bewohner folgen bald');
+    // Höhlen öffnen mit dem Alten Baum – oder früher durch Arten, die Plätze schaffen.
+    expect(view.niches[5]!.unlockHint).toMatch(/^öffnet bei „Alter Baum“ – oder früher durch .*Borkenkäfer/);
     expect(view.families.map((f) => [f.id, f.icon, f.count])).toEqual([
       ['birds', '🐦', 0],
       ['insects', '🐝', 0],
+      ['mammals', '🦔', 0],
       ['soil', '🪱', 0],
+      ['fungi', '🍄', 0],
     ]);
     expect(view.families[0]!.thresholds).toEqual([2, 3, 5]);
-    expect(view.families[2]!.bonuses[0]).toBe('+2 Wasser');
+    expect(view.families[3]!.bonuses[0]).toBe('+2 Wasser');
     expect(view.harmonyTier).toBe('Zarte Anfänge');
     expect(view.progressHint).toMatch(/^Nächste Begegnung in /);
   });
@@ -256,11 +258,15 @@ describe('toEncounterView', () => {
     expect(view.canReroll).toBe(false);
   });
 
-  it('Höhlen: ohne Bewohner-Art verschlossen, mit Bewohner Plätze aus dem Borkenkäfer', () => {
-    const empty = stateAt(3, ['barkbeetle']);
-    const locked = toEcosystemView(empty, evaluate(empty)).niches.find((n) => n.id === 'hollows')!;
+  it('Höhlen: vor dem Alten Baum verschlossen, Plätze aus dem Borkenkäfer öffnen sie früher', () => {
+    const young = stateAt(3);
+    const locked = toEcosystemView(young, evaluate(young)).niches.find((n) => n.id === 'hollows')!;
     expect(locked.capacity).toBe(0);
-    expect(locked.unlockHint).toBe('Bewohner folgen bald');
+    expect(locked.unlockHint).toMatch(/^öffnet bei „Alter Baum“/);
+    const early = stateAt(3, ['barkbeetle']);
+    const open = toEcosystemView(early, evaluate(early)).niches.find((n) => n.id === 'hollows')!;
+    expect(open.capacity).toBe(1);
+    expect(open.animals).toEqual([]);
 
     withFakeSpecies([fakeSpecies({ id: 'test-owl', niche: 'hollows' })], () => {
       const state = stateAt(3, ['barkbeetle', 'test-owl']);
@@ -287,9 +293,9 @@ describe('toEncounterView', () => {
   });
 
   it('Neu würfeln gesperrt mit Grund, wenn keine anderen Tiere in Frage kommen', () => {
-    const state = stateAt(1);
+    const state = stateAt(1); // Keimling: nur Regenwurm, Wühlmaus und Pfifferling
     state.seeds = 1000;
-    state.pendingEncounters.push({ type: 'animal', cards: ['earthworm'], rerolls: 0 });
+    state.pendingEncounters.push({ type: 'animal', cards: ['earthworm', 'vole', 'chanterelle'], rerolls: 0 });
     const view = toEncounterView(state, 0)!;
     expect(view.canReroll).toBe(false);
     expect(view.rerollDisabledReason).toBe('Keine anderen Tiere verfügbar');
