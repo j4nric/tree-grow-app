@@ -64,6 +64,15 @@ export const COMMUNITIES: readonly Community[] = [
     id: 'damp-ground', name: 'Feuchter Grund', icon: '💧', members: ['moss', 'fern', ['slug', 'salamander']],
     harmony: 6, effects: [], hint: 'Im Schatten, wo es nie ganz trocknet.',
   },
+  // Erweiterung Amphibien (DESIGN_V2.md 5.5)
+  {
+    id: 'pond-life', name: 'Tümpelleben', icon: '🐸', members: ['toad', 'newt', ['fern', 'hartstongue']],
+    harmony: 6, effects: [{ kind: 'water', amount: 2 }], hint: 'Wo sich Farne über das Wasser beugen, kehrt jemand jedes Frühjahr heim.',
+  },
+  {
+    id: 'slug-watch', name: 'Schneckenwacht', icon: '🐌', members: ['toad', 'hedgehog', ['glowworm', 'salamander']],
+    harmony: 6, effects: [], hint: 'Nachts geht es den Schnecken an den Kragen – von drei Seiten.',
+  },
 ];
 
 export const COMMUNITIES_BY_ID: ReadonlyMap<string, Community> = new Map(COMMUNITIES.map((c) => [c.id, c]));

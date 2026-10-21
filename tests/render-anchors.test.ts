@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { animalSize, createAnchorResolver, EDGE_BACK_LIFT, edgeFootprint, nicheAnchors, SCENE_NICHES } from '../src/render/anchors';
+import {
+  animalSize,
+  createAnchorResolver,
+  EDGE_BACK_LIFT,
+  edgeFootprint,
+  nicheAnchors,
+  POND_DEPTH,
+  POND_HALF_WIDTH,
+  pondGeometry,
+  SCENE_NICHES,
+} from '../src/render/anchors';
 import { animalKind } from '../src/render/animals';
 import { makeLayout, placeMainTree } from '../src/render/layout';
 
@@ -232,5 +242,53 @@ describe('Tier-Zeichnungen', () => {
     expect(animalKind({ id: 'flyagaric', family: 'fungi', niche: 'bark' })).toBe('bracket');
     expect(animalKind({ id: 'tinder', family: 'fungi', niche: 'roots' })).toBe('mushroom');
     expect(animalKind({ id: 'unknown', family: 'fungi', niche: 'hollows' })).toBe('bracket');
+    // Amphibien (Erweiterung Waldtümpel): eigene Zeichnungen, unbekannte als Kröte.
+    expect(animalKind({ id: 'toad', family: 'amphibians', niche: 'pond' })).toBe('toad');
+    expect(animalKind({ id: 'frog', family: 'amphibians', niche: 'pond' })).toBe('frog');
+    expect(animalKind({ id: 'newt', family: 'amphibians', niche: 'pond' })).toBe('newt');
+    expect(animalKind({ id: 'treefrog', family: 'amphibians', niche: 'pond' })).toBe('toad');
+  });
+});
+
+describe('Waldtümpel im Erdschnitt', () => {
+  it('liegt ganz im Bild unter der Bodenlinie, links neben dem Stamm', () => {
+    for (const [w, h] of SIZES) {
+      const layout = makeLayout(w, h);
+      const size = animalSize(w, h);
+      const p = pondGeometry(layout, size);
+      expect(p.x - POND_HALF_WIDTH * size, `${w}×${h}`).toBeGreaterThanOrEqual(0);
+      expect(p.x + POND_HALF_WIDTH * size, `${w}×${h}`).toBeLessThan(layout.cx);
+      expect(p.y).toBe(layout.groundY);
+      expect(p.y + POND_DEPTH * size, `${w}×${h}`).toBeLessThan(h);
+    }
+  });
+
+  it('Plätze liegen auf der Wasserfläche innerhalb der Senke', () => {
+    for (const [w, h] of SIZES) {
+      for (const g of [4, 6, 8]) {
+        const layout = makeLayout(w, h);
+        const size = animalSize(w, h);
+        const p = pondGeometry(layout, size);
+        for (const a of nicheAnchors(w, h, g, 5).pond) {
+          expect(a.y).toBeCloseTo(p.waterY, 6);
+          expect(Math.abs(a.x - p.x), `${w}×${h}`).toBeLessThan(POND_HALF_WIDTH * size);
+          expect(a.onTree).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('kommt den Wurzelraum-Tieren nicht in die Quere: die Senke endet über ihnen', () => {
+    for (const [w, h] of SIZES) {
+      const layout = makeLayout(w, h);
+      const size = animalSize(w, h);
+      const p = pondGeometry(layout, size);
+      for (const g of [4, 6, 8]) {
+        for (const a of nicheAnchors(w, h, g, 4).roots) {
+          const inPond = Math.abs(a.x - p.x) < POND_HALF_WIDTH * size + size * 0.5;
+          if (inPond) expect(a.y - size * 0.3, `${w}×${h} g=${g}`).toBeGreaterThan(p.y + POND_DEPTH * size);
+        }
+      }
+    }
   });
 });

@@ -63,18 +63,21 @@ describe('toEcosystemView', () => {
     const state = stateAt(0);
     const view = toEcosystemView(state, evaluate(state));
     expect(view.stageName).toBe('Samen');
-    expect(view.niches.map((n) => n.id)).toEqual(['roots', 'litter', 'edge', 'crown', 'bark', 'hollows']);
+    expect(view.niches.map((n) => n.id)).toEqual(['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond']);
     expect(view.niches.every((n) => n.capacity === 0 && n.animals.length === 0)).toBe(true);
     expect(view.niches[0]!.unlockHint).toBe('öffnet bei „Keimling“');
     expect(view.niches[3]!.unlockHint).toBe('öffnet bei „Junger Baum“');
     // Höhlen öffnen mit dem Alten Baum – oder früher durch Arten, die Plätze schaffen.
     expect(view.niches[5]!.unlockHint).toMatch(/^öffnet bei „Alter Baum“ – oder früher durch .*Borkenkäfer/);
+    // Der Waldtümpel hat keine Plätze aus der Stufe: Er öffnet durch die gleichnamige Pflege.
+    expect(view.niches[6]!.unlockHint).toBe('öffnet durch Pflege „Waldtümpel“ (ab „Alter Baum“)');
     expect(view.families.map((f) => [f.id, f.icon, f.count])).toEqual([
       ['birds', '🐦', 0],
       ['insects', '🐝', 0],
       ['mammals', '🦔', 0],
       ['soil', '🪱', 0],
       ['fungi', '🍄', 0],
+      ['amphibians', '🐸', 0],
     ]);
     expect(view.families[0]!.thresholds).toEqual([2, 3, 5]);
     expect(view.families[3]!.bonuses[0]).toBe('+2 Wasser');
@@ -708,8 +711,9 @@ describe('Pflanzen: Begegnung „Etwas keimt“', () => {
     ]);
     // Der Regenwurm lebt noch nicht: neutral
     expect(moss!.effects).toEqual([
-      { label: '💧 Feuchte für Glühwürmchen, Regenwurm und 4 weitere', tone: 'neutral' },
-      { label: `${PLANT_GROUP_INFO.mosses.icon} Feuersalamander wünscht sich Moose & Farne`, tone: 'neutral' },
+      // Seit der Erweiterung Amphibien brauchen auch Erdkröte, Grasfrosch und Bergmolch Feuchte.
+      { label: '💧 Feuchte für Glühwürmchen, Regenwurm und 7 weitere', tone: 'neutral' },
+      { label: `${PLANT_GROUP_INFO.mosses.icon} Feuersalamander und Bergmolch wünschen sich Moose & Farne`, tone: 'neutral' },
     ]);
     expect(moss!.facts![3]).toMatchObject({ label: 'speichert Wasser', value: '+2', text: 'speichert 2 Wasser' });
     expect(plantProvidesViews(PLANTS_BY_ID.get('moss')!, stateAt(1, ['earthworm']))[0]!.tone).toBe('good');
@@ -987,11 +991,11 @@ describe('Lebensgemeinschaften', () => {
     const state = withEncounter(['earthworm', 'woodlouse', 'chanterelle', 'oakmoth', 'bluetit'], []);
     const ev = evaluate(state);
     const view = communityListView(ev, ['humus']);
-    expect(view.items).toHaveLength(9);
+    expect(view.items).toHaveLength(11);
     expect(view.activeCount).toBe(1);
     expect(view.harmony).toBe(8);
-    expect(view.summary).toBe('1 von 9 aktiv · +8 ⚖️');
-    expect(view.summaryText).toBe('1 von 9 aktiv, +8 Harmonie');
+    expect(view.summary).toBe('1 von 11 aktiv · +8 ⚖️');
+    expect(view.summaryText).toBe('1 von 11 aktiv, +8 Harmonie');
 
     const [humus, watch] = view.items;
     expect(humus).toMatchObject({
@@ -1028,8 +1032,8 @@ describe('Lebensgemeinschaften', () => {
     expect(humus).toMatchObject({ name: 'Humusküche', discovered: true, state: 'near', missingText: 'fehlt: Pfifferling oder Steinpilz' });
     expect(humus.hint).toBeUndefined();
     const none = communityListView(evaluate(stateAt(0)), []);
-    expect(none.summary).toBe('0 von 9 aktiv');
-    expect(none.summaryText).toBe('0 von 9 aktiv');
+    expect(none.summary).toBe('0 von 11 aktiv');
+    expect(none.summaryText).toBe('0 von 11 aktiv');
     expect(none.items.every((c) => c.name === '???' && c.state === 'open')).toBe(true);
   });
 

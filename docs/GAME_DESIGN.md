@@ -11,10 +11,11 @@
 > Ereignisse mit Wahl und Durchreisende mit Zeit- und Zyklus-Boni, ab dem Hain mit
 > Zwischenhalt (Schritt 2.4, `DESIGN_V2.md` 7.4–7.8); Pflegemaßnahmen als Samen-Senke
 > (9 Maßnahmen mit 1–3 Rängen ab Setzling, wirken bis zum Neuen Zyklus; Schritt 2.7, `DESIGN_V2.md` 8);
-> Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus; 14 Ereignisse, davon je Jahreszeit ein
+> Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus; 15 Ereignisse, davon je Jahreszeit ein
 > eigenes: Spätfrost, Hitzewelle, Laubfall, Schneebruch) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
-> Spielstand v10 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
+> Erweiterung Amphibien mit Waldtümpel (6. Gattung, 3 Arten, eigene Nische; unten);
+> Spielstand v11 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
 > verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege;
 > v5-Stände beginnen beim Laden im Frühling und wachsen als Stieleiche weiter; v3- bis
@@ -29,7 +30,9 @@
 > Seit Spielstand v9 gibt es 25 Erfolge im Naturtagebuch (`DESIGN_V2.md` 18); v8-Stände
 > bekommen beim Laden still nachgetragen, was sie schon erfüllen. Seit Spielstand v10
 > merkt sich der Zyklus die beste Waldgedächtnis-Vorschau („Sperrklinke“, `DESIGN_V2.md`
-> 10 und 12.7); v9-Stände starten mit ihrer aktuellen Vorschau.
+> 10 und 12.7); v9-Stände starten mit ihrer aktuellen Vorschau. Seit Spielstand v11 gibt
+> es die Nische Waldtümpel (`DESIGN_V2.md` 5.5 und 12.8); v10-Stände bekommen sie leer, ein
+> im Zyklus gewählter „Waldtümpel“ aus dem Regenreichen Frühling seinen Platz nachgetragen.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
@@ -37,6 +40,48 @@
 > `tests/balance-cycles.test.ts`, `tests/balance-restart.test.ts` und
 > `tests/seasons-balance.test.ts` (Einstellungen in
 > `tests/balance-setup.ts`). Großer Lauf mit allen Tabellen: `npm run balance`.
+
+## Erweiterung Amphibien mit Waldtümpel (v2, umgesetzt)
+
+Details, Texte und offene Punkte: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 5.5 (Spielstand
+12.8). Nur Daten in `src/content/` – keine neue Logik.
+
+- **Neue Gattung 🐸 Amphibien** mit Erdkröte, Grasfrosch (gewöhnlich) und Bergmolch
+  (selten), alle ab Alter Baum, alle im **Waldtümpel**. Der Feuersalamander bleibt
+  Bodenleben.
+- **Neue Nische 🫧 Waldtümpel** ohne Plätze aus der Stufe: Sie öffnet nur durch Pflege
+  „Waldtümpel“ (+2, im Hain +1) oder die Ereignisse „Regenreicher Frühling“ und
+  „Krötenwanderung“ (je +1). Erst dann kommen Amphibien-Karten.
+- **Jahreszeit:** Frühling = Laichzeit, Amphibien +15 % 😊; neues Frühlings-Ereignis
+  🐸 Krötenwanderung (Erdkröte lebt). Winter: Winterstarre und Eis nur in der Grafik.
+- **Lebensgemeinschaften:** Tümpelleben (Erdkröte, Bergmolch, Wurmfarn oder Hirschzunge;
+  +6 ⚖️, +2 💧) und Schneckenwacht (Erdkröte, Igel, Glühwürmchen oder Feuersalamander; +6 ⚖️).
+
+| Zahl (`src/content/`) | vorher | jetzt |
+|---|---|---|
+| 💧 Waldtümpel, Rang 1 (`care.ts`) | Alter Baum, 5.500 🌰: Feuchte, +3 💧 | **7.500 🌰**: Feuchte, +3 💧, **+2 Plätze Waldtümpel** |
+| 💧 Waldtümpel, Rang 2 | Hain, 22.000 🌰: +3 💧, +2 ⚖️ | **22.500 🌰**: +3 💧, +2 ⚖️, **+1 Platz** |
+| 🌧️ Regenreicher Frühling, „Waldtümpel“ (`events.ts`) | Feuchte, +3 💧 | Feuchte, +3 💧, **+1 Platz Waldtümpel** |
+| 🌱 Frühling (`seasons.ts`) | +10 % 🌿 | +10 % 🌿, **Amphibien +15 % 😊** |
+| Erdkröte / Grasfrosch / Bergmolch (`species.ts`) | – | Schnecken −40 %, +4 % 🌿 / Insekten −20 %, +5 % 🌰 / Insekten −25 %, +5 % 🌿, +2 ⚖️ |
+| Gattungsbonus Amphibien (`traits.ts`) | – | 2: Schneckenschaden −25 % · 3: +2 💧, +5 % 🌿 · 5: +12 % 🌿 |
+
+Warum der Tümpel teurer wurde: Mit 2 Plätzen kaufte der Harmonie-Spieler ihn in jedem
+Durchgang vor dem Hain (vorher 83 %), und sein 🌰-Bestand beim Hain stieg im Check auf
+10,3–11 Minuten Produktion (Ziel < 10). Mit 7.500 🌰 liegt er wieder darunter. Rang 2
+bleibt ≥ 3 × Rang 1.
+
+**Simulation** (`npm run balance`, 500 Durchgänge, alle Systeme, Eiche):
+
+| Kennzahl | vorher | jetzt | Ziel |
+|---|---|---|---|
+| Hain Harmonie / Wachstum / Zufall | 1:03:43 h / 54:30 min / 1:36:18 h | 1:03:51 h / 54:31 min / 1:35:33 h | 55–65 min (Harmonie) |
+| Wald / Urwald (Harmonie) | 1:54:05 h / 2:47:28 h | 1:54:46 h / 2:47:38 h | ~1:40 h / ~2:20 h (±25 %) |
+| ⚖️ beim Hain (Harmonie / Wachstum) | 106,7 / 101,1 | 107,2 / 101,3 | Harmonie vorn |
+| 🌰-Bestand beim Hain (Harmonie, min Produktion) | 9,2 | 8,3 | < 10 |
+| Amphibien beim Hain (Harmonie / Wachstum / Zufall) | – | 0,5 / 0,1 / 0,5 | – |
+| „Amphibien stapeln“: Hain / ⚖️ | – | 1:07:50 h / 102,1 | nicht schneller und harmonischer als Harmonie |
+| Hain Wachstum/Harmonie, Zyklus 1 / 2 / 3 | 0,870 / 0,977 / 1,022 | 0,869 / 0,996 / 1,003 | ≥ 0,85 / ≥ 0,97 / ≥ 1 (Prüfung im Test) |
 
 ## Frühes Spiel (Playtest, v2, umgesetzt)
 
@@ -89,7 +134,7 @@ Details, Begründung und Umsetzungsnotiz: [`DESIGN_V2.md`](DESIGN_V2.md), Abschn
 
 | Jahreszeit | Wirkungen (Faktor 1) | Begegnungen |
 |---|---|---|
-| 🌱 Frühling | +10 % 🌿 | „Etwas keimt“ × 1,5 (nur bei freiem Pflanzring); Kraniche, Regenreicher Frühling, Bienenschwarm |
+| 🌱 Frühling | +10 % 🌿; Amphibien +15 % 😊 | „Etwas keimt“ × 1,5 (nur bei freiem Pflanzring); Kraniche, Regenreicher Frühling, Bienenschwarm, Krötenwanderung |
 | ☀️ Sommer | +2 ☀️; Insekten +10 % 😊 | Schwalben, Taubenschwänzchen, Hirschkäferflug, Mittsommer, Bienenschwarm |
 | 🍂 Herbst | +20 % 🌰; Pilze +15 % 😊 | Kraniche, Schwalben, Bergfinken, Seidenschwänze, Pilzherbst, Mastjahr |
 | ❄️ Winter | −10 % 🌿; Säugetiere +15 % 😊, Bodenleben +10 % 😊 | Zugvögel fort; Wintergäste Bergfinken und Seidenschwänze |

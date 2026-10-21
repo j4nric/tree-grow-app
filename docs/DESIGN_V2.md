@@ -245,10 +245,15 @@ Jede Nische hat begrenzte Plätze; eine Art lebt höchstens einmal im Ökosystem
 | 🪵 Stamm & Rinde | Borke | – | – | 1 | 2 | 2 | 3 | 3 |
 | 🕳️ Höhlen & Totholz | Spechthöhlen, tote Äste | – | – | (–)¹ | 1 | 2 | 2 | 3 |
 | **Summe** | | 1 | 4 | 9 | 13 | 16 | 20 | 22 |
+| 🫧 Waldtümpel² | Wasser und Ufer der Senke | – | – | – | – | – | – | – |
 
 ¹ Höhlen öffnen sich schon früher, wenn Totholz entsteht: +1 durch Borkenkäfer,
 Buntspecht, Ereignis „Sturmnacht“ oder Pflege „Nistkästen“; +1 Krone und Höhlen durch
 den Schwarzspecht.
+
+² Erweiterung Amphibien (5.5): Der Waldtümpel hat nie Plätze aus der Stufe. Er öffnet nur
+durch Platz-Wirkungen: Pflege „Waldtümpel“ (Alter Baum +2, Hain +1), Ereignis
+„Regenreicher Frühling“ (+1) und „Krötenwanderung“ (+1).
 
 Die frühere Nische „Lichtung“ ist im **Waldsaum** aufgegangen: Er öffnet schon beim
 Setzling, weil dort die Begleitpflanzen wachsen und Bienen und Falter leben.
@@ -303,9 +308,10 @@ Der Hauptbaum zählt als Baum (für „2× Bäume“ usw.), bietet Laub und Wurz
 
 Fünf Gattungen (eigentlich Lebensweise-Gruppen). Entscheidungen zu den offenen Punkten:
 **Fledermäuse** gehören zu den Säugetieren (das Braune Langohr zählt per Fähigkeit
-zusätzlich als Vogel). **Amphibien** bekommen in v2.0 keine eigene Gattung – der
-Feuersalamander lebt als legendäres Bodenleben in der Laubstreu; eine Gattung
-Amphibien (mit Waldtümpel, Erdkröte, Bergmolch) ist eine spätere Erweiterung.
+zusätzlich als Vogel). **Amphibien** bekamen in v2.0 keine eigene Gattung. Seit der
+Erweiterung **Amphibien mit Waldtümpel** (5.5) gibt es sie als sechste, kleine Gattung
+(Erdkröte, Grasfrosch, Bergmolch). Der Feuersalamander bleibt legendäres Bodenleben in der
+Laubstreu: Er lebt an Land, und ein Wechsel ließe dem Bodenleben keine legendäre Art.
 
 **Schwellen 2 / 3 / 5** (à la Teamfight Tactics). Weil jede Art nur einmal vorkommt
 und Gattungen 6–8 Arten haben, liegen die Schwellen niedriger als die im Briefing
@@ -319,6 +325,7 @@ stapelt, den großen. Durchreisende zählen mit.
 | 🦔 Säugetiere | +10 % Samen | +7 % Wachstum | +15 % Wachstum |
 | 🪱 Bodenleben | +2 Wasser | +7 % Wachstum | +15 % Wachstum, +3 Wasser |
 | 🍄 Pilze | Bäume +6 % Wachstum | +3 Wasser, +2 Licht | +18 % Wachstum |
+| 🐸 Amphibien (5.5) | Schneckenschaden −25 % | +2 Wasser, +5 % Wachstum | +12 % Wachstum (mit 3 Arten noch unerreichbar) |
 
 **Balancing 2.10:** Alle Wachstums-Boni dieser Tabelle sind ×0,6 gegenüber dem Prototyp
 (vorher Vögel +20 %, Säugetiere und Bodenleben +12 % / +25 %, Pilze Bäume +10 % / +30 %).
@@ -408,6 +415,54 @@ Feuersalamander „Schwarz-gelb und uralt. Wo er lebt, ist der Wald noch feucht 
 heil.“ · Hallimasch „Das größte Lebewesen der Erde ist ein Pilz. Sein Netz verbindet
 den ganzen Wald.“ · Glühwürmchen „Seine Larven jagen Schnecken. An Juniabenden
 leuchtet der Waldsaum.“
+
+### 5.5 Erweiterung: Amphibien mit Waldtümpel
+
+**Idee:** Ein Tümpel ist ein eigener Lebensraum. Er entsteht nicht von selbst mit dem
+Baum, der Spieler legt ihn an (Pflege „Waldtümpel“) oder ein nasses Frühjahr schenkt ihn
+(„Regenreicher Frühling“). Erst dann ziehen Amphibien ein. So bleibt die Erweiterung eine
+bewusste Entscheidung und spoilert nichts: Die Nische steht verschlossen in der
+Seitenleiste mit dem Hinweis „öffnet durch Pflege „Waldtümpel“ (ab „Alter Baum“)“.
+
+**Umsetzung nur mit Daten** (keine neue Logik): neue Gattung `amphibians` und neue Nische
+`pond` mit Plätzen 0 auf allen Stufen und `opensEarly`; Plätze kommen über die
+bestehende Wirkung `slot` aus Pflege und Ereignissen. Karten zieht das Spiel nur für offene
+Nischen, darum erscheinen Amphibien erst mit dem Tümpel. Spielstand v11 (12.8).
+
+| Art | Seltenheit | Ebene | Nische | ab | Nahrung | Wünsche | bietet | Wirkung |
+|---|---|---|---|---|---|---|---|---|
+| ✦ Erdkröte | gewöhnlich | Räuber | Waldtümpel | Alter Baum | Schnecken / Würmer / Insekten | Feuchte, schattig | – | jagt Schnecken (−40 %), +4 % 🌿 |
+| ✦ Grasfrosch | gewöhnlich | Räuber | Waldtümpel | Alter Baum | Insekten / Würmer | Feuchte, sonnig | – | jagt Insekten (−20 %), +5 % 🌰 |
+| ✦ Bergmolch | selten | Räuber | Waldtümpel | Alter Baum | Insekten / Würmer | Feuchte, schattig, 1× Moose & Farne | – | jagt Insekten (−25 %), +5 % 🌿, +2 ⚖️ |
+
+Kurztexte: Erdkröte „Wandert jedes Frühjahr zurück zu dem Tümpel, in dem sie selbst
+geschlüpft ist.“ · Grasfrosch „Laicht als einer der Ersten im Jahr – große Ballen im
+flachen, sonnigen Wasser.“ · Bergmolch „Im Frühling glänzt das Männchen blau, mit
+getupftem Kamm und orangem Bauch.“
+
+**Abwägungen:** Kröte und Molch wollen Schatten, der Frosch Sonne – ein Tümpel für alle
+drei verlangt einen lichten Wald (wie der Hirschkäfer). Die Kröte jagt Schnecken: gut gegen
+Nacktschnecke und Weinbergschnecke, aber sie drückt deren Zufriedenheit (Räuberdruck).
+
+| Wo | Was |
+|---|---|
+| 💧 Pflege „Waldtümpel“ (8.1) | Rang 1 (Alter Baum, 7.500 🌰): Feuchte, +3 💧, **+2 Plätze Waldtümpel** · Rang 2 (Hain, 22.500 🌰): +3 💧, +2 ⚖️, **+1 Platz** |
+| 🌧️ Regenreicher Frühling (7.4) | „Waldtümpel entstehen lassen“: Feuchte, +3 💧, **+1 Platz Waldtümpel** (Zyklus) |
+| 🐸 Krötenwanderung (7.4, neu) | Alter Baum, nur Frühling, Erdkröte lebt: „Den Wanderweg frei lassen“ +4 ⚖️ (Zyklus) · „Laichplätze schaffen“ +1 Platz Waldtümpel (Zyklus) und nächste Begegnung Grasfrosch/Bergmolch |
+| 🌱 Frühling (16.3) | Laichzeit: Amphibien +15 % 😊 |
+| ❄️ Winter | keine Wirkung (kein Abzug); in der Szene Winterstarre und Eis auf dem Tümpel |
+| Lebensgemeinschaften (9.2) | 🐸 Tümpelleben, 🐌 Schneckenwacht |
+| Gattungsbonus (5.1) | 2: Schneckenschaden −25 % · 3: +2 💧, +5 % 🌿 · 5: +12 % 🌿 |
+
+**Darstellung (11.3):** Der Tümpel liegt als kleine Senke im Erdschnitt am linken
+Bildrand (unter der Bodenlinie, über den Wurzelraum-Tieren), ein gecachtes Sprite, im
+Winter mit überblendeter Eisdecke. Kröte und Frosch sitzen auf Ufersteinen, der Molch
+schwimmt. Unbekannte Amphibien bekommen die Zeichnung der Kröte.
+
+**Offen:** Mit 3 Arten ist die Gattungsschwelle 5 unerreichbar. Kandidaten für später:
+Kammmolch (besonders), Laubfrosch (Waldsaum), Ringelnatter als Räuber der Amphibien
+(Merkmal „Amphibien“), Amphibien-Gäste. Achievements nennen keine Artnamen; „Von allem
+etwas“ und „Alle Bewohner“ zählen die neue Gattung und die drei Arten automatisch mit.
 
 ### 5.4 Was aus dem alten Katalog geändert wurde
 
@@ -625,7 +680,7 @@ jedes hat eine, z. B. Mittsommer oder Laubfall). Ablehnen gibt es nicht.
 | Ereignis | ab | Bedingung | Optionen | Text |
 |---|---|---|---|---|
 | 🌩️ Sturmnacht | Junger Baum | – | Totholz liegen lassen: Totholz + 1 Platz Höhlen (Zyklus) · Holz verwerten: 120 s 🌰 | „Ein Ast ist abgebrochen und liegt im Laub.“ |
-| 🌧️ Regenreicher Frühling | Junger Baum | – | Waldtümpel: Feuchte + 3 💧 (Zyklus) · Alles austreiben lassen: +25 % 🌿 5 min · Wasser ableiten: 90 s 🌰 | „In einer Senke sammelt sich das Wasser.“ |
+| 🌧️ Regenreicher Frühling | Junger Baum | – | Waldtümpel: Feuchte + 3 💧 + 1 Platz Waldtümpel (Zyklus) · Alles austreiben lassen: +25 % 🌿 5 min · Wasser ableiten: 90 s 🌰 | „In einer Senke sammelt sich das Wasser.“ |
 | ☀️ Mittsommer | Junger Baum | – | Lange Tage: +30 % 🌿 6 min · Alles blühen lassen: +60 % 🌰 6 min | „Die längsten Tage des Jahres – das Licht reicht bis tief in den Abend.“ |
 | 🍄 Pilzherbst | Junger Baum | Feuchte | Den Hüten Zeit lassen: nächste Begegnung Pilze (Pfifferling, Steinpilz, Zunderschwamm, Fliegenpilz) · Myzel: Bäume +40 % 🌿 8 min · Pilze sammeln: 90 s 🌰 | „Über Nacht stehen überall Hüte im Moos.“ |
 | 🧊 Spätfrost | Junger Baum | nur Frühling | Neu austreiben lassen: +30 % 🌿 5 min · Den Frühblühern das Licht lassen: Blumen +60 % 🌿 8 min · Reserven schonen: 90 s 🌰 | „Eine klare Mainacht – der Frost hat die jungen Blätter geschwärzt.“ |
@@ -636,6 +691,7 @@ jedes hat eine, z. B. Mittsommer oder Laubfall). Ablehnen gibt es nicht.
 | 🌰 Mastjahr | Alter Baum | Nüsse (für die Eiche ab Alter Baum immer; Kiefer: nie, 17.3) | Eicheln liegen lassen: nächste Begegnung Eichelhäher/Eichhörnchen · Eicheln sammeln: +50 % 🌰 8 min | „Die Eiche trägt so viele Eicheln wie seit Jahren nicht.“ |
 | 🐝 Bienenschwarm | Alter Baum | Baumhöhle | Höhle überlassen: Blumen und Sträucher +60 % 🌰 10 min · Weiterziehen lassen: 90 s 🌰 | „Eine summende Traube Honigbienen hängt im Geäst und sucht eine Bleibe.“ |
 | 🫐 Vogelsaat | Alter Baum | ≥ 2 Vögel | Sämlinge stehen lassen: nächste Begegnung Eberesche/Holunder/Brombeere · Beeren reifen lassen: +40 % 🌰 6 min | „Die Vögel haben Beerensamen mitgebracht – überall spitzt es grün.“ |
+| 🐸 Krötenwanderung | Alter Baum | Erdkröte, nur Frühling | Den Wanderweg frei lassen: +4 ⚖️ (Zyklus) · Laichplätze schaffen: +1 Platz Waldtümpel (Zyklus) + nächste Begegnung Grasfrosch/Bergmolch | „In einer milden Regennacht machen sich die Kröten auf den Weg zum Tümpel.“ |
 | ⚡ Blitzschlag | Hain | ≥ 3 Bäume | Biotopbaum: Totholz + 1 Platz Stamm & Rinde (Zyklus) · Die Lücke nutzen: +2 ☀️ (Zyklus) · Holz verwerten: 150 s 🌰 | „Ein Blitz hat einen Nachbarbaum gespalten. Der Stumpf raucht noch.“ |
 | 🐜 Ameisenstraße | Hain | Rote Waldameise | Hügel wachsen lassen: +5 ⚖️ (Zyklus) · Samen verbreiten lassen: Blumen +60 % 🌿 10 min + 60 s 🌰 | „Die Waldameisen tragen Samen in ihren Hügel – und verlieren unterwegs die Hälfte.“ |
 
@@ -991,11 +1047,11 @@ nur ~1.700 🌰, der Bestand wächst auf 25–35 Minuten Produktion). Inhalte:
 | 🪵 Totholzhaufen | `deadwood-pile` | – | Alter Baum, 3.500 🌰: Totholz | Hain, 14.000 🌰: +1 Platz Stamm & Rinde, +2 ⚖️ | – | „Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.“ |
 | ☀️ Lichte Krone | `light-crown` | nicht mit Dichter Krone | Alter Baum, 4.000 🌰: +3 ☀️ | Hain, 15.000 🌰: +2 ☀️ | Wald, 45.000 🌰: +2 ☀️ | „Ein paar Äste weniger – Sonnenflecken tanzen über den Boden.“ |
 | 🌳 Dichte Krone | `dense-crown` | nicht mit Lichter Krone | Alter Baum, 4.000 🌰: +1 Platz Krone, −2 ☀️ | Hain, 15.000 🌰: Bäume +10 % 🌿 | Wald, 45.000 🌰: Bäume +10 % 🌿 | „Ein Dach aus Blättern, unter dem Vögel sicher brüten.“ |
-| 💧 Waldtümpel | `pond` | – | Alter Baum, 5.500 🌰: Feuchte, +3 💧 | Hain, 22.000 🌰: +3 💧, +2 ⚖️ | – | „Eine feuchte Senke, in der sich der Regen sammelt.“ |
+| 💧 Waldtümpel | `pond` | – | Alter Baum, **7.500 🌰** (vorher 5.500): Feuchte, +3 💧, **+2 Plätze Waldtümpel** (5.5) | Hain, **22.500 🌰** (vorher 22.000): +3 💧, +2 ⚖️, **+1 Platz Waldtümpel** | – | „Eine feuchte Senke, in der sich der Regen sammelt.“ |
 | 🐝 Insektenhotel | `insect-hotel` | ≥ 1 Insekt | Alter Baum, 2.700 🌰: +3 ⚖️ | Hain, 12.500 🌰: Blumen und Sträucher +25 % 🌰 | Wald, 38.000 🌰: +4 ⚖️ | „Hohle Stängel und gebohrte Löcher – jedes Zimmer ist bald belegt.“ |
 
-Summe: vor dem Hain 25.650 🌰 (bis zum Playtest „frühes Spiel“ 26.450), Hain-Ränge
-81.500 🌰, Wald-Ränge 113.000 🌰 (mit nur einer der beiden Kronen). **Seit dem Balancing 2.10** (vorher 19.700 / 47.000 / 75.000):
+Summe: vor dem Hain 27.650 🌰 (bis zur Erweiterung Amphibien 25.650, bis zum Playtest „frühes Spiel“ 26.450), Hain-Ränge
+82.000 🌰 (vorher 81.500), Wald-Ränge 113.000 🌰 (mit nur einer der beiden Kronen). **Seit dem Balancing 2.10** (vorher 19.700 / 47.000 / 75.000):
 Ränge ab Junger Baum ×1,25, ab Alter Baum ×1,35, ab Hain ×1,8 (Kronen ×1,5, damit Rang 3
 weiter mindestens das Dreifache kostet), ab Wald ×1,5 – die gestreckte Wegpunkt-Kurve
 bringt bis zum Hain ~35 % mehr Samen, und im langen Hain fehlte sonst die Senke (15.4).
@@ -1153,6 +1209,8 @@ für unentdeckte.
 | Blütensaum | Wildbiene, Tagpfauenauge, Große Brennnessel, Wald-Erdbeere oder Roter Fingerhut | +6 | – | „Wo Brennnesseln stehen dürfen, tanzen Falter.“ |
 | Birkenbund | Hänge-Birke, Fliegenpilz, Frauenhaarmoos | +6 | – | „Weiß, rot und grün – ein altes Bündnis.“ |
 | Feuchter Grund | Frauenhaarmoos, Wurmfarn, Nacktschnecke oder Feuersalamander | +6 | – | „Im Schatten, wo es nie ganz trocknet.“ |
+| Tümpelleben (5.5) | Erdkröte, Bergmolch, Wurmfarn oder Hirschzunge | +6 | +2 💧 | „Wo sich Farne über das Wasser beugen, kehrt jemand jedes Frühjahr heim.“ |
+| Schneckenwacht (5.5) | Erdkröte, Igel, Glühwürmchen oder Feuersalamander | +6 | – | „Nachts geht es den Schnecken an den Kragen – von drei Seiten.“ |
 
 ### 9.3 Beispielrechnung (Stufe Hain, mit dem Prototyp berechnet)
 
@@ -1634,6 +1692,21 @@ mit dem Zyklus neu angelegt.
   danach steigen Schwelle und Teiler, die Obergrenze höchstens so schnell, wie der Sockel
   sinkt; geprüft in `tests/cycle.test.ts` für H_max 0–400) und nie über
   `MAX_FOREST_MEMORY`. Schützt vor manipulierten Ständen.
+
+---
+
+### 12.8 Waldtümpel `niches.pond` (Spielstand v11)
+
+`niches.pond: string[]` – Nische der Erweiterung Amphibien (5.5), wie jede Nische.
+
+- **Migration v10 → v11:** Das Laden legt die Nische leer an (wie jede fehlende Nische).
+  Wer im laufenden Zyklus beim „Regenreichen Frühling“ den Waldtümpel entstehen ließ
+  (Zyklus-Bonus +3 💧 aus `rain`), bekommt den Tümpelplatz der Option nachgetragen –
+  sonst passten Stand und Anzeige der Option nicht zusammen. Pflege braucht nichts: Ihre
+  Plätze folgen aus dem gekauften Rang.
+- **Warum eine neue Version**, obwohl das Laden fehlende Nischen schon ergänzt: Ein
+  älteres Spiel kennt `pond` nicht und würde Amphibien beim Laden still entlassen. Mit
+  v11 erkennt es den Stand als „neuer“ und schützt ihn (auch bei der Synchronisierung).
 
 ---
 
@@ -3588,7 +3661,7 @@ Jahreszeit dauert.
 
 | Jahreszeit | Wirkungen | Begegnungen | Text |
 |---|---|---|---|
-| 🌱 Frühling | +10 % 🌿 | „Etwas keimt“ × 1,5, solange der Pflanzring Platz hat | „Der Saft steigt, überall bricht frisches Grün auf.“ |
+| 🌱 Frühling | +10 % 🌿; Amphibien +15 % 😊 (Laichzeit, 5.5) | „Etwas keimt“ × 1,5, solange der Pflanzring Platz hat | „Der Saft steigt, überall bricht frisches Grün auf.“ |
 | ☀️ Sommer | +2 ☀️ (auch für „sonnig“); Insekten +10 % 😊 | – | „Lange, helle Tage – über dem Waldsaum summt und flattert es.“ |
 | 🍂 Herbst | +20 % 🌰; Pilze +15 % 😊 | – | „Früchte reifen, und über Nacht stehen Hüte im Laub.“ |
 | ❄️ Winter | −10 % 🌿; Säugetiere +15 % 😊, Bodenleben +10 % 😊 | Zugvögel ziehen fort, Wintergäste kommen (16.4) | „Der Baum ruht. Unter Schnee und Laub ist es still und geschützt.“ |
@@ -3631,6 +3704,7 @@ bleibt über den Wechsel hinaus.
 | 🌡️ Hitzewelle | Sommer | – |
 | 🍁 Laubfall | Herbst | – |
 | 🌨️ Schneebruch | Winter | nasser Schnee auf der Krone |
+| 🐸 Krötenwanderung | Frühling | Laichwanderung in milden Regennächten |
 
 Ganzjährig: Wildschwein-Rotte, Wanderfalke, Sturmnacht, Windwurf, Blitzschlag,
 Vogelsaat. So gibt es in jeder Jahreszeit ein Ereignis ab Junger Baum und einen Gast ab

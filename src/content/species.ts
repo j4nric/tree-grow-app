@@ -1,7 +1,8 @@
 import type { Condition, Effect, Genus, Level, NicheId, Rarity, Tag } from './types';
 
 /**
- * Alle 32 Tierarten (und Pilze) in 5 Gattungen (docs/DESIGN_V2.md, 5.3). Die Grafik-Ebene
+ * Alle 35 Tierarten (und Pilze): 32 in den 5 Grundgattungen (docs/DESIGN_V2.md, 5.3) und
+ * 3 Amphibien der Erweiterung Waldtümpel (5.5). Die Grafik-Ebene
  * erwartet genau diese IDs. 🌿-Wirkungen seit dem Balancing 2.10 ×0,75 gegenüber dem
  * Prototyp (DESIGN_V2.md 15.4). Borkenkäfer (Totholz) und Buntspecht (gezimmerte Höhle)
  * bringen je +1 Platz in „Höhlen & Totholz“,
@@ -41,6 +42,7 @@ export const GENUS_INFO: Readonly<Record<Genus, { name: string; icon: string }>>
   mammals: { name: 'Säugetiere', icon: '🦔' },
   soil: { name: 'Bodenleben', icon: '🪱' },
   fungi: { name: 'Pilze', icon: '🍄' },
+  amphibians: { name: 'Amphibien', icon: '🐸' },
 };
 
 export const RARITY_NAMES: readonly string[] = ['gewöhnlich', 'selten', 'besonders', 'legendär'];
@@ -285,6 +287,34 @@ export const SPECIES: readonly Species[] = [
     effects: [{ kind: 'growth', pct: 11 }, { kind: 'control', tag: 'schnecken', pct: 50 }, { kind: 'ability', id: 'mossNoWater' }],
     summary: '+11 % 🌿, jagt Schnecken (−50 % Fraß), Hüter der Feuchte',
     text: 'Schwarz-gelb und uralt. Wo er lebt, ist der Wald noch feucht und heil.',
+  },
+
+  // --- Amphibien (Erweiterung Waldtümpel, DESIGN_V2.md 5.5) -----------------------
+  // Leben nur im Waldtümpel – Karten kommen erst, wenn er Plätze hat (Pflege oder
+  // Ereignis). Der Feuersalamander bleibt Bodenleben (lebt an Land, siehe 5.1).
+  {
+    id: 'toad', name: 'Erdkröte', genus: 'amphibians', rarity: 0, level: 'predator', niche: 'pond', unlock: 4,
+    food: ['schnecken', 'wuermer', 'insekten'], needs: [{ kind: 'tag', tag: 'feucht' }, { kind: 'shady' }],
+    provides: [],
+    effects: [{ kind: 'control', tag: 'schnecken', pct: 40 }, { kind: 'growth', pct: 4 }],
+    summary: 'jagt Schnecken (−40 % Fraß), +4 % 🌿',
+    text: 'Wandert jedes Frühjahr zurück zu dem Tümpel, in dem sie selbst geschlüpft ist.',
+  },
+  {
+    id: 'frog', name: 'Grasfrosch', genus: 'amphibians', rarity: 0, level: 'predator', niche: 'pond', unlock: 4,
+    food: ['insekten', 'wuermer'], needs: [{ kind: 'tag', tag: 'feucht' }, { kind: 'sunny' }],
+    provides: [],
+    effects: [{ kind: 'control', tag: 'insekten', pct: 20 }, { kind: 'seeds', pct: 5 }],
+    summary: 'jagt Insekten (−20 % Fraß), +5 % 🌰',
+    text: 'Laicht als einer der Ersten im Jahr – große Ballen im flachen, sonnigen Wasser.',
+  },
+  {
+    id: 'newt', name: 'Bergmolch', genus: 'amphibians', rarity: 1, level: 'predator', niche: 'pond', unlock: 4,
+    food: ['insekten', 'wuermer'], needs: [{ kind: 'tag', tag: 'feucht' }, { kind: 'shady' }, { kind: 'group', group: 'mosses', min: 1 }],
+    provides: [],
+    effects: [{ kind: 'control', tag: 'insekten', pct: 25 }, { kind: 'growth', pct: 5 }, { kind: 'harmony', points: 2 }],
+    summary: 'jagt Insekten (−25 % Fraß), +5 % 🌿, +2 ⚖️',
+    text: 'Im Frühling glänzt das Männchen blau, mit getupftem Kamm und orangem Bauch.',
   },
 
   // --- Pilze --------------------------------------------------------------------

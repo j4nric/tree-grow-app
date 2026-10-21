@@ -745,6 +745,11 @@ body[data-motion='reduce'] .stage-banner.visible {
   --fam-bg: #f6e0dc;
   --fam-text: #7f2a20;
 }
+.family-amphibians {
+  --fam: #3d8a7a;
+  --fam-bg: #e0f1ec;
+  --fam-text: #245a4f;
+}
 .family-plants {
   --fam: #3f8f3a;
   --fam-bg: #e6f2e0;

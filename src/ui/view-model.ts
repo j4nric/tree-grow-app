@@ -23,7 +23,7 @@ export type Tone = 'good' | 'bad' | 'neutral';
 
 /**
  * Gattung bzw. Gruppe als Schlüssel für Farbe/Symbol. Bekannte Werte haben eigene Farben
- * im CSS (`birds`, `insects`, `mammals`, `soil`, `fungi`, `plants`, `event`); andere
+ * im CSS (`birds`, `insects`, `mammals`, `soil`, `fungi`, `amphibians`, `plants`, `event`); andere
  * Schlüssel erscheinen neutral.
  */
 export type FamilyKey = string;

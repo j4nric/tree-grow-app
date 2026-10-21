@@ -60,9 +60,9 @@ export interface CareMeasure {
   ranks: readonly CareRank[];
 }
 
-const slot = (niche: 'litter' | 'hollows' | 'crown' | 'edge' | 'bark'): CareEffect => ({
+const slot = (niche: 'litter' | 'hollows' | 'crown' | 'edge' | 'bark' | 'pond', amount = 1): CareEffect => ({
   kind: 'cycle',
-  effect: { kind: 'slot', niche, amount: 1 },
+  effect: { kind: 'slot', niche, amount },
 });
 
 export const CARE: readonly CareMeasure[] = [
@@ -164,14 +164,19 @@ export const CARE: readonly CareMeasure[] = [
     id: 'pond', name: 'Waldtümpel', icon: '💧',
     text: 'Eine feuchte Senke, in der sich der Regen sammelt.',
     boughtText: 'Tümpel angelegt',
+    // Öffnet die Nische Waldtümpel für die Amphibien (DESIGN_V2.md 5.5).
     ranks: [
       {
-        cost: 5_500, minStage: 4, summary: 'Feuchte, +3 💧',
-        effects: [{ kind: 'habitat', tag: 'feucht' }, { kind: 'cycle', effect: { kind: 'water', amount: 3 } }],
+        cost: 7_500, minStage: 4, summary: 'Feuchte, +3 💧, +2 Plätze Waldtümpel',
+        effects: [{ kind: 'habitat', tag: 'feucht' }, { kind: 'cycle', effect: { kind: 'water', amount: 3 } }, slot('pond', 2)],
       },
       {
-        cost: 22_000, minStage: 5, summary: '+3 💧, +2 ⚖️',
-        effects: [{ kind: 'cycle', effect: { kind: 'water', amount: 3 } }, { kind: 'cycle', effect: { kind: 'harmony', points: 2 } }],
+        cost: 22_500, minStage: 5, summary: '+3 💧, +2 ⚖️, +1 Platz Waldtümpel',
+        effects: [
+          { kind: 'cycle', effect: { kind: 'water', amount: 3 } },
+          { kind: 'cycle', effect: { kind: 'harmony', points: 2 } },
+          slot('pond'),
+        ],
       },
     ],
   },

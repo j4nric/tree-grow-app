@@ -10,21 +10,21 @@
  * Gesichter. Bei `reducedMotion` stehen alle Tiere still.
  */
 
-import type { AnchorResolver, NicheAnchor } from './anchors';
-import { edgeBare, edgePetals, edgeSeedHeads, fireflySeason, insectActivity } from './phenology';
+import { pondGeometry, POND_DEPTH, POND_WATER_Y, type AnchorResolver, type NicheAnchor } from './anchors';
+import { amphibianActivity, edgeBare, edgePetals, edgeSeedHeads, fireflySeason, insectActivity, pondIce } from './phenology';
 import { ell, eye, line, OUTLINE, outline, paintBird, poly, TAU, type BirdColors, type SpriteDef } from './sprite-kit';
 import { SPECIES_DEFS, SPECIES_INFO, type KindInfo } from './species-sprites';
 import { clamp, clamp01, hash2, smooth01 } from './util';
 import { VISITOR_DEFS } from './visitor-sprites';
 
-export type AnimalFamily = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi';
+export type AnimalFamily = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi' | 'amphibians';
 
 /** Ein Tier, wie es der Renderer bekommt (unabhängig vom Spielkern). */
 export interface SceneAnimal {
   /** Art-ID, z. B. 'robin'. Unbekannte Arten bekommen die Zeichnung ihrer Gattung. */
   id: string;
   family: AnimalFamily;
-  /** Nische: 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' (sonst nicht gezeichnet). */
+  /** Nische: 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' | 'pond' (sonst nicht gezeichnet). */
   niche: string;
   /** Platz in der Nische, 0..n. */
   slot: number;
@@ -84,6 +84,7 @@ const FAMILY_KIND: Record<AnimalFamily, string> = {
   mammals: 'mammal',
   soil: 'snail',
   fungi: 'mushroom',
+  amphibians: 'toad',
 };
 
 /** Seltenheit der bekannten Arten (DESIGN_V2.md 5.3), falls `rarity` fehlt – nur ab „besonders“. */
@@ -696,6 +697,74 @@ function paintMycel(c: CanvasRenderingContext2D): void {
   c.globalAlpha = 1;
 }
 
+/** Waldtümpel im Erdschnitt: Senke mit Schlammrand, Wasser, Seggen; Mitte der Bodenlinie auf (0, 0). */
+function paintPond(c: CanvasRenderingContext2D): void {
+  const rx = 1.9;
+  const depth = POND_DEPTH;
+  const water = POND_WATER_Y;
+  // Senke: dunkler Schlamm als halbe Ellipse unter der Bodenlinie.
+  c.fillStyle = '#4a3a29';
+  c.beginPath();
+  c.ellipse(0, 0, rx, depth, 0, 0, Math.PI);
+  c.closePath();
+  c.fill();
+  // Wasser: innerhalb der Senke ab der Wasserlinie, nach unten dunkler.
+  c.save();
+  c.beginPath();
+  c.ellipse(0, 0, rx - 0.1, depth - 0.08, 0, 0, Math.PI);
+  c.closePath();
+  c.clip();
+  const g = c.createLinearGradient(0, water, 0, depth);
+  g.addColorStop(0, '#6e9c94');
+  g.addColorStop(1, '#2e4b4f');
+  c.fillStyle = g;
+  c.fillRect(-rx, water, rx * 2, depth);
+  // Lichtreflexe und abgesunkenes Laub am Grund
+  ell(c, -0.5, water + 0.12, 0.45, 0.025, 0, 'rgba(225, 245, 240, 0.35)');
+  ell(c, 0.7, water + 0.22, 0.3, 0.02, 0, 'rgba(225, 245, 240, 0.25)');
+  ell(c, -0.3, depth - 0.12, 0.16, 0.05, 0.3, 'rgba(120, 84, 44, 0.6)');
+  ell(c, 0.45, depth - 0.14, 0.13, 0.04, -0.4, 'rgba(140, 98, 50, 0.55)');
+  c.restore();
+  line(c, [-rx + 0.16, water, rx - 0.16, water], 'rgba(220, 240, 236, 0.75)', 0.03);
+  // Seggen und ein Rohrkolben an beiden Ufern
+  for (const [x, h, lean] of [
+    [-1.82, 0.5, -0.12],
+    [-1.7, 0.36, 0.08],
+    [-1.6, 0.44, 0.16],
+    [1.58, 0.4, -0.14],
+    [1.7, 0.52, 0.06],
+    [1.84, 0.34, 0.18],
+  ] as const) {
+    poly(c, [x - 0.03, 0.04, x + lean, -h, x + 0.03, 0.04], '#5f8a3e');
+  }
+  line(c, [1.64, 0.04, 1.62, -0.62], '#6b8a42', 0.03);
+  ell(c, 1.62, -0.5, 0.045, 0.12, 0, '#6b4a2b');
+}
+
+/** Eisdecke des Tümpels (Winter), gleiche Maße wie `paintPond`. */
+function paintPondIce(c: CanvasRenderingContext2D): void {
+  const rx = 1.9;
+  c.save();
+  c.beginPath();
+  c.ellipse(0, 0, rx - 0.1, POND_DEPTH - 0.08, 0, 0, Math.PI);
+  c.closePath();
+  c.clip();
+  c.fillStyle = 'rgba(222, 236, 244, 0.9)';
+  c.fillRect(-rx, POND_WATER_Y - 0.03, rx * 2, 0.14);
+  c.fillStyle = 'rgba(190, 214, 228, 0.35)';
+  c.fillRect(-rx, POND_WATER_Y + 0.11, rx * 2, POND_DEPTH);
+  c.restore();
+  line(c, [-1.2, POND_WATER_Y + 0.03, -0.7, POND_WATER_Y + 0.06], 'rgba(255, 255, 255, 0.8)', 0.02);
+  line(c, [0.3, POND_WATER_Y + 0.04, 0.9, POND_WATER_Y + 0.02], 'rgba(255, 255, 255, 0.8)', 0.02);
+}
+
+/** Flacher Ufer-Stein, auf dem Kröte und Frosch sitzen; Oberkante auf (0, −0.08). */
+function paintPondStone(c: CanvasRenderingContext2D): void {
+  ell(c, 0, 0.0, 0.3, 0.09, 0, '#7d7a70');
+  ell(c, -0.05, -0.03, 0.2, 0.04, 0, '#9a978c');
+  ell(c, 0.02, 0.07, 0.3, 0.03, 0, 'rgba(46, 75, 79, 0.5)');
+}
+
 const DEFS: Record<string, SpriteDef> = {
   robin: { x0: -0.72, y0: -0.95, x1: 0.58, y1: 0.08, paint: (c) => paintBird(c, BIRD_ROBIN) },
   bluetit: { x0: -0.72, y0: -0.95, x1: 0.58, y1: 0.08, paint: (c) => paintBird(c, BIRD_BLUETIT) },
@@ -724,6 +793,9 @@ const DEFS: Record<string, SpriteDef> = {
   hollow: { x0: -0.4, y0: -0.84, x1: 0.4, y1: 0.06, paint: (c) => paintHollow(c) },
   hollowLip: { x0: -0.4, y0: -0.84, x1: 0.4, y1: 0.12, paint: (c) => paintHollowLip(c) },
   mycel: { x0: -0.8, y0: -0.04, x1: 0.8, y1: 1.0, paint: (c) => paintMycel(c) },
+  pond: { x0: -2.0, y0: -0.66, x1: 2.0, y1: 0.9, paint: (c) => paintPond(c) },
+  pondIce: { x0: -2.0, y0: -0.66, x1: 2.0, y1: 0.9, paint: (c) => paintPondIce(c) },
+  pondStone: { x0: -0.34, y0: -0.12, x1: 0.34, y1: 0.12, paint: (c) => paintPondStone(c) },
   shimmer: { x0: -1, y0: -1, x1: 1, y1: 1, paint: (c) => paintShimmer(c) },
   sparkle: { x0: -0.5, y0: -0.5, x1: 0.5, y1: 0.5, paint: (c) => paintSparkle(c) },
   ...SPECIES_DEFS,
@@ -892,19 +964,21 @@ export interface AnimalFrame {
 }
 
 /** Jahreszeit-Werte dieses Frames (einmal je Frame gerechnet, keine Allokation). */
-const seasonNow = { season: Number.NaN as number | null, insects: 1, petals: 1, seeds: 0, bare: 0, glow: 1 };
+const seasonNow = { season: Number.NaN as number | null, insects: 1, amphibians: 1, ice: 0, petals: 1, seeds: 0, bare: 0, glow: 1 };
 
 function updateSeason(season: number | null): void {
   if (seasonNow.season === season) return;
   seasonNow.season = season;
   seasonNow.insects = insectActivity(season);
+  seasonNow.amphibians = amphibianActivity(season);
+  seasonNow.ice = pondIce(season);
   seasonNow.petals = edgePetals(season);
   seasonNow.seeds = edgeSeedHeads(season);
   seasonNow.bare = edgeBare(season);
   seasonNow.glow = fireflySeason(season);
 }
 
-const NICHE_ORDER: Record<string, number> = { roots: 0, litter: 1, edge: 2, bark: 3, hollows: 4, crown: 5 };
+const NICHE_ORDER: Record<string, number> = { roots: 0, pond: 0.5, litter: 1, edge: 2, bark: 3, hollows: 4, crown: 5 };
 
 interface Pose {
   x: number;
@@ -931,6 +1005,8 @@ interface PlanEntry {
   info: KindInfo;
   /** Insekt (Gattung 'insects'): ruht im Winter. */
   insect: boolean;
+  /** Amphibie (Gattung 'amphibians'): Winterstarre. */
+  amphibian: boolean;
   seed: number;
   phase: number;
   niche: string;
@@ -988,10 +1064,16 @@ export class AnimalLayer {
   /** Wie oft der Plan gebaut wurde (für Tests). */
   builds = 0;
 
-  draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame): void {
-    if (animals.length === 0) return;
+  /**
+   * `pond`: Waldtümpel zeichnen (DESIGN_V2.md 5.5) – ein gecachtes Sprite unter den Tieren,
+   * im Winter mit Eisdecke (zweites Sprite, überblendet).
+   */
+  draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame, pond = false): void {
+    if (animals.length === 0 && !pond) return;
     this.sprites.tick();
     updateSeason(f.season ?? null);
+    if (pond) drawPond(ctx, anchors, this.sprites, f);
+    if (animals.length === 0) return;
     if (anchors !== this.anchors || !this.matches(animals)) this.rebuild(animals, anchors);
     for (const e of this.plan) {
       drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
@@ -1043,6 +1125,7 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
     kind,
     info,
     insect: animal.family === 'insects',
+    amphibian: animal.family === 'amphibians',
     seed,
     phase: (seed & 1023) / 97,
     niche,
@@ -1130,6 +1213,17 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
         e.travel = Math.min(S * 0.35, anchor.trunkHalf * 3);
       }
       break;
+    case 'pond':
+      if (info.swim) {
+        // Schwimmt unter der Wasseroberfläche hin und her (Mitte des Sprites = Körper).
+        e.y = ay + S * (POND_DEPTH - POND_WATER_Y) * 0.45;
+        e.travel = S * 0.45;
+      } else {
+        // Sitzt auf einem Stein am Ufer, die Füße knapp über dem Wasser.
+        e.before.push({ name: 'pondStone', x: ax, y: ay, size: S });
+        e.y = ay - S * 0.08;
+      }
+      break;
     case 'hollows': {
       // Die Höhle passt sich dem (anfangs schmalen) Stamm an; in Zehntelschritten,
       // damit nur wenige Sprite-Größen entstehen.
@@ -1193,7 +1287,7 @@ function drawEntry(
  * Winterruhe. `happy` ist die schon begrenzte Zufriedenheit; `seasonNow` muss aktuell sein.
  */
 function placePose(e: PlanEntry, happy: number, S: number, f: Pick<AnimalFrame, 'time' | 'windSkew' | 'reducedMotion'>): Pose {
-  const rest = e.insect ? clamp01(seasonNow.insects) : 1;
+  const rest = e.insect ? clamp01(seasonNow.insects) : e.amphibian ? clamp01(seasonNow.amphibians) : 1;
   const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6) * rest;
   const pose = e.pose;
   pose.x = e.x + f.windSkew * e.windArm;
@@ -1305,6 +1399,14 @@ function drawSparkles(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, m
     if (tw < 0.03) continue;
     blit(ctx, s, x + Math.cos(ang) * r, y + Math.sin(ang) * r * 0.8, 1, 0, tw * (1 - 0.6 * muted), f);
   }
+}
+
+/** Waldtümpel an seiner festen Lage (anchors.ts `pondGeometry`); im Winter mit Eis. */
+function drawPond(ctx: CanvasRenderingContext2D, anchors: AnchorResolver, sprites: SpriteCache, f: AnimalFrame): void {
+  const p = pondGeometry(anchors.layout, anchors.size);
+  const dpr = f.spriteDpr ?? f.dpr;
+  blit(ctx, sprites.get('pond', 0, false, p.size, dpr), p.x, p.y, 1, 0, 1, f);
+  if (seasonNow.ice > 0.01) blit(ctx, sprites.get('pondIce', 0, false, p.size, dpr), p.x, p.y, 1, 0, seasonNow.ice, f);
 }
 
 /** Wiederverwendeter Punkt für die Sprite-Mitte (keine Allokation pro Frame). */

@@ -1,6 +1,6 @@
 /**
- * Eigene Zeichnungen für alle Arten aus DESIGN_V2.md 5.3 (IDs wie in src/content/species.ts),
- * die nicht schon im Prototyp (animals.ts) gezeichnet wurden.
+ * Eigene Zeichnungen für alle Arten aus DESIGN_V2.md 5.3 und 5.5 (IDs wie in
+ * src/content/species.ts), die nicht schon im Prototyp (animals.ts) gezeichnet wurden.
  *
  * Konvention: Blick nach rechts, Ursprung = Ankerpunkt (Füße am Boden bzw. Kontaktstelle),
  * 1 Einheit = Grundgröße × `size`. Flacher Stil mit dunklem Umriss, ruhige Farben.
@@ -19,6 +19,8 @@ export interface KindInfo {
   cling?: boolean;
   /** Pilz: Hutpilz am Boden oder Konsole am Holz. */
   fungus?: 'cap' | 'bracket';
+  /** Schwimmt im Waldtümpel (unter der Wasseroberfläche) statt am Ufer zu sitzen. */
+  swim?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -583,6 +585,101 @@ function paintSalamander(c: CanvasRenderingContext2D, frame: number): void {
 }
 
 // ---------------------------------------------------------------------------
+// Amphibien (Erweiterung Waldtümpel)
+// ---------------------------------------------------------------------------
+
+/** Erdkröte: gedrungen, warzig braun, kupferne Augen; sitzt mit den Füßen auf (0, 0). */
+function paintToad(c: CanvasRenderingContext2D): void {
+  const body = '#8a6a45';
+  const dark = '#6b5034';
+  outline(c, 0.08, () => {
+    ellPath(c, -0.04, -0.17, 0.33, 0.18);
+    ellPath(c, 0.24, -0.2, 0.16, 0.13);
+    ellPath(c, -0.24, -0.07, 0.17, 0.08);
+  });
+  // Hinterbein, Körper, Kopf
+  ell(c, -0.24, -0.07, 0.17, 0.08, 0, dark);
+  ell(c, -0.04, -0.17, 0.33, 0.18, 0, body);
+  ell(c, 0.24, -0.2, 0.16, 0.13, 0, body);
+  ell(c, 0.0, -0.06, 0.28, 0.06, 0, '#b89a72');
+  // Warzen
+  for (const [x, y, r] of [
+    [-0.2, -0.24, 0.03],
+    [-0.08, -0.29, 0.025],
+    [0.04, -0.25, 0.03],
+    [-0.28, -0.15, 0.025],
+    [-0.12, -0.17, 0.02],
+    [0.08, -0.16, 0.02],
+  ] as const) {
+    ell(c, x, y, r, r * 0.8, 0, dark);
+  }
+  // Ohrdrüse, Maul, Vorderbein
+  ell(c, 0.16, -0.29, 0.07, 0.03, -0.2, '#a5835a');
+  line(c, [0.36, -0.17, 0.22, -0.15], '#4a3624', 0.018);
+  line(c, [0.18, -0.1, 0.22, -0.01, 0.27, 0], dark, 0.05);
+  // Kupferauge mit waagerechter Pupille
+  ell(c, 0.27, -0.29, 0.05, 0.045, 0, '#c9802e');
+  ell(c, 0.27, -0.29, 0.034, 0.012, 0, '#1d1a17');
+}
+
+/** Grasfrosch: schlanker, olivbraun mit dunkler Schläfenmaske; Füße auf (0, 0). */
+function paintFrog(c: CanvasRenderingContext2D): void {
+  const body = '#9a8650';
+  const dark = '#5e5232';
+  outline(c, 0.08, () => {
+    ellPath(c, -0.06, -0.2, 0.28, 0.15, -0.3);
+    ellPath(c, 0.22, -0.3, 0.14, 0.1, -0.2);
+    ellPath(c, -0.22, -0.09, 0.2, 0.07, 0.25);
+  });
+  // Gefaltetes Hinterbein mit langem Fuß
+  ell(c, -0.22, -0.09, 0.2, 0.07, 0.25, '#867443');
+  line(c, [-0.06, -0.03, 0.08, 0, 0.2, 0], dark, 0.04);
+  ell(c, -0.06, -0.2, 0.28, 0.15, -0.3, body);
+  ell(c, 0.22, -0.3, 0.14, 0.1, -0.2, body);
+  ell(c, 0.02, -0.12, 0.2, 0.05, -0.3, '#d8c9a0');
+  // Flecken und Schläfenmaske
+  for (const [x, y] of [
+    [-0.2, -0.2],
+    [-0.06, -0.27],
+    [-0.12, -0.14],
+  ] as const) {
+    ell(c, x, y, 0.035, 0.025, 0, dark);
+  }
+  ell(c, 0.18, -0.29, 0.07, 0.04, -0.2, '#4a3e26');
+  line(c, [0.12, -0.12, 0.17, -0.02, 0.22, 0], dark, 0.04);
+  ell(c, 0.24, -0.35, 0.045, 0.04, 0, '#d6a23c');
+  eye(c, 0.245, -0.35, 0.025);
+}
+
+/** Bergmolch im Wasser: schieferblau, orangefarbener Bauch, getupfter Kamm; Körpermitte auf (0, 0). Frame = Beinstellung. */
+function paintNewt(c: CanvasRenderingContext2D, frame: number): void {
+  const back = '#4d5d78';
+  const k = frame === 0 ? 0.04 : -0.04;
+  for (const [x, s] of [
+    [-0.16, 1],
+    [0.18, -1],
+  ] as const) {
+    line(c, [x, 0.03, x + k * s - 0.04, 0.1], '#3d4a60', 0.035);
+  }
+  const tail = [-0.25, -0.06, -0.5, -0.09, -0.74, 0.0, -0.5, 0.04, -0.25, 0.05];
+  outline(c, 0.07, () => {
+    polyPath(c, tail);
+    ellPath(c, 0, 0, 0.29, 0.07);
+    ellPath(c, 0.32, -0.005, 0.1, 0.06);
+  });
+  poly(c, tail, back);
+  ell(c, 0, 0, 0.29, 0.07, 0, back);
+  ell(c, 0.32, -0.005, 0.1, 0.06, 0, back);
+  // Orangefarbener Bauch und helles Seitenband mit Tupfen
+  ell(c, 0.03, 0.045, 0.25, 0.025, 0, '#e8892a');
+  ell(c, -0.02, 0.02, 0.24, 0.016, 0, '#d7dde6');
+  for (const x of [-0.2, -0.1, 0.0, 0.1, 0.2, -0.36, -0.48]) ell(c, x, 0.02, 0.014, 0.012, 0, '#1f2430');
+  // Niedriger Rückenkamm
+  line(c, [-0.6, -0.05, -0.3, -0.1, 0.0, -0.085, 0.2, -0.075], '#6f7f9c', 0.03);
+  eye(c, 0.36, -0.02, 0.022);
+}
+
+// ---------------------------------------------------------------------------
 // Pilze
 // ---------------------------------------------------------------------------
 
@@ -773,6 +870,10 @@ export const SPECIES_INFO: Record<string, KindInfo> = {
   // Bodenleben
   slug: { size: 1, motion: 'crawl', frames: 1 },
   salamander: { size: 1.25, motion: 'crawl', frames: 2 },
+  // Amphibien: Kröte und Frosch sitzen am Ufer, der Molch schwimmt (`swim`).
+  toad: { size: 1, motion: 'sniff', frames: 1 },
+  frog: { size: 0.95, motion: 'hop', frames: 1 },
+  newt: { size: 1, motion: 'crawl', frames: 2, swim: true },
   // Pilze
   chanterelle: { size: 0.95, motion: 'still', frames: 1, fungus: 'cap' },
   porcini: { size: 1.1, motion: 'still', frames: 1, fungus: 'cap' },
@@ -800,6 +901,9 @@ export const SPECIES_DEFS: Record<string, SpriteDef> = {
   stagbeetle: { x0: -0.4, y0: -0.48, x1: 0.72, y1: 0.06, paint: paintStagbeetle },
   slug: { x0: -0.56, y0: -0.36, x1: 0.6, y1: 0.06, paint: (c) => paintSlug(c) },
   salamander: { x0: -0.78, y0: -0.22, x1: 0.48, y1: 0.06, paint: paintSalamander },
+  toad: { x0: -0.46, y0: -0.42, x1: 0.46, y1: 0.06, paint: (c) => paintToad(c) },
+  frog: { x0: -0.48, y0: -0.48, x1: 0.42, y1: 0.06, paint: (c) => paintFrog(c) },
+  newt: { x0: -0.8, y0: -0.16, x1: 0.47, y1: 0.16, paint: paintNewt },
   chanterelle: { x0: -0.46, y0: -0.54, x1: 0.44, y1: 0.06, paint: (c) => paintChanterelle(c) },
   porcini: { x0: -0.46, y0: -0.58, x1: 0.44, y1: 0.06, paint: (c) => paintPorcini(c) },
   flyagaric: { x0: -0.48, y0: -0.7, x1: 0.44, y1: 0.08, paint: (c) => paintFlyagaric(c) },

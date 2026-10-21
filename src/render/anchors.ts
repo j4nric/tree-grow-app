@@ -12,7 +12,7 @@ import { normalizeSpecies, TREE_SPECIES, type Branch, type TreeSpecies } from '.
 import { clamp, clamp01, hash2, lerp } from './util';
 
 /** Nischen-IDs, die der Renderer kennt (wie in DESIGN_V2.md / src/content/niches.ts). */
-export const SCENE_NICHES = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows'] as const;
+export const SCENE_NICHES = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond'] as const;
 export type SceneNiche = (typeof SCENE_NICHES)[number];
 
 export function isSceneNiche(n: string): n is SceneNiche {
@@ -98,6 +98,39 @@ export function nicheAnchors(width: number, height: number, growth: number, slot
   }
   return result;
 }
+
+// ---------------------------------------------------------------------------
+// Waldtümpel
+// ---------------------------------------------------------------------------
+
+/**
+ * Waldtümpel in Tiergrößen S: halbe Breite, Tiefe der Senke und Lage der Wasserfläche
+ * unter der Bodenlinie. Die Senke liegt ganz im Erdschnitt (unter `groundY`), am linken
+ * Bildrand – so kommt sie weder den Tieren am Boden (Laubstreu, Waldsaum, Pilze) noch den
+ * Wurzelraum-Tieren (tiefer im Erdreich) in die Quere.
+ */
+export const POND_HALF_WIDTH = 1.9;
+export const POND_DEPTH = 0.85;
+export const POND_WATER_Y = 0.2;
+
+export interface PondGeometry {
+  /** Mitte der Senke an der Bodenlinie (CSS-Pixel). */
+  x: number;
+  y: number;
+  /** Tiergröße S, auf die sich alle Maße beziehen. */
+  size: number;
+  /** Wasseroberfläche (CSS-Pixel). */
+  waterY: number;
+}
+
+/** Lage des Waldtümpels – hängt nur von der Canvas-Größe ab (nicht vom Wachstum). */
+export function pondGeometry(layout: Layout, size: number): PondGeometry {
+  const x = Math.min(layout.cx - size, POND_HALF_WIDTH * size + size * 0.1);
+  return { x, y: layout.groundY, size, waterY: layout.groundY + POND_WATER_Y * size };
+}
+
+/** Plätze im Tümpel: waagerechter Versatz in Tiergrößen (die Art entscheidet, ob sie taucht). */
+const POND_SLOTS = [-0.85, 0.75, -0.05, 1.3, -1.35];
 
 // ---------------------------------------------------------------------------
 
@@ -205,6 +238,13 @@ function computeAnchor(
     case 'crown': {
       const p = crownPoint(layout, g, main, slot);
       a = { ...base, x: p.x, y: p.y, side: p.x < cx ? -1 : 1, onTree: true };
+      break;
+    }
+    case 'pond': {
+      const pond = pondGeometry(layout, size);
+      const u = POND_SLOTS[slot % POND_SLOTS.length]! + 0.2 * Math.floor(slot / POND_SLOTS.length);
+      // Zum Stamm hin schauen: Plätze links der Mitte blicken nach rechts.
+      a = { ...base, x: pond.x + u * size, y: pond.waterY, side: u < 0 ? -1 : 1 };
       break;
     }
   }

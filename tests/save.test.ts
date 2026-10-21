@@ -71,7 +71,7 @@ describe('Speichern & Laden v2', () => {
     state.meta.forestMemory = 5;
     // Von Hand geändertes Ökosystem: H_max nachführen wie nach einer Aktion.
     recordDiscoveries(state);
-    expect(SAVE_VERSION).toBe(10);
+    expect(SAVE_VERSION).toBe(11);
     expect(deserialize(serialize(state), 999)).toEqual(state);
     expect(loadGame(serialize(state), 999)).toMatchObject({ migratedFromV1: false, keepsake: false });
   });
@@ -184,6 +184,53 @@ describe('Spielstand v10: Sperrklinke der Vorschau (cycle.bestHarmonyMemory)', (
     expect(previewNewCycle(huge).memoryGain).toBe(MAX_FOREST_MEMORY - huge.meta.forestMemory);
     // NaN als Zahl (nicht in JSON darstellbar, aber im Objekt möglich): kein Absturz.
     expect(Number.isFinite(load(Number.NaN))).toBe(true);
+  });
+});
+
+describe('Spielstand v11: Waldtümpel (Erweiterung Amphibien, DESIGN_V2.md 5.5)', () => {
+  /** Alter Baum mit Regen-Tümpel aus dem Frühling (Feuchte + 3 💧), als v10-Rohdaten ohne `niches.pond`. */
+  function rawV10(withRain: boolean): string {
+    const state = stateAt(4, ['earthworm'], 12);
+    if (withRain) {
+      state.cycle.seen = ['rain'];
+      state.cycle.bonuses = [{ source: 'rain', effect: { kind: 'water', amount: 3 } }];
+      state.cycle.habitats = ['feucht'];
+    }
+    const data = JSON.parse(serialize(state));
+    data.version = 10;
+    delete data.niches.pond;
+    return JSON.stringify(data);
+  }
+
+  it('v10 → v11: Nische leer ergänzt, der Regen-Tümpel bekommt seinen Platz nachgetragen', () => {
+    const s = loadGame(rawV10(true), 0)!.state;
+    expect(s.version).toBe(SAVE_VERSION);
+    expect(s.niches.pond).toEqual([]);
+    expect(s.cycle.bonuses).toEqual([
+      { source: 'rain', effect: { kind: 'water', amount: 3 } },
+      { source: 'rain', effect: { kind: 'slot', niche: 'pond', amount: 1 } },
+    ]);
+    expect(nicheSlots(s.stage, s.niches, [{ niche: 'pond', amount: 1 }]).pond).toBe(1);
+    // Danach als v11 verlustfrei weiter – kein zweiter Platz beim nächsten Laden.
+    expect(deserialize(serialize(s), 0)).toEqual(s);
+  });
+
+  it('v10 → v11 ohne Regen-Tümpel: nichts nachgetragen, der Tümpel bleibt zu', () => {
+    const s = loadGame(rawV10(false), 0)!.state;
+    expect(s.niches.pond).toEqual([]);
+    expect(s.cycle.bonuses).toEqual([]);
+    expect(nicheSlots(s.stage, s.niches).pond).toBe(0);
+  });
+
+  it('Amphibien im Tümpel überstehen den Roundtrip; ohne Platz werden sie beim Laden entlassen', () => {
+    const state = stateAt(4, ['earthworm', 'toad', 'newt'], 12);
+    state.cycle.care = { pond: 1 };
+    const loaded = deserialize(serialize(state), 0)!;
+    expect(loaded.niches.pond).toEqual(['toad', 'newt']);
+    // Manipuliert: Tiere im Tümpel ohne Pflege oder Ereignis – kein Absturz, Tümpel leer.
+    const noPond = JSON.parse(serialize(state));
+    noPond.cycle.care = {};
+    expect(deserialize(JSON.stringify(noPond), 0)!.niches.pond).toEqual([]);
   });
 });
 
@@ -308,7 +355,7 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
     };
     const s = deserialize(rawV2({ totalGrowth: v2Threshold(20) + 10, niches: full }), 0)!;
     expect(s).toMatchObject({ waypoint: 20, stage: 5 });
-    expect(s.niches).toEqual(full); // niemand wird entlassen
+    expect(s.niches).toEqual({ ...full, pond: [] }); // niemand wird entlassen; der Waldtümpel ist leer
     expect(s.totalGrowth).toBeGreaterThanOrEqual(thresholdFor(20));
     expect(s.totalGrowth).toBeLessThan(thresholdFor(21));
     // Weiterspielen: der nächste Wegpunkt ist 21, nicht noch einmal 18.

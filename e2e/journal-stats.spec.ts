@@ -59,9 +59,9 @@ test('Statistik: per Tastatur erreichbar, Kennzahlen aus dem Spielstand, Samen l
   await expect(stat(page, 'time')).toContainText('Herbst');
   await expect(stat(page, 'tree')).toContainText('Waldkiefer');
   await expect(stat(page, 'stage')).toContainText('Junger Baum');
-  await expect(stat(page, 'species')).toContainText('2/32');
+  await expect(stat(page, 'species')).toContainText('2/35');
   await expect(stat(page, 'plants')).toContainText('1/');
-  await expect(stat(page, 'communities')).toContainText('0/9');
+  await expect(stat(page, 'communities')).toContainText('0/11');
   await expect(stat(page, 'memory')).toContainText('+30 % Wachstum und Samen');
   await expect(stat(page, 'regulars')).toContainText('1/1');
   await expect(stat(page, 'regulars')).toContainText('Blaumeise');

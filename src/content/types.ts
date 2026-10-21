@@ -3,9 +3,12 @@
  * Reine Typen und Konstanten-Listen – keine Logik.
  */
 
-/** Die fünf Gattungen (eigentlich Lebensweise-Gruppen, DESIGN_V2.md 5.1). */
-export type Genus = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi';
-export const GENERA: readonly Genus[] = ['birds', 'insects', 'mammals', 'soil', 'fungi'];
+/**
+ * Die Gattungen (eigentlich Lebensweise-Gruppen, DESIGN_V2.md 5.1): fünf Grundgattungen
+ * und die Erweiterung Amphibien (DESIGN_V2.md 5.5, nur mit dem Waldtümpel).
+ */
+export type Genus = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi' | 'amphibians';
+export const GENERA: readonly Genus[] = ['birds', 'insects', 'mammals', 'soil', 'fungi', 'amphibians'];
 
 /** Pflanzengruppen der Begleitpflanzen (der Hauptbaum zählt als Baum). */
 export type PlantGroup = 'trees' | 'shrubs' | 'flowers' | 'mosses';
@@ -17,9 +20,12 @@ export type Rarity = 0 | 1 | 2 | 3;
 /** Ebene der Nahrungspyramide (Pflanzen sind die unterste Ebene). */
 export type Level = 'herbivore' | 'predator' | 'decomposer';
 
-/** Nischen am Hauptbaum (DESIGN_V2.md, Abschnitt 3). */
-export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows';
-export const NICHE_IDS: readonly NicheId[] = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows'];
+/**
+ * Nischen am Hauptbaum (DESIGN_V2.md, Abschnitt 3). Der Waldtümpel (`pond`) hat keine
+ * Plätze aus der Stufe – er öffnet nur durch Platz-Wirkungen (Pflege, Ereignis).
+ */
+export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' | 'pond';
+export const NICHE_IDS: readonly NicheId[] = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond'];
 
 /** Nahrungs- und Lebensraum-Merkmale. Hauptbaum, Begleitpflanzen und Tiere stellen sie bereit. */
 export type Tag =

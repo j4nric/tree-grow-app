@@ -225,3 +225,47 @@ describe('AnimalLayer', () => {
     expect(draws).toBe(2 + 1 + 2);
   });
 });
+
+describe('Waldtümpel (Erweiterung Amphibien)', () => {
+  const layout = makeLayout(800, 600);
+  const anchors = createAnchorResolver(layout, 4, placeMainTree(layout, 4));
+  const f: AnimalFrame = { time: 1, windSkew: 0, reducedMotion: true, dpr: 1, sx: 1, sy: 1 };
+  const AMPHIBIANS: SceneAnimal[] = [
+    { id: 'toad', family: 'amphibians', niche: 'pond', slot: 0, happiness: 0.9 },
+    { id: 'newt', family: 'amphibians', niche: 'pond', slot: 1, happiness: 0.9 },
+    // Unbekannte Amphibie: Zeichnung der Gattung (Kröte), kein Absturz.
+    { id: 'treefrog', family: 'amphibians', niche: 'pond', slot: 2, happiness: 0.9 },
+  ];
+
+  it('zeichnet den Tümpel auch ohne Tiere – ein Sprite, im Winter eins mehr (Eis)', () => {
+    const layer = new AnimalLayer();
+    const summer = makeCanvas(800, 600);
+    layer.draw(summer.getContext('2d'), [], anchors, f, true);
+    expect(summer.calls.filter((c) => c.name === 'drawImage')).toHaveLength(1);
+    const winter = makeCanvas(800, 600);
+    layer.draw(winter.getContext('2d'), [], anchors, { ...f, season: 3 }, true);
+    expect(winter.calls.filter((c) => c.name === 'drawImage')).toHaveLength(2);
+    // Ohne Tümpel und ohne Tiere: nichts.
+    const none = makeCanvas(800, 600);
+    layer.draw(none.getContext('2d'), [], anchors, f);
+    expect(none.calls.filter((c) => c.name === 'drawImage')).toHaveLength(0);
+  });
+
+  it('Kröte sitzt auf einem Stein, der Molch schwimmt; unbekannte Amphibien bekommen die Kröte', () => {
+    const layer = new AnimalLayer();
+    const canvas = makeCanvas(800, 600);
+    layer.draw(canvas.getContext('2d'), AMPHIBIANS, anchors, f, true);
+    // Tümpel + (Stein + Kröte) + Molch + (Stein + Ersatz-Kröte)
+    expect(canvas.calls.filter((c) => c.name === 'drawImage')).toHaveLength(1 + 2 + 1 + 2);
+  });
+
+  it('drawScene mit Tümpel und Amphibien in allen Jahreszeiten ohne Fehler', () => {
+    const canvas = makeCanvas(800, 600);
+    const ctx = canvas.getContext('2d');
+    for (const season of [0, 1, 2, 3, 3.5]) {
+      expect(() =>
+        drawScene(ctx, 800, 600, { growth: 4.5, time: 2 + season, animals: AMPHIBIANS, pond: true, season, sizeSettled: true }),
+      ).not.toThrow();
+    }
+  });
+});

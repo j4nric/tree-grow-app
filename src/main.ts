@@ -45,6 +45,7 @@ import {
   toCareViews,
   encounterActionKey,
   toSceneAnimals,
+  scenePond,
   toSceneVisitors,
   toScenePlants,
   stageBannerView,
@@ -563,6 +564,7 @@ function refreshPanel(now: number): void {
       ecoView = toEcosystemView(state, ev);
       // Tiere und Pflanzen für die Szene nur bei Änderungen am Ökosystem neu bauen.
       scene.animals = toSceneAnimals(state, ev);
+      scene.pond = scenePond(ev);
       scene.plants = toScenePlants(state, ev);
       scene.visitors = toSceneVisitors(state);
       scene.harmonyTier = harmonyTierIndex(ev.harmony);

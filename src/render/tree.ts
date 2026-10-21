@@ -81,6 +81,11 @@ export interface SceneInput {
   /** Tiere in den Nischen des Hauptbaums (Standard: keine). */
   animals?: readonly SceneAnimal[];
   /**
+   * Waldtümpel (DESIGN_V2.md 5.5): Ist die Nische offen, liegt am linken Bildrand eine
+   * kleine Senke mit Wasser im Erdschnitt (im Winter mit Eis). Ohne Angabe: kein Tümpel.
+   */
+  pond?: boolean;
+  /**
    * Begleitpflanzen um den Hauptbaum (optional). Sobald die Liste übergeben wird (auch
    * leer), erscheinen die automatischen Nachbarbäume ab „Hain“ nur noch als ferne
    * Kulisse. Ohne Angabe sieht die Szene aus wie bisher.
@@ -372,6 +377,9 @@ function samePlants(sig: PlantSig[] | null, plants: readonly ScenePlant[] | unde
   }
   return true;
 }
+
+/** Leere Tierliste (keine Allokation pro Frame). */
+const NO_ANIMALS: readonly SceneAnimal[] = [];
 
 /** Wiederverwendete Frame-Daten für die Tier-Ebene (keine Allokation pro Frame). */
 const animalFrame: AnimalFrame = { time: 0, windSkew: 0, reducedMotion: false, dpr: 1, sx: 1, sy: 1 };
@@ -861,8 +869,9 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     vf.windSkew = k;
     cache.visitors.draw(ctx, visitors, 'front', vf);
   }
-  const animals = input.animals;
-  if (animals && animals.length > 0 && sc.anchors) {
+  const animals = input.animals ?? NO_ANIMALS;
+  const pond = input.pond === true;
+  if ((animals.length > 0 || pond) && sc.anchors) {
     const f = animalFrame;
     f.time = time;
     f.windSkew = k;
@@ -874,7 +883,7 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     f.tx = m.tx;
     f.ty = m.ty;
     f.spriteDpr = spriteDpr;
-    layer.draw(ctx, animals, sc.anchors, f);
+    layer.draw(ctx, animals, sc.anchors, f, pond);
   }
   // Fallende Blätter und Schnee (nur außerhalb des Sommers).
   if (cache.look && !cache.look.summer) {

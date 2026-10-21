@@ -105,6 +105,7 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   if (version < 6) migrateV5(state);
   if (version < 8) migrateV7(state);
   if (version < 10) migrateV9(state);
+  if (version < 11) migrateV10(state);
   // v6 → v7 (Balancing 2.10): nur die Wegpunkt-Kurve – schon in loadV2 umgerechnet
   // (v6GrowthToV7), bevor Wegpunkt, Stufe und Zwischenhalt abgeleitet werden.
   // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte. Führt
@@ -300,6 +301,23 @@ function migrateV7(state: GameState): void {
  */
 function migrateV9(state: GameState): void {
   state.cycle.bestHarmonyMemory = Math.min(MAX_FOREST_MEMORY, harmonyMemoryGain(state.cycle.maxHarmony, state.waypoint));
+}
+
+/**
+ * v10 → v11 (Erweiterung Amphibien, DESIGN_V2.md 5.5): neue Nische `niches.pond` – das
+ * Laden legt sie für ältere Stände leer an (wie jede fehlende Nische). Wer im laufenden
+ * Zyklus beim „Regenreichen Frühling“ den Waldtümpel entstehen ließ, bekam damals nur
+ * Feuchte und +3 💧; die Option öffnet seit v11 zusätzlich einen Tümpelplatz. Der Platz
+ * wird nachgetragen, damit Stand und Anzeige der Option übereinstimmen. Die Pflege
+ * „Waldtümpel“ braucht nichts: Ihre Plätze folgen aus dem gekauften Rang.
+ */
+function migrateV10(state: GameState): void {
+  const bonuses = state.cycle.bonuses;
+  const fromRain = bonuses.filter((b) => b.source === 'rain');
+  const choseRain = fromRain.some((b) => b.effect.kind === 'water');
+  if (choseRain && !fromRain.some((b) => b.effect.kind === 'slot')) {
+    bonuses.push({ source: 'rain', effect: { kind: 'slot', niche: 'pond', amount: 1 } });
+  }
 }
 
 /**
