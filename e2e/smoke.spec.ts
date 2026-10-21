@@ -16,7 +16,7 @@ import {
   test,
   waypoint,
 } from './fixtures';
-import type { Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 
 /**
  * Smoke-Tests für „Vom Samen zum Wald“ (v2-Prototyp: Begegnungen und Kartenwahl).
@@ -718,5 +718,71 @@ test.describe('Feinschliff mobil (390×844)', () => {
       lineHeight: parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.3,
     }));
     expect(height).toBeLessThanOrEqual(lineHeight * 2 + 1);
+  });
+});
+
+test.describe('Lebensgemeinschaften', () => {
+  /** Junger Baum: Regenwurm und Rollassel leben schon – nur der Pilz fehlt zur Humusküche. */
+  async function seedNearHumus(context: BrowserContext): Promise<void> {
+    await seedV3(context, {
+      totalGrowth: waypoint(6) + 1,
+      niches: { roots: ['earthworm'], litter: ['woodlouse'] },
+      pendingEncounters: [{ type: 'animal', cards: ['chanterelle', 'bluetit', 'oakmoth'], rerolls: 0 }],
+    });
+  }
+
+  const communities = (page: Page) => page.locator('[data-ref="communities"]');
+  const community = (page: Page, id: string) => communities(page).locator(`[data-community="${id}"]`);
+
+  test('fast fertige Humusküche: Karte zeigt die Vervollständigung, Wahl meldet die Entdeckung', async ({
+    page,
+    context,
+  }) => {
+    await seedNearHumus(context);
+    await openGame(page);
+    await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
+
+    // Seitenleiste: zugeklappt mit Kurzfassung; aufgeklappt „???“ mit dem, was fehlt.
+    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('0 von 9 aktiv');
+    await communities(page).locator('summary').click();
+    await expect(community(page, 'humus')).toContainText('???');
+    await expect(community(page, 'humus')).toContainText('fehlt: Pfifferling oder Steinpilz');
+    await expect(community(page, 'humus')).toContainText('2/3');
+
+    await openStack(page);
+    const mushroom = card(page, 'chanterelle');
+    await expect(mushroom).toContainText('✨ vervollständigt Humusküche (+8 Harmonie)');
+    await expect(card(page, 'bluetit')).not.toContainText('vervollständigt');
+    await mushroom.getByRole('button', { name: 'Pfifferling wählen' }).click();
+
+    await expect(dialog(page)).toBeHidden();
+    await expect(page.locator('#toast')).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱');
+    await expect(community(page, 'humus')).toContainText('Humusküche');
+    await expect(community(page, 'humus')).toContainText('+8 ⚖️');
+    await expect(community(page, 'humus')).toHaveClass(/state-active/);
+    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 9 aktiv · +8 ⚖️');
+
+    const saved = await savedState(page);
+    expect(saved.meta.journal.communities).toEqual(['humus']);
+  });
+
+  test.describe('Mobil (390×844)', () => {
+    test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+    test('aufgeklappte Lebensgemeinschaften und Hinweis auf der Karte ohne horizontales Scrollen', async ({
+      page,
+      context,
+    }) => {
+      await seedNearHumus(context);
+      await openGame(page);
+      await communities(page).locator('summary').click();
+      await expect(community(page, 'humus')).toContainText('fehlt:');
+      const noScroll = () =>
+        page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+      expect(await noScroll()).toBe(true);
+      await openStack(page);
+      await expect(card(page, 'chanterelle')).toContainText('vervollständigt Humusküche');
+      expect(await noScroll()).toBe(true);
+    });
   });
 });

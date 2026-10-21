@@ -989,6 +989,154 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   text-align: right;
 }
 
+/* Lebensgemeinschaften (aufklappbar, gleiche Hülle wie die Harmonie-Aufschlüsselung) */
+.eco-communities summary {
+  flex-wrap: wrap;
+  column-gap: 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.eco-communities-count {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.community-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.community {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 3px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.community-icon {
+  grid-row: 1 / span 2;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.community-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.community-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.community-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.community-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.community-track {
+  grid-column: 2 / span 2;
+  height: 4px;
+  border-radius: 999px;
+  background: #ece8da;
+  overflow: hidden;
+}
+
+.community-bar {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: #9bb98a;
+}
+
+.community.state-active {
+  background: var(--good-bg);
+}
+
+.community.state-active .community-value {
+  color: var(--accent-dark);
+}
+
+.community.state-active .community-track {
+  display: none;
+}
+
+.community.state-active .community-icon {
+  grid-row: 1;
+}
+
+.community.state-near .community-note {
+  color: #8a5a00;
+}
+
+.community.state-near .community-bar {
+  background: var(--rarity-rare);
+}
+
+.community.undiscovered .community-name {
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+.community.undiscovered .community-note {
+  font-style: italic;
+}
+
+.community.formed {
+  animation: community-formed 1.2s ease-out;
+}
+
+@keyframes community-formed {
+  0%,
+  30% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+
+/* Kartenvorschau: „✨ vervollständigt Humusküche (+8 Harmonie)“ */
+.card-communities {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.card-communities li {
+  color: var(--accent-dark);
+}
+
+.card-communities li.tone-bad {
+  color: var(--bad);
+}
+
+.card-communities[hidden] {
+  display: none;
+}
+
 .panel .eco-title {
   margin: 8px 0 -4px;
 }
@@ -1866,6 +2014,7 @@ dialog.plant-picker {
   .eco-stat-value.pop,
   .encounter-stack.nudge,
   .family-chip.tier-up,
+  .community.formed,
   .slot.arrive {
     animation-name: highlight;
     animation-timing-function: linear;

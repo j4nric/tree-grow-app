@@ -7,6 +7,7 @@
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
 import { ABILITY_INFO } from '../content/abilities';
+import { COMMUNITIES_BY_ID } from '../content/communities';
 import { NICHES, NICHES_BY_ID } from '../content/niches';
 import { PLANT_GROUP_INFO, PLANTS_BY_ID, type Plant } from '../content/plants';
 import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
@@ -25,6 +26,7 @@ import {
   UNGUARDED_PENALTY,
   cardStatus,
   choiceBlocker,
+  communityChanges,
   declineReward,
   evaluate,
   evaluateEcosystem,
@@ -55,6 +57,8 @@ import { formatDuration, formatNumber } from './format';
 import type {
   AnimalView,
   CardView,
+  CommunityListView,
+  CommunityView,
   ConditionView,
   EcosystemView,
   EffectView,
@@ -453,6 +457,7 @@ export function toEcosystemView(state: GameState, evaluation: Readonly<Evaluatio
     families: familyViews(evaluation),
     niches: nicheViews(state, evaluation),
     plantRing: plantRingView(state, evaluation),
+    communities: communityListView(evaluation, state.meta.journal.communities),
   };
   refreshEcosystemView(view, state);
   return view;
@@ -467,6 +472,120 @@ export function refreshEcosystemView(view: EcosystemView, state: GameState): voi
   view.stageProgress = waypointProgress(state);
   view.progressHint = progressHint(state);
   refreshPlantRing(view.plantRing, state);
+}
+
+// ---------------------------------------------------------------------------
+// Lebensgemeinschaften
+// ---------------------------------------------------------------------------
+
+/** Symbole der Lebensgemeinschaften (reine Anzeige). */
+const COMMUNITY_ICONS: Readonly<Record<string, string>> = {
+  humus: '🪱',
+  'caterpillar-watch': '🐛',
+  deadwood: '🪵',
+  'night-shift': '🦉',
+  'seed-couriers': '🌰',
+  'wild-edge': '🦊',
+  'flower-hem': '🌸',
+  'birch-bond': '🌳',
+  'damp-ground': '💧',
+};
+
+export function communityIcon(id: string): string {
+  return COMMUNITY_ICONS[id] ?? '✨';
+}
+
+/** Ab diesem Anteil erfüllter Mitglieder gilt eine Gemeinschaft als „fast fertig“. */
+export const COMMUNITY_NEAR_AT = 0.5;
+
+/** Name einer Art oder Pflanze (unbekannte IDs bleiben, wie sie sind). */
+function memberName(id: string): string {
+  return SPECIES_BY_ID.get(id)?.name ?? PLANTS_BY_ID.get(id)?.name ?? id;
+}
+
+/**
+ * Fehlende Mitglieder als Text: je Mitglied die Alternativen mit „oder“, die Mitglieder mit
+ * Komma, z. B. „Rollassel, Pfifferling oder Steinpilz“.
+ */
+export function missingMembersText(missing: readonly (readonly string[])[]): string {
+  return missing.map((options) => options.map(memberName).join(' oder ')).join(', ');
+}
+
+/** Name einer Gemeinschaft (Fallback: ID). */
+function communityName(id: string): string {
+  return COMMUNITIES_BY_ID.get(id)?.name ?? id;
+}
+
+/**
+ * Lebensgemeinschaften für die Seitenleiste aus `evaluate(state).communities`.
+ * `discovered`: IDs im Naturtagebuch (`meta.journal.communities`). Noch nicht entdeckte
+ * Gemeinschaften erscheinen als „???“ mit Fortschritt und Rätselhinweis. Fehlt nur noch
+ * wenig (≥ 50 %), nennt die Zeile die fehlenden Arten bzw. Pflanzen.
+ * Reihenfolge: aktive, dann nach Fortschritt (bei Gleichstand wie im Inhalt).
+ */
+export function communityListView(
+  evaluation: Readonly<Pick<Evaluation, 'communities'>>,
+  discovered: readonly string[],
+): CommunityListView {
+  const items: CommunityView[] = evaluation.communities.map((status) => {
+    const community = COMMUNITIES_BY_ID.get(status.id);
+    const known = status.active || discovered.includes(status.id);
+    const progress = status.total > 0 ? Math.min(1, Math.max(0, status.present / status.total)) : 0;
+    const state = status.active ? 'active' : progress >= COMMUNITY_NEAR_AT ? 'near' : 'open';
+    const view: CommunityView = {
+      id: status.id,
+      icon: known ? communityIcon(status.id) : '❔',
+      name: known ? communityName(status.id) : '???',
+      discovered: known,
+      state,
+      present: status.present,
+      total: status.total,
+      progress,
+      harmony: status.active ? status.harmony : 0,
+      effects: (community?.effects ?? []).map((e) => effectView(e).label).join(' · '),
+    };
+    if (state === 'near' && status.missing.length > 0) view.missingText = `fehlt: ${missingMembersText(status.missing)}`;
+    if (!known && community) view.hint = community.hint;
+    return view;
+  });
+  const rank = (v: CommunityView) => (v.state === 'active' ? 2 : v.progress);
+  const order = new Map(items.map((v, i) => [v.id, i]));
+  items.sort((a, b) => rank(b) - rank(a) || order.get(a.id)! - order.get(b.id)!);
+  const active = items.filter((v) => v.state === 'active');
+  const harmony = active.reduce((sum, v) => sum + v.harmony, 0);
+  const summary =
+    `${formatNumber(active.length)} von ${formatNumber(items.length)} aktiv` +
+    (harmony > 0 ? ` · +${formatNumber(harmony)} ⚖️` : '');
+  return { items, activeCount: active.length, harmony, summary };
+}
+
+/**
+ * Was eine Wahl an Lebensgemeinschaften ändert (Vergleich jetzt ↔ Vorschau aus dem Kern):
+ * „✨ vervollständigt Humusküche (+8 Harmonie)“ bzw. „löst Humusküche auf (−8 Harmonie)“.
+ */
+export function communityPreview(
+  now: Readonly<Pick<Evaluation, 'communities'>>,
+  after: Readonly<Pick<Evaluation, 'communities'>>,
+): EffectView[] {
+  const { completed, broken } = communityChanges(now, after);
+  return [
+    ...completed.map((c) => ({
+      label: `✨ vervollständigt ${communityName(c.id)} (+${formatNumber(c.harmony)} Harmonie)`,
+      tone: 'good' as const,
+    })),
+    ...broken.map((c) => ({
+      label: `löst ${communityName(c.id)} auf (−${formatNumber(c.harmony)} Harmonie)`,
+      tone: 'bad' as const,
+    })),
+  ];
+}
+
+/** Entdeckungs-Meldung, z. B. „Neue Lebensgemeinschaft: Humusküche 🌱“ – null, wenn nichts neu ist. */
+export function discoveryText(ids: readonly string[] | undefined): string | null {
+  if (!ids || ids.length === 0) return null;
+  const names = ids.map(communityName);
+  if (names.length === 1) return `Neue Lebensgemeinschaft: ${names[0]} 🌱`;
+  return `Neue Lebensgemeinschaften: ${listNames(names, names.length)} 🌱`;
 }
 
 // ---------------------------------------------------------------------------
@@ -487,6 +606,8 @@ export function previewView(
   };
   const happiness = speciesId === undefined ? undefined : after.animals[speciesId]?.happiness;
   if (happiness !== undefined) preview.happiness = happiness;
+  const communities = communityPreview(now, after);
+  if (communities.length > 0) preview.communities = communities;
   return preview;
 }
 

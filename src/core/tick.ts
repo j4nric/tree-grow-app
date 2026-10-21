@@ -230,9 +230,18 @@ export type ActionError =
   /** Pflanze setzen: erst auf einer späteren Stufe freigeschaltet. */
   | 'locked';
 
-export type ActionResult = { ok: true } | { ok: false; error: ActionError };
+/**
+ * Ergebnis einer Spieleraktion. `discovered`: Lebensgemeinschaften, die durch die Aktion
+ * zum ersten Mal entstanden sind (chooseCard, plantSeed) – für die Entdeckungs-Meldung.
+ * Fehlt, wenn nichts Neues entdeckt wurde.
+ */
+export type ActionResult = { ok: true; discovered?: string[] } | { ok: false; error: ActionError };
 
 const fail = (error: ActionError): ActionResult => ({ ok: false, error });
+
+/** Erfolg; `discovered` nur, wenn wirklich etwas Neues entstanden ist. */
+const discoveryResult = (discovered: string[]): ActionResult =>
+  discovered.length > 0 ? { ok: true, discovered } : { ok: true };
 
 /**
  * Wählt eine Karte, die Begegnung ist danach erledigt.
@@ -261,15 +270,14 @@ export function chooseCard(
   state.plants = outcome.plants;
   if (encounter.type === 'animal' && !state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
   state.pendingEncounters.splice(encounterIndex, 1);
-  recordDiscoveries(state);
-  return { ok: true };
+  return discoveryResult(recordDiscoveries(state));
 }
 
 /**
  * Trägt ins Naturtagebuch ein, was gerade im Ökosystem ist: wachsende Pflanzen und
  * aktive Lebensgemeinschaften (je einmal, in der Reihenfolge der Entdeckung). Arten
  * trägt chooseCard selbst ein. Gibt die neu entdeckten Lebensgemeinschaften zurück
- * (für eine Entdeckungs-Meldung, die die UI noch anschließt).
+ * (chooseCard und plantSeed reichen sie als `discovered` an die UI weiter).
  */
 export function recordDiscoveries(state: GameState): string[] {
   const journal = state.meta.journal;
@@ -288,8 +296,7 @@ export function plantSeed(state: GameState, plantId: string): ActionResult {
   if (blocker) return fail(blocker);
   state.seeds -= nextPlantCost(state);
   state.plants.push(plantId);
-  recordDiscoveries(state);
-  return { ok: true };
+  return discoveryResult(recordDiscoveries(state));
 }
 
 /** Warum „Pflanze setzen“ gerade nicht geht – null, wenn es geht. Ändert nichts. */

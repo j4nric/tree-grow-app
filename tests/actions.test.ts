@@ -332,19 +332,19 @@ describe('Naturtagebuch: Pflanzen und Lebensgemeinschaften', () => {
     // Humusküche: Regenwurm, Rollassel, Pfifferling oder Steinpilz
     const state = withEncounter(['earthworm', 'woodlouse'], ['chanterelle']);
     expect(state.meta.journal.communities).toEqual([]);
-    expect(chooseCard(state, 0, 0).ok).toBe(true);
+    expect(chooseCard(state, 0, 0)).toEqual({ ok: true, discovered: ['humus'] });
     expect(state.meta.journal.communities).toEqual(['humus']);
     // Pflanzenkarte keimt → im Tagebuch; Feuchter Grund braucht noch den Wurmfarn.
     state.pendingEncounters.push({ type: 'plant', cards: ['moss'], rerolls: 0 });
-    expect(chooseCard(state, 0, 0).ok).toBe(true);
+    expect(chooseCard(state, 0, 0)).toEqual({ ok: true });
     expect(state.meta.journal.plants).toEqual(['moss']);
     state.niches.litter.push('slug');
     state.seeds = 1e6;
-    expect(plantSeed(state, 'fern').ok).toBe(true);
+    expect(plantSeed(state, 'fern')).toEqual({ ok: true, discovered: ['damp-ground'] });
     expect(state.meta.journal.plants).toEqual(['moss', 'fern']);
     expect(state.meta.journal.communities).toEqual(['humus', 'damp-ground']);
-    // Doppelt gesetzt: kein doppelter Eintrag.
-    expect(plantSeed(state, 'fern').ok).toBe(true);
+    // Doppelt gesetzt: kein doppelter Eintrag, nichts Neues entdeckt (kein `discovered`).
+    expect(plantSeed(state, 'fern')).toEqual({ ok: true });
     expect(state.meta.journal.plants).toEqual(['moss', 'fern']);
   });
 

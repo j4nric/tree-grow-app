@@ -162,6 +162,25 @@ export function renderPreviewChips(list: HTMLElement, preview: PreviewView): voi
   );
 }
 
+/**
+ * Lebensgemeinschaften, die die Wahl vervollständigt oder auflöst, z. B.
+ * „✨ vervollständigt Humusküche (+8 Harmonie)“. Leer → Liste versteckt.
+ */
+export function renderCommunityHints(list: HTMLElement, preview: PreviewView): void {
+  const hints = preview.communities ?? [];
+  list.hidden = hints.length === 0;
+  list.replaceChildren(...hints.map((hint) => el('li', `tone-${hint.tone}`, hint.label)));
+}
+
+/** Liste für renderCommunityHints (einmal je Karte angelegt). */
+export function communityHintList(): HTMLElement {
+  const list = el('ul', 'card-communities');
+  list.setAttribute('aria-label', 'Lebensgemeinschaften');
+  list.dataset.ref = 'card-communities';
+  list.hidden = true;
+  return list;
+}
+
 export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCallbacks): EncounterDialog {
   const prefix = `encounter-${++instanceCount}`;
   const dialog = el('dialog', 'encounter');
@@ -424,7 +443,8 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
 
     const previewList = el('ul', 'card-preview');
     previewList.setAttribute('aria-label', 'Vorschau');
-    item.append(previewList);
+    const communityList = communityHintList();
+    item.append(previewList, communityList);
 
     if (card.flavor) item.append(el('p', 'card-flavor', card.flavor));
 
@@ -443,6 +463,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
           : replaceHint(card.nicheLabel ?? '', replaced?.name);
       }
       renderPreviewChips(previewList, replaced?.preview ?? card.preview);
+      renderCommunityHints(communityList, replaced?.preview ?? card.preview);
       if (conditionList) renderConditions(conditionList, replaced?.conditions ?? card.conditions ?? []);
       choose.textContent = card.disabledReason ?? 'Wählen';
       const swap = replaced ? ` (ersetzt ${replaced.name})` : '';

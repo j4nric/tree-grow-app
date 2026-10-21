@@ -19,6 +19,7 @@ import { PLANTS_BY_ID } from './content/plants';
 import {
   autoDeclineText,
   catchUpNotice,
+  discoveryText,
   refreshEcosystemView,
   toEcosystemView,
   toEncounterView,
@@ -145,7 +146,8 @@ const stack = createEncounterStack(document.querySelector<HTMLElement>('#scene-d
 const dialog = createEncounterDialog(document.body, {
   onChoose: (cardIndex, replaceId) => {
     const type = state.pendingEncounters[0]?.type;
-    act(chooseCard(state, 0, cardIndex, replaceId), true, type);
+    const result = chooseCard(state, 0, cardIndex, replaceId);
+    if (act(result, true, type)) announceDiscoveries(result);
   },
   onDecline: () => {
     const before = state.seeds;
@@ -196,6 +198,7 @@ function plant(plantId: string): void {
   if (result.ok) pickerWanted = false;
   if (!act(result, false)) return;
   closePlantPicker();
+  announceDiscoveries(result);
   const ring = document.querySelector<HTMLElement>('[data-ref="plant-ring"]');
   const seedsEl = document.querySelector<HTMLElement>('[data-ref="seeds"]');
   if (seedsEl) {
@@ -206,6 +209,12 @@ function plant(plantId: string): void {
     const rect = ring.getBoundingClientRect();
     floats.spawn(`🌱 ${PLANTS_BY_ID.get(plantId)?.name ?? ''}`, rect.left + rect.width / 2, rect.top + 24);
   }
+}
+
+/** Neu entdeckte Lebensgemeinschaften ruhig melden (Toast bzw. Hinweis im offenen Dialog). */
+function announceDiscoveries(result: ActionResult): void {
+  const text = result.ok ? discoveryText(result.discovered) : null;
+  if (text) notify(text);
 }
 
 function openPlantPicker(): void {

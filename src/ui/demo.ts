@@ -71,6 +71,16 @@ function ecosystem(t: number): EcosystemView {
       { id: 'roots', icon: '🪱', label: 'Wurzelraum', capacity: 3, animals: [animals.regenwurm] },
       { id: 'meadow', icon: '🌾', label: 'Lichtung', capacity: 0, animals: [], unlockHint: 'öffnet sich bei Windwurf' },
     ],
+    communities: {
+      activeCount: 1,
+      harmony: 8,
+      summary: '1 von 9 aktiv · +8 ⚖️',
+      items: [
+        { id: 'humus', icon: '🪱', name: 'Humusküche', discovered: true, state: 'active', present: 3, total: 3, progress: 1, harmony: 8, effects: '+5 % 🌿' },
+        { id: 'caterpillar-watch', icon: '❔', name: '???', discovered: false, state: 'near', present: 2, total: 3, progress: 2 / 3, harmony: 0, effects: '', missingText: 'fehlt: Braunes Langohr oder Rote Waldameise', hint: 'Tags und nachts wird die Krone bewacht.' },
+        { id: 'deadwood', icon: '❔', name: '???', discovered: false, state: 'open', present: 1, total: 4, progress: 0.25, harmony: 0, effects: '', hint: 'Was stirbt, schafft Wohnraum.' },
+      ],
+    },
     plantRing: {
       capacity: 5,
       plants: [

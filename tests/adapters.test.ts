@@ -7,6 +7,11 @@ import { MAX_OFFLINE_SECONDS, unlockedPlants } from '../src/core/tick';
 import { formatDuration, formatNumber } from '../src/ui/format';
 import { seedsLine } from '../src/ui/view-format';
 import {
+  communityListView,
+  communityPreview,
+  discoveryText,
+  missingMembersText,
+  toPlantCardView,
   PLANT_BLOCKERS,
   PLANT_ENCOUNTER_TITLE,
   PLANT_REROLL_BLOCKERS,
@@ -854,5 +859,95 @@ describe('catchUpNotice', () => {
   it('nichts verpasst und kurz weg: keine Meldung', () => {
     expect(catchUpNotice(20, { ...report, seconds: 20, growth: 120 }, 1, false)).toBeNull();
     expect(catchUpNotice(3600, { ...report, seconds: 3600 }, 0, false)).toBeNull();
+  });
+});
+
+describe('Lebensgemeinschaften', () => {
+  it('communityListView: aktive zuerst mit Harmonie, fast fertige mit „fehlt“, Unentdeckte als „???“', () => {
+    // Humusküche aktiv; Raupenwacht 2/3 (fehlt Braunes Langohr oder Rote Waldameise)
+    const state = withEncounter(['earthworm', 'woodlouse', 'chanterelle', 'oakmoth', 'bluetit'], []);
+    const ev = evaluate(state);
+    const view = communityListView(ev, ['humus']);
+    expect(view.items).toHaveLength(9);
+    expect(view.activeCount).toBe(1);
+    expect(view.harmony).toBe(8);
+    expect(view.summary).toBe('1 von 9 aktiv · +8 ⚖️');
+
+    const [humus, watch] = view.items;
+    expect(humus).toMatchObject({
+      id: 'humus', name: 'Humusküche', icon: '🪱', state: 'active', discovered: true, harmony: 8, effects: '+5 % 🌿',
+    });
+    expect(humus!.missingText).toBeUndefined();
+    expect(watch).toMatchObject({
+      id: 'caterpillar-watch', name: '???', icon: '❔', state: 'near', discovered: false, present: 2, total: 3, harmony: 0,
+      missingText: 'fehlt: Braunes Langohr oder Rote Waldameise',
+      hint: 'Tags und nachts wird die Krone bewacht.',
+    });
+    expect(watch!.progress).toBeCloseTo(2 / 3);
+    // Der Rest: nach Fortschritt absteigend, unter 50 % ohne „fehlt“.
+    const rest = view.items.slice(2);
+    expect(rest.every((c) => c.state !== 'active')).toBe(true);
+    for (let i = 1; i < rest.length; i++) expect(rest[i - 1]!.progress).toBeGreaterThanOrEqual(rest[i]!.progress);
+    for (const c of rest.filter((c) => c.progress < 0.5)) {
+      expect(c.state).toBe('open');
+      expect(c.missingText).toBeUndefined();
+    }
+  });
+
+  it('entdeckte, aber zerfallene Gemeinschaft behält ihren Namen', () => {
+    const ev = evaluate(stateAt(3, ['earthworm', 'woodlouse']));
+    const humus = communityListView(ev, ['humus']).items.find((c) => c.id === 'humus')!;
+    expect(humus).toMatchObject({ name: 'Humusküche', discovered: true, state: 'near', missingText: 'fehlt: Pfifferling oder Steinpilz' });
+    expect(humus.hint).toBeUndefined();
+    const none = communityListView(evaluate(stateAt(0)), []);
+    expect(none.summary).toBe('0 von 9 aktiv');
+    expect(none.items.every((c) => c.name === '???' && c.state === 'open')).toBe(true);
+  });
+
+  it('missingMembersText nennt Alternativen mit „oder“ und Mitglieder mit Komma', () => {
+    expect(missingMembersText([['woodlouse'], ['chanterelle', 'porcini']])).toBe('Rollassel, Pfifferling oder Steinpilz');
+    expect(missingMembersText([['fern']])).toBe('Wurmfarn');
+  });
+
+  it('communityPreview und Karten: „✨ vervollständigt …“ aus dem Vergleich mit previewChoice', () => {
+    const state = withEncounter(['earthworm', 'woodlouse'], ['chanterelle', 'bluetit']);
+    const now = evaluate(state);
+    expect(communityPreview(now, previewChoice(state, 0, 0)!)).toEqual([
+      { label: '✨ vervollständigt Humusküche (+8 Harmonie)', tone: 'good' },
+    ]);
+    const view = toEncounterView(state, 0, now)!;
+    expect(view.cards[0]!.preview.communities).toEqual([{ label: '✨ vervollständigt Humusküche (+8 Harmonie)', tone: 'good' }]);
+    expect(view.cards[1]!.preview.communities).toBeUndefined();
+    // Rückwärts (Tausch, der ein Mitglied entlässt): „löst … auf“.
+    expect(communityPreview(previewChoice(state, 0, 0)!, now)).toEqual([
+      { label: 'löst Humusküche auf (−8 Harmonie)', tone: 'bad' },
+    ]);
+  });
+
+  it('Pflanzenkarten und „Pflanze setzen“ zeigen den Hinweis ebenfalls', () => {
+    // Feuchter Grund: Frauenhaarmoos, Wurmfarn, Nacktschnecke oder Feuersalamander
+    const state = stateAt(3, ['slug']);
+    state.plants = ['moss'];
+    state.pendingEncounters.push({ type: 'plant', cards: ['fern', 'birch'], rerolls: 0 });
+    const hint = [{ label: '✨ vervollständigt Feuchter Grund (+6 Harmonie)', tone: 'good' }];
+    expect(toPlantCardView(state, 0, 0)!.preview.communities).toEqual(hint);
+    expect(toPlantCardView(state, 0, 1)!.preview.communities).toBeUndefined();
+    state.seeds = 1e6;
+    const offer = toPlantPickerView(state).offers.find((o) => o.card.id === 'fern')!;
+    expect(offer.card.preview.communities).toEqual(hint);
+  });
+
+  it('discoveryText: eine oder mehrere neue Gemeinschaften, sonst null', () => {
+    expect(discoveryText(['humus'])).toBe('Neue Lebensgemeinschaft: Humusküche 🌱');
+    expect(discoveryText(['humus', 'damp-ground'])).toBe('Neue Lebensgemeinschaften: Humusküche und Feuchter Grund 🌱');
+    expect(discoveryText([])).toBeNull();
+    expect(discoveryText(undefined)).toBeNull();
+  });
+
+  it('toEcosystemView enthält die Gemeinschaften aus dem Naturtagebuch', () => {
+    const state = stateAt(3, ['earthworm', 'woodlouse', 'porcini']);
+    state.meta.journal.communities = ['humus'];
+    const view = toEcosystemView(state, evaluate(state));
+    expect(view.communities.items[0]).toMatchObject({ id: 'humus', state: 'active' });
   });
 });

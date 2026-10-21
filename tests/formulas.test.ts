@@ -9,6 +9,7 @@ import { GENERA, NICHE_IDS, type NicheId } from '../src/content/types';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
 import {
   activeCommunities,
+  communityChanges,
   evaluate,
   evaluateEcosystem,
   growth,
@@ -322,6 +323,20 @@ describe('Lebensgemeinschaften', () => {
     }
     expect(problems).toEqual([]);
     expect(active).toBeGreaterThan(100);
+  });
+
+  it('communityChanges: neu entstandene und zerfallene Gemeinschaften zwischen zwei Auswertungen', () => {
+    const before = evaluate(stateAt(3, ['earthworm', 'woodlouse']));
+    const after = evaluate(stateAt(3, ['earthworm', 'woodlouse', 'chanterelle']));
+    const forward = communityChanges(before, after);
+    expect(forward.completed.map((c) => [c.id, c.harmony])).toEqual([['humus', 8]]);
+    expect(forward.broken).toEqual([]);
+    // Rückwärts: Die Humusküche zerfällt, die Harmonie von vorher wird genannt.
+    const backward = communityChanges(after, before);
+    expect(backward.completed).toEqual([]);
+    expect(backward.broken.map((c) => [c.id, c.harmony])).toEqual([['humus', 8]]);
+    // Keine Änderung: beide leer.
+    expect(communityChanges(after, after)).toEqual({ completed: [], broken: [] });
   });
 });
 
