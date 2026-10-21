@@ -25,7 +25,7 @@ import { edgeFootprint, type AnchorResolver } from './anchors';
 import { isLargeAnimal, SpriteCache, type SceneAnimal } from './animals';
 import { clamp, hash2, smooth01 } from './util';
 
-/** Ein Gast, wie ihn der Renderer bekommt (IDs aus scripts/v2/content.ts `VISITORS`). */
+/** Ein Gast, wie ihn der Renderer bekommt (IDs aus src/content/visitors.ts). */
 export interface SceneVisitor {
   id: string;
   /** Platz 0..n – verteilt mehrere Gäste (Höhe, Seite, Phase). */

@@ -56,11 +56,11 @@ function ecosystem(t: number): EcosystemView {
       { label: 'Unbewachte Schädlinge', value: -4 },
     ],
     families: [
-      { id: 'birds', icon: '🐦', label: 'Vögel', count: 3, thresholds: [2, 3, 5], bonuses: ['Insektenschaden −25 %', '+15 % Samen', '+20 % Wachstum, +20 % Samen'] },
+      { id: 'birds', icon: '🐦', label: 'Vögel', count: 3, thresholds: [2, 3, 5], bonuses: ['Insektenschaden −25 %', '+15 % Samen', '+12 % Wachstum, +20 % Samen'] },
       { id: 'insects', icon: '🐝', label: 'Insekten', count: 3, thresholds: [2, 3, 5], bonuses: ['Blumen +30 % Samen', 'Sträucher und Bäume +30 % Samen', '+40 % Samen'] },
-      { id: 'mammals', icon: '🦔', label: 'Säugetiere', count: 0, thresholds: [2, 3, 5], bonuses: ['+10 % Samen', '+12 % Wachstum', '+25 % Wachstum'] },
-      { id: 'soil', icon: '🪱', label: 'Bodenleben', count: 2, thresholds: [2, 3, 5], bonuses: ['+2 Wasser', '+12 % Wachstum', '+25 % Wachstum, +3 Wasser'] },
-      { id: 'fungi', icon: '🍄', label: 'Pilze', count: 1, thresholds: [2, 3, 5], bonuses: ['Bäume +10 % Wachstum', '+3 Wasser, +2 Licht', '+30 % Wachstum'] },
+      { id: 'mammals', icon: '🦔', label: 'Säugetiere', count: 0, thresholds: [2, 3, 5], bonuses: ['+10 % Samen', '+7 % Wachstum', '+15 % Wachstum'] },
+      { id: 'soil', icon: '🪱', label: 'Bodenleben', count: 2, thresholds: [2, 3, 5], bonuses: ['+2 Wasser', '+7 % Wachstum', '+15 % Wachstum, +3 Wasser'] },
+      { id: 'fungi', icon: '🍄', label: 'Pilze', count: 1, thresholds: [2, 3, 5], bonuses: ['Bäume +6 % Wachstum', '+3 Wasser, +2 Licht', '+18 % Wachstum'] },
     ],
     niches: [
       { id: 'canopy', icon: '🌳', label: 'Krone', capacity: 2, animals: [{ ...animals.blaumeise, happiness: wobble(0.55, 0.1, 0.7) }, animals.eichenwickler] },

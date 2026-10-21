@@ -1,7 +1,10 @@
 import { test as base, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { WAYPOINT_THRESHOLDS } from '../src/content/waypoints';
 import { CONFIRM_MIN_MS } from '../src/ui/confirm';
+import { v7GrowthToV6 } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
+
+export { SAVE_VERSION } from '../src/core/state';
 
 /**
  * Gemeinsame Hilfen für die e2e-Tests (Smoke-Tests, Langlauf).
@@ -31,6 +34,14 @@ export { expect };
 
 /** Gesamt-Wachstum, ab dem Wegpunkt k erreicht ist – direkt aus den Spieldaten. */
 export const waypoint = (k: number): number => WAYPOINT_THRESHOLDS[k]!;
+
+/**
+ * Gesamt-Wachstum der aktuellen Kurve → dieselbe Stelle (Wegpunkt und Anteil bis zum
+ * nächsten) auf der Kurve der Stände v3–v6 (3,5 · k^3,4). Umkehrung der Migration
+ * v6 → v7 (`v7GrowthToV6` in src/core/save.ts, Rundlauf per Vitest abgesichert): Ein
+ * v3-Stand mit `legacyGrowth(waypoint(k) + x)` lädt genau bei `waypoint(k) + x`.
+ */
+export const legacyGrowth = v7GrowthToV6;
 
 export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows';
 
@@ -67,15 +78,16 @@ export async function seedRaw(context: BrowserContext, save: object, lastTickOff
 }
 
 /**
- * Spielstand im Format v3 (mit Pflanzring); das Laden übernimmt ihn verlustfrei als v4
- * (erster Zyklus, Tagebuch-Arten zählen als neu). Ältere Formate würden beim Laden
- * migriert (Wegpunkt-Kurve umgerechnet, Samen begrenzt) – Tests mit Wegpunkt-Schwellen aus
- * `waypoint()` und großen Samenzahlen brauchen darum v3.
+ * Spielstand im Format v3 (mit Pflanzring); das Laden übernimmt ihn verlustfrei (erster
+ * Zyklus, Tagebuch-Arten zählen als neu). `totalGrowth` wird wie gewohnt auf der aktuellen
+ * Kurve angegeben (`waypoint()`) und hier auf die Kurve der v3-Stände umgerechnet – das
+ * Laden rechnet sie zurück (Migration v6 → v7). v2 würde zusätzlich die Samen begrenzen –
+ * Tests mit großen Samenzahlen brauchen darum v3.
  */
 export async function seedV3(context: BrowserContext, seed: SeedV3): Promise<void> {
   const save = {
     version: 3,
-    totalGrowth: seed.totalGrowth ?? 0,
+    totalGrowth: legacyGrowth(seed.totalGrowth ?? 0),
     seeds: seed.seeds ?? 0,
     waypoint: 0, // wird beim Laden aus totalGrowth abgeleitet
     stage: 0,

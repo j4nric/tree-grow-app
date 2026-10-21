@@ -5,10 +5,11 @@
 > `GAME_DESIGN.md` beschrieben. Das Ökosystem-Konzept aus `ECOSYSTEM.md` ist hier
 > überführt.
 >
-> **Alle Zahlen sind vorläufig.** Sie stammen aus dem Monte-Carlo-Prototyp in
-> `scripts/v2/` (Abschnitt 15) und liegen in einer plausiblen Größenordnung, sind aber
-> noch nicht am echten Spiel gebalanced. Maßgeblich für Zahlen ist bis zur Umsetzung
-> `scripts/v2/content.ts`; die Tabellen hier sind daraus erzeugt.
+> **Zahlen:** Maßgeblich sind die Daten in `src/content/`. Seit dem Balancing 2.10
+> (Abschnitt 15.4, „Stand Schritt 2.10“) sind sie mit dem Simulator auf der echten Logik
+> (`scripts/simulate.ts`, `npm run balance`) abgestimmt. Der frühere Monte-Carlo-Prototyp
+> `scripts/v2/`, aus dem die ersten Zahlen stammen (Abschnitt 15.1–15.3), ist entfernt;
+> Tabellen „historisch“ beziehen sich auf ihn bzw. auf frühere Stände.
 
 ---
 
@@ -36,7 +37,7 @@ keine Strafe für Abwesenheit, nichts stirbt. Der Baum bleibt der Mittelpunkt.
 
 > **0:04** – Der Samen bricht auf. *„Etwas regt sich in der Erde …“* Drei Karten:
 > Regenwurm, Wühlmaus, Pfifferling. Der Regenwurm braucht Feuchte – die gibt es noch
-> nicht. Du nimmst ihn trotzdem: 75 % zufrieden, also +6 % statt +8 % Wachstum. Die
+> nicht. Du nimmst ihn trotzdem: 75 % zufrieden, also +4,5 % statt +6 % Wachstum. Die
 > Harmonie springt von 5 auf 38.
 >
 > **0:25** – *„Etwas keimt.“* Frauenhaarmoos, Buschwindröschen – du setzt das Moos.
@@ -195,29 +196,36 @@ an jedem Wegpunkt findet eine Begegnung statt. Die Stufen bleiben als Rahmen und
 fallen auf feste Wegpunkte.
 
 ```
-Wegpunkt k liegt bei  4 · k^3,4  Gesamt-Wachstum
+Wegpunkt k liegt bei  3,5 · k^3,5  Gesamt-Wachstum      (seit Schritt 2.10, Spielstand v7)
 ```
 
-| # | Stufe | ab Wegpunkt | Gesamt-🌿 | Gesamt-🌿 im Code² | Ziel-Spielzeit* | im Code (Simulation 15.4) | Begegnungen im Abschnitt | neu |
-|---|---|---|---|---|---|---|---|---|
-| 0 | Samen | – | 0 | 0 | – | – | – | – |
-| 1 | Keimling | 1 | 4 | 4 | < 30 s | 4 s | 2 | Wurzelraum (1); erste Karten |
-| 2 | Setzling | 3 | 168 | 147 | ~ 1 min | 45 s | 3 | Laubstreu, Waldsaum; Pflanzen setzen |
-| 3 | Junger Baum | 6 | 1.769 | 1.548 | ~ 4–5 min | 3:42 min | 6 | Krone, Stamm & Rinde; Ereignisse; Gattungsboni sichtbar |
-| 4 | Alter Baum | 12 | 18.676 | 16.341 | ~ 20 min | 18:55 min | 8 | Höhlen & Totholz; Durchreisende; Eicheln (Nüsse) |
-| 5 | Hain | 20 | 106.063 | 92.805 | ~ 60 min | 51:03 min | 8 | legendäre Arten; **Neuer Zyklus möglich** |
-| 6 | Wald | 28 | 332.964 | 291.344 | ~ 1:40 h | 1:32 h | 8 | Wolf; mehr Plätze |
-| 7 | Urwald | 36 | 782.507 | 684.694 | ~ 2:20 h | 2:17 h | – | Harmoniestufe „Urwald“ färbt die Szene |
+| # | Stufe | ab Wegpunkt | Gesamt-🌿 | bis 2.10 (3,5 · k^3,4) | Ziel-Spielzeit* | Simulation 2.10 (15.4) | vorher (main vor 2.10) | Begegnungen im Abschnitt | neu |
+|---|---|---|---|---|---|---|---|---|---|
+| 0 | Samen | – | 0 | 0 | – | – | – | – | – |
+| 1 | Keimling | 1 | 4 | 4 | < 30 s | 3 s | 3 s | 2 | Wurzelraum (1); erste Karten |
+| 2 | Setzling | 3 | 164 | 147 | ~ 45 s | 46 s | 41 s | 3 | Laubstreu, Waldsaum; Pflanzen setzen |
+| 3 | Junger Baum | 6 | 1.852 | 1.548 | ~ 4 min | 4:11 min | 3:26 min | 6 | Krone, Stamm & Rinde; Ereignisse; Gattungsboni sichtbar |
+| 4 | Alter Baum | 12 | 20.951 | 16.341 | ~ 20 min | 23:02 min | 17:02 min | 8 | Höhlen & Totholz; Durchreisende; Eicheln (Nüsse) |
+| 5 | Hain | 20 | 125.220 | 92.805 | ~ 60 min | 1:03:45 h | 43:41 min | 8 | legendäre Arten; **Neuer Zyklus möglich** |
+| 6 | Wald | 28 | 406.557 | 291.344 | ~ 1:40 h | 1:54:40 h | 1:13:55 h | 8 | Wolf; mehr Plätze |
+| 7 | Urwald | 36 | 979.776 | 684.694 | ~ 2:20 h | 2:47:31 h | 1:42:45 h | – | Harmoniestufe „Urwald“ färbt die Szene |
 
-\* für einen harmonie-orientierten Spieler, der jede Begegnung sofort auflöst
-(Simulation, Abschnitt 15). Gegenüber v1 (Setzling 2 min, Junger Baum 8 min) ist der
-Anfang schneller: Die ersten Karten sollen sofort kommen.
+\* für einen harmonie-orientierten Spieler mit allen Systemen (Pflege, Ereignisse, Gäste,
+Jahreszeiten), der jede Begegnung sofort auflöst (Simulation 15.4, 500 Durchgänge,
+Median). Korridor 0,8–1,25 × Ziel, Hain 55–65 min. Der Setzling liegt seit 2.10 bei ~45 s
+(„45 Sekunden sollte der Sweetspot sein“); er fällt ganz in den ersten Frühling (+10 % 🌿)
+– ohne den Frühlingsbonus kämen 50 s. Gegenüber v1 (Setzling 2 min, Junger Baum 8 min)
+ist der Anfang schneller: Die ersten Karten sollen sofort kommen.
 
-² **Im Code seit Schritt 2.1** (`src/content/waypoints.ts`): Wegpunkt k liegt bei
-`3,5 · k^3,4` – Exponent wie im Design, Basis 12,5 % kleiner. Mit 9 Arten (2.1) nötig,
-mit 32 Arten (2.2) läge auch Basis 4 im Ziel (Hain 58 min); der Wechsel wartet auf eine
-Umrechnung gespeicherter v3-Stände. Der Prototyp ohne Pflanzen (Schritt 1) lief mit
-`4 · k^3,2` – siehe 15.4. Spielzeiten: Schritt 2.2, 32 Arten.
+**Kurve:** Der ursprüngliche Entwurf sah `4 · k^3,4` vor, der Code nutzte seit Schritt 2.1
+`3,5 · k^3,4` (Basis 12,5 % kleiner, weil mit 9 Arten nötig). Mit allen Systemen kam der
+Harmonie-Spieler damit nach 44 min zum Hain. Die lange diskutierte Basis 4 hätte alle
+Wegpunkte gleich stark verschoben (Hain ~48 min, Setzling 46 s, gemessen vor den übrigen
+Änderungen); der Exponent 3,5 streckt
+dagegen vor allem das späte Spiel (Setzling +12 %, Hain +35 %, Urwald +43 %) und trifft
+so alle Stufen. Gespeicherte Stände bis v6 rechnet das Laden um (Migration v6 → v7,
+`v6GrowthToV7`: gleicher Wegpunkt, gleicher Anteil bis zum nächsten). Der Prototyp ohne
+Pflanzen (Schritt 1) lief mit `4 · k^3,2` – siehe 15.4.
 
 ### Nischen und Plätze
 
@@ -301,11 +309,17 @@ stapelt, den großen. Durchreisende zählen mit.
 
 | Gattung | 2 | 3 | 5 |
 |---|---|---|---|
-| 🐦 Vögel | Insektenschaden −25 % | +15 % Samen | +20 % Wachstum, +20 % Samen |
+| 🐦 Vögel | Insektenschaden −25 % | +15 % Samen | +12 % Wachstum, +20 % Samen |
 | 🐝 Insekten | Blumen +30 % Samen | Sträucher und Bäume +30 % Samen | +40 % Samen |
-| 🦔 Säugetiere | +10 % Samen | +12 % Wachstum | +25 % Wachstum |
-| 🪱 Bodenleben | +2 Wasser | +12 % Wachstum | +25 % Wachstum, +3 Wasser |
-| 🍄 Pilze | Bäume +10 % Wachstum | +3 Wasser, +2 Licht | +30 % Wachstum |
+| 🦔 Säugetiere | +10 % Samen | +7 % Wachstum | +15 % Wachstum |
+| 🪱 Bodenleben | +2 Wasser | +7 % Wachstum | +15 % Wachstum, +3 Wasser |
+| 🍄 Pilze | Bäume +6 % Wachstum | +3 Wasser, +2 Licht | +18 % Wachstum |
+
+**Balancing 2.10:** Alle Wachstums-Boni dieser Tabelle sind ×0,6 gegenüber dem Prototyp
+(vorher Vögel +20 %, Säugetiere und Bodenleben +12 % / +25 %, Pilze Bäume +10 % / +30 %).
+Der Wachstums-Spieler erreichte die mittlere Stufe (3 Bodenleben bzw. Säugetiere) viel
+öfter als der Harmonie-Spieler, der für die Vielfalt streut (15.4). Samen, Licht, Wasser
+und Schutz bleiben.
 
 ### 5.2 Seltenheit
 
@@ -321,7 +335,9 @@ stapelt, den großen. Durchreisende zählen mit.
 **Ebenen** der Nahrungspyramide: Pflanzenfresser (inkl. Bestäuber, Samenverbreiter) ·
 Räuber · Zersetzer & Partner (inkl. Mykorrhiza-Pilze). **Wirkung** wird mit der
 Zufriedenheit multipliziert (außer Fraß). Überführte Arten aus `ECOSYSTEM.md` sind
-mit ↻ markiert; neue Arten mit ✦.
+mit ↻ markiert; neue Arten mit ✦. **Seit dem Balancing 2.10** sind alle 🌿-Wirkungen der
+Arten (auch „Bäume +x %“) 25 % kleiner als im Prototyp (×0,75, gerundet), damit der
+Wachstums-Spieler höchstens ~15 % schneller ist als der Harmonie-Spieler (15.4).
 
 #### 🐦 Vögel
 
@@ -329,58 +345,58 @@ mit ↻ markiert; neue Arten mit ✦.
 |---|---|---|---|---|---|---|---|---|---|---|
 | ✦ Rotkehlchen | gewöhnlich | Räuber | Laubstreu | Setzling | Würmer / Insekten / Beeren | 1× Sträucher | – | – | jagt Insekten (−20 %), +8 % 🌰 | – |
 | ↻ Blaumeise | gewöhnlich | Räuber | Krone | Junger Baum | Raupen / Insekten | 2× Bäume, Baumhöhle | – | – | jagt Raupen (−50 %), +4 % 🌰 | – |
-| ↻ Buntspecht | selten | Räuber | Stamm & Rinde | Alter Baum | Käfer / Insekten / Nüsse | Totholz | – | Baumhöhle | jagt Käfer (−60 %), +1 Platz Höhlen, +4 % 🌿 | – |
-| ↻ Eichelhäher | selten | Pflanzenfresser | Krone | Alter Baum | Nüsse | – | – | – | +12 % 🌿, +10 % 🌰, stört Blaumeise | – |
-| ↻ Waldkauz | besonders | Räuber | Höhlen & Totholz | Alter Baum | Kleinsäuger | 2× Bäume | Kleinsäuger leben hier | – | jagt Kleinsäuger (−70 %), +8 % 🌿 | **Nachtwache:** Schaden aller Pflanzenfresser −20 % |
-| ✦ Schwarzspecht | legendär | Räuber | Stamm & Rinde | Hain | Insekten / Käfer | Rote Waldameise, Totholz, 3× Bäume | Buntspecht lebt hier | Baumhöhle | +10 % 🌿, jagt Käfer (−40 %) | **Baumeister:** +1 Platz Krone und Höhlen; Höhlenbewohner +20 % Zufriedenheit |
+| ↻ Buntspecht | selten | Räuber | Stamm & Rinde | Alter Baum | Käfer / Insekten / Nüsse | Totholz | – | Baumhöhle | jagt Käfer (−60 %), +1 Platz Höhlen, +3 % 🌿 | – |
+| ↻ Eichelhäher | selten | Pflanzenfresser | Krone | Alter Baum | Nüsse | – | – | – | +9 % 🌿, +10 % 🌰, stört Blaumeise | – |
+| ↻ Waldkauz | besonders | Räuber | Höhlen & Totholz | Alter Baum | Kleinsäuger | 2× Bäume | Kleinsäuger leben hier | – | jagt Kleinsäuger (−70 %), +6 % 🌿 | **Nachtwache:** Schaden aller Pflanzenfresser −20 % |
+| ✦ Schwarzspecht | legendär | Räuber | Stamm & Rinde | Hain | Insekten / Käfer | Rote Waldameise, Totholz, 3× Bäume | Buntspecht lebt hier | Baumhöhle | +8 % 🌿, jagt Käfer (−40 %) | **Baumeister:** +1 Platz Krone und Höhlen; Höhlenbewohner +20 % Zufriedenheit |
 
 #### 🐝 Insekten
 
 | Art | Seltenheit | Ebene | Nische | ab | Nahrung | Wünsche | erscheint, wenn | bietet | Wirkung | Fähigkeit |
 |---|---|---|---|---|---|---|---|---|---|---|
-| ↻ Eichenwickler | gewöhnlich | Pflanzenfresser | Krone | Junger Baum | Laub | – | – | Insekten, Raupen | Fraß −10 % 🌿, +3 % 🌿 (Raupenkot) | – |
+| ↻ Eichenwickler | gewöhnlich | Pflanzenfresser | Krone | Junger Baum | Laub | – | – | Insekten, Raupen | Fraß −10 % 🌿, +2 % 🌿 (Raupenkot) | – |
 | ↻ Wildbiene | gewöhnlich | Pflanzenfresser | Waldsaum | Setzling | Nektar | 1× Blumen, sonnig | – | Insekten | Blumen +40 % 🌰, Sträucher +25 % 🌰, +5 % 🌰 | – |
 | ✦ Tagpfauenauge | gewöhnlich | Pflanzenfresser | Waldsaum | Junger Baum | Nektar | Große Brennnessel, sonnig | – | Insekten, Raupen | +10 % 🌰, Blumen +20 % 🌰 | – |
 | ↻ Borkenkäfer | gewöhnlich | Pflanzenfresser | Stamm & Rinde | Junger Baum | Laub / Nadeln | – | – | Insekten, Käfer, Totholz | Fraß −8 % 🌿, +1 Platz Höhlen | – |
-| ✦ Rote Waldameise | selten | Räuber | Laubstreu | Alter Baum | Insekten | Nadeln (Kiefer), sonnig | – | Insekten | jagt Raupen (−40 %), Blumen +30 % 🌰 (trägt Samen), +4 % 🌿 | – |
+| ✦ Rote Waldameise | selten | Räuber | Laubstreu | Alter Baum | Insekten | Nadeln (Kiefer), sonnig | – | Insekten | jagt Raupen (−40 %), Blumen +30 % 🌰 (trägt Samen), +3 % 🌿 | – |
 | ✦ Glühwürmchen | besonders | Räuber | Waldsaum | Alter Baum | Schnecken | Feuchte, 1× Blumen | Schnecken leben hier | Insekten | jagt Schnecken (−60 %), +4 ⚖️ | **Lichterabend:** jede Lebensgemeinschaft +3 Harmonie |
-| ↻ Hirschkäfer | legendär | Zersetzer | Höhlen & Totholz | Hain | Totholz | schattig *und* sonnig (lichter Altwald), 1× Pilze | Totholz | Insekten, Käfer | +10 % 🌿, +5 ⚖️ | **König des Totholzes:** alle Zersetzer & Partner +20 % Zufriedenheit |
+| ↻ Hirschkäfer | legendär | Zersetzer | Höhlen & Totholz | Hain | Totholz | schattig *und* sonnig (lichter Altwald), 1× Pilze | Totholz | Insekten, Käfer | +8 % 🌿, +5 ⚖️ | **König des Totholzes:** alle Zersetzer & Partner +20 % Zufriedenheit |
 
 #### 🦔 Säugetiere
 
 | Art | Seltenheit | Ebene | Nische | ab | Nahrung | Wünsche | erscheint, wenn | bietet | Wirkung | Fähigkeit |
 |---|---|---|---|---|---|---|---|---|---|---|
 | ↻ Wühlmaus | gewöhnlich | Pflanzenfresser | Wurzelraum | Keimling | Wurzeln / Kraut | – | – | Kleinsäuger | Fraß −8 % 🌿, +4 % 🌰 | – |
-| ↻ Eichhörnchen | gewöhnlich | Pflanzenfresser | Krone | Junger Baum | Nüsse | 2× Bäume | – | – | +12 % 🌰, +6 % 🌿, stört Blaumeise | – |
+| ↻ Eichhörnchen | gewöhnlich | Pflanzenfresser | Krone | Junger Baum | Nüsse | 2× Bäume | – | – | +12 % 🌰, +5 % 🌿, stört Blaumeise | – |
 | ↻ Reh | gewöhnlich | Pflanzenfresser | Waldsaum | Alter Baum | Kraut / Laub | 1× Sträucher, sonnig | – | Rehe | +3 ☀️ (hält den Saum offen), Fraß −10 % 🌿 | – |
-| ↻ Maulwurf | selten | Räuber | Wurzelraum | Setzling | Würmer / Insekten | – | – | – | +2 💧, +5 % 🌿, stört Regenwurm | – |
-| ↻ Igel | selten | Räuber | Laubstreu | Junger Baum | Schnecken / Insekten / Würmer | 1× Sträucher | – | – | jagt Schnecken (−70 %), +4 % 🌿 | – |
+| ↻ Maulwurf | selten | Räuber | Wurzelraum | Setzling | Würmer / Insekten | – | – | – | +2 💧, +4 % 🌿, stört Regenwurm | – |
+| ↻ Igel | selten | Räuber | Laubstreu | Junger Baum | Schnecken / Insekten / Würmer | 1× Sträucher | – | – | jagt Schnecken (−70 %), +3 % 🌿 | – |
 | ↻ Rotfuchs | selten | Räuber | Waldsaum | Alter Baum | Kleinsäuger | 2× Sträucher | – | – | jagt Kleinsäuger (−50 %), +6 % 🌰 | – |
 | ↻ Braunes Langohr | besonders | Räuber | Höhlen & Totholz | Alter Baum | Insekten | 2× Blumen | 2 Insektenarten leben hier | – | jagt Insekten (−40 %), +8 % 🌰 | **Nachtflieger:** zählt zusätzlich als Vogel |
-| ↻ Wolf | legendär | Räuber | Waldsaum | Wald | Rehe | 3× Bäume | Reh lebt hier | – | +15 % 🌿 | **Landschaft der Angst:** Reh-Schaden entfällt, Reh-Licht ×2 |
+| ↻ Wolf | legendär | Räuber | Waldsaum | Wald | Rehe | 3× Bäume | Reh lebt hier | – | +11 % 🌿 | **Landschaft der Angst:** Reh-Schaden entfällt, Reh-Licht ×2 |
 
 #### 🪱 Bodenleben
 
 | Art | Seltenheit | Ebene | Nische | ab | Nahrung | Wünsche | erscheint, wenn | bietet | Wirkung | Fähigkeit |
 |---|---|---|---|---|---|---|---|---|---|---|
-| ↻ Regenwurm | gewöhnlich | Zersetzer | Wurzelraum | Keimling | Laub | Feuchte | – | Würmer | +2 💧, +8 % 🌿 | – |
-| ↻ Rollassel | gewöhnlich | Zersetzer | Laubstreu | Setzling | Laub | Totholz | – | Insekten | +8 % 🌿 | – |
+| ↻ Regenwurm | gewöhnlich | Zersetzer | Wurzelraum | Keimling | Laub | Feuchte | – | Würmer | +2 💧, +6 % 🌿 | – |
+| ↻ Rollassel | gewöhnlich | Zersetzer | Laubstreu | Setzling | Laub | Totholz | – | Insekten | +6 % 🌿 | – |
 | ↻ Nacktschnecke | gewöhnlich | Pflanzenfresser | Laubstreu | Setzling | Kraut | Feuchte, schattig | – | Schnecken | Fraß −6 % 🌿, +1 💧 | – |
-| ✦ Steinläufer | selten | Räuber | Laubstreu | Junger Baum | Insekten / Würmer | Totholz | – | – | jagt Insekten (−30 %), +6 % 🌿 | – |
-| ✦ Weinbergschnecke | besonders | Zersetzer | Laubstreu | Alter Baum | Laub / Kraut | 2× Blumen, Feuchte | Feuchte | Schnecken | +12 % 🌿, +2 💧 | **Gelassen:** Zufriedenheit nie unter 50 % |
-| ✦ Feuersalamander | legendär | Räuber | Laubstreu | Hain | Schnecken / Würmer / Insekten | 2× Moose & Farne, Totholz, schattig | 2× Moose & Farne und Totholz | – | +15 % 🌿, jagt Schnecken (−50 %) | **Hüter der Feuchte:** Moose & Farne brauchen kein Wasser |
+| ✦ Steinläufer | selten | Räuber | Laubstreu | Junger Baum | Insekten / Würmer | Totholz | – | – | jagt Insekten (−30 %), +5 % 🌿 | – |
+| ✦ Weinbergschnecke | besonders | Zersetzer | Laubstreu | Alter Baum | Laub / Kraut | 2× Blumen, Feuchte | Feuchte | Schnecken | +9 % 🌿, +2 💧 | **Gelassen:** Zufriedenheit nie unter 50 % |
+| ✦ Feuersalamander | legendär | Räuber | Laubstreu | Hain | Schnecken / Würmer / Insekten | 2× Moose & Farne, Totholz, schattig | 2× Moose & Farne und Totholz | – | +11 % 🌿, jagt Schnecken (−50 %) | **Hüter der Feuchte:** Moose & Farne brauchen kein Wasser |
 
 #### 🍄 Pilze
 
 | Art | Seltenheit | Ebene | Nische | ab | Nahrung | Wünsche | erscheint, wenn | bietet | Wirkung | Fähigkeit |
 |---|---|---|---|---|---|---|---|---|---|---|
-| ✦ Pfifferling | gewöhnlich | Partner | Wurzelraum | Keimling | Wurzeln | Feuchte, schattig | – | – | Bäume +10 % 🌿 | – |
-| ✦ Zunderschwamm | gewöhnlich | Zersetzer | Stamm & Rinde | Junger Baum | Laub (Holz) | 2× Bäume | – | Totholz | +5 % 🌿, Fraß −3 % 🌿 | – |
-| ↻ Steinpilz (früher „Mykorrhiza-Pilz“) | selten | Partner | Wurzelraum | Junger Baum | Wurzeln | 2× Bäume, 1× Bodenleben | – | – | Bäume +20 % 🌿, +3 💧 | – |
-| ✦ Fliegenpilz | besonders | Partner | Wurzelraum | Alter Baum | Wurzeln | Hänge-Birke, Feuchte | Hänge-Birke wächst hier | – | Bäume +15 % 🌿, +10 % 🌰 | **Glückspilz:** seltene, besondere und legendäre Karten je +5 Prozentpunkte |
-| ✦ Hallimasch | legendär | Zersetzer | Wurzelraum | Hain | Wurzeln / Totholz | 3× Bäume, Totholz, 2× Pilze | 2 Pilzarten und Totholz | – | +20 % 🌿 | **Waldweites Netz:** Versorgung aller Pflanzen mindestens 90 % |
+| ✦ Pfifferling | gewöhnlich | Partner | Wurzelraum | Keimling | Wurzeln | Feuchte, schattig | – | – | Bäume +8 % 🌿 | – |
+| ✦ Zunderschwamm | gewöhnlich | Zersetzer | Stamm & Rinde | Junger Baum | Laub (Holz) | 2× Bäume | – | Totholz | +4 % 🌿, Fraß −3 % 🌿 | – |
+| ↻ Steinpilz (früher „Mykorrhiza-Pilz“) | selten | Partner | Wurzelraum | Junger Baum | Wurzeln | 2× Bäume, 1× Bodenleben | – | – | Bäume +15 % 🌿, +3 💧 | – |
+| ✦ Fliegenpilz | besonders | Partner | Wurzelraum | Alter Baum | Wurzeln | Hänge-Birke, Feuchte | Hänge-Birke wächst hier | – | Bäume +11 % 🌿, +10 % 🌰 | **Glückspilz:** seltene, besondere und legendäre Karten je +5 Prozentpunkte |
+| ✦ Hallimasch | legendär | Zersetzer | Wurzelraum | Hain | Wurzeln / Totholz | 3× Bäume, Totholz, 2× Pilze | 2 Pilzarten und Totholz | – | +15 % 🌿 | **Waldweites Netz:** Versorgung aller Pflanzen mindestens 90 % |
 
-Kurztexte (Auswahl, Rest in `scripts/v2/content.ts`): Rotkehlchen „Folgt jedem, der im
+Kurztexte (Auswahl, Rest in `src/content/species.ts`): Rotkehlchen „Folgt jedem, der im
 Boden gräbt – vielleicht kommt ein Wurm zum Vorschein.“ · Schwarzspecht „Der Baumeister
 des Waldes. In seine Höhlen ziehen später Kauz, Fledermaus und Hohltaube.“ ·
 Feuersalamander „Schwarz-gelb und uralt. Wo er lebt, ist der Wald noch feucht und
@@ -521,7 +537,7 @@ Inhalte: `src/content/events.ts` (7.4) und `src/content/visitors.ts` (7.5); Logi
 | Setzling | 60 | 40 | – | – | – |
 | Junger Baum | 65 | 25 | 10 | – | – |
 | Alter Baum | 60 | 20 | 10 | 10 | – |
-| Hain, Wald, Urwald | 60 | 20 | 10 | 10 | 50 %: Ereignis 55 : Gast 45 |
+| Hain, Wald, Urwald | 60 | 20 | 10 | 10 | 70 %: Ereignis 55 : Gast 45 |
 
 Vorher (Entwurf): Junger Baum 60 : 25 : 15 : 0, ab Alter Baum 55 : 20 : 15 : 10. Die
 Gewichte sind relativ; Pflanze bei vollem Ring × 0,5 (7.7). Kommt für den gezogenen
@@ -529,10 +545,11 @@ Typ nichts in Frage (alle Ereignisse bzw. Gäste schon gesehen, Bedingungen nich
 erfüllt), gibt es eine Tierbegegnung (sonst Pflanze, wie bisher).
 
 **Zwischenhalt (neu, ab Hain):** Auf halbem Weg zwischen zwei Wegpunkten (bei
-`thr(k) + 0,5 · (thr(k+1) − thr(k))` Gesamt-Wachstum) kommt mit 50 % Wahrscheinlichkeit
+`thr(k) + 0,5 · (thr(k+1) − thr(k))` Gesamt-Wachstum) kommt mit 70 % Wahrscheinlichkeit
+(bis Schritt 2.10: 50 %)
 *zusätzlich* ein Ereignis (Gewicht 55) oder ein Gast (45). Er verdrängt keine Tier- oder
 Pflanzenbegegnung; passt nichts, passiert nichts. Konstanten `INTERLUDE_STAGE = 5`,
-`INTERLUDE_POSITION = 0,5`, `INTERLUDE_CHANCE = 0,5`, `INTERLUDE_WEIGHTS = [55, 45]`
+`INTERLUDE_POSITION = 0,5`, `INTERLUDE_CHANCE = 0,7`, `INTERLUDE_WEIGHTS = [55, 45]`
 in `src/content/encounters.ts`.
 
 **Warum so:** Mit reinen Gewichten (Ereignis *statt* Tier) kann es nicht mehr Begegnungen
@@ -541,8 +558,12 @@ geben als Wegpunkte – die Durststrecken im Wald blieben im Modell fast gleich 
 halbiert ab dem Hain die Wartezeit dort, wo der Takt lang wird, und hängt nur vom
 Gesamt-Wachstum ab (online = offline). Vor dem Hain sind die Strecken kurz genug; dort
 nehmen Ereignisse und Gäste darum nur noch 10 % bzw. 20 % der Wegpunkte ein. Mehr
-Zwischenhalte (75 %) helfen nicht: Dann sind im Wald alle 10 Ereignisse und 8 Gäste
-verbraucht (jedes nur einmal pro Zyklus), und die Strecken werden wieder länger.
+Zwischenhalte (75 %) halfen im Modell nicht: Dann waren im Wald alle 10 Ereignisse und 8
+Gäste verbraucht (jedes nur einmal pro Zyklus), und die Strecken wurden wieder länger.
+**Balancing 2.10:** Mit der gestreckten Wegpunkt-Kurve (3,5 · k^3,5) wurde die längste
+Strecke im Hain (90 %) 11:15 min lang; mit 70 % sind es 9:16 min, im Wald 9:37 statt
+9:53 min (echte Logik, 100 Durchgänge). Bis zum Urwald kommen dann im Schnitt 8,3 der 10
+Ereignisse und 7,0 der 8 Gäste – der Vorrat reicht noch.
 
 | Takt (Median der Wartezeit je Begegnung) | Keimling | Setzling | Junger Baum | Alter Baum | Hain | Wald |
 |---|---|---|---|---|---|---|
@@ -822,10 +843,10 @@ nur ~1.700 🌰, der Bestand wächst auf 25–35 Minuten Produktion). Inhalte:
   sich. Kein Ein-/Ausschalten, kein Verkaufen.
 - **Kostenkurve:** feste Samen je Rang, je Rang mindestens ×3 teurer (×3–×8,6); Rang 1
   ab Junger Baum bzw. Alter Baum, spätere Ränge ab Alter Baum (Wildblumen-Saum), Hain
-  bzw. Wald (Katalog 8.1). Bei Freischaltung kosten die Ränge des Jungen Baums 5–8 Minuten
-  Produktion (600–900 🌰 bei ~2 🌰/s), die des Alten Baums 8–25 min (2.000–6.000 🌰 bei
-  ~4 🌰/s), die des Hains 7–20 min (~10 🌰/s) und die des Walds 15–23 min (~22 🌰/s). Vor dem Hain gibt es Ränge für 19.700 🌰 – mehr, als bis
-  dahin übrig ist: Man muss wählen, was zuerst kommt.
+  bzw. Wald (Katalog 8.1). Die Kosten sind fest und auf die Spielzeit je Stufe abgestimmt
+  (Stand 2.10: 750–1.100 🌰 ab Junger Baum, 2.700–8.000 🌰 ab Alter Baum, 7.000–22.000 🌰
+  ab Hain, 30.000–45.000 🌰 ab Wald). Vor dem Hain gibt es Ränge für 26.450 🌰 – mehr,
+  als bis dahin übrig ist: Man muss wählen, was zuerst kommt.
 - **Wirkungen** nutzen die Typen der Ereignisse (`events.ts`): `cycle` (Licht, Wasser,
   Platz, Harmonie und – nur für Pflege – dauerhafte 🌿/🌰-Boni) und `habitat`
   (Merkmal). Keine neuen Wirkungstypen.
@@ -837,17 +858,20 @@ nur ~1.700 🌰, der Bestand wächst auf 25–35 Minuten Produktion). Inhalte:
 
 | Maßnahme | ID | Bedingung | Rang 1 | Rang 2 | Rang 3 | Text |
 |---|---|---|---|---|---|---|
-| 🍂 Laub liegen lassen | `leaf-litter` | – | Junger Baum, 600 🌰: +1 Platz Laubstreu | Hain, 4.000 🌰: +2 💧, +3 ⚖️ | – | „Im Herbst bleibt das Laub, wo es fällt.“ |
-| 🏠 Nistkästen | `nest-boxes` | – | Junger Baum, 900 🌰: Baumhöhle, +1 Platz Höhlen | Hain, 6.000 🌰: +1 Platz Krone | – | „Ein Holzkasten mit kleinem Flugloch. Gemütlich – und leicht zu finden.“ |
-| 🌼 Wildblumen-Saum | `wildflower-hem` | – | Junger Baum, 700 🌰: Blumen +40 % 🌰 | Alter Baum, 6.000 🌰: +1 Platz Waldsaum | Wald, 20.000 🌰: Blumen +40 % 🌿 und 🌰 | „Margeriten, Klee und hohes Gras am Rand des Baums.“ |
-| 🪵 Totholzhaufen | `deadwood-pile` | – | Alter Baum, 2.500 🌰: Totholz | Hain, 8.000 🌰: +1 Platz Stamm & Rinde, +2 ⚖️ | – | „Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.“ |
-| ☀️ Lichte Krone | `light-crown` | nicht mit Dichter Krone | Alter Baum, 3.000 🌰: +3 ☀️ | Hain, 10.000 🌰: +2 ☀️ | Wald, 30.000 🌰: +2 ☀️ | „Ein paar Äste weniger – Sonnenflecken tanzen über den Boden.“ |
-| 🌳 Dichte Krone | `dense-crown` | nicht mit Lichter Krone | Alter Baum, 3.000 🌰: +1 Platz Krone, −2 ☀️ | Hain, 10.000 🌰: Bäume +10 % 🌿 | Wald, 30.000 🌰: Bäume +10 % 🌿 | „Ein Dach aus Blättern, unter dem Vögel sicher brüten.“ |
-| 💧 Waldtümpel | `pond` | – | Alter Baum, 4.000 🌰: Feuchte, +3 💧 | Hain, 12.000 🌰: +3 💧, +2 ⚖️ | – | „Eine feuchte Senke, in der sich der Regen sammelt.“ |
-| 🐝 Insektenhotel | `insect-hotel` | ≥ 1 Insekt | Alter Baum, 2.000 🌰: +3 ⚖️ | Hain, 7.000 🌰: Blumen und Sträucher +25 % 🌰 | Wald, 25.000 🌰: +4 ⚖️ | „Hohle Stängel und gebohrte Löcher – jedes Zimmer ist bald belegt.“ |
+| 🍂 Laub liegen lassen | `leaf-litter` | – | Junger Baum, 750 🌰: +1 Platz Laubstreu | Hain, 7.000 🌰: +2 💧, +3 ⚖️ | – | „Im Herbst bleibt das Laub, wo es fällt.“ |
+| 🏠 Nistkästen | `nest-boxes` | – | Junger Baum, 1.100 🌰: Baumhöhle, +1 Platz Höhlen | Hain, 11.000 🌰: +1 Platz Krone | – | „Ein Holzkasten mit kleinem Flugloch. Gemütlich – und leicht zu finden.“ |
+| 🌼 Wildblumen-Saum | `wildflower-hem` | – | Junger Baum, 900 🌰: Blumen +40 % 🌰 | Alter Baum, 8.000 🌰: +1 Platz Waldsaum | Wald, 30.000 🌰: Blumen +40 % 🌿 und 🌰 | „Margeriten, Klee und hohes Gras am Rand des Baums.“ |
+| 🪵 Totholzhaufen | `deadwood-pile` | – | Alter Baum, 3.500 🌰: Totholz | Hain, 14.000 🌰: +1 Platz Stamm & Rinde, +2 ⚖️ | – | „Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.“ |
+| ☀️ Lichte Krone | `light-crown` | nicht mit Dichter Krone | Alter Baum, 4.000 🌰: +3 ☀️ | Hain, 15.000 🌰: +2 ☀️ | Wald, 45.000 🌰: +2 ☀️ | „Ein paar Äste weniger – Sonnenflecken tanzen über den Boden.“ |
+| 🌳 Dichte Krone | `dense-crown` | nicht mit Lichter Krone | Alter Baum, 4.000 🌰: +1 Platz Krone, −2 ☀️ | Hain, 15.000 🌰: Bäume +10 % 🌿 | Wald, 45.000 🌰: Bäume +10 % 🌿 | „Ein Dach aus Blättern, unter dem Vögel sicher brüten.“ |
+| 💧 Waldtümpel | `pond` | – | Alter Baum, 5.500 🌰: Feuchte, +3 💧 | Hain, 22.000 🌰: +3 💧, +2 ⚖️ | – | „Eine feuchte Senke, in der sich der Regen sammelt.“ |
+| 🐝 Insektenhotel | `insect-hotel` | ≥ 1 Insekt | Alter Baum, 2.700 🌰: +3 ⚖️ | Hain, 12.500 🌰: Blumen und Sträucher +25 % 🌰 | Wald, 38.000 🌰: +4 ⚖️ | „Hohle Stängel und gebohrte Löcher – jedes Zimmer ist bald belegt.“ |
 
-Summe: vor dem Hain 19.700 🌰, Hain-Ränge 47.000 🌰, Wald-Ränge 75.000 🌰 (mit nur
-einer der beiden Kronen).
+Summe: vor dem Hain 26.450 🌰, Hain-Ränge 81.500 🌰, Wald-Ränge 113.000 🌰 (mit nur
+einer der beiden Kronen). **Seit dem Balancing 2.10** (vorher 19.700 / 47.000 / 75.000):
+Ränge ab Junger Baum ×1,25, ab Alter Baum ×1,35, ab Hain ×1,8 (Kronen ×1,5, damit Rang 3
+weiter mindestens das Dreifache kostet), ab Wald ×1,5 – die gestreckte Wegpunkt-Kurve
+bringt bis zum Hain ~35 % mehr Samen, und im langen Hain fehlte sonst die Senke (15.4).
 
 **Was sich gegenüber dem Entwurf ändert:** Die zehn Maßnahmen des Entwurfs (aus
 `ECOSYSTEM.md`) brauchten neue Wirkungstypen (Zufriedenheit je Gattung oder Art,
@@ -861,7 +885,8 @@ gäbe es wieder nichts zu kaufen.
 
 **Simulation:** Zahlen und Bewertung auf echter Logik in 15.4 („Stand Schritt 2.7 –
 Logik“): Der Samenbestand des Harmonie-Spielers beim Hain sinkt von ~25 auf ~4 Minuten
-Produktion, das Tempo ändert sich kaum.
+Produktion, das Tempo ändert sich kaum. Stand 2.10 (neue Kosten, längere Abschnitte): von
+38,7 auf 8,4 Minuten beim Hain, im Wald von 56,6 auf 10,8 („Stand Schritt 2.10“).
 
 ### 8.2 Umsetzungsnotiz für den core-engineer (Schritt 2.7, Logik)
 
@@ -1070,20 +1095,26 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
   erscheinen sie in späteren Zyklen mit doppeltem Gewicht. Spätere Inhalte (z. B.
   Amphibien) werden über Tagebuch-Ziele freigeschaltet („Entdecke 3
   Lebensgemeinschaften“).
-- **Waldgedächtnis:** `+ floor(H_max / 10) + 2 · neu entdeckte Arten` Punkte je Zyklus;
-  jeder Punkt gibt dauerhaft +2 % Wachstum und Samen. `H_max` ist die höchste Harmonie
-  des Zyklus – Umbauen kurz vor dem Neustart wird nie bestraft. Beispiel erster Zyklus
-  bis Hain: H_max ≈ 96, ~12 Arten → 9 + 24 = 33 Punkte → +66 %. (Bewusst kein
-  ausgebbares Gut: Samen bleiben die einzige Währung.)
+- **Waldgedächtnis:** `+ floor(H_max / 5) + neu entdeckte Arten` Punkte je Zyklus;
+  jeder Punkt gibt dauerhaft +1 % Wachstum und Samen (seit Schritt 2.10; vorher
+  `floor(H_max / 10) + 2 · neue Arten` und +2 % je Punkt, siehe 14 und 15.4). `H_max`
+  ist die höchste Harmonie des Zyklus – Umbauen kurz vor dem Neustart wird nie bestraft.
+  Beispiel erster Zyklus bis Hain: H_max ≈ 105, ~11 Arten → 21 + 11 = 32 Punkte → +32 %,
+  ein Stammgast-Platz; der zweite Zyklus ist damit ~29 % schneller bis zum Hain (28,8 %, 15.4). (Bewusst
+  kein ausgebbares Gut: Samen bleiben die einzige Währung.)
 - **Stammgäste:** je 25 Punkte Waldgedächtnis ein Platz für eine entdeckte Art, die
   automatisch einzieht, sobald ihre Nische öffnet – das „Startdeck“ des Roguelites.
 - Harmonie ist damit das Langzeitziel: Wer im Zyklus nur auf Wachstum spielt, kommt
-  schneller zum Hain (Abschnitt 15), nimmt aber weniger Waldgedächtnis mit.
+  schneller zum Hain (Abschnitt 15), nimmt aber weniger Waldgedächtnis mit. (Mit der
+  Formel bis 2.10 stimmte das nicht: Der Wachstums-Spieler tauscht öfter, entdeckt mehr
+  Arten und bekam 36 statt 33 Punkte. Seit 2.10 zählt Harmonie doppelt so viel und Arten
+  halb so viel: im ersten Zyklus etwa gleich, danach mehr für den Harmonie-Spieler.)
 
 **Umsetzung (Schritt 2.8):**
 
 - Zahlen in `src/content/memory.ts`: ab Stufe Hain (`NEW_CYCLE_MIN_STAGE = 5`),
-  1 Punkt je 10 H_max, 2 Punkte je neuer Art, 1 Stammgast-Platz je 25 Punkte,
+  1 Punkt je 5 H_max, 1 Punkt je neuer Art (bis 2.10: je 10 H_max und 2 je Art),
+  1 Stammgast-Platz je 25 Punkte,
   Tagebuch-Gewicht 2. Obergrenze `MAX_FOREST_MEMORY = 1000` (Gewinn füllt nur bis dahin auf).
 - Spielstand v4: `cycle = { number, maxHarmony, newSpecies, startedAt? }` und
   `meta.regulars`. H_max wird nach jeder Änderung am Ökosystem nachgeführt (Karte wählen,
@@ -1199,7 +1230,7 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
 | `render/` | gesamter Baum- und Szenen-Renderer, Caching | – (Tiere/Pflanzen kommen als neue Ebene dazu) |
 | `ui/` | `format.ts`, Feedback-Grundlagen | `panel.ts` → Ökosystem-Übersicht + Kartenwahl-Dialog |
 | Tests | `formulas`/`save`/`tick`-Muster, e2e-Smoke | `balance.test.ts` → v2-Balance auf echter Logik |
-| `scripts/` | Simulator-Idee (Strategien, Tabellen) | `simulate.ts` auf v2-Core umstellen; `scripts/v2/` danach nur noch Referenz |
+| `scripts/` | Simulator-Idee (Strategien, Tabellen) | `simulate.ts` auf v2-Core umstellen; `scripts/v2/` danach nur noch Referenz (seit 2.10 entfernt) |
 
 `growth()` bleibt die Brücke zum Renderer: Stufe + Fortschritt, jetzt aus
 Gesamt-Wachstum und Wegpunkten statt Energie.
@@ -1270,7 +1301,7 @@ unausgewogenen Start erzeugen.
 
 - `core/` bleibt ohne `Math.random()` und `Date.now()`. Der Generator ist ein
   mulberry32 mit 32-Bit-Zustand `rngState` im GameState (Prototyp:
-  `scripts/v2/rng.ts`). Den Startwert setzt `main.ts` einmal beim neuen Spiel.
+  `scripts/v2/rng.ts`, seit 2.10 entfernt; feste Folge in `tests/rng.test.ts`). Den Startwert setzt `main.ts` einmal beim neuen Spiel.
 - Karten werden **beim Erreichen des Wegpunkts** gezogen und gespeichert; Neuladen
   ändert nichts. Neu würfeln zieht mit demselben Generator weiter.
 - Offline-Simulation zieht die Karten in derselben Reihenfolge wie online → Tests
@@ -1303,7 +1334,7 @@ Lebensraum: Borkenkäfer → Totholz → Rollassel, Specht → Höhle → Meise.
 |---|---|---|---|
 | 1.1 | `game-designer` | Inhalte v2 als Daten: `content/species.ts`, `niches.ts`, `traits.ts`, `waypoints.ts` (9 Arten, 4 Nischen), Typen, Inhaltstests (IDs, Verweise) | – |
 | 1.2 | `core-engineer` | GameState v2, `SAVE_VERSION = 2`, Migration „Neustart mit Andenken“, robustes Laden, `rngState` + Generator; Tests | – |
-| 1.3 | `core-engineer` | `evaluate(state)` (Zufriedenheit, Harmonie, 🌿/s), Wegpunkte, `tick` → Begegnungs-Warteschlange (max. 3), Offline; Golden Test gegen `scripts/v2` | 1.1, 1.2 |
+| 1.3 | `core-engineer` | `evaluate(state)` (Zufriedenheit, Harmonie, 🌿/s), Wegpunkte, `tick` → Begegnungs-Warteschlange (max. 3), Offline; Golden Test gegen `scripts/v2` (entfernt in 2.10) | 1.1, 1.2 |
 | 1.4 | `core-engineer` | Aktionen `chooseCard`, `declineEncounter`, `rerollEncounter` (Samen: vorerst feste Kosten) + Tests | 1.3 |
 | 1.5 | `ui-dev` | Kartenwahl-Dialog mit Vorschau, Nischen-Liste, Harmonie-Anzeige; Upgrade-Panel und Klick-Button entfernen | 1.4 |
 | 1.6 | `game-designer` | `scripts/simulate.ts` + `balance.test.ts` auf die echte v2-Logik umstellen, Takt und Stufenzeiten prüfen, Tabellen in `GAME_DESIGN.md` | 1.4 |
@@ -1323,7 +1354,7 @@ Lebensraum: Borkenkäfer → Totholz → Rollassel, Specht → Höhle → Meise.
 | 2.7 | `game-designer` + `core-engineer` + `ui-dev` | Pflegemaßnahmen | 2.3 |
 | 2.8 | `core-engineer` + `game-designer` + `ui-dev` | Neuer Zyklus, Naturtagebuch, Waldgedächtnis, Stammgäste | 2.3 |
 | 2.9 | `qa-tester` | e2e: voller Zyklus mit festem Seed, Neuladen mitten in einer Begegnung | 2.8 |
-| 2.10 | `game-designer` | Balancing aller Zahlen mit dem v2-Simulator; `scripts/v2/` löschen oder als Referenz markieren | 2.8 |
+| 2.10 | `game-designer` | Balancing aller Zahlen mit dem v2-Simulator; `scripts/v2/` löschen oder als Referenz markieren – **erledigt**: gelöscht (15.4, Stand 2.10) | 2.8 |
 
 Danach (Roadmap Phase 3/4): Jahreszeiten, Amphibien-Erweiterung, Hauptbaum-Arten
 (Buche, Kiefer als Startbaum), Humus-Kreislauf.
@@ -1342,7 +1373,7 @@ Empfehlungen (Stand 20.10.2026):
    neu – mit Erinnerungen.“
 3. **Wachstum gegen Harmonie:** bleibt ein milder Zielkonflikt, Multiplikator `1 + H/100`.
    Das Waldgedächtnis beim Neuen Zyklus belohnt Harmonie. Nach dem Balancing (2.10) neu
-   bewerten.
+   bewertet: bleibt (siehe 10).
 4. **Duplikate:** Jede Art höchstens einmal im Ökosystem. Kolonien ggf. später als
    Fähigkeit einzelner Arten.
 5. **Klick-Button „Wachsen“:** entfällt in v2. Der Platz gehört dem Begegnungs-Stapel.
@@ -1369,6 +1400,39 @@ Empfehlungen (Stand 20.10.2026):
    im Winter (Abschnitt 16). Buche und Kiefer schalten sich über ihre Begleitpflanze im
    Naturtagebuch frei und werden beim Neuen Zyklus gewählt (Abschnitt 17).
 
+10. **Balancing aller Zahlen (Team, Schritt 2.10):** Gemessen wird mit allen Systemen
+    (Pflege, Ereignisse, Gäste, Jahreszeiten) auf der echten Logik (15.4, „Stand Schritt
+    2.10“). Ziele: Harmonie-Spieler erreicht den Hain in 55–65 min, die übrigen Stufen in
+    0,8–1,25 × Ziel (3), der Setzling nach ~45 s („45 Sekunden sollte der Sweetspot
+    sein“, mit Frühlingsbonus); der Wachstums-Spieler höchstens ~15 % schneller bei
+    spürbar weniger Harmonie; Buche und Kiefer innerhalb ±5 % der Eiche; Samenbestand beim
+    Hain unter 10 min Produktion; der zweite Zyklus 20–35 % schneller, erste Stammgäste
+    nach 1–2 Zyklen. Entschieden:
+    - **Wegpunkte 3,5 · k^3,5** statt `WAYPOINT_BASE` 4: Basis 4 verschiebt alle Wegpunkte
+      gleich (Hain nur ~48 min, Setzling schon 46 s); der Exponent streckt vor allem das
+      späte Spiel und trifft alle Stufen bis zum Urwald. Spielstand v7, die Migration
+      v6 → v7 erhält Wegpunkt und Anteil bis zum nächsten (wie v2 → v3).
+    - **🌿-Wirkungen der Arten ×0,75:** Der Wachstums-Spieler war 17 % schneller, weil er
+      fast doppelt so viele 🌿-Boni sammelt; ein stärkerer Harmonie-Multiplikator
+      (1 + H/80) hätte kaum etwas geändert (5 Punkte Harmonie = 2,8 % statt 2,5 %). Damit
+      bleibt Entscheidung 3 (`1 + H/100`) – neu bewertet und bestätigt.
+    - **Waldgedächtnis +1 % je Punkt** (statt +2 %), `floor(H_max / 5) + neue Arten`
+      (statt `/ 10` und 2 je Art): Zyklus 2 war 44,3 % schneller, jetzt 28,8 %; Harmonie
+      zählt jetzt mehr als das Entdecken vieler Arten. Gespeicherte Punkte bleiben beim
+      Laden unverändert (bewusst, siehe nächster Punkt).
+    - **Gespeichertes Waldgedächtnis wird nicht umgerechnet** (Migration v6 → v7): Wer
+      vor 2.10 z. B. 40 Punkte gesammelt hat, behält 40 Punkte – sie bringen jetzt +40 %
+      statt +80 %. Keine Verdopplung, weil ein Zyklus mit der neuen Formel ungefähr gleich
+      viele Punkte bringt wie mit der alten (H_max / 5 + 1 je Art statt H_max / 10 + 2 je
+      Art) und die Stammgast-Plätze (je 25 Punkte) sonst verdoppelt würden. Beim ersten
+      Laden eines solchen Stands (Gedächtnis > 0 oder Andenken) zeigt das Spiel einmal
+      „Das Waldgedächtnis wurde neu gewichtet: +1 % je Punkt.“ (`LoadResult.memoryReweighted`,
+      nicht Teil des Spielstands).
+    - **Pflege teurer** (×1,25 bis ×1,8 je Stufe) und **Zwischenhalt 70 %** (statt 50 %),
+      weil die gestreckte Kurve mehr Samen und längere Abschnitte bringt.
+    - **Buche:** +1 Wurzelraum erst ab Alter Baum; **Kiefer:** +1 ☀️ statt +2.
+    - `scripts/v2/` und `tests/design-v2.test.ts` sind gelöscht (Begründung 15.4).
+
 Weitere Designentscheidungen trifft das Team selbst und dokumentiert sie hier bzw. in den
 PR-Beschreibungen.
 
@@ -1378,7 +1442,11 @@ PR-Beschreibungen.
 
 ### 15.1 Modell
 
-`scripts/v2/` ist ein vereinfachter, eigenständiger Prototyp (reines TypeScript, wird
+> **Historisch:** `scripts/v2/` und `tests/design-v2.test.ts` sind seit Schritt 2.10
+> entfernt (Begründung in 15.4, „Stand Schritt 2.10“). 15.1–15.3 beschreiben den Stand
+> vor der Umsetzung.
+
+`scripts/v2/` war ein vereinfachter, eigenständiger Prototyp (reines TypeScript, wurde
 von `src/` nicht importiert):
 
 - `content.ts` – alle vorläufigen Zahlen dieses Dokuments,
@@ -1502,49 +1570,193 @@ in allem besser und deutlich vorn.
 ### 15.4 Simulation auf echter Logik
 
 `scripts/simulate.ts` spielt das Spiel mit der **echten Spiellogik** aus `src/core/`
-(`tick`, `chooseCard`, `declineEncounter`, `rerollEncounter`, `plantSeed`, `evaluate`,
-`previewChoice`, `previewPlant`, `cardStatus`): seit Schritt 2.1 mit Tier- **und**
-Pflanzenbegegnungen („Etwas keimt“), Pflanzen setzen und Licht/Wasser-Versorgung;
-seit Schritt 2.2 mit allen 32 Arten in 5 Gattungen, Fähigkeiten, Erscheinungsbedingungen
-und Seltenheitsgewichten; seit Schritt 2.3 mit Lebensgemeinschaften (vollständige
-Harmonie); noch ohne Pflegemaßnahmen, Ereignisse und Durchreisende nur als grobes
-Modell (Schritt 2.4, siehe unten). Der Spieler löst jede Begegnung sofort auf; die Zeit läuft von
-Wegpunkt zu Wegpunkt bzw. bis zum nächsten Pflanzenkauf (dazu Zwischenstopps für den
-Samen-Verlauf). Strategien wie in 15.1: zufällig, gierig nach
-Harmonie bzw. Wachstum (nimmt die beste Platzierung, wenn sie verbessert, sonst bei
-Tierbegegnungen einmal neu würfeln, sonst ablehnen), immer die seltenste Karte, je
-Gattung stapeln (ersetzt nie ein eigenes Tier). Pflanzenkarten wählen alle außer dem
-Zufallsspieler wie der Harmonie-Spieler. **Pflanzen setzen:** Sobald die Samen für
-`20 · 1,9^n` reichen und der Ring Platz hat, setzt jede Strategie die Pflanze, die ihr
-Maß (Harmonie bzw. Wachstum) am stärksten verbessert – nichts, wenn keine verbessert;
-der Zufallsspieler setzt irgendeine freigeschaltete Pflanze (wie `scripts/v2/sim.ts`).
+(`tick`, `chooseCard`, `declineEncounter`, `rerollEncounter`, `plantSeed`, `buyCare`,
+`chooseEventOption`, `hostVisitor`, `startNewCycle`, `setRegulars`, `evaluate`, die
+Vorschauen …): Tier- und Pflanzenbegegnungen, Pflanzen setzen, Licht/Wasser, alle 32
+Arten mit Fähigkeiten, Lebensgemeinschaften, Ereignisse, Gäste und Zwischenhalt,
+Pflegemaßnahmen (`RunOptions.care`), Jahreszeiten (immer) und Hauptbaum-Arten
+(`RunOptions.mainTree`); seit Schritt 2.10 auch **mehrere Zyklen am Stück** (`runCycles`:
+Neuer Zyklus mit Waldgedächtnis, Kartenpool mit Tagebuch-Gewicht, Stammgäste). Der
+Spieler löst jede Begegnung sofort auf; die Zeit läuft ereignisgesteuert von Halt zu
+Halt (Wegpunkt, Zwischenhalt, Jahreszeitgrenze, Ablauf eines Bonus, nächster Kauf).
+Strategien wie in 15.1: zufällig, gierig nach Harmonie bzw. Wachstum (nimmt die beste
+Platzierung, wenn sie verbessert, sonst bei Tierbegegnungen einmal neu würfeln, sonst
+ablehnen), immer die seltenste Karte, je Gattung stapeln (ersetzt nie ein eigenes Tier).
+Pflanzenkarten wählen alle außer dem Zufallsspieler wie der Harmonie-Spieler.
+**Pflanzen setzen:** Sobald die Samen für `20 · 1,9^n` reichen und der Ring Platz hat,
+setzt jede Strategie die Pflanze, die ihr Maß am stärksten verbessert; der
+Zufallsspieler irgendeine. **Pflege** und **Ereignisse/Gäste**: siehe die Stände 2.7 und
+2.4 unten. **Stammgäste** (`runCycles`): die Tiere vom Ende des Zyklus mit dem größten
+Beitrag zum Maß der Strategie, so viele, wie Plätze da sind; der Zufallsspieler nimmt
+sie in Nischen-Reihenfolge.
 
 ```bash
-SIM_LOG=1 npx vitest run tests/balance.test.ts                 # 100 Durchgänge, ~8 s
-SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts    # Tabellen unten, ~3 min
+npm run check      # Balancing-Tests mit wenigen Durchgängen (feste Seeds), ~25 s gesamt
+npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200), alle Tabellen, ~5 min
 ```
 
-`tests/balance.test.ts` prüft großzügig: alle Strategien erreichen den Hain ohne NaN;
-deterministisch; Harmonie-Spieler: Stufenzeiten 0,7–1,35 × Ziel (Keimling < 30 s),
-Takt bis Hain im Median 10 s – 8 min und nie über 15 min; Harmonie-Strategie hat die
-höchste Harmonie, jede andere Strategie liegt mindestens 1 Punkt darunter (Schritt 2.1:
-±1), Zufall ist spürbar schlechter; Lebensgemeinschaften: der Harmonie-Spieler hat beim
-Hain im Schnitt mehr als 0,5 aktiv, bei keiner Strategie stammt ein Viertel der Harmonie
-oder mehr aus ihnen, bewusstes Spiel findet mehr als Zufall; kein Gattungs-Stapeln ist deutlich (> 10 %)
-schneller und zugleich mindestens so harmonisch, und keines ist überhaupt mehr als
-10 % schneller als der Harmonie-Spieler (Pilze im Blick); Wachstums-Streben ist schneller, aber höchstens 25 %, und behält ≥ 85 % der
-Harmonie; der Zufallsspieler hat 30–98 % echte Wahlen; jede Strategie setzt und pflanzt
-bis zum Hain (≥ 4 Pflanzen, Samen fließen in Pflanzen), der Harmonie-Spieler hält die
-Versorgung über 90 %; **Vielfalt bis zum Hain (7.7):** für jede Strategie < 5 %
-identische Folge-Sets, Neu würfeln in > 75 % möglich, ab Setzling < 5 % Begegnungen
-mit 1–2 Karten; Harmonie-Spieler: längste Durststrecke im Median < 10 min und im
-90-%-Quantil < 15 min, > 80 % lohnende Begegnungen.
+Die Tests liegen in vier Dateien, die Vitest parallel rechnet (Einstellungen in
+`tests/balance-setup.ts`): `balance.test.ts` (alle Strategien mit allen Systemen),
+`balance-care.test.ts` (mit/ohne Pflege), `seasons-balance.test.ts` (Baumarten) und
+`balance-cycles.test.ts` (drei Zyklen). Im Check: 40 Durchgänge (Harmonie-Spieler bis
+Urwald, Wachstum und Zufall bis Wald, die übrigen bis Hain), Pflege 30, Baumarten 30,
+Zyklen 20. Geprüft wird (Grenzen im Check etwas weiter, wo die Stichprobe streut):
+Stufenzeiten des Harmonie-Spielers 0,8–1,25 × Ziel, Hain 55–65 min, Setzling 40–50 s;
+Takt bis Hain im Median 10 s – 8 min, nie über 15 min; Harmonie-Strategie hat die höchste
+Harmonie; kein Gattungs-Stapeln mehr als 10 % schneller; Wachstums-Spieler schneller, aber
+höchstens ~15 % und mindestens 3 Punkte weniger Harmonie; Pflanzen und Pflege als
+Samen-Senke (Bestand beim Hain < 10 min Produktion, im Wald < 12 min); Neu würfeln bis zum
+Hain in < 5 % „zu teuer“, > 80 % der Gäste bewirtbar; Vielfalt (7.7); Durststrecken
+nach dem Hain (Median < 9 min, 90 % < 11 min); Lebensgemeinschaften; Baumarten innerhalb
+±5 % der Eiche; Zyklus 2 20–35 % schneller, erste Stammgäste nach 1–2 Zyklen, Harmonie
+bringt über drei Zyklen mindestens so viel Waldgedächtnis wie Wachstum.
 
-Neu im Simulator (Begegnungs-Vielfalt): Tabellen „Vielfalt der Begegnungen“ je Stufe
-(Harmonie-Spieler und Zufall) und „Vielfalt bis Hain je Strategie“ (`varietyStats`,
-`varietyBefore`, `longestDrought`).
+#### Stand Schritt 2.10 – Balancing aller Zahlen (500 Durchgänge, alle Systeme)
 
-#### Stand Jahreszeiten und Hauptbaum-Arten – Logik (200 Durchgänge)
+Gemessen mit allen Systemen (Pflege, Ereignisse, Gäste, Jahreszeiten, Eiche) und dem
+erweiterten Simulator. **Vorher** = `main` vor 2.10 (Spielstand v6), mit demselben
+Simulator und denselben Seeds gerechnet; **nachher** = dieser Stand. Baumarten 300,
+Zyklen 200 Durchgänge.
+
+**Geänderte Zahlen**
+
+| Stellschraube | vorher | nachher | Grund |
+|---|---|---|---|
+| Wegpunkte (`waypoints.ts`) | 3,5 · k^3,4 | **3,5 · k^3,5** | Hain nach 44 statt 60 min; Exponent statt Basis 4 streckt vor allem das späte Spiel (3) |
+| 🌿-Wirkungen der Arten (`species.ts`, `growth`/`groupGrowth`) | Prototyp | **×0,75** (gerundet, z. B. Regenwurm 8 → 6 %, Steinpilz Bäume 20 → 15 %) | Wachstums-Spieler 17,4 % schneller |
+| 🌿-Gattungsboni (`traits.ts`) | Vögel 20, Säuger/Boden 12 / 25, Pilze Bäume 10 / 30 % | **×0,6**: 12, 7 / 15, 6 / 18 % | dto.; der Wachstums-Spieler erreicht die mittlere Stufe viel öfter |
+| Waldgedächtnis (`memory.ts`) | +2 % je Punkt; H_max / 10 + 2 je Art | **+1 % je Punkt; H_max / 5 + 1 je Art** | Zyklus 2 war 44,3 % statt 28,8 % schneller; Wachstum bekam mehr Gedächtnis als Harmonie. Gespeicherte Punkte bleiben (14) |
+| Pflege-Kosten (`care.ts`) | 600 – 30.000 🌰 | **750 – 45.000 🌰** (×1,25 / ×1,35 / ×1,8 / ×1,5 je Stufe) | Senke trägt die längeren Abschnitte |
+| Zwischenhalt (`encounters.ts`) | 50 % | **70 %** | längste Durststrecke im Hain sonst 11 min |
+| Rotbuche (`trees.ts`) | +1 Wurzelraum ab Keimling | **ab Alter Baum** | Wachstums-Spieler mit Buche sonst 7 % vor der Eiche |
+| Waldkiefer (`trees.ts`) | +2 ☀️ | **+1 ☀️** | Wachstums-Spieler mit Kiefer sonst 5,8 % vor der Eiche |
+
+**Stufen – Harmonie-Spieler**
+
+| Stufe | Ziel | vorher | nachher | nachher / Ziel |
+|---|---|---|---|---|
+| Keimling | < 30 s | 3 s | 3 s | ✔ |
+| Setzling | ~ 45 s | 41 s | 46 s | 1,02 |
+| Junger Baum | ~ 4 min | 3:26 min | 4:11 min | 1,05 |
+| Alter Baum | ~ 20 min | 17:02 min | 23:02 min | 1,15 |
+| Hain | ~ 60 min (55–65) | 43:41 min | 1:03:45 h | 1,06 |
+| Wald | ~ 1:40 h | 1:13:55 h | 1:54:40 h | 1,15 |
+| Urwald | ~ 2:20 h | 1:42:45 h | 2:47:31 h | 1,20 |
+
+**Frühlingsbonus:** Jeder Zyklus beginnt im Frühling (+10 % 🌿). Der Setzling liegt ganz
+darin: 46 s mit, 50 s ohne den Bonus (300 Durchgänge) – der Bonus bleibt, er trifft den
+Sweetspot.
+
+**Strategien beim Hain**
+
+| Strategie | Hain vorher | Hain nachher | ⚖️ vorher | ⚖️ nachher | 🌰/s beim Hain (nachher) |
+|---|---|---|---|---|---|
+| Gierig nach Harmonie | 43:41 min | 1:03:45 h | 106,5 | 106,4 | 14,4 |
+| Gierig nach Wachstum | 36:04 min (−17,4 %) | 54:18 min (**−14,8 %**) | 100,3 | 100,7 (−5,7) | 8,8 |
+| Zufällig | 1:08:06 h | 1:39:32 h | 81,5 | 81,3 | 14,0 |
+| Immer die seltenste Karte | 47:38 min | 1:09:37 h | 96,3 | 96,0 | 13,0 |
+| Vögel / Insekten / Säugetiere stapeln | 46:55 / 57:30 / 53:26 min | 1:06:23 / 1:21:14 / 1:18:15 h | 103,4 / 102,4 / 84,8 | 103,3 / 102,5 / 84,7 | |
+| Bodenleben / Pilze stapeln | 47:21 / 44:14 min | 1:08:57 / 1:05:18 h | 105,3 / 95,1 | 105,3 / 95,3 | |
+
+**Baumarten beim Hain (300 Durchgänge, gegenüber der Eiche)**
+
+| Strategie | Buche vorher | Buche nachher | Kiefer vorher | Kiefer nachher |
+|---|---|---|---|---|
+| Gierig nach Harmonie | −4,7 % | −0,8 % | −2,8 % | −2,5 % |
+| Gierig nach Wachstum | −3,8 % | +1,4 % | −4,1 % | −4,4 % |
+| Zufällig | −2,3 % | +1,4 % | −2,5 % | −2,2 % |
+
+(Mit der neuen Kurve, aber noch ohne Arten-🌿 ×0,75 lagen Buche und Kiefer beim
+Wachstums-Spieler bei −7,0 % bzw. −5,8 % (60 Durchgänge); mit der Buche ab Alter Baum und
+der Kiefer bei +1 ☀️ bei −1,4 % bzw. −4,9 % (100 Durchgänge).)
+
+**Wirtschaft**
+
+| | vorher | nachher |
+|---|---|---|
+| 🌰-Bestand beim Hain, Harmonie / Wachstum (min Produktion) | 4,9 / 3,7 | 8,4 / 5,6 |
+| 🌰-Bestand im Wald, Harmonie / Wachstum | 6,0 / 2,4 | 10,8 / 4,9 |
+| … ohne Pflege beim Hain (Harmonie) | 25,3 | 38,7 |
+| für Pflege bis Hain (Harmonie) | 16.628 🌰 | 25.113 🌰 |
+| Neu würfeln bis Hain möglich (Harmonie) / im Setzling „zu teuer“ | 83 % / 26 % | 88 % / 1 % |
+| Gäste bewirtet bis Urwald (Harmonie) | 5,4 von 5,9 | 6,6 von 6,9 |
+
+Bewirten kostet Samen-Sekunden und ist darum immer im Verhältnis zur Rate bezahlbar; Neu
+würfeln (fest 10 🌰) war früher im Setzling oft zu teuer, weil er schon nach 41 s kam.
+
+**Mehrere Zyklen (200 Durchgänge, jeder Zyklus bis Hain, Stammgäste nach Beitrag)**
+
+| Strategie | Zyklus | Hain vorher | gegenüber Zyklus 1 | Hain nachher | gegenüber Zyklus 1 | Gedächtnis zu Beginn / Gewinn (nachher) | Stammgäste gewählt / eingezogen (nachher) |
+|---|---|---|---|---|---|---|---|
+| Harmonie | 1 | 43:38 min | – | 1:03:34 h | – | 0 / +33,4 | 0 / 0 |
+| Harmonie | 2 | 24:18 min | −44,3 % | 45:14 min | **−28,8 %** | 33,4 / +26,0 | 0,99 / 1,25 |
+| Harmonie | 3 | 19:45 min | −54,7 % | 37:19 min | −41,3 % | 59,4 / +24,7 | 2,00 / 2,29 |
+| Wachstum | 1 | 36:06 min | – | 54:34 min | – | 0 / +33,2 | 0 / 0 |
+| Wachstum | 2 | 19:49 min | −45,1 % | 38:47 min | −28,9 % | 33,2 / +24,3 | 0,99 / 0,75 |
+| Wachstum | 3 | 16:01 min | −55,6 % | 32:34 min | −40,3 % | 57,5 / +22,6 | 1,99 / 1,54 |
+| Zufällig | 2 | 40:09 min | −40,8 % | 1:16:33 h | −22,9 % | 29,1 / +21,2 | 0,95 / 1,60 |
+
+Gedächtnis-Gewinn vorher: Harmonie 34,2 / 18,8 / 15,8, Wachstum 35,9 / 17,6 / 14,1 – der
+Wachstums-Spieler bekam im ersten Zyklus mehr. Nachher über drei Zyklen Harmonie 84,1,
+Wachstum 80,1 Punkte. Neu entdeckte Arten je Zyklus: ~12 → 4 → 2 (Tagebuch-Gewicht 2 im
+Kartenpool). „Eingezogen“ zählt Einzüge – ein entlassener Stammgast kann später wieder
+einziehen.
+
+**Durststrecken und Takt (Harmonie-Spieler, längste Strecke ohne lohnende Wahl, 90 %)**
+
+| Stufe | vorher | nachher |
+|---|---|---|
+| Alter Baum | 6:29 min | 10:19 min |
+| Hain | 6:26 min | 9:44 min |
+| Wald | 5:44 min | 10:25 min |
+
+Die Abschnitte sind länger (mehr Wachstum je Wegpunkt); der Zwischenhalt mit 70 % hält
+die Strecken nach dem Hain unter 11 min (mit 50 % waren es im Hain 11:15 min).
+
+**Bewertung**
+
+- **Tempo:** Alle Stufen liegen im Korridor (1,02–1,20 × Ziel), der Hain bei 63:45 min.
+  Das späte Spiel ist mit 1,15–1,20 × eher etwas langsam – gewollt, damit der Neue Zyklus
+  (ab Hain) die attraktive Abkürzung bleibt.
+- **Strategien:** Der Wachstums-Spieler ist 14,8 % schneller bei 5,7 Punkten weniger
+  Harmonie. Der Abstand ist robust: Jede einzelne Stellschraube (Baum-Pflanzen, mittlere
+  Gattungsstufe, Arten-🌿) bringt nur 1–2 Prozentpunkte und bremst beide Spieler; ein
+  stärkerer Harmonie-Multiplikator (1 + H/80) würde kaum helfen. Mit kürzerer Kurve
+  (3,5 · k^3,48, Hain 60:34 min) läge er bei 15,4 % – darum bleibt der Exponent bei 3,5.
+  Kein Stapler ist schneller als der Harmonie-Spieler.
+- **Baumarten:** alle innerhalb ±5 % der Eiche; die Kiefer bleibt für Wachstums-Spieler
+  am schnellsten (Winterfestigkeit).
+- **Wirtschaft:** Pflege bleibt die Senke (8,4 statt 38,7 min Bestand beim Hain). Im Wald
+  sparen Harmonie-Spieler auf die Wald-Ränge (10,8 min) – die Prüfung erlaubt dort 12 min.
+- **Neuer Zyklus:** Zyklus 2 ist 28,8 % schneller (Ziel 20–35 %), der erste Stammgast
+  kommt nach einem Zyklus (33 Punkte), der zweite nach zwei.
+
+**`scripts/v2/` entfernt.** Das Referenzmodell wurde nur noch in Tests zum Abgleich
+genutzt: `content.test.ts` nagelte `src/content` auf die Zahlen des Prototyps fest (jede
+Balancing-Änderung hätte doppelt gepflegt werden müssen), `formulas.test.ts` verglich
+`evaluate` mit dem Prototyp (der weder Pflege, Ereignisse, Jahreszeiten noch Baumarten
+kennt und mit 2.10 andere 🌿-Zahlen hätte), `design-v2.test.ts` simulierte den Prototyp
+selbst. Ersetzt durch Invarianten-Tests (Harmonie = Summe der Bausteine, Wertebereiche,
+jede Lebensgemeinschaft vollständig/unvollständig/mit Lichterabend), feste mulberry32-Werte
+in `rng.test.ts`, Kurztext-Prüfungen in `content.test.ts` und die Render-Tests mit den
+Listen aus `src/content`. Den Abgleich Formeln ↔ Zahlen übernimmt `tests/golden.test.ts`:
+gezielte Regeln (Wirkung = pct × Zufriedenheit, Platz-Arten +1 Platz, Gattungsboni genau
+ab 2/3/5 Arten, jede Pflanze einzeln und doppelt) und eine eingefrorene Golden-Tabelle
+(`tests/__snapshots__/golden.json`: `evaluateEcosystem` je Art, Pflanze und Baumart auf
+jeder Stufe, dazu Pflanzen, `plantCost`, Stufenbudgets, Nischenplätze, Seltenheits- und
+Begegnungsgewichte). Gewollte Zahlenänderungen: `npx vitest run tests/golden.test.ts -u`.
+
+Die Balancing-Tests prüfen im normalen Check weitere Grenzen (Hain 52–68 min, Wachstums-
+Spieler ≥ 0,80 × Harmonie, Baumarten ±8 %), weil der Median mit wenigen Durchgängen je nach
+Seed-Startwert schwankt (gemessen: Hain bis 65,5 min, 0,83 × Harmonie, Kiefer −5,4 %); die
+Ziele oben gelten im großen Lauf (`npm run balance`).
+
+**Testlaufzeit:** `npm run check` 41,6 s → 24,4 s (4 Kerne): Balancing in vier parallelen
+Dateien mit weniger Durchgängen, `planPlant` je Zustand nur einmal gerechnet (gleiche
+Ergebnisse, geprüft gegen den alten Simulator), in den Render-Tests ein `expect` je
+Prüfung statt zehntausender (Ideen aus `claude/v2-tests-schneller`).
+
+#### Stand Jahreszeiten und Hauptbaum-Arten – Logik (200 Durchgänge, historisch: vor 2.10, ohne Pflege)
 
 Seit Spielstand v6 laufen die Jahreszeiten in **jedem** Durchgang mit (echte Logik, das
 grobe Modell `scripts/season-model.ts` ist entfernt). Der Simulator hält an jeder
@@ -1553,7 +1765,7 @@ Jahreszeitgrenze an, damit Pflanzen- und Pflege-Käufe mit der richtigen Rate ge
 Arten vergleichbar sind; ohne Waldgedächtnis, ohne Pflege).
 
 ```bash
-SIM_LOG=1 SIM_SEASON_ALL=1 SIM_SEASON_RUNS=200 npx vitest run tests/seasons-balance.test.ts --silent=false   # ~50 s
+SIM_LOG=1 SIM_SEASON_ALL=1 SIM_SEASON_RUNS=200 npx vitest run tests/seasons-balance.test.ts --silent=false   # ~50 s (damals; heute: npm run balance)
 ```
 
 | Strategie | Art | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Ø 😊 beim Hain | 🌿/s beim Hain | Durststrecke Alter Baum / Hain (90 %) | Ereignisse / Gäste |
@@ -1588,7 +1800,7 @@ SIM_LOG=1 SIM_SEASON_ALL=1 SIM_SEASON_RUNS=200 npx vitest run tests/seasons-bala
 Eiche im Korridor und höchstens 10 % neben dem Stand ohne Jahreszeiten, Harmonie höchstens
 2 Punkte darunter; jede Art innerhalb ±10 % der Eiche beim Hain und ±8 Punkte Harmonie.
 
-#### Stand Schritt 2.4 – Logik: Ereignisse und Durchreisende echt (100 Durchgänge)
+#### Stand Schritt 2.4 – Logik: Ereignisse und Durchreisende echt (100 Durchgänge, historisch)
 
 Seit der Logik zieht der Simulator Ereignisse, Gäste und Zwischenhalte mit der echten
 Logik (`scripts/extras.ts` ist entfernt). Strategien wählen Ereignis-Optionen nach einem
@@ -1669,7 +1881,7 @@ Ereignisse/Gäste als es gibt (und im Schnitt > 4 bzw. > 3), Stufenzeiten des Ha
 Spielers 0,7–1,35 × Ziel und Hain höchstens 10 % schneller als ohne, Durststrecke (90 %)
 im Hain und im Wald kürzer als ohne und im Wald < 11 min.
 
-#### Stand Schritt 2.7 – Logik: Pflegemaßnahmen echt (100 Durchgänge)
+#### Stand Schritt 2.7 – Logik: Pflegemaßnahmen echt (100 Durchgänge, historisch)
 
 Simulator mit der echten Logik (`runGame(…, { care: true })`, `buyCare`, `previewCare`).
 Strategien sparen den Rang mit dem besten Wert je Samen an (Vorschau über 30 min,
@@ -1880,9 +2092,9 @@ kommen vom langsameren Takt (er wächst langsamer), nicht von fehlenden guten Ka
 #### Stand Schritt 2.3: Lebensgemeinschaften, Harmonie vollständig (500 Durchgänge je Strategie, historisch)
 
 **Keine geänderten Zahlen.** Die 9 Lebensgemeinschaften (`src/content/communities.ts`,
-Abschnitt 9.2) stammen 1:1 aus `scripts/v2/content.ts`; „Lichterabend“ (Glühwürmchen)
+Abschnitt 9.2) stammen 1:1 aus `scripts/v2/content.ts` (entfernt in 2.10); „Lichterabend“ (Glühwürmchen)
 wirkt jetzt (+3 ⚖️ je aktiver Lebensgemeinschaft). `evaluate` stimmt nun für **alle**
-Ökosysteme exakt mit `scripts/v2/model.ts` überein (bis auf Ereignisse und
+Ökosysteme exakt mit `scripts/v2/model.ts` (entfernt in 2.10) überein (bis auf Ereignisse und
 Durchreisende, die es noch nicht gibt). Die Harmonie ist damit vollständig laut 9.1:
 Vielfalt + 30 · Ø Zufriedenheit + Pyramide (≤ 20, −4 je unbewachtem Schädling) +
 Lebensgemeinschaften + Sonderpunkte der Tiere. Neu im Simulator: Tabelle
@@ -1977,7 +2189,7 @@ bestehender, „entdeckt“ = Ø Einträge im Naturtagebuch)
 #### Stand Schritt 2.2: alle 32 Arten (500 Durchgänge je Strategie, historisch)
 
 **Keine geänderten Zahlen.** Alle Arten-, Gattungs-, Seltenheits-, Pflanzen- und
-Stufenzahlen sind die aus `scripts/v2/content.ts` (Inhaltstest prüft das, `evaluate`
+Stufenzahlen sind die aus `scripts/v2/content.ts` (entfernt in 2.10; Inhaltstest prüft das, `evaluate`
 wird gegen `scripts/v2/model.ts` verglichen – ohne Lebensgemeinschaften). Mit 32 Arten
 liegt der Harmonie-Spieler beim Hain bei ⚖️ 88 und ~66 🌿/s (Schritt 2.1: ⚖️ 78 /
 ~47 🌿/s; volles Design mit Lebensgemeinschaften, Ereignissen und Durchreisenden:
@@ -2067,7 +2279,7 @@ selten / besonders / legendär (legendäre Arten gibt es erst ab dem Hain).
   Glühwürmchens („Lichterabend“: +3 ⚖️ je Lebensgemeinschaft) vorerst nicht; die Zahl
   steht als `COMMUNITY_BOOST_HARMONY` in `src/content/abilities.ts` bereit.
 - **Fähigkeiten** wirken, solange ihre Art lebt – unabhängig von ihrer Zufriedenheit
-  und je einmal (wie `scripts/v2/model.ts`). „Landschaft der Angst“ trifft im Code jede
+  und je einmal (wie `scripts/v2/model.ts`, entfernt in 2.10). „Landschaft der Angst“ trifft im Code jede
   Beute des Jägers (Arten, die ein Nahrungsmerkmal von ihm bereitstellen) – mit den
   heutigen Inhalten genau das Reh.
 - **Erscheinungsbedingungen** prüfen nur, was im Ökosystem da ist: „sonnig“/„schattig“
@@ -2114,7 +2326,7 @@ selten / besonders / legendär (legendäre Arten gibt es erst ab dem Hain).
 
 **Geänderte Zahlen:** `WAYPOINT_POWER` zurück auf **3,4** (Design), dafür
 `WAYPOINT_BASE` 4 → **3,5** (`src/content/waypoints.ts`). Alle Pflanzen-, Tier-,
-Stufen- und Begegnungszahlen sind unverändert die aus `scripts/v2/content.ts`
+Stufen- und Begegnungszahlen sind unverändert die aus `scripts/v2/content.ts` (entfernt in 2.10)
 (Inhaltstest prüft das). Begründung: Mit Pflanzen, aber nur 9 statt 32 Arten liegt der
 Harmonie-Spieler beim Hain bei ⚖️ 78 und ~47 🌿/s statt ⚖️ 96 und ~69 🌿/s im vollen
 Design; mit Basis 4 dauerte der Hain 1:09 h (Alter Baum 23:12 min). Die kleinere Basis
@@ -2387,7 +2599,8 @@ Hindernis. Leitlinien:
 ### 16.2 Zeitmodell
 
 - **Ein Jahr = 12 Minuten Spielzeit** (4 × 3 min, `SEASON_SECONDS = 180`). Bis zum Hain
-  vergehen so knapp 4 Jahre, bis zum Urwald gut 9. Mit 20 min wäre der Hain nach 2–3
+  vergehen so gut 5 Jahre, bis zum Urwald gut 13 (seit dem Balancing 2.10; vorher knapp 4
+  bzw. gut 9). Mit 20 min wäre der Hain nach 2–3
   Jahren erreicht und eine Jahreszeit (5 min) länger als der Takt der Begegnungen – der
   Winter würde sich ziehen. Mit 8 min wechselte es öfter als die Begegnungen kommen und
   wirkte unruhig.
@@ -2571,7 +2784,7 @@ rechnet ohne Jahreszeit, aber mit der Baumart (eigener Cache). Tests:
 
 > **Stand:** umgesetzt (Spielstand v6). Daten in `src/content/trees.ts`, Logik in
 > `formulas.ts` und `tick.ts`, Wahl im Bereich „Neuer Zyklus“; Kennzahlen mit echter
-> Logik in 15.4 – die Kiefer liegt 4,6 % vor der Eiche, ihr Licht bleibt bei +2.
+> Logik in 15.4. Seit dem Balancing 2.10: Buche +1 Wurzelraum ab Alter Baum, Kiefer +1 ☀️.
 
 ### 17.1 Idee
 
@@ -2599,8 +2812,17 @@ alle gleich.
 | Art | Frucht | Gewinn | Verzicht | passt zu |
 |---|---|---|---|---|
 | 🌳 Stieleiche | Eichel (Nüsse ab Alter Baum) | +1 Platz Krone (ab Junger Baum); Insekten +10 % 😊 | – (ausgewogen) | Vielfalt, Vögel und Säugetiere (Nüsse) |
-| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Keimling); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum (dichtes Dach) | Pilze, Bodenleben, Schattenpflanzen |
-| 🌲 Waldkiefer | Kiefernsamen | +2 ☀️, +1 💧 (genügsam); winterfest: kein Winter-Abzug; Merkmal Nadeln | keine Nüsse | Blüten, Insekten, Licht; Waldameise |
+| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum (dichtes Dach) | Pilze, Bodenleben, Schattenpflanzen |
+| 🌲 Waldkiefer | Kiefernsamen | +1 ☀️, +1 💧 (genügsam); winterfest: kein Winter-Abzug; Merkmal Nadeln | keine Nüsse | Blüten, Insekten, Licht; Waldameise |
+
+**Balancing 2.10:** Rotbuche +1 Wurzelraum erst ab Alter Baum (vorher ab Keimling) –
+mit allen Systemen war die Buche für den Wachstums-Spieler 7 % schneller als die Eiche,
+der frühe Platz für ein weiteres Bodentier war der Grund (ab Junger Baum: noch 7,5 %).
+Ab Alter Baum passt es auch zur Erzählung: Wenn der Baum groß ist, breiten sich die
+Wurzeln aus, und das Dach schließt sich. Waldkiefer +1 ☀️ statt +2 (wie in 17.4
+vorgesehen, falls sie mehr als 5 % vorn liegt: Wachstums-Spieler −5,8 %). Ihr Vorteil
+kommt vor allem aus der Winterfestigkeit; der Wasser-Bonus wirkt messbar nicht (Wasser
+ist nie knapp), bleibt aber als Erzählung („genügsam“). Zahlen in 15.4.
 
 Texte: Eiche „Keine Baumart beherbergt mehr Leben – in ihrer Krone wimmelt es.“ ·
 Buche „Unter ihrem dichten Dach ist es kühl und feucht – ein Paradies für Pilze und
@@ -2677,7 +2899,8 @@ Hauptbaum. Naturtagebuch, Reiter Andenken: optional die gewachsenen Hauptbaum-Ar
 **Tests (Vorschlag):** Freischaltung aus dem Tagebuch; `startNewCycle` mit gesperrter
 Art scheitert ohne Änderung; Eiche = heutiges Verhalten (alle bisherigen Tests grün);
 Kiefer ohne Nüsse (Eichhörnchen hungrig, Mastjahr und Bergfinken nicht wählbar), mit
-Nadeln; Buche: Wurzelraum ab Keimling 2 Plätze, −2 ☀️ erst ab Alter Baum; Kiefer im
+Nadeln; Buche: Wurzelraum ab Alter Baum 4 statt 3 Plätze (seit 2.10; vorher ab Keimling
+2 Plätze), −2 ☀️ erst ab Alter Baum; Kiefer im
 Winter ohne Abzug; Migration; Simulator: `mainTree` als echte Option.
 
 **Umgesetzt:** wie oben. `unlockedTrees` / `isTreeUnlocked` in `tick.ts`; beim Laden zählt

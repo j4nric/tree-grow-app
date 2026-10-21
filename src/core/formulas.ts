@@ -47,7 +47,8 @@ import { MAX_FOREST_MEMORY, type CycleState, type GameState, type PendingEncount
  * Rechenmodell v2: Zufriedenheit, Harmonie, Versorgung, Wachstum/s, Samen/s.
  * Formeln aus docs/DESIGN_V2.md, Abschnitt 2 und 9, mit allen 32 Arten, Störung,
  * Fähigkeiten, Lebensgemeinschaften, Ereignis-Boni und Durchreisenden (2.4).
- * Referenz: scripts/v2/model.ts (Tests vergleichen beide).
+ * Das frühere Referenzmodell scripts/v2/model.ts ist seit Schritt 2.10 entfernt; Invarianten
+ * und Beispiele prüft tests/formulas.test.ts.
  */
 
 /** Gewicht der Nahrung gegenüber einem einzelnen Lebensraum-Wunsch. */
@@ -154,7 +155,7 @@ export function environmentEffects(
 
 /**
  * Alle zusätzlichen Plätze eines Spielstands: Zyklus-Boni, Pflege und Eigenheiten des
- * Hauptbaums ab ihrer Stufe (z. B. Rotbuche: +1 Wurzelraum ab Keimling). Gemeinsamer
+ * Hauptbaums ab ihrer Stufe (z. B. Rotbuche: +1 Wurzelraum ab Alter Baum). Gemeinsamer
  * Helfer für evaluate, Kartenwahl, Stammgäste, vorgegebene Begegnungen und das Laden.
  */
 export function slotBonuses(state: { stage: number; cycle?: CycleExtras }): SlotBonus[] {
@@ -709,7 +710,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const harmony = variety + happinessPoints + pyramid + communityPoints + harmonyExtra;
   const multiplier = 1 + harmony / HARMONY_DIVISOR;
 
-  // Wachstum und Samen (Waldgedächtnis: +2 % je Punkt)
+  // Wachstum und Samen (Waldgedächtnis: +1 % je Punkt, FOREST_MEMORY_BONUS)
   const memory = 1 + FOREST_MEMORY_BONUS * Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(eco.forestMemory)));
   // Begleitpflanzen wachsen mit der Versorgung V, der Hauptbaum unabhängig davon.
   let companionGrowth = 0;

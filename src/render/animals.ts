@@ -62,7 +62,7 @@ const KINDS: Record<string, KindInfo> = {
   ...SPECIES_INFO,
 };
 
-/** Art-ID (scripts/v2/content.ts) → Zeichnung. */
+/** Art-ID (src/content/species.ts) → Zeichnung. */
 const SPECIES_KIND: Record<string, string> = {
   robin: 'robin',
   bluetit: 'bluetit',

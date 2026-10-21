@@ -62,7 +62,7 @@ describe('toJournalView (Naturtagebuch)', () => {
     state.meta.regulars = ['bluetit'];
     const view = toJournalView(state, evaluate(state));
     expect(view.regulars).toMatch(/^Stammgäste 1\/1/);
-    expect(view.meta).toBe('Zyklus 1 · Waldgedächtnis 25 (+50 % Wachstum und Samen)');
+    expect(view.meta).toBe('Zyklus 1 · Waldgedächtnis 25 (+25 % Wachstum und Samen)');
     expect(view.species.find((e) => e.key === 'bluetit')!.regular).toEqual({ selected: true, disabled: false });
     expect(view.species.find((e) => e.key === 'robin')!.regular).toEqual({ selected: false, disabled: true });
     // Unentdeckte bekommen nie einen Schalter.

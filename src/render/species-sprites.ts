@@ -1,5 +1,5 @@
 /**
- * Eigene Zeichnungen für alle Arten aus DESIGN_V2.md 5.3 (IDs wie in scripts/v2/content.ts),
+ * Eigene Zeichnungen für alle Arten aus DESIGN_V2.md 5.3 (IDs wie in src/content/species.ts),
  * die nicht schon im Prototyp (animals.ts) gezeichnet wurden.
  *
  * Konvention: Blick nach rechts, Ursprung = Ankerpunkt (Füße am Boden bzw. Kontaktstelle),
@@ -757,7 +757,7 @@ function paintTinder(c: CanvasRenderingContext2D): void {
 
 // ---------------------------------------------------------------------------
 
-/** Verhalten und Größe je Art (Schlüssel = Art-ID aus scripts/v2/content.ts). */
+/** Verhalten und Größe je Art (Schlüssel = Art-ID aus src/content/species.ts). */
 export const SPECIES_INFO: Record<string, KindInfo> = {
   // Vögel
   jay: { size: 1.15, motion: 'hop', frames: 1 },

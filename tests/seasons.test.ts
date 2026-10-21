@@ -15,7 +15,7 @@ import {
   slotBonuses,
   type Ecosystem,
 } from '../src/core/formulas';
-import { loadGame, serialize } from '../src/core/save';
+import { loadGame, serialize, v6Threshold } from '../src/core/save';
 import {
   MAX_ELAPSED,
   nextSeasonBoundary,
@@ -199,30 +199,34 @@ describe('Hauptbaum-Arten (DESIGN_V2.md 17.3)', () => {
     expect(environmentEffects(0, undefined, 'oak').happiness).toEqual([{ kind: 'happiness', genus: 'insects', points: 10 }]);
   });
 
-  it('Buche: Wurzelraum ab Keimling 2 Plätze, −2 ☀️ erst ab Alter Baum, Pilze +15 % 😊', () => {
-    expect(evaluate(stateWith(1, [], 'spring', 'beech')).slots.roots).toBe(2);
-    expect(evaluate(stateWith(1, [], 'spring', 'oak')).slots.roots).toBe(1);
+  it('Buche: +1 Platz Wurzelraum und −2 ☀️ erst ab Alter Baum, Pilze +15 % 😊', () => {
+    // Seit Schritt 2.10 ab Alter Baum (vorher ab Keimling, DESIGN_V2.md 17.3).
+    expect(evaluate(stateWith(3, [], 'spring', 'beech')).slots.roots).toBe(2);
+    expect(evaluate(stateWith(3, [], 'spring', 'oak')).slots.roots).toBe(2);
+    expect(evaluate(stateWith(4, [], 'spring', 'beech')).slots.roots).toBe(4);
+    expect(evaluate(stateWith(4, [], 'spring', 'oak')).slots.roots).toBe(3);
     expect(evaluate(stateWith(3, [], 'spring', 'beech')).light).toBe(5);
     expect(evaluate(stateWith(4, [], 'spring', 'beech')).light).toBe(7 - 2);
     expect(environmentEffects(0, undefined, 'beech').happiness).toEqual([{ kind: 'happiness', genus: 'fungi', points: 15 }]);
   });
 
   it('Buche: der zusätzliche Platz gilt auch beim Wählen einer Karte', () => {
+    const roots = ['earthworm', 'vole', 'mole'];
     for (const [tree, status] of [['beech', 'free'], ['oak', 'full']] as const) {
-      const state = stateWith(1, ['earthworm'], 'spring', tree);
-      state.pendingEncounters = [{ type: 'animal', cards: ['vole'], rerolls: 0 }];
+      const state = stateWith(4, roots, 'spring', tree);
+      state.pendingEncounters = [{ type: 'animal', cards: ['chanterelle'], rerolls: 0 }];
       expect(cardStatus(state, 0, 0), tree).toBe(status);
       expect(slotBonuses(state).some((b) => b.niche === 'roots'), tree).toBe(tree === 'beech');
     }
-    const state = stateWith(1, ['earthworm'], 'spring', 'beech');
-    state.pendingEncounters = [{ type: 'animal', cards: ['vole'], rerolls: 0 }];
+    const state = stateWith(4, roots, 'spring', 'beech');
+    state.pendingEncounters = [{ type: 'animal', cards: ['chanterelle'], rerolls: 0 }];
     expect(chooseCard(state, 0, 0).ok).toBe(true);
-    expect(state.niches.roots).toEqual(['earthworm', 'vole']);
+    expect(state.niches.roots).toEqual([...roots, 'chanterelle']);
   });
 
-  it('Kiefer: +2 ☀️, +1 💧, Nadeln, keine Nüsse', () => {
+  it('Kiefer: +1 ☀️, +1 💧, Nadeln, keine Nüsse', () => {
     const pine = evaluate(stateWith(4, [], 'spring', 'pine'));
-    expect(pine.light).toBe(7 + 2);
+    expect(pine.light).toBe(7 + 1);
     expect(pine.water).toBe(7 + 1);
     const ctx = appearsContext(ecosystemOf(stateWith(4, [], 'spring', 'pine')));
     expect(ctx.tags.has('nadeln')).toBe(true);
@@ -246,7 +250,7 @@ describe('Hauptbaum-Arten (DESIGN_V2.md 17.3)', () => {
     expect(env.effects.some((e) => e.kind === 'growth')).toBe(false);
     expect(env.happiness.map((h) => h.genus).sort()).toEqual(['mammals', 'soil']);
     // Der Sommer wirkt für die Kiefer genauso: +2 ☀️ obendrauf.
-    expect(evaluate(stateWith(4, [], 'summer', 'pine')).light).toBe(7 + 2 + 2);
+    expect(evaluate(stateWith(4, [], 'summer', 'pine')).light).toBe(7 + 1 + 2);
   });
 
   it('ohne Baumart (reines Ökosystem) Merkmale der Eiche, aber keine Eigenheiten', () => {
@@ -462,7 +466,7 @@ describe('Samen-Sekunden und Cache', () => {
     expect(summer.light).toBe(first.light + 2);
     state.cycle.mainTree = 'pine';
     expect(evaluate(state)).not.toBe(summer);
-    expect(evaluate(state).light).toBe(summer.light + 2);
+    expect(evaluate(state).light).toBe(summer.light + 1);
   });
 });
 
@@ -503,8 +507,8 @@ describe('Hauptbaum wählen und freischalten (DESIGN_V2.md 17.2, 17.5)', () => {
     expect(startNewCycle(state, 99, 'beech').ok).toBe(true);
     expect(state.cycle.mainTree).toBe('beech');
     expect(state.cycle.elapsed).toBe(0);
-    // Buche: Wurzelraum schon im Samen-Zyklus vorbereitet (ab Keimling 2 Plätze).
-    expect(evaluate({ ...state, stage: 1 }).slots.roots).toBe(2);
+    // Buche: +1 Platz Wurzelraum ab Alter Baum.
+    expect(evaluate({ ...state, stage: 4 }).slots.roots).toBe(4);
     Object.assign(state, { stage: 5, waypoint: 20 });
     expect(startNewCycle(state, 100).ok).toBe(true);
     expect(state.cycle.mainTree).toBe('beech');
@@ -520,6 +524,7 @@ describe('Spielstand v6 (Migration v5 → v6)', () => {
     s.meta.journal.plants = ['beech'];
     const raw = JSON.parse(serialize(s));
     raw.version = 5;
+    raw.totalGrowth = v6Threshold(s.waypoint); // Kurve bis v6 (3,5 · k^3,4)
     delete raw.cycle.elapsed;
     delete raw.cycle.mainTree;
     patch(raw);
@@ -528,8 +533,9 @@ describe('Spielstand v6 (Migration v5 → v6)', () => {
 
   it('v5 → v6: Frühlingsbeginn und Stieleiche, sonst unverändert', () => {
     const s = loadGame(v5(), 0)!.state;
-    expect(SAVE_VERSION).toBe(6);
-    expect(s.version).toBe(6);
+    expect(SAVE_VERSION).toBe(7);
+    expect(s.version).toBe(SAVE_VERSION);
+    expect(s.waypoint).toBe(12);
     expect(s.cycle.elapsed).toBe(0);
     expect(s.cycle.mainTree).toBe('oak');
     expect(s.niches.crown).toEqual(['bluetit']);
@@ -607,13 +613,13 @@ describe('Spielstand v6 (Migration v5 → v6)', () => {
     expect(evaluate(loaded).slots.roots).toBe(1);
   });
 
-  it('Laden kürzt Nischen mit den Plätzen der Baumart (Buche: 2 im Wurzelraum ab Keimling)', () => {
-    const s = stateAt(1, [], 5);
-    s.niches.roots = ['earthworm', 'vole'];
+  it('Laden kürzt Nischen mit den Plätzen der Baumart (Buche: 4 im Wurzelraum ab Alter Baum)', () => {
+    const s = stateAt(4, [], 5);
+    s.niches.roots = ['earthworm', 'vole', 'mole', 'chanterelle'];
     s.meta.journal.plants = ['beech'];
     s.cycle.mainTree = 'beech';
-    expect(loadGame(serialize(s), 0)!.state.niches.roots).toEqual(['earthworm', 'vole']);
+    expect(loadGame(serialize(s), 0)!.state.niches.roots).toEqual(['earthworm', 'vole', 'mole', 'chanterelle']);
     s.cycle.mainTree = 'oak';
-    expect(loadGame(serialize(s), 0)!.state.niches.roots).toEqual(['earthworm']);
+    expect(loadGame(serialize(s), 0)!.state.niches.roots).toEqual(['earthworm', 'vole', 'mole']);
   });
 });

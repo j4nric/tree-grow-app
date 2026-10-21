@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { SPECIES_BY_ID } from '../src/content/species';
 import {
+  SAVE_VERSION,
   dialog,
   expect,
   niche,
@@ -167,7 +168,7 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
   expect(plantsChosen.length, JSON.stringify(decisions)).toBeGreaterThanOrEqual(2);
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(6);
+  expect(saved.version).toBe(SAVE_VERSION);
   expect(saved.waypoint).toBeGreaterThanOrEqual(12);
   // Jeder Wegpunkt bringt höchstens eine Begegnung: entschieden oder noch wartend (die von
   // „Alter Baum“ bleibt offen). Ohne passende Art entfällt sie (z. B. Wegpunkt 2 im

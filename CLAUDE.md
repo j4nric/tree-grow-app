@@ -11,6 +11,7 @@ npm install        # Abhängigkeiten
 npm run dev        # Dev-Server (http://localhost:5173)
 npm run check      # Typecheck + Tests – vor jedem Commit ausführen
 npm run build      # Produktions-Build nach dist/
+npm run balance    # großer Balancing-Lauf: 500 Durchgänge, alle Tabellen (~5 min)
 ```
 
 ## Architektur

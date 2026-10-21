@@ -4,6 +4,7 @@ import { SPECIES_BY_ID } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { CONFIRM_MIN_MS } from '../src/ui/confirm';
 import {
+  SAVE_VERSION,
   dialog,
   expect,
   niche,
@@ -18,7 +19,7 @@ import {
 /**
  * Voller Zyklus mit festem Seed (Roadmap 2.9).
  *
- * Neues Spiel (v6, fester Zufalls-Seed, Waldgedächtnis knapp unter einem Stammgast-Platz), Testuhr angehalten: Zeit vergeht nur über
+ * Neues Spiel (aktuelle Version, fester Zufalls-Seed, Waldgedächtnis knapp unter einem Stammgast-Platz), Testuhr angehalten: Zeit vergeht nur über
  * `page.clock` (Sprünge < 60 s, damit keine Willkommens-Meldung kommt). Strategie, bewusst
  * einfach und deterministisch: bei jeder Begegnung die erste wählbare Karte (mit der
  * vorausgewählten Ersetzung), sonst ablehnen; eine Pflanze setzen, sobald die Samen reichen
@@ -119,7 +120,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   await openGame(page);
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
   const fresh = await savedState(page);
-  expect(fresh.version).toBe(6);
+  expect(fresh.version).toBe(SAVE_VERSION);
   expect(fresh.cycle.number).toBe(1);
 
   const blocker = cyclePanel(page).locator('[data-ref="cycle-blocker"]');
@@ -172,7 +173,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
 
   await expect(stageLabel(page)).toHaveText(`Stufe: ${HAIN}`);
   const atGrove = await savedState(page);
-  expect(atGrove.version).toBe(6);
+  expect(atGrove.version).toBe(SAVE_VERSION);
   expect(atGrove.cycle.number).toBe(1);
   expect(atGrove.waypoint).toBeGreaterThanOrEqual(STAGES[NEW_CYCLE_MIN_STAGE]!.waypoint);
   expect(encounters, 'unterwegs gab es Begegnungen').toBeGreaterThanOrEqual(10);
@@ -200,7 +201,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
   await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${START_MEMORY + gain} ·`);
   const cycle2 = await savedState(page);
-  expect(cycle2.version).toBe(6);
+  expect(cycle2.version).toBe(SAVE_VERSION);
   expect(cycle2.cycle.number).toBe(2);
   expect(cycle2.stage).toBe(0);
   expect(cycle2.waypoint).toBe(0);
@@ -259,7 +260,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   await page.reload();
   await expect(stageLabel(page)).toHaveText(stageText ?? '');
   const after = await savedState(page);
-  expect(after.version).toBe(6);
+  expect(after.version).toBe(SAVE_VERSION);
   expect(after.cycle.number).toBe(2);
   for (const key of ['waypoint', 'stage', 'plants', 'niches', 'pendingEncounters', 'rngState', 'meta']) {
     expect(after[key], key).toEqual(before[key]);

@@ -8,7 +8,8 @@ Ein grafisches Incremental Game im Browser: Du beginnst als kleiner Samen und w�
 ```bash
 npm install
 npm run dev     # http://localhost:5173
-npm run check   # Typecheck + Tests
+npm run check   # Typecheck + Tests (schnell, vor jedem Commit)
+npm run balance # großer Balancing-Lauf: 500 Durchgänge, alle Tabellen (DESIGN_V2.md 15.4)
 ```
 
 ## Projekt

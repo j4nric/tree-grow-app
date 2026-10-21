@@ -63,9 +63,9 @@ export const CARE: readonly CareMeasure[] = [
     text: 'Im Herbst bleibt das Laub, wo es fällt.',
     boughtText: 'Laub bleibt liegen',
     ranks: [
-      { cost: 600, minStage: 3, effects: [slot('litter')], summary: '+1 Platz Laubstreu' },
+      { cost: 750, minStage: 3, effects: [slot('litter')], summary: '+1 Platz Laubstreu' },
       {
-        cost: 4_000, minStage: 5, summary: '+2 💧, +3 ⚖️',
+        cost: 7_000, minStage: 5, summary: '+2 💧, +3 ⚖️',
         effects: [{ kind: 'cycle', effect: { kind: 'water', amount: 2 } }, { kind: 'cycle', effect: { kind: 'harmony', points: 3 } }],
       },
     ],
@@ -75,8 +75,8 @@ export const CARE: readonly CareMeasure[] = [
     text: 'Ein Holzkasten mit kleinem Flugloch. Gemütlich – und leicht zu finden.',
     boughtText: 'Nistkästen angebracht',
     ranks: [
-      { cost: 900, minStage: 3, effects: [{ kind: 'habitat', tag: 'hoehle' }, slot('hollows')], summary: 'Baumhöhle, +1 Platz Höhlen' },
-      { cost: 6_000, minStage: 5, effects: [slot('crown')], summary: '+1 Platz Krone' },
+      { cost: 1_100, minStage: 3, effects: [{ kind: 'habitat', tag: 'hoehle' }, slot('hollows')], summary: 'Baumhöhle, +1 Platz Höhlen' },
+      { cost: 11_000, minStage: 5, effects: [slot('crown')], summary: '+1 Platz Krone' },
     ],
   },
   {
@@ -85,12 +85,12 @@ export const CARE: readonly CareMeasure[] = [
     boughtText: 'Wildblumen gesät',
     ranks: [
       {
-        cost: 700, minStage: 3, summary: 'Blumen +40 % 🌰',
+        cost: 900, minStage: 3, summary: 'Blumen +40 % 🌰',
         effects: [{ kind: 'cycle', effect: { kind: 'groupSeeds', group: 'flowers', pct: 40 } }],
       },
-      { cost: 6_000, minStage: 4, effects: [slot('edge')], summary: '+1 Platz Waldsaum' },
+      { cost: 8_000, minStage: 4, effects: [slot('edge')], summary: '+1 Platz Waldsaum' },
       {
-        cost: 20_000, minStage: 6, summary: 'Blumen +40 % 🌿 und 🌰',
+        cost: 30_000, minStage: 6, summary: 'Blumen +40 % 🌿 und 🌰',
         effects: [
           { kind: 'cycle', effect: { kind: 'groupGrowth', group: 'flowers', pct: 40 } },
           { kind: 'cycle', effect: { kind: 'groupSeeds', group: 'flowers', pct: 40 } },
@@ -104,9 +104,9 @@ export const CARE: readonly CareMeasure[] = [
     text: 'Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.',
     boughtText: 'Totholz aufgeschichtet',
     ranks: [
-      { cost: 2_500, minStage: 4, effects: [{ kind: 'habitat', tag: 'totholz' }], summary: 'Totholz' },
+      { cost: 3_500, minStage: 4, effects: [{ kind: 'habitat', tag: 'totholz' }], summary: 'Totholz' },
       {
-        cost: 8_000, minStage: 5, summary: '+1 Platz Stamm & Rinde, +2 ⚖️',
+        cost: 14_000, minStage: 5, summary: '+1 Platz Stamm & Rinde, +2 ⚖️',
         effects: [slot('bark'), { kind: 'cycle', effect: { kind: 'harmony', points: 2 } }],
       },
     ],
@@ -117,9 +117,9 @@ export const CARE: readonly CareMeasure[] = [
     boughtText: 'Krone gelichtet',
     excludes: ['dense-crown'],
     ranks: [
-      { cost: 3_000, minStage: 4, effects: [{ kind: 'cycle', effect: { kind: 'light', amount: 3 } }], summary: '+3 ☀️' },
-      { cost: 10_000, minStage: 5, effects: [{ kind: 'cycle', effect: { kind: 'light', amount: 2 } }], summary: '+2 ☀️' },
-      { cost: 30_000, minStage: 6, effects: [{ kind: 'cycle', effect: { kind: 'light', amount: 2 } }], summary: '+2 ☀️' },
+      { cost: 4_000, minStage: 4, effects: [{ kind: 'cycle', effect: { kind: 'light', amount: 3 } }], summary: '+3 ☀️' },
+      { cost: 15_000, minStage: 5, effects: [{ kind: 'cycle', effect: { kind: 'light', amount: 2 } }], summary: '+2 ☀️' },
+      { cost: 45_000, minStage: 6, effects: [{ kind: 'cycle', effect: { kind: 'light', amount: 2 } }], summary: '+2 ☀️' },
     ],
   },
   {
@@ -129,15 +129,15 @@ export const CARE: readonly CareMeasure[] = [
     excludes: ['light-crown'],
     ranks: [
       {
-        cost: 3_000, minStage: 4, summary: '+1 Platz Krone, −2 ☀️',
+        cost: 4_000, minStage: 4, summary: '+1 Platz Krone, −2 ☀️',
         effects: [slot('crown'), { kind: 'cycle', effect: { kind: 'light', amount: -2 } }],
       },
       {
-        cost: 10_000, minStage: 5, summary: 'Bäume +10 % 🌿',
+        cost: 15_000, minStage: 5, summary: 'Bäume +10 % 🌿',
         effects: [{ kind: 'cycle', effect: { kind: 'groupGrowth', group: 'trees', pct: 10 } }],
       },
       {
-        cost: 30_000, minStage: 6, summary: 'Bäume +10 % 🌿',
+        cost: 45_000, minStage: 6, summary: 'Bäume +10 % 🌿',
         effects: [{ kind: 'cycle', effect: { kind: 'groupGrowth', group: 'trees', pct: 10 } }],
       },
     ],
@@ -148,11 +148,11 @@ export const CARE: readonly CareMeasure[] = [
     boughtText: 'Tümpel angelegt',
     ranks: [
       {
-        cost: 4_000, minStage: 4, summary: 'Feuchte, +3 💧',
+        cost: 5_500, minStage: 4, summary: 'Feuchte, +3 💧',
         effects: [{ kind: 'habitat', tag: 'feucht' }, { kind: 'cycle', effect: { kind: 'water', amount: 3 } }],
       },
       {
-        cost: 12_000, minStage: 5, summary: '+3 💧, +2 ⚖️',
+        cost: 22_000, minStage: 5, summary: '+3 💧, +2 ⚖️',
         effects: [{ kind: 'cycle', effect: { kind: 'water', amount: 3 } }, { kind: 'cycle', effect: { kind: 'harmony', points: 2 } }],
       },
     ],
@@ -163,15 +163,15 @@ export const CARE: readonly CareMeasure[] = [
     boughtText: 'Insektenhotel aufgestellt',
     requires: [{ kind: 'genus', genus: 'insects', min: 1 }],
     ranks: [
-      { cost: 2_000, minStage: 4, effects: [{ kind: 'cycle', effect: { kind: 'harmony', points: 3 } }], summary: '+3 ⚖️' },
+      { cost: 2_700, minStage: 4, effects: [{ kind: 'cycle', effect: { kind: 'harmony', points: 3 } }], summary: '+3 ⚖️' },
       {
-        cost: 7_000, minStage: 5, summary: 'Blumen und Sträucher +25 % 🌰',
+        cost: 12_500, minStage: 5, summary: 'Blumen und Sträucher +25 % 🌰',
         effects: [
           { kind: 'cycle', effect: { kind: 'groupSeeds', group: 'flowers', pct: 25 } },
           { kind: 'cycle', effect: { kind: 'groupSeeds', group: 'shrubs', pct: 25 } },
         ],
       },
-      { cost: 25_000, minStage: 6, effects: [{ kind: 'cycle', effect: { kind: 'harmony', points: 4 } }], summary: '+4 ⚖️' },
+      { cost: 38_000, minStage: 6, effects: [{ kind: 'cycle', effect: { kind: 'harmony', points: 4 } }], summary: '+4 ⚖️' },
     ],
   },
 ];

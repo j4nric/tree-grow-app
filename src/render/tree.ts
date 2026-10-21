@@ -79,7 +79,7 @@ export interface SceneInput {
    */
   harmonyTier?: number;
   /**
-   * Durchreisende Gäste (scripts/v2/content.ts `VISITORS`, z. B. 'cranes', 'bramblings',
+   * Durchreisende Gäste (src/content/visitors.ts, z. B. 'cranes', 'bramblings',
    * 'hummingbird-moth'); `slot` verteilt mehrere Gäste. Unbekannte IDs erscheinen als
    * kleiner Vogelschwarm. Ohne Angabe: keine Gäste.
    */

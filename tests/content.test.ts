@@ -16,13 +16,13 @@ import {
 } from '../src/content/encounters';
 import { COMMUNITIES } from '../src/content/communities';
 import { NICHES, NICHES_BY_ID } from '../src/content/niches';
-import { PLANTS, PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, PLANT_GROUP_INFO } from '../src/content/plants';
+import { PLANTS, PLANTS_BY_ID, PLANT_GROUP_INFO } from '../src/content/plants';
 import { ABILITY_INFO } from '../src/content/abilities';
 import { BASE_HAPPINESS, GENUS_INFO, RARITY_NAMES, SPECIES, SPECIES_BY_ID, TAG_NAMES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../src/content/traits';
 import { ENCOUNTER_TYPES, GENERA, NICHE_IDS, PLANT_GROUPS } from '../src/content/types';
-import { plantCost, slotEffects } from '../src/core/formulas';
+import { slotEffects } from '../src/core/formulas';
 import { WAYPOINT_BASE, WAYPOINT_COUNT, WAYPOINT_POWER, WAYPOINT_THRESHOLDS, waypointThreshold } from '../src/content/waypoints';
 import { EVENTS, EVENTS_BY_ID, SEED_SECONDS_MIN_SEEDS, type EventEffect } from '../src/content/events';
 import { VISITORS, VISITORS_BY_ID } from '../src/content/visitors';
@@ -40,7 +40,6 @@ import {
 } from '../src/content/seasons';
 import { DEFAULT_MAIN_TREE, MAIN_TREES, MAIN_TREES_BY_ID, MAIN_TREE_IDS, type TreeEffect } from '../src/content/trees';
 import { TREE_SPECIES } from '../src/render/plant';
-import * as reference from '../scripts/v2/content';
 
 const unique = (ids: string[]) => new Set(ids).size === ids.length;
 
@@ -72,8 +71,6 @@ describe('Inhalte v2', () => {
       expect(GENUS_INFO[g].icon.length).toBeGreaterThan(0);
     }
     expect([0, 1, 2, 3].map((r) => SPECIES.filter((s) => s.rarity === r).length)).toEqual([14, 8, 5, 5]);
-    // Dieselben IDs wie das Referenzmodell – die Grafik-Ebene erwartet sie.
-    expect(SPECIES.map((s) => s.id).sort()).toEqual(reference.SPECIES.map((s) => s.id).sort());
   });
 
   it('besondere und legendäre Arten haben Erscheinungsbedingung und Fähigkeit, die übrigen nicht', () => {
@@ -126,60 +123,45 @@ describe('Inhalte v2', () => {
     }
   });
 
-  it('übernimmt die Zahlen aus scripts/v2/content.ts', () => {
+  it('Kurztexte nennen die 🌿- und 🌰-Wirkungen der Arten (Balancing 2.10)', () => {
+    // Früher prüfte dieser Test die Zahlen gegen den Prototyp scripts/v2/content.ts (entfernt
+    // in Schritt 2.10). Jetzt: Wer eine Zahl ändert, muss auch den Kurztext ändern.
+    const pct = (n: number) => `+${n} % `;
     for (const s of SPECIES) {
-      const ref = reference.SPECIES.find((r) => r.id === s.id)!;
-      expect(ref, s.id).toBeDefined();
-      expect(s).toMatchObject({
-        name: ref.name,
-        genus: ref.genus,
-        rarity: ref.rarity,
-        level: ref.level,
-        niche: ref.niche,
-        unlock: ref.unlock,
-        food: ref.food,
-        needs: ref.needs,
-        provides: ref.provides,
-        text: ref.text,
-      });
-      expect(s.effects).toEqual(ref.effects);
-      expect(s.appears, s.id).toEqual(ref.appears);
+      for (const e of s.effects) {
+        if (e.kind === 'growth') expect(s.summary, s.id).toContain(`${pct(e.pct)}🌿`);
+        if (e.kind === 'seeds') expect(s.summary, s.id).toContain(`${pct(e.pct)}🌰`);
+        if (e.kind === 'groupGrowth') expect(s.summary, s.id).toContain(`${pct(e.pct)}🌿`);
+        if (e.kind === 'groupSeeds') expect(s.summary, s.id).toContain(`${pct(e.pct)}🌰`);
+      }
     }
-    expect(PLANTS.map((p) => p.id)).toEqual(reference.PLANTS.map((p) => p.id));
-    for (const p of PLANTS) {
-      const ref = reference.PLANTS.find((r) => r.id === p.id)!;
-      expect({ ...p, provides: [...p.provides] }, p.id).toEqual({ ...ref, provides: [...ref.provides] });
+  });
+
+  it('🌿-Wirkungen der Arten bleiben mild (Balancing 2.10: höchstens +15 %, Summe ≤ 2,5)', () => {
+    // Mit ×0,75 gegenüber dem Prototyp ist der Wachstums-Spieler höchstens ~15 % schneller
+    // als der Harmonie-Spieler (DESIGN_V2.md 15.4, Stand Schritt 2.10).
+    let sum = 0;
+    for (const s of SPECIES) {
+      for (const e of s.effects) {
+        if (e.kind !== 'growth' && e.kind !== 'groupGrowth') continue;
+        expect(e.pct, s.id).toBeGreaterThan(0);
+        expect(e.pct, s.id).toBeLessThanOrEqual(15);
+        sum += e.pct / 100;
+      }
     }
-    for (const g of PLANT_GROUPS) expect(PLANT_GROUP_INFO[g].name).toBe(reference.GROUP_NAMES[g]);
-    expect(STAGES.map((s) => s.plantSlots)).toEqual([...reference.PLANT_SLOTS]);
-    expect(PLANT_COST_BASE).toBe(reference.PLANT_COST_BASE);
-    expect(PLANT_COST_GROWTH).toBe(reference.PLANT_COST_GROWTH);
-    for (let n = 0; n < 12; n++) expect(plantCost(n)).toBeCloseTo(reference.plantCost(n), 9);
-    // Begegnungsgewichte: bis Setzling wie das Referenzmodell. Ab Junger Baum bewusst
-    // weniger Ereignisse/Gäste am Wegpunkt, dafür der Zwischenhalt (Schritt 2.4, 7.2).
-    expect(ENCOUNTER_WEIGHTS.slice(0, 3)).toEqual(reference.ENCOUNTER_WEIGHTS.slice(0, 3));
-    expect(SCRIPTED_ENCOUNTERS).toEqual(reference.SCRIPTED_ENCOUNTERS);
-    STAGES.forEach((stage, i) => {
-      expect(stage.name).toBe(reference.STAGE_NAMES[i]);
-      expect(stage.waypoint).toBe(reference.STAGE_WAYPOINTS[i]);
-      expect(stage.treeGrowth).toBe(reference.TREE_GROWTH[i]);
-      expect(stage.treeSeeds).toBe(reference.TREE_SEEDS[i]);
-      expect(stage.light).toBe(reference.LIGHT_BUDGET[i]);
-      expect(stage.water).toBe(reference.WATER_BUDGET[i]);
-    });
-    expect([...NICHE_IDS]).toEqual([...reference.NICHES]);
-    for (const n of NICHES) expect(n.slots).toEqual(reference.NICHE_SLOTS[n.id]);
-    for (const g of GENERA) expect(TRAITS[g].map((t) => t.effects)).toEqual(reference.TRAITS[g]);
-    for (const g of GENERA) expect(TRAITS[g].map((t) => t.text)).toEqual(reference.TRAIT_TEXT[g]);
-    for (const g of GENERA) expect(GENUS_INFO[g].name).toBe(reference.GENUS_NAMES[g]);
-    expect(TRAIT_THRESHOLDS).toEqual(reference.TRAIT_THRESHOLDS);
-    expect(RARITY_WEIGHTS).toEqual(reference.RARITY_WEIGHTS);
-    expect(WAYPOINT_COUNT).toBe(reference.WAYPOINT_COUNT);
-    // Exponent wie im Design. Bewusste Abweichung: Wegpunkte 12,5 % früher (Basis 3,5
-    // statt 4, DESIGN_V2.md 15.4) – nie später.
-    expect(WAYPOINT_POWER).toBe(reference.WAYPOINT_POWER);
-    expect(WAYPOINT_BASE).toBeLessThanOrEqual(reference.WAYPOINT_BASE);
-    for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(waypointThreshold(k)).toBeLessThanOrEqual(reference.waypointThreshold(k));
+    expect(sum).toBeLessThanOrEqual(2.5);
+  });
+
+  it('🌿-Gattungsboni bleiben mild und stehen im Text (Balancing 2.10: höchstens +18 %)', () => {
+    for (const g of GENERA) {
+      for (const tier of TRAITS[g]) {
+        for (const e of tier.effects) {
+          if (e.kind !== 'growth' && e.kind !== 'groupGrowth') continue;
+          expect(e.pct, g).toBeLessThanOrEqual(18);
+          expect(tier.text, g).toContain(`+${e.pct} % Wachstum`);
+        }
+      }
+    }
   });
 
   it('Höhlen & Totholz: öffnet mit dem Alten Baum, früher nur durch Platz-Wirkungen', () => {
@@ -267,10 +249,13 @@ describe('Inhalte v2', () => {
     expect(WAYPOINT_THRESHOLDS).toHaveLength(WAYPOINT_COUNT + 1);
     expect(WAYPOINT_THRESHOLDS[0]).toBe(0);
     for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(WAYPOINT_THRESHOLDS[k]).toBeGreaterThan(WAYPOINT_THRESHOLDS[k - 1]!);
+    // 3,5 · k^3,5 seit Schritt 2.10 (vorher 3,5 · k^3,4; DESIGN_V2.md 3).
+    expect(WAYPOINT_BASE).toBe(3.5);
+    expect(WAYPOINT_POWER).toBe(3.5);
     expect(waypointThreshold(0)).toBe(0);
     expect(waypointThreshold(1)).toBe(4);
-    expect(waypointThreshold(3)).toBe(147);
-    expect(waypointThreshold(20)).toBe(92805);
+    expect(waypointThreshold(3)).toBe(164);
+    expect(waypointThreshold(20)).toBe(125_220);
     expect(RARITY_WEIGHTS).toHaveLength(STAGES.length);
   });
 
@@ -737,9 +722,9 @@ describe('Hauptbaum-Arten: Inhalte (DESIGN_V2.md 17)', () => {
   it('die Eiche ist immer wählbar und entspricht dem heutigen Hauptbaum', () => {
     const oak = MAIN_TREES_BY_ID.get('oak')!;
     expect(oak.unlockPlant).toBeNull();
-    // Wie der Hauptbaum vor v6 (Referenzmodell scripts/v2).
-    expect(oak.tags).toEqual(reference.MAIN_TREE_TAGS);
-    expect(oak.nutsFromStage).toBe(reference.MAIN_TREE_NUTS_STAGE);
+    // Wie der Hauptbaum vor v6: Laub, Wurzeln, Eicheln ab Alter Baum.
+    expect(oak.tags).toEqual(['laub', 'wurzeln']);
+    expect(oak.nutsFromStage).toBe(4);
     expect(oak.winterHardy).toBe(false);
   });
 

@@ -1,9 +1,10 @@
 import type { Condition, Effect, Genus, Level, NicheId, Rarity, Tag } from './types';
 
 /**
- * Alle 32 Tierarten (und Pilze) in 5 Gattungen (docs/DESIGN_V2.md, 5.3). Zahlen und IDs
- * aus scripts/v2/content.ts – die Grafik-Ebene erwartet genau diese IDs. Borkenkäfer
- * (Totholz) und Buntspecht (gezimmerte Höhle) bringen je +1 Platz in „Höhlen & Totholz“,
+ * Alle 32 Tierarten (und Pilze) in 5 Gattungen (docs/DESIGN_V2.md, 5.3). Die Grafik-Ebene
+ * erwartet genau diese IDs. 🌿-Wirkungen seit dem Balancing 2.10 ×0,75 gegenüber dem
+ * Prototyp (DESIGN_V2.md 15.4). Borkenkäfer (Totholz) und Buntspecht (gezimmerte Höhle)
+ * bringen je +1 Platz in „Höhlen & Totholz“,
  * der Schwarzspecht als Baumeister (abilities.ts) je +1 in Krone und Höhlen.
  */
 export interface Species {
@@ -75,16 +76,16 @@ export const SPECIES: readonly Species[] = [
     id: 'woodpecker', name: 'Buntspecht', genus: 'birds', rarity: 1, level: 'predator', niche: 'bark', unlock: 4,
     food: ['kaefer', 'insekten', 'nuesse'], needs: [{ kind: 'tag', tag: 'totholz' }],
     provides: ['hoehle'],
-    effects: [{ kind: 'control', tag: 'kaefer', pct: 60 }, { kind: 'slot', niche: 'hollows', amount: 1 }, { kind: 'growth', pct: 4 }],
-    summary: 'jagt Käfer (−60 % Fraß), +1 Platz Höhlen, +4 % 🌿',
+    effects: [{ kind: 'control', tag: 'kaefer', pct: 60 }, { kind: 'slot', niche: 'hollows', amount: 1 }, { kind: 'growth', pct: 3 }],
+    summary: 'jagt Käfer (−60 % Fraß), +1 Platz Höhlen, +3 % 🌿',
     text: 'Klopft, horcht, hackt. Seine alten Höhlen sind begehrter Wohnraum.',
   },
   {
     id: 'jay', name: 'Eichelhäher', genus: 'birds', rarity: 1, level: 'herbivore', niche: 'crown', unlock: 4,
     food: ['nuesse'], needs: [],
     provides: [],
-    effects: [{ kind: 'growth', pct: 12 }, { kind: 'seeds', pct: 10 }, { kind: 'disturb', target: 'bluetit' }],
-    summary: '+12 % 🌿, +10 % 🌰, stört die Blaumeise',
+    effects: [{ kind: 'growth', pct: 9 }, { kind: 'seeds', pct: 10 }, { kind: 'disturb', target: 'bluetit' }],
+    summary: '+9 % 🌿, +10 % 🌰, stört die Blaumeise',
     text: 'Der Förster des Waldes: vergräbt Tausende Eicheln und findet nicht alle wieder.',
   },
   {
@@ -92,8 +93,8 @@ export const SPECIES: readonly Species[] = [
     food: ['kleinsaeuger'], needs: [{ kind: 'group', group: 'trees', min: 2 }],
     appears: [{ kind: 'tag', tag: 'kleinsaeuger' }],
     provides: [],
-    effects: [{ kind: 'control', tag: 'kleinsaeuger', pct: 70 }, { kind: 'growth', pct: 8 }, { kind: 'ability', id: 'nightWatch' }],
-    summary: 'jagt Kleinsäuger (−70 % Fraß), +8 % 🌿, Nachtwache',
+    effects: [{ kind: 'control', tag: 'kleinsaeuger', pct: 70 }, { kind: 'growth', pct: 6 }, { kind: 'ability', id: 'nightWatch' }],
+    summary: 'jagt Kleinsäuger (−70 % Fraß), +6 % 🌿, Nachtwache',
     text: 'Huhu-huuu. Nachts jagt er lautlos über den Waldboden.',
   },
   {
@@ -101,8 +102,8 @@ export const SPECIES: readonly Species[] = [
     food: ['insekten', 'kaefer'], needs: [{ kind: 'species', id: 'woodant' }, { kind: 'tag', tag: 'totholz' }, { kind: 'group', group: 'trees', min: 3 }],
     appears: [{ kind: 'species', id: 'woodpecker' }],
     provides: ['hoehle'],
-    effects: [{ kind: 'growth', pct: 10 }, { kind: 'control', tag: 'kaefer', pct: 40 }, { kind: 'ability', id: 'architect' }],
-    summary: '+10 % 🌿, jagt Käfer (−40 % Fraß), Baumeister',
+    effects: [{ kind: 'growth', pct: 8 }, { kind: 'control', tag: 'kaefer', pct: 40 }, { kind: 'ability', id: 'architect' }],
+    summary: '+8 % 🌿, jagt Käfer (−40 % Fraß), Baumeister',
     text: 'Der Baumeister des Waldes. In seine Höhlen ziehen später Kauz, Fledermaus und Hohltaube.',
   },
 
@@ -111,8 +112,8 @@ export const SPECIES: readonly Species[] = [
     id: 'oakmoth', name: 'Eichenwickler', genus: 'insects', rarity: 0, level: 'herbivore', niche: 'crown', unlock: 3,
     food: ['laub'], needs: [],
     provides: ['insekten', 'raupen'],
-    effects: [{ kind: 'damage', pct: 10 }, { kind: 'growth', pct: 3 }],
-    summary: 'Fraß −10 % 🌿, +3 % 🌿 (Raupenkot)',
+    effects: [{ kind: 'damage', pct: 10 }, { kind: 'growth', pct: 2 }],
+    summary: 'Fraß −10 % 🌿, +2 % 🌿 (Raupenkot)',
     text: 'Eine grüne Raupe, die sich in Blätter einrollt – Meisenfutter erster Güte.',
   },
   {
@@ -143,8 +144,8 @@ export const SPECIES: readonly Species[] = [
     id: 'woodant', name: 'Rote Waldameise', genus: 'insects', rarity: 1, level: 'predator', niche: 'litter', unlock: 4,
     food: ['insekten'], needs: [{ kind: 'tag', tag: 'nadeln' }, { kind: 'sunny' }],
     provides: ['insekten'],
-    effects: [{ kind: 'control', tag: 'raupen', pct: 40 }, { kind: 'groupSeeds', group: 'flowers', pct: 30 }, { kind: 'growth', pct: 4 }],
-    summary: 'jagt Raupen (−40 % Fraß), Blumen +30 % 🌰, +4 % 🌿',
+    effects: [{ kind: 'control', tag: 'raupen', pct: 40 }, { kind: 'groupSeeds', group: 'flowers', pct: 30 }, { kind: 'growth', pct: 3 }],
+    summary: 'jagt Raupen (−40 % Fraß), Blumen +30 % 🌰, +3 % 🌿',
     text: 'Ein Hügel aus Nadeln, eine Million Schwestern – und sie tragen Samen davon.',
   },
   {
@@ -161,8 +162,8 @@ export const SPECIES: readonly Species[] = [
     food: ['totholz'], needs: [{ kind: 'shady' }, { kind: 'genus', genus: 'fungi', min: 1 }, { kind: 'sunny' }],
     appears: [{ kind: 'tag', tag: 'totholz' }],
     provides: ['insekten', 'kaefer'],
-    effects: [{ kind: 'growth', pct: 10 }, { kind: 'harmony', points: 5 }, { kind: 'ability', id: 'decomposerBoost' }],
-    summary: '+10 % 🌿, +5 ⚖️, König des Totholzes',
+    effects: [{ kind: 'growth', pct: 8 }, { kind: 'harmony', points: 5 }, { kind: 'ability', id: 'decomposerBoost' }],
+    summary: '+8 % 🌿, +5 ⚖️, König des Totholzes',
     text: 'Seine Larven leben fünf Jahre im morschen Holz. Geduld ist alles.',
   },
 
@@ -179,8 +180,8 @@ export const SPECIES: readonly Species[] = [
     id: 'squirrel', name: 'Eichhörnchen', genus: 'mammals', rarity: 0, level: 'herbivore', niche: 'crown', unlock: 3,
     food: ['nuesse'], needs: [{ kind: 'group', group: 'trees', min: 2 }],
     provides: [],
-    effects: [{ kind: 'seeds', pct: 12 }, { kind: 'growth', pct: 6 }, { kind: 'disturb', target: 'bluetit' }],
-    summary: '+12 % 🌰, +6 % 🌿, stört die Blaumeise',
+    effects: [{ kind: 'seeds', pct: 12 }, { kind: 'growth', pct: 5 }, { kind: 'disturb', target: 'bluetit' }],
+    summary: '+12 % 🌰, +5 % 🌿, stört die Blaumeise',
     text: 'Versteckt Hunderte Nüsse – und vergisst zum Glück viele davon.',
   },
   {
@@ -195,16 +196,16 @@ export const SPECIES: readonly Species[] = [
     id: 'mole', name: 'Maulwurf', genus: 'mammals', rarity: 1, level: 'predator', niche: 'roots', unlock: 2,
     food: ['wuermer', 'insekten'], needs: [],
     provides: [],
-    effects: [{ kind: 'water', amount: 2 }, { kind: 'growth', pct: 5 }, { kind: 'disturb', target: 'earthworm' }],
-    summary: '+2 💧, +5 % 🌿, stört den Regenwurm',
+    effects: [{ kind: 'water', amount: 2 }, { kind: 'growth', pct: 4 }, { kind: 'disturb', target: 'earthworm' }],
+    summary: '+2 💧, +4 % 🌿, stört den Regenwurm',
     text: 'Gräbt unermüdlich – zum Leidwesen der Regenwürmer.',
   },
   {
     id: 'hedgehog', name: 'Igel', genus: 'mammals', rarity: 1, level: 'predator', niche: 'litter', unlock: 3,
     food: ['schnecken', 'insekten', 'wuermer'], needs: [{ kind: 'group', group: 'shrubs', min: 1 }],
     provides: [],
-    effects: [{ kind: 'control', tag: 'schnecken', pct: 70 }, { kind: 'growth', pct: 4 }],
-    summary: 'jagt Schnecken (−70 % Fraß), +4 % 🌿',
+    effects: [{ kind: 'control', tag: 'schnecken', pct: 70 }, { kind: 'growth', pct: 3 }],
+    summary: 'jagt Schnecken (−70 % Fraß), +3 % 🌿',
     text: 'Schmatzt sich nachts durchs Laub. Schnecken sind sein Leibgericht.',
   },
   {
@@ -229,8 +230,8 @@ export const SPECIES: readonly Species[] = [
     food: ['rehe'], needs: [{ kind: 'group', group: 'trees', min: 3 }],
     appears: [{ kind: 'species', id: 'deer' }],
     provides: [],
-    effects: [{ kind: 'growth', pct: 15 }, { kind: 'ability', id: 'fear' }],
-    summary: '+15 % 🌿, Landschaft der Angst',
+    effects: [{ kind: 'growth', pct: 11 }, { kind: 'ability', id: 'fear' }],
+    summary: '+11 % 🌿, Landschaft der Angst',
     text: 'Er ist zurück. Wo er durchzieht, wächst der Wald wieder dichter.',
   },
 
@@ -239,16 +240,16 @@ export const SPECIES: readonly Species[] = [
     id: 'earthworm', name: 'Regenwurm', genus: 'soil', rarity: 0, level: 'decomposer', niche: 'roots', unlock: 1,
     food: ['laub'], needs: [{ kind: 'tag', tag: 'feucht' }],
     provides: ['wuermer'],
-    effects: [{ kind: 'water', amount: 2 }, { kind: 'growth', pct: 8 }],
-    summary: '+8 % 🌿, +2 💧',
+    effects: [{ kind: 'water', amount: 2 }, { kind: 'growth', pct: 6 }],
+    summary: '+6 % 🌿, +2 💧',
     text: 'Frisst sich durch die Erde und hinterlässt Gänge, durch die der Regen sickert.',
   },
   {
     id: 'woodlouse', name: 'Rollassel', genus: 'soil', rarity: 0, level: 'decomposer', niche: 'litter', unlock: 2,
     food: ['laub'], needs: [{ kind: 'tag', tag: 'totholz' }],
     provides: ['insekten'],
-    effects: [{ kind: 'growth', pct: 8 }],
-    summary: '+8 % 🌿',
+    effects: [{ kind: 'growth', pct: 6 }],
+    summary: '+6 % 🌿',
     text: 'Rollt sich bei Gefahr zur Kugel und macht aus Laub fruchtbare Erde.',
   },
   {
@@ -263,8 +264,8 @@ export const SPECIES: readonly Species[] = [
     id: 'centipede', name: 'Steinläufer', genus: 'soil', rarity: 1, level: 'predator', niche: 'litter', unlock: 3,
     food: ['insekten', 'wuermer'], needs: [{ kind: 'tag', tag: 'totholz' }],
     provides: [],
-    effects: [{ kind: 'control', tag: 'insekten', pct: 30 }, { kind: 'growth', pct: 6 }],
-    summary: 'jagt Insekten (−30 % Fraß), +6 % 🌿',
+    effects: [{ kind: 'control', tag: 'insekten', pct: 30 }, { kind: 'growth', pct: 5 }],
+    summary: 'jagt Insekten (−30 % Fraß), +5 % 🌿',
     text: 'Fünfzehn Beinpaare, flink und nachts auf der Jagd unter der Rinde.',
   },
   {
@@ -272,8 +273,8 @@ export const SPECIES: readonly Species[] = [
     food: ['laub', 'kraut'], needs: [{ kind: 'group', group: 'flowers', min: 2 }, { kind: 'tag', tag: 'feucht' }],
     appears: [{ kind: 'tag', tag: 'feucht' }],
     provides: ['schnecken'],
-    effects: [{ kind: 'growth', pct: 12 }, { kind: 'water', amount: 2 }, { kind: 'ability', id: 'calm' }],
-    summary: '+12 % 🌿, +2 💧, Gelassen',
+    effects: [{ kind: 'growth', pct: 9 }, { kind: 'water', amount: 2 }, { kind: 'ability', id: 'calm' }],
+    summary: '+9 % 🌿, +2 💧, Gelassen',
     text: 'Trägt ihr Haus seit Jahren mit sich herum. Eile kennt sie nicht.',
   },
   {
@@ -281,8 +282,8 @@ export const SPECIES: readonly Species[] = [
     food: ['schnecken', 'wuermer', 'insekten'], needs: [{ kind: 'group', group: 'mosses', min: 2 }, { kind: 'tag', tag: 'totholz' }, { kind: 'shady' }],
     appears: [{ kind: 'group', group: 'mosses', min: 2 }, { kind: 'tag', tag: 'totholz' }],
     provides: [],
-    effects: [{ kind: 'growth', pct: 15 }, { kind: 'control', tag: 'schnecken', pct: 50 }, { kind: 'ability', id: 'mossNoWater' }],
-    summary: '+15 % 🌿, jagt Schnecken (−50 % Fraß), Hüter der Feuchte',
+    effects: [{ kind: 'growth', pct: 11 }, { kind: 'control', tag: 'schnecken', pct: 50 }, { kind: 'ability', id: 'mossNoWater' }],
+    summary: '+11 % 🌿, jagt Schnecken (−50 % Fraß), Hüter der Feuchte',
     text: 'Schwarz-gelb und uralt. Wo er lebt, ist der Wald noch feucht und heil.',
   },
 
@@ -291,24 +292,24 @@ export const SPECIES: readonly Species[] = [
     id: 'chanterelle', name: 'Pfifferling', genus: 'fungi', rarity: 0, level: 'decomposer', niche: 'roots', unlock: 1,
     food: ['wurzeln'], needs: [{ kind: 'tag', tag: 'feucht' }, { kind: 'shady' }],
     provides: [],
-    effects: [{ kind: 'groupGrowth', group: 'trees', pct: 10 }],
-    summary: 'Bäume +10 % 🌿',
+    effects: [{ kind: 'groupGrowth', group: 'trees', pct: 8 }],
+    summary: 'Bäume +8 % 🌿',
     text: 'Goldgelb im Moos – und unterirdisch mit den Baumwurzeln verbunden.',
   },
   {
     id: 'tinder', name: 'Zunderschwamm', genus: 'fungi', rarity: 0, level: 'decomposer', niche: 'bark', unlock: 3,
     food: ['laub'], needs: [{ kind: 'group', group: 'trees', min: 2 }],
     provides: ['totholz'],
-    effects: [{ kind: 'growth', pct: 5 }, { kind: 'damage', pct: 3 }],
-    summary: '+5 % 🌿, Fraß −3 % 🌿, schafft Totholz',
+    effects: [{ kind: 'growth', pct: 4 }, { kind: 'damage', pct: 3 }],
+    summary: '+4 % 🌿, Fraß −3 % 🌿, schafft Totholz',
     text: 'Ein Hufeisen aus Holz am Stamm. Er macht aus altem Holz neues Leben.',
   },
   {
     id: 'porcini', name: 'Steinpilz', genus: 'fungi', rarity: 1, level: 'decomposer', niche: 'roots', unlock: 3,
     food: ['wurzeln'], needs: [{ kind: 'group', group: 'trees', min: 2 }, { kind: 'genus', genus: 'soil', min: 1 }],
     provides: [],
-    effects: [{ kind: 'groupGrowth', group: 'trees', pct: 20 }, { kind: 'water', amount: 3 }],
-    summary: 'Bäume +20 % 🌿, +3 💧',
+    effects: [{ kind: 'groupGrowth', group: 'trees', pct: 15 }, { kind: 'water', amount: 3 }],
+    summary: 'Bäume +15 % 🌿, +3 💧',
     text: 'Feine Pilzfäden umspinnen die Wurzeln und tauschen Wasser gegen Zucker.',
   },
   {
@@ -316,8 +317,8 @@ export const SPECIES: readonly Species[] = [
     food: ['wurzeln'], needs: [{ kind: 'species', id: 'birch' }, { kind: 'tag', tag: 'feucht' }],
     appears: [{ kind: 'species', id: 'birch' }],
     provides: [],
-    effects: [{ kind: 'groupGrowth', group: 'trees', pct: 15 }, { kind: 'seeds', pct: 10 }, { kind: 'ability', id: 'rarityBoost' }],
-    summary: 'Bäume +15 % 🌿, +10 % 🌰, Glückspilz',
+    effects: [{ kind: 'groupGrowth', group: 'trees', pct: 11 }, { kind: 'seeds', pct: 10 }, { kind: 'ability', id: 'rarityBoost' }],
+    summary: 'Bäume +11 % 🌿, +10 % 🌰, Glückspilz',
     text: 'Rot mit weißen Tupfen, der treue Begleiter der Birke. Bringt Glück.',
   },
   {
@@ -325,8 +326,8 @@ export const SPECIES: readonly Species[] = [
     food: ['wurzeln', 'totholz'], needs: [{ kind: 'group', group: 'trees', min: 3 }, { kind: 'tag', tag: 'totholz' }, { kind: 'genus', genus: 'fungi', min: 2 }],
     appears: [{ kind: 'genus', genus: 'fungi', min: 2 }, { kind: 'tag', tag: 'totholz' }],
     provides: [],
-    effects: [{ kind: 'growth', pct: 20 }, { kind: 'ability', id: 'minSupply' }],
-    summary: '+20 % 🌿, Waldweites Netz',
+    effects: [{ kind: 'growth', pct: 15 }, { kind: 'ability', id: 'minSupply' }],
+    summary: '+15 % 🌿, Waldweites Netz',
     text: 'Das größte Lebewesen der Erde ist ein Pilz. Sein Netz verbindet den ganzen Wald.',
   },
 ];

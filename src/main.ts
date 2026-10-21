@@ -146,6 +146,8 @@ let resetArmedAt = 0;
 /** Bereich „Spielstand exportieren oder importieren“ (ab start()). */
 let saveTransfer: SaveTransfer | undefined;
 /** Hinweis vor dem Import eines v1-Codes. */
+/** Einmal nach dem Laden eines v2–v6-Stands mit Waldgedächtnis (Balancing 2.10, LoadResult.memoryReweighted). */
+const MEMORY_REWEIGHTED_TEXT = 'Das Waldgedächtnis wurde neu gewichtet: +1 % je Punkt.';
 const V1_IMPORT_NOTE = 'Achtung: Das ist ein Spielstand der ersten Version – dein Wald beginnt damit neu.';
 
 /** Der Spieler hat den Stapel geöffnet; bleibt offen, bis „Später“ oder keine Begegnung mehr wartet. */
@@ -607,6 +609,7 @@ function setupSaveTransfer(): void {
       if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
       replaceState(result.result.state);
       if (result.result.migratedFromV1) showToast(v1NoticeText(result.result.keepsake));
+      else if (result.result.memoryReweighted) showToast(MEMORY_REWEIGHTED_TEXT);
       return null;
     },
   });
@@ -697,13 +700,16 @@ function resizeCanvas(): void {
  * Rechnet die Zeit seit dem letzten Tick nach – beim Start, wenn ein Tab aus dem
  * Hintergrund zurückkehrt (dort pausiert requestAnimationFrame) und nach Ruhezustand.
  */
-function catchUp(): void {
+function catchUp(extraNotice = ''): void {
   const away = (Date.now() - state.lastTick) / 1000;
   if (away > MAX_FRAME_SECONDS) {
     const report = simulateOffline(state, away);
     const notice = catchUpNotice(away, report, state.pendingEncounters.length);
-    if (notice?.kind === 'welcome') notify(withRegulars(notice.text, report.regulars));
-    else {
+    if (notice?.kind === 'welcome') {
+      // Ein Toast für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt.
+      notify([withRegulars(notice.text, report.regulars), extraNotice].filter(Boolean).join(' '));
+      extraNotice = '';
+    } else {
       // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.
       const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');
       if (text) noteText(text);
@@ -720,6 +726,7 @@ function catchUp(): void {
       pickerDirty = true;
     }
   }
+  if (extraNotice) showToast(extraNotice);
   state.lastTick = Date.now();
   lastFrame = performance.now();
 }
@@ -732,7 +739,11 @@ function start(): void {
     saveToStorage(state);
     showToast(v1NoticeText(loaded.keepsake));
   }
-  catchUp();
+  if (loaded?.memoryReweighted) {
+    // v2–v6-Stand mit Waldgedächtnis: sofort als v7 speichern, damit der Hinweis nur einmal kommt.
+    saveToStorage(state);
+  }
+  catchUp(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '');
 
   resetButton.addEventListener('click', onReset);
   setupSaveTransfer();

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { INTERLUDE_POSITION, MAX_PENDING_ENCOUNTERS } from '../src/content/encounters';
+import { INTERLUDE_CHANCE, INTERLUDE_POSITION, MAX_PENDING_ENCOUNTERS } from '../src/content/encounters';
 import { EVENTS, EVENTS_BY_ID, SEED_SECONDS_MIN_SEEDS } from '../src/content/events';
 import { VISITORS_BY_ID } from '../src/content/visitors';
 import { EVENT_SEASONS, SEASON_SECONDS } from '../src/content/seasons';
+import { STAGES } from '../src/content/stages';
 import { cardStatus, ecosystemOf, evaluate, evaluateEcosystem, seedSeconds, thresholdFor } from '../src/core/formulas';
-import { deserialize, loadGame, serialize } from '../src/core/save';
-import { createCycle, type PendingEncounter } from '../src/core/state';
+import { deserialize, loadGame, serialize, v6Threshold } from '../src/core/save';
+import { SAVE_VERSION, createCycle, type PendingEncounter } from '../src/core/state';
 import {
   chooseCard,
   chooseEventOption,
@@ -284,9 +285,9 @@ describe('Zwischenhalt (ab Hain)', () => {
       for (const e of state.pendingEncounters) expect(['event', 'visitor']).toContain(e.type);
       hits += report.interludes;
     }
-    // INTERLUDE_CHANCE 0,5 – grob die Hälfte.
-    expect(hits).toBeGreaterThan(15);
-    expect(hits).toBeLessThan(45);
+    // Grob INTERLUDE_CHANCE der 60 Abschnitte (0,7 seit Schritt 2.10).
+    expect(hits).toBeGreaterThan(60 * INTERLUDE_CHANCE - 15);
+    expect(hits).toBeLessThan(60 * INTERLUDE_CHANCE + 15);
   });
 
   it('bei voller Warteschlange kommt am Zwischenhalt nichts', () => {
@@ -359,14 +360,16 @@ describe('Speichern und Laden (v5)', () => {
     const v4 = (growthShare: number) => {
       const s = stateAt(5, ['earthworm'], 1);
       const k = s.waypoint;
-      s.totalGrowth = thresholdFor(k) + growthShare * (thresholdFor(k + 1) - thresholdFor(k));
+      // v4-Stände liegen auf der Kurve 3,5 · k^3,4 (Umrechnung beim Laden, v6GrowthToV7).
+      s.totalGrowth = v6Threshold(k) + growthShare * (v6Threshold(k + 1) - v6Threshold(k));
       const raw = JSON.parse(serialize(s));
       raw.version = 4;
       for (const f of ['seen', 'bonuses', 'habitats', 'timed', 'visitors', 'forced', 'interlude', 'elapsed', 'mainTree']) delete raw.cycle[f];
       return JSON.stringify(raw);
     };
     const early = loadGame(v4(0.2), 0)!.state;
-    expect(early.version).toBe(6);
+    expect(early.version).toBe(SAVE_VERSION);
+    expect(early.waypoint).toBe(STAGES[5]!.waypoint);
     expect(early.cycle).toMatchObject({ seen: [], bonuses: [], habitats: [], timed: [], visitors: [], forced: null, interlude: 0 });
     const late = loadGame(v4(0.8), 0)!.state;
     expect(late.cycle.interlude).toBe(late.waypoint);

@@ -84,8 +84,12 @@ export const INTERLUDE_STAGE = 5;
  */
 export const INTERLUDE_POSITION = 0.5;
 
-/** Wahrscheinlichkeit, dass am Zwischenhalt etwas kommt (Zufall des Spielstands). */
-export const INTERLUDE_CHANCE = 0.5;
+/**
+ * Wahrscheinlichkeit, dass am Zwischenhalt etwas kommt (Zufall des Spielstands). Seit dem
+ * Balancing 2.10 0,7 statt 0,5: Mit der gestreckten Wegpunkt-Kurve wurde die längste
+ * Strecke ohne lohnende Wahl im Hain (90 %) 11:15 min lang, mit 0,7 sind es 9:16 min.
+ */
+export const INTERLUDE_CHANCE = 0.7;
 
 /**
  * Gewichte [Ereignis, Durchreisende] am Zwischenhalt. Kommt für einen Typ nichts in Frage

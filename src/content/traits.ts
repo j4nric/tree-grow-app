@@ -3,10 +3,19 @@ import type { Effect, Genus } from './types';
 /**
  * Gattungsboni (à la Teamfight Tactics): Leben mindestens 2 / 3 / 5 Arten einer
  * Gattung im Ökosystem, gilt der jeweilige Bonus zusätzlich (Stufen addieren sich).
- * Wirkungen werden NICHT mit Zufriedenheit skaliert. Zahlen aus scripts/v2/content.ts.
+ * Wirkungen werden NICHT mit Zufriedenheit skaliert. Zahlen ursprünglich aus dem
+ * Prototyp (scripts/v2, entfernt in Schritt 2.10).
  * Jede Gattung hat 6–8 Arten (DESIGN_V2.md 5.1); wer eine Gattung stapelt, erreicht die 5.
  */
 export const TRAIT_THRESHOLDS: readonly number[] = [2, 3, 5];
+
+/*
+ * Balancing 2.10: Alle 🌿-Wirkungen der Gattungsboni sind ×0,6 (gerundet) gegenüber dem
+ * Prototyp. Der Wachstums-Spieler erreichte die mittlere Stufe (3 Bodenleben bzw.
+ * Säugetiere) viel öfter als der Harmonie-Spieler, der für die Vielfalt streut; mit
+ * Arten-🌿 ×0,75 ist er damit höchstens ~15 % schneller (DESIGN_V2.md 15.4).
+ * Samen, Licht, Wasser und Schutz bleiben unverändert.
+ */
 
 export interface TraitTier {
   effects: readonly Effect[];
@@ -17,7 +26,7 @@ export const TRAITS: Readonly<Record<Genus, readonly TraitTier[]>> = {
   birds: [
     { effects: [{ kind: 'control', tag: 'insekten', pct: 25 }], text: 'Insektenschaden −25 %' },
     { effects: [{ kind: 'seeds', pct: 15 }], text: '+15 % Samen' },
-    { effects: [{ kind: 'growth', pct: 20 }, { kind: 'seeds', pct: 20 }], text: '+20 % Wachstum, +20 % Samen' },
+    { effects: [{ kind: 'growth', pct: 12 }, { kind: 'seeds', pct: 20 }], text: '+12 % Wachstum, +20 % Samen' },
   ],
   insects: [
     { effects: [{ kind: 'groupSeeds', group: 'flowers', pct: 30 }], text: 'Blumen +30 % Samen' },
@@ -32,16 +41,16 @@ export const TRAITS: Readonly<Record<Genus, readonly TraitTier[]>> = {
   ],
   mammals: [
     { effects: [{ kind: 'seeds', pct: 10 }], text: '+10 % Samen' },
-    { effects: [{ kind: 'growth', pct: 12 }], text: '+12 % Wachstum' },
-    { effects: [{ kind: 'growth', pct: 25 }], text: '+25 % Wachstum' },
+    { effects: [{ kind: 'growth', pct: 7 }], text: '+7 % Wachstum' },
+    { effects: [{ kind: 'growth', pct: 15 }], text: '+15 % Wachstum' },
   ],
   soil: [
     { effects: [{ kind: 'water', amount: 2 }], text: '+2 Wasser' },
-    { effects: [{ kind: 'growth', pct: 12 }], text: '+12 % Wachstum' },
-    { effects: [{ kind: 'growth', pct: 25 }, { kind: 'water', amount: 3 }], text: '+25 % Wachstum, +3 Wasser' },
+    { effects: [{ kind: 'growth', pct: 7 }], text: '+7 % Wachstum' },
+    { effects: [{ kind: 'growth', pct: 15 }, { kind: 'water', amount: 3 }], text: '+15 % Wachstum, +3 Wasser' },
   ],
   fungi: [
-    { effects: [{ kind: 'groupGrowth', group: 'trees', pct: 10 }], text: 'Bäume +10 % Wachstum' },
+    { effects: [{ kind: 'groupGrowth', group: 'trees', pct: 6 }], text: 'Bäume +6 % Wachstum' },
     {
       effects: [
         { kind: 'water', amount: 3 },
@@ -49,6 +58,6 @@ export const TRAITS: Readonly<Record<Genus, readonly TraitTier[]>> = {
       ],
       text: '+3 Wasser, +2 Licht',
     },
-    { effects: [{ kind: 'growth', pct: 30 }], text: '+30 % Wachstum' },
+    { effects: [{ kind: 'growth', pct: 18 }], text: '+18 % Wachstum' },
   ],
 };

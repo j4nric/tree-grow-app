@@ -1,4 +1,4 @@
-import { expect, openGame, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, openGame, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Neuer Zyklus und Stammgäste (Schritt 2.8). Startet mit einem v3-Stand – das Laden
@@ -30,7 +30,7 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
   await expect(panel.locator('[data-ref="cycle-title"]')).toBeFocused();
   // Sofort gespeichert: Stufe 0, Waldgedächtnis gestiegen, Tagebuch bleibt.
   const after = await savedState(page);
-  expect(after.version).toBe(6);
+  expect(after.version).toBe(SAVE_VERSION);
   expect(after.stage).toBe(0);
   expect(after.waypoint).toBe(0);
   expect(after.cycle.number).toBe(2);

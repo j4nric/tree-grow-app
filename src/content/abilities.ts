@@ -4,7 +4,8 @@ import type { AbilityId, Genus, Level, NicheId, PlantGroup } from './types';
  * Fähigkeiten besonderer und legendärer Arten (DESIGN_V2.md 5.3). Reine Daten: Name,
  * Text und die Zahlen, mit denen core/formulas.ts rechnet. Eine Fähigkeit wirkt, solange
  * die Art im Ökosystem lebt – sie wird NICHT mit der Zufriedenheit skaliert und wirkt
- * nicht doppelt, wenn zwei Arten dieselbe Fähigkeit hätten. Zahlen aus scripts/v2/model.ts.
+ * nicht doppelt, wenn zwei Arten dieselbe Fähigkeit hätten.
+ * Zahlen ursprünglich aus dem Prototyp (scripts/v2, entfernt in Schritt 2.10).
  */
 export interface AbilityInfo {
   name: string;

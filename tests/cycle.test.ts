@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { SPECIES } from '../src/content/species';
+import { SEASON_SECONDS } from '../src/content/seasons';
 import { STAGES } from '../src/content/stages';
-import { cycleMemoryGain, evaluate, regularSlots, thresholdFor } from '../src/core/formulas';
-import { MAX_CYCLE_NUMBER, deserialize, loadGame, serialize } from '../src/core/save';
-import { MAX_FOREST_MEMORY, allAnimals, createCycle, createInitialState, type GameState } from '../src/core/state';
+import { cycleMemoryGain, evaluate, regularSlots } from '../src/core/formulas';
+import { MAX_CYCLE_NUMBER, deserialize, loadGame, serialize, v6Threshold } from '../src/core/save';
+import { seasonIdAt } from '../src/core/season';
+import { MAX_FOREST_MEMORY, SAVE_VERSION, allAnimals, createCycle, createInitialState, type GameState } from '../src/core/state';
 import {
   chooseCard,
   drawAnimals,
@@ -35,10 +37,10 @@ function groveState(seed = 5): GameState {
 }
 
 describe('Waldgedächtnis-Formel (DESIGN_V2.md 10)', () => {
-  it('floor(H_max/10) + 2 · neue Arten – Beispiel aus dem Design: 96, 12 Arten → 33', () => {
-    expect(cycleMemoryGain(96, 12, 0)).toBe(33);
-    expect(cycleMemoryGain(9.99, 0, 0)).toBe(0);
-    expect(cycleMemoryGain(10, 0, 0)).toBe(1);
+  it('floor(H_max/5) + neue Arten – Beispiel aus dem Design: 105, 11 Arten → 32 (seit Schritt 2.10)', () => {
+    expect(cycleMemoryGain(105, 11, 0)).toBe(32);
+    expect(cycleMemoryGain(4.99, 0, 0)).toBe(0);
+    expect(cycleMemoryGain(5, 0, 0)).toBe(1);
     expect(cycleMemoryGain(0, 0, 0)).toBe(0);
   });
 
@@ -52,7 +54,7 @@ describe('Waldgedächtnis-Formel (DESIGN_V2.md 10)', () => {
   it('negative Harmonie, NaN und negative Anzahlen ergeben 0 statt Abzug', () => {
     expect(cycleMemoryGain(-50, 0, 0)).toBe(0);
     expect(cycleMemoryGain(NaN, NaN, NaN)).toBe(0);
-    expect(cycleMemoryGain(30, -4, 0)).toBe(3);
+    expect(cycleMemoryGain(30, -4, 0)).toBe(6);
   });
 
   it('Stammgast-Plätze: einer je 25 Punkte', () => {
@@ -143,7 +145,7 @@ describe('Neuer Zyklus', () => {
     const journal = structuredClone(state.meta.journal);
     expect(journal.plants).toEqual(['hazel', 'moss']);
     const { rngState, lastTick } = state;
-    const gain = Math.floor(state.cycle.maxHarmony / 10) + 2 * 4;
+    const gain = Math.floor(state.cycle.maxHarmony / 5) + 4;
     const preview = previewNewCycle(state);
     expect(preview).toMatchObject({ blocker: null, memoryGain: gain, memoryBefore: 30, memoryAfter: 30 + gain, newSpecies: 4 });
     const result = startNewCycle(state, 1);
@@ -172,10 +174,10 @@ describe('Neuer Zyklus', () => {
   it('Vorschau nennt neue Stammgast-Plätze', () => {
     const state = groveState();
     state.meta.forestMemory = 20;
-    state.cycle.maxHarmony = 96;
-    state.cycle.newSpecies = Array.from({ length: 12 }, (_, i) => SPECIES[i]!.id);
+    state.cycle.maxHarmony = 105;
+    state.cycle.newSpecies = Array.from({ length: 11 }, (_, i) => SPECIES[i]!.id);
     const preview = previewNewCycle(state);
-    expect(preview.memoryGain).toBe(33);
+    expect(preview.memoryGain).toBe(32);
     expect(preview.regularSlotsBefore).toBe(0);
     expect(preview.regularSlotsAfter).toBe(2);
   });
@@ -273,9 +275,40 @@ describe('Stammgäste', () => {
     expect(offline.waypoint).toBe(online.waypoint);
     expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
     expect(offline.rngState).toBe(online.rngState);
-    expect(offline.cycle).toEqual(online.cycle);
+    // Spielzeit wie Wachstum nur bis auf Rundung gleich (Schritte enden an anderen Halten).
+    expect({ ...offline.cycle, elapsed: 0 }).toEqual({ ...online.cycle, elapsed: 0 });
+    expect(offline.cycle.elapsed).toBeCloseTo(online.cycle.elapsed, 6);
     expect(offline.meta).toEqual(online.meta);
     expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
+    expect(offline.seeds).toBeCloseTo(online.seeds, 6);
+  });
+
+  it('online und offline gleich genau an einer Jahreszeitengrenze (Frühling → Sommer)', () => {
+    const online = groveState(4321);
+    startNewCycle(online, 0);
+    expect(online.cycle.elapsed).toBe(0);
+    const offline = structuredClone(online);
+    // Bis genau auf die Grenze: online in Sekunden-Schritten, offline in einem Stück.
+    const seen: string[] = [];
+    for (let i = 0; i < SEASON_SECONDS; i++) seen.push(...tick(online, 1).seasons);
+    const report = simulateOffline(offline, SEASON_SECONDS);
+    expect(online.cycle.elapsed).toBe(SEASON_SECONDS);
+    expect(offline.cycle.elapsed).toBe(SEASON_SECONDS);
+    expect(seen).toEqual(['summer']);
+    expect(report.seasons).toEqual(seen);
+    expect(seasonIdAt(offline.cycle.elapsed)).toBe('summer');
+    expect(evaluate(offline)).toEqual(evaluate(online));
+    expect(offline.waypoint).toBe(online.waypoint);
+    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
+    expect(offline.rngState).toBe(online.rngState);
+    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
+    expect(offline.seeds).toBeCloseTo(online.seeds, 6);
+    // Von der Grenze aus geht es gleich weiter (kein doppelter Wechsel, keine verlorene Zeit).
+    const a = tick(online, 0.5);
+    const b = simulateOffline(offline, 0.5);
+    expect(a.seasons).toEqual([]);
+    expect(b.seasons).toEqual([]);
+    expect(offline.cycle.elapsed).toBe(online.cycle.elapsed);
     expect(offline.seeds).toBeCloseTo(online.seeds, 6);
   });
 });
@@ -318,7 +351,8 @@ describe('Migration v3 → v4', () => {
   function rawV3(): string {
     return JSON.stringify({
       version: 3,
-      totalGrowth: thresholdFor(12) + 5,
+      // v3-Stände liegen auf der Kurve 3,5 · k^3,4 (Umrechnung beim Laden, v6GrowthToV7).
+      totalGrowth: v6Threshold(12) + 5,
       seeds: 77,
       waypoint: 12,
       stage: 4,
@@ -338,7 +372,7 @@ describe('Migration v3 → v4', () => {
     const result = loadGame(rawV3(), 9000)!;
     expect(result.migratedFromV1).toBe(false);
     const s = result.state;
-    expect(s.version).toBe(6);
+    expect(s.version).toBe(SAVE_VERSION);
     expect(s.seeds).toBe(77);
     expect(s.waypoint).toBe(12);
     expect(s.stage).toBe(4);

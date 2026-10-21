@@ -5,24 +5,29 @@
 > Schritt 2.1 um: Wachstum, Samen und Harmonie; Begegnungen an Wegpunkten mit
 > Kartenwahl („Tier zieht ein“ und „Etwas keimt“); 3 Gattungen × 3 Tiere; 14
 > Begleitpflanzen mit Licht-/Wasser-Versorgung, Pflanzring und „Pflanze setzen“
-> (20 · 1,9^n 🌰); Wegpunkte bei 3,5 · k^3,4; Neuer Zyklus ab „Hain“ mit Naturtagebuch,
+> (20 · 1,9^n 🌰); Wegpunkte bei 3,5 · k^3,5 (seit dem Balancing 2.10, vorher 3,5 · k^3,4);
+> Neuer Zyklus ab „Hain“ mit Naturtagebuch,
 > Waldgedächtnis und Stammgästen (Schritt 2.8, siehe `DESIGN_V2.md` Abschnitt 10);
 > Ereignisse mit Wahl und Durchreisende mit Zeit- und Zyklus-Boni, ab dem Hain mit
 > Zwischenhalt (Schritt 2.4, `DESIGN_V2.md` 7.4–7.8); Pflegemaßnahmen als Samen-Senke
 > (8 Maßnahmen mit 1–3 Rängen, wirken bis zum Neuen Zyklus; Schritt 2.7, `DESIGN_V2.md` 8);
 > Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
-> Spielstand v6 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
+> Spielstand v7 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
 > verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege;
-> v5-Stände beginnen beim Laden im Frühling und wachsen als Stieleiche weiter). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
+> v5-Stände beginnen beim Laden im Frühling und wachsen als Stieleiche weiter; v3- bis
+> v6-Stände werden auf die neue Wegpunkt-Kurve umgerechnet – gleicher Wegpunkt, gleicher
+> Anteil bis zum nächsten; ihr Waldgedächtnis bleibt in Punkten gleich, wirkt aber mit +1 %
+> je Punkt). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
 > Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰, Neu würfeln
 > kostet 10 🌰 (verdoppelt sich je Wurf).
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
-> `scripts/simulate.ts`, `tests/balance.test.ts`, `tests/balance-care.test.ts` und
-> `tests/seasons-balance.test.ts`.
+> `scripts/simulate.ts`, `tests/balance.test.ts`, `tests/balance-care.test.ts`,
+> `tests/balance-cycles.test.ts` und `tests/seasons-balance.test.ts` (Einstellungen in
+> `tests/balance-setup.ts`). Großer Lauf mit allen Tabellen: `npm run balance`.
 
 ## Jahreszeiten (v2, umgesetzt)
 
@@ -30,7 +35,7 @@ Details, Begründung und Umsetzungsnotiz: [`DESIGN_V2.md`](DESIGN_V2.md), Abschn
 
 - **Ein Jahr = 12 Minuten Spielzeit** (4 × 3 min, `SEASON_SECONDS = 180`). Es zählt die
   Spielzeit des Zyklus (`cycle.elapsed`), nicht die Uhrzeit; offline läuft das Jahr mit.
-  Jeder Zyklus beginnt im Frühling. Bis zum Hain vergehen knapp 4 Jahre.
+  Jeder Zyklus beginnt im Frühling. Bis zum Hain vergehen gut 5 Jahre (seit 2.10).
 - Wirkungen wechseln an der Grenze, die Grafik blendet stufenlos über
   (`SceneInput.season = (elapsed / 180 − 0,5) mod 4`).
 - **Sanft, kein Warten:** Jede Jahreszeit bringt etwas; der einzige Abzug ist −10 % 🌿 im
@@ -49,12 +54,15 @@ die Ameisenstraße ruht nur im Winter.
 Im Spiel: Abzeichen „🍂 Herbst · noch 1:20 min“ in der Kopfzeile (Wirkungen als
 Tooltip), kurzer Hinweis beim Wechsel, Abschnitt „Jahreszeiten“ in der Spielanleitung.
 
-**Simulation** (echte Logik, 200 Durchgänge, Harmonie-Spieler, Stieleiche; ohne Pflege):
+**Simulation** (echte Logik, Harmonie-Spieler, Stieleiche):
 
 | | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain |
 |---|---|---|---|---|---|---|
-| ohne Jahreszeiten (Stand 2.4, 100 Durchgänge) | – | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 |
-| mit Jahreszeiten | 3:26 min | 16:55 min | 45:46 min | 1:18 h | 1:53 h | 101,1 |
+| ohne Jahreszeiten (Stand 2.4, ohne Pflege, 100 Durchgänge) | – | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 |
+| mit Jahreszeiten (ohne Pflege, 200 Durchgänge) | 3:26 min | 16:55 min | 45:46 min | 1:18 h | 1:53 h | 101,1 |
+| **Balancing 2.10** (alle Systeme, 500 Durchgänge) | 4:11 min | 23:02 min | 1:03:45 h | 1:54:40 h | 2:47:31 h | 106,4 |
+
+Der Frühling bringt den Setzling nach 46 s statt 50 s (Ziel ~45 s).
 
 ## Hauptbaum-Arten (v2, umgesetzt)
 
@@ -69,13 +77,57 @@ steht im Bereich „Neuer Zyklus“ (Radiogruppe, gesperrte Arten mit Hinweis).
 | Art | Frucht | Gewinn | Verzicht |
 |---|---|---|---|
 | 🌳 Stieleiche | Eichel (Nüsse ab Alter Baum) | +1 Platz Krone (ab Junger Baum); Insekten +10 % 😊 | – |
-| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Keimling); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum |
-| 🌲 Waldkiefer | Kiefernsamen | +2 ☀️, +1 💧; winterfest (kein Winter-Abzug); Merkmal Nadeln | keine Nüsse |
+| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum |
+| 🌲 Waldkiefer | Kiefernsamen | +1 ☀️, +1 💧; winterfest (kein Winter-Abzug); Merkmal Nadeln | keine Nüsse |
 
-**Simulation** (echte Logik, 200 Durchgänge, mit Jahreszeiten, erster Zyklus ohne
-Waldgedächtnis, Harmonie-Spieler): Hain mit Eiche 45:46 min (⚖️ 101,1), Buche 44:12 min
-(103,7), Kiefer 43:41 min (100,0). Die Kiefer liegt 4,6 % vor der Eiche (Wachstums-Spieler
-4,9 %) – unter der Schwelle von 5 %, ihr Licht bleibt bei +2 (`DESIGN_V2.md` 15.4).
+**Simulation** (Balancing 2.10: echte Logik, alle Systeme, 300 Durchgänge, erster Zyklus
+ohne Waldgedächtnis): Hain des Harmonie-Spielers mit Eiche 1:03:14 h (⚖️ 106,7), Buche
+−0,8 % (108,5), Kiefer −2,5 % (105,6); Wachstums-Spieler Eiche 54:54 min, Buche +1,4 %,
+Kiefer −4,4 %. Alle Arten innerhalb ±5 % der Eiche. Dafür bekommt die Buche ihren
+Wurzelraum-Platz erst ab Alter Baum und die Kiefer +1 ☀️ statt +2 (`DESIGN_V2.md` 15.4).
+
+## Balancing 2.10 (v2, umgesetzt)
+
+Details, Vorher/Nachher-Tabellen und Begründungen: [`DESIGN_V2.md`](DESIGN_V2.md),
+Abschnitt 15.4 („Stand Schritt 2.10“) und 14 (Entscheidung 10). Gemessen mit allen
+Systemen (Pflege, Ereignisse, Gäste, Jahreszeiten), 500 Durchgänge, `npm run balance`.
+
+| Zahl | vorher | jetzt |
+|---|---|---|
+| Wegpunkt k | 3,5 · k^3,4 | **3,5 · k^3,5** (Spielstand v7, alte Stände werden umgerechnet) |
+| 🌿-Wirkungen der Arten | Prototyp | **×0,75** |
+| 🌿-Gattungsboni | Vögel 20, Säuger/Boden 12 / 25, Pilze Bäume 10 / 30 % | **12, 7 / 15, 6 / 18 %** |
+| Waldgedächtnis | +2 % je Punkt; H_max / 10 + 2 je neue Art | **+1 % je Punkt; H_max / 5 + 1 je neue Art** |
+| Pflege-Kosten | 600 – 30.000 🌰 | **750 – 45.000 🌰** |
+| Zwischenhalt ab Hain | 50 % | **70 %** |
+| Rotbuche: +1 Wurzelraum | ab Keimling | **ab Alter Baum** |
+| Waldkiefer | +2 ☀️ | **+1 ☀️** |
+
+| Ziel | vorher | jetzt |
+|---|---|---|
+| Setzling ~45 s | 41 s | 46 s |
+| Junger Baum ~4 min | 3:26 min | 4:11 min |
+| Alter Baum ~20 min | 17:02 min | 23:02 min |
+| Hain 55–65 min | 43:41 min | 1:03:45 h |
+| Wald ~1:40 h / Urwald ~2:20 h | 1:13:55 h / 1:42:45 h | 1:54:40 h / 2:47:31 h |
+| Wachstums-Spieler höchstens ~15 % schneller | 17,4 % | 14,8 % (5,7 Punkte weniger ⚖️) |
+| Buche / Kiefer ±5 % der Eiche (Harmonie / Wachstum) | −4,7 / −3,8 %; −2,8 / −4,1 % | −0,8 / +1,4 %; −2,5 / −4,4 % |
+| 🌰-Bestand beim Hain < 10 min Produktion | 4,9 min | 8,4 min |
+| Zyklus 2 20–35 % schneller bis Hain | 44,3 % | 28,8 % |
+| erster Stammgast nach 1–2 Zyklen | nach 1 | nach 1 (33 Punkte) |
+
+**Bewusste Entscheidung Waldgedächtnis:** Gespeicherte Punkte werden beim Laden alter
+Stände (v2–v6) **nicht** umgerechnet – 40 Punkte bleiben 40 Punkte und bringen jetzt +40 %
+statt +80 %. Eine Verdopplung wäre falsch: Ein Zyklus bringt mit der neuen Formel ungefähr
+gleich viele Punkte wie mit der alten, und die Stammgast-Plätze (je 25 Punkte) würden sich
+verdoppeln. Wer Waldgedächtnis oder ein Andenken hat, sieht beim ersten Laden einmal den
+Hinweis „Das Waldgedächtnis wurde neu gewichtet: +1 % je Punkt.“ (`DESIGN_V2.md` 14).
+
+**Tests:** Die Balancing-Tests prüfen im normalen Check (wenige Durchgänge, feste Seeds)
+weitere Grenzen (Hain 52–68 min, Wachstums-Spieler ≥ 0,80 × Harmonie, Baumarten ±8 %),
+die Ziele oben nur im großen Lauf (`npm run balance`). Formeln und Zahlen hält
+`tests/golden.test.ts` fest (gezielte Regeln und eine Golden-Tabelle
+`tests/__snapshots__/golden.json`); gewollte Zahlenänderungen dort mit `-u` übernehmen.
 
 ## Vision
 

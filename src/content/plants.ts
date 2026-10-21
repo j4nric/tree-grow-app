@@ -1,9 +1,9 @@
 import type { PlantGroup, Tag } from './types';
 
 /**
- * Begleitpflanzen um den Hauptbaum (docs/DESIGN_V2.md, Abschnitt 4). Zahlen aus
- * scripts/v2/content.ts. Pflanzen kommen über die Begegnung „Etwas keimt“ (gratis) oder
- * werden mit Samen gesetzt; dieselbe Pflanze darf mehrfach wachsen. Sie sterben nicht –
+ * Begleitpflanzen um den Hauptbaum (docs/DESIGN_V2.md, Abschnitt 4). Zahlen ursprünglich
+ * aus dem Prototyp (scripts/v2, entfernt in Schritt 2.10). Pflanzen kommen über die
+ * Begegnung „Etwas keimt“ (gratis) oder werden mit Samen gesetzt; dieselbe Pflanze darf mehrfach wachsen. Sie sterben nicht –
  * ist der Pflanzring voll (`Stage.plantSlots`), heißt es ersetzen oder warten.
  */
 export interface Plant {

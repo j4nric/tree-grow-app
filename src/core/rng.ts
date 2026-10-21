@@ -1,6 +1,7 @@
 /**
  * Deterministischer Zufallsgenerator (mulberry32) mit 32-Bit-Zustand im GameState
- * (`rngState`). Gleicher Algorithmus wie scripts/v2/rng.ts. Kein Math.random():
+ * (`rngState`). Gleicher Algorithmus wie im früheren Prototyp
+ * (feste Folge: tests/rng.test.ts). Kein Math.random():
  * Neuladen, Offline-Simulation und Tests ziehen dieselben Karten.
  */
 export interface RngHolder {

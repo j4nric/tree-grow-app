@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COMMUNITY_BOOST_HARMONY } from '../src/content/abilities';
+import { FOREST_MEMORY_BONUS } from '../src/content/memory';
 import { COMMUNITIES } from '../src/content/communities';
 import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
@@ -31,8 +32,6 @@ import {
 } from '../src/core/formulas';
 import { randomInt } from '../src/core/rng';
 import { MAX_FOREST_MEMORY, createInitialState } from '../src/core/state';
-import { COMMUNITIES as REFERENCE_COMMUNITIES } from '../scripts/v2/content';
-import { evaluate as referenceEvaluate, emptyEco } from '../scripts/v2/model';
 import { SPRING_GROWTH, fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
 describe('evaluate', () => {
@@ -50,8 +49,8 @@ describe('evaluate', () => {
     expect(ev.animals.earthworm!.happiness).toBeCloseTo(0.75);
     expect(ev.animals.earthworm!.needs).toEqual([false]); // keine Feuchte ohne Moos
     expect(ev.harmony).toBeCloseTo(38.17, 1);
-    // 2 🌿/s · (1 + 8 % · 0,75 + 10 % Frühling) · 1,38
-    expect(ev.growth).toBeCloseTo(2 * (1.06 + SPRING_GROWTH) * (1 + ev.harmony / 100));
+    // 2 🌿/s · (1 + 6 % · 0,75 + 10 % Frühling) · 1,38 (Regenwurm +6 % seit Schritt 2.10)
+    expect(ev.growth).toBeCloseTo(2 * (1.045 + SPRING_GROWTH) * (1 + ev.harmony / 100));
   });
 
   it('Räuber mindert Fraß: Blaumeise halbiert den Schaden des Eichenwicklers', () => {
@@ -79,13 +78,14 @@ describe('evaluate', () => {
     expect(ev.traitTiers.birds).toBe(0);
   });
 
-  it('Waldgedächtnis: +2 % Wachstum und Samen je Punkt, ungültige Werte zählen nicht', () => {
+  it('Waldgedächtnis: +1 % Wachstum und Samen je Punkt, ungültige Werte zählen nicht', () => {
     const base = evaluate(stateAt(2));
     const state = stateAt(2);
     state.meta.forestMemory = 5;
     const boosted = evaluate(state);
-    expect(boosted.growth).toBeCloseTo(base.growth * 1.1);
-    expect(boosted.seeds).toBeCloseTo(base.seeds * 1.1);
+    expect(FOREST_MEMORY_BONUS).toBe(0.01);
+    expect(boosted.growth).toBeCloseTo(base.growth * 1.05);
+    expect(boosted.seeds).toBeCloseTo(base.seeds * 1.05);
     state.meta.forestMemory = NaN;
     expect(evaluate(state).growth).toBeCloseTo(base.growth);
   });
@@ -135,13 +135,15 @@ describe('evaluate', () => {
     expect(ev.avgHappiness).toBe(0);
   });
 
-  it('stimmt mit dem Referenzmodell (scripts/v2/model.ts) überein – jede Art einzeln und paarweise auf jeder Stufe', () => {
+  it('Invarianten – jede Art einzeln und paarweise auf jeder Stufe', () => {
+    // Früher gegen das Referenzmodell scripts/v2/model.ts geprüft (entfernt in Schritt 2.10,
+    // DESIGN_V2.md 15.4): Seit dem Balancing weichen die Zahlen bewusst vom Prototyp ab.
     const problems: string[] = [];
     for (let stage = 0; stage < STAGES.length; stage++) {
       for (let i = 0; i < SPECIES.length; i++) {
         for (let j = i; j < SPECIES.length; j++) {
           const ids = i === j ? [SPECIES[i]!.id] : [SPECIES[i]!.id, SPECIES[j]!.id];
-          problems.push(...diffWithReference(stage, ids, []).problems);
+          problems.push(...invariantProblems(stage, ids, []).problems);
         }
       }
     }
@@ -162,62 +164,43 @@ const NICHE_OF = new Map(SPECIES.map((s) => [s.id, s.niche]));
 const PLANT_IDS = new Set(PLANTS.map((p) => p.id));
 
 /**
- * Vergleicht evaluateEcosystem() mit dem Referenzmodell – vollständig, auch mit
- * Lebensgemeinschaften. Gibt Abweichungen als Texte zurück (leer = gleich) und wie viele
- * Lebensgemeinschaften das Modell gefunden hat. Bewusst ohne expect() je Wert: Der
- * Vergleich läuft zigtausendfach, gemeldet wird gesammelt (schneller, gleiche Aussage).
+ * Prüft Invarianten von evaluateEcosystem() (ersetzt den Abgleich mit dem Referenzmodell
+ * scripts/v2/model.ts, entfernt in Schritt 2.10): alle Werte endlich, Harmonie = Summe
+ * ihrer Bausteine, Multiplikator 1 + H/100, Zufriedenheit und Versorgung in [0, 1],
+ * Wachstum = Baum- plus Pflanzenanteil. Gibt Abweichungen als Texte zurück (leer = gut)
+ * und wie viele Lebensgemeinschaften aktiv sind. Bewusst ohne expect() je Wert (schneller).
  * IDs in `ids` sind Arten oder Pflanzen (Pflanzen kommen zusätzlich in den Pflanzring).
  */
-function diffWithReference(
+function invariantProblems(
   stage: number,
   ids: readonly string[],
   plants: readonly string[],
 ): { problems: string[]; communities: number } {
-  const eco = emptyEco();
-  eco.stage = stage;
-  eco.plants = [...plants];
+  const all = [...plants];
   const niches = {} as Record<NicheId, string[]>;
   for (const n of NICHE_IDS) niches[n] = [];
   for (const id of ids) {
-    if (PLANT_IDS.has(id)) {
-      eco.plants.push(id);
-      continue;
-    }
-    const n = NICHE_OF.get(id)!;
-    eco.animals[n].push(id);
-    niches[n].push(id);
+    if (PLANT_IDS.has(id)) all.push(id);
+    else niches[NICHE_OF.get(id)!].push(id);
   }
-  const ref = referenceEvaluate(eco);
-  const ours = evaluateEcosystem({ stage, niches, plants: eco.plants, forestMemory: 0 });
+  const ev = evaluateEcosystem({ stage, niches, plants: all, forestMemory: 0 });
   const problems: string[] = [];
-  const label = () => `${stage}: ${ids.join(',')} | ${eco.plants.join(',')}`;
-  // Wie toBeCloseTo(b, digits): |a − b| < 10^−digits / 2
-  const close = (what: string, a: number, b: number, digits: number) => {
-    if (!(Math.abs(a - b) < Math.pow(10, -digits) / 2)) problems.push(`${label()} – ${what}: ${a} ≠ ${b}`);
+  const label = `${stage}: ${ids.join(',')} | ${all.join(',')}`;
+  const check = (what: string, ok: boolean) => {
+    if (!ok) problems.push(`${label} – ${what}`);
   };
-  const same = (what: string, a: unknown, b: unknown) => {
-    const ja = JSON.stringify(a);
-    const jb = JSON.stringify(b);
-    if (ja !== jb) problems.push(`${label()} – ${what}: ${ja} ≠ ${jb}`);
-  };
-  close('harmony', ours.harmony, ref.harmony, 9);
-  close('growth', ours.growth, ref.growth, 9);
-  close('seeds', ours.seeds, ref.seeds, 9);
-  close('avgHappiness', ours.avgHappiness, ref.avgHappiness, 9);
-  close('supply', ours.supply, ref.supply, 12);
-  close('variety', ours.breakdown.variety, ref.breakdown.variety, 12);
-  close('pyramid', ours.breakdown.pyramid, ref.breakdown.pyramid, 9);
-  close('communities', ours.breakdown.communities, ref.breakdown.communities, 12);
-  close('extra', ours.breakdown.extra, ref.breakdown.extra, 12);
-  same('unguarded', ours.unguarded, ref.pyramid.unguarded);
-  same('aktive Lebensgemeinschaften', activeCommunities(ours), ref.communities);
-  same('traitTiers', GENERA.map((g) => ours.traitTiers[g]), GENERA.map((g) => ref.traitTiers[g]));
-  // Plätze inkl. „+1 Höhlen“ von Borkenkäfer und Buntspecht und dem Baumeister
-  same('slots', NICHE_IDS.map((n) => ours.slots[n]), NICHE_IDS.map((n) => ref.slots[n]));
-  for (const id of ids) {
-    if (!PLANT_IDS.has(id)) close(`Zufriedenheit ${id}`, ours.animals[id]!.happiness, ref.happiness.get(id)!, 12);
+  for (const [k, v] of Object.entries({ growth: ev.growth, seeds: ev.seeds, harmony: ev.harmony, plantGrowth: ev.plantGrowth })) {
+    check(`${k} endlich (${v})`, Number.isFinite(v) && v >= 0);
   }
-  return { problems, communities: ref.communities.length };
+  const b = ev.breakdown;
+  check('Harmonie = Summe der Bausteine', Math.abs(ev.harmony - (b.variety + b.happiness + b.pyramid + b.communities + b.extra)) < 1e-9);
+  check('Multiplikator 1 + H/100', Math.abs(ev.multiplier - (1 + ev.harmony / 100)) < 1e-12);
+  check('Versorgung in [0, 1]', ev.supply >= 0 && ev.supply <= 1);
+  check('Ø Zufriedenheit in [0, 1]', ev.avgHappiness >= 0 && ev.avgHappiness <= 1);
+  for (const [id, a] of Object.entries(ev.animals)) check(`Zufriedenheit ${id} in [0, 1]`, a.happiness >= 0 && a.happiness <= 1);
+  check('Pflanzenanteil ≤ Wachstum', ev.plantGrowth <= ev.growth + 1e-9);
+  check('Plätze nie negativ', NICHE_IDS.every((n) => ev.slots[n] >= 0));
+  return { problems, communities: activeCommunities(ev).length };
 }
 
 /** Alle Kombinationen, je Mitglied eine Alternative zu wählen. */
@@ -228,11 +211,9 @@ function memberCombinations(members: readonly (string | readonly string[])[]): s
 }
 
 describe('Lebensgemeinschaften', () => {
-  it('9 Lebensgemeinschaften wie im Referenzmodell; Mitglieder sind Arten oder Pflanzen', () => {
+  it('9 Lebensgemeinschaften; Mitglieder sind Arten oder Pflanzen', () => {
     expect(COMMUNITIES).toHaveLength(9);
-    expect(COMMUNITIES.map((c) => [c.id, c.name, c.harmony, c.members, c.effects, c.hint])).toEqual(
-      REFERENCE_COMMUNITIES.map((c) => [c.id, c.name, c.harmony, c.members, c.effects, c.hint]),
-    );
+    for (const c of COMMUNITIES) expect(c.name.length * c.hint.length * c.harmony, c.id).toBeGreaterThan(0);
     for (const c of COMMUNITIES) {
       for (const m of c.members) {
         for (const id of memberOptions(m)) expect(NICHE_OF.has(id) || PLANT_IDS.has(id), `${c.id}: ${id}`).toBe(true);
@@ -306,24 +287,34 @@ describe('Lebensgemeinschaften', () => {
     expect(Number.isFinite(ev.harmony)).toBe(true);
   });
 
-  it('jede Lebensgemeinschaft mit jeder Mitglieder-Kombination wie im Referenzmodell (auch unvollständig, mit Lichterabend)', () => {
+  it('jede Lebensgemeinschaft mit jeder Mitglieder-Kombination: vollständig aktiv, unvollständig nicht, Lichterabend', () => {
     const problems: string[] = [];
-    let active = 0;
     for (const c of COMMUNITIES) {
       for (const combo of memberCombinations(c.members)) {
-        // vollständig, mit Glühwürmchen, und je ein Mitglied fehlt
-        const variants = [combo, [...new Set([...combo, 'glowworm'])], ...combo.map((_, i) => combo.filter((__, k) => k !== i))];
         for (let stage = 0; stage < STAGES.length; stage++) {
-          for (const ids of variants) {
-            const d = diffWithReference(stage, ids, []);
+          const harmonyOf = (ids: string[]) => {
+            const d = invariantProblems(stage, ids, []);
             problems.push(...d.problems);
-            if (d.communities > 0) active++;
+            const plants = ids.filter((id) => PLANT_IDS.has(id));
+            const niches = {} as Record<NicheId, string[]>;
+            for (const n of NICHE_IDS) niches[n] = ids.filter((id) => NICHE_OF.get(id) === n);
+            return evaluateEcosystem({ stage, niches, plants, forestMemory: 0 }).communities.find((x) => x.id === c.id)!;
+          };
+          const full = harmonyOf(combo);
+          // Ist das Glühwürmchen selbst Mitglied (Nachtschicht), wirkt sein Lichterabend schon.
+          const boost = combo.includes('glowworm') ? COMMUNITY_BOOST_HARMONY : 0;
+          if (!full.active || full.harmony !== c.harmony + boost) problems.push(`${stage}: ${c.id} vollständig ${combo.join(',')}`);
+          if (!combo.includes('glowworm')) {
+            const glow = harmonyOf([...combo, 'glowworm']);
+            if (glow.harmony !== c.harmony + COMMUNITY_BOOST_HARMONY) problems.push(`${stage}: ${c.id} mit Lichterabend`);
           }
+          combo.forEach((_, i) => {
+            if (harmonyOf(combo.filter((__, k) => k !== i)).active) problems.push(`${stage}: ${c.id} ohne ${combo[i]}`);
+          });
         }
       }
     }
     expect(problems).toEqual([]);
-    expect(active).toBeGreaterThan(100);
   });
 
   it('communityChanges: neu entstandene und zerfallene Gemeinschaften zwischen zwei Auswertungen', () => {
@@ -435,7 +426,7 @@ describe('evaluate mit Begleitpflanzen', () => {
     expect(evaluate(state).growth).toBeGreaterThan(before);
   });
 
-  it('stimmt mit dem Referenzmodell überein – Stichproben mit Tieren und Pflanzen (inkl. Lebensgemeinschaften)', () => {
+  it('Invarianten – Stichproben mit Tieren und Pflanzen (inkl. Lebensgemeinschaften)', () => {
     const rng = { rngState: 20261020 };
     const problems: string[] = [];
     let withCommunities = 0;
@@ -445,7 +436,7 @@ describe('evaluate mit Begleitpflanzen', () => {
       const sparsity = 2 + randomInt(rng, 3) * 2;
       const ids = SPECIES.filter(() => randomInt(rng, sparsity) === 0).map((s) => s.id);
       const plants = Array.from({ length: randomInt(rng, 13) }, () => PLANTS[randomInt(rng, PLANTS.length)]!.id);
-      const d = diffWithReference(stage, ids, plants);
+      const d = invariantProblems(stage, ids, plants);
       problems.push(...d.problems);
       if (d.communities > 0) withCommunities++;
     }
@@ -454,18 +445,6 @@ describe('evaluate mit Begleitpflanzen', () => {
     expect(withCommunities).toBeGreaterThan(500);
     expect(withCommunities).toBeLessThan(3000);
   }, 15_000);
-
-  it('stimmt mit dem Referenzmodell überein – jede Pflanze einzeln und doppelt auf jeder Stufe', () => {
-    const problems: string[] = [];
-    for (let stage = 0; stage < STAGES.length; stage++) {
-      for (const p of PLANTS) {
-        for (const plants of [[p.id], [p.id, p.id]]) {
-          problems.push(...diffWithReference(stage, ['earthworm', 'bee', 'robin'], plants).problems);
-        }
-      }
-    }
-    expect(problems).toEqual([]);
-  });
 });
 
 describe('Pflanzring und Kosten', () => {

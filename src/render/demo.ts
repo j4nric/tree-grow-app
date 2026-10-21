@@ -37,7 +37,7 @@ import { VISITOR_DEFS } from './visitor-sprites';
 
 type Fam = SceneAnimal['family'];
 
-/** Alle 32 Arten (scripts/v2/content.ts) je Nische; Reihenfolge = Platz. */
+/** Alle 32 Arten (src/content/species.ts) je Nische; Reihenfolge = Platz. */
 const BY_NICHE: Record<string, [string, Fam][]> = {
   roots: [
     ['earthworm', 'soil'],
@@ -124,7 +124,7 @@ const PLANT_RING: [string, ScenePlant['group']][] = [
   ['pine', 'trees'],
   ['hartstongue', 'mosses'],
 ];
-/** Pflanzplätze je Stufe (scripts/v2/content.ts `PLANT_SLOTS`). */
+/** Pflanzplätze je Stufe (src/content/stages.ts `plantSlots`). */
 const PLANT_SLOTS = [0, 1, 2, 3, 5, 7, 9, 12];
 
 const MIXED_HAPPINESS = [0.95, 0.8, 0.6, 0.9, 0.25, 0.7, 0.1, 0.85, 0.5, 0.75, 0.4, 0.9];
