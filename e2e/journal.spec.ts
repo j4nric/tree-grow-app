@@ -41,7 +41,7 @@ test('Naturtagebuch: Zähler, Reiter, keine Spoiler, Esc gibt den Fokus zurück'
   const tit = journal(page).locator('[data-species="bluetit"]');
   await expect(tit).toContainText('Blaumeise');
   await expect(tit).toContainText('Vögel · gewöhnlich · Nische: Krone');
-  await expect(journal(page).locator('.journal-entry.unknown')).toHaveCount(29 + 13 + 9);
+  await expect(journal(page).locator('.journal-entry.unknown')).toHaveCount(29 + 13 + 9 + 2); // + 2 verborgene Hauptbaum-Arten (Andenken)
   // Keine Spoiler: Name und ID einer unentdeckten Art stehen nirgends im DOM.
   const html = await page.content();
   expect(html).not.toContain('Feuersalamander');

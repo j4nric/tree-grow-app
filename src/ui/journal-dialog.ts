@@ -8,10 +8,18 @@
  * Escape; danach geht der Fokus an den auslösenden Knopf zurück.
  *
  * Der Inhalt wird nur neu gebaut, wenn sich die Ansicht ändert (Entdeckung, Stammgast) –
- * nie pro Frame.
+ * nie pro Frame. Die Kennzahlen im Reiter „Statistik“ stehen in fest angelegten Zeilen;
+ * `updateStats` tauscht dort nur Texte (gedrosselt aus main.ts).
  */
 import { el, setText, srOnly } from './dom';
-import type { JournalCommunityView, JournalEntryView, JournalKeepsakeView, JournalView } from './view-model';
+import type {
+  JournalCommunityView,
+  JournalEntryView,
+  JournalKeepsakeView,
+  JournalStatView,
+  JournalTreeView,
+  JournalView,
+} from './view-model';
 
 export interface JournalCallbacks {
   /** Stammgast an- oder abwählen (die Aktion selbst führt main.ts aus). */
@@ -23,18 +31,21 @@ export interface JournalDialog {
   show(view: JournalView): void;
   /** Aktualisiert den offenen Dialog (tut nichts, wenn er zu ist). */
   update(view: JournalView): void;
+  /** Nur die Kennzahlen im Reiter „Statistik“ (tut nichts, wenn der Dialog zu ist). */
+  updateStats(stats: readonly JournalStatView[]): void;
   hide(): void;
   notice(text: string): void;
   readonly open: boolean;
 }
 
-type TabId = 'species' | 'plants' | 'communities' | 'keepsakes';
+type TabId = 'species' | 'plants' | 'communities' | 'keepsakes' | 'stats';
 
 const TABS: readonly { id: TabId; label: string }[] = [
   { id: 'species', label: 'Arten' },
   { id: 'plants', label: 'Pflanzen' },
   { id: 'communities', label: 'Gemeinschaften' },
   { id: 'keepsakes', label: 'Andenken' },
+  { id: 'stats', label: 'Statistik' },
 ];
 
 /** Knopf „📖 Naturtagebuch“ für die Seitenleiste. */
@@ -206,10 +217,67 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     const icon = el('span', 'journal-icon', k.icon);
     icon.setAttribute('aria-hidden', 'true');
     const body = el('div', 'journal-body');
-    body.append(el('h3', 'journal-name', k.name));
+    body.append(el('h4', 'journal-name', k.name));
     if (k.text) body.append(el('p', 'journal-text', k.text));
     li.append(icon, body);
     return li;
+  }
+
+  function treeItem(t: JournalTreeView): HTMLElement {
+    const known = t.name !== '???';
+    const li = el(
+      'li',
+      `journal-entry journal-tree ${t.unlocked ? 'discovered' : known ? 'locked' : 'unknown'}${t.current ? ' current' : ''}`,
+    );
+    if (known) li.dataset.tree = t.key;
+    const icon = el('span', 'journal-icon', t.icon);
+    icon.setAttribute('aria-hidden', 'true');
+    const body = el('div', 'journal-body');
+    const name = el('h4', 'journal-name', t.name);
+    if (!known) {
+      name.setAttribute('aria-hidden', 'true');
+      body.append(srOnly('Unbekannte Baumart'));
+    }
+    body.append(name);
+    const status = t.current ? 'wächst in diesem Zyklus' : t.unlocked ? 'freigeschaltet' : 'gesperrt';
+    const badge = el('p', `journal-tree-status ${t.current ? 'current' : t.unlocked ? 'unlocked' : 'locked'}`);
+    const badgeIcon = el('span', '', t.current ? '★ ' : t.unlocked ? '' : '🔒 ');
+    badgeIcon.setAttribute('aria-hidden', 'true');
+    badge.append(badgeIcon, status);
+    body.append(badge);
+    if (t.summary) body.append(el('p', 'journal-facts', t.summary));
+    if (t.text) body.append(el('p', 'journal-text', t.text));
+    if (t.hint) body.append(el('p', 'journal-progress', t.hint));
+    li.append(icon, body);
+    return li;
+  }
+
+  // Statistik: Zeilen einmal anlegen, danach nur Texte tauschen.
+  const statList = el('dl', 'journal-stats');
+  statList.dataset.ref = 'journal-stats';
+  const statRows = new Map<string, { value: HTMLElement; detail: HTMLElement }>();
+  tabs.get('stats')!.panel.append(statList);
+
+  function renderStats(stats: readonly JournalStatView[]): void {
+    for (const s of stats) {
+      let row = statRows.get(s.key);
+      if (!row) {
+        const wrap = el('div', 'journal-stat');
+        wrap.dataset.stat = s.key;
+        const dt = el('dt', 'journal-stat-label', s.label);
+        const dd = el('dd', 'journal-stat-value');
+        const value = el('span', 'journal-stat-number');
+        const detail = el('span', 'journal-stat-detail');
+        dd.append(value, detail);
+        wrap.append(dt, dd);
+        statList.append(wrap);
+        row = { value, detail };
+        statRows.set(s.key, row);
+      }
+      setText(row.value, s.value);
+      setText(row.detail, s.detail ?? '');
+      row.detail.hidden = !s.detail;
+    }
   }
 
   function list(label: string, items: HTMLElement[], empty: string): HTMLElement[] {
@@ -221,7 +289,9 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
   }
 
   function render(view: JournalView): void {
-    const next = JSON.stringify(view);
+    renderStats(view.stats);
+    // Kennzahlen ändern sich laufend – sie zählen nicht zur Signatur (kein Neubau).
+    const next = JSON.stringify({ ...view, stats: null });
     if (next === signature) return;
     signature = next;
     const focusKey = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.focusKey : undefined;
@@ -230,7 +300,11 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     setText(meta, view.meta);
     setText(regulars, view.regulars ?? '');
     regulars.hidden = !view.regulars;
-    for (const { id } of TABS) setText(tabs.get(id)!.count, view.tabCounts[id]);
+    for (const { id } of TABS) {
+      const count = tabs.get(id)!.count;
+      setText(count, view.tabCounts[id]);
+      count.hidden = view.tabCounts[id] === '';
+    }
 
     tabs.get('species')!.panel.replaceChildren(
       ...list('Arten', view.species.map((e) => entryItem(e, 'species')), 'Noch keine Arten.'),
@@ -241,8 +315,17 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     tabs.get('communities')!.panel.replaceChildren(
       ...list('Lebensgemeinschaften', view.communities.map(communityItem), 'Noch keine Lebensgemeinschaften.'),
     );
+    const treeList = el('ul', 'journal-grid');
+    treeList.setAttribute('aria-labelledby', 'journal-trees-title');
+    treeList.append(...view.trees.map(treeItem));
+    const treeTitle = el('h3', 'journal-section-title', 'Hauptbaum-Arten');
+    treeTitle.id = 'journal-trees-title';
+    const memoryTitle = el('h3', 'journal-section-title', 'Erinnerungen');
     tabs.get('keepsakes')!.panel.replaceChildren(
-      ...list('Andenken', view.keepsakes.map(keepsakeItem), 'Noch keine Andenken – sie erinnern an besondere Momente.'),
+      treeTitle,
+      treeList,
+      memoryTitle,
+      ...list('Erinnerungen', view.keepsakes.map(keepsakeItem), 'Noch keine Erinnerungen – sie halten besondere Momente fest.'),
     );
     if (focusKey) dialog.querySelector<HTMLElement>(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true });
   }
@@ -260,6 +343,10 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
 
   function update(view: JournalView): void {
     if (dialog.open) render(view);
+  }
+
+  function updateStats(stats: readonly JournalStatView[]): void {
+    if (dialog.open) renderStats(stats);
   }
 
   function clearNotice(): void {
@@ -304,6 +391,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
   return {
     show,
     update,
+    updateStats,
     hide,
     notice,
     get open() {

@@ -429,6 +429,38 @@ export interface JournalKeepsakeView {
   text: string;
 }
 
+/**
+ * Eine Hauptbaum-Art im Reiter „Andenken“ (DESIGN_V2.md 17.2). Gesperrte Arten zeigen
+ * Name und Hinweis erst, wenn auch „Neuer Zyklus“ die Auswahl zeigt (ab Hain oder nach
+ * dem ersten Zyklus) – vorher als Silhouette „???“ ohne Namen und ID.
+ */
+export interface JournalTreeView {
+  /** Art-ID; bei verborgenen Arten ein neutraler Schlüssel („unknown-tree-0“). */
+  key: string;
+  icon: string;
+  /** z. B. „Rotbuche“; verborgen „???“. */
+  name: string;
+  unlocked: boolean;
+  /** Art des laufenden Zyklus. */
+  current: boolean;
+  /** Eigenheit in Kurzform (nur, wenn sichtbar). */
+  summary?: string;
+  /** Stimmungstext (nur freigeschaltete). */
+  text?: string;
+  /** Hinweis, solange gesperrt. */
+  hint?: string;
+}
+
+/** Eine Kennzahl im Reiter „Statistik“, z. B. Samen „1.234 🌰“. */
+export interface JournalStatView {
+  /** Fester Schlüssel (Reihenfolge und DOM-Zuordnung), z. B. „seeds“. */
+  key: string;
+  label: string;
+  value: string;
+  /** Zusatz in einer zweiten Zeile, z. B. „45 Min. Spielzeit · jetzt 🍂 Herbst“. */
+  detail?: string;
+}
+
 /** Das Naturtagebuch (DESIGN_V2.md 10 und 11.2). */
 export interface JournalView {
   /** z. B. „12/32 Arten · 5/14 Pflanzen · 2/9 Gemeinschaften“. */
@@ -441,8 +473,15 @@ export interface JournalView {
   plants: JournalEntryView[];
   communities: JournalCommunityView[];
   keepsakes: JournalKeepsakeView[];
-  /** Zähler je Reiter, z. B. „12/32“. */
-  tabCounts: { species: string; plants: string; communities: string; keepsakes: string };
+  /** Hauptbaum-Arten im Reiter „Andenken“ (MAIN_TREES-Reihenfolge). */
+  trees: JournalTreeView[];
+  /**
+   * Kennzahlen im Reiter „Statistik“. Ändern sich laufend (Samen, Spielzeit) – der Dialog
+   * aktualisiert dafür nur Texte und baut nichts neu.
+   */
+  stats: JournalStatView[];
+  /** Zähler je Reiter, z. B. „12/32“ (Statistik ohne Zähler: leer). */
+  tabCounts: { species: string; plants: string; communities: string; keepsakes: string; stats: string };
 }
 
 /** Gruppen der Pflege-Liste in Anzeige-Reihenfolge. */

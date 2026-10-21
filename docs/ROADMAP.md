@@ -120,7 +120,7 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   - [x] UI: Abzeichen der Jahreszeit mit Restzeit in der Kopfzeile, Hinweis beim Wechsel,
     `SceneInput.season` stufenlos aus der Spielzeit, Abschnitt in der Spielanleitung
 - ~~Zufallsereignisse mit gespeichertem Seed~~ – in v2 aufgegangen (Begegnungen, `rngState`)
-- [ ] Statistik-Seite (Spielzeit, Gesamt-Wachstum, entdeckte Arten) (`ui-dev`)
+- [x] Statistik-Seite (Spielzeit, Gesamt-Wachstum, entdeckte Arten) (`ui-dev`) – Reiter „Statistik“ im Naturtagebuch
 - [ ] Gattung Amphibien mit Waldtümpel (Erdkröte, Bergmolch) als Erweiterung (`game-designer`)
 - [ ] Winter-Ereignis „Schneebruch“ und weitere Ereignisse je Jahreszeit (`game-designer` + `core-engineer`)
 
@@ -137,7 +137,7 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     `appearsContext`, Platz-Boni über `slotBonuses`
   - [x] UI: Radiogruppe in „Neuer Zyklus“ (gesperrte Arten mit Hinweis), Frucht der Art
     in Toast und Spielanleitung, `SceneInput.mainTree` und `cycleTransition.fromTree`
-  - [ ] Optional: Naturtagebuch, Reiter Andenken – gewachsene Hauptbaum-Arten (`ui-dev`)
+  - [x] Optional: Naturtagebuch, Reiter Andenken – gewachsene Hauptbaum-Arten (`ui-dev`)
 - [ ] Umstieg auf `break_infinity.js`, falls Zahlen > 1e300 (`core-engineer`)
 - [ ] Erfolge / Achievements, verknüpft mit dem Naturtagebuch (`ui-dev`)
 

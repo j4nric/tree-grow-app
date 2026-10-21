@@ -10,7 +10,10 @@ import { ABILITY_INFO } from '../content/abilities';
 import { CARE, CARE_BY_ID } from '../content/care';
 import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
 import { EVENTS_BY_ID, type CycleEffect, type EventOption, type TimedEffect } from '../content/events';
-import { KEEPSAKE_INFO } from '../content/memory';
+import { KEEPSAKE_INFO, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
+import { SEASON_SECONDS, YEAR_SECONDS } from '../content/seasons';
+import { MAIN_TREES } from '../content/trees';
+import { seasonAt } from '../core/season';
 import { NICHES, NICHES_BY_ID } from '../content/niches';
 import { PLANT_GROUP_INFO, PLANTS, PLANTS_BY_ID, type Plant } from '../content/plants';
 import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
@@ -67,11 +70,12 @@ import {
   regularBlocker,
   visitorSeeds,
   rerollBlocker,
+  isTreeUnlocked,
   unlockedPlants,
   type OfflineReport,
 } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
-import { memoryBonusLabel } from './cycle-view';
+import { memoryBonusLabel, treeLabel } from './cycle-view';
 import { RARITY_LABELS, preferredReplaceOption } from './view-format';
 import type {
   ActiveBonusView,
@@ -92,6 +96,8 @@ import type {
   JournalCommunityView,
   JournalEntryView,
   JournalKeepsakeView,
+  JournalStatView,
+  JournalTreeView,
   JournalView,
   NicheView,
   PlantGroupCountView,
@@ -630,7 +636,10 @@ const ofTotal = (n: number, total: number) => `${formatNumber(n)}/${formatNumber
  * (Spoiler-Regel). Entdeckte Arten tragen den Stammgast-Schalter, sobald es Plätze gibt.
  * `evaluation` (= evaluate(state)) liefert, welche Gemeinschaften gerade bestehen.
  */
-export function toJournalView(state: GameState, evaluation: Readonly<Pick<Evaluation, 'communities'>>): JournalView {
+export function toJournalView(
+  state: GameState,
+  evaluation: Readonly<Pick<Evaluation, 'communities' | 'harmony'>>,
+): JournalView {
   const journal = state.meta.journal;
   const present = new Set(allAnimals(state));
   const slots = regularSlots(state.meta.forestMemory);
@@ -744,11 +753,14 @@ export function toJournalView(state: GameState, evaluation: Readonly<Pick<Evalua
     plants: plants.filter((e) => e.discovered).length,
     communities: communities.filter((e) => e.discovered).length,
   };
+  const trees = toJournalTrees(state);
   const tabCounts = {
     species: ofTotal(found.species, species.length),
     plants: ofTotal(found.plants, plants.length),
     communities: ofTotal(found.communities, communities.length),
-    keepsakes: formatNumber(keepsakes.length),
+    // Andenken: Erinnerungen plus freigeschaltete Hauptbaum-Arten (die Eiche immer).
+    keepsakes: formatNumber(keepsakes.length + trees.filter((t) => t.unlocked).length),
+    stats: '',
   };
   const memory = state.meta.forestMemory;
   return {
@@ -764,8 +776,135 @@ export function toJournalView(state: GameState, evaluation: Readonly<Pick<Evalua
     plants,
     communities,
     keepsakes,
+    trees,
+    stats: toJournalStats(state, evaluation),
     tabCounts,
   };
+}
+
+/** Wie viele Einträge aus `all` im Tagebuch stehen (unbekannte IDs zählen nicht). */
+const known = (all: readonly { id: string }[], ids: readonly string[]) => all.filter((x) => ids.includes(x.id)).length;
+
+/** „1 Jahr“ / „2 Jahre“ – Einzahl nur bei genau 1. */
+const plural = (n: number, one: string, many: string) => `${formatNumber(n)} ${n === 1 ? one : many}`;
+
+/**
+ * Spielzeit des Zyklus in Jahren und Jahreszeiten (je 180 s Spielzeit, DESIGN_V2.md 16.2),
+ * z. B. „1 Jahr, 2 Jahreszeiten“; unter einer Jahreszeit „weniger als eine Jahreszeit“.
+ */
+export function cycleAgeText(elapsed: number): string {
+  const e = Number.isFinite(elapsed) && elapsed > 0 ? elapsed : 0;
+  const years = Math.floor(e / YEAR_SECONDS);
+  const seasons = Math.floor((e - years * YEAR_SECONDS) / SEASON_SECONDS);
+  const parts: string[] = [];
+  if (years > 0) parts.push(plural(years, 'Jahr', 'Jahre'));
+  if (seasons > 0) parts.push(plural(seasons, 'Jahreszeit', 'Jahreszeiten'));
+  return parts.length > 0 ? parts.join(', ') : 'weniger als eine Jahreszeit';
+}
+
+/**
+ * Hauptbaum-Arten für den Reiter „Andenken“ (DESIGN_V2.md 17.2). Freigeschaltete mit
+ * Eigenheit und Text, gesperrte mit Hinweis wie bei „Neuer Zyklus“. Solange der Spieler
+ * die Auswahl dort noch nie sehen konnte (vor „Hain“ im ersten Zyklus), bleiben gesperrte
+ * Arten „???“ – ihr Name ist zugleich der Name einer Begleitpflanze (Spoiler-Regel).
+ */
+export function toJournalTrees(state: GameState): JournalTreeView[] {
+  const reveal = state.cycle.number > 1 || state.stage >= NEW_CYCLE_MIN_STAGE;
+  let hidden = 0;
+  return MAIN_TREES.map((t) => {
+    const unlocked = isTreeUnlocked(state, t.id);
+    const current = t.id === state.cycle.mainTree;
+    if (!unlocked && !reveal && !current) {
+      return {
+        key: `unknown-tree-${hidden++}`,
+        icon: '🌳',
+        name: '???',
+        unlocked: false,
+        current: false,
+        hint: 'Wächst eine bestimmte Baumart einmal im Pflanzring, kann aus ihren Samen ein neuer Hauptbaum keimen.',
+      };
+    }
+    const view: JournalTreeView = { key: t.id, icon: t.icon, name: t.name, unlocked, current, summary: t.summary };
+    if (unlocked) view.text = t.text;
+    else view.hint = t.unlockHint;
+    return view;
+  });
+}
+
+/**
+ * Kennzahlen für den Reiter „Statistik“ – alles aus dem vorhandenen Spielstand abgeleitet.
+ * Zahlen im eingestellten Zahlenformat (kurz/ausgeschrieben). Nennt nur Zähler und Namen
+ * entdeckter Arten, nichts Unentdecktes.
+ */
+export function toJournalStats(state: GameState, evaluation: Readonly<Pick<Evaluation, 'harmony'>>): JournalStatView[] {
+  const journal = state.meta.journal;
+  const elapsed = state.cycle.elapsed;
+  const season = seasonAt(elapsed);
+  const stage = STAGES[state.stage];
+  const cycles = state.cycle.number;
+  const memory = state.meta.forestMemory;
+  const slots = regularSlots(memory);
+  const harmony = Number.isFinite(evaluation.harmony) ? Math.floor(evaluation.harmony) : 0;
+  const newSpecies = state.cycle.newSpecies.length;
+  const regularNames = state.meta.regulars.map((id) => SPECIES_BY_ID.get(id)?.name).filter((n): n is string => !!n);
+
+  const stats: JournalStatView[] = [
+    {
+      key: 'cycle',
+      label: 'Zyklus',
+      value: formatNumber(cycles),
+      detail: cycles > 1 ? `${plural(cycles - 1, 'Zyklus', 'Zyklen')} abgeschlossen` : 'dein erster Zyklus',
+    },
+    {
+      key: 'time',
+      label: 'Alter dieses Zyklus',
+      value: cycleAgeText(elapsed),
+      detail: `${formatDuration(Number.isFinite(elapsed) && elapsed > 0 ? elapsed : 0)} Spielzeit · jetzt ${season.icon} ${season.name}`,
+    },
+    { key: 'tree', label: 'Hauptbaum', value: treeLabel(state.cycle.mainTree) },
+    {
+      key: 'stage',
+      label: 'Stufe',
+      value: stage?.name ?? '…',
+      detail: `${ofTotal(state.stage + 1, STAGES.length)} · Wegpunkt ${formatNumber(state.waypoint)}`,
+    },
+    { key: 'growth', label: 'Gesamt-Wachstum', value: `${formatNumber(Math.floor(state.totalGrowth))} 🌿`, detail: 'in diesem Zyklus' },
+    { key: 'seeds', label: 'Samen', value: `${formatNumber(Math.floor(state.seeds))} 🌰` },
+    {
+      key: 'harmony',
+      label: 'Harmonie',
+      value: `${formatNumber(harmony)} ⚖️`,
+      detail: `${harmonyTier(harmony)} · Höchstwert ${formatNumber(Math.floor(state.cycle.maxHarmony))}`,
+    },
+    {
+      key: 'species',
+      label: 'Entdeckte Arten',
+      value: ofTotal(known(SPECIES, journal.species), SPECIES.length),
+      detail: newSpecies > 0 ? `${formatNumber(newSpecies)} neu in diesem Zyklus` : undefined,
+    },
+    { key: 'plants', label: 'Pflanzen', value: ofTotal(known(PLANTS, journal.plants), PLANTS.length) },
+    { key: 'communities', label: 'Lebensgemeinschaften', value: ofTotal(known(COMMUNITIES, journal.communities), COMMUNITIES.length) },
+    {
+      key: 'memory',
+      label: 'Waldgedächtnis',
+      value: formatNumber(memory),
+      detail: memory > 0 ? `${memoryBonusLabel(memory)} Wachstum und Samen` : 'wächst mit jedem Neuen Zyklus',
+    },
+    {
+      key: 'regulars',
+      label: 'Stammgäste',
+      value: slots > 0 ? ofTotal(state.meta.regulars.length, slots) : '–',
+      detail:
+        slots > 0
+          ? regularNames.length > 0
+            ? regularNames.join(', ')
+            : 'noch keiner gewählt'
+          : `erster Platz ab ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Waldgedächtnis`,
+    },
+  ];
+  // Optionale Zusätze ohne Inhalt weglassen (JSON-stabil, kein „undefined“).
+  for (const s of stats) if (s.detail === undefined) delete s.detail;
+  return stats;
 }
 
 // ---------------------------------------------------------------------------
