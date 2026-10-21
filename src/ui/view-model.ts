@@ -140,6 +140,8 @@ export interface ActiveBonusView {
   effect: string;
   /** Restzeit, z. B. „4 Min.“; fehlt bei Boni bis zum Neuen Zyklus („bis zum Neuen Zyklus“). */
   remaining: string;
+  /** Anteil der Restzeit 0 … 1 für den Fortschrittsbalken; null ohne Ablauf (bis zum Neuen Zyklus). */
+  progress: number | null;
 }
 
 /** Eine wartende Begegnung, bereit zur Anzeige. */
@@ -154,6 +156,10 @@ export interface EncounterView {
   title: string;
   /** Optionaler Untertitel (z. B. Ereignistext). */
   subtitle?: string;
+  /** Großes Bild-Symbol neben dem Titel (Ereignisse und Gäste), z. B. 🦢. */
+  icon?: string;
+  /** Kurze Eckdaten unter dem Untertitel, z. B. „🐦 Vögel“, „rastet 8 Min.“. */
+  facts?: string[];
   cards: CardView[];
   /** Kosten fürs Neuwürfeln in 🌰; `null` = Neuwürfeln hier nicht möglich (Ereignisse). */
   rerollCost: number | null;
@@ -437,6 +443,9 @@ export interface JournalView {
   tabCounts: { species: string; plants: string; communities: string; keepsakes: string };
 }
 
+/** Gruppen der Pflege-Liste in Anzeige-Reihenfolge. */
+export type CareGroup = 'buyable' | 'saving' | 'locked' | 'maxed';
+
 /** Eine Pflegemaßnahme in der Seitenleiste (Schritt 2.7). */
 export interface CareView {
   id: string;
@@ -448,9 +457,18 @@ export interface CareView {
   next: string | null;
   /** Kosten des nächsten Rangs, z. B. „600 🌰“; null, wenn voll ausgebaut. */
   cost: string | null;
+  /** Dieselben Kosten als Zahl (zum Sortieren); null, wenn voll ausgebaut. */
+  costSeeds: number | null;
   /** Warum Kaufen gerade nicht geht (deutscher Text); null, wenn es geht. */
   blocker: string | null;
   canBuy: boolean;
+  /**
+   * Gruppe für die Sortierung: kaufbar, nur noch zu wenig Samen („sparen“), anders
+   * gesperrt (Stufe, Ausschluss, Bedingung) oder voll ausgebaut.
+   */
+  group: CareGroup;
+  /** Bestätigung nach dem Kauf des nächsten Rangs, z. B. „Nistkästen angebracht“; null, wenn voll ausgebaut. */
+  boughtText: string | null;
   /** Vorschau des nächsten Rangs (Harmonie in Punkten, 🌿/🌰 relativ); null, wenn voll ausgebaut. */
   preview: { harmonyDelta: number; growthDelta: number; seedDelta: number } | null;
 }

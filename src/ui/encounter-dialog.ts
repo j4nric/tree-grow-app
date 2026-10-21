@@ -203,13 +203,21 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   const title = el('h2', 'encounter-title');
   title.id = `${prefix}-title`;
   const subtitle = el('p', 'encounter-subtitle');
+  // Ereignisse und Gäste: großes Bild-Symbol und kurze Eckdaten (Gattung, Dauer, Wirkung).
+  const heroIcon = el('span', 'encounter-hero-icon');
+  heroIcon.setAttribute('aria-hidden', 'true');
+  heroIcon.hidden = true;
+  const factList = el('ul', 'encounter-facts');
+  factList.setAttribute('aria-label', 'Eckdaten');
+  factList.hidden = true;
+  let factsShown = '';
   const queue = el('p', 'encounter-queue');
   queue.id = `${prefix}-queue`;
   const queueText = el('span');
   const queuePips = el('span', 'queue-pips');
   queuePips.setAttribute('aria-hidden', 'true');
   queue.append(queuePips, queueText);
-  header.append(kind, title, subtitle, queue);
+  header.append(heroIcon, kind, title, subtitle, factList, queue);
 
   const cardsBox = el('div', 'encounter-cards');
   cardsBox.setAttribute('role', 'list');
@@ -367,7 +375,63 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     later.disabled = busy;
   }
 
+  /**
+   * Ereignis-Option bzw. Wahl beim Gast: die ganze Karte ist ein großer Knopf mit dem
+   * Text der Option und darunter der Wirkungszeile („+30 % 🌿 für 6 Min.“); Vorschau und
+   * Lebensgemeinschaften stehen unter dem Knopf.
+   */
+  function buildOptionCard(card: CardView, index: number): CardRefs {
+    const item = el('article', `encounter-card option-card family-${card.family}`);
+    item.setAttribute('role', 'listitem');
+    item.dataset.card = card.id;
+    item.dataset.option = card.id;
+    item.setAttribute('aria-labelledby', `${prefix}-card-${index}-name`);
+    item.style.setProperty('--deal-delay', `${index * 70}ms`);
+
+    const choose = el('button', 'card-choose option-choose');
+    choose.type = 'button';
+    const label = el('span', 'option-label', card.chooseLabel ?? card.name);
+    label.id = `${prefix}-card-${index}-name`;
+    const effects = el('span', 'option-effects');
+    effects.id = `${prefix}-card-${index}-effects`;
+    for (const effect of card.effects) {
+      const line = el('span', `option-effect tone-${effect.tone}`);
+      const mark = el('span', 'mark', toneSymbol(effect.tone));
+      mark.setAttribute('aria-hidden', 'true');
+      line.append(mark, el('span', '', effect.label));
+      effects.append(line);
+    }
+    choose.append(label, effects);
+    if (card.disabledReason) choose.append(el('span', 'option-reason', card.disabledReason));
+    const base = card.chooseLabel ?? card.name;
+    choose.setAttribute('aria-label', card.disabledReason ? `${base} – gesperrt: ${card.disabledReason}` : base);
+
+    const previewList = el('ul', 'card-preview');
+    previewList.setAttribute('aria-label', 'Vorschau');
+    previewList.id = `${prefix}-card-${index}-preview`;
+    // Ändert die Wahl an den Raten nichts (z. B. Samen sofort), bleibt die Vorschau weg
+    // statt „±0“-Chips zu zeigen.
+    const changes = previewParts(card.preview).some((part) => part.tone !== 'neutral');
+    if (changes) renderPreviewChips(previewList, card.preview);
+    previewList.hidden = !changes;
+    const communityList = communityHintList();
+    renderCommunityHints(communityList, card.preview);
+    // Wirkung und Vorschau gehören zur Beschreibung des Knopfs (der Name bleibt kurz).
+    choose.setAttribute('aria-describedby', `${effects.id} ${previewList.id}`);
+    item.append(choose, previewList, communityList);
+
+    choose.addEventListener('click', () => {
+      if (card.disabledReason) return;
+      decide(() => {
+        item.classList.add('chosen');
+        callbacks.onChoose(index);
+      });
+    });
+    return { card, root: item, choose, select: null, selectedReplace: () => undefined };
+  }
+
   function buildCard(card: CardView, index: number, kind: EncounterKind, keepReplaceId?: string): CardRefs {
+    if (kind === 'event' || kind === 'visitor') return buildOptionCard(card, index);
     const rarity = card.rarity;
     const item = el('article', `encounter-card family-${card.family}${rarity ? ` rarity-${rarity}` : ''}`);
     item.setAttribute('role', 'listitem');
@@ -507,6 +571,15 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     setText(title, view.title);
     setText(subtitle, view.subtitle ?? '');
     subtitle.hidden = !view.subtitle;
+    setText(heroIcon, view.icon ?? '');
+    heroIcon.hidden = !view.icon;
+    header.classList.toggle('has-hero', Boolean(view.icon));
+    const facts = view.facts ?? [];
+    if (facts.join('|') !== factsShown) {
+      factsShown = facts.join('|');
+      factList.replaceChildren(...facts.map((fact) => el('li', '', fact)));
+    }
+    factList.hidden = facts.length === 0;
 
     setText(queueText, queuedText(queued));
     queue.hidden = queued <= 0;
@@ -537,6 +610,8 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       }
       cardsBox.replaceChildren(...cards.map((c) => c.root));
       cardsBox.dataset.count = String(cards.length);
+      // Ereignis- und Gast-Optionen stehen auf dem Handy untereinander (kein Wischen).
+      cardsBox.dataset.kind = view.kind;
       if (newEncounter) {
         clearNotice();
         cardsBox.scrollLeft = 0;
