@@ -104,13 +104,15 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
     await expect(account(b).locator('[data-ref="account-who"]')).toHaveText(`Angemeldet als ${name}`);
     await expect(b.locator('dialog[data-ref="settings"]')).toContainText('Dein Wald aus dem Konto ist geladen');
     // Vor dem Ersetzen wurden beide Stände gesichert (lokal und Cloud).
-    const backups = await b.evaluate(() => [
-      localStorage.getItem('vszw-backup-before-sync'),
-      localStorage.getItem('vszw-backup-cloud-before-sync'),
-    ]);
-    expect(backups[0]).toMatch(/^VSZW1:/);
-    expect(backups[1]).toMatch(/^VSZW1:/);
-    expect(backups[0]).not.toBe(backups[1]);
+    const ring = await b.evaluate(
+      () => JSON.parse(localStorage.getItem('vszw-backups') ?? '[]') as { code: string; reason: string; owner: string | null }[],
+    );
+    const local = ring.find((e) => e.reason === 'first-login-local');
+    const cloud = ring.find((e) => e.reason === 'first-login-cloud');
+    expect(local?.code).toMatch(/^VSZW1:/);
+    expect(cloud?.code).toMatch(/^VSZW1:/);
+    expect(cloud?.owner).toBe(name);
+    expect(local?.code).not.toBe(cloud?.code);
     await closeSettings(b);
     await expect(niche(b, 'litter')).toContainText('1/2 belegt');
     await expect(niche(b, 'roots')).toContainText('Regenwurm');
@@ -260,7 +262,7 @@ syncTest('zwei Tabs, ein Browser: Abmelden und anderes Konto im zweiten Tab halt
   }
 });
 
-syncTest('Sicherung vor dem Sync im Konto-Abschnitt wiederherstellen (mit Bestätigung)', async ({ browser, baseURL }) => {
+syncTest('Sicherungen im Konto-Abschnitt wiederherstellen (Liste, mit Bestätigung, rückgängig)', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ baseURL, locale: 'de-DE' });
   const page = await context.newPage();
   try {
@@ -275,21 +277,24 @@ syncTest('Sicherung vor dem Sync im Konto-Abschnitt wiederherstellen (mit Bestä
     await openSettings(page);
     const open = account(page).locator('[data-ref="account-restore"]');
     await expect(open).toHaveText('Sicherung vor dem Sync wiederherstellen');
-    // Keine Cloud-Sicherung vorhanden → nur der Gerätestand wird angeboten.
+    // Die frühere Einzel-Sicherung steht jetzt als Eintrag in der Liste.
     await open.click();
     await expect(account(page)).toContainText('Dein aktueller Wald wird dabei ersetzt.');
-    await expect(account(page).locator('[data-ref="account-restore-cloud"]')).toBeHidden();
+    const entries = account(page).locator('[data-ref="account-backup"]');
+    await expect(entries).toHaveCount(1);
+    await expect(account(page).locator('[data-ref="account-backups"]')).toContainText('Frühere Sicherung');
     await account(page).getByRole('button', { name: 'Abbrechen' }).click();
     expect(await readNumber(seedsValue(page))).toBeLessThan(4321);
     await open.click();
-    await account(page).locator('[data-ref="account-restore-local"]').click();
+    await entries.first().click();
     await expect(account(page).locator('[data-ref="account-status"]')).toHaveText('Sicherung geladen.');
     await closeSettings(page);
     expect(await readNumber(seedsValue(page))).toBeGreaterThanOrEqual(4321);
     // Auch das Wiederherstellen lässt sich zurücknehmen: der Stand davor wurde gesichert.
     await openSettings(page);
     await open.click();
-    await account(page).locator('[data-ref="account-restore-undo"]').click();
+    await expect(account(page).locator('[data-ref="account-backups"]')).toContainText('Stand vor dem Wiederherstellen');
+    await account(page).locator('[data-ref="account-backup"][data-reason="before-restore"]').click();
     await expect(account(page).locator('[data-ref="account-status"]')).toHaveText('Sicherung geladen.');
     await closeSettings(page);
     expect(await readNumber(seedsValue(page))).toBeLessThan(4321);

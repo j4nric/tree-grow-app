@@ -52,6 +52,9 @@ export type SyncEvent =
   /** Stand eines anderen Geräts übernommen; `lostLocal`: eine eigene Aktion ging dabei verloren. */
   | { kind: 'taken'; lostLocal: boolean };
 
+/** Warum der lokale Stand gesichert wird (siehe BackupReason in storage.ts). */
+export type LocalBackupReason = 'first-login-local' | 'lost-action' | 'before-take';
+
 /** Ergebnis der Prüfung eines Text-Codes: lesbar, aus neuerer Spielversion, unlesbar. */
 export type CodeCheck = 'ok' | 'newer' | 'invalid';
 
@@ -73,7 +76,7 @@ export interface SyncHost {
    */
   apply(data: string, ageMs?: number): boolean;
   /** Lokalen Stand sichern, bevor er ersetzt wird. */
-  backup(): void;
+  backup(reason: LocalBackupReason): void;
   /** Cloud-Stand sichern, bevor er bei der ersten Anmeldung ersetzt werden könnte. */
   backupCloud(data: string): void;
   /** Der lokale Stand wurde zuletzt mit einem anderen Konto abgeglichen. */
@@ -269,7 +272,7 @@ export class SyncEngine {
     if (decision.kind !== 'insert' && decision.firstLogin) {
       // Erste Anmeldung: beide Stände sichern, bevor einer den anderen ersetzt.
       this.host.backupCloud(remote!.data);
-      if (localProgress) this.host.backup();
+      if (localProgress) this.host.backup('first-login-local');
     }
     if (decision.kind === 'insert') {
       const result = this.written(await this.backend.insert(this.write(1, true)));
@@ -292,7 +295,7 @@ export class SyncEngine {
       const lost = !decision.firstLogin && this.pendingAction;
       // Sicherheitsnetz: Vor dem Ersetzen beim Start immer den lokalen Stand sichern (bei
       // der ersten Anmeldung oben schon geschehen) – auch wenn keine offene Aktion bekannt ist.
-      if (!decision.firstLogin && localProgress) this.host.backup();
+      if (!decision.firstLogin && localProgress) this.host.backup(lost ? 'lost-action' : 'before-take');
       this.take(remote!);
       if (decision.firstLogin) this.host.onEvent({ kind: 'first-login', winner: 'cloud' });
       else if (lost) this.host.onEvent({ kind: 'taken', lostLocal: true });
@@ -358,7 +361,7 @@ export class SyncEngine {
       this.ensureReadable(remote);
       if (resolveConflict(this.known, remote, this.device) === 'take') {
         const lost = this.pendingAction;
-        if (lost) this.host.backup();
+        if (lost) this.host.backup('lost-action');
         this.take(remote);
         this.host.onEvent({ kind: 'taken', lostLocal: lost });
         this.succeeded();
@@ -417,7 +420,7 @@ export class SyncEngine {
       this.known = remote.version;
     } else if (reaction === 'take') {
       const lost = this.pendingAction;
-      if (lost) this.host.backup();
+      if (lost) this.host.backup('lost-action');
       this.take(remote);
       this.host.onEvent({ kind: 'taken', lostLocal: lost });
     }

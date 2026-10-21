@@ -29,6 +29,8 @@ export interface AccountController {
   markAction(): void;
   /** Sofort pushen (Seite wird verborgen oder verlassen). */
   flush(): void;
+  /** Der Spielstand wurde eben gespeichert (main.ts persist). */
+  persisted(): void;
 }
 
 function randomId(): string {
@@ -48,8 +50,8 @@ export function startAccount(options: AccountOptions): AccountController {
   const panel = createAccountPanel({
     onSignIn: (name, password) => core!.signIn(name, password),
     onRegister: (name, password) => core!.register(name, password),
-    backups: () => core?.backups() ?? { local: false, cloud: false, undo: false },
-    onRestore: (kind) => core?.restore(kind) ?? null,
+    backups: () => core?.backups() ?? [],
+    onRestore: (id) => core?.restore(id) ?? null,
     onSignOut: (force) => core!.signOut(force),
   });
   options.mount(panel.element);
@@ -98,5 +100,6 @@ export function startAccount(options: AccountOptions): AccountController {
   return {
     markAction: () => core?.markAction(),
     flush: () => void core?.flush(),
+    persisted: () => core?.persisted(),
   };
 }

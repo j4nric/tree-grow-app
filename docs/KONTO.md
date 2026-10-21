@@ -36,14 +36,13 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
   (`serverTime − updatedAt`) – eine falsch gehende Geräte-Uhr verschenkt oder verschluckt
   keine Wachstumszeit.
 - **Konflikt:** Hat ein anderes Gerät inzwischen eine Aktion gemacht, gewinnt dessen Stand;
-  die eigene, noch nicht gesendete Aktion geht verloren, liegt aber als Sicherung unter
-  `vszw-backup-before-sync` im `localStorage` (als Text-Code, über „Importieren“ ladbar).
+  die eigene, noch nicht gesendete Aktion geht verloren, liegt aber als Sicherung im
+  Sicherungs-Ring (siehe unten).
   Stammt der Stand im Konto von diesem Gerät selbst (die Antwort auf einen Push ging
   verloren), ist er die eigene Linie: Das Gerät schreibt weiter, statt den älteren
   Schnappschuss zu übernehmen.
-- **Erste Anmeldung auf einem Gerät:** Vorher werden **beide** Stände gesichert – der lokale
-  unter `vszw-backup-before-sync`, der aus dem Konto unter `vszw-backup-cloud-before-sync`
-  (beide als Text-Code, über „Importieren“ ladbar). Gehört der lokale Stand zu einem anderen
+- **Erste Anmeldung auf einem Gerät:** Vorher werden **beide** Stände gesichert (lokaler und
+  Cloud-Stand, im Sicherungs-Ring). Gehört der lokale Stand zu einem anderen
   Konto (das Gerät merkt sich, mit welchem Konto es zuletzt abgeglichen hat), gewinnt der
   Stand aus dem Konto. Sonst gewinnt der weiter fortgeschrittene (Zyklus, dann
   Gesamt-Wachstum, dann Spielzeit).
@@ -54,28 +53,38 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
   im Speicher gehört nicht zu diesem Konto. Ab dann schreibt dieser Tab auch den gemeinsamen
   lokalen Spielstand nicht mehr (auch nicht beim Neuladen), sonst landete sein Spiel nach dem
   Neuladen im anderen Konto. Abmelden und eine abgelaufene Sitzung löschen nur die eigene
-  Sitzung, nie die eines anderen Tabs. Die Grundlage des Abgleichs liegt je Konto
-  (`vszw-sync-base:<name>`) und gilt nur, solange der lokale Stand zuletzt mit genau diesem
-  Konto abgeglichen wurde (`vszw-sync-owner`) – nach A → B → A gewinnt bei A der Cloud-Stand.
-- **Sicherungen laden:** Im Konto-Abschnitt lädt „Sicherung vor dem Sync wiederherstellen“
-  den gesicherten Stand dieses Geräts bzw. den aus dem Konto (zweiter Schritt als
-  Bestätigung, ersetzt den aktuellen Wald; angemeldet geht er wie eine Aktion ans Konto). Jede
-  Sicherung merkt sich ihr Konto: Angemeldet werden nur die des eigenen Kontos (und rein
-  lokale) angeboten, abgemeldet alle mit Angabe des Kontos; eine abgemeldet geladene
-  Sicherung gehört danach wieder ihrem Konto. Der Stand vor dem
-  Wiederherstellen wird unter `vszw-backup-before-restore` gesichert und lässt sich über
-  „Stand vor dem Wiederherstellen“ zurückholen.
+  Sitzung, nie die eines anderen Tabs. Meldet sich ein anderer Tab mit genau dem Konto an,
+  zu dem das Spiel dieses Tabs gehört, macht dieser Tab wieder mit – wie bei einer ersten
+  Anmeldung (beide Stände gesichert), weil sein Spiel vom gespeicherten abweichen kann.
+- **Wem der lokale Stand gehört:** `vszw-sync-base` = `{user, version, pending}` – Konto,
+  Cloud-Version, auf der er beruht, und ob seitdem eine Aktion fehlt. Diese Angaben schreibt
+  jeder Tab **im selben Takt wie den Spielstand** und aus seinem eigenen Speicher; so passen
+  „Spielstand“ und „gehört zu X“ immer zusammen, auch wenn mehrere Tabs abwechselnd speichern
+  oder ein Tab eine Sicherung lädt. Die Grundlage gilt nur für genau dieses Konto – nach
+  A → B → A gewinnt bei A der Cloud-Stand.
+- **Sicherungs-Ring:** `vszw-backups` hält die letzten 10 ersetzten Stände (zusammen höchstens
+  1,5 Mio. Zeichen), je mit Konto, Zeitpunkt, Grund (erste Anmeldung lokal/Cloud, überholte
+  Aktion, vor dem Übernehmen, vor dem Wiederherstellen) und Fortschritt. Denselben Stand gibt
+  es nur einmal; ist der Ring voll, weicht zuerst das Sicherheitsnetz „vor dem Übernehmen“,
+  dann die älteste. Frühere Einzel-Sicherungen (`vszw-backup-before-sync` …) werden beim Start
+  übernommen. Im Konto-Abschnitt listet „Sicherung vor dem Sync wiederherstellen“ sie mit
+  Grund, Konto, Zyklus und Alter; „Laden“ in der aufgeklappten Liste ist die Bestätigung und
+  ersetzt den aktuellen Wald (angemeldet geht er wie eine Aktion ans Konto; der Stand davor
+  kommt selbst in den Ring). Angemeldet werden nur Sicherungen des eigenen Kontos und rein
+  lokale angeboten, abgemeldet alle mit Angabe des Kontos; eine abgemeldet geladene Sicherung
+  gehört danach ihrem Konto – ohne Grundlage, also beim nächsten Anmelden wie eine erste
+  Anmeldung.
 - **Grundsatz:** Kein Weg ersetzt einen lokalen oder Cloud-Stand, ohne ihn vorher zu sichern;
   ein Spiel, das zuletzt mit Konto X lief, landet nie in einem anderen Konto mit Stand. Dafür
   merkt sich jeder Tab, zu welchem Konto das Spiel in seinem Speicher gehört; die
   Geräte-Kennung ist je Anmeldung neu (eigene Linie nur, wenn der Stand zu diesem Konto
   gehört); vor jedem Übernehmen beim Start wird der lokale Stand gesichert; abgemeldet
-  gespielte Fortschritte werden für das Konto des Stands als offen vermerkt. Meldet sich ein
-  anderer Tab mit genau dem Konto an, zu dem das Spiel dieses Tabs gehört, macht dieser Tab
-  mit – wie bei einer ersten Anmeldung (beide Stände gesichert). `tests/sync-sequences.test.ts`
-  spielt alle Abfolgen aus Anmelden A/B, Abmelden, Spielen, Neuladen, zweitem Tab und
-  Schreiben anderer Geräte (vollständig bis Länge 4, dazu 2000 zufällige der Länge 7) durch
-  und prüft beides.
+  gespielte Fortschritte werden für das Konto des Stands als offen vermerkt.
+  `tests/sync-sequences.test.ts` spielt Abfolgen aus Anmelden A/B, Abmelden, Spielen,
+  Neuladen (auch mitten im Senden), Wiederherstellen, zweitem Tab, Schreiben anderer Geräte,
+  Netzfehlern (vor/nach dem Schreiben, Sitzung weg, 422, 507) und verlorenen Live-Meldungen
+  durch – alle der Länge 3, dazu 4000 zufällige der Länge 8, jeder Takt mit Autosave – und
+  prüft nach jedem Schritt beides; verlorene Stände müssen bis zum Ende im Ring liegen.
 - **Abmelden:** sendet vorher den letzten Stand. Klappt das nicht (offline), weist der
   Konto-Abschnitt darauf hin; ein zweiter Tipp („Trotzdem abmelden“) meldet trotzdem ab – der
   Stand bleibt auf dem Gerät.

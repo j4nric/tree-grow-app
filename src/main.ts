@@ -183,7 +183,10 @@ let storageFrozen = false;
 
 /** Spielstand speichern (außer gesperrt). */
 function persist(): void {
-  if (!storageFrozen) saveToStorage(state);
+  if (storageFrozen) return;
+  saveToStorage(state);
+  // Abgleich-Angaben (wem der Stand gehört) im selben Takt dazu schreiben.
+  account?.persisted();
 }
 
 /** Konto-Abgleich (nur wenn konfiguriert, nach dem Nachladen). */
@@ -813,6 +816,7 @@ function setupAccount(): void {
           freeze: () => {
             storageFrozen = true;
           },
+          save: () => persist(),
           // Sicherung von vor dem Abgleich laden – wie „Importieren“.
           restore: (code) => {
             if (storageFrozen) return 'Dieser Tab ist angehalten. Bitte lade die Seite neu.';

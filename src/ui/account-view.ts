@@ -3,6 +3,7 @@
  * (getestet in tests/account-view.test.ts). Ruhiger Ton, kurze Sätze.
  */
 import type { SyncEvent, SyncProblem, SyncStatus } from '../sync/engine';
+import type { BackupEntry, BackupReason } from '../sync/storage';
 import type { AccountErrorCode } from '../sync/types';
 
 /** So lange nach einem Abgleich heißt es „Synchronisiert“. */
@@ -37,10 +38,7 @@ export const ACCOUNT_TEXTS = {
   reload: 'Neu laden',
   restoreOpen: 'Sicherung vor dem Sync wiederherstellen',
   restoreHint: 'Welche Sicherung laden? Dein aktueller Wald wird dabei ersetzt.',
-  restoreLocal: 'Stand dieses Geräts',
-  restoreCloud: 'Stand aus dem Konto',
-  restoreUndo: 'Stand vor dem Wiederherstellen',
-  restoreOwned: (label: string, owner: string) => `${label} (Konto ${owner})`,
+  restoreLoad: 'Laden',
   restoreCancel: 'Abbrechen',
   restored: 'Sicherung geladen.',
 } as const;
@@ -134,4 +132,23 @@ export function syncEventText(event: SyncEvent): string {
   return event.lostLocal
     ? 'Auf anderem Gerät weitergespielt – übernommen. Deine letzte Aktion hier ist als Sicherung aufgehoben.'
     : 'Auf anderem Gerät weitergespielt – übernommen.';
+}
+
+/** Warum eine Sicherung angelegt wurde – kurz. */
+export const BACKUP_REASON_TEXTS: Readonly<Record<BackupReason, string>> = {
+  'first-login-local': 'Stand dieses Geräts vor der ersten Anmeldung',
+  'first-login-cloud': 'Stand aus dem Konto vor der ersten Anmeldung',
+  'lost-action': 'Von einem anderen Gerät überholte Aktion',
+  'before-take': 'Stand dieses Geräts vor dem Übernehmen',
+  'before-restore': 'Stand vor dem Wiederherstellen',
+  legacy: 'Frühere Sicherung',
+};
+
+/** „Stand … · Konto eiche · Zyklus 2 · vor 5 min“ (rein lokal: ohne Konto). */
+export function backupLabel(entry: BackupEntry, now: number): string {
+  const parts = [BACKUP_REASON_TEXTS[entry.reason]];
+  if (entry.owner) parts.push(`Konto ${entry.owner}`);
+  if (entry.progress && Number.isFinite(entry.progress.cycle)) parts.push(`Zyklus ${entry.progress.cycle}`);
+  parts.push(agoText(now - entry.at));
+  return parts.join(' · ');
 }

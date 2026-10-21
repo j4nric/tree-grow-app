@@ -10,18 +10,7 @@
 import { SAVE_VERSION } from '../core/state';
 import { SyncEngine, type CodeCheck, type SyncHost, type SyncStatus } from './engine';
 import type { Progress } from './policy';
-import {
-  BACKUP_KEY,
-  CLOUD_BACKUP_KEY,
-  RESTORE_UNDO_KEY,
-  markPending,
-  readBackup,
-  readBase,
-  readOwner,
-  writeBackup,
-  writeBase,
-  writeOwner,
-} from './storage';
+import { addBackup, migrateLegacyBackups, readBackups, readMeta, writeMeta, type BackupEntry, type LocalMeta } from './storage';
 import { AccountError, type AccountService, type AccountUser } from './types';
 
 /** Was der Abgleich vom Spiel braucht (main.ts). */
@@ -47,14 +36,9 @@ export interface GameBridge {
    * spielt jetzt mit einem anderen Konto): alle Speicherungen sperren, bis neu geladen wird.
    */
   freeze(): void;
+  /** Spielstand jetzt speichern (main.ts: persist → ruft danach AccountCore.persisted()). */
+  save(): void;
 }
-
-export type BackupKind = 'local' | 'cloud' | 'undo';
-
-/** Angebotene Sicherung: false = keine (oder nicht für dieses Konto); sonst ihr Konto (null = rein lokal). */
-export type BackupOffer = false | { owner: string | null };
-
-export type BackupAvailability = Record<BackupKind, BackupOffer>;
 
 /** Was der Kern an der Oberfläche anzeigt (account-panel.ts). */
 export interface AccountView {
@@ -63,7 +47,8 @@ export interface AccountView {
   showUnavailable(): void;
   showStale(name: string): void;
   setStatus(status: SyncStatus | null): void;
-  setBackups(available: BackupAvailability): void;
+  /** Angebotene Sicherungen, neueste zuerst. */
+  setBackups(available: BackupEntry[]): void;
 }
 
 export interface CoreDeps {
@@ -82,8 +67,6 @@ export interface CoreDeps {
 
 export const RESTORE_MISSING = 'Diese Sicherung gibt es nicht (mehr).';
 export const FROZEN_TEXT = 'Ein anderer Tab spielt mit einem anderen Konto – dieser Tab speichert nicht mehr. Bitte neu laden.';
-
-const RESTORE_KEYS: Record<BackupKind, string> = { local: BACKUP_KEY, cloud: CLOUD_BACKUP_KEY, undo: RESTORE_UNDO_KEY };
 
 /**
  * Was ein Tab tun muss, wenn sich die gemeinsame Sitzung (localStorage, alle Tabs) geändert
@@ -109,8 +92,11 @@ export interface AccountCore {
   signIn(name: string, password: string): Promise<void>;
   register(name: string, password: string): Promise<void>;
   signOut(force: boolean): Promise<'done' | 'unsent'>;
-  backups(): BackupAvailability;
-  restore(kind: BackupKind): string | null;
+  /** Angebotene Sicherungen (angemeldet nur die eigenen und rein lokalen), neueste zuerst. */
+  backups(): BackupEntry[];
+  restore(id: string): string | null;
+  /** Der Spielstand wurde eben gespeichert: Abgleich-Angaben dazu schreiben (gleicher Takt). */
+  persisted(): void;
   /** Gemeinsame Sitzung geändert (storage-Ereignis) – auch regelmäßig aufrufen. */
   checkSession(): void;
   /** Regelmäßig (jede Sekunde): fällige Pushes, Sitzung prüfen. */
@@ -132,12 +118,17 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
   /** Erst nach der ersten Prüfung der Sitzung beim Start (currentUser) vergleichen. */
   let known = false;
   /**
-   * Zu welchem Konto das Spiel IM SPEICHER DIESES TABS gehört. Der gemeinsame Besitzer im
-   * localStorage kann sich durch andere Tabs ändern, ohne dass sich dieser Tab ändert – für
-   * Entscheidungen zählt deshalb, wem das eigene Spiel gehört (beim Laden der Seite der
-   * gespeicherte Besitzer, danach: erfolgreicher Abgleich, Wiederherstellen).
+   * Wem das Spiel IM SPEICHER DIESES TABS gehört und worauf es beruht. Andere Tabs können die
+   * gespeicherten Angaben ändern, ohne dass sich dieser Tab ändert – für Entscheidungen zählt
+   * deshalb das eigene Spiel. Geschrieben wird es nur zusammen mit dem Spielstand
+   * (persisted), damit beides im localStorage immer zusammenpasst.
    */
-  let memoryOwner = readOwner(storage);
+  let memory: LocalMeta = readMeta(storage);
+
+  /** Abgleich-Angaben schreiben – nie aus einem angehaltenen Tab. */
+  function writeMemory(): void {
+    if (!stale) writeMeta(storage, memory);
+  }
 
   function hostFor(account: AccountUser, fresh: boolean): SyncHost {
     /** Ohne bekannte Grundlage beginnen (Spiel im Speicher kann vom gespeicherten abweichen). */
@@ -150,16 +141,19 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
       localProgress: () => game.localProgress(),
       progressOf: (code) => game.progressOf(code),
       apply: (code, ageMs) => game.adopt(code, ageMs),
-      // Lokaler Stand gehört dem Konto, mit dem er zuletzt abgeglichen wurde.
-      backup: () => writeBackup(storage, game.snapshot(), BACKUP_KEY, memoryOwner),
-      backupCloud: (data) => writeBackup(storage, data, CLOUD_BACKUP_KEY, account.name),
-      localIsForeign: () => memoryOwner !== null && memoryOwner !== account.name,
+      // Lokaler Stand gehört dem Konto, zu dem das Spiel dieses Tabs gehört.
+      backup: (reason) =>
+        addBackup(storage, { code: game.snapshot(), owner: memory.owner, at: deps.clock(), reason, progress: game.localProgress() }),
+      backupCloud: (data) =>
+        addBackup(storage, { code: data, owner: account.name, at: deps.clock(), reason: 'first-login-cloud', progress: game.progressOf(data) }),
+      localIsForeign: () => memory.owner !== null && memory.owner !== account.name,
       isActive: deps.isActive,
-      loadBase: () => (ignoreBase || memoryOwner !== account.name ? null : readBase(storage, account.name)),
+      loadBase: () => (ignoreBase || memory.owner !== account.name ? null : memory.base),
       saveBase: (base) => {
         ignoreBase = false;
-        memoryOwner = account.name;
-        writeBase(storage, account.name, base);
+        memory = { owner: account.name, base };
+        // Spielstand und Angaben zusammen speichern (persisted schreibt die Angaben).
+        game.save();
       },
       onStatus: (status) => view.setStatus(status),
       onEvent: (event) => game.notify(deps.eventText(event)),
@@ -204,7 +198,7 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
   function checkSession(): void {
     if (stale || !known) return;
     const stored = service.sessionUser();
-    const change = sessionChange(user?.name ?? null, stored, memoryOwner);
+    const change = sessionChange(user?.name ?? null, stored, memory.owner);
     if (change === 'signed-out') setUser(null);
     // Anderswo mit dem Konto angemeldet, zu dem auch das Spiel dieses Tabs gehört: mitmachen –
     // aber ohne die (vom anderen Tab geschriebene) Grundlage, also wie bei der ersten
@@ -214,43 +208,38 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
   }
 
   /** Welche Sicherungen angeboten werden: angemeldet nur die eigenen bzw. rein lokalen. */
-  function backups(): BackupAvailability {
-    const offer = (kind: BackupKind): BackupOffer => {
-      if (stale) return false;
-      const backup = readBackup(storage, RESTORE_KEYS[kind]);
-      if (!backup) return false;
-      if (user && backup.owner !== null && backup.owner !== user.name) return false;
-      return { owner: backup.owner };
-    };
-    return { local: offer('local'), cloud: offer('cloud'), undo: offer('undo') };
+  function backups(): BackupEntry[] {
+    if (stale) return [];
+    return readBackups(storage)
+      .filter((e) => !user || e.owner === null || e.owner === user.name)
+      .reverse();
   }
 
-  function restore(kind: BackupKind): string | null {
-    const offer = backups()[kind];
-    if (!offer) return RESTORE_MISSING;
-    const backup = readBackup(storage, RESTORE_KEYS[kind]);
-    if (!backup) return RESTORE_MISSING;
+  function restore(id: string): string | null {
+    if (stale) return RESTORE_MISSING;
+    const entry = backups().find((e) => e.id === id);
+    if (!entry) return RESTORE_MISSING;
     // Vorher den aktuellen Stand sichern – auch das Wiederherstellen lässt sich so zurücknehmen.
-    const current = game.snapshot();
-    const currentOwner = memoryOwner;
-    const error = game.restore(backup.code);
-    if (error) return error;
-    writeBackup(storage, current, RESTORE_UNDO_KEY, currentOwner);
-    if (engine && user) {
-      // Angemeldet: wie eine Spieleraktion – die anderen Geräte übernehmen den Stand.
-      engine.markAction();
-    } else {
-      // Abgemeldet: Der lokale Stand gehört jetzt dem Konto der Sicherung (bzw. keinem).
-      memoryOwner = backup.owner;
-      writeOwner(storage, backup.owner);
-      markPending(storage);
+    const current = { code: game.snapshot(), owner: memory.owner, progress: game.localProgress() };
+    const previous = memory;
+    // Abgemeldet: Der Stand gehört danach dem Konto der Sicherung – ohne Grundlage, also beim
+    // nächsten Anmelden wie eine erste Anmeldung (mit Sicherungen beider Stände).
+    if (!engine) memory = { owner: entry.owner, base: null };
+    const error = game.restore(entry.code);
+    if (error) {
+      memory = previous;
+      return error;
     }
+    addBackup(storage, { ...current, at: deps.clock(), reason: 'before-restore' });
+    // Angemeldet: wie eine Spieleraktion – die anderen Geräte übernehmen den Stand.
+    engine?.markAction();
     view.setBackups(backups());
     return null;
   }
 
   return {
     async start() {
+      migrateLegacyBackups(storage, deps.clock());
       try {
         setUser(await service.currentUser());
       } catch {
@@ -271,8 +260,11 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
       await engine?.flush();
       // Ließ sich nicht alles senden (offline …): erst nachfragen.
       if (!force && engine?.hasUnsent) return 'unsent';
-      // Offene Aktion bleibt für dieses Konto vermerkt (Grundlage pending).
-      if (engine?.hasUnsent) markPending(storage);
+      // Offene Aktion bleibt für dieses Konto vermerkt (wie beim Spielen ohne Anmeldung).
+      if (engine?.hasUnsent && memory.base && memory.owner === user?.name) {
+        memory = { owner: memory.owner, base: { version: memory.base.version, pending: true } };
+        writeMemory();
+      }
       await service.signOut(user ?? undefined);
       setUser(null);
       return 'done';
@@ -288,10 +280,18 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
     },
     markAction() {
       if (stale) return;
-      // Ohne Abgleich (abgemeldet): die Änderung für das Konto des lokalen Stands vormerken.
-      if (engine) engine.markAction();
-      else if (memoryOwner !== null && memoryOwner === readOwner(storage)) markPending(storage);
+      if (engine) {
+        engine.markAction();
+        return;
+      }
+      // Ohne Abgleich (abgemeldet): die Änderung für das Konto des Stands vormerken – beim
+      // nächsten Anmelden wird sie gesendet bzw. vor dem Übernehmen gesichert.
+      if (memory.base && !memory.base.pending) {
+        memory = { owner: memory.owner, base: { version: memory.base.version, pending: true } };
+        writeMemory();
+      }
     },
+    persisted: writeMemory,
     flush: () => engine?.flush() ?? Promise.resolve(),
     dispose() {
       engine?.stop();

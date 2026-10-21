@@ -410,6 +410,29 @@ footer {
   display: none;
 }
 
+.account-backups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.account-backup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.account-backup-label {
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
+}
+
 .account-sync.tone-bad {
   color: var(--bad);
   font-weight: 600;
