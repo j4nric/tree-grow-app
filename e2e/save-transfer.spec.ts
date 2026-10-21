@@ -14,7 +14,9 @@ const transfer = (page: Page) => page.locator('[data-ref="save-transfer"]');
 function comparable(save: Record<string, any>) {
   const { lastTick: _lastTick, totalGrowth: _growth, seeds: _seeds, ...rest } = save;
   const { elapsed: _elapsed, ...cycle } = rest.cycle ?? {};
-  return { ...rest, cycle };
+  // Langzeit-Statistik: die Spielzeit läuft weiter wie im Zyklus (Wachstum steht in totalGrowth).
+  const { playSeconds: _play, ...stats } = rest.meta?.stats ?? {};
+  return { ...rest, cycle, meta: { ...rest.meta, stats } };
 }
 
 async function openTransfer(page: Page): Promise<void> {
@@ -74,6 +76,7 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
   expect(comparable(after)).toEqual(comparable(before));
   expect(after.totalGrowth).toBeGreaterThanOrEqual(before.totalGrowth);
   expect(after.cycle.elapsed).toBeGreaterThanOrEqual(before.cycle.elapsed);
+  expect(after.meta.stats.playSeconds).toBeGreaterThanOrEqual(before.meta.stats.playSeconds);
 });
 
 test('Ungültiger Code: klare Meldung, Spielstand bleibt unverändert', async ({ page, context }) => {

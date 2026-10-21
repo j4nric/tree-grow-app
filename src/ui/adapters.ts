@@ -12,7 +12,7 @@ import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
 import { EVENTS_BY_ID, type CycleEffect, type EventOption, type TimedEffect } from '../content/events';
 import { KEEPSAKE_INFO, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { SEASON_SECONDS, YEAR_SECONDS } from '../content/seasons';
-import { MAIN_TREES } from '../content/trees';
+import { MAIN_TREES, MAIN_TREES_BY_ID } from '../content/trees';
 import { seasonAt } from '../core/season';
 import { NICHES, NICHES_BY_ID } from '../content/niches';
 import { PLANT_GROUP_INFO, PLANTS, PLANTS_BY_ID, type Plant } from '../content/plants';
@@ -39,6 +39,7 @@ import {
   ecosystemOf,
   evaluateEcosystem,
   hasSpecies,
+  lifetimeGrowth,
   memberOptions,
   nextPlantCost,
   plantSlots,
@@ -814,6 +815,8 @@ export function toJournalTrees(state: GameState): JournalTreeView[] {
   return MAIN_TREES.map((t) => {
     const unlocked = isTreeUnlocked(state, t.id);
     const current = t.id === state.cycle.mainTree;
+    // Schon einmal Hauptbaum (Langzeit-Statistik, seit v8); die aktuelle Art zählt mit.
+    const grown = current || state.meta.stats.grownTrees.includes(t.id);
     if (!unlocked && !reveal && !current) {
       return {
         key: `unknown-tree-${hidden++}`,
@@ -822,10 +825,11 @@ export function toJournalTrees(state: GameState): JournalTreeView[] {
         hidden: true,
         unlocked: false,
         current: false,
+        grown: false,
         hint: 'Wächst eine bestimmte Baumart einmal im Pflanzring, kann aus ihren Samen ein neuer Hauptbaum keimen.',
       };
     }
-    const view: JournalTreeView = { key: t.id, icon: t.icon, name: t.name, hidden: false, unlocked, current, summary: t.summary };
+    const view: JournalTreeView = { key: t.id, icon: t.icon, name: t.name, hidden: false, unlocked, current, grown, summary: t.summary };
     if (unlocked) view.text = t.text;
     else view.hint = t.unlockHint;
     return view;
@@ -835,7 +839,8 @@ export function toJournalTrees(state: GameState): JournalTreeView[] {
 /**
  * Kennzahlen für den Reiter „Statistik“ – alles aus dem vorhandenen Spielstand abgeleitet.
  * Zahlen im eingestellten Zahlenformat (kurz/ausgeschrieben). Nennt nur Zähler und Namen
- * entdeckter Arten, nichts Unentdecktes.
+ * entdeckter Arten, nichts Unentdecktes. Am Ende der Abschnitt „Über alle Zyklen“
+ * (`section: 'total'`, aus `meta.stats`).
  */
 export function toJournalStats(state: GameState, evaluation: Readonly<Pick<Evaluation, 'harmony'>>): JournalStatView[] {
   const journal = state.meta.journal;
@@ -903,10 +908,50 @@ export function toJournalStats(state: GameState, evaluation: Readonly<Pick<Evalu
             : 'noch keiner gewählt'
           : `erster Platz ab ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Waldgedächtnis`,
     },
+    ...toLifetimeStats(state),
   ];
   // Optionale Zusätze ohne Inhalt weglassen (JSON-stabil, kein „undefined“).
   for (const s of stats) if (s.detail === undefined) delete s.detail;
   return stats;
+}
+
+/** Zahl ≥ 0 für die Anzeige (kaputte Werte → 0). */
+const shown = (n: number) => (Number.isFinite(n) && n > 0 ? n : 0);
+
+/** Abschnitt „Über alle Zyklen“ im Reiter „Statistik“ (Langzeit-Statistik, seit v8). */
+function toLifetimeStats(state: GameState): JournalStatView[] {
+  const s = state.meta.stats;
+  const seconds = shown(s.playSeconds);
+  const best = shown(s.bestHarmony);
+  const trees = s.grownTrees.map((id) => MAIN_TREES_BY_ID.get(id)?.name).filter((n): n is string => !!n);
+  const count = (key: string, label: string, n: number, detail?: string): JournalStatView => {
+    const view: JournalStatView = { key, label, value: formatNumber(Math.floor(shown(n))), section: 'total' };
+    if (detail) view.detail = detail;
+    return view;
+  };
+  return [
+    { key: 'total-time', label: 'Spielzeit', value: formatDuration(seconds), detail: cycleAgeText(seconds), section: 'total' },
+    { key: 'total-growth', label: 'Gesamt-Wachstum', value: `${formatNumber(Math.floor(lifetimeGrowth(state)))} 🌿`, section: 'total' },
+    {
+      key: 'total-harmony',
+      label: 'Beste Harmonie',
+      value: `${formatNumber(Math.round(best))} ⚖️`,
+      detail: harmonyTier(best),
+      section: 'total',
+    },
+    count('total-cards', 'Angenommene Begegnungen', s.cardsChosen, 'Tier- und Pflanzenkarten gewählt'),
+    count('total-events', 'Ereignisse entschieden', s.eventsDecided),
+    count('total-visitors', 'Gäste bewirtet', s.visitorsHosted),
+    count('total-plants', 'Pflanzen gesetzt', s.plantsPlanted),
+    count('total-care', 'Pflege-Ränge gekauft', s.careRanksBought),
+    {
+      key: 'total-trees',
+      label: 'Gewachsene Hauptbaum-Arten',
+      value: ofTotal(trees.length, MAIN_TREES.length),
+      detail: trees.join(', '),
+      section: 'total',
+    },
+  ];
 }
 
 // ---------------------------------------------------------------------------

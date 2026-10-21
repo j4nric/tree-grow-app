@@ -1,7 +1,7 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { SEASON_SECONDS, YEAR_SECONDS } from '../src/content/seasons';
 import { createInitialState } from '../src/core/state';
-import { expect, openGame, seedRaw, test, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, openGame, savedState, seedRaw, test, waypoint } from './fixtures';
 
 /**
  * Naturtagebuch, Reiter „Statistik“ (Kennzahlen aus dem Spielstand) und „Andenken“
@@ -24,6 +24,10 @@ async function seedSecondCycle(context: BrowserContext): Promise<void> {
   state.meta.regulars = ['bluetit'];
   state.meta.journal.species = ['bluetit', 'earthworm'];
   state.meta.journal.plants = ['pine'];
+  state.meta.stats.playSeconds = 3600 + 125;
+  state.meta.stats.cardsChosen = 17;
+  state.meta.stats.visitorsHosted = 2;
+  state.meta.stats.grownTrees = ['oak', 'pine'];
   await seedRaw(context, state, 0);
 }
 
@@ -62,12 +66,42 @@ test('Statistik: per Tastatur erreichbar, Kennzahlen aus dem Spielstand, Samen l
   await expect(stat(page, 'regulars')).toContainText('1/1');
   await expect(stat(page, 'regulars')).toContainText('Blaumeise');
 
+  // Über alle Zyklen (Langzeit-Statistik aus dem Spielstand, eigener Abschnitt).
+  const total = panel.locator('[data-ref="journal-stats-total"]');
+  await expect(panel.getByRole('heading', { name: 'Über alle Zyklen' })).toBeVisible();
+  await expect(total.locator('[data-stat="total-time"]')).toContainText('1 Std.');
+  await expect(total.locator('[data-stat="total-cards"]')).toContainText('17');
+  await expect(total.locator('[data-stat="total-visitors"]')).toContainText('2');
+  await expect(total.locator('[data-stat="total-trees"]')).toContainText('Stieleiche, Waldkiefer');
+  await expect(panel.locator('[data-ref="journal-stats"] [data-stat^="total-"]')).toHaveCount(0);
+
   // Samen wachsen weiter – die Zahl im offenen Dialog läuft mit (ohne Neubau der Zeilen).
   const seeds = stat(page, 'seeds').locator('.journal-stat-number');
   const before = await seeds.textContent();
   await seeds.evaluate((e) => e.setAttribute('data-e2e-marker', '1'));
   await expect(seeds).not.toHaveText(before ?? '', { timeout: 5000 });
   await expect(seeds).toHaveAttribute('data-e2e-marker', '1');
+});
+
+test('Alter Spielstand (v7, ohne Statistik): Über alle Zyklen beginnt beim laufenden Zyklus', async ({ page, context }) => {
+  const state = createInitialState(Date.now(), 777);
+  state.totalGrowth = waypoint(6) + 1;
+  state.cycle.number = 3;
+  state.cycle.elapsed = 2 * YEAR_SECONDS;
+  const { stats: _stats, ...meta } = state.meta;
+  await seedRaw(context, { ...state, version: 7, meta }, 0);
+  await openGame(page);
+  // Gespeichert spätestens beim Verlassen – dann im neuen Format.
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
+  const saved = await savedState(page);
+  expect(saved.version).toBe(SAVE_VERSION);
+  expect(saved.meta.stats).toMatchObject({ cardsChosen: 0, grownTrees: ['oak'] });
+  expect(saved.meta.stats.playSeconds).toBeGreaterThanOrEqual(2 * YEAR_SECONDS);
+  await openJournal(page);
+  await page.getByRole('tab', { name: 'Statistik' }).click();
+  await expect(stat(page, 'total-time')).toContainText('24 Min.');
+  await expect(stat(page, 'total-cards')).toContainText('0');
+  await expect(stat(page, 'total-trees')).toContainText('Stieleiche');
 });
 
 test('Andenken: Hauptbaum-Arten mit Status, gesperrte mit Hinweis, aktuelle markiert', async ({ page, context }) => {
@@ -82,7 +116,8 @@ test('Andenken: Hauptbaum-Arten mit Status, gesperrte mit Hinweis, aktuelle mark
   const beech = panel.locator('[data-tree="beech"]');
   const pine = panel.locator('[data-tree="pine"]');
   await expect(oak).toContainText('Stieleiche');
-  await expect(oak).toContainText('freigeschaltet');
+  // Die Eiche war im ersten Zyklus Hauptbaum (Langzeit-Statistik).
+  await expect(oak).toContainText('schon gewachsen');
   await expect(pine).toContainText('Waldkiefer');
   await expect(pine).toContainText('wächst in diesem Zyklus');
   await expect(pine).toHaveClass(/current/);

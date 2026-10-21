@@ -38,6 +38,11 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
   expect(after.meta.journal.species).toEqual(expect.arrayContaining(['earthworm', 'vole', 'robin', 'bee', 'bluetit']));
   expect(after.niches.roots).toEqual([]);
   expect(after.plants).toEqual([]);
+  // Langzeit-Statistik (v8): aus dem v3-Stand migriert, überdauert den Zyklus.
+  expect(after.meta.stats.grownTrees).toEqual(['oak']);
+  expect(after.meta.stats.completedCyclesGrowth).toBeGreaterThanOrEqual(waypoint(20));
+  expect(after.meta.stats.bestHarmony).toBeGreaterThan(0);
+  expect(after.meta.stats.playSeconds).toBeGreaterThan(0);
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
   // Danach wieder gesperrt.
   await expect(panel.locator('[data-ref="cycle-blocker"]')).toContainText('„Hain“');

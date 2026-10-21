@@ -904,6 +904,15 @@ export function thresholdFor(k: number): number {
   return WAYPOINT_THRESHOLDS[k] ?? waypointThreshold(k);
 }
 
+/**
+ * Gesamt-Wachstum über alle Zyklen (Langzeit-Statistik, DESIGN_V2.md 12.5): abgeschlossene
+ * Zyklen + laufender Zyklus. Kaputte Teile zählen als 0, das Ergebnis bleibt endlich.
+ */
+export function lifetimeGrowth(state: GameState): number {
+  const part = (n: number) => (Number.isFinite(n) && n > 0 ? n : 0);
+  return Math.min(Number.MAX_VALUE, part(state.meta.stats.completedCyclesGrowth) + part(state.totalGrowth));
+}
+
 /** Wie viele Wegpunkte hat dieses Gesamt-Wachstum erreicht? */
 export function waypointsForGrowth(totalGrowth: number): number {
   let k = 0;
