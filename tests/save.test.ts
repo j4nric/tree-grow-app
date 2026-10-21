@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY } from '../src/content/memory';
-import { thresholdFor } from '../src/core/formulas';
+import { nicheSlots, thresholdFor } from '../src/core/formulas';
 import { isValidRngState, normalizeSeed } from '../src/core/rng';
 import {
   deserialize,
@@ -187,6 +187,33 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
       expect(v).toBeGreaterThanOrEqual(last);
       last = v;
     }
+  });
+
+  it('akzeptiert alle 32 Arten und die neuen Gattungen (Schritt 2.2)', () => {
+    const raw = rawV3({
+      totalGrowth: thresholdFor(36),
+      niches: {
+        roots: ['honeyfungus', 'vole', 'mole', 'chanterelle'],
+        litter: ['salamander', 'hedgehog', 'snail', 'woodant'],
+        edge: ['wolf', 'deer', 'fox', 'glowworm'],
+        crown: ['squirrel', 'jay', 'oakmoth', 'bluetit'],
+        bark: ['blackwoodpecker', 'woodpecker', 'tinder'],
+        hollows: ['bat', 'owl', 'stagbeetle', 'unbekannt'],
+      },
+      pendingEncounters: [{ type: 'animal', cards: ['flyagaric', 'porcini', 'slug'], rerolls: 0 }],
+      meta: { forestMemory: 0, journal: { species: ['wolf', 'flyagaric', 'gibt-es-nicht'], keepsakes: [] } },
+    });
+    const s = deserialize(raw, 0)!;
+    expect(s.stage).toBe(7);
+    expect(s.niches.roots).toEqual(['honeyfungus', 'vole', 'mole', 'chanterelle']);
+    expect(s.niches.crown).toEqual(['squirrel', 'jay', 'oakmoth', 'bluetit']);
+    // Höhlen: 3 Plätze + Buntspecht + Schwarzspecht (Baumeister); Unbekanntes fällt weg.
+    expect(s.niches.hollows).toEqual(['bat', 'owl', 'stagbeetle']);
+    expect(nicheSlots(s.stage, s.niches).hollows).toBe(5);
+    expect(s.pendingEncounters[0]!.cards).toEqual(['flyagaric', 'porcini', 'slug']);
+    expect(s.meta.journal.species).toContain('wolf');
+    expect(s.meta.journal.species).toContain('flyagaric');
+    expect(s.meta.journal.species).not.toContain('gibt-es-nicht');
   });
 
   it('Prototyp-Stand: Fortschritt bleibt, Samen werden auf die ersten zwei Pflanzen begrenzt', () => {

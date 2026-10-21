@@ -4,7 +4,7 @@ import { PLANTS_BY_ID } from '../content/plants';
 import { SPECIES_BY_ID } from '../content/species';
 import { NICHE_IDS } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
-import { nicheSlots, plantCost, plantSlots, stageForWaypoint, thresholdFor, waypointsForGrowth } from './formulas';
+import { nicheSlots, plantCost, plantSlots, slotEffects, stageForWaypoint, thresholdFor, waypointsForGrowth } from './formulas';
 import { isValidRngState, normalizeSeed } from './rng';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState, type GameState, type PendingEncounter } from './state';
 
@@ -83,27 +83,38 @@ function v2Threshold(k: number): number {
   return k <= 0 ? 0 : Math.round(V2_WAYPOINT_BASE * Math.pow(k, V2_WAYPOINT_POWER));
 }
 
-/**
- * Bildet Gesamt-Wachstum eines v2-Stands auf dieselbe Stelle der aktuellen Kurve ab:
- * gleicher Wegpunkt, gleicher Bruchteil bis zum nächsten. So bleibt die Stufe erhalten
- * (kein Zurückstufen, keine entlassenen Tiere, keine doppelten Wegpunkte). Hinter dem
- * letzten Wegpunkt wird im Verhältnis der beiden Kurven skaliert.
- */
-export function v2GrowthToV3(growth: number): number {
-  if (!(growth > 0)) return 0;
+/** Erreichte Wegpunkte auf einer (früheren) Kurve. */
+function waypointsOnCurve(growth: number, threshold: (k: number) => number): number {
   let k = 0;
-  while (k < WAYPOINT_COUNT && growth >= v2Threshold(k + 1)) k++;
+  while (k < WAYPOINT_COUNT && growth >= threshold(k + 1)) k++;
+  return k;
+}
+
+/**
+ * Bildet Gesamt-Wachstum von einer früheren Wegpunkt-Kurve auf dieselbe Stelle der
+ * aktuellen Kurve ab: gleicher Wegpunkt, gleicher Bruchteil bis zum nächsten. So bleibt
+ * die Stufe erhalten (kein Zurückstufen, keine entlassenen Tiere, keine doppelten
+ * Wegpunkte). Hinter dem letzten Wegpunkt wird im Verhältnis der beiden Kurven skaliert.
+ */
+function growthToCurrentCurve(growth: number, threshold: (k: number) => number): number {
+  if (!(growth > 0)) return 0;
+  const k = waypointsOnCurve(growth, threshold);
   if (k >= WAYPOINT_COUNT) {
-    const scaled = thresholdFor(WAYPOINT_COUNT) * (growth / v2Threshold(WAYPOINT_COUNT));
+    const scaled = thresholdFor(WAYPOINT_COUNT) * (growth / threshold(WAYPOINT_COUNT));
     return Math.min(Number.MAX_VALUE, scaled);
   }
-  const from = v2Threshold(k);
-  const to = v2Threshold(k + 1);
+  const from = threshold(k);
+  const to = threshold(k + 1);
   const fraction = Math.min(1, Math.max(0, (growth - from) / (to - from)));
   const newFrom = thresholdFor(k);
   const result = newFrom + fraction * (thresholdFor(k + 1) - newFrom);
   // Rundung darf nie unter den erreichten Wegpunkt fallen.
   return Math.max(newFrom, result);
+}
+
+/** v2-Stand (4 · k^3,2) → aktuelle Kurve (siehe growthToCurrentCurve). */
+export function v2GrowthToV3(growth: number): number {
+  return growthToCurrentCurve(growth, v2Threshold);
 }
 
 /** v2 → v3: noch keine Pflanzen; Samen-Bestand begrenzen (siehe V2_SEED_CAP). */
@@ -132,7 +143,7 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
 
   // Nischen: unbekannte Arten und Duplikate verwerfen, jede Art in ihre eigene Nische,
   // auf die aktuelle Platzzahl kürzen. Fehlende Nischen (z. B. „hollows“ aus älteren
-  // v2-Ständen) bleiben leer. Arten, die Plätze schaffen (Borkenkäfer → Höhlen), ziehen
+  // v2-Ständen) bleiben leer. Arten, die Plätze schaffen (Borkenkäfer → Höhlen, Schwarzspecht), ziehen
   // zuerst ein, damit ihre Plätze beim Kürzen schon zählen; danach gilt wieder die
   // gespeicherte Reihenfolge.
   const niches = isRecord(data.niches) ? data.niches : {};
@@ -140,7 +151,7 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   for (const nicheId of NICHE_IDS) {
     for (const id of stringArray(niches[nicheId])) if (SPECIES_BY_ID.has(id) && !candidates.includes(id)) candidates.push(id);
   }
-  const createsSlots = (id: string) => SPECIES_BY_ID.get(id)!.effects.some((e) => e.kind === 'slot');
+  const createsSlots = (id: string) => slotEffects(SPECIES_BY_ID.get(id)!).length > 0;
   // Alle gespeicherten Arten haben hier gelebt – auch gekürzte bleiben im Tagebuch.
   const seen = new Set<string>(candidates);
   for (const id of [...candidates.filter(createsSlots), ...candidates.filter((x) => !createsSlots(x))]) {

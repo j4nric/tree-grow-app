@@ -297,7 +297,7 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   };
   const snapshot = (): Snapshot => {
     const ev = evaluate(state);
-    const genus = { birds: 0, insects: 0, soil: 0 } as Record<Genus, number>;
+    const genus = Object.fromEntries(GENERA.map((g) => [g, 0])) as Record<Genus, number>;
     for (const id of allAnimals(state)) genus[SPECIES_BY_ID.get(id)!.genus]++;
     return {
       time,
@@ -573,7 +573,7 @@ export function decisionStats(summary: Summary, beforeStage: number) {
 export function strategyTable(summaries: Summary[], stage: number): string {
   const name = STAGES[stage]!.name;
   const lines = [
-    `| Strategie | ${name} nach (Median) | ⚖️ Harmonie | 🌿/s | 🌰/s | Ø Zufriedenheit | Tiere V/I/B | Pflanzen | Versorgung | echte Wahl |`,
+    `| Strategie | ${name} nach (Median) | ⚖️ Harmonie | 🌿/s | 🌰/s | Ø Zufriedenheit | Tiere ${GENERA.map((g) => GENUS_INFO[g].icon).join('/')} | Pflanzen | Versorgung | echte Wahl |`,
     '|---|---|---|---|---|---|---|---|---|---|',
   ];
   for (const s of summaries) {
@@ -622,14 +622,14 @@ export function seedTable(summary: Summary): string {
 
 export function miscTable(summaries: Summary[], stage: number): string {
   const lines = [
-    '| Strategie | Begegnungen | davon Pflanzen | Tier: Nische voll | neu gewürfelt | abgelehnt | autom. abgelehnt | gewählt gewöhnlich / selten | Pflanzen gekeimt / gesetzt | eindeutig | keine Karte lohnt |',
+    '| Strategie | Begegnungen | davon Pflanzen | Tier: Nische voll | neu gewürfelt | abgelehnt | autom. abgelehnt | gewählt g / s / b / l | Pflanzen gekeimt / gesetzt | eindeutig | keine Karte lohnt |',
     '|---|---|---|---|---|---|---|---|---|---|---|',
   ];
   for (const s of summaries) {
     const c = stageStats(s, stage).counts;
     const d = decisionStats(s, stage);
     lines.push(
-      `| ${s.strategy.name} | ${fmt(c.encounters, 1)} | ${fmt(c.plantEncounters, 1)} | ${fmt(c.fullNiche, 1)} | ${fmt(c.rerolls, 1)} | ${fmt(c.declines, 1)} | ${fmt(c.autoDeclined, 1)} | ${fmt(c.rarityTaken[0]!, 1)} / ${fmt(c.rarityTaken[1]!, 1)} | ${fmt(c.plantsTaken, 1)} / ${fmt(c.plantsBought, 1)} | ${fmt(d.obviousShare * 100)} % | ${fmt(d.allBadShare * 100)} % |`,
+      `| ${s.strategy.name} | ${fmt(c.encounters, 1)} | ${fmt(c.plantEncounters, 1)} | ${fmt(c.fullNiche, 1)} | ${fmt(c.rerolls, 1)} | ${fmt(c.declines, 1)} | ${fmt(c.autoDeclined, 1)} | ${c.rarityTaken.map((x) => fmt(x, 1)).join(' / ')} | ${fmt(c.plantsTaken, 1)} / ${fmt(c.plantsBought, 1)} | ${fmt(d.obviousShare * 100)} % | ${fmt(d.allBadShare * 100)} % |`,
     );
   }
   return lines.join('\n');

@@ -1,28 +1,53 @@
-import { DECLINE_SEEDS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
+import {
+  ARCHITECT,
+  CALM_MIN_HAPPINESS,
+  COUNTS_AS_GENUS,
+  DECOMPOSER_BOOST,
+  FEAR_LIGHT_FACTOR,
+  MIN_SUPPLY_FLOOR,
+  NIGHT_WATCH,
+  NO_WATER_GROUP,
+  RARITY_BOOST_POINTS,
+} from '../content/abilities';
+import { DECLINE_SEEDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
 import { FOREST_MEMORY_BONUS } from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
 import { PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, type Plant } from '../content/plants';
 import { BASE_HAPPINESS, SPECIES, SPECIES_BY_ID, type Species } from '../content/species';
 import { MAIN_TREE_NUTS_STAGE, MAIN_TREE_TAGS, MAIN_TREE_WEIGHT, STAGES } from '../content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
-import { GENERA, NICHE_IDS, type Condition, type Effect, type Genus, type NicheId, type PlantGroup, type Tag } from '../content/types';
+import {
+  GENERA,
+  NICHE_IDS,
+  type AbilityId,
+  type Condition,
+  type Effect,
+  type Genus,
+  type NicheId,
+  type PlantGroup,
+  type Tag,
+} from '../content/types';
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
 import { MAX_FOREST_MEMORY, type GameState, type PendingEncounterType } from './state';
 
 /*
  * Rechenmodell v2: Zufriedenheit, Harmonie, Versorgung, Wachstum/s, Samen/s.
- * Formeln aus docs/DESIGN_V2.md, Abschnitt 2 und 9 – noch ohne Lebensgemeinschaften,
- * Fähigkeiten, Ereignisse und Durchreisende. Referenz: scripts/v2/model.ts
- * (ein Test vergleicht beide).
+ * Formeln aus docs/DESIGN_V2.md, Abschnitt 2 und 9, mit allen 32 Arten, Störung und
+ * Fähigkeiten – noch ohne Lebensgemeinschaften (2.3), Ereignisse und Durchreisende (2.4).
+ * Referenz: scripts/v2/model.ts (Tests vergleichen beide).
  */
 
 /** Gewicht der Nahrung gegenüber einem einzelnen Lebensraum-Wunsch. */
 export const FOOD_WEIGHT = 2;
+/** Abzug je störender Art (Wirkung `disturb`). */
+export const DISTURB_PENALTY = 0.15;
 /** Abzug je Räuber, der eine Art jagt (höchstens zwei Räuber zählen). */
 export const PREDATION_PENALTY = 0.1;
 export const PREDATION_MAX_HUNTERS = 2;
 /** „Sonnig“: so viel Licht bleibt nach den Begleitpflanzen frei. */
 export const SUNNY_MIN_LIGHT = 2;
+/** „Schattig“: so viele Bäume (inkl. Hauptbaum). */
+export const SHADY_MIN_TREES = 3;
 /** Futtereinheiten je Anbieter. */
 export const SUPPLY_MAIN_TREE = 2;
 export const SUPPLY_PLANT = 1;
@@ -54,6 +79,8 @@ export interface AnimalStatus {
   needs: boolean[];
   /** Anzahl anwesender Räuber, die diese Art jagen. */
   hunters: number;
+  /** Anzahl anwesender Arten, die diese Art stören (Wirkung `disturb`). */
+  disturbers: number;
 }
 
 export interface Evaluation {
@@ -65,13 +92,15 @@ export interface Evaluation {
   harmony: number;
   /** 1 + H/100. */
   multiplier: number;
-  breakdown: { variety: number; happiness: number; pyramid: number };
+  /** Bausteine der Harmonie; `extra` = Harmonie-Wirkungen der Tiere (Glühwürmchen, Hirschkäfer). */
+  breakdown: { variety: number; happiness: number; pyramid: number; extra: number };
   /** Zustand je Tier (Art-ID → Status). */
   animals: Record<string, AnimalStatus>;
   /** Ø Zufriedenheit aller Tiere (0, wenn keine). */
   avgHappiness: number;
   /** Plätze je Nische auf der aktuellen Stufe. */
   slots: Record<NicheId, number>;
+  /** Tiere je Gattung (das Braune Langohr zählt per Fähigkeit auch als Vogel). */
   genusCounts: Record<Genus, number>;
   /** Erreichte Gattungsbonus-Stufen (0–3) je Gattung. */
   traitTiers: Record<Genus, number>;
@@ -82,6 +111,10 @@ export interface Evaluation {
   /** Schädlinge, deren Schaden zu mehr als der Hälfte wirkt. */
   unguarded: number;
   sunny: boolean;
+  /** Schattig: mindestens SHADY_MIN_TREES Bäume (inkl. Hauptbaum). */
+  shady: boolean;
+  /** Wirksame Fähigkeiten (je einmal, in Nischen-Reihenfolge der Arten). */
+  abilities: AbilityId[];
   /** Licht- und Wasserangebot (Stufe + Wirkungen der Tiere und Gattungsboni). */
   light: number;
   water: number;
@@ -112,6 +145,32 @@ const HUNTERS_OF: ReadonlyMap<string, readonly string[]> = new Map(
   ]),
 );
 
+/** Wer stört wen (Wirkung `disturb`)? Statisch vorberechnet. */
+const DISTURBERS_OF: ReadonlyMap<string, readonly string[]> = new Map(
+  SPECIES.map((target) => [
+    target.id,
+    SPECIES.filter((o) => o.effects.some((e) => e.kind === 'disturb' && e.target === target.id)).map((o) => o.id),
+  ]),
+);
+
+/** Hat die Art diese Fähigkeit? */
+export function hasAbility(sp: Pick<Species, 'effects'>, id: AbilityId): boolean {
+  return sp.effects.some((e) => e.kind === 'ability' && e.id === id);
+}
+
+/**
+ * Plätze, die eine Art schafft: ihre Wirkungen `slot` und die der Fähigkeit Baumeister.
+ * Gilt, solange die Art lebt – unabhängig von ihrer Zufriedenheit.
+ */
+export function slotEffects(sp: Pick<Species, 'effects'>): { niche: NicheId; amount: number }[] {
+  const out: { niche: NicheId; amount: number }[] = [];
+  for (const e of sp.effects) {
+    if (e.kind === 'slot') out.push({ niche: e.niche, amount: e.amount });
+    if (e.kind === 'ability' && e.id === 'architect') out.push(...ARCHITECT.slots);
+  }
+  return out;
+}
+
 /**
  * Plätze je Nische auf einer Stufe. Mit `niches` zählen auch die Plätze, die Tiere
  * schaffen (Wirkung `slot`, z. B. Borkenkäfer → +1 Höhlen). Solche Plätze öffnen eine
@@ -125,7 +184,8 @@ export function nicheSlots(stage: number, niches?: Partial<Record<NicheId, reado
   for (const id of NICHE_IDS) extra[id] = 0;
   for (const id of NICHE_IDS) {
     for (const sid of niches[id] ?? []) {
-      for (const e of SPECIES_BY_ID.get(sid)?.effects ?? []) if (e.kind === 'slot') extra[e.niche] += e.amount;
+      const sp = SPECIES_BY_ID.get(sid);
+      if (sp) for (const e of slotEffects(sp)) extra[e.niche] += e.amount;
     }
   }
   for (const id of NICHE_IDS) {
@@ -185,6 +245,8 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const animals = speciesIn(eco);
   const plants = plantsIn(eco);
   const present = new Set(animals.map((a) => a.id));
+  // Für Wünsche „bestimmte Art“ zählen auch Pflanzen (z. B. Große Brennnessel).
+  const presentOrPlanted = new Set<string>([...present, ...plants.map((p) => p.id)]);
 
   // Pflanzengruppen (Hauptbaum zählt als Baum)
   const groupCount: Record<PlantGroup, number> = { trees: 1, shrubs: 0, flowers: 0, mosses: 0 };
@@ -200,26 +262,47 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const demand = new Map<Tag, number>();
   for (const a of animals) for (const t of a.food) demand.set(t, (demand.get(t) ?? 0) + 1);
 
+  // Fähigkeiten wirken je einmal, solange ihre Art lebt.
+  const abilities = new Set<AbilityId>();
+  for (const a of animals) for (const e of a.effects) if (e.kind === 'ability') abilities.add(e.id);
+
   const genusCounts = {} as Record<Genus, number>;
   for (const g of GENERA) genusCounts[g] = 0;
-  for (const a of animals) genusCounts[a.genus]++;
+  for (const a of animals) {
+    genusCounts[a.genus]++;
+    if (hasAbility(a, 'countsAsBird')) genusCounts[COUNTS_AS_GENUS]++;
+  }
 
   // Sonnig: Licht, das nach allen Begleitpflanzen frei bleibt (Tier-Lichtboni zählen voll).
   let openLight = stage.light;
   for (const p of plants) openLight -= p.light;
   for (const a of animals) for (const e of a.effects) if (e.kind === 'light') openLight += e.amount;
   const sunny = openLight >= SUNNY_MIN_LIGHT;
+  const shady = groupCount.trees >= SHADY_MIN_TREES;
 
   const condMet = (c: Condition): boolean => {
     switch (c.kind) {
       case 'sunny':
         return sunny;
+      case 'shady':
+        return shady;
       case 'tag':
         return (foodSupply.get(c.tag) ?? 0) > 0;
       case 'group':
         return groupCount[c.group] >= c.min;
+      case 'species':
+        return presentOrPlanted.has(c.id);
+      case 'genus':
+        return genusCounts[c.genus] >= c.min;
     }
   };
+
+  // Landschaft der Angst: Beute eines Jägers mit `fear` frisst nicht und lichtet doppelt.
+  const fearful = new Set<string>();
+  for (const hunter of animals) {
+    if (!hasAbility(hunter, 'fear')) continue;
+    for (const prey of animals) if (prey.provides.some((t) => hunter.food.includes(t))) fearful.add(prey.id);
+  }
 
   // Zufriedenheit je Tier
   const status: Record<string, AnimalStatus> = {};
@@ -236,18 +319,25 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     const q = (FOOD_WEIGHT * food + met) / (FOOD_WEIGHT + a.needs.length);
     const base = BASE_HAPPINESS[a.rarity] ?? 0;
     let z = base + (1 - base) * q;
+    let disturbers = 0;
+    for (const d of DISTURBERS_OF.get(a.id) ?? []) if (present.has(d)) disturbers++;
+    z -= DISTURB_PENALTY * disturbers;
     let hunters = 0;
     for (const h of HUNTERS_OF.get(a.id) ?? []) if (present.has(h)) hunters++;
     // Räuberdruck: Beute ist etwas weniger zufrieden, wenn sie gejagt wird.
     z -= PREDATION_PENALTY * Math.min(PREDATION_MAX_HUNTERS, hunters);
+    if (abilities.has('decomposerBoost') && a.level === DECOMPOSER_BOOST.level) z += DECOMPOSER_BOOST.happiness;
+    if (abilities.has('architect') && a.niche === ARCHITECT.niche) z += ARCHITECT.happiness;
+    if (hasAbility(a, 'calm')) z = Math.max(z, CALM_MIN_HAPPINESS);
     z = Math.min(1, Math.max(0, z));
-    status[a.id] = { happiness: z, food, needs, hunters };
+    status[a.id] = { happiness: z, food, needs, hunters, disturbers };
     happinessSum += z;
   }
 
   // Wirkungen sammeln
   let growthBonus = 0;
   let seedsBonus = 0;
+  let harmonyExtra = 0;
   let light = stage.light;
   let water = stage.water;
   const groupGrowth: Record<PlantGroup, number> = { trees: 0, shrubs: 0, flowers: 0, mosses: 0 };
@@ -276,12 +366,23 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
       case 'control':
         controls.push({ tag: e.tag, strength: (e.pct / 100) * scale });
         break;
+      case 'harmony':
+        harmonyExtra += e.points * scale;
+        break;
       case 'damage':
       case 'slot':
-        break; // Fraß unten gesondert, Plätze in nicheSlots()
+      case 'disturb':
+      case 'ability':
+        break; // Fraß unten gesondert, Plätze in nicheSlots(), Störung und Fähigkeiten oben
     }
   };
-  for (const a of animals) for (const e of a.effects) apply(e, status[a.id]!.happiness);
+  for (const a of animals) {
+    const z = status[a.id]!.happiness;
+    for (const e of a.effects) apply(e, z);
+    if (fearful.has(a.id)) {
+      for (const e of a.effects) if (e.kind === 'light') light += e.amount * z * (FEAR_LIGHT_FACTOR - 1);
+    }
+  }
   const traitTiers = {} as Record<Genus, number>;
   for (const g of GENERA) {
     const tier = TRAIT_THRESHOLDS.filter((t) => genusCounts[g] >= t).length;
@@ -289,14 +390,16 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     for (let i = 0; i < tier; i++) for (const e of TRAITS[g][i]!.effects) apply(e, 1);
   }
 
-  // Fraßschaden, gemindert durch Räuber (multiplikativ)
+  // Fraßschaden, gemindert durch Räuber (multiplikativ) und Fähigkeiten
   let damage = 0;
   let unguarded = 0;
   for (const a of animals) {
     for (const e of a.effects) {
       if (e.kind !== 'damage') continue;
       let d = e.pct / 100;
+      if (fearful.has(a.id)) d = 0;
       for (const c of controls) if (a.provides.includes(c.tag)) d *= Math.max(0, 1 - c.strength);
+      if (abilities.has('nightWatch') && a.level === NIGHT_WATCH.level) d *= 1 - NIGHT_WATCH.reduction;
       damage += d;
       if (d > (e.pct / 100) * UNGUARDED_SHARE) unguarded++;
     }
@@ -307,11 +410,13 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   let waterNeed = 0;
   for (const p of plants) {
     lightNeed += p.light;
-    waterNeed += p.water;
+    // Hüter der Feuchte: Moose & Farne brauchen kein Wasser (Moos speichert weiter).
+    waterNeed += abilities.has('mossNoWater') && p.group === NO_WATER_GROUP ? Math.min(0, p.water) : p.water;
   }
   let supply = 1;
   if (lightNeed > 0) supply = Math.min(supply, light / lightNeed);
   if (waterNeed > 0) supply = Math.min(supply, water / waterNeed);
+  if (abilities.has('minSupply')) supply = Math.max(supply, MIN_SUPPLY_FLOOR);
   supply = Math.max(0, Math.min(1, supply));
 
   // Nahrungspyramide (Hauptbaum zählt wie MAIN_TREE_WEIGHT Pflanzen)
@@ -326,14 +431,14 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const cycle = 5 * Math.min(1, decomposers / (consumers / 5));
   const pyramid = levels + carrying + fed + cycle - UNGUARDED_PENALTY * unguarded;
 
-  // Harmonie = Vielfalt + Zufriedenheit + Pyramide
+  // Harmonie = Vielfalt + Zufriedenheit + Pyramide + Harmonie-Wirkungen
   // Vielfalt: 3 je Gattung und je Pflanzengruppe mit Begleitpflanzen, 1 je verschiedene Art.
   const groups = new Set<string>(animals.map((a) => a.genus));
   for (const p of plants) groups.add(`plant:${p.group}`);
   const variety = 3 * groups.size + present.size + new Set(plants.map((p) => p.id)).size;
   const avgHappiness = animals.length > 0 ? happinessSum / animals.length : 0;
   const happinessPoints = 30 * avgHappiness;
-  const harmony = variety + happinessPoints + pyramid;
+  const harmony = variety + happinessPoints + pyramid + harmonyExtra;
   const multiplier = 1 + harmony / HARMONY_DIVISOR;
 
   // Wachstum und Samen (Waldgedächtnis: +2 % je Punkt)
@@ -358,7 +463,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     seeds,
     harmony,
     multiplier,
-    breakdown: { variety, happiness: happinessPoints, pyramid },
+    breakdown: { variety, happiness: happinessPoints, pyramid, extra: harmonyExtra },
     animals: status,
     avgHappiness,
     slots: nicheSlots(eco.stage, eco.niches),
@@ -369,6 +474,8 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     damage,
     unguarded,
     sunny,
+    shady,
+    abilities: [...abilities],
     light,
     water,
     lightNeed,
@@ -416,6 +523,86 @@ function ecosystemKey(state: GameState): string {
   let key = `${state.stage}|${state.meta.forestMemory}|${(state.plants ?? []).join(',')}`;
   for (const id of NICHE_IDS) key += `|${(state.niches[id] ?? []).join(',')}`;
   return key;
+}
+
+// ---------------------------------------------------------------------------
+// Tierkarten: Erscheinungsbedingungen und Seltenheitsgewichte
+// ---------------------------------------------------------------------------
+
+/**
+ * Was im Ökosystem da ist – Grundlage für Erscheinungsbedingungen. Einmal berechnen und
+ * für viele Arten nutzen (z. B. beim Ziehen der Tierkarten).
+ */
+export interface AppearsContext {
+  tags: ReadonlySet<Tag>;
+  /** Arten und Pflanzen im Ökosystem. */
+  ids: ReadonlySet<string>;
+  /** Pflanzen je Gruppe, Hauptbaum zählt als Baum. */
+  groups: Readonly<Record<PlantGroup, number>>;
+  /** Tiere je Gattung – ohne Fähigkeiten (das Langohr zählt hier nicht als Vogel). */
+  genera: Readonly<Record<Genus, number>>;
+}
+
+export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants'>): AppearsContext {
+  const animals = speciesIn({ ...eco, forestMemory: 0 });
+  const plants = plantsIn({ ...eco, forestMemory: 0 });
+  const tags = new Set<Tag>(MAIN_TREE_TAGS);
+  if (eco.stage >= MAIN_TREE_NUTS_STAGE) tags.add('nuesse');
+  for (const p of plants) for (const t of p.provides) tags.add(t);
+  for (const a of animals) for (const t of a.provides) tags.add(t);
+  const groups: Record<PlantGroup, number> = { trees: 1, shrubs: 0, flowers: 0, mosses: 0 };
+  for (const p of plants) groups[p.group]++;
+  const genera = {} as Record<Genus, number>;
+  for (const g of GENERA) genera[g] = 0;
+  for (const a of animals) genera[a.genus]++;
+  const ids = new Set<string>([...animals.map((a) => a.id), ...plants.map((p) => p.id)]);
+  return { tags, ids, groups, genera };
+}
+
+/**
+ * Ist die Erscheinungsbedingung der Art erfüllt (DESIGN_V2.md 5.2, 7.3)? Arten ohne
+ * `appears` erscheinen immer. Geprüft wird nur, was im Ökosystem da ist: Merkmale
+ * (Hauptbaum, Pflanzen, Tiere), Pflanzengruppen, Arten/Pflanzen und Gattungen (ohne
+ * Fähigkeiten). „sonnig“ und „schattig“ gelten hier immer als erfüllt. Gilt nur fürs
+ * Anbieten: Eine schon gezogene Karte bleibt wählbar, auch wenn die Bedingung wegfällt.
+ * `eco` darf ein vorberechneter Kontext (appearsContext) sein.
+ */
+export function speciesAppears(
+  eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants'> | AppearsContext,
+  sp: Pick<Species, 'appears'>,
+): boolean {
+  if (!sp.appears || sp.appears.length === 0) return true;
+  const ctx = 'tags' in eco ? eco : appearsContext(eco);
+  const met = (c: Condition): boolean => {
+    switch (c.kind) {
+      case 'sunny':
+      case 'shady':
+        return true;
+      case 'tag':
+        return ctx.tags.has(c.tag);
+      case 'group':
+        return ctx.groups[c.group] >= c.min;
+      case 'species':
+        return ctx.ids.has(c.id);
+      case 'genus':
+        return ctx.genera[c.genus] >= c.min;
+    }
+  };
+  return sp.appears.every(met);
+}
+
+/**
+ * Seltenheitsgewichte [gewöhnlich, selten, besonders, legendär] für Tierkarten auf der
+ * Stufe des Ökosystems (DESIGN_V2.md 7.3; RARITY_WEIGHTS in content/encounters.ts). Glückspilz (`rarityBoost`): selten, besonders
+ * und legendär je +RARITY_BOOST_POINTS, gewöhnlich −3 × so viel (nie unter 0).
+ */
+export function rarityWeights(eco: Pick<Ecosystem, 'stage' | 'niches'>): [number, number, number, number] {
+  // Ungültige Stufen: auf die Tabelle begrenzen (NaN → Samen).
+  const row = Math.min(Math.max(0, Math.floor(finite(eco.stage))), RARITY_WEIGHTS.length - 1);
+  const base = RARITY_WEIGHTS[row]!;
+  const lucky = speciesIn({ ...eco, forestMemory: 0 }).some((sp) => hasAbility(sp, 'rarityBoost'));
+  const b = lucky ? RARITY_BOOST_POINTS : 0;
+  return [Math.max(0, base[0] - 3 * b), base[1] + b, base[2] + b, base[3] + b];
 }
 
 // ---------------------------------------------------------------------------

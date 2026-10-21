@@ -69,12 +69,12 @@ describe('Balancing v2 (echte Logik)', () => {
     }
   });
 
-  it('Harmonie-Strategie hat (fast) die höchste Harmonie beim Hain', () => {
-    // „Fast“: höchstens 1 Punkt darunter. Mit Pflanzen erreichen Stapler, die jede eigene
-    // Karte nehmen, ~0,5 Punkte mehr als das kurzsichtige Harmonie-Streben (DESIGN_V2.md 15.4).
+  it('Harmonie-Strategie hat die höchste Harmonie beim Hain (mindestens 1 Punkt Vorsprung)', () => {
+    // Seit Schritt 2.2 (32 Arten) liegt das Harmonie-Streben wieder klar vorn
+    // (DESIGN_V2.md 15.4: ~3,5 Punkte vor dem besten Stapler).
     const best = stageStats(harmony, HAIN).harmony;
-    for (const s of summaries) {
-      expect(stageStats(s, HAIN).harmony, s.strategy.name).toBeLessThanOrEqual(best + 1);
+    for (const s of summaries.filter((x) => x !== harmony)) {
+      expect(stageStats(s, HAIN).harmony, s.strategy.name).toBeLessThan(best - 1);
     }
     // Zufall ist spürbar schlechter als bewusstes Spiel.
     expect(stageStats(byId(RANDOM.id), HAIN).harmony).toBeLessThan(best - 1);
@@ -86,6 +86,13 @@ describe('Balancing v2 (echte Logik)', () => {
       const st = stageStats(s, HAIN);
       const muchFaster = st.time < 0.9 * ref.time;
       expect(muchFaster && st.harmony >= ref.harmony, s.strategy.name).toBe(false);
+    }
+  });
+
+  it('kein Gattungs-Stapeln ist mehr als 10 % schneller als das Harmonie-Streben (Pilze!)', () => {
+    const ref = stageStats(harmony, HAIN);
+    for (const s of summaries.filter((x) => x.strategy.id.startsWith('stack-'))) {
+      expect(stageStats(s, HAIN).time, s.strategy.name).toBeGreaterThan(0.9 * ref.time);
     }
   });
 

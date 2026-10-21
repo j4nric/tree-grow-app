@@ -2,7 +2,6 @@ import {
   CARDS_PER_ENCOUNTER,
   ENCOUNTER_WEIGHTS,
   MAX_PENDING_ENCOUNTERS,
-  RARITY_WEIGHTS,
   SCRIPTED_ENCOUNTERS,
 } from '../content/encounters';
 import { PLANTS, PLANTS_BY_ID } from '../content/plants';
@@ -10,13 +9,16 @@ import { SPECIES } from '../content/species';
 import { ENCOUNTER_TYPES } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import {
+  appearsContext,
   declineReward,
   evaluate,
   nextPlantCost,
   nicheSlots,
   plantSlots,
+  rarityWeights,
   rerollCost,
   resolveChoice,
+  speciesAppears,
   stageForWaypoint,
   thresholdFor,
   type ChoiceError,
@@ -177,9 +179,11 @@ export function allWaypointsReached(state: GameState): boolean {
 }
 
 /**
- * Zieht bis zu drei verschiedene Tierkarten: erst eine Seltenheit nach Gewicht, dann
- * gleichverteilt eine Art dieser Seltenheit, die freigeschaltet ist, deren Nische
- * offen ist und die noch nicht im Ökosystem lebt (DESIGN_V2.md, 7.3).
+ * Zieht bis zu drei verschiedene Tierkarten: erst eine Seltenheit nach Gewicht
+ * (rarityWeights: Stufe und Glückspilz), dann gleichverteilt eine Art dieser Seltenheit,
+ * die freigeschaltet ist, deren Nische offen ist, die noch nicht im Ökosystem lebt und
+ * deren Erscheinungsbedingung erfüllt ist (DESIGN_V2.md, 7.3). Seltenheiten ohne
+ * passende Art fallen weg (neu gewichtet).
  * Arten in `exclude` (beim Neu würfeln: die bisherigen Karten) kommen nur zum Auffüllen
  * dran, wenn die übrigen Arten nicht für alle Karten reichen.
  * Zufall aus `rng` (Standard: der Spielstand selbst).
@@ -187,9 +191,12 @@ export function allWaypointsReached(state: GameState): boolean {
 export function drawAnimals(state: GameState, exclude: readonly string[] = [], rng: RngHolder = state): string[] {
   const slots = nicheSlots(state.stage, state.niches);
   const present = new Set(allAnimals(state));
-  const eligible = SPECIES.filter((s) => s.unlock <= state.stage && slots[s.niche] > 0 && !present.has(s.id));
+  const appears = appearsContext(state);
+  const eligible = SPECIES.filter(
+    (s) => s.unlock <= state.stage && slots[s.niche] > 0 && !present.has(s.id) && speciesAppears(appears, s),
+  );
   const pools = [eligible.filter((s) => !exclude.includes(s.id)), eligible.filter((s) => exclude.includes(s.id))];
-  const weights = RARITY_WEIGHTS[state.stage] ?? RARITY_WEIGHTS[RARITY_WEIGHTS.length - 1]!;
+  const weights = rarityWeights(state);
   const cards: string[] = [];
   for (const pool of pools) {
     while (cards.length < CARDS_PER_ENCOUNTER) {
