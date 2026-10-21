@@ -1,5 +1,6 @@
 import { test as base, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { WAYPOINT_THRESHOLDS } from '../src/content/waypoints';
+import { createInitialState } from '../src/core/state';
 
 /**
  * Gemeinsame Hilfen für die e2e-Tests (Smoke-Tests, Langlauf).
@@ -84,6 +85,16 @@ export async function seedV3(context: BrowserContext, seed: SeedV3): Promise<voi
     meta: { forestMemory: seed.forestMemory ?? 0, journal: { species: [], keepsakes: [] } },
   };
   await seedRaw(context, save, seed.lastTickOffsetMs ?? 0);
+}
+
+/**
+ * Neues Spiel (Spielstand v4 wie beim allerersten Start) mit festem Startwert des
+ * Zufallsgenerators. main.ts nimmt dafür sonst die Uhrzeit; so bleibt der Seed auch dann
+ * fest, wenn sich die Startzeit des Tests ändert. `now` = Beginn des Zyklus,
+ * `lastTick` = Browser-Uhr beim Laden.
+ */
+export async function seedNewGame(context: BrowserContext, rngSeed: number, now: Date): Promise<void> {
+  await seedRaw(context, createInitialState(now.getTime(), rngSeed), 0);
 }
 
 /** Liest eine deutsch formatierte Zahl (z. B. „1.234,5“, „2,1/s“ oder „−4,7“). */
