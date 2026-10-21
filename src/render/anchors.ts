@@ -8,7 +8,7 @@
  */
 
 import { makeLayout, placeMainTree, placeRoots, sproutScale, type Layout, type PlacedTree } from './layout';
-import { trunkWidthOf, type Branch } from './plant';
+import { trunkWidthOf, type Branch, type TreeSpecies } from './plant';
 import { clamp, clamp01, hash2, lerp } from './util';
 
 /** Nischen-IDs, die der Renderer kennt (wie in DESIGN_V2.md / scripts/v2/content.ts). */
@@ -87,10 +87,10 @@ export function createAnchorResolver(layout: Layout, g: number, main: PlacedTree
  * Ankerpunkte aller Nischen für die Plätze 0..slots−1 – z. B. für Linien oder
  * Beschriftungen in der UI. Gleiche Eingabe → gleiche Punkte.
  */
-export function nicheAnchors(width: number, height: number, growth: number, slots = 4): Record<SceneNiche, NicheAnchor[]> {
+export function nicheAnchors(width: number, height: number, growth: number, slots = 4, species: TreeSpecies = 'oak'): Record<SceneNiche, NicheAnchor[]> {
   const layout = makeLayout(width, height);
   const g = Math.max(0, growth);
-  const resolver = createAnchorResolver(layout, g, placeMainTree(layout, g));
+  const resolver = createAnchorResolver(layout, g, placeMainTree(layout, g, species));
   const result = {} as Record<SceneNiche, NicheAnchor[]>;
   for (const niche of SCENE_NICHES) {
     result[niche] = [];

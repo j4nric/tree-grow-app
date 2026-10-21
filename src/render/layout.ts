@@ -4,7 +4,7 @@
  * gemeinsam benutzt – so sitzen die Tiere genau dort, wo der Baum gezeichnet wird.
  */
 
-import { buildRoots, buildTree, trunkWidthOf, type PlantGeometry } from './plant';
+import { buildRoots, buildTree, TREE_FORMS, trunkWidthOf, type PlantGeometry, type TreeForm, type TreeSpecies } from './plant';
 import { clamp01, hash2, smooth01 } from './util';
 
 export const MAIN_SEED = 7;
@@ -45,8 +45,8 @@ export interface PlacedTree {
  * Baut einen Baum und skaliert ihn so, dass er die Zielhöhe erreicht, aber nie über
  * `maxHeight` (inkl. Blätter) hinaus- oder breiter als `maxHalfWidth` je Seite wird.
  */
-export function placeTree(g: number, seed: number, x: number, y: number, maxHeight: number, maxHalfWidth: number): PlacedTree {
-  const geo = buildTree(g, seed);
+export function placeTree(g: number, seed: number, x: number, y: number, maxHeight: number, maxHalfWidth: number, form?: TreeForm): PlacedTree {
+  const geo = buildTree(g, seed, form);
   let segTop = 0;
   for (const s of geo.segments) segTop = Math.min(segTop, s.y1, s.y2);
   const target = maxHeight * heightFraction(g);
@@ -60,9 +60,10 @@ export function sproutScale(layout: Layout): number {
   return placeTree(1, MAIN_SEED, 0, 0, layout.avail, layout.width * 0.5).scale;
 }
 
-/** Hauptbaum (ab g ≥ 1), sonst null. */
-export function placeMainTree(layout: Layout, g: number): PlacedTree | null {
-  return g >= 1 ? placeTree(g, MAIN_SEED, layout.cx, layout.groundY, layout.avail, layout.width * 0.5) : null;
+/** Hauptbaum (ab g ≥ 1) der Art `species` (Standard: Eiche), sonst null. */
+export function placeMainTree(layout: Layout, g: number, species: TreeSpecies = 'oak'): PlacedTree | null {
+  if (g < 1) return null;
+  return placeTree(g, MAIN_SEED, layout.cx, layout.groundY, layout.avail, layout.width * 0.5, species === 'oak' ? undefined : TREE_FORMS[species]);
 }
 
 export interface PlacedRoots {

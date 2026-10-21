@@ -98,10 +98,109 @@ export function trunkWidthOf(g: number): number {
   return 0.05 + 0.055 * (treeDepth(g) - 1);
 }
 
+/** Arten des Hauptbaums (ROADMAP Phase 4). */
+export type TreeSpecies = 'oak' | 'beech' | 'pine';
+export const TREE_SPECIES: readonly TreeSpecies[] = ['oak', 'beech', 'pine'];
+
 /**
- * Baut die Baumgeometrie. `g` ≥ 1: 1 = Keimling-Stängel, 8 = uralter Baum.
+ * Wuchsform einer Baumart: Verzweigung, Winkel, Längen und Blattbüschel. Die Werte der
+ * Eiche entsprechen genau der bisherigen Geometrie.
  */
-export function buildTree(g: number, seed: number): PlantGeometry {
+export interface TreeForm {
+  /** Knick des Stamms bzw. der Äste. */
+  trunkBend: number;
+  branchBend: number;
+  /** Äste streben so stark zum Licht (nach oben). */
+  lift: number;
+  /** Länge des Leittriebs am Stamm bzw. an Ästen (+ Zufall). */
+  leader0: number;
+  leader: number;
+  leaderVar: number;
+  /** Abzweigwinkel der Seitenäste (untere/obere Ebenen) + Zufall. */
+  spreadLow: number;
+  spreadHigh: number;
+  spreadVar: number;
+  /** Länge der Seitenäste am Stamm bzw. an Ästen (+ Zufall). */
+  side0: number;
+  side: number;
+  sideVar: number;
+  /** Blattbüschel: Größe am Stamm bzw. an Ästen, Grundgröße, Lebensdauer (Ebenen). */
+  leafTrunk: number;
+  leafBranch: number;
+  leafBase: number;
+  leafLife: number;
+  /** Ab dieser Ebene ein zweites Büschel in der Astmitte. */
+  midLeafLevel: number;
+}
+
+export const TREE_FORMS: Record<TreeSpecies, TreeForm> = {
+  oak: {
+    trunkBend: 0.12,
+    branchBend: 0.4,
+    lift: 0.14,
+    leader0: 0.62,
+    leader: 0.72,
+    leaderVar: 0.12,
+    spreadLow: 0.75,
+    spreadHigh: 0.6,
+    spreadVar: 0.4,
+    side0: 0.62,
+    side: 0.6,
+    sideVar: 0.16,
+    leafTrunk: 0.3,
+    leafBranch: 0.46,
+    leafBase: 0.08,
+    leafLife: 5.2,
+    midLeafLevel: 2,
+  },
+  // Buche: aufstrebende, dichte, ovale Krone.
+  beech: {
+    trunkBend: 0.08,
+    branchBend: 0.3,
+    lift: 0.24,
+    leader0: 0.7,
+    leader: 0.76,
+    leaderVar: 0.1,
+    spreadLow: 0.55,
+    spreadHigh: 0.45,
+    spreadVar: 0.3,
+    side0: 0.58,
+    side: 0.58,
+    sideVar: 0.14,
+    leafTrunk: 0.32,
+    leafBranch: 0.52,
+    leafBase: 0.09,
+    leafLife: 6,
+    midLeafLevel: 1,
+  },
+  // Kiefer: langer, kahler Stamm, kurze, fast waagerechte Äste mit aufgebogenen
+  // Spitzen – eine hoch angesetzte Schirmkrone.
+  pine: {
+    trunkBend: 0.1,
+    branchBend: 0.3,
+    lift: 0.32,
+    leader0: 0.42,
+    leader: 0.6,
+    leaderVar: 0.1,
+    spreadLow: 1.2,
+    spreadHigh: 0.85,
+    spreadVar: 0.25,
+    side0: 0.52,
+    side: 0.55,
+    sideVar: 0.12,
+    leafTrunk: 0.28,
+    leafBranch: 0.4,
+    leafBase: 0.08,
+    leafLife: 6.5,
+    midLeafLevel: 1,
+  },
+};
+
+/**
+ * Baut die Baumgeometrie. `g` ≥ 1: 1 = Keimling-Stängel, 8 = uralter Baum. `form`:
+ * Wuchsform der Art (Standard: Eiche).
+ */
+export function buildTree(g: number, seed: number, form: TreeForm = TREE_FORMS.oak): PlantGeometry {
   const depth = treeDepth(g);
   const geo = emptyGeometry();
   const trunkWidth = trunkWidthOf(g);
@@ -110,12 +209,13 @@ export function buildTree(g: number, seed: number): PlantGeometry {
   if (flare > 0) {
     geo.segments.push({ x1: 0, y1: 0, x2: 0, y2: -0.16, w1: trunkWidth * (1 + 0.55 * flare), w2: trunkWidth * 0.97 });
   }
-  growBranch(geo, depth, seed, 0, 0, 0, -Math.PI / 2, 1, trunkWidth);
+  growBranch(geo, form, depth, seed, 0, 0, 0, -Math.PI / 2, 1, trunkWidth);
   return geo;
 }
 
 function growBranch(
   geo: PlantGeometry,
+  F: TreeForm,
   depth: number,
   seed: number,
   level: number,
@@ -134,10 +234,10 @@ function growBranch(
 
   // Ast in zwei leicht geknickten Teilstücken – wirkt weniger „gezeichnet“.
   const len = length * grow;
-  const bend = (rv[0]! - 0.5) * (level === 0 ? 0.12 : 0.4);
+  const bend = (rv[0]! - 0.5) * (level === 0 ? F.trunkBend : F.branchBend);
   const a1 = angle + bend * 0.5;
   // Zum Licht streben: äußere Äste biegen sich leicht nach oben.
-  const lift = level === 0 ? 0 : 0.14;
+  const lift = level === 0 ? 0 : F.lift;
   const a2 = a1 - bend + (-Math.PI / 2 - a1) * lift;
   const mx = x + Math.cos(a1) * len * 0.5;
   const my = y + Math.sin(a1) * len * 0.5;
@@ -162,12 +262,12 @@ function growBranch(
 
   // Blattbüschel: blenden beim Herauswachsen ein und an inneren Ästen wieder aus.
   const leafIn = level === 0 ? clamp01(depth - 1) : clamp01((depth - level - 0.1) / 0.9);
-  const leafOut = clamp01((level === 0 ? 3 : level + 5.2) - depth);
+  const leafOut = clamp01((level === 0 ? 3 : level + F.leafLife) - depth);
   const f = smooth01(leafIn) * leafOut;
   if (f > 0.01) {
-    const r = (length * (level === 0 ? 0.3 : 0.46) + 0.08) * f;
+    const r = (length * (level === 0 ? F.leafTrunk : F.leafBranch) + F.leafBase) * f;
     addLeaf(geo, ex, ey, r, level, rv[7]!, rv[8]!);
-    if (level >= 2 && length > 0.12) {
+    if (level >= F.midLeafLevel && length > 0.12) {
       addLeaf(geo, (mx + ex) / 2, (my + ey) / 2 + r * 0.15, r * 0.8, level, rv[8]!, rv[9]!);
     }
   }
@@ -178,32 +278,34 @@ function growBranch(
   // Leittrieb setzt den Ast fort …
   const leader = growBranch(
     geo,
+    F,
     depth,
     childSeed(0),
     level + 1,
     ex,
     ey,
     a2 + (rv[1]! - 0.5) * 0.35,
-    length * (level === 0 ? 0.62 : 0.72 + rv[2]! * 0.12),
+    length * (level === 0 ? F.leader0 : F.leader + rv[2]! * F.leaderVar),
     wEnd * 0.8,
   );
   if (leader >= 0) branch.children.push(leader);
   // … Seitenäste zweigen ab (1–2, am Stamm immer 2).
   const sides = level === 0 || rv[3]! < 0.5 ? 2 : 1;
   const firstSide = rv[4]! < 0.5 ? 1 : -1;
-  const spread = level <= 1 ? 0.75 : 0.6;
+  const spread = level <= 1 ? F.spreadLow : F.spreadHigh;
   for (let i = 0; i < sides; i++) {
     const s = i === 0 ? firstSide : -firstSide;
     const r1 = i === 0 ? rv[5]! : rv[6]!;
     const side = growBranch(
       geo,
+      F,
       depth,
       childSeed(i + 1),
       level + 1,
       ex,
       ey,
-      a2 + s * (spread + r1 * 0.4),
-      length * (level === 0 ? 0.62 : 0.6 + r1 * 0.16),
+      a2 + s * (spread + r1 * F.spreadVar),
+      length * (level === 0 ? F.side0 : F.side + r1 * F.sideVar),
       wEnd * 0.62,
     );
     if (side >= 0) branch.children.push(side);

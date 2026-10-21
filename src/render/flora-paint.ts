@@ -221,8 +221,8 @@ function paintBirchMarks(ctx: CanvasRenderingContext2D, geo: PlantGeometry, ox: 
   }
 }
 
-/** Kiefer: flache, dunkle Nadelbüschel statt runder Blattballen. */
-function paintNeedleClumps(
+/** Kiefer: flache, dunkle Nadelbüschel statt runder Blattballen (auch für den Hauptbaum Kiefer). */
+export function paintNeedleClumps(
   ctx: CanvasRenderingContext2D,
   geo: PlantGeometry,
   ox: number,

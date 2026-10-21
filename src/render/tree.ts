@@ -24,11 +24,23 @@
 import { animalSize, createAnchorResolver, type AnchorResolver } from './anchors';
 import { AnimalLayer, type AnimalFrame, type SceneAnimal } from './animals';
 import { layoutFlora, type PlacedPlant, type ScenePlant } from './flora';
-import { paintPlant } from './flora-paint';
+import { paintNeedleClumps, paintPlant } from './flora-paint';
 import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
+import { TREE_FORMS } from './plant';
 import { paintLeaves, paintWood, type LeafPalette, type WoodColors } from './plant';
 import { cycleElapsed, CycleTransition, type CycleGeometry, type OldForest } from './cycle';
 import { MoodLayer, type MoodFrame } from './mood';
+import {
+  normalizeSpecies,
+  paintCones,
+  paintCotyledons as paintSpeciesCotyledons,
+  paintPineBark,
+  paintSeed,
+  speciesLeafAmount,
+  speciesLeaves,
+  speciesWood,
+  type TreeSpecies,
+} from './species';
 import { paintSnowCover, SeasonParticles, seasonLeaves, seasonLook, seasonWood, type SeasonFrame, type SeasonLook } from './season';
 import { ResizeGate } from './resize';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
@@ -41,6 +53,7 @@ export { SCENE_PLANT_GROUPS, type ScenePlant, type ScenePlantGroup } from './flo
 export { MAX_HARMONY_TIER } from './mood';
 export { CYCLE_TRANSITION_LEAD, CYCLE_TRANSITION_REDUCED_SECONDS, CYCLE_TRANSITION_SECONDS } from './cycle';
 export type { SceneVisitor } from './visitors';
+export type { TreeSpecies } from './plant';
 
 export interface SceneInput {
   /** Kontinuierlicher Wachstumswert aus core/formulas.ts `growth()`. */
@@ -84,7 +97,7 @@ export interface SceneInput {
    * oder nach dem Ende passiert nichts – pixelgleich zur Szene ohne das Feld. Das Feld
    * darf gesetzt bleiben.
    */
-  cycleTransition?: { startedAt: number; fromGrowth: number; fromPlants?: readonly ScenePlant[] };
+  cycleTransition?: { startedAt: number; fromGrowth: number; fromPlants?: readonly ScenePlant[]; fromTree?: TreeSpecies };
   /**
    * Waldgedächtnis (Punkte, `meta.forestMemory`). Ab 1 steht fern im Hintergrund ein
    * blasser Erinnerungsbaum, der mit dem Gedächtnis langsam (logarithmisch) wächst.
@@ -101,6 +114,15 @@ export interface SceneInput {
    * Neu gezeichnet wird erst ab einer Änderung von 0,05.
    */
   season?: number;
+  /**
+   * Art des Hauptbaums: 'oak' (Eiche, Standard), 'beech' (Buche: glatter grauer Stamm,
+   * dichte ovale Krone, im Herbst kupferbraun, trockenes Laub bleibt teils hängen,
+   * Bucheckern) oder 'pine' (Kiefer: rötlich-schuppiger Stamm, hoch angesetzte
+   * Schirmkrone aus Nadelbüscheln, Zapfen, immer grün). Gilt für alle Stufen vom Samen
+   * an, für Jahreszeiten, Zyklus-Übergang (Frucht der Art; der alte Baum ist
+   * `cycleTransition.fromTree`, sonst diese Art) und Erinnerungsbaum. Ohne Angabe Eiche.
+   */
+  mainTree?: TreeSpecies;
 }
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
@@ -126,7 +148,6 @@ const WOOD: WoodColors = { base: '#6b4a30', shade: '#563a25', light: '#866244' }
 /** Junger, noch grüner Trieb – verholzt in den ersten Stufen allmählich. */
 const STEM: WoodColors = { base: '#7a9a45', shade: '#62803a', light: '#93b35a' };
 const ROOT: WoodColors = { base: '#9b7651', shade: '#6f5236', light: '#b8936a' };
-const SEED_COLOR = '#8a5a2b';
 
 const PALETTES: LeafPalette[] = [
   { shadow: '#2c5230', tones: ['#3a6e39', '#4d8942', '#68a14e'], highlight: '#a7cf7c' },
@@ -203,6 +224,8 @@ interface SizeCache {
   memory: number;
   /** Jahreszeit (gerundet), mit der Kulisse und Ebenen gezeichnet sind (−1 = Sommer/ohne Angabe). */
   seasonKey: number;
+  /** Art des Hauptbaums, mit der Ebenen und Erinnerungsbaum gezeichnet sind. */
+  species: TreeSpecies;
 }
 
 interface Cache {
@@ -376,6 +399,11 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     sc.seasonKey = seasonKey;
   }
 
+  // Art des Hauptbaums: bei einem Wechsel alle Baum-Ebenen und den Erinnerungsbaum neu.
+  const species = normalizeSpecies(input.mainTree);
+  const speciesChanged = species !== sc.species;
+  sc.species = species;
+
   // Neuer Zyklus: Zeitpunkt in der Sequenz (NaN = außerhalb). Der alte Wald wird beim
   // Start (und nach Größenänderungen) einmal aus `fromGrowth` gezeichnet.
   const reduced = input.reducedMotion === true;
@@ -388,16 +416,17 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     const fromGrowth = Number.isFinite(ct.fromGrowth) ? Math.max(0, ct.fromGrowth) : 0;
     // Die Jahreszeit gehört bewusst nicht zum Schlüssel: Der alte Wald wird beim Start in
     // der dann gültigen Jahreszeit gezeichnet und bleibt für den Übergang so eingefroren.
-    const cycleKey = `${ct.startedAt}|${fromGrowth}|${sc.key}`;
+    const fromTree = normalizeSpecies(ct.fromTree ?? species);
+    const cycleKey = `${ct.startedAt}|${fromGrowth}|${sc.key}|${fromTree}|${species}`;
     if (!cache.cycle.prepared || cache.cycle.key !== cycleKey || !samePlants(cache.cyclePlants, ct.fromPlants)) {
       cache.cyclePlants = ct.fromPlants ? ct.fromPlants.map(plantSig) : null;
-      cache.cycle.prepare(cycleKey, cycleGeometry(sc), paintOldForest(sc, fromGrowth, ct.fromPlants, look));
+      cache.cycle.prepare(cycleKey, cycleGeometry(sc), paintOldForest(sc, fromGrowth, ct.fromPlants, look, fromTree), species);
     }
   }
 
   // Erinnerungsbaum: eigenes Canvas, neu nur bei Größenänderung oder neuem Wachstum.
   const memory = memoryGrowth(input.forestMemory);
-  if (memory !== sc.memory || seasonChanged) renderMemory(sc, memory, look);
+  if (memory !== sc.memory || seasonChanged || speciesChanged) renderMemory(sc, memory, look, species);
 
   const delta = Math.abs(g - sc.growth);
   const since = time - sc.drawnAt;
@@ -414,6 +443,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     due ||
     plantsChanged ||
     seasonChanged ||
+    speciesChanged ||
     sc.withPlants !== (input.plants !== undefined)
   ) {
     // Pflanzen beim Wachsen höchstens alle PLANT_REDRAW_STEP; beim Nachziehen (kleine
@@ -423,12 +453,13 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     const redrawPlants =
       plantsChanged ||
       seasonChanged ||
+      speciesChanged ||
       Number.isNaN(sc.plantsGrowth) ||
       plantDelta >= PLANT_REDRAW_STEP ||
       (settle && plantDelta >= PLANT_SETTLE_STEP);
     // Die Signatur hält fest, womit die Pflanzen zuletzt gezeichnet wurden.
     if (redrawPlants) cache.plantSig = input.plants ? input.plants.map(plantSig) : null;
-    renderLayers(sc, g, input.plants, redrawPlants, look);
+    renderLayers(sc, g, input.plants, redrawPlants, look, species);
     sc.growth = g;
     sc.drawnAt = time;
     sc.framesSinceDraw = 0;
@@ -601,7 +632,7 @@ export function memoryGrowth(forestMemory: number | undefined): number {
 }
 
 /** Erinnerungsbaum: fern und blass auf dem Hügel links – in ein eigenes Canvas (nur sein Bereich). */
-function renderMemory(sc: SizeCache, memory: number, look: SeasonLook | null): void {
+function renderMemory(sc: SizeCache, memory: number, look: SeasonLook | null, species: TreeSpecies): void {
   sc.memory = memory;
   sc.memoryRect = null;
   if (memory <= 0) {
@@ -615,7 +646,7 @@ function renderMemory(sc: SizeCache, memory: number, look: SeasonLook | null): v
   // Auf dem fernen Hügelkamm und etwas höher als die Kulisse – so bleibt die Krone
   // auch hinter einem dichten Wald erkennbar.
   const baseY = layout.groundY - layout.height * 0.08;
-  const tree = placeTree(memory, MEMORY_SEED, layout.cx - layout.width * 0.36, baseY, (baseY - layout.top) * 0.6, layout.width * 0.13);
+  const tree = placeTree(memory, MEMORY_SEED, layout.cx - layout.width * 0.36, baseY, (baseY - layout.top) * 0.6, layout.width * 0.13, species === 'oak' ? undefined : TREE_FORMS[species]);
   const r = toDeviceRect(unionRect(null, ...treeBounds(tree)), dpr, sc.pw, sc.ph);
   if (!r) return;
   const canvas = sc.memoryCanvas ?? document.createElement('canvas');
@@ -623,7 +654,11 @@ function renderMemory(sc: SizeCache, memory: number, look: SeasonLook | null): v
   canvas.height = r.h;
   const c = canvas.getContext('2d')!;
   c.setTransform(dpr, 0, 0, dpr, -r.x, -r.y);
-  paintTree(c, tree, hazeWood(seasonWood(WOOD, look), 0.7), hazePalette(seasonLeaves(PALETTES[2]!, look), 0.7), look ? look.leaves : 1);
+  if (species === 'oak') {
+    paintTree(c, tree, hazeWood(seasonWood(WOOD, look), 0.7), hazePalette(seasonLeaves(PALETTES[2]!, look), 0.7), look ? look.leaves : 1);
+  } else {
+    paintSpeciesTree(c, tree, species, hazeWood(seasonWood(speciesWood(species, WOOD, WOOD, 1), look), 0.7), hazePalette(speciesLeaves(species, PALETTES[2]!, look), 0.7), speciesLeafAmount(species, look), 0);
+  }
   sc.memoryCanvas = canvas;
   sc.memoryRect = r;
 }
@@ -632,10 +667,10 @@ function renderMemory(sc: SizeCache, memory: number, look: SeasonLook | null): v
  * Der alte Wald für den Zyklus-Übergang: Nachbarbäume, Begleitpflanzen und Hauptbaum
  * aus `g` – wie in den Baum-Ebenen, aber ohne Wind, in ein Canvas nur so groß wie nötig.
  */
-function paintOldForest(sc: SizeCache, g: number, plants: readonly ScenePlant[] | undefined, look: SeasonLook | null): OldForest | null {
+function paintOldForest(sc: SizeCache, g: number, plants: readonly ScenePlant[] | undefined, look: SeasonLook | null, species: TreeSpecies): OldForest | null {
   const { layout, dpr } = sc;
   const withPlants = plants !== undefined;
-  const main = placeMainTree(layout, g);
+  const main = placeMainTree(layout, g, species);
   const trees = placeNeighbors(neighborTrees(g, layout, withPlants), layout, withPlants);
   const flora = plants && plants.length > 0 ? layoutFlora(layout, g, plants, { main }) : [];
   let rect: Rect | null = null;
@@ -653,7 +688,7 @@ function paintOldForest(sc: SizeCache, g: number, plants: readonly ScenePlant[] 
   const leaves = look ? look.leaves : 1;
   for (const n of trees) paintTree(c, n.tree, hazeWood(seasonWood(WOOD, look), n.haze), hazePalette(seasonLeaves(n.palette, look), n.haze), leaves);
   for (const p of flora) paintPlant(c, p, look);
-  if (main) paintTree(c, main, seasonWood(mixWood(STEM, WOOD, smooth01((g - 1) / 2)), look), seasonLeaves(PALETTES[0]!, look), leaves);
+  if (main) paintMainTree(c, main, g, species, look);
   return {
     canvas,
     rect: { x: r.x / dpr, y: r.y / dpr, w: r.w / dpr, h: r.h / dpr },
@@ -708,6 +743,7 @@ function buildSizeCache(
     memoryRect: null,
     memory: Number.NaN,
     seasonKey: -1,
+    species: 'oak',
   };
 
   paintStatic(sc, look);
@@ -759,6 +795,32 @@ function treeBounds(t: PlacedTree): [number, number, number, number] {
   return [t.x + t.geo.minX * t.scale, t.y + t.geo.minY * t.scale, t.x + t.geo.maxX * t.scale, t.y + 4];
 }
 
+/** Hauptbaum der Art (Holz verholzt mit dem Alter, Laub je Jahreszeit). */
+function paintMainTree(ctx: CanvasRenderingContext2D, main: PlacedTree, g: number, species: TreeSpecies, look: SeasonLook | null): void {
+  const lignin = smooth01((g - 1) / 2);
+  if (species === 'oak') {
+    paintTree(ctx, main, seasonWood(mixWood(STEM, WOOD, lignin), look), seasonLeaves(PALETTES[0]!, look), look ? look.leaves : 1);
+    return;
+  }
+  paintSpeciesTree(ctx, main, species, seasonWood(speciesWood(species, STEM, WOOD, lignin), look), speciesLeaves(species, PALETTES[0]!, look), speciesLeafAmount(species, look), g);
+}
+
+/**
+ * Buche (runde Blattballen, glatte Rinde) oder Kiefer (Schuppenborke, Nadelbüschel,
+ * Zapfen). `g`: Alter für Borke und Zapfen – 0 lässt diese Einzelheiten weg (ferner,
+ * dunstiger Erinnerungsbaum).
+ */
+function paintSpeciesTree(ctx: CanvasRenderingContext2D, t: PlacedTree, species: TreeSpecies, wood: WoodColors, palette: LeafPalette, leaves: number, g: number): void {
+  paintWood(ctx, t.geo, t.x, t.y, t.scale, species === 'pine' ? 0.9 : 1, wood);
+  if (species === 'pine') {
+    paintPineBark(ctx, t.geo, t.x, t.y, t.scale, g);
+    paintNeedleClumps(ctx, t.geo, t.x, t.y, t.scale, 1.05, 0.5, palette);
+    paintCones(ctx, t.geo, t.x, t.y, t.scale, g);
+    return;
+  }
+  paintLeaves(ctx, t.geo, t.x, t.y, t.scale, palette, leaves);
+}
+
 function paintTree(ctx: CanvasRenderingContext2D, t: PlacedTree, wood: WoodColors, palette: LeafPalette, leaves = 1): void {
   paintWood(ctx, t.geo, t.x, t.y, t.scale, 1, wood);
   paintLeaves(ctx, t.geo, t.x, t.y, t.scale, palette, leaves);
@@ -804,7 +866,14 @@ function neighborTrees(g: number, layout: Layout, backdrop = false): NeighborTre
   return result;
 }
 
-function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | undefined, redrawPlants: boolean, look: SeasonLook | null): void {
+function renderLayers(
+  sc: SizeCache,
+  g: number,
+  plants: readonly ScenePlant[] | undefined,
+  redrawPlants: boolean,
+  look: SeasonLook | null,
+  species: TreeSpecies,
+): void {
   const leaves = look ? look.leaves : 1;
   const { dpr, layout } = sc;
   const withPlants = plants !== undefined;
@@ -812,7 +881,7 @@ function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | 
 
   // Hauptbaum zuerst berechnen – Wurzeln und Tier-Ankerpunkte richten sich nach ihm.
   const scale1 = sproutScale(layout);
-  const main = placeMainTree(layout, g);
+  const main = placeMainTree(layout, g, species);
   sc.anchors = createAnchorResolver(layout, g, main);
 
   // --- Begleitpflanzen (eigene Ebene) ---
@@ -829,7 +898,7 @@ function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | 
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.scenery, 0, 0);
   bg.setTransform(dpr, 0, 0, dpr, 0, 0);
-  paintUnderground(bg, layout, g, scale1, main, withPlants ? sc.companionXs : neighbors.map((n) => n.x));
+  paintUnderground(bg, layout, g, scale1, main, withPlants ? sc.companionXs : neighbors.map((n) => n.x), species);
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.grass, 0, sc.grassTop);
   // Winter: dünne Schneedecke auf der Grasnarbe.
@@ -861,16 +930,15 @@ function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | 
   if (main) {
     sc.mainBox = treeBounds(main);
     sc.frontRect = toDeviceRect(unionRect(null, ...sc.mainBox), dpr, pw, ph);
-    const lignin = smooth01((g - 1) / 2);
-    paintTree(front, main, seasonWood(mixWood(STEM, WOOD, lignin), look), seasonLeaves(PALETTES[0]!, look), leaves);
+    paintMainTree(front, main, g, species, look);
     // Keimblätter verblassen, während die ersten Blattbüschel wachsen.
     const coty = 1 - clamp01((g - 1) / 0.8);
     if (coty > 0) {
-      paintCotyledons(front, main.x + main.geo.tipX * main.scale, main.y + main.geo.tipY * main.scale, scale1 * 0.36 * coty);
+      paintCotyledons(front, main.x + main.geo.tipX * main.scale, main.y + main.geo.tipY * main.scale, scale1 * 0.36 * coty, species);
     }
   } else {
     sc.mainBox = null;
-    paintSprout(front, layout, g, scale1);
+    paintSprout(front, layout, g, scale1, species);
     sc.frontRect = toDeviceRect(
       unionRect(null, layout.cx - scale1, layout.groundY - scale1 * 1.4, layout.cx + scale1, layout.groundY + 4),
       dpr,
@@ -923,7 +991,7 @@ function renderPlants(sc: SizeCache, flora: PlacedPlant[], look: SeasonLook | nu
 }
 
 /** Keimling oberhalb der Erde (g < 1). */
-function paintSprout(ctx: CanvasRenderingContext2D, layout: Layout, g: number, scale1: number): void {
+function paintSprout(ctx: CanvasRenderingContext2D, layout: Layout, g: number, scale1: number, species: TreeSpecies): void {
   const h = scale1 * clamp01((g - 0.35) / 0.65);
   if (h <= 0.5) return;
   const x = layout.cx;
@@ -938,11 +1006,15 @@ function paintSprout(ctx: CanvasRenderingContext2D, layout: Layout, g: number, s
   ctx.quadraticCurveTo(x - h * 0.08, y - h * 0.6, x + hook, y - h);
   ctx.stroke();
   const leaf = smooth01((g - 0.55) / 0.45);
-  if (leaf > 0) paintCotyledons(ctx, x + hook, y - h, scale1 * 0.36 * leaf);
+  if (leaf > 0) paintCotyledons(ctx, x + hook, y - h, scale1 * 0.36 * leaf, species);
 }
 
-/** Zwei Keimblätter an der Triebspitze. */
-function paintCotyledons(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+/** Keimblätter an der Triebspitze (Eiche: zwei schmale; andere Arten siehe species.ts). */
+function paintCotyledons(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, species: TreeSpecies = 'oak'): void {
+  if (species !== 'oak') {
+    paintSpeciesCotyledons(ctx, species, x, y, size, PALETTES[0]!);
+    return;
+  }
   if (size < 0.5) return;
   const palette = PALETTES[0]!;
   for (const side of [-1, 1]) {
@@ -969,6 +1041,7 @@ function paintUnderground(
   main: PlacedTree | null,
   /** Fußpunkte der Bäume ringsum, die das Pilzgeflecht verbindet. */
   treeXs: number[],
+  species: TreeSpecies = 'oak',
 ): void {
   const { cx, groundY, soilH } = layout;
   const seedY = groundY + soilH * 0.14;
@@ -1032,14 +1105,8 @@ function paintUnderground(
   const seedAlpha = 1 - clamp01((g - 1) / 0.5);
   if (seedAlpha > 0) {
     ctx.globalAlpha = seedAlpha;
-    ctx.fillStyle = SEED_COLOR;
-    ctx.beginPath();
-    ctx.ellipse(cx, seedY, seedR * 1.4, seedR, -0.3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#b07a44';
-    ctx.beginPath();
-    ctx.ellipse(cx - seedR * 0.4, seedY - seedR * 0.35, seedR * 0.55, seedR * 0.25, -0.3, 0, Math.PI * 2);
-    ctx.fill();
+    // Eichel, Buchecker oder geflügelter Kiefernsamen.
+    paintSeed(ctx, species, cx, seedY, seedR);
     ctx.globalAlpha = 1;
   }
   ctx.restore();
