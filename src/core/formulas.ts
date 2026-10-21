@@ -798,12 +798,23 @@ function ecosystemKey(state: GameState, withSeason = true): string {
   const c = state.cycle;
   if (c) {
     key += `|h:${(c.habitats ?? []).join(',')}|v:${(c.visitors ?? []).map((v) => v.id).join(',')}`;
-    if ((c.bonuses ?? []).length > 0) key += `|b:${JSON.stringify(c.bonuses.map((b) => b.effect))}`;
-    if ((c.timed ?? []).length > 0) key += `|t:${JSON.stringify(c.timed.map((t) => t.effect))}`;
+    if ((c.bonuses ?? []).length > 0) key += `|b:${keyJson(c.bonuses.map((b) => b.effect))}`;
+    if ((c.timed ?? []).length > 0) key += `|t:${keyJson(c.timed.map((t) => t.effect))}`;
     const care = Object.entries(c.care ?? {}).filter(([, r]) => r > 0);
     if (care.length > 0) key += `|c:${care.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([id, r]) => `${id}=${r}`).join(',')}`;
   }
   return key;
+}
+
+/**
+ * JSON für Cache-Schlüssel, aber mit unterscheidbaren Sonderzahlen: JSON.stringify macht
+ * aus Infinity, -Infinity und NaN gleichermaßen `null` – zwei kaputte Zustände hintereinander
+ * bekämen sonst den Cache-Wert des ersten. Sonderzahlen werden zu `"#NaN"` usw.
+ */
+function keyJson(value: unknown): string {
+  return JSON.stringify(value, (_k, v: unknown) =>
+    typeof v === 'number' && !Number.isFinite(v) ? `#${v}` : v,
+  );
 }
 
 // ---------------------------------------------------------------------------
