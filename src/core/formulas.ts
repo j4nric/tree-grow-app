@@ -16,7 +16,6 @@ import { DECLINE_SEEDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } f
 import { SEED_SECONDS_MIN_SEEDS } from '../content/events';
 import {
   FOREST_MEMORY_BONUS,
-  MEMORY_HARMONY_DIVISOR,
   MEMORY_HARMONY_RULES,
   MEMORY_PER_HARMONY_POINT,
   MEMORY_PER_NEW_SPECIES,
@@ -1229,15 +1228,16 @@ function finite(value: number): number {
 export interface MemoryHarmonyBonus {
   /** Wegpunkt, für den die Regel gilt (begrenzt auf die Stützstellen, ganzzahlig). */
   waypoint: number;
-  /** Schwelle, zwischen den Stützstellen krumm (z. B. 103,125). */
+  /** Sockel: 1 Punkt je so viele Punkte höchster Harmonie, zwischen den Stützstellen krumm (z. B. 5,375). */
+  divisor: number;
+  /** Schwelle (mit den jetzigen Stützstellen an jedem Wegpunkt ganz, z. B. 118 an Wegpunkt 23). */
   threshold: number;
-  /** Obergrenze, zwischen den Stützstellen krumm (z. B. 44,4375). */
+  /** Obergrenze, zwischen den Stützstellen krumm (z. B. 46,125). */
   maxPoints: number;
   /**
    * Ganze Zahl fürs Panel: kleinste (gerundete) höchste Harmonie, die wirklich mehr bringt als
-   * der Sockel ⌊H / 5⌋. An ganzen Schwellen T + 1; an krummen oft ⌈T⌉ (Wegpunkt 23, T 109,375:
-   * ab 110 mit +1), manchmal ⌈T⌉ + 1 (Wegpunkt 27, T 121,875: 122 bringt nach dem Abrunden
-   * nichts, ab 123).
+   * der Sockel ⌊H / D⌋. An ganzen Schwellen T + 1; an krummen Schwellen (2.11b) oft ⌈T⌉,
+   * manchmal ⌈T⌉ + 1 (dort Wegpunkt 27, T 121,875: 122 brachte nach dem Abrunden nichts).
    */
   bonusFrom: number;
   /** Ab dieser (gerundeten) höchsten Harmonie ist der Bonus voll: ⌈Schwelle + Obergrenze / 3⌉. */
@@ -1245,27 +1245,27 @@ export interface MemoryHarmonyBonus {
 }
 
 /** Stützstellen: Wegpunkt der Stufe jeder Regel aus MEMORY_HARMONY_RULES, aufsteigend (einmal beim Laden berechnet). */
-const MEMORY_RULE_POINTS: readonly { waypoint: number; threshold: number; maxPoints: number }[] = MEMORY_HARMONY_RULES.flatMap((r) => {
+const MEMORY_RULE_POINTS: readonly { waypoint: number; divisor: number; threshold: number; maxPoints: number }[] = MEMORY_HARMONY_RULES.flatMap((r) => {
   const stage = STAGES.find((s) => s.id === r.stage);
-  return stage ? [{ waypoint: stage.waypoint, threshold: r.threshold, maxPoints: r.maxPoints }] : [];
+  return stage ? [{ waypoint: stage.waypoint, divisor: r.divisor, threshold: r.threshold, maxPoints: r.maxPoints }] : [];
 }).sort((a, b) => a.waypoint - b.waypoint);
 
 /**
- * Gedächtnis aus der (schon gerundeten) Harmonie H: ⌊H / 5 + min(C, 3 · max(0, H − T))⌋.
- * Erst summieren, dann abrunden: So wächst der Gewinn entlang typischer Verläufe ohne
- * Rundungsdellen (tests/cycle.test.ts, „typische Verläufe“). Kleiner Puffer gegen Gleitkomma.
+ * Gedächtnis aus der (schon gerundeten) Harmonie H: ⌊H / D + min(C, 3 · max(0, H − T))⌋.
+ * Erst summieren, dann abrunden: So wächst der Gewinn mit H ohne Rundungsdellen. Kleiner
+ * Puffer gegen Gleitkomma.
  */
-function harmonyMemoryPoints(harmony: number, threshold: number, maxPoints: number): number {
+function harmonyMemoryPoints(harmony: number, divisor: number, threshold: number, maxPoints: number): number {
   const above = Math.max(0, harmony - threshold);
-  return Math.floor(harmony / MEMORY_HARMONY_DIVISOR + Math.min(maxPoints, MEMORY_PER_HARMONY_POINT * above) + 1e-9);
+  return Math.floor(harmony / divisor + Math.min(maxPoints, MEMORY_PER_HARMONY_POINT * above) + 1e-9);
 }
 
 /**
- * Regel des Harmonie-Bonus für den erreichten Wegpunkt (Schritt 2.11b): Schwelle und
- * Obergrenze gleiten linear zwischen den Stützstellen aus MEMORY_HARMONY_RULES (Hain,
- * Wegpunkt 20: 100 / 45 → Urwald, Wegpunkt 36: 150 / 38), damit die Vorschau beim
- * Stufenwechsel nicht springt. Davor gilt die erste, danach die letzte Stützstelle; NaN
- * zählt wie Wegpunkt 0, Infinity wie der letzte.
+ * Regel des Waldgedächtnisses für den erreichten Wegpunkt (Schritt 2.11b, Sockel-Teiler seit
+ * dem Abgleich mit der Sperrklinke): Teiler D, Schwelle T und Obergrenze C gleiten linear
+ * zwischen den Stützstellen aus MEMORY_HARMONY_RULES (Hain, Wegpunkt 20: 5 / 100 / 45 →
+ * Wald, 28: 6 / 148 / 48 → Urwald, 36: 7 / 164 / 48). Davor gilt die erste, danach die
+ * letzte Stützstelle; NaN zählt wie Wegpunkt 0, Infinity wie der letzte.
  */
 export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {
   const points = MEMORY_RULE_POINTS;
@@ -1273,6 +1273,7 @@ export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {
   const last = points[points.length - 1]!;
   // NaN zählt wie 0, ±Infinity landet an der ersten bzw. letzten Stützstelle.
   const w = Math.min(last.waypoint, Math.max(first.waypoint, Number.isNaN(waypoint) ? 0 : Math.floor(waypoint)));
+  let divisor = first.divisor;
   let threshold = first.threshold;
   let maxPoints = first.maxPoints;
   for (let i = 1; i < points.length; i++) {
@@ -1280,6 +1281,7 @@ export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {
     const b = points[i]!;
     if (w > b.waypoint) continue;
     const t = b.waypoint > a.waypoint ? (w - a.waypoint) / (b.waypoint - a.waypoint) : 1;
+    divisor = a.divisor + t * (b.divisor - a.divisor);
     threshold = a.threshold + t * (b.threshold - a.threshold);
     maxPoints = a.maxPoints + t * (b.maxPoints - a.maxPoints);
     break;
@@ -1288,29 +1290,50 @@ export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {
   // Erste ganze Harmonie mit Gewinn über dem Sockel – exakt wie cycleMemoryGain rechnet.
   let bonusFrom = fullAt;
   for (let h = Math.max(0, Math.ceil(threshold)); h <= fullAt; h++) {
-    if (harmonyMemoryPoints(h, threshold, maxPoints) > harmonyMemoryPoints(h, Infinity, 0)) {
+    if (harmonyMemoryPoints(h, divisor, threshold, maxPoints) > harmonyMemoryPoints(h, divisor, Infinity, 0)) {
       bonusFrom = h;
       break;
     }
   }
-  return { waypoint: w, threshold, maxPoints, bonusFrom, fullAt };
+  return { waypoint: w, divisor, threshold, maxPoints, bonusFrom, fullAt };
 }
 
 /**
- * Waldgedächtnis, das ein Neuer Zyklus einbringt (Schritt 2.11, gleitende Schwelle seit 2.11b):
- * mit H = round(H_max): `⌊H / 5 + min(C, 3 · max(0, H − T))⌋ + neue Arten`, Schwelle T und
- * Obergrenze C je erreichtem Wegpunkt `waypoint` (memoryHarmonyBonus, Zahlen in
- * content/memory.ts). An den Stützstellen sind T und C ganz, dann ist das genau
- * `⌊H / 5⌋ + min(C, 3 · max(0, H − T))` wie in 2.11. Begrenzt, sodass der Bestand
- * MAX_FOREST_MEMORY nicht übersteigt. Negative Harmonie zählt als 0; NaN und Unsinn ergeben
- * 0 statt kaputter Spielstände.
+ * Harmonie-Anteil des Waldgedächtnis-Gewinns (ohne neue Arten, ohne Obergrenze des Bestands):
+ * mit H = round(H_max): `⌊H / D + min(C, 3 · max(0, H − T))⌋`, Teiler D, Schwelle T und
+ * Obergrenze C je Wegpunkt (memoryHarmonyBonus). Steigt mit H_max, sinkt mit dem Wegpunkt – darum merkt
+ * sich der Zyklus den besten Wert (`cycle.bestHarmonyMemory`, „Sperrklinke“ seit v10).
+ * Negative Harmonie zählt als 0, NaN ergibt 0.
  */
-export function cycleMemoryGain(maxHarmony: number, newSpeciesCount: number, forestMemory: number, waypoint: number): number {
+export function harmonyMemoryGain(maxHarmony: number, waypoint: number): number {
   // Einmal kaufmännisch runden – dieselbe ganze Zahl, die Panel, Statistik und Seitenleiste
   // als „Höchste Harmonie“ zeigen (100,6 → 101 zählt also schon extra).
   const harmony = Math.round(Math.max(0, finite(maxHarmony)));
   const bonus = memoryHarmonyBonus(waypoint);
-  const harmonyPoints = harmonyMemoryPoints(harmony, bonus.threshold, bonus.maxPoints);
+  return harmonyMemoryPoints(harmony, bonus.divisor, bonus.threshold, bonus.maxPoints);
+}
+
+/**
+ * Waldgedächtnis, das ein Neuer Zyklus einbringt (Schritt 2.11, gleitende Schwelle seit 2.11b,
+ * gleitender Sockel-Teiler seit dem Abgleich mit der Sperrklinke): mit H = round(H_max):
+ * `⌊H / D + min(C, 3 · max(0, H − T))⌋ + neue Arten`, Teiler D, Schwelle T und Obergrenze C
+ * je erreichtem Wegpunkt `waypoint` (memoryHarmonyBonus, Zahlen in content/memory.ts). Im
+ * Hain (5 / 100 / 45) ist das genau `⌊H / 5⌋ + min(45, 3 · max(0, H − 100))` wie in 2.11. Begrenzt, sodass der Bestand
+ * MAX_FOREST_MEMORY nicht übersteigt. Negative Harmonie zählt als 0; NaN und Unsinn ergeben
+ * 0 statt kaputter Spielstände.
+ * Sperrklinke (seit v10): `bestHarmonyMemory` ist der beste Harmonie-Anteil, den der Zyklus
+ * schon erreicht hatte (`cycle.bestHarmonyMemory`); gezählt wird der größere der beiden
+ * Werte. So sinkt die Vorschau nie, auch wenn die Schwelle mit dem Wegpunkt steigt.
+ */
+export function cycleMemoryGain(
+  maxHarmony: number,
+  newSpeciesCount: number,
+  forestMemory: number,
+  waypoint: number,
+  bestHarmonyMemory = 0,
+): number {
+  const best = Math.min(MAX_FOREST_MEMORY, Math.max(0, Math.floor(finite(bestHarmonyMemory))));
+  const harmonyPoints = Math.max(best, harmonyMemoryGain(maxHarmony, waypoint));
   const speciesPoints = MEMORY_PER_NEW_SPECIES * Math.max(0, Math.floor(finite(newSpeciesCount)));
   const room = MAX_FOREST_MEMORY - Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
   return Math.min(room, harmonyPoints + speciesPoints);

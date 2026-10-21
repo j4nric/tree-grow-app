@@ -227,11 +227,12 @@ test.describe('Mobil', () => {
     await swipe(cdp, x, y, -200);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
     // Der Wisch kann nachgleiten (Fling) und ein einmaliges scrollTo überholen – daher
-    // im Poll wiederholt zurücksetzen, bis die Seite oben stehen bleibt.
+    // zurücksetzen und erst weiter, wenn die Seite 10 Frames lang oben stehen bleibt.
     await expect
       .poll(() =>
-        page.evaluate(() => {
+        page.evaluate(async () => {
           window.scrollTo({ top: 0, behavior: 'instant' });
+          for (let i = 0; i < 10; i++) await new Promise((r) => requestAnimationFrame(r));
           return window.scrollY;
         }),
       )
@@ -251,18 +252,29 @@ test.describe('Mobil', () => {
                 { x: x + d, y, id: 2 },
               ],
       });
+    // Pinch beginnt bei 1× (touch-action: pan-y) – auch dabei scrollt die Seite nicht.
     await touch('touchStart', 30);
-    for (let i = 1; i <= steps; i++) await touch('touchMove', 30 + (i * 60) / steps);
+    for (let i = 1; i <= steps; i++) {
+      await touch('touchMove', 30 + (i * 60) / steps);
+      if (i % 4 === 0) expect(await page.evaluate(() => window.scrollY), `während des Pinch (Schritt ${i})`).toBe(0);
+    }
     await touch('touchEnd', 0);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
     const pinched = await viewWhen(page, (v) => v.zoom > 2);
     expectInside(pinched);
     await expect(canvas(page)).toHaveCSS('touch-action', 'none');
 
-    // Vergrößert: Wischen verschiebt die Szene, die Seite bleibt stehen.
+    // Vergrößert: Wischen verschiebt die Szene, die Seite bleibt stehen – auch nach dem
+    // Ausgleiten (einige Frames abwarten).
     await swipe(cdp, x, y, -120);
     const panned = await viewWhen(page, (v) => v.y > pinched.y);
     expectInside(panned);
-    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(
+      await page.evaluate(async () => {
+        for (let i = 0; i < 10; i++) await new Promise((r) => requestAnimationFrame(r));
+        return window.scrollY;
+      }),
+    ).toBe(0);
     for (const px of await edgePixels(page)) expect(px[3]).toBe(255);
 
     // Zurücksetzen: wieder 1×, die Seite scrollt wieder.

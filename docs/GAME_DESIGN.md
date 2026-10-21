@@ -14,7 +14,7 @@
 > Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus; 14 Ereignisse, davon je Jahreszeit ein
 > eigenes: Spätfrost, Hitzewelle, Laubfall, Schneebruch) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
-> Spielstand v9 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
+> Spielstand v10 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
 > verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege;
 > v5-Stände beginnen beim Laden im Frühling und wachsen als Stieleiche weiter; v3- bis
@@ -27,7 +27,9 @@
 > Langzeit-Statistik über alle Zyklen (`DESIGN_V2.md` 12.5); bei v7-Ständen beginnt sie
 > beim laufenden Zyklus, ab Zyklus 2 gilt die Stieleiche zusätzlich als gewachsen.
 > Seit Spielstand v9 gibt es 25 Erfolge im Naturtagebuch (`DESIGN_V2.md` 18); v8-Stände
-> bekommen beim Laden still nachgetragen, was sie schon erfüllen.
+> bekommen beim Laden still nachgetragen, was sie schon erfüllen. Seit Spielstand v10
+> merkt sich der Zyklus die beste Waldgedächtnis-Vorschau („Sperrklinke“, `DESIGN_V2.md`
+> 10 und 12.7); v9-Stände starten mit ihrer aktuellen Vorschau.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
@@ -166,9 +168,60 @@ Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 10, 15.4 („St
 | Vorschau sinkt beim Erreichen eines Wegpunkts (Harmonie / Wachstum / Zufall) | – | 26–38 / 44–48 / 10–16 %, im Mittel −1 bis −7, höchstens −10 | möglichst nie |
 
 Der Gewinn sinkt nie, solange H_max je Wegpunkt um mindestens 3 steigt (typisch: +3,2 bis
-+4,0). Offen: Bleibt H_max an einem Wegpunkt gleich, sinkt die Vorschau kurz um bis zu 10
-Punkte je Wegpunkt (offline über mehrere Wegpunkte auf einmal entsprechend mehr). Das verschwindet nur mit einer „Sperrklinke“ im Spielstand (größte Vorschau des
-Zyklus merken, `core-engineer`, neue Spielstand-Version).
++4,0). Bleibt H_max an einem Wegpunkt gleich, sank die Vorschau bis Spielstand v9 kurz um bis
+zu 10 Punkte je Wegpunkt. Seit v10 gibt es dafür die Sperrklinke (unten).
+
+### Sperrklinke für die Vorschau (Spielstand v10, umgesetzt)
+
+Wachsen darf sich nie wie Verlust anfühlen: Der Zyklus merkt sich den besten Harmonie-Anteil
+des Waldgedächtnis-Gewinns (`cycle.bestHarmonyMemory`, ohne neue Arten – die zählen ohnehin
+nur nach oben). Angezeigt und gutgeschrieben wird `max(gemerkt, aktuell) + neue Arten`. Die
+Vorschau im Panel „Neuer Zyklus“ sinkt damit nie, auch offline nicht. Das Panel bleibt in
+der Form gleich; die Regel endet mit „– Erreichtes bleibt.“, die Spielanleitung sagt „Die
+Vorschau sinkt nie“. v9-Stände starten mit ihrer aktuellen Vorschau. Details:
+[`DESIGN_V2.md`](DESIGN_V2.md) 10, 12.7, 15.4 („Stand Sperrklinke“).
+
+**Balancing-Folge:** Die Sperrklinke hielt beim Wachstums-Spieler die Spitzen fest, an
+denen seine Harmonie gerade über der gleitenden Schwelle lag. Mit den Zahlen aus 2.11b
+hielten zwei Ziele im großen Lauf nicht mehr (Wald/Urwald Zyklus 2 / 3 ≥ 0,97, Urwald ≤ 1,5
+× Hain). Nachjustiert im Abschnitt unten.
+
+### Abgleich mit der Sperrklinke (umgesetzt)
+
+Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md) 10, 14 (Entscheidung 12) und 15.4
+(„Stand Abgleich Sperrklinke“). Neues Ziel (e) des Product Owners: Die Urwald-Schwelle liegt
+~10 unter der typischen Harmonie des Harmonie-Spielers (174), und der Wachstums-Spieler
+bekommt dort deutlich weniger Bonus. Kleine Formeländerung: Der **Sockel-Teiler gleitet**
+mit (`divisor` in `MEMORY_HARMONY_RULES`, `memoryHarmonyBonus` in `core/formulas.ts`).
+
+| Zahl (`src/content/memory.ts`, `MEMORY_HARMONY_RULES`) | 2.11b | jetzt |
+|---|---|---|
+| Hain (Wegpunkt 20): Teiler / Schwelle / Obergrenze | 5 / 100 / 45 (voll ab 115) | unverändert |
+| Wald (Wegpunkt 28) | 5 / 125 / 41,5 (ab 139), linear dazwischen | **6 / 148 / 48** (ab 164), Stützstelle |
+| Urwald (Wegpunkt 36) | 5 / 150 / 38 (ab 163) | **7 / 164 / 48** (ab 180) |
+| je Wegpunkt Hain → Wald | Schwelle +3,125 | Teiler +0,125, Schwelle **+6**, Obergrenze +0,375 |
+| je Wegpunkt Wald → Urwald | Schwelle +3,125 | Teiler +0,125, Schwelle **+2** |
+
+| Kennzahl (großer Lauf, 100 Durchgänge) | vor dem Abgleich (Sperrklinke, 150 / 38) | jetzt | Ziel |
+|---|---|---|---|
+| Wachstum / Harmonie Zyklus 2 / 3, Neustart Wald | 0,947 / 0,951 | **1,026 / 1,072** | ≥ 0,97 |
+| … Neustart Urwald | 0,912 / 0,926 | **0,993 / 1,031** | ≥ 0,97 |
+| … Neustart Hain | 0,982 / 1,006 | unverändert | ≥ 0,97 |
+| Gewinn Zyklus 1 Wald, Harmonie / Wachstum / Zufall | 82,9 / 69,2 / 43,7 | 77,7 / 60,1 / 39,1 | mehr als Hain (60,6 / 48,8 / 30,0) |
+| Gewinn Zyklus 1 Urwald, Harmonie / Wachstum / Zufall | 92,5 / 83,7 / 57,6 | 87,9 / 68,0 / 44,7 | Harmonie ≤ ~1,5 × Hain |
+| Gewinn Urwald / Hain, Harmonie-Spieler | 1,53 | **1,45** | ≤ ~1,5 |
+| Zyklus 2 schneller, Zufall: Wald / Urwald | 29,2 / 36,9 % | 28,0 / 31,6 % | ≥ 20 % |
+| Bonus über dem Sockel im Urwald bei typischer H_max (Harmonie 174 / Wachstum 155) | 38 / 15 | **30 / 0** | Harmonie spürbar, Wachstum deutlich weniger |
+| Vorschau sinkt beim Erreichen eines Wegpunkts | nie | nie | nie |
+
+Mit 200 Durchgängen in vier Seed-Fenstern streut Zyklus 2 je Fenster um ±0,04; ≥ 0,97 gilt
+im Mittel der Fenster, nicht in jedem einzelnen (`DESIGN_V2.md` 15.4).
+
+**Nachtrag nach dem frühen Spiel (#52):** Mit 100 Durchgängen fiel Wald Zyklus 2 auf 0,967.
+Keine Regelvariante verschiebt das um mehr als ~0,005 (der Wald-Gewinn hängt fast nur am
+gemerkten Hain-Wert); es war Streuung (200 Durchgänge im selben Fenster: 0,984). Die Zahlen
+bleiben, der große Lauf rechnet den Neustart jetzt mit 200 Durchgängen: Wald 0,984 / 1,057,
+Urwald 0,987 / 1,036, Urwald 1,44 × Hain, Zufall Zyklus 2 29 / 32 % schneller.
 
 ## Schritt 2.11: Harmonie lohnt sich über die Zyklen (v2, umgesetzt)
 

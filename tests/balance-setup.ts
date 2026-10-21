@@ -36,7 +36,11 @@ export const CYCLE_RUNS = Math.min(requested ?? 40, CYCLE_RUNS_MAX);
  * Durchgänge über mehrere Zyklen mit Neustart in Hain, Wald und Urwald
  * (balance-restart.test.ts, Schritt 2.11b). Im Check wenige, weil ein Urwald-Zyklus lang ist.
  */
-export const RESTART_RUNS_MAX = 100;
+// 200 statt 100 seit dem Merge des frühen Spiels (#52): Mit 100 Durchgängen streut das
+// Verhältnis Wachstum/Harmonie in Zyklus 2 im selben Seed-Fenster um ±0,02 (Wald 0,967 mit
+// 100, 0,984 mit 200 Durchgängen) – mehr als die Regeln es verschieben (DESIGN_V2.md 15.4,
+// „Stand Abgleich Sperrklinke“, Nachtrag).
+export const RESTART_RUNS_MAX = 200;
 export const RESTART_RUNS = Math.min(requested ?? 12, RESTART_RUNS_MAX);
 /** Zyklen am Stück. */
 export const CYCLES = 3;

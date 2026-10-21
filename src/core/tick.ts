@@ -33,6 +33,7 @@ import {
   activeCommunities,
   appearsContext,
   cycleMemoryGain,
+  harmonyMemoryGain,
   memoryHarmonyBonus,
   declineReward,
   ecosystemOf,
@@ -59,6 +60,7 @@ import { checkAchievements } from './achievements';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import { MAX_ELAPSED, nextSeasonBoundary, normalizeElapsed, seasonIdAt, secondsToNextSeason } from './season';
 import {
+  MAX_FOREST_MEMORY,
   allAnimals,
   createCycle,
   emptyNiches,
@@ -374,6 +376,7 @@ function reachWaypoint(state: GameState, report: TickReport): void {
   // Karten gezogen werden – so bietet die Begegnung sie nicht noch einmal an.
   report.regulars.push(...moveInRegulars(state));
   // Stufe und Stammgäste können die Harmonie ändern (H_max) und Gemeinschaften bilden.
+  // Führt auch die Sperrklinke zur neuen Schwelle nach (raiseMaxHarmony).
   recordDiscoveries(state);
   if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) {
     // Warteschlange voll: überzählige Begegnung gleich ablehnen – nichts verfällt.
@@ -620,12 +623,27 @@ export function recordDiscoveries(state: GameState): string[] {
 
 /**
  * Hebt die höchste Harmonie des Zyklus (H_max) auf `harmony`, falls größer – und die beste
- * Harmonie aller Zyklen (`meta.stats.bestHarmony`).
+ * Harmonie aller Zyklen (`meta.stats.bestHarmony`). Führt danach immer die Sperrklinke der
+ * Vorschau nach (raiseBestHarmonyMemory) – auch ohne neue H_max, denn nach einem Wegpunkt
+ * (reachWaypoint → recordDiscoveries) gilt eine neue Schwelle.
  */
 function raiseMaxHarmony(state: GameState, harmony: number): void {
-  if (!Number.isFinite(harmony)) return;
-  if (harmony > state.cycle.maxHarmony) state.cycle.maxHarmony = harmony;
-  if (harmony > state.meta.stats.bestHarmony) state.meta.stats.bestHarmony = harmony;
+  if (Number.isFinite(harmony)) {
+    if (harmony > state.cycle.maxHarmony) state.cycle.maxHarmony = harmony;
+    if (harmony > state.meta.stats.bestHarmony) state.meta.stats.bestHarmony = harmony;
+  }
+  raiseBestHarmonyMemory(state);
+}
+
+/**
+ * Sperrklinke (seit v10): merkt sich den besten Harmonie-Anteil des Gedächtnis-Gewinns
+ * (harmonyMemoryGain aus H_max und Wegpunkt). Läuft nach jeder Änderung von H_max und nach
+ * jedem Wegpunkt – vor dem nächsten Wegpunkt steht darum der Wert zur alten Schwelle schon
+ * fest. Hängt nur von H_max und Wegpunkt an diesen Stellen ab: online = offline.
+ */
+function raiseBestHarmonyMemory(state: GameState): void {
+  const now = harmonyMemoryGain(state.cycle.maxHarmony, state.waypoint);
+  if (now > state.cycle.bestHarmonyMemory) state.cycle.bestHarmonyMemory = Math.min(MAX_FOREST_MEMORY, now);
 }
 
 /**
@@ -797,7 +815,14 @@ export function newCycleBlocker(state: GameState): NewCycleBlocker | null {
 /** Was ein Neuer Zyklus jetzt brächte. Ändert nichts. */
 export function previewNewCycle(state: GameState): NewCyclePreview {
   const memoryBefore = state.meta.forestMemory;
-  const memoryGain = cycleMemoryGain(state.cycle.maxHarmony, state.cycle.newSpecies.length, memoryBefore, state.waypoint);
+  // Sperrklinke: der beste Harmonie-Anteil dieses Zyklus zählt, wenn er über dem aktuellen liegt.
+  const memoryGain = cycleMemoryGain(
+    state.cycle.maxHarmony,
+    state.cycle.newSpecies.length,
+    memoryBefore,
+    state.waypoint,
+    state.cycle.bestHarmonyMemory,
+  );
   return {
     blocker: newCycleBlocker(state),
     maxHarmony: state.cycle.maxHarmony,

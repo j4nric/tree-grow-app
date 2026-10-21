@@ -218,10 +218,11 @@ describe('Formeln ↔ Zahlen: Golden-Tabelle', () => {
         bonus: FOREST_MEMORY_BONUS,
         harmonyDivisor: MEMORY_HARMONY_DIVISOR,
         perHarmonyPoint: MEMORY_PER_HARMONY_POINT,
-        // Harmonie-Bonus je Wegpunkt ab Hain (seit Schritt 2.11b, gleitend): Schwelle, Obergrenze, voll ab.
+        // Regel je Wegpunkt ab Hain (seit Schritt 2.11b gleitend, Sockel-Teiler seit dem Abgleich
+        // mit der Sperrklinke): Teiler, Schwelle, Obergrenze, voll ab.
         harmonyBonusByWaypoint: Array.from({ length: 17 }, (_, i) => {
           const b = memoryHarmonyBonus(20 + i);
-          return `Wegpunkt ${b.waypoint}: über ${b.threshold}, höchstens ${b.maxPoints} (Panel ab ${b.bonusFrom}, voll ab ${b.fullAt})`;
+          return `Wegpunkt ${b.waypoint}: Sockel je ${b.divisor}, über ${b.threshold}, höchstens ${b.maxPoints} (Panel ab ${b.bonusFrom}, voll ab ${b.fullAt})`;
         }),
         perNewSpecies: MEMORY_PER_NEW_SPECIES,
         perRegularSlot: MEMORY_PER_REGULAR_SLOT,
@@ -229,7 +230,7 @@ describe('Formeln ↔ Zahlen: Golden-Tabelle', () => {
         gainByMaxHarmony: Object.fromEntries(
           [20, 24, 28, 32, 36].map((w) => [
             `Wegpunkt ${w}`,
-            [4.4, 4.5, 81, 100.4, 100.5, 103, 110.4, 114.6, 120, 130, 140, 150, 160, 175, 195].map(
+            [4.4, 4.5, 81, 100.4, 100.5, 103, 110.4, 114.6, 120, 130, 140, 150, 155, 160, 165, 174, 180, 195].map(
               (h) => `H_max ${h} → ${cycleMemoryGain(h, 0, 0, w)}`,
             ),
           ]),

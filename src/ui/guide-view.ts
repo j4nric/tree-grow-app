@@ -17,7 +17,6 @@ import {
 } from '../content/encounters';
 import {
   FOREST_MEMORY_BONUS,
-  MEMORY_HARMONY_DIVISOR,
   MEMORY_PER_HARMONY_POINT,
   MEMORY_PER_NEW_SPECIES,
   MEMORY_PER_REGULAR_SLOT,
@@ -81,6 +80,12 @@ export function guideSections(): GuideSection[] {
     const bonus = memoryHarmonyBonus(stage.waypoint);
     return `im ${stage.name} ab ${formatNumber(bonus.bonusFrom)} (bis ${formatNumber(bonus.fullAt)})`;
   });
+  // Sockel: 1 Punkt je D Punkte höchster Harmonie, D gleitet ab dem Hain (z. B. „im Wald je 6, im Urwald je 7“).
+  const memoryDivisor = memoryHarmonyBonus(STAGES[NEW_CYCLE_MIN_STAGE]?.waypoint ?? 0).divisor;
+  const laterDivisors = STAGES.slice(NEW_CYCLE_MIN_STAGE + 1)
+    .map((stage) => ({ name: stage.name, divisor: memoryHarmonyBonus(stage.waypoint).divisor }))
+    .filter((d) => d.divisor !== memoryDivisor)
+    .map((d) => `im ${d.name} je ${formatNumber(d.divisor)}`);
 
   const eventStage = stageName(Math.min(...EVENTS.map((e) => e.minStage)));
   const visitorStage = stageName(Math.min(...VISITORS.map((v) => v.minStage)));
@@ -167,7 +172,7 @@ export function guideSections(): GuideSection[] {
       title: 'Neuer Zyklus, Waldgedächtnis und Stammgäste',
       paragraphs: [
         `Ab der Stufe „${cycleStage}“ kannst du einen Neuen Zyklus beginnen: Aus ${fruitPhrase(firstTree?.id)} wächst ein neuer Baum – später auch aus ${laterFruits}, sobald einmal eine ${laterPlants} in deinem Pflanzring gewachsen ist. Jede Art hat eine kleine Eigenheit. Tiere, Pflanzen und Samen beginnen von vorn; Naturtagebuch, Waldgedächtnis und Stammgäste bleiben.`,
-        `Du bekommst Waldgedächtnis: ${MEMORY_PER_NEW_SPECIES === 1 ? '1 Punkt' : `${formatNumber(MEMORY_PER_NEW_SPECIES)} Punkte`} je neu entdeckter Art und 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} Punkte deiner höchsten Harmonie in diesem Zyklus. Höchste Harmonie über einer Schwelle zählt extra: Jeder Punkt darüber bringt etwa ${formatNumber(MEMORY_PER_HARMONY_POINT)} Punkte mehr. Die Schwelle steigt mit jedem Wegpunkt – Bonus gibt es ${all(memoryThresholds)}. Wer länger wächst, braucht für den Bonus also mehr Harmonie; die aktuelle Schwelle steht bei „Neuer Zyklus“. Jeder Punkt gibt dauerhaft +${pct(FOREST_MEMORY_BONUS)} Wachstum und Samen.`,
+        `Du bekommst Waldgedächtnis: ${MEMORY_PER_NEW_SPECIES === 1 ? '1 Punkt' : `${formatNumber(MEMORY_PER_NEW_SPECIES)} Punkte`} je neu entdeckter Art und 1 Punkt je ${formatNumber(memoryDivisor)} Punkte deiner höchsten Harmonie in diesem Zyklus${laterDivisors.length ? ` (${all(laterDivisors)} – später zählt mehr, was über der Schwelle liegt)` : ''}. Höchste Harmonie über einer Schwelle zählt extra: Jeder Punkt darüber bringt etwa ${formatNumber(MEMORY_PER_HARMONY_POINT)} Punkte mehr. Die Schwelle steigt mit jedem Wegpunkt – Bonus gibt es ${all(memoryThresholds)}. Wer länger wächst, braucht für neuen Bonus also mehr Harmonie – was du schon erreicht hast, bleibt dir aber: Die Vorschau sinkt nie. Die aktuelle Schwelle steht bei „Neuer Zyklus“. Jeder Punkt gibt dauerhaft +${pct(FOREST_MEMORY_BONUS)} Wachstum und Samen.`,
         `Je ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Punkte Waldgedächtnis darfst du einen Stammgast wählen – eine entdeckte Art, die in jedem Zyklus von selbst einzieht.`,
       ],
     },

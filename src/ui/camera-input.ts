@@ -144,6 +144,17 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
   };
   // Safari: eigene Pinch-Gesten der Seite über der Szene unterdrücken.
   const onGesture = (e: Event) => e.preventDefault();
+  /**
+   * Touch: `touch-action` greift erst für die nächste Berührung und lässt bei 1× (`pan-y`)
+   * senkrechtes Scrollen zu – ein Pinch, der bei 1× beginnt, würde sonst teils als
+   * Seiten-Scrollen übernommen, ebenso ein Wisch direkt nach dem Zoomen. Daher hier:
+   * bei zwei oder mehr Fingern oder vergrößerter Kamera die Seite nicht scrollen lassen.
+   * Mit einem Finger bei 1× bleibt alles beim Browser (die Seite scrollt).
+   */
+  const onTouch = (e: TouchEvent) => {
+    if (!e.cancelable) return;
+    if (e.touches.length >= 2 || camera.zoomed || camera.target.zoom > 1) e.preventDefault();
+  };
 
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
@@ -154,6 +165,8 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
   canvas.addEventListener('wheel', onWheel, { passive: false });
   canvas.addEventListener('keydown', onKey);
   canvas.addEventListener('gesturestart', onGesture);
+  canvas.addEventListener('touchstart', onTouch, { passive: false });
+  canvas.addEventListener('touchmove', onTouch, { passive: false });
   window.addEventListener('resize', invalidate, { passive: true });
   window.addEventListener('scroll', invalidate, { passive: true });
 
@@ -200,6 +213,8 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('keydown', onKey);
       canvas.removeEventListener('gesturestart', onGesture);
+      canvas.removeEventListener('touchstart', onTouch);
+      canvas.removeEventListener('touchmove', onTouch);
       window.removeEventListener('resize', invalidate);
       window.removeEventListener('scroll', invalidate);
     },

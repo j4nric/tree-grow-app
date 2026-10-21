@@ -136,8 +136,18 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     Sprung der Vorschau beim Stufenwechsel; Panel und Spielanleitung nennen die Schwelle;
     Simulator `restartTable`, `memoryPathTable`, `tests/balance-restart.test.ts`
     (DESIGN_V2.md 15.4 „Stand Schritt 2.11b“, Entscheidung 12)
-  - [ ] offen (`core-engineer`): „Sperrklinke“ für die Vorschau (größte Vorschau des Zyklus
-    im Spielstand), damit sie auch bei gleicher H_max nie kurz sinkt (DESIGN_V2.md 15.4)
+  - [x] „Sperrklinke“ für die Vorschau (`core-engineer`): Spielstand v10 mit
+    `cycle.bestHarmonyMemory` (bester Harmonie-Anteil des Zyklus), angezeigt und
+    gutgeschrieben wird `max(gemerkt, aktuell) + neue Arten`; Migration v9 → v10 mit der
+    aktuellen Vorschau; Vorschau sinkt an keinem Wegpunkt (DESIGN_V2.md 10, 12.7, 15.4
+    „Stand Sperrklinke“)
+  - [x] `MEMORY_HARMONY_RULES` nach der Sperrklinke nachjustiert (`game-designer`): Hain
+    5 / 100 / 45 → Wald 6 / 148 / 48 → Urwald 7 / 164 / 48 (Sockel-Teiler / Schwelle /
+    Obergrenze, Teiler gleitet als kleine Formeländerung mit); großer Lauf Wald 1,03 / 1,07,
+    Urwald 0,99 / 1,03, Urwald 1,45 × Hain; Urwald-Schwelle 10 unter dem typischen
+    Harmonie-Spieler, Wachstums-Spieler dort ohne Bonus (DESIGN_V2.md 15.4 „Stand Abgleich
+    Sperrklinke“, Entscheidung 12); nach dem frühen Spiel (#52) Regeln unverändert, großer
+    Lauf für den Neustart mit 200 Durchgängen (Wald 0,98 / 1,06, Urwald 0,99 / 1,04)
 - [x] Playtest „frühes Spiel“ (`game-designer`): Pflege ab Setzling (Kompost 200 🌰 neu,
   Laub liegen lassen 200 statt 750 🌰), Nistkästen 650 statt 1.100 🌰; Simulator-Kennzahlen
   „längste Pause ohne Entscheidung“ und „Samen ungenutzt“ mit Prüfungen; längste Pause in
