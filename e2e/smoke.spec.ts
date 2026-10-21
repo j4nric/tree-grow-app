@@ -14,6 +14,7 @@ import {
   stack,
   stageLabel,
   test,
+  waitForConfirm,
   waypoint,
 } from './fixtures';
 import type { BrowserContext, Page } from '@playwright/test';
@@ -218,6 +219,7 @@ test('„Spielstand löschen“ setzt nach Bestätigung zurück', async ({ page,
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
 
   // Der zweite Klick bestätigt und setzt zurück.
+  await waitForConfirm(page);
   await page.getByRole('button', { name: /Wirklich alles löschen/ }).click();
   await expect(page.getByRole('button', { name: 'Spielstand löschen' })).toBeVisible();
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');

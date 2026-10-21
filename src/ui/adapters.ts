@@ -726,7 +726,8 @@ export function toJournalView(state: GameState, evaluation: Readonly<Pick<Evalua
   });
 
   const keepsakes: JournalKeepsakeView[] = journal.keepsakes.map((id) => {
-    const info = KEEPSAKE_INFO[id];
+    // Nur eigene Einträge: IDs wie „__proto__“ oder „toString“ dürfen nichts Geerbtes finden.
+    const info = Object.hasOwn(KEEPSAKE_INFO, id) ? KEEPSAKE_INFO[id] : undefined;
     return { key: id, icon: info?.icon ?? '🎁', name: info?.name ?? 'Andenken', text: info?.text ?? '' };
   });
 

@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { SPECIES_BY_ID } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
+import { CONFIRM_MIN_MS } from '../src/ui/confirm';
 import {
   dialog,
   expect,
@@ -189,6 +190,8 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
 
   await newCycleButton.click();
   await expect(newCycleButton).toContainText('Zum Bestätigen erneut klicken');
+  // Der zweite Klick zählt erst nach der Schutzzeit gegen Doppelklicks (ui/confirm.ts).
+  await page.clock.fastForward(CONFIRM_MIN_MS + 50);
   await newCycleButton.click();
   await page.clock.runFor(50);
 
