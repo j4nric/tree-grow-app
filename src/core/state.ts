@@ -4,7 +4,7 @@ import { NICHE_IDS, type NicheId, type Tag } from '../content/types';
 import { normalizeSeed } from './rng';
 
 /**
- * Spielstand v9 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen,
+ * Spielstand v10 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen,
  * Jahreszeiten und Hauptbaum-Arten; seit v7 mit der Wegpunkt-Kurve 3,5 · k^3,5 aus dem
  * Balancing 2.10; seit v8 mit der Langzeit-Statistik `meta.stats`; seit v9 mit den
  * Erfolgen `meta.achievements`; seit v10 mit der Sperrklinke `cycle.bestHarmonyMemory`).
