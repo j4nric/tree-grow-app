@@ -25,6 +25,8 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
   await button.click();
 
   await expect(page.locator('#toast')).toContainText('Zyklus 2 beginnt');
+  // Der Knopf verschwindet – der Fokus landet auf der Überschrift, nicht auf body.
+  await expect(panel.locator('[data-ref="cycle-title"]')).toBeFocused();
   // Sofort gespeichert: Stufe 0, Waldgedächtnis gestiegen, Tagebuch bleibt.
   const after = await savedState(page);
   expect(after.version).toBe(4);

@@ -3,7 +3,7 @@ import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { cycleMemoryGain, evaluate, regularSlots, thresholdFor } from '../src/core/formulas';
-import { deserialize, loadGame, serialize } from '../src/core/save';
+import { MAX_CYCLE_NUMBER, deserialize, loadGame, serialize } from '../src/core/save';
 import { MAX_FOREST_MEMORY, allAnimals, createInitialState, type GameState } from '../src/core/state';
 import {
   chooseCard,
@@ -104,14 +104,12 @@ describe('H_max und neu entdeckte Arten', () => {
 });
 
 describe('Neuer Zyklus', () => {
-  it('ist erst ab dem Hain erlaubt; der Grund nennt Stufe und Wegpunkte', () => {
+  it('ist erst ab dem Hain erlaubt; der Grund nennt Zielstufe und fehlende Wegpunkte', () => {
     const early = stateAt(NEW_CYCLE_MIN_STAGE - 1, ['earthworm'], 2);
-    const text = newCycleBlocker(early)!;
-    expect(text).toContain('„Hain“');
     const left = STAGES[NEW_CYCLE_MIN_STAGE]!.waypoint - early.waypoint;
-    expect(text).toContain(`noch ${left} Wegpunkte`);
+    expect(newCycleBlocker(early)).toEqual({ stage: NEW_CYCLE_MIN_STAGE, waypointsLeft: left });
     early.waypoint = STAGES[NEW_CYCLE_MIN_STAGE]!.waypoint - 1;
-    expect(newCycleBlocker(early)).toContain('noch 1 Wegpunkt)');
+    expect(newCycleBlocker(early)).toEqual({ stage: NEW_CYCLE_MIN_STAGE, waypointsLeft: 1 });
     expect(newCycleBlocker(groveState())).toBeNull();
     expect(newCycleBlocker(stateAt(7))).toBeNull();
   });
@@ -234,7 +232,7 @@ describe('Stammgäste', () => {
     expect(state.stage).toBeGreaterThanOrEqual(2);
     expect(state.niches.roots.slice(0, 2)).toEqual(['vole', 'earthworm']);
     expect(state.niches.litter[0]).toBe('robin');
-    expect(report.regulars).toBe(3);
+    expect(report.regulars).toEqual(['vole', 'earthworm', 'robin']);
     expect(state.seeds).toBeGreaterThan(0); // nichts bezahlt
     // Die Karten bieten Stammgäste, die schon da sind, nicht noch einmal an.
     for (const e of state.pendingEncounters) {
@@ -270,7 +268,7 @@ describe('Stammgäste', () => {
     const offline = structuredClone(online);
     for (let i = 0; i < 2 * 3600; i++) tick(online, 1);
     const report = simulateOffline(offline, 2 * 3600);
-    expect(report.regulars).toBeGreaterThan(0);
+    expect(report.regulars.length).toBeGreaterThan(0);
     expect(offline.niches).toEqual(online.niches);
     expect(offline.waypoint).toBe(online.waypoint);
     expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
@@ -395,7 +393,7 @@ describe('Migration v3 → v4', () => {
       .replace('"number":0', '"number":1e400')
       .replace('"maxHarmony":0', '"maxHarmony":-1e400');
     const h = deserialize(huge, 0)!;
-    expect(h.cycle.number).toBe(Number.MAX_SAFE_INTEGER);
+    expect(h.cycle.number).toBe(MAX_CYCLE_NUMBER);
     expect(h.cycle.maxHarmony).toBeGreaterThanOrEqual(0);
   });
 

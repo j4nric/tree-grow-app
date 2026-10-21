@@ -28,6 +28,9 @@ import {
 
 export const SAVE_KEY = 'tree-grow-save';
 
+/** Obergrenze für die Zyklus-Nummer beim Laden (Schutz vor kaputten Ständen). */
+export const MAX_CYCLE_NUMBER = 1e9;
+
 /**
  * v2 → v3: Prototyp-Stände (ohne Pflanzen) hatten keine Samen-Senke und bringen oft
  * Tausende 🌰 mit. Beim Laden wird der Bestand auf die Kosten der ersten zwei Pflanzen
@@ -254,7 +257,7 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   // Seit v4: laufender Zyklus und Stammgäste (ältere Stände: migrateV3 setzt sie).
   const discovered = new Set(state.meta.journal.species);
   const cycle = isRecord(data.cycle) ? data.cycle : {};
-  state.cycle = createCycle(Math.floor(clampedOr(cycle.number, 1, 1, Number.MAX_SAFE_INTEGER)));
+  state.cycle = createCycle(Math.floor(clampedOr(cycle.number, 1, 1, MAX_CYCLE_NUMBER)));
   state.cycle.maxHarmony = clampedOr(cycle.maxHarmony, 0, 0, Number.MAX_VALUE);
   state.cycle.newSpecies = unique(stringArray(cycle.newSpecies).filter((id) => discovered.has(id)));
   if (typeof cycle.startedAt === 'number' && Number.isFinite(cycle.startedAt)) state.cycle.startedAt = cycle.startedAt;

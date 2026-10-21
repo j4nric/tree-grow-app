@@ -628,12 +628,12 @@ test('Echter v2-Spielstand (alte Wegpunkt-Kurve): lädt ohne Fehler, Stufe und T
   }
   await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
 
-  // Neuladen speichert (beforeunload) und lädt den umgerechneten v3-Stand: alles bleibt.
+  // Neuladen speichert (beforeunload) und lädt den umgerechneten Stand (jetzt v4): alles bleibt.
   await page.reload();
   await expect(stageLabel(page)).toHaveText('Stufe: Alter Baum');
   await expect(niche(page, 'crown').locator('[data-species="bluetit"]')).toBeVisible();
   const saved = await savedState(page);
-  expect(saved.version).toBe(3);
+  expect(saved.version).toBe(4);
   // Gleicher Wegpunkt, auf die neue Kurve umgerechnet (etwa in der Mitte zum nächsten).
   expect(saved.waypoint).toBe(12);
   expect(saved.totalGrowth).toBeGreaterThan(waypoint(12));

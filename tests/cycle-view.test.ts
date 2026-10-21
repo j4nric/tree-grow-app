@@ -1,13 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { SPECIES } from '../src/content/species';
-import { cycleViewKey, memoryBonusLabel, newCycleToast, toCyclePanelView } from '../src/ui/cycle-view';
+import {
+  CYCLE_LOCKED_TEXT,
+  cycleViewKey,
+  memoryBonusLabel,
+  newCycleBlockerText,
+  newCycleToast,
+  regularsArrivedText,
+  toCyclePanelView,
+  withRegulars,
+} from '../src/ui/cycle-view';
 import { stateAt } from './helpers';
 
 describe('View-Model „Neuer Zyklus“', () => {
   it('gesperrt: zeigt den Grund, keine Vorschau, keinen Knopf', () => {
     const view = toCyclePanelView(stateAt(3, ['earthworm']));
     expect(view.allowed).toBe(false);
-    expect(view.blocker).toContain('„Hain“');
+    expect(view.blocker).toBe('Ein neuer Zyklus ist ab der Stufe „Hain“ möglich (noch 14 Wegpunkte).');
     expect(view.gain).toBeNull();
     expect(view.gainDetail).toBeNull();
     expect(view.slotsGain).toBeNull();
@@ -61,5 +70,22 @@ describe('View-Model „Neuer Zyklus“', () => {
     expect(memoryBonusLabel(0)).toBe('+0 %');
     expect(newCycleToast(33, 2)).toContain('Zyklus 2');
     expect(newCycleToast(33, 2)).toContain('+33 Waldgedächtnis');
+  });
+
+  it('Grund als Satz, Einzahl und Mehrzahl', () => {
+    expect(newCycleBlockerText({ stage: 5, waypointsLeft: 1 })).toBe('Ein neuer Zyklus ist ab der Stufe „Hain“ möglich (noch 1 Wegpunkt).');
+    expect(newCycleBlockerText({ stage: 5, waypointsLeft: 20 })).toContain('(noch 20 Wegpunkte)');
+    expect(CYCLE_LOCKED_TEXT).toContain('„Hain“');
+  });
+
+  it('Meldung für eingezogene Stammgäste', () => {
+    expect(regularsArrivedText([])).toBe('');
+    expect(regularsArrivedText(['unbekannt'])).toBe('');
+    expect(regularsArrivedText(['mole'])).toBe('Stammgast Maulwurf ist eingezogen.');
+    expect(regularsArrivedText(['mole', 'vole'])).toBe('Stammgäste Maulwurf und Wühlmaus sind eingezogen.');
+    expect(regularsArrivedText(['mole', 'vole', 'earthworm'])).toBe('Stammgäste Maulwurf, Wühlmaus und Regenwurm sind eingezogen.');
+    expect(withRegulars('Willkommen zurück!', ['mole'])).toBe('Willkommen zurück! Stammgast Maulwurf ist eingezogen.');
+    expect(withRegulars('Willkommen zurück!', [])).toBe('Willkommen zurück!');
+    expect(newCycleToast(10, 3, ['mole'])).toMatch(/Waldgedächtnis\. Stammgast Maulwurf ist eingezogen\.$/);
   });
 });

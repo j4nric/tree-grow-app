@@ -24,6 +24,8 @@ export interface CyclePanelCallbacks {
 
 export interface CyclePanel {
   update(view: CyclePanelView): void;
+  /** Fokus auf die Überschrift (z. B. nach dem Zyklusstart, wenn der Knopf verschwindet). */
+  focus(): void;
   readonly element: HTMLElement;
 }
 
@@ -33,6 +35,8 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
   section.dataset.ref = 'cycle-panel';
 
   const title = el('h2', 'eco-title', 'Neuer Zyklus');
+  title.tabIndex = -1;
+  title.dataset.ref = 'cycle-title';
   const sub = el('p', 'hint cycle-sub');
   const memory = el('p', 'cycle-memory');
   memory.dataset.ref = 'forest-memory';
@@ -121,5 +125,5 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
     if (focused) items.find((i) => i.id === focused)?.toggle.focus({ preventScroll: true });
   }
 
-  return { update, element: section };
+  return { update, focus: () => title.focus({ preventScroll: false }), element: section };
 }

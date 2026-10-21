@@ -9,12 +9,14 @@ import {
   declineEncounter,
   plantSeed,
   rerollEncounter,
+  newCycleBlocker,
   simulateOffline,
   startNewCycle,
   tick,
   toggleRegular,
   type ActionError,
   type ActionResult,
+  type TickReport,
 } from './core/tick';
 import { drawScene, type SceneInput } from './render/tree';
 import { PLANTS_BY_ID } from './content/plants';
@@ -29,7 +31,7 @@ import {
   toScenePlants,
 } from './ui/adapters';
 import { createCyclePanel } from './ui/cycle-panel';
-import { newCycleToast, toCyclePanelView } from './ui/cycle-view';
+import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText, toCyclePanelView, withRegulars } from './ui/cycle-view';
 import { createEcosystemPanel } from './ui/ecosystem-panel';
 import { createEncounterDialog } from './ui/encounter-dialog';
 import { createEncounterStack } from './ui/encounter-stack';
@@ -67,7 +69,7 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'ring-full': 'Kein Platz mehr für Pflanzen.',
   'unknown-plant': 'Diese Pflanze gibt es nicht.',
   locked: 'Diese Pflanze wächst hier noch nicht.',
-  'cycle-locked': 'Ein neuer Zyklus ist erst ab dem Hain möglich.',
+  'cycle-locked': CYCLE_LOCKED_TEXT,
   'unknown-species': 'Diese Art gibt es nicht.',
   'not-discovered': 'Diese Art steht noch nicht in deinem Naturtagebuch.',
   'no-regular-slot': 'Alle Plätze für Stammgäste sind belegt.',
@@ -224,7 +226,8 @@ function plant(plantId: string): void {
 function newCycle(): void {
   const result = startNewCycle(state, Date.now());
   if (!result.ok) {
-    notify(ERROR_TEXTS[result.error]);
+    const blocker = newCycleBlocker(state);
+    notify(blocker ? newCycleBlockerText(blocker) : ERROR_TEXTS[result.error]);
     return;
   }
   shownStage = state.stage;
@@ -232,7 +235,9 @@ function newCycle(): void {
   closePlantPicker();
   encounterSerial++;
   act(result, false);
-  showToast(newCycleToast(result.preview.memoryGain, state.cycle.number));
+  // Der Knopf ist jetzt ausgeblendet – Fokus auf die Überschrift des Bereichs statt auf body.
+  cyclePanel.focus();
+  showToast(newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars));
 }
 
 function openPlantPicker(): void {
@@ -365,11 +370,17 @@ function floatSeeds(amount: number): void {
 }
 
 /**
- * Ein Wegpunkt ging ohne Begegnung vorbei (nichts Passendes oder Stapel voll): dezenter
- * Hinweis über der Szene, die Samen dafür schweben am Vorrat hoch.
+ * Dezenter Hinweis über der Szene nach einem Tick: Wegpunkte ohne Begegnung (nichts
+ * Passendes oder Stapel voll; die Samen dafür schweben am Vorrat hoch) und eingezogene
+ * Stammgäste – in einem Text, damit sich nichts überdeckt.
  */
-function noteAutoDeclined(count: number): void {
-  noteText(autoDeclineText(count, state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS));
+function noteTick(report: TickReport): void {
+  const parts: string[] = [];
+  if (report.autoDeclined > 0) {
+    parts.push(autoDeclineText(report.autoDeclined, state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS));
+  }
+  if (report.regulars.length > 0) parts.push(regularsArrivedText(report.regulars));
+  if (parts.length > 0) noteText(parts.join(' '));
 }
 
 /** Kurzer schwebender Hinweis über der Szene. */
@@ -443,7 +454,7 @@ function frame(now: number): void {
     encounterDirty = true;
     ecoDirty = true;
   }
-  if (report.autoDeclined > 0) noteAutoDeclined(report.autoDeclined);
+  noteTick(report);
 
   if (state.stage !== shownStage) {
     shownStage = state.stage;
@@ -489,8 +500,12 @@ function catchUp(): void {
     const report = simulateOffline(state, away);
     const stackFull = state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS;
     const notice = catchUpNotice(away, report, state.pendingEncounters.length, stackFull);
-    if (notice?.kind === 'welcome') notify(notice.text);
-    else if (notice) noteText(notice.text);
+    if (notice?.kind === 'welcome') notify(withRegulars(notice.text, report.regulars));
+    else {
+      // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.
+      const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');
+      if (text) noteText(text);
+    }
     if (report.waypoints > 0) {
       saveToStorage(state);
       encounterDirty = true;

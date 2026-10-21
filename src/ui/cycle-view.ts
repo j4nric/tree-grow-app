@@ -3,12 +3,13 @@
  * (DESIGN_V2.md, Abschnitt 10). Reine Funktionen ohne DOM – testbar mit Vitest.
  * Die Komponente dazu steht in cycle-panel.ts.
  */
-import { FOREST_MEMORY_BONUS } from '../content/memory';
+import { FOREST_MEMORY_BONUS, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
 import { GENUS_INFO, SPECIES_BY_ID } from '../content/species';
+import { STAGES } from '../content/stages';
 import { regularSlots } from '../core/formulas';
 import { allAnimals, type GameState } from '../core/state';
-import { previewNewCycle, regularBlocker } from '../core/tick';
+import { previewNewCycle, regularBlocker, type NewCycleBlocker } from '../core/tick';
 import { formatNumber } from './format';
 
 /** Eine entdeckte Art in der Stammgäste-Auswahl. */
@@ -78,7 +79,7 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
   return {
     title: `Zyklus ${formatNumber(state.cycle.number)}`,
     allowed,
-    blocker: preview.blocker,
+    blocker: preview.blocker ? newCycleBlockerText(preview.blocker) : null,
     gain: allowed ? `+${formatNumber(preview.memoryGain)} Waldgedächtnis (${memoryBonusLabel(preview.memoryGain)})` : null,
     gainDetail: allowed ? `Höchste Harmonie ${formatNumber(Math.floor(preview.maxHarmony))} · ${species}` : null,
     slotsGain: allowed && newSlots > 0 ? (newSlots === 1 ? '+1 Platz für Stammgäste' : `+${newSlots} Plätze für Stammgäste`) : null,
@@ -94,7 +95,43 @@ export function cycleViewKey(view: CyclePanelView): string {
   return JSON.stringify(view);
 }
 
-/** Kurze Meldung nach dem Zyklusstart (Toast). */
-export function newCycleToast(gain: number, cycleNumber: number): string {
-  return `Zyklus ${formatNumber(cycleNumber)} beginnt: Aus einer Eichel wächst ein neuer Baum. +${formatNumber(gain)} Waldgedächtnis.`;
+/** Kurze Meldung, wenn „Neuer Zyklus“ gesperrt ist und der genaue Grund fehlt. */
+export const CYCLE_LOCKED_TEXT = `Ein neuer Zyklus ist erst ab der Stufe „${STAGES[NEW_CYCLE_MIN_STAGE]?.name ?? 'Hain'}“ möglich.`;
+
+/** Grund als Satz, z. B. „Ein neuer Zyklus ist ab der Stufe „Hain“ möglich (noch 14 Wegpunkte).“ */
+export function newCycleBlockerText(blocker: NewCycleBlocker): string {
+  const name = STAGES[blocker.stage]?.name ?? 'Hain';
+  const left = blocker.waypointsLeft;
+  const rest = left === 1 ? 'noch 1 Wegpunkt' : `noch ${formatNumber(left)} Wegpunkte`;
+  return `Ein neuer Zyklus ist ab der Stufe „${name}“ möglich (${rest}).`;
+}
+
+/** Namen deutsch aufzählen: „A“, „A und B“, „A, B und C“. */
+function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}`;
+}
+
+/**
+ * Meldung, wenn Stammgäste eingezogen sind, z. B. „Stammgast Maulwurf ist eingezogen.“;
+ * leer, wenn niemand kam. Unbekannte IDs werden übersprungen.
+ */
+export function regularsArrivedText(ids: readonly string[]): string {
+  const names = ids.map((id) => SPECIES_BY_ID.get(id)?.name).filter((n): n is string => !!n);
+  if (names.length === 0) return '';
+  return names.length === 1
+    ? `Stammgast ${names[0]} ist eingezogen.`
+    : `Stammgäste ${joinNames(names)} sind eingezogen.`;
+}
+
+/** Kurze Meldung nach dem Zyklusstart (Toast), mit eingezogenen Stammgästen. */
+export function newCycleToast(gain: number, cycleNumber: number, regulars: readonly string[] = []): string {
+  const text = `Zyklus ${formatNumber(cycleNumber)} beginnt: Aus einer Eichel wächst ein neuer Baum. +${formatNumber(gain)} Waldgedächtnis.`;
+  return withRegulars(text, regulars);
+}
+
+/** Willkommens-Meldung um eingezogene Stammgäste ergänzen. */
+export function withRegulars(text: string, regulars: readonly string[]): string {
+  const arrived = regularsArrivedText(regulars);
+  return arrived ? `${text} ${arrived}` : text;
 }

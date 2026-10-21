@@ -64,7 +64,7 @@ describe('tick', () => {
   it('erster Wegpunkt nach ~4 s: Keimling und eine Begegnung mit den Wurzelraum-Gästen', () => {
     const state = createInitialState(0, 42);
     const report = tick(state, 4);
-    expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0, regulars: 0 });
+    expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0, regulars: [] });
     expect(state.waypoint).toBe(1);
     expect(state.stage).toBe(1);
     // Im Keimling sind nur Regenwurm, Wühlmaus und Pfifferling freigeschaltet → genau diese drei.
@@ -101,7 +101,7 @@ describe('tick', () => {
     state.niches.roots.push('earthworm', 'vole', 'chanterelle');
     state.totalGrowth = thresholdFor(1) - 0.001;
     const report = tick(state, 1);
-    expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0, regulars: 0 });
+    expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0, regulars: [] });
     expect(state.pendingEncounters[0]!.type).toBe('plant');
   });
 

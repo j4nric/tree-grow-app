@@ -52,8 +52,8 @@ export interface TickReport {
   encounters: number;
   /** Automatisch abgelehnt (Warteschlange voll oder keine Art verfügbar). */
   autoDeclined: number;
-  /** Eingezogene Stammgäste. */
-  regulars: number;
+  /** Eingezogene Stammgäste (Art-IDs, in Reihenfolge des Einzugs). */
+  regulars: string[];
 }
 
 export interface OfflineReport extends TickReport {
@@ -71,7 +71,7 @@ export interface OfflineReport extends TickReport {
  * über `dt`, Zufall nur über `state.rngState`.
  */
 export function tick(state: GameState, dt: number): TickReport {
-  const report: TickReport = { waypoints: 0, encounters: 0, autoDeclined: 0, regulars: 0 };
+  const report: TickReport = { waypoints: 0, encounters: 0, autoDeclined: 0, regulars: [] };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
   let remaining = dt;
   // Schleife endet: Jede Runde verbraucht die Restzeit oder erreicht einen der
@@ -122,7 +122,7 @@ function reachWaypoint(state: GameState, report: TickReport): void {
   report.waypoints++;
   // Stammgäste ziehen in frei gewordene Plätze (auch die der neuen Stufe), bevor die
   // Karten gezogen werden – so bietet die Begegnung sie nicht noch einmal an.
-  report.regulars += moveInRegulars(state).length;
+  report.regulars.push(...moveInRegulars(state));
   // Stufe und Stammgäste können die Harmonie ändern (H_max) und Gemeinschaften bilden.
   recordDiscoveries(state);
   if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) {
@@ -451,10 +451,18 @@ export function moveInRegulars(state: GameState): string[] {
   return moved;
 }
 
+/** Warum der Neue Zyklus noch gesperrt ist: Zielstufe und fehlende Wegpunkte. */
+export interface NewCycleBlocker {
+  /** Index in STAGES, ab dem es geht (Hain). */
+  stage: number;
+  /** Wegpunkte bis dahin (≥ 1). */
+  waypointsLeft: number;
+}
+
 /** Vorschau auf den Neuen Zyklus (für die Seitenleiste). */
 export interface NewCyclePreview {
-  /** Grund, warum es noch nicht geht (deutscher Text) – null, wenn es geht. */
-  blocker: string | null;
+  /** Warum es noch nicht geht – null, wenn es geht. Den Satz baut die UI (cycle-view.ts). */
+  blocker: NewCycleBlocker | null;
   /** Höchste Harmonie dieses Zyklus (H_max). */
   maxHarmony: number;
   /** Arten, die in diesem Zyklus neu ins Tagebuch kamen. */
@@ -468,13 +476,11 @@ export interface NewCyclePreview {
   regularSlotsAfter: number;
 }
 
-/** Warum „Neuer Zyklus“ gerade nicht geht (deutscher Text) – null, wenn es geht. */
-export function newCycleBlocker(state: GameState): string | null {
+/** Warum „Neuer Zyklus“ gerade nicht geht – null, wenn es geht. */
+export function newCycleBlocker(state: GameState): NewCycleBlocker | null {
   if (state.stage >= NEW_CYCLE_MIN_STAGE) return null;
   const target = STAGES[NEW_CYCLE_MIN_STAGE]!;
-  const left = Math.max(0, target.waypoint - state.waypoint);
-  const rest = left === 1 ? 'noch 1 Wegpunkt' : `noch ${left} Wegpunkte`;
-  return `Ein neuer Zyklus ist ab der Stufe „${target.name}“ möglich (${rest}).`;
+  return { stage: NEW_CYCLE_MIN_STAGE, waypointsLeft: Math.max(1, target.waypoint - state.waypoint) };
 }
 
 /** Was ein Neuer Zyklus jetzt brächte. Ändert nichts. */
@@ -549,7 +555,10 @@ export function toggleRegular(state: GameState, speciesId: string): ActionResult
   return { ok: true };
 }
 
-/** Setzt alle Stammgäste auf einmal (Prüfung wie toggleRegular; bei Fehlern bleibt alles, wie es war). */
+/**
+ * Setzt alle Stammgäste auf einmal (Prüfung wie toggleRegular; bei Fehlern bleibt alles,
+ * wie es war) – für die spätere Tagebuch-Ansicht. Die Seitenleiste nutzt toggleRegular.
+ */
 export function setRegulars(state: GameState, speciesIds: readonly string[]): ActionResult {
   const ids = [...new Set(speciesIds)];
   for (const id of ids) {
