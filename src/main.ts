@@ -40,6 +40,7 @@ import { createEncounterStack } from './ui/encounter-stack';
 import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
 import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
+import { createHelp, initPreferences } from './ui/help';
 import { formatNumber } from './ui/format';
 import type { EcosystemView } from './ui/view-model';
 
@@ -56,7 +57,6 @@ const AUTOSAVE_MS = 10_000;
 const MAX_FRAME_SECONDS = 1;
 /** Seitenleiste ohne Änderungen am Ökosystem höchstens so oft aktualisieren (Samen, Fortschritt). */
 const PANEL_REFRESH_MS = 200;
-const TOAST_MS = 6000;
 
 const ERROR_TEXTS: Record<ActionError, string> = {
   'no-encounter': 'Diese Begegnung gibt es nicht mehr.',
@@ -98,7 +98,8 @@ const toast = document.querySelector<HTMLElement>('#toast')!;
 const liveStatus = document.querySelector<HTMLElement>('#live-status')!;
 const resetButton = document.querySelector<HTMLButtonElement>('#reset')!;
 const heading = document.querySelector<HTMLElement>('.panel h1')!;
-const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+/** Einstellungen (Bewegung, Zahlenformat, Hinweisdauer) – vor der ersten Anzeige angewendet. */
+const preferences = initPreferences();
 
 // --- Zustand -------------------------------------------------------------------------
 
@@ -147,7 +148,7 @@ const scene: SceneInput = {
   time: 0,
   animals: [],
   plants: [],
-  reducedMotion: reducedMotionQuery.matches,
+  reducedMotion: preferences.reducedMotion,
   // Stimmung der Szene (Harmoniestufe 0–4); gesetzt, sobald die Auswertung vorliegt.
   harmonyTier: undefined,
 };
@@ -451,7 +452,7 @@ function showToast(text: string): void {
   toast.textContent = text;
   toast.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (toast.hidden = true), TOAST_MS);
+  toastTimer = setTimeout(() => (toast.hidden = true), preferences.toastMs());
 }
 
 // --- Spielstand löschen (zweiter Klick bestätigt, ohne confirm()) --------------------
@@ -578,7 +579,14 @@ function start(): void {
   catchUp();
 
   resetButton.addEventListener('click', onReset);
-  reducedMotionQuery.addEventListener('change', () => (scene.reducedMotion = reducedMotionQuery.matches));
+  createHelp(document.querySelector<HTMLElement>('#help')!, preferences);
+  preferences.onChange(() => {
+    scene.reducedMotion = preferences.reducedMotion;
+    // Zahlenformat kann sich geändert haben: Ansichten neu aufbauen.
+    ecoDirty = true;
+    encounterDirty = true;
+    pickerDirty = true;
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveToStorage(state);
     else catchUp();

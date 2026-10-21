@@ -105,4 +105,8 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 
 - [ ] Deployment auf GitHub Pages
 - [ ] Spielstand exportieren/importieren (Text-Code)
+- [x] Spielanleitung „❓“ (Zahlen aus content/core, Platzhalter für Ereignisse, Gäste, Pflege)
+  und Hinweis „Neu hier?“ beim ersten Start (`ui-dev`)
+- [x] Einstellungen „⚙️“ in localStorage: Bewegung reduzieren (Automatisch/An/Aus),
+  Zahlenformat (kurz/ausgeschrieben), Hinweise länger anzeigen (`ui-dev`)
 - [ ] Sound & Musik (optional)
