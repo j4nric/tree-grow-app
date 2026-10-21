@@ -65,7 +65,9 @@ if [[ -z "$SYNC_PUBLIC_HOST" ]]; then
   command -v curl >/dev/null || fail "curl fehlt – oder SYNC_PUBLIC_HOST selbst setzen."
   IP="$(curl -4 -s --max-time 10 ifconfig.me || true)"
   [[ "$IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Öffentliche IPv4 nicht ermittelbar – SYNC_PUBLIC_HOST selbst setzen."
-  SYNC_PUBLIC_HOST="${IP//./-}.sslip.io"
+  # Eigene Subdomain: Die IP-Adresse selbst (62-83-23-90.sslip.io) nutzt oft schon eine andere
+  # App auf dem Server; ein zweiter Caddy-Block mit demselben Namen ließe Caddy nicht starten.
+  SYNC_PUBLIC_HOST="sync.${IP//./-}.sslip.io"
 fi
 say "Hostname der API: ${SYNC_PUBLIC_HOST}"
 
