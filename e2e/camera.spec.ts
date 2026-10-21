@@ -223,8 +223,16 @@ test.describe('Mobil', () => {
     // 1×: senkrecht wischen scrollt die Seite.
     await swipe(cdp, x, y, -200);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    // Der Wisch kann nachgleiten (Fling) und ein einmaliges scrollTo überholen – daher
+    // im Poll wiederholt zurücksetzen, bis die Seite oben stehen bleibt.
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          window.scrollTo({ top: 0, behavior: 'instant' });
+          return window.scrollY;
+        }),
+      )
+      .toBe(0);
     expect((await view(page)).zoom).toBe(1);
 
     // Pinch mit zwei Fingern (CDP-Touch): auseinander → Zoom > 1.
