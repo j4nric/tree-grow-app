@@ -31,7 +31,8 @@
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
 > `scripts/simulate.ts`, `tests/balance.test.ts`, `tests/balance-care.test.ts`,
-> `tests/balance-cycles.test.ts` und `tests/seasons-balance.test.ts` (Einstellungen in
+> `tests/balance-cycles.test.ts`, `tests/balance-restart.test.ts` und
+> `tests/seasons-balance.test.ts` (Einstellungen in
 > `tests/balance-setup.ts`). Großer Lauf mit allen Tabellen: `npm run balance`.
 
 ## Jahreszeiten (v2, umgesetzt)
@@ -91,6 +92,46 @@ ohne Waldgedächtnis): Hain des Harmonie-Spielers mit Eiche 1:03:14 h (⚖️ 10
 Kiefer −4,4 %. Alle Arten innerhalb ±5 % der Eiche. Dafür bekommt die Buche ihren
 Wurzelraum-Platz erst ab Alter Baum und die Kiefer +1 ☀️ statt +2 (`DESIGN_V2.md` 15.4).
 
+## Schritt 2.11b: gleitende Harmonie-Schwelle beim Neuen Zyklus (v2, umgesetzt)
+
+Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 10, 15.4 („Stand Schritt
+2.11b“) und 14 (Entscheidung 12). Kein neues Spielstand-Feld – der Wegpunkt ist `state.waypoint`.
+
+- **Problem:** Mit der Hain-Schwelle 100 für alle Stufen hatten bei einem Neustart im Wald
+  oder Urwald beide Spielweisen H_max über 115 und bekamen den vollen Bonus: kein
+  Harmonie-Vorsprung (Urwald Zyklus 2: Wachstum/Harmonie 0,89) und ~100 Punkte je
+  Urwald-Zyklus.
+- **Lösung:** Die Schwelle folgt der typischen Harmonie (knapp unter der des
+  Wachstums-Spielers) und gleitet mit jedem Wegpunkt; die Obergrenze sinkt leicht, weil
+  Sockel und neue Arten von selbst wachsen. Eine erste Fassung mit einer Schwelle je Stufe
+  ließ die Vorschau beim Stufenwechsel fallen (bis 26 Punkte im Mittel) – Wachsen darf sich
+  nie wie ein Verlust anfühlen. Das Panel „Neuer Zyklus“ nennt die erste ganze Harmonie
+  mit Bonus („ab 101“ im Hain; an krummen Schwellen exakt nach Formel, z. B. Wegpunkt 27
+  „ab 123“) und „etwa +3 je Punkt“ (einzelne Schritte 2–4 wegen gemeinsamer Abrundung), die Spielanleitung die Werte je Stufe.
+
+| Zahl (`src/content/memory.ts`, `MEMORY_HARMONY_RULES`) | vorher | jetzt |
+|---|---|---|
+| Harmonie-Bonus am Hain (Wegpunkt 20) | 3 je Punkt über 100, höchstens 45 (ab 115) | unverändert |
+| … je weiterem Wegpunkt | gleich | Schwelle +3,125, Obergrenze −0,4375 (krumm, Abrunden erst am Ende) |
+| … im Wald (Wegpunkt 28) | wie Hain | über 125, höchstens 41,5 (ab 139) |
+| … im Urwald (Wegpunkt 36) | wie Hain | **über 150, höchstens 38** (ab 163) |
+
+| Kennzahl (100 Durchgänge, drei Zyklen, jeder bis zur Neustart-Stufe) | vorher | jetzt | Ziel |
+|---|---|---|---|
+| Wachstum / Harmonie Zyklus 2 / 3, Neustart Wald | 0,897 / 0,875 | **1,054 / 1,061** | ≥ 0,97 |
+| … Neustart Urwald | 0,890 / 0,838 | **0,989 / 1,009** (200: 0,988 / 1,029) | ≥ 0,97 |
+| … Neustart Hain | 0,982 / 1,006 | unverändert | ≥ 0,97 |
+| Gedächtnis Zyklus 1 Wald, Harmonie / Wachstum / Zufall | 89,2 / 85,1 / 60,6 | 76,8 / 58,0 / 40,0 | mehr als Hain (60,6 / 48,8 / 30,0) |
+| Gedächtnis Zyklus 1 Urwald, Harmonie / Wachstum / Zufall | 100,2 / 97,8 / 91,1 | 88,4 / 72,4 / 49,8 | Harmonie ≤ ~1,5 × Hain |
+| Gewinn Urwald / Hain, Harmonie-Spieler | 1,65 | **1,46** | ≤ ~1,5 |
+| Zyklus 2 schneller, Zufall: Wald / Urwald | 37,7 / 50,4 % | 28,7 / 35,3 % | ≥ 20 % |
+| Vorschau sinkt beim Erreichen eines Wegpunkts (Harmonie / Wachstum / Zufall) | – | 26–38 / 44–48 / 10–16 %, im Mittel −1 bis −7, höchstens −10 | möglichst nie |
+
+Der Gewinn sinkt nie, solange H_max je Wegpunkt um mindestens 3 steigt (typisch: +3,2 bis
++4,0). Offen: Bleibt H_max an einem Wegpunkt gleich, sinkt die Vorschau kurz um bis zu 10
+Punkte je Wegpunkt (offline über mehrere Wegpunkte auf einmal entsprechend mehr). Das verschwindet nur mit einer „Sperrklinke“ im Spielstand (größte Vorschau des
+Zyklus merken, `core-engineer`, neue Spielstand-Version).
+
 ## Schritt 2.11: Harmonie lohnt sich über die Zyklen (v2, umgesetzt)
 
 Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 15.4 („Stand Schritt
@@ -122,9 +163,7 @@ Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 15.4 („Stand 
 | Summe bis Hain über drei Zyklen, Harmonie / Wachstum | 2:26:07 h / 2:05:55 h | 2:06:26 h / 1:57:35 h |
 | Stammgäste gewählt in Zyklus 3, Harmonie / Wachstum | 2,0 / 2,0 | 4,5 / 3,3 |
 
-Offen: Wer erst im Wald oder Urwald neu startet, hat in beiden Spielweisen H_max über 115
-und bekommt den vollen Bonus – dort bleibt der Wachstums-Spieler ~13 % schneller, und ein
-Urwald-Zyklus bringt ~100 statt ~55 Punkte (stufenabhängige Schwelle, `core-engineer`).
+Neustart erst im Wald oder Urwald: gleitende Schwelle seit Schritt 2.11b (oben).
 
 ## Erfolge (v2, umgesetzt)
 

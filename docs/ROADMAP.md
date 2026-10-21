@@ -121,9 +121,15 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     H = round(H_max) wie in der Anzeige, ab Zyklus 2 Harmonie gleichauf,
     Gelegenheitsspieler nahezu unverändert; Regel im Panel „Neuer Zyklus“
     (DESIGN_V2.md 15.4 „Stand Schritt 2.11“, Entscheidung 11)
-  - [ ] offen (`core-engineer`): stufenabhängige Schwelle für den Harmonie-Bonus – bei
-    Neustart im Wald/Urwald haben beide Spielweisen H_max über 115, dort kein
-    Harmonie-Vorsprung, und ein Urwald-Zyklus bringt ~100 statt ~55 Punkte
+  - [x] 2.11b gleitende Schwelle für den Harmonie-Bonus (`game-designer`): Hain (Wegpunkt
+    20) 100 / 45 → linear → Urwald (36) 150 / 38 (`MEMORY_HARMONY_RULES`,
+    `cycleMemoryGain(…, waypoint)`); ab Zyklus 2 Harmonie gleichauf auch bei Neustart im
+    Wald (1,05) und Urwald (0,99); Urwald-Zyklus 88 statt 100 Punkte (1,46 × Hain); kein
+    Sprung der Vorschau beim Stufenwechsel; Panel und Spielanleitung nennen die Schwelle;
+    Simulator `restartTable`, `memoryPathTable`, `tests/balance-restart.test.ts`
+    (DESIGN_V2.md 15.4 „Stand Schritt 2.11b“, Entscheidung 12)
+  - [ ] offen (`core-engineer`): „Sperrklinke“ für die Vorschau (größte Vorschau des Zyklus
+    im Spielstand), damit sie auch bei gleicher H_max nie kurz sinkt (DESIGN_V2.md 15.4)
 
 ## Phase 3 – Tiefe
 
