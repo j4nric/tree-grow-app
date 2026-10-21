@@ -4,9 +4,9 @@ import { NICHE_IDS, type NicheId, type Tag } from '../content/types';
 import { normalizeSeed } from './rng';
 
 /**
- * Spielstand v7 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen,
+ * Spielstand v8 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen,
  * Jahreszeiten und Hauptbaum-Arten; seit v7 mit der Wegpunkt-Kurve 3,5 · k^3,5 aus dem
- * Balancing 2.10 – das Format ist gleich, nur `totalGrowth` liegt auf der neuen Kurve).
+ * Balancing 2.10; seit v8 mit der Langzeit-Statistik `meta.stats`).
  * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -15,7 +15,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+1 % je Punkt → höchstens
@@ -74,6 +74,47 @@ export interface ForcedEncounter {
   ids: string[];
 }
 
+/**
+ * Langzeit-Statistik über alle Zyklen (seit v8, DESIGN_V2.md 12.5) – Grundlage für
+ * Erfolge. Nur Zahlen (endlich, ≥ 0; Zähler ganzzahlig) und eine kleine Liste. Wird nie
+ * zurückgesetzt. Abgeschlossene Zyklen stehen schon in `cycle.number − 1`.
+ */
+export interface LifetimeStats {
+  /** Spielzeit aller Zyklen in Sekunden (wie `cycle.elapsed`, online und offline gleich). */
+  playSeconds: number;
+  /** Gesamt-Wachstum aller Zyklen (Summe der Zuwächse in `tick`). */
+  totalGrowth: number;
+  /** Höchste Harmonie aller Zyklen (wie `cycle.maxHarmony`, nie kleiner). */
+  bestHarmony: number;
+  /** Angenommene Begegnungen: Tier- oder Pflanzenkarte gewählt (chooseCard). */
+  cardsChosen: number;
+  /** Entschiedene Ereignisse (chooseEventOption). */
+  eventsDecided: number;
+  /** Bewirtete Gäste (hostVisitor). */
+  visitorsHosted: number;
+  /** Für Samen gesetzte Pflanzen (plantSeed; gekeimte zählen als Karte). */
+  plantsPlanted: number;
+  /** Gekaufte Pflege-Ränge (buyCare). */
+  careRanksBought: number;
+  /** Hauptbaum-Arten, die schon einmal Hauptbaum waren (inkl. der aktuellen), je einmal. */
+  grownTrees: MainTreeId[];
+}
+
+/** Startwerte der Langzeit-Statistik (alles 0, nur die erste Baumart ist gewachsen). */
+export function createStats(mainTree: MainTreeId = DEFAULT_MAIN_TREE): LifetimeStats {
+  return {
+    playSeconds: 0,
+    totalGrowth: 0,
+    bestHarmony: 0,
+    cardsChosen: 0,
+    eventsDecided: 0,
+    visitorsHosted: 0,
+    plantsPlanted: 0,
+    careRanksBought: 0,
+    grownTrees: [mainTree],
+  };
+}
+
 /** Der laufende Zyklus (DESIGN_V2.md, Abschnitt 10). Wird beim Neuen Zyklus neu angelegt. */
 export interface CycleState {
   /** Nummer des Zyklus, ab 1. */
@@ -121,7 +162,7 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 7;
+  version: 8;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */
@@ -168,6 +209,8 @@ export interface GameState {
       /** Andenken, z. B. „old-oak“ für einen v1-Spielstand. */
       keepsakes: string[];
     };
+    /** Langzeit-Statistik über alle Zyklen (seit v8). */
+    stats: LifetimeStats;
   };
   /** Zeitpunkt des letzten Ticks (ms seit Epoch), für Offline-Fortschritt. */
   lastTick: number;
@@ -195,7 +238,12 @@ export function createInitialState(now: number, seed: number = now): GameState {
     pendingEncounters: [],
     rngState: normalizeSeed(seed),
     cycle: createCycle(1, now),
-    meta: { forestMemory: 0, regulars: [], journal: { species: [], plants: [], communities: [], keepsakes: [] } },
+    meta: {
+      forestMemory: 0,
+      regulars: [],
+      journal: { species: [], plants: [], communities: [], keepsakes: [] },
+      stats: createStats(),
+    },
     lastTick: now,
   };
 }

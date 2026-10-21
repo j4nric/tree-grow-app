@@ -1088,6 +1088,7 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
 | **Naturtagebuch** (entdeckte Arten, Pflanzen, Lebensgemeinschaften) | | ✔ |
 | **Waldgedächtnis** (dauerhafter Bonus) | | ✔ |
 | **Stammgäste** (Startkarten) | | ✔ |
+| **Langzeit-Statistik** (`meta.stats`, seit v8, 12.5) | | ✔ |
 
 - **Naturtagebuch = Kartenpool.** Im ersten Zyklus enthält der Pool alle gewöhnlichen
   und seltenen Arten; besondere und legendäre erscheinen nur, wenn ihre
@@ -1308,6 +1309,40 @@ unausgewogenen Start erzeugen.
   können ganze Zyklen mit festem Seed nachspielen (Golden Tests).
 - Zwischen zwei Aktionen sind die Raten konstant: Die Offline-Simulation kann
   ereignisgesteuert (bis zum nächsten Wegpunkt) statt in festen Schritten rechnen.
+
+### 12.5 Langzeit-Statistik `meta.stats` (Spielstand v8)
+
+Grundlage für spätere Erfolge: Zahlen über alle Zyklen, die nie zurückgesetzt werden.
+Abgeschlossene Zyklen stehen schon in `cycle.number − 1` (kein eigenes Feld).
+
+| Feld | Bedeutung | gezählt in |
+|---|---|---|
+| `playSeconds` | Spielzeit aller Zyklen (Sekunden, auch über `MAX_ELAPSED` hinaus) | `tick` (+ dt) |
+| `totalGrowth` | Gesamt-Wachstum aller Zyklen | `tick` (Zuwachs von `totalGrowth`) |
+| `bestHarmony` | höchste Harmonie aller Zyklen | überall, wo H_max nachgeführt wird |
+| `cardsChosen` | angenommene Begegnungen (Tier- oder Pflanzenkarte gewählt) | `chooseCard` |
+| `eventsDecided` | entschiedene Ereignisse | `chooseEventOption` |
+| `visitorsHosted` | bewirtete Gäste (Ziehenlassen zählt nicht) | `hostVisitor` |
+| `plantsPlanted` | für Samen gesetzte Pflanzen (gekeimte zählen als Karte) | `plantSeed` |
+| `careRanksBought` | gekaufte Pflege-Ränge | `buyCare` |
+| `grownTrees` | Hauptbaum-Arten, die schon einmal Hauptbaum waren (inkl. der aktuellen) | `startNewCycle`, Start: Eiche |
+
+- Nur Zahlen und eine kleine Liste, JSON-serialisierbar. Zähler ganzzahlig, höchstens
+  `MAX_STAT_COUNT` (= `Number.MAX_SAFE_INTEGER`); Spielzeit und Wachstum höchstens
+  `Number.MAX_VALUE`.
+- **Online = offline:** Spielzeit und Wachstum zählt `tick` einmal je Aufruf – auch nach dem
+  Schnellvorlauf über ganze Jahre. Viele kleine Ticks und ein großer liefern dieselbe
+  Spielzeit und dasselbe Wachstum (bis auf Rundung), dieselben Zähler.
+- **Migration v7 → v8:** Frühere Zyklen sind nicht bekannt. Die Statistik beginnt beim
+  laufenden Zyklus: Spielzeit = `cycle.elapsed`, Gesamt-Wachstum = `totalGrowth`, beste
+  Harmonie = H_max, `grownTrees = [cycle.mainTree]`, alle Zähler 0. Was ein älterer
+  Stand unter `meta.stats` mitbringt, zählt nicht.
+- **Robustes Laden (ab v8):** fehlende, kaputte oder negative Zahlen → 0, ±Infinity →
+  Grenze, Brüche bei Zählern abgerundet. Untergrenzen aus dem laufenden Zyklus (über alle
+  Zyklen ist nie weniger als im laufenden: Spielzeit, Wachstum, H_max). `grownTrees`: nur
+  bekannte, freigeschaltete Arten je einmal; die aktuelle kommt dazu, falls sie fehlt.
+- **Anzeige:** Naturtagebuch, Reiter „Statistik“, Abschnitt „Über alle Zyklen“; im Reiter
+  „Andenken“ steht bei Hauptbaum-Arten aus `grownTrees` „schon gewachsen“.
 
 ---
 

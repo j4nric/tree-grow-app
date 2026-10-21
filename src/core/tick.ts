@@ -63,6 +63,7 @@ import {
   type CardEncounterType,
   type ForcedEncounter,
   type GameState,
+  type LifetimeStats,
   type PendingEncounter,
 } from './state';
 
@@ -132,6 +133,7 @@ export function tick(state: GameState, dt: number): TickReport {
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
   // Kaputte Spielzeit (NaN, negativ, zu groß) nicht weiterschleppen.
   state.cycle.elapsed = normalizeElapsed(state.cycle.elapsed);
+  const growthBefore = state.totalGrowth;
   let remaining = dt;
   // Schleife endet: Jede Runde verbraucht die Restzeit oder erreicht einen Halt – davon
   // gibt es endlich viele (Wegpunkte, je ein Zwischenhalt, endlich viele Boni, eine
@@ -180,7 +182,26 @@ export function tick(state: GameState, dt: number): TickReport {
       state.totalGrowth = capped(state.totalGrowth + rate * step);
     }
   }
+  // Langzeit-Statistik: die ganze Spielzeit (auch über MAX_ELAPSED hinaus) und der
+  // Zuwachs an Wachstum – je Tick einmal, auch nach dem Schnellvorlauf über ganze Jahre.
+  const stats = state.meta.stats;
+  stats.playSeconds = capped(stats.playSeconds + dt);
+  const grown = state.totalGrowth - growthBefore;
+  if (grown > 0) stats.totalGrowth = capped(stats.totalGrowth + grown);
   return report;
+}
+
+/** Obergrenze der Zähler in `meta.stats` (bleiben ganzzahlig). */
+export const MAX_STAT_COUNT = Number.MAX_SAFE_INTEGER;
+
+type StatCounter = Extract<
+  keyof LifetimeStats,
+  'cardsChosen' | 'eventsDecided' | 'visitorsHosted' | 'plantsPlanted' | 'careRanksBought'
+>;
+
+/** Zählt einen Zähler der Langzeit-Statistik um 1 hoch (höchstens bis MAX_STAT_COUNT). */
+function countStat(state: GameState, key: StatCounter): void {
+  state.meta.stats[key] = Math.min(MAX_STAT_COUNT, state.meta.stats[key] + 1);
 }
 
 /** Toleranz für das Erreichen einer Jahreszeitengrenze (Gleitkomma-Rest, siehe tick). */
@@ -575,6 +596,7 @@ export function chooseCard(
     if (!state.cycle.newSpecies.includes(id)) state.cycle.newSpecies.push(id);
   }
   state.pendingEncounters.splice(encounterIndex, 1);
+  countStat(state, 'cardsChosen');
   return discoveryResult(recordDiscoveries(state));
 }
 
@@ -597,9 +619,14 @@ export function recordDiscoveries(state: GameState): string[] {
   return fresh;
 }
 
-/** Hebt die höchste Harmonie des Zyklus (H_max) auf `harmony`, falls größer. */
+/**
+ * Hebt die höchste Harmonie des Zyklus (H_max) auf `harmony`, falls größer – und die beste
+ * Harmonie aller Zyklen (`meta.stats.bestHarmony`).
+ */
 function raiseMaxHarmony(state: GameState, harmony: number): void {
-  if (Number.isFinite(harmony) && harmony > state.cycle.maxHarmony) state.cycle.maxHarmony = harmony;
+  if (!Number.isFinite(harmony)) return;
+  if (harmony > state.cycle.maxHarmony) state.cycle.maxHarmony = harmony;
+  if (harmony > state.meta.stats.bestHarmony) state.meta.stats.bestHarmony = harmony;
 }
 
 /**
@@ -611,6 +638,7 @@ export function plantSeed(state: GameState, plantId: string): ActionResult {
   if (blocker) return fail(blocker);
   state.seeds -= nextPlantCost(state);
   state.plants.push(plantId);
+  countStat(state, 'plantsPlanted');
   return discoveryResult(recordDiscoveries(state));
 }
 
@@ -826,6 +854,7 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   state.niches = emptyNiches();
   state.pendingEncounters = [];
   state.cycle = createCycle(state.cycle.number + 1, now, tree);
+  if (!state.meta.stats.grownTrees.includes(tree)) state.meta.stats.grownTrees.push(tree);
   const regulars = moveInRegulars(state);
   recordDiscoveries(state);
   return { ok: true, preview, regulars };
@@ -995,6 +1024,7 @@ export function chooseEventOption(state: GameState, encounterIndex: number, opti
   }
   state.seeds = capped(state.seeds + seeds);
   state.pendingEncounters.splice(encounterIndex, 1);
+  countStat(state, 'eventsDecided');
   const discovered = recordDiscoveries(state);
   return discovered.length > 0 ? { ok: true, discovered, seeds } : { ok: true, seeds };
 }
@@ -1034,6 +1064,7 @@ export function hostVisitor(state: GameState, encounterIndex: number): ActionRes
   state.seeds = Math.max(0, state.seeds - cost);
   state.cycle.visitors.push({ id, remaining: visitor.stay });
   state.pendingEncounters.splice(encounterIndex, 1);
+  countStat(state, 'visitorsHosted');
   const discovered = recordDiscoveries(state);
   return discovered.length > 0 ? { ok: true, discovered, seeds: -cost } : { ok: true, seeds: -cost };
 }
@@ -1097,6 +1128,7 @@ export function buyCare(state: GameState, id: string): ActionResult {
   const cost = nextCareRank(state, id)!.cost;
   state.seeds = Math.max(0, state.seeds - cost);
   state.cycle.care[id] = careRank(state, id) + 1;
+  countStat(state, 'careRanksBought');
   const discovered = recordDiscoveries(state);
   return discovered.length > 0 ? { ok: true, discovered, seeds: -cost } : { ok: true, seeds: -cost };
 }

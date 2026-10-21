@@ -445,6 +445,8 @@ export interface JournalTreeView {
   unlocked: boolean;
   /** Art des laufenden Zyklus. */
   current: boolean;
+  /** War schon einmal Hauptbaum (`meta.stats.grownTrees`, die aktuelle Art immer). */
+  grown: boolean;
   /** Eigenheit in Kurzform (nur, wenn sichtbar). */
   summary?: string;
   /** Stimmungstext (nur freigeschaltete). */
@@ -461,6 +463,8 @@ export interface JournalStatView {
   value: string;
   /** Zusatz in einer zweiten Zeile, z. B. „45 Min. Spielzeit · jetzt 🍂 Herbst“. */
   detail?: string;
+  /** Abschnitt „Über alle Zyklen“ (Langzeit-Statistik); fehlt = laufender Zyklus und Tagebuch. */
+  section?: 'total';
 }
 
 /** Das Naturtagebuch (DESIGN_V2.md 10 und 11.2). */

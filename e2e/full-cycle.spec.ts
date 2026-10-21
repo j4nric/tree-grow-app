@@ -262,9 +262,20 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   const after = await savedState(page);
   expect(after.version).toBe(SAVE_VERSION);
   expect(after.cycle.number).toBe(2);
-  for (const key of ['waypoint', 'stage', 'plants', 'niches', 'pendingEncounters', 'rngState', 'meta']) {
+  for (const key of ['waypoint', 'stage', 'plants', 'niches', 'pendingEncounters', 'rngState']) {
     expect(after[key], key).toEqual(before[key]);
   }
+  // Langzeit-Statistik: Zähler unverändert, Spielzeit und Wachstum laufen ein paar Frames weiter.
+  const { stats: statsAfter, ...metaAfter } = after.meta;
+  const { stats: statsBefore, ...metaBefore } = before.meta;
+  expect(metaAfter, 'meta').toEqual(metaBefore);
+  const { playSeconds: playAfter, totalGrowth: growthAfter, ...countsAfter } = statsAfter;
+  const { playSeconds: playBefore, totalGrowth: growthBefore, ...countsBefore } = statsBefore;
+  expect(countsAfter, 'meta.stats').toEqual(countsBefore);
+  expect(countsAfter.cardsChosen).toBeGreaterThan(0);
+  expect(countsAfter.grownTrees).toEqual(['oak']);
+  expect(playAfter).toBeGreaterThanOrEqual(playBefore);
+  expect(growthAfter).toBeGreaterThanOrEqual(growthBefore);
   // Die Spielzeit (Jahreszeit) läuft beim Speichern vor dem Neuladen noch ein paar Frames weiter.
   const { elapsed: elapsedAfter, ...cycleAfter } = after.cycle;
   const { elapsed: elapsedBefore, ...cycleBefore } = before.cycle;

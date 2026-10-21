@@ -22,15 +22,17 @@ import {
 } from './formulas';
 import { isValidRngState, normalizeSeed } from './rng';
 import { normalizeElapsed } from './season';
-import { interludeThreshold, isTreeUnlocked, recordDiscoveries } from './tick';
+import { MAX_STAT_COUNT, interludeThreshold, isTreeUnlocked, recordDiscoveries } from './tick';
 import {
   MAX_FOREST_MEMORY,
   SAVE_VERSION,
   createCycle,
   createInitialState,
+  createStats,
   type CycleBonus,
   type CycleState,
   type GameState,
+  type LifetimeStats,
   type PendingEncounter,
   type TimedBonus,
 } from './state';
@@ -93,6 +95,7 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   if (version < 4) migrateV3(state);
   if (version < 5) migrateV4(state);
   if (version < 6) migrateV5(state);
+  if (version < 8) migrateV7(state);
   // v6 → v7 (Balancing 2.10): nur die Wegpunkt-Kurve – schon in loadV2 umgerechnet
   // (v6GrowthToV7), bevor Wegpunkt, Stufe und Zwischenhalt abgeleitet werden.
   // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte. Führt
@@ -258,6 +261,50 @@ function migrateV5(state: GameState): void {
 }
 
 /**
+ * v7 → v8 (Langzeit-Statistik `meta.stats`, DESIGN_V2.md 12.5): Frühere Zyklen sind nicht
+ * bekannt – die Statistik beginnt beim laufenden Zyklus: Spielzeit = `cycle.elapsed`,
+ * Gesamt-Wachstum = `totalGrowth`, beste Harmonie = H_max, gewachsen ist die aktuelle
+ * Baumart, alle Zähler 0. Was ein älterer Stand unter `meta.stats` mitbringt, zählt nicht.
+ * Läuft nach den älteren Migrationen (Spielzeit und Baumart stehen dann fest).
+ */
+function migrateV7(state: GameState): void {
+  state.meta.stats = {
+    ...createStats(state.cycle.mainTree),
+    playSeconds: state.cycle.elapsed,
+    totalGrowth: state.totalGrowth,
+    bestHarmony: state.cycle.maxHarmony,
+  };
+}
+
+/**
+ * Langzeit-Statistik robust laden (seit v8): fehlende, kaputte oder negative Zahlen → 0,
+ * ±Infinity → Grenze, Zähler ganzzahlig. Untergrenzen aus dem laufenden Zyklus – über alle
+ * Zyklen ist nie weniger als im laufenden (Spielzeit, Wachstum, H_max, aktuelle Baumart).
+ * Baumarten nur bekannte, freigeschaltete (`unlocked`) und je einmal, in gespeicherter
+ * Reihenfolge; die aktuelle kommt dazu, falls sie fehlt.
+ */
+function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) => boolean): LifetimeStats {
+  const r = isRecord(raw) ? raw : {};
+  const amount = (value: unknown, min: number) => Math.max(min, clampedOr(value, 0, 0, Number.MAX_VALUE));
+  const count = (value: unknown) => Math.floor(clampedOr(value, 0, 0, MAX_STAT_COUNT));
+  const grownTrees = unique(stringArray(r.grownTrees)).filter(
+    (id): id is MainTreeId => MAIN_TREES_BY_ID.has(id as MainTreeId) && unlocked(id as MainTreeId),
+  );
+  if (!grownTrees.includes(state.cycle.mainTree)) grownTrees.push(state.cycle.mainTree);
+  return {
+    playSeconds: amount(r.playSeconds, state.cycle.elapsed),
+    totalGrowth: amount(r.totalGrowth, state.totalGrowth),
+    bestHarmony: amount(r.bestHarmony, state.cycle.maxHarmony),
+    cardsChosen: count(r.cardsChosen),
+    eventsDecided: count(r.eventsDecided),
+    visitorsHosted: count(r.visitorsHosted),
+    plantsPlanted: count(r.plantsPlanted),
+    careRanksBought: count(r.careRanksBought),
+    grownTrees,
+  };
+}
+
+/**
  * Robustes Laden eines Stands ab v2 (DESIGN_V2.md, 12.3). Felder, die es in v2 noch
  * nicht gab (Pflanzen), fehlen dort einfach und bleiben leer.
  */
@@ -396,6 +443,9 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
     0,
     regularSlots(state.meta.forestMemory),
   );
+  // Seit v8: Langzeit-Statistik (ältere Stände: migrateV7 setzt sie).
+  const known = { meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...state.meta.journal.plants, ...state.plants] } } };
+  state.meta.stats = loadStats(version >= 8 ? meta.stats : undefined, state, (id) => isTreeUnlocked(known, id));
   return state;
 }
 

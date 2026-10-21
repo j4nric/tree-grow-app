@@ -142,10 +142,15 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     in Toast und Spielanleitung, `SceneInput.mainTree` und `cycleTransition.fromTree`
   - [x] Optional: Naturtagebuch, Reiter Andenken – gewachsene Hauptbaum-Arten (`ui-dev`)
 - [ ] Umstieg auf `break_infinity.js`, falls Zahlen > 1e300 (`core-engineer`)
-- [ ] Langzeit-Statistik `meta.stats` (`core-engineer`, danach `ui-dev`): Gesamtspielzeit,
+- [x] Langzeit-Statistik `meta.stats` (`core-engineer`, danach `ui-dev`): Gesamtspielzeit,
   Gesamt-Wachstum, beste Harmonie, Begegnungen, bewirtete Gäste, gewachsene
   Hauptbaum-Arten über alle Zyklen (neue Spielstand-Version mit Migration); Anzeige im
   Reiter „Statistik“, Grundlage für Erfolge
+  - [x] Logik (core): Spielstand v8, Migration v7 → v8 (Startwerte aus dem laufenden
+    Zyklus), Zähler in den Aktionen, Spielzeit und Wachstum in `tick` (online = offline),
+    DESIGN_V2.md 12.5
+  - [x] UI: Abschnitt „Über alle Zyklen“ im Reiter „Statistik“, „schon gewachsen“ bei den
+    Hauptbaum-Arten im Reiter „Andenken“
 - [ ] Erfolge / Achievements, verknüpft mit dem Naturtagebuch (`ui-dev`)
 
 ## Phase 5 – Veröffentlichung

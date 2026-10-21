@@ -13,13 +13,13 @@
 > (8 Maßnahmen mit 1–3 Rängen, wirken bis zum Neuen Zyklus; Schritt 2.7, `DESIGN_V2.md` 8);
 > Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
-> Spielstand v7 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
+> Spielstand v8 mit Langzeit-Statistik über alle Zyklen (`DESIGN_V2.md` 12.5; v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
 > verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege;
 > v5-Stände beginnen beim Laden im Frühling und wachsen als Stieleiche weiter; v3- bis
 > v6-Stände werden auf die neue Wegpunkt-Kurve umgerechnet – gleicher Wegpunkt, gleicher
 > Anteil bis zum nächsten; ihr Waldgedächtnis bleibt in Punkten gleich, wirkt aber mit +1 %
-> je Punkt). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
+> je Punkt; bis v7 beginnt die Langzeit-Statistik beim laufenden Zyklus). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
 > Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰, Neu würfeln
 > kostet 10 🌰 (verdoppelt sich je Wurf).
 >
