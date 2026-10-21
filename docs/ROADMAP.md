@@ -198,4 +198,8 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   und Hinweis „Neu hier?“ beim ersten Start (`ui-dev`)
 - [x] Einstellungen „⚙️“ in localStorage: Bewegung reduzieren (Automatisch/An/Aus),
   Zahlenformat (kurz/ausgeschrieben), Hinweise länger anzeigen (`ui-dev`)
-- [ ] Sound & Musik (optional)
+- [x] Sound & Musik (optional): prozedurale Klangkulisse per Web Audio (`src/ui/sound.ts`,
+  Planung rein in `src/ui/sound-plan.ts`) – Wind je Jahreszeit, Vogelrufe im Frühling/Sommer,
+  Pad je Harmoniestufe, leise Ereignis-Klänge; Einstellung „Klang“ (Aus/Leise/Normal, Standard aus),
+  Start erst nach Interaktion, Pause bei verborgenem Tab; Spitze ≤ −12 dBFS über Pegel-Haushalt
+  der Stimmen (kein Kompressor, nur Sicherheits-Clipper), Leise 10 dB darunter (`ui-dev`)
