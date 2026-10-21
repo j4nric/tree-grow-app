@@ -104,7 +104,7 @@ const SLOTS: Record<string, number[]> = {
   bark: [0, 0, 0, 1, 2, 2, 3, 3],
   hollows: [0, 0, 0, 0, 1, 2, 2, 3],
   // Waldtümpel: nur mit ?pond=1 (im Spiel durch Pflege oder Ereignis).
-  pond: [0, 0, 0, 0, 3, 3, 3, 3],
+  pond: [0, 0, 0, 0, 4, 4, 4, 4],
 };
 
 const PROTO: [string, Fam, string, number][] = [

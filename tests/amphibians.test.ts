@@ -3,7 +3,7 @@ import { SEASON_SECONDS } from '../src/content/seasons';
 import { STAGES } from '../src/content/stages';
 import { evaluate, evaluateEcosystem, nicheSlots, slotBonuses } from '../src/core/formulas';
 import type { GameState } from '../src/core/state';
-import { buyCare, chooseEventOption, drawAnimals, eligibleEvents } from '../src/core/tick';
+import { buyCare, chooseEventOption, drawAnimals, drawEncounter, eligibleEvents } from '../src/core/tick';
 import { scenePond, toEcosystemView, toSceneAnimals } from '../src/ui/adapters';
 import { stateAt } from './helpers';
 
@@ -205,5 +205,20 @@ describe('Amphibien im Ökosystem', () => {
     expect(chooseEventOption(state, 0, 1).ok).toBe(true);
     expect(evaluate(state).slots.pond).toBe(3);
     expect(state.cycle.forced).toMatchObject({ type: 'animal', ids: ['frog', 'newt', 'treefrog', 'crestednewt'] });
+  });
+
+  it('Krötenwanderung: höchstens 2 vorgegebene Amphibien – die dritte Karte bleibt eine andere Wahl', () => {
+    const amphibians = ['frog', 'newt', 'treefrog', 'crestednewt'];
+    for (let seed = 1; seed <= 40; seed++) {
+      const state = oldTree(['toad'], 2);
+      state.stage = 5; // Kammmolch freigeschaltet, 4 Tümpelplätze
+      state.waypoint = 21;
+      state.rngState = seed * 7919;
+      state.cycle.forced = { type: 'animal', ids: amphibians };
+      const enc = drawEncounter(state)!;
+      expect(enc.type, `Seed ${seed}`).toBe('animal');
+      expect(enc.cards, `Seed ${seed}`).toHaveLength(3);
+      expect(enc.cards.filter((id) => amphibians.includes(id)), `Seed ${seed}`).toHaveLength(2);
+    }
   });
 });

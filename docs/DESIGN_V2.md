@@ -707,7 +707,7 @@ jedes hat eine, z. B. Mittsommer oder Laubfall). Ablehnen gibt es nicht.
 | `timed` | eine Tier-Wirkung (`growth`, `seeds`, `groupGrowth`, `groupSeeds`) für N Sekunden Spielzeit, Faktor 1 | +25 % 🌿 für 300 s |
 | `cycle` | eine Wirkung (`light`, `water`, `slot`, `harmony`) bis zum Neuen Zyklus | +3 💧; +1 Platz Höhlen |
 | `habitat` | das Ökosystem stellt ein Merkmal bereit (1 Einheit wie eine Pflanze) bis zum Neuen Zyklus | Totholz, Feuchte |
-| `nextEncounter` | die nächste Begegnung ist vom Typ Tier/Pflanze und zeigt zuerst Karten aus einer Liste (Seltenheit und Erscheinungsbedingung übergangen) | Pilzkarten, Beerensträucher |
+| `nextEncounter` | die nächste Begegnung ist vom Typ Tier/Pflanze und zeigt zuerst bis zu 2 Karten aus einer Liste (Seltenheit und Erscheinungsbedingung übergangen), die dritte normal gezogen (seit dem Playtest Amphibien) | Pilzkarten, Beerensträucher |
 
 | Ereignis | ab | Bedingung | Optionen | Text |
 |---|---|---|---|---|
@@ -2195,10 +2195,23 @@ Karten), und alle Amphibien sind Räuber (Pyramide: weniger Kreislauf-Anteil, me
 derselben Futter-Merkmale). Das liegt weit im Ziel (±25 %) und ist eine echte Abwägung.
 
 **Neustart Wald, Zyklus 2:** 0,994 → 0,966 im Seed-Fenster des großen Laufs. Zwei weitere
-Fenster mit 200 Durchgängen (Seed-Start 50000 / 90000, Neustart Wald, zwei Zyklen) zeigen,
-dass das Streuung ist, keine Wirkung: vorher 0,973 / 0,958, jetzt 0,972 / 0,958 – schon der
-alte Stand lag in einem Fenster unter der Grenze 0,97. `tests/balance-restart.test.ts` prüft
-darum je Zyklus ≥ 0,95 und über Zyklus 2 + 3 zusammen weiter ≥ 0,97 (jetzt 0,986).
+Fenster mit 200 Durchgängen (Seed-Start 50000 / 90000, Neustart Wald, zwei Zyklen): vorher
+0,973 / 0,958, jetzt 0,972 / 0,958. Das Mittel der drei Fenster fällt von 0,975 auf 0,965 –
+ein kleiner echter Effekt (~1 %): Der Wachstums-Spieler bekommt jetzt auch Amphibien-Karten
+und nimmt die wachstumsstarken (Kammmolch, Bergmolch). Das bleibt im Ziel „gleichauf“; die
+Fenster streuen zudem um ±0,02 (schon der alte Stand lag in einem Fenster unter 0,97).
+`tests/balance-restart.test.ts` prüft darum je Zyklus ≥ 0,95 und über Zyklus 2 + 3 zusammen
+weiter ≥ 0,97 (jetzt 0,986).
+
+**Vorgegebene Begegnungen (Review):** „Laichplätze schaffen“ gab mit vier passenden Arten drei
+Amphibien vor – keine echte Wahl. Seit dem Review kommen aus jeder Vorgabe (`nextEncounter`)
+höchstens `FORCED_MAX_CARDS` = 2 Karten, die dritte wird normal gezogen (ohne die übrigen
+Vorgaben, die nur auffüllen, wenn sonst nichts passt). Gilt für alle Ereignisse mit Vorgabe
+(Pilzherbst, Igel-Unterschlupf, Totholz, Mastjahr …). Großer Lauf danach (500 Durchgänge, alle 45 Prüfungen grün):
+Hain Harmonie / Wachstum / Zufall 1:03:51 h / 54:32 min / 1:35:27 h, Wald / Urwald (Harmonie)
+1:55:52 h / 2:49:38 h, 🌰-Bestand Hain / Wald 8,4 / 10,7 min, Hain Wachstum/Harmonie je Zyklus
+0,873 / 0,992 / 1,018, Neustart Wald Zyklus 2 / 3 0,978 / 1,007 – nur Streuung gegenüber der
+Tabelle oben.
 
 **Von Hand (Playwright, Alter Baum, 390 und 1280 px):**
 - *Wie öffne ich den Tümpel?* Die Nische steht als „verschlossen – öffnet durch Pflege

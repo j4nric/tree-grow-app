@@ -149,8 +149,10 @@ describe('Ereignisse: Wirkungen', () => {
     plants.cycle.forced = { type: 'plant', ids: ['rowan', 'elder', 'bramble'] };
     const enc = drawEncounter(plants)!;
     expect(enc.type).toBe('plant');
-    expect([...enc.cards].sort()).toEqual(['bramble', 'elder', 'rowan'].filter((id) => enc.cards.includes(id)).sort());
-    expect(enc.cards.length).toBeGreaterThan(0);
+    // Höchstens FORCED_MAX_CARDS (2) aus der Vorgabe, die dritte Karte ist eine andere Pflanze.
+    const fromForced = enc.cards.filter((id) => ['rowan', 'elder', 'bramble'].includes(id));
+    expect(fromForced).toHaveLength(2);
+    expect(enc.cards).toHaveLength(3);
 
     const none = stateAt(4, ['jay', 'squirrel'], 3);
     none.waypoint = 14;

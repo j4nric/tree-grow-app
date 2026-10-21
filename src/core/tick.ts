@@ -1,6 +1,7 @@
 import {
   CARDS_PER_ENCOUNTER,
   ENCOUNTER_WEIGHTS,
+  FORCED_MAX_CARDS,
   INTERLUDE_CHANCE,
   INTERLUDE_POSITION,
   INTERLUDE_STAGE,
@@ -990,10 +991,11 @@ function visitorEncounter(state: GameState, visitor: Visitor): PendingEncounter 
 }
 
 /**
- * Baut die vorgegebene Begegnung (`nextEncounter`): zuerst zufällig bis zu drei der
- * vorgegebenen IDs, die passen (Arten: freigeschaltet, noch nicht im Ökosystem, Nische
+ * Baut die vorgegebene Begegnung (`nextEncounter`): zuerst zufällig bis zu FORCED_MAX_CARDS
+ * der vorgegebenen IDs, die passen (Arten: freigeschaltet, noch nicht im Ökosystem, Nische
  * offen – Seltenheit und Erscheinungsbedingung zählen nicht; Pflanzen: freigeschaltet),
- * Rest normal gezogen. null, wenn keine ID passt.
+ * Rest normal gezogen – ohne die übrigen Vorgaben, damit eine andere Wahl bleibt. Nur wenn
+ * sonst nichts passt, füllen weitere Vorgaben auf. null, wenn keine ID passt.
  */
 function forcedEncounter(state: GameState, forced: ForcedEncounter): PendingEncounter | null {
   const slots = nicheSlots(state.stage, state.niches, slotBonuses(state));
@@ -1006,8 +1008,9 @@ function forcedEncounter(state: GameState, forced: ForcedEncounter): PendingEnco
   });
   if (fits.length === 0) return null;
   const chosen: string[] = [];
-  while (fits.length > 0 && chosen.length < CARDS_PER_ENCOUNTER) chosen.push(fits.splice(randomInt(state, fits.length), 1)[0]!);
-  const rest = drawCards(state, forced.type, chosen).filter((id) => !chosen.includes(id));
+  while (fits.length > 0 && chosen.length < FORCED_MAX_CARDS) chosen.push(fits.splice(randomInt(state, fits.length), 1)[0]!);
+  // Übrige Vorgaben nur zum Auffüllen (drawCards zieht `exclude` erst, wenn sonst nichts passt).
+  const rest = drawCards(state, forced.type, [...chosen, ...forced.ids]).filter((id) => !chosen.includes(id));
   return { type: forced.type, cards: [...chosen, ...rest].slice(0, CARDS_PER_ENCOUNTER), rerolls: 0 };
 }
 
