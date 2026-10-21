@@ -6,6 +6,7 @@
  * ändert (Schlüssel aus cycleViewKey). Der Knopf verlangt einen zweiten Klick zur
  * Bestätigung (kein confirm()).
  */
+import { isDeliberateConfirm } from './confirm';
 import { el, setText } from './dom';
 import { cycleViewKey, type CyclePanelView } from './cycle-view';
 
@@ -26,6 +27,8 @@ export interface CyclePanel {
   update(view: CyclePanelView): void;
   /** Fokus auf die Überschrift (z. B. nach dem Zyklusstart, wenn der Knopf verschwindet). */
   focus(): void;
+  /** Offene Bestätigung „Zum Bestätigen erneut klicken“ zurücknehmen (z. B. nach einem Import). */
+  disarm(): void;
   readonly element: HTMLElement;
 }
 
@@ -51,19 +54,24 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
   button.type = 'button';
   button.dataset.ref = 'new-cycle';
   let armTimer: ReturnType<typeof setTimeout> | undefined;
+  let armedAt = 0;
   const disarm = () => {
     clearTimeout(armTimer);
     armTimer = undefined;
     button.textContent = BUTTON_TEXT;
     button.classList.remove('armed');
   };
-  button.addEventListener('click', () => {
+  button.addEventListener('click', (event) => {
     if (armTimer === undefined) {
+      if (event.detail > 1) return;
       button.textContent = CONFIRM_TEXT;
       button.classList.add('armed');
+      armedAt = performance.now();
       armTimer = setTimeout(disarm, CONFIRM_MS);
       return;
     }
+    // Doppelklick oder gehaltene Enter-Taste bestätigen nicht.
+    if (!isDeliberateConfirm(event, armedAt, performance.now())) return;
     disarm();
     callbacks.onNewCycle();
   });
@@ -125,5 +133,5 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
     if (focused) items.find((i) => i.id === focused)?.toggle.focus({ preventScroll: true });
   }
 
-  return { update, focus: () => title.focus({ preventScroll: false }), element: section };
+  return { update, focus: () => title.focus({ preventScroll: false }), element: section, disarm };
 }
