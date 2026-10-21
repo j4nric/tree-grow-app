@@ -80,6 +80,14 @@ export interface RemoteMeta {
   version: number;
   actionVersion: number;
   device: string;
+  /** Spielstand-Version (SAVE_VERSION) des schreibenden Spiels; fehlt = unbekannt (0). */
+  schema?: number;
+}
+
+/** Stammt der Datensatz aus einer neueren Spielversion als `saveVersion`? */
+export function isNewerSchema(remote: RemoteMeta, saveVersion: number): boolean {
+  const schema = remote.schema ?? 0;
+  return Number.isFinite(schema) && schema > saveVersion;
 }
 
 export interface InitialInput {
@@ -92,7 +100,15 @@ export interface InitialInput {
   base: number | null;
   /** Lokaler Stand und Cloud-Stand (für die erste Anmeldung). */
   localProgress: Progress | null;
+  /** null = Cloud-Stand unlesbar. */
   remoteProgress: Progress | null;
+  /** Kennung dieses Geräts: Stammt der Cloud-Stand von hier, ist er unsere eigene Linie. */
+  device: string;
+  /**
+   * Der lokale Stand gehört nachweislich zu einem anderen Konto (zuletzt mit ihm
+   * abgeglichen) – dann gewinnt bei der ersten Anmeldung immer der Cloud-Stand.
+   */
+  localForeign: boolean;
 }
 
 export type InitialDecision =
@@ -101,22 +117,30 @@ export type InitialDecision =
   /** Lokalen Stand über die Cloud-Version `version` schreiben. */
   | { kind: 'push'; version: number; firstLogin: boolean }
   /** Cloud-Stand übernehmen. */
-  | { kind: 'take'; firstLogin: boolean };
+  | { kind: 'take'; firstLogin: boolean }
+  /** Cloud-Stand unlesbar: weder übernehmen noch darüber schreiben. */
+  | { kind: 'blocked' };
 
 /**
  * Abgleich beim Anmelden bzw. beim Start mit bestehender Sitzung.
+ * - Unlesbarer Cloud-Stand: blockiert (nie darüber schreiben).
+ * - Stammt der Cloud-Stand von diesem Gerät (die Antwort auf den Push ging verloren): Er
+ *   ist unsere eigene Linie, der lokale Stand ihre Fortsetzung → pushen.
  * - Kennt das Gerät die Linie (base): Gab es seitdem eine fremde Aktion → übernehmen, sonst
  *   ist der lokale Stand die Fortsetzung → pushen.
- * - Erste Anmeldung: der weiter fortgeschrittene Stand gewinnt (Gleichstand → Cloud).
+ * - Erste Anmeldung: Gehört der lokale Stand zu einem anderen Konto → Cloud. Sonst gewinnt
+ *   der weiter fortgeschrittene Stand (Gleichstand → Cloud).
  */
 export function decideInitial(input: InitialInput): InitialDecision {
   const { remote, base } = input;
   if (!remote) return { kind: 'insert' };
-  if (base !== null && Number.isFinite(base)) {
+  if (!input.remoteProgress) return { kind: 'blocked' };
+  const known = base !== null && Number.isFinite(base);
+  if (remote.device !== '' && remote.device === input.device) return { kind: 'push', version: remote.version, firstLogin: false };
+  if (known) {
     return remote.actionVersion > base ? { kind: 'take', firstLogin: false } : { kind: 'push', version: remote.version, firstLogin: false };
   }
-  if (!input.remoteProgress) return { kind: 'push', version: remote.version, firstLogin: true };
-  if (!input.localProgress) return { kind: 'take', firstLogin: true };
+  if (!input.localProgress || input.localForeign) return { kind: 'take', firstLogin: true };
   return compareProgress(input.localProgress, input.remoteProgress) > 0
     ? { kind: 'push', version: remote.version, firstLogin: true }
     : { kind: 'take', firstLogin: true };
@@ -139,10 +163,13 @@ export function reactToRemote(known: number, change: RemoteMeta, device: string)
 }
 
 /**
- * Konflikt beim Push (die Cloud ist weiter als `known`): Gab es seitdem eine fremde Aktion,
- * gewinnt die Cloud (die eigene, noch nicht gepushte Aktion geht verloren). Sonst enthält
- * die Cloud nur Zeit, die der lokale Stand auch hat → lokal darüber schreiben.
+ * Konflikt beim Push (die Cloud ist weiter als `known`): Stammt der Cloud-Stand von diesem
+ * Gerät, ist er ein eigener Push, dessen Antwort verloren ging – der lokale Stand ist seine
+ * Fortsetzung → darüber schreiben (nie den älteren Schnappschuss übernehmen). Gab es seitdem
+ * eine fremde Aktion, gewinnt die Cloud (die eigene, noch nicht gepushte Aktion geht
+ * verloren). Sonst enthält die Cloud nur Zeit, die der lokale Stand auch hat → darüber.
  */
-export function resolveConflict(known: number, remote: RemoteMeta): 'take' | 'push' {
+export function resolveConflict(known: number, remote: RemoteMeta, device: string): 'take' | 'push' {
+  if (remote.device !== '' && remote.device === device) return 'push';
   return remote.actionVersion > known ? 'take' : 'push';
 }

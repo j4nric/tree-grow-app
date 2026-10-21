@@ -67,7 +67,7 @@ import { createSeasonBadge } from './ui/season-badge';
 import { seasonChangeText, toSeasonBadgeView } from './ui/season-view';
 import type { MainTreeId } from './content/trees';
 import type { EcosystemView } from './ui/view-model';
-import { progressOfState, readSyncUrl } from './sync/config';
+import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from './sync/config';
 import type { AccountController } from './sync/account';
 
 /*
@@ -698,10 +698,15 @@ function setupAccount(): void {
             const result = importCode(code, Date.now());
             return result.ok ? progressOfState(result.result.state) : null;
           },
-          adopt: (code) => {
-            const result = importCode(code, Date.now(), { keepClock: true });
+          // Nur senden bzw. übernehmen, was dieses Spiel selbst importieren kann.
+          check: (code) => codeCheck(importCode(code, Date.now())),
+          adopt: (code, ageMs) => {
+            const now = Date.now();
+            const result = importCode(code, now, { keepClock: true });
             if (!result.ok) return false;
-            adoptState(result.result.state);
+            const next = result.result.state;
+            next.lastTick = adoptedLastTick(next.lastTick, now, ageMs);
+            adoptState(next);
             return true;
           },
           notify: (text) => notify(text),

@@ -12,6 +12,7 @@ import {
   decideInitial,
   nextPushAt,
   reactToRemote,
+  isNewerSchema,
   resolveConflict,
   type Progress,
   type RemoteMeta,
@@ -55,17 +56,51 @@ describe('policy', () => {
 
   it('decideInitial: neu, bekannte Linie, erste Anmeldung', () => {
     const remote: RemoteMeta = { version: 7, actionVersion: 5, device: 'x' };
-    expect(decideInitial({ remote: null, base: null, localProgress: P(1, 1, 1), remoteProgress: null })).toEqual({ kind: 'insert' });
+    const input = { device: 'me', localForeign: false };
+    expect(decideInitial({ ...input, remote: null, base: null, localProgress: P(1, 1, 1), remoteProgress: null })).toEqual({ kind: 'insert' });
     // Linie bekannt: keine fremde Aktion seit base → lokal ist die Fortsetzung.
-    expect(decideInitial({ remote, base: 5, localProgress: null, remoteProgress: null })).toEqual({ kind: 'push', version: 7, firstLogin: false });
-    expect(decideInitial({ remote, base: 4, localProgress: null, remoteProgress: null })).toEqual({ kind: 'take', firstLogin: false });
+    expect(decideInitial({ ...input, remote, base: 5, localProgress: null, remoteProgress: P(0, 0, 0) })).toEqual({ kind: 'push', version: 7, firstLogin: false });
+    expect(decideInitial({ ...input, remote, base: 4, localProgress: null, remoteProgress: P(0, 0, 0) })).toEqual({ kind: 'take', firstLogin: false });
     // Erste Anmeldung: der weitere Stand gewinnt, Gleichstand → Cloud.
-    expect(decideInitial({ remote, base: null, localProgress: P(2, 0, 0), remoteProgress: P(1, 9, 9) }).kind).toBe('push');
-    expect(decideInitial({ remote, base: null, localProgress: P(1, 0, 0), remoteProgress: P(1, 0, 0) }).kind).toBe('take');
-    expect(decideInitial({ remote, base: null, localProgress: null, remoteProgress: P(1, 0, 0) }).kind).toBe('take');
-    // Unlesbarer Cloud-Stand → lokal darüber.
-    expect(decideInitial({ remote, base: null, localProgress: P(1, 0, 0), remoteProgress: null }).kind).toBe('push');
-    expect(decideInitial({ remote, base: Number.NaN, localProgress: P(1, 0, 0), remoteProgress: P(0, 0, 0) }).kind).toBe('push');
+    expect(decideInitial({ ...input, remote, base: null, localProgress: P(2, 0, 0), remoteProgress: P(1, 9, 9) }).kind).toBe('push');
+    expect(decideInitial({ ...input, remote, base: null, localProgress: P(1, 0, 0), remoteProgress: P(1, 0, 0) }).kind).toBe('take');
+    expect(decideInitial({ ...input, remote, base: null, localProgress: null, remoteProgress: P(1, 0, 0) }).kind).toBe('take');
+    expect(decideInitial({ ...input, remote, base: Number.NaN, localProgress: P(1, 0, 0), remoteProgress: P(0, 0, 0) }).kind).toBe('push');
+  });
+
+  it('decideInitial: unlesbarer Cloud-Stand blockiert – nie darüber schreiben', () => {
+    const remote: RemoteMeta = { version: 7, actionVersion: 5, device: 'x' };
+    for (const base of [null, 5, 4]) {
+      expect(decideInitial({ remote, base, localProgress: P(9, 9, 9), remoteProgress: null, device: 'me', localForeign: false })).toEqual({ kind: 'blocked' });
+    }
+  });
+
+  it('decideInitial: lokaler Stand eines anderen Kontos → Cloud gewinnt, auch wenn lokal weiter', () => {
+    const remote: RemoteMeta = { version: 7, actionVersion: 5, device: 'x' };
+    expect(decideInitial({ remote, base: null, localProgress: P(9, 9, 9), remoteProgress: P(1, 0, 0), device: 'me', localForeign: true })).toEqual({
+      kind: 'take',
+      firstLogin: true,
+    });
+  });
+
+  it('decideInitial: Cloud-Stand vom eigenen Gerät (Antwort verloren) → eigene Linie, pushen', () => {
+    const remote: RemoteMeta = { version: 7, actionVersion: 7, device: 'me' };
+    expect(decideInitial({ remote, base: 5, localProgress: P(1, 0, 0), remoteProgress: P(1, 0, 0), device: 'me', localForeign: false })).toEqual({
+      kind: 'push',
+      version: 7,
+      firstLogin: false,
+    });
+    expect(decideInitial({ remote, base: null, localProgress: P(0, 0, 0), remoteProgress: P(5, 0, 0), device: 'me', localForeign: false }).kind).toBe('push');
+    // Leere Geräte-ID zählt nie als „eigen“.
+    expect(decideInitial({ remote: { ...remote, device: '' }, base: 5, localProgress: null, remoteProgress: P(0, 0, 0), device: '', localForeign: false }).kind).toBe('take');
+  });
+
+  it('isNewerSchema: fehlt/NaN = 0, nur echt größer', () => {
+    expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a' }, 9)).toBe(false);
+    expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a', schema: 9 }, 9)).toBe(false);
+    expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a', schema: 10 }, 9)).toBe(true);
+    expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a', schema: Number.NaN }, 9)).toBe(false);
+    expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a', schema: Infinity }, 9)).toBe(false);
   });
 
   it('reactToRemote und resolveConflict', () => {
@@ -75,8 +110,10 @@ describe('policy', () => {
     expect(reactToRemote(5, { version: 6, actionVersion: 6, device: 'b' }, 'a')).toBe('take');
     expect(reactToRemote(5, { version: 6, actionVersion: 6, device: 'a' }, 'a')).toBe('advance');
     expect(reactToRemote(5, { version: Number.NaN, actionVersion: 9, device: 'b' }, 'a')).toBe('ignore');
-    expect(resolveConflict(5, { version: 8, actionVersion: 5, device: 'b' })).toBe('push');
-    expect(resolveConflict(5, { version: 8, actionVersion: 6, device: 'b' })).toBe('take');
+    expect(resolveConflict(5, { version: 8, actionVersion: 5, device: 'b' }, 'a')).toBe('push');
+    expect(resolveConflict(5, { version: 8, actionVersion: 6, device: 'b' }, 'a')).toBe('take');
+    // Eigener Push, dessen Antwort verloren ging: unsere Linie, nicht übernehmen.
+    expect(resolveConflict(5, { version: 6, actionVersion: 6, device: 'a' }, 'a')).toBe('push');
   });
 });
 
@@ -84,6 +121,8 @@ describe('policy', () => {
 
 class FakeCloud {
   row: RemoteSave | null = null;
+  /** Nächstes Schreiben „gelingt“ auf dem Server, aber die Antwort geht verloren. */
+  loseNextAck = false;
   online = true;
   writes = 0;
   private listeners = new Set<(change: RemoteMeta | null) => void>();
@@ -93,8 +132,18 @@ class FakeCloud {
   }
 
   private notify(): void {
-    const { version, actionVersion, device } = this.row!;
-    for (const listener of [...this.listeners]) listener({ version, actionVersion, device });
+    // Antwort verloren: auch die Live-Meldung kommt nicht an (Verbindung weg).
+    if (this.loseNextAck) return;
+    const { version, actionVersion, device, schema } = this.row!;
+    for (const listener of [...this.listeners]) listener({ version, actionVersion, device, schema });
+  }
+
+  private ack(): 'ok' {
+    if (this.loseNextAck) {
+      this.loseNextAck = false;
+      throw new Error('Antwort verloren');
+    }
+    return 'ok';
   }
 
   backend(): SyncBackend {
@@ -106,20 +155,21 @@ class FakeCloud {
       insert: async (row: SaveWrite) => {
         this.check();
         if (this.row) return 'conflict';
-        this.row = { data: row.data, version: 1, actionVersion: 1, device: row.device };
+        this.row = { data: row.data, version: 1, actionVersion: 1, device: row.device, schema: row.schema };
         this.writes++;
         this.notify();
-        return 'ok';
+        return this.ack();
       },
       update: async (expected: number, row: SaveWrite) => {
         this.check();
+        if (this.row && (this.row.schema ?? 0) > row.schema) return 'outdated';
         if (!this.row || this.row.version !== expected) return 'conflict';
         const version = expected + 1;
         expect(row.version).toBe(version);
-        this.row = { data: row.data, version, actionVersion: row.actionVersion ?? this.row.actionVersion, device: row.device };
+        this.row = { data: row.data, version, actionVersion: row.actionVersion ?? this.row.actionVersion, device: row.device, schema: row.schema };
         this.writes++;
         this.notify();
-        return 'ok';
+        return this.ack();
       },
       subscribe: (listener) => {
         this.listeners.add(listener);
@@ -129,11 +179,21 @@ class FakeCloud {
   }
 }
 
-/** Ein Gerät: Spielstand als Text „Zyklus|Wachstum|Aktionen“. */
+/** Spielstand-Version der Test-Geräte; Codes mit „NEU|“ stammen aus einer neueren. */
+const SAVE_VERSION = 9;
+
+/**
+ * Ein Gerät: Spielstand als Text „Zyklus|Wachstum|Aktionen“. Mit „NEU|…“ aus einer neueren
+ * Spielversion, mit mehr als 60 Zeichen „zu groß“ (lässt sich nicht wieder importieren).
+ */
 class Device {
   data: string;
   base: SyncBase | null = null;
   backups: string[] = [];
+  cloudBackups: string[] = [];
+  /** Konto, mit dem der lokale Stand zuletzt abgeglichen wurde (fremd → Cloud gewinnt). */
+  foreign = false;
+  ages: (number | undefined)[] = [];
   events: SyncEvent[] = [];
   statuses: SyncStatus[] = [];
   applied = 0;
@@ -149,16 +209,21 @@ class Device {
     this.data = data;
     const host: SyncHost = {
       clock: () => clock.now,
+      saveVersion: SAVE_VERSION,
       snapshot: () => this.data,
+      check: (d) => (d.startsWith('NEU|') ? 'newer' : Device.progress(d) && d.length <= 60 ? 'ok' : 'invalid'),
       localProgress: () => Device.progress(this.data),
       progressOf: (d) => Device.progress(d),
-      apply: (d) => {
+      apply: (d, ageMs) => {
         if (!Device.progress(d)) return false;
         this.data = d;
         this.applied++;
+        this.ages.push(ageMs);
         return true;
       },
       backup: () => this.backups.push(this.data),
+      backupCloud: (d) => this.cloudBackups.push(d),
+      localIsForeign: () => this.foreign,
       isActive: () => this.active,
       loadBase: () => this.base,
       saveBase: (b) => (this.base = { ...b }),
@@ -387,16 +452,169 @@ describe('SyncEngine', () => {
     expect(a.backups).toEqual([]);
   });
 
-  it('unlesbarer Cloud-Stand: lokal wird darüber geschrieben', async () => {
+  it('unlesbarer Cloud-Stand: nie darüber schreiben, angehalten, später erneut geprüft', async () => {
     const { cloud, clock } = setup();
     cloud.row = { data: 'kaputt', version: 2, actionVersion: 2, device: 'X' };
     const a = new Device(cloud, 'A', clock, '1|1|');
     a.base = { version: 1, pending: false };
     await a.engine.start();
     expect(a.data).toBe('1|1|');
+    expect(a.engine.status.phase).toBe('cloud-unreadable');
+    a.act('a1');
+    // Viele Versuche (mit Backoff): kein einziges Schreiben – kein Hin und Her.
+    for (let i = 0; i < 20; i++) {
+      clock.now += PERIODIC_MS;
+      await a.engine.poll();
+      await a.engine.flush();
+    }
+    expect(cloud.writes).toBe(0);
+    expect(cloud.row.data).toBe('kaputt');
+    expect(a.data).toBe('1|1|a1,');
+    expect(a.engine.status.phase).toBe('cloud-unreadable');
+    // Ein anderes Gerät repariert den Stand (ohne neue Aktion): beim nächsten Versuch geht es weiter.
+    cloud.row = { data: '1|1|', version: 3, actionVersion: 1, device: 'X' };
+    clock.now += BACKOFF_MAX_MS;
+    await a.engine.poll();
+    await settle();
+    clock.now += BACKOFF_MAX_MS;
+    await a.engine.poll();
+    await settle();
+    expect(a.engine.status.phase).toBe('synced');
+    expect(cloud.row).toMatchObject({ data: '1|1|a1,', device: 'A' });
+  });
+
+  it('Cloud-Stand einer neueren Spielversion (schema): nie übernehmen, nie überschreiben', async () => {
+    const { cloud, clock } = setup();
+    cloud.row = { data: '1|9|neu,', version: 4, actionVersion: 4, device: 'X', schema: SAVE_VERSION + 1 };
+    const a = new Device(cloud, 'A', clock, '1|1|');
+    a.base = { version: 4, pending: true };
+    await a.engine.start();
+    expect(a.engine.status.phase).toBe('outdated');
+    expect(a.statuses.at(-1)?.phase).toBe('outdated');
+    a.act('a1');
+    clock.now += 100 * PERIODIC_MS;
+    await a.engine.poll();
+    await a.engine.flush();
+    expect(cloud.writes).toBe(0);
+    expect(a.applied).toBe(0);
+    expect(a.data).toBe('1|1|a1,');
+  });
+
+  it('Code einer neueren Spielversion ohne schema-Angabe: ebenfalls angehalten', async () => {
+    const { cloud, clock } = setup();
+    cloud.row = { data: 'NEU|1|9|', version: 2, actionVersion: 2, device: 'X' };
+    const a = new Device(cloud, 'A', clock, '5|1|');
+    await a.engine.start();
+    expect(a.engine.status.phase).toBe('outdated');
+    expect(a.data).toBe('5|1|');
+    expect(cloud.writes).toBe(0);
+  });
+
+  it('anderes Gerät mit neuerer Spielversion schreibt: Live-Meldung hält sofort an', async () => {
+    const { cloud, clock } = setup();
+    const a = new Device(cloud, 'A', clock);
+    await a.engine.start();
+    // Gerät mit neuerem Spiel (direkt über die Fake-Cloud, schema + 1).
+    await cloud.backend().update(1, { data: '1|5|neu,', version: 2, device: 'N', actionVersion: 2, schema: SAVE_VERSION + 1 });
+    await settle();
+    expect(a.engine.status.phase).toBe('outdated');
+    expect(a.applied).toBe(0);
+    a.act('a1');
     clock.now += ACTION_THROTTLE_MS;
     await a.engine.poll();
-    expect(cloud.row).toMatchObject({ data: '1|1|', version: 3, actionVersion: 3 });
+    expect(cloud.row).toMatchObject({ data: '1|5|neu,', device: 'N' });
+  });
+
+  it('Server lehnt ab (422 outdated): angehalten statt erneut zu senden', async () => {
+    const { cloud, clock } = setup();
+    const a = new Device(cloud, 'A', clock);
+    await a.engine.start();
+    // Ohne Meldung an A: neuerer Stand derselben Version.
+    cloud.row = { ...cloud.row!, schema: SAVE_VERSION + 1 };
+    a.act('a1');
+    clock.now += ACTION_THROTTLE_MS;
+    await a.engine.poll();
+    expect(a.engine.status.phase).toBe('outdated');
+    expect(a.engine.hasUnsent).toBe(true);
+  });
+
+  it('eigener Stand zu groß (nicht wieder importierbar): wird nie gesendet', async () => {
+    const { cloud, clock } = setup();
+    const a = new Device(cloud, 'A', clock);
+    await a.engine.start();
+    a.data = `1|0|${'x'.repeat(80)}`;
+    a.engine.markAction();
+    clock.now += ACTION_THROTTLE_MS;
+    await a.engine.poll();
+    expect(a.engine.status.phase).toBe('local-invalid');
+    expect(cloud.row?.data).toBe('1|0|');
+    expect(a.engine.hasUnsent).toBe(true);
+    // Wieder klein genug: nach dem Backoff geht es weiter.
+    a.data = '1|0|klein,';
+    clock.now += BACKOFF_BASE_MS;
+    await a.engine.poll();
+    expect(a.engine.status.phase).toBe('synced');
+    expect(cloud.row?.data).toBe('1|0|klein,');
+  });
+
+  it('erste Anmeldung: beide Stände werden vorher gesichert (Cloud gewinnt)', async () => {
+    const { cloud, clock } = setup();
+    cloud.row = { data: '3|0|cloud,', version: 5, actionVersion: 5, device: 'X' };
+    const b = new Device(cloud, 'B', clock, '1|7|lokal,');
+    await b.engine.start();
+    expect(b.data).toBe('3|0|cloud,');
+    expect(b.backups).toEqual(['1|7|lokal,']);
+    expect(b.cloudBackups).toEqual(['3|0|cloud,']);
+  });
+
+  it('erste Anmeldung: beide Stände werden vorher gesichert (lokal gewinnt)', async () => {
+    const { cloud, clock } = setup();
+    cloud.row = { data: '1|0|cloud,', version: 5, actionVersion: 5, device: 'X' };
+    const b = new Device(cloud, 'B', clock, '4|0|lokal,');
+    await b.engine.start();
+    expect(cloud.row.data).toBe('4|0|lokal,');
+    expect(b.backups).toEqual(['4|0|lokal,']);
+    expect(b.cloudBackups).toEqual(['1|0|cloud,']);
+  });
+
+  it('lokaler Stand gehört zu einem anderen Konto: Cloud gewinnt, auch wenn lokal weiter', async () => {
+    const { cloud, clock } = setup();
+    cloud.row = { data: '1|0|cloud,', version: 2, actionVersion: 2, device: 'X' };
+    const b = new Device(cloud, 'B', clock, '9|99|anderes-konto,');
+    b.foreign = true;
+    await b.engine.start();
+    expect(b.data).toBe('1|0|cloud,');
+    expect(cloud.row.data).toBe('1|0|cloud,');
+    expect(b.backups).toEqual(['9|99|anderes-konto,']);
+    expect(b.events).toEqual([{ kind: 'first-login', winner: 'cloud' }]);
+  });
+
+  it('eigener Push, dessen Antwort verloren ging: Konflikt mit eigener Linie → nicht übernehmen', async () => {
+    const { cloud, clock } = setup();
+    const a = new Device(cloud, 'A', clock);
+    await a.engine.start();
+    a.act('a1');
+    cloud.loseNextAck = true;
+    clock.now += ACTION_THROTTLE_MS;
+    await a.engine.poll();
+    expect(a.engine.status.phase).toBe('offline');
+    expect(cloud.row).toMatchObject({ data: '1|0|a1,', version: 2, device: 'A' });
+    a.act('a2');
+    clock.now += BACKOFF_BASE_MS;
+    await a.engine.poll();
+    expect(a.applied).toBe(0);
+    expect(a.backups).toEqual([]);
+    expect(a.data).toBe('1|0|a1,a2,');
+    expect(cloud.row).toMatchObject({ data: '1|0|a1,a2,', version: 3, device: 'A' });
+    expect(a.engine.status.phase).toBe('synced');
+  });
+
+  it('Alter nach Serverzeit wird beim Übernehmen weitergereicht', async () => {
+    const { cloud, clock } = setup();
+    cloud.row = { data: '2|0|', version: 1, actionVersion: 1, device: 'X', ageMs: 4321 };
+    const a = new Device(cloud, 'A', clock, '1|0|');
+    await a.engine.start();
+    expect(a.ages).toEqual([4321]);
   });
 
   it('Datensatz in der Cloud verschwunden: neu anlegen', async () => {

@@ -2,7 +2,7 @@
  * Texte und Prüfungen für den Abschnitt „Konto“ in den Einstellungen – reine Funktionen
  * (getestet in tests/account-view.test.ts). Ruhiger Ton, kurze Sätze.
  */
-import type { SyncEvent, SyncStatus } from '../sync/engine';
+import type { SyncEvent, SyncProblem, SyncStatus } from '../sync/engine';
 import type { AccountErrorCode } from '../sync/types';
 
 /** So lange nach einem Abgleich heißt es „Synchronisiert“. */
@@ -29,6 +29,9 @@ export const ACCOUNT_TEXTS = {
   signOut: 'Abmelden',
   signedOut: 'Abgemeldet. Dein Wald bleibt auf diesem Gerät gespeichert.',
   signOutFailed: 'Abmelden hat nicht geklappt. Versuche es gleich noch einmal.',
+  signOutUnsent:
+    'Deine letzten Änderungen sind noch nicht im Konto (keine Verbindung). Sie bleiben auf diesem Gerät gespeichert. Erneut tippen, um trotzdem abzumelden.',
+  signOutAnyway: 'Trotzdem abmelden',
 } as const;
 
 /** Benutzername nach den Server-Regeln (klein geschrieben) oder null. */
@@ -58,6 +61,10 @@ export function accountErrorText(code: AccountErrorCode | undefined): string {
       return 'Zu viele Versuche. Bitte warte ein paar Minuten.';
     case 'network':
       return 'Keine Verbindung zum Konto-Server. Dein Wald wächst hier weiter – versuche es später noch einmal.';
+    case 'registration-closed':
+      return 'Gerade können keine neuen Konten angelegt werden. Dein Wald wächst auf diesem Gerät weiter.';
+    case 'storage-full':
+      return 'Der Konto-Server hat gerade keinen Platz. Dein Wald wächst auf diesem Gerät weiter – versuche es später noch einmal.';
     default:
       return 'Das hat nicht geklappt. Versuche es gleich noch einmal.';
   }
@@ -85,7 +92,25 @@ export function syncStatusText(status: SyncStatus, now: number): string {
         : `Offline – zuletzt gespeichert ${agoText(age)}. Dein Wald wächst hier weiter, der Abgleich folgt von selbst.`;
     case 'synced':
       return age === null || age < FRESH_SYNC_MS ? 'Synchronisiert' : `Gespeichert ${agoText(age)}`;
+    case 'outdated':
+      return SYNC_PROBLEM_TEXTS.outdated;
+    case 'cloud-unreadable':
+      return SYNC_PROBLEM_TEXTS['cloud-unreadable'];
+    case 'local-invalid':
+      return SYNC_PROBLEM_TEXTS['local-invalid'];
   }
+}
+
+/** Angehaltener Abgleich: kurze Erklärung, der Wald auf diesem Gerät bleibt immer erhalten. */
+export const SYNC_PROBLEM_TEXTS: Readonly<Record<SyncProblem, string>> = {
+  outdated: 'Neue Spielversion – bitte neu laden. Bis dahin sendet dieses Gerät nichts ans Konto.',
+  'cloud-unreadable': 'Der Spielstand im Konto ist nicht lesbar. Der Abgleich ist angehalten; dein Wald wächst hier weiter.',
+  'local-invalid': 'Dein Spielstand ist zu groß für das Konto. Er bleibt auf diesem Gerät gespeichert.',
+};
+
+/** Ist der Abgleich angehalten (Zeile hervorheben)? */
+export function isSyncProblem(status: SyncStatus): boolean {
+  return status.phase in SYNC_PROBLEM_TEXTS;
 }
 
 /** Kurzer Hinweis zu einem Abgleich-Ereignis (Toast). */

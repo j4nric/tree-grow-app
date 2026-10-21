@@ -12,13 +12,14 @@
 import {
   backoffMs,
   decideInitial,
+  isNewerSchema,
   nextPushAt,
   reactToRemote,
   resolveConflict,
   type Progress,
   type RemoteMeta,
 } from './policy';
-import type { RemoteSave, SaveWrite, SyncBackend } from './types';
+import type { RemoteSave, SaveWrite, SyncBackend, WriteResult } from './types';
 
 /** Gespeicherte Grundlage des lokalen Stands (je Konto, im localStorage des Aufrufers). */
 export interface SyncBase {
@@ -28,7 +29,16 @@ export interface SyncBase {
   pending: boolean;
 }
 
-export type SyncPhase = 'connecting' | 'synced' | 'offline';
+/**
+ * Warum der Abgleich angehalten ist (der lokale Stand bleibt dabei immer unberührt):
+ * - 'outdated': In der Cloud liegt ein Stand einer neueren Spielversion → Seite neu laden.
+ *   Bleibt bis zum Neuladen; dieses Gerät schreibt nichts mehr.
+ * - 'cloud-unreadable': Der Cloud-Stand ist kaputt → nicht darüber schreiben; später erneut prüfen.
+ * - 'local-invalid': Der eigene Stand ließe sich nicht wieder importieren (z. B. zu groß) → nicht senden.
+ */
+export type SyncProblem = 'outdated' | 'cloud-unreadable' | 'local-invalid';
+
+export type SyncPhase = 'connecting' | 'synced' | 'offline' | SyncProblem;
 
 export interface SyncStatus {
   phase: SyncPhase;
@@ -42,24 +52,45 @@ export type SyncEvent =
   /** Stand eines anderen Geräts übernommen; `lostLocal`: eine eigene Aktion ging dabei verloren. */
   | { kind: 'taken'; lostLocal: boolean };
 
+/** Ergebnis der Prüfung eines Text-Codes: lesbar, aus neuerer Spielversion, unlesbar. */
+export type CodeCheck = 'ok' | 'newer' | 'invalid';
+
 export interface SyncHost {
   clock(): number;
+  /** SAVE_VERSION dieses Spiels. */
+  readonly saveVersion: number;
   /** Aktueller Spielstand als Text-Code. */
   snapshot(): string;
+  /** Ließe sich der Code in diesem Spiel importieren? */
+  check(data: string): CodeCheck;
   /** Fortschritt des aktuellen lokalen Stands (null = nichts Nennenswertes). */
   localProgress(): Progress | null;
   /** Fortschritt eines Cloud-Stands; null = unlesbar. */
   progressOf(data: string): Progress | null;
-  /** Cloud-Stand übernehmen (laden, nachrechnen, anzeigen). false = unlesbar, nichts geändert. */
-  apply(data: string): boolean;
+  /**
+   * Cloud-Stand übernehmen (laden, nachrechnen, anzeigen). `ageMs`: Alter nach Serverzeit
+   * (fehlt = unbekannt). false = unlesbar, nichts geändert.
+   */
+  apply(data: string, ageMs?: number): boolean;
   /** Lokalen Stand sichern, bevor er ersetzt wird. */
   backup(): void;
+  /** Cloud-Stand sichern, bevor er bei der ersten Anmeldung ersetzt werden könnte. */
+  backupCloud(data: string): void;
+  /** Der lokale Stand wurde zuletzt mit einem anderen Konto abgeglichen. */
+  localIsForeign(): boolean;
   /** Periodische Pushes erlaubt (sichtbarer Tab)? */
   isActive(): boolean;
   loadBase(): SyncBase | null;
   saveBase(base: SyncBase): void;
   onStatus(status: SyncStatus): void;
   onEvent(event: SyncEvent): void;
+}
+
+/** Abgleich angehalten (siehe SyncProblem) – kein Netzfehler, aber auch kein Erfolg. */
+class SyncBlocked extends Error {
+  constructor(readonly problem: SyncProblem) {
+    super(problem);
+  }
 }
 
 /** So oft hintereinander wird ein Konflikt beim Push höchstens aufgelöst (dann Backoff). */
@@ -73,6 +104,7 @@ export class SyncEngine {
   private recheck = false;
   private pendingAction = false;
   private failures = 0;
+  private problem: SyncProblem | null = null;
   private lastAttemptAt = -Infinity;
   private lastSyncedAt: number | null = null;
   private lastPhase: SyncPhase | null = null;
@@ -108,6 +140,11 @@ export class SyncEngine {
     return this.known;
   }
 
+  /** Gibt es eine Aktion, die noch nicht in der Cloud ist (z. B. vor dem Abmelden)? */
+  get hasUnsent(): boolean {
+    return this.pendingAction;
+  }
+
   /** Eine Spieleraktion ist passiert: bald (gedrosselt) pushen. */
   markAction(): void {
     if (this.stopped) return;
@@ -117,7 +154,7 @@ export class SyncEngine {
 
   /** Regelmäßig aufrufen: startet fällige Pushes bzw. Wiederholungen. */
   poll(): Promise<void> {
-    if (this.stopped || this.busy) return Promise.resolve();
+    if (this.stopped || this.busy || this.problem === 'outdated') return Promise.resolve();
     const now = this.host.clock();
     if (!this.ready) {
       if (now < this.lastAttemptAt + backoffMs(this.failures)) return Promise.resolve();
@@ -138,13 +175,14 @@ export class SyncEngine {
 
   /** Sofort pushen (z. B. beim Verlassen der Seite), ohne Drosselung. */
   flush(): Promise<void> {
-    if (this.stopped || this.busy || !this.ready) return Promise.resolve();
+    if (this.stopped || this.busy || !this.ready || this.recheck || this.problem === 'outdated') return Promise.resolve();
     return this.run(() => this.push());
   }
 
   // --- intern ---------------------------------------------------------------------
 
   private phase(): SyncPhase {
+    if (this.problem) return this.problem;
     if (this.failures > 0) return 'offline';
     return this.ready ? 'synced' : 'connecting';
   }
@@ -158,13 +196,18 @@ export class SyncEngine {
 
   /** Führt eine Netz-Aufgabe aus: nie zwei gleichzeitig, Fehler → Backoff. */
   private async run(task: () => Promise<void>): Promise<void> {
-    if (this.stopped || this.busy) return;
+    if (this.stopped || this.busy || this.problem === 'outdated') return;
     this.busy = true;
     this.lastAttemptAt = this.host.clock();
     try {
       await task();
-    } catch {
-      if (!this.stopped) this.failures++;
+    } catch (error) {
+      if (!this.stopped) {
+        // Angehalten oder Netzfehler: später (mit Backoff) erneut versuchen – außer bei
+        // 'outdated', das bis zum Neuladen bleibt.
+        if (error instanceof SyncBlocked) this.problem = error.problem;
+        this.failures++;
+      }
       this.emitStatus();
     } finally {
       this.busy = false;
@@ -175,15 +218,38 @@ export class SyncEngine {
 
   private succeeded(): void {
     this.failures = 0;
+    this.problem = null;
     this.lastSyncedAt = this.host.clock();
     this.host.saveBase({ version: this.known, pending: this.pendingAction });
     this.emitStatus(true);
+  }
+
+  /**
+   * Darf dieser Cloud-Stand übernommen werden – und darf darüber geschrieben werden?
+   * Neuere Spielversion → 'outdated' (nie übernehmen, nie überschreiben). Unlesbar →
+   * 'cloud-unreadable' (später erneut nachsehen).
+   */
+  private ensureReadable(remote: RemoteSave): void {
+    if (isNewerSchema(remote, this.host.saveVersion)) throw new SyncBlocked('outdated');
+    const check = this.host.check(remote.data);
+    if (check === 'newer') throw new SyncBlocked('outdated');
+    if (check !== 'ok') {
+      this.recheck = true;
+      throw new SyncBlocked('cloud-unreadable');
+    }
+  }
+
+  /** Schreib-Ergebnis auswerten: 'outdated' hält den Abgleich an. */
+  private written(result: WriteResult): 'ok' | 'conflict' {
+    if (result === 'outdated') throw new SyncBlocked('outdated');
+    return result;
   }
 
   private async initial(): Promise<void> {
     this.recheck = false;
     const remote = await this.backend.fetch();
     if (this.stopped) return;
+    if (remote) this.ensureReadable(remote);
     const base = this.host.loadBase();
     const localProgress = this.host.localProgress();
     const decision = decideInitial({
@@ -191,10 +257,20 @@ export class SyncEngine {
       base: base?.version ?? null,
       localProgress,
       remoteProgress: remote ? this.host.progressOf(remote.data) : null,
+      device: this.device,
+      localForeign: this.host.localIsForeign(),
     });
-    if (decision.kind !== 'insert' && decision.firstLogin && localProgress) this.host.backup();
+    if (decision.kind === 'blocked') {
+      this.recheck = true;
+      throw new SyncBlocked('cloud-unreadable');
+    }
+    if (decision.kind !== 'insert' && decision.firstLogin) {
+      // Erste Anmeldung: beide Stände sichern, bevor einer den anderen ersetzt.
+      this.host.backupCloud(remote!.data);
+      if (localProgress) this.host.backup();
+    }
     if (decision.kind === 'insert') {
-      const result = await this.backend.insert(this.write(1, true));
+      const result = this.written(await this.backend.insert(this.write(1, true)));
       if (result === 'conflict') throw new Error('conflict'); // anderes Gerät war schneller → erneut
       this.known = 1;
       this.pendingAction = false;
@@ -202,7 +278,7 @@ export class SyncEngine {
       // Erste Anmeldung oder offene Aktion: die anderen Geräte sollen den Stand übernehmen.
       const action = decision.firstLogin || this.pendingAction;
       const write = this.write(decision.version + 1, action);
-      if ((await this.backend.update(decision.version, write)) === 'conflict') throw new Error('conflict');
+      if (this.written(await this.backend.update(decision.version, write)) === 'conflict') throw new Error('conflict');
       this.known = write.version;
       this.pendingAction = false;
       if (decision.firstLogin) this.host.onEvent({ kind: 'first-login', winner: 'local' });
@@ -218,34 +294,39 @@ export class SyncEngine {
     this.succeeded();
   }
 
-  /** Neuer Datensatz für Version `version`; mit Aktion → actionVersion = version. */
+  /**
+   * Neuer Datensatz für Version `version`; mit Aktion → actionVersion = version. Ein Stand,
+   * den dieses Spiel selbst nicht wieder importieren könnte, wird nie gesendet.
+   */
   private write(version: number, action: boolean): SaveWrite {
-    const row: SaveWrite = { data: this.host.snapshot(), version, device: this.device };
+    const data = this.host.snapshot();
+    if (this.host.check(data) !== 'ok') throw new SyncBlocked('local-invalid');
+    const row: SaveWrite = { data, version, device: this.device, schema: this.host.saveVersion };
     if (action) row.actionVersion = version;
     return row;
   }
 
-  /** Übernimmt einen Cloud-Stand; ist er unlesbar, wird der lokale Stand darüber geschrieben. */
+  /** Übernimmt einen (geprüften) Cloud-Stand. */
   private take(remote: RemoteSave): void {
-    this.known = remote.version;
-    if (this.host.apply(remote.data)) {
-      this.pendingAction = false;
-    } else {
-      // Kaputter Datensatz in der Cloud: lokal weiterspielen und beim nächsten poll ersetzen.
-      this.pendingAction = true;
+    if (!this.host.apply(remote.data, remote.ageMs)) {
+      // Trotz Prüfung nicht ladbar: nichts ändern, nicht darüber schreiben.
+      this.recheck = true;
+      throw new SyncBlocked('cloud-unreadable');
     }
+    this.known = remote.version;
+    this.pendingAction = false;
   }
 
   private async push(): Promise<void> {
     for (let round = 0; round < MAX_CONFLICT_ROUNDS; round++) {
       const action = this.pendingAction;
-      this.pendingAction = false;
       const write = this.write(this.known + 1, action);
+      this.pendingAction = false;
       let result: 'ok' | 'conflict';
       try {
-        result = await this.backend.update(this.known, write);
+        result = this.written(await this.backend.update(this.known, write));
       } catch (error) {
-        // Netzfehler: die Aktion bleibt offen.
+        // Netzfehler oder angehalten: die Aktion bleibt offen.
         if (action) this.pendingAction = true;
         throw error;
       }
@@ -261,13 +342,14 @@ export class SyncEngine {
       if (!remote) {
         // Datensatz verschwunden (z. B. in der Cloud gelöscht): neu anlegen.
         this.known = 0;
-        if ((await this.backend.insert(this.write(1, true))) === 'conflict') continue;
+        if (this.written(await this.backend.insert(this.write(1, true))) === 'conflict') continue;
         this.known = 1;
         this.pendingAction = false;
         this.succeeded();
         return;
       }
-      if (resolveConflict(this.known, remote) === 'take') {
+      this.ensureReadable(remote);
+      if (resolveConflict(this.known, remote, this.device) === 'take') {
         const lost = this.pendingAction;
         if (lost) this.host.backup();
         this.take(remote);
@@ -275,7 +357,7 @@ export class SyncEngine {
         this.succeeded();
         return;
       }
-      // Nur fremde Zeit, keine fremde Aktion: lokal auf der neuen Version weiterschreiben.
+      // Nur fremde Zeit oder unser eigener Push: lokal auf der neuen Version weiterschreiben.
       this.known = remote.version;
     }
     throw new Error('conflict');
@@ -283,7 +365,13 @@ export class SyncEngine {
 
   /** Änderungsmeldung aus dem Abo. */
   private onRemote(change: RemoteMeta | null): void {
-    if (this.stopped) return;
+    if (this.stopped || this.problem === 'outdated') return;
+    // Ein Gerät mit neuerer Spielversion hat geschrieben: sofort anhalten.
+    if (change && isNewerSchema(change, this.host.saveVersion)) {
+      this.problem = 'outdated';
+      this.emitStatus();
+      return;
+    }
     // Während des ersten Abgleichs: danach noch einmal nachsehen.
     if (!this.ready) {
       this.recheck = true;
@@ -309,8 +397,15 @@ export class SyncEngine {
   private async refresh(): Promise<void> {
     this.recheck = false;
     const remote = await this.backend.fetch();
-    if (this.stopped || !remote) return;
+    if (this.stopped) return;
+    if (!remote) {
+      // Kein Datensatz (mehr): Der nächste Push legt ihn neu an.
+      this.succeeded();
+      return;
+    }
     const reaction = reactToRemote(this.known, remote, this.device);
+    // War der Abgleich wegen eines unlesbaren Stands angehalten, auch denselben erneut prüfen.
+    if (reaction !== 'ignore' || this.problem === 'cloud-unreadable') this.ensureReadable(remote);
     if (reaction === 'advance') {
       this.known = remote.version;
     } else if (reaction === 'take') {

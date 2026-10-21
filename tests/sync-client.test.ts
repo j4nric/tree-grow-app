@@ -2,16 +2,29 @@
 // (der HTTP-Dienst gegen den echten Server steht in server/tests/client.test.ts).
 import { describe, expect, it } from 'vitest';
 import { MemoryStorage } from './memory-storage';
-import { exportCode, importCode } from '../src/core/save';
-import { createInitialState } from '../src/core/state';
-import { progressOfState, readSyncUrl } from '../src/sync/config';
+import { codeFromJson, exportCode, importCode, isNewerSave, serialize } from '../src/core/save';
+import { SAVE_VERSION, createInitialState } from '../src/core/state';
+import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from '../src/sync/config';
 import { apiBase } from '../src/sync/http-service';
-import { BASE_KEY, DEVICE_KEY, deviceId, parseBase, readBase, writeBase } from '../src/sync/storage';
+import {
+  BACKUP_KEY,
+  BASE_KEY,
+  CLOUD_BACKUP_KEY,
+  DEVICE_KEY,
+  deviceId,
+  parseBase,
+  parseOwner,
+  readBase,
+  readOwner,
+  writeBackup,
+  writeBase,
+} from '../src/sync/storage';
 import {
   accountErrorText,
   agoText,
   isValidPassword,
   normalizeUsername,
+  isSyncProblem,
   syncEventText,
   syncStatusText,
 } from '../src/ui/account-view';
@@ -47,7 +60,65 @@ describe('Konfiguration', () => {
   });
 });
 
+describe('Spielstände neuerer Spielversionen', () => {
+  function codeWithVersion(version: unknown): string {
+    const data = JSON.parse(serialize(createInitialState(0, 1))) as Record<string, unknown>;
+    data.version = version;
+    return codeFromJson(JSON.stringify(data));
+  }
+
+  it('importCode lehnt einen Code mit version > SAVE_VERSION ab (nie herabstufen)', () => {
+    expect(importCode(codeWithVersion(SAVE_VERSION + 1), 0)).toEqual({ ok: false, error: 'newer' });
+    expect(importCode(codeWithVersion(1e300), 0)).toEqual({ ok: false, error: 'newer' });
+    expect(importCode(codeWithVersion(SAVE_VERSION), 0).ok).toBe(true);
+    // Unsinnige Versionen entscheidet weiter loadGame (robust, nie „neuer“).
+    for (const v of [Number.NaN, '99', null, -1]) expect(importCode(codeWithVersion(v), 0)).not.toEqual({ ok: false, error: 'newer' });
+  });
+
+  it('isNewerSave: kaputtes JSON, Arrays, fehlende Version → false', () => {
+    expect(isNewerSave('{')).toBe(false);
+    expect(isNewerSave('[]')).toBe(false);
+    expect(isNewerSave('{}')).toBe(false);
+    expect(isNewerSave(JSON.stringify({ version: SAVE_VERSION + 1 }))).toBe(true);
+  });
+
+  it('codeCheck: ok, newer, invalid (auch zu groß)', () => {
+    expect(codeCheck(importCode(exportCode(createInitialState(0, 1)), 0))).toBe('ok');
+    expect(codeCheck(importCode(codeWithVersion(SAVE_VERSION + 1), 0))).toBe('newer');
+    expect(codeCheck(importCode('VSZW1:kaputt.00000000', 0))).toBe('invalid');
+    expect(codeCheck(importCode('x'.repeat(300_000), 0))).toBe('invalid');
+  });
+
+  it('adoptedLastTick: Alter nach Serverzeit statt fremder Uhr; ohne Alter nie in der Zukunft', () => {
+    // Die Uhr des anderen Geräts geht eine Stunde vor – zählt nicht.
+    expect(adoptedLastTick(10_000 + 3_600_000, 10_000, 2000)).toBe(8000);
+    expect(adoptedLastTick(0, 10_000, 0)).toBe(10_000);
+    expect(adoptedLastTick(0, 10_000, -50)).toBe(10_000);
+    expect(adoptedLastTick(5000, 10_000)).toBe(5000);
+    expect(adoptedLastTick(50_000, 10_000)).toBe(10_000);
+    expect(adoptedLastTick(Number.NaN, 10_000, Number.NaN)).toBe(10_000);
+    expect(adoptedLastTick(5000, 10_000, Infinity)).toBe(5000);
+  });
+});
+
 describe('Speicher-Helfer', () => {
+  it('Besitzer des lokalen Stands und Sicherungen beider Seiten', () => {
+    const storage = new MemoryStorage();
+    expect(readOwner(storage)).toBeNull();
+    writeBase(storage, 'eiche', { version: 2, pending: false });
+    expect(readOwner(storage)).toBe('eiche');
+    expect(parseOwner('{kaputt')).toBeNull();
+    expect(parseOwner(JSON.stringify({ user: 42 }))).toBeNull();
+    expect(parseOwner(JSON.stringify({ user: '' }))).toBeNull();
+    writeBackup(storage, 'LOKAL');
+    writeBackup(storage, 'CLOUD', CLOUD_BACKUP_KEY);
+    expect(storage.getItem(BACKUP_KEY)).toBe('LOKAL');
+    expect(storage.getItem(CLOUD_BACKUP_KEY)).toBe('CLOUD');
+    storage.blocked = true;
+    expect(readOwner(storage)).toBeNull();
+    expect(() => writeBackup(storage, 'X', CLOUD_BACKUP_KEY)).not.toThrow();
+  });
+
   it('parseBase: nur eigenes Konto, ganze Version ≥ 0', () => {
     expect(parseBase(JSON.stringify({ user: 'eiche', version: 3, pending: true }), 'eiche')).toEqual({ version: 3, pending: true });
     expect(parseBase(JSON.stringify({ user: 'buche', version: 3 }), 'eiche')).toBeNull();
@@ -104,6 +175,11 @@ describe('Texte', () => {
     expect(syncStatusText({ phase: 'connecting', lastSyncedAt: null }, 0)).toMatch(/Verbinde/);
     expect(syncStatusText({ phase: 'offline', lastSyncedAt: null }, 0)).toMatch(/^Offline/);
     expect(syncStatusText({ phase: 'offline', lastSyncedAt: 0 }, 61_000)).toMatch(/zuletzt gespeichert vor 1 min/);
+    expect(syncStatusText({ phase: 'outdated', lastSyncedAt: 0 }, 0)).toMatch(/^Neue Spielversion – bitte neu laden/);
+    expect(syncStatusText({ phase: 'cloud-unreadable', lastSyncedAt: 0 }, 0)).toMatch(/nicht lesbar/);
+    expect(syncStatusText({ phase: 'local-invalid', lastSyncedAt: null }, 0)).toMatch(/zu groß/);
+    expect(isSyncProblem({ phase: 'outdated', lastSyncedAt: null })).toBe(true);
+    expect(isSyncProblem({ phase: 'offline', lastSyncedAt: null })).toBe(false);
   });
 
   it('Hinweise und Fehlertexte', () => {
@@ -111,5 +187,7 @@ describe('Texte', () => {
     expect(syncEventText({ kind: 'first-login', winner: 'local' })).toMatch(/war weiter/);
     expect(accountErrorText('taken')).toMatch(/gibt es schon/);
     expect(accountErrorText(undefined)).toMatch(/nicht geklappt/);
+    expect(accountErrorText('registration-closed')).toMatch(/keine neuen Konten/);
+    expect(accountErrorText('storage-full')).toMatch(/keinen Platz/);
   });
 });

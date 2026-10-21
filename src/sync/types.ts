@@ -9,6 +9,11 @@ import type { RemoteMeta } from './policy';
 export interface RemoteSave extends RemoteMeta {
   /** Spielstand als Export-Code („VSZW1:…“ mit Prüfsumme). */
   data: string;
+  /**
+   * Alter des Stands in ms nach der Uhr des Servers (Serverzeit jetzt − Serverzeit beim
+   * Schreiben). Unabhängig von falsch gehenden Geräte-Uhren; fehlt = unbekannt.
+   */
+  ageMs?: number;
 }
 
 /** Zu schreibende Werte. `actionVersion` fehlt = Push ohne Aktion (bleibt unverändert). */
@@ -17,10 +22,16 @@ export interface SaveWrite {
   version: number;
   device: string;
   actionVersion?: number;
+  /** Spielstand-Version (SAVE_VERSION) dieses Spiels. */
+  schema: number;
 }
 
-/** 'conflict': Stand existiert schon (insert) bzw. hat nicht mehr die erwartete Version (update). */
-export type WriteResult = 'ok' | 'conflict';
+/**
+ * 'conflict': Stand existiert schon (insert) bzw. hat nicht mehr die erwartete Version (update).
+ * 'outdated': Der Cloud-Stand stammt aus einer neueren Spielversion – dieses Spiel darf ihn
+ * nicht überschreiben.
+ */
+export type WriteResult = 'ok' | 'conflict' | 'outdated';
 
 /** Zugriff auf den eigenen Stand. Netzfehler werfen (der Abgleich versucht es später erneut). */
 export interface SyncBackend {
@@ -49,6 +60,8 @@ export type AccountErrorCode =
   | 'rate-limited'
   | 'network'
   | 'unauthorized'
+  | 'registration-closed'
+  | 'storage-full'
   | 'server';
 
 export class AccountError extends Error {

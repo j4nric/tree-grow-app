@@ -13,7 +13,11 @@ export interface AccountPanelCallbacks {
   /** Anmelden bzw. Konto anlegen; wirft bei Fehlern (AccountError). */
   onSignIn(username: string, password: string): Promise<void>;
   onRegister(username: string, password: string): Promise<void>;
-  onSignOut(): Promise<void>;
+  /**
+   * Abmelden. `force` = auch mit noch nicht gesendeten Änderungen. Rückgabe 'unsent': nicht
+   * abgemeldet, weil Änderungen noch nicht im Konto sind (Hinweis zeigen, erneut fragen).
+   */
+  onSignOut(force: boolean): Promise<'done' | 'unsent'>;
 }
 
 export interface AccountPanel {
@@ -22,8 +26,8 @@ export interface AccountPanel {
   showUnavailable(): void;
   showSignedOut(): void;
   showSignedIn(name: string): void;
-  /** Zeile zum Abgleich (nur angemeldet sichtbar). */
-  setSync(text: string): void;
+  /** Zeile zum Abgleich (nur angemeldet sichtbar); 'bad' = Abgleich angehalten. */
+  setSync(text: string, tone?: 'neutral' | 'bad'): void;
 }
 
 let fieldId = 0;
@@ -143,12 +147,26 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
   });
   register.addEventListener('click', () => submit('register'));
 
+  // Zweiter Klick nach dem Hinweis auf nicht gesendete Änderungen: trotzdem abmelden.
+  let forceSignOut = false;
+  function resetSignOut(): void {
+    forceSignOut = false;
+    signOut.textContent = T.signOut;
+  }
+
   signOut.addEventListener('click', () => {
     if (signOut.disabled) return;
     signOut.disabled = true;
-    callbacks.onSignOut().then(
-      () => {
+    callbacks.onSignOut(forceSignOut).then(
+      (result) => {
         signOut.disabled = false;
+        if (result === 'unsent') {
+          forceSignOut = true;
+          signOut.textContent = T.signOutAnyway;
+          say(T.signOutUnsent, 'bad');
+        } else {
+          resetSignOut();
+        }
       },
       () => {
         signOut.disabled = false;
@@ -186,12 +204,14 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
       const focusInside = form.contains(document.activeElement);
       password.value = '';
       mode('in');
+      resetSignOut();
       setText(who, T.signedInAs(name));
       say('');
       if (focusInside) signOut.focus({ preventScroll: true });
     },
-    setSync(text) {
+    setSync(text, tone = 'neutral') {
       setText(sync, text);
+      sync.className = `account-sync tone-${tone}`;
     },
   };
   panel.showLoading();

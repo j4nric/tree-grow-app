@@ -5,7 +5,7 @@
  * einmaligem Ticket, weil EventSource keine Header senden kann).
  */
 import { backoffMs, type RemoteMeta } from './policy';
-import { AccountError, type AccountErrorCode, type AccountService, type AccountUser, type RemoteSave, type SaveWrite, type SyncBackend } from './types';
+import { AccountError, type AccountErrorCode, type AccountService, type AccountUser, type RemoteSave, type SaveWrite, type SyncBackend, type WriteResult } from './types';
 
 /** Sitzung im localStorage: { token, username }. */
 export const SESSION_KEY = 'vszw-session';
@@ -22,7 +22,20 @@ interface StoredSession {
   username: string;
 }
 
-const SERVER_CODES: readonly AccountErrorCode[] = ['invalid-username', 'invalid-password', 'taken', 'credentials', 'rate-limited'];
+const SERVER_CODES: readonly AccountErrorCode[] = [
+  'invalid-username',
+  'invalid-password',
+  'taken',
+  'credentials',
+  'rate-limited',
+  'registration-closed',
+  'storage-full',
+];
+
+/** Endliche Zahl oder undefined. */
+function finite(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
 
 /** Basis-URL ohne abschließenden Schrägstrich. */
 export function apiBase(url: string): string {
@@ -93,6 +106,7 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
     const code = (json as { error?: unknown } | null)?.error;
     if (status === 429) return new AccountError('rate-limited');
     if (status === 401) return new AccountError('credentials');
+    if (status === 507) return new AccountError('storage-full');
     return new AccountError(SERVER_CODES.includes(code as AccountErrorCode) ? (code as AccountErrorCode) : 'server');
   }
 
@@ -109,19 +123,32 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
   function toRemote(json: unknown): RemoteSave | null {
     const row = json as Record<string, unknown> | null;
     if (!row || typeof row.data !== 'string' || typeof row.version !== 'number') return null;
-    return {
+    const remote: RemoteSave = {
       data: row.data,
       version: row.version,
       actionVersion: typeof row.actionVersion === 'number' ? row.actionVersion : 0,
       device: typeof row.deviceId === 'string' ? row.deviceId : '',
+      schema: finite(row.schema) ?? 0,
     };
+    // Alter allein nach der Uhr des Servers – die Uhren der Geräte dürfen falsch gehen.
+    const serverTime = finite(row.serverTime);
+    const updatedAt = finite(row.updatedAt);
+    if (serverTime !== undefined && updatedAt !== undefined) remote.ageMs = Math.max(0, serverTime - updatedAt);
+    return remote;
   }
 
-  async function put(baseVersion: number, row: SaveWrite, action: boolean): Promise<'ok' | 'conflict'> {
-    const { status } = await request('PUT', '/api/save', { data: row.data, baseVersion, deviceId: row.device, action });
+  async function put(baseVersion: number, row: SaveWrite, action: boolean): Promise<WriteResult> {
+    const { status, json } = await request('PUT', '/api/save', {
+      data: row.data,
+      baseVersion,
+      deviceId: row.device,
+      action,
+      schema: row.schema,
+    });
     if (status === 200) return 'ok';
     if (status === 409) return 'conflict';
-    throw new AccountError('server');
+    if (status === 422 && (json as { error?: unknown } | null)?.error === 'outdated-client') return 'outdated';
+    throw new AccountError(status === 507 ? 'storage-full' : 'server');
   }
 
   const backend: SyncBackend = {
@@ -177,6 +204,7 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
               version: Number(data.version),
               actionVersion: Number(data.actionVersion),
               device: typeof data.deviceId === 'string' ? data.deviceId : '',
+              schema: finite(data.schema) ?? 0,
             };
             listener(Number.isFinite(change.version) ? change : null);
           } catch {

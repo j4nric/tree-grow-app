@@ -10,6 +10,8 @@ export const BASE_KEY = 'vszw-sync-base';
 export const DEVICE_KEY = 'vszw-device-id';
 /** Sicherung des lokalen Stands (Text-Code), bevor ein Cloud-Stand ihn ersetzt. */
 export const BACKUP_KEY = 'vszw-backup-before-sync';
+/** Sicherung des Cloud-Stands (Text-Code) bei der ersten Anmeldung, bevor ein Stand den anderen ersetzt. */
+export const CLOUD_BACKUP_KEY = 'vszw-backup-cloud-before-sync';
 
 /** Liest die Grundlage für `userId`; fremdes Konto, kaputte Werte → null. */
 export function parseBase(raw: string | null, userId: string): SyncBase | null {
@@ -28,6 +30,29 @@ export function parseBase(raw: string | null, userId: string): SyncBase | null {
   return { version, pending: record.pending === true };
 }
 
+/**
+ * Konto, mit dem der lokale Stand zuletzt abgeglichen wurde (steht mit in der Grundlage);
+ * null = keins bekannt oder unlesbar.
+ */
+export function parseOwner(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const data: unknown = JSON.parse(raw);
+    const user = typeof data === 'object' && data !== null ? (data as Record<string, unknown>).user : undefined;
+    return typeof user === 'string' && user !== '' ? user : null;
+  } catch {
+    return null;
+  }
+}
+
+export function readOwner(storage: Storage): string | null {
+  try {
+    return parseOwner(storage.getItem(BASE_KEY));
+  } catch {
+    return null;
+  }
+}
+
 export function readBase(storage: Storage, userId: string): SyncBase | null {
   try {
     return parseBase(storage.getItem(BASE_KEY), userId);
@@ -44,9 +69,9 @@ export function writeBase(storage: Storage, userId: string, base: SyncBase): voi
   }
 }
 
-export function writeBackup(storage: Storage, code: string): void {
+export function writeBackup(storage: Storage, code: string, key: string = BACKUP_KEY): void {
   try {
-    storage.setItem(BACKUP_KEY, code);
+    storage.setItem(key, code);
   } catch {
     // ignorieren
   }

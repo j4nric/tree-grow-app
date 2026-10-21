@@ -664,7 +664,12 @@ export type ImportError =
   /** Prüfsumme passt nicht – der Code wurde unvollständig oder verändert kopiert. */
   | 'checksum'
   /** Der Inhalt ist kein brauchbarer Spielstand. */
-  | 'invalid';
+  | 'invalid'
+  /**
+   * Stand einer neueren Spielversion (version > SAVE_VERSION): Dieses Spiel kennt seine
+   * Felder nicht und würde sie beim Speichern verlieren – nie laden.
+   */
+  | 'newer';
 
 export type ImportResult = { ok: true; result: LoadResult } | { ok: false; error: ImportError };
 
@@ -711,6 +716,7 @@ export function importCode(code: string, now: number, options: { keepClock?: boo
   } catch {
     return { ok: false, error: 'invalid' };
   }
+  if (isNewerSave(json)) return { ok: false, error: 'newer' };
   let result: LoadResult | null;
   try {
     result = loadGame(json, now);
@@ -721,6 +727,21 @@ export function importCode(code: string, now: number, options: { keepClock?: boo
   if (!result) return { ok: false, error: 'invalid' };
   if (!options.keepClock) result.state.lastTick = now;
   return { ok: true, result };
+}
+
+/**
+ * Stammt der gespeicherte Stand (JSON-Text) aus einer neueren Spielversion? Kaputtes JSON
+ * oder ohne Version → false (darüber entscheidet loadGame).
+ */
+export function isNewerSave(json: string): boolean {
+  let data: unknown;
+  try {
+    data = JSON.parse(json);
+  } catch {
+    return false;
+  }
+  if (!isRecord(data)) return false;
+  return typeof data.version === 'number' && Number.isFinite(data.version) && data.version > SAVE_VERSION;
 }
 
 /** FNV-1a (32 Bit) über die Zeichen – einfach und deterministisch, als 8 Hex-Ziffern. */

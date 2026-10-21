@@ -346,6 +346,11 @@ footer {
   color: var(--muted);
 }
 
+.account-sync.tone-bad {
+  color: var(--bad);
+  font-weight: 600;
+}
+
 .account-hint {
   font-size: 0.75rem;
 }

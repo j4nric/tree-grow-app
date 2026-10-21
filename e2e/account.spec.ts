@@ -1,5 +1,7 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
-import { expect, niche, openGame, seedV3, test, waypoint } from './fixtures';
+import { codeFromJson, serialize } from '../src/core/save';
+import { createInitialState } from '../src/core/state';
+import { SAVE_VERSION, expect, niche, openGame, seedV3, test, waypoint } from './fixtures';
 
 /**
  * Konto und Gerätesync: Ohne VITE_SYNC_URL (so ist das e2e-Build gebaut) gibt es kein
@@ -21,7 +23,8 @@ const syncTest = base.extend<{ pageErrors: string[] }>({
     async ({ context }, use) => {
       const errors: string[] = [];
       context.on('console', (msg) => {
-        if (msg.type() === 'error' && !/status of 40[19]/.test(msg.text())) errors.push(`console: ${msg.text()}`);
+        // Offline-Test: abgebrochene Netzaufrufe sind dort erwartet.
+        if (msg.type() === 'error' && !/status of 40[19]|ERR_INTERNET_DISCONNECTED/.test(msg.text())) errors.push(`console: ${msg.text()}`);
       });
       context.on('weberror', (err) => errors.push(`pageerror: ${err.error().message}`));
       await use(errors);
@@ -62,6 +65,8 @@ test('ohne VITE_SYNC_URL: kein Konto in den Einstellungen, keine Netzaufrufe', a
 });
 
 syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser, baseURL }) => {
+  // Zwei Browser, Bau des Spiels, scrypt: unter paralleler Last oft über 30 s.
+  syncTest.slow();
   const name = `wald${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`;
   const contextA = await browser.newContext({ baseURL, locale: 'de-DE' });
   const contextB = await browser.newContext({ baseURL, locale: 'de-DE' });
@@ -98,6 +103,14 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
     await account(b).getByLabel('Passwort').press('Enter');
     await expect(account(b).locator('[data-ref="account-who"]')).toHaveText(`Angemeldet als ${name}`);
     await expect(b.locator('dialog[data-ref="settings"]')).toContainText('Dein Wald aus dem Konto ist geladen');
+    // Vor dem Ersetzen wurden beide Stände gesichert (lokal und Cloud).
+    const backups = await b.evaluate(() => [
+      localStorage.getItem('vszw-backup-before-sync'),
+      localStorage.getItem('vszw-backup-cloud-before-sync'),
+    ]);
+    expect(backups[0]).toMatch(/^VSZW1:/);
+    expect(backups[1]).toMatch(/^VSZW1:/);
+    expect(backups[0]).not.toBe(backups[1]);
     await closeSettings(b);
     await expect(niche(b, 'litter')).toContainText('1/2 belegt');
     await expect(niche(b, 'roots')).toContainText('Regenwurm');
@@ -140,6 +153,73 @@ syncTest('Konto-Abschnitt passt auf 360 px', async ({ browser, baseURL }) => {
     const register = await section.getByRole('button', { name: 'Konto anlegen' }).boundingBox();
     expect(register!.x + register!.width).toBeLessThanOrEqual(360);
     expect(register!.height).toBeGreaterThanOrEqual(44);
+  } finally {
+    await context.close();
+  }
+});
+
+syncTest('Stand einer neueren Spielversion im Konto: nichts übernehmen, nichts senden, Hinweis', async ({ browser, baseURL, request }) => {
+  const name = `neu${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`;
+  // Ein Gerät mit neuerem Spiel hat schon gespeichert (direkt über die API).
+  const registered = await request.post(`${SYNC_URL}/api/register`, { data: { username: name, password: 'geheim-wald-1' } });
+  expect(registered.status()).toBe(201);
+  const { token } = (await registered.json()) as { token: string };
+  const future = JSON.parse(serialize(createInitialState(0, 1))) as Record<string, unknown>;
+  future.version = SAVE_VERSION + 1;
+  const code = codeFromJson(JSON.stringify(future));
+  const put = await request.put(`${SYNC_URL}/api/save`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { data: code, baseVersion: 0, deviceId: 'zukunft', action: true, schema: SAVE_VERSION + 1 },
+  });
+  expect(put.status()).toBe(200);
+
+  const context = await browser.newContext({ baseURL, locale: 'de-DE' });
+  const page = await context.newPage();
+  try {
+    await enableSync(context);
+    await openGame(page);
+    await openSettings(page);
+    await account(page).getByLabel('Benutzername').fill(name);
+    await account(page).getByLabel('Passwort').fill('geheim-wald-1');
+    await account(page).getByRole('button', { name: 'Anmelden' }).click();
+    await expect(account(page).locator('[data-ref="account-sync"]')).toContainText('Neue Spielversion – bitte neu laden');
+    // Der neuere Stand bleibt unangetastet.
+    const res = await request.get(`${SYNC_URL}/api/save`, { headers: { Authorization: `Bearer ${token}` } });
+    expect(await res.json()).toMatchObject({ data: code, version: 1, deviceId: 'zukunft', schema: SAVE_VERSION + 1 });
+  } finally {
+    await context.close();
+  }
+});
+
+syncTest('Abmelden mit noch nicht gesendeten Änderungen: erst Hinweis, dann trotzdem', async ({ browser, baseURL }) => {
+  const name = `ab${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`;
+  const context = await browser.newContext({ baseURL, locale: 'de-DE' });
+  const page = await context.newPage();
+  try {
+    await enableSync(context);
+    await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 400, niches: { roots: ['earthworm'], litter: ['robin'] } });
+    await openGame(page);
+    await openSettings(page);
+    await account(page).getByLabel('Benutzername').fill(name);
+    await account(page).getByLabel('Passwort').fill('geheim-wald-1');
+    await account(page).getByRole('button', { name: 'Konto anlegen' }).click();
+    await expect(account(page).locator('[data-ref="account-sync"]')).toHaveText(/Synchronisiert|Gespeichert/);
+    await closeSettings(page);
+
+    // Offline eine Aktion: Sie kann nicht gesendet werden.
+    await context.setOffline(true);
+    await page
+      .locator('[data-ref="care"] [data-care="leaf-litter"]')
+      .getByRole('button', { name: 'Kaufen (200 🌰)' })
+      .click();
+    await openSettings(page);
+    const signOut = account(page).locator('[data-ref="account-signout"]');
+    await signOut.click();
+    await expect(account(page).locator('[data-ref="account-status"]')).toContainText('noch nicht im Konto');
+    await expect(signOut).toHaveText('Trotzdem abmelden');
+    await signOut.click();
+    await expect(account(page).locator('[data-ref="account-status"]')).toHaveText(/Abgemeldet/);
+    await expect(account(page).getByLabel('Benutzername')).toBeVisible();
   } finally {
     await context.close();
   }
