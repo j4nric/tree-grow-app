@@ -17,8 +17,7 @@ import { SEED_SECONDS_MIN_SEEDS } from '../content/events';
 import {
   FOREST_MEMORY_BONUS,
   MEMORY_HARMONY_DIVISOR,
-  MEMORY_HARMONY_MAX_POINTS,
-  MEMORY_HARMONY_THRESHOLD,
+  MEMORY_HARMONY_RULES,
   MEMORY_PER_HARMONY_POINT,
   MEMORY_PER_NEW_SPECIES,
   MEMORY_PER_REGULAR_SLOT,
@@ -1226,20 +1225,54 @@ function finite(value: number): number {
 // Neuer Zyklus: Waldgedächtnis und Stammgäste (DESIGN_V2.md, Abschnitt 10)
 // ---------------------------------------------------------------------------
 
+/** Harmonie-Bonus beim Neuen Zyklus für eine erreichte Stufe (content/memory.ts). */
+export interface MemoryHarmonyBonus {
+  /** Stufe (Index in STAGES), ab der diese Regel gilt. */
+  stage: number;
+  threshold: number;
+  maxPoints: number;
+  /** Ab dieser (gerundeten) höchsten Harmonie ist der Bonus voll: Schwelle + ⌈Obergrenze / 3⌉. */
+  fullAt: number;
+}
+
 /**
- * Waldgedächtnis, das ein Neuer Zyklus einbringt (Schritt 2.11):
- * mit H = round(H_max): `floor(H / 5) + min(45, 3 · max(0, H − 100)) + neue Arten` (Zahlen in
- * content/memory.ts),
- * begrenzt, sodass der Bestand MAX_FOREST_MEMORY nicht übersteigt. Negative Harmonie
- * zählt als 0; NaN und Unsinn ergeben 0 statt kaputter Spielstände.
+ * Regel des Harmonie-Bonus für die erreichte Stufe (Schritt 2.11b): die letzte aus
+ * MEMORY_HARMONY_RULES, deren Stufe erreicht ist; darunter (Vorschau vor dem Hain) und
+ * bei Unsinn die erste.
  */
-export function cycleMemoryGain(maxHarmony: number, newSpeciesCount: number, forestMemory: number): number {
+export function memoryHarmonyBonus(stage: number): MemoryHarmonyBonus {
+  const reached = Number.isFinite(stage) ? stage : 0;
+  let rule = MEMORY_HARMONY_RULES[0]!;
+  let ruleStage = Math.max(0, STAGES.findIndex((s) => s.id === rule.stage));
+  for (const r of MEMORY_HARMONY_RULES) {
+    const index = STAGES.findIndex((s) => s.id === r.stage);
+    if (index >= 0 && index <= reached) {
+      rule = r;
+      ruleStage = index;
+    }
+  }
+  return {
+    stage: ruleStage,
+    threshold: rule.threshold,
+    maxPoints: rule.maxPoints,
+    fullAt: rule.threshold + Math.ceil(rule.maxPoints / MEMORY_PER_HARMONY_POINT),
+  };
+}
+
+/**
+ * Waldgedächtnis, das ein Neuer Zyklus einbringt (Schritt 2.11, Schwelle je Stufe seit 2.11b):
+ * mit H = round(H_max): `floor(H / 5) + min(Obergrenze, 3 · max(0, H − Schwelle)) + neue Arten`,
+ * Schwelle und Obergrenze je erreichter Stufe `stage` (memoryHarmonyBonus, Zahlen in
+ * content/memory.ts), begrenzt, sodass der Bestand MAX_FOREST_MEMORY nicht übersteigt.
+ * Negative Harmonie zählt als 0; NaN und Unsinn ergeben 0 statt kaputter Spielstände.
+ */
+export function cycleMemoryGain(maxHarmony: number, newSpeciesCount: number, forestMemory: number, stage: number): number {
   // Einmal kaufmännisch runden – dieselbe ganze Zahl, die Panel, Statistik und Seitenleiste
   // als „Höchste Harmonie“ zeigen (100,6 → 101 zählt also schon extra).
   const harmony = Math.round(Math.max(0, finite(maxHarmony)));
-  const above = Math.max(0, harmony - MEMORY_HARMONY_THRESHOLD);
-  const harmonyPoints =
-    Math.floor(harmony / MEMORY_HARMONY_DIVISOR) + Math.min(MEMORY_HARMONY_MAX_POINTS, MEMORY_PER_HARMONY_POINT * above);
+  const bonus = memoryHarmonyBonus(stage);
+  const above = Math.max(0, harmony - bonus.threshold);
+  const harmonyPoints = Math.floor(harmony / MEMORY_HARMONY_DIVISOR) + Math.min(bonus.maxPoints, MEMORY_PER_HARMONY_POINT * above);
   const speciesPoints = MEMORY_PER_NEW_SPECIES * Math.max(0, Math.floor(finite(newSpeciesCount)));
   const room = MAX_FOREST_MEMORY - Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
   return Math.min(room, harmonyPoints + speciesPoints);

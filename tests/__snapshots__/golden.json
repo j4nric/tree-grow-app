@@ -110,24 +110,67 @@
     "memory": {
       "bonus": 0.01,
       "harmonyDivisor": 5,
-      "harmonyThreshold": 100,
       "perHarmonyPoint": 3,
-      "harmonyMaxPoints": 45,
-      "harmonyFullAt": 115,
+      "harmonyBonusByStage": {
+        "grove": "über 100: +3 je Punkt, höchstens 45 (voll ab 115)",
+        "forest": "über 120: +3 je Punkt, höchstens 36 (voll ab 132)",
+        "ancient-forest": "über 150: +3 je Punkt, höchstens 36 (voll ab 162)"
+      },
       "perNewSpecies": 1,
       "perRegularSlot": 25,
-      "gainByMaxHarmony": [
-        "H_max 4.4 → 0",
-        "H_max 4.5 → 1",
-        "H_max 81 → 16",
-        "H_max 100.4 → 20",
-        "H_max 100.5 → 23",
-        "H_max 103 → 29",
-        "H_max 110.4 → 52",
-        "H_max 114.6 → 68",
-        "H_max 140 → 73",
-        "H_max 175 → 80"
-      ]
+      "gainByMaxHarmony": {
+        "grove": [
+          "H_max 4.4 → 0",
+          "H_max 4.5 → 1",
+          "H_max 81 → 16",
+          "H_max 100.4 → 20",
+          "H_max 100.5 → 23",
+          "H_max 103 → 29",
+          "H_max 110.4 → 52",
+          "H_max 114.6 → 68",
+          "H_max 120 → 69",
+          "H_max 130 → 71",
+          "H_max 140 → 73",
+          "H_max 150 → 75",
+          "H_max 160 → 77",
+          "H_max 175 → 80",
+          "H_max 195 → 84"
+        ],
+        "forest": [
+          "H_max 4.4 → 0",
+          "H_max 4.5 → 1",
+          "H_max 81 → 16",
+          "H_max 100.4 → 20",
+          "H_max 100.5 → 20",
+          "H_max 103 → 20",
+          "H_max 110.4 → 22",
+          "H_max 114.6 → 23",
+          "H_max 120 → 24",
+          "H_max 130 → 56",
+          "H_max 140 → 64",
+          "H_max 150 → 66",
+          "H_max 160 → 68",
+          "H_max 175 → 71",
+          "H_max 195 → 75"
+        ],
+        "ancient-forest": [
+          "H_max 4.4 → 0",
+          "H_max 4.5 → 1",
+          "H_max 81 → 16",
+          "H_max 100.4 → 20",
+          "H_max 100.5 → 20",
+          "H_max 103 → 20",
+          "H_max 110.4 → 22",
+          "H_max 114.6 → 23",
+          "H_max 120 → 24",
+          "H_max 130 → 26",
+          "H_max 140 → 28",
+          "H_max 150 → 30",
+          "H_max 160 → 62",
+          "H_max 175 → 71",
+          "H_max 195 → 75"
+        ]
+      }
     }
   },
   "evaluations": {

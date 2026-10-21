@@ -32,6 +32,12 @@ export const CYCLE_RUNS_MAX = 200;
 // zwischen 0,87 und 1,11 (mit 40, 12 Fenster: 0,90–1,02; Grenze im Check ≥ 0,84, siehe
 // balance-cycles.test.ts und DESIGN_V2.md 15.4, Stand 2.11).
 export const CYCLE_RUNS = Math.min(requested ?? 40, CYCLE_RUNS_MAX);
+/**
+ * Durchgänge über mehrere Zyklen mit Neustart in Hain, Wald und Urwald
+ * (balance-restart.test.ts, Schritt 2.11b). Im Check wenige, weil ein Urwald-Zyklus lang ist.
+ */
+export const RESTART_RUNS_MAX = 100;
+export const RESTART_RUNS = Math.min(requested ?? 12, RESTART_RUNS_MAX);
 /** Zyklen am Stück. */
 export const CYCLES = 3;
 

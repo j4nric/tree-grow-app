@@ -3,7 +3,7 @@ import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { SPECIES } from '../src/content/species';
 import { SEASON_SECONDS } from '../src/content/seasons';
 import { STAGES } from '../src/content/stages';
-import { cycleMemoryGain, evaluate, regularSlots } from '../src/core/formulas';
+import { cycleMemoryGain, evaluate, memoryHarmonyBonus, regularSlots } from '../src/core/formulas';
 import { MAX_CYCLE_NUMBER, deserialize, loadGame, serialize, v6Threshold } from '../src/core/save';
 import { seasonIdAt } from '../src/core/season';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, allAnimals, createCycle, createInitialState, type GameState } from '../src/core/state';
@@ -24,6 +24,8 @@ import {
 } from '../src/core/tick';
 import { stateAt } from './helpers';
 
+const HAIN = NEW_CYCLE_MIN_STAGE;
+
 /** Spielstand im Hain mit Tieren, Pflanzen, einer offenen Begegnung und Tagebuch. */
 function groveState(seed = 5): GameState {
   const state = stateAt(NEW_CYCLE_MIN_STAGE, ['earthworm', 'robin', 'bluetit', 'bee'], seed);
@@ -40,39 +42,90 @@ describe('Waldgedächtnis-Formel (DESIGN_V2.md 10)', () => {
   it('H = round(H_max): floor(H/5) + 3 je Punkt über 100 (höchstens 45) + neue Arten (seit Schritt 2.11)', () => {
     // Beispiele aus DESIGN_V2.md 15.4: Harmonie-Spieler beim Hain ~110, Wachstums-Spieler ~103,
     // Gelegenheitsspieler ~81 (nur Sockel und Arten, wie vor 2.11).
-    expect(cycleMemoryGain(110.4, 12, 0)).toBe(22 + 30 + 12);
-    expect(cycleMemoryGain(102.8, 13, 0)).toBe(20 + 9 + 13); // 102,8 → 103
-    expect(cycleMemoryGain(81, 13, 0)).toBe(16 + 13);
+    expect(cycleMemoryGain(110.4, 12, 0, HAIN)).toBe(22 + 30 + 12);
+    expect(cycleMemoryGain(102.8, 13, 0, HAIN)).toBe(20 + 9 + 13); // 102,8 → 103
+    expect(cycleMemoryGain(81, 13, 0, HAIN)).toBe(16 + 13);
     // Gerundet wie die Anzeige „Höchste Harmonie“: ab 100,5 gilt 101 und zählt extra.
-    expect(cycleMemoryGain(100.4, 0, 0)).toBe(20);
-    expect(cycleMemoryGain(100.5, 0, 0)).toBe(20 + 3);
-    expect(cycleMemoryGain(100.6, 0, 0)).toBe(20 + 3);
-    expect(cycleMemoryGain(100.99, 11, 0)).toBe(20 + 3 + 11);
-    expect(cycleMemoryGain(101, 0, 0)).toBe(20 + 3);
+    expect(cycleMemoryGain(100.4, 0, 0, HAIN)).toBe(20);
+    expect(cycleMemoryGain(100.5, 0, 0, HAIN)).toBe(20 + 3);
+    expect(cycleMemoryGain(100.6, 0, 0, HAIN)).toBe(20 + 3);
+    expect(cycleMemoryGain(100.99, 11, 0, HAIN)).toBe(20 + 3 + 11);
+    expect(cycleMemoryGain(101, 0, 0, HAIN)).toBe(20 + 3);
     // Auch der Sockel rechnet mit dem gerundeten Wert.
-    expect(cycleMemoryGain(4.49, 0, 0)).toBe(0);
-    expect(cycleMemoryGain(4.5, 0, 0)).toBe(1);
-    expect(cycleMemoryGain(5, 0, 0)).toBe(1);
-    expect(cycleMemoryGain(0, 0, 0)).toBe(0);
+    expect(cycleMemoryGain(4.49, 0, 0, HAIN)).toBe(0);
+    expect(cycleMemoryGain(4.5, 0, 0, HAIN)).toBe(1);
+    expect(cycleMemoryGain(5, 0, 0, HAIN)).toBe(1);
+    expect(cycleMemoryGain(0, 0, 0, HAIN)).toBe(0);
     // Ab 115 (gerundet) ist der Bonus voll: 45 Punkte.
-    expect(cycleMemoryGain(114.4, 0, 0)).toBe(22 + 42);
-    expect(cycleMemoryGain(114.6, 0, 0)).toBe(23 + 45);
-    expect(cycleMemoryGain(115, 0, 0)).toBe(23 + 45);
-    expect(cycleMemoryGain(174, 21, 0)).toBe(34 + 45 + 21);
+    expect(cycleMemoryGain(114.4, 0, 0, HAIN)).toBe(22 + 42);
+    expect(cycleMemoryGain(114.6, 0, 0, HAIN)).toBe(23 + 45);
+    expect(cycleMemoryGain(115, 0, 0, HAIN)).toBe(23 + 45);
+    expect(cycleMemoryGain(174, 21, 0, HAIN)).toBe(34 + 45 + 21);
+  });
+
+  it('Schwelle je erreichter Stufe (Schritt 2.11b): Hain über 100, Wald über 120, Urwald über 150', () => {
+    const WALD = HAIN + 1;
+    const URWALD = HAIN + 2;
+    expect(STAGES[WALD]!.id).toBe('forest');
+    expect(STAGES[URWALD]!.id).toBe('ancient-forest');
+    expect(memoryHarmonyBonus(HAIN)).toEqual({ stage: HAIN, threshold: 100, maxPoints: 45, fullAt: 115 });
+    expect(memoryHarmonyBonus(WALD)).toEqual({ stage: WALD, threshold: 120, maxPoints: 36, fullAt: 132 });
+    expect(memoryHarmonyBonus(URWALD)).toEqual({ stage: URWALD, threshold: 150, maxPoints: 36, fullAt: 162 });
+    // Vor dem Hain (nur Vorschau), hinter dem Urwald und bei Unsinn: nächstliegende Regel.
+    expect(memoryHarmonyBonus(0)).toEqual(memoryHarmonyBonus(HAIN));
+    expect(memoryHarmonyBonus(HAIN - 1)).toEqual(memoryHarmonyBonus(HAIN));
+    expect(memoryHarmonyBonus(NaN)).toEqual(memoryHarmonyBonus(HAIN));
+    expect(memoryHarmonyBonus(-3)).toEqual(memoryHarmonyBonus(HAIN));
+    expect(memoryHarmonyBonus(99)).toEqual(memoryHarmonyBonus(URWALD));
+    expect(cycleMemoryGain(110.4, 12, 0, 0)).toBe(cycleMemoryGain(110.4, 12, 0, HAIN));
+    // Typische Werte aus der Simulation (DESIGN_V2.md 15.4, Stand 2.11b): Harmonie- /
+    // Wachstums- / Gelegenheitsspieler im Wald H_max ~143 / 127 / 108, im Urwald ~175 / 154 / 131.
+    expect(cycleMemoryGain(143, 16, 0, WALD)).toBe(28 + 36 + 16);
+    expect(cycleMemoryGain(127, 17, 0, WALD)).toBe(25 + 21 + 17);
+    expect(cycleMemoryGain(108, 17, 0, WALD)).toBe(21 + 17);
+    expect(cycleMemoryGain(175, 21, 0, URWALD)).toBe(35 + 36 + 21);
+    expect(cycleMemoryGain(154, 22, 0, URWALD)).toBe(30 + 12 + 22);
+    expect(cycleMemoryGain(131, 21, 0, URWALD)).toBe(26 + 21);
+    // Gerundet wie die Anzeige; voll ab Schwelle + 12.
+    expect(cycleMemoryGain(120.4, 0, 0, WALD)).toBe(24);
+    expect(cycleMemoryGain(120.5, 0, 0, WALD)).toBe(24 + 3);
+    expect(cycleMemoryGain(131.4, 0, 0, WALD)).toBe(26 + 33);
+    expect(cycleMemoryGain(132, 0, 0, WALD)).toBe(26 + 36);
+    expect(cycleMemoryGain(150.5, 0, 0, URWALD)).toBe(30 + 3);
+    expect(cycleMemoryGain(162, 0, 0, URWALD)).toBe(32 + 36);
+    expect(cycleMemoryGain(195, 0, 0, URWALD)).toBe(39 + 36);
+    // Unsinn bleibt 0, die Obergrenze gilt auch hier.
+    expect(cycleMemoryGain(NaN, NaN, NaN, URWALD)).toBe(0);
+    expect(cycleMemoryGain(175, 21, MAX_FOREST_MEMORY - 5, URWALD)).toBe(5);
+  });
+
+  it('Vorschau und Neuer Zyklus rechnen mit der erreichten Stufe', () => {
+    const state = groveState();
+    state.cycle.maxHarmony = 140;
+    state.cycle.newSpecies = Array.from({ length: 10 }, (_, i) => SPECIES[i]!.id);
+    expect(previewNewCycle(state)).toMatchObject({ memoryGain: 28 + 45 + 10, harmonyBonus: memoryHarmonyBonus(HAIN) });
+    state.stage = HAIN + 1;
+    expect(previewNewCycle(state)).toMatchObject({ memoryGain: 28 + 36 + 10, harmonyBonus: { threshold: 120, fullAt: 132 } });
+    state.stage = HAIN + 2;
+    const preview = previewNewCycle(state);
+    expect(preview).toMatchObject({ memoryGain: 28 + 0 + 10, harmonyBonus: { threshold: 150, fullAt: 162 } });
+    const memory = state.meta.forestMemory;
+    expect(startNewCycle(state, 0).ok).toBe(true);
+    expect(state.meta.forestMemory).toBe(memory + preview.memoryGain);
   });
 
   it('Obergrenze MAX_FOREST_MEMORY: der Gewinn füllt höchstens bis zur Grenze auf', () => {
-    expect(cycleMemoryGain(96, 12, MAX_FOREST_MEMORY - 10)).toBe(10);
-    expect(cycleMemoryGain(96, 12, MAX_FOREST_MEMORY)).toBe(0);
-    expect(cycleMemoryGain(1e300, 1e300, 0)).toBe(MAX_FOREST_MEMORY);
-    expect(cycleMemoryGain(Infinity, 0, 0)).toBe(0); // Unsinn zählt nicht
+    expect(cycleMemoryGain(96, 12, MAX_FOREST_MEMORY - 10, HAIN)).toBe(10);
+    expect(cycleMemoryGain(96, 12, MAX_FOREST_MEMORY, HAIN)).toBe(0);
+    expect(cycleMemoryGain(1e300, 1e300, 0, HAIN)).toBe(MAX_FOREST_MEMORY);
+    expect(cycleMemoryGain(Infinity, 0, 0, HAIN)).toBe(0); // Unsinn zählt nicht
   });
 
   it('negative Harmonie, NaN und negative Anzahlen ergeben 0 statt Abzug', () => {
-    expect(cycleMemoryGain(-50, 0, 0)).toBe(0);
-    expect(cycleMemoryGain(NaN, NaN, NaN)).toBe(0);
-    expect(cycleMemoryGain(130, -4, 0)).toBe(26 + 45);
-    expect(cycleMemoryGain(30, 4, 0)).toBe(6 + 4);
+    expect(cycleMemoryGain(-50, 0, 0, HAIN)).toBe(0);
+    expect(cycleMemoryGain(NaN, NaN, NaN, HAIN)).toBe(0);
+    expect(cycleMemoryGain(130, -4, 0, HAIN)).toBe(26 + 45);
+    expect(cycleMemoryGain(30, 4, 0, HAIN)).toBe(6 + 4);
   });
 
   it('Stammgast-Plätze: einer je 25 Punkte', () => {

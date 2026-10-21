@@ -26,6 +26,7 @@
  */
 import { COMMUNITIES } from '../src/content/communities';
 import { GENUS_INFO, SPECIES_BY_ID } from '../src/content/species';
+import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { STAGES } from '../src/content/stages';
 import { GENERA, NICHE_IDS, type EncounterType, type Genus } from '../src/content/types';
 import { CARE } from '../src/content/care';
@@ -528,6 +529,8 @@ export interface CycleRun {
   /** Waldgedächtnis zu Beginn des Zyklus und Gewinn an seinem Ende (previewNewCycle). */
   memory: number;
   memoryGain: number;
+  /** Höchste Harmonie des Zyklus (H_max, ungerundet) beim Neustart. */
+  maxHarmony: number;
   /** Arten, die in diesem Zyklus neu ins Tagebuch kamen. */
   newSpecies: number;
   /** Gewählte Stammgäste in diesem Zyklus und wie viele davon eingezogen sind. */
@@ -580,6 +583,7 @@ export function runCycles(strategy: Strategy, options: CycleOptions): CycleRun[]
       result,
       memory,
       memoryGain: preview.memoryGain,
+      maxHarmony: preview.maxHarmony,
       newSpecies: preview.newSpecies,
       regulars,
       regularsMovedIn: result.final.counts.regulars,
@@ -1365,6 +1369,50 @@ export function cycleTable(rows: readonly { strategy: Strategy; runs: CycleRun[]
         `| ${strategy.name} | ${c + 1} | ${at(2)} | ${at(3)} | ${at(4)} | ${at(5)} | ${c === 0 ? '–' : signedPct(hainOf(c) / hainOf(0) - 1)} | ${fmt(m((r) => r.memory), 1)} / +${fmt(m((r) => r.memoryGain), 1)} | ${fmt(m((r) => r.newSpecies), 1)} | ${fmt(m((r) => r.regulars.length), 2)} / ${fmt(m((r) => r.regularsMovedIn), 2)} | ${fmt(m((r) => r.result.stages[5]?.harmony ?? NaN), 1)} |`,
       );
     }
+  }
+  return lines.join('\n');
+}
+
+/** Ein Lauf über mehrere Zyklen mit Neustart in einer bestimmten Stufe (restartTable). */
+export interface RestartRow {
+  /** Stufe (Index in STAGES), in der jeder Zyklus neu beginnt (= targetStage). */
+  stage: number;
+  strategy: Strategy;
+  runs: CycleRun[][];
+}
+
+/** Zeit bis zur Ziel-Stufe in Zyklus `c` (Median, s). */
+export function restartTime(row: RestartRow, c: number): number {
+  return median(row.runs.map((r) => r[c]?.result.stages[row.stage]?.time ?? NaN));
+}
+
+/** Mittlerer Gedächtnis-Gewinn am Ende von Zyklus `c`. */
+export function restartGain(row: RestartRow, c: number): number {
+  return mean(row.runs.map((r) => r[c]?.memoryGain ?? NaN));
+}
+
+/**
+ * Neustart in verschiedenen Stufen (Schritt 2.11b): je Stufe und Strategie die Zeit bis zur
+ * Ziel-Stufe je Zyklus (Median), H_max und Gedächtnis-Gewinn je Zyklus (Mittel), die Summe
+ * über alle Zyklen, das Verhältnis Wachstum/Harmonie je Zyklus und der Gewinn in Zyklus 1
+ * gegenüber dem Neustart im Hain derselben Strategie.
+ */
+export function restartTable(rows: readonly RestartRow[]): string {
+  const cycles = rows[0]?.runs[0]?.length ?? 0;
+  const list = (f: (c: number) => string) => Array.from({ length: cycles }, (_, c) => f(c)).join(' / ');
+  const lines = [
+    '| Neustart | Strategie | Ziel-Stufe je Zyklus | H_max je Zyklus | Gedächtnis-Gewinn je Zyklus | Gewinn Zyklus 1 / Hain | Summe | Wachstum / Harmonie je Zyklus |',
+    '|---|---|---|---|---|---|---|---|',
+  ];
+  for (const row of rows) {
+    const hain = rows.find((r) => r.strategy === row.strategy && r.stage === NEW_CYCLE_MIN_STAGE);
+    const harmony = rows.find((r) => r.stage === row.stage && r.strategy.id === HARMONY.id);
+    const growth = rows.find((r) => r.stage === row.stage && r.strategy.id === GROWTH.id);
+    const ratio = row.strategy.id === HARMONY.id && harmony && growth ? list((c) => fmt(restartTime(growth, c) / restartTime(harmony, c), 3)) : '';
+    const total = Array.from({ length: cycles }, (_, c) => restartTime(row, c)).reduce((a, b) => a + b, 0);
+    lines.push(
+      `| ${STAGES[row.stage]?.name ?? row.stage} | ${row.strategy.name} | ${list((c) => formatTime(restartTime(row, c)))} | ${list((c) => fmt(mean(row.runs.map((r) => r[c]!.maxHarmony)), 1))} | ${list((c) => fmt(restartGain(row, c), 1))} | ${hain ? fmt(restartGain(row, 0) / restartGain(hain, 0), 2) : '–'} | ${formatTime(total)} | ${ratio} |`,
+    );
   }
   return lines.join('\n');
 }

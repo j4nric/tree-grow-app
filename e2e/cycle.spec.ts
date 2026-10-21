@@ -58,7 +58,7 @@ test('vor dem Hain: Grund statt Knopf, keine Stammgäste ohne Waldgedächtnis', 
   await expect(panel.locator('[data-ref="regulars"]')).toBeHidden();
   // Die Regel fürs Waldgedächtnis steht schon vor dem Hain da.
   await expect(panel.locator('[data-ref="memory-rule"]')).toHaveText(
-    'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie über 100 zählt extra: +3 je Punkt (bis 115).',
+    'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie über 100 zählt im Hain extra: +3 je Punkt (bis 115).',
   );
 });
 

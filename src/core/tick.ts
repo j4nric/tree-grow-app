@@ -33,6 +33,7 @@ import {
   activeCommunities,
   appearsContext,
   cycleMemoryGain,
+  memoryHarmonyBonus,
   declineReward,
   ecosystemOf,
   evaluateEcosystem,
@@ -52,6 +53,7 @@ import {
   thresholdFor,
   type ChoiceError,
   type Evaluation,
+  type MemoryHarmonyBonus,
 } from './formulas';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import { MAX_ELAPSED, nextSeasonBoundary, normalizeElapsed, seasonIdAt, secondsToNextSeason } from './season';
@@ -771,6 +773,8 @@ export interface NewCyclePreview {
   newSpecies: number;
   /** Gewinn an Waldgedächtnis (schon auf MAX_FOREST_MEMORY begrenzt). */
   memoryGain: number;
+  /** Schwelle und Obergrenze des Harmonie-Bonus für die erreichte Stufe (memoryHarmonyBonus). */
+  harmonyBonus: MemoryHarmonyBonus;
   memoryBefore: number;
   memoryAfter: number;
   /** Plätze für Stammgäste vorher und nachher. */
@@ -792,12 +796,13 @@ export function newCycleBlocker(state: GameState): NewCycleBlocker | null {
 /** Was ein Neuer Zyklus jetzt brächte. Ändert nichts. */
 export function previewNewCycle(state: GameState): NewCyclePreview {
   const memoryBefore = state.meta.forestMemory;
-  const memoryGain = cycleMemoryGain(state.cycle.maxHarmony, state.cycle.newSpecies.length, memoryBefore);
+  const memoryGain = cycleMemoryGain(state.cycle.maxHarmony, state.cycle.newSpecies.length, memoryBefore, state.stage);
   return {
     blocker: newCycleBlocker(state),
     maxHarmony: state.cycle.maxHarmony,
     newSpecies: state.cycle.newSpecies.length,
     memoryGain,
+    harmonyBonus: memoryHarmonyBonus(state.stage),
     memoryBefore,
     memoryAfter: memoryBefore + memoryGain,
     regularSlotsBefore: regularSlots(memoryBefore),
