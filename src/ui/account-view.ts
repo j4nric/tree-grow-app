@@ -145,6 +145,7 @@ export const BACKUP_REASON_TEXTS: Readonly<Record<BackupReason, string>> = {
   'before-take': 'Stand dieses Geräts vor dem Übernehmen',
   'before-restore': 'Stand vor dem Wiederherstellen',
   'before-replace': 'Stand vor dem Löschen bzw. Importieren',
+  'other-tab': 'Noch nicht gesendeter Stand eines anderen Tabs',
   legacy: 'Frühere Sicherung',
 };
 

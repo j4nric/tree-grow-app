@@ -18,12 +18,15 @@ import {
   MAX_BACKUP_CHARS,
   OWNER_KEY,
   addBackup,
+  backupOtherTab,
+  backupPriority,
   baseKey,
   deviceId,
   migrateLegacyBackups,
   migrateLegacyMeta,
   checksum,
   dropOneBackup,
+  dropWriterBackups,
   parseMeta,
   readBackups,
   readBase,
@@ -145,7 +148,7 @@ describe('Speicher-Helfer', () => {
       expect(parseMeta(raw)).toBeNull();
     }
     for (const version of [-1, 1.5, 'x', 1e300]) {
-      expect(parseMeta(JSON.stringify({ user: 'a', version }))).toEqual({ owner: 'a', base: null, save: null });
+      expect(parseMeta(JSON.stringify({ user: 'a', version }))).toEqual({ owner: 'a', base: null, save: null, tab: null });
     }
     storage.blocked = true;
     expect(readMeta(storage)).toEqual({ owner: null, base: null });
@@ -285,6 +288,120 @@ describe('Speicher-Helfer', () => {
     expect(storage.getItem(`${CLOUD_BACKUP_KEY}:owner`)).toBeNull();
     migrateLegacyBackups(storage, 6000);
     expect(readBackups(storage)).toHaveLength(2);
+  });
+
+  it('Abgleich-Angaben: Kennung des schreibenden Tabs (fehlt bei alten Einträgen)', () => {
+    const storage = new MemoryStorage();
+    writeMeta(storage, { owner: 'eiche', base: { version: 3, pending: true } }, 'h', 'tab-1');
+    expect(JSON.parse(storage.getItem(BASE_KEY)!)).toEqual({ user: 'eiche', version: 3, pending: true, save: 'h', tab: 'tab-1' });
+    expect(parseMeta(storage.getItem(BASE_KEY))?.tab).toBe('tab-1');
+    expect(parseMeta(JSON.stringify({ user: 'eiche', version: 3, pending: true, save: 'h' }))?.tab).toBeNull();
+    expect(parseMeta(JSON.stringify({ user: 'eiche', version: 3, pending: true, save: 'h', tab: 7 }))?.tab).toBeNull();
+    expect(parseMeta(JSON.stringify({ user: 'eiche', version: 3, pending: true, save: 'h', tab: '' }))?.tab).toBeNull();
+  });
+
+  it('backupOtherTab: sichert den Stand eines anderen Tabs mit offener Aktion, je Tab nur den neuesten', () => {
+    const storage = new MemoryStorage();
+    const progressOf = (code: string) => ({ cycle: 1, lifetimeGrowth: code.length, playSeconds: 0 });
+    // Kein Konto-Bezug (rein lokal): nichts sichern.
+    storage.setItem(SAVE_KEY, 'lokal');
+    expect(backupOtherTab(storage, 'meins', 1, progressOf)).toBe('none');
+    expect(readBackups(storage)).toEqual([]);
+    // Tab 1 hat eine offene Aktion gespeichert; Tab 2 (zuletzt 'meins') will darüber speichern.
+    storage.setItem(SAVE_KEY, 'tab1-a');
+    writeMeta(storage, { owner: 'eiche', base: { version: 2, pending: true } }, checksum('tab1-a'), 'tab-1');
+    expect(backupOtherTab(storage, 'meins', 5, progressOf)).toBe('saved');
+    expect(readBackups(storage)).toMatchObject([{ code: 'tab1-a', owner: 'eiche', reason: 'other-tab', writer: 'tab-1', at: 5 }]);
+    // Derselbe Stand noch einmal: Ring bleibt unverändert (auch der Zeitpunkt).
+    const raw = storage.getItem(BACKUPS_KEY);
+    storage.failNext.set(BACKUPS_KEY, 1);
+    expect(backupOtherTab(storage, 'meins', 6, progressOf)).toBe('saved');
+    expect(storage.getItem(BACKUPS_KEY)).toBe(raw);
+    storage.failNext.clear();
+    // Der eigene Stand (Prüfsumme und Länge = zuletzt hier gespeichert) wird nie gesichert.
+    expect(backupOtherTab(storage, checksum('tab1-a'), 6, progressOf, 'tab1-a'.length)).toBe('none');
+    expect(readBackups(storage)).toHaveLength(1);
+    // Neuerer Stand desselben Tabs ersetzt den älteren.
+    storage.setItem(SAVE_KEY, 'tab1-ab');
+    writeMeta(storage, { owner: 'eiche', base: { version: 2, pending: true } }, checksum('tab1-ab'), 'tab-1');
+    backupOtherTab(storage, 'meins', 7, progressOf);
+    expect(readBackups(storage).map((e) => e.code)).toEqual(['tab1-ab']);
+    // Ein zweiter Tab bekommt seine eigene Sicherung.
+    storage.setItem(SAVE_KEY, 'tab3');
+    writeMeta(storage, { owner: 'eiche', base: { version: 2, pending: true } }, checksum('tab3'), 'tab-3');
+    backupOtherTab(storage, 'meins', 8, progressOf);
+    expect(readBackups(storage).map((e) => e.code)).toEqual(['tab1-ab', 'tab3']);
+    // Nichts offen: nichts sichern.
+    storage.setItem(SAVE_KEY, 'tab4');
+    writeMeta(storage, { owner: 'eiche', base: { version: 3, pending: false } }, checksum('tab4'), 'tab-4');
+    expect(backupOtherTab(storage, 'meins', 9, progressOf)).toBe('none');
+    expect(readBackups(storage)).toHaveLength(2);
+    // Grundlage unbekannt (z. B. nach einem Absturz) oder Angaben passen nicht: sichern.
+    writeMeta(storage, { owner: 'eiche', base: null }, checksum('tab4'), 'tab-4');
+    backupOtherTab(storage, 'meins', 10, progressOf);
+    storage.setItem(SAVE_KEY, 'tab5');
+    backupOtherTab(storage, 'meins', 11, progressOf);
+    expect(readBackups(storage).map((e) => [e.code, e.writer])).toEqual([
+      ['tab1-ab', 'tab-1'],
+      ['tab3', 'tab-3'],
+      ['tab4', 'tab-4'],
+      ['tab5', `save-${checksum('tab5')}`],
+    ]);
+    // Speicher voll: 'failed'.
+    storage.setItem(SAVE_KEY, 'tab6');
+    storage.failNext.set(BACKUPS_KEY, 1);
+    expect(backupOtherTab(storage, 'meins', 12, progressOf)).toBe('failed');
+    // Blockierter Speicher: kein Absturz.
+    storage.blocked = true;
+    expect(backupOtherTab(storage, 'meins', 13, progressOf)).toBe('failed');
+  });
+
+  it('backupOtherTab, schneller Weg: Angaben passen zum eigenen Stand, aber andere Länge → prüfen', () => {
+    const storage = new MemoryStorage();
+    const progressOf = () => null;
+    // Ein anderer Tab hat gespeichert, seine Angaben aber nicht (Absturz) – die Angaben sind noch unsere.
+    writeMeta(storage, { owner: 'eiche', base: { version: 2, pending: false } }, checksum('meins'), 'tab-ich');
+    storage.setItem(SAVE_KEY, 'fremd-laenger');
+    expect(backupOtherTab(storage, checksum('meins'), 1, progressOf)).toBe('none'); // ohne Länge: wie früher
+    expect(backupOtherTab(storage, checksum('meins'), 1, progressOf, 'meins'.length)).toBe('saved');
+    expect(readBackups(storage)).toMatchObject([{ code: 'fremd-laenger', reason: 'other-tab' }]);
+    // Eigener Stand gespeichert: nichts.
+    storage.setItem(SAVE_KEY, 'meins');
+    expect(backupOtherTab(storage, checksum('meins'), 2, progressOf, 'meins'.length)).toBe('none');
+  });
+
+  it('dropWriterBackups: entfernt nur die Sicherungen dieses Tabs (optional nur bis zu einem Zeitpunkt); gewöhnliche Sicherung desselben Stands bleibt', () => {
+    const storage = new MemoryStorage();
+    addBackup(storage, { ...entry('a', 'other-tab'), writer: 'tab-1' });
+    addBackup(storage, { ...entry('b', 'other-tab'), writer: 'tab-2' });
+    addBackup(storage, entry('c', 'lost-action'));
+    expect(dropWriterBackups(storage, 'tab-1')).toBe(true);
+    expect(readBackups(storage).map((e) => e.code)).toEqual(['b', 'c']);
+    expect(dropWriterBackups(storage, 'gibt-es-nicht')).toBe(false);
+    expect(dropWriterBackups(storage, 'tab-2', 999)).toBe(false); // später angelegt
+    expect(readBackups(storage).map((e) => e.code)).toEqual(['b', 'c']);
+    // Derselbe Stand wird von seinem Tab als überholte Aktion gesichert: bleibt danach erhalten.
+    addBackup(storage, entry('b', 'lost-action'));
+    expect(readBackups(storage).find((e) => e.code === 'b')).toMatchObject({ reason: 'lost-action' });
+    expect(readBackups(storage).find((e) => e.code === 'b')?.writer).toBeUndefined();
+    dropWriterBackups(storage, 'tab-2');
+    expect(readBackups(storage).map((e) => e.code)).toEqual(['b', 'c']);
+    // Kaputtes writer-Feld: Eintrag fällt beim Lesen weg.
+    storage.setItem(BACKUPS_KEY, JSON.stringify([{ id: 'x', code: 'k', owner: null, at: 1, reason: 'other-tab', writer: 5 }]));
+    expect(readBackups(storage)).toEqual([]);
+  });
+
+  it("Ring voll mit überholten Aktionen und verwaisten 'other-tab': die Waisen weichen zuerst, nie eine überholte Aktion", () => {
+    const storage = new MemoryStorage();
+    expect(backupPriority('other-tab')).toBeLessThan(backupPriority('lost-action'));
+    for (let i = 0; i < 5; i++) addBackup(storage, { ...entry(`waise${i}`, 'other-tab', i), writer: `tab-${i}` });
+    for (let i = 0; i < 5; i++) addBackup(storage, entry(`wichtig${i}`, 'lost-action', 100 + i));
+    for (let i = 5; i < 10; i++) addBackup(storage, entry(`wichtig${i}`, 'lost-action', 100 + i));
+    const codes = readBackups(storage).map((e) => e.code);
+    expect(codes).toEqual(Array.from({ length: 10 }, (_, i) => `wichtig${i}`));
+    // Eine neue Waise verdrängt keine überholte Aktion.
+    expect(addBackup(storage, { ...entry('waise-neu', 'other-tab', 500), writer: 'tab-x' })).toBeNull();
+    expect(readBackups(storage).map((e) => e.code)).toEqual(codes);
   });
 
   it('deviceId: einmal erzeugt, dann gespeichert; kaputte IDs ersetzt', () => {

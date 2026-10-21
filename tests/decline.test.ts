@@ -82,7 +82,6 @@ describe('declineReward: Samen-Sekunden', () => {
     const huge = broken(1e308);
     expect(seedSecondsRate(huge)).toBeGreaterThan(1e300);
     expect(Number.isFinite(declineReward(huge))).toBe(true);
-    // Nach `huge`: Infinity und NaN haben im Raten-Cache denselben Schlüssel (JSON: null).
     const nan = broken(NaN);
     expect(seedSecondsRate(nan)).toBeNaN();
     expect(declineReward(nan)).toBe(SEED_SECONDS_MIN_SEEDS);
@@ -92,6 +91,24 @@ describe('declineReward: Samen-Sekunden', () => {
       declineEncounter(state, 0);
       expect(Number.isFinite(state.seeds)).toBe(true);
     }
+  });
+
+  it('Raten-Cache unterscheidet Infinity, -Infinity und NaN (direkt hintereinander)', () => {
+    const broken = (points: number): GameState => {
+      const state = grove();
+      state.cycle.bonuses.push({ source: 'test', effect: { kind: 'harmony', points } });
+      return state;
+    };
+    const fresh = seedSecondsRate(grove());
+    expect(seedSecondsRate(broken(Infinity))).toBe(Infinity);
+    expect(seedSecondsRate(broken(NaN))).toBeNaN();
+    expect(seedSecondsRate(broken(Infinity))).toBe(Infinity);
+    const negative = seedSecondsRate(broken(-Infinity));
+    expect(Object.is(negative, Infinity)).toBe(false);
+    expect(Number.isNaN(negative)).toBe(false);
+    expect(seedSecondsRate(broken(NaN))).toBeNaN();
+    // Ein heiler Zustand danach bekommt wieder seine eigene Rate.
+    expect(seedSecondsRate(grove())).toBe(fresh);
   });
 });
 
