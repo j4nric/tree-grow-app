@@ -41,11 +41,11 @@ export const ENCOUNTER_WEIGHTS: readonly (readonly [number, number, number, numb
   [60, 40, 0, 0], // Samen
   [60, 40, 0, 0], // Keimling
   [60, 40, 0, 0], // Setzling
-  [60, 25, 15, 0], // Junger Baum
-  [55, 20, 15, 10], // Alter Baum
-  [55, 20, 15, 10], // Hain
-  [55, 20, 15, 10], // Wald
-  [55, 20, 15, 10], // Urwald
+  [65, 25, 10, 0], // Junger Baum
+  [60, 20, 10, 10], // Alter Baum
+  [60, 20, 10, 10], // Hain
+  [60, 20, 10, 10], // Wald
+  [60, 20, 10, 10], // Urwald
 ];
 
 /**
@@ -65,3 +65,29 @@ export const PLANT_WEIGHT_IN_RING = 0.35;
 
 /** Die ersten Begegnungen sind festgelegt (Einführung): Wegpunkt 1, 2, 3 … */
 export const SCRIPTED_ENCOUNTERS: readonly EncounterType[] = ['animal', 'plant', 'animal'];
+
+/**
+ * Zwischenhalt (Schritt 2.4, DESIGN_V2.md 7.2): Ab dieser Stufe kann auf halbem Weg
+ * zwischen zwei Wegpunkten zusätzlich ein Ereignis oder ein Gast kommen – zusätzlich zur
+ * Begegnung am Wegpunkt, ohne eine Tier- oder Pflanzenbegegnung zu verdrängen. Grund:
+ * Nach dem Hain wird der Takt lang (~4,5 min) und volle Nischen erlauben nur noch
+ * Tausch; die längsten Strecken ohne lohnende Wahl lagen im Wald bei 12 min (90 %).
+ */
+export const INTERLUDE_STAGE = 5;
+
+/**
+ * Lage des Zwischenhalts als Anteil des Wachstums zwischen Wegpunkt k und k+1:
+ * Schwelle = thr(k) + INTERLUDE_POSITION · (thr(k+1) − thr(k)). Hängt nur vom
+ * Gesamt-Wachstum ab – online und offline gleich.
+ */
+export const INTERLUDE_POSITION = 0.5;
+
+/** Wahrscheinlichkeit, dass am Zwischenhalt etwas kommt (Zufall des Spielstands). */
+export const INTERLUDE_CHANCE = 0.5;
+
+/**
+ * Gewichte [Ereignis, Durchreisende] am Zwischenhalt. Kommt für einen Typ nichts in Frage
+ * (alle schon gesehen oder Bedingungen nicht erfüllt), gilt der andere; sonst passiert
+ * nichts (kein Samen-Ausgleich – es fehlt ja keine Begegnung).
+ */
+export const INTERLUDE_WEIGHTS: readonly [number, number] = [55, 45];

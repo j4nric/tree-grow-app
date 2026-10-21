@@ -3,6 +3,10 @@ import {
   CARDS_PER_ENCOUNTER,
   DECLINE_SEEDS,
   ENCOUNTER_WEIGHTS,
+  INTERLUDE_CHANCE,
+  INTERLUDE_POSITION,
+  INTERLUDE_STAGE,
+  INTERLUDE_WEIGHTS,
   MAX_PENDING_ENCOUNTERS,
   PLANT_WEIGHT_IN_RING,
   PLANT_WEIGHT_RING_FULL,
@@ -19,6 +23,9 @@ import { TRAITS, TRAIT_THRESHOLDS } from '../src/content/traits';
 import { ENCOUNTER_TYPES, GENERA, NICHE_IDS, PLANT_GROUPS } from '../src/content/types';
 import { plantCost, slotEffects } from '../src/core/formulas';
 import { WAYPOINT_BASE, WAYPOINT_COUNT, WAYPOINT_POWER, WAYPOINT_THRESHOLDS, waypointThreshold } from '../src/content/waypoints';
+import { EVENTS, EVENTS_BY_ID, SEED_SECONDS_MIN_SEEDS, type EventEffect } from '../src/content/events';
+import { VISITORS, VISITORS_BY_ID } from '../src/content/visitors';
+import type { Condition } from '../src/content/types';
 import * as reference from '../scripts/v2/content';
 
 const unique = (ids: string[]) => new Set(ids).size === ids.length;
@@ -134,7 +141,9 @@ describe('Inhalte v2', () => {
     expect(PLANT_COST_BASE).toBe(reference.PLANT_COST_BASE);
     expect(PLANT_COST_GROWTH).toBe(reference.PLANT_COST_GROWTH);
     for (let n = 0; n < 12; n++) expect(plantCost(n)).toBeCloseTo(reference.plantCost(n), 9);
-    expect(ENCOUNTER_WEIGHTS).toEqual(reference.ENCOUNTER_WEIGHTS);
+    // Begegnungsgewichte: bis Setzling wie das Referenzmodell. Ab Junger Baum bewusst
+    // weniger Ereignisse/Gäste am Wegpunkt, dafür der Zwischenhalt (Schritt 2.4, 7.2).
+    expect(ENCOUNTER_WEIGHTS.slice(0, 3)).toEqual(reference.ENCOUNTER_WEIGHTS.slice(0, 3));
     expect(SCRIPTED_ENCOUNTERS).toEqual(reference.SCRIPTED_ENCOUNTERS);
     STAGES.forEach((stage, i) => {
       expect(stage.name).toBe(reference.STAGE_NAMES[i]);
@@ -263,5 +272,171 @@ describe('Inhalte v2', () => {
     expect(MAX_PENDING_ENCOUNTERS).toBe(3);
     expect(DECLINE_SEEDS).toBeGreaterThan(0);
     expect(REROLL_BASE_COST).toBeGreaterThan(DECLINE_SEEDS);
+  });
+});
+
+describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
+  /** Bedingungen wie bei den Arten; „sonnig“/„schattig“ gelten in `appears` immer – darum verboten. */
+  const checkCondition = (c: Condition, where: string) => {
+    expect(['tag', 'group', 'species', 'genus'], where).toContain(c.kind);
+    if (c.kind === 'tag') expect(TAG_NAMES[c.tag], where).toBeDefined();
+    if (c.kind === 'group') expect(PLANT_GROUPS, where).toContain(c.group);
+    if (c.kind === 'species') expect(SPECIES_BY_ID.has(c.id) || PLANTS_BY_ID.has(c.id), where).toBe(true);
+    if (c.kind === 'genus') expect(GENERA, where).toContain(c.genus);
+    if (c.kind === 'group' || c.kind === 'genus') expect(c.min, where).toBeGreaterThanOrEqual(1);
+  };
+
+  it('IDs sind eindeutig – auch über Arten, Pflanzen, Ereignisse und Gäste hinweg', () => {
+    const ids = [...SPECIES.map((s) => s.id), ...PLANTS.map((p) => p.id), ...EVENTS.map((e) => e.id), ...VISITORS.map((v) => v.id)];
+    expect(unique(ids)).toBe(true);
+    expect(unique(EVENTS.map((e) => e.name))).toBe(true);
+    expect(unique(VISITORS.map((v) => v.name))).toBe(true);
+    expect(EVENTS_BY_ID.size).toBe(EVENTS.length);
+    expect(VISITORS_BY_ID.size).toBe(VISITORS.length);
+  });
+
+  it('8–10 Ereignisse mit Name, Symbol, Text und 2–3 Optionen', () => {
+    expect(EVENTS.length).toBeGreaterThanOrEqual(8);
+    expect(EVENTS.length).toBeLessThanOrEqual(10);
+    for (const e of EVENTS) {
+      expect(e.name.length, e.id).toBeGreaterThan(0);
+      expect(e.icon.length, e.id).toBeGreaterThan(0);
+      expect(e.text.length, e.id).toBeGreaterThan(0);
+      expect(e.text.length, `${e.id}: Text kurz`).toBeLessThanOrEqual(100);
+      expect(e.options.length, e.id).toBeGreaterThanOrEqual(2);
+      expect(e.options.length, e.id).toBeLessThanOrEqual(3);
+      expect(unique(e.options.map((o) => o.label)), e.id).toBe(true);
+      // Ereignisse gibt es ab Junger Baum (7.1).
+      expect(e.minStage, e.id).toBeGreaterThanOrEqual(3);
+      expect(e.minStage, e.id).toBeLessThan(STAGES.length);
+      for (const c of e.appears ?? []) checkCondition(c, e.id);
+      for (const o of e.options) {
+        expect(o.label.length, e.id).toBeGreaterThan(0);
+        expect(o.summary.length, e.id).toBeGreaterThan(0);
+        expect(o.effects.length, `${e.id}: ${o.label}`).toBeGreaterThan(0);
+      }
+      // Eine echte Wahl: mindestens eine Option wirkt anders als nur mit Samen.
+      expect(e.options.some((o) => o.effects.some((x) => x.kind !== 'seedsNow')), e.id).toBe(true);
+    }
+  });
+
+  it('keine Option ist eine Strafe: jede Wirkung ist positiv und in sinnvollen Grenzen', () => {
+    const check = (x: EventEffect, where: string) => {
+      switch (x.kind) {
+        case 'seedsNow':
+          expect(x.seconds, where).toBeGreaterThanOrEqual(30);
+          expect(x.seconds, where).toBeLessThanOrEqual(300);
+          break;
+        case 'timed':
+          expect(x.seconds, where).toBeGreaterThanOrEqual(60);
+          expect(x.seconds, where).toBeLessThanOrEqual(900);
+          expect(x.effect.pct, where).toBeGreaterThan(0);
+          expect(x.effect.pct, where).toBeLessThanOrEqual(100);
+          if (x.effect.kind === 'groupGrowth' || x.effect.kind === 'groupSeeds') expect(PLANT_GROUPS).toContain(x.effect.group);
+          break;
+        case 'cycle':
+          if (x.effect.kind === 'light' || x.effect.kind === 'water') {
+            expect(x.effect.amount, where).toBeGreaterThan(0);
+            expect(x.effect.amount, where).toBeLessThanOrEqual(5);
+          }
+          if (x.effect.kind === 'slot') {
+            expect(NICHES_BY_ID.has(x.effect.niche), where).toBe(true);
+            expect(x.effect.amount, where).toBe(1);
+          }
+          if (x.effect.kind === 'harmony') {
+            expect(x.effect.points, where).toBeGreaterThan(0);
+            expect(x.effect.points, where).toBeLessThanOrEqual(8);
+          }
+          break;
+        case 'habitat':
+          expect(TAG_NAMES[x.tag], where).toBeDefined();
+          break;
+        case 'nextEncounter':
+          expect(x.ids.length, where).toBeGreaterThan(0);
+          expect(unique([...x.ids]), where).toBe(true);
+          for (const id of x.ids) {
+            if (x.type === 'animal') expect(SPECIES_BY_ID.has(id), `${where}: ${id}`).toBe(true);
+            else expect(PLANTS_BY_ID.has(id), `${where}: ${id}`).toBe(true);
+          }
+          break;
+      }
+    };
+    for (const e of EVENTS) {
+      for (const o of e.options) for (const x of o.effects) check(x, `${e.id}: ${o.label}`);
+      // Erzwungene Karten sind ab der Stufe des Ereignisses freigeschaltet (mindestens eine).
+      for (const o of e.options) {
+        for (const x of o.effects) {
+          if (x.kind !== 'nextEncounter') continue;
+          const unlocks = x.ids.map((id) => (x.type === 'animal' ? SPECIES_BY_ID.get(id)!.unlock : PLANTS_BY_ID.get(id)!.unlock));
+          expect(Math.min(...unlocks), e.id).toBeLessThanOrEqual(e.minStage);
+        }
+      }
+    }
+    expect(SEED_SECONDS_MIN_SEEDS).toBeGreaterThan(0);
+  });
+
+  it('Durchreisende: Gattung, Dauer, Wirkung, Bewirten kostet mehr, als Ziehenlassen bringt', () => {
+    expect(VISITORS.length).toBeGreaterThanOrEqual(5);
+    // Der Renderer hat eigene Bilder für diese IDs (PR #19).
+    for (const id of ['cranes', 'bramblings', 'hummingbird-moth']) expect(VISITORS_BY_ID.has(id), id).toBe(true);
+    for (const v of VISITORS) {
+      expect(v.name.length, v.id).toBeGreaterThan(0);
+      expect(v.icon.length, v.id).toBeGreaterThan(0);
+      expect(v.text.length, v.id).toBeGreaterThan(0);
+      expect(v.summary.length, v.id).toBeGreaterThan(0);
+      expect(GENERA, v.id).toContain(v.genus);
+      // Durchreisende gibt es ab Alter Baum (7.1).
+      expect(v.minStage, v.id).toBeGreaterThanOrEqual(4);
+      expect(v.minStage, v.id).toBeLessThan(STAGES.length);
+      for (const c of v.appears ?? []) checkCondition(c, v.id);
+      expect(v.stay, v.id).toBeGreaterThanOrEqual(120);
+      expect(v.stay, v.id).toBeLessThanOrEqual(900);
+      expect(v.effects.length, v.id).toBeGreaterThan(0);
+      for (const e of v.effects) {
+        if (e.kind === 'harmony') {
+          expect(e.points, v.id).toBeGreaterThan(0);
+          expect(e.points, v.id).toBeLessThanOrEqual(8);
+        } else {
+          expect(e.pct, v.id).toBeGreaterThan(0);
+          expect(e.pct, v.id).toBeLessThanOrEqual(100);
+        }
+        if (e.kind === 'groupGrowth' || e.kind === 'groupSeeds') expect(PLANT_GROUPS).toContain(e.group);
+      }
+      expect(v.farewellSeeds, v.id).toBeGreaterThan(0);
+      expect(v.hostCost, v.id).toBeGreaterThan(v.farewellSeeds);
+      // Bewirten ist bezahlbar: höchstens 1½ Minuten Samenproduktion.
+      expect(v.hostCost, v.id).toBeLessThanOrEqual(90);
+    }
+  });
+
+  it('Takt: Ereignisse ab Junger Baum, Gäste ab Alter Baum – und dann gibt es immer welche ohne Bedingung', () => {
+    ENCOUNTER_WEIGHTS.forEach(([, , event, visitor], stage) => {
+      if (event > 0) {
+        expect(stage).toBeGreaterThanOrEqual(3);
+        expect(EVENTS.some((e) => e.minStage <= stage && !e.appears), `Stufe ${stage}`).toBe(true);
+      }
+      if (visitor > 0) {
+        expect(stage).toBeGreaterThanOrEqual(4);
+        expect(VISITORS.some((v) => v.minStage <= stage && !v.appears), `Stufe ${stage}`).toBe(true);
+      }
+    });
+    // Jedes Ereignis und jeder Gast kann auch gezogen werden.
+    for (const e of EVENTS) expect(ENCOUNTER_WEIGHTS[e.minStage]![2], e.id).toBeGreaterThan(0);
+    // Ereignisse und Gäste verdrängen höchstens ein Viertel der Begegnungen am Wegpunkt.
+    for (const [animal, plant, event, visitor] of ENCOUNTER_WEIGHTS) {
+      expect((event + visitor) / (animal + plant + event + visitor)).toBeLessThanOrEqual(0.25);
+    }
+    // Zwischenhalt (ab Hain): zusätzlich, in der Mitte zwischen zwei Wegpunkten.
+    expect(INTERLUDE_STAGE).toBeGreaterThanOrEqual(4);
+    expect(INTERLUDE_STAGE).toBeLessThan(STAGES.length);
+    expect(INTERLUDE_POSITION).toBeGreaterThan(0);
+    expect(INTERLUDE_POSITION).toBeLessThan(1);
+    expect(INTERLUDE_CHANCE).toBeGreaterThan(0);
+    expect(INTERLUDE_CHANCE).toBeLessThanOrEqual(1);
+    expect(INTERLUDE_WEIGHTS[0] + INTERLUDE_WEIGHTS[1]).toBeGreaterThan(0);
+    // Ab dem Zwischenhalt gibt es Ereignisse und Gäste.
+    expect(EVENTS.some((e) => e.minStage <= INTERLUDE_STAGE && !e.appears)).toBe(true);
+    expect(VISITORS.some((v) => v.minStage <= INTERLUDE_STAGE && !v.appears)).toBe(true);
+    for (const v of VISITORS) expect(ENCOUNTER_WEIGHTS[v.minStage]![3], v.id).toBeGreaterThan(0);
   });
 });
