@@ -47,8 +47,9 @@ test('Spielanleitung: Abschnitte mit Zahlen aus dem Spiel, keine Platzhalter, Fo
   await open.click();
   await expect(guide(page)).toBeVisible();
   await expect(guide(page).getByRole('heading', { name: '❓ Spielanleitung' })).toBeFocused();
-  await expect(guide(page).locator('[data-section]')).toHaveCount(11);
+  await expect(guide(page).locator('[data-section]')).toHaveCount(12);
   await expect(guide(page).locator('[data-section="growth"]')).toContainText(/\d+ Wegpunkte/);
+  await expect(guide(page).locator('[data-section="seasons"]')).toContainText('Jeder Zyklus beginnt im Frühling');
   await expect(guide(page).locator('[data-section="events"]')).toContainText('höchstens einmal pro Zyklus');
   await expect(guide(page).locator('[data-section="care"]')).toContainText(/\d+ Pflegemaßnahmen/);
   await expect(guide(page).getByText('kommt bald')).toHaveCount(0);

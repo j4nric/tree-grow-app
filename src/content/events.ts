@@ -153,6 +153,8 @@ export const EVENTS: readonly GameEvent[] = [
   {
     id: 'mast-year', name: 'Mastjahr', icon: '🌰', minStage: 4,
     text: 'Die Eiche trägt so viele Eicheln wie seit Jahren nicht.',
+    // Für die Eiche ab Alter Baum immer erfüllt; die Kiefer (trees.ts) trägt keine Nüsse.
+    appears: [{ kind: 'tag', tag: 'nuesse' }],
     options: [
       {
         label: 'Eicheln liegen lassen', summary: 'nächste Begegnung: Samenverbreiter',

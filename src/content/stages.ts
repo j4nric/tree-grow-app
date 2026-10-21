@@ -1,5 +1,3 @@
-import type { Tag } from './types';
-
 /**
  * Wachstumsstufen des Hauptbaums (Stieleiche). Eine Stufe ist erreicht, sobald der
  * Wegpunkt `waypoint` erreicht ist (siehe waypoints.ts). Reihenfolge = Fortschritt;
@@ -34,9 +32,6 @@ export const STAGES: readonly Stage[] = [
   { id: 'ancient-forest', name: 'Urwald', description: 'Uralt, riesig und voller Leben.', waypoint: 36, treeGrowth: 34, treeSeeds: 1.8, light: 15, water: 14, plantSlots: 12 },
 ];
 
-/** Der Hauptbaum zählt als Baum und stellt diese Merkmale bereit. */
-export const MAIN_TREE_TAGS: readonly Tag[] = ['laub', 'wurzeln'];
-/** Ab „Alter Baum“ trägt die Eiche Eicheln (Nüsse). */
-export const MAIN_TREE_NUTS_STAGE = 4;
+/* Merkmale des Hauptbaums (Laub, Wurzeln, Nüsse) stehen seit v6 je Art in trees.ts. */
 /** Der Hauptbaum zählt in der Nahrungspyramide wie so viele Pflanzen. */
 export const MAIN_TREE_WEIGHT = 3;

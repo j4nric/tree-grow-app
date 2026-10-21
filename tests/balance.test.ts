@@ -15,6 +15,8 @@ import {
   varietyStats,
 } from '../scripts/simulate';
 import { EVENTS } from '../src/content/events';
+import { SEASON_SECONDS } from '../src/content/seasons';
+import { SPRING_GROWTH } from './helpers';
 import { VISITORS } from '../src/content/visitors';
 
 /**
@@ -58,8 +60,11 @@ describe('Balancing v2 (echte Logik)', () => {
   it('Zeit bis zu den Stufen liegt im Zielkorridor (Harmonie-Spieler, eher etwas darüber)', () => {
     for (const t of STAGE_TARGETS) {
       const time = stageStats(harmony, t.stage).time;
-      // Keimling: nur Obergrenze. Sonst 0,7 – 1,35 × Ziel (lieber etwas langsamer).
-      if (t.stage > 1) expect(time, `Stufe ${t.stage} (${t.label})`).toBeGreaterThan(0.7 * t.seconds);
+      // Keimling: nur Obergrenze. Sonst 0,7 – 1,35 × Ziel (lieber etwas langsamer). Was ganz
+      // im ersten Frühling liegt (bis 3 min, +10 % 🌿, DESIGN_V2.md 16.3), darf um diesen
+      // Bonus schneller sein: Setzling ~41 s statt ~45 s.
+      const spring = t.seconds <= SEASON_SECONDS ? 1 + SPRING_GROWTH : 1;
+      if (t.stage > 1) expect(time, `Stufe ${t.stage} (${t.label})`).toBeGreaterThan((0.7 / spring) * t.seconds);
       expect(time, `Stufe ${t.stage} (${t.label})`).toBeLessThan((t.stage === 1 ? 1 : 1.35) * t.seconds);
     }
   });

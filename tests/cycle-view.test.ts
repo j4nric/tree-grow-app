@@ -5,7 +5,9 @@ import {
   cycleViewKey,
   memoryBonusLabel,
   newCycleBlockerText,
+  fruitPhrase,
   newCycleToast,
+  treeLabel,
   regularsArrivedText,
   toCyclePanelView,
   withRegulars,
@@ -87,5 +89,50 @@ describe('View-Model „Neuer Zyklus“', () => {
     expect(withRegulars('Willkommen zurück!', ['mole'])).toBe('Willkommen zurück! Stammgast Maulwurf ist eingezogen.');
     expect(withRegulars('Willkommen zurück!', [])).toBe('Willkommen zurück!');
     expect(newCycleToast(10, 3, ['mole'])).toMatch(/Waldgedächtnis\. Stammgast Maulwurf ist eingezogen\.$/);
+  });
+});
+
+describe('View-Model „Neuer Zyklus“: Wahl des Hauptbaums (DESIGN_V2.md 17.2)', () => {
+  it('drei Arten, die laufende vorausgewählt, gesperrte mit Hinweis statt Eigenheit', () => {
+    const state = stateAt(5, ['earthworm']);
+    const view = toCyclePanelView(state);
+    expect(view.tree).toBe('🌳 Stieleiche');
+    expect(view.trees.map((t) => t.id)).toEqual(['oak', 'beech', 'pine']);
+    expect(view.trees.map((t) => t.unlocked)).toEqual([true, false, false]);
+    expect(view.trees.find((t) => t.current)!.id).toBe('oak');
+    const beech = view.trees.find((t) => t.id === 'beech')!;
+    expect(beech.hint).toBe('Lass einmal eine Rotbuche im Pflanzring wachsen.');
+    expect(view.trees[0]!.hint).toBeNull();
+    expect(view.trees[0]!.summary).toContain('+1 Platz Krone');
+  });
+
+  it('freigeschaltet über das Naturtagebuch; der Schlüssel ändert sich damit', () => {
+    const state = stateAt(5, ['earthworm']);
+    const before = cycleViewKey(toCyclePanelView(state));
+    state.meta.journal.plants.push('beech');
+    const view = toCyclePanelView(state);
+    expect(view.trees.find((t) => t.id === 'beech')).toMatchObject({ unlocked: true, hint: null });
+    expect(cycleViewKey(view)).not.toBe(before);
+    state.cycle.mainTree = 'beech';
+    expect(toCyclePanelView(state).tree).toBe('🍂 Rotbuche');
+    expect(toCyclePanelView(state).trees.find((t) => t.current)!.id).toBe('beech');
+  });
+
+  it('Vorauswahl: die laufende Art, ist sie gesperrt, die erste freie', () => {
+    const state = stateAt(5, ['earthworm']);
+    state.meta.journal.plants.push('pine');
+    expect(toCyclePanelView(state).defaultTree).toBe('oak');
+    state.cycle.mainTree = 'pine';
+    expect(toCyclePanelView(state).defaultTree).toBe('pine');
+    state.cycle.mainTree = 'beech'; // gesperrt (nicht im Tagebuch)
+    expect(toCyclePanelView(state).defaultTree).toBe('oak');
+  });
+
+  it('Toast und Frucht nennen die Art des neuen Zyklus', () => {
+    expect(newCycleToast(5, 2)).toContain('Aus einer Eichel wächst ein neuer Baum.');
+    expect(newCycleToast(5, 2, [], 'beech')).toContain('Aus einer Buchecker wächst ein neuer Baum.');
+    expect(newCycleToast(5, 2, [], 'pine')).toContain('Aus einem Kiefernsamen wächst ein neuer Baum.');
+    expect(fruitPhrase('maple')).toBe('einer Eichel');
+    expect(treeLabel('pine')).toBe('🌲 Waldkiefer');
   });
 });

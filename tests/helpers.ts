@@ -1,8 +1,17 @@
+import { SEASONS_BY_ID } from '../src/content/seasons';
 import { SPECIES_BY_ID, type Species } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
-import { thresholdFor } from '../src/core/formulas';
+import { evaluate, thresholdFor } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
-import { chooseEventOption, farewellVisitor, hostVisitor } from '../src/core/tick';
+import { chooseEventOption, farewellVisitor, hostVisitor, tick, type TickReport } from '../src/core/tick';
+
+/**
+ * Wachstumsbonus des Frühlings (0,1 = +10 % 🌿, DESIGN_V2.md 16.3). Jeder Zyklus beginnt im
+ * Frühling – Spielstände aus createInitialState/stateAt rechnen darum mit ihm (er zählt
+ * additiv in `growthBonus`).
+ */
+export const SPRING_GROWTH =
+  SEASONS_BY_ID.get('spring')!.effects.reduce((s, e) => s + (e.kind === 'growth' ? e.pct / 100 : 0), 0);
 
 /** Spielstand genau am Anfang einer Stufe, mit diesen Tieren in ihren Nischen. */
 export function stateAt(stage: number, animals: string[] = [], seed = 1): GameState {
@@ -52,6 +61,37 @@ export function fakeSpecies(patch: Partial<Species> & Pick<Species, 'id' | 'nich
     text: '-',
     ...patch,
   };
+}
+
+/**
+ * Tickt, bis das Gesamt-Wachstum `target` überschreitet (je Runde 1 % über die mit der
+ * aktuellen Rate geschätzte Zeit hinaus). Nötig, weil die Rate an Jahreszeitgrenzen
+ * wechselt. Gibt die zusammengeführten Berichte zurück.
+ */
+export function tickToGrowth(state: GameState, target: number): TickReport {
+  const total: TickReport = {
+    waypoints: 0,
+    encounters: 0,
+    autoDeclined: 0,
+    declinedStackFull: 0,
+    declinedNoCards: 0,
+    regulars: [],
+    interludes: 0,
+    interludesReached: 0,
+    expired: [],
+    seasons: [],
+  };
+  for (let i = 0; i < 1000 && state.totalGrowth < target; i++) {
+    const rate = evaluate(state).growth;
+    const r = tick(state, Math.max(1e-6, ((target - state.totalGrowth) / rate) * 1.01));
+    for (const k of ['waypoints', 'encounters', 'autoDeclined', 'declinedStackFull', 'declinedNoCards', 'interludes', 'interludesReached'] as const) {
+      total[k] += r[k];
+    }
+    total.regulars.push(...r.regulars);
+    total.expired.push(...r.expired);
+    total.seasons.push(...r.seasons);
+  }
+  return total;
 }
 
 /**

@@ -33,14 +33,14 @@ import { randomInt } from '../src/core/rng';
 import { MAX_FOREST_MEMORY, createInitialState } from '../src/core/state';
 import { COMMUNITIES as REFERENCE_COMMUNITIES } from '../scripts/v2/content';
 import { evaluate as referenceEvaluate, emptyEco } from '../scripts/v2/model';
-import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
+import { SPRING_GROWTH, fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
 describe('evaluate', () => {
-  it('leerer Samen: Harmonie 5 (Tragfähigkeit), 1,05 🌿/s', () => {
+  it('leerer Samen: Harmonie 5 (Tragfähigkeit), 1,05 🌿/s (im Frühling +10 %)', () => {
     const ev = evaluate(createInitialState(0));
     expect(ev.harmony).toBeCloseTo(5);
     expect(ev.multiplier).toBeCloseTo(1.05);
-    expect(ev.growth).toBeCloseTo(1.05);
+    expect(ev.growth).toBeCloseTo(1.05 * (1 + SPRING_GROWTH));
     expect(ev.seeds).toBeCloseTo(0.105);
     expect(ev.avgHappiness).toBe(0);
   });
@@ -50,8 +50,8 @@ describe('evaluate', () => {
     expect(ev.animals.earthworm!.happiness).toBeCloseTo(0.75);
     expect(ev.animals.earthworm!.needs).toEqual([false]); // keine Feuchte ohne Moos
     expect(ev.harmony).toBeCloseTo(38.17, 1);
-    // 2 🌿/s · (1 + 8 % · 0,75) · 1,38
-    expect(ev.growth).toBeCloseTo(2 * 1.06 * (1 + ev.harmony / 100));
+    // 2 🌿/s · (1 + 8 % · 0,75 + 10 % Frühling) · 1,38
+    expect(ev.growth).toBeCloseTo(2 * (1.06 + SPRING_GROWTH) * (1 + ev.harmony / 100));
   });
 
   it('Räuber mindert Fraß: Blaumeise halbiert den Schaden des Eichenwicklers', () => {
@@ -151,7 +151,8 @@ describe('evaluate', () => {
   it('evaluate(state) (mit Cache) rechnet wie evaluateEcosystem', () => {
     const state = stateAt(5, ['earthworm', 'woodlouse', 'porcini', 'glowworm', 'oakmoth']);
     state.plants = ['moss', 'fern'];
-    const direct = evaluateEcosystem({ stage: 5, niches: state.niches, plants: state.plants, forestMemory: 0 });
+    // Ein neuer Zyklus: Frühling, Stieleiche.
+    const direct = evaluateEcosystem({ stage: 5, niches: state.niches, plants: state.plants, forestMemory: 0, season: 'spring', mainTree: 'oak' });
     expect(evaluate(state)).toEqual(direct);
   });
 });
@@ -267,7 +268,7 @@ describe('Lebensgemeinschaften', () => {
       return sum + (pct / 100) * ev.animals[id]!.happiness;
     }, 0);
     const traitBonus = GENERA.reduce((sum, g) => sum + growthOfTraits(g, ev.traitTiers[g]), 0);
-    expect(ev.growthBonus - animalBonus - traitBonus).toBeCloseTo(0.05, 12);
+    expect(ev.growthBonus - animalBonus - traitBonus - SPRING_GROWTH).toBeCloseTo(0.05, 12);
   });
 
   it('Pflanzen zählen als Mitglieder (Birkenbund, Feuchter Grund)', () => {
@@ -363,9 +364,9 @@ describe('evaluate mit Begleitpflanzen', () => {
     expect(ev.lightNeed).toBe(2);
     expect(ev.waterNeed).toBe(1);
     expect(ev.groupCounts).toEqual({ trees: 1, shrubs: 0, flowers: 1, mosses: 0 });
-    expect(ev.growth).toBeCloseTo(3.8 * ev.multiplier);
+    expect(ev.growth).toBeCloseTo(3.8 * (1 + SPRING_GROWTH) * ev.multiplier);
     expect(ev.seeds).toBeCloseTo(1.25 * ev.multiplier);
-    expect(ev.plantGrowth).toBeCloseTo(0.3 * ev.multiplier);
+    expect(ev.plantGrowth).toBeCloseTo(0.3 * (1 + SPRING_GROWTH) * ev.multiplier);
     expect(ev.plantSeeds).toBeCloseTo(1 * ev.multiplier);
     // Vielfalt: +3 Gruppe Blumen, +1 Art; Pyramide: Tragfähigkeit bleibt 5
     expect(ev.breakdown.variety).toBe(base.breakdown.variety + 4);
@@ -377,7 +378,7 @@ describe('evaluate mit Begleitpflanzen', () => {
     const ev = evaluate(withPlants(3, [], ['birch', 'birch']));
     expect(ev.lightNeed).toBe(8);
     expect(ev.supply).toBeCloseTo(5 / 8);
-    expect(ev.growth).toBeCloseTo((6 + (5 / 8) * 3) * ev.multiplier);
+    expect(ev.growth).toBeCloseTo((6 + (5 / 8) * 3) * (1 + SPRING_GROWTH) * ev.multiplier);
     expect(ev.sunny).toBe(false); // 5 − 8 < 2 frei
   });
 
@@ -397,7 +398,7 @@ describe('evaluate mit Begleitpflanzen', () => {
   it('Versorgung bleibt in [0, 1], auch auf Stufe 0 ohne Licht', () => {
     const ev = evaluate(withPlants(0, [], ['birch']));
     expect(ev.supply).toBe(0);
-    expect(ev.growth).toBeCloseTo(1 * ev.multiplier); // nur der Hauptbaum
+    expect(ev.growth).toBeCloseTo(1 * (1 + SPRING_GROWTH) * ev.multiplier); // nur der Hauptbaum
     expect(Number.isFinite(ev.seeds)).toBe(true);
   });
 
@@ -596,7 +597,7 @@ describe('Wegpunkte und Stufen', () => {
     const state = createInitialState(0);
     state.totalGrowth = 1;
     expect(waypointProgress(state)).toBeCloseTo(0.25);
-    expect(secondsToNextWaypoint(state)).toBeCloseTo(3 / 1.05);
+    expect(secondsToNextWaypoint(state)).toBeCloseTo(3 / (1.05 * (1 + SPRING_GROWTH)));
     const done = stateAt(7);
     expect(waypointProgress(done)).toBe(1);
     expect(secondsToNextWaypoint(done)).toBe(Infinity);

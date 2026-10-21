@@ -1,9 +1,11 @@
 import type { CycleEffect, ForcedEncounterType, TimedEffect } from '../content/events';
+import { DEFAULT_MAIN_TREE, type MainTreeId } from '../content/trees';
 import { NICHE_IDS, type NicheId, type Tag } from '../content/types';
 import { normalizeSeed } from './rng';
 
 /**
- * Spielstand v5 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen). Reine Daten,
+ * Spielstand v6 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen,
+ * Jahreszeiten und Hauptbaum-Arten). Reine Daten,
  * JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -12,7 +14,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+2 % je Punkt → höchstens
@@ -104,10 +106,21 @@ export interface CycleState {
    * ein leeres Objekt. Die Wirkungen kommen immer aus CARE_BY_ID.
    */
   care: Record<string, number>;
+  /**
+   * Spielzeit des Zyklus in Sekunden (seit v6, endlich und ≥ 0). Bestimmt die Jahreszeit
+   * (DESIGN_V2.md 16.2): Jeder Zyklus beginnt im Frühling, offline läuft das Jahr mit.
+   */
+  elapsed: number;
+  /**
+   * Art des Hauptbaums (seit v6, DESIGN_V2.md 17). Gewählt beim Neuen Zyklus, gilt für den
+   * ganzen Zyklus. Nur freigeschaltete Arten (unlockedTrees); das Laden fällt sonst auf
+   * DEFAULT_MAIN_TREE zurück.
+   */
+  mainTree: MainTreeId;
 }
 
 export interface GameState {
-  version: 5;
+  version: 6;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */
@@ -186,8 +199,8 @@ export function createInitialState(now: number, seed: number = now): GameState {
   };
 }
 
-/** Ein frischer Zyklus mit dieser Nummer. */
-export function createCycle(number: number, now?: number): CycleState {
+/** Ein frischer Zyklus mit dieser Nummer (beginnt im Frühling, Standard: Stieleiche). */
+export function createCycle(number: number, now?: number, mainTree: MainTreeId = DEFAULT_MAIN_TREE): CycleState {
   const cycle: CycleState = {
     number,
     maxHarmony: 0,
@@ -200,6 +213,8 @@ export function createCycle(number: number, now?: number): CycleState {
     forced: null,
     interlude: 0,
     care: {},
+    elapsed: 0,
+    mainTree,
   };
   if (now !== undefined && Number.isFinite(now)) cycle.startedAt = now;
   return cycle;

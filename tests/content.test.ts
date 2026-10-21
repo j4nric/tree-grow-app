@@ -28,6 +28,18 @@ import { EVENTS, EVENTS_BY_ID, SEED_SECONDS_MIN_SEEDS, type EventEffect } from '
 import { VISITORS, VISITORS_BY_ID } from '../src/content/visitors';
 import { CARE, CARE_BY_ID } from '../src/content/care';
 import type { Condition } from '../src/content/types';
+import {
+  EVENT_SEASONS,
+  SEASONS,
+  SEASONS_BY_ID,
+  SEASON_IDS,
+  SEASON_SECONDS,
+  VISITOR_SEASONS,
+  YEAR_SECONDS,
+  type SeasonEffect,
+} from '../src/content/seasons';
+import { DEFAULT_MAIN_TREE, MAIN_TREES, MAIN_TREES_BY_ID, MAIN_TREE_IDS, type TreeEffect } from '../src/content/trees';
+import { TREE_SPECIES } from '../src/render/plant';
 import * as reference from '../scripts/v2/content';
 
 const unique = (ids: string[]) => new Set(ids).size === ids.length;
@@ -563,5 +575,213 @@ describe('Pflegemaßnahmen (DESIGN_V2.md 8)', () => {
     const later = CARE.flatMap((c) => c.ranks.filter((r) => r.minStage >= 5)).reduce((s, r) => s + r.cost, 0);
     expect(before).toBeGreaterThan(15_000);
     expect(later).toBeGreaterThan(100_000);
+  });
+});
+
+/** Ist die Wirkung ein Gewinn (> 0) oder ein Verzicht (< 0)? */
+function sign(e: SeasonEffect | TreeEffect): number {
+  switch (e.kind) {
+    case 'growth':
+    case 'seeds':
+    case 'groupGrowth':
+    case 'groupSeeds':
+      return Math.sign(e.pct);
+    case 'light':
+    case 'water':
+    case 'slot':
+      return Math.sign(e.amount);
+    case 'harmony':
+    case 'happiness':
+      return Math.sign(e.points);
+  }
+}
+
+/** Zahlen einer Wirkung liegen in sanften Grenzen (DESIGN_V2.md 16.3, 17.3). */
+function expectGentle(e: SeasonEffect | TreeEffect, label: string): void {
+  switch (e.kind) {
+    case 'growth':
+      expect(e.pct, label).toBeGreaterThanOrEqual(-10);
+      expect(e.pct, label).toBeLessThanOrEqual(20);
+      break;
+    case 'seeds':
+      expect(e.pct, label).toBeGreaterThan(0);
+      expect(e.pct, label).toBeLessThanOrEqual(30);
+      break;
+    case 'groupGrowth':
+    case 'groupSeeds':
+      expect(PLANT_GROUPS, label).toContain(e.group);
+      expect(e.pct, label).toBeGreaterThan(0);
+      expect(e.pct, label).toBeLessThanOrEqual(60);
+      break;
+    case 'light':
+    case 'water':
+      expect(Math.abs(e.amount), label).toBeGreaterThan(0);
+      expect(Math.abs(e.amount), label).toBeLessThanOrEqual(3);
+      break;
+    case 'slot':
+      expect(NICHE_IDS, label).toContain(e.niche);
+      expect(e.amount, label).toBe(1);
+      break;
+    case 'harmony':
+      expect(e.points, label).toBeGreaterThan(0);
+      expect(e.points, label).toBeLessThanOrEqual(5);
+      break;
+    case 'happiness':
+      expect(GENERA, label).toContain(e.genus);
+      expect(e.points, label).toBeGreaterThan(0);
+      expect(e.points, label).toBeLessThanOrEqual(20);
+      break;
+  }
+}
+
+describe('Jahreszeiten: Inhalte (DESIGN_V2.md 16)', () => {
+  it('vier Jahreszeiten in fester Reihenfolge, mit Name, Symbol, Text und Kurzform', () => {
+    expect(SEASON_IDS).toEqual(['spring', 'summer', 'autumn', 'winter']);
+    expect(SEASONS.map((s) => s.id)).toEqual(SEASON_IDS);
+    expect(unique(SEASONS.map((s) => s.name))).toBe(true);
+    expect(unique(SEASONS.map((s) => s.icon))).toBe(true);
+    for (const [i, s] of SEASONS.entries()) {
+      expect(SEASONS_BY_ID.get(s.id)).toBe(s);
+      expect(s.name.length, s.id).toBeGreaterThan(0);
+      expect(s.text.length, s.id).toBeGreaterThan(10);
+      expect(s.summary.length, s.id).toBeGreaterThan(0);
+      // Grafik: Mitte der Jahreszeit = ganzzahliger Wert von SceneInput.season.
+      expect(s.renderValue, s.id).toBe(i);
+    }
+  });
+
+  it('ein Jahr dauert einige Minuten Spielzeit (ruhiger Wechsel, mehrmals bis zum Hain)', () => {
+    expect(SEASON_SECONDS).toBeGreaterThanOrEqual(120);
+    expect(SEASON_SECONDS).toBeLessThanOrEqual(300);
+    expect(YEAR_SECONDS).toBe(4 * SEASON_SECONDS);
+    // Bis zum Hain (~45–60 min) vergehen mehrere Jahre.
+    expect((45 * 60) / YEAR_SECONDS).toBeGreaterThanOrEqual(3);
+  });
+
+  it('jede Jahreszeit hat mindestens eine positive Wirkung, alle Zahlen sind sanft', () => {
+    for (const s of SEASONS) {
+      expect(s.effects.length, s.id).toBeGreaterThan(0);
+      expect(s.effects.some((e) => sign(e) > 0), s.id).toBe(true);
+      for (const e of s.effects) {
+        expect(e.kind, s.id).not.toBe('slot');
+        expectGentle(e, `${s.id}: ${e.kind}`);
+      }
+    }
+  });
+
+  it('der einzige Abzug ist weniger Wachstum im Winter; übers Jahr bleibt das Wachstum gleich', () => {
+    for (const s of SEASONS) {
+      const negative = s.effects.filter((e) => sign(e) < 0);
+      if (s.id === 'winter') expect(negative).toEqual([{ kind: 'growth', pct: -10 }]);
+      else expect(negative, s.id).toEqual([]);
+    }
+    const growth = SEASONS.flatMap((s) => s.effects).reduce((sum, e) => sum + (e.kind === 'growth' ? e.pct : 0), 0);
+    expect(Math.abs(growth / SEASONS.length)).toBeLessThanOrEqual(2.5);
+  });
+
+  it('Begegnungsfaktoren dämpfen oder verstärken nur, schließen nie aus', () => {
+    for (const s of SEASONS) {
+      for (const [type, factor] of Object.entries(s.encounterFactors ?? {})) {
+        expect(ENCOUNTER_TYPES, s.id).toContain(type);
+        expect(factor, `${s.id}: ${type}`).toBeGreaterThan(0);
+        expect(factor, `${s.id}: ${type}`).toBeLessThanOrEqual(2);
+      }
+    }
+    expect(SEASONS_BY_ID.get('spring')!.encounterFactors?.plant).toBeGreaterThan(1);
+  });
+
+  it('Jahreszeiten von Ereignissen und Gästen verweisen auf gültige IDs', () => {
+    for (const [table, ids] of [
+      [EVENT_SEASONS, EVENTS_BY_ID],
+      [VISITOR_SEASONS, VISITORS_BY_ID],
+    ] as const) {
+      for (const [id, seasons] of Object.entries(table)) {
+        expect(ids.has(id), id).toBe(true);
+        expect(seasons.length, id).toBeGreaterThan(0);
+        expect(seasons.length, id).toBeLessThan(4); // sonst ganzjährig: Eintrag weglassen
+        expect(unique([...seasons]), id).toBe(true);
+        for (const s of seasons) expect(SEASON_IDS, id).toContain(s);
+      }
+    }
+  });
+
+  it('Zugvögel ziehen im Winter fort, Kraniche kommen im Frühling und Herbst', () => {
+    expect(VISITOR_SEASONS.cranes).toEqual(['spring', 'autumn']);
+    expect(VISITOR_SEASONS.cranes).not.toContain('winter');
+    expect(VISITOR_SEASONS.swallows).not.toContain('winter');
+    expect(VISITOR_SEASONS.bramblings).toContain('winter');
+  });
+
+  it('in jeder Jahreszeit gibt es Ereignisse ab Junger Baum und Gäste ab Hain ohne Bedingung', () => {
+    for (const s of SEASON_IDS) {
+      const inSeason = (table: Readonly<Record<string, readonly string[]>>, id: string) => !table[id] || table[id]!.includes(s);
+      expect(EVENTS.some((e) => e.minStage <= 3 && !e.appears && inSeason(EVENT_SEASONS, e.id)), s).toBe(true);
+      expect(VISITORS.some((v) => v.minStage <= INTERLUDE_STAGE && !v.appears && inSeason(VISITOR_SEASONS, v.id)), s).toBe(true);
+    }
+  });
+});
+
+describe('Hauptbaum-Arten: Inhalte (DESIGN_V2.md 17)', () => {
+  it('Eiche, Buche, Kiefer – dieselben IDs wie im Renderer', () => {
+    expect(MAIN_TREE_IDS).toEqual(['oak', 'beech', 'pine']);
+    expect([...TREE_SPECIES]).toEqual([...MAIN_TREE_IDS]);
+    expect(MAIN_TREES.map((t) => t.id)).toEqual(MAIN_TREE_IDS);
+    expect(DEFAULT_MAIN_TREE).toBe('oak');
+    expect(unique(MAIN_TREES.map((t) => t.name))).toBe(true);
+    for (const t of MAIN_TREES) {
+      expect(MAIN_TREES_BY_ID.get(t.id)).toBe(t);
+      expect(t.name.length * t.icon.length * t.fruit.length * t.text.length * t.summary.length, t.id).toBeGreaterThan(0);
+    }
+  });
+
+  it('die Eiche ist immer wählbar und entspricht dem heutigen Hauptbaum', () => {
+    const oak = MAIN_TREES_BY_ID.get('oak')!;
+    expect(oak.unlockPlant).toBeNull();
+    // Wie der Hauptbaum vor v6 (Referenzmodell scripts/v2).
+    expect(oak.tags).toEqual(reference.MAIN_TREE_TAGS);
+    expect(oak.nutsFromStage).toBe(reference.MAIN_TREE_NUTS_STAGE);
+    expect(oak.winterHardy).toBe(false);
+  });
+
+  it('Buche und Kiefer schalten sich über ihre Begleitpflanze im Naturtagebuch frei', () => {
+    for (const t of MAIN_TREES.filter((x) => x.id !== 'oak')) {
+      const plant = PLANTS_BY_ID.get(t.unlockPlant ?? '');
+      expect(plant, t.id).toBeDefined();
+      expect(plant!.group, t.id).toBe('trees');
+      // Erreichbar im ersten Zyklus (vor dem Neuen Zyklus ab Hain).
+      expect(plant!.unlock, t.id).toBeLessThan(5);
+      expect(t.unlockHint, t.id).toContain(plant!.name);
+    }
+  });
+
+  it('Merkmale, Nüsse und Eigenheiten sind gültig und klein: ein Gewinn, höchstens ein Verzicht', () => {
+    for (const t of MAIN_TREES) {
+      expect(t.tags.length, t.id).toBeGreaterThan(0);
+      for (const tag of t.tags) expect(Object.keys(TAG_NAMES), t.id).toContain(tag);
+      expect(unique([...t.tags]), t.id).toBe(true);
+      if (t.nutsFromStage !== null) {
+        expect(t.nutsFromStage, t.id).toBeGreaterThanOrEqual(0);
+        expect(t.nutsFromStage, t.id).toBeLessThan(STAGES.length);
+      }
+      expect(t.traits.length, t.id).toBeGreaterThan(0);
+      expect(t.traits.length, t.id).toBeLessThanOrEqual(3);
+      expect(t.traits.some((x) => sign(x.effect) > 0), t.id).toBe(true);
+      expect(t.traits.filter((x) => sign(x.effect) < 0).length, t.id).toBeLessThanOrEqual(1);
+      for (const x of t.traits) {
+        expect(x.minStage, t.id).toBeGreaterThanOrEqual(0);
+        expect(x.minStage, t.id).toBeLessThan(STAGES.length);
+        // Verzichte erst, wenn der Baum groß ist – nie am zarten Anfang.
+        if (sign(x.effect) < 0) expect(x.minStage, t.id).toBeGreaterThanOrEqual(3);
+        expectGentle(x.effect, `${t.id}: ${x.effect.kind}`);
+      }
+    }
+  });
+
+  it('nur die Kiefer ist winterfest, und nur sie trägt Nadeln statt Nüssen', () => {
+    expect(MAIN_TREES.filter((t) => t.winterHardy).map((t) => t.id)).toEqual(['pine']);
+    const pine = MAIN_TREES_BY_ID.get('pine')!;
+    expect(pine.tags).toContain('nadeln');
+    expect(pine.nutsFromStage).toBeNull();
+    for (const t of MAIN_TREES.filter((x) => x.id !== 'pine')) expect(t.nutsFromStage, t.id).not.toBeNull();
   });
 });

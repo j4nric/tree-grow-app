@@ -99,9 +99,17 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 
 - ~~Nährstoffe + Pilznetzwerk als Automatisierung~~ – in v2 aufgegangen (Gattung Pilze,
   Hallimasch „Waldweites Netz“); Humus-Kreislauf als optionale Erweiterung (DESIGN_V2.md 2.6)
-- [ ] Jahreszeiten (Logik: `core-engineer`, Grafik: `renderer`) – nach v2, wirkt auf Zufriedenheit und Begegnungen
+- [x] Jahreszeiten (Logik: `core-engineer`, Grafik: `renderer`) – nach v2, wirkt auf Zufriedenheit und Begegnungen
   - [x] Grafik (renderer): `SceneInput.season` 0–4 – Laubfarben, kahle Bäume, Blüten, Schnee, fallende Blätter
-  - [ ] Logik (core): Jahreszeit im Spielstand, Wirkung auf Zufriedenheit und Begegnungen
+  - [x] Design (`game-designer`): Jahr = 12 min Spielzeit, Wirkungen je Jahreszeit,
+    Ereignisse und Gäste je Jahreszeit (`src/content/seasons.ts`), DESIGN_V2.md Abschnitt 16
+  - [x] Logik (core): Spielstand v6 mit `cycle.elapsed` (Migration v5 → v6), Jahreszeit in
+    `evaluate` (Cache je Jahreszeit), Halt an der Grenze in `tick` (online = offline,
+    Schnellvorlauf über ganze Jahre), neuer Wirkungstyp `happiness`, Ziehen nach
+    Jahreszeit; Simulator auf echter Logik (`scripts/season-model.ts` entfernt,
+    Kennzahlen DESIGN_V2.md 15.4)
+  - [x] UI: Abzeichen der Jahreszeit mit Restzeit in der Kopfzeile, Hinweis beim Wechsel,
+    `SceneInput.season` stufenlos aus der Spielzeit, Abschnitt in der Spielanleitung
 - ~~Zufallsereignisse mit gespeichertem Seed~~ – in v2 aufgegangen (Begegnungen, `rngState`)
 - [ ] Statistik-Seite (Spielzeit, Gesamt-Wachstum, entdeckte Arten) (`ui-dev`)
 - [ ] Gattung Amphibien mit Waldtümpel (Erdkröte, Bergmolch) als Erweiterung (`game-designer`)
@@ -110,7 +118,16 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 
 - ~~Samen + Prestige „Neuer Zyklus“~~ – Teil von v2 (Schritt 2.8)
 - ~~Samen-Shop mit dauerhaften Boni~~ – ersetzt durch Waldgedächtnis und Stammgäste (v2)
-- [ ] Hauptbaum-Arten (Buche, Kiefer als Startbaum) mit eigener Grafik (`renderer` + `game-designer`)
+- [x] Hauptbaum-Arten (Buche, Kiefer als Startbaum) mit eigener Grafik (`renderer` + `game-designer`)
+  - [x] Grafik (renderer): `SceneInput.mainTree` 'oak' | 'beech' | 'pine'
+  - [x] Design (`game-designer`): Freischaltung über die Begleitpflanze im Naturtagebuch,
+    Wahl beim Neuen Zyklus, Eigenheiten je Art (`src/content/trees.ts`), DESIGN_V2.md 17
+  - [x] Logik (core): `cycle.mainTree` (v6), `unlockedTrees`, `startNewCycle(…, mainTree)`
+    mit Fehler `'tree-locked'`, Merkmale und Eigenheiten in `evaluate` und
+    `appearsContext`, Platz-Boni über `slotBonuses`
+  - [x] UI: Radiogruppe in „Neuer Zyklus“ (gesperrte Arten mit Hinweis), Frucht der Art
+    in Toast und Spielanleitung, `SceneInput.mainTree` und `cycleTransition.fromTree`
+  - [ ] Optional: Naturtagebuch, Reiter Andenken – gewachsene Hauptbaum-Arten (`ui-dev`)
 - [ ] Umstieg auf `break_infinity.js`, falls Zahlen > 1e300 (`core-engineer`)
 - [ ] Erfolge / Achievements, verknüpft mit dem Naturtagebuch (`ui-dev`)
 

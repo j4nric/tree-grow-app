@@ -18,6 +18,7 @@ import {
   waypoint,
 } from './fixtures';
 import type { BrowserContext, Page } from '@playwright/test';
+import { createInitialState } from '../src/core/state';
 
 /**
  * Smoke-Tests für „Vom Samen zum Wald“ (v2-Prototyp: Begegnungen und Kartenwahl).
@@ -114,7 +115,7 @@ test('Karte wählen: Tier zieht ein, nächste Begegnung folgt, Neuladen zeigt de
   await expect(card(page, 'barkbeetle')).toBeVisible();
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(5);
+  expect(saved.version).toBe(6);
   expect(saved.niches.crown).toEqual(['bluetit']);
   expect(saved.pendingEncounters).toEqual([{ type: 'animal', cards: ['woodlouse', 'barkbeetle'], rerolls: 0 }]);
 });
@@ -253,7 +254,7 @@ test('v1-Spielstand: Neustart mit Andenken-Meldung', async ({ page, context }) =
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(5);
+  expect(saved.version).toBe(6);
   expect(saved.meta.forestMemory).toBe(5);
   expect(saved).not.toHaveProperty('upgrades');
 
@@ -637,7 +638,7 @@ test('Echter v2-Spielstand (alte Wegpunkt-Kurve): lädt ohne Fehler, Stufe und T
   await expect(stageLabel(page)).toHaveText('Stufe: Alter Baum');
   await expect(niche(page, 'crown').locator('[data-species="bluetit"]')).toBeVisible();
   const saved = await savedState(page);
-  expect(saved.version).toBe(5);
+  expect(saved.version).toBe(6);
   // Gleicher Wegpunkt, auf die neue Kurve umgerechnet (etwa in der Mitte zum nächsten).
   expect(saved.waypoint).toBe(12);
   expect(saved.totalGrowth).toBeGreaterThan(waypoint(12));
@@ -703,17 +704,21 @@ test.describe('Feinschliff mobil (390×844)', () => {
   });
 
   test('lange Gründe: Tier-Kacheln bleiben flach, der volle Text per Tooltip und Tippen', async ({ page, context }) => {
-    await seedV3(context, {
-      totalGrowth: waypoint(12) + 1,
-      plants: ['birch', 'hazel', 'anemone', 'moss', 'rowan'],
-      niches: {
-        roots: ['earthworm'],
-        litter: ['robin', 'woodlouse'],
-        edge: ['bee'],
-        crown: ['bluetit', 'oakmoth'],
-        bark: ['woodpecker', 'barkbeetle'],
-      },
+    // Rotbuche statt Eiche: ohne deren Insekten-Bonus bleibt die Biene unter 70 % und
+    // nennt zwei Gründe (DESIGN_V2.md 17.3).
+    const state = createInitialState(Date.now(), 123456789);
+    state.totalGrowth = waypoint(12) + 1;
+    state.plants = ['birch', 'hazel', 'anemone', 'moss', 'rowan'];
+    Object.assign(state.niches, {
+      roots: ['earthworm'],
+      litter: ['robin', 'woodlouse'],
+      edge: ['bee'],
+      crown: ['bluetit', 'oakmoth'],
+      bark: ['woodpecker', 'barkbeetle'],
     });
+    state.meta.journal.plants = ['beech'];
+    state.cycle.mainTree = 'beech';
+    await seedRaw(context, state, 0);
     await openGame(page);
     const bee = niche(page, 'edge').locator('[data-species="bee"]');
     const mood = bee.locator('.slot-mood');

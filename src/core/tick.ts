@@ -15,15 +15,24 @@ import { EVENTS, EVENTS_BY_ID, type GameEvent } from '../content/events';
 import { JOURNAL_SPECIES_WEIGHT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { PLANTS, PLANTS_BY_ID } from '../content/plants';
 import { SPECIES, SPECIES_BY_ID } from '../content/species';
+import {
+  EVENT_SEASONS,
+  SEASONS_BY_ID,
+  SEASON_IDS,
+  SEASON_SECONDS,
+  VISITOR_SEASONS,
+  YEAR_SECONDS,
+  type SeasonId,
+} from '../content/seasons';
 import { STAGES } from '../content/stages';
-import { ENCOUNTER_TYPES } from '../content/types';
+import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
+import { ENCOUNTER_TYPES, type EncounterType } from '../content/types';
 import { VISITORS, VISITORS_BY_ID, type Visitor } from '../content/visitors';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import {
   activeCommunities,
   appearsContext,
   cycleMemoryGain,
-  cycleSlotBonuses,
   declineReward,
   ecosystemOf,
   evaluateEcosystem,
@@ -37,6 +46,7 @@ import {
   rerollCost,
   resolveChoice,
   seedSeconds,
+  slotBonuses,
   speciesAppears,
   stageForWaypoint,
   thresholdFor,
@@ -44,6 +54,7 @@ import {
   type Evaluation,
 } from './formulas';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
+import { MAX_ELAPSED, nextSeasonBoundary, normalizeElapsed, seasonIdAt, secondsToNextSeason } from './season';
 import {
   allAnimals,
   createCycle,
@@ -81,6 +92,8 @@ export interface TickReport {
   interludesReached: number;
   /** Abgelaufene Zeit-Boni (Ereignis-IDs) und abgereiste Gäste (Gast-IDs). */
   expired: string[];
+  /** Erreichte Jahreszeiten in Reihenfolge (je Wechsel ein Eintrag, für den Hinweis in der UI). */
+  seasons: SeasonId[];
 }
 
 export interface OfflineReport extends TickReport {
@@ -96,9 +109,10 @@ const EXPIRY_EPSILON = 1e-9;
 /**
  * Lässt `dt` Sekunden Spielzeit vergehen. Verändert `state` direkt.
  * Ereignisgesteuert: Die Raten sind konstant bis zum nächsten Halt – dem nächsten
- * Wegpunkt, dem Zwischenhalt (ab Hain, über das Gesamt-Wachstum wie Wegpunkte) oder dem
- * Ablauf eines Zeit-Bonus bzw. Gastes (kleinste Restdauer). Bis dahin wird in einem
- * Schritt gerechnet. Darum liefern viele kleine Ticks und ein großer dasselbe Ergebnis
+ * Wegpunkt, dem Zwischenhalt (ab Hain, über das Gesamt-Wachstum wie Wegpunkte), dem
+ * Ablauf eines Zeit-Bonus bzw. Gastes (kleinste Restdauer) oder dem Wechsel der
+ * Jahreszeit (`cycle.elapsed`, dort exakt auf die Grenze gesetzt). Bis dahin wird in
+ * einem Schritt gerechnet. Darum liefern viele kleine Ticks und ein großer dasselbe Ergebnis
  * (bis auf Rundung). Deterministisch: Zeit kommt nur über `dt`, Zufall nur über
  * `state.rngState`.
  */
@@ -113,12 +127,22 @@ export function tick(state: GameState, dt: number): TickReport {
     interludes: 0,
     interludesReached: 0,
     expired: [],
+    seasons: [],
   };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
+  // Kaputte Spielzeit (NaN, negativ, zu groß) nicht weiterschleppen.
+  state.cycle.elapsed = normalizeElapsed(state.cycle.elapsed);
   let remaining = dt;
   // Schleife endet: Jede Runde verbraucht die Restzeit oder erreicht einen Halt – davon
-  // gibt es endlich viele (Wegpunkte, je ein Zwischenhalt, endlich viele Boni).
+  // gibt es endlich viele (Wegpunkte, je ein Zwischenhalt, endlich viele Boni, eine
+  // Jahreszeitgrenze je SEASON_SECONDS).
   while (remaining > 0) {
+    // Lange Zeitsprünge: ganze Jahre am Stück, solange darin kein anderer Halt liegt.
+    const years = skipYears(state, remaining, report);
+    if (years > 0) {
+      remaining -= years * YEAR_SECONDS;
+      continue;
+    }
     const ev = evaluate(state);
     const next = thresholdFor(state.waypoint + 1);
     const rate = ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth : 0;
@@ -126,10 +150,19 @@ export function tick(state: GameState, dt: number): TickReport {
     const interlude = interludeThreshold(state);
     const toInterlude = rate > 0 && interlude < Infinity ? Math.max(0, interlude - state.totalGrowth) / rate : Infinity;
     const toExpiry = nextExpiry(state);
-    const step = Math.min(remaining, toNext, toInterlude, toExpiry);
+    const toSeason = secondsToNextSeason(state.cycle.elapsed);
+    const step = Math.min(remaining, toNext, toInterlude, toExpiry, toSeason);
     state.seeds = capped(state.seeds + ev.seeds * step);
     remaining -= step;
     countDown(state, step, report);
+    // Spielzeit zuerst: Fällt die Grenze mit einem Wegpunkt zusammen, sieht die Begegnung
+    // schon die neue Jahreszeit. An der Grenze exakt setzen (kein Rundungsdrift).
+    if (step === toSeason) {
+      state.cycle.elapsed = nextSeasonBoundary(state.cycle.elapsed);
+      reportSeason(report, seasonIdAt(state.cycle.elapsed));
+    } else {
+      state.cycle.elapsed = normalizeElapsed(state.cycle.elapsed + step);
+    }
     if (step === toNext) {
       // Wegpunkt genau erreicht (ohne Rundungsfehler, damit online und offline gleich zählen)
       state.totalGrowth = Math.max(state.totalGrowth, next);
@@ -142,6 +175,59 @@ export function tick(state: GameState, dt: number): TickReport {
     }
   }
   return report;
+}
+
+/** So viele Jahreszeitwechsel merkt sich ein TickReport höchstens (die letzten; 8 h offline = 160). */
+export const MAX_REPORTED_SEASONS = 160;
+
+function reportSeason(report: TickReport, id: SeasonId): void {
+  report.seasons.push(id);
+  if (report.seasons.length > MAX_REPORTED_SEASONS) report.seasons.shift();
+}
+
+/**
+ * Schnellvorlauf über ganze Jahre (nur an einer Jahresgrenze, also zu Frühlingsbeginn):
+ * Die Raten sind je Jahreszeit konstant, solange kein anderer Halt kommt – dann ergibt
+ * ein Jahr genau 180 s × Σ Rate je Jahreszeit. Gesprungen wird nur über Jahre, in denen
+ * weder Wegpunkt noch Zwischenhalt (über das Wachstum) noch der Ablauf eines Bonus liegt,
+ * und nie über MAX_ELAPSED hinaus. Gibt die übersprungenen Jahre zurück (0 = normal
+ * weiterrechnen). Ohne diesen Vorlauf bräuchte ein riesiger Zeitsprung je 180 s eine
+ * Runde; im Spiel (≤ 8 h offline) ändert er nur die Rundung.
+ */
+function skipYears(state: GameState, remaining: number, report: TickReport): number {
+  const elapsed = state.cycle.elapsed;
+  let years = Math.floor(remaining / YEAR_SECONDS);
+  if (years < 1 || elapsed % YEAR_SECONDS !== 0) return 0;
+  years = Math.min(years, Math.floor((MAX_ELAPSED - elapsed) / YEAR_SECONDS));
+  // Kein Bonus darf in den Jahren ablaufen (genau am Ende zählt schon: lieber normal rechnen).
+  const expiry = nextExpiry(state);
+  if (expiry < Infinity) years = Math.min(years, Math.ceil(expiry / YEAR_SECONDS) - 1);
+  if (years < 1) return 0;
+  // Raten je Jahreszeit (wie evaluate, nur mit der jeweiligen Jahreszeit).
+  const eco = ecosystemOf(state);
+  let growth = 0;
+  let seeds = 0;
+  for (const id of SEASON_IDS) {
+    const ev = evaluateEcosystem({ ...eco, season: id });
+    growth += (ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth : 0) * SEASON_SECONDS;
+    seeds += ev.seeds * SEASON_SECONDS;
+  }
+  // Wegpunkt und Zwischenhalt: nur Jahre, nach denen die Schwelle noch nicht erreicht ist.
+  for (const threshold of [thresholdFor(state.waypoint + 1), interludeThreshold(state)]) {
+    if (growth > 0 && threshold < Infinity) years = Math.min(years, Math.ceil((threshold - state.totalGrowth) / growth) - 1);
+  }
+  if (!(years >= 1)) return 0;
+  state.seeds = capped(state.seeds + seeds * years);
+  state.totalGrowth = capped(state.totalGrowth + growth * years);
+  state.cycle.elapsed = elapsed + years * YEAR_SECONDS;
+  countDown(state, years * YEAR_SECONDS, report);
+  // Je Jahr die Wechsel Sommer, Herbst, Winter, Frühling (gemerkt werden nur die letzten).
+  const reported = Math.min(years, Math.ceil(MAX_REPORTED_SEASONS / SEASON_IDS.length));
+  for (let y = 0; y < reported; y++) {
+    for (const id of SEASON_IDS.slice(1)) reportSeason(report, id);
+    reportSeason(report, SEASON_IDS[0]!);
+  }
+  return years;
 }
 
 /** Kleinste Restdauer eines Zeit-Bonus oder Gastes (Infinity, wenn keiner wirkt). */
@@ -199,13 +285,31 @@ function reachInterlude(state: GameState, report: TickReport): void {
   if (random(state) >= INTERLUDE_CHANCE) return;
   const events = eligibleEvents(state);
   const visitors = eligibleVisitors(state);
-  const weights = [events.length > 0 ? INTERLUDE_WEIGHTS[0] : 0, visitors.length > 0 ? INTERLUDE_WEIGHTS[1] : 0];
+  const weights = [
+    events.length > 0 ? INTERLUDE_WEIGHTS[0] * seasonFactor(state, 'event') : 0,
+    visitors.length > 0 ? INTERLUDE_WEIGHTS[1] * seasonFactor(state, 'visitor') : 0,
+  ];
   const i = weightedIndex(state, weights);
   if (i < 0) return;
   const encounter = i === 0 ? eventEncounter(state, pick(state, events)) : visitorEncounter(state, pick(state, visitors));
   state.pendingEncounters.push(encounter);
   report.encounters++;
   report.interludes++;
+}
+
+/**
+ * Faktor der laufenden Jahreszeit auf das Gewicht eines Begegnungstyps (fehlt = 1;
+ * ungültige Werte zählen als 1, damit nie ein Typ ganz ausfällt).
+ */
+export function seasonFactor(state: GameState, type: EncounterType): number {
+  const factor = SEASONS_BY_ID.get(seasonIdAt(state.cycle.elapsed))?.encounterFactors?.[type];
+  return factor !== undefined && Number.isFinite(factor) && factor > 0 ? factor : 1;
+}
+
+/** Kommt das Ereignis bzw. der Gast in der laufenden Jahreszeit (fehlt der Eintrag: ganzjährig)? */
+export function inSeason(state: GameState, table: Readonly<Record<string, readonly SeasonId[]>>, id: string): boolean {
+  const seasons = Object.hasOwn(table, id) ? table[id] : undefined;
+  return !seasons || seasons.includes(seasonIdAt(state.cycle.elapsed));
 }
 
 /**
@@ -277,7 +381,10 @@ export function drawEncounter(state: GameState): PendingEncounter | null {
   if (type === undefined) {
     const weights = ENCOUNTER_WEIGHTS[state.stage] ?? ENCOUNTER_WEIGHTS[ENCOUNTER_WEIGHTS.length - 1]!;
     const ringFull = state.plants.length >= plantSlots(state.stage);
-    const drawable = ENCOUNTER_TYPES.map((t, i) => (t === 'plant' && ringFull ? weights[i]! * PLANT_WEIGHT_RING_FULL : weights[i]!));
+    // Jahreszeit: Faktoren auf die Gewichte; der für „Etwas keimt“ nur bei freiem Ring.
+    const drawable = ENCOUNTER_TYPES.map((t, i) =>
+      t === 'plant' && ringFull ? weights[i]! * PLANT_WEIGHT_RING_FULL : weights[i]! * seasonFactor(state, t),
+    );
     type = ENCOUNTER_TYPES[weightedIndex(state, drawable)] ?? 'animal';
     // Ereignis oder Gast: gleichverteilt aus den Kandidaten; ohne Kandidaten Tier, sonst Pflanze.
     if (type === 'event') {
@@ -348,7 +455,7 @@ export function allWaypointsReached(state: GameState): boolean {
  * Zufall aus `rng` (Standard: der Spielstand selbst).
  */
 export function drawAnimals(state: GameState, exclude: readonly string[] = [], rng: RngHolder = state): string[] {
-  const slots = nicheSlots(state.stage, state.niches, cycleSlotBonuses(state.cycle));
+  const slots = nicheSlots(state.stage, state.niches, slotBonuses(state));
   const present = new Set(allAnimals(state));
   const appears = appearsContext(ecosystemOf(state));
   const eligible = SPECIES.filter(
@@ -394,6 +501,8 @@ export type ActionError =
   | 'locked'
   /** Neuer Zyklus: Stufe „Hain“ noch nicht erreicht (Text: newCycleBlocker). */
   | 'cycle-locked'
+  /** Neuer Zyklus: Baumart unbekannt oder noch nicht freigeschaltet (unlockedTrees). */
+  | 'tree-locked'
   /** Stammgast: unbekannte Art-ID. */
   | 'unknown-species'
   /** Stammgast: Art steht noch nicht im Naturtagebuch. */
@@ -591,7 +700,7 @@ export function moveInRegulars(state: GameState): string[] {
       if (!sp || present.has(id) || sp.unlock > state.stage) continue;
       // Gleiche Prüfung wie beim Einzug per Karte: Die Nische braucht einen freien Platz.
       const niches = nichesAfterChoice(state, id);
-      const slots = nicheSlots(state.stage, niches ?? undefined, cycleSlotBonuses(state.cycle));
+      const slots = nicheSlots(state.stage, niches ?? undefined, slotBonuses(state));
       if (!niches || niches[sp.niche].length > slots[sp.niche]) continue;
       state.niches = niches;
       present.add(id);
@@ -625,6 +734,10 @@ export interface NewCyclePreview {
   /** Plätze für Stammgäste vorher und nachher. */
   regularSlotsBefore: number;
   regularSlotsAfter: number;
+  /** Art des laufenden Zyklus (vorausgewählt). */
+  mainTree: MainTreeId;
+  /** Alle Hauptbaum-Arten in MAIN_TREES-Reihenfolge, mit Sperre (Hinweis: MAIN_TREES_BY_ID). */
+  trees: { id: MainTreeId; unlocked: boolean }[];
 }
 
 /** Warum „Neuer Zyklus“ gerade nicht geht – null, wenn es geht. */
@@ -647,7 +760,25 @@ export function previewNewCycle(state: GameState): NewCyclePreview {
     memoryAfter: memoryBefore + memoryGain,
     regularSlotsBefore: regularSlots(memoryBefore),
     regularSlotsAfter: regularSlots(memoryBefore + memoryGain),
+    mainTree: state.cycle.mainTree,
+    trees: MAIN_TREES.map((t) => ({ id: t.id, unlocked: isTreeUnlocked(state, t.id) })),
   };
+}
+
+/**
+ * Wählbare Hauptbaum-Arten (DESIGN_V2.md 17.2): die Eiche immer, die übrigen, sobald ihre
+ * Begleitpflanze im Naturtagebuch steht (`meta.journal.plants`). Abgeleitet, kein eigenes
+ * Feld im Spielstand. Reihenfolge wie MAIN_TREES.
+ */
+export function unlockedTrees(state: Pick<GameState, 'meta'>): MainTreeId[] {
+  return MAIN_TREES.filter((t) => isTreeUnlocked(state, t.id)).map((t) => t.id);
+}
+
+/** Ist diese Art bekannt und freigeschaltet? */
+export function isTreeUnlocked(state: Pick<GameState, 'meta'>, id: string): boolean {
+  const tree = MAIN_TREES_BY_ID.get(id as MainTreeId);
+  if (!tree) return false;
+  return tree.unlockPlant === null || state.meta.journal.plants.includes(tree.unlockPlant);
 }
 
 export type NewCycleResult =
@@ -659,11 +790,15 @@ export type NewCycleResult =
  * Pflanzen, Nischen und offene Begegnungen zurücksetzen. Naturtagebuch, Waldgedächtnis,
  * Stammgäste und der Zufallsgenerator (`rngState`) laufen weiter. Danach ziehen
  * Stammgäste ein, die schon Platz finden. `now` (ms seit Epoch) markiert den Beginn des
- * Zyklus; `lastTick` bleibt unverändert.
+ * Zyklus; `lastTick` bleibt unverändert. Der neue Zyklus beginnt im Frühling mit der Art
+ * `mainTree` (ohne Angabe: die des laufenden Zyklus); ist sie gesperrt oder unbekannt,
+ * scheitert die Aktion mit 'tree-locked' und nichts ändert sich.
  */
-export function startNewCycle(state: GameState, now: number): NewCycleResult {
+export function startNewCycle(state: GameState, now: number, mainTree?: MainTreeId): NewCycleResult {
   const preview = previewNewCycle(state);
   if (preview.blocker !== null) return { ok: false, error: 'cycle-locked' };
+  const tree = mainTree ?? state.cycle.mainTree;
+  if (!isTreeUnlocked(state, tree)) return { ok: false, error: 'tree-locked' };
   state.meta.forestMemory = preview.memoryAfter;
   state.totalGrowth = 0;
   state.seeds = 0;
@@ -672,7 +807,7 @@ export function startNewCycle(state: GameState, now: number): NewCycleResult {
   state.plants = [];
   state.niches = emptyNiches();
   state.pendingEncounters = [];
-  state.cycle = createCycle(state.cycle.number + 1, now);
+  state.cycle = createCycle(state.cycle.number + 1, now, tree);
   const regulars = moveInRegulars(state);
   recordDiscoveries(state);
   return { ok: true, preview, regulars };
@@ -725,16 +860,31 @@ export function setRegulars(state: GameState, speciesIds: readonly string[]): Ac
 // Ereignisse mit Wahl und Durchreisende (DESIGN_V2.md 7.4, 7.5, 7.8)
 // ---------------------------------------------------------------------------
 
-/** Ereignisse, die jetzt gezogen werden können: ab ihrer Stufe, einmal je Zyklus, Bedingungen erfüllt. */
+/**
+ * Ereignisse, die jetzt gezogen werden können: ab ihrer Stufe, einmal je Zyklus, in ihrer
+ * Jahreszeit (EVENT_SEASONS), Bedingungen erfüllt.
+ */
 export function eligibleEvents(state: GameState): GameEvent[] {
   const ctx = appearsContext(ecosystemOf(state));
-  return EVENTS.filter((e) => e.minStage <= state.stage && !state.cycle.seen.includes(e.id) && speciesAppears(ctx, e));
+  return EVENTS.filter(
+    (e) =>
+      e.minStage <= state.stage &&
+      !state.cycle.seen.includes(e.id) &&
+      inSeason(state, EVENT_SEASONS, e.id) &&
+      speciesAppears(ctx, e),
+  );
 }
 
-/** Gäste, die jetzt gezogen werden können (wie eligibleEvents). */
+/** Gäste, die jetzt gezogen werden können (wie eligibleEvents, Jahreszeit aus VISITOR_SEASONS). */
 export function eligibleVisitors(state: GameState): Visitor[] {
   const ctx = appearsContext(ecosystemOf(state));
-  return VISITORS.filter((v) => v.minStage <= state.stage && !state.cycle.seen.includes(v.id) && speciesAppears(ctx, v));
+  return VISITORS.filter(
+    (v) =>
+      v.minStage <= state.stage &&
+      !state.cycle.seen.includes(v.id) &&
+      inSeason(state, VISITOR_SEASONS, v.id) &&
+      speciesAppears(ctx, v),
+  );
 }
 
 /** Begegnung für ein Ereignis; es gilt ab jetzt als gesehen. */
@@ -756,7 +906,7 @@ function visitorEncounter(state: GameState, visitor: Visitor): PendingEncounter 
  * Rest normal gezogen. null, wenn keine ID passt.
  */
 function forcedEncounter(state: GameState, forced: ForcedEncounter): PendingEncounter | null {
-  const slots = nicheSlots(state.stage, state.niches, cycleSlotBonuses(state.cycle));
+  const slots = nicheSlots(state.stage, state.niches, slotBonuses(state));
   const present = new Set(allAnimals(state));
   const fits = forced.ids.filter((id, i) => {
     if (forced.ids.indexOf(id) !== i) return false;
