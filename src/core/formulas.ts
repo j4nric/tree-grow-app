@@ -11,6 +11,7 @@ import {
   RARITY_BOOST_POINTS,
 } from '../content/abilities';
 import { CARE, type CareCycleEffect } from '../content/care';
+import { DAY_SECONDS, DAY_START_PHASE } from '../content/daytime';
 import { COMMUNITIES, type CommunityMember } from '../content/communities';
 import { DECLINE_SEED_SECONDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
 import { SEED_SECONDS_MIN_SEEDS } from '../content/events';
@@ -41,7 +42,7 @@ import {
   type Tag,
 } from '../content/types';
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
-import { seasonIdAt, seasonIndex } from './season';
+import { normalizeElapsed, seasonIdAt, seasonIndex } from './season';
 import { MAX_FOREST_MEMORY, type CycleState, type GameState, type PendingEncounterType } from './state';
 
 /*
@@ -1361,4 +1362,17 @@ export function cycleMemoryGain(
 export function regularSlots(forestMemory: number): number {
   const memory = Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
   return Math.floor(memory / MEMORY_PER_REGULAR_SLOT);
+}
+
+/**
+ * Tageszeit für die Grafik (`SceneInput.dayPhase`, DESIGN_V2.md 19): Tagesanteil in [0, 1)
+ * aus der Spielzeit des Zyklus – 0 Mitternacht, 0,5 Mittag. Ein Tag dauert DAY_SECONDS
+ * Spielzeit, der Zyklus beginnt bei DAY_START_PHASE (Vormittag). Ungültige Zeit (NaN,
+ * negativ) zählt wie 0, sehr große wie MAX_ELAPSED (wie die Jahreszeiten).
+ */
+export function dayPhaseAt(elapsed: number): number {
+  const days = normalizeElapsed(elapsed) / DAY_SECONDS + DAY_START_PHASE;
+  const phase = days - Math.floor(days);
+  // Rundung kann genau 1 ergeben – auf 0 zurückfalten.
+  return phase >= 1 ? 0 : phase;
 }

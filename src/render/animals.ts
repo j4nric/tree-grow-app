@@ -982,6 +982,11 @@ export interface AnimalFrame {
    * Waldsaum (Blüte, Samenstände, dürre Halme) und das Leuchten der Glühwürmchen.
    */
   season?: number | null;
+  /**
+   * Nacht 0–1 (daylight.ts): Das Glühwürmchen leuchtet stärker, mit größerem Schein.
+   * Ohne Angabe Tag.
+   */
+  night?: number;
   dpr: number;
   /** Zusätzliche Skalierung (z. B. altes Bild während einer Größenänderung, Kamera-Zoom). */
   sx: number;
@@ -1455,7 +1460,15 @@ function drawEntry(
     // Leuchten nur in der Glühwürmchen-Zeit; im Winter sitzt es dunkel am Boden.
     const hx = pose.x - 0.12 * e.size * pose.dir;
     const hy = pose.y + 0.04 * e.size;
-    blit(ctx, sprites.get('glowHalo', 0, false, e.size, f.spriteDpr ?? f.dpr), hx, hy, 1, 0, seasonNow.glow * (1 - 0.5 * muted), f);
+    const glow = seasonNow.glow * (1 - 0.5 * muted);
+    blit(ctx, sprites.get('glowHalo', 0, false, e.size, f.spriteDpr ?? f.dpr), hx, hy, 1, 0, glow, f);
+    const night = f.night ?? 0;
+    if (night > 0.01) {
+      // Nachts: zusätzlicher, größerer Schein, der additiv leuchtet.
+      ctx.globalCompositeOperation = 'lighter';
+      blit(ctx, sprites.get('glowHalo', 0, false, e.size * 2.4, f.spriteDpr ?? f.dpr), hx, hy, 1, 0, glow * night * 0.8, f);
+      ctx.globalCompositeOperation = 'source-over';
+    }
   }
   if (muted < 0.99) {
     blit(ctx, sprites.get(e.kind, pose.frame, false, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, 1, f);

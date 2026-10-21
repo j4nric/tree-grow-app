@@ -17,6 +17,7 @@ import {
   saveSettings,
   takeFirstStartHint,
   toastDuration,
+  type DaytimeSetting,
   type MotionSetting,
   type Settings,
   type SoundLevel,
@@ -255,6 +256,16 @@ function buildSettings(body: HTMLElement, prefs: Preferences): void {
       ],
       s.sound,
       (sound) => prefs.update({ sound }),
+    ),
+    radioGroup<DaytimeSetting>(
+      'daytime',
+      'Tageszeit',
+      [
+        { value: 'cycle', label: 'Wechsel – Tag, Dämmerung und Nacht' },
+        { value: 'day', label: 'Immer Tag' },
+      ],
+      s.daytime,
+      (daytime) => prefs.update({ daytime }),
     ),
   );
 }
