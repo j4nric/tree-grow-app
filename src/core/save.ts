@@ -11,6 +11,7 @@ import { VISITORS_BY_ID } from '../content/visitors';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { DEFAULT_MAIN_TREE, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
 import {
+  harmonyMemoryGain,
   nicheSlots,
   plantCost,
   plantSlots,
@@ -103,6 +104,7 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   if (version < 5) migrateV4(state);
   if (version < 6) migrateV5(state);
   if (version < 8) migrateV7(state);
+  if (version < 10) migrateV9(state);
   // v6 → v7 (Balancing 2.10): nur die Wegpunkt-Kurve – schon in loadV2 umgerechnet
   // (v6GrowthToV7), bevor Wegpunkt, Stufe und Zwischenhalt abgeleitet werden.
   // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte. Führt
@@ -288,6 +290,16 @@ function migrateV7(state: GameState): void {
     bestHarmony: state.cycle.maxHarmony,
     grownTrees,
   };
+}
+
+/**
+ * v9 → v10 (Sperrklinke der Vorschau, DESIGN_V2.md 10): Der beste Harmonie-Anteil des
+ * Gedächtnis-Gewinns startet bei der aktuellen Vorschau (H_max und Wegpunkt des Stands).
+ * Frühere, höhere Vorschauen dieses Zyklus sind nicht bekannt – niemand bekommt weniger als
+ * vorher. loadGame führt ihn danach mit H_max nach (recordDiscoveries).
+ */
+function migrateV9(state: GameState): void {
+  state.cycle.bestHarmonyMemory = Math.min(MAX_FOREST_MEMORY, harmonyMemoryGain(state.cycle.maxHarmony, state.waypoint));
 }
 
 /**
@@ -479,6 +491,11 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   state.cycle.number = Math.floor(clampedOr(cycle.number, 1, 1, MAX_CYCLE_NUMBER));
   state.cycle.maxHarmony = clampedOr(cycle.maxHarmony, 0, 0, Number.MAX_VALUE);
   state.cycle.newSpecies = unique(stringArray(cycle.newSpecies).filter((id) => discovered.has(id)));
+  // Seit v10: Sperrklinke (ältere Stände: migrateV9). Ganzzahlig, NaN/negativ → 0. Höchstens,
+  // was H_max an irgendeinem Wegpunkt bringt – am meisten bis zum Hain (Schwelle steigt
+  // danach) – und nie über MAX_FOREST_MEMORY. Schützt vor manipulierten Ständen.
+  const bestPossible = Math.min(MAX_FOREST_MEMORY, harmonyMemoryGain(state.cycle.maxHarmony, 0));
+  state.cycle.bestHarmonyMemory = version >= 10 ? Math.floor(clampedOr(cycle.bestHarmonyMemory, 0, 0, bestPossible)) : 0;
   if (typeof cycle.startedAt === 'number' && Number.isFinite(cycle.startedAt)) state.cycle.startedAt = cycle.startedAt;
   state.meta.regulars = unique(stringArray(meta.regulars).filter((id) => discovered.has(id))).slice(
     0,

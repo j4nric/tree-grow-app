@@ -3,7 +3,7 @@ import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { SPECIES } from '../src/content/species';
 import { SEASON_SECONDS } from '../src/content/seasons';
 import { STAGES } from '../src/content/stages';
-import { cycleMemoryGain, evaluate, memoryHarmonyBonus, regularSlots } from '../src/core/formulas';
+import { cycleMemoryGain, evaluate, harmonyMemoryGain, memoryHarmonyBonus, regularSlots } from '../src/core/formulas';
 import { MAX_CYCLE_NUMBER, deserialize, loadGame, serialize, v6Threshold } from '../src/core/save';
 import { seasonIdAt } from '../src/core/season';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, allAnimals, createCycle, createInitialState, type GameState } from '../src/core/state';
@@ -22,11 +22,13 @@ import {
   tick,
   toggleRegular,
 } from '../src/core/tick';
+import { GROWTH, HARMONY, RANDOM, runGame } from '../scripts/simulate';
 import { stateAt } from './helpers';
 
 const HAIN_STAGE = NEW_CYCLE_MIN_STAGE;
 /** Wegpunkt des Hains – hier gilt die Hain-Regel aus 2.11 (Parameter von cycleMemoryGain). */
 const HAIN = STAGES[NEW_CYCLE_MIN_STAGE]!.waypoint;
+const URWALD_STAGE = HAIN_STAGE + 2;
 
 /** Spielstand im Hain mit Tieren, Pflanzen, einer offenen Begegnung und Tagebuch. */
 function groveState(seed = 5): GameState {
@@ -106,11 +108,12 @@ describe('Waldgedächtnis-Formel (DESIGN_V2.md 10)', () => {
   });
 
   it('Gewinn sinkt nie, solange H_max je Wegpunkt um mindestens 3 steigt (alle Start-H_max 80–200)', () => {
-    // Die Schwelle steigt um 3,125 je Wegpunkt. Bleibt H_max gleich, sinkt der Gewinn darum um
-    // bis zu ~9 Punkte (das lässt sich ohne Gedächtnis im Spielstand nicht vermeiden: der Hain
-    // gibt 115 Harmonie schon 68 Punkte, der Urwald darf höchstens ~1,5 × Hain bringen,
-    // DESIGN_V2.md 15.4). Typische Verläufe steigen aber schneller: Mittel der Simulation
-    // Hain → Urwald je Wegpunkt Harmonie +4,0, Wachstum +3,3, Zufall +3,2.
+    // Die Formel allein (ohne Sperrklinke): Die Schwelle steigt um 3,125 je Wegpunkt. Bleibt
+    // H_max gleich, sinkt der Gewinn darum um bis zu ~9 Punkte (der Hain gibt 115 Harmonie schon
+    // 68 Punkte, der Urwald darf höchstens ~1,5 × Hain bringen, DESIGN_V2.md 15.4). Typische
+    // Verläufe steigen schneller: Mittel der Simulation Hain → Urwald je Wegpunkt Harmonie +4,0,
+    // Wachstum +3,3, Zufall +3,2. Die Vorschau im Spiel sinkt dank `cycle.bestHarmonyMemory`
+    // gar nicht (Sperrklinke, unten).
     for (const slope of [3, 3.2, 4.1, 5]) {
       for (let h0 = 80; h0 <= 200; h0++) {
         for (let w = HAIN; w < 36; w++) {
@@ -192,6 +195,119 @@ describe('Waldgedächtnis-Formel (DESIGN_V2.md 10)', () => {
     expect(regularSlots(NaN)).toBe(0);
     expect(regularSlots(-100)).toBe(0);
     expect(regularSlots(1e12)).toBe(MAX_FOREST_MEMORY / 25);
+  });
+});
+
+describe('Sperrklinke: die Vorschau sinkt nie (seit v10)', () => {
+  const WALD = STAGES[HAIN_STAGE + 1]!.waypoint;
+  const URWALD = STAGES[URWALD_STAGE]!.waypoint;
+  it('harmonyMemoryGain ist der Harmonie-Anteil von cycleMemoryGain', () => {
+    for (const w of [0, HAIN, 23, 27, WALD, URWALD, 99]) {
+      for (const h of [-5, 0, 4.5, 81, 100.5, 110, 127, 150.4, 174, 300]) {
+        expect(harmonyMemoryGain(h, w), `H ${h}, Wegpunkt ${w}`).toBe(cycleMemoryGain(h, 0, 0, w));
+      }
+    }
+    expect(harmonyMemoryGain(NaN, NaN)).toBe(0);
+    expect(harmonyMemoryGain(Infinity, HAIN)).toBe(0);
+    // Sinkt mit dem Wegpunkt (darum reicht beim Laden die Hain-Regel als Obergrenze).
+    for (let h = 0; h <= 220; h++) {
+      for (let w = 0; w < 40; w++) expect(harmonyMemoryGain(h, w + 1)).toBeLessThanOrEqual(harmonyMemoryGain(h, w));
+    }
+  });
+
+  it('cycleMemoryGain zählt max(gemerkt, aktuell) plus neue Arten, begrenzt wie bisher', () => {
+    // Urwald, H 135: aktuell 27 – gemerkt 60 zählt.
+    expect(cycleMemoryGain(135, 21, 0, URWALD, 60)).toBe(60 + 21);
+    // Gemerkt kleiner: aktuell zählt.
+    expect(cycleMemoryGain(174, 21, 0, URWALD, 10)).toBe(34 + 38 + 21);
+    // Bestand nahe der Obergrenze: füllt nur auf.
+    expect(cycleMemoryGain(135, 21, MAX_FOREST_MEMORY - 7, URWALD, 60)).toBe(7);
+    // Unsinn im gemerkten Wert zählt als 0, Brüche werden abgerundet, Riesen gedeckelt.
+    expect(cycleMemoryGain(135, 0, 0, URWALD, NaN)).toBe(27);
+    expect(cycleMemoryGain(135, 0, 0, URWALD, -50)).toBe(27);
+    expect(cycleMemoryGain(135, 0, 0, URWALD, Infinity)).toBe(27);
+    expect(cycleMemoryGain(135, 0, 0, URWALD, 40.9)).toBe(40);
+    expect(cycleMemoryGain(0, 0, 0, URWALD, 1e300)).toBe(MAX_FOREST_MEMORY);
+    expect(cycleMemoryGain(0, 0, 0, URWALD, 0)).toBe(0);
+  });
+
+  it('gleiche H_max über mehrere Wegpunkte: Vorschau bleibt, Neuer Zyklus schreibt den besten Wert gut', () => {
+    const state = groveState();
+    // Hain, H_max 120: 24 + 45 = 69. Die Tiere des Hains erreichen 120 nicht – H_max bleibt.
+    state.cycle.maxHarmony = 120;
+    recordDiscoveries(state);
+    expect(evaluate(state).harmony).toBeLessThan(120);
+    expect(state.cycle.bestHarmonyMemory).toBe(69);
+    const species = state.cycle.newSpecies.length;
+    const atHain = previewNewCycle(state).memoryGain;
+    expect(atHain).toBe(69 + species);
+    let previous = atHain;
+    while (state.waypoint < HAIN + 4) {
+      tick(state, 60);
+      state.pendingEncounters = []; // keine Wahl: H_max bleibt 120
+      const gain = previewNewCycle(state).memoryGain;
+      expect(gain, `Wegpunkt ${state.waypoint}`).toBeGreaterThanOrEqual(previous);
+      previous = gain;
+    }
+    expect(state.cycle.maxHarmony).toBe(120);
+    // Ohne Sperrklinke wäre die Vorschau gesunken (Wegpunkt 24: ⌊24 + 22,5⌋ = 46).
+    expect(cycleMemoryGain(120, species, 0, state.waypoint)).toBeLessThan(atHain);
+    expect(previewNewCycle(state).memoryGain).toBe(69 + state.cycle.newSpecies.length);
+    const memory = state.meta.forestMemory;
+    const preview = previewNewCycle(state);
+    expect(startNewCycle(state, 0).ok).toBe(true);
+    expect(state.meta.forestMemory).toBe(memory + preview.memoryGain);
+    // Neuer Zyklus: Sperrklinke beginnt neu (nur der Wert zum frischen Ökosystem).
+    expect(state.cycle.bestHarmonyMemory).toBe(harmonyMemoryGain(state.cycle.maxHarmony, 0));
+    expect(state.cycle.bestHarmonyMemory).toBeLessThan(69);
+  });
+
+  it('online = offline, auch im Schnellvorlauf über ganze Jahre', () => {
+    const make = () => {
+      const s = groveState(77);
+      s.cycle.maxHarmony = 118;
+      recordDiscoveries(s);
+      return s;
+    };
+    const online = make();
+    const offline = make();
+    for (let i = 0; i < 3 * 3600; i++) {
+      tick(online, 1);
+      online.pendingEncounters = [];
+    }
+    // Offline in Stunden-Stücken (Begegnungen dazwischen verworfen wie online).
+    for (let i = 0; i < 3; i++) {
+      simulateOffline(offline, 3600);
+      offline.pendingEncounters = [];
+    }
+    expect(online.waypoint).toBeGreaterThan(HAIN + 2);
+    expect(offline.waypoint).toBe(online.waypoint);
+    expect(offline.cycle.maxHarmony).toBe(online.cycle.maxHarmony);
+    expect(offline.cycle.bestHarmonyMemory).toBe(online.cycle.bestHarmonyMemory);
+    // Die Sperrklinke hält wirklich etwas fest.
+    expect(online.cycle.bestHarmonyMemory).toBeGreaterThan(harmonyMemoryGain(online.cycle.maxHarmony, online.waypoint));
+    expect(previewNewCycle(offline)).toEqual(previewNewCycle(online));
+    // Schnellvorlauf (ganze Jahre am Stück) wie Schritt für Schritt.
+    const stepped = stateAt(4, ['chanterelle'], 3);
+    recordDiscoveries(stepped);
+    const skipped = structuredClone(stepped);
+    for (let i = 0; i < 8; i++) tick(stepped, SEASON_SECONDS);
+    tick(skipped, 8 * SEASON_SECONDS);
+    expect(skipped.cycle.bestHarmonyMemory).toBe(stepped.cycle.bestHarmonyMemory);
+    expect(stepped.cycle.bestHarmonyMemory).toBe(harmonyMemoryGain(stepped.cycle.maxHarmony, stepped.waypoint));
+  });
+
+  it('über einen ganzen simulierten Zyklus bis zum Urwald sinkt die Vorschau nie (runGame, memoryPath)', () => {
+    for (const [strategy, seed] of [[HARMONY, 11], [GROWTH, 12], [RANDOM, 13]] as const) {
+      const result = runGame(strategy, { seed, targetStage: URWALD_STAGE, maxSeconds: 8 * 3600, care: true });
+      const path = result.memoryPath;
+      expect(path.length, strategy.id).toBeGreaterThan(10);
+      for (let i = 0; i < path.length; i++) {
+        const p = path[i]!;
+        expect(p.after, `${strategy.id} Wegpunkt ${p.waypoint}`).toBeGreaterThanOrEqual(p.arrive);
+        if (i > 0) expect(p.arrive, `${strategy.id} Wegpunkt ${p.waypoint}`).toBeGreaterThanOrEqual(path[i - 1]!.after);
+      }
+    }
   });
 });
 
@@ -286,7 +402,9 @@ describe('Neuer Zyklus', () => {
     expect(state.plants).toEqual([]);
     expect(allAnimals(state)).toEqual([]);
     expect(state.pendingEncounters).toEqual([]);
-    expect(state.cycle).toEqual({ ...createCycle(2, 99_000), maxHarmony: Math.max(0, evaluate(state).harmony) });
+    const h = Math.max(0, evaluate(state).harmony);
+    // Sperrklinke neu: nur der Wert zum frischen Zyklus (Wegpunkt 0).
+    expect(state.cycle).toEqual({ ...createCycle(2, 99_000), maxHarmony: h, bestHarmonyMemory: harmonyMemoryGain(h, 0) });
   });
 
   it('behält Tagebuch, Andenken, Stammgäste, Zufallsgenerator und lastTick; schreibt Waldgedächtnis gut', () => {
@@ -554,6 +672,7 @@ describe('Migration v3 → v4', () => {
     state.meta.regulars = ['bee', 'earthworm'];
     startNewCycle(state, 4242);
     state.cycle.maxHarmony = 12.5;
+    state.cycle.bestHarmonyMemory = harmonyMemoryGain(12.5, state.waypoint);
     const loaded = deserialize(serialize(state), 0)!;
     expect(loaded.cycle).toEqual(state.cycle);
     expect(loaded.meta.regulars).toEqual(['bee', 'earthworm']);

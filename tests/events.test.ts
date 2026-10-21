@@ -103,7 +103,11 @@ describe('Ereignisse: Wirkungen', () => {
     // Der Neue Zyklus setzt alles zurück.
     state.stage = 5;
     startNewCycle(state, 0);
-    expect(state.cycle).toEqual({ ...createCycle(2, 0), maxHarmony: state.cycle.maxHarmony });
+    expect(state.cycle).toEqual({
+      ...createCycle(2, 0),
+      maxHarmony: state.cycle.maxHarmony,
+      bestHarmonyMemory: state.cycle.bestHarmonyMemory,
+    });
   });
 
   it('slot öffnet Höhlen schon im Jungen Baum (opensEarly) – Karten zählen den Platz', () => {

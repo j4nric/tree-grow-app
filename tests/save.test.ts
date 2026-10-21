@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY } from '../src/content/memory';
-import { nicheSlots, stageForWaypoint, thresholdFor, waypointProgress, waypointsForGrowth } from '../src/core/formulas';
+import { cycleMemoryGain, harmonyMemoryGain, nicheSlots, stageForWaypoint, thresholdFor, waypointProgress, waypointsForGrowth } from '../src/core/formulas';
 import { isValidRngState, normalizeSeed } from '../src/core/rng';
 import {
   deserialize,
@@ -21,7 +21,7 @@ import {
   v7GrowthToV6,
 } from '../src/core/save';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState, type GameState } from '../src/core/state';
-import { interludeThreshold, recordDiscoveries, tick } from '../src/core/tick';
+import { interludeThreshold, previewNewCycle, recordDiscoveries, tick } from '../src/core/tick';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
 /** Gültiger aktueller Stand (SAVE_VERSION) als Rohdaten, einzelne Felder überschreibbar. */
@@ -71,7 +71,7 @@ describe('Speichern & Laden v2', () => {
     state.meta.forestMemory = 5;
     // Von Hand geändertes Ökosystem: H_max nachführen wie nach einer Aktion.
     recordDiscoveries(state);
-    expect(SAVE_VERSION).toBe(9);
+    expect(SAVE_VERSION).toBe(10);
     expect(deserialize(serialize(state), 999)).toEqual(state);
     expect(loadGame(serialize(state), 999)).toMatchObject({ migratedFromV1: false, keepsake: false });
   });
@@ -107,6 +107,81 @@ describe('Speichern & Laden v2', () => {
     } as unknown as Storage;
     expect(() => saveToStorage(state, broken)).not.toThrow();
     expect(loadFromStorage(0, broken)).toBeNull();
+  });
+});
+
+describe('Spielstand v10: Sperrklinke der Vorschau (cycle.bestHarmonyMemory)', () => {
+  /**
+   * Wald (Wegpunkt 28) mit H_max 120, erreicht schon im Hain: dort brachte das 24 + 45 = 69
+   * Punkte, mit der Wald-Schwelle 125 nur noch 24.
+   */
+  function forestState(): GameState {
+    const state = stateAt(5, ['earthworm', 'robin', 'bee'], 21);
+    state.cycle.newSpecies = ['earthworm', 'robin', 'bee'];
+    state.cycle.maxHarmony = 120;
+    state.meta.stats.bestHarmony = 120;
+    recordDiscoveries(state);
+    state.waypoint = 28;
+    state.stage = stageForWaypoint(28);
+    state.totalGrowth = thresholdFor(28);
+    recordDiscoveries(state);
+    return state;
+  }
+
+  /** Derselbe Stand als Rohdaten, Zyklusfelder überschreibbar (undefined = Feld fehlt). */
+  function raw(state: GameState, version: number, cycle: Record<string, unknown> = {}): string {
+    const data = JSON.parse(serialize(state));
+    data.version = version;
+    data.cycle = { ...data.cycle, ...cycle };
+    return JSON.stringify(data);
+  }
+
+  it('merkt den besten Wert und übersteht einen Roundtrip', () => {
+    const state = forestState();
+    expect(state.cycle.maxHarmony).toBe(120);
+    expect(harmonyMemoryGain(120, 28)).toBe(24);
+    expect(state.cycle.bestHarmonyMemory).toBe(69);
+    expect(previewNewCycle(state).memoryGain).toBe(69 + 3);
+    const loaded = deserialize(serialize(state), 0)!;
+    expect(loaded).toEqual(state);
+    expect(previewNewCycle(loaded).memoryGain).toBe(69 + 3);
+  });
+
+  it('v9 → v10: Startwert ist die aktuelle Vorschau – niemand bekommt weniger als vorher', () => {
+    const state = forestState();
+    const result = loadGame(raw(state, 9, { bestHarmonyMemory: undefined }), 0)!;
+    const s = result.state;
+    expect(s.version).toBe(SAVE_VERSION);
+    expect(s.cycle.bestHarmonyMemory).toBe(24);
+    // Genau die Vorschau, die der v9-Stand zeigte (Formel ohne Sperrklinke).
+    expect(previewNewCycle(s).memoryGain).toBe(cycleMemoryGain(120, 3, s.meta.forestMemory, 28));
+    // Ein v9-Stand mit einem (unbekannten) Feld zählt es nicht.
+    expect(loadGame(raw(state, 9, { bestHarmonyMemory: 69 }), 0)!.state.cycle.bestHarmonyMemory).toBe(24);
+    // Danach als v10 verlustfrei weiter.
+    expect(deserialize(serialize(s), 0)).toEqual(s);
+  });
+
+  it('robustes Laden: fehlend, NaN, negativ, krumm, riesig, manipuliert', () => {
+    const state = forestState();
+    const load = (value: unknown) => deserialize(raw(state, SAVE_VERSION, { bestHarmonyMemory: value }), 0)!.cycle.bestHarmonyMemory;
+    // Fehlend oder Unsinn → 0, dann hebt das Laden auf die aktuelle Vorschau (24).
+    expect(load(undefined)).toBe(24);
+    expect(load(null)).toBe(24);
+    expect(load('69')).toBe(24);
+    expect(load(-5)).toBe(24);
+    expect(load(0)).toBe(24);
+    // Gültig: bleibt, Brüche abgerundet.
+    expect(load(50.7)).toBe(50);
+    // Mehr, als H_max an irgendeinem Wegpunkt bringt (Hain-Regel: 69), ist manipuliert.
+    expect(load(500)).toBe(69);
+    expect(load(1e300)).toBe(69);
+    expect(deserialize(raw(state, SAVE_VERSION).replace('"bestHarmonyMemory":69', '"bestHarmonyMemory":1e400'), 0)!.cycle.bestHarmonyMemory).toBe(69);
+    // Riesige H_max: nie über MAX_FOREST_MEMORY.
+    const huge = deserialize(raw(state, SAVE_VERSION, { maxHarmony: 1e12, bestHarmonyMemory: 1e12 }), 0)!;
+    expect(huge.cycle.bestHarmonyMemory).toBe(MAX_FOREST_MEMORY);
+    expect(previewNewCycle(huge).memoryGain).toBe(MAX_FOREST_MEMORY - huge.meta.forestMemory);
+    // NaN als Zahl (nicht in JSON darstellbar, aber im Objekt möglich): kein Absturz.
+    expect(Number.isFinite(load(Number.NaN))).toBe(true);
   });
 });
 

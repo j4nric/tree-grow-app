@@ -22,9 +22,12 @@ import { CYCLES, FULL, HAIN, MAX_SECONDS, RESTART_RUNS, URWALD, WALD } from './b
  *   in Zyklus 1 Wald +7,5 bis +23, Urwald +4,5 bis +24,
  * - Urwald/Hain-Gewinn des Harmonie-Spielers 1,29–1,76, Urwald-Gewinn 81–94,
  * - Mittel-Verlauf der Vorschau: größte Delle −2,9 bis −5,0 (großer Lauf −1,2),
- * - größter Rückgang an einem Wegpunkt immer genau −10 (Formel-Grenze, s. u.),
+ * - größter Rückgang an einem Wegpunkt immer genau −10 (Formel-Grenze; seit der Sperrklinke,
+ *   Spielstand v10, gar keiner mehr),
  * - Wachstums-Spieler: Gewinn Wald bzw. Urwald in einem Fenster (31337) unter dem Hain
  *   (64,7 / 62,3 / 63,3; großer Lauf 48,8 / 58,0 / 72,4).
+ * (Die Fenster-Spannen stammen von vor der Sperrklinke; sie hebt vor allem den Gewinn des
+ * Wachstums-Spielers, siehe DESIGN_V2.md 15.4 „Stand Sperrklinke“.)
  * Darum prüft der Check vor allem den Gedächtnis-Vorsprung und die Formel-Grenze; Verhältnis
  * und Gewinn-Quotient nur grob, Mittel-Verlauf und Reihenfolge beim Wachstums-Spieler nur im
  * großen Lauf.
@@ -93,19 +96,17 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
     }
   });
 
-  it('Vorschau beim Wachsen: kein Sprung beim Stufenwechsel, Rückgang je Wegpunkt klein', () => {
-    // Die Schwelle steigt um 3,125 je Wegpunkt. Bleibt H_max an einem Wegpunkt gleich, sinkt die
-    // Vorschau um höchstens 10 Punkte (3 · 3,125 = 9,375, nach dem Abrunden ≤ 10) – mit
-    // Schwellen je Stufe sprang sie beim Erreichen von Wald bzw. Urwald im Mittel um 14–26
-    // Punkte. Diese Grenze folgt aus der Formel und gilt in jedem Seed-Fenster. Der
-    // Mittel-Verlauf steigt (großer Lauf: größte Delle −1,2); mit 12 Durchgängen streut er
-    // bis −5 (siehe oben), darum prüft ihn nur der große Lauf.
+  it('Vorschau beim Wachsen: sinkt nie (Sperrklinke seit v10)', () => {
+    // Die Schwelle steigt um 3,125 je Wegpunkt. Bleibt H_max an einem Wegpunkt gleich, sank die
+    // Vorschau bis v9 um bis zu 10 Punkte (3 · 3,125 = 9,375, nach dem Abrunden ≤ 10). Seit v10
+    // merkt sich der Zyklus den besten Harmonie-Anteil (`cycle.bestHarmonyMemory`) – in keinem
+    // Durchgang sinkt die Vorschau an einem Wegpunkt. Gilt in jedem Seed-Fenster.
     for (const r of rows) {
       if (r.stage === HAIN) continue;
       for (let c = 0; c < CYCLES; c++) {
         const st = memoryPathStats(r.runs, c);
-        expect(st.worstDrop, `${r.strategy.id} Stufe ${r.stage} Zyklus ${c + 1}`).toBeGreaterThanOrEqual(-10);
-        if (FULL) expect(st.worstMeanDip, `${r.strategy.id} Stufe ${r.stage} Zyklus ${c + 1} Mittel`).toBeGreaterThanOrEqual(-1.5);
+        expect(st.worstDrop, `${r.strategy.id} Stufe ${r.stage} Zyklus ${c + 1}`).toBeGreaterThanOrEqual(0);
+        expect(st.dropShare, `${r.strategy.id} Stufe ${r.stage} Zyklus ${c + 1}`).toBe(0);
       }
     }
   });

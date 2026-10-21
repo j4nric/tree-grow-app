@@ -1297,6 +1297,21 @@ export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {
 }
 
 /**
+ * Harmonie-Anteil des Waldgedächtnis-Gewinns (ohne neue Arten, ohne Obergrenze des Bestands):
+ * mit H = round(H_max): `⌊H / 5 + min(C, 3 · max(0, H − T))⌋`, Schwelle T und Obergrenze C
+ * je Wegpunkt (memoryHarmonyBonus). Steigt mit H_max, sinkt mit dem Wegpunkt – darum merkt
+ * sich der Zyklus den besten Wert (`cycle.bestHarmonyMemory`, „Sperrklinke“ seit v10).
+ * Negative Harmonie zählt als 0, NaN ergibt 0.
+ */
+export function harmonyMemoryGain(maxHarmony: number, waypoint: number): number {
+  // Einmal kaufmännisch runden – dieselbe ganze Zahl, die Panel, Statistik und Seitenleiste
+  // als „Höchste Harmonie“ zeigen (100,6 → 101 zählt also schon extra).
+  const harmony = Math.round(Math.max(0, finite(maxHarmony)));
+  const bonus = memoryHarmonyBonus(waypoint);
+  return harmonyMemoryPoints(harmony, bonus.threshold, bonus.maxPoints);
+}
+
+/**
  * Waldgedächtnis, das ein Neuer Zyklus einbringt (Schritt 2.11, gleitende Schwelle seit 2.11b):
  * mit H = round(H_max): `⌊H / 5 + min(C, 3 · max(0, H − T))⌋ + neue Arten`, Schwelle T und
  * Obergrenze C je erreichtem Wegpunkt `waypoint` (memoryHarmonyBonus, Zahlen in
@@ -1304,13 +1319,19 @@ export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {
  * `⌊H / 5⌋ + min(C, 3 · max(0, H − T))` wie in 2.11. Begrenzt, sodass der Bestand
  * MAX_FOREST_MEMORY nicht übersteigt. Negative Harmonie zählt als 0; NaN und Unsinn ergeben
  * 0 statt kaputter Spielstände.
+ * Sperrklinke (seit v10): `bestHarmonyMemory` ist der beste Harmonie-Anteil, den der Zyklus
+ * schon erreicht hatte (`cycle.bestHarmonyMemory`); gezählt wird der größere der beiden
+ * Werte. So sinkt die Vorschau nie, auch wenn die Schwelle mit dem Wegpunkt steigt.
  */
-export function cycleMemoryGain(maxHarmony: number, newSpeciesCount: number, forestMemory: number, waypoint: number): number {
-  // Einmal kaufmännisch runden – dieselbe ganze Zahl, die Panel, Statistik und Seitenleiste
-  // als „Höchste Harmonie“ zeigen (100,6 → 101 zählt also schon extra).
-  const harmony = Math.round(Math.max(0, finite(maxHarmony)));
-  const bonus = memoryHarmonyBonus(waypoint);
-  const harmonyPoints = harmonyMemoryPoints(harmony, bonus.threshold, bonus.maxPoints);
+export function cycleMemoryGain(
+  maxHarmony: number,
+  newSpeciesCount: number,
+  forestMemory: number,
+  waypoint: number,
+  bestHarmonyMemory = 0,
+): number {
+  const best = Math.min(MAX_FOREST_MEMORY, Math.max(0, Math.floor(finite(bestHarmonyMemory))));
+  const harmonyPoints = Math.max(best, harmonyMemoryGain(maxHarmony, waypoint));
   const speciesPoints = MEMORY_PER_NEW_SPECIES * Math.max(0, Math.floor(finite(newSpeciesCount)));
   const room = MAX_FOREST_MEMORY - Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
   return Math.min(room, harmonyPoints + speciesPoints);

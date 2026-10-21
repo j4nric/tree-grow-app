@@ -116,7 +116,11 @@ describe('Pflege: Kauf und Wirkung', () => {
     buyCare(state, 'leaf-litter');
     startNewCycle(state, 0);
     expect(state.cycle.care).toEqual({});
-    expect(state.cycle).toEqual({ ...createCycle(2, 0), maxHarmony: state.cycle.maxHarmony });
+    expect(state.cycle).toEqual({
+      ...createCycle(2, 0),
+      maxHarmony: state.cycle.maxHarmony,
+      bestHarmonyMemory: state.cycle.bestHarmonyMemory,
+    });
   });
 
   it('Pflege wirkt dauerhaft: nichts läuft ab, online gleich offline', () => {

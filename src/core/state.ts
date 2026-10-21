@@ -7,7 +7,7 @@ import { normalizeSeed } from './rng';
  * Spielstand v9 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen,
  * Jahreszeiten und Hauptbaum-Arten; seit v7 mit der Wegpunkt-Kurve 3,5 · k^3,5 aus dem
  * Balancing 2.10; seit v8 mit der Langzeit-Statistik `meta.stats`; seit v9 mit den
- * Erfolgen `meta.achievements`).
+ * Erfolgen `meta.achievements`; seit v10 mit der Sperrklinke `cycle.bestHarmonyMemory`).
  * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -16,7 +16,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+1 % je Punkt → höchstens
@@ -128,6 +128,14 @@ export interface CycleState {
    * Ökosystem nachgeführt (Karte wählen, Pflanze setzen, Stammgäste, Stufenwechsel, Laden).
    */
   maxHarmony: number;
+  /**
+   * „Sperrklinke“ der Vorschau (seit v10, DESIGN_V2.md 10): bester Harmonie-Anteil des
+   * Waldgedächtnis-Gewinns in diesem Zyklus (harmonyMemoryGain aus H_max und Wegpunkt, ohne
+   * neue Arten – die zählen ohnehin nur nach oben). Ganzzahlig, 0 … MAX_FOREST_MEMORY.
+   * Wird an denselben Stellen wie H_max nachgeführt und nach jedem Wegpunkt; gezählt wird
+   * max(gemerkt, aktuell). So sinkt die Vorschau nie, wenn die Schwelle mit dem Wegpunkt steigt.
+   */
+  bestHarmonyMemory: number;
   /** Arten, die in diesem Zyklus zum ersten Mal ins Naturtagebuch kamen (je einmal). */
   newSpecies: string[];
   /** Beginn des Zyklus (ms seit Epoch); fehlt bei Ständen aus der Zeit vor v4. */
@@ -166,7 +174,7 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 9;
+  version: 10;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */
@@ -263,6 +271,7 @@ export function createCycle(number: number, now?: number, mainTree: MainTreeId =
   const cycle: CycleState = {
     number,
     maxHarmony: 0,
+    bestHarmonyMemory: 0,
     newSpecies: [],
     seen: [],
     bonuses: [],

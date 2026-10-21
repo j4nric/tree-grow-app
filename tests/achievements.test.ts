@@ -324,12 +324,12 @@ describe('Spielstand v9', () => {
   }
 
   it('v8 → v9: schaltet still frei, was der Stand erfüllt, und meldet die Anzahl', () => {
-    expect(SAVE_VERSION).toBe(9);
+    expect(SAVE_VERSION).toBe(10);
     const s = groveState(3);
     s.meta.stats.visitorsHosted = 2;
     s.cycle.number = 2;
     const loaded = loadGame(rawV8(s), 0)!;
-    expect(loaded.state.version).toBe(9);
+    expect(loaded.state.version).toBe(SAVE_VERSION);
     const expected = structuredClone(loaded.state);
     expected.meta.achievements = [];
     checkAchievements(expected);

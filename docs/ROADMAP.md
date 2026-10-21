@@ -128,8 +128,14 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     Sprung der Vorschau beim Stufenwechsel; Panel und Spielanleitung nennen die Schwelle;
     Simulator `restartTable`, `memoryPathTable`, `tests/balance-restart.test.ts`
     (DESIGN_V2.md 15.4 „Stand Schritt 2.11b“, Entscheidung 12)
-  - [ ] offen (`core-engineer`): „Sperrklinke“ für die Vorschau (größte Vorschau des Zyklus
-    im Spielstand), damit sie auch bei gleicher H_max nie kurz sinkt (DESIGN_V2.md 15.4)
+  - [x] „Sperrklinke“ für die Vorschau (`core-engineer`): Spielstand v10 mit
+    `cycle.bestHarmonyMemory` (bester Harmonie-Anteil des Zyklus), angezeigt und
+    gutgeschrieben wird `max(gemerkt, aktuell) + neue Arten`; Migration v9 → v10 mit der
+    aktuellen Vorschau; Vorschau sinkt an keinem Wegpunkt (DESIGN_V2.md 10, 12.7, 15.4
+    „Stand Sperrklinke“)
+  - [ ] offen (`game-designer`): `MEMORY_HARMONY_RULES` nach der Sperrklinke nachjustieren –
+    Wald/Urwald Zyklus 2 / 3 ≥ 0,97 und Urwald ≤ 1,5 × Hain halten im großen Lauf nicht mehr
+    (DESIGN_V2.md 15.4 „Stand Sperrklinke“, Kandidaten dort)
 
 ## Phase 3 – Tiefe
 
