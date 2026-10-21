@@ -181,7 +181,7 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 - [x] Kamera der Szene (`renderer`): Zoom 1–4× zum Zeiger/Pinch-Mittelpunkt, Verschieben
   mit harten Grenzen und weichem Ausgleiten, Bedienleiste (+, −, Zurücksetzen), Tastatur,
   scharfer Neuaufbau des Ausschnitts nach Ruhe; Treffer-Test `hitTestAnimal` für die
-  Tier-Detailansicht (Haken `onAnimalTap` in main.ts) – DESIGN_V2.md 11.4
+  Tier-Detailansicht (Tippen auf ein Tier in der Szene öffnet sie, `onAnimalTap` in main.ts) – DESIGN_V2.md 11.4
 
 ## Phase 4 – Prestige & Langzeitspiel
 

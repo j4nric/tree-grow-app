@@ -239,14 +239,12 @@ function hitTestScene(x: number, y: number): AnimalHit | null {
 }
 
 /**
- * Tippen oder Klicken auf ein Tier in der Szene: `hit.nicheId` und `hit.index` (Platz in
- * `state.niches`) bzw. `hit.speciesId`. Hier wird die Detailansicht angeschlossen –
- * `openAnimalDetail({ niche: hit.nicheId, index: hit.index }, canvas)`; bis dahin bleibt
- * das Tippen folgenlos. Per Tastatur sind dieselben Tiere über die Kacheln der
- * Seitenleiste erreichbar.
+ * Tippen oder Klicken auf ein Tier in der Szene öffnet seine Detailansicht (`hit.index` =
+ * Platz in `state.niches`); beim Schließen geht der Fokus an die Szene zurück. Per
+ * Tastatur sind dieselben Tiere über die Kacheln der Seitenleiste erreichbar.
  */
 function onAnimalTap(hit: AnimalHit): void {
-  void hit;
+  openAnimalDetail({ niche: hit.nicheId, index: hit.index }, canvas);
 }
 
 const cameraInput = attachCameraInput(canvas, { camera, hitTest: hitTestScene, onAnimalTap });
@@ -317,8 +315,8 @@ const animalDetail = createAnimalDetailDialog(document.body);
 // --- Aktionen ------------------------------------------------------------------------
 
 /**
- * Tierdetails einer eingezogenen Art öffnen – aus der Seitenleiste und (später) per Klick
- * auf ein Tier in der Szene. `target`: Art-ID oder `{ niche, index }` (Platz in
+ * Tierdetails einer eingezogenen Art öffnen – aus der Seitenleiste und per Klick auf ein
+ * Tier in der Szene (`onAnimalTap`). `target`: Art-ID oder `{ niche, index }` (Platz in
  * `state.niches`). `returnFocus`: bekommt beim Schließen den Fokus (Standard: aktives
  * Element). Gibt false zurück, wenn dort kein Tier lebt.
  */
