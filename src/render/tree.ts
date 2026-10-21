@@ -66,6 +66,8 @@ const REDRAW_MIN_FRAMES = 12;
 const GROVE_GROWTH = 5;
 /** Pflanzen-Ebene beim Wachsen höchstens nach dieser Änderung neu zeichnen. */
 const PLANT_REDRAW_STEP = 0.02;
+/** Beim Nachziehen (Wachstum steht) Pflanzen nur ab dieser Änderung neu zeichnen. */
+const PLANT_SETTLE_STEP = 0.002;
 
 const WOOD: WoodColors = { base: '#6b4a30', shade: '#563a25', light: '#866244' };
 /** Junger, noch grüner Trieb – verholzt in den ersten Stufen allmählich. */
@@ -153,16 +155,31 @@ interface Cache {
   plantSig: PlantSig[] | null;
 }
 
-/** Merkmale einer Pflanze, von denen die Pflanzen-Ebene abhängt (Versorgung in 5-%-Schritten). */
+/**
+ * Merkmale einer Pflanze, von denen die Pflanzen-Ebene abhängt – normalisiert, damit
+ * ungültige Werte (NaN) nicht bei jedem Vergleich als „geändert“ gelten.
+ */
 interface PlantSig {
   id: string;
   group: string;
   slot: number;
+  /** Versorgung, mit der zuletzt gezeichnet wurde. */
   vigor: number;
 }
 
-function vigorStep(v: number): number {
-  return Math.round((Number.isFinite(v) ? v : 1) * 20);
+/** Erst ab dieser Änderung der Versorgung neu zeichnen (Hysterese: kein Flackern an Grenzen). */
+const VIGOR_REDRAW_STEP = 0.05;
+
+function normSlot(slot: number): number {
+  return Number.isFinite(slot) ? Math.floor(slot) : -1;
+}
+
+function normVigor(v: number): number {
+  return Number.isFinite(v) ? clamp01(v) : 1;
+}
+
+function plantSig(p: ScenePlant): PlantSig {
+  return { id: String(p.id), group: String(p.group), slot: normSlot(p.slot), vigor: normVigor(p.vigor) };
 }
 
 function samePlants(sig: PlantSig[] | null, plants: readonly ScenePlant[] | undefined): boolean {
@@ -171,7 +188,10 @@ function samePlants(sig: PlantSig[] | null, plants: readonly ScenePlant[] | unde
   for (let i = 0; i < sig.length; i++) {
     const p = plants[i]!;
     const s = sig[i]!;
-    if (s.id !== p.id || s.group !== p.group || s.slot !== p.slot || s.vigor !== vigorStep(p.vigor)) return false;
+    if (s.id !== String(p.id) || s.group !== String(p.group) || s.slot !== normSlot(p.slot)) return false;
+    // Versorgung vergleicht mit dem zuletzt gezeichneten Wert, nicht mit festen Stufen.
+    const v = normVigor(p.vigor);
+    if (Math.abs(v - s.vigor) >= VIGOR_REDRAW_STEP || (v !== s.vigor && (v === 0 || v === 1))) return false;
   }
   return true;
 }
@@ -239,16 +259,18 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     (delta > 0 && (since > REDRAW_SETTLE_SECONDS || frames >= REDRAW_SETTLE_FRAMES));
   // Neue Pflanzenliste: alles neu (Nachbarbäume, Pilzfäden und Pflanzen hängen davon ab).
   const plantsChanged = !samePlants(cache.plantSig, input.plants);
-  if (plantsChanged) {
-    cache.plantSig = input.plants
-      ? input.plants.map((p) => ({ id: p.id, group: p.group, slot: p.slot, vigor: vigorStep(p.vigor) }))
-      : null;
-  }
   if (Number.isNaN(sc.growth) || clockReset || due || plantsChanged || sc.withPlants !== (input.plants !== undefined)) {
-    // Pflanzen beim Wachsen seltener, beim Nachziehen (kleine Änderung) aber exakt.
+    // Pflanzen beim Wachsen höchstens alle PLANT_REDRAW_STEP; beim Nachziehen (kleine
+    // Änderung) exakt – aber nur, wenn sich ihr Wachstum tatsächlich merklich geändert hat.
+    const plantDelta = Math.abs(g - sc.plantsGrowth);
     const settle = delta < REDRAW_STEP;
     const redrawPlants =
-      plantsChanged || Number.isNaN(sc.plantsGrowth) || settle || Math.abs(g - sc.plantsGrowth) >= PLANT_REDRAW_STEP;
+      plantsChanged ||
+      Number.isNaN(sc.plantsGrowth) ||
+      plantDelta >= PLANT_REDRAW_STEP ||
+      (settle && plantDelta >= PLANT_SETTLE_STEP);
+    // Die Signatur hält fest, womit die Pflanzen zuletzt gezeichnet wurden.
+    if (redrawPlants) cache.plantSig = input.plants ? input.plants.map(plantSig) : null;
     renderLayers(sc, g, input.plants, redrawPlants);
     sc.growth = g;
     sc.drawnAt = time;

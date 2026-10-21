@@ -20,7 +20,7 @@
  */
 
 import { animalKinds, SpriteCache } from './animals';
-import { layoutFlora, PLANT_SPECIES, type PlacedPlant } from './flora';
+import { layoutFlora, LOW_SIZE, PLANT_SPECIES, type PlacedPlant } from './flora';
 import { paintPlant } from './flora-paint';
 import { drawScene, type SceneAnimal, type ScenePlant } from './tree';
 
@@ -249,21 +249,7 @@ function drawGallery(): void {
       }
     } else {
       const S = 30;
-      const size: Record<string, [number, number]> = {
-        hazel: [2.5, 1.35],
-        bramble: [1.45, 1.45],
-        elder: [2.8, 1.35],
-        shrub: [2.1, 1.25],
-        anemone: [0.5, 0.7],
-        nettle: [1.5, 0.45],
-        strawberry: [0.48, 0.58],
-        foxglove: [2, 0.42],
-        flower: [0.8, 0.55],
-        moss: [0.32, 0.6],
-        fern: [1.25, 0.85],
-        hartstongue: [0.8, 0.6],
-      };
-      const [h, w] = size[id] ?? [1, 1];
+      const [h, w] = LOW_SIZE[id] ?? [1, 1];
       placed.h = h * S * 1.4;
       placed.hw = w * S * 1.4;
     }

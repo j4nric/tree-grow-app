@@ -130,6 +130,8 @@ interface Sprite {
   oy: number;
   w: number;
   h: number;
+  /** Generation des letzten Abrufs (SpriteCache). */
+  used: number;
 }
 
 
@@ -675,6 +677,13 @@ function paintSparkle(c: CanvasRenderingContext2D): void {
 export class SpriteCache {
   private byKind = new Map<string, Map<number, Sprite>>();
   private total = 0;
+  /** Generation (ein Frame): unbenutzte Sprites werden bei Überlauf zuerst verworfen. */
+  private gen = 0;
+
+  /** Neuer Frame – Sprites, die ab jetzt nicht mehr abgerufen werden, gelten als unbenutzt. */
+  tick(): void {
+    this.gen++;
+  }
 
   get(kind: string, frame: number, muted: boolean, size: number, dpr: number): Sprite {
     const px = Math.max(4, Math.min(4095, Math.round(size)));
@@ -687,15 +696,31 @@ export class SpriteCache {
     let s = map.get(key);
     if (!s) {
       // Sicherheitsnetz: nie unbegrenzt viele Sprites ansammeln.
-      if (this.total >= 400) {
-        this.clear();
+      if (this.total >= MAX_SPRITES) {
+        this.evict();
         return this.get(kind, frame, muted, size, dpr);
       }
       s = muted ? desaturate(this.get(kind, frame, false, size, dpr)) : renderSprite(DEFS[kind] ?? DEFS.insect!, frame, px, dpr);
       map.set(key, s);
       this.total++;
     }
+    s.used = this.gen;
     return s;
+  }
+
+  /** Verwirft alle Sprites, die in diesem Frame nicht gebraucht wurden; notfalls alle. */
+  private evict(): void {
+    let removed = 0;
+    for (const map of this.byKind.values()) {
+      for (const [key, s] of map) {
+        if (s.used < this.gen) {
+          map.delete(key);
+          removed++;
+        }
+      }
+    }
+    this.total -= removed;
+    if (removed === 0) this.clear();
   }
 
   /** Alte Größen verwerfen (z. B. nach einer Größenänderung). */
@@ -709,6 +734,9 @@ export class SpriteCache {
   }
 }
 
+/** Höchstzahl gecachter Sprites. */
+const MAX_SPRITES = 400;
+
 function renderSprite(def: SpriteDef, frame: number, size: number, dpr: number): Sprite {
   const pad = 1.5 / dpr;
   const w = (def.x1 - def.x0) * size + pad * 2;
@@ -721,7 +749,7 @@ function renderSprite(def: SpriteDef, frame: number, size: number, dpr: number):
   const oy = -def.y0 * size + pad;
   c.setTransform(size * dpr, 0, 0, size * dpr, ox * dpr, oy * dpr);
   def.paint(c, frame);
-  return { canvas, ox, oy, w: canvas.width / dpr, h: canvas.height / dpr };
+  return { canvas, ox, oy, w: canvas.width / dpr, h: canvas.height / dpr, used: 0 };
 }
 
 /** Entsättigte, leicht aufgehellte Variante – „ruht und wirkt matter“. */
@@ -820,7 +848,8 @@ interface Signature {
   family: string;
   niche: string;
   slot: number;
-  rarity: number | undefined;
+  /** Normalisiert (0–3), damit NaN nicht bei jedem Vergleich als „geändert“ gilt. */
+  rarity: number;
 }
 
 /**
@@ -838,6 +867,7 @@ export class AnimalLayer {
 
   draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame): void {
     if (animals.length === 0) return;
+    this.sprites.tick();
     if (anchors !== this.anchors || !this.matches(animals)) this.rebuild(animals, anchors);
     for (const e of this.plan) {
       drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
@@ -851,7 +881,7 @@ export class AnimalLayer {
     for (let i = 0; i < sig.length; i++) {
       const a = animals[i]!;
       const s = sig[i]!;
-      if (s.id !== a.id || s.family !== a.family || s.niche !== a.niche || s.slot !== a.slot || s.rarity !== a.rarity) return false;
+      if (s.id !== a.id || s.family !== a.family || s.niche !== a.niche || s.slot !== normSlot(a.slot) || s.rarity !== animalRarity(a)) return false;
     }
     return true;
   }
@@ -859,7 +889,7 @@ export class AnimalLayer {
   private rebuild(animals: readonly SceneAnimal[], anchors: AnchorResolver): void {
     this.builds++;
     this.anchors = anchors;
-    this.signature = animals.map((a) => ({ id: a.id, family: a.family, niche: a.niche, slot: a.slot, rarity: a.rarity }));
+    this.signature = animals.map((a) => ({ id: a.id, family: a.family, niche: a.niche, slot: normSlot(a.slot), rarity: animalRarity(a) }));
     const plan: PlanEntry[] = [];
     animals.forEach((animal, index) => {
       const anchor = anchors.get(animal.niche, animal.slot);
@@ -1006,7 +1036,7 @@ function drawEntry(
   pose.rot = e.rot;
   pose.frame = 0;
   animate(e, pose, act, f.time, S, f.reducedMotion);
-  if (pose.frame >= e.info.frames) pose.frame = 0;
+  if (!(pose.frame >= 0 && pose.frame < e.info.frames)) pose.frame = 0;
 
   for (const d of e.before) blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
   if (e.shimmer > 0) drawShimmer(ctx, e, pose, muted, sprites, f);
@@ -1022,7 +1052,7 @@ function drawEntry(
 
 /** Lichthof hinter seltenen Arten: ein gecachtes Sprite, das sanft pulsiert. */
 function drawShimmer(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, muted: number, sprites: SpriteCache, f: AnimalFrame): void {
-  const { x, y } = spriteMid(e, pose);
+  const { x, y } = spriteMid(e, pose, mid);
   const pulse = f.reducedMotion ? 0.85 : 0.75 + 0.25 * Math.sin(f.time * 1.6 + e.phase);
   const base = e.shimmer === 3 ? 0.62 : 0.42;
   const alpha = base * pulse * (1 - 0.5 * muted);
@@ -1031,7 +1061,7 @@ function drawShimmer(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, mu
 
 /** Zwei kleine Funken, die abwechselnd an Rand des Tiers aufblitzen (nur legendäre Arten). */
 function drawSparkles(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, muted: number, sprites: SpriteCache, f: AnimalFrame): void {
-  const { x, y } = spriteMid(e, pose);
+  const { x, y } = spriteMid(e, pose, mid);
   const s = sprites.get('sparkle', 0, false, Math.max(8, e.size * 0.34), f.dpr);
   const r = e.size * e.midR * 0.7;
   for (let k = 0; k < 2; k++) {
@@ -1046,14 +1076,33 @@ function drawSparkles(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, m
   }
 }
 
-/** Mitte des Sprites in CSS-Pixeln (mit Spiegelung und Drehung). */
-function spriteMid(e: PlanEntry, pose: Pose): { x: number; y: number } {
+/** Wiederverwendeter Punkt für die Sprite-Mitte (keine Allokation pro Frame). */
+const mid = { x: 0, y: 0 };
+
+/** Mitte des Sprites in CSS-Pixeln (mit Spiegelung und Drehung), geschrieben nach `out`. */
+function spriteMid(e: PlanEntry, pose: Pose, out: { x: number; y: number }): { x: number; y: number } {
   const mx = e.midX * e.size * pose.dir;
   const my = e.midY * e.size;
-  if (pose.rot === 0) return { x: pose.x + mx, y: pose.y + my };
+  if (pose.rot === 0) {
+    out.x = pose.x + mx;
+    out.y = pose.y + my;
+    return out;
+  }
   const c = Math.cos(pose.rot);
   const s = Math.sin(pose.rot);
-  return { x: pose.x + mx * c - my * s, y: pose.y + mx * s + my * c };
+  out.x = pose.x + mx * c - my * s;
+  out.y = pose.y + mx * s + my * c;
+  return out;
+}
+
+/** Nachkommaanteil 0 ≤ v < 1, auch für negative Werte (z. B. negative Zeit). */
+function frac(v: number): number {
+  return v - Math.floor(v);
+}
+
+/** Platz für Signaturen: ungültige Werte einheitlich als −1. */
+function normSlot(slot: number): number {
+  return Number.isFinite(slot) ? Math.floor(slot) : -1;
 }
 
 /** Bewegung als günstige Verschiebung/Spiegelung; Stärke folgt der Zufriedenheit. */
@@ -1081,7 +1130,7 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
     }
     case 'peck': {
       const period = 4.5 - 2 * act;
-      const local = ((t / period + e.phase) % 1) * period;
+      const local = frac(t / period + e.phase) * period;
       if (local < 0.8) pose.x += pose.dir * S * 0.07 * Math.max(0, Math.sin(local * TAU * 5));
       break;
     }
@@ -1091,7 +1140,7 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
       pose.x += S * 0.32 * act * Math.sin(p);
       pose.y += S * 0.14 * act * Math.sin(p * 2);
       pose.dir = Math.cos(p) >= 0 ? 1 : -1;
-      pose.frame = Math.floor(t * (e.kind === 'peacock' ? 5 : 14)) % 2;
+      pose.frame = Math.floor(t * (e.kind === 'peacock' ? 5 : 14)) & 1;
       break;
     }
     case 'crawl':
@@ -1107,22 +1156,22 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
         // In Laufrichtung schauen (auf der Rinde: hinauf bzw. hinab).
         pose.dir = vel >= 0 ? 1 : -1;
         const rate = info.motion === 'crawl' ? 8 : info.motion === 'inch' ? 1.6 : 2.4;
-        pose.frame = Math.floor(t * rate) % 2;
+        pose.frame = Math.floor(t * rate) & 1;
       } else if (info.motion === 'wiggle') {
-        pose.frame = Math.floor(t * 2) % 2;
+        pose.frame = Math.floor(t * 2) & 1;
       }
       break;
     }
     case 'blink': {
       // Kurzes Blinzeln alle paar Sekunden (Kauz).
       const period = 6 - 2.5 * act;
-      const local = ((t / period + e.phase) % 1) * period;
+      const local = frac(t / period + e.phase) * period;
       pose.frame = local < 0.18 ? 1 : 0;
       break;
     }
     case 'busy':
       // Geschäftiges Gewusel an Ort und Stelle (Ameisen, Käferbeine).
-      pose.frame = Math.floor(t * (1.5 + 2.5 * act) + e.phase) % 2;
+      pose.frame = Math.floor(t * (1.5 + 2.5 * act) + e.phase) & 1;
       break;
     case 'still':
       break;

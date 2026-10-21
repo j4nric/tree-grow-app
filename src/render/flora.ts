@@ -75,7 +75,7 @@ export function plantKind(p: Pick<ScenePlant, 'id' | 'group'>): string | null {
 }
 
 /** Größe der niedrigen Pflanzen voll ausgewachsen, in Tiergrößen: Höhe, halbe Breite. */
-const LOW_SIZE: Record<string, [number, number]> = {
+export const LOW_SIZE: Record<string, [number, number]> = {
   hazel: [2.5, 1.35],
   bramble: [1.45, 1.45],
   elder: [2.8, 1.35],

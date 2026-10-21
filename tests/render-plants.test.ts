@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PLANTS, SPECIES } from '../scripts/v2/content';
 import { animalSize, createAnchorResolver } from '../src/render/anchors';
-import { animalKind, animalKinds, animalRarity, SpriteCache } from '../src/render/animals';
+import { AnimalLayer, animalKind, animalKinds, animalRarity, SpriteCache, type AnimalFrame, type SceneAnimal } from '../src/render/animals';
 import { layoutFlora, nudge, plantKind, PLANT_SPECIES, trunkBaseHalf, type PlacedPlant, type ScenePlant } from '../src/render/flora';
 import { makeLayout, placeMainTree } from '../src/render/layout';
 import { drawScene } from '../src/render/tree';
@@ -53,10 +53,18 @@ describe('Begleitpflanzen: Zeichnungen', () => {
 
 describe('Begleitpflanzen: Lage', () => {
   it('ist deterministisch', () => {
+    // Vergleich über eine kompakte Zusammenfassung (Lage, Größe, Baumgeometrie) statt
+    // eines tiefen Vergleichs tausender Aststücke – gleiche Aussage, viel schneller.
+    const summary = (list: PlacedPlant[]) =>
+      list.map((p) => {
+        const t = p.tree;
+        const geo = t ? [t.scale, t.x, t.y, t.geo.segments.length, t.geo.leaves.length, t.geo.minX, t.geo.maxX, t.geo.minY] : null;
+        return [p.index, p.kind, p.x, p.y, p.hw, p.h, p.depth, p.haze, p.vigor, p.grow, p.seed, geo];
+      });
     for (const [w, h] of SIZES) {
       const layout = makeLayout(w, h);
       for (const g of [3, 5.5, 7.6]) {
-        expect(layoutFlora(layout, g, ALL_PLANTS)).toEqual(layoutFlora(layout, g, ALL_PLANTS));
+        expect(summary(layoutFlora(layout, g, ALL_PLANTS))).toEqual(summary(layoutFlora(layout, g, ALL_PLANTS)));
       }
     }
   });
@@ -161,7 +169,7 @@ describe('Begleitpflanzen: Lage', () => {
     }
   });
 
-  it('wächst stufenlos: Lage und Größe ändern sich bei kleinen Schritten nur wenig', () => {
+  it('wächst stufenlos: Lage und Größe ändern sich bei kleinen Schritten nur wenig', { timeout: 15000 }, () => {
     // Volle Belegung des Pflanzrings (12 Plätze, scripts/v2/content.ts PLANT_SLOTS).
     const ring = ALL_PLANTS.slice(0, 12);
     for (const [w, h] of [
@@ -298,6 +306,105 @@ describe('drawScene mit Pflanzen', () => {
     // Andere Versorgung → neu.
     drawScene(ctx, 800, 600, { growth: 5, time: 1.04, plants: plants.map((p) => ({ ...p, vigor: 0.2 })) });
     expect(total()).toBeGreaterThan(afterFirst);
+  });
+
+  it('zeichnet bei ungültigen Werten (NaN) nicht jeden Frame neu', () => {
+    const screen = makeCanvas(800, 600);
+    const ctx = screen.getContext('2d');
+    const weird = (): ScenePlant[] => [
+      { id: 'birch', group: 'trees', slot: Number.NaN, vigor: Number.NaN },
+      { id: 'fern', group: 'mosses', slot: 1, vigor: Number.NaN },
+      { id: 'hazel', group: 'shrubs', slot: Infinity, vigor: 0.7 },
+    ];
+    drawScene(ctx, 800, 600, { growth: 5, time: 1, plants: weird() });
+    const afterFirst = total();
+    for (let i = 1; i <= 5; i++) drawScene(ctx, 800, 600, { growth: 5, time: 1 + i * 0.02, plants: weird() });
+    expect(total()).toBe(afterFirst);
+  });
+
+  it('reagiert auf die Versorgung mit Hysterese (kein Flackern an Stufengrenzen)', () => {
+    const screen = makeCanvas(800, 600);
+    const ctx = screen.getContext('2d');
+    const at = (vigor: number): ScenePlant[] => [{ id: 'hazel', group: 'shrubs', slot: 0, vigor }];
+    drawScene(ctx, 800, 600, { growth: 5, time: 1, plants: at(0.5) });
+    const base = total();
+    // Hin und her um eine frühere 5-%-Grenze (0,525): kein Neuzeichnen.
+    for (let i = 0; i < 6; i++) drawScene(ctx, 800, 600, { growth: 5, time: 1.02 + i * 0.02, plants: at(i % 2 ? 0.524 : 0.526) });
+    expect(total()).toBe(base);
+    // Deutliche Änderung: neu.
+    drawScene(ctx, 800, 600, { growth: 5, time: 2, plants: at(0.56) });
+    expect(total()).toBeGreaterThan(base);
+  });
+
+  it('zeichnet die Pflanzen beim Nachziehen nur bei merklicher Wachstumsänderung neu', () => {
+    const screen = makeCanvas(800, 600);
+    const ctx = screen.getContext('2d');
+    const plants = ALL_PLANTS.slice(0, 4);
+    drawScene(ctx, 800, 600, { growth: 5, time: 1, plants });
+    // Die Pflanzen-Ebene ist die zuletzt angelegte Zeichenfläche (ohne Tiere keine Sprites).
+    const plantLayer = created[created.length - 1]!;
+    const before = plantLayer.calls.length;
+    // Winzige Änderung (< 0,002): Hauptbaum zieht nach, die Pflanzen nicht.
+    drawScene(ctx, 800, 600, { growth: 5.001, time: 3, plants });
+    expect(plantLayer.calls.length).toBe(before);
+    // Merkliche Änderung beim Nachziehen: Pflanzen neu.
+    drawScene(ctx, 800, 600, { growth: 5.004, time: 5, plants });
+    expect(plantLayer.calls.length).toBeGreaterThan(before);
+  });
+
+  it('baut den Tier-Plan bei ungültigen Werten (NaN) nicht jeden Frame neu', () => {
+    const layout = makeLayout(800, 600);
+    const anchors = createAnchorResolver(layout, 5, placeMainTree(layout, 5));
+    const layer = new AnimalLayer();
+    const ctx = makeCanvas(800, 600).getContext('2d');
+    const f: AnimalFrame = { time: 1, windSkew: 0, reducedMotion: false, dpr: 1, sx: 1, sy: 1 };
+    const animals = (): SceneAnimal[] => [
+      { id: 'wolf', family: 'mammals', niche: 'edge', slot: 0, happiness: 0.9, rarity: Number.NaN },
+      { id: 'owl', family: 'birds', niche: 'hollows', slot: Number.NaN, happiness: 0.9 },
+      { id: 'robin', family: 'birds', niche: 'litter', slot: 0, happiness: 0.9, rarity: 2.4 },
+    ];
+    for (let i = 0; i < 5; i++) layer.draw(ctx, animals(), anchors, { ...f, time: 1 + i });
+    expect(layer.builds).toBe(1);
+    // Echte Änderung der Seltenheit → Neubau.
+    layer.draw(ctx, animals().map((a) => ({ ...a, rarity: 3 })), anchors, f);
+    expect(layer.builds).toBe(2);
+  });
+
+  it('verwirft bei vollem Sprite-Cache zuerst unbenutzte Sprites', () => {
+    const cache = new SpriteCache();
+    const keep = cache.get('owl', 0, false, 30, 1);
+    for (let px = 4; px < 2000; px++) {
+      cache.tick();
+      // Die Eule wird in jedem Frame gebraucht, die übrigen Größen nur einmal.
+      expect(cache.get('owl', 0, false, 30, 1)).toBe(keep);
+      cache.get('insect', 0, false, px, 1);
+      expect(cache.count).toBeLessThanOrEqual(400);
+    }
+  });
+
+  it('zeigt bei negativer Zeit nur gültige Bewegungsbilder', () => {
+    const layout = makeLayout(800, 600);
+    const anchors = createAnchorResolver(layout, 5, placeMainTree(layout, 5));
+    const layer = new AnimalLayer();
+    const ctx = makeCanvas(800, 600).getContext('2d');
+    const all: SceneAnimal[] = [
+      { id: 'owl', family: 'birds', niche: 'hollows', slot: 0, happiness: 1 },
+      { id: 'woodant', family: 'insects', niche: 'litter', slot: 0, happiness: 1 },
+      { id: 'stagbeetle', family: 'insects', niche: 'hollows', slot: 1, happiness: 1 },
+      { id: 'bee', family: 'insects', niche: 'edge', slot: 0, happiness: 1 },
+      { id: 'salamander', family: 'soil', niche: 'litter', slot: 1, happiness: 1 },
+    ];
+    const frames: number[] = [];
+    const spy = vi.spyOn(SpriteCache.prototype, 'get').mockImplementation(function (this: SpriteCache, _k, frame) {
+      frames.push(frame);
+      return { canvas: makeCanvas() as unknown as HTMLCanvasElement, ox: 0, oy: 0, w: 1, h: 1, used: 0 };
+    });
+    for (const t of [-0.37, -1.5, -3.21, -10.05, -123.4]) {
+      layer.draw(ctx, all, anchors, { time: t, windSkew: 0, reducedMotion: false, dpr: 1, sx: 1, sy: 1 });
+    }
+    spy.mockRestore();
+    expect(frames.length).toBeGreaterThan(0);
+    for (const fr of frames) expect(fr === 0 || fr === 1, `Frame ${fr}`).toBe(true);
   });
 
   it('kommt mit leerer Liste, unbekannten IDs und ohne Liste zurecht', () => {

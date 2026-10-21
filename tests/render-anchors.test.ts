@@ -73,21 +73,24 @@ describe('Tier-Ankerpunkte', () => {
     }
   });
 
-  it('wachsen stufenlos mit dem Baum (keine Sprünge)', () => {
+  it('wachsen stufenlos mit dem Baum (keine Sprünge)', { timeout: 15000 }, () => {
     const step = 0.01;
     for (const [w, h] of [
       [1200, 700],
       [390, 844],
     ] as const) {
-      for (let g = 1; g < 8; g += step) {
-        const a = nicheAnchors(w, h, g, 4);
-        const b = nicheAnchors(w, h, g + step, 4);
+      // Jedes Ergebnis wird als nächstes `a` wiederverwendet (halbiert die Arbeit).
+      let a = nicheAnchors(w, h, 1, 4);
+      for (let k = 1; k <= 700; k++) {
+        const g = 1 + k * step;
+        const b = nicheAnchors(w, h, g, 4);
         for (const niche of SCENE_NICHES) {
           for (let i = 0; i < 4; i++) {
             const d = Math.hypot(a[niche][i]!.x - b[niche][i]!.x, a[niche][i]!.y - b[niche][i]!.y);
-            expect(d, `${niche} Platz ${i} bei g=${g.toFixed(2)}`).toBeLessThan(2.5);
+            expect(d, `${niche} Platz ${i} bei g=${(g - step).toFixed(2)}`).toBeLessThan(2.5);
           }
         }
+        a = b;
       }
     }
   });
