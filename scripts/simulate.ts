@@ -12,6 +12,7 @@
  * Ausführen (Tabellen im Protokoll, DESIGN_V2.md Abschnitt 15.4):
  *   SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts
  */
+import { CARE } from '../src/content/care';
 import { COMMUNITIES } from '../src/content/communities';
 import { GENUS_INFO, SPECIES_BY_ID } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
@@ -41,6 +42,9 @@ import {
 } from '../src/core/tick';
 import {
   applyOption,
+  buyCare,
+  careOffers,
+  careValue,
   createExtras,
   dropExpired,
   farewellVisitor,
@@ -52,6 +56,7 @@ import {
   rollExtra,
   rollInterlude,
   seedSeconds,
+  type CareOffer,
   type ExtraEncounter,
   type Extras,
 } from './extras';
@@ -245,6 +250,8 @@ export interface Counts {
   events: number;
   visitors: number;
   hosted: number;
+  /** Nur mit `care`: gekaufte Pflege-Ränge. */
+  careBought: number;
 }
 
 /** Schnappschuss des Durchgangs (beim Erreichen einer Stufe oder zu einer festen Zeit). */
@@ -276,6 +283,10 @@ export interface Snapshot {
   /** Nur mit `events`: Samen aus Ereignissen und Gästen bzw. fürs Bewirten ausgegeben. */
   earnedExtras: number;
   spentVisitors: number;
+  /** Nur mit `care`: für Pflege ausgegeben. */
+  spentCare: number;
+  /** Nur mit `care`: gekaufte Ränge je Maßnahme. */
+  careRanks: Record<string, number>;
   counts: Counts;
 }
 
@@ -323,6 +334,11 @@ export interface RunOptions {
   events?: boolean;
   /** Mit `events`: Zwischenhalt ab dem Hain (encounters.ts INTERLUDE_*). Standard: an. */
   interludes?: boolean;
+  /**
+   * Pflegemaßnahmen grob mitsimulieren (scripts/extras.ts, src/content/care.ts). Logik
+   * fehlt noch (Schritt 2.7) – darum standardmäßig aus.
+   */
+  care?: boolean;
 }
 
 /** Zeitpunkte (Minuten) für den Samen-Verlauf. */
@@ -333,7 +349,7 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
   let time = 0;
   let lastWaypointTime = 0;
-  const book = { earnedPassive: 0, earnedDecline: 0, spent: 0, spentPlants: 0, earnedExtras: 0, spentVisitors: 0 };
+  const book = { earnedPassive: 0, earnedDecline: 0, spent: 0, spentPlants: 0, earnedExtras: 0, spentVisitors: 0, spentCare: 0 };
   const counts: Counts = {
     encounters: 0,
     plantEncounters: 0,
@@ -347,8 +363,10 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     events: 0,
     visitors: 0,
     hosted: 0,
+    careBought: 0,
   };
-  const extras: Extras | null = options.events ? createExtras(options.seed, options.interludes ?? true) : null;
+  const extras: Extras | null =
+    options.events || options.care ? createExtras(options.seed, !!options.events && (options.interludes ?? true)) : null;
   const result: RunResult = {
     stages: Array(STAGES.length).fill(null),
     samples: SAMPLE_MINUTES.map(() => null),
@@ -377,6 +395,7 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
       discovered: state.meta.journal.communities.length,
       seeds: state.seeds,
       ...book,
+      careRanks: Object.fromEntries(extras?.care ?? []),
       counts: { ...counts, rarityTaken: [...counts.rarityTaken] },
     };
   };
@@ -393,6 +412,19 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     }
     const plan = planPlant(state, strategy, counts);
     if (extras) dropExpired(extras, time);
+    // Pflege: kaufen, was die Strategie anspart, sobald es reicht (Pflanzen haben Vorrang).
+    let careNeed: number | null = null;
+    if (extras && options.care) {
+      for (let target = careTarget(state, strategy, extras, time); target; target = careTarget(state, strategy, extras, time)) {
+        const reserve = plan !== null ? nextPlantCost(state) : 0;
+        if (state.seeds < target.next.cost + reserve) {
+          careNeed = target.next.cost + reserve;
+          break;
+        }
+        book.spentCare += buyCare(state, extras, target);
+        counts.careBought++;
+      }
+    }
     // Ereignis- und Gast-Boni wirken als Faktoren auf die echten Raten (scripts/extras.ts).
     const mult = extras ? multipliers(state, extras, time) : { g: 1, s: 1 };
     const seedsRate = evaluate(state).seeds * mult.s;
@@ -402,11 +434,12 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     const stageBefore = state.stage;
     const nextSample = (SAMPLE_MINUTES[sample] ?? Infinity) * 60;
     const toExpiry = extras ? nextExpiry(extras, time) - time : Infinity;
+    const toCare = careNeed !== null && seedsRate > 0 ? Math.max(0, (careNeed - state.seeds) / seedsRate) + 1e-6 : Infinity;
     const toWaypoint = secondsToNextWaypoint(state);
     const interlude = extras ? interludeThreshold(state, extras) : Infinity;
     const rate = evaluate(state).growth;
     const toInterlude = interlude < Infinity && rate > 0 ? Math.max(0, interlude - state.totalGrowth) / rate / mult.g : Infinity;
-    const dt = Math.min(toWaypoint / mult.g, toPlant, nextSample - time, toExpiry, toInterlude, options.maxSeconds - time);
+    const dt = Math.min(toWaypoint / mult.g, toPlant, nextSample - time, toExpiry, toInterlude, toCare, options.maxSeconds - time);
     if (!(dt < Infinity)) break;
     const seedsBefore = state.seeds;
     // Wachstums-Faktor = schnellere Zeit für die echte Logik; Samen danach angleichen.
@@ -436,7 +469,7 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     result.gaps.push({ stage: stageBefore, seconds: time - lastWaypointTime });
     lastWaypointTime = time;
     for (let s = stageBefore + 1; s <= state.stage; s++) result.stages[s] = snapshot();
-    if (extras) {
+    if (extras && options.events) {
       const extra = rollExtra(state, extras);
       if (extra) resolveExtra(state, strategy, rng, extras, extra, counts, book, result.variety, time);
     }
@@ -488,6 +521,30 @@ function resolveExtra(
     }
   }
   variety.push({ stage: state.stage, time, type: extra.type, cards: 1, sameAsPrevious: false, rerollBlocked: 'no-reroll', worthwhile });
+}
+
+/**
+ * Welchen Pflege-Rang spart die Strategie als Nächstes an? Bewertende Strategien: den mit
+ * dem besten Wert je Samen (nur, wenn er etwas bringt); Zufallsspieler: einen beliebigen,
+ * aber je Zustand festen Rang. null = nichts.
+ */
+function careTarget(state: GameState, strategy: Strategy, extras: Extras, time: number): CareOffer | null {
+  const offers = careOffers(state, extras);
+  if (offers.length === 0) return null;
+  if (!strategy.plantValue) {
+    const bought = [...extras.care.values()].reduce((a, b) => a + b, 0);
+    return offers[(bought * 5 + state.waypoint) % offers.length]!;
+  }
+  let top: CareOffer | null = null;
+  let topValue = 0;
+  for (const o of offers) {
+    const v = careValue(state, extras, time, o) / o.next.cost;
+    if (v > topValue) {
+      top = o;
+      topValue = v;
+    }
+  }
+  return top;
 }
 
 /**
@@ -707,6 +764,7 @@ export function stageStats(summary: Summary, stage: number) {
     earnedDecline: m((s) => s.earnedDecline),
     spent: m((s) => s.spent),
     spentPlants: m((s) => s.spentPlants),
+    spentCare: m((s) => s.spentCare),
     counts: {
       encounters: m((s) => s.counts.encounters),
       plantEncounters: m((s) => s.counts.plantEncounters),
@@ -1007,6 +1065,44 @@ export function extrasTable(without: Summary[], withExtras: Summary[]): string {
           : `${fmt(mean(c.map((x) => x.events)), 1)} / ${fmt(mean(c.map((x) => x.visitors)), 1)} (${fmt(mean(c.map((x) => x.hosted)), 1)})`;
       lines.push(`| ${s.strategy.name} | ${label} | ${times.join(' | ')} | ${fmt(stageStats(s, 5).harmony, 1)} | ${d.join(' | ')} | ${extra} |`);
     }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Pflegemaßnahmen (Schritt 2.7, Modell scripts/extras.ts): Vergleich ohne/mit Pflege –
+ * Stufenzeiten, Harmonie, Samenbestand (absolut und in Minuten Produktion) beim Hain
+ * und im Wald, für Pflege ausgegeben, gekaufte Ränge je Maßnahme beim Hain / am Ende.
+ */
+export function careTable(without: Summary[], withCare: Summary[]): string {
+  const lines = [
+    '| Strategie | Pflege | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | 🌰-Bestand beim Hain (min Produktion) | im Wald | für Pflege bis Hain / Wald | Ränge bis Hain / Urwald |',
+    '|---|---|---|---|---|---|---|---|---|---|---|',
+  ];
+  const bank = (s: Summary, stage: number) => {
+    const st = stageStats(s, stage);
+    return `${fmt(st.seeds)} (${fmt(st.seeds / st.seedsRate / 60, 1)})`;
+  };
+  for (const [label, list] of [['ohne', without], ['mit', withCare]] as const) {
+    for (const s of list) {
+      const times = [4, 5, 6, 7].map((st) => formatTime(stageStats(s, st).time));
+      const ranks = (pick: (r: RunResult) => Snapshot | null) =>
+        fmt(mean(s.runs.map((r) => Object.values(pick(r)?.careRanks ?? {}).reduce((a, b) => a + b, 0))), 1);
+      const care =
+        label === 'ohne'
+          ? '– | –'
+          : `${fmt(stageStats(s, 5).spentCare)} / ${fmt(stageStats(s, 6).spentCare)} | ${ranks((r) => r.stages[5] ?? null)} / ${ranks((r) => r.final)}`;
+      lines.push(`| ${s.strategy.name} | ${label} | ${times.join(' | ')} | ${fmt(stageStats(s, 5).harmony, 1)} | ${bank(s, 5)} | ${bank(s, 6)} | ${care} |`);
+    }
+  }
+  lines.push('', '| Maßnahme | ' + withCare.map((s) => `${s.strategy.name}: Ränge bis Hain / Urwald`).join(' | ') + ' |');
+  lines.push('|---|' + withCare.map(() => '---|').join(''));
+  for (const c of CARE) {
+    const cells = withCare.map((s) => {
+      const at = (pick: (r: RunResult) => Snapshot | null) => fmt(mean(s.runs.map((r) => pick(r)?.careRanks[c.id] ?? 0)), 2);
+      return `${at((r) => r.stages[5] ?? null)} / ${at((r) => r.final)}`;
+    });
+    lines.push(`| ${c.icon} ${c.name} | ${cells.join(' | ')} |`);
   }
   return lines.join('\n');
 }

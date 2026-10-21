@@ -35,6 +35,7 @@ import {
   type GameEvent,
   type TimedEffect,
 } from '../src/content/events';
+import { CARE, type CareCycleEffect, type CareMeasure, type CareRank } from '../src/content/care';
 import { PLANTS_BY_ID } from '../src/content/plants';
 import { SPECIES_BY_ID } from '../src/content/species';
 import { PLANT_GROUPS, type PlantGroup } from '../src/content/types';
@@ -52,7 +53,10 @@ interface Active {
 
 export interface Extras {
   timed: Active[];
-  cycle: CycleEffect[];
+  /** Wirkungen bis zum Zyklusende: Ereignis-Optionen `cycle` und gekaufte Pflege. */
+  cycle: CareCycleEffect[];
+  /** Gekaufte Pflege-Ränge je Maßnahme (Pflege, Schritt 2.7). */
+  care: Map<string, number>;
   /** In diesem Zyklus gesehene Ereignisse und Gäste. */
   seen: Set<string>;
   forced: { type: ForcedEncounterType; ids: readonly string[] } | null;
@@ -67,6 +71,7 @@ export function createExtras(seed: number, interludes = true): Extras {
   return {
     timed: [],
     cycle: [],
+    care: new Map(),
     seen: new Set(),
     forced: null,
     rng: { rngState: (seed * 2654435761) >>> 0 || 1 },
@@ -103,7 +108,7 @@ export function rollInterlude(state: GameState, extras: Extras): ExtraEncounter 
 }
 
 /** Wirkungen, deren Faktor `rates` berechnet. */
-type RateEffect = TimedEffect | VisitorEffect | CycleEffect;
+type RateEffect = TimedEffect | VisitorEffect | CycleEffect | CareCycleEffect;
 
 /** Basis-Anteil jeder Pflanzengruppe am Wachstum bzw. an den Samen der Begleitpflanzen. */
 function groupShares(state: GameState): { growth: Record<PlantGroup, number>; seeds: Record<PlantGroup, number> } {
@@ -358,4 +363,67 @@ export function farewellVisitor(state: GameState, extras: Extras, time: number, 
   const seeds = seedSeconds(state, extras, time, visitor.farewellSeeds);
   state.seeds += seeds;
   return seeds;
+}
+
+// ---------------------------------------------------------------------------
+// Pflegemaßnahmen (Schritt 2.7, src/content/care.ts)
+// ---------------------------------------------------------------------------
+
+/** Ein kaufbarer nächster Rang einer Maßnahme. */
+export interface CareOffer {
+  measure: CareMeasure;
+  /** Index des Rangs (0 = erster Kauf). */
+  rank: number;
+  next: CareRank;
+}
+
+/**
+ * Nächste Ränge, die gerade gekauft werden dürften (Stufe, Bedingung, kein Ausschluss) –
+ * ohne Blick auf die Samen.
+ */
+export function careOffers(state: GameState, extras: Extras): CareOffer[] {
+  const out: CareOffer[] = [];
+  for (const measure of CARE) {
+    const rank = extras.care.get(measure.id) ?? 0;
+    const next = measure.ranks[rank];
+    if (!next || next.minStage > state.stage) continue;
+    if (measure.excludes?.some((id) => (extras.care.get(id) ?? 0) > 0)) continue;
+    if (!speciesAppears(state, { appears: measure.requires })) continue;
+    out.push({ measure, rank, next });
+  }
+  return out;
+}
+
+/**
+ * Pauschaler Wert (relativer Wachstumsgewinn) für Wirkungen, die das Modell nicht
+ * rechnet: ein Platz bzw. ein Merkmal. Nur für die Wahl der Strategien – auf die Raten
+ * wirken sie im Modell nicht (konservativ).
+ */
+const CARE_SLOT_VALUE = 0.03;
+const CARE_HABITAT_VALUE = 0.02;
+
+/** Bewertung eines Rangs in „Sekunden Wachstum“ über CYCLE_HORIZON (wie optionValue). */
+export function careValue(state: GameState, extras: Extras, time: number, offer: CareOffer): number {
+  const base = activeEffects(extras, time);
+  const before = rates(state, base);
+  const added: CareCycleEffect[] = [];
+  let nominal = 0;
+  for (const e of offer.next.effects) {
+    if (e.kind === 'habitat') nominal += CARE_HABITAT_VALUE;
+    else if (e.effect.kind === 'slot') nominal += CARE_SLOT_VALUE;
+    else added.push(e.effect);
+  }
+  const after = rates(state, [...base, ...added]);
+  const gain = after.growth / before.growth - 1 + SEED_VALUE * (after.seeds / Math.max(1e-9, before.seeds) - 1);
+  return CYCLE_HORIZON * (gain + nominal);
+}
+
+/** Kauft den Rang (Samen müssen reichen); gibt die Kosten zurück. */
+export function buyCare(state: GameState, extras: Extras, offer: CareOffer): number {
+  const cost = offer.next.cost;
+  if (state.seeds < cost) throw new Error(`Pflege ${offer.measure.id} zu teuer`);
+  state.seeds -= cost;
+  extras.care.set(offer.measure.id, offer.rank + 1);
+  for (const e of offer.next.effects) if (e.kind === 'cycle') extras.cycle.push(e.effect);
+  return cost;
 }

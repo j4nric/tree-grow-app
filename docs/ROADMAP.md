@@ -80,7 +80,10 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     Harmonie, fast fertige mit „fehlt: …“, unentdeckte als „???“ mit Fortschritt), Hinweis
     „✨ vervollständigt …“ auf Karten und in „Pflanze setzen“, Entdeckungs-Meldung (`ui-dev`)
 - [ ] 2.6 Tiere und Pflanzen im Bild: Ankerpunkte, gecachte Sprites (`renderer`)
-- [ ] 2.7 Pflegemaßnahmen (`game-designer` + `core-engineer` + `ui-dev`)
+- [ ] 2.7 Pflegemaßnahmen (`game-designer` + `core-engineer` + `ui-dev`) – Inhalte fertig, Logik offen
+  - [x] Inhalte: 8 Maßnahmen mit Rängen (`src/content/care.ts`), Modell im Simulator
+    (`scripts/extras.ts`), DESIGN_V2.md 8 (`game-designer`)
+  - [ ] Logik nach Umsetzungsnotiz DESIGN_V2.md 8.2 (`core-engineer`), Pflege-Ansicht (`ui-dev`)
 - [x] 2.8 Neuer Zyklus, Naturtagebuch, Waldgedächtnis, Stammgäste (`core-engineer` + `game-designer` + `ui-dev`)
 - [x] 2.9 e2e: voller Zyklus mit festem Seed (`qa-tester`)
 - [x] Begegnungs-Vielfalt messen und verbessern: Pflanzengewicht bei vollem Ring, Ring-Pflanzen seltener (Playtest-Befund, `game-designer`)
