@@ -245,22 +245,25 @@ function drawGallery(): void {
     ctx.fillStyle = '#334';
     ctx.fillText(kind, cx, Math.floor(i / cols) * cell + cell - 6);
   });
-  // Durchreisende (zwei Flügelbilder nebeneinander) in einer eigenen Zeile
+  // Durchreisende: alle Bilder je Zeichnung (Wildschwein und Falke haben mehr als zwei)
   const vtop = Math.ceil(kinds.length / cols) * cell;
-  Object.keys(VISITOR_DEFS).forEach((kind, i) => {
-    for (const fr of [0, 1]) {
-      const cx = (i * 2 + fr) * cell + cell / 2;
-      const cy = vtop + cell * 0.5;
+  const FRAMES: Record<string, number> = { 'visitor:boar': 4, 'visitor:piglet': 4, 'visitor:falcon': 3, 'visitor:waxwing': 1 };
+  let vi = 0;
+  for (const kind of Object.keys(VISITOR_DEFS)) {
+    for (let fr = 0; fr < (FRAMES[kind] ?? 2); fr++, vi++) {
+      const cx = (vi % cols) * cell + cell / 2;
+      const row = vtop + Math.floor(vi / cols) * cell;
+      const cy = row + cell * 0.55;
       const s = sprites.get(kind, fr, false, sz, dpr);
       ctx.strokeStyle = 'rgba(0,0,0,0.12)';
       ctx.strokeRect(cx - s.ox, cy - s.oy, s.w, s.h);
       ctx.drawImage(s.canvas, cx - s.ox, cy - s.oy, s.w, s.h);
       ctx.fillStyle = '#334';
-      ctx.fillText(`${kind.replace('visitor:', '')} ${fr}`, cx, vtop + cell - 6);
+      ctx.fillText(`${kind.replace('visitor:', '')} ${fr}`, cx, row + cell - 6);
     }
-  });
+  }
   // Pflanzen in einer Reihe darunter
-  const top = vtop + cell + 10;
+  const top = vtop + Math.ceil(vi / cols) * cell + 10;
   const ids = [...Object.keys(PLANT_SPECIES), 'shrub', 'flower'];
   const pcols = Math.max(1, Math.floor(rect.width / 130));
   ids.forEach((id, i) => {

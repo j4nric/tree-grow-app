@@ -209,12 +209,14 @@ function paintFalcon(c: CanvasRenderingContext2D, frame: number): void {
     eye(c, -0.37, -0.04, 0.025);
     return;
   }
-  const lift = frame === 0 ? -0.18 : 0.02;
+  // Lange, spitze Schwingen, nach hinten gezogen: Bild 0 hoch (V), Bild 1 tief.
+  const up = frame === 0;
+  const tipX = 0.36;
+  const tipY = up ? -0.56 : 0.38;
   const wing = () => {
-    c.moveTo(-0.14, -0.04);
-    c.quadraticCurveTo(-0.1, lift * 0.5 - 0.05, 0.12, lift - 0.38);
-    c.lineTo(0.2, lift - 0.36);
-    c.quadraticCurveTo(0.14, -0.08, 0.12, -0.02);
+    c.moveTo(-0.2, -0.04);
+    c.quadraticCurveTo(-0.12, tipY * 0.55, tipX, tipY);
+    c.quadraticCurveTo(0.1, tipY * 0.3, 0.18, -0.01);
     c.closePath();
   };
   const tail = [0.24, -0.04, 0.58, -0.07, 0.58, 0.05, 0.24, 0.04];
@@ -233,8 +235,8 @@ function paintFalcon(c: CanvasRenderingContext2D, frame: number): void {
   poly(c, [-0.39, -0.04, -0.47, 0.0, -0.38, 0.01], '#e2b94a');
   eye(c, -0.33, -0.05, 0.025);
   fillPath(c, back, wing);
-  // Ferne Flügelspitze etwas dunkler
-  line(c, [0.12, lift - 0.37, 0.2, lift - 0.36], '#3b434d', 0.04);
+  // Dunklere Handschwingen an der Spitze
+  line(c, [tipX - 0.14, tipY * 0.78, tipX, tipY], '#3b434d', 0.05);
 }
 
 /** Hirschkäfer im Flug: fast aufrecht, Deckflügel hoch, Hautflügel schwirren. */
@@ -284,8 +286,9 @@ function paintWaxwing(c: CanvasRenderingContext2D): void {
   paintBird(c, WAXWING);
   poly(c, [0.06, -0.78, -0.08, -0.98, 0.2, -0.86, 0.3, -0.8], WAXWING.head);
   line(c, [-0.64, -0.62, -0.6, -0.5], '#e9c33a', 0.06);
-  ell(c, -0.2, -0.47, 0.035, 0.022, 0, '#c8312a');
-  ell(c, -0.12, -0.45, 0.03, 0.02, 0, '#c8312a');
+  // Rote „Wachströpfchen“ an den Armschwingen (hinten am Flügel)
+  ell(c, -0.3, -0.47, 0.03, 0.02, 0.3, '#c8312a');
+  ell(c, -0.25, -0.43, 0.026, 0.018, 0.3, '#c8312a');
 }
 
 /** Kleiner Vogel im Flug in frei wählbaren Farben (Ersatz-Gast, Seidenschwanz im Flug). */
@@ -318,7 +321,7 @@ export const VISITOR_DEFS: Record<string, SpriteDef> = {
   'visitor:swallow': { x0: -0.4, y0: -0.46, x1: 0.66, y1: 0.4, paint: paintSwallow },
   'visitor:boar': { x0: -0.8, y0: -0.74, x1: 0.62, y1: 0.05, paint: (c, f) => paintBoar(c, f, false) },
   'visitor:piglet': { x0: -0.8, y0: -0.74, x1: 0.62, y1: 0.05, paint: (c, f) => paintBoar(c, f, true) },
-  'visitor:falcon': { x0: -0.6, y0: -0.62, x1: 0.66, y1: 0.2, paint: paintFalcon },
+  'visitor:falcon': { x0: -0.6, y0: -0.64, x1: 0.68, y1: 0.46, paint: paintFalcon },
   'visitor:stag': { x0: -0.62, y0: -0.62, x1: 0.62, y1: 0.62, paint: paintStagFlight },
   'visitor:waxwing': { x0: -0.72, y0: -1.0, x1: 0.58, y1: 0.08, paint: (c) => paintWaxwing(c) },
   'visitor:waxwing-fly': {

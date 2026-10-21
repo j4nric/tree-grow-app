@@ -114,6 +114,14 @@ export function animalKind(a: Pick<SceneAnimal, 'id' | 'family' | 'niche'>): str
   return kind;
 }
 
+/** Ab dieser Zeichengröße (Vielfaches der Tiergröße) gilt ein Tier als Großtier (Reh, Fuchs, Wolf). */
+const LARGE_ANIMAL_SIZE = 1.5;
+
+/** Ist das Tier ein Großtier (z. B. Reh, Fuchs, Wolf)? Gäste weichen ihm am Waldsaum aus. */
+export function isLargeAnimal(a: Pick<SceneAnimal, 'id' | 'family' | 'niche'>): boolean {
+  return (KINDS[animalKind(a)]?.size ?? 1) >= LARGE_ANIMAL_SIZE;
+}
+
 /** Seltenheit für den Schimmer (0–3). */
 export function animalRarity(a: Pick<SceneAnimal, 'id' | 'rarity'>): number {
   const r = a.rarity ?? SPECIES_RARITY[a.id] ?? 0;

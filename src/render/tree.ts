@@ -224,7 +224,27 @@ function samePlants(sig: PlantSig[] | null, plants: readonly ScenePlant[] | unde
 /** Wiederverwendete Frame-Daten für die Tier-Ebene (keine Allokation pro Frame). */
 const animalFrame: AnimalFrame = { time: 0, windSkew: 0, reducedMotion: false, dpr: 1, sx: 1, sy: 1 };
 const moodFrame: MoodFrame = { width: 1, height: 1, groundY: 1, top: 0, dpr: 1, sx: 1, sy: 1, time: 0, reducedMotion: false };
-const visitorFrame: VisitorFrame = { width: 1, height: 1, groundY: 1, top: 0, size: 20, dpr: 1, sx: 1, sy: 1, time: 0, reducedMotion: false };
+const visitorFrame: VisitorFrame = {
+  width: 1,
+  height: 1,
+  groundY: 1,
+  top: 0,
+  size: 20,
+  dpr: 1,
+  sx: 1,
+  sy: 1,
+  time: 0,
+  reducedMotion: false,
+  windSkew: 0,
+  blocked: [],
+  anchors: null,
+  crownX: 0,
+  crownY: 0,
+  crownRx: 0,
+  crownRy: 0,
+};
+/** Ab diesem Wachstum (Stufe „Junger Baum“) gibt es eine Krone für Gäste. */
+const CROWN_GROWTH = 3;
 
 /** Vereinigt einen Bereich (CSS-Pixel) mit `r` und gibt das Ergebnis zurück. */
 function unionRect(r: Rect | null, x0: number, y0: number, x1: number, y1: number): Rect {
@@ -371,6 +391,21 @@ function compose(
     vf.sy = sy;
     vf.time = time;
     vf.reducedMotion = reduced;
+    vf.windSkew = 0;
+    // Belegte Waldsaum-Plätze (gemerkt, nur bei geänderten Plätzen neu) und die Krone.
+    vf.blocked = cache.visitors.updateBlocked(input.animals, sc.anchors);
+    vf.anchors = sc.anchors;
+    const fr = sc.frontRect;
+    if (fr && sc.growth >= CROWN_GROWTH) {
+      const w = fr.w / dpr;
+      const h = fr.h / dpr;
+      vf.crownX = fr.x / dpr + w / 2;
+      vf.crownY = fr.y / dpr + h * 0.35;
+      vf.crownRx = w * 0.42;
+      vf.crownRy = h * 0.22;
+    } else {
+      vf.crownRx = 0;
+    }
     cache.visitors.draw(ctx, visitors, 'sky', vf);
     ctx.setTransform(sx, 0, 0, sy, 0, 0);
   }
@@ -381,12 +416,17 @@ function compose(
     ctx.setTransform(sx, 0, sx * kb, sy, -sx * kb * groundPx, 0);
     drawRect(ctx, sc.back, sc.backRect);
   }
+  // Wildschweine auf der Wiese: vor den Begleitpflanzen, hinter dem Hauptbaum.
+  if (visitors) cache.visitors.draw(ctx, visitors, 'meadow', vf);
   const k = reduced ? 0 : windSkew(time, 0);
   if (sc.frontRect) {
     ctx.setTransform(sx, 0, sx * k, sy, -sx * k * groundPx, 0);
     drawRect(ctx, sc.front, sc.frontRect);
   }
-  if (visitors) cache.visitors.draw(ctx, visitors, 'front', vf);
+  if (visitors) {
+    vf.windSkew = k;
+    cache.visitors.draw(ctx, visitors, 'front', vf);
+  }
   const animals = input.animals;
   if (animals && animals.length > 0 && sc.anchors) {
     const f = animalFrame;
