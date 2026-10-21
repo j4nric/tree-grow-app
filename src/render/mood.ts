@@ -220,8 +220,13 @@ export class MoodLayer {
     if (this.light && this.lightKey === key && this.lightLevel === q) return this.light;
     const scale = 0.5;
     const canvas = this.light ?? document.createElement('canvas');
-    canvas.width = Math.max(1, Math.ceil(f.width * scale));
-    canvas.height = Math.max(1, Math.ceil(f.height * scale));
+    const cw = Math.max(1, Math.ceil(f.width * scale));
+    const ch = Math.max(1, Math.ceil(f.height * scale));
+    // Größe nur bei Änderung setzen (das leert und belegt den Speicher neu), sonst nur leeren.
+    if (canvas.width !== cw || canvas.height !== ch) {
+      canvas.width = cw;
+      canvas.height = ch;
+    }
     const c = canvas.getContext('2d')!;
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.clearRect(0, 0, canvas.width, canvas.height);

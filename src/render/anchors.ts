@@ -152,13 +152,20 @@ function computeAnchor(
       const y = groundY + clamp(v0 * soilH, size * 0.7, soilH - size * 0.5);
       const side = u0 < 0 ? -1 : 1;
       // Pilze an der Oberfläche: in der Lücke zwischen Laubstreu und Waldsaum.
-      // Abstand zu den Blumentupfen des Waldsaums halten (beide Reihen).
       const edge = edgeRow(layout, size);
-      const flowersIn = EDGE_REACH_IN * size * edge.scale;
-      const inner = Math.max(trunkBaseHalf(g, main, layout) + size * 3.0, edge.back ? edge.r[1]! + flowersIn + size * 0.6 : 0);
-      const outer = Math.max(inner, edge.r[0]! - flowersIn - size * 0.5);
-      const frac = [0.5, 0.15, 0.85][Math.floor(slot / 2) % 3]!;
-      const surfaceX = cx + side * (inner + (outer - inner) * frac);
+      const k = Math.floor(slot / 2) % 3;
+      let r: number;
+      if (edge.back) {
+        // Hintere Reihe: eigene Lücke zwischen den Waldsaum-Plätzen 0/1 und 2/3; weitere
+        // Pilze stehen leicht versetzt daneben (Pilzgruppe).
+        r = edge.mushroom + [0, -0.25, 0.25][k]! * size;
+      } else {
+        // Vordere Reihe (wie bisher): zwischen Laubstreu und Waldsaum-Platz 0/1.
+        const inner = trunkBaseHalf(g, main, layout) + size * 3.0;
+        const outer = Math.max(inner, edge.mushroom);
+        r = inner + (outer - inner) * [0.5, 0.15, 0.85][k]!;
+      }
+      const surfaceX = cx + side * r;
       a = { ...base, x: cx + u0 * halfX, y, side, surfaceX };
       break;
     }
@@ -178,8 +185,9 @@ function computeAnchor(
         const y = back ? groundY + 1 - EDGE_BACK_LIFT * size : groundY + 1;
         a = { ...base, x: cx + side * row.r[k]!, y, side, scale: row.scale, depth: back ? 1 : 0 };
       } else {
-        // Weitere Plätze (nur mit Sonderplätzen): vorn, zwischen bzw. hinter den ersten beiden.
-        const r = row.back ? (row.r[0]! + row.r[1]!) / 2 : row.r[1]! + row.pitch * (k - 1);
+        // Weitere Plätze (nur mit Sonderplätzen): breit weiter außen; schmal vorn vor
+        // Platz 2/3 (andere Reihe, so bleibt die Pilzlücke frei).
+        const r = row.back ? row.r[1]! : row.r[0]! + row.pitch * k;
         a = { ...base, x: cx + side * r, y: groundY + 1, side, scale: row.scale };
       }
       break;
@@ -216,10 +224,12 @@ function computeAnchor(
 export const EDGE_REACH_OUT = 2.15;
 export const EDGE_REACH_IN = 0.6;
 /** Mindestlücke zwischen zwei Waldsaum-Plätzen (Tiergrößen). */
-const EDGE_GAP = 0.2;
+const EDGE_GAP = 0.15;
 /** Hintere Reihe auf schmalen Bildschirmen: so viel höher (Tiergrößen) und höchstens so groß. */
 export const EDGE_BACK_LIFT = 0.5;
 const EDGE_BACK_SCALE = 0.75;
+/** Breite der Lücke für eine Pilzgruppe zwischen den Plätzen der hinteren Reihe (Tiergrößen). */
+const MUSHROOM_GAP = 1.6;
 
 /** Bereich [x0, x1] (CSS-Pixel), den ein Großtier samt Blumen an einem Waldsaum-Platz belegt. */
 export function edgeFootprint(a: NicheAnchor, size: number): [number, number] {
@@ -235,15 +245,25 @@ interface EdgeRow {
   /** Abstand der Plätze k = 0, 1 je Seite von der Mitte (px). */
   r: [number, number];
   pitch: number;
+  /**
+   * Pilze: vorn die äußere Grenze ihres Bereichs, hinten die Mitte der Pilzlücke
+   * (Abstand von der Mitte, px).
+   */
+  mushroom: number;
 }
 
 const edgeMemo = new Map<string, EdgeRow>();
 
 /**
  * Lage der ersten beiden Waldsaum-Plätze je Seite – hängt nur von der Canvas-Größe ab
- * (nicht vom Wachstum), damit die Tiere nie wandern. Breit: beide vorn auf der
- * Bodenlinie. Schmal: beide in einer hinteren Reihe zwischen Stamm (Stufe Urwald)
- * und Bildrand, notfalls etwas kleiner – so überlappen Großtiere nie.
+ * (nicht vom Wachstum), damit die Tiere nie wandern.
+ *
+ * Breit: beide vorn auf der Bodenlinie, wie bisher bei 33 % und 7,5 % der Breite
+ * Abstand – der Abstand wächst aber mindestens auf die Breite eines Großtiers, und
+ * passt Platz 2/3 dann nicht mehr ins Bild, rücken beide nach innen. Erst wenn dabei
+ * kein Raum für die Pilze bliebe, gilt „schmal“: beide in einer hinteren Reihe
+ * zwischen Stamm (Stufe Urwald) und Bildrand, etwas kleiner, mit einer Lücke für die
+ * Pilze dazwischen – so überlappen Großtiere weder einander noch die Pilze.
  */
 function edgeRow(layout: Layout, size: number): EdgeRow {
   const key = `${layout.width}x${layout.height}`;
@@ -254,18 +274,23 @@ function edgeRow(layout: Layout, size: number): EdgeRow {
   const m = size * 0.1;
   const foot = (EDGE_REACH_IN + EDGE_REACH_OUT) * size;
   const gap = EDGE_GAP * size;
+  const trunk = trunkBaseHalf(8, placeMainTree(layout, 8), layout);
   const pitch = Math.max(width * 0.075, foot + gap);
-  const r0 = width * 0.33;
-  if (r0 + pitch + EDGE_REACH_OUT * size + m <= half) {
-    row = { back: false, scale: 1, r: [r0, r0 + pitch], pitch };
+  const r0 = Math.min(width * 0.33, half - m - EDGE_REACH_OUT * size - pitch);
+  // Pilzbereich vorn: alte Grenze (33 % − 0,8 S); rückt der Waldsaum nach innen, mit
+  // ausreichend Abstand zu dessen Blumen.
+  const mushroomOuter = r0 < width * 0.33 ? r0 - size * 1.1 : width * 0.33 - size * 0.8;
+  if (mushroomOuter >= trunk + size * 3.3) {
+    row = { back: false, scale: 1, r: [r0, r0 + pitch], pitch, mushroom: mushroomOuter };
   } else {
     // Hintere Reihe: vom Bildrand nach innen bis knapp vor den ausgewachsenen Stamm.
-    const trunk = trunkBaseHalf(8, placeMainTree(layout, 8), layout);
     const avail = half - m - (trunk + size * 0.25);
-    const scale = clamp((avail - gap) / (2 * foot), 0.5, EDGE_BACK_SCALE);
+    const mush = MUSHROOM_GAP * size;
+    const scale = clamp((avail - mush) / (2 * foot), 0.5, EDGE_BACK_SCALE);
     const a = half - m - EDGE_REACH_OUT * size * scale;
-    const p = foot * scale + gap;
-    row = { back: true, scale, r: [a, a - p], pitch: p };
+    const inner0 = a - EDGE_REACH_IN * size * scale;
+    const p = foot * scale + mush;
+    row = { back: true, scale, r: [a, a - p], pitch: p, mushroom: inner0 - mush / 2 };
   }
   if (edgeMemo.size > 16) edgeMemo.clear();
   edgeMemo.set(key, row);

@@ -968,7 +968,8 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
       if (kind === 'earthworm') e.y = ay - S * 0.04;
       break;
     case 'edge': {
-      // Hintere Reihe (schmale Bildschirme): alles etwas kleiner, in Zehntelschritten.
+      // Hintere Reihe (schmale Bildschirme): alles etwas kleiner, gerundet auf 0,05 –
+      // so entstehen nur wenige Sprite-Größen.
       const k = Math.round(clamp(anchor.scale, 0.5, 1) * 20) / 20;
       const Se = S * k;
       e.size = Se * info.size;

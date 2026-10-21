@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VISITORS } from '../scripts/v2/content';
 import { MoodLayer, moodWeights, normalizeTier } from '../src/render/mood';
 import { drawScene, type SceneInput } from '../src/render/tree';
-import { visitorDepth, visitorKind } from '../src/render/visitors';
+import { VisitorLayer, visitorDepth, visitorKind, type SceneVisitor, type VisitorFrame } from '../src/render/visitors';
 
 /** Canvas-Stub wie in render-scene.test.ts: protokolliert nur die Aufrufe. */
 interface StubCanvas {
@@ -96,6 +96,63 @@ describe('Durchreisende', () => {
     expect(visitorKind('waxwings')).toBe('flock');
     expect(visitorDepth('cranes')).toBe('sky');
     expect(visitorDepth('moth')).toBe('front');
+  });
+});
+
+describe('Durchreisende zeichnen', () => {
+  const frame = (time: number, reducedMotion = false): VisitorFrame => ({
+    width: 800,
+    height: 600,
+    groundY: 480,
+    top: 27,
+    size: 30,
+    dpr: 2,
+    sx: 1,
+    sy: 1,
+    time,
+    reducedMotion,
+  });
+
+  function draw(list: SceneVisitor[], depth: 'sky' | 'front', f: VisitorFrame): StubCanvas['calls'] {
+    const canvas = makeCanvas(1600, 1200);
+    new VisitorLayer().draw(canvas.getContext('2d'), list, depth, f);
+    return canvas.calls.filter((c) => c.name === 'setTransform');
+  }
+
+  it('zeichnet doppelte Paare aus id und Platz nur einmal', () => {
+    const one = draw([{ id: 'hummingbird-moth', slot: 1 }], 'front', frame(4)).length;
+    expect(one).toBe(1);
+    const twice = draw(
+      [
+        { id: 'hummingbird-moth', slot: 1 },
+        { id: 'hummingbird-moth', slot: 1.4 },
+        { id: 'hummingbird-moth', slot: 2 },
+      ],
+      'front',
+      frame(4),
+    ).length;
+    expect(twice).toBe(2);
+  });
+
+  it('behält den Versatz je Gast auch ohne Bewegung und verkraftet negative Zeit', () => {
+    const at = (list: SceneVisitor[]) => draw(list, 'front', frame(0, true)).map((c) => c.args[4]);
+    expect(at([{ id: 'hummingbird-moth', slot: 0 }])).not.toEqual(at([{ id: 'hummingbird-moth', slot: 2 }]));
+    // Gleicher Platz, andere Art: eigener Seed.
+    const flock = draw([{ id: 'bramblings', slot: 0 }], 'front', frame(0, true)).map((c) => c.args[4]);
+    const other = draw([{ id: 'waxwings', slot: 0 }], 'front', frame(0, true)).map((c) => c.args[4]);
+    expect(flock.slice(0, 3)).not.toEqual(other.slice(0, 3));
+    for (const time of [-0.5, -7.3, -100]) {
+      const calls = draw(
+        [
+          { id: 'hummingbird-moth', slot: 0 },
+          { id: 'cranes', slot: Number.NaN },
+        ],
+        'front',
+        frame(time),
+      );
+      expect(calls.length).toBe(1);
+      for (const c of calls) for (const a of c.args) expect(Number.isFinite(a as number)).toBe(true);
+    }
   });
 });
 

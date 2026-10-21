@@ -248,7 +248,8 @@ export function layoutFlora(layout: Layout, growth: number, plants: readonly Sce
     const r = S * 0.5;
     // Am Stammfuß wandern Moos und Laubstreu-Plätze gemeinsam mit dem Stamm nach außen:
     // dort zählen die heutigen Plätze, sonst die ganze Strecke über das Spiel.
-    if (foot) for (const x of groundSpots(anchors)) forbid.push([x - r, x + r]);
+    // Die hintere Waldsaum-Reihe (schmale Bildschirme) liegt hinter dem Stammfuß.
+    if (foot) for (const x of groundSpots(anchors, false)) forbid.push([x - r, x + r]);
     else {
       for (const [a, b] of groundSpans) forbid.push([a - r, b + r]);
       // Der Raum zwischen Stamm und erstem Laubstreu-Platz gehört den Moosen am Stammfuß.
@@ -324,11 +325,16 @@ export function nudge(x: number, blocked: readonly [number, number][], lo: numbe
   return fallback;
 }
 
-/** x-Positionen der Tierplätze am Boden: Laubstreu, Waldsaum, Pilze an der Oberfläche. */
-function groundSpots(anchors: AnchorResolver): number[] {
+/**
+ * x-Positionen der Tierplätze am Boden: Laubstreu, Waldsaum, Pilze an der Oberfläche.
+ * Ohne `withBackRow` fehlen Waldsaum-Plätze der hinteren Reihe.
+ */
+function groundSpots(anchors: AnchorResolver, withBackRow = true): number[] {
   const xs: number[] = [];
   for (let s = 0; s < KEEP_CLEAR_SLOTS; s++) {
-    xs.push(anchors.get('litter', s)!.x, anchors.get('edge', s)!.x, anchors.get('roots', s)!.surfaceX);
+    const edge = anchors.get('edge', s)!;
+    xs.push(anchors.get('litter', s)!.x, anchors.get('roots', s)!.surfaceX);
+    if (withBackRow || edge.depth === 0) xs.push(edge.x);
   }
   return xs;
 }

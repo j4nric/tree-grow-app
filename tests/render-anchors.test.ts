@@ -121,6 +121,9 @@ describe('Waldsaum auf allen Bildschirmbreiten', () => {
   const WIDTHS: [number, number][] = [
     [320, 568],
     [390, 844],
+    [800, 600],
+    [1024, 768],
+    [1060, 850],
     [1200, 700],
   ];
   const STAGES = [2, 4, 6, 7.5, 8];
@@ -141,7 +144,7 @@ describe('Waldsaum auf allen Bildschirmbreiten', () => {
             const [b0, b1] = feet[j]!;
             // Lücke zwischen den Bereichen, mindestens 0,15 Tiergrößen.
             const gap = Math.max(b0 - a1, a0 - b1);
-            expect(gap, `Waldsaum ${i}/${j} bei g=${g}, ${w}×${h}`).toBeGreaterThanOrEqual(size * 0.15);
+            expect(gap, `Waldsaum ${i}/${j} bei g=${g}, ${w}×${h}`).toBeGreaterThanOrEqual(size * 0.15 - 1e-6);
           }
         }
       }
@@ -159,6 +162,36 @@ describe('Waldsaum auf allen Bildschirmbreiten', () => {
         } else {
           expect(a.depth).toBe(0);
           expect(a.scale).toBe(1);
+        }
+      }
+    }
+  });
+
+  it('typische Desktop-Canvases ab 800 px behalten die vordere Reihe; sehr breite bleiben wie bisher', () => {
+    for (const [w, h] of [
+      [800, 600],
+      [1024, 768],
+      [1060, 850],
+      [1440, 900],
+    ] as const) {
+      for (const a of nicheAnchors(w, h, 6, 4).edge) expect(a.depth, `${w}×${h}`).toBe(0);
+    }
+    // Reicht der alte Abstand (7,5 % der Breite), stehen die Plätze wie bisher.
+    const edge = nicheAnchors(1920, 1080, 6, 4).edge;
+    expect(edge.map((a) => Math.round(a.x))).toEqual([1594, 326, 1738, 182]);
+  });
+
+  it('Pilze liegen außerhalb der Bereiche von Großtieren und Sonderplätzen (0–5)', () => {
+    for (const [w, h] of WIDTHS) {
+      const size = animalSize(w, h);
+      for (const g of STAGES) {
+        const all = nicheAnchors(w, h, g, 6);
+        for (const r of all.roots.slice(0, 4)) {
+          for (const e of all.edge) {
+            const [x0, x1] = edgeFootprint(e, size);
+            const gap = Math.max(x0 - (r.surfaceX + size * 0.48), r.surfaceX - size * 0.48 - x1);
+            expect(gap, `Pilz ${r.slot} / Waldsaum ${e.slot} bei g=${g}, ${w}×${h}`).toBeGreaterThanOrEqual(0);
+          }
         }
       }
     }

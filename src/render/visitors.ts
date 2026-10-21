@@ -68,23 +68,33 @@ export class VisitorLayer {
       this.spriteKey = key;
     }
     this.sprites.tick();
-    for (const v of visitors) {
+    for (let i = 0; i < visitors.length; i++) {
+      const v = visitors[i];
       if (!v || typeof v.id !== 'string') continue;
       const kind = visitorKind(v.id);
       if (visitorDepth(kind) !== depth) continue;
-      const slot = Number.isFinite(v.slot) ? Math.max(0, Math.floor(v.slot)) : 0;
+      const slot = normSlot(v.slot);
+      // Doppelte Paare aus id und Platz nur einmal zeichnen (die Liste ist klein).
+      let dup = false;
+      for (let j = 0; j < i && !dup; j++) {
+        const o = visitors[j];
+        dup = !!o && o.id === v.id && normSlot(o.slot) === slot;
+      }
+      if (dup) continue;
+      // Seed aus Art und Platz: verschiedene Gäste auf gleichem Platz bewegen sich verschieden.
+      const seed = hash2(hashString(v.id), slot);
       switch (kind) {
         case 'cranes':
-          this.drawCranes(ctx, slot, f);
+          this.drawCranes(ctx, slot, seed, f);
           break;
         case 'bramblings':
-          this.drawFlock(ctx, slot, f, 'visitor:brambling', 9);
+          this.drawFlock(ctx, slot, seed, f, 'visitor:brambling', 9);
           break;
         case 'flock':
-          this.drawFlock(ctx, slot, f, 'visitor:flyer', 6);
+          this.drawFlock(ctx, slot, seed, f, 'visitor:flyer', 6);
           break;
         case 'moth':
-          this.drawMoth(ctx, slot, f);
+          this.drawMoth(ctx, slot, seed, f);
           break;
       }
     }
@@ -92,7 +102,7 @@ export class VisitorLayer {
   }
 
   /** V-Formation, die langsam nach links (Süden) zieht; ruhiger Flügelschlag. */
-  private drawCranes(ctx: CanvasRenderingContext2D, slot: number, f: VisitorFrame): void {
+  private drawCranes(ctx: CanvasRenderingContext2D, slot: number, seed: number, f: VisitorFrame): void {
     const n = f.width < 600 ? 5 : 7;
     const cs = f.size * (f.width < 600 ? 0.75 : 0.9);
     const span = f.groundY - f.top;
@@ -100,8 +110,10 @@ export class VisitorLayer {
     const formation = Math.ceil((n - 1) / 2) * 1.15 * cs + cs;
     const path = f.width + formation * 1.3;
     const speed = Math.max(18, f.width / 40);
-    const phase = ((hash2(slot, 5) & 1023) / 1024) * path;
-    const pos = f.reducedMotion ? f.width * 0.55 : (((f.time * speed + phase) % path) + path) % path;
+    const u = (hash2(seed, 5) & 1023) / 1024;
+    const phase = u * path;
+    // Ohne Bewegung: fest im sichtbaren Himmel, je Gast versetzt.
+    const pos = f.reducedMotion ? f.width * (0.35 + 0.4 * u) + formation * 0.5 : (((f.time * speed + phase) % path) + path) % path;
     const lead = f.width + cs - pos;
     for (let i = 0; i < n; i++) {
       const k = Math.ceil(i / 2);
@@ -116,17 +128,19 @@ export class VisitorLayer {
   }
 
   /** Lockerer Schwarm, der neben der Krone kreist; jeder Vogel auf eigener Bahn. */
-  private drawFlock(ctx: CanvasRenderingContext2D, slot: number, f: VisitorFrame, sprite: string, count: number): void {
+  private drawFlock(ctx: CanvasRenderingContext2D, slot: number, seed: number, f: VisitorFrame, sprite: string, count: number): void {
     const n = f.width < 600 ? Math.ceil(count * 0.67) : count;
     const bs = f.size * 0.62;
     const side = slot % 2 === 0 ? -1 : 1;
     const span = f.groundY - f.top;
+    // Ohne Bewegung steht die Zeit – der Versatz je Gast (Seed) bleibt.
     const t = f.reducedMotion ? 0 : f.time;
-    const cx = f.width * (0.5 + side * 0.3) + f.width * 0.04 * Math.sin(t * 0.09 + slot);
-    const cy = f.top + span * (0.32 + 0.06 * Math.sin(t * 0.13 + slot * 2));
+    const ph0 = ((seed & 1023) / 1024) * 6.283;
+    const cx = f.width * (0.5 + side * 0.3) + f.width * 0.04 * Math.sin(t * 0.09 + ph0);
+    const cy = f.top + span * (0.32 + 0.06 * Math.sin(t * 0.13 + ph0 * 2));
     const R = clamp(f.width * 0.12, f.size * 2, f.size * 5);
     for (let i = 0; i < n; i++) {
-      const h = hash2(slot * 31 + 7, i);
+      const h = hash2(seed, i);
       const r = (k: number) => (hash2(h, k) & 0xffff) / 0x10000;
       const sp = 0.35 + r(1) * 0.25;
       const ph = r(2) * 6.283;
@@ -143,7 +157,7 @@ export class VisitorLayer {
   }
 
   /** Schwirrt zwischen drei Blütenhöhen am Waldsaum hin und her und steht dazwischen still in der Luft. */
-  private drawMoth(ctx: CanvasRenderingContext2D, slot: number, f: VisitorFrame): void {
+  private drawMoth(ctx: CanvasRenderingContext2D, slot: number, seed: number, f: VisitorFrame): void {
     const S = f.size;
     const ms = S * 0.78;
     const side = slot % 2 === 0 ? -1 : 1;
@@ -153,16 +167,20 @@ export class VisitorLayer {
       [0.24, 1.25],
     ] as const;
     const at = (k: number) => {
-      const [u, hgt] = spots[k % spots.length]!;
+      // Auch für negative k (negative Zeit) ein gültiger Index.
+      const [u, hgt] = spots[((k % spots.length) + spots.length) % spots.length]!;
       return { x: f.width * (0.5 + side * u), y: f.groundY - S * hgt };
     };
     const period = 3.2;
-    const t = f.reducedMotion ? 0 : f.time + slot * 1.7;
+    // Versatz je Gast; ohne Bewegung bleibt er, nur die Zeit steht.
+    const offset = ((seed & 1023) / 1024) * period * 3;
+    const t = (f.reducedMotion ? 0 : f.time) + offset;
     const n = Math.floor(t / period);
     const local = t / period - n;
     const from = at(n + 2);
     const to = at(n + 3);
-    const m = smooth01(local / 0.22);
+    // Ohne Bewegung schwebt er ruhig an einer Blüte (nie mitten im Flug).
+    const m = f.reducedMotion ? 1 : smooth01(local / 0.22);
     let x = from.x + (to.x - from.x) * m;
     let y = from.y + (to.y - from.y) * m - Math.sin(m * Math.PI) * S * 0.5;
     if (!f.reducedMotion) {
@@ -176,6 +194,20 @@ export class VisitorLayer {
     const frame = f.reducedMotion ? 0 : Math.floor(t * 24) & 1;
     blit(ctx, this.sprites.get('visitor:moth', frame, false, ms, f.dpr), x, y, dir, 1, f);
   }
+}
+
+/** Platz: ungültig (NaN, ∞) → 0, sonst ganzzahlig und nicht negativ. */
+function normSlot(slot: number): number {
+  return Number.isFinite(slot) ? Math.max(0, Math.floor(slot)) : 0;
+}
+
+function hashString(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
 }
 
 /** Sprite an (x, y) [CSS-px], gespiegelt mit `dir`. */

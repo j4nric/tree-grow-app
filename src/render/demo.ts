@@ -184,7 +184,12 @@ growthInput.addEventListener('input', () => (g = Number(growthInput.value)));
 happyInput.addEventListener('input', () => (happy = Number(happyInput.value)));
 
 /** Harmoniestufe (undefined = aus) und Gäste. */
-let harmonyTier: number | undefined = params.has('ht') ? Number(params.get('ht')) : undefined;
+/** ?ht= als Stufenindex 0–4; ungültige Angaben (z. B. ?ht=abc) gelten als „aus“. */
+function parseTier(v: string | null): number | undefined {
+  const n = v === null || v.trim() === '' ? NaN : Number(v);
+  return Number.isFinite(n) ? Math.max(0, Math.min(4, Math.round(n))) : undefined;
+}
+let harmonyTier: number | undefined = parseTier(params.get('ht'));
 const showTier = () => (harmonyValue.textContent = harmonyTier === undefined ? 'aus' : TIER_NAMES[harmonyTier] ?? String(harmonyTier));
 harmonyInput.value = String(harmonyTier ?? -1);
 showTier();
