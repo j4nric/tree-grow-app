@@ -4,9 +4,10 @@ import { NICHE_IDS, type NicheId, type Tag } from '../content/types';
 import { normalizeSeed } from './rng';
 
 /**
- * Spielstand v8 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen,
+ * Spielstand v9 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen,
  * Jahreszeiten und Hauptbaum-Arten; seit v7 mit der Wegpunkt-Kurve 3,5 · k^3,5 aus dem
- * Balancing 2.10; seit v8 mit der Langzeit-Statistik `meta.stats`).
+ * Balancing 2.10; seit v8 mit der Langzeit-Statistik `meta.stats`; seit v9 mit den
+ * Erfolgen `meta.achievements`).
  * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -15,7 +16,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+1 % je Punkt → höchstens
@@ -165,7 +166,7 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 8;
+  version: 9;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */
@@ -214,6 +215,11 @@ export interface GameState {
     };
     /** Langzeit-Statistik über alle Zyklen (seit v8). */
     stats: LifetimeStats;
+    /**
+     * Freigeschaltete Erfolge (seit v9, DESIGN_V2.md 18): IDs aus ACHIEVEMENTS, je einmal,
+     * in Freischalt-Reihenfolge. Wird nie zurückgesetzt (`checkAchievements`).
+     */
+    achievements: string[];
   };
   /** Zeitpunkt des letzten Ticks (ms seit Epoch), für Offline-Fortschritt. */
   lastTick: number;
@@ -246,6 +252,7 @@ export function createInitialState(now: number, seed: number = now): GameState {
       regulars: [],
       journal: { species: [], plants: [], communities: [], keepsakes: [] },
       stats: createStats(),
+      achievements: [],
     },
     lastTick: now,
   };

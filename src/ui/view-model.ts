@@ -455,6 +455,31 @@ export interface JournalTreeView {
   hint?: string;
 }
 
+/** Ein Erfolg im Reiter „Erfolge“ (DESIGN_V2.md 18). */
+export interface JournalAchievementView {
+  /** Erfolgs-ID. */
+  key: string;
+  icon: string;
+  title: string;
+  /** Neutral formuliert – auch bei offenen Erfolgen sichtbar. */
+  description: string;
+  unlocked: boolean;
+  /** Nur offene: Fortschritt, z. B. „3/5“ (fehlt bei Stufen). */
+  progress?: string;
+  /**
+   * Nur offene: Der Fortschritt läuft mit der Spielzeit („Ein ganzes Jahr“, „Geduld der
+   * Bäume“). Er zählt nicht zur Signatur des Tagebuchs; der Dialog tauscht nur den Text
+   * (gedrosselt, `JournalDialog.updateAchievementProgress`).
+   */
+  live?: boolean;
+}
+
+/** Laufender Fortschritt eines offenen Zeit-Erfolgs (nur Text tauschen). */
+export interface JournalAchievementProgressView {
+  key: string;
+  progress: string;
+}
+
 /** Eine Kennzahl im Reiter „Statistik“, z. B. Samen „1.234 🌰“. */
 export interface JournalStatView {
   /** Fester Schlüssel (Reihenfolge und DOM-Zuordnung), z. B. „seeds“. */
@@ -486,8 +511,10 @@ export interface JournalView {
    * aktualisiert dafür nur Texte und baut nichts neu.
    */
   stats: JournalStatView[];
+  /** Erfolge: freigeschaltete zuerst, dann offene mit Fortschritt. */
+  achievements: JournalAchievementView[];
   /** Zähler je Reiter, z. B. „12/32“ (Statistik ohne Zähler: leer). */
-  tabCounts: { species: string; plants: string; communities: string; keepsakes: string; stats: string };
+  tabCounts: { species: string; plants: string; communities: string; keepsakes: string; achievements: string; stats: string };
 }
 
 /** Gruppen der Pflege-Liste in Anzeige-Reihenfolge. */

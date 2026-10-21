@@ -55,6 +55,7 @@ import {
   type Evaluation,
   type MemoryHarmonyBonus,
 } from './formulas';
+import { checkAchievements } from './achievements';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import { MAX_ELAPSED, nextSeasonBoundary, normalizeElapsed, seasonIdAt, secondsToNextSeason } from './season';
 import {
@@ -829,7 +830,8 @@ export function isTreeUnlocked(state: Pick<GameState, 'meta'>, id: string): bool
 }
 
 export type NewCycleResult =
-  | { ok: true; preview: NewCyclePreview; regulars: string[] }
+  /** `achievements`: neu freigeschaltete Erfolge (vor und nach dem Zurücksetzen geprüft). */
+  | { ok: true; preview: NewCyclePreview; regulars: string[]; achievements: string[] }
   | { ok: false; error: ActionError };
 
 /**
@@ -840,12 +842,15 @@ export type NewCycleResult =
  * Zyklus; `lastTick` bleibt unverändert. Der neue Zyklus beginnt im Frühling mit der Art
  * `mainTree` (ohne Angabe: die des laufenden Zyklus); ist sie gesperrt oder unbekannt,
  * scheitert die Aktion mit 'tree-locked' und nichts ändert sich.
+ * Erfolge werden vorher geprüft (Stufe und Spielzeit des Zyklus beginnen neu – nichts
+ * Erreichtes geht verloren) und danach (abgeschlossene Zyklen, Baumarten).
  */
 export function startNewCycle(state: GameState, now: number, mainTree?: MainTreeId): NewCycleResult {
   const preview = previewNewCycle(state);
   if (preview.blocker !== null) return { ok: false, error: 'cycle-locked' };
   const tree = mainTree ?? state.cycle.mainTree;
   if (!isTreeUnlocked(state, tree)) return { ok: false, error: 'tree-locked' };
+  const achievements = checkAchievements(state);
   state.meta.forestMemory = preview.memoryAfter;
   state.meta.stats.completedCyclesGrowth = capped(state.meta.stats.completedCyclesGrowth + state.totalGrowth);
   state.totalGrowth = 0;
@@ -859,7 +864,8 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   if (!state.meta.stats.grownTrees.includes(tree)) state.meta.stats.grownTrees.push(tree);
   const regulars = moveInRegulars(state);
   recordDiscoveries(state);
-  return { ok: true, preview, regulars };
+  achievements.push(...checkAchievements(state));
+  return { ok: true, preview, regulars, achievements };
 }
 
 /** Warum diese Art gerade nicht Stammgast werden kann – null, wenn es geht oder sie es schon ist. */

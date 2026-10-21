@@ -181,7 +181,13 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     exakt aus abgeschlossenen Zyklen + `totalGrowth`, DESIGN_V2.md 12.5
   - [x] UI: Abschnitt „Über alle Zyklen“ im Reiter „Statistik“, „schon gewachsen“ bei den
     Hauptbaum-Arten im Reiter „Andenken“
-- [ ] Erfolge / Achievements, verknüpft mit dem Naturtagebuch (`ui-dev`)
+- [x] Erfolge / Achievements, verknüpft mit dem Naturtagebuch (`ui-dev`, `core-engineer`)
+  - [x] Inhalt: 25 Erfolge als Daten (`src/content/achievements.ts`), deklarative
+    Bedingungen (Stufe, Tagebuch, Gattungen, Statistik, Zyklen, Baumarten, Spielzeit des Zyklus)
+  - [x] Logik (core): Spielstand v9 mit `meta.achievements`, Migration v8 → v9 schaltet still
+    frei, `checkAchievements` (online = offline), Prüfung vor dem Neuen Zyklus, DESIGN_V2.md 12.6 und 18
+  - [x] UI: Reiter „Erfolge“ im Naturtagebuch mit Zähler und Fortschritt, leiser Hinweis
+    „🏅 Erfolg: …“, Sammelhinweis „N Erfolge nachgetragen“
 
 ## Phase 5 – Veröffentlichung
 
