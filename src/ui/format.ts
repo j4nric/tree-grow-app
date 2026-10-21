@@ -46,9 +46,16 @@ export function formatRate(value: number): string {
 }
 
 export function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return m > 0 ? `${h} Std. ${m} Min.` : `${h} Std.`;
-  if (m > 0) return `${m} Min.`;
-  return `${Math.floor(seconds)} Sek.`;
+  const total = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+  const d = Math.floor(total / 86_400);
+  const h = Math.floor((total % 86_400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  // Ab einem Tag: Tage und Stunden (Minuten sind dann unwichtig), alle Zahlen deutsch formatiert.
+  if (d > 0) {
+    const days = `${formatNumber(d)} ${d === 1 ? 'Tag' : 'Tage'}`;
+    return h > 0 ? `${days} ${formatNumber(h)} Std.` : days;
+  }
+  if (h > 0) return m > 0 ? `${formatNumber(h)} Std. ${formatNumber(m)} Min.` : `${formatNumber(h)} Std.`;
+  if (m > 0) return `${formatNumber(m)} Min.`;
+  return `${formatNumber(Math.floor(total))} Sek.`;
 }

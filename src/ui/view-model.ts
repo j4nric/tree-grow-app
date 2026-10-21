@@ -440,6 +440,8 @@ export interface JournalTreeView {
   icon: string;
   /** z. B. „Rotbuche“; verborgen „???“. */
   name: string;
+  /** Verborgen (Spoiler-Regel): ohne Namen, ID und Eigenheit. */
+  hidden: boolean;
   unlocked: boolean;
   /** Art des laufenden Zyklus. */
   current: boolean;

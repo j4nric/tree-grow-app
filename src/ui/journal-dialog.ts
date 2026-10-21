@@ -224,7 +224,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
   }
 
   function treeItem(t: JournalTreeView): HTMLElement {
-    const known = t.name !== '???';
+    const known = !t.hidden;
     const li = el(
       'li',
       `journal-entry journal-tree ${t.unlocked ? 'discovered' : known ? 'locked' : 'unknown'}${t.current ? ' current' : ''}`,
@@ -280,10 +280,11 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     }
   }
 
-  function list(label: string, items: HTMLElement[], empty: string): HTMLElement[] {
+  /** `label` ist ein Name oder – mit `labelledBy` – die ID einer sichtbaren Überschrift. */
+  function list(label: string, items: HTMLElement[], empty: string, labelledBy = false): HTMLElement[] {
     if (items.length === 0) return [el('p', 'journal-empty', empty)];
     const ul = el('ul', 'journal-grid');
-    ul.setAttribute('aria-label', label);
+    ul.setAttribute(labelledBy ? 'aria-labelledby' : 'aria-label', label);
     ul.append(...items);
     return [ul];
   }
@@ -321,11 +322,12 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     const treeTitle = el('h3', 'journal-section-title', 'Hauptbaum-Arten');
     treeTitle.id = 'journal-trees-title';
     const memoryTitle = el('h3', 'journal-section-title', 'Erinnerungen');
+    memoryTitle.id = 'journal-memories-title';
     tabs.get('keepsakes')!.panel.replaceChildren(
       treeTitle,
       treeList,
       memoryTitle,
-      ...list('Erinnerungen', view.keepsakes.map(keepsakeItem), 'Noch keine Erinnerungen – sie halten besondere Momente fest.'),
+      ...list('journal-memories-title', view.keepsakes.map(keepsakeItem), 'Noch keine Erinnerungen – sie halten besondere Momente fest.', true),
     );
     if (focusKey) dialog.querySelector<HTMLElement>(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true });
   }

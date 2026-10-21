@@ -819,12 +819,13 @@ export function toJournalTrees(state: GameState): JournalTreeView[] {
         key: `unknown-tree-${hidden++}`,
         icon: '🌳',
         name: '???',
+        hidden: true,
         unlocked: false,
         current: false,
         hint: 'Wächst eine bestimmte Baumart einmal im Pflanzring, kann aus ihren Samen ein neuer Hauptbaum keimen.',
       };
     }
-    const view: JournalTreeView = { key: t.id, icon: t.icon, name: t.name, unlocked, current, summary: t.summary };
+    const view: JournalTreeView = { key: t.id, icon: t.icon, name: t.name, hidden: false, unlocked, current, summary: t.summary };
     if (unlocked) view.text = t.text;
     else view.hint = t.unlockHint;
     return view;
@@ -844,7 +845,8 @@ export function toJournalStats(state: GameState, evaluation: Readonly<Pick<Evalu
   const cycles = state.cycle.number;
   const memory = state.meta.forestMemory;
   const slots = regularSlots(memory);
-  const harmony = Number.isFinite(evaluation.harmony) ? Math.floor(evaluation.harmony) : 0;
+  // Wie die Seitenleiste: angezeigt gerundet, Stufe aus dem Rohwert.
+  const harmonyRaw = Number.isFinite(evaluation.harmony) ? evaluation.harmony : 0;
   const newSpecies = state.cycle.newSpecies.length;
   const regularNames = state.meta.regulars.map((id) => SPECIES_BY_ID.get(id)?.name).filter((n): n is string => !!n);
 
@@ -873,8 +875,8 @@ export function toJournalStats(state: GameState, evaluation: Readonly<Pick<Evalu
     {
       key: 'harmony',
       label: 'Harmonie',
-      value: `${formatNumber(harmony)} ⚖️`,
-      detail: `${harmonyTier(harmony)} · Höchstwert ${formatNumber(Math.floor(state.cycle.maxHarmony))}`,
+      value: `${formatNumber(Math.round(harmonyRaw))} ⚖️`,
+      detail: `${harmonyTier(harmonyRaw)} · Höchstwert ${formatNumber(Math.round(state.cycle.maxHarmony))}`,
     },
     {
       key: 'species',

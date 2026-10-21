@@ -390,6 +390,15 @@ describe('welcomeText', () => {
     expect(formatDuration(59)).toBe('59 Sek.');
   });
 
+  it('formatDuration: ab 24 Stunden Tage und Stunden, große Zahlen mit Tausenderpunkt', () => {
+    expect(formatDuration(23 * 3600 + 59 * 60)).toBe('23 Std. 59 Min.');
+    expect(formatDuration(24 * 3600)).toBe('1 Tag');
+    expect(formatDuration(3 * 86_400 + 4 * 3600 + 30 * 60)).toBe('3 Tage 4 Std.');
+    expect(formatDuration(1234 * 86_400 + 3600)).toBe('1.234 Tage 1 Std.');
+    expect(formatDuration(NaN)).toBe('0 Sek.');
+    expect(formatDuration(-5)).toBe('0 Sek.');
+  });
+
   it('formatNumber: ab 10.000 ohne Nachkommastellen, ab einer Million abgekürzt', () => {
     expect(formatNumber(12.34)).toBe('12,3');
     expect(formatNumber(119_899.69)).toBe('119.900');

@@ -121,6 +121,9 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     `SceneInput.season` stufenlos aus der Spielzeit, Abschnitt in der Spielanleitung
 - ~~Zufallsereignisse mit gespeichertem Seed~~ – in v2 aufgegangen (Begegnungen, `rngState`)
 - [x] Statistik-Seite (Spielzeit, Gesamt-Wachstum, entdeckte Arten) (`ui-dev`) – Reiter „Statistik“ im Naturtagebuch
+  - Zeigt nur, was der Spielstand schon hat (laufender Zyklus, Tagebuch). Eine
+    Gesamtspielzeit über alle Zyklen bräuchte ein neues Spielstand-Feld – siehe
+    „Langzeit-Statistik“ in Phase 4.
 - [ ] Gattung Amphibien mit Waldtümpel (Erdkröte, Bergmolch) als Erweiterung (`game-designer`)
 - [ ] Winter-Ereignis „Schneebruch“ und weitere Ereignisse je Jahreszeit (`game-designer` + `core-engineer`)
 
@@ -139,6 +142,10 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     in Toast und Spielanleitung, `SceneInput.mainTree` und `cycleTransition.fromTree`
   - [x] Optional: Naturtagebuch, Reiter Andenken – gewachsene Hauptbaum-Arten (`ui-dev`)
 - [ ] Umstieg auf `break_infinity.js`, falls Zahlen > 1e300 (`core-engineer`)
+- [ ] Langzeit-Statistik `meta.stats` (`core-engineer`, danach `ui-dev`): Gesamtspielzeit,
+  Gesamt-Wachstum, beste Harmonie, Begegnungen, bewirtete Gäste, gewachsene
+  Hauptbaum-Arten über alle Zyklen (neue Spielstand-Version mit Migration); Anzeige im
+  Reiter „Statistik“, Grundlage für Erfolge
 - [ ] Erfolge / Achievements, verknüpft mit dem Naturtagebuch (`ui-dev`)
 
 ## Phase 5 – Veröffentlichung
