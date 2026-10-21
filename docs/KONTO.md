@@ -56,9 +56,22 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
   Sitzung, nie die eines anderen Tabs. Meldet sich ein anderer Tab mit genau dem Konto an,
   zu dem das Spiel dieses Tabs gehört, macht dieser Tab wieder mit – wie bei einer ersten
   Anmeldung (beide Stände gesichert), weil sein Spiel vom gespeicherten abweichen kann.
-- **Wem der lokale Stand gehört:** `vszw-sync-base` = `{user, version, pending, save}` – Konto,
-  Cloud-Version, auf der er beruht, ob seitdem eine Aktion fehlt, und die Prüfsumme des
-  Spielstands, zu dem diese Angaben gehören. Jeder Tab schreibt sie **im selben Takt wie den
+  Spielen zwei Tabs mit **demselben** Konto, teilen sie sich Spielstand und Grundlage, jeder
+  hat aber sein Spiel und seine noch nicht gesendete Aktion im eigenen Speicher. Bevor ein Tab
+  über den gespeicherten Stand eines anderen Tabs speichert, der eine offene Aktion haben
+  könnte (laut Grundlage offen, Grundlage unbekannt oder Angaben passen nicht zum Stand),
+  sichert er diesen Stand im Ring („Noch nicht gesendeter Stand eines anderen Tabs“) – sonst
+  wäre die Aktion verloren, wenn jener Tab z. B. offline geschlossen wurde. Je Tab gibt es nur
+  die neueste solche Sicherung; sobald der Tab seine Aktionen gesendet hat, entfernt er sie –
+  nach dem Neuladen auch die, die vor dem Laden vom geladenen Stand angelegt wurden (er erbt
+  dessen Kennung). Solche Sicherungen zählen wenig: Ist der Ring voll, weichen sie (nach dem
+  Sicherheitsnetz „vor dem Übernehmen“) vor überholten Aktionen und ersten Anmeldungen.
+  Rein lokale Stände (nie mit einem Konto abgeglichen) bleiben wie bisher.
+- **Wem der lokale Stand gehört:** `vszw-sync-base` = `{user, version, pending, save, tab}` – Konto,
+  Cloud-Version, auf der er beruht, ob seitdem eine Aktion fehlt, die Prüfsumme des
+  Spielstands, zu dem diese Angaben gehören, und die Kennung des schreibenden Tabs (je Laden
+  der Seite neu; fehlt bei älteren Einträgen). Eine Aktion gilt auch dann als offen, wenn der
+  Abgleich noch nicht stand (z. B. offline neu geladen). Jeder Tab schreibt sie **im selben Takt wie den
   Spielstand** und aus seinem eigenen Speicher – nur, wenn der Spielstand tatsächlich
   gespeichert wurde. Passt die Prüfsumme beim Lesen nicht (Speichern scheiterte, Absturz
   zwischen den beiden Schreibvorgängen, ein anderer Tab speicherte), gilt die Grundlage nicht:
@@ -67,9 +80,9 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
 - **Sicherungs-Ring:** `vszw-backups` hält die letzten 10 ersetzten Stände (zusammen höchstens
   500 000 Zeichen – Reserve für den Spielstand), je mit Konto, Zeitpunkt, Grund (erste
   Anmeldung lokal/Cloud, überholte Aktion, vor dem Übernehmen, vor dem Wiederherstellen, vor
-  dem Löschen bzw. Importieren) und Fortschritt. Denselben Stand gibt es nur einmal (der Grund
+  dem Löschen bzw. Importieren, noch nicht gesendeter Stand eines anderen Tabs) und Fortschritt. Denselben Stand gibt es nur einmal (der Grund
   wird auf den wichtigeren angehoben). Ist der Ring voll, weicht zuerst das Sicherheitsnetz
-  „vor dem Übernehmen“, dann die älteste; eine neue, unwichtigere Sicherung verdrängt keine
+  „vor dem Übernehmen“, dann frühere Einzel-Sicherungen und Stände anderer Tabs, dann die älteste; eine neue, unwichtigere Sicherung verdrängt keine
   wichtigere. Ist der Browser-Speicher voll, opfert der Ring für eine neue Sicherung nur
   weniger wichtige – lässt sie sich nicht ablegen, ersetzt der Abgleich nichts und hält an
   („Speicher voll“), „Wiederherstellen“ bricht mit Hinweis ab. Scheitert dagegen das Speichern
@@ -92,7 +105,13 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
   Neuladen (auch mitten im Senden), Wiederherstellen, zweitem Tab, Schreiben anderer Geräte,
   Netzfehlern (vor/nach dem Schreiben, Sitzung weg, 422, 507) und verlorenen Live-Meldungen
   durch – alle der Länge 3, dazu 4000 zufällige der Länge 8, jeder Takt mit Autosave – und
-  prüft nach jedem Schritt beides; verlorene Stände müssen bis zum Ende im Ring liegen.
+  prüft nach jedem Schritt beides; verlorene Stände müssen bis zum Ende im Ring liegen. Eine
+  eigene Familie spielt zwei Tabs mit demselben Konto (Spielen, Speichern, Senden, Schließen,
+  Öffnen, Neuladen, Absturz, offline, verlorene Antworten und Live-Meldungen beliebig
+  verschränkt, dazu „Ring mit alten überholten Aktionen füllen“; alle der Länge 4, dazu 3000
+  zufällige der Länge 12) und prüft zusätzlich: Keine je gemachte Aktion verschwindet, ohne in
+  der Cloud, einem offenen Tab, dem gespeicherten Stand oder im Ring zu liegen, und keine
+  wichtige Sicherung weicht, solange unwichtigere im Ring liegen.
 - **Abmelden:** sendet vorher den letzten Stand. Klappt das nicht (offline), weist der
   Konto-Abschnitt darauf hin; ein zweiter Tipp („Trotzdem abmelden“) meldet trotzdem ab – der
   Stand bleibt auf dem Gerät.

@@ -14,10 +14,13 @@
 // (b) Jeder Stand, den der Abgleich (oder „Wiederherstellen“) ersetzt hat und dessen Aktionen
 //     danach weder in einer Cloud noch lokal (Speicher eines Tabs, gespeicherter Stand)
 //     vorkommen, liegt nach JEDEM Schritt als Sicherung im Ring – auch am Ende noch.
+// (c) Nur in der Familie „zwei Tabs mit demselben Konto“ (unten): Keine je gemachte Aktion
+//     verschwindet, ohne in einer Cloud, einem offenen Tab, dem gespeicherten Stand oder im
+//     Ring zu liegen.
 import { describe, expect, it } from 'vitest';
 import { FROZEN_TEXT, createAccountCore, type AccountCore, type GameBridge } from '../src/sync/controller';
 import type { RemoteMeta } from '../src/sync/policy';
-import { BACKUP_KEY, addBackup, readBackups, readBase, readMeta, readOwner } from '../src/sync/storage';
+import { BACKUP_KEY, MAX_BACKUPS, addBackup, readBackups, readBase, readMeta, readOwner, type BackupEntry } from '../src/sync/storage';
 import { AccountError, type AccountService, type AccountUser, type RemoteSave, type SyncBackend, type WriteResult } from '../src/sync/types';
 import { MemoryStorage } from './memory-storage';
 
@@ -56,7 +59,11 @@ class World {
   readonly sacrificed = new Set<string>();
   private readonly listeners = new Map<string, Set<(c: RemoteMeta | null) => void>>();
   private queue: (() => void)[] = [];
+  /** Jede Aktion, die je gemacht wurde (Tabs und andere Geräte) – für Prüfung (c). */
+  readonly made = new Set<string>();
   fault: Fault | null = null;
+  /** Dauerhaft offline (bis zurückgesetzt): jeder Aufruf scheitert vor dem Server. */
+  offline = false;
   dropEvents = false;
   clock = 1_000_000;
   private seq = 0;
@@ -69,6 +76,7 @@ class World {
 
   /** Netzfehler für den nächsten passenden Aufruf: vor dem Schreiben → wirft. */
   failBefore(write: boolean): void {
+    if (this.offline) throw new Error('offline');
     const fault = this.fault;
     if (fault === 'before' || (write && fault === '507')) {
       this.fault = null;
@@ -120,10 +128,12 @@ class World {
     const game: Game = old ? decode(old.data)! : { account, actions: [] };
     const fault = this.fault;
     this.fault = null;
+    const action = this.next(`${account}-fremd`);
+    this.made.add(action);
     this.write(
       account,
       {
-        data: encode({ account, actions: [...game.actions, this.next(`${account}-fremd`)] }),
+        data: encode({ account, actions: [...game.actions, action] }),
         version: (old?.version ?? 0) + 1,
         actionVersion: (old?.version ?? 0) + 1,
         device: 'anderes-geraet',
@@ -160,6 +170,17 @@ class World {
         this.violations.push(`(b) ${what} ersetzt, ohne Sicherung verloren: ${missing.join(',')}`);
       }
     }
+  }
+
+  /**
+   * Prüfung (c): Keine Aktion, die je gemacht wurde, verschwindet – sie lebt noch (Cloud,
+   * Speicher eines offenen Tabs, gespeicherter Stand) oder liegt im Sicherungs-Ring.
+   */
+  checkMade(): void {
+    const live = this.live();
+    const ring = new Set(readBackups(this.storage).flatMap((e) => decode(e.code)?.actions ?? []));
+    const missing = [...this.made].filter((a) => !live.has(a) && !ring.has(a) && !this.ephemeral.has(a) && !this.sacrificed.has(a));
+    if (missing.length > 0) this.violations.push(`(c) Aktion verloren (weder Cloud noch Tab noch Ring): ${missing.join(',')}`);
   }
 }
 
@@ -237,6 +258,8 @@ function fakeService(world: World, storage: MemoryStorage): AccountService {
 class Tab {
   game: Game;
   frozen = false;
+  /** Zuletzt in der Oberfläche angebotene Sicherungen. */
+  shown: BackupEntry[] = [];
   readonly notes: string[] = [];
   readonly core: AccountCore;
 
@@ -267,7 +290,7 @@ class Tab {
       isActive: () => true,
       newDeviceId: () => world.next('geraet'),
       eventText: () => '',
-      view: { showSignedIn() {}, showSignedOut() {}, showUnavailable() {}, showStale() {}, setStatus() {}, setBackups() {} },
+      view: { showSignedIn() {}, showSignedOut() {}, showUnavailable() {}, showStale() {}, setStatus() {}, setBackups: (b) => (this.shown = b) },
     });
     service.onUserChange(() => this.core.checkSession());
   }
@@ -287,6 +310,11 @@ class Tab {
    */
   persist(crash = false): void {
     if (this.frozen) return;
+    // Ließ sich der Stand eines anderen Tabs nicht sichern (Ring voll mit Wichtigerem), wird
+    // trotzdem gespeichert – seine Aktionen sind dann bewusst geopfert.
+    if (!this.core.beforePersist()) {
+      for (const a of decode(this.world.storage.getItem(SAVE))?.actions ?? []) if (!this.game.actions.includes(a)) this.world.sacrificed.add(a);
+    }
     const raw = encode(this.game);
     const write = (): boolean => {
       try {
@@ -311,6 +339,7 @@ class Tab {
   play(): void {
     const user = this.core.user?.name ?? null;
     const action = this.world.next('aktion');
+    this.world.made.add(action);
     if (this.frozen) this.world.ephemeral.add(action);
     // Gespielt als das angemeldete Konto; abgemeldet bleibt das Spiel, wem es gehörte.
     this.game = { account: user ?? this.game.account, actions: [...this.game.actions, action] };
@@ -371,6 +400,7 @@ async function reload(world: World, index: number, mode: 'normal' | 'mid' | 'cra
   if (mode === 'crash') {
     // Aktion, Spielstand geschrieben – Absturz vor den Abgleich-Angaben, kein beforeunload.
     const action = world.next('aktion');
+    world.made.add(action);
     old.game = { account: old.core.user?.name ?? old.game.account, actions: [...old.game.actions, action] };
     if (old.frozen) world.ephemeral.add(action);
     old.persist(true);
@@ -545,6 +575,315 @@ describe('Konto-Abgleich: alle Abfolgen', () => {
     ok.write('B', { data: encode({ account: 'B', actions: ['y'] }), version: before.version + 1, actionVersion: 9, device: 'd' }, false);
     ok.checkBackups();
     expect(ok.violations).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Zwei Tabs mit DEMSELBEN Konto: ein gemeinsamer Spielstand und eine gemeinsame Grundlage im
+// localStorage, aber jeder Tab hat Spiel und Abgleich im eigenen Speicher. Hier gibt es keinen
+// Autosave je Takt – Spielen, Speichern, Senden, Schließen und Öffnen sind einzelne Schritte,
+// damit sich alles beliebig verschränken lässt. Geprüft wird zusätzlich (c): Keine je gemachte
+// Aktion verschwindet, ohne in einer Cloud, einem offenen Tab, dem gespeicherten Stand oder im
+// Ring zu liegen.
+// ---------------------------------------------------------------------------------------
+
+type SameTabOp = 'play' | 'save' | 'push' | 'close' | 'open' | 'reload' | 'crash';
+type SameGlobalOp = 'cloudA' | 'offline' | 'online' | 'failAfter' | 'dropEvents' | 'deliver' | 'fillRing';
+type SameStep = { op: SameTabOp; tab: number } | { op: SameGlobalOp };
+const SAME_TAB_OPS: SameTabOp[] = ['play', 'save', 'push', 'close', 'open', 'reload', 'crash'];
+const SAME_GLOBAL_OPS: SameGlobalOp[] = ['cloudA', 'offline', 'online', 'failAfter', 'dropEvents', 'deliver', 'fillRing'];
+const SAME_STEPS: SameStep[] = [
+  ...SAME_TAB_OPS.flatMap((op) => [0, 1].map((tab) => ({ op, tab }) as SameStep)),
+  ...SAME_GLOBAL_OPS.map((op) => ({ op }) as SameStep),
+];
+const sameLabel = (s: SameStep): string => ('tab' in s ? `${s.op}@${s.tab}` : s.op);
+
+async function runSameAccount(steps: SameStep[], trace?: (step: string, world: World) => void): Promise<string[]> {
+  const storage = new MemoryStorage();
+  const world = new World(storage);
+  storage.setItem(SAVE, encode({ account: null, actions: ['lokal0'] }));
+  world.made.add('lokal0');
+  world.otherDevice('A');
+  const slots: (Tab | null)[] = [null, null];
+  const sync = (): void => {
+    world.tabs.length = 0;
+    for (const t of slots) if (t) world.tabs.push(t);
+  };
+  const open = async (index: number): Promise<void> => {
+    const tab = new Tab(world);
+    slots[index] = tab;
+    sync();
+    await tab.core.start();
+  };
+  await open(0);
+  await slots[0]!.core.signIn('A', 'pw');
+  await settle(world);
+  await open(1);
+  await settle(world);
+  // Ohne Zwischenschritte zu Ende spielen lassen (Mikrotasks), Live-Meldungen nur auf Wunsch.
+  const flushTasks = async (): Promise<void> => {
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+  };
+  for (const step of steps) {
+    const ringBefore = readBackups(storage);
+    if ('tab' in step) {
+      const tab = slots[step.tab];
+      if (step.op === 'open') {
+        if (!tab) await open(step.tab);
+      } else if (tab) {
+        switch (step.op) {
+          case 'play':
+            tab.play();
+            break;
+          case 'save':
+            tab.persist();
+            break;
+          case 'push':
+            world.clock += 2000;
+            await tab.core.poll();
+            break;
+          case 'close':
+            // beforeunload: speichern und noch einmal senden (Antwort kommt evtl. nie an).
+            tab.persist();
+            void tab.core.flush();
+            tab.core.dispose();
+            slots[step.tab] = null;
+            sync();
+            break;
+          case 'reload':
+          case 'crash': {
+            const index = world.tabs.indexOf(tab);
+            await reload(world, index, step.op === 'crash' ? 'crash' : 'normal');
+            slots[step.tab] = world.tabs[index]!;
+            break;
+          }
+        }
+      }
+    } else {
+      switch (step.op) {
+        case 'cloudA':
+          world.otherDevice('A');
+          break;
+        case 'offline':
+          world.offline = true;
+          break;
+        case 'online':
+          world.offline = false;
+          break;
+        case 'failAfter':
+          world.fault = 'after';
+          break;
+        case 'dropEvents':
+          world.dropEvents = !world.dropEvents;
+          break;
+        case 'deliver':
+          world.deliver();
+          break;
+        case 'fillRing':
+          // Alte, wichtige Sicherungen (überholte Aktionen anderer Geräte) füllen den Ring.
+          for (let i = 0; i < 8; i++) {
+            addBackup(storage, { code: encode({ account: 'A', actions: [world.next('alt')] }), owner: 'A', at: i, reason: 'lost-action', progress: null });
+          }
+          break;
+      }
+    }
+    await flushTasks();
+    // Andere Tabs bemerken Sitzungsänderungen (storage-Ereignis).
+    for (const t of world.tabs) t.core.checkSession();
+    trace?.(sameLabel(step), world);
+    checkEvictions(world, ringBefore, readBackups(storage));
+    world.checkBackups();
+    world.checkMade();
+    if (world.violations.length > 0) break;
+  }
+  for (const t of world.tabs) t.core.dispose();
+  return world.violations;
+}
+
+/**
+ * Was zwischen zwei Prüfungen aus dem Ring verschwand: (d) Eine wichtige Sicherung (Priorität 2,
+ * z. B. überholte Aktion) darf nie weichen, solange unwichtigere ('other-tab', Sicherheitsnetz)
+ * im Ring liegen. Verdrängte Sicherungen (Ring voll, ältere weichen – so gewollt) zählen für (c)
+ * als geopfert; entfernte 'other-tab'-Sicherungen bei nicht vollem Ring sind aufgeräumt und
+ * bleiben in (c) geprüft (ihre Aktionen müssen dann in der Cloud bzw. einem Tab sein).
+ */
+function checkEvictions(world: World, before: BackupEntry[], after: BackupEntry[]): void {
+  const kept = new Set(after.map((e) => e.id));
+  const removed = before.filter((e) => !kept.has(e.id));
+  // Bewusst ohne backupPriority: Die Erwartung steht hier fest, nicht in der geprüften Regel.
+  const unimportant = new Set<BackupEntry['reason']>(['other-tab', 'before-take', 'legacy']);
+  const weaker = after.some((e) => unimportant.has(e.reason));
+  for (const e of removed) {
+    if (!unimportant.has(e.reason) && weaker) world.violations.push(`(d) wichtige Sicherung verdrängt, obwohl unwichtigere da sind: ${e.code}`);
+    if (e.reason !== 'other-tab' || after.length >= MAX_BACKUPS) {
+      for (const a of decode(e.code)?.actions ?? []) world.sacrificed.add(a);
+    }
+  }
+}
+
+describe('Konto-Abgleich: zwei Tabs mit demselben Konto', () => {
+  it('Länge 4 vollständig', async () => {
+    const failures: string[] = [];
+    for (const a of SAME_STEPS)
+      for (const b of SAME_STEPS)
+        for (const c of SAME_STEPS)
+          for (const d of SAME_STEPS) {
+            const steps = [a, b, c, d];
+            const violations = await runSameAccount(steps);
+            if (violations.length > 0 && failures.length < 5) failures.push(`${steps.map(sameLabel).join(' → ')}: ${violations.join('; ')}`);
+          }
+    expect(failures).toEqual([]);
+  }, 600_000);
+
+  it('3000 zufällige Abfolgen der Länge 12', async () => {
+    const random = rng(1021);
+    const failures: string[] = [];
+    for (let i = 0; i < 3000; i++) {
+      const steps = Array.from({ length: 12 }, () => SAME_STEPS[Math.floor(random() * SAME_STEPS.length)]!);
+      const violations = await runSameAccount(steps);
+      if (violations.length > 0 && failures.length < 5) failures.push(`${steps.map(sameLabel).join(' → ')}: ${violations.join('; ')}`);
+    }
+    expect(failures).toEqual([]);
+  }, 600_000);
+
+  it('Gegenprobe: (c) schlägt an, wenn eine Aktion nirgends mehr liegt', () => {
+    const world = new World(new MemoryStorage());
+    world.made.add('weg');
+    world.checkMade();
+    expect(world.violations.some((v) => v.startsWith('(c)'))).toBe(true);
+  });
+
+  async function twoTabs() {
+    const storage = new MemoryStorage();
+    const world = new World(storage);
+    storage.setItem(SAVE, encode({ account: null, actions: ['lokal0'] }));
+    world.otherDevice('A');
+    const first = new Tab(world);
+    world.tabs.push(first);
+    await first.core.start();
+    await first.core.signIn('A', 'pw');
+    await settle(world);
+    const second = new Tab(world);
+    world.tabs.push(second);
+    await second.core.start();
+    await settle(world);
+    return { world, storage, first, second };
+  }
+
+  it('Tab 0 handelt offline und wird geschlossen, Tab 1 speichert darüber: Stand von Tab 0 liegt im Ring', async () => {
+    const { world, storage, first, second } = await twoTabs();
+    world.offline = true;
+    first.play();
+    const action = first.game.actions.at(-1)!;
+    // Abwechselnd speichern: höchstens eine Sicherung je Tab, keine Flut im Ring.
+    for (let i = 0; i < 20; i++) {
+      second.persist();
+      first.persist();
+    }
+    expect(readBackups(storage).filter((e) => e.reason === 'other-tab')).toHaveLength(1);
+    // Schließen (Senden scheitert offline), danach speichert Tab 1.
+    first.persist();
+    void first.core.flush();
+    first.core.dispose();
+    world.tabs.splice(0, 1);
+    await settle(world);
+    second.persist();
+    expect(decode(storage.getItem(SAVE))!.actions).not.toContain(action);
+    const saved = readBackups(storage).filter((e) => e.reason === 'other-tab');
+    expect(saved).toHaveLength(1);
+    expect(decode(saved[0]!.code)!.actions).toContain(action);
+    expect(saved[0]!.owner).toBe('A');
+  });
+
+  it('Sicherung eines anderen Tabs verschwindet, sobald dessen Aktion in der Cloud ist', async () => {
+    const { world, storage, first, second } = await twoTabs();
+    first.play();
+    second.persist();
+    expect(readBackups(storage).filter((e) => e.reason === 'other-tab')).toHaveLength(1);
+    // Die Liste im Konto-Abschnitt kennt die neue Sicherung sofort.
+    expect(second.shown.some((e) => e.reason === 'other-tab')).toBe(true);
+    world.clock += 2000;
+    await first.core.poll();
+    await settle(world);
+    expect(decode(world.clouds.get('A')!.data)!.actions).toContain(first.game.actions.at(-1));
+    expect(readBackups(storage).filter((e) => e.reason === 'other-tab')).toEqual([]);
+  });
+
+  it("Neuladen des Tabs mit offener Aktion, während der andere speichert: nach dem Senden keine 'other-tab'-Sicherung mehr", async () => {
+    const { world, storage, first, second } = await twoTabs();
+    const otherTab = () => readBackups(storage).filter((e) => e.reason === 'other-tab');
+    world.offline = true;
+    first.play();
+    second.persist();
+    expect(otherTab()).toHaveLength(1);
+    // Tab 0 lädt neu (speichert vorher) – seine Kennung ist danach eine neue.
+    world.clock += 1000;
+    await reload(world, 0);
+    second.persist();
+    first.persist();
+    second.persist();
+    expect(otherTab().length).toBeGreaterThan(0);
+    // Wieder online: Tab 0 sendet, danach sind alle Sicherungen von ihm (auch die geerbte) weg.
+    world.offline = false;
+    world.clock += 60_000;
+    await world.tabs[0]!.core.poll();
+    await settle(world);
+    expect(world.tabs[0]!.core.engine?.hasUnsent).toBe(false);
+    expect(otherTab()).toEqual([]);
+    world.checkMade();
+    expect(world.violations).toEqual([]);
+  });
+
+  it("geerbte Kennung räumt nur ab, was vor dem Laden gesichert wurde", async () => {
+    const { world, storage, first, second } = await twoTabs();
+    world.offline = true;
+    first.play();
+    second.persist(); // sichert Tab 0
+    // Tab 1 lädt den gespeicherten Stand von Tab 0 – und erbt dessen Kennung.
+    world.clock += 1000;
+    await reload(world, 1);
+    // Danach macht Tab 0 weiter; Tab 1 sichert den neueren Stand über die alte Kennung.
+    world.clock += 1000;
+    first.play();
+    const later = first.game.actions.at(-1)!;
+    world.tabs[1]!.persist();
+    expect(readBackups(storage).some((e) => e.reason === 'other-tab' && decode(e.code)!.actions.includes(later))).toBe(true);
+    // Tab 0 wird offline geschlossen; Tab 1 sendet seinen Stand (ohne `later`).
+    first.persist();
+    first.core.dispose();
+    world.tabs.splice(0, 1);
+    world.offline = false;
+    world.clock += 60_000;
+    await world.tabs[0]!.core.flush();
+    await settle(world);
+    expect(readBackups(storage).some((e) => decode(e.code)!.actions.includes(later))).toBe(true);
+    world.checkMade();
+    expect(world.violations).toEqual([]);
+  });
+
+  it('ein Tab: offline neu geladen und gespielt – die Aktion bleibt als offen vermerkt', async () => {
+    const storage = new MemoryStorage();
+    const world = new World(storage);
+    storage.setItem(SAVE, encode({ account: null, actions: ['lokal0'] }));
+    world.otherDevice('A');
+    world.tabs.push(new Tab(world));
+    await world.tabs[0]!.core.start();
+    await world.tabs[0]!.core.signIn('A', 'pw');
+    await settle(world);
+    world.offline = true;
+    await reload(world, 0);
+    expect(world.tabs[0]!.core.engine?.status.phase).toBe('offline');
+    world.tabs[0]!.play();
+    expect(readBase(storage, 'A')?.pending).toBe(true);
+    // Neu geladen und wieder online: Die Aktion geht als Aktion ans Konto.
+    await reload(world, 0);
+    world.offline = false;
+    world.clock += 60_000;
+    await world.tabs[0]!.core.poll();
+    await settle(world);
+    const cloud = world.clouds.get('A')!;
+    expect(decode(cloud.data)!.actions).toContain(world.tabs[0]!.game.actions.at(-1));
+    expect(cloud.actionVersion).toBe(cloud.version);
   });
 });
 
