@@ -695,6 +695,12 @@ eine Karte eine Gemeinschaft, nennt sie den Namen („✨ vervollständigt Humus
 (+8 Harmonie)“). Das ist der Moment der Entdeckung, danach folgt die Meldung „Neue
 Lebensgemeinschaft: Humusküche 🌱“.
 
+Entdeckte Gemeinschaften nennen im Naturtagebuch **alle** Mitglieder, auch Arten, die
+selbst noch unentdeckt sind. Das ist gewollt, genau wie „fehlt: …“ in der Seitenleiste:
+Die Gemeinschaft ist dann ein Ziel, auf das man hinarbeiten kann. Den Fortschritt „x/y“
+zeigen Seitenleiste und Tagebuch für jede Gemeinschaft, die gerade nicht besteht, auch
+für unentdeckte.
+
 | Lebensgemeinschaft | Mitglieder | ⚖️ | Extra | Hinweis |
 |---|---|---|---|---|
 | Humusküche | Regenwurm, Rollassel, Pfifferling oder Steinpilz | +8 | +5 % 🌿 | „Aus Laub wird Erde, aus Erde wird Leben.“ |
@@ -865,8 +871,14 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
 - **Kartenvorschau:** Tier- und Pflanzenkarten sowie „Pflanze setzen“ zeigen unter der
   Vorschau „✨ vervollständigt …“ bzw. „⚠️ löst … auf“ samt Harmonie. Beim Ersetzen ist
   eine Option vorausgewählt, die keine Gemeinschaft auflöst, sofern es eine gibt.
-- **Naturtagebuch** als eigener Reiter: Arten, Lebensgemeinschaften (Silhouetten mit
-  Hinweis), Waldgedächtnis, Stammgäste.
+- **Naturtagebuch** (Dialog „📖 Naturtagebuch“ in der Seitenleiste) mit den Reitern Arten,
+  Pflanzen, Gemeinschaften und Andenken. Die Kopfzeile zeigt die Zähler
+  („12/32 Arten · 5/14 Pflanzen · 2/9 Gemeinschaften“), den Zyklus und das Waldgedächtnis.
+  Entdeckte Arten haben Gattung, Seltenheit, Nische und einen Stammgast-Schalter, der mit
+  dem Zyklus-Panel synchron ist. Unentdeckte Arten und Pflanzen erscheinen als Silhouette
+  mit „???“. Gattungs- bzw. Gruppensymbol und Seltenheitsrahmen bleiben **bewusst** als
+  Hinweis sichtbar, der Name dagegen nie (auch nicht in Attributen oder IDs). Unentdeckte
+  Gemeinschaften zeigen nur Rätselhinweis und Fortschritt „x/y“ (Spoiler-Regel, 9.2).
 - **Pflege** als Schalterliste.
 
 ### 11.3 Tiere im Baum (Renderer)

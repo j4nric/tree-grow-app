@@ -2144,6 +2144,7 @@ dialog.plant-picker {
 .journal-facts,
 .journal-effect,
 .journal-text,
+.journal-progress,
 .journal-present {
   margin: 2px 0 0;
   font-size: 0.8rem;
@@ -2152,6 +2153,12 @@ dialog.plant-picker {
 
 .journal-facts {
   color: var(--muted);
+}
+
+.journal-progress {
+  color: var(--muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .journal-effect {

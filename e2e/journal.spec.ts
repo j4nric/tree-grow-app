@@ -1,5 +1,8 @@
 import type { Page } from '@playwright/test';
-import { expect, openGame, savedState, seedV3, test, waypoint } from './fixtures';
+import { COMMUNITIES } from '../src/content/communities';
+import { PLANTS } from '../src/content/plants';
+import { SPECIES } from '../src/content/species';
+import { expect, openGame, savedState, seedRaw, seedV3, test, waypoint } from './fixtures';
 
 /**
  * Naturtagebuch (DESIGN_V2.md 10, 11.2): Knopf in der Seitenleiste, modaler Dialog mit
@@ -82,6 +85,94 @@ test('Stammgast im Tagebuch wählen: Zyklus-Panel synchron, gespeichert', async 
   await regulars.locator('[data-regular="bluetit"]').click();
   await openJournal(page);
   await expect(journal(page).locator('[data-species="bluetit"] .journal-regular')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('keine Spoiler in Attributen: class, title, aria-*, data-* und id nennen nichts Unentdecktes', async ({
+  page,
+  context,
+}) => {
+  await seedYoungTree(context);
+  await openGame(page);
+  await openJournal(page);
+  const { attrs, text } = await journal(page).evaluate((d) => {
+    const out: string[] = [];
+    for (const e of [d, ...d.querySelectorAll('*')]) {
+      for (const a of e.attributes) {
+        if (['class', 'title', 'id'].includes(a.name) || a.name.startsWith('aria-') || a.name.startsWith('data-')) {
+          out.push(`${a.name}=${a.value}`);
+        }
+      }
+    }
+    return { attrs: out.join('\n'), text: d.textContent ?? '' };
+  });
+  const known = new Set(['earthworm', 'woodlouse', 'bluetit', 'moss']);
+  const leaks: string[] = [];
+  const idPattern = (id: string) => new RegExp(`[="\\s-]${id}(\\b|$)`, 'm');
+  for (const entry of [...SPECIES, ...PLANTS]) {
+    if (known.has(entry.id)) continue;
+    if (attrs.includes(entry.name) || text.includes(entry.name)) leaks.push(`Name ${entry.name}`);
+    if (idPattern(entry.id).test(attrs)) leaks.push(`ID ${entry.id}`);
+  }
+  // Keine Gemeinschaft ist entdeckt.
+  for (const c of COMMUNITIES) {
+    if (attrs.includes(c.name) || text.includes(c.name)) leaks.push(`Gemeinschaft ${c.name}`);
+    if (idPattern(c.id).test(attrs)) leaks.push(`Gemeinschafts-ID ${c.id}`);
+  }
+  expect(leaks).toEqual([]);
+});
+
+test('Stammgast per Leertaste umschalten: der Fokus bleibt auf dem Schalter', async ({ page, context }) => {
+  await seedYoungTree(context);
+  await openGame(page);
+  await openJournal(page);
+  const toggle = journal(page).locator('[data-species="bluetit"] .journal-regular');
+  await toggle.focus();
+  await page.keyboard.press('Space');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(toggle).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(toggle).toBeFocused();
+});
+
+test('Stammgast zieht bei offenem Tagebuch ein: Hinweis im Dialog, kein Toast, „lebt gerade hier“', async ({
+  page,
+  context,
+}) => {
+  await page.clock.install({ time: new Date('2026-10-21T08:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-21T08:00:01Z'));
+  // Kurz vor Wegpunkt 7 (Junger Baum), das Rotkehlchen ist entdeckt, lebt aber nicht hier.
+  await seedRaw(
+    context,
+    {
+      version: 3,
+      totalGrowth: waypoint(7) - 1,
+      seeds: 0,
+      waypoint: 0,
+      stage: 0,
+      plants: [],
+      niches: { roots: ['earthworm'], litter: [], edge: [], crown: ['bluetit'], bark: [], hollows: [] },
+      pendingEncounters: [],
+      rngState: 123456789,
+      meta: { forestMemory: 30, journal: { species: ['earthworm', 'bluetit', 'robin'], keepsakes: [] } },
+    },
+    0,
+  );
+  await openGame(page);
+  await openJournal(page);
+  const robin = journal(page).locator('[data-species="robin"]');
+  await expect(robin).not.toContainText('lebt gerade hier');
+  await robin.locator('.journal-regular').click();
+  await expect(robin.locator('.journal-regular')).toHaveAttribute('aria-pressed', 'true');
+
+  // Wegpunkt erreicht: Das Rotkehlchen zieht als Stammgast in die Laubstreu.
+  await page.clock.runFor(3000);
+  await expect(journal(page).locator('.encounter-notice')).toHaveText('Stammgast Rotkehlchen ist eingezogen.');
+  await expect(robin).toContainText('lebt gerade hier');
+  await expect(page.locator('#live-status')).toHaveText('');
+  await expect(page.locator('#toast')).toBeHidden();
+  await expect(page.locator('.float-note')).toHaveCount(0);
+  expect((await savedState(page)).niches.litter).toEqual(['robin']);
 });
 
 test.describe('Mobil (390×844)', () => {

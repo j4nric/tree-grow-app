@@ -364,8 +364,8 @@ function refreshPanel(now: number): void {
     ecoDirty = false;
     // Neuer Zyklus und Stammgäste ändern sich nur mit Ökosystem, Wegpunkt oder Aktionen.
     cyclePanel.update(toCyclePanelView(state));
-    if (journal.open) journal.update(toJournalView(state, evaluate(state)));
     const ev = evaluate(state);
+    if (journal.open) journal.update(toJournalView(state, ev));
     if (!ecoView || ev !== ecoEvaluation) {
       ecoEvaluation = ev;
       ecoView = toEcosystemView(state, ev);
