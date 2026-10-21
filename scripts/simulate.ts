@@ -264,7 +264,28 @@ export interface RunResult {
   /** Wartezeit vor jeder Begegnung, mit der Stufe, in der gewartet wurde. */
   gaps: { stage: number; seconds: number }[];
   decisions: DecisionStat[];
+  /** Vielfalt: eine Zeile je Begegnung (erste Ziehung), siehe VarietyStat. */
+  variety: VarietyStat[];
   final: Snapshot;
+}
+
+/**
+ * Vielfalt einer Begegnung (Playtest-Befund „immer dieselben Karten“, DESIGN_V2.md 7.7).
+ * Gemessen an der ersten Ziehung, „lohnend“ auch nach Neu würfeln.
+ */
+export interface VarietyStat {
+  stage: number;
+  /** Spielzeit (s), zu der die Begegnung aufgelöst wurde. */
+  time: number;
+  type: PendingEncounterType;
+  /** Anzahl Karten der ersten Ziehung. */
+  cards: number;
+  /** Gleiches Karten-Set wie die vorige Begegnung desselben Typs. */
+  sameAsPrevious: boolean;
+  /** Warum „Neu würfeln“ bei der ersten Ziehung gesperrt war (null = möglich). */
+  rerollBlocked: string | null;
+  /** Mindestens eine angebotene Karte verbessert Harmonie oder Wachstum. */
+  worthwhile: boolean;
 }
 
 export interface RunOptions {
@@ -299,6 +320,7 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     samples: SAMPLE_MINUTES.map(() => null),
     gaps: [],
     decisions: [],
+    variety: [],
     final: null as unknown as Snapshot,
   };
   const snapshot = (): Snapshot => {
@@ -356,7 +378,7 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     result.gaps.push({ stage: stageBefore, seconds: time - lastWaypointTime });
     lastWaypointTime = time;
     for (let s = stageBefore + 1; s <= state.stage; s++) result.stages[s] = snapshot();
-    resolveAll(state, strategy, rng, counts, book, result.decisions);
+    resolveAll(state, strategy, rng, counts, book, result.decisions, result.variety, time);
   }
   result.final = snapshot();
   return result;
@@ -390,17 +412,31 @@ function resolveAll(
   counts: Counts,
   book: { earnedDecline: number; spent: number },
   decisions: DecisionStat[],
+  variety: VarietyStat[],
+  time: number,
 ): void {
   // Schutz gegen Endlosschleifen: jede Strategie würfelt höchstens einmal je Begegnung.
   for (let guard = 0; state.pendingEncounters.length > 0 && guard < 50; guard++) {
     const enc = state.pendingEncounters[0]!;
     const current = evaluate(state);
     const options = optionsFor(state);
+    const improves = options.some((o) => o.ev.harmony > current.harmony + 1e-9 || o.ev.growth > current.growth + 1e-9);
     if (enc.rerolls === 0) {
+      variety.push({
+        stage: state.stage,
+        time,
+        type: enc.type,
+        cards: enc.cards.length,
+        sameAsPrevious: sameCards(lastCards.get(variety) ?? {}, enc.type, enc.cards),
+        rerollBlocked: rerollBlocker(state, 0),
+        worthwhile: improves,
+      });
+      rememberCards(variety, enc.type, enc.cards);
       counts.encounters++;
       if (enc.type === 'plant') counts.plantEncounters++;
       else if (enc.cards.some((_, c) => cardStatus(state, 0, c) === 'full')) counts.fullNiche++;
     }
+    else if (improves) variety[variety.length - 1]!.worthwhile = true;
     recordDecision(state, options, current, decisions);
     const action = strategy.decide(state, options, current, rng);
     const before = state.seeds;
@@ -422,6 +458,24 @@ function resolveAll(
       book.earnedDecline += state.seeds - before;
     }
   }
+}
+
+/** Letztes Karten-Set je Begegnungstyp, je Durchgang (am variety-Array festgemacht). */
+const lastCards = new WeakMap<VarietyStat[], Partial<Record<PendingEncounterType, string[]>>>();
+
+function rememberCards(variety: VarietyStat[], type: PendingEncounterType, cards: readonly string[]): void {
+  const map = lastCards.get(variety) ?? {};
+  map[type] = [...cards];
+  lastCards.set(variety, map);
+}
+
+function sameCards(
+  map: Partial<Record<PendingEncounterType, string[]>>,
+  type: PendingEncounterType,
+  cards: readonly string[],
+): boolean {
+  const prev = map[type];
+  return !!prev && prev.length === cards.length && cards.every((c) => prev.includes(c));
 }
 
 function recordDecision(state: GameState, options: Option[], current: Evaluation, decisions: DecisionStat[]): void {
@@ -586,6 +640,105 @@ export function decisionStats(summary: Summary, beforeStage: number) {
   };
 }
 
+/**
+ * Vielfalt der Begegnungen in Stufe `stage` (Begegnungen, die in dieser Stufe stattfanden).
+ * Durststrecke: Zeit seit der letzten lohnenden Begegnung (bzw. Spielstart), gemessen an
+ * jeder lohnenden Begegnung dieser Stufe und am Ende der Stufe (Erreichen der nächsten).
+ */
+export function varietyStats(summary: Summary, stage: number) {
+  const vs = summary.runs.flatMap((r) => r.variety.filter((v) => v.stage === stage));
+  const n = Math.max(1, vs.length);
+  const droughts = summary.runs.map((r) => longestDrought(r, stage)).filter((d): d is number => d !== null);
+  const share = (f: (v: VarietyStat) => boolean) => vs.filter(f).length / n;
+  return {
+    count: vs.length,
+    sameShare: share((v) => v.sameAsPrevious),
+    sameAnimalShare:
+      vs.filter((v) => v.type === 'animal' && v.sameAsPrevious).length / Math.max(1, vs.filter((v) => v.type === 'animal').length),
+    samePlantShare:
+      vs.filter((v) => v.type === 'plant' && v.sameAsPrevious).length / Math.max(1, vs.filter((v) => v.type === 'plant').length),
+    fewCardsShare: share((v) => v.cards <= 2),
+    rerollOpenShare: share((v) => v.rerollBlocked === null),
+    rerollTooExpensiveShare: share((v) => v.rerollBlocked === 'too-expensive'),
+    rerollNoAltShare: share((v) => v.rerollBlocked === 'no-alternatives' || v.rerollBlocked === 'no-cards'),
+    worthShare: share((v) => v.worthwhile),
+    /** Längste Durststrecke je Durchgang (s): Median, 90-%-Quantil, Maximum. */
+    droughtMedian: median(droughts),
+    droughtP90: quantile(droughts, 0.9),
+    droughtMax: droughts.length > 0 ? Math.max(...droughts) : NaN,
+  };
+}
+
+/** Längste Strecke (s) ohne lohnende Begegnung, die in Stufe `stage` endet; null, wenn die Stufe nie lief. */
+export function longestDrought(run: RunResult, stage: number): number | null {
+  const start = run.stages[stage]?.time;
+  if (start === undefined) return null;
+  const end = run.stages[stage + 1]?.time ?? run.final.time;
+  let last = 0;
+  let longest = 0;
+  for (const v of run.variety) {
+    if (!v.worthwhile) continue;
+    if (v.time > start && v.time <= end) longest = Math.max(longest, v.time - last);
+    if (v.time > end) break;
+    last = v.time;
+  }
+  // Strecke, die beim Erreichen der nächsten Stufe noch läuft.
+  return Math.max(longest, end - last);
+}
+
+/** Vielfalt aller Begegnungen vor Erreichen von `beforeStage` (Ziele: DESIGN_V2.md 7.7). */
+export function varietyBefore(summary: Summary, beforeStage: number) {
+  const vs = summary.runs.flatMap((r) => r.variety.filter((v) => v.stage < beforeStage));
+  const n = Math.max(1, vs.length);
+  const share = (f: (v: VarietyStat) => boolean) => vs.filter(f).length / n;
+  // Längste Durststrecke je Durchgang über alle Stufen vor `beforeStage`.
+  const droughts = summary.runs.map((r) => {
+    const ds = Array.from({ length: beforeStage - 1 }, (_, i) => longestDrought(r, i + 1) ?? 0);
+    return Math.max(0, ...ds);
+  });
+  return {
+    sameShare: share((v) => v.sameAsPrevious),
+    /** Ab Setzling (im Keimling gibt es nur 2 Pflanzen und 3 Arten – gewollt). */
+    fewCardsShare: vs.filter((v) => v.stage >= 2 && v.cards <= 2).length / Math.max(1, vs.filter((v) => v.stage >= 2).length),
+    rerollOpenShare: share((v) => v.rerollBlocked === null),
+    worthShare: share((v) => v.worthwhile),
+    droughtMedian: median(droughts),
+    droughtP90: quantile(droughts, 0.9),
+    droughtMax: Math.max(...droughts),
+  };
+}
+
+export function varietySummaryTable(summaries: Summary[], beforeStage: number): string {
+  const pct = (x: number) => `${fmt(x * 100)} %`;
+  const lines = [
+    '| Strategie | gleiches Set wie vorige | 1–2 Karten (ab Setzling) | Neu würfeln möglich | lohnend | längste Durststrecke Median / 90 % / max |',
+    '|---|---|---|---|---|---|',
+  ];
+  for (const s of summaries) {
+    const v = varietyBefore(s, beforeStage);
+    lines.push(
+      `| ${s.strategy.name} | ${pct(v.sameShare)} | ${pct(v.fewCardsShare)} | ${pct(v.rerollOpenShare)} | ${pct(v.worthShare)} | ${formatTime(v.droughtMedian)} / ${formatTime(v.droughtP90)} / ${formatTime(v.droughtMax)} |`,
+    );
+  }
+  return lines.join('\n');
+}
+
+export function varietyTable(summary: Summary, upTo: number): string {
+  const lines = [
+    '| Stufe | Begegnungen | gleiches Set wie vorige (Tier / Pflanze) | nur 1–2 Karten | Neu würfeln möglich | gesperrt: zu teuer / keine Alternative | lohnend | längste Durststrecke Median / 90 % / max |',
+    '|---|---|---|---|---|---|---|---|',
+  ];
+  for (let s = 1; s <= upTo; s++) {
+    const v = varietyStats(summary, s);
+    if (v.count === 0) continue;
+    const pct = (x: number) => `${fmt(x * 100)} %`;
+    lines.push(
+      `| ${STAGES[s]!.name} | ${fmt(v.count / summary.runs.length, 1)} | ${pct(v.sameShare)} (${pct(v.sameAnimalShare)} / ${pct(v.samePlantShare)}) | ${pct(v.fewCardsShare)} | ${pct(v.rerollOpenShare)} | ${pct(v.rerollTooExpensiveShare)} / ${pct(v.rerollNoAltShare)} | ${pct(v.worthShare)} | ${formatTime(v.droughtMedian)} / ${formatTime(v.droughtP90)} / ${formatTime(v.droughtMax)} |`,
+    );
+  }
+  return lines.join('\n');
+}
+
 export function strategyTable(summaries: Summary[], stage: number): string {
   const name = STAGES[stage]!.name;
   const lines = [
@@ -708,6 +861,15 @@ export function report(summaries: Summary[], focusStage: number): string {
     '',
     seedTable(harmony),
     ...(random ? ['', '#### Samen über die Zeit – Zufällig', '', seedTable(random)] : []),
+    '',
+    `#### Vielfalt der Begegnungen – Gierig nach Harmonie`,
+    '',
+    varietyTable(harmony, STAGES.length - 2),
+    ...(random ? ['', '#### Vielfalt der Begegnungen – Zufällig', '', varietyTable(random, STAGES.length - 2)] : []),
+    '',
+    `#### Vielfalt bis ${name} je Strategie`,
+    '',
+    varietySummaryTable(summaries, focusStage),
     '',
     `#### Begegnungen bis ${name} (Mittel je Durchgang)`,
     '',
