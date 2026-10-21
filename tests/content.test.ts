@@ -294,9 +294,9 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
     expect(VISITORS_BY_ID.size).toBe(VISITORS.length);
   });
 
-  it('8–10 Ereignisse mit Name, Symbol, Text und 2–3 Optionen', () => {
+  it('8–16 Ereignisse mit Name, Symbol, Text und 2–3 Optionen', () => {
     expect(EVENTS.length).toBeGreaterThanOrEqual(8);
-    expect(EVENTS.length).toBeLessThanOrEqual(10);
+    expect(EVENTS.length).toBeLessThanOrEqual(16);
     for (const e of EVENTS) {
       expect(e.name.length, e.id).toBeGreaterThan(0);
       expect(e.icon.length, e.id).toBeGreaterThan(0);
@@ -362,12 +362,20 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
     };
     for (const e of EVENTS) {
       for (const o of e.options) for (const x of o.effects) check(x, `${e.id}: ${o.label}`);
-      // Erzwungene Karten sind ab der Stufe des Ereignisses freigeschaltet (mindestens eine).
+      // Das Versprechen muss ab minStage einlösbar sein: Alle genannten Karten bis auf
+      // höchstens eine (und mindestens zwei bzw. alle, wenn es weniger sind) sind dann
+      // schon freigeschaltet, bei Arten mit offener Nische. Eine spätere Art darf als
+      // Bonus dabeistehen (z. B. Fliegenpilz im Pilzherbst).
       for (const o of e.options) {
         for (const x of o.effects) {
           if (x.kind !== 'nextEncounter') continue;
-          const unlocks = x.ids.map((id) => (x.type === 'animal' ? SPECIES_BY_ID.get(id)!.unlock : PLANTS_BY_ID.get(id)!.unlock));
-          expect(Math.min(...unlocks), e.id).toBeLessThanOrEqual(e.minStage);
+          const ready = x.ids.filter((id) => {
+            if (x.type === 'plant') return PLANTS_BY_ID.get(id)!.unlock <= e.minStage;
+            const s = SPECIES_BY_ID.get(id)!;
+            return s.unlock <= e.minStage && NICHES_BY_ID.get(s.niche)!.slots[e.minStage]! > 0;
+          });
+          expect(ready.length, `${e.id}: ${o.label} – ab Stufe ${e.minStage} möglich: ${ready.join(', ')}`)
+            .toBeGreaterThanOrEqual(Math.max(Math.min(2, x.ids.length), x.ids.length - 1));
         }
       }
     }
@@ -703,6 +711,14 @@ describe('Jahreszeiten: Inhalte (DESIGN_V2.md 16)', () => {
       expect(EVENTS.some((e) => e.minStage <= 3 && !e.appears && inSeason(EVENT_SEASONS, e.id)), s).toBe(true);
       expect(VISITORS.some((v) => v.minStage <= INTERLUDE_STAGE && !v.appears && inSeason(VISITOR_SEASONS, v.id)), s).toBe(true);
     }
+  });
+
+  it('jede Jahreszeit hat ein eigenes Ereignis ab Junger Baum ohne Bedingung (DESIGN_V2.md 16.4)', () => {
+    for (const s of SEASON_IDS) {
+      const own = EVENTS.filter((e) => e.minStage <= 3 && !e.appears && EVENT_SEASONS[e.id]?.length === 1 && EVENT_SEASONS[e.id]![0] === s);
+      expect(own.length, s).toBeGreaterThanOrEqual(1);
+    }
+    expect(EVENT_SEASONS['snow-break']).toEqual(['winter']);
   });
 });
 

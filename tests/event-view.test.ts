@@ -58,17 +58,70 @@ describe('View: Ereignis', () => {
   it('Wirkungszeilen: nächste Begegnung, Zeit-Bonus plus Samen', () => {
     const fungi = EVENTS_BY_ID.get('mushroom-autumn')!;
     const forced = fungi.options.find((o) => o.effects.some((x) => x.kind === 'nextEncounter'))!;
-    expect(eventOptionEffects(forced, 0).map((e) => e.label)).toEqual([
+    const all = { species: ['chanterelle', 'porcini', 'tinder', 'flyagaric', 'jay'], plants: [] };
+    expect(eventOptionEffects(forced, 0, all).map((e) => e.label)).toEqual([
       'nächste Begegnung: Pfifferling, Steinpilz, Zunderschwamm oder Fliegenpilz',
     ]);
-    expect(nextEncounterText('animal', ['jay', 'nope'])).toBe(`nächste Begegnung: ${SPECIES_BY_ID.get('jay')!.name}`);
-    expect(nextEncounterText('plant', [])).toBe('nächste Begegnung: eine Pflanze');
+    expect(nextEncounterText('animal', ['jay', 'nope'], all)).toBe(`nächste Begegnung: ${SPECIES_BY_ID.get('jay')!.name}`);
+    expect(nextEncounterText('plant', [], all)).toBe('nächste Begegnung: eine Pflanze');
     const ants = EVENTS_BY_ID.get('ant-trail')!;
     const mixed = ants.options.find((o) => o.effects.some((x) => x.kind === 'timed') && o.effects.some((x) => x.kind === 'seedsNow'))!;
-    const labels = eventOptionEffects(mixed, 123).map((e) => e.label);
+    const labels = eventOptionEffects(mixed, 123, all).map((e) => e.label);
     expect(labels).toHaveLength(2);
     expect(labels[0]).toMatch(/ für \d+ Min\.$/);
     expect(labels[1]).toBe('+123 🌰 sofort');
+  });
+
+  describe('nächste Begegnung: keine Spoiler für Unentdecktes (wie im Naturtagebuch)', () => {
+    const fungi = ['chanterelle', 'porcini', 'tinder', 'flyagaric'];
+
+    it('alles entdeckt: alle Namen', () => {
+      expect(nextEncounterText('animal', ['jay', 'squirrel'], { species: ['jay', 'squirrel'], plants: [] })).toBe(
+        'nächste Begegnung: Eichelhäher oder Eichhörnchen',
+      );
+    });
+
+    it('nichts entdeckt: zusammengefasst mit Gattungs- bzw. Gruppensymbolen, ohne Namen', () => {
+      const none = { species: [], plants: [] };
+      expect(nextEncounterText('animal', fungi, none)).toBe('nächste Begegnung: 4\u00a0unbekannte Arten (🍄)');
+      expect(nextEncounterText('animal', ['hedgehog', 'centipede', 'woodlouse', 'snail'], none)).toBe(
+        'nächste Begegnung: 4\u00a0unbekannte Arten (🦔 🪱)',
+      );
+      expect(nextEncounterText('plant', ['rowan', 'elder', 'bramble'], none)).toBe(
+        'nächste Begegnung: 3\u00a0unbekannte Pflanzen (🌳 🫐)',
+      );
+      // Einzahl
+      expect(nextEncounterText('animal', ['flyagaric'], none)).toBe('nächste Begegnung: eine unbekannte Art (🍄)');
+      expect(nextEncounterText('plant', ['rowan'], none)).toBe('nächste Begegnung: eine unbekannte Pflanze (🌳)');
+    });
+
+    it('gemischt: entdeckte mit Namen, der Rest als „unbekannt“ – Einzahl und Mehrzahl', () => {
+      expect(nextEncounterText('animal', fungi, { species: ['tinder'], plants: [] })).toBe(
+        'nächste Begegnung: Zunderschwamm oder 3\u00a0unbekannte Arten (🍄)',
+      );
+      expect(nextEncounterText('animal', fungi, { species: ['chanterelle', 'porcini', 'tinder'], plants: [] })).toBe(
+        'nächste Begegnung: Pfifferling, Steinpilz, Zunderschwamm oder eine unbekannte Art (🍄)',
+      );
+      // Pflanzen zählen nach `journal.plants`, nicht nach `journal.species`.
+      expect(nextEncounterText('plant', ['rowan', 'elder', 'bramble'], { species: ['rowan'], plants: ['bramble'] })).toBe(
+        'nächste Begegnung: Brombeere oder 2\u00a0unbekannte Pflanzen (🌳 🫐)',
+      );
+    });
+
+    it('Ereignis-Karte nennt keine unentdeckten Namen – auch nicht in IDs oder Knopftexten', () => {
+      const state = stateAt(4, ['chanterelle'], 1);
+      state.meta.journal.species = ['chanterelle'];
+      state.pendingEncounters = [{ type: 'event', cards: ['mushroom-autumn'], rerolls: 0 }];
+      const json = JSON.stringify(toEventView(state, 0));
+      expect(json).toContain('Pfifferling oder 3\u00a0unbekannte Arten (🍄)');
+      for (const id of ['porcini', 'tinder', 'flyagaric']) {
+        expect(json).not.toContain(SPECIES_BY_ID.get(id)!.name);
+        expect(json).not.toContain(`"${id}"`);
+      }
+      // Sobald entdeckt, steht der Name da.
+      state.meta.journal.species.push('flyagaric');
+      expect(JSON.stringify(toEventView(state, 0))).toContain('Pfifferling, Fliegenpilz oder 2\u00a0unbekannte Arten (🍄)');
+    });
   });
 
   it('unbekannt oder falscher Typ: null', () => {
