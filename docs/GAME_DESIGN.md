@@ -15,9 +15,63 @@
 > Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰, Neu würfeln
 > kostet 10 🌰 (verdoppelt sich je Wurf).
 >
-> Der Rest dieses Dokuments beschreibt **v1** (Wasser/Licht/Energie, Upgrades,
+> Jahreszeiten und Hauptbaum-Arten sind **entworfen, aber noch nicht programmiert**
+> (Daten in `src/content/seasons.ts` und `src/content/trees.ts`, Grafik fertig) – siehe
+> die beiden folgenden Abschnitte.
+>
+> Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
 > `scripts/simulate.ts`, `tests/balance.test.ts`.
+
+## Jahreszeiten (v2 – Design fertig, Logik offen)
+
+Details, Begründung und Umsetzungsnotiz: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 16.
+
+- **Ein Jahr = 12 Minuten Spielzeit** (4 × 3 min, `SEASON_SECONDS = 180`). Es zählt die
+  Spielzeit des Zyklus (`cycle.elapsed`), nicht die Uhrzeit; offline läuft das Jahr mit.
+  Jeder Zyklus beginnt im Frühling. Bis zum Hain vergehen knapp 4 Jahre.
+- Wirkungen wechseln an der Grenze, die Grafik blendet stufenlos über
+  (`SceneInput.season = (elapsed / 180 − 0,5) mod 4`).
+- **Sanft, kein Warten:** Jede Jahreszeit bringt etwas; der einzige Abzug ist −10 % 🌿 im
+  Winter. Kosten und Samen-Sekunden hängen nie von der Jahreszeit ab.
+
+| Jahreszeit | Wirkungen (Faktor 1) | Begegnungen |
+|---|---|---|
+| 🌱 Frühling | +10 % 🌿 | „Etwas keimt“ × 1,5 (nur bei freiem Pflanzring); Kraniche, Regenreicher Frühling, Bienenschwarm |
+| ☀️ Sommer | +2 ☀️; Insekten +10 % 😊 | Schwalben, Taubenschwänzchen, Hirschkäferflug, Mittsommer, Bienenschwarm |
+| 🍂 Herbst | +20 % 🌰; Pilze +15 % 😊 | Kraniche, Schwalben, Bergfinken, Seidenschwänze, Pilzherbst, Mastjahr |
+| ❄️ Winter | −10 % 🌿; Säugetiere +15 % 😊, Bodenleben +10 % 😊 | Zugvögel fort; Wintergäste Bergfinken und Seidenschwänze |
+
+Ganzjährig: Wildschweine, Wanderfalke, Sturmnacht, Windwurf, Blitzschlag, Vogelsaat;
+die Ameisenstraße ruht nur im Winter.
+
+**Simulation** (grobes Modell `scripts/season-model.ts`, 200 Durchgänge, Harmonie-Spieler):
+
+| | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain |
+|---|---|---|---|---|---|---|
+| ohne Jahreszeiten (heute) | 3:42 min | 17:20 min | 46:04 min | 1:18 h | 1:55 h | 100,3 |
+| mit Jahreszeiten | 3:26 min | 16:52 min | 44:36 min | 1:17 h | 1:53 h | 100,9 |
+
+## Hauptbaum-Arten (v2 – Design fertig, Logik offen)
+
+Details und Umsetzungsnotiz: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 17. Grafik
+fertig (`SceneInput.mainTree`).
+
+- Der erste Zyklus beginnt immer mit der **Stieleiche**.
+- **Buche und Kiefer** werden wählbar, sobald ihre Begleitpflanze (Rotbuche bzw.
+  Waldkiefer) einmal im Pflanzring gewachsen ist – abgeleitet aus dem Naturtagebuch.
+- **Wahl beim Neuen Zyklus**; sie gilt für den ganzen Zyklus (`cycle.mainTree`).
+
+| Art | Frucht | Gewinn | Verzicht |
+|---|---|---|---|
+| 🌳 Stieleiche | Eichel (Nüsse ab Alter Baum) | +1 Platz Krone (ab Junger Baum); Insekten +10 % 😊 | – |
+| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Keimling); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum |
+| 🌲 Waldkiefer | Kiefernsamen | +2 ☀️, +1 💧; winterfest (kein Winter-Abzug); Merkmal Nadeln | keine Nüsse |
+
+**Simulation** (grobes Modell, 200 Durchgänge, mit Jahreszeiten, erster Zyklus ohne
+Waldgedächtnis, Harmonie-Spieler): Hain mit Eiche 44:26 min (⚖️ 101,5), Buche 43:50 min
+(102,2), Kiefer 42:40 min (100,6; ohne die fehlenden Nüsse, also etwas zu günstig).
+Pilze stapeln: Buche 43:28 min / ⚖️ 95,0 gegen Eiche 45:16 min / 89,4.
 
 ## Vision
 
@@ -125,10 +179,9 @@ Produktion, damit es direkt etwas Neues zu kaufen gibt.
   günstige Upgrades.
 
 ### Jahreszeiten
-- Ein Jahr dauert z. B. 4 × 3 Minuten.
-- Frühling: Wachstumsbonus · Sommer: viel Licht · Herbst: Samen fallen · Winter: Ruhe,
-  Produktion halbiert, dafür Bonus „Winterreserve“ im Frühling.
-- Grafik: Laubfarbe, Blätter fallen, Schnee.
+- In v2 entworfen: siehe Abschnitt „Jahreszeiten (v2 – Design fertig, Logik offen)“ oben.
+  Die halbierte Winter-Produktion aus diesem v1-Entwurf ist verworfen (zwingt zum Warten);
+  stattdessen −10 % 🌿 im Winter und +10 % im Frühling.
 
 ### Samen & Prestige („Neuer Zyklus“)
 - Ab „Alter Baum“ produziert der Baum 🌰 Samen.
@@ -148,7 +201,9 @@ Produktion, damit es direkt etwas Neues zu kaufen gibt.
   Bienen bestäuben (Bonus auf Samen).
 
 ### Baumarten (späteres Spiel)
-- Nach dem ersten Prestige: Eiche (robust), Buche (schattenfest), Kiefer (winterfest) –
+- In v2 entworfen: siehe Abschnitt „Hauptbaum-Arten (v2 – Design fertig, Logik offen)“
+  oben. Nach dem ersten Neuen Zyklus: Eiche (ausgewogen), Buche (schattig, Pilze),
+  Kiefer (Licht, winterfest) –
   jede Art mit eigener Grafik und eigenen Boni. Die Grafik ist fertig
   (`SceneInput.mainTree`: 'oak' | 'beech' | 'pine'): Eiche wie bisher; Buche mit glattem
   grauem Stamm und dichter ovaler Krone; Waldkiefer mit schlankem, astfreiem Schaft,

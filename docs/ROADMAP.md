@@ -95,7 +95,13 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   Hallimasch „Waldweites Netz“); Humus-Kreislauf als optionale Erweiterung (DESIGN_V2.md 2.6)
 - [ ] Jahreszeiten (Logik: `core-engineer`, Grafik: `renderer`) – nach v2, wirkt auf Zufriedenheit und Begegnungen
   - [x] Grafik (renderer): `SceneInput.season` 0–4 – Laubfarben, kahle Bäume, Blüten, Schnee, fallende Blätter
-  - [ ] Logik (core): Jahreszeit im Spielstand, Wirkung auf Zufriedenheit und Begegnungen
+  - [x] Design (`game-designer`): **Design fertig, Logik offen** – Jahr = 12 min Spielzeit,
+    Wirkungen je Jahreszeit, Ereignisse und Gäste je Jahreszeit (`src/content/seasons.ts`),
+    grobes Modell im Simulator (`scripts/season-model.ts`, `tests/seasons-balance.test.ts`),
+    DESIGN_V2.md Abschnitt 16
+  - [ ] Logik (core): `cycle.elapsed`, Jahreszeit in `evaluate`, Halt an der Grenze in `tick`,
+    neuer Wirkungstyp `happiness` (Umsetzungsnotiz DESIGN_V2.md 16.6)
+  - [ ] UI: Abzeichen der Jahreszeit, Hinweis beim Wechsel, `SceneInput.season` verdrahten (`ui-dev`)
 - ~~Zufallsereignisse mit gespeichertem Seed~~ – in v2 aufgegangen (Begegnungen, `rngState`)
 - [ ] Statistik-Seite (Spielzeit, Gesamt-Wachstum, entdeckte Arten) (`ui-dev`)
 - [ ] Gattung Amphibien mit Waldtümpel (Erdkröte, Bergmolch) als Erweiterung (`game-designer`)
@@ -105,6 +111,13 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 - ~~Samen + Prestige „Neuer Zyklus“~~ – Teil von v2 (Schritt 2.8)
 - ~~Samen-Shop mit dauerhaften Boni~~ – ersetzt durch Waldgedächtnis und Stammgäste (v2)
 - [ ] Hauptbaum-Arten (Buche, Kiefer als Startbaum) mit eigener Grafik (`renderer` + `game-designer`)
+  - [x] Grafik (renderer): `SceneInput.mainTree` 'oak' | 'beech' | 'pine'
+  - [x] Design (`game-designer`): **Design fertig, Logik offen** – Freischaltung über die
+    Begleitpflanze im Naturtagebuch, Wahl beim Neuen Zyklus, Eigenheiten je Art
+    (`src/content/trees.ts`), DESIGN_V2.md Abschnitt 17
+  - [ ] Logik (core): `cycle.mainTree`, `startNewCycle(…, mainTree)`, Merkmale und Eigenheiten
+    in `evaluate` (Umsetzungsnotiz DESIGN_V2.md 17.5)
+  - [ ] UI: Auswahl in „Neuer Zyklus“, Texte mit der Frucht der Art (`ui-dev`)
 - [ ] Umstieg auf `break_infinity.js`, falls Zahlen > 1e300 (`core-engineer`)
 - [ ] Erfolge / Achievements, verknüpft mit dem Naturtagebuch (`ui-dev`)
 

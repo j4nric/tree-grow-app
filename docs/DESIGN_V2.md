@@ -599,7 +599,7 @@ sind positiv, die Samen-Option ist die neutrale Wahl; Ablehnen gibt es nicht.
 | ☀️ Mittsommer | Junger Baum | – | Lange Tage: +30 % 🌿 6 min · Alles blühen lassen: +60 % 🌰 6 min | „Die längsten Tage des Jahres – das Licht reicht bis tief in den Abend.“ |
 | 🍄 Pilzherbst | Junger Baum | Feuchte | Den Hüten Zeit lassen: nächste Begegnung Pilze (Pfifferling, Steinpilz, Zunderschwamm, Fliegenpilz) · Myzel: Bäume +40 % 🌿 8 min · Pilze sammeln: 90 s 🌰 | „Über Nacht stehen überall Hüte im Moos.“ |
 | 🌪️ Windwurf | Alter Baum | – | Lichtung offen lassen: +3 ☀️ (Zyklus) · Stamm verwerten: 150 s 🌰 | „Ein alter Nachbarbaum ist umgestürzt – plötzlich ist es hell.“ |
-| 🌰 Mastjahr | Alter Baum | – | Eicheln liegen lassen: nächste Begegnung Eichelhäher/Eichhörnchen · Eicheln sammeln: +50 % 🌰 8 min | „Die Eiche trägt so viele Eicheln wie seit Jahren nicht.“ |
+| 🌰 Mastjahr | Alter Baum | Nüsse (für die Eiche ab Alter Baum immer; Kiefer: nie, 17.3) | Eicheln liegen lassen: nächste Begegnung Eichelhäher/Eichhörnchen · Eicheln sammeln: +50 % 🌰 8 min | „Die Eiche trägt so viele Eicheln wie seit Jahren nicht.“ |
 | 🐝 Bienenschwarm | Alter Baum | Baumhöhle | Höhle überlassen: Blumen und Sträucher +60 % 🌰 10 min · Weiterziehen lassen: 90 s 🌰 | „Eine summende Traube Honigbienen hängt im Geäst und sucht eine Bleibe.“ |
 | 🫐 Vogelsaat | Alter Baum | ≥ 2 Vögel | Sämlinge stehen lassen: nächste Begegnung Eberesche/Holunder/Brombeere · Beeren reifen lassen: +40 % 🌰 6 min | „Die Vögel haben Beerensamen mitgebracht – überall spitzt es grün.“ |
 | ⚡ Blitzschlag | Hain | ≥ 3 Bäume | Biotopbaum: Totholz + 1 Platz Stamm & Rinde (Zyklus) · Die Lücke nutzen: +2 ☀️ (Zyklus) · Holz verwerten: 150 s 🌰 | „Ein Blitz hat einen Nachbarbaum gespalten. Der Stumpf raucht noch.“ |
@@ -1247,6 +1247,11 @@ Empfehlungen (Stand 20.10.2026):
    Gäste rasten Spielzeit (Sekunden) statt Wegpunkte und kosten beim Bewirten Samen.
    Ab dem Hain gibt es zusätzlich den Zwischenhalt (7.2), damit die Durststrecken
    kürzer werden, ohne Tierbegegnungen zu verdrängen.
+
+8. **Jahreszeiten und Hauptbaum-Arten (Team, Design):** Ein Jahr dauert 12 min
+   Spielzeit des Zyklus und beginnt im Frühling; Wirkungen sanft, einziger Abzug −10 % 🌿
+   im Winter (Abschnitt 16). Buche und Kiefer schalten sich über ihre Begleitpflanze im
+   Naturtagebuch frei und werden beim Neuen Zyklus gewählt (Abschnitt 17).
 
 Weitere Designentscheidungen trifft das Team selbst und dokumentiert sie hier bzw. in den
 PR-Beschreibungen.
@@ -2096,3 +2101,303 @@ dazu Basis 3,5) und 3. (Samen-Grenze 58 🌰 beim Laden); 2. ist noch offen:
    nach Stunden deutlich mehr). Empfehlung für `core-engineer`: beim Laden eines
    Prototyp-Stands (SAVE_VERSION 2 → 3) den Bestand auf die Kosten der ersten zwei
    Pflanzen begrenzen, damit niemand mit einem Schlag den ganzen Pflanzenring füllt.
+
+---
+
+## 16. Jahreszeiten
+
+> **Stand:** Design fertig, Logik offen. Daten in `src/content/seasons.ts`, Grafik fertig
+> (`SceneInput.season`), grobes Modell im Simulator (`scripts/season-model.ts`),
+> Umsetzungsnotiz 16.6.
+
+### 16.1 Idee
+
+Der Baum zeigt das Jahr: frisches Grün, volles Laub, buntes Laub, kahle Äste im Schnee.
+Jede Jahreszeit fühlt sich anders an und bringt **etwas Eigenes** – aber keine ist ein
+Hindernis. Leitlinien:
+
+- **Kein Warten.** Nichts wird in einer Jahreszeit billiger, teurer oder besser wählbar,
+  das man aufschieben könnte: Pflanzen kosten immer gleich, Samen-Sekunden (Ereignisse,
+  Gäste) rechnen ohne Jahreszeit. Wer im Winter eine Karte wählt, verliert nichts.
+- **Sanft.** Jede Jahreszeit hat mindestens eine positive Wirkung. Der einzige Abzug ist
+  −10 % 🌿 im Winter; übers Jahr gleicht der Frühling (+10 %) ihn aus.
+- **Rhythmus statt Rechnen.** Wechsel alle 3 Minuten, also etwa einmal je Begegnung –
+  man spürt das Jahr, muss es aber nicht planen.
+
+### 16.2 Zeitmodell
+
+- **Ein Jahr = 12 Minuten Spielzeit** (4 × 3 min, `SEASON_SECONDS = 180`). Bis zum Hain
+  vergehen so knapp 4 Jahre, bis zum Urwald gut 9. Mit 20 min wäre der Hain nach 2–3
+  Jahren erreicht und eine Jahreszeit (5 min) länger als der Takt der Begegnungen – der
+  Winter würde sich ziehen. Mit 8 min wechselte es öfter als die Begegnungen kommen und
+  wirkte unruhig.
+- Die Jahreszeit hängt **nur an der Spielzeit des Zyklus** (`cycle.elapsed`), nicht an
+  der Uhrzeit: `Jahreszeit = floor(elapsed / 180) mod 4` mit 0 Frühling · 1 Sommer ·
+  2 Herbst · 3 Winter. Jeder Zyklus beginnt im Frühling (der Samen keimt im Frühjahr).
+- **Offline läuft das Jahr mit** – genauso wie online, weil `elapsed` mit jedem Tick
+  wächst. 8 Stunden offline sind 40 Jahre bzw. 160 Wechsel.
+- Die **Wirkungen** wechseln hart an der Grenze (Raten bleiben dazwischen konstant – wie
+  bei Zeit-Boni). Die **Grafik** blendet stufenlos über:
+  `SceneInput.season = (elapsed / 180 − 0,5) mod 4`. Der Zyklus beginnt also bei 3,5
+  (Schneeschmelze), die Mitte des Frühlings ist 0, der Wechsel Frühling → Sommer fällt
+  auf 0,5 – genau in die Mitte der Überblendung.
+
+### 16.3 Wirkungen
+
+Alle Wirkungen gelten mit Faktor 1 (nicht mit Zufriedenheit skaliert), solange die
+Jahreszeit dauert.
+
+| Jahreszeit | Wirkungen | Begegnungen | Text |
+|---|---|---|---|
+| 🌱 Frühling | +10 % 🌿 | „Etwas keimt“ × 1,5, solange der Pflanzring Platz hat | „Der Saft steigt, überall bricht frisches Grün auf.“ |
+| ☀️ Sommer | +2 ☀️ (auch für „sonnig“); Insekten +10 % 😊 | – | „Lange, helle Tage – über dem Waldsaum summt und flattert es.“ |
+| 🍂 Herbst | +20 % 🌰; Pilze +15 % 😊 | – | „Früchte reifen, und über Nacht stehen Hüte im Laub.“ |
+| ❄️ Winter | −10 % 🌿; Säugetiere +15 % 😊, Bodenleben +10 % 😊 | Zugvögel ziehen fort, Wintergäste kommen (16.4) | „Der Baum ruht. Unter Schnee und Laub ist es still und geschützt.“ |
+
+**Neuer Wirkungstyp `happiness`** (Zufriedenheit einer Gattung, +Prozentpunkte vor der
+Begrenzung auf 0–100 %, wie „König des Totholzes“). Er wird auch für die Baumarten (17)
+gebraucht und passt später zu den Pflegemaßnahmen. Durchreisende sind keine Tiere im
+Ökosystem und bekommen ihn nicht.
+
+**Warum der Faktor für „Etwas keimt“ nur bei freiem Ring gilt:** Bei vollem Ring kann
+eine Pflanzenkarte nur ersetzen und lohnt sich oft nicht (7.7). Im Modell verlängerte
+ein Faktor ohne diese Ausnahme die Durststrecke im Alten Baum (90 %, 40 Durchgänge) von 8:16 auf 8:57
+min.
+
+Über ein Jahr gemittelt: Wachstum ±0 (+10 / 0 / 0 / −10), Samen +5 %, dazu je
+Jahreszeit eine zufriedenere Gattung. Wertebereich je Effekt (Inhaltstest): 🌿 −10 …
++20 %, 🌰 bis +30 %, ☀️/💧 bis ±3, 😊 bis +20 Punkte.
+
+### 16.4 Ereignisse und Gäste je Jahreszeit
+
+Zusätzliche Erscheinungsbedingung beim Ziehen (`EVENT_SEASONS`, `VISITOR_SEASONS`).
+Wer fehlt, kommt ganzjährig. Ein schon gezogenes Ereignis bzw. ein rastender Gast
+bleibt über den Wechsel hinaus.
+
+| Gast / Ereignis | Jahreszeiten | Warum |
+|---|---|---|
+| 🦢 Kranichzug | Frühling, Herbst | Zug nach Norden bzw. Süden |
+| 🐦 Schwalbenschwarm | Sommer, Herbst | sammeln sich vor dem Abflug |
+| 🦋 Taubenschwänzchen | Sommer, Herbst | Wanderfalter aus dem Süden |
+| 🪲 Hirschkäfer-Hochzeitsflug | Sommer | warme Juniabende |
+| 🐦 Bergfinken-Schwarm | Herbst, Winter | Wintergäste aus Skandinavien |
+| 🐦 Seidenschwänze | Herbst, Winter | Wintergäste aus der Taiga |
+| 🌧️ Regenreicher Frühling | Frühling | – |
+| ☀️ Mittsommer | Sommer | – |
+| 🍄 Pilzherbst | Herbst | – |
+| 🌰 Mastjahr | Herbst | Eicheln reifen im Herbst |
+| 🐝 Bienenschwarm | Frühling, Sommer | Schwarmzeit Mai bis Juli |
+| 🐜 Ameisenstraße | Frühling bis Herbst | Waldameisen ruhen im Winter |
+
+Ganzjährig: Wildschwein-Rotte, Wanderfalke, Sturmnacht, Windwurf, Blitzschlag,
+Vogelsaat. So gibt es in jeder Jahreszeit ein Ereignis ab Junger Baum und einen Gast ab
+Hain ohne Bedingung (Inhaltstest). Kommt für den gezogenen Typ nichts in Frage, gibt es
+wie bisher eine Tierbegegnung – es geht keine Begegnung verloren. Bewohner des
+Ökosystems ziehen nie fort (auch keine Vögel): Das wäre eine Strafe.
+
+### 16.5 Simulation (grobes Modell, 200 Durchgänge)
+
+`scripts/season-model.ts` bildet die Jahreszeiten mit vorhandener Mechanik nach:
+Wirkungen als Zeit-Boni bis zum Ende der Jahreszeit (tick hält an der Grenze an),
+Ereignisse und Gäste außerhalb ihrer Jahreszeit vorübergehend als „gesehen“, Gewicht
+„Etwas keimt“ im Frühling × 1,5 (nur bei freiem Ring). **Näherung:** Die Zufriedenheit
+einer Gattung (`happiness`) geht als Harmonie (30 · Σ Δz / Tiere) und als Δz ×
+Wachstums- bzw. Samen-Wirkung der Tiere ein; Licht- und Kontroll-Wirkungen fehlen
+(eher unterschätzt).
+
+```bash
+SIM_LOG=1 SIM_SEASON_ALL=1 SIM_SEASON_RUNS=200 npx vitest run tests/seasons-balance.test.ts --silent=false   # ~2 min
+```
+
+**Gierig nach Harmonie**
+
+| Variante | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Ø 😊 | 🌿/s beim Hain | Durststrecke 90 % Alter Baum / Hain | Pflanzenbegegnungen bis Hain |
+|---|---|---|---|---|---|---|---|---|---|---|
+| ohne Jahreszeiten (heute) | 3:42 min | 17:20 min | 46:04 min | 1:18 h | 1:55 h | 100,3 | 90 % | 75,0 | 8:04 / 7:25 min | 3,4 |
+| **mit Jahreszeiten** | 3:26 min | 16:52 min | **44:36 min** | 1:17 h | 1:53 h | **100,9** | 90 % | 75,2 | 7:36 / 7:51 min | 3,5 |
+
+**Andere Spielertypen (Hain, Harmonie beim Hain)**
+
+| Strategie | ohne Jahreszeiten | mit Jahreszeiten |
+|---|---|---|
+| Gierig nach Wachstum | 37:38 min · 94,5 | 37:05 min · 95,5 |
+| Zufällig | 1:12 h · 72,9 | 1:11 h · 74,0 |
+
+Vorher geprüft: Frühling +15 % war für den Harmonie-Spieler 4 % schneller (Hain 44:16
+min) – zu nah an der unteren Grenze des Korridors (42 min, `balance.test.ts`); darum
++10 %, also ein im Wachstum neutrales Jahr. Ohne das Sommerlicht änderte sich nichts
+Messbares (100 Durchgänge); es bleibt wegen „sonnig“ für Bienen und Falter.
+
+**Bewertung:** Das Hain-Tempo bleibt im Korridor (−3 %, innerhalb der Streuung durch
+die Lage der Jahreszeiten zum Zeitpunkt der Ankunft), die Harmonie steigt leicht
+(+0,6), Durststrecken bleiben gleich. Der Harmonie-Spieler wird nicht gebremst.
+`tests/seasons-balance.test.ts` sichert das ab (30 Durchgänge: Hain ±10 %, Harmonie
+nicht niedriger). Nach der Umsetzung den Test auf die echte Logik umstellen und das
+Modell löschen.
+
+### 16.6 Umsetzungsnotiz für den core-engineer
+
+**Spielstand:** `cycle.elapsed: number` – Sekunden Spielzeit seit Zyklusbeginn (≥ 0,
+endlich). `createCycle` setzt 0. `SAVE_VERSION` + 1 (PR #34 Pflege erhöht vermutlich auf
+6 – dann Jahreszeiten und Baumarten gemeinsam in **einer** Version mit einer Migration).
+Migration: `elapsed = 0` (alte Stände beginnen im Frühling – harmlos, nichts geht
+verloren); beim Laden ungültige Werte (NaN, negativ, ∞) auf 0.
+
+**Formeln (`formulas.ts`):**
+
+```ts
+seasonIndex(elapsed)        = floor(elapsed / SEASON_SECONDS) mod 4   // 0 … 3
+seasonOf(state)             = SEASONS[seasonIndex(state.cycle.elapsed)]
+secondsToNextSeason(state)  = (floor(elapsed / S) + 1) · S − elapsed  // > 0
+sceneSeason(elapsed)        = ((elapsed / S − 0,5) mod 4 + 4) mod 4    // für den Renderer
+```
+
+**Bewerten (`evaluate`):** `Ecosystem` bekommt `season?: SeasonId` (und `mainTree`, 17.5).
+Die Wirkungen der Jahreszeit außer `happiness` kommen zu `extraEffects` (Faktor 1, wie
+Zeit-Boni). Bei winterfestem Hauptbaum entfallen Wirkungen mit negativer Zahl.
+`happiness`: in der Schleife „Zufriedenheit je Tier“ nach Störung und Räuberdruck
+`z += Σ points / 100` für die Gattung der Art, dann `calm` und Begrenzung auf 0–1 wie
+bisher. Cache-Schlüssel `ecosystemKey`: `|s:${seasonIndex}` anhängen (die Jahreszeit
+gerundet auf ihren Index – nicht `elapsed`, sonst wäre der Cache jede Sekunde ungültig).
+
+**Zeit (`tick`):** vierter Halt neben Wegpunkt, Zwischenhalt und Ablauf:
+`toSeason = secondsToNextSeason(state)`. In jedem Schritt zuerst
+`cycle.elapsed += step` – endet der Schritt an der Grenze (`step === toSeason`), exakt
+auf die Grenze setzen (kein Rundungsdrift). Danach wie bisher Wegpunkt bzw. Zwischenhalt.
+Fallen Grenze und Wegpunkt zusammen, sieht die Begegnung schon die neue Jahreszeit.
+So liefern viele kleine Ticks, ein großer Tick und `simulateOffline` dasselbe; 8 h
+offline sind 160 zusätzliche Schleifenrunden (vernachlässigbar). `TickReport` bekommt
+`seasons: SeasonId[]` (erreichte Jahreszeiten in Reihenfolge) für den Hinweis in der UI.
+
+**Ziehen (`drawEncounter`, `reachInterlude`):** Gewichte × `encounterFactors` der
+Jahreszeit; der Faktor für `plant` nur, wenn der Ring nicht voll ist (sonst bleibt
+`PLANT_WEIGHT_RING_FULL`). `eligibleEvents` / `eligibleVisitors` filtern zusätzlich mit
+`EVENT_SEASONS` / `VISITOR_SEASONS` (fehlender Eintrag = ganzjährig).
+
+**Nicht beeinflusst:** `seedSecondsRate` (Samen-Sekunden) rechnet **ohne** Jahreszeit
+(wie ohne Zeit-Boni) – kein Anreiz, mit Ereignis- oder Gast-Wahlen auf den Herbst zu
+warten. Pflanzen- und Neu-würfeln-Kosten bleiben gleich. H_max (Waldgedächtnis) zählt
+die Harmonie einschließlich Jahreszeit; der Effekt ist klein (~+1) und trifft alle gleich.
+
+**Darstellung:** `SceneInput.season = sceneSeason(state.cycle.elapsed)`; in der
+Seitenleiste ein kleines Abzeichen „🍂 Herbst · noch 1:20 min“ mit der Kurzform als
+Tooltip; beim Wechsel (online) ein kurzer Hinweis mit dem Text der Jahreszeit. Die
+Kartenvorschau rechnet mit der aktuellen Jahreszeit (ehrlich, was jetzt gilt).
+
+**Tests (Vorschlag):** Grenzen von `seasonIndex` (179,999 / 180 / 720); jede Wirkung
+einzeln (Raten vorher/nachher); `happiness` mit Begrenzung auf 100 %; winterfest;
+tick hält an jeder Grenze, viele kleine Ticks = ein großer = `simulateOffline` über 8 h;
+Pflanzenfaktor nur mit freiem Ring; Kraniche nicht im Winter; Neuer Zyklus setzt
+`elapsed` auf 0; Migration; Cache-Schlüssel wechselt mit der Jahreszeit.
+
+---
+
+## 17. Hauptbaum-Arten
+
+> **Stand:** Design fertig, Logik offen. Daten in `src/content/trees.ts`, Grafik fertig
+> (`SceneInput.mainTree`: 'oak' | 'beech' | 'pine'), grobes Modell im Simulator,
+> Umsetzungsnotiz 17.5.
+
+### 17.1 Idee
+
+Im ersten Zyklus wächst immer eine Stieleiche. Später darf man wählen, **aus welcher
+Frucht** der neue Baum keimt: Eichel, Buchecker oder Kiefernsamen. Jede Art hat eine
+kleine, klare Eigenheit – ein Gewinn und höchstens ein Verzicht – und passt zu einem
+anderen Ökosystem. Keine ist „die beste“; Grundwachstum und -samen je Stufe sind für
+alle gleich.
+
+### 17.2 Freischaltung und Wahl
+
+- **Freischaltung über das Naturtagebuch:** Eine Art ist wählbar, sobald ihre
+  Begleitpflanze einmal im Pflanzring gewachsen ist (Rotbuche bzw. Waldkiefer, beide ab
+  Alter Baum, also im ersten Zyklus erreichbar). Erzählung: „Aus ihren Samen kann dein
+  nächster Baum keimen.“ Das Tagebuch kennt die Pflanzen schon
+  (`meta.journal.plants`) – **kein neues Feld nötig**, die Freischaltung wird abgeleitet.
+- Die Eiche ist immer wählbar.
+- **Wahl beim Neuen Zyklus:** In der Vorschau „Neuer Zyklus“ drei Karten (Symbol, Name,
+  Eigenheit). Vorausgewählt ist die Art des laufenden Zyklus. Gesperrte zeigen den
+  Hinweis („Lass einmal eine Rotbuche im Pflanzring wachsen.“). Die Wahl gilt für den
+  ganzen Zyklus.
+
+### 17.3 Eigenheiten
+
+| Art | Frucht | Gewinn | Verzicht | passt zu |
+|---|---|---|---|---|
+| 🌳 Stieleiche | Eichel (Nüsse ab Alter Baum) | +1 Platz Krone (ab Junger Baum); Insekten +10 % 😊 | – (ausgewogen) | Vielfalt, Vögel und Säugetiere (Nüsse) |
+| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Keimling); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum (dichtes Dach) | Pilze, Bodenleben, Schattenpflanzen |
+| 🌲 Waldkiefer | Kiefernsamen | +2 ☀️, +1 💧 (genügsam); winterfest: kein Winter-Abzug; Merkmal Nadeln | keine Nüsse | Blüten, Insekten, Licht; Waldameise |
+
+Texte: Eiche „Keine Baumart beherbergt mehr Leben – in ihrer Krone wimmelt es.“ ·
+Buche „Unter ihrem dichten Dach ist es kühl und feucht – ein Paradies für Pilze und
+Moose.“ · Kiefer „Genügsam und immergrün – durch ihre lichte Krone fällt die Sonne bis
+auf den Boden.“
+
+**Merkmale des Hauptbaums** ersetzen `MAIN_TREE_TAGS` / `MAIN_TREE_NUTS_STAGE`: Eiche
+und Buche Laub, Wurzeln und ab Alter Baum Nüsse; Kiefer Laub (Nadelstreu, wie bei der
+Begleit-Kiefer), Wurzeln, Nadeln, keine Nüsse. Ohne Nüsse fehlen Eichhörnchen und
+Eichelhäher das Futter (Hasel oder Rotbuche setzen hilft), Bergfinken und Wildschweine
+kommen nicht, das Mastjahr auch nicht (Bedingung „Nüsse“, 7.4). Das ist der Verzicht.
+
+**Verworfen:** Eiche +1 Platz Stamm & Rinde – wirkt bis zum Hain nicht messbar (Plätze
+sind dort selten knapp, die Zahl der Begegnungen begrenzt). Buche „Moose & Farne +50 %
+🌿“ – brachte selbst Pilz-Staplern nichts (Hain 45:45 statt 45:19 min mit der Eiche);
++1 Platz Wurzelraum dagegen schon. Kiefer +2 💧 statt +1 – kein Unterschied, also die
+kleinere Zahl.
+
+### 17.4 Simulation (grobes Modell, 200 Durchgänge, mit Jahreszeiten)
+
+Erster Zyklus mit der jeweiligen Art (ohne Waldgedächtnis), damit die Arten vergleichbar
+sind. **Näherung:** Das Modell kann die fehlenden Nüsse der Kiefer nicht abbilden – sie
+ist hier etwas zu stark. `happiness` wie in 16.5.
+
+| Art | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | 🌿/s beim Hain |
+|---|---|---|---|---|---|---|---|
+| Harmonie: Eiche | 3:26 min | 16:48 min | 44:26 min | 1:16 h | 1:52 h | 101,5 | 75,7 |
+| Harmonie: Buche | 3:21 min | 16:04 min | 43:50 min | 1:16 h | 1:50 h | 102,2 | 77,3 |
+| Harmonie: Kiefer | 3:26 min | 16:09 min | 42:40 min | 1:14 h | 1:50 h | 100,6 | 77,4 |
+| Wachstum: Eiche / Buche / Kiefer | | | 37:02 / 35:57 / 35:04 min | | | 96,0 / 95,6 / 95,5 | |
+| Zufällig: Eiche / Buche / Kiefer | | | 1:10 / 1:08 / 1:09 h | | | 75,6 / 75,3 / 74,5 | |
+
+Stil-Vergleich (100 Durchgänge, Hain): **Pilze stapeln** mit Buche 43:28 min und
+Harmonie 95,0, mit Eiche 45:16 min und 89,4. **Insekten stapeln** mit Kiefer 58:47 min
+(Ø 😊 84 %), mit Eiche 59:37 min (81 %).
+
+**Bewertung:** Alle drei Arten liegen innerhalb von 5 % beim Hain und 2 Punkten
+Harmonie – keine dominiert. Die Buche lohnt sich deutlich für Pilz- und Bodenleben-
+Spieler, die Kiefer für Licht und Insekten, die Eiche bleibt der ausgewogene Standard
+(praktisch so schnell wie heute: 44:26 statt 44:36 min mit Jahreszeiten). Kiefer im Auge
+behalten: Mit der echten Logik (ohne Nüsse) sollte sie näher an die Eiche rücken; liegt
+sie dann noch > 5 % vorn, Licht auf +1 senken.
+
+### 17.5 Umsetzungsnotiz für den core-engineer
+
+**Spielstand:** `cycle.mainTree: MainTreeId` (Standard `'oak'`, gemeinsame Migration mit
+16.6: alte Stände `'oak'`; unbekannte Werte beim Laden → `DEFAULT_MAIN_TREE`). **Kein**
+`meta.unlockedTrees`: freigeschaltet ist, was `unlockedTrees(state)` aus
+`meta.journal.plants` ableitet (Eiche immer). Das hält den Spielstand klein und kann
+nicht auseinanderlaufen.
+
+**Aktion:** `startNewCycle(state, now, mainTree?: MainTreeId)` – ohne Angabe die Art des
+laufenden Zyklus; gesperrte oder unbekannte Art → Fehler `'tree-locked'`, nichts ändert
+sich. `previewNewCycle` liefert die wählbaren Arten mit Sperrgrund (für die UI).
+`cycleTransition.fromTree` (Renderer) = Art des alten Zyklus.
+
+**Bewerten:** Hauptbaum-Merkmale aus `MAIN_TREES_BY_ID.get(mainTree)` statt
+`MAIN_TREE_TAGS` / `MAIN_TREE_NUTS_STAGE` – in `evaluateEcosystem` (Futterangebot) **und**
+`appearsContext` (Erscheinungsbedingungen). Eigenheiten mit `minStage ≤ stage`: `slot`
+wie Zyklus-Boni (in `nicheSlots` **und** überall, wo heute `cycleSlotBonuses` gilt –
+`chooseCard`, `forcedEncounter`, Laden/`nicheOverflow` in `save.ts`; am besten ein
+gemeinsamer Helfer für alle Platz-Boni), `light`/`water`/`groupGrowth` über
+`extraEffects`, `happiness` wie in 16.6. `winterHardy` streicht negative
+Jahreszeit-Wirkungen. Cache-Schlüssel: `|m:${mainTree}`.
+
+**Darstellung:** `SceneInput.mainTree = state.cycle.mainTree`. Texte mit „Eichel“ in
+`cycle-view.ts` und `guide-view.ts` über `MAIN_TREES_BY_ID.get(…).fruit`
+(„Aus einer Buchecker wächst ein neuer Baum.“). Seitenleiste: Name der Art beim
+Hauptbaum. Naturtagebuch, Reiter Andenken: optional die gewachsenen Hauptbaum-Arten.
+
+**Tests (Vorschlag):** Freischaltung aus dem Tagebuch; `startNewCycle` mit gesperrter
+Art scheitert ohne Änderung; Eiche = heutiges Verhalten (alle bisherigen Tests grün);
+Kiefer ohne Nüsse (Eichhörnchen hungrig, Mastjahr und Bergfinken nicht wählbar), mit
+Nadeln; Buche: Wurzelraum ab Keimling 2 Plätze, −2 ☀️ erst ab Alter Baum; Kiefer im
+Winter ohne Abzug; Migration; Simulator: `mainTree` als echte Option.
