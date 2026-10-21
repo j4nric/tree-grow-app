@@ -1,4 +1,3 @@
-import { MAX_PENDING_ENCOUNTERS } from './content/encounters';
 import { STAGES } from './content/stages';
 import { evaluate, growth, nextPlantCost, rerollCost, type Evaluation } from './core/formulas';
 import { clearStorage, loadFromStorage, saveToStorage } from './core/save';
@@ -21,7 +20,8 @@ import {
 import { drawScene, type SceneInput } from './render/tree';
 import { PLANTS_BY_ID } from './content/plants';
 import {
-  autoDeclineText,
+  harmonyTierIndex,
+  tickDeclineText,
   catchUpNotice,
   discoveryText,
   refreshEcosystemView,
@@ -144,6 +144,8 @@ const scene: SceneInput = {
   animals: [],
   plants: [],
   reducedMotion: reducedMotionQuery.matches,
+  // Stimmung der Szene (Harmoniestufe 0–4); gesetzt, sobald die Auswertung vorliegt.
+  harmonyTier: undefined,
 };
 
 // --- Oberfläche ----------------------------------------------------------------------
@@ -352,6 +354,7 @@ function refreshPanel(now: number): void {
       // Tiere und Pflanzen für die Szene nur bei Änderungen am Ökosystem neu bauen.
       scene.animals = toSceneAnimals(state, ev);
       scene.plants = toScenePlants(state, ev);
+      scene.harmonyTier = harmonyTierIndex(ev.harmony);
     } else {
       refreshEcosystemView(ecoView, state);
     }
@@ -386,14 +389,22 @@ function floatSeeds(amount: number): void {
 function noteTick(report: TickReport): void {
   const parts: string[] = [];
   if (report.autoDeclined > 0) {
-    parts.push(autoDeclineText(report.autoDeclined, state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS));
+    parts.push(tickDeclineText(report));
   }
   if (report.regulars.length > 0) parts.push(regularsArrivedText(report.regulars));
   if (parts.length > 0) noteText(parts.join(' '));
 }
 
-/** Kurzer schwebender Hinweis über der Szene. */
+/**
+ * Kurzer schwebender Hinweis über der Szene. Ist der Kartenwahl-Dialog oder die
+ * Pflanzenauswahl offen, verdeckt sie die Szene – dann steht der Hinweis dort (notify),
+ * sichtbar und für Screenreader erreichbar.
+ */
 function noteText(text: string): void {
+  if (picker.open || dialog.open) {
+    notify(text);
+    return;
+  }
   const rect = canvas.getBoundingClientRect();
   if (rect.width > 0) floats.spawn(text, rect.left + rect.width / 2, rect.top + rect.height * 0.3, 'note');
 }
@@ -507,8 +518,7 @@ function catchUp(): void {
   const away = (Date.now() - state.lastTick) / 1000;
   if (away > MAX_FRAME_SECONDS) {
     const report = simulateOffline(state, away);
-    const stackFull = state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS;
-    const notice = catchUpNotice(away, report, state.pendingEncounters.length, stackFull);
+    const notice = catchUpNotice(away, report, state.pendingEncounters.length);
     if (notice?.kind === 'welcome') notify(withRegulars(notice.text, report.regulars));
     else {
       // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.
