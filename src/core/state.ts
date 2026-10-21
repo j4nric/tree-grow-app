@@ -2,12 +2,12 @@ import { NICHE_IDS, type NicheId } from '../content/types';
 import { normalizeSeed } from './rng';
 
 /**
- * Spielstand v2 (Prototyp). Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
+ * Spielstand v3 (v2-Spiel mit Begleitpflanzen). Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
  * Bei Änderungen am Format: SAVE_VERSION erhöhen und Migration in save.ts ergänzen.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+2 % je Punkt → höchstens
@@ -15,17 +15,20 @@ export const SAVE_VERSION = 2;
  */
 export const MAX_FOREST_MEMORY = 1000;
 
+/** Begegnungstypen, die es schon gibt (Ereignis und Durchreisende folgen in 2.4). */
+export type PendingEncounterType = 'animal' | 'plant';
+
 export interface PendingEncounter {
-  /** Im Prototyp gibt es nur Tierbegegnungen. */
-  type: 'animal';
-  /** Art-IDs der angebotenen Karten (1–3, verschieden). */
+  /** „Tier zieht ein“ (Karten = Art-IDs) oder „Etwas keimt“ (Karten = Pflanzen-IDs). */
+  type: PendingEncounterType;
+  /** IDs der angebotenen Karten (1–3, verschieden). */
   cards: string[];
   /** In dieser Begegnung schon neu gewürfelt. */
   rerolls: number;
 }
 
 export interface GameState {
-  version: 2;
+  version: 3;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */
@@ -34,6 +37,11 @@ export interface GameState {
   waypoint: number;
   /** Index in STAGES, immer aus `waypoint` abgeleitet. */
   stage: number;
+  /**
+   * Begleitpflanzen um den Hauptbaum (Pflanzen-IDs, Duplikate erlaubt), höchstens
+   * `Stage.plantSlots` viele. Reihenfolge = Reihenfolge des Setzens.
+   */
+  plants: string[];
   /** Nische → Art-IDs. Jede Art höchstens einmal im Ökosystem. */
   niches: Record<NicheId, string[]>;
   /** Bereits gezogene, noch offene Begegnungen (max. MAX_PENDING_ENCOUNTERS). */
@@ -78,6 +86,7 @@ export function createInitialState(now: number, seed: number = now): GameState {
     seeds: 0,
     waypoint: 0,
     stage: 0,
+    plants: [],
     niches: emptyNiches(),
     pendingEncounters: [],
     rngState: normalizeSeed(seed),

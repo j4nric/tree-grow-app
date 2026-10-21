@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { NICHE_IDS } from '../src/content/types';
@@ -8,9 +9,13 @@ import {
   evaluateEcosystem,
   growth,
   hasSpecies,
+  nextPlantCost,
   nicheOverflow,
   nicheSlots,
   nichesAfterChoice,
+  plantCost,
+  plantSlots,
+  plantsAfterChoice,
   secondsToNextWaypoint,
   stageForWaypoint,
   stageProgress,
@@ -18,6 +23,7 @@ import {
   waypointProgress,
   waypointsForGrowth,
 } from '../src/core/formulas';
+import { randomInt } from '../src/core/rng';
 import { MAX_FOREST_MEMORY, createInitialState } from '../src/core/state';
 import { evaluate as referenceEvaluate, emptyEco } from '../scripts/v2/model';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
@@ -140,6 +146,169 @@ describe('evaluate', () => {
         expect(ours.slots, label).toEqual(ref.slots);
       }
     }
+  });
+});
+
+describe('evaluate mit Begleitpflanzen', () => {
+  /** Stand auf Stufe `stage` mit Tieren und Pflanzen (Plätze werden nicht geprüft). */
+  const withPlants = (stage: number, animals: string[], plants: string[]) => {
+    const state = stateAt(stage, animals);
+    state.plants = plants;
+    return state;
+  };
+
+  it('Pflanzen wachsen und tragen Samen; der Hauptbaum bleibt gleich', () => {
+    const base = evaluate(stateAt(2));
+    const ev = evaluate(withPlants(2, [], ['strawberry']));
+    // Setzling: 3,5 + 0,3 Wachstum, 0,25 + 1 Samen; Licht 3 ≥ 2, Wasser 3 ≥ 1 → V = 1
+    expect(ev.supply).toBe(1);
+    expect(ev.lightNeed).toBe(2);
+    expect(ev.waterNeed).toBe(1);
+    expect(ev.groupCounts).toEqual({ trees: 1, shrubs: 0, flowers: 1, mosses: 0 });
+    expect(ev.growth).toBeCloseTo(3.8 * ev.multiplier);
+    expect(ev.seeds).toBeCloseTo(1.25 * ev.multiplier);
+    expect(ev.plantGrowth).toBeCloseTo(0.3 * ev.multiplier);
+    expect(ev.plantSeeds).toBeCloseTo(1 * ev.multiplier);
+    // Vielfalt: +3 Gruppe Blumen, +1 Art; Pyramide: Tragfähigkeit bleibt 5
+    expect(ev.breakdown.variety).toBe(base.breakdown.variety + 4);
+    expect(ev.plantSlots).toBe(2);
+  });
+
+  it('Versorgung: zu wenig Licht bremst nur die Begleitpflanzen', () => {
+    // Junger Baum: Licht 5, Wasser 5. Zwei Birken brauchen 8 Licht → V = 5/8.
+    const ev = evaluate(withPlants(3, [], ['birch', 'birch']));
+    expect(ev.lightNeed).toBe(8);
+    expect(ev.supply).toBeCloseTo(5 / 8);
+    expect(ev.growth).toBeCloseTo((6 + (5 / 8) * 3) * ev.multiplier);
+    expect(ev.sunny).toBe(false); // 5 − 8 < 2 frei
+  });
+
+  it('Versorgung: Wasser begrenzt, Moos speichert Wasser (negativer Bedarf)', () => {
+    // Keimling: Wasser 2. Buschwindröschen + Moos: Wasserbedarf 1 − 2 = −1 → keine Grenze.
+    const ev = evaluate(withPlants(1, [], ['anemone', 'moss']));
+    expect(ev.waterNeed).toBe(-1);
+    expect(ev.supply).toBe(1);
+    // Setzling (Wasser 3): Wurmfarn ×2 brauchen 4 Wasser → V = 3/4; Regenwurm bringt +2·z.
+    const dry = evaluate(withPlants(2, [], ['fern', 'fern']));
+    expect(dry.supply).toBeCloseTo(3 / 4);
+    const wet = evaluate(withPlants(2, ['earthworm'], ['fern', 'fern']));
+    expect(wet.water).toBeCloseTo(3 + 2 * wet.animals.earthworm!.happiness);
+    expect(wet.supply).toBe(1);
+  });
+
+  it('Versorgung bleibt in [0, 1], auch auf Stufe 0 ohne Licht', () => {
+    const ev = evaluate(withPlants(0, [], ['birch']));
+    expect(ev.supply).toBe(0);
+    expect(ev.growth).toBeCloseTo(1 * ev.multiplier); // nur der Hauptbaum
+    expect(Number.isFinite(ev.seeds)).toBe(true);
+  });
+
+  it('Wünsche werden erfüllbar: Sträucher, 2× Bäume, Blumen, Nektar, Feuchte', () => {
+    const robin = evaluate(withPlants(3, ['robin'], ['hazel'])).animals.robin!;
+    expect(robin.needs).toEqual([true]); // 1× Sträucher
+    const tit = evaluate(withPlants(3, ['bluetit', 'woodpecker'], ['rowan'])).animals.bluetit!;
+    expect(tit.needs).toEqual([true, true]); // 2× Bäume (Hauptbaum + Eberesche), Baumhöhle
+    const bee = evaluate(withPlants(2, ['bee'], ['anemone']));
+    expect(bee.animals.bee!.needs).toEqual([true, true]); // Blumen, sonnig (3 − 1 ≥ 2)
+    expect(bee.animals.bee!.food).toBe(1); // Nektar
+    expect(evaluate(withPlants(2, ['bee'], ['strawberry'])).animals.bee!.needs).toEqual([true, false]); // 3 − 2 < 2: nicht sonnig
+    const worm = evaluate(withPlants(1, ['earthworm'], ['moss'])).animals.earthworm!;
+    expect(worm.needs).toEqual([true]); // Feuchte
+    expect(worm.happiness).toBe(1);
+  });
+
+  it('Nahrung: Pflanzen bieten je 1 Einheit, Nachfrage teilt sie', () => {
+    // Rotkehlchen frisst Beeren: Brombeere bietet 1, ein Fresser → satt.
+    const ev = evaluate(withPlants(2, ['robin'], ['bramble']));
+    expect(ev.animals.robin!.food).toBe(1);
+  });
+
+  it('unbekannte Pflanzen-IDs werden übersprungen', () => {
+    const ev = evaluate(withPlants(2, [], ['gibt-es-nicht']));
+    expect(ev).toMatchObject({ supply: 1, lightNeed: 0, plantGrowth: 0 });
+    expect(ev.growth).toBeCloseTo(evaluate(stateAt(2)).growth);
+  });
+
+  it('Cache: Pflanzen ändern die Auswertung sofort', () => {
+    const state = stateAt(2);
+    const before = evaluate(state).growth;
+    state.plants.push('hazel');
+    expect(evaluate(state).growth).toBeGreaterThan(before);
+  });
+
+  it('stimmt mit dem Referenzmodell überein – Stichproben mit Tieren und Pflanzen', () => {
+    const rng = { rngState: 20261020 };
+    for (let n = 0; n < 4000; n++) {
+      const stage = randomInt(rng, STAGES.length);
+      const ids = SPECIES.filter(() => randomInt(rng, 2) === 1).map((s) => s.id);
+      const plants = Array.from({ length: randomInt(rng, 13) }, () => PLANTS[randomInt(rng, PLANTS.length)]!.id);
+      const ours = evaluate(withPlants(stage, ids, plants));
+      const eco = emptyEco();
+      eco.stage = stage;
+      eco.plants = [...plants];
+      for (const id of ids) eco.animals[SPECIES.find((s) => s.id === id)!.niche].push(id);
+      const ref = referenceEvaluate(eco);
+      const label = `${stage}: ${ids.join(',')} | ${plants.join(',')}`;
+      expect(ours.harmony, label).toBeCloseTo(ref.harmony, 9);
+      expect(ours.growth, label).toBeCloseTo(ref.growth, 9);
+      expect(ours.seeds, label).toBeCloseTo(ref.seeds, 9);
+      expect(ours.avgHappiness, label).toBeCloseTo(ref.avgHappiness, 9);
+      expect(ours.supply, label).toBeCloseTo(ref.supply, 12);
+      for (const id of ids) expect(ours.animals[id]!.happiness, `${label} – ${id}`).toBeCloseTo(ref.happiness.get(id)!, 12);
+    }
+  });
+
+  it('stimmt mit dem Referenzmodell überein – jede Pflanze einzeln und doppelt auf jeder Stufe', () => {
+    for (let stage = 0; stage < STAGES.length; stage++) {
+      for (const p of PLANTS) {
+        for (const plants of [[p.id], [p.id, p.id]]) {
+          const ours = evaluate(withPlants(stage, ['earthworm', 'bee', 'robin'], plants));
+          const eco = emptyEco();
+          eco.stage = stage;
+          eco.plants = [...plants];
+          eco.animals.roots.push('earthworm');
+          eco.animals.edge.push('bee');
+          eco.animals.litter.push('robin');
+          const ref = referenceEvaluate(eco);
+          expect(ours.harmony, `${stage} ${plants}`).toBeCloseTo(ref.harmony, 9);
+          expect(ours.growth, `${stage} ${plants}`).toBeCloseTo(ref.growth, 9);
+          expect(ours.seeds, `${stage} ${plants}`).toBeCloseTo(ref.seeds, 9);
+        }
+      }
+    }
+  });
+});
+
+describe('Pflanzring und Kosten', () => {
+  it('plantSlots je Stufe, 0 für unbekannte Stufen', () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map(plantSlots)).toEqual([0, 1, 2, 3, 5, 7, 9, 12]);
+    expect(plantSlots(99)).toBe(0);
+    expect(plantSlots(-1)).toBe(0);
+    expect(plantSlots(NaN)).toBe(0);
+  });
+
+  it('plantCost: 20 · 1,9^n', () => {
+    expect(plantCost(0)).toBe(20);
+    expect(plantCost(1)).toBeCloseTo(38);
+    expect(plantCost(2)).toBeCloseTo(72.2);
+    expect(Math.round(plantCost(8))).toBe(3397);
+    expect(plantCost(-3)).toBe(20);
+    expect(plantCost(NaN)).toBe(20);
+    expect(plantCost(2000)).toBe(Infinity); // nie bezahlbar, aber kein NaN
+    const state = stateAt(3);
+    state.plants = ['hazel', 'hazel'];
+    expect(nextPlantCost(state)).toBeCloseTo(72.2);
+  });
+
+  it('plantsAfterChoice: Duplikate erlaubt, Ring voll → nur mit Ersatz', () => {
+    const state = stateAt(2); // Setzling: 2 Plätze
+    expect(plantsAfterChoice(state, 'hazel')).toEqual(['hazel']);
+    state.plants = ['hazel', 'moss'];
+    expect(plantsAfterChoice(state, 'hazel')).toBeNull();
+    expect(plantsAfterChoice(state, 'hazel', 'moss')).toEqual(['hazel', 'hazel']);
+    expect(plantsAfterChoice(state, 'hazel', 'birch')).toBeNull();
+    expect(plantsAfterChoice(state, 'gibt-es-nicht', 'moss')).toBeNull();
+    expect(state.plants).toEqual(['hazel', 'moss']); // Eingabe unverändert
   });
 });
 

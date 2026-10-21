@@ -1,18 +1,28 @@
-import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS, RARITY_WEIGHTS } from '../content/encounters';
-import { SPECIES, SPECIES_BY_ID } from '../content/species';
+import {
+  CARDS_PER_ENCOUNTER,
+  ENCOUNTER_WEIGHTS,
+  MAX_PENDING_ENCOUNTERS,
+  RARITY_WEIGHTS,
+  SCRIPTED_ENCOUNTERS,
+} from '../content/encounters';
+import { PLANTS, PLANTS_BY_ID } from '../content/plants';
+import { SPECIES } from '../content/species';
+import { ENCOUNTER_TYPES } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import {
-  cardStatus,
   declineReward,
   evaluate,
+  nextPlantCost,
   nicheSlots,
-  nichesAfterChoice,
+  plantSlots,
   rerollCost,
+  resolveChoice,
   stageForWaypoint,
   thresholdFor,
+  type ChoiceError,
 } from './formulas';
-import { pick, weightedIndex, type RngHolder } from './rng';
-import { allAnimals, type GameState } from './state';
+import { pick, randomInt, weightedIndex, type RngHolder } from './rng';
+import { allAnimals, type GameState, type PendingEncounter, type PendingEncounterType } from './state';
 
 /** Offline-Fortschritt wird auf diese Dauer begrenzt. */
 export const MAX_OFFLINE_SECONDS = 8 * 60 * 60;
@@ -53,10 +63,10 @@ export function tick(state: GameState, dt: number): TickReport {
     const rate = ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth : 0;
     const toNext = rate > 0 ? Math.max(0, next - state.totalGrowth) / rate : Infinity;
     const step = Math.min(remaining, toNext);
-    state.seeds += ev.seeds * step;
+    state.seeds = capped(state.seeds + ev.seeds * step);
     remaining -= step;
     if (step < toNext) {
-      state.totalGrowth += rate * step;
+      state.totalGrowth = capped(state.totalGrowth + rate * step);
       break;
     }
     // Wegpunkt genau erreicht (ohne Rundungsfehler, damit online und offline gleich zählen)
@@ -64,6 +74,14 @@ export function tick(state: GameState, dt: number): TickReport {
     reachWaypoint(state, report);
   }
   return report;
+}
+
+/**
+ * Begrenzt +Infinity auf die größte endliche Zahl: JSON.stringify schriebe sonst `null`
+ * in den Spielstand. (Bis „Urwald“ unerreichbar – Schutz für riesige Zeitsprünge.)
+ */
+function capped(value: number): number {
+  return value > Number.MAX_VALUE ? Number.MAX_VALUE : value;
 }
 
 /**
@@ -89,15 +107,68 @@ function reachWaypoint(state: GameState, report: TickReport): void {
     report.autoDeclined++;
     return;
   }
-  const cards = drawAnimals(state);
-  if (cards.length === 0) {
-    // Keine Art kommt in Frage (z. B. Keimling mit besetztem Wurzelraum): wie Ablehnen.
+  const encounter = drawEncounter(state);
+  if (!encounter) {
+    // Weder Art noch Pflanze kommt in Frage: wie Ablehnen.
     state.seeds += declineReward();
     report.autoDeclined++;
     return;
   }
-  state.pendingEncounters.push({ type: 'animal', cards, rerolls: 0 });
+  state.pendingEncounters.push(encounter);
   report.encounters++;
+}
+
+/** Begegnungstypen, die es schon gibt (Ereignis und Durchreisende folgen in 2.4). */
+const DRAWABLE_TYPES: readonly PendingEncounterType[] = ['animal', 'plant'];
+
+/**
+ * Zieht die Begegnung für den gerade erreichten Wegpunkt (DESIGN_V2.md, 7.1/7.2): Die
+ * ersten Wegpunkte sind festgelegt (Tier, Pflanze, Tier), danach entscheidet das
+ * Gewicht der Stufe zwischen „Tier zieht ein“ und „Etwas keimt“. Kommt für den Typ
+ * keine Karte in Frage, gibt es den anderen; null, wenn gar nichts passt.
+ */
+export function drawEncounter(state: GameState): PendingEncounter | null {
+  let type = SCRIPTED_ENCOUNTERS[state.waypoint - 1];
+  if (type === undefined) {
+    const weights = ENCOUNTER_WEIGHTS[state.stage] ?? ENCOUNTER_WEIGHTS[ENCOUNTER_WEIGHTS.length - 1]!;
+    const drawable = ENCOUNTER_TYPES.map((t, i) => ((DRAWABLE_TYPES as readonly string[]).includes(t) ? weights[i]! : 0));
+    type = ENCOUNTER_TYPES[weightedIndex(state, drawable)] ?? 'animal';
+  }
+  const order: readonly PendingEncounterType[] = type === 'plant' ? ['plant', 'animal'] : ['animal', 'plant'];
+  for (const t of order) {
+    const cards = drawCards(state, t);
+    if (cards.length > 0) return { type: t, cards, rerolls: 0 };
+  }
+  return null;
+}
+
+/** Karten für einen Begegnungstyp (siehe drawAnimals / drawPlants). */
+export function drawCards(
+  state: GameState,
+  type: PendingEncounterType,
+  exclude: readonly string[] = [],
+  rng: RngHolder = state,
+): string[] {
+  return type === 'plant' ? drawPlants(state, exclude, rng) : drawAnimals(state, exclude, rng);
+}
+
+/**
+ * Zieht bis zu drei verschiedene Pflanzenkarten gleichverteilt aus allen Pflanzen, die
+ * auf dieser Stufe freigeschaltet sind – auch solche, die schon wachsen (Duplikate
+ * erlaubt). Pflanzen in `exclude` kommen nur zum Auffüllen dran (wie bei drawAnimals).
+ */
+export function drawPlants(state: GameState, exclude: readonly string[] = [], rng: RngHolder = state): string[] {
+  const eligible = PLANTS.filter((p) => p.unlock <= state.stage);
+  const pools = [eligible.filter((p) => !exclude.includes(p.id)), eligible.filter((p) => exclude.includes(p.id))];
+  const cards: string[] = [];
+  for (const pool of pools) {
+    const left = pool.map((p) => p.id);
+    while (cards.length < CARDS_PER_ENCOUNTER && left.length > 0) {
+      const i = randomInt(rng, left.length);
+      cards.push(left.splice(i, 1)[0]!);
+    }
+  }
+  return cards;
 }
 
 /** Wurde der letzte Wegpunkt erreicht? Danach gibt es keine Begegnungen mehr. */
@@ -139,53 +210,85 @@ export function drawAnimals(state: GameState, exclude: readonly string[] = [], r
 // ---------------------------------------------------------------------------
 
 export type ActionError =
-  | 'no-encounter'
-  | 'no-card'
-  | 'present'
-  | 'closed'
-  | 'niche-full'
-  | 'invalid-replace'
+  /** Fehler beim Wählen einer Karte (siehe ChoiceError in formulas.ts). */
+  | ChoiceError
   | 'too-expensive'
-  /** Keine Art kommt in Frage. */
+  /** Keine Art bzw. Pflanze kommt in Frage. */
   | 'no-cards'
   /** Neu würfeln brächte nur dieselben Karten (zu wenige passende Arten). */
-  | 'no-alternatives';
+  | 'no-alternatives'
+  /** Pflanze setzen: unbekannte Pflanzen-ID. */
+  | 'unknown-plant'
+  /** Pflanze setzen: erst auf einer späteren Stufe freigeschaltet. */
+  | 'locked';
 
 export type ActionResult = { ok: true } | { ok: false; error: ActionError };
 
 const fail = (error: ActionError): ActionResult => ({ ok: false, error });
 
 /**
- * Wählt eine Karte: Das Tier zieht in seine Nische, die Begegnung ist erledigt.
- * Ist die Nische voll, muss `replaceSpeciesId` ein Tier dieser Nische nennen – es wird
- * entlassen (bleibt im Naturtagebuch). Ohne Ersatz bleibt die Begegnung offen
- * (Fehler „niche-full“); der Spieler kann dann tauschen, ablehnen oder neu würfeln.
+ * Wählt eine Karte, die Begegnung ist danach erledigt.
+ * - Tierkarte: Das Tier zieht in seine Nische. Ist sie voll, muss `replaceId` ein Tier
+ *   dieser Nische nennen – es wird entlassen (bleibt im Naturtagebuch).
+ * - Pflanzenkarte („Etwas keimt“): Die Pflanze keimt kostenlos im Pflanzring. Ist er
+ *   voll, muss `replaceId` eine Pflanze im Ring nennen – sie wird ersetzt.
+ * Ohne Ersatz bei voller Nische/vollem Ring bleibt die Begegnung offen ('niche-full' /
+ * 'ring-full'); der Spieler kann dann tauschen, ablehnen oder neu würfeln. Ein Tausch,
+ * der anderen Tieren den Platz nähme, scheitert mit 'would-evict'. Gleiche Prüfung wie
+ * previewChoice / choiceBlocker.
  */
 export function chooseCard(
   state: GameState,
   encounterIndex: number,
   cardIndex: number,
-  replaceSpeciesId?: string,
+  replaceId?: string,
 ): ActionResult {
-  const encounter = state.pendingEncounters[encounterIndex];
-  if (!encounter) return fail('no-encounter');
-  const status = cardStatus(state, encounterIndex, cardIndex);
-  if (status === 'invalid') return fail('no-card');
-  if (status === 'present') return fail('present');
-  if (status === 'closed') return fail('closed');
-  const sp = SPECIES_BY_ID.get(encounter.cards[cardIndex]!)!;
-  if (replaceSpeciesId !== undefined && !state.niches[sp.niche].includes(replaceSpeciesId)) {
-    return fail('invalid-replace');
+  const outcome = resolveChoice(state, encounterIndex, cardIndex, replaceId);
+  if (!outcome.ok) return fail(outcome.error);
+  const encounter = state.pendingEncounters[encounterIndex]!;
+  const id = encounter.cards[cardIndex]!;
+  for (const nicheId of Object.keys(outcome.niches) as (keyof typeof outcome.niches)[]) {
+    state.niches[nicheId] = outcome.niches[nicheId];
   }
-  if (replaceSpeciesId === undefined && status === 'full') return fail('niche-full');
-  // Entlassene Tiere können Plätze mitnehmen (Borkenkäfer → Höhlen): nur erlaubt,
-  // wenn danach kein Tier ohne Platz dasteht.
-  const niches = nichesAfterChoice(state, sp.id, replaceSpeciesId);
-  if (!niches) return fail('invalid-replace');
-  for (const id of Object.keys(niches) as (keyof typeof niches)[]) state.niches[id] = niches[id];
-  if (!state.meta.journal.species.includes(sp.id)) state.meta.journal.species.push(sp.id);
+  state.plants = outcome.plants;
+  if (encounter.type === 'animal' && !state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
   state.pendingEncounters.splice(encounterIndex, 1);
   return { ok: true };
+}
+
+/**
+ * Setzt eine Pflanze für Samen in den Pflanzring (die Samen-Senke, DESIGN_V2.md 4).
+ * Kosten: 20 · 1,9^n bei n Begleitpflanzen (nextPlantCost). Duplikate sind erlaubt.
+ */
+export function plantSeed(state: GameState, plantId: string): ActionResult {
+  const blocker = plantBlocker(state, plantId);
+  if (blocker) return fail(blocker);
+  state.seeds -= nextPlantCost(state);
+  state.plants.push(plantId);
+  return { ok: true };
+}
+
+/** Warum „Pflanze setzen“ gerade nicht geht – null, wenn es geht. Ändert nichts. */
+export function plantBlocker(
+  state: GameState,
+  plantId: string,
+): 'unknown-plant' | 'locked' | 'ring-full' | 'too-expensive' | null {
+  const plant = PLANTS_BY_ID.get(plantId);
+  if (!plant) return 'unknown-plant';
+  if (plant.unlock > state.stage) return 'locked';
+  if (state.plants.length >= plantSlots(state.stage)) return 'ring-full';
+  if (!(state.seeds >= nextPlantCost(state))) return 'too-expensive';
+  return null;
+}
+
+/** Kann diese Pflanze jetzt gesetzt werden? (Für den Knopf in der UI.) */
+export function canPlant(state: GameState, plantId: string): boolean {
+  return plantBlocker(state, plantId) === null;
+}
+
+/** Pflanzen, die auf der aktuellen Stufe gesetzt werden können (ohne Blick auf Samen und Ring). */
+export function unlockedPlants(state: Pick<GameState, 'stage'>): string[] {
+  return PLANTS.filter((p) => p.unlock <= state.stage).map((p) => p.id);
 }
 
 /** Lehnt eine Begegnung ab und schreibt Samen gut. */
@@ -198,15 +301,16 @@ export function declineEncounter(state: GameState, encounterIndex: number): Acti
 
 /**
  * Würfelt die Karten einer Begegnung neu (kostet Samen, jedes weitere Mal doppelt so
- * viel). Die bisherigen Karten kommen nur zum Auffüllen wieder. Kommt keine Art in
- * Frage oder wären es dieselben Karten, bleibt alles unverändert und es kostet nichts.
+ * viel) – Tierkarten wie Pflanzenkarten. Die bisherigen Karten kommen nur zum Auffüllen
+ * wieder. Kommt keine Karte in Frage oder wären es dieselben Karten, bleibt alles
+ * unverändert und es kostet nichts.
  */
 export function rerollEncounter(state: GameState, encounterIndex: number): ActionResult {
   const blocker = rerollBlocker(state, encounterIndex);
   if (blocker) return fail(blocker);
   const encounter = state.pendingEncounters[encounterIndex]!;
   state.seeds -= rerollCost(state, encounterIndex);
-  encounter.cards = drawAnimals(state, encounter.cards);
+  encounter.cards = drawCards(state, encounter.type, encounter.cards);
   encounter.rerolls++;
   return { ok: true };
 }
@@ -226,7 +330,7 @@ export function rerollBlocker(
 ): 'no-encounter' | 'no-cards' | 'no-alternatives' | 'too-expensive' | null {
   const encounter = state.pendingEncounters[encounterIndex];
   if (!encounter) return 'no-encounter';
-  const cards = drawAnimals(state, encounter.cards, { rngState: state.rngState });
+  const cards = drawCards(state, encounter.type, encounter.cards, { rngState: state.rngState });
   if (cards.length === 0) return 'no-cards';
   if (sameSet(cards, encounter.cards)) return 'no-alternatives';
   if (!(state.seeds >= rerollCost(state, encounterIndex))) return 'too-expensive';

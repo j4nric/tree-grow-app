@@ -1,11 +1,13 @@
 /**
- * Balancing-Simulator für den v2-Prototyp – auf der ECHTEN Spiellogik aus src/core/
- * (tick, chooseCard, declineEncounter, rerollEncounter, evaluate, previewChoice …).
- * Anders als scripts/v2/ (Referenzmodell des vollen Designs) misst er genau das, was
- * der Spieler im Prototyp erlebt: nur Tierbegegnungen, keine Pflanzen.
+ * Balancing-Simulator für das v2-Spiel – auf der ECHTEN Spiellogik aus src/core/
+ * (tick, chooseCard, declineEncounter, rerollEncounter, plantSeed, evaluate,
+ * previewChoice …). Anders als scripts/v2/ (Referenzmodell des vollen Designs) misst er
+ * genau das, was der Spieler erlebt: Tier- und Pflanzenbegegnungen, Pflanzen setzen.
  *
- * Der Spieler löst jede Begegnung sofort auf (online). Die Zeit läuft ereignisgesteuert
- * von Wegpunkt zu Wegpunkt (tick() rechnet zwischen zwei Wegpunkten exakt).
+ * Der Spieler löst jede Begegnung sofort auf (online) und setzt Pflanzen, sobald die
+ * Samen reichen und es sich nach seiner Strategie lohnt. Die Zeit läuft ereignisgesteuert
+ * von Wegpunkt zu Wegpunkt bzw. bis zum nächsten Pflanzenkauf (tick() rechnet dazwischen
+ * exakt).
  *
  * Ausführen (Tabellen im Protokoll, DESIGN_V2.md Abschnitt 15.4):
  *   SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts
@@ -17,29 +19,39 @@ import {
   cardStatus,
   declineReward,
   evaluate,
+  nextPlantCost,
+  plantSlots,
   previewChoice,
+  previewPlant,
   secondsToNextWaypoint,
   type Evaluation,
 } from '../src/core/formulas';
 import { normalizeSeed, randomInt, type RngHolder } from '../src/core/rng';
-import { allAnimals, createInitialState, type GameState } from '../src/core/state';
+import { allAnimals, createInitialState, type GameState, type PendingEncounterType } from '../src/core/state';
 import {
   allWaypointsReached,
   chooseCard,
   declineEncounter,
+  plantSeed,
   rerollBlocker,
   rerollEncounter,
   tick,
+  unlockedPlants,
 } from '../src/core/tick';
 
 // ---------------------------------------------------------------------------
 // Optionen einer Begegnung
 // ---------------------------------------------------------------------------
 
-/** Eine Möglichkeit, eine Karte zu spielen (bei voller Nische je zu entlassendem Tier). */
+/**
+ * Eine Möglichkeit, eine Karte zu spielen (bei voller Nische je zu entlassendem Tier,
+ * bei vollem Pflanzring je zu ersetzender Pflanze).
+ */
 export interface Option {
   card: number;
-  speciesId: string;
+  kind: PendingEncounterType;
+  /** Art- oder Pflanzen-ID der Karte. */
+  id: string;
   replace?: string;
   ev: Evaluation;
 }
@@ -49,16 +61,17 @@ export function optionsFor(state: GameState): Option[] {
   const enc = state.pendingEncounters[0];
   if (!enc) return [];
   const out: Option[] = [];
-  enc.cards.forEach((speciesId, card) => {
+  enc.cards.forEach((id, card) => {
     const status = cardStatus(state, 0, card);
     if (status === 'free') {
       const ev = previewChoice(state, 0, card);
-      if (ev) out.push({ card, speciesId, ev });
+      if (ev) out.push({ card, kind: enc.type, id, ev });
     } else if (status === 'full') {
-      const niche = SPECIES_BY_ID.get(speciesId)!.niche;
-      for (const replace of state.niches[niche]) {
+      const candidates =
+        enc.type === 'plant' ? [...new Set(state.plants)] : state.niches[SPECIES_BY_ID.get(id)!.niche];
+      for (const replace of candidates) {
         const ev = previewChoice(state, 0, card, replace);
-        if (ev) out.push({ card, speciesId, replace, ev });
+        if (ev) out.push({ card, kind: enc.type, id, replace, ev });
       }
     }
   });
@@ -76,6 +89,11 @@ export interface Strategy {
   name: string;
   /** Entscheidet über die erste offene Begegnung. `rng` ist der eigene Zufall der Strategie. */
   decide(state: GameState, options: Option[], current: Evaluation, rng: RngHolder): Action;
+  /**
+   * Bewertung für das Setzen von Pflanzen mit Samen (höher = besser; gesetzt wird nur,
+   * was verbessert). null = Zufallsspieler: setzt irgendeine freigeschaltete Pflanze.
+   */
+  plantValue: ((ev: Evaluation) => number) | null;
 }
 
 const byHarmony = (ev: Evaluation) => ev.harmony + 1e-6 * ev.growth;
@@ -95,19 +113,23 @@ function best(options: Option[], value: (o: Option) => number): Option | null {
 }
 
 /**
- * Höchstens ein Wurf je Begegnung, und nur, wenn die Logik ihn zulässt (Samen reichen,
- * es gibt andere Karten – rerollBlocker liefert sonst 'too-expensive' / 'no-alternatives').
+ * Höchstens ein Wurf je Tierbegegnung (wie scripts/v2/sim.ts), und nur, wenn die Logik
+ * ihn zulässt (Samen reichen, es gibt andere Karten – rerollBlocker liefert sonst
+ * 'too-expensive' / 'no-alternatives'). Pflanzenbegegnungen werden nicht neu gewürfelt.
  */
 function canReroll(state: GameState): boolean {
   const enc = state.pendingEncounters[0];
-  return !!enc && enc.rerolls < 1 && rerollBlocker(state, 0) === null;
+  return !!enc && enc.type === 'animal' && enc.rerolls < 1 && rerollBlocker(state, 0) === null;
 }
+
+const isPlantEncounter = (state: GameState) => state.pendingEncounters[0]?.type === 'plant';
 
 /** Nimmt die beste Option, wenn sie verbessert; sonst einmal neu würfeln, sonst ablehnen. */
 function greedy(id: string, name: string, value: (ev: Evaluation) => number): Strategy {
   return {
     id,
     name,
+    plantValue: value,
     decide(state, options, current) {
       const top = best(options, (o) => value(o.ev));
       if (top && value(top.ev) > value(current)) return { kind: 'choose', option: top };
@@ -119,13 +141,14 @@ function greedy(id: string, name: string, value: (ev: Evaluation) => number): St
 export const RANDOM: Strategy = {
   id: 'random',
   name: 'Zufällig',
+  plantValue: null,
   decide(state, options, _current, rng) {
     const cards = state.pendingEncounters[0]!.cards;
     const card = randomInt(rng, cards.length);
     const mine = options.filter((o) => o.card === card);
     if (mine.length === 0) return { kind: 'decline' };
     if (mine.length === 1 && mine[0]!.replace === undefined) return { kind: 'choose', option: mine[0]! };
-    // Volle Nische: zufällig ein Tier entlassen oder ablehnen.
+    // Volle Nische / voller Ring: zufällig ersetzen oder ablehnen.
     const k = randomInt(rng, mine.length + 1);
     return k < mine.length ? { kind: 'choose', option: mine[k]! } : { kind: 'decline' };
   },
@@ -137,9 +160,11 @@ export const GROWTH = greedy('growth', 'Gierig nach Wachstum', byGrowth);
 export const RAREST: Strategy = {
   id: 'rarest',
   name: 'Immer die seltenste Karte',
-  decide(_state, options) {
+  plantValue: byHarmony,
+  decide(state, options, current, rng) {
+    if (isPlantEncounter(state)) return HARMONY.decide(state, options, current, rng);
     if (options.length === 0) return { kind: 'decline' };
-    const rarity = (o: Option) => SPECIES_BY_ID.get(o.speciesId)!.rarity;
+    const rarity = (o: Option) => SPECIES_BY_ID.get(o.id)!.rarity;
     const top = Math.max(...options.map(rarity));
     return { kind: 'choose', option: best(options, (o) => (rarity(o) === top ? byHarmony(o.ev) : -Infinity))! };
   },
@@ -149,9 +174,12 @@ export function stacker(genus: Genus): Strategy {
   return {
     id: `stack-${genus}`,
     name: `${GENUS_INFO[genus].name} stapeln`,
+    plantValue: byHarmony,
     decide(state, options, current, rng) {
+      // Pflanzen wählt der Stapler wie der Harmonie-Spieler.
+      if (isPlantEncounter(state)) return HARMONY.decide(state, options, current, rng);
       const isOwn = (id: string) => SPECIES_BY_ID.get(id)!.genus === genus;
-      const own = options.filter((o) => isOwn(o.speciesId) && (o.replace === undefined || !isOwn(o.replace)));
+      const own = options.filter((o) => isOwn(o.id) && (o.replace === undefined || !isOwn(o.replace)));
       // Lieber ein freier Platz oder ein fremdes Tier ersetzen; nie ein eigenes.
       if (own.length > 0) return { kind: 'choose', option: best(own, (o) => byHarmony(o.ev))! };
       if (canReroll(state)) return { kind: 'reroll' };
@@ -183,14 +211,19 @@ export interface DecisionStat {
 export interface Counts {
   /** Begegnungen, die der Spieler gesehen hat (ohne automatisch abgelehnte). */
   encounters: number;
-  /** … davon mit mindestens einer Karte, deren Nische voll ist. */
+  /** … davon „Etwas keimt“ (Pflanzenkarten). */
+  plantEncounters: number;
+  /** … davon Tierbegegnungen mit mindestens einer Karte, deren Nische voll ist. */
   fullNiche: number;
   rerolls: number;
   declines: number;
   /** Automatisch abgelehnt (keine Art kam in Frage oder Warteschlange voll). */
   autoDeclined: number;
-  /** Gewählte Karten je Seltenheit. */
+  /** Gewählte Tierkarten je Seltenheit. */
   rarityTaken: number[];
+  /** Gewählte Pflanzenkarten (gratis) und mit Samen gesetzte Pflanzen. */
+  plantsTaken: number;
+  plantsBought: number;
 }
 
 /** Schnappschuss des Durchgangs (beim Erreichen einer Stufe oder zu einer festen Zeit). */
@@ -202,14 +235,18 @@ export interface Snapshot {
   seedsRate: number;
   happiness: number;
   animals: number;
+  plants: number;
+  /** Versorgung V der Begleitpflanzen (0–1). */
+  supply: number;
   genus: Record<Genus, number>;
   /** Samen-Bestand. */
   seeds: number;
   /** Bisher verdient: passiv (Baum × Harmonie) und durch (automatisches) Ablehnen. */
   earnedPassive: number;
   earnedDecline: number;
-  /** Bisher ausgegeben (nur Neu würfeln). */
+  /** Bisher ausgegeben für Neu würfeln und für Pflanzen. */
   spent: number;
+  spentPlants: number;
   counts: Counts;
 }
 
@@ -239,8 +276,18 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
   let time = 0;
   let lastWaypointTime = 0;
-  const book = { earnedPassive: 0, earnedDecline: 0, spent: 0 };
-  const counts: Counts = { encounters: 0, fullNiche: 0, rerolls: 0, declines: 0, autoDeclined: 0, rarityTaken: [0, 0, 0, 0] };
+  const book = { earnedPassive: 0, earnedDecline: 0, spent: 0, spentPlants: 0 };
+  const counts: Counts = {
+    encounters: 0,
+    plantEncounters: 0,
+    fullNiche: 0,
+    rerolls: 0,
+    declines: 0,
+    autoDeclined: 0,
+    rarityTaken: [0, 0, 0, 0],
+    plantsTaken: 0,
+    plantsBought: 0,
+  };
   const result: RunResult = {
     stages: Array(STAGES.length).fill(null),
     samples: SAMPLE_MINUTES.map(() => null),
@@ -260,6 +307,8 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
       seedsRate: ev.seeds,
       happiness: ev.avgHappiness,
       animals: allAnimals(state).length,
+      plants: state.plants.length,
+      supply: ev.supply,
       genus,
       seeds: state.seeds,
       ...book,
@@ -270,9 +319,21 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   let sample = 0;
 
   while (state.stage < options.targetStage && time < options.maxSeconds && !allWaypointsReached(state)) {
+    // Pflanzen setzen, solange es sich lohnt und die Samen reichen.
+    for (let plan = planPlant(state, strategy, counts); plan !== null; plan = planPlant(state, strategy, counts)) {
+      const cost = nextPlantCost(state);
+      if (!plantSeed(state, plan).ok) break;
+      book.spentPlants += cost;
+      counts.plantsBought++;
+    }
+    const plan = planPlant(state, strategy, counts);
+    const seedsRate = evaluate(state).seeds;
+    // Bis die nächste geplante Pflanze bezahlbar ist (+1 µs gegen Rundung).
+    const toPlant =
+      plan !== null && seedsRate > 0 ? Math.max(0, (nextPlantCost(state) - state.seeds) / seedsRate) + 1e-6 : Infinity;
     const stageBefore = state.stage;
     const nextSample = (SAMPLE_MINUTES[sample] ?? Infinity) * 60;
-    const dt = Math.min(secondsToNextWaypoint(state), nextSample - time, options.maxSeconds - time);
+    const dt = Math.min(secondsToNextWaypoint(state), toPlant, nextSample - time, options.maxSeconds - time);
     if (!(dt < Infinity)) break;
     const seedsBefore = state.seeds;
     const report = tick(state, dt);
@@ -292,6 +353,27 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   return result;
 }
 
+/**
+ * Welche Pflanze würde die Strategie als Nächstes setzen? null, wenn der Ring voll ist,
+ * nichts freigeschaltet ist oder (bei bewertenden Strategien) keine Pflanze verbessert.
+ * Der Zufallsspieler nimmt eine je Zustand feste, aber beliebige Pflanze (wie scripts/v2/sim.ts).
+ */
+function planPlant(state: GameState, strategy: Strategy, counts: Counts): string | null {
+  if (state.plants.length >= plantSlots(state.stage)) return null;
+  const pool = unlockedPlants(state);
+  if (pool.length === 0) return null;
+  if (!strategy.plantValue) return pool[(counts.plantsBought * 7 + state.waypoint) % pool.length]!;
+  const now = strategy.plantValue(evaluate(state));
+  let top: { id: string; value: number } | null = null;
+  for (const id of pool) {
+    const ev = previewPlant(state, id);
+    if (!ev) continue;
+    const value = strategy.plantValue(ev);
+    if (value > now + 1e-9 && (!top || value > top.value)) top = { id, value };
+  }
+  return top?.id ?? null;
+}
+
 function resolveAll(
   state: GameState,
   strategy: Strategy,
@@ -307,7 +389,8 @@ function resolveAll(
     const options = optionsFor(state);
     if (enc.rerolls === 0) {
       counts.encounters++;
-      if (enc.cards.some((_, c) => cardStatus(state, 0, c) === 'full')) counts.fullNiche++;
+      if (enc.type === 'plant') counts.plantEncounters++;
+      else if (enc.cards.some((_, c) => cardStatus(state, 0, c) === 'full')) counts.fullNiche++;
     }
     recordDecision(state, options, current, decisions);
     const action = strategy.decide(state, options, current, rng);
@@ -320,9 +403,10 @@ function resolveAll(
     if (action.kind === 'choose') {
       const { option } = action;
       if (!chooseCard(state, 0, option.card, option.replace).ok) {
-        throw new Error(`Ungültige Wahl ${option.speciesId} (${strategy.id})`);
+        throw new Error(`Ungültige Wahl ${option.id} (${strategy.id})`);
       }
-      counts.rarityTaken[SPECIES_BY_ID.get(option.speciesId)!.rarity]!++;
+      if (option.kind === 'plant') counts.plantsTaken++;
+      else counts.rarityTaken[SPECIES_BY_ID.get(option.id)!.rarity]!++;
     } else {
       declineEncounter(state, 0);
       counts.declines++;
@@ -439,13 +523,19 @@ export function stageStats(summary: Summary, stage: number) {
     seedsRate: m((s) => s.seedsRate),
     happiness: m((s) => s.happiness),
     animals: m((s) => s.animals),
+    plants: m((s) => s.plants),
+    supply: m((s) => s.supply),
     genus: GENERA.map((g) => m((s) => s.genus[g])),
     seeds: m((s) => s.seeds),
     earnedPassive: m((s) => s.earnedPassive),
     earnedDecline: m((s) => s.earnedDecline),
     spent: m((s) => s.spent),
+    spentPlants: m((s) => s.spentPlants),
     counts: {
       encounters: m((s) => s.counts.encounters),
+      plantEncounters: m((s) => s.counts.plantEncounters),
+      plantsTaken: m((s) => s.counts.plantsTaken),
+      plantsBought: m((s) => s.counts.plantsBought),
       fullNiche: m((s) => s.counts.fullNiche),
       rerolls: m((s) => s.counts.rerolls),
       declines: m((s) => s.counts.declines),
@@ -483,14 +573,14 @@ export function decisionStats(summary: Summary, beforeStage: number) {
 export function strategyTable(summaries: Summary[], stage: number): string {
   const name = STAGES[stage]!.name;
   const lines = [
-    `| Strategie | ${name} nach (Median) | ⚖️ Harmonie | 🌿/s | 🌰/s | Ø Zufriedenheit | Tiere V/I/B | echte Wahl |`,
-    '|---|---|---|---|---|---|---|---|',
+    `| Strategie | ${name} nach (Median) | ⚖️ Harmonie | 🌿/s | 🌰/s | Ø Zufriedenheit | Tiere V/I/B | Pflanzen | Versorgung | echte Wahl |`,
+    '|---|---|---|---|---|---|---|---|---|---|',
   ];
   for (const s of summaries) {
     const st = stageStats(s, stage);
     const d = decisionStats(s, stage);
     lines.push(
-      `| ${s.strategy.name} | ${formatTime(st.time)} | ${fmt(st.harmony, 1)} | ${fmt(st.growth, 1)} | ${fmt(st.seedsRate, 2)} | ${fmt(st.happiness * 100)} % | ${st.genus.map((g) => fmt(g, 1)).join(' / ')} | ${fmt(d.realShare * 100)} % |`,
+      `| ${s.strategy.name} | ${formatTime(st.time)} | ${fmt(st.harmony, 1)} | ${fmt(st.growth, 1)} | ${fmt(st.seedsRate, 2)} | ${fmt(st.happiness * 100)} % | ${st.genus.map((g) => fmt(g, 1)).join(' / ')} | ${fmt(st.plants, 1)} | ${fmt(st.supply * 100)} % | ${fmt(d.realShare * 100)} % |`,
     );
   }
   return lines.join('\n');
@@ -498,7 +588,7 @@ export function strategyTable(summaries: Summary[], stage: number): string {
 
 export function stageTable(summary: Summary, targets: readonly (string | null)[]): string {
   const lines = [
-    '| Stufe | Ziel | Median | 10–90 % | ⚖️ | 🌿/s | 🌰/s | Ø Zufr. | Tiere | Begegnungen im Abschnitt | Takt Median | Takt max |',
+    '| Stufe | Ziel | Median | 10–90 % | ⚖️ | 🌿/s | 🌰/s | Ø Zufr. | Tiere / Pflanzen | Begegnungen im Abschnitt | Takt Median | Takt max |',
     '|---|---|---|---|---|---|---|---|---|---|---|---|',
   ];
   for (let s = 1; s < STAGES.length; s++) {
@@ -506,7 +596,7 @@ export function stageTable(summary: Summary, targets: readonly (string | null)[]
     if (st.reachedShare === 0) continue;
     const share = st.reachedShare < 1 ? ` (${fmt(st.reachedShare * 100)} % erreicht)` : '';
     lines.push(
-      `| ${STAGES[s]!.name}${share} | ${targets[s] ?? '–'} | ${formatTime(st.time)} | ${formatTime(st.timeP10)} – ${formatTime(st.timeP90)} | ${fmt(st.harmony)} | ${fmt(st.growth, 1)} | ${fmt(st.seedsRate, 2)} | ${fmt(st.happiness * 100)} % | ${fmt(st.animals, 1)} | ${fmt(st.gapsPerRun, 1)} | ${formatTime(st.gapMedian)} | ${formatTime(st.gapMax)} |`,
+      `| ${STAGES[s]!.name}${share} | ${targets[s] ?? '–'} | ${formatTime(st.time)} | ${formatTime(st.timeP10)} – ${formatTime(st.timeP90)} | ${fmt(st.harmony)} | ${fmt(st.growth, 1)} | ${fmt(st.seedsRate, 2)} | ${fmt(st.happiness * 100)} % | ${fmt(st.animals, 1)} / ${fmt(st.plants, 1)} | ${fmt(st.gapsPerRun, 1)} | ${formatTime(st.gapMedian)} | ${formatTime(st.gapMax)} |`,
     );
   }
   return lines.join('\n');
@@ -515,8 +605,8 @@ export function stageTable(summary: Summary, targets: readonly (string | null)[]
 /** Samen-Verlauf über die Spielzeit (Mittel über alle Durchgänge, die so lange liefen). */
 export function seedTable(summary: Summary): string {
   const lines = [
-    '| Zeit | Stufe (Median) | Bestand 🌰 | verdient passiv | verdient Ablehnen | ausgegeben (Neu würfeln) | Bestand in Minuten Produktion |',
-    '|---|---|---|---|---|---|---|',
+    '| Zeit | Stufe (Median) | Bestand 🌰 | verdient passiv | verdient Ablehnen | ausgegeben Pflanzen | ausgegeben Neu würfeln | Pflanzen (gesetzt / gekeimt) | Bestand in Minuten Produktion |',
+    '|---|---|---|---|---|---|---|---|---|',
   ];
   SAMPLE_MINUTES.forEach((minutes, i) => {
     const xs = summary.runs.map((r) => r.samples[i]).filter((s): s is Snapshot => s != null);
@@ -524,7 +614,7 @@ export function seedTable(summary: Summary): string {
     const m = (f: (s: Snapshot) => number) => mean(xs.map(f));
     const stage = STAGES[Math.round(median(xs.map((s) => s.stage)))]!.name;
     lines.push(
-      `| ${minutes} min | ${stage} | ${fmt(m((s) => s.seeds))} | ${fmt(m((s) => s.earnedPassive))} | ${fmt(m((s) => s.earnedDecline))} | ${fmt(m((s) => s.spent))} | ${fmt(m((s) => s.seeds) / Math.max(m((s) => s.seedsRate), 1e-9) / 60, 1)} |`,
+      `| ${minutes} min | ${stage} | ${fmt(m((s) => s.seeds))} | ${fmt(m((s) => s.earnedPassive))} | ${fmt(m((s) => s.earnedDecline))} | ${fmt(m((s) => s.spentPlants))} | ${fmt(m((s) => s.spent))} | ${fmt(m((s) => s.counts.plantsBought), 1)} / ${fmt(m((s) => s.counts.plantsTaken), 1)} | ${fmt(m((s) => s.seeds) / Math.max(m((s) => s.seedsRate), 1e-9) / 60, 1)} |`,
     );
   });
   return lines.join('\n');
@@ -532,14 +622,14 @@ export function seedTable(summary: Summary): string {
 
 export function miscTable(summaries: Summary[], stage: number): string {
   const lines = [
-    '| Strategie | Begegnungen | davon Nische voll | neu gewürfelt | abgelehnt | autom. abgelehnt | gewählt gewöhnlich / selten | eindeutig | keine Karte lohnt |',
-    '|---|---|---|---|---|---|---|---|---|',
+    '| Strategie | Begegnungen | davon Pflanzen | Tier: Nische voll | neu gewürfelt | abgelehnt | autom. abgelehnt | gewählt gewöhnlich / selten | Pflanzen gekeimt / gesetzt | eindeutig | keine Karte lohnt |',
+    '|---|---|---|---|---|---|---|---|---|---|---|',
   ];
   for (const s of summaries) {
     const c = stageStats(s, stage).counts;
     const d = decisionStats(s, stage);
     lines.push(
-      `| ${s.strategy.name} | ${fmt(c.encounters, 1)} | ${fmt(c.fullNiche, 1)} | ${fmt(c.rerolls, 1)} | ${fmt(c.declines, 1)} | ${fmt(c.autoDeclined, 1)} | ${fmt(c.rarityTaken[0]!, 1)} / ${fmt(c.rarityTaken[1]!, 1)} | ${fmt(d.obviousShare * 100)} % | ${fmt(d.allBadShare * 100)} % |`,
+      `| ${s.strategy.name} | ${fmt(c.encounters, 1)} | ${fmt(c.plantEncounters, 1)} | ${fmt(c.fullNiche, 1)} | ${fmt(c.rerolls, 1)} | ${fmt(c.declines, 1)} | ${fmt(c.autoDeclined, 1)} | ${fmt(c.rarityTaken[0]!, 1)} / ${fmt(c.rarityTaken[1]!, 1)} | ${fmt(c.plantsTaken, 1)} / ${fmt(c.plantsBought, 1)} | ${fmt(d.obviousShare * 100)} % | ${fmt(d.allBadShare * 100)} % |`,
     );
   }
   return lines.join('\n');

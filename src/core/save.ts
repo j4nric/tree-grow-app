@@ -1,12 +1,21 @@
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY, V1_KEEPSAKE_MIN_ENERGY, V1_KEEPSAKE_MIN_STAGE } from '../content/memory';
+import { PLANTS_BY_ID } from '../content/plants';
 import { SPECIES_BY_ID } from '../content/species';
 import { NICHE_IDS } from '../content/types';
-import { nicheSlots, stageForWaypoint, waypointsForGrowth } from './formulas';
+import { nicheSlots, plantCost, plantSlots, stageForWaypoint, waypointsForGrowth } from './formulas';
 import { isValidRngState, normalizeSeed } from './rng';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState, type GameState, type PendingEncounter } from './state';
 
 export const SAVE_KEY = 'tree-grow-save';
+
+/**
+ * v2 → v3: Prototyp-Stände (ohne Pflanzen) hatten keine Samen-Senke und bringen oft
+ * Tausende 🌰 mit. Beim Laden wird der Bestand auf die Kosten der ersten zwei Pflanzen
+ * begrenzt (20 + 38 = 58 🌰), damit niemand mit einem Schlag den Pflanzring füllt
+ * (Empfehlung DESIGN_V2.md 15.4).
+ */
+export const V2_SEED_CAP = plantCost(0) + plantCost(1);
 
 /** Ergebnis des Ladens: der Spielstand und ob er aus einem v1-Stand neu angelegt wurde. */
 export interface LoadResult {
@@ -38,7 +47,9 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
 
   const version = typeof data.version === 'number' && Number.isFinite(data.version) ? data.version : 1;
   if (version < 2) return migrateV1(data, now);
-  return { state: loadV2(data, now), migratedFromV1: false, keepsake: false };
+  const state = loadV2(data, now);
+  if (version < 3) migrateV2(state);
+  return { state, migratedFromV1: false, keepsake: false };
 }
 
 /** Wie loadGame, aber nur der Spielstand. */
@@ -63,7 +74,16 @@ function migrateV1(data: Record<string, unknown>, now: number): LoadResult {
   return { state, migratedFromV1: true, keepsake };
 }
 
-/** Robustes Laden eines v2-Stands (DESIGN_V2.md, 12.3). */
+/** v2 → v3: noch keine Pflanzen; Samen-Bestand begrenzen (siehe V2_SEED_CAP). */
+function migrateV2(state: GameState): void {
+  state.plants = [];
+  state.seeds = Math.min(state.seeds, V2_SEED_CAP);
+}
+
+/**
+ * Robustes Laden eines Stands ab v2 (DESIGN_V2.md, 12.3). Felder, die es in v2 noch
+ * nicht gab (Pflanzen), fehlen dort einfach und bleiben leer.
+ */
 function loadV2(data: Record<string, unknown>, now: number): GameState {
   const lastTick = finiteOr(data.lastTick, now);
   const state = createInitialState(now);
@@ -110,15 +130,25 @@ function loadV2(data: Record<string, unknown>, now: number): GameState {
     }
   }
 
+  // Begleitpflanzen: unbekannte IDs verwerfen (Duplikate sind erlaubt), auf den Pflanzring kürzen.
+  state.plants = stringArray(data.plants)
+    .filter((id) => PLANTS_BY_ID.has(id))
+    .slice(0, plantSlots(state.stage));
+
   // Offene Begegnungen: ungültige Karten entfernen, leere verwerfen, höchstens 3.
+  // Pflanzen-Begegnungen („Etwas keimt“) haben Pflanzen-IDs als Karten; alles andere
+  // (auch fehlender Typ) gilt als Tierbegegnung. Unbekannte Typen aus späteren
+  // Versionen verlieren so ihre Karten und fallen weg.
   if (Array.isArray(data.pendingEncounters)) {
     for (const raw of data.pendingEncounters) {
       if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) break;
       if (!isRecord(raw)) continue;
-      const cards = unique(stringArray(raw.cards).filter((id) => SPECIES_BY_ID.has(id))).slice(0, CARDS_PER_ENCOUNTER);
+      const type = raw.type === 'plant' ? 'plant' : 'animal';
+      const known = type === 'plant' ? PLANTS_BY_ID : SPECIES_BY_ID;
+      const cards = unique(stringArray(raw.cards).filter((id) => known.has(id))).slice(0, CARDS_PER_ENCOUNTER);
       if (cards.length === 0) continue;
       const encounter: PendingEncounter = {
-        type: 'animal',
+        type,
         cards,
         rerolls: Math.max(0, Math.floor(finiteOr(raw.rerolls, 0))),
       };

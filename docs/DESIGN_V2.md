@@ -198,25 +198,25 @@ fallen auf feste Wegpunkte.
 Wegpunkt k liegt bei  4 · k^3,4  Gesamt-Wachstum
 ```
 
-| # | Stufe | ab Wegpunkt | Gesamt-🌿 | Gesamt-🌿 Prototyp² | Ziel-Spielzeit* | Prototyp (Simulation 15.4) | Begegnungen im Abschnitt | neu |
+| # | Stufe | ab Wegpunkt | Gesamt-🌿 | Gesamt-🌿 im Code² | Ziel-Spielzeit* | im Code (Simulation 15.4) | Begegnungen im Abschnitt | neu |
 |---|---|---|---|---|---|---|---|---|
 | 0 | Samen | – | 0 | 0 | – | – | – | – |
 | 1 | Keimling | 1 | 4 | 4 | < 30 s | 4 s | 2 | Wurzelraum (1); erste Karten |
-| 2 | Setzling | 3 | 168 | 135 | ~ 1 min | 49 s | 3 | Laubstreu, Waldsaum; Pflanzen setzen |
-| 3 | Junger Baum | 6 | 1.769 | 1.236 | ~ 4–5 min | 4:09 min | 6 | Krone, Stamm & Rinde; Ereignisse; Gattungsboni sichtbar |
-| 4 | Alter Baum | 12 | 18.676 | 11.362 | ~ 20 min | 21:02 min | 8 | Höhlen & Totholz; Durchreisende; Eicheln (Nüsse) |
-| 5 | Hain | 20 | 106.063 | 58.258 | ~ 60 min | 1:01 h | 8 | legendäre Arten; **Neuer Zyklus möglich** |
-| 6 | Wald | 28 | 332.964 | 170.988 | ~ 1:40 h | 1:59 h | 8 | Wolf; mehr Plätze |
-| 7 | Urwald | 36 | 782.507 | 382.145 | ~ 2:20 h | 3:12 h | – | Harmoniestufe „Urwald“ färbt die Szene |
+| 2 | Setzling | 3 | 168 | 147 | ~ 1 min | 45 s | 3 | Laubstreu, Waldsaum; Pflanzen setzen |
+| 3 | Junger Baum | 6 | 1.769 | 1.548 | ~ 4–5 min | 3:46 min | 6 | Krone, Stamm & Rinde; Ereignisse; Gattungsboni sichtbar |
+| 4 | Alter Baum | 12 | 18.676 | 16.341 | ~ 20 min | 20:19 min | 8 | Höhlen & Totholz; Durchreisende; Eicheln (Nüsse) |
+| 5 | Hain | 20 | 106.063 | 92.805 | ~ 60 min | 1:00 h | 8 | legendäre Arten; **Neuer Zyklus möglich** |
+| 6 | Wald | 28 | 332.964 | 291.344 | ~ 1:40 h | 2:05 h | 8 | Wolf; mehr Plätze |
+| 7 | Urwald | 36 | 782.507 | 684.694 | ~ 2:20 h | 3:33 h | – | Harmoniestufe „Urwald“ färbt die Szene |
 
 \* für einen harmonie-orientierten Spieler, der jede Begegnung sofort auflöst
 (Simulation, Abschnitt 15). Gegenüber v1 (Setzling 2 min, Junger Baum 8 min) ist der
 Anfang schneller: Die ersten Karten sollen sofort kommen.
 
-² **Prototyp ohne Pflanzen** (`src/content/waypoints.ts`): Wegpunkt k liegt bei
-`4 · k^3,2`. Ohne den Schub der Begleitpflanzen hätte der Harmonie-Spieler mit `k^3,4`
-den Hain erst nach ~1:49 h erreicht. Mit Schritt 2.1 (Pflanzen) geht der Exponent
-zurück auf 3,4 – siehe 15.4.
+² **Im Code seit Schritt 2.1** (`src/content/waypoints.ts`): Wegpunkt k liegt bei
+`3,5 · k^3,4` – Exponent wie im Design, Basis 12,5 % kleiner, weil mit 9 statt 32 Arten
+Harmonie und Wachstum unter dem vollen Design bleiben (mit Basis 4: Hain nach 1:09 h).
+Der Prototyp ohne Pflanzen (Schritt 1) lief mit `4 · k^3,2` – siehe 15.4.
 
 ### Nischen und Plätze
 
@@ -514,9 +514,10 @@ Bedingung oder Partnerschaft.
 | Alter Baum | 55 % | 20 % | 15 % | 10 % | ~4:20 min |
 | Hain, Wald, Urwald | 55 % | 20 % | 15 % | 10 % | ~5:15 min |
 
-Prototyp (nur Tierbegegnungen, keine Pflanzen; Simulation 15.4, Median der Wartezeit
-je Begegnung): Keimling 22 s · Setzling 1:04 min · Junger Baum 2:42 min · Alter Baum
-4:45 min · Hain 7:11 min · Wald 9:01 min.
+Im Code (Schritt 2.1: Tier- und Pflanzenbegegnungen, noch ohne Ereignisse und
+Durchreisende; Simulation 15.4, Median der Wartezeit je Begegnung): Keimling 20 s ·
+Setzling 55 s · Junger Baum 2:46 min · Alter Baum 4:59 min · Hain 8:12 min · Wald
+11:21 min.
 
 Bis zum Hain sind es 20 Begegnungen (~12 Tiere), bis zum Urwald 36. Zwischen den
 Begegnungen gibt es Samen-Entscheidungen (Pflanze setzen, Pflege).
@@ -1077,29 +1078,165 @@ in allem besser und deutlich vorn.
 - **Samen** sind bis zum Hain knapp genug, dass Pflanzenkäufe 0,5–2 Minuten Produktion
   kosten; Pflegemaßnahmen (nicht simuliert) werden sie zusätzlich binden.
 
-### 15.4 Prototyp auf echter Logik
+### 15.4 Simulation auf echter Logik
 
-`scripts/simulate.ts` spielt den Prototyp mit der **echten Spiellogik** aus `src/core/`
-(`tick`, `chooseCard`, `declineEncounter`, `rerollEncounter`, `evaluate`,
-`previewChoice`, `cardStatus`): nur Tierbegegnungen, 9 Arten, keine Pflanzen. Der
-Spieler löst jede Begegnung sofort auf; die Zeit läuft von Wegpunkt zu Wegpunkt (dazu
-Zwischenstopps für den Samen-Verlauf). Strategien wie in 15.1 (ohne Pilze/Säugetiere):
-zufällig, gierig nach Harmonie bzw. Wachstum (nimmt die beste Platzierung, wenn sie
-verbessert, sonst einmal neu würfeln, sonst ablehnen), immer die seltenste Karte,
-je Gattung stapeln (ersetzt nie ein eigenes Tier).
+`scripts/simulate.ts` spielt das Spiel mit der **echten Spiellogik** aus `src/core/`
+(`tick`, `chooseCard`, `declineEncounter`, `rerollEncounter`, `plantSeed`, `evaluate`,
+`previewChoice`, `previewPlant`, `cardStatus`): seit Schritt 2.1 mit Tier- **und**
+Pflanzenbegegnungen („Etwas keimt“), Pflanzen setzen und Licht/Wasser-Versorgung;
+weiterhin 9 Arten, keine Ereignisse, Durchreisenden, Lebensgemeinschaften und
+Pflegemaßnahmen. Der Spieler löst jede Begegnung sofort auf; die Zeit läuft von
+Wegpunkt zu Wegpunkt bzw. bis zum nächsten Pflanzenkauf (dazu Zwischenstopps für den
+Samen-Verlauf). Strategien wie in 15.1 (ohne Pilze/Säugetiere): zufällig, gierig nach
+Harmonie bzw. Wachstum (nimmt die beste Platzierung, wenn sie verbessert, sonst bei
+Tierbegegnungen einmal neu würfeln, sonst ablehnen), immer die seltenste Karte, je
+Gattung stapeln (ersetzt nie ein eigenes Tier). Pflanzenkarten wählen alle außer dem
+Zufallsspieler wie der Harmonie-Spieler. **Pflanzen setzen:** Sobald die Samen für
+`20 · 1,9^n` reichen und der Ring Platz hat, setzt jede Strategie die Pflanze, die ihr
+Maß (Harmonie bzw. Wachstum) am stärksten verbessert – nichts, wenn keine verbessert;
+der Zufallsspieler setzt irgendeine freigeschaltete Pflanze (wie `scripts/v2/sim.ts`).
 
 ```bash
-SIM_LOG=1 npx vitest run tests/balance.test.ts                 # 100 Durchgänge, ~2 s
-SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts    # Tabellen unten, ~9 s
+SIM_LOG=1 npx vitest run tests/balance.test.ts                 # 100 Durchgänge, ~8 s
+SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts    # Tabellen unten, ~35 s
 ```
 
 `tests/balance.test.ts` prüft großzügig: alle Strategien erreichen den Hain ohne NaN;
 deterministisch; Harmonie-Spieler: Stufenzeiten 0,7–1,35 × Ziel (Keimling < 30 s),
 Takt bis Hain im Median 10 s – 8 min und nie über 15 min; Harmonie-Strategie hat die
-höchste Harmonie (±0,5), Zufall ist spürbar schlechter; kein Gattungs-Stapeln ist
-deutlich (> 10 %) schneller und zugleich mindestens so harmonisch; Wachstums-Streben
-ist schneller, aber höchstens 25 %, und behält ≥ 85 % der Harmonie; der Zufallsspieler
-hat 30–98 % echte Wahlen.
+höchste Harmonie (±1, vorher ±0,5 – siehe Bewertung), Zufall ist spürbar schlechter;
+kein Gattungs-Stapeln ist deutlich (> 10 %) schneller und zugleich mindestens so
+harmonisch; Wachstums-Streben ist schneller, aber höchstens 25 %, und behält ≥ 85 % der
+Harmonie; der Zufallsspieler hat 30–98 % echte Wahlen; jede Strategie setzt und pflanzt
+bis zum Hain (≥ 4 Pflanzen, Samen fließen in Pflanzen), der Harmonie-Spieler hält die
+Versorgung über 90 %.
+
+#### Stand Schritt 2.1: Pflanzen (500 Durchgänge je Strategie)
+
+**Geänderte Zahlen:** `WAYPOINT_POWER` zurück auf **3,4** (Design), dafür
+`WAYPOINT_BASE` 4 → **3,5** (`src/content/waypoints.ts`). Alle Pflanzen-, Tier-,
+Stufen- und Begegnungszahlen sind unverändert die aus `scripts/v2/content.ts`
+(Inhaltstest prüft das). Begründung: Mit Pflanzen, aber nur 9 statt 32 Arten liegt der
+Harmonie-Spieler beim Hain bei ⚖️ 78 und ~47 🌿/s statt ⚖️ 96 und ~69 🌿/s im vollen
+Design; mit Basis 4 dauerte der Hain 1:09 h (Alter Baum 23:12 min). Die kleinere Basis
+holt alle Wegpunkte gleichmäßig um 12,5 % nach vorn (Hain 92.805 statt 106.063 🌿),
+ohne das Verhältnis der Strategien zu verändern. Mit Schritt 2.2 (32 Arten) erneut
+prüfen und wenn möglich zurück auf 4.
+
+| Harmonie-Spieler | Ziel | Prototyp (k^3,2, ohne Pflanzen) | Pflanzen, 4 · k^3,4 | **Pflanzen, 3,5 · k^3,4** |
+|---|---|---|---|---|
+| Keimling | < 30 s | 4 s | 4 s | **4 s** |
+| Setzling | ~ 1 min | 49 s | 51 s | **45 s** |
+| Junger Baum | ~ 4 min | 4:09 min | 4:16 min | **3:46 min** |
+| Alter Baum | ~ 20 min | 21:02 min | 23:12 min | **20:19 min** |
+| Hain | ~ 60 min | 1:01 h | 1:09 h | **1:00 h** |
+| Wald | (~ 1:40 h) | 1:59 h | 2:22 h | **2:05 h** |
+| Urwald | (~ 2:20 h) | 3:12 h | 4:03 h | **3:33 h** |
+| Takt im Alter Baum / Hain (Median) | ~ 4–5 min | 4:45 / 7:11 min | 5:42 / 9:22 min | **4:59 / 8:12 min** |
+
+**Strategien beim Erreichen des Hains**
+
+| Strategie | Hain nach (Median) | ⚖️ Harmonie | 🌿/s | 🌰/s | Ø Zufriedenheit | Tiere V/I/B | Pflanzen | Versorgung | echte Wahl |
+|---|---|---|---|---|---|---|---|---|---|
+| Zufällig | 1:15 h | 71,8 | 38,3 | 10,99 | 79 % | 2,6 / 3,0 / 2,3 | 5,0 | 95 % | 87 % |
+| Gierig nach Harmonie | 1:00 h | 78,4 | 47,1 | 6,19 | 90 % | 1,7 / 1,7 / 3,0 | 5,0 | 100 % | 53 % |
+| Gierig nach Wachstum | 56:35 min | 74,2 | 48,8 | 5,95 | 87 % | 2,0 / 2,5 / 3,0 | 5,0 | 100 % | 68 % |
+| Immer die seltenste Karte | 1:01 h | 78,7 | 45,1 | 8,98 | 88 % | 2,4 / 2,7 / 2,5 | 5,0 | 99 % | 71 % |
+| Vögel stapeln | 1:03 h | 78,8 | 44,4 | 7,05 | 90 % | 2,5 / 2,0 / 2,5 | 5,0 | 99 % | 57 % |
+| Insekten stapeln | 1:03 h | 78,9 | 48,7 | 8,81 | 88 % | 2,0 / 3,0 / 3,0 | 5,0 | 100 % | 75 % |
+| Bodenleben stapeln | 59:23 min | 77,2 | 46,4 | 5,90 | 89 % | 1,3 / 1,3 / 3,0 | 5,0 | 99 % | 67 % |
+
+**Stufen und Takt – Gierig nach Harmonie** (Kennzahlen beim Erreichen der Stufe, vor der
+Wahl an diesem Wegpunkt; Takt = Wartezeit je Begegnung *während* der Stufe)
+
+| Stufe | Ziel | Median | 10–90 % | ⚖️ | 🌿/s | 🌰/s | Ø Zufr. | Tiere / Pflanzen | Begegnungen im Abschnitt | Takt Median | Takt max |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Keimling | < 30 s | 4 s | 4 s – 4 s | 5 | 2,1 | 0,16 | 0 % | 0,0 / 0,0 | 2,0 | 20 s | 30 s |
+| Setzling | ~ 1 min | 45 s | 45 s – 45 s | 50 | 6,1 | 0,67 | 100 % | 1,0 / 1,0 | 3,0 | 55 s | 1:30 min |
+| Junger Baum | ~ 4 min | 3:46 min | 3:37 min – 3:46 min | 62 | 12,5 | 2,10 | 95 % | 2,0 / 2,0 | 6,0 | 2:46 min | 5:10 min |
+| Alter Baum | ~ 20 min | 20:19 min | 20:01 min – 21:02 min | 70 | 23,4 | 3,34 | 84 % | 4,7 / 3,0 | 8,0 | 4:59 min | 9:25 min |
+| Hain | ~ 60 min | 1:00 h | 59:52 min – 1:03 h | 78 | 47,1 | 6,19 | 90 % | 6,4 / 5,0 | 8,0 | 8:12 min | 14:30 min |
+| Wald | – | 2:05 h | 2:03 h – 2:08 h | 81 | 72,1 | 11,48 | 89 % | 8,0 / 7,0 | 8,0 | 11:21 min | 18:04 min |
+| Urwald | – | 3:33 h | 3:31 h – 3:37 h | 82 | 100,6 | 18,64 | 87 % | 8,4 / 8,9 | – | – | – |
+
+Der Zufallsspieler braucht 23:16 min bis zum Alter Baum und 1:15 h bis zum Hain.
+
+**Samen über die Zeit – Gierig nach Harmonie**
+
+| Zeit | Stufe (Median) | Bestand 🌰 | verdient passiv | verdient Ablehnen | ausgegeben Pflanzen | ausgegeben Neu würfeln | Pflanzen (gesetzt / gekeimt) | Bestand in Minuten Produktion |
+|---|---|---|---|---|---|---|---|---|
+| 5 min | Junger Baum | 422 | 507 | 9 | 92 | 2 | 1,7 / 1,6 | 2,8 |
+| 10 min | Junger Baum | 1189 | 1273 | 14 | 92 | 7 | 1,7 / 1,8 | 7,7 |
+| 20 min | Junger Baum | 2744 | 2829 | 22 | 96 | 11 | 1,8 / 1,8 | 17,3 |
+| 30 min | Alter Baum | 5843 | 6290 | 25 | 455 | 17 | 3,5 / 2,3 | 16,4 |
+| 45 min | Alter Baum | 10925 | 11367 | 36 | 455 | 23 | 3,5 / 2,5 | 33,0 |
+| 60 min | Alter Baum | 15766 | 16327 | 45 | 579 | 27 | 3,7 / 2,7 | 45,6 |
+| 90 min | Hain | 29957 | 31662 | 57 | 1734 | 29 | 5,2 / 3,5 | 53,1 |
+| 120 min | Hain | 47023 | 48723 | 71 | 1742 | 30 | 5,2 / 3,8 | 82,3 |
+| 180 min | Wald | 94594 | 100255 | 93 | 5723 | 31 | 6,6 / 4,9 | 104,2 |
+
+**Begegnungen bis Hain (Mittel je Durchgang)** – „eindeutig“ und „keine Karte lohnt“
+beziehen sich auf Begegnungen mit mindestens zwei spielbaren Karten (Tier und Pflanze).
+
+| Strategie | Begegnungen | davon Pflanzen | Tier: Nische voll | neu gewürfelt | abgelehnt | autom. abgelehnt | gewählt gewöhnlich / selten | Pflanzen gekeimt / gesetzt | eindeutig | keine Karte lohnt |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Zufällig | 19,0 | 5,6 | 8,6 | 0,0 | 3,1 | 0,0 | 8,8 / 2,7 | 4,5 / 3,5 | 9 % | 4 % |
+| Gierig nach Harmonie | 19,0 | 5,6 | 7,8 | 2,7 | 8,9 | 0,0 | 5,5 / 1,9 | 2,7 / 3,5 | 12 % | 35 % |
+| Gierig nach Wachstum | 19,0 | 5,6 | 9,0 | 1,2 | 6,2 | 0,0 | 7,2 / 2,0 | 3,6 / 3,5 | 10 % | 22 % |
+| Immer die seltenste Karte | 19,0 | 5,6 | 8,9 | 0,0 | 2,6 | 0,0 | 9,1 / 4,2 | 3,0 / 3,5 | 4 % | 25 % |
+| Vögel stapeln | 19,0 | 5,6 | 7,8 | 3,0 | 5,0 | 0,0 | 7,9 / 3,4 | 2,7 / 3,5 | 13 % | 31 % |
+| Insekten stapeln | 19,0 | 5,6 | 6,1 | 0,6 | 7,5 | 0,0 | 7,0 / 2,0 | 2,6 / 3,4 | 9 % | 16 % |
+| Bodenleben stapeln | 19,0 | 5,7 | 7,6 | 6,8 | 5,9 | 0,0 | 6,9 / 3,4 | 2,8 / 3,5 | 10 % | 23 % |
+
+**Abweichungen vom Design (Schritt 2.1)**
+
+- **Wegpunkt-Basis 3,5 statt 4** (siehe oben).
+- **Begegnungsgewichte:** Ereignisse und Durchreisende gibt es noch nicht (Schritt 2.4).
+  Ihre Spalten in `ENCOUNTER_WEIGHTS` zählen beim Ziehen nicht; Tier und Pflanze
+  gelten im Verhältnis ihrer Gewichte: Keimling/Setzling 60 : 40, Junger Baum 60 : 25
+  (≈ 71 % Tier), ab Alter Baum 55 : 20 (≈ 73 % Tier). Bis zum Hain sind das ~5,6
+  Pflanzen- und ~13,4 Tierbegegnungen. Die Einführung (Wegpunkt 1–3: Tier, Pflanze, Tier)
+  ist wie im Design. Kommt für eine Tierbegegnung keine Art in Frage, gibt es „Etwas
+  keimt“ (und umgekehrt).
+- **Ablehnen / Neu würfeln** bleiben fest bei +5 🌰 bzw. 10 🌰 · 2^Würfe (statt 25 % /
+  50 % der nächsten Pflanze) – wird separat umgestellt; Pflanzenbegegnungen lassen sich
+  wie Tierbegegnungen neu würfeln.
+- **Pflanze setzen bei vollem Ring** ist nicht möglich (`'ring-full'`); ersetzen geht
+  nur über „Etwas keimt“ (Karte wählen und eine Pflanze im Ring nennen).
+- **Migration v2 → v3:** Samen-Bestand aus Prototyp-Ständen wird auf die Kosten der
+  ersten zwei Pflanzen begrenzt (20 + 38 = 58 🌰), Pflanzenring leer.
+
+**Bewertung**
+
+- **Tempo:** Setzling 45 s, Junger Baum 3:46 min, Alter Baum 20:19 min, Hain 1:00 h –
+  alle Ziele getroffen. Wald/Urwald (2:05 h / 3:33 h) bleiben langsamer als im vollen
+  Design; dort fehlen Inhalte (Arten, Lebensgemeinschaften).
+- **Takt:** früh 20 s – 1 min, Junger Baum ~2:45 min, Alter Baum ~5 min, Hain ~8 min
+  (max. 14:30 min). Im Hain etwas zäh wie im Prototyp – Ereignisse und Durchreisende
+  (2.4) verdichten den Takt.
+- **Pflanzen wirken:** Harmonie beim Hain ⚖️ 78 statt 56 im Prototyp, 🌰/s ~4× so hoch
+  (6,2 statt 1,5) – Blumen und Sträucher liefern die Samen, wie im Design gedacht. Der
+  Harmonie-Spieler hält die Versorgung bei 100 %; der Zufallsspieler setzt auch
+  lichthungrige Bäume und landet bei 95 %.
+- **Strategien:** Wachstums-Streben ist ~6 % schneller und behält 95 % der Harmonie.
+  Kein Stapeln dominiert (alle langsamer als der Harmonie-Spieler). Neu: Vögel und
+  Insekten stapeln erreichen ~0,5 Punkte **mehr** Harmonie als das kurzsichtige
+  Harmonie-Streben, weil sie Karten nehmen, die erst später (mit Pflanzen und Räubern)
+  Harmonie bringen; der Harmonie-Spieler lehnt dagegen ~9 von 19 Begegnungen ab. Der
+  Test lässt darum ±1 Punkt zu. Seltenheit bleibt kein Selbstzweck (gleich harmonisch,
+  langsamer).
+- **Echte Wahl:** Zufallsspieler 87 %, Harmonie-Spieler 53 %; in 35 % der Begegnungen
+  lohnt für ihn keine Karte (meist Tierkarten nach ~7 Tieren) – mit 32 Arten (2.2)
+  erwartbar besser.
+- **Samen-Senke – noch zu schwach:** Pflanzen binden bis zum Hain nur ~1.700 von
+  ~31.700 verdienten 🌰. Der Pflanzring ist der Engpass: Ist er voll (Alter Baum ab
+  ~30 min: 5 Plätze), gibt es nichts mehr zu kaufen, und der Bestand wächst auf ~45
+  (60 min) bzw. ~80 Minuten Produktion (120 min). Die Kosten 20 · 1,9^n sind für die
+  ersten Pflanzen spürbar (die zweite Pflanze kostet im Setzling ~1 min Produktion),
+  später nicht mehr. Abhilfe in späteren Schritten: Ablehnen/Neu würfeln an die
+  Pflanzenkosten koppeln (7.1), Pflegemaßnahmen (8), evtl. „Pflanze ersetzen“ mit Samen.
+
+#### Stand Schritt 1: Prototyp ohne Pflanzen (historisch)
 
 **Geänderte Zahl:** `WAYPOINT_POWER` 3,4 → **3,2** (`src/content/waypoints.ts`), sonst
 nichts. Begründung: Ohne Pflanzen liegt der Harmonie-Spieler beim Hain bei ~32 🌿/s und
@@ -1211,7 +1348,8 @@ Bestand ohnehin groß; zudem prüfen die e2e-Tests genau diese Werte. Nebenwirku
 Neu würfeln ist ab ~5 min praktisch gratis (erst der 5.–6. Wurf in derselben Begegnung
 kostet spürbar) – mit nur 9 Arten bringt das aber wenig.
 
-**Geplante Anpassung mit den Pflanzen (Schritt 2.1):**
+**Geplante Anpassung mit den Pflanzen (Schritt 2.1)** – umgesetzt: 1. (Exponent 3,4,
+dazu Basis 3,5) und 3. (Samen-Grenze 58 🌰 beim Laden); 2. ist noch offen:
 
 1. `WAYPOINT_POWER` zurück auf **3,4** (Design-Kurve), Simulation erneut laufen lassen;
    Ziel bleibt Hain ~60 min für den Harmonie-Spieler.

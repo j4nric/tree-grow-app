@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { CARDS_PER_ENCOUNTER, DECLINE_SEEDS, MAX_PENDING_ENCOUNTERS, RARITY_WEIGHTS, REROLL_BASE_COST } from '../src/content/encounters';
+import {
+  CARDS_PER_ENCOUNTER,
+  DECLINE_SEEDS,
+  ENCOUNTER_WEIGHTS,
+  MAX_PENDING_ENCOUNTERS,
+  RARITY_WEIGHTS,
+  REROLL_BASE_COST,
+  SCRIPTED_ENCOUNTERS,
+} from '../src/content/encounters';
 import { NICHES, NICHES_BY_ID } from '../src/content/niches';
+import { PLANTS, PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, PLANT_GROUP_INFO } from '../src/content/plants';
 import { BASE_HAPPINESS, GENUS_INFO, RARITY_NAMES, SPECIES, TAG_NAMES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../src/content/traits';
-import { GENERA, NICHE_IDS, PLANT_GROUPS } from '../src/content/types';
+import { ENCOUNTER_TYPES, GENERA, NICHE_IDS, PLANT_GROUPS } from '../src/content/types';
+import { plantCost } from '../src/core/formulas';
 import { WAYPOINT_BASE, WAYPOINT_COUNT, WAYPOINT_POWER, WAYPOINT_THRESHOLDS, waypointThreshold } from '../src/content/waypoints';
 import * as reference from '../scripts/v2/content';
 
@@ -16,6 +26,10 @@ describe('Inhalte v2', () => {
     expect(unique(SPECIES.map((s) => s.name))).toBe(true);
     expect(unique(NICHES.map((n) => n.id))).toBe(true);
     expect(unique(STAGES.map((s) => s.id))).toBe(true);
+    expect(unique(PLANTS.map((p) => p.id))).toBe(true);
+    expect(unique(PLANTS.map((p) => p.name))).toBe(true);
+    // Pflanzen- und Art-IDs überschneiden sich nicht (eindeutig im Tagebuch und in Karten).
+    expect(unique([...SPECIES.map((s) => s.id), ...PLANTS.map((p) => p.id)])).toBe(true);
   });
 
   it('der Prototyp hat 3 Gattungen × 3 Arten, je mindestens 2 gewöhnliche', () => {
@@ -69,6 +83,18 @@ describe('Inhalte v2', () => {
       });
       expect(s.effects).toEqual(ref.effects);
     }
+    expect(PLANTS.map((p) => p.id)).toEqual(reference.PLANTS.map((p) => p.id));
+    for (const p of PLANTS) {
+      const ref = reference.PLANTS.find((r) => r.id === p.id)!;
+      expect({ ...p, provides: [...p.provides] }, p.id).toEqual({ ...ref, provides: [...ref.provides] });
+    }
+    for (const g of PLANT_GROUPS) expect(PLANT_GROUP_INFO[g].name).toBe(reference.GROUP_NAMES[g]);
+    expect(STAGES.map((s) => s.plantSlots)).toEqual([...reference.PLANT_SLOTS]);
+    expect(PLANT_COST_BASE).toBe(reference.PLANT_COST_BASE);
+    expect(PLANT_COST_GROWTH).toBe(reference.PLANT_COST_GROWTH);
+    for (let n = 0; n < 12; n++) expect(plantCost(n)).toBeCloseTo(reference.plantCost(n), 9);
+    expect(ENCOUNTER_WEIGHTS).toEqual(reference.ENCOUNTER_WEIGHTS);
+    expect(SCRIPTED_ENCOUNTERS).toEqual(reference.SCRIPTED_ENCOUNTERS);
     STAGES.forEach((stage, i) => {
       expect(stage.name).toBe(reference.STAGE_NAMES[i]);
       expect(stage.waypoint).toBe(reference.STAGE_WAYPOINTS[i]);
@@ -83,10 +109,10 @@ describe('Inhalte v2', () => {
     expect(TRAIT_THRESHOLDS).toEqual(reference.TRAIT_THRESHOLDS);
     expect(RARITY_WEIGHTS).toEqual(reference.RARITY_WEIGHTS);
     expect(WAYPOINT_COUNT).toBe(reference.WAYPOINT_COUNT);
-    // Bewusste Abweichung: Der Prototyp ohne Pflanzen nutzt einen flacheren Exponenten
-    // (DESIGN_V2.md 15.4); die Wegpunkte liegen darum früher, nie später als im Design.
-    expect(WAYPOINT_BASE).toBe(reference.WAYPOINT_BASE);
-    expect(WAYPOINT_POWER).toBeLessThanOrEqual(reference.WAYPOINT_POWER);
+    // Exponent wie im Design. Bewusste Abweichung: Mit 9 statt 32 Arten liegen die
+    // Wegpunkte um 12,5 % früher (Basis 3,5 statt 4, DESIGN_V2.md 15.4) – nie später.
+    expect(WAYPOINT_POWER).toBe(reference.WAYPOINT_POWER);
+    expect(WAYPOINT_BASE).toBeLessThanOrEqual(reference.WAYPOINT_BASE);
     for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(waypointThreshold(k)).toBeLessThanOrEqual(reference.waypointThreshold(k));
   });
 
@@ -100,6 +126,57 @@ describe('Inhalte v2', () => {
     for (const s of SPECIES) {
       for (const e of s.effects) if (e.kind === 'slot') expect(NICHES_BY_ID.has(e.niche) && e.amount > 0).toBe(true);
     }
+  });
+
+  it('Platz-Wirkungen betreffen nie die eigene Nische (sonst könnte eine Art sich selbst Platz machen)', () => {
+    for (const s of SPECIES) {
+      for (const e of s.effects) if (e.kind === 'slot') expect(e.niche, s.id).not.toBe(s.niche);
+    }
+  });
+
+  it('Pflanzen: gültige Gruppen, Merkmale, Freischaltung und Zahlen', () => {
+    for (const p of PLANTS) {
+      expect(PLANT_GROUPS, p.id).toContain(p.group);
+      expect(PLANT_GROUP_INFO[p.group]).toBeDefined();
+      expect(p.unlock, p.id).toBeGreaterThanOrEqual(1);
+      expect(p.unlock, p.id).toBeLessThan(STAGES.length);
+      // Ab der Freischaltung gibt es Platz im Pflanzring.
+      expect(STAGES[p.unlock]!.plantSlots, p.id).toBeGreaterThan(0);
+      for (const t of p.provides) expect(TAG_NAMES[t], `${p.id}: Merkmal ${t}`).toBeDefined();
+      expect(p.provides.length, p.id).toBeGreaterThan(0);
+      for (const n of [p.growth, p.seeds, p.light, p.water]) expect(Number.isFinite(n), p.id).toBe(true);
+      expect(p.growth).toBeGreaterThan(0);
+      expect(p.seeds).toBeGreaterThan(0);
+      expect(p.light).toBeGreaterThanOrEqual(0);
+      expect(p.text.length).toBeGreaterThan(0);
+      expect(PLANTS_BY_ID.get(p.id)).toBe(p);
+    }
+    // Jede Gruppe ist vertreten; ab dem Keimling kann immer etwas keimen.
+    for (const g of PLANT_GROUPS) expect(PLANTS.some((p) => p.group === g), g).toBe(true);
+    expect(PLANTS.filter((p) => p.unlock <= 1).length).toBeGreaterThan(0);
+    // Was Tiere fressen oder sich wünschen, bietet irgendwer an (Hauptbaum, Pflanze oder Tier).
+    const offered = new Set([...PLANTS.flatMap((p) => p.provides), ...SPECIES.flatMap((s) => s.provides), 'laub', 'wurzeln', 'nuesse']);
+    for (const s of SPECIES) {
+      for (const t of s.food) expect(offered.has(t), `${s.id}: Nahrung ${t}`).toBe(true);
+      for (const c of s.needs) if (c.kind === 'tag') expect(offered.has(c.tag), `${s.id}: Wunsch ${c.tag}`).toBe(true);
+    }
+  });
+
+  it('Pflanzring wächst mit der Stufe', () => {
+    expect(STAGES[0]!.plantSlots).toBe(0);
+    for (let i = 1; i < STAGES.length; i++) expect(STAGES[i]!.plantSlots).toBeGreaterThanOrEqual(STAGES[i - 1]!.plantSlots);
+  });
+
+  it('Begegnungsgewichte: je Stufe, Spalten wie ENCOUNTER_TYPES, Tier und Pflanze immer möglich', () => {
+    expect(ENCOUNTER_WEIGHTS).toHaveLength(STAGES.length);
+    expect(ENCOUNTER_TYPES).toEqual(['animal', 'plant', 'event', 'visitor']);
+    for (const w of ENCOUNTER_WEIGHTS) {
+      expect(w).toHaveLength(ENCOUNTER_TYPES.length);
+      expect(w[0]).toBeGreaterThan(0);
+      expect(w[1]).toBeGreaterThan(0);
+      for (const x of w) expect(x).toBeGreaterThanOrEqual(0);
+    }
+    for (const t of SCRIPTED_ENCOUNTERS) expect(['animal', 'plant']).toContain(t);
   });
 
   it('Stufen, Nischen und Wegpunkte passen zusammen', () => {
@@ -119,7 +196,8 @@ describe('Inhalte v2', () => {
     for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(WAYPOINT_THRESHOLDS[k]).toBeGreaterThan(WAYPOINT_THRESHOLDS[k - 1]!);
     expect(waypointThreshold(0)).toBe(0);
     expect(waypointThreshold(1)).toBe(4);
-    expect(waypointThreshold(3)).toBe(135);
+    expect(waypointThreshold(3)).toBe(147);
+    expect(waypointThreshold(20)).toBe(92805);
     expect(RARITY_WEIGHTS).toHaveLength(STAGES.length);
   });
 

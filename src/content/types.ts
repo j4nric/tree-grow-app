@@ -7,7 +7,7 @@
 export type Genus = 'birds' | 'insects' | 'soil';
 export const GENERA: readonly Genus[] = ['birds', 'insects', 'soil'];
 
-/** Pflanzengruppen. Im Prototyp gibt es nur den Hauptbaum (zählt als Baum). */
+/** Pflanzengruppen der Begleitpflanzen (der Hauptbaum zählt als Baum). */
 export type PlantGroup = 'trees' | 'shrubs' | 'flowers' | 'mosses';
 export const PLANT_GROUPS: readonly PlantGroup[] = ['trees', 'shrubs', 'flowers', 'mosses'];
 
@@ -21,7 +21,7 @@ export type Level = 'herbivore' | 'predator' | 'decomposer';
 export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows';
 export const NICHE_IDS: readonly NicheId[] = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows'];
 
-/** Nahrungs- und Lebensraum-Merkmale. Hauptbaum und Tiere stellen sie bereit. */
+/** Nahrungs- und Lebensraum-Merkmale. Hauptbaum, Begleitpflanzen und Tiere stellen sie bereit. */
 export type Tag =
   | 'laub'
   | 'wurzeln'
@@ -29,6 +29,7 @@ export type Tag =
   | 'nadeln'
   | 'beeren'
   | 'nektar'
+  | 'kraut'
   | 'feucht'
   | 'totholz'
   | 'hoehle'
@@ -61,3 +62,11 @@ export type Effect =
    * von ihrer Zufriedenheit. Öffnet nur Nischen mit `opensEarly` vor ihrer Stufe.
    */
   | { kind: 'slot'; niche: NicheId; amount: number };
+
+/**
+ * Begegnungstypen (DESIGN_V2.md, Abschnitt 7). Reihenfolge = Spalten in
+ * ENCOUNTER_WEIGHTS. Umgesetzt sind „Tier zieht ein“ und „Etwas keimt“; Ereignisse und
+ * Durchreisende folgen in Schritt 2.4 (bis dahin zählen ihre Gewichte nicht).
+ */
+export type EncounterType = 'animal' | 'plant' | 'event' | 'visitor';
+export const ENCOUNTER_TYPES: readonly EncounterType[] = ['animal', 'plant', 'event', 'visitor'];

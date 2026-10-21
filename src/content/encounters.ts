@@ -1,5 +1,7 @@
+import type { EncounterType } from './types';
+
 /**
- * Begegnungen im Prototyp: nur „Tier zieht ein“ (docs/DESIGN_V2.md, Abschnitt 7).
+ * Begegnungen (docs/DESIGN_V2.md, Abschnitt 7): „Tier zieht ein“ und „Etwas keimt“.
  * Samen-Kosten und -Erträge sind vorerst fest – das Design koppelt sie später an die
  * Kosten der nächsten Pflanze (Ablehnen 25 %, Neu würfeln 50 % von 20 🌰).
  */
@@ -28,3 +30,23 @@ export const RARITY_WEIGHTS: readonly (readonly [number, number, number, number]
   [45, 30, 17, 8], // Wald
   [40, 30, 20, 10], // Urwald
 ];
+
+/**
+ * Gewichte der Begegnungstypen je Stufe: [Tier, Pflanze, Ereignis, Durchreisende]
+ * (Reihenfolge wie ENCOUNTER_TYPES). Typen, die es noch nicht gibt (Ereignis,
+ * Durchreisende bis Schritt 2.4), fallen beim Ziehen weg – die übrigen Gewichte gelten
+ * dann im Verhältnis zueinander (z. B. Alter Baum 55 : 20).
+ */
+export const ENCOUNTER_WEIGHTS: readonly (readonly [number, number, number, number])[] = [
+  [60, 40, 0, 0], // Samen
+  [60, 40, 0, 0], // Keimling
+  [60, 40, 0, 0], // Setzling
+  [60, 25, 15, 0], // Junger Baum
+  [55, 20, 15, 10], // Alter Baum
+  [55, 20, 15, 10], // Hain
+  [55, 20, 15, 10], // Wald
+  [55, 20, 15, 10], // Urwald
+];
+
+/** Die ersten Begegnungen sind festgelegt (Einführung): Wegpunkt 1, 2, 3 … */
+export const SCRIPTED_ENCOUNTERS: readonly EncounterType[] = ['animal', 'plant', 'animal'];
