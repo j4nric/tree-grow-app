@@ -498,9 +498,9 @@ Bedingung oder Partnerschaft.
 | ⛈️ **Ereignis mit Wahl** | 1 Ereignis, 2 Optionen | dauerhafte Wirkung *oder* Samen | Junger Baum |
 | 🦢 **Durchreisende** | 1 Gast | rastet 3 Wegpunkte lang, braucht keinen Platz, zählt für Gattungsboni; oder ablehnen | Alter Baum |
 
-- **Ablehnen** bringt immer Samen: 25 % der nächsten Pflanze.
-- **Neu würfeln** (Tier- und Pflanzenbegegnung) kostet 50 % der nächsten Pflanze,
-  jedes weitere Mal in derselben Begegnung doppelt so viel.
+- **Ablehnen** bringt immer Samen: +5 🌰 (`DECLINE_SEEDS` in content/encounters.ts).
+- **Neu würfeln** (Tier- und Pflanzenbegegnung) kostet 10 🌰, jedes weitere Mal in
+  derselben Begegnung doppelt so viel (`REROLL_BASE_COST` × `REROLL_COST_GROWTH`^n).
 - Die ersten drei Begegnungen sind festgelegt: Tier, Pflanze, Tier (Einführung).
 - **Voller Pflanzring:** „Etwas keimt“ kommt nur halb so oft (Gewicht × 0,5 – im
   Schatten der Begleitpflanzen keimt weniger). Pflanzen, die schon im Ring wachsen,

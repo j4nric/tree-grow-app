@@ -9,8 +9,11 @@ const compact = new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFra
  */
 export type NumberStyle = 'short' | 'long';
 
-/** Ab hier kürzt auch das ausgeschriebene Format (1 Billion). */
-export const LONG_NUMBER_LIMIT = 1e12;
+/**
+ * Ab hier kürzt auch das ausgeschriebene Format (100 Millionen): „99.999.999“ passt bei
+ * 360 px gerade noch in eine Kachel der Seitenleiste, eine Stelle mehr nicht.
+ */
+export const LONG_NUMBER_LIMIT = 1e8;
 
 let numberStyle: NumberStyle = 'short';
 
@@ -28,7 +31,8 @@ export function getNumberStyle(): NumberStyle {
  * `style` überschreibt das eingestellte Zahlenformat (z. B. für Beispiele).
  */
 export function formatNumber(value: number, style: NumberStyle = numberStyle): string {
-  if (!Number.isFinite(value)) return '∞';
+  if (Number.isNaN(value)) return '–';
+  if (!Number.isFinite(value)) return value > 0 ? '∞' : '−∞';
   const abs = Math.abs(value);
   if (abs < 10_000) return small.format(value);
   // Deutsch kürzt Tausender nicht ab („Tsd.“ ist unüblich) – dort ohne Nachkommastellen.

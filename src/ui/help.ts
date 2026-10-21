@@ -77,7 +77,12 @@ interface Modal {
   body: HTMLElement;
   show(): void;
   hide(): void;
+  /** Kurzer Hinweis in der Aktionsleiste (role=status), z. B. „Stammgast eingezogen“. */
+  notice(text: string): void;
 }
+
+/** So lange bleibt ein Hinweis im Dialog stehen. */
+const NOTICE_MS = 4000;
 
 /** Schlichter modaler Dialog im Stil des Naturtagebuchs. */
 function createModal(root: HTMLElement, ref: string, title: string): Modal {
@@ -91,9 +96,13 @@ function createModal(root: HTMLElement, ref: string, title: string): Modal {
   header.append(heading);
   const body = el('div', 'help-body');
   const actions = el('div', 'encounter-actions');
+  const noticeBox = el('p', 'encounter-notice');
+  noticeBox.setAttribute('role', 'status');
+  noticeBox.hidden = true;
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
   const close = el('button', 'encounter-button secondary', 'Schließen');
   close.type = 'button';
-  actions.append(close);
+  actions.append(noticeBox, close);
   inner.append(header, body, actions);
   dialog.append(inner);
   root.append(dialog);
@@ -101,8 +110,15 @@ function createModal(root: HTMLElement, ref: string, title: string): Modal {
   let returnFocus: HTMLElement | null = null;
   let showing = false;
 
+  function clearNotice(): void {
+    clearTimeout(noticeTimer);
+    noticeBox.hidden = true;
+    noticeBox.textContent = '';
+  }
+
   function finish(): void {
     showing = false;
+    clearNotice();
     const target = returnFocus;
     returnFocus = null;
     if (target?.isConnected && !target.hidden) target.focus({ preventScroll: true });
@@ -134,6 +150,12 @@ function createModal(root: HTMLElement, ref: string, title: string): Modal {
       heading.focus({ preventScroll: true });
     },
     hide,
+    notice(text) {
+      clearTimeout(noticeTimer);
+      noticeBox.textContent = text;
+      noticeBox.hidden = false;
+      noticeTimer = setTimeout(clearNotice, NOTICE_MS);
+    },
   };
 }
 
@@ -225,11 +247,27 @@ function buildSettings(body: HTMLElement, prefs: Preferences): void {
   );
 }
 
+export interface Help {
+  openGuide(): void;
+  /** Ist die Anleitung oder sind die Einstellungen offen? */
+  readonly open: boolean;
+  /** Hinweis im offenen Dialog zeigen; false, wenn keiner offen ist. */
+  notice(text: string): boolean;
+}
+
+export interface HelpOptions {
+  /**
+   * Neues Spiel (kein gespeicherter Stand): Nur dann erscheint „Neu hier?“. Bei einem
+   * geladenen Spielstand wird der Hinweis gar nicht erst gezeigt (und gilt als gesehen).
+   */
+  newGame: boolean;
+}
+
 /**
  * Knöpfe „❓ Spielanleitung“ und „⚙️ Einstellungen“ in `root` (Seitenleiste), die Dialoge
- * und – nur beim allerersten Start – der schließbare Hinweis „Neu hier?“.
+ * und – nur beim allerersten Start eines neuen Spiels – der schließbare Hinweis „Neu hier?“.
  */
-export function createHelp(root: HTMLElement, prefs: Preferences): { openGuide(): void } {
+export function createHelp(root: HTMLElement, prefs: Preferences, options: HelpOptions): Help {
   const bar = el('div', 'help-bar');
   const guideButton = el('button', 'help-button');
   guideButton.type = 'button';
@@ -256,7 +294,9 @@ export function createHelp(root: HTMLElement, prefs: Preferences): { openGuide()
   guideButton.addEventListener('click', () => guide.show());
   settingsButton.addEventListener('click', () => settings.show());
 
-  if (takeFirstStartHint()) {
+  // Auch bei einem geladenen Stand den Merker setzen: Wer schon spielt, braucht ihn nicht.
+  const firstStart = takeFirstStartHint();
+  if (firstStart && options.newGame) {
     const hint = el('div', 'help-hint');
     hint.dataset.ref = 'guide-hint';
     const text = el('span', 'help-hint-text', 'Neu hier?');
@@ -279,5 +319,17 @@ export function createHelp(root: HTMLElement, prefs: Preferences): { openGuide()
     dismiss.addEventListener('click', remove);
   }
 
-  return { openGuide: () => guide.show() };
+  const openModal = () => (guide.dialog.open ? guide : settings.dialog.open ? settings : null);
+  return {
+    openGuide: () => guide.show(),
+    get open() {
+      return openModal() !== null;
+    },
+    notice(text) {
+      const modal = openModal();
+      if (!modal) return false;
+      modal.notice(text);
+      return true;
+    },
+  };
 }

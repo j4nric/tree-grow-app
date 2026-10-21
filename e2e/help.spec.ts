@@ -27,6 +27,13 @@ test('erster Start: Hinweis „Neu hier?“, öffnet die Anleitung, kommt danach
   await expect(page.locator('[data-ref="guide-hint"]')).toHaveCount(0);
 });
 
+test('geladener Spielstand: kein Hinweis „Neu hier?“', async ({ page, context }) => {
+  await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'] } });
+  await openGame(page);
+  await expect(page.locator('[data-ref="guide-open"]')).toBeVisible();
+  await expect(page.locator('[data-ref="guide-hint"]')).toHaveCount(0);
+});
+
 test('Hinweis lässt sich schließen, ohne die Anleitung zu öffnen', async ({ page }) => {
   await openGame(page);
   await page.getByRole('button', { name: 'Hinweis schließen' }).click();
@@ -76,6 +83,16 @@ test('Bewegung reduzieren: An greift sofort und nach dem Neuladen, Automatisch f
   expect(await motion(page)).toBe('reduce');
 });
 
+test('Automatisch folgt einer Systemumschaltung auch nach dem Laden', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await openGame(page);
+  expect(await motion(page)).toBe('full');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(() => motion(page)).toBe('reduce');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect.poll(() => motion(page)).toBe('full');
+});
+
 test('Zahlenformat ausgeschrieben: große Samenzahl ohne „Mio.“', async ({ page, context }) => {
   await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 2_500_000 });
   await openGame(page);
@@ -93,6 +110,30 @@ test.describe('Mobil (390×844)', () => {
 
   const noScroll = (page: Page) =>
     page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+
+  test('ausgeschrieben: 99.999.999 Samen passen in die Kachel', async ({ page, context }) => {
+    await page.addInitScript(() => localStorage.setItem('tree-grow-settings', JSON.stringify({ numbers: 'long' })));
+    await page.clock.install({ time: new Date('2026-10-21T08:00:00Z') });
+    await page.clock.pauseAt(new Date('2026-10-21T08:00:01Z'));
+    await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 99_999_999 });
+    await openGame(page);
+    const seeds = page.locator('[data-ref="seeds"]');
+    await expect(seeds).toHaveText('99.999.999');
+    const overflow = () =>
+      seeds.evaluate((value) => {
+        const tile = value.closest<HTMLElement>('.eco-stat')!;
+        return Math.max(
+          tile.scrollWidth - tile.clientWidth,
+          value.getBoundingClientRect().right - tile.getBoundingClientRect().right,
+        );
+      });
+    expect(await overflow()).toBeLessThanOrEqual(0);
+    expect(await noScroll(page)).toBe(true);
+    // Auch bei der schmalsten unterstützten Breite (360 px).
+    await page.setViewportSize({ width: 360, height: 800 });
+    expect(await overflow()).toBeLessThanOrEqual(0);
+    expect(await noScroll(page)).toBe(true);
+  });
 
   test('Hinweis, Anleitung und Einstellungen ohne horizontales Scrollen', async ({ page }) => {
     await openGame(page);

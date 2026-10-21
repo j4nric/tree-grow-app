@@ -1031,6 +1031,10 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   white-space: nowrap;
 }
 
+.eco-stat-value.long {
+  font-size: 0.95rem;
+}
+
 .eco-stat-value.pop {
   animation: pop 0.3s ease-out;
 }
@@ -2565,6 +2569,52 @@ body[data-motion='reduce'] .community.formed,
 body[data-motion='reduce'] .slot.arrive {
   animation-name: highlight;
   animation-timing-function: linear;
+}
+
+/*
+ * Fallback, bevor ui/help.ts `data-motion` setzt (oder ohne JavaScript): Das System
+ * wünscht weniger Bewegung, und die Einstellung sagt nicht ausdrücklich „Aus“.
+ */
+@media (prefers-reduced-motion: reduce) {
+  body:not([data-motion='full']) .float-number {
+    animation: float-fade 0.6s linear forwards;
+  }
+
+  body:not([data-motion='full']) .float-note {
+    animation: float-fade 3s linear forwards;
+  }
+
+  body:not([data-motion='full']) .progress-bar {
+    transition: none;
+  }
+
+  body:not([data-motion='full']) .stage-banner.visible {
+    animation-name: banner-fade;
+  }
+
+  body:not([data-motion='full']) .encounter.dealing .encounter-card {
+    animation: none;
+  }
+
+  body:not([data-motion='full']) .encounter-card.rarity-legendary::after {
+    display: none;
+  }
+
+  body:not([data-motion='full']) .encounter-card,
+  body:not([data-motion='full']) .encounter-stack,
+  body:not([data-motion='full']) .eco-harmony summary::before,
+  body:not([data-motion='full']) .plant-meter-bar {
+    transition: none;
+  }
+
+  body:not([data-motion='full']) .eco-stat-value.pop,
+  body:not([data-motion='full']) .encounter-stack.nudge,
+  body:not([data-motion='full']) .family-chip.tier-up,
+  body:not([data-motion='full']) .community.formed,
+  body:not([data-motion='full']) .slot.arrive {
+    animation-name: highlight;
+    animation-timing-function: linear;
+  }
 }
 
 /* Legende der Vorschau-Symbole im Kartenwahl-Dialog (aufklappbar, dezent) */

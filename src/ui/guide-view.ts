@@ -1,7 +1,7 @@
 /**
  * Inhalt der Spielanleitung („❓ Spielanleitung“). Reine Funktion ohne DOM: Alle Zahlen
  * kommen aus content/ bzw. core/ – ändert sich das Balancing, stimmt die Anleitung
- * trotzdem. Getestet in tests/guide-view.test.ts.
+ * trotzdem. Getestet in tests/settings.test.ts (Abschnitt „Spielanleitung“).
  */
 import { COMMUNITIES } from '../content/communities';
 import {
@@ -70,7 +70,7 @@ export function guideSections(): GuideSection[] {
       title: 'Begegnungen und Kartenwahl',
       paragraphs: [
         `An jedem Wegpunkt wartet eine Begegnung mit bis zu ${formatNumber(CARDS_PER_ENCOUNTER)} Karten: ein Tier, das einziehen möchte, oder eine Pflanze, die keimt. Die Vorschau auf jeder Karte zeigt, was sich ändert.`,
-        `Begegnungen warten ruhig im Stapel am Bildrand – höchstens ${formatNumber(MAX_PENDING_ENCOUNTERS)}. Ablehnen bringt +${formatNumber(DECLINE_SEEDS)} 🌰, Neu würfeln kostet ${formatNumber(REROLL_BASE_COST)} 🌰 (jedes weitere Mal ×${formatNumber(REROLL_COST_GROWTH)}).`,
+        `Begegnungen warten ruhig im Stapel am Bildrand – höchstens ${formatNumber(MAX_PENDING_ENCOUNTERS)}. Ablehnen bringt +${formatNumber(DECLINE_SEEDS)} 🌰, Neu würfeln kostet ${formatNumber(REROLL_BASE_COST)} 🌰, jedes weitere Mal ×${formatNumber(REROLL_COST_GROWTH)} in derselben Begegnung.`,
       ],
     },
     {
@@ -79,7 +79,7 @@ export function guideSections(): GuideSection[] {
       title: 'Nischen und Zufriedenheit',
       paragraphs: [
         `Tiere wohnen in ${formatNumber(NICHES.length)} Nischen: ${all(NICHES.map((n) => n.name))}. Mit jeder Stufe öffnen sich mehr Plätze. Ist eine Nische voll, kannst du ein Tier gegen ein neues tauschen.`,
-        `Jedes Tier braucht Futter und hat Wünsche (z. B. Totholz oder Feuchte). Je mehr davon erfüllt ist, desto zufriedener ist es – Räuber und Störer machen es vorsichtiger.`,
+        `Jedes Tier braucht Futter und hat Wünsche (z. B. Totholz oder Feuchte). Je mehr davon erfüllt ist, desto zufriedener ist es. Räuber und Störer in der Nähe senken seine Zufriedenheit.`,
       ],
     },
     {
@@ -87,7 +87,7 @@ export function guideSections(): GuideSection[] {
       icon: '🌿',
       title: 'Pflanzen, Licht und Wasser',
       paragraphs: [
-        `Ab „${ringStage}“ wachsen Begleitpflanzen im Pflanzring – ${formatNumber(PLANTS.length)} verschiedene. Sie keimen über Begegnungen oder du setzt sie für Samen: die erste kostet ${formatNumber(PLANT_COST_BASE)} 🌰, jede weitere ×${formatNumber(PLANT_COST_GROWTH)}.`,
+        `Ab „${ringStage}“ wachsen Begleitpflanzen im Pflanzring – ${formatNumber(PLANTS.length)} verschiedene. Sie keimen über Begegnungen, oder du setzt sie für Samen: Eine Pflanze kostet ${formatNumber(PLANT_COST_BASE)} 🌰 bei leerem Ring, mit jeder wachsenden Pflanze ×${formatNumber(PLANT_COST_GROWTH)}.`,
         `Pflanzen brauchen Licht ☀️ und Wasser 💧. Reicht es nicht, wachsen sie langsamer. Moos speichert Wasser, Schattenpflanzen kommen mit wenig Licht aus.`,
       ],
     },
@@ -114,8 +114,8 @@ export function guideSections(): GuideSection[] {
       icon: '🔄',
       title: 'Neuer Zyklus, Waldgedächtnis und Stammgäste',
       paragraphs: [
-        `Ab der Stufe „${cycleStage}“ kannst du einen Neuen Zyklus beginnen: Aus einer Eichel wächst ein neuer Baum. Dein Naturtagebuch bleibt.`,
-        `Du bekommst Waldgedächtnis: 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} höchster Harmonie und ${formatNumber(MEMORY_PER_NEW_SPECIES)} Punkte je neu entdeckter Art. Jeder Punkt gibt dauerhaft +${pct(FOREST_MEMORY_BONUS)} Wachstum und Samen.`,
+        `Ab der Stufe „${cycleStage}“ kannst du einen Neuen Zyklus beginnen: Aus einer Eichel wächst ein neuer Baum. Tiere, Pflanzen und Samen beginnen von vorn; Naturtagebuch, Waldgedächtnis und Stammgäste bleiben.`,
+        `Du bekommst Waldgedächtnis: 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} Punkte deiner höchsten Harmonie in diesem Zyklus und ${formatNumber(MEMORY_PER_NEW_SPECIES)} Punkte je neu entdeckter Art. Jeder Punkt gibt dauerhaft +${pct(FOREST_MEMORY_BONUS)} Wachstum und Samen.`,
         `Je ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Punkte Waldgedächtnis darfst du einen Stammgast wählen – eine entdeckte Art, die in jedem Zyklus von selbst einzieht.`,
       ],
     },

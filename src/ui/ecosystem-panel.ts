@@ -101,6 +101,15 @@ interface NicheRow {
   slots: SlotTile[];
 }
 
+/** Ab so vielen Zeichen wird eine Kennzahl kleiner gesetzt (ausgeschriebene Zahlen, z. B. „99.999.999“). */
+const LONG_STAT_CHARS = 9;
+
+/** Kennzahl setzen; lange Werte bekommen eine kleinere Schrift, damit sie in der Kachel bleiben. */
+function setStatValue(node: HTMLElement, text: string): void {
+  setText(node, text);
+  node.classList.toggle('long', text.length >= LONG_STAT_CHARS);
+}
+
 /** Anteil 0–1; NaN/Infinity aus dem Kern werden zu 0, damit keine kaputten Breiten entstehen. */
 function unitInterval(value: number): number {
   return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
@@ -640,12 +649,12 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     setAttr(progress, 'aria-valuenow', String(Math.round(pct)));
     setText(progressHint, view.progressHint);
 
-    setText(growth.value, formatRate(view.growthPerSec));
+    setStatValue(growth.value, formatRate(view.growthPerSec));
     setText(growth.sub, `mit ⚖️ ${formatMultiplier(view.harmonyMultiplier)}`);
-    setText(seeds.value, formatNumber(Math.floor(view.seeds)));
+    setStatValue(seeds.value, formatNumber(Math.floor(view.seeds)));
     setText(seeds.sub, `+${formatRate(view.seedsPerSec)}`);
     const harmonyRounded = Math.round(view.harmony);
-    setText(harmony.value, formatNumber(harmonyRounded));
+    setStatValue(harmony.value, formatNumber(harmonyRounded));
     setText(harmony.sub, view.harmonyTier);
     if (lastHarmony !== null && harmonyRounded > lastHarmony) restartAnimation(harmony.value, 'pop');
     lastHarmony = harmonyRounded;

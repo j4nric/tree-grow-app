@@ -116,9 +116,18 @@ describe('Zahlenformat', () => {
 
   it('ausgeschrieben kürzt trotzdem ab LONG_NUMBER_LIMIT (Platz in der Seitenleiste)', () => {
     setNumberStyle('long');
-    expect(formatNumber(LONG_NUMBER_LIMIT - 1)).toBe('999.999.999.999');
-    expect(formatNumber(LONG_NUMBER_LIMIT * 3)).toMatch(/Bio\./);
-    expect(formatNumber(Infinity)).toBe('∞');
+    expect(LONG_NUMBER_LIMIT).toBe(1e8);
+    expect(formatNumber(LONG_NUMBER_LIMIT - 1)).toBe('99.999.999');
+    expect(formatNumber(LONG_NUMBER_LIMIT)).toMatch(/^100\s+Mio\.$/);
+    expect(formatNumber(3e12)).toMatch(/Bio\./);
+  });
+
+  it('Sonderwerte: NaN → „–“, ±Infinity → „∞“ bzw. „−∞“', () => {
+    for (const style of ['short', 'long'] as const) {
+      expect(formatNumber(Number.NaN, style)).toBe('–');
+      expect(formatNumber(Infinity, style)).toBe('∞');
+      expect(formatNumber(-Infinity, style)).toBe('−∞');
+    }
   });
 });
 

@@ -40,7 +40,7 @@ import { createEncounterStack } from './ui/encounter-stack';
 import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
 import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
-import { createHelp, initPreferences } from './ui/help';
+import { createHelp, initPreferences, type Help } from './ui/help';
 import { IMPORT_ERROR_TEXTS, createSaveTransfer, type SaveTransfer } from './ui/save-transfer';
 import { isDeliberateConfirm } from './ui/confirm';
 import { formatNumber } from './ui/format';
@@ -138,6 +138,8 @@ let encounterSerial = 0;
 /** Ökosystem (Auswertung) hat sich geändert → Seitenleiste und Szene-Tiere neu bauen. */
 let ecoDirty = true;
 let ecoView: EcosystemView | null = null;
+/** Spielanleitung und Einstellungen (ab start()). */
+let help: Help | undefined;
 let ecoEvaluation: Readonly<Evaluation> | null = null;
 let lastPanelRefresh = -Infinity;
 
@@ -337,7 +339,7 @@ function notify(text: string): void {
   if (picker.open) picker.notice(text);
   else if (dialog.open) dialog.notice(text);
   else if (journal.open) journal.notice(text);
-  else showToast(text);
+  else if (!help?.notice(text)) showToast(text);
 }
 
 // --- Ansichten -----------------------------------------------------------------------
@@ -434,7 +436,7 @@ function noteTick(report: TickReport): void {
  * sichtbar und für Screenreader erreichbar.
  */
 function noteText(text: string): void {
-  if (picker.open || dialog.open || journal.open) {
+  if (picker.open || dialog.open || journal.open || help?.open) {
     notify(text);
     return;
   }
@@ -627,10 +629,11 @@ function start(): void {
 
   resetButton.addEventListener('click', onReset);
   setupSaveTransfer();
-  createHelp(document.querySelector<HTMLElement>('#help')!, preferences);
+  help = createHelp(document.querySelector<HTMLElement>('#help')!, preferences, { newGame: !loaded });
   preferences.onChange(() => {
     scene.reducedMotion = preferences.reducedMotion;
-    // Zahlenformat kann sich geändert haben: Ansichten neu aufbauen.
+    // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
+    ecoView = null;
     ecoDirty = true;
     encounterDirty = true;
     pickerDirty = true;
