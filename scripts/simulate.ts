@@ -30,7 +30,7 @@ import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { STAGES } from '../src/content/stages';
 import { GENERA, NICHE_IDS, type EncounterType, type Genus } from '../src/content/types';
 import { CARE } from '../src/content/care';
-import { EVENTS_BY_ID } from '../src/content/events';
+import { EVENTS_BY_ID, type TimedEffect } from '../src/content/events';
 import {
   cardStatus,
   evaluate,
@@ -376,6 +376,13 @@ export interface RunOptions {
   /** Art des Hauptbaums (Standard: Stieleiche wie im ersten Zyklus). */
   mainTree?: MainTreeId;
   /**
+   * Modell für Wirkungen, die noch keine Logik in core/ haben (z. B. Wetter und Nachtarten,
+   * DESIGN_V2.md 21; scripts/weather-model.ts): liefert die gerade geltenden Wirkungen und
+   * wie lange sie gelten. Die Simulation legt sie als Zeit-Bonus (Quelle AMBIENT_SOURCE)
+   * an und hält an ihrem Ablauf an. Fehlt: wie bisher.
+   */
+  ambient?: (state: GameState) => { effects: TimedEffect[]; seconds: number };
+  /**
    * Tagesziele mitspielen (DESIGN_V2.md 20.6): die Ziele dieses Tages („JJJJ-MM-TT“) entstehen
    * beim Start; jede gespielte Sekunde zählt als aktiv. Der Spieler verfolgt sie nicht
    * gezielt – sie werden erfüllt, wenn seine Strategie sie ohnehin erfüllt. Standard: aus
@@ -386,6 +393,9 @@ export interface RunOptions {
   dailyNextDayAt?: number;
   dailyNextDay?: string;
 }
+
+/** Quelle der Zeit-Boni aus `RunOptions.ambient`. */
+export const AMBIENT_SOURCE = 'ambient-model';
 
 /** Frühes Spiel: Kennzahlen „längste Pause ohne Entscheidung“ und „Samen ungenutzt“ (s). */
 export const EARLY_SECONDS = 600;
@@ -505,7 +515,17 @@ export function runGame(
     return planValue;
   };
 
+  const applyAmbient = () => {
+    if (!options.ambient || state.cycle.timed.some((t) => t.source === AMBIENT_SOURCE)) return;
+    const { effects, seconds } = options.ambient(state);
+    if (!(seconds > 0)) return;
+    // Ohne Wirkung ein neutraler Eintrag, damit die Simulation am Wechsel anhält.
+    const list: TimedEffect[] = effects.length > 0 ? effects : [{ kind: 'growth', pct: 0 }];
+    for (const effect of list) state.cycle.timed.push({ source: AMBIENT_SOURCE, effect, remaining: seconds });
+  };
+
   while (state.stage < options.targetStage && time < options.maxSeconds && !allWaypointsReached(state)) {
+    applyAmbient();
     // Pflanzen setzen, solange es sich lohnt und die Samen reichen.
     for (let plan = nextPlan(); plan !== null; plan = nextPlan()) {
       const cost = nextPlantCost(state);

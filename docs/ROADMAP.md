@@ -290,10 +290,17 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     (`DAY_SECONDS` = 180 s = eine Jahreszeit, jede Jahreszeit ein ganzer Tag), Dämmerung, Nacht mit Sternen und Mond,
     Glühwürmchen leuchten nachts stärker, Einstellung „Tageszeit“ (Wechsel / Immer Tag),
     Demo `?phase=` – DESIGN_V2.md 19
-  - [ ] Wirkung (game-designer): nachtaktive Arten und ihre Effekte (Spielstand unverändert)
+  - [x] Wirkung, Design (game-designer): Waldkauz, Langohr, Igel, Glühwürmchen nachts +6 … +12 %
+    🌿/🌰 (`NOCTURNAL` in `src/content/daytime.ts`, Spielstand unverändert) – DESIGN_V2.md 21.6
+  - [ ] Wirkung, Logik (core-engineer): Nacht-Halte, Nachtwirkung in `evaluate`, Mittel offline – 21.9
 - [ ] Wetterlagen (Design `game-designer`, Logik `core-engineer`, Grafik `renderer`):
   seltene, mehrminütige Zustände (Dürresommer, Sturm, Spätfrost, Borkenkäferjahr) mit
   Gegenmaßnahmen; ein vielfältiges Ökosystem dämpft die Folgen
+  - [x] Design (game-designer): 8 Wetterlagen je Tag (= Jahreszeit), deterministisch aus
+    Zyklus + Tag, Dämpfung durch Vielfalt und Pflege, Mittel offline, kein neues Feld –
+    `src/content/weather.ts`, DESIGN_V2.md 21, Modell `scripts/weather-model.ts`
+  - [ ] Logik (core-engineer) – 21.9
+  - [ ] Grafik (renderer) und Anzeige (ui-dev) – 21.8
 
 **Welle 3 – Tiefe & Langzeitspiel**
 
