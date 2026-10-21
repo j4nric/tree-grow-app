@@ -33,9 +33,12 @@ export const RARITY_WEIGHTS: readonly (readonly [number, number, number, number]
 
 /**
  * Gewichte der Begegnungstypen je Stufe: [Tier, Pflanze, Ereignis, Durchreisende]
- * (Reihenfolge wie ENCOUNTER_TYPES). Typen, die es noch nicht gibt (Ereignis,
- * Durchreisende bis Schritt 2.4), fallen beim Ziehen weg – die übrigen Gewichte gelten
- * dann im Verhältnis zueinander (z. B. Alter Baum 55 : 20).
+ * (Reihenfolge wie ENCOUNTER_TYPES). Ereignisse (events.ts) ab Junger Baum, Gäste
+ * (visitors.ts) ab Alter Baum – bewusst nur 10–20 % der Wegpunkte, damit sie keine
+ * Tierbegegnungen verdrängen; ab dem Hain kommt der Zwischenhalt dazu (unten,
+ * DESIGN_V2.md 7.2). Solange die Logik fehlt (Schritt 2.4), fallen Ereignis und
+ * Durchreisende beim Ziehen weg – die übrigen Gewichte gelten dann im Verhältnis
+ * zueinander (z. B. Alter Baum 60 : 20).
  */
 export const ENCOUNTER_WEIGHTS: readonly (readonly [number, number, number, number])[] = [
   [60, 40, 0, 0], // Samen

@@ -69,7 +69,12 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 - [ ] 2.1 Pflanzen, Licht/Wasser-Versorgung, Samen, „Etwas keimt“, Pflanzen setzen (`game-designer` + `core-engineer`)
 - [ ] 2.2 Alle 5 Gattungen, 32 Arten, Gattungsboni, Seltenheit, Fähigkeiten (`game-designer` + `core-engineer`)
 - [x] 2.3 Lebensgemeinschaften, vollständige Harmonie (`game-designer`)
-- [ ] 2.4 Ereignisse mit Wahl, Durchreisende (`core-engineer` + `game-designer`)
+- [ ] 2.4 Ereignisse mit Wahl, Durchreisende (`core-engineer` + `game-designer`) – Inhalte fertig, Logik offen
+  - [x] Inhalte: 10 Ereignisse (`src/content/events.ts`), 8 Durchreisende
+    (`src/content/visitors.ts`), Gewichte und Zwischenhalt ab Hain (`encounters.ts`),
+    grobes Modell im Simulator (`scripts/extras.ts`), DESIGN_V2.md 7.2/7.4/7.5 (`game-designer`)
+  - [ ] Logik nach Umsetzungsnotiz DESIGN_V2.md 7.8 (SAVE_VERSION 5), Simulator auf echte
+    Logik umstellen (`core-engineer`)
 - [ ] 2.5 Gattungsleiste, Pflanzenring, Harmonie-Aufschlüsselung (`ui-dev`)
   - [x] Lebensgemeinschaften-Ansicht: aufklappbare Übersicht in der Seitenleiste (aktive mit
     Harmonie, fast fertige mit „fehlt: …“, unentdeckte als „???“ mit Fortschritt), Hinweis

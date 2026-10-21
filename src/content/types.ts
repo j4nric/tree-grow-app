@@ -97,8 +97,9 @@ export type Effect =
 
 /**
  * Begegnungstypen (DESIGN_V2.md, Abschnitt 7). Reihenfolge = Spalten in
- * ENCOUNTER_WEIGHTS. Umgesetzt sind „Tier zieht ein“ und „Etwas keimt“; Ereignisse und
- * Durchreisende folgen in Schritt 2.4 (bis dahin zählen ihre Gewichte nicht).
+ * ENCOUNTER_WEIGHTS. Umgesetzt sind „Tier zieht ein“ und „Etwas keimt“; Ereignisse
+ * (events.ts) und Durchreisende (visitors.ts) stehen als Daten bereit, ihre Logik folgt
+ * in Schritt 2.4 (bis dahin zählen ihre Gewichte nicht).
  */
 export type EncounterType = 'animal' | 'plant' | 'event' | 'visitor';
 export const ENCOUNTER_TYPES: readonly EncounterType[] = ['animal', 'plant', 'event', 'visitor'];
