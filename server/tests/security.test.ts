@@ -8,15 +8,18 @@ import { connect, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runAdmin } from '../src/admin';
 import { createApp, parseTarget, type App, type AppOptions } from '../src/app';
 import { SCRYPT, hashPassword, verifyPassword } from '../src/auth';
 import { openDb } from '../src/db';
 import { DiskGuard } from '../src/disk';
 import { createSyncServer, type ServerTimeouts } from '../src/http';
-import { clientIp, isPrivateIp, normalizeIp } from '../src/net';
+import { clientIp, isPrivateIp, normalizeIp, rateKey } from '../src/net';
 import { RateLimiter } from '../src/rate-limit';
+
+// scrypt (N = 2^15) braucht unter Last mehrere Sekunden je Anmeldung.
+vi.setConfig({ testTimeout: 30_000 });
 
 let server: Server | null = null;
 let app: App | null = null;
@@ -223,6 +226,36 @@ describe('Registrierung: Gesamtgrenzen und voller Datenträger', () => {
     await register('linde');
   });
 
+  it('eine IP allein kann das Gesamtkontingent nicht aufbrauchen', async () => {
+    await start({ trustProxy: true, limits: { registrationsPerIp: { limit: 2, windowMs: 3_600_000 } } });
+    const reg = (username: string, xff: string) =>
+      call('POST', '/api/register', { username, password: 'geheim123' }, undefined, { 'X-Forwarded-For': xff });
+    expect((await reg('eiche', '6.6.6.6')).status).toBe(201);
+    expect((await reg('buche', '6.6.6.6')).status).toBe(201);
+    const third = await reg('linde', '6.6.6.6');
+    expect(third.status).toBe(429);
+    expect(Number(third.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect((await reg('linde', '1.2.3.4')).status).toBe(201);
+  });
+
+  it('Sitzungen je Konto begrenzt (älteste fallen weg); Anmelden bei vollem Datenträger → 507', async () => {
+    let full = false;
+    await start({ authLimit: { limit: 1000, windowMs: 60_000 }, limits: { sessionsPerUser: 3 }, storageOk: () => !full });
+    const first = await register('eiche');
+    const tokens: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      clock += 1000;
+      const res = await call('POST', '/api/login', { username: 'eiche', password: 'geheim123' });
+      tokens.push(((await res.json()) as { token: string }).token);
+    }
+    expect((await call('GET', '/api/me', undefined, first)).status).toBe(401);
+    for (const t of tokens) expect((await call('GET', '/api/me', undefined, t)).status).toBe(200);
+    full = true;
+    const res = await call('POST', '/api/login', { username: 'eiche', password: 'geheim123' });
+    expect(res.status).toBe(507);
+    expect((await call('GET', '/api/me', undefined, tokens[0])).status).toBe(200);
+  });
+
   it('wenig freier Platz → 507 für Registrieren und Schreiben, Lesen geht', async () => {
     let full = false;
     await start({ storageOk: () => !full });
@@ -360,6 +393,47 @@ describe('Client-IP und Anmelde-Grenzen', () => {
     expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
     clock += 60_000;
     expect((await login('geheim123')).status).toBe(200);
+  });
+
+  it('fremde IP sperrt ein Konto nicht aus: streng je Name+IP, über alle IPs erst ab hoher Schwelle', async () => {
+    await start({
+      trustProxy: true,
+      authLimit: { limit: 1000, windowMs: 60_000 },
+      limits: { loginFailures: { limit: 2, windowMs: 60_000 }, loginFailuresPerUser: { limit: 5, windowMs: 60_000 } },
+    });
+    await register('eiche');
+    const login = (password: string, xff: string) =>
+      call('POST', '/api/login', { username: 'eiche', password }, undefined, { 'X-Forwarded-For': xff });
+    // Angreifer 6.6.6.6 rät zweimal falsch → nur er ist gesperrt.
+    expect((await login('falsch1234', '6.6.6.6')).status).toBe(401);
+    expect((await login('falsch1234', '6.6.6.6')).status).toBe(401);
+    expect((await login('geheim123', '6.6.6.6')).status).toBe(429);
+    expect((await login('geheim123', '1.2.3.4')).status).toBe(200);
+    // Verteilt über viele IPs: ab der hohen Schwelle gilt die Sperre je Name für alle.
+    for (const xff of ['7.0.0.1', '7.0.0.2', '7.0.0.3']) expect((await login('falsch1234', xff)).status).toBe(401);
+    const blocked = await login('geheim123', '1.2.3.4');
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
+  });
+
+  it('rateKey: IPv4 unverändert, IPv6 je /64 gebündelt', () => {
+    expect(rateKey('1.2.3.4')).toBe('1.2.3.4');
+    expect(rateKey('::ffff:1.2.3.4')).toBe('1.2.3.4');
+    expect(rateKey('2001:db8:1:2:aaaa::1')).toBe('2001:db8:1:2::/64');
+    expect(rateKey('2001:0DB8:0001:0002:ffff:ffff:ffff:ffff')).toBe('2001:db8:1:2::/64');
+    expect(rateKey('2001:db8::')).toBe('2001:db8:0:0::/64');
+    expect(rateKey('::1')).toBe('0:0:0:0::/64');
+    expect(rateKey('64:ff9b::1.2.3.4')).toBe('64:ff9b:0:0::/64');
+    // Unsinn bleibt, wie er ist (nie ein Absturz).
+    for (const bad of ['1::2::3', 'zz::1', 'unknown', '']) expect(typeof rateKey(bad)).toBe('string');
+  });
+
+  it('Rate-Limit zählt IPv6-Adressen desselben /64 gemeinsam', async () => {
+    await start({ trustProxy: true, authLimit: { limit: 1, windowMs: 60_000 } });
+    const login = (xff: string) => call('POST', '/api/login', { username: 'x1x', password: 'falsch1234' }, undefined, { 'X-Forwarded-For': xff });
+    expect((await login('2001:db8:1:2::1')).status).toBe(401);
+    expect((await login('2001:db8:1:2::ffff')).status).toBe(429);
+    expect((await login('2001:db8:1:3::1')).status).toBe(401);
   });
 
   it('RateLimiter: blockedFor, reset und begrenzte Map', () => {

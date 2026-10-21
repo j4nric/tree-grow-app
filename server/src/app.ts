@@ -27,7 +27,7 @@ import {
   verifyPassword,
 } from './auth';
 import type { Db } from './db';
-import { clientIp } from './net';
+import { clientIp, rateKey } from './net';
 import { RateLimiter } from './rate-limit';
 
 /**
@@ -61,8 +61,17 @@ export interface Limits {
   maxAccounts: number;
   /** Registrierungen insgesamt je Zeitfenster. */
   registrations: { limit: number; windowMs: number };
-  /** Fehlgeschlagene Anmeldungen je Benutzername und Zeitfenster. */
+  /** Registrierungen je IP (IPv6: je /64) und Zeitfenster – vor der Gesamtgrenze. */
+  registrationsPerIp: { limit: number; windowMs: number };
+  /** Fehlgeschlagene Anmeldungen je Benutzername und IP (streng). */
   loginFailures: { limit: number; windowMs: number };
+  /**
+   * Fehlgeschlagene Anmeldungen je Benutzername über alle IPs (hohe Schwelle): bremst
+   * verteiltes Raten, ohne dass eine einzelne fremde IP ein Konto aussperren kann.
+   */
+  loginFailuresPerUser: { limit: number; windowMs: number };
+  /** Sitzungen (angemeldete Geräte) je Konto; die ältesten fallen weg. */
+  sessionsPerUser: number;
 }
 
 export const DEFAULT_LIMITS: Limits = {
@@ -73,7 +82,10 @@ export const DEFAULT_LIMITS: Limits = {
   ticketsTotal: 10_000,
   maxAccounts: 1000,
   registrations: { limit: 30, windowMs: 60 * 60_000 },
+  registrationsPerIp: { limit: 3, windowMs: 60 * 60_000 },
   loginFailures: { limit: 10, windowMs: 15 * 60_000 },
+  loginFailuresPerUser: { limit: 100, windowMs: 15 * 60_000 },
+  sessionsPerUser: 20,
 };
 
 export interface AppOptions {
@@ -172,7 +184,9 @@ export function createApp(options: AppOptions): App {
   const origins = new Set(options.allowedOrigins);
   const limiter = new RateLimiter(options.authLimit?.limit ?? 20, options.authLimit?.windowMs ?? 15 * 60_000);
   const registrations = new RateLimiter(limits.registrations.limit, limits.registrations.windowMs);
+  const registrationsPerIp = new RateLimiter(limits.registrationsPerIp.limit, limits.registrationsPerIp.windowMs);
   const loginFailures = new RateLimiter(limits.loginFailures.limit, limits.loginFailures.windowMs);
+  const loginFailuresPerUser = new RateLimiter(limits.loginFailuresPerUser.limit, limits.loginFailuresPerUser.windowMs);
 
   // Tickets: je Sitzung höchstens ticketsPerSession (älteste fallen weg), insgesamt
   // höchstens ticketsTotal. Abgelaufene räumt ein Timer weg; beim Einlösen zählt die Uhr.
@@ -199,6 +213,9 @@ export function createApp(options: AppOptions): App {
     ),
     touchSession: db.prepare('UPDATE sessions SET expires_at = ? WHERE token_hash = ?'),
     deleteSession: db.prepare('DELETE FROM sessions WHERE token_hash = ?'),
+    trimSessions: db.prepare(
+      'DELETE FROM sessions WHERE user_id = ? AND token_hash NOT IN (SELECT token_hash FROM sessions WHERE user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?)',
+    ),
     pruneSessions: db.prepare('DELETE FROM sessions WHERE expires_at <= ?'),
     save: db.prepare('SELECT data, version, action_version, device_id, updated_at, schema_version FROM saves WHERE user_id = ?'),
     insertSave: db.prepare(
@@ -209,8 +226,9 @@ export function createApp(options: AppOptions): App {
     ),
   };
 
+  /** Schlüssel der Client-Adresse für Grenzen (IPv6 je /64). */
   function ip(req: IncomingMessage): string {
-    return clientIp(req.socket.remoteAddress, req.headers['x-forwarded-for'], options.trustProxy === true);
+    return rateKey(clientIp(req.socket.remoteAddress, req.headers['x-forwarded-for'], options.trustProxy === true));
   }
 
   function cors(req: IncomingMessage, res: ServerResponse): void {
@@ -269,6 +287,8 @@ export function createApp(options: AppOptions): App {
     const token = newToken();
     const t = now();
     q.insertSession.run(hashToken(token), userId, t, t + SESSION_DAYS * DAY_MS);
+    // Nicht unbegrenzt viele Sitzungen je Konto: die ältesten fallen weg.
+    q.trimSessions.run(userId, userId, limits.sessionsPerUser);
     return token;
   }
 
@@ -374,7 +394,10 @@ export function createApp(options: AppOptions): App {
         if (q.userByName.get(username)) throw new HttpError(409, 'taken');
         const count = Number((q.countUsers.get() as { n: number }).n);
         if (count >= limits.maxAccounts) throw new HttpError(403, 'registration-closed');
-        // Gesamtgrenze für neue Konten (gegen massenhaftes Anlegen über viele IPs).
+        // Erst je IP (eine IP allein darf das Gesamtkontingent nicht aufbrauchen) …
+        const waitIp = registrationsPerIp.take(ip(req), now());
+        if (waitIp > 0) throw rateLimited(waitIp);
+        // … dann die Gesamtgrenze für neue Konten (gegen massenhaftes Anlegen über viele IPs).
         const wait = registrations.take('all', now());
         if (wait > 0) throw rateLimited(wait);
         const hash = await hashPassword(password);
@@ -390,22 +413,29 @@ export function createApp(options: AppOptions): App {
 
       case 'POST /api/login': {
         limit(req);
+        // Jede Anmeldung legt eine Sitzung an – bei vollem Datenträger nicht.
+        requireStorage();
         const body = await readJson(req);
         const username = normalizeUsername(body.username);
         const password = typeof body.password === 'string' && body.password.length <= 1000 ? body.password : '';
-        // Gegen verteiltes Raten eines Passworts: Fehlversuche je Benutzername zählen.
+        // Fehlversuche je Benutzername + IP (streng) und je Benutzername über alle IPs (hohe
+        // Schwelle) – so kann eine fremde IP ein Konto nicht allein aussperren.
+        const failureKey = `${username}|${ip(req)}`;
         if (username) {
-          const wait = loginFailures.blockedFor(username, now());
+          const wait = Math.max(loginFailures.blockedFor(failureKey, now()), loginFailuresPerUser.blockedFor(username, now()));
           if (wait > 0) throw rateLimited(wait);
         }
         const user = username ? (q.userByName.get(username) as { id: number; password_hash: string } | undefined) : undefined;
         // Auch ohne Konto rechnen, damit die Antwortzeit nichts verrät.
         const ok = await verifyPassword(password, user?.password_hash ?? (await dummyPasswordHash()));
         if (!user || !ok) {
-          if (username) loginFailures.take(username, now());
+          if (username) {
+            loginFailures.take(failureKey, now());
+            loginFailuresPerUser.take(username, now());
+          }
           throw new HttpError(401, 'credentials');
         }
-        loginFailures.reset(username!);
+        loginFailures.reset(failureKey);
         q.pruneSessions.run(now());
         return send(res, 200, { token: createSession(user.id), username });
       }

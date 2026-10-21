@@ -2,7 +2,7 @@
 // Läuft mit dem Vitest des Spiels (npm run check), SQLite im Speicher, Server auf Port 0.
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_BODY_BYTES, MAX_DATA_BYTES, createApp, type App, type AppOptions } from '../src/app';
 import { MAX_EXPORT_CODE_LENGTH } from '../../src/core/save';
 import { hashPassword, normalizeUsername, verifyPassword } from '../src/auth';
@@ -12,6 +12,9 @@ import { backupName, backupsToDelete, runBackup } from '../src/backup';
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+// scrypt (N = 2^15) braucht unter Last mehrere Sekunden je Anmeldung.
+vi.setConfig({ testTimeout: 30_000 });
 
 const ORIGIN = 'https://j4nric.github.io';
 

@@ -8,6 +8,7 @@
  *   BACKUP_KEEP      so viele Sicherungen behalten (Standard 7)
  *   MAX_ACCOUNTS     höchstens so viele Konten (Standard 1000)
  *   MIN_FREE_MB      darunter freier Platz auf dem Daten-Volume → 507 (Standard 512)
+ *   REGISTRATIONS_PER_IP_HOUR  neue Konten je IP (IPv6: je /64) und Stunde (Standard 3)
  */
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -46,7 +47,10 @@ const app = createApp({
   db,
   allowedOrigins,
   trustProxy: process.env.TRUST_PROXY === '1',
-  limits: { maxAccounts: envInt('MAX_ACCOUNTS', 1000) },
+  limits: {
+    maxAccounts: envInt('MAX_ACCOUNTS', 1000),
+    registrationsPerIp: { limit: envInt('REGISTRATIONS_PER_IP_HOUR', 3), windowMs: 60 * 60_000 },
+  },
   storageOk: () => disk?.ok() ?? true,
 });
 // requestTimeout 30 s / headersTimeout 20 s: nur für das Empfangen der Anfrage –

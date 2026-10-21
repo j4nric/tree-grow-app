@@ -52,3 +52,46 @@ export function clientIp(remote: string | undefined, forwarded: string | string[
   // Nur etwas, das wie eine Adresse aussieht (kein beliebig langer Text als Map-Schlüssel).
   return /^[0-9a-fA-F:.]{2,45}$/.test(last) ? normalizeIp(last) : direct;
 }
+
+/** IPv6 in 8 Gruppen (Zahlen) oder null. Eingebettetes IPv4 am Ende zählt als zwei Gruppen. */
+function ipv6Groups(address: string): number[] | null {
+  const parts = address.split('::');
+  if (parts.length > 2) return null;
+  const toGroups = (text: string): number[] | null => {
+    if (text === '') return [];
+    const out: number[] = [];
+    for (const piece of text.split(':')) {
+      if (piece.includes('.')) {
+        const v4 = ipv4(piece);
+        if (!v4) return null;
+        out.push(v4[0] * 256 + v4[1], v4[2] * 256 + v4[3]);
+      } else if (/^[0-9a-f]{1,4}$/.test(piece)) {
+        out.push(parseInt(piece, 16));
+      } else {
+        return null;
+      }
+    }
+    return out;
+  };
+  const head = toGroups(parts[0]!);
+  const tail = parts.length === 2 ? toGroups(parts[1]!) : [];
+  if (!head || !tail) return null;
+  const missing = 8 - head.length - tail.length;
+  if (parts.length === 2 ? missing < 1 : missing !== 0) return null;
+  return [...head, ...Array<number>(missing).fill(0), ...tail];
+}
+
+/**
+ * Schlüssel für Rate-Limits: IPv4 wie sie ist, IPv6 gebündelt auf das /64-Netz – ein
+ * Anschluss bekommt meist ein ganzes /64 und könnte sonst beliebig viele Adressen nutzen.
+ */
+export function rateKey(address: string): string {
+  const ip = normalizeIp(address);
+  if (!ip.includes(':')) return ip;
+  const groups = ipv6Groups(ip);
+  if (!groups) return ip;
+  return `${groups
+    .slice(0, 4)
+    .map((g) => g.toString(16))
+    .join(':')}::/64`;
+}

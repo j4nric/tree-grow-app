@@ -2,12 +2,15 @@
 // (lokal auf Port 0, SQLite im Speicher – kein externes Netz).
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SESSION_KEY, createHttpService } from '../../src/sync/http-service';
 import { AccountError } from '../../src/sync/types';
 import { MemoryStorage } from '../../tests/memory-storage';
 import { createApp, type App } from '../src/app';
 import { openDb } from '../src/db';
+
+// scrypt (N = 2^15) braucht unter Last mehrere Sekunden je Anmeldung.
+vi.setConfig({ testTimeout: 30_000 });
 
 describe('HTTP-Dienst gegen den Sync-Server', () => {
   let server: Server;
@@ -78,6 +81,40 @@ describe('HTTP-Dienst gegen den Sync-Server', () => {
     await service.register('buche', 'geheim123');
     await service.register('linde', 'geheim123');
     await expect(service.register('ahorn', 'geheim123')).rejects.toMatchObject({ code: 'registration-closed' });
+  });
+
+  it('zwei Tabs, ein localStorage, zwei Konten: das Backend schreibt nie mit dem Token des anderen Kontos', async () => {
+    const storage = new MemoryStorage();
+    // Tab 1 meldet sich als eiche an und legt einen Stand an.
+    const tab1 = createHttpService(url, { fetch, storage });
+    await tab1.register('eiche', 'geheim123');
+    const backend1 = tab1.backend({ name: 'eiche' });
+    expect(await backend1.insert({ data: 'EICHE', version: 1, device: 'T1', actionVersion: 1, schema: 9 })).toBe('ok');
+    // Tab 2 (gleicher Speicher) meldet sich als buche an und legt dessen Stand an.
+    const tab2 = createHttpService(url, { fetch, storage });
+    await tab2.register('buche', 'geheim123');
+    const backend2 = tab2.backend({ name: 'buche' });
+    expect(await backend2.insert({ data: 'BUCHE', version: 1, device: 'T2', actionVersion: 1, schema: 9 })).toBe('ok');
+    expect(tab1.sessionUser()).toBe('buche');
+    // Tab 1 läuft noch mit eiche weiter: jeder Zugriff wird lokal abgelehnt, nichts geht raus.
+    let sent = 0;
+    const counting: typeof fetch = (input, init) => {
+      sent++;
+      return fetch(input, init);
+    };
+    const tab1Again = createHttpService(url, { fetch: counting, storage }).backend({ name: 'eiche' });
+    await expect(tab1Again.update(1, { data: 'EICHE2', version: 2, device: 'T1', actionVersion: 2, schema: 9 })).rejects.toMatchObject({
+      code: 'unauthorized',
+    });
+    await expect(tab1Again.insert({ data: 'EICHE2', version: 1, device: 'T1', actionVersion: 1, schema: 9 })).rejects.toMatchObject({
+      code: 'unauthorized',
+    });
+    await expect(tab1Again.fetch()).rejects.toMatchObject({ code: 'unauthorized' });
+    await expect(backend1.update(1, { data: 'EICHE2', version: 2, device: 'T1', schema: 9 })).rejects.toMatchObject({ code: 'unauthorized' });
+    expect(sent).toBe(0);
+    // Die Sitzung von Tab 2 bleibt gültig, buches Stand unverändert.
+    expect(await backend2.fetch()).toMatchObject({ data: 'BUCHE', version: 1 });
+    expect(storage.getItem(SESSION_KEY)).not.toBeNull();
   });
 
   it('abgelaufene Sitzung: vergessen und gemeldet; offline bleibt man angemeldet', async () => {
