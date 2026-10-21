@@ -21,12 +21,13 @@
  * alte Bild skaliert gezeigt.
  */
 
-import { createAnchorResolver, type AnchorResolver } from './anchors';
+import { animalSize, createAnchorResolver, type AnchorResolver } from './anchors';
 import { AnimalLayer, type AnimalFrame, type SceneAnimal } from './animals';
 import { layoutFlora, type PlacedPlant, type ScenePlant } from './flora';
 import { paintPlant } from './flora-paint';
 import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
 import { paintLeaves, paintWood, type LeafPalette, type WoodColors } from './plant';
+import { CYCLE_TRANSITION_REDUCED_SECONDS, CYCLE_TRANSITION_SECONDS, CycleTransition, type CycleGeometry } from './cycle';
 import { MoodLayer, type MoodFrame } from './mood';
 import { ResizeGate } from './resize';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
@@ -37,6 +38,7 @@ export type { AnimalFamily, SceneAnimal } from './animals';
 export { nicheAnchors, SCENE_NICHES, type NicheAnchor, type SceneNiche } from './anchors';
 export { SCENE_PLANT_GROUPS, type ScenePlant, type ScenePlantGroup } from './flora';
 export { MAX_HARMONY_TIER } from './mood';
+export { CYCLE_TRANSITION_REDUCED_SECONDS, CYCLE_TRANSITION_SECONDS } from './cycle';
 export type { SceneVisitor } from './visitors';
 
 export interface SceneInput {
@@ -69,6 +71,22 @@ export interface SceneInput {
    * kleiner Vogelschwarm. Ohne Angabe: keine Gäste.
    */
   visitors?: readonly SceneVisitor[];
+  /**
+   * Übergang zum Neuen Zyklus (DESIGN_V2.md §10). `startedAt` im selben Takt wie `time`
+   * (Sekunden). Mit einem neuen `startedAt` spielt eine ~5,5 s lange, ruhige Sequenz:
+   * Das letzte Bild blendet aus, die alte Eiche bleibt kurz als Silhouette, ein sanftes
+   * Leuchten, eine Eichel fällt, der neue Samen leuchtet auf. Bei `reducedMotion` nur
+   * eine Überblendung von 0,8 s. Der Spielstand soll dabei schon zurückgesetzt sein
+   * (`growth` ≈ 0): Der alte Baum stammt aus dem zuletzt gezeichneten Bild. Nach dem
+   * Ende ist das Bild pixelgleich zur Szene ohne das Feld; es darf gesetzt bleiben.
+   */
+  cycleTransition?: { startedAt: number };
+  /**
+   * Waldgedächtnis (Punkte, `meta.forestMemory`). Ab 1 steht fern im Hintergrund ein
+   * blasser Erinnerungsbaum, der mit dem Gedächtnis langsam (logarithmisch) wächst.
+   * Ohne Angabe oder bei 0: kein Erinnerungsbaum.
+   */
+  forestMemory?: number;
 }
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
@@ -163,6 +181,10 @@ interface SizeCache {
   /** Frames seit dem letzten Neuzeichnen der Ebenen. */
   framesSinceDraw: number;
   anchors: AnchorResolver | null;
+  /** Umriss des Hauptbaums in CSS-Pixeln (x0, y0, x1, y1) oder null. */
+  mainBox: [number, number, number, number] | null;
+  /** Wachstum des Erinnerungsbaums, mit dem der Hintergrund gezeichnet wurde (0 = keiner). */
+  memory: number;
 }
 
 interface Cache {
@@ -176,6 +198,8 @@ interface Cache {
   mood: MoodLayer;
   /** Durchreisende mit eigenem Sprite-Cache. */
   visitors: VisitorLayer;
+  /** Übergang zum Neuen Zyklus (Kopien des alten Bilds nur während der Sequenz). */
+  cycle: CycleTransition;
   /** Merkmale der zuletzt gezeichneten Pflanzenliste. */
   plantSig: PlantSig[] | null;
 }
@@ -271,6 +295,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       spriteKey: -1,
       mood: new MoodLayer(),
       visitors: new VisitorLayer(),
+      cycle: new CycleTransition(),
       plantSig: null,
     };
     caches.set(ctx.canvas, cache);
@@ -285,6 +310,36 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   }
   sc = sc!;
 
+  // Neuer Zyklus: beim ersten Frame mit neuem `startedAt` das alte Bild sichern –
+  // vor dem Neuzeichnen der Ebenen, solange sie noch den alten Baum zeigen.
+  const reduced = input.reducedMotion === true;
+  const transitionAt = input.cycleTransition && Number.isFinite(input.cycleTransition.startedAt) ? input.cycleTransition.startedAt : Number.NaN;
+  if (Number.isNaN(transitionAt)) {
+    if (!Number.isNaN(cache.cycle.startedAt)) cache.cycle.reset();
+  } else if (transitionAt !== cache.cycle.startedAt) {
+    const length = reduced ? CYCLE_TRANSITION_REDUCED_SECONDS : CYCLE_TRANSITION_SECONDS;
+    if (time - transitionAt < length && !Number.isNaN(sc.growth)) {
+      const box = sc.mainBox;
+      cache.cycle.begin(
+        transitionAt,
+        cycleGeometry(sc),
+        ctx.canvas,
+        [
+          { canvas: sc.back, rect: sc.backRect },
+          { canvas: sc.front, rect: sc.mainBox ? sc.frontRect : null },
+        ],
+        box ? { x0: box[0], y0: box[1], x1: box[2], y1: box[3] } : null,
+      );
+    } else {
+      // Zu spät (z. B. nach dem Neuladen) oder noch kein Bild: nichts nachspielen.
+      cache.cycle.reset();
+      cache.cycle.startedAt = transitionAt;
+    }
+  }
+
+  // Erinnerungsbaum: neu zeichnen, wenn sich sein Wachstum merklich ändert.
+  const memory = memoryGrowth(input.forestMemory);
+
   const delta = Math.abs(g - sc.growth);
   const since = time - sc.drawnAt;
   const frames = ++sc.framesSinceDraw;
@@ -294,7 +349,14 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     (delta > 0 && (since > REDRAW_SETTLE_SECONDS || frames >= REDRAW_SETTLE_FRAMES));
   // Neue Pflanzenliste: alles neu (Nachbarbäume, Pilzfäden und Pflanzen hängen davon ab).
   const plantsChanged = !samePlants(cache.plantSig, input.plants);
-  if (Number.isNaN(sc.growth) || clockReset || due || plantsChanged || sc.withPlants !== (input.plants !== undefined)) {
+  if (
+    Number.isNaN(sc.growth) ||
+    clockReset ||
+    due ||
+    plantsChanged ||
+    sc.withPlants !== (input.plants !== undefined) ||
+    memory !== sc.memory
+  ) {
     // Pflanzen beim Wachsen höchstens alle PLANT_REDRAW_STEP; beim Nachziehen (kleine
     // Änderung) exakt – aber nur, wenn sich ihr Wachstum tatsächlich merklich geändert hat.
     const plantDelta = Math.abs(g - sc.plantsGrowth);
@@ -306,7 +368,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       (settle && plantDelta >= PLANT_SETTLE_STEP);
     // Die Signatur hält fest, womit die Pflanzen zuletzt gezeichnet wurden.
     if (redrawPlants) cache.plantSig = input.plants ? input.plants.map(plantSig) : null;
-    renderLayers(sc, g, input.plants, redrawPlants);
+    renderLayers(sc, g, input.plants, redrawPlants, memory);
     sc.growth = g;
     sc.drawnAt = time;
     sc.framesSinceDraw = 0;
@@ -402,7 +464,39 @@ function compose(
     cache.mood.drawLight(ctx, level, mf);
     cache.mood.drawParticles(ctx, level, mf);
   }
+  // Übergang zum Neuen Zyklus ganz oben (nach dem Ende: nichts mehr).
+  if (cache.cycle.active) {
+    cache.cycle.draw(ctx, time - cache.cycle.startedAt, reduced, cycleGeometry(sc), sx, sy);
+  }
   ctx.restore();
+}
+
+/** Maße für den Zyklus-Übergang (Samen wie in `paintUnderground`). */
+function cycleGeometry(sc: SizeCache): CycleGeometry {
+  const { layout } = sc;
+  return {
+    width: layout.width,
+    height: layout.height,
+    groundY: layout.groundY,
+    cx: layout.cx,
+    seedY: layout.groundY + layout.soilH * 0.14,
+    size: sc.anchors?.size ?? animalSize(layout.width, layout.height),
+    dpr: sc.dpr,
+  };
+}
+
+/** Seed des Erinnerungsbaums. */
+const MEMORY_SEED = 4242;
+
+/**
+ * Wachstum des Erinnerungsbaums aus dem Waldgedächtnis (0 = keiner): ab 1 Punkt ein
+ * junger Baum (3), bei 1000 Punkten ein alter (6,5). Auf 0,05 gerundet – so wird der
+ * Hintergrund nur selten neu gezeichnet.
+ */
+export function memoryGrowth(forestMemory: number | undefined): number {
+  if (forestMemory === undefined || !Number.isFinite(forestMemory) || forestMemory < 1) return 0;
+  const t = smooth01(Math.log10(1 + Math.min(forestMemory, 1000)) / 3);
+  return Math.round((3 + 3.5 * t) * 20) / 20;
 }
 
 /** Legt die Ebenen für eine Canvas-Größe an und zeichnet die statische Kulisse. */
@@ -446,6 +540,8 @@ function buildSizeCache(
     drawnAt: 0,
     framesSinceDraw: 0,
     anchors: null,
+    mainBox: null,
+    memory: 0,
   };
 
   const sky = layerContext(sc.scenery, dpr);
@@ -534,7 +630,7 @@ function neighborTrees(g: number, layout: Layout, backdrop = false): NeighborTre
   return result;
 }
 
-function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | undefined, redrawPlants: boolean): void {
+function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | undefined, redrawPlants: boolean, memory: number): void {
   const { dpr, layout } = sc;
   const withPlants = plants !== undefined;
   const neighbors = neighborTrees(g, layout, withPlants);
@@ -558,6 +654,13 @@ function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | 
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.scenery, 0, 0);
   bg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // Erinnerungsbaum: fern und blass auf dem Hügel links – das Waldgedächtnis.
+  if (memory > 0) {
+    const baseY = layout.groundY - layout.height * 0.03;
+    const tree = placeTree(memory, MEMORY_SEED, layout.cx - layout.width * 0.36, baseY, (baseY - layout.top) * 0.42, layout.width * 0.12);
+    paintTree(bg, tree, hazeWood(WOOD, 0.66), hazePalette(PALETTES[2]!, 0.66));
+  }
+  sc.memory = memory;
   paintUnderground(bg, layout, g, scale1, main, withPlants ? sc.companionXs : neighbors.map((n) => n.x));
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.grass, 0, sc.grassTop);
@@ -592,7 +695,8 @@ function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | 
     sc.backRect = unionRect(sc.backRect, pr.x, pr.y, pr.x + pr.w, pr.y + pr.h);
   }
   if (main) {
-    sc.frontRect = toDeviceRect(unionRect(null, ...treeBounds(main)), dpr, pw, ph);
+    sc.mainBox = treeBounds(main);
+    sc.frontRect = toDeviceRect(unionRect(null, ...sc.mainBox), dpr, pw, ph);
     const lignin = smooth01((g - 1) / 2);
     paintTree(front, main, mixWood(STEM, WOOD, lignin), PALETTES[0]!);
     // Keimblätter verblassen, während die ersten Blattbüschel wachsen.
@@ -601,6 +705,7 @@ function renderLayers(sc: SizeCache, g: number, plants: readonly ScenePlant[] | 
       paintCotyledons(front, main.x + main.geo.tipX * main.scale, main.y + main.geo.tipY * main.scale, scale1 * 0.36 * coty);
     }
   } else {
+    sc.mainBox = null;
     paintSprout(front, layout, g, scale1);
     sc.frontRect = toDeviceRect(
       unionRect(null, layout.cx - scale1, layout.groundY - scale1 * 1.4, layout.cx + scale1, layout.groundY + 4),
