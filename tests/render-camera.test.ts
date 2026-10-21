@@ -340,6 +340,39 @@ describe('drawScene mit Kamera', () => {
     expect(frame(canvas, 1.4, HOME_VIEW)).toEqual([1, 0, 0, 1, 0, 0]);
   });
 
+  it('Wechsel Detail ↔ Basis legt keine Sprites oder alten Wald neu an', () => {
+    const canvas = makeCanvas(800, 600);
+    const many: SceneAnimal[] = [
+      ...animals,
+      { id: 'bluetit', family: 'birds', niche: 'crown', slot: 0, happiness: 1 },
+      { id: 'earthworm', family: 'soil', niche: 'roots', slot: 0, happiness: 1 },
+    ];
+    const draw = (time: number, camera?: CameraView) => {
+      canvas.calls.length = 0;
+      drawScene(canvas.getContext('2d'), 400, 300, {
+        growth: 4,
+        time,
+        animals: many,
+        sizeSettled: true,
+        camera,
+        // Ohne Bewegung: keine neuen Einzelbilder der Tiere zwischen den Frames.
+        reducedMotion: true,
+        cycleTransition: { startedAt: 1, fromGrowth: 5 },
+      });
+    };
+    const cam = { zoom: 2, x: 0.4, y: 0.6 };
+    draw(1);
+    draw(1.02, cam); // Geste: Basis skaliert
+    draw(1.03 + RESIZE_SETTLE_SECONDS, cam); // Ruhe: Detail-Ebenen + Sprites der Stufe ×2
+    draw(1.3, cam);
+    // Neue Geste (Basis), dann wieder Ruhe am alten Ort (Detail deckt ab): nichts Neues.
+    const before = created;
+    draw(1.32, { zoom: 2, x: 0.41, y: 0.6 });
+    draw(1.34, cam);
+    draw(1.36, cam);
+    expect(created).toBe(before);
+  });
+
   it('ungültige Kamera zeichnet die ganze Szene', () => {
     const canvas = makeCanvas(800, 600);
     expect(frame(canvas, 1, { zoom: Number.NaN, x: 3, y: -2 })).toEqual([1, 0, 0, 1, 0, 0]);

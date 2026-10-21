@@ -44,29 +44,48 @@ export function seedGlowAlpha(growth: number, time: number, reducedMotion: boole
   return k <= 0 ? 0 : clamp01(k * seedGlowPulse(time, reducedMotion));
 }
 
-/** Schein-Sprite, einmal je Größe (Gerätepixel) angelegt. */
+/**
+ * Schein-Sprites je Größe (Pixel), einmal angelegt. Mehrere Größen bleiben erhalten (z. B.
+ * je Kamera-Zoomstufe), höchstens `MAX_GLOW_SPRITES`.
+ */
 export class SeedGlow {
-  private sprite: HTMLCanvasElement | null = null;
-  private key = -1;
+  private sprites = new Map<number, HTMLCanvasElement>();
 
   /**
-   * Zeichnet den Schein um (x, y) [CSS-px] mit Radius `r`. `sx`, `sy`: zusätzliche
-   * Skalierung (altes Bild während einer Größenänderung, Kamera), `tx`, `ty`:
-   * Verschiebung in Canvas-Pixeln (Kamera).
+   * Zeichnet den Schein um (x, y) [CSS-px] mit Radius `r`. `dpr`: CSS-Pixel → Pixel der
+   * Ebenen; `sx`, `sy`: zusätzliche Skalierung (altes Bild während einer Größenänderung,
+   * Kamera), `tx`, `ty`: Verschiebung in Canvas-Pixeln (Kamera); `spriteDpr`: Auflösung
+   * des Sprites (Standard `dpr`).
    */
-  draw(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, alpha: number, dpr: number, sx: number, sy: number, tx = 0, ty = 0): void {
+  draw(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    r: number,
+    alpha: number,
+    dpr: number,
+    sx: number,
+    sy: number,
+    tx = 0,
+    ty = 0,
+    spriteDpr = dpr,
+  ): void {
     if (alpha <= 0.01 || r <= 0) return;
-    const px = Math.max(8, Math.ceil(r * 2 * dpr));
-    if (!this.sprite || this.key !== px) {
-      this.sprite = paintGlow(this.sprite, px);
-      this.key = px;
+    const px = Math.max(8, Math.ceil(r * 2 * spriteDpr));
+    let sprite = this.sprites.get(px);
+    if (!sprite) {
+      if (this.sprites.size >= MAX_GLOW_SPRITES) this.sprites.clear();
+      sprite = paintGlow(null, px);
+      this.sprites.set(px, sprite);
     }
     ctx.globalAlpha = alpha;
     ctx.setTransform(sx * dpr, 0, 0, sy * dpr, tx, ty);
-    ctx.drawImage(this.sprite, x - r, y - r, r * 2, r * 2);
+    ctx.drawImage(sprite, x - r, y - r, r * 2, r * 2);
     ctx.globalAlpha = 1;
   }
 }
+
+const MAX_GLOW_SPRITES = 4;
 
 function paintGlow(old: HTMLCanvasElement | null, px: number): HTMLCanvasElement {
   const c = old ?? document.createElement('canvas');

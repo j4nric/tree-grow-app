@@ -884,6 +884,11 @@ export interface AnimalFrame {
   /** Zusätzliche Verschiebung in Canvas-Pixeln (Kamera); ohne Angabe 0. */
   tx?: number;
   ty?: number;
+  /**
+   * Auflösung der Sprites (Pixel je CSS-Pixel); ohne Angabe `dpr`. Beim Zoom eine von
+   * wenigen Stufen, damit Sprites je Stufe gecacht bleiben.
+   */
+  spriteDpr?: number;
 }
 
 /** Jahreszeit-Werte dieses Frames (einmal je Frame gerechnet, keine Allokation). */
@@ -1164,22 +1169,22 @@ function drawEntry(
 
   for (const d of e.before) {
     if (d.name === 'flowers') drawEdgeFlowers(ctx, d, wx, sprites, f);
-    else blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
+    else blit(ctx, sprites.get(d.name, 0, false, d.size, f.spriteDpr ?? f.dpr), d.x + wx, d.y, 1, 0, 1, f);
   }
   if (e.shimmer > 0) drawShimmer(ctx, e, pose, muted, sprites, f);
   if (e.kind === 'glowworm' && seasonNow.glow > 0.01) {
     // Leuchten nur in der Glühwürmchen-Zeit; im Winter sitzt es dunkel am Boden.
     const hx = pose.x - 0.12 * e.size * pose.dir;
     const hy = pose.y + 0.04 * e.size;
-    blit(ctx, sprites.get('glowHalo', 0, false, e.size, f.dpr), hx, hy, 1, 0, seasonNow.glow * (1 - 0.5 * muted), f);
+    blit(ctx, sprites.get('glowHalo', 0, false, e.size, f.spriteDpr ?? f.dpr), hx, hy, 1, 0, seasonNow.glow * (1 - 0.5 * muted), f);
   }
   if (muted < 0.99) {
-    blit(ctx, sprites.get(e.kind, pose.frame, false, e.size, f.dpr), pose.x, pose.y, pose.dir, pose.rot, 1, f);
+    blit(ctx, sprites.get(e.kind, pose.frame, false, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, 1, f);
   }
   if (muted > 0.01) {
-    blit(ctx, sprites.get(e.kind, pose.frame, true, e.size, f.dpr), pose.x, pose.y, pose.dir, pose.rot, muted < 0.99 ? muted : 1, f);
+    blit(ctx, sprites.get(e.kind, pose.frame, true, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, muted < 0.99 ? muted : 1, f);
   }
-  for (const d of e.after) blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
+  for (const d of e.after) blit(ctx, sprites.get(d.name, 0, false, d.size, f.spriteDpr ?? f.dpr), d.x + wx, d.y, 1, 0, 1, f);
   if (e.shimmer === 3) drawSparkles(ctx, e, pose, muted, sprites, f);
 }
 
@@ -1267,13 +1272,13 @@ function drawEdgeFlowers(ctx: CanvasRenderingContext2D, d: Deco, wx: number, spr
   const { petals, seeds, bare } = seasonNow;
   const x = d.x + wx;
   if (petals >= 0.995 && seeds <= 0.005 && bare <= 0.005) {
-    blit(ctx, sprites.get('flowers', 0, false, d.size, f.dpr), x, d.y, 1, 0, 1, f);
+    blit(ctx, sprites.get('flowers', 0, false, d.size, f.spriteDpr ?? f.dpr), x, d.y, 1, 0, 1, f);
     return;
   }
-  if (bare < 0.995) blit(ctx, sprites.get('edgeGreen', 0, false, d.size, f.dpr), x, d.y, 1, 0, 1 - bare, f);
-  if (bare > 0.005) blit(ctx, sprites.get('edgeBare', 0, false, d.size, f.dpr), x, d.y, 1, 0, bare, f);
-  if (seeds > 0.005) blit(ctx, sprites.get('edgeSeeds', 0, false, d.size, f.dpr), x, d.y, 1, 0, seeds, f);
-  if (petals > 0.005) blit(ctx, sprites.get('edgePetals', 0, false, d.size, f.dpr), x, d.y, 1, 0, petals, f);
+  if (bare < 0.995) blit(ctx, sprites.get('edgeGreen', 0, false, d.size, f.spriteDpr ?? f.dpr), x, d.y, 1, 0, 1 - bare, f);
+  if (bare > 0.005) blit(ctx, sprites.get('edgeBare', 0, false, d.size, f.spriteDpr ?? f.dpr), x, d.y, 1, 0, bare, f);
+  if (seeds > 0.005) blit(ctx, sprites.get('edgeSeeds', 0, false, d.size, f.spriteDpr ?? f.dpr), x, d.y, 1, 0, seeds, f);
+  if (petals > 0.005) blit(ctx, sprites.get('edgePetals', 0, false, d.size, f.spriteDpr ?? f.dpr), x, d.y, 1, 0, petals, f);
 }
 
 /** Lichthof hinter seltenen Arten: ein gecachtes Sprite, das sanft pulsiert. */
@@ -1282,13 +1287,13 @@ function drawShimmer(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, mu
   const pulse = f.reducedMotion ? 0.85 : 0.75 + 0.25 * Math.sin(f.time * 1.6 + e.phase);
   const base = e.shimmer === 3 ? 0.62 : 0.42;
   const alpha = base * pulse * (1 - 0.5 * muted);
-  blit(ctx, sprites.get('shimmer', 0, false, e.size * e.midR, f.dpr), x, y, 1, 0, alpha, f);
+  blit(ctx, sprites.get('shimmer', 0, false, e.size * e.midR, f.spriteDpr ?? f.dpr), x, y, 1, 0, alpha, f);
 }
 
 /** Zwei kleine Funken, die abwechselnd an Rand des Tiers aufblitzen (nur legendäre Arten). */
 function drawSparkles(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, muted: number, sprites: SpriteCache, f: AnimalFrame): void {
   const { x, y } = spriteMid(e, pose, mid);
-  const s = sprites.get('sparkle', 0, false, Math.max(8, e.size * 0.34), f.dpr);
+  const s = sprites.get('sparkle', 0, false, Math.max(8, e.size * 0.34), f.spriteDpr ?? f.dpr);
   const r = e.size * e.midR * 0.7;
   for (let k = 0; k < 2; k++) {
     const t = f.reducedMotion ? 0.3 + k * 0.4 : f.time * 0.9 + e.phase + k * 0.5;

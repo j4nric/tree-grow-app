@@ -28,10 +28,12 @@ async function view(page: Page): Promise<View> {
  * Wartet, bis die gespeicherte (ruhende) Ansicht `ok` erfüllt, und gibt sie zurück. Die
  * Ansicht wird erst gespeichert, wenn die Kamera nicht mehr gleitet.
  */
-async function viewWhen(page: Page, ok: (v: View) => boolean): Promise<View> {
+async function viewWhen(page: Page, ok: (v: View) => boolean = () => true): Promise<View> {
   let last: View | null = null;
   await expect
     .poll(async () => {
+      // Nur eine ruhende Kamera zählt (`data-camera` setzt camera-input.ts je Frame).
+      if ((await canvas(page).getAttribute('data-camera')) !== 'still') return false;
       last = await view(page);
       return ok(last);
     })
@@ -125,8 +127,7 @@ test.describe('Desktop', () => {
     await expect(reset(page)).toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('Mausrad zoomt zum Zeiger, Ziehen verschiebt, Grenzen halten an allen Seiten', async ({ page, context }) => {
-    test.setTimeout(60_000);
+  test('Mausrad zoomt zum Zeiger, Ziehen verschiebt', async ({ page, context }) => {
     await seedTree(context);
     await openGame(page);
     const box = (await canvas(page).boundingBox())!;
@@ -134,26 +135,29 @@ test.describe('Desktop', () => {
     await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.25);
     for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -200);
     const z = await viewWhen(page, (v) => v.zoom > 2);
-    await page.waitForTimeout(300);
-    Object.assign(z, await view(page));
     expect(z.x).toBeLessThan(0.5);
     expect(z.y).toBeLessThan(0.5);
     expectInside(z);
 
-    // Ziehen nach links oben: der Ausschnitt wandert nach rechts unten.
+    // Ziehen nach links oben: der Ausschnitt wandert nach rechts unten (ein Ausgleiten
+    // führt nur weiter in dieselbe Richtung).
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
     await page.mouse.move(cx, cy);
     await page.mouse.down();
     await page.mouse.move(cx - 150, cy - 100, { steps: 10 });
-    await page.waitForTimeout(150); // ruhig halten: kein Ausgleiten
     await page.mouse.up();
-    await viewWhen(page, (v) => v.x > z.x && v.y > z.y);
+    expectInside(await viewWhen(page, (v) => v.x > z.x && v.y > z.y));
+  });
 
+  test('Grenzen halten an allen Seiten (kein Leerraum)', async ({ page, context }) => {
+    await seedTree(context);
+    await openGame(page);
+    const box = (await canvas(page).boundingBox())!;
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
     // Bei 1,5× reicht ein kräftiger Zug bis über den Rand: weit über alle Ränder hinaus
     // ziehen – nie Leerraum.
-    await reset(page).click();
-    await viewWhen(page, isHome);
     await zoomIn(page).click();
     await viewWhen(page, (v) => Math.abs(v.zoom - 1.5) < 1e-6);
     for (const [dx, dy] of [
@@ -177,7 +181,6 @@ test.describe('Desktop', () => {
         return Math.abs(ex) < 1e-6 && Math.abs(ey) < 1e-6;
       };
       expectInside(await viewWhen(page, atEdge));
-      await page.waitForTimeout(300); // scharfe Detail-Ebenen
       for (const px of await edgePixels(page)) expect(px[3]).toBe(255);
     }
   });
@@ -260,7 +263,6 @@ test.describe('Mobil', () => {
     const panned = await viewWhen(page, (v) => v.y > pinched.y);
     expectInside(panned);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
-    await page.waitForTimeout(300);
     for (const px of await edgePixels(page)) expect(px[3]).toBe(255);
 
     // Zurücksetzen: wieder 1×, die Seite scrollt wieder.

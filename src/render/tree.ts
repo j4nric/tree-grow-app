@@ -288,6 +288,8 @@ interface SizeCache {
   plantSig: PlantSig[] | null;
   /** Pixeldichte der Basis (für Werte, die in Basis und Detail gleich sein müssen). */
   baseDpr: number;
+  /** Schlüssel der Basis, zu der diese Ebenen gehören (Basis: der eigene). */
+  baseKey: string;
   /** Krone des Hauptbaums für Gäste (CSS-Pixel: Mitte x, y, Radien) oder null. */
   crown: [number, number, number, number] | null;
 }
@@ -558,9 +560,12 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const camStill = cameraSettled(cache, cam, input.time);
   if (cam && zoom > 1 + 1e-6) {
     if (camStill && base.key === key) {
-      const detailKey = `${key}@${zoom}:${viewLeft(cam)},${viewTop(cam)}`;
-      if (!cache.detail || cache.detail.key !== detailKey) {
-        cache.detail = buildDetailCache(cache.detail, detailKey, base, cam, look);
+      // Zahlen vergleichen (kein String pro Frame); der Schlüssel entsteht nur beim Bau.
+      const d = cache.detail;
+      const left = viewLeft(cam);
+      const top = viewTop(cam);
+      if (!d || d.baseKey !== key || d.zoom !== zoom || d.covL !== left || d.covT !== top) {
+        cache.detail = buildDetailCache(d, `${key}@${zoom}:${left},${top}`, base, cam, look);
       }
     }
   } else if (cache.detail && camStill) {
@@ -571,10 +576,11 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const detail = cache.detail;
   const sc = cam && detail && detail.layout.width === width && detail.layout.height === height && covers(detail, cam) ? detail : base;
 
-  updateLayers(sc, cache, input, g, time, look);
+  updateLayers(sc, base, cache, input, g, time, look);
 
-  // Sprites einer alten Tiergröße/Pixeldichte verwerfen (numerischer Schlüssel, kein String pro Frame).
-  const spriteKey = (sc.anchors?.size ?? 0) * 100_000 + Math.round(sc.dpr * 1000);
+  // Sprites einer alten Tiergröße verwerfen. Die Auflösung gehört nicht dazu: Sprites je
+  // Auflösungsstufe (Kamera) bleiben erhalten – ihr Schlüssel im SpriteCache enthält sie.
+  const spriteKey = sc.anchors?.size ?? 0;
   if (cache.spriteKey !== spriteKey) {
     cache.animals.sprites.clear();
     cache.spriteKey = spriteKey;
@@ -642,6 +648,7 @@ function buildDetailCache(old: SizeCache | null, key: string, base: SizeCache, c
     fullH,
     zoom: cam.zoom,
     baseDpr: base.dpr,
+    baseKey: base.key,
     covL: viewLeft(cam),
     covT: viewTop(cam),
   });
@@ -665,7 +672,7 @@ function releaseSizeCache(sc: SizeCache): void {
  * Wachstum. Nur der in diesem Frame gezeigte Satz wird nachgeführt; ein ruhender holt
  * beim nächsten Einsatz nach (sein Wachstum gilt dann sofort als fällig).
  */
-function updateLayers(sc: SizeCache, cache: Cache, input: SceneInput, g: number, time: number, look: SeasonLook | null): void {
+function updateLayers(sc: SizeCache, base: SizeCache, cache: Cache, input: SceneInput, g: number, time: number, look: SeasonLook | null): void {
   // Jahreszeit (auf 0,05 gerundet): Kulisse und Grasnarbe neu, wenn sich die Rundung
   // ändert; Baum-Ebenen, Pflanzen und Erinnerungsbaum folgen unten.
   const seasonKey = seasonStepKey(look);
@@ -694,10 +701,13 @@ function updateLayers(sc: SizeCache, cache: Cache, input: SceneInput, g: number,
     // der dann gültigen Jahreszeit gezeichnet und bleibt für den Übergang so eingefroren.
     // Unbekannte oder fehlende Art des alten Baums → aktuelle Art.
     const fromTree = normalizeSpecies(ct.fromTree, species);
-    const cycleKey = `${ct.startedAt}|${fromGrowth}|${sc.key}|${fromTree}|${species}`;
+    // Immer aus der Basis (ganze Szene): Ein Zoom während der Sequenz zeichnet den alten
+    // Wald nicht neu; gezeichnet wird er in CSS-Pixeln und passt so zu jeder Ebene.
+    // Der Schlüssel entsteht nur, solange die Sequenz läuft (~5,5 s).
+    const cycleKey = `${ct.startedAt}|${fromGrowth}|${base.key}|${fromTree}|${species}`;
     if (!cache.cycle.prepared || cache.cycle.key !== cycleKey || !samePlants(cache.cyclePlants, ct.fromPlants)) {
       cache.cyclePlants = ct.fromPlants ? ct.fromPlants.map(plantSig) : null;
-      cache.cycle.prepare(cycleKey, cycleGeometry(sc), paintOldForest(sc, fromGrowth, ct.fromPlants, look, fromTree), species);
+      cache.cycle.prepare(cycleKey, cycleGeometry(base), paintOldForest(base, fromGrowth, ct.fromPlants, look, fromTree), species);
     }
   }
 
@@ -749,6 +759,8 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   const { sx, sy } = m;
   const reduced = input.reducedMotion === true;
   const layer = cache.animals;
+  // Auflösung der Sprites: Basis × 1, 2 oder 4 (je Stufe gecacht, nicht je Zoomwert).
+  const spriteDpr = sc.zoom <= 1 ? dpr : sc.baseDpr * (sc.zoom <= 2 ? 2 : 4);
   ctx.save();
   ctx.setTransform(sx, 0, 0, sy, m.cx, m.cy);
   const v = visible;
@@ -767,7 +779,7 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   const glow = seedGlowAlpha(sc.growth, time, reduced, cache.cycleU);
   if (glow > 0) {
     // Lage wie in `paintUnderground` (keine Allokation pro Frame).
-    cache.seedGlow.draw(ctx, layout.cx, layout.groundY + layout.soilH * 0.14, sc.seedR * 5, glow, dpr, sx, sy, m.tx, m.ty);
+    cache.seedGlow.draw(ctx, layout.cx, layout.groundY + layout.soilH * 0.14, sc.seedR * 5, glow, dpr, sx, sy, m.tx, m.ty, spriteDpr);
     ctx.setTransform(sx, 0, 0, sy, m.cx, m.cy);
   }
   if (sc.memoryCanvas && sc.memoryRect) {
@@ -791,6 +803,7 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     mf.sy = sy;
     mf.tx = m.tx;
     mf.ty = m.ty;
+    mf.spriteDpr = spriteDpr;
     mf.time = time;
     mf.reducedMotion = reduced;
     // Ungerundete Jahreszeit: stufenlos, ohne Sprünge bei jeder Rundungsstufe.
@@ -810,6 +823,7 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     vf.sy = sy;
     vf.tx = m.tx;
     vf.ty = m.ty;
+    vf.spriteDpr = spriteDpr;
     vf.time = time;
     vf.reducedMotion = reduced;
     vf.windSkew = 0;
@@ -859,6 +873,7 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     f.sy = sy;
     f.tx = m.tx;
     f.ty = m.ty;
+    f.spriteDpr = spriteDpr;
     layer.draw(ctx, animals, sc.anchors, f);
   }
   // Fallende Blätter und Schnee (nur außerhalb des Sommers).
@@ -991,7 +1006,7 @@ function buildSizeCache(
   dpr: number,
   look: SeasonLook | null,
   /** Detail-Ebenen: Ausschnitt (Anteile), Größe der ganzen Szene in Pixeln, Zoom. */
-  view?: { oxN: number; oyN: number; fullW: number; fullH: number; zoom: number; baseDpr: number; covL: number; covT: number },
+  view?: { oxN: number; oyN: number; fullW: number; fullH: number; zoom: number; baseDpr: number; baseKey: string; covL: number; covT: number },
 ): SizeCache {
   const layout = makeLayout(width, height);
   const sized = (c: HTMLCanvasElement | undefined) => {
@@ -1042,6 +1057,7 @@ function buildSizeCache(
     seedR: 4,
     plantSig: null,
     baseDpr: view?.baseDpr ?? dpr,
+    baseKey: view?.baseKey ?? key,
     crown: null,
   };
 

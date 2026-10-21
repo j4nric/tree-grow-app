@@ -76,6 +76,8 @@ export interface VisitorFrame {
   /** Verschiebung in Canvas-Pixeln (Kamera); ohne Angabe 0. */
   tx?: number;
   ty?: number;
+  /** Auflösung der Sprites (Pixel je CSS-Pixel); ohne Angabe `dpr`. */
+  spriteDpr?: number;
   time: number;
   reducedMotion: boolean;
   /** Scherfaktor des Hauptbaums (Wind) – Gäste in der Krone schwingen mit. */
@@ -197,8 +199,14 @@ export class VisitorLayer {
     this.sprites.tick();
   }
 
+  /**
+   * Alte Tiergrößen verwerfen. Die Auflösung gehört nicht dazu: Sprites je Auflösung
+   * (Kamera-Zoom) bleiben im Cache (ihr Schlüssel enthält sie); bei Überlauf fallen die
+   * unbenutzten zuerst.
+   */
   private checkSpriteKey(size: number, dpr: number): void {
-    const key = size * 100_000 + Math.round(dpr * 1000);
+    void dpr;
+    const key = size;
     if (key !== this.spriteKey) {
       this.sprites.clear();
       this.spriteKey = key;
@@ -310,7 +318,7 @@ export class VisitorLayer {
       const bob = f.reducedMotion ? 0 : Math.sin(f.time * 0.7 + i * 0.9) * cs * 0.05;
       const y = y0 + arm * k * 0.42 * cs + bob;
       const frame = f.reducedMotion ? 0 : Math.floor(f.time * 1.3 + i * 0.37) & 1;
-      blit(ctx, this.sprites.get('visitor:crane', frame, false, cs, f.dpr), x, y, 1, 0.92, f);
+      blit(ctx, this.sprites.get('visitor:crane', frame, false, cs, f.spriteDpr ?? f.dpr), x, y, 1, 0.92, f);
     }
   }
 
@@ -337,7 +345,7 @@ export class VisitorLayer {
       const vx = -Math.sin(a);
       const dir = f.reducedMotion ? (i % 2 === 0 ? 1 : -1) : vx > 0 ? -1 : 1;
       const flap = f.reducedMotion ? 0 : Math.floor(t * 9 + rnd(h, 5) * 4) & 1;
-      blit(ctx, this.sprites.get(sprite, flap, false, bs, f.dpr), x, y, dir, 1, f);
+      blit(ctx, this.sprites.get(sprite, flap, false, bs, f.spriteDpr ?? f.dpr), x, y, dir, 1, f);
     }
   }
 
@@ -353,7 +361,7 @@ export class VisitorLayer {
       st.lanes = lanes;
     }
     const p = mothPose(f, slot, seed, st.gap, st.pose, lane);
-    blit(ctx, this.sprites.get('visitor:moth', p.frame, false, f.size * MOTH_SCALE, f.dpr), p.x, p.y, p.dir, 1, f);
+    blit(ctx, this.sprites.get('visitor:moth', p.frame, false, f.size * MOTH_SCALE, f.spriteDpr ?? f.dpr), p.x, p.y, p.dir, 1, f);
   }
 
   /** Schwalben: weite, flinke Bögen über der Wiese – stets über den Köpfen der Großtiere. */
@@ -362,7 +370,7 @@ export class VisitorLayer {
     const poses = swallowPoses(f, seed, this.state(seed).flight);
     for (let i = 0; i < poses.length; i++) {
       const p = poses[i]!;
-      blit(ctx, this.sprites.get('visitor:swallow', p.frame, false, size, f.dpr), p.x, p.y, p.dir, 1, f, p.rot);
+      blit(ctx, this.sprites.get('visitor:swallow', p.frame, false, size, f.spriteDpr ?? f.dpr), p.x, p.y, p.dir, 1, f, p.rot);
     }
   }
 
@@ -407,14 +415,14 @@ export class VisitorLayer {
     const poses = boarPoses(f, slot, seed, route, st.poses);
     for (let i = 0; i < poses.length; i++) {
       const p = poses[i]!;
-      blit(ctx, this.sprites.get(p.piglet ? 'visitor:piglet' : 'visitor:boar', p.frame, false, p.size, f.dpr), p.x, p.y, p.dir, alpha, f);
+      blit(ctx, this.sprites.get(p.piglet ? 'visitor:piglet' : 'visitor:boar', p.frame, false, p.size, f.spriteDpr ?? f.dpr), p.x, p.y, p.dir, alpha, f);
     }
   }
 
   /** Wanderfalke: kreist hoch oben, stößt alle ~15 s in weitem Bogen herab. */
   private drawFalcon(ctx: CanvasRenderingContext2D, slot: number, seed: number, f: VisitorFrame): void {
     const p = falconPose(f, slot, seed, this.state(seed).pose);
-    blit(ctx, this.sprites.get('visitor:falcon', p.frame, false, f.size * 0.85, f.dpr), p.x, p.y, p.dir, 1, f, p.rot);
+    blit(ctx, this.sprites.get('visitor:falcon', p.frame, false, f.size * 0.85, f.spriteDpr ?? f.dpr), p.x, p.y, p.dir, 1, f, p.rot);
   }
 
   /** Hirschkäfer: schwerfällige, brummende Schleifen um die Krone. */
@@ -434,7 +442,7 @@ export class VisitorLayer {
       const y = cy + ry * 0.8 * Math.sin(a * 1.6 + rnd(h, 4) * 3) + (f.reducedMotion ? 0 : Math.sin(t * 2.2 + i) * S * 0.15);
       const dir = Math.sin(a) > 0 ? -1 : 1;
       const frame = f.reducedMotion ? 0 : Math.floor(t * 16 + i) & 1;
-      blit(ctx, this.sprites.get('visitor:stag', frame, false, S * 0.72, f.dpr), x, y, dir, 1, f);
+      blit(ctx, this.sprites.get('visitor:stag', frame, false, S * 0.72, f.spriteDpr ?? f.dpr), x, y, dir, 1, f);
     }
   }
 
@@ -468,7 +476,7 @@ export class VisitorLayer {
       const hop = !f.reducedMotion && local < 0.3 ? Math.sin((local / 0.3) * Math.PI) * S * 0.12 : 0;
       const dir = (hash2(h, Math.floor(u)) & 1) === 0 ? 1 : -1;
       const x = px + f.windSkew * (py - f.groundY);
-      blit(ctx, this.sprites.get('visitor:waxwing', 0, false, S * 0.62, f.dpr), x, py - hop, dir, 1, f);
+      blit(ctx, this.sprites.get('visitor:waxwing', 0, false, S * 0.62, f.spriteDpr ?? f.dpr), x, py - hop, dir, 1, f);
     }
   }
 }

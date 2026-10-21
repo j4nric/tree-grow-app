@@ -28,7 +28,7 @@ import { drawScene, hitTestAnimal, type AnimalHit, type HitScene, type SceneInpu
 import { CanvasSizer } from './render/canvas-size';
 import type { CanvasSize } from './render/resize';
 import { Camera } from './render/camera';
-import { attachCameraInput, createCameraControls, loadCameraView } from './render/camera-input';
+import { attachCameraInput, createCameraControls, loadCameraView } from './ui/camera-input';
 import { PLANTS_BY_ID } from './content/plants';
 import {
   harmonyTierIndex,
@@ -835,7 +835,7 @@ function frame(now: number): void {
   sceneSize = size;
   // Kamera gleitet in Echtzeit (auch wenn das Spiel kurz hängt, höchstens MAX_FRAME_SECONDS).
   camera.step(dt);
-  cameraInput.update();
+  cameraInput.update(now);
   cameraControls.update();
   scene.growth = growth(state);
   scene.time = now / 1000;

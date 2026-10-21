@@ -38,6 +38,19 @@ async function cameraView(page: Page): Promise<CameraView> {
   return page.evaluate(() => JSON.parse(sessionStorage.getItem('tree-grow-camera') ?? '{"zoom":1,"x":0.5,"y":0.5}'));
 }
 
+/** Wartet, bis die Kamera ruht (`data-camera`), und liefert die gespeicherte Ansicht. */
+async function restingView(page: Page, ok: (v: CameraView) => boolean = () => true): Promise<CameraView> {
+  let last: CameraView | null = null;
+  await expect
+    .poll(async () => {
+      if ((await canvas(page).getAttribute('data-camera')) !== 'still') return false;
+      last = await cameraView(page);
+      return ok(last);
+    })
+    .toBe(true);
+  return last!;
+}
+
 test.describe('Tier in der Szene', () => {
   test.use({ viewport: { width: 1200, height: 760 } });
   test.beforeEach(async ({ page }) => {
@@ -65,23 +78,21 @@ test.describe('Tier in der Szene', () => {
     // Zoomen mit dem Rad über dem Tier.
     await page.mouse.move(p.x, p.y);
     await page.mouse.wheel(0, -300);
-    await page.waitForTimeout(400);
+    const v = await restingView(page, (c) => c.zoom > 1);
     await expect(detail(page)).toBeHidden();
-    expect((await cameraView(page)).zoom).toBeGreaterThan(1);
 
     // Ziehen (> 6 px), das auf dem Tier beginnt und endet.
-    const v = await cameraView(page);
     const q = await wormPoint(page, v);
     await page.mouse.move(q.x, q.y);
     await page.mouse.down();
     await page.mouse.move(q.x + 12, q.y, { steps: 4 });
     await page.mouse.move(q.x, q.y, { steps: 4 });
     await page.mouse.up();
-    await page.waitForTimeout(400);
+    // Der Dialog öffnete (wenn überhaupt) schon im pointerup – synchron.
     await expect(detail(page)).toBeHidden();
 
     // Ruhig vergrößert: Klick auf das Tier an seiner gezoomten Stelle öffnet.
-    const still = await cameraView(page);
+    const still = await restingView(page);
     const r = await wormPoint(page, still);
     await page.mouse.click(r.x, r.y);
     await expect(page.getByRole('dialog', { name: 'Regenwurm' })).toBeVisible();
@@ -92,7 +103,8 @@ test.describe('Tier in der Szene', () => {
     await openGame(page);
     const box = (await canvas(page).boundingBox())!;
     await page.mouse.click(box.x + box.width * 0.1, box.y + box.height * 0.1);
-    await page.waitForTimeout(300);
+    // Ein Treffer öffnete den Dialog synchron im pointerup; die Kamera bleibt bei 1×.
+    expect(await restingView(page)).toEqual({ zoom: 1, x: 0.5, y: 0.5 });
     await expect(detail(page)).toBeHidden();
   });
 });
@@ -123,8 +135,15 @@ test.describe('Kamera-Leiste bei 700 px', () => {
     await expect(stackEl).toBeVisible();
     let floated = false;
     for (let y = 0; y <= 400; y += 8) {
-      await page.evaluate((y) => window.scrollTo(0, y), y);
-      await page.waitForTimeout(40);
+      // Scrollen, dann zwei Frames: Der IntersectionObserver setzt `floating` asynchron.
+      await page.evaluate(
+        (y) =>
+          new Promise<void>((done) => {
+            window.scrollTo(0, y);
+            requestAnimationFrame(() => requestAnimationFrame(() => done()));
+          }),
+        y,
+      );
       const r = await page.evaluate(() => {
         const vis = (el: Element) => {
           const b = el.getBoundingClientRect();

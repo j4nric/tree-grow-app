@@ -236,18 +236,28 @@ export class Camera {
   }
 
   /**
-   * Ende einer Geste: über den Höchstzoom gedehnt → zurückfedern (Punkt `fx`, `fy` bleibt
-   * stehen); knapp über 1× → auf die ganze Szene einrasten.
+   * Ende einer Geste (auch eines Tipps): Ist das Ziel über den Höchstzoom gedehnt →
+   * zurückfedern (Punkt `fx`, `fy` bleibt stehen); liegt es knapp über 1× → auf die ganze
+   * Szene einrasten. Entscheidet nach dem Ziel, nicht nach dem gerade gezeichneten Bild –
+   * so bricht ein Tipp während eines Gleitens (Doppeltipp, Zurückfedern) nichts ab.
    */
   settle(fx = 0.5, fy = 0.5): void {
-    const v = this.view;
-    if (v.zoom > MAX_ZOOM) {
+    const t = this.target;
+    if (t.zoom > MAX_ZOOM) {
+      const v = this.view;
       const sx = viewLeft(v) + fx / v.zoom;
       const sy = viewTop(v) + fy / v.zoom;
       this.glideTo(anchoredView(MAX_ZOOM, fx, fy, sx, sy), { fx, fy, sx, sy });
-    } else if (v.zoom < SNAP_ZOOM && v.zoom > MIN_ZOOM) {
+    } else if (t.zoom < SNAP_ZOOM && t.zoom > MIN_ZOOM) {
       this.glideTo(HOME_VIEW);
     }
+  }
+
+  /** Hält ein laufendes Gleiten an (Ziel = aktuelles Bild), z. B. wenn ein Finger zugreift. */
+  stop(): void {
+    if (!this.moving) return;
+    clampView(this.view, STRETCH_MAX_ZOOM, this.target);
+    this.anchor = null;
   }
 
   /** Schritt um `dt` Sekunden; gibt zurück, ob sich die Ansicht geändert hat. */

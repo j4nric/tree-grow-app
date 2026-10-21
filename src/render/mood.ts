@@ -34,6 +34,8 @@ export interface MoodFrame {
   /** Verschiebung in Canvas-Pixeln (Kamera); ohne Angabe 0. */
   tx?: number;
   ty?: number;
+  /** Auflösung der Partikel-Sprites (Pixel je CSS-Pixel); ohne Angabe `dpr`. */
+  spriteDpr?: number;
   time: number;
   reducedMotion: boolean;
   /**
@@ -103,8 +105,8 @@ export class MoodLayer {
   lightBuilds = 0;
   private warmGrad: CanvasGradient | null = null;
   private warmKey = -1;
-  private dots = new Map<string, HTMLCanvasElement>();
-  private dotsDpr = 0;
+  /** Partikel-Sprites je Art und Pixelgröße (numerischer Schlüssel, je Auflösung erhalten). */
+  private dots = new Map<number, HTMLCanvasElement>();
   private particles: Particle[] = [
     ...makeParticles(16, 0, 11),
     ...makeParticles(8, 1, 23),
@@ -175,7 +177,7 @@ export class MoodLayer {
           alpha *= 0.85;
         }
       }
-      const s = this.dot(p.kind, size, f.dpr);
+      const s = this.dot(p.kind, size, f.spriteDpr ?? f.dpr);
       const k = f.dpr;
       const c = rot === 0 ? 1 : Math.cos(rot);
       const sn = rot === 0 ? 0 : Math.sin(rot);
@@ -283,12 +285,8 @@ export class MoodLayer {
 
   /** Kleine Partikel-Sprites (Pollen, Blütenblatt, Glühwürmchen) je Größe und Pixeldichte. */
   private dot(kind: 0 | 1 | 2, size: number, dpr: number): HTMLCanvasElement {
-    if (this.dotsDpr !== dpr) {
-      this.dots.clear();
-      this.dotsDpr = dpr;
-    }
     const px = Math.max(2, Math.round(size * dpr));
-    const key = `${kind}/${px}`;
+    const key = px * 4 + kind;
     let s = this.dots.get(key);
     if (s) return s;
     s = document.createElement('canvas');
