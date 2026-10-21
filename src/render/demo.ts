@@ -289,12 +289,11 @@ function drawGallery(): void {
     ctx.fillStyle = '#334';
     ctx.fillText(kind, cx, Math.floor(i / cols) * cell + cell - 6);
   });
-  // Durchreisende: alle Bilder je Zeichnung (Wildschwein und Falke haben mehr als zwei)
+  // Durchreisende: alle Bilder je Zeichnung (Anzahl aus `frames` der SpriteDef)
   const vtop = Math.ceil(kinds.length / cols) * cell;
-  const FRAMES: Record<string, number> = { 'visitor:boar': 4, 'visitor:piglet': 4, 'visitor:falcon': 3, 'visitor:waxwing': 1 };
   let vi = 0;
-  for (const kind of Object.keys(VISITOR_DEFS)) {
-    for (let fr = 0; fr < (FRAMES[kind] ?? 2); fr++, vi++) {
+  for (const [kind, def] of Object.entries(VISITOR_DEFS)) {
+    for (let fr = 0; fr < (def.frames ?? 2); fr++, vi++) {
       const cx = (vi % cols) * cell + cell / 2;
       const row = vtop + Math.floor(vi / cols) * cell;
       const cy = row + cell * 0.55;

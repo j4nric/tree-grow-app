@@ -12,6 +12,8 @@ export interface SpriteDef {
   x1: number;
   y1: number;
   paint: Paint;
+  /** Anzahl der Bilder (`paint` bekommt 0 … frames − 1); ohne Angabe nicht festgelegt. */
+  frames?: number;
 }
 
 export const OUTLINE = 'rgba(46, 34, 24, 0.55)';

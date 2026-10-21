@@ -293,6 +293,7 @@ const visitorFrame: VisitorFrame = {
   crownY: 0,
   crownRx: 0,
   crownRy: 0,
+  crownTaken: [],
 };
 /** Ab diesem Wachstum (Stufe „Junger Baum“) gibt es eine Krone für Gäste. */
 const CROWN_GROWTH = 3;
@@ -494,6 +495,7 @@ function compose(
     vf.windSkew = 0;
     // Belegte Waldsaum-Plätze (gemerkt, nur bei geänderten Plätzen neu) und die Krone.
     vf.blocked = cache.visitors.updateBlocked(input.animals, sc.anchors);
+    vf.crownTaken = cache.visitors.crownTaken;
     vf.anchors = sc.anchors;
     const fr = sc.frontRect;
     if (fr && sc.growth >= CROWN_GROWTH) {
@@ -506,6 +508,8 @@ function compose(
     } else {
       vf.crownRx = 0;
     }
+    // Einmal pro Frame: Sprite-Cache weiterzählen (sky, meadow, front folgen).
+    cache.visitors.beginFrame(vf.size, dpr);
     cache.visitors.draw(ctx, visitors, 'sky', vf);
     ctx.setTransform(sx, 0, 0, sy, 0, 0);
   }
