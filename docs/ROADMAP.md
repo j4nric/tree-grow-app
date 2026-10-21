@@ -271,8 +271,11 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   geschützten Admin-Endpunkt), Wiederherstellung dokumentiert in `docs/KONTO.md`
 - [ ] Überwachung (`core-engineer`): stündlicher Workflow prüft `sync…/api/health` und die
   Spielseite, meldet Ausfälle als GitHub-Issue (schließt es wieder, wenn alles läuft)
-- [ ] Installierbare App / PWA (`ui-dev`): Manifest, Icons, Service Worker mit Offline-Start,
-  Update-Hinweis bei neuer Version; Sync bleibt online-only
+- [x] Installierbare App / PWA (`ui-dev`): Manifest, Icons, Service Worker mit Offline-Start,
+  Update-Hinweis bei neuer Version; Sync bleibt online-only – `public/manifest.webmanifest`,
+  Icons aus `scripts/generate-icons.ts`, Service Worker von Hand in `src/pwa/service-worker.ts`
+  (beim Bauen als `dist/sw.js` mit Dateiliste und Inhalts-Version), Anmeldung und Hinweis
+  „Neue Version verfügbar – neu laden“ in `src/ui/pwa.ts`; e2e in `e2e/pwa.spec.ts`
 - [ ] Tagesziele (Design `game-designer`, Logik `core-engineer`, Anzeige `ui-dev`): 2–3
   Aufgaben pro Tag aus dem Naturtagebuch, Belohnung Samen bzw. seltene Begegnung;
   deterministisch aus Datum + Seed, Tageswechsel bei aktivem Konto nach Serverzeit

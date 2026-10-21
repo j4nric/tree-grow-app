@@ -27,8 +27,8 @@ export interface AccountOptions {
 export interface AccountController {
   /** Nach jeder erfolgreichen Spieleraktion aufrufen. */
   markAction(): void;
-  /** Sofort pushen (Seite wird verborgen oder verlassen). */
-  flush(): void;
+  /** Sofort pushen (Seite wird verborgen oder verlassen); erfüllt sich, wenn gesendet (oder gescheitert). */
+  flush(): Promise<void>;
   /** Gleich wird der Spielstand gespeichert (main.ts persist). */
   beforePersist(): void;
   /** Der Spielstand `raw` wurde eben gespeichert (main.ts persist). */
@@ -105,7 +105,7 @@ export function startAccount(options: AccountOptions): AccountController {
 
   return {
     markAction: () => core?.markAction(),
-    flush: () => void core?.flush(),
+    flush: () => (core?.flush() ?? Promise.resolve()).catch(() => undefined),
     beforePersist: () => void core?.beforePersist(),
     persisted: (raw) => core?.persisted(raw),
     makeRoom: () => core?.makeRoom() ?? false,
