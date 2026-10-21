@@ -59,6 +59,7 @@ import {
 } from './formulas';
 import { checkAchievements } from './achievements';
 import { countDailyAction } from './daily-actions';
+import { refreshDailyAfterNewCycle } from './daily';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import { MAX_ELAPSED, nextSeasonBoundary, normalizeElapsed, seasonIdAt, secondsToNextSeason } from './season';
 import {
@@ -500,7 +501,7 @@ export function allWaypointsReached(state: GameState): boolean {
  * Ab dem zweiten Zyklus ziehen Arten aus dem Naturtagebuch innerhalb ihrer Seltenheit mit
  * doppeltem Gewicht (DESIGN_V2.md, Abschnitt 10); im ersten Zyklus bleibt es gleichverteilt.
  * Zufall aus `rng` (Standard: der Spielstand selbst). `minRarity` (Standard 0): nur Arten ab
- * dieser Seltenheit (Belohnung der Tagesziele, DESIGN_V2.md 19).
+ * dieser Seltenheit (Belohnung der Tagesziele, DESIGN_V2.md 20).
  */
 export function drawAnimals(
   state: GameState,
@@ -911,6 +912,8 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   const regulars = moveInRegulars(state);
   recordDiscoveries(state);
   achievements.push(...checkAchievements(state));
+  // Tagesziele überdauern den Zyklus; offene passen sich dem neuen Wald an (DESIGN_V2.md 20.5).
+  refreshDailyAfterNewCycle(state);
   return { ok: true, preview, regulars, achievements };
 }
 

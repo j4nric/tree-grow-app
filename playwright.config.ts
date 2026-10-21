@@ -28,7 +28,9 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
+      // VITE_E2E: Tagesziele lassen sich in Tests abschalten (e2e/fixtures.ts, `daily`).
       command: `npm run build && npx vite preview --port ${PORT} --strictPort`,
+      env: { VITE_E2E: '1' },
       url: `http://localhost:${PORT}`,
       reuseExistingServer: !CI,
       timeout: 120_000,

@@ -1,5 +1,5 @@
 /**
- * Tagesziele (docs/DESIGN_V2.md, Abschnitt 19): zwei bis drei kleine Aufgaben je
+ * Tagesziele (docs/DESIGN_V2.md, Abschnitt 20): zwei bis drei kleine Aufgaben je
  * Kalendertag aus dem Naturtagebuch. Reine Daten – Auswahl, Fortschritt und Belohnung
  * stehen in src/core/daily.ts, die Texte baut src/ui/daily-view.ts aus den Vorlagen hier.
  *
@@ -104,7 +104,7 @@ export const DAILY_MIN_HARMONY = 5;
 
 /**
  * Belohnung je erfülltem Ziel: Samen-Sekunden (wie Ablehnen mit 10 s, mindestens 5 🌰;
- * siehe seedSeconds). Gemessen < 5 % der Samen der ersten Stunde (DESIGN_V2.md 19.5).
+ * siehe seedSeconds). Gemessen < 5 % der Samen der ersten Stunde (DESIGN_V2.md 20.6).
  */
 export const DAILY_SEED_SECONDS = 15;
 /**

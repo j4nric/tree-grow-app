@@ -1753,7 +1753,7 @@ mit dem Zyklus neu angelegt.
 
 ### 12.9 Tagesziele `meta.daily` (Spielstand v12)
 
-`meta.daily` (Abschnitt 19) – überdauert den Neuen Zyklus:
+`meta.daily` (Abschnitt 20) – überdauert den Neuen Zyklus:
 
 | Feld | Bedeutung |
 |---|---|
@@ -4229,7 +4229,7 @@ Bäume“) läuft bei offenem Tagebuch gedrosselt mit (nur Texte, kein Neubau �
 zur Signatur). Die Spielanleitung hat einen kurzen Abschnitt „Erfolge“. Listen über `aria-labelledby` an den Abschnittsüberschriften; Reiter
 umbrechen mobil (360/390 px ohne Querscrollen).
 
-## 19. Tagesziele
+## 20. Tagesziele
 
 Zwei bis drei kleine Aufgaben je Kalendertag aus dem Naturtagebuch – ein Grund für einen
 kurzen Besuch, kein Pflichtprogramm. Inhalte: `src/content/daily.ts` (Vorlagen, Zahlen),
@@ -4237,7 +4237,7 @@ Logik: `src/core/daily.ts` (Auswahl, Fortschritt, Belohnung, Serie) und
 `src/core/daily-actions.ts` (Zählen der Aktionen), Anzeige: `src/ui/daily-view.ts` und
 `src/ui/daily-panel.ts`, Spielstand: 12.9. Roadmap Phase 6, Welle 1.
 
-### 19.1 Regeln
+### 20.1 Regeln
 
 - **Je Tag drei Ziele** verschiedener Art (`DAILY_GOAL_COUNT`), gewichtet gezogen aus den
   Vorlagen, die auf der Stufe des Spielers passen und **jetzt sicher schaffbar** sind. Gibt der
@@ -4260,7 +4260,7 @@ Logik: `src/core/daily.ts` (Auswahl, Fortschritt, Belohnung, Serie) und
 - **Kein Druck:** Ein verpasster Tag setzt nur die Serie zurück. Nichts verfällt, nichts
   wird weggenommen; unerfüllte Ziele verschwinden still beim nächsten Tageswechsel.
 
-### 19.2 Pool (9 Arten)
+### 20.2 Pool (9 Arten)
 
 | Art | | Text (Beispiel) | ab Stufe | Gewicht | Gruppe | zählt offline | Zielwert / Bedingung |
 |---|---|---|---|---|---|---|---|
@@ -4279,18 +4279,20 @@ Wachstum 535, Samen 485, Harmonie 459, Pflanze 393, Pflege 357, Zufriedenheit 27
 Lebensgemeinschaft 160 (ab Junger Baum, dort 6–32 % der Tage). Auf der Stufe Samen gibt es nur
 Begegnungen, Wachstum und Samen.
 
-### 19.3 Fortschritt: online und offline
+### 20.3 Fortschritt: online und offline
 
-`updateDaily(state, day, { activeSeconds?, offline? })` läuft beim Start, nach dem
+`updateDaily(state, day, { activeSeconds?, produced?, offline? })` läuft beim Start, nach dem
 Nachrechnen der Offline-Zeit (`offline: true`), nach jeder Aktion und im Game Loop höchstens
-einmal je Sekunde (mit der seither aktiv gespielten Zeit).
+einmal je Sekunde (mit der seither aktiv gespielten Zeit und dem dabei tatsächlich
+gutgeschriebenen Wachstum bzw. erzeugten Samen).
 
 - **Aktionen** zählen in `tick.ts` selbst (`countDailyAction`): Karte wählen, Ablehnen von
   Hand, Ereignis entscheiden, Gast bewirten oder ziehen lassen → `decide`; Pflanze setzen →
   `plant`; Pflege-Rang kaufen → `care`. **Automatisches Ablehnen** (Stapel voll, keine Karte –
   online wie offline) zählt **nicht**.
-- **Aktive Zeit** (`activeSeconds`, nur online): Wachstum (Rate × s), Samen (Produktion × s)
-  und Harmonie halten (s, solange die Harmonie ≥ Schwelle; aufsummiert, kein Neustart bei
+- **Aktive Zeit** (nur online): Wachstum und Samen zählen die im Tick tatsächlich
+  gutgeschriebene Menge (`produced`; Samen ohne automatisches Ablehnen, Ausgeben zählt nicht
+  dagegen) – ohne `produced` Rate × `activeSeconds`. Harmonie halten (s, solange die Harmonie ≥ Schwelle; aufsummiert, kein Neustart bei
   kurzem Absinken).
 - **Zustände**, bei jedem aktiven Aufruf: Beobachten (nur in der richtigen Jahreszeit, höchster
   Stand des Tages), Zufriedenheit (Ø der Arten der Gattung, gerundet, höchster Stand),
@@ -4301,7 +4303,7 @@ einmal je Sekunde (mit der seither aktiv gespielten Zeit).
 - Kommen Tageswechsel und Offline-Zeit zusammen, wechselt zuerst der Tag; dann zählt der Stand
   nach dem Nachrechnen für die neuen Ziele.
 
-### 19.4 Belohnung und Serie
+### 20.4 Belohnung und Serie
 
 - **Sofort beim Erfüllen**, kein eigener Knopf: Hinweis „✅ Tagesziel erfüllt: … +36 🌰“
   (im offenen Dialog dort, sonst als Toast, zusammen mit anderen Hinweisen desselben
@@ -4309,7 +4311,7 @@ einmal je Sekunde (mit der seither aktiv gespielten Zeit).
 - **Samen:** `DAILY_SEED_SECONDS` = **15 Samen-Sekunden** je Ziel (`seedSeconds`, mindestens
   5 🌰) – etwas mehr als Ablehnen (10 s), so viel wie der kleinste Dank eines Gastes und weit
   unter einer Ereignis-Samen-Option (60–150 s). Zuerst 20 s geplant; die Obergrenze lag damit
-  bei 5,1–5,8 % (19.6, 40 Durchgänge), darum 15 s.
+  bei 5,1–5,8 % (20.6, 40 Durchgänge), darum 15 s.
 - **Seltene Begegnung:** Ab Junger Baum (`DAILY_RARE_MIN_STAGE` = 3) trägt mit
   `DAILY_RARE_CHANCE` = 30 % je Tag **ein** Ziel statt der Samen „🎴 seltene Begegnung“: eine
   Tierbegegnung, deren Karten nur Arten ab „selten“ zeigen (`drawAnimals(…, minRarity 1)`,
@@ -4319,31 +4321,47 @@ einmal je Sekunde (mit der seither aktiv gespielten Zeit).
 - **Serie:** Ein Tag zählt, sobald **ein** Ziel erfüllt ist. Gestern erfüllt → +1, sonst
   beginnt sie bei 1. Beim Tageswechsel nach einer Lücke (mehr als ein Tag seit dem letzten
   erfüllten) steht sie auf 0 – die einzige Folge eines verpassten Tages. Bis zum ersten Ziel
-  des Tages zeigt die Karte die Serie von gestern („🌞 3 Tage in Folge“). Sind alle Ziele
+  des Tages zeigt die Karte die Serie von gestern („🌞 3 Tage in Folge“); liegt der letzte
+  erfüllte Tag „nach“ heute (andere Zeitzone, Uhr zurückgestellt), gilt sie weiter. Sind alle Ziele
   erfüllt, zählt `perfectDays` (Hinweis „Alle Tagesziele geschafft – 4 Tage in Folge!“).
 - **Naturtagebuch:** Statistik „Über alle Zyklen“: „Tagesziele erfüllt“ (mit „an N Tagen
   alle“) und „Längste Serie“.
 
-### 19.5 Tag, Uhr und Neuer Zyklus
+### 20.5 Tag, Uhr und Neuer Zyklus
 
 - **Der Tag kommt als Parameter** („JJJJ-MM-TT“), `core` bleibt ohne Uhr (Kalenderrechnung
   rein arithmetisch). `main.ts` rechnet ihn aus der lokalen Zeit des Geräts; **mit
-  angemeldetem Konto** zählt die Uhr des Servers: Der Sync-Dienst merkt sich bei jeder Antwort
-  mit `serverTime` den Abstand Server − Gerät (`AccountService.serverOffset`,
-  `AccountController.serverOffsetMs`), der Tag ist dann das lokale Datum von
-  `Date.now() + Abstand`. Die Zeitzone bleibt die des Geräts.
-- **Nur vorwärts:** Ein früherer Tag als der gespeicherte (Uhr zurückgestellt) wechselt
-  nichts, ungültige Tage auch nicht. Wer die Uhr vorstellt, bekommt die Ziele eines späteren
-  Tages und verliert dabei seine Serie, wenn er einen Tag überspringt – der Gewinn ist klein
-  (15 Samen-Sekunden je Ziel), darum kein weiterer Schutz.
-- **Neuer Zyklus:** `meta.daily` überdauert ihn – Ziele und Fortschritt des Tages bleiben
-  gleich (Test). Ziele, die am Wald hängen (Beobachten, Zufriedenheit), kann ein Neustart am
-  selben Tag erschweren, bis die Arten (z. B. als Stammgäste) zurück sind – siehe 19.8.
+  angemeldetem Konto** zählt die Uhr des Servers, **sobald sie bekannt ist**: Der Sync-Dienst
+  merkt sich bei jeder Antwort mit `serverTime` den Abstand Server − Gerät
+  (`AccountService.serverOffset`, `AccountController.serverOffsetMs`), der Tag ist dann das
+  lokale Datum von `Date.now() + Abstand`. Die Zeitzone bleibt die des Geräts.
+- **Ehrlich:** Beim Start und beim Nachrechnen der Offline-Zeit ist das Konto noch nicht
+  geladen – dort gilt die Geräteuhr, eine falsch gestellte Uhr kann also kurz einen falschen
+  Tag bringen (und ihn per Abgleich aufs Konto schreiben). Der Game Loop prüft nach der ersten
+  Server-Antwort (Abstand neu bzw. geändert) sofort erneut.
+- **Vorwärts, mit Rückweg aus der Zukunft:** Ein späterer Tag bringt neue Ziele. Ein um einen
+  Tag früherer (Uhr leicht zurück, andere Zeitzone) wechselt nichts. Liegt der gespeicherte
+  Tag **mehr als einen Tag** in der Zukunft (`MAX_FUTURE_DAYS` = 1; Uhr vorgestellt, Stand
+  eines Geräts mit falscher Uhr), setzt `updateDaily` auf heute zurück: neue Ziele, Serie 0,
+  ein letzter erfüllter Tag in der Zukunft wird gelöscht (beste Serie und Zähler bleiben) –
+  sonst blieben die Ziele bis zu jenem Tag eingefroren. Der Gewinn durch Vorstellen ist klein
+  (15 Samen-Sekunden je Ziel) und kostet die Serie; darum kein weiterer Schutz.
+- **Neuer Zyklus:** `meta.daily` überdauert ihn – Tag, Serie und erfüllte Ziele bleiben.
+  Offene Ziele passt `startNewCycle` an den neuen Wald an (`refreshDailyAfterNewCycle`): Jede
+  offene Art wird mit dem neuen Stand neu berechnet wie bei der Auswahl – Wachstum und Samen
+  auf die Rate des jungen Baums (Anteil des Fortschritts bleibt), Harmonie mit neuer Schwelle
+  (gesammelte Sekunden bleiben), Pflege und Pflanze nach neuem Budget, Begegnungen nach den
+  neuen Wegpunkten, Beobachten/Zufriedenheit am neuen Wald (Stand 0). Passt eine Art nicht
+  mehr, tritt eine andere, jetzt schaffbare an ihre Stelle (Belohnung bleibt, „Umbauen“ und
+  „Halten“ weiter getrennt). Zufall aus Startwert, Tag und Zyklusnummer. Test: drei Wälder ×
+  acht Tage im Wald, Neuer Zyklus, danach erfüllt ein kurzer Besuch alle Ziele.
 - **e2e-Tests:** Tagesziele sind dort standardmäßig aus (`window.__VSZW_DAILY__ = false`,
   Fixture-Option `daily`), sonst brächte das echte Datum Ziele, Belohnungen und Hinweise in
-  fremde Tests; `e2e/daily.spec.ts` schaltet sie mit fester Uhr und Zeitzone ein.
+  fremde Tests; `e2e/daily.spec.ts` schaltet sie mit fester Uhr und Zeitzone ein. Der Schalter
+  wirkt nur in Builds mit `VITE_E2E` (setzt `playwright.config.ts` für den Testserver) – im
+  ausgelieferten Spiel nicht.
 
-### 19.6 Balancing und Simulation
+### 20.6 Balancing und Simulation
 
 Der Simulator spielt Tagesziele nur auf Wunsch mit (`RunOptions.daily`, Tag beim Start,
 optional ein zweiter Tag); er **verfolgt sie nicht gezielt** – erfüllt wird, was seine Strategie
@@ -4353,12 +4371,17 @@ Stunde):
 
 | Strategie | Fall | erfüllt (Median) | Samen aus Zielen | Samen gesamt | Anteil (Median / max) | Obergrenze |
 |---|---|---|---|---|---|---|
-| Gierig nach Harmonie | ein Tag | 3 | 32 | 28.182 | 0,11 % / 0,19 % | 3,89 % |
-| Gierig nach Wachstum | ein Tag | 3 | 32 | 22.112 | 0,15 % / 0,21 % | 4,45 % |
-| Zufällig | ein Tag | 3 | 90 | 29.689 | 0,20 % / 0,52 % | 3,49 % |
-| Gierig nach Harmonie | Mitternacht nach 30 min | 6 | 385 | 29.746 | 1,39 % / 1,94 % | 3,93 % |
-| Gierig nach Wachstum | Mitternacht nach 30 min | 6 | 279 | 23.022 | 1,29 % / 1,76 % | 4,51 % |
-| Zufällig | Mitternacht nach 30 min | 6 | 424 | 30.597 | 1,40 % / 1,98 % | 3,49 % |
+| Gierig nach Harmonie | ein Tag | 3 | 47 | 27.957 | 0,14 % / 0,24 % | 3,88 % |
+| Gierig nach Wachstum | ein Tag | 3 | 32 | 22.092 | 0,15 % / 0,31 % | 4,49 % |
+| Zufällig | ein Tag | 3 | 90 | 29.656 | 0,23 % / 0,52 % | 3,50 % |
+| Gierig nach Harmonie | Mitternacht nach 30 min | 6 | 392 | 29.179 | 1,43 % / 1,98 % | 3,95 % |
+| Gierig nach Wachstum | Mitternacht nach 30 min | 6 | 282 | 22.680 | 1,32 % / 1,80 % | 4,55 % |
+| Zufällig | Mitternacht nach 30 min | 6 | 434 | 30.151 | 1,46 % / 2,02 % | 3,54 % |
+
+Seit dem Review: Wachstums- und Samen-Ziel zählen die tatsächlich gutgeschriebene Menge, und
+der Simulator verbucht die Belohnung nur noch als „aus Zielen“ (vorher zusätzlich als passiv
+verdient – der Anteil war dadurch um ein Hundertstel zu klein). Ergebnis: Anteile
+0,14–0,23 % bzw. 1,32–1,46 %, Obergrenze 3,50–4,55 %.
 
 - **Anteil** = Samen aus Zielen / alle verdienten Samen der ersten Stunde. **Obergrenze** =
   zweimal alle drei Ziele zur Samenrate am Ende der Stunde (Mitternacht mitten in der ersten
@@ -4373,12 +4396,13 @@ Stunde):
   Ziel), erfüllt auf jeder Stufe 0–7 alle Ziele in höchstens 15 min. Erkundung über 1.440
   Tage: nie ein offenes Ziel, längster Besuch 525 s (8:45 min).
 
-### 19.7 Darstellung
+### 20.7 Darstellung
 
 Karte „Tagesziele“ in der Seitenleiste direkt unter dem Knopf „Naturtagebuch“ (kurz, immer
 sichtbar, ohne Dialog – ein eigener Reiter im Tagebuch wäre einen Klick weiter weg): Zeile
 „1/3 erfüllt“ bzw. „Alle erfüllt – bis morgen!“ und die Serie „🌞 3 Tage in Folge“; je Ziel
-Symbol, Text, dünner Balken (`role="progressbar"` mit `aria-valuenow/-max/-text`), Fortschritt
+Symbol, Text, dünner Balken (`role="progressbar"`, per `aria-labelledby` am Zieltext, mit
+`aria-valuenow/-max/-text`), Fortschritt
 („2/3“, „2:30/5:00 min“, „60/75 %“, „345/1.200 🌿“) und Belohnung („+36 🌰“ bzw. „🎴 seltene
 Begegnung“; erfüllt: „✓ erfüllt“, grüner Rand). Liste und Bereich sind über
 `aria-labelledby` an der Überschrift beschriftet. Neu gebaut wird nur bei neuem Tag oder
@@ -4386,14 +4410,14 @@ erfülltem Ziel; Fortschritt und Belohnung laufen gedrosselt mit der Seitenleist
 (360/390 px) bricht der Text um, nichts scrollt quer (e2e). Die Spielanleitung hat einen
 Abschnitt „Tagesziele“.
 
-### 19.8 Offene Fragen
+### 20.8 Offene Fragen
 
-- **Neuer Zyklus am selben Tag:** Beobachten und Zufriedenheit hängen an Arten, die nach dem
-  Neustart erst zurückkommen müssen. Variante: beim Neuen Zyklus offene „Wald“-Ziele neu
-  ziehen (erlaubte aber Neuziehen per Neustart – bewusst noch nicht).
+- **Neuer Zyklus als Neuzug?** Offene Ziele passen sich beim Neuen Zyklus an (20.5); wer
+  ein unbequemes Ziel loswerden will, könnte dafür neu starten. Der Neue Zyklus ist teuer
+  genug (ab Hain), darum bewusst hingenommen.
 - **Serie belohnen?** Bisher nur Anzeige und Statistik. Ein Andenken bei 7 bzw. 30 Tagen wäre
   möglich, ohne Zahlen-Belohnung (wie die Erfolge).
 - **Erfolge:** „7 Tage in Folge“ oder „50 Tagesziele“ als neue Erfolge (eine neue
   Bedingungsart über `meta.daily`).
 - **Gezielter Spieler im Simulator:** Die Messung lässt Ziele nebenbei erfüllen. Ein Spieler,
-  der Ziele jagt, bekäme höchstens die Obergrenze (≤ 4,5 %).
+  der Ziele jagt, bekäme höchstens die Obergrenze (≤ 4,6 %).

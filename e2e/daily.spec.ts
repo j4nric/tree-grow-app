@@ -3,7 +3,7 @@ import { createInitialState, type DailyGoal } from '../src/core/state';
 import { SAVE_VERSION, dialog, expect, openGame, openStack, savedState, seedRaw, stack, test, waypoint } from './fixtures';
 
 /**
- * Tagesziele (DESIGN_V2.md 19): Karte in der Seitenleiste, ein Ziel durch eine Entscheidung
+ * Tagesziele (DESIGN_V2.md 20): Karte in der Seitenleiste, ein Ziel durch eine Entscheidung
  * erfüllen (Belohnung mit Hinweis, Serie, gespeichert), Tageswechsel um Mitternacht mit
  * Serie, Mobilansicht ohne Querscrollen. Die Testuhr steht still (Europe/Berlin), Zeit
  * vergeht nur über `page.clock`.

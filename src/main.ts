@@ -232,6 +232,11 @@ let lastAchievementCheck = -Infinity;
 /** Letzte gedrosselte Prüfung der Tagesziele und seither aktiv gespielte Sekunden. */
 let lastDailyCheck = -Infinity;
 let dailySeconds = 0;
+/** Seither aktiv gutgeschriebenes Wachstum bzw. erzeugte Samen (für Wachstums- und Samen-Ziele). */
+let dailyGrowth = 0;
+let dailyProduced = 0;
+/** Zuletzt gesehener Abstand zur Serverzeit (null = noch keiner). */
+let dailyOffset: number | null = null;
 
 /** Der Spieler hat „Pflanze setzen“ geöffnet. */
 let pickerWanted = false;
@@ -418,12 +423,15 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
 
 /**
  * Heutiger Tag für die Tagesziele („JJJJ-MM-TT“, lokale Zeit). Mit angemeldetem Konto zählt
- * die Uhr des Servers (Abstand aus dem Abgleich) – eine falsch gestellte Geräteuhr verschiebt
- * den Tageswechsel dann nicht. Die Zeitzone bleibt die des Geräts.
+ * die Uhr des Servers, sobald der Abgleich ihre Antwort kennt (Abstand aus `serverTime`).
+ * Davor – beim Start und beim Nachrechnen der Offline-Zeit, bevor das Konto geladen ist –
+ * gilt die Geräteuhr; eine falsch gestellte Uhr kann also einen falschen Tag bringen. Der
+ * Game Loop prüft nach der ersten Server-Antwort sofort erneut; ein Tag, der mehr als einen
+ * Tag in der Zukunft liegt, setzt core/daily.ts auf heute zurück. Zeitzone: die des Geräts.
  */
 function today(): string {
-  // Nur für e2e-Tests: `window.__VSZW_DAILY__ = false` schaltet die Tagesziele ab (kein Tag).
-  if ((window as unknown as { __VSZW_DAILY__?: unknown }).__VSZW_DAILY__ === false) return '';
+  // Nur in e2e-Builds (VITE_E2E): `window.__VSZW_DAILY__ = false` schaltet die Tagesziele ab.
+  if (import.meta.env.VITE_E2E && (window as unknown as { __VSZW_DAILY__?: unknown }).__VSZW_DAILY__ === false) return '';
   const d = new Date(Date.now() + (account?.serverOffsetMs() ?? 0));
   return dayKeyOf(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
@@ -941,8 +949,13 @@ function frame(now: number): void {
   }
   const dt = Math.min(Math.max(0, (now - lastFrame) / 1000), MAX_FRAME_SECONDS);
   lastFrame = now;
+  const growthBefore = state.totalGrowth;
+  const seedsBefore = state.seeds;
   const report = tick(state, dt);
   state.lastTick = Date.now();
+  // Tagesziele: tatsächlich gutgeschriebenes Wachstum und erzeugte Samen (ohne automatisches Ablehnen).
+  dailyGrowth += Math.max(0, state.totalGrowth - growthBefore);
+  dailyProduced += Math.max(0, state.seeds - seedsBefore - report.declinedSeeds);
   if (report.waypoints > 0 || report.encounters > 0 || report.interludesReached > 0 || report.expired.length > 0) {
     // Neue Begegnung, Zwischenhalt (auch ohne Ergebnis – der Zufall ist verbraucht) oder
     // abgelaufener Bonus: gleich speichern, damit Neuladen nichts neu würfelt, und
@@ -978,11 +991,19 @@ function frame(now: number): void {
   }
   // Tagesziele: aktiv gespielte Zeit sammeln, gedrosselt auswerten (Tageswechsel um Mitternacht).
   dailySeconds += dt;
+  // Erste Antwort des Servers (Abstand der Uhren bekannt bzw. geändert): Tag sofort neu prüfen.
+  const offset = account?.serverOffsetMs() ?? null;
+  if (offset !== dailyOffset) {
+    dailyOffset = offset;
+    lastDailyCheck = -Infinity;
+  }
   let dailyText: string | null = null;
   if (now - lastDailyCheck >= DAILY_CHECK_MS) {
     lastDailyCheck = now;
-    dailyText = runDaily({ activeSeconds: dailySeconds }) || null;
+    dailyText = runDaily({ activeSeconds: dailySeconds, produced: { growth: dailyGrowth, seeds: dailyProduced } }) || null;
     dailySeconds = 0;
+    dailyGrowth = 0;
+    dailyProduced = 0;
   }
   const stageChanged = state.stage !== shownStage;
   // Neue Stufe ohne offenen Dialog: Der Erfolg steht im Stufen-Banner, nicht zusätzlich als Toast.
@@ -1058,6 +1079,8 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   // Tagesziele: Tageswechsel und nur Ziele, die offline zählen dürfen (Zustände des Waldes).
   extraNotice = joinNotes(extraNotice, runDaily({ offline: true }));
   dailySeconds = 0;
+  dailyGrowth = 0;
+  dailyProduced = 0;
   if (report) {
     const notice = catchUpNotice(away, report, state.pendingEncounters.length, { from: stageBefore, to: state.stage });
     if (notice?.kind === 'welcome') {

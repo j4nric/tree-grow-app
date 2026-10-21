@@ -1,5 +1,5 @@
 /**
- * Tagesziele für die Seitenleiste (DESIGN_V2.md 19.4): Texte, Fortschritt und Hinweise aus
+ * Tagesziele für die Seitenleiste (DESIGN_V2.md 20.7): Texte, Fortschritt und Hinweise aus
  * dem Spielstand. Reine Funktionen (ohne DOM) – getestet in tests/daily-view.test.ts.
  */
 import { COMMUNITIES_BY_ID } from '../content/communities';

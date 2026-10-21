@@ -41,7 +41,7 @@ import { allAnimals, type DailyGoal, type GameState } from './state';
 import { careBlocker, drawAnimals, nextCareRank } from './tick';
 
 /*
- * Tagesziele (DESIGN_V2.md 19). Reine Funktionen über den Spielstand – keine Uhr, kein
+ * Tagesziele (DESIGN_V2.md 20). Reine Funktionen über den Spielstand – keine Uhr, kein
  * Math.random(): Der Tag kommt als Schlüssel „JJJJ-MM-TT“ herein (main.ts rechnet ihn aus
  * der lokalen Uhr bzw. der Serverzeit des Kontos), der Zufall aus `meta.daily.seed` und dem
  * Tag. Gleicher Spielstand + gleicher Tag → gleiche Ziele.
@@ -332,6 +332,69 @@ export function generateDailyGoals(state: GameState, day: string): DailyGoal[] {
   return goals;
 }
 
+/**
+ * Nach dem Neuen Zyklus (Stufe Samen, leerer Wald): offene Ziele an den neuen Wald anpassen,
+ * damit keines unmöglich wird. Jede offene Art wird mit dem neuen Stand neu berechnet
+ * (Zielwert und Parameter wie bei der Auswahl); Wachstum und Samen behalten ihren Anteil,
+ * Harmonie halten die gesammelten Sekunden, Zählziele ihren Stand, Zustände (Beobachten,
+ * Zufriedenheit) beginnen bei 0. Passt eine Art nicht mehr, tritt eine andere, jetzt
+ * schaffbare an ihre Stelle (Belohnung bleibt). Erfüllte Ziele bleiben unverändert.
+ * Zufall aus Startwert, Tag und Zyklusnummer – deterministisch. Ruft startNewCycle auf.
+ */
+export function refreshDailyAfterNewCycle(state: GameState): void {
+  const daily = state.meta.daily;
+  if (!isDayKey(daily.day) || daily.goals.every((g) => g.done)) return;
+  const rng: RngHolder = {
+    rngState: normalizeSeed((daily.seed ^ hashText(`${daily.day}#${state.cycle.number}`)) >>> 0),
+  };
+  const ctx: GenerationContext = {
+    state,
+    ev: evaluate(state),
+    seasonal: seasonalEvaluations(state),
+    budget: Math.max(0, state.seeds) + seedSecondsRate(state) * DAILY_VISIT_SECONDS * DAILY_RATE_MARGIN,
+    ringFree: Math.max(0, plantSlots(state.stage) - state.plants.length),
+    plantsPlanned: 0,
+  };
+  const groupOf = (kind: DailyGoalKind) => DAILY_GOALS_BY_KIND.get(kind)?.group;
+  daily.goals = daily.goals.map((old, i) => {
+    if (old.done) return old;
+    const others = daily.goals.filter((_, j) => j !== i);
+    const clash = (t: DailyGoalTemplate) => {
+      const g = t.group;
+      return !!g && others.some((o) => (groupOf(o.kind) ?? g) !== g);
+    };
+    const own = DAILY_GOALS_BY_KIND.get(old.kind)!;
+    const same = own.minStage <= state.stage ? propose(own, ctx, rng) : null;
+    let next: DailyGoal;
+    if (same) {
+      next = { ...same.goal, reward: old.reward };
+      const share = old.target > 0 ? Math.min(1, Math.max(0, old.progress / old.target)) : 0;
+      if (old.kind === 'growth' || old.kind === 'seeds') next.progress = share * next.target;
+      else if (old.kind === 'harmony' || old.kind === 'decide' || old.kind === 'plant' || old.kind === 'care') {
+        next.progress = Math.min(old.progress, next.target);
+      }
+      ctx.budget -= same.cost;
+      ctx.ringFree -= same.plants;
+      ctx.plantsPlanned += same.plants;
+    } else {
+      const options: { template: DailyGoalTemplate; candidate: Candidate }[] = [];
+      for (const t of DAILY_GOALS) {
+        if (t.minStage > state.stage || others.some((o) => o.kind === t.kind) || t.kind === old.kind || clash(t)) continue;
+        const c = propose(t, ctx, rng);
+        if (c) options.push({ template: t, candidate: c });
+      }
+      const k = weightedIndex(rng, options.map((o) => o.template.weight));
+      if (k < 0) return old; // nichts passt (kann mit Wachstum/Samen nicht passieren)
+      const c = options[k]!.candidate;
+      next = { ...c.goal, reward: old.reward };
+      ctx.budget -= c.cost;
+      ctx.ringFree -= c.plants;
+      ctx.plantsPlanned += c.plants;
+    }
+    return next;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Fortschritt, Belohnung, Serie
 // ---------------------------------------------------------------------------
@@ -347,7 +410,16 @@ export interface DailyUpdateOptions {
    * wie Zufriedenheit und Lebensgemeinschaft) werden geprüft.
    */
   offline?: boolean;
+  /**
+   * Im aktiven Spiel tatsächlich gutgeschriebenes Wachstum und erzeugte Samen (ohne
+   * automatisches Ablehnen) seit dem letzten Aufruf. Fehlt es, rechnen Wachstums- und
+   * Samen-Ziel mit Rate × `activeSeconds`.
+   */
+  produced?: { growth: number; seeds: number };
 }
+
+/** So viele Tage darf der gespeicherte Tag vor dem heutigen liegen (Zeitzonen), sonst wird zurückgesetzt. */
+export const MAX_FUTURE_DAYS = 1;
 
 /** Ein eben erfülltes Ziel und seine Belohnung. */
 export interface DailyCompletion {
@@ -382,7 +454,16 @@ const EPSILON = 1e-9;
 export function updateDaily(state: GameState, day: string, options: DailyUpdateOptions = {}): DailyUpdate {
   const daily = state.meta.daily;
   const result: DailyUpdate = { rolled: false, completed: [], perfect: false };
-  if (isDayKey(day) && (!isDayKey(daily.day) || day > daily.day)) {
+  if (isDayKey(day) && isDayKey(daily.day) && dayNumber(daily.day) - dayNumber(day) > MAX_FUTURE_DAYS) {
+    // Gespeicherter Tag liegt mehr als einen Tag in der Zukunft (Geräteuhr vorgestellt, Stand
+    // von einem Gerät mit falscher Uhr übers Konto): sonst blieben die Ziele bis dahin
+    // eingefroren. Auf heute zurücksetzen, Serie neu, letzter Tag nicht in der Zukunft.
+    daily.streak = 0;
+    if (isDayKey(daily.lastDay) && daily.lastDay > day) daily.lastDay = '';
+    daily.day = day;
+    daily.goals = generateDailyGoals(state, day);
+    result.rolled = true;
+  } else if (isDayKey(day) && (!isDayKey(daily.day) || day > daily.day)) {
     // Fehlt mindestens ein ganzer Tag seit dem letzten erfüllten Ziel: Serie beginnt neu.
     if (!isDayKey(daily.lastDay) || dayNumber(day) - dayNumber(daily.lastDay) > 1) daily.streak = 0;
     daily.day = day;
@@ -392,16 +473,21 @@ export function updateDaily(state: GameState, day: string, options: DailyUpdateO
   if (daily.goals.every((g) => g.done)) return result;
   const offline = options.offline === true;
   const seconds = !offline && Number.isFinite(options.activeSeconds) && options.activeSeconds! > 0 ? options.activeSeconds! : 0;
+  const amount = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x > 0 ? x : 0);
+  const produced =
+    !offline && options.produced ? { growth: amount(options.produced.growth), seeds: amount(options.produced.seeds) } : null;
   const ev = evaluate(state);
   const season = seasonIdAt(state.cycle.elapsed);
   for (const g of daily.goals) {
     if (g.done || (offline && !countsOffline(g.kind))) continue;
     switch (g.kind) {
       case 'growth':
-        if (ev.growth > 0 && Number.isFinite(ev.growth)) g.progress += ev.growth * seconds;
+        if (produced) g.progress += produced.growth;
+        else if (ev.growth > 0 && Number.isFinite(ev.growth)) g.progress += ev.growth * seconds;
         break;
       case 'seeds':
-        if (ev.seeds > 0 && Number.isFinite(ev.seeds)) g.progress += ev.seeds * seconds;
+        if (produced) g.progress += produced.seeds;
+        else if (ev.seeds > 0 && Number.isFinite(ev.seeds)) g.progress += ev.seeds * seconds;
         break;
       case 'harmony':
         if (g.harmony !== undefined && ev.harmony >= g.harmony) g.progress += seconds;
@@ -461,6 +547,6 @@ function complete(state: GameState, g: DailyGoal): DailyCompletion {
 export function dailyStreak(state: GameState, today: string): number {
   const { lastDay, streak } = state.meta.daily;
   if (!isDayKey(lastDay) || !isDayKey(today)) return 0;
-  const gap = dayNumber(today) - dayNumber(lastDay);
-  return gap === 0 || gap === 1 ? streak : 0;
+  // Negative Lücke (andere Zeitzone, Uhr zurückgestellt): die Serie gilt weiter.
+  return dayNumber(today) - dayNumber(lastDay) <= 1 ? streak : 0;
 }

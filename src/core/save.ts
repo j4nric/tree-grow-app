@@ -540,7 +540,7 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
 }
 
 /**
- * v11 → v12 (Tagesziele, DESIGN_V2.md 19): eigener Startwert aus dem Zufallsgenerator des
+ * v11 → v12 (Tagesziele, DESIGN_V2.md 20): eigener Startwert aus dem Zufallsgenerator des
  * Stands (fest, solange der Stand nicht weiterläuft – zweimal Laden ergibt dasselbe), noch
  * kein Tag, keine Serie. Die ersten Ziele entstehen beim ersten Tageswechsel im Spiel.
  */

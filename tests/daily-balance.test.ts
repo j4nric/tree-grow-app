@@ -4,7 +4,7 @@ import { DAILY_GOAL_COUNT, DAILY_SEED_SECONDS } from '../src/content/daily';
 import { FULL, HAIN, RUNS } from './balance-setup';
 
 /**
- * Tagesziele und Balancing (DESIGN_V2.md 19.5): Die Belohnungen dürfen das Tempo nicht
+ * Tagesziele und Balancing (DESIGN_V2.md 20.6): Die Belohnungen dürfen das Tempo nicht
  * bestimmen – Ziel < 5 % der Samen der ersten Stunde. Der Simulator spielt die Tagesziele
  * hier mit (`RunOptions.daily`), verfolgt sie aber nicht gezielt; alle übrigen
  * Balancing-Tabellen laufen ohne Tagesziele.

@@ -36,7 +36,7 @@ import { stateAt } from './helpers';
 vi.setConfig({ testTimeout: 60_000 });
 
 /*
- * Tagesziele (DESIGN_V2.md 19): Tage, Auswahl (deterministisch, nach Stufe, schaffbar),
+ * Tagesziele (DESIGN_V2.md 20): Tage, Auswahl (deterministisch, nach Stufe, schaffbar),
  * Fortschritt (aktiv / offline), Belohnung, Serie, Tageswechsel und Spielstand v12.
  */
 
@@ -332,14 +332,83 @@ describe('Serie und Tageswechsel', () => {
     expect(state.meta.daily.goals.every((g) => g.progress === 0 && !g.done)).toBe(true);
   });
 
-  it('Neuer Zyklus: die Ziele des Tages und ihr Fortschritt bleiben', () => {
-    const state = forest(1, 5);
-    updateDaily(state, DAY, {});
-    state.meta.daily.goals[0]!.progress = state.meta.daily.goals[0]!.target / 2;
-    const before = structuredClone(state.meta.daily);
-    expect(startNewCycle(state, 0).ok).toBe(true);
-    expect(state.meta.daily).toEqual(before);
+  it('Neuer Zyklus: Tag, Serie und erfüllte Ziele bleiben, offene passen sich an und bleiben schaffbar', () => {
+    let checked = 0;
+    for (const seed of [1, 2, 3]) {
+      for (let d = 0; d < 8; d++) {
+        const day = addDays(DAY, d);
+        const state = forest(seed, 6);
+        updateDaily(state, day, {});
+        const [first, ...rest] = state.meta.daily.goals;
+        // Das erste Ziel ist erfüllt, ein Wachstums-/Samen-Ziel halb.
+        first!.done = true;
+        first!.progress = first!.target;
+        for (const g of rest) if (g.kind === 'growth' || g.kind === 'seeds') g.progress = g.target / 2;
+        const before = structuredClone(state.meta.daily);
+        expect(startNewCycle(state, 0).ok).toBe(true);
+        const after = state.meta.daily;
+        expect(after.day).toBe(before.day);
+        expect(after.goals[0]).toEqual(before.goals[0]);
+        expect(after.goals.length).toBe(before.goals.length);
+        after.goals.forEach((g, i) => {
+          const old = before.goals[i]!;
+          if (old.done || g.kind !== old.kind) return;
+          expect(g.reward).toBe(old.reward);
+          // Wachstum und Samen: neuer Zielwert für den jungen Baum, Anteil bleibt.
+          if (g.kind === 'growth' || g.kind === 'seeds') {
+            expect(g.target).toBeLessThan(old.target);
+            expect(g.progress / g.target).toBeCloseTo(0.5, 9);
+          }
+        });
+        expect(updateDaily(state, day, {}).rolled).toBe(false);
+        // Schaffbar: Ein kurzer Besuch im neuen Zyklus erfüllt alle Ziele.
+        visit(state, day, 900);
+        expect(state.meta.daily.goals.filter((g) => !g.done), `Seed ${seed}, ${day}`).toEqual([]);
+        checked++;
+      }
+    }
+    expect(checked).toBe(24);
+  });
+
+  it('Tag mehr als einen Tag in der Zukunft: zurück auf heute, neue Ziele, Serie 0; ein Tag Vorsprung (Zeitzone) bleibt', () => {
+    const state = stateAt(3, ['earthworm', 'woodlouse']);
+    updateDaily(state, '2026-10-30', {});
+    state.meta.daily.streak = 4;
+    state.meta.daily.bestStreak = 4;
+    state.meta.daily.lastDay = '2026-10-30';
+    const result = updateDaily(state, DAY, {});
+    expect(result.rolled).toBe(true);
+    expect(state.meta.daily).toMatchObject({ day: DAY, streak: 0, bestStreak: 4, lastDay: '' });
+    expect(state.meta.daily.goals.map((g) => g.kind)).toEqual(generateDailyGoals(state, DAY).map((g) => g.kind));
+    // Danach läuft der Tag normal weiter.
     expect(updateDaily(state, DAY, {}).rolled).toBe(false);
+    expect(updateDaily(state, '2026-10-22', {}).rolled).toBe(true);
+    // Nur ein Tag Vorsprung (anderes Gerät östlich der Datumsgrenze): nichts zurücksetzen.
+    const ahead = stateAt(3, ['earthworm']);
+    updateDaily(ahead, '2026-10-22', {});
+    ahead.meta.daily.streak = 2;
+    ahead.meta.daily.lastDay = '2026-10-22';
+    expect(updateDaily(ahead, DAY, {}).rolled).toBe(false);
+    expect(ahead.meta.daily.streak).toBe(2);
+    expect(dailyStreak(ahead, DAY)).toBe(2);
+  });
+
+  it('Serie bei negativer Lücke (Zeitzone, Uhr zurück) weiter angezeigt', () => {
+    const state = stateAt(2);
+    state.meta.daily.streak = 3;
+    state.meta.daily.lastDay = '2026-10-22';
+    expect(dailyStreak(state, '2026-10-21')).toBe(3);
+    expect(dailyStreak(state, '2026-10-20')).toBe(3);
+    expect(dailyStreak(state, '2026-10-24')).toBe(0);
+  });
+
+  it('Wachstum und Samen zählen die tatsächlich gutgeschriebene Menge, wenn sie übergeben wird', () => {
+    const state = withGoals(stateAt(3, ['earthworm']), [goal('growth', 1e9), goal('seeds', 1e9)]);
+    updateDaily(state, DAY, { activeSeconds: 10, produced: { growth: 12.5, seeds: 3 } });
+    expect(state.meta.daily.goals.map((g) => g.progress)).toEqual([12.5, 3]);
+    updateDaily(state, DAY, { offline: true, produced: { growth: 100, seeds: 100 } });
+    updateDaily(state, DAY, { produced: { growth: NaN, seeds: -5 } });
+    expect(state.meta.daily.goals.map((g) => g.progress)).toEqual([12.5, 3]);
   });
 });
 

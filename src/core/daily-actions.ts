@@ -2,7 +2,7 @@ import type { DailyGoalKind } from '../content/daily';
 import type { GameState } from './state';
 
 /**
- * Zählt eine Spieleraktion für die Tagesziele (DESIGN_V2.md 19): erhöht den Fortschritt
+ * Zählt eine Spieleraktion für die Tagesziele (DESIGN_V2.md 20): erhöht den Fortschritt
  * aller offenen Ziele dieser Art um 1 (höchstens bis zum Zielwert). Erfüllt und belohnt wird
  * erst in `updateDaily` (core/daily.ts) – so gibt es genau eine Stelle für Belohnungen.
  * Eigenes Modul ohne Abhängigkeiten, damit tick.ts es nutzen kann, ohne daily.ts (das

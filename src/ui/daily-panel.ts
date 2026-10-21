@@ -1,5 +1,5 @@
 /**
- * Tagesziele in der Seitenleiste (DESIGN_V2.md 19.4): kompakte Karte unter dem
+ * Tagesziele in der Seitenleiste (DESIGN_V2.md 20.7): kompakte Karte unter dem
  * Naturtagebuch mit Serie, je Ziel Text, Balken und Belohnung. Belohnt wird automatisch
  * (Hinweis über main.ts) – es gibt keinen eigenen Knopf.
  *
@@ -53,12 +53,13 @@ export function createDailyPanel(root: HTMLElement): DailyPanel {
       const icon = el('span', 'daily-icon', g.icon);
       icon.setAttribute('aria-hidden', 'true');
       const text = el('span', 'daily-text', hyphenate(g.text));
+      text.id = `daily-text-${item.dataset.goal}`;
       const progress = el('small', 'daily-progress');
       const reward = el('small', 'daily-reward');
       const bar = el('span', 'daily-bar');
       bar.setAttribute('role', 'progressbar');
       bar.setAttribute('aria-valuemin', '0');
-      bar.setAttribute('aria-label', g.text);
+      bar.setAttribute('aria-labelledby', text.id);
       const fill = el('span', 'daily-bar-fill');
       bar.append(fill);
       item.append(icon, text, bar, progress, reward);

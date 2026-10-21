@@ -127,7 +127,7 @@ export function createStats(mainTree: MainTreeId = DEFAULT_MAIN_TREE): LifetimeS
 export type DailyReward = 'seeds' | 'rare';
 
 /**
- * Ein Tagesziel (seit v12, DESIGN_V2.md 19). Die Parameter hängen von der Art ab (siehe
+ * Ein Tagesziel (seit v12, DESIGN_V2.md 20). Die Parameter hängen von der Art ab (siehe
  * content/daily.ts); fehlende gelten als „nicht gebraucht“.
  */
 export interface DailyGoal {
@@ -150,7 +150,7 @@ export interface DailyGoal {
 }
 
 /**
- * Tagesziele und Serie (seit v12, DESIGN_V2.md 19). Gehört zu `meta`: überdauert den Neuen
+ * Tagesziele und Serie (seit v12, DESIGN_V2.md 20). Gehört zu `meta`: überdauert den Neuen
  * Zyklus – die Ziele eines Tages bleiben auch nach einem Neustart des Baums dieselben.
  */
 export interface DailyState {

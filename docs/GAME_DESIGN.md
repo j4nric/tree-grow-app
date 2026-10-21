@@ -33,7 +33,7 @@
 > 10 und 12.7); v9-Stände starten mit ihrer aktuellen Vorschau. Seit Spielstand v11 gibt
 > es die Nische Waldtümpel (`DESIGN_V2.md` 5.5 und 12.8); v10-Stände bekommen sie leer, ein
 > im Zyklus gewählter „Waldtümpel“ aus dem Regenreichen Frühling seinen Platz nachgetragen.
-> Seit Spielstand v12 gibt es Tagesziele mit Serie (`DESIGN_V2.md` 19 und 12.9, unten);
+> Seit Spielstand v12 gibt es Tagesziele mit Serie (`DESIGN_V2.md` 20 und 12.9, unten);
 > v11-Stände bekommen einen eigenen Startwert und ihre ersten Ziele beim nächsten Start.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
@@ -45,7 +45,7 @@
 
 ## Tagesziele (v2, umgesetzt)
 
-Details, Pool, Regeln und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 19
+Details, Pool, Regeln und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 20
 (Spielstand 12.9). Inhalte in `src/content/daily.ts`, Logik in `src/core/daily.ts`.
 
 - **Drei Ziele je Kalendertag** aus einem Pool von 9 Arten (Begegnungen entscheiden,
@@ -55,7 +55,9 @@ Details, Pool, Regeln und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 1
   einem kurzen Besuch (5–15 min) sicher schaffbar ist. „Umbauen“ (Pflanze, Pflege,
   Lebensgemeinschaft) und „Halten“ (Zufriedenheit, Harmonie) nie am selben Tag.
 - **Deterministisch** aus Tag + eigenem Startwert (`meta.daily.seed`), der Tag kommt aus
-  `main.ts` (lokales Datum; mit Konto nach Serverzeit). Die Ziele überdauern den Neuen Zyklus.
+  `main.ts` (lokales Datum; mit Konto nach Serverzeit, sobald der Server geantwortet hat). Ein
+  gespeicherter Tag mehr als einen Tag in der Zukunft wird auf heute zurückgesetzt (Serie 0).
+  Die Ziele überdauern den Neuen Zyklus; offene passen sich dabei dem neuen Wald an.
 - **Offline** zählen nur Zufriedenheit und Lebensgemeinschaft; Begegnungen (automatisches
   Ablehnen zählt nie), Beobachten, Harmonie halten, Wachstum und Samen brauchen aktives Spiel.
 - **Belohnung** sofort mit Hinweis: 15 Samen-Sekunden je Ziel (mindestens 5 🌰), ab Junger
@@ -71,13 +73,13 @@ Details, Pool, Regeln und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 1
 | `DAILY_PRODUCE_SECONDS` / `DAILY_HOLD_SECONDS` | 300 s / 300 s | Wachstum, Samen, Harmonie halten: 5 min |
 | `DAILY_MAX_DECIDE` / `DAILY_MAX_OBSERVE` | 3 / 3 | |
 | `DAILY_SATISFACTION_STEP` / `DAILY_MIN_HARMONY` | 5 % / 5 | |
-| `DAILY_SEED_SECONDS` | **15** (geplant 20) | mit 20 lag die Obergrenze bei 5,1–5,8 % der ersten Stunde, mit 15 bei 3,5–4,5 % |
+| `DAILY_SEED_SECONDS` | **15** (geplant 20) | mit 20 lag die Obergrenze bei 5,1–5,8 % der ersten Stunde, mit 15 bei 3,5–4,6 % |
 | `DAILY_RARE_CHANCE` / `DAILY_RARE_MIN_STAGE` | 30 % / Junger Baum | |
 
 | Messung (`tests/daily-balance.test.ts`, erste Stunde) | Ergebnis |
 |---|---|
-| Anteil an den Samen der ersten Stunde (Median, 3 Strategien, 200 Durchgänge) | ein Tag 0,11–0,20 %; Mitternacht nach 30 min 1,29–1,40 % (höchstens 1,98 %) |
-| Obergrenze: zweimal alle Ziele zur Samenrate am Ende der Stunde | 3,49–4,51 % (Grenze 5 %) |
+| Anteil an den Samen der ersten Stunde (Median, 3 Strategien, 200 Durchgänge) | ein Tag 0,14–0,23 %; Mitternacht nach 30 min 1,32–1,46 % (höchstens 2,02 %) |
+| Obergrenze: zweimal alle Ziele zur Samenrate am Ende der Stunde | 3,50–4,55 % (Grenze 5 %) |
 | Hain des Harmonie-Spielers ohne / mit Tageszielen | 1:02:45 / 1:02:39 h |
 | Schaffbarkeit: 6 Wälder × 30 Tage je Stufe 0–7 | nie ein offenes Ziel, längster Besuch 8:45 min |
 | übrige Balancing-Tabellen (`npm run balance`) | unverändert – der Simulator spielt ohne Tagesziele |
