@@ -878,9 +878,12 @@ export interface AnimalFrame {
    */
   season?: number | null;
   dpr: number;
-  /** Zusätzliche Skalierung (z. B. altes Bild während einer Größenänderung). */
+  /** Zusätzliche Skalierung (z. B. altes Bild während einer Größenänderung, Kamera-Zoom). */
   sx: number;
   sy: number;
+  /** Zusätzliche Verschiebung in Canvas-Pixeln (Kamera); ohne Angabe 0. */
+  tx?: number;
+  ty?: number;
 }
 
 /** Jahreszeit-Werte dieses Frames (einmal je Frame gerechnet, keine Allokation). */
@@ -1154,24 +1157,10 @@ function drawEntry(
   f: AnimalFrame,
 ): void {
   const happy = clamp01(Number.isFinite(happiness) ? happiness : 0.5);
-  const rest = e.insect ? clamp01(seasonNow.insects) : 1;
-  const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6) * rest;
   const muted = 1 - smooth01((happy - 0.15) / 0.3);
   // Mit dem Baum im Wind schwingen (gleiche Scherung wie die Baumebene).
   const wx = f.windSkew * e.windArm;
-
-  const pose = e.pose;
-  pose.x = e.x + wx;
-  pose.y = e.y;
-  pose.dir = e.dir;
-  pose.rot = e.rot;
-  pose.frame = 0;
-  animate(e, pose, act, f.time, S, f.reducedMotion);
-  if (!(pose.frame >= 0 && pose.frame < e.info.frames)) pose.frame = 0;
-  // Winter: ohne Blüten ruht das Insekt an der Rosette am Boden (Schwirrer nur, wenn sie ruhen).
-  if (e.perchDrop > 0 && seasonNow.bare > 0) {
-    pose.y += e.perchDrop * seasonNow.bare * (e.info.motion === 'hover' ? 1 - act : 1);
-  }
+  const pose = placePose(e, happy, S, f);
 
   for (const d of e.before) {
     if (d.name === 'flowers') drawEdgeFlowers(ctx, d, wx, sprites, f);
@@ -1193,6 +1182,82 @@ function drawEntry(
   for (const d of e.after) blit(ctx, sprites.get(d.name, 0, false, d.size, f.dpr), d.x + wx, d.y, 1, 0, 1, f);
   if (e.shimmer === 3) drawSparkles(ctx, e, pose, muted, sprites, f);
 }
+
+/**
+ * Lage des Tiers in diesem Frame (nach `e.pose`): Ruhelage, Wind, Bewegung und
+ * Winterruhe. `happy` ist die schon begrenzte Zufriedenheit; `seasonNow` muss aktuell sein.
+ */
+function placePose(e: PlanEntry, happy: number, S: number, f: Pick<AnimalFrame, 'time' | 'windSkew' | 'reducedMotion'>): Pose {
+  const rest = e.insect ? clamp01(seasonNow.insects) : 1;
+  const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6) * rest;
+  const pose = e.pose;
+  pose.x = e.x + f.windSkew * e.windArm;
+  pose.y = e.y;
+  pose.dir = e.dir;
+  pose.rot = e.rot;
+  pose.frame = 0;
+  animate(e, pose, act, f.time, S, f.reducedMotion);
+  if (!(pose.frame >= 0 && pose.frame < e.info.frames)) pose.frame = 0;
+  // Winter: ohne Blüten ruht das Insekt an der Rosette am Boden (Schwirrer nur, wenn sie ruhen).
+  if (e.perchDrop > 0 && seasonNow.bare > 0) {
+    pose.y += e.perchDrop * seasonNow.bare * (e.info.motion === 'hover' ? 1 - act : 1);
+  }
+  return pose;
+}
+
+// ---------------------------------------------------------------------------
+// Treffer-Test (Klick/Tippen auf ein Tier)
+// ---------------------------------------------------------------------------
+
+/**
+ * Getroffenes Tier: Nische, Platz in der Nische (`index`, wie `SceneAnimal.slot` bzw. die
+ * Position in `state.niches[nicheId]`), Art und Position in der übergebenen Tierliste.
+ */
+export interface AnimalHit {
+  nicheId: string;
+  /** Platz in der Nische (ganzzahlig, ≥ 0). */
+  index: number;
+  speciesId: string;
+  /** Position in der übergebenen Tierliste (`SceneInput.animals`). */
+  listIndex: number;
+}
+
+/**
+ * Welches Tier liegt am Szenenpunkt (`x`, `y`, CSS-Pixel der ungezoomten Szene)? Rechnet
+ * mit denselben Ankerpunkten, Sprite-Größen und Bewegungen wie die Zeichnung (inkl.
+ * Wind-Versatz). Jedes Tier ist ein Kreis um die Sprite-Mitte, mindestens `minRadius`
+ * groß (Tippziel); bei Überschneidung gewinnt das nächstgelegene. Rein – keine Zeichnung.
+ */
+export function hitTestAnimals(
+  animals: readonly SceneAnimal[],
+  anchors: AnchorResolver,
+  f: Pick<AnimalFrame, 'time' | 'windSkew' | 'reducedMotion' | 'season'>,
+  x: number,
+  y: number,
+  minRadius = 0,
+): AnimalHit | null {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  updateSeason(f.season ?? null);
+  let best: AnimalHit | null = null;
+  let bestD = Infinity;
+  animals.forEach((animal, index) => {
+    const anchor = anchors.get(animal.niche, animal.slot);
+    if (!anchor) return;
+    const e = planEntry(animal, index, anchor, anchors);
+    const happy = clamp01(Number.isFinite(animal.happiness) ? animal.happiness : 0.5);
+    const pose = placePose(e, happy, anchors.size, f);
+    const m = spriteMid(e, pose, hitMid);
+    const r = Math.max(e.size * e.midR * 0.85, minRadius);
+    const d = Math.hypot(x - m.x, y - m.y);
+    if (d <= r && d < bestD) {
+      bestD = d;
+      best = { nicheId: anchor.niche, index: anchor.slot, speciesId: String(animal.id), listIndex: index };
+    }
+  });
+  return best;
+}
+
+const hitMid = { x: 0, y: 0 };
 
 /**
  * Blumen am Waldsaum in der Jahreszeit: im Sommer das bisherige Sprite (ein drawImage),
@@ -1351,13 +1416,13 @@ function blit(ctx: CanvasRenderingContext2D, s: Sprite, x: number, y: number, di
   const k = f.dpr;
   const cos = rot === 0 ? 1 : Math.cos(rot);
   const sin = rot === 0 ? 0 : Math.sin(rot);
-  // Gerät = Skalierung(sx, sy) · dpr · Verschiebung(x, y) · Drehung · Spiegelung(dir)
+  // Gerät = Verschiebung(tx, ty) · Skalierung(sx, sy) · dpr · Verschiebung(x, y) · Drehung · Spiegelung(dir)
   const a = f.sx * k * cos * dir;
   const b = f.sy * k * sin * dir;
   const c = -f.sx * k * sin;
   const d = f.sy * k * cos;
-  let e = f.sx * k * x;
-  let fy = f.sy * k * y;
+  let e = f.sx * k * x + (f.tx ?? 0);
+  let fy = f.sy * k * y + (f.ty ?? 0);
   if (rot === 0 && dir === 1 && f.sx === 1 && f.sy === 1) {
     // Auf Gerätepixel runden – schärfer bei ruhenden Tieren.
     e = Math.round(e - s.ox * k) + s.ox * k;

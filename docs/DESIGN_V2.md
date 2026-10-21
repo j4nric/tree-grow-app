@@ -1381,6 +1381,26 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
 - Der Renderer liest nur `ecosystemView(state)`: `{ species, niche, slot, happiness }[]`,
   Pflanzen, Harmoniestufe – er verändert nie den Spielstand.
 
+### 11.4 Kamera: Zoom und Verschieben der Szene
+
+- Die obere Grafik ist von **1× (ganze Szene, Standard) bis 4×** vergrößerbar und
+  verschiebbar. Harte Grenzen an allen Seiten: Es ist nie Leerraum außerhalb der Szene
+  zu sehen, bei 1× gibt es keine Verschiebung.
+- Bedienung: Mausrad (auf scrollbaren Seiten nur mit Strg) und Trackpad-Pinch zoomen zum
+  Zeiger; Ziehen mit Maus/Finger verschiebt, ein Wisch gleitet aus und bremst vor dem Rand
+  weich ab; zwei Finger zoomen zum Mittelpunkt (über 4× gibt es kurz nach und federt
+  zurück, knapp über 1× rastet es auf die ganze Szene ein); Doppelklick/Doppeltipp zoomt
+  hinein (bei 4× wieder ganz heraus); Tastatur bei fokussierter Szene: + / − / Pfeile /
+  0. Bedienleiste unten rechts in der Szene: „+“, „−“, „⟲ Ansicht zurücksetzen“.
+- Bei 1× scrollt die Seite mobil über der Szene weiter (`touch-action: pan-y`), vergrößert
+  gehören die Gesten der Szene. Bei reduzierter Bewegung springt die Kamera ohne Gleiten.
+- Klick/Tippen ohne Ziehen auf ein Tier öffnet seine Detailansicht (Treffer-Test aus den
+  Ankerpunkten, Tippziel mindestens ~44 px); per Tastatur über die Kacheln der Seitenleiste.
+- Die Kamera ist reiner Oberflächen-Zustand (sessionStorage), **kein Teil des Spielstands**.
+- Schärfe: Während einer Geste wird das vorhandene Bild skaliert gezeigt; ruht die Kamera
+  ~150 ms, zeichnet der Renderer den sichtbaren Ausschnitt in voller Auflösung neu
+  (Detail-Ebenen in Canvas-Größe, Auflösung = Pixeldichte × Zoom).
+
 ---
 
 ## 12. Technik & Migration

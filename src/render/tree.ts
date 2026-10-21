@@ -24,13 +24,19 @@
  * alte Bild skaliert gezeigt (`ResizeGate`). Der Game Loop entprellt schon den
  * Backing-Store des Canvas (`CanvasSizer`, ~100 ms) und setzt `sizeSettled` – dann wird
  * eine neue Größe sofort übernommen, ohne dass sich beide Wartezeiten addieren.
+ * Kamera (`SceneInput.camera`, camera.ts): Alle Ebenen werden über eine Abbildung
+ * (Skalierung + Verschiebung) auf das Canvas gebracht. Während sich die Kamera bewegt,
+ * werden die vorhandenen Ebenen skaliert gezeigt (nur der sichtbare Teil kopiert); ruht
+ * sie ~150 ms vergrößert, entsteht ein zweiter Ebenen-Satz („Detail“) nur für den
+ * sichtbaren Ausschnitt – so groß wie das Canvas, Auflösung = Pixeldichte × Zoom – und
+ * wird 1:1 kopiert. Bei 1× wird er freigegeben; ohne Kamera ist das Bild unverändert.
  * Pro Frame kostet die Kulisse damit eine Kopie (`background`, dazu der kleine Bereich des
  * Erinnerungsbaums – hineinbacken brachte messbar nichts); die Stimmungs-Ebene
  * liegt über bewegten Teilen (Wolken, Wind, Tiere) und lässt sich nicht hineinbacken.
  */
 
 import { animalSize, createAnchorResolver, type AnchorResolver } from './anchors';
-import { AnimalLayer, type AnimalFrame, type SceneAnimal } from './animals';
+import { AnimalLayer, hitTestAnimals, type AnimalFrame, type AnimalHit, type SceneAnimal } from './animals';
 import { layoutFlora, type PlacedPlant, type ScenePlant } from './flora';
 import { paintNeedleClumps, paintPlant } from './flora-paint';
 import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
@@ -49,7 +55,8 @@ import {
   type TreeSpecies,
 } from './species';
 import { normalizeSeason, paintSnowCover, SeasonParticles, seasonLeaves, seasonLook, seasonWood, type SeasonFrame, type SeasonLook } from './season';
-import { ResizeGate, seasonStepKey, sizeKey } from './resize';
+import { RESIZE_SETTLE_FRAMES, RESIZE_SETTLE_SECONDS, ResizeGate, seasonStepKey, settled, sizeKey } from './resize';
+import { clampView, screenToScene, STRETCH_MAX_ZOOM, viewLeft, viewTop, type CameraView } from './camera';
 import { bloomParticles, fireflySeason } from './phenology';
 import { seedGlowAlpha, SeedGlow } from './seed-glow';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
@@ -57,7 +64,8 @@ import { clamp01, mix, mulberry32, smooth01 } from './util';
 import { VisitorLayer, type SceneVisitor, type VisitorFrame } from './visitors';
 import { ShearBands, windQuantum, windSkew } from './wind';
 
-export type { AnimalFamily, SceneAnimal } from './animals';
+export type { AnimalFamily, AnimalHit, SceneAnimal } from './animals';
+export type { CameraView } from './camera';
 export { nicheAnchors, SCENE_NICHES, type NicheAnchor, type SceneNiche } from './anchors';
 export { SCENE_PLANT_GROUPS, type ScenePlant, type ScenePlantGroup } from './flora';
 export { MAX_HARMONY_TIER } from './mood';
@@ -142,6 +150,14 @@ export interface SceneInput {
    * skaliert.
    */
   sizeSettled?: boolean;
+  /**
+   * Kamera (camera.ts): Zoom 1–4 und Mitte des Ausschnitts als Anteil der Szene. Wird
+   * begrenzt, sodass nie Leerraum außerhalb der Szene sichtbar ist. Während sich die
+   * Kamera bewegt, werden die Ebenen skaliert gezeigt; ruht sie ~150 ms vergrößert, wird
+   * der Ausschnitt in voller Schärfe neu gezeichnet. Ohne Angabe oder bei 1×: ganze Szene
+   * wie bisher.
+   */
+  camera?: Readonly<CameraView>;
 }
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
@@ -204,10 +220,31 @@ interface Rect {
 /** Alles, was zu einer Canvas-Größe gehört. */
 interface SizeCache {
   key: string;
-  /** Gerätepixel des Canvas. */
+  /** Größe der Ebenen in Pixeln (Basis: Gerätepixel des Canvas). */
   pw: number;
   ph: number;
+  /** Auflösung der Ebenen: Pixel je CSS-Pixel der Szene (Basis: Pixeldichte; Detail: × Zoom). */
   dpr: number;
+  /**
+   * Ursprung der Ebenen in der Szene: linke obere Ecke als Anteil der Szene (`oxN`, `oyN`)
+   * und in CSS-Pixeln (`ox`, `oy`). Basis: 0 – die Ebenen zeigen die ganze Szene; die
+   * Detail-Ebenen beim Zoom nur den sichtbaren Ausschnitt.
+   */
+  oxN: number;
+  oyN: number;
+  ox: number;
+  oy: number;
+  /** Breite und Höhe der ganzen Szene in Pixeln dieser Ebenen (Basis: `pw`, `ph`). */
+  fullW: number;
+  fullH: number;
+  /** Zoom, für den die Ebenen gezeichnet sind (Basis 1). */
+  zoom: number;
+  /**
+   * Ausschnitt, den die Ebenen garantiert abdecken (linke obere Ecke als Anteil der Szene,
+   * Breite/Höhe 1/zoom). Detail-Ebenen sind waagerecht etwas breiter (Rand für den Wind).
+   */
+  covL: number;
+  covT: number;
   layout: Layout;
   /** Statische Kulisse (Himmel, Hügel, Erde): hängt nur von der Größe ab. */
   scenery: HTMLCanvasElement;
@@ -247,6 +284,12 @@ interface SizeCache {
   species: TreeSpecies;
   /** Radius des Samens (CSS-Pixel), beim Neuaufbau der Ebenen gemerkt (für den Schein). */
   seedR: number;
+  /** Merkmale der zuletzt gezeichneten Pflanzenliste (je Ebenen-Satz). */
+  plantSig: PlantSig[] | null;
+  /** Pixeldichte der Basis (für Werte, die in Basis und Detail gleich sein müssen). */
+  baseDpr: number;
+  /** Krone des Hauptbaums für Gäste (CSS-Pixel: Mitte x, y, Radien) oder null. */
+  crown: [number, number, number, number] | null;
 }
 
 interface Cache {
@@ -266,8 +309,17 @@ interface Cache {
   cyclePlants: PlantSig[] | null;
   /** Zeitpunkt in der Sequenz für diesen Frame (NaN = keine Sequenz). */
   cycleU: number;
-  /** Merkmale der zuletzt gezeichneten Pflanzenliste. */
-  plantSig: PlantSig[] | null;
+  /**
+   * Detail-Ebenen beim Zoom: nur der sichtbare Ausschnitt in voller Schärfe (null = keine).
+   * Gebaut erst, wenn die Kamera ~150 ms ruht; bis dahin wird die Basis skaliert gezeigt.
+   */
+  detail: SizeCache | null;
+  /** Kamera des letzten Frames und seit wann sie ruht (für den Neuaufbau der Detail-Ebenen). */
+  camZoom: number;
+  camX: number;
+  camY: number;
+  camSince: number;
+  camFrames: number;
   /** Fallende Blätter und Schneeflocken. */
   seasonParticles: SeasonParticles;
   /** Jahreszeit dieses Frames (null = ohne Angabe). */
@@ -354,14 +406,14 @@ function unionRect(r: Rect | null, x0: number, y0: number, x1: number, y1: numbe
   return { x: nx, y: ny, w: Math.max(r.x + r.w, x1) - nx, h: Math.max(r.y + r.h, y1) - ny };
 }
 
-/** CSS-Bereich → ganzzahliger Gerätepixel-Bereich innerhalb des Canvas. */
-function toDeviceRect(r: Rect | null, dpr: number, pw: number, ph: number): Rect | null {
+/** CSS-Bereich → ganzzahliger Pixel-Bereich innerhalb der Ebenen (Ursprung `ox`, `oy` in CSS-Pixeln). */
+function toDeviceRect(r: Rect | null, dpr: number, pw: number, ph: number, ox = 0, oy = 0): Rect | null {
   if (!r) return null;
   const pad = 4;
-  const x0 = Math.max(0, Math.floor((r.x - pad) * dpr));
-  const y0 = Math.max(0, Math.floor((r.y - pad) * dpr));
-  const x1 = Math.min(pw, Math.ceil((r.x + r.w + pad) * dpr));
-  const y1 = Math.min(ph, Math.ceil((r.y + r.h + pad) * dpr));
+  const x0 = Math.max(0, Math.floor((r.x - ox - pad) * dpr));
+  const y0 = Math.max(0, Math.floor((r.y - oy - pad) * dpr));
+  const x1 = Math.min(pw, Math.ceil((r.x - ox + r.w + pad) * dpr));
+  const y1 = Math.min(ph, Math.ceil((r.y - oy + r.h + pad) * dpr));
   return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
 }
 
@@ -386,19 +438,63 @@ function drawSheared(
   quantum: number,
   sx: number,
   sy: number,
+  tx: number,
+  ty: number,
 ): void {
-  ctx.setTransform(sx, 0, 0, sy, 0, 0);
+  ctx.setTransform(sx, 0, 0, sy, tx, ty);
   const b = shearBands;
+  const v = visible;
   const n = b.update(r.y, r.h, groundPx, k, quantum);
   for (let i = 0; i < n; i++) {
-    const y = b.y[i]!;
-    const h = b.h[i]!;
-    ctx.drawImage(layer, r.x, y, r.w, h, r.x + b.dx[i]!, y, r.w, h);
+    let y = b.y[i]!;
+    let h = b.h[i]!;
+    const dx = b.dx[i]!;
+    // Nur den sichtbaren Teil kopieren (gezoomt: skaliertes Kopieren kostet je Quellpixel).
+    let x = r.x;
+    let w = r.w;
+    if (v.clip) {
+      const y0 = Math.max(y, v.y0);
+      const y1 = Math.min(y + h, v.y1);
+      const x0 = Math.max(x, Math.floor(v.x0 - dx));
+      const x1 = Math.min(x + w, Math.ceil(v.x1 - dx));
+      if (y1 <= y0 || x1 <= x0) continue;
+      y = y0;
+      h = y1 - y0;
+      x = x0;
+      w = x1 - x0;
+    }
+    ctx.drawImage(layer, x, y, w, h, x + dx, y, w, h);
   }
 }
 
+/**
+ * Sichtbarer Bereich in Pixeln der Ebenen (ganzzahlig, mit einem Pixel Rand) – nur gesetzt
+ * (`clip`), wenn die Ebenen skaliert oder verschoben gezeigt werden. Ohne Kamera bleibt
+ * jede Kopie wie bisher.
+ */
+const visible = { clip: false, x0: 0, y0: 0, x1: 0, y1: 0 };
+
 /** Ein Cache je Canvas – so können mehrere Szenen nebeneinander laufen (z. B. Demo). */
 const caches = new WeakMap<HTMLCanvasElement, Cache>();
+
+/** Wiederverwendete Kamera dieses Frames (keine Allokation pro Frame). */
+const camView: CameraView = { zoom: 1, x: 0.5, y: 0.5 };
+
+/**
+ * Abbildung der Ebenen auf das Canvas in diesem Frame: `sx`, `sy` Skalierung (Pixel der
+ * Ebenen → Canvas-Pixel), `cx`, `cy` Verschiebung für Bitmaps der Ebenen (mit deren
+ * Ursprung), `tx`, `ty` Verschiebung für alles, was in CSS-Pixeln der Szene × `dpr`
+ * gezeichnet wird (Tiere, Wolken, Partikel …). Ohne Kamera und Größenänderung: 1, 1, 0 …
+ */
+interface Mapping {
+  sx: number;
+  sy: number;
+  cx: number;
+  cy: number;
+  tx: number;
+  ty: number;
+}
+const mapping: Mapping = { sx: 1, sy: 1, cx: 0, cy: 0, tx: 0, ty: 0 };
 
 export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, input: SceneInput): void {
   if (width <= 0 || height <= 0) return;
@@ -425,7 +521,12 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       seasonParticles: new SeasonParticles(),
       look: null,
       season: null,
-      plantSig: null,
+      detail: null,
+      camZoom: 1,
+      camX: 0.5,
+      camY: 0.5,
+      camSince: 0,
+      camFrames: 0,
       seedGlow: new SeedGlow(),
     };
     caches.set(ctx.canvas, cache);
@@ -438,16 +539,133 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
 
   // Größenänderung entprellen: altes Bild skaliert zeigen, bis die Größe stabil ist –
   // außer der Aufrufer hat schon entprellt (`sizeSettled`).
-  let sc = cache.size;
-  const key = sc && sc.pw === pw && sc.ph === ph && sc.layout.width === width && sc.layout.height === height ? sc.key : sizeKey(pw, ph, width, height);
-  const builtKey = sc ? sc.key : null;
+  let base = cache.size;
+  const key =
+    base && base.pw === pw && base.ph === ph && base.layout.width === width && base.layout.height === height ? base.key : sizeKey(pw, ph, width, height);
+  const builtKey = base ? base.key : null;
   if (input.sizeSettled ? key !== builtKey : cache.gate.shouldRebuild(key, builtKey, input.time)) {
     // Kulisse gleich in der richtigen Jahreszeit (nicht zweimal malen).
-    sc = buildSizeCache(sc, key, width, height, pw, ph, dpr, look);
-    cache.size = sc;
+    base = buildSizeCache(base, key, width, height, pw, ph, dpr, look);
+    cache.size = base;
   }
-  sc = sc!;
+  base = base!;
 
+  // Kamera: Ausschnitt begrenzt (nie Leerraum). Ruht sie ~150 ms vergrößert, werden die
+  // Detail-Ebenen für genau diesen Ausschnitt scharf gezeichnet; bis dahin (während
+  // einer Geste) wird die Basis bzw. der vorige Ausschnitt skaliert gezeigt.
+  const cam = input.camera ? clampView(input.camera, STRETCH_MAX_ZOOM, camView) : null;
+  const zoom = cam ? cam.zoom : 1;
+  const camStill = cameraSettled(cache, cam, input.time);
+  if (cam && zoom > 1 + 1e-6) {
+    if (camStill && base.key === key) {
+      const detailKey = `${key}@${zoom}:${viewLeft(cam)},${viewTop(cam)}`;
+      if (!cache.detail || cache.detail.key !== detailKey) {
+        cache.detail = buildDetailCache(cache.detail, detailKey, base, cam, look);
+      }
+    }
+  } else if (cache.detail && camStill) {
+    releaseSizeCache(cache.detail);
+    cache.detail = null;
+  }
+  // Detail-Ebenen nur, solange sie den Ausschnitt ganz abdecken (sonst bliebe ein Rand leer).
+  const detail = cache.detail;
+  const sc = cam && detail && detail.layout.width === width && detail.layout.height === height && covers(detail, cam) ? detail : base;
+
+  updateLayers(sc, cache, input, g, time, look);
+
+  // Sprites einer alten Tiergröße/Pixeldichte verwerfen (numerischer Schlüssel, kein String pro Frame).
+  const spriteKey = (sc.anchors?.size ?? 0) * 100_000 + Math.round(sc.dpr * 1000);
+  if (cache.spriteKey !== spriteKey) {
+    cache.animals.sprites.clear();
+    cache.spriteKey = spriteKey;
+  }
+
+  // Ebenen → Canvas: Szene (Anteile) → Ausschnitt → Canvas-Pixel.
+  const left = cam ? viewLeft(cam) : 0;
+  const top = cam ? viewTop(cam) : 0;
+  const m = mapping;
+  m.sx = (zoom * pw) / sc.fullW;
+  m.sy = (zoom * ph) / sc.fullH;
+  m.cx = (sc.oxN - left) * zoom * pw;
+  m.cy = (sc.oyN - top) * zoom * ph;
+  m.tx = -left * zoom * pw;
+  m.ty = -top * zoom * ph;
+  compose(ctx, sc, cache, input, time, m);
+}
+
+/** Ruht die Kamera (gleicher Ausschnitt seit ~150 ms bzw. einigen Frames bei stehender Zeit)? */
+function cameraSettled(cache: Cache, cam: CameraView | null, rawTime: number): boolean {
+  const z = cam ? cam.zoom : 1;
+  const x = cam ? cam.x : 0.5;
+  const y = cam ? cam.y : 0.5;
+  const time = Number.isFinite(rawTime) ? rawTime : Number.NaN;
+  if (z !== cache.camZoom || x !== cache.camX || y !== cache.camY) {
+    cache.camZoom = z;
+    cache.camX = x;
+    cache.camY = y;
+    cache.camSince = time;
+    cache.camFrames = 0;
+  }
+  if (Number.isNaN(time) || Number.isNaN(cache.camSince)) {
+    cache.camSince = time;
+    return ++cache.camFrames > RESIZE_SETTLE_FRAMES;
+  }
+  return settled(time - cache.camSince, RESIZE_SETTLE_SECONDS, ++cache.camFrames, RESIZE_SETTLE_FRAMES);
+}
+
+/** Decken die Detail-Ebenen den Ausschnitt `cam` ganz ab? */
+function covers(d: SizeCache, cam: CameraView): boolean {
+  const eps = 1e-9;
+  const l = viewLeft(cam);
+  const t = viewTop(cam);
+  const w = 1 / cam.zoom;
+  const dw = 1 / d.zoom;
+  return l >= d.covL - eps && t >= d.covT - eps && l + w <= d.covL + dw + eps && t + w <= d.covT + dw + eps;
+}
+
+/**
+ * Detail-Ebenen für den Ausschnitt `cam`: so groß wie das Canvas, Auflösung = Pixeldichte
+ * × Zoom – gezeichnet wird nur, was im Ausschnitt liegt. Gleiche Szene wie die Basis.
+ */
+function buildDetailCache(old: SizeCache | null, key: string, base: SizeCache, cam: CameraView, look: SeasonLook | null): SizeCache {
+  const { width, height, groundY } = base.layout;
+  const fullW = cam.zoom * base.pw;
+  const fullH = cam.zoom * base.ph;
+  const res = fullW / width;
+  // Wind verschiebt die Baum-Ebenen waagerecht um bis zu |windSkew| (< 0,0145) × Höhe über
+  // dem Boden: so breit ist der Rand links und rechts, damit am Bildrand nichts fehlt.
+  const margin = Math.ceil(WIND_MAX_SKEW * groundY * res) + 2;
+  return buildSizeCache(old, key, width, height, base.pw + margin * 2, base.ph, res, look, {
+    oxN: viewLeft(cam) - margin / fullW,
+    oyN: viewTop(cam),
+    fullW,
+    fullH,
+    zoom: cam.zoom,
+    baseDpr: base.dpr,
+    covL: viewLeft(cam),
+    covT: viewTop(cam),
+  });
+}
+
+/** Größter Betrag von `windSkew` (Summe der Amplituden in wind.ts). */
+const WIND_MAX_SKEW = 0.0145;
+
+/** Gibt den Speicher eines Ebenen-Satzes frei (Safari: Größe auf 0 setzen). */
+function releaseSizeCache(sc: SizeCache): void {
+  for (const c of [sc.scenery, sc.grass, sc.background, sc.back, sc.front, sc.plants, sc.memoryCanvas]) {
+    if (c) {
+      c.width = 0;
+      c.height = 0;
+    }
+  }
+}
+
+/**
+ * Hält einen Ebenen-Satz aktuell: Jahreszeit, Art, Zyklus-Übergang, Erinnerungsbaum und
+ * Wachstum. Nur der in diesem Frame gezeigte Satz wird nachgeführt; ein ruhender holt
+ * beim nächsten Einsatz nach (sein Wachstum gilt dann sofort als fällig).
+ */
+function updateLayers(sc: SizeCache, cache: Cache, input: SceneInput, g: number, time: number, look: SeasonLook | null): void {
   // Jahreszeit (auf 0,05 gerundet): Kulisse und Grasnarbe neu, wenn sich die Rundung
   // ändert; Baum-Ebenen, Pflanzen und Erinnerungsbaum folgen unten.
   const seasonKey = seasonStepKey(look);
@@ -495,7 +713,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     (delta >= REDRAW_STEP && (since >= REDRAW_MIN_INTERVAL || frames >= REDRAW_MIN_FRAMES)) ||
     (delta > 0 && (since > REDRAW_SETTLE_SECONDS || frames >= REDRAW_SETTLE_FRAMES));
   // Neue Pflanzenliste: alles neu (Nachbarbäume, Pilzfäden und Pflanzen hängen davon ab).
-  const plantsChanged = !samePlants(cache.plantSig, input.plants);
+  const plantsChanged = !samePlants(sc.plantSig, input.plants);
   if (
     Number.isNaN(sc.growth) ||
     clockReset ||
@@ -517,51 +735,47 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       plantDelta >= PLANT_REDRAW_STEP ||
       (settle && plantDelta >= PLANT_SETTLE_STEP);
     // Die Signatur hält fest, womit die Pflanzen zuletzt gezeichnet wurden.
-    if (redrawPlants) cache.plantSig = input.plants ? input.plants.map(plantSig) : null;
+    if (redrawPlants) sc.plantSig = input.plants ? input.plants.map(plantSig) : null;
     renderLayers(sc, g, input.plants, redrawPlants, look, species);
     sc.growth = g;
     sc.drawnAt = time;
     sc.framesSinceDraw = 0;
   }
-
-  // Sprites einer alten Tiergröße/Pixeldichte verwerfen (numerischer Schlüssel, kein String pro Frame).
-  const spriteKey = (sc.anchors?.size ?? 0) * 100_000 + Math.round(sc.dpr * 1000);
-  if (cache.spriteKey !== spriteKey) {
-    cache.animals.sprites.clear();
-    cache.spriteKey = spriteKey;
-  }
-
-  compose(ctx, sc, cache, input, time, pw / sc.pw, ph / sc.ph);
 }
 
 /** Setzt die gecachten Ebenen zusammen – nur drawImage und günstige Transformationen. */
-function compose(
-  ctx: CanvasRenderingContext2D,
-  sc: SizeCache,
-  cache: Cache,
-  input: SceneInput,
-  time: number,
-  sx: number,
-  sy: number,
-): void {
+function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, input: SceneInput, time: number, m: Mapping): void {
   const { dpr, layout } = sc;
+  const { sx, sy } = m;
   const reduced = input.reducedMotion === true;
   const layer = cache.animals;
   ctx.save();
-  ctx.setTransform(sx, 0, 0, sy, 0, 0);
-  ctx.drawImage(sc.background, 0, 0);
+  ctx.setTransform(sx, 0, 0, sy, m.cx, m.cy);
+  const v = visible;
+  v.clip = m.sx > 1 || m.sy > 1;
+  if (v.clip) {
+    v.x0 = Math.max(0, Math.floor(-m.cx / sx) - 1);
+    v.y0 = Math.max(0, Math.floor(-m.cy / sy) - 1);
+    v.x1 = Math.min(sc.pw, Math.ceil((ctx.canvas.width - m.cx) / sx) + 1);
+    v.y1 = Math.min(sc.ph, Math.ceil((ctx.canvas.height - m.cy) / sy) + 1);
+    if (v.x1 > v.x0 && v.y1 > v.y0) ctx.drawImage(sc.background, v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0, v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0);
+  } else {
+    ctx.drawImage(sc.background, 0, 0);
+  }
   // Spielbeginn: warmer, sanft pulsierender Schein am Samen (bis zum Keimling).
   // Beim Neuen Zyklus erst nach dem Aufleuchten aus cycle.ts (siehe seedGlowCycleFade).
   const glow = seedGlowAlpha(sc.growth, time, reduced, cache.cycleU);
   if (glow > 0) {
     // Lage wie in `paintUnderground` (keine Allokation pro Frame).
-    cache.seedGlow.draw(ctx, layout.cx, layout.groundY + layout.soilH * 0.14, sc.seedR * 5, glow, dpr, sx, sy);
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    cache.seedGlow.draw(ctx, layout.cx, layout.groundY + layout.soilH * 0.14, sc.seedR * 5, glow, dpr, sx, sy, m.tx, m.ty);
+    ctx.setTransform(sx, 0, 0, sy, m.cx, m.cy);
   }
   if (sc.memoryCanvas && sc.memoryRect) {
     const r = sc.memoryRect;
     ctx.drawImage(sc.memoryCanvas, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
   }
+  // Wolken liegen in Szenen-Pixeln × dpr (ohne Ursprung der Ebenen).
+  ctx.setTransform(sx, 0, 0, sy, m.tx, m.ty);
   drawClouds(ctx, sc.clouds, layout.width, reduced ? 0 : time, dpr);
 
   // Stimmung und Gäste nur, wenn angegeben – sonst bleibt das Bild exakt wie bisher.
@@ -575,6 +789,8 @@ function compose(
     mf.dpr = dpr;
     mf.sx = sx;
     mf.sy = sy;
+    mf.tx = m.tx;
+    mf.ty = m.ty;
     mf.time = time;
     mf.reducedMotion = reduced;
     // Ungerundete Jahreszeit: stufenlos, ohne Sprünge bei jeder Rundungsstufe.
@@ -592,6 +808,8 @@ function compose(
     vf.dpr = dpr;
     vf.sx = sx;
     vf.sy = sy;
+    vf.tx = m.tx;
+    vf.ty = m.ty;
     vf.time = time;
     vf.reducedMotion = reduced;
     vf.windSkew = 0;
@@ -599,34 +817,31 @@ function compose(
     vf.blocked = cache.visitors.updateBlocked(input.animals, sc.anchors);
     vf.crownTaken = cache.visitors.crownTaken;
     vf.anchors = sc.anchors;
-    const fr = sc.frontRect;
-    if (fr && sc.growth >= CROWN_GROWTH) {
-      const w = fr.w / dpr;
-      const h = fr.h / dpr;
-      vf.crownX = fr.x / dpr + w / 2;
-      vf.crownY = fr.y / dpr + h * 0.35;
-      vf.crownRx = w * 0.42;
-      vf.crownRy = h * 0.22;
+    const cr = sc.crown;
+    if (cr && sc.growth >= CROWN_GROWTH) {
+      vf.crownX = cr[0];
+      vf.crownY = cr[1];
+      vf.crownRx = cr[2];
+      vf.crownRy = cr[3];
     } else {
       vf.crownRx = 0;
     }
     // Einmal pro Frame: Sprite-Cache weiterzählen (sky, meadow, front folgen).
     cache.visitors.beginFrame(vf.size, dpr);
     cache.visitors.draw(ctx, visitors, 'sky', vf);
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
   }
 
-  const groundPx = layout.groundY * dpr;
+  const groundPx = (layout.groundY - sc.oy) * dpr;
   const quantum = windQuantum(dpr);
   if (sc.backRect) {
     const kb = reduced ? 0 : windSkew(time, 1.9) * 0.7;
-    drawSheared(ctx, sc.back, sc.backRect, kb, groundPx, quantum, sx, sy);
+    drawSheared(ctx, sc.back, sc.backRect, kb, groundPx, quantum, sx, sy, m.cx, m.cy);
   }
   // Wildschweine auf der Wiese: vor den Begleitpflanzen, hinter dem Hauptbaum.
   if (visitors) cache.visitors.draw(ctx, visitors, 'meadow', vf);
   const k = reduced ? 0 : windSkew(time, 0);
   if (sc.frontRect) {
-    drawSheared(ctx, sc.front, sc.frontRect, k, groundPx, quantum, sx, sy);
+    drawSheared(ctx, sc.front, sc.frontRect, k, groundPx, quantum, sx, sy, m.cx, m.cy);
   }
   if (visitors) {
     vf.windSkew = k;
@@ -642,6 +857,8 @@ function compose(
     f.dpr = dpr;
     f.sx = sx;
     f.sy = sy;
+    f.tx = m.tx;
+    f.ty = m.ty;
     layer.draw(ctx, animals, sc.anchors, f);
   }
   // Fallende Blätter und Schnee (nur außerhalb des Sommers).
@@ -653,10 +870,11 @@ function compose(
     sf.dpr = dpr;
     sf.sx = sx;
     sf.sy = sy;
+    sf.tx = m.tx;
+    sf.ty = m.ty;
     sf.time = time;
     sf.reducedMotion = reduced;
     cache.seasonParticles.draw(ctx, cache.look, sf);
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
   }
   if (level !== null) {
     cache.mood.drawLight(ctx, level, mf);
@@ -664,7 +882,7 @@ function compose(
   }
   // Übergang zum Neuen Zyklus ganz oben (außerhalb des Zeitfensters: nichts).
   if (!Number.isNaN(cache.cycleU) && cache.cycle.prepared) {
-    cache.cycle.draw(ctx, cache.cycleU, reduced, cycleGeometry(sc), sx, sy);
+    cache.cycle.draw(ctx, cache.cycleU, reduced, cycleGeometry(sc), sx, sy, m.tx, m.ty);
   }
   ctx.restore();
 }
@@ -713,13 +931,13 @@ function renderMemory(sc: SizeCache, memory: number, look: SeasonLook | null, sp
   // auch hinter einem dichten Wald erkennbar.
   const baseY = layout.groundY - layout.height * 0.08;
   const tree = placeTree(memory, MEMORY_SEED, layout.cx - layout.width * 0.36, baseY, (baseY - layout.top) * 0.6, layout.width * 0.13, species === 'oak' ? undefined : TREE_FORMS[species]);
-  const r = toDeviceRect(unionRect(null, ...treeBounds(tree)), dpr, sc.pw, sc.ph);
+  const r = toDeviceRect(unionRect(null, ...treeBounds(tree)), dpr, sc.pw, sc.ph, sc.ox, sc.oy);
   if (!r) return;
   const canvas = sc.memoryCanvas ?? document.createElement('canvas');
   canvas.width = r.w;
   canvas.height = r.h;
   const c = canvas.getContext('2d')!;
-  c.setTransform(dpr, 0, 0, dpr, -r.x, -r.y);
+  c.setTransform(dpr, 0, 0, dpr, -r.x - sc.ox * dpr, -r.y - sc.oy * dpr);
   if (species === 'oak') {
     paintTree(c, tree, hazeWood(seasonWood(WOOD, look), 0.7), hazePalette(seasonLeaves(PALETTES[2]!, look), 0.7), look ? look.leaves : 1);
   } else {
@@ -744,20 +962,20 @@ function paintOldForest(sc: SizeCache, g: number, plants: readonly ScenePlant[] 
   for (const p of flora) rect = unionRect(rect, ...plantBounds(p));
   const box = main ? treeBounds(main) : null;
   if (box) rect = unionRect(rect, ...box);
-  const r = toDeviceRect(rect, dpr, sc.pw, sc.ph);
+  const r = toDeviceRect(rect, dpr, sc.pw, sc.ph, sc.ox, sc.oy);
   if (!r) return null;
   const canvas = document.createElement('canvas');
   canvas.width = r.w;
   canvas.height = r.h;
   const c = canvas.getContext('2d')!;
-  c.setTransform(dpr, 0, 0, dpr, -r.x, -r.y);
+  c.setTransform(dpr, 0, 0, dpr, -r.x - sc.ox * dpr, -r.y - sc.oy * dpr);
   const leaves = look ? look.leaves : 1;
   for (const n of trees) paintTree(c, n.tree, hazeWood(seasonWood(WOOD, look), n.haze), hazePalette(seasonLeaves(n.palette, look), n.haze), leaves);
   for (const p of flora) paintPlant(c, p, look);
   if (main) paintMainTree(c, main, g, species, look);
   return {
     canvas,
-    rect: { x: r.x / dpr, y: r.y / dpr, w: r.w / dpr, h: r.h / dpr },
+    rect: { x: r.x / dpr + sc.ox, y: r.y / dpr + sc.oy, w: r.w / dpr, h: r.h / dpr },
     tree: box ? { x0: box[0], y0: box[1], x1: box[2], y1: box[3] } : null,
   };
 }
@@ -772,6 +990,8 @@ function buildSizeCache(
   ph: number,
   dpr: number,
   look: SeasonLook | null,
+  /** Detail-Ebenen: Ausschnitt (Anteile), Größe der ganzen Szene in Pixeln, Zoom. */
+  view?: { oxN: number; oyN: number; fullW: number; fullH: number; zoom: number; baseDpr: number; covL: number; covT: number },
 ): SizeCache {
   const layout = makeLayout(width, height);
   const sized = (c: HTMLCanvasElement | undefined) => {
@@ -785,6 +1005,15 @@ function buildSizeCache(
     pw,
     ph,
     dpr,
+    oxN: view?.oxN ?? 0,
+    oyN: view?.oyN ?? 0,
+    ox: (view?.oxN ?? 0) * width,
+    oy: (view?.oyN ?? 0) * height,
+    fullW: view?.fullW ?? pw,
+    fullH: view?.fullH ?? ph,
+    zoom: view?.zoom ?? 1,
+    covL: view?.covL ?? 0,
+    covT: view?.covT ?? 0,
     layout,
     scenery: sized(old?.scenery),
     grass: old?.grass ?? document.createElement('canvas'),
@@ -811,6 +1040,9 @@ function buildSizeCache(
     seasonKey: -1,
     species: 'oak',
     seedR: 4,
+    plantSig: null,
+    baseDpr: view?.baseDpr ?? dpr,
+    crown: null,
   };
 
   paintStatic(sc, look);
@@ -822,7 +1054,7 @@ function buildSizeCache(
 function paintStatic(sc: SizeCache, look: SeasonLook | null): void {
   const { layout, dpr, pw, ph } = sc;
   const { width, height } = layout;
-  const sky = layerContext(sc.scenery, dpr);
+  const sky = layerContext(sc.scenery, sc);
   paintSky(sky, width, layout.groundY, look);
   paintHills(sky, width, height, layout.groundY, look);
   paintSoil(sky, width, height, layout.groundY);
@@ -830,22 +1062,28 @@ function paintStatic(sc: SizeCache, look: SeasonLook | null): void {
   // Grasnarbe nur als Streifen um die Bodenlinie (Halme reichen bis 1,2 × bladeH hinauf).
   const above = Math.max(4, height * 0.016) * 1.2 + 2;
   const below = Math.max(4, height * 0.014) + 2;
-  sc.grassTop = Math.max(0, Math.floor((layout.groundY - above) * dpr));
+  sc.grassTop = Math.min(ph, Math.max(0, Math.floor((layout.groundY - above - sc.oy) * dpr)));
   sc.grass.width = pw;
-  sc.grass.height = Math.max(1, Math.min(ph, Math.ceil((layout.groundY + below) * dpr)) - sc.grassTop);
+  sc.grass.height = Math.max(1, Math.min(ph, Math.ceil((layout.groundY + below - sc.oy) * dpr)) - sc.grassTop);
   const gc = sc.grass.getContext('2d')!;
   gc.setTransform(1, 0, 0, 1, 0, 0);
   gc.clearRect(0, 0, sc.grass.width, sc.grass.height);
-  gc.setTransform(dpr, 0, 0, dpr, 0, -sc.grassTop);
+  gc.setTransform(dpr, 0, 0, dpr, -sc.ox * dpr, -sc.oy * dpr - sc.grassTop);
   paintGrass(gc, width, height, layout.groundY, look);
 }
 
-function layerContext(canvas: HTMLCanvasElement, dpr: number): CanvasRenderingContext2D {
+/** Leert eine Ebene und setzt die Transformation CSS-Pixel der Szene → Pixel der Ebene. */
+function layerContext(canvas: HTMLCanvasElement, sc: SizeCache): CanvasRenderingContext2D {
   const c = canvas.getContext('2d')!;
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, canvas.width, canvas.height);
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  sceneTransform(c, sc);
   return c;
+}
+
+/** Transformation CSS-Pixel der Szene → Pixel der Ebenen (mit deren Ursprung). */
+function sceneTransform(c: CanvasRenderingContext2D, sc: SizeCache): void {
+  c.setTransform(sc.dpr, 0, 0, sc.dpr, -sc.ox * sc.dpr, -sc.oy * sc.dpr);
 }
 
 /** Umriss eines platzierten Baums in CSS-Pixeln: [x0, y0, x1, y1]. */
@@ -957,21 +1195,21 @@ function renderLayers(
   }
 
   // --- Hintergrund: statische Kulisse kopieren, Wurzeln, Grasnarbe darüber ---
-  const bg = layerContext(sc.background, dpr);
+  const bg = layerContext(sc.background, sc);
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.scenery, 0, 0);
-  bg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  sceneTransform(bg, sc);
   paintUnderground(bg, layout, g, scale1, main, withPlants ? sc.companionXs : neighbors.map((n) => n.x), species);
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.grass, 0, sc.grassTop);
   // Winter: dünne Schneedecke auf der Grasnarbe.
   if (look && look.snow > 0) {
-    bg.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sceneTransform(bg, sc);
     paintSnowCover(bg, layout.width, layout.height, layout.groundY, look.snow);
   }
 
   // --- Nachbarbäume: hintere Reihe blasser als die vordere ---
-  const back = layerContext(sc.back, dpr);
+  const back = layerContext(sc.back, sc);
   let backRect: Rect | null = null;
   for (const n of placeNeighbors(neighbors, layout, withPlants)) {
     backRect = unionRect(backRect, ...treeBounds(n.tree));
@@ -979,9 +1217,9 @@ function renderLayers(
   }
 
   // --- Hauptbaum bzw. Keimling ---
-  const front = layerContext(sc.front, dpr);
-  const { pw, ph } = sc;
-  sc.backRect = toDeviceRect(backRect, dpr, pw, ph);
+  const front = layerContext(sc.front, sc);
+  const { pw, ph, ox, oy } = sc;
+  sc.backRect = toDeviceRect(backRect, dpr, pw, ph, ox, oy);
   // Begleitpflanzen aus ihrem Cache vor die Kulisse kopieren: pro Frame bleibt es bei
   // einer einzigen Kopie für die ganze hintere Ebene (wiegt sich gemeinsam im Wind).
   const pr = sc.plantsRect;
@@ -992,7 +1230,8 @@ function renderLayers(
   }
   if (main) {
     sc.mainBox = treeBounds(main);
-    sc.frontRect = toDeviceRect(unionRect(null, ...sc.mainBox), dpr, pw, ph);
+    sc.frontRect = toDeviceRect(unionRect(null, ...sc.mainBox), dpr, pw, ph, ox, oy);
+    sc.crown = crownOf(sc.mainBox, sc);
     paintMainTree(front, main, g, species, look);
     // Keimblätter verblassen, während die ersten Blattbüschel wachsen.
     const coty = 1 - clamp01((g - 1) / 0.8);
@@ -1001,12 +1240,15 @@ function renderLayers(
     }
   } else {
     sc.mainBox = null;
+    sc.crown = null;
     paintSprout(front, layout, g, scale1, species);
     sc.frontRect = toDeviceRect(
       unionRect(null, layout.cx - scale1, layout.groundY - scale1 * 1.4, layout.cx + scale1, layout.groundY + 4),
       dpr,
       pw,
       ph,
+      ox,
+      oy,
     );
   }
 }
@@ -1036,7 +1278,7 @@ function plantBounds(p: PlacedPlant): [number, number, number, number] {
 /** Zeichnet die Begleitpflanzen in ihre Ebene; gibt den belegten Bereich (Gerätepixel) zurück. */
 function renderPlants(sc: SizeCache, flora: PlacedPlant[], look: SeasonLook | null): Rect | null {
   if (flora.length === 0) {
-    if (sc.plants) layerContext(sc.plants, sc.dpr);
+    if (sc.plants) layerContext(sc.plants, sc);
     return null;
   }
   if (!sc.plants) {
@@ -1044,13 +1286,26 @@ function renderPlants(sc: SizeCache, flora: PlacedPlant[], look: SeasonLook | nu
     sc.plants.width = sc.pw;
     sc.plants.height = sc.ph;
   }
-  const ctx = layerContext(sc.plants, sc.dpr);
+  const ctx = layerContext(sc.plants, sc);
   let rect: Rect | null = null;
   for (const p of flora) {
     paintPlant(ctx, p, look);
     rect = unionRect(rect, ...plantBounds(p));
   }
-  return toDeviceRect(rect, sc.dpr, sc.pw, sc.ph);
+  return toDeviceRect(rect, sc.dpr, sc.pw, sc.ph, sc.ox, sc.oy);
+}
+
+/**
+ * Krone des Hauptbaums für die Gäste (CSS-Pixel): aus dem Umriss, gerundet wie die Ebene
+ * der Basis – so sitzen Gäste in Basis und Detail-Ebenen an derselben Stelle.
+ */
+function crownOf(box: [number, number, number, number], sc: SizeCache): [number, number, number, number] | null {
+  const d = sc.baseDpr;
+  const fr = toDeviceRect(unionRect(null, ...box), d, Math.round(sc.fullW / sc.zoom), Math.round(sc.fullH / sc.zoom));
+  if (!fr) return null;
+  const w = fr.w / d;
+  const h = fr.h / d;
+  return [fr.x / d + w / 2, fr.y / d + h * 0.35, w * 0.42, h * 0.22];
 }
 
 /** Keimling oberhalb der Erde (g < 1). */
@@ -1178,4 +1433,49 @@ function paintUnderground(
     ctx.globalAlpha = 1;
   }
   ctx.restore();
+}
+
+// --- Treffer-Test --------------------------------------------------------------------
+
+/** Szene für den Treffer-Test: Größe des Canvas (CSS-Pixel) und die Felder aus `SceneInput`. */
+export interface HitScene extends Pick<SceneInput, 'growth' | 'time' | 'animals' | 'reducedMotion' | 'mainTree' | 'season'> {
+  width: number;
+  height: number;
+}
+
+/** Tippziel: mindestens so groß (Radius in Bildschirm-Pixeln, ~44 px Durchmesser). */
+export const HIT_MIN_RADIUS = 22;
+
+/** Gemerkte Ankerpunkte für den Treffer-Test (Größe, Art und Wachstum auf REDRAW_STEP genau). */
+let hitAnchors: { key: string; g: number; anchors: AnchorResolver } | null = null;
+
+/**
+ * Welches Tier liegt unter dem Bildschirmpunkt (`x`, `y`, CSS-Pixel im Canvas)? Rechnet
+ * über die Kamera in die Szene zurück und nutzt dieselben Ankerpunkte, Sprite-Größen,
+ * Bewegungen und denselben Wind wie `drawScene`. Das Tippziel ist auf dem Bildschirm
+ * mindestens ~44 px groß. Rein (ohne Canvas); `camera` null = ganze Szene.
+ */
+export function hitTestAnimal(scene: HitScene, camera: Readonly<CameraView> | null, x: number, y: number): AnimalHit | null {
+  const animals = scene.animals;
+  const { width, height } = scene;
+  if (!animals || animals.length === 0 || !(width > 0) || !(height > 0)) return null;
+  const view = clampView(camera ?? { zoom: 1, x: 0.5, y: 0.5 }, STRETCH_MAX_ZOOM);
+  const p = screenToScene(view, width, height, x, y);
+  const g = Math.max(0, Number.isFinite(scene.growth) ? scene.growth : 0);
+  const species = normalizeSpecies(scene.mainTree);
+  const key = `${width}x${height}/${species}`;
+  if (!hitAnchors || hitAnchors.key !== key || Math.abs(hitAnchors.g - g) >= REDRAW_STEP) {
+    const layout = makeLayout(width, height);
+    hitAnchors = { key, g, anchors: createAnchorResolver(layout, g, placeMainTree(layout, g, species)) };
+  }
+  const time = Number.isFinite(scene.time) ? scene.time : 0;
+  const reduced = scene.reducedMotion === true;
+  return hitTestAnimals(
+    animals,
+    hitAnchors.anchors,
+    { time, windSkew: reduced ? 0 : windSkew(time, 0), reducedMotion: reduced, season: normalizeSeason(scene.season) },
+    p.x,
+    p.y,
+    HIT_MIN_RADIUS / view.zoom,
+  );
 }

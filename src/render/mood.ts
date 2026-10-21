@@ -31,6 +31,9 @@ export interface MoodFrame {
   dpr: number;
   sx: number;
   sy: number;
+  /** Verschiebung in Canvas-Pixeln (Kamera); ohne Angabe 0. */
+  tx?: number;
+  ty?: number;
   time: number;
   reducedMotion: boolean;
   /**
@@ -179,7 +182,7 @@ export class MoodLayer {
       ctx.globalAlpha = alpha;
       // Glühwürmchen leuchten additiv.
       ctx.globalCompositeOperation = p.kind === 2 ? 'lighter' : 'source-over';
-      ctx.setTransform(f.sx * k * c, f.sy * k * sn, -f.sx * k * sn, f.sy * k * c, f.sx * k * x, f.sy * k * y);
+      ctx.setTransform(f.sx * k * c, f.sy * k * sn, -f.sx * k * sn, f.sy * k * c, f.sx * k * x + (f.tx ?? 0), f.sy * k * y + (f.ty ?? 0));
       ctx.drawImage(s, -size / 2, -size / 2, size, size);
     }
     ctx.globalCompositeOperation = 'source-over';
@@ -194,7 +197,7 @@ export class MoodLayer {
   drawLight(ctx: CanvasRenderingContext2D, level: number, f: MoodFrame): void {
     const mw = moodWeights(level);
     if (mw.veil <= 0.004 && mw.warm <= 0.004) return;
-    ctx.setTransform(f.sx * f.dpr, 0, 0, f.sy * f.dpr, 0, 0);
+    ctx.setTransform(f.sx * f.dpr, 0, 0, f.sy * f.dpr, f.tx ?? 0, f.ty ?? 0);
     if (mw.warm > 0.004) {
       // Weiches Licht in sattem Gold: Grün wird wärmer und kräftiger, der Himmel bleibt blau.
       if (!this.warmGrad || this.warmKey !== f.height) {

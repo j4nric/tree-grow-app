@@ -303,6 +303,9 @@ export interface SeasonFrame {
   dpr: number;
   sx: number;
   sy: number;
+  /** Verschiebung in Canvas-Pixeln (Kamera); ohne Angabe 0. */
+  tx?: number;
+  ty?: number;
   time: number;
   reducedMotion: boolean;
 }
@@ -354,6 +357,8 @@ export class SeasonParticles {
     const span = f.groundY - f.top;
     const base = Math.max(3, Math.min(f.width, span) * 0.012);
     const k = f.dpr;
+    const tx = f.tx ?? 0;
+    const ty = f.ty ?? 0;
     if (look.fall > 0.01) {
       const n = Math.round((small ? MAX_LEAVES / 2 : MAX_LEAVES) * look.fall);
       for (let i = 0; i < n; i++) {
@@ -369,7 +374,7 @@ export class SeasonParticles {
         const s = Math.sin(rot);
         // Am Boden ausblenden.
         ctx.globalAlpha = 0.9 * look.fall * clamp01((1 - fallen) * 8);
-        ctx.setTransform(f.sx * k * c, f.sy * k * s, -f.sx * k * s, f.sy * k * c, f.sx * k * x, f.sy * k * y);
+        ctx.setTransform(f.sx * k * c, f.sy * k * s, -f.sx * k * s, f.sy * k * c, f.sx * k * x + tx, f.sy * k * y + ty);
         ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
       }
     }
@@ -383,7 +388,7 @@ export class SeasonParticles {
         const size = base * 0.75 * p.size;
         const sprite = this.flake();
         ctx.globalAlpha = 0.85 * look.snow * clamp01((1 - fallen) * 10);
-        ctx.setTransform(f.sx * k, 0, 0, f.sy * k, f.sx * k * x, f.sy * k * y);
+        ctx.setTransform(f.sx * k, 0, 0, f.sy * k, f.sx * k * x + tx, f.sy * k * y + ty);
         ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
       }
     }

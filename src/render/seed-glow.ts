@@ -51,9 +51,10 @@ export class SeedGlow {
 
   /**
    * Zeichnet den Schein um (x, y) [CSS-px] mit Radius `r`. `sx`, `sy`: zusätzliche
-   * Skalierung (altes Bild während einer Größenänderung).
+   * Skalierung (altes Bild während einer Größenänderung, Kamera), `tx`, `ty`:
+   * Verschiebung in Canvas-Pixeln (Kamera).
    */
-  draw(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, alpha: number, dpr: number, sx: number, sy: number): void {
+  draw(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, alpha: number, dpr: number, sx: number, sy: number, tx = 0, ty = 0): void {
     if (alpha <= 0.01 || r <= 0) return;
     const px = Math.max(8, Math.ceil(r * 2 * dpr));
     if (!this.sprite || this.key !== px) {
@@ -61,7 +62,7 @@ export class SeedGlow {
       this.key = px;
     }
     ctx.globalAlpha = alpha;
-    ctx.setTransform(sx * dpr, 0, 0, sy * dpr, 0, 0);
+    ctx.setTransform(sx * dpr, 0, 0, sy * dpr, tx, ty);
     ctx.drawImage(this.sprite, x - r, y - r, r * 2, r * 2);
     ctx.globalAlpha = 1;
   }

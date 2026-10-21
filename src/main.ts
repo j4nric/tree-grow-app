@@ -24,8 +24,11 @@ import {
   type ActionResult,
   type TickReport,
 } from './core/tick';
-import { drawScene, type SceneInput } from './render/tree';
+import { drawScene, hitTestAnimal, type AnimalHit, type HitScene, type SceneInput } from './render/tree';
 import { CanvasSizer } from './render/canvas-size';
+import type { CanvasSize } from './render/resize';
+import { Camera } from './render/camera';
+import { attachCameraInput, createCameraControls, loadCameraView } from './render/camera-input';
 import { PLANTS_BY_ID } from './content/plants';
 import {
   harmonyTierIndex,
@@ -208,6 +211,44 @@ const scene: SceneInput = {
   // Die Größe kommt schon entprellt aus dem CanvasSizer: keine zweite Wartezeit im Renderer.
   sizeSettled: true,
 };
+
+// --- Kamera der Szene (nur Oberflächen-Zustand, nicht im Spielstand) ---------------------
+
+/** Zoom und Ausschnitt; die Ansicht der Sitzung bleibt beim Neuladen erhalten. */
+const camera = new Camera(loadCameraView());
+camera.reducedMotion = preferences.reducedMotion;
+scene.camera = camera.view;
+/** Größe der Szene im letzten Frame (für den Treffer-Test). */
+let sceneSize: CanvasSize | null = null;
+/** Eingabe für den Treffer-Test – ein Objekt, bei Bedarf aus der Szene aufgefrischt. */
+const hitScene: HitScene = { width: 0, height: 0, growth: 0, time: 0 };
+
+function hitTestScene(x: number, y: number): AnimalHit | null {
+  if (!sceneSize) return null;
+  hitScene.width = sceneSize.width;
+  hitScene.height = sceneSize.height;
+  hitScene.growth = scene.growth;
+  hitScene.time = performance.now() / 1000;
+  hitScene.animals = scene.animals;
+  hitScene.reducedMotion = scene.reducedMotion;
+  hitScene.mainTree = scene.mainTree;
+  hitScene.season = scene.season;
+  return hitTestAnimal(hitScene, camera.view, x, y);
+}
+
+/**
+ * Tippen oder Klicken auf ein Tier in der Szene: `hit.nicheId` und `hit.index` (Platz in
+ * `state.niches`) bzw. `hit.speciesId`. Hier wird die Detailansicht angeschlossen –
+ * `openAnimalDetail({ niche: hit.nicheId, index: hit.index }, canvas)`; bis dahin bleibt
+ * das Tippen folgenlos. Per Tastatur sind dieselben Tiere über die Kacheln der
+ * Seitenleiste erreichbar.
+ */
+function onAnimalTap(hit: AnimalHit): void {
+  void hit;
+}
+
+const cameraInput = attachCameraInput(canvas, { camera, hitTest: hitTestScene, onAnimalTap });
+const cameraControls = createCameraControls(document.querySelector<HTMLElement>('.scene')!, camera);
 
 // --- Oberfläche ----------------------------------------------------------------------
 
@@ -744,6 +785,11 @@ function frame(now: number): void {
   refreshViews(now);
   // Größe aus dem ResizeObserver, entprellt (kein erzwungenes Layout pro Frame).
   const size = canvasSizer.update(now);
+  sceneSize = size;
+  // Kamera gleitet in Echtzeit (auch wenn das Spiel kurz hängt, höchstens MAX_FRAME_SECONDS).
+  camera.step(dt);
+  cameraInput.update();
+  cameraControls.update();
   scene.growth = growth(state);
   scene.time = now / 1000;
   // Jahreszeit stufenlos aus der Spielzeit (tick läuft jeden Frame), Art des Hauptbaums.
@@ -843,6 +889,7 @@ function start(): void {
   help = createHelp(document.querySelector<HTMLElement>('#help')!, preferences, { newGame: !loaded });
   preferences.onChange(() => {
     scene.reducedMotion = preferences.reducedMotion;
+    camera.reducedMotion = preferences.reducedMotion;
     sound.setLevel(preferences.settings.sound);
     // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
     ecoView = null;

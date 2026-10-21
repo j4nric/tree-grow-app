@@ -73,6 +73,9 @@ export interface VisitorFrame {
   dpr: number;
   sx: number;
   sy: number;
+  /** Verschiebung in Canvas-Pixeln (Kamera); ohne Angabe 0. */
+  tx?: number;
+  ty?: number;
   time: number;
   reducedMotion: boolean;
   /** Scherfaktor des Hauptbaums (Wind) – Gäste in der Krone schwingen mit. */
@@ -878,6 +881,6 @@ function blit(ctx: CanvasRenderingContext2D, s: Sprite, x: number, y: number, di
   const c = rot === 0 ? 1 : Math.cos(rot);
   const sn = rot === 0 ? 0 : Math.sin(rot);
   ctx.globalAlpha = alpha;
-  ctx.setTransform(f.sx * k * c * dir, f.sy * k * sn * dir, -f.sx * k * sn, f.sy * k * c, f.sx * k * x, f.sy * k * y);
+  ctx.setTransform(f.sx * k * c * dir, f.sy * k * sn * dir, -f.sx * k * sn, f.sy * k * c, f.sx * k * x + (f.tx ?? 0), f.sy * k * y + (f.ty ?? 0));
   ctx.drawImage(s.canvas, -s.ox, -s.oy, s.w, s.h);
 }
