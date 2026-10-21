@@ -200,7 +200,7 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 
 ## Phase 5 – Veröffentlichung
 
-- [ ] Deployment auf GitHub Pages
+- [x] Deployment auf GitHub Pages (Workflow `.github/workflows/pages.yml`, Quelle „GitHub Actions“ in den Repo-Einstellungen)
 - [x] Spielstand exportieren/importieren (Text-Code „VSZW1:…“ mit Prüfsumme, Bestätigung per zweitem Klick)
 - [x] Spielanleitung „❓“ (Zahlen aus content/core, Platzhalter für Ereignisse, Gäste, Pflege)
   und Hinweis „Neu hier?“ beim ersten Start (`ui-dev`)
