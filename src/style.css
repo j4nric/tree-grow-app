@@ -1556,6 +1556,13 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   font-weight: 600;
 }
 
+/* Fokusziel, wenn eine Art bei offenen Tierdetails auszieht (tabindex="-1"). */
+.niche-title:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .niche-slots {
   font-size: 0.75rem;
   color: var(--muted);
@@ -1694,14 +1701,35 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   overflow: hidden;
 }
 
-.slot-mood[role='button'] {
+/* Eingezogene Tiere: die ganze Kachel ist ein Knopf → Tierdetails */
+.slot:has(> .slot-open) {
+  padding: 0;
+}
+
+.slot-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 50px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
-.slot-mood.expanded {
-  -webkit-line-clamp: unset;
-  line-clamp: none;
-  overflow: visible;
+.slot-open:hover {
+  background: #f6f4ec;
+}
+
+.slot-open:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 1px;
 }
 
 .slot.arrive {
@@ -3815,4 +3843,196 @@ body[data-motion='reduce'] .option-choose {
 
 .journal-achievement.locked .journal-name {
   color: var(--muted);
+}
+
+/* ---------- Tierdetails (Klick auf eine Tier-Kachel) ---------- */
+
+dialog.animal-detail {
+  width: min(560px, calc(100vw - 24px));
+}
+
+.detail-card {
+  padding-bottom: 14px;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Großes Gattungssymbol mit Zufriedenheitsring wie auf der Kachel */
+.detail-ring {
+  --ring: var(--accent);
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  padding: 4px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ring) calc(var(--h, 0) * 360deg), #e7e3d4 0);
+}
+
+.detail-card.happy-mid .detail-ring {
+  --ring: #c98d16;
+}
+
+.detail-card.happy-low .detail-ring {
+  --ring: #b8703c;
+}
+
+.detail-hero-icon {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: white;
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.detail-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.detail-head-text .encounter-kind {
+  text-align: left;
+}
+
+.detail-name {
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.detail-niche {
+  margin: 0;
+}
+
+.detail-mood {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.detail-happiness {
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-mood-text {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.detail-section[hidden],
+.detail-regular[hidden],
+.card-flavor[hidden] {
+  display: none;
+}
+
+.detail-heading {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-contribution {
+  padding-top: 0;
+  border-top: none;
+}
+
+.detail-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.detail-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.detail-factors li.tone-good .mark,
+.detail-factors li.tone-bad .mark {
+  font-size: 0.9rem;
+}
+
+.detail-abilities,
+.detail-communities {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 0.875rem;
+}
+
+.detail-community {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #faf8f1;
+}
+
+.detail-community.active {
+  border-color: var(--accent);
+  background: #eef6e6;
+}
+
+.detail-community .community-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-community .community-name {
+  font-weight: 600;
+}
+
+.detail-community .community-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.detail-hint {
+  font-style: italic;
+}
+
+.detail-regular {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .detail-ring {
+    width: 56px;
+    height: 56px;
+  }
+
+  .detail-hero-icon {
+    font-size: 1.7rem;
+  }
 }

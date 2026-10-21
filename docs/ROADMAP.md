@@ -146,6 +146,11 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   - [ ] offen (`core-engineer`): Ablehnen nach Samen-Sekunden – 10 s, mindestens 5 🌰, auch
     beim Weiterziehen online/offline; Formel, Aufrufe in `tick.ts`, Meldungen und Tests in
     DESIGN_V2.md 7.9 (nicht im Branch, weil `tick.ts` parallel für Spielstand v10 geändert wird)
+- [x] Tierdetails (`ui-developer`): Tier-Kacheln der Nischen öffnen per Klick/Tippen/Enter
+  einen Dialog mit Zufriedenheit und Gründen, Beitrag (Chips wie bei der Auswahl),
+  Wirkungen, Fähigkeiten, Lebensgemeinschaften (ohne Spoiler), Stammgast-Status und
+  Tagebuch-Text; live gedrosselt, Esc gibt den Fokus an die Kachel zurück; Einstieg
+  `openAnimalDetail()` auch für Klicks in der Szene (DESIGN_V2.md 11.2)
 
 ## Phase 3 – Tiefe
 
