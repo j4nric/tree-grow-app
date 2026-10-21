@@ -181,8 +181,12 @@ Voraussetzungen: ein vServer mit öffentlicher IPv4, Linux, SSH-Zugang.
 Die Seite läuft auf HTTPS, also braucht auch die API HTTPS – und dafür einen Hostnamen.
 
 **Standard: sslip.io** (kostenlos, keine Anmeldung). Der Name enthält die IP und zeigt
-automatisch auf sie: Server-IP `203.0.113.5` → **`203-0-113-5.sslip.io`** (IPv4 mit
-Bindestrichen). Let's Encrypt stellt dafür ganz normal ein Zertifikat aus.
+automatisch auf sie: Server-IP `203.0.113.5` → **`sync.203-0-113-5.sslip.io`** (IPv4 mit
+Bindestrichen, davor eine eigene Subdomain). Let's Encrypt stellt dafür ganz normal ein
+Zertifikat aus. **Wichtig:** Immer eine Subdomain wie `sync.` nehmen – den Namen ohne
+Subdomain (`203-0-113-5.sslip.io`) nutzt oft schon eine andere App auf dem Server. Ein
+zweiter Caddy-Block mit demselben Namen macht die Konfiguration ungültig, und Caddy startet
+nicht mehr (Oktober 2026 so passiert). Vorher prüfen: `grep -n sslip <Caddyfile>`.
 
 **Alternative: DuckDNS**, falls sich die IP des Servers ändern kann: auf
 <https://www.duckdns.org> mit GitHub anmelden, einen Namen anlegen (`name.duckdns.org`) und
@@ -263,7 +267,7 @@ Caddy holt das Zertifikat für `SYNC_PUBLIC_HOST` automatisch (Datei `deploy/Cad
 
 #### Betriebsart B: vorhandener Reverse-Proxy (Standard, wenn 80/443 belegt sind)
 
-Im vorhandenen Proxy einen Eintrag ergänzen (Beispiele mit `203-0-113-5.sslip.io` – durch
+Im vorhandenen Proxy einen Eintrag ergänzen (Beispiele mit `sync.203-0-113-5.sslip.io` – durch
 den eigenen Namen ersetzen). Wichtig für die Live-Synchronisierung: **keine Pufferung** und
 lange Lesezeit für `/api/events`.
 
@@ -301,7 +305,7 @@ Dienste für `vszw-sync` erreichbar. Reihenfolge:
    Server-Sent Events sofort durch):
 
    ```caddyfile
-   62-83-23-90.sslip.io {
+   sync.62-83-23-90.sslip.io {
    	reverse_proxy vszw-sync:8787 {
    		flush_interval -1
    	}
@@ -326,7 +330,7 @@ Beispiel `/home/deploy/haushalt-app/infra/production/Caddyfile`:
 CADDYFILE=/home/deploy/haushalt-app/infra/production/Caddyfile
 BACKUP="$CADDYFILE.bak-$(date +%Y%m%d-%H%M%S)"
 sudo cp "$CADDYFILE" "$BACKUP"
-printf '\n%s {\n\treverse_proxy vszw-sync:8787 {\n\t\tflush_interval -1\n\t}\n}\n' '62-83-23-90.sslip.io' \
+printf '\n%s {\n\treverse_proxy vszw-sync:8787 {\n\t\tflush_interval -1\n\t}\n}\n' 'sync.62-83-23-90.sslip.io' \
   | sudo tee -a "$CADDYFILE" >/dev/null
 docker exec haushalt-prod-caddy-1 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker exec haushalt-prod-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
@@ -357,7 +361,7 @@ docker compose up -d --build
 ```nginx
 server {
     listen 80;
-    server_name 203-0-113-5.sslip.io;
+    server_name sync.203-0-113-5.sslip.io;
 
     location / {
         proxy_pass http://127.0.0.1:8787;
@@ -377,7 +381,7 @@ server {
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d 203-0-113-5.sslip.io     # HTTPS + Weiterleitung von http
+sudo certbot --nginx -d sync.203-0-113-5.sslip.io     # HTTPS + Weiterleitung von http
 ```
 
 **Traefik** (Docker-Provider): Override-Datei `deploy/docker-compose.traefik.yml` nutzen.
@@ -401,7 +405,7 @@ Die Datei setzt diese Labels und hängt den Container zusätzlich ins Traefik-Ne
 labels:
   traefik.enable: 'true'
   traefik.docker.network: traefik
-  traefik.http.routers.vszw-sync.rule: Host(`203-0-113-5.sslip.io`)
+  traefik.http.routers.vszw-sync.rule: Host(`sync.203-0-113-5.sslip.io`)
   traefik.http.routers.vszw-sync.entrypoints: websecure
   traefik.http.routers.vszw-sync.tls.certresolver: letsencrypt
   traefik.http.services.vszw-sync.loadbalancer.server.port: '8787'
@@ -412,7 +416,7 @@ Traefik leitet Server-Sent Events ohne weitere Einstellung durch.
 **Caddy direkt auf dem Server** (`/etc/caddy/Caddyfile`):
 
 ```caddyfile
-203-0-113-5.sslip.io {
+sync.203-0-113-5.sslip.io {
 	reverse_proxy 127.0.0.1:8787 {
 		flush_interval -1
 	}
@@ -430,14 +434,14 @@ sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 ### 5. Prüfen
 
 ```bash
-curl https://203-0-113-5.sslip.io/api/health      # → {"ok":true}
+curl https://sync.203-0-113-5.sslip.io/api/health      # → {"ok":true}
 docker logs vszw-sync
 ```
 
 ### 6. Spiel verbinden
 
 1. GitHub → Repository → **Settings → Secrets and variables → Actions → Variables** →
-   „New repository variable“: Name `VITE_SYNC_URL`, Wert `https://203-0-113-5.sslip.io`
+   „New repository variable“: Name `VITE_SYNC_URL`, Wert `https://sync.203-0-113-5.sslip.io`
    (ohne `/` am Ende).
 2. **Actions → Pages → Run workflow** (oder einen Commit auf `main`), damit das Spiel neu
    gebaut wird.
