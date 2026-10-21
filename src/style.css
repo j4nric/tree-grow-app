@@ -2410,8 +2410,14 @@ dialog.plant-picker {
   color: white;
 }
 
-.journal-tree-status.unlocked {
+.journal-tree-status.unlocked,
+.journal-tree-status.grown {
   color: var(--accent-dark);
+}
+
+/* Abschnitt „Über alle Zyklen“ unter den Kennzahlen des Zyklus */
+.journal-stats + .journal-section-title {
+  margin-top: 16px;
 }
 
 /* Statistik: Kennzahlen als Beschreibungsliste in Kacheln */

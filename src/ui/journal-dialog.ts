@@ -239,9 +239,10 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
       body.append(srOnly('Unbekannte Baumart'));
     }
     body.append(name);
-    const status = t.current ? 'wächst in diesem Zyklus' : t.unlocked ? 'freigeschaltet' : 'gesperrt';
-    const badge = el('p', `journal-tree-status ${t.current ? 'current' : t.unlocked ? 'unlocked' : 'locked'}`);
-    const badgeIcon = el('span', '', t.current ? '★ ' : t.unlocked ? '' : '🔒 ');
+    const status = t.current ? 'wächst in diesem Zyklus' : t.grown ? 'schon gewachsen' : t.unlocked ? 'freigeschaltet' : 'gesperrt';
+    const kind = t.current ? 'current' : t.grown ? 'grown' : t.unlocked ? 'unlocked' : 'locked';
+    const badge = el('p', `journal-tree-status ${kind}`);
+    const badgeIcon = el('span', '', t.current ? '★ ' : t.grown ? '✓ ' : t.unlocked ? '' : '🔒 ');
     badgeIcon.setAttribute('aria-hidden', 'true');
     badge.append(badgeIcon, status);
     body.append(badge);
@@ -255,8 +256,14 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
   // Statistik: Zeilen einmal anlegen, danach nur Texte tauschen.
   const statList = el('dl', 'journal-stats');
   statList.dataset.ref = 'journal-stats';
+  // Abschnitt „Über alle Zyklen“ (Langzeit-Statistik) mit eigener Überschrift.
+  const totalTitle = el('h3', 'journal-section-title', 'Über alle Zyklen');
+  totalTitle.id = 'journal-stats-total-title';
+  const totalList = el('dl', 'journal-stats');
+  totalList.dataset.ref = 'journal-stats-total';
+  totalList.setAttribute('aria-labelledby', totalTitle.id);
   const statRows = new Map<string, { value: HTMLElement; detail: HTMLElement }>();
-  tabs.get('stats')!.panel.append(statList);
+  tabs.get('stats')!.panel.append(statList, totalTitle, totalList);
 
   function renderStats(stats: readonly JournalStatView[]): void {
     for (const s of stats) {
@@ -270,7 +277,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
         const detail = el('span', 'journal-stat-detail');
         dd.append(value, detail);
         wrap.append(dt, dd);
-        statList.append(wrap);
+        (s.section === 'total' ? totalList : statList).append(wrap);
         row = { value, detail };
         statRows.set(s.key, row);
       }

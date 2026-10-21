@@ -533,7 +533,7 @@ describe('Spielstand v6 (Migration v5 → v6)', () => {
 
   it('v5 → v6: Frühlingsbeginn und Stieleiche, sonst unverändert', () => {
     const s = loadGame(v5(), 0)!.state;
-    expect(SAVE_VERSION).toBe(7);
+    expect(SAVE_VERSION).toBe(8);
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.waypoint).toBe(12);
     expect(s.cycle.elapsed).toBe(0);

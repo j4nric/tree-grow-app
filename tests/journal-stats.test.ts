@@ -5,6 +5,7 @@ import { PLANTS } from '../src/content/plants';
 import { SEASON_SECONDS, YEAR_SECONDS } from '../src/content/seasons';
 import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
+import { MAIN_TREES } from '../src/content/trees';
 import { evaluate } from '../src/core/formulas';
 import { cycleAgeText, toJournalStats, toJournalTrees, toJournalView } from '../src/ui/adapters';
 import { formatNumber, setNumberStyle } from '../src/ui/format';
@@ -36,7 +37,15 @@ describe('toJournalStats (Reiter „Statistik“)', () => {
     const stats = toJournalStats(state, evaluate(state));
     expect(stats.map((s) => s.key)).toEqual([
       'cycle', 'time', 'tree', 'stage', 'growth', 'seeds', 'harmony', 'species', 'plants', 'communities', 'memory', 'regulars',
+      'total-time', 'total-growth', 'total-harmony', 'total-cards', 'total-events', 'total-visitors', 'total-plants',
+      'total-care', 'total-trees',
     ]);
+    // Nur der Abschnitt „Über alle Zyklen“ ist markiert.
+    expect(stats.filter((s) => s.section === 'total').every((s) => s.key.startsWith('total-'))).toBe(true);
+    expect(stats.filter((s) => s.key.startsWith('total-')).every((s) => s.section === 'total')).toBe(true);
+    expect(statOf(stats, 'total-time')).toMatchObject({ value: '0 Sek.', detail: 'weniger als eine Jahreszeit' });
+    expect(statOf(stats, 'total-cards').value).toBe('0');
+    expect(statOf(stats, 'total-trees')).toMatchObject({ value: `1/${MAIN_TREES.length}`, detail: 'Stieleiche' });
     expect(statOf(stats, 'cycle')).toEqual({ key: 'cycle', label: 'Zyklus', value: '1', detail: 'dein erster Zyklus' });
     expect(statOf(stats, 'time').value).toBe('weniger als eine Jahreszeit');
     expect(statOf(stats, 'time').detail).toBe('0 Sek. Spielzeit · jetzt 🌱 Frühling');
@@ -82,6 +91,40 @@ describe('toJournalStats (Reiter „Statistik“)', () => {
     expect(statOf(stats, 'species')).toMatchObject({ value: `2/${SPECIES.length}`, detail: '1 neu in diesem Zyklus' });
     expect(statOf(stats, 'memory')).toMatchObject({ value: '25', detail: '+25 % Wachstum und Samen' });
     expect(statOf(stats, 'regulars')).toMatchObject({ value: '1/1', detail: 'Blaumeise' });
+  });
+
+  it('Über alle Zyklen: Werte aus meta.stats, Zahlenformat, kaputte Werte als 0', () => {
+    const state = stateAt(0);
+    state.meta.stats = {
+      playSeconds: 2 * 86_400 + 3 * 3600 + 5,
+      completedCyclesGrowth: 1_234_567.8,
+      bestHarmony: 87.6,
+      cardsChosen: 42,
+      eventsDecided: 7,
+      visitorsHosted: 3,
+      plantsPlanted: 12_345,
+      careRanksBought: 9,
+      grownTrees: ['oak', 'pine'],
+    };
+    let stats = toJournalStats(state, evaluate(state));
+    expect(statOf(stats, 'total-time').value).toBe('2 Tage 3 Std.');
+    expect(statOf(stats, 'total-growth').value).toBe(`${formatNumber(1_234_567)} 🌿`);
+    expect(statOf(stats, 'total-harmony').value).toBe('88 ⚖️');
+    expect(statOf(stats, 'total-cards')).toMatchObject({ value: '42', detail: 'Tier- und Pflanzenkarten gewählt' });
+    expect(statOf(stats, 'total-events').value).toBe('7');
+    expect(statOf(stats, 'total-visitors').value).toBe('3');
+    expect(statOf(stats, 'total-plants').value).toBe('12.345');
+    expect(statOf(stats, 'total-care').value).toBe('9');
+    expect(statOf(stats, 'total-trees')).toMatchObject({ value: `2/${MAIN_TREES.length}`, detail: 'Stieleiche, Waldkiefer' });
+    setNumberStyle('long');
+    expect(statOf(toJournalStats(state, evaluate(state)), 'total-growth').value).toBe('1.234.567 🌿');
+    state.meta.stats.playSeconds = Number.NaN;
+    state.meta.stats.cardsChosen = -3;
+    state.meta.stats.bestHarmony = Number.POSITIVE_INFINITY;
+    stats = toJournalStats(state, evaluate(state));
+    expect(statOf(stats, 'total-time').value).toBe('0 Sek.');
+    expect(statOf(stats, 'total-cards').value).toBe('0');
+    expect(statOf(stats, 'total-harmony').value).toBe('0 ⚖️');
   });
 
   it('Harmonie: gerundet wie die Seitenleiste, Stufe aus dem Rohwert', () => {
@@ -149,5 +192,20 @@ describe('toJournalTrees (Reiter „Andenken“: Hauptbaum-Arten)', () => {
     expect(trees[2]!.hint).toBeUndefined();
     expect(trees[1]!.hint).toContain('Rotbuche');
     expect(toJournalView(state, evaluate(state)).tabCounts.keepsakes).toBe('2');
+    // Die Eiche war im ersten Zyklus Hauptbaum (Startwert), die Kiefer wächst gerade.
+    expect(trees.map((t) => t.grown)).toEqual([true, false, true]);
+  });
+
+  it('„schon gewachsen“ aus meta.stats.grownTrees, die aktuelle Art immer', () => {
+    const state = stateAt(1);
+    state.cycle.number = 3;
+    state.cycle.mainTree = 'beech';
+    state.meta.journal.plants = ['pine', 'beech'];
+    state.meta.stats.grownTrees = ['pine'];
+    expect(toJournalTrees(state).map((t) => [t.key, t.grown, t.current])).toEqual([
+      ['oak', false, false],
+      ['beech', true, true],
+      ['pine', true, false],
+    ]);
   });
 });

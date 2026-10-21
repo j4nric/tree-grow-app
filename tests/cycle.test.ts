@@ -315,6 +315,7 @@ describe('Stammgäste', () => {
     // Spielzeit wie Wachstum nur bis auf Rundung gleich (Schritte enden an anderen Halten).
     expect({ ...offline.cycle, elapsed: 0 }).toEqual({ ...online.cycle, elapsed: 0 });
     expect(offline.cycle.elapsed).toBeCloseTo(online.cycle.elapsed, 6);
+    // Langzeit-Statistik: Zähler, Spielzeit und abgeschlossene Zyklen exakt.
     expect(offline.meta).toEqual(online.meta);
     expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
     expect(offline.seeds).toBeCloseTo(online.seeds, 6);
