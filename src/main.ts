@@ -26,6 +26,7 @@ import {
   discoveryText,
   refreshEcosystemView,
   toEcosystemView,
+  toJournalView,
   toEncounterView,
   toPlantPickerView,
   toSceneAnimals,
@@ -38,6 +39,7 @@ import { createEncounterDialog } from './ui/encounter-dialog';
 import { createEncounterStack } from './ui/encounter-stack';
 import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
+import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
 import { formatNumber } from './ui/format';
 import type { EcosystemView } from './ui/view-model';
 
@@ -92,6 +94,8 @@ const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const ctx = canvas.getContext('2d')!;
 const banner = document.querySelector<HTMLElement>('#stage-banner')!;
 const toast = document.querySelector<HTMLElement>('#toast')!;
+/** Unsichtbare Statuszeile: schwebende Hinweise auch für Screenreader. */
+const liveStatus = document.querySelector<HTMLElement>('#live-status')!;
 const resetButton = document.querySelector<HTMLButtonElement>('#reset')!;
 const heading = document.querySelector<HTMLElement>('.panel h1')!;
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -186,7 +190,19 @@ const picker = createPlantPicker(document.body, {
   },
 });
 
+const journal = createJournalDialog(document.body, {
+  onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
+});
+createJournalButton(document.querySelector<HTMLElement>('#journal')!, openJournal);
+
 // --- Aktionen ------------------------------------------------------------------------
+
+/** „📖 Naturtagebuch“: andere Dialoge schließen, Tagebuch zeigen. */
+function openJournal(): void {
+  closeEncounters();
+  closePlantPicker();
+  journal.show(toJournalView(state, evaluate(state)));
+}
 
 /**
  * Führt das Ergebnis einer Spieleraktion nach: sofort speichern (Entscheidungen sollen
@@ -306,6 +322,7 @@ function closeEncounters(): void {
 function notify(text: string): void {
   if (picker.open) picker.notice(text);
   else if (dialog.open) dialog.notice(text);
+  else if (journal.open) journal.notice(text);
   else showToast(text);
 }
 
@@ -347,6 +364,7 @@ function refreshPanel(now: number): void {
     ecoDirty = false;
     // Neuer Zyklus und Stammgäste ändern sich nur mit Ökosystem, Wegpunkt oder Aktionen.
     cyclePanel.update(toCyclePanelView(state));
+    if (journal.open) journal.update(toJournalView(state, evaluate(state)));
     const ev = evaluate(state);
     if (!ecoView || ev !== ecoEvaluation) {
       ecoEvaluation = ev;
@@ -401,12 +419,15 @@ function noteTick(report: TickReport): void {
  * sichtbar und für Screenreader erreichbar.
  */
 function noteText(text: string): void {
-  if (picker.open || dialog.open) {
+  if (picker.open || dialog.open || journal.open) {
     notify(text);
     return;
   }
   const rect = canvas.getBoundingClientRect();
   if (rect.width > 0) floats.spawn(text, rect.left + rect.width / 2, rect.top + rect.height * 0.3, 'note');
+  // Die schwebende Zahl ist für Screenreader verborgen – derselbe Text in der Statuszeile.
+  liveStatus.textContent = '';
+  requestAnimationFrame(() => (liveStatus.textContent = text));
 }
 
 function showBanner(title: string, text: string): void {
@@ -449,6 +470,7 @@ function onReset(): void {
   shownStage = state.stage;
   closeEncounters();
   closePlantPicker();
+  journal.hide();
   encounterSerial++;
   encounterDirty = true;
   ecoDirty = true;

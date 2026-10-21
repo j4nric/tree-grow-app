@@ -573,6 +573,8 @@ test('Wegpunkt bei vollem Stapel: dezenter Hinweis mit den Samen dafür', async 
   // nicht ins Nachrechnen (catchUp) nach einem Zeitsprung.
   await page.clock.runFor(1000);
   await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/);
+  // Derselbe Hinweis unsichtbar in der Statuszeile (Screenreader) – kein zweiter Toast.
+  await expect(page.locator('#live-status')).toHaveText(/Stapel voll – eine Begegnung zog weiter/);
   await expect(page.locator('#toast')).toBeHidden();
   const saved = await savedState(page);
   expect(saved.pendingEncounters).toHaveLength(3);
