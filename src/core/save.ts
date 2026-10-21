@@ -664,7 +664,12 @@ export type ImportError =
   /** Prüfsumme passt nicht – der Code wurde unvollständig oder verändert kopiert. */
   | 'checksum'
   /** Der Inhalt ist kein brauchbarer Spielstand. */
-  | 'invalid';
+  | 'invalid'
+  /**
+   * Stand einer neueren Spielversion (version > SAVE_VERSION): Dieses Spiel kennt seine
+   * Felder nicht und würde sie beim Speichern verlieren – nie laden.
+   */
+  | 'newer';
 
 export type ImportResult = { ok: true; result: LoadResult } | { ok: false; error: ImportError };
 
@@ -686,9 +691,10 @@ export function codeFromJson(json: string): string {
  * Liest einen Text-Code und lädt ihn wie einen gespeicherten Stand (loadGame: robust,
  * mit Migration alter Versionen). Leerraum (Zeilenumbrüche beim Kopieren) wird ignoriert.
  * Die Uhr startet beim Import neu (`lastTick = now`) – ein Import bringt keine
- * Offline-Zeit. Verändert nichts außerhalb des Ergebnisses.
+ * Offline-Zeit. Verändert nichts außerhalb des Ergebnisses. Mit `keepClock` bleibt die Uhr
+ * des Codes stehen (Konto-Abgleich: die Zeit seit dem Speichern wird nachgerechnet).
  */
-export function importCode(code: string, now: number): ImportResult {
+export function importCode(code: string, now: number, options: { keepClock?: boolean } = {}): ImportResult {
   // Grobe Prüfung vor dem Entfernen des Leerraums (riesige Eingaben gar nicht erst anfassen).
   if (code.length > 2 * MAX_EXPORT_CODE_LENGTH) return { ok: false, error: 'too-large' };
   const compact = code.replace(/\s+/g, '');
@@ -710,6 +716,7 @@ export function importCode(code: string, now: number): ImportResult {
   } catch {
     return { ok: false, error: 'invalid' };
   }
+  if (isNewerSave(json)) return { ok: false, error: 'newer' };
   let result: LoadResult | null;
   try {
     result = loadGame(json, now);
@@ -718,8 +725,23 @@ export function importCode(code: string, now: number): ImportResult {
     return { ok: false, error: 'invalid' };
   }
   if (!result) return { ok: false, error: 'invalid' };
-  result.state.lastTick = now;
+  if (!options.keepClock) result.state.lastTick = now;
   return { ok: true, result };
+}
+
+/**
+ * Stammt der gespeicherte Stand (JSON-Text) aus einer neueren Spielversion? Kaputtes JSON
+ * oder ohne Version → false (darüber entscheidet loadGame).
+ */
+export function isNewerSave(json: string): boolean {
+  let data: unknown;
+  try {
+    data = JSON.parse(json);
+  } catch {
+    return false;
+  }
+  if (!isRecord(data)) return false;
+  return typeof data.version === 'number' && Number.isFinite(data.version) && data.version > SAVE_VERSION;
 }
 
 /** FNV-1a (32 Bit) über die Zeichen – einfach und deterministisch, als 8 Hex-Ziffern. */

@@ -14,8 +14,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
       - run: npm ci
+      # Sync-Server (server/): eigene, kleine Abhängigkeiten (nur TypeScript + Node-Typen).
+      # Seine Tests laufen in `npm run check` mit (Vitest des Spiels).
+      - run: npm ci --prefix server
       - run: npm run check
+      - run: npm run typecheck --prefix server
       - run: npm run build
 
   e2e:
@@ -26,7 +33,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
       - run: npm ci
+      # Die Konto-e2e-Tests starten den Sync-Server (playwright.config.ts).
+      - run: npm ci --prefix server
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4

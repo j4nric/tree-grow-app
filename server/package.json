@@ -1,0 +1,18 @@
+{
+  "name": "tree-grow-sync-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sync-Server für „Vom Samen zum Wald“ (Konten + Spielstand, SQLite, Server-Sent Events)",
+  "engines": {
+    "node": ">=22.16"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "node --disable-warning=ExperimentalWarning dist/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^7.0.2"
+  }
+}

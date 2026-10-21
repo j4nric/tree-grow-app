@@ -1,0 +1,13 @@
+# Betriebsart A (eigener Caddy): HTTPS für den Sync-Server, Zertifikat automatisch.
+{$SYNC_PUBLIC_HOST} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+	# flush_interval -1: Server-Sent Events (/api/events) sofort weiterreichen.
+	reverse_proxy vszw-sync:8787 {
+		flush_interval -1
+	}
+}

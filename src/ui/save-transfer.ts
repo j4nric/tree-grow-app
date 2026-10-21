@@ -40,6 +40,7 @@ export const IMPORT_ERROR_TEXTS: Readonly<Record<ImportError, string>> = {
   format: `Das ist kein Spielstand-Code von „Vom Samen zum Wald“ (er beginnt mit „VSZW1:“). ${KEEP}`,
   checksum: `Der Code ist unvollständig oder verändert. Kopiere ihn bitte noch einmal ganz. ${KEEP}`,
   invalid: `Der Code enthält keinen lesbaren Spielstand. ${KEEP}`,
+  newer: `Dieser Code stammt aus einer neueren Spielversion. Bitte lade die Seite neu und versuche es dann noch einmal. ${KEEP}`,
 };
 
 export function createSaveTransfer(root: HTMLElement, callbacks: SaveTransferCallbacks): SaveTransfer {

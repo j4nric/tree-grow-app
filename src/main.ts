@@ -72,6 +72,8 @@ import { createSeasonBadge } from './ui/season-badge';
 import { seasonChangeText, toSeasonBadgeView } from './ui/season-view';
 import type { MainTreeId } from './content/trees';
 import type { EcosystemView } from './ui/view-model';
+import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from './sync/config';
+import type { AccountController } from './sync/account';
 
 /*
  * Verdrahtung: Game Loop, Speichern, Offline-Fortschritt und die Oberfläche.
@@ -91,6 +93,14 @@ const PANEL_REFRESH_MS = 200;
  * Jahreszeitwechseln sofort, nach Aktionen immer (act).
  */
 const ACHIEVEMENT_CHECK_MS = 1000;
+
+/**
+ * Konto (optional): nur mit der Build-Variable VITE_SYNC_URL (Adresse des Sync-Servers) –
+ * oder in e2e-Tests über `window.__VSZW_SYNC_URL__` (vor dem Laden gesetzt). Sonst gibt es
+ * keine Konto-Oberfläche und keine Netzaufrufe; der Konto-Code wird erst bei Bedarf geladen.
+ */
+const syncUrl =
+  readSyncUrl((window as unknown as { __VSZW_SYNC_URL__?: unknown }).__VSZW_SYNC_URL__) ?? readSyncUrl(import.meta.env.VITE_SYNC_URL);
 
 const ERROR_TEXTS: Record<ActionError, string> = {
   'no-encounter': 'Diese Begegnung gibt es nicht mehr.',
@@ -164,6 +174,8 @@ let resetTimer: ReturnType<typeof setTimeout> | undefined;
 let resetArmedAt = 0;
 /** Bereich „Spielstand exportieren oder importieren“ (ab start()). */
 let saveTransfer: SaveTransfer | undefined;
+/** Konto-Abgleich (nur wenn konfiguriert, nach dem Nachladen). */
+let account: AccountController | undefined;
 /** Hinweis vor dem Import eines v1-Codes. */
 /** Einmal nach dem Laden eines v2–v6-Stands mit Waldgedächtnis (Balancing 2.10, LoadResult.memoryReweighted). */
 const MEMORY_REWEIGHTED_TEXT = 'Das Waldgedächtnis wurde neu gewichtet: +1 % je Punkt.';
@@ -350,6 +362,7 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
   if (result.ok) {
     unlocked = checkAchievements(state);
     saveToStorage(state);
+    account?.markAction();
     if (resolves) encounterSerial++;
   }
   encounterDirty = true;
@@ -705,6 +718,7 @@ function onReset(event: MouseEvent): void {
   disarmReset();
   clearStorage();
   replaceState(newGame());
+  account?.markAction();
 }
 
 /** Ersetzt den ganzen Spielstand (Löschen, Import): Dialoge zu, alles neu aufbauen, speichern. */
@@ -729,6 +743,76 @@ function replaceState(next: GameState): void {
   refreshViews(performance.now());
 }
 
+/**
+ * Übernimmt den Stand eines anderen Geräts (Konto-Abgleich): wie replaceState, rechnet aber
+ * die Zeit seit dem dortigen Speichern nach. Offene Dialoge bleiben, wo es geht – die
+ * Begegnungs-Karten nur, wenn oben noch dieselbe Begegnung liegt.
+ */
+function adoptState(next: GameState): void {
+  const head = JSON.stringify(state.pendingEncounters[0] ?? null);
+  state = next;
+  scene.cycleTransition = undefined;
+  disarmReset();
+  cyclePanel.disarm();
+  shownStage = state.stage;
+  seasonShownSecond = -1;
+  if (JSON.stringify(state.pendingEncounters[0] ?? null) !== head) {
+    closeEncounters();
+    encounterSerial++;
+  }
+  encounterDirty = true;
+  ecoDirty = true;
+  pickerDirty = true;
+  catchUp();
+  saveToStorage(state);
+  refreshViews(performance.now());
+}
+
+// --- Konto (optional) ----------------------------------------------------------------
+
+/** Lädt Konto-Oberfläche und Abgleich nach (eigener Chunk). */
+function setupAccount(): void {
+  const url = syncUrl;
+  if (!url) return;
+  import('./sync/account')
+    .then(({ startAccount }) => {
+      account = startAccount({
+        url,
+        mount: (section) => help?.addSettingsSection(section),
+        game: {
+          snapshot: () => exportCode(state),
+          localProgress: () => progressOfState(state),
+          progressOf: (code) => {
+            const result = importCode(code, Date.now());
+            return result.ok ? progressOfState(result.result.state) : null;
+          },
+          // Nur senden bzw. übernehmen, was dieses Spiel selbst importieren kann.
+          check: (code) => codeCheck(importCode(code, Date.now())),
+          adopt: (code, ageMs) => {
+            const now = Date.now();
+            const result = importCode(code, now, { keepClock: true });
+            if (!result.ok) return false;
+            const next = result.result.state;
+            next.lastTick = adoptedLastTick(next.lastTick, now, ageMs);
+            adoptState(next);
+            return true;
+          },
+          notify: (text) => notify(text),
+          // Sicherung von vor dem Abgleich laden – wie „Importieren“.
+          restore: (code) => {
+            const result = importCode(code, Date.now());
+            if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
+            replaceState(result.result.state);
+            return null;
+          },
+        },
+      });
+    })
+    .catch(() => {
+      // Nachladen fehlgeschlagen (offline): Das Spiel läuft lokal weiter.
+    });
+}
+
 // --- Spielstand exportieren / importieren (Text-Code) --------------------------------
 
 /** Bereich „Spielstand exportieren oder importieren“ neben „Spielstand löschen“. */
@@ -744,6 +828,7 @@ function setupSaveTransfer(): void {
       const result = importCode(code, Date.now());
       if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
       replaceState(result.result.state);
+      account?.markAction();
       const imported = result.result;
       const text = imported.migratedFromV1
         ? v1NoticeText(imported.keepsake)
@@ -934,6 +1019,7 @@ function start(): void {
   resetButton.addEventListener('click', onReset);
   setupSaveTransfer();
   help = createHelp(document.querySelector<HTMLElement>('#help')!, preferences, { newGame: !loaded });
+  setupAccount();
   preferences.onChange(() => {
     scene.reducedMotion = preferences.reducedMotion;
     camera.reducedMotion = preferences.reducedMotion;
@@ -945,10 +1031,15 @@ function start(): void {
     pickerDirty = true;
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') saveToStorage(state);
-    else catchUp();
+    if (document.visibilityState === 'hidden') {
+      saveToStorage(state);
+      account?.flush();
+    } else catchUp();
   });
-  window.addEventListener('beforeunload', () => saveToStorage(state));
+  window.addEventListener('beforeunload', () => {
+    saveToStorage(state);
+    account?.flush();
+  });
 
   refreshViews(performance.now());
   requestAnimationFrame(frame);

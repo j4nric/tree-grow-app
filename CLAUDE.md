@@ -27,7 +27,11 @@ src/
   content/   Spielinhalte als reine Daten (Stufen, Upgrades). Keine Logik.
   render/    Canvas-Zeichnung. Liest nur `growth` + Zeit, verändert nie den Spielstand.
   ui/        DOM-Oberfläche (Seitenleiste, Zahlenformat). Ruft nur Aktionen aus core/ auf.
+  sync/      Konto und Gerätesync (Client): Entscheidungslogik rein in policy.ts, Netzwerk in
+             http-service.ts, nur aktiv mit VITE_SYNC_URL. core/ bleibt ohne Netzwerk.
   main.ts    Verdrahtung: Game Loop (requestAnimationFrame), Autosave, Offline-Fortschritt.
+server/      Sync-Server (Node, node:sqlite, eigenes package.json, eigene Tests).
+deploy/      Docker Compose und setup.sh für den Sync-Server; Anleitung in docs/KONTO.md.
 tests/       Vitest-Tests, vor allem für core/ und content/.
 docs/        GAME_DESIGN.md (Spielregeln & Zahlen), ROADMAP.md (Aufgaben).
 ```
