@@ -7,12 +7,13 @@ import {
   nicheAnchors,
   POND_DEPTH,
   POND_HALF_WIDTH,
+  POND_HALF_WIDTH_MAX,
   POND_LIP,
   POND_SURFACE_CLEAR,
   pondGeometry,
   SCENE_NICHES,
 } from '../src/render/anchors';
-import { animalBounds, animalKind, type SceneAnimal } from '../src/render/animals';
+import { animalBounds, animalKind, hitTestAnimals, pondPlaces, type SceneAnimal } from '../src/render/animals';
 import { layoutFlora, PLANT_SPECIES, type ScenePlant } from '../src/render/flora';
 import { makeLayout, placeMainTree } from '../src/render/layout';
 
@@ -293,8 +294,11 @@ describe('Waldtümpel im Erdschnitt', () => {
       const layout = makeLayout(w, h);
       const size = animalSize(w, h);
       const p = pondGeometry(layout, size);
-      expect(p.x - POND_HALF_WIDTH * size, `${w}×${h}`).toBeGreaterThanOrEqual(0);
-      expect(p.x + POND_HALF_WIDTH * size, `${w}×${h}`).toBeLessThan(layout.cx);
+      expect(p.halfWidth).toBeGreaterThanOrEqual(POND_HALF_WIDTH);
+      expect(p.halfWidth).toBeLessThanOrEqual(POND_HALF_WIDTH_MAX);
+      expect(p.x - p.halfWidth * size, `${w}×${h}`).toBeGreaterThanOrEqual(0);
+      // Rechts bleibt Abstand zum Stamm.
+      expect(p.x + p.halfWidth * size, `${w}×${h}`).toBeLessThan(layout.cx - size);
       expect(p.lipY).toBeCloseTo(layout.groundY + POND_LIP * size, 6);
       expect(p.y + POND_DEPTH * size, `${w}×${h}`).toBeLessThan(h);
     }
@@ -312,8 +316,8 @@ describe('Waldtümpel im Erdschnitt', () => {
           const where = `${id}/${slot} ${w}×${h} g=${g}`;
           expect(b.y0, where).toBeGreaterThanOrEqual(p.lipY - 0.5);
           expect(b.y1, where).toBeLessThanOrEqual(p.y + POND_DEPTH * S + 0.5);
-          expect(b.x0, where).toBeGreaterThanOrEqual(p.x - POND_HALF_WIDTH * S - 0.5);
-          expect(b.x1, where).toBeLessThanOrEqual(p.x + POND_HALF_WIDTH * S + 0.5);
+          expect(b.x0, where).toBeGreaterThanOrEqual(p.x - p.halfWidth * S - 0.5);
+          expect(b.x1, where).toBeLessThanOrEqual(p.x + p.halfWidth * S + 0.5);
         }
       }
     }
@@ -326,7 +330,7 @@ describe('Waldtümpel im Erdschnitt', () => {
         const anchors = createAnchorResolver(layout, g, placeMainTree(layout, g));
         const p = anchors.pond();
         const S = anchors.size;
-        const pond: Box = { x0: p.x - POND_HALF_WIDTH * S, x1: p.x + POND_HALF_WIDTH * S, y0: p.lipY, y1: p.y + POND_DEPTH * S };
+        const pond: Box = { x0: p.x - p.halfWidth * S, x1: p.x + p.halfWidth * S, y0: p.lipY, y1: p.y + POND_DEPTH * S };
         // Alles an der Oberfläche endet über der Senke.
         expect(POND_SURFACE_CLEAR).toBeLessThan(POND_LIP);
         for (const [id, family, niche] of OTHERS) {
@@ -338,6 +342,116 @@ describe('Waldtümpel im Erdschnitt', () => {
         }
       }
     }
+  });
+
+  /** Alle Belegungen der Plätze 0..n−1 mit n verschiedenen der 5 Amphibien (Reihenfolge zählt). */
+  function residents(n: number): SceneAnimal[][] {
+    const out: SceneAnimal[][] = [];
+    const ids = AMPHIBIANS.map(([id]) => id);
+    const pick = (chosen: string[]) => {
+      if (chosen.length === n) {
+        out.push(chosen.map((id, slot) => ({ id, family: 'amphibians', niche: 'pond', slot, happiness: 1 })));
+        return;
+      }
+      for (const id of ids) if (!chosen.includes(id)) pick([...chosen, id]);
+    };
+    pick([]);
+    return out;
+  }
+
+  it('1–5 Bewohner überlappen sich nie und bleiben samt Bewegung in der Senke (alle Belegungen)', () => {
+    for (const [w, h] of POND_SIZES) {
+      for (const g of [4, 6, 8]) {
+        const layout = makeLayout(w, h);
+        const anchors = createAnchorResolver(layout, g, placeMainTree(layout, g));
+        const p = anchors.pond();
+        const S = anchors.size;
+        for (let n = 1; n <= 5; n++) {
+          for (const scene of residents(n)) {
+            const boxes = scene.map((a) => animalBounds(a, anchors, [], scene)!);
+            const names = scene.map((a) => `${a.id}/${a.slot}`).join(', ');
+            for (const b of boxes) {
+              const where = `${names} ${w}×${h} g=${g}`;
+              expect(b.y0, where).toBeGreaterThanOrEqual(p.lipY - 0.5);
+              expect(b.y1, where).toBeLessThanOrEqual(p.y + POND_DEPTH * S + 0.5);
+              expect(b.x0, where).toBeGreaterThanOrEqual(p.x - p.halfWidth * S - 0.5);
+              expect(b.x1, where).toBeLessThanOrEqual(p.x + p.halfWidth * S + 0.5);
+            }
+            for (let i = 0; i < boxes.length; i++) {
+              for (let j = i + 1; j < boxes.length; j++) {
+                expect(overlap(boxes[i]!, boxes[j]!), `${scene[i]!.id} / ${scene[j]!.id} in [${names}], ${w}×${h}`).toBe(false);
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('Kröte und Frösche sitzen an den Rändern, Molche in der Mitte; jeder Platz hat eine eigene Stelle', () => {
+    for (const [w, h] of POND_SIZES) {
+      const layout = makeLayout(w, h);
+      const anchors = createAnchorResolver(layout, 6, placeMainTree(layout, 6));
+      const p = anchors.pond();
+      for (const scene of residents(5)) {
+        const places = pondPlaces(scene, anchors);
+        const xs = places.map((q) => q!.x);
+        expect(new Set(xs.map((x) => Math.round(x))).size).toBe(5);
+        const swim = scene.map((a) => a.id === 'newt' || a.id === 'crestednewt');
+        const inner = xs.filter((_, i) => swim[i]);
+        const outer = xs.filter((_, i) => !swim[i]);
+        // Die äußersten Bewohner beider Seiten waten; die Molche liegen dazwischen.
+        expect(Math.min(...outer)).toBeLessThan(Math.min(...inner));
+        expect(Math.max(...outer)).toBeGreaterThan(Math.max(...inner));
+        // Watende links blicken nach rechts zur Mitte und umgekehrt.
+        places.forEach((q, i) => {
+          if (!swim[i]) expect(q!.dir, `${scene[i]!.id} ${w}×${h}`).toBe(q!.x < p.x ? 1 : -1);
+        });
+      }
+    }
+  });
+
+  it('Amphibien bleiben lesbar: schmal mit wenigen Bewohnern größer, mit fünf höchstens leicht kleiner', () => {
+    for (const [w, h] of POND_SIZES) {
+      const layout = makeLayout(w, h);
+      const anchors = createAnchorResolver(layout, 6, placeMainTree(layout, 6));
+      const S = anchors.size;
+      for (let n = 1; n <= 5; n++) {
+        for (const scene of residents(n)) {
+          const k = pondPlaces(scene, anchors)[0]!.scale;
+          // Höchstens um ein Fünftel kleiner (mindestens 18 px); mit bis zu drei Bewohnern nie kleiner als S.
+          expect(k, `${n} Bewohner ${w}×${h}`).toBeGreaterThanOrEqual(0.8);
+          expect(k * S, `${n} Bewohner ${w}×${h}`).toBeGreaterThanOrEqual(18);
+          if (n <= 3) expect(k, `${n} Bewohner ${w}×${h}`).toBeGreaterThanOrEqual(1);
+        }
+      }
+      // Kleine Bildschirme: ein einzelner Frosch etwas größer als die übrigen Tiere.
+      if (S < 26) expect(pondPlaces(residents(1)[0]!, anchors)[0]!.scale).toBeGreaterThan(1);
+    }
+  });
+
+  it('Tippen trifft jeden der fünf Bewohner an seiner gezeichneten Stelle', () => {
+    for (const [w, h] of POND_SIZES) {
+      const layout = makeLayout(w, h);
+      const anchors = createAnchorResolver(layout, 6, placeMainTree(layout, 6));
+      for (const scene of residents(5).filter((_, i) => i % 13 === 0)) {
+        scene.forEach((a, i) => {
+          const b = animalBounds(a, anchors, ['pondWade'], scene)!;
+          const hit = hitTestAnimals(scene, anchors, { time: 0, windSkew: 0, reducedMotion: true }, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
+          expect(hit?.listIndex, `${a.id} ${w}×${h}`).toBe(i);
+        });
+      }
+    }
+  });
+
+  it('Lage der Bewohner hängt nicht von der Reihenfolge der Tierliste ab', () => {
+    const layout = makeLayout(390, 844);
+    const anchors = createAnchorResolver(layout, 6, placeMainTree(layout, 6));
+    const scene = residents(4)[7]!;
+    const a = pondPlaces(scene, anchors);
+    const reversed = [...scene].reverse();
+    const b = pondPlaces(reversed, anchors).reverse();
+    expect(b).toEqual(a);
   });
 
   it('überlappt keine Begleitpflanzen (alle 14, Stufen 4–8)', () => {
