@@ -502,6 +502,9 @@ Bedingung oder Partnerschaft.
 - **Neu würfeln** (Tier- und Pflanzenbegegnung) kostet 50 % der nächsten Pflanze,
   jedes weitere Mal in derselben Begegnung doppelt so viel.
 - Die ersten drei Begegnungen sind festgelegt: Tier, Pflanze, Tier (Einführung).
+- **Voller Pflanzring:** „Etwas keimt“ kommt nur halb so oft (Gewicht × 0,5 – im
+  Schatten der Begleitpflanzen keimt weniger). Pflanzen, die schon im Ring wachsen,
+  werden als Karte seltener gezogen (Gewicht 0,35 statt 1). Siehe 7.7.
 - Nichts ist verloren: Entlassene Tiere stehen im Naturtagebuch und können wieder
   angeboten werden.
 
@@ -515,10 +518,11 @@ Bedingung oder Partnerschaft.
 | Alter Baum | 55 % | 20 % | 15 % | 10 % | ~4:20 min |
 | Hain, Wald, Urwald | 55 % | 20 % | 15 % | 10 % | ~5:15 min |
 
-Im Code (Schritt 2.2: alle 32 Arten, Tier- und Pflanzenbegegnungen, noch ohne
-Ereignisse und Durchreisende; Simulation 15.4, Median der Wartezeit je Begegnung):
-Keimling 20 s · Setzling 54 s · Junger Baum 2:24 min · Alter Baum 3:59 min · Hain
-5:06 min · Wald 5:26 min.
+Im Code (Stand Begegnungs-Vielfalt: 32 Arten, Lebensgemeinschaften, Tier- und
+Pflanzenbegegnungen, noch ohne Ereignisse und Durchreisende; Simulation 15.4, Median
+der Wartezeit je Begegnung): Keimling 20 s · Setzling 54 s · Junger Baum 2:17 min ·
+Alter Baum 3:28 min · Hain 4:14 min · Wald 4:25 min. Bei vollem Pflanzring zählt das
+Pflanzengewicht nur halb (z. B. Alter Baum 55 : 10 statt 55 : 20, siehe 7.7).
 
 Bis zum Hain sind es 20 Begegnungen (~12 Tiere), bis zum Urwald 36. Zwischen den
 Begegnungen gibt es Samen-Entscheidungen (Pflanze setzen, Pflege).
@@ -572,7 +576,60 @@ Jedes Ereignis höchstens einmal pro Zyklus. Keine Option ist eine Strafe.
   werden die überzähligen automatisch **abgelehnt und als Samen gutgeschrieben**
   (Empfehlung, siehe Frage 1) – nichts verfällt.
 - Willkommen-zurück-Meldung: „Während du weg warst: +12.400 🌿, +2.100 🌰, 3 Begegnungen
-  warten.“
+  warten.“ Erst ab 60 s Abwesenheit; bei kürzeren Pausen (Tab-Wechsel) erscheint nur der
+  kurze Hinweis „Stapel voll – …“, falls dabei Begegnungen weitergezogen sind.
+
+### 7.7 Vielfalt der Begegnungen
+
+**Playtest-Befund (noch mit 9 Arten):** im Jungen Baum viermal hintereinander dieselben
+drei Karten, im Alten Baum sechsmal dieselben zwei, 46 Minuten ohne lohnende Wahl,
+„Neu würfeln“ dauerhaft gesperrt. Der Simulator (15.4) misst darum je Stufe:
+
+| Kennzahl | Definition | Ziel |
+|---|---|---|
+| gleiches Set | Anteil der Begegnungen, deren Karten (erste Ziehung) dieselben sind wie bei der vorigen Begegnung desselben Typs | < 10 % |
+| Durststrecke | längste Zeit ohne Begegnung mit lohnender Karte (eine Platzierung erhöht Harmonie oder Wachstum; auch nach Neu würfeln), je Durchgang | Harmonie-Spieler bis Hain < 15 min (90-%-Quantil) |
+| Neu würfeln möglich | Anteil der Begegnungen, in denen der Knopf bei der ersten Ziehung frei ist (`rerollBlocker` = null) | > 70 % |
+| 1–2 Karten | Anteil der Begegnungen mit weniger als drei Karten | klein |
+
+**Befund mit 32 Arten (ohne Änderung):** Wiederholungen und gesperrtes Neu würfeln
+waren ein Problem des kleinen Katalogs. Identische Folge-Sets kommen bis zum Hain in
+< 1 % der Begegnungen vor, Neu würfeln ist in 89 % möglich. Gesperrt ist es nur im
+Keimling: Dort gibt es nur 3 Arten und 2 Pflanzen für die zwei festgelegten
+Einführungsbegegnungen (die Pflanzenbegegnung hat als einzige nur 2 Karten – gewollt).
+Ein „Gedächtnis“ zuletzt gezogener Karten im Spielstand ist darum **nicht nötig**
+(kein neues Feld, `SAVE_VERSION` bleibt 3).
+
+Die Durststrecken kamen fast nur von **Pflanzenbegegnungen bei vollem Pflanzring**:
+Wer den Ring mit Samen gezielt gefüllt hat, kann eine geschenkte Pflanze nur noch gegen
+eine bessere tauschen. Beim Harmonie-Spieler lohnten sich nur 70 % der
+Pflanzenbegegnungen (Tierbegegnungen: 99 %), und jede nicht lohnende kostet einen
+ganzen Takt. Darum, rein über Gewichte beim Ziehen (`drawEncounter` / `drawPlants`):
+
+- `PLANT_WEIGHT_RING_FULL = 0,5`: Ist der Ring voll, zählt das Gewicht von „Etwas
+  keimt“ nur halb – im Schatten der Begleitpflanzen keimt weniger. Den Rest bekommt
+  „Tier zieht ein“.
+- `PLANT_WEIGHT_IN_RING = 0,35`: Pflanzen, die schon im Ring wachsen, werden als Karte
+  seltener gezogen (Duplikate bleiben möglich). Neue Arten im Ring sind die
+  abwechslungsreichere und öfter lohnende Karte.
+
+Beides hängt nur vom Spielstand ab: deterministisch, online = offline. Faktor 0,25
+statt 0,5 brächte kaum kürzere Durststrecken (90-%-Quantil 8:48 statt 9:16 min,
+gemessen vor 2.3), aber nur noch ~2,9 Pflanzenbegegnungen bis zum Hain – darum 0,5.
+
+| Harmonie-Spieler bis Hain (500 Durchgänge) | vorher | **nachher** |
+|---|---|---|
+| gleiches Set wie vorige | 0 % (Setzling 1 %) | **0 %** (Setzling 1 %) |
+| Neu würfeln möglich | 89 % | **89 %** |
+| 1–2 Karten (ab Setzling) | 0 % | **0 %** |
+| lohnende Begegnungen | 90 % | **94 %** (Junger Baum 83 → 90 %) |
+| längste Durststrecke Median / 90 % / max | 6:21 / 9:46 / 15:53 min | **5:34 / 8:38 / 17:28 min** |
+| Pflanzenbegegnungen bis Hain | 5,7 | **4,0** |
+
+Das Maximum über 500 Durchgänge bleibt ein Ausreißer um 15–18 min: zwei nicht lohnende
+Begegnungen hintereinander bei langem Takt. Ab dem Hain (Wald: 90-%-Quantil 12 min,
+max. ~24 min) wird die Strecke länger, weil der Takt wächst und volle Nischen nur noch
+Tausch erlauben – Kandidat für Ereignisse und Durchreisende (2.4).
 
 ---
 
@@ -1142,9 +1199,124 @@ schneller und zugleich mindestens so harmonisch, und keines ist überhaupt mehr 
 10 % schneller als der Harmonie-Spieler (Pilze im Blick); Wachstums-Streben ist schneller, aber höchstens 25 %, und behält ≥ 85 % der
 Harmonie; der Zufallsspieler hat 30–98 % echte Wahlen; jede Strategie setzt und pflanzt
 bis zum Hain (≥ 4 Pflanzen, Samen fließen in Pflanzen), der Harmonie-Spieler hält die
-Versorgung über 90 %.
+Versorgung über 90 %; **Vielfalt bis zum Hain (7.7):** für jede Strategie < 5 %
+identische Folge-Sets, Neu würfeln in > 75 % möglich, ab Setzling < 5 % Begegnungen
+mit 1–2 Karten; Harmonie-Spieler: längste Durststrecke im Median < 10 min und im
+90-%-Quantil < 15 min, > 80 % lohnende Begegnungen.
 
-#### Stand Schritt 2.3: Lebensgemeinschaften, Harmonie vollständig (500 Durchgänge je Strategie)
+Neu im Simulator (Begegnungs-Vielfalt): Tabellen „Vielfalt der Begegnungen“ je Stufe
+(Harmonie-Spieler und Zufall) und „Vielfalt bis Hain je Strategie“ (`varietyStats`,
+`varietyBefore`, `longestDrought`).
+
+#### Stand Begegnungs-Vielfalt (500 Durchgänge je Strategie)
+
+**Geänderte Zahlen:** neu `PLANT_WEIGHT_RING_FULL = 0,5` und `PLANT_WEIGHT_IN_RING =
+0,35` (`src/content/encounters.ts`, siehe 7.7), sonst wie Schritt 2.3.
+Pflanzenbegegnungen werden seltener (bis Hain 5,7 → 4,0), dafür gibt es mehr
+Tierbegegnungen – das Spiel wird etwas schneller und harmonischer.
+
+| Harmonie-Spieler | Ziel | Schritt 2.3 | **Begegnungs-Vielfalt** |
+|---|---|---|---|
+| Keimling | < 30 s | 4 s | **4 s** |
+| Setzling | ~ 1 min | 45 s | **45 s** |
+| Junger Baum | ~ 4 min | 3:42 min | **3:42 min** |
+| Alter Baum | ~ 20 min | 18:05 min | **17:41 min** |
+| Hain | ~ 60 min | 47:33 min | **46:11 min** |
+| Wald | (~ 1:40 h) | 1:23 h | **1:19 h** |
+| Urwald | (~ 2:20 h) | 2:01 h | **1:57 h** |
+| ⚖️ beim Hain | (volles Design ~96) | 100,4 | **102,7** |
+
+**Strategien beim Erreichen des Hains**
+
+| Strategie | Hain nach (Median) | ⚖️ Harmonie | 🌿/s | 🌰/s | Ø Zufriedenheit | Tiere 🐦/🐝/🦔/🪱/🍄 | Pflanzen | Versorgung | echte Wahl |
+|---|---|---|---|---|---|---|---|---|---|
+| Zufällig | 1:12 h | 74,2 | 43,7 | 11,81 | 77 % | 1,4 / 2,7 / 2,7 / 1,8 / 1,5 | 5,0 | 98 % | 84 % |
+| Gierig nach Harmonie | 46:11 min | 102,7 | 77,4 | 10,50 | 89 % | 1,6 / 1,6 / 1,4 / 2,3 / 1,9 | 5,0 | 94 % | 69 % |
+| Gierig nach Wachstum | 36:53 min | 97,6 | 91,3 | 7,96 | 86 % | 1,7 / 1,5 / 1,4 / 3,0 / 2,8 | 5,0 | 100 % | 62 % |
+| Immer die seltenste Karte | 51:34 min | 90,5 | 65,1 | 10,09 | 81 % | 1,5 / 1,8 / 2,0 / 2,2 / 1,5 | 5,0 | 96 % | 74 % |
+| Vögel stapeln | 52:00 min | 93,9 | 64,3 | 9,84 | 85 % | 3,1 / 1,5 / 0,8 / 2,0 / 1,5 | 5,0 | 94 % | 73 % |
+| Insekten stapeln | 1:02 h | 96,5 | 56,4 | 15,82 | 80 % | 1,6 / 4,6 / 1,3 / 2,0 / 1,3 | 5,0 | 99 % | 79 % |
+| Säugetiere stapeln | 55:03 min | 82,6 | 62,0 | 9,62 | 86 % | 0,9 / 1,1 / 5,1 / 1,3 / 1,2 | 5,0 | 99 % | 70 % |
+| Bodenleben stapeln | 50:06 min | 99,3 | 68,0 | 9,16 | 87 % | 1,2 / 1,6 / 1,1 / 2,9 / 1,5 | 5,0 | 97 % | 74 % |
+| Pilze stapeln | 45:55 min | 92,0 | 71,6 | 9,14 | 90 % | 1,5 / 1,3 / 1,1 / 1,7 / 3,2 | 5,0 | 99 % | 69 % |
+
+**Lebensgemeinschaften beim Erreichen des Hains**
+
+| Strategie | aktiv (Ø) | ⚖️ daraus | Anteil an ⚖️ | entdeckt (Ø) | häufigste (Anteil der Durchgänge) |
+|---|---|---|---|---|---|
+| Zufällig | 0,52 | 3,9 | 5 % | 0,86 | Humusküche 21 %, Feuchter Grund 11 %, Blütensaum 8 % |
+| Gierig nach Harmonie | 1,95 | 15,6 | 15 % | 1,95 | Humusküche 93 %, Samenboten 55 %, Birkenbund 34 % |
+| Gierig nach Wachstum | 1,87 | 16,7 | 17 % | 1,92 | Humusküche 99 %, Samenboten 53 %, Birkenbund 33 % |
+| Immer die seltenste Karte | 0,88 | 7,4 | 8 % | 1,03 | Humusküche 45 %, Birkenbund 16 %, Samenboten 14 % |
+| Vögel stapeln | 1,19 | 9,2 | 10 % | 1,35 | Humusküche 84 %, Birkenbund 16 %, Samenboten 11 % |
+| Insekten stapeln | 1,66 | 13,2 | 14 % | 1,74 | Humusküche 72 %, Raupenwacht 62 %, Blütensaum 23 % |
+| Säugetiere stapeln | 0,61 | 4,6 | 6 % | 0,77 | Humusküche 23 %, Samenboten 20 %, Birkenbund 11 % |
+| Bodenleben stapeln | 1,73 | 14,9 | 15 % | 1,84 | Humusküche 96 %, Feuchter Grund 38 %, Samenboten 21 % |
+| Pilze stapeln | 1,22 | 8,9 | 10 % | 1,53 | Birkenbund 48 %, Humusküche 45 %, Samenboten 23 % |
+
+**Stufen und Takt – Gierig nach Harmonie**
+
+| Stufe | Ziel | Median | 10–90 % | ⚖️ | 🌿/s | 🌰/s | Ø Zufr. | Tiere / Pflanzen | Begegnungen im Abschnitt | Takt Median | Takt max |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Keimling | < 30 s | 4 s | 4 s – 4 s | 5 | 2,1 | 0,16 | 0 % | 0,0 / 0,0 | 2,0 | 20 s | 30 s |
+| Setzling | ~ 1 min | 45 s | 45 s – 45 s | 50 | 6,1 | 0,67 | 100 % | 1,0 / 1,0 | 3,0 | 54 s | 1:41 min |
+| Junger Baum | ~ 4 min | 3:42 min | 3:33 min – 3:50 min | 62 | 13,0 | 2,06 | 88 % | 2,7 / 2,0 | 6,0 | 2:17 min | 5:10 min |
+| Alter Baum | ~ 20 min | 17:41 min | 16:16 min – 20:08 min | 79 | 29,0 | 4,14 | 87 % | 5,6 / 3,0 | 8,0 | 3:28 min | 7:59 min |
+| Hain | ~ 60 min | 46:11 min | 41:49 min – 52:32 min | 103 | 77,4 | 10,50 | 89 % | 8,9 / 5,0 | 8,0 | 4:14 min | 9:18 min |
+| Wald | – | 1:19 h | 1:13 h – 1:30 h | 125 | 151,9 | 22,52 | 90 % | 12,5 / 7,0 | 8,0 | 4:25 min | 9:28 min |
+| Urwald | – | 1:57 h | 1:46 h – 2:08 h | 150 | 271,1 | 39,22 | 90 % | 15,7 / 9,0 | 0,0 | – | – |
+
+**Vielfalt der Begegnungen – Gierig nach Harmonie** (je Stufe; Durststrecke = längste
+Strecke ohne lohnende Begegnung, die in dieser Stufe endet)
+
+| Stufe | Begegnungen | gleiches Set wie vorige (Tier / Pflanze) | nur 1–2 Karten | Neu würfeln möglich | gesperrt: zu teuer / keine Alternative | lohnend | längste Durststrecke Median / 90 % / max |
+|---|---|---|---|---|---|---|---|
+| Keimling | 2,0 | 0 % (0 % / 0 %) | 50 % | 0 % | 0 % / 100 % | 100 % | 30 s / 30 s / 30 s |
+| Setzling | 3,0 | 1 % (1 % / 0 %) | 0 % | 97 % | 3 % / 0 % | 91 % | 1:28 min / 2:14 min / 3:22 min |
+| Junger Baum | 6,0 | 0 % (0 % / 0 %) | 0 % | 100 % | 0 % / 0 % | 90 % | 3:59 min / 6:52 min / 10:54 min |
+| Alter Baum | 8,0 | 0 % (0 % / 0 %) | 0 % | 100 % | 0 % / 0 % | 95 % | 5:13 min / 8:24 min / 17:28 min |
+| Hain | 8,0 | 0 % (0 % / 0 %) | 0 % | 100 % | 0 % / 0 % | 95 % | 5:48 min / 10:15 min / 19:11 min |
+| Wald | 8,0 | 0 % (0 % / 0 %) | 0 % | 100 % | 0 % / 0 % | 92 % | 6:13 min / 12:17 min / 23:33 min |
+
+Vorher (Schritt 2.3, gleiche Messung): Setzling 83 % lohnend; Junger Baum 83 % lohnend,
+Durststrecke 4:37 / 7:54 / 14:46 min; Alter Baum 5:35 / 9:11 / 15:53 min; Hain
+5:57 / 10:36 / 17:32 min.
+
+**Vielfalt bis Hain je Strategie**
+
+| Strategie | gleiches Set wie vorige | 1–2 Karten (ab Setzling) | Neu würfeln möglich | lohnend | längste Durststrecke Median / 90 % / max |
+|---|---|---|---|---|---|
+| Zufällig | 0 % | 0 % | 89 % | 98 % | 8:56 min / 11:35 min / 24:10 min |
+| Gierig nach Harmonie | 0 % | 0 % | 89 % | 94 % | 5:34 min / 8:38 min / 17:28 min |
+| Gierig nach Wachstum | 0 % | 0 % | 87 % | 92 % | 4:49 min / 8:16 min / 17:27 min |
+| Immer die seltenste Karte | 0 % | 0 % | 89 % | 91 % | 6:46 min / 10:09 min / 24:06 min |
+| Vögel stapeln | 1 % | 0 % | 89 % | 95 % | 6:25 min / 9:21 min / 14:54 min |
+| Insekten stapeln | 1 % | 0 % | 89 % | 97 % | 7:11 min / 9:59 min / 18:43 min |
+| Säugetiere stapeln | 1 % | 0 % | 89 % | 94 % | 6:19 min / 9:38 min / 15:07 min |
+| Bodenleben stapeln | 0 % | 0 % | 89 % | 96 % | 5:57 min / 8:49 min / 20:23 min |
+| Pilze stapeln | 1 % | 0 % | 88 % | 95 % | 5:39 min / 8:36 min / 16:53 min |
+
+Vorher (Schritt 2.3): Harmonie-Spieler 90 % lohnend, Durststrecke 6:21 / 9:46 /
+15:53 min; Zufall 9:12 / 11:52 / 24:13 min. Die langen Strecken des Zufallsspielers
+kommen vom langsameren Takt (er wächst langsamer), nicht von fehlenden guten Karten
+(98 % lohnend).
+
+**Bewertung**
+
+- **Ziele erreicht:** identische Folge-Sets ~0 % (< 10 %), Neu würfeln in 89 % möglich
+  (> 70 %), Durststrecke des Harmonie-Spielers bis Hain im 90-%-Quantil 8:38 min
+  (< 15 min). Einzelne Ausreißer bis ~17 min bleiben (zwei nicht lohnende Begegnungen
+  bei langem Takt).
+- **Tempo:** Hain 46:11 min = 0,77 × Ziel – noch im Korridor, aber weiter im unteren
+  Teil (vorher 0,79). Der offene Wechsel auf `WAYPOINT_BASE` 4 (Schritt 2.2) wird
+  dringlicher; nicht hier, weil er die Wegpunkt-Kurve gespeicherter Stände verschiebt.
+- **Harmonie-Vorsprung:** +3,4 vor dem besten Stapler (Bodenleben 99,3), Zufall
+  −28,5. **Pilze stapeln** ist jetzt minimal schneller als der Harmonie-Spieler
+  (45:55 vs. 46:11 min, Grenze 10 %), zahlt aber ~11 Harmonie-Punkte.
+- **Wachstums-Streben** ~20 % schneller (2.3: ~19 %) bei 95 % der Harmonie – innerhalb
+  der Testgrenzen, bleibt Kandidat für 2.10.
+
+#### Stand Schritt 2.3: Lebensgemeinschaften, Harmonie vollständig (500 Durchgänge je Strategie, historisch)
 
 **Keine geänderten Zahlen.** Die 9 Lebensgemeinschaften (`src/content/communities.ts`,
 Abschnitt 9.2) stammen 1:1 aus `scripts/v2/content.ts`; „Lichterabend“ (Glühwürmchen)

@@ -22,6 +22,8 @@ import {
   MOOD_REASON_BELOW,
   SCENE_GROUP_OF,
   autoDeclineText,
+  catchUpNotice,
+  WELCOME_MIN_SECONDS,
   foodCompetitors,
   huntersOf,
   disturbersOf,
@@ -542,6 +544,11 @@ describe('Stimmung: Gründe unter 70 %', () => {
       expect(card.nicheFull).toBe(true);
       expect(card.replaceOptions![0]!.id).toBe('woodlouse');
       expect(card.conditions![0]!.hint).toBe('teilt sich das Futter mit Regenwurm und Eichenwickler');
+      // Jede Tausch-Option hat eigene Bedingungen: Wer weicht, ist kein Konkurrent mehr.
+      const [louse, robin] = card.replaceOptions!;
+      expect(louse!.conditions![0]!.hint).toBe('teilt sich das Futter mit Regenwurm und Eichenwickler');
+      expect(robin!.id).toBe('robin');
+      expect(robin!.conditions![0]!.hint).toBe('teilt sich das Futter mit Regenwurm, Rollassel und 1 weitere');
     });
   });
 });
@@ -827,5 +834,25 @@ describe('Auswahl „Pflanze setzen“', () => {
     toEncounterView(state, 0);
     toEcosystemView(state, evaluate(state));
     expect(JSON.stringify(state)).toBe(before);
+  });
+});
+
+describe('catchUpNotice', () => {
+  const report = { seconds: 0, growth: 0, seeds: 0, autoDeclined: 0 };
+
+  it('nach langer Abwesenheit die Willkommens-Meldung (sie nennt verpasste Begegnungen selbst)', () => {
+    const r = { ...report, seconds: 3600, growth: 500, seeds: 20, autoDeclined: 2 };
+    expect(catchUpNotice(3600, r, 3, true)).toEqual({ kind: 'welcome', text: welcomeText(3600, r, 3) });
+  });
+
+  it('kurz weg (2–60 s) mit verpasster Begegnung: der kurze Hinweis wie im laufenden Spiel', () => {
+    const r = { ...report, seconds: 20, growth: 120, seeds: 4, autoDeclined: 1 };
+    expect(catchUpNotice(20, r, 3, true)).toEqual({ kind: 'note', text: autoDeclineText(1, true) });
+    expect(catchUpNotice(WELCOME_MIN_SECONDS, r, 0, false)).toEqual({ kind: 'note', text: autoDeclineText(1, false) });
+  });
+
+  it('nichts verpasst und kurz weg: keine Meldung', () => {
+    expect(catchUpNotice(20, { ...report, seconds: 20, growth: 120 }, 1, false)).toBeNull();
+    expect(catchUpNotice(3600, { ...report, seconds: 3600 }, 0, false)).toBeNull();
   });
 });

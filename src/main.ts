@@ -20,13 +20,13 @@ import { drawScene, type SceneInput } from './render/tree';
 import { PLANTS_BY_ID } from './content/plants';
 import {
   autoDeclineText,
+  catchUpNotice,
   refreshEcosystemView,
   toEcosystemView,
   toEncounterView,
   toPlantPickerView,
   toSceneAnimals,
   toScenePlants,
-  welcomeText,
 } from './ui/adapters';
 import { createCyclePanel } from './ui/cycle-panel';
 import { newCycleToast, toCyclePanelView } from './ui/cycle-view';
@@ -49,8 +49,6 @@ import type { EcosystemView } from './ui/view-model';
 const AUTOSAVE_MS = 10_000;
 /** Größere Frame-Sprünge werden auf diese Dauer begrenzt; längere Pausen holt catchUp() nach. */
 const MAX_FRAME_SECONDS = 1;
-/** Ab dieser Abwesenheit gibt es eine Willkommens-Meldung. */
-const WELCOME_MIN_SECONDS = 60;
 /** Seitenleiste ohne Änderungen am Ökosystem höchstens so oft aktualisieren (Samen, Fortschritt). */
 const PANEL_REFRESH_MS = 200;
 const TOAST_MS = 6000;
@@ -371,9 +369,13 @@ function floatSeeds(amount: number): void {
  * Hinweis über der Szene, die Samen dafür schweben am Vorrat hoch.
  */
 function noteAutoDeclined(count: number): void {
-  const stackFull = state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS;
+  noteText(autoDeclineText(count, state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS));
+}
+
+/** Kurzer schwebender Hinweis über der Szene. */
+function noteText(text: string): void {
   const rect = canvas.getBoundingClientRect();
-  if (rect.width > 0) floats.spawn(autoDeclineText(count, stackFull), rect.left + rect.width / 2, rect.top + rect.height * 0.3, 'note');
+  if (rect.width > 0) floats.spawn(text, rect.left + rect.width / 2, rect.top + rect.height * 0.3, 'note');
 }
 
 function showBanner(title: string, text: string): void {
@@ -485,9 +487,10 @@ function catchUp(): void {
   const away = (Date.now() - state.lastTick) / 1000;
   if (away > MAX_FRAME_SECONDS) {
     const report = simulateOffline(state, away);
-    if (away > WELCOME_MIN_SECONDS && report.growth > 0) {
-      notify(welcomeText(away, report, state.pendingEncounters.length));
-    }
+    const stackFull = state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS;
+    const notice = catchUpNotice(away, report, state.pendingEncounters.length, stackFull);
+    if (notice?.kind === 'welcome') notify(notice.text);
+    else if (notice) noteText(notice.text);
     if (report.waypoints > 0) {
       saveToStorage(state);
       encounterDirty = true;

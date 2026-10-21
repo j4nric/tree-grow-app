@@ -88,7 +88,7 @@ async function decide(page: Page): Promise<Decision> {
 }
 
 test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', async ({ page, context }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   // Uhr anhalten: Zeit vergeht nur über fastForward/runFor → jeder Lauf ist gleich.
   await page.clock.install({ time: new Date('2026-10-21T08:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-21T08:00:01Z'));

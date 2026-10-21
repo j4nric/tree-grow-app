@@ -2,6 +2,8 @@ import {
   CARDS_PER_ENCOUNTER,
   ENCOUNTER_WEIGHTS,
   MAX_PENDING_ENCOUNTERS,
+  PLANT_WEIGHT_IN_RING,
+  PLANT_WEIGHT_RING_FULL,
   SCRIPTED_ENCOUNTERS,
 } from '../content/encounters';
 import { JOURNAL_SPECIES_WEIGHT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
@@ -29,7 +31,7 @@ import {
   thresholdFor,
   type ChoiceError,
 } from './formulas';
-import { pick, randomInt, weightedIndex, type RngHolder } from './rng';
+import { pick, weightedIndex, type RngHolder } from './rng';
 import {
   allAnimals,
   createCycle,
@@ -146,14 +148,19 @@ const DRAWABLE_TYPES: readonly PendingEncounterType[] = ['animal', 'plant'];
 /**
  * Zieht die Begegnung für den gerade erreichten Wegpunkt (DESIGN_V2.md, 7.1/7.2): Die
  * ersten Wegpunkte sind festgelegt (Tier, Pflanze, Tier), danach entscheidet das
- * Gewicht der Stufe zwischen „Tier zieht ein“ und „Etwas keimt“. Kommt für den Typ
+ * Gewicht der Stufe zwischen „Tier zieht ein“ und „Etwas keimt“ (bei vollem Pflanzenring
+ * zählt „Etwas keimt“ nur mit PLANT_WEIGHT_RING_FULL). Kommt für den Typ
  * keine Karte in Frage, gibt es den anderen; null, wenn gar nichts passt.
  */
 export function drawEncounter(state: GameState): PendingEncounter | null {
   let type = SCRIPTED_ENCOUNTERS[state.waypoint - 1];
   if (type === undefined) {
     const weights = ENCOUNTER_WEIGHTS[state.stage] ?? ENCOUNTER_WEIGHTS[ENCOUNTER_WEIGHTS.length - 1]!;
-    const drawable = ENCOUNTER_TYPES.map((t, i) => ((DRAWABLE_TYPES as readonly string[]).includes(t) ? weights[i]! : 0));
+    const ringFull = state.plants.length >= plantSlots(state.stage);
+    const drawable = ENCOUNTER_TYPES.map((t, i) => {
+      if (!(DRAWABLE_TYPES as readonly string[]).includes(t)) return 0;
+      return t === 'plant' && ringFull ? weights[i]! * PLANT_WEIGHT_RING_FULL : weights[i]!;
+    });
     type = ENCOUNTER_TYPES[weightedIndex(state, drawable)] ?? 'animal';
   }
   const order: readonly PendingEncounterType[] = type === 'plant' ? ['plant', 'animal'] : ['animal', 'plant'];
@@ -175,7 +182,8 @@ export function drawCards(
 }
 
 /**
- * Zieht bis zu drei verschiedene Pflanzenkarten gleichverteilt aus allen Pflanzen, die
+ * Zieht bis zu drei verschiedene Pflanzenkarten gewichtet (schon im Ring:
+ * PLANT_WEIGHT_IN_RING, sonst 1) aus allen Pflanzen, die
  * auf dieser Stufe freigeschaltet sind – auch solche, die schon wachsen (Duplikate
  * erlaubt). Pflanzen in `exclude` kommen nur zum Auffüllen dran (wie bei drawAnimals).
  */
@@ -186,7 +194,11 @@ export function drawPlants(state: GameState, exclude: readonly string[] = [], rn
   for (const pool of pools) {
     const left = pool.map((p) => p.id);
     while (cards.length < CARDS_PER_ENCOUNTER && left.length > 0) {
-      const i = randomInt(rng, left.length);
+      // Pflanzen, die schon im Ring wachsen, kommen seltener (PLANT_WEIGHT_IN_RING).
+      const i = weightedIndex(
+        rng,
+        left.map((id) => (state.plants.includes(id) ? PLANT_WEIGHT_IN_RING : 1)),
+      );
       cards.push(left.splice(i, 1)[0]!);
     }
   }
