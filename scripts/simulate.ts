@@ -5,9 +5,11 @@
  * genau das, was der Spieler erlebt: Tier- und Pflanzenbegegnungen, Pflanzen setzen.
  *
  * Der Spieler löst jede Begegnung sofort auf (online) und setzt Pflanzen, sobald die
- * Samen reichen und es sich nach seiner Strategie lohnt. Die Zeit läuft ereignisgesteuert
- * von Wegpunkt zu Wegpunkt bzw. bis zum nächsten Pflanzenkauf (tick() rechnet dazwischen
- * exakt).
+ * Samen reichen und es sich nach seiner Strategie lohnt. Ereignisse und Durchreisende
+ * (Schritt 2.4) kommen aus der echten Logik (drawEncounter, Zwischenhalt) und werden mit
+ * chooseEventOption / hostVisitor / farewellVisitor aufgelöst. Die Zeit läuft
+ * ereignisgesteuert von Halt zu Halt (Wegpunkt, Zwischenhalt, Ablauf eines Bonus,
+ * nächster Pflanzenkauf); tick() rechnet dazwischen exakt.
  *
  * Ausführen (Tabellen im Protokoll, DESIGN_V2.md Abschnitt 15.4):
  *   SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts
@@ -15,7 +17,8 @@
 import { COMMUNITIES } from '../src/content/communities';
 import { GENUS_INFO, SPECIES_BY_ID } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
-import { GENERA, type Genus } from '../src/content/types';
+import { GENERA, type EncounterType, type Genus } from '../src/content/types';
+import { EVENTS_BY_ID } from '../src/content/events';
 import {
   cardStatus,
   declineReward,
@@ -32,7 +35,13 @@ import { allAnimals, createInitialState, type GameState, type PendingEncounterTy
 import {
   allWaypointsReached,
   chooseCard,
+  chooseEventOption,
   declineEncounter,
+  farewellVisitor,
+  hostBlocker,
+  hostVisitor,
+  interludeThreshold,
+  nextExpiry,
   plantSeed,
   rerollBlocker,
   rerollEncounter,
@@ -225,6 +234,10 @@ export interface Counts {
   /** Gewählte Pflanzenkarten (gratis) und mit Samen gesetzte Pflanzen. */
   plantsTaken: number;
   plantsBought: number;
+  /** Ereignisse, Gäste, davon bewirtet. */
+  events: number;
+  visitors: number;
+  hosted: number;
 }
 
 /** Schnappschuss des Durchgangs (beim Erreichen einer Stufe oder zu einer festen Zeit). */
@@ -253,6 +266,9 @@ export interface Snapshot {
   /** Bisher ausgegeben für Neu würfeln und für Pflanzen. */
   spent: number;
   spentPlants: number;
+  /** Samen aus Ereignissen und Gästen bzw. fürs Bewirten ausgegeben. */
+  earnedExtras: number;
+  spentVisitors: number;
   counts: Counts;
 }
 
@@ -277,7 +293,7 @@ export interface VarietyStat {
   stage: number;
   /** Spielzeit (s), zu der die Begegnung aufgelöst wurde. */
   time: number;
-  type: PendingEncounterType;
+  type: EncounterType;
   /** Anzahl Karten der ersten Ziehung. */
   cards: number;
   /** Gleiches Karten-Set wie die vorige Begegnung desselben Typs. */
@@ -303,7 +319,7 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
   let time = 0;
   let lastWaypointTime = 0;
-  const book = { earnedPassive: 0, earnedDecline: 0, spent: 0, spentPlants: 0 };
+  const book = { earnedPassive: 0, earnedDecline: 0, spent: 0, spentPlants: 0, earnedExtras: 0, spentVisitors: 0 };
   const counts: Counts = {
     encounters: 0,
     plantEncounters: 0,
@@ -314,6 +330,9 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     rarityTaken: [0, 0, 0, 0],
     plantsTaken: 0,
     plantsBought: 0,
+    events: 0,
+    visitors: 0,
+    hosted: 0,
   };
   const result: RunResult = {
     stages: Array(STAGES.length).fill(null),
@@ -358,13 +377,17 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
       counts.plantsBought++;
     }
     const plan = planPlant(state, strategy, counts);
-    const seedsRate = evaluate(state).seeds;
+    const ev = evaluate(state);
     // Bis die nächste geplante Pflanze bezahlbar ist (+1 µs gegen Rundung).
     const toPlant =
-      plan !== null && seedsRate > 0 ? Math.max(0, (nextPlantCost(state) - state.seeds) / seedsRate) + 1e-6 : Infinity;
+      plan !== null && ev.seeds > 0 ? Math.max(0, (nextPlantCost(state) - state.seeds) / ev.seeds) + 1e-6 : Infinity;
     const stageBefore = state.stage;
     const nextSample = (SAMPLE_MINUTES[sample] ?? Infinity) * 60;
-    const dt = Math.min(secondsToNextWaypoint(state), toPlant, nextSample - time, options.maxSeconds - time);
+    const toWaypoint = secondsToNextWaypoint(state);
+    // Zwischenhalt und Ablauf von Boni: dort anhalten, damit Zeitpunkte und Raten stimmen.
+    const interlude = interludeThreshold(state);
+    const toInterlude = interlude < Infinity && ev.growth > 0 ? Math.max(0, interlude - state.totalGrowth) / ev.growth : Infinity;
+    const dt = Math.min(toWaypoint, toPlant, nextSample - time, nextExpiry(state), toInterlude, options.maxSeconds - time);
     if (!(dt < Infinity)) break;
     const seedsBefore = state.seeds;
     const report = tick(state, dt);
@@ -374,7 +397,15 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     book.earnedDecline += autoSeeds;
     counts.autoDeclined += report.autoDeclined;
     if (time >= nextSample - 1e-9) result.samples[sample++] = snapshot();
-    if (report.waypoints === 0) continue;
+    if (report.waypoints === 0) {
+      // Zwischenhalt (ab Hain): zählt als Begegnung für Takt und Durststrecke.
+      if (report.interludes > 0) {
+        result.gaps.push({ stage: state.stage, seconds: time - lastWaypointTime });
+        lastWaypointTime = time;
+        resolveAll(state, strategy, rng, counts, book, result.decisions, result.variety, time);
+      }
+      continue;
+    }
     result.gaps.push({ stage: stageBefore, seconds: time - lastWaypointTime });
     lastWaypointTime = time;
     for (let s = stageBefore + 1; s <= state.stage; s++) result.stages[s] = snapshot();
@@ -382,6 +413,91 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   }
   result.final = snapshot();
   return result;
+}
+
+/** Wie viel Samen ist eine Sekunde Wachstum wert? (Bewertung der Ereignis-Optionen) */
+const SEED_VALUE = 0.4;
+/** Horizont für Wirkungen „bis zum Zyklusende“ (s). */
+const CYCLE_HORIZON = 1800;
+/** Pauschaler Wert (s Wachstum) einer vorgegebenen nächsten Begegnung. */
+const FORCED_VALUE = 45;
+
+/**
+ * Wert einer Ereignis-Option in „Sekunden Wachstum“ – auf einer Kopie des Spielstands
+ * mit der echten Aktion gerechnet: zusätzliche Wachstums-Sekunden plus SEED_VALUE ×
+ * zusätzliche Samen-Sekunden über die Wirkdauer, sofortige Samen in Samen-Sekunden.
+ */
+function eventOptionValue(state: GameState, optionIndex: number): number {
+  const before = evaluate(state);
+  const copy = structuredClone(state);
+  const result = chooseEventOption(copy, 0, optionIndex);
+  if (!result.ok) return -Infinity;
+  const after = evaluate(copy);
+  const event = EVENTS_BY_ID.get(state.pendingEncounters[0]!.cards[0]!)!;
+  let span = 0;
+  let forced = 0;
+  for (const e of event.options[optionIndex]!.effects) {
+    if (e.kind === 'timed') span = Math.max(span, e.seconds);
+    else if (e.kind === 'cycle' || e.kind === 'habitat') span = Math.max(span, CYCLE_HORIZON);
+    else if (e.kind === 'nextEncounter') forced = FORCED_VALUE;
+  }
+  const seeds = Math.max(1e-9, before.seeds);
+  const gain = after.growth / Math.max(1e-9, before.growth) - 1 + SEED_VALUE * (after.seeds / seeds - 1);
+  return SEED_VALUE * ((result.seeds ?? 0) / seeds) + span * gain + forced;
+}
+
+/**
+ * Ereignis oder Gast an der Spitze der Warteschlange auflösen (echte Logik). Ereignis:
+ * Zufallsspieler wählt zufällig, alle anderen die Option mit dem höchsten Wert. Gast:
+ * bewirten, wenn die Samen reichen (Zufallsspieler: in der Hälfte der Fälle), sonst
+ * ziehen lassen. Ereignisse zählen als lohnend (jedes hat eine Option mit Wirkung außer
+ * Samen), Gäste, wenn Bewirten bezahlbar ist.
+ */
+function resolveExtra(
+  state: GameState,
+  strategy: Strategy,
+  rng: RngHolder,
+  counts: Counts,
+  book: { earnedExtras: number; spentVisitors: number },
+  variety: VarietyStat[],
+  time: number,
+): void {
+  const enc = state.pendingEncounters[0]!;
+  counts.encounters++;
+  let worthwhile = true;
+  if (enc.type === 'event') {
+    counts.events++;
+    const n = EVENTS_BY_ID.get(enc.cards[0]!)?.options.length ?? 1;
+    let choice = 0;
+    if (strategy.plantValue === null) choice = randomInt(rng, n);
+    else {
+      let best = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const v = eventOptionValue(state, i);
+        if (v > best) {
+          best = v;
+          choice = i;
+        }
+      }
+    }
+    const result = chooseEventOption(state, 0, choice);
+    if (!result.ok) throw new Error(`Ereignis-Wahl gescheitert: ${result.error}`);
+    book.earnedExtras += result.seeds ?? 0;
+  } else {
+    counts.visitors++;
+    // Lohnend, wenn Bewirten bezahlbar ist (wie „lohnende Karte“ – egal, was gewählt wird).
+    worthwhile = hostBlocker(state, 0) === null;
+    const wants = strategy.plantValue === null ? randomInt(rng, 2) === 0 : true;
+    const hosted = wants ? hostVisitor(state, 0) : null;
+    if (hosted?.ok) {
+      counts.hosted++;
+      book.spentVisitors -= hosted.seeds ?? 0;
+    } else {
+      const result = farewellVisitor(state, 0);
+      if (result.ok) book.earnedExtras += result.seeds ?? 0;
+    }
+  }
+  variety.push({ stage: state.stage, time, type: enc.type, cards: 1, sameAsPrevious: false, rerollBlocked: 'no-reroll', worthwhile });
 }
 
 /**
@@ -410,7 +526,7 @@ function resolveAll(
   strategy: Strategy,
   rng: RngHolder,
   counts: Counts,
-  book: { earnedDecline: number; spent: number },
+  book: { earnedDecline: number; spent: number; earnedExtras: number; spentVisitors: number },
   decisions: DecisionStat[],
   variety: VarietyStat[],
   time: number,
@@ -418,6 +534,10 @@ function resolveAll(
   // Schutz gegen Endlosschleifen: jede Strategie würfelt höchstens einmal je Begegnung.
   for (let guard = 0; state.pendingEncounters.length > 0 && guard < 50; guard++) {
     const enc = state.pendingEncounters[0]!;
+    if (enc.type === 'event' || enc.type === 'visitor') {
+      resolveExtra(state, strategy, rng, counts, book, variety, time);
+      continue;
+    }
     const current = evaluate(state);
     const options = optionsFor(state);
     const improves = options.some((o) => o.ev.harmony > current.harmony + 1e-9 || o.ev.growth > current.growth + 1e-9);
@@ -451,6 +571,7 @@ function resolveAll(
         throw new Error(`Ungültige Wahl ${option.id} (${strategy.id})`);
       }
       if (option.kind === 'plant') counts.plantsTaken++;
+      else if (option.kind !== 'animal') throw new Error('unerwarteter Begegnungstyp');
       else counts.rarityTaken[SPECIES_BY_ID.get(option.id)!.rarity]!++;
     } else {
       declineEncounter(state, 0);
@@ -645,11 +766,16 @@ export function decisionStats(summary: Summary, beforeStage: number) {
  * Durststrecke: Zeit seit der letzten lohnenden Begegnung (bzw. Spielstart), gemessen an
  * jeder lohnenden Begegnung dieser Stufe und am Ende der Stufe (Erreichen der nächsten).
  */
+/** Begegnungen mit Karten (Tier, Pflanze) – nur dort zählen Kartenzahl und Neu würfeln. */
+const isCards = (v: VarietyStat) => v.type === 'animal' || v.type === 'plant';
+
 export function varietyStats(summary: Summary, stage: number) {
   const vs = summary.runs.flatMap((r) => r.variety.filter((v) => v.stage === stage));
   const n = Math.max(1, vs.length);
+  const cardsOnly = vs.filter(isCards);
   const droughts = summary.runs.map((r) => longestDrought(r, stage)).filter((d): d is number => d !== null);
   const share = (f: (v: VarietyStat) => boolean) => vs.filter(f).length / n;
+  const cardShare = (f: (v: VarietyStat) => boolean) => cardsOnly.filter(f).length / Math.max(1, cardsOnly.length);
   return {
     count: vs.length,
     sameShare: share((v) => v.sameAsPrevious),
@@ -657,10 +783,10 @@ export function varietyStats(summary: Summary, stage: number) {
       vs.filter((v) => v.type === 'animal' && v.sameAsPrevious).length / Math.max(1, vs.filter((v) => v.type === 'animal').length),
     samePlantShare:
       vs.filter((v) => v.type === 'plant' && v.sameAsPrevious).length / Math.max(1, vs.filter((v) => v.type === 'plant').length),
-    fewCardsShare: share((v) => v.cards <= 2),
-    rerollOpenShare: share((v) => v.rerollBlocked === null),
-    rerollTooExpensiveShare: share((v) => v.rerollBlocked === 'too-expensive'),
-    rerollNoAltShare: share((v) => v.rerollBlocked === 'no-alternatives' || v.rerollBlocked === 'no-cards'),
+    fewCardsShare: cardShare((v) => v.cards <= 2),
+    rerollOpenShare: cardShare((v) => v.rerollBlocked === null),
+    rerollTooExpensiveShare: cardShare((v) => v.rerollBlocked === 'too-expensive'),
+    rerollNoAltShare: cardShare((v) => v.rerollBlocked === 'no-alternatives' || v.rerollBlocked === 'no-cards'),
     worthShare: share((v) => v.worthwhile),
     /** Längste Durststrecke je Durchgang (s): Median, 90-%-Quantil, Maximum. */
     droughtMedian: median(droughts),
@@ -691,6 +817,9 @@ export function varietyBefore(summary: Summary, beforeStage: number) {
   const vs = summary.runs.flatMap((r) => r.variety.filter((v) => v.stage < beforeStage));
   const n = Math.max(1, vs.length);
   const share = (f: (v: VarietyStat) => boolean) => vs.filter(f).length / n;
+  // Kartenzahl und Neu würfeln nur bei Tier- und Pflanzenbegegnungen (Ereignisse/Gäste: eine Karte, kein Wurf).
+  const cards = vs.filter(isCards);
+  const cardShare = (f: (v: VarietyStat) => boolean) => cards.filter(f).length / Math.max(1, cards.length);
   // Längste Durststrecke je Durchgang über alle Stufen vor `beforeStage`.
   const droughts = summary.runs.map((r) => {
     const ds = Array.from({ length: beforeStage - 1 }, (_, i) => longestDrought(r, i + 1) ?? 0);
@@ -699,8 +828,8 @@ export function varietyBefore(summary: Summary, beforeStage: number) {
   return {
     sameShare: share((v) => v.sameAsPrevious),
     /** Ab Setzling (im Keimling gibt es nur 2 Pflanzen und 3 Arten – gewollt). */
-    fewCardsShare: vs.filter((v) => v.stage >= 2 && v.cards <= 2).length / Math.max(1, vs.filter((v) => v.stage >= 2).length),
-    rerollOpenShare: share((v) => v.rerollBlocked === null),
+    fewCardsShare: cards.filter((v) => v.stage >= 2 && v.cards <= 2).length / Math.max(1, cards.filter((v) => v.stage >= 2).length),
+    rerollOpenShare: cardShare((v) => v.rerollBlocked === null),
     worthShare: share((v) => v.worthwhile),
     droughtMedian: median(droughts),
     droughtP90: quantile(droughts, 0.9),
@@ -875,4 +1004,27 @@ export function report(summaries: Summary[], focusStage: number): string {
     '',
     miscTable(summaries, focusStage),
   ].join('\n');
+}
+
+/**
+ * Ereignisse und Durchreisende (Schritt 2.4, echte Logik): je Strategie Stufenzeiten,
+ * Harmonie beim Hain, längste Durststrecke je Stufe (90-%-Quantil und Maximum), Anzahl
+ * je Durchgang.
+ */
+export function extrasTable(summaries: Summary[]): string {
+  const lines = [
+    '| Strategie | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Durststrecke Alter Baum 90 % / max | Hain 90 % / max | Wald 90 % / max | Ereignisse / Gäste (bewirtet) je Durchgang |',
+    '|---|---|---|---|---|---|---|---|---|---|',
+  ];
+  for (const s of summaries) {
+    const times = [4, 5, 6, 7].map((st) => formatTime(stageStats(s, st).time));
+    const d = [4, 5, 6].map((st) => {
+      const v = varietyStats(s, st);
+      return `${formatTime(v.droughtP90)} / ${formatTime(v.droughtMax)}`;
+    });
+    const c = s.runs.map((r) => r.final.counts);
+    const extra = `${fmt(mean(c.map((x) => x.events)), 1)} / ${fmt(mean(c.map((x) => x.visitors)), 1)} (${fmt(mean(c.map((x) => x.hosted)), 1)})`;
+    lines.push(`| ${s.strategy.name} | ${times.join(' | ')} | ${fmt(stageStats(s, 5).harmony, 1)} | ${d.join(' | ')} | ${extra} |`);
+  }
+  return lines.join('\n');
 }

@@ -495,8 +495,11 @@ Bedingung oder Partnerschaft.
 |---|---|---|---|
 | 🐾 **Tier zieht ein** | 3 Tierkarten | eine wählen → Platz in ihrer Nische; Nische voll → ein Tier dieser Nische entlassen (Vorschau) oder ablehnen | Keimling |
 | 🌱 **Etwas keimt** | 3 Pflanzenkarten | eine gratis setzen; Ring voll → ersetzen oder ablehnen | Keimling |
-| ⛈️ **Ereignis mit Wahl** | 1 Ereignis, 2 Optionen | dauerhafte Wirkung *oder* Samen | Junger Baum |
-| 🦢 **Durchreisende** | 1 Gast | rastet 3 Wegpunkte lang, braucht keinen Platz, zählt für Gattungsboni; oder ablehnen | Alter Baum |
+| ⛈️ **Ereignis mit Wahl** | 1 Ereignis, 2–3 Optionen | eine Option wählen: Wirkung für den Zyklus, Zeit-Bonus, Wunsch-Begegnung *oder* Samen; kein Ablehnen | Junger Baum |
+| 🦢 **Durchreisende** | 1 Gast | bewirten (kostet Samen): rastet einige Minuten, braucht keinen Platz, wirkt und zählt für Gattungsboni; *oder* ziehen lassen (kleiner Samen-Dank) | Alter Baum |
+
+Inhalte: `src/content/events.ts` (7.4) und `src/content/visitors.ts` (7.5); Logik offen
+(Umsetzungsnotiz 7.8).
 
 - **Ablehnen** bringt immer Samen: +5 🌰 (`DECLINE_SEEDS` in content/encounters.ts).
 - **Neu würfeln** (Tier- und Pflanzenbegegnung) kostet 10 🌰, jedes weitere Mal in
@@ -510,21 +513,47 @@ Bedingung oder Partnerschaft.
 
 ### 7.2 Takt und Häufigkeit
 
-| Stufe | Tier | Pflanze | Ereignis | Durchreisende | Takt (Simulation, Median) |
+**Am Wegpunkt** (`ENCOUNTER_WEIGHTS`, Stand Schritt 2.4 – Inhalte):
+
+| Stufe | Tier | Pflanze | Ereignis | Durchreisende | Zwischenhalt |
 |---|---|---|---|---|---|
-| Keimling | 60 % | 40 % | – | – | ~25 s |
-| Setzling | 60 % | 40 % | – | – | ~1 min |
-| Junger Baum | 60 % | 25 % | 15 % | – | ~2:40 min |
-| Alter Baum | 55 % | 20 % | 15 % | 10 % | ~4:20 min |
-| Hain, Wald, Urwald | 55 % | 20 % | 15 % | 10 % | ~5:15 min |
+| Keimling | 60 | 40 | – | – | – |
+| Setzling | 60 | 40 | – | – | – |
+| Junger Baum | 65 | 25 | 10 | – | – |
+| Alter Baum | 60 | 20 | 10 | 10 | – |
+| Hain, Wald, Urwald | 60 | 20 | 10 | 10 | 50 %: Ereignis 55 : Gast 45 |
 
-Im Code (Stand Begegnungs-Vielfalt: 32 Arten, Lebensgemeinschaften, Tier- und
-Pflanzenbegegnungen, noch ohne Ereignisse und Durchreisende; Simulation 15.4, Median
-der Wartezeit je Begegnung): Keimling 20 s · Setzling 54 s · Junger Baum 2:17 min ·
-Alter Baum 3:28 min · Hain 4:14 min · Wald 4:25 min. Bei vollem Pflanzring zählt das
-Pflanzengewicht nur halb (z. B. Alter Baum 55 : 10 statt 55 : 20, siehe 7.7).
+Vorher (Entwurf): Junger Baum 60 : 25 : 15 : 0, ab Alter Baum 55 : 20 : 15 : 10. Die
+Gewichte sind relativ; Pflanze bei vollem Ring × 0,5 (7.7). Kommt für den gezogenen
+Typ nichts in Frage (alle Ereignisse bzw. Gäste schon gesehen, Bedingungen nicht
+erfüllt), gibt es eine Tierbegegnung (sonst Pflanze, wie bisher).
 
-Bis zum Hain sind es 20 Begegnungen (~12 Tiere), bis zum Urwald 36. Zwischen den
+**Zwischenhalt (neu, ab Hain):** Auf halbem Weg zwischen zwei Wegpunkten (bei
+`thr(k) + 0,5 · (thr(k+1) − thr(k))` Gesamt-Wachstum) kommt mit 50 % Wahrscheinlichkeit
+*zusätzlich* ein Ereignis (Gewicht 55) oder ein Gast (45). Er verdrängt keine Tier- oder
+Pflanzenbegegnung; passt nichts, passiert nichts. Konstanten `INTERLUDE_STAGE = 5`,
+`INTERLUDE_POSITION = 0,5`, `INTERLUDE_CHANCE = 0,5`, `INTERLUDE_WEIGHTS = [55, 45]`
+in `src/content/encounters.ts`.
+
+**Warum so:** Mit reinen Gewichten (Ereignis *statt* Tier) kann es nicht mehr Begegnungen
+geben als Wegpunkte – die Durststrecken im Wald blieben im Modell fast gleich (90 %:
+12:23 → 11:53 min, 200 Durchgänge), und jede verdrängte Tierbegegnung kostet Harmonie. Der Zwischenhalt
+halbiert ab dem Hain die Wartezeit dort, wo der Takt lang wird, und hängt nur vom
+Gesamt-Wachstum ab (online = offline). Vor dem Hain sind die Strecken kurz genug; dort
+nehmen Ereignisse und Gäste darum nur noch 10 % bzw. 20 % der Wegpunkte ein. Mehr
+Zwischenhalte (75 %) helfen nicht: Dann sind im Wald alle 10 Ereignisse und 8 Gäste
+verbraucht (jedes nur einmal pro Zyklus), und die Strecken werden wieder länger.
+
+| Takt (Median der Wartezeit je Begegnung) | Keimling | Setzling | Junger Baum | Alter Baum | Hain | Wald |
+|---|---|---|---|---|---|---|
+| Code heute (nur Tier/Pflanze, 15.4) | 20 s | 54 s | 2:17 min | 3:27 min | 4:13 min | 4:25 min |
+| Modell mit Ereignissen, Gästen, Zwischenhalt (Annahme, 200 Durchgänge) | 20 s | 54 s | 2:17 min | 3:38 min | ~2:30 min | ~2:35 min |
+
+Bis die Logik da ist, zieht der Code nur Tier und Pflanze – im Verhältnis der Gewichte
+(z. B. Alter Baum 60 : 20, bei vollem Ring 60 : 10).
+
+Bis zum Hain sind es 20 Begegnungen am Wegpunkt (davon im Modell ~2,5 Ereignisse/Gäste),
+bis zum Urwald 36 plus im Schnitt ~8 Zwischenhalte. Zwischen den
 Begegnungen gibt es Samen-Entscheidungen (Pflanze setzen, Pflege).
 
 ### 7.3 Seltenheitsgewichte je Stufe
@@ -546,25 +575,68 @@ Erscheinungsbedingung erfüllt. Gibt es keine, wird neu gewichtet.
 Fliegenpilz („Glückspilz“): +5 Prozentpunkte auf selten/besonders/legendär, −15 auf
 gewöhnlich.
 
-### 7.4 Ereignisse (Auswahl)
+### 7.4 Ereignisse mit Wahl
 
-Jedes Ereignis höchstens einmal pro Zyklus. Keine Option ist eine Strafe.
+10 Ereignisse in `src/content/events.ts`. Jedes kommt **höchstens einmal pro Zyklus**
+(„gesehen“, sobald es gezogen ist), nur ab seiner Stufe und wenn seine Bedingung erfüllt
+ist (Prüfung wie `appears` der Arten). **Keine Option ist eine Strafe** – alle Zahlen
+sind positiv, die Samen-Option ist die neutrale Wahl; Ablehnen gibt es nicht.
 
-| Ereignis | ab | Option A (dauerhaft) | Option B | Text |
+**Wirkungstypen** (klein gehalten, Details im Typ-Kommentar `EventEffect`):
+
+| Typ | Bedeutung | Beispiel |
+|---|---|---|
+| `seedsNow` | sofort Samen = Sekunden × aktuelle 🌰/s (mind. 5) – „Samen-Sekunden“, in jeder Stufe gleich spürbar | 120 s ≈ 4 🌰/s · 120 = 480 🌰 im Alten Baum |
+| `timed` | eine Tier-Wirkung (`growth`, `seeds`, `groupGrowth`, `groupSeeds`) für N Sekunden Spielzeit, Faktor 1 | +25 % 🌿 für 300 s |
+| `cycle` | eine Wirkung (`light`, `water`, `slot`, `harmony`) bis zum Neuen Zyklus | +3 💧; +1 Platz Höhlen |
+| `habitat` | das Ökosystem stellt ein Merkmal bereit (1 Einheit wie eine Pflanze) bis zum Neuen Zyklus | Totholz, Feuchte |
+| `nextEncounter` | die nächste Begegnung ist vom Typ Tier/Pflanze und zeigt zuerst Karten aus einer Liste (Seltenheit und Erscheinungsbedingung übergangen) | Pilzkarten, Beerensträucher |
+
+| Ereignis | ab | Bedingung | Optionen | Text |
 |---|---|---|---|---|
-| Sturmnacht | Junger Baum | Totholz liegen lassen: Totholz, +1 Platz Höhlen | Holz verwerten: 100 % der nächsten Pflanze in 🌰 | „Ein Ast ist abgebrochen und liegt im Laub.“ |
-| Regenreicher Frühling | Junger Baum | Waldtümpel: Feuchte, +3 💧 | Wasser ableiten: 100 % in 🌰 | „In einer Senke sammelt sich das Wasser.“ |
-| Windwurf | Alter Baum | Lichtung offen lassen: +3 ☀️ | Stamm verkaufen: 120 % in 🌰 | „Ein alter Nachbarbaum ist umgestürzt – plötzlich ist es hell.“ |
-| Mastjahr *(nur Doku)* | Alter Baum | nächste Tierbegegnung: garantiert ein Samenverbreiter | +50 % 🌰 für 2 Wegpunkte | „Die Eiche trägt so viele Eicheln wie seit Jahren nicht.“ |
-| Pilzherbst *(nur Doku)* | Junger Baum | nächste Tierbegegnung: 3 Pilzkarten | 80 % in 🌰 | „Über Nacht stehen überall Hüte im Moos.“ |
+| 🌩️ Sturmnacht | Junger Baum | – | Totholz liegen lassen: Totholz + 1 Platz Höhlen (Zyklus) · Holz verwerten: 120 s 🌰 | „Ein Ast ist abgebrochen und liegt im Laub.“ |
+| 🌧️ Regenreicher Frühling | Junger Baum | – | Waldtümpel: Feuchte + 3 💧 (Zyklus) · Alles austreiben lassen: +25 % 🌿 5 min · Wasser ableiten: 90 s 🌰 | „In einer Senke sammelt sich das Wasser.“ |
+| ☀️ Mittsommer | Junger Baum | – | Lange Tage: +30 % 🌿 6 min · Alles blühen lassen: +60 % 🌰 6 min | „Die längsten Tage des Jahres – das Licht reicht bis tief in den Abend.“ |
+| 🍄 Pilzherbst | Junger Baum | Feuchte | Den Hüten Zeit lassen: nächste Begegnung Pilze (Pfifferling, Steinpilz, Zunderschwamm, Fliegenpilz) · Myzel: Bäume +40 % 🌿 8 min · Pilze sammeln: 90 s 🌰 | „Über Nacht stehen überall Hüte im Moos.“ |
+| 🌪️ Windwurf | Alter Baum | – | Lichtung offen lassen: +3 ☀️ (Zyklus) · Stamm verwerten: 150 s 🌰 | „Ein alter Nachbarbaum ist umgestürzt – plötzlich ist es hell.“ |
+| 🌰 Mastjahr | Alter Baum | – | Eicheln liegen lassen: nächste Begegnung Eichelhäher/Eichhörnchen · Eicheln sammeln: +50 % 🌰 8 min | „Die Eiche trägt so viele Eicheln wie seit Jahren nicht.“ |
+| 🐝 Bienenschwarm | Alter Baum | Baumhöhle | Höhle überlassen: Blumen und Sträucher +60 % 🌰 10 min · Weiterziehen lassen: 90 s 🌰 | „Eine summende Traube Honigbienen hängt im Geäst und sucht eine Bleibe.“ |
+| 🫐 Vogelsaat | Alter Baum | ≥ 2 Vögel | Sämlinge stehen lassen: nächste Begegnung Eberesche/Holunder/Brombeere · Beeren reifen lassen: +40 % 🌰 6 min | „Die Vögel haben Beerensamen mitgebracht – überall spitzt es grün.“ |
+| ⚡ Blitzschlag | Hain | ≥ 3 Bäume | Biotopbaum: Totholz + 1 Platz Stamm & Rinde (Zyklus) · Die Lücke nutzen: +2 ☀️ (Zyklus) · Holz verwerten: 150 s 🌰 | „Ein Blitz hat einen Nachbarbaum gespalten. Der Stumpf raucht noch.“ |
+| 🐜 Ameisenstraße | Hain | Rote Waldameise | Hügel wachsen lassen: +5 ⚖️ (Zyklus) · Samen verbreiten lassen: Blumen +60 % 🌿 10 min + 60 s 🌰 | „Die Waldameisen tragen Samen in ihren Hügel – und verlieren unterwegs die Hälfte.“ |
+
+**Abwägung je Ereignis:** Die Samen-Option entspricht 1½–2½ Minuten Samen (etwa eine
+halbe bis ganze Pflanze). Zeit-Boni bringen grob dasselbe in Wachstum (z. B. +25 % für
+5 min ≈ 75 s Wachstum). Die Zyklus-Wirkungen (Licht, Wasser, Platz, Merkmal, Harmonie)
+lohnen sich je nach Ökosystem mehr oder weniger – genau das macht die Wahl.
 
 ### 7.5 Durchreisende
 
-| Gast | Gattung | Wirkung (3 Wegpunkte) | Text |
-|---|---|---|---|
-| Kraniche | Vögel | +20 % 🌰 | „Trompetend ziehen sie nach Süden und rasten eine Nacht.“ |
-| Bergfinken | Vögel | +10 % 🌿, +10 % 🌰 | „Ein Schwarm aus dem Norden plündert die Bucheckern.“ |
-| Taubenschwänzchen | Insekten | Blumen +50 % 🌰 | „Ein Falter, der schwirrt wie ein Kolibri.“ |
+8 Gäste in `src/content/visitors.ts`. Jeder kommt höchstens einmal pro Zyklus, ab seiner
+Stufe und wenn seine Bedingung erfüllt ist. Ein Gast belegt **keine Nische**. Wahl:
+
+- **Bewirten** kostet *Samen-Sekunden* (30–60 s Samenproduktion). Dann rastet der Gast
+  für seine Dauer (Spielzeit, auch offline), seine Wirkungen gelten mit Faktor 1 und er
+  zählt für die Gattungsboni seiner Gattung. Reichen die Samen nicht, bleibt nur …
+- **Ziehen lassen:** sofort 15–20 Samen-Sekunden als Dank.
+
+Die IDs `cranes`, `bramblings` und `hummingbird-moth` haben eigene Bilder im Renderer
+(PR #19); alle anderen zeigt er als kleinen Vogelschwarm, bis Sprites nachkommen.
+
+| Gast | ID | Gattung | ab | Bedingung | Wirkung beim Bewirten | Dauer | Bewirten / Dank | Text |
+|---|---|---|---|---|---|---|---|---|
+| 🦢 Kranichzug | `cranes` | Vögel | Alter Baum | – | +25 % 🌰 | 8 min | 40 s / 15 s | „Trompetend ziehen sie nach Süden und rasten eine Nacht.“ |
+| 🐦 Bergfinken-Schwarm | `bramblings` | Vögel | Alter Baum | Nüsse | +12 % 🌿, +12 % 🌰 | 7 min | 40 s / 15 s | „Ein Schwarm aus dem Norden plündert die Eicheln.“ |
+| 🦋 Taubenschwänzchen | `hummingbird-moth` | Insekten | Alter Baum | ≥ 1 Blume | Blumen +60 % 🌰, +2 ⚖️ | 6 min | 30 s / 15 s | „Ein Falter, der vor den Blüten schwirrt wie ein Kolibri.“ |
+| 🐦 Schwalbenschwarm | `swallows` | Vögel | Alter Baum | ≥ 2 Insekten | +10 % 🌿, +3 ⚖️ | 7 min | 40 s / 15 s | „Vor dem Abflug jagen sie in Schwärmen über der Lichtung nach Mücken.“ |
+| 🐗 Wildschwein-Rotte | `boars` | Säugetiere | Hain | Nüsse | +15 % 🌿 | 8 min | 60 s / 20 s | „Sie pflügen den Boden nach Eicheln um – im aufgewühlten Boden keimt es gut.“ |
+| 🦅 Wanderfalke | `peregrine` | Vögel | Hain | – | +6 ⚖️ | 10 min | 50 s / 15 s | „Er rastet auf dem höchsten Ast und hält Ausschau über den Wipfeln.“ |
+| 🪲 Hirschkäfer-Hochzeitsflug | `stag-flight` | Insekten | Hain | Totholz | +8 % 🌿, +4 ⚖️ | 6 min | 40 s / 15 s | „An einem warmen Juniabend brummen die Hirschkäfer schwerfällig um die Krone.“ |
+| 🐦 Seidenschwänze | `waxwings` | Vögel | Wald | Beeren | +25 % 🌰, Sträucher +30 % 🌿 | 7 min | 45 s / 15 s | „Gäste aus der Taiga mit gelben Schwanzspitzen – sie fressen die Sträucher leer.“ |
+
+Abweichung vom Entwurf: Gäste rasten Sekunden statt „3 Wegpunkte“ (gleiche Einheit wie
+die Zeit-Boni der Ereignisse, einfache Offline-Rechnung) und kosten beim Bewirten Samen
+(echte Wahl statt reinem Geschenk).
 
 ### 7.6 Warteschlange und Offline
 
@@ -578,6 +650,10 @@ Jedes Ereignis höchstens einmal pro Zyklus. Keine Option ist eine Strafe.
 - Willkommen-zurück-Meldung: „Während du weg warst: +12.400 🌿, +2.100 🌰, 3 Begegnungen
   warten.“ Erst ab 60 s Abwesenheit; bei kürzeren Pausen (Tab-Wechsel) erscheint nur der
   kurze Hinweis „Stapel voll – …“, falls dabei Begegnungen weitergezogen sind.
+- Ereignisse und Gäste warten wie andere Begegnungen in der Warteschlange (zählen zu den
+  3). Ein Gast beginnt erst zu rasten, wenn er bewirtet wird. Ist die Warteschlange am
+  Zwischenhalt voll, entfällt er ersatzlos (es fehlt keine Begegnung, darum kein Samen-
+  Ausgleich).
 
 ### 7.7 Vielfalt der Begegnungen
 
@@ -630,6 +706,105 @@ Das Maximum über 500 Durchgänge bleibt ein Ausreißer um 15–18 min: zwei nic
 Begegnungen hintereinander bei langem Takt. Ab dem Hain (Wald: 90-%-Quantil 12 min,
 max. ~24 min) wird die Strecke länger, weil der Takt wächst und volle Nischen nur noch
 Tausch erlauben – Kandidat für Ereignisse und Durchreisende (2.4).
+
+### 7.8 Umsetzungsnotiz für den core-engineer (Schritt 2.4, Logik)
+
+Inhalte und Takt stehen als Daten bereit; die Logik baut auf **v4** (Neuer Zyklus,
+`state.cycle`) auf. Alles, was nur für den laufenden Zyklus gilt, gehört nach
+`state.cycle` – `createCycle()` setzt es beim Neuen Zyklus zurück.
+
+**Spielstand (`SAVE_VERSION` 5, Migration v4 → v5 ergänzt leere Felder):**
+
+```ts
+interface CycleState {
+  // … number, maxHarmony, newSpecies, startedAt (v4)
+  /** IDs der in diesem Zyklus gezogenen Ereignisse und Gäste (beim Ziehen eintragen). */
+  seen: string[];
+  /** Wirkungen bis zum Zyklusende (Ereignis-Option `cycle`), mit Herkunft für die UI. */
+  bonuses: { source: string; effect: CycleEffect }[];
+  /** Merkmale aus `habitat` (z. B. 'totholz'), je 1 Einheit Angebot. */
+  habitats: Tag[];
+  /** Zeit-Boni aus Ereignissen (`timed`): Restdauer in Sekunden Spielzeit. */
+  timed: { source: string; effect: TimedEffect; remaining: number }[];
+  /** Bewirtete Gäste mit Restdauer; ihre Wirkungen kommen aus VISITORS_BY_ID. */
+  visitors: { id: string; remaining: number }[];
+  /** Vorgabe für die nächste Begegnung (`nextEncounter`), sonst null. */
+  forced: { type: 'animal' | 'plant'; ids: string[] } | null;
+  /** Wegpunkt, nach dem der Zwischenhalt schon ausgewertet wurde (Start: 0). */
+  interlude: number;
+}
+type PendingEncounterType = 'animal' | 'plant' | 'event' | 'visitor';
+// Ereignis/Gast: cards = [id], rerolls = 0. Neu würfeln ist dort gesperrt.
+```
+
+**Ziehen (`drawEncounter`, `reachWaypoint`):** Alle vier Typen werden nach
+`ENCOUNTER_WEIGHTS` gezogen (die frühere Liste `DRAWABLE_TYPES` ist entfallen). Kandidaten: `minStage <= stage`, nicht in `cycle.seen`, `speciesAppears(state,
+x)`; zufällig gleichverteilt (`pick` mit dem Zufall des Spielstands). Kein Kandidat →
+Tier, sonst Pflanze (wie heute). Ist `cycle.forced` gesetzt, wird die Begegnung am
+nächsten Wegpunkt (ab Wegpunkt 4) genau so gebaut wie in `EventEffect` beschrieben und
+`forced` gelöscht. **Zwischenhalt:** ab `INTERLUDE_STAGE`, wenn `cycle.interlude <
+waypoint` und das Gesamt-Wachstum die Schwelle `thr(k) + INTERLUDE_POSITION · (thr(k+1) −
+thr(k))` erreicht: `cycle.interlude = waypoint`, dann mit `INTERLUDE_CHANCE` Ereignis
+oder Gast nach `INTERLUDE_WEIGHTS` (nur Typen mit Kandidaten) in die Warteschlange; ist
+sie voll oder gibt es nichts, passiert nichts.
+
+**Aktionen (neu):** `chooseEventOption(state, i, option)` und `hostVisitor(state, i)` /
+`farewellVisitor(state, i)` – oder `chooseCard` mit Options-Index; wichtig nur:
+Samen-Sekunden = Sekunden × `evaluate(state).seeds` zum Zeitpunkt der Wahl (mit aktiven
+Boni), mindestens `SEED_SECONDS_MIN_SEEDS`; `hostVisitor` scheitert, wenn die Samen nicht
+reichen. Nach jeder Wahl `maxHarmony` nachführen (wie in v4).
+
+**Bewerten (`evaluate`):** Das Ökosystem bekommt die Zusatz-Wirkungen: `cycle.bonuses`,
+aktive `cycle.timed` und die Wirkungen aktiver `cycle.visitors` laufen durch das
+vorhandene `apply(e, 1)` (wie Lebensgemeinschaften); `slot`-Boni zählen in
+`nicheSlots` wie Platz-Wirkungen der Tiere (inkl. `opensEarly`); `habitats` addieren
+`SUPPLY_PLANT` Angebot und zählen in `appearsContext`; Gäste zählen in `genusCounts`
+(Gattungsboni), nicht aber in Erscheinungsbedingungen. Der Cache-Schlüssel
+`ecosystemKey` muss alle diese Felder enthalten (IDs genügen, nicht die Restdauer).
+
+**Zeit und Offline (`tick`):** Die Raten bleiben zwischen zwei Ereignissen konstant.
+Nächstes Ereignis = Minimum aus nächstem Wegpunkt, Zwischenhalt-Schwelle (über das
+Wachstum, wie Wegpunkte) und kleinster Restdauer in `timed`/`visitors`. Jeden Schritt
+von allen Restdauern abziehen, Einträge bei ≤ 0 entfernen (exakt an der Grenze anhalten,
+wie heute am Wegpunkt). So liefern viele kleine Ticks und `simulateOffline` dasselbe.
+Boni laufen auch offline ab; ein Gast in der Warteschlange rastet noch nicht.
+Überzählige Begegnungen am Wegpunkt werden wie bisher abgelehnt (`DECLINE_SEEDS`) –
+dabei wird nichts gezogen, also auch nichts als „gesehen“ markiert.
+
+**Darstellung:** Renderer bekommt `cycle.visitors.map((v, i) => ({ id: v.id, slot: i }))`;
+die UI kennt `EncounterKind` 'event'/'visitor' schon (`src/ui/view-model.ts`).
+
+**Umgesetzt (Schritt 2.4, Logik):** wie oben, mit diesen Festlegungen:
+
+- Spielstand v5; Migration v4 → v5 setzt die neuen Felder leer. Steht ein Stand schon
+  hinter dem Zwischenhalt seines Abschnitts, gilt dieser als ausgewertet (kein Ereignis
+  direkt nach dem Update). Beim Laden (Schutz vor manipulierten Ständen): Boni und
+  Zeit-Boni nur, wenn ein Ereignis aus `seen` sie genau so vergibt, je (Quelle, Wirkung)
+  höchstens einmal; Habitate je Merkmal höchstens so oft, wie die Ereignisse in `seen` es
+  vergeben können; aktive Gäste nur aus `seen`; `forced` nur mit IDs, die ein
+  `nextEncounter` desselben Typs vorgibt; in der Warteschlange keine doppelten Ereignisse
+  oder Gäste, keine Gäste, die schon rasten, keine Ereignisse, deren Wirkungen schon
+  vergeben sind. Restdauern werden auf die Dauer begrenzt.
+- Samen-Sekunden rechnen zur Samenrate **ohne** Zeit-Boni und Gäste (`seedSecondsRate`),
+  damit sich Samen-Optionen nicht durch vorher gewählte Zeit-Boni aufblähen lassen.
+- `hostBlocker` meldet `'already-active'`, wenn der Gast schon rastet. `TickReport`
+  meldet mit `interludesReached` auch Zwischenhalte ohne Ergebnis – `main.ts` speichert
+  dann sofort, damit Neuladen den Zufall nicht neu würfelt.
+- Aktionen: `chooseEventOption(state, i, option)`, `hostVisitor(state, i)`,
+  `farewellVisitor(state, i)`, Blocker `eventOptionBlocker` / `hostBlocker` als Codes.
+  `declineEncounter` und Neu würfeln gehen bei Ereignissen und Gästen nicht ('wrong-type').
+  Die Zeit kommt über `tick` (Restdauern in Spielsekunden), die Aktionen brauchen keine Uhr.
+- `TickReport` meldet `interludes` (Ereignisse/Gäste am Zwischenhalt) und `expired`
+  (abgelaufene Boni und abgereiste Gäste).
+- `nextEncounter` gilt nicht für die festgelegten Wegpunkte 1–3 und bleibt bei voller
+  Warteschlange stehen, bis wirklich gezogen wird.
+
+**Tests (Vorschlag):** jede Wirkungsart einzeln (Raten vorher/nachher); Ablauf genau
+nach `seconds` (online in vielen Ticks = ein großer Tick = offline); einmal pro Zyklus;
+Bedingungen; `nextEncounter` inkl. „passt nichts mehr“; Zwischenhalt nur ab Hain, je
+Abschnitt höchstens einmal, nicht bei voller Warteschlange; Migration v4 → v5; Neuer
+Zyklus setzt alles zurück; Simulator (`scripts/simulate.ts`) danach auf die echte Logik
+umstellen und `scripts/extras.ts` löschen.
 
 ---
 
@@ -1066,6 +1241,13 @@ Empfehlungen (Stand 20.10.2026):
    Abwählen entlässt kein Tier. Alte v3-Stände laufen als erster Zyklus weiter, alle
    Tagebuch-Arten zählen dort als neu entdeckt.
 
+7. **Ereignisse und Durchreisende (Team, Schritt 2.4):** Ereignis-Wirkungen gelten
+   höchstens bis zum Neuen Zyklus (nicht darüber hinaus – das bleibt dem Waldgedächtnis).
+   Samen aus Ereignissen und Gästen skalieren mit der Samenrate („Samen-Sekunden“).
+   Gäste rasten Spielzeit (Sekunden) statt Wegpunkte und kosten beim Bewirten Samen.
+   Ab dem Hain gibt es zusätzlich den Zwischenhalt (7.2), damit die Durststrecken
+   kürzer werden, ohne Tierbegegnungen zu verdrängen.
+
 Weitere Designentscheidungen trifft das Team selbst und dokumentiert sie hier bzw. in den
 PR-Beschreibungen.
 
@@ -1204,7 +1386,8 @@ in allem besser und deutlich vorn.
 Pflanzenbegegnungen („Etwas keimt“), Pflanzen setzen und Licht/Wasser-Versorgung;
 seit Schritt 2.2 mit allen 32 Arten in 5 Gattungen, Fähigkeiten, Erscheinungsbedingungen
 und Seltenheitsgewichten; seit Schritt 2.3 mit Lebensgemeinschaften (vollständige
-Harmonie); noch ohne Ereignisse, Durchreisende und Pflegemaßnahmen. Der Spieler löst jede Begegnung sofort auf; die Zeit läuft von
+Harmonie); noch ohne Pflegemaßnahmen, Ereignisse und Durchreisende nur als grobes
+Modell (Schritt 2.4, siehe unten). Der Spieler löst jede Begegnung sofort auf; die Zeit läuft von
 Wegpunkt zu Wegpunkt bzw. bis zum nächsten Pflanzenkauf (dazu Zwischenstopps für den
 Samen-Verlauf). Strategien wie in 15.1: zufällig, gierig nach
 Harmonie bzw. Wachstum (nimmt die beste Platzierung, wenn sie verbessert, sonst bei
@@ -1217,7 +1400,7 @@ der Zufallsspieler setzt irgendeine freigeschaltete Pflanze (wie `scripts/v2/sim
 
 ```bash
 SIM_LOG=1 npx vitest run tests/balance.test.ts                 # 100 Durchgänge, ~8 s
-SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts    # Tabellen unten, ~35 s
+SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts    # Tabellen unten, ~3 min
 ```
 
 `tests/balance.test.ts` prüft großzügig: alle Strategien erreichen den Hain ohne NaN;
@@ -1239,6 +1422,87 @@ mit 1–2 Karten; Harmonie-Spieler: längste Durststrecke im Median < 10 min und
 Neu im Simulator (Begegnungs-Vielfalt): Tabellen „Vielfalt der Begegnungen“ je Stufe
 (Harmonie-Spieler und Zufall) und „Vielfalt bis Hain je Strategie“ (`varietyStats`,
 `varietyBefore`, `longestDrought`).
+
+#### Stand Schritt 2.4 – Logik: Ereignisse und Durchreisende echt (100 Durchgänge)
+
+Seit der Logik zieht der Simulator Ereignisse, Gäste und Zwischenhalte mit der echten
+Logik (`scripts/extras.ts` ist entfernt). Strategien wählen Ereignis-Optionen nach einem
+Wert aus der echten Aktion auf einer Kopie (Wachstum + 0,4 × Samen über die Wirkdauer,
+Zyklus-Boni 30 min, Vorgabe pauschal 45 s); Gäste werden bewirtet, wenn die Samen
+reichen (Zufall: jeder zweite).
+
+| Strategie | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Durststrecke Alter Baum 90 % / max | Hain 90 % / max | Wald 90 % / max | Ereignisse / Gäste (bewirtet) je Durchgang |
+|---|---|---|---|---|---|---|---|---|---|
+| Zufällig | 24:00 min | 1:14 h | 2:14 h | 3:14 h | 71,9 | 12:46 min / 20:53 min | 12:08 min / 14:50 min | 10:35 min / 14:02 min | 7,1 / 6,3 (3,1) |
+| Gierig nach Harmonie | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 | 7:58 min / 11:54 min | 7:39 min / 12:18 min | 9:09 min / 19:19 min | 7,4 / 6,1 (6,1) |
+| Gierig nach Wachstum | 14:37 min | 37:31 min | 1:04 h | 1:33 h | 94,1 | 7:15 min / 13:47 min | 5:01 min / 6:47 min | 5:13 min / 8:11 min | 7,7 / 6,0 (6,0) |
+
+Bewertung: Durststrecken im Hain und Wald liegen im 90-%-Quantil unter 10 min (Ziel
+< 11 min). Der Harmonie-Spieler erreicht den Hain in ~46 min – am unteren Rand des
+Korridors (Ziel ~60 min, Test > 42 min); Ereignisse und Gäste beschleunigen spürbar.
+Beim Balancing (2.10) ggf. Samen-Sekunden oder Bonus-Höhen senken.
+
+#### Stand Schritt 2.4 – Inhalte: Ereignisse und Durchreisende im Modell (500 Durchgänge, historisch)
+
+Die Logik fehlt noch; `scripts/extras.ts` modelliert Ereignisse, Gäste und Zwischenhalt
+**grob** neben der echten Logik (`runGame(…, { events: true })`). Annahmen:
+
+- Am Wegpunkt würfelt das Modell mit eigenem Zufall nach `ENCOUNTER_WEIGHTS`, ob statt
+  der gezogenen Tier-/Pflanzenbegegnung ein Ereignis oder Gast kommt (gleiche
+  Verteilung wie im Design); der Zwischenhalt wie in 7.2.
+- Wirkungen als Faktoren auf die echten Raten: 🌿/🌰-Boni additiv zu den Boni der
+  Tiere, Harmonie über `1 + H/100`, Licht/Wasser über die Versorgung, Gruppenboni über
+  den Anteil der Gruppe (ohne Gruppenboni der Tiere). **Nicht modelliert:** `habitat`,
+  `slot`, Gäste in Gattungsboni, Licht macht nicht „sonnig“ – das Modell unterschätzt
+  den Nutzen eher.
+- Strategien: Ereignis – Zufallsspieler zufällig, alle anderen die Option mit dem
+  höchsten geschätzten Wert (Wachstums-Sekunden + 0,4 × Samen-Sekunden, Zyklus-
+  Wirkungen über 30 min, Wunsch-Begegnung pauschal 45 s); Gast – bewirten, wenn die
+  Samen reichen (Zufall: jeder zweite). Ereignisse zählen als „lohnend“, Gäste, wenn
+  Bewirten bezahlbar ist.
+- Mit geänderten Gewichten am Wegpunkt; „ohne“ = heutiger Code (nur Tier/Pflanze, mit
+  den neuen Gewichten – das ändert dort nur das Verhältnis Tier : Pflanze).
+
+| Strategie | Variante | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Durststrecke Alter Baum 90 % / max | Hain 90 % / max | Wald 90 % / max | Ereignisse / Gäste (bewirtet) je Durchgang |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Gierig nach Harmonie | ohne | 17:39 min | 46:04 min | 1:19 h | 1:56 h | 103,0 | 8:14 min / 17:28 min | 10:07 min / 16:19 min | 12:28 min / 23:33 min | – |
+| Gierig nach Wachstum | ohne | 14:46 min | 36:51 min | 1:04 h | 1:33 h | 97,9 | 8:19 min / 19:06 min | 7:19 min / 21:44 min | 5:36 min / 13:38 min | – |
+| Zufällig | ohne | 23:57 min | 1:12 h | 2:11 h | 3:07 h | 74,5 | 11:28 min / 24:10 min | 12:14 min / 16:28 min | 10:38 min / 17:40 min | – |
+| Gierig nach Harmonie | **mit** | 17:17 min | **46:34 min** | 1:19 h | 1:55 h | 98,7 | 8:16 min / 15:28 min | **7:39 min / 13:29 min** | **9:11 min / 19:31 min** | 7,4 / 5,9 (5,9) |
+| Gierig nach Wachstum | **mit** | 14:25 min | 37:01 min | 1:04 h | 1:34 h | 94,3 | 7:18 min / 14:01 min | 5:26 min / 12:42 min | 5:22 min / 14:34 min | 7,5 / 5,9 (5,9) |
+| Zufällig | **mit** | 23:40 min | 1:12 h | 2:14 h | 3:14 h | 73,0 | 11:48 min / 19:27 min | 12:05 min / 17:16 min | 11:00 min / 15:15 min | 7,2 / 6,2 (3,1) |
+
+Varianten (Harmonie-Spieler, 200 Durchgänge, Durststrecke 90 % Hain / Wald):
+
+| Variante | Hain nach | ⚖️ Hain | Hain | Wald |
+|---|---|---|---|---|
+| heutiger Code | 46:03 min | 102,6 | 10:29 min | 12:23 min |
+| nur Gewichte des Entwurfs (55 : 20 : 15 : 10) | 45:58 min | 97,1 | 11:04 min | 11:53 min |
+| Entwurf + Zwischenhalt 50 % | 45:58 min | 97,1 | 8:08 min | 10:07 min |
+| Entwurf + Zwischenhalt 75 % | 45:58 min | 97,1 | 7:27 min | 10:51 min |
+| ab Hain 60 : 20 : 10 : 10 + Zwischenhalt 50 % | 45:58 min | 97,1 | 8:13 min | 9:12 min |
+| **gewählt:** zusätzlich Junger/Alter Baum 65 : 25 : 10 : 0 / 60 : 20 : 10 : 10 | 46:46 min | 98,4 | 7:43 min | 8:48 min |
+
+**Bewertung**
+
+- **Ziel erreicht (im Modell):** Durststrecke des Harmonie-Spielers im Hain 90 % 10:07
+  → 7:39 min, im Wald 12:28 → 9:11 min, Maximum im Wald 23:33 → 19:31 min. Der
+  Wachstums-Spieler profitiert ähnlich.
+- **Tempo:** Hain 46:34 min (0,78 × Ziel) – im Korridor, praktisch unverändert. Die
+  Boni gleichen die verdrängten Tierbegegnungen aus.
+- **Harmonie beim Hain** −4,3 (103,0 → 98,7): ~2,5 Tierbegegnungen weniger bis zum Hain.
+  Ein Teil kommt in der echten Logik über `habitat`/`slot` und Gäste in Gattungsboni
+  zurück (nicht modelliert). Im Auge behalten; Stellschraube: Ereignis-Gewicht vor dem
+  Hain.
+- **Zufallsspieler:** Durststrecken etwa gleich – er bewirtet nur jeden zweiten Gast und
+  seine Strecken kommen vom langsamen Takt.
+- Je Zyklus kommen im Schnitt 7,4 der 10 Ereignisse und 5,9 der 8 Gäste – genug Vorrat,
+  aber mehr Zwischenhalte bräuchten mehr Inhalte.
+
+`tests/balance.test.ts` prüft das Modell zusätzlich: deterministisch, ohne NaN, nie mehr
+Ereignisse/Gäste als es gibt (und im Schnitt > 4 bzw. > 3), Stufenzeiten des Harmonie-
+Spielers 0,7–1,35 × Ziel und Hain höchstens 10 % schneller als ohne, Durststrecke (90 %)
+im Hain und im Wald kürzer als ohne und im Wald < 11 min.
 
 #### Stand Begegnungs-Vielfalt (500 Durchgänge je Strategie)
 

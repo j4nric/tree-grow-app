@@ -11,7 +11,7 @@ import { formatNumber } from './format';
 
 export interface EncounterStack {
   /** `kind`: Typ der vordersten Begegnung – bestimmt das Symbol auf dem Stapel. */
-  update(count: number, kind?: 'animal' | 'plant'): void;
+  update(count: number, kind?: 'animal' | 'plant' | 'event' | 'visitor'): void;
   readonly element: HTMLButtonElement;
 }
 
@@ -19,6 +19,9 @@ export interface EncounterStack {
 export function waitingText(count: number): string {
   return count === 1 ? '1 Begegnung wartet' : `${formatNumber(count)} Begegnungen warten`;
 }
+
+/** Symbol auf dem Stapel je Art der obersten Begegnung. */
+const STACK_ICONS = { animal: '🐾', plant: '🌱', event: '⛈️', visitor: '🦢' } as const;
 
 export function createEncounterStack(root: HTMLElement, onOpen: () => void): EncounterStack {
   const button = el('button', 'encounter-stack');
@@ -43,10 +46,10 @@ export function createEncounterStack(root: HTMLElement, onOpen: () => void): Enc
   let shown = -1;
   let shownKind = '';
 
-  function update(count: number, kind: 'animal' | 'plant' = 'animal'): void {
+  function update(count: number, kind: 'animal' | 'plant' | 'event' | 'visitor' = 'animal'): void {
     if (kind !== shownKind) {
       shownKind = kind;
-      setText(icon, kind === 'plant' ? '🌱' : '🐾');
+      setText(icon, STACK_ICONS[kind]);
     }
     if (count === shown) return;
     const grew = shown >= 0 && count > shown;

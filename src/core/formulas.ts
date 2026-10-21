@@ -12,6 +12,7 @@ import {
 } from '../content/abilities';
 import { COMMUNITIES, type CommunityMember } from '../content/communities';
 import { DECLINE_SEEDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
+import { SEED_SECONDS_MIN_SEEDS } from '../content/events';
 import {
   FOREST_MEMORY_BONUS,
   MEMORY_HARMONY_DIVISOR,
@@ -23,6 +24,7 @@ import { PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, type Plant } from '..
 import { BASE_HAPPINESS, SPECIES, SPECIES_BY_ID, type Species } from '../content/species';
 import { MAIN_TREE_NUTS_STAGE, MAIN_TREE_TAGS, MAIN_TREE_WEIGHT, STAGES } from '../content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
+import { VISITORS_BY_ID } from '../content/visitors';
 import {
   GENERA,
   NICHE_IDS,
@@ -35,12 +37,12 @@ import {
   type Tag,
 } from '../content/types';
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
-import { MAX_FOREST_MEMORY, type GameState, type PendingEncounterType } from './state';
+import { MAX_FOREST_MEMORY, type CycleState, type GameState, type PendingEncounterType } from './state';
 
 /*
  * Rechenmodell v2: Zufriedenheit, Harmonie, Versorgung, Wachstum/s, Samen/s.
  * Formeln aus docs/DESIGN_V2.md, Abschnitt 2 und 9, mit allen 32 Arten, Störung,
- * Fähigkeiten und Lebensgemeinschaften – noch ohne Ereignisse und Durchreisende (2.4).
+ * Fähigkeiten, Lebensgemeinschaften, Ereignis-Boni und Durchreisenden (2.4).
  * Referenz: scripts/v2/model.ts (Tests vergleichen beide).
  */
 
@@ -75,6 +77,70 @@ export interface Ecosystem {
   /** Begleitpflanzen (Duplikate erlaubt). Fehlt das Feld, wächst nur der Hauptbaum. */
   plants?: readonly string[];
   forestMemory: number;
+  /**
+   * Wirkungen aus Ereignissen und Gästen (Schritt 2.4), alle mit Faktor 1: Zyklus-Boni,
+   * aktive Zeit-Boni und die Wirkungen bewirteter Gäste. `slot` zählt in nicheSlots.
+   */
+  extraEffects?: readonly Effect[];
+  /** Merkmale aus Ereignissen (`habitat`), je SUPPLY_PLANT Angebot. */
+  habitats?: readonly Tag[];
+  /** Gattungen bewirteter Gäste: zählen für Gattungsboni, nicht für Erscheinungsbedingungen. */
+  guestGenera?: readonly Genus[];
+}
+
+/** Platz-Wirkung (Nische, Anzahl). */
+export interface SlotBonus {
+  niche: NicheId;
+  amount: number;
+}
+
+/** Laufender Zyklus, soweit evaluate ihn braucht (fehlt er, gibt es keine Zusatz-Wirkungen). */
+export type CycleExtras = Partial<Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats'>>;
+
+/** Zusatz-Wirkungen des Zyklus: Zyklus-Boni, aktive Zeit-Boni, Wirkungen bewirteter Gäste. */
+export function cycleEffects(cycle: CycleExtras | undefined): Effect[] {
+  const out: Effect[] = [];
+  if (!cycle) return out;
+  for (const b of cycle.bonuses ?? []) out.push(b.effect);
+  for (const t of cycle.timed ?? []) if (t.remaining > 0) out.push(t.effect);
+  for (const v of cycle.visitors ?? []) {
+    const visitor = VISITORS_BY_ID.get(v.id);
+    if (visitor && v.remaining > 0) out.push(...visitor.effects);
+  }
+  return out;
+}
+
+/** Zusätzliche Plätze aus Zyklus-Boni (z. B. Sturmnacht: +1 Höhlen & Totholz). */
+export function cycleSlotBonuses(cycle: CycleExtras | undefined): SlotBonus[] {
+  return slotBonusesOf((cycle?.bonuses ?? []).map((b) => b.effect));
+}
+
+/** Platz-Wirkungen unter den Zusatz-Wirkungen. */
+function slotBonusesOf(effects: readonly Effect[]): SlotBonus[] {
+  const out: SlotBonus[] = [];
+  for (const e of effects) if (e.kind === 'slot') out.push({ niche: e.niche, amount: e.amount });
+  return out;
+}
+
+/** Das Ökosystem eines Spielstands (mit Ereignis-Boni und Gästen), optional mit geänderten Feldern. */
+export function ecosystemOf(
+  state: Pick<GameState, 'stage' | 'niches' | 'plants' | 'meta'> & { cycle?: CycleExtras },
+  patch: Partial<Pick<Ecosystem, 'niches' | 'plants'>> = {},
+): Ecosystem {
+  const genera: Genus[] = [];
+  for (const v of state.cycle?.visitors ?? []) {
+    const visitor = VISITORS_BY_ID.get(v.id);
+    if (visitor && v.remaining > 0) genera.push(visitor.genus);
+  }
+  return {
+    stage: state.stage,
+    niches: patch.niches ?? state.niches,
+    plants: patch.plants ?? state.plants,
+    forestMemory: state.meta.forestMemory,
+    extraEffects: cycleEffects(state.cycle),
+    habitats: state.cycle?.habitats ?? [],
+    guestGenera: genera,
+  };
 }
 
 export interface AnimalStatus {
@@ -206,14 +272,20 @@ export function slotEffects(sp: Pick<Species, 'effects'>): { niche: NicheId; amo
  * schaffen (Wirkung `slot`, z. B. Borkenkäfer → +1 Höhlen). Solche Plätze öffnen eine
  * geschlossene Nische nur, wenn sie `opensEarly` hat (DESIGN_V2.md, Abschnitt 3).
  */
-export function nicheSlots(stage: number, niches?: Partial<Record<NicheId, readonly string[]>>): Record<NicheId, number> {
+export function nicheSlots(
+  stage: number,
+  niches?: Partial<Record<NicheId, readonly string[]>>,
+  bonus: readonly SlotBonus[] = [],
+): Record<NicheId, number> {
   const slots = {} as Record<NicheId, number>;
   for (const id of NICHE_IDS) slots[id] = NICHES_BY_ID.get(id)!.slots[stage] ?? 0;
-  if (!niches) return slots;
+  if (!niches && bonus.length === 0) return slots;
   const extra = {} as Record<NicheId, number>;
   for (const id of NICHE_IDS) extra[id] = 0;
+  // Plätze aus Ereignissen (Zyklus-Boni) zählen wie die der Tiere (inkl. opensEarly).
+  for (const b of bonus) if (b.niche in extra) extra[b.niche] += finite(b.amount);
   for (const id of NICHE_IDS) {
-    for (const sid of niches[id] ?? []) {
+    for (const sid of niches?.[id] ?? []) {
       const sp = SPECIES_BY_ID.get(sid);
       if (sp) for (const e of slotEffects(sp)) extra[e.niche] += e.amount;
     }
@@ -225,8 +297,12 @@ export function nicheSlots(stage: number, niches?: Partial<Record<NicheId, reado
 }
 
 /** Wie viele Tiere je Nische keinen Platz haben (0, wenn alles passt). */
-export function nicheOverflow(stage: number, niches: Partial<Record<NicheId, readonly string[]>>): Record<NicheId, number> {
-  const slots = nicheSlots(stage, niches);
+export function nicheOverflow(
+  stage: number,
+  niches: Partial<Record<NicheId, readonly string[]>>,
+  bonus: readonly SlotBonus[] = [],
+): Record<NicheId, number> {
+  const slots = nicheSlots(stage, niches, bonus);
   const out = {} as Record<NicheId, number>;
   for (const id of NICHE_IDS) out[id] = Math.max(0, (niches[id]?.length ?? 0) - slots[id]);
   return out;
@@ -316,6 +392,9 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   if (eco.stage >= MAIN_TREE_NUTS_STAGE) addSupply('nuesse', SUPPLY_MAIN_TREE);
   for (const p of plants) for (const t of p.provides) addSupply(t, SUPPLY_PLANT);
   for (const a of animals) for (const t of a.provides) addSupply(t, SUPPLY_ANIMAL);
+  // Merkmale aus Ereignissen (z. B. Totholz nach der Sturmnacht) wie eine Begleitpflanze.
+  for (const t of eco.habitats ?? []) addSupply(t, SUPPLY_PLANT);
+  const extraEffects = eco.extraEffects ?? [];
   const demand = new Map<Tag, number>();
   for (const a of animals) for (const t of a.food) demand.set(t, (demand.get(t) ?? 0) + 1);
 
@@ -329,11 +408,14 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     genusCounts[a.genus]++;
     if (hasAbility(a, 'countsAsBird')) genusCounts[COUNTS_AS_GENUS]++;
   }
+  // Bewirtete Gäste zählen für die Gattungsboni.
+  for (const g of eco.guestGenera ?? []) if (g in genusCounts) genusCounts[g]++;
 
   // Sonnig: Licht, das nach allen Begleitpflanzen frei bleibt (Tier-Lichtboni zählen voll).
   let openLight = stage.light;
   for (const p of plants) openLight -= p.light;
   for (const a of animals) for (const e of a.effects) if (e.kind === 'light') openLight += e.amount;
+  for (const e of extraEffects) if (e.kind === 'light') openLight += e.amount;
   const sunny = openLight >= SUNNY_MIN_LIGHT;
   const shady = groupCount.trees >= SHADY_MIN_TREES;
 
@@ -440,6 +522,8 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
       for (const e of a.effects) if (e.kind === 'light') light += e.amount * z * (FEAR_LIGHT_FACTOR - 1);
     }
   }
+  // Ereignis-Boni und Gäste wirken voll (Faktor 1, wie Lebensgemeinschaften).
+  for (const e of extraEffects) apply(e, 1);
   const traitTiers = {} as Record<Genus, number>;
   for (const g of GENERA) {
     const tier = TRAIT_THRESHOLDS.filter((t) => genusCounts[g] >= t).length;
@@ -542,7 +626,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     communities,
     animals: status,
     avgHappiness,
-    slots: nicheSlots(eco.stage, eco.niches),
+    slots: nicheSlots(eco.stage, eco.niches, slotBonusesOf(extraEffects)),
     genusCounts,
     traitTiers,
     growthBonus,
@@ -572,14 +656,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
 export function evaluate(state: GameState): Readonly<Evaluation> {
   const key = ecosystemKey(state);
   if (cache && cache.key === key) return cache.value;
-  const value = deepFreeze(
-    evaluateEcosystem({
-      stage: state.stage,
-      niches: state.niches,
-      plants: state.plants,
-      forestMemory: state.meta.forestMemory,
-    }),
-  );
+  const value = deepFreeze(evaluateEcosystem(ecosystemOf(state)));
   cache = { key, value };
   return value;
 }
@@ -595,9 +672,19 @@ function deepFreeze<T>(value: T): T {
 
 let cache: { key: string; value: Evaluation } | null = null;
 
+/**
+ * Cache-Schlüssel: alles, was die Auswertung ändert – auch Zyklus-Boni, Habitate, aktive
+ * Zeit-Boni und Gäste (ihre IDs bzw. Wirkungen, nicht die Restdauer).
+ */
 function ecosystemKey(state: GameState): string {
   let key = `${state.stage}|${state.meta.forestMemory}|${(state.plants ?? []).join(',')}`;
   for (const id of NICHE_IDS) key += `|${(state.niches[id] ?? []).join(',')}`;
+  const c = state.cycle;
+  if (c) {
+    key += `|h:${(c.habitats ?? []).join(',')}|v:${(c.visitors ?? []).map((v) => v.id).join(',')}`;
+    if ((c.bonuses ?? []).length > 0) key += `|b:${JSON.stringify(c.bonuses.map((b) => b.effect))}`;
+    if ((c.timed ?? []).length > 0) key += `|t:${JSON.stringify(c.timed.map((t) => t.effect))}`;
+  }
   return key;
 }
 
@@ -619,13 +706,14 @@ export interface AppearsContext {
   genera: Readonly<Record<Genus, number>>;
 }
 
-export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants'>): AppearsContext {
+export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants' | 'habitats'>): AppearsContext {
   const animals = speciesIn({ ...eco, forestMemory: 0 });
   const plants = plantsIn({ ...eco, forestMemory: 0 });
   const tags = new Set<Tag>(MAIN_TREE_TAGS);
   if (eco.stage >= MAIN_TREE_NUTS_STAGE) tags.add('nuesse');
   for (const p of plants) for (const t of p.provides) tags.add(t);
   for (const a of animals) for (const t of a.provides) tags.add(t);
+  for (const t of eco.habitats ?? []) tags.add(t);
   const groups: Record<PlantGroup, number> = { trees: 1, shrubs: 0, flowers: 0, mosses: 0 };
   for (const p of plants) groups[p.group]++;
   const genera = {} as Record<Genus, number>;
@@ -644,7 +732,7 @@ export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants
  * `eco` darf ein vorberechneter Kontext (appearsContext) sein.
  */
 export function speciesAppears(
-  eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants'> | AppearsContext,
+  eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants' | 'habitats'> | AppearsContext,
   sp: Pick<Species, 'appears'>,
 ): boolean {
   if (!sp.appears || sp.appears.length === 0) return true;
@@ -765,6 +853,7 @@ export function cardStatus(state: GameState, encounterIndex: number, cardIndex: 
   const encounter = state.pendingEncounters[encounterIndex];
   const id = encounter?.cards[cardIndex];
   if (encounter === undefined || id === undefined) return 'invalid';
+  if (encounter.type === 'event' || encounter.type === 'visitor') return 'invalid';
   if (encounter.type === 'plant') {
     const plant = PLANTS_BY_ID.get(id);
     if (!plant) return 'invalid';
@@ -776,7 +865,7 @@ export function cardStatus(state: GameState, encounterIndex: number, cardIndex: 
   const sp = SPECIES_BY_ID.get(id);
   if (!sp) return 'invalid';
   if (hasSpecies(state, sp.id)) return 'present';
-  const slots = nicheSlots(state.stage, state.niches)[sp.niche];
+  const slots = nicheSlots(state.stage, state.niches, cycleSlotBonuses(state.cycle))[sp.niche];
   if (slots <= 0) return 'closed';
   return (state.niches[sp.niche]?.length ?? 0) < slots ? 'free' : 'full';
 }
@@ -869,12 +958,7 @@ export function previewChoice(
 ): Evaluation | null {
   const outcome = resolveChoice(state, encounterIndex, cardIndex, replaceId);
   if (!outcome.ok) return null;
-  return evaluateEcosystem({
-    stage: state.stage,
-    niches: outcome.niches,
-    plants: outcome.plants,
-    forestMemory: state.meta.forestMemory,
-  });
+  return evaluateEcosystem(ecosystemOf(state, { niches: outcome.niches, plants: outcome.plants }));
 }
 
 /**
@@ -885,7 +969,7 @@ export function previewChoice(
 export function previewPlant(state: GameState, plantId: string): Evaluation | null {
   const plants = plantsAfterChoice(state, plantId);
   if (!plants) return null;
-  return evaluateEcosystem({ stage: state.stage, niches: state.niches, plants, forestMemory: state.meta.forestMemory });
+  return evaluateEcosystem(ecosystemOf(state, { plants }));
 }
 
 /**
@@ -921,7 +1005,7 @@ export function plantsAfterChoice(
  * Prüft nicht, ob die Art schon lebt oder die Nische offen ist (siehe cardStatus).
  */
 export function nichesAfterChoice(
-  state: Pick<GameState, 'stage' | 'niches'>,
+  state: Pick<GameState, 'stage' | 'niches'> & { cycle?: CycleExtras },
   speciesId: string,
   replaceSpeciesId?: string,
 ): Record<NicheId, string[]> | null {
@@ -936,8 +1020,9 @@ export function nichesAfterChoice(
   } else {
     occupants.push(sp.id);
   }
-  const before = nicheOverflow(state.stage, state.niches);
-  const after = nicheOverflow(state.stage, niches);
+  const bonus = cycleSlotBonuses(state.cycle);
+  const before = nicheOverflow(state.stage, state.niches, bonus);
+  const after = nicheOverflow(state.stage, niches, bonus);
   return NICHE_IDS.every((id) => after[id] <= before[id]) ? niches : null;
 }
 
@@ -945,6 +1030,29 @@ function copyNiches(niches: Partial<Record<NicheId, readonly string[]>>): Record
   const out = {} as Record<NicheId, string[]>;
   for (const id of NICHE_IDS) out[id] = [...(niches[id] ?? [])];
   return out;
+}
+
+/**
+ * Samenrate, nach der Samen-Sekunden gerechnet werden: ohne Zeit-Boni und ohne Gäste
+ * (sonst ließen sich Samen-Optionen durch vorher gewählte Zeit-Boni aufblähen).
+ * Zyklus-Boni und Habitate zählen mit – sie sind Teil des Ökosystems.
+ */
+export function seedSecondsRate(state: GameState): number {
+  const c = state.cycle;
+  if (!c || ((c.timed ?? []).length === 0 && (c.visitors ?? []).length === 0)) return evaluate(state).seeds;
+  return evaluateEcosystem(ecosystemOf({ ...state, cycle: { ...c, timed: [], visitors: [] } })).seeds;
+}
+
+/**
+ * Samen-Sekunden in Samen: Sekunden × Samenrate ohne Zeit-Boni und Gäste
+ * (seedSecondsRate), mindestens SEED_SECONDS_MIN_SEEDS (Ereignisse und Gäste,
+ * DESIGN_V2.md 7.4/7.5). NaN und negative Sekunden zählen als 0; das Ergebnis ist
+ * immer endlich.
+ */
+export function seedSeconds(state: GameState, seconds: number): number {
+  const rate = seedSecondsRate(state);
+  const value = Math.max(0, finite(seconds)) * (Number.isFinite(rate) && rate > 0 ? rate : 0);
+  return Math.min(Number.MAX_VALUE, Math.max(SEED_SECONDS_MIN_SEEDS, value));
 }
 
 /** Samen für „Ablehnen“. */

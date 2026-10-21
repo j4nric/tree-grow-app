@@ -2,6 +2,7 @@ import { SPECIES_BY_ID, type Species } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { thresholdFor } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
+import { chooseEventOption, farewellVisitor, hostVisitor } from '../src/core/tick';
 
 /** Spielstand genau am Anfang einer Stufe, mit diesen Tieren in ihren Nischen. */
 export function stateAt(stage: number, animals: string[] = [], seed = 1): GameState {
@@ -51,4 +52,16 @@ export function fakeSpecies(patch: Partial<Species> & Pick<Species, 'id' | 'nich
     text: '-',
     ...patch,
   };
+}
+
+/**
+ * Löst ein Ereignis oder einen Gast an der Spitze der Warteschlange auf: Ereignis → erste
+ * Option, Gast → bewirten, wenn die Samen reichen, sonst ziehen lassen. Gibt false
+ * zurück, wenn dort eine Tier- oder Pflanzenbegegnung (oder nichts) wartet.
+ */
+export function resolveSpecial(state: GameState): boolean {
+  const type = state.pendingEncounters[0]?.type;
+  if (type === 'event') return chooseEventOption(state, 0, 0).ok;
+  if (type === 'visitor') return hostVisitor(state, 0).ok || farewellVisitor(state, 0).ok;
+  return false;
 }
