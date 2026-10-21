@@ -14,8 +14,9 @@ import type { SyncBase } from './engine';
 import type { Progress } from './policy';
 
 /**
- * Abgleich-Angaben zum lokalen Spielstand: { user, version, pending, save } (version null =
- * keine Grundlage; save = Prüfsumme des gespeicherten Spielstands, zu dem sie gehören).
+ * Abgleich-Angaben zum lokalen Spielstand: { user, version, pending, save, tab } (version null =
+ * keine Grundlage; save = Prüfsumme des gespeicherten Spielstands, zu dem sie gehören; tab =
+ * Kennung des Tabs, der beides geschrieben hat – fehlt bei älteren Einträgen).
  */
 export const BASE_KEY = 'vszw-sync-base';
 /** Übergang (nie veröffentlicht): Besitzer und Grundlage je Konto in eigenen Schlüsseln. */
@@ -56,7 +57,7 @@ export function checksum(text: string): string {
 }
 
 /** Liest die Abgleich-Angaben samt Prüfsumme; kaputte Werte → null. */
-export function parseMeta(raw: string | null): (LocalMeta & { save: string | null }) | null {
+export function parseMeta(raw: string | null): (LocalMeta & { save: string | null; tab: string | null }) | null {
   if (!raw) return null;
   let data: unknown;
   try {
@@ -72,6 +73,7 @@ export function parseMeta(raw: string | null): (LocalMeta & { save: string | nul
     owner: record.user,
     base: version === null ? null : { version, pending: record.pending === true },
     save: typeof record.save === 'string' ? record.save : null,
+    tab: typeof record.tab === 'string' && record.tab !== '' ? record.tab : null,
   };
 }
 
@@ -92,8 +94,11 @@ export function readMeta(storage: Storage): LocalMeta {
   }
 }
 
-/** Schreibt die Angaben zu dem Spielstand mit Prüfsumme `saveHash` (null = keiner bekannt). */
-export function writeMeta(storage: Storage, meta: LocalMeta, saveHash: string | null): void {
+/**
+ * Schreibt die Angaben zu dem Spielstand mit Prüfsumme `saveHash` (null = keiner bekannt);
+ * `tab` = Kennung des schreibenden Tabs (siehe backupOtherTab).
+ */
+export function writeMeta(storage: Storage, meta: LocalMeta, saveHash: string | null, tab?: string): void {
   try {
     if (meta.owner) {
       storage.setItem(
@@ -103,6 +108,7 @@ export function writeMeta(storage: Storage, meta: LocalMeta, saveHash: string | 
           version: meta.base?.version ?? null,
           pending: meta.base?.pending ?? false,
           save: saveHash,
+          ...(tab ? { tab } : {}),
         }),
       );
     } else {
@@ -167,6 +173,8 @@ export type BackupReason =
   | 'before-restore'
   /** Stand vor „Spielstand löschen“ bzw. „Importieren“. */
   | 'before-replace'
+  /** Gespeicherter Stand eines anderen Tabs mit noch nicht gesendeter Aktion, bevor dieser Tab darüber speichert. */
+  | 'other-tab'
   /** Aus den früheren Einzel-Sicherungen übernommen. */
   | 'legacy';
 
@@ -180,6 +188,12 @@ export interface BackupEntry {
   at: number;
   reason: BackupReason;
   progress: Progress | null;
+  /**
+   * Nur bei 'other-tab': Tab, dessen Stand das ist. Je Tab gibt es höchstens eine solche
+   * Sicherung (die neuere ersetzt die ältere); der Tab entfernt sie, sobald seine Aktionen
+   * in der Cloud sind.
+   */
+  writer?: string;
 }
 
 /** Höchstens so viele Sicherungen … */
@@ -194,6 +208,7 @@ const REASONS: readonly BackupReason[] = [
   'before-take',
   'before-restore',
   'before-replace',
+  'other-tab',
   'legacy',
 ];
 
@@ -214,7 +229,8 @@ function validEntry(value: unknown): value is BackupEntry {
     (e.owner === null || typeof e.owner === 'string') &&
     typeof e.at === 'number' &&
     Number.isFinite(e.at) &&
-    REASONS.includes(e.reason as BackupReason)
+    REASONS.includes(e.reason as BackupReason) &&
+    (e.writer === undefined || typeof e.writer === 'string')
   );
 }
 
@@ -271,11 +287,17 @@ function writeRing(storage: Storage, entries: readonly BackupEntry[]): boolean {
  * wichtigeren). Rückgabe: die ID, null = nicht gesichert.
  */
 export function addBackup(storage: Storage, entry: Omit<BackupEntry, 'id'>): string | null {
-  const entries = readBackups(storage);
+  // Die neue Sicherung eines Tabs ersetzt seine ältere (sein Spiel wächst nur weiter).
+  const entries = readBackups(storage).filter((e) => entry.writer === undefined || e.writer !== entry.writer || e.code === entry.code);
   const same = entries.find((e) => e.code === entry.code);
   if (same) {
     if (backupPriority(entry.reason) > backupPriority(same.reason)) same.reason = entry.reason;
     if (entry.owner !== null && same.owner === null) same.owner = entry.owner;
+    // Eine gewöhnliche Sicherung desselben Stands bleibt – auch wenn der Tab ihn später sendet.
+    if (entry.writer === undefined && same.writer !== undefined) {
+      delete same.writer;
+      if (same.reason === 'other-tab') same.reason = entry.reason;
+    }
     same.at = entry.at;
     writeRing(storage, entries);
     return same.id;
@@ -296,6 +318,47 @@ export function addBackup(storage: Storage, entry: Omit<BackupEntry, 'id'>): str
     entries.splice(index, 1);
   }
   return id;
+}
+
+/**
+ * Bevor ein Tab den gemeinsamen Spielstand überschreibt: Stammt der gespeicherte Stand von
+ * einem anderen Tab (Angaben nicht zu `savedHash`, dem zuletzt hier gespeicherten) und könnte
+ * er Aktionen enthalten, die noch nicht in der Cloud sind, wären sie verloren, sobald jener Tab
+ * geschlossen ist (z. B. offline). „Könnte“ heißt: Er gehört zu einem Konto und hat laut seinen
+ * Angaben eine offene Aktion, keine bekannte Grundlage (z. B. nach einem Absturz) oder Angaben,
+ * die nicht zu ihm passen. Dann diesen Stand als 'other-tab' sichern – je Tab nur die neueste.
+ * Rein lokale Stände (keine Angaben) bleiben wie bisher. Rückgabe: false = es gab so einen
+ * Stand, er ließ sich aber nicht sichern.
+ */
+export function backupOtherTab(
+  storage: Storage,
+  savedHash: string | null,
+  now: number,
+  progressOf: (code: string) => Progress | null,
+): boolean {
+  try {
+    const meta = parseMeta(storage.getItem(BASE_KEY));
+    // Schneller Weg (Normalfall): keine Angaben oder die zum eigenen, zuletzt gespeicherten Stand.
+    if (!meta || (meta.save !== null && meta.save === savedHash)) return true;
+    const code = storage.getItem(SAVE_KEY);
+    if (code === null) return true;
+    const hash = checksum(code);
+    if (hash === savedHash) return true;
+    const paired = meta.save === hash;
+    if (paired && meta.base && !meta.base.pending) return true;
+    const writer = paired && meta.tab ? meta.tab : `save-${hash}`;
+    return addBackup(storage, { code, owner: meta.owner, at: now, reason: 'other-tab', progress: progressOf(code), writer }) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** Die 'other-tab'-Sicherungen von `writer` entfernen (seine Aktionen sind jetzt in der Cloud). */
+export function dropWriterBackups(storage: Storage, writer: string): void {
+  const entries = readBackups(storage);
+  const rest = entries.filter((e) => e.writer !== writer);
+  if (rest.length === entries.length) return;
+  writeRing(storage, rest);
 }
 
 /**

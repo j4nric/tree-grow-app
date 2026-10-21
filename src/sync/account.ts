@@ -29,6 +29,8 @@ export interface AccountController {
   markAction(): void;
   /** Sofort pushen (Seite wird verborgen oder verlassen). */
   flush(): void;
+  /** Gleich wird der Spielstand gespeichert (main.ts persist). */
+  beforePersist(): void;
   /** Der Spielstand `raw` wurde eben gespeichert (main.ts persist). */
   persisted(raw: string): void;
   /** Speicher voll: eine Sicherung weichen lassen. false = keine mehr. */
@@ -104,6 +106,7 @@ export function startAccount(options: AccountOptions): AccountController {
   return {
     markAction: () => core?.markAction(),
     flush: () => void core?.flush(),
+    beforePersist: () => core?.beforePersist(),
     persisted: (raw) => core?.persisted(raw),
     makeRoom: () => core?.makeRoom() ?? false,
     backupCurrent: () => void core?.backupCurrent(),

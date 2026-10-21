@@ -13,7 +13,9 @@ import type { Progress } from './policy';
 import { SAVE_KEY } from '../core/save';
 import {
   addBackup,
+  backupOtherTab,
   checksum,
+  dropWriterBackups,
   dropOneBackup,
   migrateLegacyBackups,
   migrateLegacyMeta,
@@ -107,6 +109,11 @@ export interface AccountCore {
   /** Angebotene Sicherungen (angemeldet nur die eigenen und rein lokalen), neueste zuerst. */
   backups(): BackupEntry[];
   restore(id: string): string | null;
+  /**
+   * Gleich wird der Spielstand gespeichert: Liegt dort der Stand eines anderen Tabs mit noch
+   * nicht gesendeter Aktion, wird er vorher gesichert (backupOtherTab).
+   */
+  beforePersist(): void;
   /** Der Spielstand `raw` wurde eben gespeichert: Abgleich-Angaben dazu schreiben (gleicher Takt). */
   persisted(raw: string): void;
   /** Speicher voll: eine Sicherung weichen lassen, damit der Spielstand passt. false = keine mehr. */
@@ -156,12 +163,32 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
   })();
 
   /**
+   * Kennung dieses Tabs (je Laden der Seite neu) in den Abgleich-Angaben: Ein anderer Tab, der
+   * über einen Stand mit offener Aktion speichern will, sichert ihn vorher unter dieser Kennung.
+   */
+  const tabId = deps.newDeviceId();
+
+  /**
    * Abgleich-Angaben schreiben – nie aus einem angehaltenen Tab. Mit der Prüfsumme des zuletzt
    * hier gespeicherten Spielstands: Hat inzwischen ein anderer Tab gespeichert oder scheiterte
    * das Speichern, passt sie nicht, und die Grundlage gilt beim Lesen nicht.
    */
   function writeMemory(): void {
-    if (!stale) writeMeta(storage, memory, savedHash);
+    if (stale) return;
+    // Ohne neuen Spielstand (Aktion vormerken, Abmelden): Die Angaben liegen sonst über dem
+    // Spielstand eines anderen Tabs, den beforePersist dann nicht mehr als fremd erkennt.
+    guardOtherTab();
+    writeMeta(storage, memory, savedHash, tabId);
+  }
+
+  /**
+   * Liegt im gemeinsamen Speicher der Stand eines anderen Tabs mit möglicherweise noch nicht
+   * gesendeter Aktion, ihn sichern, bevor dieser Tab darüber schreibt. Scheitert die Sicherung
+   * (Speicher voll), wird trotzdem gespeichert: Der laufende Wald geht vor (wie beim
+   * Platzmachen für den Spielstand).
+   */
+  function guardOtherTab(): void {
+    if (!stale) backupOtherTab(storage, savedHash, deps.clock(), (code) => game.progressOf(code));
   }
 
   function hostFor(account: AccountUser, fresh: boolean): SyncHost {
@@ -195,6 +222,9 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
       saveBase: (base) => {
         ignoreBase = false;
         memory = { owner: account.name, base };
+        // Nichts mehr offen (gesendet bzw. übernommen, Verlorenes liegt dann als 'lost-action'
+        // im Ring): Sicherungen, die andere Tabs von diesem Tab angelegt haben, sind überholt.
+        if (!base.pending) dropWriterBackups(storage, tabId);
         // Spielstand und Angaben zusammen speichern (persisted schreibt die Angaben).
         game.save();
       },
@@ -329,20 +359,20 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
     },
     markAction() {
       if (stale) return;
-      if (engine) {
-        engine.markAction();
-        return;
-      }
-      // Ohne Abgleich (abgemeldet): die Änderung für das Konto des Stands vormerken – beim
-      // nächsten Anmelden wird sie gesendet bzw. vor dem Übernehmen gesichert.
+      // Angemeldet und abgeglichen: Der Abgleich merkt die Aktion vor (saveBase).
+      engine?.markAction();
+      // Abgemeldet oder noch nicht abgeglichen (z. B. offline neu geladen): die Änderung für das
+      // Konto des Stands vormerken – beim nächsten Abgleich wird sie gesendet bzw. vor dem
+      // Übernehmen gesichert, und andere Tabs sichern den Stand, bevor sie darüber speichern.
       if (memory.base && !memory.base.pending) {
         memory = { owner: memory.owner, base: { version: memory.base.version, pending: true } };
         writeMemory();
       }
     },
+    beforePersist: guardOtherTab,
     persisted(raw) {
       savedHash = checksum(raw);
-      writeMemory();
+      if (!stale) writeMeta(storage, memory, savedHash, tabId);
     },
     makeRoom: () => dropOneBackup(storage),
     backupCurrent() {

@@ -185,6 +185,8 @@ let storageFrozen = false;
 /** Spielstand speichern (außer gesperrt). */
 function persist(): void {
   if (storageFrozen) return;
+  // Offene Aktion eines anderen Tabs im gespeicherten Stand: vorher sichern.
+  account?.beforePersist();
   let raw = saveToStorage(state);
   // Speicher voll: Sicherungen des Konto-Abgleichs weichen lassen – der Spielstand geht vor.
   while (raw === null && account?.makeRoom()) raw = saveToStorage(state);
