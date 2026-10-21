@@ -9,7 +9,7 @@ import {
   REROLL_BASE_COST,
 } from '../src/content/encounters';
 import { EVENTS, SEED_SECONDS_MIN_SEEDS } from '../src/content/events';
-import { FOREST_MEMORY_BONUS, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
+import { FOREST_MEMORY_BONUS, MEMORY_HARMONY_FULL_AT, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { NICHES } from '../src/content/niches';
 import { PLANT_COST_BASE, PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
@@ -228,6 +228,10 @@ describe('Spielanleitung', () => {
     expect(text('cycle')).toContain(`„${STAGES[NEW_CYCLE_MIN_STAGE]!.name}“`);
     expect(text('cycle')).toContain(`+${formatNumber(FOREST_MEMORY_BONUS * 100)} %`);
     expect(text('cycle')).toContain(`Je ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Punkte`);
+    // Waldgedächtnis-Regel (Schritt 2.11): Einzahl bei 1 Punkt je Art, Bonus voll ab 115.
+    expect(text('cycle')).toContain('1 Punkt je neu entdeckter Art');
+    expect(text('cycle')).toContain(`bis ${formatNumber(MEMORY_HARMONY_FULL_AT)} Harmonie`);
+    expect(MEMORY_HARMONY_FULL_AT).toBe(115);
     // Früchte aller Hauptbaum-Arten (DESIGN_V2.md 17).
     for (const fruit of ['Eichel', 'Buchecker', 'Kiefernsamen']) expect(text('cycle')).toContain(fruit);
     expect(text('seasons')).toContain(`${formatNumber(SEASON_SECONDS / 60)} Minuten`);

@@ -17,6 +17,9 @@ import {
 import {
   FOREST_MEMORY_BONUS,
   MEMORY_HARMONY_DIVISOR,
+  MEMORY_HARMONY_FULL_AT,
+  MEMORY_HARMONY_THRESHOLD,
+  MEMORY_PER_HARMONY_POINT,
   MEMORY_PER_NEW_SPECIES,
   MEMORY_PER_REGULAR_SLOT,
   NEW_CYCLE_MIN_STAGE,
@@ -160,7 +163,7 @@ export function guideSections(): GuideSection[] {
       title: 'Neuer Zyklus, Waldgedächtnis und Stammgäste',
       paragraphs: [
         `Ab der Stufe „${cycleStage}“ kannst du einen Neuen Zyklus beginnen: Aus ${fruitPhrase(firstTree?.id)} wächst ein neuer Baum – später auch aus ${laterFruits}, sobald einmal eine ${laterPlants} in deinem Pflanzring gewachsen ist. Jede Art hat eine kleine Eigenheit. Tiere, Pflanzen und Samen beginnen von vorn; Naturtagebuch, Waldgedächtnis und Stammgäste bleiben.`,
-        `Du bekommst Waldgedächtnis: 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} Punkte deiner höchsten Harmonie in diesem Zyklus und ${formatNumber(MEMORY_PER_NEW_SPECIES)} Punkte je neu entdeckter Art. Jeder Punkt gibt dauerhaft +${pct(FOREST_MEMORY_BONUS)} Wachstum und Samen.`,
+        `Du bekommst Waldgedächtnis: ${MEMORY_PER_NEW_SPECIES === 1 ? '1 Punkt' : `${formatNumber(MEMORY_PER_NEW_SPECIES)} Punkte`} je neu entdeckter Art und 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} Punkte deiner höchsten Harmonie in diesem Zyklus. Höchste Harmonie über ${formatNumber(MEMORY_HARMONY_THRESHOLD)} zählt extra: Jeder Punkt darüber bringt ${formatNumber(MEMORY_PER_HARMONY_POINT)} Punkte mehr, bis ${formatNumber(MEMORY_HARMONY_FULL_AT)} Harmonie. Jeder Punkt gibt dauerhaft +${pct(FOREST_MEMORY_BONUS)} Wachstum und Samen.`,
         `Je ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Punkte Waldgedächtnis darfst du einen Stammgast wählen – eine entdeckte Art, die in jedem Zyklus von selbst einzieht.`,
       ],
     },

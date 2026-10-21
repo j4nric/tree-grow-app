@@ -3,7 +3,15 @@
  * (DESIGN_V2.md, Abschnitt 10). Reine Funktionen ohne DOM – testbar mit Vitest.
  * Die Komponente dazu steht in cycle-panel.ts.
  */
-import { FOREST_MEMORY_BONUS, NEW_CYCLE_MIN_STAGE } from '../content/memory';
+import {
+  FOREST_MEMORY_BONUS,
+  MEMORY_HARMONY_DIVISOR,
+  MEMORY_HARMONY_FULL_AT,
+  MEMORY_HARMONY_THRESHOLD,
+  MEMORY_PER_HARMONY_POINT,
+  MEMORY_PER_NEW_SPECIES,
+  NEW_CYCLE_MIN_STAGE,
+} from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
 import { GENUS_INFO, SPECIES_BY_ID } from '../content/species';
 import { STAGES } from '../content/stages';
@@ -55,6 +63,8 @@ export interface CyclePanelView {
   gain: string | null;
   /** Woraus sich der Gewinn zusammensetzt, z. B. „Höchste Harmonie 96 · 12 neue Arten“. */
   gainDetail: string | null;
+  /** Regel für das Waldgedächtnis (immer sichtbar), siehe MEMORY_RULE_TEXT. */
+  memoryRule: string;
   /** Neue Stammgast-Plätze durch diesen Zyklus, z. B. „+1 Platz für Stammgäste“; sonst null. */
   slotsGain: string | null;
   /** Bestand, z. B. „Waldgedächtnis 30 · +60 % Wachstum und Samen“. */
@@ -114,6 +124,7 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
     blocker: preview.blocker ? newCycleBlockerText(preview.blocker) : null,
     gain: allowed ? `+${formatNumber(preview.memoryGain)} Waldgedächtnis (${memoryBonusLabel(preview.memoryGain)})` : null,
     gainDetail: allowed ? `Höchste Harmonie ${formatNumber(Math.round(preview.maxHarmony))} · ${species}` : null,
+    memoryRule: MEMORY_RULE_TEXT,
     slotsGain: allowed && newSlots > 0 ? (newSlots === 1 ? '+1 Platz für Stammgäste' : `+${newSlots} Plätze für Stammgäste`) : null,
     memory: `Waldgedächtnis ${formatNumber(state.meta.forestMemory)} · ${memoryBonusLabel(state.meta.forestMemory)} Wachstum und Samen`,
     regularSlots: slots,
@@ -140,6 +151,16 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
 export function cycleViewKey(view: CyclePanelView): string {
   return JSON.stringify(view);
 }
+
+/**
+ * Regel für das Waldgedächtnis (Schritt 2.11, content/memory.ts), z. B. „Waldgedächtnis:
+ * 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie über 100 zählt
+ * extra: +3 je Punkt (bis 115).“
+ */
+export const MEMORY_RULE_TEXT =
+  `Waldgedächtnis: 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} Punkte höchster Harmonie` +
+  (MEMORY_PER_NEW_SPECIES === 1 ? ' und je neue Art. ' : ` und ${formatNumber(MEMORY_PER_NEW_SPECIES)} je neue Art. `) +
+  `Höchste Harmonie über ${formatNumber(MEMORY_HARMONY_THRESHOLD)} zählt extra: +${formatNumber(MEMORY_PER_HARMONY_POINT)} je Punkt (bis ${formatNumber(MEMORY_HARMONY_FULL_AT)}).`;
 
 /** Kurze Meldung, wenn „Neuer Zyklus“ gesperrt ist und der genaue Grund fehlt. */
 export const CYCLE_LOCKED_TEXT = `Ein neuer Zyklus ist erst ab der Stufe „${STAGES[NEW_CYCLE_MIN_STAGE]?.name ?? 'Hain'}“ möglich.`;
