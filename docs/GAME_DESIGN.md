@@ -131,7 +131,7 @@ Details, Katalog und Regeln: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 18 (Spiel
 
 - **25 leise Meilensteine** (`src/content/achievements.ts`): Stufen (Setzling, Hain,
   Urwald), Tagebuch (Arten 5/16/alle, alle Gattungen, Pflanzen 5/alle, Lebensgemeinschaften
-  1/5/alle), beste Harmonie 30/60/120, Gäste 1/10, Ereignisse 5, Pflege-Ränge 10, Zyklen
+  1/5/alle), beste Harmonie 30/60/150, Gäste 1/10, Ereignisse 5, Pflege-Ränge 10, Zyklen
   1/3/10, alle Hauptbaum-Arten, ein volles Jahr in einem Zyklus, 10 Stunden Spielzeit.
 - Keine Belohnung in Zahlen, keine Zeitlimits, keine Namen von Unentdecktem.
 - Anzeige: Naturtagebuch, Reiter „Erfolge“ (erreichte mit Beschreibung, offene gedämpft

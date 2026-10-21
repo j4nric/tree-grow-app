@@ -21,6 +21,9 @@ import {
 import type { BrowserContext, Page } from '@playwright/test';
 import { createInitialState } from '../src/core/state';
 
+/** Toast mit genau dem Sammelhinweis der Erfolge nach der Migration v8 → v9 (sonst nichts). */
+const BACKFILLED_ONLY = /^🏅 \d+ Erfolge? nachgetragen – zu finden im Naturtagebuch\.$/;
+
 /**
  * Smoke-Tests für „Vom Samen zum Wald“ (v2-Prototyp: Begegnungen und Kartenwahl).
  * Bedienung: Wartende Begegnungen liegen als Stapel am Rand der Szene; erst ein Klick
@@ -303,8 +306,8 @@ test('ohne Offline-Zeit erscheint keine Willkommens-Meldung', async ({ page, con
   await seedV3(context, { totalGrowth: waypoint(3) + 1 });
   await openGame(page);
   await page.waitForTimeout(300);
-  // Höchstens der Sammelhinweis der Erfolge (v3-Stand, Migration v8 → v9), kein Willkommen.
-  await expect(page.locator('#toast')).not.toContainText('Willkommen');
+  // Nur der Sammelhinweis der Erfolge (v3-Stand, Migration v8 → v9) – kein Willkommen.
+  await expect(page.locator('#toast')).toHaveText(BACKFILLED_ONLY);
 });
 
 test.describe('Mobil (390×844)', () => {
@@ -580,8 +583,8 @@ test('Wegpunkt bei vollem Stapel: dezenter Hinweis mit den Samen dafür', async 
   await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/);
   // Derselbe Hinweis unsichtbar in der Statuszeile (Screenreader) – kein zweiter Toast.
   await expect(page.locator('#live-status')).toHaveText(/Stapel voll – eine Begegnung zog weiter/);
-  // Der Toast zeigt höchstens den Sammelhinweis der Erfolge (v3-Stand, Migration v8 → v9).
-  await expect(page.locator('#toast')).not.toContainText('Stapel voll');
+  // Der Toast zeigt nur den Sammelhinweis der Erfolge (v3-Stand, Migration v8 → v9).
+  await expect(page.locator('#toast')).toHaveText(BACKFILLED_ONLY);
   const saved = await savedState(page);
   expect(saved.pendingEncounters).toHaveLength(3);
   expect(saved.waypoint).toBe(7);
@@ -596,8 +599,8 @@ test('Start 20 s nach dem letzten Speichern, ein Wegpunkt bei vollem Stapel verp
   await seedV3(context, { totalGrowth: waypoint(7) - 30, pendingEncounters: FULL_STACK, lastTickOffsetMs: -20_000 });
   await openGame(page);
   await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/);
-  // Kein Willkommen; der Toast zeigt höchstens den Sammelhinweis der Erfolge (Migration v8 → v9).
-  await expect(page.locator('#toast')).not.toContainText(/Willkommen|Stapel voll/);
+  // Kein Willkommen; der Toast zeigt nur den Sammelhinweis der Erfolge (Migration v8 → v9).
+  await expect(page.locator('#toast')).toHaveText(BACKFILLED_ONLY);
   expect((await savedState(page)).waypoint).toBe(7);
 });
 

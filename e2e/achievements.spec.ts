@@ -5,7 +5,7 @@ import { YEAR_SECONDS } from '../src/content/seasons';
 import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, openGame, savedState, seedRaw, test, waypoint } from './fixtures';
+import { SAVE_VERSION, dialog, expect, openGame, openStack, savedState, seedRaw, stack, test, waypoint } from './fixtures';
 
 /**
  * Erfolge (DESIGN_V2.md 18): Reiter „Erfolge“ im Naturtagebuch, leiser Hinweis beim
@@ -101,6 +101,49 @@ test('Freischalten beim Spielen: leiser Hinweis, bei offenem Tagebuch im Dialog'
   await expect(page.getByRole('tab', { name: /Erfolge/ })).toContainText(`1/${ACHIEVEMENTS.length}`);
   const saved = await savedState(page);
   expect(saved.meta.achievements).toEqual(['full-year']);
+});
+
+test('Begegnungsdialog offen, Stapel voll, Wegpunkt mit Erfolg: beide Hinweise in einem Text', async ({ page, context }) => {
+  await startClock(page);
+  const state = createInitialState(START.getTime(), 4711);
+  // Kurz vor dem Setzling (Wegpunkt 3): Der nächste Wegpunkt bringt Stufe und Erfolg.
+  state.totalGrowth = waypoint(3) - 0.5;
+  state.pendingEncounters = [
+    { type: 'animal', cards: ['bluetit'], rerolls: 0 },
+    { type: 'animal', cards: ['oakmoth'], rerolls: 0 },
+    { type: 'animal', cards: ['robin'], rerolls: 0 },
+  ];
+  await seedRaw(context, state, 0);
+  await openGame(page);
+  await expect(stack(page)).toHaveText(/3 Begegnungen warten/);
+  await openStack(page);
+
+  // In Einzelframes: Der Wegpunkt fällt in tick() eines Frames.
+  await page.clock.runFor(2_000);
+  const notice = dialog(page).getByRole('status');
+  // „Stapel voll …“ wird nicht vom Erfolg verdrängt – beides steht im Hinweis.
+  await expect(notice).toContainText(/Stapel voll – eine Begegnung zog weiter/);
+  await expect(notice).toContainText('🏅 Erfolg: „Ein dünner Stamm“');
+  expect((await savedState(page)).meta.achievements).toEqual(['sapling']);
+});
+
+test('Offenes Tagebuch: Fortschritt der Zeit-Erfolge läuft mit', async ({ page, context }) => {
+  await startClock(page);
+  const state = createInitialState(START.getTime(), 778);
+  state.cycle.elapsed = 118; // knapp 2 Min. von 12 Min. (ein Jahr)
+  await seedRaw(context, state, 0);
+  await openGame(page);
+  await openJournal(page);
+  await page.getByRole('tab', { name: /Erfolge/ }).click();
+  const progress = achievement(page, 'full-year').locator('.journal-progress');
+  const before = await progress.textContent();
+  expect(before).toContain('1 Min.');
+  // Kachel bleibt dieselbe (kein Neubau), nur der Text ändert sich.
+  await achievement(page, 'full-year').evaluate((li) => ((li as HTMLElement & { e2eMark?: boolean }).e2eMark = true));
+  await page.clock.runFor(3_000);
+  await expect(progress).not.toHaveText(before ?? '');
+  await expect(progress).toContainText('2 Min.');
+  expect(await achievement(page, 'full-year').evaluate((li) => (li as HTMLElement & { e2eMark?: boolean }).e2eMark)).toBe(true);
 });
 
 for (const width of [360, 390]) {

@@ -1371,12 +1371,18 @@ Freischalt-Reihenfolge; wird nie zurückgesetzt.
 
 - **Migration v8 → v9:** läuft ganz zuletzt beim Laden (Tagebuch, Statistik und H_max
   stehen dann fest) und schaltet still alles frei, was der Stand schon erfüllt
-  (`checkAchievements`, Reihenfolge wie `ACHIEVEMENTS`). Was frühere Zyklen erreicht haben,
-  der Stand aber nicht mehr zeigt (z. B. eine Stufe vor dem letzten Neuen Zyklus), ist nicht
-  bekannt und kommt beim nächsten Erreichen. Was ein älterer Stand unter `meta.achievements`
-  mitbringt, zählt nicht. `LoadResult.achievementsBackfilled` nennt die Anzahl; die
-  Oberfläche zeigt **eine** Meldung „🏅 N Erfolge nachgetragen“ (auch beim Import) und
-  speichert sofort im neuen Format.
+  (`checkAchievements`, Reihenfolge wie `ACHIEVEMENTS`). Ab Zyklus 2 ist sicher, dass schon
+  einmal die Stufe für den Neuen Zyklus (Hain, `NEW_CYCLE_MIN_STAGE`) erreicht war: Die
+  Prüfung bekommt sie als `minStage` mit – „Ein dünner Stamm“ und „Nicht mehr allein“ kommen
+  dann mit, die Stufe im Spielstand bleibt unverändert. Was frühere Zyklen sonst erreicht
+  haben, der Stand aber nicht mehr zeigt (z. B. Urwald, ein volles Jahr), ist nicht bekannt
+  und kommt beim nächsten Erreichen. Im laufenden Spiel fehlt nichts: `startNewCycle` prüft
+  vor dem Zurücksetzen. Was ein älterer Stand unter `meta.achievements` mitbringt, zählt
+  nicht. `LoadResult.achievementsBackfilled` nennt die Anzahl; die Oberfläche zeigt **eine**
+  Meldung „🏅 N Erfolge nachgetragen – zu finden im Naturtagebuch.“ (auch beim Import) und
+  speichert sofort im neuen Format. Bringt die Offline-Zeit beim Start gleich neue Erfolge,
+  steht beides in einem Satz („🏅 3 Erfolge nachgetragen, dazu neu: „Bunter Saum“ – …“).
+  Test: jede Version v2 … v8 lädt, Nachtrag = Anzahl, zweites Laden trägt nichts nach.
 - **Robustes Laden (ab v9):** nur Zeichenketten, nur bekannte IDs (`ACHIEVEMENTS_BY_ID`),
   Duplikate verworfen, gespeicherte Reihenfolge. Ob ein gespeicherter Erfolg erfüllt ist,
   wird **nicht** geprüft (frühere Zyklen sind nicht nachvollziehbar) – er bleibt.
@@ -3171,7 +3177,8 @@ Inhalte: `src/content/achievements.ts` (reine Daten), Auswertung:
   | `cycleTime` | Spielzeit des laufenden Zyklus (s) | `cycle.elapsed` |
 
   `'all'` folgt den Inhalten (kommen Arten dazu, wächst das Ziel mit). NaN, negative und
-  kaputte Werte zählen als 0.
+  kaputte Werte zählen als 0. Die beste Harmonie zählt **gerundet** wie in der Anzeige
+  (59,5 → 60), Prüfung und Fortschritt gleich.
 - **Monoton:** Während eines Zyklus können alle Werte nur wachsen. Nur `stage` und
   `cycleTime` beginnen beim Neuen Zyklus neu – `startNewCycle` prüft darum **vor** dem
   Zurücksetzen und danach (Zyklen, Baumarten) und gibt die neuen IDs in
@@ -3192,7 +3199,9 @@ Inhalte: `src/content/achievements.ts` (reine Daten), Auswertung:
   Titel, dann „und N weitere“) – über das vorhandene `notify`, also im offenen Dialog
   (Tagebuch, Begegnung, Pflanzenwahl, Spielanleitung) statt als Toast und zusammen mit
   anderen Hinweisen desselben Moments (Lebensgemeinschaft, Jahreszeit, Willkommen, Neuer
-  Zyklus) in **einem** Text.
+  Zyklus) in **einem** Text. Auch Hinweise nach einem Tick (Stapel voll, Stammgäste) gehen
+  bei offenem Dialog mit Jahreszeit und Erfolg in einen Text – sonst würde der letzte die
+  früheren im Hinweisfeld ersetzen. Ohne Dialog schweben sie wie bisher über der Szene.
 
 ### 18.2 Katalog (25 Erfolge)
 
@@ -3212,7 +3221,7 @@ Inhalte: `src/content/achievements.ts` (reine Daten), Auswertung:
 | `community-all` | 🍄 | Alles hängt zusammen | alle Lebensgemeinschaften (9) |
 | `harmony-30` | 🎶 | Lebendiges Gefüge | beste Harmonie ≥ 30 |
 | `harmony-60` | ⚖️ | Im Gleichgewicht | beste Harmonie ≥ 60 |
-| `harmony-120` | ✨ | Vollkommener Einklang | beste Harmonie ≥ 120 |
+| `harmony-150` | ✨ | Vollkommener Einklang | beste Harmonie ≥ 150 |
 | `visitor-1` | 🫖 | Gastfreundschaft | 1 Gast bewirtet |
 | `visitor-10` | 🏡 | Rastplatz für viele | 10 Gäste bewirtet |
 | `events-5` | 🌦️ | Wind und Wetter | 5 Ereignisse entschieden |
@@ -3224,6 +3233,9 @@ Inhalte: `src/content/achievements.ts` (reine Daten), Auswertung:
 | `full-year` | 🗓️ | Ein ganzes Jahr | ein Zyklus erlebt ein volles Jahr (12 min) |
 | `patience` | ⏳ | Geduld der Bäume | 10 Stunden Spielzeit über alle Zyklen |
 
+Harmonie-Fernziel 150 statt 120: 120 fiel in Messungen fast immer schon im ersten Urwald
+(H_max 119–196) und wäre kein Fernziel. (Vor der Auslieferung von v9 umbenannt.)
+
 Neue Erfolge: nur ergänzen, IDs nie umbenennen (sie stehen im Spielstand).
 
 ### 18.3 Darstellung
@@ -3231,5 +3243,7 @@ Neue Erfolge: nur ergänzen, IDs nie umbenennen (sie stehen im Spielstand).
 Naturtagebuch, Reiter „Erfolge“ (vor „Statistik“) mit Zähler „N/25“. Abschnitt „Erreicht“
 (Freischalt-Reihenfolge, Symbol, Titel, Beschreibung, goldener Rand) und „Noch offen“
 (gedämpfte Kacheln wie gesperrte Baumarten, Fortschritt mit Screenreader-Beschriftung
-„Fortschritt 3/5“). Listen über `aria-labelledby` an den Abschnittsüberschriften; Reiter
+„Fortschritt 3/5“). Der Fortschritt der Zeit-Erfolge („Ein ganzes Jahr“, „Geduld der
+Bäume“) läuft bei offenem Tagebuch gedrosselt mit (nur Texte, kein Neubau – er zählt nicht
+zur Signatur). Die Spielanleitung hat einen kurzen Abschnitt „Erfolge“. Listen über `aria-labelledby` an den Abschnittsüberschriften; Reiter
 umbrechen mobil (360/390 px ohne Querscrollen).

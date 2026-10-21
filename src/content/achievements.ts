@@ -70,7 +70,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   // --- Harmonie --------------------------------------------------------------
   { id: 'harmony-30', icon: '🎶', title: 'Lebendiges Gefüge', description: 'Die Harmonie erreicht 30.', condition: { kind: 'stat', key: 'bestHarmony', atLeast: 30 } },
   { id: 'harmony-60', icon: '⚖️', title: 'Im Gleichgewicht', description: 'Die Harmonie erreicht 60.', condition: { kind: 'stat', key: 'bestHarmony', atLeast: 60 } },
-  { id: 'harmony-120', icon: '✨', title: 'Vollkommener Einklang', description: 'Die Harmonie erreicht 120.', condition: { kind: 'stat', key: 'bestHarmony', atLeast: 120 } },
+  { id: 'harmony-150', icon: '✨', title: 'Vollkommener Einklang', description: 'Die Harmonie erreicht 150.', condition: { kind: 'stat', key: 'bestHarmony', atLeast: 150 } },
   // --- Begegnungen und Pflege ------------------------------------------------
   { id: 'visitor-1', icon: '🫖', title: 'Gastfreundschaft', description: 'Ein Gast auf der Durchreise wurde bewirtet.', condition: { kind: 'stat', key: 'visitorsHosted', atLeast: 1 } },
   { id: 'visitor-10', icon: '🏡', title: 'Rastplatz für viele', description: 'Zehn Gäste wurden bewirtet.', condition: { kind: 'stat', key: 'visitorsHosted', atLeast: 10 } },

@@ -13,6 +13,7 @@
  */
 import { el, setText, srOnly } from './dom';
 import type {
+  JournalAchievementProgressView,
   JournalAchievementView,
   JournalCommunityView,
   JournalEntryView,
@@ -34,6 +35,8 @@ export interface JournalDialog {
   update(view: JournalView): void;
   /** Nur die Kennzahlen im Reiter „Statistik“ (tut nichts, wenn der Dialog zu ist). */
   updateStats(stats: readonly JournalStatView[]): void;
+  /** Nur der laufende Fortschritt der Zeit-Erfolge im Reiter „Erfolge“ (nur Texte). */
+  updateAchievementProgress(progress: readonly JournalAchievementProgressView[]): void;
   hide(): void;
   notice(text: string): void;
   readonly open: boolean;
@@ -267,11 +270,23 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     body.append(el('h4', 'journal-name', a.title), el('p', 'journal-facts', a.description));
     if (a.progress) {
       const progress = el('p', 'journal-progress');
-      progress.append(srOnly('Fortschritt '), a.progress);
+      const value = el('span', 'journal-progress-value', a.progress);
+      progress.append(srOnly('Fortschritt '), value);
       body.append(progress);
+      if (a.live) progressValues.set(a.key, value);
     }
     li.append(icon, body);
     return li;
+  }
+
+  /** Laufender Fortschritt der Zeit-Erfolge: Textknoten je Erfolgs-ID (nur Texte tauschen). */
+  const progressValues = new Map<string, HTMLElement>();
+
+  function renderAchievementProgress(progress: readonly { key: string; progress?: string }[]): void {
+    for (const p of progress) {
+      const node = progressValues.get(p.key);
+      if (node && p.progress) setText(node, p.progress);
+    }
   }
 
   // Statistik: Zeilen einmal anlegen, danach nur Texte tauschen.
@@ -319,9 +334,17 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
 
   function render(view: JournalView): void {
     renderStats(view.stats);
-    // Kennzahlen ändern sich laufend – sie zählen nicht zur Signatur (kein Neubau).
-    const next = JSON.stringify({ ...view, stats: null });
-    if (next === signature) return;
+    // Kennzahlen und der Fortschritt der Zeit-Erfolge ändern sich laufend – sie zählen
+    // nicht zur Signatur (kein Neubau), nur ihre Texte werden getauscht.
+    const next = JSON.stringify({
+      ...view,
+      stats: null,
+      achievements: view.achievements.map((a) => (a.live ? { ...a, progress: null } : a)),
+    });
+    if (next === signature) {
+      renderAchievementProgress(view.achievements);
+      return;
+    }
     signature = next;
     const focusKey = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.focusKey : undefined;
 
@@ -357,6 +380,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
       memoryTitle,
       ...list('journal-memories-title', view.keepsakes.map(keepsakeItem), 'Noch keine Erinnerungen – sie halten besondere Momente fest.', true),
     );
+    progressValues.clear();
     const done = view.achievements.filter((a) => a.unlocked);
     const open = view.achievements.filter((a) => !a.unlocked);
     const doneTitle = el('h3', 'journal-section-title', 'Erreicht');
@@ -388,6 +412,10 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
 
   function updateStats(stats: readonly JournalStatView[]): void {
     if (dialog.open) renderStats(stats);
+  }
+
+  function updateAchievementProgress(progress: readonly JournalAchievementProgressView[]): void {
+    if (dialog.open) renderAchievementProgress(progress);
   }
 
   function clearNotice(): void {
@@ -433,6 +461,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     show,
     update,
     updateStats,
+    updateAchievementProgress,
     hide,
     notice,
     get open() {

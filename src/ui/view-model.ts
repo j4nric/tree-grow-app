@@ -466,6 +466,18 @@ export interface JournalAchievementView {
   unlocked: boolean;
   /** Nur offene: Fortschritt, z. B. „3/5“ (fehlt bei Stufen). */
   progress?: string;
+  /**
+   * Nur offene: Der Fortschritt läuft mit der Spielzeit („Ein ganzes Jahr“, „Geduld der
+   * Bäume“). Er zählt nicht zur Signatur des Tagebuchs; der Dialog tauscht nur den Text
+   * (gedrosselt, `JournalDialog.updateAchievementProgress`).
+   */
+  live?: boolean;
+}
+
+/** Laufender Fortschritt eines offenen Zeit-Erfolgs (nur Text tauschen). */
+export interface JournalAchievementProgressView {
+  key: string;
+  progress: string;
 }
 
 /** Eine Kennzahl im Reiter „Statistik“, z. B. Samen „1.234 🌰“. */

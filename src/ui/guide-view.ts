@@ -3,6 +3,7 @@
  * kommen aus content/ bzw. core/ – ändert sich das Balancing, stimmt die Anleitung
  * trotzdem. Getestet in tests/settings.test.ts (Abschnitt „Spielanleitung“).
  */
+import { ACHIEVEMENTS } from '../content/achievements';
 import { CARE, CARE_BY_ID } from '../content/care';
 import { COMMUNITIES } from '../content/communities';
 import {
@@ -213,6 +214,15 @@ export function guideSections(): GuideSection[] {
         `Ab „${careStage}“ steckst du Samen in ${formatNumber(CARE.length)} Pflegemaßnahmen: ${listNames(CARE.map((c) => c.name), 3)}. Jede hat ${span(CARE.map((c) => c.ranks.length))} Ränge, die du nacheinander kaufst – jeder teurer als der vorige, spätere oft erst auf einer höheren Stufe.`,
         `Gekaufte Ränge wirken bis zum Neuen Zyklus und addieren sich. Verkaufen geht nicht – überlege, was dein Wald gerade braucht.`,
         ...exclusions.map((pair) => `${all(pair.map((n) => `„${n}“`))} schließen sich aus: Du kannst nur eine davon pflegen.`),
+      ],
+    },
+    {
+      id: 'achievements',
+      icon: '🏅',
+      title: 'Erfolge',
+      paragraphs: [
+        `${formatNumber(ACHIEVEMENTS.length)} leise Erfolge begleiten dich durch das ganze Spiel: Stufen, Einträge im Naturtagebuch, Harmonie, Gäste, Zyklen und Spielzeit. Du findest sie im Naturtagebuch im Reiter „Erfolge“ – offene mit ihrem Fortschritt.`,
+        'Es gibt keine Eile: Erfolge haben keine Zeitlimits, bringen keine Belohnung in Zahlen und gehen nie verloren, auch nicht beim Neuen Zyklus. Sie kommen ganz von selbst, Schritt für Schritt.',
       ],
     },
   ];

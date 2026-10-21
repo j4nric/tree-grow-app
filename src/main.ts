@@ -46,7 +46,7 @@ import {
   toSceneVisitors,
   toScenePlants,
 } from './ui/adapters';
-import { achievementUnlockedText, achievementsBackfilledText } from './ui/achievement-view';
+import { achievementUnlockedText, achievementsBackfilledText, toAchievementTimeProgress } from './ui/achievement-view';
 import { createBonusPanel } from './ui/bonus-panel';
 import { createCarePanel } from './ui/care-panel';
 import { createCyclePanel } from './ui/cycle-panel';
@@ -478,7 +478,11 @@ function refreshPanel(now: number): void {
   lastPanelRefresh = now;
   panel.update(ecoView);
   // Statistik im Naturtagebuch: Samen, Spielzeit usw. laufen – nur Texte, gedrosselt.
-  if (journal.open) journal.updateStats(toJournalStats(state, evaluate(state)));
+  if (journal.open) {
+    journal.updateStats(toJournalStats(state, evaluate(state)));
+    // Zeit-Erfolge („Ein ganzes Jahr“, „Geduld der Bäume“): Fortschritt nur als Text.
+    journal.updateAchievementProgress(toAchievementTimeProgress(state));
+  }
   // Restzeiten der Boni laufen – gedrosselt wie die Zahlen der Seitenleiste.
   bonusPanel.update(activeBonusViews(state));
   refreshCare();
@@ -520,17 +524,26 @@ function floatSeeds(amount: number): void {
 }
 
 /**
- * Dezenter Hinweis über der Szene nach einem Tick: Wegpunkte ohne Begegnung (nichts
- * Passendes oder Stapel voll; die Samen dafür schweben am Vorrat hoch) und eingezogene
- * Stammgäste – in einem Text, damit sich nichts überdeckt.
+ * Dezenter Hinweis nach einem Tick: Wegpunkte ohne Begegnung (nichts Passendes oder Stapel
+ * voll; die Samen dafür schweben am Vorrat hoch) und eingezogene Stammgäste – in einem
+ * Text, damit sich nichts überdeckt. null, wenn es nichts zu sagen gibt.
  */
-function noteTick(report: TickReport): void {
+function tickNoteText(report: TickReport): string | null {
   const parts: string[] = [];
   if (report.autoDeclined > 0) {
     parts.push(tickDeclineText(report));
   }
   if (report.regulars.length > 0) parts.push(regularsArrivedText(report.regulars));
-  if (parts.length > 0) noteText(parts.join(' '));
+  return parts.length > 0 ? parts.join(' ') : null;
+}
+
+/**
+ * Verdeckt gerade ein Dialog die Szene? Dann landen alle Hinweise über notify im selben
+ * Hinweisfeld – mehrere Hinweise desselben Moments müssen dort zu **einem** Text
+ * zusammengefasst werden, sonst ersetzt der letzte die früheren.
+ */
+function overlayOpen(): boolean {
+  return picker.open || dialog.open || journal.open || !!help?.open;
 }
 
 /**
@@ -539,7 +552,7 @@ function noteTick(report: TickReport): void {
  * sichtbar und für Screenreader erreichbar.
  */
 function noteText(text: string): void {
-  if (picker.open || dialog.open || journal.open || help?.open) {
+  if (overlayOpen()) {
     notify(text);
     return;
   }
@@ -669,7 +682,7 @@ function frame(now: number): void {
     encounterDirty = true;
     ecoDirty = true;
   }
-  noteTick(report);
+  const tickNote = tickNoteText(report);
   let seasonText: string | null = null;
   if (report.seasons.length > 0) {
     // Neue Jahreszeit: Raten ändern sich – Ansichten neu bauen, kurz Bescheid geben.
@@ -689,8 +702,15 @@ function frame(now: number): void {
       ecoDirty = true;
     }
   }
-  const tickText = joinNotes(seasonText, achievementText);
-  if (tickText) notify(tickText);
+  if (overlayOpen()) {
+    // Ein Hinweisfeld im Dialog: alles in einem Text, sonst verdrängt der letzte die übrigen.
+    const text = joinNotes(tickNote, seasonText, achievementText);
+    if (text) notify(text);
+  } else {
+    if (tickNote) noteText(tickNote);
+    const tickText = joinNotes(seasonText, achievementText);
+    if (tickText) notify(tickText);
+  }
 
   if (state.stage !== shownStage) {
     shownStage = state.stage;
@@ -729,17 +749,18 @@ function refreshSeasonBadge(): void {
  * Rechnet die Zeit seit dem letzten Tick nach – beim Start, wenn ein Tab aus dem
  * Hintergrund zurückkehrt (dort pausiert requestAnimationFrame) und nach Ruhezustand.
  */
-function catchUp(extraNotice = ''): void {
+function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   const away = (Date.now() - state.lastTick) / 1000;
   const report = away > MAX_FRAME_SECONDS ? simulateOffline(state, away) : null;
   // Erfolge aus der Offline-Zeit (dieselben wie online, nur auf einmal): ein Hinweis
-  // zusammen mit der Begrüßung bzw. dem Zusatzhinweis.
+  // zusammen mit der Begrüßung bzw. dem Zusatzhinweis – nach der Migration v8 → v9 in
+  // einem Satz mit den nachgetragenen.
   const unlocked = checkAchievements(state);
   if (unlocked.length > 0) {
-    extraNotice = joinNotes(extraNotice, achievementUnlockedText(unlocked));
     saveToStorage(state);
     ecoDirty = true;
   }
+  extraNotice = joinNotes(extraNotice, achievementsBackfilledText(achievementsBackfilled, unlocked));
   if (report) {
     const notice = catchUpNotice(away, report, state.pendingEncounters.length);
     if (notice?.kind === 'welcome') {
@@ -749,7 +770,9 @@ function catchUp(extraNotice = ''): void {
     } else {
       // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.
       const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');
-      if (text) noteText(text);
+      // Im offenen Dialog teilen sich beide Hinweise ein Feld: zusammenfassen.
+      if (text && extraNotice && overlayOpen()) extraNotice = joinNotes(text, extraNotice);
+      else if (text) noteText(text);
     }
     if (report.waypoints > 0 || report.encounters > 0 || report.interludesReached > 0 || report.expired.length > 0) {
       saveToStorage(state);
@@ -776,13 +799,13 @@ function start(): void {
     saveToStorage(state);
     showToast(v1NoticeText(loaded.keepsake));
   }
-  const backfilled = achievementsBackfilledText(loaded?.achievementsBackfilled ?? 0);
-  if (loaded?.memoryReweighted || backfilled) {
+  const backfilled = loaded?.achievementsBackfilled ?? 0;
+  if (loaded?.memoryReweighted || backfilled > 0) {
     // v2–v6-Stand mit Waldgedächtnis bzw. v8-Stand mit nachgetragenen Erfolgen: sofort im
     // aktuellen Format speichern, damit der Hinweis nur einmal kommt.
     saveToStorage(state);
   }
-  catchUp(joinNotes(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled));
+  catchUp(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
 
   resetButton.addEventListener('click', onReset);
   setupSaveTransfer();

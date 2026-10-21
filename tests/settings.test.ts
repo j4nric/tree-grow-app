@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { ACHIEVEMENTS } from '../src/content/achievements';
 import { COMMUNITIES } from '../src/content/communities';
 import { CARE } from '../src/content/care';
 import {
@@ -145,7 +146,7 @@ describe('Spielanleitung', () => {
   const sections = guideSections();
   const text = (id: string) => sections.find((s) => s.id === id)!.paragraphs.join(' ');
 
-  it('12 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
+  it('13 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
     expect(sections.map((s) => s.id)).toEqual([
       'growth',
       'encounters',
@@ -159,6 +160,7 @@ describe('Spielanleitung', () => {
       'events',
       'visitors',
       'care',
+      'achievements',
     ]);
     for (const s of sections) {
       expect(s.soon, s.id).toBeFalsy();
@@ -166,6 +168,15 @@ describe('Spielanleitung', () => {
       expect(s.title.length, s.id).toBeGreaterThan(0);
       expect(s.paragraphs.length, s.id).toBeGreaterThan(0);
     }
+  });
+
+  it('Erfolge: Anzahl aus content, Fundort Naturtagebuch, keine Eile', () => {
+    const t = text('achievements');
+    expect(t).toContain(`${formatNumber(ACHIEVEMENTS.length)} leise Erfolge`);
+    expect(t).toContain('Naturtagebuch');
+    expect(t).toContain('Reiter „Erfolge“');
+    expect(t).toContain('keine Eile');
+    expect(t).toContain('keine Zeitlimits');
   });
 
   it('span: Spanne „a–b“ oder ein Wert, deutsches Zahlenformat', () => {

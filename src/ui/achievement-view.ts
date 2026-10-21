@@ -10,7 +10,7 @@ import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID, type Achievement } from '../content/a
 import { achievementProgress } from '../core/achievements';
 import type { GameState } from '../core/state';
 import { formatDuration, formatNumber } from './format';
-import type { JournalAchievementView } from './view-model';
+import type { JournalAchievementProgressView, JournalAchievementView } from './view-model';
 
 /** Höchstens so viele Titel nennt ein Sammel-Hinweis, danach „und N weitere“. */
 const MAX_NAMED = 3;
@@ -37,11 +37,23 @@ export function achievementUnlockedText(ids: readonly string[] | undefined): str
   return `🏅 ${formatNumber(names.length)} neue Erfolge: ${joinTitles(names)}`;
 }
 
-/** Einmal nach der Migration v8 → v9: „🏅 3 Erfolge nachgetragen“ (null bei 0). */
-export function achievementsBackfilledText(count: number): string | null {
-  if (!(count > 0)) return null;
+/**
+ * Einmal nach der Migration v8 → v9: „🏅 3 Erfolge nachgetragen“ (null bei 0). Kommen beim
+ * Nachrechnen der Offline-Zeit gleich noch Erfolge dazu (`fresh`), steht alles in einem
+ * Satz: „🏅 3 Erfolge nachgetragen, dazu neu: „Bunter Saum“ – zu finden im Naturtagebuch.“
+ */
+export function achievementsBackfilledText(count: number, fresh: readonly string[] = []): string | null {
+  const names = titles(fresh);
+  if (!(count > 0)) return achievementUnlockedText(fresh);
   const n = Math.floor(count);
-  return `🏅 ${formatNumber(n)} ${n === 1 ? 'Erfolg' : 'Erfolge'} nachgetragen – zu finden im Naturtagebuch.`;
+  const extra = names.length === 0 ? '' : names.length === 1 ? `, dazu neu: ${joinTitles(names)}` : `, dazu ${formatNumber(names.length)} neue: ${joinTitles(names)}`;
+  return `🏅 ${formatNumber(n)} ${n === 1 ? 'Erfolg' : 'Erfolge'} nachgetragen${extra} – zu finden im Naturtagebuch.`;
+}
+
+/** Läuft der Fortschritt mit der Spielzeit (ändert sich jede Sekunde)? */
+function isTimed(achievement: Achievement): boolean {
+  const c = achievement.condition;
+  return c.kind === 'cycleTime' || (c.kind === 'stat' && c.key === 'playSeconds');
 }
 
 /** Fortschritt als Text, z. B. „3/5“, „2 Std./10 Std.“; null für Stufen (die Beschreibung genügt). */
@@ -49,12 +61,13 @@ export function progressText(state: GameState, achievement: Achievement): string
   const c = achievement.condition;
   if (c.kind === 'stage') return null;
   const { value, target } = achievementProgress(state, achievement);
-  if (c.kind === 'cycleTime' || (c.kind === 'stat' && c.key === 'playSeconds')) {
+  if (isTimed(achievement)) {
     return `${formatDuration(value)}/${formatDuration(target)}`;
   }
-  // Harmonie und Zähler: ganze Zahlen (Harmonie gerundet wie in der Seitenleiste, aber nie
-  // über dem Ziel, solange es nicht erreicht ist).
-  const shown = c.kind === 'stat' && c.key === 'bestHarmony' ? Math.min(Math.round(value), value < target ? target - 1 : target) : Math.floor(value);
+  // Harmonie und Zähler: ganze Zahlen. Harmonie ist schon gerundet wie in der Seitenleiste
+  // (core/achievements.ts); eine offene Kachel zeigt nie „60/60“ – die Prüfung läuft
+  // gedrosselt und schaltet den Erfolg gleich frei.
+  const shown = c.kind === 'stat' && c.key === 'bestHarmony' ? Math.min(value, target - 1) : Math.floor(value);
   return `${formatNumber(shown)}/${formatNumber(target)}`;
 }
 
@@ -76,7 +89,23 @@ export function toJournalAchievements(state: GameState): JournalAchievementView[
     const view: JournalAchievementView = { key: a.id, icon: a.icon, title: a.title, description: a.description, unlocked: false };
     const progress = progressText(state, a);
     if (progress) view.progress = progress;
+    if (isTimed(a)) view.live = true;
     out.push(view);
+  }
+  return out;
+}
+
+/**
+ * Nur der laufende Fortschritt der offenen Zeit-Erfolge (für das gedrosselte Nachführen im
+ * offenen Tagebuch, ohne die Kacheln neu zu bauen).
+ */
+export function toAchievementTimeProgress(state: GameState): JournalAchievementProgressView[] {
+  const unlocked = new Set(state.meta.achievements);
+  const out: JournalAchievementProgressView[] = [];
+  for (const a of ACHIEVEMENTS) {
+    if (unlocked.has(a.id) || !isTimed(a)) continue;
+    const progress = progressText(state, a);
+    if (progress) out.push({ key: a.id, progress });
   }
   return out;
 }

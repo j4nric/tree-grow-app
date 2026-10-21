@@ -27,6 +27,7 @@ import {
   achievementUnlockedText,
   achievementsBackfilledText,
   progressText,
+  toAchievementTimeProgress,
   toJournalAchievements,
 } from '../src/ui/achievement-view';
 import { stateAt } from './helpers';
@@ -112,6 +113,21 @@ describe('Bedingungen', () => {
     expect(isAchieved(s, byId('ancient-forest'))).toBe(true);
   });
 
+  it('stage: nachweislich erreichte Stufe (minStage) zählt mit, ohne den Stand zu ändern', () => {
+    const s = stateAt(0);
+    expect(isAchieved(s, byId('grove'), { minStage: NEW_CYCLE_MIN_STAGE })).toBe(true);
+    expect(isAchieved(s, byId('ancient-forest'), { minStage: NEW_CYCLE_MIN_STAGE })).toBe(false);
+    // Kaputte Werte zählen nicht; die höhere der beiden Stufen gilt.
+    expect(valueOf(s, byId('sapling').condition, { minStage: Number.NaN })).toBe(0);
+    expect(valueOf(s, byId('sapling').condition, { minStage: -3 })).toBe(0);
+    s.stage = 6;
+    expect(valueOf(s, byId('grove').condition, { minStage: NEW_CYCLE_MIN_STAGE })).toBe(6);
+    s.stage = 0;
+    expect(checkAchievements(s, { minStage: NEW_CYCLE_MIN_STAGE })).toEqual(['sapling', 'grove']);
+    expect(s.stage).toBe(0);
+    expect(checkAchievements(s)).toEqual([]);
+  });
+
   it('journal: Arten, Pflanzen, Gemeinschaften – nur bekannte IDs, je einmal; „alle“', () => {
     const s = createInitialState(0, 1);
     s.meta.journal.species = ['robin', 'robin', 'drache', 'bee', 'mole', 'vole'];
@@ -152,9 +168,22 @@ describe('Bedingungen', () => {
     expect(isAchieved(s, byId('visitor-10'))).toBe(false);
     s.meta.stats.visitorsHosted = 10;
     expect(isAchieved(s, byId('visitor-10'))).toBe(true);
-    s.meta.stats.bestHarmony = 59.99;
+    s.meta.stats.bestHarmony = 59.49;
     expect(isAchieved(s, byId('harmony-30'))).toBe(true);
     expect(isAchieved(s, byId('harmony-60'))).toBe(false);
+    // Gerundet wie in der Anzeige (#42): „59,5“ steht dort als 60 – also erreicht.
+    s.meta.stats.bestHarmony = 59.5;
+    expect(valueOf(s, byId('harmony-60').condition)).toBe(60);
+    expect(isAchieved(s, byId('harmony-60'))).toBe(true);
+    expect(achievementProgress(s, byId('harmony-60'))).toEqual({ value: 60, target: 60 });
+    s.meta.stats.bestHarmony = 149.4;
+    expect(isAchieved(s, byId('harmony-150'))).toBe(false);
+    s.meta.stats.bestHarmony = 149.5;
+    expect(isAchieved(s, byId('harmony-150'))).toBe(true);
+    s.meta.stats.bestHarmony = Number.NaN;
+    expect(valueOf(s, byId('harmony-30').condition)).toBe(0);
+    s.meta.stats.bestHarmony = Number.POSITIVE_INFINITY;
+    expect(isAchieved(s, byId('harmony-150'))).toBe(true);
     s.meta.stats.playSeconds = PATIENCE_SECONDS;
     expect(isAchieved(s, byId('patience'))).toBe(true);
     s.meta.stats.eventsDecided = Number.NaN;
@@ -314,6 +343,46 @@ describe('Spielstand v9', () => {
     expect(again.state).toEqual(loaded.state);
   });
 
+  it('v8 → v9 ab Zyklus 2: Stufen bis Hain kommen mit (Neuer Zyklus setzt Hain voraus)', () => {
+    const s = createInitialState(0, 1);
+    s.cycle.number = 4; // drei abgeschlossene Zyklen, jetzt wieder als Samen
+    const loaded = loadGame(rawV8(s), 0)!;
+    expect(loaded.state.stage).toBe(0); // Stand nicht verfälscht
+    expect(loaded.state.meta.achievements).toEqual(['sapling', 'grove', 'cycle-1', 'cycle-3']);
+    expect(loaded.state.meta.achievements).not.toContain('ancient-forest'); // nicht nachweisbar
+    expect(loaded.achievementsBackfilled).toBe(4);
+    expect(checkAchievements(loaded.state)).toEqual([]);
+    // Erster Zyklus: nur, was der Stand zeigt.
+    const first = loadGame(rawV8(stateAt(1)), 0)!;
+    expect(first.state.meta.achievements).toEqual([]);
+    expect(first.achievementsBackfilled).toBe(0);
+  });
+
+  it('v2 … v8 laden ohne Absturz; Nachtrag = Anzahl, zweites Laden trägt nichts nach', () => {
+    for (let version = 2; version <= 8; version++) {
+      for (const base of [createInitialState(0, 1), groveState(version)]) {
+        base.cycle.number = version % 2 === 0 ? 1 : 3;
+        const text = raw(base, (d) => {
+          d.version = version;
+          delete d.meta.achievements;
+          if (version < 8) delete d.meta.stats;
+        });
+        const loaded = loadGame(text, 0);
+        expect(loaded, `v${version}`).not.toBeNull();
+        const { state, achievementsBackfilled } = loaded!;
+        expect(state.version, `v${version}`).toBe(SAVE_VERSION);
+        expect(achievementsBackfilled, `v${version}`).toBe(state.meta.achievements.length);
+        const again = loadGame(serialize(state), 0)!;
+        expect(again.achievementsBackfilled, `v${version}`).toBe(0);
+        expect(again.state.meta.achievements, `v${version}`).toEqual(state.meta.achievements);
+      }
+      // Minimaler Stand dieser Version (fast alles fehlt).
+      const bare = loadGame(JSON.stringify({ version, totalGrowth: 1e6, lastTick: 1 }), 10);
+      expect(bare, `v${version} minimal`).not.toBeNull();
+      expect(bare!.achievementsBackfilled).toBe(bare!.state.meta.achievements.length);
+    }
+  });
+
   it('v8 mit fremdem `meta.achievements`: zählt nicht', () => {
     const s = createInitialState(0, 1);
     const loaded = loadGame(rawV8(s, (d) => (d.meta.achievements = ['patience', 'cycle-10'])), 0)!;
@@ -377,6 +446,18 @@ describe('Oberfläche: Texte und Naturtagebuch', () => {
     expect(achievementsBackfilledText(7)).toBe('🏅 7 Erfolge nachgetragen – zu finden im Naturtagebuch.');
   });
 
+  it('Sammelhinweis nach der Migration mit neuen Erfolgen aus der Offline-Zeit: ein Satz', () => {
+    expect(achievementsBackfilledText(3, [])).toBe('🏅 3 Erfolge nachgetragen – zu finden im Naturtagebuch.');
+    expect(achievementsBackfilledText(3, ['drache'])).toBe('🏅 3 Erfolge nachgetragen – zu finden im Naturtagebuch.');
+    expect(achievementsBackfilledText(3, ['plants-5'])).toBe('🏅 3 Erfolge nachgetragen, dazu neu: „Bunter Saum“ – zu finden im Naturtagebuch.');
+    expect(achievementsBackfilledText(1, ['sapling', 'grove'])).toBe(
+      '🏅 1 Erfolg nachgetragen, dazu 2 neue: „Ein dünner Stamm“ und „Nicht mehr allein“ – zu finden im Naturtagebuch.',
+    );
+    // Nichts nachgetragen: der gewohnte Hinweis für neue Erfolge.
+    expect(achievementsBackfilledText(0, ['grove'])).toBe('🏅 Erfolg: „Nicht mehr allein“');
+    expect(achievementsBackfilledText(Number.NaN, [])).toBeNull();
+  });
+
   it('Kacheln: erreichte zuerst (Freischalt-Reihenfolge), dann offene mit Fortschritt', () => {
     const s = stateAt(5, ['robin', 'bee', 'earthworm']);
     s.meta.stats.visitorsHosted = 3;
@@ -395,11 +476,29 @@ describe('Oberfläche: Texte und Naturtagebuch', () => {
     expect(at('sapling').progress).toBeUndefined(); // Stufe: keine Zahl
     expect(at('species-5').progress).toBe('3/5');
     expect(at('visitor-10').progress).toBe('3/10');
-    expect(at('harmony-60').progress).toBe('59/60'); // gerundet, aber nie „60/60“ ohne Erfolg
+    expect(at('harmony-60').progress).toBe('59/60'); // 59,7 gerundet 60, aber nie „60/60“ ohne Erfolg
+    s.meta.stats.bestHarmony = 58.6;
+    expect(progressText(s, byId('harmony-60'))).toBe('59/60'); // wie die Anzeige
+    expect(progressText(s, byId('harmony-150'))).toBe('59/150');
     expect(at('patience').progress).toBe('2 Std./10 Std.');
     expect(at('full-year').progress).toBe('0 Sek./12 Min.');
     expect(progressText(s, byId('species-all'))).toBe(`3/${SPECIES.length}`);
     expect(achievementCountText(s)).toBe(`2/${ACHIEVEMENTS.length}`);
+  });
+
+  it('Zeit-Erfolge: laufender Fortschritt außerhalb der Signatur, nur offene', () => {
+    const s = createInitialState(0, 1);
+    s.cycle.elapsed = 90;
+    s.meta.stats.playSeconds = 3 * 3600;
+    const view = toJournalAchievements(s);
+    expect(view.filter((v) => v.live).map((v) => v.key)).toEqual(['full-year', 'patience']);
+    expect(toAchievementTimeProgress(s)).toEqual([
+      { key: 'full-year', progress: '1 Min./12 Min.' },
+      { key: 'patience', progress: '3 Std./10 Std.' },
+    ]);
+    s.meta.achievements = ['patience'];
+    expect(toAchievementTimeProgress(s).map((p) => p.key)).toEqual(['full-year']);
+    expect(toJournalAchievements(s).find((v) => v.key === 'patience')!.live).toBeUndefined();
   });
 
   it('offene Kacheln verraten keine Namen von Unentdecktem', () => {

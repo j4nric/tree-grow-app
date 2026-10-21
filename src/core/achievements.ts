@@ -49,12 +49,21 @@ function knownCount(ids: readonly string[] | undefined, known: ReadonlyMap<strin
   return Array.isArray(ids) ? new Set(ids.filter((id) => known.has(id))).size : 0;
 }
 
+/** Zusätzliches Wissen für die Prüfung, ohne den Spielstand zu verfälschen. */
+export interface AchievementCheckOptions {
+  /**
+   * Stufe, die nachweislich schon erreicht war (z. B. NEW_CYCLE_MIN_STAGE ab Zyklus 2 –
+   * ein Neuer Zyklus setzt diese Stufe voraus). Zählt für `stage` wie die aktuelle Stufe.
+   */
+  minStage?: number;
+}
+
 /** Aktueller Wert einer Bedingung im Spielstand. */
-export function valueOf(state: GameState, condition: AchievementCondition): number {
+export function valueOf(state: GameState, condition: AchievementCondition, options: AchievementCheckOptions = {}): number {
   const journal = state.meta.journal;
   switch (condition.kind) {
     case 'stage':
-      return safe(state.stage);
+      return Math.max(safe(state.stage), safe(options.minStage));
     case 'journal':
       if (condition.what === 'species') return knownCount(journal.species, SPECIES_BY_ID);
       if (condition.what === 'plants') return knownCount(journal.plants, PLANTS_BY_ID);
@@ -67,8 +76,11 @@ export function valueOf(state: GameState, condition: AchievementCondition): numb
       }
       return genera.size;
     }
-    case 'stat':
-      return safe(state.meta.stats[condition.key]);
+    case 'stat': {
+      const value = safe(state.meta.stats[condition.key]);
+      // Harmonie gerundet wie in der Anzeige: „119,6“ steht dort als 120.
+      return condition.key === 'bestHarmony' && Number.isFinite(value) ? Math.round(value) : value;
+    }
     case 'cycles':
       return safe(state.cycle.number - 1);
     case 'trees':
@@ -85,8 +97,8 @@ export function achievementProgress(state: GameState, achievement: Achievement):
 }
 
 /** Ist die Bedingung jetzt erfüllt? (Unabhängig davon, ob der Erfolg schon freigeschaltet ist.) */
-export function isAchieved(state: GameState, achievement: Achievement): boolean {
-  return valueOf(state, achievement.condition) >= targetOf(achievement.condition);
+export function isAchieved(state: GameState, achievement: Achievement, options: AchievementCheckOptions = {}): boolean {
+  return valueOf(state, achievement.condition, options) >= targetOf(achievement.condition);
 }
 
 /** Ist dieser Erfolg schon freigeschaltet? */
@@ -98,15 +110,16 @@ export function hasAchievement(state: GameState, id: string): boolean {
  * Schaltet alle Erfolge frei, deren Bedingung jetzt erfüllt ist, und gibt die neuen IDs
  * zurück (in ACHIEVEMENTS-Reihenfolge). Hängt sie an `meta.achievements` an; schon
  * freigeschaltete bleiben, auch wenn ihre Bedingung nicht mehr gilt (z. B. Stufe nach dem
- * Neuen Zyklus). Deterministisch und idempotent.
+ * Neuen Zyklus). Deterministisch und idempotent. `options.minStage` ergänzt eine schon
+ * nachweislich erreichte Stufe (Nachtragen beim Laden), ohne den Spielstand zu ändern.
  */
-export function checkAchievements(state: GameState): string[] {
+export function checkAchievements(state: GameState, options: AchievementCheckOptions = {}): string[] {
   const unlocked = state.meta.achievements;
   if (unlocked.length >= ACHIEVEMENTS.length) return [];
   const have = new Set(unlocked);
   const fresh: string[] = [];
   for (const a of ACHIEVEMENTS) {
-    if (!have.has(a.id) && isAchieved(state, a)) fresh.push(a.id);
+    if (!have.has(a.id) && isAchieved(state, a, options)) fresh.push(a.id);
   }
   unlocked.push(...fresh);
   return fresh;

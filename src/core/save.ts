@@ -3,7 +3,7 @@ import { CARE } from '../content/care';
 import { COMMUNITIES_BY_ID } from '../content/communities';
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
 import { EVENTS, EVENTS_BY_ID, type CycleEffect, type TimedEffect } from '../content/events';
-import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY, V1_KEEPSAKE_MIN_ENERGY, V1_KEEPSAKE_MIN_STAGE } from '../content/memory';
+import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY, V1_KEEPSAKE_MIN_ENERGY, V1_KEEPSAKE_MIN_STAGE, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { PLANTS_BY_ID } from '../content/plants';
 import { SPECIES_BY_ID } from '../content/species';
 import { NICHE_IDS, type Tag } from '../content/types';
@@ -292,14 +292,17 @@ function migrateV7(state: GameState): void {
 
 /**
  * v8 → v9 (Erfolge, DESIGN_V2.md 18): Alles, was der Stand schon erfüllt, wird still
- * freigeschaltet (Reihenfolge wie ACHIEVEMENTS). Was frühere Zyklen erreicht haben, aber
- * der Stand nicht mehr zeigt (z. B. eine Stufe vor dem letzten Neuen Zyklus), ist nicht
- * bekannt und kommt beim nächsten Erreichen. Was ein älterer Stand unter
+ * freigeschaltet (Reihenfolge wie ACHIEVEMENTS). Ab Zyklus 2 ist sicher, dass schon einmal
+ * die Stufe für den Neuen Zyklus (Hain) erreicht war – die Stufen-Erfolge bis dorthin
+ * kommen darum mit, ohne die Stufe im Spielstand zu ändern. Was frühere Zyklen sonst
+ * erreicht haben, aber der Stand nicht mehr zeigt (z. B. Urwald, ein volles Jahr), ist
+ * nicht bekannt und kommt beim nächsten Erreichen. Was ein älterer Stand unter
  * `meta.achievements` mitbringt, zählt nicht. Gibt die Anzahl zurück.
  */
 function migrateV8(state: GameState): number {
   state.meta.achievements = [];
-  return checkAchievements(state).length;
+  const minStage = state.cycle.number > 1 ? NEW_CYCLE_MIN_STAGE : 0;
+  return checkAchievements(state, { minStage }).length;
 }
 
 /**
