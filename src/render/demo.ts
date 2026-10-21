@@ -29,7 +29,7 @@
  *           pan=1 lässt den Ausschnitt ständig kreisen (misst die Kosten während einer Geste)
  *  vis      Durchreisende, kommagetrennt: cranes,bramblings,hummingbird-moth
  *           (Platz = Reihenfolge); in der Übersicht (gallery=1) immer dabei
- *  pond     1 = Waldtümpel mit Amphibien (ab Stufe Alter Baum: Erdkröte, Grasfrosch, Bergmolch)
+ *  pond     1 = Waldtümpel mit Amphibien (ab Stufe Alter Baum: Erdkröte, Grasfrosch, Bergmolch, Laubfrosch, Kammmolch)
  */
 
 import { animalKinds, SpriteCache } from './animals';
@@ -90,6 +90,8 @@ const BY_NICHE: Record<string, [string, Fam][]> = {
     ['toad', 'amphibians'],
     ['frog', 'amphibians'],
     ['newt', 'amphibians'],
+    ['treefrog', 'amphibians'],
+    ['crestednewt', 'amphibians'],
   ],
 };
 
@@ -102,7 +104,7 @@ const SLOTS: Record<string, number[]> = {
   bark: [0, 0, 0, 1, 2, 2, 3, 3],
   hollows: [0, 0, 0, 0, 1, 2, 2, 3],
   // Waldtümpel: nur mit ?pond=1 (im Spiel durch Pflege oder Ereignis).
-  pond: [0, 0, 0, 0, 3, 3, 3, 3],
+  pond: [0, 0, 0, 0, 4, 4, 4, 4],
 };
 
 const PROTO: [string, Fam, string, number][] = [

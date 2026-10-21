@@ -45,7 +45,8 @@ export type ForcedEncounterType = 'animal' | 'plant';
  *   Erscheinungsbedingungen, z. B. Totholz für den Buntspecht).
  * - `nextEncounter`: Die nächste gezogene Begegnung (nicht festgelegte Wegpunkte) ist
  *   vom Typ `type` und bietet zuerst Karten aus `ids` an – zufällig daraus gezogen
- *   (Zufall des Spielstands), höchstens CARDS_PER_ENCOUNTER. Arten nur, wenn sie
+ *   (Zufall des Spielstands), höchstens FORCED_MAX_CARDS (encounters.ts) – die übrige Karte
+ *   wird normal gezogen, damit eine andere Wahl bleibt. Arten nur, wenn sie
  *   freigeschaltet sind, noch nicht im Ökosystem leben und ihre Nische offen ist
  *   (Seltenheit und Erscheinungsbedingung werden übergangen); Pflanzen nur, wenn sie
  *   freigeschaltet sind. Fehlende Karten werden normal gezogen. Passt keine ID mehr,
@@ -273,7 +274,7 @@ export const EVENTS: readonly GameEvent[] = [
         label: 'Laichplätze schaffen', summary: '+1 Platz Waldtümpel (Zyklus), nächste Begegnung: Amphibien',
         effects: [
           { kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 1 } },
-          { kind: 'nextEncounter', type: 'animal', ids: ['frog', 'newt'] },
+          { kind: 'nextEncounter', type: 'animal', ids: ['frog', 'newt', 'treefrog', 'crestednewt'] },
         ],
       },
     ],

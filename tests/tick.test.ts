@@ -424,7 +424,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
     }).toMatchInlineSnapshot(`
       {
         "communities": [],
-        "harmony": 68.83,
+        "harmony": 75.94,
         "journal": [
           "earthworm",
           "woodlouse",
@@ -436,7 +436,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "oakmoth",
           "flyagaric",
           "bee",
-          "tinder",
+          "fox",
           "woodpecker",
         ],
         "journalPlants": [
@@ -449,7 +449,6 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
         ],
         "niches": {
           "bark": [
-            "tinder",
             "woodpecker",
           ],
           "crown": [
@@ -458,6 +457,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           ],
           "edge": [
             "bee",
+            "fox",
           ],
           "hollows": [],
           "litter": [
@@ -481,9 +481,9 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "hazel",
         ],
         "rngState": 3892806722,
-        "seeds": 34502,
+        "seeds": 35187,
         "stage": 5,
-        "totalGrowth": 142332,
+        "totalGrowth": 145529,
         "waypoint": 20,
       }
     `);

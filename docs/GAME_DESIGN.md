@@ -14,7 +14,7 @@
 > Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus; 15 Ereignisse, davon je Jahreszeit ein
 > eigenes: Spätfrost, Hitzewelle, Laubfall, Schneebruch) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
-> Erweiterung Amphibien mit Waldtümpel (6. Gattung, 3 Arten, eigene Nische; unten);
+> Erweiterung Amphibien mit Waldtümpel (6. Gattung, 5 Arten seit dem Playtest, eigene Nische; unten);
 > Spielstand v11 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
 > verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege;
@@ -46,11 +46,11 @@
 Details, Texte und offene Punkte: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 5.5 (Spielstand
 12.8). Nur Daten in `src/content/` – keine neue Logik.
 
-- **Neue Gattung 🐸 Amphibien** mit Erdkröte, Grasfrosch (gewöhnlich) und Bergmolch
-  (selten), alle ab Alter Baum, alle im **Waldtümpel**. Der Feuersalamander bleibt
-  Bodenleben.
+- **Neue Gattung 🐸 Amphibien** mit Erdkröte, Grasfrosch (gewöhnlich), Bergmolch und
+  – seit dem Playtest unten – Laubfrosch (selten, ab Alter Baum) und Kammmolch (selten,
+  ab Hain), alle im **Waldtümpel**. Der Feuersalamander bleibt Bodenleben.
 - **Neue Nische 🫧 Waldtümpel** ohne Plätze aus der Stufe: Sie öffnet nur durch Pflege
-  „Waldtümpel“ (+2, im Hain +1) oder die Ereignisse „Regenreicher Frühling“ und
+  „Waldtümpel“ (+2, im Hain +2) oder die Ereignisse „Regenreicher Frühling“ und
   „Krötenwanderung“ (je +1). Erst dann kommen Amphibien-Karten.
 - **Jahreszeit:** Frühling = Laichzeit, Amphibien +15 % 😊; neues Frühlings-Ereignis
   🐸 Krötenwanderung (Erdkröte lebt). Winter: Winterstarre und Eis nur in der Grafik.
@@ -60,7 +60,7 @@ Details, Texte und offene Punkte: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 5.5 
 | Zahl (`src/content/`) | vorher | jetzt |
 |---|---|---|
 | 💧 Waldtümpel, Rang 1 (`care.ts`) | Alter Baum, 5.500 🌰: Feuchte, +3 💧 | **7.500 🌰**: Feuchte, +3 💧, **+2 Plätze Waldtümpel** |
-| 💧 Waldtümpel, Rang 2 | Hain, 22.000 🌰: +3 💧, +2 ⚖️ | **22.500 🌰**: +3 💧, +2 ⚖️, **+1 Platz** |
+| 💧 Waldtümpel, Rang 2 | Hain, 22.000 🌰: +3 💧, +2 ⚖️ | **22.500 🌰**: +3 💧, +2 ⚖️, **+1 Platz** (seit dem Playtest **+2 Plätze**) |
 | 🌧️ Regenreicher Frühling, „Waldtümpel“ (`events.ts`) | Feuchte, +3 💧 | Feuchte, +3 💧, **+1 Platz Waldtümpel** |
 | 🌱 Frühling (`seasons.ts`) | +10 % 🌿 | +10 % 🌿, **Amphibien +15 % 😊** |
 | Erdkröte / Grasfrosch / Bergmolch (`species.ts`) | – | Schnecken −40 %, +4 % 🌿 / Insekten −20 %, +5 % 🌰 / Insekten −25 %, +5 % 🌿, +2 ⚖️ |
@@ -71,7 +71,8 @@ Durchgang vor dem Hain (vorher 83 %), und sein 🌰-Bestand beim Hain stieg im C
 10,3–11 Minuten Produktion (Ziel < 10). Mit 7.500 🌰 liegt er wieder darunter. Rang 2
 bleibt ≥ 3 × Rang 1.
 
-**Simulation** (`npm run balance`, 500 Durchgänge, alle Systeme, Eiche):
+**Simulation** (`npm run balance`, 500 Durchgänge, alle Systeme, Eiche; Stand vor dem
+Playtest – die aktuellen Zahlen stehen im nächsten Abschnitt):
 
 | Kennzahl | vorher | jetzt | Ziel |
 |---|---|---|---|
@@ -82,6 +83,46 @@ bleibt ≥ 3 × Rang 1.
 | Amphibien beim Hain (Harmonie / Wachstum / Zufall) | – | 0,5 / 0,1 / 0,5 | – |
 | „Amphibien stapeln“: Hain / ⚖️ | – | 1:07:50 h / 102,1 | nicht schneller und harmonischer als Harmonie |
 | Hain Wachstum/Harmonie, Zyklus 1 / 2 / 3 | 0,870 / 0,977 / 1,022 | 0,869 / 0,996 / 1,003 | ≥ 0,85 / ≥ 0,97 / ≥ 1 (Prüfung im Test) |
+
+### Playtest Amphibien und mittleres Spiel (umgesetzt)
+
+Details, Messung und verworfene Hebel: [`DESIGN_V2.md`](DESIGN_V2.md), 5.5 und 15.4
+(„Stand Playtest Amphibien“). Nur Daten, ein Hinweis-Knopf in der Seitenleiste und zwei
+Zeichnungen – keine neue Logik, kein neues Spielstand-Feld.
+
+**Befund:** Amphibien wurden nicht zu selten *gewählt*, sondern zu selten *angeboten*:
+Der Harmonie-Spieler nahm in 56 % der Begegnungen mit Amphibien-Karte eine Amphibie (bester
+Harmonie-Gewinn +2,7 ⚖️ gegen +2,2 ⚖️ der übrigen Karten), hatte bis zum Urwald aber nur 4,1
+solcher Begegnungen (3 von 35 Arten im Pool, Tümpel erst nach ~51 min offen). Die Gattungsstufe 5 war unerreichbar.
+
+| Zahl (`src/content/`) | vorher | jetzt |
+|---|---|---|
+| 🐸 Laubfrosch (`species.ts`, neu) | – | selten, ab Alter Baum, Waldtümpel; Feuchte, sonnig, 1× Sträucher; jagt Insekten (−20 %), +6 % 🌰, +2 ⚖️ |
+| 🐸 Kammmolch (`species.ts`, neu) | – | selten, ab Hain, Waldtümpel; Feuchte, schattig, Totholz; jagt Schnecken (−30 %), +6 % 🌿, +2 ⚖️ |
+| 💧 Waldtümpel, Rang 2 (`care.ts`) | +1 Platz Waldtümpel | **+2 Plätze** (Pflege zusammen 4) |
+| 🐸 Krötenwanderung, „Laichplätze schaffen“ (`events.ts`) | nächste Begegnung Grasfrosch/Bergmolch | … oder Laubfrosch/Kammmolch |
+
+Sonnenseite (Grasfrosch, Laubfrosch: 🌰) und Schattenseite (Erdkröte, Bergmolch, Kammmolch:
+🌿) – ein Tümpel für alle verlangt einen lichten Wald. Stufe 5 (+12 % 🌿) braucht alle fünf
+Arten und den fünften Platz aus „Regenreicher Frühling“ oder „Krötenwanderung“.
+
+**Simulation** (`npm run balance`, 500 Durchgänge; Amphibien-Kennzahlen mit eigener Auswertung
+der Simulator-Läufe, 500 Durchgänge bis Urwald):
+
+| Kennzahl | vorher | jetzt | Ziel |
+|---|---|---|---|
+| Hain Harmonie / Wachstum / Zufall | 1:03:51 h / 54:31 min / 1:35:33 h | 1:03:51 h / 54:31 min / 1:35:36 h | 55–65 min (Harmonie) |
+| Wald / Urwald (Harmonie) | 1:54:46 h / 2:47:38 h | 1:56:18 h / 2:49:39 h | ~1:40 h / ~2:20 h (±25 %) |
+| ⚖️ beim Hain (Harmonie / Wachstum) | 107,2 / 101,3 | 107,4 / 101,3 | Harmonie vorn |
+| 🌰-Bestand Hain / Wald (Harmonie, min Produktion) | 8,3 / 10,1 | 8,5 / 10,7 | < 10 / < 12 |
+| Begegnungen mit Amphibien-Karte bis Urwald (Harmonie / Wachstum) | 4,1 / 3,9 | 6,3 / 6,4 | – |
+| Amphibien beim Urwald (Harmonie / Wachstum / Zufall) | 2,2 / 1,9 / 2,0 | 3,2 / 2,6 / 2,8 | – |
+| Gattungsstufe 3 / 5 beim Urwald (Harmonie) | 38 % / 0 % | 77 % / 5 % | 5 selten |
+| „Amphibien stapeln“: Hain / ⚖️; Stufe 5 beim Urwald | 1:07:50 h / 102,1; 0 % | 1:07:41 h / 102,3; 24 % | nicht schneller und harmonischer als Harmonie |
+| Hain Wachstum/Harmonie, Zyklus 1 / 2 / 3 | 0,869 / 0,996 / 1,003 | 0,872 / 1,003 / 1,009 | ≥ 0,85 / ≥ 0,97 / ≥ 1 |
+
+**UX:** Die verschlossene Nische Waldtümpel zeigt ab „Alter Baum“ den Knopf „Zur Pflege“ – er
+klappt die (auf dem Handy zugeklappte) Pflege auf und springt zur Maßnahme.
 
 ## Frühes Spiel (Playtest, v2, umgesetzt)
 

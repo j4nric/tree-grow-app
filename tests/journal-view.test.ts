@@ -11,17 +11,17 @@ import { stateAt } from './helpers';
 const allText = (value: unknown) => JSON.stringify(value);
 
 describe('toJournalView (Naturtagebuch)', () => {
-  it('Start: alles unentdeckt, Zähler 0/35 · 0/14 · 0/11, keine Namen und keine IDs', () => {
+  it('Start: alles unentdeckt, Zähler 0/37 · 0/14 · 0/11, keine Namen und keine IDs', () => {
     const state = stateAt(0);
     const view = toJournalView(state, evaluate(state));
-    expect(view.counts).toBe('0/35 Arten · 0/14 Pflanzen · 0/11 Gemeinschaften');
+    expect(view.counts).toBe('0/37 Arten · 0/14 Pflanzen · 0/11 Gemeinschaften');
     expect(view.meta).toBe('Zyklus 1 · Waldgedächtnis 0');
     expect(view.regulars).toBeNull();
     expect(view.species).toHaveLength(SPECIES.length);
     expect(view.plants).toHaveLength(PLANTS.length);
     expect(view.communities).toHaveLength(COMMUNITIES.length);
     expect(view.keepsakes).toEqual([]);
-    expect(view.tabCounts).toEqual({ species: '0/35', plants: '0/14', communities: '0/11', keepsakes: '1', achievements: '0/25', stats: '' });
+    expect(view.tabCounts).toEqual({ species: '0/37', plants: '0/14', communities: '0/11', keepsakes: '1', achievements: '0/25', stats: '' });
 
     const text = allText(view);
     for (const sp of SPECIES) {
@@ -43,7 +43,7 @@ describe('toJournalView (Naturtagebuch)', () => {
     state.meta.journal.plants.push('hazel');
     state.plants = ['hazel'];
     const view = toJournalView(state, evaluate(state));
-    expect(view.counts).toBe('2/35 Arten · 1/14 Pflanzen · 0/11 Gemeinschaften');
+    expect(view.counts).toBe('2/37 Arten · 1/14 Pflanzen · 0/11 Gemeinschaften');
     const tit = view.species.find((e) => e.key === 'bluetit')!;
     expect(tit).toMatchObject({ name: 'Blaumeise', icon: '🐦', family: 'birds', rarity: 'common', discovered: true, present: true });
     expect(tit.facts).toEqual(['Vögel', 'gewöhnlich', 'Nische: Krone']);

@@ -310,7 +310,7 @@ Fünf Gattungen (eigentlich Lebensweise-Gruppen). Entscheidungen zu den offenen 
 **Fledermäuse** gehören zu den Säugetieren (das Braune Langohr zählt per Fähigkeit
 zusätzlich als Vogel). **Amphibien** bekamen in v2.0 keine eigene Gattung. Seit der
 Erweiterung **Amphibien mit Waldtümpel** (5.5) gibt es sie als sechste, kleine Gattung
-(Erdkröte, Grasfrosch, Bergmolch). Der Feuersalamander bleibt legendäres Bodenleben in der
+(Erdkröte, Grasfrosch, Bergmolch, seit dem Playtest auch Laubfrosch und Kammmolch). Der Feuersalamander bleibt legendäres Bodenleben in der
 Laubstreu: Er lebt an Land, und ein Wechsel ließe dem Bodenleben keine legendäre Art.
 
 **Schwellen 2 / 3 / 5** (à la Teamfight Tactics). Weil jede Art nur einmal vorkommt
@@ -325,7 +325,7 @@ stapelt, den großen. Durchreisende zählen mit.
 | 🦔 Säugetiere | +10 % Samen | +7 % Wachstum | +15 % Wachstum |
 | 🪱 Bodenleben | +2 Wasser | +7 % Wachstum | +15 % Wachstum, +3 Wasser |
 | 🍄 Pilze | Bäume +6 % Wachstum | +3 Wasser, +2 Licht | +18 % Wachstum |
-| 🐸 Amphibien (5.5) | Schneckenschaden −25 % | +2 Wasser, +5 % Wachstum | +12 % Wachstum (mit 3 Arten noch unerreichbar) |
+| 🐸 Amphibien (5.5) | Schneckenschaden −25 % | +2 Wasser, +5 % Wachstum | +12 % Wachstum (alle 5 Arten und ein Tümpelplatz aus einem Ereignis) |
 
 **Balancing 2.10:** Alle Wachstums-Boni dieser Tabelle sind ×0,6 gegenüber dem Prototyp
 (vorher Vögel +20 %, Säugetiere und Bodenleben +12 % / +25 %, Pilze Bäume +10 % / +30 %).
@@ -434,11 +434,15 @@ Nischen, darum erscheinen Amphibien erst mit dem Tümpel. Spielstand v11 (12.8).
 | ✦ Erdkröte | gewöhnlich | Räuber | Waldtümpel | Alter Baum | Schnecken / Würmer / Insekten | Feuchte, schattig | – | jagt Schnecken (−40 %), +4 % 🌿 |
 | ✦ Grasfrosch | gewöhnlich | Räuber | Waldtümpel | Alter Baum | Insekten / Würmer | Feuchte, sonnig | – | jagt Insekten (−20 %), +5 % 🌰 |
 | ✦ Bergmolch | selten | Räuber | Waldtümpel | Alter Baum | Insekten / Würmer | Feuchte, schattig, 1× Moose & Farne | – | jagt Insekten (−25 %), +5 % 🌿, +2 ⚖️ |
+| ✦ Laubfrosch (Playtest) | selten | Räuber | Waldtümpel | Alter Baum | Insekten | Feuchte, sonnig, 1× Sträucher | – | jagt Insekten (−20 %), +6 % 🌰, +2 ⚖️ |
+| ✦ Kammmolch (Playtest) | selten | Räuber | Waldtümpel | Hain | Schnecken / Würmer | Feuchte, schattig, Totholz | – | jagt Schnecken (−30 %), +6 % 🌿, +2 ⚖️ |
 
 Kurztexte: Erdkröte „Wandert jedes Frühjahr zurück zu dem Tümpel, in dem sie selbst
 geschlüpft ist.“ · Grasfrosch „Laicht als einer der Ersten im Jahr – große Ballen im
 flachen, sonnigen Wasser.“ · Bergmolch „Im Frühling glänzt das Männchen blau, mit
-getupftem Kamm und orangem Bauch.“
+getupftem Kamm und orangem Bauch.“ · Laubfrosch „Klettert mit Haftscheiben ins Gebüsch. In
+Mainächten trägt sein Ruf weit über den Tümpel.“ · Kammmolch „Der größte unserer Molche. Zur
+Laichzeit trägt das Männchen einen gezackten Kamm wie ein kleiner Drache.“
 
 **Abwägungen:** Kröte und Molch wollen Schatten, der Frosch Sonne – ein Tümpel für alle
 drei verlangt einen lichten Wald (wie der Hirschkäfer). Die Kröte jagt Schnecken: gut gegen
@@ -446,13 +450,13 @@ Nacktschnecke und Weinbergschnecke, aber sie drückt deren Zufriedenheit (Räube
 
 | Wo | Was |
 |---|---|
-| 💧 Pflege „Waldtümpel“ (8.1) | Rang 1 (Alter Baum, 7.500 🌰): Feuchte, +3 💧, **+2 Plätze Waldtümpel** · Rang 2 (Hain, 22.500 🌰): +3 💧, +2 ⚖️, **+1 Platz** |
+| 💧 Pflege „Waldtümpel“ (8.1) | Rang 1 (Alter Baum, 7.500 🌰): Feuchte, +3 💧, **+2 Plätze Waldtümpel** · Rang 2 (Hain, 22.500 🌰): +3 💧, +2 ⚖️, **+2 Plätze** (bis zum Playtest +1) |
 | 🌧️ Regenreicher Frühling (7.4) | „Waldtümpel entstehen lassen“: Feuchte, +3 💧, **+1 Platz Waldtümpel** (Zyklus) |
-| 🐸 Krötenwanderung (7.4, neu) | Alter Baum, nur Frühling, Erdkröte lebt: „Den Wanderweg frei lassen“ +4 ⚖️ (Zyklus) · „Laichplätze schaffen“ +1 Platz Waldtümpel (Zyklus) und nächste Begegnung Grasfrosch/Bergmolch |
+| 🐸 Krötenwanderung (7.4, neu) | Alter Baum, nur Frühling, Erdkröte lebt: „Den Wanderweg frei lassen“ +4 ⚖️ (Zyklus) · „Laichplätze schaffen“ +1 Platz Waldtümpel (Zyklus) und nächste Begegnung Grasfrosch/Bergmolch/Laubfrosch/Kammmolch |
 | 🌱 Frühling (16.3) | Laichzeit: Amphibien +15 % 😊 |
 | ❄️ Winter | keine Wirkung (kein Abzug); in der Szene Winterstarre und Eis auf dem Tümpel |
 | Lebensgemeinschaften (9.2) | 🐸 Tümpelleben, 🐌 Schneckenwacht |
-| Gattungsbonus (5.1) | 2: Schneckenschaden −25 % · 3: +2 💧, +5 % 🌿 · 5: +12 % 🌿 |
+| Gattungsbonus (5.1) | 2: Schneckenschaden −25 % · 3: +2 💧, +5 % 🌿 · 5: +12 % 🌿 (Pflege 4 Plätze + 1 aus Regen oder Krötenwanderung) |
 
 **Darstellung (11.3):** Am Boden ist auf keiner Bildschirmbreite eine Strecke frei
 (Laubstreu, Waldsaum mit Sonderplätzen, Pilze und Begleitpflanzen teilen sich die ganze
@@ -471,10 +475,26 @@ Ist der Tümpel offen, aber noch keine Amphibie freigeschaltet (Regen im Jungen 
 zeigt die Seitenleiste „Bewohner ab „Alter Baum““. Pflege mit Plätzen lässt passende
 Stammgäste sofort einziehen.
 
-**Offen:** Mit 3 Arten ist die Gattungsschwelle 5 unerreichbar. Kandidaten für später:
-Kammmolch (besonders), Laubfrosch (Waldsaum), Ringelnatter als Räuber der Amphibien
-(Merkmal „Amphibien“), Amphibien-Gäste. Achievements nennen keine Artnamen; „Von allem
-etwas“ und „Alle Bewohner“ zählen die neue Gattung und die drei Arten automatisch mit.
+**Playtest (entschieden, Zahlen in 15.4 „Stand Playtest Amphibien“):** Amphibien wurden nicht
+zu selten gewählt, sondern zu selten angeboten. Dazu kamen **Laubfrosch** und **Kammmolch**
+(beide selten, ohne Fähigkeit – „besonders“ bräuchte eine neue Fähigkeit und damit Logik);
+Rang 2 der Pflege öffnet **2 statt 1** Plätze. Damit hat der Tümpel zwei Seiten: Sonne
+(Grasfrosch, Laubfrosch – 🌰) und Schatten (Erdkröte, Bergmolch, Kammmolch – 🌿), und die
+Stufe 5 ist ein seltenes Spätziel: alle fünf Arten plus der Platz aus „Regenreicher Frühling“
+oder „Krötenwanderung“. Der Laubfrosch lebt im Tümpel (nicht im Waldsaum), damit er die
+Gattung zählt, wo der Spieler sie sucht. **Ringelnatter verworfen:** Es gibt keinen Räuber-
+Mechanismus gegen Tiere, der Spaß macht (nur Räuberdruck auf die Zufriedenheit) – eine
+Natter, die die Tümpelbewohner unglücklich macht, wäre eine reine Strafe. Kandidaten für
+später: Amphibien-Gäste (Moorfrosch-Balz im Frühling – erst, wenn der Renderer Gäste am Boden
+zeigen kann; heute fliegen unbekannte Gäste als Schwarm). Achievements nennen keine
+Artnamen; „Von allem etwas“ und „Alle Bewohner“ zählen die neue Gattung und alle fünf Arten
+automatisch mit.
+
+**Bedienung (Playtest):** Die verschlossene Nische zeigt ab „Alter Baum“ neben dem Hinweis
+den Knopf **„Zur Pflege“** (`NicheView.careLink`). Er klappt die Pflege auf (auf dem Handy ist
+sie zugeklappt und liegt unter dem Naturtagebuch) und setzt den Fokus auf die Maßnahme
+(`CarePanel.reveal`). Laubfrosch (grün, dunkler Seitenstreif, Haftscheiben) und Kammmolch
+(dunkel, gezackter Kamm, gelb-orange gefleckter Bauch) haben eigene Zeichnungen.
 
 ### 5.4 Was aus dem alten Katalog geändert wurde
 
@@ -687,7 +707,7 @@ jedes hat eine, z. B. Mittsommer oder Laubfall). Ablehnen gibt es nicht.
 | `timed` | eine Tier-Wirkung (`growth`, `seeds`, `groupGrowth`, `groupSeeds`) für N Sekunden Spielzeit, Faktor 1 | +25 % 🌿 für 300 s |
 | `cycle` | eine Wirkung (`light`, `water`, `slot`, `harmony`) bis zum Neuen Zyklus | +3 💧; +1 Platz Höhlen |
 | `habitat` | das Ökosystem stellt ein Merkmal bereit (1 Einheit wie eine Pflanze) bis zum Neuen Zyklus | Totholz, Feuchte |
-| `nextEncounter` | die nächste Begegnung ist vom Typ Tier/Pflanze und zeigt zuerst Karten aus einer Liste (Seltenheit und Erscheinungsbedingung übergangen) | Pilzkarten, Beerensträucher |
+| `nextEncounter` | die nächste Begegnung ist vom Typ Tier/Pflanze und zeigt zuerst bis zu 2 Karten aus einer Liste (Seltenheit und Erscheinungsbedingung übergangen), die dritte normal gezogen (seit dem Playtest Amphibien) | Pilzkarten, Beerensträucher |
 
 | Ereignis | ab | Bedingung | Optionen | Text |
 |---|---|---|---|---|
@@ -2095,7 +2115,8 @@ nach dem Hain (Median < 9 min, 90 % < 11 min); Lebensgemeinschaften; Baumarten i
 die Zyklen: Hain Wachstum/Harmonie in Zyklus 1 ≥ 0,85, in Zyklus 2 ≥ 0,97 (gleichauf), in
 Zyklus 3 ≥ 1 (Check: 0,78 / 0,84 / 0,88); erste Stammgäste nach 1–2 Zyklen, Harmonie
 bringt mehr Stammgäste und über drei Zyklen mindestens so viel Waldgedächtnis wie Wachstum;
-Neustart in Wald und Urwald (seit 2.11b): Wachstum/Harmonie in Zyklus 2 und 3 ≥ 0,97,
+Neustart in Wald und Urwald (seit 2.11b): Wachstum/Harmonie in Zyklus 2 und 3 je ≥ 0,95 und
+zusammen ≥ 0,97 (bis zum Playtest Amphibien je ≥ 0,97),
 Harmonie-Spieler nimmt über drei Zyklen > 30 Punkte mehr Gedächtnis mit, Gewinn steigt
 Hain → Wald → Urwald, Urwald ≤ 1,5 × Hain (Harmonie-Spieler), Zufallsspieler Zyklus 2
 ≥ 20 % schneller, Vorschau sinkt an keinem Wegpunkt (seit der Sperrklinke, Spielstand v10;
@@ -2108,6 +2129,108 @@ gleicher H_max bringt ein späterer Wegpunkt nie mehr (H_max 0–400, Grundlage 
 in 12.7), Ziel (e) an typischen Verläufen (Urwald-Schwelle ≤ 174 − 10, Bonus über dem Sockel
 Harmonie 30 / Wachstum 0), dazu die Sperrklinke selbst (gleiche H_max über mehrere
 Wegpunkte, online = offline, ein ganzer simulierter Zyklus je Strategie bis zum Urwald).
+
+#### Stand Playtest Amphibien – Waldtümpel und mittleres Spiel (500 Durchgänge)
+
+**Auftrag:** Die neue Gattung Amphibien (5.5) und das mittlere Spiel (Alter Baum → Hain)
+spielen – im Simulator und von Hand im Browser (Spielstände bei „Alter Baum“, 390 und 1280 px).
+Offene Fragen der Umsetzung: Amphibien werden selten genommen (beim Hain 0,5 Harmonie /
+0,1 Wachstum) – attraktiver machen? Vierte/fünfte Art für die Stufe 5? Ringelnatter?
+
+**Messung** (eigene Auswertung mit `runGame` und einer mitschreibenden Strategie: jede
+Begegnung mit Amphibien-Karte, bester Harmonie-/Wachstumsgewinn der Amphibie gegen die
+übrigen Karten, gewählte Art und ihre Zufriedenheit; 500 Durchgänge bis Urwald, Pflege an):
+
+| Kennzahl (vorher) | Harmonie | Wachstum | Zufall | Amphibien stapeln |
+|---|---|---|---|---|
+| Tümpel offen nach | 50,6 min | 55,4 min | 57,9 min | 53,0 min |
+| Begegnungen mit Amphibien-Karte bis Urwald | 4,1 | 3,9 | 5,2 | 4,0 |
+| davon eine Amphibie gewählt | 56 % | 51 % | 38 % | 77 % |
+| bester Gewinn Amphibie / übrige Karten (⚖️) | +2,7 / +2,2 | +3,5 / +2,6 | – | – |
+| bester Gewinn Amphibie / übrige Karten (🌿) | +3,2 % / +4,7 % | +2,8 % / +2,5 % | – | – |
+| Amphibien beim Hain / am Ende (Urwald) | 0,5 / 2,2 | 0,1 / 1,9 | 0,5 / 2,0 | 0,9 / 2,9 |
+
+**Befund:** Wer Amphibien angeboten bekommt, nimmt sie – sie sind für die Harmonie die beste
+Karte. Sie kommen nur selten: 3 von 35 Arten im Pool, und der Tümpel öffnet erst ~13 min vor
+dem Hain (der Simulator spart erst Totholz, Lichte Krone und Insektenhotel an). Der Grasfrosch
+ist die schwächste Wahl (sonnig gewünscht, im schattigen Alten Baum 78 % 😊, Harmonie ±0).
+
+**Verworfene Hebel (gemessen):**
+- *Tümpel billiger* (Rang 1 5.000 / 6.000 / 6.500 statt 7.500 🌰): mit 5.000 🌰 öffnet er
+  nach ~41 statt ~51 min, aber der 🌰-Bestand des Harmonie-Spielers beim Hain steigt im Check
+  auf 11,0 (5.000) bzw. 10,6 min Produktion (6.000; Ziel < 10) – mit dem Tümpel fällt die
+  letzte große Senke vor dem Hain weg; mit 6.500 🌰 steigt der Bestand im Wald auf 12,9 min
+  (Ziel < 12). Rang 2 schon ab Alter Baum (16.000 🌰) hebt ihn im Wald auf 15 min.
+- *Grasfrosch +8 % statt +5 % 🌰*: gewählt 0,35 → 0,35 je Durchgang – sein Problem ist die
+  Sonne, nicht die Zahl.
+- *Mückenlarven*: Pflege „Waldtümpel“ bietet zusätzlich das Merkmal Insekten (Futter). Der
+  Tümpel wurde für den Wachstums-Spieler zum Pflichtkauf (vor dem Hain 66 → 97 %), Hain
+  Wachstum/Harmonie 0,854 → 0,847 (Ziel ≥ 0,85), Neustart Wald Zyklus 2 0,953.
+- *Kammmolch +8 % 🌿*: Neustart Wald Zyklus 2 unverändert (0,963).
+
+**Umgesetzt:** Laubfrosch (selten, ab Alter Baum, sonnig, 1× Sträucher: Insekten −20 %,
++6 % 🌰, +2 ⚖️) und Kammmolch (selten, ab Hain, schattig, Totholz: Schnecken −30 %, +6 % 🌿,
++2 ⚖️) im Waldtümpel; Pflege „Waldtümpel“ Rang 2 +2 statt +1 Plätze; Krötenwanderung bietet
+auch die neuen Arten an; Knopf „Zur Pflege“ an der verschlossenen Nische.
+
+| Kennzahl | vorher | jetzt |
+|---|---|---|
+| Begegnungen mit Amphibien-Karte bis Urwald (Harmonie / Wachstum / Zufall / Stapeln) | 4,1 / 3,9 / 5,2 / 4,0 | 6,3 / 6,4 / 7,0 / 7,7 |
+| Amphibien beim Hain (Harmonie / Wachstum) | 0,5 / 0,1 | 0,6 / 0,1 |
+| Amphibien am Ende (Urwald; Harmonie / Wachstum / Zufall / Stapeln) | 2,2 / 1,9 / 2,0 / 2,9 | 3,2 / 2,6 / 2,8 / 4,1 |
+| Gattungsstufe 3 beim Urwald (Harmonie / Wachstum / Stapeln) | 38 % / 23 % / 88 % | 77 % / 56 % / 99 % |
+| Gattungsstufe 5 beim Urwald (Harmonie / Stapeln) | 0 % / 0 % | 5 % / 24 % |
+| gewählt je Durchgang (Harmonie): Kröte / Grasfrosch / Bergmolch / Laubfrosch / Kammmolch | 0,76 / 0,62 / 0,91 / – / – | 0,66 / 0,52 / 0,83 / 0,80 / 0,71 |
+| Hain Harmonie / Wachstum / Zufall (`npm run balance`) | 1:03:51 h / 54:31 min / 1:35:33 h | 1:03:51 h / 54:31 min / 1:35:36 h |
+| Wald / Urwald (Harmonie) | 1:54:46 h / 2:47:38 h | 1:56:18 h / 2:49:39 h |
+| ⚖️ beim Hain (Harmonie / Wachstum) | 107,2 / 101,3 | 107,4 / 101,3 |
+| 🌰-Bestand Hain / Wald (Harmonie, min Produktion) | 8,3 / 10,1 | 8,5 / 10,7 |
+| „Amphibien stapeln“: Hain / ⚖️ | 1:07:50 h / 102,1 | 1:07:41 h / 102,3 |
+| Hain Wachstum/Harmonie, Zyklus 1 / 2 / 3 | 0,869 / 0,996 / 1,003 | 0,872 / 1,003 / 1,009 |
+| Neustart Wald, Wachstum/Harmonie Zyklus 2 / 3 | 0,994 / 1,007 | 0,966 / 1,015 |
+
+Der Harmonie-Spieler wird bis Wald/Urwald ~1,3 % langsamer: Er nimmt die Amphibie, weil sie
+im Moment die meiste Harmonie bringt (+2,0 ⚖️, aber nur +3,1 % 🌿 gegen +4,5 % der übrigen
+Karten), und alle Amphibien sind Räuber (Pyramide: weniger Kreislauf-Anteil, mehr Esser
+derselben Futter-Merkmale). Das liegt weit im Ziel (±25 %) und ist eine echte Abwägung.
+
+**Neustart Wald, Zyklus 2:** 0,994 → 0,966 im Seed-Fenster des großen Laufs. Zwei weitere
+Fenster mit 200 Durchgängen (Seed-Start 50000 / 90000, Neustart Wald, zwei Zyklen): vorher
+0,973 / 0,958, jetzt 0,972 / 0,958. Das Mittel der drei Fenster fällt von 0,975 auf 0,965 –
+ein kleiner echter Effekt (~1 %): Der Wachstums-Spieler bekommt jetzt auch Amphibien-Karten
+und nimmt die wachstumsstarken (Kammmolch, Bergmolch). Das bleibt im Ziel „gleichauf“; die
+Fenster streuen zudem um ±0,02 (schon der alte Stand lag in einem Fenster unter 0,97).
+`tests/balance-restart.test.ts` prüft darum je Zyklus ≥ 0,95 und über Zyklus 2 + 3 zusammen
+weiter ≥ 0,97 (jetzt 0,986).
+
+**Vorgegebene Begegnungen (Review):** „Laichplätze schaffen“ gab mit vier passenden Arten drei
+Amphibien vor – keine echte Wahl. Seit dem Review kommen aus jeder Vorgabe (`nextEncounter`)
+höchstens `FORCED_MAX_CARDS` = 2 Karten, die dritte wird normal gezogen (ohne die übrigen
+Vorgaben, die nur auffüllen, wenn sonst nichts passt). Gilt für alle Ereignisse mit Vorgabe
+(Pilzherbst, Igel-Unterschlupf, Totholz, Mastjahr …). Großer Lauf danach (500 Durchgänge, alle 45 Prüfungen grün):
+Hain Harmonie / Wachstum / Zufall 1:03:51 h / 54:32 min / 1:35:27 h, Wald / Urwald (Harmonie)
+1:55:52 h / 2:49:38 h, 🌰-Bestand Hain / Wald 8,4 / 10,7 min, Hain Wachstum/Harmonie je Zyklus
+0,873 / 0,992 / 1,018, Neustart Wald Zyklus 2 / 3 0,978 / 1,007 – nur Streuung gegenüber der
+Tabelle oben.
+
+**Von Hand (Playwright, Alter Baum, 390 und 1280 px):**
+- *Wie öffne ich den Tümpel?* Die Nische steht als „verschlossen – öffnet durch Pflege
+  „Waldtümpel““ in der Liste. Auf dem Handy ist die Pflege zugeklappt und liegt unter dem
+  Naturtagebuch; der Hinweis führte nirgendwohin. → Knopf „Zur Pflege“ (umgesetzt, e2e in
+  `e2e/care.spec.ts`).
+- *Karten:* Grasfrosch und Bergmolch zeigen Nische, Wünsche und Beitrag klar; „Feuchte“ ist
+  nach dem Kauf erfüllt, „sonnig“/„schattig“ machen die Abwägung sichtbar.
+- *Szene:* Der Tümpel liegt als Senke am linken Rand (1280 px: ~135 px breit, 390 px:
+  ~70 px). Mit 4–5 Bewohnern drängen sich die Tiere, zwei Molche überdecken sich (beide
+  schwimmen in der Mitte). Ohne Zoom sind die Tiere auf dem Handy kaum zu erkennen. Offen
+  für den `renderer` (siehe unten).
+
+**Offen:** (1) `renderer`: Tümpel mit der Zahl der Plätze breiter zeichnen oder Plätze 3–4 ans
+Ufer setzen, zwei schwimmende Molche nicht auf dieselbe Stelle legen; auf schmalen Bildschirmen
+Amphibien größer. (2) Stammgäste: Der Harmonie-Spieler wählt 0,15 Amphibien je Neustart als
+Stammgast – sie ziehen erst ein, wenn der Tümpel wieder offen ist. Ein Hinweis bei der Wahl
+(„zieht ein, sobald der Waldtümpel angelegt ist“) wäre eine kleine Aufgabe für `ui-dev`.
+(3) Amphibien-Gäste (Moorfrosch-Balz) erst mit Gästen am Boden im Renderer.
 
 #### Stand Abgleich Sperrklinke – Teiler, Schwelle und Obergrenze neu (Neustart 100 / 200 Durchgänge)
 

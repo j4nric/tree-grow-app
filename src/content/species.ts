@@ -1,8 +1,8 @@
 import type { Condition, Effect, Genus, Level, NicheId, Rarity, Tag } from './types';
 
 /**
- * Alle 35 Tierarten (und Pilze): 32 in den 5 Grundgattungen (docs/DESIGN_V2.md, 5.3) und
- * 3 Amphibien der Erweiterung Waldtümpel (5.5). Die Grafik-Ebene
+ * Alle 37 Tierarten (und Pilze): 32 in den 5 Grundgattungen (docs/DESIGN_V2.md, 5.3) und
+ * 5 Amphibien der Erweiterung Waldtümpel (5.5, Laubfrosch und Kammmolch seit dem Playtest). Die Grafik-Ebene
  * erwartet genau diese IDs. 🌿-Wirkungen seit dem Balancing 2.10 ×0,75 gegenüber dem
  * Prototyp (DESIGN_V2.md 15.4). Borkenkäfer (Totholz) und Buntspecht (gezimmerte Höhle)
  * bringen je +1 Platz in „Höhlen & Totholz“,
@@ -315,6 +315,24 @@ export const SPECIES: readonly Species[] = [
     effects: [{ kind: 'control', tag: 'insekten', pct: 25 }, { kind: 'growth', pct: 5 }, { kind: 'harmony', points: 2 }],
     summary: 'jagt Insekten (−25 % Fraß), +5 % 🌿, +2 ⚖️',
     text: 'Im Frühling glänzt das Männchen blau, mit getupftem Kamm und orangem Bauch.',
+  },
+  // Playtest Amphibien: Laubfrosch (Sonnenseite, 🌰) und Kammmolch (Schattenseite, 🌿) –
+  // mit 5 Arten ist die Gattungsstufe 5 erreichbar (Pflege 4 Plätze + 1 aus einem Ereignis).
+  {
+    id: 'treefrog', name: 'Laubfrosch', genus: 'amphibians', rarity: 1, level: 'predator', niche: 'pond', unlock: 4,
+    food: ['insekten'], needs: [{ kind: 'tag', tag: 'feucht' }, { kind: 'sunny' }, { kind: 'group', group: 'shrubs', min: 1 }],
+    provides: [],
+    effects: [{ kind: 'control', tag: 'insekten', pct: 20 }, { kind: 'seeds', pct: 6 }, { kind: 'harmony', points: 2 }],
+    summary: 'jagt Insekten (−20 % Fraß), +6 % 🌰, +2 ⚖️',
+    text: 'Klettert mit Haftscheiben ins Gebüsch. In Mainächten trägt sein Ruf weit über den Tümpel.',
+  },
+  {
+    id: 'crestednewt', name: 'Kammmolch', genus: 'amphibians', rarity: 1, level: 'predator', niche: 'pond', unlock: 5,
+    food: ['schnecken', 'wuermer'], needs: [{ kind: 'tag', tag: 'feucht' }, { kind: 'shady' }, { kind: 'tag', tag: 'totholz' }],
+    provides: [],
+    effects: [{ kind: 'control', tag: 'schnecken', pct: 30 }, { kind: 'growth', pct: 6 }, { kind: 'harmony', points: 2 }],
+    summary: 'jagt Schnecken (−30 % Fraß), +6 % 🌿, +2 ⚖️',
+    text: 'Der größte unserer Molche. Zur Laichzeit trägt das Männchen einen gezackten Kamm wie ein kleiner Drache.',
   },
 
   // --- Pilze --------------------------------------------------------------------

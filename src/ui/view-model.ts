@@ -222,6 +222,11 @@ export interface NicheView {
    * in die noch niemand einziehen darf („Bewohner ab „Alter Baum““, Waldtümpel).
    */
   unlockHint?: string;
+  /**
+   * Pflegemaßnahme, die diese verschlossene Nische öffnet und schon gekauft werden kann
+   * (Waldtümpel ab „Alter Baum“) – die Seitenleiste zeigt dann „Zur Pflege“.
+   */
+  careLink?: string;
 }
 
 /** Alles, was die Ökosystem-Übersicht in der Seitenleiste zeigt. */

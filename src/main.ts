@@ -289,6 +289,7 @@ const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosyst
   onOpenPlantPicker: openPlantPicker,
   onOpenEncounters: openEncounters,
   onOpenAnimal: (_niche, _index, speciesId, button) => openAnimalDetail(speciesId, button),
+  onShowCare: (id) => carePanel.reveal(id),
 });
 const bonusPanel = createBonusPanel(document.querySelector<HTMLElement>('#bonuses')!);
 const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!, {

@@ -9,6 +9,13 @@ import type { EncounterType } from './types';
 /** Karten je Begegnung (weniger, wenn nicht genug Arten in Frage kommen). */
 export const CARDS_PER_ENCOUNTER = 3;
 
+/**
+ * Vorgegebene Begegnung (`nextEncounter` aus einem Ereignis): höchstens so viele Karten
+ * kommen aus der Vorgabe, der Rest wird normal gezogen – so bleibt mindestens eine andere
+ * Wahl, sofern eine andere Art bzw. Pflanze passt (Playtest Amphibien, DESIGN_V2.md 7.4).
+ */
+export const FORCED_MAX_CARDS = 2;
+
 /** Höchstens so viele Begegnungen warten; überzählige werden automatisch abgelehnt. */
 export const MAX_PENDING_ENCOUNTERS = 3;
 

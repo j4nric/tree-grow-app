@@ -32,6 +32,11 @@ export interface CarePanelCallbacks {
 
 export interface CarePanel {
   update(items: readonly CareView[]): void;
+  /**
+   * Klappt die Pflege auf, scrollt zur Maßnahme und setzt den Fokus auf ihre Überschrift
+   * (z. B. vom Hinweis der verschlossenen Nische Waldtümpel aus). false, wenn sie fehlt.
+   */
+  reveal(id: string): boolean;
   readonly element: HTMLElement;
 }
 
@@ -292,5 +297,14 @@ export function createCarePanel(root: HTMLElement, callbacks: CarePanelCallbacks
     if (!section.contains(event.relatedTarget as Node | null)) release();
   });
 
-  return { update: (items) => apply(items, false), element: section };
+  function reveal(id: string): boolean {
+    const row = rows.find((r) => r.id === id);
+    if (!row || section.hidden) return false;
+    details.open = true;
+    row.li.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    row.head.focus({ preventScroll: true });
+    return true;
+  }
+
+  return { update: (items) => apply(items, false), reveal, element: section };
 }
