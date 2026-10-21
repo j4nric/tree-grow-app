@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CYCLE_TRANSITION_REDUCED_SECONDS, CYCLE_TRANSITION_SECONDS, cyclePhase } from '../src/render/cycle';
+import { CYCLE_TRANSITION_REDUCED_SECONDS, CYCLE_TRANSITION_SECONDS, cycleElapsed, cyclePhase } from '../src/render/cycle';
 import { drawScene, memoryGrowth, type SceneInput } from '../src/render/tree';
 
 /** Canvas-Stub wie in render-scene.test.ts: protokolliert nur die Aufrufe. */
@@ -100,6 +100,22 @@ describe('Zyklus-Übergang: Ablauf', () => {
   });
 });
 
+describe('Zyklus-Übergang: Zeitfenster', () => {
+  it('gilt von bis zu 1 s vor dem Start bis zum Ende, sonst nicht', () => {
+    expect(cycleElapsed(10, 10, false)).toBe(0);
+    expect(cycleElapsed(9.5, 10, false)).toBe(0);
+    expect(cycleElapsed(8.5, 10, false)).toBeNaN();
+    expect(cycleElapsed(12, 10, false)).toBe(2);
+    expect(cycleElapsed(10 + CYCLE_TRANSITION_SECONDS, 10, false)).toBeNaN();
+    expect(cycleElapsed(10.9, 10, true)).toBeNaN();
+    expect(cycleElapsed(Number.NaN, 10, false)).toBeNaN();
+    expect(cycleElapsed(10, Number.NaN, false)).toBeNaN();
+  });
+});
+
+/** Übergang aus dem alten Baum (g = 6) mit Start bei `at`. */
+const from = (at: number): Partial<SceneInput> => ({ cycleTransition: { startedAt: at, fromGrowth: 6 } });
+
 describe('Zyklus-Übergang in der Szene', () => {
   it('zeichnet ohne die neuen Felder (und mit Waldgedächtnis 0) genau wie bisher', () => {
     const plain = signature(play(TIMES, () => ({})).calls);
@@ -109,7 +125,7 @@ describe('Zyklus-Übergang in der Szene', () => {
 
   it('zeichnet während der Sequenz zusätzlich und danach wieder genau die Stufe 0', () => {
     const plain = (t: number) => signature(play(TIMES.filter((x) => x <= t), () => ({})).calls);
-    const withCycle = (t: number) => signature(play(TIMES.filter((x) => x <= t), (x) => (x >= 1 ? { cycleTransition: { startedAt: 1 } } : {})).calls);
+    const withCycle = (t: number) => signature(play(TIMES.filter((x) => x <= t), (x) => (x >= 1 ? from(1) : {})).calls);
     for (const t of [1, 2, 3, 5]) expect(withCycle(t).length, `t=${t}`).toBeGreaterThan(plain(t).length);
     // Ende (1 + 5,5 s): pixelgleich – gleiche Aufrufe wie ohne das Feld.
     for (const t of [6.6, 8]) expect(withCycle(t), `t=${t}`).toEqual(plain(t));
@@ -120,22 +136,87 @@ describe('Zyklus-Übergang in der Szene', () => {
       signature(
         play(
           [0, 0.5, 1, 1.3, 1.6, 1.9, 2.5].filter((x) => x <= until),
-          (x) => ({ reducedMotion: true, ...(cycle && x >= 1 ? { cycleTransition: { startedAt: 1 } } : {}) }),
+          (x) => ({ reducedMotion: true, ...(cycle && x >= 1 ? from(1) : {}) }),
         ).calls,
       );
     expect(reduced(true, 1.3).length).toBeGreaterThan(reduced(false, 1.3).length);
     expect(reduced(true, 1.9)).toEqual(reduced(false, 1.9));
   });
 
+  it('hängt nur von der Eingabe ab: Reihenfolge der Frames, Neustart und Neuladen', () => {
+    // Gleicher Frame (t = 2,5) – frisch, nach anderer Reihenfolge, nach einem Neustart.
+    const fresh = signature(play([2.5], () => ({ ...from(1), growth: 0 })).calls);
+    const shuffled = signature(play([1, 4, 1.5, 2.5], () => ({ ...from(1), growth: 0 })).calls);
+    const restarted = signature(play([0, 0.5, 1.2, 2.5], (x) => (x < 1 ? from(0) : from(1))).calls);
+    expect(shuffled).toEqual(fresh);
+    expect(restarted).toEqual(fresh);
+  });
+
+  it('zeichnet nach einer Größenänderung mitten in der Sequenz wie frisch in der neuen Größe', () => {
+    const canvas = makeCanvas(400, 300);
+    const ctx = canvas.getContext('2d');
+    for (const t of [0, 0.5, 1]) drawScene(ctx, 400, 300, { growth: 0, time: t, ...from(1) });
+    // Neue Größe im selben Frame; nach dem Entprellen (~150 ms) gilt sie.
+    canvas.width = 600;
+    for (const t of [1.05, 1.2, 1.4]) {
+      canvas.calls.length = 0;
+      drawScene(ctx, 600, 300, { growth: 0, time: t, ...from(1) });
+    }
+    const fresh = makeCanvas(600, 300);
+    drawScene(fresh.getContext('2d'), 600, 300, { growth: 0, time: 1.4, ...from(1) });
+    expect(signature(canvas.calls)).toEqual(signature(fresh.calls));
+  });
+
+  it('Start in der Zukunft: bis 1 s gilt „jetzt“, weiter wird verworfen', () => {
+    const plain = signature(play([5], () => ({ growth: 0 })).calls);
+    const soon = signature(play([5], () => ({ ...from(5.5), growth: 0 })).calls);
+    const now = signature(play([5], () => ({ ...from(5), growth: 0 })).calls);
+    const far = signature(play([5], () => ({ ...from(9), growth: 0 })).calls);
+    expect(soon).toEqual(now);
+    expect(soon.length).toBeGreaterThan(plain.length);
+    expect(far).toEqual(plain);
+  });
+
+  it('ungültige Zeit und Zeitsprung zurück: nichts zusätzlich, Kopien frei', () => {
+    const plainNaN = signature(play([0, Number.NaN], () => ({ growth: 0 })).calls);
+    expect(signature(play([0, Number.NaN], () => ({ ...from(0), growth: 0 })).calls)).toEqual(plainNaN);
+    // Zeitsprung zurück (z. B. neue Uhr): hartes Ende.
+    const plainBack = signature(play([1, 2, -10], () => ({ growth: 0 })).calls);
+    expect(signature(play([1, 2, -10], () => ({ ...from(1), growth: 0 })).calls)).toEqual(plainBack);
+  });
+
   it('spielt eine längst vergangene Sequenz (z. B. nach dem Neuladen) nicht nach', () => {
-    const late = signature(play([10, 10.5], () => ({ growth: 0, cycleTransition: { startedAt: 1 } })).calls);
+    const late = signature(play([10, 10.5], () => ({ growth: 0, ...from(1) })).calls);
     const plain = signature(play([10, 10.5], () => ({ growth: 0 })).calls);
     expect(late).toEqual(plain);
   });
 
-  it('verkraftet ungültige Startzeiten', () => {
-    const bad = play(TIMES, (x) => (x >= 1 ? { cycleTransition: { startedAt: Number.NaN } } : {}));
+  it('gibt die Kopien nach dem Ende frei', () => {
+    const created: StubCanvas[] = [];
+    vi.stubGlobal('document', {
+      createElement: () => {
+        const c = makeCanvas();
+        created.push(c);
+        return c;
+      },
+    });
+    const canvas = makeCanvas(W, H);
+    const ctx = canvas.getContext('2d');
+    drawScene(ctx, W, H, { growth: 0, time: 1, ...from(1) });
+    const count = created.length;
+    drawScene(ctx, W, H, { growth: 0, time: 2, ...from(1) });
+    // Keine neuen Kopien während der Sequenz …
+    expect(created.length).toBe(count);
+    drawScene(ctx, W, H, { growth: 0, time: 8, ...from(1) });
+    // … und danach auf Größe 0 gesetzt (Speicher frei, auch in Safari).
+    expect(created.filter((c) => c.width === 0 && c.height === 0).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('verkraftet ungültige Werte', () => {
+    const bad = play(TIMES, (x) => (x >= 1 ? { cycleTransition: { startedAt: Number.NaN, fromGrowth: 6 } } : {}));
     expect(signature(bad.calls)).toEqual(signature(play(TIMES, () => ({})).calls));
+    const nanGrowth = play([1, 2], () => ({ growth: 0, cycleTransition: { startedAt: 1, fromGrowth: Number.NaN } }));
+    for (const c of nanGrowth.calls) for (const a of c.args) if (typeof a === 'number') expect(Number.isFinite(a)).toBe(true);
   });
 });
 
@@ -154,8 +235,7 @@ describe('Erinnerungsbaum (Waldgedächtnis)', () => {
     expect(memoryGrowth(5000)).toBe(6.5);
   });
 
-  it('wird in den Hintergrund gezeichnet, ohne jedes Frame neu zu zeichnen', () => {
-    // Offscreen-Ebenen mitzählen: Neuzeichnen passiert dort.
+  it('liegt in einer eigenen Ebene: Wachstumsschritte zeichnen ihn nicht neu', () => {
     const created: StubCanvas[] = [];
     vi.stubGlobal('document', {
       createElement: () => {
@@ -164,18 +244,19 @@ describe('Erinnerungsbaum (Waldgedächtnis)', () => {
         return c;
       },
     });
-    const canvas = makeCanvas(W, H);
-    const ctx = canvas.getContext('2d');
-    const offscreen = (memory: number | undefined, time: number) => {
+    const offscreen = (ctx: CanvasRenderingContext2D, input: SceneInput) => {
       for (const c of created) c.calls.length = 0;
-      drawScene(ctx, W, H, { growth: 2, time, forestMemory: memory });
+      drawScene(ctx, W, H, input);
       return created.reduce((n, c) => n + c.calls.length, 0);
     };
-    expect(offscreen(33, 0)).toBeGreaterThan(0);
-    expect(offscreen(33, 0.016)).toBe(0);
-    // Kleine Änderung (gleiche Rundung): kein Neuzeichnen; größere: einmal neu.
-    expect(offscreen(33.4, 0.032)).toBe(0);
-    expect(offscreen(300, 0.048)).toBeGreaterThan(0);
-    expect(offscreen(300, 0.064)).toBe(0);
+    const a = makeCanvas(W, H).getContext('2d');
+    const b = makeCanvas(W, H).getContext('2d');
+    expect(offscreen(a, { growth: 2, time: 0, forestMemory: 300 })).toBeGreaterThan(offscreen(b, { growth: 2, time: 0 }));
+    // Wachstumsschritt: gleich viel Zeichenarbeit mit und ohne Erinnerungsbaum.
+    expect(offscreen(a, { growth: 2.5, time: 1, forestMemory: 300 })).toBe(offscreen(b, { growth: 2.5, time: 1 }));
+    // Kleine Änderung des Gedächtnisses (gleiche Rundung): nichts neu; größere: nur er.
+    expect(offscreen(a, { growth: 2.5, time: 1.1, forestMemory: 301 })).toBe(0);
+    expect(offscreen(a, { growth: 2.5, time: 1.2, forestMemory: 900 })).toBeGreaterThan(0);
+    expect(offscreen(a, { growth: 2.5, time: 1.3, forestMemory: 900 })).toBe(0);
   });
 });

@@ -15,10 +15,12 @@
  *  gallery  1 = Übersicht aller Tier- und Pflanzenzeichnungen statt der Szene
  *  ui=0     Bedienelemente ausblenden (für Screenshots)
  *  reduced  1 = weniger Bewegung
- *  t        feste Zeit in Sekunden (für reproduzierbare Screenshots)
+ *  t        feste Zeit in Sekunden (für reproduzierbare Screenshots). Achtung: Mit t
+ *           steht die Zeit – der Knopf „Zyklus-Übergang abspielen“ bleibt dann beim
+ *           ersten Bild stehen; zum Abspielen ohne t aufrufen.
  *  mem      Waldgedächtnis (0–1000; ohne Angabe: kein Erinnerungsbaum)
- *  cyc      Zyklus-Übergang: nach einigen Frames mit Wachstum g springt die Szene auf 0
- *           und die Sequenz steht bei cyc Sekunden (mit t für feste Bilder)
+ *  cyc      Zyklus-Übergang aus dem Wachstum g: die Szene zeigt Wachstum 0 und die
+ *           Sequenz bei cyc Sekunden (mit t für feste Bilder, sonst läuft sie weiter)
  *  rate     Wachstum pro Sekunde, z. B. 0.05 – misst die Kosten beim Neuaufbau der Ebenen
  *  ht       Harmoniestufe 0–4 (ohne Angabe: keine Stimmung, Look wie bisher)
  *  vis      Durchreisende, kommagetrennt: cranes,bramblings,hummingbird-moth
@@ -187,7 +189,7 @@ memoryInput.addEventListener('input', () => {
   showMemory();
 });
 /** Laufender Zyklus-Übergang (Startzeit in Sekunden) – die Szene springt dabei auf Wachstum 0. */
-let cycleTransition: { startedAt: number } | undefined;
+let cycleTransition: { startedAt: number; fromGrowth: number; fromPlants?: readonly ScenePlant[] } | undefined;
 /** ?cyc=: Sequenz nach einigen Frames mit dem alten Baum bei dieser Sekunde anhalten. */
 const cycleAt = params.has('cyc') ? Number(params.get('cyc')) : null;
 let pendingCycle = false;
@@ -351,16 +353,17 @@ function frame(now: number): void {
   }
   lastNow = now;
   const time = fixedTime ?? now / 1000;
-  if (cycleAt !== null && window.__demo.frames === 5) {
+  if (cycleAt !== null && !cycleTransition) {
+    // Der alte Wald stammt aus dem Startwachstum – die Szene selbst zeigt schon Stufe 0.
+    cycleTransition = { startedAt: time - cycleAt, fromGrowth: startG, fromPlants: plantsFor(startG, plantMode, vigor) };
     g = 0;
-    cycleTransition = { startedAt: time - cycleAt };
   }
   if (pendingCycle) {
     // Neuer Zyklus: Spielstand zurück auf den Samen, die Szene spielt den Übergang.
     pendingCycle = false;
+    cycleTransition = { startedAt: time, fromGrowth: g, fromPlants: plantsFor(g, plantMode, vigor) };
     g = 0;
     growthInput.value = '0';
-    cycleTransition = { startedAt: time };
   }
   const animals = animalsFor(g, set, happy, variant);
   const plants = plantsFor(g, plantMode, vigor);

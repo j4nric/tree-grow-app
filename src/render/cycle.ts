@@ -2,22 +2,20 @@
  * Übergang zum Neuen Zyklus (DESIGN_V2.md §10): „Aus einer Eichel der alten Eiche
  * wächst ein neuer Baum.“ Ruhig und ohne Feuer-Drama:
  *
- *   0,0–2,4 s  das alte Bild blendet aus, die alte Eiche (samt Pflanzen) bleibt als
- *              dunkle Silhouette stehen
+ *   0,0–2,4 s  die alte Eiche (samt Nachbarbäumen und Pflanzen) verblasst zur Silhouette
  *   0,6–3,6 s  ein sanftes, langsam atmendes Leuchten in der Krone
  *   1,8–3,9 s  eine Eichel fällt, schaukelt leicht und versinkt im Boden
  *   3,3–5,5 s  der neue Samen in der Erde leuchtet kurz auf; die Silhouette ist fort
  *
- * Danach wird nichts mehr zusätzlich gezeichnet – das Bild ist dann pixelgleich zur
- * normalen Szene. Bei `reducedMotion` nur eine kurze Überblendung (0,8 s).
+ * Der alte Wald wird einmal aus `fromGrowth` (und den alten Pflanzen) gezeichnet –
+ * unabhängig davon, was vorher auf dem Canvas stand. Das Bild hängt damit nur von der
+ * Eingabe ab: Reihenfolge der Frames, Größenänderungen und Neuladen mitten in der
+ * Sequenz ändern nichts. Danach (und außerhalb des Zeitfensters) wird nichts mehr
+ * zusätzlich gezeichnet – pixelgleich zur Szene ohne das Feld.
  *
- * Lichtempfindlichkeit: keine Blitze, keine schnellen Helligkeitswechsel. Alle
- * Änderungen laufen über mindestens eine Sekunde; das Leuchten „atmet“ mit 0,33 Hz
- * und ±15 %.
- *
- * Kosten: beim Start einmal das letzte Bild und eine Silhouette der Baum-Ebenen
- * kopieren; pro Frame nur `drawImage` gecachter Canvases mit wechselnder Deckkraft.
- * Nach dem Ende werden die Kopien freigegeben.
+ * Lichtempfindlichkeit: keine Blitze, kein Flackern. Leuchten und Überblendungen
+ * steigen und fallen in Rampen von mindestens 0,5 s (meist 1–2 s); das Leuchten
+ * „atmet“ mit 0,33 Hz und ±15 %. Nur die kleine, dunkle Eichel blendet in 0,25 s ein.
  */
 
 import { clamp01, smooth01 } from './util';
@@ -25,12 +23,26 @@ import { clamp01, smooth01 } from './util';
 /** Dauer der Sequenz in Sekunden (normal / weniger Bewegung). */
 export const CYCLE_TRANSITION_SECONDS = 5.5;
 export const CYCLE_TRANSITION_REDUCED_SECONDS = 0.8;
+/** So weit (s) darf der Start in der Zukunft liegen – er gilt dann als „jetzt“. Weiter: verworfen. */
+export const CYCLE_TRANSITION_LEAD = 1;
+
+/**
+ * Zeitpunkt in der Sequenz (s) oder NaN, wenn außerhalb des Zeitfensters (zu früh, zu
+ * spät, ungültig). Ein Start bis zu 1 s in der Zukunft gilt als „startet jetzt“.
+ */
+export function cycleElapsed(time: number, startedAt: number, reducedMotion: boolean): number {
+  if (!Number.isFinite(time) || !Number.isFinite(startedAt)) return Number.NaN;
+  const d = time - startedAt;
+  const length = reducedMotion ? CYCLE_TRANSITION_REDUCED_SECONDS : CYCLE_TRANSITION_SECONDS;
+  if (d < -CYCLE_TRANSITION_LEAD || d >= length) return Number.NaN;
+  return Math.max(0, d);
+}
 
 /** Deckkraft der einzelnen Teile zum Zeitpunkt `u` (Sekunden seit Start). */
 export interface CyclePhase {
-  /** Altes Bild (Farbe). */
+  /** Alter Wald in Farbe. */
   frame: number;
-  /** Silhouette der alten Bäume und Pflanzen. */
+  /** Silhouette des alten Walds. */
   silhouette: number;
   /** Leuchten in der Krone. */
   glow: number;
@@ -83,85 +95,60 @@ export interface CycleGeometry {
   dpr: number;
 }
 
-interface Point {
-  x: number;
-  y: number;
+/** Der alte Wald, einmal gezeichnet: Canvas in Gerätepixeln für den Bereich `rect` (CSS-Pixel). */
+export interface OldForest {
+  canvas: HTMLCanvasElement;
+  rect: { x: number; y: number; w: number; h: number };
+  /** Umriss des alten Hauptbaums (CSS-Pixel) oder null (Keimling). */
+  tree: { x0: number; y0: number; x1: number; y1: number } | null;
 }
 
-/** Zustand einer laufenden (oder beendeten) Sequenz je Canvas. */
+/** Zustand der Sequenz je Canvas: die einmal gezeichneten Teile und wofür sie gelten. */
 export class CycleTransition {
-  startedAt = Number.NaN;
-  /** Kopie des letzten Bilds vor dem Wechsel (oder null). */
-  private frame: HTMLCanvasElement | null = null;
-  /** Silhouette der alten Baum- und Pflanzen-Ebenen. */
+  /** Schlüssel der vorbereiteten Teile (Start, Wachstum, Pflanzen, Größe) oder ''. */
+  key = '';
+  private colour: HTMLCanvasElement | null = null;
   private silhouette: HTMLCanvasElement | null = null;
-  /** Belegter Bereich der Silhouette (Gerätepixel) – nur er wird gezeichnet. */
-  private silRect = { x: 0, y: 0, w: 0, h: 0 };
+  private rect = { x: 0, y: 0, w: 0, h: 0 };
   private glow: HTMLCanvasElement | null = null;
   private acorn: HTMLCanvasElement | null = null;
-  private crown: Point = { x: 0, y: 0 };
-  private drop: Point = { x: 0, y: 0 };
+  private crown = { x: 0, y: 0 };
+  private drop = { x: 0, y: 0 };
   private glowR = 1;
-  /** Wie oft eine Sequenz begonnen wurde (für Tests). */
-  starts = 0;
 
-  /** Läuft gerade eine Sequenz (bzw. liegen noch Kopien vor)? */
-  get active(): boolean {
-    return this.frame !== null || this.silhouette !== null || this.acorn !== null;
+  /** Liegen vorbereitete Teile vor? */
+  get prepared(): boolean {
+    return this.glow !== null;
   }
 
-  /**
-   * Startet eine Sequenz. `previous`: das Canvas mit dem letzten Bild (oder null),
-   * `layers`: die alten Baum-Ebenen mit belegtem Bereich (Gerätepixel), `treeBox`:
-   * Umriss des alten Hauptbaums in CSS-Pixeln (oder null, z. B. im Keimling).
-   */
-  begin(
-    startedAt: number,
-    geo: CycleGeometry,
-    previous: HTMLCanvasElement | null,
-    layers: readonly { canvas: HTMLCanvasElement; rect: { x: number; y: number; w: number; h: number } | null }[],
-    treeBox: { x0: number; y0: number; x1: number; y1: number } | null,
-  ): void {
+  /** Bereitet die Sequenz vor: Farbe und Silhouette des alten Walds, Leuchten, Eichel. */
+  prepare(key: string, geo: CycleGeometry, forest: OldForest | null): void {
     this.release();
-    this.startedAt = startedAt;
-    this.starts++;
-    const pw = Math.max(1, Math.round(geo.width * geo.dpr));
-    const ph = Math.max(1, Math.round(geo.height * geo.dpr));
-    if (previous && previous.width > 0 && previous.height > 0) {
-      this.frame = canvasOf(previous.width, previous.height);
-      this.frame.getContext('2d')!.drawImage(previous, 0, 0);
-    }
-    if (layers.some((l) => l.rect)) {
-      const sil = canvasOf(pw, ph);
+    this.key = key;
+    const S = geo.size;
+    if (forest) {
+      this.colour = forest.canvas;
+      this.rect = forest.rect;
+      const sil = document.createElement('canvas');
+      sil.width = forest.canvas.width;
+      sil.height = forest.canvas.height;
       const c = sil.getContext('2d')!;
-      let x0 = Infinity;
-      let y0 = Infinity;
-      let x1 = -Infinity;
-      let y1 = -Infinity;
-      for (const { canvas, rect } of layers) {
-        if (!rect) continue;
-        c.drawImage(canvas, rect.x, rect.y, rect.w, rect.h, rect.x, rect.y, rect.w, rect.h);
-        x0 = Math.min(x0, rect.x);
-        y0 = Math.min(y0, rect.y);
-        x1 = Math.max(x1, rect.x + rect.w);
-        y1 = Math.max(y1, rect.y + rect.h);
-      }
-      this.silRect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+      c.drawImage(forest.canvas, 0, 0);
       // Nur die Form behalten: dunkles, leicht grünliches Schiefergrau.
       c.globalCompositeOperation = 'source-in';
       c.fillStyle = 'rgb(66, 80, 72)';
-      c.fillRect(0, 0, pw, ph);
+      c.fillRect(0, 0, sil.width, sil.height);
       c.globalCompositeOperation = 'source-over';
       this.silhouette = sil;
     }
-    const S = geo.size;
-    if (treeBox) {
-      const h = treeBox.y1 - treeBox.y0;
-      this.crown = { x: (treeBox.x0 + treeBox.x1) / 2, y: treeBox.y0 + h * 0.32 };
-      this.drop = { x: this.crown.x + S * 0.6, y: treeBox.y0 + h * 0.5 };
-      this.glowR = Math.max(S * 2, Math.min(treeBox.x1 - treeBox.x0, h) * 0.45);
+    const box = forest?.tree;
+    if (box) {
+      const h = box.y1 - box.y0;
+      this.crown = { x: (box.x0 + box.x1) / 2, y: box.y0 + h * 0.32 };
+      this.drop = { x: this.crown.x + S * 0.6, y: box.y0 + h * 0.5 };
+      this.glowR = Math.max(S * 2, Math.min(box.x1 - box.x0, h) * 0.45);
     } else {
-      this.crown = { x: geo.cx, y: geo.groundY - (geo.groundY * 0.3) };
+      this.crown = { x: geo.cx, y: geo.groundY * 0.7 };
       this.drop = { x: geo.cx + S * 0.4, y: this.crown.y + S };
       this.glowR = S * 2.5;
     }
@@ -169,52 +156,40 @@ export class CycleTransition {
     this.acorn = makeAcorn(S * 0.7, geo.dpr);
   }
 
-  /** Beendet die Sequenz und gibt die Kopien frei. */
+  /** Gibt die Kopien frei (Safari: Größe vorher auf 0 setzen). */
   release(): void {
-    this.frame = null;
+    for (const c of [this.colour, this.silhouette, this.glow, this.acorn]) {
+      if (c) {
+        c.width = 0;
+        c.height = 0;
+      }
+    }
+    this.colour = null;
     this.silhouette = null;
     this.glow = null;
     this.acorn = null;
+    this.key = '';
   }
 
-  /** Vergisst die Sequenz ganz (Feld nicht mehr gesetzt). */
-  reset(): void {
-    this.release();
-    this.startedAt = Number.NaN;
-  }
-
-  /**
-   * Zeichnet den Übergang über die fertige Szene. `sx`/`sy`: zusätzliche Skalierung
-   * (Größenänderung). Gibt false zurück, wenn nichts mehr zu zeichnen ist.
-   */
-  draw(ctx: CanvasRenderingContext2D, u: number, reducedMotion: boolean, geo: CycleGeometry, sx: number, sy: number): boolean {
+  /** Zeichnet die Sequenz zum Zeitpunkt `u` über die fertige Szene. */
+  draw(ctx: CanvasRenderingContext2D, u: number, reducedMotion: boolean, geo: CycleGeometry, sx: number, sy: number): void {
     const ph = cyclePhase(u, reducedMotion);
-    if (ph.done) {
-      this.release();
-      return false;
-    }
-    const pw = Math.round(geo.width * geo.dpr);
-    const phh = Math.round(geo.height * geo.dpr);
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    if (ph.done) return;
+    const k = geo.dpr;
+    const r = this.rect;
+    ctx.setTransform(sx * k, 0, 0, sy * k, 0, 0);
     if (this.silhouette && ph.silhouette > 0.003) {
       ctx.globalAlpha = ph.silhouette;
-      const r = this.silRect;
-      if (this.silhouette.width === pw && this.silhouette.height === phh) {
-        ctx.drawImage(this.silhouette, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h);
-      } else {
-        ctx.drawImage(this.silhouette, 0, 0, pw, phh);
-      }
+      ctx.drawImage(this.silhouette, r.x, r.y, r.w, r.h);
     }
-    if (this.frame && ph.frame > 0.003) {
+    if (this.colour && ph.frame > 0.003) {
       ctx.globalAlpha = ph.frame;
-      ctx.drawImage(this.frame, 0, 0, pw, phh);
+      ctx.drawImage(this.colour, r.x, r.y, r.w, r.h);
     }
-    const k = geo.dpr;
-    ctx.setTransform(sx * k, 0, 0, sy * k, 0, 0);
     if (this.glow && ph.glow > 0.003) {
       ctx.globalAlpha = ph.glow;
-      const r = this.glowR;
-      ctx.drawImage(this.glow, this.crown.x - r, this.crown.y - r, r * 2, r * 2);
+      const gr = this.glowR;
+      ctx.drawImage(this.glow, this.crown.x - gr, this.crown.y - gr, gr * 2, gr * 2);
     }
     if (this.acorn && ph.acorn >= 0 && ph.acornAlpha > 0.003) {
       const p = ph.acorn;
@@ -234,11 +209,10 @@ export class CycleTransition {
     }
     if (this.glow && ph.seedGlow > 0.003) {
       ctx.globalAlpha = ph.seedGlow;
-      const r = geo.size * 1.4;
-      ctx.drawImage(this.glow, geo.cx - r, geo.seedY - r, r * 2, r * 2);
+      const gr = geo.size * 1.4;
+      ctx.drawImage(this.glow, geo.cx - gr, geo.seedY - gr, gr * 2, gr * 2);
     }
     ctx.globalAlpha = 1;
-    return true;
   }
 }
 
@@ -264,7 +238,7 @@ function makeGlow(dpr: number): HTMLCanvasElement {
   return c;
 }
 
-/** Eichel mit Hütchen, Spitze nach unten; Ursprung unten Mitte (beim Zeichnen versetzt). */
+/** Eichel mit Hütchen; Ursprung unten Mitte (beim Zeichnen versetzt). */
 function makeAcorn(size: number, dpr: number): HTMLCanvasElement {
   const w = Math.max(4, Math.round(size * dpr));
   const h = Math.max(5, Math.round(size * 1.25 * dpr));
