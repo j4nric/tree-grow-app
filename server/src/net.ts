@@ -14,11 +14,19 @@ function ipv4(address: string): [number, number, number, number] | null {
   return parts.every((n) => n <= 255) ? parts : null;
 }
 
-/** `::ffff:10.0.0.1` → `10.0.0.1`; Kleinschreibung, ohne Zonen-Index. */
+/**
+ * IPv4-gemappte IPv6-Adressen als IPv4 – in jeder Schreibweise (`::ffff:10.0.0.1`,
+ * `::ffff:a00:1`, `0:0:0:0:0:ffff:a00:1`) → `10.0.0.1`; sonst Kleinschreibung, ohne Zonen-Index.
+ */
 export function normalizeIp(address: string): string {
   const plain = address.trim().toLowerCase().replace(/%.*$/, '');
-  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(plain);
-  return mapped ? mapped[1]! : plain;
+  if (!plain.includes(':')) return plain;
+  const groups = ipv6Groups(plain);
+  if (groups && groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff) {
+    const [hi, lo] = [groups[6]!, groups[7]!];
+    return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+  }
+  return plain;
 }
 
 /** Loopback, privat (RFC 1918), Link-Local, CGNAT (Docker/Proxy-Netze) oder IPv6 ULA/Loopback. */

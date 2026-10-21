@@ -51,11 +51,18 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
   Jeder Tab schreibt nur mit der Sitzung des Kontos, mit dem er gestartet ist. Meldet sich ein
   anderer Tab ab, ist auch dieser Tab abgemeldet; meldet sich ein anderer Tab mit einem
   (anderen) Konto an, hält dieser Tab den Abgleich an und bittet um „Neu laden“ – sein Spiel
-  im Speicher gehört nicht zu diesem Konto. Die Grundlage des Abgleichs liegt je Konto
-  (`vszw-sync-base:<name>`).
+  im Speicher gehört nicht zu diesem Konto. Ab dann schreibt dieser Tab auch den gemeinsamen
+  lokalen Spielstand nicht mehr (auch nicht beim Neuladen), sonst landete sein Spiel nach dem
+  Neuladen im anderen Konto. Abmelden und eine abgelaufene Sitzung löschen nur die eigene
+  Sitzung, nie die eines anderen Tabs. Die Grundlage des Abgleichs liegt je Konto
+  (`vszw-sync-base:<name>`) und gilt nur, solange der lokale Stand zuletzt mit genau diesem
+  Konto abgeglichen wurde (`vszw-sync-owner`) – nach A → B → A gewinnt bei A der Cloud-Stand.
 - **Sicherungen laden:** Im Konto-Abschnitt lädt „Sicherung vor dem Sync wiederherstellen“
   den gesicherten Stand dieses Geräts bzw. den aus dem Konto (zweiter Schritt als
-  Bestätigung, ersetzt den aktuellen Wald; angemeldet geht er wie eine Aktion ans Konto).
+  Bestätigung, ersetzt den aktuellen Wald; angemeldet geht er wie eine Aktion ans Konto). Die
+  Cloud-Sicherung wird nur dem Konto angeboten, aus dem sie stammt. Der Stand vor dem
+  Wiederherstellen wird unter `vszw-backup-before-restore` gesichert und lässt sich über
+  „Stand vor dem Wiederherstellen“ zurückholen.
 - **Abmelden:** sendet vorher den letzten Stand. Klappt das nicht (offline), weist der
   Konto-Abschnitt darauf hin; ein zweiter Tipp („Trotzdem abmelden“) meldet trotzdem ab – der
   Stand bleibt auf dem Gerät.
@@ -95,7 +102,7 @@ wertlos. Abmelden löscht die offenen Tickets der Sitzung. Regeln: Benutzername 
 | Fehlgeschlagene Anmeldungen je Benutzername über alle IPs | 100 in 15 Minuten (gegen verteiltes Raten; eine einzelne fremde IP kann ein Konto so nicht aussperren) |
 | Neue Konten je IP | 3 je Stunde (`REGISTRATIONS_PER_IP_HOUR`) – eine IP allein kann das Gesamtkontingent nicht aufbrauchen |
 | Neue Konten insgesamt | 30 je Stunde |
-| Sitzungen (angemeldete Geräte) je Konto | 20 – bei der 21. Anmeldung endet die älteste |
+| Sitzungen (angemeldete Geräte) je Konto | 20 – bei der 21. Anmeldung endet die am längsten unbenutzte (Nutzung verlängert die Laufzeit höchstens einmal am Tag) |
 | Konten insgesamt | `MAX_ACCOUNTS` (Standard 1000) → 403 `registration-closed` |
 | Freier Platz auf dem Daten-Volume | unter `MIN_FREE_MB` (Standard 512) → 507 für Registrieren, Anmelden und Schreiben (Lesen geht) |
 | Offene Event-Streams | 8 je Konto, 16 je IP, 2000 insgesamt |
@@ -105,7 +112,16 @@ wertlos. Abmelden löscht die offenen Tickets der Sitzung. Regeln: Benutzername 
 Die IP für diese Grenzen ist die Adresse der Verbindung. Nur wenn sie privat ist (der Proxy im
 Docker-Netz oder auf demselben Server) **und** `TRUST_PROXY=1` gesetzt ist, zählt der letzte
 Eintrag von `X-Forwarded-For` – den hat der eigene Proxy angehängt; frühere Einträge kann der
-Client frei erfinden. IPv6-Adressen zählen je /64-Netz (ein Anschluss hat meist ein ganzes /64).
+Client frei erfinden. IPv6-Adressen zählen je /64-Netz (ein Anschluss hat meist ein ganzes /64);
+IPv4-gemappte Adressen (`::ffff:a01:203`) zählen als IPv4.
+
+**Abwägung bei der Sperre je Benutzername:** Die Grenze über alle IPs (100 Fehlversuche in
+15 Minuten) bremst verteiltes Passwort-Raten. Wer genug IP-Adressen hat (mindestens fünf, weil
+jede IP höchstens 20 Versuche hat), kann damit ein Konto aber gezielt bis zu 15 Minuten lang
+für alle sperren – auch für den Inhaber mit richtigem Passwort; Geräte, die schon angemeldet
+sind, spielen weiter. Bewusst so gewählt: Eine einzelne fremde IP sperrt nur sich selbst, und
+die Schwelle ist hoch genug, dass versehentliche Fehleingaben sie nie erreichen. Ein starkes
+Passwort bleibt der eigentliche Schutz.
 
 ## Einrichtung Schritt für Schritt
 

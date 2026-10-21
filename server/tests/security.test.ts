@@ -256,6 +256,21 @@ describe('Registrierung: Gesamtgrenzen und voller Datenträger', () => {
     expect((await call('GET', '/api/me', undefined, tokens[0])).status).toBe(200);
   });
 
+  it('Sitzungen: es fällt die am längsten unbenutzte weg, nicht die älteste', async () => {
+    await start({ authLimit: { limit: 1000, windowMs: 60_000 }, limits: { sessionsPerUser: 2 } });
+    const day = 86_400_000;
+    const first = await register('eiche');
+    clock += 2 * day;
+    const second = ((await (await call('POST', '/api/login', { username: 'eiche', password: 'geheim123' })).json()) as { token: string }).token;
+    clock += 2 * day;
+    // Die erste Sitzung wird benutzt (verlängert sich), die zweite nicht.
+    expect((await call('GET', '/api/me', undefined, first)).status).toBe(200);
+    clock += 60_000;
+    await call('POST', '/api/login', { username: 'eiche', password: 'geheim123' });
+    expect((await call('GET', '/api/me', undefined, first)).status).toBe(200);
+    expect((await call('GET', '/api/me', undefined, second)).status).toBe(401);
+  });
+
   it('wenig freier Platz → 507 für Registrieren und Schreiben, Lesen geht', async () => {
     let full = false;
     await start({ storageOk: () => !full });
@@ -355,6 +370,11 @@ describe('Client-IP und Anmelde-Grenzen', () => {
       expect(isPrivateIp(ip), ip).toBe(false);
     }
     expect(normalizeIp('::FFFF:10.0.0.1')).toBe('10.0.0.1');
+    // IPv4-gemappt in Hex-Schreibweise: ebenfalls IPv4 (privat bleibt privat).
+    expect(normalizeIp('::ffff:a01:203')).toBe('10.1.2.3');
+    expect(normalizeIp('0:0:0:0:0:ffff:0808:0808')).toBe('8.8.8.8');
+    expect(isPrivateIp('::ffff:a00:1')).toBe(true);
+    expect(isPrivateIp('::ffff:808:808')).toBe(false);
   });
 
   it('clientIp: nur vom Proxy (private Adresse) und dann der letzte Eintrag', () => {
@@ -419,6 +439,7 @@ describe('Client-IP und Anmelde-Grenzen', () => {
   it('rateKey: IPv4 unverändert, IPv6 je /64 gebündelt', () => {
     expect(rateKey('1.2.3.4')).toBe('1.2.3.4');
     expect(rateKey('::ffff:1.2.3.4')).toBe('1.2.3.4');
+    expect(rateKey('::ffff:a01:203')).toBe('10.1.2.3');
     expect(rateKey('2001:db8:1:2:aaaa::1')).toBe('2001:db8:1:2::/64');
     expect(rateKey('2001:0DB8:0001:0002:ffff:ffff:ffff:ffff')).toBe('2001:db8:1:2::/64');
     expect(rateKey('2001:db8::')).toBe('2001:db8:0:0::/64');
