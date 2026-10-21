@@ -273,9 +273,10 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   Spielseite, meldet Ausfälle als GitHub-Issue (schließt es wieder, wenn alles läuft)
 - [ ] Installierbare App / PWA (`ui-dev`): Manifest, Icons, Service Worker mit Offline-Start,
   Update-Hinweis bei neuer Version; Sync bleibt online-only
-- [ ] Tagesziele (Design `game-designer`, Logik `core-engineer`, Anzeige `ui-dev`): 2–3
+- [x] Tagesziele (Design `game-designer`, Logik `core-engineer`, Anzeige `ui-dev`): 2–3
   Aufgaben pro Tag aus dem Naturtagebuch, Belohnung Samen bzw. seltene Begegnung;
   deterministisch aus Datum + Seed, Tageswechsel bei aktivem Konto nach Serverzeit
+  (Spielstand v12, `DESIGN_V2.md` 19)
 
 **Welle 2 – Lebendiger Alltag**
 

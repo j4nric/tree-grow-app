@@ -15,7 +15,7 @@
 > eigenes: Spätfrost, Hitzewelle, Laubfall, Schneebruch) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
 > Erweiterung Amphibien mit Waldtümpel (6. Gattung, 5 Arten seit dem Playtest, eigene Nische; unten);
-> Spielstand v11 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
+> Spielstand v12 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
 > verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege;
 > v5-Stände beginnen beim Laden im Frühling und wachsen als Stieleiche weiter; v3- bis
@@ -33,13 +33,54 @@
 > 10 und 12.7); v9-Stände starten mit ihrer aktuellen Vorschau. Seit Spielstand v11 gibt
 > es die Nische Waldtümpel (`DESIGN_V2.md` 5.5 und 12.8); v10-Stände bekommen sie leer, ein
 > im Zyklus gewählter „Waldtümpel“ aus dem Regenreichen Frühling seinen Platz nachgetragen.
+> Seit Spielstand v12 gibt es Tagesziele mit Serie (`DESIGN_V2.md` 19 und 12.9, unten);
+> v11-Stände bekommen einen eigenen Startwert und ihre ersten Ziele beim nächsten Start.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
 > `scripts/simulate.ts`, `tests/balance.test.ts`, `tests/balance-care.test.ts`,
-> `tests/balance-cycles.test.ts`, `tests/balance-restart.test.ts` und
-> `tests/seasons-balance.test.ts` (Einstellungen in
+> `tests/balance-cycles.test.ts`, `tests/balance-restart.test.ts`,
+> `tests/seasons-balance.test.ts` und `tests/daily-balance.test.ts` (Einstellungen in
 > `tests/balance-setup.ts`). Großer Lauf mit allen Tabellen: `npm run balance`.
+
+## Tagesziele (v2, umgesetzt)
+
+Details, Pool, Regeln und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 19
+(Spielstand 12.9). Inhalte in `src/content/daily.ts`, Logik in `src/core/daily.ts`.
+
+- **Drei Ziele je Kalendertag** aus einem Pool von 9 Arten (Begegnungen entscheiden,
+  Arten einer Gattung in einer Jahreszeit beobachten, Zufriedenheit einer Gattung, eine
+  Lebensgemeinschaft nach ihrem Rätselhinweis entdecken, Pflanze setzen, Pflege kaufen,
+  Harmonie 5 min halten, Wachstum bzw. Samen sammeln) – nur, was auf der Stufe passt und in
+  einem kurzen Besuch (5–15 min) sicher schaffbar ist. „Umbauen“ (Pflanze, Pflege,
+  Lebensgemeinschaft) und „Halten“ (Zufriedenheit, Harmonie) nie am selben Tag.
+- **Deterministisch** aus Tag + eigenem Startwert (`meta.daily.seed`), der Tag kommt aus
+  `main.ts` (lokales Datum; mit Konto nach Serverzeit). Die Ziele überdauern den Neuen Zyklus.
+- **Offline** zählen nur Zufriedenheit und Lebensgemeinschaft; Begegnungen (automatisches
+  Ablehnen zählt nie), Beobachten, Harmonie halten, Wachstum und Samen brauchen aktives Spiel.
+- **Belohnung** sofort mit Hinweis: 15 Samen-Sekunden je Ziel (mindestens 5 🌰), ab Junger
+  Baum an 30 % der Tage bei einem Ziel stattdessen eine Begegnung mit Arten ab „selten“.
+  **Serie** der Tage mit mindestens einem erfüllten Ziel; ein verpasster Tag setzt nur sie
+  zurück. Naturtagebuch: erfüllte Ziele, perfekte Tage, längste Serie.
+- **Anzeige:** Karte „Tagesziele“ in der Seitenleiste unter dem Naturtagebuch.
+
+| Zahl (`src/content/daily.ts`) | Wert | Begründung |
+|---|---|---|
+| `DAILY_GOAL_COUNT` / `DAILY_MIN_GOALS` | 3 / 2 | „2–3 Ziele“; gemessen auf jeder Stufe 3 |
+| `DAILY_VISIT_SECONDS` × `DAILY_RATE_MARGIN` | 600 s × 0,8 | Planungsfenster der Auswahl (Wegpunkte, Kaufziele) |
+| `DAILY_PRODUCE_SECONDS` / `DAILY_HOLD_SECONDS` | 300 s / 300 s | Wachstum, Samen, Harmonie halten: 5 min |
+| `DAILY_MAX_DECIDE` / `DAILY_MAX_OBSERVE` | 3 / 3 | |
+| `DAILY_SATISFACTION_STEP` / `DAILY_MIN_HARMONY` | 5 % / 5 | |
+| `DAILY_SEED_SECONDS` | **15** (geplant 20) | mit 20 lag die Obergrenze bei 5,1–5,8 % der ersten Stunde, mit 15 bei 3,5–4,5 % |
+| `DAILY_RARE_CHANCE` / `DAILY_RARE_MIN_STAGE` | 30 % / Junger Baum | |
+
+| Messung (`tests/daily-balance.test.ts`, erste Stunde) | Ergebnis |
+|---|---|
+| Anteil an den Samen der ersten Stunde (Median, 3 Strategien, 200 Durchgänge) | ein Tag 0,11–0,20 %; Mitternacht nach 30 min 1,29–1,40 % (höchstens 1,98 %) |
+| Obergrenze: zweimal alle Ziele zur Samenrate am Ende der Stunde | 3,49–4,51 % (Grenze 5 %) |
+| Hain des Harmonie-Spielers ohne / mit Tageszielen | 1:02:45 / 1:02:39 h |
+| Schaffbarkeit: 6 Wälder × 30 Tage je Stufe 0–7 | nie ein offenes Ziel, längster Besuch 8:45 min |
+| übrige Balancing-Tabellen (`npm run balance`) | unverändert – der Simulator spielt ohne Tagesziele |
 
 ## Erweiterung Amphibien mit Waldtümpel (v2, umgesetzt)
 

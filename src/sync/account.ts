@@ -37,6 +37,11 @@ export interface AccountController {
   makeRoom(): boolean;
   /** Aktuellen Stand sichern (vor „Spielstand löschen“ bzw. „Importieren“). */
   backupCurrent(): void;
+  /**
+   * Abstand Serverzeit − Geräteuhr (ms), solange ein Konto angemeldet ist und der Server schon
+   * geantwortet hat – sonst null. main.ts rechnet damit den Tag der Tagesziele.
+   */
+  serverOffsetMs(): number | null;
 }
 
 function randomId(): string {
@@ -110,5 +115,6 @@ export function startAccount(options: AccountOptions): AccountController {
     persisted: (raw) => core?.persisted(raw),
     makeRoom: () => core?.makeRoom() ?? false,
     backupCurrent: () => void core?.backupCurrent(),
+    serverOffsetMs: () => (core?.user ? (service.serverOffset?.() ?? null) : null),
   };
 }

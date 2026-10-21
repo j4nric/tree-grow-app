@@ -1,6 +1,8 @@
+import type { DailyGoalKind } from '../content/daily';
 import type { CycleEffect, ForcedEncounterType, TimedEffect } from '../content/events';
+import type { SeasonId } from '../content/seasons';
 import { DEFAULT_MAIN_TREE, type MainTreeId } from '../content/trees';
-import { NICHE_IDS, type NicheId, type Tag } from '../content/types';
+import { NICHE_IDS, type Genus, type NicheId, type Tag } from '../content/types';
 import { normalizeSeed } from './rng';
 
 /**
@@ -8,7 +10,8 @@ import { normalizeSeed } from './rng';
  * Jahreszeiten und Hauptbaum-Arten; seit v7 mit der Wegpunkt-Kurve 3,5 · k^3,5 aus dem
  * Balancing 2.10; seit v8 mit der Langzeit-Statistik `meta.stats`; seit v9 mit den
  * Erfolgen `meta.achievements`; seit v10 mit der Sperrklinke `cycle.bestHarmonyMemory`;
- * seit v11 mit der Nische Waldtümpel `niches.pond` der Erweiterung Amphibien).
+ * seit v11 mit der Nische Waldtümpel `niches.pond` der Erweiterung Amphibien; seit v12 mit
+ * den Tageszielen `meta.daily`).
  * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -17,7 +20,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+1 % je Punkt → höchstens
@@ -120,6 +123,66 @@ export function createStats(mainTree: MainTreeId = DEFAULT_MAIN_TREE): LifetimeS
   };
 }
 
+/** Belohnung eines Tagesziels: Samen-Sekunden oder eine Begegnung mit selteneren Arten. */
+export type DailyReward = 'seeds' | 'rare';
+
+/**
+ * Ein Tagesziel (seit v12, DESIGN_V2.md 19). Die Parameter hängen von der Art ab (siehe
+ * content/daily.ts); fehlende gelten als „nicht gebraucht“.
+ */
+export interface DailyGoal {
+  kind: DailyGoalKind;
+  /** Zielwert (> 0): Anzahl, Prozent, Sekunden, 🌿 bzw. 🌰. */
+  target: number;
+  /** Fortschritt (0 … target). Bei Zuständen der höchste gesehene Wert des Tages. */
+  progress: number;
+  /** Gattung (observe, satisfaction). */
+  genus?: Genus;
+  /** Jahreszeit (observe). */
+  season?: SeasonId;
+  /** Lebensgemeinschaft (community). */
+  community?: string;
+  /** Harmonie-Schwelle (harmony). */
+  harmony?: number;
+  reward: DailyReward;
+  /** Erfüllt und belohnt (Belohnung kommt sofort, kein eigener Knopf). */
+  done: boolean;
+}
+
+/**
+ * Tagesziele und Serie (seit v12, DESIGN_V2.md 19). Gehört zu `meta`: überdauert den Neuen
+ * Zyklus – die Ziele eines Tages bleiben auch nach einem Neustart des Baums dieselben.
+ */
+export interface DailyState {
+  /** Fester Startwert je Spielstand (uint32 ≠ 0); Ziele = f(seed, Tag, Spielstand beim Tageswechsel). */
+  seed: number;
+  /** Tag der aktuellen Ziele („JJJJ-MM-TT“, lokale Zeit); '' = noch keine. */
+  day: string;
+  goals: DailyGoal[];
+  /** Tage in Folge mit mindestens einem erfüllten Ziel (0 nach einer Lücke). */
+  streak: number;
+  bestStreak: number;
+  /** Letzter Tag mit mindestens einem erfüllten Ziel ('' = noch nie). */
+  lastDay: string;
+  /** Erfüllte Ziele insgesamt. */
+  goalsDone: number;
+  /** Tage, an denen alle Ziele erfüllt wurden. */
+  perfectDays: number;
+}
+
+/** Startwerte der Tagesziele: noch kein Tag, keine Serie. */
+export function createDaily(seed: number): DailyState {
+  return { seed: normalizeSeed(seed), day: '', goals: [], streak: 0, bestStreak: 0, lastDay: '', goalsDone: 0, perfectDays: 0 };
+}
+
+/**
+ * Startwert der Tagesziele aus dem Startwert des Spiels: eigener, fester Wert (der
+ * Zufallsgenerator `rngState` läuft im Spiel weiter und taugt dafür nicht).
+ */
+export function dailySeedOf(seed: number): number {
+  return normalizeSeed((Math.floor(Math.abs(Number.isFinite(seed) ? seed : 0)) ^ 0x7a6e5d1c) >>> 0);
+}
+
 /** Der laufende Zyklus (DESIGN_V2.md, Abschnitt 10). Wird beim Neuen Zyklus neu angelegt. */
 export interface CycleState {
   /** Nummer des Zyklus, ab 1. */
@@ -175,7 +238,7 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 11;
+  version: 12;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */
@@ -232,6 +295,8 @@ export interface GameState {
      * in Freischalt-Reihenfolge. Wird nie zurückgesetzt (`checkAchievements`).
      */
     achievements: string[];
+    /** Tagesziele und Serie (seit v12). */
+    daily: DailyState;
   };
   /** Zeitpunkt des letzten Ticks (ms seit Epoch), für Offline-Fortschritt. */
   lastTick: number;
@@ -265,6 +330,7 @@ export function createInitialState(now: number, seed: number = now): GameState {
       journal: { species: [], plants: [], communities: [], keepsakes: [] },
       stats: createStats(),
       achievements: [],
+      daily: createDaily(dailySeedOf(seed)),
     },
     lastTick: now,
   };

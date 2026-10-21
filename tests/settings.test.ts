@@ -156,7 +156,7 @@ describe('Spielanleitung', () => {
   const sections = guideSections();
   const text = (id: string) => sections.find((s) => s.id === id)!.paragraphs.join(' ');
 
-  it('13 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
+  it('14 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
     expect(sections.map((s) => s.id)).toEqual([
       'growth',
       'encounters',
@@ -171,6 +171,7 @@ describe('Spielanleitung', () => {
       'visitors',
       'care',
       'achievements',
+      'daily',
     ]);
     for (const s of sections) {
       expect(s.soon, s.id).toBeFalsy();

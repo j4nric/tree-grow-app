@@ -996,6 +996,30 @@ function toLifetimeStats(state: GameState): JournalStatView[] {
       detail: trees.join(', '),
       section: 'total',
     },
+    ...toDailyStats(state),
+  ];
+}
+
+/** Tagesziele im Abschnitt „Über alle Zyklen“ (seit v12): erfüllte Ziele, beste Serie, perfekte Tage. */
+function toDailyStats(state: GameState): JournalStatView[] {
+  const d = state.meta.daily;
+  const n = (x: number) => Math.floor(shown(x));
+  const best = n(d.bestStreak);
+  return [
+    {
+      key: 'total-daily-goals',
+      label: 'Tagesziele erfüllt',
+      value: formatNumber(n(d.goalsDone)),
+      detail: `an ${plural(n(d.perfectDays), 'Tag', 'Tagen')} alle`,
+      section: 'total',
+    },
+    {
+      key: 'total-daily-streak',
+      label: 'Längste Serie',
+      value: plural(best, 'Tag', 'Tage'),
+      detail: 'in Folge mit mindestens einem Tagesziel',
+      section: 'total',
+    },
   ];
 }
 

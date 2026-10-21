@@ -234,5 +234,14 @@ export function guideSections(): GuideSection[] {
         'Es gibt keine Eile: Erfolge haben keine Zeitlimits, bringen keine Belohnung in Zahlen und gehen nie verloren, auch nicht beim Neuen Zyklus. Sie kommen ganz von selbst, Schritt für Schritt.',
       ],
     },
+    {
+      id: 'daily',
+      icon: '📅',
+      title: 'Tagesziele',
+      paragraphs: [
+        'Jeden Tag schlägt dir das Naturtagebuch zwei bis drei kleine Aufgaben vor, die zu deinem Wald passen und in einem kurzen Besuch zu schaffen sind. Erfüllte Ziele belohnen sich sofort mit ein paar Samen, manchmal mit einer Begegnung seltener Arten.',
+        'Ziele zum Beobachten, Entscheiden oder Harmonie-Halten zählen nur, während du spielst; Zufriedenheit und Lebensgemeinschaften auch, wenn du weg warst. Die Ziele eines Tages bleiben beim Neuen Zyklus erhalten. Wer an aufeinanderfolgenden Tagen ein Ziel erfüllt, baut eine Serie auf – ein verpasster Tag setzt nur sie zurück.',
+      ],
+    },
   ];
 }

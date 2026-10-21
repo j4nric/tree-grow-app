@@ -58,6 +58,7 @@ import {
   type MemoryHarmonyBonus,
 } from './formulas';
 import { checkAchievements } from './achievements';
+import { countDailyAction } from './daily-actions';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import { MAX_ELAPSED, nextSeasonBoundary, normalizeElapsed, seasonIdAt, secondsToNextSeason } from './season';
 import {
@@ -498,9 +499,15 @@ export function allWaypointsReached(state: GameState): boolean {
  * dran, wenn die übrigen Arten nicht für alle Karten reichen.
  * Ab dem zweiten Zyklus ziehen Arten aus dem Naturtagebuch innerhalb ihrer Seltenheit mit
  * doppeltem Gewicht (DESIGN_V2.md, Abschnitt 10); im ersten Zyklus bleibt es gleichverteilt.
- * Zufall aus `rng` (Standard: der Spielstand selbst).
+ * Zufall aus `rng` (Standard: der Spielstand selbst). `minRarity` (Standard 0): nur Arten ab
+ * dieser Seltenheit (Belohnung der Tagesziele, DESIGN_V2.md 19).
  */
-export function drawAnimals(state: GameState, exclude: readonly string[] = [], rng: RngHolder = state): string[] {
+export function drawAnimals(
+  state: GameState,
+  exclude: readonly string[] = [],
+  rng: RngHolder = state,
+  minRarity = 0,
+): string[] {
   const slots = nicheSlots(state.stage, state.niches, slotBonuses(state));
   const present = new Set(allAnimals(state));
   const appears = appearsContext(ecosystemOf(state));
@@ -516,7 +523,7 @@ export function drawAnimals(state: GameState, exclude: readonly string[] = [], r
       const byRarity = [0, 1, 2, 3].map((r) => pool.filter((s) => s.rarity === r && !cards.includes(s.id)));
       const r = weightedIndex(
         rng,
-        weights.map((w, idx) => (byRarity[idx]!.length > 0 ? w : 0)),
+        weights.map((w, idx) => (byRarity[idx]!.length > 0 && idx >= minRarity ? w : 0)),
       );
       if (r < 0) break;
       const choices = byRarity[r]!;
@@ -610,6 +617,7 @@ export function chooseCard(
   }
   state.pendingEncounters.splice(encounterIndex, 1);
   countStat(state, 'cardsChosen');
+  countDailyAction(state, 'decide');
   return discoveryResult(recordDiscoveries(state));
 }
 
@@ -667,6 +675,7 @@ export function plantSeed(state: GameState, plantId: string): ActionResult {
   state.seeds -= nextPlantCost(state);
   state.plants.push(plantId);
   countStat(state, 'plantsPlanted');
+  countDailyAction(state, 'plant');
   return discoveryResult(recordDiscoveries(state));
 }
 
@@ -704,6 +713,7 @@ export function declineEncounter(state: GameState, encounterIndex: number): Acti
   if (!isCardEncounter(encounter.type)) return fail('wrong-type');
   state.seeds = capped(state.seeds + declineReward(state));
   state.pendingEncounters.splice(encounterIndex, 1);
+  countDailyAction(state, 'decide');
   return { ok: true };
 }
 
@@ -1071,6 +1081,7 @@ export function chooseEventOption(state: GameState, encounterIndex: number, opti
   state.seeds = capped(state.seeds + seeds);
   state.pendingEncounters.splice(encounterIndex, 1);
   countStat(state, 'eventsDecided');
+  countDailyAction(state, 'decide');
   const discovered = recordDiscoveries(state);
   return discovered.length > 0 ? { ok: true, discovered, seeds } : { ok: true, seeds };
 }
@@ -1111,6 +1122,7 @@ export function hostVisitor(state: GameState, encounterIndex: number): ActionRes
   state.cycle.visitors.push({ id, remaining: visitor.stay });
   state.pendingEncounters.splice(encounterIndex, 1);
   countStat(state, 'visitorsHosted');
+  countDailyAction(state, 'decide');
   const discovered = recordDiscoveries(state);
   return discovered.length > 0 ? { ok: true, discovered, seeds: -cost } : { ok: true, seeds: -cost };
 }
@@ -1124,6 +1136,7 @@ export function farewellVisitor(state: GameState, encounterIndex: number): Actio
   const seeds = costs?.farewell ?? 0;
   state.seeds = capped(state.seeds + seeds);
   state.pendingEncounters.splice(encounterIndex, 1);
+  countDailyAction(state, 'decide');
   return { ok: true, seeds };
 }
 
@@ -1175,6 +1188,7 @@ export function buyCare(state: GameState, id: string): ActionResult {
   state.seeds = Math.max(0, state.seeds - cost);
   state.cycle.care[id] = careRank(state, id) + 1;
   countStat(state, 'careRanksBought');
+  countDailyAction(state, 'care');
   // Neue Plätze (z. B. Waldtümpel, Nistkästen): Stammgäste ziehen sofort ein, nicht erst
   // am nächsten Wegpunkt.
   const regulars = moveInRegulars(state);
