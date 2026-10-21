@@ -2434,6 +2434,9 @@ dialog.plant-picker {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--muted);
+  /* „Lebensgemeinschaften“ passt mobil nicht in eine halbe Kachel */
+  hyphens: auto;
+  overflow-wrap: anywhere;
 }
 
 .journal-stat-value {
