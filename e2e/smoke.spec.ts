@@ -435,3 +435,183 @@ test.describe('Mobil (390×844)', () => {
     await expectNoHorizontalScroll(page);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Pflanzen: Begegnung „Etwas keimt“, Pflanzring, „Pflanze setzen“
+// ---------------------------------------------------------------------------
+
+/** Gesamt-Wachstum der Wegpunkte im Spielstand v3 (3,5 · k^3,4, aufgerundet). */
+const WAYPOINT_V3 = { 1: 4, 2: 37, 3: 147, 6: 1549 } as const;
+
+interface SeedV3 {
+  totalGrowth: number;
+  seeds?: number;
+  plants?: string[];
+  niches?: Partial<Record<'roots' | 'litter' | 'edge' | 'crown' | 'bark', string[]>>;
+  pendingEncounters?: { type: 'animal' | 'plant'; cards: string[]; rerolls: number }[];
+}
+
+async function seedV3(context: BrowserContext, seed: SeedV3): Promise<void> {
+  const save = {
+    version: 3,
+    totalGrowth: seed.totalGrowth,
+    seeds: seed.seeds ?? 0,
+    waypoint: 0, // wird beim Laden aus totalGrowth abgeleitet
+    stage: 0,
+    plants: seed.plants ?? [],
+    niches: { roots: [], litter: [], edge: [], crown: [], bark: [], hollows: [], ...seed.niches },
+    pendingEncounters: seed.pendingEncounters ?? [],
+    rngState: 123456789,
+    meta: { forestMemory: 0, journal: { species: [], keepsakes: [] } },
+  };
+  await seedRaw(context, save, 0);
+}
+
+const plantCard = (page: Page, plant: string) => dialog(page).locator(`[data-plant="${plant}"]`);
+const plantRing = (page: Page) => page.locator('[data-ref="plant-ring"]');
+const plantOpen = (page: Page) => page.locator('[data-ref="plant-open"]');
+const picker = (page: Page) => page.locator('[data-ref="plant-picker"]');
+
+test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring', async ({ page, context }) => {
+  // Keimling kurz vor Wegpunkt 2 – die festgelegte zweite Begegnung ist „Etwas keimt“.
+  await seedV3(context, { totalGrowth: WAYPOINT_V3[2] - 2, niches: { roots: ['earthworm'] } });
+  await openGame(page);
+  await expect(stageLabel(page)).toHaveText('Stufe: Keimling');
+  await expect(plantRing(page)).toContainText('frei');
+  await expect(stack(page)).toHaveText(/1 Begegnung wartet/, { timeout: 8_000 });
+
+  await openStack(page);
+  await expect(dialog(page)).toContainText('Etwas keimt');
+  await expect(dialog(page)).toContainText('kostenlos im Pflanzring (0/1 belegt)');
+  const cards = dialog(page).locator('[data-plant]');
+  await expect(cards).toHaveCount(2);
+  await expect(dialog(page)).not.toContainText('Unbekannt');
+  // Keimling: nur zwei Pflanzen freigeschaltet – Neuwürfeln erklärt, warum es nicht geht.
+  await expect(dialog(page).getByText('Neu würfeln: Keine anderen Pflanzen verfügbar')).toBeVisible();
+
+  const moss = plantCard(page, 'moss');
+  await expect(moss).toContainText('Frauenhaarmoos');
+  await expect(moss).toContainText('Moose & Farne');
+  await expect(moss).toContainText('speichert Wasser');
+  await expect(moss).toContainText('Feuchte für Regenwurm');
+  await expect(moss).toContainText('Versorgung mit Licht und Wasser');
+  await moss.getByRole('button', { name: 'Frauenhaarmoos wählen' }).click();
+
+  await expect(dialog(page)).toBeHidden();
+  await expect(stack(page)).toBeHidden();
+  await expect(plantRing(page).locator('[data-plant="moss"]')).toContainText('Frauenhaarmoos');
+  await expect(page.locator('[data-ref="plant-slots"]')).toHaveText('1/1 belegt');
+  await expect(page.locator('[data-ref="plant-supply"]')).toHaveText('☀️ Licht 100 % · 💧 Wasser 100 %');
+  const saved = await savedState(page);
+  expect(saved.plants).toEqual(['moss']);
+  expect(saved.pendingEncounters).toEqual([]);
+});
+
+test('Pflanzring voll: „Welche Pflanze weicht?“ ersetzt die gewählte Pflanze', async ({ page, context }) => {
+  await seedV3(context, {
+    totalGrowth: WAYPOINT_V3[3] + 1,
+    plants: ['hazel', 'bramble'],
+    pendingEncounters: [{ type: 'plant', cards: ['nettle', 'strawberry', 'fern'], rerolls: 0 }],
+  });
+  await openGame(page);
+  await expect(stageLabel(page)).toHaveText('Stufe: Setzling');
+  await expect(page.locator('[data-ref="plant-slots"]')).toHaveText('2/2 belegt');
+  // Ring voll: statt „Pflanze setzen“ ein Hinweis
+  await expect(plantOpen(page)).toBeHidden();
+  await expect(page.locator('[data-ref="plant-hint"]')).toContainText('Alle Plätze belegt');
+
+  await openStack(page);
+  const nettle = plantCard(page, 'nettle');
+  await expect(nettle).toContainText('Pflanzring voll');
+  await expect(nettle.getByRole('combobox', { name: 'Welche Pflanze weicht?' })).toBeVisible();
+  await nettle.getByRole('combobox').selectOption('bramble');
+  await expect(nettle).toContainText('ersetzt Brombeere');
+  await nettle.getByRole('button', { name: 'Große Brennnessel wählen (ersetzt Brombeere)' }).click();
+
+  await expect(dialog(page)).toBeHidden();
+  await expect(plantRing(page)).toContainText('Große Brennnessel');
+  await expect(plantRing(page)).toContainText('Hasel');
+  await expect(plantRing(page)).not.toContainText('Brombeere');
+  expect((await savedState(page)).plants).toEqual(['hazel', 'nettle']);
+});
+
+test('Pflanze setzen mit genug Samen: Samen sinken, Pflanze wächst, Auswahl schließt', async ({ page, context }) => {
+  await seedV3(context, { totalGrowth: WAYPOINT_V3[3] + 1, seeds: 30 });
+  await openGame(page);
+  await expect(plantOpen(page)).toBeVisible();
+  await expect(plantOpen(page)).toContainText('20 🌰');
+  await plantOpen(page).click();
+
+  await expect(picker(page)).toBeVisible();
+  await expect(picker(page)).toContainText('Pflanzring 0/2 belegt');
+  await expect(picker(page).locator('[data-plant]')).toHaveCount(7); // Keimling- und Setzling-Pflanzen
+  await page.waitForTimeout(300); // Eingabesperre nach dem Öffnen
+  await picker(page).getByRole('button', { name: 'Hasel setzen für 20 Samen' }).click();
+
+  await expect(picker(page)).toBeHidden();
+  await expect(plantRing(page).locator('[data-plant="hazel"]')).toContainText('Hasel');
+  await expect(page.locator('[data-ref="plant-slots"]')).toHaveText('1/2 belegt');
+  expect(await readNumber(seedsValue(page))).toBeLessThan(15);
+  // Die nächste Pflanze kostet mehr (20 · 1,9 = 38).
+  await expect(plantOpen(page)).toContainText('38 🌰');
+  // Fokus zurück auf „Pflanze setzen“
+  await expect(plantOpen(page)).toBeFocused();
+  const saved = await savedState(page);
+  expect(saved.plants).toEqual(['hazel']);
+  expect(saved.seeds).toBeLessThan(15);
+});
+
+test('Pflanze setzen mit zu wenig Samen: gesperrt mit Grund, nichts ändert sich', async ({ page, context }) => {
+  await seedV3(context, { totalGrowth: WAYPOINT_V3[3] + 1, seeds: 5 });
+  await openGame(page);
+  await expect(page.locator('[data-ref="plant-hint"]')).toContainText('bis zur nächsten Pflanze');
+  await plantOpen(page).click();
+  await expect(picker(page)).toBeVisible();
+  await expect(picker(page).locator('[data-ref="picker-seeds"]')).toContainText('bis zur nächsten Pflanze');
+  const hazel = picker(page).locator('[data-plant="hazel"]');
+  await expect(hazel.getByRole('button', { name: 'Hasel: Nicht genug Samen' })).toBeDisabled();
+
+  await page.keyboard.press('Escape');
+  await expect(picker(page)).toBeHidden();
+  await expect(plantOpen(page)).toBeFocused();
+  expect((await savedState(page)).plants ?? []).toEqual([]);
+});
+
+test.describe('Pflanzen mobil (390×844)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  async function expectNoHorizontalScroll(page: Page): Promise<void> {
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  }
+
+  test('kein horizontales Scrollen: Pflanzring mit Mangel, voller Pflanzen-Dialog, Auswahl', async ({
+    page,
+    context,
+  }) => {
+    await seedV3(context, {
+      totalGrowth: WAYPOINT_V3[6] + 1,
+      seeds: 500,
+      plants: ['birch', 'rowan'],
+      niches: { roots: ['earthworm'], litter: ['robin'], crown: ['bluetit'] },
+      pendingEncounters: [{ type: 'plant', cards: ['elder', 'foxglove', 'hazel'], rerolls: 0 }],
+    });
+    await openGame(page);
+    await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
+    await expect(page.locator('[data-ref="plant-shortage"]')).toContainText('Zu wenig Licht');
+    await expectNoHorizontalScroll(page);
+
+    await plantOpen(page).tap();
+    await expect(picker(page)).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await picker(page).getByRole('button', { name: 'Schließen' }).tap();
+    await expect(picker(page)).toBeHidden();
+
+    await stack(page).tap();
+    await expect(plantCard(page, 'elder')).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+});

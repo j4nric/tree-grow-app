@@ -16,6 +16,8 @@ import {
   queuedText,
   replaceHint,
   rerollLabel,
+  seedsLine,
+  swapHint,
   toneOf,
   toneSymbol,
 } from '../src/ui/view-format';
@@ -152,5 +154,31 @@ describe('Texte im Dialog und in den Nischen', () => {
   it('zeigt belegte Plätze', () => {
     expect(nicheSlotsLabel(2, 3)).toBe('2/3 belegt');
     expect(nicheSlotsLabel(0, 0)).toBe('verschlossen');
+  });
+});
+
+describe('Pflanzen', () => {
+  it('Vorschau zeigt die Versorgung – schlechter nur bei Rückgang', () => {
+    const parts = previewParts({ harmonyDelta: 2, growthDelta: 0.1, supply: 0.75, supplyDelta: -0.25 });
+    expect(parts.map((p) => p.key)).toEqual(['harmony', 'growth', 'supply']);
+    expect(parts[2]).toMatchObject({
+      value: `75${NBSP}% versorgt`,
+      text: `Versorgung mit Licht und Wasser 75${NBSP}%`,
+      tone: 'bad',
+    });
+    expect(previewParts({ harmonyDelta: 0, growthDelta: 0, supply: 1, supplyDelta: 0 })[2]!.tone).toBe('neutral');
+    expect(previewParts({ harmonyDelta: 0, growthDelta: 0, supply: 0.8, supplyDelta: 0.1 })[2]!.tone).toBe('good');
+  });
+
+  it('Ersetzen-Hinweis für den Pflanzring', () => {
+    expect(swapHint('Pflanzring voll', 'Hasel')).toBe('Pflanzring voll – ersetzt Hasel');
+    expect(swapHint('Pflanzring voll', undefined)).toBe('Pflanzring voll');
+  });
+
+  it('Samenzeile der Auswahl: exakter Vergleich, fehlende Menge aufgerundet', () => {
+    expect(seedsLine(137.5, 137.18)).toBe('Du hast 137 🌰');
+    expect(seedsLine(137.1, 137.18)).toBe('Du hast 137 🌰 – noch 1 🌰 bis zur nächsten Pflanze');
+    expect(seedsLine(10.9, 72.2)).toBe('Du hast 10 🌰 – noch 62 🌰 bis zur nächsten Pflanze');
+    expect(seedsLine(-3, 20)).toBe('Du hast 0 🌰 – noch 23 🌰 bis zur nächsten Pflanze');
   });
 });

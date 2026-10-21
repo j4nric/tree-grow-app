@@ -58,7 +58,7 @@ export function toneSymbol(tone: Tone): string {
 }
 
 export interface PreviewPart {
-  key: 'harmony' | 'growth' | 'seeds' | 'happiness';
+  key: 'harmony' | 'growth' | 'seeds' | 'happiness' | 'supply';
   icon: string;
   /** Vollständiger Text für Screenreader, z. B. „Harmonie +6“. */
   text: string;
@@ -105,6 +105,17 @@ export function previewParts(preview: PreviewView): PreviewPart[] {
       value: formatPercent(preview.happiness),
       text: `Zufriedenheit ${formatPercent(preview.happiness)}`,
       tone: 'neutral',
+    });
+  }
+  if (preview.supply !== undefined) {
+    const delta = preview.supplyDelta ?? 0;
+    parts.push({
+      key: 'supply',
+      icon: '☀️💧',
+      value: `${formatPercent(preview.supply)} versorgt`,
+      text: `Versorgung mit Licht und Wasser ${formatPercent(preview.supply)}`,
+      // Nur ein Rückgang (oder Anstieg) zählt – volle Versorgung bleibt neutral.
+      tone: delta < -0.005 ? 'bad' : delta > 0.005 ? 'good' : 'neutral',
     });
   }
   return parts;
@@ -174,6 +185,21 @@ export function declineLabel(reward: number): string {
 export function replaceHint(nicheLabel: string, replacedName: string | undefined): string {
   const full = `Nische ${nicheLabel} voll`;
   return replacedName ? `${full} – ersetzt ${replacedName}` : full;
+}
+
+/**
+ * Samenvorrat im Kopf der Auswahl „Pflanze setzen“. `cost` ist exakt: Ob es reicht,
+ * entscheidet derselbe Vergleich wie im Kern; die fehlende Menge wird aufgerundet.
+ */
+export function seedsLine(seeds: number, cost: number): string {
+  const have = `Du hast ${formatNumber(Math.floor(Math.max(0, seeds)))} 🌰`;
+  if (!(cost > 0) || seeds >= cost) return have;
+  return `${have} – noch ${formatNumber(Math.ceil(cost - seeds))} 🌰 bis zur nächsten Pflanze`;
+}
+
+/** Hinweis bei vollem Platz mit gewähltem Ersatz: „Pflanzring voll – ersetzt Hasel“. */
+export function swapHint(fullText: string, replacedName: string | undefined): string {
+  return replacedName ? `${fullText} – ersetzt ${replacedName}` : fullText;
 }
 
 /** Plätze einer Nische: „2/3 belegt“ oder „verschlossen“. */

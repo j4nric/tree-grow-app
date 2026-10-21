@@ -611,7 +611,7 @@ dialog.encounter::backdrop {
 }
 
 .card-replace-select {
-  flex: 1;
+  flex: 1 1 9em;
   min-width: 0;
   min-height: 44px;
   padding: 0 8px;
@@ -1329,6 +1329,375 @@ dialog.encounter::backdrop {
   display: none;
 }
 
+/* ---------- Pflanzen: Gruppenfarben, Kennzahlen, Pflanzring, Auswahl ---------- */
+
+/* Pflanzengruppen als „Gattung“ der Pflanzenkarten */
+.family-trees {
+  --fam: #3f7f3a;
+  --fam-bg: #e3f0dc;
+  --fam-text: #2a5f26;
+}
+.family-shrubs {
+  --fam: #6b4f9c;
+  --fam-bg: #ece6f5;
+  --fam-text: #4b3478;
+}
+.family-flowers {
+  --fam: #c0507a;
+  --fam-bg: #f8e3ec;
+  --fam-text: #8c2f55;
+}
+.family-mosses {
+  --fam: #4f8a6e;
+  --fam-bg: #e1f0e8;
+  --fam-text: #2f604a;
+}
+
+/* Pflanzenkarten haben keine Seltenheit: Rahmen in der Gruppenfarbe */
+.encounter-card.family-trees,
+.encounter-card.family-shrubs,
+.encounter-card.family-flowers,
+.encounter-card.family-mosses {
+  border-color: color-mix(in srgb, var(--fam) 55%, white);
+}
+
+/* Kennzahlen (Wachstum, Samen, Licht, Wasser) als kleines Raster */
+.card-facts {
+  list-style: none;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.card-fact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 4px 2px;
+  border-radius: 8px;
+  background: #f6f4ea;
+  text-align: center;
+}
+
+.card-fact-label {
+  font-size: 0.66rem;
+  line-height: 1.15;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.card-fact-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.card-fact-icon {
+  font-size: 0.8rem;
+}
+
+/* Pflanzring in der Seitenleiste */
+.panel .ring-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ring-title .niche-slots {
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+}
+
+.ring-title.full .niche-slots {
+  color: var(--accent-dark);
+}
+
+.plant-ring {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plant-ring.locked {
+  color: var(--muted);
+}
+
+.plant-ring [hidden] {
+  display: none;
+}
+
+.plant-supply {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+
+.plant-supply-text {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.plant-meters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 10px;
+}
+
+.plant-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.plant-meter-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #e7e3d4;
+  overflow: hidden;
+}
+
+.plant-meter-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.meter-light .plant-meter-bar {
+  background: #d9a51a;
+}
+
+.meter-water .plant-meter-bar {
+  background: #3d7fb8;
+}
+
+.plant-meter.short .plant-meter-bar {
+  background: var(--bad);
+}
+
+.plant-meter-detail {
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.plant-shortage {
+  margin: 2px 0 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--rarity-rare);
+  border-radius: 6px;
+  background: #fff4d6;
+  color: #6a4500;
+  font-size: 0.8rem;
+}
+
+.plant-slot.filled {
+  border-left-color: var(--fam);
+}
+
+.plant-slot.filled .slot-ring {
+  background: var(--fam-bg);
+  border: 2px solid var(--fam);
+}
+
+.plant-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.plant-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 4px;
+  border: 1px solid var(--fam);
+  border-radius: 8px;
+  background: var(--fam-bg);
+  color: var(--fam-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.plant-group.empty {
+  border-style: dashed;
+  border-color: var(--border);
+  background: transparent;
+  color: var(--muted);
+}
+
+.plant-action {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plant-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: white;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.plant-button:hover {
+  background: #eef6e6;
+}
+
+.plant-button.affordable {
+  background: var(--accent);
+  color: white;
+}
+
+.plant-button.affordable:hover {
+  background: var(--accent-dark);
+}
+
+.plant-button-cost {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+
+.plant-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Auswahl „Pflanze setzen“ – „Schließen“ und Hinweise bleiben beim Scrollen sichtbar */
+.plant-picker .encounter-actions .encounter-notice {
+  flex-basis: 100%;
+}
+
+.plant-picker .encounter-actions {
+  position: sticky;
+  bottom: -20px;
+  margin: 0 -20px -20px;
+  padding: 10px 20px 14px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+
+.plant-groups-caption {
+  margin: 0 0 -4px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+dialog.plant-picker {
+  width: min(960px, calc(100vw - 24px));
+}
+
+.picker-seeds {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+
+.picker-seeds.short {
+  color: var(--bad);
+}
+
+.picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.picker-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--fam);
+  border-radius: 12px;
+  background: white;
+}
+
+.picker-row:focus-within {
+  box-shadow: 0 0 0 3px rgba(31, 95, 191, 0.25);
+}
+
+.picker-row.chosen {
+  border-color: var(--accent);
+}
+
+.picker-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.picker-row-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--fam-bg);
+  font-size: 1.1rem;
+}
+
+.picker-row-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.picker-row-name {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.picker-row-group {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--fam-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.picker-row .card-preview {
+  margin-top: auto;
+}
+
 /* ---------- Mobil ---------- */
 
 @media (max-width: 640px) {
@@ -1392,6 +1761,20 @@ dialog.encounter::backdrop {
   .encounter-actions .encounter-button {
     flex: 1 1 140px;
   }
+
+  dialog.plant-picker {
+    width: calc(100vw - 16px);
+  }
+
+  .plant-picker .encounter-actions {
+    bottom: -16px;
+    margin: 0 -12px -16px;
+    padding: 10px 12px 12px;
+  }
+
+  .picker-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ---------- Weniger Bewegung ---------- */
@@ -1407,7 +1790,8 @@ dialog.encounter::backdrop {
 
   .encounter-card,
   .encounter-stack,
-  .eco-harmony summary::before {
+  .eco-harmony summary::before,
+  .plant-meter-bar {
     transition: none;
   }
 

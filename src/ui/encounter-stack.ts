@@ -10,7 +10,8 @@ import { restartAnimation } from './feedback';
 import { formatNumber } from './format';
 
 export interface EncounterStack {
-  update(count: number): void;
+  /** `kind`: Typ der vordersten Begegnung – bestimmt das Symbol auf dem Stapel. */
+  update(count: number, kind?: 'animal' | 'plant'): void;
   readonly element: HTMLButtonElement;
 }
 
@@ -40,8 +41,13 @@ export function createEncounterStack(root: HTMLElement, onOpen: () => void): Enc
   button.addEventListener('click', onOpen);
 
   let shown = -1;
+  let shownKind = '';
 
-  function update(count: number): void {
+  function update(count: number, kind: 'animal' | 'plant' = 'animal'): void {
+    if (kind !== shownKind) {
+      shownKind = kind;
+      setText(icon, kind === 'plant' ? '🌱' : '🐾');
+    }
     if (count === shown) return;
     const grew = shown >= 0 && count > shown;
     shown = count;

@@ -29,7 +29,7 @@ export const PLANT_GROUP_INFO: Readonly<Record<PlantGroup, { name: string; icon:
   trees: { name: 'Bäume', icon: '🌳' },
   shrubs: { name: 'Sträucher', icon: '🫐' },
   flowers: { name: 'Blumen & Kräuter', icon: '🌸' },
-  mosses: { name: 'Moose & Farne', icon: '🌿' },
+  mosses: { name: 'Moose & Farne', icon: '🍃' },
 };
 
 export const PLANTS: readonly Plant[] = [
