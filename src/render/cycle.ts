@@ -175,12 +175,12 @@ export class CycleTransition {
   }
 
   /** Zeichnet die Sequenz zum Zeitpunkt `u` über die fertige Szene. */
-  draw(ctx: CanvasRenderingContext2D, u: number, reducedMotion: boolean, geo: CycleGeometry, sx: number, sy: number): void {
+  draw(ctx: CanvasRenderingContext2D, u: number, reducedMotion: boolean, geo: CycleGeometry, sx: number, sy: number, tx = 0, ty = 0): void {
     const ph = cyclePhase(u, reducedMotion);
     if (ph.done) return;
     const k = geo.dpr;
     const r = this.rect;
-    ctx.setTransform(sx * k, 0, 0, sy * k, 0, 0);
+    ctx.setTransform(sx * k, 0, 0, sy * k, tx, ty);
     if (this.silhouette && ph.silhouette > 0.003) {
       ctx.globalAlpha = ph.silhouette;
       ctx.drawImage(this.silhouette, r.x, r.y, r.w, r.h);
@@ -206,9 +206,9 @@ export class CycleTransition {
       const c = Math.cos(rot);
       const sn = Math.sin(rot);
       ctx.globalAlpha = ph.acornAlpha;
-      ctx.setTransform(sx * k * c, sy * k * sn, -sx * k * sn, sy * k * c, sx * k * x, sy * k * y);
+      ctx.setTransform(sx * k * c, sy * k * sn, -sx * k * sn, sy * k * c, sx * k * x + tx, sy * k * y + ty);
       ctx.drawImage(this.acorn, -s * 0.5, -s, s, s * 1.25);
-      ctx.setTransform(sx * k, 0, 0, sy * k, 0, 0);
+      ctx.setTransform(sx * k, 0, 0, sy * k, tx, ty);
     }
     if (this.glow && ph.seedGlow > 0.003) {
       ctx.globalAlpha = ph.seedGlow;
