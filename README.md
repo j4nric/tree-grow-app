@@ -12,6 +12,52 @@ npm run check   # Typecheck + Tests (schnell, vor jedem Commit)
 npm run balance # großer Balancing-Lauf: 500 Durchgänge, alle Tabellen (DESIGN_V2.md 15.4)
 ```
 
+## Als App installieren und offline spielen
+
+Das Spiel ist eine installierbare Web-App (PWA): Im Browser „Zum Startbildschirm
+hinzufügen“ bzw. „App installieren“ wählen. Nach einem Besuch mit Netz startet es auch
+offline; Konto und Gerätesync brauchen weiterhin Netz und holen den Abgleich später nach.
+Gibt es eine neue Version, erscheint oben „Neue Version verfügbar – neu laden“ – der
+Spielstand wird vor dem Neuladen gespeichert.
+
+- Manifest und Icons: `public/manifest.webmanifest`, `public/icons/` (erzeugt mit
+  `node --experimental-strip-types scripts/generate-icons.ts`)
+- Service Worker: von Hand in `src/pwa/service-worker.ts`; `npm run build` schreibt daraus
+  `dist/sw.js` mit allen gebauten Dateien und einer Inhalts-Version (Plugin in
+  `vite.config.ts`). Seiten zuerst aus dem Netz, gehashte Dateien aus dem Cache; der
+  Sync-Server (andere Adresse, `/api/`, Event-Stream) wird nie abgefangen.
+- Angemeldet wird er nur im Build, nicht mit `npm run dev` und nicht in e2e-Tests
+  (außer `e2e/pwa.spec.ts`, das ihn mit `window.__VSZW_SW__ = true` einschaltet).
+- Mehrere Tabs: Lädt ein Tab die neue Version, zeigen die anderen „Neue Version aktiv –
+  bitte neu laden“.
+- Das Spiel bittet beim Start um dauerhaften Speicher (`navigator.storage.persist()`), damit
+  der Browser Spielstand und Cache nicht bei Platzmangel räumt.
+
+**iPhone/iPad:** Eine zum Home-Bildschirm hinzugefügte App hat in iOS einen *eigenen*
+Speicher, getrennt von Safari. Wer dort weiterspielen will, meldet sich vorher mit dem Konto
+an (Gerätesync) oder überträgt den Spielstand über „Spielstand exportieren“ in Safari und
+„Importieren“ in der App.
+
+### Not-Aus für den Service Worker
+
+Hängen Spieler nach einem fehlerhaften Build in einer kaputten Version fest:
+
+1. Mit `VSZW_SW_KILL=1 npm run build` bauen – bei GitHub Pages die Repository-Variable
+   `VSZW_SW_KILL` auf `1` setzen (Settings → Secrets and variables → Actions → Variables)
+   und den Workflow „Pages“ neu starten. Dann liegt statt des normalen ein
+   Not-Aus-`sw.js` aus: Er übernimmt sofort, löscht alle `vszw-shell-*`-Caches, meldet
+   sich ab und lädt offene Tabs neu. Das Spiel meldet in diesem Build keinen Service
+   Worker an (und vorhandene ab). Spielstände in `localStorage` bleiben unberührt.
+2. Der Browser holt das neue `sw.js` beim nächsten Besuch (Prüfung ohne HTTP-Cache,
+   `updateViaCache: 'none'`). Den Not-Aus einige Tage stehen lassen.
+3. Danach die Variable wieder entfernen (bzw. ohne `VSZW_SW_KILL` bauen): Der normale
+   Service Worker wird wieder angemeldet.
+
+Einzelner Spieler mit Problemen: In den Entwicklerwerkzeugen unter *Application → Service
+Workers* „Unregister“ wählen und neu laden. **Achtung:** „Websitedaten löschen“ bzw.
+„Clear site data“ löscht auch den Spielstand – vorher über „Spielstand exportieren“
+sichern (oder mit dem Konto synchronisieren).
+
 ## Projekt
 
 - [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) – Spielregeln, Zahlen, geplante Systeme

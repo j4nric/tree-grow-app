@@ -33,6 +33,8 @@ jobs:
       - run: npm run build
         env:
           VITE_SYNC_URL: ${{ vars.VITE_SYNC_URL }}
+          # Not-Aus für den Service Worker (README „Not-Aus“): Variable VSZW_SW_KILL=1
+          VSZW_SW_KILL: ${{ vars.VSZW_SW_KILL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

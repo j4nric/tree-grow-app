@@ -29,6 +29,8 @@ src/
   ui/        DOM-Oberfläche (Seitenleiste, Zahlenformat). Ruft nur Aktionen aus core/ auf.
   sync/      Konto und Gerätesync (Client): Entscheidungslogik rein in policy.ts, Netzwerk in
              http-service.ts, nur aktiv mit VITE_SYNC_URL. core/ bleibt ohne Netzwerk.
+  pwa/       Service Worker (rein, ohne DOM); Registrierung und Update-Hinweis in ui/pwa.ts.
+             Nie fremde Origins, /api/ oder SSE abfangen. Not-Aus: VSZW_SW_KILL=1 (README).
   main.ts    Verdrahtung: Game Loop (requestAnimationFrame), Autosave, Offline-Fortschritt.
 server/      Sync-Server (Node, node:sqlite, eigenes package.json, eigene Tests).
 deploy/      Docker Compose und setup.sh für den Sync-Server; Anleitung in docs/KONTO.md.

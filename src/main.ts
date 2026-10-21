@@ -71,6 +71,7 @@ import { IMPORT_ERROR_TEXTS, createSaveTransfer, type SaveTransfer } from './ui/
 import { isDeliberateConfirm } from './ui/confirm';
 import { formatNumber } from './ui/format';
 import { createSeasonBadge } from './ui/season-badge';
+import { setupServiceWorker } from './ui/pwa';
 import { seasonChangeText, toSeasonBadgeView } from './ui/season-view';
 import type { MainTreeId } from './content/trees';
 import type { EcosystemView } from './ui/view-model';
@@ -1075,6 +1076,13 @@ function start(): void {
   window.addEventListener('beforeunload', () => {
     persist();
     account?.flush();
+  });
+  // Installierbare App: Offline-Start und Hinweis auf neue Versionen (nur im Build).
+  setupServiceWorker({
+    beforeReload: () => {
+      persist();
+      return account?.flush();
+    },
   });
 
   refreshViews(performance.now());
