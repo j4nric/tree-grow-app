@@ -58,6 +58,7 @@ import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
 import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
 import { createHelp, initPreferences, type Help } from './ui/help';
+import { createSound } from './ui/sound';
 import { IMPORT_ERROR_TEXTS, createSaveTransfer, type SaveTransfer } from './ui/save-transfer';
 import { isDeliberateConfirm } from './ui/confirm';
 import { formatNumber } from './ui/format';
@@ -135,8 +136,10 @@ const toast = document.querySelector<HTMLElement>('#toast')!;
 const liveStatus = document.querySelector<HTMLElement>('#live-status')!;
 const resetButton = document.querySelector<HTMLButtonElement>('#reset')!;
 const heading = document.querySelector<HTMLElement>('.panel h1')!;
-/** Einstellungen (Bewegung, Zahlenformat, Hinweisdauer) – vor der ersten Anzeige angewendet. */
+/** Einstellungen (Bewegung, Zahlenformat, Hinweisdauer, Klang) – vor der ersten Anzeige angewendet. */
 const preferences = initPreferences();
+/** Klangkulisse (Standard aus; der AudioContext entsteht erst bei einer Nutzerinteraktion). */
+const sound = createSound(preferences.settings.sound);
 
 // --- Zustand -------------------------------------------------------------------------
 
@@ -295,6 +298,7 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
     notify(errorText(result.error, type));
     return false;
   }
+  if (unlocked.length > 0) sound.cue('achievement');
   const text = joinNotes(discoveryText(result.discovered), achievementUnlockedText(unlocked));
   if (text) notify(text);
   return true;
@@ -682,6 +686,8 @@ function frame(now: number): void {
     encounterDirty = true;
     ecoDirty = true;
   }
+  // Neue Begegnung wartet: ein weiches „Pling“.
+  if (report.encounters > 0) sound.cue('encounter');
   const tickNote = tickNoteText(report);
   let seasonText: string | null = null;
   if (report.seasons.length > 0) {
@@ -700,6 +706,7 @@ function frame(now: number): void {
     if (achievementText) {
       saveToStorage(state);
       ecoDirty = true;
+      sound.cue('achievement');
     }
   }
   if (overlayOpen()) {
@@ -718,6 +725,7 @@ function frame(now: number): void {
     ecoDirty = true;
     pickerDirty = true;
     showBanner(STAGES[state.stage]!.name, STAGES[state.stage]!.description);
+    sound.cue('stage');
   }
 
   refreshViews(now);
@@ -729,6 +737,8 @@ function frame(now: number): void {
   scene.season = sceneSeason(state.cycle.elapsed);
   scene.mainTree = state.cycle.mainTree;
   drawScene(ctx, size.width, size.height, scene);
+  // Klang folgt der Szene (Jahreszeit, Harmoniestufe); gedrosselt, still ohne Web Audio.
+  sound.update({ season: scene.season ?? 0, harmonyTier: scene.harmonyTier ?? 0 }, scene.time);
 
   if (now - lastSave > AUTOSAVE_MS) {
     saveToStorage(state);
@@ -812,6 +822,7 @@ function start(): void {
   help = createHelp(document.querySelector<HTMLElement>('#help')!, preferences, { newGame: !loaded });
   preferences.onChange(() => {
     scene.reducedMotion = preferences.reducedMotion;
+    sound.setLevel(preferences.settings.sound);
     // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
     ecoView = null;
     ecoDirty = true;
