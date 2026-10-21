@@ -592,7 +592,8 @@ describe('Pflegemaßnahmen (DESIGN_V2.md 8)', () => {
               expect(NICHES_BY_ID.has(x.niche), c.id).toBe(true);
               // Je Rang 1 Platz; nur eine Nische ohne Plätze aus der Stufe (Waldtümpel)
               // öffnet mit 2 Plätzen, damit die Gattungsschwelle 2 erreichbar ist.
-              expect(x.amount, c.id).toBe(NICHES_BY_ID.get(x.niche)!.slots.some((n) => n > 0) ? 1 : x.amount === 2 ? 2 : 1);
+              if (NICHES_BY_ID.get(x.niche)!.slots.some((n) => n > 0)) expect(x.amount, c.id).toBe(1);
+              else expect([1, 2], c.id).toContain(x.amount);
               positive++;
               break;
             case 'light':

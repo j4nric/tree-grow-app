@@ -245,18 +245,34 @@ describe('Waldtümpel (Erweiterung Amphibien)', () => {
     const winter = makeCanvas(800, 600);
     layer.draw(winter.getContext('2d'), [], anchors, { ...f, season: 3 }, true);
     expect(winter.calls.filter((c) => c.name === 'drawImage')).toHaveLength(2);
-    // Ohne Tümpel und ohne Tiere: nichts.
     const none = makeCanvas(800, 600);
     layer.draw(none.getContext('2d'), [], anchors, f);
     expect(none.calls.filter((c) => c.name === 'drawImage')).toHaveLength(0);
+    // Lage gemerkt: kein neues Objekt pro Frame.
+    expect(anchors.pond()).toBe(anchors.pond());
   });
 
-  it('Kröte sitzt auf einem Stein, der Molch schwimmt; unbekannte Amphibien bekommen die Kröte', () => {
+  it('Kröte steht im flachen Wasser, der Molch schwimmt; unbekannte Amphibien bekommen die Kröte', () => {
     const layer = new AnimalLayer();
     const canvas = makeCanvas(800, 600);
     layer.draw(canvas.getContext('2d'), AMPHIBIANS, anchors, f, true);
-    // Tümpel + (Stein + Kröte) + Molch + (Stein + Ersatz-Kröte)
+    // Tümpel + (Kröte + Wasser davor) + Molch + (Ersatz-Kröte + Wasser davor)
     expect(canvas.calls.filter((c) => c.name === 'drawImage')).toHaveLength(1 + 2 + 1 + 2);
+  });
+
+  it('Reihenfolge: Wurzelraum (Erdloch, Pilzgeflecht) → Tümpel → übrige Tiere', () => {
+    const layer = new AnimalLayer();
+    const canvas = makeCanvas(800, 600);
+    const mixed: SceneAnimal[] = [
+      { id: 'robin', family: 'birds', niche: 'litter', slot: 0, happiness: 0.9 },
+      { id: 'toad', family: 'amphibians', niche: 'pond', slot: 0, happiness: 0.9 },
+      { id: 'earthworm', family: 'soil', niche: 'roots', slot: 0, happiness: 0.9 },
+    ];
+    layer.draw(canvas.getContext('2d'), mixed, anchors, f, true);
+    const draws = canvas.calls.filter((c) => c.name === 'drawImage');
+    // Der Tümpel ist das breiteste Sprite (4 Tiergrößen): nach Erdloch und Regenwurm.
+    const widths = draws.map((c) => c.args[3] as number);
+    expect(widths.indexOf(Math.max(...widths))).toBe(2);
   });
 
   it('drawScene mit Tümpel und Amphibien in allen Jahreszeiten ohne Fehler', () => {

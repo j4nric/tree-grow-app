@@ -490,6 +490,11 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
       // Waldtümpel: öffnet nur durch Pflege (oder Ereignisse – die bleiben eine Überraschung).
       const care = !view.unlockHint && niche.opensEarly ? careSlotProviders(niche.id) : [];
       if (care.length > 0) view.unlockHint = `öffnet durch ${care.join(' oder ')}`;
+    } else if (animals.length === 0) {
+      // Offen, aber noch niemand darf einziehen (Waldtümpel aus dem Regen im Jungen Baum):
+      // ab wann die ersten Bewohner kommen.
+      const first = Math.min(...SPECIES.filter((s) => s.niche === niche.id).map((s) => s.unlock));
+      if (first > state.stage) view.unlockHint = `Bewohner ab „${STAGES[first]?.name ?? '?'}“`;
     }
     return view;
   });

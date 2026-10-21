@@ -217,7 +217,10 @@ export interface NicheView {
   /** Anzahl der Plätze; 0 = noch verschlossen. */
   capacity: number;
   animals: AnimalView[];
-  /** Hinweis für verschlossene Nischen, z. B. „ab Junger Baum“. */
+  /**
+   * Hinweis für verschlossene Nischen, z. B. „öffnet bei „Junger Baum““ – oder für offene,
+   * in die noch niemand einziehen darf („Bewohner ab „Alter Baum““, Waldtümpel).
+   */
   unlockHint?: string;
 }
 

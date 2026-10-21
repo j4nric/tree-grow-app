@@ -7,10 +7,13 @@ import {
   nicheAnchors,
   POND_DEPTH,
   POND_HALF_WIDTH,
+  POND_LIP,
+  POND_SURFACE_CLEAR,
   pondGeometry,
   SCENE_NICHES,
 } from '../src/render/anchors';
-import { animalKind } from '../src/render/animals';
+import { animalBounds, animalKind, type SceneAnimal } from '../src/render/animals';
+import { layoutFlora, PLANT_SPECIES, type ScenePlant } from '../src/render/flora';
 import { makeLayout, placeMainTree } from '../src/render/layout';
 
 const SIZES: [number, number][] = [
@@ -251,42 +254,103 @@ describe('Tier-Zeichnungen', () => {
 });
 
 describe('Waldtümpel im Erdschnitt', () => {
-  it('liegt ganz im Bild unter der Bodenlinie, links neben dem Stamm', () => {
-    for (const [w, h] of SIZES) {
+  const POND_SIZES: [number, number][] = [
+    [320, 480],
+    [360, 640],
+    [390, 844],
+    [1200, 700],
+    [1920, 1080],
+  ];
+  const STAGES_G = [4, 4.5, 5, 6, 7, 8];
+  type Box = { x0: number; x1: number; y0: number; y1: number };
+  const overlap = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  const AMPHIBIANS = [
+    ['toad', 0],
+    ['frog', 1],
+    ['newt', 2],
+    ['toad', 3],
+    ['frog', 4],
+  ] as const;
+  /** Laubstreu, Waldsaum (inkl. Sonderplätze und Großtiere) und Wurzelraum (Pilze mit Geflecht, Tiere mit Erdloch). */
+  const OTHERS: [string, SceneAnimal['family'], string][] = [
+    ['robin', 'birds', 'litter'],
+    ['hedgehog', 'mammals', 'litter'],
+    ['woodant', 'insects', 'litter'],
+    ['salamander', 'soil', 'litter'],
+    ['deer', 'mammals', 'edge'],
+    ['wolf', 'mammals', 'edge'],
+    ['bee', 'insects', 'edge'],
+    ['earthworm', 'soil', 'roots'],
+    ['mole', 'mammals', 'roots'],
+    ['porcini', 'fungi', 'roots'],
+    ['honeyfungus', 'fungi', 'roots'],
+  ];
+
+  it('liegt ganz im Bild und ganz unter der Grasnarbe, links neben dem Stamm', () => {
+    for (const [w, h] of POND_SIZES) {
       const layout = makeLayout(w, h);
       const size = animalSize(w, h);
       const p = pondGeometry(layout, size);
       expect(p.x - POND_HALF_WIDTH * size, `${w}×${h}`).toBeGreaterThanOrEqual(0);
       expect(p.x + POND_HALF_WIDTH * size, `${w}×${h}`).toBeLessThan(layout.cx);
-      expect(p.y).toBe(layout.groundY);
+      expect(p.lipY).toBeCloseTo(layout.groundY + POND_LIP * size, 6);
       expect(p.y + POND_DEPTH * size, `${w}×${h}`).toBeLessThan(h);
     }
   });
 
-  it('Plätze liegen auf der Wasserfläche innerhalb der Senke', () => {
-    for (const [w, h] of SIZES) {
-      for (const g of [4, 6, 8]) {
+  it('Amphibien bleiben samt Wasser und Bewegung in der Senke', () => {
+    for (const [w, h] of POND_SIZES) {
+      for (const g of STAGES_G) {
         const layout = makeLayout(w, h);
-        const size = animalSize(w, h);
-        const p = pondGeometry(layout, size);
-        for (const a of nicheAnchors(w, h, g, 5).pond) {
-          expect(a.y).toBeCloseTo(p.waterY, 6);
-          expect(Math.abs(a.x - p.x), `${w}×${h}`).toBeLessThan(POND_HALF_WIDTH * size);
-          expect(a.onTree).toBe(false);
+        const anchors = createAnchorResolver(layout, g, placeMainTree(layout, g));
+        const p = anchors.pond();
+        const S = anchors.size;
+        for (const [id, slot] of AMPHIBIANS) {
+          const b = animalBounds({ id, family: 'amphibians', niche: 'pond', slot, happiness: 1 }, anchors)!;
+          const where = `${id}/${slot} ${w}×${h} g=${g}`;
+          expect(b.y0, where).toBeGreaterThanOrEqual(p.lipY - 0.5);
+          expect(b.y1, where).toBeLessThanOrEqual(p.y + POND_DEPTH * S + 0.5);
+          expect(b.x0, where).toBeGreaterThanOrEqual(p.x - POND_HALF_WIDTH * S - 0.5);
+          expect(b.x1, where).toBeLessThanOrEqual(p.x + POND_HALF_WIDTH * S + 0.5);
         }
       }
     }
   });
 
-  it('kommt den Wurzelraum-Tieren nicht in die Quere: die Senke endet über ihnen', () => {
-    for (const [w, h] of SIZES) {
-      const layout = makeLayout(w, h);
-      const size = animalSize(w, h);
-      const p = pondGeometry(layout, size);
-      for (const g of [4, 6, 8]) {
-        for (const a of nicheAnchors(w, h, g, 4).roots) {
-          const inPond = Math.abs(a.x - p.x) < POND_HALF_WIDTH * size + size * 0.5;
-          if (inPond) expect(a.y - size * 0.3, `${w}×${h} g=${g}`).toBeGreaterThan(p.y + POND_DEPTH * size);
+  it('überlappt keine Tiere der Laubstreu, des Waldsaums und des Wurzelraums (Plätze 0–5, Stufen 4–8)', () => {
+    for (const [w, h] of POND_SIZES) {
+      for (const g of STAGES_G) {
+        const layout = makeLayout(w, h);
+        const anchors = createAnchorResolver(layout, g, placeMainTree(layout, g));
+        const p = anchors.pond();
+        const S = anchors.size;
+        const pond: Box = { x0: p.x - POND_HALF_WIDTH * S, x1: p.x + POND_HALF_WIDTH * S, y0: p.lipY, y1: p.y + POND_DEPTH * S };
+        // Alles an der Oberfläche endet über der Senke.
+        expect(POND_SURFACE_CLEAR).toBeLessThan(POND_LIP);
+        for (const [id, family, niche] of OTHERS) {
+          for (let slot = 0; slot < 6; slot++) {
+            // Das Pilzgeflecht läuft hinter dem Tümpel weiter (er wird danach gezeichnet).
+            const b = animalBounds({ id, family, niche, slot, happiness: 1 }, anchors, ['mycel'])!;
+            expect(overlap(b, pond), `${id} in ${niche}/${slot}, ${w}×${h}, g=${g}`).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
+  it('überlappt keine Begleitpflanzen (alle 14, Stufen 4–8)', () => {
+    const ring = ['hazel', 'anemone', 'fern', 'birch', 'foxglove', 'moss', 'bramble', 'beech', 'strawberry', 'rowan', 'elder', 'nettle', 'pine', 'hartstongue'];
+    const plants: ScenePlant[] = ring.map((id, slot) => ({ id, group: PLANT_SPECIES[id]!, slot, vigor: 1 }));
+    for (const [w, h] of POND_SIZES) {
+      for (const g of STAGES_G) {
+        const layout = makeLayout(w, h);
+        const S = animalSize(w, h);
+        const p = pondGeometry(layout, S);
+        for (const pl of layoutFlora(layout, g, plants)) {
+          // Pflanzen stehen auf der Narbe (Fußpunkt höchstens 2 px darunter) und wachsen nach
+          // oben – auch direkt über dem Tümpel bleibt die Senke darunter frei.
+          expect(pl.y, `${pl.id} ${w}×${h} g=${g}`).toBeLessThanOrEqual(layout.groundY + 2);
+          expect(pl.y, `${pl.id} ${w}×${h} g=${g}`).toBeLessThan(p.lipY - 2);
         }
       }
     }

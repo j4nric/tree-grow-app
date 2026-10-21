@@ -568,7 +568,8 @@ export type ActionError =
  * zum ersten Mal entstanden sind (chooseCard, plantSeed) – für die Entdeckungs-Meldung.
  * Fehlt, wenn nichts Neues entdeckt wurde.
  */
-export type ActionResult = { ok: true; discovered?: string[]; seeds?: number } | { ok: false; error: ActionError };
+/** `regulars`: Stammgäste, die durch die Aktion eingezogen sind (Pflege mit Plätzen). */
+export type ActionResult = { ok: true; discovered?: string[]; seeds?: number; regulars?: string[] } | { ok: false; error: ActionError };
 
 const fail = (error: ActionError): ActionResult => ({ ok: false, error });
 
@@ -1171,8 +1172,14 @@ export function buyCare(state: GameState, id: string): ActionResult {
   state.seeds = Math.max(0, state.seeds - cost);
   state.cycle.care[id] = careRank(state, id) + 1;
   countStat(state, 'careRanksBought');
+  // Neue Plätze (z. B. Waldtümpel, Nistkästen): Stammgäste ziehen sofort ein, nicht erst
+  // am nächsten Wegpunkt.
+  const regulars = moveInRegulars(state);
   const discovered = recordDiscoveries(state);
-  return discovered.length > 0 ? { ok: true, discovered, seeds: -cost } : { ok: true, seeds: -cost };
+  const result: ActionResult = { ok: true, seeds: -cost };
+  if (discovered.length > 0) result.discovered = discovered;
+  if (regulars.length > 0) result.regulars = regulars;
+  return result;
 }
 
 /**

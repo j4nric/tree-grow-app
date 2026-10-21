@@ -870,9 +870,10 @@ export const SPECIES_INFO: Record<string, KindInfo> = {
   // Bodenleben
   slug: { size: 1, motion: 'crawl', frames: 1 },
   salamander: { size: 1.25, motion: 'crawl', frames: 2 },
-  // Amphibien: Kröte und Frosch sitzen am Ufer, der Molch schwimmt (`swim`).
+  // Amphibien: Kröte und Frosch sitzen im flachen Wasser (nur leichtes Wippen, damit sie
+  // in der Senke bleiben), der Molch schwimmt (`swim`).
   toad: { size: 1, motion: 'sniff', frames: 1 },
-  frog: { size: 0.95, motion: 'hop', frames: 1 },
+  frog: { size: 0.95, motion: 'sniff', frames: 1 },
   newt: { size: 1, motion: 'crawl', frames: 2, swim: true },
   // Pilze
   chanterelle: { size: 0.95, motion: 'still', frames: 1, fungus: 'cap' },

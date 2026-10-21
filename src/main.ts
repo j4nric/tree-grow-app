@@ -394,7 +394,8 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
     return false;
   }
   if (unlocked.length > 0) sound.cue('achievement');
-  const text = joinNotes(discoveryText(result.discovered), achievementUnlockedText(unlocked));
+  const regulars = result.regulars && result.regulars.length > 0 ? regularsArrivedText(result.regulars) : '';
+  const text = joinNotes(discoveryText(result.discovered), regulars, achievementUnlockedText(unlocked));
   if (text) notify(text);
   return true;
 }

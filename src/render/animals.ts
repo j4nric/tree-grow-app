@@ -10,7 +10,7 @@
  * Gesichter. Bei `reducedMotion` stehen alle Tiere still.
  */
 
-import { pondGeometry, POND_DEPTH, POND_WATER_Y, type AnchorResolver, type NicheAnchor } from './anchors';
+import { POND_DEPTH, POND_HALF_WIDTH, POND_LIP, POND_WATER_Y, type AnchorResolver, type NicheAnchor } from './anchors';
 import { amphibianActivity, edgeBare, edgePetals, edgeSeedHeads, fireflySeason, insectActivity, pondIce } from './phenology';
 import { ell, eye, line, OUTLINE, outline, paintBird, poly, TAU, type BirdColors, type SpriteDef } from './sprite-kit';
 import { SPECIES_DEFS, SPECIES_INFO, type KindInfo } from './species-sprites';
@@ -697,72 +697,78 @@ function paintMycel(c: CanvasRenderingContext2D): void {
   c.globalAlpha = 1;
 }
 
-/** Waldtümpel im Erdschnitt: Senke mit Schlammrand, Wasser, Seggen; Mitte der Bodenlinie auf (0, 0). */
+/**
+ * Waldtümpel im Erdschnitt, ganz unter der Grasnarbe (anchors.ts): Senke ab POND_LIP,
+ * Wasser ab POND_WATER_Y, Seggen nur in der Senke. Mitte der Bodenlinie auf (0, 0).
+ */
 function paintPond(c: CanvasRenderingContext2D): void {
-  const rx = 1.9;
-  const depth = POND_DEPTH;
+  const rx = POND_HALF_WIDTH;
+  const lip = POND_LIP;
+  const ry = POND_DEPTH - lip;
   const water = POND_WATER_Y;
-  // Senke: dunkler Schlamm als halbe Ellipse unter der Bodenlinie.
-  c.fillStyle = '#4a3a29';
-  c.beginPath();
-  c.ellipse(0, 0, rx, depth, 0, 0, Math.PI);
-  c.closePath();
+  const bowl = (inset: number) => {
+    c.beginPath();
+    c.ellipse(0, lip, rx - inset, ry - inset * 0.6, 0, 0, Math.PI);
+    c.closePath();
+  };
+  // Schlammrand, darin die Mulde (über dem Wasser etwas heller: feuchte Erde im Schatten).
+  c.fillStyle = '#3f3022';
+  bowl(0);
   c.fill();
-  // Wasser: innerhalb der Senke ab der Wasserlinie, nach unten dunkler.
   c.save();
-  c.beginPath();
-  c.ellipse(0, 0, rx - 0.1, depth - 0.08, 0, 0, Math.PI);
-  c.closePath();
+  bowl(0.1);
   c.clip();
-  const g = c.createLinearGradient(0, water, 0, depth);
+  c.fillStyle = '#5a4733';
+  c.fillRect(-rx, lip, rx * 2, water - lip);
+  const g = c.createLinearGradient(0, water, 0, POND_DEPTH);
   g.addColorStop(0, '#6e9c94');
   g.addColorStop(1, '#2e4b4f');
   c.fillStyle = g;
-  c.fillRect(-rx, water, rx * 2, depth);
+  c.fillRect(-rx, water, rx * 2, POND_DEPTH - water);
   // Lichtreflexe und abgesunkenes Laub am Grund
-  ell(c, -0.5, water + 0.12, 0.45, 0.025, 0, 'rgba(225, 245, 240, 0.35)');
-  ell(c, 0.7, water + 0.22, 0.3, 0.02, 0, 'rgba(225, 245, 240, 0.25)');
-  ell(c, -0.3, depth - 0.12, 0.16, 0.05, 0.3, 'rgba(120, 84, 44, 0.6)');
-  ell(c, 0.45, depth - 0.14, 0.13, 0.04, -0.4, 'rgba(140, 98, 50, 0.55)');
-  c.restore();
-  line(c, [-rx + 0.16, water, rx - 0.16, water], 'rgba(220, 240, 236, 0.75)', 0.03);
-  // Seggen und ein Rohrkolben an beiden Ufern
+  ell(c, -0.5, water + 0.1, 0.45, 0.022, 0, 'rgba(225, 245, 240, 0.35)');
+  ell(c, 0.6, water + 0.2, 0.3, 0.018, 0, 'rgba(225, 245, 240, 0.25)');
+  ell(c, -0.25, POND_DEPTH - 0.1, 0.14, 0.04, 0.3, 'rgba(120, 84, 44, 0.6)');
+  ell(c, 0.35, POND_DEPTH - 0.11, 0.12, 0.035, -0.4, 'rgba(140, 98, 50, 0.55)');
+  line(c, [-rx, water, rx, water], 'rgba(220, 240, 236, 0.75)', 0.03);
+  // Seggen und ein Rohrkolben am Ufer – wachsen aus dem Wasser, enden unter der Narbe.
   for (const [x, h, lean] of [
-    [-1.82, 0.5, -0.12],
-    [-1.7, 0.36, 0.08],
-    [-1.6, 0.44, 0.16],
-    [1.58, 0.4, -0.14],
-    [1.7, 0.52, 0.06],
-    [1.84, 0.34, 0.18],
+    [-1.55, 0.26, -0.06],
+    [-1.45, 0.2, 0.05],
+    [1.42, 0.22, -0.06],
+    [1.52, 0.27, 0.05],
   ] as const) {
-    poly(c, [x - 0.03, 0.04, x + lean, -h, x + 0.03, 0.04], '#5f8a3e');
+    poly(c, [x - 0.025, water + 0.02, x + lean, water - h, x + 0.025, water + 0.02], '#5f8a3e');
   }
-  line(c, [1.64, 0.04, 1.62, -0.62], '#6b8a42', 0.03);
-  ell(c, 1.62, -0.5, 0.045, 0.12, 0, '#6b4a2b');
+  line(c, [1.3, water + 0.02, 1.29, lip + 0.05], '#6b8a42', 0.025);
+  ell(c, 1.29, lip + 0.1, 0.035, 0.07, 0, '#6b4a2b');
+  c.restore();
 }
 
 /** Eisdecke des Tümpels (Winter), gleiche Maße wie `paintPond`. */
 function paintPondIce(c: CanvasRenderingContext2D): void {
-  const rx = 1.9;
   c.save();
   c.beginPath();
-  c.ellipse(0, 0, rx - 0.1, POND_DEPTH - 0.08, 0, 0, Math.PI);
+  c.ellipse(0, POND_LIP, POND_HALF_WIDTH - 0.1, POND_DEPTH - POND_LIP - 0.06, 0, 0, Math.PI);
   c.closePath();
   c.clip();
   c.fillStyle = 'rgba(222, 236, 244, 0.9)';
-  c.fillRect(-rx, POND_WATER_Y - 0.03, rx * 2, 0.14);
+  c.fillRect(-POND_HALF_WIDTH, POND_WATER_Y - 0.03, POND_HALF_WIDTH * 2, 0.12);
   c.fillStyle = 'rgba(190, 214, 228, 0.35)';
-  c.fillRect(-rx, POND_WATER_Y + 0.11, rx * 2, POND_DEPTH);
+  c.fillRect(-POND_HALF_WIDTH, POND_WATER_Y + 0.09, POND_HALF_WIDTH * 2, POND_DEPTH);
   c.restore();
-  line(c, [-1.2, POND_WATER_Y + 0.03, -0.7, POND_WATER_Y + 0.06], 'rgba(255, 255, 255, 0.8)', 0.02);
-  line(c, [0.3, POND_WATER_Y + 0.04, 0.9, POND_WATER_Y + 0.02], 'rgba(255, 255, 255, 0.8)', 0.02);
+  line(c, [-1.1, POND_WATER_Y + 0.02, -0.6, POND_WATER_Y + 0.04], 'rgba(255, 255, 255, 0.8)', 0.02);
+  line(c, [0.3, POND_WATER_Y + 0.03, 0.8, POND_WATER_Y + 0.02], 'rgba(255, 255, 255, 0.8)', 0.02);
 }
 
-/** Flacher Ufer-Stein, auf dem Kröte und Frosch sitzen; Oberkante auf (0, −0.08). */
-function paintPondStone(c: CanvasRenderingContext2D): void {
-  ell(c, 0, 0.0, 0.3, 0.09, 0, '#7d7a70');
-  ell(c, -0.05, -0.03, 0.2, 0.04, 0, '#9a978c');
-  ell(c, 0.02, 0.07, 0.3, 0.03, 0, 'rgba(46, 75, 79, 0.5)');
+/** Flaches Wasser vor Kröte und Frosch: Ihre Füße stehen im Tümpel. Wasserlinie auf (0, 0). */
+function paintPondWade(c: CanvasRenderingContext2D): void {
+  c.fillStyle = 'rgba(110, 156, 148, 0.6)';
+  c.beginPath();
+  c.ellipse(0, 0, 0.55, 0.16, 0, 0, Math.PI);
+  c.closePath();
+  c.fill();
+  line(c, [-0.5, 0, 0.5, 0], 'rgba(220, 240, 236, 0.75)', 0.03);
 }
 
 const DEFS: Record<string, SpriteDef> = {
@@ -793,9 +799,9 @@ const DEFS: Record<string, SpriteDef> = {
   hollow: { x0: -0.4, y0: -0.84, x1: 0.4, y1: 0.06, paint: (c) => paintHollow(c) },
   hollowLip: { x0: -0.4, y0: -0.84, x1: 0.4, y1: 0.12, paint: (c) => paintHollowLip(c) },
   mycel: { x0: -0.8, y0: -0.04, x1: 0.8, y1: 1.0, paint: (c) => paintMycel(c) },
-  pond: { x0: -2.0, y0: -0.66, x1: 2.0, y1: 0.9, paint: (c) => paintPond(c) },
-  pondIce: { x0: -2.0, y0: -0.66, x1: 2.0, y1: 0.9, paint: (c) => paintPondIce(c) },
-  pondStone: { x0: -0.34, y0: -0.12, x1: 0.34, y1: 0.12, paint: (c) => paintPondStone(c) },
+  pond: { x0: -2.0, y0: 0.22, x1: 2.0, y1: 1.04, paint: (c) => paintPond(c) },
+  pondIce: { x0: -2.0, y0: 0.22, x1: 2.0, y1: 1.04, paint: (c) => paintPondIce(c) },
+  pondWade: { x0: -0.58, y0: -0.04, x1: 0.58, y1: 0.18, paint: (c) => paintPondWade(c) },
   shimmer: { x0: -1, y0: -1, x1: 1, y1: 1, paint: (c) => paintShimmer(c) },
   sparkle: { x0: -0.5, y0: -0.5, x1: 0.5, y1: 0.5, paint: (c) => paintSparkle(c) },
   ...SPECIES_DEFS,
@@ -1065,18 +1071,22 @@ export class AnimalLayer {
   builds = 0;
 
   /**
-   * `pond`: Waldtümpel zeichnen (DESIGN_V2.md 5.5) – ein gecachtes Sprite unter den Tieren,
-   * im Winter mit Eisdecke (zweites Sprite, überblendet).
+   * `pond`: Waldtümpel (DESIGN_V2.md 5.5) – ein gecachtes Sprite im Erdschnitt unter der
+   * Grasnarbe, im Winter mit Eisdecke (zweites Sprite, überblendet). Er liegt über den
+   * Wurzelraum-Tieren und dem Pilzgeflecht (das hinter der Senke weiterläuft) und unter
+   * allen übrigen Tieren; Pflanzen und Gäste reichen nicht bis in die Senke (anchors.ts).
    */
   draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame, pond = false): void {
     if (animals.length === 0 && !pond) return;
     this.sprites.tick();
     updateSeason(f.season ?? null);
-    if (pond) drawPond(ctx, anchors, this.sprites, f);
-    if (animals.length === 0) return;
     if (anchors !== this.anchors || !this.matches(animals)) this.rebuild(animals, anchors);
     for (const e of this.plan) {
-      drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
+      if (e.niche === 'roots') drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
+    }
+    if (pond) drawPond(ctx, anchors, this.sprites, f);
+    for (const e of this.plan) {
+      if (e.niche !== 'roots') drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
     }
     ctx.globalAlpha = 1;
   }
@@ -1105,6 +1115,34 @@ export class AnimalLayer {
     plan.sort((a, b) => b.depth - a.depth || (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9) || a.index - b.index);
     this.plan = plan;
   }
+}
+
+/**
+ * Bereich, den ein Tier samt Dekos höchstens belegt (CSS-Pixel, ohne Wind, mit Laufweg
+ * und Hüpfen) – für Tests, dass sich Nischen nicht überlappen. null ohne Ankerpunkt.
+ */
+export function animalBounds(
+  animal: SceneAnimal,
+  anchors: AnchorResolver,
+  /** Dekos, die nicht zählen (z. B. 'mycel': läuft hinter dem Tümpel weiter). */
+  ignore: readonly string[] = [],
+): { x0: number; x1: number; y0: number; y1: number } | null {
+  const anchor = anchors.get(animal.niche, animal.slot);
+  if (!anchor) return null;
+  const e = planEntry(animal, 0, anchor, anchors);
+  const def = DEFS[e.kind] ?? DEFS.insect!;
+  const half = Math.max(-def.x0, def.x1) * e.size + e.travel;
+  const lift = e.info.motion === 'hop' ? 0.17 * anchors.size : e.info.motion === 'sniff' ? 0.05 * anchors.size : 0;
+  const box = { x0: e.x - half, x1: e.x + half, y0: e.y + def.y0 * e.size - lift, y1: e.y + def.y1 * e.size };
+  for (const d of [...e.before, ...e.after]) {
+    const dd = DEFS[d.name];
+    if (!dd || ignore.includes(d.name)) continue;
+    box.x0 = Math.min(box.x0, d.x + dd.x0 * d.size);
+    box.x1 = Math.max(box.x1, d.x + dd.x1 * d.size);
+    box.y0 = Math.min(box.y0, d.y + dd.y0 * d.size);
+    box.y1 = Math.max(box.y1, d.y + dd.y1 * d.size);
+  }
+  return box;
 }
 
 /** Kleine Krabbler, die am Waldsaum auf der Blüte sitzen. */
@@ -1213,17 +1251,23 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
         e.travel = Math.min(S * 0.35, anchor.trunkHalf * 3);
       }
       break;
-    case 'pond':
+    case 'pond': {
+      // Alles bleibt in der Senke unter der Grasnarbe (anchors.ts, POND_LIP).
+      const pond = anchors.pond();
       if (info.swim) {
-        // Schwimmt unter der Wasseroberfläche hin und her (Mitte des Sprites = Körper).
-        e.y = ay + S * (POND_DEPTH - POND_WATER_Y) * 0.45;
-        e.travel = S * 0.45;
+        // Schwimmt in der Mitte unter der Wasseroberfläche hin und her (Mitte = Körper),
+        // dort, wo die Mulde tief genug ist.
+        e.x = pond.x + clamp(ax - pond.x, -0.3 * S, 0.3 * S);
+        e.y = pond.waterY + S * 0.2;
+        e.travel = S * 0.3;
       } else {
-        // Sitzt auf einem Stein am Ufer, die Füße knapp über dem Wasser.
-        e.before.push({ name: 'pondStone', x: ax, y: ay, size: S });
-        e.y = ay - S * 0.08;
+        // Sitzt im flachen Wasser: Kopf genau unter der Narbe, Füße im Wasser.
+        // Leichtes Wippen (`sniff`, 0,05 S) eingerechnet.
+        e.y = pond.lipY + S * 0.07 - def.y0 * e.size;
+        e.after.push({ name: 'pondWade', x: ax, y: pond.waterY, size: S });
       }
       break;
+    }
     case 'hollows': {
       // Die Höhle passt sich dem (anfangs schmalen) Stamm an; in Zehntelschritten,
       // damit nur wenige Sprite-Größen entstehen.
@@ -1401,9 +1445,9 @@ function drawSparkles(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, m
   }
 }
 
-/** Waldtümpel an seiner festen Lage (anchors.ts `pondGeometry`); im Winter mit Eis. */
+/** Waldtümpel an seiner festen Lage (gemerkt in `anchors.pond()`); im Winter mit Eis. */
 function drawPond(ctx: CanvasRenderingContext2D, anchors: AnchorResolver, sprites: SpriteCache, f: AnimalFrame): void {
-  const p = pondGeometry(anchors.layout, anchors.size);
+  const p = anchors.pond();
   const dpr = f.spriteDpr ?? f.dpr;
   blit(ctx, sprites.get('pond', 0, false, p.size, dpr), p.x, p.y, 1, 0, 1, f);
   if (seasonNow.ice > 0.01) blit(ctx, sprites.get('pondIce', 0, false, p.size, dpr), p.x, p.y, 1, 0, seasonNow.ice, f);

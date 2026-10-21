@@ -454,10 +454,22 @@ Nacktschnecke und Weinbergschnecke, aber sie drückt deren Zufriedenheit (Räube
 | Lebensgemeinschaften (9.2) | 🐸 Tümpelleben, 🐌 Schneckenwacht |
 | Gattungsbonus (5.1) | 2: Schneckenschaden −25 % · 3: +2 💧, +5 % 🌿 · 5: +12 % 🌿 |
 
-**Darstellung (11.3):** Der Tümpel liegt als kleine Senke im Erdschnitt am linken
-Bildrand (unter der Bodenlinie, über den Wurzelraum-Tieren), ein gecachtes Sprite, im
-Winter mit überblendeter Eisdecke. Kröte und Frosch sitzen auf Ufersteinen, der Molch
-schwimmt. Unbekannte Amphibien bekommen die Zeichnung der Kröte.
+**Darstellung (11.3):** Am Boden ist auf keiner Bildschirmbreite eine Strecke frei
+(Laubstreu, Waldsaum mit Sonderplätzen, Pilze und Begleitpflanzen teilen sich die ganze
+Breite). Der Tümpel liegt darum als Senke **unter der Grasnarbe** im Erdschnitt am linken
+Bildrand: Die Mulde beginnt 0,25 Tiergrößen unter der Bodenlinie, das Wasser bei 0,55,
+der Grund bei 1,0 – darüber stehen Gras, Laub, Blumen, Pflanzen und Tiere der Oberfläche
+unverändert, darunter liegen die Wurzelraum-Tiere. Seggen und Rohrkolben wachsen nur in
+der Mulde. Kröte und Frosch stehen im flachen Wasser (der Kopf bleibt unter der Narbe),
+der Molch schwimmt in der Mitte. Gezeichnet wird der Tümpel in der Tier-Ebene nach dem
+Wurzelraum (Erdlöcher, Pilzgeflecht läuft hinter der Senke weiter) und vor allen übrigen
+Tieren; ein gecachtes Sprite, im Winter mit überblendeter Eisdecke, Lage gemerkt
+(`AnchorResolver.pond()`). Tests: keine Überlappung mit Laubstreu, Waldsaum, Wurzelraum
+und den 14 Begleitpflanzen bei 320×480 bis 1920×1080, Stufen 4–8
+(`tests/render-anchors.test.ts`). Unbekannte Amphibien bekommen die Zeichnung der Kröte.
+Ist der Tümpel offen, aber noch keine Amphibie freigeschaltet (Regen im Jungen Baum),
+zeigt die Seitenleiste „Bewohner ab „Alter Baum““. Pflege mit Plätzen lässt passende
+Stammgäste sofort einziehen.
 
 **Offen:** Mit 3 Arten ist die Gattungsschwelle 5 unerreichbar. Kandidaten für später:
 Kammmolch (besonders), Laubfrosch (Waldsaum), Ringelnatter als Räuber der Amphibien
@@ -4015,7 +4027,7 @@ Inhalte: `src/content/achievements.ts` (reine Daten), Auswertung:
 | `species-5` | 🐞 | Erste Nachbarn | 5 Arten im Tagebuch |
 | `species-16` | 🦔 | Ein belebter Baum | 16 Arten |
 | `species-all` | 📖 | Alle Bewohner | alle Arten (32) |
-| `all-genera` | 🧭 | Von allem etwas | jede Gattung (5) |
+| `all-genera` | 🧭 | Von allem etwas | jede Gattung (6, seit der Erweiterung auch Amphibien – bereits erreichte Erfolge bleiben) |
 | `plants-5` | 🌼 | Bunter Saum | 5 Pflanzen gewachsen |
 | `plants-all` | 💐 | Garten des Waldes | alle Pflanzen (14) |
 | `community-1` | 🤝 | Gemeinsam stark | 1 Lebensgemeinschaft |

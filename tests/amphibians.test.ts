@@ -31,6 +31,28 @@ describe('Waldtümpel (Nische ohne Plätze aus der Stufe)', () => {
     }
   });
 
+  it('Pflege mit Plätzen: Stammgäste ziehen sofort ein, nicht erst am nächsten Wegpunkt', () => {
+    const state = oldTree();
+    state.seeds = 1e6;
+    state.meta.regulars = ['toad'];
+    state.meta.journal.species.push('toad');
+    const result = buyCare(state, 'pond');
+    expect(result).toMatchObject({ ok: true, regulars: ['toad'] });
+    expect(state.niches.pond).toEqual(['toad']);
+    // Ohne neue Plätze: kein Feld `regulars`.
+    expect(buyCare(state, 'compost')).not.toHaveProperty('regulars');
+  });
+
+  it('Regen-Tümpel im Jungen Baum: offen, aber leer – Hinweis, ab wann Bewohner kommen', () => {
+    const state = stateAt(3, [], 3);
+    state.cycle.seen.push('rain');
+    state.cycle.bonuses.push({ source: 'rain', effect: { kind: 'slot', niche: 'pond', amount: 1 } });
+    const pond = toEcosystemView(state, evaluate(state)).niches.find((n) => n.id === 'pond')!;
+    expect(pond).toMatchObject({ capacity: 1, animals: [], unlockHint: 'Bewohner ab „Alter Baum“' });
+    state.stage = 4;
+    expect(toEcosystemView(state, evaluate(state)).niches.find((n) => n.id === 'pond')!.unlockHint).toBeUndefined();
+  });
+
   it('Pflege „Waldtümpel“: Rang 1 öffnet 2 Plätze, Rang 2 (Hain) einen dritten', () => {
     const state = oldTree();
     state.seeds = 1e6;
@@ -102,6 +124,21 @@ describe('Amphibien im Ökosystem', () => {
     state.niches.pond.push('newt');
     const three = evaluate(state);
     expect(three.traitTiers.amphibians).toBe(2);
+
+    // Wirkung Stufe 1: Schneckenschaden −25 % (nach der Jagd der Kröte, multiplikativ).
+    const slugs = evaluate(oldTree(['toad', 'frog', 'slug'], 2));
+    expect(slugs.traitTiers.amphibians).toBe(1);
+    const zToad = slugs.animals.toad!.happiness;
+    expect(slugs.damage).toBeCloseTo(0.06 * (1 - 0.4 * zToad) * (1 - 0.25), 9);
+    // Wirkung Stufe 2: +2 Wasser und +5 % Wachstum (Pflege Tümpel 2 Ränge: +3 +3 💧;
+    // Frühling +10 % 🌿; Kröte +4 %, Molch +5 % mal Zufriedenheit).
+    expect(three.water).toBeCloseTo(STAGES[5]!.water + 3 + 3 + 2, 9);
+    const z = three.animals;
+    expect(three.growthBonus).toBeCloseTo(0.1 + 0.04 * z.toad!.happiness + 0.05 * z.newt!.happiness + 0.05, 9);
+    // Ohne den dritten Amphib (nur Stufe 1) fehlen genau diese +2 Wasser.
+    const twoAtGrove = oldTree(['toad', 'frog'], 2);
+    twoAtGrove.stage = 5;
+    expect(evaluate(twoAtGrove).water).toBeCloseTo(STAGES[5]!.water + 3 + 3, 9);
   });
 
   it('Frühling (Laichzeit): Amphibien +15 % Zufriedenheit, im Sommer nicht', () => {

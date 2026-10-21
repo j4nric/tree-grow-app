@@ -61,7 +61,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'species-5', icon: '🐞', title: 'Erste Nachbarn', description: 'Fünf Arten stehen im Naturtagebuch.', condition: { kind: 'journal', what: 'species', atLeast: 5 } },
   { id: 'species-16', icon: '🦔', title: 'Ein belebter Baum', description: 'Sechzehn Arten stehen im Naturtagebuch.', condition: { kind: 'journal', what: 'species', atLeast: 16 } },
   { id: 'species-all', icon: '📖', title: 'Alle Bewohner', description: 'Jede Art steht im Naturtagebuch.', condition: { kind: 'journal', what: 'species', atLeast: 'all' } },
-  { id: 'all-genera', icon: '🧭', title: 'Von allem etwas', description: 'Aus jeder Gattung lebt mindestens eine Art im Naturtagebuch.', condition: { kind: 'genera', atLeast: 'all' } },
+  { id: 'all-genera', icon: '🧭', title: 'Von allem etwas', description: 'Aus jeder Gattung – auch den Amphibien – steht mindestens eine Art im Naturtagebuch.', condition: { kind: 'genera', atLeast: 'all' } },
   { id: 'plants-5', icon: '🌼', title: 'Bunter Saum', description: 'Fünf verschiedene Pflanzen sind im Pflanzring gewachsen.', condition: { kind: 'journal', what: 'plants', atLeast: 5 } },
   { id: 'plants-all', icon: '💐', title: 'Garten des Waldes', description: 'Jede Pflanze ist einmal im Pflanzring gewachsen.', condition: { kind: 'journal', what: 'plants', atLeast: 'all' } },
   { id: 'community-1', icon: '🤝', title: 'Gemeinsam stark', description: 'Die erste Lebensgemeinschaft ist entdeckt.', condition: { kind: 'journal', what: 'communities', atLeast: 1 } },
