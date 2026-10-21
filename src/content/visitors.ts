@@ -1,8 +1,8 @@
 import type { Condition, Effect, Genus } from './types';
 
 /**
- * Durchreisende (docs/DESIGN_V2.md 7.5): Gäste auf Zeit. Reine Daten – die Logik folgt
- * in Schritt 2.4 (core-engineer, Umsetzungsnotiz in DESIGN_V2.md 7.8).
+ * Durchreisende (docs/DESIGN_V2.md 7.5): Gäste auf Zeit. Reine Daten – die Logik steht
+ * in src/core/tick.ts (hostVisitor, farewellVisitor; DESIGN_V2.md 7.8).
  *
  * Regeln:
  * - Ein Gast belegt keine Nische. Der Renderer zeigt Gäste über ihre ID (`SceneVisitor`);

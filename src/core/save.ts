@@ -1,11 +1,14 @@
 import { COMMUNITIES_BY_ID } from '../content/communities';
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
+import { EVENTS, EVENTS_BY_ID, type CycleEffect, type TimedEffect } from '../content/events';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY, V1_KEEPSAKE_MIN_ENERGY, V1_KEEPSAKE_MIN_STAGE } from '../content/memory';
 import { PLANTS_BY_ID } from '../content/plants';
 import { SPECIES_BY_ID } from '../content/species';
-import { NICHE_IDS } from '../content/types';
+import { NICHE_IDS, type Tag } from '../content/types';
+import { VISITORS_BY_ID } from '../content/visitors';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import {
+  cycleSlotBonuses,
   nicheSlots,
   plantCost,
   plantSlots,
@@ -16,14 +19,17 @@ import {
   waypointsForGrowth,
 } from './formulas';
 import { isValidRngState, normalizeSeed } from './rng';
-import { recordDiscoveries } from './tick';
+import { interludeThreshold, recordDiscoveries } from './tick';
 import {
   MAX_FOREST_MEMORY,
   SAVE_VERSION,
   createCycle,
   createInitialState,
+  type CycleBonus,
+  type CycleState,
   type GameState,
   type PendingEncounter,
+  type TimedBonus,
 } from './state';
 
 export const SAVE_KEY = 'tree-grow-save';
@@ -72,6 +78,7 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   const state = loadV2(data, now, version);
   if (version < 3) migrateV2(state);
   if (version < 4) migrateV3(state);
+  if (version < 5) migrateV4(state);
   // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte. Führt
   // auch H_max nach (die aktuelle Harmonie zählt schon für diesen Zyklus).
   recordDiscoveries(state);
@@ -160,6 +167,16 @@ function migrateV3(state: GameState): void {
 }
 
 /**
+ * v4 → v5 (Ereignisse und Durchreisende): Die neuen Zyklusfelder starten leer (das
+ * Laden setzt sie so). Liegt der Stand schon hinter dem Zwischenhalt des laufenden
+ * Abschnitts, gilt er als ausgewertet – sonst käme direkt nach dem Update ein Ereignis.
+ */
+function migrateV4(state: GameState): void {
+  state.cycle.interlude = 0;
+  if (state.totalGrowth >= interludeThreshold(state)) state.cycle.interlude = state.waypoint;
+}
+
+/**
  * Robustes Laden eines Stands ab v2 (DESIGN_V2.md, 12.3). Felder, die es in v2 noch
  * nicht gab (Pflanzen), fehlen dort einfach und bleiben leer.
  */
@@ -177,6 +194,12 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   state.waypoint = waypointsForGrowth(state.totalGrowth);
   state.stage = stageForWaypoint(state.waypoint);
 
+  // Seit v5: Ereignis-Boni, Habitate, Gäste … – vor den Nischen, denn Platz-Boni zählen
+  // beim Kürzen mit.
+  const cycle = isRecord(data.cycle) ? data.cycle : {};
+  loadCycleExtras(cycle, state);
+  const bonusSlots = cycleSlotBonuses(state.cycle);
+
   // Nischen: unbekannte Arten und Duplikate verwerfen, jede Art in ihre eigene Nische,
   // auf die aktuelle Platzzahl kürzen. Fehlende Nischen (z. B. „hollows“ aus älteren
   // v2-Ständen) bleiben leer. Arten, die Plätze schaffen (Borkenkäfer → Höhlen, Schwarzspecht), ziehen
@@ -192,7 +215,7 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   const seen = new Set<string>(candidates);
   for (const id of [...candidates.filter(createsSlots), ...candidates.filter((x) => !createsSlots(x))]) {
     const sp = SPECIES_BY_ID.get(id)!;
-    if (state.niches[sp.niche].length >= nicheSlots(state.stage, state.niches)[sp.niche]) continue;
+    if (state.niches[sp.niche].length >= nicheSlots(state.stage, state.niches, bonusSlots)[sp.niche]) continue;
     state.niches[sp.niche].push(id);
   }
   for (const nicheId of NICHE_IDS) {
@@ -201,7 +224,7 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   // Sicherheitsnetz: Kürzen kann Platz-Schaffer entfernt haben – überzählige Tiere von hinten entlassen.
   for (let changed = true; changed; ) {
     changed = false;
-    const slots = nicheSlots(state.stage, state.niches);
+    const slots = nicheSlots(state.stage, state.niches, bonusSlots);
     for (const nicheId of NICHE_IDS) {
       if (state.niches[nicheId].length > slots[nicheId]) {
         state.niches[nicheId].pop();
@@ -217,29 +240,39 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
     .slice(0, plantSlots(state.stage));
 
   // Offene Begegnungen: ungültige Karten entfernen, leere verwerfen, höchstens 3.
-  // Pflanzen-Begegnungen („Etwas keimt“) haben Pflanzen-IDs als Karten; alles andere
-  // (auch fehlender Typ) gilt als Tierbegegnung. Unbekannte Typen aus späteren
-  // Versionen verlieren so ihre Karten und fallen weg.
+  // Pflanzen-Begegnungen („Etwas keimt“) haben Pflanzen-IDs als Karten, Ereignisse und
+  // Gäste genau eine ID (seit v5); alles andere (auch fehlender Typ) gilt als
+  // Tierbegegnung. Unbekannte Typen aus späteren Versionen verlieren so ihre Karten und
+  // fallen weg.
   if (Array.isArray(data.pendingEncounters)) {
     for (const raw of data.pendingEncounters) {
       if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) break;
       if (!isRecord(raw)) continue;
-      const type = raw.type === 'plant' ? 'plant' : 'animal';
-      // Pflanzenkarten müssen auf dieser Stufe freigeschaltet sein.
-      const valid =
+      const type = raw.type === 'plant' || raw.type === 'event' || raw.type === 'visitor' ? raw.type : 'animal';
+      const valid: (id: string) => boolean =
         type === 'plant'
-          ? (id: string) => (PLANTS_BY_ID.get(id)?.unlock ?? Infinity) <= state.stage
-          : (id: string) => SPECIES_BY_ID.has(id);
-      const cards = unique(stringArray(raw.cards).filter(valid)).slice(0, CARDS_PER_ENCOUNTER);
+          ? // Pflanzenkarten müssen auf dieser Stufe freigeschaltet sein.
+            (id) => (PLANTS_BY_ID.get(id)?.unlock ?? Infinity) <= state.stage
+          : type === 'event'
+            ? (id) => EVENTS_BY_ID.has(id)
+            : type === 'visitor'
+              ? (id) => VISITORS_BY_ID.has(id)
+              : (id) => SPECIES_BY_ID.has(id);
+      const single = type === 'event' || type === 'visitor';
+      const cards = unique(stringArray(raw.cards).filter(valid)).slice(0, single ? 1 : CARDS_PER_ENCOUNTER);
       if (cards.length === 0) continue;
       const encounter: PendingEncounter = {
         type,
         cards,
-        rerolls: Math.max(0, Math.floor(finiteOr(raw.rerolls, 0))),
+        rerolls: single ? 0 : Math.max(0, Math.floor(finiteOr(raw.rerolls, 0))),
       };
       state.pendingEncounters.push(encounter);
+      // Wartende Ereignisse und Gäste sind gezogen, also gesehen.
+      if (single && !state.cycle.seen.includes(cards[0]!)) state.cycle.seen.push(cards[0]!);
     }
   }
+  // Zwischenhalt: höchstens bis zum aktuellen Wegpunkt ausgewertet.
+  state.cycle.interlude = Math.min(state.cycle.interlude, state.waypoint);
 
   state.rngState = isValidRngState(data.rngState) ? data.rngState : normalizeSeed(lastTick);
 
@@ -256,8 +289,7 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
 
   // Seit v4: laufender Zyklus und Stammgäste (ältere Stände: migrateV3 setzt sie).
   const discovered = new Set(state.meta.journal.species);
-  const cycle = isRecord(data.cycle) ? data.cycle : {};
-  state.cycle = createCycle(Math.floor(clampedOr(cycle.number, 1, 1, MAX_CYCLE_NUMBER)));
+  state.cycle.number = Math.floor(clampedOr(cycle.number, 1, 1, MAX_CYCLE_NUMBER));
   state.cycle.maxHarmony = clampedOr(cycle.maxHarmony, 0, 0, Number.MAX_VALUE);
   state.cycle.newSpecies = unique(stringArray(cycle.newSpecies).filter((id) => discovered.has(id)));
   if (typeof cycle.startedAt === 'number' && Number.isFinite(cycle.startedAt)) state.cycle.startedAt = cycle.startedAt;
@@ -266,6 +298,56 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
     regularSlots(state.meta.forestMemory),
   );
   return state;
+}
+
+/** Alle Wirkungen einer Art aus allen Ereignis-Optionen (für die Prüfung beim Laden). */
+function eventEffects<K extends 'cycle' | 'timed' | 'habitat'>(eventId: string, kind: K) {
+  const out: Extract<(typeof EVENTS)[number]['options'][number]['effects'][number], { kind: K }>[] = [];
+  for (const option of EVENTS_BY_ID.get(eventId)?.options ?? []) {
+    for (const e of option.effects) if (e.kind === kind) out.push(e as (typeof out)[number]);
+  }
+  return out;
+}
+
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * Lädt die Zyklusfelder für Ereignisse und Gäste (seit v5) robust: Boni, Zeit-Boni und
+ * Habitate nur, wenn ein Ereignis sie wirklich vergibt (Schutz vor manipulierten
+ * Ständen), Restdauern begrenzt auf (0, Dauer], Gäste nur bekannte.
+ */
+function loadCycleExtras(raw: Record<string, unknown>, state: GameState): void {
+  const cycle: CycleState = createCycle(1);
+  if (typeof raw.startedAt === 'number' && Number.isFinite(raw.startedAt)) cycle.startedAt = raw.startedAt;
+  cycle.seen = unique(stringArray(raw.seen).filter((id) => EVENTS_BY_ID.has(id) || VISITORS_BY_ID.has(id)));
+  for (const b of Array.isArray(raw.bonuses) ? raw.bonuses : []) {
+    if (!isRecord(b) || typeof b.source !== 'string') continue;
+    const effect = eventEffects(b.source, 'cycle').find((e) => sameJson(e.effect, b.effect))?.effect;
+    if (effect) cycle.bonuses.push({ source: b.source, effect: effect as CycleEffect } satisfies CycleBonus);
+  }
+  const habitatTags = new Set<string>(EVENTS.flatMap((e) => e.options.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'habitat' ? [x.tag] : [])))));
+  cycle.habitats = stringArray(raw.habitats).filter((t) => habitatTags.has(t)) as Tag[];
+  for (const t of Array.isArray(raw.timed) ? raw.timed : []) {
+    if (!isRecord(t) || typeof t.source !== 'string') continue;
+    const timed = eventEffects(t.source, 'timed').find((e) => sameJson(e.effect, t.effect));
+    const remaining = finiteOr(t.remaining, 0);
+    if (!timed || !(remaining > 0)) continue;
+    cycle.timed.push({ source: t.source, effect: timed.effect as TimedEffect, remaining: Math.min(remaining, timed.seconds) } satisfies TimedBonus);
+  }
+  for (const v of Array.isArray(raw.visitors) ? raw.visitors : []) {
+    if (!isRecord(v) || typeof v.id !== 'string') continue;
+    const visitor = VISITORS_BY_ID.get(v.id);
+    const remaining = finiteOr(v.remaining, 0);
+    if (!visitor || !(remaining > 0) || cycle.visitors.some((x) => x.id === v.id)) continue;
+    cycle.visitors.push({ id: v.id, remaining: Math.min(remaining, visitor.stay) });
+  }
+  if (isRecord(raw.forced) && (raw.forced.type === 'animal' || raw.forced.type === 'plant')) {
+    const type = raw.forced.type;
+    const ids = unique(stringArray(raw.forced.ids).filter((id) => (type === 'plant' ? PLANTS_BY_ID.has(id) : SPECIES_BY_ID.has(id))));
+    if (ids.length > 0) cycle.forced = { type, ids };
+  }
+  cycle.interlude = Math.floor(clampedOr(raw.interlude, 0, 0, WAYPOINT_COUNT));
+  state.cycle = cycle;
 }
 
 export function saveToStorage(state: GameState, storage: Storage = localStorage): void {

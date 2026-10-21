@@ -29,7 +29,7 @@ import {
 const STAGES = ['Samen', 'Keimling', 'Setzling', 'Junger Baum', 'Alter Baum'] as const;
 
 interface Decision {
-  kind: 'animal' | 'plant';
+  kind: 'animal' | 'plant' | 'special';
   offered: string[];
   chosen: string | null;
   replaced: string | null;
@@ -64,6 +64,13 @@ async function previewValue(card: Locator, icon: string): Promise<number> {
 async function decide(page: Page): Promise<Decision> {
   const cards = dialog(page).locator('.encounter-card');
   await expect(cards.first()).toBeVisible();
+  // Ereignis oder Gast (seit Schritt 2.4): erste Option bzw. „Ziehen lassen“ (immer möglich).
+  if ((await cards.first().getAttribute('data-option')) !== null) {
+    const id = (await cards.first().getAttribute('data-option')) ?? '';
+    const target = id === 'host' ? cards.last() : cards.first();
+    await target.locator('.card-choose').click();
+    return { kind: 'special', offered: [id], chosen: null, replaced: null };
+  }
   const kind = (await cards.first().getAttribute('data-plant')) !== null ? 'plant' : 'animal';
   const count = await cards.count();
   const offered: string[] = [];
@@ -160,7 +167,7 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
   expect(plantsChosen.length, JSON.stringify(decisions)).toBeGreaterThanOrEqual(2);
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(4);
+  expect(saved.version).toBe(5);
   expect(saved.waypoint).toBeGreaterThanOrEqual(12);
   // Jeder Wegpunkt bringt höchstens eine Begegnung: entschieden oder noch wartend (die von
   // „Alter Baum“ bleibt offen). Ohne passende Art entfällt sie (z. B. Wegpunkt 2 im

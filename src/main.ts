@@ -6,7 +6,10 @@ import { createInitialState, type GameState } from './core/state';
 import type { PendingEncounterType } from './core/state';
 import {
   chooseCard,
+  chooseEventOption,
   declineEncounter,
+  farewellVisitor,
+  hostVisitor,
   plantSeed,
   rerollEncounter,
   newCycleBlocker,
@@ -28,9 +31,12 @@ import {
   toEcosystemView,
   toEncounterView,
   toPlantPickerView,
+  activeBonusViews,
   toSceneAnimals,
+  toSceneVisitors,
   toScenePlants,
 } from './ui/adapters';
+import { createBonusPanel } from './ui/bonus-panel';
 import { createCyclePanel } from './ui/cycle-panel';
 import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText, toCyclePanelView, withRegulars } from './ui/cycle-view';
 import { createEcosystemPanel } from './ui/ecosystem-panel';
@@ -74,6 +80,8 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'unknown-species': 'Diese Art gibt es nicht.',
   'not-discovered': 'Diese Art steht noch nicht in deinem Naturtagebuch.',
   'no-regular-slot': 'Alle Plätze für Stammgäste sind belegt.',
+  'wrong-type': 'Das geht bei dieser Begegnung nicht.',
+  'no-option': 'Diese Möglichkeit gibt es nicht.',
 };
 
 /** Abweichende Texte, wenn die Aktion eine Pflanzenbegegnung („Etwas keimt“) betraf. */
@@ -151,6 +159,7 @@ const scene: SceneInput = {
 const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosystem')!, {
   onOpenPlantPicker: openPlantPicker,
 });
+const bonusPanel = createBonusPanel(document.querySelector<HTMLElement>('#bonuses')!);
 const cyclePanel = createCyclePanel(document.querySelector<HTMLElement>('#cycle')!, {
   onNewCycle: newCycle,
   onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
@@ -160,8 +169,19 @@ const stack = createEncounterStack(document.querySelector<HTMLElement>('#scene-d
 const dialog = createEncounterDialog(document.body, {
   onChoose: (cardIndex, replaceId) => {
     const type = state.pendingEncounters[0]?.type;
-    const result = chooseCard(state, 0, cardIndex, replaceId);
-    if (act(result, true, type)) announceDiscoveries(result);
+    // Ereignis: Karte = Option; Gast: Karte 0 = bewirten, 1 = ziehen lassen.
+    const result =
+      type === 'event'
+        ? chooseEventOption(state, 0, cardIndex)
+        : type === 'visitor'
+          ? cardIndex === 0
+            ? hostVisitor(state, 0)
+            : farewellVisitor(state, 0)
+          : chooseCard(state, 0, cardIndex, replaceId);
+    if (act(result, true, type)) {
+      announceDiscoveries(result);
+      if (result.ok && result.seeds) floatSeeds(result.seeds);
+    }
   },
   onDecline: () => {
     const before = state.seeds;
@@ -352,6 +372,7 @@ function refreshPanel(now: number): void {
       // Tiere und Pflanzen für die Szene nur bei Änderungen am Ökosystem neu bauen.
       scene.animals = toSceneAnimals(state, ev);
       scene.plants = toScenePlants(state, ev);
+      scene.visitors = toSceneVisitors(state);
     } else {
       refreshEcosystemView(ecoView, state);
     }
@@ -362,11 +383,13 @@ function refreshPanel(now: number): void {
   }
   lastPanelRefresh = now;
   panel.update(ecoView);
+  // Restzeiten der Boni laufen – gedrosselt wie die Zahlen der Seitenleiste.
+  bonusPanel.update(activeBonusViews(state));
 }
 
 function refreshViews(now: number): void {
   refreshPanel(now);
-  stack.update(state.pendingEncounters.length, state.pendingEncounters[0]?.type === 'plant' ? 'plant' : 'animal');
+  stack.update(state.pendingEncounters.length, state.pendingEncounters[0]?.type ?? 'animal');
   refreshEncounter();
   refreshPicker(now);
 }
@@ -457,8 +480,9 @@ function frame(now: number): void {
   lastFrame = now;
   const report = tick(state, dt);
   state.lastTick = Date.now();
-  if (report.waypoints > 0) {
-    // Neue Begegnung: gleich speichern, damit Neuladen dieselben Karten zeigt.
+  if (report.waypoints > 0 || report.encounters > 0 || report.expired.length > 0) {
+    // Neue Begegnung (auch am Zwischenhalt) oder abgelaufener Bonus: gleich speichern,
+    // damit Neuladen dieselben Karten zeigt, und Ansichten neu bauen.
     saveToStorage(state);
     encounterDirty = true;
     ecoDirty = true;
@@ -515,7 +539,7 @@ function catchUp(): void {
       const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');
       if (text) noteText(text);
     }
-    if (report.waypoints > 0) {
+    if (report.waypoints > 0 || report.encounters > 0 || report.expired.length > 0) {
       saveToStorage(state);
       encounterDirty = true;
       ecoDirty = true;

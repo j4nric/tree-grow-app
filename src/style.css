@@ -2196,3 +2196,38 @@ dialog.plant-picker {
   color: var(--muted);
   font-size: 0.72rem;
 }
+
+/* Aktive Boni aus Ereignissen und Gästen (bonus-panel.ts) – schlicht */
+.bonuses {
+  margin-top: 12px;
+}
+
+.bonuses[hidden] {
+  display: none;
+}
+
+.bonus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.bonus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.bonus-name {
+  font-weight: 600;
+}
+
+.bonus-left {
+  margin-left: auto;
+  color: var(--muted);
+}

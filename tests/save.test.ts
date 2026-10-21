@@ -65,7 +65,7 @@ describe('Speichern & Laden v2', () => {
     state.meta.forestMemory = 5;
     // Von Hand geändertes Ökosystem: H_max nachführen wie nach einer Aktion.
     recordDiscoveries(state);
-    expect(SAVE_VERSION).toBe(4);
+    expect(SAVE_VERSION).toBe(5);
     expect(deserialize(serialize(state), 999)).toEqual(state);
     expect(loadGame(serialize(state), 999)).toMatchObject({ migratedFromV1: false, keepsake: false });
   });
@@ -110,7 +110,7 @@ describe('Migration v1 → v2', () => {
     expect(result.migratedFromV1).toBe(true);
     expect(result.keepsake).toBe(true);
     const s = result.state;
-    expect(s.version).toBe(4);
+    expect(s.version).toBe(5);
     expect(s.plants).toEqual([]);
     expect(s.totalGrowth).toBe(0);
     expect(s.seeds).toBe(0);
@@ -225,7 +225,7 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
     const result = loadGame(rawV2(), 5_000)!;
     expect(result).toMatchObject({ migratedFromV1: false, keepsake: false });
     const s = result.state;
-    expect(s.version).toBe(4);
+    expect(s.version).toBe(5);
     expect(s.seeds).toBe(V2_SEED_CAP);
     expect(s.plants).toEqual([]);
     expect(s).toMatchObject({ stage: 4, waypoint: 12, rngState: 4242, lastTick: 1_000 });
@@ -276,7 +276,7 @@ describe('Robustes Laden v3: Pflanzen', () => {
     const pending = [
       { type: 'plant', cards: ['hazel', 'drache', 'hazel', 'earthworm'], rerolls: 1 },
       { type: 'plant', cards: ['earthworm'], rerolls: 0 }, // Tier-ID in Pflanzen-Begegnung
-      { type: 'event', cards: ['storm'], rerolls: 0 }, // Typ aus einer späteren Version
+      { type: 'weather', cards: ['storm'], rerolls: 0 }, // Typ aus einer späteren Version
       { type: 'animal', cards: ['hazel', 'robin'], rerolls: 0 }, // Pflanzen-ID in Tierbegegnung
       { type: 'plant', cards: ['moss', 'anemone', 'fern', 'nettle'], rerolls: 0 },
     ];
@@ -399,7 +399,7 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
     );
     old.meta.journal = { species: ['earthworm'], keepsakes: [] };
     const s = deserialize(JSON.stringify(old), 0)!;
-    expect(s.version).toBe(4);
+    expect(s.version).toBe(5);
     expect(s.meta.journal.plants).toEqual(['moss', 'fern']);
     expect(s.meta.journal.communities).toEqual(['humus', 'damp-ground']);
     expect(s.meta.journal.species).toEqual(['earthworm', 'chanterelle', 'woodlouse', 'slug']);
@@ -468,8 +468,8 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
   });
 
   it('zukünftige Versionen werden so gut wie möglich geladen', () => {
-    const s = deserialize(rawV4({ version: 5, somethingNew: true, plants: ['hazel'] }), 0)!;
-    expect(s.version).toBe(4);
+    const s = deserialize(rawV4({ version: 6, somethingNew: true, plants: ['hazel'] }), 0)!;
+    expect(s.version).toBe(5);
     expect(s.plants).toEqual(['hazel']);
     expect(s.niches.roots).toEqual(['earthworm']);
     expect(s).not.toHaveProperty('somethingNew');

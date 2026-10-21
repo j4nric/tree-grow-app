@@ -774,6 +774,22 @@ dabei wird nichts gezogen, also auch nichts als „gesehen“ markiert.
 **Darstellung:** Renderer bekommt `cycle.visitors.map((v, i) => ({ id: v.id, slot: i }))`;
 die UI kennt `EncounterKind` 'event'/'visitor' schon (`src/ui/view-model.ts`).
 
+**Umgesetzt (Schritt 2.4, Logik):** wie oben, mit diesen Festlegungen:
+
+- Spielstand v5; Migration v4 → v5 setzt die neuen Felder leer. Steht ein Stand schon
+  hinter dem Zwischenhalt seines Abschnitts, gilt dieser als ausgewertet (kein Ereignis
+  direkt nach dem Update). Beim Laden zählen Boni, Zeit-Boni und Habitate nur, wenn ein
+  Ereignis sie genau so vergibt (Schutz vor manipulierten Ständen); Restdauern werden auf
+  die Dauer begrenzt.
+- Aktionen: `chooseEventOption(state, i, option)`, `hostVisitor(state, i)`,
+  `farewellVisitor(state, i)`, Blocker `eventOptionBlocker` / `hostBlocker` als Codes.
+  `declineEncounter` und Neu würfeln gehen bei Ereignissen und Gästen nicht ('wrong-type').
+  Die Zeit kommt über `tick` (Restdauern in Spielsekunden), die Aktionen brauchen keine Uhr.
+- `TickReport` meldet `interludes` (Ereignisse/Gäste am Zwischenhalt) und `expired`
+  (abgelaufene Boni und abgereiste Gäste).
+- `nextEncounter` gilt nicht für die festgelegten Wegpunkte 1–3 und bleibt bei voller
+  Warteschlange stehen, bis wirklich gezogen wird.
+
 **Tests (Vorschlag):** jede Wirkungsart einzeln (Raten vorher/nachher); Ablauf genau
 nach `seconds` (online in vielen Ticks = ein großer Tick = offline); einmal pro Zyklus;
 Bedingungen; `nextEncounter` inkl. „passt nichts mehr“; Zwischenhalt nur ab Hain, je
@@ -1386,7 +1402,26 @@ Neu im Simulator (Begegnungs-Vielfalt): Tabellen „Vielfalt der Begegnungen“ 
 (Harmonie-Spieler und Zufall) und „Vielfalt bis Hain je Strategie“ (`varietyStats`,
 `varietyBefore`, `longestDrought`).
 
-#### Stand Schritt 2.4 – Inhalte: Ereignisse und Durchreisende im Modell (500 Durchgänge)
+#### Stand Schritt 2.4 – Logik: Ereignisse und Durchreisende echt (100 Durchgänge)
+
+Seit der Logik zieht der Simulator Ereignisse, Gäste und Zwischenhalte mit der echten
+Logik (`scripts/extras.ts` ist entfernt). Strategien wählen Ereignis-Optionen nach einem
+Wert aus der echten Aktion auf einer Kopie (Wachstum + 0,4 × Samen über die Wirkdauer,
+Zyklus-Boni 30 min, Vorgabe pauschal 45 s); Gäste werden bewirtet, wenn die Samen
+reichen (Zufall: jeder zweite).
+
+| Strategie | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Durststrecke Alter Baum 90 % / max | Hain 90 % / max | Wald 90 % / max | Ereignisse / Gäste (bewirtet) je Durchgang |
+|---|---|---|---|---|---|---|---|---|---|
+| Zufällig | 24:00 min | 1:14 h | 2:14 h | 3:14 h | 71,9 | 12:46 min / 20:53 min | 12:08 min / 14:50 min | 10:35 min / 14:02 min | 7,1 / 6,3 (3,1) |
+| Gierig nach Harmonie | 16:56 min | 45:44 min | 1:18 h | 1:54 h | 100,1 | 7:58 min / 11:54 min | 7:39 min / 12:18 min | 9:13 min / 19:19 min | 7,4 / 6,1 (6,1) |
+| Gierig nach Wachstum | 14:37 min | 37:31 min | 1:04 h | 1:33 h | 94,1 | 7:15 min / 13:47 min | 5:02 min / 6:47 min | 5:13 min / 8:11 min | 7,7 / 6,0 (6,0) |
+
+Bewertung: Durststrecken im Hain und Wald liegen im 90-%-Quantil unter 10 min (Ziel
+< 11 min). Der Harmonie-Spieler erreicht den Hain in ~46 min – am unteren Rand des
+Korridors (Ziel ~60 min, Test > 42 min); Ereignisse und Gäste beschleunigen spürbar.
+Beim Balancing (2.10) ggf. Samen-Sekunden oder Bonus-Höhen senken.
+
+#### Stand Schritt 2.4 – Inhalte: Ereignisse und Durchreisende im Modell (500 Durchgänge, historisch)
 
 Die Logik fehlt noch; `scripts/extras.ts` modelliert Ereignisse, Gäste und Zwischenhalt
 **grob** neben der echten Logik (`runGame(…, { events: true })`). Annahmen:

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { evaluate, previewChoice } from '../src/core/formulas';
 import { allAnimals, createInitialState, type GameState } from '../src/core/state';
 import { chooseCard, declineEncounter, plantSeed, tick, unlockedPlants } from '../src/core/tick';
+import { resolveSpecial } from './helpers';
 
 /**
  * Minimaler Durchlauf-Test mit der echten Logik (ausführlich: tests/balance.test.ts).
@@ -12,6 +13,7 @@ const env = (globalThis as { process?: { env: Record<string, string | undefined>
 
 function resolveForHarmony(state: GameState): void {
   while (state.pendingEncounters.length > 0) {
+    if (resolveSpecial(state)) continue;
     const now = evaluate(state).harmony;
     let best: { card: number; replace?: string; harmony: number } | null = null;
     state.pendingEncounters[0]!.cards.forEach((id, card) => {

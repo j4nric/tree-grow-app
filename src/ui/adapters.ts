@@ -8,11 +8,13 @@
  */
 import { ABILITY_INFO } from '../content/abilities';
 import { COMMUNITIES_BY_ID } from '../content/communities';
+import { EVENTS_BY_ID, type CycleEffect, type TimedEffect } from '../content/events';
 import { NICHES, NICHES_BY_ID } from '../content/niches';
 import { PLANT_GROUP_INFO, PLANTS_BY_ID, type Plant } from '../content/plants';
 import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
 import { STAGES } from '../content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
+import { VISITORS_BY_ID, VISITOR_FAREWELL_LABEL, VISITOR_HOST_LABEL, type VisitorEffect } from '../content/visitors';
 import {
   GENERA,
   PLANT_GROUPS,
@@ -29,6 +31,7 @@ import {
   communityChanges,
   declineReward,
   evaluate,
+  ecosystemOf,
   evaluateEcosystem,
   hasSpecies,
   nextPlantCost,
@@ -44,11 +47,15 @@ import {
   type Evaluation,
 } from '../core/formulas';
 import { allAnimals, type GameState } from '../core/state';
-import type { SceneAnimal, ScenePlant, ScenePlantGroup } from '../render/tree';
+import type { SceneAnimal, ScenePlant, ScenePlantGroup, SceneVisitor } from '../render/tree';
 import {
   MAX_OFFLINE_SECONDS,
   allWaypointsReached,
+  chooseEventOption,
+  eventOptionSeeds,
+  hostBlocker,
   plantBlocker,
+  visitorSeeds,
   rerollBlocker,
   unlockedPlants,
   type OfflineReport,
@@ -56,6 +63,7 @@ import {
 import { formatDuration, formatNumber } from './format';
 import { preferredReplaceOption } from './view-format';
 import type {
+  ActiveBonusView,
   AnimalView,
   CardView,
   CommunityHintView,
@@ -687,7 +695,7 @@ export function toCardView(
   } else if (status === 'closed') {
     // Nur für die Bedingungen: Wie ginge es der Art, wenn sie schon einziehen dürfte?
     const niches = { ...state.niches, [sp.niche]: [...(state.niches[sp.niche] ?? []), sp.id] };
-    after = evaluateEcosystem({ stage: state.stage, niches, plants: state.plants, forestMemory: state.meta.forestMemory });
+    after = evaluateEcosystem(ecosystemOf(state, { niches }));
   }
 
   const card: CardView = {
@@ -740,6 +748,7 @@ export const REROLL_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof rero
   'no-cards': 'Keine passenden Tiere',
   'no-alternatives': 'Keine anderen Tiere verfügbar',
   'too-expensive': 'Nicht genug Samen',
+  'wrong-type': 'Hier gibt es nichts neu zu würfeln',
 };
 
 /** Warum „Neu würfeln“ gerade nicht geht – Pflanzenbegegnung („Etwas keimt“). */
@@ -748,6 +757,7 @@ export const PLANT_REROLL_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeo
   'no-cards': 'Keine passenden Pflanzen',
   'no-alternatives': 'Keine anderen Pflanzen verfügbar',
   'too-expensive': 'Nicht genug Samen',
+  'wrong-type': 'Hier gibt es nichts neu zu würfeln',
 };
 
 /** Überschrift der Begegnung „Etwas keimt“. */
@@ -761,6 +771,8 @@ export function toEncounterView(
 ): EncounterView | null {
   const encounter = state.pendingEncounters[encounterIndex];
   if (!encounter) return null;
+  if (encounter.type === 'event') return toEventView(state, encounterIndex, now);
+  if (encounter.type === 'visitor') return toVisitorView(state, encounterIndex, now);
   const isPlant = encounter.type === 'plant';
   const cards = encounter.cards
     .map((_, c) =>
@@ -1233,4 +1245,198 @@ export function welcomeText(
     text += ` ${who} weiter: +${formatNumber(n * declineReward())} 🌰.`;
   }
   return text;
+}
+
+// ---------------------------------------------------------------------------
+// Ereignisse und Durchreisende (Schritt 2.4)
+// ---------------------------------------------------------------------------
+
+/** Samen für Knöpfe und Karten: ganze Zahlen, darunter eine Nachkommastelle. */
+export function seedsLabel(seeds: number): string {
+  return formatNumber(seeds >= 10 ? Math.round(seeds) : Math.round(seeds * 10) / 10);
+}
+
+/** Relative Änderung (0,05 = +5 %); 0, wenn vorher nichts da war. */
+function relative(after: number, before: number): number {
+  return before > 0 && Number.isFinite(after / before) ? after / before - 1 : 0;
+}
+
+/**
+ * Ereignis mit Wahl als Begegnung im Kartenwahl-Dialog: eine Karte je Option, der Knopf
+ * trägt den Text der Option. Wirkung in Kurzform, Samen-Optionen mit konkreter Zahl.
+ * Die Vorschau rechnet die echte Aktion auf einer Kopie des Spielstands.
+ */
+export function toEventView(
+  state: GameState,
+  encounterIndex: number,
+  now: Readonly<Evaluation> = evaluate(state),
+): EncounterView | null {
+  const encounter = state.pendingEncounters[encounterIndex];
+  const event = encounter?.type === 'event' ? EVENTS_BY_ID.get(encounter.cards[0] ?? '') : undefined;
+  if (!event) return null;
+  const cards: CardView[] = event.options.map((option, i) => {
+    const effects: EffectView[] = [{ label: option.summary, tone: 'good' }];
+    const seeds = eventOptionSeeds(state, event.id, i);
+    if (seeds > 0) effects.push({ label: `+${seedsLabel(seeds)} 🌰 sofort`, tone: 'good' });
+    const copy = structuredClone(state);
+    const ok = chooseEventOption(copy, encounterIndex, i).ok;
+    const after = ok ? evaluate(copy) : now;
+    // evaluate() teilt sich einen Cache: wieder auf den echten Stand setzen.
+    evaluate(state);
+    return {
+      id: `${event.id}:${i}`,
+      name: option.label,
+      family: 'event',
+      familyLabel: event.name,
+      familyIcon: event.icon,
+      effects,
+      preview: {
+        harmonyDelta: after.harmony - now.harmony,
+        growthDelta: relative(after.growth, now.growth),
+        seedDelta: relative(after.seeds, now.seeds),
+      },
+      chooseLabel: option.label,
+    };
+  });
+  return {
+    kind: 'event',
+    title: `${event.icon} ${event.name}`,
+    subtitle: event.text,
+    cards,
+    rerollCost: null,
+    canReroll: false,
+    declineReward: null,
+  };
+}
+
+/**
+ * Durchreisende als Begegnung: zwei Karten „Bewirten (−X 🌰)“ und „Ziehen lassen
+ * (+Y 🌰)“ mit den konkreten Samen zur aktuellen Rate. Reichen die Samen nicht, ist
+ * „Bewirten“ gesperrt.
+ */
+export function toVisitorView(
+  state: GameState,
+  encounterIndex: number,
+  now: Readonly<Evaluation> = evaluate(state),
+): EncounterView | null {
+  const encounter = state.pendingEncounters[encounterIndex];
+  const visitor = encounter?.type === 'visitor' ? VISITORS_BY_ID.get(encounter.cards[0] ?? '') : undefined;
+  const costs = visitor ? visitorSeeds(state, visitor.id) : null;
+  if (!visitor || !costs) return null;
+  const genus = GENUS_INFO[visitor.genus];
+  const hostLabel = `${VISITOR_HOST_LABEL} (−${seedsLabel(costs.host)} 🌰)`;
+  const blocker = hostBlocker(state, encounterIndex);
+  // Vorschau fürs Bewirten: Gast aktiv, Samen spielen für die Raten keine Rolle.
+  const after = evaluateEcosystem(
+    ecosystemOf({ ...state, cycle: { ...state.cycle, visitors: [...state.cycle.visitors, { id: visitor.id, remaining: visitor.stay }] } }),
+  );
+  const host: CardView = {
+    id: 'host',
+    name: VISITOR_HOST_LABEL,
+    family: visitor.genus,
+    familyLabel: genus.name,
+    familyIcon: visitor.icon,
+    effects: [
+      { label: visitor.summary, tone: 'good' },
+      { label: `zählt für ${genus.name}`, tone: 'good' },
+      { label: `kostet ${seedsLabel(costs.host)} 🌰`, tone: 'bad' },
+    ],
+    preview: {
+      harmonyDelta: after.harmony - now.harmony,
+      growthDelta: relative(after.growth, now.growth),
+      seedDelta: relative(after.seeds, now.seeds),
+    },
+    chooseLabel: hostLabel,
+  };
+  if (blocker === 'too-expensive') host.disabledReason = `Nicht genug Samen (${seedsLabel(costs.host)} 🌰)`;
+  const farewell: CardView = {
+    id: 'farewell',
+    name: VISITOR_FAREWELL_LABEL,
+    family: visitor.genus,
+    familyLabel: genus.name,
+    familyIcon: visitor.icon,
+    effects: [{ label: `+${seedsLabel(costs.farewell)} 🌰 als Dank`, tone: 'good' }],
+    preview: { harmonyDelta: 0, growthDelta: 0, seedDelta: 0 },
+    chooseLabel: `${VISITOR_FAREWELL_LABEL} (+${seedsLabel(costs.farewell)} 🌰)`,
+  };
+  return {
+    kind: 'visitor',
+    title: `${visitor.icon} ${visitor.name}`,
+    subtitle: visitor.text,
+    cards: [host, farewell],
+    rerollCost: null,
+    canReroll: false,
+    declineReward: null,
+  };
+}
+
+/** Kurzform einer Bonus-Wirkung, z. B. „+30 % 🌿“, „Blumen +60 % 🌰“, „+3 ☀️“. */
+export function bonusEffectLabel(effect: CycleEffect | TimedEffect | VisitorEffect): string {
+  switch (effect.kind) {
+    case 'growth':
+      return `+${formatNumber(effect.pct)} % 🌿`;
+    case 'seeds':
+      return `+${formatNumber(effect.pct)} % 🌰`;
+    case 'groupGrowth':
+      return `${PLANT_GROUP_INFO[effect.group].name} +${formatNumber(effect.pct)} % 🌿`;
+    case 'groupSeeds':
+      return `${PLANT_GROUP_INFO[effect.group].name} +${formatNumber(effect.pct)} % 🌰`;
+    case 'light':
+      return `+${formatNumber(effect.amount)} ☀️`;
+    case 'water':
+      return `+${formatNumber(effect.amount)} 💧`;
+    case 'harmony':
+      return `+${formatNumber(effect.points)} ⚖️`;
+    case 'slot':
+      return `+${formatNumber(effect.amount)} Platz ${NICHES_BY_ID.get(effect.niche)?.name ?? ''}`.trim();
+  }
+}
+
+/** Text für „gilt bis zum Neuen Zyklus“. */
+export const UNTIL_NEW_CYCLE = 'bis zum Neuen Zyklus';
+
+/**
+ * Aktive Boni für die Seitenleiste: Zeit-Boni und Gäste mit Restzeit (zuerst, kürzeste
+ * Restzeit oben), dann Zyklus-Boni und Habitate. Leer, wenn nichts wirkt.
+ */
+export function activeBonusViews(state: GameState): ActiveBonusView[] {
+  const timed: (ActiveBonusView & { left: number })[] = [];
+  for (const t of state.cycle.timed) {
+    const event = EVENTS_BY_ID.get(t.source);
+    timed.push({
+      id: `timed:${t.source}:${t.effect.kind}:${'group' in t.effect ? t.effect.group : ''}`,
+      icon: event?.icon ?? '⏳',
+      name: event?.name ?? t.source,
+      effect: bonusEffectLabel(t.effect),
+      remaining: `noch ${formatDuration(Math.ceil(t.remaining))}`,
+      left: t.remaining,
+    });
+  }
+  for (const v of state.cycle.visitors) {
+    const visitor = VISITORS_BY_ID.get(v.id);
+    if (!visitor) continue;
+    timed.push({
+      id: `visitor:${v.id}`,
+      icon: visitor.icon,
+      name: visitor.name,
+      effect: visitor.summary.replace(/ für \d+ min$/, ''),
+      remaining: `noch ${formatDuration(Math.ceil(v.remaining))}`,
+      left: v.remaining,
+    });
+  }
+  timed.sort((a, b) => a.left - b.left);
+  const out: ActiveBonusView[] = timed.map(({ left: _left, ...view }) => view);
+  state.cycle.bonuses.forEach((b, i) => {
+    const event = EVENTS_BY_ID.get(b.source);
+    out.push({ id: `cycle:${i}`, icon: event?.icon ?? '🌳', name: event?.name ?? b.source, effect: bonusEffectLabel(b.effect), remaining: UNTIL_NEW_CYCLE });
+  });
+  state.cycle.habitats.forEach((tag, i) => {
+    out.push({ id: `habitat:${i}`, icon: '🪵', name: TAG_NAMES[tag] ?? tag, effect: 'Lebensraum', remaining: UNTIL_NEW_CYCLE });
+  });
+  return out;
+}
+
+/** Bewirtete Gäste für den Renderer (nur neu bauen, wenn sich das Ökosystem ändert). */
+export function toSceneVisitors(state: GameState): SceneVisitor[] {
+  return state.cycle.visitors.map((v, i) => ({ id: v.id, slot: i }));
 }

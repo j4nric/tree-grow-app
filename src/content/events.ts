@@ -1,8 +1,8 @@
 import type { Condition, Effect, Tag } from './types';
 
 /**
- * Ereignisse mit Wahl (docs/DESIGN_V2.md 7.4). Reine Daten – die Logik folgt in Schritt
- * 2.4 (core-engineer, Umsetzungsnotiz in DESIGN_V2.md 7.8).
+ * Ereignisse mit Wahl (docs/DESIGN_V2.md 7.4). Reine Daten – die Logik steht in
+ * src/core/tick.ts (chooseEventOption) und formulas.ts (Wirkungen, DESIGN_V2.md 7.8).
  *
  * Regeln:
  * - Jedes Ereignis kommt höchstens einmal pro Zyklus (gilt als „gesehen“, sobald es

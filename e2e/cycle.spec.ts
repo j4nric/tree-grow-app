@@ -29,7 +29,7 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
   await expect(panel.locator('[data-ref="cycle-title"]')).toBeFocused();
   // Sofort gespeichert: Stufe 0, Waldgedächtnis gestiegen, Tagebuch bleibt.
   const after = await savedState(page);
-  expect(after.version).toBe(4);
+  expect(after.version).toBe(5);
   expect(after.stage).toBe(0);
   expect(after.waypoint).toBe(0);
   expect(after.cycle.number).toBe(2);

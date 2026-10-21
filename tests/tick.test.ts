@@ -16,7 +16,7 @@ import {
   simulateOffline,
   tick,
 } from '../src/core/tick';
-import { stateAt } from './helpers';
+import { resolveSpecial, stateAt } from './helpers';
 
 /**
  * Feste Wahl-Strategie für Golden Tests: erste Karte mit freiem Platz; sonst die erste
@@ -25,6 +25,7 @@ import { stateAt } from './helpers';
  */
 function resolveAll(state: GameState): void {
   while (state.pendingEncounters.length > 0) {
+    if (resolveSpecial(state)) continue;
     const { type, cards } = state.pendingEncounters[0]!;
     const statuses = cards.map((_, c) => cardStatus(state, 0, c));
     const free = statuses.indexOf('free');
@@ -64,7 +65,7 @@ describe('tick', () => {
   it('erster Wegpunkt nach ~4 s: Keimling und eine Begegnung mit den Wurzelraum-Gästen', () => {
     const state = createInitialState(0, 42);
     const report = tick(state, 4);
-    expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0, regulars: [] });
+    expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0, regulars: [], interludes: 0, expired: [] });
     expect(state.waypoint).toBe(1);
     expect(state.stage).toBe(1);
     // Im Keimling sind nur Regenwurm, Wühlmaus und Pfifferling freigeschaltet → genau diese drei.
@@ -101,7 +102,7 @@ describe('tick', () => {
     state.niches.roots.push('earthworm', 'vole', 'chanterelle');
     state.totalGrowth = thresholdFor(1) - 0.001;
     const report = tick(state, 1);
-    expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0, regulars: [] });
+    expect(report).toEqual({ waypoints: 1, encounters: 1, autoDeclined: 0, regulars: [], interludes: 0, expired: [] });
     expect(state.pendingEncounters[0]!.type).toBe('plant');
   });
 
@@ -113,17 +114,21 @@ describe('tick', () => {
     expect(state.rngState).not.toBe(rng); // der Typ wurde gewürfelt
   });
 
-  it('Begegnungstypen folgen den Gewichten der Stufe (nur Tier und Pflanze)', () => {
+  it('Begegnungstypen folgen den Gewichten der Stufe (Tier, Pflanze, Ereignis, Gast)', () => {
     for (const stage of [2, 4]) {
-      let plants = 0;
+      const counts: Record<string, number> = { animal: 0, plant: 0, event: 0, visitor: 0 };
       const n = 4000;
       for (let seed = 1; seed <= n; seed++) {
         const state = stateAt(stage, [], seed);
         state.waypoint = 10;
-        if (drawEncounter(state)!.type === 'plant') plants++;
+        counts[drawEncounter(state)!.type]!++;
       }
-      const [animal, plant] = ENCOUNTER_WEIGHTS[stage]!;
-      expect(plants / n, `Stufe ${stage}`).toBeCloseTo(plant / (animal + plant), 1);
+      // Alter Baum ohne Tiere: Es gibt Ereignisse und Gäste ohne Bedingungen.
+      const weights = ENCOUNTER_WEIGHTS[stage]!;
+      const total = weights.reduce((a, b) => a + b, 0);
+      (['animal', 'plant', 'event', 'visitor'] as const).forEach((type, i) => {
+        expect(counts[type]! / n, `Stufe ${stage}, ${type}`).toBeCloseTo(weights[i]! / total, 1);
+      });
     }
   });
 
@@ -137,10 +142,10 @@ describe('tick', () => {
       state.plants = ['hazel', 'hazel', 'birch'];
       if (drawEncounter(state)!.type === 'plant') plants++;
     }
-    const [animal, plant] = ENCOUNTER_WEIGHTS[stage]!;
-    const expected = (plant * PLANT_WEIGHT_RING_FULL) / (animal + plant * PLANT_WEIGHT_RING_FULL);
+    const [animal, plant, event, visitor] = ENCOUNTER_WEIGHTS[stage]!;
+    const expected = (plant * PLANT_WEIGHT_RING_FULL) / (animal + plant * PLANT_WEIGHT_RING_FULL + event + visitor);
     expect(plants / n).toBeCloseTo(expected, 1);
-    expect(plants / n).toBeLessThan(plant / (animal + plant) - 0.05);
+    expect(plants / n).toBeLessThan(plant / (animal + plant + event + visitor) - 0.05);
   });
 
   it('Pflanzenkarten: was schon im Ring wächst, kommt seltener (PLANT_WEIGHT_IN_RING)', () => {
@@ -369,77 +374,79 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       harmony: Math.round(ev.harmony * 100) / 100,
     }).toMatchInlineSnapshot(`
       {
-        "communities": [],
-        "harmony": 76.72,
+        "communities": [
+          "caterpillar-watch",
+          "night-shift",
+        ],
+        "harmony": 90.94,
         "journal": [
           "earthworm",
           "woodlouse",
           "vole",
           "mole",
           "slug",
+          "chanterelle",
+          "glowworm",
           "bluetit",
+          "flyagaric",
           "oakmoth",
           "tinder",
-          "bee",
-          "fox",
-          "glowworm",
-          "barkbeetle",
-          "robin",
-          "peacock",
-          "stagbeetle",
+          "jay",
           "owl",
+          "bat",
+          "deer",
+          "woodant",
         ],
         "journalPlants": [
           "anemone",
           "hazel",
-          "foxglove",
           "fern",
-          "elder",
+          "rowan",
           "nettle",
+          "birch",
         ],
         "niches": {
           "bark": [
             "tinder",
-            "barkbeetle",
           ],
           "crown": [
             "bluetit",
             "oakmoth",
+            "jay",
           ],
           "edge": [
-            "peacock",
-            "fox",
             "glowworm",
+            "deer",
           ],
           "hollows": [
-            "stagbeetle",
             "owl",
+            "bat",
           ],
           "litter": [
-            "robin",
-            "slug",
             "woodlouse",
+            "slug",
+            "woodant",
           ],
           "roots": [
-            "mole",
+            "chanterelle",
             "vole",
-            "earthworm",
+            "flyagaric",
           ],
         },
         "plants": [
-          "elder",
+          "rowan",
           "hazel",
           "hazel",
+          "birch",
           "hazel",
           "hazel",
-          "nettle",
           "hazel",
         ],
-        "rngState": 2309429397,
-        "seeds": 60579,
+        "rngState": 2877323870,
+        "seeds": 41217,
         "stage": 5,
-        "totalGrowth": 179639,
-        "waypoint": 24,
+        "totalGrowth": 225047,
+        "waypoint": 25,
       }
     `);
   });

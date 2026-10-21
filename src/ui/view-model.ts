@@ -126,6 +126,20 @@ export interface CardView {
   flavor?: string;
   /** Karte kann nicht gewählt werden (mit Begründung). */
   disabledReason?: string;
+  /** Text des Knopfs statt „Wählen“ (Ereignis-Optionen, „Bewirten (−40 🌰)“). */
+  chooseLabel?: string;
+}
+
+/** Ein aktiver Bonus aus einem Ereignis oder ein bewirteter Gast (Seitenleiste). */
+export interface ActiveBonusView {
+  id: string;
+  icon: string;
+  /** Herkunft, z. B. „Mittsommer“ oder „Kranichzug“. */
+  name: string;
+  /** Wirkung in Kurzform, z. B. „+30 % 🌿“. */
+  effect: string;
+  /** Restzeit, z. B. „4 Min.“; fehlt bei Boni bis zum Neuen Zyklus („bis zum Neuen Zyklus“). */
+  remaining: string;
 }
 
 /** Eine wartende Begegnung, bereit zur Anzeige. */

@@ -39,7 +39,7 @@ export interface SeedV3 {
   /** Begleitpflanzen im Pflanzring (Pflanzen-IDs, Duplikate erlaubt). */
   plants?: string[];
   niches?: Partial<Record<NicheId, string[]>>;
-  pendingEncounters?: { type: 'animal' | 'plant'; cards: string[]; rerolls: number }[];
+  pendingEncounters?: { type: 'animal' | 'plant' | 'event' | 'visitor'; cards: string[]; rerolls: number }[];
   rngState?: number;
   forestMemory?: number;
   /** lastTick relativ zur Browser-Uhr beim Laden (ms, negativ = Vergangenheit). */

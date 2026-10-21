@@ -28,7 +28,11 @@ import {
  */
 
 const START = new Date('2026-10-21T08:00:00Z');
-const RNG_SEED = 20261021;
+/**
+ * Fester Seed. Seit Schritt 2.4 (Ereignisse und Gäste ziehen mit) verläuft der Zyklus
+ * anders; mit 20261022 reicht das Waldgedächtnis wieder für einen Stammgast-Platz.
+ */
+const RNG_SEED = 20261022;
 const HAIN = STAGES[NEW_CYCLE_MIN_STAGE]!.name;
 
 async function stageIndex(page: Page): Promise<number> {
@@ -51,6 +55,16 @@ async function chooseFirst(page: Page): Promise<string | null> {
   await page.clock.fastForward(400); // Eingabesperre nach neuen Karten (läuft auf der Testuhr)
   const cards = dialog(page).locator('.encounter-card');
   await expect(cards.first()).toBeVisible();
+  // Ereignis oder Gast (seit Schritt 2.4): erste Option bzw. bewirten, wenn die Samen
+  // reichen, sonst „Ziehen lassen“ (geht immer).
+  const option = await cards.first().getAttribute('data-option');
+  if (option !== null) {
+    const first = cards.first().locator('.card-choose');
+    const host = option === 'host' && !(await first.isDisabled());
+    await (option === 'host' && !host ? cards.last() : cards.first()).locator('.card-choose').click();
+    await page.clock.runFor(50);
+    return option === 'host' ? (host ? 'host' : 'farewell') : option;
+  }
   const count = await cards.count();
   for (let i = 0; i < count; i++) {
     const choose = cards.nth(i).getByRole('button', { name: /wählen/ });
@@ -102,7 +116,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   await openGame(page);
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
   const fresh = await savedState(page);
-  expect(fresh.version).toBe(4);
+  expect(fresh.version).toBe(5);
   expect(fresh.cycle.number).toBe(1);
 
   const blocker = cyclePanel(page).locator('[data-ref="cycle-blocker"]');
@@ -155,7 +169,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
 
   await expect(stageLabel(page)).toHaveText(`Stufe: ${HAIN}`);
   const atGrove = await savedState(page);
-  expect(atGrove.version).toBe(4);
+  expect(atGrove.version).toBe(5);
   expect(atGrove.cycle.number).toBe(1);
   expect(atGrove.waypoint).toBeGreaterThanOrEqual(STAGES[NEW_CYCLE_MIN_STAGE]!.waypoint);
   expect(encounters, 'unterwegs gab es Begegnungen').toBeGreaterThanOrEqual(10);
@@ -181,7 +195,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
   await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${gain} ·`);
   const cycle2 = await savedState(page);
-  expect(cycle2.version).toBe(4);
+  expect(cycle2.version).toBe(5);
   expect(cycle2.cycle.number).toBe(2);
   expect(cycle2.stage).toBe(0);
   expect(cycle2.waypoint).toBe(0);
@@ -239,7 +253,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   await page.reload();
   await expect(stageLabel(page)).toHaveText(stageText ?? '');
   const after = await savedState(page);
-  expect(after.version).toBe(4);
+  expect(after.version).toBe(5);
   expect(after.cycle.number).toBe(2);
   for (const key of ['waypoint', 'stage', 'plants', 'niches', 'pendingEncounters', 'rngState', 'cycle', 'meta']) {
     expect(after[key], key).toEqual(before[key]);

@@ -159,55 +159,38 @@ describe('Balancing v2 (echte Logik)', () => {
 });
 
 /**
- * Ereignisse und Durchreisende (Schritt 2.4): Die Logik fehlt noch in src/core/ – der
- * Simulator modelliert sie grob (scripts/extras.ts, DESIGN_V2.md 15.4). Geprüft wird,
- * ob die Inhalte und der Takt (Gewichte + Zwischenhalt, encounters.ts) ihr Ziel
- * erreichen: kürzere Durststrecken nach dem Hain, Tempo bis zum Hain im Korridor.
+ * Ereignisse und Durchreisende (Schritt 2.4, echte Logik seit 2.4): Gezogen und aufgelöst
+ * werden sie in jedem Durchgang oben. Geprüft wird, ob Inhalte und Takt (Gewichte +
+ * Zwischenhalt, encounters.ts) ihr Ziel erreichen: kurze Durststrecken nach dem Hain,
+ * Tempo bis zum Hain im Korridor (siehe oben), Ereignisse und Gäste kommen wirklich.
  */
-describe('Ereignisse und Durchreisende (Modell)', () => {
-  const extraStrategies = [HARMONY, GROWTH, RANDOM];
-  const options = { targetStage: URWALD, maxSeconds: 6 * 3600, events: true };
-  const withExtras = monteCarlo(extraStrategies, RUNS, options);
-  const harmonyExtras = withExtras.find((s) => s.strategy.id === HARMONY.id)!;
+describe('Ereignisse und Durchreisende', () => {
   const WALD = 6;
 
   it('Protokoll', () => {
-    if (env.SIM_LOG) console.log(extrasTable(extraStrategies.map((s) => byId(s.id)), withExtras));
-    expect(withExtras.length).toBe(extraStrategies.length);
+    if (env.SIM_LOG) console.log(extrasTable(summaries.filter((s) => [HARMONY.id, GROWTH.id, RANDOM.id].includes(s.strategy.id))));
+    expect(summaries.length).toBeGreaterThan(0);
   });
 
-  it('ist deterministisch und ohne NaN', () => {
-    const a = runGame(HARMONY, { seed: 9, ...options });
-    expect(runGame(HARMONY, { seed: 9, ...options })).toEqual(a);
-    for (const s of withExtras) for (const r of s.runs) expect(Number.isFinite(r.final.seeds) && r.final.seeds >= 0).toBe(true);
+  it('ohne NaN und ohne negative Samen', () => {
+    for (const s of summaries) for (const r of s.runs) expect(Number.isFinite(r.final.seeds) && r.final.seeds >= 0).toBe(true);
   });
 
   it('es kommen Ereignisse und Gäste – aber nie mehr, als es gibt', () => {
-    for (const r of harmonyExtras.runs) {
+    for (const r of harmony.runs) {
       expect(r.final.counts.events).toBeLessThanOrEqual(EVENTS.length);
       expect(r.final.counts.visitors).toBeLessThanOrEqual(VISITORS.length);
     }
-    const c = harmonyExtras.runs.map((r) => r.final.counts);
+    const c = harmony.runs.map((r) => r.final.counts);
     expect(c.reduce((sum, x) => sum + x.events, 0) / c.length).toBeGreaterThan(4);
     expect(c.reduce((sum, x) => sum + x.visitors, 0) / c.length).toBeGreaterThan(3);
+    // Der Harmonie-Spieler bewirtet die meisten Gäste.
+    expect(c.reduce((sum, x) => sum + x.hosted, 0)).toBeGreaterThan(0.5 * c.reduce((sum, x) => sum + x.visitors, 0));
   });
 
-  it('Tempo bis zum Hain bleibt im Zielkorridor (Harmonie-Spieler)', () => {
-    for (const t of STAGE_TARGETS.filter((x) => x.stage > 1)) {
-      const time = stageStats(harmonyExtras, t.stage).time;
-      expect(time, t.label).toBeGreaterThan(0.7 * t.seconds);
-      expect(time, t.label).toBeLessThan(1.35 * t.seconds);
-    }
-    // Höchstens 10 % schneller als ohne.
-    expect(stageStats(harmonyExtras, HAIN).time).toBeGreaterThan(0.9 * stageStats(harmony, HAIN).time);
-  });
-
-  it('Durststrecken nach dem Hain werden kürzer (Harmonie-Spieler, 90-%-Quantil)', () => {
-    for (const stage of [HAIN, WALD]) {
-      const before = varietyStats(harmony, stage).droughtP90;
-      const after = varietyStats(harmonyExtras, stage).droughtP90;
-      expect(after, `Stufe ${stage}`).toBeLessThan(before);
-    }
-    expect(varietyStats(harmonyExtras, WALD).droughtP90).toBeLessThan(11 * 60);
+  it('Durststrecken nach dem Hain bleiben kurz (Harmonie-Spieler, 90-%-Quantil)', () => {
+    // Ziel aus DESIGN_V2.md 7.2: ohne Ereignisse lagen sie im Wald bei ~12 min (90 %).
+    expect(varietyStats(harmony, HAIN).droughtP90).toBeLessThan(11 * 60);
+    expect(varietyStats(harmony, WALD).droughtP90).toBeLessThan(11 * 60);
   });
 });
