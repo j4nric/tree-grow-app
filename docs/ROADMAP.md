@@ -33,6 +33,11 @@ Aufgaben derselben Phase ohne gemeinsame Dateien können parallel laufen.
       `getBoundingClientRect()` je Frame (mit `devicePixelContentBoxSize`, wo plausibel), Backing-Store
       ~100 ms entprellt (`CanvasSizer`); der Renderer übernimmt die schon entprellte Größe sofort
       (`sizeSettled`), Frame-Ersatzregel nur noch bei stehender Zeit
+- [x] Renderer: Wind billiger (`renderer`) – Baum- und Pflanzen-Ebene nicht mehr schief kopiert,
+      sondern in waagerechten Streifen verschoben (`src/render/wind.ts`): ab Pixeldichte 1,5
+      ganzzahlig (reine Kopie ohne Filter), darunter in Viertelpixeln. Wind-Kosten im Software-Canvas
+      von ~29–43 ms auf ~0 ms (Pixeldichte 2–3) bzw. von ~15 auf ~2,5 ms (Pixeldichte 1); reduzierte
+      Bewegung pixelgleich
 - ~~Seitenleiste: DOM-Referenzen einmal merken~~ – mit der v2-Seitenleiste entfallen
 - ~~Schwebende Zahlen über dem Ressourcen-Label~~ – mit v2 entfallen
 
