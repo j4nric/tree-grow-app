@@ -37,19 +37,26 @@ function groveState(seed = 5): GameState {
 }
 
 describe('Waldgedächtnis-Formel (DESIGN_V2.md 10)', () => {
-  it('floor(H_max/5) + 3 je Harmoniepunkt über 100 (höchstens 45) + neue Arten (seit Schritt 2.11)', () => {
+  it('H = round(H_max): floor(H/5) + 3 je Punkt über 100 (höchstens 45) + neue Arten (seit Schritt 2.11)', () => {
     // Beispiele aus DESIGN_V2.md 15.4: Harmonie-Spieler beim Hain ~110, Wachstums-Spieler ~103,
     // Gelegenheitsspieler ~81 (nur Sockel und Arten, wie vor 2.11).
     expect(cycleMemoryGain(110.4, 12, 0)).toBe(22 + 30 + 12);
-    expect(cycleMemoryGain(102.8, 13, 0)).toBe(20 + 6 + 13);
+    expect(cycleMemoryGain(102.8, 13, 0)).toBe(20 + 9 + 13); // 102,8 → 103
     expect(cycleMemoryGain(81, 13, 0)).toBe(16 + 13);
-    // Bis 100 nur der Sockel; Bruchteile zählen nicht.
-    expect(cycleMemoryGain(100.99, 11, 0)).toBe(20 + 11);
+    // Gerundet wie die Anzeige „Höchste Harmonie“: ab 100,5 gilt 101 und zählt extra.
+    expect(cycleMemoryGain(100.4, 0, 0)).toBe(20);
+    expect(cycleMemoryGain(100.5, 0, 0)).toBe(20 + 3);
+    expect(cycleMemoryGain(100.6, 0, 0)).toBe(20 + 3);
+    expect(cycleMemoryGain(100.99, 11, 0)).toBe(20 + 3 + 11);
     expect(cycleMemoryGain(101, 0, 0)).toBe(20 + 3);
-    expect(cycleMemoryGain(4.99, 0, 0)).toBe(0);
+    // Auch der Sockel rechnet mit dem gerundeten Wert.
+    expect(cycleMemoryGain(4.49, 0, 0)).toBe(0);
+    expect(cycleMemoryGain(4.5, 0, 0)).toBe(1);
     expect(cycleMemoryGain(5, 0, 0)).toBe(1);
     expect(cycleMemoryGain(0, 0, 0)).toBe(0);
-    // Ab 115 ist der Bonus voll: 45 Punkte.
+    // Ab 115 (gerundet) ist der Bonus voll: 45 Punkte.
+    expect(cycleMemoryGain(114.4, 0, 0)).toBe(22 + 42);
+    expect(cycleMemoryGain(114.6, 0, 0)).toBe(23 + 45);
     expect(cycleMemoryGain(115, 0, 0)).toBe(23 + 45);
     expect(cycleMemoryGain(174, 21, 0)).toBe(34 + 45 + 21);
   });

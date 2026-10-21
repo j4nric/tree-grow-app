@@ -1228,14 +1228,16 @@ function finite(value: number): number {
 
 /**
  * Waldgedächtnis, das ein Neuer Zyklus einbringt (Schritt 2.11):
- * `floor(H_max / 5) + min(45, 3 · max(0, floor(H_max) − 100)) + neue Arten` (Zahlen in
+ * mit H = round(H_max): `floor(H / 5) + min(45, 3 · max(0, H − 100)) + neue Arten` (Zahlen in
  * content/memory.ts),
  * begrenzt, sodass der Bestand MAX_FOREST_MEMORY nicht übersteigt. Negative Harmonie
  * zählt als 0; NaN und Unsinn ergeben 0 statt kaputter Spielstände.
  */
 export function cycleMemoryGain(maxHarmony: number, newSpeciesCount: number, forestMemory: number): number {
-  const harmony = Math.max(0, finite(maxHarmony));
-  const above = Math.max(0, Math.floor(harmony) - MEMORY_HARMONY_THRESHOLD);
+  // Einmal kaufmännisch runden – dieselbe ganze Zahl, die Panel, Statistik und Seitenleiste
+  // als „Höchste Harmonie“ zeigen (100,6 → 101 zählt also schon extra).
+  const harmony = Math.round(Math.max(0, finite(maxHarmony)));
+  const above = Math.max(0, harmony - MEMORY_HARMONY_THRESHOLD);
   const harmonyPoints =
     Math.floor(harmony / MEMORY_HARMONY_DIVISOR) + Math.min(MEMORY_HARMONY_MAX_POINTS, MEMORY_PER_HARMONY_POINT * above);
   const speciesPoints = MEMORY_PER_NEW_SPECIES * Math.max(0, Math.floor(finite(newSpeciesCount)));

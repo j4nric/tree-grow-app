@@ -103,11 +103,12 @@ Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 15.4 („Stand 
   Spielanleitung nennen die Regel.
 - **Ziele:** Zyklus 1: Wachstum höchstens ~15 % schneller; ab Zyklus 2: Harmonie-Spielweise
   mindestens gleichauf; ruhige Gelegenheitsspieler nicht schlechter als vorher (Zyklus 2
-  ≥ 20 % schneller); Zyklus 2 für den Harmonie-Spieler höchstens 45 % schneller.
+  ≥ 20 % schneller); Zyklus 2 schneller bis Hain je Spielweise: Wachstum 18–37 %,
+  Harmonie 30–45 %.
 
 | Zahl (`src/content/memory.ts`) | vorher | jetzt |
 |---|---|---|
-| Waldgedächtnis aus Harmonie | ⌊H_max / 5⌋ | ⌊H_max / 5⌋ **+ 3 je Punkt über 100, höchstens 45** (ab 115) |
+| Waldgedächtnis aus Harmonie | ⌊H_max / 5⌋ | ⌊H / 5⌋ **+ 3 je Punkt über 100, höchstens 45** (ab 115); H = H_max gerundet wie in der Anzeige |
 | je neu entdeckter Art | 1 | 1 |
 
 | Kennzahl (200 Durchgänge, jeder Zyklus bis Hain) | vorher | jetzt |
@@ -149,7 +150,7 @@ Systemen (Pflege, Ereignisse, Gäste, Jahreszeiten), 500 Durchgänge, `npm run b
 | Wachstums-Spieler höchstens ~15 % schneller | 17,4 % | 14,8 % (5,7 Punkte weniger ⚖️) |
 | Buche / Kiefer ±5 % der Eiche (Harmonie / Wachstum) | −4,7 / −3,8 %; −2,8 / −4,1 % | −0,8 / +1,4 %; −2,5 / −4,4 % |
 | 🌰-Bestand beim Hain < 10 min Produktion | 4,9 min | 8,4 min |
-| Zyklus 2 20–35 % schneller bis Hain (seit 2.11: 18–37 %) | 44,3 % | 28,8 % |
+| Zyklus 2 20–35 % schneller bis Hain (seit 2.11: Wachstum 18–37 %, Harmonie 30–45 %) | 44,3 % | 28,8 % |
 | erster Stammgast nach 1–2 Zyklen | nach 1 | nach 1 (33 Punkte) |
 
 **Bewusste Entscheidung Waldgedächtnis:** Gespeicherte Punkte werden beim Laden alter

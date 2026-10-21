@@ -14,6 +14,8 @@ import {
 } from '../src/ui/cycle-view';
 import { stateAt } from './helpers';
 
+const MEMORY_RULE = 'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie über 100 zählt extra: +3 je Punkt (bis 115).';
+
 describe('View-Model „Neuer Zyklus“', () => {
   it('gesperrt: zeigt den Grund, keine Vorschau, keinen Knopf', () => {
     const view = toCyclePanelView(stateAt(3, ['earthworm']));
@@ -24,6 +26,8 @@ describe('View-Model „Neuer Zyklus“', () => {
     expect(view.slotsGain).toBeNull();
     expect(view.title).toBe('Zyklus 1');
     expect(view.memory).toBe('Waldgedächtnis 0 · +0 % Wachstum und Samen');
+    // Die Regel steht schon vor dem Hain da – man soll wissen, worauf man hinarbeitet.
+    expect(view.memoryRule).toBe(MEMORY_RULE);
   });
 
   it('ab dem Hain: Vorschau „+43 Waldgedächtnis (+43 %)“ und neue Stammgast-Plätze', () => {
@@ -35,13 +39,29 @@ describe('View-Model „Neuer Zyklus“', () => {
     expect(view.allowed).toBe(true);
     expect(view.blocker).toBeNull();
     expect(view.gain).toBe('+43 Waldgedächtnis (+43 %)');
-    expect(view.memoryRule).toBe('Waldgedächtnis: 1 Punkt je 5 Harmonie und je neue Art. Harmonie über 100 zählt extra: +3 je Punkt (bis 115).');
+    expect(view.memoryRule).toBe(MEMORY_RULE);
     expect(view.gainDetail).toBe('Höchste Harmonie 104 · 11 neue Arten');
     expect(view.slotsGain).toBe('+1 Platz für Stammgäste');
     state.meta.forestMemory = 20;
     expect(toCyclePanelView(state).slotsGain).toBe('+2 Plätze für Stammgäste');
     state.cycle.newSpecies = ['earthworm'];
     expect(toCyclePanelView(state).gainDetail).toBe('Höchste Harmonie 104 · 1 neue Art');
+  });
+
+  it('Anzeige und Gewinn nutzen dieselbe gerundete höchste Harmonie', () => {
+    const state = stateAt(5, ['earthworm']);
+    state.cycle.newSpecies = [];
+    const at = (h: number) => {
+      state.cycle.maxHarmony = h;
+      const view = toCyclePanelView(state);
+      return [view.gainDetail, view.gain];
+    };
+    // 100,4 → 100: kein Extra; 100,5 und 100,6 → 101: +3 extra, wie die Regel verspricht.
+    expect(at(100.4)).toEqual(['Höchste Harmonie 100 · 0 neue Arten', '+20 Waldgedächtnis (+20 %)']);
+    expect(at(100.5)).toEqual(['Höchste Harmonie 101 · 0 neue Arten', '+23 Waldgedächtnis (+23 %)']);
+    expect(at(100.6)).toEqual(['Höchste Harmonie 101 · 0 neue Arten', '+23 Waldgedächtnis (+23 %)']);
+    // 114,6 → 115: Bonus schon voll (23 + 45).
+    expect(at(114.6)).toEqual(['Höchste Harmonie 115 · 0 neue Arten', '+68 Waldgedächtnis (+68 %)']);
   });
 
   it('Stammgäste: ohne Platz ausgeblendet, sonst alle entdeckten Arten zum Wählen', () => {

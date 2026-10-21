@@ -31,7 +31,8 @@ export const KEEPSAKE_INFO: Readonly<Record<string, { name: string; icon: string
 /** Neuer Zyklus ist ab dieser Stufe möglich (Index in STAGES: Hain). */
 export const NEW_CYCLE_MIN_STAGE = 5;
 /**
- * Waldgedächtnis beim Neuen Zyklus aus der höchsten Harmonie des Zyklus (H_max), zwei Teile:
+ * Waldgedächtnis beim Neuen Zyklus aus der höchsten Harmonie des Zyklus (H_max), zwei Teile.
+ * H_max wird vorher einmal gerundet – wie in Panel, Statistik und Seitenleiste:
  *
  * 1. Sockel: 1 Punkt je MEMORY_HARMONY_DIVISOR H_max (wie seit Schritt 2.10) – für jede
  *    Spielweise, auch für ruhige Gelegenheitsspieler (H_max ~80 → 16 Punkte).
@@ -49,6 +50,9 @@ export const MEMORY_HARMONY_DIVISOR = 5;
 export const MEMORY_HARMONY_THRESHOLD = 100;
 export const MEMORY_PER_HARMONY_POINT = 3;
 export const MEMORY_HARMONY_MAX_POINTS = 45;
+/** Ab dieser (gerundeten) höchsten Harmonie ist der Harmonie-Bonus voll: 100 + ⌈45 / 3⌉ = 115. */
+export const MEMORY_HARMONY_FULL_AT =
+  MEMORY_HARMONY_THRESHOLD + Math.ceil(MEMORY_HARMONY_MAX_POINTS / MEMORY_PER_HARMONY_POINT);
 /** Waldgedächtnis beim Neuen Zyklus: Punkte je Art, die in diesem Zyklus neu ins Tagebuch kam. */
 export const MEMORY_PER_NEW_SPECIES = 1;
 /** Je so viele Punkte Waldgedächtnis gibt es einen Platz für einen Stammgast. */

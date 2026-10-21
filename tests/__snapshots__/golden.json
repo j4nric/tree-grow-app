@@ -113,8 +113,21 @@
       "harmonyThreshold": 100,
       "perHarmonyPoint": 3,
       "harmonyMaxPoints": 45,
+      "harmonyFullAt": 115,
       "perNewSpecies": 1,
-      "perRegularSlot": 25
+      "perRegularSlot": 25,
+      "gainByMaxHarmony": [
+        "H_max 4.4 → 0",
+        "H_max 4.5 → 1",
+        "H_max 81 → 16",
+        "H_max 100.4 → 20",
+        "H_max 100.5 → 23",
+        "H_max 103 → 29",
+        "H_max 110.4 → 52",
+        "H_max 114.6 → 68",
+        "H_max 140 → 73",
+        "H_max 175 → 80"
+      ]
     }
   },
   "evaluations": {

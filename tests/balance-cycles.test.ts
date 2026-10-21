@@ -39,10 +39,10 @@ describe('Mehrere Zyklen (Waldgedächtnis, Stammgäste, Kartenpool)', () => {
 
   it('der zweite Zyklus ist spürbar schneller bis zum Hain (Harmonie ≤ 45 %, Wachstum ≥ 18 %), der dritte noch schneller', () => {
     const speedup = (id: string) => 1 - hain(of(id), 1) / hain(of(id), 0);
-    // Ziele (großer Lauf, Schritt 2.11): Harmonie höchstens 45 %, Wachstum 18–37 %. Im
-    // Check (40 Durchgänge) je Seed-Fenster gemessen (12 Fenster): Harmonie 0,39–0,45,
-    // Wachstum 0,30–0,36 – dort 0,30–0,48 bzw. 0,16–0,40.
-    expect(speedup(HARMONY.id)).toBeGreaterThan(FULL ? 0.3 : 0.3);
+    // Ziele (großer Lauf, Schritt 2.11): Harmonie 30–45 %, Wachstum 18–37 %. Im Check
+    // (40 Durchgänge) je Seed-Fenster gemessen (12 Fenster, H_max gerundet): Harmonie
+    // 0,39–0,44, Wachstum 0,32–0,39 – dort 0,30–0,48 bzw. 0,16–0,40.
+    expect(speedup(HARMONY.id)).toBeGreaterThan(0.3);
     expect(speedup(HARMONY.id)).toBeLessThan(FULL ? 0.45 : 0.48);
     expect(speedup(GROWTH.id)).toBeGreaterThan(FULL ? 0.18 : 0.16);
     expect(speedup(GROWTH.id)).toBeLessThan(FULL ? 0.37 : 0.4);
@@ -68,8 +68,9 @@ describe('Mehrere Zyklen (Waldgedächtnis, Stammgäste, Kartenpool)', () => {
     const ratio = (c: number) => hain(of(GROWTH.id), c) / hain(of(HARMONY.id), c);
     if (FULL) console.log(`Hain Wachstum/Harmonie je Zyklus: ${[0, 1, 2].map((c) => ratio(c).toFixed(3)).join(' / ')}`);
     // Ziele (großer Lauf): Zyklus 1 ≥ 0,85, Zyklus 2 ≥ 0,97 (gleichauf), Zyklus 3 ≥ 1. Im
-    // Check (40 Durchgänge) je Seed-Fenster gemessen (12 Fenster): Zyklus 1 0,81–0,88,
-    // Zyklus 2 0,88–1,04, Zyklus 3 0,93–1,09 – dort ≥ 0,78 / 0,84 / 0,88.
+    // Check (40 Durchgänge) je Seed-Fenster gemessen (12 Fenster, H_max gerundet): Zyklus 1
+    // 0,83–0,90 (das Check-Fenster selbst: 0,904), Zyklus 2 0,90–1,02, Zyklus 3 0,89–1,09 –
+    // dort ≥ 0,78 / 0,84 / 0,88.
     expect(ratio(0)).toBeGreaterThan(FULL ? 0.85 : 0.78);
     expect(ratio(0)).toBeLessThan(1);
     expect(ratio(1)).toBeGreaterThan(FULL ? 0.97 : 0.84);
