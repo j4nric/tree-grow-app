@@ -146,8 +146,11 @@ Produktion, damit es direkt etwas Neues zu kaufen gibt.
   Bienen bestäuben (Bonus auf Samen).
 
 ### Baumarten (späteres Spiel)
-- Nach dem ersten Prestige: Eiche (robust), Birke (schnell), Kiefer (winterfest) –
-  jede Art mit eigener Grafik und eigenen Boni.
+- Nach dem ersten Prestige: Eiche (robust), Buche (schattenfest), Kiefer (winterfest) –
+  jede Art mit eigener Grafik und eigenen Boni. Die Grafik ist fertig
+  (`SceneInput.mainTree`: 'oak' | 'beech' | 'pine'): Eiche wie bisher; Buche mit glattem
+  grauem Stamm und dichter ovaler Krone; Waldkiefer mit schlankem, astfreiem Schaft,
+  durchgehendem Leittrieb und Nadelbüscheln in Etagen – jung kegelig, alt schirmartig.
 
 ## Balancing-Ziele
 

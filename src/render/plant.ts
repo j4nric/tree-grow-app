@@ -102,6 +102,14 @@ export function trunkWidthOf(g: number): number {
 export type TreeSpecies = 'oak' | 'beech' | 'pine';
 export const TREE_SPECIES: readonly TreeSpecies[] = ['oak', 'beech', 'pine'];
 
+/** Art aus der Eingabe: unbekannt oder ohne Angabe → `fallback` (Standard: Eiche). */
+export function normalizeSpecies(s: string | undefined, fallback: TreeSpecies = 'oak'): TreeSpecies {
+  return s === 'oak' || s === 'beech' || s === 'pine' ? s : fallback;
+}
+
+/** Werte, die sich mit dem Alter ändern dürfen (siehe `TreeForm.aged`). */
+export type AgedFormKey = 'lift' | 'leader0' | 'leader' | 'spreadLow' | 'spreadHigh' | 'side0' | 'side';
+
 /**
  * Wuchsform einer Baumart: Verzweigung, Winkel, Längen und Blattbüschel. Die Werte der
  * Eiche entsprechen genau der bisherigen Geometrie.
@@ -131,6 +139,29 @@ export interface TreeForm {
   leafLife: number;
   /** Ab dieser Ebene ein zweites Büschel in der Astmitte. */
   midLeafLevel: number;
+  /**
+   * Faktor auf die Stammbreite `trunkWidthOf(g)` (und damit auf alle Äste). Gilt
+   * überall, wo die Stammbreite gebraucht wird (Zeichnung, Tier-Anker, Pflanzen).
+   */
+  trunkWidth: number;
+  /**
+   * Höchste Astordnung (Zahl der Abzweigungen vom Leittrieb), die noch Seitenäste
+   * bildet. Darüber wachsen Äste nur noch geradeaus weiter (Kiefer: Quirle aus wenigen
+   * kräftigen Ästen statt einer dichten, feinen Verzweigung).
+   */
+  maxOrder: number;
+  /**
+   * Seitenäste zeigen höchstens so weit (Bogenmaß) unter die Waagerechte – darüber
+   * werden sie angehoben (Kiefer: keine herabhängenden Zweige). Infinity = frei.
+   */
+  droop: number;
+  /** Breite der Seitenäste relativ zum Ende des Elternasts (Leittrieb: 0,8). */
+  sideWidth: number;
+  /**
+   * Wuchsform im Alter: Die Werte gleiten zwischen Wachstum `from` und `to` stufenlos
+   * von der Jugendform zu diesen Werten (z. B. Kiefer: jung kegelig, alt schirmartig).
+   */
+  aged?: { from: number; to: number } & Partial<Record<AgedFormKey, number>>;
 }
 
 export const TREE_FORMS: Record<TreeSpecies, TreeForm> = {
@@ -152,6 +183,10 @@ export const TREE_FORMS: Record<TreeSpecies, TreeForm> = {
     leafBase: 0.08,
     leafLife: 5.2,
     midLeafLevel: 2,
+    trunkWidth: 1,
+    sideWidth: 0.62,
+    maxOrder: Infinity,
+    droop: Infinity,
   },
   // Buche: aufstrebende, dichte, ovale Krone.
   beech: {
@@ -172,27 +207,37 @@ export const TREE_FORMS: Record<TreeSpecies, TreeForm> = {
     leafBase: 0.09,
     leafLife: 6,
     midLeafLevel: 1,
+    trunkWidth: 0.74,
+    sideWidth: 0.62,
+    maxOrder: Infinity,
+    droop: Infinity,
   },
-  // Kiefer: langer, kahler Stamm, kurze, fast waagerechte Äste mit aufgebogenen
-  // Spitzen – eine hoch angesetzte Schirmkrone.
+  // Waldkiefer: langer, gerader, astfreier Schaft mit durchgehendem Leittrieb; kurze,
+  // fast waagerechte Seitenäste in Etagen. Jung kegelig, im Alter flacht die Krone zum
+  // Schirm ab (der Leittrieb lässt nach, die oberen Äste breiten sich aus).
   pine: {
-    trunkBend: 0.1,
-    branchBend: 0.3,
-    lift: 0.32,
-    leader0: 0.42,
-    leader: 0.6,
-    leaderVar: 0.1,
-    spreadLow: 1.2,
-    spreadHigh: 0.85,
+    trunkBend: 0.04,
+    branchBend: 0.2,
+    lift: 0.16,
+    leader0: 0.74,
+    leader: 0.7,
+    leaderVar: 0.06,
+    spreadLow: 1.3,
+    spreadHigh: 0.9,
     spreadVar: 0.25,
-    side0: 0.52,
-    side: 0.55,
+    side0: 0.32,
+    side: 0.5,
     sideVar: 0.12,
-    leafTrunk: 0.28,
-    leafBranch: 0.4,
-    leafBase: 0.08,
-    leafLife: 6.5,
-    midLeafLevel: 1,
+    leafTrunk: 0.18,
+    leafBranch: 0.34,
+    leafBase: 0.05,
+    leafLife: 5.4,
+    midLeafLevel: 2,
+    trunkWidth: 0.5,
+    sideWidth: 0.45,
+    maxOrder: 3,
+    droop: 0.2,
+    aged: { from: 3.5, to: 7.5, lift: 0.34, leader: 0.48, spreadLow: 1.4, spreadHigh: 1.05, side0: 0.46, side: 0.6 },
   },
 };
 
@@ -203,14 +248,32 @@ export const TREE_FORMS: Record<TreeSpecies, TreeForm> = {
 export function buildTree(g: number, seed: number, form: TreeForm = TREE_FORMS.oak): PlantGeometry {
   const depth = treeDepth(g);
   const geo = emptyGeometry();
-  const trunkWidth = trunkWidthOf(g);
+  form = formAt(form, g);
+  const trunkWidth = trunkWidthOf(g) * form.trunkWidth;
   // Stammfuß: kurze, breite Verdickung, damit der Stamm organisch im Boden steht.
   const flare = clamp01((depth - 2) / 3);
   if (flare > 0) {
     geo.segments.push({ x1: 0, y1: 0, x2: 0, y2: -0.16, w1: trunkWidth * (1 + 0.55 * flare), w2: trunkWidth * 0.97 });
   }
-  growBranch(geo, form, depth, seed, 0, 0, 0, -Math.PI / 2, 1, trunkWidth);
+  growBranch(geo, form, depth, seed, 0, 0, 0, -Math.PI / 2, 1, trunkWidth, 0);
   return geo;
+}
+
+/**
+ * Wuchsform bei Wachstum `g`: ohne `aged` die Form selbst, sonst stufenlos zwischen
+ * Jugend- und Altersform überblendet (stetig in `g`, damit nichts springt).
+ */
+export function formAt(form: TreeForm, g: number): TreeForm {
+  const aged = form.aged;
+  if (!aged) return form;
+  const t = smooth01((g - aged.from) / Math.max(aged.to - aged.from, 1e-6));
+  if (t <= 0) return form;
+  const out: TreeForm = { ...form };
+  for (const key of ['lift', 'leader0', 'leader', 'spreadLow', 'spreadHigh', 'side0', 'side'] as const) {
+    const v = aged[key];
+    if (v !== undefined) out[key] = form[key] + (v - form[key]) * t;
+  }
+  return out;
 }
 
 function growBranch(
@@ -224,6 +287,8 @@ function growBranch(
   angle: number,
   length: number,
   width: number,
+  /** Astordnung: 0 = Stamm und Leittrieb, je Abzweigung + 1. */
+  order: number,
 ): number {
   const grow = clamp01(depth - level);
   if (grow <= 0) return -1;
@@ -287,8 +352,10 @@ function growBranch(
     a2 + (rv[1]! - 0.5) * 0.35,
     length * (level === 0 ? F.leader0 : F.leader + rv[2]! * F.leaderVar),
     wEnd * 0.8,
+    order,
   );
   if (leader >= 0) branch.children.push(leader);
+  if (order >= F.maxOrder) return index;
   // … Seitenäste zweigen ab (1–2, am Stamm immer 2).
   const sides = level === 0 || rv[3]! < 0.5 ? 2 : 1;
   const firstSide = rv[4]! < 0.5 ? 1 : -1;
@@ -304,13 +371,22 @@ function growBranch(
       level + 1,
       ex,
       ey,
-      a2 + s * (spread + r1 * F.spreadVar),
+      limitDroop(a2 + s * (spread + r1 * F.spreadVar), F.droop),
       length * (level === 0 ? F.side0 : F.side + r1 * F.sideVar),
-      wEnd * 0.62,
+      wEnd * F.sideWidth,
+      order + 1,
     );
     if (side >= 0) branch.children.push(side);
   }
   return index;
+}
+
+/** Hebt einen Winkel an, der mehr als `droop` unter die Waagerechte zeigt (y nach unten). */
+function limitDroop(angle: number, droop: number): number {
+  if (droop === Infinity) return angle;
+  const a = Math.atan2(Math.sin(angle), Math.cos(angle));
+  if (a <= droop || a >= Math.PI - droop) return angle;
+  return a < Math.PI / 2 ? droop : Math.PI - droop;
 }
 
 function addLeaf(geo: PlantGeometry, x: number, y: number, r: number, level: number, a: number, b: number): void {

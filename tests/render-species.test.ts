@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { animalSize, nicheAnchors } from '../src/render/anchors';
-import { makeLayout, placeMainTree } from '../src/render/layout';
-import { buildTree, TREE_FORMS, TREE_SPECIES, type TreeSpecies } from '../src/render/plant';
+import { animalSize, edgeFootprint, nicheAnchors, SCENE_NICHES, trunkBaseHalf } from '../src/render/anchors';
+import { trunkBaseHalf as floraTrunkBaseHalf } from '../src/render/flora';
+import { makeLayout, placeMainTree, placeRoots } from '../src/render/layout';
+import { buildTree, formAt, TREE_FORMS, TREE_SPECIES, trunkWidthOf, type TreeSpecies } from '../src/render/plant';
 import { normalizeSpecies, speciesLeafAmount } from '../src/render/species';
 import { seasonLook } from '../src/render/season';
 import { drawScene, type SceneInput, type ScenePlant } from '../src/render/tree';
@@ -81,6 +82,11 @@ describe('Hauptbaum-Arten: Eiche unverändert', () => {
     }
     expect(normalizeSpecies(undefined)).toBe('oak');
     expect(normalizeSpecies('pine')).toBe('pine');
+    expect(normalizeSpecies('maple', 'beech')).toBe('beech');
+  });
+
+  it('Wuchsform der Eiche hängt nicht vom Alter ab', () => {
+    for (const g of [1, 4, 8]) expect(formAt(TREE_FORMS.oak, g)).toBe(TREE_FORMS.oak);
   });
 
   it('Buche und Kiefer sehen anders aus – vom Samen bis zum alten Baum', () => {
@@ -142,7 +148,115 @@ describe('Hauptbaum-Arten: Anker der Tiere', () => {
   });
 });
 
+describe('Hauptbaum-Arten: Stammbreite', () => {
+  it('Anker, Pflanzen und Wurzeln rechnen mit dem gezeichneten Stammfuß der Art', () => {
+    for (const species of TREE_SPECIES) {
+      for (const [w, h] of [
+        [1200, 700],
+        [390, 844],
+      ] as const) {
+        const layout = makeLayout(w, h);
+        for (const g of [2.5, 5, 8]) {
+          const main = placeMainTree(layout, g, species)!;
+          // Erstes Segment = Stammfuß mit Verdickung, so wie es gezeichnet wird.
+          const drawn = (main.geo.segments[0]!.w1 * main.scale) / 2;
+          const msg = `${species} g=${g}, ${w}×${h}`;
+          expect(trunkBaseHalf(g, main, layout), msg).toBeCloseTo(drawn, 6);
+          expect(floraTrunkBaseHalf(g, main, layout), msg).toBeCloseTo(drawn, 6);
+          const roots = placeRoots(layout, g, main);
+          expect(roots.widthScale * roots.scale, msg).toBeCloseTo(trunkWidthOf(g) * TREE_FORMS[species].trunkWidth * main.scale * 0.8, 6);
+        }
+      }
+    }
+  });
+
+  it('Kiefer hat einen schlanken Schaft (Desktop deutlich schmaler als die Eiche)', () => {
+    const layout = makeLayout(1200, 700);
+    const oak = trunkBaseHalf(8, placeMainTree(layout, 8, 'oak'), layout);
+    const pine = trunkBaseHalf(8, placeMainTree(layout, 8, 'pine'), layout);
+    expect(pine).toBeLessThan(oak * 0.75);
+    expect(pine).toBeGreaterThan(oak * 0.4);
+  });
+});
+
+describe('Hauptbaum-Arten: Waldsaum', () => {
+  const SIZES: [number, number][] = [
+    [1200, 700],
+    [390, 844],
+  ];
+
+  it('Großtiere stehen bei keiner Art auf dem ausgewachsenen Stamm', () => {
+    for (const [w, h] of SIZES) {
+      const layout = makeLayout(w, h);
+      const size = animalSize(w, h);
+      for (const species of TREE_SPECIES) {
+        const tb = trunkBaseHalf(8, placeMainTree(layout, 8, species), layout);
+        for (const g of [2, 5, 8]) {
+          for (const a of nicheAnchors(w, h, g, 4, species).edge) {
+            const [x0, x1] = edgeFootprint(a, size);
+            const gap = Math.max(x0 - (layout.cx + tb), layout.cx - tb - x1);
+            expect(gap, `${species} Waldsaum ${a.slot} bei g=${g}, ${w}×${h}`).toBeGreaterThan(0);
+          }
+        }
+      }
+    }
+  });
+
+  it('Waldsaum-Plätze springen beim Artwechsel nicht', () => {
+    for (const [w, h] of [...SIZES, [320, 568] as [number, number], [800, 600] as [number, number]]) {
+      const oak = nicheAnchors(w, h, 6, 4, 'oak').edge;
+      for (const species of TREE_SPECIES) expect(nicheAnchors(w, h, 6, 4, species).edge, `${species} ${w}×${h}`).toEqual(oak);
+    }
+  });
+
+  it('der Eichenstamm bleibt der breiteste – die Reihe der Eiche ist dieselbe wie vorher', () => {
+    for (const [w, h] of [...SIZES, [320, 568], [360, 800], [600, 900], [800, 600], [1024, 768], [1920, 1080], [2400, 700]] as [number, number][]) {
+      const layout = makeLayout(w, h);
+      const oak = trunkBaseHalf(8, placeMainTree(layout, 8, 'oak'), layout);
+      for (const species of TREE_SPECIES) {
+        expect(trunkBaseHalf(8, placeMainTree(layout, 8, species), layout), `${species} ${w}×${h}`).toBeLessThanOrEqual(oak);
+      }
+    }
+  });
+
+  it('unbekannte Art in nicheAnchors gilt als Eiche', () => {
+    expect(nicheAnchors(800, 600, 5, 4, 'maple' as TreeSpecies)).toEqual(nicheAnchors(800, 600, 5, 4));
+  });
+});
+
+describe('Hauptbaum-Arten: Anker wachsen stetig', () => {
+  it('höchstens 8 px je Δg = 0,05 für g von 1 bis 8 (abseits von g = 1), alle Arten', () => {
+    const step = 0.05;
+    for (const [w, h] of [
+      [1200, 700],
+      [390, 844],
+    ] as const) {
+      for (const species of TREE_SPECIES) {
+        let a = nicheAnchors(w, h, 1 + step, 4, species);
+        for (let k = 2; k <= 140; k++) {
+          const g = 1 + k * step;
+          const b = nicheAnchors(w, h, g, 4, species);
+          for (const niche of SCENE_NICHES) {
+            for (let i = 0; i < 4; i++) {
+              const d = Math.hypot(a[niche][i]!.x - b[niche][i]!.x, a[niche][i]!.y - b[niche][i]!.y);
+              expect(d, `${species} ${niche} ${i} bei g=${(g - step).toFixed(2)}, ${w}×${h}`).toBeLessThanOrEqual(8);
+            }
+          }
+          a = b;
+        }
+      }
+    }
+  });
+});
+
 describe('Hauptbaum-Arten: Jahreszeiten, Übergang, Leistung', () => {
+  it('Zyklus-Übergang: unbekannte Art des alten Baums gilt als aktuelle Art', () => {
+    const transition = (fromTree: string) =>
+      play({ mainTree: 'pine', cycleTransition: { startedAt: 0.2, fromGrowth: 6, fromTree: fromTree as TreeSpecies } }, 0, [0, 0.5, 2.5]);
+    expect(transition('maple')).toEqual(transition('pine'));
+    expect(transition('maple')).not.toEqual(transition('oak'));
+  });
+
   it('Kiefer bleibt grün, Buche behält im Winter etwas Laub, Eiche ist kahl', () => {
     const winter = seasonLook(3.1);
     expect(speciesLeafAmount('pine', winter)).toBe(1);

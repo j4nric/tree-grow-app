@@ -5,8 +5,9 @@
  *   Buche   glatter grauer Stamm, dichte ovale Krone in hellerem Grün; im Herbst
  *           kupferbraun, ein Teil des trockenen Laubs bleibt über den Winter hängen;
  *           Frucht: Buchecker
- *   Kiefer  rötlich-schuppiger Stamm, hoch angesetzte Schirmkrone aus Nadelbüscheln,
- *           Zapfen; das ganze Jahr grün; Frucht: geflügelter Samen bzw. Zapfen
+ *   Kiefer  schlanker, rötlicher Schaft mit Plattenborke, Nadelbüschel in Etagen,
+ *           jung kegelig, alt schirmartig; Zapfen; das ganze Jahr grün;
+ *           Frucht: geflügelter Samen bzw. Zapfen
  *
  * Wuchsformen stehen in `plant.ts` (`TREE_FORMS`), hier nur Farben und Zeichnungen.
  * Alles wird beim Neuaufbau der Ebenen gezeichnet – keine Arbeit pro Frame.
@@ -17,11 +18,7 @@ import { seasonLeaves, type SeasonLook } from './season';
 import { hash2, mix } from './util';
 
 export type { TreeSpecies } from './plant';
-
-/** Art aus der Eingabe: unbekannt oder ohne Angabe → Eiche. */
-export function normalizeSpecies(s: string | undefined): TreeSpecies {
-  return s === 'beech' || s === 'pine' ? s : 'oak';
-}
+export { normalizeSpecies } from './plant';
 
 export const BEECH_WOOD: WoodColors = { base: '#8e8b85', shade: '#74716b', light: '#aeaba4' };
 export const PINE_WOOD: WoodColors = { base: '#9a5636', shade: '#7a3f26', light: '#c4784c' };
@@ -65,44 +62,68 @@ export function speciesWood(species: TreeSpecies, stem: WoodColors, oak: WoodCol
 }
 
 /**
- * Kiefernborke: dunkle, gegeneinander versetzte Schuppenplatten auf Stamm und dicken
- * Ästen – erst am verholzten Baum (ab Wachstum ~2), mit dem Alter deutlicher.
+ * Kiefernborke: unregelmäßige, längliche Plättchen zwischen dunklen, senkrechten Rissen
+ * auf Stamm und dicken Ästen – erst am verholzten Baum (ab Wachstum ~2), mit dem Alter
+ * deutlicher. Lage und Länge der Risse sind per Seed fest.
  */
 export function paintPineBark(ctx: CanvasRenderingContext2D, geo: PlantGeometry, ox: number, oy: number, scale: number, g: number): void {
   const strength = Math.min(1, Math.max(0, (g - 2) / 1.5));
   if (strength <= 0) return;
-  ctx.strokeStyle = '#5e2c18';
   ctx.lineCap = 'round';
-  let i = 0;
-  for (const s of geo.segments) {
-    const hw = (s.w1 * scale) / 2;
-    if (hw < 2.2) continue;
-    const x1 = ox + s.x1 * scale;
-    const y1 = oy + s.y1 * scale;
-    const x2 = ox + s.x2 * scale;
-    const y2 = oy + s.y2 * scale;
-    const len = Math.hypot(x2 - x1, y2 - y1);
-    const n = Math.floor(len / Math.max(4, hw * 1.1));
-    const nx = -(y2 - y1) / (len || 1);
-    const ny = (x2 - x1) / (len || 1);
-    ctx.lineWidth = Math.max(0.7, hw * 0.12);
-    ctx.globalAlpha = 0.55 * strength;
-    ctx.beginPath();
-    for (let k = 0; k < n; k++) {
-      const u = (k + 0.5) / Math.max(n, 1);
-      const cx = x1 + (x2 - x1) * u;
-      const cy = y1 + (y2 - y1) * u;
-      // Zwei bis drei Platten nebeneinander, Reihe für Reihe versetzt.
-      for (let j = -1; j <= 1; j++) {
-        const off = (j + ((k + i) % 2) * 0.5) * hw * 0.55;
-        if (Math.abs(off) > hw * 0.8) continue;
-        const l = hw * 0.32;
-        ctx.moveTo(cx + nx * (off - l), cy + ny * (off - l));
-        ctx.lineTo(cx + nx * (off + l), cy + ny * (off + l));
+  // Zwei Durchgänge: dunkle Risse, dann helle Plättchen-Kanten (Licht von links).
+  for (const pass of [0, 1] as const) {
+    ctx.strokeStyle = pass === 0 ? '#5a2a16' : '#d08a5c';
+    ctx.globalAlpha = (pass === 0 ? 0.85 : 0.5) * strength;
+    let i = 0;
+    for (const s of geo.segments) {
+      i++;
+      const hw = (s.w1 * scale) / 2;
+      if (hw < 2.2) continue;
+      const x1 = ox + s.x1 * scale;
+      const y1 = oy + s.y1 * scale;
+      const x2 = ox + s.x2 * scale;
+      const y2 = oy + s.y2 * scale;
+      const len = Math.hypot(x2 - x1, y2 - y1);
+      if (len < 2) continue;
+      // Einheitsvektor längs (t) und quer (n) zum Ast.
+      const tx = (x2 - x1) / len;
+      const ty = (y2 - y1) / len;
+      const nx = -ty;
+      const ny = tx;
+      const hw2 = (s.w2 * scale) / 2;
+      // Risse in Spalten quer über den Ast, Plättchen etwa so lang wie 0,6 Stammbreiten.
+      const cols = Math.max(2, Math.min(7, Math.round(hw / 3.2)));
+      const plate = Math.max(4, hw * 0.75);
+      const rows = Math.max(1, Math.floor(len / plate));
+      ctx.lineWidth = pass === 0 ? Math.max(0.8, Math.min(2.6, hw * 0.09)) : Math.max(0.6, Math.min(1.4, hw * 0.05));
+      ctx.beginPath();
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const h = hash2(hash2(i, r * 16 + c), 71);
+          // Nicht jede Zelle bekommt einen Riss – so entstehen unregelmäßige Plättchen.
+          if ((h & 7) < 2) continue;
+          const u0 = (r + ((h >>> 3) & 255) / 255 * 0.45) / rows;
+          const u1 = Math.min(1, u0 + (0.45 + ((h >>> 11) & 255) / 255 * 0.6) / rows);
+          const half = hw + (hw2 - hw) * (u0 + u1) * 0.5;
+          // Querlage −0,8..0,8 der halben Breite, Spalte für Spalte versetzt.
+          const q = ((c + 0.5) / cols) * 2 - 1 + ((((h >>> 19) & 255) / 255) - 0.5) * (1.2 / cols);
+          const off = Math.max(-0.82, Math.min(0.82, q)) * half;
+          const dx = pass === 0 ? 0 : -Math.max(0.8, half * 0.05);
+          const wob = (((h >>> 27) & 15) / 15 - 0.5) * half * 0.08;
+          const ax = x1 + tx * len * u0 + nx * (off + dx);
+          const ay = y1 + ty * len * u0 + ny * (off + dx);
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(x1 + tx * len * u1 + nx * (off + dx + wob), y1 + ty * len * u1 + ny * (off + dx + wob));
+          // Ab und zu ein kurzer Querriss: schließt ein Plättchen ab.
+          if (pass === 0 && (h & 7) === 7 && c < cols - 1) {
+            const w = (2 / cols) * half * 0.9;
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(ax + nx * w, ay + ny * w);
+          }
+        }
       }
+      ctx.stroke();
     }
-    ctx.stroke();
-    i++;
   }
   ctx.globalAlpha = 1;
 }
@@ -114,11 +135,11 @@ export function paintPineBark(ctx: CanvasRenderingContext2D, geo: PlantGeometry,
 export function paintCones(ctx: CanvasRenderingContext2D, geo: PlantGeometry, ox: number, oy: number, scale: number, g: number): void {
   if (g < 3.5) return;
   let outer = 0;
-  for (const l of geo.leaves) if (l.level >= geo.maxLevel - 1) outer++;
+  for (const l of geo.leaves) if (l.level >= 2 && l.level >= geo.maxLevel - 1) outer++;
   const want = Math.min(12, Math.round((g - 3.5) * 4));
   const share = outer > 0 ? Math.min(1, want / outer) : 0;
   let i = 0;
-  ctx.fillStyle = '#7a4a2a';
+  ctx.fillStyle = '#b5824c';
   ctx.beginPath();
   const marks: number[] = [];
   for (const l of geo.leaves as LeafCluster[]) {
@@ -126,17 +147,17 @@ export function paintCones(ctx: CanvasRenderingContext2D, geo: PlantGeometry, ox
     if (l.level < 2 || l.level < geo.maxLevel - 1) continue;
     if ((hash2(i, 53) & 1023) / 1024 > share) continue;
     const R = l.r * scale;
-    const r = Math.max(2.6, R * 0.3);
+    const r = Math.max(3.6, R * 0.5);
     const x = ox + l.x * scale + R * (((hash2(i, 54) & 255) / 255 - 0.5) * 0.8);
-    const y = oy + l.y * scale + R * 0.35;
+    const y = oy + l.y * scale + R * 0.3;
     ctx.moveTo(x + r * 0.6, y);
     ctx.ellipse(x, y, r * 0.6, r, 0, 0, Math.PI * 2);
     marks.push(x, y, r);
   }
   ctx.fill();
   // Schuppen andeuten.
-  ctx.strokeStyle = '#4e2c18';
-  ctx.lineWidth = 0.6;
+  ctx.strokeStyle = '#74482a';
+  ctx.lineWidth = 0.8;
   ctx.beginPath();
   for (let k = 0; k < marks.length; k += 3) {
     const x = marks[k]!;

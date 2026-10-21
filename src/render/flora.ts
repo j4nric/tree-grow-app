@@ -15,8 +15,8 @@
  */
 
 import { createAnchorResolver, animalSize, type AnchorResolver } from './anchors';
-import { placeMainTree, placeTree, type Layout, type PlacedTree } from './layout';
-import { trunkWidthOf } from './plant';
+import { placeMainTree, placeTree, trunkFootHalf, type Layout, type PlacedTree } from './layout';
+import { normalizeSpecies, trunkWidthOf, type TreeSpecies } from './plant';
 import { clamp, clamp01, hash2, smooth01 } from './util';
 
 /** Gruppen-IDs wie in scripts/v2/content.ts (`PLANT_GROUPS`). */
@@ -151,6 +151,8 @@ export interface FloraOptions {
   main?: PlacedTree | null;
   /** Tier-Ankerpunkte (sonst neu berechnet). */
   anchors?: AnchorResolver;
+  /** Art des Hauptbaums (Standard: Eiche) – muss zu `main` passen. */
+  species?: TreeSpecies;
 }
 
 /** Lücken zwischen Sperrbereichen, die schmaler sind (px), gelten als geschlossen. */
@@ -166,7 +168,8 @@ export const KEEP_CLEAR_SLOTS = 4;
 export function layoutFlora(layout: Layout, growth: number, plants: readonly ScenePlant[], opts: FloraOptions = {}): PlacedPlant[] {
   if (plants.length === 0) return [];
   const g = Math.max(0, Number.isFinite(growth) ? growth : 0);
-  const main = opts.main !== undefined ? opts.main : placeMainTree(layout, g);
+  const species = normalizeSpecies(opts.species);
+  const main = opts.main !== undefined ? opts.main : placeMainTree(layout, g, species);
   const anchors = opts.anchors ?? createAnchorResolver(layout, g, main);
   const S = animalSize(layout.width, layout.height);
   const { cx, width } = layout;
@@ -175,7 +178,7 @@ export function layoutFlora(layout: Layout, growth: number, plants: readonly Sce
   // Tierplätze am Boden: Mitte einer Pflanze nicht darauf. Gesperrt wird die ganze
   // Strecke, die ein Platz beim Wachsen des Stamms zurücklegt (Keimling bis Urwald) –
   // so bleibt die Lage der Pflanzen über das ganze Spiel ruhig und springt nicht.
-  const groundSpans = groundSpansFor(layout).map(([a, b]): [number, number] => [a, b]);
+  const groundSpans = groundSpansFor(layout, species).map(([a, b]): [number, number] => [a, b]);
   groundSpots(anchors).forEach((x, i) => {
     const span = groundSpans[i]!;
     span[0] = Math.min(span[0], x);
@@ -215,7 +218,7 @@ export function layoutFlora(layout: Layout, growth: number, plants: readonly Sce
       const tree = placeTree(gp, seed, 0, baseY, maxH, width * shape.width * (depth ? 0.85 : 1));
       const hw = Math.max(-tree.geo.minX, tree.geo.maxX) * tree.scale;
       const h = -tree.geo.minY * tree.scale;
-      const trunkHalf = (trunkWidthOf(gp) * tree.scale) / 2;
+      const trunkHalf = (trunkWidthOf(gp) * tree.trunkWidth * tree.scale) / 2;
       const forbid: [number, number][] = [[cx - tb - trunkHalf - S * 0.6, cx + tb + trunkHalf + S * 0.6]];
       for (const [a, b] of groundSpans) forbid.push([a - trunkHalf - S * 0.3, b + trunkHalf + S * 0.3]);
       for (const o of placedTrees) {
@@ -343,14 +346,14 @@ function groundSpots(anchors: AnchorResolver, withBackRow = true): number[] {
 const SPAN_GROWTHS = [1, 3, 5, 8];
 const spanMemo = new Map<string, [number, number][]>();
 
-/** Strecke [min, max] jedes Tierplatzes am Boden über das ganze Spiel (gemerkt je Größe). */
-function groundSpansFor(layout: Layout): [number, number][] {
-  const key = `${layout.width}x${layout.height}`;
+/** Strecke [min, max] jedes Tierplatzes am Boden über das ganze Spiel (gemerkt je Größe und Art). */
+function groundSpansFor(layout: Layout, species: TreeSpecies): [number, number][] {
+  const key = `${layout.width}x${layout.height}|${species}`;
   let spans = spanMemo.get(key);
   if (!spans) {
     spans = [];
     for (const g of SPAN_GROWTHS) {
-      groundSpots(createAnchorResolver(layout, g, placeMainTree(layout, g))).forEach((x, i) => {
+      groundSpots(createAnchorResolver(layout, g, placeMainTree(layout, g, species))).forEach((x, i) => {
         const s = spans![i];
         if (s) {
           s[0] = Math.min(s[0], x);
@@ -358,7 +361,7 @@ function groundSpansFor(layout: Layout): [number, number][] {
         } else spans!.push([x, x]);
       });
     }
-    if (spanMemo.size > 8) spanMemo.clear();
+    if (spanMemo.size > 16) spanMemo.clear();
     spanMemo.set(key, spans);
   }
   return spans;
@@ -367,8 +370,7 @@ function groundSpansFor(layout: Layout): [number, number][] {
 /** Halbe Stammbreite des Hauptbaums am Fuß in px (inkl. Verdickung). */
 export function trunkBaseHalf(g: number, main: PlacedTree | null, layout: Layout): number {
   if (!main) return Math.max(2, layout.height * 0.004);
-  const flare = clamp01((g - 2) / 3);
-  return (trunkWidthOf(g) * (1 + 0.55 * flare) * main.scale) / 2;
+  return trunkFootHalf(g, main);
 }
 
 function hashString(s: string): number {

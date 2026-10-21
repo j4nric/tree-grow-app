@@ -39,6 +39,14 @@ export interface PlacedTree {
   scale: number;
   x: number;
   y: number;
+  /** Faktor der Art auf die Stammbreite (`TreeForm.trunkWidth`, Eiche 1). */
+  trunkWidth: number;
+}
+
+/** Halbe Stammbreite am Fuß in px (inkl. Verdickung) – genau wie in `buildTree` gezeichnet. */
+export function trunkFootHalf(g: number, tree: PlacedTree): number {
+  const flare = clamp01((g - 2) / 3);
+  return (trunkWidthOf(g) * tree.trunkWidth * (1 + 0.55 * flare) * tree.scale) / 2;
 }
 
 /**
@@ -52,7 +60,7 @@ export function placeTree(g: number, seed: number, x: number, y: number, maxHeig
   const target = maxHeight * heightFraction(g);
   const half = Math.max(-geo.minX, geo.maxX, 1e-6);
   const scale = Math.min(target / Math.max(-segTop, 1e-6), maxHeight / Math.max(-geo.minY, 1e-6), maxHalfWidth / half);
-  return { geo, scale, x, y };
+  return { geo, scale, x, y, trunkWidth: (form ?? TREE_FORMS.oak).trunkWidth };
 }
 
 /** Maßstab des Keimlings (g = 1) – Bezugsgröße für Samen, Trieb und Keimblätter. */
@@ -82,6 +90,6 @@ export function placeRoots(layout: Layout, g: number, main: PlacedTree): PlacedR
   const reach = layout.soilH * (0.38 + 0.5 * smooth01((g - 1) / 5));
   const half = Math.max(-geo.minX, geo.maxX, 1e-6);
   const scale = Math.min(reach / Math.max(geo.maxY, 1e-6), (layout.width * 0.46) / half);
-  const trunkPx = trunkWidthOf(g) * main.scale;
+  const trunkPx = trunkWidthOf(g) * main.trunkWidth * main.scale;
   return { geo, scale, widthScale: (trunkPx * 0.8) / scale, reach };
 }

@@ -26,8 +26,7 @@ import { AnimalLayer, type AnimalFrame, type SceneAnimal } from './animals';
 import { layoutFlora, type PlacedPlant, type ScenePlant } from './flora';
 import { paintNeedleClumps, paintPlant } from './flora-paint';
 import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
-import { TREE_FORMS } from './plant';
-import { paintLeaves, paintWood, type LeafPalette, type WoodColors } from './plant';
+import { paintLeaves, paintWood, TREE_FORMS, type LeafPalette, type WoodColors } from './plant';
 import { cycleElapsed, CycleTransition, type CycleGeometry, type OldForest } from './cycle';
 import { MoodLayer, type MoodFrame } from './mood';
 import {
@@ -117,10 +116,11 @@ export interface SceneInput {
   /**
    * Art des Hauptbaums: 'oak' (Eiche, Standard), 'beech' (Buche: glatter grauer Stamm,
    * dichte ovale Krone, im Herbst kupferbraun, trockenes Laub bleibt teils hängen,
-   * Bucheckern) oder 'pine' (Kiefer: rötlich-schuppiger Stamm, hoch angesetzte
-   * Schirmkrone aus Nadelbüscheln, Zapfen, immer grün). Gilt für alle Stufen vom Samen
+   * Bucheckern) oder 'pine' (Waldkiefer: schlanker, astfreier Schaft mit Plattenborke,
+   * durchgehender Leittrieb, Nadelbüschel in Etagen – jung kegelig, alt schirmartig –,
+   * Zapfen, immer grün). Gilt für alle Stufen vom Samen
    * an, für Jahreszeiten, Zyklus-Übergang (Frucht der Art; der alte Baum ist
-   * `cycleTransition.fromTree`, sonst diese Art) und Erinnerungsbaum. Ohne Angabe Eiche.
+   * `cycleTransition.fromTree`, fehlt sie oder ist unbekannt, diese Art) und Erinnerungsbaum. Ohne Angabe Eiche.
    */
   mainTree?: TreeSpecies;
 }
@@ -416,7 +416,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     const fromGrowth = Number.isFinite(ct.fromGrowth) ? Math.max(0, ct.fromGrowth) : 0;
     // Die Jahreszeit gehört bewusst nicht zum Schlüssel: Der alte Wald wird beim Start in
     // der dann gültigen Jahreszeit gezeichnet und bleibt für den Übergang so eingefroren.
-    const fromTree = normalizeSpecies(ct.fromTree ?? species);
+    // Unbekannte oder fehlende Art des alten Baums → aktuelle Art.
+    const fromTree = normalizeSpecies(ct.fromTree, species);
     const cycleKey = `${ct.startedAt}|${fromGrowth}|${sc.key}|${fromTree}|${species}`;
     if (!cache.cycle.prepared || cache.cycle.key !== cycleKey || !samePlants(cache.cyclePlants, ct.fromPlants)) {
       cache.cyclePlants = ct.fromPlants ? ct.fromPlants.map(plantSig) : null;
@@ -672,7 +673,7 @@ function paintOldForest(sc: SizeCache, g: number, plants: readonly ScenePlant[] 
   const withPlants = plants !== undefined;
   const main = placeMainTree(layout, g, species);
   const trees = placeNeighbors(neighborTrees(g, layout, withPlants), layout, withPlants);
-  const flora = plants && plants.length > 0 ? layoutFlora(layout, g, plants, { main }) : [];
+  const flora = plants && plants.length > 0 ? layoutFlora(layout, g, plants, { main, species }) : [];
   let rect: Rect | null = null;
   for (const n of trees) rect = unionRect(rect, ...treeBounds(n.tree));
   for (const p of flora) rect = unionRect(rect, ...plantBounds(p));
@@ -795,6 +796,9 @@ function treeBounds(t: PlacedTree): [number, number, number, number] {
   return [t.x + t.geo.minX * t.scale, t.y + t.geo.minY * t.scale, t.x + t.geo.maxX * t.scale, t.y + 4];
 }
 
+/** Größe der Nadelbüschel der Kiefer (relativ zu den Blattbüscheln der Geometrie). */
+const PINE_CLUMP_SCALE = 0.72;
+
 /** Hauptbaum der Art (Holz verholzt mit dem Alter, Laub je Jahreszeit). */
 function paintMainTree(ctx: CanvasRenderingContext2D, main: PlacedTree, g: number, species: TreeSpecies, look: SeasonLook | null): void {
   const lignin = smooth01((g - 1) / 2);
@@ -811,10 +815,11 @@ function paintMainTree(ctx: CanvasRenderingContext2D, main: PlacedTree, g: numbe
  * dunstiger Erinnerungsbaum).
  */
 function paintSpeciesTree(ctx: CanvasRenderingContext2D, t: PlacedTree, species: TreeSpecies, wood: WoodColors, palette: LeafPalette, leaves: number, g: number): void {
-  paintWood(ctx, t.geo, t.x, t.y, t.scale, species === 'pine' ? 0.9 : 1, wood);
+  paintWood(ctx, t.geo, t.x, t.y, t.scale, 1, wood);
   if (species === 'pine') {
     paintPineBark(ctx, t.geo, t.x, t.y, t.scale, g);
-    paintNeedleClumps(ctx, t.geo, t.x, t.y, t.scale, 1.05, 0.5, palette);
+    // Kleine, getrennte Nadelbüschel: Zwischen den Etagen bleibt Himmel sichtbar.
+    paintNeedleClumps(ctx, t.geo, t.x, t.y, t.scale, PINE_CLUMP_SCALE, 0.5, palette);
     paintCones(ctx, t.geo, t.x, t.y, t.scale, g);
     return;
   }
@@ -886,7 +891,7 @@ function renderLayers(
 
   // --- Begleitpflanzen (eigene Ebene) ---
   if (redrawPlants || sc.withPlants !== withPlants) {
-    const flora = plants && plants.length > 0 ? layoutFlora(layout, g, plants, { main, anchors: sc.anchors }) : [];
+    const flora = plants && plants.length > 0 ? layoutFlora(layout, g, plants, { main, anchors: sc.anchors, species }) : [];
     sc.companionXs = flora.filter((p) => p.tree).map((p) => p.x);
     sc.plantsRect = renderPlants(sc, flora, look);
     sc.plantsGrowth = g;

@@ -7,8 +7,8 @@
  * am Stamm einer festen Höhe, am Boden einem festen Abstand zum Stamm.
  */
 
-import { makeLayout, placeMainTree, placeRoots, sproutScale, type Layout, type PlacedTree } from './layout';
-import { trunkWidthOf, type Branch, type TreeSpecies } from './plant';
+import { makeLayout, placeMainTree, placeRoots, sproutScale, trunkFootHalf, type Layout, type PlacedTree } from './layout';
+import { normalizeSpecies, TREE_SPECIES, type Branch, type TreeSpecies } from './plant';
 import { clamp, clamp01, hash2, lerp } from './util';
 
 /** Nischen-IDs, die der Renderer kennt (wie in DESIGN_V2.md / scripts/v2/content.ts). */
@@ -85,12 +85,12 @@ export function createAnchorResolver(layout: Layout, g: number, main: PlacedTree
 
 /**
  * Ankerpunkte aller Nischen für die Plätze 0..slots−1 – z. B. für Linien oder
- * Beschriftungen in der UI. Gleiche Eingabe → gleiche Punkte.
+ * Beschriftungen in der UI. Gleiche Eingabe → gleiche Punkte. `species`: Art des Hauptbaums (unbekannt → Eiche).
  */
 export function nicheAnchors(width: number, height: number, growth: number, slots = 4, species: TreeSpecies = 'oak'): Record<SceneNiche, NicheAnchor[]> {
   const layout = makeLayout(width, height);
   const g = Math.max(0, growth);
-  const resolver = createAnchorResolver(layout, g, placeMainTree(layout, g, species));
+  const resolver = createAnchorResolver(layout, g, placeMainTree(layout, g, normalizeSpecies(species)));
   const result = {} as Record<SceneNiche, NicheAnchor[]>;
   for (const niche of SCENE_NICHES) {
     result[niche] = [];
@@ -274,7 +274,10 @@ function edgeRow(layout: Layout, size: number): EdgeRow {
   const m = size * 0.1;
   const foot = (EDGE_REACH_IN + EDGE_REACH_OUT) * size;
   const gap = EDGE_GAP * size;
-  const trunk = trunkBaseHalf(8, placeMainTree(layout, 8), layout);
+  // Breitester ausgewachsener Stamm aller Arten: Die Reihe hängt nicht von der Art ab,
+  // so springen die Tiere beim Artwechsel nicht und stehen nie auf dem Stamm.
+  let trunk = 0;
+  for (const species of TREE_SPECIES) trunk = Math.max(trunk, trunkBaseHalf(8, placeMainTree(layout, 8, species), layout));
   const pitch = Math.max(width * 0.075, foot + gap);
   const r0 = Math.min(width * 0.33, half - m - EDGE_REACH_OUT * size - pitch);
   // Pilzbereich vorn: alte Grenze (33 % − 0,8 S); rückt der Waldsaum nach innen, mit
@@ -305,10 +308,9 @@ function cycle<T extends [number, number]>(list: T[], slot: number, shift: numbe
 }
 
 /** Halbe Stammbreite am Fuß in px (inkl. Verdickung). */
-function trunkBaseHalf(g: number, main: PlacedTree | null, layout: Layout): number {
+export function trunkBaseHalf(g: number, main: PlacedTree | null, layout: Layout): number {
   if (!main) return sproutScale(layout) * 0.04;
-  const flare = clamp01((g - 2) / 3);
-  return (trunkWidthOf(g) * (1 + 0.55 * flare) * main.scale) / 2;
+  return trunkFootHalf(g, main);
 }
 
 /** Punkt auf dem Stamm bei Höhenanteil t (0 = Fuß, 1 = erste Gabelung). */
