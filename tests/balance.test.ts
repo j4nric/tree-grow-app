@@ -70,8 +70,8 @@ describe('Balancing v2 (echte Logik)', () => {
   });
 
   it('Harmonie-Strategie hat die höchste Harmonie beim Hain (mindestens 1 Punkt Vorsprung)', () => {
-    // Seit Schritt 2.2 (32 Arten) liegt das Harmonie-Streben wieder klar vorn
-    // (DESIGN_V2.md 15.4: ~3,5 Punkte vor dem besten Stapler).
+    // Seit Schritt 2.2 (32 Arten) liegt das Harmonie-Streben wieder klar vorn; mit den
+    // Lebensgemeinschaften (2.3) ~4 Punkte vor dem besten Stapler (DESIGN_V2.md 15.4).
     const best = stageStats(harmony, HAIN).harmony;
     for (const s of summaries.filter((x) => x !== harmony)) {
       expect(stageStats(s, HAIN).harmony, s.strategy.name).toBeLessThan(best - 1);
@@ -114,6 +114,19 @@ describe('Balancing v2 (echte Logik)', () => {
     }
     // Der Harmonie-Spieler hält die Pflanzen gut versorgt.
     expect(stageStats(harmony, HAIN).supply).toBeGreaterThan(0.9);
+  });
+
+  it('Lebensgemeinschaften: der Harmonie-Spieler findet welche, sie dominieren die Harmonie aber nicht', () => {
+    const h = stageStats(harmony, HAIN);
+    expect(h.communities).toBeGreaterThan(0.5);
+    expect(h.discovered).toBeGreaterThanOrEqual(h.communities);
+    for (const s of summaries) {
+      const st = stageStats(s, HAIN);
+      // Höchstens ein Viertel der Harmonie stammt aus Lebensgemeinschaften.
+      expect(st.communityHarmony, s.strategy.name).toBeLessThan(0.25 * st.harmony);
+    }
+    // Bewusstes Spiel findet mehr als Zufall.
+    expect(h.communityHarmony).toBeGreaterThan(stageStats(byId(RANDOM.id), HAIN).communityHarmony);
   });
 
   it('es gibt echte Wahlen, aber nicht nur', () => {

@@ -68,7 +68,7 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
 
 - [ ] 2.1 Pflanzen, Licht/Wasser-Versorgung, Samen, „Etwas keimt“, Pflanzen setzen (`game-designer` + `core-engineer`)
 - [ ] 2.2 Alle 5 Gattungen, 32 Arten, Gattungsboni, Seltenheit, Fähigkeiten (`game-designer` + `core-engineer`)
-- [ ] 2.3 Lebensgemeinschaften, vollständige Harmonie (`game-designer`)
+- [x] 2.3 Lebensgemeinschaften, vollständige Harmonie (`game-designer`)
 - [ ] 2.4 Ereignisse mit Wahl, Durchreisende (`core-engineer` + `game-designer`)
 - [ ] 2.5 Gattungsleiste, Pflanzenring, Harmonie-Aufschlüsselung (`ui-dev`)
 - [ ] 2.6 Tiere und Pflanzen im Bild: Ankerpunkte, gecachte Sprites (`renderer`)

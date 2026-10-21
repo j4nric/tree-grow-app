@@ -320,13 +320,19 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       plants: state.plants,
       niches: state.niches,
       journal: state.meta.journal.species,
+      journalPlants: state.meta.journal.plants,
+      communities: state.meta.journal.communities,
       rngState: state.rngState,
       totalGrowth: Math.round(state.totalGrowth),
       seeds: Math.round(state.seeds),
       harmony: Math.round(ev.harmony * 100) / 100,
     }).toMatchInlineSnapshot(`
       {
-        "harmony": 71.71,
+        "communities": [
+          "caterpillar-watch",
+          "night-shift",
+        ],
+        "harmony": 85.71,
         "journal": [
           "earthworm",
           "woodlouse",
@@ -345,6 +351,13 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "bat",
           "peacock",
           "porcini",
+        ],
+        "journalPlants": [
+          "anemone",
+          "hazel",
+          "rowan",
+          "foxglove",
+          "moss",
         ],
         "niches": {
           "bark": [
@@ -385,9 +398,9 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "hazel",
         ],
         "rngState": 2877323870,
-        "seeds": 58238,
+        "seeds": 60521,
         "stage": 5,
-        "totalGrowth": 239421,
+        "totalGrowth": 248549,
         "waypoint": 26,
       }
     `);

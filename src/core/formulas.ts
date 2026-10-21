@@ -1,6 +1,7 @@
 import {
   ARCHITECT,
   CALM_MIN_HAPPINESS,
+  COMMUNITY_BOOST_HARMONY,
   COUNTS_AS_GENUS,
   DECOMPOSER_BOOST,
   FEAR_LIGHT_FACTOR,
@@ -9,6 +10,7 @@ import {
   NO_WATER_GROUP,
   RARITY_BOOST_POINTS,
 } from '../content/abilities';
+import { COMMUNITIES, type CommunityMember } from '../content/communities';
 import { DECLINE_SEEDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
 import { FOREST_MEMORY_BONUS } from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
@@ -32,8 +34,8 @@ import { MAX_FOREST_MEMORY, type GameState, type PendingEncounterType } from './
 
 /*
  * Rechenmodell v2: Zufriedenheit, Harmonie, Versorgung, Wachstum/s, Samen/s.
- * Formeln aus docs/DESIGN_V2.md, Abschnitt 2 und 9, mit allen 32 Arten, Störung und
- * Fähigkeiten – noch ohne Lebensgemeinschaften (2.3), Ereignisse und Durchreisende (2.4).
+ * Formeln aus docs/DESIGN_V2.md, Abschnitt 2 und 9, mit allen 32 Arten, Störung,
+ * Fähigkeiten und Lebensgemeinschaften – noch ohne Ereignisse und Durchreisende (2.4).
  * Referenz: scripts/v2/model.ts (Tests vergleichen beide).
  */
 
@@ -83,6 +85,23 @@ export interface AnimalStatus {
   disturbers: number;
 }
 
+/** Zustand einer Lebensgemeinschaft (Reihenfolge wie COMMUNITIES). */
+export interface CommunityStatus {
+  id: string;
+  /** Alle Mitglieder leben bzw. wachsen im Ökosystem. */
+  active: boolean;
+  /** Erfüllte Mitglieder (eine Alternative genügt) von `total`. */
+  present: number;
+  total: number;
+  /**
+   * Fehlende Mitglieder: je Eintrag die Art- oder Pflanzen-IDs, von denen eine genügt
+   * (meist nur eine, z. B. ['bee'] oder ['chanterelle', 'porcini']). Leer, wenn aktiv.
+   */
+  missing: string[][];
+  /** Harmonie, die sie gerade bringt (inkl. Lichterabend); 0, wenn nicht aktiv. */
+  harmony: number;
+}
+
 export interface Evaluation {
   /** 🌿 Wachstum pro Sekunde. */
   growth: number;
@@ -92,8 +111,14 @@ export interface Evaluation {
   harmony: number;
   /** 1 + H/100. */
   multiplier: number;
-  /** Bausteine der Harmonie; `extra` = Harmonie-Wirkungen der Tiere (Glühwürmchen, Hirschkäfer). */
-  breakdown: { variety: number; happiness: number; pyramid: number; extra: number };
+  /**
+   * Bausteine der Harmonie (Summe = harmony): `pyramid` enthält den Abzug für
+   * unbewachte Schädlinge, `communities` die Lebensgemeinschaften inkl. Lichterabend,
+   * `extra` die Harmonie-Wirkungen der Tiere (Glühwürmchen, Hirschkäfer).
+   */
+  breakdown: { variety: number; happiness: number; pyramid: number; communities: number; extra: number };
+  /** Alle Lebensgemeinschaften mit Zustand (aktive und fehlende Mitglieder). */
+  communities: CommunityStatus[];
   /** Zustand je Tier (Art-ID → Status). */
   animals: Record<string, AnimalStatus>;
   /** Ø Zufriedenheit aller Tiere (0, wenn keine). */
@@ -237,6 +262,16 @@ function speciesIn(eco: Ecosystem): Species[] {
     }
   }
   return out;
+}
+
+/** IDs, von denen eine ein Mitglied der Lebensgemeinschaft erfüllt. */
+export function memberOptions(member: CommunityMember): readonly string[] {
+  return typeof member === 'string' ? [member] : member;
+}
+
+/** IDs der aktiven Lebensgemeinschaften einer Auswertung. */
+export function activeCommunities(ev: Pick<Evaluation, 'communities'>): string[] {
+  return ev.communities.filter((c) => c.active).map((c) => c.id);
 }
 
 /** Reine Berechnung ohne Cache – für Vorschauen und Tests. */
@@ -390,6 +425,24 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     for (let i = 0; i < tier; i++) for (const e of TRAITS[g][i]!.effects) apply(e, 1);
   }
 
+  // Lebensgemeinschaften: Mitglieder sind Tiere oder Begleitpflanzen.
+  const communityBonus = abilities.has('communityBoost') ? COMMUNITY_BOOST_HARMONY : 0;
+  let communityPoints = 0;
+  const communities: CommunityStatus[] = COMMUNITIES.map((c) => {
+    const missing: string[][] = [];
+    for (const m of c.members) {
+      const options = memberOptions(m);
+      if (!options.some((id) => presentOrPlanted.has(id))) missing.push([...options]);
+    }
+    const active = missing.length === 0;
+    const points = active ? c.harmony + communityBonus : 0;
+    if (active) {
+      communityPoints += points;
+      for (const e of c.effects) apply(e, 1);
+    }
+    return { id: c.id, active, present: c.members.length - missing.length, total: c.members.length, missing, harmony: points };
+  });
+
   // Fraßschaden, gemindert durch Räuber (multiplikativ) und Fähigkeiten
   let damage = 0;
   let unguarded = 0;
@@ -431,14 +484,14 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const cycle = 5 * Math.min(1, decomposers / (consumers / 5));
   const pyramid = levels + carrying + fed + cycle - UNGUARDED_PENALTY * unguarded;
 
-  // Harmonie = Vielfalt + Zufriedenheit + Pyramide + Harmonie-Wirkungen
+  // Harmonie = Vielfalt + Zufriedenheit + Pyramide + Lebensgemeinschaften + Harmonie-Wirkungen
   // Vielfalt: 3 je Gattung und je Pflanzengruppe mit Begleitpflanzen, 1 je verschiedene Art.
   const groups = new Set<string>(animals.map((a) => a.genus));
   for (const p of plants) groups.add(`plant:${p.group}`);
   const variety = 3 * groups.size + present.size + new Set(plants.map((p) => p.id)).size;
   const avgHappiness = animals.length > 0 ? happinessSum / animals.length : 0;
   const happinessPoints = 30 * avgHappiness;
-  const harmony = variety + happinessPoints + pyramid + harmonyExtra;
+  const harmony = variety + happinessPoints + pyramid + communityPoints + harmonyExtra;
   const multiplier = 1 + harmony / HARMONY_DIVISOR;
 
   // Wachstum und Samen (Waldgedächtnis: +2 % je Punkt)
@@ -463,7 +516,8 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     seeds,
     harmony,
     multiplier,
-    breakdown: { variety, happiness: happinessPoints, pyramid, extra: harmonyExtra },
+    breakdown: { variety, happiness: happinessPoints, pyramid, communities: communityPoints, extra: harmonyExtra },
+    communities,
     animals: status,
     avgHappiness,
     slots: nicheSlots(eco.stage, eco.niches),

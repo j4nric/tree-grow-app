@@ -227,9 +227,7 @@ export function effectView(effect: Effect): EffectView {
       return { label: `stört ${SPECIES_BY_ID.get(effect.target)?.name ?? effect.target}`, tone: 'bad' };
     case 'ability': {
       const info = ABILITY_INFO[effect.id];
-      // Lebensgemeinschaften kommen erst mit Schritt 2.3 – bis dahin wirkt Lichterabend nicht.
-      const soon = effect.id === 'communityBoost' ? ' (bald)' : '';
-      return { label: `${info.name}: ${info.text}${soon}`, tone: 'good' };
+      return { label: `${info.name}: ${info.text}`, tone: 'good' };
     }
   }
 }
@@ -380,6 +378,7 @@ export function harmonyParts(evaluation: Readonly<Evaluation>): HarmonyPartView[
     { label: 'Nahrungspyramide', value: evaluation.breakdown.pyramid + penalty },
   ];
   if (penalty > 0) parts.push({ label: 'Unbewachte Schädlinge', value: -penalty });
+  if (evaluation.breakdown.communities > 0) parts.push({ label: 'Lebensgemeinschaften', value: evaluation.breakdown.communities });
   // Harmonie-Wirkungen besonderer Arten (Glühwürmchen, Hirschkäfer).
   if (evaluation.breakdown.extra !== 0) parts.push({ label: 'Besondere Arten', value: evaluation.breakdown.extra });
   return parts;

@@ -1086,8 +1086,8 @@ in allem besser und deutlich vorn.
 `previewChoice`, `previewPlant`, `cardStatus`): seit Schritt 2.1 mit Tier- **und**
 Pflanzenbegegnungen („Etwas keimt“), Pflanzen setzen und Licht/Wasser-Versorgung;
 seit Schritt 2.2 mit allen 32 Arten in 5 Gattungen, Fähigkeiten, Erscheinungsbedingungen
-und Seltenheitsgewichten; noch ohne Ereignisse, Durchreisende, Lebensgemeinschaften und
-Pflegemaßnahmen. Der Spieler löst jede Begegnung sofort auf; die Zeit läuft von
+und Seltenheitsgewichten; seit Schritt 2.3 mit Lebensgemeinschaften (vollständige
+Harmonie); noch ohne Ereignisse, Durchreisende und Pflegemaßnahmen. Der Spieler löst jede Begegnung sofort auf; die Zeit läuft von
 Wegpunkt zu Wegpunkt bzw. bis zum nächsten Pflanzenkauf (dazu Zwischenstopps für den
 Samen-Verlauf). Strategien wie in 15.1: zufällig, gierig nach
 Harmonie bzw. Wachstum (nimmt die beste Platzierung, wenn sie verbessert, sonst bei
@@ -1107,14 +1107,113 @@ SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts    # Tabellen unten,
 deterministisch; Harmonie-Spieler: Stufenzeiten 0,7–1,35 × Ziel (Keimling < 30 s),
 Takt bis Hain im Median 10 s – 8 min und nie über 15 min; Harmonie-Strategie hat die
 höchste Harmonie, jede andere Strategie liegt mindestens 1 Punkt darunter (Schritt 2.1:
-±1), Zufall ist spürbar schlechter; kein Gattungs-Stapeln ist deutlich (> 10 %)
+±1), Zufall ist spürbar schlechter; Lebensgemeinschaften: der Harmonie-Spieler hat beim
+Hain im Schnitt mehr als 0,5 aktiv, bei keiner Strategie stammt ein Viertel der Harmonie
+oder mehr aus ihnen, bewusstes Spiel findet mehr als Zufall; kein Gattungs-Stapeln ist deutlich (> 10 %)
 schneller und zugleich mindestens so harmonisch, und keines ist überhaupt mehr als
 10 % schneller als der Harmonie-Spieler (Pilze im Blick); Wachstums-Streben ist schneller, aber höchstens 25 %, und behält ≥ 85 % der
 Harmonie; der Zufallsspieler hat 30–98 % echte Wahlen; jede Strategie setzt und pflanzt
 bis zum Hain (≥ 4 Pflanzen, Samen fließen in Pflanzen), der Harmonie-Spieler hält die
 Versorgung über 90 %.
 
-#### Stand Schritt 2.2: alle 32 Arten (500 Durchgänge je Strategie)
+#### Stand Schritt 2.3: Lebensgemeinschaften, Harmonie vollständig (500 Durchgänge je Strategie)
+
+**Keine geänderten Zahlen.** Die 9 Lebensgemeinschaften (`src/content/communities.ts`,
+Abschnitt 9.2) stammen 1:1 aus `scripts/v2/content.ts`; „Lichterabend“ (Glühwürmchen)
+wirkt jetzt (+3 ⚖️ je aktiver Lebensgemeinschaft). `evaluate` stimmt nun für **alle**
+Ökosysteme exakt mit `scripts/v2/model.ts` überein (bis auf Ereignisse und
+Durchreisende, die es noch nicht gibt). Die Harmonie ist damit vollständig laut 9.1:
+Vielfalt + 30 · Ø Zufriedenheit + Pyramide (≤ 20, −4 je unbewachtem Schädling) +
+Lebensgemeinschaften + Sonderpunkte der Tiere. Neu im Simulator: Tabelle
+„Lebensgemeinschaften“ (aktiv beim Hain, Harmonie daraus, im Naturtagebuch entdeckt).
+
+| Harmonie-Spieler | Ziel | Schritt 2.2 | **Schritt 2.3** |
+|---|---|---|---|
+| Keimling | < 30 s | 4 s | **4 s** |
+| Setzling | ~ 1 min | 45 s | **45 s** |
+| Junger Baum | ~ 4 min | 3:42 min | **3:42 min** |
+| Alter Baum | ~ 20 min | 18:55 min | **18:05 min** |
+| Hain | ~ 60 min | 51:03 min | **47:33 min** |
+| Wald | (~ 1:40 h) | 1:32 h | **1:23 h** |
+| Urwald | (~ 2:20 h) | 2:17 h | **2:01 h** |
+| ⚖️ beim Hain | (volles Design ~96) | 88,1 | **100,4** |
+
+**Strategien beim Erreichen des Hains**
+
+| Strategie | Hain nach (Median) | ⚖️ Harmonie | 🌿/s | 🌰/s | Ø Zufriedenheit | Tiere 🐦/🐝/🦔/🪱/🍄 | Pflanzen | Versorgung | echte Wahl |
+|---|---|---|---|---|---|---|---|---|---|
+| Zufällig | 1:13 h | 72,3 | 42,3 | 11,02 | 77 % | 1,4 / 2,4 / 2,6 / 1,7 / 1,4 | 5,0 | 96 % | 84 % |
+| Gierig nach Harmonie | 47:33 min | 100,4 | 73,7 | 9,93 | 89 % | 1,6 / 1,6 / 1,4 / 2,2 / 1,9 | 5,0 | 94 % | 67 % |
+| Gierig nach Wachstum | 38:36 min | 94,4 | 88,7 | 7,50 | 87 % | 1,5 / 1,4 / 1,3 / 2,9 / 2,7 | 5,0 | 100 % | 64 % |
+| Immer die seltenste Karte | 52:52 min | 88,7 | 62,9 | 9,56 | 82 % | 1,4 / 1,6 / 1,9 / 2,1 / 1,5 | 5,0 | 97 % | 73 % |
+| Vögel stapeln | 53:02 min | 92,4 | 62,5 | 9,55 | 86 % | 3,2 / 1,4 / 0,8 / 1,9 / 1,4 | 5,0 | 94 % | 71 % |
+| Insekten stapeln | 1:04 h | 93,6 | 53,3 | 15,49 | 80 % | 1,5 / 4,5 / 1,2 / 1,8 / 1,2 | 5,0 | 99 % | 79 % |
+| Säugetiere stapeln | 56:53 min | 81,4 | 59,0 | 9,49 | 86 % | 0,8 / 1,1 / 4,9 / 1,3 / 1,0 | 5,0 | 100 % | 69 % |
+| Bodenleben stapeln | 50:38 min | 96,6 | 66,0 | 8,53 | 87 % | 1,2 / 1,5 / 1,0 / 2,9 / 1,4 | 5,0 | 97 % | 75 % |
+| Pilze stapeln | 47:26 min | 89,8 | 68,9 | 8,62 | 90 % | 1,4 / 1,2 / 1,0 / 1,6 / 3,2 | 5,0 | 99 % | 68 % |
+
+**Lebensgemeinschaften beim Erreichen des Hains** („aktiv“ = Ø Anzahl gerade
+bestehender, „entdeckt“ = Ø Einträge im Naturtagebuch)
+
+| Strategie | aktiv (Ø) | ⚖️ daraus | Anteil an ⚖️ | entdeckt (Ø) | häufigste (Anteil der Durchgänge) |
+|---|---|---|---|---|---|
+| Zufällig | 0,42 | 3,1 | 4 % | 0,75 | Humusküche 16 %, Feuchter Grund 10 %, Blütensaum 7 % |
+| Gierig nach Harmonie | 1,76 | 14,0 | 14 % | 1,76 | Humusküche 89 %, Samenboten 42 %, Birkenbund 33 % |
+| Gierig nach Wachstum | 1,75 | 15,1 | 16 % | 1,81 | Humusküche 97 %, Samenboten 46 %, Birkenbund 31 % |
+| Immer die seltenste Karte | 0,78 | 6,4 | 7 % | 0,91 | Humusküche 42 %, Birkenbund 18 %, Samenboten 9 % |
+| Vögel stapeln | 1,07 | 8,3 | 9 % | 1,17 | Humusküche 76 %, Birkenbund 17 %, Samenboten 7 % |
+| Insekten stapeln | 1,51 | 11,7 | 13 % | 1,57 | Humusküche 60 %, Raupenwacht 51 %, Blütensaum 29 % |
+| Säugetiere stapeln | 0,53 | 4,0 | 5 % | 0,64 | Humusküche 21 %, Samenboten 15 %, Birkenbund 10 % |
+| Bodenleben stapeln | 1,58 | 13,4 | 14 % | 1,70 | Humusküche 91 %, Feuchter Grund 38 %, Samenboten 13 % |
+| Pilze stapeln | 1,08 | 7,8 | 9 % | 1,33 | Birkenbund 44 %, Humusküche 43 %, Samenboten 16 % |
+
+**Stufen und Takt – Gierig nach Harmonie**
+
+| Stufe | Ziel | Median | 10–90 % | ⚖️ | 🌿/s | 🌰/s | Ø Zufr. | Tiere / Pflanzen | Begegnungen im Abschnitt | Takt Median | Takt max |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Keimling | < 30 s | 4 s | 4 s – 4 s | 5 | 2,1 | 0,16 | 0 % | 0,0 / 0,0 | 2,0 | 20 s | 30 s |
+| Setzling | ~ 1 min | 45 s | 45 s – 45 s | 50 | 6,1 | 0,67 | 100 % | 1,0 / 1,0 | 3,0 | 54 s | 1:41 min |
+| Junger Baum | ~ 4 min | 3:42 min | 3:33 min – 3:54 min | 62 | 12,9 | 2,04 | 89 % | 2,5 / 2,0 | 6,0 | 2:18 min | 5:29 min |
+| Alter Baum | ~ 20 min | 18:05 min | 16:17 min – 20:25 min | 78 | 28,5 | 3,95 | 88 % | 5,3 / 3,0 | 8,0 | 3:39 min | 8:27 min |
+| Hain | ~ 60 min | 47:33 min | 42:18 min – 55:26 min | 100 | 73,7 | 9,93 | 89 % | 8,6 / 5,0 | 8,0 | 4:26 min | 9:40 min |
+| Wald | – | 1:23 h | 1:15 h – 1:36 h | 122 | 146,1 | 21,36 | 90 % | 12,1 / 7,0 | 8,0 | 4:38 min | 8:37 min |
+| Urwald | – | 2:01 h | 1:49 h – 2:18 h | 146 | 259,9 | 37,58 | 89 % | 15,2 / 9,0 | 0,0 | – | – |
+
+**Begegnungen bis zum Hain** (Mittel je Durchgang)
+
+| Strategie | Begegnungen | davon Pflanzen | Tier: Nische voll | neu gewürfelt | abgelehnt | autom. abgelehnt | gewählt g / s / b / l | Pflanzen gekeimt / gesetzt | eindeutig | keine Karte lohnt |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Zufällig | 19,0 | 5,7 | 7,6 | 0,0 | 2,5 | 0,0 | 8,9 / 2,6 / 0,5 / 0,0 | 4,5 / 3,4 | 14 % | 3 % |
+| Gierig nach Harmonie | 19,0 | 5,7 | 7,9 | 5,0 | 5,5 | 0,0 | 6,9 / 2,8 / 0,9 / 0,0 | 2,9 / 3,4 | 15 % | 21 % |
+| Gierig nach Wachstum | 19,0 | 5,7 | 8,9 | 2,7 | 2,9 | 0,0 | 7,3 / 3,8 / 1,4 / 0,0 | 3,7 / 3,4 | 20 % | 18 % |
+| Immer die seltenste Karte | 19,0 | 5,7 | 8,3 | 0,0 | 2,3 | 0,0 | 5,8 / 6,0 / 1,6 / 0,0 | 3,3 / 3,4 | 14 % | 14 % |
+| Vögel stapeln | 19,0 | 5,7 | 7,6 | 10,1 | 4,2 | 0,0 | 8,3 / 2,6 / 0,6 / 0,0 | 3,3 / 3,2 | 18 % | 12 % |
+| Insekten stapeln | 19,0 | 5,6 | 6,6 | 9,5 | 3,4 | 0,0 | 9,1 / 2,9 / 0,6 / 0,0 | 3,0 / 3,3 | 15 % | 6 % |
+| Säugetiere stapeln | 19,0 | 5,7 | 7,3 | 8,8 | 2,8 | 0,0 | 7,8 / 4,5 / 0,6 / 0,0 | 3,3 / 3,4 | 21 % | 11 % |
+| Bodenleben stapeln | 19,0 | 5,6 | 8,1 | 10,1 | 3,7 | 0,0 | 7,8 / 3,3 / 0,9 / 0,0 | 3,3 / 3,3 | 16 % | 10 % |
+| Pilze stapeln | 19,0 | 5,6 | 7,6 | 10,5 | 4,1 | 0,0 | 8,1 / 3,0 / 0,8 / 0,0 | 3,0 / 3,2 | 20 % | 13 % |
+
+**Bewertung**
+
+- **Harmonie:** Das Harmonie-Streben bleibt klar vorn (⚖️ 100,4; bester Stapler
+  Bodenleben 96,6, also +3,8) und trifft jetzt das volle Design (~96 beim Hain).
+  Lebensgemeinschaften bringen ihm im Schnitt 1,8 Gemeinschaften bzw. 14 ⚖️ (14 % der
+  Harmonie) – spürbar, aber nicht dominant (Test: < 25 % für jede Strategie). Am
+  häufigsten: Humusküche (89 %), Samenboten, Birkenbund. Zufall findet kaum welche
+  (0,4 / 3 ⚖️).
+- **Tempo:** Hain 47:33 min = 0,79 × Ziel – im Korridor (0,7–1,35), aber im unteren
+  Teil; Wald/Urwald (1:23 h / 2:01 h) ~15 % vor dem vollen Design. Der offene Wechsel
+  auf `WAYPOINT_BASE` 4 (siehe Schritt 2.2) würde das ausgleichen; Content-Zahlen
+  wurden darum nicht verändert.
+- **Wachstums-Streben** findet genauso viele Lebensgemeinschaften (Humusküche bringt
+  +5 % 🌿) und ist ~19 % schneller (2.2: ~17 %) bei 94 % der Harmonie – innerhalb der
+  Testgrenzen (≤ 25 % schneller, ≥ 85 % Harmonie), bleibt Kandidat für 2.10.
+- **Stapeln:** Insekten stapeln profitiert von Raupenwacht und Blütensaum (⚖️ 82,7 →
+  93,6), Bodenleben von Humusküche und Feuchtem Grund (83,8 → 96,6). Säugetiere
+  stapeln bleibt am wenigsten harmonisch (Wilder Waldsaum braucht den legendären Wolf).
+  Kein Stapler ist mehr als 10 % schneller als der Harmonie-Spieler (Pilze 47:26 min).
+
+#### Stand Schritt 2.2: alle 32 Arten (500 Durchgänge je Strategie, historisch)
 
 **Keine geänderten Zahlen.** Alle Arten-, Gattungs-, Seltenheits-, Pflanzen- und
 Stufenzahlen sind die aus `scripts/v2/content.ts` (Inhaltstest prüft das, `evaluate`
