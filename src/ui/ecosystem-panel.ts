@@ -8,7 +8,15 @@
 import { el, setAttr, setText, setVar, srOnly } from './dom';
 import { restartAnimation } from './feedback';
 import { formatNumber, formatRate } from './format';
-import type { AnimalView, EcosystemView, FamilyView, HarmonyPartView, NicheView } from './view-model';
+import type {
+  AnimalView,
+  EcosystemView,
+  FamilyView,
+  HarmonyPartView,
+  NicheView,
+  PlantRingView,
+  PlantSlotView,
+} from './view-model';
 import {
   RARITY_LABELS,
   familyCountLabel,
@@ -24,6 +32,21 @@ import {
 
 export interface EcosystemPanel {
   update(view: EcosystemView): void;
+  /** Knopf „Pflanze setzen“ – z. B. um den Fokus nach dem Schließen der Auswahl zurückzugeben. */
+  readonly plantButton: HTMLButtonElement;
+}
+
+export interface EcosystemPanelCallbacks {
+  /** „Pflanze setzen“ gedrückt: Auswahl öffnen. */
+  onOpenPlantPicker?(): void;
+}
+
+interface PlantTile {
+  root: HTMLElement;
+  icon: HTMLElement;
+  name: HTMLElement;
+  sub: HTMLElement;
+  plantId: string | null;
 }
 
 interface PartRow {
@@ -69,7 +92,7 @@ function unitInterval(value: number): number {
   return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 }
 
-export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
+export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPanelCallbacks = {}): EcosystemPanel {
   const panel = el('section', 'eco');
   panel.setAttribute('aria-label', 'Ökosystem');
 
@@ -131,7 +154,61 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
   const nicheRows = new Map<string, NicheRow>();
   let nicheOrder = '';
 
-  panel.append(head, stats, details, familiesTitle, familyBar, familyDetail, nichesTitle, nicheList);
+  // Pflanzring: Plätze, Versorgung mit Licht und Wasser, Gruppen, „Pflanze setzen“
+  const ringTitle = el('h2', 'eco-title ring-title');
+  const ringTitleText = el('span', '', 'Pflanzring');
+  const ringSlots = el('span', 'niche-slots');
+  ringSlots.dataset.ref = 'plant-slots';
+  ringTitle.append(ringTitleText, ringSlots);
+  const ring = el('section', 'plant-ring');
+  ring.dataset.ref = 'plant-ring';
+  ring.setAttribute('aria-label', 'Pflanzring');
+  const ringHint = el('p', 'niche-hint');
+  const supplyBox = el('div', 'plant-supply');
+  const supplyText = el('p', 'plant-supply-text');
+  supplyText.dataset.ref = 'plant-supply';
+  const meterBox = el('div', 'plant-meters');
+  meterBox.setAttribute('aria-hidden', 'true');
+  const meters = new Map<string, { root: HTMLElement; bar: HTMLElement; detail: HTMLElement }>();
+  for (const key of ['light', 'water']) {
+    const m = el('div', `plant-meter meter-${key}`);
+    const track = el('div', 'plant-meter-track');
+    const fill = el('div', 'plant-meter-bar');
+    track.append(fill);
+    const detail = el('span', 'plant-meter-detail');
+    m.append(track, detail);
+    meterBox.append(m);
+    meters.set(key, { root: m, bar: fill, detail });
+  }
+  const supplyDetail = srOnly();
+  const shortage = el('p', 'plant-shortage');
+  shortage.dataset.ref = 'plant-shortage';
+  supplyBox.append(supplyText, meterBox, supplyDetail, shortage);
+  const plantList = el('ul', 'slot-list plant-slots');
+  plantList.setAttribute('aria-label', 'Plätze im Pflanzring');
+  const plantTiles: PlantTile[] = [];
+  const groupCaption = el('p', 'plant-groups-caption', 'Pflanzen je Gruppe – der Hauptbaum zählt als Baum');
+  groupCaption.setAttribute('aria-hidden', 'true');
+  const groupBox = el('ul', 'plant-groups');
+  groupBox.setAttribute('aria-label', 'Pflanzen je Gruppe (Hauptbaum zählt als Baum)');
+  const groupChips = new Map<string, { root: HTMLElement; count: HTMLElement; sr: HTMLElement }>();
+  const action = el('div', 'plant-action');
+  const plantButton = el('button', 'plant-button');
+  plantButton.type = 'button';
+  plantButton.dataset.ref = 'plant-open';
+  plantButton.setAttribute('aria-haspopup', 'dialog');
+  const plantButtonIcon = el('span', 'plant-button-icon', '🌱');
+  plantButtonIcon.setAttribute('aria-hidden', 'true');
+  const plantButtonText = el('span', '', 'Pflanze setzen');
+  const plantButtonCost = el('span', 'plant-button-cost');
+  plantButton.append(plantButtonIcon, plantButtonText, plantButtonCost);
+  plantButton.addEventListener('click', () => callbacks.onOpenPlantPicker?.());
+  const plantHint = el('p', 'plant-hint');
+  plantHint.dataset.ref = 'plant-hint';
+  action.append(plantButton, plantHint);
+  ring.append(ringHint, supplyBox, plantList, groupCaption, groupBox, action);
+
+  panel.append(head, stats, details, ringTitle, ring, familiesTitle, familyBar, familyDetail, nichesTitle, nicheList);
   root.append(panel);
 
   let lastHarmony: number | null = null;
@@ -328,6 +405,113 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
     }
   }
 
+  function buildPlantTile(): PlantTile {
+    const li = el('li', 'slot empty plant-slot');
+    const ringEl = el('span', 'slot-ring');
+    ringEl.setAttribute('aria-hidden', 'true');
+    const icon = el('span', 'slot-icon');
+    ringEl.append(icon);
+    const text = el('span', 'slot-text');
+    const name = el('span', 'slot-name');
+    const sub = el('span', 'slot-mood');
+    text.append(name, sub);
+    li.append(ringEl, text);
+    return { root: li, icon, name, sub, plantId: null };
+  }
+
+  function updatePlantTile(tile: PlantTile, plant: PlantSlotView | undefined): void {
+    if (!plant) {
+      if (tile.plantId !== null || !tile.root.classList.contains('empty')) {
+        tile.root.className = 'slot empty plant-slot';
+        tile.plantId = null;
+        delete tile.root.dataset.plant;
+      }
+      setText(tile.icon, '');
+      setText(tile.name, 'frei');
+      setText(tile.sub, '');
+      return;
+    }
+    const className = `slot filled plant-slot family-${plant.group}`;
+    const changed = tile.plantId !== plant.id;
+    if (tile.root.className.replace(' arrive', '') !== className) tile.root.className = className;
+    if (changed && seenFirstUpdate) restartAnimation(tile.root, 'arrive');
+    tile.plantId = plant.id;
+    if (tile.root.dataset.plant !== plant.id) tile.root.dataset.plant = plant.id;
+    setText(tile.icon, plant.groupIcon);
+    setText(tile.name, plant.name);
+    setText(tile.sub, plant.groupLabel);
+  }
+
+  function updatePlantRing(view: PlantRingView): void {
+    const locked = view.capacity <= 0;
+    ring.classList.toggle('locked', locked);
+    setText(ringSlots, nicheSlotsLabel(view.plants.length, view.capacity));
+    ringTitle.classList.toggle('full', !locked && view.plants.length >= view.capacity);
+    setText(ringHint, locked ? (view.unlockHint ?? '') : '');
+    ringHint.hidden = !locked || !view.unlockHint;
+    supplyBox.hidden = locked;
+
+    setText(supplyText, view.supplyText);
+    for (const meter of view.meters) {
+      const refs = meters.get(meter.key);
+      if (!refs) continue;
+      const ratio = unitInterval(meter.ratio);
+      const width = `${(ratio * 100).toFixed(1)}%`;
+      if (refs.bar.style.width !== width) refs.bar.style.width = width;
+      refs.root.classList.toggle('short', ratio < 0.995);
+      setText(refs.detail, `${meter.icon} ${meter.detail}`);
+    }
+    setText(supplyDetail, view.meters.map((m) => `${m.label}: ${m.detail}`).join('. '));
+    setText(shortage, view.shortageHint ?? '');
+    shortage.hidden = !view.shortageHint;
+
+    const needed = locked ? 0 : Math.max(view.capacity, view.plants.length);
+    while (plantTiles.length < needed) {
+      const tile = buildPlantTile();
+      plantTiles.push(tile);
+      plantList.append(tile.root);
+    }
+    plantTiles.forEach((tile, i) => {
+      tile.root.hidden = i >= needed;
+      updatePlantTile(tile, i < needed ? view.plants[i] : undefined);
+    });
+    plantList.hidden = locked;
+
+    for (const group of view.groups) {
+      let chip = groupChips.get(group.id);
+      if (!chip) {
+        const li = el('li', `plant-group family-${group.id}`);
+        const icon = el('span', 'plant-group-icon', group.icon);
+        icon.setAttribute('aria-hidden', 'true');
+        const count = el('b', 'plant-group-count');
+        count.setAttribute('aria-hidden', 'true');
+        const sr = srOnly();
+        li.append(icon, count, sr);
+        li.title = group.label;
+        groupBox.append(li);
+        chip = { root: li, count, sr };
+        groupChips.set(group.id, chip);
+      }
+      setText(chip.count, formatNumber(group.count));
+      setText(chip.sr, `${group.label}: ${formatNumber(group.count)}`);
+      chip.root.classList.toggle('empty', group.count === 0);
+    }
+    groupBox.hidden = locked;
+    groupCaption.hidden = locked;
+
+    plantButton.hidden = !view.canOpenPicker;
+    setText(plantButtonCost, `${formatNumber(view.plantCost)} 🌰`);
+    plantButton.classList.toggle('affordable', view.affordable);
+    setAttr(
+      plantButton,
+      'aria-label',
+      `Pflanze setzen – kostet ${formatNumber(view.plantCost)} Samen${view.affordable ? '' : ', noch nicht genug'}`,
+    );
+    setText(plantHint, view.plantHint);
+    plantHint.hidden = !view.plantHint;
+    action.hidden = locked;
+  }
+
   function update(view: EcosystemView): void {
     setText(stage, `Stufe: ${view.stageName}`);
     const pct = unitInterval(view.stageProgress) * 100;
@@ -347,10 +531,11 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
     lastHarmony = harmonyRounded;
 
     updateParts(view.harmonyParts, view.harmony);
+    updatePlantRing(view.plantRing);
     updateFamilies(view.families);
     updateNiches(view.niches);
     seenFirstUpdate = true;
   }
 
-  return { update };
+  return { update, plantButton };
 }

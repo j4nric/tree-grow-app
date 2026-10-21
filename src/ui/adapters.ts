@@ -7,26 +7,48 @@
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
 import { NICHES, NICHES_BY_ID } from '../content/niches';
+import { PLANT_GROUP_INFO, PLANTS_BY_ID, type Plant } from '../content/plants';
 import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
 import { STAGES } from '../content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
-import { GENERA, type Condition, type Effect, type NicheId, type PlantGroup, type Tag } from '../content/types';
+import {
+  GENERA,
+  PLANT_GROUPS,
+  type Condition,
+  type Effect,
+  type NicheId,
+  type PlantGroup,
+  type Tag,
+} from '../content/types';
 import {
   UNGUARDED_PENALTY,
   cardStatus,
+  choiceBlocker,
   declineReward,
   evaluate,
   evaluateEcosystem,
+  hasSpecies,
+  nextPlantCost,
+  plantSlots,
   previewChoice,
+  previewPlant,
   rerollCost,
   secondsToNextWaypoint,
   waypointProgress,
   type AnimalStatus,
+  type ChoiceError,
   type Evaluation,
 } from '../core/formulas';
 import type { GameState } from '../core/state';
 import type { SceneAnimal } from '../render/tree';
-import { MAX_OFFLINE_SECONDS, allWaypointsReached, rerollBlocker, type OfflineReport } from '../core/tick';
+import {
+  MAX_OFFLINE_SECONDS,
+  allWaypointsReached,
+  plantBlocker,
+  rerollBlocker,
+  unlockedPlants,
+  type OfflineReport,
+} from '../core/tick';
 import { formatDuration, formatNumber } from './format';
 import type {
   AnimalView,
@@ -35,12 +57,18 @@ import type {
   EcosystemView,
   EffectView,
   EncounterView,
+  FactView,
   FamilyView,
   HarmonyPartView,
   NicheView,
+  PlantGroupCountView,
+  PlantPickerView,
+  PlantRingView,
+  PlantSlotView,
   PreviewView,
   Rarity,
   ReplaceOptionView,
+  SupplyMeterView,
 } from './view-model';
 
 /** Seltenheit aus dem Kern (0–3) als Schlüssel des View-Models. */
@@ -71,11 +99,12 @@ const GROUP_NAMES: Readonly<Record<PlantGroup, string>> = {
   mosses: 'Moose & Farne',
 };
 
+/** Symbole der Pflanzengruppen – dieselben wie auf Pflanzenkarten und im Pflanzring. */
 const GROUP_ICONS: Readonly<Record<PlantGroup, string>> = {
-  trees: '🌳',
-  shrubs: '🌿',
-  flowers: '🌼',
-  mosses: '🌱',
+  trees: PLANT_GROUP_INFO.trees.icon,
+  shrubs: PLANT_GROUP_INFO.shrubs.icon,
+  flowers: PLANT_GROUP_INFO.flowers.icon,
+  mosses: PLANT_GROUP_INFO.mosses.icon,
 };
 
 /** Symbole für Lebensraum-Merkmale in Bedingungen. */
@@ -305,6 +334,7 @@ export function toEcosystemView(state: GameState, evaluation: Readonly<Evaluatio
     harmonyParts: harmonyParts(evaluation),
     families: familyViews(evaluation),
     niches: nicheViews(state, evaluation),
+    plantRing: plantRingView(state, evaluation),
   };
   refreshEcosystemView(view, state);
   return view;
@@ -318,6 +348,7 @@ export function refreshEcosystemView(view: EcosystemView, state: GameState): voi
   view.seeds = state.seeds;
   view.stageProgress = waypointProgress(state);
   view.progressHint = progressHint(state);
+  refreshPlantRing(view.plantRing, state);
 }
 
 // ---------------------------------------------------------------------------
@@ -328,7 +359,7 @@ export function refreshEcosystemView(view: EcosystemView, state: GameState): voi
 export function previewView(
   now: Readonly<Evaluation>,
   after: Readonly<Evaluation>,
-  speciesId: string,
+  speciesId?: string,
 ): PreviewView {
   const relative = (a: number, b: number) => (b > 0 && Number.isFinite(a) ? a / b - 1 : 0);
   const preview: PreviewView = {
@@ -336,7 +367,7 @@ export function previewView(
     growthDelta: relative(after.growth, now.growth),
     seedDelta: relative(after.seeds, now.seeds),
   };
-  const happiness = after.animals[speciesId]?.happiness;
+  const happiness = speciesId === undefined ? undefined : after.animals[speciesId]?.happiness;
   if (happiness !== undefined) preview.happiness = happiness;
   return preview;
 }
@@ -453,13 +484,24 @@ export function encounterTitle(nicheIds: readonly string[]): string {
   return 'Etwas regt sich am Baum … wer darf einziehen?';
 }
 
-/** Warum „Neu würfeln“ gerade nicht geht. */
+/** Warum „Neu würfeln“ gerade nicht geht – Tierbegegnung. */
 export const REROLL_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof rerollBlocker>>, string>> = {
   'no-encounter': 'Diese Begegnung gibt es nicht mehr',
   'no-cards': 'Keine passenden Tiere',
   'no-alternatives': 'Keine anderen Tiere verfügbar',
   'too-expensive': 'Nicht genug Samen',
 };
+
+/** Warum „Neu würfeln“ gerade nicht geht – Pflanzenbegegnung („Etwas keimt“). */
+export const PLANT_REROLL_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof rerollBlocker>>, string>> = {
+  'no-encounter': 'Diese Begegnung gibt es nicht mehr',
+  'no-cards': 'Keine passenden Pflanzen',
+  'no-alternatives': 'Keine anderen Pflanzen verfügbar',
+  'too-expensive': 'Nicht genug Samen',
+};
+
+/** Überschrift der Begegnung „Etwas keimt“. */
+export const PLANT_ENCOUNTER_TITLE = 'Etwas keimt am Fuß des Baums …';
 
 /** Eine wartende Begegnung für den Kartenwahl-Dialog. Null, wenn es sie nicht gibt. */
 export function toEncounterView(
@@ -469,20 +511,350 @@ export function toEncounterView(
 ): EncounterView | null {
   const encounter = state.pendingEncounters[encounterIndex];
   if (!encounter) return null;
+  const isPlant = encounter.type === 'plant';
   const cards = encounter.cards
-    .map((_, c) => toCardView(state, encounterIndex, c, now))
+    .map((_, c) =>
+      isPlant ? toPlantCardView(state, encounterIndex, c, now) : toCardView(state, encounterIndex, c, now),
+    )
     .filter((c): c is CardView => c !== null);
   const blocker = rerollBlocker(state, encounterIndex);
   const view: EncounterView = {
-    kind: 'animal',
-    title: encounterTitle(cards.map((c) => c.niche ?? '')),
+    kind: isPlant ? 'plant' : 'animal',
+    title: isPlant ? PLANT_ENCOUNTER_TITLE : encounterTitle(cards.map((c) => c.niche ?? '')),
     cards,
     rerollCost: rerollCost(state, encounterIndex),
     canReroll: blocker === null,
     declineReward: declineReward(),
   };
-  if (blocker) view.rerollDisabledReason = REROLL_BLOCKERS[blocker];
+  if (isPlant) view.subtitle = plantEncounterSubtitle(state, now);
+  if (blocker) view.rerollDisabledReason = (isPlant ? PLANT_REROLL_BLOCKERS : REROLL_BLOCKERS)[blocker];
   return view;
+}
+
+// ---------------------------------------------------------------------------
+// Pflanzen: Karten, Pflanzring, „Pflanze setzen“
+// ---------------------------------------------------------------------------
+
+/** Symbole für das, was Pflanzen bieten (nur Anzeige auf Pflanzenkarten). */
+const PROVIDE_ICONS: Partial<Record<Tag, string>> = {
+  laub: '🍃',
+  nuesse: '🥜',
+  nadeln: '🌲',
+  beeren: '🍒',
+  nektar: '🌸',
+  kraut: '🌱',
+  feucht: '💧',
+};
+
+/** Namen aufzählen: „A“, „A und B“, „A, B und 2 weitere“. */
+export function listNames(names: readonly string[], max = 2): string {
+  if (names.length <= 1) return names[0] ?? '';
+  if (names.length <= max) return `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}`;
+  return `${names.slice(0, max).join(', ')} und ${formatNumber(names.length - max)} weitere`;
+}
+
+/** Arten, die schon im Ökosystem leben, zuerst – sie profitieren sofort. */
+function byPresence(state: Pick<GameState, 'niches'>, species: readonly Species[]): Species[] {
+  const present = species.filter((s) => hasSpecies(state, s.id));
+  return [...present, ...species.filter((s) => !present.includes(s))];
+}
+
+/**
+ * Was eine Pflanze Tieren bietet, z. B. „🌸 Nektar für Wildbiene“. Gut (▲), wenn ein Tier,
+ * das schon lebt, davon frisst oder es sich wünscht; sonst neutral. Dazu Arten, die sich
+ * die Pflanzengruppe wünschen („Rotkehlchen wünscht sich Sträucher“).
+ */
+export function plantProvidesViews(plant: Plant, state: Pick<GameState, 'niches'>): EffectView[] {
+  const out: EffectView[] = [];
+  for (const tag of plant.provides) {
+    const users = byPresence(
+      state,
+      SPECIES.filter((s) => s.food.includes(tag) || s.needs.some((n) => n.kind === 'tag' && n.tag === tag)),
+    );
+    const icon = PROVIDE_ICONS[tag] ?? '🏡';
+    const name = TAG_NAMES[tag];
+    out.push({
+      label: users.length > 0 ? `${icon} ${name} für ${listNames(users.map((u) => u.name))}` : `${icon} bietet ${name}`,
+      tone: users.some((u) => hasSpecies(state, u.id)) ? 'good' : 'neutral',
+    });
+  }
+  const fans = byPresence(
+    state,
+    SPECIES.filter((s) => s.needs.some((n) => n.kind === 'group' && n.group === plant.group)),
+  );
+  if (fans.length > 0) {
+    const verb = fans.length === 1 ? 'wünscht' : 'wünschen';
+    out.push({
+      label: `${GROUP_ICONS[plant.group]} ${listNames(fans.map((f) => f.name))} ${verb} sich ${GROUP_NAMES[plant.group]}`,
+      tone: fans.some((f) => hasSpecies(state, f.id)) ? 'good' : 'neutral',
+    });
+  }
+  return out;
+}
+
+/** Kennzahlen einer Pflanze: Wachstum, Samen, Licht- und Wasserbedarf (Grundwerte). */
+export function plantFacts(plant: Plant): FactView[] {
+  const facts: FactView[] = [
+    {
+      label: 'Wachstum',
+      icon: '🌿',
+      value: `${formatNumber(plant.growth)}/s`,
+      text: `Wachstum ${formatNumber(plant.growth)} pro Sekunde`,
+    },
+    {
+      label: 'Samen',
+      icon: '🌰',
+      value: `${formatNumber(plant.seeds)}/s`,
+      text: `Samen ${formatNumber(plant.seeds)} pro Sekunde`,
+    },
+    {
+      label: 'braucht Licht',
+      icon: '☀️',
+      value: formatNumber(plant.light),
+      text: plant.light > 0 ? `braucht ${formatNumber(plant.light)} Licht` : 'braucht kein Licht',
+    },
+  ];
+  if (plant.water < 0) {
+    const stored = formatNumber(-plant.water);
+    facts.push({ label: 'speichert Wasser', icon: '💧', value: `+${stored}`, text: `speichert ${stored} Wasser` });
+  } else {
+    facts.push({
+      label: 'braucht Wasser',
+      icon: '💧',
+      value: formatNumber(plant.water),
+      text: plant.water > 0 ? `braucht ${formatNumber(plant.water)} Wasser` : 'braucht kein Wasser',
+    });
+  }
+  return facts;
+}
+
+/** Vorschau einer Pflanze: Harmonie, 🌿, 🌰 und die Versorgung danach. */
+export function plantPreviewView(now: Readonly<Evaluation>, after: Readonly<Evaluation>): PreviewView {
+  return { ...previewView(now, after), supply: after.supply, supplyDelta: after.supply - now.supply };
+}
+
+/** Pflanzenkarte ohne Zustand (Name, Gruppe, Kennzahlen, was sie bietet). */
+function plantCardBase(plant: Plant, state: GameState): CardView {
+  const group = PLANT_GROUP_INFO[plant.group];
+  return {
+    id: plant.id,
+    name: plant.name,
+    family: plant.group,
+    familyLabel: group.name,
+    familyIcon: group.icon,
+    facts: plantFacts(plant),
+    effects: plantProvidesViews(plant, state),
+    preview: NO_CHANGE,
+    flavor: plant.text,
+  };
+}
+
+/** Gesperrt-Gründe für Karten aus `choiceBlocker`. */
+export const CHOICE_BLOCKERS: Readonly<Record<ChoiceError, string>> = {
+  'no-encounter': 'Nicht verfügbar',
+  'no-card': 'Nicht verfügbar',
+  present: 'Schon im Ökosystem',
+  closed: 'Noch verschlossen',
+  'niche-full': 'Nische voll',
+  'ring-full': 'Pflanzring voll',
+  'invalid-replace': 'Kann nicht weichen',
+  'would-evict': REPLACE_BLOCKED,
+};
+
+/** Grund für eine gesperrte Pflanzenkarte bzw. Ersetzen-Option. */
+function plantChoiceReason(error: ChoiceError): string {
+  return error === 'closed' ? 'Pflanzring noch verschlossen' : (CHOICE_BLOCKERS[error] ?? 'Nicht verfügbar');
+}
+
+/**
+ * Eine Pflanzenkarte der Begegnung „Etwas keimt“. Null, wenn es die Karte nicht gibt;
+ * eine unbekannte Pflanze wird als gesperrte Karte gezeigt (Indizes passen zum Kern).
+ * Ist der Ring voll, bietet die Karte jede Pflanze im Ring (einmal je Art) zum Ersetzen an.
+ */
+export function toPlantCardView(
+  state: GameState,
+  encounterIndex: number,
+  cardIndex: number,
+  now: Readonly<Evaluation> = evaluate(state),
+): CardView | null {
+  const id = state.pendingEncounters[encounterIndex]?.cards[cardIndex];
+  if (id === undefined) return null;
+  const plant = PLANTS_BY_ID.get(id);
+  if (!plant) {
+    return {
+      id,
+      name: 'Unbekannte Pflanze',
+      family: 'unknown',
+      familyLabel: 'Unbekannt',
+      familyIcon: '❔',
+      effects: [],
+      preview: NO_CHANGE,
+      disabledReason: DISABLED_REASONS.invalid,
+    };
+  }
+  const card = plantCardBase(plant, state);
+  const status = cardStatus(state, encounterIndex, cardIndex);
+  if (status === 'full') {
+    const options = [...new Set(state.plants)].map((occupant) => {
+      const option: ReplaceOptionView = { id: occupant, name: PLANTS_BY_ID.get(occupant)?.name ?? occupant };
+      const after = previewChoice(state, encounterIndex, cardIndex, occupant);
+      if (after) option.preview = plantPreviewView(now, after);
+      else if (occupant === plant.id) option.disabledReason = 'dieselbe Pflanze';
+      else option.disabledReason = plantChoiceReason(choiceBlocker(state, encounterIndex, cardIndex, occupant) ?? 'no-card');
+      return option;
+    });
+    card.nicheFull = true;
+    card.replaceOptions = options;
+    card.fullText = 'Pflanzring voll';
+    card.replacePrompt = 'Welche Pflanze weicht?';
+    card.preview = options.find((o) => o.preview)?.preview ?? NO_CHANGE;
+    if (!options.some((o) => !o.disabledReason)) card.disabledReason = 'Kein Tausch möglich';
+    return card;
+  }
+  const blocker = choiceBlocker(state, encounterIndex, cardIndex);
+  const after = blocker ? null : previewChoice(state, encounterIndex, cardIndex);
+  if (after) card.preview = plantPreviewView(now, after);
+  else if (blocker === 'closed' && plant.unlock > state.stage && plantSlots(state.stage) > 0) {
+    card.disabledReason = `Wächst erst ab „${STAGES[plant.unlock]?.name ?? '…'}“`;
+  } else card.disabledReason = plantChoiceReason(blocker ?? 'no-card');
+  return card;
+}
+
+/** Untertitel der Pflanzenbegegnung: gratis, und wie voll der Ring ist. */
+export function plantEncounterSubtitle(state: Pick<GameState, 'plants'>, now: Readonly<Evaluation>): string {
+  const used = formatNumber(state.plants.length);
+  const slots = formatNumber(now.plantSlots);
+  if (now.plantSlots > 0 && state.plants.length >= now.plantSlots) {
+    return `Eine Pflanze keimt kostenlos – der Pflanzring ist voll (${used}/${slots}), sie ersetzt eine andere.`;
+  }
+  return `Eine Pflanze keimt kostenlos im Pflanzring (${used}/${slots} belegt).`;
+}
+
+/** Name der ersten Stufe mit Pflanzplätzen. */
+function plantRingOpensAt(): string | null {
+  return STAGES.find((s) => s.plantSlots > 0)?.name ?? null;
+}
+
+/** Anteil 0–1, wie gut ein Bedarf gedeckt ist (kein oder negativer Bedarf = voll gedeckt). */
+function coverage(have: number, need: number): number {
+  if (!(need > 0) || !Number.isFinite(have)) return 1;
+  return Math.min(1, Math.max(0, have / need));
+}
+
+function supplyMeter(key: 'light' | 'water', have: number, need: number): SupplyMeterView {
+  const detail =
+    need < 0
+      ? `Moos speichert ${formatNumber(-need)} · ${formatNumber(have)} vorhanden`
+      : `Bedarf ${formatNumber(need)} von ${formatNumber(have)}`;
+  return {
+    key,
+    icon: key === 'light' ? '☀️' : '💧',
+    label: key === 'light' ? 'Licht' : 'Wasser',
+    ratio: coverage(have, need),
+    detail,
+  };
+}
+
+/** Anteil als ganze Prozent: 0,8 → „80 %“. */
+const wholePercent = (fraction: number) =>
+  `${formatNumber(Math.round(Math.min(1, Math.max(0, Number.isFinite(fraction) ? fraction : 0)) * 100))} %`;
+
+/** Erklärung bei Mangel an Licht und/oder Wasser – null, wenn alles reicht. */
+export function shortageHint(lightRatio: number, waterRatio: number, supply: number): string | null {
+  const lowLight = lightRatio < 0.995;
+  const lowWater = waterRatio < 0.995;
+  if (!lowLight && !lowWater) return null;
+  const speed = `Begleitpflanzen wachsen nur mit ${wholePercent(supply)}.`;
+  if (lowLight && lowWater) return `Zu wenig Licht und Wasser – ${speed} Schattenpflanzen und Moos helfen.`;
+  if (lowLight) return `Zu wenig Licht – ${speed} Schattenpflanzen helfen.`;
+  return `Zu wenig Wasser – ${speed} Moos speichert Wasser.`;
+}
+
+/** Pflanzring für die Seitenleiste. */
+export function plantRingView(state: GameState, evaluation: Readonly<Evaluation>): PlantRingView {
+  const capacity = evaluation.plantSlots;
+  const plants: PlantSlotView[] = [];
+  for (const id of state.plants) {
+    const plant = PLANTS_BY_ID.get(id);
+    if (!plant) continue;
+    const group = PLANT_GROUP_INFO[plant.group];
+    plants.push({ id, name: plant.name, group: plant.group, groupIcon: group.icon, groupLabel: group.name });
+  }
+  const light = supplyMeter('light', evaluation.light, evaluation.lightNeed);
+  const water = supplyMeter('water', evaluation.water, evaluation.waterNeed);
+  const groups: PlantGroupCountView[] = PLANT_GROUPS.map((g) => ({
+    id: g,
+    icon: PLANT_GROUP_INFO[g].icon,
+    label: PLANT_GROUP_INFO[g].name,
+    count: evaluation.groupCounts[g] ?? 0,
+  }));
+  const ring: PlantRingView = {
+    capacity,
+    plants,
+    supply: evaluation.supply,
+    supplyText: `☀️ Licht ${wholePercent(light.ratio)} · 💧 Wasser ${wholePercent(water.ratio)}`,
+    meters: [light, water],
+    groups,
+    plantCost: 0,
+    canOpenPicker: capacity > 0 && state.plants.length < capacity && unlockedPlants(state).length > 0,
+    affordable: false,
+    plantHint: '',
+  };
+  const hint = shortageHint(light.ratio, water.ratio, evaluation.supply);
+  if (hint) ring.shortageHint = hint;
+  if (capacity <= 0) {
+    const at = plantRingOpensAt();
+    if (at) ring.unlockHint = `öffnet bei „${at}“`;
+  }
+  refreshPlantRing(ring, state);
+  return ring;
+}
+
+/** Samen-abhängige Teile des Pflanzrings (Kosten, reicht es?, Hinweis). */
+export function refreshPlantRing(ring: PlantRingView, state: GameState): void {
+  const cost = nextPlantCost(state);
+  // Anzeige aufgerundet: lieber eine Nuss zu viel ansagen als eine zu wenig.
+  ring.plantCost = Math.ceil(cost);
+  ring.affordable = state.seeds >= cost;
+  if (ring.capacity <= 0) ring.plantHint = '';
+  else if (state.plants.length >= ring.capacity) {
+    ring.plantHint = 'Alle Plätze belegt – neue Pflanzen keimen über Begegnungen und ersetzen dann eine andere.';
+  } else if (!ring.canOpenPicker) ring.plantHint = 'Noch keine Pflanze zum Setzen freigeschaltet.';
+  else if (!ring.affordable) ring.plantHint = `Noch ${formatNumber(Math.ceil(cost - state.seeds))} 🌰 bis zur nächsten Pflanze`;
+  else ring.plantHint = '';
+}
+
+/** Sperrgründe für „Pflanze setzen“ (plantBlocker). */
+export const PLANT_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof plantBlocker>>, string>> = {
+  'unknown-plant': 'Nicht verfügbar',
+  locked: 'Noch nicht freigeschaltet',
+  'ring-full': 'Pflanzring voll',
+  'too-expensive': 'Nicht genug Samen',
+};
+
+/**
+ * Auswahl „Pflanze setzen“: alle freigeschalteten Pflanzen mit Vorschau und Sperrgrund.
+ * Die Kosten sind für alle gleich (nextPlantCost); reichen die Samen nicht, steht das in
+ * `disabledReason` – wie viele fehlen, zeigt der Dialog live.
+ */
+export function toPlantPickerView(state: GameState, now: Readonly<Evaluation> = evaluate(state)): PlantPickerView {
+  const cost = Math.ceil(nextPlantCost(state));
+  const offers = unlockedPlants(state)
+    .map((id) => PLANTS_BY_ID.get(id))
+    .filter((p): p is Plant => p !== undefined)
+    .map((plant) => {
+      const card = plantCardBase(plant, state);
+      const after = previewPlant(state, plant.id);
+      if (after) card.preview = plantPreviewView(now, after);
+      const blocker = plantBlocker(state, plant.id);
+      if (blocker) card.disabledReason = PLANT_BLOCKERS[blocker];
+      return { card, cost };
+    });
+  return {
+    title: 'Pflanze setzen',
+    subtitle: `Pflanzring ${formatNumber(state.plants.length)}/${formatNumber(now.plantSlots)} belegt · jede Pflanze kostet jetzt ${formatNumber(cost)} 🌰`,
+    offers,
+  };
 }
 
 // ---------------------------------------------------------------------------

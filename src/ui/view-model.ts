@@ -50,6 +50,21 @@ export interface PreviewView {
   seedDelta?: number;
   /** Erwartete Zufriedenheit des neuen Tiers (0–1, nur bei Tieren). */
   happiness?: number;
+  /** Versorgung der Begleitpflanzen mit Licht und Wasser danach (0–1, nur bei Pflanzen). */
+  supply?: number;
+  /** Änderung der Versorgung gegenüber jetzt (−0,2 = 20 Prozentpunkte weniger). */
+  supplyDelta?: number;
+}
+
+/**
+ * Eine Kennzahl auf einer Pflanzenkarte, z. B. Wachstum „🌿 1,5/s“ oder Lichtbedarf „☀️ 4“.
+ * `label` steht sichtbar darüber, `text` ist die vollständige Fassung für Screenreader.
+ */
+export interface FactView {
+  label: string;
+  icon: string;
+  value: string;
+  text: string;
 }
 
 /** Ein Tier, das bei voller Nische ersetzt werden könnte – mit eigener Vorschau für den Tausch. */
@@ -75,9 +90,15 @@ export interface CardView {
   /** Nische (Schlüssel + Anzeige), fehlt bei Ereignissen und Gästen. */
   niche?: string;
   nicheLabel?: string;
-  /** Nische ist voll → Wählen ersetzt eines der `replaceOptions`. */
+  /** Nische bzw. Pflanzring ist voll → Wählen ersetzt eines der `replaceOptions`. */
   nicheFull?: boolean;
   replaceOptions?: ReplaceOptionView[];
+  /** Hinweis, wenn voll – Standard „Nische … voll“, bei Pflanzen „Pflanzring voll“. */
+  fullText?: string;
+  /** Frage über der Ersetzen-Auswahl – Standard „Wen entlassen?“. */
+  replacePrompt?: string;
+  /** Kennzahlen (Pflanzen: Wachstum, Samen, Licht, Wasser). */
+  facts?: FactView[];
   /** Bedingungen mit Haken/Kreuz (Futter, Wünsche). */
   conditions?: ConditionView[];
   effects: EffectView[];
@@ -175,4 +196,74 @@ export interface EcosystemView {
   harmonyParts: HarmonyPartView[];
   families: FamilyView[];
   niches: NicheView[];
+  plantRing: PlantRingView;
+}
+
+/** Eine Begleitpflanze im Pflanzring. */
+export interface PlantSlotView {
+  id: string;
+  name: string;
+  /** Gruppe als Schlüssel (`trees`, `shrubs`, `flowers`, `mosses`). */
+  group: string;
+  groupIcon: string;
+  groupLabel: string;
+}
+
+/** Licht oder Wasser: Angebot gegen Bedarf der Begleitpflanzen. */
+export interface SupplyMeterView {
+  key: 'light' | 'water';
+  icon: string;
+  label: string;
+  /** Wie gut der Bedarf gedeckt ist (0–1). */
+  ratio: number;
+  /** Kurzer Text, z. B. „braucht 4 von 5“. */
+  detail: string;
+}
+
+/** Pflanzen je Gruppe (Hauptbaum zählt als Baum). */
+export interface PlantGroupCountView {
+  id: string;
+  icon: string;
+  label: string;
+  count: number;
+}
+
+/** Pflanzring in der Ökosystem-Übersicht. */
+export interface PlantRingView {
+  /** Pflanzplätze; 0 = noch verschlossen. */
+  capacity: number;
+  plants: PlantSlotView[];
+  /** Versorgung V (0–1). */
+  supply: number;
+  /** Zusammenfassung, z. B. „☀️ Licht 80 % · 💧 Wasser 100 %“. */
+  supplyText: string;
+  meters: SupplyMeterView[];
+  /** Erklärung bei Mangel, z. B. „Zu wenig Licht – Schattenpflanzen helfen“. */
+  shortageHint?: string;
+  groups: PlantGroupCountView[];
+  /** Hinweis für den verschlossenen Ring, z. B. „öffnet bei „Keimling““. */
+  unlockHint?: string;
+  /** Kosten der nächsten Pflanze in 🌰. */
+  plantCost: number;
+  /** Knopf „Pflanze setzen“ anbieten (Ring offen und nicht voll, Pflanzen verfügbar)? */
+  canOpenPicker: boolean;
+  /** Reichen die Samen gerade für die nächste Pflanze? */
+  affordable: boolean;
+  /** Hinweis unter dem Knopf bzw. statt des Knopfs, z. B. „Noch 12 🌰“ oder „Alle Plätze belegt …“. */
+  plantHint: string;
+}
+
+/** Eine Pflanze in der Auswahl „Pflanze setzen“. */
+export interface PlantOfferView {
+  card: CardView;
+  /** Kosten in 🌰 (für alle Pflanzen gleich: nextPlantCost). */
+  cost: number;
+}
+
+/** Auswahl „Pflanze setzen“. */
+export interface PlantPickerView {
+  title: string;
+  /** z. B. „Pflanzring 1/3 belegt · nächste Pflanze 38 🌰“. */
+  subtitle: string;
+  offers: PlantOfferView[];
 }

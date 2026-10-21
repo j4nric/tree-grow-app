@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { DECLINE_SEEDS, REROLL_BASE_COST } from '../src/content/encounters';
+import { PLANT_GROUP_INFO, PLANTS_BY_ID } from '../src/content/plants';
 import { SPECIES_BY_ID } from '../src/content/species';
-import { evaluate, previewChoice } from '../src/core/formulas';
-import { MAX_OFFLINE_SECONDS } from '../src/core/tick';
+import { evaluate, nextPlantCost, previewChoice, previewPlant } from '../src/core/formulas';
+import { MAX_OFFLINE_SECONDS, unlockedPlants } from '../src/core/tick';
 import { formatDuration, formatNumber } from '../src/ui/format';
 import {
+  PLANT_BLOCKERS,
+  PLANT_ENCOUNTER_TITLE,
+  PLANT_REROLL_BLOCKERS,
   effectView,
   encounterTitle,
   harmonyTier,
+  listNames,
+  plantProvidesViews,
+  shortageHint,
+  toPlantPickerView,
   moodText,
   refreshEcosystemView,
   toEcosystemView,
@@ -347,5 +355,237 @@ describe('toSceneAnimals', () => {
     ]);
     const empty = stateAt(0);
     expect(toSceneAnimals(empty, evaluate(empty))).toEqual([]);
+  });
+});
+
+describe('Pflanzen: Begegnung „Etwas keimt“', () => {
+  /** Spielstand mit Pflanzen und einer offenen Pflanzenbegegnung. */
+  function withPlantEncounter(stage: number, plants: string[], cards: string[], animals: string[] = []) {
+    const state = stateAt(stage, animals);
+    state.plants = [...plants];
+    state.pendingEncounters.push({ type: 'plant', cards, rerolls: 0 });
+    return state;
+  }
+
+  it('echte Pflanzenkarten: Gruppe, Kennzahlen, Vorschau aus previewChoice inkl. Versorgung', () => {
+    const state = withPlantEncounter(2, ['hazel'], ['bramble', 'anemone', 'moss'], ['bee']);
+    const now = evaluate(state);
+    const view = toEncounterView(state, 0)!;
+    expect(view.kind).toBe('plant');
+    expect(view.title).toBe(PLANT_ENCOUNTER_TITLE);
+    expect(view.subtitle).toBe('Eine Pflanze keimt kostenlos im Pflanzring (1/2 belegt).');
+    expect(view.cards.map((c) => c.name)).toEqual(['Brombeere', 'Buschwindröschen', 'Frauenhaarmoos']);
+
+    const anemone = view.cards[1]!;
+    expect(anemone).toMatchObject({
+      id: 'anemone',
+      family: 'flowers',
+      familyLabel: PLANT_GROUP_INFO.flowers.name,
+      familyIcon: PLANT_GROUP_INFO.flowers.icon,
+      flavor: PLANTS_BY_ID.get('anemone')!.text,
+    });
+    expect(anemone.rarity).toBeUndefined();
+    expect(anemone.nicheFull).toBeUndefined();
+    expect(anemone.disabledReason).toBeUndefined();
+    expect(anemone.facts!.map((f) => [f.label, f.value])).toEqual([
+      ['Wachstum', '0,3/s'],
+      ['Samen', '0,8/s'],
+      ['braucht Licht', '1'],
+      ['braucht Wasser', '1'],
+    ]);
+    const after = previewChoice(state, 0, 1)!;
+    expect(anemone.preview.harmonyDelta).toBeCloseTo(after.harmony - now.harmony, 9);
+    expect(anemone.preview.growthDelta).toBeCloseTo(after.growth / now.growth - 1, 9);
+    expect(anemone.preview.seedDelta).toBeCloseTo(after.seeds / now.seeds - 1, 9);
+    expect(anemone.preview.supply).toBe(after.supply);
+    expect(anemone.preview.supplyDelta).toBeCloseTo(after.supply - now.supply, 9);
+    expect(anemone.preview.happiness).toBeUndefined();
+  });
+
+  it('was die Pflanze Tieren bietet – gut, wenn ein lebendes Tier davon profitiert', () => {
+    const state = withPlantEncounter(2, [], ['anemone', 'moss'], ['bee']);
+    const [anemone, moss] = toEncounterView(state, 0)!.cards;
+    expect(anemone!.effects).toEqual([
+      { label: '🌸 Nektar für Wildbiene', tone: 'good' },
+      { label: '🌱 bietet Kräuter', tone: 'neutral' },
+      { label: `${PLANT_GROUP_INFO.flowers.icon} Wildbiene wünscht sich Blumen`, tone: 'good' },
+    ]);
+    // Der Regenwurm lebt noch nicht: neutral
+    expect(moss!.effects).toEqual([{ label: '💧 Feuchte für Regenwurm', tone: 'neutral' }]);
+    expect(moss!.facts![3]).toMatchObject({ label: 'speichert Wasser', value: '+2', text: 'speichert 2 Wasser' });
+    expect(plantProvidesViews(PLANTS_BY_ID.get('moss')!, stateAt(1, ['earthworm']))[0]!.tone).toBe('good');
+  });
+
+  it('listNames kürzt lange Listen', () => {
+    expect(listNames(['A'])).toBe('A');
+    expect(listNames(['A', 'B'])).toBe('A und B');
+    expect(listNames(['A', 'B', 'C', 'D'])).toBe('A, B und 2 weitere');
+  });
+
+  it('Ring voll: „Welche Pflanze weicht?“ – jede Art einmal, Vorschau je Tausch', () => {
+    // Setzling hat 2 Plätze – zwei Haseln füllen den Ring.
+    const state = withPlantEncounter(2, ['hazel', 'hazel'], ['bramble']);
+    const now = evaluate(state);
+    const view = toEncounterView(state, 0)!;
+    expect(view.subtitle).toMatch(/Pflanzring ist voll \(2\/2\)/);
+    const card = view.cards[0]!;
+    expect(card.nicheFull).toBe(true);
+    expect(card.fullText).toBe('Pflanzring voll');
+    expect(card.replacePrompt).toBe('Welche Pflanze weicht?');
+    expect(card.replaceOptions!.map((o) => [o.id, o.name])).toEqual([['hazel', 'Hasel']]);
+    const after = previewChoice(state, 0, 0, 'hazel')!;
+    expect(card.replaceOptions![0]!.preview!.harmonyDelta).toBeCloseTo(after.harmony - now.harmony, 9);
+    expect(card.preview).toEqual(card.replaceOptions![0]!.preview);
+    expect(card.disabledReason).toBeUndefined();
+  });
+
+  it('Ring voll mit derselben Pflanze: Tausch gesperrt, mit Grund', () => {
+    const state = withPlantEncounter(1, ['anemone'], ['anemone', 'moss']);
+    const [same, other] = toEncounterView(state, 0)!.cards;
+    expect(same!.replaceOptions).toEqual([{ id: 'anemone', name: 'Buschwindröschen', disabledReason: 'dieselbe Pflanze' }]);
+    expect(same!.disabledReason).toBe('Kein Tausch möglich');
+    expect(other!.disabledReason).toBeUndefined();
+    expect(other!.replaceOptions![0]!.preview).toBeDefined();
+  });
+
+  it('gesperrte Pflanze und unbekannte Pflanze', () => {
+    const state = withPlantEncounter(2, [], ['birch', 'dodo-plant', 'hazel']);
+    const cards = toEncounterView(state, 0)!.cards;
+    expect(cards[0]!.disabledReason).toBe('Wächst erst ab „Junger Baum“');
+    expect(cards[0]!.preview).toEqual({ harmonyDelta: 0, growthDelta: 0 });
+    expect(cards[1]!.name).toBe('Unbekannte Pflanze');
+    expect(cards[1]!.disabledReason).toBeDefined();
+    expect(cards[2]!.disabledReason).toBeUndefined();
+  });
+
+  it('Neu würfeln: Grund spricht von Pflanzen', () => {
+    // Keimling: nur Buschwindröschen und Moos sind freigeschaltet
+    const state = withPlantEncounter(1, [], ['anemone', 'moss']);
+    state.seeds = 1000;
+    const view = toEncounterView(state, 0)!;
+    expect(view.canReroll).toBe(false);
+    expect(view.rerollDisabledReason).toBe('Keine anderen Pflanzen verfügbar');
+    expect(PLANT_REROLL_BLOCKERS['too-expensive']).toBe('Nicht genug Samen');
+  });
+});
+
+describe('Pflanzring in der Übersicht', () => {
+  function ringOf(stage: number, plants: string[], seeds = 0, animals: string[] = []) {
+    const state = stateAt(stage, animals);
+    state.plants = [...plants];
+    state.seeds = seeds;
+    const ev = evaluate(state);
+    return { state, ev, ring: toEcosystemView(state, ev).plantRing };
+  }
+
+  it('Samen-Stufe: verschlossen mit Hinweis, kein Knopf', () => {
+    const { ring } = ringOf(0, []);
+    expect(ring.capacity).toBe(0);
+    expect(ring.unlockHint).toBe('öffnet bei „Keimling“');
+    expect(ring.canOpenPicker).toBe(false);
+    expect(ring.plantHint).toBe('');
+  });
+
+  it('Plätze, Pflanzen mit Gruppe, Gruppen-Zähler (Hauptbaum zählt als Baum)', () => {
+    const { ring, ev } = ringOf(3, ['birch', 'hazel']);
+    expect(ring.capacity).toBe(ev.plantSlots);
+    expect(ring.plants).toEqual([
+      { id: 'birch', name: 'Hänge-Birke', group: 'trees', groupIcon: '🌳', groupLabel: 'Bäume' },
+      { id: 'hazel', name: 'Hasel', group: 'shrubs', groupIcon: PLANT_GROUP_INFO.shrubs.icon, groupLabel: 'Sträucher' },
+    ]);
+    expect(ring.groups.map((g) => [g.id, g.count])).toEqual([
+      ['trees', 2],
+      ['shrubs', 1],
+      ['flowers', 0],
+      ['mosses', 0],
+    ]);
+  });
+
+  it('Versorgung: verständlicher Text, Mangel an Licht wird erklärt', () => {
+    const full = ringOf(2, ['hazel']).ring;
+    expect(full.supplyText).toBe('☀️ Licht 100 % · 💧 Wasser 100 %');
+    expect(full.shortageHint).toBeUndefined();
+    expect(full.meters.map((m) => m.detail)).toEqual(['Bedarf 2 von 3', 'Bedarf 2 von 3']);
+
+    // Hasel (2 ☀️) + Erdbeere (2 ☀️) auf 3 Licht
+    const { ring, ev } = ringOf(2, ['hazel', 'strawberry']);
+    expect(ev.supply).toBeCloseTo(0.75, 9);
+    expect(ring.supplyText).toBe('☀️ Licht 75 % · 💧 Wasser 100 %');
+    expect(ring.meters[0]!.ratio).toBeCloseTo(0.75, 9);
+    expect(ring.shortageHint).toBe('Zu wenig Licht – Begleitpflanzen wachsen nur mit 75 %. Schattenpflanzen helfen.');
+  });
+
+  it('Mangel an Wasser bzw. beidem, Moos speichert Wasser', () => {
+    // Hasel (2 💧) + Wurmfarn (2 💧) auf 3 Wasser
+    const { ring } = ringOf(2, ['hazel', 'fern']);
+    expect(ring.supplyText).toBe('☀️ Licht 100 % · 💧 Wasser 75 %');
+    expect(ring.shortageHint).toMatch(/^Zu wenig Wasser – .* Moos speichert Wasser\.$/);
+    expect(shortageHint(0.5, 0.8, 0.5)).toMatch(/^Zu wenig Licht und Wasser – Begleitpflanzen wachsen nur mit 50 %/);
+    expect(shortageHint(1, 1, 1)).toBeNull();
+
+    const moss = ringOf(1, ['moss']).ring;
+    expect(moss.meters[1]!.detail).toBe('Moos speichert 2 · 2 vorhanden');
+    expect(moss.meters[1]!.ratio).toBe(1);
+  });
+
+  it('„Pflanze setzen“: Kosten, reicht es?, Hinweise – Samen per refresh aktualisiert', () => {
+    const { state, ring } = ringOf(2, ['hazel'], 10);
+    expect(ring.canOpenPicker).toBe(true);
+    expect(ring.plantCost).toBe(Math.ceil(nextPlantCost(state)));
+    expect(ring.affordable).toBe(false);
+    expect(ring.plantHint).toBe(`Noch ${formatNumber(Math.ceil(nextPlantCost(state) - 10))} 🌰 bis zur nächsten Pflanze`);
+
+    const view = toEcosystemView(state, evaluate(state));
+    state.seeds = 1000;
+    refreshEcosystemView(view, state);
+    expect(view.plantRing.affordable).toBe(true);
+    expect(view.plantRing.plantHint).toBe('');
+
+    const full = ringOf(2, ['hazel', 'hazel'], 1000).ring;
+    expect(full.canOpenPicker).toBe(false);
+    expect(full.plantHint).toMatch(/^Alle Plätze belegt/);
+  });
+});
+
+describe('Auswahl „Pflanze setzen“', () => {
+  it('alle freigeschalteten Pflanzen mit Kosten, Vorschau aus previewPlant und Sperrgrund', () => {
+    const state = stateAt(2);
+    state.plants = ['hazel'];
+    state.seeds = 1000;
+    const now = evaluate(state);
+    const view = toPlantPickerView(state);
+    const cost = Math.ceil(nextPlantCost(state));
+    expect(view.title).toBe('Pflanze setzen');
+    expect(view.subtitle).toBe(`Pflanzring 1/2 belegt · jede Pflanze kostet jetzt ${formatNumber(cost)} 🌰`);
+    expect(view.offers.map((o) => o.card.id)).toEqual(unlockedPlants(state));
+    expect(view.offers.every((o) => o.cost === cost && !o.card.disabledReason)).toBe(true);
+    const nettle = view.offers.find((o) => o.card.id === 'nettle')!.card;
+    const after = previewPlant(state, 'nettle')!;
+    expect(nettle.preview.harmonyDelta).toBeCloseTo(after.harmony - now.harmony, 9);
+    expect(nettle.preview.supply).toBe(after.supply);
+    expect(nettle.facts).toHaveLength(4);
+  });
+
+  it('zu teuer und Ring voll', () => {
+    const poor = stateAt(2);
+    poor.seeds = 1;
+    expect(toPlantPickerView(poor).offers.every((o) => o.card.disabledReason === 'Nicht genug Samen')).toBe(true);
+
+    const full = stateAt(1);
+    full.plants = ['moss'];
+    full.seeds = 1000;
+    expect(toPlantPickerView(full).offers.every((o) => o.card.disabledReason === 'Pflanzring voll')).toBe(true);
+    expect(PLANT_BLOCKERS.locked).toBe('Noch nicht freigeschaltet');
+  });
+
+  it('verändert den Spielstand nicht', () => {
+    const state = stateAt(2, ['bee']);
+    state.plants = ['hazel'];
+    state.pendingEncounters.push({ type: 'plant', cards: ['bramble', 'anemone'], rerolls: 0 });
+    const before = JSON.stringify(state);
+    toPlantPickerView(state);
+    toEncounterView(state, 0);
+    toEcosystemView(state, evaluate(state));
+    expect(JSON.stringify(state)).toBe(before);
   });
 });

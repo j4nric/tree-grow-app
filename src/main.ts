@@ -1,10 +1,12 @@
 import { STAGES } from './content/stages';
-import { evaluate, growth, rerollCost, type Evaluation } from './core/formulas';
+import { evaluate, growth, nextPlantCost, rerollCost, type Evaluation } from './core/formulas';
 import { clearStorage, loadFromStorage, saveToStorage } from './core/save';
 import { createInitialState, type GameState } from './core/state';
+import type { PendingEncounterType } from './core/state';
 import {
   chooseCard,
   declineEncounter,
+  plantSeed,
   rerollEncounter,
   simulateOffline,
   tick,
@@ -12,11 +14,20 @@ import {
   type ActionResult,
 } from './core/tick';
 import { drawScene, type SceneInput } from './render/tree';
-import { refreshEcosystemView, toEcosystemView, toEncounterView, toSceneAnimals, welcomeText } from './ui/adapters';
+import { PLANTS_BY_ID } from './content/plants';
+import {
+  refreshEcosystemView,
+  toEcosystemView,
+  toEncounterView,
+  toPlantPickerView,
+  toSceneAnimals,
+  welcomeText,
+} from './ui/adapters';
 import { createEcosystemPanel } from './ui/ecosystem-panel';
 import { createEncounterDialog } from './ui/encounter-dialog';
 import { createEncounterStack } from './ui/encounter-stack';
 import { createFloatLayer } from './ui/feedback';
+import { createPlantPicker } from './ui/plant-picker';
 import { formatNumber } from './ui/format';
 import type { EcosystemView } from './ui/view-model';
 
@@ -44,7 +55,7 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   closed: 'Diese Nische ist noch verschlossen.',
   'niche-full': 'Die Nische ist voll – wähle, wer weichen soll.',
   'invalid-replace': 'Dieses Tier kann gerade nicht weichen.',
-  'too-expensive': 'Nicht genug Samen zum Neuwürfeln.',
+  'too-expensive': 'Nicht genug Samen.',
   'no-cards': 'Keine passenden Tiere.',
   'no-alternatives': 'Keine anderen Tiere verfügbar.',
   'would-evict': 'Dann verlören Höhlenbewohner ihren Platz.',
@@ -52,6 +63,17 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'unknown-plant': 'Diese Pflanze gibt es nicht.',
   locked: 'Diese Pflanze wächst hier noch nicht.',
 };
+
+/** Abweichende Texte, wenn die Aktion eine Pflanzenbegegnung („Etwas keimt“) betraf. */
+const PLANT_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
+  'no-cards': 'Keine passenden Pflanzen.',
+  'no-alternatives': 'Keine anderen Pflanzen verfügbar.',
+  'invalid-replace': 'Diese Pflanze kann gerade nicht weichen.',
+};
+
+function errorText(error: ActionError, type: PendingEncounterType | undefined): string {
+  return (type === 'plant' ? PLANT_ERROR_TEXTS[error] : undefined) ?? ERROR_TEXTS[error];
+}
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const ctx = canvas.getContext('2d')!;
@@ -93,22 +115,46 @@ let ecoView: EcosystemView | null = null;
 let ecoEvaluation: Readonly<Evaluation> | null = null;
 let lastPanelRefresh = -Infinity;
 
+/** Der Spieler hat „Pflanze setzen“ geöffnet. */
+let pickerWanted = false;
+/** Ökosystem oder Samen-Lage geändert → Auswahl neu bauen. */
+let pickerDirty = true;
+let shownPickerAffordable: boolean | null = null;
+
 /** Eingabe für den Renderer – ein Objekt für alle Frames, keine Allokationen pro Frame. */
 const scene: SceneInput = { growth: 0, time: 0, animals: [], reducedMotion: reducedMotionQuery.matches };
 
 // --- Oberfläche ----------------------------------------------------------------------
 
-const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosystem')!);
+const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosystem')!, {
+  onOpenPlantPicker: openPlantPicker,
+});
 const floats = createFloatLayer(document.body);
 const stack = createEncounterStack(document.querySelector<HTMLElement>('#scene-dock')!, openEncounters);
 const dialog = createEncounterDialog(document.body, {
-  onChoose: (cardIndex, replaceId) => act(chooseCard(state, 0, cardIndex, replaceId), true),
+  onChoose: (cardIndex, replaceId) => {
+    const type = state.pendingEncounters[0]?.type;
+    act(chooseCard(state, 0, cardIndex, replaceId), true, type);
+  },
   onDecline: () => {
     const before = state.seeds;
     if (act(declineEncounter(state, 0), true)) floatSeeds(state.seeds - before);
   },
-  onReroll: () => act(rerollEncounter(state, 0), false),
+  onReroll: () => {
+    const type = state.pendingEncounters[0]?.type;
+    act(rerollEncounter(state, 0), false, type);
+  },
   onDefer: closeEncounters,
+});
+const picker = createPlantPicker(document.body, {
+  onPlant: plant,
+  onClose: () => {
+    pickerWanted = false;
+    // Ist der Knopf jetzt weg (Ring voll), den Fokus nicht im Nichts lassen.
+    if (document.activeElement === document.body || document.activeElement === null) {
+      heading.focus({ preventScroll: true });
+    }
+  },
 });
 
 // --- Aktionen ------------------------------------------------------------------------
@@ -118,20 +164,68 @@ const dialog = createEncounterDialog(document.body, {
  * ein Neuladen sicher überstehen), Ansichten aktualisieren, Fehler kurz anzeigen.
  * `resolves`: Die Begegnung an der Spitze ist bei Erfolg erledigt.
  */
-function act(result: ActionResult, resolves: boolean): boolean {
+function act(result: ActionResult, resolves: boolean, type?: PendingEncounterType): boolean {
   if (result.ok) {
     saveToStorage(state);
     if (resolves) encounterSerial++;
   }
   encounterDirty = true;
   ecoDirty = true;
+  pickerDirty = true;
   refreshViews(performance.now());
-  if (!result.ok) notify(ERROR_TEXTS[result.error]);
+  if (!result.ok) notify(errorText(result.error, type));
   return result.ok;
+}
+
+/** „Pflanze setzen“: Samen ausgeben, Auswahl schließen, kurz zeigen, was passiert ist. */
+function plant(plantId: string): void {
+  const cost = nextPlantCost(state);
+  const ok = act(plantSeed(state, plantId), false);
+  if (!ok) return;
+  closePlantPicker();
+  const ring = document.querySelector<HTMLElement>('[data-ref="plant-ring"]');
+  const seedsEl = document.querySelector<HTMLElement>('[data-ref="seeds"]');
+  if (seedsEl) {
+    const rect = seedsEl.getBoundingClientRect();
+    floats.spawn(`−${formatNumber(cost)} 🌰`, rect.left + rect.width / 2, rect.top);
+  }
+  if (ring) {
+    const rect = ring.getBoundingClientRect();
+    floats.spawn(`🌱 ${PLANTS_BY_ID.get(plantId)?.name ?? ''}`, rect.left + rect.width / 2, rect.top + 24);
+  }
+}
+
+function openPlantPicker(): void {
+  closeEncounters();
+  pickerWanted = true;
+  pickerDirty = true;
+  refreshPicker();
+}
+
+function closePlantPicker(): void {
+  pickerWanted = false;
+  picker.hide();
+}
+
+/** Auswahl „Pflanze setzen“ nur bei Änderungen neu bauen; Samen-Zeile jeden Aufruf. */
+function refreshPicker(): void {
+  if (!pickerWanted) {
+    if (picker.open) picker.hide();
+    return;
+  }
+  const affordable = state.seeds >= nextPlantCost(state);
+  if (!pickerDirty && picker.open && affordable === shownPickerAffordable) {
+    picker.updateSeeds(state.seeds);
+    return;
+  }
+  pickerDirty = false;
+  shownPickerAffordable = affordable;
+  picker.show(toPlantPickerView(state, evaluate(state)), state.seeds);
 }
 
 function openEncounters(): void {
   if (state.pendingEncounters.length === 0) return;
+  closePlantPicker();
   dialogWanted = true;
   encounterDirty = true;
   refreshEncounter();
@@ -144,7 +238,8 @@ function closeEncounters(): void {
 
 /** Kurzer Hinweis: im offenen Dialog dort, sonst als Toast (der Dialog würde ihn verdecken). */
 function notify(text: string): void {
-  if (dialog.open) dialog.notice(text);
+  if (picker.open) picker.notice(text);
+  else if (dialog.open) dialog.notice(text);
   else showToast(text);
 }
 
@@ -204,8 +299,9 @@ function refreshPanel(now: number): void {
 
 function refreshViews(now: number): void {
   refreshPanel(now);
-  stack.update(state.pendingEncounters.length);
+  stack.update(state.pendingEncounters.length, state.pendingEncounters[0]?.type === 'plant' ? 'plant' : 'animal');
   refreshEncounter();
+  refreshPicker();
 }
 
 function floatSeeds(amount: number): void {
@@ -254,6 +350,7 @@ function onReset(): void {
   state = newGame();
   shownStage = state.stage;
   closeEncounters();
+  closePlantPicker();
   encounterSerial++;
   encounterDirty = true;
   ecoDirty = true;
@@ -284,6 +381,7 @@ function frame(now: number): void {
     shownStage = state.stage;
     encounterDirty = true;
     ecoDirty = true;
+    pickerDirty = true;
     showBanner(STAGES[state.stage]!.name, STAGES[state.stage]!.description);
   }
 
