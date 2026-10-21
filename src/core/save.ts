@@ -83,17 +83,6 @@ function v2Threshold(k: number): number {
   return k <= 0 ? 0 : Math.round(V2_WAYPOINT_BASE * Math.pow(k, V2_WAYPOINT_POWER));
 }
 
-/**
- * Wegpunkt-Kurve der v3-Stände bis Schritt 2.1 (9 Arten): Wegpunkt k bei 3,5 · k^3,4.
- * Seit Schritt 2.2 (32 Arten) gilt wieder die Basis 4 aus dem Design (waypoints.ts).
- */
-export const V3_EARLY_WAYPOINT_BASE = 3.5;
-export const V3_EARLY_WAYPOINT_POWER = 3.4;
-
-function v3EarlyThreshold(k: number): number {
-  return k <= 0 ? 0 : Math.round(V3_EARLY_WAYPOINT_BASE * Math.pow(k, V3_EARLY_WAYPOINT_POWER));
-}
-
 /** Erreichte Wegpunkte auf einer (früheren) Kurve. */
 function waypointsOnCurve(growth: number, threshold: (k: number) => number): number {
   let k = 0;
@@ -128,23 +117,6 @@ export function v2GrowthToV3(growth: number): number {
   return growthToCurrentCurve(growth, v2Threshold);
 }
 
-/** v3-Stand mit der früheren Kurve 3,5 · k^3,4 → aktuelle Kurve. */
-export function v3EarlyGrowthToCurrent(growth: number): number {
-  return growthToCurrentCurve(growth, v3EarlyThreshold);
-}
-
-/**
- * Wurde dieser v3-Stand mit der früheren Kurve (Basis 3,5) gespeichert? Erkennbar daran,
- * dass der gespeicherte Wegpunkt genau zur früheren Kurve passt, aber über dem liegt,
- * was die aktuelle Kurve aus dem Gesamt-Wachstum ableitet. (Ohne neues Feld – das
- * Format bleibt v3. Passt der Wegpunkt zu keiner Kurve, gilt wie immer das Wachstum.)
- */
-function savedOnEarlyV3Curve(data: Record<string, unknown>, growth: number): boolean {
-  const saved = data.waypoint;
-  if (typeof saved !== 'number' || !Number.isInteger(saved)) return false;
-  return saved === waypointsOnCurve(growth, v3EarlyThreshold) && saved > waypointsForGrowth(growth);
-}
-
 /** v2 → v3: noch keine Pflanzen; Samen-Bestand begrenzen (siehe V2_SEED_CAP). */
 function migrateV2(state: GameState): void {
   state.plants = [];
@@ -164,7 +136,6 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   state.totalGrowth = clampedOr(data.totalGrowth, 0, 0, Number.MAX_VALUE);
   // v2 rechnete mit einer anderen Wegpunkt-Kurve: erst auf die neue umrechnen, dann ableiten.
   if (version < 3) state.totalGrowth = v2GrowthToV3(state.totalGrowth);
-  else if (savedOnEarlyV3Curve(data, state.totalGrowth)) state.totalGrowth = v3EarlyGrowthToCurrent(state.totalGrowth);
   state.seeds = clampedOr(data.seeds, 0, 0, Number.MAX_VALUE);
   // Wegpunkt und Stufe immer aus dem Gesamt-Wachstum ableiten.
   state.waypoint = waypointsForGrowth(state.totalGrowth);

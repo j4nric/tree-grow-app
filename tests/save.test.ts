@@ -12,10 +12,7 @@ import {
   V2_SEED_CAP,
   V2_WAYPOINT_BASE,
   V2_WAYPOINT_POWER,
-  V3_EARLY_WAYPOINT_BASE,
-  V3_EARLY_WAYPOINT_POWER,
   v2GrowthToV3,
-  v3EarlyGrowthToCurrent,
 } from '../src/core/save';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState } from '../src/core/state';
 import { tick } from '../src/core/tick';
@@ -190,37 +187,6 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
       expect(v).toBeGreaterThanOrEqual(last);
       last = v;
     }
-  });
-
-  it('v3-Stand mit der früheren Kurve (Basis 3,5): Wegpunkt und Stufe bleiben erhalten', () => {
-    const early = (k: number) => Math.round(V3_EARLY_WAYPOINT_BASE * Math.pow(k, V3_EARLY_WAYPOINT_POWER));
-    for (let k = 0; k < 36; k++) {
-      expect(v3EarlyGrowthToCurrent(early(k)), `k=${k}`).toBe(thresholdFor(k));
-      const mid = (early(k) + early(k + 1)) / 2;
-      expect(v3EarlyGrowthToCurrent(mid), `k=${k}`).toBeCloseTo((thresholdFor(k) + thresholdFor(k + 1)) / 2, 6);
-    }
-    for (const bad of [0, -5, NaN]) expect(v3EarlyGrowthToCurrent(bad)).toBe(0);
-    expect(v3EarlyGrowthToCurrent(Number.MAX_VALUE)).toBe(Number.MAX_VALUE);
-
-    // Hain kurz nach Wegpunkt 20 auf der alten Kurve – auf der neuen wäre es nur Alter Baum.
-    const growth = early(20) + 100;
-    const raw = rawV3({
-      totalGrowth: growth,
-      waypoint: 20,
-      stage: 5,
-      niches: { roots: ['earthworm'], litter: ['robin', 'woodlouse', 'centipede'], edge: [], crown: [], bark: [], hollows: [] },
-    });
-    const s = deserialize(raw, 0)!;
-    expect(s).toMatchObject({ waypoint: 20, stage: 5, version: 3 });
-    expect(s.totalGrowth).toBeGreaterThanOrEqual(thresholdFor(20));
-    expect(s.totalGrowth).toBeLessThan(thresholdFor(21));
-    expect(s.niches.litter).toEqual(['robin', 'woodlouse', 'centipede']); // niemand wird entlassen
-    // Neu gespeichert passt er zur aktuellen Kurve und bleibt beim zweiten Laden gleich.
-    expect(deserialize(serialize(s), 0)).toEqual(s);
-    // Passt der gespeicherte Wegpunkt zu keiner Kurve, gilt wie bisher das Wachstum.
-    expect(deserialize(rawV3({ totalGrowth: growth, waypoint: 25 }), 0)!.waypoint).toBe(19);
-    expect(deserialize(rawV3({ totalGrowth: growth, waypoint: 20.5 }), 0)!.waypoint).toBe(19);
-    expect(deserialize(rawV3({ totalGrowth: growth, waypoint: '20' }), 0)!.waypoint).toBe(19);
   });
 
   it('akzeptiert alle 32 Arten und die neuen Gattungen (Schritt 2.2)', () => {

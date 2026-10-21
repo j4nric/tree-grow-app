@@ -150,10 +150,11 @@ describe('Inhalte v2', () => {
     expect(TRAIT_THRESHOLDS).toEqual(reference.TRAIT_THRESHOLDS);
     expect(RARITY_WEIGHTS).toEqual(reference.RARITY_WEIGHTS);
     expect(WAYPOINT_COUNT).toBe(reference.WAYPOINT_COUNT);
-    // Seit Schritt 2.2 (alle 32 Arten) wieder genau die Kurve des Designs (DESIGN_V2.md 15.4).
+    // Exponent wie im Design. Bewusste Abweichung: Wegpunkte 12,5 % früher (Basis 3,5
+    // statt 4, DESIGN_V2.md 15.4) – nie später.
     expect(WAYPOINT_POWER).toBe(reference.WAYPOINT_POWER);
-    expect(WAYPOINT_BASE).toBe(reference.WAYPOINT_BASE);
-    for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(waypointThreshold(k)).toBe(reference.waypointThreshold(k));
+    expect(WAYPOINT_BASE).toBeLessThanOrEqual(reference.WAYPOINT_BASE);
+    for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(waypointThreshold(k)).toBeLessThanOrEqual(reference.waypointThreshold(k));
   });
 
   it('Höhlen & Totholz: öffnet mit dem Alten Baum, früher nur durch Platz-Wirkungen', () => {
@@ -236,8 +237,8 @@ describe('Inhalte v2', () => {
     for (let k = 1; k <= WAYPOINT_COUNT; k++) expect(WAYPOINT_THRESHOLDS[k]).toBeGreaterThan(WAYPOINT_THRESHOLDS[k - 1]!);
     expect(waypointThreshold(0)).toBe(0);
     expect(waypointThreshold(1)).toBe(4);
-    expect(waypointThreshold(3)).toBe(168);
-    expect(waypointThreshold(20)).toBe(106063);
+    expect(waypointThreshold(3)).toBe(147);
+    expect(waypointThreshold(20)).toBe(92805);
     expect(RARITY_WEIGHTS).toHaveLength(STAGES.length);
   });
 

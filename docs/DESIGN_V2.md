@@ -202,21 +202,22 @@ Wegpunkt k liegt bei  4 · k^3,4  Gesamt-Wachstum
 |---|---|---|---|---|---|---|---|---|
 | 0 | Samen | – | 0 | 0 | – | – | – | – |
 | 1 | Keimling | 1 | 4 | 4 | < 30 s | 4 s | 2 | Wurzelraum (1); erste Karten |
-| 2 | Setzling | 3 | 168 | 168 | ~ 1 min | 51 s | 3 | Laubstreu, Waldsaum; Pflanzen setzen |
-| 3 | Junger Baum | 6 | 1.769 | 1.769 | ~ 4–5 min | 4:12 min | 6 | Krone, Stamm & Rinde; Ereignisse; Gattungsboni sichtbar |
-| 4 | Alter Baum | 12 | 18.676 | 18.676 | ~ 20 min | 21:35 min | 8 | Höhlen & Totholz; Durchreisende; Eicheln (Nüsse) |
-| 5 | Hain | 20 | 106.063 | 106.063 | ~ 60 min | 58:24 min | 8 | legendäre Arten; **Neuer Zyklus möglich** |
-| 6 | Wald | 28 | 332.964 | 332.964 | ~ 1:40 h | 1:45 h | 8 | Wolf; mehr Plätze |
-| 7 | Urwald | 36 | 782.507 | 782.507 | ~ 2:20 h | 2:37 h | – | Harmoniestufe „Urwald“ färbt die Szene |
+| 2 | Setzling | 3 | 168 | 147 | ~ 1 min | 45 s | 3 | Laubstreu, Waldsaum; Pflanzen setzen |
+| 3 | Junger Baum | 6 | 1.769 | 1.548 | ~ 4–5 min | 3:42 min | 6 | Krone, Stamm & Rinde; Ereignisse; Gattungsboni sichtbar |
+| 4 | Alter Baum | 12 | 18.676 | 16.341 | ~ 20 min | 18:55 min | 8 | Höhlen & Totholz; Durchreisende; Eicheln (Nüsse) |
+| 5 | Hain | 20 | 106.063 | 92.805 | ~ 60 min | 51:03 min | 8 | legendäre Arten; **Neuer Zyklus möglich** |
+| 6 | Wald | 28 | 332.964 | 291.344 | ~ 1:40 h | 1:32 h | 8 | Wolf; mehr Plätze |
+| 7 | Urwald | 36 | 782.507 | 684.694 | ~ 2:20 h | 2:17 h | – | Harmoniestufe „Urwald“ färbt die Szene |
 
 \* für einen harmonie-orientierten Spieler, der jede Begegnung sofort auflöst
 (Simulation, Abschnitt 15). Gegenüber v1 (Setzling 2 min, Junger Baum 8 min) ist der
 Anfang schneller: Die ersten Karten sollen sofort kommen.
 
-² **Im Code seit Schritt 2.2** (`src/content/waypoints.ts`): wieder genau `4 · k^3,4`
-wie im Design (32 Arten). Schritt 2.1 (9 Arten) lief mit `3,5 · k^3,4`, der Prototyp
-ohne Pflanzen (Schritt 1) mit `4 · k^3,2` – siehe 15.4; ältere Stände werden beim Laden
-umgerechnet.
+² **Im Code seit Schritt 2.1** (`src/content/waypoints.ts`): Wegpunkt k liegt bei
+`3,5 · k^3,4` – Exponent wie im Design, Basis 12,5 % kleiner. Mit 9 Arten (2.1) nötig,
+mit 32 Arten (2.2) läge auch Basis 4 im Ziel (Hain 58 min); der Wechsel wartet auf eine
+Umrechnung gespeicherter v3-Stände. Der Prototyp ohne Pflanzen (Schritt 1) lief mit
+`4 · k^3,2` – siehe 15.4. Spielzeiten: Schritt 2.2, 32 Arten.
 
 ### Nischen und Plätze
 
@@ -516,8 +517,8 @@ Bedingung oder Partnerschaft.
 
 Im Code (Schritt 2.2: alle 32 Arten, Tier- und Pflanzenbegegnungen, noch ohne
 Ereignisse und Durchreisende; Simulation 15.4, Median der Wartezeit je Begegnung):
-Keimling 23 s · Setzling 1:02 min · Junger Baum 2:44 min · Alter Baum 4:33 min · Hain
-5:50 min · Wald 6:13 min.
+Keimling 20 s · Setzling 54 s · Junger Baum 2:24 min · Alter Baum 3:59 min · Hain
+5:06 min · Wald 5:26 min.
 
 Bis zum Hain sind es 20 Begegnungen (~12 Tiere), bis zum Urwald 36. Zwischen den
 Begegnungen gibt es Samen-Entscheidungen (Pflanze setzen, Pflege).
@@ -1115,73 +1116,74 @@ Versorgung über 90 %.
 
 #### Stand Schritt 2.2: alle 32 Arten (500 Durchgänge je Strategie)
 
-**Geänderte Zahl:** `WAYPOINT_BASE` 3,5 → **4** (`src/content/waypoints.ts`) – damit
-gilt wieder genau die Wegpunkt-Kurve des Designs (4 · k^3,4). Alle Arten-, Gattungs-,
-Seltenheits-, Pflanzen- und Stufenzahlen sind unverändert die aus
-`scripts/v2/content.ts` (Inhaltstest prüft das, `evaluate` wird gegen
-`scripts/v2/model.ts` verglichen – ohne Lebensgemeinschaften). Mit 32 Arten liegt der
-Harmonie-Spieler beim Hain bei ⚖️ 88 und ~66 🌿/s (vorher ⚖️ 78 / ~47 🌿/s; volles
-Design mit Lebensgemeinschaften, Ereignissen und Durchreisenden: ⚖️ 96 / ~69 🌿/s).
-Mit Basis 3,5 kam er nach 51:39 min in den Hain (Setzling 45 s, Junger Baum 3:42 min,
-Alter Baum 19:09 min) – überall etwas zu früh; mit 4 liegen alle Stufen im Ziel.
-v3-Stände, die noch mit Basis 3,5 gespeichert wurden, rechnet `save.ts` beim Laden auf
-die neue Kurve um (gleicher Wegpunkt, gleicher Bruchteil; erkannt am gespeicherten
-Wegpunkt – das Format bleibt v3).
+**Keine geänderten Zahlen.** Alle Arten-, Gattungs-, Seltenheits-, Pflanzen- und
+Stufenzahlen sind die aus `scripts/v2/content.ts` (Inhaltstest prüft das, `evaluate`
+wird gegen `scripts/v2/model.ts` verglichen – ohne Lebensgemeinschaften). Mit 32 Arten
+liegt der Harmonie-Spieler beim Hain bei ⚖️ 88 und ~66 🌿/s (Schritt 2.1: ⚖️ 78 /
+~47 🌿/s; volles Design mit Lebensgemeinschaften, Ereignissen und Durchreisenden:
+⚖️ 96 / ~69 🌿/s).
 
-| Harmonie-Spieler | Ziel | Schritt 2.1 (9 Arten, 3,5 · k^3,4) | 32 Arten, 3,5 · k^3,4 | **32 Arten, 4 · k^3,4** |
+**`WAYPOINT_BASE` geprüft:** Mit 32 Arten läge auch die Design-Basis **4** im
+Zielkorridor (Hain 58:24 min, siehe Tabelle) und träfe die Ziele sogar etwas genauer
+als 3,5 (Hain 51:03 min, alle Stufen ~10 % früh, Test-Korridor 0,7–1,35 × Ziel
+eingehalten). Die Basis bleibt trotzdem vorerst **3,5**: Ein Wechsel verschiebt die
+Kurve schon gespeicherter v3-Stände (sie bräuchten eine Umrechnung beim Laden wie
+v2 → v3, sonst fallen Spieler eine Stufe zurück) und die festen Wegpunkt-Konstanten der
+e2e-Tests (`WAYPOINT_V3` in `e2e/smoke.spec.ts`). `save.ts` ist dafür vorbereitet
+(`growthToCurrentCurve`); der Wechsel auf 4 ist eine eigene kleine Aufgabe (Core + QA).
+
+| Harmonie-Spieler | Ziel | Schritt 2.1 (9 Arten, 3,5 · k^3,4) | **32 Arten, 3,5 · k^3,4** | 32 Arten, 4 · k^3,4 |
 |---|---|---|---|---|
-| Keimling | < 30 s | 4 s | 4 s | **4 s** |
-| Setzling | ~ 1 min | 45 s | 45 s | **51 s** |
-| Junger Baum | ~ 4 min | 3:46 min | 3:42 min | **4:12 min** |
-| Alter Baum | ~ 20 min | 20:19 min | 19:09 min | **21:35 min** |
-| Hain | ~ 60 min | 1:00 h | 51:39 min | **58:24 min** |
-| Wald | (~ 1:40 h) | 2:05 h | 1:33 h | **1:45 h** |
-| Urwald | (~ 2:20 h) | 3:33 h | 2:17 h | **2:37 h** |
-| Takt im Alter Baum / Hain (Median) | ~ 4–5 min | 4:59 / 8:12 min | 4:03 / 5:07 min | **4:33 / 5:50 min** |
-
-(Spalte „32 Arten, 3,5 · k^3,4“: 100 Durchgänge.)
+| Keimling | < 30 s | 4 s | **4 s** | 4 s |
+| Setzling | ~ 1 min | 45 s | **45 s** | 51 s |
+| Junger Baum | ~ 4 min | 3:46 min | **3:42 min** | 4:12 min |
+| Alter Baum | ~ 20 min | 20:19 min | **18:55 min** | 21:35 min |
+| Hain | ~ 60 min | 1:00 h | **51:03 min** | 58:24 min |
+| Wald | (~ 1:40 h) | 2:05 h | **1:32 h** | 1:45 h |
+| Urwald | (~ 2:20 h) | 3:33 h | **2:17 h** | 2:37 h |
+| Takt im Alter Baum / Hain (Median) | ~ 4–5 min | 4:59 / 8:12 min | **3:59 / 5:06 min** | 4:33 / 5:50 min |
 
 **Strategien beim Erreichen des Hains** (Tiere je Gattung: Vögel / Insekten /
 Säugetiere / Bodenleben / Pilze)
 
 | Strategie | Hain nach (Median) | ⚖️ Harmonie | 🌿/s | 🌰/s | Ø Zufriedenheit | Tiere 🐦/🐝/🦔/🪱/🍄 | Pflanzen | Versorgung | echte Wahl |
 |---|---|---|---|---|---|---|---|---|---|
-| Zufällig | 1:25 h | 69,2 | 41,2 | 10,78 | 77 % | 1,4 / 2,4 / 2,6 / 1,7 / 1,4 | 5,0 | 96 % | 86 % |
-| Gierig nach Harmonie | 58:24 min | 88,1 | 66,3 | 9,52 | 90 % | 1,7 / 1,7 / 1,4 / 2,1 / 1,9 | 5,0 | 95 % | 69 % |
-| Gierig nach Wachstum | 48:18 min | 78,9 | 78,6 | 6,63 | 86 % | 1,5 / 1,3 / 1,5 / 2,7 / 2,7 | 5,0 | 100 % | 68 % |
-| Immer die seltenste Karte | 1:02 h | 82,7 | 59,6 | 9,45 | 82 % | 1,4 / 1,7 / 2,1 / 1,9 / 1,5 | 5,0 | 96 % | 75 % |
-| Vögel stapeln | 1:03 h | 84,5 | 58,5 | 9,21 | 87 % | 3,2 / 1,4 / 0,8 / 1,7 / 1,5 | 5,0 | 94 % | 72 % |
-| Insekten stapeln | 1:15 h | 82,6 | 49,9 | 14,09 | 81 % | 1,6 / 4,4 / 1,4 / 1,6 / 1,2 | 5,0 | 99 % | 82 % |
-| Säugetiere stapeln | 1:05 h | 77,7 | 57,5 | 9,20 | 87 % | 0,8 / 1,1 / 5,0 / 1,3 / 1,1 | 5,0 | 100 % | 71 % |
-| Bodenleben stapeln | 1:02 h | 83,5 | 60,7 | 7,64 | 89 % | 1,1 / 1,3 / 1,0 / 2,8 / 1,4 | 5,0 | 94 % | 78 % |
-| Pilze stapeln | 55:56 min | 82,2 | 65,0 | 8,18 | 91 % | 1,4 / 1,1 / 1,1 / 1,5 / 3,2 | 5,0 | 99 % | 69 % |
+| Zufällig | 1:14 h | 69,2 | 41,2 | 10,78 | 77 % | 1,4 / 2,4 / 2,6 / 1,7 / 1,4 | 5,0 | 96 % | 86 % |
+| Gierig nach Harmonie | 51:03 min | 88,1 | 66,4 | 9,53 | 90 % | 1,7 / 1,7 / 1,4 / 2,1 / 1,9 | 5,0 | 95 % | 69 % |
+| Gierig nach Wachstum | 42:20 min | 78,9 | 78,5 | 6,61 | 86 % | 1,5 / 1,3 / 1,5 / 2,7 / 2,7 | 5,0 | 100 % | 68 % |
+| Immer die seltenste Karte | 54:49 min | 82,7 | 59,6 | 9,45 | 82 % | 1,4 / 1,7 / 2,1 / 1,9 / 1,5 | 5,0 | 96 % | 75 % |
+| Vögel stapeln | 55:49 min | 84,5 | 58,3 | 9,26 | 87 % | 3,2 / 1,4 / 0,8 / 1,7 / 1,5 | 5,0 | 94 % | 73 % |
+| Insekten stapeln | 1:06 h | 82,7 | 50,0 | 14,07 | 81 % | 1,6 / 4,4 / 1,4 / 1,6 / 1,3 | 5,0 | 99 % | 82 % |
+| Säugetiere stapeln | 57:33 min | 77,8 | 57,4 | 9,23 | 87 % | 0,8 / 1,1 / 5,0 / 1,3 / 1,0 | 5,0 | 100 % | 71 % |
+| Bodenleben stapeln | 54:45 min | 83,8 | 60,8 | 7,73 | 88 % | 1,1 / 1,4 / 1,0 / 2,8 / 1,4 | 5,0 | 94 % | 79 % |
+| Pilze stapeln | 49:41 min | 82,2 | 64,6 | 8,18 | 90 % | 1,4 / 1,2 / 1,1 / 1,5 / 3,2 | 5,0 | 99 % | 71 % |
 
 **Stufen und Takt – Gierig nach Harmonie**
 
 | Stufe | Ziel | Median | 10–90 % | ⚖️ | 🌿/s | 🌰/s | Ø Zufr. | Tiere / Pflanzen | Begegnungen im Abschnitt | Takt Median | Takt max |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Keimling | < 30 s | 4 s | 4 s – 4 s | 5 | 2,1 | 0,16 | 0 % | 0,0 / 0,0 | 2,0 | 23 s | 34 s |
-| Setzling | ~ 1 min | 51 s | 51 s – 51 s | 50 | 6,1 | 0,67 | 100 % | 1,0 / 1,0 | 3,0 | 1:02 min | 1:55 min |
-| Junger Baum | ~ 4 min | 4:12 min | 4:02 min – 4:26 min | 62 | 12,9 | 2,04 | 89 % | 2,5 / 2,0 | 6,0 | 2:44 min | 6:16 min |
-| Alter Baum | ~ 20 min | 21:35 min | 19:30 min – 23:25 min | 74 | 26,7 | 3,91 | 90 % | 4,9 / 3,0 | 8,0 | 4:33 min | 9:40 min |
-| Hain | ~ 60 min | 58:24 min | 53:21 min – 1:05 h | 88 | 66,3 | 9,52 | 90 % | 8,7 / 5,0 | 8,0 | 5:50 min | 12:14 min |
-| Wald | – | 1:45 h | 1:36 h – 1:58 h | 97 | 125,7 | 18,51 | 91 % | 12,2 / 7,0 | 8,0 | 6:13 min | 11:11 min |
-| Urwald | – | 2:37 h | 2:21 h – 2:55 h | 104 | 221,2 | 30,24 | 91 % | 15,4 / 9,0 | – | – | – |
+| Keimling | < 30 s | 4 s | 4 s – 4 s | 5 | 2,1 | 0,16 | 0 % | 0,0 / 0,0 | 2,0 | 20 s | 30 s |
+| Setzling | ~ 1 min | 45 s | 45 s – 45 s | 50 | 6,1 | 0,67 | 100 % | 1,0 / 1,0 | 3,0 | 54 s | 1:41 min |
+| Junger Baum | ~ 4 min | 3:42 min | 3:33 min – 3:54 min | 62 | 12,9 | 2,04 | 89 % | 2,5 / 2,0 | 6,0 | 2:24 min | 5:29 min |
+| Alter Baum | ~ 20 min | 18:55 min | 17:06 min – 20:33 min | 74 | 26,7 | 3,91 | 90 % | 4,9 / 3,0 | 8,0 | 3:59 min | 8:28 min |
+| Hain | ~ 60 min | 51:03 min | 46:42 min – 57:41 min | 88 | 66,4 | 9,53 | 90 % | 8,7 / 5,0 | 8,0 | 5:06 min | 10:42 min |
+| Wald | – | 1:32 h | 1:24 h – 1:43 h | 97 | 125,8 | 18,54 | 91 % | 12,2 / 7,0 | 8,0 | 5:26 min | 9:47 min |
+| Urwald | – | 2:17 h | 2:04 h – 2:33 h | 104 | 221,4 | 30,27 | 91 % | 15,4 / 9,0 | – | – | – |
 
-Der Zufallsspieler braucht 27:51 min bis zum Alter Baum und 1:25 h bis zum Hain.
+Der Zufallsspieler braucht 24:23 min bis zum Alter Baum und 1:14 h bis zum Hain.
 
 **Samen über die Zeit – Gierig nach Harmonie**
 
 | Zeit | Stufe (Median) | Bestand 🌰 | verdient passiv | verdient Ablehnen | ausgegeben Pflanzen | ausgegeben Neu würfeln | Pflanzen (gesetzt / gekeimt) | Bestand in Minuten Produktion |
 |---|---|---|---|---|---|---|---|---|
-| 5 min | Junger Baum | 398 | 489 | 5 | 88 | 9 | 1,7 / 1,6 | 2,4 |
-| 10 min | Junger Baum | 1275 | 1368 | 11 | 88 | 17 | 1,7 / 1,7 | 7,1 |
-| 20 min | Junger Baum | 3073 | 3235 | 17 | 152 | 27 | 2,0 / 1,9 | 14,4 |
-| 30 min | Alter Baum | 5882 | 6346 | 20 | 449 | 34 | 3,4 / 2,4 | 16,7 |
-| 45 min | Alter Baum | 11629 | 12099 | 24 | 449 | 45 | 3,4 / 2,8 | 28,1 |
-| 60 min | Hain | 17866 | 19160 | 28 | 1268 | 54 | 4,5 / 3,2 | 30,8 |
-| 90 min | Hain | 38753 | 40598 | 37 | 1810 | 71 | 5,2 / 3,7 | 48,1 |
-| 120 min | Wald | 64762 | 70950 | 45 | 6144 | 89 | 6,8 / 4,1 | 52,3 |
+| 5 min | Junger Baum | 434 | 525 | 7 | 87 | 11 | 1,7 / 1,7 | 2,5 |
+| 10 min | Junger Baum | 1322 | 1416 | 11 | 87 | 18 | 1,7 / 1,8 | 7,3 |
+| 20 min | Alter Baum | 3067 | 3452 | 17 | 374 | 29 | 3,0 / 2,1 | 10,3 |
+| 30 min | Alter Baum | 6433 | 6897 | 21 | 448 | 37 | 3,4 / 2,6 | 17,3 |
+| 45 min | Alter Baum | 12459 | 12984 | 26 | 502 | 49 | 3,5 / 3,0 | 28,1 |
+| 60 min | Hain | 19812 | 21532 | 30 | 1691 | 59 | 5,1 / 3,4 | 29,2 |
+| 90 min | Hain | 41766 | 45362 | 40 | 3557 | 78 | 5,8 / 3,9 | 42,8 |
+| 120 min | Wald | 74535 | 81013 | 51 | 6431 | 99 | 6,9 / 4,4 | 54,5 |
 
 **Begegnungen bis Hain (Mittel je Durchgang)** – gewählt nach Seltenheit gewöhnlich /
 selten / besonders / legendär (legendäre Arten gibt es erst ab dem Hain).
@@ -1189,17 +1191,18 @@ selten / besonders / legendär (legendäre Arten gibt es erst ab dem Hain).
 | Strategie | Begegnungen | davon Pflanzen | Tier: Nische voll | neu gewürfelt | abgelehnt | autom. abgelehnt | gewählt g / s / b / l | Pflanzen gekeimt / gesetzt | eindeutig | keine Karte lohnt |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Zufällig | 19,0 | 5,7 | 7,6 | 0,0 | 2,5 | 0,0 | 8,9 / 2,6 / 0,5 / 0,0 | 4,5 / 3,4 | 12 % | 3 % |
-| Gierig nach Harmonie | 19,0 | 5,7 | 7,2 | 5,1 | 5,3 | 0,0 | 6,6 / 2,6 / 1,5 / 0,0 | 3,0 / 3,4 | 13 % | 21 % |
-| Gierig nach Wachstum | 19,0 | 5,7 | 8,5 | 2,8 | 2,8 | 0,0 | 7,3 / 3,9 / 1,4 / 0,0 | 3,7 / 3,4 | 16 % | 18 % |
+| Gierig nach Harmonie | 19,0 | 5,7 | 7,2 | 5,1 | 5,3 | 0,0 | 6,6 / 2,6 / 1,5 / 0,0 | 3,1 / 3,4 | 13 % | 21 % |
+| Gierig nach Wachstum | 19,0 | 5,7 | 8,5 | 2,6 | 2,8 | 0,0 | 7,3 / 3,9 / 1,4 / 0,0 | 3,7 / 3,4 | 16 % | 17 % |
 | Immer die seltenste Karte | 19,0 | 5,7 | 8,2 | 0,0 | 2,3 | 0,0 | 5,8 / 6,0 / 1,6 / 0,0 | 3,4 / 3,4 | 12 % | 14 % |
-| Vögel stapeln | 19,0 | 5,7 | 7,0 | 10,2 | 4,6 | 0,0 | 8,0 / 2,5 / 0,7 / 0,0 | 3,2 / 3,4 | 15 % | 14 % |
-| Insekten stapeln | 19,0 | 5,6 | 6,4 | 9,4 | 3,7 | 0,0 | 8,9 / 3,1 / 0,7 / 0,0 | 2,6 / 3,5 | 12 % | 7 % |
-| Säugetiere stapeln | 19,0 | 5,7 | 7,3 | 8,9 | 2,8 | 0,0 | 7,7 / 4,5 / 0,6 / 0,0 | 3,3 / 3,4 | 19 % | 10 % |
-| Bodenleben stapeln | 19,0 | 5,6 | 7,9 | 9,8 | 3,4 | 0,0 | 7,8 / 3,4 / 1,1 / 0,0 | 3,4 / 3,4 | 12 % | 11 % |
-| Pilze stapeln | 19,0 | 5,7 | 7,2 | 10,2 | 4,5 | 0,0 | 7,8 / 2,9 / 0,8 / 0,0 | 2,9 / 3,4 | 18 % | 15 % |
+| Vögel stapeln | 19,0 | 5,7 | 7,0 | 10,2 | 4,4 | 0,0 | 7,9 / 2,6 / 0,7 / 0,0 | 3,4 / 3,2 | 15 % | 13 % |
+| Insekten stapeln | 19,0 | 5,6 | 6,5 | 9,4 | 3,4 | 0,0 | 8,9 / 3,1 / 0,7 / 0,0 | 2,8 / 3,3 | 12 % | 6 % |
+| Säugetiere stapeln | 19,0 | 5,7 | 7,3 | 8,8 | 2,8 | 0,0 | 7,7 / 4,5 / 0,6 / 0,0 | 3,3 / 3,4 | 19 % | 11 % |
+| Bodenleben stapeln | 19,0 | 5,6 | 7,9 | 9,9 | 3,2 | 0,0 | 7,8 / 3,4 / 1,1 / 0,0 | 3,5 / 3,3 | 12 % | 10 % |
+| Pilze stapeln | 19,0 | 5,6 | 7,2 | 10,4 | 4,2 | 0,0 | 7,8 / 3,1 / 0,8 / 0,0 | 3,1 / 3,2 | 17 % | 14 % |
 
 **Abweichungen vom Design (Schritt 2.2)**
 
+- **Wegpunkt-Basis 3,5 statt 4** (siehe oben).
 - **Lebensgemeinschaften fehlen noch (2.3).** Damit wirkt die Fähigkeit des
   Glühwürmchens („Lichterabend“: +3 ⚖️ je Lebensgemeinschaft) vorerst nicht; die Zahl
   steht als `COMMUNITY_BOOST_HARMONY` in `src/content/abilities.ts` bereit.
@@ -1215,23 +1218,22 @@ selten / besonders / legendär (legendäre Arten gibt es erst ab dem Hain).
 
 **Bewertung**
 
-- **Tempo:** Mit allen 32 Arten trägt die Design-Kurve wieder: Setzling 51 s, Junger
-  Baum 4:12 min, Alter Baum 21:35 min, Hain 58:24 min – alle im Ziel, Streuung 10–90 %
-  im Hain 53–65 min. Wald/Urwald (1:45 h / 2:37 h) liegen erstmals nahe am vollen
-  Design (1:40 h / 2:20 h).
-- **Takt:** früh 23 s – 1 min, Junger Baum ~2:45 min, Alter Baum ~4:30 min, Hain
-  ~6 min (max. 12 min) – deutlich dichter als in 2.1 (Hain 8:12 min), weil das Wachstum
-  mit den neuen Arten schneller steigt als die Kurve.
+- **Tempo:** Setzling 45 s, Junger Baum 3:42 min, Alter Baum 18:55 min, Hain 51:03 min
+  – alle im Korridor, aber ~10–15 % früh (mit Basis 4 genau im Ziel, siehe oben).
+  Wald/Urwald (1:32 h / 2:17 h) liegen erstmals am vollen Design (1:40 h / 2:20 h).
+- **Takt:** früh 20 s – 1 min, Junger Baum ~2:25 min, Alter Baum ~4 min, Hain ~5 min
+  (max. 10:42 min) – deutlich dichter als in 2.1 (Hain 8:12 min), weil das Wachstum mit
+  den neuen Arten schneller steigt als die Kurve.
 - **Harmonie:** Das Harmonie-Streben liegt wieder klar vorn (⚖️ 88,1; bester Stapler
   Vögel 84,5, also +3,6). Der Test verlangt nun mindestens 1 Punkt Vorsprung vor jeder
   anderen Strategie (vorher ±1 Toleranz). Mehr Arten heißt mehr passende Karten: Der
   Harmonie-Spieler lehnt nur noch ~5 von 19 Begegnungen ab (vorher ~9), „keine Karte
   lohnt“ sinkt von 35 % auf 21 %.
 - **Stapeln:** Kein Stapler dominiert. **Pilze** sind der schnellste Stapler
-  (55:56 min, ~4 % schneller als der Harmonie-Spieler) – Pfifferling, Steinpilz und der
+  (49:41 min, ~3 % schneller als der Harmonie-Spieler) – Pfifferling, Steinpilz und der
   Gattungsbonus (Bäume +10 %, +3 💧 / +2 ☀️) machen die Bäume stark –, zahlen dafür
   aber ~6 Harmonie-Punkte. Neuer Test: kein Stapler ist mehr als 10 % schneller.
-  Säugetiere stapeln ist am wenigsten harmonisch (⚖️ 77,7: viele Pflanzenfresser,
+  Säugetiere stapeln ist am wenigsten harmonisch (⚖️ 77,8: viele Pflanzenfresser,
   unbewachte Schädlinge), Insekten stapeln am langsamsten, aber mit den meisten Samen.
 - **Wachstums-Streben** ist ~17 % schneller und behält ~90 % der Harmonie (Grenze im
   Test: höchstens 25 % schneller, ≥ 85 % Harmonie) – in 2.1 waren es 6 %. Der
@@ -1241,7 +1243,7 @@ selten / besonders / legendär (legendäre Arten gibt es erst ab dem Hain).
   (Waldkauz, Langohr, Weinbergschnecke, Fliegenpilz, Glühwürmchen erscheinen erst mit
   ihrer Bedingung). „Immer die seltenste Karte“ bleibt kein Selbstzweck (⚖️ 82,7,
   langsamer).
-- **Samen-Senke** unverändert zu schwach (bis zum Hain ~1.300 von ~19.000 🌰 in
+- **Samen-Senke** unverändert zu schwach (bis zum Hain ~1.700 von ~21.500 🌰 in
   Pflanzen) – siehe 2.1.
 
 #### Stand Schritt 2.1: Pflanzen (500 Durchgänge je Strategie, historisch)
