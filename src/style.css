@@ -511,6 +511,86 @@ footer {
   pointer-events: none;
 }
 
+/*
+ * Hinweis „Neue Version verfügbar – neu laden“ (ui/pwa.ts): oben in der Mitte, damit er
+ * weder den Toast unten noch den Begegnungs-Stapel verdeckt; bleibt bis zum Klick.
+ */
+.update-hint {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 4px 4px 4px 16px;
+  border-radius: 12px;
+  background: var(--text);
+  color: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  z-index: 30;
+  animation: update-hint-in 0.3s ease-out;
+}
+
+.update-hint[hidden] {
+  display: none;
+}
+
+.update-hint-text {
+  min-width: 0;
+  margin-right: 6px;
+}
+
+.update-hint-reload,
+.update-hint-close {
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  border-radius: 9px;
+  color: white;
+  white-space: nowrap;
+}
+
+.update-hint-reload {
+  padding: 0 14px;
+  /* dunkles Grün: weißer Text mit Kontrast > 4,5 : 1 */
+  background: var(--accent-dark);
+  font-weight: 600;
+}
+
+.update-hint-reload:hover {
+  background: #255a22;
+}
+
+.update-hint-close {
+  padding: 0;
+  background: transparent;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.update-hint-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.update-hint button:focus-visible {
+  outline: 3px solid #8fc1ff;
+  outline-offset: 1px;
+}
+
+@keyframes update-hint-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px);
+  }
+}
+
+body[data-motion='reduce'] .update-hint {
+  animation: none;
+}
+
 /* Schwebende Zahlen (z. B. Samen beim Ablehnen) */
 .float-layer {
   /* Am Dokument verankert, damit die Zahlen beim Scrollen mitwandern */

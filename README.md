@@ -12,6 +12,23 @@ npm run check   # Typecheck + Tests (schnell, vor jedem Commit)
 npm run balance # großer Balancing-Lauf: 500 Durchgänge, alle Tabellen (DESIGN_V2.md 15.4)
 ```
 
+## Als App installieren und offline spielen
+
+Das Spiel ist eine installierbare Web-App (PWA): Im Browser „Zum Startbildschirm
+hinzufügen“ bzw. „App installieren“ wählen. Nach einem Besuch mit Netz startet es auch
+offline; Konto und Gerätesync brauchen weiterhin Netz und holen den Abgleich später nach.
+Gibt es eine neue Version, erscheint oben „Neue Version verfügbar – neu laden“ – der
+Spielstand wird vor dem Neuladen gespeichert.
+
+- Manifest und Icons: `public/manifest.webmanifest`, `public/icons/` (erzeugt mit
+  `node --experimental-strip-types scripts/generate-icons.ts`)
+- Service Worker: von Hand in `src/pwa/service-worker.ts`; `npm run build` schreibt daraus
+  `dist/sw.js` mit allen gebauten Dateien und einer Inhalts-Version (Plugin in
+  `vite.config.ts`). Seiten zuerst aus dem Netz, gehashte Dateien aus dem Cache; der
+  Sync-Server (andere Adresse, `/api/`, Event-Stream) wird nie abgefangen.
+- Angemeldet wird er nur im Build, nicht mit `npm run dev` und nicht in e2e-Tests
+  (außer `e2e/pwa.spec.ts`, das ihn mit `window.__VSZW_SW__ = true` einschaltet).
+
 ## Projekt
 
 - [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) – Spielregeln, Zahlen, geplante Systeme

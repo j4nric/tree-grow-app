@@ -1,0 +1,20 @@
+{
+  "name": "Vom Samen zum Wald",
+  "short_name": "Samen zum Wald",
+  "description": "Ein gemütliches Aufbauspiel: Vom kleinen Samen wächst ein ganzer Wald mit seinen Bewohnern.",
+  "lang": "de",
+  "dir": "ltr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#3f8f3a",
+  "background_color": "#f3f1e8",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
