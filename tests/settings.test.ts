@@ -252,10 +252,10 @@ describe('Spielanleitung', () => {
     // Waldgedächtnis-Regel (Schritt 2.11): Einzahl bei 1 Punkt je Art; Schwelle gleitet mit dem
     // Wegpunkt (Schritt 2.11b), genannt für Hain, Wald und Urwald – im Hain wie in 2.11.
     expect(text('cycle')).toContain('1 Punkt je neu entdeckter Art');
-    expect(text('cycle')).toContain('im Hain über 100 (bis 115), im Wald über 125 (bis 139) und im Urwald über 150 (bis 163)');
+    expect(text('cycle')).toContain('Bonus gibt es im Hain ab 101 (bis 115), im Wald ab 126 (bis 139) und im Urwald ab 151 (bis 163)');
     for (let stage = NEW_CYCLE_MIN_STAGE; stage < STAGES.length; stage++) {
       const b = memoryHarmonyBonus(STAGES[stage]!.waypoint);
-      expect(text('cycle')).toContain(`im ${STAGES[stage]!.name} über ${formatNumber(b.shownThreshold)} (bis ${formatNumber(b.fullAt)})`);
+      expect(text('cycle')).toContain(`im ${STAGES[stage]!.name} ab ${formatNumber(b.bonusFrom)} (bis ${formatNumber(b.fullAt)})`);
     }
     // Früchte aller Hauptbaum-Arten (DESIGN_V2.md 17).
     for (const fruit of ['Eichel', 'Buchecker', 'Kiefernsamen']) expect(text('cycle')).toContain(fruit);

@@ -105,8 +105,9 @@ Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 10, 15.4 („St
   Wachstums-Spielers) und gleitet mit jedem Wegpunkt; die Obergrenze sinkt leicht, weil
   Sockel und neue Arten von selbst wachsen. Eine erste Fassung mit einer Schwelle je Stufe
   ließ die Vorschau beim Stufenwechsel fallen (bis 26 Punkte im Mittel) – Wachsen darf sich
-  nie wie ein Verlust anfühlen. Das Panel „Neuer Zyklus“ nennt die aktuelle Schwelle
-  (krumme abgerundet), die Spielanleitung die Werte je Stufe.
+  nie wie ein Verlust anfühlen. Das Panel „Neuer Zyklus“ nennt die erste ganze Harmonie
+  mit Bonus („ab 101“ im Hain; an krummen Schwellen exakt nach Formel, z. B. Wegpunkt 27
+  „ab 123“) und „bis zu +3 je Punkt“, die Spielanleitung die Werte je Stufe.
 
 | Zahl (`src/content/memory.ts`, `MEMORY_HARMONY_RULES`) | vorher | jetzt |
 |---|---|---|
@@ -128,7 +129,7 @@ Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 10, 15.4 („St
 
 Der Gewinn sinkt nie, solange H_max je Wegpunkt um mindestens 3 steigt (typisch: +3,2 bis
 +4,0). Offen: Bleibt H_max an einem Wegpunkt gleich, sinkt die Vorschau kurz um bis zu 10
-Punkte. Das verschwindet nur mit einer „Sperrklinke“ im Spielstand (größte Vorschau des
+Punkte je Wegpunkt (offline über mehrere Wegpunkte auf einmal entsprechend mehr). Das verschwindet nur mit einer „Sperrklinke“ im Spielstand (größte Vorschau des
 Zyklus merken, `core-engineer`, neue Spielstand-Version).
 
 ## Schritt 2.11: Harmonie lohnt sich über die Zyklen (v2, umgesetzt)

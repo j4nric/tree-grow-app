@@ -221,7 +221,7 @@ describe('Formeln ↔ Zahlen: Golden-Tabelle', () => {
         // Harmonie-Bonus je Wegpunkt ab Hain (seit Schritt 2.11b, gleitend): Schwelle, Obergrenze, voll ab.
         harmonyBonusByWaypoint: Array.from({ length: 17 }, (_, i) => {
           const b = memoryHarmonyBonus(20 + i);
-          return `Wegpunkt ${b.waypoint}: über ${b.threshold}, höchstens ${b.maxPoints} (Panel über ${b.shownThreshold}, voll ab ${b.fullAt})`;
+          return `Wegpunkt ${b.waypoint}: über ${b.threshold}, höchstens ${b.maxPoints} (Panel ab ${b.bonusFrom}, voll ab ${b.fullAt})`;
         }),
         perNewSpecies: MEMORY_PER_NEW_SPECIES,
         perRegularSlot: MEMORY_PER_REGULAR_SLOT,

@@ -154,9 +154,11 @@ export function cycleViewKey(view: CyclePanelView): string {
  * Regel für das Waldgedächtnis (Schritt 2.11, gleitende Schwelle seit 2.11b, content/memory.ts)
  * mit Schwelle und Obergrenze des erreichten Wegpunkts (vor dem Hain: die des Hains), z. B.
  * „Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie
- * über 109 zählt extra: +3 je Punkt (bis 124). Die Schwelle steigt mit dem Wachstum bis 150
- * im Urwald.“ Krumme Schwellen nennt sie abgerundet (109,375 → „über 109“: genau ab 110
- * gibt es Bonus). Der letzte Satz fehlt, sobald die Schwelle oben angekommen ist.
+ * ab 110 zählt extra: bis zu +3 je Punkt (bis 124). Die Schwelle steigt mit dem Wachstum bis
+ * 150 im Urwald.“ Genannt wird die erste ganze Harmonie, die wirklich mehr als den Sockel
+ * bringt (bonusFrom): An krummen Schwellen bringt der erste Punkt weniger als +3 (Wegpunkt 23,
+ * Schwelle 109,375: 110 bringt +1) oder nach dem Abrunden nichts (Wegpunkt 27, Schwelle
+ * 121,875: erst ab 123). Der letzte Satz fehlt, sobald die Schwelle oben angekommen ist.
  */
 export function memoryRuleText(bonus: MemoryHarmonyBonus): string {
   const top = memoryHarmonyBonus(Infinity);
@@ -164,8 +166,8 @@ export function memoryRuleText(bonus: MemoryHarmonyBonus): string {
   return (
     `Waldgedächtnis: 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} Punkte höchster Harmonie` +
     (MEMORY_PER_NEW_SPECIES === 1 ? ' und je neue Art. ' : ` und ${formatNumber(MEMORY_PER_NEW_SPECIES)} je neue Art. `) +
-    `Höchste Harmonie über ${formatNumber(bonus.shownThreshold)} zählt extra: +${formatNumber(MEMORY_PER_HARMONY_POINT)} je Punkt (bis ${formatNumber(bonus.fullAt)}).` +
-    (bonus.threshold < top.threshold ? ` Die Schwelle steigt mit dem Wachstum bis ${formatNumber(top.shownThreshold)} im ${last}.` : '')
+    `Höchste Harmonie ab ${formatNumber(bonus.bonusFrom)} zählt extra: bis zu +${formatNumber(MEMORY_PER_HARMONY_POINT)} je Punkt (bis ${formatNumber(bonus.fullAt)}).` +
+    (bonus.threshold < top.threshold ? ` Die Schwelle steigt mit dem Wachstum bis ${formatNumber(Math.floor(top.threshold))} im ${last}.` : '')
   );
 }
 

@@ -4,6 +4,7 @@ import {
   CYCLE_LOCKED_TEXT,
   cycleViewKey,
   memoryBonusLabel,
+  memoryRuleText,
   newCycleBlockerText,
   fruitPhrase,
   newCycleToast,
@@ -12,10 +13,12 @@ import {
   toCyclePanelView,
   withRegulars,
 } from '../src/ui/cycle-view';
+import { cycleMemoryGain, memoryHarmonyBonus } from '../src/core/formulas';
+import { MEMORY_HARMONY_DIVISOR } from '../src/content/memory';
 import { stateAt } from './helpers';
 
 const MEMORY_RULE =
-  'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie über 100 zählt extra: +3 je Punkt (bis 115). Die Schwelle steigt mit dem Wachstum bis 150 im Urwald.';
+  'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie ab 101 zählt extra: bis zu +3 je Punkt (bis 115). Die Schwelle steigt mit dem Wachstum bis 150 im Urwald.';
 
 describe('View-Model „Neuer Zyklus“', () => {
   it('gesperrt: zeigt den Grund, keine Vorschau, keinen Knopf', () => {
@@ -31,26 +34,53 @@ describe('View-Model „Neuer Zyklus“', () => {
     expect(view.memoryRule).toBe(MEMORY_RULE);
   });
 
-  it('Regel nennt die Schwelle des erreichten Wegpunkts (Schritt 2.11b), krumme abgerundet', () => {
+  it('Regel nennt die erste Harmonie mit Bonus am erreichten Wegpunkt (Schritt 2.11b)', () => {
     const wald = stateAt(6, ['earthworm']);
     // Wegpunkt 28: Schwelle 125, Obergrenze 41,5 → ⌊140 / 5 + 41,5⌋ + 2 Arten = 69 + 2 = 71
     wald.cycle.maxHarmony = 140;
     wald.cycle.newSpecies = ['earthworm', 'robin'];
     const view = toCyclePanelView(wald);
-    expect(view.memoryRule).toBe(MEMORY_RULE.replace('über 100', 'über 125').replace('bis 115', 'bis 139'));
+    expect(view.memoryRule).toBe(MEMORY_RULE.replace('ab 101', 'ab 126').replace('bis 115', 'bis 139'));
     expect(view.gain).toBe('+71 Waldgedächtnis (+71 %)');
-    // Wegpunkt 23: Schwelle 109,375 → „über 109“, voll ab 124.
+    // Wegpunkt 23: Schwelle 109,375 → „ab 110“ (dort +1, danach +3 je Punkt), voll ab 124.
     wald.waypoint = 23;
     wald.stage = 5;
-    expect(toCyclePanelView(wald).memoryRule).toBe(MEMORY_RULE.replace('über 100', 'über 109').replace('bis 115', 'bis 124'));
+    expect(toCyclePanelView(wald).memoryRule).toBe(MEMORY_RULE.replace('ab 101', 'ab 110').replace('bis 115', 'bis 124'));
     const urwald = stateAt(7, ['earthworm']);
     urwald.cycle.maxHarmony = 140;
     urwald.cycle.newSpecies = ['earthworm', 'robin'];
     // Oben angekommen: kein Hinweis mehr aufs Steigen.
     expect(toCyclePanelView(urwald).memoryRule).toBe(
-      'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie über 150 zählt extra: +3 je Punkt (bis 163).',
+      'Waldgedächtnis: 1 Punkt je 5 Punkte höchster Harmonie und je neue Art. Höchste Harmonie ab 151 zählt extra: bis zu +3 je Punkt (bis 163).',
     );
     expect(toCyclePanelView(urwald).gain).toBe('+30 Waldgedächtnis (+30 %)');
+  });
+
+  it('genannte Harmonie und Gewinn passen an jedem Wegpunkt zusammen (Hain bis Urwald)', () => {
+    const base = (h: number) => Math.floor(h / MEMORY_HARMONY_DIVISOR);
+    const shown = (w: number) => Number(/ab (\d+) zählt extra/.exec(memoryRuleText(memoryHarmonyBonus(w)))![1]);
+    // Wegpunkt 23 (Schwelle 109,375): ab 110, dort +1 über dem Sockel.
+    expect(shown(23)).toBe(110);
+    expect(cycleMemoryGain(110, 0, 0, 23)).toBe(base(110) + 1);
+    // Wegpunkt 27 (Schwelle 121,875): 122 bringt nach dem Abrunden nichts extra, erst 123.
+    expect(shown(27)).toBe(123);
+    expect(cycleMemoryGain(122, 0, 0, 27)).toBe(base(122));
+    expect(cycleMemoryGain(123, 0, 0, 27)).toBeGreaterThan(base(123));
+    for (let w = 20; w <= 36; w++) {
+      const h = shown(w);
+      expect(cycleMemoryGain(h, 0, 0, w), `Wegpunkt ${w}, H ${h}`).toBeGreaterThan(base(h));
+      expect(cycleMemoryGain(h - 1, 0, 0, w), `Wegpunkt ${w}, H ${h - 1}`).toBe(base(h - 1));
+      // Ab der genannten Zahl wächst das Extra bis „voll“ mit jedem Punkt, im Schnitt um 3
+      // (einzelne Schritte 2–4, weil Sockel und Bonus zusammen abgerundet werden), und bleibt
+      // höchstens bei der Obergrenze.
+      const { fullAt, maxPoints, threshold } = memoryHarmonyBonus(w);
+      const extra = (x: number) => cycleMemoryGain(x, 0, 0, w) - base(x);
+      for (let x = h + 1; x <= fullAt; x++) {
+        expect(extra(x), `Wegpunkt ${w}, H ${x}`).toBeGreaterThan(extra(x - 1));
+        expect(extra(x), `Wegpunkt ${w}, H ${x}`).toBeLessThanOrEqual(Math.min(Math.ceil(maxPoints), Math.ceil(3 * (x - threshold))));
+      }
+      expect(extra(fullAt + 5)).toBeLessThanOrEqual(Math.ceil(maxPoints));
+    }
   });
 
   it('ab dem Hain: Vorschau „+43 Waldgedächtnis (+43 %)“ und neue Stammgast-Plätze', () => {

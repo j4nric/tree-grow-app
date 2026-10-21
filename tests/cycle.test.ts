@@ -69,11 +69,13 @@ describe('Waldgedächtnis-Formel (DESIGN_V2.md 10)', () => {
     const WALD = STAGES[HAIN_STAGE + 1]!.waypoint;
     const URWALD = STAGES[HAIN_STAGE + 2]!.waypoint;
     expect([HAIN, WALD, URWALD]).toEqual([20, 28, 36]);
-    expect(memoryHarmonyBonus(HAIN)).toEqual({ waypoint: 20, threshold: 100, maxPoints: 45, shownThreshold: 100, fullAt: 115 });
-    expect(memoryHarmonyBonus(WALD)).toEqual({ waypoint: 28, threshold: 125, maxPoints: 41.5, shownThreshold: 125, fullAt: 139 });
-    expect(memoryHarmonyBonus(URWALD)).toEqual({ waypoint: 36, threshold: 150, maxPoints: 38, shownThreshold: 150, fullAt: 163 });
-    // Krumm dazwischen: Wegpunkt 23 → Schwelle 109,375, Obergrenze 43,6875; Panel „über 109 (bis 124)“.
-    expect(memoryHarmonyBonus(23)).toMatchObject({ threshold: 109.375, maxPoints: 43.6875, shownThreshold: 109, fullAt: 124 });
+    expect(memoryHarmonyBonus(HAIN)).toEqual({ waypoint: 20, threshold: 100, maxPoints: 45, bonusFrom: 101, fullAt: 115 });
+    expect(memoryHarmonyBonus(WALD)).toEqual({ waypoint: 28, threshold: 125, maxPoints: 41.5, bonusFrom: 126, fullAt: 139 });
+    expect(memoryHarmonyBonus(URWALD)).toEqual({ waypoint: 36, threshold: 150, maxPoints: 38, bonusFrom: 151, fullAt: 163 });
+    // Krumm dazwischen: Wegpunkt 23 → Schwelle 109,375, Obergrenze 43,6875; Panel „ab 110 (bis 124)“.
+    expect(memoryHarmonyBonus(23)).toMatchObject({ threshold: 109.375, maxPoints: 43.6875, bonusFrom: 110, fullAt: 124 });
+    // Wegpunkt 27 → Schwelle 121,875: 122 bringt nach dem Abrunden nichts extra, erst 123.
+    expect(memoryHarmonyBonus(27)).toMatchObject({ threshold: 121.875, bonusFrom: 123 });
     // Vor dem Hain (nur Vorschau), hinter dem Urwald und bei Unsinn: nächstliegende Stützstelle.
     for (const w of [0, 12, 19, 19.9, NaN, -3]) expect(memoryHarmonyBonus(w), String(w)).toEqual(memoryHarmonyBonus(HAIN));
     expect(memoryHarmonyBonus(99)).toEqual(memoryHarmonyBonus(URWALD));

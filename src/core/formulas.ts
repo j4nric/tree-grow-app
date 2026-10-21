@@ -1233,18 +1233,31 @@ export interface MemoryHarmonyBonus {
   threshold: number;
   /** Obergrenze, zwischen den Stützstellen krumm (z. B. 44,4375). */
   maxPoints: number;
-  /** Ganze Zahl fürs Panel: Bonus gibt es für (gerundete) Harmonie über diesem Wert (⌊Schwelle⌋). */
-  shownThreshold: number;
+  /**
+   * Ganze Zahl fürs Panel: kleinste (gerundete) höchste Harmonie, die wirklich mehr bringt als
+   * der Sockel ⌊H / 5⌋. An ganzen Schwellen T + 1; an krummen oft ⌈T⌉ (Wegpunkt 23, T 109,375:
+   * ab 110 mit +1), manchmal ⌈T⌉ + 1 (Wegpunkt 27, T 121,875: 122 bringt nach dem Abrunden
+   * nichts, ab 123).
+   */
+  bonusFrom: number;
   /** Ab dieser (gerundeten) höchsten Harmonie ist der Bonus voll: ⌈Schwelle + Obergrenze / 3⌉. */
   fullAt: number;
 }
 
-/** Stützstellen: Wegpunkt der Stufe jeder Regel aus MEMORY_HARMONY_RULES, aufsteigend. */
-function memoryRulePoints(): { waypoint: number; threshold: number; maxPoints: number }[] {
-  return MEMORY_HARMONY_RULES.flatMap((r) => {
-    const stage = STAGES.find((s) => s.id === r.stage);
-    return stage ? [{ waypoint: stage.waypoint, threshold: r.threshold, maxPoints: r.maxPoints }] : [];
-  }).sort((a, b) => a.waypoint - b.waypoint);
+/** Stützstellen: Wegpunkt der Stufe jeder Regel aus MEMORY_HARMONY_RULES, aufsteigend (einmal beim Laden berechnet). */
+const MEMORY_RULE_POINTS: readonly { waypoint: number; threshold: number; maxPoints: number }[] = MEMORY_HARMONY_RULES.flatMap((r) => {
+  const stage = STAGES.find((s) => s.id === r.stage);
+  return stage ? [{ waypoint: stage.waypoint, threshold: r.threshold, maxPoints: r.maxPoints }] : [];
+}).sort((a, b) => a.waypoint - b.waypoint);
+
+/**
+ * Gedächtnis aus der (schon gerundeten) Harmonie H: ⌊H / 5 + min(C, 3 · max(0, H − T))⌋.
+ * Erst summieren, dann abrunden: So wächst der Gewinn entlang typischer Verläufe ohne
+ * Rundungsdellen (tests/cycle.test.ts, „typische Verläufe“). Kleiner Puffer gegen Gleitkomma.
+ */
+function harmonyMemoryPoints(harmony: number, threshold: number, maxPoints: number): number {
+  const above = Math.max(0, harmony - threshold);
+  return Math.floor(harmony / MEMORY_HARMONY_DIVISOR + Math.min(maxPoints, MEMORY_PER_HARMONY_POINT * above) + 1e-9);
 }
 
 /**
@@ -1255,7 +1268,7 @@ function memoryRulePoints(): { waypoint: number; threshold: number; maxPoints: n
  * zählt wie Wegpunkt 0, Infinity wie der letzte.
  */
 export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {
-  const points = memoryRulePoints();
+  const points = MEMORY_RULE_POINTS;
   const first = points[0]!;
   const last = points[points.length - 1]!;
   // NaN zählt wie 0, ±Infinity landet an der ersten bzw. letzten Stützstelle.
@@ -1271,13 +1284,16 @@ export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {
     maxPoints = a.maxPoints + t * (b.maxPoints - a.maxPoints);
     break;
   }
-  return {
-    waypoint: w,
-    threshold,
-    maxPoints,
-    shownThreshold: Math.floor(threshold),
-    fullAt: Math.ceil(threshold + maxPoints / MEMORY_PER_HARMONY_POINT - 1e-9),
-  };
+  const fullAt = Math.ceil(threshold + maxPoints / MEMORY_PER_HARMONY_POINT - 1e-9);
+  // Erste ganze Harmonie mit Gewinn über dem Sockel – exakt wie cycleMemoryGain rechnet.
+  let bonusFrom = fullAt;
+  for (let h = Math.max(0, Math.ceil(threshold)); h <= fullAt; h++) {
+    if (harmonyMemoryPoints(h, threshold, maxPoints) > harmonyMemoryPoints(h, Infinity, 0)) {
+      bonusFrom = h;
+      break;
+    }
+  }
+  return { waypoint: w, threshold, maxPoints, bonusFrom, fullAt };
 }
 
 /**
@@ -1294,10 +1310,7 @@ export function cycleMemoryGain(maxHarmony: number, newSpeciesCount: number, for
   // als „Höchste Harmonie“ zeigen (100,6 → 101 zählt also schon extra).
   const harmony = Math.round(Math.max(0, finite(maxHarmony)));
   const bonus = memoryHarmonyBonus(waypoint);
-  const above = Math.max(0, harmony - bonus.threshold);
-  // Erst summieren, dann abrunden: So wächst der Gewinn entlang typischer Verläufe ohne
-  // Rundungsdellen (tests/cycle.test.ts, „typische Verläufe“). Kleiner Puffer gegen Gleitkomma.
-  const harmonyPoints = Math.floor(harmony / MEMORY_HARMONY_DIVISOR + Math.min(bonus.maxPoints, MEMORY_PER_HARMONY_POINT * above) + 1e-9);
+  const harmonyPoints = harmonyMemoryPoints(harmony, bonus.threshold, bonus.maxPoints);
   const speciesPoints = MEMORY_PER_NEW_SPECIES * Math.max(0, Math.floor(finite(newSpeciesCount)));
   const room = MAX_FOREST_MEMORY - Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
   return Math.min(room, harmonyPoints + speciesPoints);

@@ -5,7 +5,7 @@ import { CYCLES, FULL, HAIN, MAX_SECONDS, RESTART_RUNS, URWALD, WALD } from './b
 /**
  * Neuer Zyklus erst später (Schritt 2.11b, DESIGN_V2.md 10 und 15.4): Jeder Zyklus läuft bis
  * Hain, Wald oder Urwald, dann Neustart. Schwelle und Obergrenze des Harmonie-Bonus gleiten
- * mit dem Wegpunkt (content/memory.ts, MEMORY_HARMONY_RULES; Hain 100 / 45 → Urwald 150 / 36).
+ * mit dem Wegpunkt (content/memory.ts, MEMORY_HARMONY_RULES; Hain 100 / 45 → Urwald 150 / 38).
  *
  * Ziele: (a) ab Zyklus 2 ist die Harmonie-Spielweise in jeder Stufe mindestens gleichauf
  * (Wachstum/Harmonie ≥ 0,97), (b) ein späterer Neustart bringt moderat mehr Gedächtnis als
@@ -13,11 +13,21 @@ import { CYCLES, FULL, HAIN, MAX_SECONDS, RESTART_RUNS, URWALD, WALD } from './b
  * (d) Gelegenheitsspieler (Zufall, nur im großen Lauf) bekommen später mehr als im Hain und
  * sind in Zyklus 2 ≥ 20 % schneller.
  *
- * Im Check nur 12 Durchgänge: Das Verhältnis Wachstum/Harmonie in Zyklus 2 streut dann je
- * Seed-Fenster stark (gemessen mit Schwellen je Stufe: Wald 0,87–1,12, Urwald 0,91–1,21; mit
- * der Hain-Schwelle für alle Stufen 0,83–0,96 bzw. 0,81–1,00; Check-Fenster jetzt 0,96 /
- * 0,91). Darum prüft der Check vor allem den Gedächtnis-Gewinn, der kaum streut, und das
- * Verhältnis nur grob.
+ * Im Check nur 12 Durchgänge, die Werte streuen je Seed-Fenster stark. Gemessen mit
+ * gleitender Schwelle in 11 Fenstern (Seed-Start 500, 1000 = Check, 2000, 3001, 4500, 7777,
+ * 9999, 12345, 15000, 20000, 31337):
+ * - Wachstum/Harmonie je Zyklus 2 / 3: Wald 0,85–1,16, Urwald 0,81–1,13; Zyklus 2 + 3
+ *   zusammen Wald 0,86–1,15, Urwald 0,86–1,06,
+ * - Gedächtnis-Vorsprung Harmonie über drei Zyklen: Wald 36–82, Urwald 24–67 Punkte;
+ *   in Zyklus 1 Wald +7,5 bis +23, Urwald +4,5 bis +24,
+ * - Urwald/Hain-Gewinn des Harmonie-Spielers 1,29–1,76, Urwald-Gewinn 81–94,
+ * - Mittel-Verlauf der Vorschau: größte Delle −2,9 bis −5,0 (großer Lauf −1,2),
+ * - größter Rückgang an einem Wegpunkt immer genau −10 (Formel-Grenze, s. u.),
+ * - Wachstums-Spieler: Gewinn Wald bzw. Urwald in einem Fenster (31337) unter dem Hain
+ *   (64,7 / 62,3 / 63,3; großer Lauf 48,8 / 58,0 / 72,4).
+ * Darum prüft der Check vor allem den Gedächtnis-Vorsprung und die Formel-Grenze; Verhältnis
+ * und Gewinn-Quotient nur grob, Mittel-Verlauf und Reihenfolge beim Wachstums-Spieler nur im
+ * großen Lauf.
  */
 const options = { maxSeconds: MAX_SECONDS, care: true, cycles: CYCLES };
 const strategies = FULL ? [HARMONY, GROWTH, RANDOM] : [HARMONY, GROWTH];
@@ -48,27 +58,30 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
       // (großer Lauf: Wald 250 / 236, Urwald 271 / 260), jetzt 50–60 (großer Lauf: Wald 226 / 164,
       // Urwald 243 / 193; Check: Wald 223 / 161, Urwald 238 / 189).
       const total = (id: string) => row(stage, id).runs.reduce((sum, run) => sum + run.reduce((a, c) => a + c.memoryGain, 0), 0) / RESTART_RUNS;
-      expect(total(HARMONY.id) - total(GROWTH.id), `Stufe ${stage}`).toBeGreaterThan(FULL ? 30 : 20);
-      expect(restartGain(row(stage, HARMONY.id), 0), `Stufe ${stage}`).toBeGreaterThan(restartGain(row(stage, GROWTH.id), 0) + (FULL ? 10 : 3));
+      expect(total(HARMONY.id) - total(GROWTH.id), `Stufe ${stage}`).toBeGreaterThan(FULL ? 30 : 15);
+      expect(restartGain(row(stage, HARMONY.id), 0), `Stufe ${stage}`).toBeGreaterThan(restartGain(row(stage, GROWTH.id), 0) + (FULL ? 10 : 2));
       // Großer Lauf: Zyklus 2 und 3 ≥ 0,97. Check (12 Durchgänge, Seed-Fenster siehe oben):
-      // grob ≥ 0,84 je Zyklus und über beide Zyklen zusammen ≥ 0,85.
-      expect(ratio(stage, 1), `Stufe ${stage} Zyklus 2`).toBeGreaterThan(FULL ? 0.97 : 0.84);
-      expect(ratio(stage, 2), `Stufe ${stage} Zyklus 3`).toBeGreaterThan(FULL ? 0.97 : 0.84);
+      // grob ≥ 0,76 je Zyklus und über beide Zyklen zusammen ≥ 0,8.
+      expect(ratio(stage, 1), `Stufe ${stage} Zyklus 2`).toBeGreaterThan(FULL ? 0.97 : 0.76);
+      expect(ratio(stage, 2), `Stufe ${stage} Zyklus 3`).toBeGreaterThan(FULL ? 0.97 : 0.76);
       const later = (id: string) => restartTime(row(stage, id), 1) + restartTime(row(stage, id), 2);
-      expect(later(GROWTH.id) / later(HARMONY.id), `Stufe ${stage} Zyklus 2 + 3`).toBeGreaterThan(FULL ? 0.97 : 0.85);
+      expect(later(GROWTH.id) / later(HARMONY.id), `Stufe ${stage} Zyklus 2 + 3`).toBeGreaterThan(FULL ? 0.97 : 0.8);
     }
   });
 
   it('(b) späterer Neustart bringt moderat mehr: Wald > Hain, Urwald > Wald, Urwald ≤ ~1,5 × Hain', () => {
-    for (const s of strategies) {
+    // Im Check nur der Harmonie-Spieler: Beim Wachstums-Spieler liegen die Gewinne mit 12
+    // Durchgängen manchmal gleichauf (Seed-Fenster siehe oben).
+    for (const s of FULL ? strategies : [HARMONY]) {
       const gain = (stage: number) => restartGain(row(stage, s.id), 0);
       expect(gain(WALD), s.id).toBeGreaterThan(gain(HAIN));
       expect(gain(URWALD), s.id).toBeGreaterThan(gain(WALD));
     }
-    // Harmonie-Spieler, Zyklus 1 (großer Lauf 1,46; mit der Hain-Schwelle 1,65).
+    // Harmonie-Spieler, Zyklus 1 (großer Lauf 1,46 und 88; mit der Hain-Schwelle 1,65 und 100;
+    // Check-Fenster 1,29–1,76 und 81–94).
     const harmony = (stage: number) => restartGain(row(stage, HARMONY.id), 0);
-    expect(harmony(URWALD) / harmony(HAIN)).toBeLessThan(FULL ? 1.5 : 1.6);
-    expect(harmony(URWALD)).toBeLessThan(95);
+    expect(harmony(URWALD) / harmony(HAIN)).toBeLessThan(FULL ? 1.5 : 1.9);
+    expect(harmony(URWALD)).toBeLessThan(FULL ? 95 : 100);
   });
 
   it('(d) Gelegenheitsspieler: später mehr Gedächtnis als im Hain, Zyklus 2 ≥ 20 % schneller (großer Lauf)', () => {
@@ -82,15 +95,17 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
 
   it('Vorschau beim Wachsen: kein Sprung beim Stufenwechsel, Rückgang je Wegpunkt klein', () => {
     // Die Schwelle steigt um 3,125 je Wegpunkt. Bleibt H_max an einem Wegpunkt gleich, sinkt die
-    // Vorschau um höchstens ~10 Punkte (3 · 3,125 plus Rundung) – mit Schwellen je Stufe sprang
-    // sie beim Erreichen von Wald bzw. Urwald im Mittel um 14–26 Punkte. Der Mittel-Verlauf
-    // steigt (großer Lauf: größte Delle −1,2; Check bis −2,9, weil 12 Durchgänge streuen).
+    // Vorschau um höchstens 10 Punkte (3 · 3,125 = 9,375, nach dem Abrunden ≤ 10) – mit
+    // Schwellen je Stufe sprang sie beim Erreichen von Wald bzw. Urwald im Mittel um 14–26
+    // Punkte. Diese Grenze folgt aus der Formel und gilt in jedem Seed-Fenster. Der
+    // Mittel-Verlauf steigt (großer Lauf: größte Delle −1,2); mit 12 Durchgängen streut er
+    // bis −5 (siehe oben), darum prüft ihn nur der große Lauf.
     for (const r of rows) {
       if (r.stage === HAIN) continue;
       for (let c = 0; c < CYCLES; c++) {
         const st = memoryPathStats(r.runs, c);
         expect(st.worstDrop, `${r.strategy.id} Stufe ${r.stage} Zyklus ${c + 1}`).toBeGreaterThanOrEqual(-10);
-        expect(st.worstMeanDip, `${r.strategy.id} Stufe ${r.stage} Zyklus ${c + 1} Mittel`).toBeGreaterThanOrEqual(FULL ? -1.5 : -4);
+        if (FULL) expect(st.worstMeanDip, `${r.strategy.id} Stufe ${r.stage} Zyklus ${c + 1} Mittel`).toBeGreaterThanOrEqual(-1.5);
       }
     }
   });
