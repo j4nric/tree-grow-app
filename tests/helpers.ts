@@ -75,6 +75,7 @@ export function tickToGrowth(state: GameState, target: number): TickReport {
     autoDeclined: 0,
     declinedStackFull: 0,
     declinedNoCards: 0,
+    declinedSeeds: 0,
     regulars: [],
     interludes: 0,
     interludesReached: 0,
@@ -84,7 +85,7 @@ export function tickToGrowth(state: GameState, target: number): TickReport {
   for (let i = 0; i < 1000 && state.totalGrowth < target; i++) {
     const rate = evaluate(state).growth;
     const r = tick(state, Math.max(1e-6, ((target - state.totalGrowth) / rate) * 1.01));
-    for (const k of ['waypoints', 'encounters', 'autoDeclined', 'declinedStackFull', 'declinedNoCards', 'interludes', 'interludesReached'] as const) {
+    for (const k of ['waypoints', 'encounters', 'autoDeclined', 'declinedStackFull', 'declinedNoCards', 'declinedSeeds', 'interludes', 'interludesReached'] as const) {
       total[k] += r[k];
     }
     total.regulars.push(...r.regulars);

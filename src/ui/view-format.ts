@@ -208,8 +208,17 @@ export function rerollLabel(cost: number): string {
   return `Neu würfeln (${MINUS}${formatNumber(cost)} 🌰)`;
 }
 
+/**
+ * Samen für Knöpfe, Karten, Meldungen und schwebende Zahlen: ab 10 ganze Zahlen, darunter
+ * eine Nachkommastelle – so zeigen Knopf („+144 🌰“) und schwebende Zahl dasselbe.
+ */
+export function seedsLabel(seeds: number): string {
+  return formatNumber(seeds >= 10 ? Math.round(seeds) : Math.round(seeds * 10) / 10);
+}
+
+/** „Ablehnen (+N 🌰)“, gerundet wie seedsLabel. */
 export function declineLabel(reward: number): string {
-  return `Ablehnen (+${formatNumber(reward)} 🌰)`;
+  return `Ablehnen (+${seedsLabel(reward)} 🌰)`;
 }
 
 /** Hinweis bei voller Nische: „Nische Krone voll – ersetzt Rotkehlchen“. */

@@ -12,8 +12,12 @@ export const CARDS_PER_ENCOUNTER = 3;
 /** Höchstens so viele Begegnungen warten; überzählige werden automatisch abgelehnt. */
 export const MAX_PENDING_ENCOUNTERS = 3;
 
-/** Ablehnen bringt so viele Samen (auch beim automatischen Ablehnen). */
-export const DECLINE_SEEDS = 5;
+/**
+ * Ablehnen bringt die Samen von so vielen Sekunden (Samen-Sekunden wie bei Gästen und
+ * Ereignissen, mindestens SEED_SECONDS_MIN_SEEDS aus events.ts) – auch beim
+ * automatischen Ablehnen (Stapel voll, keine Karte). DESIGN_V2.md 7.9.
+ */
+export const DECLINE_SEED_SECONDS = 10;
 
 /** Neu würfeln kostet REROLL_BASE_COST · REROLL_COST_GROWTH^(bisherige Würfe dieser Begegnung). */
 export const REROLL_BASE_COST = 10;

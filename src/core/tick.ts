@@ -87,6 +87,8 @@ export interface TickReport {
   declinedStackFull: number;
   /** Davon abgelehnt, weil weder Art noch Pflanze in Frage kam. */
   declinedNoCards: number;
+  /** Summe der für automatisch abgelehnte Begegnungen gutgeschriebenen Samen (Rate je Wegpunkt). */
+  declinedSeeds: number;
   /** Eingezogene Stammgäste (Art-IDs, in Reihenfolge des Einzugs). */
   regulars: string[];
   /** Am Zwischenhalt (ab Hain) in die Warteschlange gelegte Ereignisse und Gäste. */
@@ -129,6 +131,7 @@ export function tick(state: GameState, dt: number): TickReport {
     autoDeclined: 0,
     declinedStackFull: 0,
     declinedNoCards: 0,
+    declinedSeeds: 0,
     regulars: [],
     interludes: 0,
     interludesReached: 0,
@@ -368,6 +371,14 @@ export function simulateOffline(state: GameState, seconds: number): OfflineRepor
   return { ...report, seconds: total, growth: state.totalGrowth - growthBefore, seeds: state.seeds - seedsBefore };
 }
 
+/** Automatisches Ablehnen am Wegpunkt: Samen wie beim Ablehnen von Hand, im Bericht summiert. */
+function autoDecline(state: GameState, report: TickReport): void {
+  const reward = declineReward(state);
+  state.seeds = capped(state.seeds + reward);
+  report.declinedSeeds = capped(report.declinedSeeds + reward);
+  report.autoDeclined++;
+}
+
 function reachWaypoint(state: GameState, report: TickReport): void {
   state.waypoint++;
   state.stage = Math.max(state.stage, stageForWaypoint(state.waypoint));
@@ -380,16 +391,14 @@ function reachWaypoint(state: GameState, report: TickReport): void {
   recordDiscoveries(state);
   if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) {
     // Warteschlange voll: überzählige Begegnung gleich ablehnen – nichts verfällt.
-    state.seeds = capped(state.seeds + declineReward());
-    report.autoDeclined++;
+    autoDecline(state, report);
     report.declinedStackFull++;
     return;
   }
   const encounter = drawEncounter(state);
   if (!encounter) {
     // Weder Art noch Pflanze kommt in Frage: wie Ablehnen.
-    state.seeds = capped(state.seeds + declineReward());
-    report.autoDeclined++;
+    autoDecline(state, report);
     report.declinedNoCards++;
     return;
   }
@@ -691,7 +700,7 @@ export function declineEncounter(state: GameState, encounterIndex: number): Acti
   const encounter = state.pendingEncounters[encounterIndex];
   if (!encounter) return fail('no-encounter');
   if (!isCardEncounter(encounter.type)) return fail('wrong-type');
-  state.seeds = capped(state.seeds + declineReward());
+  state.seeds = capped(state.seeds + declineReward(state));
   state.pendingEncounters.splice(encounterIndex, 1);
   return { ok: true };
 }

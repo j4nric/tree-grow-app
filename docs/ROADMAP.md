@@ -153,9 +153,9 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   „längste Pause ohne Entscheidung“ und „Samen ungenutzt“ mit Prüfungen; längste Pause in
   den ersten 6 min 1:41 → 1:08 min bei gleichem Tempo; Harmoniestufe „Urwald“ heißt jetzt
   „Ursprüngliche Wildnis“ (DESIGN_V2.md 15.4 „Stand Playtest frühes Spiel“, Entscheidung 13)
-  - [ ] offen (`core-engineer`): Ablehnen nach Samen-Sekunden – 10 s, mindestens 5 🌰, auch
-    beim Weiterziehen online/offline; Formel, Aufrufe in `tick.ts`, Meldungen und Tests in
-    DESIGN_V2.md 7.9 (nicht im Branch, weil `tick.ts` parallel für Spielstand v10 geändert wird)
+  - [x] Ablehnen nach Samen-Sekunden (`core-engineer`): 10 s, mindestens 5 🌰, von Hand und
+    beim Weiterziehen online/offline (`declineReward(state)`, `TickReport.declinedSeeds`);
+    Meldungen nennen die echte Summe; kein neues Spielstand-Feld (DESIGN_V2.md 7.9)
 - [x] Tierdetails (`ui-developer`): Tier-Kacheln der Nischen öffnen per Klick/Tippen/Enter
   einen Dialog mit Zufriedenheit und Gründen, Beitrag (Chips wie bei der Auswahl),
   Wirkungen, Fähigkeiten, Lebensgemeinschaften (ohne Spoiler), Stammgast-Status und

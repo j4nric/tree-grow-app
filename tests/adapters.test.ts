@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { DECLINE_SEEDS, REROLL_BASE_COST } from '../src/content/encounters';
+import { REROLL_BASE_COST } from '../src/content/encounters';
 import { PLANT_GROUP_INFO, PLANTS_BY_ID } from '../src/content/plants';
 import { SPECIES, SPECIES_BY_ID } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
-import { evaluate, nextPlantCost, previewChoice, previewPlant } from '../src/core/formulas';
+import { declineReward, evaluate, nextPlantCost, previewChoice, previewPlant } from '../src/core/formulas';
 import { MAX_OFFLINE_SECONDS, unlockedPlants } from '../src/core/tick';
 import { formatDuration, formatNumber } from '../src/ui/format';
 import { preferredReplaceOption, seedsLine } from '../src/ui/view-format';
@@ -304,7 +304,7 @@ describe('toEncounterView', () => {
     expect(view.rerollCost).toBe(REROLL_BASE_COST);
     expect(view.canReroll).toBe(false);
     expect(view.rerollDisabledReason).toBe('Nicht genug Samen');
-    expect(view.declineReward).toBe(DECLINE_SEEDS);
+    expect(view.declineReward).toBe(declineReward(state));
 
     state.seeds = REROLL_BASE_COST;
     expect(toEncounterView(state, 0)!.canReroll).toBe(true);
@@ -364,7 +364,7 @@ describe('toEncounterView', () => {
 });
 
 describe('welcomeText', () => {
-  const report = { seconds: 3600, growth: 1234, seeds: 56, autoDeclined: 0 };
+  const report = { seconds: 3600, growth: 1234, seeds: 56, autoDeclined: 0, declinedSeeds: 0 };
 
   it('nennt Dauer, Ertrag und wartende Begegnungen', () => {
     expect(welcomeText(3600, report, 2)).toBe(
@@ -397,17 +397,18 @@ describe('welcomeText', () => {
   });
 
   it('weitergezogene Begegnungen nur als Nebensatz – mit ihrem Dank in Samen', () => {
-    const text = welcomeText(3600, { ...report, autoDeclined: 16 }, 3, { from: 4, to: 5 });
+    // Die Summe kommt aus dem Bericht (Rate je Wegpunkt), nicht als n × Betrag.
+    const text = welcomeText(3600, { ...report, autoDeclined: 16, declinedSeeds: 1234.6 }, 3, { from: 4, to: 5 });
     expect(text).toBe(
       `Willkommen zurück! In 1 Std. wuchs dein Baum bis zur Stufe „${STAGES[5]!.name}“: +1.234 🌿, +56 🌰. ` +
-        `3 Begegnungen warten auf dich – 16 weitere zogen weiter und ließen +${16 * DECLINE_SEEDS} 🌰 da.`,
+        `3 Begegnungen warten auf dich – 16 weitere zogen weiter und ließen +1.235 🌰 da.`,
     );
     // Erst Wachstum, dann Wartende, ganz hinten das Weiterziehen.
     expect(text.indexOf('Stufe')).toBeLessThan(text.indexOf('warten'));
     expect(text.indexOf('warten')).toBeLessThan(text.indexOf('zogen weiter'));
     expect(welcomeText(3600, { ...report, autoDeclined: 1 }, 3)).toContain('1 weitere zog weiter und ließ');
-    expect(welcomeText(3600, { ...report, autoDeclined: 3 }, 0)).toContain(
-      `3 Begegnungen zogen weiter und ließen +${3 * DECLINE_SEEDS} 🌰 da.`,
+    expect(welcomeText(3600, { ...report, autoDeclined: 3, declinedSeeds: 7.25 }, 0)).toContain(
+      `3 Begegnungen zogen weiter und ließen +7,3 🌰 da.`,
     );
   });
 
@@ -637,12 +638,18 @@ describe('Stimmung: Gründe unter 70 %', () => {
 
 describe('autoDeclineText', () => {
   it('nichts Passendes: „Niemand zog ein“ mit den Samen fürs Ablehnen', () => {
-    expect(autoDeclineText(1, false)).toBe(`Niemand zog ein · +${formatNumber(DECLINE_SEEDS)} 🌰`);
-    expect(autoDeclineText(2, false)).toBe(`Niemand zog ein · +${formatNumber(2 * DECLINE_SEEDS)} 🌰`);
+    expect(autoDeclineText(1, false, 5)).toBe(`Niemand zog ein · +5 🌰`);
+    expect(autoDeclineText(2, false, 143.6)).toBe(`Niemand zog ein · +144 🌰`);
+  });
+
+  it('nennt die echte Summe (Samen-Sekunden), auch bei Unsinn nie negativ', () => {
+    expect(autoDeclineText(1, false, 7.25)).toBe(`Niemand zog ein · +7,3 🌰`);
+    expect(autoDeclineText(1, false, -3)).toBe(`Niemand zog ein · +0 🌰`);
   });
 
   it('Stapel voll: sagt, dass die Begegnung weiterzog', () => {
-    expect(autoDeclineText(1, true)).toBe(`Stapel voll – eine Begegnung zog weiter · +${formatNumber(DECLINE_SEEDS)} 🌰`);
+    expect(autoDeclineText(1, true, 5)).toBe(`Stapel voll – eine Begegnung zog weiter · +5 🌰`);
+    expect(autoDeclineText(2, true, 280)).toBe(`Stapel voll – Begegnungen zogen weiter · +280 🌰`);
   });
 });
 
@@ -920,10 +927,10 @@ describe('Auswahl „Pflanze setzen“', () => {
 });
 
 describe('catchUpNotice', () => {
-  const report = { seconds: 0, growth: 0, seeds: 0, autoDeclined: 0, declinedStackFull: 0 };
+  const report = { seconds: 0, growth: 0, seeds: 0, autoDeclined: 0, declinedStackFull: 0, declinedSeeds: 0 };
 
   it('nach langer Abwesenheit die Willkommens-Meldung (sie nennt verpasste Begegnungen selbst)', () => {
-    const r = { ...report, seconds: 3600, growth: 500, seeds: 20, autoDeclined: 2, declinedStackFull: 2 };
+    const r = { ...report, seconds: 3600, growth: 500, seeds: 20, autoDeclined: 2, declinedStackFull: 2, declinedSeeds: 10 };
     expect(catchUpNotice(3600, r, 3)).toEqual({ kind: 'welcome', text: welcomeText(3600, r, 3), namesStage: false });
   });
 
@@ -938,11 +945,11 @@ describe('catchUpNotice', () => {
   });
 
   it('kurz weg (2–60 s) mit verpasster Begegnung: der kurze Hinweis wie im laufenden Spiel', () => {
-    const full = { ...report, seconds: 20, growth: 120, seeds: 4, autoDeclined: 1, declinedStackFull: 1 };
-    expect(catchUpNotice(20, full, 3)).toEqual({ kind: 'note', text: autoDeclineText(1, true) });
+    const full = { ...report, seconds: 20, growth: 120, seeds: 4, autoDeclined: 1, declinedStackFull: 1, declinedSeeds: 5 };
+    expect(catchUpNotice(20, full, 3)).toEqual({ kind: 'note', text: autoDeclineText(1, true, 5) });
     // Nichts Passendes: kein „Stapel voll“, auch wenn danach 3 Begegnungen warten.
     const none = { ...full, declinedStackFull: 0 };
-    expect(catchUpNotice(WELCOME_MIN_SECONDS, none, 3)).toEqual({ kind: 'note', text: autoDeclineText(1, false) });
+    expect(catchUpNotice(WELCOME_MIN_SECONDS, none, 3)).toEqual({ kind: 'note', text: autoDeclineText(1, false, 5) });
   });
 
   it('nichts verpasst und kurz weg: keine Meldung', () => {
@@ -953,11 +960,13 @@ describe('catchUpNotice', () => {
 
 describe('tickDeclineText', () => {
   it('„Stapel voll“ nur, wenn der Stapel wirklich voll war', () => {
-    expect(tickDeclineText({ autoDeclined: 1, declinedStackFull: 1 })).toBe(autoDeclineText(1, true));
-    expect(tickDeclineText({ autoDeclined: 1, declinedStackFull: 0 })).toBe(autoDeclineText(1, false));
-    expect(tickDeclineText({ autoDeclined: 2, declinedStackFull: 0 })).toMatch(/^Niemand zog ein/);
+    expect(tickDeclineText({ autoDeclined: 1, declinedStackFull: 1, declinedSeeds: 5 })).toBe(autoDeclineText(1, true, 5));
+    expect(tickDeclineText({ autoDeclined: 1, declinedStackFull: 0, declinedSeeds: 5 })).toBe(autoDeclineText(1, false, 5));
+    expect(tickDeclineText({ autoDeclined: 2, declinedStackFull: 0, declinedSeeds: 10 })).toMatch(/^Niemand zog ein/);
     // Gemischte Gründe: neutral statt „Stapel voll“
-    expect(tickDeclineText({ autoDeclined: 2, declinedStackFull: 1 })).toMatch(/^Niemand zog ein/);
+    expect(tickDeclineText({ autoDeclined: 2, declinedStackFull: 1, declinedSeeds: 10 })).toMatch(/^Niemand zog ein/);
+    // Die Samen kommen aus dem Bericht (Summe der Wegpunkte), nicht n × Betrag.
+    expect(tickDeclineText({ autoDeclined: 2, declinedStackFull: 2, declinedSeeds: 287.4 })).toContain('+287 🌰');
   });
 });
 

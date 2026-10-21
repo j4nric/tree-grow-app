@@ -12,7 +12,7 @@ import {
 } from '../content/abilities';
 import { CARE, type CareCycleEffect } from '../content/care';
 import { COMMUNITIES, type CommunityMember } from '../content/communities';
-import { DECLINE_SEEDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
+import { DECLINE_SEED_SECONDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
 import { SEED_SECONDS_MIN_SEEDS } from '../content/events';
 import {
   FOREST_MEMORY_BONUS,
@@ -1200,9 +1200,13 @@ export function seedSeconds(state: GameState, seconds: number): number {
   return Math.min(Number.MAX_VALUE, Math.max(SEED_SECONDS_MIN_SEEDS, value));
 }
 
-/** Samen für „Ablehnen“. */
-export function declineReward(): number {
-  return DECLINE_SEEDS;
+/**
+ * Samen für „Ablehnen“ (von Hand und automatisch): DECLINE_SEED_SECONDS Samen-Sekunden,
+ * mindestens SEED_SECONDS_MIN_SEEDS (DESIGN_V2.md 7.9). Hängt von der Rate im Moment ab –
+ * offline also genau so viel wie online am selben Wegpunkt.
+ */
+export function declineReward(state: GameState): number {
+  return seedSeconds(state, DECLINE_SEED_SECONDS);
 }
 
 /** Kosten für „Neu würfeln“ dieser Begegnung (verdoppelt sich je Wurf). */
