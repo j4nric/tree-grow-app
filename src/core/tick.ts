@@ -10,6 +10,7 @@ import {
   PLANT_WEIGHT_RING_FULL,
   SCRIPTED_ENCOUNTERS,
 } from '../content/encounters';
+import { CARE_BY_ID, type CareMeasure, type CareRank } from '../content/care';
 import { EVENTS, EVENTS_BY_ID, type GameEvent } from '../content/events';
 import { JOURNAL_SPECIES_WEIGHT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { PLANTS, PLANTS_BY_ID } from '../content/plants';
@@ -25,6 +26,7 @@ import {
   cycleSlotBonuses,
   declineReward,
   ecosystemOf,
+  evaluateEcosystem,
   evaluate,
   nextPlantCost,
   nicheSlots,
@@ -39,6 +41,7 @@ import {
   stageForWaypoint,
   thresholdFor,
   type ChoiceError,
+  type Evaluation,
 } from './formulas';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import {
@@ -402,7 +405,9 @@ export type ActionError =
   /** Ereignis: Diese Option gibt es nicht. */
   | 'no-option'
   /** Gast: rastet schon (nur bei manipulierten Ständen denkbar). */
-  | 'already-active';
+  | 'already-active'
+  /** Pflege (careBlocker): siehe CareBlocker. */
+  | CareBlocker;
 
 /**
  * Ergebnis einer Spieleraktion. `discovered`: Lebensgemeinschaften, die durch die Aktion
@@ -875,4 +880,65 @@ export function farewellVisitor(state: GameState, encounterIndex: number): Actio
   state.seeds = capped(state.seeds + seeds);
   state.pendingEncounters.splice(encounterIndex, 1);
   return { ok: true, seeds };
+}
+
+// ---------------------------------------------------------------------------
+// Pflegemaßnahmen (DESIGN_V2.md 8, Umsetzungsnotiz 8.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Warum ein Pflege-Rang gerade nicht gekauft werden kann (Reihenfolge der Prüfung):
+ * unbekannte Maßnahme, alle Ränge gekauft, Stufe zu niedrig, Gegenstück schon gekauft,
+ * Bedingung nicht erfüllt, Samen reichen nicht.
+ */
+export type CareBlocker = 'unknown-care' | 'maxed' | 'stage' | 'excluded' | 'requires' | 'too-expensive';
+
+/** Gekaufte Ränge dieser Maßnahme (0 = noch keiner). */
+export function careRank(state: GameState, id: string): number {
+  const measure = CARE_BY_ID.get(id);
+  const rank = state.cycle.care[id] ?? 0;
+  return measure ? Math.min(measure.ranks.length, Math.max(0, Math.floor(Number.isFinite(rank) ? rank : 0))) : 0;
+}
+
+/** Nächster kaufbarer Rang einer Maßnahme (undefined, wenn unbekannt oder voll ausgebaut). */
+export function nextCareRank(state: GameState, id: string): CareRank | undefined {
+  return CARE_BY_ID.get(id)?.ranks[careRank(state, id)];
+}
+
+/** Warum der nächste Rang nicht gekauft werden kann – null, wenn es geht. Ändert nichts. */
+export function careBlocker(state: GameState, id: string): CareBlocker | null {
+  const measure: CareMeasure | undefined = CARE_BY_ID.get(id);
+  if (!measure) return 'unknown-care';
+  const next = measure.ranks[careRank(state, id)];
+  if (!next) return 'maxed';
+  if (state.stage < next.minStage) return 'stage';
+  if (measure.excludes?.some((other) => careRank(state, other) > 0)) return 'excluded';
+  if (measure.requires && !speciesAppears(appearsContext(ecosystemOf(state)), { appears: measure.requires })) return 'requires';
+  if (!(state.seeds >= next.cost)) return 'too-expensive';
+  return null;
+}
+
+/**
+ * Kauft den nächsten Rang einer Pflegemaßnahme: Samen abziehen, Rang erhöhen, H_max und
+ * Tagebuch nachführen. Wirkt bis zum Neuen Zyklus; die Bedingung gilt nur beim Kauf.
+ * `seeds` im Ergebnis: die Kosten (negativ).
+ */
+export function buyCare(state: GameState, id: string): ActionResult {
+  const blocker = careBlocker(state, id);
+  if (blocker) return fail(blocker);
+  const cost = nextCareRank(state, id)!.cost;
+  state.seeds = Math.max(0, state.seeds - cost);
+  state.cycle.care[id] = careRank(state, id) + 1;
+  const discovered = recordDiscoveries(state);
+  return discovered.length > 0 ? { ok: true, discovered, seeds: -cost } : { ok: true, seeds: -cost };
+}
+
+/**
+ * Vorschau: das Ökosystem mit dem nächsten Rang (wie previewPlant). Prüft weder Samen
+ * noch Stufe (siehe careBlocker); null bei unbekannter oder voll ausgebauter Maßnahme.
+ */
+export function previewCare(state: GameState, id: string): Evaluation | null {
+  if (!nextCareRank(state, id)) return null;
+  const care = { ...state.cycle.care, [id]: careRank(state, id) + 1 };
+  return evaluateEcosystem(ecosystemOf({ ...state, cycle: { ...state.cycle, care } }));
 }

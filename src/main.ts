@@ -1,3 +1,4 @@
+import { CARE } from './content/care';
 import { STAGES } from './content/stages';
 import { evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
@@ -5,7 +6,9 @@ import { createInitialState, type GameState } from './core/state';
 import type { PendingEncounterType } from './core/state';
 import {
   chooseCard,
+  buyCare,
   chooseEventOption,
+  nextCareRank,
   declineEncounter,
   farewellVisitor,
   hostVisitor,
@@ -33,12 +36,14 @@ import {
   toEncounterView,
   toPlantPickerView,
   activeBonusViews,
+  toCareViews,
   encounterActionKey,
   toSceneAnimals,
   toSceneVisitors,
   toScenePlants,
 } from './ui/adapters';
 import { createBonusPanel } from './ui/bonus-panel';
+import { createCarePanel } from './ui/care-panel';
 import { createCyclePanel } from './ui/cycle-panel';
 import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText, toCyclePanelView, withRegulars } from './ui/cycle-view';
 import { createEcosystemPanel } from './ui/ecosystem-panel';
@@ -87,6 +92,11 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'no-regular-slot': 'Alle Plätze für Stammgäste sind belegt.',
   'wrong-type': 'Das geht bei dieser Begegnung nicht.',
   'no-option': 'Diese Möglichkeit gibt es nicht.',
+  'unknown-care': 'Diese Pflege gibt es nicht.',
+  maxed: 'Diese Pflege ist schon voll ausgebaut.',
+  stage: 'Diese Pflege gibt es erst auf einer späteren Stufe.',
+  excluded: 'Das verträgt sich nicht mit einer anderen Pflege.',
+  requires: 'Dafür fehlt noch etwas im Ökosystem.',
   'already-active': 'Dieser Gast rastet schon hier.',
 };
 
@@ -180,6 +190,12 @@ const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosyst
   onOpenPlantPicker: openPlantPicker,
 });
 const bonusPanel = createBonusPanel(document.querySelector<HTMLElement>('#bonuses')!);
+const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!, {
+  onBuy: (id) => {
+    const result = buyCare(state, id);
+    if (act(result, false)) announceDiscoveries(result);
+  },
+});
 const cyclePanel = createCyclePanel(document.querySelector<HTMLElement>('#cycle')!, {
   onNewCycle: newCycle,
   onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
@@ -427,7 +443,28 @@ function refreshPanel(now: number): void {
   panel.update(ecoView);
   // Restzeiten der Boni laufen – gedrosselt wie die Zahlen der Seitenleiste.
   bonusPanel.update(activeBonusViews(state));
+  refreshCare();
 }
+
+/**
+ * Pflege-Liste: Vorschauen nur neu rechnen, wenn sich das Ökosystem, die Frage „reichen
+ * die Samen?“ oder ein fehlender Betrag („Noch X 🌰“) ändert.
+ */
+let careKey = '';
+function refreshCare(): void {
+  const ev = evaluate(state);
+  // Je Maßnahme: bezahlbar (1), fehlender Betrag (aufgerundet) oder voll ausgebaut (-).
+  let key = '';
+  for (const m of CARE) {
+    const cost = nextCareRank(state, m.id)?.cost;
+    key += (cost === undefined ? '-' : cost <= state.seeds ? '1' : Math.ceil(cost - state.seeds)) + ',';
+  }
+  if (ev === careEvaluation && key === careKey) return;
+  careEvaluation = ev;
+  careKey = key;
+  carePanel.update(toCareViews(state, ev));
+}
+let careEvaluation: Readonly<Evaluation> | null = null;
 
 function refreshViews(now: number): void {
   refreshPanel(now);
