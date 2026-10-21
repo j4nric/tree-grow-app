@@ -61,6 +61,7 @@ describe('Speichern & Laden v2', () => {
     state.plants = ['moss'];
     state.pendingEncounters[0] = { type: 'plant', cards: ['anemone', 'moss'], rerolls: 1 };
     state.meta.journal.species = ['earthworm'];
+    state.meta.journal.plants = ['moss'];
     state.meta.forestMemory = 5;
     expect(SAVE_VERSION).toBe(3);
     expect(deserialize(serialize(state), 999)).toEqual(state);
@@ -246,6 +247,42 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
     expect(deserialize(rawV2({ plants: ['hazel'] }), 0)!.plants).toEqual([]);
   });
 
+  it('Tagebuch: Pflanzen und Lebensgemeinschaften (seit 2.3) werden aus dem Ökosystem ergänzt', () => {
+    // v3-Stand von vor Schritt 2.3: keine Felder plants/communities im Tagebuch.
+    const old = JSON.parse(
+      rawV3({
+        plants: ['moss', 'fern', 'moss'],
+        niches: { roots: ['earthworm', 'chanterelle'], litter: ['woodlouse', 'slug'] },
+      }),
+    );
+    old.meta.journal = { species: ['earthworm'], keepsakes: [] };
+    const s = deserialize(JSON.stringify(old), 0)!;
+    expect(s.version).toBe(3);
+    expect(s.meta.journal.plants).toEqual(['moss', 'fern']);
+    expect(s.meta.journal.communities).toEqual(['humus', 'damp-ground']);
+    expect(s.meta.journal.species).toEqual(['earthworm', 'chanterelle', 'woodlouse', 'slug']);
+    // Gespeicherte Einträge bleiben (auch wenn die Gemeinschaft gerade nicht besteht),
+    // unbekannte und doppelte werden verworfen, kaputte Felder ersetzt.
+    const kept = deserialize(
+      rawV3({
+        meta: {
+          forestMemory: 0,
+          journal: { species: [], plants: ['birch', 'drache', 'birch', 7], communities: ['wild-edge', 'gibt-es-nicht', 'wild-edge'], keepsakes: [] },
+        },
+      }),
+      0,
+    )!;
+    expect(kept.meta.journal.plants).toEqual(['birch']);
+    expect(kept.meta.journal.communities).toEqual(['wild-edge']);
+    for (const broken of ['x', null, 42, { a: 1 }]) {
+      const b = deserialize(rawV3({ meta: { journal: { species: [], plants: broken, communities: broken } } }), 0)!;
+      expect(b.meta.journal.plants).toEqual([]);
+      expect(b.meta.journal.communities).toEqual([]);
+    }
+    // Roundtrip mit den neuen Feldern
+    expect(deserialize(serialize(s), 0)).toEqual(s);
+  });
+
   it('v2-Stand ohne Nische „hollows“ und ohne Typ in Begegnungen lädt', () => {
     const s = deserialize(
       rawV2({ niches: { roots: ['earthworm'] }, pendingEncounters: [{ cards: ['robin'], rerolls: 0 }] }),
@@ -370,7 +407,7 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
     expect(s.lastTick).toBe(777);
     expect(s.meta.forestMemory).toBe(0);
     // Tagebuch kaputt: Die Arten aus den Nischen bleiben trotzdem verzeichnet.
-    expect(s.meta.journal).toEqual({ species: ['earthworm', 'robin'], keepsakes: [] });
+    expect(s.meta.journal).toEqual({ species: ['earthworm', 'robin'], plants: [], communities: [], keepsakes: [] });
     const nan = deserialize(rawV3({ seeds: Infinity, totalGrowth: NaN }), 0)!;
     expect(nan.seeds).toBe(0);
   });
@@ -383,6 +420,42 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
     expect(s.meta.forestMemory).toBe(3);
     expect(s.meta.journal.species).toEqual(['bee', 'earthworm', 'robin']);
     expect(s.meta.journal.keepsakes).toEqual(['old-oak']);
+  });
+
+  it('Tagebuch: Pflanzen und Lebensgemeinschaften (seit 2.3) werden aus dem Ökosystem ergänzt', () => {
+    // v3-Stand von vor Schritt 2.3: keine Felder plants/communities im Tagebuch.
+    const old = JSON.parse(
+      rawV3({
+        plants: ['moss', 'fern', 'moss'],
+        niches: { roots: ['earthworm', 'chanterelle'], litter: ['woodlouse', 'slug'] },
+      }),
+    );
+    old.meta.journal = { species: ['earthworm'], keepsakes: [] };
+    const s = deserialize(JSON.stringify(old), 0)!;
+    expect(s.version).toBe(3);
+    expect(s.meta.journal.plants).toEqual(['moss', 'fern']);
+    expect(s.meta.journal.communities).toEqual(['humus', 'damp-ground']);
+    expect(s.meta.journal.species).toEqual(['earthworm', 'chanterelle', 'woodlouse', 'slug']);
+    // Gespeicherte Einträge bleiben (auch wenn die Gemeinschaft gerade nicht besteht),
+    // unbekannte und doppelte werden verworfen, kaputte Felder ersetzt.
+    const kept = deserialize(
+      rawV3({
+        meta: {
+          forestMemory: 0,
+          journal: { species: [], plants: ['birch', 'drache', 'birch', 7], communities: ['wild-edge', 'gibt-es-nicht', 'wild-edge'], keepsakes: [] },
+        },
+      }),
+      0,
+    )!;
+    expect(kept.meta.journal.plants).toEqual(['birch']);
+    expect(kept.meta.journal.communities).toEqual(['wild-edge']);
+    for (const broken of ['x', null, 42, { a: 1 }]) {
+      const b = deserialize(rawV3({ meta: { journal: { species: [], plants: broken, communities: broken } } }), 0)!;
+      expect(b.meta.journal.plants).toEqual([]);
+      expect(b.meta.journal.communities).toEqual([]);
+    }
+    // Roundtrip mit den neuen Feldern
+    expect(deserialize(serialize(s), 0)).toEqual(s);
   });
 
   it('v2-Stand ohne Nische „hollows“ (vor Höhlen & Totholz) lädt mit leerer Höhle', () => {

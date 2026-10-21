@@ -39,7 +39,7 @@ export const COUNTS_AS_GENUS: Genus = 'birds';
 /** König des Totholzes: Zufriedenheit dieser Ebene steigt um so viel. */
 export const DECOMPOSER_BOOST: Readonly<{ level: Level; happiness: number }> = { level: 'decomposer', happiness: 0.2 };
 
-/** Lichterabend: Harmonie je Lebensgemeinschaft (wirkt mit Schritt 2.3). */
+/** Lichterabend: zusätzliche Harmonie je aktiver Lebensgemeinschaft (communities.ts). */
 export const COMMUNITY_BOOST_HARMONY = 3;
 
 /** Hüter der Feuchte: Pflanzen dieser Gruppe brauchen kein Wasser (Speicher bleibt). */

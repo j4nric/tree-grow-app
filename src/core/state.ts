@@ -6,6 +6,9 @@ import { normalizeSeed } from './rng';
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
  * Bei Änderungen am Format: SAVE_VERSION erhöhen und Migration in save.ts ergänzen.
+ * Ausnahme ohne neue Version (Schritt 2.3): `meta.journal.plants` und
+ * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
+ * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
 export const SAVE_VERSION = 3;
 
@@ -61,6 +64,10 @@ export interface GameState {
     journal: {
       /** Arten, die schon einmal im Ökosystem gelebt haben. */
       species: string[];
+      /** Pflanzen, die schon einmal im Pflanzring gewachsen sind (gekeimt oder gesetzt). */
+      plants: string[];
+      /** Lebensgemeinschaften, die schon einmal bestanden haben (entdeckt). */
+      communities: string[];
       /** Andenken, z. B. „old-oak“ für einen v1-Spielstand. */
       keepsakes: string[];
     };
@@ -90,7 +97,7 @@ export function createInitialState(now: number, seed: number = now): GameState {
     niches: emptyNiches(),
     pendingEncounters: [],
     rngState: normalizeSeed(seed),
-    meta: { forestMemory: 0, journal: { species: [], keepsakes: [] } },
+    meta: { forestMemory: 0, journal: { species: [], plants: [], communities: [], keepsakes: [] } },
     lastTick: now,
   };
 }

@@ -1,3 +1,4 @@
+import { COMMUNITIES_BY_ID } from '../content/communities';
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY, V1_KEEPSAKE_MIN_ENERGY, V1_KEEPSAKE_MIN_STAGE } from '../content/memory';
 import { PLANTS_BY_ID } from '../content/plants';
@@ -6,6 +7,7 @@ import { NICHE_IDS } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { nicheSlots, plantCost, plantSlots, slotEffects, stageForWaypoint, thresholdFor, waypointsForGrowth } from './formulas';
 import { isValidRngState, normalizeSeed } from './rng';
+import { recordDiscoveries } from './tick';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState, type GameState, type PendingEncounter } from './state';
 
 export const SAVE_KEY = 'tree-grow-save';
@@ -213,6 +215,11 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   state.meta.journal.species = unique(stringArray(journal.species).filter((id) => SPECIES_BY_ID.has(id)));
   for (const id of seen) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
   state.meta.journal.keepsakes = unique(stringArray(journal.keepsakes));
+  // Pflanzen und Lebensgemeinschaften im Tagebuch (seit Schritt 2.3, ohne neue Version):
+  // fehlen sie (ältere Stände), ergänzt recordDiscoveries sie aus dem aktuellen Ökosystem.
+  state.meta.journal.plants = unique(stringArray(journal.plants).filter((id) => PLANTS_BY_ID.has(id)));
+  state.meta.journal.communities = unique(stringArray(journal.communities).filter((id) => COMMUNITIES_BY_ID.has(id)));
+  recordDiscoveries(state);
   return state;
 }
 

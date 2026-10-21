@@ -108,9 +108,16 @@ describe('toEcosystemView', () => {
     expect(sum(parts.map((p) => p.value))).toBeCloseTo(ev.harmony, 9);
   });
 
-  it('Lichterabend ist bis zu den Lebensgemeinschaften als „(bald)“ markiert', () => {
-    expect(effectView({ kind: 'ability', id: 'communityBoost' }).label).toMatch(/^Lichterabend: .*\(bald\)$/);
-    expect(effectView({ kind: 'ability', id: 'nightWatch' }).label).not.toContain('(bald)');
+  it('Lichterabend wirkt seit den Lebensgemeinschaften – ohne „(bald)“', () => {
+    expect(effectView({ kind: 'ability', id: 'communityBoost' }).label).toBe('Lichterabend: jede Lebensgemeinschaft +3 Harmonie');
+  });
+
+  it('Harmonie-Aufschlüsselung zeigt Lebensgemeinschaften und geht auf', () => {
+    const state = stateAt(5, ['earthworm', 'woodlouse', 'porcini', 'glowworm']);
+    const ev = evaluate(state);
+    const parts = toEcosystemView(state, ev).harmonyParts;
+    expect(parts.find((p) => p.label === 'Lebensgemeinschaften')!.value).toBe(8 + 3);
+    expect(sum(parts.map((p) => p.value))).toBeCloseTo(ev.harmony, 9);
   });
 
   it('refreshEcosystemView aktualisiert nur Samen und Fortschritt', () => {
