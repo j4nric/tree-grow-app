@@ -39,7 +39,6 @@ import {
   type SeasonEffect,
 } from '../src/content/seasons';
 import { DEFAULT_MAIN_TREE, MAIN_TREES, MAIN_TREES_BY_ID, MAIN_TREE_IDS, type TreeEffect } from '../src/content/trees';
-import { MAIN_TREE_NUTS_STAGE, MAIN_TREE_TAGS } from '../src/content/stages';
 import { TREE_SPECIES } from '../src/render/plant';
 import * as reference from '../scripts/v2/content';
 
@@ -730,8 +729,9 @@ describe('Hauptbaum-Arten: Inhalte (DESIGN_V2.md 17)', () => {
   it('die Eiche ist immer wählbar und entspricht dem heutigen Hauptbaum', () => {
     const oak = MAIN_TREES_BY_ID.get('oak')!;
     expect(oak.unlockPlant).toBeNull();
-    expect(oak.tags).toEqual(MAIN_TREE_TAGS);
-    expect(oak.nutsFromStage).toBe(MAIN_TREE_NUTS_STAGE);
+    // Wie der Hauptbaum vor v6 (Referenzmodell scripts/v2).
+    expect(oak.tags).toEqual(reference.MAIN_TREE_TAGS);
+    expect(oak.nutsFromStage).toBe(reference.MAIN_TREE_NUTS_STAGE);
     expect(oak.winterHardy).toBe(false);
   });
 

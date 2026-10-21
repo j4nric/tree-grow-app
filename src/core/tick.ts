@@ -221,8 +221,12 @@ function skipYears(state: GameState, remaining: number, report: TickReport): num
   state.totalGrowth = capped(state.totalGrowth + growth * years);
   state.cycle.elapsed = elapsed + years * YEAR_SECONDS;
   countDown(state, years * YEAR_SECONDS, report);
-  for (const id of SEASON_IDS.slice(1)) reportSeason(report, id);
-  reportSeason(report, SEASON_IDS[0]!);
+  // Je Jahr die Wechsel Sommer, Herbst, Winter, Frühling (gemerkt werden nur die letzten).
+  const reported = Math.min(years, Math.ceil(MAX_REPORTED_SEASONS / SEASON_IDS.length));
+  for (let y = 0; y < reported; y++) {
+    for (const id of SEASON_IDS.slice(1)) reportSeason(report, id);
+    reportSeason(report, SEASON_IDS[0]!);
+  }
   return years;
 }
 

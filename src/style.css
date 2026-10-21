@@ -2781,6 +2781,72 @@ body[data-motion='reduce'] .slot.arrive {
   font-size: 0.72rem;
 }
 
+/* Wahl des Hauptbaums (cycle-panel.ts) – schlicht */
+.cycle-tree-current {
+  font-size: 0.875rem;
+}
+
+.cycle-trees {
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.cycle-trees-title {
+  margin: 0 0 4px;
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.cycle-tree-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cycle-tree {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+}
+
+.cycle-tree:has(input:checked) {
+  border-color: var(--accent);
+  background: #eef6e6;
+}
+
+.cycle-tree:has(input:focus-visible) {
+  outline: 2px solid var(--accent-dark);
+  outline-offset: 2px;
+}
+
+.cycle-tree.locked {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.cycle-tree-info {
+  grid-column: 3;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+/* Jahreszeit in der Kopfzeile (season-badge.ts) */
+.season-badge {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Aktive Boni aus Ereignissen und Gästen (bonus-panel.ts) – schlicht */
 .bonuses {
   margin-top: 12px;

@@ -7,6 +7,7 @@ import { FOREST_MEMORY_BONUS, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
 import { GENUS_INFO, SPECIES_BY_ID } from '../content/species';
 import { STAGES } from '../content/stages';
+import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
 import { regularSlots } from '../core/formulas';
 import { allAnimals, type GameState } from '../core/state';
 import { previewNewCycle, regularBlocker, type NewCycleBlocker } from '../core/tick';
@@ -25,6 +26,22 @@ export interface RegularOptionView {
   disabled: boolean;
   /** Lebt gerade im Ökosystem. */
   present: boolean;
+}
+
+/** Eine Hauptbaum-Art in der Auswahl beim Neuen Zyklus (DESIGN_V2.md 17.2). */
+export interface TreeOptionView {
+  id: MainTreeId;
+  /** z. B. „Rotbuche“. */
+  name: string;
+  icon: string;
+  /** Eigenheit in Kurzform (trees.ts `summary`). */
+  summary: string;
+  /** Wählbar (freigeschaltet über das Naturtagebuch). */
+  unlocked: boolean;
+  /** Hinweis, solange gesperrt, z. B. „Lass einmal eine Rotbuche im Pflanzring wachsen.“; sonst null. */
+  hint: string | null;
+  /** Art des laufenden Zyklus (vorausgewählt). */
+  current: boolean;
 }
 
 export interface CyclePanelView {
@@ -47,6 +64,19 @@ export interface CyclePanelView {
   /** z. B. „Stammgäste 1/2“. */
   regularsTitle: string;
   regulars: RegularOptionView[];
+  /** Art des laufenden Zyklus, z. B. „🌳 Stieleiche“. */
+  tree: string;
+  /** Alle Arten für die Wahl beim Neuen Zyklus (MAIN_TREES-Reihenfolge). */
+  trees: TreeOptionView[];
+}
+
+/** „einer Eichel“, „einer Buchecker“, „einem Kiefernsamen“ (Dativ der Frucht). */
+const FRUIT_ARTICLE: Record<MainTreeId, string> = { oak: 'einer', beech: 'einer', pine: 'einem' };
+
+/** Frucht der Art mit Artikel im Dativ, z. B. „einer Buchecker“ (unbekannt: Eiche). */
+export function fruitPhrase(id: MainTreeId | string | undefined): string {
+  const tree = MAIN_TREES_BY_ID.get(id as MainTreeId) ?? MAIN_TREES[0]!;
+  return `${FRUIT_ARTICLE[tree.id] ?? 'einer'} ${tree.fruit}`;
 }
 
 /** Prozent-Bonus eines Waldgedächtnis-Werts, z. B. 33 → „+66 %“. */
@@ -87,6 +117,19 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
     regularSlots: slots,
     regularsTitle: `Stammgäste ${state.meta.regulars.length}/${slots}`,
     regulars,
+    tree: treeLabel(state.cycle.mainTree),
+    trees: preview.trees.map(({ id, unlocked }) => {
+      const t = MAIN_TREES_BY_ID.get(id)!;
+      return {
+        id,
+        name: t.name,
+        icon: t.icon,
+        summary: t.summary,
+        unlocked,
+        hint: unlocked ? null : t.unlockHint,
+        current: id === preview.mainTree,
+      };
+    }),
   };
 }
 
@@ -124,9 +167,23 @@ export function regularsArrivedText(ids: readonly string[]): string {
     : `Stammgäste ${joinNames(names)} sind eingezogen.`;
 }
 
-/** Kurze Meldung nach dem Zyklusstart (Toast), mit eingezogenen Stammgästen. */
-export function newCycleToast(gain: number, cycleNumber: number, regulars: readonly string[] = []): string {
-  const text = `Zyklus ${formatNumber(cycleNumber)} beginnt: Aus einer Eichel wächst ein neuer Baum. +${formatNumber(gain)} Waldgedächtnis.`;
+/** Symbol und Name einer Art, z. B. „🌳 Stieleiche“ (unbekannt: Eiche). */
+export function treeLabel(id: MainTreeId | string | undefined): string {
+  const tree = MAIN_TREES_BY_ID.get(id as MainTreeId) ?? MAIN_TREES[0]!;
+  return `${tree.icon} ${tree.name}`;
+}
+
+/**
+ * Kurze Meldung nach dem Zyklusstart (Toast), mit eingezogenen Stammgästen. `mainTree`:
+ * Art des neuen Zyklus – ihre Frucht keimt („Aus einer Buchecker wächst …“).
+ */
+export function newCycleToast(
+  gain: number,
+  cycleNumber: number,
+  regulars: readonly string[] = [],
+  mainTree: MainTreeId = 'oak',
+): string {
+  const text = `Zyklus ${formatNumber(cycleNumber)} beginnt: Aus ${fruitPhrase(mainTree)} wächst ein neuer Baum. +${formatNumber(gain)} Waldgedächtnis.`;
   return withRegulars(text, regulars);
 }
 

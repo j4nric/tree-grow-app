@@ -10,10 +10,11 @@ import { expect, niche, openGame, savedState, seedV3, stageLabel, test, waitForC
 
 const transfer = (page: Page) => page.locator('[data-ref="save-transfer"]');
 
-/** Vergleichbarer Stand: ohne die Uhr (lastTick) und ohne die laufenden Zähler. */
+/** Vergleichbarer Stand: ohne die Uhr (lastTick) und ohne die laufenden Zähler (auch die Spielzeit). */
 function comparable(save: Record<string, any>) {
   const { lastTick: _lastTick, totalGrowth: _growth, seeds: _seeds, ...rest } = save;
-  return rest;
+  const { elapsed: _elapsed, ...cycle } = rest.cycle ?? {};
+  return { ...rest, cycle };
 }
 
 async function openTransfer(page: Page): Promise<void> {
@@ -72,6 +73,7 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
   const after = await savedState(page);
   expect(comparable(after)).toEqual(comparable(before));
   expect(after.totalGrowth).toBeGreaterThanOrEqual(before.totalGrowth);
+  expect(after.cycle.elapsed).toBeGreaterThanOrEqual(before.cycle.elapsed);
 });
 
 test('Ungültiger Code: klare Meldung, Spielstand bleibt unverändert', async ({ page, context }) => {

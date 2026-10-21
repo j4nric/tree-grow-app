@@ -167,7 +167,7 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
   expect(plantsChosen.length, JSON.stringify(decisions)).toBeGreaterThanOrEqual(2);
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(5);
+  expect(saved.version).toBe(6);
   expect(saved.waypoint).toBeGreaterThanOrEqual(12);
   // Jeder Wegpunkt bringt höchstens eine Begegnung: entschieden oder noch wartend (die von
   // „Alter Baum“ bleibt offen). Ohne passende Art entfällt sie (z. B. Wegpunkt 2 im

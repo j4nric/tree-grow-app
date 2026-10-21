@@ -39,7 +39,7 @@ test('Ereignis und Gast wählen: Boni erscheinen mit Restzeit und bleiben nach d
   await expect(bonuses.locator('[data-bonus="visitor:cranes"]')).toContainText('Kranichzug');
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(5);
+  expect(saved.version).toBe(6);
   expect(saved.cycle.timed).toHaveLength(1);
   expect(saved.cycle.visitors).toEqual([expect.objectContaining({ id: 'cranes' })]);
   expect(saved.seeds).toBeLessThan(5000);

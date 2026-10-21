@@ -11,6 +11,7 @@ import { WAYPOINT_COUNT } from '../src/content/waypoints';
 import { HARMONY_DIVISOR } from '../src/core/formulas';
 import { LONG_NUMBER_LIMIT, formatNumber, getNumberStyle, setNumberStyle } from '../src/ui/format';
 import { guideSections } from '../src/ui/guide-view';
+import { SEASONS, SEASON_SECONDS } from '../src/content/seasons';
 import {
   DEFAULT_SETTINGS,
   GUIDE_HINT_KEY,
@@ -135,7 +136,7 @@ describe('Spielanleitung', () => {
   const sections = guideSections();
   const text = (id: string) => sections.find((s) => s.id === id)!.paragraphs.join(' ');
 
-  it('8 Abschnitte zum Spielablauf und 3 Platzhalter „kommt bald“', () => {
+  it('9 Abschnitte zum Spielablauf und 3 Platzhalter „kommt bald“', () => {
     const main = sections.filter((s) => !s.soon);
     expect(main.map((s) => s.id)).toEqual([
       'growth',
@@ -145,6 +146,7 @@ describe('Spielanleitung', () => {
       'communities',
       'harmony',
       'cycle',
+      'seasons',
       'seeds',
     ]);
     const soon = sections.filter((s) => s.soon);
@@ -172,5 +174,9 @@ describe('Spielanleitung', () => {
     expect(text('cycle')).toContain(`„${STAGES[NEW_CYCLE_MIN_STAGE]!.name}“`);
     expect(text('cycle')).toContain(`+${formatNumber(FOREST_MEMORY_BONUS * 100)} %`);
     expect(text('cycle')).toContain(`Je ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Punkte`);
+    // Früchte aller Hauptbaum-Arten (DESIGN_V2.md 17).
+    for (const fruit of ['Eichel', 'Buchecker', 'Kiefernsamen']) expect(text('cycle')).toContain(fruit);
+    expect(text('seasons')).toContain(`${formatNumber(SEASON_SECONDS / 60)} Minuten`);
+    for (const season of SEASONS) expect(text('seasons')).toContain(season.summary);
   });
 });

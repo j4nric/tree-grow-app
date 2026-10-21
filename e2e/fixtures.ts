@@ -89,7 +89,7 @@ export async function seedV3(context: BrowserContext, seed: SeedV3): Promise<voi
 }
 
 /**
- * Neues Spiel (Spielstand v4 wie beim allerersten Start) mit festem Startwert des
+ * Neues Spiel (aktueller Spielstand wie beim allerersten Start) mit festem Startwert des
  * Zufallsgenerators. main.ts nimmt dafür sonst die Uhrzeit; so bleibt der Seed auch dann
  * fest, wenn sich die Startzeit des Tests ändert. `now` = Beginn des Zyklus,
  * `lastTick` = Browser-Uhr beim Laden.

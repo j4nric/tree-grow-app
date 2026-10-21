@@ -21,12 +21,16 @@ import {
 import { NICHES } from '../content/niches';
 import { PLANT_COST_BASE, PLANT_COST_GROWTH, PLANTS } from '../content/plants';
 import { GENUS_INFO, SPECIES } from '../content/species';
+import { PLANTS_BY_ID } from '../content/plants';
+import { SEASONS, SEASON_SECONDS } from '../content/seasons';
 import { STAGES } from '../content/stages';
+import { MAIN_TREES } from '../content/trees';
 import { TRAIT_THRESHOLDS } from '../content/traits';
 import { GENERA } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { HARMONY_DIVISOR } from '../core/formulas';
 import { HARMONY_TIERS, listNames } from './adapters';
+import { fruitPhrase } from './cycle-view';
 import { formatNumber } from './format';
 
 export interface GuideSection {
@@ -53,6 +57,11 @@ export function guideSections(): GuideSection[] {
     .sort((a, b) => a.min - b.min)
     .map((t) => `ab ${formatNumber(t.min)} „${t.label}“`);
   const lowestTier = HARMONY_TIERS.find((t) => !Number.isFinite(t.min))?.label ?? '';
+  // Hauptbaum-Arten: die erste ist immer wählbar, die übrigen über ihre Begleitpflanze.
+  const [firstTree, ...laterTrees] = MAIN_TREES;
+  const laterFruits = laterTrees.map((t) => fruitPhrase(t.id)).join(' oder ');
+  const laterPlants = laterTrees.map((t) => PLANTS_BY_ID.get(t.unlockPlant ?? '')?.name ?? t.name).join(' bzw. ');
+  const seasonMinutes = formatNumber(SEASON_SECONDS / 60);
 
   return [
     {
@@ -114,9 +123,19 @@ export function guideSections(): GuideSection[] {
       icon: '🔄',
       title: 'Neuer Zyklus, Waldgedächtnis und Stammgäste',
       paragraphs: [
-        `Ab der Stufe „${cycleStage}“ kannst du einen Neuen Zyklus beginnen: Aus einer Eichel wächst ein neuer Baum. Tiere, Pflanzen und Samen beginnen von vorn; Naturtagebuch, Waldgedächtnis und Stammgäste bleiben.`,
+        `Ab der Stufe „${cycleStage}“ kannst du einen Neuen Zyklus beginnen: Aus ${fruitPhrase(firstTree?.id)} wächst ein neuer Baum – später auch aus ${laterFruits}, sobald einmal eine ${laterPlants} in deinem Pflanzring gewachsen ist. Jede Art hat eine kleine Eigenheit. Tiere, Pflanzen und Samen beginnen von vorn; Naturtagebuch, Waldgedächtnis und Stammgäste bleiben.`,
         `Du bekommst Waldgedächtnis: 1 Punkt je ${formatNumber(MEMORY_HARMONY_DIVISOR)} Punkte deiner höchsten Harmonie in diesem Zyklus und ${formatNumber(MEMORY_PER_NEW_SPECIES)} Punkte je neu entdeckter Art. Jeder Punkt gibt dauerhaft +${pct(FOREST_MEMORY_BONUS)} Wachstum und Samen.`,
         `Je ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Punkte Waldgedächtnis darfst du einen Stammgast wählen – eine entdeckte Art, die in jedem Zyklus von selbst einzieht.`,
+      ],
+    },
+    {
+      id: 'seasons',
+      icon: '🍂',
+      title: 'Jahreszeiten',
+      paragraphs: [
+        `Jeder Zyklus beginnt im Frühling; alle ${seasonMinutes} Minuten Spielzeit wechselt die Jahreszeit – auch, während das Spiel geschlossen ist. Keine ist ein Hindernis, jede bringt etwas Eigenes:`,
+        ...SEASONS.map((x) => `${x.icon} ${x.name}: ${x.summary}.`),
+        'Manche Ereignisse und Gäste kommen nur zu ihrer Jahreszeit. Pflanzen kosten immer gleich viel – Warten lohnt sich nicht.',
       ],
     },
     {

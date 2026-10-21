@@ -1,8 +1,9 @@
 import type { Effect, EncounterType, Genus } from './types';
 
 /**
- * Jahreszeiten (docs/DESIGN_V2.md, Abschnitt 16). Reine Daten – die Logik fehlt noch
- * (Umsetzungsnotiz DESIGN_V2.md 16.6, Aufgabe für den core-engineer).
+ * Jahreszeiten (docs/DESIGN_V2.md, Abschnitt 16). Reine Daten; die Logik steht in
+ * src/core/season.ts (Spielzeit → Jahreszeit), formulas.ts (Wirkungen) und tick.ts (Halt
+ * an der Grenze, Ziehen).
  *
  * Regeln:
  * - Ein Jahr hat vier gleich lange Jahreszeiten zu SEASON_SECONDS Sekunden SPIELZEIT,

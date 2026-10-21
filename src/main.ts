@@ -2,6 +2,7 @@ import { CARE } from './content/care';
 import { STAGES } from './content/stages';
 import { evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
+import { sceneSeason } from './core/season';
 import { createInitialState, type GameState } from './core/state';
 import type { PendingEncounterType } from './core/state';
 import {
@@ -56,6 +57,9 @@ import { createHelp, initPreferences, type Help } from './ui/help';
 import { IMPORT_ERROR_TEXTS, createSaveTransfer, type SaveTransfer } from './ui/save-transfer';
 import { isDeliberateConfirm } from './ui/confirm';
 import { formatNumber } from './ui/format';
+import { createSeasonBadge } from './ui/season-badge';
+import { seasonChangeText, toSeasonBadgeView } from './ui/season-view';
+import type { MainTreeId } from './content/trees';
 import type { EcosystemView } from './ui/view-model';
 
 /*
@@ -197,6 +201,9 @@ const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!,
     if (act(result, false)) announceDiscoveries(result);
   },
 });
+const seasonBadge = createSeasonBadge(document.querySelector<HTMLElement>('#season')!);
+/** Ganze Sekunde Spielzeit, zu der das Abzeichen zuletzt aktualisiert wurde. */
+let seasonShownSecond = -1;
 const cyclePanel = createCyclePanel(document.querySelector<HTMLElement>('#cycle')!, {
   onNewCycle: newCycle,
   onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
@@ -300,12 +307,16 @@ function announceDiscoveries(result: ActionResult): void {
   if (text) notify(text);
 }
 
-/** „Neuen Zyklus beginnen“ (schon bestätigt): Waldgedächtnis gutschreiben, Baum beginnt neu. */
-function newCycle(): void {
+/**
+ * „Neuen Zyklus beginnen“ (schon bestätigt): Waldgedächtnis gutschreiben, Baum beginnt neu
+ * – aus der Frucht der gewählten Art.
+ */
+function newCycle(mainTree: MainTreeId): void {
   // Alter Baum für die Übergangs-Sequenz der Szene (vor dem Reset festhalten).
   const fromGrowth = growth(state);
   const fromPlants = scene.plants;
-  const result = startNewCycle(state, Date.now());
+  const fromTree = state.cycle.mainTree;
+  const result = startNewCycle(state, Date.now(), mainTree);
   if (!result.ok) {
     const blocker = newCycleBlocker(state);
     notify(blocker ? newCycleBlockerText(blocker) : ERROR_TEXTS[result.error]);
@@ -313,14 +324,14 @@ function newCycle(): void {
   }
   shownStage = state.stage;
   // Gleicher Takt wie scene.time (rAF-Zeitstempel / 1000); das Feld darf stehen bleiben.
-  scene.cycleTransition = { startedAt: performance.now() / 1000, fromGrowth, fromPlants };
+  scene.cycleTransition = { startedAt: performance.now() / 1000, fromGrowth, fromPlants, fromTree };
   closeEncounters();
   closePlantPicker();
   encounterSerial++;
   act(result, false);
   // Der Knopf ist jetzt ausgeblendet – Fokus auf die Überschrift des Bereichs statt auf body.
   cyclePanel.focus();
-  showToast(newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars));
+  showToast(newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars, state.cycle.mainTree));
 }
 
 function openPlantPicker(): void {
@@ -468,6 +479,7 @@ function refreshCare(): void {
 let careEvaluation: Readonly<Evaluation> | null = null;
 
 function refreshViews(now: number): void {
+  refreshSeasonBadge();
   refreshPanel(now);
   stack.update(state.pendingEncounters.length, state.pendingEncounters[0]?.type ?? 'animal');
   refreshEncounter();
@@ -564,6 +576,7 @@ function replaceState(next: GameState): void {
   cyclePanel.disarm();
   saveTransfer?.reset();
   shownStage = state.stage;
+  seasonShownSecond = -1;
   closeEncounters();
   closePlantPicker();
   journal.hide();
@@ -624,6 +637,13 @@ function frame(now: number): void {
     ecoDirty = true;
   }
   noteTick(report);
+  if (report.seasons.length > 0) {
+    // Neue Jahreszeit: Raten ändern sich – Ansichten neu bauen, kurz Bescheid geben.
+    encounterDirty = true;
+    ecoDirty = true;
+    pickerDirty = true;
+    notify(seasonChangeText(report.seasons));
+  }
 
   if (state.stage !== shownStage) {
     shownStage = state.stage;
@@ -638,6 +658,9 @@ function frame(now: number): void {
   const rect = canvas.getBoundingClientRect();
   scene.growth = growth(state);
   scene.time = now / 1000;
+  // Jahreszeit stufenlos aus der Spielzeit (tick läuft jeden Frame), Art des Hauptbaums.
+  scene.season = sceneSeason(state.cycle.elapsed);
+  scene.mainTree = state.cycle.mainTree;
   drawScene(ctx, rect.width, rect.height, scene);
 
   if (now - lastSave > AUTOSAVE_MS) {
@@ -645,6 +668,14 @@ function frame(now: number): void {
     lastSave = now;
   }
   requestAnimationFrame(frame);
+}
+
+/** Abzeichen der Jahreszeit: nur neu, wenn eine neue ganze Sekunde Spielzeit beginnt. */
+function refreshSeasonBadge(): void {
+  const second = Math.floor(state.cycle.elapsed);
+  if (second === seasonShownSecond) return;
+  seasonShownSecond = second;
+  seasonBadge.update(toSeasonBadgeView(state.cycle.elapsed));
 }
 
 function resizeCanvas(): void {
@@ -678,6 +709,12 @@ function catchUp(): void {
       saveToStorage(state);
       encounterDirty = true;
       ecoDirty = true;
+    }
+    // Offline vergangene Jahreszeiten: still nachführen (kein Hinweis je Wechsel).
+    if (report.seasons.length > 0) {
+      encounterDirty = true;
+      ecoDirty = true;
+      pickerDirty = true;
     }
   }
   state.lastTick = Date.now();

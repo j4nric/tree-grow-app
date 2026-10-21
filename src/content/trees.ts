@@ -2,9 +2,9 @@ import type { HappinessEffect } from './seasons';
 import type { Effect, Tag } from './types';
 
 /**
- * Arten des Hauptbaums (docs/DESIGN_V2.md, Abschnitt 17). Reine Daten – die Logik fehlt
- * noch (Umsetzungsnotiz DESIGN_V2.md 17.5, Aufgabe für den core-engineer). Die Grafik
- * gibt es schon: `SceneInput.mainTree` mit denselben IDs (src/render/plant.ts, TREE_SPECIES).
+ * Arten des Hauptbaums (docs/DESIGN_V2.md, Abschnitt 17). Reine Daten; die Logik steht in
+ * src/core/formulas.ts (Merkmale, Eigenheiten) und tick.ts (unlockedTrees, startNewCycle).
+ * Die Grafik nutzt dieselben IDs (`SceneInput.mainTree`, src/render/plant.ts, TREE_SPECIES).
  *
  * Regeln:
  * - Der erste Zyklus beginnt immer mit der Stieleiche.
@@ -61,7 +61,7 @@ export interface MainTree {
   unlockPlant: string | null;
   /** Hinweis für die gesperrte Auswahl (ohne Spoiler: die Pflanze ist bekannt). */
   unlockHint: string;
-  /** Merkmale, die der Hauptbaum bereitstellt (je SUPPLY_MAIN_TREE). Ersetzt MAIN_TREE_TAGS. */
+  /** Merkmale, die der Hauptbaum bereitstellt (je SUPPLY_MAIN_TREE). */
   tags: readonly Tag[];
   /** Ab dieser Stufe stellt er zusätzlich Nüsse bereit (Eicheln, Bucheckern); null = nie. */
   nutsFromStage: number | null;

@@ -47,8 +47,9 @@ test('Spielanleitung: Abschnitte mit Zahlen aus dem Spiel, Platzhalter, Fokus zu
   await open.click();
   await expect(guide(page)).toBeVisible();
   await expect(guide(page).getByRole('heading', { name: '❓ Spielanleitung' })).toBeFocused();
-  await expect(guide(page).locator('[data-section]')).toHaveCount(11);
+  await expect(guide(page).locator('[data-section]')).toHaveCount(12);
   await expect(guide(page).locator('[data-section="growth"]')).toContainText(/\d+ Wegpunkte/);
+  await expect(guide(page).locator('[data-section="seasons"]')).toContainText('Jeder Zyklus beginnt im Frühling');
   await expect(guide(page).locator('[data-section="events"]')).toContainText('kommt bald');
   await guide(page).getByRole('button', { name: 'Schließen' }).click();
   await expect(guide(page)).toBeHidden();
