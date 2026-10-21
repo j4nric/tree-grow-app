@@ -19,7 +19,7 @@ import { placeMainTree, placeTree, trunkFootHalf, type Layout, type PlacedTree }
 import { normalizeSpecies, trunkWidthOf, type TreeSpecies } from './plant';
 import { clamp, clamp01, hash2, smooth01 } from './util';
 
-/** Gruppen-IDs wie in scripts/v2/content.ts (`PLANT_GROUPS`). */
+/** Gruppen-IDs wie in src/content/types.ts (`PLANT_GROUPS`). */
 export const SCENE_PLANT_GROUPS = ['trees', 'shrubs', 'flowers', 'mosses'] as const;
 export type ScenePlantGroup = (typeof SCENE_PLANT_GROUPS)[number];
 
@@ -35,7 +35,7 @@ export interface ScenePlant {
   vigor: number;
 }
 
-/** Pflanzen-IDs (scripts/v2/content.ts) mit eigener Zeichnung → Gruppe. */
+/** Pflanzen-IDs (src/content/plants.ts) mit eigener Zeichnung → Gruppe. */
 export const PLANT_SPECIES: Record<string, ScenePlantGroup> = {
   birch: 'trees',
   rowan: 'trees',

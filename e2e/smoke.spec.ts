@@ -1,4 +1,5 @@
 import {
+  SAVE_VERSION,
   card,
   dialog,
   expect,
@@ -115,7 +116,7 @@ test('Karte wählen: Tier zieht ein, nächste Begegnung folgt, Neuladen zeigt de
   await expect(card(page, 'barkbeetle')).toBeVisible();
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(6);
+  expect(saved.version).toBe(SAVE_VERSION);
   expect(saved.niches.crown).toEqual(['bluetit']);
   expect(saved.pendingEncounters).toEqual([{ type: 'animal', cards: ['woodlouse', 'barkbeetle'], rerolls: 0 }]);
 });
@@ -254,7 +255,7 @@ test('v1-Spielstand: Neustart mit Andenken-Meldung', async ({ page, context }) =
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(6);
+  expect(saved.version).toBe(SAVE_VERSION);
   expect(saved.meta.forestMemory).toBe(5);
   expect(saved).not.toHaveProperty('upgrades');
 
@@ -638,7 +639,7 @@ test('Echter v2-Spielstand (alte Wegpunkt-Kurve): lädt ohne Fehler, Stufe und T
   await expect(stageLabel(page)).toHaveText('Stufe: Alter Baum');
   await expect(niche(page, 'crown').locator('[data-species="bluetit"]')).toBeVisible();
   const saved = await savedState(page);
-  expect(saved.version).toBe(6);
+  expect(saved.version).toBe(SAVE_VERSION);
   // Gleicher Wegpunkt, auf die neue Kurve umgerechnet (etwa in der Mitte zum nächsten).
   expect(saved.waypoint).toBe(12);
   expect(saved.totalGrowth).toBeGreaterThan(waypoint(12));

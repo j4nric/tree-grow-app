@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { VISITORS } from '../scripts/v2/content';
+import { VISITORS_BY_ID } from '../src/content/visitors';
 import { MoodLayer, moodWeights, normalizeTier } from '../src/render/mood';
 import { drawScene, type SceneInput } from '../src/render/tree';
 import { VisitorLayer, visitorDepth, visitorKind, type SceneVisitor, type VisitorFrame } from '../src/render/visitors';
@@ -89,8 +89,12 @@ describe('Harmonie-Stimmung', () => {
 });
 
 describe('Durchreisende', () => {
-  it('haben für jeden Gast aus scripts/v2/content.ts eine eigene Zeichnung', () => {
-    for (const v of VISITORS) expect(visitorKind(v.id), v.id).not.toBe('flock');
+  it('Kraniche, Bergfinken und Taubenschwänzchen haben eine eigene Zeichnung', () => {
+    // Die drei Gäste mit eigenem Bild (src/content/visitors.ts); alle übrigen sind ein Schwarm.
+    for (const id of ['cranes', 'bramblings', 'hummingbird-moth']) {
+      expect(VISITORS_BY_ID.has(id), id).toBe(true);
+      expect(visitorKind(id), id).not.toBe('flock');
+    }
     expect(visitorKind('cranes')).toBe('cranes');
     expect(visitorKind('hummingbird-moth')).toBe('moth');
     expect(visitorKind('golden-eagle')).toBe('flock');

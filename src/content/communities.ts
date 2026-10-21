@@ -2,9 +2,9 @@ import type { Effect } from './types';
 
 /**
  * Lebensgemeinschaften (docs/DESIGN_V2.md, 9.2): Leben bzw. wachsen alle Mitglieder im
- * Ökosystem, gibt es Harmonie-Punkte und manchmal eine Extra-Wirkung. Zahlen und IDs aus
- * scripts/v2/content.ts. Im Naturtagebuch erscheinen sie als Silhouette mit Rätselhinweis,
- * bis sie einmal entdeckt (aktiv) waren.
+ * Ökosystem, gibt es Harmonie-Punkte und manchmal eine Extra-Wirkung. Zahlen und IDs
+ * ursprünglich aus dem Prototyp (scripts/v2, entfernt in Schritt 2.10). Im Naturtagebuch
+ * erscheinen sie als Silhouette mit Rätselhinweis, bis sie einmal entdeckt (aktiv) waren.
  */
 
 /**

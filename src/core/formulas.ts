@@ -47,7 +47,8 @@ import { MAX_FOREST_MEMORY, type CycleState, type GameState, type PendingEncount
  * Rechenmodell v2: Zufriedenheit, Harmonie, Versorgung, Wachstum/s, Samen/s.
  * Formeln aus docs/DESIGN_V2.md, Abschnitt 2 und 9, mit allen 32 Arten, Störung,
  * Fähigkeiten, Lebensgemeinschaften, Ereignis-Boni und Durchreisenden (2.4).
- * Referenz: scripts/v2/model.ts (Tests vergleichen beide).
+ * Das frühere Referenzmodell scripts/v2/model.ts ist seit Schritt 2.10 entfernt; Invarianten
+ * und Beispiele prüft tests/formulas.test.ts.
  */
 
 /** Gewicht der Nahrung gegenüber einem einzelnen Lebensraum-Wunsch. */

@@ -90,14 +90,16 @@ export const MAIN_TREES: readonly MainTree[] = [
   {
     id: 'beech', name: 'Rotbuche', icon: '🍂', fruit: 'Buchecker',
     text: 'Unter ihrem dichten Dach ist es kühl und feucht – ein Paradies für Pilze und Moose.',
-    summary: 'Schattig · Bucheckern ab Alter Baum · +1 Platz Wurzelraum · Pilze +15 % 😊 · −2 ☀️ ab Alter Baum',
+    summary: 'Schattig · Pilze +15 % 😊 · ab Alter Baum: Bucheckern, +1 Platz Wurzelraum, −2 ☀️',
     unlockPlant: 'beech',
     unlockHint: 'Lass einmal eine Rotbuche im Pflanzring wachsen.',
     tags: ['laub', 'wurzeln'],
     nutsFromStage: 4,
     traits: [
-      // Buchenwurzeln sind dicht von Pilzfäden umsponnen (Mykorrhiza).
-      { minStage: 1, effect: { kind: 'slot', niche: 'roots', amount: 1 } },
+      // Buchenwurzeln sind dicht von Pilzfäden umsponnen (Mykorrhiza) – das weite
+      // Wurzelwerk trägt erst der große Baum. Ab Keimling war die Buche für Wachstums-
+      // Spieler 7 % schneller als die Eiche (Schritt 2.10, DESIGN_V2.md 15.4).
+      { minStage: 4, effect: { kind: 'slot', niche: 'roots', amount: 1 } },
       { minStage: 0, effect: { kind: 'happiness', genus: 'fungi', points: 15 } },
       // Die Krone schließt sich erst, wenn der Baum groß ist – vorher kein Verzicht.
       { minStage: 4, effect: { kind: 'light', amount: -2 } },
@@ -107,14 +109,14 @@ export const MAIN_TREES: readonly MainTree[] = [
   {
     id: 'pine', name: 'Waldkiefer', icon: '🌲', fruit: 'Kiefernsamen',
     text: 'Genügsam und immergrün – durch ihre lichte Krone fällt die Sonne bis auf den Boden.',
-    summary: 'Lichtbaum · winterfest · Nadeln · +2 ☀️, +1 💧 · keine Nüsse',
+    summary: 'Lichtbaum · winterfest · Nadeln · +1 ☀️, +1 💧 · keine Nüsse',
     unlockPlant: 'pine',
     unlockHint: 'Lass einmal eine Waldkiefer im Pflanzring wachsen.',
     // Nadelstreu zählt wie bei der Begleit-Kiefer auch als Laub (Futter der Zersetzer).
     tags: ['laub', 'wurzeln', 'nadeln'],
     nutsFromStage: null,
     traits: [
-      { minStage: 0, effect: { kind: 'light', amount: 2 } },
+      { minStage: 0, effect: { kind: 'light', amount: 1 } },
       // „Genügsam“: Der Hauptbaum braucht kaum Wasser – mehr bleibt für die Begleitpflanzen.
       { minStage: 0, effect: { kind: 'water', amount: 1 } },
     ],

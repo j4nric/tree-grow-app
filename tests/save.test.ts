@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY } from '../src/content/memory';
-import { nicheSlots, thresholdFor } from '../src/core/formulas';
+import { nicheSlots, stageForWaypoint, thresholdFor, waypointProgress, waypointsForGrowth } from '../src/core/formulas';
 import { isValidRngState, normalizeSeed } from '../src/core/rng';
 import {
   deserialize,
@@ -12,10 +12,14 @@ import {
   V2_SEED_CAP,
   V2_WAYPOINT_BASE,
   V2_WAYPOINT_POWER,
+  V6_WAYPOINT_BASE,
+  V6_WAYPOINT_POWER,
   v2GrowthToV3,
+  v6GrowthToV7,
+  v6Threshold,
 } from '../src/core/save';
-import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState } from '../src/core/state';
-import { recordDiscoveries, tick } from '../src/core/tick';
+import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState, type GameState } from '../src/core/state';
+import { interludeThreshold, recordDiscoveries, tick } from '../src/core/tick';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
 /** Gültiger aktueller Stand (v4) als Rohdaten, einzelne Felder überschreibbar. */
@@ -65,7 +69,7 @@ describe('Speichern & Laden v2', () => {
     state.meta.forestMemory = 5;
     // Von Hand geändertes Ökosystem: H_max nachführen wie nach einer Aktion.
     recordDiscoveries(state);
-    expect(SAVE_VERSION).toBe(6);
+    expect(SAVE_VERSION).toBe(7);
     expect(deserialize(serialize(state), 999)).toEqual(state);
     expect(loadGame(serialize(state), 999)).toMatchObject({ migratedFromV1: false, keepsake: false });
   });
@@ -104,13 +108,74 @@ describe('Speichern & Laden v2', () => {
   });
 });
 
+describe('Migration v6 → v7 (Wegpunkt-Kurve 3,5 · k^3,5, Balancing 2.10)', () => {
+  /** Ein v6-Stand auf der alten Kurve: Wegpunkt k plus `share` des Wegs zum nächsten. */
+  function rawV6(k: number, share: number, patch: (s: GameState) => void = () => {}): string {
+    const state = stateAt(stageForWaypoint(k), ['earthworm', 'robin', 'bee'], 3);
+    state.waypoint = k;
+    state.plants = ['hazel'];
+    state.seeds = 4321;
+    state.cycle.elapsed = 1000;
+    state.cycle.care = { 'leaf-litter': 1 };
+    state.cycle.interlude = k;
+    patch(state);
+    const raw = JSON.parse(serialize(state));
+    raw.version = 6;
+    raw.totalGrowth = v6Threshold(k) + share * (v6Threshold(k + 1) - v6Threshold(k));
+    return JSON.stringify(raw);
+  }
+
+  it('Fortschritt bleibt: gleicher Wegpunkt, gleicher Anteil bis zum nächsten, gleiche Stufe', () => {
+    for (const [k, stage] of [[3, 2], [12, 4], [20, 5], [27, 5], [35, 6]] as const) {
+      const s = loadGame(rawV6(k, 0.4), 0)!.state;
+      expect(s.version).toBe(SAVE_VERSION);
+      expect(s.waypoint, `k=${k}`).toBe(k);
+      expect(s.stage, `k=${k}`).toBe(stage);
+      expect(waypointProgress(s), `k=${k}`).toBeCloseTo(0.4, 9);
+      expect(s.totalGrowth).toBeCloseTo(thresholdFor(k) + 0.4 * (thresholdFor(k + 1) - thresholdFor(k)), 6);
+    }
+  });
+
+  it('alles andere bleibt unverändert: Tiere, Pflanzen, Samen, Jahreszeit, Pflege, Zwischenhalt', () => {
+    const s = loadGame(rawV6(20, 0.7), 0)!.state;
+    expect(s.niches.roots).toEqual(['earthworm']);
+    expect(s.niches.litter).toEqual(['robin']);
+    expect(s.niches.edge).toEqual(['bee']);
+    expect(s.plants).toEqual(['hazel']);
+    expect(s.seeds).toBe(4321);
+    expect(s.cycle.elapsed).toBe(1000);
+    expect(s.cycle.care).toEqual({ 'leaf-litter': 1 });
+    // Der Zwischenhalt dieses Abschnitts war schon ausgewertet – er kommt nicht noch einmal.
+    expect(s.cycle.interlude).toBe(20);
+    expect(interludeThreshold(s)).toBe(Infinity);
+    // Noch nicht ausgewertet und noch vor der Mitte: Er liegt weiter vor dem Spieler.
+    const before = loadGame(rawV6(20, 0.3, (st) => (st.cycle.interlude = 19)), 0)!.state;
+    expect(before.cycle.interlude).toBe(19);
+    expect(interludeThreshold(before)).toBeGreaterThan(before.totalGrowth);
+  });
+
+  it('genau auf einem Wegpunkt der alten Kurve: kein Zurückstufen, kein doppelter Wegpunkt', () => {
+    const s = loadGame(rawV6(20, 0), 0)!.state;
+    expect(s).toMatchObject({ waypoint: 20, stage: 5, totalGrowth: thresholdFor(20) });
+    s.pendingEncounters = [];
+    const report = tick(s, 3600);
+    expect(s.waypoint).toBe(20 + report.waypoints);
+  });
+
+  it('v7-Stände werden nicht umgerechnet', () => {
+    const state = stateAt(4, ['earthworm'], 3);
+    state.totalGrowth = thresholdFor(12) + 123;
+    expect(deserialize(serialize(state), 0)!.totalGrowth).toBe(thresholdFor(12) + 123);
+  });
+});
+
 describe('Migration v1 → v2', () => {
   it('v1 ab „Junger Baum“: Neustart mit Andenken (+5 Waldgedächtnis)', () => {
     const result = loadGame(JSON.stringify(V1_SAVE), 50_000)!;
     expect(result.migratedFromV1).toBe(true);
     expect(result.keepsake).toBe(true);
     const s = result.state;
-    expect(s.version).toBe(6);
+    expect(s.version).toBe(SAVE_VERSION);
     expect(s.plants).toEqual([]);
     expect(s.totalGrowth).toBe(0);
     expect(s.seeds).toBe(0);
@@ -193,6 +258,28 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
     }
   });
 
+  it('v6GrowthToV7: gleicher Wegpunkt, gleicher Bruchteil, Grenzfälle', () => {
+    expect([V6_WAYPOINT_BASE, V6_WAYPOINT_POWER]).toEqual([3.5, 3.4]);
+    expect(v6Threshold(12)).toBe(16341);
+    for (let k = 0; k < 36; k++) {
+      expect(v6GrowthToV7(v6Threshold(k)), `k=${k}`).toBe(thresholdFor(k));
+      const at = v6Threshold(k) + 0.3 * (v6Threshold(k + 1) - v6Threshold(k));
+      expect(v6GrowthToV7(at), `k=${k}`).toBeCloseTo(thresholdFor(k) + 0.3 * (thresholdFor(k + 1) - thresholdFor(k)), 6);
+      // Knapp vor dem nächsten Wegpunkt bleibt es vor ihm.
+      expect(waypointsForGrowth(v6GrowthToV7(v6Threshold(k + 1) - 0.001)), `k=${k}`).toBe(k);
+    }
+    expect(v6GrowthToV7(v6Threshold(36))).toBe(thresholdFor(36));
+    expect(v6GrowthToV7(2 * v6Threshold(36))).toBeCloseTo(2 * thresholdFor(36));
+    for (const bad of [0, -5, NaN]) expect(v6GrowthToV7(bad)).toBe(0);
+    expect(v6GrowthToV7(Number.MAX_VALUE)).toBe(Number.MAX_VALUE);
+    let last = 0;
+    for (let g = 0; g < 2e6; g += 997) {
+      const v = v6GrowthToV7(g);
+      expect(v).toBeGreaterThanOrEqual(last);
+      last = v;
+    }
+  });
+
   it('akzeptiert alle 32 Arten und die neuen Gattungen (Schritt 2.2)', () => {
     const raw = rawV4({
       totalGrowth: thresholdFor(36),
@@ -225,7 +312,7 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
     const result = loadGame(rawV2(), 5_000)!;
     expect(result).toMatchObject({ migratedFromV1: false, keepsake: false });
     const s = result.state;
-    expect(s.version).toBe(6);
+    expect(s.version).toBe(SAVE_VERSION);
     expect(s.seeds).toBe(V2_SEED_CAP);
     expect(s.plants).toEqual([]);
     expect(s).toMatchObject({ stage: 4, waypoint: 12, rngState: 4242, lastTick: 1_000 });
@@ -399,7 +486,7 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
     );
     old.meta.journal = { species: ['earthworm'], keepsakes: [] };
     const s = deserialize(JSON.stringify(old), 0)!;
-    expect(s.version).toBe(6);
+    expect(s.version).toBe(SAVE_VERSION);
     expect(s.meta.journal.plants).toEqual(['moss', 'fern']);
     expect(s.meta.journal.communities).toEqual(['humus', 'damp-ground']);
     expect(s.meta.journal.species).toEqual(['earthworm', 'chanterelle', 'woodlouse', 'slug']);
@@ -468,8 +555,8 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
   });
 
   it('zukünftige Versionen werden so gut wie möglich geladen', () => {
-    const s = deserialize(rawV4({ version: 7, somethingNew: true, plants: ['hazel'] }), 0)!;
-    expect(s.version).toBe(6);
+    const s = deserialize(rawV4({ version: 99, somethingNew: true, plants: ['hazel'] }), 0)!;
+    expect(s.version).toBe(SAVE_VERSION);
     expect(s.plants).toEqual(['hazel']);
     expect(s.niches.roots).toEqual(['earthworm']);
     expect(s).not.toHaveProperty('somethingNew');

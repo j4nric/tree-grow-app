@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { COMMUNITIES } from '../src/content/communities';
 import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
-import { expect, openGame, savedState, seedRaw, seedV3, test, waypoint } from './fixtures';
+import { expect, legacyGrowth, openGame, savedState, seedRaw, seedV3, test, waypoint } from './fixtures';
 
 /**
  * Naturtagebuch (DESIGN_V2.md 10, 11.2): Knopf in der Seitenleiste, modaler Dialog mit
@@ -35,7 +35,7 @@ test('Naturtagebuch: Zähler, Reiter, keine Spoiler, Esc gibt den Fokus zurück'
     '3/32 Arten · 1/14 Pflanzen · 0/9 Gemeinschaften',
   );
   await expect(journal(page).locator('[data-ref="journal-meta"]')).toHaveText(
-    'Zyklus 1 · Waldgedächtnis 30 (+60 % Wachstum und Samen)',
+    'Zyklus 1 · Waldgedächtnis 30 (+30 % Wachstum und Samen)',
   );
   // Arten: entdeckte mit Angaben, unentdeckte als „???“.
   const tit = journal(page).locator('[data-species="bluetit"]');
@@ -146,7 +146,7 @@ test('Stammgast zieht bei offenem Tagebuch ein: Hinweis im Dialog, kein Toast, �
     context,
     {
       version: 3,
-      totalGrowth: waypoint(7) - 1,
+      totalGrowth: legacyGrowth(waypoint(7) - 1),
       seeds: 0,
       waypoint: 0,
       stage: 0,

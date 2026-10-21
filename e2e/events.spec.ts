@@ -1,4 +1,4 @@
-import { dialog, expect, openGame, openStack, savedState, seedV3, settle, test, waypoint } from './fixtures';
+import { SAVE_VERSION, dialog, expect, openGame, openStack, savedState, seedV3, settle, test, waypoint } from './fixtures';
 
 /**
  * Ereignisse mit Wahl und Durchreisende (Schritt 2.4): im Kartenwahl-Dialog wählen, der
@@ -39,7 +39,7 @@ test('Ereignis und Gast wählen: Boni erscheinen mit Restzeit und bleiben nach d
   await expect(bonuses.locator('[data-bonus="visitor:cranes"]')).toContainText('Kranichzug');
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(6);
+  expect(saved.version).toBe(SAVE_VERSION);
   expect(saved.cycle.timed).toHaveLength(1);
   expect(saved.cycle.visitors).toEqual([expect.objectContaining({ id: 'cranes' })]);
   expect(saved.seeds).toBeLessThan(5000);

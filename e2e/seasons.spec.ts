@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
-import { expect, openGame, savedState, seedRaw, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, openGame, savedState, seedRaw, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Jahreszeiten und Wahl des Hauptbaums (DESIGN_V2.md 16, 17) im Browser. Die Testuhr steht
@@ -44,7 +44,7 @@ test('kurz vor dem Wechsel: nach dem Wechsel zeigt die Kopfzeile die neue Jahres
   // Der Spielstand führt die Spielzeit (gespeichert spätestens beim Verlassen).
   await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
   const saved = await savedState(page);
-  expect(saved.version).toBe(6);
+  expect(saved.version).toBe(SAVE_VERSION);
   expect(saved.cycle.elapsed).toBeGreaterThan(180);
   expect(saved.cycle.elapsed).toBeLessThan(190);
 });

@@ -4,9 +4,10 @@ import { NICHE_IDS, type NicheId, type Tag } from '../content/types';
 import { normalizeSeed } from './rng';
 
 /**
- * Spielstand v6 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen,
- * Jahreszeiten und Hauptbaum-Arten). Reine Daten,
- * JSON-serialisierbar – kein DOM, keine Klassen.
+ * Spielstand v7 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen,
+ * Jahreszeiten und Hauptbaum-Arten; seit v7 mit der Wegpunkt-Kurve 3,5 · k^3,5 aus dem
+ * Balancing 2.10 – das Format ist gleich, nur `totalGrowth` liegt auf der neuen Kurve).
+ * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
  * Bei Änderungen am Format: SAVE_VERSION erhöhen und Migration in save.ts ergänzen.
@@ -14,11 +15,11 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 /**
- * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+2 % je Punkt → höchstens
- * ×21). Schützt vor manipulierten oder kaputten Spielständen.
+ * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+1 % je Punkt → höchstens
+ * ×11). Schützt vor manipulierten oder kaputten Spielständen.
  */
 export const MAX_FOREST_MEMORY = 1000;
 
@@ -120,7 +121,7 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 6;
+  version: 7;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */

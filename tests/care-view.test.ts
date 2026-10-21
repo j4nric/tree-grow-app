@@ -11,18 +11,18 @@ describe('View: Pflege-Liste', () => {
   it('zeigt nur Maßnahmen ab ihrer Stufe, mit Rang, Kosten, Wirkung und Blocker', () => {
     expect(toCareViews(stateAt(2, [], 1))).toEqual([]);
     const state = stateAt(3, [], 1);
-    state.seeds = 650;
+    state.seeds = 800;
     const views = toCareViews(state);
     expect(views.map((v) => v.id)).toEqual(CARE.filter((c) => c.ranks[0]!.minStage <= 3).map((c) => c.id));
     const litter = views.find((v) => v.id === 'leaf-litter')!;
-    expect(litter).toMatchObject({ rank: 'Rang 1/2', next: '+1 Platz Laubstreu', cost: '600 🌰', blocker: null, canBuy: true });
+    expect(litter).toMatchObject({ rank: 'Rang 1/2', next: '+1 Platz Laubstreu', cost: '750 🌰', blocker: null, canBuy: true });
     const boxes = views.find((v) => v.id === 'nest-boxes')!;
-    expect(boxes).toMatchObject({ cost: '900 🌰', blocker: 'Noch 250 🌰', canBuy: false });
-    // Aufgerundet: bei 899,2 Samen fehlt noch mehr als 0 – „Noch 1 🌰“, nie „Noch 0“.
-    state.seeds = 899.2;
+    expect(boxes).toMatchObject({ cost: '1.100 🌰', blocker: 'Noch 300 🌰', canBuy: false });
+    // Aufgerundet: bei 1.099,2 Samen fehlt noch mehr als 0 – „Noch 1 🌰“, nie „Noch 0“.
+    state.seeds = 1099.2;
     expect(toCareViews(state).find((v) => v.id === 'nest-boxes')!.blocker).toBe('Noch 1 🌰');
     state.seeds = 0;
-    expect(toCareViews(state).find((v) => v.id === 'nest-boxes')!.blocker).toBe('Noch 900 🌰');
+    expect(toCareViews(state).find((v) => v.id === 'nest-boxes')!.blocker).toBe('Noch 1.100 🌰');
   });
 
   it('nach dem Kauf: nächster Rang mit Stufen-Blocker, voll ausgebaut ohne Knopf', () => {
@@ -58,14 +58,14 @@ describe('View: Pflege-Liste', () => {
   it('Gruppen: kaufbar, zu wenig Samen, gesperrt, voll ausgebaut', () => {
     const state = stateAt(4, ['bee'], 1);
     state.seeds = 2500;
-    buyCare(state, 'light-crown'); // 3.000 🌰 – reicht nicht
+    buyCare(state, 'light-crown'); // 4.000 🌰 – reicht nicht
     state.seeds = 1e6;
     buyCare(state, 'light-crown');
     buyCare(state, 'leaf-litter');
-    state.seeds = 1000;
+    state.seeds = 1200;
     const group = (id: string) => toCareViews(state).find((v) => v.id === id)!.group;
-    expect(group('nest-boxes')).toBe('buyable'); // 900 🌰
-    expect(group('pond')).toBe('saving'); // 4.000 🌰
+    expect(group('nest-boxes')).toBe('buyable'); // 1.100 🌰
+    expect(group('pond')).toBe('saving'); // 5.500 🌰
     expect(group('dense-crown')).toBe('locked'); // Ausschluss
     expect(group('light-crown')).toBe('locked'); // Rang 2 erst im Hain
     state.stage = 5;
@@ -82,7 +82,7 @@ describe('View: Pflege-Liste', () => {
     expect(groups).toEqual([...groups].sort((a, b) => ['buyable', 'saving', 'locked', 'maxed'].indexOf(a) - ['buyable', 'saving', 'locked', 'maxed'].indexOf(b)));
     const buyable = sorted.filter((v) => v.group === 'buyable').map((v) => v.costSeeds!);
     expect(buyable).toEqual([...buyable].sort((a, b) => a - b));
-    expect(buyable[0]).toBe(600);
+    expect(buyable[0]).toBe(750);
     const saving = sorted.filter((v) => v.group === 'saving').map((v) => v.costSeeds!);
     expect(saving).toEqual([...saving].sort((a, b) => a - b));
   });
@@ -109,7 +109,7 @@ describe('View: Pflege-Liste', () => {
     expect(careBoughtText('nest-boxes', 2)).toBe('Nistkästen angebracht (Rang 2)');
     expect(careBoughtText('unbekannt', 1)).toBe('unbekannt: Rang 1');
     const state = stateAt(3, [], 1);
-    state.seeds = 650;
+    state.seeds = 800;
     const views = toCareViews(state);
     expect(views.find((v) => v.id === 'leaf-litter')!.boughtText).toBe('Laub bleibt liegen');
     expect(careSummaryText(views)).toBe('1 kaufbar');

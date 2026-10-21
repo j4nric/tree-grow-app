@@ -1,8 +1,10 @@
 /**
  * Balancing-Simulator für das v2-Spiel – auf der ECHTEN Spiellogik aus src/core/
  * (tick, chooseCard, declineEncounter, rerollEncounter, plantSeed, evaluate,
- * previewChoice …). Anders als scripts/v2/ (Referenzmodell des vollen Designs) misst er
- * genau das, was der Spieler erlebt: Tier- und Pflanzenbegegnungen, Pflanzen setzen.
+ * previewChoice …) – er misst genau das, was der Spieler erlebt: Tier- und
+ * Pflanzenbegegnungen, Pflanzen setzen, Pflege, Ereignisse, Gäste, Jahreszeiten,
+ * Baumarten und (runCycles) mehrere Zyklen mit Waldgedächtnis und Stammgästen. Das
+ * frühere Referenzmodell scripts/v2/ ist seit Schritt 2.10 entfernt.
  *
  * Der Spieler löst jede Begegnung sofort auf (online) und setzt Pflanzen, sobald die
  * Samen reichen und es sich nach seiner Strategie lohnt. Ereignisse und Durchreisende
@@ -12,7 +14,9 @@
  * nächster Pflanzenkauf); tick() rechnet dazwischen exakt.
  *
  * Ausführen (Tabellen im Protokoll, DESIGN_V2.md Abschnitt 15.4):
- *   SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts
+ *   npm run balance    # großer Lauf: alle Balancing-Tests mit vielen Durchgängen und Tabellen
+ * Im normalen `npm run check` laufen dieselben Tests mit wenigen Durchgängen (feste Seeds,
+ * Einstellungen in tests/balance-setup.ts).
  *
  * Jahreszeiten laufen immer mit (echte Logik, DESIGN_V2.md 16): Der Simulator hält an
  * jeder Jahreszeitgrenze an, damit Kauf-Zeitpunkte mit der richtigen Rate geplant werden.
@@ -23,7 +27,7 @@
 import { COMMUNITIES } from '../src/content/communities';
 import { GENUS_INFO, SPECIES_BY_ID } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
-import { GENERA, type EncounterType, type Genus } from '../src/content/types';
+import { GENERA, NICHE_IDS, type EncounterType, type Genus } from '../src/content/types';
 import { CARE } from '../src/content/care';
 import { EVENTS_BY_ID } from '../src/content/events';
 import {
@@ -34,6 +38,7 @@ import {
   plantSlots,
   previewChoice,
   previewPlant,
+  regularSlots,
   secondsToNextWaypoint,
   type Evaluation,
 } from '../src/core/formulas';
@@ -53,14 +58,18 @@ import {
   interludeThreshold,
   nextExpiry,
   nextCareRank,
+  isTreeUnlocked,
   plantSeed,
+  previewNewCycle,
   previewCare,
   rerollBlocker,
   rerollEncounter,
+  setRegulars,
+  startNewCycle,
   tick,
   unlockedPlants,
 } from '../src/core/tick';
-import { secondsToNextSeason } from '../src/core/season';
+import { seasonIndex, secondsToNextSeason } from '../src/core/season';
 import type { MainTreeId } from '../src/content/trees';
 
 // ---------------------------------------------------------------------------
@@ -137,8 +146,8 @@ function best(options: Option[], value: (o: Option) => number): Option | null {
 }
 
 /**
- * Höchstens ein Wurf je Tierbegegnung (wie scripts/v2/sim.ts), und nur, wenn die Logik
- * ihn zulässt (Samen reichen, es gibt andere Karten – rerollBlocker liefert sonst
+ * Höchstens ein Wurf je Tierbegegnung (wie im früheren Prototyp scripts/v2), und nur,
+ * wenn die Logik ihn zulässt (Samen reichen, es gibt andere Karten – rerollBlocker liefert sonst
  * 'too-expensive' / 'no-alternatives'). Pflanzenbegegnungen werden nicht neu gewürfelt.
  */
 function canReroll(state: GameState): boolean {
@@ -218,7 +227,7 @@ export const STRATEGIES: readonly Strategy[] = [RANDOM, HARMONY, GROWTH, RAREST,
 // Ein Durchgang
 // ---------------------------------------------------------------------------
 
-/** Kennzahlen einer Begegnung: Wie „echt“ war die Wahl? (Definition wie scripts/v2/sim.ts) */
+/** Kennzahlen einer Begegnung: Wie „echt“ war die Wahl? (Definition wie im früheren Prototyp scripts/v2) */
 export interface DecisionStat {
   /** Stufe, in der die Begegnung stattfand. */
   stage: number;
@@ -254,6 +263,8 @@ export interface Counts {
   hosted: number;
   /** Nur mit `care`: gekaufte Pflege-Ränge. */
   careBought: number;
+  /** Eingezogene Stammgäste (ab Zyklus 2). */
+  regulars: number;
 }
 
 /** Schnappschuss des Durchgangs (beim Erreichen einer Stufe oder zu einer festen Zeit). */
@@ -265,6 +276,12 @@ export interface Snapshot {
   seedsRate: number;
   happiness: number;
   animals: number;
+  /** Tiere (Art-IDs) und Pflanzen im Ökosystem. */
+  animalIds: string[];
+  /** Summe der 🌿-Boni (nach Fraß) und Anteil der Begleitpflanzen an 🌿/s. */
+  growthBonus: number;
+  plantGrowth: number;
+  plantIds: string[];
   plants: number;
   /** Versorgung V der Begleitpflanzen (0–1). */
   supply: number;
@@ -338,10 +355,19 @@ export interface RunOptions {
 /** Zeitpunkte (Minuten) für den Samen-Verlauf. */
 export const SAMPLE_MINUTES: readonly number[] = [5, 10, 20, 30, 45, 60, 90, 120, 180];
 
-export function runGame(strategy: Strategy, options: RunOptions): RunResult {
-  const state = createInitialState(0, options.seed);
+/**
+ * Ein Zyklus. Ohne `from` beginnt ein neues Spiel (erster Zyklus); mit `from` läuft der
+ * Zyklus auf diesem Spielstand weiter (runCycles: nach startNewCycle) und mit dem Zufall
+ * der Strategie aus dem vorigen Zyklus.
+ */
+export function runGame(
+  strategy: Strategy,
+  options: RunOptions,
+  from?: { state: GameState; rng: RngHolder },
+): RunResult {
+  const state = from?.state ?? createInitialState(0, options.seed);
   if (options.mainTree) state.cycle.mainTree = options.mainTree;
-  const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
+  const rng: RngHolder = from?.rng ?? { rngState: normalizeSeed(options.seed * 7919 + 17) };
   let time = 0;
   let lastWaypointTime = 0;
   const book = { earnedPassive: 0, earnedDecline: 0, spent: 0, spentPlants: 0, earnedExtras: 0, spentVisitors: 0, spentCare: 0 };
@@ -359,6 +385,7 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     visitors: 0,
     hosted: 0,
     careBought: 0,
+    regulars: 0,
   };
   const result: RunResult = {
     stages: Array(STAGES.length).fill(null),
@@ -380,6 +407,10 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
       seedsRate: ev.seeds,
       happiness: ev.avgHappiness,
       animals: allAnimals(state).length,
+      animalIds: allAnimals(state),
+      growthBonus: ev.growthBonus - ev.damage,
+      plantGrowth: ev.plantGrowth,
+      plantIds: [...state.plants],
       plants: state.plants.length,
       supply: ev.supply,
       genus,
@@ -395,15 +426,38 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   result.stages[0] = snapshot();
   let sample = 0;
 
+  // planPlant bewertet jede Pflanze (teuer) und hängt nur vom Ökosystem (wie der
+  // Cache-Schlüssel von evaluate), vom Wegpunkt und von der Zahl gesetzter Pflanzen ab –
+  // darum je Zustand nur einmal rechnen (gleiche Ergebnisse; Idee aus dem Branch
+  // claude/v2-tests-schneller).
+  let planKey = '';
+  let planValue: string | null = null;
+  const nextPlan = (): string | null => {
+    const c = state.cycle;
+    const key = [
+      state.waypoint,
+      counts.plantsBought,
+      state.plants.join(','),
+      NICHE_IDS.map((n) => state.niches[n].join(',')).join(';'),
+      JSON.stringify([c.care, c.bonuses, c.habitats, c.timed.map((t) => t.effect), c.visitors.map((v) => v.id)]),
+      seasonIndex(c.elapsed),
+    ].join('|');
+    if (key !== planKey) {
+      planKey = key;
+      planValue = planPlant(state, strategy, counts);
+    }
+    return planValue;
+  };
+
   while (state.stage < options.targetStage && time < options.maxSeconds && !allWaypointsReached(state)) {
     // Pflanzen setzen, solange es sich lohnt und die Samen reichen.
-    for (let plan = planPlant(state, strategy, counts); plan !== null; plan = planPlant(state, strategy, counts)) {
+    for (let plan = nextPlan(); plan !== null; plan = nextPlan()) {
       const cost = nextPlantCost(state);
       if (!plantSeed(state, plan).ok) break;
       book.spentPlants += cost;
       counts.plantsBought++;
     }
-    const plan = planPlant(state, strategy, counts);
+    const plan = nextPlan();
     // Pflege: kaufen, was die Strategie anspart, sobald es reicht (Pflanzen haben Vorrang).
     let careNeed: number | null = null;
     if (options.care) {
@@ -442,6 +496,7 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
     book.earnedPassive += state.seeds - seedsBefore - autoSeeds;
     book.earnedDecline += autoSeeds;
     counts.autoDeclined += report.autoDeclined;
+    counts.regulars += report.regulars.length;
     if (time >= nextSample - 1e-9) result.samples[sample++] = snapshot();
     if (report.waypoints === 0) {
       // Zwischenhalt (ab Hain): zählt als Begegnung für Takt und Durststrecke.
@@ -459,6 +514,84 @@ export function runGame(strategy: Strategy, options: RunOptions): RunResult {
   }
   result.final = snapshot();
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Mehrere Zyklen am Stück (Neuer Zyklus, Waldgedächtnis, Stammgäste, Kartenpool)
+// ---------------------------------------------------------------------------
+
+/** Ein Zyklus aus runCycles. */
+export interface CycleRun {
+  /** Nummer des Zyklus (ab 1). */
+  number: number;
+  result: RunResult;
+  /** Waldgedächtnis zu Beginn des Zyklus und Gewinn an seinem Ende (previewNewCycle). */
+  memory: number;
+  memoryGain: number;
+  /** Arten, die in diesem Zyklus neu ins Tagebuch kamen. */
+  newSpecies: number;
+  /** Gewählte Stammgäste in diesem Zyklus und wie viele davon eingezogen sind. */
+  regulars: string[];
+  regularsMovedIn: number;
+}
+
+export interface CycleOptions extends RunOptions {
+  /** Anzahl Zyklen am Stück (jeder endet mit Erreichen von `targetStage`). */
+  cycles: number;
+}
+
+/**
+ * Stammgäste für den nächsten Zyklus: Tiere des Ökosystems am Ende des Zyklus, sortiert
+ * nach ihrem Beitrag zum Maß der Strategie (Wert mit minus Wert ohne das Tier, echte
+ * Logik). Der Zufallsspieler nimmt sie in fester, beliebiger Reihenfolge.
+ */
+function rankRegulars(state: GameState, strategy: Strategy): string[] {
+  const animals = allAnimals(state);
+  if (!strategy.plantValue) return animals;
+  const value = strategy.plantValue;
+  const now = value(evaluate(state));
+  const contribution = new Map<string, number>();
+  for (const id of animals) {
+    const copy = structuredClone(state);
+    const niche = SPECIES_BY_ID.get(id)!.niche;
+    copy.niches[niche] = copy.niches[niche].filter((x) => x !== id);
+    contribution.set(id, now - value(evaluate(copy)));
+  }
+  return [...animals].sort((a, b) => contribution.get(b)! - contribution.get(a)!);
+}
+
+/**
+ * Spielt `cycles` Zyklen am Stück mit der echten Logik: Jeder Zyklus endet mit Erreichen
+ * von `targetStage` (mindestens Hain), danach `startNewCycle` (Waldgedächtnis, Tagebuch
+ * bleibt, Kartenpool mit Tagebuch-Gewicht) und die Wahl der Stammgäste (rankRegulars,
+ * so viele, wie Plätze da sind). Sie ziehen ab dem nächsten Wegpunkt ein.
+ */
+export function runCycles(strategy: Strategy, options: CycleOptions): CycleRun[] {
+  const state = createInitialState(0, options.seed);
+  const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
+  const out: CycleRun[] = [];
+  let regulars: string[] = [];
+  for (let n = 1; n <= options.cycles; n++) {
+    const memory = state.meta.forestMemory;
+    const result = runGame(strategy, options, { state, rng });
+    const preview = previewNewCycle(state);
+    out.push({
+      number: n,
+      result,
+      memory,
+      memoryGain: preview.memoryGain,
+      newSpecies: preview.newSpecies,
+      regulars,
+      regularsMovedIn: result.final.counts.regulars,
+    });
+    if (n === options.cycles) break;
+    const ranked = rankRegulars(state, strategy);
+    const started = startNewCycle(state, 0, isTreeUnlocked(state, options.mainTree ?? 'oak') ? options.mainTree : 'oak');
+    if (!started.ok) throw new Error(`Neuer Zyklus gescheitert: ${started.error}`);
+    regulars = ranked.slice(0, regularSlots(state.meta.forestMemory));
+    if (!setRegulars(state, regulars).ok) throw new Error('Stammgäste nicht wählbar');
+  }
+  return out;
 }
 
 /** Wie viel Samen ist eine Sekunde Wachstum wert? (Bewertung der Ereignis-Optionen) */
@@ -593,7 +726,8 @@ function careTarget(state: GameState, strategy: Strategy): string | null {
 /**
  * Welche Pflanze würde die Strategie als Nächstes setzen? null, wenn der Ring voll ist,
  * nichts freigeschaltet ist oder (bei bewertenden Strategien) keine Pflanze verbessert.
- * Der Zufallsspieler nimmt eine je Zustand feste, aber beliebige Pflanze (wie scripts/v2/sim.ts).
+ * Der Zufallsspieler nimmt eine je Zustand feste, aber beliebige Pflanze (wie im früheren
+ * Prototyp scripts/v2).
  */
 function planPlant(state: GameState, strategy: Strategy, counts: Counts): string | null {
   if (state.plants.length >= plantSlots(state.stage)) return null;
@@ -770,9 +904,10 @@ export function formatTime(seconds: number | null | undefined): string {
   const s = Math.round(seconds);
   if (s < 60) return `${s} s`;
   if (s < 3600) return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} min`;
+  // Ab einer Stunde mit Sekunden (h:mm:ss): Der Hain liegt um 60 min, Minuten zählen.
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
-  return `${h}:${String(m).padStart(2, '0')} h`;
+  return `${h}:${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')} h`;
 }
 
 const fmt = (x: number, digits = 0) => (Number.isFinite(x) ? x.toFixed(digits).replace('.', ',') : '–');
@@ -1045,13 +1180,19 @@ export function miscTable(summaries: Summary[], stage: number): string {
   return lines.join('\n');
 }
 
-/** Zielzeiten (DESIGN_V2.md, Abschnitt 3 und 15.4) für den harmonie-orientierten Spieler. */
+/**
+ * Zielzeiten (DESIGN_V2.md, Abschnitt 3 und 15.4) für den harmonie-orientierten Spieler
+ * mit allen Systemen. Setzling seit Schritt 2.10 ~45 s (Wunsch des Nutzers: „45 Sekunden
+ * sollte der Sweetspot sein“), vorher ~1 min.
+ */
 export const STAGE_TARGETS: readonly { stage: number; seconds: number; label: string }[] = [
   { stage: 1, seconds: 30, label: '< 30 s' },
-  { stage: 2, seconds: 60, label: '~ 1 min' },
+  { stage: 2, seconds: 45, label: '~ 45 s' },
   { stage: 3, seconds: 4 * 60, label: '~ 4 min' },
   { stage: 4, seconds: 20 * 60, label: '~ 20 min' },
   { stage: 5, seconds: 60 * 60, label: '~ 60 min' },
+  { stage: 6, seconds: 100 * 60, label: '~ 1:40 h' },
+  { stage: 7, seconds: 140 * 60, label: '~ 2:20 h' },
 ];
 
 export const TARGET_LABELS: readonly (string | null)[] = STAGES.map(
@@ -1179,4 +1320,56 @@ export function careTable(without: Summary[], withCare: Summary[]): string {
     lines.push(`| ${c.icon} ${c.name} | ${cells.join(' | ')} |`);
   }
   return lines.join('\n');
+}
+
+const signedPct = (x: number) => `${x >= 0 ? '+' : '−'}${fmt(Math.abs(x) * 100, 1)} %`;
+
+/**
+ * Baumarten (DESIGN_V2.md 17, Balancing 2.10): je Strategie Hain-Zeit (Median), Abstand zur
+ * Eiche und Harmonie beim Hain. `rows`: Strategie → Ergebnis je Art (gleiche Seeds).
+ */
+export function treeTable(rows: readonly { strategy: Strategy; trees: Record<MainTreeId, Summary> }[]): string {
+  const lines = [
+    '| Strategie | Eiche: Hain / ⚖️ | Buche: Hain / ⚖️ / gegenüber Eiche | Kiefer: Hain / ⚖️ / gegenüber Eiche |',
+    '|---|---|---|---|',
+  ];
+  for (const { strategy, trees } of rows) {
+    const oak = stageStats(trees.oak, 5);
+    const cell = (id: 'beech' | 'pine') => {
+      const st = stageStats(trees[id], 5);
+      return `${formatTime(st.time)} / ${fmt(st.harmony, 1)} / ${signedPct(st.time / oak.time - 1)}`;
+    };
+    lines.push(`| ${strategy.name} | ${formatTime(oak.time)} / ${fmt(oak.harmony, 1)} | ${cell('beech')} | ${cell('pine')} |`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Mehrere Zyklen am Stück (runCycles): je Strategie und Zyklus Stufenzeiten (Median),
+ * Hain gegenüber Zyklus 1, Waldgedächtnis zu Beginn und Gewinn, neu entdeckte Arten,
+ * Stammgäste (gewählt / eingezogen) und Harmonie beim Hain.
+ */
+export function cycleTable(rows: readonly { strategy: Strategy; runs: CycleRun[][] }[]): string {
+  const lines = [
+    '| Strategie | Zyklus | Setzling | Junger Baum | Alter Baum | Hain | Hain gegenüber Zyklus 1 | Waldgedächtnis zu Beginn / Gewinn | neue Arten | Stammgäste gewählt / eingezogen | ⚖️ beim Hain |',
+    '|---|---|---|---|---|---|---|---|---|---|---|',
+  ];
+  for (const { strategy, runs } of rows) {
+    const cycles = runs[0]?.length ?? 0;
+    const hainOf = (c: number) => median(runs.map((r) => r[c]!.result.stages[5]?.time ?? NaN));
+    for (let c = 0; c < cycles; c++) {
+      const cs = runs.map((r) => r[c]!);
+      const at = (stage: number) => formatTime(median(cs.map((r) => r.result.stages[stage]?.time ?? NaN)));
+      const m = (f: (r: CycleRun) => number) => mean(cs.map(f));
+      lines.push(
+        `| ${strategy.name} | ${c + 1} | ${at(2)} | ${at(3)} | ${at(4)} | ${at(5)} | ${c === 0 ? '–' : signedPct(hainOf(c) / hainOf(0) - 1)} | ${fmt(m((r) => r.memory), 1)} / +${fmt(m((r) => r.memoryGain), 1)} | ${fmt(m((r) => r.newSpecies), 1)} | ${fmt(m((r) => r.regulars.length), 2)} / ${fmt(m((r) => r.regularsMovedIn), 2)} | ${fmt(m((r) => r.result.stages[5]?.harmony ?? NaN), 1)} |`,
+      );
+    }
+  }
+  return lines.join('\n');
+}
+
+/** runCycles für mehrere Durchgänge (Seeds wie monteCarlo). */
+export function monteCarloCycles(strategy: Strategy, runs: number, options: Omit<CycleOptions, 'seed'>): CycleRun[][] {
+  return Array.from({ length: runs }, (_, i) => runCycles(strategy, { ...options, seed: 1000 + 7 * i }));
 }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PLANTS, SPECIES } from '../scripts/v2/content';
+import { PLANTS } from '../src/content/plants';
+import { SPECIES } from '../src/content/species';
 import { animalSize, createAnchorResolver } from '../src/render/anchors';
 import { AnimalLayer, animalKind, animalKinds, animalRarity, SpriteCache, type AnimalFrame, type SceneAnimal } from '../src/render/animals';
 import { layoutFlora, nudge, plantKind, PLANT_SPECIES, trunkBaseHalf, type PlacedPlant, type ScenePlant } from '../src/render/flora';
@@ -15,7 +16,7 @@ const SIZES: [number, number][] = [
 ];
 const GROWTHS = [1, 2, 2.5, 3, 3.5, 4.5, 5.5, 6.5, 7.6, 8];
 
-/** Alle 14 Pflanzen aus scripts/v2/content.ts, Plätze 0..13 im Ring. */
+/** Alle 14 Pflanzen aus src/content/plants.ts, Plätze 0..13 im Ring. */
 const ALL_PLANTS: ScenePlant[] = PLANTS.map((p, slot) => ({ id: p.id, group: p.group, slot, vigor: 1 - (slot % 4) * 0.2 }));
 
 /** Kanonische Gruppen-ID für die Tests (Bäume liegen hinten, alles andere am Boden). */
@@ -30,7 +31,7 @@ function treeTrunkHalf(p: PlacedPlant): number {
 }
 
 describe('Begleitpflanzen: Zeichnungen', () => {
-  it('haben für jede Pflanze aus scripts/v2/content.ts eine eigene Zeichnung', () => {
+  it('haben für jede Pflanze aus src/content/plants.ts eine eigene Zeichnung', () => {
     for (const p of PLANTS) {
       expect(plantKind({ id: p.id, group: p.group }), p.id).toBe(p.id);
       expect(PLANT_SPECIES[p.id], p.id).toBe(p.group);
@@ -174,8 +175,9 @@ describe('Begleitpflanzen: Lage', () => {
   });
 
   it('wächst stufenlos: Lage und Größe ändern sich bei kleinen Schritten nur wenig', { timeout: 15000 }, () => {
-    // Volle Belegung des Pflanzrings (12 Plätze, scripts/v2/content.ts PLANT_SLOTS).
+    // Volle Belegung des Pflanzrings (12 Plätze im Urwald, STAGES.plantSlots).
     const ring = ALL_PLANTS.slice(0, 12);
+    const worst = { x: { d: 0, at: '' }, h: { d: 0, at: '' } };
     for (const [w, h] of [
       [1200, 700],
       [390, 844],
@@ -185,14 +187,20 @@ describe('Begleitpflanzen: Lage', () => {
       let prev = layoutFlora(layout, 1.5, ring);
       for (let g = 1.52; g <= 8; g += 0.02) {
         const cur = layoutFlora(layout, g, ring);
+        expect(cur.length).toBe(prev.length);
         for (let i = 0; i < cur.length; i++) {
-          const msg = `${cur[i]!.id} bei g=${g.toFixed(2)}, ${w}×${h}`;
-          expect(Math.abs(cur[i]!.x - prev[i]!.x), msg).toBeLessThan(3);
-          expect(Math.abs(cur[i]!.h - prev[i]!.h), msg).toBeLessThan(3);
+          const at = `${cur[i]!.id} bei g=${g.toFixed(2)}, ${w}×${h}`;
+          const dx = Math.abs(cur[i]!.x - prev[i]!.x);
+          const dh = Math.abs(cur[i]!.h - prev[i]!.h);
+          if (!(dx <= worst.x.d)) worst.x = { d: dx, at };
+          if (!(dh <= worst.h.d)) worst.h = { d: dh, at };
         }
         prev = cur;
       }
     }
+    // Ein `expect` je Größe am Ende statt zehntausender (schneller, gleiche Aussage).
+    expect(worst.x.d, `Lage: ${worst.x.at}`).toBeLessThan(3);
+    expect(worst.h.d, `Größe: ${worst.h.at}`).toBeLessThan(3);
   });
 
   it('ignoriert ungültige Einträge', () => {
@@ -225,7 +233,7 @@ describe('nudge', () => {
 });
 
 describe('Tierarten', () => {
-  it('haben für alle Arten aus scripts/v2/content.ts eine eigene Zeichnung', () => {
+  it('haben für alle Arten aus src/content/species.ts eine eigene Zeichnung', () => {
     const kinds = new Set(animalKinds());
     const fallback = new Set(['bird', 'insect', 'mammal', 'mushroom', 'bracket']);
     for (const s of SPECIES) {

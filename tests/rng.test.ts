@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { isValidRngState, normalizeSeed, pick, random, randomInt, weightedIndex } from '../src/core/rng';
-import { Rng } from '../scripts/v2/rng';
 
 describe('rng (mulberry32)', () => {
-  it('liefert dieselbe Folge wie der Prototyp in scripts/v2', () => {
+  it('liefert die feste mulberry32-Folge (gespeicherte Ziehungen bleiben gleich)', () => {
+    // Werte des früheren Prototyps (scripts/v2/rng.ts, entfernt in Schritt 2.10).
     const holder = { rngState: 12345 };
-    const ref = new Rng(12345);
-    for (let i = 0; i < 100; i++) expect(random(holder)).toBe(ref.next());
-    expect(holder.rngState).toBe(ref.state);
+    expect([random(holder), random(holder), random(holder)].map((x) => x * 2 ** 32)).toEqual([4207900869, 1317490944, 2079646450]);
+    for (let i = 3; i < 100; i++) random(holder);
+    expect(holder.rngState).toBe(2767967213);
   });
 
   it('bleibt im Bereich [0, 1) und ist reproduzierbar', () => {

@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run test",
+    "balance": "SIM_LOG=1 SIM_RUNS=500 vitest run tests/balance.test.ts tests/balance-care.test.ts tests/balance-cycles.test.ts tests/seasons-balance.test.ts --silent=false",
     "test:e2e": "playwright test"
   },
   "devDependencies": {

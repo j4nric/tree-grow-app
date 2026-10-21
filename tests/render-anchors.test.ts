@@ -79,6 +79,9 @@ describe('Tier-Ankerpunkte', () => {
 
   it('wachsen stufenlos mit dem Baum (keine Sprünge)', { timeout: 15000 }, () => {
     const step = 0.01;
+    // Größter Sprung über alle Schritte: ein `expect` am Ende statt zehntausender (schneller,
+    // gleiche Aussage; die Meldung nennt die schlechteste Stelle).
+    let worst = { d: 0, at: '' };
     for (const [w, h] of [
       [1200, 700],
       [390, 844],
@@ -91,12 +94,13 @@ describe('Tier-Ankerpunkte', () => {
         for (const niche of SCENE_NICHES) {
           for (let i = 0; i < 4; i++) {
             const d = Math.hypot(a[niche][i]!.x - b[niche][i]!.x, a[niche][i]!.y - b[niche][i]!.y);
-            expect(d, `${niche} Platz ${i} bei g=${(g - step).toFixed(2)}`).toBeLessThan(2.5);
+            if (!(d <= worst.d)) worst = { d, at: `${niche} Platz ${i} bei g=${(g - step).toFixed(2)}, ${w}×${h}` };
           }
         }
         a = b;
       }
     }
+    expect(worst.d, worst.at).toBeLessThan(2.5);
   });
 
   it('ignorieren unbekannte Nischen und ungültige Plätze', () => {

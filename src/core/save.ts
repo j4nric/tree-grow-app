@@ -87,6 +87,8 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   if (version < 4) migrateV3(state);
   if (version < 5) migrateV4(state);
   if (version < 6) migrateV5(state);
+  // v6 → v7 (Balancing 2.10): nur die Wegpunkt-Kurve – schon in loadV2 umgerechnet
+  // (v6GrowthToV7), bevor Wegpunkt, Stufe und Zwischenhalt abgeleitet werden.
   // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte. Führt
   // auch H_max nach (die aktuelle Harmonie zählt schon für diesen Zyklus).
   recordDiscoveries(state);
@@ -157,6 +159,26 @@ export function v2GrowthToV3(growth: number): number {
   return growthToCurrentCurve(growth, v2Threshold);
 }
 
+/**
+ * Wegpunkt-Kurve der Stände v3 bis v6 (Schritt 2.1 bis Jahreszeiten): Wegpunkt k bei
+ * 3,5 · k^3,4. Seit v7 (Balancing 2.10) gilt 3,5 · k^3,5 (content/waypoints.ts).
+ */
+export const V6_WAYPOINT_BASE = 3.5;
+export const V6_WAYPOINT_POWER = 3.4;
+
+/** Gesamt-Wachstum für Wegpunkt k auf der Kurve der Stände v3–v6. */
+export function v6Threshold(k: number): number {
+  return k <= 0 ? 0 : Math.round(V6_WAYPOINT_BASE * Math.pow(k, V6_WAYPOINT_POWER));
+}
+
+/**
+ * v3–v6-Stand (3,5 · k^3,4) → aktuelle Kurve: gleicher Wegpunkt, gleicher Bruchteil bis
+ * zum nächsten (siehe growthToCurrentCurve) – Stufe, Tiere und Zwischenhalt bleiben.
+ */
+export function v6GrowthToV7(growth: number): number {
+  return growthToCurrentCurve(growth, v6Threshold);
+}
+
 /** v2 → v3: noch keine Pflanzen; Samen-Bestand begrenzen (siehe V2_SEED_CAP). */
 function migrateV2(state: GameState): void {
   state.plants = [];
@@ -209,8 +231,10 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   state.lastTick = lastTick;
   // ±Infinity (z. B. „1e400“ im JSON) wird auf den größten endlichen Wert begrenzt.
   state.totalGrowth = clampedOr(data.totalGrowth, 0, 0, Number.MAX_VALUE);
-  // v2 rechnete mit einer anderen Wegpunkt-Kurve: erst auf die neue umrechnen, dann ableiten.
+  // v2 und v3–v6 rechneten mit anderen Wegpunkt-Kurven: erst auf die aktuelle umrechnen
+  // (direkt, nicht über die v6-Kurve), dann Wegpunkt und Stufe ableiten.
   if (version < 3) state.totalGrowth = v2GrowthToV3(state.totalGrowth);
+  else if (version < 7) state.totalGrowth = v6GrowthToV7(state.totalGrowth);
   state.seeds = clampedOr(data.seeds, 0, 0, Number.MAX_VALUE);
   // Wegpunkt und Stufe immer aus dem Gesamt-Wachstum ableiten.
   state.waypoint = waypointsForGrowth(state.totalGrowth);

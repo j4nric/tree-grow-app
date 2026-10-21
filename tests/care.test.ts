@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CARE, CARE_BY_ID } from '../src/content/care';
 import { appearsContext, ecosystemOf, evaluate } from '../src/core/formulas';
 import { deserialize, serialize } from '../src/core/save';
-import { createCycle, type GameState } from '../src/core/state';
+import { SAVE_VERSION, createCycle, type GameState } from '../src/core/state';
 import { buyCare, careBlocker, careRank, nextCareRank, previewCare, simulateOffline, startNewCycle, tick } from '../src/core/tick';
 import { stateAt } from './helpers';
 
@@ -19,7 +19,7 @@ describe('Pflege: Blocker', () => {
     expect(careBlocker(state, 'nope')).toBe('unknown-care');
     expect(careBlocker(state, 'pond')).toBe('stage'); // Waldtümpel ab Alter Baum
     expect(careBlocker(state, 'nest-boxes')).toBe('too-expensive');
-    state.seeds = 900;
+    state.seeds = CARE_BY_ID.get('nest-boxes')!.ranks[0]!.cost;
     expect(careBlocker(state, 'nest-boxes')).toBeNull();
     // Insektenhotel braucht ein Insekt.
     const old = rich(4, ['earthworm']);
@@ -48,8 +48,8 @@ describe('Pflege: Kauf und Wirkung', () => {
     const state = stateAt(3, [], 1);
     state.seeds = 1000;
     const result = buyCare(state, 'leaf-litter');
-    expect(result).toEqual({ ok: true, seeds: -600 });
-    expect(state.seeds).toBe(400);
+    expect(result).toEqual({ ok: true, seeds: -750 });
+    expect(state.seeds).toBe(250);
     expect(careRank(state, 'leaf-litter')).toBe(1);
     expect(state.cycle.care).toEqual({ 'leaf-litter': 1 });
     expect(nextCareRank(state, 'leaf-litter')).toBe(CARE_BY_ID.get('leaf-litter')!.ranks[1]);
@@ -152,8 +152,8 @@ describe('Pflege: Speichern und Laden (additiv in v5)', () => {
     delete raw.cycle.elapsed;
     delete raw.cycle.mainTree;
     const s = deserialize(JSON.stringify(raw), 0)!;
-    // Geladen wird als aktuelle Version (v6: Jahreszeiten), Pflege bleibt leer.
-    expect(s.version).toBe(6);
+    // Geladen wird als aktuelle Version, Pflege bleibt leer.
+    expect(s.version).toBe(SAVE_VERSION);
     expect(s.cycle.care).toEqual({});
   });
 

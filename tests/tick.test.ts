@@ -419,11 +419,8 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       harmony: Math.round(ev.harmony * 100) / 100,
     }).toMatchInlineSnapshot(`
       {
-        "communities": [
-          "caterpillar-watch",
-          "night-shift",
-        ],
-        "harmony": 89.21,
+        "communities": [],
+        "harmony": 68.83,
         "journal": [
           "earthworm",
           "woodlouse",
@@ -431,16 +428,12 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "mole",
           "slug",
           "chanterelle",
-          "glowworm",
           "bluetit",
-          "flyagaric",
           "oakmoth",
+          "flyagaric",
+          "bee",
           "tinder",
-          "jay",
-          "owl",
-          "bat",
-          "deer",
-          "woodant",
+          "woodpecker",
         ],
         "journalPlants": [
           "anemone",
@@ -449,29 +442,23 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "rowan",
           "nettle",
           "birch",
-          "beech",
         ],
         "niches": {
           "bark": [
             "tinder",
+            "woodpecker",
           ],
           "crown": [
             "bluetit",
             "oakmoth",
-            "jay",
           ],
           "edge": [
-            "glowworm",
-            "deer",
+            "bee",
           ],
-          "hollows": [
-            "owl",
-            "bat",
-          ],
+          "hollows": [],
           "litter": [
             "woodlouse",
             "slug",
-            "woodant",
           ],
           "roots": [
             "chanterelle",
@@ -480,7 +467,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           ],
         },
         "plants": [
-          "beech",
+          "nettle",
           "hazel",
           "hazel",
           "birch",
@@ -488,11 +475,11 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "hazel",
           "hazel",
         ],
-        "rngState": 1613652530,
-        "seeds": 47830,
+        "rngState": 3892806722,
+        "seeds": 34502,
         "stage": 5,
-        "totalGrowth": 241138,
-        "waypoint": 26,
+        "totalGrowth": 142332,
+        "waypoint": 20,
       }
     `);
   });

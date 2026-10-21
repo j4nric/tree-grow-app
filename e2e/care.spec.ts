@@ -21,7 +21,7 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
   // Maßnahmen ab Alter Baum (z. B. Lichte Krone) stehen noch nicht in der Liste.
   await expect(care.locator('[data-care="light-crown"]')).toHaveCount(0);
 
-  await litter.getByRole('button', { name: 'Kaufen (600 🌰)' }).click();
+  await litter.getByRole('button', { name: 'Kaufen (750 🌰)' }).click();
 
   await expect(niche(page, 'litter')).toContainText('1/3 belegt');
   await expect(litter).toContainText('Rang 2/2');
@@ -36,7 +36,7 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
   await expect(litter).toContainText('Rang 2/2');
   const saved = await savedState(page);
   expect(saved.cycle.care).toEqual({ 'leaf-litter': 1 });
-  expect(saved.seeds).toBeLessThan(450);
+  expect(saved.seeds).toBeLessThan(350);
 
   await page.reload();
   await expect(care.locator('[data-care="leaf-litter"]')).toContainText('Rang 2/2');
@@ -53,12 +53,12 @@ test('Pflege per Tastatur: Fokus bleibt auf dem Knopf, nach dem letzten Rang auf
   await openGame(page);
   const litter = page.locator('[data-ref="care"] [data-care="leaf-litter"]');
   const buy = litter.locator('[data-buy-care="leaf-litter"]');
-  await expect(buy).toHaveText('Kaufen (600 🌰)');
+  await expect(buy).toHaveText('Kaufen (750 🌰)');
   await buy.focus();
   await page.keyboard.press('Enter');
   await expect(litter).toContainText('Rang 2/2');
   // Neu gebauter Knopf (nächster Rang) hat den Fokus übernommen.
-  await expect(buy).toHaveText(/Kaufen \(4[.,]000 🌰\)/);
+  await expect(buy).toHaveText(/Kaufen \(7[.,]000 🌰\)/);
   await expect(buy).toBeFocused();
   // Sperre gegen Doppelkäufe abwarten, dann den letzten Rang kaufen.
   await page.waitForTimeout(450);
@@ -134,7 +134,7 @@ test('Pflege: kaufbar zuerst, Reihenfolge bleibt beim Kauf stehen, Bestätigung 
 
 test('Pflege auf dem Handy: zugeklappt mit Zusammenfassung, aufklappbar, ohne Querscrollen', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 1000, niches: { roots: ['earthworm'] } });
+  await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 1200, niches: { roots: ['earthworm'] } });
   await openGame(page);
   const care = page.locator('[data-ref="care"]');
   const buy = care.locator('[data-buy-care="leaf-litter"]');

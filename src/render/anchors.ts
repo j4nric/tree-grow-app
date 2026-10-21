@@ -11,7 +11,7 @@ import { makeLayout, placeMainTree, placeRoots, sproutScale, trunkFootHalf, type
 import { normalizeSpecies, TREE_SPECIES, type Branch, type TreeSpecies } from './plant';
 import { clamp, clamp01, hash2, lerp } from './util';
 
-/** Nischen-IDs, die der Renderer kennt (wie in DESIGN_V2.md / scripts/v2/content.ts). */
+/** Nischen-IDs, die der Renderer kennt (wie in DESIGN_V2.md / src/content/niches.ts). */
 export const SCENE_NICHES = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows'] as const;
 export type SceneNiche = (typeof SCENE_NICHES)[number];
 

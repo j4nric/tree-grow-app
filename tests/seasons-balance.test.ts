@@ -1,72 +1,67 @@
 import { describe, expect, it } from 'vitest';
-import { GROWTH, HARMONY, RANDOM, STAGE_TARGETS, environmentTable, monteCarlo, stageStats, type Summary } from '../scripts/simulate';
+import { GROWTH, HARMONY, RANDOM, environmentTable, monteCarlo, stageStats, treeTable, type Summary } from '../scripts/simulate';
+import { SEASONS_BY_ID } from '../src/content/seasons';
+import type { MainTreeId } from '../src/content/trees';
+import { FULL, HAIN, MAX_SECONDS, TREE_RUNS, URWALD } from './balance-setup';
 
 /**
- * Jahreszeiten und Hauptbaum-Arten mit der ECHTEN Logik (DESIGN_V2.md 15.4, 16, 17). Die
- * Jahreszeiten laufen in jedem Durchgang mit; verglichen werden die drei Baumarten im
- * ersten Zyklus (ohne Waldgedächtnis). Der Test prüft die Design-Ziele: Das Tempo bleibt
- * im Korridor und nah am Stand ohne Jahreszeiten, keine Baumart ist deutlich besser oder
- * schlechter als die Eiche.
+ * Jahreszeiten und Hauptbaum-Arten mit der ECHTEN Logik und allen Systemen (Pflege,
+ * Ereignisse, Gäste; DESIGN_V2.md 15.4, 16, 17). Verglichen werden die drei Baumarten im
+ * ersten Zyklus (ohne Waldgedächtnis, ohne Freischaltung) mit denselben Seeds. Ziel aus
+ * dem Balancing 2.10: keine Art dominiert – Buche und Kiefer liegen beim Hain innerhalb von
+ * ±5 % der Eiche, für den Harmonie- wie für den Wachstums-Spieler.
  *
- * Tabellen im Protokoll:   SIM_LOG=1 npx vitest run tests/seasons-balance.test.ts
- * Mehr Durchgänge (Doku):  SIM_LOG=1 SIM_SEASON_ALL=1 SIM_SEASON_RUNS=200 npx vitest run tests/seasons-balance.test.ts
+ * Im Check TREE_RUNS Durchgänge bis zum Hain; der große Lauf (npm run balance) zusätzlich
+ * mit dem Zufallsspieler und bis zum Urwald.
  */
-const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
-const RUNS = Number(env.SIM_SEASON_RUNS ?? 30);
-const HAIN = 5;
-const options = { targetStage: env.SIM_LOG ? 7 : HAIN, maxSeconds: 6 * 3600 };
-// Mit SIM_SEASON_ALL alle drei Spielertypen, sonst nur der Harmonie-Spieler.
-const strategies = env.SIM_SEASON_ALL ? [HARMONY, GROWTH, RANDOM] : [HARMONY];
+const options = { targetStage: FULL ? URWALD : HAIN, maxSeconds: MAX_SECONDS, care: true };
+const strategies = FULL ? [HARMONY, GROWTH, RANDOM] : [HARMONY, GROWTH];
+const TREES: readonly MainTreeId[] = ['oak', 'beech', 'pine'];
+const byTree = Object.fromEntries(TREES.map((t) => [t, monteCarlo(strategies, TREE_RUNS, { ...options, mainTree: t })])) as Record<
+  MainTreeId,
+  Summary[]
+>;
+const rows = strategies.map((strategy, i) => ({
+  strategy,
+  trees: Object.fromEntries(TREES.map((t) => [t, byTree[t][i]!])) as Record<MainTreeId, Summary>,
+}));
 
-/**
- * Stand ohne Jahreszeiten und Baumarten (Schritt 2.4, echte Logik, Harmonie-Spieler,
- * 100 Durchgänge, DESIGN_V2.md 15.4): Hain nach 45:44 min, Harmonie 100,1.
- */
-const BEFORE = { hainSeconds: 45 * 60 + 44, harmony: 100.1 };
-
-const run = (extra: object) => monteCarlo(strategies, RUNS, { ...options, ...extra });
-const trees = {
-  oak: run({ mainTree: 'oak' }),
-  beech: run({ mainTree: 'beech' }),
-  pine: run({ mainTree: 'pine' }),
-};
-const harmonyOf = (s: Summary[]) => s.find((x) => x.strategy.id === HARMONY.id)!;
-
-describe('Jahreszeiten und Baumarten (echte Logik)', () => {
+describe('Jahreszeiten und Baumarten (echte Logik, alle Systeme)', () => {
   it('Protokoll', () => {
-    if (env.SIM_LOG) {
-      for (const [i, strategy] of strategies.entries()) {
+    if (FULL) {
+      console.log(treeTable(rows));
+      for (const { strategy, trees } of rows) {
         console.log(
-          `#### ${strategy.name} (${RUNS} Durchgänge)\n\n` +
+          `#### ${strategy.name} (${TREE_RUNS} Durchgänge)\n\n` +
             environmentTable([
-              { label: 'Eiche', summary: trees.oak[i]! },
-              { label: 'Buche', summary: trees.beech[i]! },
-              { label: 'Kiefer', summary: trees.pine[i]! },
+              { label: 'Eiche', summary: trees.oak },
+              { label: 'Buche', summary: trees.beech },
+              { label: 'Kiefer', summary: trees.pine },
             ]),
         );
       }
     }
-    expect(trees.oak.length).toBe(strategies.length);
+    expect(rows.length).toBe(strategies.length);
   });
 
-  it('Jahreszeiten (Eiche): Hain im Korridor und höchstens 10 % neben dem Stand ohne, Harmonie nicht niedriger', () => {
-    const oak = stageStats(harmonyOf(trees.oak), HAIN);
-    const target = STAGE_TARGETS.find((t) => t.stage === HAIN)!.seconds;
-    expect(oak.reachedShare).toBe(1);
-    expect(oak.time).toBeGreaterThan(0.7 * target);
-    expect(oak.time / BEFORE.hainSeconds).toBeGreaterThan(0.9);
-    expect(oak.time / BEFORE.hainSeconds).toBeLessThan(1.1);
-    expect(oak.harmony).toBeGreaterThan(BEFORE.harmony - 2);
-  });
-
-  it('Baumarten: jede erreicht den Hain innerhalb ±10 % der Eiche, Harmonie ±8 Punkte', () => {
-    const oak = stageStats(harmonyOf(trees.oak), HAIN);
-    for (const [id, s] of Object.entries(trees)) {
-      const st = stageStats(harmonyOf(s), HAIN);
-      expect(st.reachedShare, id).toBe(1);
-      expect(st.time / oak.time, id).toBeGreaterThan(0.9);
-      expect(st.time / oak.time, id).toBeLessThan(1.1);
-      expect(Math.abs(st.harmony - oak.harmony), id).toBeLessThan(8);
+  it('jede Art erreicht den Hain; Buche und Kiefer innerhalb ±5 % der Eiche (Harmonie und Wachstum)', () => {
+    // Im Check (30 Durchgänge) schwankt der Median um ~±2 % – Grenze dort ±6 %.
+    const limit = FULL ? 0.05 : 0.06;
+    for (const { strategy, trees } of rows.filter((r) => r.strategy !== RANDOM)) {
+      const oak = stageStats(trees.oak, HAIN);
+      for (const t of TREES) {
+        const st = stageStats(trees[t], HAIN);
+        expect(st.reachedShare, `${strategy.id} ${t}`).toBe(1);
+        expect(Math.abs(st.time / oak.time - 1), `${strategy.id} ${t}`).toBeLessThan(limit);
+        expect(Math.abs(st.harmony - oak.harmony), `${strategy.id} ${t}`).toBeLessThan(6);
+      }
     }
+  });
+
+  it('Frühlingsbonus: der Zyklus beginnt im Frühling mit +10 % 🌿', () => {
+    const spring = SEASONS_BY_ID.get('spring')!;
+    expect(spring.effects).toContainEqual({ kind: 'growth', pct: 10 });
+    // Der Setzling (~45 s) liegt ganz im ersten Frühling (3 min).
+    for (const t of TREES) expect(stageStats(byTree[t][0]!, 2).time, t).toBeLessThan(180);
   });
 });
