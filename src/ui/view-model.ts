@@ -77,6 +77,8 @@ export interface ReplaceOptionView {
   preview?: PreviewView;
   /** Dieses Tier kann nicht weichen (mit Begründung) – Option wird gesperrt angezeigt. */
   disabledReason?: string;
+  /** Bedingungen inklusive Tausch (z. B. Futter nicht mehr knapp); fehlen sie, gelten die der Karte. */
+  conditions?: ConditionView[];
 }
 
 /** Eine Karte in einer Begegnung (Tier, Pflanze, Ereignis-Option oder Gast). */
