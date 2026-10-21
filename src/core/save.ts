@@ -5,12 +5,31 @@ import { PLANTS_BY_ID } from '../content/plants';
 import { SPECIES_BY_ID } from '../content/species';
 import { NICHE_IDS } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
-import { nicheSlots, plantCost, plantSlots, slotEffects, stageForWaypoint, thresholdFor, waypointsForGrowth } from './formulas';
+import {
+  nicheSlots,
+  plantCost,
+  plantSlots,
+  regularSlots,
+  slotEffects,
+  stageForWaypoint,
+  thresholdFor,
+  waypointsForGrowth,
+} from './formulas';
 import { isValidRngState, normalizeSeed } from './rng';
 import { recordDiscoveries } from './tick';
-import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState, type GameState, type PendingEncounter } from './state';
+import {
+  MAX_FOREST_MEMORY,
+  SAVE_VERSION,
+  createCycle,
+  createInitialState,
+  type GameState,
+  type PendingEncounter,
+} from './state';
 
 export const SAVE_KEY = 'tree-grow-save';
+
+/** Obergrenze für die Zyklus-Nummer beim Laden (Schutz vor kaputten Ständen). */
+export const MAX_CYCLE_NUMBER = 1e9;
 
 /**
  * v2 → v3: Prototyp-Stände (ohne Pflanzen) hatten keine Samen-Senke und bringen oft
@@ -52,7 +71,9 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   if (version < 2) return migrateV1(data, now);
   const state = loadV2(data, now, version);
   if (version < 3) migrateV2(state);
-  // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte.
+  if (version < 4) migrateV3(state);
+  // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte. Führt
+  // auch H_max nach (die aktuelle Harmonie zählt schon für diesen Zyklus).
   recordDiscoveries(state);
   return { state, migratedFromV1: false, keepsake: false };
 }
@@ -125,6 +146,17 @@ export function v2GrowthToV3(growth: number): number {
 function migrateV2(state: GameState): void {
   state.plants = [];
   state.seeds = Math.min(state.seeds, V2_SEED_CAP);
+}
+
+/**
+ * v3 → v4 (Neuer Zyklus): Vor v4 gab es keinen Zyklusstart, also läuft noch der erste
+ * Zyklus – alle Arten im Tagebuch wurden in ihm entdeckt und zählen fürs Waldgedächtnis.
+ * H_max ergänzt loadGame aus dem aktuellen Ökosystem; Stammgäste gibt es noch keine.
+ */
+function migrateV3(state: GameState): void {
+  state.cycle = createCycle(1);
+  state.cycle.newSpecies = [...state.meta.journal.species];
+  state.meta.regulars = [];
 }
 
 /**
@@ -221,6 +253,18 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   // fehlen sie (ältere Stände), ergänzt loadGame sie per recordDiscoveries aus dem Ökosystem.
   state.meta.journal.plants = unique(stringArray(journal.plants).filter((id) => PLANTS_BY_ID.has(id)));
   state.meta.journal.communities = unique(stringArray(journal.communities).filter((id) => COMMUNITIES_BY_ID.has(id)));
+
+  // Seit v4: laufender Zyklus und Stammgäste (ältere Stände: migrateV3 setzt sie).
+  const discovered = new Set(state.meta.journal.species);
+  const cycle = isRecord(data.cycle) ? data.cycle : {};
+  state.cycle = createCycle(Math.floor(clampedOr(cycle.number, 1, 1, MAX_CYCLE_NUMBER)));
+  state.cycle.maxHarmony = clampedOr(cycle.maxHarmony, 0, 0, Number.MAX_VALUE);
+  state.cycle.newSpecies = unique(stringArray(cycle.newSpecies).filter((id) => discovered.has(id)));
+  if (typeof cycle.startedAt === 'number' && Number.isFinite(cycle.startedAt)) state.cycle.startedAt = cycle.startedAt;
+  state.meta.regulars = unique(stringArray(meta.regulars).filter((id) => discovered.has(id))).slice(
+    0,
+    regularSlots(state.meta.forestMemory),
+  );
   return state;
 }
 
