@@ -4,7 +4,7 @@ import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { cycleMemoryGain, evaluate, regularSlots, thresholdFor } from '../src/core/formulas';
 import { MAX_CYCLE_NUMBER, deserialize, loadGame, serialize } from '../src/core/save';
-import { MAX_FOREST_MEMORY, allAnimals, createInitialState, type GameState } from '../src/core/state';
+import { MAX_FOREST_MEMORY, allAnimals, createCycle, createInitialState, type GameState } from '../src/core/state';
 import {
   chooseCard,
   drawAnimals,
@@ -132,7 +132,7 @@ describe('Neuer Zyklus', () => {
     expect(state.plants).toEqual([]);
     expect(allAnimals(state)).toEqual([]);
     expect(state.pendingEncounters).toEqual([]);
-    expect(state.cycle).toEqual({ number: 2, maxHarmony: Math.max(0, evaluate(state).harmony), newSpecies: [], startedAt: 99_000 });
+    expect(state.cycle).toEqual({ ...createCycle(2, 99_000), maxHarmony: Math.max(0, evaluate(state).harmony) });
   });
 
   it('behält Tagebuch, Andenken, Stammgäste, Zufallsgenerator und lastTick; schreibt Waldgedächtnis gut', () => {
@@ -338,7 +338,7 @@ describe('Migration v3 → v4', () => {
     const result = loadGame(rawV3(), 9000)!;
     expect(result.migratedFromV1).toBe(false);
     const s = result.state;
-    expect(s.version).toBe(4);
+    expect(s.version).toBe(5);
     expect(s.seeds).toBe(77);
     expect(s.waypoint).toBe(12);
     expect(s.stage).toBe(4);
@@ -399,7 +399,8 @@ describe('Migration v3 → v4', () => {
 
   it('neues Spiel startet im ersten Zyklus ohne Stammgäste', () => {
     const s = createInitialState(500, 1);
-    expect(s.cycle).toEqual({ number: 1, maxHarmony: 0, newSpecies: [], startedAt: 500 });
+    expect(s.cycle).toEqual(createCycle(1, 500));
+    expect(s.cycle).toMatchObject({ number: 1, maxHarmony: 0, newSpecies: [], startedAt: 500 });
     expect(s.meta.regulars).toEqual([]);
   });
 });

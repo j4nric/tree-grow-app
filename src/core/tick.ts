@@ -1,22 +1,30 @@
 import {
   CARDS_PER_ENCOUNTER,
   ENCOUNTER_WEIGHTS,
+  INTERLUDE_CHANCE,
+  INTERLUDE_POSITION,
+  INTERLUDE_STAGE,
+  INTERLUDE_WEIGHTS,
   MAX_PENDING_ENCOUNTERS,
   PLANT_WEIGHT_IN_RING,
   PLANT_WEIGHT_RING_FULL,
   SCRIPTED_ENCOUNTERS,
 } from '../content/encounters';
+import { EVENTS, EVENTS_BY_ID, type GameEvent } from '../content/events';
 import { JOURNAL_SPECIES_WEIGHT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { PLANTS, PLANTS_BY_ID } from '../content/plants';
 import { SPECIES, SPECIES_BY_ID } from '../content/species';
 import { STAGES } from '../content/stages';
 import { ENCOUNTER_TYPES } from '../content/types';
+import { VISITORS, VISITORS_BY_ID, type Visitor } from '../content/visitors';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import {
   activeCommunities,
   appearsContext,
   cycleMemoryGain,
+  cycleSlotBonuses,
   declineReward,
+  ecosystemOf,
   evaluate,
   nextPlantCost,
   nicheSlots,
@@ -26,19 +34,22 @@ import {
   regularSlots,
   rerollCost,
   resolveChoice,
+  seedSeconds,
   speciesAppears,
   stageForWaypoint,
   thresholdFor,
   type ChoiceError,
 } from './formulas';
-import { pick, weightedIndex, type RngHolder } from './rng';
+import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import {
   allAnimals,
   createCycle,
   emptyNiches,
+  isCardEncounter,
+  type CardEncounterType,
+  type ForcedEncounter,
   type GameState,
   type PendingEncounter,
-  type PendingEncounterType,
 } from './state';
 
 /** Offline-Fortschritt wird auf diese Dauer begrenzt. */
@@ -58,6 +69,15 @@ export interface TickReport {
   declinedNoCards: number;
   /** Eingezogene Stammgäste (Art-IDs, in Reihenfolge des Einzugs). */
   regulars: string[];
+  /** Am Zwischenhalt (ab Hain) in die Warteschlange gelegte Ereignisse und Gäste. */
+  interludes: number;
+  /**
+   * Erreichte Zwischenhalte – auch ohne Ergebnis. Auch dann ändert sich der Spielstand
+   * (Zufall, `cycle.interlude`): main.ts speichert sofort, damit Neuladen nichts neu würfelt.
+   */
+  interludesReached: number;
+  /** Abgelaufene Zeit-Boni (Ereignis-IDs) und abgereiste Gäste (Gast-IDs). */
+  expired: string[];
 }
 
 export interface OfflineReport extends TickReport {
@@ -67,12 +87,17 @@ export interface OfflineReport extends TickReport {
   seeds: number;
 }
 
+/** Restdauern ab hier gelten als abgelaufen (Rundung bei vielen kleinen Ticks). */
+const EXPIRY_EPSILON = 1e-9;
+
 /**
  * Lässt `dt` Sekunden Spielzeit vergehen. Verändert `state` direkt.
- * Ereignisgesteuert: Zwischen zwei Wegpunkten sind die Raten konstant, also wird bis
- * zum nächsten Wegpunkt in einem Schritt gerechnet. Darum liefern viele kleine Ticks
- * und ein großer dasselbe Ergebnis (bis auf Rundung). Deterministisch: Zeit kommt nur
- * über `dt`, Zufall nur über `state.rngState`.
+ * Ereignisgesteuert: Die Raten sind konstant bis zum nächsten Halt – dem nächsten
+ * Wegpunkt, dem Zwischenhalt (ab Hain, über das Gesamt-Wachstum wie Wegpunkte) oder dem
+ * Ablauf eines Zeit-Bonus bzw. Gastes (kleinste Restdauer). Bis dahin wird in einem
+ * Schritt gerechnet. Darum liefern viele kleine Ticks und ein großer dasselbe Ergebnis
+ * (bis auf Rundung). Deterministisch: Zeit kommt nur über `dt`, Zufall nur über
+ * `state.rngState`.
  */
 export function tick(state: GameState, dt: number): TickReport {
   const report: TickReport = {
@@ -82,28 +107,102 @@ export function tick(state: GameState, dt: number): TickReport {
     declinedStackFull: 0,
     declinedNoCards: 0,
     regulars: [],
+    interludes: 0,
+    interludesReached: 0,
+    expired: [],
   };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
   let remaining = dt;
-  // Schleife endet: Jede Runde verbraucht die Restzeit oder erreicht einen der
-  // höchstens WAYPOINT_COUNT Wegpunkte.
+  // Schleife endet: Jede Runde verbraucht die Restzeit oder erreicht einen Halt – davon
+  // gibt es endlich viele (Wegpunkte, je ein Zwischenhalt, endlich viele Boni).
   while (remaining > 0) {
     const ev = evaluate(state);
     const next = thresholdFor(state.waypoint + 1);
     const rate = ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth : 0;
     const toNext = rate > 0 ? Math.max(0, next - state.totalGrowth) / rate : Infinity;
-    const step = Math.min(remaining, toNext);
+    const interlude = interludeThreshold(state);
+    const toInterlude = rate > 0 && interlude < Infinity ? Math.max(0, interlude - state.totalGrowth) / rate : Infinity;
+    const toExpiry = nextExpiry(state);
+    const step = Math.min(remaining, toNext, toInterlude, toExpiry);
     state.seeds = capped(state.seeds + ev.seeds * step);
     remaining -= step;
-    if (step < toNext) {
+    countDown(state, step, report);
+    if (step === toNext) {
+      // Wegpunkt genau erreicht (ohne Rundungsfehler, damit online und offline gleich zählen)
+      state.totalGrowth = Math.max(state.totalGrowth, next);
+      reachWaypoint(state, report);
+    } else if (step === toInterlude) {
+      state.totalGrowth = Math.max(state.totalGrowth, interlude);
+      reachInterlude(state, report);
+    } else {
       state.totalGrowth = capped(state.totalGrowth + rate * step);
-      break;
     }
-    // Wegpunkt genau erreicht (ohne Rundungsfehler, damit online und offline gleich zählen)
-    state.totalGrowth = Math.max(state.totalGrowth, next);
-    reachWaypoint(state, report);
   }
   return report;
+}
+
+/** Kleinste Restdauer eines Zeit-Bonus oder Gastes (Infinity, wenn keiner wirkt). */
+export function nextExpiry(state: GameState): number {
+  let next = Infinity;
+  for (const t of state.cycle.timed) next = Math.min(next, Math.max(0, t.remaining));
+  for (const v of state.cycle.visitors) next = Math.min(next, Math.max(0, v.remaining));
+  return next;
+}
+
+/** Zieht `seconds` von allen Restdauern ab und entfernt Abgelaufenes. */
+function countDown(state: GameState, seconds: number, report: TickReport): void {
+  const cycle = state.cycle;
+  if (cycle.timed.length === 0 && cycle.visitors.length === 0) return;
+  const timed = [];
+  for (const t of cycle.timed) {
+    const left = t.remaining - seconds;
+    if (left > EXPIRY_EPSILON) timed.push({ ...t, remaining: left });
+    else report.expired.push(t.source);
+  }
+  const visitors = [];
+  for (const v of cycle.visitors) {
+    const left = v.remaining - seconds;
+    if (left > EXPIRY_EPSILON) visitors.push({ ...v, remaining: left });
+    else report.expired.push(v.id);
+  }
+  cycle.timed = timed;
+  cycle.visitors = visitors;
+}
+
+/**
+ * Gesamt-Wachstum des nächsten Zwischenhalts (DESIGN_V2.md 7.2, encounters.ts): ab
+ * INTERLUDE_STAGE einmal je Abschnitt zwischen zwei Wegpunkten, bei INTERLUDE_POSITION
+ * des Weges. Infinity, wenn keiner mehr ansteht.
+ */
+export function interludeThreshold(state: GameState): number {
+  if (state.stage < INTERLUDE_STAGE || state.cycle.interlude >= state.waypoint || state.waypoint >= WAYPOINT_COUNT) {
+    return Infinity;
+  }
+  const from = thresholdFor(state.waypoint);
+  const to = thresholdFor(state.waypoint + 1);
+  if (!Number.isFinite(to)) return Infinity;
+  return from + INTERLUDE_POSITION * (to - from);
+}
+
+/**
+ * Zwischenhalt erreicht: mit INTERLUDE_CHANCE ein Ereignis oder ein Gast (Gewichte
+ * INTERLUDE_WEIGHTS, nur Typen mit Kandidaten). Bei voller Warteschlange oder ohne
+ * Kandidaten passiert nichts – es fehlt ja keine Begegnung.
+ */
+function reachInterlude(state: GameState, report: TickReport): void {
+  state.cycle.interlude = state.waypoint;
+  report.interludesReached++;
+  if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) return;
+  if (random(state) >= INTERLUDE_CHANCE) return;
+  const events = eligibleEvents(state);
+  const visitors = eligibleVisitors(state);
+  const weights = [events.length > 0 ? INTERLUDE_WEIGHTS[0] : 0, visitors.length > 0 ? INTERLUDE_WEIGHTS[1] : 0];
+  const i = weightedIndex(state, weights);
+  if (i < 0) return;
+  const encounter = i === 0 ? eventEncounter(state, pick(state, events)) : visitorEncounter(state, pick(state, visitors));
+  state.pendingEncounters.push(encounter);
+  report.encounters++;
+  report.interludes++;
 }
 
 /**
@@ -155,9 +254,6 @@ function reachWaypoint(state: GameState, report: TickReport): void {
   report.encounters++;
 }
 
-/** Begegnungstypen, die es schon gibt (Ereignis und Durchreisende folgen in 2.4). */
-const DRAWABLE_TYPES: readonly PendingEncounterType[] = ['animal', 'plant'];
-
 /**
  * Zieht die Begegnung für den gerade erreichten Wegpunkt (DESIGN_V2.md, 7.1/7.2): Die
  * ersten Wegpunkte sind festgelegt (Tier, Pflanze, Tier), danach entscheidet das
@@ -167,16 +263,29 @@ const DRAWABLE_TYPES: readonly PendingEncounterType[] = ['animal', 'plant'];
  */
 export function drawEncounter(state: GameState): PendingEncounter | null {
   let type = SCRIPTED_ENCOUNTERS[state.waypoint - 1];
+  if (type === undefined && state.cycle.forced) {
+    // Vorgabe aus einem Ereignis (`nextEncounter`): gilt für genau diese Begegnung.
+    const forced = state.cycle.forced;
+    state.cycle.forced = null;
+    const built = forcedEncounter(state, forced);
+    if (built) return built;
+    // Passt keine ID mehr: Der Vorzug verfällt still, es wird normal gezogen.
+  }
   if (type === undefined) {
     const weights = ENCOUNTER_WEIGHTS[state.stage] ?? ENCOUNTER_WEIGHTS[ENCOUNTER_WEIGHTS.length - 1]!;
     const ringFull = state.plants.length >= plantSlots(state.stage);
-    const drawable = ENCOUNTER_TYPES.map((t, i) => {
-      if (!(DRAWABLE_TYPES as readonly string[]).includes(t)) return 0;
-      return t === 'plant' && ringFull ? weights[i]! * PLANT_WEIGHT_RING_FULL : weights[i]!;
-    });
+    const drawable = ENCOUNTER_TYPES.map((t, i) => (t === 'plant' && ringFull ? weights[i]! * PLANT_WEIGHT_RING_FULL : weights[i]!));
     type = ENCOUNTER_TYPES[weightedIndex(state, drawable)] ?? 'animal';
+    // Ereignis oder Gast: gleichverteilt aus den Kandidaten; ohne Kandidaten Tier, sonst Pflanze.
+    if (type === 'event') {
+      const events = eligibleEvents(state);
+      if (events.length > 0) return eventEncounter(state, pick(state, events));
+    } else if (type === 'visitor') {
+      const visitors = eligibleVisitors(state);
+      if (visitors.length > 0) return visitorEncounter(state, pick(state, visitors));
+    }
   }
-  const order: readonly PendingEncounterType[] = type === 'plant' ? ['plant', 'animal'] : ['animal', 'plant'];
+  const order: readonly CardEncounterType[] = type === 'plant' ? ['plant', 'animal'] : ['animal', 'plant'];
   for (const t of order) {
     const cards = drawCards(state, t);
     if (cards.length > 0) return { type: t, cards, rerolls: 0 };
@@ -187,7 +296,7 @@ export function drawEncounter(state: GameState): PendingEncounter | null {
 /** Karten für einen Begegnungstyp (siehe drawAnimals / drawPlants). */
 export function drawCards(
   state: GameState,
-  type: PendingEncounterType,
+  type: CardEncounterType,
   exclude: readonly string[] = [],
   rng: RngHolder = state,
 ): string[] {
@@ -236,9 +345,9 @@ export function allWaypointsReached(state: GameState): boolean {
  * Zufall aus `rng` (Standard: der Spielstand selbst).
  */
 export function drawAnimals(state: GameState, exclude: readonly string[] = [], rng: RngHolder = state): string[] {
-  const slots = nicheSlots(state.stage, state.niches);
+  const slots = nicheSlots(state.stage, state.niches, cycleSlotBonuses(state.cycle));
   const present = new Set(allAnimals(state));
-  const appears = appearsContext(state);
+  const appears = appearsContext(ecosystemOf(state));
   const eligible = SPECIES.filter(
     (s) => s.unlock <= state.stage && slots[s.niche] > 0 && !present.has(s.id) && speciesAppears(appears, s),
   );
@@ -287,14 +396,20 @@ export type ActionError =
   /** Stammgast: Art steht noch nicht im Naturtagebuch. */
   | 'not-discovered'
   /** Stammgast: alle Plätze belegt. */
-  | 'no-regular-slot';
+  | 'no-regular-slot'
+  /** Aktion passt nicht zum Begegnungstyp (z. B. Ablehnen bei einem Ereignis). */
+  | 'wrong-type'
+  /** Ereignis: Diese Option gibt es nicht. */
+  | 'no-option'
+  /** Gast: rastet schon (nur bei manipulierten Ständen denkbar). */
+  | 'already-active';
 
 /**
  * Ergebnis einer Spieleraktion. `discovered`: Lebensgemeinschaften, die durch die Aktion
  * zum ersten Mal entstanden sind (chooseCard, plantSeed) – für die Entdeckungs-Meldung.
  * Fehlt, wenn nichts Neues entdeckt wurde.
  */
-export type ActionResult = { ok: true; discovered?: string[] } | { ok: false; error: ActionError };
+export type ActionResult = { ok: true; discovered?: string[]; seeds?: number } | { ok: false; error: ActionError };
 
 const fail = (error: ActionError): ActionResult => ({ ok: false, error });
 
@@ -390,9 +505,15 @@ export function unlockedPlants(state: Pick<GameState, 'stage'>): string[] {
   return PLANTS.filter((p) => p.unlock <= state.stage).map((p) => p.id);
 }
 
-/** Lehnt eine Begegnung ab und schreibt Samen gut. */
+/**
+ * Lehnt eine Tier- oder Pflanzenbegegnung ab und schreibt Samen gut. Ereignisse haben
+ * kein Ablehnen (die Samen-Option ist die neutrale Wahl), Gäste „ziehen lassen“
+ * (farewellVisitor) – dort scheitert es mit 'wrong-type'.
+ */
 export function declineEncounter(state: GameState, encounterIndex: number): ActionResult {
-  if (!state.pendingEncounters[encounterIndex]) return fail('no-encounter');
+  const encounter = state.pendingEncounters[encounterIndex];
+  if (!encounter) return fail('no-encounter');
+  if (!isCardEncounter(encounter.type)) return fail('wrong-type');
   state.seeds = capped(state.seeds + declineReward());
   state.pendingEncounters.splice(encounterIndex, 1);
   return { ok: true };
@@ -408,6 +529,7 @@ export function rerollEncounter(state: GameState, encounterIndex: number): Actio
   const blocker = rerollBlocker(state, encounterIndex);
   if (blocker) return fail(blocker);
   const encounter = state.pendingEncounters[encounterIndex]!;
+  if (!isCardEncounter(encounter.type)) return fail('wrong-type');
   state.seeds -= rerollCost(state, encounterIndex);
   encounter.cards = drawCards(state, encounter.type, encounter.cards);
   encounter.rerolls++;
@@ -426,9 +548,11 @@ export function canReroll(state: GameState, encounterIndex: number): boolean {
 export function rerollBlocker(
   state: GameState,
   encounterIndex: number,
-): 'no-encounter' | 'no-cards' | 'no-alternatives' | 'too-expensive' | null {
+): 'no-encounter' | 'wrong-type' | 'no-cards' | 'no-alternatives' | 'too-expensive' | null {
   const encounter = state.pendingEncounters[encounterIndex];
   if (!encounter) return 'no-encounter';
+  // Ereignisse und Gäste werden nicht neu gewürfelt.
+  if (!isCardEncounter(encounter.type)) return 'wrong-type';
   const cards = drawCards(state, encounter.type, encounter.cards, { rngState: state.rngState });
   if (cards.length === 0) return 'no-cards';
   if (sameSet(cards, encounter.cards)) return 'no-alternatives';
@@ -462,7 +586,8 @@ export function moveInRegulars(state: GameState): string[] {
       if (!sp || present.has(id) || sp.unlock > state.stage) continue;
       // Gleiche Prüfung wie beim Einzug per Karte: Die Nische braucht einen freien Platz.
       const niches = nichesAfterChoice(state, id);
-      if (!niches || niches[sp.niche].length > nicheSlots(state.stage, niches)[sp.niche]) continue;
+      const slots = nicheSlots(state.stage, niches ?? undefined, cycleSlotBonuses(state.cycle));
+      if (!niches || niches[sp.niche].length > slots[sp.niche]) continue;
       state.niches = niches;
       present.add(id);
       moved.push(id);
@@ -589,4 +714,165 @@ export function setRegulars(state: GameState, speciesIds: readonly string[]): Ac
   if (ids.length > regularSlots(state.meta.forestMemory)) return fail('no-regular-slot');
   state.meta.regulars = ids;
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Ereignisse mit Wahl und Durchreisende (DESIGN_V2.md 7.4, 7.5, 7.8)
+// ---------------------------------------------------------------------------
+
+/** Ereignisse, die jetzt gezogen werden können: ab ihrer Stufe, einmal je Zyklus, Bedingungen erfüllt. */
+export function eligibleEvents(state: GameState): GameEvent[] {
+  const ctx = appearsContext(ecosystemOf(state));
+  return EVENTS.filter((e) => e.minStage <= state.stage && !state.cycle.seen.includes(e.id) && speciesAppears(ctx, e));
+}
+
+/** Gäste, die jetzt gezogen werden können (wie eligibleEvents). */
+export function eligibleVisitors(state: GameState): Visitor[] {
+  const ctx = appearsContext(ecosystemOf(state));
+  return VISITORS.filter((v) => v.minStage <= state.stage && !state.cycle.seen.includes(v.id) && speciesAppears(ctx, v));
+}
+
+/** Begegnung für ein Ereignis; es gilt ab jetzt als gesehen. */
+function eventEncounter(state: GameState, event: GameEvent): PendingEncounter {
+  state.cycle.seen.push(event.id);
+  return { type: 'event', cards: [event.id], rerolls: 0 };
+}
+
+/** Begegnung für einen Gast; er gilt ab jetzt als gesehen. */
+function visitorEncounter(state: GameState, visitor: Visitor): PendingEncounter {
+  state.cycle.seen.push(visitor.id);
+  return { type: 'visitor', cards: [visitor.id], rerolls: 0 };
+}
+
+/**
+ * Baut die vorgegebene Begegnung (`nextEncounter`): zuerst zufällig bis zu drei der
+ * vorgegebenen IDs, die passen (Arten: freigeschaltet, noch nicht im Ökosystem, Nische
+ * offen – Seltenheit und Erscheinungsbedingung zählen nicht; Pflanzen: freigeschaltet),
+ * Rest normal gezogen. null, wenn keine ID passt.
+ */
+function forcedEncounter(state: GameState, forced: ForcedEncounter): PendingEncounter | null {
+  const slots = nicheSlots(state.stage, state.niches, cycleSlotBonuses(state.cycle));
+  const present = new Set(allAnimals(state));
+  const fits = forced.ids.filter((id, i) => {
+    if (forced.ids.indexOf(id) !== i) return false;
+    if (forced.type === 'plant') return (PLANTS_BY_ID.get(id)?.unlock ?? Infinity) <= state.stage;
+    const sp = SPECIES_BY_ID.get(id);
+    return !!sp && sp.unlock <= state.stage && !present.has(id) && slots[sp.niche] > 0;
+  });
+  if (fits.length === 0) return null;
+  const chosen: string[] = [];
+  while (fits.length > 0 && chosen.length < CARDS_PER_ENCOUNTER) chosen.push(fits.splice(randomInt(state, fits.length), 1)[0]!);
+  const rest = drawCards(state, forced.type, chosen).filter((id) => !chosen.includes(id));
+  return { type: forced.type, cards: [...chosen, ...rest].slice(0, CARDS_PER_ENCOUNTER), rerolls: 0 };
+}
+
+/** Warum diese Ereignis-Option gerade nicht gewählt werden kann – null, wenn es geht. */
+export function eventOptionBlocker(
+  state: GameState,
+  encounterIndex: number,
+  optionIndex: number,
+): 'no-encounter' | 'wrong-type' | 'no-option' | null {
+  const encounter = state.pendingEncounters[encounterIndex];
+  if (!encounter) return 'no-encounter';
+  if (encounter.type !== 'event') return 'wrong-type';
+  const event = EVENTS_BY_ID.get(encounter.cards[0] ?? '');
+  if (!event || !Number.isInteger(optionIndex) || !event.options[optionIndex]) return 'no-option';
+  return null;
+}
+
+/** Samen, die eine Ereignis-Option sofort bringt (Samen-Sekunden zur aktuellen Rate). */
+export function eventOptionSeeds(state: GameState, eventId: string, optionIndex: number): number {
+  const option = EVENTS_BY_ID.get(eventId)?.options[optionIndex];
+  if (!option) return 0;
+  let seeds = 0;
+  for (const e of option.effects) if (e.kind === 'seedsNow') seeds += seedSeconds(state, e.seconds);
+  return seeds;
+}
+
+/**
+ * Wählt eine Option eines Ereignisses; die Begegnung ist danach erledigt. Samen-Sekunden
+ * werden zur Rate VOR der Wahl gerechnet. Zeit-Boni laufen ab jetzt (Spielzeit), Zyklus-
+ * Boni und Habitate gelten bis zum Neuen Zyklus, `nextEncounter` gilt für die nächste
+ * gezogene Begegnung. `seeds` im Ergebnis: sofort erhaltene Samen.
+ */
+export function chooseEventOption(state: GameState, encounterIndex: number, optionIndex: number): ActionResult {
+  const blocker = eventOptionBlocker(state, encounterIndex, optionIndex);
+  if (blocker) return fail(blocker);
+  const event = EVENTS_BY_ID.get(state.pendingEncounters[encounterIndex]!.cards[0]!)!;
+  const option = event.options[optionIndex]!;
+  const seeds = eventOptionSeeds(state, event.id, optionIndex);
+  const cycle = state.cycle;
+  for (const e of option.effects) {
+    switch (e.kind) {
+      case 'seedsNow':
+        break; // oben schon zusammengezählt
+      case 'timed':
+        cycle.timed.push({ source: event.id, effect: e.effect, remaining: e.seconds });
+        break;
+      case 'cycle':
+        cycle.bonuses.push({ source: event.id, effect: e.effect });
+        break;
+      case 'habitat':
+        cycle.habitats.push(e.tag);
+        break;
+      case 'nextEncounter':
+        cycle.forced = { type: e.type, ids: [...e.ids] };
+        break;
+    }
+  }
+  state.seeds = capped(state.seeds + seeds);
+  state.pendingEncounters.splice(encounterIndex, 1);
+  const discovered = recordDiscoveries(state);
+  return discovered.length > 0 ? { ok: true, discovered, seeds } : { ok: true, seeds };
+}
+
+/** Kosten fürs Bewirten und Dank fürs Ziehenlassen eines Gastes (Samen, zur aktuellen Rate). */
+export function visitorSeeds(state: GameState, visitorId: string): { host: number; farewell: number } | null {
+  const visitor = VISITORS_BY_ID.get(visitorId);
+  if (!visitor) return null;
+  return { host: seedSeconds(state, visitor.hostCost), farewell: seedSeconds(state, visitor.farewellSeeds) };
+}
+
+/** Warum „Bewirten“ gerade nicht geht – null, wenn es geht. */
+export function hostBlocker(
+  state: GameState,
+  encounterIndex: number,
+): 'no-encounter' | 'wrong-type' | 'no-card' | 'already-active' | 'too-expensive' | null {
+  const encounter = state.pendingEncounters[encounterIndex];
+  if (!encounter) return 'no-encounter';
+  if (encounter.type !== 'visitor') return 'wrong-type';
+  const costs = visitorSeeds(state, encounter.cards[0] ?? '');
+  if (!costs) return 'no-card';
+  if (state.cycle.visitors.some((v) => v.id === encounter.cards[0])) return 'already-active';
+  if (!(state.seeds >= costs.host)) return 'too-expensive';
+  return null;
+}
+
+/**
+ * Bewirtet einen Gast: kostet Samen-Sekunden, dafür bleibt er `stay` Sekunden Spielzeit,
+ * wirkt mit Faktor 1 und zählt für die Gattungsboni. `seeds` im Ergebnis: negativ (Kosten).
+ */
+export function hostVisitor(state: GameState, encounterIndex: number): ActionResult {
+  const blocker = hostBlocker(state, encounterIndex);
+  if (blocker) return fail(blocker);
+  const id = state.pendingEncounters[encounterIndex]!.cards[0]!;
+  const visitor = VISITORS_BY_ID.get(id)!;
+  const cost = visitorSeeds(state, id)!.host;
+  state.seeds = Math.max(0, state.seeds - cost);
+  state.cycle.visitors.push({ id, remaining: visitor.stay });
+  state.pendingEncounters.splice(encounterIndex, 1);
+  const discovered = recordDiscoveries(state);
+  return discovered.length > 0 ? { ok: true, discovered, seeds: -cost } : { ok: true, seeds: -cost };
+}
+
+/** Lässt einen Gast ziehen: bringt Samen-Sekunden als Dank. */
+export function farewellVisitor(state: GameState, encounterIndex: number): ActionResult {
+  const encounter = state.pendingEncounters[encounterIndex];
+  if (!encounter) return fail('no-encounter');
+  if (encounter.type !== 'visitor') return fail('wrong-type');
+  const costs = visitorSeeds(state, encounter.cards[0] ?? '');
+  const seeds = costs?.farewell ?? 0;
+  state.seeds = capped(state.seeds + seeds);
+  state.pendingEncounters.splice(encounterIndex, 1);
+  return { ok: true, seeds };
 }

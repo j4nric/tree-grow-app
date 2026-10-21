@@ -40,7 +40,7 @@ export interface SeedV3 {
   /** Begleitpflanzen im Pflanzring (Pflanzen-IDs, Duplikate erlaubt). */
   plants?: string[];
   niches?: Partial<Record<NicheId, string[]>>;
-  pendingEncounters?: { type: 'animal' | 'plant'; cards: string[]; rerolls: number }[];
+  pendingEncounters?: { type: 'animal' | 'plant' | 'event' | 'visitor'; cards: string[]; rerolls: number }[];
   rngState?: number;
   forestMemory?: number;
   /** lastTick relativ zur Browser-Uhr beim Laden (ms, negativ = Vergangenheit). */
@@ -94,8 +94,10 @@ export async function seedV3(context: BrowserContext, seed: SeedV3): Promise<voi
  * fest, wenn sich die Startzeit des Tests ändert. `now` = Beginn des Zyklus,
  * `lastTick` = Browser-Uhr beim Laden.
  */
-export async function seedNewGame(context: BrowserContext, rngSeed: number, now: Date): Promise<void> {
-  await seedRaw(context, createInitialState(now.getTime(), rngSeed), 0);
+export async function seedNewGame(context: BrowserContext, rngSeed: number, now: Date, forestMemory = 0): Promise<void> {
+  const state = createInitialState(now.getTime(), rngSeed);
+  state.meta.forestMemory = forestMemory;
+  await seedRaw(context, state, 0);
 }
 
 /** Liest eine deutsch formatierte Zahl (z. B. „1.234,5“, „2,1/s“ oder „−4,7“). */

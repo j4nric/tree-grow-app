@@ -373,7 +373,8 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     item.setAttribute('role', 'listitem');
     item.dataset.card = card.id;
     if (kind === 'plant') item.dataset.plant = card.id;
-    else item.dataset.species = card.id;
+    else if (kind === 'animal') item.dataset.species = card.id;
+    else item.dataset.option = card.id;
     item.setAttribute('aria-labelledby', `${prefix}-card-${index}-name`);
     item.style.setProperty('--deal-delay', `${index * 70}ms`);
 
@@ -477,9 +478,11 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       renderPreviewChips(previewList, replaced?.preview ?? card.preview);
       renderCommunityHints(communityList, replaced?.preview ?? card.preview);
       if (conditionList) renderConditions(conditionList, replaced?.conditions ?? card.conditions ?? []);
-      choose.textContent = card.disabledReason ?? 'Wählen';
+      choose.textContent = card.disabledReason ?? card.chooseLabel ?? 'Wählen';
       const swap = replaced ? ` (ersetzt ${replaced.name})` : '';
-      choose.setAttribute('aria-label', `${card.name} wählen${swap}`);
+      // Der Sperrgrund gehört ins aria-label – der sichtbare Text allein reicht Screenreadern nicht.
+      const base = card.chooseLabel ?? `${card.name} wählen${swap}`;
+      choose.setAttribute('aria-label', card.disabledReason ? `${base} – gesperrt: ${card.disabledReason}` : base);
     };
     refresh();
     select?.addEventListener('change', refresh);

@@ -1,8 +1,9 @@
-import { NICHE_IDS, type NicheId } from '../content/types';
+import type { CycleEffect, ForcedEncounterType, TimedEffect } from '../content/events';
+import { NICHE_IDS, type NicheId, type Tag } from '../content/types';
 import { normalizeSeed } from './rng';
 
 /**
- * Spielstand v4 (v2-Spiel mit Begleitpflanzen und Neuem Zyklus). Reine Daten,
+ * Spielstand v5 (v2-Spiel mit Begleitpflanzen, Neuem Zyklus, Ereignissen und Gästen). Reine Daten,
  * JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -11,7 +12,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+2 % je Punkt → höchstens
@@ -19,16 +20,55 @@ export const SAVE_VERSION = 4;
  */
 export const MAX_FOREST_MEMORY = 1000;
 
-/** Begegnungstypen, die es schon gibt (Ereignis und Durchreisende folgen in 2.4). */
-export type PendingEncounterType = 'animal' | 'plant';
+/** Begegnungen mit Karten zum Auswählen (Tier- bzw. Pflanzenkarten, neu würfelbar). */
+export type CardEncounterType = 'animal' | 'plant';
+
+/** Alle Begegnungstypen (DESIGN_V2.md 7.1). */
+export type PendingEncounterType = CardEncounterType | 'event' | 'visitor';
 
 export interface PendingEncounter {
-  /** „Tier zieht ein“ (Karten = Art-IDs) oder „Etwas keimt“ (Karten = Pflanzen-IDs). */
+  /**
+   * „Tier zieht ein“ (Karten = Art-IDs), „Etwas keimt“ (Karten = Pflanzen-IDs),
+   * Ereignis (cards = [Ereignis-ID]) oder Durchreisende (cards = [Gast-ID]).
+   */
   type: PendingEncounterType;
-  /** IDs der angebotenen Karten (1–3, verschieden). */
+  /** IDs der angebotenen Karten (1–3, verschieden; bei Ereignis und Gast genau eine). */
   cards: string[];
-  /** In dieser Begegnung schon neu gewürfelt. */
+  /** In dieser Begegnung schon neu gewürfelt (Ereignis und Gast: immer 0). */
   rerolls: number;
+}
+
+/** Ist das eine Begegnung mit Tier- oder Pflanzenkarten? */
+export function isCardEncounter(type: PendingEncounterType | undefined): type is CardEncounterType {
+  return type === 'animal' || type === 'plant';
+}
+
+/** Zyklus-Bonus aus einer Ereignis-Option (`cycle`). */
+export interface CycleBonus {
+  /** Herkunft, z. B. „windthrow“ (Ereignis-ID). */
+  source: string;
+  effect: CycleEffect;
+}
+
+/** Zeit-Bonus aus einer Ereignis-Option (`timed`). */
+export interface TimedBonus {
+  source: string;
+  effect: TimedEffect;
+  /** Restdauer in Sekunden Spielzeit (> 0). */
+  remaining: number;
+}
+
+/** Bewirteter Gast. Seine Wirkungen kommen aus VISITORS_BY_ID. */
+export interface ActiveVisitor {
+  id: string;
+  /** Restdauer in Sekunden Spielzeit (> 0). */
+  remaining: number;
+}
+
+/** Vorgabe für die nächste Begegnung (Ereignis-Option `nextEncounter`). */
+export interface ForcedEncounter {
+  type: ForcedEncounterType;
+  ids: string[];
 }
 
 /** Der laufende Zyklus (DESIGN_V2.md, Abschnitt 10). Wird beim Neuen Zyklus neu angelegt. */
@@ -44,10 +84,24 @@ export interface CycleState {
   newSpecies: string[];
   /** Beginn des Zyklus (ms seit Epoch); fehlt bei Ständen aus der Zeit vor v4. */
   startedAt?: number;
+  /** IDs der in diesem Zyklus gezogenen Ereignisse und Gäste (je höchstens einmal). */
+  seen: string[];
+  /** Wirkungen bis zum Neuen Zyklus (Ereignis-Option `cycle`). */
+  bonuses: CycleBonus[];
+  /** Merkmale aus Ereignissen (`habitat`), je 1 Einheit Angebot. */
+  habitats: Tag[];
+  /** Zeit-Boni mit Restdauer (Ereignis-Option `timed`). */
+  timed: TimedBonus[];
+  /** Bewirtete Gäste mit Restdauer. */
+  visitors: ActiveVisitor[];
+  /** Vorgabe für die nächste Begegnung (`nextEncounter`), sonst null. */
+  forced: ForcedEncounter | null;
+  /** Wegpunkt, nach dem der Zwischenhalt schon ausgewertet wurde (Start: 0). */
+  interlude: number;
 }
 
 export interface GameState {
-  version: 4;
+  version: 5;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */
@@ -128,7 +182,18 @@ export function createInitialState(now: number, seed: number = now): GameState {
 
 /** Ein frischer Zyklus mit dieser Nummer. */
 export function createCycle(number: number, now?: number): CycleState {
-  const cycle: CycleState = { number, maxHarmony: 0, newSpecies: [] };
+  const cycle: CycleState = {
+    number,
+    maxHarmony: 0,
+    newSpecies: [],
+    seen: [],
+    bonuses: [],
+    habitats: [],
+    timed: [],
+    visitors: [],
+    forced: null,
+    interlude: 0,
+  };
   if (now !== undefined && Number.isFinite(now)) cycle.startedAt = now;
   return cycle;
 }

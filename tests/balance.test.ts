@@ -6,12 +6,16 @@ import {
   STAGE_TARGETS,
   STRATEGIES,
   decisionStats,
+  extrasTable,
   monteCarlo,
   report,
   runGame,
   stageStats,
   varietyBefore,
+  varietyStats,
 } from '../scripts/simulate';
+import { EVENTS } from '../src/content/events';
+import { VISITORS } from '../src/content/visitors';
 
 /**
  * Balancing des v2-Spiels (Tiere und Pflanzen) mit der echten Spiellogik
@@ -151,5 +155,42 @@ describe('Balancing v2 (echte Logik)', () => {
     const d = decisionStats(byId(RANDOM.id), HAIN);
     expect(d.realShare).toBeGreaterThan(0.3);
     expect(d.realShare).toBeLessThan(0.98);
+  });
+});
+
+/**
+ * Ereignisse und Durchreisende (Schritt 2.4, echte Logik seit 2.4): Gezogen und aufgelöst
+ * werden sie in jedem Durchgang oben. Geprüft wird, ob Inhalte und Takt (Gewichte +
+ * Zwischenhalt, encounters.ts) ihr Ziel erreichen: kurze Durststrecken nach dem Hain,
+ * Tempo bis zum Hain im Korridor (siehe oben), Ereignisse und Gäste kommen wirklich.
+ */
+describe('Ereignisse und Durchreisende', () => {
+  const WALD = 6;
+
+  it('Protokoll', () => {
+    if (env.SIM_LOG) console.log(extrasTable(summaries.filter((s) => [HARMONY.id, GROWTH.id, RANDOM.id].includes(s.strategy.id))));
+    expect(summaries.length).toBeGreaterThan(0);
+  });
+
+  it('ohne NaN und ohne negative Samen', () => {
+    for (const s of summaries) for (const r of s.runs) expect(Number.isFinite(r.final.seeds) && r.final.seeds >= 0).toBe(true);
+  });
+
+  it('es kommen Ereignisse und Gäste – aber nie mehr, als es gibt', () => {
+    for (const r of harmony.runs) {
+      expect(r.final.counts.events).toBeLessThanOrEqual(EVENTS.length);
+      expect(r.final.counts.visitors).toBeLessThanOrEqual(VISITORS.length);
+    }
+    const c = harmony.runs.map((r) => r.final.counts);
+    expect(c.reduce((sum, x) => sum + x.events, 0) / c.length).toBeGreaterThan(4);
+    expect(c.reduce((sum, x) => sum + x.visitors, 0) / c.length).toBeGreaterThan(3);
+    // Der Harmonie-Spieler bewirtet die meisten Gäste.
+    expect(c.reduce((sum, x) => sum + x.hosted, 0)).toBeGreaterThan(0.5 * c.reduce((sum, x) => sum + x.visitors, 0));
+  });
+
+  it('Durststrecken nach dem Hain bleiben kurz (Harmonie-Spieler, 90-%-Quantil)', () => {
+    // Ziel aus DESIGN_V2.md 7.2: ohne Ereignisse lagen sie im Wald bei ~12 min (90 %).
+    expect(varietyStats(harmony, HAIN).droughtP90).toBeLessThan(11 * 60);
+    expect(varietyStats(harmony, WALD).droughtP90).toBeLessThan(11 * 60);
   });
 });
