@@ -259,3 +259,39 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   Pad je Harmoniestufe, leise Ereignis-Klänge; Einstellung „Klang“ (Aus/Leise/Normal, Standard aus),
   Start erst nach Interaktion, Pause bei verborgenem Tab; Spitze ≤ −12 dBFS über Pegel-Haushalt
   der Stimmen (kein Kompressor, nur Sicherheits-Clipper), Leise 10 dB darunter (`ui-dev`)
+
+## Phase 6 – Lebendiger Wald & Betrieb
+
+Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie parallel.
+
+**Welle 1 – Betrieb & kurze Besuche**
+
+- [ ] Sicherung außerhalb des Servers (`core-engineer`, Server/Deploy): tägliches,
+  verschlüsseltes Backup des Sync-Servers als GitHub-Actions-Artefakt (Abruf über
+  geschützten Admin-Endpunkt), Wiederherstellung dokumentiert in `docs/KONTO.md`
+- [ ] Überwachung (`core-engineer`): stündlicher Workflow prüft `sync…/api/health` und die
+  Spielseite, meldet Ausfälle als GitHub-Issue (schließt es wieder, wenn alles läuft)
+- [ ] Installierbare App / PWA (`ui-dev`): Manifest, Icons, Service Worker mit Offline-Start,
+  Update-Hinweis bei neuer Version; Sync bleibt online-only
+- [ ] Tagesziele (Design `game-designer`, Logik `core-engineer`, Anzeige `ui-dev`): 2–3
+  Aufgaben pro Tag aus dem Naturtagebuch, Belohnung Samen bzw. seltene Begegnung;
+  deterministisch aus Datum + Seed, Tageswechsel bei aktivem Konto nach Serverzeit
+
+**Welle 2 – Lebendiger Alltag**
+
+- [ ] Tag und Nacht (Grafik `renderer`, Wirkung `game-designer`): kurzer Tag-Nacht-Wechsel
+  in der Szene, nachtaktive Arten (Fledermaus, Waldkauz, Glühwürmchen, Igel) mit
+  Sichtbarkeit bzw. Effekten nur nachts
+- [ ] Wetterlagen (Design `game-designer`, Logik `core-engineer`, Grafik `renderer`):
+  seltene, mehrminütige Zustände (Dürresommer, Sturm, Spätfrost, Borkenkäferjahr) mit
+  Gegenmaßnahmen; ein vielfältiges Ökosystem dämpft die Folgen
+
+**Welle 3 – Tiefe & Langzeitspiel**
+
+- [ ] Räuber und Beute (`game-designer`, `core-engineer`): Waldkauz, Fuchs, Ringelnatter
+  regulieren Bestände statt zu strafen (z. B. viele Mäuse locken den Kauz an → Harmonie)
+- [ ] Weitere Lebensräume nach dem Muster Waldtümpel (`game-designer`, `renderer`):
+  Totholzhaufen, Trockenmauer, Waldwiese – je 3–5 Arten und eine Lebensgemeinschaft
+- [ ] Prestige-Stufe 2 „Waldlandschaft“ (`game-designer`, `core-engineer`, `renderer`):
+  mehrere Wälder nebeneinander mit eigenem Hauptbaum, Wildwechsel über Korridore;
+  dafür Umstieg auf `break_infinity.js` (siehe Phase 4)
