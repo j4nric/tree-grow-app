@@ -56,17 +56,25 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
   Sitzung, nie die eines anderen Tabs. Meldet sich ein anderer Tab mit genau dem Konto an,
   zu dem das Spiel dieses Tabs gehört, macht dieser Tab wieder mit – wie bei einer ersten
   Anmeldung (beide Stände gesichert), weil sein Spiel vom gespeicherten abweichen kann.
-- **Wem der lokale Stand gehört:** `vszw-sync-base` = `{user, version, pending}` – Konto,
-  Cloud-Version, auf der er beruht, und ob seitdem eine Aktion fehlt. Diese Angaben schreibt
-  jeder Tab **im selben Takt wie den Spielstand** und aus seinem eigenen Speicher; so passen
-  „Spielstand“ und „gehört zu X“ immer zusammen, auch wenn mehrere Tabs abwechselnd speichern
-  oder ein Tab eine Sicherung lädt. Die Grundlage gilt nur für genau dieses Konto – nach
+- **Wem der lokale Stand gehört:** `vszw-sync-base` = `{user, version, pending, save}` – Konto,
+  Cloud-Version, auf der er beruht, ob seitdem eine Aktion fehlt, und die Prüfsumme des
+  Spielstands, zu dem diese Angaben gehören. Jeder Tab schreibt sie **im selben Takt wie den
+  Spielstand** und aus seinem eigenen Speicher – nur, wenn der Spielstand tatsächlich
+  gespeichert wurde. Passt die Prüfsumme beim Lesen nicht (Speichern scheiterte, Absturz
+  zwischen den beiden Schreibvorgängen, ein anderer Tab speicherte), gilt die Grundlage nicht:
+  dann wie bei einer ersten Anmeldung, mit Sicherungen beider Seiten. Die Grundlage gilt nur für genau dieses Konto – nach
   A → B → A gewinnt bei A der Cloud-Stand.
 - **Sicherungs-Ring:** `vszw-backups` hält die letzten 10 ersetzten Stände (zusammen höchstens
-  1,5 Mio. Zeichen), je mit Konto, Zeitpunkt, Grund (erste Anmeldung lokal/Cloud, überholte
-  Aktion, vor dem Übernehmen, vor dem Wiederherstellen) und Fortschritt. Denselben Stand gibt
-  es nur einmal; ist der Ring voll, weicht zuerst das Sicherheitsnetz „vor dem Übernehmen“,
-  dann die älteste. Frühere Einzel-Sicherungen (`vszw-backup-before-sync` …) werden beim Start
+  500 000 Zeichen – Reserve für den Spielstand), je mit Konto, Zeitpunkt, Grund (erste
+  Anmeldung lokal/Cloud, überholte Aktion, vor dem Übernehmen, vor dem Wiederherstellen, vor
+  dem Löschen bzw. Importieren) und Fortschritt. Denselben Stand gibt es nur einmal (der Grund
+  wird auf den wichtigeren angehoben). Ist der Ring voll, weicht zuerst das Sicherheitsnetz
+  „vor dem Übernehmen“, dann die älteste; eine neue, unwichtigere Sicherung verdrängt keine
+  wichtigere. Ist der Browser-Speicher voll, opfert der Ring für eine neue Sicherung nur
+  weniger wichtige – lässt sie sich nicht ablegen, ersetzt der Abgleich nichts und hält an
+  („Speicher voll“), „Wiederherstellen“ bricht mit Hinweis ab. Scheitert dagegen das Speichern
+  des Spielstands, weichen Sicherungen (unwichtigste zuerst), bis er passt – der laufende
+  Wald geht vor. Frühere Einzel-Sicherungen (`vszw-backup-before-sync` …) werden beim Start
   übernommen. Im Konto-Abschnitt listet „Sicherung vor dem Sync wiederherstellen“ sie mit
   Grund, Konto, Zyklus und Alter; „Laden“ in der aufgeklappten Liste ist die Bestätigung und
   ersetzt den aktuellen Wald (angemeldet geht er wie eine Aktion ans Konto; der Stand davor

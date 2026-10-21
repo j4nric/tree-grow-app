@@ -9,10 +9,14 @@
  *   nie auseinanderlaufen – auch nicht, wenn mehrere Tabs abwechselnd speichern.
  * - Der **Sicherungs-Ring** (`vszw-backups`): die letzten Stände, die ein Abgleich ersetzt hat.
  */
+import { SAVE_KEY } from '../core/save';
 import type { SyncBase } from './engine';
 import type { Progress } from './policy';
 
-/** Abgleich-Angaben zum lokalen Spielstand: { user, version, pending } (version null = keine Grundlage). */
+/**
+ * Abgleich-Angaben zum lokalen Spielstand: { user, version, pending, save } (version null =
+ * keine Grundlage; save = Prüfsumme des gespeicherten Spielstands, zu dem sie gehören).
+ */
 export const BASE_KEY = 'vszw-sync-base';
 /** Übergang (nie veröffentlicht): Besitzer und Grundlage je Konto in eigenen Schlüsseln. */
 export const OWNER_KEY = 'vszw-sync-owner';
@@ -41,8 +45,18 @@ function parseVersion(value: unknown): number | null {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
-/** Liest die Abgleich-Angaben; kaputte Werte → kein Besitzer. */
-export function parseMeta(raw: string | null): LocalMeta | null {
+/** Prüfsumme (FNV-1a) eines Texts – für den gespeicherten Spielstand und Sicherungs-IDs. */
+export function checksum(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/** Liest die Abgleich-Angaben samt Prüfsumme; kaputte Werte → null. */
+export function parseMeta(raw: string | null): (LocalMeta & { save: string | null }) | null {
   if (!raw) return null;
   let data: unknown;
   try {
@@ -54,35 +68,64 @@ export function parseMeta(raw: string | null): LocalMeta | null {
   const record = data as Record<string, unknown>;
   if (typeof record.user !== 'string' || record.user === '') return null;
   const version = parseVersion(record.version);
-  return { owner: record.user, base: version === null ? null : { version, pending: record.pending === true } };
+  return {
+    owner: record.user,
+    base: version === null ? null : { version, pending: record.pending === true },
+    save: typeof record.save === 'string' ? record.save : null,
+  };
 }
 
+/**
+ * Abgleich-Angaben zum gespeicherten Spielstand. Passt die Prüfsumme nicht zum Spielstand
+ * (Speichern scheiterte, Absturz zwischen den beiden Schreibvorgängen, anderer Tab), gilt die
+ * Grundlage nicht – dann wie bei einer ersten Anmeldung, mit Sicherungen beider Seiten.
+ */
 export function readMeta(storage: Storage): LocalMeta {
   try {
     const meta = parseMeta(storage.getItem(BASE_KEY));
-    if (meta) return meta;
-    // Übergang: Besitzer und Grundlage in getrennten Schlüsseln.
-    const owner = storage.getItem(OWNER_KEY);
-    if (owner) return { owner, base: parseMeta(storage.getItem(baseKey(owner)))?.base ?? null };
+    if (!meta) return { owner: null, base: null };
+    const save = storage.getItem(SAVE_KEY);
+    const matches = save !== null && meta.save === checksum(save);
+    return { owner: meta.owner, base: matches ? meta.base : null };
   } catch {
-    // unten
+    return { owner: null, base: null };
   }
-  return { owner: null, base: null };
 }
 
-export function writeMeta(storage: Storage, meta: LocalMeta): void {
+/** Schreibt die Angaben zu dem Spielstand mit Prüfsumme `saveHash` (null = keiner bekannt). */
+export function writeMeta(storage: Storage, meta: LocalMeta, saveHash: string | null): void {
   try {
     if (meta.owner) {
       storage.setItem(
         BASE_KEY,
-        JSON.stringify({ user: meta.owner, version: meta.base?.version ?? null, pending: meta.base?.pending ?? false }),
+        JSON.stringify({
+          user: meta.owner,
+          version: meta.base?.version ?? null,
+          pending: meta.base?.pending ?? false,
+          save: saveHash,
+        }),
       );
     } else {
       storage.removeItem(BASE_KEY);
     }
-    storage.removeItem(OWNER_KEY);
   } catch {
-    // Speicher voll oder blockiert – der Abgleich klappt dann beim nächsten Start über den Fortschritt.
+    // Speicher voll oder blockiert – die Prüfsumme passt dann nicht, die Grundlage gilt nicht.
+  }
+}
+
+/**
+ * Übergang (einmal beim Start): getrennte Schlüssel für Besitzer und Grundlage in den einen
+ * Eintrag übernehmen – ohne Grundlage (ihre Zugehörigkeit zum Spielstand ist unbekannt).
+ */
+export function migrateLegacyMeta(storage: Storage): void {
+  try {
+    const owner = storage.getItem(OWNER_KEY);
+    if (owner === null) return;
+    if (!storage.getItem(BASE_KEY) && owner) writeMeta(storage, { owner, base: null }, null);
+    storage.removeItem(OWNER_KEY);
+    storage.removeItem(baseKey(owner));
+  } catch {
+    // ignorieren
   }
 }
 
@@ -97,8 +140,15 @@ export function readBase(storage: Storage, userId: string): SyncBase | null {
   return meta.owner === userId ? meta.base : null;
 }
 
+/** Grundlage für `userId` zum gerade gespeicherten Spielstand schreiben (Tests, Werkzeuge). */
 export function writeBase(storage: Storage, userId: string, base: SyncBase): void {
-  writeMeta(storage, { owner: userId, base });
+  let save: string | null = null;
+  try {
+    save = storage.getItem(SAVE_KEY);
+  } catch {
+    save = null;
+  }
+  writeMeta(storage, { owner: userId, base }, save === null ? null : checksum(save));
 }
 
 // --- Sicherungs-Ring --------------------------------------------------------------------
@@ -115,6 +165,8 @@ export type BackupReason =
   | 'before-take'
   /** Stand vor „Sicherung wiederherstellen“. */
   | 'before-restore'
+  /** Stand vor „Spielstand löschen“ bzw. „Importieren“. */
+  | 'before-replace'
   /** Aus den früheren Einzel-Sicherungen übernommen. */
   | 'legacy';
 
@@ -132,10 +184,25 @@ export interface BackupEntry {
 
 /** Höchstens so viele Sicherungen … */
 export const MAX_BACKUPS = 10;
-/** … und zusammen höchstens so viele Zeichen (localStorage hat meist 5 MB). */
-export const MAX_BACKUP_CHARS = 1_500_000;
+/** … und zusammen höchstens so viele Zeichen (localStorage hat meist 5 MB – Reserve für den Spielstand). */
+export const MAX_BACKUP_CHARS = 500_000;
 
-const REASONS: readonly BackupReason[] = ['first-login-local', 'first-login-cloud', 'lost-action', 'before-take', 'before-restore', 'legacy'];
+const REASONS: readonly BackupReason[] = [
+  'first-login-local',
+  'first-login-cloud',
+  'lost-action',
+  'before-take',
+  'before-restore',
+  'before-replace',
+  'legacy',
+];
+
+/** Wie wichtig eine Sicherung ist: Das Sicherheitsnetz (meist ohne Verlust) zählt am wenigsten. */
+export function backupPriority(reason: BackupReason): number {
+  if (reason === 'before-take') return 0;
+  if (reason === 'legacy') return 1;
+  return 2;
+}
 
 function validEntry(value: unknown): value is BackupEntry {
   if (typeof value !== 'object' || value === null) return false;
@@ -151,66 +218,102 @@ function validEntry(value: unknown): value is BackupEntry {
   );
 }
 
+/** Zuletzt gelesener Ring je Storage (nur neu parsen, wenn sich der Text geändert hat). */
+const ringCache = new WeakMap<Storage, { raw: string | null; entries: BackupEntry[] }>();
+
 /** Alle Sicherungen, älteste zuerst; kaputte Einträge fallen weg. */
 export function readBackups(storage: Storage): BackupEntry[] {
+  let raw: string | null;
   try {
-    const data: unknown = JSON.parse(storage.getItem(BACKUPS_KEY) ?? '[]');
-    return Array.isArray(data) ? data.filter(validEntry).map((e) => ({ ...e, progress: e.progress ?? null })) : [];
+    raw = storage.getItem(BACKUPS_KEY);
   } catch {
     return [];
   }
+  const cached = ringCache.get(storage);
+  if (cached && cached.raw === raw) return cached.entries.map((e) => ({ ...e }));
+  let entries: BackupEntry[] = [];
+  try {
+    const data: unknown = JSON.parse(raw ?? '[]');
+    entries = Array.isArray(data) ? data.filter(validEntry).map((e) => ({ ...e, progress: e.progress ?? null })) : [];
+  } catch {
+    entries = [];
+  }
+  ringCache.set(storage, { raw, entries });
+  return entries.map((e) => ({ ...e }));
 }
 
-/**
- * Welche Sicherung bei Platzmangel zuerst weicht: das Sicherheitsnetz („before-take“, meist
- * ohne Verlust) vor allen anderen, jeweils die älteste. Rückgabe: Index oder -1.
- */
-function evictIndex(entries: readonly BackupEntry[], keep: string): number {
-  const safety = entries.findIndex((e) => e.reason === 'before-take' && e.id !== keep);
-  if (safety >= 0) return safety;
-  return entries.findIndex((e) => e.id !== keep);
+/** Die Sicherung, die bei Platzmangel zuerst weicht: unwichtigste, davon die älteste. */
+function evictIndex(entries: readonly BackupEntry[]): number {
+  let best = -1;
+  for (let i = 0; i < entries.length; i++) {
+    if (best < 0 || backupPriority(entries[i]!.reason) < backupPriority(entries[best]!.reason)) best = i;
+  }
+  return best;
 }
 
 function totalChars(entries: readonly BackupEntry[]): number {
   return entries.reduce((sum, e) => sum + e.code.length, 0);
 }
 
+function writeRing(storage: Storage, entries: readonly BackupEntry[]): boolean {
+  try {
+    storage.setItem(BACKUPS_KEY, JSON.stringify(entries));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Legt eine Sicherung im Ring ab. Denselben Code gibt es nur einmal (die vorhandene bleibt).
- * Zu viele bzw. zu große Sicherungen: die unwichtigste älteste weicht. Rückgabe: die ID.
+ * Legt eine Sicherung im Ring ab. Denselben Code gibt es nur einmal (Grund wird auf den
+ * wichtigeren angehoben, Zeitpunkt erneuert). Zu viele bzw. zu große Sicherungen: die
+ * unwichtigste älteste weicht – ist das die neue, wird sie verworfen (sie verdrängt keine
+ * wichtigeren). Rückgabe: die ID, null = nicht gesichert.
  */
 export function addBackup(storage: Storage, entry: Omit<BackupEntry, 'id'>): string | null {
   const entries = readBackups(storage);
   const same = entries.find((e) => e.code === entry.code);
-  if (same) return same.id;
+  if (same) {
+    if (backupPriority(entry.reason) > backupPriority(same.reason)) same.reason = entry.reason;
+    if (entry.owner !== null && same.owner === null) same.owner = entry.owner;
+    same.at = entry.at;
+    writeRing(storage, entries);
+    return same.id;
+  }
   const id = `${Math.max(0, Math.floor(entry.at)).toString(36)}-${entries.length.toString(36)}-${checksum(entry.code)}`;
   entries.push({ ...entry, id });
+  // Zu viele oder zu groß: die unwichtigste älteste weicht (ist es die neue: verwerfen).
   while (entries.length > MAX_BACKUPS || (totalChars(entries) > MAX_BACKUP_CHARS && entries.length > 1)) {
-    const index = evictIndex(entries, id);
-    if (index < 0) break;
+    const index = evictIndex(entries);
+    if (index < 0 || entries[index]!.id === id) return null;
     entries.splice(index, 1);
   }
-  // Speicher voll: weitere ältere weichen lassen, bis es passt.
-  for (;;) {
-    try {
-      storage.setItem(BACKUPS_KEY, JSON.stringify(entries));
-      return id;
-    } catch {
-      const index = evictIndex(entries, id);
-      if (index < 0) return null;
-      entries.splice(index, 1);
-    }
+  // Speicher voll: nur weniger wichtige weichen lassen – nie eine gleich wichtige oder
+  // wichtigere für die neue opfern; dann lieber nicht sichern (der Aufrufer hält an).
+  while (!writeRing(storage, entries)) {
+    const index = evictIndex(entries);
+    if (index < 0 || backupPriority(entries[index]!.reason) >= backupPriority(entry.reason)) return null;
+    entries.splice(index, 1);
   }
+  return id;
 }
 
-/** Kurze Prüfsumme (FNV-1a) für die ID. */
-function checksum(text: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
+/**
+ * Platz für den Spielstand schaffen (Speicher voll): die unwichtigste Sicherung entfernen.
+ * false = es gibt keine mehr.
+ */
+export function dropOneBackup(storage: Storage): boolean {
+  const entries = readBackups(storage);
+  const index = evictIndex(entries);
+  if (index < 0) return false;
+  entries.splice(index, 1);
+  try {
+    if (entries.length > 0) storage.setItem(BACKUPS_KEY, JSON.stringify(entries));
+    else storage.removeItem(BACKUPS_KEY);
+    return true;
+  } catch {
+    return false;
   }
-  return (hash >>> 0).toString(36);
 }
 
 /** Frühere Einzel-Sicherungen (mit ihrem Konto) in den Ring übernehmen und entfernen. */

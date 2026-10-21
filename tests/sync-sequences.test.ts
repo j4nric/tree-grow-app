@@ -52,6 +52,8 @@ class World {
   readonly replaced: { what: string; game: Game }[] = [];
   /** Aktionen eines angehaltenen Tabs – bewusst nicht gespeichert (der Tab sagt das an). */
   readonly ephemeral = new Set<string>();
+  /** Aktionen aus Sicherungen, die bei vollem Speicher dem Spielstand weichen mussten. */
+  readonly sacrificed = new Set<string>();
   private readonly listeners = new Map<string, Set<(c: RemoteMeta | null) => void>>();
   private queue: (() => void)[] = [];
   fault: Fault | null = null;
@@ -152,7 +154,7 @@ class World {
     const live = this.live();
     const ring = readBackups(this.storage).map((e) => decode(e.code)?.actions ?? []);
     for (const { what, game } of this.replaced) {
-      const missing = game.actions.filter((a) => !live.has(a) && !this.ephemeral.has(a));
+      const missing = game.actions.filter((a) => !live.has(a) && !this.ephemeral.has(a) && !this.sacrificed.has(a));
       if (missing.length === 0) continue;
       if (!ring.some((actions) => missing.every((a) => actions.includes(a)))) {
         this.violations.push(`(b) ${what} ersetzt, ohne Sicherung verloren: ${missing.join(',')}`);
@@ -279,11 +281,31 @@ class Tab {
     return true;
   }
 
-  /** Wie main.ts persist(): Spielstand und (über den Kern) die Abgleich-Angaben. */
-  persist(): void {
+  /**
+   * Wie main.ts persist(): Spielstand speichern (bei vollem Speicher weichen Sicherungen), die
+   * Abgleich-Angaben nur bei Erfolg. `crash`: Absturz zwischen Spielstand und Angaben.
+   */
+  persist(crash = false): void {
     if (this.frozen) return;
-    this.world.storage.setItem(SAVE, encode(this.game));
-    this.core.persisted();
+    const raw = encode(this.game);
+    const write = (): boolean => {
+      try {
+        this.world.storage.setItem(SAVE, raw);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    let ok = write();
+    while (!ok) {
+      // Der Spielstand geht vor: Sicherungen, die dafür weichen, sind bewusst geopfert.
+      const before = readBackups(this.world.storage);
+      if (!this.core.makeRoom()) break;
+      const after = new Set(readBackups(this.world.storage).map((e) => e.id));
+      for (const e of before) if (!after.has(e.id)) for (const a of decode(e.code)?.actions ?? []) this.world.sacrificed.add(a);
+      ok = write();
+    }
+    if (ok && !crash) this.core.persisted(raw);
   }
 
   play(): void {
@@ -292,8 +314,9 @@ class Tab {
     if (this.frozen) this.world.ephemeral.add(action);
     // Gespielt als das angemeldete Konto; abgemeldet bleibt das Spiel, wem es gehörte.
     this.game = { account: user ?? this.game.account, actions: [...this.game.actions, action] };
-    this.persist();
+    // Wie main.ts act(): erst vormerken, dann speichern.
     this.core.markAction();
+    this.persist();
   }
 }
 
@@ -304,33 +327,65 @@ async function settle(world: World): Promise<void> {
   }
 }
 
-type TabOp = 'loginA' | 'loginB' | 'logout' | 'play' | 'reload' | 'reloadMid' | 'restore';
-type GlobalOp = 'cloudA' | 'cloudB' | 'newTab' | 'failBefore' | 'failAfter' | 'sessionLost' | 'outdated' | 'full' | 'dropEvents';
+type TabOp = 'loginA' | 'loginB' | 'logout' | 'play' | 'reload' | 'reloadMid' | 'crash' | 'restore';
+type GlobalOp =
+  | 'cloudA'
+  | 'cloudB'
+  | 'newTab'
+  | 'failBefore'
+  | 'failAfter'
+  | 'sessionLost'
+  | 'outdated'
+  | 'full'
+  | 'dropEvents'
+  | 'saveFails'
+  | 'ringFails';
 type Step = { op: TabOp; tab: number } | { op: GlobalOp };
 
-const TAB_OPS: TabOp[] = ['loginA', 'loginB', 'logout', 'play', 'reload', 'reloadMid', 'restore'];
-const GLOBAL_OPS: GlobalOp[] = ['cloudA', 'cloudB', 'newTab', 'failBefore', 'failAfter', 'sessionLost', 'outdated', 'full', 'dropEvents'];
+const TAB_OPS: TabOp[] = ['loginA', 'loginB', 'logout', 'play', 'reload', 'reloadMid', 'crash', 'restore'];
+const GLOBAL_OPS: GlobalOp[] = [
+  'cloudA',
+  'cloudB',
+  'newTab',
+  'failBefore',
+  'failAfter',
+  'sessionLost',
+  'outdated',
+  'full',
+  'dropEvents',
+  'saveFails',
+  'ringFails',
+];
 const STEPS: Step[] = [...TAB_OPS.flatMap((op) => [0, 1].map((tab) => ({ op, tab }) as Step)), ...GLOBAL_OPS.map((op) => ({ op }) as Step)];
 
 const label = (s: Step): string => ('tab' in s ? `${s.op}@${s.tab}` : s.op);
 
-async function reload(world: World, index: number, mid: boolean): Promise<void> {
+async function reload(world: World, index: number, mode: 'normal' | 'mid' | 'crash' = 'normal'): Promise<void> {
   const old = world.tabs[index]!;
-  if (mid) {
+  if (mode === 'mid') {
     // Mitten im Senden: Aktion, Push angestoßen – und vor der Antwort neu geladen.
     old.play();
     world.clock += 2000;
     void old.core.poll();
   }
-  old.persist(); // beforeunload (angehalten: nichts)
+  if (mode === 'crash') {
+    // Aktion, Spielstand geschrieben – Absturz vor den Abgleich-Angaben, kein beforeunload.
+    const action = world.next('aktion');
+    old.game = { account: old.core.user?.name ?? old.game.account, actions: [...old.game.actions, action] };
+    if (old.frozen) world.ephemeral.add(action);
+    old.persist(true);
+  } else {
+    old.persist(); // beforeunload (angehalten: nichts)
+  }
   old.core.dispose();
   const fresh = new Tab(world);
   world.tabs[index] = fresh;
   await fresh.core.start();
 }
 
-async function run(steps: Step[], cloudA: boolean, cloudB: boolean): Promise<string[]> {
+async function run(steps: Step[], cloudA: boolean, cloudB: boolean, limit = Infinity): Promise<string[]> {
   const storage = new MemoryStorage();
+  storage.limit = limit;
   const world = new World(storage);
   // Rein lokaler Stand mit Fortschritt, noch nie abgeglichen.
   storage.setItem(SAVE, encode({ account: null, actions: ['lokal0'] }));
@@ -359,7 +414,8 @@ async function run(steps: Step[], cloudA: boolean, cloudB: boolean): Promise<str
           break;
         case 'reload':
         case 'reloadMid':
-          await reload(world, step.tab, step.op === 'reloadMid');
+        case 'crash':
+          await reload(world, step.tab, step.op === 'reloadMid' ? 'mid' : step.op === 'crash' ? 'crash' : 'normal');
           break;
         case 'restore': {
           const newest = tab.core.backups()[0];
@@ -397,6 +453,13 @@ async function run(steps: Step[], cloudA: boolean, cloudB: boolean): Promise<str
           break;
         case 'dropEvents':
           world.dropEvents = true;
+          break;
+        case 'saveFails':
+          // Spielstand-Schreiben scheitert einmal (Quota) – nach dem Platzmachen klappt es.
+          world.storage.failNext.set(SAVE, 1);
+          break;
+        case 'ringFails':
+          world.storage.failNext.set('vszw-backups', 1);
           break;
       }
     }
@@ -452,6 +515,16 @@ describe('Konto-Abgleich: alle Abfolgen', () => {
       const cloudB = random() < 0.7;
       const violations = await run(steps, cloudA, cloudB);
       if (violations.length > 0) expect(violations, `${steps.map(label).join(' → ')} (A ${cloudA}, B ${cloudB})`).toEqual([]);
+    }
+  }, 600_000);
+
+  it('1500 zufällige Abfolgen der Länge 8 mit knappem Speicher (Quota)', async () => {
+    const random = rng(4711);
+    for (let i = 0; i < 1500; i++) {
+      const steps = Array.from({ length: 8 }, () => STEPS[Math.floor(random() * STEPS.length)]!);
+      const limit = 900 + Math.floor(random() * 1200);
+      const violations = await run(steps, true, random() < 0.7, limit);
+      if (violations.length > 0) expect(violations, `${steps.map(label).join(' → ')} (Limit ${limit})`).toEqual([]);
     }
   }, 600_000);
 
@@ -563,7 +636,7 @@ describe('Kern des Kontos: Einzelfälle', () => {
     expect(tab.core.restore(backupB!.id)).toBeNull();
     second.persist();
     expect(readOwner(storage)).toBe('A');
-    await reload(world, 1, false);
+    await reload(world, 1);
     const reloaded = world.tabs[1]!;
     await reloaded.core.signIn('B', 'pw');
     await settle(world);
@@ -579,7 +652,7 @@ describe('Kern des Kontos: Einzelfälle', () => {
     await settle(world);
     for (let i = 0; i < 15; i++) {
       world.otherDevice('A');
-      await reload(world, 0, false);
+      await reload(world, 0);
       await settle(world);
     }
     expect(readBackups(storage).some((e) => e.code === local0 && e.reason === 'first-login-local')).toBe(true);

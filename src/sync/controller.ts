@@ -10,7 +10,19 @@
 import { SAVE_VERSION } from '../core/state';
 import { SyncEngine, type CodeCheck, type SyncHost, type SyncStatus } from './engine';
 import type { Progress } from './policy';
-import { addBackup, migrateLegacyBackups, readBackups, readMeta, writeMeta, type BackupEntry, type LocalMeta } from './storage';
+import { SAVE_KEY } from '../core/save';
+import {
+  addBackup,
+  checksum,
+  dropOneBackup,
+  migrateLegacyBackups,
+  migrateLegacyMeta,
+  readBackups,
+  readMeta,
+  writeMeta,
+  type BackupEntry,
+  type LocalMeta,
+} from './storage';
 import { AccountError, type AccountService, type AccountUser } from './types';
 
 /** Was der Abgleich vom Spiel braucht (main.ts). */
@@ -95,8 +107,12 @@ export interface AccountCore {
   /** Angebotene Sicherungen (angemeldet nur die eigenen und rein lokalen), neueste zuerst. */
   backups(): BackupEntry[];
   restore(id: string): string | null;
-  /** Der Spielstand wurde eben gespeichert: Abgleich-Angaben dazu schreiben (gleicher Takt). */
-  persisted(): void;
+  /** Der Spielstand `raw` wurde eben gespeichert: Abgleich-Angaben dazu schreiben (gleicher Takt). */
+  persisted(raw: string): void;
+  /** Speicher voll: eine Sicherung weichen lassen, damit der Spielstand passt. false = keine mehr. */
+  makeRoom(): boolean;
+  /** Aktuellen Stand sichern, bevor „Spielstand löschen“ oder „Importieren“ ihn ersetzt. */
+  backupCurrent(): boolean;
   /** Gemeinsame Sitzung geändert (storage-Ereignis) – auch regelmäßig aufrufen. */
   checkSession(): void;
   /** Regelmäßig (jede Sekunde): fällige Pushes, Sitzung prüfen. */
@@ -110,8 +126,13 @@ export interface AccountCore {
   readonly engine: SyncEngine | null;
 }
 
+export const RESTORE_BACKUP_FAILED = 'Der aktuelle Stand ließ sich nicht sichern (Speicher voll) – nichts geändert.';
+
 export function createAccountCore(deps: CoreDeps): AccountCore {
   const { storage, service, game, view } = deps;
+  // Frühere Schlüssel einmal übernehmen (vor dem ersten Lesen).
+  migrateLegacyMeta(storage);
+  migrateLegacyBackups(storage, deps.clock());
   let user: AccountUser | null = null;
   let engine: SyncEngine | null = null;
   let stale = false;
@@ -124,10 +145,23 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
    * (persisted), damit beides im localStorage immer zusammenpasst.
    */
   let memory: LocalMeta = readMeta(storage);
+  /** Prüfsumme des Spielstands, den dieser Tab zuletzt gespeichert hat (beim Laden: der gespeicherte). */
+  let savedHash: string | null = (() => {
+    try {
+      const raw = storage.getItem(SAVE_KEY);
+      return raw === null ? null : checksum(raw);
+    } catch {
+      return null;
+    }
+  })();
 
-  /** Abgleich-Angaben schreiben – nie aus einem angehaltenen Tab. */
+  /**
+   * Abgleich-Angaben schreiben – nie aus einem angehaltenen Tab. Mit der Prüfsumme des zuletzt
+   * hier gespeicherten Spielstands: Hat inzwischen ein anderer Tab gespeichert oder scheiterte
+   * das Speichern, passt sie nicht, und die Grundlage gilt beim Lesen nicht.
+   */
   function writeMemory(): void {
-    if (!stale) writeMeta(storage, memory);
+    if (!stale) writeMeta(storage, memory, savedHash);
   }
 
   function hostFor(account: AccountUser, fresh: boolean): SyncHost {
@@ -140,12 +174,21 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
       check: (code) => game.check(code),
       localProgress: () => game.localProgress(),
       progressOf: (code) => game.progressOf(code),
-      apply: (code, ageMs) => game.adopt(code, ageMs),
+      apply: (code, ageMs) => {
+        // Schon vor dem Laden festhalten: Das Spiel gehört gleich diesem Konto, die Grundlage
+        // ist erst nach dem Abgleich bekannt (Absturz dazwischen → wie eine erste Anmeldung).
+        const previous = memory;
+        memory = { owner: account.name, base: null };
+        const ok = game.adopt(code, ageMs);
+        if (!ok) memory = previous;
+        return ok;
+      },
       // Lokaler Stand gehört dem Konto, zu dem das Spiel dieses Tabs gehört.
       backup: (reason) =>
-        addBackup(storage, { code: game.snapshot(), owner: memory.owner, at: deps.clock(), reason, progress: game.localProgress() }),
+        addBackup(storage, { code: game.snapshot(), owner: memory.owner, at: deps.clock(), reason, progress: game.localProgress() }) !== null,
       backupCloud: (data) =>
-        addBackup(storage, { code: data, owner: account.name, at: deps.clock(), reason: 'first-login-cloud', progress: game.progressOf(data) }),
+        addBackup(storage, { code: data, owner: account.name, at: deps.clock(), reason: 'first-login-cloud', progress: game.progressOf(data) }) !==
+        null,
       localIsForeign: () => memory.owner !== null && memory.owner !== account.name,
       isActive: deps.isActive,
       loadBase: () => (ignoreBase || memory.owner !== account.name ? null : memory.base),
@@ -220,7 +263,15 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
     const entry = backups().find((e) => e.id === id);
     if (!entry) return RESTORE_MISSING;
     // Vorher den aktuellen Stand sichern – auch das Wiederherstellen lässt sich so zurücknehmen.
-    const current = { code: game.snapshot(), owner: memory.owner, progress: game.localProgress() };
+    // Klappt das nicht (Speicher voll), wird nichts ersetzt.
+    const saved = addBackup(storage, {
+      code: game.snapshot(),
+      owner: memory.owner,
+      progress: game.localProgress(),
+      at: deps.clock(),
+      reason: 'before-restore',
+    });
+    if (saved === null) return RESTORE_BACKUP_FAILED;
     const previous = memory;
     // Abgemeldet: Der Stand gehört danach dem Konto der Sicherung – ohne Grundlage, also beim
     // nächsten Anmelden wie eine erste Anmeldung (mit Sicherungen beider Stände).
@@ -230,7 +281,6 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
       memory = previous;
       return error;
     }
-    addBackup(storage, { ...current, at: deps.clock(), reason: 'before-restore' });
     // Angemeldet: wie eine Spieleraktion – die anderen Geräte übernehmen den Stand.
     engine?.markAction();
     view.setBackups(backups());
@@ -239,7 +289,6 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
 
   return {
     async start() {
-      migrateLegacyBackups(storage, deps.clock());
       try {
         setUser(await service.currentUser());
       } catch {
@@ -291,7 +340,18 @@ export function createAccountCore(deps: CoreDeps): AccountCore {
         writeMemory();
       }
     },
-    persisted: writeMemory,
+    persisted(raw) {
+      savedHash = checksum(raw);
+      writeMemory();
+    },
+    makeRoom: () => dropOneBackup(storage),
+    backupCurrent() {
+      if (stale) return false;
+      return (
+        addBackup(storage, { code: game.snapshot(), owner: memory.owner, at: deps.clock(), reason: 'before-replace', progress: game.localProgress() }) !==
+        null
+      );
+    },
     flush: () => engine?.flush() ?? Promise.resolve(),
     dispose() {
       engine?.stop();

@@ -184,9 +184,11 @@ let storageFrozen = false;
 /** Spielstand speichern (außer gesperrt). */
 function persist(): void {
   if (storageFrozen) return;
-  saveToStorage(state);
-  // Abgleich-Angaben (wem der Stand gehört) im selben Takt dazu schreiben.
-  account?.persisted();
+  let raw = saveToStorage(state);
+  // Speicher voll: Sicherungen des Konto-Abgleichs weichen lassen – der Spielstand geht vor.
+  while (raw === null && account?.makeRoom()) raw = saveToStorage(state);
+  // Abgleich-Angaben (wem der Stand gehört) im selben Takt dazu – nur, wenn er gespeichert ist.
+  if (raw !== null) account?.persisted(raw);
 }
 
 /** Konto-Abgleich (nur wenn konfiguriert, nach dem Nachladen). */
@@ -376,8 +378,9 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
   let unlocked: string[] = [];
   if (result.ok) {
     unlocked = checkAchievements(state);
-    persist();
+    // Erst vormerken, dann speichern: so stehen Spielstand und „offen“ im selben Schreibvorgang.
     account?.markAction();
+    persist();
     if (resolves) encounterSerial++;
   }
   encounterDirty = true;
@@ -731,6 +734,8 @@ function onReset(event: MouseEvent): void {
   // Doppelklick oder gehaltene Enter-Taste bestätigen nicht.
   if (!isDeliberateConfirm(event, resetArmedAt, performance.now())) return;
   disarmReset();
+  // Der bisherige Wald kommt vorher in die Sicherungen des Kontos (falls aktiv).
+  account?.backupCurrent();
   if (!storageFrozen) clearStorage();
   replaceState(newGame());
   account?.markAction();
@@ -847,6 +852,7 @@ function setupSaveTransfer(): void {
     onImport: (code) => {
       const result = importCode(code, Date.now());
       if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
+      account?.backupCurrent();
       replaceState(result.result.state);
       account?.markAction();
       const imported = result.result;

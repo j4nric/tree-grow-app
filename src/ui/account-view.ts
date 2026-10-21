@@ -106,7 +106,8 @@ export function syncStatusText(status: SyncStatus, now: number): string {
     case 'cloud-unreadable':
       return SYNC_PROBLEM_TEXTS['cloud-unreadable'];
     case 'local-invalid':
-      return SYNC_PROBLEM_TEXTS['local-invalid'];
+    case 'backup-failed':
+      return SYNC_PROBLEM_TEXTS[status.phase];
   }
 }
 
@@ -115,6 +116,8 @@ export const SYNC_PROBLEM_TEXTS: Readonly<Record<SyncProblem, string>> = {
   outdated: 'Neue Spielversion – bitte neu laden. Bis dahin sendet dieses Gerät nichts ans Konto.',
   'cloud-unreadable': 'Der Spielstand im Konto ist nicht lesbar. Der Abgleich ist angehalten; dein Wald wächst hier weiter.',
   'local-invalid': 'Dein Spielstand ist zu groß für das Konto. Er bleibt auf diesem Gerät gespeichert.',
+  'backup-failed':
+    'Der Speicher dieses Browsers ist voll: Dein Stand ließ sich vor dem Übernehmen nicht sichern. Der Abgleich ist angehalten; dein Wald wächst hier weiter.',
 };
 
 /** Ist der Abgleich angehalten (Zeile hervorheben)? */
@@ -141,6 +144,7 @@ export const BACKUP_REASON_TEXTS: Readonly<Record<BackupReason, string>> = {
   'lost-action': 'Von einem anderen Gerät überholte Aktion',
   'before-take': 'Stand dieses Geräts vor dem Übernehmen',
   'before-restore': 'Stand vor dem Wiederherstellen',
+  'before-replace': 'Stand vor dem Löschen bzw. Importieren',
   legacy: 'Frühere Sicherung',
 };
 

@@ -198,6 +198,8 @@ class Device {
   cloudBackups: string[] = [];
   /** Konto, mit dem der lokale Stand zuletzt abgeglichen wurde (fremd → Cloud gewinnt). */
   foreign = false;
+  /** false = Speicher voll: Sicherungen scheitern. */
+  backupsWork = true;
   ages: (number | undefined)[] = [];
   events: SyncEvent[] = [];
   statuses: SyncStatus[] = [];
@@ -226,8 +228,8 @@ class Device {
         this.ages.push(ageMs);
         return true;
       },
-      backup: () => this.backups.push(this.data),
-      backupCloud: (d) => this.cloudBackups.push(d),
+      backup: () => this.backups.push(this.data) > 0 && this.backupsWork,
+      backupCloud: (d) => this.cloudBackups.push(d) > 0 && this.backupsWork,
       localIsForeign: () => this.foreign,
       isActive: () => this.active,
       loadBase: () => this.base,
@@ -628,6 +630,54 @@ describe('SyncEngine', () => {
     expect(tab.data).toBe('1|5|a-alt,');
     expect(tab.backups).toEqual(['7|0|b-spiel,']);
     expect(tab.cloudBackups).toEqual(['1|5|a-alt,']);
+  });
+
+  it('Sicherung scheitert (Speicher voll): nichts ersetzen, angehalten, später erneut', async () => {
+    const { cloud, clock } = setup();
+    cloud.row = { data: '3|0|cloud,', version: 5, actionVersion: 5, device: 'X' };
+    const b = new Device(cloud, 'B', clock, '1|7|lokal,');
+    b.backupsWork = false;
+    await b.engine.start();
+    expect(b.engine.status.phase).toBe('backup-failed');
+    expect(b.data).toBe('1|7|lokal,');
+    expect(cloud.row.data).toBe('3|0|cloud,');
+    b.backupsWork = true;
+    clock.now += BACKOFF_BASE_MS;
+    await b.engine.poll();
+    expect(b.engine.status.phase).toBe('synced');
+    expect(b.data).toBe('3|0|cloud,');
+  });
+
+  it('überholte eigene Aktion ohne mögliche Sicherung wird nicht ersetzt', async () => {
+    const { cloud, clock } = setup();
+    const a = new Device(cloud, 'A', clock);
+    await a.engine.start();
+    cloud.row = { data: '1|0|fremd,', version: 2, actionVersion: 2, device: 'X' };
+    a.act('a1');
+    a.backupsWork = false;
+    clock.now += ACTION_THROTTLE_MS;
+    await a.engine.poll();
+    expect(a.data).toBe('1|0|a1,');
+    expect(a.engine.status.phase).toBe('backup-failed');
+    expect(a.engine.hasUnsent).toBe(true);
+  });
+
+  it('markAction speichert die Grundlage nur beim Wechsel auf „offen“', async () => {
+    const { cloud, clock } = setup();
+    const a = new Device(cloud, 'A', clock);
+    await a.engine.start();
+    let saves = 0;
+    const host = (a.engine as unknown as { host: SyncHost }).host;
+    const original = host.saveBase;
+    host.saveBase = (b) => {
+      saves++;
+      original(b);
+    };
+    a.act('x');
+    a.act('y');
+    a.act('z');
+    expect(saves).toBe(1);
+    expect(a.base).toEqual({ version: 1, pending: true });
   });
 
   it('Alter nach Serverzeit wird beim Übernehmen weitergereicht', async () => {

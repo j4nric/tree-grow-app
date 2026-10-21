@@ -2,7 +2,7 @@
 // (der HTTP-Dienst gegen den echten Server steht in server/tests/client.test.ts).
 import { describe, expect, it } from 'vitest';
 import { MemoryStorage } from './memory-storage';
-import { codeFromJson, exportCode, importCode, isNewerSave, serialize } from '../src/core/save';
+import { SAVE_KEY, codeFromJson, exportCode, importCode, isNewerSave, serialize } from '../src/core/save';
 import { SAVE_VERSION, createInitialState } from '../src/core/state';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from '../src/sync/config';
 import { sessionChange } from '../src/sync/account';
@@ -21,6 +21,9 @@ import {
   baseKey,
   deviceId,
   migrateLegacyBackups,
+  migrateLegacyMeta,
+  checksum,
+  dropOneBackup,
   parseMeta,
   readBackups,
   readBase,
@@ -124,8 +127,9 @@ describe('Speicher-Helfer', () => {
   it('Abgleich-Angaben: Besitzer und Grundlage in einem Eintrag; kaputte Werte, blockierter Speicher', () => {
     const storage = new MemoryStorage();
     expect(readMeta(storage)).toEqual({ owner: null, base: null });
+    storage.setItem(SAVE_KEY, '{"spiel":1}');
     writeBase(storage, 'eiche', { version: 2, pending: false });
-    expect(JSON.parse(storage.getItem(BASE_KEY)!)).toEqual({ user: 'eiche', version: 2, pending: false });
+    expect(JSON.parse(storage.getItem(BASE_KEY)!)).toEqual({ user: 'eiche', version: 2, pending: false, save: checksum('{"spiel":1}') });
     expect(readOwner(storage)).toBe('eiche');
     expect(readBase(storage, 'eiche')).toEqual({ version: 2, pending: false });
     // Ein anderes Konto: die Grundlage von eiche gilt nicht mehr (A → B → A).
@@ -133,34 +137,56 @@ describe('Speicher-Helfer', () => {
     expect(readBase(storage, 'eiche')).toBeNull();
     expect(readBase(storage, 'buche')).toEqual({ version: 7, pending: true });
     // Besitzer ohne Grundlage (nach dem Laden einer Sicherung).
-    writeMeta(storage, { owner: 'linde', base: null });
+    writeMeta(storage, { owner: 'linde', base: null }, null);
     expect(readMeta(storage)).toEqual({ owner: 'linde', base: null });
-    writeMeta(storage, { owner: null, base: null });
+    writeMeta(storage, { owner: null, base: null }, null);
     expect(storage.getItem(BASE_KEY)).toBeNull();
     for (const raw of ['{kaputt', 'null', '[]', JSON.stringify({ user: '' }), JSON.stringify({ user: 42 })]) {
       expect(parseMeta(raw)).toBeNull();
     }
     for (const version of [-1, 1.5, 'x', 1e300]) {
-      expect(parseMeta(JSON.stringify({ user: 'a', version }))).toEqual({ owner: 'a', base: null });
+      expect(parseMeta(JSON.stringify({ user: 'a', version }))).toEqual({ owner: 'a', base: null, save: null });
     }
     storage.blocked = true;
     expect(readMeta(storage)).toEqual({ owner: null, base: null });
     expect(() => writeBase(storage, 'eiche', { version: 3, pending: true })).not.toThrow();
   });
 
-  it('Übergang: getrennte Schlüssel für Besitzer und Grundlage werden noch gelesen', () => {
+  it('Prüfsumme: passt der Spielstand nicht zu den Angaben, gilt die Grundlage nicht', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, 'ALT');
+    writeMeta(storage, { owner: 'eiche', base: { version: 5, pending: false } }, checksum('NEU'));
+    // Speichern des neuen Stands scheiterte (Quota) bzw. Absturz dazwischen: Besitzer bleibt, Grundlage nicht.
+    expect(readMeta(storage)).toEqual({ owner: 'eiche', base: null });
+    storage.setItem(SAVE_KEY, 'NEU');
+    expect(readMeta(storage)).toEqual({ owner: 'eiche', base: { version: 5, pending: false } });
+    storage.removeItem(SAVE_KEY);
+    expect(readBase(storage, 'eiche')).toBeNull();
+    // Ohne Prüfsumme (älteres Format): keine Grundlage.
+    storage.setItem(SAVE_KEY, 'NEU');
+    storage.setItem(BASE_KEY, JSON.stringify({ user: 'eiche', version: 5, pending: false }));
+    expect(readBase(storage, 'eiche')).toBeNull();
+    expect(checksum('')).toBe(checksum(''));
+    expect(checksum('a')).not.toBe(checksum('b'));
+  });
+
+  it('Übergang: getrennte Schlüssel für Besitzer und Grundlage werden einmal übernommen (ohne Grundlage)', () => {
     const storage = new MemoryStorage();
     storage.setItem(OWNER_KEY, 'b');
     storage.setItem(baseKey('b'), JSON.stringify({ user: 'b', version: 3, pending: false }));
-    expect(readMeta(storage)).toEqual({ owner: 'b', base: { version: 3, pending: false } });
-    expect(readBase(storage, 'a')).toBeNull();
-    writeBase(storage, 'b', { version: 4, pending: false });
+    migrateLegacyMeta(storage);
+    expect(readMeta(storage)).toEqual({ owner: 'b', base: null });
     expect(storage.getItem(OWNER_KEY)).toBeNull();
-    expect(readMeta(storage).base).toEqual({ version: 4, pending: false });
+    expect(storage.getItem(baseKey('b'))).toBeNull();
+    // Zweiter Aufruf: nichts mehr zu tun, vorhandener Eintrag bleibt.
+    storage.setItem(OWNER_KEY, 'c');
+    migrateLegacyMeta(storage);
+    expect(readOwner(storage)).toBe('b');
   });
 
   it('A → B → A: die Grundlage von A gilt nicht mehr – Cloud gewinnt, nie das Spiel von B in A pushen', () => {
     const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, 'S');
     writeBase(storage, 'a', { version: 5, pending: false });
     writeBase(storage, 'b', { version: 3, pending: false });
     expect(readBase(storage, 'a')).toBeNull();
@@ -200,18 +226,49 @@ describe('Speicher-Helfer', () => {
     expect(readBackups(storage).map((e) => e.code[0])).toEqual(['1', '2', '3']);
     // setItem wirft (Speicher voll): ältere weichen, bis es passt.
     const full = new MemoryStorage();
-    addBackup(full, entry('alt', 'lost-action', 1));
+    addBackup(full, entry('alt', 'before-take', 1));
+    addBackup(full, entry('wichtig', 'lost-action', 2));
     const setItem = full.setItem.bind(full);
     full.setItem = (key, value) => {
       if (key === BACKUPS_KEY && value.includes('alt')) throw new Error('QuotaExceeded');
       setItem(key, value);
     };
-    expect(addBackup(full, entry('neu', 'lost-action', 2))).not.toBeNull();
-    expect(readBackups(full).map((e) => e.code)).toEqual(['neu']);
+    // Speicher voll: nur die weniger wichtige weicht.
+    expect(addBackup(full, entry('neu', 'lost-action', 3))).not.toBeNull();
+    expect(readBackups(full).map((e) => e.code)).toEqual(['wichtig', 'neu']);
+    // Ist nichts weniger Wichtiges da, wird die neue nicht gesichert (nichts geopfert).
+    full.limit = full.used;
+    expect(addBackup(full, entry('noch eine', 'lost-action', 4))).toBeNull();
+    expect(readBackups(full).map((e) => e.code)).toEqual(['wichtig', 'neu']);
     storage.setItem(BACKUPS_KEY, JSON.stringify([{ id: 'a' }, null, entry('ok')].map((e, i) => (i === 2 ? { ...e, id: 'x' } : e))));
     expect(readBackups(storage).map((e) => e.code)).toEqual(['ok']);
     storage.setItem(BACKUPS_KEY, '{kaputt');
     expect(readBackups(storage)).toEqual([]);
+  });
+
+  it('Sicherungs-Ring: unwichtige neue verdrängt keine wichtigen; Dedupe hebt den Grund an; Platz für den Spielstand', () => {
+    const storage = new MemoryStorage();
+    for (let i = 0; i < MAX_BACKUPS; i++) addBackup(storage, entry(`w${i}`, 'lost-action', i));
+    expect(addBackup(storage, entry('netz', 'before-take', 99))).toBeNull();
+    expect(readBackups(storage).map((e) => e.code)).not.toContain('netz');
+    // Derselbe Stand noch einmal, wichtiger: Grund angehoben, Zeit erneuert, nicht doppelt.
+    const other = new MemoryStorage();
+    const id = addBackup(other, entry('S', 'before-take', 1));
+    expect(addBackup(other, entry('S', 'first-login-local', 5, 'eiche'))).toBe(id);
+    expect(readBackups(other)).toMatchObject([{ code: 'S', reason: 'first-login-local', at: 5, owner: 'eiche' }]);
+    expect(addBackup(other, entry('S', 'before-take', 9))).toBe(id);
+    expect(readBackups(other)[0]).toMatchObject({ reason: 'first-login-local', at: 9 });
+    // dropOneBackup: unwichtigste zuerst, bis keine mehr da ist.
+    addBackup(other, entry('T', 'before-take', 10));
+    expect(dropOneBackup(other)).toBe(true);
+    expect(readBackups(other).map((e) => e.code)).toEqual(['S']);
+    expect(dropOneBackup(other)).toBe(true);
+    expect(dropOneBackup(other)).toBe(false);
+    expect(other.getItem(BACKUPS_KEY)).toBeNull();
+    // Gelesene Liste ist eine Kopie (Zwischenspeicher bleibt unverändert).
+    addBackup(other, entry('U', 'lost-action', 11));
+    readBackups(other)[0]!.code = 'verändert';
+    expect(readBackups(other)[0]!.code).toBe('U');
   });
 
   it('frühere Einzel-Sicherungen werden mit ihrem Konto in den Ring übernommen', () => {

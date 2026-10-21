@@ -35,8 +35,10 @@ export interface SyncBase {
  *   Bleibt bis zum Neuladen; dieses Gerät schreibt nichts mehr.
  * - 'cloud-unreadable': Der Cloud-Stand ist kaputt → nicht darüber schreiben; später erneut prüfen.
  * - 'local-invalid': Der eigene Stand ließe sich nicht wieder importieren (z. B. zu groß) → nicht senden.
+ * - 'backup-failed': Ein Stand, der ersetzt würde, ließ sich nicht sichern (Speicher voll) →
+ *   nichts ersetzen; später erneut versuchen.
  */
-export type SyncProblem = 'outdated' | 'cloud-unreadable' | 'local-invalid';
+export type SyncProblem = 'outdated' | 'cloud-unreadable' | 'local-invalid' | 'backup-failed';
 
 export type SyncPhase = 'connecting' | 'synced' | 'offline' | SyncProblem;
 
@@ -76,9 +78,9 @@ export interface SyncHost {
    */
   apply(data: string, ageMs?: number): boolean;
   /** Lokalen Stand sichern, bevor er ersetzt wird. */
-  backup(reason: LocalBackupReason): void;
+  backup(reason: LocalBackupReason): boolean;
   /** Cloud-Stand sichern, bevor er bei der ersten Anmeldung ersetzt werden könnte. */
-  backupCloud(data: string): void;
+  backupCloud(data: string): boolean;
   /** Der lokale Stand wurde zuletzt mit einem anderen Konto abgeglichen. */
   localIsForeign(): boolean;
   /** Periodische Pushes erlaubt (sichtbarer Tab)? */
@@ -151,8 +153,10 @@ export class SyncEngine {
   /** Eine Spieleraktion ist passiert: bald (gedrosselt) pushen. */
   markAction(): void {
     if (this.stopped) return;
+    const was = this.pendingAction;
     this.pendingAction = true;
-    if (this.ready) this.host.saveBase({ version: this.known, pending: true });
+    // Nur beim Wechsel auf „offen“ speichern (eine Schreibung je Aktion genügt sonst).
+    if (this.ready && !was) this.host.saveBase({ version: this.known, pending: true });
   }
 
   /** Regelmäßig aufrufen: startet fällige Pushes bzw. Wiederholungen. */
@@ -271,8 +275,9 @@ export class SyncEngine {
     }
     if (decision.kind !== 'insert' && decision.firstLogin) {
       // Erste Anmeldung: beide Stände sichern, bevor einer den anderen ersetzt.
-      this.host.backupCloud(remote!.data);
-      if (localProgress) this.host.backup('first-login-local');
+      const savedCloud = this.host.backupCloud(remote!.data);
+      const savedLocal = !localProgress || this.host.backup('first-login-local');
+      if (!savedCloud || !savedLocal) throw new SyncBlocked('backup-failed');
     }
     if (decision.kind === 'insert') {
       const result = this.written(await this.backend.insert(this.write(1, true)));
@@ -295,7 +300,10 @@ export class SyncEngine {
       const lost = !decision.firstLogin && this.pendingAction;
       // Sicherheitsnetz: Vor dem Ersetzen beim Start immer den lokalen Stand sichern (bei
       // der ersten Anmeldung oben schon geschehen) – auch wenn keine offene Aktion bekannt ist.
-      if (!decision.firstLogin && localProgress) this.host.backup(lost ? 'lost-action' : 'before-take');
+      // Eine überholte eigene Aktion nie ohne Sicherung ersetzen (Speicher voll → anhalten).
+      if (!decision.firstLogin && localProgress && !this.host.backup(lost ? 'lost-action' : 'before-take') && lost) {
+        throw new SyncBlocked('backup-failed');
+      }
       this.take(remote!);
       if (decision.firstLogin) this.host.onEvent({ kind: 'first-login', winner: 'cloud' });
       else if (lost) this.host.onEvent({ kind: 'taken', lostLocal: true });
@@ -361,7 +369,7 @@ export class SyncEngine {
       this.ensureReadable(remote);
       if (resolveConflict(this.known, remote, this.device) === 'take') {
         const lost = this.pendingAction;
-        if (lost) this.host.backup('lost-action');
+        if (lost && !this.host.backup('lost-action')) throw new SyncBlocked('backup-failed');
         this.take(remote);
         this.host.onEvent({ kind: 'taken', lostLocal: lost });
         this.succeeded();
@@ -420,7 +428,10 @@ export class SyncEngine {
       this.known = remote.version;
     } else if (reaction === 'take') {
       const lost = this.pendingAction;
-      if (lost) this.host.backup('lost-action');
+      if (lost && !this.host.backup('lost-action')) {
+        this.recheck = true;
+        throw new SyncBlocked('backup-failed');
+      }
       this.take(remote);
       this.host.onEvent({ kind: 'taken', lostLocal: lost });
     }

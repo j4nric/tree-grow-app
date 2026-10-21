@@ -29,8 +29,12 @@ export interface AccountController {
   markAction(): void;
   /** Sofort pushen (Seite wird verborgen oder verlassen). */
   flush(): void;
-  /** Der Spielstand wurde eben gespeichert (main.ts persist). */
-  persisted(): void;
+  /** Der Spielstand `raw` wurde eben gespeichert (main.ts persist). */
+  persisted(raw: string): void;
+  /** Speicher voll: eine Sicherung weichen lassen. false = keine mehr. */
+  makeRoom(): boolean;
+  /** Aktuellen Stand sichern (vor „Spielstand löschen“ bzw. „Importieren“). */
+  backupCurrent(): void;
 }
 
 function randomId(): string {
@@ -100,6 +104,8 @@ export function startAccount(options: AccountOptions): AccountController {
   return {
     markAction: () => core?.markAction(),
     flush: () => void core?.flush(),
-    persisted: () => core?.persisted(),
+    persisted: (raw) => core?.persisted(raw),
+    makeRoom: () => core?.makeRoom() ?? false,
+    backupCurrent: () => void core?.backupCurrent(),
   };
 }
