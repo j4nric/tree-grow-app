@@ -113,7 +113,7 @@ describe('evaluate', () => {
 
   it('das gecachte Ergebnis ist tief eingefroren', () => {
     const ev = evaluate(stateAt(3, ['earthworm', 'oakmoth']));
-    for (const part of [ev, ev.animals, ev.animals.earthworm, ev.animals.earthworm!.needs, ev.slots, ev.genusCounts, ev.traitTiers, ev.breakdown]) {
+    for (const part of [ev, ev.animals, ev.animals.earthworm, ev.animals.earthworm!.needs, ev.slots, ev.genusCounts, ev.traitTiers, ev.breakdown, ev.communities]) {
       expect(Object.isFrozen(part)).toBe(true);
     }
     expect(() => {
@@ -136,18 +136,15 @@ describe('evaluate', () => {
 
   it('stimmt mit dem Referenzmodell (scripts/v2/model.ts) überein – jede Art einzeln und paarweise auf jeder Stufe', () => {
     const problems: string[] = [];
-    let compared = 0;
     for (let stage = 0; stage < STAGES.length; stage++) {
       for (let i = 0; i < SPECIES.length; i++) {
         for (let j = i; j < SPECIES.length; j++) {
           const ids = i === j ? [SPECIES[i]!.id] : [SPECIES[i]!.id, SPECIES[j]!.id];
           problems.push(...diffWithReference(stage, ids, []).problems);
-          compared++;
         }
       }
     }
     expect(problems).toEqual([]);
-    expect(compared).toBe(STAGES.length * ((SPECIES.length * (SPECIES.length + 1)) / 2));
   }, 15_000);
 
   it('evaluate(state) (mit Cache) rechnet wie evaluateEcosystem', () => {

@@ -52,6 +52,8 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   if (version < 2) return migrateV1(data, now);
   const state = loadV2(data, now, version);
   if (version < 3) migrateV2(state);
+  // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte.
+  recordDiscoveries(state);
   return { state, migratedFromV1: false, keepsake: false };
 }
 
@@ -216,10 +218,9 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   for (const id of seen) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
   state.meta.journal.keepsakes = unique(stringArray(journal.keepsakes));
   // Pflanzen und Lebensgemeinschaften im Tagebuch (seit Schritt 2.3, ohne neue Version):
-  // fehlen sie (ältere Stände), ergänzt recordDiscoveries sie aus dem aktuellen Ökosystem.
+  // fehlen sie (ältere Stände), ergänzt loadGame sie per recordDiscoveries aus dem Ökosystem.
   state.meta.journal.plants = unique(stringArray(journal.plants).filter((id) => PLANTS_BY_ID.has(id)));
   state.meta.journal.communities = unique(stringArray(journal.communities).filter((id) => COMMUNITIES_BY_ID.has(id)));
-  recordDiscoveries(state);
   return state;
 }
 

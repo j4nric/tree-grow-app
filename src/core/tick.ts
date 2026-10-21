@@ -269,7 +269,7 @@ export function chooseCard(
  * Trägt ins Naturtagebuch ein, was gerade im Ökosystem ist: wachsende Pflanzen und
  * aktive Lebensgemeinschaften (je einmal, in der Reihenfolge der Entdeckung). Arten
  * trägt chooseCard selbst ein. Gibt die neu entdeckten Lebensgemeinschaften zurück
- * (für eine Meldung in der UI).
+ * (für eine Entdeckungs-Meldung, die die UI noch anschließt).
  */
 export function recordDiscoveries(state: GameState): string[] {
   const journal = state.meta.journal;
