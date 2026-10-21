@@ -686,9 +686,10 @@ export function codeFromJson(json: string): string {
  * Liest einen Text-Code und lädt ihn wie einen gespeicherten Stand (loadGame: robust,
  * mit Migration alter Versionen). Leerraum (Zeilenumbrüche beim Kopieren) wird ignoriert.
  * Die Uhr startet beim Import neu (`lastTick = now`) – ein Import bringt keine
- * Offline-Zeit. Verändert nichts außerhalb des Ergebnisses.
+ * Offline-Zeit. Verändert nichts außerhalb des Ergebnisses. Mit `keepClock` bleibt die Uhr
+ * des Codes stehen (Konto-Abgleich: die Zeit seit dem Speichern wird nachgerechnet).
  */
-export function importCode(code: string, now: number): ImportResult {
+export function importCode(code: string, now: number, options: { keepClock?: boolean } = {}): ImportResult {
   // Grobe Prüfung vor dem Entfernen des Leerraums (riesige Eingaben gar nicht erst anfassen).
   if (code.length > 2 * MAX_EXPORT_CODE_LENGTH) return { ok: false, error: 'too-large' };
   const compact = code.replace(/\s+/g, '');
@@ -718,7 +719,7 @@ export function importCode(code: string, now: number): ImportResult {
     return { ok: false, error: 'invalid' };
   }
   if (!result) return { ok: false, error: 'invalid' };
-  result.state.lastTick = now;
+  if (!options.keepClock) result.state.lastTick = now;
   return { ok: true, result };
 }
 

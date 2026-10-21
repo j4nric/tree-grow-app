@@ -1,0 +1,79 @@
+# Sync-Server für „Vom Samen zum Wald“ – Anleitung: docs/KONTO.md
+#
+# Zwei Betriebsarten (stört keine anderen Apps auf dem Server):
+#   B) Vorhandener Reverse-Proxy (Standard):
+#      - Proxy direkt auf dem Server (nginx, Caddy …):   docker compose up -d --build
+#        Der Server lauscht nur auf 127.0.0.1:${SYNC_PORT}.
+#      - Proxy im Docker-Container (z. B. Caddy einer anderen App): zusätzlich
+#        -f docker-compose.proxy-net.yml – vszw-sync tritt dem Netzwerk ${PROXY_NETWORK}
+#        bei und ist dort als vszw-sync:8787 erreichbar (kein Host-Port).
+#      - Traefik: zusätzlich -f docker-compose.traefik.yml (Labels).
+#   A) Eigener Caddy (nur wenn Port 80 und 443 frei sind):
+#      docker compose --profile caddy up -d --build
+#      Caddy holt das Let's-Encrypt-Zertifikat für ${SYNC_PUBLIC_HOST} automatisch.
+#
+# Werte kommen aus deploy/.env (Vorlage: .env.example, deploy/setup.sh legt sie an).
+
+name: vszw
+
+services:
+  sync:
+    build: ../server
+    image: vszw-sync:latest
+    container_name: vszw-sync
+    restart: unless-stopped
+    environment:
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGIN:-https://j4nric.github.io}
+      TRUST_PROXY: '1'
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - vszw-data:/data
+    ports:
+      # Nur lokal erreichbar – nach außen geht es ausschließlich über den Reverse-Proxy.
+      - '127.0.0.1:${SYNC_PORT:-8787}:8787'
+    networks:
+      - vszw-net
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 100
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    profiles: ['caddy']
+    image: caddy:2-alpine
+    container_name: vszw-caddy
+    restart: unless-stopped
+    depends_on:
+      - sync
+    environment:
+      SYNC_PUBLIC_HOST: ${SYNC_PUBLIC_HOST:-}
+    ports:
+      # Nur in Betriebsart A: Caddy braucht 80 (Zertifikat) und 443 (HTTPS) nach außen.
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - vszw-caddy-data:/data
+      - vszw-caddy-config:/config
+    networks:
+      - vszw-net
+    mem_limit: 128m
+    cpus: 0.5
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  vszw-data:
+    name: vszw-data
+  vszw-caddy-data:
+    name: vszw-caddy-data
+  vszw-caddy-config:
+    name: vszw-caddy-config
+
+networks:
+  vszw-net:
+    name: vszw-net

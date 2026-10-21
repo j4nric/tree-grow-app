@@ -1,0 +1,229 @@
+/**
+ * Konto über den eigenen Sync-Server (server/): Benutzername + Passwort, Sitzungstoken als
+ * Bearer-Header (keine Cookies – das Spiel liegt auf einer anderen Domain), Spielstand per
+ * GET/PUT /api/save, Live-Änderungen per Server-Sent Events (/api/events mit kurzlebigem,
+ * einmaligem Ticket, weil EventSource keine Header senden kann).
+ */
+import { backoffMs, type RemoteMeta } from './policy';
+import { AccountError, type AccountErrorCode, type AccountService, type AccountUser, type RemoteSave, type SaveWrite, type SyncBackend } from './types';
+
+/** Sitzung im localStorage: { token, username }. */
+export const SESSION_KEY = 'vszw-session';
+
+export interface HttpDeps {
+  fetch: typeof fetch;
+  storage: Storage;
+  /** Fehlt (z. B. in Node), gibt es keine Live-Änderungen – der Abgleich bemerkt sie beim nächsten Push. */
+  EventSource?: typeof EventSource;
+}
+
+interface StoredSession {
+  token: string;
+  username: string;
+}
+
+const SERVER_CODES: readonly AccountErrorCode[] = ['invalid-username', 'invalid-password', 'taken', 'credentials', 'rate-limited'];
+
+/** Basis-URL ohne abschließenden Schrägstrich. */
+export function apiBase(url: string): string {
+  return url.trim().replace(/\/+$/, '');
+}
+
+export function createHttpService(baseUrl: string, deps: HttpDeps): AccountService {
+  const base = apiBase(baseUrl);
+  const listeners: ((user: AccountUser | null) => void)[] = [];
+
+  function loadSession(): StoredSession | null {
+    try {
+      const data: unknown = JSON.parse(deps.storage.getItem(SESSION_KEY) ?? 'null');
+      if (typeof data !== 'object' || data === null) return null;
+      const { token, username } = data as Record<string, unknown>;
+      return typeof token === 'string' && typeof username === 'string' && token && username ? { token, username } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function storeSession(session: StoredSession | null): void {
+    try {
+      if (session) deps.storage.setItem(SESSION_KEY, JSON.stringify(session));
+      else deps.storage.removeItem(SESSION_KEY);
+    } catch {
+      // Speicher blockiert: Anmeldung gilt nur bis zum Neuladen.
+    }
+  }
+
+  /** Sitzung ungültig (401): vergessen und melden. */
+  function expire(): void {
+    if (!loadSession()) return;
+    storeSession(null);
+    for (const listener of listeners) listener(null);
+  }
+
+  async function request(method: string, path: string, body?: unknown, auth = true): Promise<{ status: number; json: unknown }> {
+    const headers: Record<string, string> = {};
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (auth) {
+      const session = loadSession();
+      if (!session) throw new AccountError('unauthorized');
+      headers.Authorization = `Bearer ${session.token}`;
+    }
+    let res: Response;
+    try {
+      res = await deps.fetch(`${base}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    } catch {
+      throw new AccountError('network');
+    }
+    let json: unknown = null;
+    if (res.status !== 204) {
+      try {
+        json = await res.json();
+      } catch {
+        json = null;
+      }
+    }
+    if (res.status === 401 && auth) {
+      expire();
+      throw new AccountError('unauthorized');
+    }
+    return { status: res.status, json };
+  }
+
+  function errorFrom(status: number, json: unknown): AccountError {
+    const code = (json as { error?: unknown } | null)?.error;
+    if (status === 429) return new AccountError('rate-limited');
+    if (status === 401) return new AccountError('credentials');
+    return new AccountError(SERVER_CODES.includes(code as AccountErrorCode) ? (code as AccountErrorCode) : 'server');
+  }
+
+  async function authenticate(path: string, username: string, password: string): Promise<AccountUser> {
+    const { status, json } = await request('POST', path, { username, password }, false);
+    const result = json as { token?: unknown; username?: unknown } | null;
+    if ((status === 200 || status === 201) && typeof result?.token === 'string' && typeof result.username === 'string') {
+      storeSession({ token: result.token, username: result.username });
+      return { name: result.username };
+    }
+    throw errorFrom(status, json);
+  }
+
+  function toRemote(json: unknown): RemoteSave | null {
+    const row = json as Record<string, unknown> | null;
+    if (!row || typeof row.data !== 'string' || typeof row.version !== 'number') return null;
+    return {
+      data: row.data,
+      version: row.version,
+      actionVersion: typeof row.actionVersion === 'number' ? row.actionVersion : 0,
+      device: typeof row.deviceId === 'string' ? row.deviceId : '',
+    };
+  }
+
+  async function put(baseVersion: number, row: SaveWrite, action: boolean): Promise<'ok' | 'conflict'> {
+    const { status } = await request('PUT', '/api/save', { data: row.data, baseVersion, deviceId: row.device, action });
+    if (status === 200) return 'ok';
+    if (status === 409) return 'conflict';
+    throw new AccountError('server');
+  }
+
+  const backend: SyncBackend = {
+    async fetch() {
+      const { status, json } = await request('GET', '/api/save');
+      if (status === 204) return null;
+      if (status !== 200) throw new AccountError('server');
+      return toRemote(json);
+    },
+    insert: (row) => put(0, row, true),
+    update: (expected, row) => put(expected, row, row.actionVersion !== undefined),
+    subscribe(listener) {
+      const Source = deps.EventSource;
+      if (!Source) return () => {};
+      let stopped = false;
+      let source: EventSource | null = null;
+      let failures = 0;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+
+      const retry = () => {
+        source?.close();
+        source = null;
+        if (stopped) return;
+        failures++;
+        timer = setTimeout(connect, backoffMs(failures));
+      };
+
+      async function connect(): Promise<void> {
+        if (stopped) return;
+        let ticket: string;
+        try {
+          const { status, json } = await request('POST', '/api/events/ticket');
+          const value = (json as { ticket?: unknown } | null)?.ticket;
+          if (status !== 200 || typeof value !== 'string') throw new AccountError('server');
+          ticket = value;
+        } catch (error) {
+          // Abgemeldet: nicht weiter versuchen.
+          if (error instanceof AccountError && error.code === 'unauthorized') return;
+          retry();
+          return;
+        }
+        if (stopped) return;
+        const es = new Source!(`${base}/api/events?ticket=${encodeURIComponent(ticket)}`);
+        source = es;
+        es.addEventListener('ready', () => {
+          failures = 0;
+          listener(null);
+        });
+        es.addEventListener('save', (event) => {
+          try {
+            const data = JSON.parse((event as MessageEvent<string>).data) as Record<string, unknown>;
+            const change: RemoteMeta = {
+              version: Number(data.version),
+              actionVersion: Number(data.actionVersion),
+              device: typeof data.deviceId === 'string' ? data.deviceId : '',
+            };
+            listener(Number.isFinite(change.version) ? change : null);
+          } catch {
+            listener(null);
+          }
+        });
+        // Das Ticket gilt nur einmal: Bei Abbruch selbst mit neuem Ticket verbinden.
+        es.onerror = retry;
+      }
+
+      void connect();
+      return () => {
+        stopped = true;
+        clearTimeout(timer);
+        source?.close();
+        source = null;
+      };
+    },
+  };
+
+  return {
+    async currentUser() {
+      const session = loadSession();
+      if (!session) return null;
+      try {
+        const { status, json } = await request('GET', '/api/me');
+        const name = (json as { username?: unknown } | null)?.username;
+        if (status === 200 && typeof name === 'string') return { name };
+      } catch (error) {
+        if (error instanceof AccountError && error.code === 'unauthorized') return null;
+      }
+      // Offline oder Serverfehler: angemeldet bleiben, der Abgleich versucht es später.
+      return { name: session.username };
+    },
+    onUserChange(listener) {
+      listeners.push(listener);
+    },
+    signIn: (username, password) => authenticate('/api/login', username, password),
+    register: (username, password) => authenticate('/api/register', username, password),
+    async signOut() {
+      try {
+        await request('POST', '/api/logout');
+      } catch {
+        // Offline: Die Sitzung läuft auf dem Server irgendwann ab; hier ist sie vergessen.
+      }
+      storeSession(null);
+    },
+    backend: () => backend,
+  };
+}

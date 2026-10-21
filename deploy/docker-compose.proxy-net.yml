@@ -1,0 +1,18 @@
+# Betriebsart B mit einem Reverse-Proxy, der selbst in Docker läuft (z. B. Caddy einer
+# anderen App): vszw-sync tritt dessen Netzwerk bei und ist dort als `vszw-sync:8787`
+# erreichbar – ohne Port auf dem Host.
+#   PROXY_NETWORK=<netzwerk> docker compose -f docker-compose.yml -f docker-compose.proxy-net.yml up -d --build
+# (deploy/setup.sh erkennt das Netzwerk und setzt PROXY_NETWORK in deploy/.env.)
+
+services:
+  sync:
+    # Kein Host-Port nötig: der Proxy spricht den Container direkt an.
+    ports: !reset []
+    networks:
+      - vszw-net
+      - proxy
+
+networks:
+  proxy:
+    name: ${PROXY_NETWORK:?PROXY_NETWORK fehlt – Netzwerk des Proxy-Containers (docker network ls)}
+    external: true
