@@ -14,7 +14,7 @@
 > Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus; 14 Ereignisse, davon je Jahreszeit ein
 > eigenes: Spätfrost, Hitzewelle, Laubfall, Schneebruch) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
-> Spielstand v8 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
+> Spielstand v9 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
 > verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege;
 > v5-Stände beginnen beim Laden im Frühling und wachsen als Stieleiche weiter; v3- bis
@@ -25,6 +25,8 @@
 > kostet 10 🌰 (verdoppelt sich je Wurf). Seit Spielstand v8 gibt es eine
 > Langzeit-Statistik über alle Zyklen (`DESIGN_V2.md` 12.5); bei v7-Ständen beginnt sie
 > beim laufenden Zyklus, ab Zyklus 2 gilt die Stieleiche zusätzlich als gewachsen.
+> Seit Spielstand v9 gibt es 25 Erfolge im Naturtagebuch (`DESIGN_V2.md` 18); v8-Stände
+> bekommen beim Laden still nachgetragen, was sie schon erfüllen.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
@@ -123,6 +125,18 @@ Details und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 15.4 („Stand 
 Offen: Wer erst im Wald oder Urwald neu startet, hat in beiden Spielweisen H_max über 115
 und bekommt den vollen Bonus – dort bleibt der Wachstums-Spieler ~13 % schneller, und ein
 Urwald-Zyklus bringt ~100 statt ~55 Punkte (stufenabhängige Schwelle, `core-engineer`).
+
+## Erfolge (v2, umgesetzt)
+
+Details, Katalog und Regeln: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 18 (Spielstand: 12.6).
+
+- **25 leise Meilensteine** (`src/content/achievements.ts`): Stufen (Setzling, Hain,
+  Urwald), Tagebuch (Arten 5/16/alle, alle Gattungen, Pflanzen 5/alle, Lebensgemeinschaften
+  1/5/alle), beste Harmonie 30/60/150, Gäste 1/10, Ereignisse 5, Pflege-Ränge 10, Zyklen
+  1/3/10, alle Hauptbaum-Arten, ein volles Jahr in einem Zyklus, 10 Stunden Spielzeit.
+- Keine Belohnung in Zahlen, keine Zeitlimits, keine Namen von Unentdecktem.
+- Anzeige: Naturtagebuch, Reiter „Erfolge“ (erreichte mit Beschreibung, offene gedämpft
+  mit Fortschritt „3/5“); leiser Hinweis „🏅 Erfolg: …“ beim Freischalten.
 
 ## Balancing 2.10 (v2, umgesetzt)
 

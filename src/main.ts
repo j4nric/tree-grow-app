@@ -1,5 +1,6 @@
 import { CARE } from './content/care';
 import { STAGES } from './content/stages';
+import { checkAchievements } from './core/achievements';
 import { evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
 import { sceneSeason } from './core/season';
@@ -45,6 +46,7 @@ import {
   toSceneVisitors,
   toScenePlants,
 } from './ui/adapters';
+import { achievementUnlockedText, achievementsBackfilledText, toAchievementTimeProgress } from './ui/achievement-view';
 import { createBonusPanel } from './ui/bonus-panel';
 import { createCarePanel } from './ui/care-panel';
 import { createCyclePanel } from './ui/cycle-panel';
@@ -77,6 +79,11 @@ const AUTOSAVE_MS = 10_000;
 const MAX_FRAME_SECONDS = 1;
 /** Seitenleiste ohne Änderungen am Ökosystem höchstens so oft aktualisieren (Samen, Fortschritt). */
 const PANEL_REFRESH_MS = 200;
+/**
+ * Erfolge nach Ticks höchstens so oft prüfen (Spielzeit, Jahreszeiten); bei Wegpunkten und
+ * Jahreszeitwechseln sofort, nach Aktionen immer (act).
+ */
+const ACHIEVEMENT_CHECK_MS = 1000;
 
 const ERROR_TEXTS: Record<ActionError, string> = {
   'no-encounter': 'Diese Begegnung gibt es nicht mehr.',
@@ -173,6 +180,8 @@ let ecoView: EcosystemView | null = null;
 let help: Help | undefined;
 let ecoEvaluation: Readonly<Evaluation> | null = null;
 let lastPanelRefresh = -Infinity;
+/** Letzte gedrosselte Prüfung der Erfolge im Game Loop (performance.now). */
+let lastAchievementCheck = -Infinity;
 
 /** Der Spieler hat „Pflanze setzen“ geöffnet. */
 let pickerWanted = false;
@@ -203,12 +212,7 @@ const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosyst
 });
 const bonusPanel = createBonusPanel(document.querySelector<HTMLElement>('#bonuses')!);
 const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!, {
-  onBuy: (id) => {
-    const result = buyCare(state, id);
-    if (!act(result, false)) return false;
-    announceDiscoveries(result);
-    return true;
-  },
+  onBuy: (id) => act(buyCare(state, id), false),
   onFeedback: (text, x, y) => floats.spawn(text, x, y, 'note'),
 });
 const seasonBadge = createSeasonBadge(document.querySelector<HTMLElement>('#season')!);
@@ -232,10 +236,7 @@ const dialog = createEncounterDialog(document.body, {
             ? hostVisitor(state, 0)
             : farewellVisitor(state, 0)
           : chooseCard(state, 0, cardIndex, replaceId);
-    if (act(result, true, type)) {
-      announceDiscoveries(result);
-      if (result.ok && result.seeds) floatSeeds(result.seeds);
-    }
+    if (act(result, true, type) && result.ok && result.seeds) floatSeeds(result.seeds);
   },
   onDecline: () => {
     const before = state.seeds;
@@ -273,12 +274,16 @@ function openJournal(): void {
 }
 
 /**
- * Führt das Ergebnis einer Spieleraktion nach: sofort speichern (Entscheidungen sollen
- * ein Neuladen sicher überstehen), Ansichten aktualisieren, Fehler kurz anzeigen.
+ * Führt das Ergebnis einer Spieleraktion nach: Erfolge prüfen, sofort speichern
+ * (Entscheidungen sollen ein Neuladen sicher überstehen), Ansichten aktualisieren, Fehler
+ * kurz anzeigen. Neu entdeckte Lebensgemeinschaften und Erfolge in einem ruhigen Hinweis
+ * (Toast bzw. im offenen Dialog), damit sich nichts gegenseitig verdrängt.
  * `resolves`: Die Begegnung an der Spitze ist bei Erfolg erledigt.
  */
 function act(result: ActionResult, resolves: boolean, type?: PendingEncounterType): boolean {
+  let unlocked: string[] = [];
   if (result.ok) {
+    unlocked = checkAchievements(state);
     saveToStorage(state);
     if (resolves) encounterSerial++;
   }
@@ -286,8 +291,18 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
   ecoDirty = true;
   pickerDirty = true;
   refreshViews(performance.now());
-  if (!result.ok) notify(errorText(result.error, type));
-  return result.ok;
+  if (!result.ok) {
+    notify(errorText(result.error, type));
+    return false;
+  }
+  const text = joinNotes(discoveryText(result.discovered), achievementUnlockedText(unlocked));
+  if (text) notify(text);
+  return true;
+}
+
+/** Mehrere Hinweise als ein Text (leere weglassen); '' wenn nichts bleibt. */
+function joinNotes(...parts: (string | null | undefined)[]): string {
+  return parts.filter(Boolean).join(' ');
 }
 
 /** „Pflanze setzen“: Samen ausgeben, Auswahl schließen, kurz zeigen, was passiert ist. */
@@ -298,7 +313,6 @@ function plant(plantId: string): void {
   if (result.ok) pickerWanted = false;
   if (!act(result, false)) return;
   closePlantPicker();
-  announceDiscoveries(result);
   const ring = document.querySelector<HTMLElement>('[data-ref="plant-ring"]');
   const seedsEl = document.querySelector<HTMLElement>('[data-ref="seeds"]');
   if (seedsEl) {
@@ -309,12 +323,6 @@ function plant(plantId: string): void {
     const rect = ring.getBoundingClientRect();
     floats.spawn(`🌱 ${PLANTS_BY_ID.get(plantId)?.name ?? ''}`, rect.left + rect.width / 2, rect.top + 24);
   }
-}
-
-/** Neu entdeckte Lebensgemeinschaften ruhig melden (Toast bzw. Hinweis im offenen Dialog). */
-function announceDiscoveries(result: ActionResult): void {
-  const text = result.ok ? discoveryText(result.discovered) : null;
-  if (text) notify(text);
 }
 
 /**
@@ -341,7 +349,13 @@ function newCycle(mainTree: MainTreeId): void {
   act(result, false);
   // Der Knopf ist jetzt ausgeblendet – Fokus auf die Überschrift des Bereichs statt auf body.
   cyclePanel.focus();
-  showToast(newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars, state.cycle.mainTree));
+  // Erfolge prüft startNewCycle selbst (vor dem Zurücksetzen) – im selben Hinweis melden.
+  showToast(
+    joinNotes(
+      newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars, state.cycle.mainTree),
+      achievementUnlockedText(result.achievements),
+    ),
+  );
 }
 
 function openPlantPicker(): void {
@@ -464,7 +478,11 @@ function refreshPanel(now: number): void {
   lastPanelRefresh = now;
   panel.update(ecoView);
   // Statistik im Naturtagebuch: Samen, Spielzeit usw. laufen – nur Texte, gedrosselt.
-  if (journal.open) journal.updateStats(toJournalStats(state, evaluate(state)));
+  if (journal.open) {
+    journal.updateStats(toJournalStats(state, evaluate(state)));
+    // Zeit-Erfolge („Ein ganzes Jahr“, „Geduld der Bäume“): Fortschritt nur als Text.
+    journal.updateAchievementProgress(toAchievementTimeProgress(state));
+  }
   // Restzeiten der Boni laufen – gedrosselt wie die Zahlen der Seitenleiste.
   bonusPanel.update(activeBonusViews(state));
   refreshCare();
@@ -506,17 +524,26 @@ function floatSeeds(amount: number): void {
 }
 
 /**
- * Dezenter Hinweis über der Szene nach einem Tick: Wegpunkte ohne Begegnung (nichts
- * Passendes oder Stapel voll; die Samen dafür schweben am Vorrat hoch) und eingezogene
- * Stammgäste – in einem Text, damit sich nichts überdeckt.
+ * Dezenter Hinweis nach einem Tick: Wegpunkte ohne Begegnung (nichts Passendes oder Stapel
+ * voll; die Samen dafür schweben am Vorrat hoch) und eingezogene Stammgäste – in einem
+ * Text, damit sich nichts überdeckt. null, wenn es nichts zu sagen gibt.
  */
-function noteTick(report: TickReport): void {
+function tickNoteText(report: TickReport): string | null {
   const parts: string[] = [];
   if (report.autoDeclined > 0) {
     parts.push(tickDeclineText(report));
   }
   if (report.regulars.length > 0) parts.push(regularsArrivedText(report.regulars));
-  if (parts.length > 0) noteText(parts.join(' '));
+  return parts.length > 0 ? parts.join(' ') : null;
+}
+
+/**
+ * Verdeckt gerade ein Dialog die Szene? Dann landen alle Hinweise über notify im selben
+ * Hinweisfeld – mehrere Hinweise desselben Moments müssen dort zu **einem** Text
+ * zusammengefasst werden, sonst ersetzt der letzte die früheren.
+ */
+function overlayOpen(): boolean {
+  return picker.open || dialog.open || journal.open || !!help?.open;
 }
 
 /**
@@ -525,7 +552,7 @@ function noteTick(report: TickReport): void {
  * sichtbar und für Screenreader erreichbar.
  */
 function noteText(text: string): void {
-  if (picker.open || dialog.open || journal.open || help?.open) {
+  if (overlayOpen()) {
     notify(text);
     return;
   }
@@ -615,8 +642,14 @@ function setupSaveTransfer(): void {
       const result = importCode(code, Date.now());
       if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
       replaceState(result.result.state);
-      if (result.result.migratedFromV1) showToast(v1NoticeText(result.result.keepsake));
-      else if (result.result.memoryReweighted) showToast(MEMORY_REWEIGHTED_TEXT);
+      const imported = result.result;
+      const text = imported.migratedFromV1
+        ? v1NoticeText(imported.keepsake)
+        : joinNotes(
+            imported.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '',
+            achievementsBackfilledText(imported.achievementsBackfilled),
+          );
+      if (text) showToast(text);
       return null;
     },
   });
@@ -649,13 +682,34 @@ function frame(now: number): void {
     encounterDirty = true;
     ecoDirty = true;
   }
-  noteTick(report);
+  const tickNote = tickNoteText(report);
+  let seasonText: string | null = null;
   if (report.seasons.length > 0) {
     // Neue Jahreszeit: Raten ändern sich – Ansichten neu bauen, kurz Bescheid geben.
     encounterDirty = true;
     ecoDirty = true;
     pickerDirty = true;
-    notify(seasonChangeText(report.seasons));
+    seasonText = seasonChangeText(report.seasons);
+  }
+  // Erfolge: gedrosselt, bei Wegpunkten und Jahreszeiten sofort (Bedingungen wachsen nur –
+  // seltener prüfen verschiebt höchstens den Hinweis, nie das Ergebnis).
+  let achievementText: string | null = null;
+  if (report.waypoints > 0 || report.seasons.length > 0 || now - lastAchievementCheck >= ACHIEVEMENT_CHECK_MS) {
+    lastAchievementCheck = now;
+    achievementText = achievementUnlockedText(checkAchievements(state));
+    if (achievementText) {
+      saveToStorage(state);
+      ecoDirty = true;
+    }
+  }
+  if (overlayOpen()) {
+    // Ein Hinweisfeld im Dialog: alles in einem Text, sonst verdrängt der letzte die übrigen.
+    const text = joinNotes(tickNote, seasonText, achievementText);
+    if (text) notify(text);
+  } else {
+    if (tickNote) noteText(tickNote);
+    const tickText = joinNotes(seasonText, achievementText);
+    if (tickText) notify(tickText);
   }
 
   if (state.stage !== shownStage) {
@@ -695,10 +749,19 @@ function refreshSeasonBadge(): void {
  * Rechnet die Zeit seit dem letzten Tick nach – beim Start, wenn ein Tab aus dem
  * Hintergrund zurückkehrt (dort pausiert requestAnimationFrame) und nach Ruhezustand.
  */
-function catchUp(extraNotice = ''): void {
+function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   const away = (Date.now() - state.lastTick) / 1000;
-  if (away > MAX_FRAME_SECONDS) {
-    const report = simulateOffline(state, away);
+  const report = away > MAX_FRAME_SECONDS ? simulateOffline(state, away) : null;
+  // Erfolge aus der Offline-Zeit (dieselben wie online, nur auf einmal): ein Hinweis
+  // zusammen mit der Begrüßung bzw. dem Zusatzhinweis – nach der Migration v8 → v9 in
+  // einem Satz mit den nachgetragenen.
+  const unlocked = checkAchievements(state);
+  if (unlocked.length > 0) {
+    saveToStorage(state);
+    ecoDirty = true;
+  }
+  extraNotice = joinNotes(extraNotice, achievementsBackfilledText(achievementsBackfilled, unlocked));
+  if (report) {
     const notice = catchUpNotice(away, report, state.pendingEncounters.length);
     if (notice?.kind === 'welcome') {
       // Ein Toast für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt.
@@ -707,7 +770,9 @@ function catchUp(extraNotice = ''): void {
     } else {
       // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.
       const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');
-      if (text) noteText(text);
+      // Im offenen Dialog teilen sich beide Hinweise ein Feld: zusammenfassen.
+      if (text && extraNotice && overlayOpen()) extraNotice = joinNotes(text, extraNotice);
+      else if (text) noteText(text);
     }
     if (report.waypoints > 0 || report.encounters > 0 || report.interludesReached > 0 || report.expired.length > 0) {
       saveToStorage(state);
@@ -721,7 +786,7 @@ function catchUp(extraNotice = ''): void {
       pickerDirty = true;
     }
   }
-  if (extraNotice) showToast(extraNotice);
+  if (extraNotice) notify(extraNotice);
   state.lastTick = Date.now();
   lastFrame = performance.now();
 }
@@ -734,11 +799,13 @@ function start(): void {
     saveToStorage(state);
     showToast(v1NoticeText(loaded.keepsake));
   }
-  if (loaded?.memoryReweighted) {
-    // v2–v6-Stand mit Waldgedächtnis: sofort als v7 speichern, damit der Hinweis nur einmal kommt.
+  const backfilled = loaded?.achievementsBackfilled ?? 0;
+  if (loaded?.memoryReweighted || backfilled > 0) {
+    // v2–v6-Stand mit Waldgedächtnis bzw. v8-Stand mit nachgetragenen Erfolgen: sofort im
+    // aktuellen Format speichern, damit der Hinweis nur einmal kommt.
     saveToStorage(state);
   }
-  catchUp(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '');
+  catchUp(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
 
   resetButton.addEventListener('click', onReset);
   setupSaveTransfer();
