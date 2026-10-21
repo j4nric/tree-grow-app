@@ -1921,3 +1921,90 @@ dialog.plant-picker {
   min-width: 2.2em;
   text-align: center;
 }
+
+/* Neuer Zyklus und Stammgäste (cycle-panel.ts) */
+.cycle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 16px;
+}
+
+.cycle p {
+  margin: 0;
+}
+
+.cycle [hidden] {
+  display: none;
+}
+
+.cycle-memory {
+  font-size: 0.875rem;
+}
+
+.cycle-gain {
+  font-weight: 700;
+  color: var(--accent-dark);
+}
+
+.cycle-button {
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: white;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.cycle-button:hover {
+  background: #eef6e6;
+}
+
+.cycle-button.armed {
+  border-color: #a3341f;
+  background: #fbeee9;
+  color: #a3341f;
+}
+
+.cycle-regulars-title {
+  margin: 12px 0 0;
+  font-size: 0.875rem;
+}
+
+.cycle-regular-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cycle-regular {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  color: var(--text);
+  text-align: left;
+}
+
+.cycle-regular.selected {
+  border-color: var(--accent);
+  background: #eef6e6;
+}
+
+.cycle-regular:disabled {
+  opacity: 0.5;
+}
+
+.cycle-regular-niche {
+  color: var(--muted);
+  font-size: 0.72rem;
+}

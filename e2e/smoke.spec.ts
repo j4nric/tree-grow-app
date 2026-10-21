@@ -113,7 +113,7 @@ test('Karte wählen: Tier zieht ein, nächste Begegnung folgt, Neuladen zeigt de
   await expect(card(page, 'barkbeetle')).toBeVisible();
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(3);
+  expect(saved.version).toBe(4);
   expect(saved.niches.crown).toEqual(['bluetit']);
   expect(saved.pendingEncounters).toEqual([{ type: 'animal', cards: ['woodlouse', 'barkbeetle'], rerolls: 0 }]);
 });
@@ -251,7 +251,7 @@ test('v1-Spielstand: Neustart mit Andenken-Meldung', async ({ page, context }) =
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
 
   const saved = await savedState(page);
-  expect(saved.version).toBe(3);
+  expect(saved.version).toBe(4);
   expect(saved.meta.forestMemory).toBe(5);
   expect(saved).not.toHaveProperty('upgrades');
 

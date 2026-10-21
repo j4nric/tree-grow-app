@@ -10,7 +10,9 @@ import {
   plantSeed,
   rerollEncounter,
   simulateOffline,
+  startNewCycle,
   tick,
+  toggleRegular,
   type ActionError,
   type ActionResult,
 } from './core/tick';
@@ -26,6 +28,8 @@ import {
   toScenePlants,
   welcomeText,
 } from './ui/adapters';
+import { createCyclePanel } from './ui/cycle-panel';
+import { newCycleToast, toCyclePanelView } from './ui/cycle-view';
 import { createEcosystemPanel } from './ui/ecosystem-panel';
 import { createEncounterDialog } from './ui/encounter-dialog';
 import { createEncounterStack } from './ui/encounter-stack';
@@ -65,6 +69,10 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'ring-full': 'Kein Platz mehr für Pflanzen.',
   'unknown-plant': 'Diese Pflanze gibt es nicht.',
   locked: 'Diese Pflanze wächst hier noch nicht.',
+  'cycle-locked': 'Ein neuer Zyklus ist erst ab dem Hain möglich.',
+  'unknown-species': 'Diese Art gibt es nicht.',
+  'not-discovered': 'Diese Art steht noch nicht in deinem Naturtagebuch.',
+  'no-regular-slot': 'Alle Plätze für Stammgäste sind belegt.',
 };
 
 /** Abweichende Texte, wenn die Aktion eine Pflanzenbegegnung („Etwas keimt“) betraf. */
@@ -142,6 +150,10 @@ const scene: SceneInput = {
 const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosystem')!, {
   onOpenPlantPicker: openPlantPicker,
 });
+const cyclePanel = createCyclePanel(document.querySelector<HTMLElement>('#cycle')!, {
+  onNewCycle: newCycle,
+  onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
+});
 const floats = createFloatLayer(document.body);
 const stack = createEncounterStack(document.querySelector<HTMLElement>('#scene-dock')!, openEncounters);
 const dialog = createEncounterDialog(document.body, {
@@ -208,6 +220,21 @@ function plant(plantId: string): void {
     const rect = ring.getBoundingClientRect();
     floats.spawn(`🌱 ${PLANTS_BY_ID.get(plantId)?.name ?? ''}`, rect.left + rect.width / 2, rect.top + 24);
   }
+}
+
+/** „Neuen Zyklus beginnen“ (schon bestätigt): Waldgedächtnis gutschreiben, Baum beginnt neu. */
+function newCycle(): void {
+  const result = startNewCycle(state, Date.now());
+  if (!result.ok) {
+    notify(ERROR_TEXTS[result.error]);
+    return;
+  }
+  shownStage = state.stage;
+  closeEncounters();
+  closePlantPicker();
+  encounterSerial++;
+  act(result, false);
+  showToast(newCycleToast(result.preview.memoryGain, state.cycle.number));
 }
 
 function openPlantPicker(): void {
@@ -304,6 +331,8 @@ function refreshEncounter(): void {
 function refreshPanel(now: number): void {
   if (ecoDirty || !ecoView) {
     ecoDirty = false;
+    // Neuer Zyklus und Stammgäste ändern sich nur mit Ökosystem, Wegpunkt oder Aktionen.
+    cyclePanel.update(toCyclePanelView(state));
     const ev = evaluate(state);
     if (!ecoView || ev !== ecoEvaluation) {
       ecoEvaluation = ev;
