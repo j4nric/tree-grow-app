@@ -47,6 +47,11 @@ keine Strafe für Abwesenheit, nichts stirbt. Der Baum bleibt der Mittelpunkt.
 > angeboten, aber es blüht noch nichts. Du lehnst ab (+10 🌰) und kaufst wenig später
 > mit den Samen ein Buschwindröschen.
 >
+> **3:15** – Der Pflanzring ist voll, aber die Samen haben einen Zweck: 200 🌰 für
+> Kompost (der Boden bleibt feucht – der Regenwurm wäre endlich ganz zufrieden) oder für
+> Laub liegen lassen (ein Platz mehr in der Laubstreu)? Du nimmst das Laub – der Kompost
+> folgt eine Minute später.
+>
 > **4:10** – Junger Baum. Die Krone öffnet sich. Karten: Eichenwickler, Blaumeise,
 > Eichhörnchen. Die Meise hätte nichts zu fressen und keine Höhle; der Wickler frisst
 > Laub (−10 % Wachstum), wäre aber Futter für die Meise. Du nimmst das Eichhörnchen
@@ -203,12 +208,12 @@ Wegpunkt k liegt bei  3,5 · k^3,5  Gesamt-Wachstum      (seit Schritt 2.10, Spi
 |---|---|---|---|---|---|---|---|---|---|
 | 0 | Samen | – | 0 | 0 | – | – | – | – | – |
 | 1 | Keimling | 1 | 4 | 4 | < 30 s | 3 s | 3 s | 2 | Wurzelraum (1); erste Karten |
-| 2 | Setzling | 3 | 164 | 147 | ~ 45 s | 46 s | 41 s | 3 | Laubstreu, Waldsaum; Pflanzen setzen |
+| 2 | Setzling | 3 | 164 | 147 | ~ 45 s | 46 s | 41 s | 3 | Laubstreu, Waldsaum; Pflanzen setzen; erste Pflege (Kompost, Laub) |
 | 3 | Junger Baum | 6 | 1.852 | 1.548 | ~ 4 min | 4:11 min | 3:26 min | 6 | Krone, Stamm & Rinde; Ereignisse; Gattungsboni sichtbar |
 | 4 | Alter Baum | 12 | 20.951 | 16.341 | ~ 20 min | 23:02 min | 17:02 min | 8 | Höhlen & Totholz; Durchreisende; Eicheln (Nüsse) |
 | 5 | Hain | 20 | 125.220 | 92.805 | ~ 60 min | 1:03:45 h | 43:41 min | 8 | legendäre Arten; **Neuer Zyklus möglich** |
 | 6 | Wald | 28 | 406.557 | 291.344 | ~ 1:40 h | 1:54:40 h | 1:13:55 h | 8 | Wolf; mehr Plätze |
-| 7 | Urwald | 36 | 979.776 | 684.694 | ~ 2:20 h | 2:47:31 h | 1:42:45 h | – | Harmoniestufe „Urwald“ färbt die Szene |
+| 7 | Urwald | 36 | 979.776 | 684.694 | ~ 2:20 h | 2:47:31 h | 1:42:45 h | – | Harmoniestufe „Ursprüngliche Wildnis“ (ab 120 ⚖️) färbt die Szene |
 
 \* für einen harmonie-orientierten Spieler mit allen Systemen (Pflege, Ereignisse, Gäste,
 Jahreszeiten), der jede Begegnung sofort auflöst (Simulation 15.4, 500 Durchgänge,
@@ -518,6 +523,8 @@ Inhalte: `src/content/events.ts` (7.4) und `src/content/visitors.ts` (7.5); Logi
 (Umsetzungsnotiz 7.8).
 
 - **Ablehnen** bringt immer Samen: +5 🌰 (`DECLINE_SEEDS` in content/encounters.ts).
+  **Entschieden, Umsetzung offen (7.9):** künftig 10 Samen-Sekunden, mindestens 5 🌰 –
+  wie „Ziehen lassen“ beim Gast, damit Ablehnen auch ab dem Hain noch etwas bringt.
 - **Neu würfeln** (Tier- und Pflanzenbegegnung) kostet 10 🌰, jedes weitere Mal in
   derselben Begegnung doppelt so viel (`REROLL_BASE_COST` × `REROLL_COST_GROWTH`^n).
 - Die ersten drei Begegnungen sind festgelegt: Tier, Pflanze, Tier (Einführung).
@@ -879,6 +886,53 @@ umstellen und `scripts/extras.ts` löschen.
 
 ---
 
+### 7.9 Umsetzungsnotiz: Ablehnen nach Samen-Sekunden (Playtest, offen für den core-engineer)
+
+**Befund:** Ablehnen bringt fest +5 🌰 – im Setzling gut 5 Sekunden Samen, ab dem Hain
+(~14 🌰/s) ein Drittel Sekunde, also bedeutungslos. Gäste danken beim „Ziehen lassen“
+dagegen mit Samen-Sekunden (7.5).
+
+**Regel:** Ablehnen bringt `DECLINE_SEED_SECONDS = 10` Samen-Sekunden, mindestens
+`SEED_SECONDS_MIN_SEEDS` (5 🌰, wie bisher). Gerechnet wie bei Gästen und Ereignissen mit
+`seedSeconds(state, 10)` – Samenrate ohne Zeit-Boni, Gäste und Jahreszeit
+(`seedSecondsRate`). 10 s liegt bewusst unter dem Dank eines Gastes (15–20 s) und weit
+unter der Samen-Option eines Ereignisses (60–150 s): Ablehnen bleibt der kleine Trost,
+keine Strategie.
+
+**Konsistenz – gilt überall, wo heute `declineReward()` steht:** Ablehnen von Hand,
+Weiterziehen bei vollem Stapel (online wie offline) und „niemand kam in Frage“. Der Betrag
+hängt von der Rate im Moment des Wegpunkts ab – offline also genau so viel, wie der
+Spieler an diesem Wegpunkt online bekommen hätte (online = offline). Die Offline-Meldung
+nennt die Samen ohnehin in der Summe; der Zusatz „N Begegnungen zogen weiter: +X 🌰“ und
+der kurze Hinweis „Stapel voll …“ brauchen die echte Summe statt `n × Betrag`, weil die Rate
+zwischen zwei Wegpunkten steigen kann. Kein neues Spielstand-Feld.
+
+**Umsetzung (klein, aber in `tick.ts` – darum nicht im Branch `claude/v2-fruehes-spiel`,
+weil dort parallel Spielstand v10 entsteht):**
+
+- `content/encounters.ts`: `DECLINE_SEED_SECONDS = 10` statt `DECLINE_SEEDS` (Untergrenze
+  über `SEED_SECONDS_MIN_SEEDS` aus `events.ts`).
+- `core/formulas.ts`: `declineReward(state: GameState): number` =
+  `seedSeconds(state, DECLINE_SEED_SECONDS)`.
+- `core/tick.ts`: die drei Aufrufe (`reachWaypoint` ×2, `declineEncounter`) mit `state`;
+  `TickReport.declinedSeeds` (Summe der gutgeschriebenen Samen) für die Meldungen.
+- `ui/adapters.ts`: `declineReward(state)` im Kartendialog, `autoDeclineText` und
+  Offline-Meldung aus `declinedSeeds`; `ui/guide-view.ts`: „Ablehnen bringt die Samen von
+  10 Sekunden, mindestens 5 🌰“; `scripts/simulate.ts`: `autoSeeds` aus `declinedSeeds`.
+- Tests: Keimling (0,16 🌰/s) → 5 🌰 (Untergrenze); Hain-Zustand → 10 × `seedSecondsRate`;
+  Zeit-Bonus und Jahreszeit ändern den Betrag nicht; volles Stapel-Weiterziehen online und
+  in `simulateOffline` schreibt denselben Betrag gut wie Ablehnen von Hand am selben Wegpunkt;
+  NaN-/Infinity-Schutz wie `seedSeconds`.
+
+**Beispielwerte** (Samenrate des Harmonie-Spielers, 15.4): Keimling 5 🌰 (Untergrenze),
+Setzling 7–20 🌰, Junger Baum 20–50 🌰, Alter Baum ~50 🌰, Hain ~140 🌰, Wald ~250 🌰.
+
+**Wirkung, gemessen** mit einem vorläufigen Patch (nicht eingecheckt; 100 Durchgänge bis
+Wald, Stand dieses Branches): Der Harmonie-Spieler verdient durch Ablehnen bis zum Hain
+113 statt 12 🌰, bis zum Wald 316 statt 16 🌰; Hain (1:00:36 h) und Wald (1:49 h) bleiben
+gleich, ebenso beim Wachstums- und Zufallsspieler. Die Zahl ist Gefühl, nicht Tempo – sie
+verschiebt kein Balancing-Ziel.
+
 ## 8. Pflegemaßnahmen
 
 Pflege ist die **Samen-Senke** des Spiels (Befund seit 2.1: Pflanzen binden bis zum Hain
@@ -888,15 +942,25 @@ nur ~1.700 🌰, der Bestand wächst auf 25–35 Minuten Produktion). Inhalte:
 
 **Regeln (Stand Schritt 2.7):**
 
-- 8 Maßnahmen mit je **1–3 Rängen**, die nacheinander mit Samen gekauft werden. Ein
+- 9 Maßnahmen (bis zum Playtest „frühes Spiel“ 8) mit je **1–3 Rängen**, die nacheinander mit Samen gekauft werden. Ein
   gekaufter Rang wirkt **bis zum Neuen Zyklus**; die Wirkungen aller Ränge addieren
   sich. Kein Ein-/Ausschalten, kein Verkaufen.
-- **Kostenkurve:** feste Samen je Rang, je Rang mindestens ×3 teurer (×3–×8,6); Rang 1
-  ab Junger Baum bzw. Alter Baum, spätere Ränge ab Alter Baum (Wildblumen-Saum), Hain
-  bzw. Wald (Katalog 8.1). Die Kosten sind fest und auf die Spielzeit je Stufe abgestimmt
-  (Stand 2.10: 750–1.100 🌰 ab Junger Baum, 2.700–8.000 🌰 ab Alter Baum, 7.000–22.000 🌰
-  ab Hain, 30.000–45.000 🌰 ab Wald). Vor dem Hain gibt es Ränge für 26.450 🌰 – mehr,
+- **Kostenkurve:** feste Samen je Rang, je Rang mindestens ×3 teurer (×3–×35); Rang 1
+  ab Setzling (Kompost, Laub liegen lassen), Junger Baum bzw. Alter Baum, spätere Ränge ab
+  Alter Baum (Wildblumen-Saum), Hain bzw. Wald (Katalog 8.1). Die Kosten sind fest und auf
+  die Spielzeit je Stufe abgestimmt (seit dem Playtest „frühes Spiel“: je 200 🌰 ab
+  Setzling, 650–900 🌰 ab Junger Baum, 2.700–8.000 🌰 ab Alter Baum, 7.000–22.000 🌰 ab
+  Hain, 30.000–45.000 🌰 ab Wald). Vor dem Hain gibt es Ränge für 25.650 🌰 – mehr,
   als bis dahin übrig ist: Man muss wählen, was zuerst kommt.
+- **Frühe Ränge (Playtest „frühes Spiel“):** Im Setzling ist der Pflanzring nach zwei
+  Pflanzen voll, und bis zum Jungen Baum vergehen gut drei Minuten mit nur zwei
+  Begegnungen. Zwei kleine Ränge zu je 200 🌰 (Kompost: Feuchte; Laub liegen lassen: ein
+  Platz in der Laubstreu) geben den Samen dort einen Zweck und legen eine Entscheidung
+  zwischen die Wegpunkte; die Nistkästen (650 statt 1.100 🌰) die nächste in den frühen
+  Jungen Baum. Kompost bringt bewusst keinen Platz: Ein Wurzelraum-Platz für den ganzen
+  Zyklus machte alle Spielweisen ~5 % schneller und den Wachstums-Spieler 15,4 % schneller
+  als den Harmonie-Spieler (Grenze 15 %).
+  Messung: 15.4, „Stand Playtest frühes Spiel“.
 - **Wirkungen** nutzen die Typen der Ereignisse (`events.ts`): `cycle` (Licht, Wasser,
   Platz, Harmonie und – nur für Pflege – dauerhafte 🌿/🌰-Boni) und `habitat`
   (Merkmal). Keine neuen Wirkungstypen.
@@ -908,8 +972,9 @@ nur ~1.700 🌰, der Bestand wächst auf 25–35 Minuten Produktion). Inhalte:
 
 | Maßnahme | ID | Bedingung | Rang 1 | Rang 2 | Rang 3 | Text |
 |---|---|---|---|---|---|---|
-| 🍂 Laub liegen lassen | `leaf-litter` | – | Junger Baum, 750 🌰: +1 Platz Laubstreu | Hain, 7.000 🌰: +2 💧, +3 ⚖️ | – | „Im Herbst bleibt das Laub, wo es fällt.“ |
-| 🏠 Nistkästen | `nest-boxes` | – | Junger Baum, 1.100 🌰: Baumhöhle, +1 Platz Höhlen | Hain, 11.000 🌰: +1 Platz Krone | – | „Ein Holzkasten mit kleinem Flugloch. Gemütlich – und leicht zu finden.“ |
+| 🪱 Kompost | `compost` | – | **Setzling, 200 🌰**: Feuchte | – | – | „Eine Handvoll Kompost an den Wurzeln hält den Boden feucht – ein Festmahl für das Bodenleben.“ |
+| 🍂 Laub liegen lassen | `leaf-litter` | – | **Setzling, 200 🌰** (vorher Junger Baum, 750): +1 Platz Laubstreu | Hain, 7.000 🌰: +2 💧, +3 ⚖️ | – | „Im Herbst bleibt das Laub, wo es fällt.“ |
+| 🏠 Nistkästen | `nest-boxes` | – | Junger Baum, **650 🌰** (vorher 1.100): Baumhöhle, +1 Platz Höhlen | Hain, 11.000 🌰: +1 Platz Krone | – | „Ein Holzkasten mit kleinem Flugloch. Gemütlich – und leicht zu finden.“ |
 | 🌼 Wildblumen-Saum | `wildflower-hem` | – | Junger Baum, 900 🌰: Blumen +40 % 🌰 | Alter Baum, 8.000 🌰: +1 Platz Waldsaum | Wald, 30.000 🌰: Blumen +40 % 🌿 und 🌰 | „Margeriten, Klee und hohes Gras am Rand des Baums.“ |
 | 🪵 Totholzhaufen | `deadwood-pile` | – | Alter Baum, 3.500 🌰: Totholz | Hain, 14.000 🌰: +1 Platz Stamm & Rinde, +2 ⚖️ | – | „Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.“ |
 | ☀️ Lichte Krone | `light-crown` | nicht mit Dichter Krone | Alter Baum, 4.000 🌰: +3 ☀️ | Hain, 15.000 🌰: +2 ☀️ | Wald, 45.000 🌰: +2 ☀️ | „Ein paar Äste weniger – Sonnenflecken tanzen über den Boden.“ |
@@ -917,8 +982,8 @@ nur ~1.700 🌰, der Bestand wächst auf 25–35 Minuten Produktion). Inhalte:
 | 💧 Waldtümpel | `pond` | – | Alter Baum, 5.500 🌰: Feuchte, +3 💧 | Hain, 22.000 🌰: +3 💧, +2 ⚖️ | – | „Eine feuchte Senke, in der sich der Regen sammelt.“ |
 | 🐝 Insektenhotel | `insect-hotel` | ≥ 1 Insekt | Alter Baum, 2.700 🌰: +3 ⚖️ | Hain, 12.500 🌰: Blumen und Sträucher +25 % 🌰 | Wald, 38.000 🌰: +4 ⚖️ | „Hohle Stängel und gebohrte Löcher – jedes Zimmer ist bald belegt.“ |
 
-Summe: vor dem Hain 26.450 🌰, Hain-Ränge 81.500 🌰, Wald-Ränge 113.000 🌰 (mit nur
-einer der beiden Kronen). **Seit dem Balancing 2.10** (vorher 19.700 / 47.000 / 75.000):
+Summe: vor dem Hain 25.650 🌰 (bis zum Playtest „frühes Spiel“ 26.450), Hain-Ränge
+81.500 🌰, Wald-Ränge 113.000 🌰 (mit nur einer der beiden Kronen). **Seit dem Balancing 2.10** (vorher 19.700 / 47.000 / 75.000):
 Ränge ab Junger Baum ×1,25, ab Alter Baum ×1,35, ab Hain ×1,8 (Kronen ×1,5, damit Rang 3
 weiter mindestens das Dreifache kostet), ab Wald ×1,5 – die gestreckte Wegpunkt-Kurve
 bringt bis zum Hain ~35 % mehr Samen, und im langen Hain fehlte sonst die Senke (15.4).
@@ -1041,7 +1106,9 @@ Multiplikator   = 1 + H / 100     auf 🌿 und 🌰
 ```
 
 **Harmoniestufen** (Anzeige und Grafik): 0–29 „Zarte Anfänge“ · 30–59 „Lebendiges
-Gefüge“ · 60–89 „Stimmiges Ökosystem“ · 90–119 „Blühender Mischwald“ · ab 120 „Urwald“.
+Gefüge“ · 60–89 „Stimmiges Ökosystem“ · 90–119 „Blühender Mischwald“ · ab 120 „Ursprüngliche
+Wildnis“ (bis zum Playtest 2026-10 „Urwald“ – gleichnamig mit der Wachstumsstufe, darum
+umbenannt).
 Typische Werte (Simulation): Setzling ~50, Alter Baum ~75, Hain ~95, Urwald ~140.
 
 ### 9.2 Lebensgemeinschaften
@@ -1637,6 +1704,19 @@ Empfehlungen (Stand 20.10.2026):
     steigen schneller. Ganz ohne Rückgang ginge es nur mit Gedächtnis im Spielstand (offen,
     15.4).
 
+13. **Frühes Spiel (Playtest, Team):** (a) Pflege beginnt im Setzling: neue Maßnahme
+    „Kompost“ (200 🌰, Feuchte), „Laub liegen lassen“ Rang 1 im Setzling für 200 statt im
+    Jungen Baum für 750 🌰, Nistkästen 650 statt 1.100 🌰. Wegpunktkurve, Pflanzring und
+    Neu würfeln bleiben (gemessen, 15.4 „Stand Playtest frühes Spiel“). Längste Pause ohne
+    Entscheidung in den ersten 6 min 1:41 → 1:08 min (Harmonie-Spieler), Tempo und
+    Verhältnisse unverändert. (b) Ablehnen bringt künftig 10 Samen-Sekunden, mindestens
+    5 🌰 – überall, wo heute fest 5 🌰 gutgeschrieben werden (von Hand, Stapel voll online
+    und offline, keine Karte); Umsetzung beim core-engineer (7.9), weil sie `tick.ts`
+    berührt. (c) Die Harmoniestufe ab 120 heißt „Ursprüngliche Wildnis“ statt „Urwald“ –
+    die Wachstumsstufe gleichen Namens bleibt; kein Erfolg nennt die Harmoniestufe
+    („Uralt und voller Leben“ meint die Wachstumsstufe), Spielstand unberührt (die Stufe
+    ist reine Anzeige).
+
 Weitere Designentscheidungen trifft das Team selbst und dokumentiert sie hier bzw. in den
 PR-Beschreibungen.
 
@@ -1810,7 +1890,10 @@ Stufenzeiten des Harmonie-Spielers 0,8–1,25 × Ziel, Hain 55–65 min, Setzlin
 Takt bis Hain im Median 10 s – 8 min, nie über 15 min; Harmonie-Strategie hat die höchste
 Harmonie; kein Gattungs-Stapeln mehr als 10 % schneller; Wachstums-Spieler schneller, aber
 höchstens ~15 % und mindestens 3 Punkte weniger Harmonie; Pflanzen und Pflege als
-Samen-Senke (Bestand beim Hain < 10 min Produktion, im Wald < 12 min); Neu würfeln bis zum
+Samen-Senke (Bestand beim Hain < 10 min Produktion, im Wald < 12 min); frühes Spiel (seit
+dem Playtest „frühes Spiel“): längste Pause ohne Entscheidung in den ersten 6 min im
+Median ≤ 75 s (Harmonie, Wachstum), jede Strategie < 105 s, Samen ungenutzt vor dem Jungen
+Baum < 250 🌰; Neu würfeln bis zum
 Hain in < 5 % „zu teuer“, > 80 % der Gäste bewirtbar; Vielfalt (7.7); Durststrecken
 nach dem Hain (Median < 9 min, 90 % < 11 min); Lebensgemeinschaften; Baumarten innerhalb
 ±5 % der Eiche; Zyklus 2 schneller bis Hain (seit 2.11): Harmonie 30–45 %, Wachstum
@@ -1828,6 +1911,104 @@ Rückgang je Wegpunkt ≥ −10; Mittel-Verlauf und Reihenfolge Hain → Wald �
 Wachstums-Spieler nur im großen Lauf, Spannen im Kopf von `tests/balance-restart.test.ts`). Die Eigenschaft
 „Gewinn sinkt nicht, solange H_max je Wegpunkt um ≥ 3 steigt“ prüft `tests/cycle.test.ts`
 für jede Start-H_max 80–200, dazu die typischen Verläufe aus der Simulation.
+
+#### Stand Playtest „frühes Spiel“ – Entscheidungen in den ersten Minuten (500 Durchgänge)
+
+**Befund (Playtest, erstes Spiel):** Zäher Abschnitt etwa 2:30–4:20: Im Setzling ist der
+Pflanzring nach zwei Pflanzen voll (2/2), Pflege gab es erst ab Junger Baum, die Samen
+stapelten sich ohne Verwendung (300 → 820 🌰), die Abstände zwischen den Begegnungen
+wuchsen von 35 über 60 auf 110 s. Ein Spieler mit schwächerer Wahl stand nach 5 min erst
+im Setzling. **Ziel:** in den ersten ~6 Minuten etwa alle 30–60 s etwas Sinnvolles zu tun
+oder zu entscheiden, Samen haben früh einen Zweck – ohne die Zeitziele zu verschieben
+(Setzling ~45 s, Hain 55–65 min, Spielweisen-Verhältnisse wie bisher).
+
+**Neue Kennzahlen im Simulator** (`earlyStats`, `earlyTable`, im Protokoll von
+`npm run balance`): *längste Pause ohne Entscheidung* in den ersten 6 bzw. 10 Minuten –
+größter Abstand zwischen Spielstart, aufgelösten Begegnungen, gesetzten Pflanzen, gekaufter
+Pflege und dem Ende des Fensters – und *Samen ungenutzt*: der höchste Samenbestand vor dem
+Jungen Baum (danach spart man gezielt auf Pflege).
+
+**Hebel, gemessen (Harmonie-Spieler, 100 Durchgänge, längste Pause erste 6 min im Median):**
+
+| Hebel | Pause 6 min | Samen ungenutzt | Bewertung |
+|---|---|---|---|
+| vorher | 1:41 min | 315 🌰 | – |
+| dritter Pflanzring-Platz im Setzling | 1:37 min | 485 🌰 | verworfen: Licht und Wasser (3/3) tragen keine dritte Pflanze, der Harmonie-Spieler setzt keine; Samen stapeln sich mehr |
+| Wildblumen-Saum Rang 1 schon im Setzling (250 🌰), Laub im Jungen Baum 400 🌰 | 1:41 min | 314 🌰 | verworfen: Blumen-Samen lohnen nur mit Blumen im Ring – der Harmonie-Spieler kauft ihn nicht |
+| Laub liegen lassen Rang 1 im Setzling (250 🌰), Wildblumen im Jungen Baum 450 🌰 | 1:22 min | 250 🌰 | wirkt; die Lücke zwischen Jungem Baum und Wegpunkt 7 bleibt |
+| zwei kleine Ränge im Setzling (Kompost 200 🌰 mit Wurzelraum-Platz, Laub 200 🌰), Nistkästen 650 🌰 | 1:08 min | 200 🌰 | wirkt, aber ein Platz für den ganzen Zyklus macht alle ~5 % schneller (Hain 1:01:15 h) und den Wachstums-Spieler 15,4 % schneller als den Harmonie-Spieler (Grenze 15 %; Zyklus 3 nur 0,995) |
+| **gewählt:** Kompost 200 🌰 mit *Feuchte*, Laub 200 🌰, Nistkästen 650 🌰 | **1:08 min** | **200 🌰** | Takt wie oben, Tempo und Verhältnisse wie vorher |
+| Wegpunkt-Abstände | – | – | nicht angefasst: Die Kurve ist Teil des Spielstands (Migration v6 → v7) |
+| Neu würfeln billiger | – | – | nicht nötig: Neu würfeln ist im Setzling nur in ~1 % der Begegnungen „zu teuer“ (2.10), und ein Wurf füllt keine Pause zwischen Wegpunkten |
+
+**Geänderte Zahlen** (`src/content/care.ts`)
+
+| Maßnahme | vorher | nachher |
+|---|---|---|
+| 🪱 Kompost (neu) | – | Rang 1 ab Setzling, 200 🌰: Feuchte |
+| 🍂 Laub liegen lassen, Rang 1 | Junger Baum, 750 🌰 | **Setzling, 200 🌰** (+1 Platz Laubstreu) |
+| 🏠 Nistkästen, Rang 1 | 1.100 🌰 | **650 🌰** (Baumhöhle, +1 Platz Höhlen) |
+| Ränge vor dem Hain zusammen | 26.450 🌰 | 25.650 🌰 |
+
+**Frühes Spiel** (500 Durchgänge, vorher = `main` mit demselben Simulator und denselben Seeds)
+
+| Strategie | Pause erste 6 min, Median / 90 % vorher | nachher | Pause erste 10 min, Median vorher / nachher | Samen ungenutzt vor dem Jungen Baum, Ø vorher / nachher | Entscheidungen in 10 min vorher / nachher |
+|---|---|---|---|---|---|
+| Gierig nach Harmonie | 1:41 / 1:49 min | **1:08 / 1:23 min** | 2:05 / 2:06 min | 312 / **200** 🌰 | 11,3 / 13,3 |
+| Gierig nach Wachstum | 1:34 / 1:43 min | **1:05 / 1:13 min** | 2:03 / 1:56 min | 287 / **200** 🌰 | 11,6 / 13,6 |
+| Zufällig | 2:15 / 2:36 min | **1:38 / 2:13 min** | 2:24 / 2:10 min | 584 / **277** 🌰 | 11,0 / 12,8 |
+| Immer die seltenste Karte | 1:43 / 1:56 min | 1:12 / 1:26 min | 2:05 / 2:02 min | 327 / 200 🌰 | 11,3 / 13,2 |
+| Vögel stapeln | 1:41 / 1:56 min | 1:06 / 1:25 min | 2:04 / 2:03 min | 320 / 200 🌰 | 11,2 / 13,1 |
+| Insekten stapeln | 1:56 / 2:05 min | 1:26 / 1:33 min | 2:07 / 1:53 min | 509 / 200 🌰 | 11,8 / 13,5 |
+| Säugetiere stapeln | 1:59 / 2:31 min | 1:32 / 1:51 min | 2:19 / 2:07 min | 497 / 238 🌰 | 10,7 / 12,7 |
+| Bodenleben stapeln | 1:48 / 2:08 min | 1:13 / 1:28 min | 2:08 / 2:09 min | 303 / 200 🌰 | 10,8 / 12,8 |
+| Pilze stapeln | 1:41 / 1:59 min | 1:14 / 1:27 min | 2:04 / 2:02 min | 320 / 200 🌰 | 10,8 / 12,8 |
+
+Typischer Ablauf des Harmonie-Spielers jetzt (Seeds 1000/1007/1014): Setzling 0:46,
+Pflanze 1:13, Wegpunkt 4 bei 1:24, Wegpunkt 5 bei ~2:30, Laub liegen lassen ~3:00, Junger
+Baum ~4:15, Kompost ~5:15, Wegpunkt 7 ~5:50, danach Wegpunkt 8 und Nistkästen bis ~9 min –
+etwa jede Minute eine Entscheidung. Die längste Pause liegt jetzt meist zwischen Wegpunkt 4
+und 5 (~60 s) oder vor dem Jungen Baum; in den Minuten 6–10 bleiben es wie vorher ~2 min
+(Abstand der Wegpunkte im Jungen Baum, „später alle paar Minuten“).
+
+**Tempo und Verhältnisse** (500 Durchgänge; Zyklen 200, Baumarten 300)
+
+| Kennzahl | vorher | nachher | Ziel |
+|---|---|---|---|
+| Setzling / Junger Baum / Alter Baum (Harmonie) | 46 s / 4:11 / 23:14 min | 46 s / 4:11 / 23:11 min | ~45 s / ~4 / ~20 min |
+| Hain / Wald / Urwald (Harmonie) | 1:04:08 / 1:54:38 / 2:47:59 h | 1:03:48 / 1:54:15 / 2:47:44 h | 55–65 min / ~1:40 / ~2:20 h |
+| Hain Wachstum / Zufall | 54:42 min / 1:39:53 h | 54:30 min / 1:36:17 h | – |
+| Hain Wachstum / Harmonie (Zyklus 1) | 0,853 (5,3 Punkte ⚖️ weniger) | 0,854 (5,5 Punkte) | ≥ 0,85, ≥ 3 Punkte |
+| Hain Wachstum / Harmonie, Zyklus 1 / 2 / 3 (Zyklen) | 0,865 / 1,005 / 1,039 | 0,867 / 0,978 / 1,021 | – / ≥ 0,97 / ≥ 1 |
+| 🌰-Bestand beim Hain, Harmonie / Wachstum (min Produktion) | 8,2 / 6,0 | 9,1 / 6,2 | < 10 |
+| Buche / Kiefer gegenüber Eiche (Harmonie / Wachstum) | −0,8 / +1,3 %; −2,8 / −3,8 % | −1,3 / +1,5 %; −2,6 / −4,4 % | ± 5 % |
+
+**Bewertung:** Das Ziel „alle 30–60 s“ erreicht der Simulator-Spieler im Median nicht ganz
+(1:05–1:14 min statt 1:34–1:48 min), weil zwei Wegpunkte im Setzling von Natur aus ~60 s
+auseinander liegen – ohne die Wegpunktkurve anzufassen, ist das die Grenze. Die Samen
+haben im Setzling einen Zweck (Höchststand 200 statt ~310 🌰, Zufallsspieler 277 statt 584)
+und es gibt dort eine echte kleine Wahl (Feuchte oder Laubstreu-Platz). Tempo, Spielweisen
+und Zyklen bleiben im Rauschen; der Wachstums-Spieler bleibt knapp unter 15 % schneller.
+Der Zufallsspieler wird ~3,6 % schneller (er kauft Pflege in beliebiger Reihenfolge, jetzt
+früher); sein Samenbestand beim Hain steigt dabei (29,8 → 37,5 min Produktion), weil er auf
+zufällige, oft teure Ränge spart – keine Prüfung, Simulator-Eigenheit.
+
+**Prüfungen** (`tests/balance.test.ts`, „Frühes Spiel“; Check mit 40 Durchgängen, in 8
+Seed-Fenstern geprüft: Harmonie-Median 65–74 s, 90 % 79–92 s, schlechteste Strategie
+93–106 s, 10 Minuten 113–127 s, Samen 200): Harmonie- und Wachstums-Spieler Pause erste
+6 min im Median ≤ 75 s (Check 85 s), 90 % ≤ 95 s (Check 110 s); jede Strategie im Median
+< 105 s (Check 120 s); die ersten 10 Minuten nicht zäher als vorher (Harmonie-Median
+≤ 2:15 min, Check 2:30 min); Samen ungenutzt vor dem Jungen Baum im Mittel < 250 🌰
+(Check 260). `main` vor dieser Änderung fällt durch die drei ersten Prüfungen.
+Außerdem ist „Harmonie-Strategie hat die höchste Harmonie“ im Check jetzt seed-robust:
+„Bodenleben stapeln“ liegt im großen Lauf nur ~2 Punkte dahinter (106,7 gegen 104,8;
+vorher 107,0 gegen 105,5), mit 40 Durchgängen schwankt der Abstand je Seed-Fenster um
+mehrere Punkte (8 Fenster, vorher −2,9 bis +4,9, nachher −3,8 bis +3,3). Der große Lauf
+prüft weiter ≥ 1 Punkt Vorsprung, der Check nur, dass niemand 5 Punkte vorn liegt.
+
+**Ablehnen nach Samen-Sekunden:** entschieden, Umsetzung beim core-engineer (7.9). Mit
+einem vorläufigen Patch gemessen: bis zum Hain 113 statt 12 🌰 durch Ablehnen
+(Harmonie-Spieler), Tempo unverändert.
 
 #### Stand Schritt 2.11b – gleitende Schwelle beim Neustart (Neustart 100 Durchgänge)
 

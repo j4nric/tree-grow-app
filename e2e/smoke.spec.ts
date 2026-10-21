@@ -837,7 +837,7 @@ test('Hohe Harmonie (≥ 90): warme Stimmung der Szene lädt ohne Konsolenfehler
   await expect(stageLabel(page)).toHaveText('Stufe: Hain');
   const harmony = page.locator('[data-ref="harmony"]');
   expect(await readNumber(harmony)).toBeGreaterThanOrEqual(90);
-  await expect(harmony.locator('..')).toContainText(/Blühender Mischwald|Urwald/);
+  await expect(harmony.locator('..')).toContainText(/Blühender Mischwald|Ursprüngliche Wildnis/);
   // Einige Frames mit Überblendung, Sonnenstrahlen und Pollen laufen lassen.
   await page.waitForTimeout(1500);
   const box = await page.locator('canvas#scene').boundingBox();

@@ -8,7 +8,7 @@ import { expect, niche, openGame, savedState, seedV3, test, waypoint } from './f
 test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch nach dem Neuladen', async ({ page, context }) => {
   await seedV3(context, {
     totalGrowth: waypoint(6) + 1, // Junger Baum: Laubstreu hat 2 Plätze
-    seeds: 1000,
+    seeds: 400,
     niches: { roots: ['earthworm'], litter: ['robin'] },
   });
   await openGame(page);
@@ -21,7 +21,7 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
   // Maßnahmen ab Alter Baum (z. B. Lichte Krone) stehen noch nicht in der Liste.
   await expect(care.locator('[data-care="light-crown"]')).toHaveCount(0);
 
-  await litter.getByRole('button', { name: 'Kaufen (750 🌰)' }).click();
+  await litter.getByRole('button', { name: 'Kaufen (200 🌰)' }).click();
 
   await expect(niche(page, 'litter')).toContainText('1/3 belegt');
   await expect(litter).toContainText('Rang 1/2');
@@ -36,7 +36,7 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
   await expect(litter).toContainText('Rang 1/2');
   const saved = await savedState(page);
   expect(saved.cycle.care).toEqual({ 'leaf-litter': 1 });
-  expect(saved.seeds).toBeLessThan(350);
+  expect(saved.seeds).toBeLessThan(300);
 
   await page.reload();
   await expect(care.locator('[data-care="leaf-litter"]')).toContainText('Rang 1/2');
@@ -53,7 +53,7 @@ test('Pflege per Tastatur: Fokus bleibt auf dem Knopf, nach dem letzten Rang auf
   await openGame(page);
   const litter = page.locator('[data-ref="care"] [data-care="leaf-litter"]');
   const buy = litter.locator('[data-buy-care="leaf-litter"]');
-  await expect(buy).toHaveText('Kaufen (750 🌰)');
+  await expect(buy).toHaveText('Kaufen (200 🌰)');
   await buy.focus();
   await page.keyboard.press('Enter');
   await expect(litter).toContainText('Rang 1/2');
@@ -138,7 +138,8 @@ test('Pflege auf dem Handy: zugeklappt mit Zusammenfassung, aufklappbar, ohne Qu
   await openGame(page);
   const care = page.locator('[data-ref="care"]');
   const buy = care.locator('[data-buy-care="leaf-litter"]');
-  await expect(care.locator('[data-ref="care-summary"]')).toHaveText('3 kaufbar');
+  // Kompost 200, Laub 200, Nistkästen 650, Wildblumen-Saum 900 🌰.
+  await expect(care.locator('[data-ref="care-summary"]')).toHaveText('4 kaufbar');
   await expect(buy).toBeHidden();
   await care.getByText('Pflege', { exact: true }).click();
   await expect(buy).toBeVisible();

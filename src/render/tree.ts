@@ -82,7 +82,7 @@ export interface SceneInput {
   reducedMotion?: boolean;
   /**
    * Index der Harmoniestufe als Zahl 0–4 (nicht der Name; DESIGN_V2.md 9.1: 0 = „Zarte
-   * Anfänge“ … 4 = „Urwald“). Gebrochene Werte sind erlaubt, ungültige gelten als „aus“.
+   * Anfänge“ … 4 = „Ursprüngliche Wildnis“). Gebrochene Werte sind erlaubt, ungültige gelten als „aus“.
    * Färbt die Szene:
    * 0–1 leicht grau verschleiert, 2 neutral, 3 warmes Licht mit Sonnenstrahlen, Pollen
    * und Blütenblättern, 4 zusätzlich Glühwürmchen. Wechsel werden sanft übergeblendet.

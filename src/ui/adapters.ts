@@ -122,7 +122,7 @@ export function rarityKey(rarity: number): Rarity {
 
 /** Harmoniestufen (DESIGN_V2.md, 9.1) – reine Anzeige. */
 export const HARMONY_TIERS: readonly { min: number; label: string }[] = [
-  { min: 120, label: 'Urwald' },
+  { min: 120, label: 'Ursprüngliche Wildnis' },
   { min: 90, label: 'Blühender Mischwald' },
   { min: 60, label: 'Stimmiges Ökosystem' },
   { min: 30, label: 'Lebendiges Gefüge' },
