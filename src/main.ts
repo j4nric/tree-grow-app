@@ -25,6 +25,7 @@ import {
   type TickReport,
 } from './core/tick';
 import { drawScene, type SceneInput } from './render/tree';
+import { CanvasSizer } from './render/canvas-size';
 import { PLANTS_BY_ID } from './content/plants';
 import {
   harmonyTierIndex,
@@ -120,6 +121,7 @@ function errorText(error: ActionError, type: PendingEncounterType | undefined): 
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const ctx = canvas.getContext('2d')!;
+const canvasSizer = new CanvasSizer(canvas);
 const banner = document.querySelector<HTMLElement>('#stage-banner')!;
 const toast = document.querySelector<HTMLElement>('#toast')!;
 /** Unsichtbare Statuszeile: schwebende Hinweise auch für Screenreader. */
@@ -190,6 +192,8 @@ const scene: SceneInput = {
   reducedMotion: preferences.reducedMotion,
   // Stimmung der Szene (Harmoniestufe 0–4); gesetzt, sobald die Auswertung vorliegt.
   harmonyTier: undefined,
+  // Die Größe kommt schon entprellt aus dem CanvasSizer: keine zweite Wartezeit im Renderer.
+  sizeSettled: true,
 };
 
 // --- Oberfläche ----------------------------------------------------------------------
@@ -663,14 +667,14 @@ function frame(now: number): void {
   }
 
   refreshViews(now);
-  resizeCanvas();
-  const rect = canvas.getBoundingClientRect();
+  // Größe aus dem ResizeObserver, entprellt (kein erzwungenes Layout pro Frame).
+  const size = canvasSizer.update(now);
   scene.growth = growth(state);
   scene.time = now / 1000;
   // Jahreszeit stufenlos aus der Spielzeit (tick läuft jeden Frame), Art des Hauptbaums.
   scene.season = sceneSeason(state.cycle.elapsed);
   scene.mainTree = state.cycle.mainTree;
-  drawScene(ctx, rect.width, rect.height, scene);
+  drawScene(ctx, size.width, size.height, scene);
 
   if (now - lastSave > AUTOSAVE_MS) {
     saveToStorage(state);
@@ -685,18 +689,6 @@ function refreshSeasonBadge(): void {
   if (second === seasonShownSecond) return;
   seasonShownSecond = second;
   seasonBadge.update(toSeasonBadgeView(state.cycle.elapsed));
-}
-
-function resizeCanvas(): void {
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const w = Math.round(rect.width * dpr);
-  const h = Math.round(rect.height * dpr);
-  if (canvas.width !== w || canvas.height !== h) {
-    canvas.width = w;
-    canvas.height = h;
-  }
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 /**

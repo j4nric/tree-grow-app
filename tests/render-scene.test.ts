@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnimalLayer, SpriteCache, type AnimalFrame, type SceneAnimal } from '../src/render/animals';
 import { createAnchorResolver } from '../src/render/anchors';
 import { makeLayout, placeMainTree } from '../src/render/layout';
-import { RESIZE_SETTLE_FRAMES, ResizeGate } from '../src/render/resize';
+import { RESIZE_SETTLE_FRAMES, RESIZE_SETTLE_SECONDS, ResizeGate } from '../src/render/resize';
 import { drawScene } from '../src/render/tree';
 
 /**
@@ -78,6 +78,22 @@ describe('ResizeGate', () => {
     for (let i = 0; i < 30; i++) expect(gate.shouldRebuild(`k${i}`, 'a', 1 + i * 0.016)).toBe(false);
   });
 
+  it('bei hoher Bildwiederholrate (240 Hz) entscheidet die Zeit, nicht die Frame-Zahl', () => {
+    const gate = new ResizeGate();
+    const dt = 1 / 240;
+    let frames = 0;
+    while (!gate.shouldRebuild('b', 'a', 1 + frames * dt)) frames++;
+    expect(frames * dt).toBeGreaterThanOrEqual(RESIZE_SETTLE_SECONDS - 1e-9);
+    expect(frames).toBeGreaterThan(RESIZE_SETTLE_FRAMES * 3);
+  });
+
+  it('stand die Zeit erst und läuft dann weiter, zählt wieder die Zeit', () => {
+    const gate = new ResizeGate();
+    for (let i = 0; i < RESIZE_SETTLE_FRAMES - 1; i++) expect(gate.shouldRebuild('b', 'a', 2)).toBe(false);
+    for (let i = 1; i <= 20; i++) expect(gate.shouldRebuild('b', 'a', 2 + i * 0.004)).toBe(false);
+    expect(gate.shouldRebuild('b', 'a', 2 + RESIZE_SETTLE_SECONDS + 0.001)).toBe(true);
+  });
+
   it('meldet nichts, wenn die Größe passt', () => {
     expect(new ResizeGate().shouldRebuild('a', 'a', 1)).toBe(false);
   });
@@ -90,11 +106,33 @@ describe('drawScene mit Canvas-Stub', () => {
     return t ? (t.args[0] as number) : NaN;
   }
 
-  function frame(canvas: StubCanvas, w: number, h: number, time: number): void {
+  function frame(canvas: StubCanvas, w: number, h: number, time: number, sizeSettled?: boolean): void {
     canvas.calls.length = 0;
     const ctx = canvas.getContext('2d');
-    drawScene(ctx, w, h, { growth: 3.5, time, animals: ANIMALS });
+    drawScene(ctx, w, h, { growth: 3.5, time, animals: ANIMALS, sizeSettled });
   }
+
+  it('sizeSettled: schon entprellte Größe wird sofort neu aufgebaut (keine zweite Wartezeit)', () => {
+    const canvas = makeCanvas(400, 300);
+    frame(canvas, 400, 300, 1, true);
+    expect(frameScale(canvas)).toBe(1);
+    canvas.width = 800;
+    frame(canvas, 800, 300, 1.016, true);
+    expect(frameScale(canvas)).toBe(1);
+    // Gleiche Größe: nichts neu (Ebenen bleiben, Skalierung 1).
+    frame(canvas, 800, 300, 1.032, true);
+    expect(frameScale(canvas)).toBe(1);
+  });
+
+  it('ohne sizeSettled wartet der Renderer bei laufender Zeit selbst', () => {
+    const canvas = makeCanvas(400, 300);
+    frame(canvas, 400, 300, 1);
+    canvas.width = 800;
+    frame(canvas, 800, 300, 1.016);
+    expect(frameScale(canvas)).toBe(2);
+    frame(canvas, 800, 300, 1.017 + RESIZE_SETTLE_SECONDS);
+    expect(frameScale(canvas)).toBe(1);
+  });
 
   it('übernimmt eine neue Größe auch bei fester Zeit (z. B. Pause)', () => {
     const canvas = makeCanvas(400, 300);
