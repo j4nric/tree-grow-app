@@ -3,7 +3,9 @@
  * Liest nur den Wachstumswert (und optional Tiere) – verändert nie den Spielstand.
  *
  * Aufbau in Ebenen, die in Offscreen-Canvases gecacht werden:
- *   0. Kulisse: Himmel, Hügel, Erde, Grasnarbe             (neu nur bei Größenänderung)
+ *   0. Kulisse: Himmel, Hügel, Erde, Grasnarbe             (neu nur bei Größenänderung
+ *      oder neuer Jahreszeit-Stufe; Schlüssel: `sizeKey`, `seasonStepKey` in resize.ts)
+ *      Erinnerungsbaum: eigenes kleines Canvas            (neu bei Gedächtnis/Jahreszeit/Art)
  *   1. Hintergrund: Kulisse + Wurzeln, Samen               (neu bei growth, aus 0 kopiert)
  *   2. Wolken: kleine Sprites, pro Frame nur verschoben
  *   3. Nachbarbäume (Hain/Wald), blasser                   (neu bei growth)
@@ -18,7 +20,12 @@
  * Wind ist nur eine Scherung der gecachten Baum-Ebenen um die Bodenlinie; Tiere am
  * Baum werden um denselben Betrag verschoben. Tiere liegen immer über den Pflanzen.
  * Größenänderungen werden entprellt: Bis die neue Größe ~150 ms stabil ist, wird das
- * alte Bild skaliert gezeigt.
+ * alte Bild skaliert gezeigt (`ResizeGate`). Der Game Loop entprellt schon den
+ * Backing-Store des Canvas (`CanvasSizer`, ~100 ms) und setzt `sizeSettled` – dann wird
+ * eine neue Größe sofort übernommen, ohne dass sich beide Wartezeiten addieren.
+ * Pro Frame kostet die Kulisse damit eine Kopie (`background`, dazu der kleine Bereich des
+ * Erinnerungsbaums – hineinbacken brachte messbar nichts); die Stimmungs-Ebene
+ * liegt über bewegten Teilen (Wolken, Wind, Tiere) und lässt sich nicht hineinbacken.
  */
 
 import { animalSize, createAnchorResolver, type AnchorResolver } from './anchors';
@@ -41,7 +48,7 @@ import {
   type TreeSpecies,
 } from './species';
 import { paintSnowCover, SeasonParticles, seasonLeaves, seasonLook, seasonWood, type SeasonFrame, type SeasonLook } from './season';
-import { ResizeGate } from './resize';
+import { ResizeGate, seasonStepKey, sizeKey } from './resize';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
 import { clamp01, mix, mulberry32, smooth01 } from './util';
 import { VisitorLayer, type SceneVisitor, type VisitorFrame } from './visitors';
@@ -123,6 +130,13 @@ export interface SceneInput {
    * `cycleTransition.fromTree`, fehlt sie oder ist unbekannt, diese Art) und Erinnerungsbaum. Ohne Angabe Eiche.
    */
   mainTree?: TreeSpecies;
+  /**
+   * Die übergebene Größe ist schon entprellt (z. B. per `CanvasSizer` im Game Loop): Eine
+   * neue Größe wird sofort neu aufgebaut, ohne eigene Wartezeit. Ohne Angabe wartet der
+   * Renderer selbst, bis die Größe ~150 ms stabil ist, und zeigt so lange das alte Bild
+   * skaliert.
+   */
+  sizeSettled?: boolean;
 }
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
@@ -380,10 +394,12 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const look = seasonLook(input.season);
   cache.look = look;
 
-  // Größenänderung entprellen: altes Bild skaliert zeigen, bis die Größe stabil ist.
+  // Größenänderung entprellen: altes Bild skaliert zeigen, bis die Größe stabil ist –
+  // außer der Aufrufer hat schon entprellt (`sizeSettled`).
   let sc = cache.size;
   const key = sc && sc.pw === pw && sc.ph === ph && sc.layout.width === width && sc.layout.height === height ? sc.key : sizeKey(pw, ph, width, height);
-  if (cache.gate.shouldRebuild(key, sc ? sc.key : null, input.time)) {
+  const builtKey = sc ? sc.key : null;
+  if (input.sizeSettled ? key !== builtKey : cache.gate.shouldRebuild(key, builtKey, input.time)) {
     // Kulisse gleich in der richtigen Jahreszeit (nicht zweimal malen).
     sc = buildSizeCache(sc, key, width, height, pw, ph, dpr, look);
     cache.size = sc;
@@ -392,7 +408,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
 
   // Jahreszeit (auf 0,05 gerundet): Kulisse und Grasnarbe neu, wenn sich die Rundung
   // ändert; Baum-Ebenen, Pflanzen und Erinnerungsbaum folgen unten.
-  const seasonKey = look && !look.summer ? look.s : -1;
+  const seasonKey = seasonStepKey(look);
   const seasonChanged = seasonKey !== sc.seasonKey;
   if (seasonChanged) {
     paintStatic(sc, look);
@@ -474,10 +490,6 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   }
 
   compose(ctx, sc, cache, input, time, pw / sc.pw, ph / sc.ph);
-}
-
-function sizeKey(pw: number, ph: number, width: number, height: number): string {
-  return `${pw}x${ph}/${width}x${height}`;
 }
 
 /** Setzt die gecachten Ebenen zusammen – nur drawImage und günstige Transformationen. */
@@ -748,7 +760,7 @@ function buildSizeCache(
   };
 
   paintStatic(sc, look);
-  sc.seasonKey = look && !look.summer ? look.s : -1;
+  sc.seasonKey = seasonStepKey(look);
   return sc;
 }
 

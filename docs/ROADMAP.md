@@ -27,7 +27,12 @@ Aufgaben derselben Phase ohne gemeinsame Dateien können parallel laufen.
 
 - [x] Designentscheidungen: leerer Start, Start ohne Klick, Tempo im Mittelspiel (`game-designer`)
 - ~~Wald und Urwald balancen, Samen-Formel an neue Schwellen anpassen~~ – mit v2 entfallen, Tempo jetzt in Schritt 2.11
-- [ ] Renderer: statische Kulisse getrennt cachen, Größenänderung entprellen (`renderer`) – für v2 prüfen
+- [x] Renderer: statische Kulisse getrennt cachen, Größenänderung entprellen (`renderer`) – für v2 geprüft:
+      Kulisse, Erinnerungsbaum, Pflanzen und Stimmungslicht waren schon gecacht (Schlüssel jetzt als
+      `sizeKey`/`seasonStepKey` getestet); neu: Canvas-Größe per ResizeObserver statt
+      `getBoundingClientRect()` je Frame (mit `devicePixelContentBoxSize`, wo plausibel), Backing-Store
+      ~100 ms entprellt (`CanvasSizer`); der Renderer übernimmt die schon entprellte Größe sofort
+      (`sizeSettled`), Frame-Ersatzregel nur noch bei stehender Zeit
 - ~~Seitenleiste: DOM-Referenzen einmal merken~~ – mit der v2-Seitenleiste entfallen
 - ~~Schwebende Zahlen über dem Ressourcen-Label~~ – mit v2 entfallen
 
