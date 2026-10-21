@@ -53,11 +53,11 @@ export interface EncounterDialog {
   readonly open: boolean;
 }
 
-const KIND_LABELS: Record<EncounterKind, string> = {
-  animal: '🐾 Ein Tier zieht ein',
-  plant: '🌱 Etwas keimt',
-  event: '⛈️ Ein Ereignis',
-  visitor: '🦢 Besuch auf der Durchreise',
+const KIND_LABELS: Record<EncounterKind, { icon: string; text: string }> = {
+  animal: { icon: '🐾', text: 'Ein Tier zieht ein' },
+  plant: { icon: '🌱', text: 'Etwas keimt' },
+  event: { icon: '⛈️', text: 'Ein Ereignis' },
+  visitor: { icon: '🦢', text: 'Besuch auf der Durchreise' },
 };
 
 /** Legende der Vorschau-Symbole (dieselben wie in `previewParts`) und der Haken/Kreuze. */
@@ -105,6 +105,8 @@ let instanceCount = 0;
 
 interface CardRefs {
   card: CardView;
+  /** Options-Karte: gesperrt per aria-disabled (fokussierbar, Grund vorlesbar) statt `disabled`. */
+  soft: boolean;
   root: HTMLElement;
   choose: HTMLButtonElement;
   select: HTMLSelectElement | null;
@@ -217,7 +219,10 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   const queuePips = el('span', 'queue-pips');
   queuePips.setAttribute('aria-hidden', 'true');
   queue.append(queuePips, queueText);
-  header.append(heroIcon, kind, title, subtitle, factList, queue);
+  // Texte in eigenem Container: neben dem Bild-Symbol eine Spalte, ohne Symbol zentriert.
+  const headText = el('div', 'encounter-head-text');
+  headText.append(kind, title, subtitle, factList, queue);
+  header.append(heroIcon, headText);
 
   const cardsBox = el('div', 'encounter-cards');
   cardsBox.setAttribute('role', 'list');
@@ -367,7 +372,14 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   /** Setzt `disabled` aller Knöpfe aus Sperre, Kartenzustand und Samen. */
   function applyDisabled(): void {
     for (const refs of cards) {
-      refs.choose.disabled = busy || Boolean(refs.card.disabledReason);
+      const blocked = Boolean(refs.card.disabledReason);
+      // Options-Karten (Ereignis, Gast) wie die Pflege: gesperrt per aria-disabled, damit
+      // der Knopf fokussierbar bleibt und der Grund vorgelesen wird.
+      refs.choose.disabled = busy || (blocked && !refs.soft);
+      if (refs.soft) {
+        if (blocked) refs.choose.setAttribute('aria-disabled', 'true');
+        else refs.choose.removeAttribute('aria-disabled');
+      }
       if (refs.select) refs.select.disabled = busy;
     }
     reroll.disabled = busy || !current?.canReroll;
@@ -427,7 +439,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
         callbacks.onChoose(index);
       });
     });
-    return { card, root: item, choose, select: null, selectedReplace: () => undefined };
+    return { card, root: item, choose, select: null, soft: true, selectedReplace: () => undefined };
   }
 
   function buildCard(card: CardView, index: number, kind: EncounterKind, keepReplaceId?: string): CardRefs {
@@ -558,7 +570,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
         callbacks.onChoose(index, selectedReplace()?.id);
       });
     });
-    return { card, root: item, choose, select, selectedReplace };
+    return { card, root: item, choose, select, soft: false, selectedReplace };
   }
 
   function show(view: EncounterView, queued: number): void {
@@ -567,7 +579,9 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     // Doppelklicks soll nicht die nächste (evtl. gleich aussehende) Begegnung treffen.
     if (busy) guardUntil = Math.max(guardUntil, performance.now() + INPUT_GUARD_MS);
     busy = false;
-    setText(kind, KIND_LABELS[view.kind]);
+    // Mit großem Bild-Symbol im Kopf entfällt das kleine Symbol vor „Ein Ereignis“.
+    const kindLabel = KIND_LABELS[view.kind];
+    setText(kind, view.icon ? kindLabel.text : `${kindLabel.icon} ${kindLabel.text}`);
     setText(title, view.title);
     setText(subtitle, view.subtitle ?? '');
     subtitle.hidden = !view.subtitle;
@@ -654,7 +668,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       dialog.showModal();
     }
     if (newEncounter || !dialog.contains(document.activeElement)) {
-      const first = cards.findIndex((c) => !c.choose.disabled);
+      const first = cards.findIndex((c) => !c.choose.disabled && !c.card.disabledReason);
       if (first >= 0) cards[first]!.choose.focus({ preventScroll: true });
       else [reroll, decline, later].find((b) => !b.hidden && !b.disabled)?.focus();
     }

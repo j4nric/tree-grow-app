@@ -79,11 +79,13 @@ test('Ereignis- und Gast-Karten: große Knöpfe mit Wirkungszeile, Tastatur, mob
   await expect(grow).toBeFocused();
   await page.keyboard.press('Enter');
 
-  // Gast: Bild-Symbol, Gattung und Dauer im Kopf, Wirkung auf dem Knopf.
+  // Gast: Bild-Symbol und Gattung im Kopf, Wirkung mit Dauer auf dem Knopf.
   await expect(d).toContainText('Bergfinken-Schwarm');
   await settle(page);
   await expect(d.locator('.encounter-hero-icon')).toBeVisible();
-  await expect(d.getByRole('list', { name: 'Eckdaten' })).toContainText('rastet 7 Min.');
+  await expect(d.getByRole('list', { name: 'Eckdaten' })).toHaveText('🐦 Vögel');
+  // Im Kopf kein zweites kleines Symbol vor „Besuch auf der Durchreise“.
+  await expect(d.locator('.encounter-kind')).toHaveText('Besuch auf der Durchreise');
   const host = d.getByRole('button', { name: /^Bewirten \(−[\d,.]+ 🌰\)$/ });
   await expect(host).toContainText('+12 % 🌿, +12 % 🌰 für 7 Min.');
   await expect(host).toBeFocused();
@@ -118,4 +120,29 @@ test('Aktive Boni: Wirkungen derselben Quelle stehen in einer Zeile, ohne Balken
   await expect(bonuses.locator('[data-bonus="cycle:storm"]')).toContainText('Totholz, +1 Platz Höhlen & Totholz');
   await expect(bonuses.locator('.bonus-bar')).toHaveCount(0);
   await expect(bonuses).toContainText('bis zum Neuen Zyklus');
+});
+
+test('Gast ohne genug Samen: „Bewirten“ per aria-disabled gesperrt, fokussierbar, Grund vorlesbar', async ({ page, context }) => {
+  await seedV3(context, {
+    totalGrowth: waypoint(12) + 1,
+    seeds: 0,
+    niches: { roots: ['earthworm'], litter: ['robin'] },
+    pendingEncounters: [{ type: 'visitor', cards: ['cranes'], rerolls: 0 }],
+  });
+  await openGame(page);
+  await openStack(page);
+  const d = dialog(page);
+  const host = d.getByRole('button', { name: /^Bewirten/ });
+  await expect(host).toHaveAttribute('aria-disabled', 'true');
+  await expect(host).not.toHaveAttribute('disabled', '');
+  await expect(host).toHaveAccessibleName(/gesperrt: Nicht genug Samen/);
+  // Startfokus auf der wählbaren Option; der gesperrte Knopf bleibt per Pfeiltaste erreichbar.
+  const farewell = d.getByRole('button', { name: /^Ziehen lassen/ });
+  await expect(farewell).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(host).toBeFocused();
+  await host.click({ force: true });
+  await expect(d).toContainText('Kranichzug');
+  await farewell.click();
+  await expect(d).toBeHidden();
 });

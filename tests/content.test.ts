@@ -468,6 +468,14 @@ describe('Pflegemaßnahmen (DESIGN_V2.md 8)', () => {
     expect(CARE_BY_ID.size).toBe(CARE.length);
   });
 
+  it('jede Maßnahme hat eine kurze Bestätigung nach dem Kauf (boughtText)', () => {
+    for (const c of CARE) {
+      expect(c.boughtText.trim().length, c.id).toBeGreaterThan(0);
+      expect(c.boughtText.length, c.id).toBeLessThanOrEqual(30);
+    }
+    expect(unique(CARE.map((c) => c.boughtText))).toBe(true);
+  });
+
   it('Name, Symbol, Text, Bedingungen und Ausschlüsse sind gültig', () => {
     for (const c of CARE) {
       expect(c.name.length, c.id).toBeGreaterThan(0);

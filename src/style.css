@@ -3123,27 +3123,26 @@ body[data-motion='reduce'] .bonus-bar-fill {
 /* ---------- Ereignis- und Gast-Karten im Kartenwahl-Dialog ---------- */
 
 /* Kopf mit großem Bild-Symbol, Stimmungstext und Eckdaten (Gattung, Dauer, Wirkung) */
+.encounter-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Mit Bild-Symbol: Symbol links, Texte daneben – der ganze Block sitzt mittig */
 .encounter-header.has-hero {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 16px;
-  align-items: start;
-  width: 100%;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 16px;
+  width: fit-content;
   max-width: 720px;
-  margin: 0 auto;
+  margin-inline: auto;
   text-align: left;
 }
 
-.encounter-header.has-hero > * {
-  grid-column: 2;
-}
-
-.encounter-header.has-hero > .encounter-hero-icon {
-  grid-column: 1;
-  grid-row: 1 / span 6;
-}
-
 .encounter-hero-icon {
+  flex: none;
   display: grid;
   place-items: center;
   width: 72px;
@@ -3225,13 +3224,13 @@ body[data-motion='reduce'] .bonus-bar-fill {
     transform 0.15s;
 }
 
-.option-choose:hover:not(:disabled) {
+.option-choose:hover:not(:disabled):not([aria-disabled='true']) {
   background: white;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   transform: translateY(-1px);
 }
 
-.option-choose:active:not(:disabled) {
+.option-choose:active:not(:disabled):not([aria-disabled='true']) {
   transform: translateY(0);
 }
 
@@ -3240,7 +3239,9 @@ body[data-motion='reduce'] .bonus-bar-fill {
   outline-offset: 3px;
 }
 
-.option-choose:disabled {
+.option-choose:disabled,
+.option-choose[aria-disabled='true'] {
+  cursor: not-allowed;
   border-color: var(--border);
   background: #f4f2ea;
   color: var(--muted);
@@ -3261,7 +3262,8 @@ body[data-motion='reduce'] .bonus-bar-fill {
   font-weight: 500;
 }
 
-.option-choose:disabled .option-effects {
+.option-choose:disabled .option-effects,
+.option-choose[aria-disabled='true'] .option-effects {
   color: var(--muted);
 }
 
@@ -3341,7 +3343,7 @@ body[data-motion='reduce'] .option-choose {
   }
 
   .encounter-header.has-hero {
-    column-gap: 12px;
+    gap: 12px;
   }
 
   .encounter-hero-icon {

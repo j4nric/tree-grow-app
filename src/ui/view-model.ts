@@ -140,7 +140,9 @@ export interface ActiveBonusView {
   effect: string;
   /** Restzeit, z. B. „4 Min.“; fehlt bei Boni bis zum Neuen Zyklus („bis zum Neuen Zyklus“). */
   remaining: string;
-  /** Anteil der Restzeit 0 … 1 für den Fortschrittsbalken; null ohne Ablauf (bis zum Neuen Zyklus). */
+  /** Läuft ab (Zeit-Bonus, Gast) – sonst gilt er bis zum Neuen Zyklus. */
+  timed: boolean;
+  /** Anteil der Restzeit 0 … 1 für den Balken; null ohne Ablauf oder bei unbekannter Dauer. */
   progress: number | null;
 }
 

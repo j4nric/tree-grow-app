@@ -177,9 +177,14 @@ describe('Spielanleitung', () => {
     expect(t).toContain(`${formatNumber(EVENTS.length)} gibt es`);
     expect(t).toContain('höchstens einmal pro Zyklus');
     expect(t).toContain(`Ab „${STAGES[Math.min(...EVENTS.map((e) => e.minStage))]!.name}“`);
-    const effects = EVENTS.flatMap((e) => e.options.flatMap((o) => o.effects));
-    const seedSeconds = effects.flatMap((x) => (x.kind === 'seedsNow' ? [x.seconds] : []));
-    expect(t).toContain(`in ${span(seedSeconds)} Sekunden`);
+    // Spanne nur aus reinen Samen-Optionen (90–150 s), Ameisenstraße (Zeit-Bonus + 60 s) zählt nicht.
+    const pure = EVENTS.flatMap((e) => e.options).filter((o) => o.effects.every((x) => x.kind === 'seedsNow'));
+    const seedSeconds = pure.flatMap((o) => o.effects.map((x) => (x.kind === 'seedsNow' ? x.seconds : 0)));
+    expect(span(seedSeconds)).toBe('90–150');
+    expect(t).toContain(`in ${span(seedSeconds)} Sekunden sammelst, mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰`);
+    expect(t).toContain('„+25 % 🌿 für 5 Min.“');
+    expect(t).toContain('sofern etwas passt');
+    expect(t).not.toContain('z. B.');
     expect(t).toContain(`Ab „${STAGES[INTERLUDE_STAGE]!.name}“ gibt es zwischen zwei Wegpunkten einen Zwischenhalt`);
     expect(t).toContain(`${formatNumber(INTERLUDE_CHANCE * 100)} %`);
   });

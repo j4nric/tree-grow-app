@@ -5,8 +5,10 @@
  * - Aufklappbar wie die Lebensgemeinschaften; auf schmalen Bildschirmen anfangs zu, die
  *   Zusammenfassung nennt, wie viele Maßnahmen gerade kaufbar sind.
  * - Sortiert: kaufbar, dann „sparen“ (zu wenig Samen), dann gesperrt, dann voll ausgebaut.
- *   Solange Fokus oder Mauszeiger in der Liste sind, bleibt die Reihenfolge stehen – ein
- *   Kauf lässt die Zeile nicht unter dem Finger wegspringen. Danach wird neu sortiert.
+ *   Die Reihenfolge bleibt stehen, solange der Mauszeiger in der Liste ist, der
+ *   Tastaturfokus (`:focus-visible`) in der Liste liegt oder ein Kauf weniger als
+ *   CARE_HOLD_MS her ist (Touch: `pointerleave` kommt dort schon vor `click`). Danach wird
+ *   neu sortiert – ein Mausklick hält die Liste also nicht dauerhaft fest.
  * - Nach einem Kauf: kurzes Aufleuchten der Zeile, schwebende Bestätigung (über
  *   `onFeedback`) und dieselbe Meldung in einer Statuszeile für Screenreader.
  *
@@ -66,6 +68,9 @@ export function careOrder(items: readonly CareView[], previous: readonly string[
   return [...kept, ...sorted.filter((id) => !known.has(id))];
 }
 
+/** So lange (ms) bleibt die Reihenfolge nach einem Kauf stehen – auch ohne Zeiger/Fokus. */
+export const CARE_HOLD_MS = 1500;
+
 /** Schmaler Bildschirm (wie die Mobil-Ansicht im CSS). */
 function narrowScreen(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 640px)').matches;
@@ -114,10 +119,23 @@ export function createCarePanel(root: HTMLElement, callbacks: CarePanelCallbacks
   let shown = '';
   let last: readonly CareView[] = [];
   let pointerInside = false;
+  /** Bis zu diesem Zeitpunkt (performance.now) bleibt die Reihenfolge nach einem Kauf stehen. */
+  let holdUntil = 0;
+  let holdTimer: ReturnType<typeof setTimeout> | undefined;
   /** Nach dem nächsten Neuaufbau aufleuchten lassen (gerade gekauft). */
   let flash: string | null = null;
 
-  const frozen = () => pointerInside || section.contains(document.activeElement);
+  /** Fokus per Tastatur in der Liste? Ein per Maus fokussierter Knopf zählt nicht. */
+  const keyboardFocusInside = () => {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !section.contains(active)) return false;
+    try {
+      return active.matches(':focus-visible');
+    } catch {
+      return true; // ältere Browser ohne :focus-visible: wie bisher festhalten
+    }
+  };
+  const frozen = () => pointerInside || performance.now() < holdUntil || keyboardFocusInside();
 
   function buildRow(item: CareView, groupStart: boolean): Row {
     const li = el('li', `care-item care-${item.group}${groupStart ? ' care-group-start' : ''}`);
@@ -172,6 +190,10 @@ export function createCarePanel(root: HTMLElement, callbacks: CarePanelCallbacks
         // Doppelklick (detail > 1) und Klicks kurz nach einem Kauf kaufen keinen zweiten Rang.
         if (!isDeliberateConfirm(event, lastBuy.get(item.id) ?? -Infinity, now, REPEAT_GUARD_MS)) return;
         lastBuy.set(item.id, now);
+        // Kurz festhalten, damit die Zeile nicht unter dem Finger wegspringt; danach neu sortieren.
+        holdUntil = now + CARE_HOLD_MS;
+        clearTimeout(holdTimer);
+        holdTimer = setTimeout(release, CARE_HOLD_MS + 20);
         flash = item.id;
         if (callbacks.onBuy(item.id) === true && item.boughtText) confirmBuy(item);
         flash = null;
@@ -207,15 +229,20 @@ export function createCarePanel(root: HTMLElement, callbacks: CarePanelCallbacks
     }
   }
 
-  /** Bestätigung nach einem Kauf: schwebender Text an der Zeile, Statuszeile für Screenreader. */
+  /**
+   * Bestätigung nach einem Kauf: schwebender Text über dem Knopf (bzw. über der Zeile,
+   * wenn er nach dem letzten Rang fehlt) – so verdeckt er den Namen nicht; dazu die
+   * Statuszeile für Screenreader.
+   */
   function confirmBuy(item: CareView): void {
     const text = `${item.icon} ${item.boughtText}`;
     setText(status, '');
     requestAnimationFrame(() => setText(status, item.boughtText ?? ''));
     const row = rows.find((r) => r.id === item.id);
-    const target = row?.li ?? section;
-    const rect = target.getBoundingClientRect();
-    if (rect.width > 0) callbacks.onFeedback?.(text, rect.left + rect.width / 2, rect.top + 8);
+    const anchor = row?.button ?? row?.li ?? section;
+    const rect = anchor.getBoundingClientRect();
+    const top = (row?.li ?? anchor).getBoundingClientRect().top;
+    if (rect.width > 0) callbacks.onFeedback?.(text, rect.left + rect.width / 2, top - 6);
   }
 
   function apply(items: readonly CareView[], force: boolean): void {
@@ -247,7 +274,10 @@ export function createCarePanel(root: HTMLElement, callbacks: CarePanelCallbacks
   /** Festhalten vorbei: neu sortieren, falls sich die Reihenfolge geändert hätte. */
   function release(): void {
     setTimeout(() => {
-      if (frozen()) return;
+      if (frozen()) {
+        // Noch in der Haltezeit nach einem Kauf: der Timer dort sortiert später.
+        return;
+      }
       const sorted = careOrder(last, order, false);
       if (sorted.join('|') !== order.join('|')) apply(last, false);
     }, 0);

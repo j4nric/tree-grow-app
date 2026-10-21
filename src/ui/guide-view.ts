@@ -31,8 +31,8 @@ import { VISITORS, VISITOR_FAREWELL_LABEL, VISITOR_HOST_LABEL } from '../content
 import { GENERA } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { HARMONY_DIVISOR } from '../core/formulas';
-import { HARMONY_TIERS, listNames } from './adapters';
-import { formatNumber } from './format';
+import { HARMONY_TIERS, bonusEffectLabel, listNames } from './adapters';
+import { formatDuration, formatNumber } from './format';
 
 export interface GuideSection {
   id: string;
@@ -71,11 +71,16 @@ export function guideSections(): GuideSection[] {
   const visitorStage = stageName(Math.min(...VISITORS.map((v) => v.minStage)));
   const careStage = stageName(Math.min(...CARE.map((c) => c.ranks[0]!.minStage)));
   const interludeStage = stageName(INTERLUDE_STAGE);
-  const eventEffects = EVENTS.flatMap((e) => e.options.flatMap((o) => o.effects));
-  const timedSeconds = eventEffects.flatMap((x) => (x.kind === 'timed' ? [x.seconds] : []));
-  const seedSeconds = eventEffects.flatMap((x) => (x.kind === 'seedsNow' ? [x.seconds] : []));
-  const timedExample =
-    EVENTS.flatMap((e) => e.options).find((o) => o.effects.some((x) => x.kind === 'timed'))?.summary ?? '';
+  const eventOptions = EVENTS.flatMap((e) => e.options);
+  const timedEffects = eventOptions.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'timed' ? [x] : [])));
+  const timedSeconds = timedEffects.map((x) => x.seconds);
+  // Nur reine Samen-Optionen (keine Mischungen wie Zeit-Bonus plus Samen).
+  const seedSeconds = eventOptions.flatMap((o) =>
+    o.effects.length > 0 && o.effects.every((x) => x.kind === 'seedsNow') ? o.effects.map((x) => x.seconds) : [],
+  );
+  const firstTimed = timedEffects[0];
+  const timedExample = firstTimed ? `${bonusEffectLabel(firstTimed.effect)} für ${formatDuration(firstTimed.seconds)}` : '';
+
   // Sich ausschließende Maßnahmen als Paare (jedes Paar nur einmal).
   const exclusions: string[][] = [];
   for (const measure of CARE) {
@@ -164,9 +169,9 @@ export function guideSections(): GuideSection[] {
       icon: '⛈️',
       title: 'Ereignisse',
       paragraphs: [
-        `Ab „${eventStage}“ kann statt eines Tiers oder einer Pflanze ein Ereignis kommen – ${formatNumber(EVENTS.length)} gibt es, z. B. ${listNames(EVENTS.map((e) => e.name), 3)}. Jedes kommt höchstens einmal pro Zyklus.`,
-        `Du wählst eine von ${span(EVENTS.map((e) => e.options.length))} Möglichkeiten, keine ist eine Strafe: Manche Wirkungen (mehr Licht, Wasser, Plätze oder ein Lebensraum wie Totholz) gelten bis zum Neuen Zyklus, Zeit-Boni wie „${timedExample}“ laufen ${span(timedSeconds.map(minutes))} Minuten Spielzeit – auch offline. Die Samen-Option bringt sofort so viele Samen, wie du in ${span(seedSeconds)} Sekunden sammelst.`,
-        `Ab „${interludeStage}“ gibt es zwischen zwei Wegpunkten einen Zwischenhalt: Mit ${pct(INTERLUDE_CHANCE)} Wahrscheinlichkeit wartet dort zusätzlich ein Ereignis oder ein Gast.`,
+        `Ab „${eventStage}“ kann statt eines Tiers oder einer Pflanze ein Ereignis kommen – ${formatNumber(EVENTS.length)} gibt es: ${listNames(EVENTS.map((e) => e.name), 3)}. Jedes kommt höchstens einmal pro Zyklus.`,
+        `Du wählst eine von ${span(EVENTS.map((e) => e.options.length))} Möglichkeiten, keine ist eine Strafe: Manche Wirkungen (mehr Licht, Wasser, Plätze oder ein Lebensraum wie Totholz) gelten bis zum Neuen Zyklus, Zeit-Boni wie „${timedExample}“ laufen ${span(timedSeconds.map(minutes))} Minuten Spielzeit – auch offline. Die Samen-Option bringt sofort so viele Samen, wie du in ${span(seedSeconds)} Sekunden sammelst, mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰.`,
+        `Ab „${interludeStage}“ gibt es zwischen zwei Wegpunkten einen Zwischenhalt: Mit ${pct(INTERLUDE_CHANCE)} Wahrscheinlichkeit wartet dort zusätzlich ein Ereignis oder ein Gast, sofern etwas passt.`,
       ],
     },
     {
@@ -174,7 +179,7 @@ export function guideSections(): GuideSection[] {
       icon: '🦢',
       title: 'Durchreisende Gäste',
       paragraphs: [
-        `Ab „${visitorStage}“ ziehen Gäste vorbei – ${formatNumber(VISITORS.length)} verschiedene, z. B. ${listNames(VISITORS.map((v) => v.name), 3)}. Jeder kommt höchstens einmal pro Zyklus und belegt keine Nische.`,
+        `Ab „${visitorStage}“ ziehen Gäste vorbei – ${formatNumber(VISITORS.length)} verschiedene: ${listNames(VISITORS.map((v) => v.name), 3)}. Jeder kommt höchstens einmal pro Zyklus und belegt keine Nische.`,
         `${VISITOR_HOST_LABEL} kostet Samen-Sekunden: so viele Samen, wie du in ${span(VISITORS.map((v) => v.hostCost))} Sekunden sammelst. Dann rastet der Gast ${span(VISITORS.map((v) => minutes(v.stay)))} Minuten, bringt seine Wirkung und zählt für die Gattungsboni.`,
         `${VISITOR_FAREWELL_LABEL} bringt als Dank sofort die Samen von ${span(VISITORS.map((v) => v.farewellSeeds))} Sekunden, mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰. Reichen deine Samen nicht zum Bewirten, bleibt nur das.`,
       ],
@@ -184,7 +189,7 @@ export function guideSections(): GuideSection[] {
       icon: '🧺',
       title: 'Pflege',
       paragraphs: [
-        `Ab „${careStage}“ steckst du Samen in ${formatNumber(CARE.length)} Pflegemaßnahmen, z. B. ${listNames(CARE.map((c) => c.name), 3)}. Jede hat ${span(CARE.map((c) => c.ranks.length))} Ränge, die du nacheinander kaufst – jeder teurer als der vorige, spätere oft erst auf einer höheren Stufe.`,
+        `Ab „${careStage}“ steckst du Samen in ${formatNumber(CARE.length)} Pflegemaßnahmen: ${listNames(CARE.map((c) => c.name), 3)}. Jede hat ${span(CARE.map((c) => c.ranks.length))} Ränge, die du nacheinander kaufst – jeder teurer als der vorige, spätere oft erst auf einer höheren Stufe.`,
         `Gekaufte Ränge wirken bis zum Neuen Zyklus und addieren sich. Verkaufen geht nicht – überlege, was dein Wald gerade braucht.`,
         ...exclusions.map((pair) => `${all(pair.map((n) => `„${n}“`))} schließen sich aus: Du kannst nur eine davon pflegen.`),
       ],

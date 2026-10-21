@@ -145,3 +145,27 @@ test('Pflege auf dem Handy: zugeklappt mit Zusammenfassung, aufklappbar, ohne Qu
   expect((await buy.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
+
+test('Pflege: nach einem Mausklick wird neu sortiert, sobald die Maus die Liste verlässt', async ({ page, context }) => {
+  await seedV3(context, {
+    totalGrowth: waypoint(20) + 1, // Hain
+    seeds: 2600,
+    niches: { roots: ['earthworm'], edge: ['bee'] },
+  });
+  await openGame(page);
+  const care = page.locator('[data-ref="care"]');
+  const order = await careIds(page);
+  const boxes = care.locator('[data-buy-care="nest-boxes"]');
+  await boxes.click();
+  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('Rang 2/2');
+  const note = page.locator('.float-layer .float-note').filter({ hasText: 'Nistkästen angebracht' });
+  const noteBox = (await note.boundingBox())!;
+  const nameBox = (await care.locator('[data-care="nest-boxes"] .care-name').boundingBox())!;
+  expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(nameBox.y + 2);
+  // Direkt nach dem Kauf (Maus noch in der Liste, Haltezeit): nichts springt.
+  expect(await careIds(page)).toEqual(order);
+  // Maus raus – der per Klick fokussierte Knopf hält die Liste nicht fest; nach der
+  // Haltezeit rutscht „Nistkästen“ (jetzt zu teuer) nach hinten.
+  await page.mouse.move(5, 5);
+  await expect.poll(async () => (await careIds(page)).indexOf('nest-boxes')).toBeGreaterThan(order.indexOf('nest-boxes'));
+});

@@ -39,7 +39,7 @@ export function createBonusPanel(root: HTMLElement): BonusPanel {
   let rows = new Map<string, Row>();
 
   function row(b: ActiveBonusView): HTMLElement {
-    const timed = b.progress !== null;
+    const timed = b.timed;
     const li = el('li', timed ? 'bonus bonus-timed' : 'bonus bonus-cycle');
     li.dataset.bonus = b.id;
     const icon = el('span', 'bonus-icon', b.icon);
@@ -47,7 +47,7 @@ export function createBonusPanel(root: HTMLElement): BonusPanel {
     const left = el('small', 'bonus-left', b.remaining);
     li.append(icon, el('span', 'bonus-name', b.name), left, el('span', 'bonus-effect', b.effect));
     let bar: HTMLElement | null = null;
-    if (timed) {
+    if (timed && b.progress !== null) {
       // Rein optisch – die Restzeit steht als Text daneben.
       const track = el('span', 'bonus-bar');
       track.setAttribute('aria-hidden', 'true');
@@ -65,7 +65,7 @@ export function createBonusPanel(root: HTMLElement): BonusPanel {
     bonuses.forEach((b, i) => {
       // Vor der ersten Wirkung ohne Ablauf eine kleine Zwischenzeile („bis zum Neuen
       // Zyklus“) statt desselben Textes in jeder Zeile.
-      if (b.progress === null && (i === 0 || bonuses[i - 1]!.progress !== null)) {
+      if (!b.timed && (i === 0 || bonuses[i - 1]!.timed)) {
         items.push(el('li', 'bonus-group', b.remaining));
       }
       items.push(row(b));
@@ -76,7 +76,7 @@ export function createBonusPanel(root: HTMLElement): BonusPanel {
   function update(bonuses: readonly ActiveBonusView[]): void {
     // Nur die Struktur zählt für den Neuaufbau, nicht Restzeit und Balken.
     // Ohne Ablauf steht `remaining` in der Zwischenzeile – dann zählt er mit.
-    const key = JSON.stringify(bonuses.map((b) => [b.id, b.icon, b.name, b.effect, b.progress === null ? b.remaining : null]));
+    const key = JSON.stringify(bonuses.map((b) => [b.id, b.icon, b.name, b.effect, b.timed, b.progress === null, b.timed ? null : b.remaining]));
     if (key !== shown) {
       shown = key;
       section.hidden = bonuses.length === 0;

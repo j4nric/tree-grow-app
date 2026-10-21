@@ -916,12 +916,25 @@ begrenzt. Beim Laden zählen nur bekannte Maßnahmen, Ränge ganzzahlig in 1 …
 und höchstens bis zum letzten Rang, dessen `minStage` die aktuelle Stufe erlaubt; von sich
 ausschließenden Maßnahmen (Kronen) bleibt nur die erste in `CARE`-Reihenfolge. `requires`
 gilt bewusst nur beim Kauf, nicht beim Laden.
-Die Seitenleiste zeigt eine schlichte Liste „Pflege“ (`src/ui/care-panel.ts`, View
-`toCareViews`): Maßnahmen ab ihrer Stufe mit nächstem Rang, Kosten, Wirkung, Vorschau,
-Blocker-Text (zu wenig Samen: „Noch X 🌰“, aufgerundet) und Kaufen-Knopf. Gesperrte
-Knöpfe tragen `aria-disabled` statt `disabled` (fokussierbar, Sperrgrund vorlesbar); nach
-dem letzten Rang geht der Fokus auf den Titel der Maßnahme. Doppelklick, gehaltene
-Enter-Taste und Klicks binnen 400 ms nach einem Kauf kaufen keinen weiteren Rang.
+Die Seitenleiste zeigt die Liste „Pflege“ (`src/ui/care-panel.ts`, View `toCareViews`):
+Maßnahmen ab ihrer Stufe mit nächstem Rang, Kosten, Wirkung, Vorschau als kurze Zeile
+(„+3 ⚖️ / +2 % 🌿“), Blocker-Text (zu wenig Samen: „Noch X 🌰“, aufgerundet) und
+Kaufen-Knopf. Gesperrte Knöpfe tragen `aria-disabled` statt `disabled` (fokussierbar,
+Sperrgrund vorlesbar); nach dem letzten Rang geht der Fokus auf den Titel der Maßnahme.
+Doppelklick, gehaltene Enter-Taste und Klicks binnen 400 ms nach einem Kauf kaufen keinen
+weiteren Rang.
+
+- **Aufklappen:** wie die Lebensgemeinschaften; am Desktop offen, unter 640 px Breite
+  anfangs zu. Der Kopf nennt „N kaufbar“ bzw. „alles ausgebaut“.
+- **Sortierung:** kaufbar → zu wenig Samen → gesperrt (Stufe, Ausschluss, Bedingung) →
+  voll ausgebaut; in den ersten beiden Gruppen nach Kosten, sonst in `CARE`-Reihenfolge.
+- **Festhalten:** Die Reihenfolge bleibt stehen, solange der Mauszeiger in der Liste ist,
+  der Tastaturfokus (`:focus-visible`) darin liegt oder ein Kauf weniger als 1,5 s her ist
+  (Touch: `pointerleave` kommt vor `click`). Danach wird neu sortiert – ein Mausklick
+  allein hält die Liste nicht fest.
+- **Bestätigung:** Die Zeile leuchtet kurz auf (nicht bei reduzierter Bewegung), über dem
+  Knopf schwebt der `boughtText` der Maßnahme (z. B. „🏠 Nistkästen angebracht“, ab Rang 2
+  mit „(Rang N)“), derselbe Text steht in einer Statuszeile für Screenreader.
 
 **UI (für ui-dev):** Liste der Maßnahmen mit nächstem Rang, Kosten, Kurzwirkung
 (`summary`), Blocker-Text und Vorschau (`previewCare` analog `previewPlant`).

@@ -1448,7 +1448,7 @@ function relative(after: number, before: number): number {
 /**
  * Wirkungszeilen einer Ereignis-Option, aus den Daten statt aus dem Kurztext:
  * „+480 🌰 sofort“, „+30 % 🌿 für 6 Min.“, „Totholz, +1 Platz Höhlen & Totholz – bis zum
- * Neuen Zyklus“; „nächste Begegnung …“ kommt aus dem Kurztext der Option.
+ * Neuen Zyklus“, „nächste Begegnung: Pfifferling, Steinpilz oder …“ (aus Typ und IDs).
  */
 export function eventOptionEffects(option: EventOption, seeds: number): EffectView[] {
   const out: EffectView[] = [];
@@ -1457,14 +1457,29 @@ export function eventOptionEffects(option: EventOption, seeds: number): EffectVi
     if (e.kind === 'timed') out.push({ label: `${bonusEffectLabel(e.effect)} für ${formatDuration(e.seconds)}`, tone: 'good' });
     else if (e.kind === 'habitat') lasting.unshift(TAG_NAMES[e.tag] ?? e.tag);
     else if (e.kind === 'cycle') lasting.push(bonusEffectLabel(e.effect));
-    else if (e.kind === 'nextEncounter') {
-      const text = option.summary.split(',').find((part) => part.includes('nächste Begegnung'))?.trim();
-      out.push({ label: text ?? 'bestimmt die nächste Begegnung', tone: 'good' });
-    }
+    else if (e.kind === 'nextEncounter') out.push({ label: nextEncounterText(e.type, e.ids), tone: 'good' });
   }
   if (lasting.length > 0) out.unshift({ label: `${lasting.join(', ')} – ${UNTIL_NEW_CYCLE}`, tone: 'good' });
   if (seeds > 0) out.push({ label: `+${seedsLabel(seeds)} 🌰 sofort`, tone: 'good' });
   return out;
+}
+
+/** „A, B oder C“ – Aufzählung von Alternativen. */
+function orList(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} oder ${names[names.length - 1]}`;
+}
+
+/**
+ * Vorgabe für die nächste Begegnung als Text, z. B. „nächste Begegnung: Eichelhäher oder
+ * Eichhörnchen“; unbekannte IDs fallen weg. Ohne bekannte Namen: „nächste Begegnung: ein Tier“.
+ */
+export function nextEncounterText(type: 'animal' | 'plant', ids: readonly string[]): string {
+  const names = ids
+    .map((id) => (type === 'animal' ? SPECIES_BY_ID.get(id)?.name : PLANTS_BY_ID.get(id)?.name))
+    .filter((n): n is string => Boolean(n));
+  if (names.length === 0) return `nächste Begegnung: ${type === 'animal' ? 'ein Tier' : 'eine Pflanze'}`;
+  return `nächste Begegnung: ${orList(names)}`;
 }
 
 /** Wirkung eines Gastes mit Dauer, z. B. „+12 % 🌿, +12 % 🌰 für 7 Min.“. */
@@ -1564,7 +1579,8 @@ export function toVisitorView(
     family: visitor.genus,
     familyLabel: genus.name,
     familyIcon: visitor.icon,
-    effects: [{ label: `zieht weiter, +${seedsLabel(costs.farewell)} 🌰 als Dank`, tone: 'good' }],
+    // Der Dank steht schon im Knopftext „Ziehen lassen (+Y 🌰)“.
+    effects: [],
     preview: { harmonyDelta: 0, growthDelta: 0, seedDelta: 0 },
     chooseLabel: `${VISITOR_FAREWELL_LABEL} (+${seedsLabel(costs.farewell)} 🌰)`,
   };
@@ -1573,7 +1589,8 @@ export function toVisitorView(
     title: visitor.name,
     icon: visitor.icon,
     subtitle: visitor.text,
-    facts: [`${genus.icon} ${genus.name}`, `rastet ${formatDuration(visitor.stay)}`],
+    // Dauer und Wirkung stehen auf dem Knopf „Bewirten“ – im Kopf nur die Gattung.
+    facts: [`${genus.icon} ${genus.name}`],
     cards: [host, farewell],
     rerollCost: null,
     canReroll: false,
@@ -1670,6 +1687,7 @@ export function activeBonusViews(state: GameState): ActiveBonusView[] {
         name: event?.name ?? t.source,
         effect: '',
         remaining: '',
+        timed: true,
         progress: null,
         left: t.remaining,
         total,
@@ -1697,6 +1715,7 @@ export function activeBonusViews(state: GameState): ActiveBonusView[] {
       name: visitor.name,
       effect: visitor.effects.map(bonusEffectLabel).join(', '),
       remaining: remainingLabel(v.remaining),
+      timed: true,
       progress: leftFraction(v.remaining, visitor.stay),
       left: v.remaining,
     });
@@ -1739,11 +1758,12 @@ export function activeBonusViews(state: GameState): ActiveBonusView[] {
       name: event?.name ?? row.source,
       effect: [...row.habitats, ...row.effects].join(', '),
       remaining: UNTIL_NEW_CYCLE,
+      timed: false,
       progress: null,
     });
   }
   loose.forEach((tag, i) => {
-    out.push({ id: `habitat:${i}`, icon: HABITAT_ICONS[tag] ?? '🌿', name: TAG_NAMES[tag] ?? tag, effect: 'Lebensraum', remaining: UNTIL_NEW_CYCLE, progress: null });
+    out.push({ id: `habitat:${i}`, icon: HABITAT_ICONS[tag] ?? '🌿', name: TAG_NAMES[tag] ?? tag, effect: 'Lebensraum', remaining: UNTIL_NEW_CYCLE, timed: false, progress: null });
   });
   return out;
 }
@@ -1778,23 +1798,10 @@ export function careBlockerText(blocker: CareBlocker, id: string): string {
   }
 }
 
-/** Bestätigung nach einem Kauf je Maßnahme (fehlt eine, gilt „<Name>: Rang N“). */
-const CARE_BOUGHT_TEXTS: Readonly<Record<string, string>> = {
-  'leaf-litter': 'Laub bleibt liegen',
-  'nest-boxes': 'Nistkästen angebracht',
-  'wildflower-hem': 'Wildblumen gesät',
-  'deadwood-pile': 'Totholz aufgeschichtet',
-  'light-crown': 'Krone gelichtet',
-  'dense-crown': 'Krone dicht gelassen',
-  pond: 'Tümpel angelegt',
-  'insect-hotel': 'Insektenhotel aufgestellt',
-};
-
 /** Kurze Bestätigung für den Kauf von Rang `rank` (1-basiert), z. B. „Nistkästen angebracht (Rang 2)“. */
 export function careBoughtText(id: string, rank: number): string {
-  const measure = CARE_BY_ID.get(id);
-  const text = CARE_BOUGHT_TEXTS[id];
-  if (!text) return `${measure?.name ?? id}: Rang ${formatNumber(rank)}`;
+  const text = CARE_BY_ID.get(id)?.boughtText;
+  if (!text) return `${id}: Rang ${formatNumber(rank)}`;
   return rank > 1 ? `${text} (Rang ${formatNumber(rank)})` : text;
 }
 
