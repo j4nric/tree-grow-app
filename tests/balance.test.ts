@@ -10,6 +10,7 @@ import {
   report,
   runGame,
   stageStats,
+  varietyBefore,
 } from '../scripts/simulate';
 
 /**
@@ -114,6 +115,23 @@ describe('Balancing v2 (echte Logik)', () => {
     }
     // Der Harmonie-Spieler hält die Pflanzen gut versorgt.
     expect(stageStats(harmony, HAIN).supply).toBeGreaterThan(0.9);
+  });
+
+  it('Begegnungs-Vielfalt bis zum Hain (Playtest-Befund, DESIGN_V2.md 7.7)', () => {
+    for (const s of summaries) {
+      const v = varietyBefore(s, HAIN);
+      // Kaum identische Folge-Sets (Ziel < 10 %, gemessen ~0,5 %).
+      expect(v.sameShare, s.strategy.name).toBeLessThan(0.05);
+      // Neu würfeln ist fast immer möglich (Ziel > 70 %; gesperrt nur im Keimling).
+      expect(v.rerollOpenShare, s.strategy.name).toBeGreaterThan(0.75);
+      // Ab Setzling (fast) immer drei Karten.
+      expect(v.fewCardsShare, s.strategy.name).toBeLessThan(0.05);
+    }
+    // Harmonie-Spieler: längste Strecke ohne lohnende Karte (Ziel < 15 min, gemessen ~9:30 min im 90-%-Quantil).
+    const h = varietyBefore(harmony, HAIN);
+    expect(h.droughtMedian).toBeLessThan(10 * 60);
+    expect(h.droughtP90).toBeLessThan(15 * 60);
+    expect(h.worthShare).toBeGreaterThan(0.8);
   });
 
   it('es gibt echte Wahlen, aber nicht nur', () => {

@@ -48,5 +48,20 @@ export const ENCOUNTER_WEIGHTS: readonly (readonly [number, number, number, numb
   [55, 20, 15, 10], // Urwald
 ];
 
+/**
+ * Ist der Pflanzring voll, keimt seltener etwas („im Schatten der Begleitpflanzen“):
+ * Das Gewicht von „Etwas keimt“ wird mit diesem Faktor multipliziert. Grund: Mit vollem
+ * Ring kann eine Pflanzenkarte nur noch ersetzen und lohnt sich oft nicht (Playtest:
+ * lange Strecken ohne lohnende Wahl, DESIGN_V2.md 7.7).
+ */
+export const PLANT_WEIGHT_RING_FULL = 0.5;
+
+/**
+ * Gewicht einer Pflanzenkarte, deren Pflanze schon im Ring wächst (sonst 1). Neue Arten
+ * im Ring sind meist die lohnendere und abwechslungsreichere Wahl; Duplikate bleiben
+ * möglich (DESIGN_V2.md 7.7).
+ */
+export const PLANT_WEIGHT_IN_RING = 0.35;
+
 /** Die ersten Begegnungen sind festgelegt (Einführung): Wegpunkt 1, 2, 3 … */
 export const SCRIPTED_ENCOUNTERS: readonly EncounterType[] = ['animal', 'plant', 'animal'];
