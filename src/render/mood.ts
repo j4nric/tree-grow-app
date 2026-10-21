@@ -31,6 +31,11 @@ export interface MoodFrame {
   dpr: number;
   sx: number;
   sy: number;
+  /** Verschiebung in Canvas-Pixeln (Kamera); ohne Angabe 0. */
+  tx?: number;
+  ty?: number;
+  /** Auflösung der Partikel-Sprites (Pixel je CSS-Pixel); ohne Angabe `dpr`. */
+  spriteDpr?: number;
   time: number;
   reducedMotion: boolean;
   /**
@@ -100,8 +105,8 @@ export class MoodLayer {
   lightBuilds = 0;
   private warmGrad: CanvasGradient | null = null;
   private warmKey = -1;
-  private dots = new Map<string, HTMLCanvasElement>();
-  private dotsDpr = 0;
+  /** Partikel-Sprites je Art und Pixelgröße (numerischer Schlüssel, je Auflösung erhalten). */
+  private dots = new Map<number, HTMLCanvasElement>();
   private particles: Particle[] = [
     ...makeParticles(16, 0, 11),
     ...makeParticles(8, 1, 23),
@@ -172,14 +177,14 @@ export class MoodLayer {
           alpha *= 0.85;
         }
       }
-      const s = this.dot(p.kind, size, f.dpr);
+      const s = this.dot(p.kind, size, f.spriteDpr ?? f.dpr);
       const k = f.dpr;
       const c = rot === 0 ? 1 : Math.cos(rot);
       const sn = rot === 0 ? 0 : Math.sin(rot);
       ctx.globalAlpha = alpha;
       // Glühwürmchen leuchten additiv.
       ctx.globalCompositeOperation = p.kind === 2 ? 'lighter' : 'source-over';
-      ctx.setTransform(f.sx * k * c, f.sy * k * sn, -f.sx * k * sn, f.sy * k * c, f.sx * k * x, f.sy * k * y);
+      ctx.setTransform(f.sx * k * c, f.sy * k * sn, -f.sx * k * sn, f.sy * k * c, f.sx * k * x + (f.tx ?? 0), f.sy * k * y + (f.ty ?? 0));
       ctx.drawImage(s, -size / 2, -size / 2, size, size);
     }
     ctx.globalCompositeOperation = 'source-over';
@@ -194,7 +199,7 @@ export class MoodLayer {
   drawLight(ctx: CanvasRenderingContext2D, level: number, f: MoodFrame): void {
     const mw = moodWeights(level);
     if (mw.veil <= 0.004 && mw.warm <= 0.004) return;
-    ctx.setTransform(f.sx * f.dpr, 0, 0, f.sy * f.dpr, 0, 0);
+    ctx.setTransform(f.sx * f.dpr, 0, 0, f.sy * f.dpr, f.tx ?? 0, f.ty ?? 0);
     if (mw.warm > 0.004) {
       // Weiches Licht in sattem Gold: Grün wird wärmer und kräftiger, der Himmel bleibt blau.
       if (!this.warmGrad || this.warmKey !== f.height) {
@@ -280,12 +285,8 @@ export class MoodLayer {
 
   /** Kleine Partikel-Sprites (Pollen, Blütenblatt, Glühwürmchen) je Größe und Pixeldichte. */
   private dot(kind: 0 | 1 | 2, size: number, dpr: number): HTMLCanvasElement {
-    if (this.dotsDpr !== dpr) {
-      this.dots.clear();
-      this.dotsDpr = dpr;
-    }
     const px = Math.max(2, Math.round(size * dpr));
-    const key = `${kind}/${px}`;
+    const key = px * 4 + kind;
     let s = this.dots.get(key);
     if (s) return s;
     s = document.createElement('canvas');

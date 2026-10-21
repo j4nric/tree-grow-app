@@ -25,6 +25,8 @@
  *           Sequenz bei cyc Sekunden (mit t für feste Bilder, sonst läuft sie weiter)
  *  rate     Wachstum pro Sekunde, z. B. 0.05 – misst die Kosten beim Neuaufbau der Ebenen
  *  ht       Harmoniestufe 0–4 (ohne Angabe: keine Stimmung, Look wie bisher)
+ *  zoom     Kamera-Zoom 1–4 (cx, cy: Mitte des Ausschnitts als Anteil 0–1, Standard 0,5);
+ *           pan=1 lässt den Ausschnitt ständig kreisen (misst die Kosten während einer Geste)
  *  vis      Durchreisende, kommagetrennt: cranes,bramblings,hummingbird-moth
  *           (Platz = Reihenfolge); in der Übersicht (gallery=1) immer dabei
  */
@@ -224,6 +226,11 @@ let pendingCycle = false;
 cycleButton.addEventListener('click', () => (pendingCycle = true));
 /** Wachstum pro Sekunde (0 = steht). */
 const rate = Number(params.get('rate') ?? 0) || 0;
+/** Kamera (Zoom, Mitte); mit pan=1 kreist der Ausschnitt ständig. */
+const camZoom = Number(params.get('zoom') ?? 1) || 1;
+const camCx = Number(params.get('cx') ?? 0.5);
+const camCy = Number(params.get('cy') ?? 0.5);
+const camPan = params.get('pan') === '1';
 const startG = g;
 let lastNow = 0;
 reducedInput.checked =
@@ -410,6 +417,10 @@ function frame(now: number): void {
     forestMemory,
     season,
     mainTree,
+    camera:
+      camZoom > 1
+        ? { zoom: camZoom, x: camCx + (camPan ? 0.1 * Math.cos(now / 700) : 0), y: camCy + (camPan ? 0.1 * Math.sin(now / 700) : 0) }
+        : undefined,
   });
   const dt = performance.now() - t0;
   samples.push(dt);

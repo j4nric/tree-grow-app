@@ -188,6 +188,10 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   Spätfrost (Frühling), Hitzewelle (Sommer), Laubfall (Herbst), Schneebruch (Winter);
   DESIGN_V2.md 7.4 und 16.4
 - [x] Ereignis-Karten: unentdeckte Arten nicht mit Namen nennen (wie Tagebuch „???“) (`ui-dev`) – „Pfifferling oder 3 unbekannte Arten (🍄)“
+- [x] Kamera der Szene (`renderer`): Zoom 1–4× zum Zeiger/Pinch-Mittelpunkt, Verschieben
+  mit harten Grenzen und weichem Ausgleiten, Bedienleiste (+, −, Zurücksetzen), Tastatur,
+  scharfer Neuaufbau des Ausschnitts nach Ruhe; Treffer-Test `hitTestAnimal` für die
+  Tier-Detailansicht (Tippen auf ein Tier in der Szene öffnet sie, `onAnimalTap` in main.ts) – DESIGN_V2.md 11.4
 
 ## Phase 4 – Prestige & Langzeitspiel
 
