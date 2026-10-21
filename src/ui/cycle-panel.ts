@@ -149,6 +149,15 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
       toggle.append(icon, name, niche);
       toggle.addEventListener('click', () => callbacks.onToggleRegular(r.id));
       li.append(toggle);
+      // Warum der Stammgast wartet bzw. wann er einzieht: unter dem Knopf, per
+      // aria-describedby vorgelesen (der Name des Knopfs bleibt kurz).
+      if (r.note) {
+        const note = el('small', `cycle-regular-note${r.waiting ? ' waiting' : ''}`, r.note);
+        note.id = `cycle-regular-note-${r.id}`;
+        note.dataset.regularNote = r.id;
+        toggle.setAttribute('aria-describedby', note.id);
+        li.append(note);
+      }
       return { li, toggle, id: r.id };
     });
     list.replaceChildren(...items.map((i) => i.li));

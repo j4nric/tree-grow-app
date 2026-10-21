@@ -32,6 +32,7 @@ import {
 } from '../core/formulas';
 import { seasonIdAt } from '../core/season';
 import { allAnimals, type GameState } from '../core/state';
+import { regularNextCycleHint } from './regular-wait';
 import {
   conditionViews,
   disturbersOf,
@@ -269,8 +270,12 @@ export function toAnimalDetailView(
 
   let regular: string | null = null;
   if (regularSlots(state.meta.forestMemory) > 0) {
+    // Amphibien: Der Waldtümpel muss in jedem Zyklus erst wieder angelegt werden.
+    const later = regularNextCycleHint(sp.id);
     regular = state.meta.regulars.includes(sp.id)
-      ? '★ Stammgast – zieht im nächsten Zyklus gleich wieder ein'
+      ? later
+        ? `★ Stammgast – ${later}`
+        : '★ Stammgast – zieht im nächsten Zyklus gleich wieder ein'
       : '☆ Kein Stammgast – im Naturtagebuch wählbar';
   }
 

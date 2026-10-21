@@ -2240,9 +2240,17 @@ Tabelle oben.
 Ufer setzen, zwei schwimmende Molche nicht auf dieselbe Stelle legen; auf schmalen Bildschirmen
 Amphibien größer.~~ Umgesetzt: breitere Senke für fünf Bewohner, Frösche und Kröte an den
 Rändern, Molche in eigenen Streifen, kleine Bildschirme bis 20 % größere Amphibien (5.5,
-„Darstellung“). (2) Stammgäste: Der Harmonie-Spieler wählt 0,15 Amphibien je Neustart als
+„Darstellung“). (2) ~~Stammgäste: Der Harmonie-Spieler wählt 0,15 Amphibien je Neustart als
 Stammgast – sie ziehen erst ein, wenn der Tümpel wieder offen ist. Ein Hinweis bei der Wahl
-(„zieht ein, sobald der Waldtümpel angelegt ist“) wäre eine kleine Aufgabe für `ui-dev`.
+(„zieht ein, sobald der Waldtümpel angelegt ist“) wäre eine kleine Aufgabe für `ui-dev`.~~ Umgesetzt (`ui/regular-wait.ts`): In der Stammgäste-Auswahl
+steht unter jeder Amphibie „zieht erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab
+„Alter Baum“)“ (allgemein: Nischen ohne Plätze aus der Stufe). Gewählte Stammgäste, die noch
+nicht im Ökosystem leben, zeigen im laufenden Zyklus, worauf sie warten: „wartet auf den
+Waldtümpel“ (vor „Alter Baum“ mit „(Pflege ab „Alter Baum“)“), „wartet auf „Hain““
+(Freischalt-Stufe oder Nische öffnet mit dem Wachstum), „wartet auf einen freien Platz“ oder
+„zieht am nächsten Wegpunkt ein“. Die Tierdetails nennen bei Amphibien-Stammgästen den Tümpel
+statt „zieht im nächsten Zyklus gleich wieder ein“. Ereignisse, die Tümpelplätze bringen,
+bleiben ungenannt (Spoiler-Regel).
 (3) Amphibien-Gäste (Moorfrosch-Balz) erst mit Gästen am Boden im Renderer.
 
 #### Stand Abgleich Sperrklinke – Teiler, Schwelle und Obergrenze neu (Neustart 100 / 200 Durchgänge)
