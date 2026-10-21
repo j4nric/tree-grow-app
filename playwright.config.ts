@@ -3,7 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 // Minimale Typisierung statt @types/node als zusätzliche Abhängigkeit.
 declare const process: { env: Record<string, string | undefined> };
 
-const PORT = 4173;
+/** Port über E2E_PORT einstellbar, damit lokal kein fremder Server (anderer Worktree) wiederverwendet wird. */
+const PORT = Number(process.env.E2E_PORT ?? 4173);
 const CI = !!process.env.CI;
 
 /**

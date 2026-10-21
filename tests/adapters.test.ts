@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { DECLINE_SEEDS, REROLL_BASE_COST } from '../src/content/encounters';
 import { SPECIES_BY_ID } from '../src/content/species';
 import { evaluate, previewChoice } from '../src/core/formulas';
+import { MAX_OFFLINE_SECONDS } from '../src/core/tick';
+import { formatDuration, formatNumber } from '../src/ui/format';
 import {
   effectView,
   encounterTitle,
@@ -11,6 +13,7 @@ import {
   toEcosystemView,
   toEncounterView,
   toSceneAnimals,
+  welcomeText,
 } from '../src/ui/adapters';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
 
@@ -294,6 +297,41 @@ describe('toEncounterView', () => {
 
   it('gibt null für fehlende Begegnungen', () => {
     expect(toEncounterView(stateAt(3), 0)).toBeNull();
+  });
+});
+
+describe('welcomeText', () => {
+  const report = { seconds: 3600, growth: 1234, seeds: 56, autoDeclined: 0 };
+
+  it('nennt Dauer, Ertrag und wartende Begegnungen', () => {
+    expect(welcomeText(3600, report, 2)).toBe(
+      'Willkommen zurück! In 1 Std.: +1.234 🌿, +56 🌰, 2 Begegnungen warten.',
+    );
+    expect(welcomeText(3600, report, 1)).toContain('1 Begegnung wartet');
+    expect(welcomeText(3600, report, 0)).toBe('Willkommen zurück! In 1 Std.: +1.234 🌿, +56 🌰.');
+  });
+
+  it('nennt die simulierte statt der ungekürzten Abwesenheit', () => {
+    const capped = { ...report, seconds: MAX_OFFLINE_SECONDS };
+    expect(welcomeText(30 * 3600, capped, 3)).toMatch(/^Willkommen zurück! In 8 Std\. \(max\. 8 Std\.\):/);
+  });
+
+  it('nennt automatisch abgelehnte Begegnungen samt Samen', () => {
+    const text = welcomeText(3600, { ...report, autoDeclined: 3 }, 3);
+    expect(text).toContain(`3 Begegnungen zogen weiter: +${3 * DECLINE_SEEDS} 🌰.`);
+    expect(welcomeText(3600, { ...report, autoDeclined: 1 }, 3)).toContain('1 Begegnung zog weiter');
+  });
+
+  it('formatDuration lässt „0 Min.“ bei vollen Stunden weg', () => {
+    expect(formatDuration(8 * 3600)).toBe('8 Std.');
+    expect(formatDuration(3600 + 120)).toBe('1 Std. 2 Min.');
+    expect(formatDuration(59)).toBe('59 Sek.');
+  });
+
+  it('formatNumber: ab 10.000 ohne Nachkommastellen, ab einer Million abgekürzt', () => {
+    expect(formatNumber(12.34)).toBe('12,3');
+    expect(formatNumber(119_899.69)).toBe('119.900');
+    expect(formatNumber(1_234_567)).toMatch(/^1,23\s+Mio\.$/); // geschütztes Leerzeichen
   });
 });
 

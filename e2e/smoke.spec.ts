@@ -235,6 +235,30 @@ test('Neu würfeln kostet Samen, Ablehnen bringt Samen, Escape legt zurück', as
   await expect(stack(page)).toBeVisible();
 });
 
+test('Doppelklick auf „Ablehnen“ lehnt bei gleich aussehenden Begegnungen nur eine ab', async ({
+  page,
+  context,
+}) => {
+  // Keimling: beide Begegnungen bieten nur den Regenwurm an – sie sehen identisch aus.
+  await seedV2(context, {
+    totalGrowth: WAYPOINT[1] + 1,
+    pendingEncounters: [
+      { type: 'animal', cards: ['earthworm'], rerolls: 0 },
+      { type: 'animal', cards: ['earthworm'], rerolls: 0 },
+    ],
+  });
+  await openGame(page);
+  await expect(stageLabel(page)).toHaveText('Stufe: Keimling');
+  await openStack(page);
+  await dialog(page).getByRole('button', { name: /Ablehnen/ }).dblclick();
+
+  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(dialog(page)).toBeVisible();
+  await expect(card(page, 'earthworm')).toBeVisible();
+  await page.waitForTimeout(500);
+  expect((await savedState(page)).pendingEncounters).toHaveLength(1);
+});
+
 test('Volle Nische: Tier ersetzen', async ({ page, context }) => {
   await seedV2(context, {
     totalGrowth: WAYPOINT[6] + 1,
@@ -255,6 +279,8 @@ test('Volle Nische: Tier ersetzen', async ({ page, context }) => {
   await expect(niche(page, 'litter')).toContainText('Rotkehlchen');
   await expect(niche(page, 'litter')).toContainText('Rollassel');
   await expect(niche(page, 'litter')).not.toContainText('Steinläufer');
+  // Der Stapel ist verschwunden: Der Fokus landet auf der Überschrift statt im Nichts.
+  await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
   expect((await savedState(page)).niches.litter).toEqual(['woodlouse', 'robin']);
 });
 
@@ -346,7 +372,10 @@ test('Offline länger als 8 Stunden: Meldung nennt die simulierte Dauer', async 
     lastTickOffsetMs: -30 * 60 * 60 * 1000,
   });
   await openGame(page);
-  await expect(page.locator('#toast')).toContainText('In 8 Std. 0 Min. (max. 8 Std.)');
+  const toast = page.locator('#toast');
+  await expect(toast).toContainText('In 8 Std. (max. 8 Std.)');
+  // Mehr als 3 Wegpunkte: überzählige Begegnungen ziehen weiter und bringen Samen.
+  await expect(toast).toContainText(/Begegnungen? zog(en)? weiter: \+\d+ 🌰/);
 });
 
 test('ohne Offline-Zeit erscheint keine Willkommens-Meldung', async ({ page, context }) => {

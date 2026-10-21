@@ -90,6 +90,11 @@ export interface CardView {
 
 /** Eine wartende Begegnung, bereit zur Anzeige. */
 export interface EncounterView {
+  /**
+   * Eindeutige Kennung der Begegnung (optional). Zwei gleich aussehende Begegnungen
+   * (gleiche Karten) werden daran als verschieden erkannt – wichtig für die Eingabesperre.
+   */
+  key?: string;
   kind: EncounterKind;
   /** Überschrift, z. B. „Etwas regt sich in der Krone …“. */
   title: string;

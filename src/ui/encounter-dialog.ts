@@ -364,6 +364,9 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
 
   function show(view: EncounterView, queued: number): void {
     current = view;
+    // Kam show() direkt nach einer Entscheidung, kurz sperren: Ein zweiter Klick des
+    // Doppelklicks soll nicht die nächste (evtl. gleich aussehende) Begegnung treffen.
+    if (busy) guardUntil = Math.max(guardUntil, performance.now() + INPUT_GUARD_MS);
     busy = false;
     setText(kind, KIND_LABELS[view.kind]);
     setText(title, view.title);
@@ -378,7 +381,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       queuePips.replaceChildren(...Array.from({ length: pips }, () => el('span', 'pip')));
     }
 
-    const nextIds = view.cards.map((c) => c.id).join('|');
+    const nextIds = `${view.key ?? ''}#${view.cards.map((c) => c.id).join('|')}`;
     const nextContent = JSON.stringify(view.cards);
     const newEncounter = nextIds !== idSignature;
     const contentChanged = newEncounter || nextContent !== contentSignature;

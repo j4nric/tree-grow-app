@@ -26,7 +26,7 @@ import {
 } from '../core/formulas';
 import type { GameState } from '../core/state';
 import type { SceneAnimal } from '../render/tree';
-import { allWaypointsReached, rerollBlocker } from '../core/tick';
+import { MAX_OFFLINE_SECONDS, allWaypointsReached, rerollBlocker, type OfflineReport } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
 import type {
   AnimalView,
@@ -384,14 +384,16 @@ export function toCardView(
   let replaceOptions: ReplaceOptionView[] | undefined;
   /** Zustand der Art nach dem Einzug – für Bedingungen ✓/✗. */
   let after: Readonly<Evaluation> | null = null;
+  let blockedFree = false;
 
   if (status === 'free') {
     after = previewChoice(state, encounterIndex, cardIndex);
     if (after) preview = previewView(now, after, sp.id);
+    else blockedFree = true; // Der Kern lehnt den Einzug ab (z. B. Plätze gingen verloren)
   } else if (status === 'full') {
     // Nur Tausche, die der Kern erlaubt: Wer z. B. Höhlenplätze schafft, die noch
     // bewohnt sind, kann nicht entlassen werden (previewChoice → null) – gesperrt zeigen.
-    replaceOptions = state.niches[sp.niche].map((occupant) => {
+    replaceOptions = (state.niches[sp.niche] ?? []).map((occupant) => {
       const option: ReplaceOptionView = { id: occupant, name: SPECIES_BY_ID.get(occupant)?.name ?? occupant };
       const result = previewChoice(state, encounterIndex, cardIndex, occupant);
       if (result) {
@@ -407,7 +409,7 @@ export function toCardView(
     after = now;
   } else if (status === 'closed') {
     // Nur für die Bedingungen: Wie ginge es der Art, wenn sie schon einziehen dürfte?
-    const niches = { ...state.niches, [sp.niche]: [...state.niches[sp.niche], sp.id] };
+    const niches = { ...state.niches, [sp.niche]: [...(state.niches[sp.niche] ?? []), sp.id] };
     after = evaluateEcosystem({ stage: state.stage, niches, forestMemory: state.meta.forestMemory });
   }
 
@@ -429,8 +431,8 @@ export function toCardView(
     card.nicheFull = true;
     card.replaceOptions = replaceOptions;
   }
-  const reason =
-    status === 'full' && !replaceOptions?.some((o) => !o.disabledReason) ? 'Kein Tausch möglich' : DISABLED_REASONS[status];
+  const noSwap = status === 'full' && !replaceOptions?.some((o) => !o.disabledReason);
+  const reason = blockedFree ? 'Gerade nicht möglich' : noSwap ? 'Kein Tausch möglich' : DISABLED_REASONS[status];
   if (reason) card.disabledReason = reason;
   return card;
 }
@@ -501,4 +503,27 @@ export function toSceneAnimals(state: GameState, evaluation: Readonly<Evaluation
     });
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Meldungen
+// ---------------------------------------------------------------------------
+
+/** Willkommens-Meldung nach Abwesenheit (DESIGN_V2.md, 7.6). */
+export function welcomeText(
+  away: number,
+  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined'>,
+  waiting: number,
+): string {
+  // Simuliert werden höchstens MAX_OFFLINE_SECONDS – die Meldung nennt die tatsächliche Zeit.
+  const capped = report.seconds < away ? ` (max. ${formatDuration(MAX_OFFLINE_SECONDS)})` : '';
+  const parts = [`+${formatNumber(report.growth)} 🌿`, `+${formatNumber(report.seeds)} 🌰`];
+  if (waiting > 0) parts.push(waiting === 1 ? '1 Begegnung wartet' : `${formatNumber(waiting)} Begegnungen warten`);
+  let text = `Willkommen zurück! In ${formatDuration(report.seconds)}${capped}: ${parts.join(', ')}.`;
+  if (report.autoDeclined > 0) {
+    const n = report.autoDeclined;
+    const who = n === 1 ? '1 Begegnung zog' : `${formatNumber(n)} Begegnungen zogen`;
+    text += ` ${who} weiter: +${formatNumber(n * declineReward())} 🌰.`;
+  }
+  return text;
 }

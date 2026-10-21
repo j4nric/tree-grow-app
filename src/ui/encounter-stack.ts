@@ -31,7 +31,11 @@ export function createEncounterStack(root: HTMLElement, onOpen: () => void): Enc
   cards.append(el('span', 'stack-card'), el('span', 'stack-card'), el('span', 'stack-card'), icon);
   const text = el('span', 'stack-text');
   button.append(cards, text);
-  root.append(button);
+  // Ansage für Screenreader, wenn eine Begegnung dazukommt (außerhalb des Knopfs,
+  // damit sie auch beim ersten Erscheinen gelesen wird).
+  const live = el('span', 'sr-only');
+  live.setAttribute('role', 'status');
+  root.append(button, live);
 
   button.addEventListener('click', onOpen);
 
@@ -47,7 +51,10 @@ export function createEncounterStack(root: HTMLElement, onOpen: () => void): Enc
     setAttr(button, 'aria-label', `${waitingText(count)} – ansehen`);
     button.dataset.count = String(Math.min(count, 3));
     // Neue Begegnung: kurz anstupsen (bei reduzierter Bewegung nur Aufleuchten, siehe CSS)
-    if (grew) restartAnimation(button, 'nudge');
+    if (grew) {
+      restartAnimation(button, 'nudge');
+      live.textContent = `Neue Begegnung: ${waitingText(count)}`;
+    }
   }
 
   return { update, element: button };
