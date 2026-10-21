@@ -1366,6 +1366,24 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
   Hinweis sichtbar, der Name dagegen nie (auch nicht in Attributen oder IDs). Unentdeckte
   Gemeinschaften zeigen nur Rätselhinweis und Fortschritt „x/y“ (Spoiler-Regel, 9.2).
 - **Pflege** als Schalterliste.
+- **Tierdetails:** Jede Tier-Kachel in den Nischen ist ein Knopf (Klick, Tippen, Enter)
+  und öffnet einen Dialog im Stil der Begegnungskarte: Gattung, Seltenheit, Nische,
+  Zufriedenheit mit Ring und Stimmung; **Beitrag gerade** als Vorschau-Chips (⚖️, 🌿, 🌰,
+  😊) = Ökosystem jetzt gegenüber demselben ohne diese Art (Kern rechnet beide Seiten);
+  **Zufriedenheit – warum?** mit Futter (Anteil gedeckt, mit wem geteilt), Wünschen ✓/✗,
+  Grundzufriedenheit der Seltenheit, Störern, Räubern, Jahreszeit, Baumart und
+  Fähigkeiten; Wirkungen, Fähigkeiten, Lebensgemeinschaften, Stammgast-Status und
+  Tagebuch-Text. **Unentdeckte Gemeinschaften** erscheinen an der Art nur als Anzahl
+  („Gehört zu einer noch unentdeckten Lebensgemeinschaft“) – ohne Name, Rätselhinweis
+  und Fortschritt: „2/3“ an einer bestimmten Art verriete, dass die übrigen Mitglieder
+  schon im Ökosystem leben (Spoiler-Regel 9.2; Hinweise und Fortschritt stehen im
+  Tagebuch). Die Jahreszeit zählt mit Hauptbaum (die Kiefer streicht Abzüge).
+  **Platz-Schaffer** (Buntspecht, Borkenkäfer, Schwarzspecht …) bekommen unter dem
+  Beitrag den Hinweis, dass ohne sie Plätze wegfielen und Bewohner ausziehen müssten –
+  die Chips rechnen mit allen Bewohnern und zeigen das nicht.
+  Keine Spielaktion im Dialog (kein Ersetzen oder Entlassen). Die gekürzte Stimmung auf
+  der Kachel steht voll im Tooltip und in den Tierdetails (früheres Aufklappen per
+  Tippen entfällt). Einstieg auch für die Szene: `openAnimalDetail(target)` in `main.ts`.
 
 ### 11.3 Tiere im Baum (Renderer)
 
