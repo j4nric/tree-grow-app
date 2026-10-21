@@ -553,3 +553,78 @@ export interface CareView {
   /** Vorschau des nächsten Rangs (Harmonie in Punkten, 🌿/🌰 relativ); null, wenn voll ausgebaut. */
   preview: { harmonyDelta: number; growthDelta: number; seedDelta: number } | null;
 }
+
+/**
+ * Ein Einfluss auf die Zufriedenheit, der kein Wunsch ist: Störer, Räuber, Jahreszeit,
+ * Baumart oder Fähigkeiten, z. B. „wird gestört von Eichelhäher (−15 Prozentpunkte)“.
+ */
+export interface DetailFactorView {
+  /** Schlüssel für Tests und DOM (z. B. `disturb`, `season`). */
+  key: string;
+  icon: string;
+  label: string;
+  tone: Tone;
+}
+
+/** Eine Fähigkeit der Art in der Tierdetail-Ansicht. */
+export interface DetailAbilityView {
+  name: string;
+  text: string;
+  /** Wirkt gerade (laut Auswertung). */
+  active: boolean;
+}
+
+/**
+ * Eine Lebensgemeinschaft, zu der die Art gehört. Unentdeckte erscheinen neutral wie im
+ * Naturtagebuch: „???“, ohne Name und ohne ID (Schlüssel `unknown-community-n`).
+ */
+export interface DetailCommunityView {
+  key: string;
+  discovered: boolean;
+  icon: string;
+  name: string;
+  active: boolean;
+  /** z. B. „2/3 Mitglieder“ – solange sie nicht besteht. */
+  progress?: string;
+  /** Wirkung, z. B. „+8 Harmonie · +5 % 🌿“ (nur entdeckte). */
+  effect?: string;
+  /** Rätselhinweis (nur unentdeckte). */
+  hint?: string;
+}
+
+/**
+ * Tierdetails (Klick auf eine eingezogene Art): alles wie auf der Begegnungskarte, aber
+ * mit den Werten von jetzt. Alle Zahlen stammen aus der Auswertung des Kerns.
+ */
+export interface AnimalDetailView {
+  id: string;
+  name: string;
+  family: FamilyKey;
+  familyLabel: string;
+  familyIcon: string;
+  rarity: Rarity;
+  nicheId: string;
+  /** z. B. „🌳 Krone“. */
+  nicheLabel: string;
+  /** Zufriedenheit 0–1 (`evaluate(state).animals[id].happiness`). */
+  happiness: number;
+  /** Stimmung wie auf der Kachel. */
+  mood: string;
+  /**
+   * Beitrag zum Ökosystem: jetzt gegenüber „ohne diese Art“ – Harmonie in Punkten, 🌿/🌰
+   * relativ; `happiness` = aktuelle Zufriedenheit (für den 😊-Chip).
+   */
+  contribution: PreviewView;
+  /** Futter und Wünsche mit ✓/✗ (Futter mit Anteil und Konkurrenz). */
+  conditions: ConditionView[];
+  /** Weitere Einflüsse: Störer, Räuber, Jahreszeit, Baumart, Fähigkeiten. */
+  factors: DetailFactorView[];
+  /** Wirkungen der Art (ohne Fähigkeiten). */
+  effects: EffectView[];
+  abilities: DetailAbilityView[];
+  communities: DetailCommunityView[];
+  /** Stammgast-Status als Text; null, solange es keine Stammgast-Plätze gibt. */
+  regular: string | null;
+  /** Naturtext aus dem Tagebuch. */
+  text?: string;
+}

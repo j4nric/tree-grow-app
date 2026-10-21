@@ -44,6 +44,11 @@ export interface EcosystemPanelCallbacks {
   onOpenPlantPicker?(): void;
   /** „N Begegnungen warten – ansehen“ gedrückt: Kartenwahl-Dialog öffnen. */
   onOpenEncounters?(): void;
+  /**
+   * Tier-Kachel gedrückt: Tierdetails öffnen. `index` = Platz in `state.niches[nicheId]`,
+   * `button` = die Kachel (bekommt beim Schließen den Fokus zurück).
+   */
+  onOpenAnimal?(nicheId: string, index: number, speciesId: string, button: HTMLButtonElement): void;
 }
 
 interface PlantTile {
@@ -87,6 +92,10 @@ interface FamilyChip {
 
 interface SlotTile {
   root: HTMLElement;
+  /** Knopf über der ganzen Kachel (nur bei eingezogenen Tieren im DOM). */
+  button: HTMLButtonElement;
+  /** Inhalt der Kachel – liegt im Knopf (Tier) oder direkt im Listenpunkt (frei). */
+  parts: HTMLElement[];
   ring: HTMLElement;
   icon: HTMLElement;
   name: HTMLElement;
@@ -434,7 +443,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     }
   }
 
-  function buildSlot(): SlotTile {
+  function buildSlot(nicheId: string, index: number): SlotTile {
     const li = el('li', 'slot empty');
     const ring = el('span', 'slot-ring');
     ring.setAttribute('aria-hidden', 'true');
@@ -442,22 +451,32 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     ring.append(icon);
     const text = el('span', 'slot-text');
     const name = el('span', 'slot-name');
+    // Gekürzte Gründe: voller Text im Tooltip und in den Tierdetails (Tippen auf die Kachel).
     const mood = el('span', 'slot-mood');
-    // Gekürzte Gründe lassen sich per Tippen bzw. Enter/Leertaste aufklappen (kein Hover auf Touch).
-    const toggleMood = (): void => {
-      if (!mood.hasAttribute('tabindex')) return;
-      mood.setAttribute('aria-expanded', String(mood.classList.toggle('expanded')));
-    };
-    mood.addEventListener('click', toggleMood);
-    mood.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      e.preventDefault();
-      toggleMood();
-    });
     text.append(name, mood);
     const sr = srOnly();
-    li.append(ring, text, sr);
-    return { root: li, ring, icon, name, mood, sr, animalId: null };
+    // Die ganze Kachel eines Tiers ist ein Knopf → Tierdetails. Freie Plätze bleiben schlicht.
+    const button = el('button', 'slot-open');
+    button.type = 'button';
+    button.setAttribute('aria-haspopup', 'dialog');
+    const tile: SlotTile = { root: li, button, parts: [ring, text, sr], ring, icon, name, mood, sr, animalId: null };
+    button.addEventListener('click', () => {
+      if (tile.animalId) callbacks.onOpenAnimal?.(nicheId, index, tile.animalId, button);
+    });
+    li.append(...tile.parts);
+    return tile;
+  }
+
+  /** Inhalt in den Knopf (Tier) bzw. direkt in den Listenpunkt (freier Platz) hängen. */
+  function placeParts(tile: SlotTile, interactive: boolean): void {
+    const inButton = tile.button.parentElement === tile.root;
+    if (interactive === inButton) return;
+    if (interactive) {
+      tile.button.append(...tile.parts);
+      tile.root.replaceChildren(tile.button);
+    } else {
+      tile.root.replaceChildren(...tile.parts);
+    }
   }
 
   function updateSlot(tile: SlotTile, animal: AnimalView | undefined): void {
@@ -471,9 +490,8 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
       setText(tile.name, 'frei');
       setText(tile.mood, '');
       tile.mood.removeAttribute('title');
-      for (const a of ['tabindex', 'role', 'aria-expanded']) tile.mood.removeAttribute(a);
-      tile.mood.classList.remove('expanded');
       setText(tile.sr, '');
+      placeParts(tile, false);
       return;
     }
     const happiness = unitInterval(animal.happiness);
@@ -490,13 +508,11 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     setText(tile.name, hyphenate(animal.name));
     const mood = `${formatPercent(happiness)} · ${animal.mood}`;
     setText(tile.mood, mood);
-    // Lange Gründe sind optisch auf zwei Zeilen gekürzt – voller Text im Tooltip und per Tippen.
+    // Lange Gründe sind optisch auf zwei Zeilen gekürzt – voller Text im Tooltip und in den Tierdetails.
     setAttr(tile.mood, 'title', mood);
-    setAttr(tile.mood, 'tabindex', '0');
-    setAttr(tile.mood, 'role', 'button');
-    if (!tile.mood.hasAttribute('aria-expanded')) tile.mood.setAttribute('aria-expanded', 'false');
     setVar(tile.ring, '--h', happiness.toFixed(3));
-    setText(tile.sr, `, ${RARITY_LABELS[animal.rarity]}${animal.visitor ? ', zu Gast' : ''}`);
+    setText(tile.sr, `, ${RARITY_LABELS[animal.rarity]}${animal.visitor ? ', zu Gast' : ''}. Details ansehen`);
+    placeParts(tile, Boolean(callbacks.onOpenAnimal));
   }
 
   function buildNiche(niche: NicheView): NicheRow {
@@ -532,7 +548,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
 
       const needed = locked ? 0 : Math.max(niche.capacity, used);
       while (row.slots.length < needed) {
-        const tile = buildSlot();
+        const tile = buildSlot(niche.id, row.slots.length);
         row.slots.push(tile);
         row.list.append(tile.root);
       }

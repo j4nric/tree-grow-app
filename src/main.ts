@@ -53,6 +53,8 @@ import { createCarePanel } from './ui/care-panel';
 import { createCyclePanel } from './ui/cycle-panel';
 import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText, toCyclePanelView, withRegulars } from './ui/cycle-view';
 import { createEcosystemPanel } from './ui/ecosystem-panel';
+import { createAnimalDetailDialog } from './ui/animal-detail-dialog';
+import { toAnimalDetailView, type AnimalDetailTarget } from './ui/animal-detail-view';
 import { createEncounterDialog } from './ui/encounter-dialog';
 import { createEncounterStack } from './ui/encounter-stack';
 import { createFloatLayer } from './ui/feedback';
@@ -214,6 +216,7 @@ const scene: SceneInput = {
 const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosystem')!, {
   onOpenPlantPicker: openPlantPicker,
   onOpenEncounters: openEncounters,
+  onOpenAnimal: (_niche, _index, speciesId, button) => openAnimalDetail(speciesId, button),
 });
 const bonusPanel = createBonusPanel(document.querySelector<HTMLElement>('#bonuses')!);
 const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!, {
@@ -268,13 +271,31 @@ const journal = createJournalDialog(document.body, {
   onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
 });
 createJournalButton(document.querySelector<HTMLElement>('#journal')!, openJournal);
+const animalDetail = createAnimalDetailDialog(document.body);
 
 // --- Aktionen ------------------------------------------------------------------------
+
+/**
+ * Tierdetails einer eingezogenen Art öffnen – aus der Seitenleiste und (später) per Klick
+ * auf ein Tier in der Szene. `target`: Art-ID oder `{ niche, index }` (Platz in
+ * `state.niches`). `returnFocus`: bekommt beim Schließen den Fokus (Standard: aktives
+ * Element). Gibt false zurück, wenn dort kein Tier lebt.
+ */
+function openAnimalDetail(target: AnimalDetailTarget, returnFocus?: HTMLElement | null): boolean {
+  const view = toAnimalDetailView(state, target, evaluate(state));
+  if (!view) return false;
+  closeEncounters();
+  closePlantPicker();
+  journal.hide();
+  animalDetail.show(view, returnFocus);
+  return true;
+}
 
 /** „📖 Naturtagebuch“: andere Dialoge schließen, Tagebuch zeigen. */
 function openJournal(): void {
   closeEncounters();
   closePlantPicker();
+  animalDetail.hide();
   journal.show(toJournalView(state, evaluate(state)));
 }
 
@@ -420,6 +441,7 @@ function notify(text: string): void {
   if (picker.open) picker.notice(text);
   else if (dialog.open) dialog.notice(text);
   else if (journal.open) journal.notice(text);
+  else if (animalDetail.open) animalDetail.notice(text);
   else if (!help?.notice(text)) showToast(text);
 }
 
@@ -489,6 +511,15 @@ function refreshPanel(now: number): void {
     // Zeit-Erfolge („Ein ganzes Jahr“, „Geduld der Bäume“): Fortschritt nur als Text.
     journal.updateAchievementProgress(toAchievementTimeProgress(state));
   }
+  // Tierdetails: gedrosselt wie die Statistik; zieht die Art aus, schließt der Dialog.
+  // Zeichnet sich nichts ab (gleiche Auswertung), reicht einmal je DETAIL_REFRESH_MS.
+  const detailId = animalDetail.speciesId;
+  const detailEv = evaluate(state);
+  if (detailId && (detailEv !== detailEvaluation || now - lastDetailRefresh >= DETAIL_REFRESH_MS)) {
+    detailEvaluation = detailEv;
+    lastDetailRefresh = now;
+    animalDetail.update(toAnimalDetailView(state, detailId, detailEv));
+  }
   // Restzeiten der Boni laufen – gedrosselt wie die Zahlen der Seitenleiste.
   bonusPanel.update(activeBonusViews(state));
   refreshCare();
@@ -513,6 +544,10 @@ function refreshCare(): void {
   carePanel.update(toCareViews(state, ev));
 }
 let careEvaluation: Readonly<Evaluation> | null = null;
+/** Tierdetails: zuletzt genutzte Auswertung und Zeitpunkt (gedrosselt, siehe refreshPanel). */
+let detailEvaluation: Readonly<Evaluation> | null = null;
+let lastDetailRefresh = 0;
+const DETAIL_REFRESH_MS = 1000;
 
 function refreshViews(now: number): void {
   refreshSeasonBadge();
@@ -549,7 +584,7 @@ function tickNoteText(report: TickReport): string | null {
  * zusammengefasst werden, sonst ersetzt der letzte die früheren.
  */
 function overlayOpen(): boolean {
-  return picker.open || dialog.open || journal.open || !!help?.open;
+  return picker.open || dialog.open || journal.open || animalDetail.open || !!help?.open;
 }
 
 /**
@@ -633,6 +668,7 @@ function replaceState(next: GameState): void {
   closeEncounters();
   closePlantPicker();
   journal.hide();
+  animalDetail.hide();
   encounterSerial++;
   encounterDirty = true;
   ecoDirty = true;

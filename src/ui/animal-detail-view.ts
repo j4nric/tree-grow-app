@@ -1,0 +1,246 @@
+/**
+ * View-Model der Tierdetails (Klick auf eine eingezogene Art in der Seitenleiste oder –
+ * später – in der Szene). Reine Funktionen ohne DOM, getestet in tests/animal-detail.test.ts.
+ *
+ * Alle Zahlen kommen aus der Auswertung des Kerns (`evaluate`, `evaluateEcosystem`,
+ * `environmentEffects`); hier stehen nur Texte, Symbole und Reihenfolge. Der Beitrag einer
+ * Art ist der Unterschied zwischen dem Ökosystem jetzt und demselben Ökosystem ohne sie –
+ * genau wie die Vorschau auf der Begegnungskarte (`previewView`).
+ */
+import { ABILITY_INFO, ARCHITECT, CALM_MIN_HAPPINESS, DECOMPOSER_BOOST } from '../content/abilities';
+import { COMMUNITIES } from '../content/communities';
+import { NICHES_BY_ID } from '../content/niches';
+import { SEASONS_BY_ID } from '../content/seasons';
+import { BASE_HAPPINESS, GENUS_INFO, RARITY_NAMES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
+import type { NicheId } from '../content/types';
+import {
+  DISTURB_PENALTY,
+  PREDATION_MAX_HUNTERS,
+  PREDATION_PENALTY,
+  ecosystemOf,
+  environmentEffects,
+  evaluate,
+  evaluateEcosystem,
+  mainTreeOf,
+  memberOptions,
+  regularSlots,
+  type AnimalStatus,
+  type Evaluation,
+} from '../core/formulas';
+import { seasonIdAt } from '../core/season';
+import { allAnimals, type GameState } from '../core/state';
+import {
+  conditionViews,
+  disturbersOf,
+  effectView,
+  foodCompetitors,
+  foodLabel,
+  huntersOf,
+  listNames,
+  missingMembersText,
+  moodText,
+  previewView,
+  rarityKey,
+} from './adapters';
+import { formatNumber } from './format';
+import { formatPercent } from './view-format';
+import type {
+  AnimalDetailView,
+  ConditionView,
+  DetailAbilityView,
+  DetailCommunityView,
+  DetailFactorView,
+  EffectView,
+} from './view-model';
+
+/** Wen zeigen? Art-ID oder Platz in einer Nische (Index wie in `state.niches[niche]`). */
+export type AnimalDetailTarget = string | { niche: NicheId | string; index: number };
+
+/** Art-ID eines eingezogenen Tiers – null, wenn dort (bzw. überhaupt) keines lebt. */
+export function resolveAnimal(state: Pick<GameState, 'niches'>, target: AnimalDetailTarget): string | null {
+  if (typeof target === 'string') return allAnimals(state as GameState).includes(target) ? target : null;
+  const list = (state.niches as Record<string, readonly string[] | undefined>)[target.niche] ?? [];
+  const id = list[target.index];
+  return id !== undefined && SPECIES_BY_ID.has(id) ? id : null;
+}
+
+/** Prozentpunkte, z. B. „+15 Prozentpunkte“ bzw. „−10 Prozentpunkte“. */
+function points(fraction: number): string {
+  const value = Math.round(fraction * 100);
+  return `${value < 0 ? '−' : '+'}${formatNumber(Math.abs(value))} Prozentpunkte`;
+}
+
+/** Futterzeile: wie viel gedeckt ist und mit wem die Art es teilt. */
+function foodCondition(sp: Species, status: AnimalStatus | undefined, present: readonly string[]): ConditionView {
+  const food = status?.food ?? 0;
+  const row: ConditionView = { label: foodLabel(sp), met: food > 0 };
+  if (food <= 0) {
+    row.hint = 'kein passendes Futter da';
+    return row;
+  }
+  const rivals = foodCompetitors(sp, present)
+    .map((id) => SPECIES_BY_ID.get(id)?.name)
+    .filter((n): n is string => n !== undefined);
+  const share = `${formatPercent(Math.min(1, food))} gedeckt`;
+  row.hint = rivals.length > 0 ? `${share} · teilt sich das Futter mit ${listNames(rivals, 3)}` : share;
+  return row;
+}
+
+/** Einflüsse jenseits von Futter und Wünschen – in der Reihenfolge der Formel. */
+function factorViews(state: GameState, sp: Species, status: AnimalStatus | undefined, ev: Readonly<Evaluation>): DetailFactorView[] {
+  const present = allAnimals(state);
+  const factors: DetailFactorView[] = [];
+  const base = BASE_HAPPINESS[sp.rarity] ?? 0;
+  factors.push({
+    key: 'base',
+    icon: '◆',
+    label: `Grundzufriedenheit (${RARITY_NAMES[sp.rarity] ?? ''}): ${formatPercent(base)}`,
+    tone: 'neutral',
+  });
+  if (status && status.disturbers > 0) {
+    const names = disturbersOf(sp, present).map((id) => SPECIES_BY_ID.get(id)!.name);
+    factors.push({
+      key: 'disturb',
+      icon: '😣',
+      label: `wird gestört von ${listNames(names, 3)} (${points(-DISTURB_PENALTY * status.disturbers)})`,
+      tone: 'bad',
+    });
+  }
+  if (status && status.hunters > 0) {
+    const names = huntersOf(sp, present).map((id) => SPECIES_BY_ID.get(id)!.name);
+    const loss = PREDATION_PENALTY * Math.min(PREDATION_MAX_HUNTERS, status.hunters);
+    factors.push({ key: 'hunters', icon: '👀', label: `ist auf der Hut vor ${listNames(names, 3)} (${points(-loss)})`, tone: 'bad' });
+  }
+  // Jahreszeit und Baumart: Zufriedenheit der Gattung (Wirkung `happiness`, Kern).
+  const genusName = GENUS_INFO[sp.genus].name;
+  const sum = (list: readonly { genus: string; points: number }[]) =>
+    list.filter((e) => e.genus === sp.genus).reduce((s, e) => s + e.points, 0) / 100;
+  if (state.cycle?.elapsed !== undefined) {
+    const seasonId = seasonIdAt(state.cycle.elapsed);
+    const season = SEASONS_BY_ID.get(seasonId);
+    const value = sum(environmentEffects(state.stage, seasonId).happiness);
+    if (season) {
+      factors.push({
+        key: 'season',
+        icon: season.icon,
+        label: value !== 0 ? `${season.name}: ${points(value)}` : `${season.name}: keine Wirkung auf ${genusName}`,
+        tone: value > 0 ? 'good' : value < 0 ? 'bad' : 'neutral',
+      });
+    }
+  }
+  if (state.cycle?.mainTree !== undefined) {
+    const tree = mainTreeOf(state.cycle.mainTree);
+    const value = sum(environmentEffects(state.stage, undefined, tree.id).happiness);
+    if (value !== 0) factors.push({ key: 'tree', icon: tree.icon, label: `${tree.name}: ${points(value)}`, tone: value > 0 ? 'good' : 'bad' });
+  }
+  if (ev.abilities.includes('decomposerBoost') && sp.level === DECOMPOSER_BOOST.level) {
+    factors.push({ key: 'decomposerBoost', icon: '✨', label: `${ABILITY_INFO.decomposerBoost.name}: ${points(DECOMPOSER_BOOST.happiness)}`, tone: 'good' });
+  }
+  if (ev.abilities.includes('architect') && sp.niche === ARCHITECT.niche) {
+    factors.push({ key: 'architect', icon: '✨', label: `${ABILITY_INFO.architect.name}: ${points(ARCHITECT.happiness)}`, tone: 'good' });
+  }
+  if (sp.effects.some((e) => e.kind === 'ability' && e.id === 'calm')) {
+    factors.push({ key: 'calm', icon: '✨', label: `${ABILITY_INFO.calm.name}: nie unter ${formatPercent(CALM_MIN_HAPPINESS)}`, tone: 'good' });
+  }
+  return factors;
+}
+
+/** Lebensgemeinschaften mit dieser Art – unentdeckte ohne Name und ID (wie im Tagebuch). */
+function communityViews(state: GameState, sp: Species, ev: Readonly<Evaluation>): DetailCommunityView[] {
+  const discovered = state.meta.journal.communities;
+  const status = new Map(ev.communities.map((c) => [c.id, c]));
+  let hidden = 0;
+  return COMMUNITIES.filter((c) => c.members.some((m) => memberOptions(m).includes(sp.id))).map((c) => {
+    const s = status.get(c.id);
+    const active = s?.active ?? false;
+    const progress = s && !active ? `${formatNumber(s.present)}/${formatNumber(s.total)} Mitglieder` : undefined;
+    // Wie in der Seitenleiste: Was gerade besteht, gilt als entdeckt.
+    if (!active && !discovered.includes(c.id)) {
+      const view: DetailCommunityView = { key: `unknown-community-${hidden++}`, discovered: false, icon: '❔', name: '???', active: false, hint: c.hint };
+      if (progress) view.progress = progress;
+      return view;
+    }
+    const view: DetailCommunityView = {
+      key: c.id,
+      discovered: true,
+      icon: c.icon,
+      name: c.name,
+      active,
+      effect: [`+${formatNumber(s?.harmony || c.harmony)} Harmonie`, ...c.effects.map((e) => effectView(e).label)].join(' · '),
+    };
+    if (progress) view.progress = `${progress} – fehlt: ${missingMembersText(s!.missing)}`;
+    return view;
+  });
+}
+
+/**
+ * Tierdetails einer eingezogenen Art; null, wenn sie nicht (mehr) im Ökosystem lebt.
+ * `now` = `evaluate(state)` (aus main.ts übergeben, damit sie nur einmal gerechnet wird).
+ */
+export function toAnimalDetailView(
+  state: GameState,
+  target: AnimalDetailTarget,
+  now: Readonly<Evaluation> = evaluate(state),
+): AnimalDetailView | null {
+  const id = resolveAnimal(state, target);
+  const sp = id === null ? undefined : SPECIES_BY_ID.get(id);
+  if (!sp) return null;
+  const status = now.animals[sp.id];
+  const present = allAnimals(state);
+  const others = present.filter((x) => x !== sp.id);
+
+  // Beitrag: jetzt gegenüber dem Ökosystem ohne diese Art (Kern rechnet beide Seiten).
+  const niches = { ...state.niches, [sp.niche]: (state.niches[sp.niche] ?? []).filter((x) => x !== sp.id) };
+  const without = evaluateEcosystem(ecosystemOf(state, { niches }));
+  const contribution = previewView(without, now, sp.id);
+  // Gemeinschaften stehen unten mit Spoiler-Regel – nicht als Vorschau-Hinweis.
+  delete contribution.communities;
+
+  const conditions = conditionViews(sp, status, others);
+  conditions[0] = foodCondition(sp, status, others);
+
+  const effects: EffectView[] = [];
+  const abilities: DetailAbilityView[] = [];
+  for (const e of sp.effects) {
+    if (e.kind === 'ability') {
+      const info = ABILITY_INFO[e.id];
+      abilities.push({ name: info.name, text: info.text, active: now.abilities.includes(e.id) });
+    } else {
+      effects.push(effectView(e));
+    }
+  }
+  if (sp.provides.length > 0) {
+    // „bietet …“ wie auf der Karte (letzte Zeile von effectViews).
+    effects.push({ label: `bietet ${sp.provides.map((t) => TAG_NAMES[t]).join(', ')}`, tone: 'neutral' });
+  }
+
+  let regular: string | null = null;
+  if (regularSlots(state.meta.forestMemory) > 0) {
+    regular = state.meta.regulars.includes(sp.id)
+      ? '★ Stammgast – zieht im nächsten Zyklus gleich wieder ein'
+      : '☆ Kein Stammgast – im Naturtagebuch wählbar';
+  }
+
+  const niche = NICHES_BY_ID.get(sp.niche);
+  const view: AnimalDetailView = {
+    id: sp.id,
+    name: sp.name,
+    family: sp.genus,
+    familyLabel: GENUS_INFO[sp.genus].name,
+    familyIcon: GENUS_INFO[sp.genus].icon,
+    rarity: rarityKey(sp.rarity),
+    nicheId: sp.niche,
+    nicheLabel: niche ? `${niche.icon} ${niche.name}` : sp.niche,
+    happiness: status?.happiness ?? 0,
+    mood: moodText(sp, status, present),
+    contribution,
+    conditions,
+    factors: factorViews(state, sp, status, now),
+    effects,
+    abilities,
+    communities: communityViews(state, sp, now),
+    regular,
+    text: sp.text,
+  };
+  return view;
+}
