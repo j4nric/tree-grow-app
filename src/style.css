@@ -781,6 +781,11 @@ dialog.encounter::backdrop {
 }
 
 /* Kartenwahl: Aktionen bleiben am unteren Rand sichtbar, auch wenn der Dialog scrollt */
+dialog.encounter:not(.plant-picker) {
+  /* Fokus nicht unter der klebenden Aktionsleiste verstecken (WCAG 2.4.11) */
+  scroll-padding-bottom: 72px;
+}
+
 dialog.encounter:not(.plant-picker) .encounter-actions {
   position: sticky;
   bottom: 0;
@@ -1235,6 +1240,16 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
+}
+
+.slot-mood[role='button'] {
+  cursor: pointer;
+}
+
+.slot-mood.expanded {
+  -webkit-line-clamp: unset;
+  line-clamp: none;
+  overflow: visible;
 }
 
 .slot.arrive {

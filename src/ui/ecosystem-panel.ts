@@ -318,6 +318,17 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     const text = el('span', 'slot-text');
     const name = el('span', 'slot-name');
     const mood = el('span', 'slot-mood');
+    // Gekürzte Gründe lassen sich per Tippen bzw. Enter/Leertaste aufklappen (kein Hover auf Touch).
+    const toggleMood = (): void => {
+      if (!mood.hasAttribute('tabindex')) return;
+      mood.setAttribute('aria-expanded', String(mood.classList.toggle('expanded')));
+    };
+    mood.addEventListener('click', toggleMood);
+    mood.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      toggleMood();
+    });
     text.append(name, mood);
     const sr = srOnly();
     li.append(ring, text, sr);
@@ -335,6 +346,8 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
       setText(tile.name, 'frei');
       setText(tile.mood, '');
       tile.mood.removeAttribute('title');
+      for (const a of ['tabindex', 'role', 'aria-expanded']) tile.mood.removeAttribute(a);
+      tile.mood.classList.remove('expanded');
       setText(tile.sr, '');
       return;
     }
@@ -352,8 +365,11 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     setText(tile.name, animal.name);
     const mood = `${formatPercent(happiness)} · ${animal.mood}`;
     setText(tile.mood, mood);
-    // Lange Gründe sind optisch auf zwei Zeilen gekürzt – der volle Text steht im Tooltip.
+    // Lange Gründe sind optisch auf zwei Zeilen gekürzt – voller Text im Tooltip und per Tippen.
     setAttr(tile.mood, 'title', mood);
+    setAttr(tile.mood, 'tabindex', '0');
+    setAttr(tile.mood, 'role', 'button');
+    if (!tile.mood.hasAttribute('aria-expanded')) tile.mood.setAttribute('aria-expanded', 'false');
     setVar(tile.ring, '--h', happiness.toFixed(3));
     setText(tile.sr, `, ${RARITY_LABELS[animal.rarity]}${animal.visitor ? ', zu Gast' : ''}`);
   }

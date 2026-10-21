@@ -579,7 +579,7 @@ test('Wegpunkt bei vollem Stapel: dezenter Hinweis mit den Samen dafür', async 
   expect(saved.waypoint).toBe(7);
 });
 
-test('Tab kommt nach 20 s zurück, ein Wegpunkt bei vollem Stapel verpasst: Hinweis statt Willkommen', async ({
+test('Start 20 s nach dem letzten Speichern, ein Wegpunkt bei vollem Stapel verpasst: Hinweis statt Willkommen', async ({
   page,
   context,
 }) => {
@@ -694,7 +694,7 @@ test.describe('Feinschliff mobil (390×844)', () => {
     await expect(decline).toBeInViewport();
   });
 
-  test('lange Gründe: Tier-Kacheln bleiben flach, der volle Text steht im Tooltip', async ({ page, context }) => {
+  test('lange Gründe: Tier-Kacheln bleiben flach, der volle Text per Tooltip und Tippen', async ({ page, context }) => {
     await seedV3(context, {
       totalGrowth: waypoint(12) + 1,
       plants: ['birch', 'hazel', 'anemone', 'moss', 'rowan'],
@@ -718,5 +718,12 @@ test.describe('Feinschliff mobil (390×844)', () => {
       lineHeight: parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.3,
     }));
     expect(height).toBeLessThanOrEqual(lineHeight * 2 + 1);
+    // Wirklich gekürzt – und per Tippen bzw. Tastatur vollständig lesbar
+    expect(await mood.evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
+    await mood.click();
+    await expect(mood).toHaveAttribute('aria-expanded', 'true');
+    expect(await mood.evaluate((e) => e.scrollHeight <= e.clientHeight + 1)).toBe(true);
+    await mood.press('Enter');
+    await expect(mood).toHaveAttribute('aria-expanded', 'false');
   });
 });

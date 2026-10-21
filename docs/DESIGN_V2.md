@@ -572,7 +572,8 @@ Jedes Ereignis höchstens einmal pro Zyklus. Keine Option ist eine Strafe.
   werden die überzähligen automatisch **abgelehnt und als Samen gutgeschrieben**
   (Empfehlung, siehe Frage 1) – nichts verfällt.
 - Willkommen-zurück-Meldung: „Während du weg warst: +12.400 🌿, +2.100 🌰, 3 Begegnungen
-  warten.“
+  warten.“ Erst ab 60 s Abwesenheit; bei kürzeren Pausen (Tab-Wechsel) erscheint nur der
+  kurze Hinweis „Stapel voll – …“, falls dabei Begegnungen weitergezogen sind.
 
 ---
 
