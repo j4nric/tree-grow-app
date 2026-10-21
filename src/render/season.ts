@@ -153,15 +153,16 @@ const COOL = '#8e9aa6';
 const SNOW_WHITE = '#eef2f4';
 
 /** Laubfarben eines Laubbaums in der Jahreszeit (Sommer: unverändert). */
-export function seasonLeaves(p: LeafPalette, look: SeasonLook | null): LeafPalette {
+export function seasonLeaves(p: LeafPalette, look: SeasonLook | null, autumnPalette: LeafPalette = AUTUMN_LEAVES): LeafPalette {
   if (!look || look.summer) return p;
   const sp = look.spring * 0.38;
   const au = look.autumn;
+  const A = autumnPalette;
   const f = (c: string, autumn: string) => mix(mix(c, SPRING_TINT, sp), autumn, au);
   return {
-    shadow: f(p.shadow, AUTUMN_LEAVES.shadow),
-    tones: [f(p.tones[0], AUTUMN_LEAVES.tones[0]), f(p.tones[1], AUTUMN_LEAVES.tones[1]), f(p.tones[2], AUTUMN_LEAVES.tones[2])],
-    highlight: f(p.highlight, AUTUMN_LEAVES.highlight),
+    shadow: f(p.shadow, A.shadow),
+    tones: [f(p.tones[0], A.tones[0]), f(p.tones[1], A.tones[1]), f(p.tones[2], A.tones[2])],
+    highlight: f(p.highlight, A.highlight),
   };
 }
 

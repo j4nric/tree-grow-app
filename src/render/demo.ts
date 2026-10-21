@@ -19,6 +19,7 @@
  *           steht die Zeit – der Knopf „Zyklus-Übergang abspielen“ bleibt dann beim
  *           ersten Bild stehen; zum Abspielen ohne t aufrufen.
  *  mem      Waldgedächtnis (0–1000; ohne Angabe: kein Erinnerungsbaum)
+ *  tree     Hauptbaum: oak (Standard), beech, pine
  *  season   Jahreszeit 0–4 (0 Frühling, 1 Sommer, 2 Herbst, 3 Winter; ohne Angabe: wie bisher)
  *  cyc      Zyklus-Übergang aus dem Wachstum g: die Szene zeigt Wachstum 0 und die
  *           Sequenz bei cyc Sekunden (mit t für feste Bilder, sonst läuft sie weiter)
@@ -31,7 +32,7 @@
 import { animalKinds, SpriteCache } from './animals';
 import { layoutFlora, LOW_SIZE, PLANT_SPECIES, type PlacedPlant } from './flora';
 import { paintPlant } from './flora-paint';
-import { drawScene, type SceneAnimal, type ScenePlant, type SceneVisitor } from './tree';
+import { drawScene, type SceneAnimal, type ScenePlant, type SceneVisitor, type TreeSpecies } from './tree';
 import { VISITOR_DEFS } from './visitor-sprites';
 
 type Fam = SceneAnimal['family'];
@@ -180,6 +181,12 @@ const fixedTime = params.has('t') ? Number(params.get('t')) : null;
 const cycleButton = document.querySelector<HTMLButtonElement>('#cycle')!;
 const memoryInput = document.querySelector<HTMLInputElement>('#memory')!;
 const seasonInput = document.querySelector<HTMLInputElement>('#season')!;
+const treeInput = document.querySelector<HTMLSelectElement>('#tree')!;
+/** Hauptbaum (ohne Angabe: Eiche wie bisher – das Feld bleibt dann ungesetzt). */
+const treeParam = params.get('tree');
+let mainTree: TreeSpecies | undefined = treeParam === 'oak' || treeParam === 'beech' || treeParam === 'pine' ? treeParam : undefined;
+treeInput.value = mainTree ?? 'oak';
+treeInput.addEventListener('change', () => (mainTree = treeInput.value as TreeSpecies));
 const seasonValue = document.querySelector<HTMLElement>('#season-value')!;
 const SEASON_NAMES = ['Frühling', 'Sommer', 'Herbst', 'Winter'];
 /** Jahreszeit (undefined = aus); ?season=abc gilt als „aus“. */
@@ -402,6 +409,7 @@ function frame(now: number): void {
     cycleTransition,
     forestMemory,
     season,
+    mainTree,
   });
   const dt = performance.now() - t0;
   samples.push(dt);
