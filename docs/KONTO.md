@@ -136,6 +136,7 @@ einen lokalen Sync-Server.
 | POST | `/api/events/ticket` | (Bearer) → `{ticket}` (60 s gültig, einmalig; höchstens 4 offene je Sitzung) |
 | GET | `/api/events?ticket=…` | Server-Sent Events `ready`, `save` · 429 bei zu vielen offenen Streams |
 | GET | `/api/health` | `{ok: true}` |
+| GET | `/api/admin/backup` | (Bearer `ADMIN_BACKUP_TOKEN`) → 200 frische SQLite-Sicherung als Datei · 401 · 403 mit `Origin`-Kopf · 404 ohne `ADMIN_BACKUP_TOKEN` · 429 · 507 (siehe „Sicherungen“) |
 
 `EventSource` kann keine Header senden. Statt des langlebigen Tokens steht deshalb nur ein
 **einmaliges Ticket** (60 s) in der URL – ein Eintrag im Zugriffs-Log des Proxys ist damit
@@ -157,6 +158,7 @@ wertlos. Abmelden löscht die offenen Tickets der Sitzung. Regeln: Benutzername 
 | Offene Event-Streams | 8 je Konto, 16 je IP, 2000 insgesamt |
 | Offene Tickets | 4 je Sitzung (das älteste verfällt), 10 000 insgesamt |
 | Anfrage empfangen | Kopf 20 s, ganze Anfrage 30 s (gilt nicht für die offene Antwort eines Event-Streams) |
+| Abrufe von `/api/admin/backup` je IP | 6 je Stunde (auch fehlgeschlagene; die Sperre wird einmal je Fenster protokolliert); immer nur ein Abruf gleichzeitig, höchstens 15 Minuten |
 
 Die IP für diese Grenzen ist die Adresse der Verbindung. Nur wenn sie privat ist (der Proxy im
 Docker-Netz oder auf demselben Server) **und** `TRUST_PROXY=1` gesetzt ist, zählt der letzte
@@ -487,14 +489,169 @@ docker compose start sync
 **Wichtig: Kopien außerhalb des Servers.** Die täglichen Sicherungen liegen im selben Volume
 auf demselben Datenträger wie die Datenbank – gegen einen defekten oder gelöschten Server,
 ein versehentlich gelöschtes Volume (`docker volume rm`, `docker compose down -v`) oder einen
-Fehler beim Anbieter helfen sie nicht. Deshalb regelmäßig (z. B. täglich per Cron) auf einen
-anderen Rechner kopieren, etwa vom eigenen Rechner aus:
+Fehler beim Anbieter helfen sie nicht. Dafür gibt es den GitHub-Workflow **„Sicherung“**
+(`.github/workflows/backup.yml`):
+
+- Er läuft täglich (03:23 UTC) und auf Knopfdruck (**Actions → Sicherung → Run workflow**).
+- Er holt über `GET /api/admin/backup` eine **frische** Sicherung (dieselbe Online-Backup-API
+  wie die tägliche Sicherung, konsistent auch beim Schreiben), prüft sie
+  (`PRAGMA integrity_check`; das Log zeigt nur „integrity ok“, keine Zahlen zu Konten oder
+  Spielständen), verschlüsselt sie mit `openssl enc -aes-256-cbc -pbkdf2 -iter 600000`,
+  prüft, dass sich die Datei wieder entschlüsseln lässt, und legt sie zusammen mit der
+  SHA-256-Prüfsumme des Chiffrats (`….db.enc.sha256`) als Artefakt
+  `vszw-sicherung-JJJJ-MM-TT-HHMM` für **30 Tage** ab. Unverschlüsselt verlässt die
+  Datenbank den Runner nie.
+- Das Token steht nur in einer Header-Datei für curl, nie in der Kommandozeile oder im Log.
+  curl spricht nur `https` (`--proto '=https'`) und folgt keinen Weiterleitungen – das Token
+  geht nie an eine andere Adresse.
+- Der Server protokolliert jeden Abruf mit Ergebnis und IP, nie das Token
+  (`docker logs vszw-sync | grep Admin-Sicherung`); eine Rate-Limit-Sperre nur einmal je
+  Zeitfenster. Die Container-Logs sind auf 3 × 10 MB begrenzt (`logging` in
+  `docker-compose.yml`).
+- Ohne die beiden Secrets endet der Lauf grün mit dem Hinweis „Sicherung übersprungen“. Ist
+  `BACKUP_PASSPHRASE` kürzer als 32 Zeichen oder `SYNC_URL` nicht `https://…`, wird der Lauf
+  **rot** – das ist ein Konfigurationsfehler.
+
+> **Achtung, öffentliches Repository:** Artefakte eines öffentlichen Repositorys kann
+> **jeder angemeldete GitHub-Nutzer** herunterladen. Geschützt sind die Daten allein durch
+> die Verschlüsselung – die Passphrase **muss** deshalb zufällig erzeugt sein
+> (`openssl rand -base64 32`), nie ein selbst ausgedachtes Wort oder ein Passwort, das
+> anderswo verwendet wird. (AES-CBC erkennt Veränderungen nicht selbst; deshalb vor dem
+> Entschlüsseln die SHA-256-Prüfsumme prüfen, siehe unten.)
+
+Der Endpunkt ist **aus (404)**, solange `ADMIN_BACKUP_TOKEN` auf dem Server leer ist. Ein Token
+unter 32 Zeichen oder mit Leerzeichen schaltet ihn ebenfalls nicht ein (Hinweis im Log).
+Das Token wird in konstanter Zeit verglichen; jeder Versuch zählt fürs Rate-Limit (6 je
+Stunde und IP). Anfragen mit `Origin`-Kopf (also aus einem Browser) lehnt er immer mit 403
+ab. Es läuft höchstens ein Abruf gleichzeitig (sonst 429 `busy`), und ein Abruf darf
+höchstens 15 Minuten dauern – danach trennt der Server die Verbindung.
+
+**Abhängigkeit von sslip.io:** Der Name `sync.62-83-23-90.sslip.io` wird vom fremden
+DNS-Dienst sslip.io aufgelöst. Fällt er aus oder würde er manipuliert, scheitern Spiel-Sync,
+Sicherung und Überwachung (die Sicherung schickt das Token dank HTTPS-Zertifikatsprüfung
+trotzdem nie an einen fremden Server). Eine eigene Domain wäre robuster und wird empfohlen;
+für dieses kleine Projekt ist sslip.io bewusst akzeptiert.
+
+### Einrichten (einmalig)
+
+1. **Token auf dem Server.** `./setup.sh` erzeugt es automatisch, wenn es in `deploy/.env`
+   fehlt: Bei einer neuen `.env` trägt es das Token selbst ein, eine vorhandene `.env` ändert
+   es nie – dann gibt es den passenden Befehl zum Anhängen aus. Von Hand geht es so (im
+   Ordner `deploy/` auf dem Server):
+
+   ```bash
+   grep -q '^ADMIN_BACKUP_TOKEN=.' .env && echo "Token ist schon gesetzt" || {
+     TOKEN="$(openssl rand -hex 32)"
+     printf '\nADMIN_BACKUP_TOKEN=%s\n' "$TOKEN" >> .env
+     echo "Für GitHub (Secret SYNC_BACKUP_TOKEN): $TOKEN"
+   }
+   chmod 600 .env    # nur der Besitzer darf die Datei mit dem Token lesen
+   ```
+
+   Steht in `.env` schon eine leere Zeile `ADMIN_BACKUP_TOKEN=`, den Wert dort mit einem
+   Editor eintragen statt anzuhängen. Danach den Container neu erstellen (dieselben `-f`-
+   bzw. `--profile`-Angaben wie beim Start, z. B. mit dem Proxy-Netz):
+
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.proxy-net.yml up -d
+   docker logs vszw-sync | grep Admin-Sicherung   # → „… ist eingeschaltet.“
+   ```
+
+2. **Secrets in GitHub.** Repository → **Settings → Secrets and variables → Actions →
+   Secrets → New repository secret**:
+   - `SYNC_BACKUP_TOKEN` = derselbe Wert wie `ADMIN_BACKUP_TOKEN` auf dem Server,
+   - `BACKUP_PASSPHRASE` = **zufällig erzeugt** mit `openssl rand -base64 32` (44 Zeichen;
+     unter 32 Zeichen bricht der Workflow ab). **Zusätzlich sicher aufheben**
+     (Passwort-Manager) – ohne sie lassen sich die Artefakte nicht mehr entschlüsseln;
+     GitHub zeigt Secrets nie wieder an.
+3. Optional unter **Variables**: `SYNC_URL` (mit `https://`, ohne `/` am Ende), wenn der Server nicht unter
+   `https://sync.62-83-23-90.sslip.io` läuft. Dieselbe Variable nutzt die Überwachung.
+4. **Actions → Sicherung → Run workflow** und prüfen, dass der Lauf grün ist und unten ein
+   Artefakt `vszw-sicherung-…` hat.
+
+**Test vom eigenen Rechner** (das Token nicht in die Shell-History schreiben – `read -s`):
+
+```bash
+read -rs TOKEN   # Token einfügen, Enter
+curl -sS -o /tmp/test.db -w '%{http_code}\n' -H @<(printf 'Authorization: Bearer %s\n' "$TOKEN") \
+  https://sync.62-83-23-90.sslip.io/api/admin/backup        # → 200
+sqlite3 /tmp/test.db 'PRAGMA integrity_check; SELECT COUNT(*) FROM users;'   # → ok, Anzahl Konten
+rm /tmp/test.db
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer falsch' \
+  https://sync.62-83-23-90.sslip.io/api/admin/backup        # → 401
+```
+
+(Jeder Aufruf zählt fürs Rate-Limit: nach 6 Versuchen in einer Stunde kommt 429.)
+
+Caddy schreibt den `Authorization`-Kopf standardmäßig nicht ins Zugriffs-Log.
+
+### Wiederherstellen aus einem Artefakt
+
+1. **Herunterladen:** Actions → Lauf von „Sicherung“ wählen → unten unter „Artifacts“
+   `vszw-sicherung-…` laden und entpacken (eine ZIP-Datei mit `vszw-sicherung-….db.enc` und
+   `vszw-sicherung-….db.enc.sha256`).
+   Oder mit der GitHub-CLI: `gh run download <run-id> -R j4nric/tree-grow-app` (die
+   Lauf-Nummern zeigt `gh run list -w backup.yml -R j4nric/tree-grow-app`).
+2. **Prüfsumme prüfen, dann entschlüsseln** (fragt nach der Passphrase `BACKUP_PASSPHRASE`;
+   die Parameter müssen exakt so lauten). Meldet `sha256sum` nicht „OK“, die Datei **nicht**
+   verwenden – sie wurde verändert oder ist beschädigt:
+
+   ```bash
+   sha256sum -c vszw-sicherung-2026-10-21-0323.db.enc.sha256   # → …db.enc: OK
+   openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+     -in vszw-sicherung-2026-10-21-0323.db.enc -out saves.db
+   sqlite3 saves.db 'PRAGMA integrity_check;'      # → ok
+   ```
+
+   (macOS: `shasum -a 256 -c …` statt `sha256sum -c …`.)
+
+3. **Auf den Server kopieren** (z. B. `scp saves.db deploy@<server>:~/vszw-restore/saves.db`).
+4. **Container stoppen, Datei ins Volume kopieren, starten** (im Ordner `deploy/`; die alte
+   Datenbank bleibt als `saves.db.vor-restore` im Volume):
+
+   ```bash
+   docker compose stop sync
+   docker run --rm -v vszw-data:/data -v "$HOME/vszw-restore:/restore:ro" alpine sh -c '
+     cp /data/saves.db /data/saves.db.vor-restore 2>/dev/null
+     cp /restore/saves.db /data/saves.db &&
+     rm -f /data/saves.db-wal /data/saves.db-shm &&
+     chown 1000:1000 /data/saves.db'
+   docker compose start sync
+   curl https://sync.62-83-23-90.sslip.io/api/health          # → {"ok":true}
+   ```
+
+   Sitzungen aus der Sicherung bleiben gültig; wer sich erst danach angemeldet hat, meldet
+   sich neu an. Was nach dem Zeitpunkt der Sicherung auf den Server geschrieben wurde, fehlt
+   dort, liegt aber weiter lokal auf den Geräten.
+
+Zusätzlich lassen sich die Sicherungen im Volume jederzeit von Hand holen, etwa vom eigenen
+Rechner aus:
 
 ```bash
 mkdir -p ~/vszw-backups && ssh deploy@<server> 'docker cp vszw-sync:/data/backups -' | tar -x -C ~/vszw-backups
 ```
 
-und gelegentlich prüfen, dass sich eine Kopie öffnen lässt (siehe oben).
+## Überwachung
+
+Der Workflow **„Überwachung“** (`.github/workflows/ueberwachung.yml`) prüft stündlich (und
+auf Knopfdruck):
+
+- `https://sync.62-83-23-90.sslip.io/api/health` (bzw. `vars.SYNC_URL`) antwortet mit 200 und
+  genau `{"ok":true}`,
+- die Spielseite `https://j4nric.github.io/tree-grow-app/` (bzw. `vars.PAGES_URL`) antwortet
+  mit 200 und enthält den Titel „Vom Samen zum Wald“.
+
+Jede Prüfung bekommt drei Versuche (Pausen 15 s und 45 s). Scheitert sie trotzdem, öffnet der
+Lauf ein Issue mit dem Label `ausfall` (legt das Label bei Bedarf an). Ist schon eins offen,
+kommentiert er nur, wenn sich das Fehlerbild ändert (welche Adresse mit welchem HTTP-Status
+scheitert – die Kennung steht unsichtbar im Text) oder der letzte Bericht mindestens
+6 Stunden alt ist. Antwort des Servers bzw. Meldung von curl stehen im Issue in einem
+Codeblock. Läuft wieder alles, schließt er das Issue mit einem Kommentar. Der Lauf selbst bleibt grün; die Meldung ist das Issue (GitHub
+benachrichtigt über neue Issues und Kommentare). Nichts einzurichten: Der Workflow nutzt das
+automatische `GITHUB_TOKEN` (`permissions: issues: write`).
+
+Hinweis: GitHub pausiert geplante Workflows in Repositories ohne Aktivität nach 60 Tagen –
+dann in **Actions** wieder einschalten.
 
 ## Aktualisieren
 

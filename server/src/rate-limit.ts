@@ -14,16 +14,25 @@ export class RateLimiter {
 
   /** Zählt einen Versuch. Rückgabe: 0 = erlaubt, sonst Wartezeit in ms bis zum nächsten Fenster. */
   take(key: string, now: number): number {
+    return this.takeDetailed(key, now).wait;
+  }
+
+  /**
+   * Wie take; `first` ist true genau beim ersten abgelehnten Versuch eines Fensters
+   * (z. B. um eine Sperre nur einmal zu protokollieren statt bei jeder Anfrage).
+   */
+  takeDetailed(key: string, now: number): { wait: number; first: boolean } {
     const entry = this.hits.get(key);
     if (!entry || now - entry.start >= this.windowMs) {
       // Neu einfügen (nicht nur überschreiben), damit die Map nach Alter sortiert bleibt.
       this.hits.delete(key);
       this.hits.set(key, { start: now, count: 1 });
       this.prune(now);
-      return 0;
+      return { wait: 0, first: false };
     }
     entry.count++;
-    return entry.count > this.limit ? Math.max(1, entry.start + this.windowMs - now) : 0;
+    if (entry.count <= this.limit) return { wait: 0, first: false };
+    return { wait: Math.max(1, entry.start + this.windowMs - now), first: entry.count === Math.max(1, this.limit) + 1 };
   }
 
   /** Wie lange `key` noch gesperrt ist (ms, 0 = frei) – ohne einen Versuch zu zählen. */

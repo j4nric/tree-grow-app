@@ -266,10 +266,10 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
 
 **Welle 1 – Betrieb & kurze Besuche**
 
-- [ ] Sicherung außerhalb des Servers (`core-engineer`, Server/Deploy): tägliches,
+- [x] Sicherung außerhalb des Servers (`core-engineer`, Server/Deploy): tägliches,
   verschlüsseltes Backup des Sync-Servers als GitHub-Actions-Artefakt (Abruf über
   geschützten Admin-Endpunkt), Wiederherstellung dokumentiert in `docs/KONTO.md`
-- [ ] Überwachung (`core-engineer`): stündlicher Workflow prüft `sync…/api/health` und die
+- [x] Überwachung (`core-engineer`): stündlicher Workflow prüft `sync…/api/health` und die
   Spielseite, meldet Ausfälle als GitHub-Issue (schließt es wieder, wenn alles läuft)
 - [x] Installierbare App / PWA (`ui-dev`): Manifest, Icons, Service Worker mit Offline-Start,
   Update-Hinweis bei neuer Version; Sync bleibt online-only – `public/manifest.webmanifest`,
