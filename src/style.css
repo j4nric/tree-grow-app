@@ -3568,3 +3568,13 @@ body[data-motion='reduce'] .option-choose {
     font-size: 1.9rem;
   }
 }
+
+/* Erfolge im Naturtagebuch: erreicht mit goldenem Rand, offen gedämpft (wie gesperrt) */
+.journal-achievement.discovered {
+  --fam: #c9a227;
+  background: #fffaf0;
+}
+
+.journal-achievement.locked .journal-name {
+  color: var(--muted);
+}

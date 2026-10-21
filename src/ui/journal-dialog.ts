@@ -1,6 +1,6 @@
 /**
- * Naturtagebuch (Design v2, Abschnitte 10 und 11.2): Arten, Pflanzen, Lebensgemeinschaften
- * und Andenken als Reiter in einem modalen Dialog. Entdeckte Einträge mit Angaben,
+ * Naturtagebuch (Design v2, Abschnitte 10, 11.2 und 18): Arten, Pflanzen,
+ * Lebensgemeinschaften, Andenken, Erfolge und Statistik als Reiter in einem modalen Dialog. Entdeckte Einträge mit Angaben,
  * unentdeckte als Silhouette mit „???“. Entdeckte Arten lassen sich als Stammgast wählen.
  *
  * Reine Darstellung: zeigt ein `JournalView` und meldet Stammgast-Schalter über einen
@@ -13,6 +13,7 @@
  */
 import { el, setText, srOnly } from './dom';
 import type {
+  JournalAchievementView,
   JournalCommunityView,
   JournalEntryView,
   JournalKeepsakeView,
@@ -38,13 +39,14 @@ export interface JournalDialog {
   readonly open: boolean;
 }
 
-type TabId = 'species' | 'plants' | 'communities' | 'keepsakes' | 'stats';
+type TabId = 'species' | 'plants' | 'communities' | 'keepsakes' | 'achievements' | 'stats';
 
 const TABS: readonly { id: TabId; label: string }[] = [
   { id: 'species', label: 'Arten' },
   { id: 'plants', label: 'Pflanzen' },
   { id: 'communities', label: 'Gemeinschaften' },
   { id: 'keepsakes', label: 'Andenken' },
+  { id: 'achievements', label: 'Erfolge' },
   { id: 'stats', label: 'Statistik' },
 ];
 
@@ -253,6 +255,25 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     return li;
   }
 
+  /** Erfolg: freigeschaltet mit Symbol, Titel, Beschreibung; offen gedämpft mit Fortschritt. */
+  function achievementItem(a: JournalAchievementView): HTMLElement {
+    const li = el('li', `journal-entry journal-achievement ${a.unlocked ? 'discovered' : 'locked'}`);
+    li.dataset.achievement = a.key;
+    li.dataset.unlocked = String(a.unlocked);
+    const icon = el('span', 'journal-icon', a.icon);
+    icon.setAttribute('aria-hidden', 'true');
+    const body = el('div', 'journal-body');
+    if (!a.unlocked) body.append(srOnly('Noch offen: '));
+    body.append(el('h4', 'journal-name', a.title), el('p', 'journal-facts', a.description));
+    if (a.progress) {
+      const progress = el('p', 'journal-progress');
+      progress.append(srOnly('Fortschritt '), a.progress);
+      body.append(progress);
+    }
+    li.append(icon, body);
+    return li;
+  }
+
   // Statistik: Zeilen einmal anlegen, danach nur Texte tauschen.
   const statList = el('dl', 'journal-stats');
   statList.dataset.ref = 'journal-stats';
@@ -335,6 +356,17 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
       treeList,
       memoryTitle,
       ...list('journal-memories-title', view.keepsakes.map(keepsakeItem), 'Noch keine Erinnerungen – sie halten besondere Momente fest.', true),
+    );
+    const done = view.achievements.filter((a) => a.unlocked);
+    const open = view.achievements.filter((a) => !a.unlocked);
+    const doneTitle = el('h3', 'journal-section-title', 'Erreicht');
+    doneTitle.id = 'journal-achievements-done-title';
+    const openTitle = el('h3', 'journal-section-title', 'Noch offen');
+    openTitle.id = 'journal-achievements-open-title';
+    tabs.get('achievements')!.panel.replaceChildren(
+      doneTitle,
+      ...list(doneTitle.id, done.map(achievementItem), 'Noch keine Erfolge – sie kommen ganz von selbst, Schritt für Schritt.', true),
+      ...(open.length > 0 ? [openTitle, ...list(openTitle.id, open.map(achievementItem), '', true)] : []),
     );
     if (focusKey) dialog.querySelector<HTMLElement>(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true });
   }

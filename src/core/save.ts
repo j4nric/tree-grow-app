@@ -1,3 +1,4 @@
+import { ACHIEVEMENTS_BY_ID } from '../content/achievements';
 import { CARE } from '../content/care';
 import { COMMUNITIES_BY_ID } from '../content/communities';
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
@@ -20,6 +21,7 @@ import {
   thresholdFor,
   waypointsForGrowth,
 } from './formulas';
+import { checkAchievements } from './achievements';
 import { isValidRngState, normalizeSeed } from './rng';
 import { normalizeElapsed } from './season';
 import { MAX_STAT_COUNT, interludeThreshold, isTreeUnlocked, recordDiscoveries } from './tick';
@@ -67,6 +69,11 @@ export interface LoadResult {
    * DESIGN_V2.md 15.4). Nur ein Hinweis für die Oberfläche, nicht Teil des Spielstands.
    */
   memoryReweighted: boolean;
+  /**
+   * Migration v8 → v9: so viele Erfolge hat der Stand schon erfüllt und still nachgetragen
+   * bekommen (die Oberfläche meldet sie gesammelt, nicht einzeln). Sonst 0.
+   */
+  achievementsBackfilled: number;
 }
 
 export function serialize(state: GameState): string {
@@ -103,7 +110,9 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   recordDiscoveries(state);
   // v6 → v7: Waldgedächtnis +1 % statt +2 % je Punkt, Punkte unverändert → einmal Hinweis.
   const memoryReweighted = version < 7 && (state.meta.forestMemory > 0 || state.meta.journal.keepsakes.length > 0);
-  return { state, migratedFromV1: false, keepsake: false, memoryReweighted };
+  // v8 → v9 (Erfolge): ganz zuletzt, wenn Tagebuch, Statistik und H_max feststehen.
+  const achievementsBackfilled = version < 9 ? migrateV8(state) : 0;
+  return { state, migratedFromV1: false, keepsake: false, memoryReweighted, achievementsBackfilled };
 }
 
 /** Wie loadGame, aber nur der Spielstand. */
@@ -125,7 +134,7 @@ function migrateV1(data: Record<string, unknown>, now: number): LoadResult {
     state.meta.forestMemory += V1_KEEPSAKE_MEMORY;
     state.meta.journal.keepsakes.push(V1_KEEPSAKE_ID);
   }
-  return { state, migratedFromV1: true, keepsake, memoryReweighted: false };
+  return { state, migratedFromV1: true, keepsake, memoryReweighted: false, achievementsBackfilled: 0 };
 }
 
 /** Wegpunkt-Kurve der v2-Stände (Prototyp ohne Pflanzen): Wegpunkt k bei 4 · k^3,2. */
@@ -279,6 +288,18 @@ function migrateV7(state: GameState): void {
     bestHarmony: state.cycle.maxHarmony,
     grownTrees,
   };
+}
+
+/**
+ * v8 → v9 (Erfolge, DESIGN_V2.md 18): Alles, was der Stand schon erfüllt, wird still
+ * freigeschaltet (Reihenfolge wie ACHIEVEMENTS). Was frühere Zyklen erreicht haben, aber
+ * der Stand nicht mehr zeigt (z. B. eine Stufe vor dem letzten Neuen Zyklus), ist nicht
+ * bekannt und kommt beim nächsten Erreichen. Was ein älterer Stand unter
+ * `meta.achievements` mitbringt, zählt nicht. Gibt die Anzahl zurück.
+ */
+function migrateV8(state: GameState): number {
+  state.meta.achievements = [];
+  return checkAchievements(state).length;
 }
 
 /**
@@ -463,6 +484,10 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   // Seit v8: Langzeit-Statistik (ältere Stände: migrateV7 setzt sie).
   const known = { meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...state.meta.journal.plants, ...state.plants] } } };
   state.meta.stats = loadStats(version >= 8 ? meta.stats : undefined, state, (id) => isTreeUnlocked(known, id));
+  // Seit v9: Erfolge – nur bekannte IDs, je einmal, gespeicherte Reihenfolge (ältere Stände:
+  // migrateV8). Ob sie erfüllt sind, lässt sich nicht prüfen (frühere Zyklen) – sie bleiben.
+  state.meta.achievements =
+    version >= 9 ? unique(stringArray(meta.achievements)).filter((id) => ACHIEVEMENTS_BY_ID.has(id)) : [];
   return state;
 }
 

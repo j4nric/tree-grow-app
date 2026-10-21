@@ -55,6 +55,7 @@ import {
   type Evaluation,
 } from '../core/formulas';
 import { allAnimals, type GameState } from '../core/state';
+import { achievementCountText, toJournalAchievements } from './achievement-view';
 import type { SceneAnimal, ScenePlant, ScenePlantGroup, SceneVisitor } from '../render/tree';
 import {
   MAX_OFFLINE_SECONDS,
@@ -761,6 +762,7 @@ export function toJournalView(
     communities: ofTotal(found.communities, communities.length),
     // Andenken: Erinnerungen plus freigeschaltete Hauptbaum-Arten (die Eiche immer).
     keepsakes: formatNumber(keepsakes.length + trees.filter((t) => t.unlocked).length),
+    achievements: achievementCountText(state),
     stats: '',
   };
   const memory = state.meta.forestMemory;
@@ -779,6 +781,7 @@ export function toJournalView(
     keepsakes,
     trees,
     stats: toJournalStats(state, evaluation),
+    achievements: toJournalAchievements(state),
     tabCounts,
   };
 }

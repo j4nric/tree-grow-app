@@ -303,7 +303,8 @@ test('ohne Offline-Zeit erscheint keine Willkommens-Meldung', async ({ page, con
   await seedV3(context, { totalGrowth: waypoint(3) + 1 });
   await openGame(page);
   await page.waitForTimeout(300);
-  await expect(page.locator('#toast')).toBeHidden();
+  // Höchstens der Sammelhinweis der Erfolge (v3-Stand, Migration v8 → v9), kein Willkommen.
+  await expect(page.locator('#toast')).not.toContainText('Willkommen');
 });
 
 test.describe('Mobil (390×844)', () => {
@@ -579,7 +580,8 @@ test('Wegpunkt bei vollem Stapel: dezenter Hinweis mit den Samen dafür', async 
   await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/);
   // Derselbe Hinweis unsichtbar in der Statuszeile (Screenreader) – kein zweiter Toast.
   await expect(page.locator('#live-status')).toHaveText(/Stapel voll – eine Begegnung zog weiter/);
-  await expect(page.locator('#toast')).toBeHidden();
+  // Der Toast zeigt höchstens den Sammelhinweis der Erfolge (v3-Stand, Migration v8 → v9).
+  await expect(page.locator('#toast')).not.toContainText('Stapel voll');
   const saved = await savedState(page);
   expect(saved.pendingEncounters).toHaveLength(3);
   expect(saved.waypoint).toBe(7);
@@ -594,7 +596,8 @@ test('Start 20 s nach dem letzten Speichern, ein Wegpunkt bei vollem Stapel verp
   await seedV3(context, { totalGrowth: waypoint(7) - 30, pendingEncounters: FULL_STACK, lastTickOffsetMs: -20_000 });
   await openGame(page);
   await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/);
-  await expect(page.locator('#toast')).toBeHidden();
+  // Kein Willkommen; der Toast zeigt höchstens den Sammelhinweis der Erfolge (Migration v8 → v9).
+  await expect(page.locator('#toast')).not.toContainText(/Willkommen|Stapel voll/);
   expect((await savedState(page)).waypoint).toBe(7);
 });
 
@@ -779,7 +782,8 @@ test.describe('Lebensgemeinschaften', () => {
     await mushroom.getByRole('button', { name: 'Pfifferling wählen' }).click();
 
     await expect(dialog(page)).toBeHidden();
-    await expect(page.locator('#toast')).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱');
+    // Entdeckung und erster Erfolg in einem Hinweis (nichts verdrängt das andere).
+    await expect(page.locator('#toast')).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱 🏅 Erfolg: „Gemeinsam stark“');
     await expect(community(page, 'humus')).toContainText('Humusküche');
     await expect(community(page, 'humus')).toContainText('+8 ⚖️');
     await expect(community(page, 'humus')).toHaveClass(/state-active/);
