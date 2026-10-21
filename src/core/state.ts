@@ -98,6 +98,12 @@ export interface CycleState {
   forced: ForcedEncounter | null;
   /** Wegpunkt, nach dem der Zwischenhalt schon ausgewertet wurde (Start: 0). */
   interlude: number;
+  /**
+   * Gekaufte Pflege-Ränge je Maßnahme (ID → 1 … ranks.length; fehlt = 0). Seit Schritt
+   * 2.7 additiv in v5: fehlt das Feld in einem gespeicherten v5-Stand, ergänzt das Laden
+   * ein leeres Objekt. Die Wirkungen kommen immer aus CARE_BY_ID.
+   */
+  care: Record<string, number>;
 }
 
 export interface GameState {
@@ -193,6 +199,7 @@ export function createCycle(number: number, now?: number): CycleState {
     visitors: [],
     forced: null,
     interlude: 0,
+    care: {},
   };
   if (now !== undefined && Number.isFinite(now)) cycle.startedAt = now;
   return cycle;

@@ -26,6 +26,7 @@ import { plantCost, slotEffects } from '../src/core/formulas';
 import { WAYPOINT_BASE, WAYPOINT_COUNT, WAYPOINT_POWER, WAYPOINT_THRESHOLDS, waypointThreshold } from '../src/content/waypoints';
 import { EVENTS, EVENTS_BY_ID, SEED_SECONDS_MIN_SEEDS, type EventEffect } from '../src/content/events';
 import { VISITORS, VISITORS_BY_ID } from '../src/content/visitors';
+import { CARE, CARE_BY_ID } from '../src/content/care';
 import type { Condition } from '../src/content/types';
 import * as reference from '../scripts/v2/content';
 
@@ -448,5 +449,111 @@ describe('Lebensgemeinschaften: Inhalte', () => {
     expect(unique(COMMUNITIES.map((c) => c.icon))).toBe(true);
     expect(unique(COMMUNITIES.map((c) => c.id))).toBe(true);
     expect(unique(COMMUNITIES.map((c) => c.name))).toBe(true);
+  });
+});
+
+describe('Pflegemaßnahmen (DESIGN_V2.md 8)', () => {
+  it('6–8 Maßnahmen, IDs eindeutig (auch gegenüber Arten, Pflanzen, Ereignissen, Gästen)', () => {
+    expect(CARE.length).toBeGreaterThanOrEqual(6);
+    expect(CARE.length).toBeLessThanOrEqual(8);
+    const ids = [
+      ...CARE.map((c) => c.id),
+      ...SPECIES.map((x) => x.id),
+      ...PLANTS.map((x) => x.id),
+      ...EVENTS.map((x) => x.id),
+      ...VISITORS.map((x) => x.id),
+    ];
+    expect(unique(ids)).toBe(true);
+    expect(unique(CARE.map((c) => c.name))).toBe(true);
+    expect(CARE_BY_ID.size).toBe(CARE.length);
+  });
+
+  it('Name, Symbol, Text, Bedingungen und Ausschlüsse sind gültig', () => {
+    for (const c of CARE) {
+      expect(c.name.length, c.id).toBeGreaterThan(0);
+      expect(c.icon.length, c.id).toBeGreaterThan(0);
+      expect(c.text.length, c.id).toBeGreaterThan(0);
+      expect(c.text.length, c.id).toBeLessThanOrEqual(100);
+      for (const r of c.requires ?? []) {
+        expect(['tag', 'group', 'species', 'genus'], c.id).toContain(r.kind);
+        if (r.kind === 'species') expect(SPECIES_BY_ID.has(r.id) || PLANTS_BY_ID.has(r.id), c.id).toBe(true);
+        if (r.kind === 'genus') expect(GENERA, c.id).toContain(r.genus);
+        if (r.kind === 'group') expect(PLANT_GROUPS, c.id).toContain(r.group);
+        if (r.kind === 'tag') expect(TAG_NAMES[r.tag], c.id).toBeDefined();
+      }
+      // Ausschlüsse gelten in beide Richtungen.
+      for (const other of c.excludes ?? []) {
+        expect(CARE_BY_ID.get(other)?.excludes ?? [], `${c.id} ↔ ${other}`).toContain(c.id);
+        expect(other).not.toBe(c.id);
+      }
+    }
+  });
+
+  it('Ränge: 1–3, Kosten steigen stark, Freischaltung ab Junger Baum und nie rückwärts', () => {
+    for (const c of CARE) {
+      expect(c.ranks.length, c.id).toBeGreaterThanOrEqual(1);
+      expect(c.ranks.length, c.id).toBeLessThanOrEqual(3);
+      expect(c.ranks[0]!.minStage, c.id).toBeGreaterThanOrEqual(3);
+      c.ranks.forEach((r, i) => {
+        expect(r.cost, `${c.id} Rang ${i + 1}`).toBeGreaterThanOrEqual(500);
+        expect(r.cost, `${c.id} Rang ${i + 1}`).toBeLessThanOrEqual(50_000);
+        expect(r.minStage).toBeLessThan(STAGES.length);
+        expect(r.summary.length).toBeGreaterThan(0);
+        expect(r.effects.length).toBeGreaterThan(0);
+        if (i > 0) {
+          expect(r.cost, `${c.id} Rang ${i + 1}`).toBeGreaterThanOrEqual(3 * c.ranks[i - 1]!.cost);
+          expect(r.minStage).toBeGreaterThanOrEqual(c.ranks[i - 1]!.minStage);
+        }
+      });
+    }
+  });
+
+  it('Wirkungen: gültig, in Grenzen, jeder Rang bringt etwas (Abzüge nur bei Licht/Wasser)', () => {
+    for (const c of CARE) {
+      for (const r of c.ranks) {
+        let positive = 0;
+        for (const e of r.effects) {
+          if (e.kind === 'habitat') {
+            expect(TAG_NAMES[e.tag], c.id).toBeDefined();
+            positive++;
+            continue;
+          }
+          const x = e.effect;
+          switch (x.kind) {
+            case 'slot':
+              expect(NICHES_BY_ID.has(x.niche), c.id).toBe(true);
+              expect(x.amount, c.id).toBe(1);
+              positive++;
+              break;
+            case 'light':
+            case 'water':
+              expect(Math.abs(x.amount), c.id).toBeLessThanOrEqual(3);
+              expect(x.amount, c.id).not.toBe(0);
+              if (x.amount > 0) positive++;
+              break;
+            case 'harmony':
+              expect(x.points, c.id).toBeGreaterThan(0);
+              expect(x.points, c.id).toBeLessThanOrEqual(5);
+              positive++;
+              break;
+            default:
+              expect(x.pct, c.id).toBeGreaterThan(0);
+              expect(x.pct, c.id).toBeLessThanOrEqual(40);
+              if (x.kind === 'groupGrowth' || x.kind === 'groupSeeds') expect(PLANT_GROUPS).toContain(x.group);
+              positive++;
+          }
+        }
+        expect(positive, `${c.id}: ${r.summary}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('Samen-Senke: vor dem Hain gibt es mehr zu kaufen, als bis dahin verdient wird', () => {
+    // Bis zum Hain verdient der Harmonie-Spieler ~15.000 🌰 (DESIGN_V2.md 15.4) – es muss
+    // priorisiert werden. Danach bleibt die Senke bis zum Urwald groß.
+    const before = CARE.flatMap((c) => c.ranks.filter((r) => r.minStage < 5)).reduce((s, r) => s + r.cost, 0);
+    const later = CARE.flatMap((c) => c.ranks.filter((r) => r.minStage >= 5)).reduce((s, r) => s + r.cost, 0);
+    expect(before).toBeGreaterThan(15_000);
+    expect(later).toBeGreaterThan(100_000);
   });
 });

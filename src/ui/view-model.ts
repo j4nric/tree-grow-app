@@ -436,3 +436,21 @@ export interface JournalView {
   /** Zähler je Reiter, z. B. „12/32“. */
   tabCounts: { species: string; plants: string; communities: string; keepsakes: string };
 }
+
+/** Eine Pflegemaßnahme in der Seitenleiste (Schritt 2.7). */
+export interface CareView {
+  id: string;
+  icon: string;
+  name: string;
+  /** z. B. „Rang 1/3“ bzw. „voll ausgebaut“. */
+  rank: string;
+  /** Wirkung des nächsten Rangs in Kurzform; null, wenn voll ausgebaut. */
+  next: string | null;
+  /** Kosten des nächsten Rangs, z. B. „600 🌰“; null, wenn voll ausgebaut. */
+  cost: string | null;
+  /** Warum Kaufen gerade nicht geht (deutscher Text); null, wenn es geht. */
+  blocker: string | null;
+  canBuy: boolean;
+  /** Vorschau des nächsten Rangs (Harmonie in Punkten, 🌿/🌰 relativ); null, wenn voll ausgebaut. */
+  preview: { harmonyDelta: number; growthDelta: number; seedDelta: number } | null;
+}

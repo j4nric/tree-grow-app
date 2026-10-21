@@ -8,16 +8,17 @@
 > (20 · 1,9^n 🌰); Wegpunkte bei 3,5 · k^3,4; Neuer Zyklus ab „Hain“ mit Naturtagebuch,
 > Waldgedächtnis und Stammgästen (Schritt 2.8, siehe `DESIGN_V2.md` Abschnitt 10);
 > Ereignisse mit Wahl und Durchreisende mit Zeit- und Zyklus-Boni, ab dem Hain mit
-> Zwischenhalt (Schritt 2.4, `DESIGN_V2.md` 7.4–7.8);
+> Zwischenhalt (Schritt 2.4, `DESIGN_V2.md` 7.4–7.8); Pflegemaßnahmen als Samen-Senke
+> (8 Maßnahmen mit 1–3 Rängen, wirken bis zum Neuen Zyklus; Schritt 2.7, `DESIGN_V2.md` 8);
 > Spielstand v5 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
-> verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
+> verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege). Regeln und Zahlen stehen in `DESIGN_V2.md` (Simulation:
 > Abschnitt 15.4) bzw. `src/content/`. Ablehnen bringt vorerst fest 5 🌰, Neu würfeln
 > kostet 10 🌰 (verdoppelt sich je Wurf).
 >
 > Der Rest dieses Dokuments beschreibt **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
-> `scripts/simulate.ts`, `tests/balance.test.ts`.
+> `scripts/simulate.ts`, `tests/balance.test.ts` und `tests/balance-care.test.ts`.
 
 ## Vision
 
