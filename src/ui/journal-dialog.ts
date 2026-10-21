@@ -12,6 +12,8 @@
  * `updateStats` tauscht dort nur Texte (gedrosselt aus main.ts).
  */
 import { el, setText, srOnly } from './dom';
+import { hyphenate } from './hyphenate';
+import { prefersReducedMotion } from './feedback';
 import type {
   JournalAchievementProgressView,
   JournalAchievementView,
@@ -152,7 +154,14 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
       refs.tab.tabIndex = on ? 0 : -1;
       refs.panel.hidden = !on;
     }
-    if (focus) tabs.get(id)!.tab.focus();
+    const tab = tabs.get(id)!.tab;
+    if (focus) tab.focus();
+    // Schmale Bildschirme: Die Reiterleiste scrollt waagerecht – gewählten Reiter zeigen.
+    if (tabList.scrollWidth > tabList.clientWidth) {
+      const left = tab.offsetLeft - tabList.offsetLeft;
+      const target = Math.max(0, Math.min(left - (tabList.clientWidth - tab.offsetWidth) / 2, tabList.scrollWidth - tabList.clientWidth));
+      tabList.scrollTo({ left: target, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    }
   }
   selectTab('species');
 
@@ -166,7 +175,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     const icon = el('span', 'journal-icon', entry.icon);
     icon.setAttribute('aria-hidden', 'true');
     const body = el('div', 'journal-body');
-    const name = el('h3', 'journal-name', entry.name);
+    const name = el('h3', 'journal-name', hyphenate(entry.name));
     if (!entry.discovered) {
       name.setAttribute('aria-hidden', 'true');
       body.append(srOnly(kind === 'species' ? 'Unentdeckte Art' : 'Unentdeckte Pflanze'));
@@ -201,7 +210,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     const icon = el('span', 'journal-icon', c.icon);
     icon.setAttribute('aria-hidden', 'true');
     const body = el('div', 'journal-body');
-    const name = el('h3', 'journal-name', c.name);
+    const name = el('h3', 'journal-name', hyphenate(c.name));
     if (!c.discovered) {
       name.setAttribute('aria-hidden', 'true');
       body.append(srOnly('Unentdeckte Lebensgemeinschaft'));
@@ -222,7 +231,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     const icon = el('span', 'journal-icon', k.icon);
     icon.setAttribute('aria-hidden', 'true');
     const body = el('div', 'journal-body');
-    body.append(el('h4', 'journal-name', k.name));
+    body.append(el('h4', 'journal-name', hyphenate(k.name)));
     if (k.text) body.append(el('p', 'journal-text', k.text));
     li.append(icon, body);
     return li;
@@ -238,7 +247,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     const icon = el('span', 'journal-icon', t.icon);
     icon.setAttribute('aria-hidden', 'true');
     const body = el('div', 'journal-body');
-    const name = el('h4', 'journal-name', t.name);
+    const name = el('h4', 'journal-name', hyphenate(t.name));
     if (!known) {
       name.setAttribute('aria-hidden', 'true');
       body.append(srOnly('Unbekannte Baumart'));

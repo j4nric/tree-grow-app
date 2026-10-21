@@ -12,11 +12,14 @@
  * Begegnung, werden Eingaben kurz ignoriert (gehaltenes Enter, Doppelklick).
  */
 import { el, setText, srOnly } from './dom';
+import { hyphenate } from './hyphenate';
 import { prefersReducedMotion } from './feedback';
 import type { CardView, ConditionView, EncounterKind, EncounterView, FactView, PreviewView, ReplaceOptionView } from './view-model';
 import {
+  NO_CHANGE_TEXT,
   RARITY_LABELS,
   declineLabel,
+  legendEntries,
   preferredReplaceOption,
   previewParts,
   queuedText,
@@ -60,15 +63,8 @@ const KIND_LABELS: Record<EncounterKind, { icon: string; text: string }> = {
   visitor: { icon: '🦢', text: 'Besuch auf der Durchreise' },
 };
 
-/** Legende der Vorschau-Symbole (dieselben wie in `previewParts`) und der Haken/Kreuze. */
-export const PREVIEW_LEGEND: readonly { icon: string; text: string }[] = [
-  { icon: '⚖️', text: 'Harmonie – mehr Harmonie lässt alles schneller wachsen' },
-  { icon: '🌿', text: 'Wachstum pro Sekunde' },
-  { icon: '🌰', text: 'Samen pro Sekunde' },
-  { icon: '😊', text: 'erwartete Zufriedenheit des Tiers' },
-  { icon: '☀️💧', text: 'Versorgung der Pflanzen mit Licht und Wasser' },
-  { icon: '✓ ✗', text: 'Futter und Wünsche erfüllt oder nicht' },
-];
+/** Legende der Symbole – Einträge und Auswahl je Begegnung stehen in view-format.ts. */
+export { PREVIEW_LEGEND } from './view-format';
 
 /**
  * Merker (unabhängig vom Spielstand): Die Legende wurde schon einmal gezeigt. Danach
@@ -150,10 +146,22 @@ export function renderConditions(list: HTMLElement, conditions: readonly Conditi
   );
 }
 
-/** Vorschau-Chips (Harmonie, Wachstum, Samen, …) in eine Liste schreiben. */
+/**
+ * Vorschau-Chips (Harmonie, Wachstum, Samen, …) in eine Liste schreiben. Ändert die Wahl
+ * nichts, steht dort ein einzelner neutraler Chip „keine Änderung“.
+ */
 export function renderPreviewChips(list: HTMLElement, preview: PreviewView): void {
+  const parts = previewParts(preview);
+  if (parts.length === 0) {
+    const item = el('li', 'preview-chip tone-neutral preview-none');
+    const value = el('span', 'preview-value', 'keine Änderung');
+    value.setAttribute('aria-hidden', 'true');
+    item.append(value, srOnly(NO_CHANGE_TEXT));
+    list.replaceChildren(item);
+    return;
+  }
   list.replaceChildren(
-    ...previewParts(preview).map((part) => {
+    ...parts.map((part) => {
       const item = el('li', `preview-chip tone-${part.tone}`);
       const icon = el('span', 'preview-icon', part.icon);
       icon.setAttribute('aria-hidden', 'true');
@@ -257,14 +265,27 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   legendMark.setAttribute('aria-hidden', 'true');
   legendSummary.append(legendMark, el('span', '', 'Was bedeuten die Symbole?'));
   const legendList = el('ul', 'encounter-legend-list');
-  for (const entry of PREVIEW_LEGEND) {
-    const li = el('li');
-    const icon = el('span', 'legend-icon', entry.icon);
-    icon.setAttribute('aria-hidden', 'true');
-    li.append(icon, el('span', '', entry.text));
-    legendList.append(li);
-  }
   legend.append(legendSummary, legendList);
+  /** Schlüssel der gezeigten Legenden-Einträge – neu gebaut nur bei Änderung. */
+  let legendShown = '';
+  /** Nur die Symbole erklären, die in dieser Begegnung vorkommen; sonst Legende ausblenden. */
+  function updateLegend(view: EncounterView): void {
+    const entries = legendEntries(view);
+    const key = entries.map((e) => e.key).join('|');
+    legend.hidden = entries.length === 0;
+    if (key === legendShown) return;
+    legendShown = key;
+    legendList.replaceChildren(
+      ...entries.map((entry) => {
+        const li = el('li');
+        li.dataset.legend = entry.key;
+        const icon = el('span', 'legend-icon', entry.icon);
+        icon.setAttribute('aria-hidden', 'true');
+        li.append(icon, el('span', '', entry.text));
+        return li;
+      }),
+    );
+  }
   legend.addEventListener('toggle', () => {
     if (legend.open) markLegendSeen();
   });
@@ -421,16 +442,25 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     const previewList = el('ul', 'card-preview');
     previewList.setAttribute('aria-label', 'Vorschau');
     previewList.id = `${prefix}-card-${index}-preview`;
-    // Ändert die Wahl an den Raten nichts (z. B. Samen sofort), bleibt die Vorschau weg
-    // statt „±0“-Chips zu zeigen.
-    const changes = previewParts(card.preview).some((part) => part.tone !== 'neutral');
+    // Ändert die Wahl an den Raten nichts (z. B. Samen sofort), bleibt die Vorschau weg –
+    // die Wirkungszeile sagt dort schon alles.
+    const changes = previewParts(card.preview).length > 0;
     if (changes) renderPreviewChips(previewList, card.preview);
     previewList.hidden = !changes;
     const communityList = communityHintList();
     renderCommunityHints(communityList, card.preview);
     // Wirkung und Vorschau gehören zur Beschreibung des Knopfs (der Name bleibt kurz).
-    choose.setAttribute('aria-describedby', `${effects.id} ${previewList.id}`);
+    choose.setAttribute(
+      'aria-describedby',
+      [effects.id, previewList.id, card.note ? `${prefix}-card-${index}-note` : ''].filter(Boolean).join(' '),
+    );
     item.append(choose, previewList, communityList);
+    if (card.note) {
+      const note = el('p', 'option-note', card.note);
+      note.id = `${prefix}-card-${index}-note`;
+      note.dataset.ref = 'card-note';
+      item.append(note);
+    }
 
     choose.addEventListener('click', () => {
       if (card.disabledReason) return;
@@ -468,7 +498,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       band.append(gem);
     }
 
-    const name = el('h3', 'card-name', card.name);
+    const name = el('h3', 'card-name', hyphenate(card.name));
     name.id = `${prefix}-card-${index}-name`;
     item.append(band, name);
 
@@ -655,7 +685,8 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     // sind – dort wird noch nicht entschieden: Weder `legendChecked` noch der Merker wird
     // gesetzt (der Merker erst, wenn sie wirklich offen war). Wird das Fenster später
     // breit, klappt sie bei der nächsten Begegnung auf (nie mitten in einer offenen).
-    if (!legendChecked && newEncounter && !narrowScreen()) {
+    updateLegend(view);
+    if (!legendChecked && newEncounter && !narrowScreen() && !legend.hidden) {
       legendChecked = true;
       if (!legendSeen()) {
         legend.open = true;

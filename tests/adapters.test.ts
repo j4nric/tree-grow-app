@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DECLINE_SEEDS, REROLL_BASE_COST } from '../src/content/encounters';
 import { PLANT_GROUP_INFO, PLANTS_BY_ID } from '../src/content/plants';
 import { SPECIES_BY_ID } from '../src/content/species';
+import { STAGES } from '../src/content/stages';
 import { evaluate, nextPlantCost, previewChoice, previewPlant } from '../src/core/formulas';
 import { MAX_OFFLINE_SECONDS, unlockedPlants } from '../src/core/tick';
 import { formatDuration, formatNumber } from '../src/ui/format';
@@ -367,21 +368,37 @@ describe('welcomeText', () => {
 
   it('nennt Dauer, Ertrag und wartende Begegnungen', () => {
     expect(welcomeText(3600, report, 2)).toBe(
-      'Willkommen zurück! In 1 Std.: +1.234 🌿, +56 🌰, 2 Begegnungen warten.',
+      'Willkommen zurück! In 1 Std. ist dein Wald gewachsen: +1.234 🌿, +56 🌰. 2 Begegnungen warten auf dich.',
     );
-    expect(welcomeText(3600, report, 1)).toContain('1 Begegnung wartet');
-    expect(welcomeText(3600, report, 0)).toBe('Willkommen zurück! In 1 Std.: +1.234 🌿, +56 🌰.');
+    expect(welcomeText(3600, report, 1)).toContain('1 Begegnung wartet auf dich');
+    expect(welcomeText(3600, report, 0)).toBe('Willkommen zurück! In 1 Std. ist dein Wald gewachsen: +1.234 🌿, +56 🌰.');
+  });
+
+  it('stellt die erreichte Stufe nach vorn', () => {
+    const text = welcomeText(3600, report, 0, { from: 3, to: 5 });
+    expect(text).toBe(`Willkommen zurück! In 1 Std. wuchs dein Baum bis zur Stufe „${STAGES[5]!.name}“: +1.234 🌿, +56 🌰.`);
+    // Gleiche Stufe: kein Stufen-Satz.
+    expect(welcomeText(3600, report, 0, { from: 4, to: 4 })).toContain('ist dein Wald gewachsen');
   });
 
   it('nennt die simulierte statt der ungekürzten Abwesenheit', () => {
     const capped = { ...report, seconds: MAX_OFFLINE_SECONDS };
-    expect(welcomeText(30 * 3600, capped, 3)).toMatch(/^Willkommen zurück! In 8 Std\. \(max\. 8 Std\.\):/);
+    expect(welcomeText(30 * 3600, capped, 3)).toMatch(/^Willkommen zurück! In 8 Std\. \(max\. 8 Std\.\) ist dein Wald gewachsen:/);
   });
 
-  it('nennt automatisch abgelehnte Begegnungen samt Samen', () => {
-    const text = welcomeText(3600, { ...report, autoDeclined: 3 }, 3);
-    expect(text).toContain(`3 Begegnungen zogen weiter: +${3 * DECLINE_SEEDS} 🌰.`);
-    expect(welcomeText(3600, { ...report, autoDeclined: 1 }, 3)).toContain('1 Begegnung zog weiter');
+  it('weitergezogene Begegnungen nur als Nebensatz – mit ihrem Dank in Samen', () => {
+    const text = welcomeText(3600, { ...report, autoDeclined: 16 }, 3, { from: 4, to: 5 });
+    expect(text).toBe(
+      `Willkommen zurück! In 1 Std. wuchs dein Baum bis zur Stufe „${STAGES[5]!.name}“: +1.234 🌿, +56 🌰. ` +
+        `3 Begegnungen warten auf dich – 16 weitere zogen weiter und ließen +${16 * DECLINE_SEEDS} 🌰 da.`,
+    );
+    // Erst Wachstum, dann Wartende, ganz hinten das Weiterziehen.
+    expect(text.indexOf('Stufe')).toBeLessThan(text.indexOf('warten'));
+    expect(text.indexOf('warten')).toBeLessThan(text.indexOf('zogen weiter'));
+    expect(welcomeText(3600, { ...report, autoDeclined: 1 }, 3)).toContain('1 weitere zog weiter und ließ');
+    expect(welcomeText(3600, { ...report, autoDeclined: 3 }, 0)).toContain(
+      `3 Begegnungen zogen weiter und ließen +${3 * DECLINE_SEEDS} 🌰 da.`,
+    );
   });
 
   it('formatDuration lässt „0 Min.“ bei vollen Stunden weg', () => {

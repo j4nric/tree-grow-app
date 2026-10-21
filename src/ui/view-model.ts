@@ -128,6 +128,8 @@ export interface CardView {
   disabledReason?: string;
   /** Text des Knopfs statt „Wählen“ (Ereignis-Optionen, „Bewirten (−40 🌰)“). */
   chooseLabel?: string;
+  /** Kurze Erklärung unter der Vorschau, z. B. warum sie vom Nennwert abweicht (Gäste). */
+  note?: string;
 }
 
 /** Ein aktiver Bonus aus einem Ereignis oder ein bewirteter Gast (Seitenleiste). */
@@ -224,8 +226,13 @@ export interface EcosystemView {
   stageName: string;
   /** Fortschritt zum nächsten Wegpunkt (0–1). */
   stageProgress: number;
-  /** Text unter dem Fortschrittsbalken, z. B. „Nächste Begegnung bei 1.769 🌿“. */
+  /**
+   * Text unter dem Fortschrittsbalken, z. B. „Nächste Begegnung in 3 Min.“ – warten schon
+   * Begegnungen, stattdessen „2 Begegnungen warten“ (kein Countdown daneben).
+   */
   progressHint: string;
+  /** Wartende Begegnungen auf dem Stapel (0 = keine) – die Seitenleiste zeigt dann einen Knopf. */
+  pendingEncounters: number;
   growthPerSec: number;
   seeds: number;
   seedsPerSec: number;
@@ -525,7 +532,7 @@ export interface CareView {
   id: string;
   icon: string;
   name: string;
-  /** z. B. „Rang 1/3“ bzw. „voll ausgebaut“. */
+  /** Bereits gekaufte Ränge, z. B. „Rang 0/3“ (noch nichts gekauft) bzw. „voll ausgebaut“. */
   rank: string;
   /** Wirkung des nächsten Rangs in Kurzform; null, wenn voll ausgebaut. */
   next: string | null;

@@ -3,11 +3,15 @@
  * Er zeigt, wie viele Begegnungen warten, und öffnet auf Wunsch den Kartenwahl-Dialog –
  * der Dialog drängt sich nie von selbst auf.
  *
+ * Auf dem Handy liegt die Szene oben auf der Seite: Ist der Stapel aus dem Bild gescrollt,
+ * schwebt er unten rechts am Bildschirmrand (Klasse `floating` am Dock, siehe CSS), damit
+ * eine wartende Begegnung nie unsichtbar ist.
+ *
  * `update()` darf jeden Frame laufen; es ändert nur bei neuer Anzahl etwas am DOM.
  */
 import { el, setAttr, setText } from './dom';
 import { restartAnimation } from './feedback';
-import { formatNumber } from './format';
+import { waitingText } from './view-format';
 
 export interface EncounterStack {
   /** `kind`: Typ der vordersten Begegnung – bestimmt das Symbol auf dem Stapel. */
@@ -15,10 +19,7 @@ export interface EncounterStack {
   readonly element: HTMLButtonElement;
 }
 
-/** „1 Begegnung wartet“ / „3 Begegnungen warten“. */
-export function waitingText(count: number): string {
-  return count === 1 ? '1 Begegnung wartet' : `${formatNumber(count)} Begegnungen warten`;
-}
+export { waitingText };
 
 /** Symbol auf dem Stapel je Art der obersten Begegnung. */
 const STACK_ICONS = { animal: '🐾', plant: '🌱', event: '⛈️', visitor: '🦢' } as const;
@@ -42,6 +43,7 @@ export function createEncounterStack(root: HTMLElement, onOpen: () => void): Enc
   root.append(button, live);
 
   button.addEventListener('click', onOpen);
+  watchScroll(root);
 
   let shown = -1;
   let shownKind = '';
@@ -67,4 +69,25 @@ export function createEncounterStack(root: HTMLElement, onOpen: () => void): Enc
   }
 
   return { update, element: button };
+}
+
+/**
+ * Beobachtet einen unsichtbaren Platzhalter an der Stelle des Stapels (oben in der Szene).
+ * Ist er nicht mehr vollständig zu sehen, bekommt das Dock die Klasse `floating`. Ob das
+ * Dock dann wirklich schwebt, entscheidet das CSS (nur im einspaltigen Mobil-Layout).
+ */
+function watchScroll(dock: HTMLElement): void {
+  const scene = dock.parentElement;
+  if (!scene || typeof IntersectionObserver !== 'function') return;
+  const marker = el('span', 'scene-dock-marker');
+  marker.setAttribute('aria-hidden', 'true');
+  scene.append(marker);
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[entries.length - 1];
+      if (entry) dock.classList.toggle('floating', entry.intersectionRatio < 0.99);
+    },
+    { threshold: [0, 0.99, 1] },
+  );
+  observer.observe(marker);
 }

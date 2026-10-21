@@ -78,7 +78,8 @@ import {
 } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
 import { memoryBonusLabel, treeLabel } from './cycle-view';
-import { RARITY_LABELS, preferredReplaceOption } from './view-format';
+import { RARITY_LABELS, formatSigned, formatSignedPercent, preferredReplaceOption, waitingText } from './view-format';
+import type { Genus } from '../content/types';
 import type {
   ActiveBonusView,
   CareGroup,
@@ -474,8 +475,13 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
   });
 }
 
-/** Text unter dem Fortschrittsbalken: wann die nächste Begegnung kommt. */
+/**
+ * Text unter dem Fortschrittsbalken: wann die nächste Begegnung kommt – oder, wenn schon
+ * welche warten, wie viele (ein Countdown daneben wäre missverständlich).
+ */
 export function progressHint(state: GameState): string {
+  const waiting = state.pendingEncounters.length;
+  if (waiting > 0) return waitingText(waiting);
   const seconds = secondsToNextWaypoint(state);
   if (allWaypointsReached(state) || !Number.isFinite(seconds)) return 'Alle Wegpunkte erreicht – dein Wald wächst weiter.';
   return `Nächste Begegnung in ${formatDuration(Math.ceil(seconds))}`;
@@ -490,6 +496,7 @@ export function toEcosystemView(state: GameState, evaluation: Readonly<Evaluatio
     stageName: STAGES[state.stage]?.name ?? STAGES[0]!.name,
     stageProgress: 0,
     progressHint: '',
+    pendingEncounters: 0,
     growthPerSec: evaluation.growth,
     seeds: 0,
     seedsPerSec: evaluation.seeds,
@@ -514,6 +521,7 @@ export function refreshEcosystemView(view: EcosystemView, state: GameState): voi
   view.seeds = state.seeds;
   view.stageProgress = waypointProgress(state);
   view.progressHint = progressHint(state);
+  view.pendingEncounters = state.pendingEncounters.length;
   refreshPlantRing(view.plantRing, state);
 }
 
@@ -1579,6 +1587,24 @@ export function tickDeclineText(report: Pick<OfflineReport, 'autoDeclined' | 'de
   return autoDeclineText(report.autoDeclined, report.declinedStackFull > 0 && report.declinedStackFull === report.autoDeclined);
 }
 
+/** Inhalt des Stufen-Banners in der Szene. */
+export interface StageBannerView {
+  title: string;
+  text: string;
+  /** Zusatzzeile, z. B. der gleichzeitig freigeschaltete Erfolg; null ohne. */
+  extra: string | null;
+}
+
+/**
+ * Stufen-Banner: Name und Beschreibung der Stufe. Kommt im selben Moment ein Erfolg dazu,
+ * steht er als dritte Zeile im Banner – statt eines zweiten Hinweises, der gleichzeitig
+ * aufpoppt.
+ */
+export function stageBannerView(stage: number, achievement: string | null = null): StageBannerView {
+  const info = STAGES[stage] ?? STAGES[0]!;
+  return { title: info.name, text: info.description, extra: achievement || null };
+}
+
 /** Ab dieser Abwesenheit (s) gibt es eine Willkommens-Meldung. */
 export const WELCOME_MIN_SECONDS = 60;
 
@@ -1593,29 +1619,46 @@ export function catchUpNotice(
   away: number,
   report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedStackFull'>,
   waiting: number,
+  stages?: StageProgress,
 ): CatchUpNotice {
   if (away > WELCOME_MIN_SECONDS && report.growth > 0) {
-    return { kind: 'welcome', text: welcomeText(away, report, waiting) };
+    return { kind: 'welcome', text: welcomeText(away, report, waiting, stages) };
   }
   if (report.autoDeclined > 0) return { kind: 'note', text: tickDeclineText(report) };
   return null;
 }
 
-/** Willkommens-Meldung nach Abwesenheit (DESIGN_V2.md, 7.6). */
+/** Stufen vor und nach dem Nachrechnen – für „… wuchs bis zur Stufe „Hain““. */
+export interface StageProgress {
+  from: number;
+  to: number;
+}
+
+/**
+ * Willkommens-Meldung nach Abwesenheit (DESIGN_V2.md, 7.6). Vorne steht, was gewachsen
+ * ist (erreichte Stufe, Ertrag), dann die wartenden Begegnungen; weitergezogene stehen nur
+ * als Nebensatz mit ihrem Dank in Samen – das soll sich nicht nach Verlust anfühlen.
+ */
 export function welcomeText(
   away: number,
   report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined'>,
   waiting: number,
+  stages?: StageProgress,
 ): string {
   // Simuliert werden höchstens MAX_OFFLINE_SECONDS – die Meldung nennt die tatsächliche Zeit.
   const capped = report.seconds < away ? ` (max. ${formatDuration(MAX_OFFLINE_SECONDS)})` : '';
-  const parts = [`+${formatNumber(report.growth)} 🌿`, `+${formatNumber(report.seeds)} 🌰`];
-  if (waiting > 0) parts.push(waiting === 1 ? '1 Begegnung wartet' : `${formatNumber(waiting)} Begegnungen warten`);
-  let text = `Willkommen zurück! In ${formatDuration(report.seconds)}${capped}: ${parts.join(', ')}.`;
-  if (report.autoDeclined > 0) {
-    const n = report.autoDeclined;
-    const who = n === 1 ? '1 Begegnung zog' : `${formatNumber(n)} Begegnungen zogen`;
-    text += ` ${who} weiter: +${formatNumber(n * declineReward())} 🌰.`;
+  const yieldText = `+${formatNumber(Math.floor(report.growth))} 🌿, +${formatNumber(Math.floor(report.seeds))} 🌰`;
+  const reached = stages && stages.to > stages.from ? STAGES[stages.to]?.name : undefined;
+  const grew = reached ? `wuchs dein Baum bis zur Stufe „${reached}“` : 'ist dein Wald gewachsen';
+  let text = `Willkommen zurück! In ${formatDuration(report.seconds)}${capped} ${grew}: ${yieldText}.`;
+  const n = report.autoDeclined;
+  const thanks = `+${formatNumber(n * declineReward())} 🌰`;
+  if (waiting > 0) {
+    text += ` ${waiting === 1 ? '1 Begegnung wartet' : `${formatNumber(waiting)} Begegnungen warten`} auf dich`;
+    if (n > 0) text += ` – ${formatNumber(n)} weitere ${n === 1 ? 'zog' : 'zogen'} weiter und ${n === 1 ? 'ließ' : 'ließen'} ${thanks} da`;
+    text += '.';
+  } else if (n > 0) {
+    text += ` ${n === 1 ? '1 Begegnung zog' : `${formatNumber(n)} Begegnungen zogen`} weiter und ${n === 1 ? 'ließ' : 'ließen'} ${thanks} da.`;
   }
   return text;
 }
@@ -1774,9 +1817,23 @@ export function toVisitorView(
   const hostLabel = `${VISITOR_HOST_LABEL} (−${seedsLabel(costs.host)} 🌰)`;
   const blocker = hostBlocker(state, encounterIndex);
   // Vorschau fürs Bewirten: Gast aktiv, Samen spielen für die Raten keine Rolle.
-  const after = evaluateEcosystem(
-    ecosystemOf({ ...state, cycle: { ...state.cycle, visitors: [...state.cycle.visitors, { id: visitor.id, remaining: visitor.stay }] } }),
-  );
+  const hosted = ecosystemOf({
+    ...state,
+    cycle: { ...state.cycle, visitors: [...state.cycle.visitors, { id: visitor.id, remaining: visitor.stay }] },
+  });
+  const after = evaluateEcosystem(hosted);
+  // Zum Vergleich: dieselbe Wirkung, ohne dass der Gast für seine Gattung zählt.
+  const withoutGenus = evaluateEcosystem({ ...hosted, guestGenera: ecosystemOf(state).guestGenera });
+  const hostPreview = {
+    harmonyDelta: after.harmony - now.harmony,
+    growthDelta: relative(after.growth, now.growth),
+    seedDelta: relative(after.seeds, now.seeds),
+  };
+  const genusPreview = {
+    harmonyDelta: withoutGenus.harmony - now.harmony,
+    growthDelta: relative(withoutGenus.growth, now.growth),
+    seedDelta: relative(withoutGenus.seeds, now.seeds),
+  };
   const host: CardView = {
     id: 'host',
     name: VISITOR_HOST_LABEL,
@@ -1787,13 +1844,11 @@ export function toVisitorView(
       { label: visitorEffectText(visitor), tone: 'good' },
       { label: `zählt für ${genus.name}`, tone: 'good' },
     ],
-    preview: {
-      harmonyDelta: after.harmony - now.harmony,
-      growthDelta: relative(after.growth, now.growth),
-      seedDelta: relative(after.seeds, now.seeds),
-    },
+    preview: hostPreview,
     chooseLabel: hostLabel,
   };
+  const note = visitorPreviewNote(visitor, hostPreview, genusPreview);
+  if (note) host.note = note;
   if (blocker === 'too-expensive') host.disabledReason = `Nicht genug Samen (${seedsLabel(costs.host)} 🌰)`;
   const farewell: CardView = {
     id: 'farewell',
@@ -1818,6 +1873,47 @@ export function toVisitorView(
     canReroll: false,
     declineReward: null,
   };
+}
+
+/** Gattung in der Einzahl – für „zählt als Vogel für den Gattungsbonus“. */
+export const GENUS_SINGULAR: Readonly<Record<Genus, string>> = {
+  birds: 'Vogel',
+  insects: 'Insekt',
+  mammals: 'Säugetier',
+  soil: 'Bodenlebewesen',
+  fungi: 'Pilz',
+};
+
+type RatePreview = { harmonyDelta: number; growthDelta: number; seedDelta?: number };
+
+/**
+ * Weicht die Vorschau fürs Bewirten vom Nennwert des Gastes ab (z. B. „+12 % 🌿, +12 % 🌰“
+ * gegenüber Vorschau +9,5 % / +17,5 %), erklärt eine kurze Zeile warum: Der Gast zählt für
+ * den Gattungsbonus (`withGenus` ≠ `withoutGenus`) und/oder die Wirkung verrechnet sich mit
+ * Harmonie und übrigen Boni. null, wenn Vorschau und Nennwert (gerundet) übereinstimmen.
+ */
+export function visitorPreviewNote(visitor: Visitor, withGenus: RatePreview, withoutGenus: RatePreview): string | null {
+  const shown = (p: RatePreview) =>
+    [formatSigned(p.harmonyDelta), formatSignedPercent(p.growthDelta), formatSignedPercent(p.seedDelta ?? 0)].join('|');
+  const genusCounts = shown(withGenus) !== shown(withoutGenus);
+  // Nennwerte der Wirkungen, die sich direkt mit der Vorschau vergleichen lassen.
+  const nominal = { harmony: 0, growth: 0, seeds: 0 };
+  for (const e of visitor.effects) {
+    if (e.kind === 'harmony') nominal.harmony += e.points;
+    else if (e.kind === 'growth') nominal.growth += e.pct / 100;
+    else if (e.kind === 'seeds') nominal.seeds += e.pct / 100;
+  }
+  const kinds = new Set(visitor.effects.map((e) => e.kind));
+  const differs = (p: RatePreview) =>
+    (kinds.has('harmony') && formatSigned(p.harmonyDelta) !== formatSigned(nominal.harmony)) ||
+    (kinds.has('growth') && formatSignedPercent(p.growthDelta) !== formatSignedPercent(nominal.growth)) ||
+    (kinds.has('seeds') && formatSignedPercent(p.seedDelta ?? 0) !== formatSignedPercent(nominal.seeds));
+  if (!genusCounts && !differs(withGenus)) return null;
+  const reasons: string[] = [];
+  if (genusCounts) reasons.push(`er als ${GENUS_SINGULAR[visitor.genus]} für den Gattungsbonus zählt`);
+  if (differs(withoutGenus)) reasons.push('sich die Wirkung mit Harmonie und deinen übrigen Boni verrechnet');
+  if (reasons.length === 0) return null;
+  return `Vorschau weicht vom Nennwert ab, weil ${reasons.join(' und ')}.`;
 }
 
 /** Kurzform einer Bonus-Wirkung, z. B. „+30 % 🌿“, „Blumen +60 % 🌰“, „+3 ☀️“. */
@@ -2073,7 +2169,7 @@ export function toCareViews(state: GameState, now: Readonly<Evaluation> = evalua
       id: measure.id,
       icon: measure.icon,
       name: measure.name,
-      rank: next ? `Rang ${rank + 1}/${measure.ranks.length}` : 'voll ausgebaut',
+      rank: next ? `Rang ${rank}/${measure.ranks.length}` : 'voll ausgebaut',
       next: next?.summary ?? null,
       cost: next ? `${formatNumber(next.cost)} 🌰` : null,
       costSeeds: next?.cost ?? null,
