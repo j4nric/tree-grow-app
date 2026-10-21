@@ -46,6 +46,8 @@ export interface EncounterDialog {
    */
   show(view: EncounterView, queued: number): void;
   hide(): void;
+  /** Kurzer Hinweis im Dialog, z. B. wenn eine Aktion nicht geklappt hat. */
+  notice(text: string): void;
   readonly open: boolean;
 }
 
@@ -105,7 +107,18 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   later.hidden = !callbacks.onDefer;
   actions.append(reroll, decline, later);
 
-  inner.append(header, cardsBox, swipeHint, actions);
+  const noticeBox = el('p', 'encounter-notice');
+  noticeBox.setAttribute('role', 'status');
+  noticeBox.hidden = true;
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // Warum Neuwürfeln gerade nicht geht – sichtbar und für Screenreader am Knopf.
+  const rerollHint = el('p', 'encounter-reroll-hint');
+  rerollHint.id = `${prefix}-reroll-hint`;
+  rerollHint.hidden = true;
+  reroll.setAttribute('aria-describedby', rerollHint.id);
+
+  inner.append(header, cardsBox, swipeHint, noticeBox, actions, rerollHint);
   dialog.append(inner);
   root.append(dialog);
 
@@ -233,6 +246,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     const rarity = card.rarity;
     const item = el('article', `encounter-card family-${card.family}${rarity ? ` rarity-${rarity}` : ''}`);
     item.setAttribute('role', 'listitem');
+    item.dataset.species = card.id;
     item.setAttribute('aria-labelledby', `${prefix}-card-${index}-name`);
     item.style.setProperty('--deal-delay', `${index * 70}ms`);
 
@@ -257,6 +271,8 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     if (card.nicheLabel) item.append(el('p', 'card-niche', `Nische: ${card.nicheLabel}`));
 
     const options = card.replaceOptions ?? [];
+    /** Tauschbare Tiere; gesperrte Optionen (z. B. Höhlenbewohner verlören ihren Platz) bleiben sichtbar. */
+    const usable = options.filter((o) => !o.disabledReason);
     let replaceText: HTMLElement | null = null;
     let select: HTMLSelectElement | null = null;
     if (card.nicheFull) {
@@ -268,13 +284,20 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
         label.append(el('span', '', 'Wen entlassen?'));
         select = el('select', 'card-replace-select');
         for (const option of options) {
-          const opt = el('option', '', option.name);
+          const opt = el('option', '', option.disabledReason ? `${option.name} – ${option.disabledReason}` : option.name);
           opt.value = option.id;
+          opt.disabled = Boolean(option.disabledReason);
           select.append(opt);
         }
-        if (keepReplaceId && options.some((o) => o.id === keepReplaceId)) select.value = keepReplaceId;
+        if (usable[0]) select.value = usable[0].id;
+        if (keepReplaceId && usable.some((o) => o.id === keepReplaceId)) select.value = keepReplaceId;
         label.append(select);
         box.append(label);
+      } else {
+        // Nur ein Tier in der Nische: Kann es nicht weichen, steht der Grund hier.
+        for (const option of options.filter((o) => o.disabledReason)) {
+          box.append(el('p', 'card-replace-note', `${option.name}: ${option.disabledReason}`));
+        }
       }
       item.append(box);
     }
@@ -316,7 +339,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     item.append(choose);
 
     const selectedReplace = () =>
-      card.nicheFull ? (options.find((o) => o.id === select?.value) ?? options[0]) : undefined;
+      card.nicheFull ? (usable.find((o) => o.id === select?.value) ?? usable[0]) : undefined;
 
     const refresh = () => {
       const replaced = selectedReplace();
@@ -341,6 +364,9 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
 
   function show(view: EncounterView, queued: number): void {
     current = view;
+    // Kam show() direkt nach einer Entscheidung, kurz sperren: Ein zweiter Klick des
+    // Doppelklicks soll nicht die nächste (evtl. gleich aussehende) Begegnung treffen.
+    if (busy) guardUntil = Math.max(guardUntil, performance.now() + INPUT_GUARD_MS);
     busy = false;
     setText(kind, KIND_LABELS[view.kind]);
     setText(title, view.title);
@@ -355,7 +381,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       queuePips.replaceChildren(...Array.from({ length: pips }, () => el('span', 'pip')));
     }
 
-    const nextIds = view.cards.map((c) => c.id).join('|');
+    const nextIds = `${view.key ?? ''}#${view.cards.map((c) => c.id).join('|')}`;
     const nextContent = JSON.stringify(view.cards);
     const newEncounter = nextIds !== idSignature;
     const contentChanged = newEncounter || nextContent !== contentSignature;
@@ -377,6 +403,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       cardsBox.replaceChildren(...cards.map((c) => c.root));
       cardsBox.dataset.count = String(cards.length);
       if (newEncounter) {
+        clearNotice();
         cardsBox.scrollLeft = 0;
         guardUntil = performance.now() + INPUT_GUARD_MS;
       }
@@ -387,9 +414,13 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     }
 
     reroll.hidden = view.rerollCost === null;
+    if (view.rerollCost === null) rerollHint.hidden = true;
     if (view.rerollCost !== null) {
       setText(reroll, rerollLabel(view.rerollCost));
-      reroll.title = view.canReroll ? '' : 'Nicht genug Samen';
+      const reason = view.canReroll ? '' : (view.rerollDisabledReason ?? 'Nicht genug Samen');
+      reroll.title = reason;
+      setText(rerollHint, reason ? `Neu würfeln: ${reason}` : '');
+      rerollHint.hidden = !reason;
     }
     decline.hidden = view.declineReward === null;
     if (view.declineReward !== null) setText(decline, declineLabel(view.declineReward));
@@ -406,7 +437,21 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     }
   }
 
+  function clearNotice(): void {
+    clearTimeout(noticeTimer);
+    noticeBox.hidden = true;
+    noticeBox.textContent = '';
+  }
+
+  function notice(text: string): void {
+    clearTimeout(noticeTimer);
+    noticeBox.textContent = text;
+    noticeBox.hidden = false;
+    noticeTimer = setTimeout(clearNotice, 4000);
+  }
+
   function resetState(): void {
+    clearNotice();
     dialog.classList.remove('dealing');
     idSignature = '';
     contentSignature = '';
@@ -426,6 +471,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
   return {
     show,
     hide,
+    notice,
     get open() {
       return dialog.open && current !== null;
     },

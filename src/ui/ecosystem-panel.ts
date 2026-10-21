@@ -76,6 +76,7 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
   // Kopf: Stufe und Fortschritt zum nächsten Wegpunkt
   const head = el('header', 'eco-head');
   const stage = el('p', 'eco-stage');
+  stage.dataset.ref = 'stage';
   const progress = el('div', 'progress eco-progress');
   progress.setAttribute('role', 'progressbar');
   progress.setAttribute('aria-label', 'Fortschritt zum nächsten Wegpunkt');
@@ -84,25 +85,27 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
   const bar = el('div', 'progress-bar');
   progress.append(bar);
   const progressHint = el('p', 'hint');
+  progressHint.dataset.ref = 'progress-hint';
   head.append(stage, progress, progressHint);
 
   // Kennzahlen
   const stats = el('div', 'eco-stats');
-  const stat = (icon: string, label: string) => {
+  const stat = (icon: string, label: string, ref: string) => {
     const box = el('div', 'eco-stat');
     const top = el('span', 'eco-stat-label');
     const i = el('span', 'eco-stat-icon', icon);
     i.setAttribute('aria-hidden', 'true');
     top.append(i, el('span', '', label));
     const value = el('b', 'eco-stat-value');
+    value.dataset.ref = ref;
     const sub = el('small', 'eco-stat-sub');
     box.append(top, value, sub);
     stats.append(box);
     return { box, value, sub };
   };
-  const growth = stat('🌿', 'Wachstum');
-  const seeds = stat('🌰', 'Samen');
-  const harmony = stat('⚖️', 'Harmonie');
+  const growth = stat('🌿', 'Wachstum', 'growth-rate');
+  const seeds = stat('🌰', 'Samen', 'seeds');
+  const harmony = stat('⚖️', 'Harmonie', 'harmony');
   harmony.box.classList.add('eco-stat-harmony');
 
   // Harmonie-Aufschlüsselung (aufklappbar)
@@ -249,6 +252,7 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
       if (tile.animalId !== null || !tile.root.classList.contains('empty')) {
         tile.root.className = 'slot empty';
         tile.animalId = null;
+        delete tile.root.dataset.species;
       }
       setText(tile.icon, '');
       setText(tile.name, 'frei');
@@ -264,6 +268,7 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
     // Laufende Ankunfts-Animation beim Vergleich ignorieren
     if (tile.root.className.replace(' arrive', '') !== className) tile.root.className = className;
     tile.animalId = animal.id;
+    if (tile.root.dataset.species !== animal.id) tile.root.dataset.species = animal.id;
     if (arrived || (firstFill && seenFirstUpdate)) restartAnimation(tile.root, 'arrive');
     setText(tile.icon, animal.familyIcon);
     setText(tile.name, animal.name);
@@ -274,6 +279,7 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
 
   function buildNiche(niche: NicheView): NicheRow {
     const li = el('li', 'niche');
+    li.dataset.niche = niche.id;
     const headRow = el('div', 'niche-head');
     const title = el('span', 'niche-title', `${niche.icon} ${niche.label}`);
     const slotsLabel = el('span', 'niche-slots');
@@ -310,7 +316,8 @@ export function createEcosystemPanel(root: HTMLElement): EcosystemPanel {
       }
       row.slots.forEach((tile, i) => {
         tile.root.hidden = i >= needed;
-        if (i < needed) updateSlot(tile, niche.animals[i]);
+        // Versteckte Plätze leeren, damit kein altes Tier im DOM zurückbleibt (z. B. nach Löschen)
+        updateSlot(tile, i < needed ? niche.animals[i] : undefined);
       });
     }
     if (order !== nicheOrder) {

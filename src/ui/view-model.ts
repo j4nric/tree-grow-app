@@ -58,6 +58,8 @@ export interface ReplaceOptionView {
   name: string;
   /** Vorschau inklusive Tausch; fehlt sie, gilt die Vorschau der Karte. */
   preview?: PreviewView;
+  /** Dieses Tier kann nicht weichen (mit Begründung) – Option wird gesperrt angezeigt. */
+  disabledReason?: string;
 }
 
 /** Eine Karte in einer Begegnung (Tier, Pflanze, Ereignis-Option oder Gast). */
@@ -88,6 +90,11 @@ export interface CardView {
 
 /** Eine wartende Begegnung, bereit zur Anzeige. */
 export interface EncounterView {
+  /**
+   * Eindeutige Kennung der Begegnung (optional). Zwei gleich aussehende Begegnungen
+   * (gleiche Karten) werden daran als verschieden erkannt – wichtig für die Eingabesperre.
+   */
+  key?: string;
   kind: EncounterKind;
   /** Überschrift, z. B. „Etwas regt sich in der Krone …“. */
   title: string;
@@ -96,8 +103,10 @@ export interface EncounterView {
   cards: CardView[];
   /** Kosten fürs Neuwürfeln in 🌰; `null` = Neuwürfeln hier nicht möglich (Ereignisse). */
   rerollCost: number | null;
-  /** Genug Samen fürs Neuwürfeln? */
+  /** Geht Neuwürfeln gerade (genug Samen, andere Arten verfügbar)? */
   canReroll: boolean;
+  /** Grund, falls Neuwürfeln nicht geht, z. B. „Keine anderen Tiere verfügbar“. */
+  rerollDisabledReason?: string;
   /** Samen fürs Ablehnen; `null` = Ablehnen nicht möglich. */
   declineReward: number | null;
 }
