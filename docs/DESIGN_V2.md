@@ -1212,7 +1212,11 @@ selten / besonders / legendär (legendäre Arten gibt es erst ab dem Hain).
   heutigen Inhalten genau das Reh.
 - **Erscheinungsbedingungen** prüfen nur, was im Ökosystem da ist: „sonnig“/„schattig“
   gelten dabei immer als erfüllt, Gattungen zählen ohne Fähigkeiten (das Langohr zählt
-  hier nicht als Vogel) – wie im Referenzmodell.
+  hier nicht als Vogel) – wie im Referenzmodell. **Entscheidung:** Sie gelten nur fürs
+  Anbieten. Eine schon gezogene Karte bleibt wählbar, auch wenn die Bedingung bis zur
+  Wahl wegfällt (z. B. Waldkauz, nachdem die Wühlmaus entlassen wurde) – die Art ist
+  dann eben wählerisch und wenig zufrieden.
+- **Lichterabend** zeigt die Karte bis Schritt 2.3 mit dem Zusatz „(bald)“.
 - Sonst wie in Schritt 2.1 (Begegnungsgewichte ohne Ereignisse/Durchreisende, feste
   Beträge für Ablehnen und Neu würfeln).
 

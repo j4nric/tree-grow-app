@@ -9,6 +9,7 @@ import { SPECIES } from '../content/species';
 import { ENCOUNTER_TYPES } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import {
+  appearsContext,
   declineReward,
   evaluate,
   nextPlantCost,
@@ -190,8 +191,9 @@ export function allWaypointsReached(state: GameState): boolean {
 export function drawAnimals(state: GameState, exclude: readonly string[] = [], rng: RngHolder = state): string[] {
   const slots = nicheSlots(state.stage, state.niches);
   const present = new Set(allAnimals(state));
+  const appears = appearsContext(state);
   const eligible = SPECIES.filter(
-    (s) => s.unlock <= state.stage && slots[s.niche] > 0 && !present.has(s.id) && speciesAppears(state, s),
+    (s) => s.unlock <= state.stage && slots[s.niche] > 0 && !present.has(s.id) && speciesAppears(appears, s),
   );
   const pools = [eligible.filter((s) => !exclude.includes(s.id)), eligible.filter((s) => exclude.includes(s.id))];
   const weights = rarityWeights(state);

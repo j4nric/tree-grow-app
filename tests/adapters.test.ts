@@ -98,6 +98,21 @@ describe('toEcosystemView', () => {
     expect(sum(guardedParts.map((p) => p.value))).toBeCloseTo(evaluate(guarded).harmony, 9);
   });
 
+  it('Harmonie-Aufschlüsselung enthält die Harmonie besonderer Arten (Glühwürmchen, Hirschkäfer)', () => {
+    const state = stateAt(5, ['glowworm', 'stagbeetle', 'slug', 'earthworm']);
+    state.plants = ['anemone', 'moss'];
+    const ev = evaluate(state);
+    expect(ev.breakdown.extra).toBeGreaterThan(0);
+    const parts = toEcosystemView(state, ev).harmonyParts;
+    expect(parts.find((p) => p.label === 'Besondere Arten')!.value).toBeCloseTo(ev.breakdown.extra, 12);
+    expect(sum(parts.map((p) => p.value))).toBeCloseTo(ev.harmony, 9);
+  });
+
+  it('Lichterabend ist bis zu den Lebensgemeinschaften als „(bald)“ markiert', () => {
+    expect(effectView({ kind: 'ability', id: 'communityBoost' }).label).toMatch(/^Lichterabend: .*\(bald\)$/);
+    expect(effectView({ kind: 'ability', id: 'nightWatch' }).label).not.toContain('(bald)');
+  });
+
   it('refreshEcosystemView aktualisiert nur Samen und Fortschritt', () => {
     const state = stateAt(1, ['earthworm']);
     const view = toEcosystemView(state, evaluate(state));

@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { RARITY_WEIGHTS } from '../src/content/encounters';
 import { SPECIES, SPECIES_BY_ID } from '../src/content/species';
-import { DISTURB_PENALTY, evaluate, evaluateEcosystem, nicheSlots, rarityWeights, speciesAppears } from '../src/core/formulas';
-import { drawAnimals } from '../src/core/tick';
+import {
+  DISTURB_PENALTY,
+  appearsContext,
+  evaluate,
+  evaluateEcosystem,
+  nicheSlots,
+  rarityWeights,
+  speciesAppears,
+} from '../src/core/formulas';
+import { chooseCard, drawAnimals } from '../src/core/tick';
 import { stateAt } from './helpers';
 
 /**
@@ -39,6 +47,27 @@ describe('neue Wünsche', () => {
   it('Gattung: Steinpilz braucht 1× Bodenleben', () => {
     expect(evaluate(eco(3, ['porcini'])).animals.porcini!.needs).toEqual([false, false]);
     expect(evaluate(eco(3, ['porcini', 'earthworm'], ['birch'])).animals.porcini!.needs).toEqual([true, true]);
+  });
+});
+
+describe('Hirschkäfer: schattig und sonnig zugleich (lichter Altwald)', () => {
+  it('ist voll zufrieden erreichbar: 3 Bäume, genug Licht frei, ein Pilz, Totholz', () => {
+    // Hain: Licht 9. Rotbuche + Waldkiefer brauchen 6 → 3 frei (sonnig), 3 Bäume (schattig).
+    const state = eco(5, ['stagbeetle', 'tinder'], ['beech', 'pine']);
+    const ev = evaluate(state);
+    expect(ev.shady).toBe(true);
+    expect(ev.sunny).toBe(true);
+    expect(ev.animals.stagbeetle!.needs).toEqual([true, true, true]);
+    expect(ev.animals.stagbeetle!.food).toBe(1); // Totholz vom Zunderschwamm
+    expect(ev.animals.stagbeetle!.happiness).toBe(1);
+  });
+
+  it('wird angeboten, sobald Totholz da ist', () => {
+    const state = eco(5, ['tinder'], ['beech', 'pine']);
+    expect(speciesAppears(state, SPECIES_BY_ID.get('stagbeetle')!)).toBe(true);
+    const seen = new Set<string>();
+    for (let i = 0; i < 500; i++) for (const id of drawAnimals(state)) seen.add(id);
+    expect(seen.has('stagbeetle')).toBe(true);
   });
 });
 
@@ -224,6 +253,23 @@ describe('Erscheinungsbedingungen', () => {
     for (let i = 0; i < 300; i++) for (const id of drawAnimals(withVole)) seen.add(id);
     expect(seen.has('owl')).toBe(true);
     expect(seen.has('vole')).toBe(false);
+  });
+});
+
+describe('Erscheinungsbedingung gilt nur fürs Anbieten', () => {
+  it('eine offene Karte bleibt wählbar, auch wenn die Bedingung inzwischen fehlt', () => {
+    // Waldkauz wurde angeboten, als die Wühlmaus noch lebte – jetzt ist sie weg.
+    const state = eco(4, []);
+    state.pendingEncounters.push({ type: 'animal', cards: ['owl'], rerolls: 0 });
+    expect(speciesAppears(state, SPECIES_BY_ID.get('owl')!)).toBe(false);
+    expect(chooseCard(state, 0, 0)).toEqual({ ok: true });
+    expect(state.niches.hollows).toEqual(['owl']);
+  });
+
+  it('appearsContext einmal berechnen gibt dasselbe wie die Einzelprüfung', () => {
+    const state = eco(6, ['vole', 'deer', 'barkbeetle', 'oakmoth', 'bee', 'chanterelle'], ['birch', 'moss', 'fern']);
+    const ctx = appearsContext(state);
+    for (const sp of SPECIES) expect(speciesAppears(ctx, sp), sp.id).toBe(speciesAppears(state, sp));
   });
 });
 

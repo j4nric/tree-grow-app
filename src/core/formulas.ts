@@ -530,33 +530,62 @@ function ecosystemKey(state: GameState): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Ist die Erscheinungsbedingung der Art erfüllt (DESIGN_V2.md 5.2, 7.3)? Arten ohne
- * `appears` erscheinen immer. Geprüft wird nur, was im Ökosystem da ist: Merkmale
- * (Hauptbaum, Pflanzen, Tiere), Pflanzengruppen, Arten/Pflanzen und Gattungen (ohne
- * Fähigkeiten). „sonnig“ und „schattig“ gelten hier immer als erfüllt.
+ * Was im Ökosystem da ist – Grundlage für Erscheinungsbedingungen. Einmal berechnen und
+ * für viele Arten nutzen (z. B. beim Ziehen der Tierkarten).
  */
-export function speciesAppears(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants'>, sp: Pick<Species, 'appears'>): boolean {
-  if (!sp.appears || sp.appears.length === 0) return true;
+export interface AppearsContext {
+  tags: ReadonlySet<Tag>;
+  /** Arten und Pflanzen im Ökosystem. */
+  ids: ReadonlySet<string>;
+  /** Pflanzen je Gruppe, Hauptbaum zählt als Baum. */
+  groups: Readonly<Record<PlantGroup, number>>;
+  /** Tiere je Gattung – ohne Fähigkeiten (das Langohr zählt hier nicht als Vogel). */
+  genera: Readonly<Record<Genus, number>>;
+}
+
+export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants'>): AppearsContext {
   const animals = speciesIn({ ...eco, forestMemory: 0 });
   const plants = plantsIn({ ...eco, forestMemory: 0 });
   const tags = new Set<Tag>(MAIN_TREE_TAGS);
   if (eco.stage >= MAIN_TREE_NUTS_STAGE) tags.add('nuesse');
   for (const p of plants) for (const t of p.provides) tags.add(t);
   for (const a of animals) for (const t of a.provides) tags.add(t);
+  const groups: Record<PlantGroup, number> = { trees: 1, shrubs: 0, flowers: 0, mosses: 0 };
+  for (const p of plants) groups[p.group]++;
+  const genera = {} as Record<Genus, number>;
+  for (const g of GENERA) genera[g] = 0;
+  for (const a of animals) genera[a.genus]++;
   const ids = new Set<string>([...animals.map((a) => a.id), ...plants.map((p) => p.id)]);
+  return { tags, ids, groups, genera };
+}
+
+/**
+ * Ist die Erscheinungsbedingung der Art erfüllt (DESIGN_V2.md 5.2, 7.3)? Arten ohne
+ * `appears` erscheinen immer. Geprüft wird nur, was im Ökosystem da ist: Merkmale
+ * (Hauptbaum, Pflanzen, Tiere), Pflanzengruppen, Arten/Pflanzen und Gattungen (ohne
+ * Fähigkeiten). „sonnig“ und „schattig“ gelten hier immer als erfüllt. Gilt nur fürs
+ * Anbieten: Eine schon gezogene Karte bleibt wählbar, auch wenn die Bedingung wegfällt.
+ * `eco` darf ein vorberechneter Kontext (appearsContext) sein.
+ */
+export function speciesAppears(
+  eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants'> | AppearsContext,
+  sp: Pick<Species, 'appears'>,
+): boolean {
+  if (!sp.appears || sp.appears.length === 0) return true;
+  const ctx = 'tags' in eco ? eco : appearsContext(eco);
   const met = (c: Condition): boolean => {
     switch (c.kind) {
       case 'sunny':
       case 'shady':
         return true;
       case 'tag':
-        return tags.has(c.tag);
+        return ctx.tags.has(c.tag);
       case 'group':
-        return (c.group === 'trees' ? 1 : 0) + plants.filter((p) => p.group === c.group).length >= c.min;
+        return ctx.groups[c.group] >= c.min;
       case 'species':
-        return ids.has(c.id);
+        return ctx.ids.has(c.id);
       case 'genus':
-        return animals.filter((a) => a.genus === c.genus).length >= c.min;
+        return ctx.genera[c.genus] >= c.min;
     }
   };
   return sp.appears.every(met);
