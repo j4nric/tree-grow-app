@@ -301,7 +301,8 @@ describe('Sperrklinke: die Vorschau sinkt nie (seit v10)', () => {
     expect(stepped.cycle.bestHarmonyMemory).toBe(harmonyMemoryGain(stepped.cycle.maxHarmony, stepped.waypoint));
   });
 
-  it('über einen ganzen simulierten Zyklus bis zum Urwald sinkt die Vorschau nie (runGame, memoryPath)', () => {
+  // Drei ganze Simulationen: unter paralleler Last (npm run check) mehr als 5 s.
+  it('über einen ganzen simulierten Zyklus bis zum Urwald sinkt die Vorschau nie (runGame, memoryPath)', { timeout: 30_000 }, () => {
     for (const [strategy, seed] of [[HARMONY, 11], [GROWTH, 12], [RANDOM, 13]] as const) {
       const result = runGame(strategy, { seed, targetStage: URWALD_STAGE, maxSeconds: 8 * 3600, care: true });
       const path = result.memoryPath;

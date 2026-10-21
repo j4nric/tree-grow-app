@@ -283,7 +283,7 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   in der Szene, nachtaktive Arten (Fledermaus, Waldkauz, Glühwürmchen, Igel) mit
   Sichtbarkeit bzw. Effekten nur nachts
   - [x] Grafik (renderer): `SceneInput.dayPhase` 0–1 aus `dayPhaseAt(cycle.elapsed)`
-    (`DAY_SECONDS` = 240 s, drei Tage je Jahr), Dämmerung, Nacht mit Sternen und Mond,
+    (`DAY_SECONDS` = 180 s = eine Jahreszeit, jede Jahreszeit ein ganzer Tag), Dämmerung, Nacht mit Sternen und Mond,
     Glühwürmchen leuchten nachts stärker, Einstellung „Tageszeit“ (Wechsel / Immer Tag),
     Demo `?phase=` – DESIGN_V2.md 19
   - [ ] Wirkung (game-designer): nachtaktive Arten und ihre Effekte (Spielstand unverändert)

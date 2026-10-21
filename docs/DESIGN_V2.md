@@ -4216,16 +4216,20 @@ Der Spielstand ist unverändert (kein neues Feld, kein `SAVE_VERSION`).
 
 ### 19.1 Zeitmodell
 
-- **Ein Tag = 4 Minuten Spielzeit** (`DAY_SECONDS = 240`, `src/content/daytime.ts`). Ein
-  Jahr (12 min) hat genau drei Tage; eine Jahreszeit dauert ¾ Tag. Kürzer (2 min) wirkte
-  hektisch, länger (6 min) ließe Spieler mit kurzen Besuchen die Nacht kaum sehen.
+- **Ein Tag = eine Jahreszeit = 3 Minuten Spielzeit** (`DAY_SECONDS = SEASON_SECONDS =
+  180`, `src/content/daytime.ts`). Jede Jahreszeit erlebt genau einen ganzen Tag mit
+  Morgen, Mittag, Abend und Nacht – jedes Jahr gleich. Zuerst geplant waren 4 min (drei
+  Tage je Jahr): Dann fällt eine Tageszeit nur in drei von vier Jahreszeiten, und weil
+  jeder Zyklus gleich beginnt, sähe z. B. der Sommer nie Mitternacht.
 - Wie die Jahreszeit hängt die Tageszeit **nur an der Spielzeit des Zyklus**:
-  `dayPhaseAt(elapsed) = (elapsed / 240 + 0,3) mod 1` (`core/formulas.ts`), 0 Mitternacht,
-  0,25 Sonnenaufgang, 0,5 Mittag, 0,75 Sonnenuntergang. Jeder Zyklus beginnt am
-  Vormittag (0,3); die erste Dämmerung kommt nach gut 2 Minuten. Offline läuft der Tag mit.
+  `dayPhaseAt(elapsed) = (elapsed / 180 + 0,3) mod 1` (`core/formulas.ts`), 0 Mitternacht,
+  0,25 Sonnenaufgang, 0,5 Mittag, 0,75 Sonnenuntergang. Jeder Zyklus – und damit jede
+  Jahreszeit – beginnt am Vormittag (0,3); die Abenddämmerung kommt nach gut einer
+  Minute, Mitternacht nach gut zwei. Der Wechsel der Jahreszeit fällt also immer in den
+  hellen Vormittag. Offline läuft der Tag mit.
 - Sonnenhöhe `−cos(2π · Tagesanteil)`: volle Nacht etwa ein Drittel des Tages
-  (0,83–0,17, ~80 s), heller Tag knapp die Hälfte (0,27–0,73), dazwischen je ~20 s
-  Dämmerung.
+  (0,83–0,17, ~60 s), heller Tag knapp die Hälfte (0,27–0,73, ~80 s), dazwischen je
+  ~15 s Dämmerung.
 - Einstellung **„Tageszeit“** in ⚙️ (Gerät, nicht Spielstand): „Wechsel – Tag, Dämmerung
   und Nacht“ (Standard) oder „Immer Tag“ (die Szene zeigt dann Mittag).
 

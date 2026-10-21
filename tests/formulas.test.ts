@@ -32,8 +32,8 @@ import {
   waypointsForGrowth,
 } from '../src/core/formulas';
 import { DAY_SECONDS, DAY_START_PHASE, NOON_PHASE } from '../src/content/daytime';
-import { YEAR_SECONDS } from '../src/content/seasons';
-import { MAX_ELAPSED } from '../src/core/season';
+import { SEASON_SECONDS, YEAR_SECONDS } from '../src/content/seasons';
+import { MAX_ELAPSED, seasonIndex } from '../src/core/season';
 import { randomInt } from '../src/core/rng';
 import { MAX_FOREST_MEMORY, createInitialState } from '../src/core/state';
 import { SPRING_GROWTH, fakeSpecies, stateAt, withFakeSpecies } from './helpers';
@@ -597,10 +597,29 @@ describe('Tageszeit dayPhaseAt', () => {
     expect(dayPhaseAt((1 - DAY_START_PHASE) * DAY_SECONDS)).toBeCloseTo(0, 9);
   });
 
-  it('ein Jahr hat genau drei Tage: gleiche Tageszeit zu Jahresbeginn', () => {
-    expect(YEAR_SECONDS % DAY_SECONDS).toBe(0);
-    expect(YEAR_SECONDS / DAY_SECONDS).toBe(3);
+  it('ein Tag dauert eine Jahreszeit: jede Jahreszeit erlebt Morgen, Mittag, Abend und Nacht', () => {
+    expect(DAY_SECONDS).toBe(SEASON_SECONDS);
+    expect(YEAR_SECONDS / DAY_SECONDS).toBe(4);
     expect(dayPhaseAt(YEAR_SECONDS * 7 + 13)).toBeCloseTo(dayPhaseAt(13), 9);
+    // Jede Jahreszeit (in mehreren Jahren) beginnt am Vormittag und durchläuft alle Phasen.
+    for (let season = 0; season < 4 * 3; season++) {
+      const start = season * SEASON_SECONDS;
+      expect(seasonIndex(start)).toBe(season % 4);
+      expect(dayPhaseAt(start)).toBeCloseTo(DAY_START_PHASE, 9);
+      let midnight = 1;
+      let noon = 1;
+      let dusk = 1;
+      let dawn = 1;
+      for (let t = start; t < start + SEASON_SECONDS; t += 0.5) {
+        expect(seasonIndex(t)).toBe(season % 4);
+        const p = dayPhaseAt(t);
+        midnight = Math.min(midnight, Math.min(p, 1 - p));
+        noon = Math.min(noon, Math.abs(p - 0.5));
+        dusk = Math.min(dusk, Math.abs(p - 0.75));
+        dawn = Math.min(dawn, Math.abs(p - 0.25));
+      }
+      for (const d of [midnight, noon, dusk, dawn]) expect(d).toBeLessThan(0.005);
+    }
   });
 
   it('immer in [0, 1), stetig im Lauf der Zeit', () => {
