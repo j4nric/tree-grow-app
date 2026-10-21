@@ -19,6 +19,8 @@ import { clamp, clamp01, hash2, smooth01 } from './util';
 export const MAX_HARMONY_TIER = 4;
 /** Neutrale Stufe: sieht aus wie ohne Angabe. */
 export const NEUTRAL_HARMONY_TIER = 2;
+/** Stufen des Sonnenlichts (Tag und Nacht) für die gecachte Licht-Ebene. */
+const SUN_STEPS = 12;
 /** Überblendgeschwindigkeit (Stufen pro Sekunde). */
 const FADE_RATE = 0.5;
 
@@ -45,6 +47,13 @@ export interface MoodFrame {
    */
   bloom?: number;
   fireflies?: number;
+  /**
+   * Tag und Nacht (daylight.ts): Sonnenlicht 0–1 (Strahlen, warmes Licht und Schleier
+   * werden nachts schwächer) und Nacht 0–1 (Glühwürmchen leuchten stärker). Ohne Angabe
+   * Tag (1 bzw. 0) – Bild wie bisher.
+   */
+  sun?: number;
+  night?: number;
 }
 
 /** Normalisiert eine Harmoniestufe: undefiniert/ungültig → null, sonst 0–4. */
@@ -101,6 +110,7 @@ export class MoodLayer {
   private light: HTMLCanvasElement | null = null;
   private lightKey = '';
   private lightLevel = Number.NaN;
+  private lightSun = 1;
   /** Wie oft die Licht-Ebene gezeichnet wurde (für Tests). */
   lightBuilds = 0;
   private warmGrad: CanvasGradient | null = null;
@@ -138,7 +148,10 @@ export class MoodLayer {
   drawParticles(ctx: CanvasRenderingContext2D, level: number, f: MoodFrame): void {
     const mw = moodWeights(level);
     const pollen = mw.pollen * (f.bloom === undefined ? 1 : clamp01(f.bloom));
+    const night = f.night === undefined ? 0 : clamp01(f.night);
+    // Nachts weniger Pollen in der Luft; Glühwürmchen heller und größer (deutlich sichtbar).
     const fireflies = mw.fireflies * (f.fireflies === undefined ? 1 : clamp01(f.fireflies));
+    const nightPollen = 1 - 0.6 * night;
     if (pollen <= 0.01 && fireflies <= 0.01) return;
     const t = f.reducedMotion ? 0 : f.time;
     const span = f.groundY - f.top;
@@ -148,7 +161,7 @@ export class MoodLayer {
       const p = this.particles[i]!;
       // Auf schmalen Bildschirmen jedes zweite Partikel weglassen.
       if (small && i % 2 === 1) continue;
-      const strength = p.kind === 2 ? fireflies : pollen;
+      const strength = p.kind === 2 ? fireflies : pollen * nightPollen;
       const a = clamp01((strength - p.from) / 0.3);
       if (a <= 0.01) continue;
       let x: number;
@@ -161,7 +174,8 @@ export class MoodLayer {
         x = (p.u + 0.04 * Math.sin(t * 0.23 * p.speed + p.phase)) * f.width;
         y = f.top + span * p.v + span * 0.03 * Math.sin(t * 0.37 * p.speed + p.phase * 1.3);
         alpha *= f.reducedMotion ? 0.8 : 0.35 + 0.65 * Math.max(0, Math.sin(t * 0.9 * p.speed + p.phase)) ** 2;
-        size = base * 5;
+        alpha = Math.min(1, alpha * (1 + 0.6 * night));
+        size = base * 5 * (1 + 0.45 * night);
       } else {
         // Pollen und Blütenblätter treiben langsam mit dem Wind nach rechts.
         const drift = t * 0.012 * p.speed;
@@ -199,8 +213,11 @@ export class MoodLayer {
   drawLight(ctx: CanvasRenderingContext2D, level: number, f: MoodFrame): void {
     const mw = moodWeights(level);
     if (mw.veil <= 0.004 && mw.warm <= 0.004) return;
+    // Sonnenlicht auf Stufen (wie die Tageszeit): die Licht-Ebene entsteht nur je Stufe neu.
+    const sun = f.sun === undefined ? 1 : Math.round(clamp01(f.sun) * SUN_STEPS) / SUN_STEPS;
     ctx.setTransform(f.sx * f.dpr, 0, 0, f.sy * f.dpr, f.tx ?? 0, f.ty ?? 0);
-    if (mw.warm > 0.004) {
+    const softWarm = mw.warm * (0.3 + 0.7 * sun);
+    if (softWarm > 0.004) {
       // Weiches Licht in sattem Gold: Grün wird wärmer und kräftiger, der Himmel bleibt blau.
       if (!this.warmGrad || this.warmKey !== f.height) {
         const g = ctx.createLinearGradient(0, 0, 0, f.height);
@@ -213,14 +230,14 @@ export class MoodLayer {
       }
       // Oben (Himmel) ist der Verlauf durchsichtig – erst ab einem Fünftel zeichnen.
       const y0 = Math.floor(f.height * 0.2);
-      ctx.globalAlpha = mw.warm;
+      ctx.globalAlpha = softWarm;
       ctx.globalCompositeOperation = 'soft-light';
       ctx.fillStyle = this.warmGrad;
       ctx.fillRect(0, y0, f.width, f.height - y0);
       ctx.globalCompositeOperation = 'source-over';
     }
     ctx.globalAlpha = 1;
-    ctx.drawImage(this.lightLayer(level, f), 0, 0, f.width, f.height);
+    ctx.drawImage(this.lightLayer(level, sun, f), 0, 0, f.width, f.height);
   }
 
   /**
@@ -228,10 +245,10 @@ export class MoodLayer {
    * Strahlenfächer. Neu gezeichnet nur bei neuer Größe oder merklich anderer Stimmung
    * (beim Überblenden etwa zwanzigmal, sonst nie).
    */
-  private lightLayer(level: number, f: MoodFrame): HTMLCanvasElement {
+  private lightLayer(level: number, sun: number, f: MoodFrame): HTMLCanvasElement {
     const key = `${f.width}x${f.height}/${f.groundY}`;
     const q = Math.round(level * 20) / 20;
-    if (this.light && this.lightKey === key && this.lightLevel === q) return this.light;
+    if (this.light && this.lightKey === key && this.lightLevel === q && this.lightSun === sun) return this.light;
     const scale = 0.5;
     const canvas = this.light ?? document.createElement('canvas');
     const cw = Math.max(1, Math.ceil(f.width * scale));
@@ -246,6 +263,10 @@ export class MoodLayer {
     c.clearRect(0, 0, canvas.width, canvas.height);
     c.setTransform(scale, 0, 0, scale, 0, 0);
     const mw = moodWeights(q);
+    // Nachts: keine Strahlen und kein Sonnenschein, der Schleier nur noch halb.
+    mw.veil *= 0.5 + 0.5 * sun;
+    mw.warm *= sun;
+    mw.rays *= sun;
     if (mw.veil > 0.004) {
       // Kühler, grauer Schleier – oben (Himmel) etwas heller als in der Erde.
       const g = c.createLinearGradient(0, 0, 0, f.height);
@@ -279,6 +300,7 @@ export class MoodLayer {
     this.light = canvas;
     this.lightKey = key;
     this.lightLevel = q;
+    this.lightSun = sun;
     this.lightBuilds++;
     return canvas;
   }

@@ -9,6 +9,7 @@ import { TRAITS } from '../src/content/traits';
 import { GENERA, NICHE_IDS, type NicheId } from '../src/content/types';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
 import {
+  dayPhaseAt,
   activeCommunities,
   communityChanges,
   evaluate,
@@ -30,6 +31,9 @@ import {
   waypointProgress,
   waypointsForGrowth,
 } from '../src/core/formulas';
+import { DAY_SECONDS, DAY_START_PHASE, NOON_PHASE } from '../src/content/daytime';
+import { YEAR_SECONDS } from '../src/content/seasons';
+import { MAX_ELAPSED } from '../src/core/season';
 import { randomInt } from '../src/core/rng';
 import { MAX_FOREST_MEMORY, createInitialState } from '../src/core/state';
 import { SPRING_GROWTH, fakeSpecies, stateAt, withFakeSpecies } from './helpers';
@@ -580,5 +584,44 @@ describe('Wegpunkte und Stufen', () => {
     const done = stateAt(7);
     expect(waypointProgress(done)).toBe(1);
     expect(secondsToNextWaypoint(done)).toBe(Infinity);
+  });
+});
+
+describe('Tageszeit dayPhaseAt', () => {
+  it('beginnt am Vormittag und läuft in DAY_SECONDS einmal um', () => {
+    expect(dayPhaseAt(0)).toBeCloseTo(DAY_START_PHASE);
+    expect(dayPhaseAt(DAY_SECONDS)).toBeCloseTo(DAY_START_PHASE);
+    expect(dayPhaseAt(DAY_SECONDS / 4)).toBeCloseTo(DAY_START_PHASE + 0.25);
+    // Mittag nach (0,5 − 0,3) Tagen, Mitternacht nach 0,7 Tagen.
+    expect(dayPhaseAt((NOON_PHASE - DAY_START_PHASE) * DAY_SECONDS)).toBeCloseTo(0.5);
+    expect(dayPhaseAt((1 - DAY_START_PHASE) * DAY_SECONDS)).toBeCloseTo(0, 9);
+  });
+
+  it('ein Jahr hat genau drei Tage: gleiche Tageszeit zu Jahresbeginn', () => {
+    expect(YEAR_SECONDS % DAY_SECONDS).toBe(0);
+    expect(YEAR_SECONDS / DAY_SECONDS).toBe(3);
+    expect(dayPhaseAt(YEAR_SECONDS * 7 + 13)).toBeCloseTo(dayPhaseAt(13), 9);
+  });
+
+  it('immer in [0, 1), stetig im Lauf der Zeit', () => {
+    let prev = dayPhaseAt(0);
+    for (let t = 0.5; t < DAY_SECONDS * 3; t += 0.5) {
+      const p = dayPhaseAt(t);
+      expect(p).toBeGreaterThanOrEqual(0);
+      expect(p).toBeLessThan(1);
+      let d = p - prev;
+      if (d < 0) d += 1;
+      expect(d).toBeCloseTo(0.5 / DAY_SECONDS, 9);
+      prev = p;
+    }
+  });
+
+  it('robust: ungültige Zeit wie 0, riesige wie die Obergrenze', () => {
+    for (const bad of [Number.NaN, -5, -Infinity]) expect(dayPhaseAt(bad)).toBeCloseTo(DAY_START_PHASE);
+    const top = dayPhaseAt(MAX_ELAPSED);
+    expect(dayPhaseAt(Infinity)).toBe(top);
+    expect(dayPhaseAt(MAX_ELAPSED * 10)).toBe(top);
+    expect(top).toBeGreaterThanOrEqual(0);
+    expect(top).toBeLessThan(1);
   });
 });

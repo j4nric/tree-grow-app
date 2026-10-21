@@ -1,6 +1,7 @@
 import { CARE } from './content/care';
+import { NOON_PHASE } from './content/daytime';
 import { checkAchievements } from './core/achievements';
-import { evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
+import { dayPhaseAt, evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
 import { sceneSeason } from './core/season';
 import { createInitialState, type GameState } from './core/state';
@@ -962,6 +963,8 @@ function frame(now: number): void {
   scene.time = now / 1000;
   // Jahreszeit stufenlos aus der Spielzeit (tick läuft jeden Frame), Art des Hauptbaums.
   scene.season = sceneSeason(state.cycle.elapsed);
+  // Tageszeit aus derselben Spielzeit (DESIGN_V2.md 19); Einstellung „Immer Tag“ → Mittag.
+  scene.dayPhase = preferences.settings.daytime === 'day' ? NOON_PHASE : dayPhaseAt(state.cycle.elapsed);
   scene.mainTree = state.cycle.mainTree;
   drawScene(ctx, size.width, size.height, scene);
   // Klang folgt der Szene (Jahreszeit, Harmoniestufe); gedrosselt, still ohne Web Audio.

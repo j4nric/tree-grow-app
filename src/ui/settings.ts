@@ -1,6 +1,6 @@
 /**
  * Einstellungen der Oberfläche (nicht Teil des Spielstands): Bewegung, Zahlenformat,
- * Dauer der Hinweise, Klang. Gespeichert in localStorage unter eigenem Schlüssel – „Spielstand
+ * Dauer der Hinweise, Klang, Tageszeit der Szene. Gespeichert in localStorage unter eigenem Schlüssel – „Spielstand
  * löschen“ und Export/Import berühren sie nicht.
  *
  * Reine Funktionen (plus robustes Laden/Speichern) – getestet in tests/settings.test.ts.
@@ -9,6 +9,9 @@ import type { NumberStyle } from './format';
 
 /** Bewegung reduzieren: automatisch (prefers-reduced-motion), immer an oder immer aus. */
 export type MotionSetting = 'auto' | 'on' | 'off';
+
+/** Tageszeit der Szene: Tag und Nacht wechseln (Standard) oder immer Tag. */
+export type DaytimeSetting = 'cycle' | 'day';
 
 /** Klangkulisse: aus (Standard), leise oder normal. */
 export type SoundLevel = 'off' | 'quiet' | 'normal';
@@ -19,6 +22,8 @@ export interface Settings {
   /** Hinweise (Toasts) länger anzeigen. */
   longToasts: boolean;
   sound: SoundLevel;
+  /** Tag-Nacht-Wechsel in der Szene oder immer Tag (nur Grafik). */
+  daytime: DaytimeSetting;
 }
 
 export const SETTINGS_KEY = 'tree-grow-settings';
@@ -30,6 +35,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   numbers: 'short',
   longToasts: false,
   sound: 'off',
+  daytime: 'cycle',
 };
 
 /** Anzeigedauer der Hinweise (Toasts) in ms. */
@@ -39,6 +45,7 @@ export const LONG_TOAST_MS = 12000;
 const MOTIONS: readonly MotionSetting[] = ['auto', 'on', 'off'];
 const NUMBER_STYLES: readonly NumberStyle[] = ['short', 'long'];
 export const SOUND_LEVELS: readonly SoundLevel[] = ['off', 'quiet', 'normal'];
+export const DAYTIME_SETTINGS: readonly DaytimeSetting[] = ['cycle', 'day'];
 
 /** Liest gespeicherte Einstellungen; Unbekanntes oder Kaputtes → Standard (feldweise). */
 export function parseSettings(raw: string | null | undefined): Settings {
@@ -54,6 +61,7 @@ export function parseSettings(raw: string | null | undefined): Settings {
     numbers: NUMBER_STYLES.includes(record.numbers as NumberStyle) ? (record.numbers as NumberStyle) : DEFAULT_SETTINGS.numbers,
     longToasts: typeof record.longToasts === 'boolean' ? record.longToasts : DEFAULT_SETTINGS.longToasts,
     sound: SOUND_LEVELS.includes(record.sound as SoundLevel) ? (record.sound as SoundLevel) : DEFAULT_SETTINGS.sound,
+    daytime: DAYTIME_SETTINGS.includes(record.daytime as DaytimeSetting) ? (record.daytime as DaytimeSetting) : DEFAULT_SETTINGS.daytime,
   };
 }
 
@@ -63,6 +71,7 @@ export function serializeSettings(settings: Settings): string {
     numbers: settings.numbers,
     longToasts: settings.longToasts,
     sound: settings.sound,
+    daytime: settings.daytime,
   });
 }
 
