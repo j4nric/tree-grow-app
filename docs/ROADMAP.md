@@ -93,7 +93,13 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     Stammgäste direkt wählbar; Statuszeile für Screenreader (`ui-dev`)
 - [x] 2.9 e2e: voller Zyklus mit festem Seed (`qa-tester`)
 - [x] Begegnungs-Vielfalt messen und verbessern: Pflanzengewicht bei vollem Ring, Ring-Pflanzen seltener (Playtest-Befund, `game-designer`)
-- [ ] 2.10 Balancing aller Zahlen mit dem v2-Simulator, `scripts/v2/` aufräumen (`game-designer`)
+- [x] 2.10 Balancing aller Zahlen mit dem v2-Simulator, `scripts/v2/` aufräumen (`game-designer`)
+  - [x] Wegpunkte 3,5 · k^3,5 (Spielstand v7, Migration v6 → v7 erhält den Wegpunkt-Fortschritt),
+    🌿-Wirkungen der Arten ×0,75, Pflegekosten, Waldgedächtnis (+1 % je Punkt, H_max/5, 1 je Art),
+    Zwischenhalt 70 %, Buche und Kiefer angeglichen (DESIGN_V2.md 15.4, Stand Schritt 2.10)
+  - [x] Simulator über mehrere Zyklen (Waldgedächtnis, Stammgäste, Kartenpool), `npm run balance`
+    als großer Lauf, schnellere Standardläufe; `scripts/v2/` und `tests/design-v2.test.ts` entfernt
+  - [ ] Offen: `npm run balance` in CLAUDE.md unter „Befehle“ eintragen (nur mit Freigabe des Nutzers)
 
 ## Phase 3 – Tiefe
 
