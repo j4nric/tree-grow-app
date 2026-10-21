@@ -1250,7 +1250,7 @@ function memoryRulePoints(): { waypoint: number; threshold: number; maxPoints: n
 /**
  * Regel des Harmonie-Bonus für den erreichten Wegpunkt (Schritt 2.11b): Schwelle und
  * Obergrenze gleiten linear zwischen den Stützstellen aus MEMORY_HARMONY_RULES (Hain,
- * Wegpunkt 20: 100 / 45 → Urwald, Wegpunkt 36: 150 / 36), damit die Vorschau beim
+ * Wegpunkt 20: 100 / 45 → Urwald, Wegpunkt 36: 150 / 38), damit die Vorschau beim
  * Stufenwechsel nicht springt. Davor gilt die erste, danach die letzte Stützstelle; NaN
  * zählt wie Wegpunkt 0, Infinity wie der letzte.
  */
