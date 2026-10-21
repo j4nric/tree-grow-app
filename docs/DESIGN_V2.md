@@ -598,10 +598,11 @@ gewöhnlich.
 
 ### 7.4 Ereignisse mit Wahl
 
-10 Ereignisse in `src/content/events.ts`. Jedes kommt **höchstens einmal pro Zyklus**
+14 Ereignisse in `src/content/events.ts` (4 davon an eine Jahreszeit gebunden, 16.4). Jedes kommt **höchstens einmal pro Zyklus**
 („gesehen“, sobald es gezogen ist), nur ab seiner Stufe und wenn seine Bedingung erfüllt
 ist (Prüfung wie `appears` der Arten). **Keine Option ist eine Strafe** – alle Zahlen
-sind positiv, die Samen-Option ist die neutrale Wahl; Ablehnen gibt es nicht.
+sind positiv; wo ein Ereignis eine Samen-Option hat, ist sie die neutrale Wahl (nicht
+jedes hat eine, z. B. Mittsommer oder Laubfall). Ablehnen gibt es nicht.
 
 **Wirkungstypen** (klein gehalten, Details im Typ-Kommentar `EventEffect`):
 
@@ -619,12 +620,57 @@ sind positiv, die Samen-Option ist die neutrale Wahl; Ablehnen gibt es nicht.
 | 🌧️ Regenreicher Frühling | Junger Baum | – | Waldtümpel: Feuchte + 3 💧 (Zyklus) · Alles austreiben lassen: +25 % 🌿 5 min · Wasser ableiten: 90 s 🌰 | „In einer Senke sammelt sich das Wasser.“ |
 | ☀️ Mittsommer | Junger Baum | – | Lange Tage: +30 % 🌿 6 min · Alles blühen lassen: +60 % 🌰 6 min | „Die längsten Tage des Jahres – das Licht reicht bis tief in den Abend.“ |
 | 🍄 Pilzherbst | Junger Baum | Feuchte | Den Hüten Zeit lassen: nächste Begegnung Pilze (Pfifferling, Steinpilz, Zunderschwamm, Fliegenpilz) · Myzel: Bäume +40 % 🌿 8 min · Pilze sammeln: 90 s 🌰 | „Über Nacht stehen überall Hüte im Moos.“ |
+| 🧊 Spätfrost | Junger Baum | nur Frühling | Neu austreiben lassen: +30 % 🌿 5 min · Den Frühblühern das Licht lassen: Blumen +60 % 🌿 8 min · Reserven schonen: 90 s 🌰 | „Eine klare Mainacht – der Frost hat die jungen Blätter geschwärzt.“ |
+| 🌡️ Hitzewelle | Junger Baum | nur Sommer | Tiefer wurzeln: +2 💧 (Zyklus) · Früh reifen lassen: +50 % 🌰 6 min | „Wochenlang kein Regen – schon im Juli rascheln die ersten gelben Blätter.“ |
+| 🍁 Laubfall | Junger Baum | nur Herbst | Laub den Bodentieren lassen: nächste Begegnung Laubbewohner (Igel, Steinläufer, Rollassel; ab Alter Baum auch Weinbergschnecke) · Zu Humus werden lassen: +4 ⚖️ (Zyklus) | „Ein Herbststurm hat die Krone geleert – knöcheltief liegt das Laub.“ |
+| 🌨️ Schneebruch | Junger Baum | nur Winter | Den Ast liegen lassen: Totholz + nächste Begegnung Totholzbewohner (Zunderschwamm, Borkenkäfer, Steinläufer, Rollassel) · Reisig aufschichten: +1 Platz Laubstreu (Zyklus) · Äste räumen: 120 s 🌰 | „Nasser Schnee lastet auf der Krone – krachend bricht ein Ast.“ |
 | 🌪️ Windwurf | Alter Baum | – | Lichtung offen lassen: +3 ☀️ (Zyklus) · Stamm verwerten: 150 s 🌰 | „Ein alter Nachbarbaum ist umgestürzt – plötzlich ist es hell.“ |
 | 🌰 Mastjahr | Alter Baum | Nüsse (für die Eiche ab Alter Baum immer; Kiefer: nie, 17.3) | Eicheln liegen lassen: nächste Begegnung Eichelhäher/Eichhörnchen · Eicheln sammeln: +50 % 🌰 8 min | „Die Eiche trägt so viele Eicheln wie seit Jahren nicht.“ |
 | 🐝 Bienenschwarm | Alter Baum | Baumhöhle | Höhle überlassen: Blumen und Sträucher +60 % 🌰 10 min · Weiterziehen lassen: 90 s 🌰 | „Eine summende Traube Honigbienen hängt im Geäst und sucht eine Bleibe.“ |
 | 🫐 Vogelsaat | Alter Baum | ≥ 2 Vögel | Sämlinge stehen lassen: nächste Begegnung Eberesche/Holunder/Brombeere · Beeren reifen lassen: +40 % 🌰 6 min | „Die Vögel haben Beerensamen mitgebracht – überall spitzt es grün.“ |
 | ⚡ Blitzschlag | Hain | ≥ 3 Bäume | Biotopbaum: Totholz + 1 Platz Stamm & Rinde (Zyklus) · Die Lücke nutzen: +2 ☀️ (Zyklus) · Holz verwerten: 150 s 🌰 | „Ein Blitz hat einen Nachbarbaum gespalten. Der Stumpf raucht noch.“ |
 | 🐜 Ameisenstraße | Hain | Rote Waldameise | Hügel wachsen lassen: +5 ⚖️ (Zyklus) · Samen verbreiten lassen: Blumen +60 % 🌿 10 min + 60 s 🌰 | „Die Waldameisen tragen Samen in ihren Hügel – und verlieren unterwegs die Hälfte.“ |
+
+**Jahreszeiten-Ereignisse (Phase 3):** Jede Jahreszeit hat ein eigenes Ereignis ab Junger
+Baum ohne Bedingung, naturkundlich begründet: Spätfrost in klaren Mainächten (der
+Baum treibt aus Reserveknospen neu aus; unter der geschwärzten Krone bekommen die
+Frühblüher Licht), Hitzewelle (tiefe Wurzeln heben nachts Wasser in den trockenen
+Oberboden – „hydraulischer Lift“ –, oder der Baum lässt seine Früchte notreif werden),
+Laubfall (Laubhaufen als Winterquartier für Igel und Futter für Bodentiere oder langsam
+Humus) und Schneebruch (nasser Schnee bricht Äste: Totholz für Pilze und Käfer, ein
+Reisighaufen als Unterschlupf oder Holz). Alle nutzen vorhandene Wirkungstypen.
+
+**Versprechen einlösbar:** Nennt eine Option „nächste Begegnung: …“, müssen ab der
+Stufe des Ereignisses alle genannten Arten bis auf höchstens eine (und mindestens zwei)
+freigeschaltet sein und in einer offenen Nische leben können (Inhaltstest). Eine
+spätere Art darf als Bonus dabeistehen (Fliegenpilz im Pilzherbst, Weinbergschnecke
+im Laubfall). Darum nennt der Schneebruch keinen Buntspecht und keinen Hirschkäfer.
+Die Nacktschnecke fehlt im Laubfall bewusst: Ein Fraß-Tier als Belohnung wäre eine
+versteckte Strafe.
+
+**Totholz aus mehreren Ereignissen** (Sturmnacht, Schneebruch, Blitzschlag) addiert
+sich: Jede gewählte Option zählt als eine eigene Einheit Angebot wie eine
+Begleitpflanze, bis zum Neuen Zyklus. Wie
+alle Ereignisse ist keine Option eine Strafe – ein kurzer Wachstums-Abzug nach dem
+Schneebruch wäre zwar naturnah, widerspräche aber dieser Regel und ist darum nicht umgesetzt.
+
+Messung mit echter Logik (`scripts/simulate.ts`, 200 Durchgänge, Eiche, erster Zyklus,
+`SIM_LOG=1 SIM_RUNS=200` für `tests/balance*.test.ts` und `tests/seasons-balance.test.ts`):
+
+| Kennzahl | 10 Ereignisse | 14 Ereignisse |
+|---|---|---|
+| Hain, Gierig nach Harmonie | 1:03:34 h · ⚖️ 106,9 | 1:03:32 h · ⚖️ 107,2 |
+| Wald / Urwald, Harmonie | 1:54:41 h / 2:48:13 h | 1:54:29 h / 2:48:14 h |
+| Hain, Gierig nach Wachstum | 54:34 min · ⚖️ 100,5 | 54:54 min · ⚖️ 100,4 |
+| Hain, Zufällig | 1:39:15 h · ⚖️ 80,8 | 1:39:27 h · ⚖️ 81,6 |
+| Wachstum ÷ Harmonie (Hain) | 0,858 | 0,864 |
+| Buche / Kiefer ggü. Eiche (Harmonie) | −0,7 % / −1,9 % | −0,5 % / −1,9 % |
+| Ereignisse / Gäste je Durchgang bis Urwald (Harmonie) | 8,2 / 6,9 | 9,8 / 6,5 |
+| Zyklus 2 bis Hain (Harmonie) | −28,8 % | −27,8 % |
+
+Die neuen Ereignisse verdrängen keine Tierbegegnungen in nennenswertem Maß (der Takt der
+Ereignisse ist unverändert, es fehlen nur seltener passende Ereignisse); Tempo und
+Spielweisen-Verhältnisse bleiben innerhalb der Streuung.
 
 **Abwägung je Ereignis:** Die Samen-Option entspricht 1½–2½ Minuten Samen (etwa eine
 halbe bis ganze Pflanze). Zeit-Boni bringen grob dasselbe in Wachstum (z. B. +25 % für
@@ -2904,10 +2950,15 @@ bleibt über den Wechsel hinaus.
 | 🌰 Mastjahr | Herbst | Eicheln reifen im Herbst |
 | 🐝 Bienenschwarm | Frühling, Sommer | Schwarmzeit Mai bis Juli |
 | 🐜 Ameisenstraße | Frühling bis Herbst | Waldameisen ruhen im Winter |
+| 🧊 Spätfrost | Frühling | Frostnächte bis zu den Eisheiligen |
+| 🌡️ Hitzewelle | Sommer | – |
+| 🍁 Laubfall | Herbst | – |
+| 🌨️ Schneebruch | Winter | nasser Schnee auf der Krone |
 
 Ganzjährig: Wildschwein-Rotte, Wanderfalke, Sturmnacht, Windwurf, Blitzschlag,
 Vogelsaat. So gibt es in jeder Jahreszeit ein Ereignis ab Junger Baum und einen Gast ab
-Hain ohne Bedingung (Inhaltstest). Kommt für den gezogenen Typ nichts in Frage, gibt es
+Hain ohne Bedingung (Inhaltstest); dazu hat jede Jahreszeit ein **eigenes** Ereignis ab
+Junger Baum ohne Bedingung (Spätfrost, Hitzewelle, Laubfall, Schneebruch; Inhaltstest). Kommt für den gezogenen Typ nichts in Frage, gibt es
 wie bisher eine Tierbegegnung – es geht keine Begegnung verloren. Bewohner des
 Ökosystems ziehen nie fort (auch keine Vögel): Das wäre eine Strafe.
 

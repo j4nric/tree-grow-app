@@ -1638,15 +1638,16 @@ function relative(after: number, before: number): number {
  * Wirkungszeilen einer Ereignis-Option, aus den Daten statt aus dem Kurztext:
  * „+480 🌰 sofort“, „+30 % 🌿 für 6 Min.“, „Totholz, +1 Platz Höhlen & Totholz – bis zum
  * Neuen Zyklus“, „nächste Begegnung: Pfifferling, Steinpilz oder …“ (aus Typ und IDs).
+ * `journal` (= `meta.journal`): Unentdeckte erscheinen ohne Namen (siehe `nextEncounterText`).
  */
-export function eventOptionEffects(option: EventOption, seeds: number): EffectView[] {
+export function eventOptionEffects(option: EventOption, seeds: number, journal: EncounterJournal): EffectView[] {
   const out: EffectView[] = [];
   const lasting: string[] = [];
   for (const e of option.effects) {
     if (e.kind === 'timed') out.push({ label: `${bonusEffectLabel(e.effect)} für ${formatDuration(e.seconds)}`, tone: 'good' });
     else if (e.kind === 'habitat') lasting.unshift(TAG_NAMES[e.tag] ?? e.tag);
     else if (e.kind === 'cycle') lasting.push(bonusEffectLabel(e.effect));
-    else if (e.kind === 'nextEncounter') out.push({ label: nextEncounterText(e.type, e.ids), tone: 'good' });
+    else if (e.kind === 'nextEncounter') out.push({ label: nextEncounterText(e.type, e.ids, journal), tone: 'good' });
   }
   if (lasting.length > 0) out.unshift({ label: `${lasting.join(', ')} – ${UNTIL_NEW_CYCLE}`, tone: 'good' });
   if (seeds > 0) out.push({ label: `+${seedsLabel(seeds)} 🌰 sofort`, tone: 'good' });
@@ -1659,14 +1660,46 @@ function orList(names: readonly string[]): string {
   return `${names.slice(0, -1).join(', ')} oder ${names[names.length - 1]}`;
 }
 
+/** Was das Naturtagebuch schon kennt (`meta.journal`) – entscheidet über Namen oder „unbekannt“. */
+export type EncounterJournal = Pick<GameState['meta']['journal'], 'species' | 'plants'>;
+
+/** Name und Symbol (Gattung bzw. Gruppe, wie die Tagebuch-Silhouette) einer Art oder Pflanze. */
+function encounterEntry(type: 'animal' | 'plant', id: string): { name: string; icon: string } | null {
+  if (type === 'animal') {
+    const sp = SPECIES_BY_ID.get(id);
+    return sp ? { name: sp.name, icon: GENUS_INFO[sp.genus].icon } : null;
+  }
+  const plant = PLANTS_BY_ID.get(id);
+  return plant ? { name: plant.name, icon: PLANT_GROUP_INFO[plant.group].icon } : null;
+}
+
 /**
  * Vorgabe für die nächste Begegnung als Text, z. B. „nächste Begegnung: Eichelhäher oder
  * Eichhörnchen“; unbekannte IDs fallen weg. Ohne bekannte Namen: „nächste Begegnung: ein Tier“.
+ * Spoiler-Regel wie im Naturtagebuch: Noch nicht entdeckte Arten bzw. Pflanzen werden nicht
+ * genannt, sondern zusammengefasst – mit Gattungs- bzw. Gruppensymbol wie die Silhouetten
+ * dort: „Zunderschwamm oder 2 unbekannte Arten (🍄)“, „eine unbekannte Pflanze (🌳)“.
  */
-export function nextEncounterText(type: 'animal' | 'plant', ids: readonly string[]): string {
-  const names = ids
-    .map((id) => (type === 'animal' ? SPECIES_BY_ID.get(id)?.name : PLANTS_BY_ID.get(id)?.name))
-    .filter((n): n is string => Boolean(n));
+export function nextEncounterText(type: 'animal' | 'plant', ids: readonly string[], journal: EncounterJournal): string {
+  const known = type === 'animal' ? journal.species : journal.plants;
+  const names: string[] = [];
+  const hiddenIcons: string[] = [];
+  let hidden = 0;
+  for (const id of ids) {
+    const entry = encounterEntry(type, id);
+    if (!entry) continue;
+    if (known.includes(id)) {
+      names.push(entry.name);
+    } else {
+      hidden++;
+      if (!hiddenIcons.includes(entry.icon)) hiddenIcons.push(entry.icon);
+    }
+  }
+  if (hidden > 0) {
+    const noun = type === 'animal' ? ['eine unbekannte Art', 'unbekannte Arten'] : ['eine unbekannte Pflanze', 'unbekannte Pflanzen'];
+    const label = hidden === 1 ? noun[0] : `${formatNumber(hidden)}\u00a0${noun[1]}`;
+    names.push(`${label} (${hiddenIcons.join(' ')})`);
+  }
   if (names.length === 0) return `nächste Begegnung: ${type === 'animal' ? 'ein Tier' : 'eine Pflanze'}`;
   return `nächste Begegnung: ${orList(names)}`;
 }
@@ -1690,7 +1723,7 @@ export function toEventView(
   const event = encounter?.type === 'event' ? EVENTS_BY_ID.get(encounter.cards[0] ?? '') : undefined;
   if (!event) return null;
   const cards: CardView[] = event.options.map((option, i) => {
-    const effects = eventOptionEffects(option, eventOptionSeeds(state, event.id, i));
+    const effects = eventOptionEffects(option, eventOptionSeeds(state, event.id, i), state.meta.journal);
     const copy = structuredClone(state);
     const ok = chooseEventOption(copy, encounterIndex, i).ok;
     const after = ok ? evaluate(copy) : now;

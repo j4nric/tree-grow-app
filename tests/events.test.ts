@@ -179,6 +179,14 @@ describe('Ereignisse: Regeln und Blocker', () => {
     expect(eligibleEvents(stateAt(5, ['woodant'], 1)).map((e) => e.id)).toContain('ant-trail');
   });
 
+  it('Schneebruch kommt nur im Winter in Frage, nicht im Sommer', () => {
+    const state = stateAt(3, [], 1);
+    state.cycle.elapsed = 1 * SEASON_SECONDS + 1; // Sommer
+    expect(eligibleEvents(state).map((e) => e.id)).not.toContain('snow-break');
+    state.cycle.elapsed = 3 * SEASON_SECONDS + 1; // Winter
+    expect(eligibleEvents(state).map((e) => e.id)).toContain('snow-break');
+  });
+
   it('gezogene Ereignisse gelten sofort als gesehen', () => {
     for (let seed = 1; seed < 200; seed++) {
       const state = stateAt(4, [], seed);

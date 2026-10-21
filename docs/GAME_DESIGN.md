@@ -11,7 +11,8 @@
 > Ereignisse mit Wahl und Durchreisende mit Zeit- und Zyklus-Boni, ab dem Hain mit
 > Zwischenhalt (Schritt 2.4, `DESIGN_V2.md` 7.4–7.8); Pflegemaßnahmen als Samen-Senke
 > (8 Maßnahmen mit 1–3 Rängen, wirken bis zum Neuen Zyklus; Schritt 2.7, `DESIGN_V2.md` 8);
-> Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus) und Hauptbaum-Arten (Eiche, Buche,
+> Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus; 14 Ereignisse, davon je Jahreszeit ein
+> eigenes: Spätfrost, Hitzewelle, Laubfall, Schneebruch) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
 > Spielstand v9 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
