@@ -410,7 +410,7 @@ export function toCardView(
   } else if (status === 'closed') {
     // Nur für die Bedingungen: Wie ginge es der Art, wenn sie schon einziehen dürfte?
     const niches = { ...state.niches, [sp.niche]: [...(state.niches[sp.niche] ?? []), sp.id] };
-    after = evaluateEcosystem({ stage: state.stage, niches, forestMemory: state.meta.forestMemory });
+    after = evaluateEcosystem({ stage: state.stage, niches, plants: state.plants, forestMemory: state.meta.forestMemory });
   }
 
   const card: CardView = {

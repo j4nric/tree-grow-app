@@ -47,6 +47,10 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'too-expensive': 'Nicht genug Samen zum Neuwürfeln.',
   'no-cards': 'Keine passenden Tiere.',
   'no-alternatives': 'Keine anderen Tiere verfügbar.',
+  'would-evict': 'Dann verlören Höhlenbewohner ihren Platz.',
+  'ring-full': 'Kein Platz mehr für Pflanzen.',
+  'unknown-plant': 'Diese Pflanze gibt es nicht.',
+  locked: 'Diese Pflanze wächst hier noch nicht.',
 };
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
