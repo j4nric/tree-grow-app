@@ -1,4 +1,5 @@
-import { SAVE_VERSION, expect, openGame, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { createInitialState } from '../src/core/state';
+import { SAVE_VERSION, expect, niche, openGame, savedState, seedRaw, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Neuer Zyklus und Stammgäste (Schritt 2.8). Startet mit einem v3-Stand – das Laden
@@ -74,4 +75,38 @@ test('Stammgäste wählen: Liste ab 25 Waldgedächtnis, Auswahl wird gespeichert
   await expect(regulars).toContainText('Stammgäste 1/1');
   await expect(regulars.locator('[data-regular="robin"]')).toBeDisabled();
   expect((await savedState(page)).meta.regulars).toEqual(['earthworm']);
+});
+
+test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pflege ein', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Alter Baum, Tümpel noch nicht angelegt; Erdkröte gewählt, Grasfrosch nur entdeckt.
+  const state = createInitialState(Date.now(), 7);
+  state.totalGrowth = waypoint(12) + 1;
+  state.waypoint = 12;
+  state.stage = 4;
+  state.seeds = 10_000;
+  state.niches.roots = ['earthworm'];
+  state.meta.journal.species = ['earthworm', 'toad', 'frog'];
+  state.meta.forestMemory = 50;
+  state.meta.regulars = ['toad'];
+  await seedRaw(context, state, 0);
+  await openGame(page);
+
+  const regulars = page.locator('[data-ref="regulars"]');
+  const toad = regulars.locator('[data-regular="toad"]');
+  const toadNote = regulars.locator('[data-regular-note="toad"]');
+  await expect(toadNote).toHaveText('wartet auf den Waldtümpel');
+  await expect(toad).toHaveAccessibleDescription('wartet auf den Waldtümpel');
+  await expect(regulars.locator('[data-regular="frog"]')).toHaveAccessibleDescription(
+    'zieht erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)',
+  );
+  await expect(regulars.locator('[data-regular-note="earthworm"]')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+
+  // Tümpel anlegen: Die Kröte zieht sofort ein, statt zu warten steht der Hinweis fürs nächste Mal da.
+  await niche(page, 'pond').getByRole('button', { name: 'Zur Pflege: Waldtümpel öffnen' }).click();
+  await page.locator('[data-ref="care"] [data-buy-care="pond"]').click();
+  await expect(toadNote).toHaveText('zieht erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)');
+  await expect(toad).toContainText('lebt hier');
+  expect((await savedState(page)).niches.pond).toEqual(['toad']);
 });

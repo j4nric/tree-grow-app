@@ -17,6 +17,7 @@ import { memoryHarmonyBonus, regularSlots, type MemoryHarmonyBonus } from '../co
 import { allAnimals, type GameState } from '../core/state';
 import { previewNewCycle, regularBlocker, type NewCycleBlocker } from '../core/tick';
 import { formatNumber } from './format';
+import { regularNextCycleHint, regularWaitReason, regularWaitText } from './regular-wait';
 
 /** Eine entdeckte Art in der Stammgäste-Auswahl. */
 export interface RegularOptionView {
@@ -31,6 +32,14 @@ export interface RegularOptionView {
   disabled: boolean;
   /** Lebt gerade im Ökosystem. */
   present: boolean;
+  /**
+   * Kurzer Hinweis unter dem Knopf: als gewählter Stammgast, der noch nicht hier lebt,
+   * warum er wartet („wartet auf den Waldtümpel“); sonst für Arten, deren Nische in jedem
+   * Zyklus neu angelegt werden muss, wann sie einziehen. null ohne Hinweis.
+   */
+  note: string | null;
+  /** `note` ist ein Warte-Status im laufenden Zyklus. */
+  waiting: boolean;
 }
 
 /** Eine Hauptbaum-Art in der Auswahl beim Neuen Zyklus (DESIGN_V2.md 17.2). */
@@ -105,6 +114,7 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
     const sp = SPECIES_BY_ID.get(id);
     if (!sp) continue;
     const selected = state.meta.regulars.includes(id);
+    const wait = regularWaitReason(state, id);
     regulars.push({
       id,
       name: sp.name,
@@ -113,6 +123,8 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
       selected,
       disabled: !selected && regularBlocker(state, id) !== null,
       present: present.has(id),
+      note: wait ? regularWaitText(state, wait) : regularNextCycleHint(id),
+      waiting: wait !== null,
     });
   }
   return {

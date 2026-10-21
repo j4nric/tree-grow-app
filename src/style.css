@@ -3268,6 +3268,28 @@ body[data-motion='reduce'] .slot.arrive {
   font-size: 0.72rem;
 }
 
+/* Hinweis unter einem Stammgast (regular-wait.ts): wann er einzieht bzw. worauf er wartet. */
+.cycle-regular-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.cycle-regular-note {
+  max-width: 16rem;
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.cycle-regular-note.waiting {
+  color: var(--text);
+  font-style: italic;
+}
+
 /* Wahl des Hauptbaums (cycle-panel.ts) – schlicht */
 .cycle-tree-current {
   font-size: 0.875rem;

@@ -196,7 +196,9 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   - [x] Tümpel-Darstellung mit 4–5 Bewohnern entzerren, Amphibien auf schmalen Bildschirmen
     größer (`renderer`, `DESIGN_V2.md` 15.4 „Stand Playtest Amphibien“, Offen 1) – Senke für
     fünf Bewohner verbreitert, Watende an den Rändern, Molche in eigenen Streifen; Demo `?pondn=`
-  - [ ] Stammgast-Wahl: Hinweis, dass Amphibien erst mit dem Waldtümpel einziehen (`ui-dev`)
+  - [x] Stammgast-Wahl: Hinweis, dass Amphibien erst mit dem Waldtümpel einziehen (`ui-dev`) –
+    Hinweis an Amphibien in der Auswahl, Warte-Status gewählter Stammgäste (Waldtümpel, Stufe,
+    voller Platz), Tierdetails; `ui/regular-wait.ts`
 - [x] Winter-Ereignis „Schneebruch“ und weitere Ereignisse je Jahreszeit (`game-designer`) – 4 neue
   Ereignisse nur mit vorhandenen Wirkungstypen (keine Logik, kein neues Spielstand-Format):
   Spätfrost (Frühling), Hitzewelle (Sommer), Laubfall (Herbst), Schneebruch (Winter);
