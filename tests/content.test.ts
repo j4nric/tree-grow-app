@@ -362,12 +362,20 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
     };
     for (const e of EVENTS) {
       for (const o of e.options) for (const x of o.effects) check(x, `${e.id}: ${o.label}`);
-      // Erzwungene Karten sind ab der Stufe des Ereignisses freigeschaltet (mindestens eine).
+      // Das Versprechen muss ab minStage einlösbar sein: Alle genannten Karten bis auf
+      // höchstens eine (und mindestens zwei bzw. alle, wenn es weniger sind) sind dann
+      // schon freigeschaltet, bei Arten mit offener Nische. Eine spätere Art darf als
+      // Bonus dabeistehen (z. B. Fliegenpilz im Pilzherbst).
       for (const o of e.options) {
         for (const x of o.effects) {
           if (x.kind !== 'nextEncounter') continue;
-          const unlocks = x.ids.map((id) => (x.type === 'animal' ? SPECIES_BY_ID.get(id)!.unlock : PLANTS_BY_ID.get(id)!.unlock));
-          expect(Math.min(...unlocks), e.id).toBeLessThanOrEqual(e.minStage);
+          const ready = x.ids.filter((id) => {
+            if (x.type === 'plant') return PLANTS_BY_ID.get(id)!.unlock <= e.minStage;
+            const s = SPECIES_BY_ID.get(id)!;
+            return s.unlock <= e.minStage && NICHES_BY_ID.get(s.niche)!.slots[e.minStage]! > 0;
+          });
+          expect(ready.length, `${e.id}: ${o.label} – ab Stufe ${e.minStage} möglich: ${ready.join(', ')}`)
+            .toBeGreaterThanOrEqual(Math.max(Math.min(2, x.ids.length), x.ids.length - 1));
         }
       }
     }

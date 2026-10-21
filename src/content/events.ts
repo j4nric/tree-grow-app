@@ -174,8 +174,9 @@ export const EVENTS: readonly GameEvent[] = [
     text: 'Ein Herbststurm hat die Krone geleert – knöcheltief liegt das Laub.',
     options: [
       {
-        label: 'Laub liegen lassen', summary: 'nächste Begegnung: Laubbewohner',
-        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['hedgehog', 'earthworm', 'woodlouse', 'centipede'] }],
+        // Keine Nacktschnecke: Ein Fraß-Tier wäre als Belohnung eine versteckte Strafe.
+        label: 'Laub den Bodentieren lassen', summary: 'nächste Begegnung: Laubbewohner',
+        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['hedgehog', 'centipede', 'woodlouse', 'snail'] }],
       },
       { label: 'Zu Humus werden lassen', summary: '+4 ⚖️ (Zyklus)', effects: [{ kind: 'cycle', effect: { kind: 'harmony', points: 4 } }] },
     ],
@@ -185,10 +186,11 @@ export const EVENTS: readonly GameEvent[] = [
     text: 'Nasser Schnee lastet auf der Krone – krachend bricht ein Ast.',
     options: [
       {
-        label: 'Totholz liegen lassen', summary: 'Totholz, nächste Begegnung: Totholzbewohner',
+        // Nur Arten, die ab Junger Baum kommen können (Höhlen & Totholz ist dort noch zu).
+        label: 'Den Ast liegen lassen', summary: 'Totholz, nächste Begegnung: Totholzbewohner',
         effects: [
           { kind: 'habitat', tag: 'totholz' },
-          { kind: 'nextEncounter', type: 'animal', ids: ['tinder', 'woodlouse', 'woodpecker', 'stagbeetle'] },
+          { kind: 'nextEncounter', type: 'animal', ids: ['tinder', 'barkbeetle', 'centipede', 'woodlouse'] },
         ],
       },
       {

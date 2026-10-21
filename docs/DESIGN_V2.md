@@ -601,7 +601,8 @@ gewöhnlich.
 14 Ereignisse in `src/content/events.ts` (4 davon an eine Jahreszeit gebunden, 16.4). Jedes kommt **höchstens einmal pro Zyklus**
 („gesehen“, sobald es gezogen ist), nur ab seiner Stufe und wenn seine Bedingung erfüllt
 ist (Prüfung wie `appears` der Arten). **Keine Option ist eine Strafe** – alle Zahlen
-sind positiv, die Samen-Option ist die neutrale Wahl; Ablehnen gibt es nicht.
+sind positiv; wo ein Ereignis eine Samen-Option hat, ist sie die neutrale Wahl (nicht
+jedes hat eine, z. B. Mittsommer oder Laubfall). Ablehnen gibt es nicht.
 
 **Wirkungstypen** (klein gehalten, Details im Typ-Kommentar `EventEffect`):
 
@@ -621,8 +622,8 @@ sind positiv, die Samen-Option ist die neutrale Wahl; Ablehnen gibt es nicht.
 | 🍄 Pilzherbst | Junger Baum | Feuchte | Den Hüten Zeit lassen: nächste Begegnung Pilze (Pfifferling, Steinpilz, Zunderschwamm, Fliegenpilz) · Myzel: Bäume +40 % 🌿 8 min · Pilze sammeln: 90 s 🌰 | „Über Nacht stehen überall Hüte im Moos.“ |
 | 🧊 Spätfrost | Junger Baum | nur Frühling | Neu austreiben lassen: +30 % 🌿 5 min · Den Frühblühern das Licht lassen: Blumen +60 % 🌿 8 min · Reserven schonen: 90 s 🌰 | „Eine klare Mainacht – der Frost hat die jungen Blätter geschwärzt.“ |
 | 🌡️ Hitzewelle | Junger Baum | nur Sommer | Tiefer wurzeln: +2 💧 (Zyklus) · Früh reifen lassen: +50 % 🌰 6 min | „Wochenlang kein Regen – schon im Juli rascheln die ersten gelben Blätter.“ |
-| 🍁 Laubfall | Junger Baum | nur Herbst | Laub liegen lassen: nächste Begegnung Laubbewohner (Igel, Regenwurm, Assel, Hundertfüßer) · Zu Humus werden lassen: +4 ⚖️ (Zyklus) | „Ein Herbststurm hat die Krone geleert – knöcheltief liegt das Laub.“ |
-| 🌨️ Schneebruch | Junger Baum | nur Winter | Totholz liegen lassen: Totholz + nächste Begegnung Totholzbewohner (Zunderschwamm, Assel, Buntspecht, Hirschkäfer) · Reisig aufschichten: +1 Platz Laubstreu (Zyklus) · Äste räumen: 120 s 🌰 | „Nasser Schnee lastet auf der Krone – krachend bricht ein Ast.“ |
+| 🍁 Laubfall | Junger Baum | nur Herbst | Laub den Bodentieren lassen: nächste Begegnung Laubbewohner (Igel, Steinläufer, Rollassel; ab Alter Baum auch Weinbergschnecke) · Zu Humus werden lassen: +4 ⚖️ (Zyklus) | „Ein Herbststurm hat die Krone geleert – knöcheltief liegt das Laub.“ |
+| 🌨️ Schneebruch | Junger Baum | nur Winter | Den Ast liegen lassen: Totholz + nächste Begegnung Totholzbewohner (Zunderschwamm, Borkenkäfer, Steinläufer, Rollassel) · Reisig aufschichten: +1 Platz Laubstreu (Zyklus) · Äste räumen: 120 s 🌰 | „Nasser Schnee lastet auf der Krone – krachend bricht ein Ast.“ |
 | 🌪️ Windwurf | Alter Baum | – | Lichtung offen lassen: +3 ☀️ (Zyklus) · Stamm verwerten: 150 s 🌰 | „Ein alter Nachbarbaum ist umgestürzt – plötzlich ist es hell.“ |
 | 🌰 Mastjahr | Alter Baum | Nüsse (für die Eiche ab Alter Baum immer; Kiefer: nie, 17.3) | Eicheln liegen lassen: nächste Begegnung Eichelhäher/Eichhörnchen · Eicheln sammeln: +50 % 🌰 8 min | „Die Eiche trägt so viele Eicheln wie seit Jahren nicht.“ |
 | 🐝 Bienenschwarm | Alter Baum | Baumhöhle | Höhle überlassen: Blumen und Sträucher +60 % 🌰 10 min · Weiterziehen lassen: 90 s 🌰 | „Eine summende Traube Honigbienen hängt im Geäst und sucht eine Bleibe.“ |
@@ -631,13 +632,25 @@ sind positiv, die Samen-Option ist die neutrale Wahl; Ablehnen gibt es nicht.
 | 🐜 Ameisenstraße | Hain | Rote Waldameise | Hügel wachsen lassen: +5 ⚖️ (Zyklus) · Samen verbreiten lassen: Blumen +60 % 🌿 10 min + 60 s 🌰 | „Die Waldameisen tragen Samen in ihren Hügel – und verlieren unterwegs die Hälfte.“ |
 
 **Jahreszeiten-Ereignisse (Phase 3):** Jede Jahreszeit hat ein eigenes Ereignis ab Junger
-Baum ohne Bedingung, naturkundlich begründet: Spätfrost in klaren Mainächten (die
-Eiche treibt aus Reserveknospen neu aus; unter der geschwärzten Krone bekommen die
+Baum ohne Bedingung, naturkundlich begründet: Spätfrost in klaren Mainächten (der
+Baum treibt aus Reserveknospen neu aus; unter der geschwärzten Krone bekommen die
 Frühblüher Licht), Hitzewelle (tiefe Wurzeln heben nachts Wasser in den trockenen
 Oberboden – „hydraulischer Lift“ –, oder der Baum lässt seine Früchte notreif werden),
 Laubfall (Laubhaufen als Winterquartier für Igel und Futter für Bodentiere oder langsam
 Humus) und Schneebruch (nasser Schnee bricht Äste: Totholz für Pilze und Käfer, ein
-Reisighaufen als Unterschlupf oder Holz). Alle nutzen vorhandene Wirkungstypen. Wie
+Reisighaufen als Unterschlupf oder Holz). Alle nutzen vorhandene Wirkungstypen.
+
+**Versprechen einlösbar:** Nennt eine Option „nächste Begegnung: …“, müssen ab der
+Stufe des Ereignisses alle genannten Arten bis auf höchstens eine (und mindestens zwei)
+freigeschaltet sein und in einer offenen Nische leben können (Inhaltstest). Eine
+spätere Art darf als Bonus dabeistehen (Fliegenpilz im Pilzherbst, Weinbergschnecke
+im Laubfall). Darum nennt der Schneebruch keinen Buntspecht und keinen Hirschkäfer.
+Die Nacktschnecke fehlt im Laubfall bewusst: Ein Fraß-Tier als Belohnung wäre eine
+versteckte Strafe.
+
+**Totholz aus mehreren Ereignissen** (Sturmnacht, Schneebruch, Blitzschlag) addiert
+sich: Jede gewählte Option zählt als eine eigene Einheit Angebot wie eine
+Begleitpflanze, bis zum Neuen Zyklus. Wie
 alle Ereignisse ist keine Option eine Strafe – ein kurzer Wachstums-Abzug nach dem
 Schneebruch wäre zwar naturnah, widerspräche aber dieser Regel und ist darum nicht umgesetzt.
 
