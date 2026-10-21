@@ -91,6 +91,31 @@ describe('H_max und neu entdeckte Arten', () => {
     expect(state.cycle.maxHarmony).toBe(Math.max(before, evaluate(state).harmony));
   });
 
+  it('Jahreszeitenwechsel führt H_max nach – online wie offline', () => {
+    // Stufe 4, nur Pfifferling: Sommer und Herbst heben die Harmonie über den Frühlingswert.
+    const make = () => {
+      const s = stateAt(4, ['chanterelle'], 3);
+      recordDiscoveries(s);
+      return s;
+    };
+    const online = make();
+    let highest = evaluate(online).harmony;
+    for (let i = 0; i < 2; i++) {
+      tick(online, SEASON_SECONDS);
+      highest = Math.max(highest, evaluate(online).harmony);
+      expect(online.cycle.maxHarmony).toBeGreaterThanOrEqual(evaluate(online).harmony);
+    }
+    expect(online.cycle.maxHarmony).toBe(highest);
+    expect(highest).toBeGreaterThan(evaluate(make()).harmony);
+    // Ganze Jahre (Schnellvorlauf) sehen jede Jahreszeit: gleicher Höchstwert wie Schritt für Schritt.
+    const stepped = make();
+    for (let i = 0; i < 8; i++) tick(stepped, SEASON_SECONDS);
+    const skipped = make();
+    tick(skipped, 8 * SEASON_SECONDS);
+    expect(skipped.cycle.maxHarmony).toBe(stepped.cycle.maxHarmony);
+    expect(stepped.cycle.maxHarmony).toBeGreaterThanOrEqual(highest);
+  });
+
   it('nur Arten, die zum ersten Mal ins Tagebuch kommen, zählen als neu', () => {
     const state = stateAt(3, [], 3);
     state.meta.journal.species = ['vole']; // aus einem früheren Zyklus bekannt
