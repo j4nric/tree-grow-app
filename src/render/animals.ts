@@ -14,6 +14,7 @@ import type { AnchorResolver, NicheAnchor } from './anchors';
 import { ell, eye, line, OUTLINE, outline, paintBird, poly, TAU, type BirdColors, type SpriteDef } from './sprite-kit';
 import { SPECIES_DEFS, SPECIES_INFO, type KindInfo } from './species-sprites';
 import { clamp, clamp01, hash2, smooth01 } from './util';
+import { VISITOR_DEFS } from './visitor-sprites';
 
 export type AnimalFamily = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi';
 
@@ -642,6 +643,8 @@ const DEFS: Record<string, SpriteDef> = {
   shimmer: { x0: -1, y0: -1, x1: 1, y1: 1, paint: (c) => paintShimmer(c) },
   sparkle: { x0: -0.5, y0: -0.5, x1: 0.5, y1: 0.5, paint: (c) => paintSparkle(c) },
   ...SPECIES_DEFS,
+  // Durchreisende (visitors.ts)
+  ...VISITOR_DEFS,
 };
 
 /** Weicher, warmer Lichthof hinter besonderen und legendären Arten. */
@@ -818,6 +821,8 @@ interface PlanEntry {
   seed: number;
   phase: number;
   niche: string;
+  /** Reihe (1 = hintere Reihe am Waldsaum, wird vor allen anderen gezeichnet). */
+  depth: number;
   /** Sprite-Größe in px. */
   size: number;
   /** Ruhelage ohne Wind. */
@@ -895,8 +900,8 @@ export class AnimalLayer {
       const anchor = anchors.get(animal.niche, animal.slot);
       if (anchor) plan.push(planEntry(animal, index, anchor, anchors));
     });
-    // Stabile Sortierung: Boden zuerst, Krone zuletzt.
-    plan.sort((a, b) => (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9) || a.index - b.index);
+    // Stabile Sortierung: hintere Reihe zuerst, dann Boden … Krone.
+    plan.sort((a, b) => b.depth - a.depth || (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9) || a.index - b.index);
     this.plan = plan;
   }
 }
@@ -921,6 +926,7 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
     seed,
     phase: (seed & 1023) / 97,
     niche,
+    depth: 0,
     size: S * info.size,
     x: ax,
     y: ay,
@@ -961,20 +967,27 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
       e.travel = info.motion === 'busy' ? 0 : S * 0.4;
       if (kind === 'earthworm') e.y = ay - S * 0.04;
       break;
-    case 'edge':
-      e.before.push({ name: 'flowers', x: ax, y: ay, size: S * 1.15 });
+    case 'edge': {
+      // Hintere Reihe (schmale Bildschirme): alles etwas kleiner, gerundet auf 0,05 –
+      // so entstehen nur wenige Sprite-Größen.
+      const k = Math.round(clamp(anchor.scale, 0.5, 1) * 20) / 20;
+      const Se = S * k;
+      e.size = Se * info.size;
+      e.depth = anchor.depth;
+      e.before.push({ name: 'flowers', x: ax, y: ay, size: Se * 1.15 });
       if (info.motion === 'hover') {
-        e.y = ay - S * 1.15;
+        e.y = ay - Se * 1.15;
       } else if (ON_BLOSSOM.has(kind)) {
         // Kleine Krabbler sitzen auf der Blüte.
-        e.y = ay - S * 0.72;
-        e.x = ax + S * 0.21;
+        e.y = ay - Se * 0.72;
+        e.x = ax + Se * 0.21;
       } else {
         // Größere Tiere stehen neben den Blumen, große etwas weiter weg.
-        e.x = ax + anchor.side * S * (0.3 + 0.25 * info.size);
-        e.travel = S * 0.3;
+        e.x = ax + anchor.side * Se * (0.3 + 0.25 * info.size);
+        e.travel = Se * 0.3;
       }
       break;
+    }
     case 'crown':
       e.travel = S * 0.12;
       if (info.motion === 'hover') e.y = ay - S * 0.3;
@@ -1109,7 +1122,7 @@ function normSlot(slot: number): number {
 function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, reduced: boolean): void {
   const info = e.info;
   if (reduced || act <= 0.01) {
-    if (info.motion === 'hover' && e.niche === 'edge') pose.y += S * 0.43; // ruht auf der Blüte
+    if (info.motion === 'hover' && e.niche === 'edge') pose.y += (e.size / info.size) * 0.43; // ruht auf der Blüte
     return;
   }
   switch (info.motion) {
