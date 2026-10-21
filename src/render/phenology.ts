@@ -1,8 +1,15 @@
 /**
  * Jahreszeiten-Zustand einzelner Pflanzen und Tiere (Phänologie) – reine Rechnungen
- * ohne Canvas, damit testbar. Eingabe ist das gerundete Aussehen `SeasonLook`
- * (season.ts); ohne Angabe (null) und im Sommer gilt überall der Wert, der dem
- * bisherigen Bild entspricht – der Sommer bleibt so pixelgleich.
+ * ohne Canvas, damit testbar.
+ *
+ * Zwei Arten von Werten:
+ * - Für gecachte Zeichnungen (Sträucher): Eingabe ist das gerundete Aussehen
+ *   `SeasonLook` (season.ts); ohne Angabe (null) und im Sommer gilt überall der Wert,
+ *   der dem bisherigen Bild entspricht – der Sommer bleibt so pixelgleich.
+ * - Für Werte, die jeden Frame gelesen werden (Insekten, Partikel, Blumen am Waldsaum):
+ *   Eingabe ist die ungerundete Jahreszeit (`normalizeSeason`, null = ohne Angabe),
+ *   damit nichts alle paar Sekunden um eine Rundungsstufe springt. Die Kurven haben
+ *   im Hochsommer (1) ihren neutralen Wert – ein Sommer-Sonderfall ist nicht nötig.
  *
  * Grafik-Werte der Jahreszeit (siehe `sceneSeason` in core/season.ts):
  *   0 Mitte Frühling · 0,5 Frühling/Sommer · 1 Mitte Sommer · 1,5 Sommer/Herbst ·
@@ -17,6 +24,12 @@ type Points = readonly (readonly [number, number])[];
 function at(points: Points, look: SeasonLook | null, neutral = 1): number {
   if (!look || look.summer) return neutral;
   return curve(points, look.s);
+}
+
+/** Wert einer Kurve für eine ungerundete Jahreszeit (0–4); ohne Angabe `neutral`. */
+function atRaw(points: Points, season: number | null, neutral = 1): number {
+  if (season === null) return neutral;
+  return curve(points, season);
 }
 
 /** Begleitbäume mit eigener Zeichnung, die das ganze Jahr grün bleiben (Nadelbäume). */
@@ -70,7 +83,7 @@ const HAZEL_CATKIN_BLOOM: Points = [
 const ELDER_FLOWERS: Points = [
   [0, 0.25],
   [0.3, 1],
-  [1.05, 1],
+  [1.15, 1],
   [1.4, 0],
   [3.75, 0],
   [4, 0.25],
@@ -137,17 +150,61 @@ export function elderBerries(look: SeasonLook | null): number {
   return at(ELDER_BERRIES, look);
 }
 
-/** Bewegung der Insekten 0 (Winterruhe) – 1 (wie bisher). */
-export function insectActivity(look: SeasonLook | null): number {
-  return at(INSECT_ACTIVITY, look);
+/**
+ * Blumen am Waldsaum: Blüten vom Frühling bis Spätsommer, danach Samenstände; im Winter
+ * nur dürre Halme und Blattrosetten, erst mit dem Frühling wieder grün.
+ */
+const EDGE_PETALS: Points = [
+  [0, 1],
+  [1.5, 1],
+  [1.85, 0],
+  [3.55, 0],
+  [3.9, 1],
+  [4, 1],
+];
+const EDGE_SEEDS: Points = [
+  [0, 0],
+  [1.5, 0],
+  [1.85, 1],
+  [2.2, 1],
+  [2.55, 0],
+  [4, 0],
+];
+const EDGE_BARE: Points = [
+  [0, 0],
+  [2.2, 0],
+  [2.55, 1],
+  [3.4, 1],
+  [3.75, 0],
+  [4, 0],
+];
+
+/** Bewegung der Insekten 0 (Winterruhe) – 1 (wie bisher). Ungerundete Jahreszeit. */
+export function insectActivity(season: number | null): number {
+  return atRaw(INSECT_ACTIVITY, season);
 }
 
-/** Pollen und Blütenblätter der Stimmungs-Ebene 0–1. */
-export function bloomParticles(look: SeasonLook | null): number {
-  return at(BLOOM_PARTICLES, look);
+/** Pollen und Blütenblätter der Stimmungs-Ebene 0–1. Ungerundete Jahreszeit. */
+export function bloomParticles(season: number | null): number {
+  return atRaw(BLOOM_PARTICLES, season);
 }
 
-/** Glühwürmchen der Stimmungs-Ebene 0–1. */
-export function fireflySeason(look: SeasonLook | null): number {
-  return at(FIREFLIES, look);
+/** Glühwürmchen (Stimmungs-Ebene und Leuchten des Tiers) 0–1. Ungerundete Jahreszeit. */
+export function fireflySeason(season: number | null): number {
+  return atRaw(FIREFLIES, season);
+}
+
+/** Blüten der Waldsaum-Blumen 0–1 (1 = bisheriges Bild). Ungerundete Jahreszeit. */
+export function edgePetals(season: number | null): number {
+  return atRaw(EDGE_PETALS, season);
+}
+
+/** Verblühte Samenstände der Waldsaum-Blumen 0–1 (Herbst). Ungerundete Jahreszeit. */
+export function edgeSeedHeads(season: number | null): number {
+  return atRaw(EDGE_SEEDS, season, 0);
+}
+
+/** Winterkleid des Waldsaums 0–1: dürre Halme statt grüner Stängel. Ungerundete Jahreszeit. */
+export function edgeBare(season: number | null): number {
+  return atRaw(EDGE_BARE, season, 0);
 }

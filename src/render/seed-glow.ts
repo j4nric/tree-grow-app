@@ -4,10 +4,14 @@
  * Keimling bis zum ersten Wegpunkt (Wachstum 1, Stufe „Keimling“) aus der Erde wächst.
  * Bei reduzierter Bewegung steht der Schein still.
  *
+ * Während des Übergangs zum Neuen Zyklus übernimmt zuerst das Aufleuchten aus cycle.ts;
+ * der Schein bleibt bis dahin aus und blendet danach weich ein (`seedGlowCycleFade`).
+ *
  * Pro Frame höchstens ein drawImage eines gecachten Sprites – und nur in der Stufe
  * „Samen“ (Wachstum < 1); danach kostet er nichts.
  */
 
+import { CYCLE_TRANSITION_REDUCED_SECONDS } from './cycle';
 import { clamp01, smooth01 } from './util';
 
 /** Stärke des Scheins 0–1 aus dem Wachstum: voll bis 0,55, weg ab 1 (erster Wegpunkt). */
@@ -16,16 +20,27 @@ export function seedGlowStrength(growth: number): number {
   return 1 - smooth01((Math.max(0, growth) - 0.55) / 0.45);
 }
 
-/** Puls 0–1 (ruhig, etwa alle 2,6 s); bei reduzierter Bewegung fest. */
+/** Puls 0,7–1: ein ruhiges Atmen, etwa alle 5,2 s; bei reduzierter Bewegung fest. */
 export function seedGlowPulse(time: number, reducedMotion: boolean): number {
-  if (reducedMotion || !Number.isFinite(time)) return 0.7;
-  const s = Math.sin(time * 2.4);
-  return 0.55 + 0.45 * s * s;
+  if (reducedMotion || !Number.isFinite(time)) return 0.85;
+  return 0.85 + 0.15 * Math.sin(time * 1.2);
+}
+
+/**
+ * Anteil des Scheins während des Zyklus-Übergangs (`cycleU` = Sekunden seit Start, NaN =
+ * kein Übergang → 1). Bis die Eichel gelandet ist und das Aufleuchten aus cycle.ts
+ * (ab 3,3 s) steht, bleibt der Schein aus; dann blendet er bis 5,1 s ein – vor dem Ende
+ * der Sequenz (5,5 s), daher ohne Sprung. Bei reduzierter Bewegung mit dem Überblenden.
+ */
+export function seedGlowCycleFade(cycleU: number, reducedMotion: boolean): number {
+  if (Number.isNaN(cycleU)) return 1;
+  if (reducedMotion) return smooth01(cycleU / CYCLE_TRANSITION_REDUCED_SECONDS);
+  return smooth01((cycleU - 3.6) / 1.5);
 }
 
 /** Deckkraft des Scheins in diesem Frame (0 = nicht zeichnen). */
-export function seedGlowAlpha(growth: number, time: number, reducedMotion: boolean): number {
-  const k = seedGlowStrength(growth);
+export function seedGlowAlpha(growth: number, time: number, reducedMotion: boolean, cycleU = Number.NaN): number {
+  const k = seedGlowStrength(growth) * seedGlowCycleFade(cycleU, reducedMotion);
   return k <= 0 ? 0 : clamp01(k * seedGlowPulse(time, reducedMotion));
 }
 

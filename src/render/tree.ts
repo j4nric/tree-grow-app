@@ -48,9 +48,9 @@ import {
   speciesWood,
   type TreeSpecies,
 } from './species';
-import { paintSnowCover, SeasonParticles, seasonLeaves, seasonLook, seasonWood, type SeasonFrame, type SeasonLook } from './season';
+import { normalizeSeason, paintSnowCover, SeasonParticles, seasonLeaves, seasonLook, seasonWood, type SeasonFrame, type SeasonLook } from './season';
 import { ResizeGate, seasonStepKey, sizeKey } from './resize';
-import { bloomParticles, fireflySeason, insectActivity } from './phenology';
+import { bloomParticles, fireflySeason } from './phenology';
 import { seedGlowAlpha, SeedGlow } from './seed-glow';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
 import { clamp01, mix, mulberry32, smooth01 } from './util';
@@ -272,6 +272,8 @@ interface Cache {
   seasonParticles: SeasonParticles;
   /** Jahreszeit dieses Frames (null = ohne Angabe). */
   look: SeasonLook | null;
+  /** Ungerundete Jahreszeit dieses Frames (0–4, null = ohne Angabe) für Werte pro Frame. */
+  season: number | null;
   /** Lichtschein am Samen (nur in der Stufe „Samen“). */
   seedGlow: SeedGlow;
 }
@@ -422,6 +424,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       cycleU: Number.NaN,
       seasonParticles: new SeasonParticles(),
       look: null,
+      season: null,
       plantSig: null,
       seedGlow: new SeedGlow(),
     };
@@ -431,6 +434,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   // Jahreszeit dieses Frames (gemerkt je Rundung – keine Allokation pro Frame).
   const look = seasonLook(input.season);
   cache.look = look;
+  cache.season = normalizeSeason(input.season);
 
   // Größenänderung entprellen: altes Bild skaliert zeigen, bis die Größe stabil ist –
   // außer der Aufrufer hat schon entprellt (`sizeSettled`).
@@ -547,7 +551,8 @@ function compose(
   ctx.setTransform(sx, 0, 0, sy, 0, 0);
   ctx.drawImage(sc.background, 0, 0);
   // Spielbeginn: warmer, sanft pulsierender Schein am Samen (bis zum Keimling).
-  const glow = seedGlowAlpha(sc.growth, time, reduced);
+  // Beim Neuen Zyklus erst nach dem Aufleuchten aus cycle.ts (siehe seedGlowCycleFade).
+  const glow = seedGlowAlpha(sc.growth, time, reduced, cache.cycleU);
   if (glow > 0) {
     // Lage wie in `paintUnderground` (keine Allokation pro Frame).
     cache.seedGlow.draw(ctx, layout.cx, layout.groundY + layout.soilH * 0.14, sc.seedR * 5, glow, dpr, sx, sy);
@@ -572,8 +577,9 @@ function compose(
     mf.sy = sy;
     mf.time = time;
     mf.reducedMotion = reduced;
-    mf.bloom = bloomParticles(cache.look);
-    mf.fireflies = fireflySeason(cache.look);
+    // Ungerundete Jahreszeit: stufenlos, ohne Sprünge bei jeder Rundungsstufe.
+    mf.bloom = bloomParticles(cache.season);
+    mf.fireflies = fireflySeason(cache.season);
   }
   const visitors = input.visitors && input.visitors.length > 0 ? input.visitors : null;
   const vf = visitorFrame;
@@ -632,7 +638,7 @@ function compose(
     f.time = time;
     f.windSkew = k;
     f.reducedMotion = reduced;
-    f.insectActivity = insectActivity(cache.look);
+    f.season = cache.season;
     f.dpr = dpr;
     f.sx = sx;
     f.sy = sy;
