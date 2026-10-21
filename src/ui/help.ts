@@ -19,6 +19,7 @@ import {
   toastDuration,
   type MotionSetting,
   type Settings,
+  type SoundLevel,
 } from './settings';
 
 export interface Preferences {
@@ -243,6 +244,17 @@ function buildSettings(body: HTMLElement, prefs: Preferences): void {
       ],
       s.longToasts ? 'yes' : 'no',
       (value) => prefs.update({ longToasts: value === 'yes' }),
+    ),
+    radioGroup<SoundLevel>(
+      'sound',
+      'Klang',
+      [
+        { value: 'off', label: 'Aus (Standard, kein Ton)' },
+        { value: 'quiet', label: 'Leise – Wind, Vögel und sanfte Töne' },
+        { value: 'normal', label: 'Normal – etwas lauter' },
+      ],
+      s.sound,
+      (sound) => prefs.update({ sound }),
     ),
   );
 }

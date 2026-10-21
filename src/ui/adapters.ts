@@ -188,6 +188,13 @@ export function conditionName(condition: Condition): string {
   }
 }
 
+/** Wunsch als Objekt im Satz „wünscht sich …“ (Akkusativ: „einen sonnigen Platz“). */
+function wishName(condition: Condition): string {
+  if (condition.kind === 'sunny') return 'einen sonnigen Platz';
+  if (condition.kind === 'shady') return 'einen schattigen Platz';
+  return conditionName(condition);
+}
+
 function conditionIcon(condition: Condition): string {
   switch (condition.kind) {
     case 'tag':
@@ -350,7 +357,7 @@ export function moodReasons(species: Species, status: AnimalStatus, present: rea
   const named = (ids: string[]) => (detailed ? speciesNames(ids) : []);
   if (status.food <= 0) reasons.push('sucht Futter');
   species.needs.forEach((need, i) => {
-    if (!status.needs[i]) reasons.push(`wünscht sich ${conditionName(need)}`);
+    if (!status.needs[i]) reasons.push(`wünscht sich ${wishName(need)}`);
   });
   if (status.disturbers > 0) {
     const names = named(disturbersOf(species, present));

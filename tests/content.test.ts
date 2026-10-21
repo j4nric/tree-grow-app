@@ -28,6 +28,7 @@ import { EVENTS, EVENTS_BY_ID, SEED_SECONDS_MIN_SEEDS, type EventEffect } from '
 import { VISITORS, VISITORS_BY_ID } from '../src/content/visitors';
 import { CARE, CARE_BY_ID } from '../src/content/care';
 import type { Condition } from '../src/content/types';
+import { MEMORY_HARMONY_RULES, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import {
   EVENT_SEASONS,
   SEASONS,
@@ -784,5 +785,23 @@ describe('Hauptbaum-Arten: Inhalte (DESIGN_V2.md 17)', () => {
     expect(pine.tags).toContain('nadeln');
     expect(pine.nutsFromStage).toBeNull();
     for (const t of MAIN_TREES.filter((x) => x.id !== 'pine')) expect(t.nutsFromStage, t.id).not.toBeNull();
+  });
+});
+
+describe('Harmonie-Bonus des Waldgedächtnisses (MEMORY_HARMONY_RULES, Schritt 2.11b)', () => {
+  it('Stützstellen: bekannte Stufen, erste beim Hain, Stufen und Schwellen steigen', () => {
+    expect(MEMORY_HARMONY_RULES.length).toBeGreaterThanOrEqual(1);
+    const indices = MEMORY_HARMONY_RULES.map((r) => STAGES.findIndex((s) => s.id === r.stage));
+    for (const [i, r] of MEMORY_HARMONY_RULES.entries()) {
+      expect(indices[i], r.stage).toBeGreaterThanOrEqual(0);
+      expect(r.threshold, r.stage).toBeGreaterThan(0);
+      expect(r.maxPoints, r.stage).toBeGreaterThan(0);
+    }
+    // Die erste Regel gilt beim Hain – ab dort ist ein Neuer Zyklus möglich.
+    expect(indices[0]).toBe(NEW_CYCLE_MIN_STAGE);
+    for (let i = 1; i < MEMORY_HARMONY_RULES.length; i++) {
+      expect(indices[i]!, MEMORY_HARMONY_RULES[i]!.stage).toBeGreaterThan(indices[i - 1]!);
+      expect(MEMORY_HARMONY_RULES[i]!.threshold, MEMORY_HARMONY_RULES[i]!.stage).toBeGreaterThan(MEMORY_HARMONY_RULES[i - 1]!.threshold);
+    }
   });
 });

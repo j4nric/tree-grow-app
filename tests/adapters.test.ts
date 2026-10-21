@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DECLINE_SEEDS, REROLL_BASE_COST } from '../src/content/encounters';
 import { PLANT_GROUP_INFO, PLANTS_BY_ID } from '../src/content/plants';
-import { SPECIES_BY_ID } from '../src/content/species';
+import { SPECIES, SPECIES_BY_ID } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { evaluate, nextPlantCost, previewChoice, previewPlant } from '../src/core/formulas';
 import { MAX_OFFLINE_SECONDS, unlockedPlants } from '../src/core/tick';
@@ -553,6 +553,20 @@ describe('Stimmung: Gründe unter 70 %', () => {
     const status = { happiness: 0.8, food: 0.5, needs: [false, false], hunters: 1, disturbers: 0 };
     expect(moodText(species, status)).toBe('wünscht sich 2× Bäume');
     expect(moodText(species, { ...status, happiness: 0.3 })).toBe('wünscht sich 2× Bäume · wünscht sich Baumhöhle');
+  });
+
+  it('sonniger und schattiger Platz stehen im Akkusativ („wünscht sich einen sonnigen Platz“)', () => {
+    const sunny = SPECIES.find((s) => s.needs.some((n) => n.kind === 'sunny'))!;
+    const shady = SPECIES.find((s) => s.needs.some((n) => n.kind === 'shady'))!;
+    const unmet = (s: typeof sunny, kind: string) => ({
+      happiness: 0.9,
+      food: 1,
+      needs: s.needs.map((n) => n.kind !== kind),
+      hunters: 0,
+      disturbers: 0,
+    });
+    expect(moodText(sunny, unmet(sunny, 'sunny'))).toBe('wünscht sich einen sonnigen Platz');
+    expect(moodText(shady, unmet(shady, 'shady'))).toBe('wünscht sich einen schattigen Platz');
   });
 
   it('Stieleiche: Insekten +10 % 😊 – über 70 % nur noch der wichtigste Grund', () => {

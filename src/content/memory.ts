@@ -37,22 +37,49 @@ export const NEW_CYCLE_MIN_STAGE = 5;
  * 1. Sockel: 1 Punkt je MEMORY_HARMONY_DIVISOR H_max (wie seit Schritt 2.10) – für jede
  *    Spielweise, auch für ruhige Gelegenheitsspieler (H_max ~80 → 16 Punkte).
  * 2. Harmonie-Bonus (Schritt 2.11): MEMORY_PER_HARMONY_POINT Punkte je Harmoniepunkt über
- *    MEMORY_HARMONY_THRESHOLD, höchstens MEMORY_HARMONY_MAX_POINTS (erreicht bei 115).
+ *    der Schwelle der erreichten Stufe, höchstens deren Obergrenze (MEMORY_HARMONY_RULES).
  *
  * Mit dem Sockel allein bekamen Harmonie- und Wachstums-Spieler gleich viel Gedächtnis
  * (je ~33 Punkte), weil ihre Harmonie beim Hain nur ~7 Punkte auseinanderliegt (110 gegen
  * 103); der Wachstums-Spieler blieb in jedem Zyklus ~13 % schneller. Mit dem Bonus ist die
  * Harmonie-Spielweise ab Zyklus 2 gleichauf (DESIGN_V2.md 15.4, Stand 2.11), und niemand
- * bekommt weniger als vorher. Die Obergrenze hält späte Neustarts (Wald, Urwald:
- * H_max 140–175) im Rahmen.
+ * bekommt weniger als vorher.
  */
 export const MEMORY_HARMONY_DIVISOR = 5;
-export const MEMORY_HARMONY_THRESHOLD = 100;
 export const MEMORY_PER_HARMONY_POINT = 3;
-export const MEMORY_HARMONY_MAX_POINTS = 45;
-/** Ab dieser (gerundeten) höchsten Harmonie ist der Harmonie-Bonus voll: 100 + ⌈45 / 3⌉ = 115. */
-export const MEMORY_HARMONY_FULL_AT =
-  MEMORY_HARMONY_THRESHOLD + Math.ceil(MEMORY_HARMONY_MAX_POINTS / MEMORY_PER_HARMONY_POINT);
+
+/** Schwelle und Obergrenze des Harmonie-Bonus beim Erreichen einer Stufe (Stützstelle). */
+export interface MemoryHarmonyRule {
+  /** Stufe (id in STAGES); die Werte gelten genau an ihrem Wegpunkt. */
+  stage: string;
+  /** Höchste Harmonie über dieser Schwelle zählt extra. */
+  threshold: number;
+  /** Höchstens so viele Bonuspunkte. */
+  maxPoints: number;
+}
+
+/**
+ * Harmonie-Bonus beim Neuen Zyklus (Schritt 2.11b, DESIGN_V2.md 10 und 15.4): Stützstellen
+ * am Wegpunkt einer Stufe, dazwischen gleiten Schwelle und Obergrenze linear mit jedem
+ * Wegpunkt (memoryHarmonyBonus in core/formulas.ts; Wald, Wegpunkt 28: 125 / 41,5). Davor
+ * gilt die erste, danach die letzte Stützstelle.
+ *
+ * Die Schwelle folgt der typischen Harmonie knapp unter der des Wachstums-Spielers (H_max im
+ * ersten Zyklus, Simulation: Hain 104, Wald 128, Urwald 157; Harmonie-Spieler 110 / 143 /
+ * 174). So trennt der Bonus die Spielweisen bei jedem Neustart. Mit der Hain-Schwelle für
+ * alle Stufen (2.11) bekamen im Wald und Urwald beide den vollen Bonus (Urwald Zyklus 2:
+ * Wachstum/Harmonie 0,89) und ein Urwald-Zyklus brachte ~100 Punkte. Die kleinere
+ * Obergrenze im Urwald hält den Gewinn bei höchstens ~1,5 × Hain: Sockel und neue Arten
+ * wachsen von selbst. Gleichmäßig gleitend (3,125 je Wegpunkt) sinkt der Gewinn nie, solange
+ * H_max je Wegpunkt um mindestens 3 steigt – typische Verläufe steigen schneller. Eine
+ * Stützstelle im Wald (120 / 36) oder eine steilere Schwelle (Urwald 153–155) ließ den
+ * typischen Verlauf des Wachstums-Spielers sinken.
+ */
+export const MEMORY_HARMONY_RULES: readonly MemoryHarmonyRule[] = [
+  { stage: 'grove', threshold: 100, maxPoints: 45 },
+  { stage: 'ancient-forest', threshold: 150, maxPoints: 38 },
+];
+
 /** Waldgedächtnis beim Neuen Zyklus: Punkte je Art, die in diesem Zyklus neu ins Tagebuch kam. */
 export const MEMORY_PER_NEW_SPECIES = 1;
 /** Je so viele Punkte Waldgedächtnis gibt es einen Platz für einen Stammgast. */

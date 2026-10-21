@@ -17,8 +17,7 @@ import { SEED_SECONDS_MIN_SEEDS } from '../content/events';
 import {
   FOREST_MEMORY_BONUS,
   MEMORY_HARMONY_DIVISOR,
-  MEMORY_HARMONY_MAX_POINTS,
-  MEMORY_HARMONY_THRESHOLD,
+  MEMORY_HARMONY_RULES,
   MEMORY_PER_HARMONY_POINT,
   MEMORY_PER_NEW_SPECIES,
   MEMORY_PER_REGULAR_SLOT,
@@ -1226,20 +1225,92 @@ function finite(value: number): number {
 // Neuer Zyklus: Waldgedächtnis und Stammgäste (DESIGN_V2.md, Abschnitt 10)
 // ---------------------------------------------------------------------------
 
+/** Harmonie-Bonus beim Neuen Zyklus für einen erreichten Wegpunkt (content/memory.ts). */
+export interface MemoryHarmonyBonus {
+  /** Wegpunkt, für den die Regel gilt (begrenzt auf die Stützstellen, ganzzahlig). */
+  waypoint: number;
+  /** Schwelle, zwischen den Stützstellen krumm (z. B. 103,125). */
+  threshold: number;
+  /** Obergrenze, zwischen den Stützstellen krumm (z. B. 44,4375). */
+  maxPoints: number;
+  /**
+   * Ganze Zahl fürs Panel: kleinste (gerundete) höchste Harmonie, die wirklich mehr bringt als
+   * der Sockel ⌊H / 5⌋. An ganzen Schwellen T + 1; an krummen oft ⌈T⌉ (Wegpunkt 23, T 109,375:
+   * ab 110 mit +1), manchmal ⌈T⌉ + 1 (Wegpunkt 27, T 121,875: 122 bringt nach dem Abrunden
+   * nichts, ab 123).
+   */
+  bonusFrom: number;
+  /** Ab dieser (gerundeten) höchsten Harmonie ist der Bonus voll: ⌈Schwelle + Obergrenze / 3⌉. */
+  fullAt: number;
+}
+
+/** Stützstellen: Wegpunkt der Stufe jeder Regel aus MEMORY_HARMONY_RULES, aufsteigend (einmal beim Laden berechnet). */
+const MEMORY_RULE_POINTS: readonly { waypoint: number; threshold: number; maxPoints: number }[] = MEMORY_HARMONY_RULES.flatMap((r) => {
+  const stage = STAGES.find((s) => s.id === r.stage);
+  return stage ? [{ waypoint: stage.waypoint, threshold: r.threshold, maxPoints: r.maxPoints }] : [];
+}).sort((a, b) => a.waypoint - b.waypoint);
+
 /**
- * Waldgedächtnis, das ein Neuer Zyklus einbringt (Schritt 2.11):
- * mit H = round(H_max): `floor(H / 5) + min(45, 3 · max(0, H − 100)) + neue Arten` (Zahlen in
- * content/memory.ts),
- * begrenzt, sodass der Bestand MAX_FOREST_MEMORY nicht übersteigt. Negative Harmonie
- * zählt als 0; NaN und Unsinn ergeben 0 statt kaputter Spielstände.
+ * Gedächtnis aus der (schon gerundeten) Harmonie H: ⌊H / 5 + min(C, 3 · max(0, H − T))⌋.
+ * Erst summieren, dann abrunden: So wächst der Gewinn entlang typischer Verläufe ohne
+ * Rundungsdellen (tests/cycle.test.ts, „typische Verläufe“). Kleiner Puffer gegen Gleitkomma.
  */
-export function cycleMemoryGain(maxHarmony: number, newSpeciesCount: number, forestMemory: number): number {
+function harmonyMemoryPoints(harmony: number, threshold: number, maxPoints: number): number {
+  const above = Math.max(0, harmony - threshold);
+  return Math.floor(harmony / MEMORY_HARMONY_DIVISOR + Math.min(maxPoints, MEMORY_PER_HARMONY_POINT * above) + 1e-9);
+}
+
+/**
+ * Regel des Harmonie-Bonus für den erreichten Wegpunkt (Schritt 2.11b): Schwelle und
+ * Obergrenze gleiten linear zwischen den Stützstellen aus MEMORY_HARMONY_RULES (Hain,
+ * Wegpunkt 20: 100 / 45 → Urwald, Wegpunkt 36: 150 / 38), damit die Vorschau beim
+ * Stufenwechsel nicht springt. Davor gilt die erste, danach die letzte Stützstelle; NaN
+ * zählt wie Wegpunkt 0, Infinity wie der letzte.
+ */
+export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {
+  const points = MEMORY_RULE_POINTS;
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+  // NaN zählt wie 0, ±Infinity landet an der ersten bzw. letzten Stützstelle.
+  const w = Math.min(last.waypoint, Math.max(first.waypoint, Number.isNaN(waypoint) ? 0 : Math.floor(waypoint)));
+  let threshold = first.threshold;
+  let maxPoints = first.maxPoints;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    if (w > b.waypoint) continue;
+    const t = b.waypoint > a.waypoint ? (w - a.waypoint) / (b.waypoint - a.waypoint) : 1;
+    threshold = a.threshold + t * (b.threshold - a.threshold);
+    maxPoints = a.maxPoints + t * (b.maxPoints - a.maxPoints);
+    break;
+  }
+  const fullAt = Math.ceil(threshold + maxPoints / MEMORY_PER_HARMONY_POINT - 1e-9);
+  // Erste ganze Harmonie mit Gewinn über dem Sockel – exakt wie cycleMemoryGain rechnet.
+  let bonusFrom = fullAt;
+  for (let h = Math.max(0, Math.ceil(threshold)); h <= fullAt; h++) {
+    if (harmonyMemoryPoints(h, threshold, maxPoints) > harmonyMemoryPoints(h, Infinity, 0)) {
+      bonusFrom = h;
+      break;
+    }
+  }
+  return { waypoint: w, threshold, maxPoints, bonusFrom, fullAt };
+}
+
+/**
+ * Waldgedächtnis, das ein Neuer Zyklus einbringt (Schritt 2.11, gleitende Schwelle seit 2.11b):
+ * mit H = round(H_max): `⌊H / 5 + min(C, 3 · max(0, H − T))⌋ + neue Arten`, Schwelle T und
+ * Obergrenze C je erreichtem Wegpunkt `waypoint` (memoryHarmonyBonus, Zahlen in
+ * content/memory.ts). An den Stützstellen sind T und C ganz, dann ist das genau
+ * `⌊H / 5⌋ + min(C, 3 · max(0, H − T))` wie in 2.11. Begrenzt, sodass der Bestand
+ * MAX_FOREST_MEMORY nicht übersteigt. Negative Harmonie zählt als 0; NaN und Unsinn ergeben
+ * 0 statt kaputter Spielstände.
+ */
+export function cycleMemoryGain(maxHarmony: number, newSpeciesCount: number, forestMemory: number, waypoint: number): number {
   // Einmal kaufmännisch runden – dieselbe ganze Zahl, die Panel, Statistik und Seitenleiste
   // als „Höchste Harmonie“ zeigen (100,6 → 101 zählt also schon extra).
   const harmony = Math.round(Math.max(0, finite(maxHarmony)));
-  const above = Math.max(0, harmony - MEMORY_HARMONY_THRESHOLD);
-  const harmonyPoints =
-    Math.floor(harmony / MEMORY_HARMONY_DIVISOR) + Math.min(MEMORY_HARMONY_MAX_POINTS, MEMORY_PER_HARMONY_POINT * above);
+  const bonus = memoryHarmonyBonus(waypoint);
+  const harmonyPoints = harmonyMemoryPoints(harmony, bonus.threshold, bonus.maxPoints);
   const speciesPoints = MEMORY_PER_NEW_SPECIES * Math.max(0, Math.floor(finite(newSpeciesCount)));
   const room = MAX_FOREST_MEMORY - Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
   return Math.min(room, harmonyPoints + speciesPoints);

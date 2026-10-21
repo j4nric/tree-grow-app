@@ -10,7 +10,7 @@ import {
   REROLL_BASE_COST,
 } from '../src/content/encounters';
 import { EVENTS, SEED_SECONDS_MIN_SEEDS } from '../src/content/events';
-import { FOREST_MEMORY_BONUS, MEMORY_HARMONY_FULL_AT, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
+import { FOREST_MEMORY_BONUS, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { NICHES } from '../src/content/niches';
 import { PLANT_COST_BASE, PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
@@ -18,7 +18,7 @@ import { STAGES } from '../src/content/stages';
 import { TRAIT_THRESHOLDS } from '../src/content/traits';
 import { VISITORS } from '../src/content/visitors';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
-import { HARMONY_DIVISOR } from '../src/core/formulas';
+import { HARMONY_DIVISOR, memoryHarmonyBonus } from '../src/core/formulas';
 import { LONG_NUMBER_LIMIT, formatNumber, getNumberStyle, setNumberStyle } from '../src/ui/format';
 import { guideSections, span } from '../src/ui/guide-view';
 import { SEASONS, SEASON_SECONDS } from '../src/content/seasons';
@@ -57,25 +57,35 @@ const throwing = {
 };
 
 describe('Einstellungen', () => {
-  it('Standard: Automatisch, kurz, normale Hinweisdauer', () => {
+  it('Standard: Automatisch, kurz, normale Hinweisdauer, Klang aus', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
-    expect(DEFAULT_SETTINGS).toEqual({ motion: 'auto', numbers: 'short', longToasts: false });
+    expect(DEFAULT_SETTINGS).toEqual({ motion: 'auto', numbers: 'short', longToasts: false, sound: 'off' });
   });
 
   it('robust: kaputtes JSON und unbekannte Werte → Standard (feldweise)', () => {
     expect(parseSettings('{kaputt')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('[1,2]')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('"on"')).toEqual(DEFAULT_SETTINGS);
-    expect(parseSettings(JSON.stringify({ motion: 'turbo', numbers: 'long', longToasts: 'ja' }))).toEqual({
+    expect(parseSettings(JSON.stringify({ motion: 'turbo', numbers: 'long', longToasts: 'ja', sound: 'laut' }))).toEqual({
       motion: 'auto',
       numbers: 'long',
       longToasts: false,
+      sound: 'off',
+    });
+    // Ältere Einstellungen ohne Klang: Klang bleibt aus, der Rest bleibt erhalten.
+    expect(parseSettings(JSON.stringify({ motion: 'on', numbers: 'short', longToasts: true }))).toEqual({
+      motion: 'on',
+      numbers: 'short',
+      longToasts: true,
+      sound: 'off',
     });
   });
 
   it('Roundtrip über serializeSettings', () => {
-    const s = { motion: 'on' as const, numbers: 'long' as const, longToasts: true };
-    expect(parseSettings(serializeSettings(s))).toEqual(s);
+    for (const sound of ['off', 'quiet', 'normal'] as const) {
+      const s = { motion: 'on' as const, numbers: 'long' as const, longToasts: true, sound };
+      expect(parseSettings(serializeSettings(s))).toEqual(s);
+    }
   });
 
   it('Bewegung reduzieren: An/Aus überschreiben das System, Automatisch folgt ihm', () => {
@@ -93,9 +103,9 @@ describe('Einstellungen', () => {
 
   it('Laden und Speichern, auch ohne funktionierenden Speicher', () => {
     const storage = memoryStorage();
-    saveSettings({ motion: 'off', numbers: 'long', longToasts: true }, storage);
+    saveSettings({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet' }, storage);
     expect(storage.data.get(SETTINGS_KEY)).toBeTruthy();
-    expect(loadSettings(storage)).toEqual({ motion: 'off', numbers: 'long', longToasts: true });
+    expect(loadSettings(storage)).toEqual({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet' });
     expect(loadSettings(throwing)).toEqual(DEFAULT_SETTINGS);
     expect(() => saveSettings(DEFAULT_SETTINGS, throwing)).not.toThrow();
     expect(loadSettings(null)).toEqual(DEFAULT_SETTINGS);
@@ -239,13 +249,18 @@ describe('Spielanleitung', () => {
     expect(text('cycle')).toContain(`„${STAGES[NEW_CYCLE_MIN_STAGE]!.name}“`);
     expect(text('cycle')).toContain(`+${formatNumber(FOREST_MEMORY_BONUS * 100)} %`);
     expect(text('cycle')).toContain(`Je ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Punkte`);
-    // Waldgedächtnis-Regel (Schritt 2.11): Einzahl bei 1 Punkt je Art, Bonus voll ab 115.
+    // Waldgedächtnis-Regel (Schritt 2.11): Einzahl bei 1 Punkt je Art; Schwelle gleitet mit dem
+    // Wegpunkt (Schritt 2.11b), genannt für Hain, Wald und Urwald – im Hain wie in 2.11.
     expect(text('cycle')).toContain('1 Punkt je neu entdeckter Art');
-    expect(text('cycle')).toContain(`bis ${formatNumber(MEMORY_HARMONY_FULL_AT)} Harmonie`);
-    expect(MEMORY_HARMONY_FULL_AT).toBe(115);
+    expect(text('cycle')).toContain('Bonus gibt es im Hain ab 101 (bis 115), im Wald ab 126 (bis 139) und im Urwald ab 151 (bis 163)');
+    for (let stage = NEW_CYCLE_MIN_STAGE; stage < STAGES.length; stage++) {
+      const b = memoryHarmonyBonus(STAGES[stage]!.waypoint);
+      expect(text('cycle')).toContain(`im ${STAGES[stage]!.name} ab ${formatNumber(b.bonusFrom)} (bis ${formatNumber(b.fullAt)})`);
+    }
     // Früchte aller Hauptbaum-Arten (DESIGN_V2.md 17).
     for (const fruit of ['Eichel', 'Buchecker', 'Kiefernsamen']) expect(text('cycle')).toContain(fruit);
     expect(text('seasons')).toContain(`${formatNumber(SEASON_SECONDS / 60)} Minuten`);
+    expect(text('seasons')).toContain('⚙️ Einstellungen → Klang');
     for (const season of SEASONS) expect(text('seasons')).toContain(season.summary);
   });
 });

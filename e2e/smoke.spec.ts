@@ -843,3 +843,40 @@ test('Hohe Harmonie (≥ 90): warme Stimmung der Szene lädt ohne Konsolenfehler
   const box = await page.locator('canvas#scene').boundingBox();
   expect(box?.width).toBeGreaterThan(0);
 });
+
+test('Seitenleiste scrollt für sich: die Seite selbst bleibt fest (Desktop)', async ({ page, context }) => {
+  // Junger Baum: lange Seitenleiste mit vielen Screenreader-Texten (.sr-only, absolut
+  // positioniert). Ohne Bezugsrahmen in der Seitenleiste ragten sie aus ihr heraus und
+  // machten die ganze Seite scrollbar – die Szene rutschte beim Fokussieren weg.
+  const state = createInitialState(Date.now(), 4242);
+  state.totalGrowth = waypoint(6) + 1;
+  state.niches.roots = ['earthworm'];
+  await seedRaw(context, state, 0);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openGame(page);
+  const panel = page.locator('#panel');
+  for (const top of [0, 300, 600, 100_000]) {
+    await panel.evaluate((p, top) => (p.scrollTop = top), top);
+    await page.waitForTimeout(250);
+    const { scrollHeight, clientHeight } = await page.evaluate(() => {
+      const d = document.documentElement;
+      return { scrollHeight: d.scrollHeight, clientHeight: d.clientHeight };
+    });
+    expect(scrollHeight, `Seitenleiste bei scrollTop ${top}`).toBeLessThanOrEqual(clientHeight);
+  }
+  await page.locator('#reset').focus();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test('Hinweis (Toast) lässt Klicks auf darunterliegende Knöpfe durch', async ({ page, context }) => {
+  await seedV3(context, { totalGrowth: waypoint(3) + 1, lastTickOffsetMs: -60 * 60 * 1000 });
+  await openGame(page);
+  const toast = page.locator('#toast');
+  await expect(toast).toBeVisible();
+  const box = (await toast.boundingBox())!;
+  const hit = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest('#toast') != null,
+    { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+  );
+  expect(hit, 'Toast fängt Klicks ab').toBe(false);
+});

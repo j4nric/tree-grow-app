@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ARCHITECT } from '../src/content/abilities';
 import { ENCOUNTER_WEIGHTS, INTERLUDE_CHANCE, INTERLUDE_POSITION, INTERLUDE_STAGE, INTERLUDE_WEIGHTS, PLANT_WEIGHT_IN_RING, PLANT_WEIGHT_RING_FULL, RARITY_WEIGHTS, SCRIPTED_ENCOUNTERS } from '../src/content/encounters';
-import { FOREST_MEMORY_BONUS, MEMORY_HARMONY_DIVISOR, MEMORY_HARMONY_FULL_AT, MEMORY_HARMONY_MAX_POINTS, MEMORY_HARMONY_THRESHOLD, MEMORY_PER_HARMONY_POINT, MEMORY_PER_NEW_SPECIES, MEMORY_PER_REGULAR_SLOT } from '../src/content/memory';
+import { FOREST_MEMORY_BONUS, MEMORY_HARMONY_DIVISOR, MEMORY_PER_HARMONY_POINT, MEMORY_PER_NEW_SPECIES, MEMORY_PER_REGULAR_SLOT } from '../src/content/memory';
 import { NICHES } from '../src/content/niches';
 import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
@@ -9,7 +9,7 @@ import { STAGES } from '../src/content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../src/content/traits';
 import { MAIN_TREES } from '../src/content/trees';
 import { GENERA, NICHE_IDS, type Genus, type NicheId } from '../src/content/types';
-import { cycleMemoryGain, evaluateEcosystem, nicheSlots, plantCost, type Ecosystem, type Evaluation } from '../src/core/formulas';
+import { cycleMemoryGain, evaluateEcosystem, memoryHarmonyBonus, nicheSlots, plantCost, type Ecosystem, type Evaluation } from '../src/core/formulas';
 
 /**
  * Abgleich Formeln ↔ Zahlen (ersetzt den Vergleich mit dem Referenzmodell scripts/v2,
@@ -217,14 +217,23 @@ describe('Formeln ↔ Zahlen: Golden-Tabelle', () => {
       memory: {
         bonus: FOREST_MEMORY_BONUS,
         harmonyDivisor: MEMORY_HARMONY_DIVISOR,
-        harmonyThreshold: MEMORY_HARMONY_THRESHOLD,
         perHarmonyPoint: MEMORY_PER_HARMONY_POINT,
-        harmonyMaxPoints: MEMORY_HARMONY_MAX_POINTS,
-        harmonyFullAt: MEMORY_HARMONY_FULL_AT,
+        // Harmonie-Bonus je Wegpunkt ab Hain (seit Schritt 2.11b, gleitend): Schwelle, Obergrenze, voll ab.
+        harmonyBonusByWaypoint: Array.from({ length: 17 }, (_, i) => {
+          const b = memoryHarmonyBonus(20 + i);
+          return `Wegpunkt ${b.waypoint}: über ${b.threshold}, höchstens ${b.maxPoints} (Panel ab ${b.bonusFrom}, voll ab ${b.fullAt})`;
+        }),
         perNewSpecies: MEMORY_PER_NEW_SPECIES,
         perRegularSlot: MEMORY_PER_REGULAR_SLOT,
         // Gewinn ohne neue Arten je höchster Harmonie – H_max wird gerundet wie die Anzeige.
-        gainByMaxHarmony: [4.4, 4.5, 81, 100.4, 100.5, 103, 110.4, 114.6, 140, 175].map((h) => `H_max ${h} → ${cycleMemoryGain(h, 0, 0)}`),
+        gainByMaxHarmony: Object.fromEntries(
+          [20, 24, 28, 32, 36].map((w) => [
+            `Wegpunkt ${w}`,
+            [4.4, 4.5, 81, 100.4, 100.5, 103, 110.4, 114.6, 120, 130, 140, 150, 160, 175, 195].map(
+              (h) => `H_max ${h} → ${cycleMemoryGain(h, 0, 0, w)}`,
+            ),
+          ]),
+        ),
       },
     };
     await expect(`${JSON.stringify({ constants, evaluations }, null, 2)}\n`).toMatchFileSnapshot('./__snapshots__/golden.json');
