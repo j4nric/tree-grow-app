@@ -5,16 +5,21 @@
 #   2. ermittelt die öffentliche IPv4 und den sslip.io-Namen (oder nimmt SYNC_PUBLIC_HOST)
 #   3. wählt die Betriebsart:
 #      A   Ports 80/443 frei                 → eigener Caddy (HTTPS automatisch)
-#      B   80/443 gehören einem Container    → vszw-sync tritt dessen Docker-Netzwerk bei
-#          (z. B. Caddy einer anderen App)     (PROXY_NETWORK), kein Host-Port
+#      B   80/443 gehören einem Container    → eigenes Netzwerk vszw-proxy (legt es an), dem
+#          (z. B. Caddy einer anderen App)     vszw-sync beitritt (Alias vszw-sync, kein Host-
+#                                              Port); der Proxy-Container tritt ihm danach bei
+#                                              (Deployment der anderen App) – nie umgekehrt
 #      B   80/443 gehören einem Proxy direkt → vszw-sync nur auf 127.0.0.1:SYNC_PORT
 #          auf dem Server (nginx, Caddy …)
-#   4. schreibt deploy/.env (nur diese Datei), startet die vszw-Container und gibt aus,
+#   4. legt deploy/.env an (eine vorhandene bleibt unverändert), startet die vszw-Container und gibt aus,
 #      was im vorhandenen Proxy zu ergänzen ist – fremde Konfigurationen ändert es nie.
 #   5. nennt die URL für die Repository-Variable VITE_SYNC_URL.
 #
 # Aufruf (im Ordner deploy/):   ./setup.sh
 # Optional: SYNC_PUBLIC_HOST=name.duckdns.org ./setup.sh · MODE=A|B · PROXY_NETWORK=<netz> · SYNC_PORT=8790
+#
+# Sicherheit: vszw-sync tritt NIE dem internen Netzwerk einer anderen App bei (dort wäre z. B.
+# deren Datenbank erreichbar) – nur dem eigenen Netzwerk vszw-proxy, in das der Proxy kommt.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -29,6 +34,9 @@ docker compose version >/dev/null 2>&1 || fail "„docker compose“ fehlt (Dock
 ENV_SYNC_PUBLIC_HOST="${SYNC_PUBLIC_HOST:-}"
 ENV_PROXY_NETWORK="${PROXY_NETWORK:-}"
 ENV_SYNC_PORT="${SYNC_PORT:-}"
+DEFAULT_PROXY_NETWORK=vszw-proxy
+ENV_EXISTS=0
+[[ -f .env ]] && ENV_EXISTS=1
 if [[ -f .env ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -39,7 +47,7 @@ SYNC_PUBLIC_HOST="${ENV_SYNC_PUBLIC_HOST:-${SYNC_PUBLIC_HOST:-}}"
 PROXY_NETWORK="${ENV_PROXY_NETWORK:-${PROXY_NETWORK:-}}"
 SYNC_PORT="${ENV_SYNC_PORT:-${SYNC_PORT:-8787}}"
 ALLOWED_ORIGIN="${ALLOWED_ORIGIN:-https://j4nric.github.io}"
-BACKUP_KEEP="${BACKUP_KEEP:-14}"
+BACKUP_KEEP="${BACKUP_KEEP:-7}"
 
 # --- Hostname ------------------------------------------------------------------------
 if [[ -z "$SYNC_PUBLIC_HOST" ]]; then
@@ -78,6 +86,13 @@ while IFS=$'\t' read -r name image ports; do
 done < <(docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}')
 
 PORTS_FREE=1
+# Ein Container mit veröffentlichtem :443 belegt die Ports, auch wenn ss ihn nicht zeigt
+# (z. B. ohne docker-proxy).
+if [[ -n "$PROXY_CONTAINER" ]]; then
+  PORTS_FREE=0
+  say ""
+  say "Port 443 gehört dem Container „${PROXY_CONTAINER}“ (${PROXY_IMAGE})."
+fi
 if ! running vszw-caddy; then
   for p in 80 443; do
     if port_busy "$p"; then
@@ -97,13 +112,24 @@ if [[ "$MODE" == A && "$PORTS_FREE" == 0 ]]; then
   fail "Betriebsart A braucht freie Ports 80 und 443 – nimm Betriebsart B (MODE=B)."
 fi
 
-# Betriebsart B mit Proxy-Container: dessen Netzwerk ermitteln.
+# Betriebsart B mit Proxy-Container: eigenes Netzwerk vszw-proxy (nie das Netzwerk der anderen App).
 if [[ "$MODE" == B && -z "$PROXY_NETWORK" && -n "$PROXY_CONTAINER" ]]; then
-  PROXY_NETWORK="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' "$PROXY_CONTAINER" \
-    | grep -v -x -e bridge -e host -e none -e '' | head -n 1 || true)"
+  PROXY_NETWORK="$DEFAULT_PROXY_NETWORK"
 fi
-if [[ -n "$PROXY_NETWORK" ]]; then
-  docker network inspect "$PROXY_NETWORK" >/dev/null 2>&1 || fail "Docker-Netzwerk „${PROXY_NETWORK}“ gibt es nicht (docker network ls)."
+if [[ -n "$PROXY_NETWORK" && "$PROXY_NETWORK" != "$DEFAULT_PROXY_NETWORK" && -z "$ENV_PROXY_NETWORK" ]]; then
+  # Stammt z. B. aus einer älteren deploy/.env (früher: Netzwerk des fremden Caddy).
+  fail "deploy/.env nennt PROXY_NETWORK=${PROXY_NETWORK}. Empfohlen ist das eigene Netzwerk ${DEFAULT_PROXY_NETWORK}
+  (ein fremdes internes Netzwerk machte z. B. dessen Datenbank erreichbar). Die Zeile in deploy/.env auf
+  PROXY_NETWORK=${DEFAULT_PROXY_NETWORK} ändern – oder bewusst: PROXY_NETWORK=${PROXY_NETWORK} ./setup.sh"
+fi
+if [[ -n "$PROXY_NETWORK" ]] && ! docker network inspect "$PROXY_NETWORK" >/dev/null 2>&1; then
+  if [[ "$PROXY_NETWORK" == "$DEFAULT_PROXY_NETWORK" ]]; then
+    say ""
+    say "Lege das Docker-Netzwerk ${PROXY_NETWORK} an (nur für Proxy ↔ vszw-sync)."
+    docker network create "$PROXY_NETWORK" >/dev/null
+  else
+    fail "Docker-Netzwerk „${PROXY_NETWORK}“ gibt es nicht (docker network ls)."
+  fi
 fi
 
 COMPOSE=(docker compose)
@@ -117,23 +143,31 @@ else
   fi
 fi
 
-# --- deploy/.env schreiben -----------------------------------------------------------
-cat > .env <<EOF
+# --- deploy/.env (eine vorhandene wird nie überschrieben) ------------------------------
+if [[ "$ENV_EXISTS" == 1 ]]; then
+  say ""
+  say "deploy/.env gibt es schon – sie bleibt unverändert. Für diesen Lauf gelten:"
+  say "  SYNC_PUBLIC_HOST=${SYNC_PUBLIC_HOST}  SYNC_PORT=${SYNC_PORT}  PROXY_NETWORK=${PROXY_NETWORK:-<leer>}"
+  # Für docker compose in diesem Lauf (Werte aus der Umgebung haben Vorrang vor .env).
+  export SYNC_PUBLIC_HOST SYNC_PORT PROXY_NETWORK
+else
+  cat > .env <<ENVFILE
 SYNC_PUBLIC_HOST=${SYNC_PUBLIC_HOST}
 ALLOWED_ORIGIN=${ALLOWED_ORIGIN}
 SYNC_PORT=${SYNC_PORT}
 BACKUP_KEEP=${BACKUP_KEEP}
 PROXY_NETWORK=${PROXY_NETWORK}
-EOF
-say ""
-say "deploy/.env geschrieben."
+ENVFILE
+  say ""
+  say "deploy/.env geschrieben."
+fi
 
 # --- Starten -------------------------------------------------------------------------
 say ""
 if [[ "$MODE" == A ]]; then
   say "Betriebsart A: eigener Caddy auf Port 80/443 (HTTPS automatisch)."
 elif [[ -n "$PROXY_NETWORK" ]]; then
-  say "Betriebsart B: vszw-sync tritt dem Netzwerk „${PROXY_NETWORK}“ von ${PROXY_CONTAINER:-dem Proxy} bei (kein Host-Port)."
+  say "Betriebsart B: vszw-sync im eigenen Netzwerk „${PROXY_NETWORK}“ (Alias vszw-sync, kein Host-Port)."
 else
   say "Betriebsart B: vszw-sync nur auf 127.0.0.1:${SYNC_PORT}."
 fi
@@ -161,8 +195,14 @@ if [[ "$MODE" == B ]]; then
       dir="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/etc/caddy"}}{{.Source}}{{end}}{{end}}' "$PROXY_CONTAINER" || true)"
       [[ -n "$dir" ]] && CADDYFILE="${dir}/Caddyfile"
     fi
-    say "Vorhandener Caddy im Container „${PROXY_CONTAINER}“. Dieser Block muss in seine"
-    say "Caddyfile (wird NICHT automatisch geändert):"
+    say "Vorhandener Caddy im Container „${PROXY_CONTAINER}“. Noch zu tun (nichts davon automatisch):"
+    say ""
+    say "1) Der Caddy-Container tritt dem Netzwerk ${PROXY_NETWORK} bei – dauerhaft im Compose der"
+    say "   anderen App (networks: ${PROXY_NETWORK}: external: true), dann deren Deployment."
+    say "   Übergangsweise von Hand (geht beim Neuerstellen des Containers verloren):"
+    say "     docker network connect ${PROXY_NETWORK} ${PROXY_CONTAINER}"
+    say ""
+    say "2) Dieser Block in seine Caddyfile:"
     say ""
     say "${SYNC_PUBLIC_HOST} {"
     say "	reverse_proxy vszw-sync:8787 {"
@@ -188,7 +228,8 @@ if [[ "$MODE" == B ]]; then
   else
     say "Noch zu tun: im vorhandenen Reverse-Proxy einen Eintrag ergänzen, der"
     if [[ -n "$PROXY_NETWORK" ]]; then
-      say "  https://${SYNC_PUBLIC_HOST}  →  http://vszw-sync:8787   (Docker-Netzwerk ${PROXY_NETWORK})"
+      say "  https://${SYNC_PUBLIC_HOST}  →  http://vszw-sync:8787   (der Proxy-Container muss dafür dem"
+      say "  Netzwerk ${PROXY_NETWORK} beitreten: docker network connect ${PROXY_NETWORK} <proxy-container>)"
     else
       say "  https://${SYNC_PUBLIC_HOST}  →  http://127.0.0.1:${SYNC_PORT}"
     fi

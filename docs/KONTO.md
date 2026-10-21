@@ -15,20 +15,41 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
   als `Authorization: Bearer …` gesendet wird – keine Cookies (das Spiel liegt auf einer
   anderen Domain als die API). „Abmelden“ beendet nur die Sitzung dieses Geräts.
 - **Spielstand:** derselbe Text-Code wie beim Export („VSZW1:…“ mit Prüfsumme), höchstens
-  256 KB. Jede Speicherung erhöht die Version; geschrieben wird nur, wenn das Gerät die
-  aktuelle Version kennt (sonst 409 Konflikt).
+  200 000 Zeichen – genau so viel, wie das Spiel selbst importieren kann (die Anfrage darf mit
+  Hülle 256 KB groß sein). Jede Speicherung erhöht die Version; geschrieben wird nur, wenn das
+  Gerät die aktuelle Version kennt (sonst 409 Konflikt). Ein Gerät sendet nie einen Stand, den
+  es selbst nicht wieder importieren könnte (dann steht im Konto-Abschnitt „zu groß“).
+- **Spielversionen:** Mit jedem Stand speichert der Server die Spielstand-Version des
+  schreibenden Spiels (`SAVE_VERSION`). Ein älteres Spiel übernimmt nie einen Stand einer
+  neueren Version und sendet dann nichts mehr („Neue Spielversion – bitte neu laden“ im
+  Konto-Abschnitt); der Server lehnt sein Schreiben zusätzlich ab (422 `outdated-client`). So
+  kann ein alter, noch offener Tab einen neueren Stand nie herabstufen.
+- **Unlesbarer Stand im Konto:** wird weder übernommen noch überschrieben; der Abgleich hält an
+  („nicht lesbar“) und prüft mit wachsenden Pausen erneut – kein Hin und Her zwischen Geräten.
 - **Gleichzeitig spielen:** Nach jeder Spieleraktion schickt das Gerät den Stand sofort
   (höchstens einmal je Sekunde), sonst alle 15 s. Andere Geräte erfahren es per
   Server-Sent Events und übernehmen den Stand („Auf anderem Gerät weitergespielt –
   übernommen“). Weil das Spiel deterministisch ist (Zeit nur über `lastTick`), müssen
   reine Zeit-Speicherungen ohne Aktion nicht übernommen werden – nur die Version rückt
-  nach; so springt nichts, solange auf dem anderen Gerät nur Zeit vergeht.
+  nach; so springt nichts, solange auf dem anderen Gerät nur Zeit vergeht. Wie lange ein
+  übernommener Stand schon liegt, rechnet das Spiel allein mit der Uhr des Servers
+  (`serverTime − updatedAt`) – eine falsch gehende Geräte-Uhr verschenkt oder verschluckt
+  keine Wachstumszeit.
 - **Konflikt:** Hat ein anderes Gerät inzwischen eine Aktion gemacht, gewinnt dessen Stand;
   die eigene, noch nicht gesendete Aktion geht verloren, liegt aber als Sicherung unter
   `vszw-backup-before-sync` im `localStorage` (als Text-Code, über „Importieren“ ladbar).
-- **Erste Anmeldung auf einem Gerät:** Gibt es lokal und im Konto einen Stand, gewinnt der
-  weiter fortgeschrittene (Zyklus, dann Gesamt-Wachstum, dann Spielzeit); der lokale Stand
-  wird vorher unter `vszw-backup-before-sync` gesichert.
+  Stammt der Stand im Konto von diesem Gerät selbst (die Antwort auf einen Push ging
+  verloren), ist er die eigene Linie: Das Gerät schreibt weiter, statt den älteren
+  Schnappschuss zu übernehmen.
+- **Erste Anmeldung auf einem Gerät:** Vorher werden **beide** Stände gesichert – der lokale
+  unter `vszw-backup-before-sync`, der aus dem Konto unter `vszw-backup-cloud-before-sync`
+  (beide als Text-Code, über „Importieren“ ladbar). Gehört der lokale Stand zu einem anderen
+  Konto (das Gerät merkt sich, mit welchem Konto es zuletzt abgeglichen hat), gewinnt der
+  Stand aus dem Konto. Sonst gewinnt der weiter fortgeschrittene (Zyklus, dann
+  Gesamt-Wachstum, dann Spielzeit).
+- **Abmelden:** sendet vorher den letzten Stand. Klappt das nicht (offline), weist der
+  Konto-Abschnitt darauf hin; ein zweiter Tipp („Trotzdem abmelden“) meldet trotzdem ab – der
+  Stand bleibt auf dem Gerät.
 - **Offline:** Das Spiel läuft lokal weiter; der Abgleich versucht es mit wachsenden Pausen
   (2 s bis 5 min) erneut. Netzfehler ändern den lokalen Stand nie.
 
@@ -41,21 +62,38 @@ einen lokalen Sync-Server.
 
 | Methode | Pfad | Inhalt |
 |---|---|---|
-| POST | `/api/register` | `{username, password}` → 201 `{token, username}` · 409 Name vergeben |
+| POST | `/api/register` | `{username, password}` → 201 `{token, username}` · 409 Name vergeben · 403 `registration-closed` · 507 |
 | POST | `/api/login` | `{username, password}` → 200 `{token, username}` · 401 |
 | POST | `/api/logout` | (Bearer) → 204 |
 | GET | `/api/me` | (Bearer) → `{username}` |
-| GET | `/api/save` | (Bearer) → `{data, version, actionVersion, updatedAt, deviceId}` · 204 ohne Stand |
-| PUT | `/api/save` | `{data, baseVersion, deviceId, action}` → 200 · 409 `{current}` · 413 > 256 KB |
-| POST | `/api/events/ticket` | (Bearer) → `{ticket}` (60 s gültig, einmalig) |
-| GET | `/api/events?ticket=…` | Server-Sent Events `ready`, `save` |
+| GET | `/api/save` | (Bearer) → `{data, version, actionVersion, updatedAt, deviceId, schema, serverTime}` · 204 ohne Stand |
+| PUT | `/api/save` | `{data, baseVersion, deviceId, action, schema}` → 200 · 409 `{current}` · 413 (Code > 200 000 Zeichen bzw. Anfrage > 256 KB) · 422 `outdated-client` (schema kleiner als gespeichert) · 507 Datenträger fast voll |
+| POST | `/api/events/ticket` | (Bearer) → `{ticket}` (60 s gültig, einmalig; höchstens 4 offene je Sitzung) |
+| GET | `/api/events?ticket=…` | Server-Sent Events `ready`, `save` · 429 bei zu vielen offenen Streams |
 | GET | `/api/health` | `{ok: true}` |
 
 `EventSource` kann keine Header senden. Statt des langlebigen Tokens steht deshalb nur ein
 **einmaliges Ticket** (60 s) in der URL – ein Eintrag im Zugriffs-Log des Proxys ist damit
-wertlos. Regeln: Benutzername 3–32 Zeichen `a–z 0–9 _ - .` (Groß-/Kleinschreibung egal),
-Passwort mindestens 8 Zeichen. Anmelden und Registrieren: höchstens 20 Versuche je IP in
-15 Minuten (429 mit `Retry-After`).
+wertlos. Abmelden löscht die offenen Tickets der Sitzung. Regeln: Benutzername 3–32 Zeichen
+`a–z 0–9 _ - .` (Groß-/Kleinschreibung egal), Passwort mindestens 8 Zeichen.
+
+**Grenzen gegen Missbrauch** (jede 429-Antwort trägt `Retry-After`):
+
+| Was | Grenze |
+|---|---|
+| Anmelden und Registrieren je IP | 20 Versuche in 15 Minuten |
+| Fehlgeschlagene Anmeldungen je Benutzername | 10 in 15 Minuten (danach gesperrt, auch mit richtigem Passwort; Erfolg setzt zurück) |
+| Neue Konten insgesamt | 30 je Stunde |
+| Konten insgesamt | `MAX_ACCOUNTS` (Standard 1000) → 403 `registration-closed` |
+| Freier Platz auf dem Daten-Volume | unter `MIN_FREE_MB` (Standard 512) → 507 für Registrieren und Schreiben (Lesen geht) |
+| Offene Event-Streams | 8 je Konto, 16 je IP, 2000 insgesamt |
+| Offene Tickets | 4 je Sitzung (das älteste verfällt), 10 000 insgesamt |
+| Anfrage empfangen | Kopf 20 s, ganze Anfrage 30 s (gilt nicht für die offene Antwort eines Event-Streams) |
+
+Die IP für diese Grenzen ist die Adresse der Verbindung. Nur wenn sie privat ist (der Proxy im
+Docker-Netz oder auf demselben Server) **und** `TRUST_PROXY=1` gesetzt ist, zählt der letzte
+Eintrag von `X-Forwarded-For` – den hat der eigene Proxy angehängt; frühere Einträge kann der
+Client frei erfinden.
 
 ## Einrichtung Schritt für Schritt
 
@@ -107,25 +145,32 @@ cd tree-grow-app/deploy
    (`ss -tlnp`), und ob der lokale Sync-Port frei ist;
 2. ermittelt die öffentliche IP (`curl -4 ifconfig.me`) und den sslip.io-Namen
    (oder nimmt `SYNC_PUBLIC_HOST=… ./setup.sh`);
-3. schreibt `deploy/.env` (Vorlage `deploy/.env.example`);
+3. legt `deploy/.env` an (Vorlage `deploy/.env.example`) – eine vorhandene `deploy/.env` bleibt unverändert (die erkannten Werte gelten dann nur für
+   diesen Lauf);
 4. startet die `vszw-`Container:
    - **Ports 80/443 frei:** Betriebsart A (eigener Caddy);
-   - **80/443 gehören einem Container** (z. B. dem Caddy einer anderen App): Betriebsart B,
-     `vszw-sync` tritt dessen Docker-Netzwerk bei (`PROXY_NETWORK`, kein Host-Port);
+   - **80/443 gehören einem Container** (z. B. dem Caddy einer anderen App – ein Container mit
+     veröffentlichtem `:443` zählt immer als „belegt“): Betriebsart B. `setup.sh` legt das
+     eigene Docker-Netzwerk **`vszw-proxy`** an (falls es fehlt), `vszw-sync` tritt nur diesem
+     bei (Alias `vszw-sync`, kein Host-Port). Der Proxy-Container tritt `vszw-proxy` danach
+     bei – `vszw-sync` kommt nie in das interne Netzwerk der anderen App (dort wäre z. B. deren
+     Datenbank erreichbar);
    - **80/443 gehören einem Proxy direkt auf dem Server:** Betriebsart B, nur
      `127.0.0.1:8787`;
-5. gibt aus, was im vorhandenen Proxy zu ergänzen ist (bei Caddy im Container: den fertigen
-   Block und die Befehle zum sicheren Einspielen samt Rückweg) – **fremde Dateien ändert es
+5. gibt aus, was im vorhandenen Proxy zu ergänzen ist (bei Caddy im Container: Beitritt zu
+   `vszw-proxy`, den fertigen Block und die Befehle zum sicheren Einspielen samt Rückweg) – **fremde Dateien ändert es
    nie** – und nennt am Ende die URL für `VITE_SYNC_URL`.
 
-Erzwingen bzw. vorgeben: `MODE=B`, `PROXY_NETWORK=<netz>`, `SYNC_PORT=8790`,
-`SYNC_PUBLIC_HOST=…` (jeweils vor `./setup.sh`). Spätere Updates: den Befehl verwenden, den
-`setup.sh` am Ende nennt.
+Erzwingen bzw. vorgeben: `MODE=B`, `PROXY_NETWORK=<netz>` (Standard `vszw-proxy`; ein
+anderes nur bewusst), `SYNC_PORT=8790`, `SYNC_PUBLIC_HOST=…` (jeweils vor `./setup.sh`).
+Nennt eine ältere `deploy/.env` noch ein fremdes Netzwerk (z. B. `haushalt-prod-intern`),
+bricht `setup.sh` mit einem Hinweis ab – dann die Zeile auf `PROXY_NETWORK=vszw-proxy`
+ändern. Spätere Updates: den Befehl verwenden, den `setup.sh` am Ende nennt.
 
-Alle Container, Volumes und das Netzwerk heißen `vszw-…` (`vszw-sync`, `vszw-caddy`,
-`vszw-data`, `vszw-net`), laufen mit `restart: unless-stopped` und Limits (Sync-Server
-256 MB / 0,5 CPU, Caddy 128 MB). Nur Betriebsart A bindet an alle Adressen (Port 80/443);
-sonst ist der Sync-Server höchstens unter `127.0.0.1` erreichbar.
+Alle Container, Volumes und Netzwerke heißen `vszw-…` (`vszw-sync`, `vszw-caddy`,
+`vszw-data`, `vszw-net`, `vszw-proxy`), laufen mit `restart: unless-stopped` und Limits
+(Sync-Server 256 MB / 0,5 CPU, Caddy 128 MB). Nur Betriebsart A bindet an alle Adressen
+(Port 80/443); sonst ist der Sync-Server höchstens unter `127.0.0.1` erreichbar.
 
 #### Betriebsart A: eigener Caddy (nur wenn 80/443 frei sind)
 
@@ -142,27 +187,57 @@ den eigenen Namen ersetzen). Wichtig für die Live-Synchronisierung: **keine Puf
 lange Lesezeit für `/api/events`.
 
 **Caddy im Docker-Container einer anderen App** (häufigster Fall, z. B. ein Container
-`haushalt-prod-caddy-1` aus dem Compose-Projekt `haushalt-prod` belegt 80/443):
+`haushalt-prod-caddy-1` aus dem Compose-Projekt `haushalt-prod` belegt 80/443).
+
+`vszw-sync` und der Caddy treffen sich im **eigenen** Netzwerk `vszw-proxy` – nie im internen
+Netzwerk der anderen App (`haushalt-prod-intern`), denn dort wären deren Datenbank und andere
+Dienste für `vszw-sync` erreichbar. Reihenfolge:
+
+1. **Zuerst `setup.sh`** (dieses Repository): legt `vszw-proxy` an, falls es fehlt
+   (`docker network create vszw-proxy`), und startet `vszw-sync` in diesem Netzwerk
+   (Alias `vszw-sync`, kein Host-Port). Von Hand dasselbe:
+
+   ```bash
+   docker network inspect vszw-proxy >/dev/null 2>&1 || docker network create vszw-proxy
+   docker compose -f docker-compose.yml -f docker-compose.proxy-net.yml up -d --build
+   ```
+
+2. **Dann das Deployment der anderen App:** Ihr Caddy tritt `vszw-proxy` bei (im Compose der
+   haushalt-app, eigener PR dort):
+
+   ```yaml
+   services:
+     caddy:
+       networks:
+         - default          # bzw. die bisherigen Netzwerke
+         - vszw-proxy
+   networks:
+     vszw-proxy:
+       external: true
+   ```
+
+   und ihre Caddyfile leitet den Namen an `vszw-sync:8787` weiter (`flush_interval -1` reicht
+   Server-Sent Events sofort durch):
+
+   ```caddyfile
+   62-83-23-90.sslip.io {
+   	reverse_proxy vszw-sync:8787 {
+   		flush_interval -1
+   	}
+   }
+   ```
+
+   Weil `vszw-proxy` als `external` eingebunden ist, muss es vor diesem Deployment existieren –
+   deshalb kommt `setup.sh` zuerst.
+
+Übergangsweise (bis das Deployment der anderen App das erledigt) lässt sich der laufende Caddy
+von Hand anschließen – das geht verloren, sobald sein Container neu erstellt wird:
 
 ```bash
-docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' haushalt-prod-caddy-1
-#   → z. B. haushalt-prod-intern
-echo 'PROXY_NETWORK=haushalt-prod-intern' >> .env          # setup.sh erledigt das selbst
-docker compose -f docker-compose.yml -f docker-compose.proxy-net.yml up -d --build
+docker network connect vszw-proxy haushalt-prod-caddy-1
 ```
 
-`vszw-sync` hängt damit im Netzwerk des Caddy und ist dort als `vszw-sync:8787` erreichbar.
-Block für dessen Caddyfile (`flush_interval -1` reicht Server-Sent Events sofort durch):
-
-```caddyfile
-62-83-23-90.sslip.io {
-	reverse_proxy vszw-sync:8787 {
-		flush_interval -1
-	}
-}
-```
-
-Sicher einspielen – Pfad der Caddyfile auf dem Host steht in
+Den Caddy-Block übergangsweise sicher einspielen – Pfad der Caddyfile auf dem Host steht in
 `docker inspect haushalt-prod-caddy-1` unter „Mounts“ (Ziel `/etc/caddy/Caddyfile`), im
 Beispiel `/home/deploy/haushalt-app/infra/production/Caddyfile`:
 
@@ -185,14 +260,9 @@ docker exec haushalt-prod-caddy-1 caddy reload --config /etc/caddy/Caddyfile --a
 
 `cp` und `tee -a` schreiben in die bestehende Datei. Das ist wichtig, wenn sie einzeln in den
 Container eingebunden ist: Änderungen per `sed -i` oder von Editoren, die die Datei ersetzen,
-sähe der Container nicht. Caddy holt das Zertifikat für den neuen Namen selbst. Der Block ist eine
-eigene Site – die bestehende (`{$DOMAIN}` mit `handle_path`, `encode zstd gzip` …) bleibt
-unverändert, `reload` übernimmt die Konfiguration ohne Neustart.
-
-Gehört die Caddyfile zum Repository der anderen App, geht der angehängte Block beim nächsten
-Deployment dieser App verloren, falls sie die Datei überschreibt. Dann den Block dort
-dauerhaft eintragen (oder per `import` aus einer eigenen Datei einbinden) – nach Absprache
-mit dieser App, und erst nach `caddy validate`.
+sähe der Container nicht. Gehört die Caddyfile zum Repository der anderen App, geht der
+angehängte Block beim nächsten Deployment dieser App verloren – dauerhaft gehört er (wie der
+Netzwerk-Beitritt) in deren Repository.
 
 **Proxy direkt auf dem Server** – der Sync-Server lauscht nur auf `127.0.0.1:8787`:
 
@@ -272,8 +342,8 @@ Traefik leitet Server-Sent Events ohne weitere Einstellung durch.
 sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 ```
 
-**nginx oder Traefik im Docker-Container:** wie beim Caddy-Container `PROXY_NETWORK` setzen
-(bzw. die Traefik-Datei nutzen) und als Ziel `http://vszw-sync:8787` statt
+**nginx oder Traefik im Docker-Container:** wie beim Caddy-Container über das Netzwerk
+`vszw-proxy` (bzw. die Traefik-Datei nutzen) und als Ziel `http://vszw-sync:8787` statt
 `http://127.0.0.1:8787` eintragen.
 
 ### 5. Prüfen
@@ -301,15 +371,36 @@ Andere Herkunft als `https://j4nric.github.io` (z. B. eigene Domain für das Spi
 
 Der Server sichert die Datenbank **täglich** selbst (Online-Backup von SQLite, konsistent
 auch beim Schreiben) nach `/data/backups/saves-JJJJ-MM-TT.db` im Volume `vszw-data` und
-behält die neuesten 14 (`BACKUP_KEEP`). Auf den Rechner holen:
+behält rotierend die neuesten 7 (`BACKUP_KEEP`). Ist der Datenträger fast voll
+(`MIN_FREE_MB`), fällt die Sicherung aus (Hinweis in `docker logs vszw-sync`).
+
+Im Image gibt es kein `sqlite3`; für Verwaltung und Sicherungen liegt ein kleines Werkzeug bei
+(`dist/admin-cli.js`):
 
 ```bash
+# Sofort sichern (zusätzlich zur täglichen Sicherung)
+docker exec vszw-sync node --disable-warning=ExperimentalWarning dist/admin-cli.js backup
+# Sicherungen auf den Rechner holen
 docker cp vszw-sync:/data/backups ./vszw-backups
+# Konten ansehen (Name, angelegt, Größe des Spielstands)
+docker exec vszw-sync node --disable-warning=ExperimentalWarning dist/admin-cli.js users
 ```
 
+Eine Sicherung lässt sich auf dem Rechner mit jedem SQLite-Werkzeug öffnen (z. B.
+`sqlite3 vszw-backups/saves-2026-10-21.db '.tables'`).
+
 Wiederherstellen: Container stoppen, Sicherung als `/data/saves.db` zurückkopieren
-(dabei `saves.db-wal` und `saves.db-shm` löschen), Container starten. Für Sicherungen
-außerhalb des Servers den Ordner regelmäßig (z. B. per Cron und `docker cp`) wegkopieren.
+(dabei `saves.db-wal` und `saves.db-shm` löschen), Container starten – z. B.:
+
+```bash
+docker compose stop sync
+docker run --rm -v vszw-data:/data -v "$PWD/vszw-backups:/restore:ro" alpine \
+  sh -c 'cp /restore/saves-2026-10-21.db /data/saves.db && rm -f /data/saves.db-wal /data/saves.db-shm && chown 1000:1000 /data/saves.db'
+docker compose start sync
+```
+
+Für Sicherungen außerhalb des Servers den Ordner regelmäßig (z. B. per Cron und `docker cp`)
+wegkopieren.
 
 ## Aktualisieren
 
@@ -328,12 +419,24 @@ nötig – auf einem Server mit anderen Apps bitte auch keine verwenden.
 - Nur HTTPS verwenden (`VITE_SYNC_URL` mit `https://`) – sonst gehen Passwort und Token im
   Klartext über das Netz. Der Browser blockiert http-Aufrufe von der https-Seite ohnehin.
 - CORS lässt nur `ALLOWED_ORIGIN` zu; Anfragen anderer Seiten werden mit 403 abgelehnt.
-- Rate-Limit gegen Passwort-Raten (20 Versuche je IP in 15 Minuten); hinter dem Proxy
-  zählt die IP aus `X-Forwarded-For` (der Proxy muss sie setzen, wie in den Beispielen).
+- Rate-Limits gegen Passwort-Raten und massenhaftes Anlegen (Tabelle „Grenzen gegen
+  Missbrauch“). Hinter dem Proxy zählt der letzte Eintrag von `X-Forwarded-For`, aber nur,
+  wenn die Verbindung von einer privaten Adresse kommt.
+- Passwörter: scrypt mit N = 2^15 (die Parameter stehen im Hash; höchstens zwei Rechnungen
+  gleichzeitig, damit 256 MB Speicher reichen).
 - Das Token liegt im `localStorage` des Browsers. Auf fremden Geräten nach dem Spielen
   „Abmelden“.
-- Der Container läuft ohne Root, mit schreibgeschütztem Dateisystem (außer `/data`),
-  `no-new-privileges` und Speicher-/CPU-Limits. Der Sync-Port ist nur lokal gebunden.
+- Der Container läuft ohne Root, mit schreibgeschütztem Dateisystem (außer `/data` und
+  `/tmp`), ohne Linux-Capabilities (`cap_drop: ALL`), `no-new-privileges`, Speicher-/CPU-
+  Limits und fest gewählter Basis-Version (`node:22.22.3-alpine3.24`). Der Sync-Port ist nur
+  lokal gebunden; im Docker-Betrieb hinter einem fremden Proxy teilt er nur das eigene Netz
+  `vszw-proxy` mit diesem.
+- Ein Fehler in einer Anfrage (auch eine kaputte Anfrage-Zeile wie `GET //a:99999/`) wird
+  beantwortet und geloggt, beendet aber nie den Prozess.
 - Es gibt kein „Passwort vergessen“ (keine E-Mail). Notfalls auf dem Server das Konto
-  löschen (`DELETE FROM users WHERE username = '…'` per `sqlite3` im Volume) und neu
-  anlegen; der Spielstand lässt sich vorher über den Export des Spiels sichern.
+  löschen und neu anlegen; der Spielstand lässt sich vorher über den Export des Spiels
+  sichern:
+
+  ```bash
+  docker exec vszw-sync node --disable-warning=ExperimentalWarning dist/admin-cli.js delete-user <name>
+  ```
