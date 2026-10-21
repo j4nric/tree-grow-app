@@ -33,6 +33,11 @@ Aufgaben derselben Phase ohne gemeinsame Dateien können parallel laufen.
       `getBoundingClientRect()` je Frame (mit `devicePixelContentBoxSize`, wo plausibel), Backing-Store
       ~100 ms entprellt (`CanvasSizer`); der Renderer übernimmt die schon entprellte Größe sofort
       (`sizeSettled`), Frame-Ersatzregel nur noch bei stehender Zeit
+- [x] Renderer: Wind billiger (`renderer`) – Baum- und Pflanzen-Ebene nicht mehr schief kopiert,
+      sondern in waagerechten Streifen verschoben (`src/render/wind.ts`): ab Pixeldichte 1,5
+      ganzzahlig (reine Kopie ohne Filter), darunter in Viertelpixeln. Wind-Kosten im Software-Canvas
+      von ~29–43 ms auf ~0 ms (Pixeldichte 2–3) bzw. von ~15 auf ~2,5 ms (Pixeldichte 1); reduzierte
+      Bewegung pixelgleich
 - ~~Seitenleiste: DOM-Referenzen einmal merken~~ – mit der v2-Seitenleiste entfallen
 - ~~Schwebende Zahlen über dem Ressourcen-Label~~ – mit v2 entfallen
 
@@ -106,8 +111,19 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
     als großer Lauf, schnellere Standardläufe; `scripts/v2/` und `tests/design-v2.test.ts` entfernt
   - [x] `npm run balance` in CLAUDE.md unter „Befehle“ eingetragen
 
-- [ ] 2.11 Harmonie als spürbarer Hebel (Multiplikator stärker als `1 + H/100`), Tempo
+- [x] 2.11 Harmonie als spürbarer Hebel (Multiplikator stärker als `1 + H/100`), Tempo
   Wald und Urwald auf 1,15–1,2 × Zeitziel, Simulator-Nachweis (`game-designer`)
+  - [x] Untersuchung: Ziel G/H 0,95–1,05 im ersten Zyklus ist mit keinem Multiplikator
+    erreichbar (Grenze ≈ 0,90), siehe DESIGN_V2.md 15.4 „Untersuchung Schritt 2.11“; Tempo
+    Wald/Urwald liegt schon bei 1,15 / 1,20 × Ziel
+  - [x] Entscheidung (Option 1): `1 + H/100` bleibt; Harmonie lohnt sich über die Zyklen –
+    Waldgedächtnis `⌊H/5⌋ + min(45, 3 · max(0, H − 100)) + neue Arten` mit
+    H = round(H_max) wie in der Anzeige, ab Zyklus 2 Harmonie gleichauf,
+    Gelegenheitsspieler nahezu unverändert; Regel im Panel „Neuer Zyklus“
+    (DESIGN_V2.md 15.4 „Stand Schritt 2.11“, Entscheidung 11)
+  - [ ] offen (`core-engineer`): stufenabhängige Schwelle für den Harmonie-Bonus – bei
+    Neustart im Wald/Urwald haben beide Spielweisen H_max über 115, dort kein
+    Harmonie-Vorsprung, und ein Urwald-Zyklus bringt ~100 statt ~55 Punkte
 
 ## Phase 3 – Tiefe
 

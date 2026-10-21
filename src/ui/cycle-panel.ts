@@ -50,6 +50,9 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
   const gain = el('p', 'cycle-gain');
   gain.dataset.ref = 'cycle-gain';
   const detail = el('p', 'hint');
+  // Regel fürs Waldgedächtnis: auch vor dem Hain sichtbar – Harmonie über 100 lohnt sich.
+  const rule = el('p', 'hint');
+  rule.dataset.ref = 'memory-rule';
   const slotsGain = el('p', 'hint');
   // Art des laufenden Zyklus (solange kein Neuer Zyklus möglich ist).
   const tree = el('p', 'cycle-tree-current');
@@ -104,7 +107,7 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
   const list = el('ul', 'cycle-regular-list');
   regulars.append(regularsTitle, regularsHint, list);
 
-  section.append(title, sub, tree, memory, blocker, gain, detail, slotsGain, trees, button, regulars);
+  section.append(title, sub, tree, memory, blocker, gain, detail, rule, slotsGain, trees, button, regulars);
   root.append(section);
 
   let shownKey = '';
@@ -121,6 +124,7 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
     setText(gain, view.gain ?? '');
     detail.hidden = view.gainDetail === null;
     setText(detail, view.gainDetail ?? '');
+    setText(rule, view.memoryRule);
     slotsGain.hidden = view.slotsGain === null;
     setText(slotsGain, view.slotsGain ?? '');
     if (!view.allowed) disarm();

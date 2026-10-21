@@ -25,6 +25,11 @@ async function openTransfer(page: Page): Promise<void> {
 }
 
 test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, context }) => {
+  // Testuhr: Das Spiel läuft nur, wenn der Test die Uhr vorstellt. Mit echter Zeit war der
+  // Test unter Last wackelig – das neue Spiel nach dem Löschen wuchs schon zum Keimling
+  // (Wegpunkt 1 nach ~4 s), und die Import-Bestätigung lief ab, bevor der zweite Klick kam.
+  await page.clock.install({ time: new Date('2026-10-21T08:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-21T08:00:01Z'));
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await seedV3(context, {
     totalGrowth: waypoint(6) + 1,
@@ -51,8 +56,9 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
   // Löschen (zwei Klicks) → neues Spiel.
   const reset = page.locator('#reset');
   await reset.click();
-  await waitForConfirm(page);
+  await waitForConfirm(page, { clock: true });
   await reset.click();
+  await page.clock.runFor(100);
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
   await expect(niche(page, 'roots')).not.toContainText('Regenwurm');
   // Nach dem Löschen steht kein alter Code mehr im Export-Feld.
@@ -65,8 +71,9 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
   await importButton.click();
   await expect(importButton).toContainText('Zum Bestätigen erneut klicken');
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
-  await waitForConfirm(page);
+  await waitForConfirm(page, { clock: true });
   await importButton.click();
+  await page.clock.runFor(100);
   await expect(transfer(page).locator('[data-ref="save-status"]')).toHaveText('Spielstand geladen.');
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
   await expect(niche(page, 'roots')).toContainText('Regenwurm');
