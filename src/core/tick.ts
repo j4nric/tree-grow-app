@@ -6,19 +6,24 @@ import {
   PLANT_WEIGHT_RING_FULL,
   SCRIPTED_ENCOUNTERS,
 } from '../content/encounters';
+import { JOURNAL_SPECIES_WEIGHT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { PLANTS, PLANTS_BY_ID } from '../content/plants';
-import { SPECIES } from '../content/species';
+import { SPECIES, SPECIES_BY_ID } from '../content/species';
+import { STAGES } from '../content/stages';
 import { ENCOUNTER_TYPES } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import {
   activeCommunities,
   appearsContext,
+  cycleMemoryGain,
   declineReward,
   evaluate,
   nextPlantCost,
   nicheSlots,
+  nichesAfterChoice,
   plantSlots,
   rarityWeights,
+  regularSlots,
   rerollCost,
   resolveChoice,
   speciesAppears,
@@ -27,7 +32,14 @@ import {
   type ChoiceError,
 } from './formulas';
 import { pick, weightedIndex, type RngHolder } from './rng';
-import { allAnimals, type GameState, type PendingEncounter, type PendingEncounterType } from './state';
+import {
+  allAnimals,
+  createCycle,
+  emptyNiches,
+  type GameState,
+  type PendingEncounter,
+  type PendingEncounterType,
+} from './state';
 
 /** Offline-Fortschritt wird auf diese Dauer begrenzt. */
 export const MAX_OFFLINE_SECONDS = 8 * 60 * 60;
@@ -40,6 +52,8 @@ export interface TickReport {
   encounters: number;
   /** Automatisch abgelehnt (Warteschlange voll oder keine Art verfügbar). */
   autoDeclined: number;
+  /** Eingezogene Stammgäste (Art-IDs, in Reihenfolge des Einzugs). */
+  regulars: string[];
 }
 
 export interface OfflineReport extends TickReport {
@@ -57,7 +71,7 @@ export interface OfflineReport extends TickReport {
  * über `dt`, Zufall nur über `state.rngState`.
  */
 export function tick(state: GameState, dt: number): TickReport {
-  const report: TickReport = { waypoints: 0, encounters: 0, autoDeclined: 0 };
+  const report: TickReport = { waypoints: 0, encounters: 0, autoDeclined: 0, regulars: [] };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
   let remaining = dt;
   // Schleife endet: Jede Runde verbraucht die Restzeit oder erreicht einen der
@@ -106,6 +120,11 @@ function reachWaypoint(state: GameState, report: TickReport): void {
   state.waypoint++;
   state.stage = Math.max(state.stage, stageForWaypoint(state.waypoint));
   report.waypoints++;
+  // Stammgäste ziehen in frei gewordene Plätze (auch die der neuen Stufe), bevor die
+  // Karten gezogen werden – so bietet die Begegnung sie nicht noch einmal an.
+  report.regulars.push(...moveInRegulars(state));
+  // Stufe und Stammgäste können die Harmonie ändern (H_max) und Gemeinschaften bilden.
+  recordDiscoveries(state);
   if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) {
     // Warteschlange voll: überzählige Begegnung gleich ablehnen – nichts verfällt.
     state.seeds = capped(state.seeds + declineReward());
@@ -199,6 +218,8 @@ export function allWaypointsReached(state: GameState): boolean {
  * passende Art fallen weg (neu gewichtet).
  * Arten in `exclude` (beim Neu würfeln: die bisherigen Karten) kommen nur zum Auffüllen
  * dran, wenn die übrigen Arten nicht für alle Karten reichen.
+ * Ab dem zweiten Zyklus ziehen Arten aus dem Naturtagebuch innerhalb ihrer Seltenheit mit
+ * doppeltem Gewicht (DESIGN_V2.md, Abschnitt 10); im ersten Zyklus bleibt es gleichverteilt.
  * Zufall aus `rng` (Standard: der Spielstand selbst).
  */
 export function drawAnimals(state: GameState, exclude: readonly string[] = [], rng: RngHolder = state): string[] {
@@ -210,6 +231,7 @@ export function drawAnimals(state: GameState, exclude: readonly string[] = [], r
   );
   const pools = [eligible.filter((s) => !exclude.includes(s.id)), eligible.filter((s) => exclude.includes(s.id))];
   const weights = rarityWeights(state);
+  const journal = state.cycle.number > 1 ? new Set(state.meta.journal.species) : null;
   const cards: string[] = [];
   for (const pool of pools) {
     while (cards.length < CARDS_PER_ENCOUNTER) {
@@ -219,7 +241,11 @@ export function drawAnimals(state: GameState, exclude: readonly string[] = [], r
         weights.map((w, idx) => (byRarity[idx]!.length > 0 ? w : 0)),
       );
       if (r < 0) break;
-      cards.push(pick(rng, byRarity[r]!).id);
+      const choices = byRarity[r]!;
+      const chosen = journal
+        ? choices[weightedIndex(rng, choices.map((s) => (journal.has(s.id) ? JOURNAL_SPECIES_WEIGHT : 1)))]!
+        : pick(rng, choices);
+      cards.push(chosen.id);
     }
   }
   return cards;
@@ -240,7 +266,15 @@ export type ActionError =
   /** Pflanze setzen: unbekannte Pflanzen-ID. */
   | 'unknown-plant'
   /** Pflanze setzen: erst auf einer späteren Stufe freigeschaltet. */
-  | 'locked';
+  | 'locked'
+  /** Neuer Zyklus: Stufe „Hain“ noch nicht erreicht (Text: newCycleBlocker). */
+  | 'cycle-locked'
+  /** Stammgast: unbekannte Art-ID. */
+  | 'unknown-species'
+  /** Stammgast: Art steht noch nicht im Naturtagebuch. */
+  | 'not-discovered'
+  /** Stammgast: alle Plätze belegt. */
+  | 'no-regular-slot';
 
 /**
  * Ergebnis einer Spieleraktion. `discovered`: Lebensgemeinschaften, die durch die Aktion
@@ -280,7 +314,11 @@ export function chooseCard(
     state.niches[nicheId] = outcome.niches[nicheId];
   }
   state.plants = outcome.plants;
-  if (encounter.type === 'animal' && !state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
+  if (encounter.type === 'animal' && !state.meta.journal.species.includes(id)) {
+    state.meta.journal.species.push(id);
+    // Neu im Tagebuch: zählt beim Neuen Zyklus fürs Waldgedächtnis.
+    if (!state.cycle.newSpecies.includes(id)) state.cycle.newSpecies.push(id);
+  }
   state.pendingEncounters.splice(encounterIndex, 1);
   return discoveryResult(recordDiscoveries(state));
 }
@@ -288,14 +326,19 @@ export function chooseCard(
 /**
  * Trägt ins Naturtagebuch ein, was gerade im Ökosystem ist: wachsende Pflanzen und
  * aktive Lebensgemeinschaften (je einmal, in der Reihenfolge der Entdeckung). Arten
- * trägt chooseCard selbst ein. Gibt die neu entdeckten Lebensgemeinschaften zurück
- * (chooseCard und plantSeed reichen sie als `discovered` an die UI weiter).
+ * trägt chooseCard selbst ein. Führt außerdem die höchste Harmonie des Zyklus (H_max)
+ * nach. Läuft nach jeder Änderung am Ökosystem: chooseCard, plantSeed, Wegpunkt (Stufe,
+ * Stammgäste), Neuer Zyklus und Laden.
+ * Gibt die neu entdeckten Lebensgemeinschaften zurück (chooseCard und plantSeed reichen
+ * sie als `discovered` an die UI weiter).
  */
 export function recordDiscoveries(state: GameState): string[] {
   const journal = state.meta.journal;
+  const ev = evaluate(state);
   for (const id of state.plants) if (!journal.plants.includes(id)) journal.plants.push(id);
-  const fresh = activeCommunities(evaluate(state)).filter((id) => !journal.communities.includes(id));
+  const fresh = activeCommunities(ev).filter((id) => !journal.communities.includes(id));
   journal.communities.push(...fresh);
+  if (Number.isFinite(ev.harmony) && ev.harmony > state.cycle.maxHarmony) state.cycle.maxHarmony = ev.harmony;
   return fresh;
 }
 
@@ -382,4 +425,155 @@ export function rerollBlocker(
 
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((x) => b.includes(x)) && b.every((x) => a.includes(x));
+}
+
+// ---------------------------------------------------------------------------
+// Neuer Zyklus und Stammgäste (DESIGN_V2.md, Abschnitt 10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Lässt Stammgäste einziehen: jede Art aus `meta.regulars` (in Wahl-Reihenfolge), die
+ * noch nicht im Ökosystem lebt, auf dieser Stufe freigeschaltet ist und in ihrer Nische
+ * einen freien Platz findet. Kostenlos und ohne Zufall. Schafft ein Stammgast Plätze
+ * (Borkenkäfer → Höhlen), bekommen die übrigen eine weitere Runde.
+ * Gibt die eingezogenen Arten zurück. Läuft in tick (nach jedem Wegpunkt) und beim
+ * Neuen Zyklus – darum online und offline gleich.
+ */
+export function moveInRegulars(state: GameState): string[] {
+  const moved: string[] = [];
+  const present = new Set(allAnimals(state));
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const id of state.meta.regulars) {
+      const sp = SPECIES_BY_ID.get(id);
+      if (!sp || present.has(id) || sp.unlock > state.stage) continue;
+      // Gleiche Prüfung wie beim Einzug per Karte: Die Nische braucht einen freien Platz.
+      const niches = nichesAfterChoice(state, id);
+      if (!niches || niches[sp.niche].length > nicheSlots(state.stage, niches)[sp.niche]) continue;
+      state.niches = niches;
+      present.add(id);
+      moved.push(id);
+      changed = true;
+    }
+  }
+  return moved;
+}
+
+/** Warum der Neue Zyklus noch gesperrt ist: Zielstufe und fehlende Wegpunkte. */
+export interface NewCycleBlocker {
+  /** Index in STAGES, ab dem es geht (Hain). */
+  stage: number;
+  /** Wegpunkte bis dahin (≥ 1). */
+  waypointsLeft: number;
+}
+
+/** Vorschau auf den Neuen Zyklus (für die Seitenleiste). */
+export interface NewCyclePreview {
+  /** Warum es noch nicht geht – null, wenn es geht. Den Satz baut die UI (cycle-view.ts). */
+  blocker: NewCycleBlocker | null;
+  /** Höchste Harmonie dieses Zyklus (H_max). */
+  maxHarmony: number;
+  /** Arten, die in diesem Zyklus neu ins Tagebuch kamen. */
+  newSpecies: number;
+  /** Gewinn an Waldgedächtnis (schon auf MAX_FOREST_MEMORY begrenzt). */
+  memoryGain: number;
+  memoryBefore: number;
+  memoryAfter: number;
+  /** Plätze für Stammgäste vorher und nachher. */
+  regularSlotsBefore: number;
+  regularSlotsAfter: number;
+}
+
+/** Warum „Neuer Zyklus“ gerade nicht geht – null, wenn es geht. */
+export function newCycleBlocker(state: GameState): NewCycleBlocker | null {
+  if (state.stage >= NEW_CYCLE_MIN_STAGE) return null;
+  const target = STAGES[NEW_CYCLE_MIN_STAGE]!;
+  return { stage: NEW_CYCLE_MIN_STAGE, waypointsLeft: Math.max(1, target.waypoint - state.waypoint) };
+}
+
+/** Was ein Neuer Zyklus jetzt brächte. Ändert nichts. */
+export function previewNewCycle(state: GameState): NewCyclePreview {
+  const memoryBefore = state.meta.forestMemory;
+  const memoryGain = cycleMemoryGain(state.cycle.maxHarmony, state.cycle.newSpecies.length, memoryBefore);
+  return {
+    blocker: newCycleBlocker(state),
+    maxHarmony: state.cycle.maxHarmony,
+    newSpecies: state.cycle.newSpecies.length,
+    memoryGain,
+    memoryBefore,
+    memoryAfter: memoryBefore + memoryGain,
+    regularSlotsBefore: regularSlots(memoryBefore),
+    regularSlotsAfter: regularSlots(memoryBefore + memoryGain),
+  };
+}
+
+export type NewCycleResult =
+  | { ok: true; preview: NewCyclePreview; regulars: string[] }
+  | { ok: false; error: ActionError };
+
+/**
+ * Neuer Zyklus: Waldgedächtnis gutschreiben, dann Wachstum, Samen, Wegpunkt, Stufe,
+ * Pflanzen, Nischen und offene Begegnungen zurücksetzen. Naturtagebuch, Waldgedächtnis,
+ * Stammgäste und der Zufallsgenerator (`rngState`) laufen weiter. Danach ziehen
+ * Stammgäste ein, die schon Platz finden. `now` (ms seit Epoch) markiert den Beginn des
+ * Zyklus; `lastTick` bleibt unverändert.
+ */
+export function startNewCycle(state: GameState, now: number): NewCycleResult {
+  const preview = previewNewCycle(state);
+  if (preview.blocker !== null) return { ok: false, error: 'cycle-locked' };
+  state.meta.forestMemory = preview.memoryAfter;
+  state.totalGrowth = 0;
+  state.seeds = 0;
+  state.waypoint = 0;
+  state.stage = 0;
+  state.plants = [];
+  state.niches = emptyNiches();
+  state.pendingEncounters = [];
+  state.cycle = createCycle(state.cycle.number + 1, now);
+  const regulars = moveInRegulars(state);
+  recordDiscoveries(state);
+  return { ok: true, preview, regulars };
+}
+
+/** Warum diese Art gerade nicht Stammgast werden kann – null, wenn es geht oder sie es schon ist. */
+export function regularBlocker(
+  state: GameState,
+  speciesId: string,
+): 'unknown-species' | 'not-discovered' | 'no-regular-slot' | null {
+  if (!SPECIES_BY_ID.has(speciesId)) return 'unknown-species';
+  if (!state.meta.journal.species.includes(speciesId)) return 'not-discovered';
+  if (state.meta.regulars.includes(speciesId)) return null;
+  if (state.meta.regulars.length >= regularSlots(state.meta.forestMemory)) return 'no-regular-slot';
+  return null;
+}
+
+/**
+ * Wählt eine entdeckte Art als Stammgast oder wählt sie ab. Eingezogen wird beim
+ * nächsten Wegpunkt bzw. Zyklusstart (moveInRegulars); Abwählen entlässt kein Tier.
+ */
+export function toggleRegular(state: GameState, speciesId: string): ActionResult {
+  const at = state.meta.regulars.indexOf(speciesId);
+  if (at >= 0) {
+    state.meta.regulars.splice(at, 1);
+    return { ok: true };
+  }
+  const blocker = regularBlocker(state, speciesId);
+  if (blocker) return fail(blocker);
+  state.meta.regulars.push(speciesId);
+  return { ok: true };
+}
+
+/**
+ * Setzt alle Stammgäste auf einmal (Prüfung wie toggleRegular; bei Fehlern bleibt alles,
+ * wie es war) – für die spätere Tagebuch-Ansicht. Die Seitenleiste nutzt toggleRegular.
+ */
+export function setRegulars(state: GameState, speciesIds: readonly string[]): ActionResult {
+  const ids = [...new Set(speciesIds)];
+  for (const id of ids) {
+    if (!SPECIES_BY_ID.has(id)) return fail('unknown-species');
+    if (!state.meta.journal.species.includes(id)) return fail('not-discovered');
+  }
+  if (ids.length > regularSlots(state.meta.forestMemory)) return fail('no-regular-slot');
+  state.meta.regulars = ids;
+  return { ok: true };
 }

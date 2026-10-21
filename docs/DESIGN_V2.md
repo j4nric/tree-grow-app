@@ -787,6 +787,28 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
 - Harmonie ist damit das Langzeitziel: Wer im Zyklus nur auf Wachstum spielt, kommt
   schneller zum Hain (Abschnitt 15), nimmt aber weniger Waldgedächtnis mit.
 
+**Umsetzung (Schritt 2.8):**
+
+- Zahlen in `src/content/memory.ts`: ab Stufe Hain (`NEW_CYCLE_MIN_STAGE = 5`),
+  1 Punkt je 10 H_max, 2 Punkte je neuer Art, 1 Stammgast-Platz je 25 Punkte,
+  Tagebuch-Gewicht 2. Obergrenze `MAX_FOREST_MEMORY = 1000` (Gewinn füllt nur bis dahin auf).
+- Spielstand v4: `cycle = { number, maxHarmony, newSpecies, startedAt? }` und
+  `meta.regulars`. H_max wird nach jeder Änderung am Ökosystem nachgeführt (Karte wählen,
+  Pflanze setzen, Wegpunkt mit Stufenwechsel und Stammgästen, Zyklusstart, Laden).
+  „Neu entdeckt“ heißt: die Art kam in diesem Zyklus zum ersten Mal ins Naturtagebuch.
+- Zurückgesetzt werden Wachstum, Samen, Wegpunkt, Stufe, Pflanzen, Nischen und offene
+  Begegnungen. Tagebuch (Arten, Pflanzen, Lebensgemeinschaften, Andenken),
+  Waldgedächtnis, Stammgäste und der Zufallsgenerator bleiben.
+- Kartenpool: Ab Zyklus 2 ziehen Tagebuch-Arten **innerhalb ihrer Seltenheit** mit
+  doppeltem Gewicht; die Seltenheitsgewichte (7.3) bleiben unverändert. Im ersten Zyklus
+  zieht alles exakt wie vorher.
+- Stammgäste ziehen beim Erreichen jedes Wegpunkts (vor dem Ziehen der Karten) und beim
+  Zyklusstart ein – in Wahl-Reihenfolge, kostenlos, nur bei freiem Platz in ihrer Nische
+  und erst ab ihrer Freischalt-Stufe. Erscheinungsbedingungen gelten für sie nicht.
+- Bedienung: Bereich „Neuer Zyklus“ in der Seitenleiste mit Grund oder Vorschau
+  („+33 Waldgedächtnis (+66 %)“), Bestätigung per zweitem Klick, danach ein Toast.
+  Stammgäste-Liste erscheint ab dem ersten Platz.
+
 ---
 
 ## 11. Darstellung & UI
@@ -1025,6 +1047,12 @@ Empfehlungen (Stand 20.10.2026):
 4. **Duplikate:** Jede Art höchstens einmal im Ökosystem. Kolonien ggf. später als
    Fähigkeit einzelner Arten.
 5. **Klick-Button „Wachsen“:** entfällt in v2. Der Platz gehört dem Begegnungs-Stapel.
+
+6. **Neuer Zyklus (Team, Schritt 2.8):** Stammgäste respektieren die Freischalt-Stufe
+   ihrer Art (kein legendäres Tier am Keimling), aber nicht die Erscheinungsbedingung.
+   Sie ziehen erst beim nächsten Wegpunkt bzw. Zyklusstart ein, nicht sofort beim Wählen;
+   Abwählen entlässt kein Tier. Alte v3-Stände laufen als erster Zyklus weiter, alle
+   Tagebuch-Arten zählen dort als neu entdeckt.
 
 Weitere Designentscheidungen trifft das Team selbst und dokumentiert sie hier bzw. in den
 PR-Beschreibungen.

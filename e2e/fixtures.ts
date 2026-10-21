@@ -65,7 +65,8 @@ export async function seedRaw(context: BrowserContext, save: object, lastTickOff
 }
 
 /**
- * Spielstand im aktuellen Format v3 (mit Pflanzring). Ältere Formate würden beim Laden
+ * Spielstand im Format v3 (mit Pflanzring); das Laden übernimmt ihn verlustfrei als v4
+ * (erster Zyklus, Tagebuch-Arten zählen als neu). Ältere Formate würden beim Laden
  * migriert (Wegpunkt-Kurve umgerechnet, Samen begrenzt) – Tests mit Wegpunkt-Schwellen aus
  * `waypoint()` und großen Samenzahlen brauchen darum v3.
  */
