@@ -14,9 +14,11 @@
  * Ausführen (Tabellen im Protokoll, DESIGN_V2.md Abschnitt 15.4):
  *   SIM_LOG=1 SIM_RUNS=500 npx vitest run tests/balance.test.ts
  *
- * Optional (`RunOptions.seasons`, `RunOptions.mainTree`): Jahreszeiten und Baumarten im
- * groben Modell aus scripts/season-model.ts, solange die Logik fehlt (DESIGN_V2.md 16.5,
- * 17.4; Tabellen: tests/seasons-balance.test.ts).
+ * Jahreszeiten laufen immer mit (echte Logik, DESIGN_V2.md 16): Der Simulator hält an
+ * jeder Jahreszeitgrenze an, damit Kauf-Zeitpunkte mit der richtigen Rate geplant werden.
+ * `RunOptions.mainTree` wählt die Art des Hauptbaums für den (ersten) Zyklus – ohne
+ * Freischaltung, damit die Arten vergleichbar sind (DESIGN_V2.md 17.4; Tabellen:
+ * tests/seasons-balance.test.ts).
  */
 import { COMMUNITIES } from '../src/content/communities';
 import { GENUS_INFO, SPECIES_BY_ID } from '../src/content/species';
@@ -58,7 +60,8 @@ import {
   tick,
   unlockedPlants,
 } from '../src/core/tick';
-import { Environment, secondsToSeasonEnd, type EnvironmentOptions } from './season-model';
+import { secondsToNextSeason } from '../src/core/season';
+import type { MainTreeId } from '../src/content/trees';
 
 // ---------------------------------------------------------------------------
 // Optionen einer Begegnung
@@ -321,31 +324,23 @@ export interface VarietyStat {
   worthwhile: boolean;
 }
 
-export interface RunOptions extends EnvironmentOptions {
+export interface RunOptions {
   seed: number;
   /** Simulation endet mit Erreichen dieser Stufe. */
   targetStage: number;
   maxSeconds: number;
   /** Pflegemaßnahmen kaufen (echte Logik, Schritt 2.7). Standard: aus – zum Vergleich. */
   care?: boolean;
+  /** Art des Hauptbaums (Standard: Stieleiche wie im ersten Zyklus). */
+  mainTree?: MainTreeId;
 }
 
 /** Zeitpunkte (Minuten) für den Samen-Verlauf. */
 export const SAMPLE_MINUTES: readonly number[] = [5, 10, 20, 30, 45, 60, 90, 120, 180];
 
 export function runGame(strategy: Strategy, options: RunOptions): RunResult {
-  // Jahreszeiten und Baumarten (grobes Modell, scripts/season-model.ts) – nur auf Wunsch.
-  const env = new Environment(options);
-  try {
-    return runGameIn(strategy, options, env);
-  } finally {
-    env.restore();
-  }
-}
-
-function runGameIn(strategy: Strategy, options: RunOptions, env: Environment): RunResult {
   const state = createInitialState(0, options.seed);
-  env.apply(state, 0);
+  if (options.mainTree) state.cycle.mainTree = options.mainTree;
   const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
   let time = 0;
   let lastWaypointTime = 0;
@@ -401,7 +396,6 @@ function runGameIn(strategy: Strategy, options: RunOptions, env: Environment): R
   let sample = 0;
 
   while (state.stage < options.targetStage && time < options.maxSeconds && !allWaypointsReached(state)) {
-    env.apply(state, time);
     // Pflanzen setzen, solange es sich lohnt und die Samen reichen.
     for (let plan = planPlant(state, strategy, counts); plan !== null; plan = planPlant(state, strategy, counts)) {
       const cost = nextPlantCost(state);
@@ -436,7 +430,8 @@ function runGameIn(strategy: Strategy, options: RunOptions, env: Environment): R
     // Zwischenhalt und Ablauf von Boni: dort anhalten, damit Zeitpunkte und Raten stimmen.
     const interlude = interludeThreshold(state);
     const toInterlude = interlude < Infinity && ev.growth > 0 ? Math.max(0, interlude - state.totalGrowth) / ev.growth : Infinity;
-    const toSeason = options.seasons ? secondsToSeasonEnd(time) : Infinity;
+    // Jahreszeitgrenze: Raten wechseln, Käufe neu planen.
+    const toSeason = secondsToNextSeason(state.cycle.elapsed);
     const toCare = careNeed !== null && ev.seeds > 0 ? Math.max(0, (careNeed - state.seeds) / ev.seeds) + 1e-6 : Infinity;
     const dt = Math.min(toWaypoint, toPlant, nextSample - time, nextExpiry(state), toInterlude, toSeason, toCare, options.maxSeconds - time);
     if (!(dt < Infinity)) break;

@@ -23,7 +23,9 @@ import {
 import { NICHES_BY_ID } from '../content/niches';
 import { PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, type Plant } from '../content/plants';
 import { BASE_HAPPINESS, SPECIES, SPECIES_BY_ID, type Species } from '../content/species';
-import { MAIN_TREE_NUTS_STAGE, MAIN_TREE_TAGS, MAIN_TREE_WEIGHT, STAGES } from '../content/stages';
+import { SEASONS_BY_ID, type HappinessEffect, type SeasonId } from '../content/seasons';
+import { MAIN_TREE_WEIGHT, STAGES } from '../content/stages';
+import { DEFAULT_MAIN_TREE, MAIN_TREES_BY_ID, type MainTree, type MainTreeId } from '../content/trees';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
 import { VISITORS_BY_ID } from '../content/visitors';
 import {
@@ -38,6 +40,7 @@ import {
   type Tag,
 } from '../content/types';
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
+import { seasonIdAt, seasonIndex } from './season';
 import { MAX_FOREST_MEMORY, type CycleState, type GameState, type PendingEncounterType } from './state';
 
 /*
@@ -87,6 +90,17 @@ export interface Ecosystem {
   habitats?: readonly Tag[];
   /** Gattungen bewirteter Gäste: zählen für Gattungsboni, nicht für Erscheinungsbedingungen. */
   guestGenera?: readonly Genus[];
+  /**
+   * Laufende Jahreszeit (DESIGN_V2.md 16.3). Ihre Wirkungen kommen zu den Zusatz-Wirkungen
+   * (Faktor 1), `happiness` hebt die Zufriedenheit einer Gattung. Fehlt sie, wirkt keine.
+   */
+  season?: SeasonId;
+  /**
+   * Art des Hauptbaums (DESIGN_V2.md 17.3): Merkmale (Futter, Erscheinungsbedingungen) und
+   * Eigenheiten ab ihrer Stufe. Fehlt sie, stellt der Hauptbaum die Merkmale der Eiche
+   * bereit, aber ohne Eigenheiten (reines Ökosystem, z. B. in Vorschau-Tests).
+   */
+  mainTree?: MainTreeId;
 }
 
 /** Platz-Wirkung (Nische, Anzahl). */
@@ -96,7 +110,61 @@ export interface SlotBonus {
 }
 
 /** Laufender Zyklus, soweit evaluate ihn braucht (fehlt er, gibt es keine Zusatz-Wirkungen). */
-export type CycleExtras = Partial<Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats' | 'care'>>;
+export type CycleExtras = Partial<Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats' | 'care' | 'elapsed' | 'mainTree'>>;
+
+/** Daten des Hauptbaums; unbekannte oder fehlende Arten → DEFAULT_MAIN_TREE (Eiche). */
+export function mainTreeOf(id: string | undefined): MainTree {
+  return MAIN_TREES_BY_ID.get(id as MainTreeId) ?? MAIN_TREES_BY_ID.get(DEFAULT_MAIN_TREE)!;
+}
+
+/** Hat die Wirkung eine negative Zahl (ein Abzug)? */
+function isPenalty(e: Effect | HappinessEffect): boolean {
+  if ('pct' in e) return e.pct < 0;
+  if ('amount' in e) return e.amount < 0;
+  if ('points' in e) return e.points < 0;
+  return false;
+}
+
+/**
+ * Wirkungen von Jahreszeit und Baumart (DESIGN_V2.md 16.3, 17.3), alle mit Faktor 1:
+ * Eigenheiten des Hauptbaums ab ihrer Stufe, danach die der Jahreszeit. Ein winterfester
+ * Hauptbaum (Kiefer) streicht die Abzüge der Jahreszeit. `happiness` getrennt, weil es
+ * kein Effect ist (wirkt in der Zufriedenheit je Tier). Ohne Angaben: nichts.
+ */
+export function environmentEffects(
+  stage: number,
+  season?: SeasonId,
+  mainTree?: MainTreeId,
+): { effects: Effect[]; happiness: HappinessEffect[] } {
+  const effects: Effect[] = [];
+  const happiness: HappinessEffect[] = [];
+  const tree = mainTree !== undefined ? mainTreeOf(mainTree) : null;
+  const add = (e: Effect | HappinessEffect) => {
+    if (e.kind === 'happiness') happiness.push(e);
+    else effects.push(e);
+  };
+  if (tree) for (const t of tree.traits) if (t.minStage <= stage) add(t.effect);
+  const s = season !== undefined ? SEASONS_BY_ID.get(season) : undefined;
+  for (const e of s?.effects ?? []) {
+    if (tree?.winterHardy && isPenalty(e)) continue;
+    add(e);
+  }
+  return { effects, happiness };
+}
+
+/**
+ * Alle zusätzlichen Plätze eines Spielstands: Zyklus-Boni, Pflege und Eigenheiten des
+ * Hauptbaums ab ihrer Stufe (z. B. Rotbuche: +1 Wurzelraum ab Keimling). Gemeinsamer
+ * Helfer für evaluate, Kartenwahl, Stammgäste, vorgegebene Begegnungen und das Laden.
+ */
+export function slotBonuses(state: { stage: number; cycle?: CycleExtras }): SlotBonus[] {
+  const tree = state.cycle?.mainTree !== undefined ? mainTreeOf(state.cycle.mainTree) : null;
+  const out = cycleSlotBonuses(state.cycle);
+  for (const t of tree?.traits ?? []) {
+    if (t.minStage <= state.stage && t.effect.kind === 'slot') out.push({ niche: t.effect.niche, amount: t.effect.amount });
+  }
+  return out;
+}
 
 /**
  * Wirkungen der gekauften Pflege-Ränge (DESIGN_V2.md 8.2): je Maßnahme die Ränge
@@ -162,7 +230,16 @@ export function ecosystemOf(
     extraEffects: cycleEffects(state.cycle),
     habitats: [...(state.cycle?.habitats ?? []), ...careEffects(state.cycle?.care).habitats],
     guestGenera: genera,
+    ...environmentOf(state.cycle),
   };
+}
+
+/** Jahreszeit (aus der Spielzeit) und Hauptbaum des Zyklus – nur, was der Zyklus kennt. */
+function environmentOf(cycle: CycleExtras | undefined): Pick<Ecosystem, 'season' | 'mainTree'> {
+  const out: Pick<Ecosystem, 'season' | 'mainTree'> = {};
+  if (cycle?.elapsed !== undefined) out.season = seasonIdAt(cycle.elapsed);
+  if (cycle?.mainTree !== undefined) out.mainTree = mainTreeOf(cycle.mainTree).id;
+  return out;
 }
 
 export interface AnimalStatus {
@@ -410,13 +487,18 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   // Futterangebot und -nachfrage je Merkmal
   const foodSupply = new Map<Tag, number>();
   const addSupply = (tag: Tag, n: number) => foodSupply.set(tag, (foodSupply.get(tag) ?? 0) + n);
-  for (const t of MAIN_TREE_TAGS) addSupply(t, SUPPLY_MAIN_TREE);
-  if (eco.stage >= MAIN_TREE_NUTS_STAGE) addSupply('nuesse', SUPPLY_MAIN_TREE);
+  // Merkmale des Hauptbaums (Kiefer: Nadeln, aber keine Nüsse).
+  for (const t of mainTreeTags(eco)) addSupply(t, SUPPLY_MAIN_TREE);
   for (const p of plants) for (const t of p.provides) addSupply(t, SUPPLY_PLANT);
   for (const a of animals) for (const t of a.provides) addSupply(t, SUPPLY_ANIMAL);
   // Merkmale aus Ereignissen (z. B. Totholz nach der Sturmnacht) wie eine Begleitpflanze.
   for (const t of eco.habitats ?? []) addSupply(t, SUPPLY_PLANT);
-  const extraEffects = eco.extraEffects ?? [];
+  // Jahreszeit und Baumart wirken wie Zusatz-Wirkungen (Faktor 1); `happiness` unten je Tier.
+  const environment = environmentEffects(eco.stage, eco.season, eco.mainTree);
+  const extraEffects = [...(eco.extraEffects ?? []), ...environment.effects];
+  const happinessBonus = {} as Record<Genus, number>;
+  for (const g of GENERA) happinessBonus[g] = 0;
+  for (const e of environment.happiness) if (e.genus in happinessBonus) happinessBonus[e.genus] += finite(e.points) / 100;
   const demand = new Map<Tag, number>();
   for (const a of animals) for (const t of a.food) demand.set(t, (demand.get(t) ?? 0) + 1);
 
@@ -487,6 +569,8 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     for (const h of HUNTERS_OF.get(a.id) ?? []) if (present.has(h)) hunters++;
     // Räuberdruck: Beute ist etwas weniger zufrieden, wenn sie gejagt wird.
     z -= PREDATION_PENALTY * Math.min(PREDATION_MAX_HUNTERS, hunters);
+    // Zufriedenheit der Gattung aus Jahreszeit und Baumart (Wirkung `happiness`).
+    z += happinessBonus[a.genus] ?? 0;
     if (abilities.has('decomposerBoost') && a.level === DECOMPOSER_BOOST.level) z += DECOMPOSER_BOOST.happiness;
     if (abilities.has('architect') && a.niche === ARCHITECT.niche) z += ARCHITECT.happiness;
     if (hasAbility(a, 'calm')) z = Math.max(z, CALM_MIN_HAPPINESS);
@@ -703,6 +787,8 @@ let cache: { key: string; value: Evaluation } | null = null;
  */
 function ecosystemKey(state: GameState): string {
   let key = `${state.stage}|${state.meta.forestMemory}|${(state.plants ?? []).join(',')}`;
+  // Jahreszeit nur als Index (nicht `elapsed` – sonst wäre der Cache jede Sekunde ungültig).
+  if (state.cycle) key += `|s:${seasonIndex(state.cycle.elapsed)}|m:${mainTreeOf(state.cycle.mainTree).id}`;
   for (const id of NICHE_IDS) key += `|${(state.niches[id] ?? []).join(',')}`;
   const c = state.cycle;
   if (c) {
@@ -733,11 +819,18 @@ export interface AppearsContext {
   genera: Readonly<Record<Genus, number>>;
 }
 
-export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants' | 'habitats'>): AppearsContext {
+/** Merkmale, die der Hauptbaum auf dieser Stufe bereitstellt (ohne Art: wie die Eiche). */
+export function mainTreeTags(eco: Pick<Ecosystem, 'stage' | 'mainTree'>): Tag[] {
+  const tree = mainTreeOf(eco.mainTree);
+  const tags = [...tree.tags];
+  if (tree.nutsFromStage !== null && eco.stage >= tree.nutsFromStage && !tags.includes('nuesse')) tags.push('nuesse');
+  return tags;
+}
+
+export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants' | 'habitats' | 'mainTree'>): AppearsContext {
   const animals = speciesIn({ ...eco, forestMemory: 0 });
   const plants = plantsIn({ ...eco, forestMemory: 0 });
-  const tags = new Set<Tag>(MAIN_TREE_TAGS);
-  if (eco.stage >= MAIN_TREE_NUTS_STAGE) tags.add('nuesse');
+  const tags = new Set<Tag>(mainTreeTags(eco));
   for (const p of plants) for (const t of p.provides) tags.add(t);
   for (const a of animals) for (const t of a.provides) tags.add(t);
   for (const t of eco.habitats ?? []) tags.add(t);
@@ -759,7 +852,7 @@ export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants
  * `eco` darf ein vorberechneter Kontext (appearsContext) sein.
  */
 export function speciesAppears(
-  eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants' | 'habitats'> | AppearsContext,
+  eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants' | 'habitats' | 'mainTree'> | AppearsContext,
   sp: Pick<Species, 'appears'>,
 ): boolean {
   if (!sp.appears || sp.appears.length === 0) return true;
@@ -892,7 +985,7 @@ export function cardStatus(state: GameState, encounterIndex: number, cardIndex: 
   const sp = SPECIES_BY_ID.get(id);
   if (!sp) return 'invalid';
   if (hasSpecies(state, sp.id)) return 'present';
-  const slots = nicheSlots(state.stage, state.niches, cycleSlotBonuses(state.cycle))[sp.niche];
+  const slots = nicheSlots(state.stage, state.niches, slotBonuses(state))[sp.niche];
   if (slots <= 0) return 'closed';
   return (state.niches[sp.niche]?.length ?? 0) < slots ? 'free' : 'full';
 }
@@ -1047,7 +1140,7 @@ export function nichesAfterChoice(
   } else {
     occupants.push(sp.id);
   }
-  const bonus = cycleSlotBonuses(state.cycle);
+  const bonus = slotBonuses(state);
   const before = nicheOverflow(state.stage, state.niches, bonus);
   const after = nicheOverflow(state.stage, niches, bonus);
   return NICHE_IDS.every((id) => after[id] <= before[id]) ? niches : null;
@@ -1060,15 +1153,25 @@ function copyNiches(niches: Partial<Record<NicheId, readonly string[]>>): Record
 }
 
 /**
- * Samenrate, nach der Samen-Sekunden gerechnet werden: ohne Zeit-Boni und ohne Gäste
- * (sonst ließen sich Samen-Optionen durch vorher gewählte Zeit-Boni aufblähen).
- * Zyklus-Boni und Habitate zählen mit – sie sind Teil des Ökosystems.
+ * Samenrate, nach der Samen-Sekunden gerechnet werden: ohne Zeit-Boni, ohne Gäste und
+ * ohne Jahreszeit (sonst ließen sich Samen-Optionen durch vorher gewählte Zeit-Boni
+ * aufblähen, und es lohnte sich, mit einer Wahl auf den Herbst zu warten).
+ * Zyklus-Boni, Habitate, Pflege und die Baumart zählen mit – sie sind Teil des Ökosystems.
+ * Gecacht wie evaluate (die UI fragt jeden Frame).
  */
 export function seedSecondsRate(state: GameState): number {
   const c = state.cycle;
-  if (!c || ((c.timed ?? []).length === 0 && (c.visitors ?? []).length === 0)) return evaluate(state).seeds;
-  return evaluateEcosystem(ecosystemOf({ ...state, cycle: { ...c, timed: [], visitors: [] } })).seeds;
+  if (!c) return evaluate(state).seeds;
+  const key = `${ecosystemKey(state)}|seed-seconds`;
+  if (seedRateCache && seedRateCache.key === key) return seedRateCache.value;
+  const eco = ecosystemOf({ ...state, cycle: { ...c, timed: [], visitors: [] } });
+  delete eco.season;
+  const value = evaluateEcosystem(eco).seeds;
+  seedRateCache = { key, value };
+  return value;
 }
+
+let seedRateCache: { key: string; value: number } | null = null;
 
 /**
  * Samen-Sekunden in Samen: Sekunden × Samenrate ohne Zeit-Boni und Gäste

@@ -87,6 +87,7 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'unknown-plant': 'Diese Pflanze gibt es nicht.',
   locked: 'Diese Pflanze wächst hier noch nicht.',
   'cycle-locked': CYCLE_LOCKED_TEXT,
+  'tree-locked': 'Diese Baumart kannst du noch nicht wählen.',
   'unknown-species': 'Diese Art gibt es nicht.',
   'not-discovered': 'Diese Art steht noch nicht in deinem Naturtagebuch.',
   'no-regular-slot': 'Alle Plätze für Stammgäste sind belegt.',

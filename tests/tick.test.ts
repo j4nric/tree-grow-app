@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ENCOUNTER_WEIGHTS, MAX_PENDING_ENCOUNTERS, PLANT_WEIGHT_RING_FULL } from '../src/content/encounters';
 import { PLANTS, PLANTS_BY_ID, type Plant } from '../src/content/plants';
+import { SEASONS_BY_ID } from '../src/content/seasons';
 import { SPECIES_BY_ID } from '../src/content/species';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
 import { cardStatus, evaluate, thresholdFor } from '../src/core/formulas';
@@ -16,7 +17,7 @@ import {
   simulateOffline,
   tick,
 } from '../src/core/tick';
-import { resolveSpecial, stateAt } from './helpers';
+import { SPRING_GROWTH, resolveSpecial, stateAt } from './helpers';
 
 /**
  * Feste Wahl-Strategie für Golden Tests: erste Karte mit freiem Platz; sonst die erste
@@ -57,7 +58,7 @@ describe('tick', () => {
   it('wächst von selbst und sammelt Samen', () => {
     const state = createInitialState(0, 42);
     tick(state, 2);
-    expect(state.totalGrowth).toBeCloseTo(2 * 1.05);
+    expect(state.totalGrowth).toBeCloseTo(2 * 1.05 * (1 + SPRING_GROWTH)); // Frühling
     expect(state.seeds).toBeCloseTo(2 * 0.105);
     expect(state.waypoint).toBe(0);
   });
@@ -75,6 +76,7 @@ describe('tick', () => {
       interludes: 0,
       interludesReached: 0,
       expired: [],
+      seasons: [],
     });
     expect(state.waypoint).toBe(1);
     expect(state.stage).toBe(1);
@@ -122,6 +124,7 @@ describe('tick', () => {
       interludes: 0,
       interludesReached: 0,
       expired: [],
+      seasons: [],
     });
     expect(state.pendingEncounters[0]!.type).toBe('plant');
   });
@@ -143,8 +146,10 @@ describe('tick', () => {
         state.waypoint = 10;
         counts[drawEncounter(state)!.type]!++;
       }
-      // Alter Baum ohne Tiere: Es gibt Ereignisse und Gäste ohne Bedingungen.
-      const weights = ENCOUNTER_WEIGHTS[stage]!;
+      // Alter Baum ohne Tiere: Es gibt Ereignisse und Gäste ohne Bedingungen. Frühling:
+      // „Etwas keimt“ × Faktor (der Ring ist leer).
+      const factors = SEASONS_BY_ID.get('spring')!.encounterFactors ?? {};
+      const weights = (['animal', 'plant', 'event', 'visitor'] as const).map((t, i) => ENCOUNTER_WEIGHTS[stage]![i]! * (factors[t] ?? 1));
       const total = weights.reduce((a, b) => a + b, 0);
       (['animal', 'plant', 'event', 'visitor'] as const).forEach((type, i) => {
         expect(counts[type]! / n, `Stufe ${stage}, ${type}`).toBeCloseTo(weights[i]! / total, 1);
@@ -418,7 +423,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "caterpillar-watch",
           "night-shift",
         ],
-        "harmony": 90.94,
+        "harmony": 89.21,
         "journal": [
           "earthworm",
           "woodlouse",
@@ -444,6 +449,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "rowan",
           "nettle",
           "birch",
+          "beech",
         ],
         "niches": {
           "bark": [
@@ -474,7 +480,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           ],
         },
         "plants": [
-          "rowan",
+          "beech",
           "hazel",
           "hazel",
           "birch",
@@ -482,11 +488,11 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "hazel",
           "hazel",
         ],
-        "rngState": 2877323870,
-        "seeds": 41217,
+        "rngState": 1613652530,
+        "seeds": 47830,
         "stage": 5,
-        "totalGrowth": 225047,
-        "waypoint": 25,
+        "totalGrowth": 241138,
+        "waypoint": 26,
       }
     `);
   });

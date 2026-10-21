@@ -8,19 +8,21 @@ import { SPECIES_BY_ID } from '../content/species';
 import { NICHE_IDS, type Tag } from '../content/types';
 import { VISITORS_BY_ID } from '../content/visitors';
 import { WAYPOINT_COUNT } from '../content/waypoints';
+import { DEFAULT_MAIN_TREE, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
 import {
-  cycleSlotBonuses,
   nicheSlots,
   plantCost,
   plantSlots,
   regularSlots,
+  slotBonuses,
   slotEffects,
   stageForWaypoint,
   thresholdFor,
   waypointsForGrowth,
 } from './formulas';
 import { isValidRngState, normalizeSeed } from './rng';
-import { interludeThreshold, recordDiscoveries } from './tick';
+import { MAX_ELAPSED } from './season';
+import { interludeThreshold, isTreeUnlocked, recordDiscoveries } from './tick';
 import {
   MAX_FOREST_MEMORY,
   SAVE_VERSION,
@@ -84,6 +86,7 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   if (version < 3) migrateV2(state);
   if (version < 4) migrateV3(state);
   if (version < 5) migrateV4(state);
+  if (version < 6) migrateV5(state);
   // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte. Führt
   // auch H_max nach (die aktuelle Harmonie zählt schon für diesen Zyklus).
   recordDiscoveries(state);
@@ -185,6 +188,17 @@ function migrateV4(state: GameState): void {
 }
 
 /**
+ * v5 → v6 (Jahreszeiten und Hauptbaum-Arten, DESIGN_V2.md 16.6, 17.5): Der laufende
+ * Zyklus beginnt im Frühling (`elapsed = 0` – harmlos, nichts geht verloren) und wächst
+ * als Stieleiche weiter, wie bisher. Plätze der Eiche (+1 Krone ab Junger Baum) kommen
+ * dazu, gekürzt wird nichts.
+ */
+function migrateV5(state: GameState): void {
+  state.cycle.elapsed = 0;
+  state.cycle.mainTree = DEFAULT_MAIN_TREE;
+}
+
+/**
  * Robustes Laden eines Stands ab v2 (DESIGN_V2.md, 12.3). Felder, die es in v2 noch
  * nicht gab (Pflanzen), fehlen dort einfach und bleiben leer.
  */
@@ -205,8 +219,14 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   // Seit v5: Ereignis-Boni, Habitate, Gäste … – vor den Nischen, denn Platz-Boni zählen
   // beim Kürzen mit.
   const cycle = isRecord(data.cycle) ? data.cycle : {};
-  loadCycleExtras(cycle, state);
-  const bonusSlots = cycleSlotBonuses(state.cycle);
+  const meta = isRecord(data.meta) ? data.meta : {};
+  const journal = isRecord(meta.journal) ? meta.journal : {};
+  // Pflanzen im Tagebuch schalten Baumarten frei. Was gerade im Ring wächst, trägt
+  // loadGame ohnehin nach (recordDiscoveries) – es zählt darum schon hier.
+  const knownPlants = [...stringArray(journal.plants), ...stringArray(data.plants)];
+  loadCycleExtras(cycle, state, knownPlants);
+  // Platz-Boni aus Ereignissen, Pflege und der Baumart (seit v6) zählen beim Kürzen mit.
+  const bonusSlots = slotBonuses(state);
 
   // Nischen: unbekannte Arten und Duplikate verwerfen, jede Art in ihre eigene Nische,
   // auf die aktuelle Platzzahl kürzen. Fehlende Nischen (z. B. „hollows“ aus älteren
@@ -292,9 +312,7 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
 
   state.rngState = isValidRngState(data.rngState) ? data.rngState : normalizeSeed(lastTick);
 
-  const meta = isRecord(data.meta) ? data.meta : {};
   state.meta.forestMemory = clampedOr(meta.forestMemory, 0, 0, MAX_FOREST_MEMORY);
-  const journal = isRecord(meta.journal) ? meta.journal : {};
   state.meta.journal.species = unique(stringArray(journal.species).filter((id) => SPECIES_BY_ID.has(id)));
   for (const id of seen) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
   // Andenken sind freie IDs: Anzahl und Länge begrenzen (fremde oder manipulierte Stände).
@@ -333,10 +351,18 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringif
 /**
  * Lädt die Zyklusfelder für Ereignisse und Gäste (seit v5) robust: Boni, Zeit-Boni und
  * Habitate nur, wenn ein Ereignis sie wirklich vergibt (Schutz vor manipulierten
- * Ständen), Restdauern begrenzt auf (0, Dauer], Gäste nur bekannte.
+ * Ständen), Restdauern begrenzt auf (0, Dauer], Gäste nur bekannte. Seit v6 auch
+ * Spielzeit (endlich, ≥ 0, sonst 0) und Hauptbaum (bekannt und über `knownPlants`
+ * freigeschaltet, sonst DEFAULT_MAIN_TREE).
  */
-function loadCycleExtras(raw: Record<string, unknown>, state: GameState): void {
+function loadCycleExtras(raw: Record<string, unknown>, state: GameState, knownPlants: readonly string[]): void {
   const cycle: CycleState = createCycle(1);
+  // NaN, ±Infinity, negative Werte → 0 (Frühling); sehr große auf MAX_ELAPSED begrenzt.
+  const elapsed = finiteOr(raw.elapsed, 0);
+  cycle.elapsed = elapsed > 0 ? Math.min(elapsed, MAX_ELAPSED) : 0;
+  const tree = typeof raw.mainTree === 'string' ? MAIN_TREES_BY_ID.get(raw.mainTree as MainTreeId) : undefined;
+  const known: Pick<GameState, 'meta'> = { ...state, meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...knownPlants] } } };
+  cycle.mainTree = tree && isTreeUnlocked(known, tree.id) ? tree.id : DEFAULT_MAIN_TREE;
   if (typeof raw.startedAt === 'number' && Number.isFinite(raw.startedAt)) cycle.startedAt = raw.startedAt;
   cycle.seen = unique(stringArray(raw.seen).filter((id) => EVENTS_BY_ID.has(id) || VISITORS_BY_ID.has(id)));
   // Wirkungen nur von Ereignissen, die in diesem Zyklus gezogen wurden, und je (Quelle,

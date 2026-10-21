@@ -338,7 +338,7 @@ describe('Migration v3 → v4', () => {
     const result = loadGame(rawV3(), 9000)!;
     expect(result.migratedFromV1).toBe(false);
     const s = result.state;
-    expect(s.version).toBe(5);
+    expect(s.version).toBe(6);
     expect(s.seeds).toBe(77);
     expect(s.waypoint).toBe(12);
     expect(s.stage).toBe(4);

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { INTERLUDE_POSITION, MAX_PENDING_ENCOUNTERS } from '../src/content/encounters';
 import { EVENTS, EVENTS_BY_ID, SEED_SECONDS_MIN_SEEDS } from '../src/content/events';
 import { VISITORS_BY_ID } from '../src/content/visitors';
-import { cardStatus, evaluate, seedSeconds, thresholdFor } from '../src/core/formulas';
+import { EVENT_SEASONS, SEASON_SECONDS } from '../src/content/seasons';
+import { cardStatus, ecosystemOf, evaluate, evaluateEcosystem, seedSeconds, thresholdFor } from '../src/core/formulas';
 import { deserialize, loadGame, serialize } from '../src/core/save';
 import { createCycle, type PendingEncounter } from '../src/core/state';
 import {
@@ -24,7 +25,7 @@ import {
   tick,
   visitorSeeds,
 } from '../src/core/tick';
-import { resolveSpecial, stateAt } from './helpers';
+import { resolveSpecial, stateAt, tickToGrowth } from './helpers';
 
 const event = (id: string): PendingEncounter => ({ type: 'event', cards: [id], rerolls: 0 });
 const guest = (id: string): PendingEncounter => ({ type: 'visitor', cards: [id], rerolls: 0 });
@@ -71,12 +72,14 @@ describe('Ereignisse: Wirkungen', () => {
     state.totalGrowth = 0; // kein Wegpunkt dazwischen
     state.waypoint = 0;
     state.stage = 3;
+    // Die Jahreszeit wechselt dazwischen – verglichen wird mit demselben Stand ohne Zeit-Bonus.
+    const withoutTimed = () => evaluateEcosystem(ecosystemOf({ ...state, cycle: { ...state.cycle, timed: [] } })).growthBonus;
     tick(state, 359);
-    expect(evaluate(state).growthBonus).toBeCloseTo(during.growthBonus);
+    expect(evaluate(state).growthBonus).toBeCloseTo(withoutTimed() + 0.3);
     const report = tick(state, 2);
     expect(report.expired).toEqual(['midsummer']);
     expect(state.cycle.timed).toEqual([]);
-    expect(evaluate(state).growthBonus).toBeCloseTo(before.growthBonus);
+    expect(evaluate(state).growthBonus).toBeCloseTo(withoutTimed());
   });
 
   it('cycle + habitat: Licht, Wasser, Feuchte und Totholz bis zum Neuen Zyklus', () => {
@@ -91,7 +94,8 @@ describe('Ereignisse: Wirkungen', () => {
     expect(after.light).toBeCloseTo(before.light + 3);
     expect(after.water).toBeCloseTo(before.water + 3);
     expect(state.cycle.habitats).toEqual(['feucht', 'totholz']);
-    // Merkmal zählt für Erscheinungsbedingungen: Pilzherbst braucht Feuchte.
+    // Merkmal zählt für Erscheinungsbedingungen: Pilzherbst braucht Feuchte (und Herbst).
+    state.cycle.elapsed = 2 * SEASON_SECONDS;
     expect(eligibleEvents(state).map((e) => e.id)).toContain('mushroom-autumn');
     // +1 Platz in Höhlen & Totholz
     expect(after.slots.hollows).toBe(before.slots.hollows + 1);
@@ -164,7 +168,9 @@ describe('Ereignisse: Regeln und Blocker', () => {
   it('jedes Ereignis höchstens einmal je Zyklus, nur ab seiner Stufe und mit Bedingungen', () => {
     const state = stateAt(3, [], 1);
     const ids = eligibleEvents(state).map((e) => e.id);
-    expect(ids).toEqual(EVENTS.filter((e) => e.minStage <= 3 && !e.appears).map((e) => e.id));
+    // Frühling: nur Ereignisse, die dann kommen (EVENT_SEASONS, fehlend = ganzjährig).
+    const spring = (id: string) => !EVENT_SEASONS[id] || EVENT_SEASONS[id]!.includes('spring');
+    expect(ids).toEqual(EVENTS.filter((e) => e.minStage <= 3 && !e.appears && spring(e.id)).map((e) => e.id));
     state.cycle.seen.push('storm');
     expect(eligibleEvents(state).map((e) => e.id)).not.toContain('storm');
     // Ameisenstraße: ab Hain und nur mit Waldameise.
@@ -270,9 +276,7 @@ describe('Zwischenhalt (ab Hain)', () => {
     let hits = 0;
     for (let seed = 1; seed <= 60; seed++) {
       const state = stateAt(5, ['earthworm', 'robin'], seed);
-      const half = interludeThreshold(state);
-      const rate = evaluate(state).growth;
-      const report = tick(state, ((half - state.totalGrowth) / rate) * 1.01);
+      const report = tickToGrowth(state, interludeThreshold(state));
       expect(report.waypoints).toBe(0);
       expect(state.cycle.interlude).toBe(state.waypoint);
       expect(report.interludes).toBeLessThanOrEqual(1);
@@ -289,8 +293,7 @@ describe('Zwischenhalt (ab Hain)', () => {
     const state = stateAt(5, ['earthworm'], 1);
     state.pendingEncounters = Array.from({ length: MAX_PENDING_ENCOUNTERS }, () => ({ type: 'animal' as const, cards: ['vole'], rerolls: 0 }));
     const rng = state.rngState;
-    const half = interludeThreshold(state);
-    tick(state, ((half - state.totalGrowth) / evaluate(state).growth) * 1.01);
+    tickToGrowth(state, interludeThreshold(state));
     expect(state.cycle.interlude).toBe(state.waypoint);
     expect(state.pendingEncounters).toHaveLength(MAX_PENDING_ENCOUNTERS);
     expect(state.rngState).toBe(rng); // kein Zufall verbraucht
@@ -359,11 +362,11 @@ describe('Speichern und Laden (v5)', () => {
       s.totalGrowth = thresholdFor(k) + growthShare * (thresholdFor(k + 1) - thresholdFor(k));
       const raw = JSON.parse(serialize(s));
       raw.version = 4;
-      for (const f of ['seen', 'bonuses', 'habitats', 'timed', 'visitors', 'forced', 'interlude']) delete raw.cycle[f];
+      for (const f of ['seen', 'bonuses', 'habitats', 'timed', 'visitors', 'forced', 'interlude', 'elapsed', 'mainTree']) delete raw.cycle[f];
       return JSON.stringify(raw);
     };
     const early = loadGame(v4(0.2), 0)!.state;
-    expect(early.version).toBe(5);
+    expect(early.version).toBe(6);
     expect(early.cycle).toMatchObject({ seen: [], bonuses: [], habitats: [], timed: [], visitors: [], forced: null, interlude: 0 });
     const late = loadGame(v4(0.8), 0)!.state;
     expect(late.cycle.interlude).toBe(late.waypoint);
@@ -481,8 +484,7 @@ describe('Härtung (Review #31)', () => {
   it('Zwischenhalt ohne Ergebnis wird gemeldet (main.ts speichert dann sofort)', () => {
     const state = stateAt(5, ['earthworm'], 1);
     state.pendingEncounters = Array.from({ length: MAX_PENDING_ENCOUNTERS }, () => ({ type: 'animal' as const, cards: ['vole'], rerolls: 0 }));
-    const half = interludeThreshold(state);
-    const report = tick(state, ((half - state.totalGrowth) / evaluate(state).growth) * 1.01);
+    const report = tickToGrowth(state, interludeThreshold(state));
     expect(report.interludes).toBe(0);
     expect(report.interludesReached).toBe(1);
   });
@@ -520,6 +522,8 @@ describe('Härtung (Review #31)', () => {
   it('Ablauf genau auf einer Wegpunktgrenze: Wegpunkt und Ablauf beide, online gleich offline', () => {
     const online = stateAt(5, ['earthworm', 'robin'], 31);
     online.cycle.interlude = online.waypoint; // kein Zwischenhalt dazwischen
+    // 60 s vor dem Wegpunkt, mitten im Frühling: keine Jahreszeitgrenze dazwischen.
+    online.totalGrowth = thresholdFor(online.waypoint + 1) - 60 * evaluate(online).growth;
     const rate = evaluate(online).growth;
     const toNext = (thresholdFor(online.waypoint + 1) - online.totalGrowth) / rate;
     // Bonus ohne Wirkung aufs Wachstum (Samen), damit die Grenze exakt bleibt.

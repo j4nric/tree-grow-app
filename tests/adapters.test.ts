@@ -94,7 +94,8 @@ describe('toEcosystemView', () => {
     expect(view.harmonyMultiplier).toBe(ev.multiplier);
 
     const crown = view.niches.find((n) => n.id === 'crown')!;
-    expect(crown.capacity).toBe(2);
+    // 2 Plätze im Jungen Baum, +1 durch die Stieleiche (DESIGN_V2.md 17.3).
+    expect(crown.capacity).toBe(3);
     expect(crown.animals.map((a) => a.name)).toEqual(['Blaumeise', 'Eichenwickler']);
     expect(crown.animals[0]).toMatchObject({ family: 'birds', familyIcon: '🐦', rarity: 'common' });
     expect(crown.animals[0]!.happiness).toBe(ev.animals.bluetit!.happiness);
@@ -468,8 +469,10 @@ describe('toScenePlants', () => {
 
 describe('Stimmung: Gründe unter 70 %', () => {
   it('Futterkonkurrenz: nennt, mit wem das Tier das Futter teilt', () => {
-    // Laub vom Hauptbaum reicht für 2, hier fressen 4 davon.
+    // Laub vom Hauptbaum reicht für 2, hier fressen 4 davon. Rotbuche statt Eiche: ohne
+    // deren Insekten-Bonus bleibt der Eichenwickler unter 70 % (zwei Gründe).
     const state = stateAt(3, ['earthworm', 'woodlouse', 'oakmoth', 'barkbeetle']);
+    state.cycle.mainTree = 'beech';
     const ev = evaluate(state);
     const moth = SPECIES_BY_ID.get('oakmoth')!;
     const status = ev.animals.oakmoth!;
@@ -528,6 +531,7 @@ describe('Stimmung: Gründe unter 70 %', () => {
 
   it('Seitenleiste zeigt die Gründe mit den echten Mitbewohnern', () => {
     const state = stateAt(3, ['earthworm', 'woodlouse', 'oakmoth', 'barkbeetle']);
+    state.cycle.mainTree = 'beech'; // wie oben: ohne Insekten-Bonus der Eiche
     const view = toEcosystemView(state, evaluate(state));
     const moth = view.niches.flatMap((n) => n.animals).find((a) => a.id === 'oakmoth')!;
     expect(moth.mood).toContain('teilt sich das Futter mit Regenwurm');

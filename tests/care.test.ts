@@ -145,11 +145,15 @@ describe('Pflege: Speichern und Laden (additiv in v5)', () => {
     expect(evaluate(loaded)).toEqual(evaluate(state));
   });
 
-  it('v5-Stand ohne `care`: leeres Objekt, keine neue Version', () => {
+  it('v5-Stand ohne `care`: leeres Objekt (Pflege kam ohne neue Version)', () => {
     const raw = JSON.parse(serialize(stateAt(4, ['bee'], 1)));
+    raw.version = 5;
     delete raw.cycle.care;
+    delete raw.cycle.elapsed;
+    delete raw.cycle.mainTree;
     const s = deserialize(JSON.stringify(raw), 0)!;
-    expect(s.version).toBe(5);
+    // Geladen wird als aktuelle Version (v6: Jahreszeiten), Pflege bleibt leer.
+    expect(s.version).toBe(6);
     expect(s.cycle.care).toEqual({});
   });
 
