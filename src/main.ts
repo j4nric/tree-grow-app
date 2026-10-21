@@ -175,6 +175,23 @@ let resetTimer: ReturnType<typeof setTimeout> | undefined;
 let resetArmedAt = 0;
 /** Bereich „Spielstand exportieren oder importieren“ (ab start()). */
 let saveTransfer: SaveTransfer | undefined;
+/**
+ * Gesperrt, wenn ein anderer Tab mit einem anderen Konto spielt (Konto-Abgleich): Dann darf
+ * dieser Tab den gemeinsamen Spielstand im localStorage nie mehr schreiben – auch nicht beim
+ * Verlassen der Seite –, sonst landete sein Spiel nach dem Neuladen im anderen Konto.
+ */
+let storageFrozen = false;
+
+/** Spielstand speichern (außer gesperrt). */
+function persist(): void {
+  if (storageFrozen) return;
+  let raw = saveToStorage(state);
+  // Speicher voll: Sicherungen des Konto-Abgleichs weichen lassen – der Spielstand geht vor.
+  while (raw === null && account?.makeRoom()) raw = saveToStorage(state);
+  // Abgleich-Angaben (wem der Stand gehört) im selben Takt dazu – nur, wenn er gespeichert ist.
+  if (raw !== null) account?.persisted(raw);
+}
+
 /** Konto-Abgleich (nur wenn konfiguriert, nach dem Nachladen). */
 let account: AccountController | undefined;
 /** Hinweis vor dem Import eines v1-Codes. */
@@ -362,8 +379,9 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
   let unlocked: string[] = [];
   if (result.ok) {
     unlocked = checkAchievements(state);
-    saveToStorage(state);
+    // Erst vormerken, dann speichern: so stehen Spielstand und „offen“ im selben Schreibvorgang.
     account?.markAction();
+    persist();
     if (resolves) encounterSerial++;
   }
   encounterDirty = true;
@@ -718,7 +736,9 @@ function onReset(event: MouseEvent): void {
   // Doppelklick oder gehaltene Enter-Taste bestätigen nicht.
   if (!isDeliberateConfirm(event, resetArmedAt, performance.now())) return;
   disarmReset();
-  clearStorage();
+  // Der bisherige Wald kommt vorher in die Sicherungen des Kontos (falls aktiv).
+  account?.backupCurrent();
+  if (!storageFrozen) clearStorage();
   replaceState(newGame());
   account?.markAction();
 }
@@ -741,7 +761,7 @@ function replaceState(next: GameState): void {
   encounterDirty = true;
   ecoDirty = true;
   pickerDirty = true;
-  saveToStorage(state);
+  persist();
   refreshViews(performance.now());
 }
 
@@ -766,7 +786,7 @@ function adoptState(next: GameState): void {
   ecoDirty = true;
   pickerDirty = true;
   catchUp();
-  saveToStorage(state);
+  persist();
   refreshViews(performance.now());
 }
 
@@ -800,8 +820,13 @@ function setupAccount(): void {
             return true;
           },
           notify: (text) => notify(text),
+          freeze: () => {
+            storageFrozen = true;
+          },
+          save: () => persist(),
           // Sicherung von vor dem Abgleich laden – wie „Importieren“.
           restore: (code) => {
+            if (storageFrozen) return 'Dieser Tab ist angehalten. Bitte lade die Seite neu.';
             const result = importCode(code, Date.now());
             if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
             replaceState(result.result.state);
@@ -829,6 +854,7 @@ function setupSaveTransfer(): void {
     onImport: (code) => {
       const result = importCode(code, Date.now());
       if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
+      account?.backupCurrent();
       replaceState(result.result.state);
       account?.markAction();
       const imported = result.result;
@@ -867,7 +893,7 @@ function frame(now: number): void {
     // Neue Begegnung, Zwischenhalt (auch ohne Ergebnis – der Zufall ist verbraucht) oder
     // abgelaufener Bonus: gleich speichern, damit Neuladen nichts neu würfelt, und
     // Ansichten neu bauen.
-    saveToStorage(state);
+    persist();
     encounterDirty = true;
     ecoDirty = true;
   }
@@ -891,7 +917,7 @@ function frame(now: number): void {
     lastAchievementCheck = now;
     achievementText = achievementUnlockedText(checkAchievements(state));
     if (achievementText) {
-      saveToStorage(state);
+      persist();
       ecoDirty = true;
       sound.cue('achievement');
     }
@@ -936,7 +962,7 @@ function frame(now: number): void {
   sound.update({ season: scene.season ?? 0, harmonyTier: scene.harmonyTier ?? 0 }, scene.time);
 
   if (now - lastSave > AUTOSAVE_MS) {
-    saveToStorage(state);
+    persist();
     lastSave = now;
   }
   requestAnimationFrame(frame);
@@ -963,7 +989,7 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   // einem Satz mit den nachgetragenen.
   const unlocked = checkAchievements(state);
   if (unlocked.length > 0) {
-    saveToStorage(state);
+    persist();
     ecoDirty = true;
   }
   extraNotice = joinNotes(extraNotice, achievementsBackfilledText(achievementsBackfilled, unlocked));
@@ -988,7 +1014,7 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
       else if (text) noteText(text);
     }
     if (report.waypoints > 0 || report.encounters > 0 || report.interludesReached > 0 || report.expired.length > 0) {
-      saveToStorage(state);
+      persist();
       encounterDirty = true;
       ecoDirty = true;
     }
@@ -1009,14 +1035,14 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
 function start(): void {
   if (loaded?.migratedFromV1) {
     // Alter v1-Stand: Neustart, sofort als v2 speichern, damit die Meldung nur einmal kommt.
-    saveToStorage(state);
+    persist();
     showToast(v1NoticeText(loaded.keepsake));
   }
   const backfilled = loaded?.achievementsBackfilled ?? 0;
   if (loaded?.memoryReweighted || backfilled > 0) {
     // v2–v6-Stand mit Waldgedächtnis bzw. v8-Stand mit nachgetragenen Erfolgen: sofort im
     // aktuellen Format speichern, damit der Hinweis nur einmal kommt.
-    saveToStorage(state);
+    persist();
   }
   catchUp(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
 
@@ -1036,12 +1062,12 @@ function start(): void {
   });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      saveToStorage(state);
+      persist();
       account?.flush();
     } else catchUp();
   });
   window.addEventListener('beforeunload', () => {
-    saveToStorage(state);
+    persist();
     account?.flush();
   });
 

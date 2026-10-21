@@ -3,6 +3,7 @@
  * (getestet in tests/account-view.test.ts). Ruhiger Ton, kurze Sätze.
  */
 import type { SyncEvent, SyncProblem, SyncStatus } from '../sync/engine';
+import type { BackupEntry, BackupReason } from '../sync/storage';
 import type { AccountErrorCode } from '../sync/types';
 
 /** So lange nach einem Abgleich heißt es „Synchronisiert“. */
@@ -37,8 +38,7 @@ export const ACCOUNT_TEXTS = {
   reload: 'Neu laden',
   restoreOpen: 'Sicherung vor dem Sync wiederherstellen',
   restoreHint: 'Welche Sicherung laden? Dein aktueller Wald wird dabei ersetzt.',
-  restoreLocal: 'Stand dieses Geräts',
-  restoreCloud: 'Stand aus dem Konto',
+  restoreLoad: 'Laden',
   restoreCancel: 'Abbrechen',
   restored: 'Sicherung geladen.',
 } as const;
@@ -106,7 +106,8 @@ export function syncStatusText(status: SyncStatus, now: number): string {
     case 'cloud-unreadable':
       return SYNC_PROBLEM_TEXTS['cloud-unreadable'];
     case 'local-invalid':
-      return SYNC_PROBLEM_TEXTS['local-invalid'];
+    case 'backup-failed':
+      return SYNC_PROBLEM_TEXTS[status.phase];
   }
 }
 
@@ -115,6 +116,8 @@ export const SYNC_PROBLEM_TEXTS: Readonly<Record<SyncProblem, string>> = {
   outdated: 'Neue Spielversion – bitte neu laden. Bis dahin sendet dieses Gerät nichts ans Konto.',
   'cloud-unreadable': 'Der Spielstand im Konto ist nicht lesbar. Der Abgleich ist angehalten; dein Wald wächst hier weiter.',
   'local-invalid': 'Dein Spielstand ist zu groß für das Konto. Er bleibt auf diesem Gerät gespeichert.',
+  'backup-failed':
+    'Der Speicher dieses Browsers ist voll: Dein Stand ließ sich vor dem Übernehmen nicht sichern. Der Abgleich ist angehalten; dein Wald wächst hier weiter.',
 };
 
 /** Ist der Abgleich angehalten (Zeile hervorheben)? */
@@ -132,4 +135,24 @@ export function syncEventText(event: SyncEvent): string {
   return event.lostLocal
     ? 'Auf anderem Gerät weitergespielt – übernommen. Deine letzte Aktion hier ist als Sicherung aufgehoben.'
     : 'Auf anderem Gerät weitergespielt – übernommen.';
+}
+
+/** Warum eine Sicherung angelegt wurde – kurz. */
+export const BACKUP_REASON_TEXTS: Readonly<Record<BackupReason, string>> = {
+  'first-login-local': 'Stand dieses Geräts vor der ersten Anmeldung',
+  'first-login-cloud': 'Stand aus dem Konto vor der ersten Anmeldung',
+  'lost-action': 'Von einem anderen Gerät überholte Aktion',
+  'before-take': 'Stand dieses Geräts vor dem Übernehmen',
+  'before-restore': 'Stand vor dem Wiederherstellen',
+  'before-replace': 'Stand vor dem Löschen bzw. Importieren',
+  legacy: 'Frühere Sicherung',
+};
+
+/** „Stand … · Konto eiche · Zyklus 2 · vor 5 min“ (rein lokal: ohne Konto). */
+export function backupLabel(entry: BackupEntry, now: number): string {
+  const parts = [BACKUP_REASON_TEXTS[entry.reason]];
+  if (entry.owner) parts.push(`Konto ${entry.owner}`);
+  if (entry.progress && Number.isFinite(entry.progress.cycle)) parts.push(`Zyklus ${entry.progress.cycle}`);
+  parts.push(agoText(now - entry.at));
+  return parts.join(' · ');
 }

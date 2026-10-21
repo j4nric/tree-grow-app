@@ -94,7 +94,8 @@ describe('Speichern & Laden v2', () => {
     } as unknown as Storage;
     const state = stateAt(2, ['earthworm']);
     recordDiscoveries(state);
-    saveToStorage(state, storage);
+    // Rückgabe: genau der geschriebene Text (für die Prüfsumme des Konto-Abgleichs).
+    expect(saveToStorage(state, storage)).toBe(data.get(SAVE_KEY));
     expect(data.has(SAVE_KEY)).toBe(true);
     expect(loadFromStorage(0, storage)?.state).toEqual(state);
     const broken = {
@@ -106,6 +107,7 @@ describe('Speichern & Laden v2', () => {
       },
     } as unknown as Storage;
     expect(() => saveToStorage(state, broken)).not.toThrow();
+    expect(saveToStorage(state, broken)).toBeNull();
     expect(loadFromStorage(0, broken)).toBeNull();
   });
 });

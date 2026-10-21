@@ -2,24 +2,36 @@
 // (der HTTP-Dienst gegen den echten Server steht in server/tests/client.test.ts).
 import { describe, expect, it } from 'vitest';
 import { MemoryStorage } from './memory-storage';
-import { codeFromJson, exportCode, importCode, isNewerSave, serialize } from '../src/core/save';
+import { SAVE_KEY, codeFromJson, exportCode, importCode, isNewerSave, serialize } from '../src/core/save';
 import { SAVE_VERSION, createInitialState } from '../src/core/state';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from '../src/sync/config';
 import { sessionChange } from '../src/sync/account';
+import { decideInitial } from '../src/sync/policy';
 import { apiBase } from '../src/sync/http-service';
 import {
+  BACKUPS_KEY,
   BACKUP_KEY,
   BASE_KEY,
   CLOUD_BACKUP_KEY,
-  baseKey,
   DEVICE_KEY,
+  MAX_BACKUPS,
+  MAX_BACKUP_CHARS,
+  OWNER_KEY,
+  addBackup,
+  baseKey,
   deviceId,
-  parseBase,
-  parseOwner,
+  migrateLegacyBackups,
+  migrateLegacyMeta,
+  checksum,
+  dropOneBackup,
+  parseMeta,
+  readBackups,
   readBase,
+  readMeta,
   readOwner,
-  writeBackup,
   writeBase,
+  writeMeta,
+  type BackupEntry,
 } from '../src/sync/storage';
 import {
   accountErrorText,
@@ -104,53 +116,175 @@ describe('Spielstände neuerer Spielversionen', () => {
 });
 
 describe('Speicher-Helfer', () => {
-  it('Besitzer des lokalen Stands und Sicherungen beider Seiten', () => {
+  const entry = (code: string, reason: BackupEntry['reason'] = 'before-take', at = 1000, owner: string | null = null) => ({
+    code,
+    owner,
+    at,
+    reason,
+    progress: null,
+  });
+
+  it('Abgleich-Angaben: Besitzer und Grundlage in einem Eintrag; kaputte Werte, blockierter Speicher', () => {
     const storage = new MemoryStorage();
-    expect(readOwner(storage)).toBeNull();
+    expect(readMeta(storage)).toEqual({ owner: null, base: null });
+    storage.setItem(SAVE_KEY, '{"spiel":1}');
     writeBase(storage, 'eiche', { version: 2, pending: false });
+    expect(JSON.parse(storage.getItem(BASE_KEY)!)).toEqual({ user: 'eiche', version: 2, pending: false, save: checksum('{"spiel":1}') });
     expect(readOwner(storage)).toBe('eiche');
-    expect(parseOwner('{kaputt')).toBeNull();
-    expect(parseOwner(JSON.stringify({ user: 42 }))).toBeNull();
-    expect(parseOwner(JSON.stringify({ user: '' }))).toBeNull();
-    writeBackup(storage, 'LOKAL');
-    writeBackup(storage, 'CLOUD', CLOUD_BACKUP_KEY);
-    expect(storage.getItem(BACKUP_KEY)).toBe('LOKAL');
-    expect(storage.getItem(CLOUD_BACKUP_KEY)).toBe('CLOUD');
-    storage.blocked = true;
-    expect(readOwner(storage)).toBeNull();
-    expect(() => writeBackup(storage, 'X', CLOUD_BACKUP_KEY)).not.toThrow();
-  });
-
-  it('parseBase: nur eigenes Konto, ganze Version ≥ 0', () => {
-    expect(parseBase(JSON.stringify({ user: 'eiche', version: 3, pending: true }), 'eiche')).toEqual({ version: 3, pending: true });
-    expect(parseBase(JSON.stringify({ user: 'buche', version: 3 }), 'eiche')).toBeNull();
-    for (const version of [-1, 1.5, 'x', null, 1e300]) {
-      expect(parseBase(JSON.stringify({ user: 'eiche', version }), 'eiche')).toBeNull();
-    }
-    expect(parseBase('{kaputt', 'eiche')).toBeNull();
-    expect(parseBase(null, 'eiche')).toBeNull();
-    expect(parseBase('null', 'eiche')).toBeNull();
-  });
-
-  it('readBase/writeBase und blockierter Speicher', () => {
-    const storage = new MemoryStorage();
-    writeBase(storage, 'eiche', { version: 2, pending: false });
-    expect(JSON.parse(storage.getItem(baseKey('eiche'))!)).toEqual({ user: 'eiche', version: 2, pending: false });
     expect(readBase(storage, 'eiche')).toEqual({ version: 2, pending: false });
-    // Je Konto eigener Eintrag: ein zweites Konto (anderer Tab) überschreibt nichts.
+    // Ein anderes Konto: die Grundlage von eiche gilt nicht mehr (A → B → A).
     writeBase(storage, 'buche', { version: 7, pending: true });
-    expect(readBase(storage, 'eiche')).toEqual({ version: 2, pending: false });
-    expect(readBase(storage, 'buche')).toEqual({ version: 7, pending: true });
-    expect(readOwner(storage)).toBe('buche');
-    // Alter gemeinsamer Eintrag (vor der Aufteilung) wird noch gelesen.
-    const legacy = new MemoryStorage();
-    legacy.setItem(BASE_KEY, JSON.stringify({ user: 'linde', version: 4, pending: true }));
-    expect(readBase(legacy, 'linde')).toEqual({ version: 4, pending: true });
-    expect(readBase(legacy, 'eiche')).toBeNull();
-    expect(readOwner(legacy)).toBe('linde');
-    storage.blocked = true;
     expect(readBase(storage, 'eiche')).toBeNull();
+    expect(readBase(storage, 'buche')).toEqual({ version: 7, pending: true });
+    // Besitzer ohne Grundlage (nach dem Laden einer Sicherung).
+    writeMeta(storage, { owner: 'linde', base: null }, null);
+    expect(readMeta(storage)).toEqual({ owner: 'linde', base: null });
+    writeMeta(storage, { owner: null, base: null }, null);
+    expect(storage.getItem(BASE_KEY)).toBeNull();
+    for (const raw of ['{kaputt', 'null', '[]', JSON.stringify({ user: '' }), JSON.stringify({ user: 42 })]) {
+      expect(parseMeta(raw)).toBeNull();
+    }
+    for (const version of [-1, 1.5, 'x', 1e300]) {
+      expect(parseMeta(JSON.stringify({ user: 'a', version }))).toEqual({ owner: 'a', base: null, save: null });
+    }
+    storage.blocked = true;
+    expect(readMeta(storage)).toEqual({ owner: null, base: null });
     expect(() => writeBase(storage, 'eiche', { version: 3, pending: true })).not.toThrow();
+  });
+
+  it('Prüfsumme: passt der Spielstand nicht zu den Angaben, gilt die Grundlage nicht', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, 'ALT');
+    writeMeta(storage, { owner: 'eiche', base: { version: 5, pending: false } }, checksum('NEU'));
+    // Speichern des neuen Stands scheiterte (Quota) bzw. Absturz dazwischen: Besitzer bleibt, Grundlage nicht.
+    expect(readMeta(storage)).toEqual({ owner: 'eiche', base: null });
+    storage.setItem(SAVE_KEY, 'NEU');
+    expect(readMeta(storage)).toEqual({ owner: 'eiche', base: { version: 5, pending: false } });
+    storage.removeItem(SAVE_KEY);
+    expect(readBase(storage, 'eiche')).toBeNull();
+    // Ohne Prüfsumme (älteres Format): keine Grundlage.
+    storage.setItem(SAVE_KEY, 'NEU');
+    storage.setItem(BASE_KEY, JSON.stringify({ user: 'eiche', version: 5, pending: false }));
+    expect(readBase(storage, 'eiche')).toBeNull();
+    expect(checksum('')).toBe(checksum(''));
+    expect(checksum('a')).not.toBe(checksum('b'));
+  });
+
+  it('Übergang: getrennte Schlüssel für Besitzer und Grundlage werden einmal übernommen (ohne Grundlage)', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(OWNER_KEY, 'b');
+    storage.setItem(baseKey('b'), JSON.stringify({ user: 'b', version: 3, pending: false }));
+    migrateLegacyMeta(storage);
+    expect(readMeta(storage)).toEqual({ owner: 'b', base: null });
+    expect(storage.getItem(OWNER_KEY)).toBeNull();
+    expect(storage.getItem(baseKey('b'))).toBeNull();
+    // Zweiter Aufruf: nichts mehr zu tun, vorhandener Eintrag bleibt.
+    storage.setItem(OWNER_KEY, 'c');
+    migrateLegacyMeta(storage);
+    expect(readOwner(storage)).toBe('b');
+  });
+
+  it('A → B → A: die Grundlage von A gilt nicht mehr – Cloud gewinnt, nie das Spiel von B in A pushen', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, 'S');
+    writeBase(storage, 'a', { version: 5, pending: false });
+    writeBase(storage, 'b', { version: 3, pending: false });
+    expect(readBase(storage, 'a')).toBeNull();
+    const decision = decideInitial({
+      remote: { version: 5, actionVersion: 5, device: 'x' },
+      base: readBase(storage, 'a')?.version ?? null,
+      localProgress: { cycle: 9, lifetimeGrowth: 9, playSeconds: 9 },
+      remoteProgress: { cycle: 1, lifetimeGrowth: 0, playSeconds: 0 },
+      device: 'me',
+      localForeign: readOwner(storage) !== 'a',
+    });
+    expect(decision).toEqual({ kind: 'take', firstLogin: true });
+  });
+
+  it('Sicherungs-Ring: Duplikate einmal, höchstens MAX_BACKUPS, Sicherheitsnetz weicht zuerst', () => {
+    const storage = new MemoryStorage();
+    expect(readBackups(storage)).toEqual([]);
+    const first = addBackup(storage, entry('erste-anmeldung', 'first-login-local', 1, 'eiche'));
+    expect(addBackup(storage, entry('erste-anmeldung', 'before-take', 2))).toBe(first);
+    expect(readBackups(storage)).toHaveLength(1);
+    // Viele Sicherheitsnetz-Sicherungen verdrängen die wichtige nicht.
+    for (let i = 0; i < 3 * MAX_BACKUPS; i++) addBackup(storage, entry(`netz${i}`, 'before-take', 10 + i));
+    const all = readBackups(storage);
+    expect(all).toHaveLength(MAX_BACKUPS);
+    expect(all[0]).toMatchObject({ code: 'erste-anmeldung', owner: 'eiche', reason: 'first-login-local' });
+    expect(all.at(-1)!.code).toBe(`netz${3 * MAX_BACKUPS - 1}`);
+    // Nur wichtige: die älteste weicht.
+    for (let i = 0; i < MAX_BACKUPS; i++) addBackup(storage, entry(`wichtig${i}`, 'lost-action', 100 + i));
+    expect(readBackups(storage).map((e) => e.code)).toEqual(Array.from({ length: MAX_BACKUPS }, (_, i) => `wichtig${i}`));
+    expect(new Set(readBackups(storage).map((e) => e.id)).size).toBe(MAX_BACKUPS);
+  });
+
+  it('Sicherungs-Ring: Größe begrenzt, voller Speicher, kaputte Einträge', () => {
+    const storage = new MemoryStorage();
+    const big = 'x'.repeat(Math.floor(MAX_BACKUP_CHARS / 3) - 10);
+    for (let i = 0; i < 4; i++) addBackup(storage, entry(`${i}${big}`, 'lost-action', i));
+    expect(readBackups(storage).map((e) => e.code[0])).toEqual(['1', '2', '3']);
+    // setItem wirft (Speicher voll): ältere weichen, bis es passt.
+    const full = new MemoryStorage();
+    addBackup(full, entry('alt', 'before-take', 1));
+    addBackup(full, entry('wichtig', 'lost-action', 2));
+    const setItem = full.setItem.bind(full);
+    full.setItem = (key, value) => {
+      if (key === BACKUPS_KEY && value.includes('alt')) throw new Error('QuotaExceeded');
+      setItem(key, value);
+    };
+    // Speicher voll: nur die weniger wichtige weicht.
+    expect(addBackup(full, entry('neu', 'lost-action', 3))).not.toBeNull();
+    expect(readBackups(full).map((e) => e.code)).toEqual(['wichtig', 'neu']);
+    // Ist nichts weniger Wichtiges da, wird die neue nicht gesichert (nichts geopfert).
+    full.limit = full.used;
+    expect(addBackup(full, entry('noch eine', 'lost-action', 4))).toBeNull();
+    expect(readBackups(full).map((e) => e.code)).toEqual(['wichtig', 'neu']);
+    storage.setItem(BACKUPS_KEY, JSON.stringify([{ id: 'a' }, null, entry('ok')].map((e, i) => (i === 2 ? { ...e, id: 'x' } : e))));
+    expect(readBackups(storage).map((e) => e.code)).toEqual(['ok']);
+    storage.setItem(BACKUPS_KEY, '{kaputt');
+    expect(readBackups(storage)).toEqual([]);
+  });
+
+  it('Sicherungs-Ring: unwichtige neue verdrängt keine wichtigen; Dedupe hebt den Grund an; Platz für den Spielstand', () => {
+    const storage = new MemoryStorage();
+    for (let i = 0; i < MAX_BACKUPS; i++) addBackup(storage, entry(`w${i}`, 'lost-action', i));
+    expect(addBackup(storage, entry('netz', 'before-take', 99))).toBeNull();
+    expect(readBackups(storage).map((e) => e.code)).not.toContain('netz');
+    // Derselbe Stand noch einmal, wichtiger: Grund angehoben, Zeit erneuert, nicht doppelt.
+    const other = new MemoryStorage();
+    const id = addBackup(other, entry('S', 'before-take', 1));
+    expect(addBackup(other, entry('S', 'first-login-local', 5, 'eiche'))).toBe(id);
+    expect(readBackups(other)).toMatchObject([{ code: 'S', reason: 'first-login-local', at: 5, owner: 'eiche' }]);
+    expect(addBackup(other, entry('S', 'before-take', 9))).toBe(id);
+    expect(readBackups(other)[0]).toMatchObject({ reason: 'first-login-local', at: 9 });
+    // dropOneBackup: unwichtigste zuerst, bis keine mehr da ist.
+    addBackup(other, entry('T', 'before-take', 10));
+    expect(dropOneBackup(other)).toBe(true);
+    expect(readBackups(other).map((e) => e.code)).toEqual(['S']);
+    expect(dropOneBackup(other)).toBe(true);
+    expect(dropOneBackup(other)).toBe(false);
+    expect(other.getItem(BACKUPS_KEY)).toBeNull();
+    // Gelesene Liste ist eine Kopie (Zwischenspeicher bleibt unverändert).
+    addBackup(other, entry('U', 'lost-action', 11));
+    readBackups(other)[0]!.code = 'verändert';
+    expect(readBackups(other)[0]!.code).toBe('U');
+  });
+
+  it('frühere Einzel-Sicherungen werden mit ihrem Konto in den Ring übernommen', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(BACKUP_KEY, 'LOKAL');
+    storage.setItem(CLOUD_BACKUP_KEY, 'CLOUD');
+    storage.setItem(`${CLOUD_BACKUP_KEY}:owner`, 'eiche');
+    migrateLegacyBackups(storage, 5000);
+    expect(readBackups(storage).map(({ code, owner, reason, at }) => ({ code, owner, reason, at }))).toEqual([
+      { code: 'LOKAL', owner: null, reason: 'legacy', at: 5000 },
+      { code: 'CLOUD', owner: 'eiche', reason: 'legacy', at: 5000 },
+    ]);
+    expect(storage.getItem(BACKUP_KEY)).toBeNull();
+    expect(storage.getItem(`${CLOUD_BACKUP_KEY}:owner`)).toBeNull();
+    migrateLegacyBackups(storage, 6000);
+    expect(readBackups(storage)).toHaveLength(2);
   });
 
   it('deviceId: einmal erzeugt, dann gespeichert; kaputte IDs ersetzt', () => {
@@ -174,6 +308,10 @@ describe('Sitzung in mehreren Tabs', () => {
     expect(sessionChange('eiche', 'buche')).toBe('stale');
     // Hier abgemeldet, anderswo angemeldet: dieser Tab spielt einen anderen Stand → nicht anschließen.
     expect(sessionChange(null, 'buche')).toBe('stale');
+    // … außer es ist genau das Konto, zu dem der lokale Stand gehört: dann mitmachen.
+    expect(sessionChange(null, 'buche', 'buche')).toBe('signed-in');
+    expect(sessionChange(null, 'buche', 'eiche')).toBe('stale');
+    expect(sessionChange('eiche', 'buche', 'buche')).toBe('stale');
   });
 });
 

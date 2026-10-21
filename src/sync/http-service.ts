@@ -66,9 +66,13 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
     }
   }
 
-  /** Sitzung ungültig (401): vergessen und melden. */
-  function expire(): void {
-    if (!loadSession()) return;
+  /**
+   * Sitzung ungültig (401): vergessen und melden – aber nur, wenn noch genau das gesendete
+   * Token gespeichert ist. Hat sich ein anderer Tab inzwischen neu angemeldet, bleibt dessen
+   * Sitzung unangetastet.
+   */
+  function expire(sentToken: string): void {
+    if (loadSession()?.token !== sentToken) return;
     storeSession(null);
     for (const listener of listeners) listener(null);
   }
@@ -82,10 +86,12 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
   async function request(method: string, path: string, body?: unknown, auth: boolean | string = true): Promise<{ status: number; json: unknown }> {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    let sentToken = '';
     if (auth !== false) {
       const session = loadSession();
       if (!session) throw new AccountError('unauthorized');
       if (typeof auth === 'string' && session.username !== auth) throw new AccountError('unauthorized');
+      sentToken = session.token;
       headers.Authorization = `Bearer ${session.token}`;
     }
     let res: Response;
@@ -103,7 +109,7 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
       }
     }
     if (res.status === 401 && auth !== false) {
-      expire();
+      expire(sentToken);
       throw new AccountError('unauthorized');
     }
     return { status: res.status, json };
@@ -252,13 +258,17 @@ export function createHttpService(baseUrl: string, deps: HttpDeps): AccountServi
     },
     signIn: (username, password) => authenticate('/api/login', username, password),
     register: (username, password) => authenticate('/api/register', username, password),
-    async signOut() {
+    async signOut(user) {
+      // Nur die eigene Sitzung beenden: Gehört die gespeicherte inzwischen einem anderen Konto
+      // (anderer Tab), bleibt sie unangetastet.
+      const session = loadSession();
+      if (!session || (user && session.username !== user.name)) return;
       try {
-        await request('POST', '/api/logout');
+        await request('POST', '/api/logout', undefined, session.username);
       } catch {
         // Offline: Die Sitzung läuft auf dem Server irgendwann ab; hier ist sie vergessen.
       }
-      storeSession(null);
+      if (loadSession()?.token === session.token) storeSession(null);
     },
     sessionUser: () => loadSession()?.username ?? null,
     backend: (user) => backendFor(user.name),

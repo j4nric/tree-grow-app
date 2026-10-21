@@ -1,29 +1,62 @@
 /**
  * Kleine localStorage-Helfer des Konto-Abgleichs (robust: kaputte Einträge → Startwerte,
  * blockierter Speicher → das Spiel läuft weiter). Storage kommt als Parameter (testbar).
+ *
+ * Zwei Dinge liegen hier:
+ * - Die **Abgleich-Angaben zum lokalen Spielstand** (`vszw-sync-base`): zu welchem Konto er
+ *   gehört und auf welcher Cloud-Version er beruht. Sie werden immer zusammen mit dem
+ *   Spielstand geschrieben (controller.ts, persisted()), damit „Spielstand“ und „gehört zu X“
+ *   nie auseinanderlaufen – auch nicht, wenn mehrere Tabs abwechselnd speichern.
+ * - Der **Sicherungs-Ring** (`vszw-backups`): die letzten Stände, die ein Abgleich ersetzt hat.
  */
+import { SAVE_KEY } from '../core/save';
 import type { SyncBase } from './engine';
+import type { Progress } from './policy';
 
 /**
- * Früher: eine gemeinsame Grundlage { user, version, pending } für alle Konten. Wird nur
- * noch gelesen (Übergang); geschrieben wird je Konto unter baseKey(user).
+ * Abgleich-Angaben zum lokalen Spielstand: { user, version, pending, save } (version null =
+ * keine Grundlage; save = Prüfsumme des gespeicherten Spielstands, zu dem sie gehören).
  */
 export const BASE_KEY = 'vszw-sync-base';
-/** Grundlage des lokalen Stands je Konto: { user, version, pending }. */
+/** Übergang (nie veröffentlicht): Besitzer und Grundlage je Konto in eigenen Schlüsseln. */
+export const OWNER_KEY = 'vszw-sync-owner';
 export function baseKey(user: string): string {
   return `${BASE_KEY}:${user}`;
 }
-/** Konto, mit dem der lokale Stand zuletzt abgeglichen wurde. */
-export const OWNER_KEY = 'vszw-sync-owner';
 /** Zufällige Geräte-ID (Echo des eigenen Pushs erkennen). */
 export const DEVICE_KEY = 'vszw-device-id';
-/** Sicherung des lokalen Stands (Text-Code), bevor ein Cloud-Stand ihn ersetzt. */
+/** Sicherungs-Ring. */
+export const BACKUPS_KEY = 'vszw-backups';
+/** Frühere Einzel-Sicherungen – werden beim Start in den Ring übernommen. */
 export const BACKUP_KEY = 'vszw-backup-before-sync';
-/** Sicherung des Cloud-Stands (Text-Code) bei der ersten Anmeldung, bevor ein Stand den anderen ersetzt. */
 export const CLOUD_BACKUP_KEY = 'vszw-backup-cloud-before-sync';
+export const RESTORE_UNDO_KEY = 'vszw-backup-before-restore';
+const LEGACY_BACKUP_KEYS = [BACKUP_KEY, CLOUD_BACKUP_KEY, RESTORE_UNDO_KEY] as const;
 
-/** Liest die Grundlage für `userId`; fremdes Konto, kaputte Werte → null. */
-export function parseBase(raw: string | null, userId: string): SyncBase | null {
+/** Wem der lokale Stand gehört und worauf er beruht. */
+export interface LocalMeta {
+  /** Konto, mit dem er zuletzt abgeglichen wurde (bzw. dessen Sicherung geladen wurde); null = keinem. */
+  owner: string | null;
+  /** Grundlage für dieses Konto; null = unbekannt (dann wie eine erste Anmeldung). */
+  base: SyncBase | null;
+}
+
+function parseVersion(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+/** Prüfsumme (FNV-1a) eines Texts – für den gespeicherten Spielstand und Sicherungs-IDs. */
+export function checksum(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/** Liest die Abgleich-Angaben samt Prüfsumme; kaputte Werte → null. */
+export function parseMeta(raw: string | null): (LocalMeta & { save: string | null }) | null {
   if (!raw) return null;
   let data: unknown;
   try {
@@ -33,60 +66,270 @@ export function parseBase(raw: string | null, userId: string): SyncBase | null {
   }
   if (typeof data !== 'object' || data === null) return null;
   const record = data as Record<string, unknown>;
-  if (record.user !== userId) return null;
-  const version = record.version;
-  if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0) return null;
-  return { version, pending: record.pending === true };
+  if (typeof record.user !== 'string' || record.user === '') return null;
+  const version = parseVersion(record.version);
+  return {
+    owner: record.user,
+    base: version === null ? null : { version, pending: record.pending === true },
+    save: typeof record.save === 'string' ? record.save : null,
+  };
 }
 
 /**
- * Konto, mit dem der lokale Stand zuletzt abgeglichen wurde (steht mit in der Grundlage);
- * null = keins bekannt oder unlesbar.
+ * Abgleich-Angaben zum gespeicherten Spielstand. Passt die Prüfsumme nicht zum Spielstand
+ * (Speichern scheiterte, Absturz zwischen den beiden Schreibvorgängen, anderer Tab), gilt die
+ * Grundlage nicht – dann wie bei einer ersten Anmeldung, mit Sicherungen beider Seiten.
  */
-export function parseOwner(raw: string | null): string | null {
-  if (!raw) return null;
+export function readMeta(storage: Storage): LocalMeta {
   try {
-    const data: unknown = JSON.parse(raw);
-    const user = typeof data === 'object' && data !== null ? (data as Record<string, unknown>).user : undefined;
-    return typeof user === 'string' && user !== '' ? user : null;
+    const meta = parseMeta(storage.getItem(BASE_KEY));
+    if (!meta) return { owner: null, base: null };
+    const save = storage.getItem(SAVE_KEY);
+    const matches = save !== null && meta.save === checksum(save);
+    return { owner: meta.owner, base: matches ? meta.base : null };
   } catch {
-    return null;
+    return { owner: null, base: null };
   }
 }
 
-export function readOwner(storage: Storage): string | null {
+/** Schreibt die Angaben zu dem Spielstand mit Prüfsumme `saveHash` (null = keiner bekannt). */
+export function writeMeta(storage: Storage, meta: LocalMeta, saveHash: string | null): void {
+  try {
+    if (meta.owner) {
+      storage.setItem(
+        BASE_KEY,
+        JSON.stringify({
+          user: meta.owner,
+          version: meta.base?.version ?? null,
+          pending: meta.base?.pending ?? false,
+          save: saveHash,
+        }),
+      );
+    } else {
+      storage.removeItem(BASE_KEY);
+    }
+  } catch {
+    // Speicher voll oder blockiert – die Prüfsumme passt dann nicht, die Grundlage gilt nicht.
+  }
+}
+
+/**
+ * Übergang (einmal beim Start): getrennte Schlüssel für Besitzer und Grundlage in den einen
+ * Eintrag übernehmen – ohne Grundlage (ihre Zugehörigkeit zum Spielstand ist unbekannt).
+ */
+export function migrateLegacyMeta(storage: Storage): void {
   try {
     const owner = storage.getItem(OWNER_KEY);
-    if (owner) return owner;
-    return parseOwner(storage.getItem(BASE_KEY));
-  } catch {
-    return null;
-  }
-}
-
-export function readBase(storage: Storage, userId: string): SyncBase | null {
-  try {
-    return parseBase(storage.getItem(baseKey(userId)), userId) ?? parseBase(storage.getItem(BASE_KEY), userId);
-  } catch {
-    return null;
-  }
-}
-
-/** Grundlage je Konto schreiben (Tabs mit verschiedenen Konten stören sich nicht) und Besitzer merken. */
-export function writeBase(storage: Storage, userId: string, base: SyncBase): void {
-  try {
-    storage.setItem(baseKey(userId), JSON.stringify({ user: userId, version: base.version, pending: base.pending }));
-    storage.setItem(OWNER_KEY, userId);
-  } catch {
-    // Speicher voll oder blockiert – der Abgleich klappt dann beim nächsten Start über den Fortschritt.
-  }
-}
-
-export function writeBackup(storage: Storage, code: string, key: string = BACKUP_KEY): void {
-  try {
-    storage.setItem(key, code);
+    if (owner === null) return;
+    if (!storage.getItem(BASE_KEY) && owner) writeMeta(storage, { owner, base: null }, null);
+    storage.removeItem(OWNER_KEY);
+    storage.removeItem(baseKey(owner));
   } catch {
     // ignorieren
+  }
+}
+
+/** Konto des lokalen Stands; null = keins. */
+export function readOwner(storage: Storage): string | null {
+  return readMeta(storage).owner;
+}
+
+/** Grundlage für `userId` – nur, wenn der lokale Stand zu genau diesem Konto gehört. */
+export function readBase(storage: Storage, userId: string): SyncBase | null {
+  const meta = readMeta(storage);
+  return meta.owner === userId ? meta.base : null;
+}
+
+/** Grundlage für `userId` zum gerade gespeicherten Spielstand schreiben (Tests, Werkzeuge). */
+export function writeBase(storage: Storage, userId: string, base: SyncBase): void {
+  let save: string | null = null;
+  try {
+    save = storage.getItem(SAVE_KEY);
+  } catch {
+    save = null;
+  }
+  writeMeta(storage, { owner: userId, base }, save === null ? null : checksum(save));
+}
+
+// --- Sicherungs-Ring --------------------------------------------------------------------
+
+/** Warum ein Stand gesichert wurde. */
+export type BackupReason =
+  /** Lokaler Stand vor der ersten Anmeldung mit einem Konto. */
+  | 'first-login-local'
+  /** Cloud-Stand vor der ersten Anmeldung (der lokale hätte ihn ersetzen können). */
+  | 'first-login-cloud'
+  /** Eigene, noch nicht gesendete Aktion, die ein anderes Gerät überholt hat. */
+  | 'lost-action'
+  /** Sicherheitsnetz: lokaler Stand vor dem Übernehmen beim Start. */
+  | 'before-take'
+  /** Stand vor „Sicherung wiederherstellen“. */
+  | 'before-restore'
+  /** Stand vor „Spielstand löschen“ bzw. „Importieren“. */
+  | 'before-replace'
+  /** Aus den früheren Einzel-Sicherungen übernommen. */
+  | 'legacy';
+
+export interface BackupEntry {
+  id: string;
+  /** Text-Code (über „Importieren“ ladbar). */
+  code: string;
+  /** Konto, zu dem der Stand gehörte; null = rein lokal. */
+  owner: string | null;
+  /** Zeitpunkt (ms). */
+  at: number;
+  reason: BackupReason;
+  progress: Progress | null;
+}
+
+/** Höchstens so viele Sicherungen … */
+export const MAX_BACKUPS = 10;
+/** … und zusammen höchstens so viele Zeichen (localStorage hat meist 5 MB – Reserve für den Spielstand). */
+export const MAX_BACKUP_CHARS = 500_000;
+
+const REASONS: readonly BackupReason[] = [
+  'first-login-local',
+  'first-login-cloud',
+  'lost-action',
+  'before-take',
+  'before-restore',
+  'before-replace',
+  'legacy',
+];
+
+/** Wie wichtig eine Sicherung ist: Das Sicherheitsnetz (meist ohne Verlust) zählt am wenigsten. */
+export function backupPriority(reason: BackupReason): number {
+  if (reason === 'before-take') return 0;
+  if (reason === 'legacy') return 1;
+  return 2;
+}
+
+function validEntry(value: unknown): value is BackupEntry {
+  if (typeof value !== 'object' || value === null) return false;
+  const e = value as Record<string, unknown>;
+  return (
+    typeof e.id === 'string' &&
+    typeof e.code === 'string' &&
+    e.code !== '' &&
+    (e.owner === null || typeof e.owner === 'string') &&
+    typeof e.at === 'number' &&
+    Number.isFinite(e.at) &&
+    REASONS.includes(e.reason as BackupReason)
+  );
+}
+
+/** Zuletzt gelesener Ring je Storage (nur neu parsen, wenn sich der Text geändert hat). */
+const ringCache = new WeakMap<Storage, { raw: string | null; entries: BackupEntry[] }>();
+
+/** Alle Sicherungen, älteste zuerst; kaputte Einträge fallen weg. */
+export function readBackups(storage: Storage): BackupEntry[] {
+  let raw: string | null;
+  try {
+    raw = storage.getItem(BACKUPS_KEY);
+  } catch {
+    return [];
+  }
+  const cached = ringCache.get(storage);
+  if (cached && cached.raw === raw) return cached.entries.map((e) => ({ ...e }));
+  let entries: BackupEntry[] = [];
+  try {
+    const data: unknown = JSON.parse(raw ?? '[]');
+    entries = Array.isArray(data) ? data.filter(validEntry).map((e) => ({ ...e, progress: e.progress ?? null })) : [];
+  } catch {
+    entries = [];
+  }
+  ringCache.set(storage, { raw, entries });
+  return entries.map((e) => ({ ...e }));
+}
+
+/** Die Sicherung, die bei Platzmangel zuerst weicht: unwichtigste, davon die älteste. */
+function evictIndex(entries: readonly BackupEntry[]): number {
+  let best = -1;
+  for (let i = 0; i < entries.length; i++) {
+    if (best < 0 || backupPriority(entries[i]!.reason) < backupPriority(entries[best]!.reason)) best = i;
+  }
+  return best;
+}
+
+function totalChars(entries: readonly BackupEntry[]): number {
+  return entries.reduce((sum, e) => sum + e.code.length, 0);
+}
+
+function writeRing(storage: Storage, entries: readonly BackupEntry[]): boolean {
+  try {
+    storage.setItem(BACKUPS_KEY, JSON.stringify(entries));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Legt eine Sicherung im Ring ab. Denselben Code gibt es nur einmal (Grund wird auf den
+ * wichtigeren angehoben, Zeitpunkt erneuert). Zu viele bzw. zu große Sicherungen: die
+ * unwichtigste älteste weicht – ist das die neue, wird sie verworfen (sie verdrängt keine
+ * wichtigeren). Rückgabe: die ID, null = nicht gesichert.
+ */
+export function addBackup(storage: Storage, entry: Omit<BackupEntry, 'id'>): string | null {
+  const entries = readBackups(storage);
+  const same = entries.find((e) => e.code === entry.code);
+  if (same) {
+    if (backupPriority(entry.reason) > backupPriority(same.reason)) same.reason = entry.reason;
+    if (entry.owner !== null && same.owner === null) same.owner = entry.owner;
+    same.at = entry.at;
+    writeRing(storage, entries);
+    return same.id;
+  }
+  const id = `${Math.max(0, Math.floor(entry.at)).toString(36)}-${entries.length.toString(36)}-${checksum(entry.code)}`;
+  entries.push({ ...entry, id });
+  // Zu viele oder zu groß: die unwichtigste älteste weicht (ist es die neue: verwerfen).
+  while (entries.length > MAX_BACKUPS || (totalChars(entries) > MAX_BACKUP_CHARS && entries.length > 1)) {
+    const index = evictIndex(entries);
+    if (index < 0 || entries[index]!.id === id) return null;
+    entries.splice(index, 1);
+  }
+  // Speicher voll: nur weniger wichtige weichen lassen – nie eine gleich wichtige oder
+  // wichtigere für die neue opfern; dann lieber nicht sichern (der Aufrufer hält an).
+  while (!writeRing(storage, entries)) {
+    const index = evictIndex(entries);
+    if (index < 0 || backupPriority(entries[index]!.reason) >= backupPriority(entry.reason)) return null;
+    entries.splice(index, 1);
+  }
+  return id;
+}
+
+/**
+ * Platz für den Spielstand schaffen (Speicher voll): die unwichtigste Sicherung entfernen.
+ * false = es gibt keine mehr.
+ */
+export function dropOneBackup(storage: Storage): boolean {
+  const entries = readBackups(storage);
+  const index = evictIndex(entries);
+  if (index < 0) return false;
+  entries.splice(index, 1);
+  try {
+    if (entries.length > 0) storage.setItem(BACKUPS_KEY, JSON.stringify(entries));
+    else storage.removeItem(BACKUPS_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Frühere Einzel-Sicherungen (mit ihrem Konto) in den Ring übernehmen und entfernen. */
+export function migrateLegacyBackups(storage: Storage, now: number): void {
+  for (const key of LEGACY_BACKUP_KEYS) {
+    try {
+      const code = storage.getItem(key);
+      if (code) {
+        const owner = storage.getItem(`${key}:owner`) || null;
+        if (addBackup(storage, { code, owner, at: now, reason: 'legacy', progress: null }) === null) continue;
+      }
+      storage.removeItem(key);
+      storage.removeItem(`${key}:owner`);
+    } catch {
+      // ignorieren
+    }
   }
 }
 

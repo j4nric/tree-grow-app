@@ -117,6 +117,45 @@ describe('HTTP-Dienst gegen den Sync-Server', () => {
     expect(storage.getItem(SESSION_KEY)).not.toBeNull();
   });
 
+  it('Abmelden und abgelaufene Sitzung löschen nur die eigene Sitzung (anderer Tab bleibt angemeldet)', async () => {
+    const storage = new MemoryStorage();
+    const tab1 = createHttpService(url, { fetch, storage });
+    await tab1.register('eiche', 'geheim123');
+    const oldToken = JSON.parse(storage.getItem(SESSION_KEY)!).token as string;
+    const tab2 = createHttpService(url, { fetch, storage });
+    await tab2.register('buche', 'geheim123');
+    // Tab 1 meldet „eiche“ ab – gespeichert ist aber buche: nichts löschen.
+    await tab1.signOut({ name: 'eiche' });
+    expect(tab2.sessionUser()).toBe('buche');
+    expect(await tab2.currentUser()).toEqual({ name: 'buche' });
+    // 401 auf das alte Token (eiche) darf die neue Sitzung (buche) nicht löschen.
+    const seen: unknown[] = [];
+    tab1.onUserChange((user) => seen.push(user));
+    // Das alte Token (eiche) serverseitig beenden; eine Anfrage damit liefert dann 401 …
+    const own = new MemoryStorage();
+    own.setItem(SESSION_KEY, JSON.stringify({ token: oldToken, username: 'eiche' }));
+    await createHttpService(url, { fetch, storage: own }).signOut();
+    const shared = new MemoryStorage();
+    shared.setItem(SESSION_KEY, JSON.stringify({ token: oldToken, username: 'eiche' }));
+    let swapped = false;
+    const swapping: typeof fetch = async (input, init) => {
+      const res = await fetch(input, init);
+      // … während ein anderer Tab sich gerade als buche anmeldet.
+      if (!swapped) {
+        swapped = true;
+        shared.setItem(SESSION_KEY, storage.getItem(SESSION_KEY)!);
+      }
+      return res;
+    };
+    const racer = createHttpService(url, { fetch: swapping, storage: shared });
+    await expect(racer.backend({ name: 'eiche' }).fetch()).rejects.toMatchObject({ code: 'unauthorized' });
+    expect(JSON.parse(shared.getItem(SESSION_KEY)!).username).toBe('buche');
+    // Eigene Sitzung: wird gelöscht.
+    await tab2.signOut({ name: 'buche' });
+    expect(storage.getItem(SESSION_KEY)).toBeNull();
+    expect(seen).toEqual([]);
+  });
+
   it('abgelaufene Sitzung: vergessen und gemeldet; offline bleibt man angemeldet', async () => {
     const storage = new MemoryStorage();
     const service = createHttpService(url, { fetch, storage });

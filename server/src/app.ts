@@ -214,7 +214,7 @@ export function createApp(options: AppOptions): App {
     touchSession: db.prepare('UPDATE sessions SET expires_at = ? WHERE token_hash = ?'),
     deleteSession: db.prepare('DELETE FROM sessions WHERE token_hash = ?'),
     trimSessions: db.prepare(
-      'DELETE FROM sessions WHERE user_id = ? AND token_hash NOT IN (SELECT token_hash FROM sessions WHERE user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?)',
+      'DELETE FROM sessions WHERE user_id = ? AND token_hash NOT IN (SELECT token_hash FROM sessions WHERE user_id = ? ORDER BY expires_at DESC, created_at DESC, rowid DESC LIMIT ?)',
     ),
     pruneSessions: db.prepare('DELETE FROM sessions WHERE expires_at <= ?'),
     save: db.prepare('SELECT data, version, action_version, device_id, updated_at, schema_version FROM saves WHERE user_id = ?'),
@@ -287,7 +287,8 @@ export function createApp(options: AppOptions): App {
     const token = newToken();
     const t = now();
     q.insertSession.run(hashToken(token), userId, t, t + SESSION_DAYS * DAY_MS);
-    // Nicht unbegrenzt viele Sitzungen je Konto: die ältesten fallen weg.
+    // Nicht unbegrenzt viele Sitzungen je Konto: die am längsten unbenutzten fallen weg
+    // (expires_at gleitet mit der Nutzung, siehe authenticate – keine eigene Spalte nötig).
     q.trimSessions.run(userId, userId, limits.sessionsPerUser);
     return token;
   }

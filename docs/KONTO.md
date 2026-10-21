@@ -36,14 +36,13 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
   (`serverTime − updatedAt`) – eine falsch gehende Geräte-Uhr verschenkt oder verschluckt
   keine Wachstumszeit.
 - **Konflikt:** Hat ein anderes Gerät inzwischen eine Aktion gemacht, gewinnt dessen Stand;
-  die eigene, noch nicht gesendete Aktion geht verloren, liegt aber als Sicherung unter
-  `vszw-backup-before-sync` im `localStorage` (als Text-Code, über „Importieren“ ladbar).
+  die eigene, noch nicht gesendete Aktion geht verloren, liegt aber als Sicherung im
+  Sicherungs-Ring (siehe unten).
   Stammt der Stand im Konto von diesem Gerät selbst (die Antwort auf einen Push ging
   verloren), ist er die eigene Linie: Das Gerät schreibt weiter, statt den älteren
   Schnappschuss zu übernehmen.
-- **Erste Anmeldung auf einem Gerät:** Vorher werden **beide** Stände gesichert – der lokale
-  unter `vszw-backup-before-sync`, der aus dem Konto unter `vszw-backup-cloud-before-sync`
-  (beide als Text-Code, über „Importieren“ ladbar). Gehört der lokale Stand zu einem anderen
+- **Erste Anmeldung auf einem Gerät:** Vorher werden **beide** Stände gesichert (lokaler und
+  Cloud-Stand, im Sicherungs-Ring). Gehört der lokale Stand zu einem anderen
   Konto (das Gerät merkt sich, mit welchem Konto es zuletzt abgeglichen hat), gewinnt der
   Stand aus dem Konto. Sonst gewinnt der weiter fortgeschrittene (Zyklus, dann
   Gesamt-Wachstum, dann Spielzeit).
@@ -51,11 +50,49 @@ Einstellungen fehlt, das Spiel macht keine Netzaufrufe und läuft rein lokal wie
   Jeder Tab schreibt nur mit der Sitzung des Kontos, mit dem er gestartet ist. Meldet sich ein
   anderer Tab ab, ist auch dieser Tab abgemeldet; meldet sich ein anderer Tab mit einem
   (anderen) Konto an, hält dieser Tab den Abgleich an und bittet um „Neu laden“ – sein Spiel
-  im Speicher gehört nicht zu diesem Konto. Die Grundlage des Abgleichs liegt je Konto
-  (`vszw-sync-base:<name>`).
-- **Sicherungen laden:** Im Konto-Abschnitt lädt „Sicherung vor dem Sync wiederherstellen“
-  den gesicherten Stand dieses Geräts bzw. den aus dem Konto (zweiter Schritt als
-  Bestätigung, ersetzt den aktuellen Wald; angemeldet geht er wie eine Aktion ans Konto).
+  im Speicher gehört nicht zu diesem Konto. Ab dann schreibt dieser Tab auch den gemeinsamen
+  lokalen Spielstand nicht mehr (auch nicht beim Neuladen), sonst landete sein Spiel nach dem
+  Neuladen im anderen Konto. Abmelden und eine abgelaufene Sitzung löschen nur die eigene
+  Sitzung, nie die eines anderen Tabs. Meldet sich ein anderer Tab mit genau dem Konto an,
+  zu dem das Spiel dieses Tabs gehört, macht dieser Tab wieder mit – wie bei einer ersten
+  Anmeldung (beide Stände gesichert), weil sein Spiel vom gespeicherten abweichen kann.
+- **Wem der lokale Stand gehört:** `vszw-sync-base` = `{user, version, pending, save}` – Konto,
+  Cloud-Version, auf der er beruht, ob seitdem eine Aktion fehlt, und die Prüfsumme des
+  Spielstands, zu dem diese Angaben gehören. Jeder Tab schreibt sie **im selben Takt wie den
+  Spielstand** und aus seinem eigenen Speicher – nur, wenn der Spielstand tatsächlich
+  gespeichert wurde. Passt die Prüfsumme beim Lesen nicht (Speichern scheiterte, Absturz
+  zwischen den beiden Schreibvorgängen, ein anderer Tab speicherte), gilt die Grundlage nicht:
+  dann wie bei einer ersten Anmeldung, mit Sicherungen beider Seiten. Die Grundlage gilt nur für genau dieses Konto – nach
+  A → B → A gewinnt bei A der Cloud-Stand.
+- **Sicherungs-Ring:** `vszw-backups` hält die letzten 10 ersetzten Stände (zusammen höchstens
+  500 000 Zeichen – Reserve für den Spielstand), je mit Konto, Zeitpunkt, Grund (erste
+  Anmeldung lokal/Cloud, überholte Aktion, vor dem Übernehmen, vor dem Wiederherstellen, vor
+  dem Löschen bzw. Importieren) und Fortschritt. Denselben Stand gibt es nur einmal (der Grund
+  wird auf den wichtigeren angehoben). Ist der Ring voll, weicht zuerst das Sicherheitsnetz
+  „vor dem Übernehmen“, dann die älteste; eine neue, unwichtigere Sicherung verdrängt keine
+  wichtigere. Ist der Browser-Speicher voll, opfert der Ring für eine neue Sicherung nur
+  weniger wichtige – lässt sie sich nicht ablegen, ersetzt der Abgleich nichts und hält an
+  („Speicher voll“), „Wiederherstellen“ bricht mit Hinweis ab. Scheitert dagegen das Speichern
+  des Spielstands, weichen Sicherungen (unwichtigste zuerst), bis er passt – der laufende
+  Wald geht vor. Frühere Einzel-Sicherungen (`vszw-backup-before-sync` …) werden beim Start
+  übernommen. Im Konto-Abschnitt listet „Sicherung vor dem Sync wiederherstellen“ sie mit
+  Grund, Konto, Zyklus und Alter; „Laden“ in der aufgeklappten Liste ist die Bestätigung und
+  ersetzt den aktuellen Wald (angemeldet geht er wie eine Aktion ans Konto; der Stand davor
+  kommt selbst in den Ring). Angemeldet werden nur Sicherungen des eigenen Kontos und rein
+  lokale angeboten, abgemeldet alle mit Angabe des Kontos; eine abgemeldet geladene Sicherung
+  gehört danach ihrem Konto – ohne Grundlage, also beim nächsten Anmelden wie eine erste
+  Anmeldung.
+- **Grundsatz:** Kein Weg ersetzt einen lokalen oder Cloud-Stand, ohne ihn vorher zu sichern;
+  ein Spiel, das zuletzt mit Konto X lief, landet nie in einem anderen Konto mit Stand. Dafür
+  merkt sich jeder Tab, zu welchem Konto das Spiel in seinem Speicher gehört; die
+  Geräte-Kennung ist je Anmeldung neu (eigene Linie nur, wenn der Stand zu diesem Konto
+  gehört); vor jedem Übernehmen beim Start wird der lokale Stand gesichert; abgemeldet
+  gespielte Fortschritte werden für das Konto des Stands als offen vermerkt.
+  `tests/sync-sequences.test.ts` spielt Abfolgen aus Anmelden A/B, Abmelden, Spielen,
+  Neuladen (auch mitten im Senden), Wiederherstellen, zweitem Tab, Schreiben anderer Geräte,
+  Netzfehlern (vor/nach dem Schreiben, Sitzung weg, 422, 507) und verlorenen Live-Meldungen
+  durch – alle der Länge 3, dazu 4000 zufällige der Länge 8, jeder Takt mit Autosave – und
+  prüft nach jedem Schritt beides; verlorene Stände müssen bis zum Ende im Ring liegen.
 - **Abmelden:** sendet vorher den letzten Stand. Klappt das nicht (offline), weist der
   Konto-Abschnitt darauf hin; ein zweiter Tipp („Trotzdem abmelden“) meldet trotzdem ab – der
   Stand bleibt auf dem Gerät.
@@ -95,7 +132,7 @@ wertlos. Abmelden löscht die offenen Tickets der Sitzung. Regeln: Benutzername 
 | Fehlgeschlagene Anmeldungen je Benutzername über alle IPs | 100 in 15 Minuten (gegen verteiltes Raten; eine einzelne fremde IP kann ein Konto so nicht aussperren) |
 | Neue Konten je IP | 3 je Stunde (`REGISTRATIONS_PER_IP_HOUR`) – eine IP allein kann das Gesamtkontingent nicht aufbrauchen |
 | Neue Konten insgesamt | 30 je Stunde |
-| Sitzungen (angemeldete Geräte) je Konto | 20 – bei der 21. Anmeldung endet die älteste |
+| Sitzungen (angemeldete Geräte) je Konto | 20 – bei der 21. Anmeldung endet die am längsten unbenutzte (Nutzung verlängert die Laufzeit höchstens einmal am Tag) |
 | Konten insgesamt | `MAX_ACCOUNTS` (Standard 1000) → 403 `registration-closed` |
 | Freier Platz auf dem Daten-Volume | unter `MIN_FREE_MB` (Standard 512) → 507 für Registrieren, Anmelden und Schreiben (Lesen geht) |
 | Offene Event-Streams | 8 je Konto, 16 je IP, 2000 insgesamt |
@@ -105,7 +142,16 @@ wertlos. Abmelden löscht die offenen Tickets der Sitzung. Regeln: Benutzername 
 Die IP für diese Grenzen ist die Adresse der Verbindung. Nur wenn sie privat ist (der Proxy im
 Docker-Netz oder auf demselben Server) **und** `TRUST_PROXY=1` gesetzt ist, zählt der letzte
 Eintrag von `X-Forwarded-For` – den hat der eigene Proxy angehängt; frühere Einträge kann der
-Client frei erfinden. IPv6-Adressen zählen je /64-Netz (ein Anschluss hat meist ein ganzes /64).
+Client frei erfinden. IPv6-Adressen zählen je /64-Netz (ein Anschluss hat meist ein ganzes /64);
+IPv4-gemappte Adressen (`::ffff:a01:203`) zählen als IPv4.
+
+**Abwägung bei der Sperre je Benutzername:** Die Grenze über alle IPs (100 Fehlversuche in
+15 Minuten) bremst verteiltes Passwort-Raten. Wer genug IP-Adressen hat (mindestens fünf, weil
+jede IP höchstens 20 Versuche hat), kann damit ein Konto aber gezielt bis zu 15 Minuten lang
+für alle sperren – auch für den Inhaber mit richtigem Passwort; Geräte, die schon angemeldet
+sind, spielen weiter. Bewusst so gewählt: Eine einzelne fremde IP sperrt nur sich selbst, und
+die Schwelle ist hoch genug, dass versehentliche Fehleingaben sie nie erreichen. Ein starkes
+Passwort bleibt der eigentliche Schutz.
 
 ## Einrichtung Schritt für Schritt
 

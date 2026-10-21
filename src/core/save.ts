@@ -615,11 +615,18 @@ function loadCycleExtras(raw: Record<string, unknown>, state: GameState, knownPl
   state.cycle = cycle;
 }
 
-export function saveToStorage(state: GameState, storage: Storage = localStorage): void {
+/**
+ * Speichert den Spielstand. Rückgabe: der geschriebene Text (z. B. für eine Prüfsumme) oder
+ * null, wenn das Schreiben scheiterte (Speicher voll oder blockiert, z. B. privater Modus) –
+ * das Spiel läuft trotzdem weiter.
+ */
+export function saveToStorage(state: GameState, storage: Storage = localStorage): string | null {
   try {
-    storage.setItem(SAVE_KEY, serialize(state));
+    const raw = serialize(state);
+    storage.setItem(SAVE_KEY, raw);
+    return raw;
   } catch {
-    // Speicher voll oder blockiert (z. B. privater Modus) – Spiel läuft trotzdem weiter.
+    return null;
   }
 }
 

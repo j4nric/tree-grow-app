@@ -35,8 +35,10 @@ export interface SyncBase {
  *   Bleibt bis zum Neuladen; dieses Gerät schreibt nichts mehr.
  * - 'cloud-unreadable': Der Cloud-Stand ist kaputt → nicht darüber schreiben; später erneut prüfen.
  * - 'local-invalid': Der eigene Stand ließe sich nicht wieder importieren (z. B. zu groß) → nicht senden.
+ * - 'backup-failed': Ein Stand, der ersetzt würde, ließ sich nicht sichern (Speicher voll) →
+ *   nichts ersetzen; später erneut versuchen.
  */
-export type SyncProblem = 'outdated' | 'cloud-unreadable' | 'local-invalid';
+export type SyncProblem = 'outdated' | 'cloud-unreadable' | 'local-invalid' | 'backup-failed';
 
 export type SyncPhase = 'connecting' | 'synced' | 'offline' | SyncProblem;
 
@@ -51,6 +53,9 @@ export type SyncEvent =
   | { kind: 'first-login'; winner: 'local' | 'cloud' }
   /** Stand eines anderen Geräts übernommen; `lostLocal`: eine eigene Aktion ging dabei verloren. */
   | { kind: 'taken'; lostLocal: boolean };
+
+/** Warum der lokale Stand gesichert wird (siehe BackupReason in storage.ts). */
+export type LocalBackupReason = 'first-login-local' | 'lost-action' | 'before-take';
 
 /** Ergebnis der Prüfung eines Text-Codes: lesbar, aus neuerer Spielversion, unlesbar. */
 export type CodeCheck = 'ok' | 'newer' | 'invalid';
@@ -73,9 +78,9 @@ export interface SyncHost {
    */
   apply(data: string, ageMs?: number): boolean;
   /** Lokalen Stand sichern, bevor er ersetzt wird. */
-  backup(): void;
+  backup(reason: LocalBackupReason): boolean;
   /** Cloud-Stand sichern, bevor er bei der ersten Anmeldung ersetzt werden könnte. */
-  backupCloud(data: string): void;
+  backupCloud(data: string): boolean;
   /** Der lokale Stand wurde zuletzt mit einem anderen Konto abgeglichen. */
   localIsForeign(): boolean;
   /** Periodische Pushes erlaubt (sichtbarer Tab)? */
@@ -148,8 +153,10 @@ export class SyncEngine {
   /** Eine Spieleraktion ist passiert: bald (gedrosselt) pushen. */
   markAction(): void {
     if (this.stopped) return;
+    const was = this.pendingAction;
     this.pendingAction = true;
-    if (this.ready) this.host.saveBase({ version: this.known, pending: true });
+    // Nur beim Wechsel auf „offen“ speichern (eine Schreibung je Aktion genügt sonst).
+    if (this.ready && !was) this.host.saveBase({ version: this.known, pending: true });
   }
 
   /** Regelmäßig aufrufen: startet fällige Pushes bzw. Wiederholungen. */
@@ -217,6 +224,8 @@ export class SyncEngine {
   }
 
   private succeeded(): void {
+    // Nach stop() (abgemeldet, anderes Konto) nichts mehr für dieses Konto speichern.
+    if (this.stopped) return;
     this.failures = 0;
     this.problem = null;
     this.lastSyncedAt = this.host.clock();
@@ -266,11 +275,13 @@ export class SyncEngine {
     }
     if (decision.kind !== 'insert' && decision.firstLogin) {
       // Erste Anmeldung: beide Stände sichern, bevor einer den anderen ersetzt.
-      this.host.backupCloud(remote!.data);
-      if (localProgress) this.host.backup();
+      const savedCloud = this.host.backupCloud(remote!.data);
+      const savedLocal = !localProgress || this.host.backup('first-login-local');
+      if (!savedCloud || !savedLocal) throw new SyncBlocked('backup-failed');
     }
     if (decision.kind === 'insert') {
       const result = this.written(await this.backend.insert(this.write(1, true)));
+      if (this.stopped) return;
       if (result === 'conflict') throw new Error('conflict'); // anderes Gerät war schneller → erneut
       this.known = 1;
       this.pendingAction = false;
@@ -278,14 +289,21 @@ export class SyncEngine {
       // Erste Anmeldung oder offene Aktion: die anderen Geräte sollen den Stand übernehmen.
       const action = decision.firstLogin || this.pendingAction;
       const write = this.write(decision.version + 1, action);
-      if (this.written(await this.backend.update(decision.version, write)) === 'conflict') throw new Error('conflict');
+      const result = this.written(await this.backend.update(decision.version, write));
+      if (this.stopped) return;
+      if (result === 'conflict') throw new Error('conflict');
       this.known = write.version;
       this.pendingAction = false;
       if (decision.firstLogin) this.host.onEvent({ kind: 'first-login', winner: 'local' });
     } else {
       // remote ist hier gesetzt (decideInitial liefert 'take' nur mit Datensatz).
       const lost = !decision.firstLogin && this.pendingAction;
-      if (lost) this.host.backup();
+      // Sicherheitsnetz: Vor dem Ersetzen beim Start immer den lokalen Stand sichern (bei
+      // der ersten Anmeldung oben schon geschehen) – auch wenn keine offene Aktion bekannt ist.
+      // Eine überholte eigene Aktion nie ohne Sicherung ersetzen (Speicher voll → anhalten).
+      if (!decision.firstLogin && localProgress && !this.host.backup(lost ? 'lost-action' : 'before-take') && lost) {
+        throw new SyncBlocked('backup-failed');
+      }
       this.take(remote!);
       if (decision.firstLogin) this.host.onEvent({ kind: 'first-login', winner: 'cloud' });
       else if (lost) this.host.onEvent({ kind: 'taken', lostLocal: true });
@@ -351,7 +369,7 @@ export class SyncEngine {
       this.ensureReadable(remote);
       if (resolveConflict(this.known, remote, this.device) === 'take') {
         const lost = this.pendingAction;
-        if (lost) this.host.backup();
+        if (lost && !this.host.backup('lost-action')) throw new SyncBlocked('backup-failed');
         this.take(remote);
         this.host.onEvent({ kind: 'taken', lostLocal: lost });
         this.succeeded();
@@ -410,7 +428,10 @@ export class SyncEngine {
       this.known = remote.version;
     } else if (reaction === 'take') {
       const lost = this.pendingAction;
-      if (lost) this.host.backup();
+      if (lost && !this.host.backup('lost-action')) {
+        this.recheck = true;
+        throw new SyncBlocked('backup-failed');
+      }
       this.take(remote);
       this.host.onEvent({ kind: 'taken', lostLocal: lost });
     }

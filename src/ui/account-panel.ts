@@ -5,8 +5,9 @@
  * Reine Darstellung: Anmelden, Registrieren und Abmelden erledigt der Aufrufer
  * (src/sync/account.ts); Fehler (AccountError) werden hier als ruhige Meldung gezeigt.
  */
+import type { BackupEntry } from '../sync/storage';
 import { AccountError } from '../sync/types';
-import { ACCOUNT_TEXTS as T, accountErrorText, isValidPassword, normalizeUsername } from './account-view';
+import { ACCOUNT_TEXTS as T, accountErrorText, backupLabel, isValidPassword, normalizeUsername } from './account-view';
 import { el, setText } from './dom';
 
 export interface AccountPanelCallbacks {
@@ -18,17 +19,10 @@ export interface AccountPanelCallbacks {
    * abgemeldet, weil Änderungen noch nicht im Konto sind (Hinweis zeigen, erneut fragen).
    */
   onSignOut(force: boolean): Promise<'done' | 'unsent'>;
-  /** Welche Sicherungen von vor dem Abgleich es gibt. */
-  backups(): BackupAvailability;
+  /** Angebotene Sicherungen (neueste zuerst). */
+  backups(): BackupEntry[];
   /** Sicherung laden (ersetzt den aktuellen Stand); Rückgabe: Fehlertext oder null. */
-  onRestore(kind: 'local' | 'cloud'): string | null;
-}
-
-export interface BackupAvailability {
-  /** Stand dieses Geräts vor dem Abgleich. */
-  local: boolean;
-  /** Stand aus dem Konto vor der ersten Anmeldung. */
-  cloud: boolean;
+  onRestore(id: string): string | null;
 }
 
 export interface AccountPanel {
@@ -42,7 +36,7 @@ export interface AccountPanel {
   /** Ein anderer Tab hat sich mit einem anderen Konto angemeldet: nur noch „Neu laden“. */
   showStale(name: string): void;
   /** Knopf „Sicherung … wiederherstellen“ nur zeigen, wenn es eine gibt. */
-  setBackups(available: BackupAvailability): void;
+  setBackups(available: BackupEntry[]): void;
 }
 
 let fieldId = 0;
@@ -131,26 +125,46 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
   const restoreChoice = el('div', 'account-restore-choice');
   restoreChoice.hidden = true;
   const restoreHint = el('p', 'account-text', T.restoreHint);
-  const restoreLocal = el('button', 'save-button', T.restoreLocal);
-  restoreLocal.type = 'button';
-  restoreLocal.dataset.ref = 'account-restore-local';
-  const restoreCloud = el('button', 'save-button', T.restoreCloud);
-  restoreCloud.type = 'button';
-  restoreCloud.dataset.ref = 'account-restore-cloud';
+  const restoreList = el('ul', 'account-backups');
+  restoreList.dataset.ref = 'account-backups';
   const restoreCancel = el('button', 'save-button', T.restoreCancel);
   restoreCancel.type = 'button';
-  const restoreRow = el('div', 'save-row');
-  restoreRow.append(restoreLocal, restoreCloud, restoreCancel);
-  restoreChoice.append(restoreHint, restoreRow);
+  restoreChoice.append(restoreHint, restoreList, restoreCancel);
   restore.append(restoreOpen, restoreChoice);
 
   section.append(title, lead, form, signedIn, staleBox, restore, status);
 
-  function setBackups(available: BackupAvailability): void {
-    restoreLocal.hidden = !available.local;
-    restoreCloud.hidden = !available.cloud;
-    restore.hidden = !available.local && !available.cloud;
+  let isStale = false;
+  /** Zuletzt gezeigte Liste (nur neu aufbauen, wenn sie sich ändert – Fokus bleibt). */
+  let shown = '';
+  function setBackups(available: BackupEntry[]): void {
+    // Veralteter Tab (anderes Konto in einem anderen Tab): nie etwas laden.
+    const list = isStale ? [] : available;
+    restore.hidden = list.length === 0;
     if (restore.hidden) closeRestore();
+    const now = Date.now();
+    const key = list.map((e) => `${e.id}|${backupLabel(e, now)}`).join('\n');
+    if (key === shown) return;
+    shown = key;
+    restoreList.replaceChildren(
+      ...list.map((entry) => {
+        const item = el('li', 'account-backup');
+        const label = backupLabel(entry, now);
+        const text = el('span', 'account-backup-label', label);
+        const load = el('button', 'save-button', T.restoreLoad);
+        load.type = 'button';
+        load.dataset.ref = 'account-backup';
+        load.dataset.reason = entry.reason;
+        load.setAttribute('aria-label', `${T.restoreLoad}: ${label}`);
+        load.addEventListener('click', () => {
+          const error = callbacks.onRestore(entry.id);
+          closeRestore();
+          say(error ?? T.restored, error ? 'bad' : 'good');
+        });
+        item.append(text, load);
+        return item;
+      }),
+    );
   }
 
   function closeRestore(): void {
@@ -167,16 +181,6 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
     closeRestore();
     restoreOpen.focus();
   });
-  for (const [button, kind] of [
-    [restoreLocal, 'local'],
-    [restoreCloud, 'cloud'],
-  ] as const) {
-    button.addEventListener('click', () => {
-      const error = callbacks.onRestore(kind);
-      closeRestore();
-      say(error ?? T.restored, error ? 'bad' : 'good');
-    });
-  }
 
   function say(text: string, tone: 'good' | 'bad' | 'neutral' = 'neutral'): void {
     status.textContent = text;
@@ -291,6 +295,8 @@ export function createAccountPanel(callbacks: AccountPanelCallbacks): AccountPan
       if (focusInside) signOut.focus({ preventScroll: true });
     },
     showStale(name) {
+      isStale = true;
+      setBackups([]);
       mode('stale');
       setText(staleText, T.stale(name));
       say('');

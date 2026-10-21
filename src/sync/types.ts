@@ -77,7 +77,8 @@ export interface AccountService {
   onUserChange(listener: (user: AccountUser | null) => void): void;
   signIn(username: string, password: string): Promise<AccountUser>;
   register(username: string, password: string): Promise<AccountUser>;
-  signOut(): Promise<void>;
+  /** Abmelden – mit `user` nur, wenn die gespeicherte Sitzung (noch) diesem Konto gehört. */
+  signOut(user?: AccountUser): Promise<void>;
   /** Konto der gespeicherten Sitzung (ohne Netz); kann sich durch einen anderen Tab ändern. */
   sessionUser(): string | null;
   /** Zugriff auf den Stand genau dieses Kontos (gehört die Sitzung inzwischen einem anderen: 'unauthorized'). */
