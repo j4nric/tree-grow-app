@@ -42,6 +42,7 @@ function ecosystem(t: number): EcosystemView {
     stageName: 'Alter Baum',
     stageProgress: (t / 60) % 1,
     progressHint: 'Nächste Begegnung bei 26.400 🌿 Gesamt-Wachstum',
+    pendingEncounters: 0,
     growthPerSec: 14.2 + Math.sin(t) * 0.3,
     seeds: 312 + t * 2.1,
     seedsPerSec: 2.1,

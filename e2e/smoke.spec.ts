@@ -299,7 +299,7 @@ test('Offline länger als 8 Stunden: Meldung nennt die simulierte Dauer', async 
   const toast = page.locator('#toast');
   await expect(toast).toContainText('In 8 Std. (max. 8 Std.)');
   // Mehr als 3 Wegpunkte: überzählige Begegnungen ziehen weiter und bringen Samen.
-  await expect(toast).toContainText(/Begegnungen? zog(en)? weiter: \+\d+ 🌰/);
+  await expect(toast).toContainText(/zog(en)? weiter und ließ(en)? \+\d+ 🌰 da/);
 });
 
 test('ohne Offline-Zeit erscheint keine Willkommens-Meldung', async ({ page, context }) => {
@@ -527,9 +527,11 @@ test('Legende der Vorschau-Symbole: bei der ersten Begegnung offen, danach zugek
   await openStack(page);
   const legend = dialog(page).locator('.encounter-legend');
   await expect(legend).toHaveAttribute('open', '');
-  for (const text of ['Harmonie', 'Wachstum pro Sekunde', 'Samen pro Sekunde', 'erwartete Zufriedenheit', 'Licht und Wasser']) {
+  for (const text of ['Harmonie', 'erwartete Zufriedenheit', 'Futter und Wünsche']) {
     await expect(legend).toContainText(text);
   }
+  // Nur Symbole, die in dieser Begegnung vorkommen: Tiere haben keine Licht-/Wasser-Versorgung.
+  await expect(legend).not.toContainText('Licht und Wasser');
 
   // Beim nächsten Besuch zugeklappt, aber jederzeit aufklappbar.
   await page.reload();

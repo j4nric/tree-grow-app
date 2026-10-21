@@ -48,8 +48,10 @@ import {
   speciesWood,
   type TreeSpecies,
 } from './species';
-import { paintSnowCover, SeasonParticles, seasonLeaves, seasonLook, seasonWood, type SeasonFrame, type SeasonLook } from './season';
+import { normalizeSeason, paintSnowCover, SeasonParticles, seasonLeaves, seasonLook, seasonWood, type SeasonFrame, type SeasonLook } from './season';
 import { ResizeGate, seasonStepKey, sizeKey } from './resize';
+import { bloomParticles, fireflySeason } from './phenology';
+import { seedGlowAlpha, SeedGlow } from './seed-glow';
 import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
 import { clamp01, mix, mulberry32, smooth01 } from './util';
 import { VisitorLayer, type SceneVisitor, type VisitorFrame } from './visitors';
@@ -117,8 +119,9 @@ export interface SceneInput {
    * 4 wieder Frühling (Zwischenwerte blenden über, z. B. 1,5 Spätsommer). Werte
    * außerhalb werden modulo 4 genommen, ungültige (NaN, ∞) wie ohne Angabe. Frühling:
    * frisches Hellgrün, Blüten an Begleitbäumen; Herbst: gelb-orange-rotes Laub,
-   * fallende Blätter; Winter: kahle Laubbäume (Kiefern, Moose grün), dünne Schneedecke,
-   * leichter Schneefall, kühleres Licht. Ohne Angabe und bei 1 (Sommer) wie bisher.
+   * fallende Blätter; Winter: kahle Laubbäume und Sträucher (nur Kiefern und Moose grün),
+   * dünne Schneedecke, leichter Schneefall, kühleres Licht, Insekten ruhen, keine
+   * Blütenblätter und Glühwürmchen (phenology.ts). Ohne Angabe und bei 1 (Sommer) wie bisher.
    * Neu gezeichnet wird erst ab einer Änderung von 0,05.
    */
   season?: number;
@@ -242,6 +245,8 @@ interface SizeCache {
   seasonKey: number;
   /** Art des Hauptbaums, mit der Ebenen und Erinnerungsbaum gezeichnet sind. */
   species: TreeSpecies;
+  /** Radius des Samens (CSS-Pixel), beim Neuaufbau der Ebenen gemerkt (für den Schein). */
+  seedR: number;
 }
 
 interface Cache {
@@ -267,6 +272,10 @@ interface Cache {
   seasonParticles: SeasonParticles;
   /** Jahreszeit dieses Frames (null = ohne Angabe). */
   look: SeasonLook | null;
+  /** Ungerundete Jahreszeit dieses Frames (0–4, null = ohne Angabe) für Werte pro Frame. */
+  season: number | null;
+  /** Lichtschein am Samen (nur in der Stufe „Samen“). */
+  seedGlow: SeedGlow;
 }
 
 /**
@@ -415,7 +424,9 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       cycleU: Number.NaN,
       seasonParticles: new SeasonParticles(),
       look: null,
+      season: null,
       plantSig: null,
+      seedGlow: new SeedGlow(),
     };
     caches.set(ctx.canvas, cache);
   }
@@ -423,6 +434,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   // Jahreszeit dieses Frames (gemerkt je Rundung – keine Allokation pro Frame).
   const look = seasonLook(input.season);
   cache.look = look;
+  cache.season = normalizeSeason(input.season);
 
   // Größenänderung entprellen: altes Bild skaliert zeigen, bis die Größe stabil ist –
   // außer der Aufrufer hat schon entprellt (`sizeSettled`).
@@ -538,6 +550,14 @@ function compose(
   ctx.save();
   ctx.setTransform(sx, 0, 0, sy, 0, 0);
   ctx.drawImage(sc.background, 0, 0);
+  // Spielbeginn: warmer, sanft pulsierender Schein am Samen (bis zum Keimling).
+  // Beim Neuen Zyklus erst nach dem Aufleuchten aus cycle.ts (siehe seedGlowCycleFade).
+  const glow = seedGlowAlpha(sc.growth, time, reduced, cache.cycleU);
+  if (glow > 0) {
+    // Lage wie in `paintUnderground` (keine Allokation pro Frame).
+    cache.seedGlow.draw(ctx, layout.cx, layout.groundY + layout.soilH * 0.14, sc.seedR * 5, glow, dpr, sx, sy);
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+  }
   if (sc.memoryCanvas && sc.memoryRect) {
     const r = sc.memoryRect;
     ctx.drawImage(sc.memoryCanvas, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
@@ -557,6 +577,9 @@ function compose(
     mf.sy = sy;
     mf.time = time;
     mf.reducedMotion = reduced;
+    // Ungerundete Jahreszeit: stufenlos, ohne Sprünge bei jeder Rundungsstufe.
+    mf.bloom = bloomParticles(cache.season);
+    mf.fireflies = fireflySeason(cache.season);
   }
   const visitors = input.visitors && input.visitors.length > 0 ? input.visitors : null;
   const vf = visitorFrame;
@@ -615,6 +638,7 @@ function compose(
     f.time = time;
     f.windSkew = k;
     f.reducedMotion = reduced;
+    f.season = cache.season;
     f.dpr = dpr;
     f.sx = sx;
     f.sy = sy;
@@ -786,6 +810,7 @@ function buildSizeCache(
     memory: Number.NaN,
     seasonKey: -1,
     species: 'oak',
+    seedR: 4,
   };
 
   paintStatic(sc, look);
@@ -918,6 +943,7 @@ function renderLayers(
 
   // Hauptbaum zuerst berechnen – Wurzeln und Tier-Ankerpunkte richten sich nach ihm.
   const scale1 = sproutScale(layout);
+  sc.seedR = seedRadius(layout, scale1);
   const main = placeMainTree(layout, g, species);
   sc.anchors = createAnchorResolver(layout, g, main);
 
@@ -1069,6 +1095,11 @@ function paintCotyledons(ctx: CanvasRenderingContext2D, x: number, y: number, si
   }
 }
 
+/** Radius des Samens unter der Erde (CSS-Pixel). */
+function seedRadius(layout: Layout, scale1: number): number {
+  return Math.max(4, Math.min(scale1 * 0.1, layout.soilH * 0.08));
+}
+
 /** Samen, Keimwurzel, Wurzelwerk und (im Wald) Pilzfäden unter der Erde. */
 function paintUnderground(
   ctx: CanvasRenderingContext2D,
@@ -1082,7 +1113,7 @@ function paintUnderground(
 ): void {
   const { cx, groundY, soilH } = layout;
   const seedY = groundY + soilH * 0.14;
-  const seedR = Math.max(4, Math.min(scale1 * 0.1, soilH * 0.08));
+  const seedR = seedRadius(layout, scale1);
 
   ctx.save();
   ctx.beginPath();

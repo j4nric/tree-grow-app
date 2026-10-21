@@ -1,5 +1,4 @@
 import { CARE } from './content/care';
-import { STAGES } from './content/stages';
 import { checkAchievements } from './core/achievements';
 import { evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
@@ -45,6 +44,8 @@ import {
   toSceneAnimals,
   toSceneVisitors,
   toScenePlants,
+  stageBannerView,
+  type StageBannerView,
 } from './ui/adapters';
 import { achievementUnlockedText, achievementsBackfilledText, toAchievementTimeProgress } from './ui/achievement-view';
 import { createBonusPanel } from './ui/bonus-panel';
@@ -212,6 +213,7 @@ const scene: SceneInput = {
 
 const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosystem')!, {
   onOpenPlantPicker: openPlantPicker,
+  onOpenEncounters: openEncounters,
 });
 const bonusPanel = createBonusPanel(document.querySelector<HTMLElement>('#bonuses')!);
 const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!, {
@@ -567,12 +569,20 @@ function noteText(text: string): void {
   requestAnimationFrame(() => (liveStatus.textContent = text));
 }
 
-function showBanner(title: string, text: string): void {
+function showBanner(view: StageBannerView): void {
   const strong = document.createElement('strong');
-  strong.textContent = title;
+  strong.textContent = view.title;
   const span = document.createElement('span');
-  span.textContent = text;
+  span.textContent = view.text;
   banner.replaceChildren(strong, span);
+  if (view.extra) {
+    const extra = document.createElement('span');
+    extra.className = 'stage-banner-extra';
+    extra.textContent = view.extra;
+    banner.append(extra);
+  }
+  // Mit Erfolgszeile etwas länger stehen lassen (mehr zu lesen).
+  banner.classList.toggle('long', Boolean(view.extra));
   banner.classList.remove('visible');
   void banner.offsetWidth; // Animation neu starten
   banner.classList.add('visible');
@@ -709,22 +719,25 @@ function frame(now: number): void {
       sound.cue('achievement');
     }
   }
+  const stageChanged = state.stage !== shownStage;
+  // Neue Stufe ohne offenen Dialog: Der Erfolg steht im Stufen-Banner, nicht zusätzlich als Toast.
+  const bannerAchievement = stageChanged && !overlayOpen() ? achievementText : null;
   if (overlayOpen()) {
     // Ein Hinweisfeld im Dialog: alles in einem Text, sonst verdrängt der letzte die übrigen.
     const text = joinNotes(tickNote, seasonText, achievementText);
     if (text) notify(text);
   } else {
     if (tickNote) noteText(tickNote);
-    const tickText = joinNotes(seasonText, achievementText);
+    const tickText = joinNotes(seasonText, bannerAchievement ? null : achievementText);
     if (tickText) notify(tickText);
   }
 
-  if (state.stage !== shownStage) {
+  if (stageChanged) {
     shownStage = state.stage;
     encounterDirty = true;
     ecoDirty = true;
     pickerDirty = true;
-    showBanner(STAGES[state.stage]!.name, STAGES[state.stage]!.description);
+    showBanner(stageBannerView(state.stage, bannerAchievement));
     sound.cue('stage');
   }
 
@@ -761,6 +774,7 @@ function refreshSeasonBadge(): void {
  */
 function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   const away = (Date.now() - state.lastTick) / 1000;
+  const stageBefore = state.stage;
   const report = away > MAX_FRAME_SECONDS ? simulateOffline(state, away) : null;
   // Erfolge aus der Offline-Zeit (dieselben wie online, nur auf einmal): ein Hinweis
   // zusammen mit der Begrüßung bzw. dem Zusatzhinweis – nach der Migration v8 → v9 in
@@ -772,11 +786,18 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   }
   extraNotice = joinNotes(extraNotice, achievementsBackfilledText(achievementsBackfilled, unlocked));
   if (report) {
-    const notice = catchUpNotice(away, report, state.pendingEncounters.length);
+    const notice = catchUpNotice(away, report, state.pendingEncounters.length, { from: stageBefore, to: state.stage });
     if (notice?.kind === 'welcome') {
       // Ein Toast für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt.
       notify([withRegulars(notice.text, report.regulars), extraNotice].filter(Boolean).join(' '));
       extraNotice = '';
+      // Die Begrüßung nennt die neue Stufe schon: kein zweites Stufen-Banner im nächsten Frame.
+      if (notice.namesStage) {
+        shownStage = state.stage;
+        encounterDirty = true;
+        ecoDirty = true;
+        pickerDirty = true;
+      }
     } else {
       // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.
       const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');

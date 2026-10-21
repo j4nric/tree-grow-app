@@ -8,6 +8,10 @@
  *   Winter    kahle Laubbäume (Kiefern und Moose bleiben grün), dünne Schneedecke,
  *             verschneite Hügel, kühleres Licht, leichter Schneefall
  *
+ * Im Spiel beginnt der Winter bei 2,5 (core/season.ts `sceneSeason`): Bis dahin ist das
+ * Laub gefallen, die letzten Blätter werden vorher klein und welk-braun (siehe
+ * `seasonLeaves`, `paintLeaves`) – keine großen orangen Ballen in der kahlen Krone.
+ *
  * Der Wert wird auf 0,05 gerundet; nur bei einer Änderung dieser Rundung werden Kulisse
  * und Baum-Ebenen neu gezeichnet. Die Partikel (Blätter, Flocken) sind wenige gecachte
  * Sprites, pro Frame nur verschoben; bei `reducedMotion` stehen sie still.
@@ -47,8 +51,8 @@ export function normalizeSeason(season: number | undefined): number | null {
   return ((season % 4) + 4) % 4;
 }
 
-/** Lineare Stützstellen [s, Wert] – Wert für s (0–4). */
-function curve(points: readonly (readonly [number, number])[], s: number): number {
+/** Stützstellen [s, Wert], weich verbunden (smoothstep) – Wert für s (0–4). */
+export function curve(points: readonly (readonly [number, number])[], s: number): number {
   if (s <= points[0]![0]) return points[0]![1];
   for (let i = 1; i < points.length; i++) {
     const [s1, v1] = points[i]!;
@@ -61,9 +65,9 @@ function curve(points: readonly (readonly [number, number])[], s: number): numbe
 const LEAVES: readonly (readonly [number, number])[] = [
   [0, 0.8],
   [1, 1],
-  [2, 0.95],
-  [2.55, 0.45],
-  [2.9, 0],
+  [1.9, 0.95],
+  [2.3, 0.4],
+  [2.55, 0],
   [3.3, 0],
   [4, 0.8],
 ];
@@ -76,8 +80,8 @@ const SPRING: readonly (readonly [number, number])[] = [
 ];
 const AUTUMN: readonly (readonly [number, number])[] = [
   [0, 0],
-  [1.3, 0],
-  [2.15, 1],
+  [1.25, 0],
+  [1.95, 1],
   [3.1, 1],
   [3.3, 0],
   [4, 0],
@@ -99,10 +103,10 @@ const SNOW: readonly (readonly [number, number])[] = [
 ];
 const FALL: readonly (readonly [number, number])[] = [
   [0, 0],
-  [1.6, 0],
-  [2.2, 1],
-  [2.75, 1],
-  [3.0, 0],
+  [1.5, 0],
+  [1.95, 1],
+  [2.45, 1],
+  [2.75, 0],
   [4, 0],
 ];
 
@@ -148,6 +152,8 @@ const SUMMER: SeasonLook = { s: 1, summer: true, leaves: 1, spring: 0, autumn: 0
 const AUTUMN_LEAVES: LeafPalette = { shadow: '#6e3a1f', tones: ['#b5432a', '#d9802c', '#e8b53c'], highlight: '#f6dc8e' };
 /** Frühling: frisch und hell. */
 const SPRING_TINT = '#b9e07a';
+/** Welkes, trockenes Laub kurz vor dem Fallen. */
+const WITHERED = '#9a7a58';
 /** Kühles Winterlicht für Holz und Kulisse. */
 const COOL = '#8e9aa6';
 const SNOW_WHITE = '#eef2f4';
@@ -158,7 +164,12 @@ export function seasonLeaves(p: LeafPalette, look: SeasonLook | null, autumnPale
   const sp = look.spring * 0.38;
   const au = look.autumn;
   const A = autumnPalette;
-  const f = (c: string, autumn: string) => mix(mix(c, SPRING_TINT, sp), autumn, au);
+  // Die letzten Blätter vor dem Kahlwerden welken zu blassem Braun.
+  const wither = au * 0.75 * (1 - smooth01((look.leaves - 0.05) / 0.55));
+  const f = (c: string, autumn: string) => {
+    const v = mix(mix(c, SPRING_TINT, sp), autumn, au);
+    return wither > 0.01 ? mix(v, WITHERED, wither) : v;
+  };
   return {
     shadow: f(p.shadow, A.shadow),
     tones: [f(p.tones[0], A.tones[0]), f(p.tones[1], A.tones[1]), f(p.tones[2], A.tones[2])],

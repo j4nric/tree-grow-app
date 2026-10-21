@@ -10,6 +10,7 @@
  * gesperrt, bis `show()` erneut kommt oder der Dialog schließt.
  */
 import { el, setText } from './dom';
+import { hyphenate } from './hyphenate';
 import { communityHintList, renderCommunityHints, renderFacts, renderPreviewChips } from './encounter-dialog';
 import type { PlantOfferView, PlantPickerView } from './view-model';
 import { seedsLine, toneSymbol } from './view-format';
@@ -100,7 +101,7 @@ export function createPlantPicker(root: HTMLElement, callbacks: PlantPickerCallb
     const icon = el('span', 'picker-row-icon', card.familyIcon);
     icon.setAttribute('aria-hidden', 'true');
     const names = el('div', 'picker-row-names');
-    const name = el('h3', 'picker-row-name', card.name);
+    const name = el('h3', 'picker-row-name', hyphenate(card.name));
     name.id = `plant-picker-${card.id}`;
     names.append(name, el('span', 'picker-row-group', card.familyLabel));
     head.append(icon, names);

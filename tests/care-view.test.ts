@@ -15,7 +15,7 @@ describe('View: Pflege-Liste', () => {
     const views = toCareViews(state);
     expect(views.map((v) => v.id)).toEqual(CARE.filter((c) => c.ranks[0]!.minStage <= 3).map((c) => c.id));
     const litter = views.find((v) => v.id === 'leaf-litter')!;
-    expect(litter).toMatchObject({ rank: 'Rang 1/2', next: '+1 Platz Laubstreu', cost: '750 🌰', blocker: null, canBuy: true });
+    expect(litter).toMatchObject({ rank: 'Rang 0/2', next: '+1 Platz Laubstreu', cost: '750 🌰', blocker: null, canBuy: true });
     const boxes = views.find((v) => v.id === 'nest-boxes')!;
     expect(boxes).toMatchObject({ cost: '1.100 🌰', blocker: 'Noch 300 🌰', canBuy: false });
     // Aufgerundet: bei 1.099,2 Samen fehlt noch mehr als 0 – „Noch 1 🌰“, nie „Noch 0“.
@@ -30,7 +30,7 @@ describe('View: Pflege-Liste', () => {
     state.seeds = 1e6;
     buyCare(state, 'leaf-litter');
     let litter = toCareViews(state).find((v) => v.id === 'leaf-litter')!;
-    expect(litter).toMatchObject({ rank: 'Rang 2/2', blocker: 'Ab Stufe „Hain“', canBuy: false });
+    expect(litter).toMatchObject({ rank: 'Rang 1/2', blocker: 'Ab Stufe „Hain“', canBuy: false });
     state.stage = 5;
     buyCare(state, 'leaf-litter');
     litter = toCareViews(state).find((v) => v.id === 'leaf-litter')!;

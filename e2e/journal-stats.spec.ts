@@ -160,11 +160,12 @@ for (const width of [360, 390]) {
         expect(await noScroll()).toBe(true);
         expect(await journal(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
       }
-      // Die Reiter umbrechen, statt seitlich zu scrollen; alle bleiben 44 px hoch.
+      // Die Reiter scrollen in ihrer eigenen Leiste (nicht die Seite); alle bleiben 44 px hoch.
       for (const box of await page.getByRole('tab').evaluateAll((tabs) => tabs.map((t) => t.getBoundingClientRect().toJSON()))) {
         expect(box.height).toBeGreaterThanOrEqual(44);
-        expect(box.right).toBeLessThanOrEqual(width);
       }
+      const bar = (await page.getByRole('tablist').boundingBox())!;
+      expect(bar.x + bar.width).toBeLessThanOrEqual(width);
     });
   });
 }

@@ -61,8 +61,22 @@ body {
   animation: banner 4s ease forwards;
 }
 
+.stage-banner.visible.long {
+  animation-duration: 6s;
+}
+
 .stage-banner strong {
   font-size: 1.3rem;
+}
+
+/* Gleichzeitig freigeschalteter Erfolg als dritte Zeile im Banner */
+.stage-banner-extra {
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  color: var(--accent-dark);
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
 @keyframes banner {
@@ -119,6 +133,42 @@ body {
   margin: 6px 0 0;
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+/* „2 Begegnungen warten – ansehen“ unter dem Fortschrittsbalken (öffnet den Stapel) */
+.pending-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 1px solid #cfe2c4;
+  border-radius: 10px;
+  background: var(--good-bg, #e6f2e0);
+  color: var(--accent-dark);
+  font-weight: 600;
+  text-align: left;
+}
+
+.pending-button[hidden] {
+  display: none;
+}
+
+.pending-button:hover {
+  background: #d9ecd0;
+}
+
+.pending-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pending-cta {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  text-decoration: underline;
 }
 
 button {
@@ -424,6 +474,35 @@ body[data-motion='reduce'] .stage-banner.visible {
     grid-template-columns: 1fr;
     grid-template-rows: 45vh auto;
     height: auto;
+  }
+
+  /*
+   * Szene aus dem Bild gescrollt: Der Stapel wartender Begegnungen schwebt unten rechts,
+   * damit er beim Lesen der Seitenleiste sichtbar bleibt (unter dem Toast, über der Seite).
+   */
+  .scene-dock.floating {
+    position: fixed;
+    top: auto;
+    left: auto;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: 15;
+    max-width: calc(100vw - 24px);
+  }
+
+  /* Hinweise (Toast) über den schwebenden Stapel heben, statt ihn zu verdecken */
+  body:has(.scene-dock.floating .encounter-stack:not([hidden])) .toast {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Platz unter dem letzten Eintrag, damit der schwebende Stapel nichts dauerhaft verdeckt */
+  .panel {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Solange der Stapel schwebt: Tastaturfokus nicht unter ihm verstecken (WCAG 2.4.11) */
+  html:has(.scene-dock.floating .encounter-stack:not([hidden])) {
+    scroll-padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   }
 
   .scene {
@@ -1566,6 +1645,21 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   max-width: calc(100% - 32px);
 }
 
+/*
+ * Unsichtbarer Platzhalter genau dort, wo der Stapel in der Szene liegt (gleiche Ecke und
+ * Höhe wie .scene-dock in jedem Layout): Ist er nicht mehr ganz zu sehen, schwebt der
+ * Stapel (nur im einspaltigen Layout ≤ 760 px, siehe dort).
+ */
+.scene-dock-marker {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  width: 1px;
+  height: 52px;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .encounter-stack {
   display: inline-flex;
   align-items: center;
@@ -2062,11 +2156,16 @@ dialog.plant-picker {
 
 @media (max-width: 640px) {
   /* Szene ist niedrig: Stapel nach oben rechts, damit Wurzelraum und Tiere frei bleiben */
-  .scene-dock {
+  .scene-dock,
+  .scene-dock-marker {
     top: 12px;
     right: 12px;
     bottom: auto;
     left: auto;
+  }
+
+  .scene-dock-marker {
+    height: 44px;
   }
 
   /* Stufen-Banner unter den Stapel schieben – sonst verdeckt der Stapel den Stufennamen */
@@ -2484,6 +2583,40 @@ dialog.plant-picker {
 }
 
 @media (max-width: 640px) {
+  /*
+   * Reiter in einer waagerecht scrollbaren Zeile statt dreizeiligem Umbruch. Schatten am
+   * Rand zeigen, dass es weitergeht (verschwinden am Anfang bzw. Ende: „local“-Hintergrund).
+   */
+  .journal-tabs {
+    flex-wrap: nowrap;
+    gap: 2px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding: 2px 2px 0;
+    background:
+      linear-gradient(to right, var(--panel) 40%, rgba(255, 253, 246, 0)) left / 28px 100% no-repeat local,
+      linear-gradient(to left, var(--panel) 40%, rgba(255, 253, 246, 0)) right / 28px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0)) left / 12px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0)) right / 12px 100% no-repeat scroll;
+  }
+
+  .journal-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .journal-tab {
+    gap: 4px;
+    padding: 6px 10px;
+    font-size: 0.92rem;
+    white-space: nowrap;
+  }
+
+  /* Fokusrahmen nach innen – im Scrollbereich würde er sonst abgeschnitten */
+  .journal-tab:focus-visible {
+    outline-offset: -3px;
+  }
+
   .journal-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2753,6 +2886,10 @@ body[data-motion='reduce'] .slot.arrive {
   text-align: center;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.encounter-legend[hidden] {
+  display: none;
 }
 
 .encounter-legend-summary {
@@ -3488,6 +3625,14 @@ body[data-motion='reduce'] .bonus-bar-fill {
 .option-choose:disabled .option-effects,
 .option-choose[aria-disabled='true'] .option-effects {
   color: var(--muted);
+}
+
+/* Erklärung unter der Vorschau, z. B. warum sie vom Nennwert abweicht */
+.option-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
 .option-effect {

@@ -714,9 +714,13 @@ die Zeit-Boni der Ereignisse, einfache Offline-Rechnung) und kosten beim Bewirte
 - Offline wie bisher bis 8 Stunden. Werden offline mehr als 3 Wegpunkte erreicht,
   werden die überzähligen automatisch **abgelehnt und als Samen gutgeschrieben**
   (Empfehlung, siehe Frage 1) – nichts verfällt.
-- Willkommen-zurück-Meldung: „Während du weg warst: +12.400 🌿, +2.100 🌰, 3 Begegnungen
-  warten.“ Erst ab 60 s Abwesenheit; bei kürzeren Pausen (Tab-Wechsel) erscheint nur der
-  kurze Hinweis „Stapel voll – …“, falls dabei Begegnungen weitergezogen sind.
+- Willkommen-zurück-Meldung: „Willkommen zurück! In 2 Std. ist dein Wald gewachsen:
+  +12.400 🌿, +2.100 🌰. 3 Begegnungen warten auf dich – 2 weitere zogen weiter und ließen
+  +40 🌰 da.“ Wurde offline eine neue Stufe erreicht, steht sie vorn („… wuchs dein Baum bis
+  zur Stufe „Hain“: …“); das Stufen-Banner entfällt dann, damit die Nachricht nicht doppelt
+  kommt. Erträge, die gerundet 0 wären, fallen weg; unter 10 mit einer Nachkommastelle
+  (+0,4 🌰 statt +0 🌰). Erst ab 60 s Abwesenheit; bei kürzeren Pausen (Tab-Wechsel)
+  erscheint nur der kurze Hinweis „Stapel voll – …“, falls dabei Begegnungen weitergezogen sind.
 - Ereignisse und Gäste warten wie andere Begegnungen in der Warteschlange (zählen zu den
   3). Ein Gast beginnt erst zu rasten, wenn er bewirtet wird. Ist die Warteschlange am
   Zwischenhalt voll, entfällt er ersatzlos (es fehlt keine Begegnung, darum kein Samen-
