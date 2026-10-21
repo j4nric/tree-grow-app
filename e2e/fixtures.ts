@@ -1,5 +1,6 @@
 import { test as base, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { WAYPOINT_THRESHOLDS } from '../src/content/waypoints';
+import { CONFIRM_MIN_MS } from '../src/ui/confirm';
 import { createInitialState } from '../src/core/state';
 
 /**
@@ -145,6 +146,15 @@ export async function openStack(page: Page): Promise<void> {
 
 export async function savedState(page: Page): Promise<Record<string, any>> {
   return JSON.parse((await page.evaluate((key) => localStorage.getItem(key), SAVE_KEY)) ?? '{}');
+}
+
+/**
+ * Bestätigungen per zweitem Klick nehmen den zweiten Klick erst nach CONFIRM_MIN_MS an
+ * (Schutz vor Doppelklicks). Mit installierter Testuhr (`page.clock`) die Uhr vorstellen.
+ */
+export async function waitForConfirm(page: Page, options: { clock?: boolean } = {}): Promise<void> {
+  if (options.clock) await page.clock.runFor(CONFIRM_MIN_MS + 50);
+  else await page.waitForTimeout(CONFIRM_MIN_MS + 50);
 }
 
 /** Überlappen sich zwei Rechtecke (mit mehr als einem Pixel)? */

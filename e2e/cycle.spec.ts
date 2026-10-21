@@ -1,4 +1,4 @@
-import { expect, openGame, savedState, seedV3, stageLabel, test, waypoint } from './fixtures';
+import { expect, openGame, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Neuer Zyklus und Stammgäste (Schritt 2.8). Startet mit einem v3-Stand – das Laden
@@ -22,6 +22,7 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
   const button = panel.locator('[data-ref="new-cycle"]');
   await button.click();
   await expect(button).toContainText('Zum Bestätigen erneut klicken');
+  await waitForConfirm(page);
   await button.click();
 
   await expect(page.locator('#toast')).toContainText('Zyklus 2 beginnt');

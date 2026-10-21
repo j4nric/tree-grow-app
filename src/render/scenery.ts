@@ -4,6 +4,7 @@
  * als vorgerenderte Sprites, die pro Frame lediglich verschoben werden.
  */
 
+import { seasonColor, seasonHill, seasonSky, type SeasonLook } from './season';
 import { mulberry32 } from './util';
 
 export const SKY = {
@@ -24,11 +25,11 @@ const LAND = {
 };
 
 /** Himmel mit sanftem Verlauf und einem diffusen Sonnenschein. */
-export function paintSky(ctx: CanvasRenderingContext2D, width: number, groundY: number): void {
+export function paintSky(ctx: CanvasRenderingContext2D, width: number, groundY: number, look: SeasonLook | null = null): void {
   const sky = ctx.createLinearGradient(0, 0, 0, groundY);
-  sky.addColorStop(0, SKY.top);
-  sky.addColorStop(0.6, SKY.mid);
-  sky.addColorStop(1, SKY.horizon);
+  sky.addColorStop(0, seasonSky(SKY.top, look));
+  sky.addColorStop(0.6, seasonSky(SKY.mid, look));
+  sky.addColorStop(1, seasonSky(SKY.horizon, look));
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, groundY + 1);
 
@@ -43,7 +44,7 @@ export function paintSky(ctx: CanvasRenderingContext2D, width: number, groundY: 
 }
 
 /** Zwei sanfte Hügelketten am Horizont. */
-export function paintHills(ctx: CanvasRenderingContext2D, width: number, height: number, groundY: number): void {
+export function paintHills(ctx: CanvasRenderingContext2D, width: number, height: number, groundY: number, look: SeasonLook | null = null): void {
   const ridge = (base: number, amp: number, f1: number, f2: number, p: number, color: string) => {
     ctx.fillStyle = color;
     ctx.beginPath();
@@ -58,8 +59,8 @@ export function paintHills(ctx: CanvasRenderingContext2D, width: number, height:
     ctx.closePath();
     ctx.fill();
   };
-  ridge(0.12, 0.035, 5.2, 13.1, 0.7, LAND.hillFar);
-  ridge(0.05, 0.018, 7.3, 17.9, 2.1, LAND.hillNear);
+  ridge(0.12, 0.035, 5.2, 13.1, 0.7, seasonHill(LAND.hillFar, look));
+  ridge(0.05, 0.018, 7.3, 17.9, 2.1, seasonHill(LAND.hillNear, look));
 }
 
 /** Erdreich mit Steinchen (ohne Wurzeln). */
@@ -98,19 +99,21 @@ export function paintSoil(ctx: CanvasRenderingContext2D, width: number, height: 
 }
 
 /** Grasnarbe mit kleinen Halmen an der Bodenkante. */
-export function paintGrass(ctx: CanvasRenderingContext2D, width: number, height: number, groundY: number): void {
+export function paintGrass(ctx: CanvasRenderingContext2D, width: number, height: number, groundY: number, look: SeasonLook | null = null): void {
+  const grass = seasonColor(LAND.grass, look);
+  const grassLight = seasonColor(LAND.grassLight, look);
   const band = Math.max(4, height * 0.014);
   const grad = ctx.createLinearGradient(0, groundY - 1, 0, groundY + band);
-  grad.addColorStop(0, LAND.grassLight);
-  grad.addColorStop(1, LAND.grass);
+  grad.addColorStop(0, grassLight);
+  grad.addColorStop(1, grass);
   ctx.fillStyle = grad;
   ctx.fillRect(0, groundY - 1, width, band + 1);
 
   const rand = mulberry32(3);
   const bladeH = Math.max(4, height * 0.016);
   for (const [color, n] of [
-    [LAND.grass, 1],
-    [LAND.grassLight, 0.6],
+    [grass, 1],
+    [grassLight, 0.6],
   ] as const) {
     ctx.fillStyle = color;
     ctx.beginPath();
