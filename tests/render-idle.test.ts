@@ -450,6 +450,83 @@ describe('Leerlauf: Stimmigkeit und Speicher', () => {
   });
 });
 
+describe('Leerlauf: Aufträge von Basis und Detail', () => {
+  function frame(canvas: StubCanvas, input: SceneInput): unknown[] {
+    canvas.calls.length = 0;
+    drawScene(canvas.getContext('2d'), 400, 300, input);
+    return canvas.calls.filter((c) => c.name === 'drawImage').map((c) => c.args[0]);
+  }
+
+  function createdBy(fn: () => void): StubCanvas[] {
+    const n = canvases.length;
+    fn();
+    return canvases.slice(n).filter((c) => !(c.width === 1 && c.height === 1));
+  }
+
+  /**
+   * Detail (2×) gezeigt, dann Kamera unterwegs zurück zu 1× mit neuer Jahreszeit-Stufe: Die
+   * Basis tönt in Leerlaufzeit nach – ihr Auftrag hat ein erstes Stück gezeichnet.
+   * Gibt die getönten Kopien des Auftrags zurück.
+   */
+  function baseJobRunning(canvas: StubCanvas, idle: IdleQueue): StubCanvas[] {
+    const z2 = { zoom: 2, x: 0.5, y: 0.5 };
+    const t0 = 1 + RESIZE_SETTLE_SECONDS;
+    frame(canvas, night({ idle, time: 1 }));
+    frame(canvas, night({ idle, time: 1.02, camera: z2 }));
+    frame(canvas, night({ idle, time: t0 + 0.04, camera: z2 }));
+    idle.flush();
+    // Kamera unterwegs (1,5×): die Basis wird gezeigt, die Detail-Ebenen bleiben.
+    const z15 = { zoom: 1.5, x: 0.5, y: 0.5 };
+    frame(canvas, night({ idle, time: t0 + 0.06, camera: z15, season: 0.26 }));
+    expect(idle.has('season')).toBe(true);
+    idle.runNext();
+    // Frame plant den Auftrag (neue, noch nicht gezeigte Kulisse), ein Stück tönt hinein.
+    const made = createdBy(() => {
+      frame(canvas, night({ idle, time: t0 + 0.08, camera: z15, season: 0.26 }));
+      expect(idle.has('tint')).toBe(true);
+      idle.runNext();
+    });
+    return made.filter((c) => c.props.includes('globalCompositeOperation=multiply'));
+  }
+
+  it('beginnt ein Auftrag für einen anderen Satz, werden die Kopien des laufenden frei', () => {
+    const idle = new IdleQueue(manualPost().post);
+    const canvas = makeCanvas(800, 600);
+    const t0 = 1 + RESIZE_SETTLE_SECONDS;
+    const partial = baseJobRunning(canvas, idle);
+    expect(partial.length).toBeGreaterThan(0);
+    expect(partial.some((c) => c.width > 0)).toBe(true);
+    // Zurück auf 2× (Detail deckt wieder ab) mit neuer Tönungsstufe: Auftrag für das Detail.
+    frame(canvas, night({ idle, time: t0 + 0.1, camera: { zoom: 2, x: 0.5, y: 0.5 }, season: 0.26, weather: 'rain' }));
+    for (const c of partial) expect(c.width).toBe(0);
+  });
+
+  it('Stufe A → B → A über den Zoom: kein hängender Auftrag, die Basis tönt danach fertig', () => {
+    const idle = new IdleQueue(manualPost().post);
+    const canvas = makeCanvas(800, 600);
+    const el = canvas as unknown as HTMLCanvasElement;
+    const t0 = 1 + RESIZE_SETTLE_SECONDS;
+    const z2 = { zoom: 2, x: 0.5, y: 0.5 };
+    const partial = baseJobRunning(canvas, idle);
+    // Detail gezeigt in Stufe B; ein Stück läuft in B; dann wieder A.
+    frame(canvas, night({ idle, time: t0 + 0.1, camera: z2, season: 0.26, weather: 'rain' }));
+    idle.runNext();
+    frame(canvas, night({ idle, time: t0 + 0.12, camera: z2, season: 0.26 }));
+    idle.flush();
+    for (const c of partial) expect(c.width).toBe(0);
+    // Zurück auf 1×: Die Basis tönt in Stufe A vollständig nach.
+    frame(canvas, night({ idle, time: t0 + 0.2, season: 0.26 }));
+    const s = sceneCacheStats(el)!;
+    idle.flush();
+    frame(canvas, night({ idle, time: t0 + 0.3 + RESIZE_SETTLE_SECONDS, season: 0.26 }));
+    expect(sceneCacheStats(el)!.tintBuilds).toBeGreaterThan(s.tintBuilds);
+    idle.flush();
+    const shown = frame(canvas, night({ idle, time: t0 + 1, season: 0.26 })) as StubCanvas[];
+    expect(idle.size).toBe(0);
+    for (const c of shown) expect(c.width).toBeGreaterThan(0);
+  });
+});
+
 describe('Kuppe von Waldwiese und Trockenmauer im Nebel (K2)', () => {
   /** Rückt die getönte Kulisse die Kuppe aus dem Dunst (Kopie der Kulisse mit Deckkraft 0,7)? */
   function restoresKnoll(input: SceneInput): boolean {

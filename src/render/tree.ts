@@ -713,7 +713,8 @@ function tintPlan(sc: SizeCache, cache: Cache): TintPlan | null {
 
 /** Getönte Kopien, in die ein Auftrag zeichnet (der Satz selbst oder neue, noch nicht gezeigte). */
 interface TintCopies {
-  background: HTMLCanvasElement;
+  /** Kulisse (null: Auftrag ohne neue Kulisse). */
+  background: HTMLCanvasElement | null;
   back: HTMLCanvasElement | null;
   front: HTMLCanvasElement | null;
   memory: HTMLCanvasElement | null;
@@ -733,8 +734,8 @@ const TINT_STAGES = 4;
 function updateTint(sc: SizeCache, cache: Cache): void {
   const plan = tintPlan(sc, cache);
   if (!plan) return;
-  // Ein laufender Auftrag für diesen Satz ist damit überholt.
-  if (cache.tintJob?.sc === sc) cache.tintJob = null;
+  // Ein laufender Auftrag für diesen Satz ist damit überholt (samt Kopien freigeben).
+  if (cache.tintJob?.sc === sc) dropTintJob(cache);
   const set = sc.tint ?? newTintSet();
   sc.tint = set;
   for (let s = 0; s < TINT_STAGES; s++) tintStage(sc, cache, plan, s, set, false);
@@ -751,7 +752,7 @@ function tintStage(sc: SizeCache, cache: Cache, plan: TintPlan, stage: number, o
     // Kulisse: Kopie, Himmel der Stufe darüber, dann die Lichtfarbe. Hat sich nur das
     // Wachstum geändert (Wurzeln, Grasnarbe), genügt der Streifen ab der Grasnarbe.
     const day = cache.day;
-    const bg = out.background;
+    const bg = out.background!;
     const resized = bg.width !== sc.pw || bg.height !== sc.ph;
     if (resized) {
       bg.width = sc.pw;
@@ -885,7 +886,8 @@ function deferTint(sc: SizeCache, cache: Cache, idle: IdleQueue): boolean {
   const plan = tintPlan(sc, cache);
   if (!plan) return true;
   const next: TintCopies = {
-    background: document.createElement('canvas'),
+    // Neue Kulisse nur, wenn sich Kulisse bzw. Ebenen geändert haben (sonst nur Erinnerungsbaum).
+    background: plan.layers ? document.createElement('canvas') : null,
     back: null,
     front: null,
     memory: null,
@@ -894,8 +896,10 @@ function deferTint(sc: SizeCache, cache: Cache, idle: IdleQueue): boolean {
     memoryRect: null,
   };
   // Nur der Streifen ab der Grasnarbe ist neu: den Rest der Kulisse aus der alten Kopie.
-  if (plan.layers && !plan.full) copyCanvas(t.background, next.background);
+  if (next.background && !plan.full) copyCanvas(t.background, next.background);
   const j: TintJob = { sc, plan, stage: 0, next };
+  // Ein Auftrag je Canvas: einen laufenden (z. B. der Basis vor dem Detail) samt Kopien freigeben.
+  dropTintJob(cache);
   cache.tintJob = j;
   const step = (): void => {
     if (cache.tintJob !== j) return;
@@ -904,8 +908,12 @@ function deferTint(sc: SizeCache, cache: Cache, idle: IdleQueue): boolean {
       dropTintJob(cache);
       return;
     }
-    // Neue Tönungsstufe: nichts mehr in alter Farbe tönen – der nächste Frame beginnt neu.
-    if (cache.tintKey !== plan.key) return;
+    // Neue Tönungsstufe: nichts mehr in alter Farbe tönen – verwerfen, der nächste Frame
+    // plant neu (auch wenn die Stufe bis dahin zurückwechselt).
+    if (cache.tintKey !== plan.key) {
+      dropTintJob(cache);
+      return;
+    }
     tintStage(sc, cache, plan, j.stage, j.next, true);
     j.stage++;
     if (j.stage < TINT_STAGES) {
@@ -936,7 +944,7 @@ function copyCanvas(src: HTMLCanvasElement, dst: HTMLCanvasElement): void {
 function swapTint(set: TintSet, plan: TintPlan, next: TintCopies): void {
   if (plan.layers) {
     freeCanvas(set.background);
-    set.background = next.background;
+    set.background = next.background!;
     if (set.back !== next.back) freeCanvas(set.back);
     if (set.front !== next.front) freeCanvas(set.front);
     set.back = next.back;
@@ -1969,7 +1977,11 @@ function buildSizeCache(
   view?: { oxN: number; oyN: number; fullW: number; fullH: number; zoom: number; baseDpr: number; baseKey: string; covL: number; covT: number },
 ): SizeCache {
   // Getönte Kopien des alten Satzes passen nicht mehr (neue Größe bzw. neuer Ausschnitt).
-  if (old) releaseTint(old);
+  if (old) {
+    releaseTint(old);
+    // Die Wolken entstehen neu (Größe der Szene): die alten Sprites freigeben.
+    for (const cl of old.clouds) freeCanvas(cl.sprite);
+  }
   const layout = makeLayout(width, height);
   const sized = (c: HTMLCanvasElement | undefined) => {
     const canvas = c ?? document.createElement('canvas');
