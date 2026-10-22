@@ -1,0 +1,373 @@
+Prototyp für DESIGN_V2.md 22/23 (Welle 3, Teil A) – NUR zum Nachmessen, nicht mergen.
+Verdrahtet src/content/habitats.ts und predation.ts testweise und baut Bestand,
+Überjagung und die Bedingung „unhunted“ als Skizze in formulas.ts ein (ohne Spielstand v13).
+
+  git apply scripts/welle3-prototype.patch
+  W3_RUNS=100 W3_HAB=1 W3_PRED=1 W3_LABEL=beides npx vitest run tests/w3run.test.ts --silent=false
+  W3_RUNS=60 W3_HAB=1 W3_PRED=1 npx vitest run tests/w3cyc.test.ts --silent=false
+  git apply -R scripts/welle3-prototype.patch
+
+Schalter: W3_HAB=0 ohne Lebensräume, W3_PRED=0 ohne Räuber/Beute-Regeln (beide 0 = main).
+
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/src/content/care.ts proto/src/content/care.ts
+--- base/src/content/care.ts	2026-10-21 23:53:25.743664358 +0000
++++ proto/src/content/care.ts	2026-10-21 23:58:49.875280479 +0000
+@@ -65,7 +65,7 @@
+   effect: { kind: 'slot', niche, amount },
+ });
+ 
+-export const CARE: readonly CareMeasure[] = [
++const BASE_CARE: CareMeasure[] = [
+   // --- ab Setzling (kleine Ränge, je 200 🌰) ------------------------------------
+   {
+     id: 'compost', name: 'Kompost', icon: '♻️',
+@@ -198,5 +198,8 @@
+     ],
+   },
+ ];
++import { HABITAT_CARE } from "./habitats";
++const W3H = (globalThis as any).process?.env?.W3_HAB !== "0";
++export const CARE: readonly CareMeasure[] = W3H ? [...BASE_CARE.map((c) => (c.id === "deadwood-pile" ? (HABITAT_CARE[1] as any) : c)), HABITAT_CARE[0] as any, HABITAT_CARE[2] as any] : BASE_CARE;
+ 
+ export const CARE_BY_ID: ReadonlyMap<string, CareMeasure> = new Map(CARE.map((c) => [c.id, c]));
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/src/content/communities.ts proto/src/content/communities.ts
+--- base/src/content/communities.ts	2026-10-21 23:53:25.743698136 +0000
++++ proto/src/content/communities.ts	2026-10-21 23:58:49.695404141 +0000
+@@ -73,7 +73,9 @@
+     id: 'slug-watch', name: 'Schneckenwacht', icon: '🐌', members: ['toad', 'hedgehog', ['glowworm', 'salamander']],
+     harmony: 6, effects: [], hint: 'Nachts geht es den Schnecken an den Kragen – von drei Seiten.',
+   },
++  ...((globalThis as any).process?.env?.W3_HAB !== "0" ? (HABITAT_COMMUNITIES as any) : []),
+ ];
++import { HABITAT_COMMUNITIES } from "./habitats";
+ 
+ export const COMMUNITIES_BY_ID: ReadonlyMap<string, Community> = new Map(COMMUNITIES.map((c) => [c.id, c]));
+ 
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/src/content/events.ts proto/src/content/events.ts
+--- base/src/content/events.ts	2026-10-21 23:53:25.743788780 +0000
++++ proto/src/content/events.ts	2026-10-21 23:58:49.787057045 +0000
+@@ -308,6 +308,8 @@
+       },
+     ],
+   },
++  ...((globalThis as any).process?.env?.W3_PRED !== "0" ? (PREDATION_EVENTS as any) : []),
+ ];
++import { PREDATION_EVENTS } from "./predation";
+ 
+ export const EVENTS_BY_ID: ReadonlyMap<string, GameEvent> = new Map(EVENTS.map((e) => [e.id, e]));
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/src/content/niches.ts proto/src/content/niches.ts
+--- base/src/content/niches.ts	2026-10-21 23:53:25.743840634 +0000
++++ proto/src/content/niches.ts	2026-10-21 23:58:28.127694513 +0000
+@@ -36,6 +36,8 @@
+     id: 'pond', name: 'Waldtümpel', icon: '🫧', place: 'Wasser und Ufer der Senke',
+     slots: [0, 0, 0, 0, 0, 0, 0, 0], opensEarly: true,
+   },
++  ...(HABITAT_NICHES as any),
+ ];
++import { HABITAT_NICHES } from './habitats';
+ 
+ export const NICHES_BY_ID: ReadonlyMap<NicheId, Niche> = new Map(NICHES.map((n) => [n.id, n]));
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/src/content/seasons.ts proto/src/content/seasons.ts
+--- base/src/content/seasons.ts	2026-10-21 23:53:25.743890796 +0000
++++ proto/src/content/seasons.ts	2026-10-21 23:58:54.811693725 +0000
+@@ -103,6 +103,7 @@
+     effects: [
+       { kind: 'light', amount: 2 },
+       { kind: 'happiness', genus: 'insects', points: 10 },
++      { kind: 'happiness', genus: 'reptiles', points: 15 },
+     ],
+   },
+   {
+@@ -162,4 +163,6 @@
+   'leaf-fall': ['autumn'],
+   'snow-break': ['winter'], // Nassschnee bricht Äste
+   'toad-migration': ['spring'], // Laichwanderung in milden Regennächten im März/April
++  ...PREDATION_EVENT_SEASONS,
+ };
++import { PREDATION_EVENT_SEASONS } from './predation';
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/src/content/species.ts proto/src/content/species.ts
+--- base/src/content/species.ts	2026-10-21 23:53:25.743915001 +0000
++++ proto/src/content/species.ts	2026-10-21 23:58:21.919694696 +0000
+@@ -43,6 +43,7 @@
+   soil: { name: 'Bodenleben', icon: '🪱' },
+   fungi: { name: 'Pilze', icon: '🍄' },
+   amphibians: { name: 'Amphibien', icon: '🐸' },
++  reptiles: { name: 'Reptilien', icon: '🦎' },
+ };
+ 
+ export const RARITY_NAMES: readonly string[] = ['gewöhnlich', 'selten', 'besonders', 'legendär'];
+@@ -56,7 +57,7 @@
+   decomposer: 'Zersetzer & Partner',
+ };
+ 
+-export const SPECIES: readonly Species[] = [
++const BASE_SPECIES: Species[] = [
+   // --- Vögel --------------------------------------------------------------------
+   {
+     id: 'robin', name: 'Rotkehlchen', genus: 'birds', rarity: 0, level: 'predator', niche: 'litter', unlock: 2,
+@@ -379,6 +380,23 @@
+     text: 'Das größte Lebewesen der Erde ist ein Pilz. Sein Netz verbindet den ganzen Wald.',
+   },
+ ];
++import { HABITAT_SPECIES } from './habitats';
++import { PROVIDES_ADDITIONS, FOOD_ADDITIONS, EFFECT_ADDITIONS } from './predation';
++export const W3_HAB = (globalThis as any).process?.env?.W3_HAB !== '0';
++export const W3_PRED = (globalThis as any).process?.env?.W3_PRED !== '0';
++export const SPECIES: readonly Species[] = [
++  ...BASE_SPECIES.map((s) =>
++    W3_HAB
++      ? {
++          ...s,
++          provides: [...s.provides, ...((PROVIDES_ADDITIONS[s.id] ?? []) as any)],
++          food: [...s.food, ...((FOOD_ADDITIONS[s.id] ?? []) as any)],
++          effects: [...s.effects, ...((EFFECT_ADDITIONS[s.id] ?? []) as any)],
++        }
++      : s,
++  ),
++  ...(W3_HAB ? HABITAT_SPECIES.map((s) => ({ ...(s as any), w3: true })) : []),
++];
+ 
+ export const SPECIES_BY_ID: ReadonlyMap<string, Species> = new Map(SPECIES.map((s) => [s.id, s]));
+ 
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/src/content/traits.ts proto/src/content/traits.ts
+--- base/src/content/traits.ts	2026-10-21 23:53:25.744015658 +0000
++++ proto/src/content/traits.ts	2026-10-21 23:58:32.699694378 +0000
+@@ -74,4 +74,6 @@
+     },
+     { effects: [{ kind: 'growth', pct: 12 }], text: '+12 % Wachstum' },
+   ],
++  reptiles: REPTILE_TRAITS,
+ };
++import { REPTILE_TRAITS } from './habitats';
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/src/content/types.ts proto/src/content/types.ts
+--- base/src/content/types.ts	2026-10-21 23:53:25.744062094 +0000
++++ proto/src/content/types.ts	2026-10-21 23:55:25.491699902 +0000
+@@ -7,8 +7,8 @@
+  * Die Gattungen (eigentlich Lebensweise-Gruppen, DESIGN_V2.md 5.1): fünf Grundgattungen
+  * und die Erweiterung Amphibien (DESIGN_V2.md 5.5, nur mit dem Waldtümpel).
+  */
+-export type Genus = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi' | 'amphibians';
+-export const GENERA: readonly Genus[] = ['birds', 'insects', 'mammals', 'soil', 'fungi', 'amphibians'];
++export type Genus = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi' | 'amphibians' | 'reptiles';
++export const GENERA: readonly Genus[] = ['birds', 'insects', 'mammals', 'soil', 'fungi', 'amphibians', 'reptiles'];
+ 
+ /** Pflanzengruppen der Begleitpflanzen (der Hauptbaum zählt als Baum). */
+ export type PlantGroup = 'trees' | 'shrubs' | 'flowers' | 'mosses';
+@@ -24,8 +24,8 @@
+  * Nischen am Hauptbaum (DESIGN_V2.md, Abschnitt 3). Der Waldtümpel (`pond`) hat keine
+  * Plätze aus der Stufe – er öffnet nur durch Platz-Wirkungen (Pflege, Ereignis).
+  */
+-export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' | 'pond';
+-export const NICHE_IDS: readonly NicheId[] = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond'];
++export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' | 'pond' | 'meadow' | 'deadwood' | 'wall';
++export const NICHE_IDS: readonly NicheId[] = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond', 'meadow', 'deadwood', 'wall'];
+ 
+ /** Nahrungs- und Lebensraum-Merkmale. Hauptbaum, Begleitpflanzen und Tiere stellen sie bereit. */
+ export type Tag =
+@@ -45,7 +45,10 @@
+   | 'wuermer'
+   | 'schnecken'
+   | 'kleinsaeuger'
+-  | 'rehe';
++  | 'rehe'
++  | 'amphibien'
++  | 'echsen'
++  | 'hasen';
+ 
+ /** Wunsch eines Tiers an seinen Lebensraum. */
+ export type Condition =
+@@ -58,7 +61,8 @@
+   /** Sonnig: nach allen Begleitpflanzen bleiben mindestens 2 Licht frei. */
+   | { kind: 'sunny' }
+   /** Schattig: mindestens 3 Bäume (inkl. Hauptbaum). */
+-  | { kind: 'shady' };
++  | { kind: 'shady' }
++  | { kind: 'unhunted'; tag: Tag };
+ 
+ /**
+  * Fähigkeiten besonderer und legendärer Arten (DESIGN_V2.md 5.3). Was sie bewirken und
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/src/core/formulas.ts proto/src/core/formulas.ts
+--- base/src/core/formulas.ts	2026-10-21 23:53:25.744248165 +0000
++++ proto/src/core/formulas.ts	2026-10-22 00:09:41.051674655 +0000
+@@ -540,6 +540,8 @@
+         return presentOrPlanted.has(c.id);
+       case 'genus':
+         return genusCounts[c.genus] >= c.min;
++      default:
++        return false;
+     }
+   };
+ 
+@@ -550,6 +552,47 @@
+     for (const prey of animals) if (prey.provides.some((t) => hunter.food.includes(t))) fearful.add(prey.id);
+   }
+ 
++  // W3-Prototyp: Bestand (0,5 + z⁰) als Futterangebot, Überjagung statt Räuberdruck.
++  const W3P = (globalThis as any).process?.env?.W3_PRED !== '0';
++  const zeroHappiness = (a: Species): number => {
++    let food = 0;
++    for (const t of a.food) {
++      const s = foodSupply.get(t) ?? 0;
++      const d = demand.get(t) ?? 1;
++      food = Math.max(food, Math.min(1, s / d));
++    }
++    const met = a.needs.map(condMet).filter(Boolean).length;
++    const q = (FOOD_WEIGHT * food + met) / (FOOD_WEIGHT + a.needs.length);
++    const base = BASE_HAPPINESS[a.rarity] ?? 0;
++    let z = base + (1 - base) * q;
++    let disturbers = 0;
++    for (const d of DISTURBERS_OF.get(a.id) ?? []) if (present.has(d)) disturbers++;
++    z -= DISTURB_PENALTY * disturbers;
++    z += happinessBonus[a.genus] ?? 0;
++    if (abilities.has('decomposerBoost') && a.level === DECOMPOSER_BOOST.level) z += DECOMPOSER_BOOST.happiness;
++    if (abilities.has('architect') && a.niche === ARCHITECT.niche) z += ARCHITECT.happiness;
++    if (hasAbility(a, 'calm')) z = Math.max(z, CALM_MIN_HAPPINESS);
++    return Math.min(1, Math.max(0, z));
++  };
++  const stock = new Map<string, number>();
++  const overhunt = new Map<string, number>();
++  if (W3P) {
++    for (const a of animals) stock.set(a.id, 0.5 + zeroHappiness(a));
++    for (const a of animals) for (const t of a.provides) addSupply(t, SUPPLY_ANIMAL * (stock.get(a.id)! - 1));
++    // Bestand und Jäger je Merkmal
++    const stockOf = new Map<Tag, number>();
++    for (const a of animals) for (const t of a.provides) stockOf.set(t, (stockOf.get(t) ?? 0) + stock.get(a.id)!);
++    for (const a of animals) {
++      let worst = 0;
++      for (const t of a.provides) {
++        let n = 0;
++        for (const p of animals) if (p.id !== a.id && p.level === 'predator' && p.food.includes(t)) n++;
++        if (n > 0) worst = Math.max(worst, n - (stockOf.get(t) ?? 0));
++      }
++      overhunt.set(a.id, Math.min(2, Math.max(0, worst)));
++    }
++  }
++
+   // Zufriedenheit je Tier
+   const status: Record<string, AnimalStatus> = {};
+   let happinessSum = 0;
+@@ -571,7 +614,8 @@
+     let hunters = 0;
+     for (const h of HUNTERS_OF.get(a.id) ?? []) if (present.has(h)) hunters++;
+     // Räuberdruck: Beute ist etwas weniger zufrieden, wenn sie gejagt wird.
+-    z -= PREDATION_PENALTY * Math.min(PREDATION_MAX_HUNTERS, hunters);
++    if (W3P) z -= PREDATION_PENALTY * (overhunt.get(a.id) ?? 0);
++    else z -= PREDATION_PENALTY * Math.min(PREDATION_MAX_HUNTERS, hunters);
+     // Zufriedenheit der Gattung aus Jahreszeit und Baumart (Wirkung `happiness`).
+     z += happinessBonus[a.genus] ?? 0;
+     if (abilities.has('decomposerBoost') && a.level === DECOMPOSER_BOOST.level) z += DECOMPOSER_BOOST.happiness;
+@@ -890,6 +934,17 @@
+         return ctx.ids.has(c.id);
+       case 'genus':
+         return ctx.genera[c.genus] >= c.min;
++      case 'unhunted': {
++        let prey = false;
++        for (const id of ctx.ids) {
++          const s = SPECIES_BY_ID.get(id);
++          if (!s) continue;
++          if (s.food.includes(c.tag) && s.level === 'predator') return false;
++          if (s.effects.some((e) => e.kind === 'control' && e.tag === c.tag)) return false;
++          if (s.provides.includes(c.tag)) prey = true;
++        }
++        return prey;
++      }
+     }
+   };
+   return sp.appears.every(met);
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/src/core/tick.ts proto/src/core/tick.ts
+--- base/src/core/tick.ts	2026-10-21 23:53:25.744415286 +0000
++++ proto/src/core/tick.ts	2026-10-22 00:05:39.851681773 +0000
+@@ -994,6 +994,11 @@
+ /** Begegnung für ein Ereignis; es gilt ab jetzt als gesehen. */
+ function eventEncounter(state: GameState, event: GameEvent): PendingEncounter {
+   state.cycle.seen.push(event.id);
++  {
++    const g = ((globalThis as any).__w3ev ??= {} as Record<string, number>);
++    const k = `${event.id}@${state.stage}`;
++    g[k] = (g[k] ?? 0) + 1;
++  }
+   return { type: 'event', cards: [event.id], rerolls: 0 };
+ }
+ 
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/tests/w3cyc.test.ts proto/tests/w3cyc.test.ts
+--- base/tests/w3cyc.test.ts	1970-01-01 00:00:00.000000000 +0000
++++ proto/tests/w3cyc.test.ts	2026-10-22 00:03:25.395685740 +0000
+@@ -0,0 +1,26 @@
++import { it } from 'vitest';
++import { GROWTH, HARMONY, RANDOM, runCycles, median, formatTime } from '../scripts/simulate';
++
++const env = (globalThis as any).process.env;
++const RUNS = Number(env.W3_RUNS ?? 20);
++const LABEL = env.W3_LABEL ?? 'base';
++it('welle3 cycles', () => {
++  const out: string[] = [];
++  const t2: Record<string, number> = {};
++  for (const strat of [HARMONY, GROWTH, RANDOM]) {
++    const runs = Array.from({ length: RUNS }, (_, i) =>
++      runCycles(strat, { seed: 1000 + 7 * i, targetStage: 5, maxSeconds: 6 * 3600, care: true, cycles: 3 }),
++    );
++    const cols: string[] = [];
++    for (let c = 0; c < 3; c++) {
++      const time = median(runs.map((r) => r[c]!.result.stages[5]?.time ?? NaN).filter(Number.isFinite));
++      const gain = median(runs.map((r) => r[c]!.memoryGain));
++      const h = median(runs.map((r) => r[c]!.maxHarmony));
++      if (c === 1) t2[strat.id] = time;
++      cols.push(`${formatTime(time)} · ${h.toFixed(1)} · +${gain}`);
++    }
++    out.push(`| ${LABEL} | ${strat.name} | ${cols.join(' | ')} |`);
++  }
++  out.push(`| ${LABEL} | Wachstum ÷ Harmonie Zyklus 2 | ${(t2.harmony! / t2.growth!).toFixed(3)} |`);
++  console.log('\n' + out.join('\n'));
++}, 3_600_000);
+diff -ruN -x node_modules -x habitats.ts -x predation.ts base/tests/w3run.test.ts proto/tests/w3run.test.ts
+--- base/tests/w3run.test.ts	1970-01-01 00:00:00.000000000 +0000
++++ proto/tests/w3run.test.ts	2026-10-22 00:05:45.135681617 +0000
+@@ -0,0 +1,48 @@
++import { it } from 'vitest';
++import { GROWTH, HARMONY, RANDOM, monteCarlo, stageStats, formatTime, median, mean } from '../scripts/simulate';
++import { SPECIES_BY_ID } from '../src/content/species';
++
++const env = (globalThis as any).process.env;
++const RUNS = Number(env.W3_RUNS ?? 40);
++const LABEL = env.W3_LABEL ?? 'base';
++const TARGET = Number(env.W3_TARGET ?? 7);
++it('welle3', () => {
++  const lines: string[] = [];
++  const extra: string[] = [];
++  for (const strat of [HARMONY, GROWTH, RANDOM]) {
++    (globalThis as any).__w3ev = {};
++    const [s] = monteCarlo([strat], RUNS, { targetStage: TARGET, maxSeconds: 6 * 3600, care: true });
++    const st = [3, 4, 5, 6, 7].map((k) => formatTime(stageStats(s!, k).time));
++    const h = stageStats(s!, 5);
++    const w = stageStats(s!, 6);
++    const arrive = s!.runs.map((r) => r.memoryPath.find((p) => p.waypoint >= 20)?.after ?? NaN).filter(Number.isFinite);
++    const endMem = s!.runs.map((r) => r.memoryPath.at(-1)?.after ?? NaN).filter(Number.isFinite);
++    const isNew = (id: string) => (SPECIES_BY_ID.get(id) as any)?.w3 === true;
++    const newAtHain = mean(s!.runs.map((r) => (r.stages[5]?.animalIds ?? []).filter(isNew).length));
++    const newAtEnd = mean(s!.runs.map((r) => r.final.animalIds.filter(isNew).length));
++    lines.push(
++      `| ${LABEL} | ${s!.strategy.name} | ${st.join(' | ')} | ${h.harmony.toFixed(1)} | ${w.harmony.toFixed(1)} | ${h.animals.toFixed(1)} | ${(100 * h.happiness).toFixed(1)} % | ${median(arrive).toFixed(0)} | ${median(endMem).toFixed(0)} | ${newAtHain.toFixed(1)} / ${newAtEnd.toFixed(1)} | ${formatTime(h.gapMax)} |`,
++    );
++    const rank = (stage: number, id: string) => mean(s!.runs.map((r) => (stage < 0 ? r.final : r.stages[stage])?.careRanks[id] ?? 0));
++    const fin = s!.runs.map((r) => r.final);
++    const comm = (id: string) => (fin.filter((f) => f.communities.includes(id)).length / fin.length).toFixed(2);
++    const reptiles = mean(fin.map((f) => f.genus['reptiles' as never] ?? 0));
++    const per = (id: string) => (fin.filter((f) => f.animalIds.includes(id)).length / fin.length).toFixed(2);
++    const ev = (globalThis as any).__w3ev as Record<string, number>;
++    const sum: Record<string, number> = {};
++    for (const [k, v] of Object.entries(ev)) {
++      const id = k.split('@')[0]!;
++      sum[id] = (sum[id] ?? 0) + v;
++    }
++    const evs = Object.entries(sum)
++      .filter(([k]) => /(caterpillar|vole|beetle|slug)-year|windthrow|storm|toad-migration/.test(k))
++      .map(([k, v]) => `${k}:${(v / RUNS).toFixed(2)}`)
++      .join(' ') + ` | alle Ereignisse: ${(Object.values(sum).reduce((a, b) => a + b, 0) / RUNS).toFixed(2)}`;
++    extra.push(
++      `${s!.strategy.id}: care AB meadow ${rank(4, 'meadow').toFixed(2)} nest ${rank(4, 'nest-boxes').toFixed(2)} wild ${rank(4, 'wildflower-hem').toFixed(2)} Hain meadow ${rank(5, 'meadow').toFixed(2)} pile ${rank(5, 'deadwood-pile').toFixed(2)} | end meadow ${rank(-1, 'meadow').toFixed(2)} pile ${rank(-1, 'deadwood-pile').toFixed(2)} wall ${rank(-1, 'drystone-wall').toFixed(2)} pond ${rank(-1, 'pond').toFixed(2)} | comm end meadow-song ${comm('meadow-song')} brushpile ${comm('brushpile')} sun-wall ${comm('sun-wall')} snake-pond ${comm('snake-pond')} | reptiles ${reptiles.toFixed(2)} | ` +
++        ['cricket', 'fieldmouse', 'rabbit', 'lizard', 'kestrel', 'wren', 'rosechafer', 'turkeytail', 'slowworm', 'weasel', 'sandlizard', 'masonbee', 'grasssnake', 'smoothsnake'].map((id) => `${id} ${per(id)}`).join(' ') +
++        `\n   events: ${evs}`,
++    );
++  }
++  console.log('\n' + lines.join('\n') + '\n' + extra.join('\n'));
++}, 3_600_000);
