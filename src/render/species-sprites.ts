@@ -8,7 +8,11 @@
 
 import { ell, ellPath, eye, line, OUTLINE, outline, paintBird, poly, polyPath, TAU, type BirdColors, type SpriteDef } from './sprite-kit';
 
-export type Motion = 'hop' | 'peck' | 'hover' | 'crawl' | 'inch' | 'wiggle' | 'sniff' | 'still' | 'blink' | 'busy';
+/**
+ * Bewegungsarten. `bask`: Sonnenbad der Reptilien (Atmen, ab und zu den Kopf heben; Bild 1
+ * = Kopf gehoben); `rattle`: Rütteln des Turmfalken in der Luft (schneller Flügelschlag).
+ */
+export type Motion = 'hop' | 'peck' | 'hover' | 'crawl' | 'inch' | 'wiggle' | 'sniff' | 'still' | 'blink' | 'busy' | 'bask' | 'rattle';
 
 export interface KindInfo {
   /** Größe relativ zur Grundgröße. */
@@ -21,6 +25,8 @@ export interface KindInfo {
   fungus?: 'cap' | 'bracket';
   /** Schwimmt im Waldtümpel (unter der Wasseroberfläche) statt am Ufer zu sitzen. */
   swim?: boolean;
+  /** Steht in der Luft über seinem Lebensraum (Turmfalke über der Waldwiese). */
+  soar?: boolean;
 }
 
 // ---------------------------------------------------------------------------

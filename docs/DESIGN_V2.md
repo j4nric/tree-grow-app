@@ -5298,9 +5298,8 @@ Ziehung wirkt der Faktor genau (Test: Sturmnacht bei Sturm ≈ ×3).
 > `src/content/habitats.ts` (fließen in `NICHES`, `SPECIES`, `TRAITS`, `COMMUNITIES`,
 > `CARE`), Totholzhaufen in `care.ts`, Reptilien in `GENUS_INFO`, `TAG_NAMES` und `SEASONS`.
 > Tests: `tests/habitats.test.ts` (Inhalt), `tests/habitats-core.test.ts` (Spielstand,
-> Laden, Logik), online = offline in `tests/tick.test.ts`. Messung 23.10. Offen: Szene und
-> Zeichnungen (`renderer`, bis dahin werden die neuen Nischen nicht gezeichnet; Reptilien
-> bekommen vorläufig die Zeichnung der Amphibien). Oberfläche umgesetzt (`ui-dev`, 23.7
+> Laden, Logik), online = offline in `tests/tick.test.ts`. Messung 23.10. Szene und
+> Zeichnungen umgesetzt (`renderer`, 23.8 „Umsetzung“). Oberfläche umgesetzt (`ui-dev`, 23.7
 > Punkt 5): Nischenliste mit „Zur Pflege“, Pflegekarten „Öffnet Lebensraum …“
 > (`careOpensText` in `ui/adapters.ts`), Reptilien, Spielanleitung „Lebensräume“ – Tests
 > `tests/habitats-ui.test.ts`, `e2e/habitats.spec.ts`.
@@ -5475,8 +5474,8 @@ verwerfen – auch über die Synchronisierung (wie v11, 12.8). Mit v13 erkennt e
 | 1 | `core-engineer` | ✅ **Schritt A** (22.8): Bestand, Überjagung, `unhunted`, Massenjahre (ohne Lebensraum-Arten), `foodWeb`; Tests; Messung 22.9 | – |
 | 2 | `ui-dev` | Bestand und Futter in Tierdetails und Karte, Nahrungsnetz in der Übersicht, Spielanleitung „Räuber und Beute“ (22.7) | 1 |
 | 3 | `core-engineer` | ✅ **Schritt B** (v13, schützt auch die Massenjahr-IDs in `cycle.seen` vor älteren Clients, 22.8): Typen (`reptiles`, Nischen, Merkmale `amphibien`/`echsen`/`hasen` mit Namen in `TAG_NAMES`: „Amphibien“, „Echsen“, „Kaninchen“), `habitats.ts`/`predation.ts` in `SPECIES`, `NICHES`, `TRAITS`, `GENUS_INFO`, `COMMUNITIES`, `CARE` (Totholzhaufen ersetzen), `SEASONS` (Sommer Reptilien +15 %), Ergänzungen an Amphibien und Fuchs (mit Kurzwirkung), Massenjahre vollständig; `W3…`-Typen löschen, `tests/habitats.test.ts` auf die verdrahteten Listen umstellen; Migration v12 → v13; Erfolgstext „Von allem etwas“ | 1, Wetter-Logik gemergt (keine zwei Versionen parallel) |
-| 4 | `renderer` | Szene für die drei Lebensräume und 14 Zeichnungen, Familie Reptilien (Winterstarre wie Amphibien), Ersatzbild für Unbekannte (Eidechse), Anker-Tests wie beim Tümpel (23.8) | 3 (bis dahin: neue Nischen werden nicht gezeichnet) |
-| 5 | `ui-dev` | Nischenliste: drei verschlossene Lebensräume mit Hinweis und „Zur Pflege“ (wie Tümpel), Gattung Reptilien (Symbol, CSS-Klasse `reptiles`, Artikel in Tageszielen „der Reptilien“, Einzahl „Reptil“), Spielanleitung „Lebensräume“ | 3 |
+| 4 | `renderer` | ✅ Szene für die drei Lebensräume und 14 Zeichnungen, Familie Reptilien (Winterstarre wie Amphibien), Ersatzbild für Unbekannte (Eidechse), Anker-Tests wie beim Tümpel (23.8) | 3 (bis dahin: neue Nischen werden nicht gezeichnet) |
+| 5 | `ui-dev` | ✅ Nischenliste: drei verschlossene Lebensräume mit Hinweis und „Zur Pflege“ (wie Tümpel), Gattung Reptilien (Symbol, CSS-Klasse `reptiles`, Artikel in Tageszielen „der Reptilien“, Einzahl „Reptil“), Spielanleitung „Lebensräume“ | 3 |
 | 6 | `core-engineer` | ✅ **Schritt C** (22.8): Wetter → Ereignis-Gewichte (zusammen mit Schritt A) | Wetter-Logik |
 | 7 | `game-designer` | Nach 3: `npm run balance` mit allen Systemen, 15.4 und diese Tabellen nachtragen (der Prototyp-Patch ist mit Schritt A gelöscht – er passte nicht mehr auf `formulas.ts`; Vorlage für Schritt B sind 23.2–23.6 und die Daten in `habitats.ts`) | 3 |
 
@@ -5504,6 +5503,30 @@ Am Boden ist keine Strecke frei (5.5); darum zwei Ebenen:
   sonnen sie sich (kleine Kopfbewegung, Atmen). Nattern als S-Kurve, nicht bedrohlich.
 - Leistung wie 19.3 (gecachte Sprites, Neuaufbau nur bei Änderung); Anker-Tests für 320×480
   bis 1920×1080, Stufen 3–8, 1–5 Bewohner.
+
+**Umsetzung** (`src/render/`): Geometrie in `anchors.ts` (`pileGeometry`,
+`midgroundGeometry`), Lage der Bewohner in `animals.ts` (`habitatPlaces`, wie `pondPlaces`:
+jeder Bewohner ein eigener Streifen, gemeinsam kleiner, wenn es eng wird), Zeichnungen in
+`habitat-sprites.ts`, Kulisse in `habitat-scenery.ts`. `SceneInput.meadow`, `deadwood`,
+`wall` (offen, sobald die Nische Plätze hat; `main.ts`).
+
+- **Totholzhaufen:** gleiche Höhen wie der Tümpel, zum Stamm hin 2,4 statt 1,2 Tiergrößen
+  Abstand (rechts liegt Wurzelraum-Platz 5 flacher). Der erste Pilz wächst als Fächer am
+  Stubben, Vögel sitzen oben auf einem Ast, alle anderen in dunklen Lücken am Grund.
+  Sprite mit Schnee-Sprite (überblendet wie das Eis).
+- **Mittelgrund:** Die Bewohner stehen 2,7 Tiergrößen über der Bodenlinie (über dem Reh am
+  Waldsaum), 70 % groß, auf einer flachen Kuppe; Abstand zum Stamm mindestens 3,2
+  Tiergrößen und so weit, dass das Laub aller Hauptbaum-Arten ab Junger Baum in dieser Höhe
+  nicht hinreicht (schmal: so weit es geht; die Blattbüschel aller Arten und Stufen werden
+  dafür einmal gemerkt, je Größe bleibt eine kurze Schleife). Sie liegen in der Tiefe wie
+  ihre Kuppe: **hinter** Nachbarbäumen, Begleitpflanzen, Wildschweinen und dem Hauptbaum
+  (gezeichnet direkt nach der Kulisse); der Turmfalke rüttelt 1,55 Tiergrößen darüber
+  am äußeren Rand und liegt vor dem Laub. Wiese und Mauer gehören zur statischen Kulisse
+  (neu nur bei Größe, Jahreszeit-Stufe oder beim Öffnen) und werden mit ihr für Tag, Nacht
+  und Wetter getönt.
+- **Reptilien:** Bewegung „Sonnenbad“ (Atmen, ab und zu Kopf heben); Winterstarre etwas
+  länger als bei den Amphibien, im Winter halb durchsichtig („versteckt“). Ersatzbild für
+  unbekannte Reptilien: Eidechse.
 
 ### 23.9 Entscheidungen und offene Fragen
 
