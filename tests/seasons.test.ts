@@ -182,10 +182,11 @@ describe('Wirkungen der Jahreszeiten (DESIGN_V2.md 16.3)', () => {
   });
 
   it('Faktor 1, nicht mit Zufriedenheit skaliert; evaluate(state) nutzt die Spielzeit', () => {
+    // Ohne Wetter und Nacht ('off'): hier zählt nur die Jahreszeit (Wetter: tests/weather.test.ts).
     const state = stateWith(4, [], 'autumn');
-    expect(evaluate(state).seedsBonus).toBeCloseTo(0.2);
+    expect(evaluate(state, 'off').seedsBonus).toBeCloseTo(0.2);
     state.cycle.elapsed = at('winter');
-    expect(evaluate(state).growthBonus).toBeCloseTo(-0.1);
+    expect(evaluate(state, 'off').growthBonus).toBeCloseTo(-0.1);
   });
 });
 
@@ -244,8 +245,8 @@ describe('Hauptbaum-Arten (DESIGN_V2.md 17.3)', () => {
   });
 
   it('Kiefer ist winterfest: kein Abzug im Winter, die Zufriedenheit bleibt', () => {
-    expect(evaluate(stateWith(4, [], 'winter', 'oak')).growthBonus).toBeCloseTo(-0.1);
-    expect(evaluate(stateWith(4, [], 'winter', 'pine')).growthBonus).toBeCloseTo(0);
+    expect(evaluate(stateWith(4, [], 'winter', 'oak'), 'off').growthBonus).toBeCloseTo(-0.1);
+    expect(evaluate(stateWith(4, [], 'winter', 'pine'), 'off').growthBonus).toBeCloseTo(0);
     const env = environmentEffects(4, 'winter', 'pine');
     expect(env.effects.some((e) => e.kind === 'growth')).toBe(false);
     expect(env.happiness.map((h) => h.genus).sort()).toEqual(['mammals', 'soil']);
@@ -289,25 +290,36 @@ describe('tick und Offline mit Jahreszeiten (DESIGN_V2.md 16.6)', () => {
     expect(tick(state, 1).seasons).toEqual([]);
   });
 
-  it('online (dt = 1/60) gleich offline über mehrere Jahre, mit Wegpunkten und Begegnungen', () => {
-    const online = stateAt(3, ['earthworm', 'bee', 'bluetit'], 2026);
-    online.cycle.elapsed = 170; // kurz vor dem Sommer
-    const offline = structuredClone(online);
+  // Seit Wetter und Nacht (DESIGN_V2.md 21.5) zweigeteilt: Frames = ein großer Tick mit
+  // Einzelwetter, und Frames im Modus „Mittel“ = simulateOffline.
+  it('Frames (dt = 1/60) gleich einem großen Tick bzw. simulateOffline über mehrere Jahre', () => {
+    const start = stateAt(3, ['earthworm', 'bee', 'bluetit'], 2026);
+    start.cycle.elapsed = 170; // kurz vor dem Sommer
     const seconds = 2 * YEAR_SECONDS + 100;
-    const seen: SeasonId[] = [];
-    for (let i = 0; i < seconds * 60; i++) seen.push(...tick(online, 1 / 60).seasons);
-    const report = simulateOffline(offline, seconds);
-    expect(report.seasons).toEqual(seen);
-    expect(seen.length).toBe(9);
-    expect(offline.cycle.elapsed).toBeCloseTo(online.cycle.elapsed, 6);
-    expect(offline.waypoint).toBe(online.waypoint);
-    expect(offline.waypoint).toBeGreaterThan(stateAt(3).waypoint);
-    expect(offline.stage).toBe(online.stage);
-    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
-    expect(offline.cycle.seen).toEqual(online.cycle.seen);
-    expect(offline.rngState).toBe(online.rngState);
-    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 3);
-    expect(offline.seeds).toBeCloseTo(online.seeds, 3);
+    for (const mode of ['live', 'average'] as const) {
+      const online = structuredClone(start);
+      const offline = structuredClone(start);
+      const seen: SeasonId[] = [];
+      const weather: string[] = [];
+      for (let i = 0; i < seconds * 60; i++) {
+        const r = tick(online, 1 / 60, mode);
+        seen.push(...r.seasons);
+        weather.push(...r.weather);
+      }
+      const report = mode === 'live' ? tick(offline, seconds) : simulateOffline(offline, seconds);
+      expect(report.seasons, mode).toEqual(seen);
+      expect(report.weather, mode).toEqual(weather);
+      expect(seen.length).toBe(9);
+      expect(offline.cycle.elapsed).toBeCloseTo(online.cycle.elapsed, 6);
+      expect(offline.waypoint).toBe(online.waypoint);
+      expect(offline.waypoint).toBeGreaterThan(stateAt(3).waypoint);
+      expect(offline.stage).toBe(online.stage);
+      expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
+      expect(offline.cycle.seen).toEqual(online.cycle.seen);
+      expect(offline.rngState).toBe(online.rngState);
+      expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 3);
+      expect(offline.seeds).toBeCloseTo(online.seeds, 3);
+    }
   });
 
   it('ein großer Tick = viele Jahres-Ticks (Schnellvorlauf ohne Unterschied)', () => {
@@ -357,7 +369,10 @@ describe('tick und Offline mit Jahreszeiten (DESIGN_V2.md 16.6)', () => {
     const a = stateAt(2, ['earthworm', 'robin'], 99);
     const b = structuredClone(a);
     const report = simulateOffline(a, 8 * 3600);
-    for (let h = 0; h < 8; h++) tick(b, 3600);
+    // Offline rechnet ab einem Tag mit dem Mittelwetter (21.5) – die Stunden-Schritte auch.
+    for (let h = 0; h < 8; h++) tick(b, 3600, 'average');
+    expect(report.averaged).toBe(true);
+    expect(report.weather.length).toBe(160);
     expect(report.seasons.length).toBe(160);
     expect(a.cycle.elapsed).toBeCloseTo(8 * 3600, 6);
     expect(b.cycle.elapsed).toBeCloseTo(a.cycle.elapsed, 6);
@@ -458,8 +473,8 @@ describe('Samen-Sekunden und Cache', () => {
   it('Cache-Schlüssel: wechselt mit Jahreszeit und Baumart, nicht mit jeder Sekunde', () => {
     const state = stateWith(5, ['earthworm', 'bee'], 'spring');
     const first = evaluate(state);
-    state.cycle.elapsed = 100;
-    expect(evaluate(state)).toBe(first); // dieselbe Jahreszeit: Cache-Treffer
+    state.cycle.elapsed = 50;
+    expect(evaluate(state)).toBe(first); // dieselbe Jahreszeit (und Tageszeit): Cache-Treffer
     state.cycle.elapsed = 180;
     const summer = evaluate(state);
     expect(summer).not.toBe(first);

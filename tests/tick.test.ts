@@ -78,6 +78,7 @@ describe('tick', () => {
       interludesReached: 0,
       expired: [],
       seasons: [],
+      weather: [],
     });
     expect(state.waypoint).toBe(1);
     expect(state.stage).toBe(1);
@@ -127,6 +128,7 @@ describe('tick', () => {
       interludesReached: 0,
       expired: [],
       seasons: [],
+      weather: [],
     });
     expect(state.pendingEncounters[0]!.type).toBe('plant');
   });
@@ -288,18 +290,47 @@ describe('tick', () => {
   });
 });
 
-describe('simulateOffline', () => {
-  it('liefert dasselbe Ergebnis wie laufende Ticks (inkl. Begegnungen und Überlauf)', () => {
-    const online = stateAt(2, ['earthworm', 'robin'], 99);
-    const offline = structuredClone(online);
-    for (let i = 0; i < 3 * 3600; i++) tick(online, 1);
-    const report = simulateOffline(offline, 3 * 3600);
-    expect(offline.waypoint).toBe(online.waypoint);
-    expect(offline.stage).toBe(online.stage);
-    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
-    expect(offline.rngState).toBe(online.rngState);
-    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
-    expect(offline.seeds).toBeCloseTo(online.seeds, 6);
+/**
+ * Invariante seit Wetter und Nacht (DESIGN_V2.md 21.5), in zwei Hälften:
+ * 1. viele kleine Ticks = ein großer Tick, beide mit Einzelwetter (`live`, wie online);
+ * 2. simulateOffline = viele kleine Ticks im Modus „Mittel“ (`average`).
+ * Online gegen offline gilt nur noch im Mittel (tests/weather.test.ts, Offline-Mittel).
+ * `run` liefert beide Paare: [kleine live, großer live] und [kleine Mittel, offline].
+ */
+function runPairs(start: GameState, seconds: number, step = 1): { live: [GameState, GameState]; average: [GameState, GameState]; report: ReturnType<typeof simulateOffline> } {
+  const small = structuredClone(start);
+  const big = structuredClone(start);
+  const smallAvg = structuredClone(start);
+  const offline = structuredClone(start);
+  for (let i = 0; i < seconds / step; i++) {
+    tick(small, step);
+    tick(smallAvg, step, 'average');
+  }
+  tick(big, seconds);
+  const report = simulateOffline(offline, seconds);
+  return { live: [small, big], average: [smallAvg, offline], report };
+}
+
+function expectSameRun([online, offline]: [GameState, GameState], digits = 6): void {
+  expect(offline.waypoint).toBe(online.waypoint);
+  expect(offline.stage).toBe(online.stage);
+  expect(offline.niches).toEqual(online.niches);
+  expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
+  expect(offline.rngState).toBe(online.rngState);
+  expect(offline.cycle.elapsed).toBeCloseTo(online.cycle.elapsed, 6);
+  expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, digits);
+  expect(offline.seeds).toBeCloseTo(online.seeds, digits);
+}
+
+// Je Fall vier Läufe (Einzelwetter klein/groß, Mittel klein/offline) – mehr Zeit als üblich.
+describe('simulateOffline', { timeout: 60_000 }, () => {
+  it('kleine Ticks = großer Tick (Einzelwetter) und = simulateOffline (Mittel), inkl. Begegnungen und Überlauf', () => {
+    const { live, average, report } = runPairs(stateAt(2, ['earthworm', 'robin'], 99), 3 * 3600);
+    expectSameRun(live);
+    expectSameRun(average);
+    expect(report.averaged).toBe(true);
+    // Einzelwetter und Mittel unterscheiden sich wirklich (sonst prüfte die Teilung nichts).
+    expect(live[0].totalGrowth).not.toBeCloseTo(average[0].totalGrowth, 0);
     expect(report.waypoints).toBeGreaterThan(MAX_PENDING_ENCOUNTERS);
     expect(report.autoDeclined).toBe(report.waypoints - MAX_PENDING_ENCOUNTERS);
     expect(report.declinedStackFull).toBe(report.autoDeclined);
@@ -308,49 +339,38 @@ describe('simulateOffline', () => {
   it('gleich mit Begleitpflanzen (Versorgung < 1) und Pflanzen-Begegnungen', () => {
     // Seed 301: Der Ring ist voll (halbes Pflanzengewicht), es muss trotzdem eine
     // Pflanzen-Begegnung kommen – die Vorbedingung unten prüft das.
-    const online = stateAt(2, ['bee'], 301);
-    online.plants = ['fern', 'fern']; // Setzling: Wasser 3 < Bedarf 4 → V = 3/4
-    expect(evaluate(online).supply).toBeLessThan(1);
-    const offline = structuredClone(online);
-    for (let i = 0; i < 3600; i++) tick(online, 1);
-    simulateOffline(offline, 3600);
-    expect(online.pendingEncounters.some((e) => e.type === 'plant')).toBe(true);
-    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
-    expect(offline.rngState).toBe(online.rngState);
-    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
-    expect(offline.seeds).toBeCloseTo(online.seeds, 6);
+    const start = stateAt(2, ['bee'], 301);
+    start.plants = ['fern', 'fern']; // Setzling: Wasser 3 < Bedarf 4 → V = 3/4
+    expect(evaluate(start).supply).toBeLessThan(1);
+    const { live, average } = runPairs(start, 3600);
+    for (const pair of [live, average]) {
+      expect(pair[0].pendingEncounters.some((e) => e.type === 'plant')).toBe(true);
+      expectSameRun(pair);
+    }
   });
 
   it('gleich mit Fähigkeiten, Störung, Erscheinungsbedingungen und Glückspilz (Schritt 2.2)', () => {
     // Alter Baum: Fliegenpilz (Glückspilz) verschiebt die Seltenheit, Wühlmaus lässt den
     // Waldkauz erscheinen, Eichhörnchen stört, Hallimasch hält die Versorgung oben.
-    const online = stateAt(4, ['flyagaric', 'vole', 'squirrel', 'bluetit', 'honeyfungus', 'barkbeetle'], 777);
-    online.plants = ['birch', 'birch', 'birch'];
-    const ev = evaluate(online);
+    const start = stateAt(4, ['flyagaric', 'vole', 'squirrel', 'bluetit', 'honeyfungus', 'barkbeetle'], 777);
+    start.plants = ['birch', 'birch', 'birch'];
+    const ev = evaluate(start);
     expect(ev.abilities).toEqual(['rarityBoost', 'minSupply']);
     expect(ev.supply).toBe(0.9);
-    const offline = structuredClone(online);
-    for (let i = 0; i < 3 * 3600; i++) tick(online, 1);
-    simulateOffline(offline, 3 * 3600);
-    expect(online.stage).toBeGreaterThanOrEqual(5);
-    expect(offline.waypoint).toBe(online.waypoint);
-    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
-    expect(offline.rngState).toBe(online.rngState);
-    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
-    expect(offline.seeds).toBeCloseTo(online.seeds, 6);
+    const { live, average } = runPairs(start, 3 * 3600);
+    for (const pair of [live, average]) {
+      expect(pair[0].stage).toBeGreaterThanOrEqual(5);
+      expectSameRun(pair);
+    }
   });
 
   it('gleich mit Platz-Schaffern (Borkenkäfer öffnet Höhlen) über den Alten Baum hinaus', () => {
-    const online = stateAt(3, ['barkbeetle', 'earthworm'], 4242);
-    const offline = structuredClone(online);
-    for (let i = 0; i < 2 * 3600; i++) tick(online, 1);
-    simulateOffline(offline, 2 * 3600);
-    expect(online.stage).toBeGreaterThanOrEqual(4);
-    expect(evaluate(online).slots.hollows).toBeGreaterThanOrEqual(2);
-    expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
-    expect(offline.rngState).toBe(online.rngState);
-    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
-    expect(offline.seeds).toBeCloseTo(online.seeds, 6);
+    const { live, average } = runPairs(stateAt(3, ['barkbeetle', 'earthworm'], 4242), 2 * 3600);
+    for (const pair of [live, average]) {
+      expect(pair[0].stage).toBeGreaterThanOrEqual(4);
+      expect(evaluate(pair[0]).slots.hollows).toBeGreaterThanOrEqual(2);
+      expectSameRun(pair);
+    }
   });
 
   it('auch mit Frame-Schritten (60 fps) und Entscheidungen dazwischen (Tiere, Pflanzen, Pflanzen setzen)', () => {
@@ -480,11 +500,11 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "hazel",
           "hazel",
         ],
-        "rngState": 3892806722,
-        "seeds": 35187,
+        "rngState": 3260971052,
+        "seeds": 37672,
         "stage": 5,
-        "totalGrowth": 145529,
-        "waypoint": 20,
+        "totalGrowth": 150160,
+        "waypoint": 21,
       }
     `);
   });

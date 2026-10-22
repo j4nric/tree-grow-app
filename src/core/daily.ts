@@ -167,7 +167,8 @@ export function genusSeason(genus: Genus): SeasonId | null {
 }
 
 function seasonalEvaluations(state: GameState): Record<SeasonId, Evaluation> {
-  const eco = ecosystemOf({ ...state, cycle: { ...state.cycle, timed: [], visitors: [] } });
+  // Ohne Wetter und Nacht: Die Ziele schätzen das Ökosystem je Jahreszeit, nicht den Tag.
+  const eco = ecosystemOf({ ...state, cycle: { ...state.cycle, timed: [], visitors: [] } }, {}, 'off');
   const out = {} as Record<SeasonId, Evaluation>;
   for (const id of SEASON_IDS) out[id] = evaluateEcosystem({ ...eco, season: id });
   return out;

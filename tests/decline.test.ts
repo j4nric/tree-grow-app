@@ -147,7 +147,8 @@ describe('Ablehnen: überall derselbe Betrag', () => {
     let onlineDeclined = 0;
     let onlineCount = 0;
     for (let i = 0; i < 3600; i++) {
-      const r = tick(online, 1);
+      // simulateOffline rechnet mit dem Mittelwetter (DESIGN_V2.md 21.5): online im selben Modus.
+      const r = tick(online, 1, 'average');
       onlineDeclined += r.declinedSeeds;
       onlineCount += r.autoDeclined;
     }

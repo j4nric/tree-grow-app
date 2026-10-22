@@ -16,7 +16,7 @@ import {
   type WeatherId,
 } from '../src/content/weather';
 
-/** Daten-Invarianten für Wetter und Nachtarten (DESIGN_V2.md 21). Noch ohne Logik. */
+/** Daten-Invarianten für Wetter und Nachtarten (DESIGN_V2.md 21). Logik: weather-core.test.ts. */
 describe('Wetter (Daten)', () => {
   it('IDs eindeutig, Texte deutsch und vorhanden', () => {
     expect(new Set(WEATHERS.map((w) => w.id)).size).toBe(WEATHERS.length);

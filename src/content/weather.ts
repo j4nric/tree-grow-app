@@ -4,13 +4,13 @@ import type { MainTreeId } from './trees';
 
 /**
  * Wetterlagen (docs/DESIGN_V2.md, Abschnitt 21). Reine Daten; die Rechnung (Auswahl aus
- * Seed und Spielzeit, Dämpfung, Mittelwetter für offline) ist Aufgabe von src/core
- * (Formeln in DESIGN_V2.md 21.4) – noch NICHT umgesetzt.
+ * Seed und Spielzeit, Dämpfung, Mittelwetter für offline) steht in src/core/weather.ts
+ * (Formeln in DESIGN_V2.md 21.4), die Wirkung in formulas.ts (evaluate) und tick.ts.
  *
  * Regeln:
  * - Ein Wetter gilt genau einen Tag = eine Jahreszeit (SEASON_SECONDS = DAY_SECONDS =
  *   180 s Spielzeit). Es wechselt also nur an der Grenze der Jahreszeit (am Vormittag) –
- *   kein zusätzlicher Halt in `tick`.
+ *   kein zusätzlicher Halt in `tick` (die Nacht-Halte bei 81 und 171 s sind für Nachtarten).
  * - Auswahl deterministisch aus Zyklus und Tag (kein Math.random, kein neues Feld im
  *   Spielstand): Tag n = floor(elapsed / 180), Gewichte der Jahreszeit (WEATHER_WEIGHTS).
  *   Der erste Tag jedes Zyklus ist immer FIRST_DAY_WEATHER, im ersten Jahr (GENTLE_DAYS)

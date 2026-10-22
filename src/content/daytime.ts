@@ -15,7 +15,7 @@ import { SEASON_SECONDS, type SeasonId } from './seasons';
  * - Tagesanteil (`SceneInput.dayPhase`): 0 = Mitternacht, 0,25 = Sonnenaufgang,
  *   0,5 = Mittag, 0,75 = Sonnenuntergang. Jeder Zyklus beginnt am Morgen
  *   (DAY_START_PHASE), kurz nach der Morgendämmerung.
- * - Wirkung (DESIGN_V2.md 21, noch NICHT umgesetzt): Nachts (NIGHT_START_PHASE bis
+ * - Wirkung (DESIGN_V2.md 21, src/core/weather.ts und evaluate): Nachts (NIGHT_START_PHASE bis
  *   NIGHT_END_PHASE, die halbe Spielzeit) bekommen nachtaktive Arten (NOCTURNAL) eine
  *   kleine Zusatzwirkung. Ohne sie ist die Nacht folgenlos – keine Strafe.
  */

@@ -11,7 +11,7 @@ import {
   RARITY_BOOST_POINTS,
 } from '../content/abilities';
 import { CARE, type CareCycleEffect } from '../content/care';
-import { DAY_SECONDS, DAY_START_PHASE } from '../content/daytime';
+import { DAY_SECONDS, DAY_START_PHASE, NOCTURNAL_BY_SPECIES } from '../content/daytime';
 import { COMMUNITIES, type CommunityMember } from '../content/communities';
 import { DECLINE_SEED_SECONDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
 import { SEED_SECONDS_MIN_SEEDS } from '../content/events';
@@ -44,6 +44,19 @@ import {
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
 import { normalizeElapsed, seasonIdAt, seasonIndex } from './season';
 import { MAX_FOREST_MEMORY, type CycleState, type GameState, type PendingEncounterType } from './state';
+import type { WeatherId } from '../content/weather';
+import {
+  averageWeatherEffectsFor,
+  dampedWeatherEffects,
+  dayIndex,
+  generaWithAnimals,
+  nightShare,
+  nocturnalInSeason,
+  weatherById,
+  weatherDampingFor,
+  weatherOfDay,
+  type AmbientMode,
+} from './weather';
 
 /*
  * Rechenmodell v2: Zufriedenheit, Harmonie, Versorgung, Wachstum/s, Samen/s.
@@ -104,6 +117,20 @@ export interface Ecosystem {
    * bereit, aber ohne Eigenheiten (reines Ökosystem, z. B. in Vorschau-Tests).
    */
   mainTree?: MainTreeId;
+  /**
+   * Wetter des Tages (DESIGN_V2.md 21.3) oder `'average'` = Mittelwetter der Jahreszeit
+   * (offline, 21.5; braucht `season`). Wirkungen mit Faktor 1, Abzüge rauer Lagen gedämpft
+   * (Gattungen mit Tier, Pflege `care`, Hauptbaum). Fehlt es, wirkt kein Wetter.
+   */
+  weather?: WeatherId | 'average';
+  /**
+   * Anteil der Nachtwirkung nachtaktiver Arten (21.6): 1 nachts, 0 tagsüber, NIGHT_SHARE
+   * im Mittel offline. Skaliert mit der Zufriedenheit der Art wie ihre Grundwirkung.
+   * Fehlt er, wirkt keine Nacht.
+   */
+  night?: number;
+  /** Pflege-Ränge des Zyklus – nur für den Schutz vor rauen Lagen (Wirkungen stecken in extraEffects). */
+  care?: Readonly<Record<string, number>>;
 }
 
 /** Platz-Wirkung (Nische, Anzahl). */
@@ -113,7 +140,9 @@ export interface SlotBonus {
 }
 
 /** Laufender Zyklus, soweit evaluate ihn braucht (fehlt er, gibt es keine Zusatz-Wirkungen). */
-export type CycleExtras = Partial<Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats' | 'care' | 'elapsed' | 'mainTree'>>;
+export type CycleExtras = Partial<
+  Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats' | 'care' | 'elapsed' | 'mainTree' | 'number' | 'startedAt'>
+>;
 
 /** Daten des Hauptbaums; unbekannte oder fehlende Arten → DEFAULT_MAIN_TREE (Eiche). */
 export function mainTreeOf(id: string | undefined): MainTree {
@@ -219,6 +248,7 @@ function slotBonusesOf(effects: readonly Effect[]): SlotBonus[] {
 export function ecosystemOf(
   state: Pick<GameState, 'stage' | 'niches' | 'plants' | 'meta'> & { cycle?: CycleExtras },
   patch: Partial<Pick<Ecosystem, 'niches' | 'plants'>> = {},
+  ambient: AmbientMode = 'live',
 ): Ecosystem {
   const genera: Genus[] = [];
   for (const v of state.cycle?.visitors ?? []) {
@@ -233,16 +263,43 @@ export function ecosystemOf(
     extraEffects: cycleEffects(state.cycle),
     habitats: [...(state.cycle?.habitats ?? []), ...careEffects(state.cycle?.care).habitats],
     guestGenera: genera,
-    ...environmentOf(state.cycle),
+    ...environmentOf(state.cycle, ambient),
   };
 }
 
-/** Jahreszeit (aus der Spielzeit) und Hauptbaum des Zyklus – nur, was der Zyklus kennt. */
-function environmentOf(cycle: CycleExtras | undefined): Pick<Ecosystem, 'season' | 'mainTree'> {
-  const out: Pick<Ecosystem, 'season' | 'mainTree'> = {};
-  if (cycle?.elapsed !== undefined) out.season = seasonIdAt(cycle.elapsed);
+type Environment = Pick<Ecosystem, 'season' | 'mainTree' | 'weather' | 'night' | 'care'>;
+
+/**
+ * Jahreszeit, Wetter und Nacht (aus der Spielzeit) und Hauptbaum des Zyklus – nur, was
+ * der Zyklus kennt. `ambient` wählt Einzelwetter (live), Mittel (offline) oder keins.
+ */
+function environmentOf(cycle: CycleExtras | undefined, ambient: AmbientMode): Environment {
+  const out: Environment = {};
+  if (cycle?.elapsed !== undefined) {
+    out.season = seasonIdAt(cycle.elapsed);
+    if (ambient === 'average') out.weather = 'average';
+    else if (ambient === 'live') out.weather = weatherOfDay({ number: cycle.number ?? 0, startedAt: cycle.startedAt }, dayIndex(cycle.elapsed));
+    const night = nightShare(ambient, cycle.elapsed);
+    if (night > 0) out.night = night;
+  }
   if (cycle?.mainTree !== undefined) out.mainTree = mainTreeOf(cycle.mainTree).id;
+  if (cycle?.care !== undefined) out.care = cycle.care;
   return out;
+}
+
+/**
+ * Wirkungen des Wetters (21.3/21.5) für ein Ökosystem, Faktor 1: Einzelwetter oder
+ * Mittelwetter der Jahreszeit, Abzüge gedämpft nach Gattungen mit Tier, Pflege und Baumart.
+ */
+function ecosystemWeatherEffects(eco: Ecosystem, animals: readonly Species[]): Effect[] {
+  if (eco.weather === undefined) return [];
+  const genera = generaWithAnimals(animals.map((a) => a.id)).length;
+  const tree = eco.mainTree !== undefined ? mainTreeOf(eco.mainTree).id : undefined;
+  if (eco.weather === 'average') {
+    return eco.season !== undefined ? averageWeatherEffectsFor(eco.season, genera, eco.care, tree) : [];
+  }
+  const weather = weatherById(eco.weather);
+  return dampedWeatherEffects(weather, weatherDampingFor(weather, genera, eco.care, tree));
 }
 
 export interface AnimalStatus {
@@ -624,15 +681,21 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
         break; // Fraß unten gesondert, Plätze in nicheSlots(), Störung und Fähigkeiten oben
     }
   };
+  // Nachtwirkung nachtaktiver Arten (21.6): × Zufriedenheit × Nachtanteil, nur 🌿/🌰.
+  const night = Math.min(1, Math.max(0, finite(eco.night ?? 0)));
   for (const a of animals) {
     const z = status[a.id]!.happiness;
     for (const e of a.effects) apply(e, z);
+    const nocturnal = night > 0 ? NOCTURNAL_BY_SPECIES.get(a.id) : undefined;
+    if (nocturnal && nocturnalInSeason(nocturnal, eco.season)) for (const e of nocturnal.effects) apply(e, z * night);
     if (fearful.has(a.id)) {
       for (const e of a.effects) if (e.kind === 'light') light += e.amount * z * (FEAR_LIGHT_FACTOR - 1);
     }
   }
   // Ereignis-Boni und Gäste wirken voll (Faktor 1, wie Lebensgemeinschaften).
   for (const e of extraEffects) apply(e, 1);
+  // Wetter wie die Jahreszeit (Faktor 1); nur 🌿/🌰 und Gruppen, nie Harmonie oder Plätze.
+  for (const e of ecosystemWeatherEffects(eco, animals)) apply(e, 1);
   const traitTiers = {} as Record<Genus, number>;
   for (const g of GENERA) {
     const tier = TRAIT_THRESHOLDS.filter((t) => genusCounts[g] >= t).length;
@@ -765,10 +828,10 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
  * Stufenwechsel, nicht pro Tick. Das Ergebnis wird geteilt und ist darum tief
  * eingefroren – Schreibversuche werfen im Strict Mode einen Fehler.
  */
-export function evaluate(state: GameState): Readonly<Evaluation> {
-  const key = ecosystemKey(state);
+export function evaluate(state: GameState, ambient: AmbientMode = 'live'): Readonly<Evaluation> {
+  const key = ecosystemKey(state, ambient);
   if (cache && cache.key === key) return cache.value;
-  const value = deepFreeze(evaluateEcosystem(ecosystemOf(state)));
+  const value = deepFreeze(evaluateEcosystem(ecosystemOf(state, {}, ambient)));
   cache = { key, value };
   return value;
 }
@@ -786,13 +849,23 @@ let cache: { key: string; value: Evaluation } | null = null;
 
 /**
  * Cache-Schlüssel: alles, was die Auswertung ändert – auch Zyklus-Boni, Habitate, aktive
- * Zeit-Boni und Gäste (ihre IDs bzw. Wirkungen, nicht die Restdauer).
+ * Zeit-Boni und Gäste (ihre IDs bzw. Wirkungen, nicht die Restdauer). `null` = ohne
+ * Jahreszeit, Wetter und Nacht (Samen-Sekunden).
  */
-function ecosystemKey(state: GameState, withSeason = true): string {
+function ecosystemKey(state: GameState, ambient: AmbientMode | null): string {
   let key = `${state.stage}|${state.meta.forestMemory}|${(state.plants ?? []).join(',')}`;
-  // Jahreszeit nur als Index (nicht `elapsed` – sonst wäre der Cache jede Sekunde ungültig).
+  // Jahreszeit, Wetter und Nacht nur als Index bzw. ID (nicht `elapsed` – sonst wäre der
+  // Cache jede Sekunde ungültig). Die Dämpfung hängt an Nischen, Pflege und Baumart – alle
+  // im Schlüssel.
   if (state.cycle) {
-    if (withSeason) key += `|s:${seasonIndex(state.cycle.elapsed)}`;
+    if (ambient !== null) {
+      key += `|s:${seasonIndex(state.cycle.elapsed)}`;
+      if (ambient === 'live') {
+        key += `|w:${weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed))}|n:${nightShare('live', state.cycle.elapsed) > 0 ? 1 : 0}`;
+      } else {
+        key += ambient === 'average' ? '|w:avg' : '|w:off';
+      }
+    }
     key += `|m:${mainTreeOf(state.cycle.mainTree).id}`;
   }
   for (const id of NICHE_IDS) key += `|${(state.niches[id] ?? []).join(',')}`;
@@ -949,10 +1022,11 @@ export function waypointProgress(state: GameState): number {
 }
 
 /** Sekunden bis zum nächsten Wegpunkt bei aktuellem Wachstum (Infinity nach dem letzten). */
-export function secondsToNextWaypoint(state: GameState): number {
+export function secondsToNextWaypoint(state: GameState, ambient: AmbientMode = 'live'): number {
   const next = thresholdFor(state.waypoint + 1);
   if (!Number.isFinite(next)) return Infinity;
-  const rate = evaluate(state).growth;
+  // Rate im selben Modus wie tick (sonst endet ein Schritt knapp vor dem Wegpunkt).
+  const rate = evaluate(state, ambient).growth;
   return rate > 0 ? Math.max(0, next - state.totalGrowth) / rate : Infinity;
 }
 
@@ -1183,7 +1257,7 @@ function copyNiches(niches: Partial<Record<NicheId, readonly string[]>>): Record
 
 /**
  * Samenrate, nach der Samen-Sekunden gerechnet werden: ohne Zeit-Boni, ohne Gäste und
- * ohne Jahreszeit (sonst ließen sich Samen-Optionen durch vorher gewählte Zeit-Boni
+ * ohne Jahreszeit, Wetter und Nacht (sonst ließen sich Samen-Optionen durch vorher gewählte Zeit-Boni
  * aufblähen, und es lohnte sich, mit einer Wahl auf den Herbst zu warten).
  * Zyklus-Boni, Habitate, Pflege und die Baumart zählen mit – sie sind Teil des Ökosystems.
  * Gecacht wie evaluate (die UI fragt jeden Frame).
@@ -1191,10 +1265,10 @@ function copyNiches(niches: Partial<Record<NicheId, readonly string[]>>): Record
 export function seedSecondsRate(state: GameState): number {
   const c = state.cycle;
   if (!c) return evaluate(state).seeds;
-  // Ohne Jahreszeit im Schlüssel: Die Rate hängt nicht von ihr ab.
-  const key = ecosystemKey(state, false);
+  // Ohne Jahreszeit, Wetter und Nacht im Schlüssel: Die Rate hängt nicht von ihnen ab.
+  const key = ecosystemKey(state, null);
   if (seedRateCache && seedRateCache.key === key) return seedRateCache.value;
-  const eco = ecosystemOf({ ...state, cycle: { ...c, timed: [], visitors: [] } });
+  const eco = ecosystemOf({ ...state, cycle: { ...c, timed: [], visitors: [] } }, {}, 'off');
   delete eco.season;
   const value = evaluateEcosystem(eco).seeds;
   seedRateCache = { key, value };

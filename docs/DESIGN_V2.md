@@ -2138,7 +2138,7 @@ Stufenzeiten des Harmonie-Spielers 0,8–1,25 × Ziel, Hain 55–65 min, Setzlin
 Takt bis Hain im Median 10 s – 8 min, nie über 15 min; Harmonie-Strategie hat die höchste
 Harmonie; kein Gattungs-Stapeln mehr als 10 % schneller; Wachstums-Spieler schneller, aber
 höchstens ~15 % und mindestens 3 Punkte weniger Harmonie; Pflanzen und Pflege als
-Samen-Senke (Bestand beim Hain < 10 min Produktion, im Wald < 12 min); frühes Spiel (seit
+Samen-Senke (Bestand beim Hain < 10 min Produktion, im Wald < 12 min, seit Wetter < 15 min, 21.10); frühes Spiel (seit
 dem Playtest „frühes Spiel“): längste Pause ohne Entscheidung in den ersten 6 min im
 Median ≤ 75 s (Harmonie, Wachstum), jede Strategie < 105 s, Samen ungenutzt vor dem Jungen
 Baum < 250 🌰; Neu würfeln bis zum
@@ -2945,7 +2945,8 @@ die Strecken nach dem Hain unter 11 min (mit 50 % waren es im Hain 11:15 min).
 - **Baumarten:** alle innerhalb ±5 % der Eiche; die Kiefer bleibt für Wachstums-Spieler
   am schnellsten (Winterfestigkeit).
 - **Wirtschaft:** Pflege bleibt die Senke (8,4 statt 38,7 min Bestand beim Hain). Im Wald
-  sparen Harmonie-Spieler auf die Wald-Ränge (10,8 min) – die Prüfung erlaubt dort 12 min.
+  sparen Harmonie-Spieler auf die Wald-Ränge (10,8 min) – die Prüfung erlaubt dort 12 min
+  (seit Wetter und Nacht 15 min: gemessen 14,6 min, 21.10).
 - **Neuer Zyklus:** Zyklus 2 ist 28,8 % schneller (Ziel 20–35 %), der erste Stammgast
   kommt nach einem Zyklus (33 Punkte), der zweite nach zwei.
 
@@ -4498,10 +4499,11 @@ Abschnitt „Tagesziele“.
 
 ## 21. Wetter und Nachtarten
 
-> **Stand:** Design (Phase 6, Welle 2). Daten in `src/content/weather.ts` (Wetterlagen) und
-> `src/content/daytime.ts` (`NOCTURNAL`, Nachtgrenzen), Invarianten in
-> `tests/weather.test.ts`. **Logik fehlt noch** (21.9). Spielstand unverändert – kein neues
-> Feld, kein `SAVE_VERSION` (bleibt 12).
+> **Stand:** Logik umgesetzt (Phase 6, Welle 2); Grafik und Anzeige folgen (21.8). Daten in
+> `src/content/weather.ts` (Wetterlagen) und `src/content/daytime.ts` (`NOCTURNAL`,
+> Nachtgrenzen), Logik in `src/core/weather.ts`, `evaluate` (`core/formulas.ts`) und `tick`
+> (`core/tick.ts`), Tests in `tests/weather.test.ts` (Daten) und `tests/weather-core.test.ts`
+> (Logik). Spielstand unverändert – kein neues Feld, kein `SAVE_VERSION` (bleibt 12).
 
 ### 21.1 Idee und Leitlinien
 
@@ -4557,7 +4559,7 @@ Zeit-Boni in B_🌿 / B_🌰 bzw. als Gruppenbonus.
 
 Gewichte in Prozent (Summe je Jahreszeit 100, `WEATHER_WEIGHTS`). Raue Lagen: Frühling 5 %,
 Sommer 15 %, Herbst 20 %, Winter 25 %; „Wechselhaft“ immer mindestens 35 % (Inhaltstest).
-Gemessene Häufigkeit nach den Regeln (2000 Zyklen × 400 Tage, `tests/weather-balance.test.ts`):
+Gemessene Häufigkeit nach den Regeln (2000 Zyklen × 400 Tage, `tests/weather-balance.test.ts`, echte Logik – gleich wie im Modell):
 
 | Jahreszeit | ⛅ | 🌧️ | ☀️ | 🌫️ | 🌨️ | 🌡️ | 🌬️ | 🧊 |
 |---|---|---|---|---|---|---|---|---|
@@ -4618,9 +4620,11 @@ weatherEffects(state, w) = w.effects; negative pct × (1 − Vielfalt) × Schutz
 ```
 
 Regel 3 prüft das **Rohwetter** des Vortags: War der Vortag rau, war schon sein Rohwetter
-rau – also nie zwei raue Tage, ohne Rekursion. Referenz-Umsetzung: `scripts/weather-model.ts`
-(nach der Umsetzung in core/ löschen). `startedAt` fehlt nur bei Ständen vor v4 → 0. `random`
-läuft auf einem eigenen Halter und verändert den Spielstand-Zufall (`rngState`) nicht.
+rau – also nie zwei raue Tage, ohne Rekursion. Umsetzung: `src/core/weather.ts` (das Modell
+`scripts/weather-model.ts` ist gelöscht). `startedAt` fehlt nur bei Ständen vor v4 → 0 (ebenso
+NaN/Infinity). `random` läuft auf einem eigenen Halter und verändert den Spielstand-Zufall
+(`rngState`) nicht. „Gattungen mit mindestens einem Tier“ zählt nur Tiere in den Nischen, je
+Gattung einmal – „zählt als Vogel“ (Langohr) und Gäste nicht.
 
 **Nacht:** `isNight(elapsed) = dayPhaseAt(elapsed) ≥ 0,75 oder < 0,25` – Sekunde 81 bis 171
 jedes Tages (`NIGHT_START_PHASE`, `NIGHT_END_PHASE`). Die Grafik zeigt volle Nacht nur
@@ -4648,7 +4652,15 @@ Zyklus beginnt praktisch nie offline. Dadurch:
 - Die Rückkehr-Meldung sagt ehrlich „Wetter gemittelt“; optional nennt sie die Tage, die es
   gegeben hätte („4 × Regen, 1 × Sturm“) – nur Text, berechnet mit `weatherOfDay`.
 - **Invariante ändert sich:** viele kleine Ticks = ein großer Tick (beide Einzelwetter);
-  `simulateOffline` = Tick im Modus „Mittel“. Den bestehenden Test entsprechend aufteilen.
+  `simulateOffline` = Ticks im Modus „Mittel“. Umgesetzt: Die Äquivalenztests in
+  `tick.test.ts`, `seasons.test.ts`, `events.test.ts`, `stats.test.ts` prüfen beide Hälften
+  mit unveränderter Genauigkeit; `care`, `cycle` und `decline` vergleichen `simulateOffline`
+  mit kleinen Ticks im Modus „Mittel“. Online gegen offline gilt nur noch im Mittel
+  (`weather-core.test.ts`: Einzelwetter über viele Zyklen ≈ Mittelwetter ± 0,3 Prozentpunkte;
+  8 h Hain mit Nachtarten ± 3 %).
+- **Riesige Ticks:** Ein `tick` über `MAX_LIVE_SECONDS` (100 Jahre Spielzeit = 20 h) rechnet
+  ganz gemittelt – mit Einzelwetter bräuchte er drei Runden je Tag und könnte keine Jahre
+  überspringen. Kommt im Spiel nicht vor (online ≤ 1 s je Frame, offline gemittelt).
 
 ### 21.6 Nachtaktive Arten
 
@@ -4726,7 +4738,7 @@ sie verschwinden nie.
 
 ### 21.9 Aufgabenschnitt
 
-**`core-engineer`** (ohne Spielstand-Änderung):
+**`core-engineer`** (ohne Spielstand-Änderung) – **erledigt**, siehe Schnittstellen unten:
 1. `core/weather.ts` (rein, wie `season.ts`): `weatherSeed`, `weatherOfDay(cycle, n)`,
    `weatherAt(state)`, `weatherForecast(state)` (morgen), `isNight(elapsed)`,
    `secondsToNightChange(elapsed)`, `averageWeatherEffects(state, season)`.
@@ -4744,62 +4756,87 @@ sie verschwinden nie.
    `startedAt`. Danach `tests/weather-balance.test.ts` auf die echte Logik umstellen und
    `scripts/weather-model.ts` löschen.
 
+**Schnittstellen für `renderer` und `ui-dev`** (alle rein, jeden Frame nutzbar):
+
+| Bedarf | Aufruf |
+|---|---|
+| Wetter der Szene mit Überblendung | `sceneWeather(state.cycle)` → `{ weather, previous, blend }` (`blend` 0 → 1 über `WEATHER_BLEND_SECONDS` ab Tagesbeginn; Tag 0 und gleiches Wetter: 1) |
+| Abzeichen | `weatherAt(state)` (Daten: Name, Icon, Text, `summary`), `weatherEffects(state)` (gedämpfte `TimedEffect[]`) |
+| Tooltip-Dämpfung | `weatherDamping(state, weather?)` → `{ rough, genera, diversity, protectedBy, immune, factor }` |
+| Vorhersage | `weatherForecast(state)` (Wetter von morgen) |
+| Hinweis beim Wechsel | `TickReport.weather: WeatherId[]` – parallel zu `seasons`, gleich gekürzt |
+| Rückkehr-Meldung | `OfflineReport.averaged` (gemittelt gerechnet) und `.weather` (die Tage, die es gegeben hätte) |
+| Nacht | `isNight(elapsed)`, `secondsToNightChange(elapsed)`, `nocturnalSpecies(state, season)` (wirkende Nachtarten) |
+| Mittel / Häufigkeit | `averageWeatherEffects(state, season)`, `weatherProbabilities(season)` |
+
+`evaluate(state, ambient = 'live')`, `ecosystemOf(state, patch, ambient)` und
+`tick(state, dt, ambient = 'live')` kennen die Modi `live` | `average` | `off`; die UI braucht
+nur den Standard.
+
 **`renderer`**: `SceneInput.weather` / `weatherBlend` und die Bilder aus 21.8, Nachtverhalten
 der vier Arten, Demo `?weather=…`.
 
 **`ui-dev`**: Abzeichen mit Vorhersage, gemeinsamer Toast, Nachtsymbole, Schutz-Hinweise,
 Rückkehr-Text (21.8).
 
-### 21.10 Simulation (Modell, 100 Durchgänge bis Urwald, alle Systeme mit Pflege)
+### 21.10 Simulation (echte Logik, 100 Durchgänge bis Urwald, alle Systeme mit Pflege)
 
-`scripts/weather-model.ts` liefert Wetter und Nacht als Zeit-Boni bis zum nächsten Wechsel
-(`RunOptions.ambient` in `scripts/simulate.ts`). Exakt bis auf zwei Näherungen: Die
-Zufriedenheit der Nachtart wird am Beginn der Nacht gemessen, die Vielfalt am Beginn des Tages.
+Gemessen mit `RunOptions.ambient` in `scripts/simulate.ts` (`off` | `live` | `average`, wie
+`tick`); das Modell `scripts/weather-model.ts` ist gelöscht. „ohne“ = Modus `off`.
 
 ```bash
-SIM_WEATHER=1 SIM_WEATHER_RUNS=100 SIM_WEATHER_FULL=1 npx vitest run tests/weather-balance.test.ts --silent=false   # ~1,5 min
+SIM_WEATHER=1 SIM_WEATHER_RUNS=100 SIM_WEATHER_FULL=1 npx vitest run tests/weather-balance.test.ts --silent=false   # ~1 min
 ```
 
 **Gierig nach Harmonie**
 
 | Variante | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Durststrecke 90 % Alter Baum / Hain |
 |---|---|---|---|---|---|---|---|
-| ohne (heute) | 4:11 min | 22:42 min | 1:02:28 h | 1:55:21 h | 2:49:51 h | 107,5 | 9:59 / 9:41 min |
-| nur Wetter | 4:11 min | 21:48 min | 1:01:01 h (−2,3 %) | 1:52:20 h | 2:45:01 h | 107,1 | 10:02 / 9:36 min |
-| nur Nachtarten | 4:11 min | 22:42 min | 1:02:20 h (−0,2 %) | 1:54:10 h | 2:48:54 h | 107,4 | 9:59 / 10:50 min |
-| **Wetter + Nacht** | 4:11 min | 21:48 min | **1:00:59 h (−2,4 %)** | 1:51:24 h | 2:44:22 h | 107,1 | 10:02 / 10:21 min |
-| Wetter + Nacht, gemittelt (offline) | 4:06 min | 22:24 min | 1:01:40 h (−1,3 %) | 1:52:58 h | 2:42:52 h | 107,3 | 9:57 / 9:18 min |
+| ohne | 4:11 min | 22:42 min | 1:02:32 h | 1:54:49 h | 2:49:52 h | 107,7 | 9:49 / 9:41 min |
+| **Wetter + Nacht (online)** | 4:11 min | 21:48 min | **1:00:58 h (−2,5 %)** | 1:51:23 h | 2:44:21 h | 107,1 | 9:54 / 9:39 min |
+| Wetter + Nacht, gemittelt (offline) | 4:06 min | 22:24 min | 1:01:37 h (−1,5 %) | 1:52:56 h | 2:42:53 h | 107,4 | 9:57 / 9:12 min |
 
 **Gierig nach Wachstum**
 
 | Variante | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain |
 |---|---|---|---|---|---|---|
-| ohne (heute) | 3:56 min | 19:36 min | 55:07 min | 1:37:50 h | 2:23:10 h | 100,7 |
-| nur Wetter | 3:56 min | 18:51 min | 53:37 min (−2,7 %) | 1:35:36 h | 2:20:08 h | 101,1 |
-| nur Nachtarten | 3:56 min | 19:32 min | 54:22 min (−1,4 %) | 1:37:34 h | 2:21:53 h | 100,8 |
-| **Wetter + Nacht** | 3:56 min | 18:48 min | **53:32 min (−2,9 %)** | 1:35:42 h | 2:19:14 h | 100,8 |
-| Wetter + Nacht, gemittelt (offline) | 3:51 min | 19:20 min | 54:03 min (−1,9 %) | 1:36:44 h | 2:21:42 h | 100,2 |
+| ohne | 3:56 min | 19:38 min | 54:48 min | 1:37:52 h | 2:23:26 h | 101,4 |
+| **Wetter + Nacht (online)** | 3:56 min | 18:49 min | **53:21 min (−2,6 %)** | 1:35:52 h | 2:19:29 h | 100,7 |
+| Wetter + Nacht, gemittelt (offline) | 3:51 min | 19:20 min | 53:58 min (−1,5 %) | 1:36:04 h | 2:19:24 h | 101,1 |
 
-Die gemittelte Zeile weicht im ersten Jahr leicht ab, weil sie Tag 0 und die Schonzeit nicht
-kennt (Junger Baum 5 s früher).
+**Abweichungen gegenüber dem Modell** (Entwurf, gleiche Seeds): Häufigkeiten (21.3) gleich
+auf 0,1 Prozentpunkte – dieselbe Rechnung. Online Hain 1:00:58 statt 1:00:59 h (Harmonie)
+bzw. 53:21 statt 53:32 min (Wachstum), Urwald 2:44:21 statt 2:44:22 h bzw. 2:19:29 statt
+2:19:14 h; gemittelt Hain 1:01:37 statt 1:01:40 h bzw. 53:58 statt 54:03 min. Die
+„ohne“-Zeile liegt 4 s (Harmonie) bzw. 19 s (Wachstum) anders als im Modell, weil die
+Strategien ihre Wahl jetzt mit der echten Bewertung (inkl. Wetter des Tages) treffen und der
+Simulator an den Nachtgrenzen anhält. Die beiden Näherungen des Modells (Zufriedenheit der
+Nachtart am Beginn der Nacht, Vielfalt am Beginn des Tages) fallen weg; der Unterschied liegt
+unter einer Minute bis zum Urwald. Die Zeilen „nur Wetter“ / „nur Nachtarten“ gibt es mit der
+echten Logik nicht mehr (ein Schalter für beides); im Modell: Wetter −2,3 / −2,7 %, Nacht
+−0,2 / −1,4 % beim Hain.
 
-**Bewertung:** Hain 2–3 % schneller, Urwald 2–3 %, Harmonie unverändert (±0,4), Durststrecken
-gleich (Unterschiede ≤ 1 min, Streuung), frühes Spiel unverändert dank Schonzeit (vorher
-Junger Baum +9 s). Das liegt innerhalb der Streuung der Seeds und im Korridor von
-`balance.test.ts`. Wachstums- und Harmonie-Spieler profitieren gleich – das Wetter bevorzugt
-keinen Stil; online und offline liegen im Mittel gleichauf. Ohne Schonzeit: Hain ebenfalls
-−2 % (Harmonie −2,1 %, Wachstum −2,0 %).
+**Pflege-Reserve:** Im Wald haben Harmonie-Spieler mit Wetter im Mittel 14,6 statt 11,1 min
+Produktion angespart (30 Durchgänge, `balance-care.test.ts`; gemittelt 13,1 min) – sie kommen
+~4 % früher und mit +4 % 🌰 dort an, wo auf die Wald-Ränge gespart wird. Die Prüfung erlaubt
+dort jetzt 15 statt 12 min; beim Hain bleibt < 10 min (gemessen 9,4 min).
 
-### 21.11 Offene Fragen
+**Bewertung:** Hain 2–3 % schneller, Urwald 2–3 %, Harmonie unverändert (±0,7), Durststrecken
+gleich (Unterschiede ≤ 1 min, Streuung), frühes Spiel unverändert dank Schonzeit (Junger Baum
+gleich). Wachstums- und Harmonie-Spieler profitieren gleich – das Wetter bevorzugt keinen
+Stil; online und offline liegen im Mittel gleichauf (gemittelt 1 % langsamer bis zum Hain,
+im Urwald gleich). Die gemittelte Zeile weicht im ersten Jahr leicht ab, weil sie Tag 0 und
+die Schonzeit nicht kennt (Junger Baum 5 s früher).
 
-- **Borkenkäferjahr** (Roadmap): nach zwei Dürren in einem Jahr ein Ereignis
-  „Borkenkäfer-Massenvermehrung“ mit Wahl (Totholz behalten ↔ Samen)? Bräuchte ein
-  Ereignis-Gewicht nach Wetter – nach der Umsetzung entscheiden.
-- **Nachtwirkung stärker?** Nachts +2–7 % 🌿/s sind mehr Atmosphäre als Zahl. Verdoppeln
-  (Kauz +20 %) wäre für das Tempo noch harmlos, widerspricht aber „klein“.
-- **Lebensgemeinschaft „Nachtschwärmer“** (Kauz, Langohr, Glühwürmchen) mit Harmonie – dann
-  ganztägig gültig, um die Sperrklinke nicht zu umgehen.
-- **Wetter und Begegnungen:** Regen könnte „Krötenwanderung“, Sturm „Windwurf“ häufiger
-  machen (Gewicht × 1,5). Bewusst weggelassen, bis das Wetter im Spiel ist.
-- **Tagesziele (20):** „Erlebe einen Sturm“ wäre rein passiv, „Pflanze bei Regen“ ein Zwang
-  zum Zuschauen – beides eher nicht.
+### 21.11 Offene Fragen (entschieden)
+
+- **Nachtwirkung:** bleibt wie entworfen (Kauz +10 %, Langohr +12 %, Igel und Glühwürmchen
+  je +6 %) – Atmosphäre vor Zahl, niemand soll nachts online sein müssen.
+- **Borkenkäferjahr:** kommt später als **Ereignis** (z. B. nach zwei Dürren in einem Jahr,
+  mit Wahl Totholz ↔ Samen), nicht als Wetterlage.
+- **Wetter und Begegnungen** (Regen → Krötenwanderung, Sturm → Windwurf): kommt mit Welle 3
+  (Räuber und Beute), vorerst kein Einfluss auf die Gewichte.
+- **Tagesziele (20):** keine Wetter-Tagesziele („Erlebe einen Sturm“ wäre passiv, „Pflanze
+  bei Regen“ ein Zwang zum Zuschauen).
+- Offen bleibt nur die Idee einer Lebensgemeinschaft „Nachtschwärmer“ (Kauz, Langohr,
+  Glühwürmchen) mit ganztägiger Harmonie – erst, wenn Welle 3 Gemeinschaften erweitert.
