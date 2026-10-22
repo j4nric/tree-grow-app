@@ -561,8 +561,27 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   `tests/album-niches.test.ts`.
 - [ ] **6** Begegnungen (`ui-dev`): Zettelstapel mit Wackeln, Unterseite Begegnung, Unterseite
   Pflanze setzen. Specs events, playthrough, full-cycle. Abhängig: 4 (Pflanze setzen: 5)
-- [ ] **7** Reiter Arten (`ui-dev`): Sticker-Raster mit Silhouetten, Pflanzen, Gemeinschaften,
+- [x] **7** Reiter Arten (`ui-dev`): Sticker-Raster mit Silhouetten, Pflanzen, Gemeinschaften,
   Andenken, Stammgast-★. Spec journal. Abhängig: 5
+  *Umgesetzt:* `album/pages/species-page.ts` (R:Arten: Kopf mit `journal-counts/-meta/-regulars`,
+  Sprungmarken als Washi-Streifen, Tiere nach Gattung mit „n von m“ – farbig, wenn die Art im
+  Wald lebt, matt, wenn sie entdeckt, aber nicht da ist, unentdeckt als Silhouette „???“;
+  ★-Knopf am Sticker (`toggleRegular`), grüner Punkt „lebt hier“; Tipp → U:Tier mit Lesezeichen
+  „‹ Arten“, Tipp auf eine Silhouette → Haftnotiz mit Gattung, Seltenheit, Nische und Stufe statt
+  Spoiler; Pflanzen mit Gruppen-Emoji und Notiz; Gemeinschaften; Andenken als Samentütchen und
+  Zettel). Reine Logik in `pages/species-view.ts` (+ `tests/album-species.test.ts`). **Leistung:**
+  feste Zellen je Art und Pflanze (einmal gebaut, danach nur Klassen und Texte), `toJournalView`
+  nur bei neuem `speciesPageKey` bzw. neuer Auswertung; Bilder erst, wenn ein
+  IntersectionObserver die Zelle meldet; matte Bilder und Silhouetten aus der IdleQueue
+  (`StickerImage.draw(…, { preview: false })`, Silhouetten nie mit farbiger Vorschau; ein
+  Leerlauf-Rückruf zeichnet bis zu 4 ms lang weitere Sticker). Gemessen mit vollem Tagebuch
+  (51 Arten, 14 Pflanzen, 15 Gemeinschaften; Chromium, Rechner unter Last): Aufbau 3–4 ms,
+  erste Darstellung 5–9 ms, alle sichtbaren Sticker (Desktop 15) ≈ 0,36 s nach dem
+  Reiterwechsel; mit 4-facher CPU-Drosselung 7–36 ms, 14–30 ms und ≈ 0,8 s
+  (`performance.measure` `album-species-build` / `album-species-first-render`).
+  `journal-dialog.ts` gelöscht; der Tagebuch-Teil „Landschaft“ steht bis Schritt 10 als Abschnitt
+  „Unsere Wälder“ im Reiter Landschaft (`ui/journal-landscape.ts`, eingehängt in `legacy.ts`).
+  Neu: `e2e/album-species.spec.ts`; journal- und journal-landscape-Spec umgestellt.
 - [x] **8** Reiter Pflege (`ui-dev`): Gerade wirksam, Pflegeliste, Unterseite Pflegemaßnahme,
   Punkt am Reiter. Spec care. Abhängig: 4
   *Umgesetzt:* `album/pages/care-page.ts` (R:Pflege: „Gerade wirksam“ als gelber Zettel mit
