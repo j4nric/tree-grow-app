@@ -394,6 +394,7 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
       ],
       corridors: ['home-floodplain', 'floodplain-carr'],
       freeCorridors: ['home-floodplain'],
+      announced: false,
     };
     start.meta.regulars = ['bee'];
     start.meta.journal.species.push('bee');

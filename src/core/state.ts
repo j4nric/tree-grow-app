@@ -215,6 +215,12 @@ export interface LandscapeState {
   corridors: string[];
   /** Korridore, die mit einer Gründung kamen (kosten nichts; Teilmenge von `corridors`). */
   freeCorridors: string[];
+  /**
+   * Die Meldung zur Freischaltung (24.3) wurde gezeigt. Die UI zeigt sie, solange
+   * `landscapeUnlocked(state) && !announced`, und ruft danach `markLandscapeAnnounced`.
+   * So geht sie nicht verloren, auch wenn die Freischaltung ohne Karte (vor der UI) geschah.
+   */
+  announced: boolean;
 }
 
 /** Ein frisch gegründeter Wald (ohne Gedächtnis, ohne Stammgäste). */
@@ -224,7 +230,7 @@ export function createSite(id: SiteId, mainTree: MainTreeId = DEFAULT_MAIN_TREE)
 
 /** Startwert der Landschaft: nur der Heimatwald, aktiv, keine Korridore. */
 export function createLandscape(mainTree: MainTreeId = DEFAULT_MAIN_TREE): LandscapeState {
-  return { active: HOME_SITE, sites: [createSite(HOME_SITE, mainTree)], corridors: [], freeCorridors: [] };
+  return { active: HOME_SITE, sites: [createSite(HOME_SITE, mainTree)], corridors: [], freeCorridors: [], announced: false };
 }
 
 /** Der laufende Zyklus (DESIGN_V2.md, Abschnitt 10). Wird beim Neuen Zyklus neu angelegt. */

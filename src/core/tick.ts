@@ -63,6 +63,7 @@ import {
 import { checkAchievements } from './achievements';
 import {
   ANCIENT_STAGE,
+  activeSite,
   corridorBetween,
   effectiveMemoryOf,
   isSiteAncient,
@@ -987,7 +988,7 @@ export function previewNewCycle(state: GameState): NewCyclePreview {
   );
   const blocker = newCycleBlocker(state);
   const memoryAfter = memoryBefore + memoryGain;
-  const active = landscapeOf(state).active;
+  const active = activeSite(landscapeOf(state));
   const memoryOf = (site: SiteId) => (site === active ? memoryAfter : ownMemory(state, site));
   return {
     blocker,
@@ -1018,7 +1019,7 @@ function unlockedOr(state: GameState, id: MainTreeId | null | undefined): MainTr
  */
 function previewLandscape(state: GameState, memoryOf: (site: SiteId) => number, cycleLocked: boolean): LandscapePreview {
   const landscape = landscapeOf(state);
-  const active = landscape.active;
+  const active = activeSite(landscape);
   const reachedAncient = state.stage >= ANCIENT_STAGE;
   const unlocked = landscapeUnlocked(state);
   const unlockedAfter = landscapeUnlocked(state, memoryOf(HOME_SITE), reachedAncient);
@@ -1052,6 +1053,17 @@ function previewLandscape(state: GameState, memoryOf: (site: SiteId) => number, 
     };
   });
   return { unlocked, unlockedAfter, active, jaySeeds: jaySeeds(state), jaySeedsAfter: after, sites };
+}
+
+/**
+ * Die Meldung zur Freischaltung der Landschaft (24.3) ist gezeigt: einmal, dauerhaft. Die UI
+ * zeigt sie, solange `landscapeAnnouncementDue(state)` gilt, und ruft danach diese Aktion.
+ * Gibt zurück, ob sich etwas geändert hat (vor der Freischaltung: nichts, false).
+ */
+export function markLandscapeAnnounced(state: GameState): boolean {
+  if (!landscapeUnlocked(state) || state.meta.landscape.announced) return false;
+  state.meta.landscape.announced = true;
+  return true;
 }
 
 /** Warum dieser Korridor gerade nicht gebaut werden kann – null, wenn es geht. */
@@ -1144,7 +1156,8 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   const preview = previewNewCycle(state);
   if (preview.blocker !== null) return { ok: false, error: 'cycle-locked' };
   const landscape = state.meta.landscape;
-  const from = landscape.active;
+  // Ungültiger aktiver Wald (kaputter Stand): wie beim Laden der Heimatwald, kein Fehler.
+  const from = activeSite(landscape);
   const target = site ?? from;
   const choice = preview.landscape.sites.find((s) => s.id === target);
   if (!choice) return { ok: false, error: 'site-locked' };
@@ -1157,10 +1170,15 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   // 1. Gewinn dem alten Wald gutschreiben, 2. `ancient` setzen, 3. wechseln bzw. gründen (24.5).
   state.meta.forestMemory = preview.memoryAfter;
   let fromEntry = siteEntry(landscape, from);
-  if (!fromEntry) landscape.sites.unshift((fromEntry = createSite(from, state.cycle.mainTree)));
+  if (!fromEntry) {
+    fromEntry = createSite(from, state.cycle.mainTree);
+    // Der Heimatwald steht immer zuerst, jeder andere in Gründungs-Reihenfolge hinten.
+    if (from === HOME_SITE) landscape.sites.unshift(fromEntry);
+    else landscape.sites.push(fromEntry);
+  }
   if (state.stage >= ANCIENT_STAGE) fromEntry.ancient = true;
   fromEntry.mainTree = state.cycle.mainTree;
-  const founded = !choice.founded;
+  const founded = !choice.founded && target !== from;
   if (target !== from) {
     // Den alten Wald ruhen lassen: Gedächtnis, Stammgäste und Bestand parken.
     fromEntry.memory = state.meta.forestMemory;
@@ -1189,6 +1207,7 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
     landscape.active = target;
     state.meta.regulars = regulars.slice(0, regularSlotsOf(state));
   }
+  landscape.active = target;
   siteEntry(landscape, target)!.mainTree = tree;
   state.meta.stats.completedCyclesGrowth = capped(state.meta.stats.completedCyclesGrowth + state.totalGrowth);
   state.totalGrowth = 0;
