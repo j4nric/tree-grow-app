@@ -1,5 +1,5 @@
 import type { BrowserContext, Page } from '@playwright/test';
-import { expect, openGame, savedState, seedRaw, test, waypoint } from './fixtures';
+import { expect, openGame, savedState, sceneGeometry, seedRaw, test, waypoint } from './fixtures';
 import { STAGES } from '../src/content/stages';
 import { growth } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
@@ -13,8 +13,6 @@ import { makeLayout, placeMainTree } from '../src/render/layout';
  * Bewohner öffnet seine Tierdetails. Die Lage kommt aus denselben Ankerpunkten wie im
  * Renderer (bei reduzierter Bewegung ruhen Tiere und Wind).
  */
-
-const canvas = (page: Page) => page.locator('canvas#scene');
 
 async function seed(context: BrowserContext): Promise<void> {
   const state = createInitialState(Date.now(), 4242);
@@ -31,11 +29,11 @@ async function seed(context: BrowserContext): Promise<void> {
 async function residentPoint(page: Page, animal: SceneAnimal, scene: SceneAnimal[]): Promise<{ x: number; y: number }> {
   await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
   const g = growth((await savedState(page)) as GameState);
-  const box = (await canvas(page).boundingBox())!;
-  const layout = makeLayout(box.width, box.height);
+  const geo = await sceneGeometry(page);
+  const layout = makeLayout(geo.width, geo.height);
   const anchors = createAnchorResolver(layout, g, placeMainTree(layout, g));
   const b = animalBounds(animal, anchors, ['pileGap', 'perchTwig', 'meadowTuft'], scene)!;
-  return { x: box.x + (b.x0 + b.x1) / 2, y: box.y + (b.y0 + b.y1) / 2 };
+  return geo.toPage((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
 }
 
 test.describe('Lebensräume in der Szene', () => {

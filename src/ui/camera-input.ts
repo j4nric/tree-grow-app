@@ -84,17 +84,28 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
     if (!rectDirty) return;
     const r = canvas.getBoundingClientRect();
     rect = { left: r.left, top: r.top };
-    gestures.width = Math.max(1, r.width);
-    gestures.height = Math.max(1, r.height);
+    // Layoutgröße (ohne CSS-Drehung des Polaroids im Album); ohne Layout die Bildschirmgröße.
+    gestures.width = Math.max(1, canvas.clientWidth || r.width);
+    gestures.height = Math.max(1, canvas.clientHeight || r.height);
     rectDirty = false;
   };
   const invalidate = () => {
     rectDirty = true;
     pageScrollsAt = -Infinity;
   };
+  /**
+   * Punkt im Canvas: `offsetX/Y` rechnet CSS-Transformationen heraus (das Polaroid im Album
+   * ist leicht gedreht); nur für Ereignisse anderer Ziele über das umschließende Rechteck.
+   */
+  const local = (e: MouseEvent): { x: number; y: number } => {
+    if (e.target === canvas) return { x: e.offsetX, y: e.offsetY };
+    measure();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
   const pointer = (e: PointerEvent): GesturePointer => {
     measure();
-    return { id: e.pointerId, type: e.pointerType, x: e.clientX - rect.left, y: e.clientY - rect.top, t: e.timeStamp, button: e.button, buttons: e.buttons };
+    const { x, y } = local(e);
+    return { id: e.pointerId, type: e.pointerType, x, y, t: e.timeStamp, button: e.button, buttons: e.buttons };
   };
 
   const onPointerDown = (e: PointerEvent) => {
@@ -133,7 +144,8 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
     e.preventDefault();
     measure();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
-    gestures.wheel(e.deltaY * unit, e.clientX - rect.left, e.clientY - rect.top, e.ctrlKey);
+    const at = local(e);
+    gestures.wheel(e.deltaY * unit, at.x, at.y, e.ctrlKey);
     // Nach dem Pinch auf dem Trackpad: knapp über 1× einrasten.
     clearTimeout(wheelTimer);
     wheelTimer = setTimeout(() => camera.settle(), 250);

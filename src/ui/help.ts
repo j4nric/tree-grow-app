@@ -298,6 +298,10 @@ export interface HelpOptions {
    * geladenen Spielstand wird der Hinweis gar nicht erst gezeigt (und gilt als gesehen).
    */
   newGame: boolean;
+  /** Ort für den Hinweis „Neu hier?“ (Standard: `root`), im Album neben dem Umschlag-Knopf. */
+  hintRoot?: HTMLElement;
+  /** Fokusziel, wenn der Hinweis verschwindet (Standard: „Spielanleitung“), im Album der Umschlag-Knopf. */
+  hintFocus?: HTMLElement;
 }
 
 /**
@@ -344,10 +348,10 @@ export function createHelp(root: HTMLElement, prefs: Preferences, options: HelpO
     dismiss.type = 'button';
     dismiss.setAttribute('aria-label', 'Hinweis schließen');
     hint.append(text, open, dismiss);
-    root.append(hint);
+    (options.hintRoot ?? root).append(hint);
     const remove = () => {
       // Fokus nicht im Nichts lassen, wenn er auf dem Hinweis lag.
-      if (hint.contains(document.activeElement)) guideButton.focus({ preventScroll: true });
+      if (hint.contains(document.activeElement)) (options.hintFocus ?? guideButton).focus({ preventScroll: true });
       hint.remove();
     };
     open.addEventListener('click', () => {

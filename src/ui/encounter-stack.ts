@@ -40,7 +40,15 @@ export function stackIcon(head: Pick<PendingEncounter, 'type' | 'cards'> | undef
   return STACK_ICONS[head.type] ?? STACK_ICONS.animal;
 }
 
-export function createEncounterStack(root: HTMLElement, onOpen: () => void): EncounterStack {
+export interface EncounterStackOptions {
+  /**
+   * Schweben, wenn die Stelle in der Szene aus dem Bild scrollt (Standard). Im Album liegt
+   * der Stapel ohnehin fest (Kopf bzw. mobil unten rechts) – dort ohne Marker und Beobachter.
+   */
+  float?: boolean;
+}
+
+export function createEncounterStack(root: HTMLElement, onOpen: () => void, options: EncounterStackOptions = {}): EncounterStack {
   const button = el('button', 'encounter-stack');
   button.type = 'button';
   button.dataset.ref = 'encounter-stack';
@@ -59,7 +67,7 @@ export function createEncounterStack(root: HTMLElement, onOpen: () => void): Enc
   root.append(button, live);
 
   button.addEventListener('click', onOpen);
-  watchScroll(root);
+  if (options.float !== false) watchScroll(root);
 
   let shown = -1;
 

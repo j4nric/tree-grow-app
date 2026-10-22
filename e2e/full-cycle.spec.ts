@@ -9,6 +9,7 @@ import {
   expect,
   niche,
   openGame,
+  openTab,
   savedState,
   seedNewGame,
   stack,
@@ -189,6 +190,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   expect(gain, `Vorschau „${gainText}“`).toBeGreaterThan(0);
   trail.push(`gain${gain}`);
 
+  await openTab(page, 'ziele');
   await newCycleButton.click();
   await expect(newCycleButton).toContainText('Zum Bestätigen erneut klicken');
   // Der zweite Klick zählt erst nach der Schutzzeit gegen Doppelklicks (ui/confirm.ts).
@@ -252,6 +254,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
     break;
   }
   expect(arrivedAt, `Stammgast ${regular} ist nicht eingezogen`).toBeGreaterThan(0);
+  await openTab(page, 'nischen');
   await expect(niche(page, species.niche).locator(`[data-species="${regular}"]`)).toBeVisible();
 
   // --- Neuladen: derselbe Zustand -------------------------------------------------------

@@ -1172,3 +1172,28 @@ Reiterseite selbst über `album/pages/registry.ts` (eine Zeile pro Seite).
     Washi-Gelb und 6 px breiter (Desktop-Mockup). Inaktiv bekommt Nischen ein helles Ocker
     (#F6E3B4), weil beide Mockups ihn nur aktiv zeigen und Gelb am Desktop schon „aktiv“ bedeutet.
     **Warum:** Beide Mockups übernehmen, wie sie sind; nur die fehlende Farbe ist ergänzt.
+
+### G.3 Offene Punkte aus Schritt 1 (für Schritt 3 und 12)
+
+- **Kamera-Knöpfe im Polaroid** (bis Schritt 3): oben rechts; `toast-place.ts` zählt sie als
+  Hindernis. Mit dem Vollbild (Schritt 3) entfällt beides.
+- **Gedrehtes Live-Canvas:** Das Polaroid ist um −1,4° bzw. −1,5° gedreht. `camera-input.ts`
+  rechnet die Drehung über `offsetX/Y` heraus. Schärfe und Leistung prüft der renderer in
+  Schritt 3.
+- **`encounter-stack.ts`:** Das Album schaltet Schweben, Marker und IntersectionObserver per
+  `{ float: false }` ab. In Schritt 12 (bzw. 6, neuer Zettelstapel) samt `watchScroll` und dem
+  CSS für `.scene-dock` löschen.
+- **Lizenztexte der Schriften** liegen nur im Quellcode (`src/ui/album/fonts/OFL-*.txt`), nicht
+  in `dist/`. In Schritt 12 entscheiden, ob sie mit ausgeliefert werden.
+- **`album/legacy.ts`** wird mit jedem Schritt kleiner und in Schritt 12 gelöscht.
+- **Neuladen auf einer Unterseite (Review KANN 5):** Der aktuelle Eintrag wird `album:0`,
+  die älteren Einträge (`album:1`, Grundeintrag) liegen aber noch darunter. Die ersten zwei
+  Zurück-Drücke bleiben ohne sichtbare Wirkung, erst der dritte verlässt die App. Lösung offen:
+  `history.go(-n)` beim Start oder ein Hinweis in C.2.
+- **Veralteter Hash nach `landscape-locked` bei offenem Umschlag (Review KANN 7):** Reiter
+  Landschaft → Umschlag → alten Stand importieren → Umschlag schließen: `go(-1)` landet auf
+  dem Grundeintrag mit `#landschaft`, angezeigt wird Nischen. Folgenlos, weil `tabFromHash`
+  zurückfällt.
+- **`toast-place.ts` misst `.polaroid .scene-camera` (Review KANN 9):** Solange einspaltig ein
+  Toast sichtbar ist, gibt es pro Frame ein `getBoundingClientRect()`. Entfällt mit Schritt 4
+  (toast-place wird gelöscht).

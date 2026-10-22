@@ -1,0 +1,386 @@
+/*
+ * Grundlayout des Albums (docs/ALBUM_UI.md, B.0): Kopf, Einband, Doppelseite (Querformat ab
+ * 761 px) bzw. Einzelseite (mobil), Ablage der Unterseiten, Umblättern.
+ * Komponenten haben je eine eigene CSS-Datei daneben (G-19).
+ */
+
+html:has(.album) {
+  background: var(--card);
+}
+
+html:has(.album[data-layout='spread']) {
+  background: var(--desk);
+}
+
+/* Mobil: Solange eine Unterseite offen ist, scrollt nur sie; die Hauptseite behält ihre Lage. */
+html.album-sub-open {
+  overflow: hidden;
+}
+
+body:has(.album) {
+  background: transparent;
+}
+
+.album {
+  font-family: var(--font-text);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.album button {
+  font-family: inherit;
+}
+
+.album :focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+/* ---------- Kopf: Umschlag-Knopf, Titel, Zettelstapel ---------- */
+
+.album-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: var(--tap);
+}
+
+.album-head-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.album-head-start .help-hint {
+  margin-top: 0;
+}
+
+.album-cover-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--binding);
+  color: var(--paper);
+  font-family: var(--font-hand) !important;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.album-cover-button[aria-expanded='true'] {
+  background: var(--binding-ink);
+}
+
+.album-title {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 28px;
+  color: var(--binding-ink);
+  text-align: center;
+  min-width: 0;
+}
+
+.album-dock {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.album-banners:empty {
+  display: none;
+}
+
+.album-banners .frozen-banner {
+  margin: 0;
+}
+
+/* ---------- Seiten: gemeinsame Teile ---------- */
+
+.spread-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.spread-right {
+  position: relative;
+  min-width: 0;
+  background: var(--paper);
+}
+
+.spread-sub {
+  min-width: 0;
+}
+
+.spread-sub[hidden] {
+  display: none;
+}
+
+/* Weggedrehte Seite: unsichtbar, aber mit Layout (Scroll-Lage bleibt erhalten). */
+.turned-away {
+  visibility: hidden;
+}
+
+/* Während der Drehung liegt die drehende Seite über der Unterseite. */
+.spread-main.turning,
+.spread-right.turning,
+.album-subpage.turning {
+  position: relative;
+  z-index: 25;
+}
+
+/* Übergangsinhalt: die bisherigen Bauteile ohne den Rahmen der alten Seitenleiste. */
+.album .panel {
+  position: relative;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.album .panel > :first-child h2:first-child,
+.album .panel > section:first-child > h2:first-child {
+  margin-top: 0;
+}
+
+/* Reiterwechsel: kurzes Überblenden statt Umblättern (G-3). */
+.album-tabpanel.tab-fade {
+  animation: album-tab-fade var(--tab-fade-ms) ease-out;
+}
+
+@keyframes album-tab-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Hinweis (Toast) bis Schritt 4: über allem, auch über Unterseiten. */
+.album ~ .toast {
+  z-index: 40;
+}
+
+/* Zeilenhöhe fest (Nunito hätte mit „normal“ etwa 1,36): gleiche Höhen auf allen Systemen. */
+.album {
+  line-height: 1.4;
+}
+
+/* =====================================================================
+   Doppelseite (Querformat ab 761 px) – nach dem Desktop-Mockup
+   ===================================================================== */
+
+.album[data-layout='spread'] {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100vh;
+  height: 100dvh;
+  padding: 28px 48px;
+}
+
+.album[data-layout='spread'] .book {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  /* Platz für die Reiter am rechten Buchrand */
+  margin-right: 46px;
+  padding: 10px;
+  border-radius: var(--r-book);
+  background: var(--binding);
+  box-shadow: var(--sh-book);
+  perspective: var(--turn-perspective);
+}
+
+.album[data-layout='spread'] .spread-main {
+  display: contents;
+}
+
+.album[data-layout='spread'] .spread-left {
+  grid-column: 1;
+  grid-row: 1;
+  gap: 18px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--page-pad-desk);
+  border-radius: var(--r-spread) 2px 2px var(--r-spread);
+  background: var(--paper);
+  box-shadow: var(--sh-gutter-left);
+}
+
+.album[data-layout='spread'] .spread-spine {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 50%;
+  width: 2px;
+  background: var(--spine);
+  transform: translateX(-1px);
+  z-index: 1;
+}
+
+.album[data-layout='spread'] .spread-right,
+.album[data-layout='spread'] .spread-sub {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-radius: 2px var(--r-spread) var(--r-spread) 2px;
+  background: var(--paper);
+  box-shadow: var(--sh-gutter-right);
+}
+
+.album[data-layout='spread'] .spread-right {
+  z-index: 2;
+}
+
+.album[data-layout='spread'] .spread-sub {
+  z-index: 1;
+}
+
+.album[data-layout='spread'] .album-dock .encounter-stack {
+  transform: rotate(var(--tilt-stack-desk));
+}
+
+/* Hinweis oben über der rechten Seite (wie später die Stempel, C.5). */
+.album[data-layout='spread'] ~ .toast {
+  position: fixed;
+  top: 96px;
+  bottom: auto;
+  /* Mitte der rechten Seite (Tischrand 48 px, Reiter 46 px) */
+  left: calc(75% - 50px);
+  max-width: min(40rem, calc(50vw - 150px));
+}
+
+/* Niedrige Fenster: Tisch und Abstände schmaler, damit die linke Seite nicht scrollen muss. */
+@media (max-height: 760px) {
+  .album[data-layout='spread'] {
+    padding-block: 14px;
+    gap: 10px;
+  }
+
+  .album[data-layout='spread'] .spread-left {
+    gap: 12px;
+    padding-block: 20px;
+  }
+}
+
+/* =====================================================================
+   Einzelseite (Hochformat und schmal) – nach „Sammelalbum hoch“
+   ===================================================================== */
+
+.album[data-layout='single'] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: 12px 14px calc(100px + env(safe-area-inset-bottom, 0px));
+}
+
+.album[data-layout='single'] .album-title {
+  display: none;
+}
+
+.album[data-layout='single'] .album-cover-button {
+  padding: 0 12px;
+}
+
+.album[data-layout='single'] .album-cover-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.album[data-layout='single'] .spread-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  /* undurchsichtig: beim Umblättern verdeckt sie die Unterseite */
+  background: var(--card);
+}
+
+.album[data-layout='single'] .spread-spine {
+  display: none;
+}
+
+.album[data-layout='single'] .spread-right {
+  min-height: 50vh;
+  border-radius: var(--r-page-inner) var(--r-page) var(--r-page) var(--r-page);
+  box-shadow: var(--sh-page);
+}
+
+/* Reiter direkt auf der Heftseite: kein Abstand dazwischen */
+.album[data-layout='single'] .tab-strip {
+  margin-bottom: calc(-1 * var(--s-3));
+}
+
+.album[data-layout='single'] .spread-sub {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow-y: auto;
+  padding: 16px 14px calc(100px + env(safe-area-inset-bottom, 0px));
+  background: var(--card);
+}
+
+.album[data-layout='single'] .album-dock {
+  position: fixed;
+  right: 18px;
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  z-index: 22;
+  max-width: calc(100vw - 36px);
+}
+
+/* Tastaturfokus nicht unter dem fest liegenden Zettelstapel verstecken (WCAG 2.4.11). */
+html:has(.album[data-layout='single'] .encounter-stack:not([hidden])) {
+  scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
+.album[data-layout='single'] .album-dock .encounter-stack {
+  transform: rotate(var(--tilt-stack));
+}
+
+.album[data-layout='single'] ~ .toast {
+  position: fixed;
+  top: max(calc(12px + env(safe-area-inset-top, 0px)), var(--toast-top, 0px));
+  bottom: auto;
+}
+
+/* Breite Einzelseite (Tablet hoch): Polaroid höchstens 560 px (G-7). */
+@media (min-width: 640px) {
+  .album[data-layout='single'] {
+    max-width: 720px;
+    margin-inline: auto;
+  }
+
+  .album[data-layout='single'] .polaroid {
+    width: min(100%, 560px);
+    align-self: center;
+  }
+}
+
+/* Rückkehr-Bericht verborgen: kein leerer Platz auf der linken Seite */
+.album-return:not(:has(> .return-report:not([hidden]))) {
+  display: none;
+}
+
+/* Reiterseite füllt die rechte Seite (Seitenzahl unten) */
+.album[data-layout='spread'] .album-tabpanel {
+  box-sizing: border-box;
+  min-height: 100%;
+}

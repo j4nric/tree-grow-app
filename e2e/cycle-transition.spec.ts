@@ -1,4 +1,4 @@
-import { expect, openGame, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { expect, gotoTab, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Übergang zum Neuen Zyklus in der Szene (render/cycle.ts, DESIGN_V2.md §10): Der alte
@@ -22,7 +22,7 @@ test('Neuer Zyklus: Übergangs-Sequenz läuft ohne Fehler, danach Stufe-0-Bild',
     plants: ['hazel', 'birch', 'moss'],
     niches: { roots: ['earthworm', 'vole'], litter: ['robin'], edge: ['bee'], crown: ['bluetit'] },
   });
-  await openGame(page);
+  await gotoTab(page, 'ziele');
   await expect(stageLabel(page)).toHaveText('Stufe: Hain');
   const canvas = page.locator('canvas#scene');
 

@@ -151,7 +151,8 @@ test.describe('mobil', () => {
     const box = await badge(page).boundingBox();
     expect(box!.height).toBeGreaterThanOrEqual(44);
     const overflow = await page.evaluate(() => {
-      const panel = document.querySelector<HTMLElement>('#panel')!;
+      // Die Abzeichen stehen in der Bildunterschrift des Polaroids (Album).
+      const panel = document.querySelector<HTMLElement>('.polaroid')!;
       const season = document.querySelector<HTMLElement>('#season')!;
       return {
         page: document.documentElement.scrollWidth - document.documentElement.clientWidth,

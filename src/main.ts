@@ -1,18 +1,16 @@
-import { CARE } from './content/care';
 import { NOON_PHASE } from './content/daytime';
 import { checkAchievements } from './core/achievements';
 import { dayKeyOf, updateDaily, type DailyUpdateOptions } from './core/daily';
-import { dayPhaseAt, evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
+import { dayPhaseAt, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { SAVE_KEY, clearStorage, codeFromJson, exportCode, importCode, isNewerSave, loadFromStorage, saveToStorage, storedSaveIsNewer } from './core/save';
 import { sceneSeason } from './core/season';
-import { isNight, sceneWeather } from './core/weather';
+import { sceneWeather } from './core/weather';
 import { createInitialState, type GameState } from './core/state';
 import type { PendingEncounterType } from './core/state';
 import {
   chooseCard,
   buyCare,
   chooseEventOption,
-  nextCareRank,
   declineEncounter,
   farewellVisitor,
   hostVisitor,
@@ -35,70 +33,40 @@ import { CanvasSizer } from './render/canvas-size';
 import type { CanvasSize } from './render/resize';
 import { Camera } from './render/camera';
 import { attachCameraInput, createCameraControls, loadCameraView } from './ui/camera-input';
-import { PLANTS_BY_ID } from './content/plants';
 import {
   harmonyTierIndex,
   tickDeclineText,
   catchUpNotice,
   WELCOME_MIN_SECONDS,
   discoveryText,
-  refreshEcosystemView,
-  toEcosystemView,
-  toJournalStats,
-  toJournalView,
-  toEncounterView,
-  toPlantPickerView,
-  activeBonusViews,
-  toCareViews,
-  encounterActionKey,
   toSceneAnimals,
   scenePond,
   toSceneVisitors,
   toScenePlants,
   stageBannerView,
-  type StageBannerView,
 } from './ui/adapters';
-import { seedsLabel } from './ui/view-format';
-import { achievementUnlockedText, achievementsBackfilledText, toAchievementTimeProgress } from './ui/achievement-view';
-import { createBonusPanel } from './ui/bonus-panel';
-import { createDailyPanel } from './ui/daily-panel';
-import { createReturnReportPanel } from './ui/return-report';
-import { returnToastText, toReturnReportView } from './ui/return-report-view';
-import { dailyCompletedText, toDailyView } from './ui/daily-view';
-import { createCarePanel } from './ui/care-panel';
-import { createCyclePanel } from './ui/cycle-panel';
-import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText, toCyclePanelView } from './ui/cycle-view';
-import { createEcosystemPanel } from './ui/ecosystem-panel';
-import { createAnimalDetailDialog } from './ui/animal-detail-dialog';
-import { toAnimalDetailView, type AnimalDetailTarget } from './ui/animal-detail-view';
-import { createEncounterDialog } from './ui/encounter-dialog';
-import { createEncounterStack } from './ui/encounter-stack';
-import { applyWildwechselMark, createWildwechselMarks, wildwechselMarkOf } from './ui/wildwechsel-view';
-import { createToastPlacement } from './ui/toast-place';
-import { createFloatLayer } from './ui/feedback';
-import { createPlantPicker } from './ui/plant-picker';
-import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
-import { createHelp, initPreferences, type Help } from './ui/help';
+import { achievementUnlockedText, achievementsBackfilledText } from './ui/achievement-view';
+import { toReturnReportView } from './ui/return-report-view';
+import { dailyCompletedText } from './ui/daily-view';
+import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText } from './ui/cycle-view';
+import { createWildwechselMarks, wildwechselMarkOf } from './ui/wildwechsel-view';
+import { initPreferences } from './ui/help';
 import { createSound } from './ui/sound';
-import { IMPORT_ERROR_TEXTS, NEWER_STORED_SAVE_TEXT, createSaveTransfer, type SaveTransfer } from './ui/save-transfer';
-import { isDeliberateConfirm } from './ui/confirm';
-import { formatNumber } from './ui/format';
-import { createSeasonBadge } from './ui/season-badge';
+import { IMPORT_ERROR_TEXTS, NEWER_STORED_SAVE_TEXT, type SaveTransferCallbacks } from './ui/save-transfer';
 import { setupServiceWorker } from './ui/pwa';
-import { toSeasonBadgeView } from './ui/season-view';
-import { createWeatherBadge } from './ui/weather-badge';
-import { toastDurationFor } from './ui/settings';
-import { seasonWeatherChangeText, toWeatherBadgeView } from './ui/weather-view';
+import { seasonWeatherChangeText } from './ui/weather-view';
 import type { MainTreeId } from './content/trees';
 import type { SiteId } from './content/landscape';
 import { LANDSCAPE_UNLOCK_TEXT, corridorBuiltText, landscapeErrorText, siteChangeText } from './ui/landscape-view';
-import { activeSite, landscapeAnnouncementDue, landscapeUnlocked } from './core/landscape';
-import type { EcosystemView } from './ui/view-model';
+import { activeSite, landscapeAnnouncementDue } from './core/landscape';
+import { createAlbum, type AlbumPart } from './ui/album';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from './sync/config';
 import type { AccountController } from './sync/account';
 
 /*
- * Verdrahtung: Game Loop, Speichern, Offline-Fortschritt und die Oberfläche.
+ * Verdrahtung: Game Loop, Speichern, Offline-Fortschritt und Spieleraktionen. Die
+ * Oberfläche (Album) steuert ui/album/index.ts – hier nur `album.refresh(now)`,
+ * `invalidate(...)` und `album.notify(text)` (docs/ALBUM_UI.md, D.2).
  * Reihenfolge: erst alle Konstanten und Variablen, dann die Funktionen, ganz unten der
  * Start. So greift beim Modul-Laden nichts auf noch nicht deklarierte Variablen zu.
  */
@@ -108,8 +76,6 @@ import type { AccountController } from './sync/account';
 const AUTOSAVE_MS = 10_000;
 /** Größere Frame-Sprünge werden auf diese Dauer begrenzt; längere Pausen holt catchUp() nach. */
 const MAX_FRAME_SECONDS = 1;
-/** Seitenleiste ohne Änderungen am Ökosystem höchstens so oft aktualisieren (Samen, Fortschritt). */
-const PANEL_REFRESH_MS = 200;
 /**
  * Erfolge nach Ticks höchstens so oft prüfen (Spielzeit, Jahreszeiten); bei Wegpunkten und
  * Jahreszeitwechseln sofort, nach Aktionen immer (act).
@@ -170,16 +136,6 @@ function errorText(error: ActionError, type: PendingEncounterType | undefined): 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const ctx = canvas.getContext('2d')!;
 const canvasSizer = new CanvasSizer(canvas);
-const banner = document.querySelector<HTMLElement>('#stage-banner')!;
-const toast = document.querySelector<HTMLElement>('#toast')!;
-/** Toast mobil unter Update-Hinweis, Stapel und Stufen-Banner (ui/toast-place.ts). */
-const toastPlacement = createToastPlacement(toast);
-// „visible“ nur, solange das Banner zu sehen ist – danach darf der Toast wieder nach oben.
-banner.addEventListener('animationend', () => banner.classList.remove('visible'));
-/** Unsichtbare Statuszeile: schwebende Hinweise auch für Screenreader. */
-const liveStatus = document.querySelector<HTMLElement>('#live-status')!;
-const resetButton = document.querySelector<HTMLButtonElement>('#reset')!;
-const heading = document.querySelector<HTMLElement>('.panel h1')!;
 /** Einstellungen (Bewegung, Zahlenformat, Hinweisdauer, Klang) – vor der ersten Anzeige angewendet. */
 const preferences = initPreferences();
 /** Klangkulisse (Standard aus; der AudioContext entsteht erst bei einer Nutzerinteraktion). */
@@ -202,12 +158,6 @@ let state = loaded?.state ?? newGame();
 let shownStage = state.stage;
 let lastFrame = performance.now();
 let lastSave = performance.now();
-let toastTimer: ReturnType<typeof setTimeout> | undefined;
-let resetTimer: ReturnType<typeof setTimeout> | undefined;
-/** Wann „Spielstand löschen“ scharf geschaltet wurde (performance.now) – gegen Doppelklicks. */
-let resetArmedAt = 0;
-/** Bereich „Spielstand exportieren oder importieren“ (ab start()). */
-let saveTransfer: SaveTransfer | undefined;
 /**
  * Gesperrt, wenn ein anderer Tab mit einem anderen Konto spielt (Konto-Abgleich): Dann darf
  * dieser Tab den gemeinsamen Spielstand im localStorage nie mehr schreiben – auch nicht beim
@@ -228,18 +178,7 @@ function freezeForNewerSave(): void {
   storageFrozen = true;
   if (newerFrozen) return;
   newerFrozen = true;
-  const banner = document.createElement('div');
-  banner.className = 'frozen-banner';
-  banner.setAttribute('role', 'alert');
-  banner.dataset.ref = 'newer-save-banner';
-  const text = document.createElement('p');
-  text.textContent = `${NEWER_STORED_SAVE_TEXT} Auch ein Export enthält den neueren Stand.`;
-  const reload = document.createElement('button');
-  reload.type = 'button';
-  reload.textContent = 'Seite neu laden';
-  reload.addEventListener('click', () => location.reload());
-  banner.append(text, reload);
-  heading.insertAdjacentElement('afterend', banner);
+  album.showNewerSaveBanner(`${NEWER_STORED_SAVE_TEXT} Auch ein Export enthält den neueren Stand.`);
 }
 
 /** Spielstand speichern (außer gesperrt). */
@@ -266,35 +205,12 @@ let account: AccountController | undefined;
 const MEMORY_REWEIGHTED_TEXT = 'Das Waldgedächtnis wurde neu gewichtet: +1 % je Punkt.';
 const V1_IMPORT_NOTE = 'Achtung: Das ist ein Spielstand der ersten Version – dein Wald beginnt damit neu.';
 
-/** Der Spieler hat den Stapel geöffnet; bleibt offen, bis „Später“ oder keine Begegnung mehr wartet. */
-let dialogWanted = false;
-/** Begegnung oder Ökosystem haben sich geändert → Dialog-Inhalt neu bauen. */
-let encounterDirty = true;
-/** Bezahlbarkeit der Aktionen im Dialog (Neu würfeln, Bewirten) beim letzten Aufbau. */
-let shownActionKey: string | null = null;
-let shownQueued = -1;
-/**
- * Zählt erledigte Begegnungen an der Spitze der Warteschlange. Damit erkennt der Dialog
- * auch zwei gleich aussehende Begegnungen nacheinander als verschieden.
- */
-let encounterSerial = 0;
 /**
  * Wildwechsel-Karten offener Begegnungen (DESIGN_V2.md 24.6) – nur in der Oberfläche, nicht im
  * Spielstand: nach dem Neuladen kein Hinweis statt eines womöglich falschen.
  */
 const wildwechselMarks = createWildwechselMarks();
 
-/** Ökosystem (Auswertung) hat sich geändert → Seitenleiste und Szene-Tiere neu bauen. */
-let ecoDirty = true;
-let ecoView: EcosystemView | null = null;
-/** Spielanleitung und Einstellungen (ab start()). */
-let help: Help | undefined;
-let ecoEvaluation: Readonly<Evaluation> | null = null;
-/** Gesehene Ereignisse beim letzten Neubau – die Hinweise im Nahrungsnetz nennen Massenjahre, die schon waren. */
-let ecoSeen = '';
-/** Gesehene Ereignisse und wartende Begegnungen: Ein gezogenes Massenjahr „wartet“, bis es entschieden ist. */
-const ecoSeenKey = (): string => `${state.cycle.seen.length}/${state.pendingEncounters.length}`;
-let lastPanelRefresh = -Infinity;
 /** Letzte gedrosselte Prüfung der Erfolge im Game Loop (performance.now). */
 let lastAchievementCheck = -Infinity;
 /** Letzte gedrosselte Prüfung der Tagesziele und seither aktiv gespielte Sekunden. */
@@ -305,15 +221,6 @@ let dailyGrowth = 0;
 let dailyProduced = 0;
 /** Zuletzt gesehener Abstand zur Serverzeit (null = noch keiner). */
 let dailyOffset: number | null = null;
-
-/** Der Spieler hat „Pflanze setzen“ geöffnet. */
-let pickerWanted = false;
-/** Ökosystem oder Samen-Lage geändert → Auswahl neu bauen. */
-let pickerDirty = true;
-let shownPickerAffordable: boolean | null = null;
-/** Zuletzt in der Auswahl gezeigte Samen (ganze Zahl) und wann – drosselt die Kopfzeile. */
-let pickerSeedsShown = -1;
-let pickerSeedsAt = -Infinity;
 
 /** Eingabe für den Renderer – ein Objekt für alle Frames, keine Allokationen pro Frame. */
 const scene: SceneInput = {
@@ -369,116 +276,97 @@ function hitTestScene(x: number, y: number): AnimalHit | null {
  * Tastatur sind dieselben Tiere über die Kacheln der Seitenleiste erreichbar.
  */
 function onAnimalTap(hit: AnimalHit): void {
-  openAnimalDetail({ niche: hit.nicheId, index: hit.index }, canvas);
+  album.openAnimalDetail({ niche: hit.nicheId, index: hit.index }, canvas);
 }
 
-const cameraInput = attachCameraInput(canvas, { camera, hitTest: hitTestScene, onAnimalTap });
-const cameraControls = createCameraControls(document.querySelector<HTMLElement>('.scene')!, camera);
-
-// --- Oberfläche ----------------------------------------------------------------------
-
-const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosystem')!, {
-  onOpenPlantPicker: openPlantPicker,
-  onOpenEncounters: openEncounters,
-  onOpenAnimal: (_niche, _index, speciesId, button) => openAnimalDetail(speciesId, button),
-  onShowCare: (id) => carePanel.reveal(id),
-});
-const bonusPanel = createBonusPanel(document.querySelector<HTMLElement>('#bonuses')!);
-const dailyPanel = createDailyPanel(document.querySelector<HTMLElement>('#daily')!);
-/** Rückkehr-Bericht: Details der Willkommens-Meldung, mobil steht im Toast nur die Kurzfassung. */
-const returnReport = createReturnReportPanel(document.querySelector<HTMLElement>('#return-report')!, heading);
-const singleColumn = matchMedia('(max-width: 760px)');
-const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!, {
-  onBuy: (id) => act(buyCare(state, id), false),
-  onFeedback: (text, x, y) => floats.spawn(text, x, y, 'note'),
-});
-const seasonBadge = createSeasonBadge(document.querySelector<HTMLElement>('#season')!);
-const weatherBadge = createWeatherBadge(document.querySelector<HTMLElement>('#season')!, seasonBadge.element);
-/** Ganze Sekunde Spielzeit, zu der das Abzeichen zuletzt aktualisiert wurde. */
-let seasonShownSecond = -1;
-/** Zuletzt angezeigt: Nacht? (Wechsel → Raten und 🌙 neu, DESIGN_V2.md 21.8). */
-let shownNight: boolean | null = null;
-const cyclePanel = createCyclePanel(document.querySelector<HTMLElement>('#cycle')!, {
-  onNewCycle: newCycle,
-  onBuildCorridor: (id) => {
-    // Korridor (DESIGN_V2.md 24.6): jederzeit, ändert das wirksame Gedächtnis.
-    const result = buildCorridor(state, id);
-    if (!result.ok) {
-      notify(landscapeErrorText(result.error));
-      return;
-    }
-    act(result, false, undefined, corridorBuiltText(id));
-  },
-  onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
-});
-const floats = createFloatLayer(document.body);
-const stack = createEncounterStack(document.querySelector<HTMLElement>('#scene-dock')!, openEncounters);
-const dialog = createEncounterDialog(document.body, {
-  onChoose: (cardIndex, replaceId) => {
-    const type = state.pendingEncounters[0]?.type;
-    // Ereignis: Karte = Option; Gast: Karte 0 = bewirten, 1 = ziehen lassen.
-    const result =
-      type === 'event'
-        ? chooseEventOption(state, 0, cardIndex)
-        : type === 'visitor'
-          ? cardIndex === 0
-            ? hostVisitor(state, 0)
-            : farewellVisitor(state, 0)
-          : chooseCard(state, 0, cardIndex, replaceId);
-    if (act(result, true, type) && result.ok && result.seeds) floatSeeds(result.seeds);
-  },
-  onDecline: () => {
-    const before = state.seeds;
-    if (act(declineEncounter(state, 0), true)) floatSeeds(state.seeds - before);
-  },
-  onReroll: () => {
-    const type = state.pendingEncounters[0]?.type;
-    act(rerollEncounter(state, 0), false, type);
-  },
-  onDefer: closeEncounters,
-});
-const picker = createPlantPicker(document.body, {
-  onPlant: plant,
-  onClose: () => {
-    pickerWanted = false;
-    // Ist der Knopf jetzt weg (Ring voll), den Fokus nicht im Nichts lassen.
-    if (document.activeElement === document.body || document.activeElement === null) {
-      heading.focus({ preventScroll: true });
-    }
-  },
-});
-
-const journal = createJournalDialog(document.body, {
-  onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
-});
-createJournalButton(document.querySelector<HTMLElement>('#journal')!, openJournal);
-const animalDetail = createAnimalDetailDialog(document.body);
-
-// --- Aktionen ------------------------------------------------------------------------
+// --- Oberfläche (Album) ---------------------------------------------------------------
 
 /**
- * Tierdetails einer eingezogenen Art öffnen – aus der Seitenleiste und per Klick auf ein
- * Tier in der Szene (`onAnimalTap`). `target`: Art-ID oder `{ niche, index }` (Platz in
- * `state.niches`). `returnFocus`: bekommt beim Schließen den Fokus (Standard: aktives
- * Element). Gibt false zurück, wenn dort kein Tier lebt.
+ * Das Album baut die ganze Oberfläche einmal auf und hängt das Canvas ins Polaroid. Es ruft
+ * nur die Aktionen hier auf (act → core/tick.ts); Spielregeln stehen nicht in der UI.
  */
-function openAnimalDetail(target: AnimalDetailTarget, returnFocus?: HTMLElement | null): boolean {
-  const view = toAnimalDetailView(state, target, evaluate(state));
-  if (!view) return false;
-  closeEncounters();
-  closePlantPicker();
-  journal.hide();
-  animalDetail.show(view, returnFocus);
-  return true;
+const album = createAlbum({
+  canvas,
+  preferences,
+  state: () => state,
+  newGame: !loaded && !storedNewer,
+  today,
+  encounterMark: currentWildwechselMark,
+  takeLandscapeAnnouncement,
+  ecosystemChanged: refreshSceneEcosystem,
+  saveTransfer: saveTransferCallbacks(),
+  actions: {
+    encounter: {
+      onChoose: (cardIndex, replaceId) => {
+        const type = state.pendingEncounters[0]?.type;
+        // Ereignis: Karte = Option; Gast: Karte 0 = bewirten, 1 = ziehen lassen.
+        const result =
+          type === 'event'
+            ? chooseEventOption(state, 0, cardIndex)
+            : type === 'visitor'
+              ? cardIndex === 0
+                ? hostVisitor(state, 0)
+                : farewellVisitor(state, 0)
+              : chooseCard(state, 0, cardIndex, replaceId);
+        if (act(result, true, type) && result.ok && result.seeds) album.floatSeeds(result.seeds);
+      },
+      onDecline: () => {
+        const before = state.seeds;
+        if (act(declineEncounter(state, 0), true)) album.floatSeeds(state.seeds - before);
+      },
+      onReroll: () => {
+        const type = state.pendingEncounters[0]?.type;
+        act(rerollEncounter(state, 0), false, type);
+      },
+    },
+    plant,
+    buyCare: (id) => act(buyCare(state, id), false),
+    newCycle,
+    buildCorridor: (id) => {
+      // Korridor (DESIGN_V2.md 24.6): jederzeit, ändert das wirksame Gedächtnis.
+      const result = buildCorridor(state, id);
+      if (!result.ok) {
+        album.notify(landscapeErrorText(result.error));
+        return;
+      }
+      act(result, false, undefined, corridorBuiltText(id));
+    },
+    toggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
+    resetGame,
+  },
+});
+const cameraInput = attachCameraInput(canvas, { camera, hitTest: hitTestScene, onAnimalTap });
+const cameraControls = createCameraControls(album.sceneFrame, camera);
+
+/**
+ * Wildwechsel-Weg der vordersten Begegnung (24.6): aus der Oberfläche (wie die Karte kam)
+ * oder aus dem Spielstand.
+ */
+function currentWildwechselMark() {
+  return wildwechselMarks.lookup(state.pendingEncounters[0]) ?? wildwechselMarkOf(state, state.pendingEncounters[0]);
 }
 
-/** „📖 Naturtagebuch“: andere Dialoge schließen, Tagebuch zeigen. */
-function openJournal(): void {
-  closeEncounters();
-  closePlantPicker();
-  animalDetail.hide();
-  journal.show(toJournalView(state, evaluate(state)));
+/** Ansichten neu aufbauen (Album; bei „eco“ auch Tiere und Pflanzen der Szene). */
+function invalidate(...parts: AlbumPart[]): void {
+  album.invalidate(parts);
 }
+
+/** Tiere und Pflanzen für die Szene nur bei Änderungen am Ökosystem neu bauen (vom Album gemeldet). */
+function refreshSceneEcosystem(ev: Readonly<Evaluation>, rebuilt: boolean): void {
+  scene.forestMemory = state.meta.forestMemory;
+  if (!rebuilt) return;
+  scene.animals = toSceneAnimals(state, ev);
+  scene.pond = scenePond(ev);
+  // Lebensräume (DESIGN_V2.md 23.8): offen, sobald die Nische Plätze hat.
+  scene.meadow = (ev.slots.meadow ?? 0) > 0;
+  scene.deadwood = (ev.slots.deadwood ?? 0) > 0;
+  scene.wall = (ev.slots.wall ?? 0) > 0;
+  scene.plants = toScenePlants(state, ev);
+  scene.visitors = toSceneVisitors(state);
+  scene.harmonyTier = harmonyTierIndex(ev.harmony);
+}
+
+// --- Aktionen ------------------------------------------------------------------------
 
 /**
  * Führt das Ergebnis einer Spieleraktion nach: Erfolge prüfen, sofort speichern
@@ -499,20 +387,18 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
     // Erst vormerken, dann speichern: so stehen Spielstand und „offen“ im selben Schreibvorgang.
     account?.markAction();
     persist();
-    if (resolves) encounterSerial++;
+    if (resolves) album.encounterResolved();
   }
-  encounterDirty = true;
-  ecoDirty = true;
-  pickerDirty = true;
-  refreshViews(performance.now());
+  invalidate('encounter', 'eco', 'picker');
+  album.refresh(performance.now());
   if (!result.ok) {
-    notify(errorText(result.error, type));
+    album.notify(errorText(result.error, type));
     return false;
   }
   if (unlocked.length > 0) sound.cue('achievement');
   const regulars = result.regulars && result.regulars.length > 0 ? regularsArrivedText(result.regulars) : '';
   const text = joinNotes(lead, discoveryText(result.discovered), regulars, achievementUnlockedText(unlocked), dailyText);
-  if (text) notify(text);
+  if (text) album.notify(text);
   return true;
 }
 
@@ -542,12 +428,12 @@ function runDaily(options: DailyUpdateOptions, float = true): string {
   const result = updateDaily(state, today(), options);
   if (!result.rolled && result.completed.length === 0) return '';
   persist();
-  ecoDirty = true;
+  invalidate('eco');
   if (result.completed.length === 0) return '';
-  if (state.pendingEncounters.length !== queued) encounterDirty = true;
-  pickerDirty = true;
+  if (state.pendingEncounters.length !== queued) invalidate('encounter');
+  invalidate('picker');
   sound.cue('achievement');
-  if (float) floatSeeds(state.seeds - seedsBefore);
+  if (float) album.floatSeeds(state.seeds - seedsBefore);
   return dailyCompletedText(result.completed, result.perfect, state.meta.daily.streak);
 }
 
@@ -571,20 +457,10 @@ function joinNotes(...parts: (string | null | undefined)[]): string {
 function plant(plantId: string): void {
   const cost = nextPlantCost(state);
   const result = plantSeed(state, plantId);
-  // Bei Erfolg schließt die Auswahl – vorher abmelden, damit act() sie nicht neu aufbaut.
-  if (result.ok) pickerWanted = false;
+  // Bei Erfolg schließt die Auswahl – vorher, damit act() sie nicht neu aufbaut.
+  if (result.ok) album.closePlantPicker();
   if (!act(result, false)) return;
-  closePlantPicker();
-  const ring = document.querySelector<HTMLElement>('[data-ref="plant-ring"]');
-  const seedsEl = document.querySelector<HTMLElement>('[data-ref="seeds"]');
-  if (seedsEl) {
-    const rect = seedsEl.getBoundingClientRect();
-    floats.spawn(`−${formatNumber(Math.ceil(cost))} 🌰`, rect.left + rect.width / 2, rect.top);
-  }
-  if (ring) {
-    const rect = ring.getBoundingClientRect();
-    floats.spawn(`🌱 ${PLANTS_BY_ID.get(plantId)?.name ?? ''}`, rect.left + rect.width / 2, rect.top + 24);
-  }
+  album.plantFeedback(cost, plantId);
 }
 
 /**
@@ -601,7 +477,7 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   if (!result.ok) {
     const blocker = newCycleBlocker(state);
     const error = result.error;
-    notify(blocker ? newCycleBlockerText(blocker) : error in ERROR_TEXTS ? ERROR_TEXTS[error as ActionError] : landscapeErrorText(error as Parameters<typeof landscapeErrorText>[0]));
+    album.notify(blocker ? newCycleBlockerText(blocker) : error in ERROR_TEXTS ? ERROR_TEXTS[error as ActionError] : landscapeErrorText(error as Parameters<typeof landscapeErrorText>[0]));
     return;
   }
   shownStage = state.stage;
@@ -609,14 +485,14 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   scene.cycleTransition = { startedAt: performance.now() / 1000, fromGrowth, fromPlants, fromTree };
   // Neuer Wald gegründet: ein Eichelhäher trägt die Eichel durchs Bild (Hähersaat, 24.11).
   if (result.founded) scene.jayFlight = { startedAt: performance.now() / 1000 };
-  closeEncounters();
-  closePlantPicker();
-  encounterSerial++;
+  album.closeEncounters();
+  album.closePlantPicker();
+  album.encounterResolved();
   act(result, false);
   // Der Knopf ist jetzt ausgeblendet – Fokus auf die Überschrift des Bereichs statt auf body.
-  cyclePanel.focus();
+  album.focusCycle();
   // Erfolge prüft startNewCycle selbst (vor dem Zurücksetzen) – im selben Hinweis melden.
-  showToast(
+  album.showToast(
     joinNotes(
       newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars, state.cycle.mainTree),
       result.site !== fromSite ? siteChangeText(result.site, result.founded) : '',
@@ -624,221 +500,6 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
       takeLandscapeAnnouncement(),
     ),
   );
-}
-
-function openPlantPicker(): void {
-  closeEncounters();
-  pickerWanted = true;
-  pickerDirty = true;
-  refreshPicker();
-}
-
-function closePlantPicker(): void {
-  pickerWanted = false;
-  picker.hide();
-}
-
-/**
- * Auswahl „Pflanze setzen“ nur bei Änderungen neu bauen (Ökosystem, Samen reichen
- * (nicht mehr)); die Samen-Zeile nur bei neuer ganzer Zahl oder höchstens alle 200 ms.
- */
-function refreshPicker(now = performance.now()): void {
-  if (!pickerWanted) {
-    if (picker.open) picker.hide();
-    return;
-  }
-  const affordable = state.seeds >= nextPlantCost(state);
-  if (!pickerDirty && picker.open && affordable === shownPickerAffordable) {
-    const whole = Math.floor(state.seeds);
-    if (whole !== pickerSeedsShown || now - pickerSeedsAt >= PANEL_REFRESH_MS) {
-      pickerSeedsShown = whole;
-      pickerSeedsAt = now;
-      picker.updateSeeds(state.seeds);
-    }
-    return;
-  }
-  pickerDirty = false;
-  pickerSeedsShown = Math.floor(state.seeds);
-  pickerSeedsAt = now;
-  shownPickerAffordable = affordable;
-  picker.show(toPlantPickerView(state, evaluate(state)), state.seeds);
-}
-
-function openEncounters(): void {
-  if (state.pendingEncounters.length === 0) return;
-  closePlantPicker();
-  dialogWanted = true;
-  encounterDirty = true;
-  refreshEncounter();
-}
-
-function closeEncounters(): void {
-  dialogWanted = false;
-  dialog.hide();
-}
-
-/** Kurzer Hinweis: im offenen Dialog dort, sonst als Toast (der Dialog würde ihn verdecken). */
-function notify(text: string): void {
-  if (picker.open) picker.notice(text);
-  else if (dialog.open) dialog.notice(text);
-  else if (journal.open) journal.notice(text);
-  else if (animalDetail.open) animalDetail.notice(text);
-  else if (!help?.notice(text)) showToast(text);
-}
-
-// --- Ansichten -----------------------------------------------------------------------
-
-/**
- * Zeigt die älteste wartende Begegnung, wenn der Spieler den Stapel geöffnet hat.
- * `show` nur bei Änderungen: neue Begegnung/Ökosystem, Anzahl wartender, Samen reichen
- * (nicht mehr) fürs Neuwürfeln.
- */
-function refreshEncounter(): void {
-  const pending = state.pendingEncounters.length;
-  if (!dialogWanted || pending === 0) {
-    if (pending === 0) dialogWanted = false;
-    if (dialog.open) {
-      dialog.hide();
-      // Der Stapel ist weg – Fokus nicht im Nichts (body) stranden lassen.
-      if (stack.element.hidden && (document.activeElement === document.body || document.activeElement === null)) {
-        heading.focus({ preventScroll: true });
-      }
-    }
-    return;
-  }
-  const queued = pending - 1;
-  // Ändert sich, ob Neu würfeln bzw. Bewirten bezahlbar ist, wird der Dialog neu gebaut.
-  const actionKey = encounterActionKey(state, 0);
-  if (!encounterDirty && dialog.open && actionKey === shownActionKey && queued === shownQueued) return;
-  const view = toEncounterView(state, 0, evaluate(state));
-  if (!view) return;
-  // Wildwechsel (24.6): Weg nur zeigen, solange die Oberfläche weiß, dass die Karte so kam.
-  applyWildwechselMark(view, wildwechselMarks.lookup(state.pendingEncounters[0]) ?? wildwechselMarkOf(state, state.pendingEncounters[0]));
-  view.key = String(encounterSerial);
-  encounterDirty = false;
-  shownActionKey = actionKey;
-  shownQueued = queued;
-  dialog.show(view, queued);
-}
-
-/** Seitenleiste: Struktur nur bei Änderungen am Ökosystem, Zahlen gedrosselt. */
-function refreshPanel(now: number): void {
-  if (ecoDirty || !ecoView) {
-    ecoDirty = false;
-    // Neuer Zyklus und Stammgäste ändern sich nur mit Ökosystem, Wegpunkt oder Aktionen.
-    const cycleView = toCyclePanelView(state);
-    cyclePanel.update(cycleView);
-    // Spielanleitung: Abschnitt „Waldlandschaft“ erst mit der Karte vollständig (Spoiler).
-    help?.setLandscapeUnlocked(landscapeUnlocked(state));
-    // Sonst nirgends gemeldet (z. B. nach einem Import): hier nachholen – an einen sichtbaren
-    // Toast angehängt, damit er nicht verdrängt wird.
-    const announcement = takeLandscapeAnnouncement();
-    if (announcement) {
-      if (!toast.hidden && toast.textContent) showToast(joinNotes(toast.textContent, announcement));
-      else notify(announcement);
-    }
-    const ev = evaluate(state);
-    if (journal.open) journal.update(toJournalView(state, ev));
-    scene.forestMemory = state.meta.forestMemory;
-    if (!ecoView || ev !== ecoEvaluation || ecoSeenKey() !== ecoSeen) {
-      ecoEvaluation = ev;
-      ecoSeen = ecoSeenKey();
-      ecoView = toEcosystemView(state, ev);
-      // Tiere und Pflanzen für die Szene nur bei Änderungen am Ökosystem neu bauen.
-      scene.animals = toSceneAnimals(state, ev);
-      scene.pond = scenePond(ev);
-      // Lebensräume (DESIGN_V2.md 23.8): offen, sobald die Nische Plätze hat.
-      scene.meadow = (ev.slots.meadow ?? 0) > 0;
-      scene.deadwood = (ev.slots.deadwood ?? 0) > 0;
-      scene.wall = (ev.slots.wall ?? 0) > 0;
-      scene.plants = toScenePlants(state, ev);
-      scene.visitors = toSceneVisitors(state);
-      scene.harmonyTier = harmonyTierIndex(ev.harmony);
-    } else {
-      refreshEcosystemView(ecoView, state);
-    }
-  } else if (now - lastPanelRefresh >= PANEL_REFRESH_MS) {
-    refreshEcosystemView(ecoView, state);
-  } else {
-    return;
-  }
-  lastPanelRefresh = now;
-  panel.update(ecoView);
-  // Statistik im Naturtagebuch: Samen, Spielzeit usw. laufen – nur Texte, gedrosselt.
-  if (journal.open) {
-    journal.updateStats(toJournalStats(state, evaluate(state)));
-    // Zeit-Erfolge („Ein ganzes Jahr“, „Geduld der Bäume“): Fortschritt nur als Text.
-    journal.updateAchievementProgress(toAchievementTimeProgress(state));
-  }
-  refreshAnimalDetail();
-  // Restzeiten der Boni laufen – gedrosselt wie die Zahlen der Seitenleiste.
-  bonusPanel.update(activeBonusViews(state));
-  dailyPanel.update(toDailyView(state, today()));
-  refreshCare();
-}
-
-/**
- * Pflege-Liste: Vorschauen nur neu rechnen, wenn sich das Ökosystem, die Frage „reichen
- * die Samen?“ oder ein fehlender Betrag („Noch X 🌰“) ändert.
- */
-let careKey = '';
-function refreshCare(): void {
-  const ev = evaluate(state);
-  // Je Maßnahme: bezahlbar (1), fehlender Betrag (aufgerundet) oder voll ausgebaut (-).
-  let key = '';
-  for (const m of CARE) {
-    const cost = nextCareRank(state, m.id)?.cost;
-    key += (cost === undefined ? '-' : cost <= state.seeds ? '1' : Math.ceil(cost - state.seeds)) + ',';
-  }
-  if (ev === careEvaluation && key === careKey) return;
-  careEvaluation = ev;
-  careKey = key;
-  carePanel.update(toCareViews(state, ev));
-}
-let careEvaluation: Readonly<Evaluation> | null = null;
-
-/**
- * Offene Tierdetails nachziehen. Alles darin hängt an der (gecachten) Auswertung – auch
- * die Jahreszeit steckt in ihrem Schlüssel –, dazu Stammgäste und entdeckte
- * Gemeinschaften aus dem Spielstand. Nur neu bauen, wenn sich davon etwas ändert. Zieht
- * die Art aus, schließt der Dialog und der Fokus geht an die Überschrift ihrer Nische.
- */
-function refreshAnimalDetail(): void {
-  const detailId = animalDetail.speciesId;
-  if (!detailId) {
-    detailEvaluation = null;
-    return;
-  }
-  const ev = evaluate(state);
-  const extra = `${state.meta.regulars.join(',')}|${state.meta.journal.communities.join(',')}|${state.meta.forestMemory}`;
-  if (ev === detailEvaluation && extra === detailExtra) return;
-  detailEvaluation = ev;
-  detailExtra = extra;
-  const view = toAnimalDetailView(state, detailId, ev);
-  const niche = animalDetail.nicheId;
-  animalDetail.update(view, view ? null : niche ? panel.nicheFocusTarget(niche) : null);
-}
-/** Tierdetails: zuletzt genutzte Auswertung und Spielstand-Teile außerhalb davon. */
-let detailEvaluation: Readonly<Evaluation> | null = null;
-let detailExtra = '';
-
-function refreshViews(now: number): void {
-  // Ökosystem geändert (Aktion, Wegpunkt …): Dämpfung im Wetter-Abzeichen gleich mitziehen.
-  if (ecoDirty) seasonShownSecond = -1;
-  refreshSeasonBadge();
-  refreshPanel(now);
-  stack.update(state.pendingEncounters.length, state.pendingEncounters[0]);
-  toastPlacement.update();
-  refreshEncounter();
-  refreshPicker(now);
-}
-
-function floatSeeds(amount: number): void {
-  const target = document.querySelector<HTMLElement>('[data-ref="seeds"]');
-  if (!target || amount <= 0) return;
-  const rect = target.getBoundingClientRect();
-  // Gerundet wie der Knopf („Ablehnen (+144 🌰)“), damit beide dieselbe Zahl zeigen.
-  floats.spawn(`+${seedsLabel(amount)} 🌰`, rect.left + rect.width / 2, rect.top);
 }
 
 /**
@@ -855,84 +516,12 @@ function tickNoteText(report: TickReport): string | null {
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
-/**
- * Verdeckt gerade ein Dialog die Szene? Dann landen alle Hinweise über notify im selben
- * Hinweisfeld – mehrere Hinweise desselben Moments müssen dort zu **einem** Text
- * zusammengefasst werden, sonst ersetzt der letzte die früheren.
- */
-function overlayOpen(): boolean {
-  return picker.open || dialog.open || journal.open || animalDetail.open || !!help?.open;
-}
+// --- Spielstand löschen (die Bestätigung per zweitem Klick macht die Oberfläche) --------
 
-/**
- * Kurzer schwebender Hinweis über der Szene. Ist der Kartenwahl-Dialog oder die
- * Pflanzenauswahl offen, verdeckt sie die Szene – dann steht der Hinweis dort (notify),
- * sichtbar und für Screenreader erreichbar.
- */
-function noteText(text: string): void {
-  if (overlayOpen()) {
-    notify(text);
-    return;
-  }
-  const rect = canvas.getBoundingClientRect();
-  if (rect.width > 0) floats.spawn(text, rect.left + rect.width / 2, rect.top + rect.height * 0.3, 'note');
-  // Die schwebende Zahl ist für Screenreader verborgen – derselbe Text in der Statuszeile.
-  liveStatus.textContent = '';
-  requestAnimationFrame(() => (liveStatus.textContent = text));
-}
-
-function showBanner(view: StageBannerView): void {
-  const strong = document.createElement('strong');
-  strong.textContent = view.title;
-  const span = document.createElement('span');
-  span.textContent = view.text;
-  banner.replaceChildren(strong, span);
-  if (view.extra) {
-    const extra = document.createElement('span');
-    extra.className = 'stage-banner-extra';
-    extra.textContent = view.extra;
-    banner.append(extra);
-  }
-  // Mit Erfolgszeile etwas länger stehen lassen (mehr zu lesen).
-  banner.classList.toggle('long', Boolean(view.extra));
-  banner.classList.remove('visible');
-  void banner.offsetWidth; // Animation neu starten
-  banner.classList.add('visible');
-}
-
-function showToast(text: string): void {
-  toast.classList.remove('brief');
-  toast.textContent = text;
-  toast.hidden = false;
-  toastPlacement.update();
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (toast.hidden = true), toastDurationFor(text, preferences.toastMs()));
-}
-
-// --- Spielstand löschen (zweiter Klick bestätigt, ohne confirm()) --------------------
-
-function disarmReset(): void {
-  clearTimeout(resetTimer);
-  resetTimer = undefined;
-  resetButton.textContent = 'Spielstand löschen';
-  resetButton.classList.remove('armed');
-}
-
-function onReset(event: MouseEvent): void {
-  if (resetTimer === undefined) {
-    if (event.detail > 1) return;
-    resetButton.textContent = 'Wirklich alles löschen? Zum Bestätigen erneut klicken';
-    resetButton.classList.add('armed');
-    resetArmedAt = performance.now();
-    resetTimer = setTimeout(disarmReset, 4000);
-    return;
-  }
-  // Doppelklick oder gehaltene Enter-Taste bestätigen nicht.
-  if (!isDeliberateConfirm(event, resetArmedAt, performance.now())) return;
-  disarmReset();
+function resetGame(): void {
   // Gesperrter Tab: nichts löschen, nichts ersetzen (wie beim Laden einer Sicherung).
   if (storageFrozen) {
-    showToast(FROZEN_TEXT);
+    album.showToast(FROZEN_TEXT);
     return;
   }
   // Der bisherige Wald kommt vorher in die Sicherungen des Kontos (falls aktiv).
@@ -948,23 +537,12 @@ function replaceState(next: GameState): void {
   // Laufende Übergangs-Sequenz und offene Bestätigungen gehören zum alten Stand.
   scene.cycleTransition = undefined;
   scene.jayFlight = undefined;
-  disarmReset();
-  cyclePanel.disarm();
-  saveTransfer?.reset();
   shownStage = state.stage;
-  seasonShownSecond = -1;
-  closeEncounters();
-  closePlantPicker();
-  journal.hide();
-  animalDetail.hide();
-  encounterSerial++;
-  encounterDirty = true;
-  ecoDirty = true;
-  pickerDirty = true;
+  album.replaced();
   // Tagesziele des neuen Stands (Tageswechsel; Import zählt nicht als aktives Spiel).
   runDaily({ offline: true });
   persist();
-  refreshViews(performance.now());
+  album.refresh(performance.now());
 }
 
 /**
@@ -977,20 +555,11 @@ function adoptState(next: GameState): void {
   state = next;
   scene.cycleTransition = undefined;
   scene.jayFlight = undefined;
-  disarmReset();
-  cyclePanel.disarm();
   shownStage = state.stage;
-  seasonShownSecond = -1;
-  if (JSON.stringify(state.pendingEncounters[0] ?? null) !== head) {
-    closeEncounters();
-    encounterSerial++;
-  }
-  encounterDirty = true;
-  ecoDirty = true;
-  pickerDirty = true;
+  album.adopted(JSON.stringify(state.pendingEncounters[0] ?? null) !== head);
   catchUp();
   persist();
-  refreshViews(performance.now());
+  album.refresh(performance.now());
 }
 
 // --- Konto (optional) ----------------------------------------------------------------
@@ -1003,7 +572,7 @@ function setupAccount(): void {
     .then(({ startAccount }) => {
       account = startAccount({
         url,
-        mount: (section) => help?.addSettingsSection(section),
+        mount: (section) => album.addSettingsSection(section),
         game: {
           snapshot: () => exportCode(state),
           localProgress: () => progressOfState(state),
@@ -1022,7 +591,7 @@ function setupAccount(): void {
             adoptState(next);
             return true;
           },
-          notify: (text) => notify(text),
+          notify: (text) => album.notify(text),
           freeze: () => {
             storageFrozen = true;
           },
@@ -1045,9 +614,9 @@ function setupAccount(): void {
 
 // --- Spielstand exportieren / importieren (Text-Code) --------------------------------
 
-/** Bereich „Spielstand exportieren oder importieren“ neben „Spielstand löschen“. */
-function setupSaveTransfer(): void {
-  saveTransfer = createSaveTransfer(resetButton.parentElement!, {
+/** Bereich „Spielstand exportieren oder importieren“ (Umschlag → Spielstand). */
+function saveTransferCallbacks(): SaveTransferCallbacks {
+  return {
     getCode: () => {
       // Gesperrt wegen eines neueren Stands: diesen exportieren (für die neuere Spielversion).
       const raw = newerFrozen ? storedRaw() : null;
@@ -1073,10 +642,10 @@ function setupSaveTransfer(): void {
             imported.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '',
             achievementsBackfilledText(imported.achievementsBackfilled),
           );
-      if (text) showToast(text);
+      if (text) album.showToast(text);
       return null;
     },
-  });
+  };
 }
 
 /** Der gespeicherte Stand als Text (null, wenn keiner da oder der Speicher blockiert ist). */
@@ -1119,20 +688,17 @@ function frame(now: number): void {
     // abgelaufener Bonus: gleich speichern, damit Neuladen nichts neu würfelt, und
     // Ansichten neu bauen.
     persist();
-    encounterDirty = true;
-    ecoDirty = true;
+    invalidate('encounter', 'eco');
   }
   // Neue Begegnung wartet: ein weiches „Pling“.
   if (report.encounters > 0) sound.cue('encounter');
   const tickNote = tickNoteText(report);
   // Automatisch abgelehnte Begegnungen: ihre Samen schweben am Vorrat hoch (wie von Hand).
-  if (report.declinedSeeds > 0) floatSeeds(report.declinedSeeds);
+  if (report.declinedSeeds > 0) album.floatSeeds(report.declinedSeeds);
   let seasonText: string | null = null;
   if (report.seasons.length > 0) {
     // Neue Jahreszeit: Raten ändern sich – Ansichten neu bauen, kurz Bescheid geben.
-    encounterDirty = true;
-    ecoDirty = true;
-    pickerDirty = true;
+    invalidate('encounter', 'eco', 'picker');
     // Jahreszeit und Wetter wechseln an derselben Grenze: ein Hinweis für beides.
     seasonText = seasonWeatherChangeText(report.seasons, report.weather);
   }
@@ -1146,7 +712,7 @@ function frame(now: number): void {
     if (achievementText) achievementText = joinNotes(achievementText, takeLandscapeAnnouncement()) || null;
     if (achievementText) {
       persist();
-      ecoDirty = true;
+      invalidate('eco');
       sound.cue('achievement');
     }
   }
@@ -1168,27 +734,25 @@ function frame(now: number): void {
   }
   const stageChanged = state.stage !== shownStage;
   // Neue Stufe ohne offenen Dialog: Der Erfolg steht im Stufen-Banner, nicht zusätzlich als Toast.
-  const bannerAchievement = stageChanged && !overlayOpen() ? achievementText : null;
-  if (overlayOpen()) {
+  const bannerAchievement = stageChanged && !album.overlayOpen() ? achievementText : null;
+  if (album.overlayOpen()) {
     // Ein Hinweisfeld im Dialog: alles in einem Text, sonst verdrängt der letzte die übrigen.
     const text = joinNotes(tickNote, seasonText, achievementText, dailyText);
-    if (text) notify(text);
+    if (text) album.notify(text);
   } else {
-    if (tickNote) noteText(tickNote);
+    if (tickNote) album.noteText(tickNote);
     const tickText = joinNotes(seasonText, bannerAchievement ? null : achievementText, dailyText);
-    if (tickText) notify(tickText);
+    if (tickText) album.notify(tickText);
   }
 
   if (stageChanged) {
     shownStage = state.stage;
-    encounterDirty = true;
-    ecoDirty = true;
-    pickerDirty = true;
-    showBanner(stageBannerView(state.stage, bannerAchievement));
+    invalidate('encounter', 'eco', 'picker');
+    album.showBanner(stageBannerView(state.stage, bannerAchievement));
     sound.cue('stage');
   }
 
-  refreshViews(now);
+  album.refresh(now);
   // Größe aus dem ResizeObserver, entprellt (kein erzwungenes Layout pro Frame).
   const size = canvasSizer.update(now);
   sceneSize = size;
@@ -1221,21 +785,6 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 
-/** Abzeichen der Jahreszeit: nur neu, wenn eine neue ganze Sekunde Spielzeit beginnt. */
-function refreshSeasonBadge(): void {
-  const second = Math.floor(state.cycle.elapsed);
-  if (second === seasonShownSecond) return;
-  seasonShownSecond = second;
-  seasonBadge.update(toSeasonBadgeView(state.cycle.elapsed));
-  weatherBadge.update(toWeatherBadgeView(state, preferences.settings.daytime === 'day'));
-  // Sonnenunter- und -aufgang: Nachtwirkungen ändern die Raten – Seitenleiste neu bauen.
-  const night = isNight(state.cycle.elapsed);
-  if (night !== shownNight) {
-    shownNight = night;
-    ecoDirty = true;
-  }
-}
-
 /**
  * Rechnet die Zeit seit dem letzten Tick nach – beim Start, wenn ein Tab aus dem
  * Hintergrund zurückkehrt (dort pausiert requestAnimationFrame) und nach Ruhezustand.
@@ -1251,7 +800,7 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   const unlocked = checkAchievements(state);
   if (unlocked.length > 0) {
     persist();
-    ecoDirty = true;
+    invalidate('eco');
   }
   // Einzeln gesammelt, damit der Rückkehr-Bericht sie als eigene Punkte zeigt.
   const notes = [
@@ -1273,42 +822,32 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
       // mobil nur die Kurzfassung, alles Weitere im Rückkehr-Bericht (ui/return-report.ts).
       const stages = { from: stageBefore, to: state.stage };
       const view = toReturnReportView({ away, report, waiting: state.pendingEncounters.length, stages, notes });
-      returnReport.show(view);
-      notify(returnToastText(view, singleColumn.matches));
-      // Mobil höchstens drei Zeilen (CSS .toast.brief); showToast nimmt die Klasse wieder weg.
-      if (singleColumn.matches && toast.textContent === view.summary) toast.classList.add('brief');
+      album.showReturnReport(view);
       extraNotice = '';
       // Die Begrüßung nennt die neue Stufe schon: kein zweites Stufen-Banner im nächsten Frame.
       if (notice.namesStage) {
         shownStage = state.stage;
-        encounterDirty = true;
-        ecoDirty = true;
-        pickerDirty = true;
+        invalidate('encounter', 'eco', 'picker');
       }
     } else {
       // Längere Rückkehr ohne Willkommen (nichts gewachsen): Der alte Bericht gehört zu einer
       // früheren Rückkehr. Kurze Tab-Wechsel (ab 1 s) lassen ihn stehen – sonst wäre er weg,
       // bevor er gelesen ist.
-      if (away > WELCOME_MIN_SECONDS) returnReport.hide();
+      if (away > WELCOME_MIN_SECONDS) album.hideReturnReport();
       // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.
       const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');
       // Im offenen Dialog teilen sich beide Hinweise ein Feld: zusammenfassen.
-      if (text && extraNotice && overlayOpen()) extraNotice = joinNotes(text, extraNotice);
-      else if (text) noteText(text);
+      if (text && extraNotice && album.overlayOpen()) extraNotice = joinNotes(text, extraNotice);
+      else if (text) album.noteText(text);
     }
     if (report.waypoints > 0 || report.encounters > 0 || report.interludesReached > 0 || report.expired.length > 0) {
       persist();
-      encounterDirty = true;
-      ecoDirty = true;
+      invalidate('encounter', 'eco');
     }
     // Offline vergangene Jahreszeiten: still nachführen (kein Hinweis je Wechsel).
-    if (report.seasons.length > 0) {
-      encounterDirty = true;
-      ecoDirty = true;
-      pickerDirty = true;
-    }
+    if (report.seasons.length > 0) invalidate('encounter', 'eco', 'picker');
   }
-  if (extraNotice) notify(extraNotice);
+  if (extraNotice) album.notify(extraNotice);
   state.lastTick = Date.now();
   lastFrame = performance.now();
 }
@@ -1319,7 +858,7 @@ function start(): void {
   if (loaded?.migratedFromV1) {
     // Alter v1-Stand: Neustart, sofort als v2 speichern, damit die Meldung nur einmal kommt.
     persist();
-    showToast(v1NoticeText(loaded.keepsake));
+    album.showToast(v1NoticeText(loaded.keepsake));
   }
   const backfilled = loaded?.achievementsBackfilled ?? 0;
   if (loaded?.memoryReweighted || backfilled > 0) {
@@ -1329,26 +868,17 @@ function start(): void {
   }
   catchUp(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
 
-  resetButton.addEventListener('click', onReset);
   if (storedNewer) freezeForNewerSave();
   // Ein anderer Tab (z. B. schon aktualisiert) schreibt einen neueren Stand: sofort sperren.
   window.addEventListener('storage', (event) => {
     if (event.key === SAVE_KEY && event.newValue !== null && isNewerSave(event.newValue)) freezeForNewerSave();
   });
-  setupSaveTransfer();
-  help = createHelp(document.querySelector<HTMLElement>('#help')!, preferences, { newGame: !loaded && !storedNewer });
   if (!storedNewer) setupAccount();
   preferences.onChange(() => {
     scene.reducedMotion = preferences.reducedMotion;
     camera.reducedMotion = preferences.reducedMotion;
     sound.setLevel(preferences.settings.sound);
-    // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
-    ecoView = null;
-    ecoDirty = true;
-    // Abzeichen (Zahlen, Hinweis zu „Immer Tag“) gleich neu.
-    seasonShownSecond = -1;
-    encounterDirty = true;
-    pickerDirty = true;
+    // Zahlenformat und Abzeichen baut das Album selbst neu (ui/album/legacy.ts).
   });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
@@ -1368,7 +898,7 @@ function start(): void {
     },
   });
 
-  refreshViews(performance.now());
+  album.refresh(performance.now());
   requestAnimationFrame(frame);
 }
 

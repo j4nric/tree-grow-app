@@ -218,10 +218,11 @@ test.describe('Mobil', () => {
     const x = box.x + box.width / 2;
     const y = box.y + box.height * 0.6;
 
-    // Bedienleiste liegt nicht über dem Begegnungs-Stapel (oben rechts) und in der Szene.
+    // Bedienleiste liegt in der Szene (im Album oben rechts im Polaroid; der Zettelstapel
+    // liegt fest unten rechts).
     const bar = (await page.locator('.scene-camera').boundingBox())!;
     expect(bar.y + bar.height).toBeLessThanOrEqual(box.y + box.height + 1);
-    expect(bar.y).toBeGreaterThan(box.y + box.height / 2);
+    expect(bar.y).toBeGreaterThanOrEqual(box.y - 1);
 
     // 1×: senkrecht wischen scrollt die Seite.
     await swipe(cdp, x, y, -200);

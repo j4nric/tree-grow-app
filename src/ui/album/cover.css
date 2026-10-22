@@ -1,0 +1,183 @@
+/*
+ * Buchumschlag (cover.ts): Innenseite des Einbands. Mobil schwenkt er von links herein,
+ * auf der Doppelseite klappt er über die linke Seite (Scharnier am Buchfalz).
+ */
+
+.cover {
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: var(--binding);
+  color: var(--paper);
+  box-shadow: var(--sh-book);
+}
+
+.cover[hidden] {
+  display: none;
+}
+
+.cover-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-height: 100%;
+  padding: 26px 22px;
+  box-sizing: border-box;
+}
+
+.cover-title {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1.05;
+}
+
+.cover-title:focus {
+  outline: none;
+}
+
+.cover-subtitle {
+  margin: -10px 0 8px;
+  font-family: var(--font-hand);
+  font-size: 22px;
+  color: var(--spine);
+}
+
+.cover-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cover .help-bar {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cover .help-button,
+.cover-entry {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: var(--r-button);
+  background: rgba(255, 253, 247, 0.12);
+  color: var(--paper);
+  font-size: 16px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cover .help-button:hover,
+.cover-entry:hover {
+  background: rgba(255, 253, 247, 0.22);
+}
+
+.cover-entry-more {
+  margin-left: auto;
+  font-size: 20px;
+}
+
+.cover :focus-visible {
+  outline: 3px solid var(--tape);
+  outline-offset: 2px;
+}
+
+.cover-close {
+  align-self: flex-start;
+  min-height: var(--tap);
+  margin-top: auto;
+  padding: 0 18px;
+  border: 2px solid var(--paper);
+  border-radius: var(--r-button);
+  background: none;
+  color: var(--paper);
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* ---------- mobil: von links herein ---------- */
+
+.album[data-layout='single'] .cover {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  width: min(88vw, 380px);
+  transform-origin: left center;
+}
+
+.album[data-layout='single'] .cover.cover-in {
+  animation: cover-swing-in var(--turn-ms) var(--turn-ease);
+}
+
+.album[data-layout='single'] .cover.cover-out {
+  animation: cover-swing-in var(--turn-ms) var(--turn-ease) reverse forwards;
+}
+
+@keyframes cover-swing-in {
+  from {
+    transform: perspective(var(--turn-perspective)) rotateY(-90deg);
+  }
+  to {
+    transform: perspective(var(--turn-perspective)) rotateY(0deg);
+  }
+}
+
+/* ---------- Doppelseite: Buchdeckel über der linken Seite ---------- */
+
+.album[data-layout='spread'] .cover {
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 5;
+  border-radius: var(--r-spread) 2px 2px var(--r-spread);
+  transform-origin: right center;
+}
+
+.album[data-layout='spread'] .cover-inner {
+  padding: 30px 34px;
+}
+
+.album[data-layout='spread'] .cover-title {
+  font-size: 52px;
+}
+
+.album[data-layout='spread'] .cover.cover-in {
+  animation: cover-fold-in var(--turn-ms) var(--turn-ease);
+}
+
+.album[data-layout='spread'] .cover.cover-out {
+  animation: cover-fold-in var(--turn-ms) var(--turn-ease) reverse forwards;
+}
+
+@keyframes cover-fold-in {
+  from {
+    transform: perspective(var(--turn-perspective)) rotateY(90deg);
+  }
+  to {
+    transform: perspective(var(--turn-perspective)) rotateY(0deg);
+  }
+}
+
+/* Reduzierte Bewegung: nur überblenden */
+body[data-motion='reduce'] .album .cover.cover-in {
+  animation: cover-fade var(--fade-ms) ease-out;
+}
+
+body[data-motion='reduce'] .album .cover.cover-out {
+  animation: cover-fade var(--fade-ms) ease-out reverse forwards;
+}
+
+@keyframes cover-fade {
+  from {
+    opacity: 0;
+  }
+}

@@ -1,5 +1,5 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
-import { expect, openGame, savedState, seedV3, stageLabel } from './fixtures';
+import { expect, openCover, openGame, savedState, seedV3, stageLabel } from './fixtures';
 
 /**
  * Installierbare App (PWA) gegen den Produktions-Build (vite preview, playwright.config.ts):
@@ -62,6 +62,7 @@ async function cachedUrls(page: Page): Promise<{ cache: string; urls: string[] }
 const account = (page: Page) => page.locator('[data-ref="account"]');
 
 async function openSettings(page: Page): Promise<void> {
+  await openCover(page);
   await page.locator('[data-ref="settings-open"]').click();
   await expect(page.locator('dialog[data-ref="settings"]')).toBeVisible();
 }

@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { DAY_SECONDS, DAY_START_PHASE } from '../src/content/daytime';
 import { createInitialState } from '../src/core/state';
-import { expect, openGame, seedRaw, test } from './fixtures';
+import { expect, openCover, openGame, seedRaw, test } from './fixtures';
 
 /**
  * Tag und Nacht (DESIGN_V2.md 19): Die Szene zeigt nachts einen dunklen Himmel; die
@@ -46,6 +46,7 @@ for (const viewport of [
     // Nachts: dunkler Himmel (der Taghimmel ist oben hellblau, Helligkeit > 150).
     await expect.poll(() => skyBrightness(page)).toBeLessThan(90);
 
+    await openCover(page);
     await page.locator('[data-ref="settings-open"]').click();
     await expect(settings(page)).toBeVisible();
     await expect(settings(page).getByRole('group', { name: 'Tageszeit' })).toBeVisible();
@@ -58,10 +59,12 @@ for (const viewport of [
 
     // Bleibt nach dem Neuladen (sofort hell, kein Gleiten beim Start).
     await page.reload();
+    await openCover(page);
     await expect(page.locator('[data-ref="settings-open"]')).toBeVisible();
     await expect.poll(() => skyBrightness(page)).toBeGreaterThan(150);
 
     // Zurück auf Wechsel: wieder Nacht.
+    await openCover(page);
     await page.locator('[data-ref="settings-open"]').click();
     await daytimeGroup(page).getByLabel(/^Wechsel/).check();
     await expect.poll(() => skyBrightness(page), { timeout: 10_000 }).toBeLessThan(90);

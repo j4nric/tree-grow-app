@@ -80,8 +80,10 @@ for (const viewport of [
     }
     const box = (await toast.boundingBox())!;
     // Vorher höchstens die halbe Breite (left: 50%) – mobil ein schmaler, sehr hoher Block.
-    expect(box.width).toBeGreaterThanOrEqual(Math.min(viewport.width - 32, 640) - 2);
-    expect(box.width).toBeLessThanOrEqual(Math.min(viewport.width - 32, 640) + 1);
+    // Auf der Doppelseite des Albums steht er über der rechten Seite und nutzt deren Breite.
+    const width = viewport.width <= 760 ? Math.min(viewport.width - 32, 640) : Math.min(640, viewport.width / 2 - 150);
+    expect(box.width).toBeGreaterThanOrEqual(width - 2);
+    expect(box.width).toBeLessThanOrEqual(width + 1);
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);

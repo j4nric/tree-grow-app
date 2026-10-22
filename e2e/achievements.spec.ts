@@ -8,7 +8,7 @@ import { YEAR_SECONDS } from '../src/content/seasons';
 import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, dialog, expect, openGame, openStack, savedState, seedRaw, stack, test, waypoint } from './fixtures';
+import { SAVE_VERSION, dialog, expect, openGame, openStack, openTab, savedState, seedRaw, stack, test, waypoint } from './fixtures';
 
 /**
  * Erfolge (DESIGN_V2.md 18): Reiter „Erfolge“ im Naturtagebuch, leiser Hinweis beim
@@ -38,6 +38,7 @@ async function seedV8Grove(context: BrowserContext): Promise<void> {
 }
 
 async function openJournal(page: Page): Promise<void> {
+  await openTab(page, 'arten');
   await page.locator('[data-ref="journal-open"]').click();
   await expect(journal(page)).toBeVisible();
 }
@@ -57,14 +58,14 @@ test('v8-Stand: ein Sammelhinweis, Reiter „Erfolge“ mit Zähler, erreichte u
   const unlocked = saved.meta.achievements.length as number;
 
   await openJournal(page);
-  const tab = page.getByRole('tab', { name: /Erfolge/ });
+  const tab = journal(page).getByRole('tab', { name: /Erfolge/ });
   await expect(tab).toContainText(`${unlocked}/${VISIBLE}`);
   // Per Tastatur: Ende → Statistik, einmal links → Erfolge.
   await page.keyboard.press('End');
   await page.keyboard.press('ArrowLeft');
   await expect(tab).toBeFocused();
   await expect(tab).toHaveAttribute('aria-selected', 'true');
-  const panel = page.getByRole('tabpanel', { name: /Erfolge/ });
+  const panel = journal(page).getByRole('tabpanel', { name: /Erfolge/ });
   await expect(panel).toBeVisible();
 
   const done = panel.getByRole('list', { name: 'Erreicht' });
@@ -91,9 +92,9 @@ test('Freischalten beim Spielen: leiser Hinweis, bei offenem Tagebuch im Dialog'
   await seedRaw(context, state, 0);
   await openGame(page);
   await openJournal(page);
-  await page.getByRole('tab', { name: /Erfolge/ }).click();
-  await expect(page.getByRole('tab', { name: /Erfolge/ })).toContainText(`0/${VISIBLE}`);
-  await expect(page.getByRole('tabpanel', { name: /Erfolge/ })).toContainText('Noch keine Erfolge');
+  await journal(page).getByRole('tab', { name: /Erfolge/ }).click();
+  await expect(journal(page).getByRole('tab', { name: /Erfolge/ })).toContainText(`0/${VISIBLE}`);
+  await expect(journal(page).getByRole('tabpanel', { name: /Erfolge/ })).toContainText('Noch keine Erfolge');
 
   await page.clock.runFor(3_000);
   // Wie andere Hinweise: im offenen Dialog statt als Toast (gemeinsam mit der Jahreszeit).
@@ -101,7 +102,7 @@ test('Freischalten beim Spielen: leiser Hinweis, bei offenem Tagebuch im Dialog'
   await expect(notice).toContainText('🏅 Erfolg: „Ein ganzes Jahr“');
   await expect(notice).toContainText('Frühling');
   await expect(achievement(page, 'full-year')).toHaveAttribute('data-unlocked', 'true');
-  await expect(page.getByRole('tab', { name: /Erfolge/ })).toContainText(`1/${VISIBLE}`);
+  await expect(journal(page).getByRole('tab', { name: /Erfolge/ })).toContainText(`1/${VISIBLE}`);
   const saved = await savedState(page);
   expect(saved.meta.achievements).toEqual(['full-year']);
 });
@@ -137,7 +138,7 @@ test('Offenes Tagebuch: Fortschritt der Zeit-Erfolge läuft mit', async ({ page,
   await seedRaw(context, state, 0);
   await openGame(page);
   await openJournal(page);
-  await page.getByRole('tab', { name: /Erfolge/ }).click();
+  await journal(page).getByRole('tab', { name: /Erfolge/ }).click();
   const progress = achievement(page, 'full-year').locator('.journal-progress');
   const before = await progress.textContent();
   expect(before).toContain('1 Min.');
@@ -158,11 +159,11 @@ for (const width of [360, 390]) {
       await seedV8Grove(context);
       await openGame(page);
       await openJournal(page);
-      await page.getByRole('tab', { name: /Erfolge/ }).tap();
-      await expect(page.getByRole('tabpanel', { name: /Erfolge/ })).toBeVisible();
+      await journal(page).getByRole('tab', { name: /Erfolge/ }).tap();
+      await expect(journal(page).getByRole('tabpanel', { name: /Erfolge/ })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
       expect(await journal(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
-      for (const box of await page.getByRole('tab').evaluateAll((tabs) => tabs.map((t) => t.getBoundingClientRect().toJSON()))) {
+      for (const box of await journal(page).getByRole('tab').evaluateAll((tabs) => tabs.map((t) => t.getBoundingClientRect().toJSON()))) {
         expect(box.height).toBeGreaterThanOrEqual(44);
         expect(box.right).toBeLessThanOrEqual(width);
       }

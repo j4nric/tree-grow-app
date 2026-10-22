@@ -1,7 +1,7 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
 import { codeFromJson, exportCode, importCode, serialize } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, niche, openGame, readNumber, seedsValue, seedV3, test, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, niche, openCover, openGame, openTab, readNumber, seedsValue, seedV3, test, waypoint } from './fixtures';
 
 /**
  * Konto und Gerätesync: Ohne VITE_SYNC_URL (so ist das e2e-Build gebaut) gibt es kein
@@ -43,6 +43,7 @@ async function enableSync(context: BrowserContext): Promise<void> {
 const account = (page: Page) => page.locator('[data-ref="account"]');
 
 async function openSettings(page: Page): Promise<void> {
+  await openCover(page);
   await page.locator('[data-ref="settings-open"]').click();
   await expect(page.locator('dialog[data-ref="settings"]')).toBeVisible();
 }
@@ -118,6 +119,7 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
     await expect(niche(b, 'roots')).toContainText('Regenwurm');
 
     // Aktion in A: Pflege kaufen → B übernimmt sie (Live über Server-Sent Events).
+    await openTab(a, 'pflege');
     await a
       .locator('[data-ref="care"] [data-care="leaf-litter"]')
       .getByRole('button', { name: 'Kaufen (200 🌰)' })
@@ -210,6 +212,7 @@ syncTest('Abmelden mit noch nicht gesendeten Änderungen: erst Hinweis, dann tro
 
     // Offline eine Aktion: Sie kann nicht gesendet werden.
     await context.setOffline(true);
+    await openTab(page, 'pflege');
     await page
       .locator('[data-ref="care"] [data-care="leaf-litter"]')
       .getByRole('button', { name: 'Kaufen (200 🌰)' })

@@ -5,10 +5,9 @@ import { expect, openGame, seedRaw, test, waypoint } from './fixtures';
 
 /**
  * Funde aus dem Playtest Phase 6 in der Oberfläche. Stapel (K3): Symbol des Ereignisses.
- * Lage des Hinweis-Toasts (K1): Er verdeckt weder die Kamera-Knöpfe und
- * den Begegnungs-Stapel (Desktop) noch die Raten (mobil). Am Desktop liegt er in der Szene
- * über Stapel und Knöpfen, mobil oben – unter Stapel, Stufen-Banner und Update-Hinweis,
- * solange sie oben zu sehen sind (ui/toast-place.ts).
+ * Lage des Hinweis-Toasts (K1): Er verdeckt weder die Kamera-Knöpfe noch den Zettelstapel
+ * noch die Etiketten. Auf der Doppelseite liegt er oben über der rechten Seite, mobil oben –
+ * unter Stufen-Banner und Update-Hinweis, solange sie oben zu sehen sind (ui/toast-place.ts).
  */
 
 const GROVE = STAGES.findIndex((s) => s.id === 'grove');
@@ -65,7 +64,7 @@ for (const viewport of [
     await expectFree(box, {
       'Kamera-Knöpfe': page.locator('.scene-camera-button'),
       Stapel: page.locator('[data-ref="encounter-stack"]'),
-      Raten: page.locator('.eco-stat'),
+      Raten: page.locator('.tape-label'),
     });
     // Ganz zu sehen, ohne Querscrollen.
     expect(box.x).toBeGreaterThanOrEqual(0);
@@ -73,21 +72,21 @@ for (const viewport of [
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
     if (viewport.width > 760) {
-      // Desktop: in der Szene, nicht über der Seitenleiste.
-      const scene = (await page.locator('.scene').boundingBox())!;
-      expect(box.x + box.width).toBeLessThanOrEqual(scene.x + scene.width);
+      // Doppelseite: oben im Buch, unter dem Kopf mit Umschlag-Knopf und Zettelstapel.
+      const head = (await page.locator('.album-head').boundingBox())!;
+      expect(box.y).toBeGreaterThanOrEqual(head.y + head.height - 1);
     }
   });
 }
 
-test('Toast mobil, gescrollt: schwebender Stapel unten, Hinweis oben – beide frei', async ({ page, context }) => {
+test('Toast mobil, gescrollt: Zettelstapel unten, Hinweis oben – beide frei', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedRaw(context, grove(), 0);
   await openGame(page);
   const toast = page.locator('#toast');
   await expect(toast).toContainText('neue Erfolge');
   await page.evaluate(() => window.scrollTo(0, 600));
-  await expect(page.locator('.scene-dock.floating')).toHaveCount(1);
+  await expect(page.locator('[data-ref="encounter-stack"]')).toBeInViewport();
   const box = (await toast.boundingBox())!;
   expect(box.y).toBeLessThan(100);
   await expectFree(box, { 'schwebender Stapel': page.locator('[data-ref="encounter-stack"]') });
@@ -162,9 +161,12 @@ test('Update-Hinweis oben: Toast weicht darunter aus (mobil)', async ({ page, co
   const hint = page.locator('[data-ref="update-hint"]');
   await expect(hint).toBeVisible();
   await page.waitForTimeout(400);
-  await expectFree((await toast.boundingBox())!, { 'Update-Hinweis': hint });
-  // Hinweis weg: Der Toast rückt wieder nach oben.
+  const below = (await toast.boundingBox())!;
+  await expectFree(below, { 'Update-Hinweis': hint });
+  // Hinweis weg: Der Toast rückt wieder nach oben (bis unter die Kamera-Knöpfe im Polaroid).
   await hint.evaluate((h) => ((h as HTMLElement).hidden = true));
   await page.waitForTimeout(400);
-  expect((await toast.boundingBox())!.y).toBeLessThan(30);
+  const after = (await toast.boundingBox())!;
+  expect(after.y).toBeLessThanOrEqual(below.y);
+  await expectFree(after, { 'Kamera-Knöpfe': page.locator('.scene-camera-button') });
 });
