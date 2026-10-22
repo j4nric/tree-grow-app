@@ -127,6 +127,7 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
     await expect(niche(a, 'litter')).toContainText('1/3 belegt');
     await expect(niche(b, 'litter')).toContainText('1/3 belegt', { timeout: 15_000 });
     await expect(stamps(b)).toContainText('Auf anderem Gerät weitergespielt – übernommen.');
+    await openTab(b, 'pflege');
     await expect(b.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('Rang 1/2');
 
     // Abmelden in B: Spiel bleibt, Formular wieder da.

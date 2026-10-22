@@ -4,7 +4,7 @@
  * 2. Kurzkarte „Neuer Zyklus“ (Gedächtnis, Gewinn bzw. Grund, „Vorbereiten ›“ → U:Neuer Zyklus),
  * 3. Link-Karte „Erfolge · 12/40 ›“ → U:Erfolge,
  * 4. Link-Karte „Statistik ›“ → U:Statistik.
- * Der Punkt am Reiter zeigt, wenn ein Neuer Zyklus möglich ist (G-13).
+ * Der Punkt am Reiter (`badge`) zeigt, wenn ein Neuer Zyklus möglich ist (G-13).
  *
  * DOM einmal bauen; `update` setzt nur Texte, Klassen und Variablen. Die Liste der
  * Tagesziele entsteht nur neu, wenn sich Tag oder Ziele (Art, Text, erfüllt) ändern.
@@ -172,7 +172,7 @@ export function createGoalsPage(env: PageEnv): TabPage {
       last = now;
       render();
     },
-    dot: () => goalsTabDot(deps.state()),
+    badge: () => goalsTabDot(deps.state()),
   };
 }
 

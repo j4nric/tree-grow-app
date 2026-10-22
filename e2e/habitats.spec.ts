@@ -35,12 +35,9 @@ test('Mobil: verschlossene Waldwiese führt mit „Zur Pflege“ zur Maßnahme, 
   await expect(wall.locator('[data-ref="niche-care-link"]')).toBeHidden();
   await expect(niche(page, 'deadwood').locator('[data-ref="niche-care-link"]')).toBeHidden();
 
-  const details = care(page).locator('details');
-  await expect(details).not.toHaveAttribute('open', '');
   const link = meadow.getByRole('button', { name: 'Zur Pflege: Waldwiese öffnen' });
   expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await link.click();
-  await expect(details).toHaveAttribute('open', '');
   const item = care(page).locator('[data-care="meadow"]');
   await expect(item.locator('[data-care-title="meadow"]')).toBeFocused();
   await expect(item).toBeInViewport();
@@ -51,7 +48,7 @@ test('Mobil: verschlossene Waldwiese führt mit „Zur Pflege“ zur Maßnahme, 
   await expect(meadow.locator('[data-ref="niche-care-link"]')).toBeHidden();
   await expect(meadow).not.toContainText('öffnet durch');
   // Rang 2 öffnet nichts mehr – nur noch Plätze.
-  await expect(item.locator('[data-ref="care-opens"]')).toHaveCount(0);
+  await expect(item.locator('[data-ref="care-opens"]')).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
 

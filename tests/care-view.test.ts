@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CARE } from '../src/content/care';
 import { buyCare } from '../src/core/tick';
 import { careBlockerText, careBoughtText, sortCareViews, toCareViews } from '../src/ui/adapters';
-import { careOrder, carePreviewText, careSummaryText } from '../src/ui/care-panel';
+import { barWidth, careOrder, carePreviewText, careSummaryText, careTabDot, toCareItemView } from '../src/ui/care-view';
 import { formatSignedPercent } from '../src/ui/view-format';
 import type { CareView } from '../src/ui/view-model';
 import { stateAt } from './helpers';
@@ -118,5 +118,68 @@ describe('View: Pflege-Liste', () => {
     state.seeds = 0;
     expect(careSummaryText(toCareViews(state))).toBe('');
     expect(careSummaryText(views.map((v) => ({ ...v, group: 'maxed' as const })))).toBe('alles ausgebaut');
+  });
+
+  it('Punkt am Reiter nur, wenn etwas kaufbar ist', () => {
+    const state = stateAt(3, [], 1);
+    state.seeds = 300;
+    expect(careTabDot(toCareViews(state))).toBe(true);
+    state.seeds = 0;
+    expect(careTabDot(toCareViews(state))).toBe(false);
+    expect(careTabDot([])).toBe(false);
+  });
+
+  it('Balkenbreite: begrenzt auf 0–100 %, eine Nachkommastelle', () => {
+    expect(barWidth(0.5)).toBe('50%');
+    expect(barWidth(0.12345)).toBe('12.3%');
+    expect(barWidth(2)).toBe('100%');
+    expect(barWidth(-1)).toBe('0%');
+    expect(barWidth(Number.NaN)).toBe('0%');
+  });
+});
+
+describe('View: U:Pflegemaßnahme', () => {
+  it('Ränge mit Zustand, Kosten und Stufe; Voraussetzungen mit Haken', () => {
+    const state = stateAt(4, ['bee'], 1);
+    state.seeds = 1e6;
+    buyCare(state, 'leaf-litter');
+    const view = toCareItemView(state, 'leaf-litter')!;
+    expect(view.text).toBe(CARE.find((c) => c.id === 'leaf-litter')!.text);
+    expect(view.ranks.map((r) => r.state)).toEqual(['done', 'next']);
+    expect(view.ranks[0]).toMatchObject({ rank: 1, cost: '200 🌰', summary: '+1 Platz Laubstreu' });
+    expect(view.ranks[1]!.stage).toBe('ab Hain');
+    // Rang 2 erst im Hain: Stufe fehlt, Samen reichen.
+    expect(view.requirements).toEqual([
+      { key: 'stage', met: false, text: 'Stufe „Hain“' },
+      { key: 'seeds', met: true, text: '7.000 🌰' },
+    ]);
+    expect(view.item).toMatchObject({ id: 'leaf-litter', group: 'locked' });
+  });
+
+  it('Ausschluss, Bedingung und fehlende Samen', () => {
+    const state = stateAt(4, [], 1);
+    state.seeds = 1e6;
+    buyCare(state, 'light-crown');
+    const dense = toCareItemView(state, 'dense-crown')!;
+    expect(dense.requirements.find((r) => r.key === 'excludes:light-crown')).toEqual({ key: 'excludes:light-crown', met: false, text: 'nicht zusammen mit „Lichte Krone“' });
+    const hotel = toCareItemView(state, 'insect-hotel')!;
+    const needs = hotel.requirements.filter((r) => r.key.startsWith('requires:'));
+    expect(needs.length).toBeGreaterThan(0);
+    expect(needs.every((r) => !r.met && r.text.startsWith('braucht '))).toBe(true);
+    state.seeds = 100;
+    const boxes = toCareItemView(state, 'nest-boxes')!;
+    expect(boxes.requirements.find((r) => r.key === 'seeds')).toEqual({ key: 'seeds', met: false, text: '650 🌰 (noch 550 🌰)' });
+  });
+
+  it('voll ausgebaut: keine Voraussetzungen; unbekannt oder noch nicht dran: null', () => {
+    const state = stateAt(5, [], 1);
+    state.seeds = 1e6;
+    buyCare(state, 'compost');
+    const compost = toCareItemView(state, 'compost')!;
+    expect(compost.item.group).toBe('maxed');
+    expect(compost.requirements).toEqual([]);
+    expect(compost.ranks.every((r) => r.state === 'done')).toBe(true);
+    expect(toCareItemView(state, 'gibt-es-nicht')).toBeNull();
+    expect(toCareItemView(stateAt(1, [], 1), 'compost')).toBeNull();
   });
 });

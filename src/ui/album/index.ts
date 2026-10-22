@@ -45,7 +45,7 @@ import {
 } from './nav';
 import { TURNED_AWAY, createPageTurn } from './page-turn';
 import type { CyclePage } from './pages/cycle-page';
-import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage } from './pages/registry';
+import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type TabPage } from './pages/registry';
 import { createPolaroid } from './polaroid';
 import { createSpread } from './spread';
 import { createStageLadder } from './stage-ladder';
@@ -107,6 +107,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     back: () => goBack(),
     open: (page) => dispatch({ type: 'open', page }),
     albumTarget,
+    float: (text, x, y) => legacy.float(text, x, y),
   };
 
   // Linke Seite: Polaroid, Etiketten, Stufenleiste, Rückkehr-Bericht.
@@ -149,10 +150,8 @@ export function createAlbum(deps: AlbumDeps): Album {
   const subpages = new Map<string, Subpage>();
   const savePage = SUBPAGES.save(env);
   subpages.set('save', savePage);
-  const cyclePage: CyclePage = SUBPAGES.cycle(env);
-  subpages.set('cycle', cyclePage);
-  subpages.set('achievements', SUBPAGES.achievements(env));
-  subpages.set('stats', SUBPAGES.stats(env));
+  for (const [kind, create] of Object.entries(SUBPAGES)) if (!subpages.has(kind)) subpages.set(kind, create(env));
+  const cyclePage = subpages.get('cycle') as CyclePage;
   for (const sub of subpages.values()) {
     sub.page.element.hidden = true;
     spread.sub.append(sub.page.element);
@@ -431,7 +430,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   function fillSubpage(sub: Subpage, state: AlbumNav, level: number): void {
     const below = level > 1 ? subpageOf(state.stack[level - 2]!)?.page.title.textContent : null;
     sub.bookmark.setLabel(below ?? (state.cover ? 'Umschlag' : TAB_LABELS[state.tab]));
-    sub.opened?.();
+    sub.opened?.(state.stack[level - 1]!);
   }
 
   /** Alle weggedrehten Seiten wieder hinlegen (ohne Animation). */
@@ -507,13 +506,19 @@ export function createAlbum(deps: AlbumDeps): Album {
   let pagesDirty = true;
   let shownPage: object | null = null;
 
+  /**
+   * Punkte an allen Reitern (auch verborgen), dann die sichtbare Seite: oberste Unterseite bzw.
+   * Reiterseite. `force` nach `invalidate`, Ersetzen des Spielstands oder Seitenwechsel – so
+   * stimmt die Seite auch, wenn der Game Loop gerade steht (angehaltene Testuhr); sonst
+   * drosseln die Seiten selbst.
+   */
   function refreshPages(now: number): void {
     for (const id of TAB_IDS) {
-      const dot = tabs[id].dot;
-      if (dot) tabStrip.setDot(id, dot());
+      const tab: TabPage = tabs[id];
+      if (tab.badge) tabStrip.setDot(id, tab.badge(now));
     }
     const top = nav.stack[nav.stack.length - 1];
-    const visible = top ? subpageOf(top) : nav.cover ? undefined : tabs[nav.tab];
+    const visible: TabPage | Subpage | undefined = top ? subpageOf(top) : nav.cover ? undefined : tabs[nav.tab];
     const force = pagesDirty || visible !== shownPage;
     pagesDirty = false;
     shownPage = visible ?? null;

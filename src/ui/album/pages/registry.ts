@@ -17,6 +17,7 @@ import { createSavePage } from './save-page';
 import { createCyclePage } from './cycle-page';
 import { createAchievementsPage } from './achievements-page';
 import { createStatsPage } from './stats-page';
+import { createCareItemPage } from './care-item-page';
 
 /** Was eine Seite vom Album bekommt. */
 export interface PageEnv {
@@ -25,6 +26,8 @@ export interface PageEnv {
   back(): void;
   /** Unterseite aufschlagen (Umblättern). */
   open(page: PageRef): void;
+  /** Schwebende Bestätigung an Bildschirm-Koordinaten (clientX/Y). */
+  float(text: string, x: number, y: number): void;
   /** Ziel des nächsten Zyklus in der Landschaft (D.2 `albumTarget`). */
   readonly albumTarget: AlbumTarget;
 }
@@ -34,8 +37,8 @@ export interface TabPage {
   readonly page: Page;
   /** `force`: sofort (Spielstand geändert, Seite neu gezeigt) statt gedrosselt. */
   update?(now: number, force?: boolean): void;
-  /** Punkt am Reiter („hier gibt es etwas“); läuft jeden Frame, auch verborgen – nur billig rechnen. */
-  dot?(): boolean;
+  /** Punkt am Reiter (G-13); läuft bei jedem Auffrischen, auch verborgen – billig halten. */
+  badge?(now: number): boolean;
 }
 
 /** Unterseite (Ebene 1–2): eigenes Lesezeichen, je Art einmal gebaut. */
@@ -43,7 +46,7 @@ export interface Subpage {
   readonly page: Page;
   readonly bookmark: Bookmark;
   /** Wird beim Öffnen gerufen (Inhalt füllen). */
-  opened?(): void;
+  opened?(ref: PageRef): void;
   /** `force`: sofort (Spielstand geändert) statt gedrosselt. */
   update?(now: number, force?: boolean): void;
   /** Nach Löschen oder Import des Spielstands: offene Bestätigungen zurücknehmen. */
@@ -60,6 +63,7 @@ export const TAB_PAGES = {
 
 export const SUBPAGES = {
   save: createSavePage,
+  'care-item': createCareItemPage,
   cycle: createCyclePage,
   achievements: createAchievementsPage,
   stats: createStatsPage,

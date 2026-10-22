@@ -127,7 +127,12 @@ test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', a
   await expect(button).toHaveText('Neuen Zyklus beginnen');
   await openTab(page, 'landschaft');
   // Wechsel zum Heimatwald per Tastatur.
-  await map.locator('[data-site="home"]').focus();
+  // Erst wenn die Seite nach dem Zurückblättern wieder bedienbar ist (nicht mehr inert).
+  const homeSite = map.locator('[data-site="home"]');
+  await expect(async () => {
+    await homeSite.focus();
+    await expect(homeSite).toBeFocused({ timeout: 200 });
+  }).toPass();
   await page.keyboard.press('Enter');
   // Wirksam heute (320 + ½ · 40, wie im Tagebuch) – der Gewinn dieses Zyklus steht benannt dahinter.
   await expect(map.locator('[data-ref="site-memory"]')).toHaveText(/^Gedächtnis 320 eigen · 340 wirksam dort( \(nach diesem Zyklus \d+\))?$/);
