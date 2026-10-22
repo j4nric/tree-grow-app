@@ -792,6 +792,13 @@ export function renderSpeciesSticker(
 export function stickerFit(def: Pick<SpriteDef, 'x0' | 'y0' | 'x1' | 'y1'>, size: number): { scale: number; ox: number; oy: number };
 ```
 
+- **Umgesetzt (Schritt 2), Abweichungen:** Schlanke Tiere (Seitenverhältnis ab 3 : 1, z. B.
+  Wurm, Eidechse, Schlange) füllen bis 90 % statt 80 %, ihr Rahmen bleibt im Kreis. Wenige
+  Zeichnungen haben einen engeren Sticker-Rahmen (`stickerFrame`: Glühwürmchen mit Lichthof,
+  Gäste im Flug), Kranich und Falke zeigen Bild 1 (`stickerPose`, gesenkte Flügel). Unbekannte
+  IDs ohne Gattung ergeben ein leeres Bild. Gemessen (Chromium, 59 Arten/Gäste, 48 px @2x):
+  erstes Zeichnen farbig ≈ 7–20 ms gesamt, matt ≈ 35–45 ms, Silhouette ≈ 10 ms; mit 4-facher
+  CPU-Drosselung bis ≈ 5 ms je mattem Sticker. Die Tafel: `/src/render/demo.html?stickers=1`.
 - `animals.ts` exportiert dafür `spriteDefOf(kind)` und `speciesKindOf(id, family)`. Das sind
   kleine Exporte; die Logik bleibt, wo sie ist.
 - **`silhouette`:** Bild 0 wird gezeichnet und mit `globalCompositeOperation = 'source-in'`
