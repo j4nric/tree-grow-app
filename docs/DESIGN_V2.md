@@ -4733,7 +4733,7 @@ Kreise, Igel wandert durchs Laub), tagsüber ruhiger (Kauz döst in der Höhle) 
 sie verschwinden nie.
 
 **Umsetzung Renderer** (`src/render/weather.ts`, `src/render/nocturnal.ts`, Tests
-`tests/render-weather.test.ts`, e2e `e2e/weather.spec.ts`):
+`tests/render-weather.test.ts`, e2e `e2e/weather-scene.spec.ts`):
 - `SceneInput.weather`, `weatherPrevious`, `weatherBlend` (IDs wie `WeatherId`; unbekannt oder
   fehlend = wie bisher, „mild“ pixelgleich zu ohne Angabe). `main.ts` übergibt
   `sceneWeather(state.cycle)` jeden Frame. Demo/Test: `?weather=<id>` im Spiel (nur das Bild)
