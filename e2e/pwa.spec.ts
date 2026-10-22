@@ -47,6 +47,27 @@ async function waitForController(page: Page): Promise<void> {
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
 }
 
+/**
+ * Neue Version simulieren: dieselbe Registrierung mit geänderter Skript-Adresse – der Browser
+ * installiert einen neuen Worker, der wie nach einem neuen Build wartet.
+ *
+ * Damit es bei genau EINER neuen Version bleibt, melden alle danach geladenen Seiten ebenfalls
+ * `./sw.js?neu=1` an (wie nach einem echten Build: gleiche Adresse, gleicher Inhalt → kein
+ * weiteres Update). Sonst wäre das „./sw.js“ des Spiels nach dem Neuladen für den Browser
+ * eine dritte Version: Sie würde installiert, in anderen Tabs als „Neue Version verfügbar“
+ * gemeldet, und deren „neu laden“ aktivierte je nach Timing wieder „./sw.js“.
+ */
+async function simulateNewVersion(page: Page, context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    const proto = ServiceWorkerContainer.prototype;
+    const register = proto.register;
+    proto.register = function (url, options) {
+      return register.call(this, String(url) === './sw.js' ? './sw.js?neu=1' : url, options);
+    };
+  });
+  await page.evaluate(() => navigator.serviceWorker.register('./sw.js?neu=1', { scope: './' }));
+}
+
 /** Alle URLs in den Caches der Seite. */
 async function cachedUrls(page: Page): Promise<{ cache: string; urls: string[] }[]> {
   return page.evaluate(async () => {
@@ -169,9 +190,7 @@ test('neue Version: Hinweis „Neue Version verfügbar – neu laden“ lädt ne
   await openGame(page);
   await waitForController(page);
 
-  // Neue Version simulieren: dieselbe Registrierung mit geänderter Skript-Adresse – der
-  // Browser installiert einen neuen Worker, der wie nach einem neuen Build wartet.
-  await page.evaluate(() => navigator.serviceWorker.register('./sw.js?neu=1', { scope: './' }));
+  await simulateNewVersion(page, context);
 
   const hint = page.locator('[data-ref="update-hint"]');
   await expect(hint).toBeVisible();
@@ -190,7 +209,6 @@ test('neue Version: Hinweis „Neue Version verfügbar – neu laden“ lädt ne
   expect(after.seeds).toBeGreaterThanOrEqual(400);
   expect(after.totalGrowth).toBeGreaterThan(before.totalGrowth);
   // Der neue Worker hat übernommen (SKIP_WAITING → controllerchange), nicht nur ein Neuladen.
-  // (Danach meldet das Spiel wieder „./sw.js“ an – für den Browser erneut eine neue Adresse.)
   expect(await page.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).toMatch(/\/sw\.js\?neu=1$/);
 });
 
@@ -202,7 +220,7 @@ test('zwei Tabs: Aktualisiert einer, zeigt der andere „Neue Version aktiv – 
   await openGame(other);
   await waitForController(other);
 
-  await page.evaluate(() => navigator.serviceWorker.register('./sw.js?neu=1', { scope: './' }));
+  await simulateNewVersion(page, context);
   const hint = page.locator('[data-ref="update-hint"]');
   const otherHint = other.locator('[data-ref="update-hint"]');
   await expect(hint).toContainText('Neue Version verfügbar');
@@ -218,4 +236,10 @@ test('zwei Tabs: Aktualisiert einer, zeigt der andere „Neue Version aktiv – 
   await otherNavigation;
   await openGame(other);
   expect(await other.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).toMatch(/\/sw\.js\?neu=1$/);
+  // Nach dem Neuladen beider Tabs gibt es nichts mehr zu aktualisieren (keine dritte Version).
+  const reg = await other.evaluate(async () => {
+    const r = await navigator.serviceWorker.getRegistration();
+    return { installing: r?.installing?.scriptURL ?? null, waiting: r?.waiting?.scriptURL ?? null };
+  });
+  expect(reg).toEqual({ installing: null, waiting: null });
 });
