@@ -153,6 +153,11 @@ export interface CardView {
   preview: PreviewView;
   /** Kurzer Naturtext. */
   flavor?: string;
+  /**
+   * Wildwechsel (DESIGN_V2.md 24.6): Weg der Art, z. B. „kommt über die Schlehenhecke aus den
+   * Buchenhallen“ (ohne Symbol). Nur, solange die Oberfläche weiß, dass die Karte so kam.
+   */
+  route?: string;
   /** Karte kann nicht gewählt werden (mit Begründung). */
   disabledReason?: string;
   /** Text des Knopfs statt „Wählen“ (Ereignis-Optionen, „Bewirten (−40 🌰)“). */

@@ -179,6 +179,7 @@ const animalEncounter: EncounterView = {
       ],
       preview: { harmonyDelta: 12, growthDelta: 0.18, happiness: 0.62 },
       flavor: 'Der Baumeister des Waldes. In seine Höhlen ziehen später Kauz, Fledermaus und Hohltaube.',
+      route: 'kommt über die Schlehenhecke aus den Buchenhallen',
     },
     {
       id: 'eichhoernchen',

@@ -48,6 +48,8 @@ import {
   JAY_SEEDS_MEMORY_STEP,
   LANDSCAPE_SITES,
   LANDSCAPE_UNLOCK_MEMORY,
+  WILDWECHSEL_CHANCE,
+  WILDWECHSEL_MAX_CHANCE,
 } from '../content/landscape';
 import { MAX_FOREST_MEMORY } from '../core/state';
 import { HARMONY_TIERS, bonusEffectLabel, isHabitatNiche, listNames } from './adapters';
@@ -381,6 +383,7 @@ function landscapeSection(unlocked: boolean): GuideSection {
       `Wechseln kannst du ab der Stufe „${cycleStage}“: Der Gewinn des Zyklus geht noch an den alten Wald, danach gelten Gedächtnis, Stammgäste und Eigenheit des neuen. Nichts geht verloren – ein Wald, den du verlässt, ruht und wartet auf dich.`,
       `Jeder Waldtyp hat eine Eigenheit mit Gewinn und Verzicht, die nur dort wirkt, und eine Gabe, die in allen Wäldern gilt, sobald er gegründet ist. Die Karte zeigt beides.`,
       `Korridore verbinden zwei gegründete Wälder und lassen sich jederzeit bauen: ${formatNumber(spokes.length)} am ${home?.name ?? 'Heimatwald'} (je ${span(spokes.map((c) => c.cost))} 🪶) und ${formatNumber(ring.length)} im Ring (${span(ring.map((c) => c.cost))} 🪶). Über sie hilft das Gedächtnis der Nachbarn: ${pct(CORRIDOR_INFLOW)} ihres eigenen Gedächtnisses zählt mit, zusammen höchstens ${formatNumber(CORRIDOR_INFLOW_CAP)} – das wirksame Gedächtnis gibt Bonus und Stammgast-Plätze.`,
+      `🦌 Wildwechsel: Jeder Korridor am Wald, in dem du gerade wächst, gibt ${pct(WILDWECHSEL_CHANCE)} Chance (zusammen höchstens ${pct(WILDWECHSEL_MAX_CHANCE)}), dass eine Tierbegegnung eine Art aus dem Nachbarwald zeigt – aus den Tieren, die dort lebten, als du ihn zuletzt verlassen hast. Es kommen nur Arten, die zu Stufe und Nischen passen und noch nicht bei dir leben, höchstens eine je Begegnung. Die Karte nennt den Weg, z. B. „kommt über die Schlehenhecke aus den Buchenhallen“; die Karte der Landschaft zeigt die Chance. Außerdem zeigt sich jeder Waldtyp öfter mit seinen typischen Gattungen, der Auwald etwa mit Amphibien und Vögeln.`,
     ],
   };
 }
