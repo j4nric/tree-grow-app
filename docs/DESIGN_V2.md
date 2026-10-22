@@ -2142,7 +2142,7 @@ sie in Nischen-Reihenfolge.
 
 ```bash
 npm run check      # Balancing-Tests mit wenigen Durchgängen (feste Seeds), ~80 s CPU, ~30 s auf 4 Kernen
-npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200, Neustart 200), alle Tabellen
+npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200, Neustart 200), alle Tabellen, ~18 min auf 4 Kernen
 ```
 
 Die Tests liegen in vier Dateien, die Vitest parallel rechnet (Einstellungen in
@@ -2271,7 +2271,7 @@ beendet nur die Schleife. Darum:
 | Check, CPU-Zeit (user, zwei Runden) | 102 / 101 s | 79 / 82 s (**−20 %**) |
 | Check, Wandzeit (Last 2–3, zwei Runden) | 35,0 / 34,1 s | 31,1 / 32,2 s (−8 %; die längste Datei, `balance.test.ts` mit ~30 s, bestimmt sie) |
 | ganzer `vitest run`, CPU-Zeit (zwei Runden) | 263 / 250 s | 238 / 236 s |
-| großer Lauf `npm run balance`, CPU-Zeit / Wandzeit | GROSS_BASE | GROSS_JETZT |
+| großer Lauf `npm run balance`, CPU-Zeit / Wandzeit | 2185 s / 17:00 min | 1841 s (**−16 %**) / 17:35 min (`balance.test.ts` mit Pflege ist jetzt die längste Datei) |
 
 Im ganzen `npm run check` auf 4 Kernen bestimmt nicht das Balancing die Wandzeit, sondern
 `tests/sync-sequences.test.ts` (67 s in einem Worker) – Hinweis
