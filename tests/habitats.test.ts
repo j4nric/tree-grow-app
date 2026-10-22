@@ -86,6 +86,9 @@ describe('Lebensräume (DESIGN_V2.md 23)', () => {
         if (e.kind === 'harmony') expect(e.points, s.id).toBeLessThanOrEqual(2);
       }
     }
+    // Keine Gattung wird zu groß: höchstens 11 Arten je Gattung (Grundkatalog 6–8 + Lebensräume),
+    // sonst verdünnt sie die Karten und ihr Gattungsbonus wird zu leicht.
+    for (const g of GENERA) expect(SPECIES.filter((s) => s.genus === g).length, g).toBeLessThanOrEqual(11);
     // Nur die Lebensraum-Arten wohnen in den neuen Nischen.
     for (const s of SPECIES) expect(HABITAT_IDS.has(s.niche), s.id).toBe(HABITAT_SPECIES_IDS.has(s.id));
     for (const n of HABITAT_NICHES) {
@@ -157,7 +160,7 @@ describe('Lebensräume (DESIGN_V2.md 23)', () => {
     );
     expect(pileSlots).toEqual([2, 1]);
     expect(pile.ranks[0]!.effects).toContainEqual({ kind: 'habitat', tag: 'totholz' });
-    // Waldwiese 2.400 / 16.000 🌰, Trockenmauer 12.000 / 32.000 🌰 (23.2).
+    // Waldwiese 2.400 / 16.000 🌰, Trockenmauer 12.000 / 36.000 🌰 (23.2; Entwurf 32.000, Rang 2 mindestens ×3).
     expect(CARE_BY_ID.get('meadow')!.ranks.map((r) => [r.cost, r.minStage])).toEqual([[2_400, 3], [16_000, 5]]);
     expect(CARE_BY_ID.get('drystone-wall')!.ranks.map((r) => [r.cost, r.minStage])).toEqual([[12_000, 5], [36_000, 6]]);
   });

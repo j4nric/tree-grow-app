@@ -19,6 +19,7 @@ import {
   waypoint,
 } from './fixtures';
 import type { BrowserContext, Page } from '@playwright/test';
+import { SAVE_KEY, codeFromJson } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
 
 /** Toast mit genau dem Sammelhinweis der Erfolge nach der Migration v8 → v9 (sonst nichts). */
@@ -275,13 +276,67 @@ test('Spielstand einer neueren Spielversion: nicht laden, nie überschreiben, Hi
   const future = { version: SAVE_VERSION + 1, totalGrowth: 123_456, niches: { meadow: ['cricket'], canyon: ['eagle'] }, lastTick: 0 };
   await seedRaw(context, future);
   await openGame(page);
-  await expect(page.locator('#toast')).toContainText('neueren Version des Spiels');
+  // Dauerhafter Hinweis (kein Toast, der verschwindet), mit Knopf zum Neuladen.
+  const banner = page.locator('[data-ref="newer-save-banner"]');
+  await expect(banner).toHaveAttribute('role', 'alert');
+  await expect(banner).toContainText('neueren Version des Spiels');
+  await expect(banner.getByRole('button', { name: 'Seite neu laden' })).toBeVisible();
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
   await page.waitForTimeout(1500);
+  expect(await savedState(page)).toEqual(future);
+  // „Spielstand löschen“ ist im gesperrten Tab keine stille Sackgasse: freundlich abgelehnt.
+  const reset = page.locator('#reset');
+  await reset.click();
+  await waitForConfirm(page);
+  await reset.click();
+  await expect(page.locator('#toast')).toContainText('Dieser Tab ist angehalten');
+  expect(await savedState(page)).toEqual(future);
+  // Export liefert den gespeicherten neueren Stand (für die neuere Spielversion).
+  const transfer = page.locator('[data-ref="save-transfer"]');
+  await transfer.locator('summary').click();
+  await transfer.locator('[data-ref="export"]').click();
+  await expect(transfer.locator('[data-ref="export-code"]')).toHaveValue(codeFromJson(JSON.stringify(future)));
+  // Import ist im gesperrten Tab ebenso abgelehnt (dieselbe Meldung).
+  await transfer.locator('[data-ref="import-code"]').fill(codeFromJson(JSON.stringify(createInitialState(0, 1))));
+  await transfer.locator('[data-ref="import"]').click();
+  await expect(transfer.locator('[data-ref="save-status"]')).toContainText('Dieser Tab ist angehalten');
   expect(await savedState(page)).toEqual(future);
   // Auch beim Verlassen der Seite bleibt er unangetastet.
   await page.reload();
   await expect(stageLabel(page)).toContainText('Stufe:');
+  expect(await savedState(page)).toEqual(future);
+});
+
+test('Zweiter Tab schreibt einen neueren Stand: der erste Tab sperrt sich und überschreibt nie', async ({ page, context }) => {
+  await openGame(page);
+  await expect(page.locator('[data-ref="newer-save-banner"]')).toHaveCount(0);
+  const future = { version: SAVE_VERSION + 1, totalGrowth: 7, niches: { canyon: ['eagle'] }, lastTick: 0 };
+  // Anderer Tab (z. B. schon aktualisiert): das storage-Ereignis kommt im ersten Tab an.
+  const other = await context.newPage();
+  await other.goto('/manifest.webmanifest');
+  await other.evaluate(([key, raw]) => localStorage.setItem(key, raw), [SAVE_KEY, JSON.stringify(future)] as const);
+  await expect(page.locator('[data-ref="newer-save-banner"]')).toBeVisible();
+  // Verlassen (Tab verborgen → persist) schreibt nichts mehr.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(500);
+  expect(JSON.parse((await other.evaluate((key) => localStorage.getItem(key), SAVE_KEY))!)).toEqual(future);
+});
+
+test('Neuerer Stand im selben Tab ohne storage-Ereignis: persist prüft vor dem Schreiben', async ({ page }) => {
+  await openGame(page);
+  const future = { version: SAVE_VERSION + 1, totalGrowth: 7, lastTick: 0 };
+  // Schreiben im selben Tab löst kein storage-Ereignis aus – erst persist() bemerkt ihn.
+  await page.evaluate(([key, raw]) => localStorage.setItem(key, raw), [SAVE_KEY, JSON.stringify(future)] as const);
+  await expect(page.locator('[data-ref="newer-save-banner"]')).toHaveCount(0);
+  // Tab verbergen → persist(): nicht schreiben, sondern sperren.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(page.locator('[data-ref="newer-save-banner"]')).toBeVisible();
   expect(await savedState(page)).toEqual(future);
 });
 
