@@ -64,6 +64,31 @@ for (const viewport of [
       await expectFlat(page);
     });
 
+    test('Umschlag schließen und sofort wieder öffnen: danach sichtbar', async ({ page }) => {
+      await openGame(page);
+      const button = page.locator('[data-ref="cover-open"]');
+      // Mobil liegt der Umschlag über Knopf und Reitern: dort nur „Schließen“.
+      const ways = viewport.width > 760 ? (['Knopf', 'Reiter', 'Schließen'] as const) : (['Schließen'] as const);
+      for (const close of ways) {
+        await openCover(page);
+        // Schließen startet die Animation – der Zustand gilt sofort.
+        if (close === 'Knopf') await button.click();
+        else if (close === 'Reiter') await page.locator('[data-ref="tab-care"]').click();
+        else await page.locator('[data-ref="cover-close"]').click();
+        await expect(button).toHaveAttribute('aria-expanded', 'false');
+        // Mitten in der Schließ-Animation wieder öffnen.
+        await button.click();
+        await expect(button).toHaveAttribute('aria-expanded', 'true');
+        await page.waitForTimeout(900);
+        await expect(cover(page), close).toBeVisible();
+        await expect(cover(page)).not.toHaveClass(/cover-out/);
+        await expect(page.locator('[data-ref="save-open"]')).toBeVisible();
+        // Und wieder zu (Ruhezustand für die nächste Runde).
+        await page.keyboard.press('Escape');
+        await expect(cover(page)).toBeHidden();
+      }
+    });
+
     test('Doppelklick aufs Lesezeichen geht nur eine Ebene zurück', async ({ page }) => {
       await openGame(page);
       await openSavePage(page);

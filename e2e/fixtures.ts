@@ -188,7 +188,10 @@ export async function gotoTab(page: Page, tab: TabHash): Promise<void> {
 export async function openCover(page: Page): Promise<void> {
   const button = page.locator('[data-ref="cover-open"]');
   if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  // Ruhezustand: sichtbar, keine Schließ-Animation mehr.
   await expect(cover(page)).toBeVisible();
+  await expect(cover(page)).not.toHaveClass(/cover-out/);
 }
 
 /** Umschlag → Unterseite „Spielstand“ (Export, Import, Spielstand löschen). */

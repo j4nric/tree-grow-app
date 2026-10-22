@@ -53,13 +53,21 @@ export function createCover(callbacks: CoverCallbacks): Cover {
   inner.append(title, subtitle, entries, close);
   cover.append(inner);
 
+  /** Soll-Zustand (gilt sofort, auch während der Animation). */
+  let isOpen = false;
+  /** Zählt die Wechsel; das Ende einer abgebrochenen Schließ-Animation tut nichts. */
+  let generation = 0;
+
   return {
     element: cover,
     title,
     menu,
     saveEntry,
     setOpen(open, animate) {
-      if (cover.hidden === !open) return;
+      if (open === isOpen) return;
+      isOpen = open;
+      // Eine laufende Animation (z. B. Schließen) wird abgebrochen: ihr Ende bleibt wirkungslos.
+      const mine = ++generation;
       cover.classList.remove('cover-in', 'cover-out');
       if (open) {
         cover.hidden = false;
@@ -73,10 +81,9 @@ export function createCover(callbacks: CoverCallbacks): Cover {
       cover.classList.add('cover-out');
       const done = () => {
         cover.removeEventListener('animationend', done);
-        if (cover.classList.contains('cover-out')) {
-          cover.classList.remove('cover-out');
-          cover.hidden = true;
-        }
+        if (mine !== generation) return;
+        cover.classList.remove('cover-out');
+        cover.hidden = true;
       };
       cover.addEventListener('animationend', done);
       // Sicherheitsnetz, falls keine Animation läuft (Hintergrund-Tab).
