@@ -1,5 +1,5 @@
 /**
- * Wetter-Abzeichen neben der Jahreszeit (DESIGN_V2.md 21.8): ein Knopf „🌬️ Sturm · −8 % 🌿 ·
+ * Wetter-Abzeichen neben der Jahreszeit (DESIGN_V2.md 21.8): ein Knopf „🌬️ Sturm · −7,5 % 🌿 ·
  * +25 % 🌰“, der eine Erklärung aufklappt – Stimmung, Wirkung heute, Dämpfung, Vorhersage für
  * morgen und Tag/Nacht. Wie das Jahreszeiten-Abzeichen per Klick, Tippen, Enter und Leertaste
  * bedienbar (kein reiner Hover-Tooltip); Escape klappt zu und lässt den Fokus am Knopf.

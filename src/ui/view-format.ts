@@ -12,6 +12,22 @@ export const RARITY_LABELS: Record<Rarity, string> = {
   legendary: 'legendär',
 };
 
+/**
+ * Ab diesem Anteil gilt Futter in der Anzeige als ausreichend gedeckt (✓, kein „knapp“, kein
+ * Futtergrund in der Stimmung). Nur Darstellung – die Zufriedenheit rechnet der Kern stetig.
+ */
+export const FOOD_ENOUGH = 0.9;
+
+/** Futter da, aber unter `FOOD_ENOUGH` gedeckt. */
+export function isScarceFood(food: number): boolean {
+  return food > 0 && food < FOOD_ENOUGH;
+}
+
+/** Zufriedenheit, die gerundet als „100 %“ erscheint (wie `formatPercent`). */
+export function isFullHappiness(happiness: number): boolean {
+  return Math.round(Math.min(1, Math.max(0, happiness)) * 100) >= 100;
+}
+
 /** Typografisches Minus statt Bindestrich. */
 const MINUS = '−';
 
@@ -288,7 +304,7 @@ export const PREVIEW_LEGEND: readonly LegendEntry[] = [
   { key: 'seeds', icon: '🌰', text: 'Samen pro Sekunde' },
   { key: 'happiness', icon: '😊', text: 'erwartete Zufriedenheit des Tiers' },
   { key: 'supply', icon: '☀️💧', text: 'Versorgung der Pflanzen mit Licht und Wasser' },
-  { key: 'conditions', icon: '✓ ✗', text: 'Futter und Wünsche erfüllt oder nicht' },
+  { key: 'conditions', icon: '✓ ~ ✗', text: 'Futter und Wünsche erfüllt, knapp oder nicht' },
   { key: 'tone', icon: '▲ ▼', text: 'Wirkung: Vorteil oder Nachteil' },
 ];
 

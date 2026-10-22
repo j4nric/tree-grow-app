@@ -6,7 +6,7 @@ import { toCyclePanelView } from '../src/ui/cycle-view';
 import { nicheNeverOpensByStage, regularNextCycleHint, regularWaitReason, regularWaitText } from '../src/ui/regular-wait';
 import { stateAt } from './helpers';
 
-const POND_HINT = 'zieht erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)';
+const POND_HINT = 'zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)';
 
 /** Stand mit entdeckten Arten und Stammgast-Plätzen, ohne dass die Arten hier leben. */
 function withRegulars(stage: number, regulars: string[], present: string[] = []) {
@@ -85,7 +85,7 @@ describe('Hinweis für die Wahl (regularNextCycleHint)', () => {
   it('alle Amphibien bekommen den Tümpel-Hinweis, Lebensraum-Arten einen Hinweis auf ihren Lebensraum, alle anderen keinen', () => {
     for (const sp of SPECIES) {
       if (sp.niche === 'meadow' || sp.niche === 'deadwood' || sp.niche === 'wall') {
-        expect(regularNextCycleHint(sp.id), sp.id).toMatch(/^zieht erst ein, wenn/);
+        expect(regularNextCycleHint(sp.id), sp.id).toMatch(/^zieht im nächsten Zyklus erst ein, wenn/);
         continue;
       }
       expect(regularNextCycleHint(sp.id)).toBe(sp.niche === 'pond' ? POND_HINT : null);
@@ -112,7 +112,7 @@ describe('View-Models mit Stammgast-Hinweis', () => {
     expect(toad).toMatchObject({ present: true, note: POND_HINT, waiting: false });
   });
 
-  it('Tierdetails: Amphibien-Stammgast „zieht erst ein, wenn …“ statt „gleich wieder“', () => {
+  it('Tierdetails: Amphibien-Stammgast „zieht im nächsten Zyklus erst ein, wenn …“ statt „gleich wieder“', () => {
     const state = withRegulars(4, ['toad', 'earthworm'], ['toad', 'earthworm']);
     state.cycle.care = { pond: 1 };
     expect(toAnimalDetailView(state, 'toad')?.regular).toBe(`★ Stammgast – ${POND_HINT}`);

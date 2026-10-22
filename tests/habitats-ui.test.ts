@@ -141,9 +141,9 @@ describe('Gattung Reptilien in der Oberfläche', () => {
 
 describe('Stammgäste aus Lebensräumen', () => {
   it('Hinweis fürs nächste Mal nennt den Lebensraum mit Artikel', () => {
-    expect(regularNextCycleHint('lizard')).toBe('zieht erst ein, wenn die Waldwiese wieder angelegt ist (Pflege ab „Junger Baum“)');
-    expect(regularNextCycleHint('slowworm')).toBe('zieht erst ein, wenn der Totholzhaufen wieder angelegt ist (Pflege ab „Alter Baum“)');
-    expect(regularNextCycleHint('grasssnake')).toBe('zieht erst ein, wenn die Trockenmauer wieder angelegt ist (Pflege ab „Hain“)');
+    expect(regularNextCycleHint('lizard')).toBe('zieht im nächsten Zyklus erst ein, wenn die Waldwiese wieder angelegt ist (Pflege ab „Junger Baum“)');
+    expect(regularNextCycleHint('slowworm')).toBe('zieht im nächsten Zyklus erst ein, wenn der Totholzhaufen wieder angelegt ist (Pflege ab „Alter Baum“)');
+    expect(regularNextCycleHint('grasssnake')).toBe('zieht im nächsten Zyklus erst ein, wenn die Trockenmauer wieder angelegt ist (Pflege ab „Hain“)');
     expect(regularNextCycleHint('earthworm')).toBeNull();
   });
 

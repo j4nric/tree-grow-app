@@ -129,15 +129,16 @@ export function renderFacts(facts: readonly FactView[]): HTMLElement {
   return list;
 }
 
-/** Bedingungen mit Haken/Kreuz und ggf. kurzer Erklärung (z. B. bei knappem Futter). */
+/** Bedingungen mit Haken/Kreuz (~ = nur teilweise, z. B. knappes Futter) und ggf. kurzer Erklärung (z. B. bei knappem Futter). */
 export function renderConditions(list: HTMLElement, conditions: readonly ConditionView[]): void {
   list.replaceChildren(
     ...conditions.map((condition) => {
-      const li = el('li', condition.met ? 'met' : 'unmet');
-      const mark = el('span', 'mark', condition.met ? '✓' : '✗');
+      const state = condition.met ? (condition.partial ? 'partial' : 'met') : 'unmet';
+      const li = el('li', state);
+      const mark = el('span', 'mark', state === 'met' ? '✓' : state === 'partial' ? '~' : '✗');
       mark.setAttribute('aria-hidden', 'true');
       const text = el('span', 'condition-text', condition.label);
-      li.append(mark, text, srOnly(condition.met ? ' (erfüllt)' : ' (fehlt)'));
+      li.append(mark, text, srOnly(state === 'met' ? ' (erfüllt)' : state === 'partial' ? ' (teilweise)' : ' (fehlt)'));
       if (condition.hint) {
         // Sichtbar statt nur als Tooltip – auf Touch-Geräten gibt es kein Hover.
         text.append(el('span', 'condition-hint', condition.hint));

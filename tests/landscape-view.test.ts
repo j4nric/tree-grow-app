@@ -7,6 +7,7 @@ import { createSite, type GameState, type LandscapeSite } from '../src/core/stat
 import { previewNewCycle } from '../src/core/tick';
 import { toAnimalDetailView } from '../src/ui/animal-detail-view';
 import { toJournalStats, toJournalView } from '../src/ui/adapters';
+import { toJournalLandscapeView } from '../src/ui/journal-landscape-view';
 import { memoryLineText, toCyclePanelView } from '../src/ui/cycle-view';
 import { guideSections } from '../src/ui/guide-view';
 import {
@@ -145,6 +146,31 @@ describe('Karte der Landschaft: Standorte', () => {
     poor.meta.forestMemory = 260;
     const m4 = mapOf(poor)!;
     expect(m4.sites.find((s) => s.id === 'heath')!.blocker).toMatch(/^Gründen kostet 5 🪶 – nach diesem Zyklus hast du \d+ 🪶\.$/);
+  });
+
+  it('wirksames Gedächtnis gegründeter Wälder: heute wie im Tagebuch, Zyklus-Gewinn benannt', () => {
+    const state = withLandscape(GROVE, {
+      own: 300,
+      sites: [{ ...createSite('home'), ancient: true }, { ...createSite('carr'), memory: 120 }],
+      corridors: ['home-carr'],
+      free: ['home-carr'],
+    });
+    const today = mapOf(state)!.sites.find((s) => s.id === 'carr')!;
+    expect(today.memory).toBe('Gedächtnis 120 eigen · 270 wirksam dort');
+    // Mit Gewinn in diesem Zyklus wächst der Zufluss vom Heimatwald – erst danach.
+    state.cycle.maxHarmony = 200;
+    const preview = previewNewCycle(state);
+    const after = preview.landscape.sites.find((s) => s.id === 'carr')!.effectiveMemory;
+    expect(after).toBeGreaterThan(270);
+    const carr = toLandscapeMapView(state, preview)!.sites.find((s) => s.id === 'carr')!;
+    expect(carr.memory).toBe(`Gedächtnis 120 eigen · 270 wirksam dort (nach diesem Zyklus ${after})`);
+    // Der aktive Wald: heute zuerst, der Gewinn danach benannt.
+    const home = toLandscapeMapView(state, preview)!.sites.find((s) => s.id === 'home')!;
+    const homeAfter = preview.landscape.sites.find((s) => s.id === 'home')!;
+    expect(home.memory).toMatch(new RegExp(`^Gedächtnis 300 eigen · \\d+ wirksam \\(nach diesem Zyklus ${homeAfter.memory} eigen · ${homeAfter.effectiveMemory} wirksam\\)$`));
+    // Das Tagebuch zeigt denselben Wert von heute.
+    const journalRow = toJournalLandscapeView(state)!.sites.find((f) => f.id === 'carr')!.rows.find((r) => r.key === 'memory')!;
+    expect(journalRow.value).toBe('120 eigen · 270 wirksam');
   });
 
   it('Hähersaat-Zeile', () => {

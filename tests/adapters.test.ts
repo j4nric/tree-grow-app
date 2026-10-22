@@ -6,7 +6,7 @@ import { STAGES } from '../src/content/stages';
 import { declineReward, evaluate, nextPlantCost, previewChoice, previewPlant } from '../src/core/formulas';
 import { MAX_OFFLINE_SECONDS, unlockedPlants } from '../src/core/tick';
 import { formatDuration, formatNumber } from '../src/ui/format';
-import { preferredReplaceOption, seedsLine } from '../src/ui/view-format';
+import { FOOD_ENOUGH, isFullHappiness, isScarceFood, preferredReplaceOption, seedsLine } from '../src/ui/view-format';
 import type { CommunityHintView } from '../src/ui/view-model';
 import {
   communityListView,
@@ -28,6 +28,7 @@ import {
   shortageHint,
   toPlantPickerView,
   moodText,
+  conditionViews,
   MOOD_REASON_BELOW,
   SCENE_GROUP_OF,
   autoDeclineText,
@@ -510,6 +511,39 @@ describe('toScenePlants', () => {
     const plants = toScenePlants({ plants: ['hazel'] }, { supply: Number.NaN } as never);
     expect(plants[0]!.vigor).toBe(1);
     expect(toScenePlants({ plants: ['hazel'] }, { supply: 3 } as never)[0]!.vigor).toBe(1);
+  });
+});
+
+describe('Stimmung und Futter-Haken: knapp nur unter FOOD_ENOUGH', () => {
+  const moth = SPECIES_BY_ID.get('oakmoth')!;
+  const status = (happiness: number, food: number) => ({ happiness, food, needs: moth.needs.map(() => true), hunters: 0, disturbers: 0, overhunt: 0 });
+
+  it('volle Zufriedenheit: kein Futtergrund, auch wenn das Futter knapp ist', () => {
+    expect(moodText(moth, status(1, 0.4))).toBe('fühlt sich wohl');
+    // 99,6 % erscheint als „100 %“ – auch dann kein Widerspruch.
+    expect(moodText(moth, status(0.996, 0.4))).toBe('fühlt sich wohl');
+    expect(moodText(moth, status(0.9, 0.4))).toBe('findet wenig Futter');
+  });
+
+  it('ausreichend gedeckt (ab FOOD_ENOUGH) ist kein Grund und kein „(knapp)“', () => {
+    expect(moodText(moth, status(0.9, FOOD_ENOUGH))).toBe('fühlt sich wohl');
+    expect(isScarceFood(FOOD_ENOUGH)).toBe(false);
+    expect(isScarceFood(FOOD_ENOUGH - 0.01)).toBe(true);
+    expect(isScarceFood(0)).toBe(false);
+    expect(isFullHappiness(0.995)).toBe(true);
+    expect(isFullHappiness(0.994)).toBe(false);
+  });
+
+  it('Bedingungen: ✓ nur bei ausreichender Deckung, sonst teilweise (~)', () => {
+    const [enough] = conditionViews(moth, status(1, 1));
+    expect(enough).toMatchObject({ met: true });
+    expect(enough!.partial).toBeUndefined();
+    const [scarce] = conditionViews(moth, status(1, 0.33));
+    expect(scarce).toMatchObject({ met: true, partial: true });
+    expect(scarce!.label).toContain('(knapp)');
+    const [none] = conditionViews(moth, status(0.2, 0));
+    expect(none).toMatchObject({ met: false });
+    expect(none!.partial).toBeUndefined();
   });
 });
 
