@@ -12,7 +12,10 @@ import type { Page } from '@playwright/test';
 async function backingStore(page: Page): Promise<{ w: number; h: number; ew: number; eh: number; css: number }> {
   return page.locator('canvas#scene').evaluate((el) => {
     const c = el as HTMLCanvasElement;
-    const r = c.getBoundingClientRect();
+    // Layoutgröße statt getBoundingClientRect: Das Polaroid im Album ist leicht gedreht, das
+    // umschließende Rechteck wäre größer als das Canvas selbst.
+    const style = getComputedStyle(c);
+    const r = { width: parseFloat(style.width), height: parseFloat(style.height) };
     const dpr = window.devicePixelRatio;
     return { w: c.width, h: c.height, ew: Math.round(r.width * dpr), eh: Math.round(r.height * dpr), css: r.width };
   });

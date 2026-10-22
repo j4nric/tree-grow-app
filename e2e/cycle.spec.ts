@@ -1,5 +1,5 @@
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, niche, openGame, savedState, seedRaw, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, gotoTab, niche, openTab, savedState, seedRaw, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Neuer Zyklus und Stammgäste (Schritt 2.8). Startet mit einem v3-Stand – das Laden
@@ -10,7 +10,7 @@ const GROVE_NICHES = { roots: ['earthworm', 'vole'], litter: ['robin'], edge: ['
 
 test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis', async ({ page, context }) => {
   await seedV3(context, { totalGrowth: waypoint(20) + 1, seeds: 500, niches: GROVE_NICHES, plants: ['hazel'] });
-  await openGame(page);
+  await gotoTab(page, 'ziele');
   await expect(stageLabel(page)).toHaveText('Stufe: Hain');
 
   const panel = page.locator('[data-ref="cycle-panel"]');
@@ -52,7 +52,7 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
 
 test('vor dem Hain: Grund statt Knopf, keine Stammgäste ohne Waldgedächtnis', async ({ page, context }) => {
   await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'] } });
-  await openGame(page);
+  await gotoTab(page, 'ziele');
   const panel = page.locator('[data-ref="cycle-panel"]');
   await expect(panel.locator('[data-ref="cycle-blocker"]')).toContainText('noch 14 Wegpunkte');
   await expect(panel.locator('[data-ref="new-cycle"]')).toBeHidden();
@@ -65,7 +65,7 @@ test('vor dem Hain: Grund statt Knopf, keine Stammgäste ohne Waldgedächtnis', 
 
 test('Stammgäste wählen: Liste ab 25 Waldgedächtnis, Auswahl wird gespeichert', async ({ page, context }) => {
   await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'], litter: ['robin'] }, forestMemory: 30 });
-  await openGame(page);
+  await gotoTab(page, 'ziele');
   const regulars = page.locator('[data-ref="regulars"]');
   await expect(regulars).toBeVisible();
   await expect(regulars).toContainText('Stammgäste 0/1');
@@ -90,7 +90,7 @@ test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pf
   state.meta.forestMemory = 50;
   state.meta.regulars = ['toad'];
   await seedRaw(context, state, 0);
-  await openGame(page);
+  await gotoTab(page, 'ziele');
 
   const regulars = page.locator('[data-ref="regulars"]');
   const toad = regulars.locator('[data-regular="toad"]');
@@ -104,6 +104,7 @@ test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pf
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 
   // Tümpel anlegen: Die Kröte zieht sofort ein, statt zu warten steht der Hinweis fürs nächste Mal da.
+  await openTab(page, 'nischen');
   await niche(page, 'pond').getByRole('button', { name: 'Zur Pflege: Waldtümpel öffnen' }).click();
   await page.locator('[data-ref="care"] [data-buy-care="pond"]').click();
   await expect(toadNote).toHaveText('zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)');

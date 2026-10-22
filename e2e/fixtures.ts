@@ -152,6 +152,60 @@ export const dialog = (page: Page) => page.getByRole('dialog');
 export const niche = (page: Page, id: string) => page.locator(`[data-niche="${id}"]`);
 export const card = (page: Page, species: string) => dialog(page).locator(`[data-species="${species}"]`);
 
+/** Reiter des Albums über ihren Hash (docs/ALBUM_UI.md, C.2). */
+export type TabHash = 'nischen' | 'arten' | 'pflege' | 'ziele' | 'landschaft';
+const TAB_IDS: Record<TabHash, string> = {
+  nischen: 'niches',
+  arten: 'species',
+  pflege: 'care',
+  ziele: 'goals',
+  landschaft: 'landscape',
+};
+
+export const tabButton = (page: Page, tab: TabHash) => page.locator(`[data-ref="tab-${TAB_IDS[tab]}"]`);
+export const tabPanel = (page: Page, tab: TabHash) => page.locator(`[data-ref="page-${TAB_IDS[tab]}"]`);
+/** Überschrift der sichtbaren Reiterseite (Fokusziel, wenn sonst nichts mehr da ist). */
+export const pageTitle = (page: Page) => page.locator('.album-tabpanel:not([hidden]) .page-title');
+/** Unterseite des Albums, z. B. `subpage(page, 'save')`. */
+export const subpage = (page: Page, kind: string) => page.locator(`[data-ref="page-${kind}"]`);
+export const cover = (page: Page) => page.locator('[data-ref="cover"]');
+
+/** Wechselt per Klick in einen Reiter des Albums. */
+export async function openTab(page: Page, tab: TabHash): Promise<void> {
+  await tabButton(page, tab).click();
+  await expect(tabButton(page, tab)).toHaveAttribute('aria-selected', 'true');
+  await expect(tabPanel(page, tab)).toBeVisible();
+}
+
+/** Öffnet das Album direkt in einem Reiter (Hash, z. B. `/#pflege`) und wartet auf den Game Loop. */
+export async function gotoTab(page: Page, tab: TabHash): Promise<void> {
+  await page.goto(`/#${tab}`);
+  await expect(stageLabel(page)).toContainText('Stufe:');
+  await expect(tabButton(page, tab)).toHaveAttribute('aria-selected', 'true');
+}
+
+/** Öffnet den Buchumschlag (Menü: Spielanleitung, Einstellungen, Spielstand). */
+export async function openCover(page: Page): Promise<void> {
+  const button = page.locator('[data-ref="cover-open"]');
+  if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+  await expect(cover(page)).toBeVisible();
+}
+
+/** Umschlag → Unterseite „Spielstand“ (Export, Import, Spielstand löschen). */
+export async function openSavePage(page: Page): Promise<void> {
+  if (await subpage(page, 'save').isVisible()) return;
+  await openCover(page);
+  await page.locator('[data-ref="save-open"]').click();
+  await expect(subpage(page, 'save')).toBeVisible();
+  // Umblättern abwarten (die Seite ist währenddessen nicht bedienbar).
+  await expect(subpage(page, 'save')).not.toHaveAttribute('inert', '');
+}
+
+/** Zurück über das Lesezeichen der obersten Unterseite. */
+export async function back(page: Page): Promise<void> {
+  await page.locator('[data-ref="bookmark"]:visible').click();
+}
+
 /** Wartet, bis die Seitenleiste vom Game Loop befüllt wurde. */
 export async function openGame(page: Page): Promise<void> {
   await page.goto('/');
@@ -191,4 +245,32 @@ export function overlaps(
   const dx = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
   const dy = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
   return dx > 1 && dy > 1;
+}
+
+/**
+ * Lage des Szenen-Canvas: Layoutgröße (`width`, `height`) und Umrechnung eines Punkts im
+ * Canvas in Seitenkoordinaten. Das Polaroid im Album ist leicht gedreht – das umschließende
+ * Rechteck (`boundingBox`) ist darum etwas größer als das Canvas.
+ */
+export async function sceneGeometry(page: Page): Promise<{ width: number; height: number; toPage(x: number, y: number): { x: number; y: number } }> {
+  const g = await page.locator('canvas#scene').evaluate((el) => {
+    const style = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    // Lineare Teile aller Transformationen bis zur Wurzel (Drehung des Polaroids).
+    let m = new DOMMatrix();
+    for (let node: Element | null = el; node; node = node.parentElement) {
+      const t = getComputedStyle(node).transform;
+      if (t && t !== 'none') m = new DOMMatrix(t).multiply(m);
+    }
+    return { width: parseFloat(style.width), height: parseFloat(style.height), cx: r.left + r.width / 2, cy: r.top + r.height / 2, a: m.a, b: m.b, c: m.c, d: m.d };
+  });
+  return {
+    width: g.width,
+    height: g.height,
+    toPage(x, y) {
+      const dx = x - g.width / 2;
+      const dy = y - g.height / 2;
+      return { x: g.cx + g.a * dx + g.c * dy, y: g.cy + g.b * dx + g.d * dy };
+    },
+  };
 }

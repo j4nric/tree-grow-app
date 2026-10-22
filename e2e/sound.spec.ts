@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { build } from 'vite';
-import { expect, openGame, test } from './fixtures';
+import { expect, openCover, openGame, test } from './fixtures';
 
 /**
  * Klang (⚙️ Einstellungen → Klang): Standard aus, Wahl bleibt nach dem Neuladen, und
@@ -13,6 +13,7 @@ const soundGroup = (page: Page) => settings(page).locator('[data-setting="sound"
 const soundState = (page: Page) => page.evaluate(() => document.body.dataset.sound);
 
 async function openSettings(page: Page): Promise<void> {
+  await openCover(page);
   await page.locator('[data-ref="settings-open"]').click();
   await expect(settings(page)).toBeVisible();
 }
@@ -33,8 +34,9 @@ test('Klang: Standard aus, umschalten per Tastatur, bleibt nach dem Neuladen', a
 
   await page.keyboard.press('Escape');
   await page.reload();
-  await expect(page.locator('[data-ref="settings-open"]')).toBeVisible();
-  // Nach dem Neuladen wartet der Klang auf eine Interaktion (Autoplay-Regeln).
+  await expect(page.locator('[data-ref="stage"]')).toContainText('Stufe:');
+  // Nach dem Neuladen wartet der Klang auf eine Interaktion (Autoplay-Regeln) – vor dem
+  // ersten Klick (auch der auf den Umschlag zählt als Interaktion) prüfen.
   expect(await soundState(page)).toBe('waiting');
   await openSettings(page);
   await expect(soundGroup(page).getByLabel(/^Leise/)).toBeChecked();
@@ -44,6 +46,7 @@ test('Klang: Standard aus, umschalten per Tastatur, bleibt nach dem Neuladen', a
   await soundGroup(page).getByLabel(/^Aus \(Standard/).check();
   await expect.poll(() => soundState(page)).toBe('off');
   await page.reload();
+  await openCover(page);
   await expect(page.locator('[data-ref="settings-open"]')).toBeVisible();
   expect(await soundState(page)).toBe('off');
 });
@@ -64,6 +67,7 @@ test('Klang ohne Web Audio: keine Fehler, Einstellung bleibt wählbar', async ({
   await page.mouse.click(10, 10);
   await page.waitForTimeout(500);
   await page.reload();
+  await openCover(page);
   await expect(page.locator('[data-ref="settings-open"]')).toBeVisible();
   await page.mouse.click(10, 10);
   expect(await soundState(page)).toBe('unavailable');
@@ -95,7 +99,7 @@ test('Klang nach dem Neuladen: ein Klick blendet ihn hörbar ein', async ({ page
   await soundGroup(page).getByLabel(/^Normal/).check();
   await page.keyboard.press('Escape');
   await page.reload();
-  await expect(page.locator('[data-ref="settings-open"]')).toBeVisible();
+  await expect(page.locator('[data-ref="stage"]')).toContainText('Stufe:');
   expect(await soundState(page)).toBe('waiting');
   await page.mouse.click(10, 10);
   await expect.poll(() => soundState(page)).toBe('running');

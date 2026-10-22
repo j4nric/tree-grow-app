@@ -1,5 +1,5 @@
 import type { BrowserContext, Page } from '@playwright/test';
-import { expect, openGame, overlaps, savedState, seedRaw, test, waypoint } from './fixtures';
+import { expect, openGame, overlaps, savedState, sceneGeometry, seedRaw, test, waypoint } from './fixtures';
 import { growth } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
 import { nicheAnchors } from '../src/render/anchors';
@@ -28,10 +28,10 @@ async function wormPoint(page: Page, view: CameraView = { zoom: 1, x: 0.5, y: 0.
   // Aktuellen Stand speichern lassen, daraus das Wachstum wie im Game Loop.
   await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
   const g = growth((await savedState(page)) as GameState);
-  const box = (await canvas(page).boundingBox())!;
-  const a = nicheAnchors(box.width, box.height, g, 1).roots[0]!;
-  const p = sceneToScreen(view, box.width, box.height, a.x, a.y + 2);
-  return { x: box.x + p.x, y: box.y + p.y };
+  const geo = await sceneGeometry(page);
+  const a = nicheAnchors(geo.width, geo.height, g, 1).roots[0]!;
+  const p = sceneToScreen(view, geo.width, geo.height, a.x, a.y + 2);
+  return geo.toPage(p.x, p.y);
 }
 
 async function cameraView(page: Page): Promise<CameraView> {
@@ -101,8 +101,9 @@ test.describe('Tier in der Szene', () => {
   test('Klick daneben (Himmel) öffnet nichts', async ({ page, context }) => {
     await seed(context);
     await openGame(page);
-    const box = (await canvas(page).boundingBox())!;
-    await page.mouse.click(box.x + box.width * 0.1, box.y + box.height * 0.1);
+    const geo = await sceneGeometry(page);
+    const sky = geo.toPage(geo.width * 0.1, geo.height * 0.1);
+    await page.mouse.click(sky.x, sky.y);
     // Ein Treffer öffnete den Dialog synchron im pointerup; die Kamera bleibt bei 1×.
     expect(await restingView(page)).toEqual({ zoom: 1, x: 0.5, y: 0.5 });
     await expect(detail(page)).toBeHidden();
@@ -125,7 +126,7 @@ test.describe('Tier in der Szene mobil', () => {
 test.describe('Kamera-Leiste bei 700 px', () => {
   test.use({ viewport: { width: 700, height: 420 } });
 
-  test('der schwebende Begegnungs-Stapel verdeckt die Leiste in keiner Scrollposition', async ({ page, context }) => {
+  test('der Zettelstapel verdeckt die Leiste in keiner Scrollposition', async ({ page, context }) => {
     const state = createInitialState(Date.now(), 4242);
     state.totalGrowth = waypoint(8) + 1;
     state.pendingEncounters = [{ type: 'animal', cards: ['robin', 'bluetit', 'bee'], rerolls: 0 }];
@@ -133,9 +134,9 @@ test.describe('Kamera-Leiste bei 700 px', () => {
     await openGame(page);
     const stackEl = page.locator('[data-ref="encounter-stack"]');
     await expect(stackEl).toBeVisible();
-    let floated = false;
+    // Der Stapel liegt im Album mobil fest unten rechts, die Kamera-Leiste oben im Polaroid.
     for (let y = 0; y <= 400; y += 8) {
-      // Scrollen, dann zwei Frames: Der IntersectionObserver setzt `floating` asynchron.
+      // Scrollen, dann zwei Frames.
       await page.evaluate(
         (y) =>
           new Promise<void>((done) => {
@@ -155,13 +156,9 @@ test.describe('Kamera-Leiste bei 700 px', () => {
         return {
           bar: vis(document.querySelector('.scene-camera')!),
           stack: vis(document.querySelector('[data-ref="encounter-stack"]')!),
-          floating: document.querySelector('.scene-dock')!.classList.contains('floating'),
         };
       });
-      floated ||= r.floating;
       expect(overlaps(r.bar, r.stack), `scrollY ${y}`).toBe(false);
     }
-    // Der Fall ist wirklich eingetreten: Der Stapel hat geschwebt.
-    expect(floated).toBe(true);
   });
 });

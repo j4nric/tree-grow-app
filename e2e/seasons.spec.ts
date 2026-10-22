@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, openGame, savedState, seedRaw, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, gotoTab, openGame, savedState, seedRaw, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Jahreszeiten und Wahl des Hauptbaums (DESIGN_V2.md 16, 17) im Browser. Die Testuhr steht
@@ -57,7 +57,7 @@ test('Neuer Zyklus mit der Rotbuche: Auswahl, Sperrhinweis, Spielstand und Anzei
   state.meta.journal.plants = ['beech'];
   state.cycle.maxHarmony = 80;
   await seedRaw(context, state, 0);
-  await openGame(page);
+  await gotoTab(page, 'ziele');
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[NEW_CYCLE_MIN_STAGE]!.name}`);
   await expect(cyclePanel(page).locator('[data-ref="main-tree"]')).toHaveText('Hauptbaum: 🌳 Stieleiche');
 

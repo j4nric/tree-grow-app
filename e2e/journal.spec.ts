@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { COMMUNITIES } from '../src/content/communities';
 import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
-import { expect, legacyGrowth, openGame, savedState, seedRaw, seedV3, test, waypoint } from './fixtures';
+import { expect, legacyGrowth, openGame, openTab, savedState, seedRaw, seedV3, test, waypoint } from './fixtures';
 
 /**
  * Naturtagebuch (DESIGN_V2.md 10, 11.2): Knopf in der Seitenleiste, modaler Dialog mit
@@ -22,6 +22,7 @@ async function seedYoungTree(context: import('@playwright/test').BrowserContext)
 }
 
 async function openJournal(page: Page): Promise<void> {
+  await openTab(page, 'arten');
   await page.locator('[data-ref="journal-open"]').click();
   await expect(journal(page)).toBeVisible();
 }
@@ -48,11 +49,11 @@ test('Naturtagebuch: Zähler, Reiter, keine Spoiler, Esc gibt den Fokus zurück'
   expect(html).not.toContain('"salamander"');
 
   // Reiter per Pfeiltaste: Pflanzen.
-  await expect(page.getByRole('tab', { name: /Arten/ })).toBeFocused();
+  await expect(journal(page).getByRole('tab', { name: /Arten/ })).toBeFocused();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: /Pflanzen/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(journal(page).getByRole('tab', { name: /Pflanzen/ })).toHaveAttribute('aria-selected', 'true');
   await expect(journal(page).locator('[data-plant="moss"]')).toContainText('wächst gerade hier');
-  await page.getByRole('tab', { name: /Gemeinschaften/ }).click();
+  await journal(page).getByRole('tab', { name: /Gemeinschaften/ }).click();
   await expect(journal(page).locator('[data-panel="communities"]')).toContainText('Aus Laub wird Erde, aus Erde wird Leben.');
 
   // Esc schließt, der Fokus kehrt zum Knopf zurück.
@@ -77,6 +78,7 @@ test('Stammgast im Tagebuch wählen: Zyklus-Panel synchron, gespeichert', async 
   expect((await savedState(page)).meta.regulars).toEqual(['bluetit']);
 
   await journal(page).getByRole('button', { name: 'Schließen' }).click();
+  await openTab(page, 'ziele');
   const regulars = page.locator('[data-ref="regulars"]');
   await expect(regulars).toContainText('Stammgäste 1/1');
   await expect(regulars.locator('[data-regular="bluetit"]')).toHaveAttribute('aria-pressed', 'true');
@@ -190,7 +192,7 @@ test.describe('Mobil (390×844)', () => {
     // Auch der Dialog selbst scrollt nicht seitlich.
     const dialogOverflow = await journal(page).evaluate((d) => d.scrollWidth - d.clientWidth);
     expect(dialogOverflow).toBeLessThanOrEqual(0);
-    await page.getByRole('tab', { name: /Gemeinschaften/ }).tap();
+    await journal(page).getByRole('tab', { name: /Gemeinschaften/ }).tap();
     expect(await noScroll()).toBe(true);
     await expect(journal(page).getByRole('button', { name: 'Schließen' })).toBeInViewport();
   });

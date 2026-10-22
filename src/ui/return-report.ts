@@ -25,7 +25,10 @@ export interface ReturnReportPanel {
   readonly open: boolean;
 }
 
-export function createReturnReportPanel(root: HTMLElement, fallbackFocus?: HTMLElement | null): ReturnReportPanel {
+export function createReturnReportPanel(
+  root: HTMLElement,
+  fallbackFocus?: HTMLElement | null | (() => HTMLElement | null),
+): ReturnReportPanel {
   const section = el('section', 'return-report');
   section.dataset.ref = 'return-report';
   const title = el('h2', 'return-report-title', 'Rückkehr-Bericht');
@@ -93,7 +96,8 @@ export function createReturnReportPanel(root: HTMLElement, fallbackFocus?: HTMLE
 
   function hide(): void {
     // Fokus nicht mit der Karte verschwinden lassen (sonst landet er auf body).
-    if (focusIn(section)) fallbackFocus?.focus({ preventScroll: true });
+    const target = typeof fallbackFocus === 'function' ? fallbackFocus() : fallbackFocus;
+    if (focusIn(section)) target?.focus({ preventScroll: true });
     section.hidden = true;
     setExpanded(false);
   }

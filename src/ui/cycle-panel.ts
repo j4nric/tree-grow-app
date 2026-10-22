@@ -40,6 +40,8 @@ export interface CyclePanel {
   /** Offene Bestätigung „Zum Bestätigen erneut klicken“ zurücknehmen (z. B. nach einem Import). */
   disarm(): void;
   readonly element: HTMLElement;
+  /** Karte der Landschaft – das Album hängt sie in den Reiter „Landschaft“. */
+  readonly landscapeElement: HTMLElement;
 }
 
 export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbacks): CyclePanel {
@@ -270,6 +272,7 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
     update,
     focus: () => title.focus({ preventScroll: false }),
     element: section,
+    landscapeElement: map.element,
     disarm: () => {
       disarm();
       map.disarm();

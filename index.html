@@ -17,31 +17,11 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <main class="layout">
-      <section class="scene">
-        <canvas id="scene" role="application" aria-roledescription="Szene" aria-label="Dein Baum und seine Bewohner"></canvas>
-        <div class="stage-banner" id="stage-banner" aria-live="polite"></div>
-        <div class="scene-dock" id="scene-dock"></div>
-        <!-- Hinweise: am Desktop über der Szene (über Stapel und Kamera-Knöpfen), mobil oben fest -->
-        <div class="toast" id="toast" role="status" hidden></div>
-      </section>
-      <aside class="panel" id="panel">
-        <h1 tabindex="-1">Vom Samen zum Wald</h1>
-        <!-- Rückkehr-Bericht nach Abwesenheit (ui/return-report.ts), sonst verborgen -->
-        <div id="return-report"></div>
-        <div id="season"></div>
-        <div id="help"></div>
-        <div id="ecosystem"></div>
-        <div id="journal"></div>
-        <div id="daily"></div>
-        <div id="bonuses"></div>
-        <div id="care"></div>
-        <div id="cycle"></div>
-        <footer>
-          <button type="button" class="link-button" id="reset">Spielstand löschen</button>
-        </footer>
-      </aside>
-    </main>
+    <!--
+      Die Oberfläche (Album) baut src/ui/album/index.ts auf; das Szenen-Canvas wandert dort
+      ins Polaroid (docs/ALBUM_UI.md).
+    -->
+    <canvas id="scene" role="application" aria-roledescription="Szene" aria-label="Dein Baum und seine Bewohner"></canvas>
     <div class="sr-only" id="live-status" role="status"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

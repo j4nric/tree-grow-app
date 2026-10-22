@@ -5,12 +5,14 @@ import {
   expect,
   niche,
   openGame,
+  openSavePage,
   openStack,
+  pageTitle,
   readNumber,
   savedState,
   seedRaw,
-  seedV3,
   seedsValue,
+  seedV3,
   settle,
   stack,
   stageLabel,
@@ -37,7 +39,9 @@ const BACKFILLED_ONLY = /^🏅 \d+ Erfolge? nachgetragen – zu finden im Naturt
 test('Spiel startet ohne Fehler mit Titel und Canvas, ohne Klick-Button, Upgrades und Dialog', async ({ page }) => {
   await openGame(page);
   await expect(page).toHaveTitle('Vom Samen zum Wald');
-  await expect(page.getByRole('heading', { level: 1, name: 'Vom Samen zum Wald' })).toBeVisible();
+  // Titel auf dem Buchumschlag, sichtbar ist die Reiterseite „Nischen“.
+  await expect(page.getByRole('heading', { level: 1, name: 'Vom Samen zum Wald', includeHidden: true })).toHaveCount(1);
+  await expect(pageTitle(page)).toHaveText('Wer wohnt wo?');
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
   await expect(page.getByRole('button', { name: /Wachsen/ })).toHaveCount(0);
   await expect(page.locator('.upgrade')).toHaveCount(0);
@@ -204,7 +208,7 @@ test('Volle Nische: Tier ersetzen', async ({ page, context }) => {
   await expect(niche(page, 'litter')).toContainText('Rollassel');
   await expect(niche(page, 'litter')).not.toContainText('Steinläufer');
   // Der Stapel ist verschwunden: Der Fokus landet auf der Überschrift statt im Nichts.
-  await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
+  await expect(pageTitle(page)).toBeFocused();
   expect((await savedState(page)).niches.litter).toEqual(['woodlouse', 'robin']);
 });
 
@@ -220,6 +224,7 @@ test('„Spielstand löschen“ setzt nach Bestätigung zurück', async ({ page,
   await expect(stack(page)).toBeVisible();
 
   // Ein einzelner Klick fragt nur nach und lässt den Stand unverändert.
+  await openSavePage(page);
   await page.getByRole('button', { name: 'Spielstand löschen' }).click();
   await expect(page.getByRole('button', { name: /Wirklich alles löschen/ })).toBeVisible();
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
@@ -285,6 +290,7 @@ test('Spielstand einer neueren Spielversion: nicht laden, nie überschreiben, Hi
   await page.waitForTimeout(1500);
   expect(await savedState(page)).toEqual(future);
   // „Spielstand löschen“ ist im gesperrten Tab keine stille Sackgasse: freundlich abgelehnt.
+  await openSavePage(page);
   const reset = page.locator('#reset');
   await reset.click();
   await waitForConfirm(page);
@@ -924,7 +930,8 @@ test('Seitenleiste scrollt für sich: die Seite selbst bleibt fest (Desktop)', a
   await seedRaw(context, state, 0);
   await page.setViewportSize({ width: 1280, height: 800 });
   await openGame(page);
-  const panel = page.locator('#panel');
+  // Die rechte Seite des Albums scrollt in sich (wie früher die Seitenleiste).
+  const panel = page.locator('.spread-right');
   for (const top of [0, 300, 600, 100_000]) {
     await panel.evaluate((p, top) => (p.scrollTop = top), top);
     await page.waitForTimeout(250);
@@ -934,7 +941,7 @@ test('Seitenleiste scrollt für sich: die Seite selbst bleibt fest (Desktop)', a
     });
     expect(scrollHeight, `Seitenleiste bei scrollTop ${top}`).toBeLessThanOrEqual(clientHeight);
   }
-  await page.locator('#reset').focus();
+  await page.locator('.spread-right button:visible').last().focus();
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 

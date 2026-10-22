@@ -1,0 +1,87 @@
+/* Album-Seite: Kopf mit Caveat-Frage und Kennzahl, Inhalt, Seitenzahl (page.ts). */
+
+.album-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px 16px 24px;
+}
+
+.album-page[hidden] {
+  display: none;
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.page-title {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.05;
+  color: var(--ink);
+}
+
+.page-title:focus {
+  outline: none;
+}
+
+.page-title:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+.page-meta {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.page-body {
+  min-width: 0;
+}
+
+.page-number {
+  position: absolute;
+  right: 30px;
+  bottom: 14px;
+  font-family: var(--font-hand);
+  font-size: 20px;
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+
+/* Seitenzahl nur auf der Doppelseite (Schmuck aus dem Desktop-Mockup). */
+.album[data-layout='single'] .page-number {
+  display: none;
+}
+
+.album[data-layout='spread'] .album-page {
+  padding: 26px 30px 52px;
+}
+
+.album[data-layout='spread'] .page-title {
+  font-size: 46px;
+}
+
+/* Unterseite mobil: eigenes Blatt auf dem Karton (Prototyp) */
+.album[data-layout='single'] .album-subpage {
+  min-height: calc(100dvh - 32px);
+  padding: 16px 18px 24px;
+  border-radius: 6px var(--r-page) var(--r-page) 6px;
+  background: var(--paper);
+  box-shadow: var(--sh-photo);
+}
+
+.album[data-layout='spread'] .album-subpage {
+  min-height: 100%;
+  background: var(--paper);
+}

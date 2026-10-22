@@ -1,0 +1,177 @@
+/*
+ * Polaroid (polaroid.ts): weißer Rahmen, Washi-Tape, Bildunterschrift. Mobil Seitenbreite
+ * minus Rand im Verhältnis 342 : 230, Desktop bis 500 × 300 (5 : 3), nach Fensterhöhe kleiner.
+ */
+
+.polaroid {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 10px 10px 4px;
+  background: var(--paper);
+  box-shadow: var(--sh-photo);
+  transform: rotate(var(--tilt-photo));
+}
+
+.polaroid-tape {
+  position: absolute;
+  top: -10px;
+  left: calc(50% - 50px);
+  width: 100px;
+  height: 24px;
+  background: var(--tape);
+  opacity: 0.85;
+  transform: rotate(var(--tilt-tape));
+  z-index: 2;
+  pointer-events: none;
+}
+
+.polaroid-photo.scene {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 342 / 230;
+  background: #d7ecf2;
+}
+
+/* Stufen-Banner (bis Schritt 3): darf breiter sein als das Bild, damit es nicht unnötig umbricht. */
+.album[data-layout='spread'] .polaroid .stage-banner {
+  max-width: min(36rem, calc(50vw - 40px));
+  z-index: 3;
+}
+
+.polaroid-photo #scene {
+  width: 100%;
+  height: 100%;
+}
+
+.polaroid-caption {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 10px;
+  padding: 2px 4px 0;
+}
+
+.polaroid-stage {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.3;
+}
+
+/* Jahreszeit und Wetter rechts in der Bildunterschrift (bis Schritt 4 als Knöpfe mit Ausklapper). */
+.polaroid-season {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 4px;
+  min-width: 0;
+}
+
+.polaroid-season .season {
+  display: contents;
+}
+
+.polaroid .season-badge,
+.polaroid .weather-badge {
+  min-height: var(--tap);
+  padding: 0 4px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  box-shadow: none;
+  color: var(--ink-soft);
+  font-family: var(--font-hand) !important;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.1;
+  text-align: right;
+}
+
+.polaroid .season-badge[aria-expanded='true'],
+.polaroid .weather-badge[aria-expanded='true'] {
+  background: var(--note-bg);
+}
+
+.polaroid .weather-badge.rough {
+  color: var(--ink-red);
+}
+
+/* Ausklapper wie eine Haftnotiz unter dem Polaroid */
+.polaroid .season-effects,
+.polaroid .weather-details {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 6;
+  margin: 6px 0 0;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--note-bg);
+  box-shadow: var(--sh-note);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 13px;
+  text-align: left;
+}
+
+.polaroid .season-effects[hidden],
+.polaroid .weather-details[hidden] {
+  display: none;
+}
+
+/* ---------- Doppelseite ---------- */
+
+.album[data-layout='spread'] .polaroid {
+  align-self: center;
+  flex: none;
+  /* 500 px breit, bei niedrigen Fenstern kleiner (Rest der linken Seite ≈ 400 px) */
+  width: min(100%, 524px, calc((100dvh - 410px) * 5 / 3 + 24px));
+  padding: 12px 12px 6px;
+  background: var(--photo);
+  transform: rotate(var(--tilt-photo-desk));
+}
+
+.album[data-layout='spread'] .polaroid-tape {
+  top: -12px;
+  left: calc(50% - 60px);
+  width: 120px;
+  height: 28px;
+}
+
+.album[data-layout='spread'] .polaroid-photo.scene {
+  aspect-ratio: 5 / 3;
+}
+
+.album[data-layout='spread'] .polaroid-stage {
+  font-size: 30px;
+}
+
+.album[data-layout='spread'] .polaroid .season-badge,
+.album[data-layout='spread'] .polaroid .weather-badge {
+  font-size: 22px;
+}
+
+/*
+ * Kamera-Knöpfe (bis Schritt 3 noch im Polaroid): oben rechts im Himmel. Unten leben Wurzel-,
+ * Totholz- und Mauerbewohner, mobil liegt dort der Zettelstapel.
+ */
+.polaroid .scene-camera {
+  top: 8px;
+  right: 8px;
+  bottom: auto;
+  left: auto;
+}
+
+/* Rückkehr-Bericht auf der linken Seite: Polaroid kleiner, damit alles ohne Scrollen passt. */
+.album[data-layout='spread'] .spread-left:has(.return-report:not([hidden])) .polaroid {
+  width: min(100%, 524px, calc((100dvh - 580px) * 5 / 3 + 24px));
+  min-width: 260px;
+}

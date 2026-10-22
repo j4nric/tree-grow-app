@@ -161,7 +161,19 @@ function unitInterval(value: number): number {
   return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 }
 
-export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPanelCallbacks = {}): EcosystemPanel {
+export interface EcosystemPanelOptions {
+  /**
+   * Kopf mit Stufe, Fortschritt und Kennzahlen zeigen (Standard). Im Album stehen sie als
+   * Bildunterschrift, Etiketten und Stufenleiste auf der linken Seite (docs/ALBUM_UI.md A.2).
+   */
+  header?: boolean;
+}
+
+export function createEcosystemPanel(
+  root: HTMLElement,
+  callbacks: EcosystemPanelCallbacks = {},
+  options: EcosystemPanelOptions = {},
+): EcosystemPanel {
   const panel = el('section', 'eco');
   panel.setAttribute('aria-label', 'Ökosystem');
 
@@ -331,7 +343,8 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
   action.append(plantButton, plantHint);
   ring.append(ringHint, supplyBox, plantList, groupCaption, groupBox, action);
 
-  panel.append(head, stats, details, communities, foodWeb, ringTitle, ring, familiesTitle, familyBar, familyDetail, nichesTitle, nicheList);
+  if (options.header !== false) panel.append(head, stats);
+  panel.append(details, communities, foodWeb, ringTitle, ring, familiesTitle, familyBar, familyDetail, nichesTitle, nicheList);
   root.append(panel);
 
   let lastHarmony: number | null = null;

@@ -1,7 +1,7 @@
 import type { BrowserContext } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, createSite, type GameState, type LandscapeSite } from '../src/core/state';
-import { expect, openGame, overlaps, savedState, seedRaw, test, waitForConfirm, waypoint } from './fixtures';
+import { expect, gotoTab, openCover, openGame, openTab, overlaps, savedState, seedRaw, tabButton, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Karte der Landschaft (DESIGN_V2.md 24.5, 24.6): Freischaltung, Gründen, Wechseln,
@@ -40,7 +40,9 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await openGame(page);
   // Meldung der Freischaltung (einmal).
   await expect(page.locator('#toast')).toContainText('Eichelhäher');
-  const map = panel(page).locator('[data-ref="landscape"]');
+  // Der Reiter „Landschaft“ ist erschienen.
+  await openTab(page, 'landschaft');
+  const map = page.locator('[data-ref="landscape"]');
   await expect(map).toBeVisible();
   await expect(map.locator('[data-ref="jay-seeds"]')).toContainText('🪶 5 Hähersaat');
   // Heimatwald ist „hier“, die übrigen sind wählbar (gründen · 3 🪶).
@@ -59,6 +61,7 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
 
   const button = panel(page).locator('[data-ref="new-cycle"]');
   await expect(button).toHaveText('Auwald am Fluss gründen (3 🪶)');
+  await openTab(page, 'ziele');
   await button.click();
   await waitForConfirm(page);
   await button.click();
@@ -72,11 +75,13 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(panel(page).locator('.cycle-sub')).toContainText('🌊 Auwald am Fluss');
   await expect(map.locator('[data-site="floodplain"]')).toContainText('hier');
   // Der Gratis-Korridor steht in der Liste – ohne Kaufknopf.
+  await openTab(page, 'landschaft');
   const corridor = map.locator('li[data-corridor="home-floodplain"]');
   await expect(corridor).toBeVisible();
   await expect(corridor).toContainText('Weg der Häher, gratis');
   await expect(corridor.locator('button')).toBeHidden();
   // Spielanleitung: jetzt der ganze Abschnitt.
+  await openCover(page);
   await page.locator('[data-ref="guide-open"]').click();
   await expect(page.locator('[data-section="landscape"]')).toContainText('Waldlandschaft und Hähersaat');
   await page.keyboard.press('Escape');
@@ -94,8 +99,8 @@ test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', a
     context,
     landscapeState(GROVE, { own: 40, active: 'floodplain', sites: [home, flood], corridors: ['home-floodplain'], free: ['home-floodplain'] }),
   );
-  await openGame(page);
-  const map = panel(page).locator('[data-ref="landscape"]');
+  await gotoTab(page, 'landschaft');
+  const map = page.locator('[data-ref="landscape"]');
   await expect(map).toBeVisible();
   // Gründen geht nur aus dem Urwald – mit Grund als Text.
   await map.locator('[data-site="mountain"]').click();
@@ -108,6 +113,7 @@ test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', a
   // Wirksam heute (320 + ½ · 40, wie im Tagebuch) – der Gewinn dieses Zyklus steht benannt dahinter.
   await expect(map.locator('[data-ref="site-memory"]')).toHaveText(/^Gedächtnis 320 eigen · 340 wirksam dort( \(nach diesem Zyklus \d+\))?$/);
   await expect(button).toHaveText('Neuen Zyklus beginnen: Heimatwald');
+  await openTab(page, 'ziele');
   await button.click();
   await waitForConfirm(page);
   await button.click();
@@ -131,8 +137,8 @@ test('Korridor bauen: Altwasser zwischen Auwald und Erlenbruch', async ({ page, 
       free: ['home-floodplain', 'home-carr'],
     }),
   );
-  await openGame(page);
-  const map = panel(page).locator('[data-ref="landscape"]');
+  await gotoTab(page, 'landschaft');
+  const map = page.locator('[data-ref="landscape"]');
   // Verdient 6 + 2 + 3 + 2 + 2 = 15, ausgegeben 3 + 5 = 8.
   await expect(map.locator('[data-ref="jay-seeds"]')).toHaveText('🪶 7 Hähersaat');
   const row = map.locator('li[data-corridor="floodplain-carr"]');
@@ -169,11 +175,11 @@ for (const [width, height, scale, font] of [
 ] as const) test(`${width} px, Schrift ${scale * 100} %${font ? ` ${font}` : ''}: Karte ohne Querscrollen, Standorte ≥ 44 px ohne Überlappung`, async ({ page, context }) => {
   await page.setViewportSize({ width, height });
   await seed(context, landscapeState(ANCIENT, { own: 300 }));
-  await openGame(page);
+  await gotoTab(page, 'landschaft');
   // Größere Schrift (andere Schriftbreiten auf anderen Systemen): Knöpfe werden höher.
   await page.evaluate((s) => (document.documentElement.style.fontSize = `${s * 100}%`), scale);
   if (font) await page.addStyleTag({ content: `:root, body, button { font-family: '${font}', sans-serif !important; }` });
-  const map = panel(page).locator('[data-ref="landscape-map"]');
+  const map = page.locator('[data-ref="landscape-map"]');
   await map.scrollIntoViewIfNeeded();
   await expect(map).toBeVisible();
   const box = (await map.boundingBox())!;
@@ -197,15 +203,17 @@ test('Hain mit genug Gedächtnis nach diesem Zyklus, aber noch nicht frei: keine
   const state = landscapeState(GROVE, { own: 249, announced: false });
   state.cycle.maxHarmony = 200;
   await seed(context, state);
-  await openGame(page);
+  await gotoTab(page, 'ziele');
   await expect(panel(page).locator('[data-ref="new-cycle"]')).toBeVisible();
-  await expect(panel(page).locator('[data-ref="landscape"]')).toBeHidden();
+  await expect(page.locator('[data-ref="landscape"]')).toBeHidden();
+  await expect(tabButton(page, 'landschaft')).toBeHidden();
 });
 
 test('vor der Freischaltung: keine Karte', async ({ page, context }) => {
   const state = landscapeState(ANCIENT, { own: 100 });
   await seed(context, state);
-  await openGame(page);
+  await gotoTab(page, 'ziele');
   await expect(panel(page).locator('[data-ref="new-cycle"]')).toBeVisible();
-  await expect(panel(page).locator('[data-ref="landscape"]')).toBeHidden();
+  await expect(page.locator('[data-ref="landscape"]')).toBeHidden();
+  await expect(tabButton(page, 'landschaft')).toBeHidden();
 });

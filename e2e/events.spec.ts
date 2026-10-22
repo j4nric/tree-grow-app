@@ -1,4 +1,4 @@
-import { SAVE_VERSION, dialog, expect, openGame, openStack, savedState, seedV3, settle, test, waypoint } from './fixtures';
+import { SAVE_VERSION, dialog, expect, gotoTab, openGame, openStack, savedState, seedV3, settle, test, waypoint } from './fixtures';
 
 /**
  * Ereignisse mit Wahl und Durchreisende (Schritt 2.4): im Kartenwahl-Dialog wählen, der
@@ -14,7 +14,8 @@ test('Ereignis und Gast wählen: Boni erscheinen mit Restzeit und bleiben nach d
       { type: 'visitor', cards: ['cranes'], rerolls: 0 },
     ],
   });
-  await openGame(page);
+  // Boni stehen im Reiter „Pflege“ (Abschnitt „Gerade wirksam“).
+  await gotoTab(page, 'pflege');
   const bonuses = page.locator('[data-ref="bonuses"]');
   await expect(bonuses).toBeHidden();
 

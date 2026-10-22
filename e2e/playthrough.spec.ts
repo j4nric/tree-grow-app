@@ -214,8 +214,9 @@ test.describe('Stufen-Banner', () => {
     await expect(banner.locator('.stage-banner-extra')).toContainText('Nicht mehr allein');
     await expect(page.locator('#toast')).not.toContainText('Nicht mehr allein');
     const text = banner.locator('span').first();
+    // Layouthöhe statt umschließendem Rechteck: Das Polaroid im Album ist leicht gedreht.
     const { height, fontSize } = await text.evaluate((e) => ({
-      height: e.getBoundingClientRect().height,
+      height: (e as HTMLElement).offsetHeight,
       fontSize: parseFloat(getComputedStyle(e).fontSize),
     }));
     // Eine Zeile (vorher: auf die halbe Szenenbreite begrenzt → zwei Zeilen)

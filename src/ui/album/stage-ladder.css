@@ -1,0 +1,79 @@
+/* Stufenleiste (stage-ladder.ts): 8 Stufen, Balken, Fortschrittshinweis. */
+
+.stage-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stage-ladder-names {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.stage-ladder-step:first-child {
+  text-align: left;
+}
+
+.stage-ladder-step:last-child {
+  text-align: right;
+}
+
+.stage-ladder-step.current {
+  color: var(--ink-green);
+}
+
+.stage-ladder-step.future {
+  color: var(--ink-faint);
+}
+
+.stage-ladder-track {
+  height: 14px;
+  overflow: hidden;
+  border: 2px solid var(--dash);
+  border-radius: 7px;
+  background: var(--track);
+}
+
+.stage-ladder-bar {
+  height: 100%;
+  background: var(--fill);
+  transition: width 0.3s;
+}
+
+body[data-motion='reduce'] .stage-ladder-bar {
+  transition: none;
+}
+
+.stage-ladder-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.stage-ladder-hint[hidden] {
+  display: none;
+}
+
+/* Mobil: schmale Leiste ohne Namen */
+.album[data-layout='single'] .stage-ladder-names {
+  display: none;
+}
+
+.album[data-layout='single'] .stage-ladder-track {
+  height: 10px;
+  border-radius: 5px;
+}
+
+.album[data-layout='spread'] .stage-ladder-hint {
+  font-size: 13px;
+}

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, openGame, seedV3, test, waypoint } from './fixtures';
+import { expect, openCover, openGame, seedV3, test, waypoint } from './fixtures';
 
 /**
  * Spielanleitung, Einstellungen und der Hinweis „Neu hier?“ beim ersten Start.
@@ -19,10 +19,11 @@ test('erster Start: Hinweis „Neu hier?“, öffnet die Anleitung, kommt danach
   await expect(hint).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(guide(page)).toBeHidden();
-  // Fokus nicht im Nichts: Der Hinweis ist weg, der Fokus steht auf „Spielanleitung“.
-  await expect(page.locator('[data-ref="guide-open"]')).toBeFocused();
+  // Fokus nicht im Nichts: Der Hinweis ist weg, der Fokus steht auf dem Umschlag-Knopf daneben.
+  await expect(page.locator('[data-ref="cover-open"]')).toBeFocused();
 
   await page.reload();
+  await openCover(page);
   await expect(page.locator('[data-ref="guide-open"]')).toBeVisible();
   await expect(page.locator('[data-ref="guide-hint"]')).toHaveCount(0);
 });
@@ -30,6 +31,7 @@ test('erster Start: Hinweis „Neu hier?“, öffnet die Anleitung, kommt danach
 test('geladener Spielstand: kein Hinweis „Neu hier?“', async ({ page, context }) => {
   await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'] } });
   await openGame(page);
+  await openCover(page);
   await expect(page.locator('[data-ref="guide-open"]')).toBeVisible();
   await expect(page.locator('[data-ref="guide-hint"]')).toHaveCount(0);
 });
@@ -43,6 +45,7 @@ test('Hinweis lässt sich schließen, ohne die Anleitung zu öffnen', async ({ p
 
 test('Spielanleitung: Abschnitte mit Zahlen aus dem Spiel, keine Platzhalter, Fokus zurück', async ({ page }) => {
   await openGame(page);
+  await openCover(page);
   const open = page.locator('[data-ref="guide-open"]');
   await open.click();
   await expect(guide(page)).toBeVisible();
@@ -69,6 +72,7 @@ test('Bewegung reduzieren: An greift sofort und nach dem Neuladen, Automatisch f
   await openGame(page);
   expect(await motion(page)).toBe('full');
 
+  await openCover(page);
   await page.locator('[data-ref="settings-open"]').click();
   await expect(settings(page)).toBeVisible();
   await settings(page).getByLabel(/^An –/).check();
@@ -77,11 +81,13 @@ test('Bewegung reduzieren: An greift sofort und nach dem Neuladen, Automatisch f
   await expect(page.locator('[data-ref="settings-open"]')).toBeFocused();
 
   await page.reload();
+  await openCover(page);
   await expect(page.locator('[data-ref="settings-open"]')).toBeVisible();
   expect(await motion(page)).toBe('reduce');
 
   // „Aus“ überstimmt ein System mit weniger Bewegung, „Automatisch“ folgt ihm.
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openCover(page);
   await page.locator('[data-ref="settings-open"]').click();
   await expect(settings(page).getByLabel(/^An –/)).toBeChecked();
   await settings(page).getByLabel(/^Aus –/).check();
@@ -105,6 +111,7 @@ test('Zahlenformat ausgeschrieben: große Samenzahl ohne „Mio.“', async ({ p
   await openGame(page);
   const seeds = page.locator('[data-ref="seeds"]');
   await expect(seeds).toContainText('Mio.');
+  await openCover(page);
   await page.locator('[data-ref="settings-open"]').click();
   await settings(page).getByLabel(/^Ausgeschrieben/).check();
   await expect(seeds).toHaveText(/^2\.500\.\d{3}$/);
@@ -128,7 +135,7 @@ test.describe('Mobil (390×844)', () => {
     await expect(seeds).toHaveText('99.999.999');
     const overflow = () =>
       seeds.evaluate((value) => {
-        const tile = value.closest<HTMLElement>('.eco-stat')!;
+        const tile = value.closest<HTMLElement>('.tape-label')!;
         return Math.max(
           tile.scrollWidth - tile.clientWidth,
           value.getBoundingClientRect().right - tile.getBoundingClientRect().right,
@@ -146,11 +153,13 @@ test.describe('Mobil (390×844)', () => {
     await openGame(page);
     await expect(page.locator('[data-ref="guide-hint"]')).toBeVisible();
     expect(await noScroll(page)).toBe(true);
+    await openCover(page);
     await page.locator('[data-ref="guide-open"]').tap();
     await expect(guide(page)).toBeVisible();
     expect(await noScroll(page)).toBe(true);
     expect(await guide(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
     await guide(page).getByRole('button', { name: 'Schließen' }).tap();
+    await openCover(page);
     await page.locator('[data-ref="settings-open"]').tap();
     await expect(settings(page)).toBeVisible();
     expect(await noScroll(page)).toBe(true);

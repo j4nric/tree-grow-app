@@ -498,12 +498,17 @@ fertig und getestet ist, folgt ein großer PR `claude/album-ui` → `main`. `mai
 in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser Phase.
 
 - [x] **0** Konzept `docs/ALBUM_UI.md` (`ui-dev`)
-- [ ] **1** Grundgerüst (`ui-dev`): `claude/album-ui` anlegen; Schriften Caveat/Nunito selbst
+- [x] **1** Grundgerüst (`ui-dev`): `claude/album-ui` anlegen; Schriften Caveat/Nunito selbst
   gehostet (OFL), `tokens.css`, `album/nav.ts` + Tests, Verlauf/Hash, Book/Spread/Page/TabStrip/
   PageTurn/Bookmark, Polaroid-Rahmen mit dem Canvas, Etiketten, Stufenleiste; alte Panels als
   Übergangsinhalt in den Reitern, Hilfe/Einstellungen/Spielstand im Umschlag; UI-Steuerung aus
   `main.ts` nach `album/index.ts` (Review `core-engineer`); Fixture-Helfer, Specs grün.
-  Abhängig: nichts
+  Abhängig: nichts. *Umgesetzt:* Übergangssteuerung der alten Bauteile in `album/legacy.ts`
+  (jeder Schritt löscht dort seinen Teil), Seiten in `album/pages/registry.ts` (eine Zeile je
+  Seite), „Spielstand“ ist schon eine echte Unterseite des Umschlags (Umblättern, Lesezeichen,
+  Verlauf). Die Karte der Landschaft hängt im Reiter „Landschaft“, ihr Ziel gilt weiter für den
+  Knopf im Reiter „Ziele“. Kamera-Knöpfe bis Schritt 3 oben rechts im Polaroid;
+  `camera-input.ts` rechnet die Drehung des Polaroids heraus (`offsetX/Y`).
 - [ ] **2** Sticker-Renderer (`renderer`): `render/sticker.ts` mit `renderSpeciesSticker(id, size,
   opts)`, `stickerKind`, `stickerFit`, Varianten `muted`/`silhouette`, eigener LRU; Test „jede Art
   hat eine eigene Zeichnung“; Sticker-Tafel in der Render-Demo. Abhängig: nichts (parallel zu 1)

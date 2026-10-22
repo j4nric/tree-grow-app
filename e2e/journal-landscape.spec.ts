@@ -1,7 +1,7 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, createSite, type GameState, type LandscapeSite } from '../src/core/state';
-import { expect, openGame, seedRaw, test, waypoint } from './fixtures';
+import { expect, openGame, openTab, seedRaw, test, waypoint } from './fixtures';
 
 /**
  * Naturtagebuch, Reiter „Landschaft“ (DESIGN_V2.md 24.11): verborgen vor der Freischaltung,
@@ -47,35 +47,36 @@ const journal = (page: Page) => page.locator('[data-ref="journal"]');
 async function open(page: Page, context: BrowserContext, state: GameState): Promise<void> {
   await seedRaw(context, state, 0);
   await openGame(page);
+  await openTab(page, 'arten');
   await page.locator('[data-ref="journal-open"]').click();
   await expect(journal(page)).toBeVisible();
 }
 
 test('vor der Freischaltung: kein Reiter „Landschaft“, Pfeiltasten überspringen ihn', async ({ page, context }) => {
   await open(page, context, landscapeState({ own: 100 }));
-  await expect(page.getByRole('tab', { name: /Landschaft/ })).toHaveCount(0);
+  await expect(journal(page).getByRole('tab', { name: /Landschaft/ })).toHaveCount(0);
   const html = await journal(page).evaluate((d) => d.outerHTML);
   expect(html).not.toContain('Auwald');
   expect(html).not.toContain('🪶');
   // Von „Erfolge“ mit → direkt zu „Statistik“.
-  await page.getByRole('tab', { name: /Erfolge/ }).click();
+  await journal(page).getByRole('tab', { name: /Erfolge/ }).click();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: /Statistik/ })).toBeFocused();
-  await expect(page.getByRole('tab', { name: /Statistik/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(journal(page).getByRole('tab', { name: /Statistik/ })).toBeFocused();
+  await expect(journal(page).getByRole('tab', { name: /Statistik/ })).toHaveAttribute('aria-selected', 'true');
 });
 
 test('nach der Freischaltung: Wälder, Korridore und Hähersaat im Reiter', async ({ page, context }) => {
   await open(page, context, founded());
-  const tab = page.getByRole('tab', { name: /Landschaft/ });
+  const tab = journal(page).getByRole('tab', { name: /Landschaft/ });
   await expect(tab).toBeVisible();
   await expect(tab).toContainText('2/6');
   // Tastatur: von „Erfolge“ mit → zur Landschaft.
-  await page.getByRole('tab', { name: /Erfolge/ }).click();
+  await journal(page).getByRole('tab', { name: /Erfolge/ }).click();
   await page.keyboard.press('ArrowRight');
   await expect(tab).toBeFocused();
   await expect(tab).toHaveAttribute('aria-selected', 'true');
 
-  const panel = page.getByRole('tabpanel', { name: /Landschaft/ });
+  const panel = journal(page).getByRole('tabpanel', { name: /Landschaft/ });
   await expect(panel).toBeVisible();
   await expect(panel.locator('[data-ref="journal-landscape-summary"]')).toHaveText('2 von 6 Wäldern gegründet · 1 von 10 Korridoren');
 
@@ -116,8 +117,8 @@ for (const width of [360, 390]) {
 
     test('Reiter „Landschaft“ ohne horizontales Scrollen', async ({ page, context }) => {
       await open(page, context, founded());
-      await page.getByRole('tab', { name: /Landschaft/ }).tap();
-      const panel = page.getByRole('tabpanel', { name: /Landschaft/ });
+      await journal(page).getByRole('tab', { name: /Landschaft/ }).tap();
+      const panel = journal(page).getByRole('tabpanel', { name: /Landschaft/ });
       await expect(panel.locator('li[data-site="floodplain"]')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
       expect(await journal(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);

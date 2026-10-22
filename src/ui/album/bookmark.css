@@ -1,0 +1,26 @@
+/* Lesezeichen „‹ Nischen“ (bookmark.ts) – gelbes Band am linken Seitenrand (Prototyp). */
+
+.bookmark {
+  align-self: flex-start;
+  min-height: var(--tap);
+  margin-left: -18px;
+  padding: 0 14px 0 10px;
+  border: 0;
+  border-radius: 0 12px 12px 0;
+  background: var(--tape);
+  color: var(--ink);
+  font-family: var(--font-hand) !important;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(59, 58, 54, 0.15);
+}
+
+.bookmark:hover {
+  filter: brightness(1.04);
+}
+
+.album[data-layout='spread'] .bookmark {
+  margin-left: -30px;
+}

@@ -37,6 +37,8 @@ const OBSTACLES = [
   '.update-hint:not([hidden])',
   '.scene-dock:not(.floating) .encounter-stack:not([hidden])',
   '.stage-banner.visible',
+  // Album (bis Schritt 3): Kamera-Knöpfe oben rechts im Polaroid.
+  '.polaroid .scene-camera',
 ].join(', ');
 
 export interface ToastPlacement {

@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { codeFromJson } from '../src/core/save';
-import { expect, niche, openGame, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { expect, niche, openGame, openSavePage, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Spielstand exportieren und importieren als Text-Code (Phase 5): Export, Löschen,
@@ -20,6 +20,7 @@ function comparable(save: Record<string, any>) {
 }
 
 async function openTransfer(page: Page): Promise<void> {
+  await openSavePage(page);
   await transfer(page).locator('summary').click();
   await expect(transfer(page).locator('[data-ref="export"]')).toBeVisible();
 }
@@ -129,6 +130,7 @@ test('Doppelklick überspringt keine Bestätigung – weder beim Import noch bei
   const before = comparable(await savedState(page));
 
   // Löschen per Doppelklick: nur scharf geschaltet, nichts gelöscht.
+  await openSavePage(page);
   await page.locator('#reset').dblclick();
   await expect(page.locator('#reset')).toContainText('Wirklich alles löschen');
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');

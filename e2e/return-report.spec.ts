@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, type GameState } from '../src/core/state';
-import { expect, openGame, overlaps, seedRaw, test, waypoint } from './fixtures';
+import { expect, openGame, overlaps, pageTitle, seedRaw, test, waypoint } from './fixtures';
 
 /**
  * Rückkehr-Bericht (Playtest Phase 6): Nach 3 Std. Abwesenheit steht mobil nur die
@@ -90,7 +90,7 @@ for (const viewport of [
     await expectNotCovered(toast, {
       'Kamera-Knöpfe': page.locator('.scene-camera-button'),
       Stapel: page.locator('[data-ref="encounter-stack"]'),
-      Raten: page.locator('.eco-stat'),
+      Raten: page.locator('.tape-label'),
       Bericht: report(page).getByRole('button'),
     });
 
@@ -118,12 +118,12 @@ for (const viewport of [
     await expect(list(page)).toBeHidden();
     await expect(detailsButton(page)).toBeFocused();
 
-    // Zeiger/Touch: erneut öffnen, dann schließen – Fokus geht an die Überschrift.
+    // Zeiger/Touch: erneut öffnen, dann schließen – Fokus geht an die Überschrift der Seite.
     await detailsButton(page).click();
     await expect(list(page)).toBeVisible();
     await page.getByRole('button', { name: 'Rückkehr-Bericht schließen' }).click();
     await expect(report(page)).toBeHidden();
-    await expect(page.locator('.panel h1')).toBeFocused();
+    await expect(pageTitle(page)).toBeFocused();
 
     // Nichts scrollt quer.
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);

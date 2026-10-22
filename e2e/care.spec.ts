@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, niche, openGame, savedState, seedV3, test, waypoint } from './fixtures';
+import { expect, gotoTab, niche, openGame, openTab, savedState, seedV3, test, waypoint } from './fixtures';
 
 /**
  * Pflegemaßnahmen (Schritt 2.7): eine Maßnahme kaufen, die Wirkung sehen (ein Platz mehr
@@ -11,7 +11,7 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
     seeds: 400,
     niches: { roots: ['earthworm'], litter: ['robin'] },
   });
-  await openGame(page);
+  await gotoTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const litter = care.locator('[data-care="leaf-litter"]');
   await expect(litter).toContainText('Laub liegen lassen');
@@ -50,7 +50,7 @@ test('Pflege per Tastatur: Fokus bleibt auf dem Knopf, nach dem letzten Rang auf
     seeds: 100_000,
     niches: { roots: ['earthworm'] },
   });
-  await openGame(page);
+  await gotoTab(page, 'pflege');
   const litter = page.locator('[data-ref="care"] [data-care="leaf-litter"]');
   const buy = litter.locator('[data-buy-care="leaf-litter"]');
   await expect(buy).toHaveText('Kaufen (200 🌰)');
@@ -75,7 +75,7 @@ test('Pflege: Doppelklick und gehaltene Enter-Taste kaufen nur einen Rang', asyn
     seeds: 100_000,
     niches: { roots: ['earthworm'] },
   });
-  await openGame(page);
+  await gotoTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const litter = care.locator('[data-care="leaf-litter"]');
   await litter.locator('[data-buy-care="leaf-litter"]').dblclick();
@@ -105,7 +105,7 @@ test('Pflege: kaufbar zuerst, Reihenfolge bleibt beim Kauf stehen, Bestätigung 
     seeds: 2600,
     niches: { roots: ['earthworm'], edge: ['bee'] },
   });
-  await openGame(page);
+  await gotoTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const groups = await care.locator('[data-care]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.group!));
   const rank: Record<string, number> = { buyable: 0, saving: 1, locked: 2, maxed: 3 };
@@ -128,14 +128,14 @@ test('Pflege: kaufbar zuerst, Reihenfolge bleibt beim Kauf stehen, Bestätigung 
   await expect(boxes).toBeFocused();
 
   // Fokus verlässt die Liste → neu sortiert (Nistkästen ist jetzt zu teuer und rutscht nach hinten).
-  await page.locator('[data-ref="guide-open"]').focus();
+  await page.locator('[data-ref="tab-care"]').focus();
   await expect.poll(async () => (await careIds(page)).indexOf('nest-boxes')).toBeGreaterThan(order.indexOf('nest-boxes'));
 });
 
 test('Pflege auf dem Handy: zugeklappt mit Zusammenfassung, aufklappbar, ohne Querscrollen', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 1200, niches: { roots: ['earthworm'] } });
-  await openGame(page);
+  await gotoTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const buy = care.locator('[data-buy-care="leaf-litter"]');
   // Kompost 200, Laub 200, Nistkästen 650, Wildblumen-Saum 900 🌰.
@@ -162,11 +162,14 @@ test('Mobil: „Zur Pflege“ beim verschlossenen Waldtümpel öffnet die Pflege
   await expect(details).not.toHaveAttribute('open', '');
   await pond.getByRole('button', { name: 'Zur Pflege: Waldtümpel öffnen' }).click();
   await expect(details).toHaveAttribute('open', '');
+  // Der Knopf wechselt in den Reiter „Pflege“.
+  await expect(page.locator('[data-ref="tab-care"]')).toHaveAttribute('aria-selected', 'true');
   const item = page.locator('[data-ref="care"] [data-care="pond"]');
   await expect(item.locator('[data-care-title="pond"]')).toBeFocused();
   await expect(item).toBeInViewport();
   await item.locator('[data-buy-care="pond"]').click();
   await expect(pond).toContainText('0/2 belegt');
+  await openTab(page, 'nischen');
   await expect(pond.locator('[data-ref="niche-care-link"]')).toBeHidden();
 });
 
@@ -176,7 +179,7 @@ test('Pflege: nach einem Mausklick wird neu sortiert, sobald die Maus die Liste 
     seeds: 2600,
     niches: { roots: ['earthworm'], edge: ['bee'] },
   });
-  await openGame(page);
+  await gotoTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const order = await careIds(page);
   const boxes = care.locator('[data-buy-care="nest-boxes"]');
