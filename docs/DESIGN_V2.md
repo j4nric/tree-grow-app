@@ -5926,6 +5926,8 @@ interface LandscapeState {
   corridors: string[];
   /** Korridore, die mit einer Gründung kamen (kosten nichts; Teilmenge von corridors). */
   freeCorridors: string[];
+  /** Meldung zur Freischaltung (24.3) gezeigt (Migration: false). */
+  announced: boolean;
 }
 
 interface LandscapeSite {
@@ -5992,13 +5994,25 @@ interface LandscapeSite {
   `buildCorridor(state, id)` (Fehler zusätzlich `unknown-corridor`, `corridor-built`). Die
   Fehler stehen bewusst nicht in `ActionError`: Der Aufruf ohne Standort hat denselben Typ wie
   vorher.
-- `save.ts`: `LoadResult.landscapeUnlocked` – nach der Migration v13 → v14 schon freigeschaltet
-  (Meldung 24.3 einmal).
+- **Meldung zur Freischaltung (24.3):** `meta.landscape.announced` (Migration und neue Stände:
+  false; beim Laden zählt nur ein gespeichertes `true`). Die UI zeigt die Meldung, solange
+  `landscapeAnnouncementDue(state)` (= `landscapeUnlocked(state) && !announced`) gilt, und ruft
+  danach `markLandscapeAnnounced(state)` (tick.ts). So geht sie nicht verloren, auch wenn
+  Schritt A vor der Karte ausgeliefert wird. `LoadResult.landscapeUnlocked` (nach der Migration
+  schon freigeschaltet) und `NewCycleResult.landscapeUnlocked` bleiben als Hinweise.
+- `activeSite(landscape)`: Steht `active` zur Laufzeit nicht unter den gegründeten Wäldern
+  (kaputter Stand), gilt überall der Heimatwald – wie beim Laden; `startNewCycle` ohne Standort
+  scheitert dann nicht, sondern repariert `active`.
 - **Abweichungen vom Entwurf:** `fauna` wird schon jetzt beim Verlassen eines Waldes geschrieben
   (die Tiere des Zyklus, höchstens 40) – Schritt B muss nur noch ziehen. Bleibt ein
   manipulierter Stand nach dem Verwerfen aller ruhenden Wälder und gekauften Korridore über
   dem Budget (nur Heimatwald und aktiver Wald übrig), bleibt er so; `available` ist dann 0.
   Ungültiges eigenes Gedächtnis (NaN, ±Infinity) zählt wie vor v14 als 0.
+- **Bekannt (manipulierte Stände):** Gratis-Korridore werden beim Laden nur grob geprüft – je
+  gegründetem Wald (außer dem Heimatwald) höchstens einer, an diesem Wald, in gespeicherter
+  Reihenfolge zugeordnet. Ob der Korridor wirklich mit der Gründung kam, lässt sich nicht
+  nachprüfen: Wer einen teuren Ring-Korridor als „gratis“ einträgt, spart höchstens 3 🪶 je
+  Wald (Ring 3–5 statt Speiche 2). Bewusst so gelassen – kein Absturz, kein unbegrenzter Vorteil.
 
 ### 24.9 Große Zahlen: kein `break_infinity.js`
 

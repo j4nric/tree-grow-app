@@ -44,7 +44,7 @@ import {
   type Tag,
 } from '../content/types';
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
-import { effectiveForestMemory, giftSites, landscapeOf, landscapeTraits, siteHabitats } from './landscape';
+import { activeSite, effectiveForestMemory, giftSites, landscapeOf, landscapeTraits, siteHabitats } from './landscape';
 import { normalizeElapsed, seasonIdAt, seasonIndex } from './season';
 import { MAX_FOREST_MEMORY, type CycleState, type GameState, type LandscapeState, type PendingEncounterType } from './state';
 import type { WeatherId } from '../content/weather';
@@ -213,7 +213,7 @@ export function slotBonuses(state: { stage: number; cycle?: CycleExtras; meta?: 
   const tree = state.cycle?.mainTree !== undefined ? mainTreeOf(state.cycle.mainTree) : null;
   const out = cycleSlotBonuses(state.cycle);
   const landscape = state.meta?.landscape;
-  const site = landscape ? landscapeTraits(landscape.active, giftSites(landscape)) : [];
+  const site = landscape ? landscapeTraits(activeSite(landscape), giftSites(landscape)) : [];
   for (const t of [...(tree?.traits ?? []), ...site]) {
     if (t.minStage <= state.stage && t.effect.kind === 'slot') out.push({ niche: t.effect.niche, amount: t.effect.amount });
   }
@@ -278,6 +278,7 @@ export function ecosystemOf(
     if (visitor && v.remaining > 0) genera.push(visitor.genus);
   }
   const landscape = landscapeOf(state);
+  const active = activeSite(landscape);
   return {
     stage: state.stage,
     niches: patch.niches ?? state.niches,
@@ -285,10 +286,10 @@ export function ecosystemOf(
     // Wirksames Gedächtnis des aktiven Waldes (eigenes + Korridor-Zufluss, 24.6).
     forestMemory: effectiveForestMemory(state),
     extraEffects: cycleEffects(state.cycle),
-    habitats: [...(state.cycle?.habitats ?? []), ...careEffects(state.cycle?.care).habitats, ...siteHabitats(landscape.active)],
+    habitats: [...(state.cycle?.habitats ?? []), ...careEffects(state.cycle?.care).habitats, ...siteHabitats(active)],
     guestGenera: genera,
     ...environmentOf(state.cycle, ambient),
-    site: landscape.active,
+    site: active,
     gifts: giftSites(landscape),
   };
 }
@@ -1051,7 +1052,7 @@ function ecosystemKey(state: GameState, ambient: AmbientMode | null): string {
   // Wirksames Gedächtnis (24.6), Standort und Gaben (24.2) – ändern sich nur beim Neuen Zyklus
   // und beim Korridorbau.
   let key = `${state.stage}|${effectiveForestMemory(state)}|${(state.plants ?? []).join(',')}`;
-  key += `|l:${landscape.active}|g:${giftSites(landscape).join(',')}`;
+  key += `|l:${activeSite(landscape)}|g:${giftSites(landscape).join(',')}`;
   // Jahreszeit, Wetter und Nacht nur als Index bzw. ID (nicht `elapsed` – sonst wäre der
   // Cache jede Sekunde ungültig). Die Dämpfung hängt an Nischen, Pflege und Baumart – alle
   // im Schlüssel.
