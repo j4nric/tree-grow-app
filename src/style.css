@@ -3058,16 +3058,24 @@ dialog.plant-picker {
   margin-bottom: 2px;
 }
 
+.journal-sites {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+/* Angaben über die ganze Kachelbreite (unter Symbol und Name) */
 .journal-site-facts {
+  grid-column: 1 / -1;
   display: grid;
   gap: 4px;
-  margin: 6px 0 0;
+  margin: 2px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
   font-size: 0.86rem;
 }
 
 .journal-site-facts-row {
   display: grid;
-  grid-template-columns: minmax(0, 8.5em) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr);
   gap: 8px;
   min-width: 0;
 }
@@ -3075,14 +3083,14 @@ dialog.plant-picker {
 .journal-site-facts dt {
   color: var(--muted);
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   hyphens: auto;
 }
 
 .journal-site-facts dd {
   margin: 0;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   hyphens: auto;
 }
 
@@ -3169,6 +3177,10 @@ dialog.plant-picker {
 
   .journal-seeds-row {
     padding: 6px 8px;
+  }
+
+  .journal-sites {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .journal-site-facts-row {

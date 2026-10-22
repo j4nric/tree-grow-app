@@ -373,8 +373,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
       body.append(badge);
     }
     if (s.forestType) body.append(el('p', 'journal-facts', hyphenate(s.forestType)));
-    body.append(rowList(s.rows, 'journal-site-facts'));
-    li.append(icon, body);
+    li.append(icon, body, rowList(s.rows, 'journal-site-facts'));
     return li;
   }
 
@@ -397,6 +396,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     const sitesTitle = el('h3', 'journal-section-title', 'Wälder');
     sitesTitle.id = 'journal-landscape-sites-title';
     const siteNodes = list(sitesTitle.id, view.sites.map(siteItem), '', true);
+    for (const node of siteNodes) node.classList.add('journal-sites');
     const hint = view.sitesHint ? [el('p', 'journal-progress', view.sitesHint)] : [];
     const corridorTitle = el('h3', 'journal-section-title', 'Korridore');
     corridorTitle.id = 'journal-landscape-corridors-title';
