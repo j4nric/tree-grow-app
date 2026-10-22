@@ -60,6 +60,8 @@ export interface LandscapeSiteView {
   tree: string;
   /** Vorausgewählte Art, wenn der nächste Zyklus hier wächst. */
   mainTree: MainTreeId;
+  /** Wählbare Arten, wenn der nächste Zyklus hier wächst (eine Gründung schaltet ihren Leitbaum frei). */
+  unlockedTrees: readonly MainTreeId[];
   /** Eigenheit: was der Wald bringt (nur dort) – null beim Heimatwald. */
   gains: string | null;
   /** Eigenheit: worauf man dort verzichtet – null, wenn nichts. */
@@ -341,6 +343,7 @@ export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): 
       memory: siteMemoryText(state, choice, allowed),
       tree: siteTreeText(choice),
       mainTree: choice.mainTree,
+      unlockedTrees: choice.unlockedTrees,
       gains,
       costs,
       gift,

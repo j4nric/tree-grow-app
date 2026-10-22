@@ -224,6 +224,10 @@ describe('Markierung offener Begegnungen', () => {
       expect(wildwechselMarkOf(state, state.pendingEncounters[w.encounter - 1])).toEqual(mark);
 
       // Neuladen: andere Objekte – die WeakMap kennt sie nicht, `via` schon (gleicher Hinweis).
+      // Im Spiel ist der Bestand der Nachbarn entdeckt (sonst verwirft das Laden ihn und den Weg).
+      for (const site of state.meta.landscape.sites) {
+        for (const id of site.fauna) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
+      }
       const loaded = loadGame(serialize(state), state.lastTick)!.state;
       expect(marks.lookup(loaded.pendingEncounters[w.encounter - 1])).toBeNull();
       expect(wildwechselMarkOf(loaded, loaded.pendingEncounters[w.encounter - 1])).toEqual(mark);

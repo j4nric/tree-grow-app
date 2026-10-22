@@ -106,6 +106,7 @@ import {
   type ForcedEncounter,
   type GameState,
   type LifetimeStats,
+  type FirstSeenJournal,
   type PendingEncounter,
 } from './state';
 
@@ -773,6 +774,7 @@ export function chooseCard(
   state.plants = outcome.plants;
   if (encounter.type === 'animal' && !state.meta.journal.species.includes(id)) {
     state.meta.journal.species.push(id);
+    markFirstSeen(state, 'species', id);
     // Neu im Tagebuch: zählt beim Neuen Zyklus fürs Waldgedächtnis.
     if (!state.cycle.newSpecies.includes(id)) state.cycle.newSpecies.push(id);
   }
@@ -781,6 +783,18 @@ export function chooseCard(
   if (viaWildwechsel) countStat(state, 'wildwechselChosen');
   countDailyAction(state, 'decide');
   return discoveryResult(recordDiscoveries(state));
+}
+
+/**
+ * „Zuerst gesehen“ (seit v15, DESIGN_V2.md 25.10): Zyklus und Jahreszeit des Moments, in dem
+ * die Art bzw. Pflanze ins Naturtagebuch kommt – nur beim ersten Mal. Entdeckt wird nur durch
+ * Aktionen des Spielers (chooseCard, plantSeed); Tick und Offline-Simulation tragen nichts
+ * Neues ein, darum gilt online = offline von selbst.
+ */
+function markFirstSeen(state: GameState, kind: keyof FirstSeenJournal, id: string): void {
+  const record = state.meta.journal.firstSeen[kind];
+  if (Object.hasOwn(record, id)) return;
+  record[id] = { cycle: state.cycle.number, season: seasonIdAt(state.cycle.elapsed) };
 }
 
 /**
@@ -795,7 +809,11 @@ export function chooseCard(
 export function recordDiscoveries(state: GameState): string[] {
   const journal = state.meta.journal;
   const ev = evaluate(state);
-  for (const id of state.plants) if (!journal.plants.includes(id)) journal.plants.push(id);
+  for (const id of state.plants) {
+    if (journal.plants.includes(id)) continue;
+    journal.plants.push(id);
+    markFirstSeen(state, 'plants', id);
+  }
   const fresh = activeCommunities(ev).filter((id) => !journal.communities.includes(id));
   journal.communities.push(...fresh);
   raiseMaxHarmony(state, ev.harmony);
@@ -1028,6 +1046,11 @@ export interface SiteChoice {
   ancient: boolean;
   /** Vorausgewählte Hauptbaum-Art: zuletzt hier gewachsen bzw. Leitbaum (falls freigeschaltet). */
   mainTree: MainTreeId;
+  /**
+   * Wählbare Arten, wenn der nächste Zyklus hier wächst (MAIN_TREES-Reihenfolge): wie
+   * `NewCyclePreview.trees[].unlocked`, aber eine Gründung schaltet ihren Leitbaum schon frei (25.2).
+   */
+  unlockedTrees: MainTreeId[];
   /** Kosten der Gründung (nur nicht gegründete Wälder, sonst null). */
   cost: number | null;
   /** Korridor, der mit der Gründung gratis entsteht (null: gegründet oder nicht benachbart). */
@@ -1143,6 +1166,7 @@ function previewLandscape(state: GameState, memoryOf: (site: SiteId) => number, 
       ancient: entry ? isSiteAncient(state, id) : false,
       // Beim Gründen ist der Leitbaum vorausgewählt – die Gründung schaltet ihn frei (25.2).
       mainTree: isActive ? state.cycle.mainTree : unlockedOr(state, entry ? entry.mainTree : LANDSCAPE_SITES_BY_ID.get(id)?.leadTree, id),
+      unlockedTrees: MAIN_TREES.filter((t) => isTreeUnlocked(state, t.id, id)).map((t) => t.id),
       cost: entry ? null : cost,
       freeCorridor: free?.id ?? null,
       blocker,

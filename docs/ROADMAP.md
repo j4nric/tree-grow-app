@@ -455,7 +455,8 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   Reihenfolge, `TREE_SPECIES` = `MAIN_TREE_IDS`. Abhängig: 1a gemergt (gleiche Dateien in
   `tick.ts`), 1d (Formen vorhanden). Dazu `PendingEncounter.via` und `wildwechselChosen`
   (Erfolge `wildwechsel-1`, `landscape-trees`); die Wildwechsel-Karte zeigt ihren Weg auch nach
-  dem Neuladen
+  dem Neuladen; Baumwahl je Ziel (Leitbaum beim Gründen vorausgewählt); „Zuerst gesehen“
+  `meta.journal.firstSeen` für das Album (25.10)
 - [ ] **2c** Messung Wildwechsel (`game-designer`, 24.11 Nr. 5): Vielfalt der Karten (7.7) mit und
   ohne Wildwechsel, Chance 10 % prüfen, großer Lauf der Landschaft, 24.7/24.10 nachtragen;
   Kiefernheide für den Wachstums-Spieler im Blick (heute −4,7 %, Grenze ±5 %). Abhängig: 1a

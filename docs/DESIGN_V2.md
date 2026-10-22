@@ -5995,7 +5995,9 @@ ebenso die Hähersaat.
 - **Laden:** `fauna` ruhender Wälder nur aus entdeckten Arten (wie ihre Stammgäste).
 - **Seit v15 (2b) umgesetzt:** `PendingEncounter.via` – siehe den folgenden Punkt; die
   Oberfläche liest die Markierung nach dem Neuladen über `wildwechselMarkOf` (ui/wildwechsel-view.ts).
-  Beim Laden wird `card` auf die geladenen Karten umgerechnet (ungültige davor verschieben ihn).
+  Beim Laden wird `card` auf die geladenen Karten umgerechnet (ungültige davor verschieben ihn),
+  und `corridor` muss nach dem Laden des Bestands der Weg der Art sein
+  (`wildwechselRoute(state, art).corridor`, wie beim Ziehen).
 - **Grenze ohne neues Feld (bis v14):** Welche Karte einer **offenen** Begegnung als Wildwechsel kam,
   steht nicht im Spielstand. Nach dem Neuladen kann die Oberfläche nur noch
   `wildwechselRoute` fragen – die nennt einen Weg auch für eine gewöhnlich gezogene Art, die
@@ -6775,9 +6777,12 @@ Eiche weiter, gewachsene Arten gingen aus der Statistik verloren. Das ist der Fa
 >   Landschaft. `previewNewCycle(…).trees` enthält nur sichtbare Arten (vorher immer alle);
 >   kleine Eingriffe in der Oberfläche, damit nichts verraten wird: `toJournalTrees` filtert
 >   ebenso, die Spielanleitung nennt bei „Freischaltung über die Begleitpflanze“ nur Arten ohne
->   `unlockSite`, `FRUIT_ARTICLE` kennt die neuen Früchte. Die Baumwahl mit Vorauswahl beim
->   Gründen ist Nr. 3: `preview.trees[].unlocked` gilt ohne Gründung – die Oberfläche fällt für
->   den Bergmischwald bis dahin auf die laufende Art zurück, `startNewCycle` nimmt `'fir'` an.
+>   `unlockSite` und die beiden neuen in einem eigenen Satz erst mit sichtbarer Landschaft,
+>   `FRUIT_ARTICLE` kennt die neuen Früchte.
+> - Baumwahl je Ziel: `LandscapePreview.sites[].unlockedTrees` (über
+>   `isTreeUnlocked(state, id, site)`) – beim Gründen und beim Wechsel nimmt die Oberfläche
+>   diese Liste (`treeChoiceFor` in `ui/cycle-view.ts`) für wählbar/gesperrt und die
+>   Vorauswahl: Bergmischwald → Weißtanne vorausgewählt und wählbar, auch wenn die Buche frei ist.
 > - Laden: `meta.landscape` (mit Kosten-Prüfung) vor dem Zyklus, danach `settleLandscapeTrees`
 >   – der aktive Wald trägt die Art des Zyklus, ruhende Wälder behalten ihre nur, wenn sie
 >   freigeschaltet ist (gilt nun auch für Buche und Kiefer ohne Begleitpflanze: Eiche).
@@ -6820,3 +6825,33 @@ Eiche weiter, gewachsene Arten gingen aus der Statistik verloren. Das ist der Fa
   stört.
 - **Nadeln der Weißtanne und Waldameise:** Die Tanne stellt wie die Kiefer Nadeln bereit, die
   Waldameise kann kommen. Gewollt – im Bergwald gibt es viele Ameisenhaufen.
+
+### 25.10 „Zuerst gesehen“ (mit v15)
+
+Für die Tierseite des Albums (`docs/ALBUM_UI.md`, Entscheidung G) reist ein kleines Feld mit
+v15 mit, damit es später keinen eigenen Versionssprung braucht:
+
+```ts
+meta.journal.firstSeen: {
+  species: Record<string, { cycle: number; season: SeasonId }>;
+  plants:  Record<string, { cycle: number; season: SeasonId }>;
+}
+```
+
+- **Ort:** im Naturtagebuch (`meta.journal`) neben den Listen `species` und `plants`, deren
+  Einträge es ergänzt; getrennt nach Tieren und Pflanzen, weil die ID-Räume sich überschneiden
+  dürfen. Die Listen bleiben die Wahrheit über „entdeckt“ (Reihenfolge der Entdeckung);
+  `firstSeen` ist nur ein Zusatz.
+- **Gesetzt** beim ersten Eintrag ins Tagebuch: Art in `chooseCard`, Pflanze in
+  `recordDiscoveries` (nach „Etwas keimt“ oder `plantSeed`) – Zyklus `cycle.number` und
+  Jahreszeit aus `cycle.elapsed`. Nie überschrieben.
+- **Online = offline:** Entdeckt wird nur durch Aktionen des Spielers; Tick und
+  Offline-Simulation wählen keine Karten und setzen keine Pflanzen (offline wartende
+  Begegnungen entscheidet der Spieler danach – dann gilt der Moment seiner Wahl). Die Frage
+  „Moment der Entdeckung oder Ende der Simulation“ stellt sich darum nicht.
+- **Migration v14 → v15:** leer. Schon entdeckte Arten bekommen **keinen** erfundenen Wert –
+  die Oberfläche zeigt dann nichts. Auch was das Laden ins Tagebuch nachträgt (z. B. Pflanzen
+  im Ring alter Stände), bekommt keinen Wert.
+- **Robustes Laden:** nur bekannte IDs, die im Tagebuch stehen; Zyklus ganzzahlig in
+  [1, laufender Zyklus]; Jahreszeit aus `SEASON_IDS`. Sonst fällt der Eintrag weg.
+- **Größe:** höchstens ein Eintrag je Art und Pflanze (heute 51 + 14), wenige KB.

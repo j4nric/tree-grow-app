@@ -17,6 +17,7 @@ import {
   previewNewCycle,
   recordDiscoveries,
   rerollEncounter,
+  simulateOffline,
   startNewCycle,
   tick,
   unlockedTrees,
@@ -246,6 +247,8 @@ function withViaEncounter(): GameState {
     const encounter = drawEncounter(state);
     if (encounter?.via) {
       state.pendingEncounters = [encounter];
+      // Im Spiel ist der Bestand der Nachbarn entdeckt (sonst verwirft das Laden ihn und den Weg).
+      for (const id of BEECH_FAUNA) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
       return state;
     }
   }
@@ -375,6 +378,22 @@ describe('Wildwechsel-Markierung PendingEncounter.via (24.6)', () => {
     expect(load({ card: 0, corridor: valid.corridor }, { type: 'plant', cards: ['moss'] })?.via).toBeUndefined();
   });
 
+  it('Laden: der Weg muss der Weg der Art sein (wildwechselRoute) – sonst keine Markierung', () => {
+    const state = withViaEncounter();
+    const via = state.pendingEncounters[0]!.via!;
+    const load = (patch: (data: { meta: { landscape: { sites: LandscapeSite[] } }; pendingEncounters: PendingEncounter[] }) => void) => {
+      const data = JSON.parse(serialize(state));
+      patch(data);
+      return loadGame(JSON.stringify(data), 0)!.state.pendingEncounters[0]!;
+    };
+    expect(load(() => {}).via).toEqual(via);
+    // Gebaut und am aktiven Wald, aber die Art lebt nicht drüben.
+    const other = ['home-floodplain', 'home-carr'].find((c) => c !== via.corridor)!;
+    expect(load((d) => (d.pendingEncounters[0]!.via = { card: via.card, corridor: other })).via).toBeUndefined();
+    // Bestand des Nachbarn leer: kein Weg mehr.
+    expect(load((d) => d.meta.landscape.sites.forEach((s) => (s.fauna = []))).via).toBeUndefined();
+  });
+
   it('Laden: ungültige Karten davor verschieben den Index; eine verworfene Karte verliert die Markierung', () => {
     const state = withViaEncounter();
     const e = state.pendingEncounters[0]!;
@@ -463,6 +482,18 @@ describe('Spielstand v15 (25.5)', () => {
     // Ruhender Wald mit Rotbuche ohne Begleitpflanze: ebenso Eiche (dieselbe Regel).
     data.meta.landscape.sites.find((s: LandscapeSite) => s.id === 'beechwood').mainTree = 'beech';
     expect(siteTree(loadGame(JSON.stringify(data), 0)!.state, 'beechwood')).toBe('oak');
+  });
+
+  it('v14-Stand: ruhender Heimatwald mit Rotbuche ohne Begleitpflanze → Eiche (neue Laderegel)', () => {
+    const state = landscape(5, { active: 'beechwood', corridors: ['home-beechwood'] });
+    state.meta.landscape.freeCorridors = ['home-beechwood'];
+    const data = JSON.parse(serialize(state));
+    data.version = 14;
+    data.meta.landscape.sites.find((s: LandscapeSite) => s.id === 'home').mainTree = 'beech';
+    expect(siteTree(loadGame(JSON.stringify(data), 0)!.state, 'home')).toBe('oak');
+    // Mit der Begleitpflanze im Tagebuch bleibt sie.
+    data.meta.journal.plants = ['beech'];
+    expect(siteTree(loadGame(JSON.stringify(data), 0)!.state, 'home')).toBe('beech');
   });
 
   it('die Landschaft wird vor dem Hauptbaum geladen: aktiver Bergmischwald behält die Weißtanne', () => {
@@ -595,5 +626,99 @@ describe('online = offline mit den neuen Hauptbäumen', { timeout: 60_000 }, () 
       expect(big.meta.stats, tree).toEqual({ ...small.meta.stats, playSeconds: big.meta.stats.playSeconds });
       expect(big.stage, tree).toBeGreaterThan(3);
     }
+  });
+});
+
+describe('„Zuerst gesehen“ meta.journal.firstSeen (25.10)', () => {
+  it('neues Spiel leer; die erste Wahl einer Art trägt Zyklus und Jahreszeit ein, spätere nicht', () => {
+    const state = stateAt(4, [], 1);
+    expect(state.meta.journal.firstSeen).toEqual({ species: {}, plants: {} });
+    state.cycle.number = 3;
+    state.cycle.elapsed = 3 * SEASON_SECONDS + 10; // Winter
+    state.pendingEncounters = [{ type: 'animal', cards: ['robin'], rerolls: 0 }];
+    expect(chooseCard(state, 0, 0).ok).toBe(true);
+    expect(state.meta.journal.firstSeen.species).toEqual({ robin: { cycle: 3, season: 'winter' } });
+    // Wieder gewählt (anderer Zyklus, andere Jahreszeit): bleibt beim ersten Mal.
+    for (const n of Object.keys(state.niches) as (keyof GameState['niches'])[]) state.niches[n] = state.niches[n].filter((x) => x !== 'robin');
+    state.cycle.number = 4;
+    state.cycle.elapsed = 0;
+    state.pendingEncounters = [{ type: 'animal', cards: ['robin'], rerolls: 0 }];
+    expect(chooseCard(state, 0, 0).ok).toBe(true);
+    expect(state.meta.journal.firstSeen.species.robin).toEqual({ cycle: 3, season: 'winter' });
+  });
+
+  it('schon im Tagebuch (vor v15 entdeckt): kein Wert; Pflanzen über die Karte „Etwas keimt“', () => {
+    const state = stateAt(4, ['earthworm'], 1);
+    state.meta.journal.species.push('robin');
+    state.pendingEncounters = [{ type: 'animal', cards: ['robin'], rerolls: 0 }];
+    expect(chooseCard(state, 0, 0).ok).toBe(true);
+    expect(state.meta.journal.firstSeen.species).toEqual({});
+    state.cycle.elapsed = SEASON_SECONDS; // Sommer
+    state.pendingEncounters = [{ type: 'plant', cards: ['hazel'], rerolls: 0 }];
+    expect(chooseCard(state, 0, 0).ok).toBe(true);
+    expect(state.meta.journal.firstSeen.plants).toEqual({ hazel: { cycle: 1, season: 'summer' } });
+  });
+
+  it('Roundtrip gleich; v14 → v15 leer, auch wenn ein Feld gleichen Namens dasteht', () => {
+    const state = stateAt(4, [], 1);
+    state.pendingEncounters = [{ type: 'animal', cards: ['robin'], rerolls: 0 }];
+    chooseCard(state, 0, 0);
+    expect(loadGame(serialize(state), 0)!.state.meta.journal.firstSeen).toEqual(state.meta.journal.firstSeen);
+    const data = JSON.parse(serialize(state));
+    data.version = 14;
+    const old = loadGame(JSON.stringify(data), 0)!.state;
+    expect(old.meta.journal.firstSeen).toEqual({ species: {}, plants: {} });
+    expect(old.meta.journal.species).toContain('robin');
+  });
+
+  it('robustes Laden: nur bekannte, im Tagebuch stehende IDs, gültiger Zyklus und Jahreszeit', () => {
+    const state = stateAt(4, ['earthworm', 'robin'], 1);
+    state.cycle.number = 5;
+    state.meta.journal.plants.push('hazel');
+    const data = JSON.parse(serialize(state));
+    data.meta.journal.firstSeen = {
+      species: JSON.parse(
+        '{"__proto__": {"cycle": 1, "season": "spring"}, "earthworm": {"cycle": 2, "season": "autumn"}, "robin": {"cycle": 6, "season": "spring"},' +
+          ' "wolf": {"cycle": 1, "season": "spring"}, "drache": {"cycle": 1, "season": "spring"}}',
+      ),
+      plants: { hazel: { cycle: 1, season: 'monsoon' }, moss: { cycle: 1, season: 'spring' } },
+    };
+    const loaded = loadGame(JSON.stringify(data), 0)!.state.meta.journal.firstSeen;
+    expect(loaded).toEqual({ species: { earthworm: { cycle: 2, season: 'autumn' } }, plants: {} });
+    expect(Object.getPrototypeOf(loaded.species)).toBe(Object.prototype);
+    for (const bad of [null, 'x', 42, [], { cycle: 0, season: 'spring' }, { cycle: 1.5, season: 'spring' }, { cycle: '1', season: 'spring' }, { cycle: 1 }]) {
+      data.meta.journal.firstSeen = { species: { earthworm: bad }, plants: bad };
+      expect(loadGame(JSON.stringify(data), 0)!.state.meta.journal.firstSeen, JSON.stringify(bad)).toEqual({ species: {}, plants: {} });
+    }
+    for (const bad of [null, 'x', 42, []]) {
+      data.meta.journal.firstSeen = bad;
+      expect(loadGame(JSON.stringify(data), 0)!.state.meta.journal.firstSeen).toEqual({ species: {}, plants: {} });
+    }
+    data.meta.journal.firstSeen = { species: { earthworm: { cycle: 1e400, season: 'spring' } }, plants: {} };
+    expect(loadGame(JSON.stringify(data).replace('"cycle":null', '"cycle":1e400'), 0)!.state.meta.journal.firstSeen.species).toEqual({});
+  });
+
+  it('das Laden erfindet nichts: Pflanzen im Ring, die im Tagebuch fehlen, kommen ohne Wert dazu', () => {
+    const state = stateAt(4, [], 1);
+    state.plants = ['hazel'];
+    const data = JSON.parse(serialize(state));
+    data.meta.journal.plants = [];
+    const loaded = loadGame(JSON.stringify(data), 0)!.state;
+    expect(loaded.meta.journal.plants).toContain('hazel');
+    expect(loaded.meta.journal.firstSeen.plants).toEqual({});
+  });
+
+  it('online = offline: Ticks und Offline-Simulation tragen nichts ein (nur Aktionen entdecken)', () => {
+    const start = stateAt(3, ['earthworm', 'robin'], 31);
+    start.pendingEncounters = [{ type: 'animal', cards: ['bluetit'], rerolls: 0 }];
+    chooseCard(start, 0, 0);
+    const before = structuredClone(start.meta.journal.firstSeen);
+    const small = structuredClone(start);
+    const big = structuredClone(start);
+    const offline = structuredClone(start);
+    for (let i = 0; i < 1800; i++) tick(small, 1);
+    tick(big, 1800);
+    simulateOffline(offline, 1800);
+    for (const s of [small, big, offline]) expect(s.meta.journal.firstSeen).toEqual(before);
   });
 });

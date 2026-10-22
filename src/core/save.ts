@@ -27,7 +27,7 @@ import {
   waypointsForGrowth,
 } from './formulas';
 import { checkAchievements } from './achievements';
-import { effectiveMemoryOf, jaySeeds, jaySeedsSpent, landscapeUnlocked, siteEntry } from './landscape';
+import { effectiveMemoryOf, jaySeeds, jaySeedsSpent, landscapeUnlocked, siteEntry, wildwechselRoute } from './landscape';
 import { isDayKey } from './daily';
 import { isValidRngState, normalizeSeed } from './rng';
 import { normalizeElapsed } from './season';
@@ -37,6 +37,7 @@ import {
   SAVE_VERSION,
   createCycle,
   createDaily,
+  createFirstSeen,
   createInitialState,
   createLandscape,
   createSite,
@@ -46,6 +47,8 @@ import {
   type CycleState,
   type DailyGoal,
   type DailyState,
+  type FirstSeen,
+  type FirstSeenJournal,
   type GameState,
   type LandscapeSite,
   type LandscapeState,
@@ -129,8 +132,11 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   // v6 → v7 (Balancing 2.10): nur die Wegpunkt-Kurve – schon in loadV2 umgerechnet
   // (v6GrowthToV7), bevor Wegpunkt, Stufe und Zwischenhalt abgeleitet werden.
   // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte. Führt
-  // auch H_max nach (die aktuelle Harmonie zählt schon für diesen Zyklus).
+  // auch H_max nach (die aktuelle Harmonie zählt schon für diesen Zyklus). Was es dabei ins
+  // Tagebuch nachträgt, war schon früher entdeckt: kein erfundenes „Zuerst gesehen“.
+  const firstSeen = structuredClone(state.meta.journal.firstSeen);
   recordDiscoveries(state);
+  state.meta.journal.firstSeen = firstSeen;
   // v6 → v7: Waldgedächtnis +1 % statt +2 % je Punkt, Punkte unverändert → einmal Hinweis.
   const memoryReweighted = version < 7 && (state.meta.forestMemory > 0 || state.meta.journal.keepsakes.length > 0);
   // v8 → v9 (Erfolge): ganz zuletzt, wenn Tagebuch, Statistik und H_max feststehen.
@@ -387,11 +393,13 @@ function migrateV13(state: GameState): boolean {
  * v14 → v15 (Hauptbäume je Waldtyp, DESIGN_V2.md 25.5; Wildwechsel 24.6, 24.12): ein
  * Versionssprung – kein v14-Stand enthält `fir`/`alder` oder `PendingEncounter.via`, es gibt
  * nichts umzubuchen. Frühere Wildwechsel sind nicht bekannt: `wildwechselChosen` beginnt bei 0
- * (loadStats liest das Feld erst ab v15). Die neue Version lässt die Versionsprüfung greifen,
+ * (die einzige Stelle dafür; ein gleichnamiges Feld eines älteren Stands zählt nicht). Die neue Version lässt die Versionsprüfung greifen,
  * damit ein v14-Spiel die neuen Baum-IDs nicht still zur Eiche macht.
  */
 function migrateV14(state: GameState): void {
   state.meta.stats.wildwechselChosen = 0;
+  // „Zuerst gesehen“ (25.10): für schon Entdecktes ist der Moment nicht bekannt – leer.
+  state.meta.journal.firstSeen = createFirstSeen();
 }
 
 /**
@@ -425,7 +433,7 @@ export const PLAY_SECONDS_TOLERANCE = 1e-6;
  * `totalGrowth` (lifetimeGrowth). Baumarten nur bekannte, freigeschaltete (`unlocked`) und
  * je einmal, in gespeicherter Reihenfolge; die aktuelle kommt dazu, falls sie fehlt.
  */
-function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) => boolean, version: number): LifetimeStats {
+function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) => boolean): LifetimeStats {
   const r = isRecord(raw) ? raw : {};
   const amount = (value: unknown) => clampedOr(value, 0, 0, Number.MAX_VALUE);
   const count = (value: unknown) => Math.floor(clampedOr(value, 0, 0, MAX_STAT_COUNT));
@@ -445,8 +453,8 @@ function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) =>
     visitorsHosted: count(r.visitorsHosted),
     plantsPlanted: count(r.plantsPlanted),
     careRanksBought: count(r.careRanksBought),
-    // Seit v15 (Wildwechsel-Markierung); ältere Stände: migrateV14 → 0.
-    wildwechselChosen: version >= 15 ? count(r.wildwechselChosen) : 0,
+    // Seit v15 (Wildwechsel-Markierung); ältere Stände setzt migrateV14 auf 0.
+    wildwechselChosen: count(r.wildwechselChosen),
     grownTrees,
   };
 }
@@ -610,9 +618,17 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
     // Bestand für den Wildwechsel (24.6): nur entdeckte Arten – im Spiel lebt dort nichts anderes.
     site.fauna = site.fauna.filter((id) => discovered.has(id));
   }
+  // Wildwechsel-Markierung (seit v15): erst jetzt steht der Bestand fest – der Weg der Art muss
+  // genau dieser Korridor sein (wie beim Ziehen, wildwechselRoute), sonst keine Markierung.
+  for (const encounter of state.pendingEncounters) {
+    const via = encounter.via;
+    if (via && wildwechselRoute(state, encounter.cards[via.card]!)?.corridor !== via.corridor) delete encounter.via;
+  }
+  // Seit v15: „Zuerst gesehen“ (ältere Stände: migrateV14).
+  state.meta.journal.firstSeen = loadFirstSeen(journal.firstSeen, state);
   // Seit v8: Langzeit-Statistik (ältere Stände: migrateV7 setzt sie).
   const known = { meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...state.meta.journal.plants, ...state.plants] } } };
-  state.meta.stats = loadStats(version >= 8 ? meta.stats : undefined, state, (id) => isTreeUnlocked(known, id), version);
+  state.meta.stats = loadStats(version >= 8 ? meta.stats : undefined, state, (id) => isTreeUnlocked(known, id));
   // Seit v9: Erfolge – nur bekannte IDs, je einmal, gespeicherte Reihenfolge (ältere Stände:
   // migrateV8). Ob sie erfüllt sind, lässt sich nicht prüfen (frühere Zyklen) – sie bleiben.
   state.meta.achievements =
@@ -630,6 +646,32 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
  */
 function migrateV11(state: GameState): DailyState {
   return createDaily(dailySeedOf(state.rngState));
+}
+
+/**
+ * „Zuerst gesehen“ robust laden (seit v15, DESIGN_V2.md 25.10): nur Arten bzw. Pflanzen, die
+ * bekannt sind und im Naturtagebuch stehen; Zyklus ganzzahlig in [1, laufender Zyklus],
+ * Jahreszeit aus SEASON_IDS. Alles andere fällt weg (dann zeigt die Oberfläche nichts).
+ */
+function loadFirstSeen(raw: unknown, state: GameState): FirstSeenJournal {
+  const r = isRecord(raw) ? raw : {};
+  const out = createFirstSeen();
+  const entry = (value: unknown): FirstSeen | null => {
+    if (!isRecord(value)) return null;
+    const { cycle, season } = value;
+    if (typeof cycle !== 'number' || !Number.isInteger(cycle) || cycle < 1 || cycle > state.cycle.number) return null;
+    if (typeof season !== 'string' || !SEASON_IDS.includes(season as SeasonId)) return null;
+    return { cycle, season: season as SeasonId };
+  };
+  for (const kind of ['species', 'plants'] as const) {
+    const source = isRecord(r[kind]) ? (r[kind] as Record<string, unknown>) : {};
+    for (const id of state.meta.journal[kind]) {
+      if (!Object.hasOwn(source, id)) continue;
+      const value = entry(source[id]);
+      if (value) out[kind][id] = value;
+    }
+  }
+  return out;
 }
 
 /**

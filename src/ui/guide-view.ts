@@ -47,6 +47,7 @@ import {
   JAY_SEEDS_FIRST_ANCIENT,
   JAY_SEEDS_MEMORY_STEP,
   LANDSCAPE_SITES,
+  LANDSCAPE_SITES_BY_ID,
   LANDSCAPE_UNLOCK_MEMORY,
   WILDWECHSEL_CHANCE,
   WILDWECHSEL_MAX_CHANCE,
@@ -102,6 +103,13 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
   const [firstTree, ...laterTrees] = MAIN_TREES.filter((t) => t.unlockSite === undefined);
   const laterFruits = laterTrees.map((t) => fruitPhrase(t.id)).join(' oder ');
   const laterPlants = laterTrees.map((t) => PLANTS_BY_ID.get(t.unlockPlant ?? '')?.name ?? t.name).join(' bzw. ');
+  // Erst mit sichtbarer Landschaft (wie isTreeVisible): die Arten der Standorte in einem Satz.
+  const siteTrees = MAIN_TREES.filter((t) => t.unlockSite !== undefined)
+    .map((t) => `${t.icon} ${t.name} (${LANDSCAPE_SITES_BY_ID.get(t.unlockSite!)?.name ?? t.unlockSite})`);
+  const siteTreesText =
+    options.landscape === true && siteTrees.length > 0
+      ? ` In der Waldlandschaft keimen außerdem ${all(siteTrees)} – jede, sobald ihr Wald gegründet ist; dort ist sie Leitbaum.`
+      : '';
   const seasonMinutes = formatNumber(SEASON_SECONDS / 60);
   // Harmonie-Bonus beim Neuen Zyklus an den Stufen ab Hain (Schritt 2.11b, dazwischen gleitend), z. B. „im Hain ab 101 (bis 115)“.
   const memoryThresholds = STAGES.slice(NEW_CYCLE_MIN_STAGE).map((stage) => {
@@ -256,7 +264,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       icon: '🔄',
       title: 'Neuer Zyklus, Waldgedächtnis und Stammgäste',
       paragraphs: [
-        `Ab der Stufe „${cycleStage}“ kannst du einen Neuen Zyklus beginnen: Aus ${fruitPhrase(firstTree?.id)} wächst ein neuer Baum – später auch aus ${laterFruits}, sobald einmal eine ${laterPlants} in deinem Pflanzring gewachsen ist. Jede Art hat eine kleine Eigenheit. Tiere, Pflanzen und Samen beginnen von vorn; Naturtagebuch, Waldgedächtnis und Stammgäste bleiben.`,
+        `Ab der Stufe „${cycleStage}“ kannst du einen Neuen Zyklus beginnen: Aus ${fruitPhrase(firstTree?.id)} wächst ein neuer Baum – später auch aus ${laterFruits}, sobald einmal eine ${laterPlants} in deinem Pflanzring gewachsen ist. Jede Art hat eine kleine Eigenheit.${siteTreesText} Tiere, Pflanzen und Samen beginnen von vorn; Naturtagebuch, Waldgedächtnis und Stammgäste bleiben.`,
         `Du bekommst Waldgedächtnis: ${MEMORY_PER_NEW_SPECIES === 1 ? '1 Punkt' : `${formatNumber(MEMORY_PER_NEW_SPECIES)} Punkte`} je neu entdeckter Art und 1 Punkt je ${formatNumber(memoryDivisor)} Punkte deiner höchsten Harmonie in diesem Zyklus${laterDivisors.length ? ` (${all(laterDivisors)} – später zählt mehr, was über der Schwelle liegt)` : ''}. Höchste Harmonie über einer Schwelle zählt extra: Jeder Punkt darüber bringt etwa ${formatNumber(MEMORY_PER_HARMONY_POINT)} Punkte mehr. Die Schwelle steigt mit jedem Wegpunkt – Bonus gibt es ${all(memoryThresholds)}. Wer länger wächst, braucht für neuen Bonus also mehr Harmonie – was du schon erreicht hast, bleibt dir aber: Die Vorschau sinkt nie. Die aktuelle Schwelle steht bei „Neuer Zyklus“. Jeder Punkt gibt dauerhaft +${pct(FOREST_MEMORY_BONUS)} Wachstum und Samen.`,
         `Je ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Punkte Waldgedächtnis darfst du einen Stammgast wählen – eine entdeckte Art, die in jedem Zyklus von selbst einzieht.`,
       ],

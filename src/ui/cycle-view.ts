@@ -20,7 +20,7 @@ import { allAnimals, type GameState } from '../core/state';
 import { previewNewCycle, regularBlocker, type NewCycleBlocker } from '../core/tick';
 import { formatNumber } from './format';
 import { regularNextCycleHint, regularWaitReason, regularWaitText } from './regular-wait';
-import { activeSiteLabel, toLandscapeMapView, type LandscapeMapView } from './landscape-view';
+import { activeSiteLabel, toLandscapeMapView, type LandscapeMapView, type LandscapeSiteView } from './landscape-view';
 
 /** Eine entdeckte Art in der Stammgäste-Auswahl. */
 export interface RegularOptionView {
@@ -91,6 +91,27 @@ export interface CyclePanelView {
   defaultTree: MainTreeId;
   /** Karte der Landschaft (DESIGN_V2.md 24.5); null, solange sie verborgen ist. */
   landscape: LandscapeMapView | null;
+}
+
+/**
+ * Baumwahl für ein Ziel in der Landschaft (DESIGN_V2.md 25.2): Ohne Ziel (hier weiter) gelten
+ * `view.trees` und `view.defaultTree`. Mit Ziel (gründen oder wechseln) gelten die dort
+ * wählbaren Arten (`site.unlockedTrees` – eine Gründung schaltet ihren Leitbaum frei); die
+ * Vorauswahl ist die des Waldes (Leitbaum bzw. zuletzt dort), wenn wählbar, sonst wie ohne Ziel.
+ */
+export function treeChoiceFor(
+  view: Pick<CyclePanelView, 'trees' | 'defaultTree'>,
+  site: Pick<LandscapeSiteView, 'mainTree' | 'unlockedTrees'> | undefined,
+): { trees: TreeOptionView[]; current: MainTreeId } {
+  if (!site) return { trees: view.trees, current: view.defaultTree };
+  const open = new Set(site.unlockedTrees);
+  const trees = view.trees.map((t) => {
+    const unlocked = open.has(t.id);
+    return unlocked === t.unlocked ? t : { ...t, unlocked, hint: unlocked ? null : (MAIN_TREES_BY_ID.get(t.id)?.unlockHint ?? null) };
+  });
+  const usable = (id: MainTreeId) => trees.some((t) => t.id === id && t.unlocked);
+  const current = usable(site.mainTree) ? site.mainTree : usable(view.defaultTree) ? view.defaultTree : (trees.find((t) => t.unlocked)?.id ?? view.defaultTree);
+  return { trees, current };
 }
 
 /** „einer Eichel“, „einer Buchecker“, „einem Kiefernsamen“ (Dativ der Frucht). */

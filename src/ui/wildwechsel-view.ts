@@ -15,8 +15,7 @@
  */
 import { CORRIDORS_BY_ID, LANDSCAPE_SITES_BY_ID, WILDWECHSEL_CHANCE, WILDWECHSEL_MAX_CHANCE, type SiteId } from '../content/landscape';
 import { activeSite, landscapeOf, wildwechselChance } from '../core/landscape';
-import type { GameState } from '../core/state';
-import type { LandscapeState, PendingEncounter } from '../core/state';
+import type { GameState, LandscapeState, PendingEncounter } from '../core/state';
 import type { WildwechselCard } from '../core/tick';
 import { formatNumber } from './format';
 import type { EncounterView } from './view-model';

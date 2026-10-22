@@ -43,8 +43,9 @@
 > gewähltes „Das Holz vermodern lassen“ (Käferjahr) seinen Platz nachgetragen. Seit
 > Spielstand v14 gibt es die Waldlandschaft (`DESIGN_V2.md` 24), seit v15 die Hauptbäume
 > Weißtanne und Schwarzerle, die Wildwechsel-Markierung an offenen Begegnungen und den Zähler
-> gewählter Wildwechsel-Karten (`DESIGN_V2.md` 25.5, 24.6); v14-Stände laden unverändert, der
-> Zähler beginnt bei 0. Ein gespeicherter Stand einer neueren Spielversion wird weder geladen
+> gewählter Wildwechsel-Karten sowie „Zuerst gesehen“ je Art und Pflanze (`DESIGN_V2.md`
+> 25.5, 24.6, 25.10); v14-Stände laden unverändert, der Zähler beginnt bei 0, „Zuerst gesehen“
+> leer. Ein gespeicherter Stand einer neueren Spielversion wird weder geladen
 > noch überschrieben.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
