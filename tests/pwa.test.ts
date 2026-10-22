@@ -30,11 +30,12 @@ describe('Cache-Namen und Dateiliste', () => {
     expect(staleCaches(keys, cacheName('neu'))).toEqual([cacheName('alt'), `${CACHE_PREFIX}älter`]);
   });
 
-  it('precacheList: index.html wird „./“, ohne sw.js, Maps und Systemdateien, sortiert', () => {
+  it('precacheList: index.html wird „./“, ohne sw.js, 404.html, Maps und Systemdateien, sortiert', () => {
     expect(
       precacheList([
         'sw.js',
         'index.html',
+        '404.html',
         'assets/index-abc.js',
         'assets/index-abc.js.map',
         'assets/account-x.js',
@@ -266,6 +267,25 @@ describe('erzeugter Service Worker', () => {
     await expect(sw.fetchEvent(SCOPE, { mode: 'navigate' }).then((p) => p)).rejects.toThrow('offline');
     await expect(sw.fetchEvent(`${SCOPE}assets/index-abc.js`).then((p) => p)).rejects.toThrow('offline');
     await expect(sw.fetchEvent(`${SCOPE}manifest.webmanifest`).then((p) => p)).rejects.toThrow('offline');
+  });
+
+  it('unbekannter Pfad online: Fehlerseite des Servers durchreichen, nie cachen; Startseite bleibt', async () => {
+    const sw = fakeWorker(precacheList(['index.html', '404.html', 'assets/index-abc.js', 'manifest.webmanifest']), network());
+    await sw.dispatch('install');
+    const cache = sw.stores.get(cacheName('v1'))!;
+    const before = [...cache.keys()].sort();
+    expect(before).not.toContain(`${SCOPE}404.html`);
+    // GitHub Pages antwortet mit 404.html (Status 404) – der Worker gibt das unverändert weiter.
+    const missing = await (await sw.fetchEvent(`${SCOPE}zugewachsen/pfad`, { mode: 'navigate' }))!;
+    expect(missing.ok).toBe(false);
+    expect(missing.body).toBe('404');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect([...cache.keys()].sort()).toEqual(before);
+    expect(cache.get(SCOPE)!.body).toBe('<html>v1');
+    // Startseite weiter online wie offline
+    expect((await (await sw.fetchEvent(SCOPE, { mode: 'navigate' }))!).body).toBe('<html>v1');
+    sw.setOnline(false);
+    expect((await (await sw.fetchEvent(SCOPE, { mode: 'navigate' }))!).body).toBe('<html>v1');
   });
 
   it('Navigation auf Dateien mit Endung bekommt nie index.html', async () => {

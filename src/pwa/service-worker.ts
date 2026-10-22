@@ -33,15 +33,17 @@ export function staleCaches(keys: readonly string[], current: string): string[] 
 
 /**
  * Zu cachende Dateien relativ zum Scope (Ordner der App): alles aus dist/ außer dem
- * Service Worker selbst, Source-Maps und Systemdateien; index.html als „./“ (so ruft der
- * Browser die App auf, unter /tree-grow-app/ ebenso wie lokal). Sortiert und eindeutig.
+ * Service Worker selbst, Source-Maps, Systemdateien und der Fehlerseite 404.html (liefert
+ * nur GitHub Pages für unbekannte Pfade aus; im Cache wäre sie nutzlos und dürfte nie als
+ * App-Seite dienen); index.html als „./“ (so ruft der Browser die App auf, unter
+ * /tree-grow-app/ ebenso wie lokal). Sortiert und eindeutig.
  */
 export function precacheList(files: readonly string[]): string[] {
   const out = new Set<string>();
   for (const raw of files) {
     const file = raw.replace(/\\/g, '/').replace(/^\.?\//, '');
     const name = file.split('/').pop() ?? '';
-    if (file === 'sw.js' || file.endsWith('.map') || name.startsWith('.')) continue;
+    if (file === 'sw.js' || file === '404.html' || file.endsWith('.map') || name.startsWith('.')) continue;
     out.add(file === 'index.html' ? './' : file);
   }
   return [...out].sort();

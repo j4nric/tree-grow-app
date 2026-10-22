@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dieser Pfad ist zugewachsen – Vom Samen zum Wald</title>
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#3f8f3a" />
+    <!--
+      Fehlerseite für GitHub Pages: wird für jede unbekannte Adresse unter /tree-grow-app/
+      ausgeliefert, auch in Unterordnern. Deshalb verweist der Link absolut auf den
+      Pages-Pfad (nicht relativ wie die App mit base './'). Keine Skripte, nichts Externes;
+      der Service Worker cacht diese Seite nicht (precacheList in src/pwa/service-worker.ts).
+    -->
+    <style>
+      :root {
+        --bg: #f3f1e8;
+        --panel: #fffdf6;
+        --text: #2c2a22;
+        --muted: #6f6a58;
+        --accent: #3f8f3a;
+        --accent-dark: #2f6f2b;
+        --border: #e2ddc8;
+        color-scheme: light;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+      body {
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        min-height: 100dvh;
+        padding: 1.5rem 1rem;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.5;
+      }
+      main {
+        width: 100%;
+        max-width: 28rem;
+        padding: 2rem 1.5rem;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        text-align: center;
+      }
+      svg {
+        display: block;
+        width: 7.5rem;
+        height: auto;
+        margin: 0 auto 1rem;
+      }
+      .sprout {
+        transform-origin: 60px 92px;
+        animation: sway 5s ease-in-out infinite alternate;
+      }
+      @keyframes sway {
+        from {
+          transform: rotate(-2.5deg);
+        }
+        to {
+          transform: rotate(2.5deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .sprout {
+          animation: none;
+        }
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.5rem;
+        line-height: 1.25;
+        color: var(--accent-dark);
+      }
+      p {
+        margin: 0 0 1.5rem;
+        color: var(--muted);
+      }
+      a.back {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0.6rem 1.25rem;
+        border-radius: 10px;
+        background: var(--accent-dark);
+        color: #fff;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      a.back:hover {
+        background: #245a21;
+      }
+      a.back:focus-visible {
+        outline: 3px solid var(--accent-dark);
+        outline-offset: 3px;
+      }
+      .code {
+        margin: 1.25rem 0 0;
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg viewBox="0 0 120 110" aria-hidden="true" focusable="false">
+        <!-- Weg, der im Gras verschwindet -->
+        <path d="M30 108 C45 96 52 92 60 92 C68 92 75 96 90 108 Z" fill="#d8cfae" />
+        <path d="M4 108 Q14 80 22 108 M16 108 Q26 74 34 108 M86 108 Q96 76 104 108 M98 108 Q108 82 116 108" fill="#6fae5a" />
+        <path d="M40 108 Q47 88 54 108 M62 108 Q70 84 78 108" fill="#5c9c49" />
+        <!-- Sämling -->
+        <g class="sprout">
+          <path d="M60 92 C60 76 60 62 60 48" stroke="#2f6f2b" stroke-width="3" fill="none" stroke-linecap="round" />
+          <path d="M60 64 C48 64 38 56 34 44 C48 42 58 50 60 64 Z" fill="#3f8f3a" />
+          <path d="M60 54 C72 54 82 46 86 34 C72 32 62 40 60 54 Z" fill="#57a64b" />
+          <circle cx="60" cy="46" r="4" fill="#8bc47a" />
+        </g>
+      </svg>
+      <h1>Dieser Pfad ist zugewachsen</h1>
+      <p>Hier wächst nur noch Moos. Die Seite, die du suchst, gibt es nicht&nbsp;– dein Wald wartet aber schon auf dich.</p>
+      <a class="back" href="/tree-grow-app/">Zurück zum Wald</a>
+      <p class="code">Fehler 404 · Seite nicht gefunden</p>
+    </main>
+  </body>
+</html>
