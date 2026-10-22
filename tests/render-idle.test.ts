@@ -290,6 +290,166 @@ describe('drawScene mit Leerlauf-Warteschlange', () => {
   });
 });
 
+describe('Leerlauf: Stimmigkeit und Speicher', () => {
+  /** Quell-Canvases aller drawImage-Aufrufe eines Frames auf dem sichtbaren Canvas. */
+  function sources(canvas: StubCanvas, input: SceneInput): unknown[] {
+    canvas.calls.length = 0;
+    drawScene(canvas.getContext('2d'), 400, 300, input);
+    return canvas.calls.filter((c) => c.name === 'drawImage').map((c) => c.args[0]);
+  }
+
+  /** Neue Canvases (ohne die 1×1-Hilfsfläche zum Rastern), die `fn` anlegt. */
+  function createdBy(fn: () => void): StubCanvas[] {
+    const n = canvases.length;
+    fn();
+    return canvases.slice(n).filter((c) => !(c.width === 1 && c.height === 1));
+  }
+
+  function scale(canvas: StubCanvas, input: SceneInput): number {
+    canvas.calls.length = 0;
+    drawScene(canvas.getContext('2d'), 400, 300, input);
+    const t = canvas.calls.find((c) => c.name === 'setTransform');
+    return t ? (t.args[0] as number) : Number.NaN;
+  }
+
+  it('Standortwechsel und neu geöffnete Wiese: Kulisse im selben Frame getönt (nicht aufgeschoben)', () => {
+    const idle = new IdleQueue(manualPost().post);
+    const canvas = makeCanvas(800, 600);
+    const el = canvas as unknown as HTMLCanvasElement;
+    draw(canvas, night({ idle, time: 1, meadow: false }));
+    let s = sceneCacheStats(el)!;
+    draw(canvas, night({ idle, time: 1.02, meadow: false, site: 'carr' }));
+    expect(sceneCacheStats(el)!.staticBuilds).toBe(s.staticBuilds + 1);
+    expect(sceneCacheStats(el)!.tintBuilds).toBe(s.tintBuilds + 1);
+    expect(idle.has('tint')).toBe(false);
+    s = sceneCacheStats(el)!;
+    draw(canvas, night({ idle, time: 1.04, meadow: true, site: 'carr' }));
+    expect(sceneCacheStats(el)!.staticBuilds).toBe(s.staticBuilds + 1);
+    expect(sceneCacheStats(el)!.tintBuilds).toBe(s.tintBuilds + 1);
+    expect(idle.size).toBe(0);
+  });
+
+  it('kein Teil-Tausch: bis zum letzten Stück zeigt der Frame die alten Kopien, dann alle neuen', () => {
+    const idle = new IdleQueue(manualPost().post);
+    const canvas = makeCanvas(800, 600);
+    draw(canvas, night({ idle, time: 1 }));
+    draw(canvas, night({ idle, time: 1.02, season: 0.26 }));
+    idle.runNext(); // Jahreszeit: Ebenen neu
+    const before = sources(canvas, night({ idle, time: 1.04, season: 0.26 }));
+    expect(idle.has('tint')).toBe(true);
+    for (let i = 0; i < 3; i++) {
+      idle.runNext();
+      expect(sources(canvas, night({ idle, time: 1.06 + i * 0.02, season: 0.26 }))).toEqual(before);
+    }
+    idle.runNext();
+    expect(idle.size).toBe(0);
+    const after = sources(canvas, night({ idle, time: 1.2, season: 0.26 }));
+    // Kulisse und Baum-Ebenen sind neu; die alten Kopien sind freigegeben.
+    expect(after[0]).not.toBe(before[0]);
+    const old = before.filter((c) => !after.includes(c)) as StubCanvas[];
+    expect(old.length).toBeGreaterThanOrEqual(3);
+    for (const c of old) expect(c.width).toBe(0);
+    for (const c of after as StubCanvas[]) expect(c.width).toBeGreaterThan(0);
+  });
+
+  it('weiße Lichtfarbe (Sonne am Tag): Baum-Kopien gemeinsam entfernt, nie eine freigegebene gezeichnet', () => {
+    const idle = new IdleQueue(manualPost().post);
+    const canvas = makeCanvas(800, 600);
+    draw(canvas, night({ idle, time: 1 }));
+    const nightSrc = sources(canvas, night({ idle, time: 1.02 }));
+    const day = (t: number): SceneInput => night({ idle, time: t, dayPhase: 0.5, weather: 'sun' });
+    let n = 0;
+    while (true) {
+      for (const c of sources(canvas, day(1.04 + n * 0.02)) as StubCanvas[]) expect(c.width).toBeGreaterThan(0);
+      if (!idle.runNext()) break;
+      n++;
+    }
+    expect(n).toBeGreaterThan(0);
+    const daySrc = sources(canvas, day(2));
+    // Getönte Kulisse, hintere und vordere Ebene der Nacht sind frei (Mond, Sterne u. Ä. nicht).
+    const gone = nightSrc.filter((c) => !daySrc.includes(c)) as StubCanvas[];
+    expect((nightSrc[0] as StubCanvas).width).toBe(0);
+    expect(gone.filter((c) => c.width === 0).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('neue Tönungsstufe während des Auftrags: neu begonnen, halbfertige Kopien frei, Endbild wie synchron', () => {
+    const run = (withIdle: boolean): { calls: string; leaked: number } => {
+      const idle = withIdle ? new IdleQueue(manualPost().post) : undefined;
+      const canvas = makeCanvas(800, 600);
+      draw(canvas, night({ idle, time: 1 }));
+      draw(canvas, night({ idle, time: 1.02, season: 0.26 }));
+      let partial: StubCanvas[] = [];
+      if (idle) {
+        idle.runNext();
+        draw(canvas, night({ idle, time: 1.04, season: 0.26 }));
+        // Zwei Stücke des Auftrags, dann wechselt das Wetter (neue Tönungsstufe).
+        partial = createdBy(() => {
+          idle.runNext();
+          idle.runNext();
+        });
+      }
+      draw(canvas, night({ idle, time: 1.06, season: 0.26, weather: 'rain' }));
+      idle?.flush();
+      draw(canvas, night({ idle, time: 1.08, season: 0.26, weather: 'rain' }));
+      idle?.flush();
+      canvas.calls.length = 0;
+      draw(canvas, night({ idle, time: 2, season: 0.26, weather: 'rain' }));
+      const calls = JSON.stringify(canvas.calls.map((c) => [c.name, c.args.map((a) => (typeof a === 'number' ? a.toFixed(3) : typeof a))]));
+      return { calls, leaked: partial.filter((c) => c.width > 0).length };
+    };
+    const a = run(true);
+    expect(a.leaked).toBe(0);
+    expect(a.calls).toBe(run(false).calls);
+  });
+
+  it('Zoom: alter Detail-Satz nach dem Tausch frei; zurück auf 1× alles frei', () => {
+    const idle = new IdleQueue(manualPost().post);
+    const canvas = makeCanvas(800, 600);
+    const t0 = 1 + RESIZE_SETTLE_SECONDS;
+    scale(canvas, night({ idle, time: 1 }));
+    const z2 = { zoom: 2, x: 0.5, y: 0.5 };
+    scale(canvas, night({ idle, time: 1.02, camera: z2 }));
+    scale(canvas, night({ idle, time: t0 + 0.04, camera: z2 }));
+    const first = createdBy(() => idle.flush());
+    expect(first.length).toBeGreaterThan(0);
+    expect(scale(canvas, night({ idle, time: t0 + 0.06, camera: z2 }))).toBe(1);
+    // 3× in der Mitte: der 2×-Satz deckt den Ausschnitt und bleibt bis zum Tausch sichtbar.
+    const z3 = { zoom: 3, x: 0.5, y: 0.5 };
+    scale(canvas, night({ idle, time: t0 + 0.1, camera: z3 }));
+    scale(canvas, night({ idle, time: t0 + 0.2 + RESIZE_SETTLE_SECONDS, camera: z3 }));
+    const second = createdBy(() => idle.flush());
+    expect(second.length).toBeGreaterThan(0);
+    expect(scale(canvas, night({ idle, time: t0 + 0.3 + RESIZE_SETTLE_SECONDS, camera: z3 }))).toBe(1);
+    for (const c of first) expect(c.width).toBe(0);
+    // Zurück auf 1×: Detail-Satz frei, nichts eingeplant.
+    scale(canvas, night({ idle, time: t0 + 1 }));
+    scale(canvas, night({ idle, time: t0 + 1.1 + RESIZE_SETTLE_SECONDS }));
+    expect(idle.size).toBe(0);
+    for (const c of second) expect(c.width).toBe(0);
+  });
+
+  it('Größenänderung während des Detail-Auftrags: halbfertiger Satz verworfen und frei', () => {
+    const idle = new IdleQueue(manualPost().post);
+    const canvas = makeCanvas(800, 600);
+    const el = canvas as unknown as HTMLCanvasElement;
+    const cam = { zoom: 2, x: 0.4, y: 0.6 };
+    scale(canvas, night({ idle, time: 1 }));
+    scale(canvas, night({ idle, time: 1.02, camera: cam }));
+    scale(canvas, night({ idle, time: 1.04 + RESIZE_SETTLE_SECONDS, camera: cam }));
+    // Erstes Stück: Satz gebaut, noch nicht gezeigt.
+    const built = createdBy(() => idle.runNext());
+    expect(built.length).toBeGreaterThan(0);
+    // Neue Größe (synchron neu aufgebaut); der Auftrag bricht ab.
+    canvas.width = 600;
+    canvas.height = 600;
+    drawScene(canvas.getContext('2d'), 300, 300, night({ idle, time: 1.06 + RESIZE_SETTLE_SECONDS, camera: cam }));
+    const s = sceneCacheStats(el)!;
+    idle.runNext();
+    for (const c of built) expect(c.width).toBe(0);
+    expect(sceneCacheStats(el)!.staticBuilds).toBe(s.staticBuilds);
+  });
+});
+
 describe('Kuppe von Waldwiese und Trockenmauer im Nebel (K2)', () => {
   /** Rückt die getönte Kulisse die Kuppe aus dem Dunst (Kopie der Kulisse mit Deckkraft 0,7)? */
   function restoresKnoll(input: SceneInput): boolean {

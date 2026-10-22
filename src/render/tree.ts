@@ -412,6 +412,9 @@ interface TintSet {
   version: number;
   staticVersion: number;
   memoryVersion: number;
+  /** Standort und Lebensräume der getönten Kulisse (weichen sie ab, wird synchron getönt). */
+  site: SceneSiteId;
+  habitats: number;
   background: HTMLCanvasElement;
   back: HTMLCanvasElement | null;
   front: HTMLCanvasElement | null;
@@ -506,8 +509,9 @@ interface Cache {
   shownSite: SceneSiteId | null;
   /** Wie oft die Kulisse gezeichnet wurde (für Tests: kein Neuzeichnen pro Frame). */
   staticBuilds: number;
-  /** Tönen in Leerlaufzeit (null = kein Auftrag). */
+  /** Tönen in Leerlaufzeit (null = kein Auftrag) und Neuanfänge wegen neuer Tönungsstufe. */
   tintJob: TintJob | null;
+  tintRestarts: number;
   /** Detail-Ebenen, die in Leerlaufzeit entstehen (gezeigt erst, wenn sie fertig sind). */
   detailNext: SizeCache | null;
   /** Ausschnitt, für den sie entstehen (null = kein Auftrag). */
@@ -675,6 +679,14 @@ interface TintPlan {
   version: number;
   staticVersion: number;
   memoryVersion: number;
+  /** Standort und Lebensräume der Kulisse, die getönt wird. */
+  site: SceneSiteId;
+  habitats: number;
+  /**
+   * Baum-Ebenen und Erinnerungsbaum kopieren (sonst bleiben sie, wie sie sind: weiße
+   * Lichtfarbe ohne Raureif) – einmal je Auftrag festgelegt, damit alle Stücke gleich tönen.
+   */
+  copy: boolean;
 }
 
 function tintPlan(sc: SizeCache, cache: Cache): TintPlan | null {
@@ -684,7 +696,30 @@ function tintPlan(sc: SizeCache, cache: Cache): TintPlan | null {
   const layers = full || t.version !== sc.version;
   const memory = full || t.memoryVersion !== sc.memoryVersion;
   if (!layers && !memory) return null;
-  return { key: cache.tintKey, keyChanged, full, layers, memory, version: sc.version, staticVersion: sc.staticVersion, memoryVersion: sc.memoryVersion };
+  return {
+    key: cache.tintKey,
+    keyChanged,
+    full,
+    layers,
+    memory,
+    version: sc.version,
+    staticVersion: sc.staticVersion,
+    memoryVersion: sc.memoryVersion,
+    site: sc.site,
+    habitats: sc.habitats,
+    copy: !cache.tintWhite || cache.rimeAlpha > 0,
+  };
+}
+
+/** Getönte Kopien, in die ein Auftrag zeichnet (der Satz selbst oder neue, noch nicht gezeigte). */
+interface TintCopies {
+  background: HTMLCanvasElement;
+  back: HTMLCanvasElement | null;
+  front: HTMLCanvasElement | null;
+  memory: HTMLCanvasElement | null;
+  backRect: Rect | null;
+  frontRect: Rect | null;
+  memoryRect: Rect | null;
 }
 
 /** Stücke der Tönung (je eines pro Leerlauf-Rückruf): Kulisse, hintere, vordere Ebene, Rest. */
@@ -698,24 +733,25 @@ const TINT_STAGES = 4;
 function updateTint(sc: SizeCache, cache: Cache): void {
   const plan = tintPlan(sc, cache);
   if (!plan) return;
-  for (let s = 0; s < TINT_STAGES; s++) tintStage(sc, cache, plan, s, false);
+  // Ein laufender Auftrag für diesen Satz ist damit überholt.
+  if (cache.tintJob?.sc === sc) cache.tintJob = null;
+  const set = sc.tint ?? newTintSet();
+  sc.tint = set;
+  for (let s = 0; s < TINT_STAGES; s++) tintStage(sc, cache, plan, s, set, false);
+  finishTint(sc, cache, plan, set);
 }
 
 /**
- * Ein Stück der Tönung nach `plan`: 0 Kulisse, 1 hintere Ebene, 2 vordere Ebene,
- * 3 Erinnerungsbaum, Wolken und Abschluss (erst dann gilt der Satz als aktuell). `warm`:
- * das Ergebnis gleich rastern (Leerlaufzeit), nicht erst beim Zusammensetzen.
+ * Ein Stück der Tönung nach `plan` in die Kopien `out`: 0 Kulisse, 1 hintere Ebene,
+ * 2 vordere Ebene, 3 Erinnerungsbaum. `warm`: das Ergebnis gleich rastern (Leerlaufzeit),
+ * nicht erst beim Zusammensetzen. Ohne Änderung bleiben die Kopien in `out` unberührt.
  */
-function tintStage(sc: SizeCache, cache: Cache, plan: TintPlan, stage: number, warm: boolean): void {
-  const set = sc.tint ?? newTintSet();
-  sc.tint = set;
-  const fill = cache.tintFill;
-  const copy = !cache.tintWhite || cache.rimeAlpha > 0;
+function tintStage(sc: SizeCache, cache: Cache, plan: TintPlan, stage: number, out: TintCopies, warm: boolean): void {
   if (stage === 0 && plan.layers) {
     // Kulisse: Kopie, Himmel der Stufe darüber, dann die Lichtfarbe. Hat sich nur das
     // Wachstum geändert (Wurzeln, Grasnarbe), genügt der Streifen ab der Grasnarbe.
     const day = cache.day;
-    const bg = set.background;
+    const bg = out.background;
     const resized = bg.width !== sc.pw || bg.height !== sc.ph;
     if (resized) {
       bg.width = sc.pw;
@@ -744,48 +780,52 @@ function tintStage(sc: SizeCache, cache: Cache, plan: TintPlan, stage: number, w
     }
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalCompositeOperation = 'multiply';
-    c.fillStyle = fill;
+    c.fillStyle = cache.tintFill;
     c.fillRect(0, y0, sc.pw, h);
     c.restore();
     if (warm) warmCanvas(bg);
   } else if (stage === 1 && plan.layers) {
     // Weiße Lichtfarbe ohne Raureif: die Baum-Ebenen bleiben, wie sie sind (keine Kopie).
-    set.back = copy && sc.backRect ? tintLayer(sc.back, sc.backRect, set.back, cache, sc.dpr) : freeCanvas(set.back);
-    set.backRect = set.back && sc.backRect ? { ...sc.backRect } : null;
-    if (warm) warmCanvas(set.back);
+    out.back = plan.copy && sc.backRect ? tintLayer(sc.back, sc.backRect, out.back, cache, sc.dpr) : freeCanvas(out.back);
+    out.backRect = out.back && sc.backRect ? { ...sc.backRect } : null;
+    if (warm) warmCanvas(out.back);
   } else if (stage === 2 && plan.layers) {
-    set.front = copy && sc.frontRect ? tintLayer(sc.front, sc.frontRect, set.front, cache, sc.dpr) : freeCanvas(set.front);
-    set.frontRect = set.front && sc.frontRect ? { ...sc.frontRect } : null;
-    if (warm) warmCanvas(set.front);
-  } else if (stage === 3) {
-    if (plan.memory) {
-      const mr = sc.memoryRect;
-      set.memory = copy && sc.memoryCanvas && mr ? tintLayer(sc.memoryCanvas, { x: 0, y: 0, w: mr.w, h: mr.h }, set.memory, cache, sc.dpr) : freeCanvas(set.memory);
-      set.memoryRect = set.memory && mr ? { ...mr } : null;
-      set.memoryVersion = plan.memoryVersion;
-      if (warm) warmCanvas(set.memory);
-    }
-    if (plan.keyChanged) {
-      // Wolken dunkler als die Landschaft (Lichtfarbe zweimal), damit sie nicht leuchten.
-      if (cache.tintWhite) {
-        for (const c of set.clouds) freeCanvas(c);
-        set.clouds.length = 0;
-      } else {
-        sc.clouds.forEach((cl, i) => {
-          const r = { x: 0, y: 0, w: cl.sprite.width, h: cl.sprite.height };
-          set.clouds[i] = tintCopy(cl.sprite, r, set.clouds[i] ?? null, cache.cloudFill);
-        });
-      }
-    }
-    if (plan.layers) {
-      set.version = plan.version;
-      set.staticVersion = plan.staticVersion;
-    }
-    // Hilfs-Canvas des Raureifs nur während des Tönens behalten.
-    releaseRimeScratch();
-    set.key = plan.key;
-    cache.tintBuilds++;
+    out.front = plan.copy && sc.frontRect ? tintLayer(sc.front, sc.frontRect, out.front, cache, sc.dpr) : freeCanvas(out.front);
+    out.frontRect = out.front && sc.frontRect ? { ...sc.frontRect } : null;
+    if (warm) warmCanvas(out.front);
+  } else if (stage === 3 && plan.memory) {
+    const mr = sc.memoryRect;
+    out.memory = plan.copy && sc.memoryCanvas && mr ? tintLayer(sc.memoryCanvas, { x: 0, y: 0, w: mr.w, h: mr.h }, out.memory, cache, sc.dpr) : freeCanvas(out.memory);
+    out.memoryRect = out.memory && mr ? { ...mr } : null;
+    if (warm) warmCanvas(out.memory);
   }
+}
+
+/** Abschluss: Wolken (neue Stufe), Versionen und Schlüssel – erst dann gilt der Satz als aktuell. */
+function finishTint(sc: SizeCache, cache: Cache, plan: TintPlan, set: TintSet): void {
+  if (plan.keyChanged) {
+    // Wolken dunkler als die Landschaft (Lichtfarbe zweimal), damit sie nicht leuchten.
+    if (cache.tintWhite) {
+      for (const c of set.clouds) freeCanvas(c);
+      set.clouds.length = 0;
+    } else {
+      sc.clouds.forEach((cl, i) => {
+        const r = { x: 0, y: 0, w: cl.sprite.width, h: cl.sprite.height };
+        set.clouds[i] = tintCopy(cl.sprite, r, set.clouds[i] ?? null, cache.cloudFill);
+      });
+    }
+  }
+  if (plan.layers) {
+    set.version = plan.version;
+    set.staticVersion = plan.staticVersion;
+    set.site = plan.site;
+    set.habitats = plan.habitats;
+  }
+  if (plan.memory) set.memoryVersion = plan.memoryVersion;
+  // Hilfs-Canvas des Raureifs nur während des Tönens behalten.
+  releaseRimeScratch();
+  set.key = plan.key;
+  cache.tintBuilds++;
 }
 
 function newTintSet(): TintSet {
@@ -794,6 +834,8 @@ function newTintSet(): TintSet {
     version: -1,
     staticVersion: -1,
     memoryVersion: -1,
+    site: 'home',
+    habitats: 0,
     background: document.createElement('canvas'),
     back: null,
     front: null,
@@ -810,35 +852,116 @@ interface TintJob {
   sc: SizeCache;
   plan: TintPlan;
   stage: number;
+  /** Neue Kopien, getauscht erst im letzten Stück (bis dahin zeigt der Satz die alten). */
+  next: TintCopies;
 }
+
+/** So oft darf ein Auftrag wegen einer neuen Tönungsstufe neu beginnen, dann synchron. */
+const TINT_RESTARTS = 3;
 
 /**
  * Tönung in Leerlaufzeit nachführen statt im Frame – nur, wenn der Satz schon eine
- * vollständige Tönung in seiner Größe hat: Die zeigt er so lange weiter (ein paar Frames
- * alt, aber in sich stimmig). false: Es muss jetzt synchron getönt werden.
+ * vollständige Tönung in seiner Größe, mit seinem Standort und seinen Lebensräumen hat:
+ * Die zeigt er weiter, bis alle neuen Kopien fertig sind und gemeinsam getauscht werden
+ * (ein paar Frames alt, aber in sich stimmig). false: Es muss jetzt synchron getönt werden
+ * (erste Tönung, Größe, Standortwechsel, neu geöffneter Lebensraum).
  */
 function deferTint(sc: SizeCache, cache: Cache, idle: IdleQueue): boolean {
   const t = sc.tint;
-  if (!t || t.key < 0 || t.background.width !== sc.pw || t.background.height !== sc.ph) return false;
-  if (cache.tintJob && cache.tintJob.sc === sc) return true;
+  const job = cache.tintJob?.sc === sc ? cache.tintJob : null;
+  if (!t || t.key < 0 || t.background.width !== sc.pw || t.background.height !== sc.ph || t.site !== sc.site || t.habitats !== sc.habitats) {
+    if (job) dropTintJob(cache);
+    return false;
+  }
+  if (job) {
+    // Neue Tönungsstufe während des Auftrags: neu beginnen (die Stücke sollen gleich tönen) –
+    // nach einigen Neuanfängen (rasch wechselnde Stufen) lieber einmal synchron.
+    if (job.plan.key === cache.tintKey) return true;
+    dropTintJob(cache);
+    if (++cache.tintRestarts > TINT_RESTARTS) return false;
+  } else {
+    cache.tintRestarts = 0;
+  }
   const plan = tintPlan(sc, cache);
   if (!plan) return true;
-  const job: TintJob = { sc, plan, stage: 0 };
-  cache.tintJob = job;
+  const next: TintCopies = {
+    background: document.createElement('canvas'),
+    back: null,
+    front: null,
+    memory: null,
+    backRect: null,
+    frontRect: null,
+    memoryRect: null,
+  };
+  // Nur der Streifen ab der Grasnarbe ist neu: den Rest der Kulisse aus der alten Kopie.
+  if (plan.layers && !plan.full) copyCanvas(t.background, next.background);
+  const j: TintJob = { sc, plan, stage: 0, next };
+  cache.tintJob = j;
   const step = (): void => {
-    // Satz verworfen, Tönung aus oder ein neuerer Auftrag: abbrechen (der nächste Frame plant neu).
-    if (cache.tintJob !== job) return;
+    if (cache.tintJob !== j) return;
+    // Satz verworfen oder Tönung aus: abbrechen (der nächste Frame plant neu).
     if (!liveSet(cache, sc) || cache.tintKey < 0 || sc.tint !== t) {
-      cache.tintJob = null;
+      dropTintJob(cache);
       return;
     }
-    tintStage(sc, cache, job.plan, job.stage, true);
-    job.stage++;
-    if (job.stage < TINT_STAGES) idle.schedule('tint', step);
-    else cache.tintJob = null;
+    // Neue Tönungsstufe: nichts mehr in alter Farbe tönen – der nächste Frame beginnt neu.
+    if (cache.tintKey !== plan.key) return;
+    tintStage(sc, cache, plan, j.stage, j.next, true);
+    j.stage++;
+    if (j.stage < TINT_STAGES) {
+      idle.schedule('tint', step);
+      return;
+    }
+    // Letztes Stück: alle neuen Kopien gemeinsam tauschen.
+    swapTint(t, plan, j.next);
+    finishTint(sc, cache, plan, t);
+    cache.tintJob = null;
   };
   idle.schedule('tint', step);
   return true;
+}
+
+/** Kopiert ein Canvas in ein anderes (gleiche Größe). */
+function copyCanvas(src: HTMLCanvasElement, dst: HTMLCanvasElement): void {
+  dst.width = src.width;
+  dst.height = src.height;
+  const c = dst.getContext('2d')!;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = 'copy';
+  c.drawImage(src, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+}
+
+/** Tauscht alle neuen Kopien eines Auftrags auf einmal ein und gibt die alten frei. */
+function swapTint(set: TintSet, plan: TintPlan, next: TintCopies): void {
+  if (plan.layers) {
+    freeCanvas(set.background);
+    set.background = next.background;
+    if (set.back !== next.back) freeCanvas(set.back);
+    if (set.front !== next.front) freeCanvas(set.front);
+    set.back = next.back;
+    set.front = next.front;
+    set.backRect = next.backRect;
+    set.frontRect = next.frontRect;
+  } else {
+    freeCanvas(next.background);
+  }
+  if (plan.memory) {
+    if (set.memory !== next.memory) freeCanvas(set.memory);
+    set.memory = next.memory;
+    set.memoryRect = next.memoryRect;
+  }
+}
+
+/** Verwirft einen laufenden Tönungs-Auftrag samt seiner halbfertigen Kopien. */
+function dropTintJob(cache: Cache): void {
+  const j = cache.tintJob;
+  if (!j) return;
+  freeCanvas(j.next.background);
+  freeCanvas(j.next.back);
+  freeCanvas(j.next.front);
+  freeCanvas(j.next.memory);
+  cache.tintJob = null;
 }
 
 /** Gehört der Satz noch zu diesem Canvas (Basis, Detail oder wartendes Detail)? */
@@ -1013,6 +1136,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       shownSite: null,
       staticBuilds: 0,
       tintJob: null,
+      tintRestarts: 0,
       detailNext: null,
       detailJob: null,
       seasonPending: false,
@@ -1198,6 +1322,7 @@ function releaseSizeCache(sc: SizeCache): void {
       c.height = 0;
     }
   }
+  for (const cl of sc.clouds) freeCanvas(cl.sprite);
 }
 
 /**
@@ -1212,7 +1337,7 @@ function scheduleSeason(sc: SizeCache, cache: Cache, idle: IdleQueue): void {
     const input = cache.lastInput;
     const base = cache.size;
     if (!input || !base || !liveSet(cache, sc)) return;
-    updateLayers(sc, base, cache, input, cache.lastG, cache.lastTime, seasonLook(input.season), null);
+    updateLayers(sc, base, cache, input, cache.lastG, cache.lastTime, seasonLook(input.season), null, false);
     if (cache.tintKey < 0) warmLayers(sc);
   });
 }
@@ -1227,7 +1352,8 @@ function warmLayers(sc: SizeCache): void {
 
 /**
  * Detail-Ebenen für den ruhenden Ausschnitt `cam` in Leerlaufzeit: 1. Satz anlegen und
- * zeichnen, 2.–5. tönen (falls nötig), 6. rastern und tauschen. Bis dahin bleibt die Basis
+ * zeichnen, 2.–5. tönen (nur nachts bzw. bei Wetter; die Kopien werden je Stück gerastert),
+ * zuletzt die ungetönten Ebenen rastern und den Satz gegen den gezeigten tauschen. Bis dahin bleibt die Basis
  * bzw. der vorige Ausschnitt skaliert sichtbar. Bewegt sich die Kamera oder ändert sich
  * die Größe, wird abgebrochen (der nächste ruhende Frame plant neu).
  */
@@ -1260,12 +1386,17 @@ function scheduleDetail(cache: Cache, base: SizeCache, cam: CameraView, idle: Id
       const next = buildDetailCache(old, `${base.key}@${zoom}:${left},${top}`, base, job, look, midgroundMask(input), sceneSite(input.site));
       cache.staticBuilds++;
       cache.detailNext = next;
-      updateLayers(next, base, cache, input, cache.lastG, cache.lastTime, look, null);
+      updateLayers(next, base, cache, input, cache.lastG, cache.lastTime, look, null, false);
       if (cache.tintKey >= 0) plan = tintPlan(next, cache);
       stage = 1;
     } else if (stage <= TINT_STAGES && plan) {
-      // Tönungsstufe inzwischen gewechselt: Rest synchron im Frame (deferTint/updateTint).
-      tintStage(cache.detailNext!, cache, plan, stage - 1, true);
+      // Der neue Satz wird noch nicht gezeigt: Stück für Stück direkt in seine Tönung. Wechselt
+      // die Tönungsstufe unterdessen, tönt der Frame nach dem Tausch nach (deferTint).
+      const next = cache.detailNext!;
+      const set = next.tint ?? newTintSet();
+      next.tint = set;
+      tintStage(next, cache, plan, stage - 1, set, true);
+      if (stage === TINT_STAGES) finishTint(next, cache, plan, set);
       stage++;
     } else {
       const next = cache.detailNext!;
@@ -1307,6 +1438,8 @@ function updateLayers(
   time: number,
   look: SeasonLook | null,
   idle: IdleQueue | null = null,
+  /** false: Aufruf aus Leerlaufzeit – zählt nicht als Frame (Nachziehen nach Frames). */
+  countFrame = true,
 ): void {
   // Jahreszeit (auf 0,05 gerundet): Kulisse und Grasnarbe neu, wenn sich die Rundung
   // ändert; Baum-Ebenen, Pflanzen und Erinnerungsbaum folgen unten.
@@ -1369,7 +1502,7 @@ function updateLayers(
 
   const delta = Math.abs(g - sc.growth);
   const since = time - sc.drawnAt;
-  const frames = ++sc.framesSinceDraw;
+  const frames = countFrame ? ++sc.framesSinceDraw : sc.framesSinceDraw;
   const clockReset = since < 0;
   const due =
     (delta >= REDRAW_STEP && (since >= REDRAW_MIN_INTERVAL || frames >= REDRAW_MIN_FRAMES)) ||
