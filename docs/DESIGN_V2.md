@@ -5961,6 +5961,41 @@ ebenso die Hähersaat.
   × 1,5 (`FEATURED_GENUS_WEIGHT`), wie das Tagebuch-Gewicht (10). Damit fühlt sich der Auwald
   nach Fröschen an, ohne dass andere Arten fehlen.
 
+**Umsetzung (Schritt B, ohne neue Spielstand-Version)** – Schnittstelle für Oberfläche (1c):
+
+- **Wann gewürfelt wird:** nur am Wegpunkt (`drawEncounter` aus `tick`), nach dem Ziehen der
+  drei Tierkarten; nicht beim Neu würfeln, nicht bei vorgegebenen Begegnungen (`nextEncounter`),
+  nie bei Pflanzen, Ereignissen und Gästen. Ohne gebauten Korridor am aktiven Wald wird gar nicht
+  gewürfelt – Stände ohne Korridore ziehen Zug um Zug wie vor Schritt B. Mit Korridor: ein
+  Zufallswert gegen die Chance; nur bei einem Treffer und mindestens einer passenden Art zwei
+  weitere (welche Art, gleichverteilt über alle passenden; welche Karte, gleichverteilt).
+  Online = offline, weil derselbe Wegpunkt-Pfad zieht (`tests/tick.test.ts`, Landschaft).
+- **„Offene Nische“** heißt hier wie bei jeder Tierkarte: die Nische hat auf dieser Stufe
+  Plätze (> 0) – ist sie voll, kann der Spieler tauschen. Der Weg einer Art ist der erste
+  gebaute Korridor (Bau-Reihenfolge), dessen Nachbar sie im Bestand hat.
+- **`featured`:** in `drawAnimals` (also auch beim Neu würfeln und bei der Belohnung der
+  Tagesziele) innerhalb der Seltenheit × 1,5, multipliziert mit dem Tagebuch-Gewicht. Im
+  Heimatwald (keine `featured`) unverändert, auch im Zufall.
+- **Bericht:** `TickReport.wildwechsel: WildwechselCard[]` (auch im `OfflineReport`), je
+  Treffer `{ species, from: SiteId, corridor: string, card: number }` – `card` ist der Index in
+  `cards` der Begegnung, die beim Erreichen am Ende von `pendingEncounters` liegt. Den Namen
+  des Weges liefert `CORRIDORS_BY_ID.get(corridor).name` („über die Schlehenhecke“).
+- **Abfragen** (`core/landscape.ts`, rein): `wildwechselChance(state)`,
+  `wildwechselRoutes(state)` (alle Arten aus dem Bestand der Nachbarn über gebaute Korridore,
+  je einmal, ohne Stufen- und Nischen-Regeln), `wildwechselRoute(state, species)` (Weg oder
+  null), `featuredGenera(state)`. `tick.ts`: `drawWildwechsel(state, cards)`.
+- **Grenze ohne neues Feld:** Welche Karte einer **offenen** Begegnung als Wildwechsel kam,
+  steht nicht im Spielstand. Nach dem Neuladen kann die Oberfläche nur noch
+  `wildwechselRoute` fragen – die nennt einen Weg auch für eine gewöhnlich gezogene Art, die
+  zufällig im Bestand eines Nachbarn lebt. Soll die Karte den Weg genau und dauerhaft zeigen,
+  braucht `PendingEncounter` ein Feld (z. B. `via?: { card: number; corridor: string }`) – dann
+  mit v15 (25), nicht vorher. Dasselbe Feld braucht der Erfolg `wildwechsel-1` (24.12) für den
+  Zähler `meta.stats.wildwechselChosen` (2b): `chooseCard` zählt hoch, wenn `cardIndex ===
+  via.card`. Umsetzung in 2b: `drawEncounterWithRoute` (tick.ts) setzt `via` aus der
+  zurückgegebenen `WildwechselCard`; Laden: `via` nur übernehmen, wenn `card` ein gültiger
+  Index ist, `corridor` gebaut ist und am aktiven Wald liegt, sonst weglassen; Neu würfeln
+  löscht `via` (neue Karten). Ältere Stände (≤ v14) haben kein `via` – nichts zu migrieren.
+
 ### 24.7 Waldtypen im Vergleich
 
 Wie bei den Baumarten (17.4) darf kein Waldtyp „der beste“ sein: Ziel ±5 % Zeit bis zum Urwald
@@ -6290,7 +6325,7 @@ Wachstums-Spieler 288–300, Zufall 263–275.
 | 1 ✅ | `core-engineer` | **Schritt A (v14)** – umgesetzt, Schnittstelle 24.8: `LandscapeState` in `state.ts`, `SAVE_VERSION` 14, Migration v13 → v14 und robustes Laden (24.8) mit Tests (jede Version v2 … v13 lädt; manipulierte Kosten). `formulas.ts`: `effectiveForestMemory(state)` (ersetzt `meta.forestMemory` in `ecosystemOf` und `regularSlots`; Cache-Schlüssel), `jaySeeds(state)` → `{ earned, spent, available }`, `landscapeUnlocked(state)`; Eigenheiten und Gaben des Standorts in `environmentEffects` und `slotBonuses` (an derselben Stelle wie die Baum-Eigenheiten, Cache `\|l:${site}\|g:${Gaben}`), Merkmale wie `cycle.habitats`. `tick.ts`: `previewNewCycle` mit `landscape` (wählbare Wälder, gründbare mit Kosten bzw. Sperrgrund), `startNewCycle(state, now, tree?, site?)` (Wechsel/Gründung in der Reihenfolge von 24.5; Fehler `site-locked`, `not-enough-jay-seeds`, `not-adjacent`, `needs-ancient-forest` – bei Fehlern ändert sich nichts), `buildCorridor(state, id)`. Tests: Rechenregeln aus `tests/landscape.test.ts` übernehmen, Wechsel hin und zurück erhält Gedächtnis und Stammgäste, online = offline, Obergrenze 🌿/s (24.9) | Lebensräume v13 gemergt (nie zwei Versionen parallel) |
 | 2 ✅ | `ui-dev` | Karte der Landschaft im Bereich „Neuer Zyklus“ (DOM/SVG, kein Canvas: Knöpfe, Tastatur, Screenreader): Standorte mit Symbol, Name, eigenem/wirksamem Gedächtnis, Eigenheit und Gabe im Tooltip; gesperrte Standorte mit Kosten bzw. Grund („Nur aus dem Urwald“, „Liegt nicht neben …“); Korridore als Linien mit Kaufknopf; Hähersaat-Anzeige („🪶 5 – nach diesem Zyklus 6“); Meldung der Freischaltung; Naturtagebuch-Reiter „Landschaft“; Spielanleitung „Waldlandschaft“; mobil 360/390 px ohne Querscrollen. **Reiter „Landschaft“ umgesetzt** (`src/ui/journal-landscape-view.ts`): verborgen bis `landscapeUnlocked(state)` (Spoiler; Pfeiltasten überspringen ihn), Zähler „gegründet/6“; je gegründetem Wald (Gründungs-Reihenfolge) Name, Waldtyp, Gedächtnis eigen/wirksam (`ownMemory`, `effectiveMemoryOf`), Urwald ja/nein (`isSiteAncient`), Leitbaum, Hauptbaum jetzt bzw. zuletzt gewachsen, Stammgäste (aktiv `meta.regulars`, ruhend `sites[].regulars`), Tiere (aktiv: laufender Bestand, ruhend: `sites[].fauna`; nur entdeckte Arten, seltenste zuerst, höchstens 4 und „N weitere“); gebaute Korridore (gratis mit der Gründung bzw. gekauft für n 🪶); Hähersaat verdient/ausgegeben/verfügbar (`jaySeeds`) | 1 |
 | 3 ✅ | `renderer` | `SceneInput.site`: Kulisse je Waldtyp im Mittel- und Hintergrund (Auwald: Fluss mit Weiden; Erlenbruch: Wasserflächen zwischen Bulten, Nebelbänder; Buchenhallen: graue Säulenstämme, kaum Unterwuchs; Bergmischwald: Berge und Tannen-Silhouetten, im Winter mehr Schnee; Kiefernheide: Sand, lila Heidekraut, Kiefern) – je Standort eine gecachte Ebene, Neuaufbau nur beim Wechsel. Übergang bei der Gründung: ein Eichelhäher fliegt mit einer Eichel durchs Bild (≤ 3 s, bei „Weniger Bewegung“ nur Überblendung). Demo `?site=…`, Anker-Tests wie 23.8 | 1 (Grafik kann mit festem `site` früher beginnen) |
-| 4 | `core-engineer` | **Schritt B (ohne neue Version):** Wildwechsel-Karten und `featured`-Gewichte beim Ziehen der Tierkarten (24.6), `fauna` beim Verlassen eines Waldes schreiben; Tests (Chance, Regeln, Determinismus online = offline) | 1 |
+| 4 ✅ | `core-engineer` | **Schritt B (ohne neue Version)** – umgesetzt, Schnittstelle am Ende von 24.6: Wildwechsel-Karten und `featured`-Gewichte beim Ziehen der Tierkarten (24.6), `fauna` beim Verlassen eines Waldes schreiben; Tests (Chance, Regeln, Determinismus online = offline) | 1 |
 | 5 | `game-designer` | Erfolge der Landschaft als Daten (24.12); nach 4 großer Lauf (`scripts/landscape.ts` läuft seit Schritt A auf der echten Logik), 24.7/24.10 nachtragen, Wildwechsel messen (Vielfalt 7.7) | 1, 4 |
 | 6 | `core-engineer` | Bedingungsarten `forests`, `corridors`, `ancientForests` in `core/achievements.ts`; Nachtrag beim Laden wie 12.6 | 5 |
 | 7 | `qa-tester` | e2e: Spielstand mit 250 Gedächtnis im Urwald → Freischaltung → Auwald gründen → Neuladen → Wechsel zurück → Gedächtnis und Stammgäste wie vorher; Sync zweier Geräte mit v14 | 2, 3 |

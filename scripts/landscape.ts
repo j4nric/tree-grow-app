@@ -6,8 +6,8 @@
  * Bis Schritt A (Spielstand v14) war das ein Modell, das die Landschaft um den Simulator
  * herum nachbaute; die Varianten der Regeln von damals stehen in DESIGN_V2.md 24.10.
  *
- * Nicht im Lauf: Wildwechsel-Karten und die Gewichte der Gattungen eines Waldtyps
- * (`featured`) – Schritt B (24.11).
+ * Seit Schritt B (24.11) ziehen auch Wildwechsel-Karten und die Gewichte der Gattungen eines
+ * Waldtyps (`featured`) mit – sie stecken in drawEncounter/drawAnimals der echten Logik.
  *
  * Spieler-Politik (ein „vernünftiger“ Spieler, keine Optimierung): Jeder Zyklus läuft bis
  * zum Urwald. Danach (1) einen neuen Wald gründen, sobald die Hähersaat reicht (Reihenfolge
