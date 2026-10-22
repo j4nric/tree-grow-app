@@ -73,6 +73,15 @@ function ecosystem(t: number): EcosystemView {
       { id: 'meadow', icon: '🌾', label: 'Lichtung', capacity: 0, animals: [], unlockHint: 'öffnet sich bei Windwurf' },
     ],
     night: { growth: ['Waldkauz'], seeds: [] },
+    foodWeb: {
+      summary: '1 überjagt · 2 im Gleichgewicht',
+      emptyText: '',
+      rows: [
+        { tag: 'raupen', icon: '🐛', name: 'Raupen', state: 'balanced', stateLabel: 'im Gleichgewicht', stateIcon: '✓', stock: { level: 'high', label: 'reichlich' }, prey: 'Eichenwickler', hunters: 'Blaumeise', hunterCount: 1, controllers: '', hint: 'Die Jäger werden satt, die Beute bleibt gelassen.' },
+        { tag: 'kaefer', icon: '🪲', name: 'Käfer', state: 'overhunted', stateLabel: 'überjagt', stateIcon: '👀', stock: { level: 'low', label: 'knapp' }, prey: 'Borkenkäfer', hunters: 'Buntspecht und Schwarzspecht', hunterCount: 2, controllers: '', hint: 'Mehr Jäger als Futter – zufriedenere Beute oder eine weitere Art mit Käfer hilft.' },
+        { tag: 'wuermer', icon: '🪱', name: 'Würmer', state: 'unhunted', stateLabel: 'ungejagt', stateIcon: '○', stock: { level: 'good', label: 'gut' }, prey: 'Regenwurm', hunters: '', hunterCount: 0, controllers: '', hint: 'Kein Nachteil – ein Jäger fände hier Futter.' },
+      ],
+    },
     communities: {
       activeCount: 1,
       harmony: 8,

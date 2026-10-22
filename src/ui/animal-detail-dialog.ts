@@ -102,6 +102,8 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
   const happyBody = el('div', 'detail-stack');
   happyBody.append(conditions, factors);
 
+  // Räuber und Beute: Bestand, wen sie ernährt, wie es um ihr Futter steht (DESIGN_V2.md 22.7).
+  const predation = el('ul', 'card-effects detail-predation-list');
   const effects = el('ul', 'card-effects');
   const abilities = el('ul', 'detail-abilities');
   const communities = el('ul', 'detail-communities');
@@ -112,6 +114,7 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
   const sections = {
     contribution: section(prefix, 'contribution', 'Beitrag gerade', contributionBody),
     reasons: section(prefix, 'reasons', 'Zufriedenheit – warum?', happyBody),
+    predation: section(prefix, 'predation', 'Räuber und Beute', predation),
     effects: section(prefix, 'effects', 'Wirkungen', effects),
     abilities: section(prefix, 'abilities', 'Fähigkeiten', abilities),
     communities: section(prefix, 'communities', 'Lebensgemeinschaften', communities),
@@ -121,6 +124,7 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
     head,
     sections.contribution,
     sections.reasons,
+    sections.predation,
     sections.effects,
     sections.abilities,
     sections.communities,
@@ -184,6 +188,21 @@ export function createAnimalDetailDialog(root: HTMLElement): AnimalDetailDialog 
         return li;
       }),
     );
+
+    predation.replaceChildren(
+      ...view.predation.map((row) => {
+        const li = el('li', `tone-${row.tone}`);
+        li.dataset.predation = row.key;
+        const icon = el('span', 'mark', row.icon);
+        icon.setAttribute('aria-hidden', 'true');
+        const text = el('span', 'detail-predation-text');
+        text.append(el('span', '', row.label));
+        if (row.hint) text.append(el('span', 'detail-predation-hint', row.hint));
+        li.append(icon, text);
+        return li;
+      }),
+    );
+    sections.predation.hidden = view.predation.length === 0;
 
     effects.replaceChildren(
       ...view.effects.map((effect) => {

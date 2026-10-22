@@ -15,6 +15,8 @@ import type {
   CommunityView,
   EcosystemView,
   FamilyView,
+  FoodWebRowView,
+  FoodWebView,
   HarmonyPartView,
   NicheView,
   PlantRingView,
@@ -87,6 +89,17 @@ interface CommunityRow {
   state: CommunityView['state'] | null;
 }
 
+interface FoodWebRow {
+  root: HTMLElement;
+  icon: HTMLElement;
+  name: HTMLElement;
+  stateIcon: HTMLElement;
+  stateLabel: HTMLElement;
+  prey: HTMLElement;
+  hunters: HTMLElement;
+  hint: HTMLElement;
+}
+
 interface PartRow {
   root: HTMLElement;
   label: HTMLElement;
@@ -116,6 +129,8 @@ interface SlotTile {
   icon: HTMLElement;
   name: HTMLElement;
   mood: HTMLElement;
+  /** Bestand der Beute („Bestand reichlich“), nur bei Beute sichtbar. */
+  stock: HTMLElement;
   night: HTMLElement;
   sr: HTMLElement;
   animalId: string | null;
@@ -230,6 +245,23 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
   const communityRows = new Map<string, CommunityRow>();
   let communityOrder = '';
 
+  // Nahrungsnetz (aufklappbar wie die Lebensgemeinschaften, DESIGN_V2.md 22.7)
+  const foodWeb = el('details', 'eco-harmony eco-foodweb');
+  foodWeb.dataset.ref = 'food-web';
+  const foodWebSummary = el('summary');
+  const foodWebTitle = el('span', 'eco-communities-title', 'Nahrungsnetz');
+  const foodWebCount = el('span', 'eco-communities-count');
+  foodWebCount.dataset.ref = 'food-web-summary';
+  foodWebSummary.append(foodWebTitle, foodWebCount);
+  const foodWebIntro = el('p', 'food-web-intro', 'Wer jagt wen? Zufriedene Beute ernährt mehr Jäger.');
+  const foodWebList = el('ul', 'food-web-list');
+  foodWebList.setAttribute('aria-label', 'Nahrungsnetz');
+  const foodWebEmpty = el('p', 'food-web-empty');
+  foodWebEmpty.dataset.ref = 'food-web-empty';
+  foodWeb.append(foodWebSummary, foodWebIntro, foodWebList, foodWebEmpty);
+  const foodWebRows = new Map<string, FoodWebRow>();
+  let foodWebOrder = '';
+
   // Gattungsleiste
   const familiesTitle = el('h2', 'eco-title', 'Gattungen');
   const familyBar = el('div', 'family-bar');
@@ -299,7 +331,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
   action.append(plantButton, plantHint);
   ring.append(ringHint, supplyBox, plantList, groupCaption, groupBox, action);
 
-  panel.append(head, stats, details, communities, ringTitle, ring, familiesTitle, familyBar, familyDetail, nichesTitle, nicheList);
+  panel.append(head, stats, details, communities, foodWeb, ringTitle, ring, familiesTitle, familyBar, familyDetail, nichesTitle, nicheList);
   root.append(panel);
 
   let lastHarmony: number | null = null;
@@ -396,6 +428,68 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     }
   }
 
+  function buildFoodWebRow(tag: string): FoodWebRow {
+    const li = el('li', 'food-web-row');
+    li.dataset.tag = tag;
+    const headRow = el('p', 'food-web-head');
+    const icon = el('span', 'food-web-icon');
+    icon.setAttribute('aria-hidden', 'true');
+    const name = el('b', 'food-web-name');
+    // Zustand immer als Text (nicht nur Farbe); das Symbol ist Schmuck.
+    const state = el('span', 'food-web-state');
+    state.dataset.ref = 'food-web-state';
+    const stateIcon = el('span', 'food-web-state-icon');
+    stateIcon.setAttribute('aria-hidden', 'true');
+    const stateLabel = el('span');
+    state.append(stateIcon, stateLabel);
+    headRow.append(icon, name, srOnly(': '), state);
+    const prey = el('p', 'food-web-line');
+    prey.dataset.ref = 'food-web-prey';
+    const hunters = el('p', 'food-web-line');
+    hunters.dataset.ref = 'food-web-hunters';
+    const hint = el('p', 'food-web-hint');
+    hint.dataset.ref = 'food-web-hint';
+    li.append(headRow, prey, hunters, hint);
+    return { root: li, icon, name, stateIcon, stateLabel, prey, hunters, hint };
+  }
+
+  function updateFoodWebRow(row: FoodWebRow, item: FoodWebRowView): void {
+    const className = `food-web-row state-${item.state}`;
+    if (row.root.className !== className) row.root.className = className;
+    setText(row.icon, item.icon);
+    setText(row.name, item.name);
+    setText(row.stateIcon, item.stateIcon);
+    setText(row.stateLabel, item.stateLabel);
+    setText(row.prey, `Beute: ${item.prey} · Bestand ${item.stock.label}`);
+    const who = item.hunters ? `Jäger: ${item.hunters}` : 'Jäger: keine';
+    setText(row.hunters, item.controllers ? `${who} · hält klein: ${item.controllers}` : who);
+    setText(row.hint, item.hint);
+  }
+
+  function updateFoodWeb(view: FoodWebView): void {
+    setText(foodWebCount, view.summary);
+    for (const item of view.rows) {
+      let row = foodWebRows.get(item.tag);
+      if (!row) {
+        row = buildFoodWebRow(item.tag);
+        foodWebRows.set(item.tag, row);
+      }
+      updateFoodWebRow(row, item);
+    }
+    const order = view.rows.map((r) => r.tag).join('|');
+    if (order !== foodWebOrder) {
+      foodWebOrder = order;
+      foodWebList.replaceChildren(...view.rows.map((r) => foodWebRows.get(r.tag)!.root));
+      const present = new Set(view.rows.map((r) => r.tag));
+      for (const tag of [...foodWebRows.keys()]) if (!present.has(tag)) foodWebRows.delete(tag);
+    }
+    const empty = view.rows.length === 0;
+    foodWebList.hidden = empty;
+    foodWebIntro.hidden = empty;
+    setText(foodWebEmpty, empty ? view.emptyText : '');
+    foodWebEmpty.hidden = !empty;
+  }
+
   function selectFamily(id: string | null): void {
     selectedFamily = selectedFamily === id ? null : id;
     for (const [key, chip] of familyChips) {
@@ -479,7 +573,10 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     const name = el('span', 'slot-name');
     // Gekürzte Gründe: voller Text im Tooltip und in den Tierdetails (Tippen auf die Kachel).
     const mood = el('span', 'slot-mood');
-    text.append(name, mood);
+    // Beute: Bestand in Worten (DESIGN_V2.md 22.7) – nur bei Beute sichtbar.
+    const stock = el('span', 'slot-stock');
+    stock.hidden = true;
+    text.append(name, mood, stock);
     // Nachtaktive Arten: 🌙 am Ring, leuchtet, solange die Nachtwirkung gilt.
     const night = el('span', 'slot-night', '🌙');
     night.setAttribute('aria-hidden', 'true');
@@ -490,7 +587,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     const button = el('button', 'slot-open');
     button.type = 'button';
     button.setAttribute('aria-haspopup', 'dialog');
-    const tile: SlotTile = { root: li, button, parts: [ring, text, sr], ring, icon, name, mood, night, sr, animalId: null };
+    const tile: SlotTile = { root: li, button, parts: [ring, text, sr], ring, icon, name, mood, stock, night, sr, animalId: null };
     button.addEventListener('click', () => {
       if (tile.animalId) callbacks.onOpenAnimal?.(nicheId, index, tile.animalId, button);
     });
@@ -521,6 +618,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
       setText(tile.name, 'frei');
       setText(tile.mood, '');
       tile.mood.removeAttribute('title');
+      if (!tile.stock.hidden) tile.stock.hidden = true;
       if (!tile.night.hidden) tile.night.hidden = true;
       setText(tile.sr, '');
       placeParts(tile, false);
@@ -543,6 +641,11 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     // Lange Gründe sind optisch auf zwei Zeilen gekürzt – voller Text im Tooltip und in den Tierdetails.
     setAttr(tile.mood, 'title', mood);
     setVar(tile.ring, '--h', happiness.toFixed(3));
+    const stock = animal.stock;
+    if (tile.stock.hidden === Boolean(stock)) tile.stock.hidden = !stock;
+    setText(tile.stock, stock ? `Bestand ${stock.label}` : '');
+    const stockClass = `slot-stock stock-${stock?.level ?? 'none'}`;
+    if (tile.stock.className !== stockClass) tile.stock.className = stockClass;
     const night = animal.night;
     if (tile.night.hidden === Boolean(night)) tile.night.hidden = !night;
     tile.night.classList.toggle('active', night?.active === true);
@@ -768,6 +871,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
 
     updateParts(view.harmonyParts, view.harmony);
     updateCommunities(view.communities);
+    updateFoodWeb(view.foodWeb);
     updatePlantRing(view.plantRing);
     updateFamilies(view.families);
     updateNiches(view.niches);

@@ -1595,6 +1595,152 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   }
 }
 
+/* Nahrungsnetz (aufklappbar wie die Lebensgemeinschaften, DESIGN_V2.md 22.7) */
+.eco-foodweb summary {
+  flex-wrap: wrap;
+  column-gap: 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.food-web-intro,
+.food-web-empty {
+  margin: 0 12px 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.food-web-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.food-web-list[hidden],
+.food-web-intro[hidden],
+.food-web-empty[hidden] {
+  display: none;
+}
+
+.food-web-row {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border-left: 4px solid #9bb98a;
+  background: #faf8f1;
+  font-size: 0.85rem;
+}
+
+.food-web-row p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.food-web-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 2px;
+}
+
+.food-web-icon {
+  font-size: 1.05rem;
+}
+
+.food-web-name {
+  font-weight: 600;
+}
+
+.food-web-state {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--good-bg);
+  color: var(--accent-dark);
+}
+
+.food-web-line {
+  font-size: 0.8rem;
+}
+
+.food-web-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Überjagt: freundlicher Hinweis statt Warnfarbe – warmes Gelb, kein Rot */
+.food-web-row.state-overhunted {
+  border-left-color: var(--rarity-rare);
+}
+
+.food-web-row.state-overhunted .food-web-state {
+  background: #fbf1d3;
+  color: var(--rarity-rare-text);
+}
+
+.food-web-row.state-unhunted {
+  border-left-color: #c9c3ad;
+}
+
+.food-web-row.state-unhunted .food-web-state {
+  background: #efece2;
+  color: var(--muted);
+}
+
+/* Bestand der Beute an der Kachel: „Bestand reichlich“ */
+.slot-stock {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: #efece2;
+  color: var(--muted);
+}
+
+.slot-stock[hidden] {
+  display: none;
+}
+
+.slot-stock.stock-high {
+  background: var(--good-bg);
+  color: var(--accent-dark);
+}
+
+.slot-stock.stock-low {
+  background: #fbf1d3;
+  color: var(--rarity-rare-text);
+}
+
+/* Tierdetails: Räuber und Beute */
+.detail-predation-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-predation-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
 /* Kartenvorschau: „✨ vervollständigt Humusküche (+8 Harmonie)“ */
 .card-communities {
   list-style: none;

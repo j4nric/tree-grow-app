@@ -4957,8 +4957,9 @@ und die Schonzeit: Junger Baum 4:10 / 3:55 min statt vorher 4:06 / 3:51 min (onl
 > Zahlen und Ereignisse in `src/content/predation.ts`, Logik in `core/formulas.ts` und
 > `core/tick.ts`, Tests `tests/predation.test.ts` (Logik) und `tests/habitats.test.ts`
 > (Inhalt), Messung 22.9 (`tests/predation-balance.test.ts`). Offen: die neuen Merkmale
-> Amphibien/Kaninchen und die Lebensraum-Arten in den Massenjahren (Schritt B, 23.7) und die
-> Anzeige (22.7, `ui-dev`).
+> Amphibien/Kaninchen und die Lebensraum-Arten in den Massenjahren (Schritt B, 23.7). Die
+> Anzeige (22.7) ist umgesetzt: `src/ui/food-web-view.ts` (Tests `tests/food-web-view.test.ts`,
+> `e2e/food-web.spec.ts`).
 >
 > **Schritt B erledigt** (mit den Lebensräumen, Spielstand v13, 23.7): Amphibien stellen
 > „Amphibien“ bereit (Ringelnatter), der Rotfuchs frisst und hält Kaninchen klein, Echsen
@@ -5129,6 +5130,13 @@ den echten Tag. Gleicher Spielstand → gleiche Ereignisse. Das „Borkenkäferj
 (21.11) ist damit das Käferjahr bei Dürre – ohne eigene Zählung von Dürretagen.
 
 ### 22.7 Darstellung und UI
+
+> **Umgesetzt** (mit kleinen Abweichungen, um Zahlen zu sparen): Jäger lesen „Futter
+> Kleinsäuger: reicht für 2 Jäger“ bzw. „… zu knapp für 3 Jäger“ statt „1,5 für 2 Jäger
+> (75 %)“ – der Anteil steht weiter an der Futterzeile („75 % gedeckt“). Die Nahrungsnetz-Zeile
+> nennt den Bestand in Worten („Bestand reichlich“, Schnitt der Beute) statt „Bestand 2,7“.
+> Kacheln der Beute zeigen „Bestand knapp/gut/reichlich“. Ungejagte Zeilen nennen das passende
+> Massenjahr mit Jahreszeit (bzw. ab welcher Stufe oder dass es schon war).
 
 - **Tierdetails und Karte** (`ui-dev`): Beute zeigt „Bestand: reichlich – ernährt
   Waldkauz und Rotfuchs“; Jäger zeigen „Futter: Kleinsäuger 1,5 für 2 Jäger (75 %)“. Bei
