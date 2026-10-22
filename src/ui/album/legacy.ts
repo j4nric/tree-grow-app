@@ -212,7 +212,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   const returnReport = createReturnReportPanel(mounts.returnReport, () => hooks.focusTarget());
   const seasonBadge = createSeasonBadge(mounts.season);
   const weatherBadge = createWeatherBadge(mounts.season, seasonBadge.element);
-  const stack = createEncounterStack(mounts.dock, openEncounters);
+  const stack = createEncounterStack(mounts.dock, openEncounters, { float: false });
   const dialog = createEncounterDialog(document.body, { ...deps.actions.encounter, onDefer: closeEncounters });
   const picker = createPlantPicker(document.body, {
     onPlant: (plantId) => deps.actions.plant(plantId),

@@ -59,7 +59,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   let nav: AlbumNav = initialNav(tabFromHash(location.hash, ctx));
   const turn = createPageTurn({ reducedMotion: () => deps.preferences.reducedMotion });
   /** Eingaben während des Blätterns – danach der Reihe nach (C.3). */
-  const queue: NavAction[] = [];
+  const queue: (() => void)[] = [];
   /** Auslösender Knopf je Ebene: bekommt nach „Zurück“ den Fokus. */
   const triggers: (HTMLElement | null)[] = [];
 
@@ -143,19 +143,24 @@ export function createAlbum(deps: AlbumDeps): Album {
   setOrientation();
   book.onLayoutChange(() => {
     setOrientation();
-    lockScroll();
+    // Weggedrehte Seite gehört zum alten Layout (mobil: Hauptansicht, Doppelseite: rechte
+    // Seite): neu setzen – während einer Drehung erst danach.
+    whenIdle(settleTurns);
   });
 
   // --- Verlauf, Hash, Tastatur -----------------------------------------------------------
   const albumHistory = createAlbumHistory({
     onBack(depth) {
-      let next = nav;
-      for (let guard = 0; historyDepth(next) > depth && guard < 8; guard++) {
-        const back = navigate(next, { type: 'back' }, ctx);
-        if (back === next) break;
-        next = back;
-      }
-      commit(next, false);
+      // Während des Blätterns vormerken (sonst liefen zwei Drehungen zugleich).
+      whenIdle(() => {
+        let next = nav;
+        for (let guard = 0; historyDepth(next) > depth && guard < 8; guard++) {
+          const back = navigate(next, { type: 'back' }, ctx);
+          if (back === next) break;
+          next = back;
+        }
+        if (next !== nav) commit(next, false);
+      });
     },
   });
   albumHistory.setHash(hashOf(nav.tab));
@@ -173,9 +178,15 @@ export function createAlbum(deps: AlbumDeps): Album {
 
   // --- Navigation -----------------------------------------------------------------------
 
+  /** Sofort ausführen oder – während des Blätterns – vormerken (C.3). */
+  function whenIdle(task: () => void): void {
+    if (turn.busy) queue.push(task);
+    else task();
+  }
+
   function dispatch(action: NavAction): void {
     if (turn.busy) {
-      queue.push(action);
+      queue.push(() => dispatch(action));
       return;
     }
     if (action.type === 'open' && !subpages.has(action.page.kind)) return;
@@ -196,6 +207,10 @@ export function createAlbum(deps: AlbumDeps): Album {
 
   /** Zurück, bis `done` gilt (z. B. Umschlag zu). */
   function goBackTo(done: (nav: AlbumNav) => boolean): void {
+    if (turn.busy) {
+      queue.push(() => goBackTo(done));
+      return;
+    }
     if (done(nav)) return;
     let next = nav;
     for (let guard = 0; !done(next) && guard < 8; guard++) next = navigate(next, { type: 'back' }, ctx);
@@ -213,10 +228,16 @@ export function createAlbum(deps: AlbumDeps): Album {
     nav = next;
     if (record) albumHistory.sync(historyDepth(next));
     if (prev.tab !== next.tab) albumHistory.setHash(hashOf(next.tab));
-    void render(prev, next).finally(() => {
-      const action = queue.shift();
-      if (action) dispatch(action);
-    });
+    void render(prev, next).finally(drain);
+  }
+
+  /** Vorgemerkte Eingaben der Reihe nach, bis wieder eine Drehung läuft. */
+  function drain(): void {
+    while (!turn.busy) {
+      const task = queue.shift();
+      if (!task) return;
+      task();
+    }
   }
 
   /** Element einer Ebene: 0 = Hauptansicht bzw. Umschlag, sonst die Unterseite. */
@@ -262,18 +283,31 @@ export function createAlbum(deps: AlbumDeps): Album {
       else focusTarget()?.focus({ preventScroll: true });
     } else if (a !== b) {
       // Ersetzt oder geleert (Reiterwechsel, Umschlag): ohne Umblättern.
-      resetTurns();
       const top = b[b.length - 1];
-      for (const sub of subpages.values()) sub.page.element.hidden = true;
-      if (top) {
-        const sub = subpageOf(top)!;
-        fillSubpage(sub, next, b.length);
-        sub.page.element.hidden = false;
-        levelElement(next, b.length - 1).classList.add(TURNED_AWAY);
-      }
-      spread.sub.hidden = !top;
-      lockScroll();
+      if (top) fillSubpage(subpageOf(top)!, next, b.length);
+      settleTurns();
     }
+  }
+
+  /**
+   * Ruhezustand ohne Animation: oberste Unterseite sichtbar, alle Ebenen darüber weggedreht
+   * und nicht bedienbar. Nach Ersetzen/Leeren des Stapels und nach einem Layoutwechsel.
+   */
+  function settleTurns(): void {
+    resetTurns();
+    const top = nav.stack[nav.stack.length - 1];
+    for (const sub of subpages.values()) sub.page.element.hidden = true;
+    if (top) {
+      subpageOf(top)!.page.element.hidden = false;
+      for (let level = 0; level < nav.stack.length; level++) {
+        const element = levelElement(nav, level);
+        element.hidden = false;
+        element.classList.add(TURNED_AWAY);
+        element.inert = true;
+      }
+    }
+    spread.sub.hidden = !top;
+    lockScroll();
   }
 
   function fillSubpage(sub: Subpage, state: AlbumNav, level: number): void {
