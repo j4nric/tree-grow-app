@@ -129,6 +129,14 @@ describe('Nahrungsnetz der Übersicht', () => {
     // Schon gewesen in diesem Zyklus.
     state.cycle.seen.push('caterpillar-year');
     expect(unhuntedHint('raupen', state)).toBe('Das Raupenjahr war schon – ein Jäger fände hier Futter.');
+    // Gezogen, aber noch im Stapel (steht schon in `seen`): Die Wahl ist noch offen.
+    state.pendingEncounters = [{ type: 'event', cards: ['caterpillar-year'], rerolls: 0 }];
+    expect(unhuntedHint('raupen', state)).toBe('Das Raupenjahr wartet unter deinen Begegnungen – dort kannst du Jäger einladen.');
+    expect(foodWebView(evaluate(state), state).rows.find((r) => r.tag === 'raupen')!.hint).toBe(unhuntedHint('raupen', state));
+    // Ein anderes wartendes Ereignis ändert nichts.
+    state.pendingEncounters = [{ type: 'event', cards: ['vole-year'], rerolls: 0 }];
+    expect(unhuntedHint('raupen', state)).toBe('Das Raupenjahr war schon – ein Jäger fände hier Futter.');
+    state.pendingEncounters = [];
     // Merkmal ohne Massenjahr: kein Nachteil.
     expect(unhuntedHint('wuermer', state)).toBe('Kein Nachteil – ein Jäger fände hier Futter.');
   });
