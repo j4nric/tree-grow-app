@@ -3742,8 +3742,10 @@ body[data-motion='reduce'] .return-report.fresh {
 
 .return-report-toggle,
 .return-report-close {
-  min-width: 44px;
-  min-height: 44px;
+  /* 46 statt 44 px: Während der Einblende-Animation (translateY) misst der Browser die Höhe
+     als Gleitkommazahl (z. B. 43,99997) – mit Reserve bleibt das Touch-Ziel sicher ≥ 44 px. */
+  min-width: 46px;
+  min-height: 46px;
   padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
