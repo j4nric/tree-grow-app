@@ -48,7 +48,7 @@ import { paintLeaves, paintWood, TREE_FORMS, type LeafPalette, type WoodColors }
 import { cycleElapsed, CycleTransition, type CycleGeometry, type OldForest } from './cycle';
 import { DayLayer, dayLevels, normalizeDayPhase, paintDaySky, tintCopy, tintInPlace, tintRgb, type DayFrame, type DayLevels } from './daylight';
 import { MIDGROUND_MEADOW, MIDGROUND_WALL, midgroundPath, paintMidground } from './habitat-scenery';
-import { IdleQueue, warmCanvas } from './idle';
+import { warmCanvas, type IdleQueue } from './idle';
 import { MoodLayer, type MoodFrame } from './mood';
 import {
   normalizeSpecies,
@@ -695,10 +695,10 @@ const TINT_STAGES = 4;
  * Nacht- bzw. Dämmerungshimmel und Lichtfarbe, Baum-Ebenen und Erinnerungsbaum nur in der
  * Lichtfarbe. Neu nur bei neuer Stufe oder wenn die Ebenen neu gezeichnet wurden.
  */
-function updateTint(sc: SizeCache, cache: Cache, warm = false): void {
+function updateTint(sc: SizeCache, cache: Cache): void {
   const plan = tintPlan(sc, cache);
   if (!plan) return;
-  for (let s = 0; s < TINT_STAGES; s++) tintStage(sc, cache, plan, s, warm);
+  for (let s = 0; s < TINT_STAGES; s++) tintStage(sc, cache, plan, s, false);
 }
 
 /**
