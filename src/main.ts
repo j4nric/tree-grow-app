@@ -5,7 +5,7 @@ import { dayKeyOf, updateDaily, type DailyUpdateOptions } from './core/daily';
 import { dayPhaseAt, evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
 import { sceneSeason } from './core/season';
-import { sceneWeather } from './core/weather';
+import { isNight, sceneWeather } from './core/weather';
 import { createInitialState, type GameState } from './core/state';
 import type { PendingEncounterType } from './core/state';
 import {
@@ -81,7 +81,6 @@ import { toSeasonBadgeView } from './ui/season-view';
 import { createWeatherBadge } from './ui/weather-badge';
 import { toastDurationFor } from './ui/settings';
 import { seasonWeatherChangeText, toWeatherBadgeView } from './ui/weather-view';
-import { isNight } from './core/weather';
 import type { MainTreeId } from './content/trees';
 import type { EcosystemView } from './ui/view-model';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from './sync/config';
