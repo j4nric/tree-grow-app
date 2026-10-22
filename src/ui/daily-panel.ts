@@ -7,7 +7,7 @@
  * (Art, Text, erfüllt) ändern; Fortschritt, Balken und Belohnung werden an Ort und Stelle
  * gesetzt.
  */
-import { barWidth } from './bonus-panel';
+import { barWidth } from './care-view';
 import { el, setAttr, setText, setVar } from './dom';
 import { hyphenate } from './hyphenate';
 import type { DailyView } from './daily-view';

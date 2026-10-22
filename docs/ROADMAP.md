@@ -548,8 +548,18 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   Pflanze setzen. Specs events, playthrough, full-cycle. Abhängig: 4 (Pflanze setzen: 5)
 - [ ] **7** Reiter Arten (`ui-dev`): Sticker-Raster mit Silhouetten, Pflanzen, Gemeinschaften,
   Andenken, Stammgast-★. Spec journal. Abhängig: 5
-- [ ] **8** Reiter Pflege (`ui-dev`): Gerade wirksam, Pflegeliste, Unterseite Pflegemaßnahme,
+- [x] **8** Reiter Pflege (`ui-dev`): Gerade wirksam, Pflegeliste, Unterseite Pflegemaßnahme,
   Punkt am Reiter. Spec care. Abhängig: 4
+  *Umgesetzt:* `album/pages/care-page.ts` (R:Pflege: „Gerade wirksam“ als gelber Zettel mit
+  Restzeit-Washi-Band, Pflegeliste mit festen Zeilen je Maßnahme, Gruppen-Überschriften in
+  Handschrift, Kennzahl „2 kaufbar“ im Seitenkopf, `reveal(id)` für „Zur Pflege“) und
+  `album/pages/care-item-page.ts` (U:Pflegemaßnahme: Stimmungstext, Wirkung des nächsten Rangs,
+  „Öffnet Lebensraum …“, Schutz, Vorschau, alle Ränge, Voraussetzungen mit ✓/✗, Kaufen bzw.
+  Stempel „voll ausgebaut“). Reine Ansichtslogik in `ui/care-view.ts` (`careOrder`,
+  `carePreviewText`, `careSummaryText`, `careTabDot`, `barWidth`, `toCareItemView`).
+  Seiten-Schnittstelle: `PageEnv.open/float`, `TabPage.badge` (Punkt am Reiter, läuft immer),
+  `Subpage.opened(ref)`; Unterseiten registrieren sich nur noch in `pages/registry.ts`.
+  `care-panel.ts` und `bonus-panel.ts` samt CSS gelöscht. Neu: `e2e/album-care.spec.ts`.
 - [ ] **9** Reiter Ziele (`ui-dev`): Tagesziele, Unterseiten Neuer Zyklus, Erfolge, Statistik.
   Specs daily, cycle, cycle-transition, achievements, journal-stats. Abhängig: 4
 - [ ] **10** Reiter Landschaft (`ui-dev`): Karte, Unterseite Standort, Korridore, Wälder,

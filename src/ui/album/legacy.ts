@@ -7,17 +7,13 @@
  * Regeln wie bisher: DOM einmal bauen, Strukturen nur bei Änderungen neu, Zahlen gedrosselt.
  * Spielregeln stehen nicht hier – Aktionen gehen über `deps.actions` an main.ts.
  */
-import { CARE } from '../../content/care';
 import { PLANTS_BY_ID } from '../../content/plants';
 import { evaluate, nextPlantCost, type Evaluation } from '../../core/formulas';
 import { landscapeUnlocked } from '../../core/landscape';
-import { nextCareRank } from '../../core/tick';
 import { isNight } from '../../core/weather';
 import {
-  activeBonusViews,
   encounterActionKey,
   refreshEcosystemView,
-  toCareViews,
   toEcosystemView,
   toEncounterView,
   toJournalStats,
@@ -28,8 +24,6 @@ import {
 import { toAchievementTimeProgress } from '../achievement-view';
 import { createAnimalDetailDialog } from '../animal-detail-dialog';
 import { toAnimalDetailView, type AnimalDetailTarget } from '../animal-detail-view';
-import { createBonusPanel } from '../bonus-panel';
-import { createCarePanel } from '../care-panel';
 import { createCyclePanel } from '../cycle-panel';
 import { toCyclePanelView } from '../cycle-view';
 import { createDailyPanel } from '../daily-panel';
@@ -112,6 +106,8 @@ export interface LegacyUi {
   overlayOpen(): boolean;
   noteText(text: string): void;
   floatSeeds(amount: number): void;
+  /** Schwebender Hinweis an Bildschirm-Koordinaten (z. B. Bestätigung nach einem Kauf). */
+  float(text: string, x: number, y: number): void;
   plantFeedback(cost: number, plantId: string): void;
   openAnimalDetail(target: AnimalDetailTarget, returnFocus?: HTMLElement | null): boolean;
   closeEncounters(): void;
@@ -163,8 +159,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   let pickerSeedsAt = -Infinity;
   let seasonShownSecond = -1;
   let shownNight: boolean | null = null;
-  let careKey = '';
-  let careEvaluation: Readonly<Evaluation> | null = null;
   let detailEvaluation: Readonly<Evaluation> | null = null;
   let detailExtra = '';
   let shownLandscape: boolean | null = null;
@@ -184,16 +178,11 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       onOpenAnimal: (_niche, _index, speciesId, button) => openAnimalDetail(speciesId, button),
       onShowCare: (id) => {
         hooks.showCareTab();
-        carePanel.reveal(id);
+        mounts.care.reveal(id);
       },
     },
     { header: false },
   );
-  const bonusPanel = createBonusPanel(mounts.care.bonuses);
-  const carePanel = createCarePanel(mounts.care.care, {
-    onBuy: (id) => deps.actions.buyCare(id),
-    onFeedback: (text, x, y) => floats.spawn(text, x, y, 'note'),
-  });
   const dailyPanel = createDailyPanel(mounts.goals.daily);
   const cyclePanel = createCyclePanel(mounts.goals.cycle, {
     onNewCycle: (tree, site) => deps.actions.newCycle(tree, site),
@@ -456,24 +445,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       journal.updateAchievementProgress(toAchievementTimeProgress(s));
     }
     refreshAnimalDetail();
-    bonusPanel.update(activeBonusViews(s));
     dailyPanel.update(toDailyView(s, deps.today()));
-    refreshCare();
-  }
-
-  /** Pflege-Liste: Vorschauen nur neu, wenn Ökosystem, Bezahlbarkeit oder Fehlbetrag sich ändern. */
-  function refreshCare(): void {
-    const s = state();
-    const ev = evaluate(s);
-    let key = '';
-    for (const m of CARE) {
-      const cost = nextCareRank(s, m.id)?.cost;
-      key += (cost === undefined ? '-' : cost <= s.seeds ? '1' : Math.ceil(cost - s.seeds)) + ',';
-    }
-    if (ev === careEvaluation && key === careKey) return;
-    careEvaluation = ev;
-    careKey = key;
-    carePanel.update(toCareViews(s, ev));
   }
 
   /** Offene Tierdetails nachziehen; zieht die Art aus, schließt der Dialog (Fokus an die Nische). */
@@ -526,6 +498,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     overlayOpen,
     noteText,
     floatSeeds,
+    float: (text, x, y) => floats.spawn(text, x, y, 'note'),
     plantFeedback,
     openAnimalDetail,
     closeEncounters,
