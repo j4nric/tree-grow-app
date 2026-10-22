@@ -24,7 +24,8 @@ import {
 } from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
 import { PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, type Plant } from '../content/plants';
-import { BASE_HAPPINESS, SPECIES, SPECIES_BY_ID, type Species } from '../content/species';
+import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, STOCK_BASE, STOCK_RANGE } from '../content/predation';
+import { BASE_HAPPINESS, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
 import { SEASONS_BY_ID, type HappinessEffect, type SeasonId } from '../content/seasons';
 import { MAIN_TREE_WEIGHT, STAGES } from '../content/stages';
 import { DEFAULT_MAIN_TREE, MAIN_TREES_BY_ID, type MainTree, type MainTreeId } from '../content/trees';
@@ -72,9 +73,6 @@ import {
 export const FOOD_WEIGHT = 2;
 /** Abzug je störender Art (Wirkung `disturb`). */
 export const DISTURB_PENALTY = 0.15;
-/** Abzug je Räuber, der eine Art jagt (höchstens zwei Räuber zählen). */
-export const PREDATION_PENALTY = 0.1;
-export const PREDATION_MAX_HUNTERS = 2;
 /** „Sonnig“: so viel Licht bleibt nach den Begleitpflanzen frei. */
 export const SUNNY_MIN_LIGHT = 2;
 /** „Schattig“: so viele Bäume (inkl. Hauptbaum). */
@@ -82,6 +80,11 @@ export const SHADY_MIN_TREES = 3;
 /** Futtereinheiten je Anbieter. */
 export const SUPPLY_MAIN_TREE = 2;
 export const SUPPLY_PLANT = 1;
+/**
+ * Angebot je Tier im ersten Durchgang (Zufriedenheit z⁰, DESIGN_V2.md 22.3). Danach
+ * stellt ein Tier max(SUPPLY_ANIMAL, Bestand) bereit (Bestand = STOCK_BASE + STOCK_RANGE · z⁰,
+ * predation.ts) – mehr Futter bei reichlichem Bestand, nie weniger als vor Welle 3.
+ */
 export const SUPPLY_ANIMAL = 1;
 /** Harmonie-Multiplikator: 1 + H / HARMONY_DIVISOR (Entscheidung PO). */
 export const HARMONY_DIVISOR = 100;
@@ -312,10 +315,49 @@ export interface AnimalStatus {
   food: number;
   /** Je Eintrag in `Species.needs`: erfüllt? */
   needs: boolean[];
-  /** Anzahl anwesender Räuber, die diese Art jagen. */
+  /** Anzahl anwesender Räuber, die diese Art jagen (für die Anzeige; der Abzug folgt aus `overhunt`). */
   hunters: number;
+  /**
+   * Bestand (DESIGN_V2.md 22.3): STOCK_BASE + STOCK_RANGE · z⁰, also 0,5 … 1,5 – so viel
+   * Futter stellt die Art je Merkmal bereit. Nur bei Arten, die etwas bereitstellen (Beute).
+   */
+  stock?: number;
+  /**
+   * Überjagung (22.4): fehlende Einheiten Futter, 0 … OVERHUNT_MAX_UNITS – Jäger minus
+   * Futterangebot (Σ max(1, Bestand)) im knappsten Merkmal. Abzug an der Zufriedenheit =
+   * OVERHUNT_PENALTY · overhunt.
+   */
+  overhunt: number;
+  /** Nur bei Überjagung: die Jäger des knappsten Merkmals (Art-IDs, Nischen-Reihenfolge). */
+  overhuntedBy?: string[];
   /** Anzahl anwesender Arten, die diese Art stören (Wirkung `disturb`). */
   disturbers: number;
+}
+
+/**
+ * Zustand eines Merkmals im Nahrungsnetz (DESIGN_V2.md 22.7): im Gleichgewicht (Jäger ≤
+ * Bestand), überjagt (eine Beute verliert Zufriedenheit) oder ungejagt (kein Räuber frisst
+ * es, keine Art hält es klein – dann kann ein Massenjahr kommen, 22.5).
+ */
+export type FoodWebState = 'balanced' | 'overhunted' | 'unhunted';
+
+/** Eine Zeile des Nahrungsnetzes: ein Beute-Merkmal mit Beute im Ökosystem. */
+export interface FoodWebEntry {
+  tag: Tag;
+  /** Tiere im Ökosystem, die das Merkmal bereitstellen (Nischen-Reihenfolge). */
+  prey: string[];
+  /** Räuber im Ökosystem, die es fressen (Nischen-Reihenfolge; kann eine Beute selbst sein). */
+  hunters: string[];
+  /** Arten, die es nur klein halten (`control`), ohne es zu fressen (z. B. Waldameise ⊘ Raupen). */
+  controllers: string[];
+  /** Summe der Bestände der Beute (0,5 … 1,5 je Art) – für „knapp/gut/reichlich“. */
+  stock: number;
+  /**
+   * Futterangebot der Beute für die Jäger: Σ max(SUPPLY_ANIMAL, Bestand), also ≥ 1 je Art.
+   * Danach richten sich Futter der Jäger und der Zustand („überjagt“: Jäger > supply).
+   */
+  supply: number;
+  state: FoodWebState;
 }
 
 /** Zustand einer Lebensgemeinschaft (Reihenfolge wie COMMUNITIES). */
@@ -354,6 +396,11 @@ export interface Evaluation {
   communities: CommunityStatus[];
   /** Zustand je Tier (Art-ID → Status). */
   animals: Record<string, AnimalStatus>;
+  /**
+   * Nahrungsnetz (DESIGN_V2.md 22.7): je Beute-Merkmal (eines, das ein Räuber frisst oder
+   * eine Art klein hält) mit Beute im Ökosystem eine Zeile, Reihenfolge wie TAG_NAMES.
+   */
+  foodWeb: FoodWebEntry[];
   /** Ø Zufriedenheit aller Tiere (0, wenn keine). */
   avgHappiness: number;
   /** Plätze je Nische auf der aktuellen Stufe. */
@@ -402,6 +449,54 @@ const HUNTERS_OF: ReadonlyMap<string, readonly string[]> = new Map(
     ),
   ]),
 );
+
+/**
+ * Beute-Merkmale: Merkmale, die irgendein Räuber frisst oder irgendeine Art klein hält
+ * (Reihenfolge wie TAG_NAMES). Nur sie erscheinen im Nahrungsnetz.
+ */
+const PREY_TAGS: readonly Tag[] = (Object.keys(TAG_NAMES) as Tag[]).filter((t) =>
+  SPECIES.some((s) => (s.level === 'predator' && s.food.includes(t)) || s.effects.some((e) => e.kind === 'control' && e.tag === t)),
+);
+
+/**
+ * Merkmale, die die Tiere eines Ökosystems jagen: Räuber fressen sie oder eine Art hält
+ * sie klein (`control`) – unabhängig von der Zufriedenheit, solange die Art lebt.
+ */
+function huntedTags(animals: readonly Species[]): Set<Tag> {
+  const out = new Set<Tag>();
+  for (const a of animals) {
+    if (a.level === 'predator') for (const t of a.food) out.add(t);
+    for (const e of a.effects) if (e.kind === 'control') out.add(e.tag);
+  }
+  return out;
+}
+
+/**
+ * Ungejagte Merkmale (Bedingung `unhunted`, DESIGN_V2.md 22.5): ein Tier stellt sie bereit,
+ * aber kein Tier frisst sie als Räuber oder hält sie klein.
+ */
+export function unhuntedTags(animals: readonly Species[]): Set<Tag> {
+  const hunted = huntedTags(animals);
+  const out = new Set<Tag>();
+  for (const a of animals) for (const t of a.provides) if (!hunted.has(t)) out.add(t);
+  return out;
+}
+
+/** Bestand einer Beute aus ihrer Zufriedenheit z⁰ ohne Überjagung: 0,5 … 1,5. */
+export function stockFor(happiness: number): number {
+  const z = Number.isNaN(happiness) ? 0 : Math.min(1, Math.max(0, happiness));
+  return STOCK_BASE + STOCK_RANGE * z;
+}
+
+/**
+ * Überjagung (fehlende Einheiten, 0 … OVERHUNT_MAX_UNITS) aus der Zahl der Jäger und dem
+ * Bestand eines Merkmals: Jäger − Bestand, ohne Jäger 0.
+ */
+export function overhuntUnits(hunters: number, stock: number): number {
+  if (!(hunters > 0)) return 0;
+  const missing = hunters - (Number.isFinite(stock) ? Math.max(0, stock) : 0);
+  return Math.min(OVERHUNT_MAX_UNITS, Math.max(0, missing));
+}
 
 /** Wer stört wen (Wirkung `disturb`)? Statisch vorberechnet. */
 const DISTURBERS_OF: ReadonlyMap<string, readonly string[]> = new Map(
@@ -547,15 +642,17 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const groupCount: Record<PlantGroup, number> = { trees: 1, shrubs: 0, flowers: 0, mosses: 0 };
   for (const p of plants) groupCount[p.group]++;
 
-  // Futterangebot und -nachfrage je Merkmal
-  const foodSupply = new Map<Tag, number>();
-  const addSupply = (tag: Tag, n: number) => foodSupply.set(tag, (foodSupply.get(tag) ?? 0) + n);
+  // Futterangebot je Merkmal ohne Tiere; die Tiere kommen in zwei Durchgängen dazu (22.3).
+  const plantSupply = new Map<Tag, number>();
+  const addSupply = (supply: Map<Tag, number>, tag: Tag, n: number) => supply.set(tag, (supply.get(tag) ?? 0) + n);
   // Merkmale des Hauptbaums (Kiefer: Nadeln, aber keine Nüsse).
-  for (const t of mainTreeTags(eco)) addSupply(t, SUPPLY_MAIN_TREE);
-  for (const p of plants) for (const t of p.provides) addSupply(t, SUPPLY_PLANT);
-  for (const a of animals) for (const t of a.provides) addSupply(t, SUPPLY_ANIMAL);
+  for (const t of mainTreeTags(eco)) addSupply(plantSupply, t, SUPPLY_MAIN_TREE);
+  for (const p of plants) for (const t of p.provides) addSupply(plantSupply, t, SUPPLY_PLANT);
   // Merkmale aus Ereignissen (z. B. Totholz nach der Sturmnacht) wie eine Begleitpflanze.
-  for (const t of eco.habitats ?? []) addSupply(t, SUPPLY_PLANT);
+  for (const t of eco.habitats ?? []) addSupply(plantSupply, t, SUPPLY_PLANT);
+  // Durchgang 1: jedes Tier mit SUPPLY_ANIMAL (für z⁰ und den Bestand).
+  const firstSupply = new Map(plantSupply);
+  for (const a of animals) for (const t of a.provides) addSupply(firstSupply, t, SUPPLY_ANIMAL);
   // Jahreszeit und Baumart wirken wie Zusatz-Wirkungen (Faktor 1); `happiness` unten je Tier.
   const environment = environmentEffects(eco.stage, eco.season, eco.mainTree);
   const extraEffects = [...(eco.extraEffects ?? []), ...environment.effects];
@@ -586,20 +683,24 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const sunny = openLight >= SUNNY_MIN_LIGHT;
   const shady = groupCount.trees >= SHADY_MIN_TREES;
 
-  const condMet = (c: Condition): boolean => {
+  const unhunted = unhuntedTags(animals);
+  const condMet = (c: Condition, supply: ReadonlyMap<Tag, number>): boolean => {
     switch (c.kind) {
       case 'sunny':
         return sunny;
       case 'shady':
         return shady;
       case 'tag':
-        return (foodSupply.get(c.tag) ?? 0) > 0;
+        return (supply.get(c.tag) ?? 0) > 0;
       case 'group':
         return groupCount[c.group] >= c.min;
       case 'species':
         return presentOrPlanted.has(c.id);
       case 'genus':
         return genusCounts[c.genus] >= c.min;
+      case 'unhunted':
+        // Für Wünsche nicht vorgesehen, aber gleich wie bei den Erscheinungsbedingungen.
+        return unhunted.has(c.tag);
     }
   };
 
@@ -610,17 +711,18 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     for (const prey of animals) if (prey.provides.some((t) => hunter.food.includes(t))) fearful.add(prey.id);
   }
 
-  // Zufriedenheit je Tier
-  const status: Record<string, AnimalStatus> = {};
-  let happinessSum = 0;
-  for (const a of animals) {
+  /**
+   * Zufriedenheit eines Tiers bei diesem Futterangebot und `penalty` Abzug durch Überjagung
+   * (DESIGN_V2.md 2.3): Futter, Wünsche, Störung, Jahreszeit/Baumart, Fähigkeiten.
+   */
+  const happinessOf = (a: Species, supply: ReadonlyMap<Tag, number>, penalty: number) => {
     let food = 0;
     for (const t of a.food) {
-      const s = foodSupply.get(t) ?? 0;
+      const s = supply.get(t) ?? 0;
       const d = demand.get(t) ?? 1;
       food = Math.max(food, Math.min(1, s / d));
     }
-    const needs = a.needs.map(condMet);
+    const needs = a.needs.map((c) => condMet(c, supply));
     const met = needs.filter(Boolean).length;
     const q = (FOOD_WEIGHT * food + met) / (FOOD_WEIGHT + a.needs.length);
     const base = BASE_HAPPINESS[a.rarity] ?? 0;
@@ -628,18 +730,85 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     let disturbers = 0;
     for (const d of DISTURBERS_OF.get(a.id) ?? []) if (present.has(d)) disturbers++;
     z -= DISTURB_PENALTY * disturbers;
-    let hunters = 0;
-    for (const h of HUNTERS_OF.get(a.id) ?? []) if (present.has(h)) hunters++;
-    // Räuberdruck: Beute ist etwas weniger zufrieden, wenn sie gejagt wird.
-    z -= PREDATION_PENALTY * Math.min(PREDATION_MAX_HUNTERS, hunters);
+    z -= penalty;
     // Zufriedenheit der Gattung aus Jahreszeit und Baumart (Wirkung `happiness`).
     z += happinessBonus[a.genus] ?? 0;
     if (abilities.has('decomposerBoost') && a.level === DECOMPOSER_BOOST.level) z += DECOMPOSER_BOOST.happiness;
     if (abilities.has('architect') && a.niche === ARCHITECT.niche) z += ARCHITECT.happiness;
     if (hasAbility(a, 'calm')) z = Math.max(z, CALM_MIN_HAPPINESS);
-    z = Math.min(1, Math.max(0, z));
-    status[a.id] = { happiness: z, food, needs, hunters, disturbers };
+    return { happiness: Math.min(1, Math.max(0, z)), food, needs, disturbers };
+  };
+
+  // Räuber und Beute (DESIGN_V2.md 22.3/22.4), genau ein Durchgang ohne Iteration:
+  // (1) z⁰ mit dem Angebot aus Durchgang 1, (2) Bestand, (3) Angebot mit Bestand.
+  const stock = new Map<string, number>();
+  for (const a of animals) if (a.provides.length > 0) stock.set(a.id, stockFor(happinessOf(a, firstSupply, 0).happiness));
+  // Futter je Beute = max(SUPPLY_ANIMAL, Bestand): Ein kümmerlicher Bestand senkt das Futter
+  // nicht unter den Stand vor Welle 3 – kein Räuber wird schlechter (22.3).
+  const foodSupply = new Map(plantSupply);
+  const stockOf = new Map<Tag, number>();
+  const shareOf = new Map<Tag, number>();
+  for (const a of animals) {
+    const own = stock.get(a.id);
+    if (own === undefined) continue;
+    const share = Math.max(SUPPLY_ANIMAL, own);
+    for (const t of a.provides) {
+      addSupply(foodSupply, t, share);
+      addSupply(shareOf, t, share);
+      addSupply(stockOf, t, own);
+    }
+  }
+  // Räuber je Merkmal (in Nischen-Reihenfolge, eine Art kann selbst Beute sein).
+  const eaters = new Map<Tag, Species[]>();
+  for (const p of animals) {
+    if (p.level !== 'predator') continue;
+    for (const t of p.food) eaters.set(t, [...(eaters.get(t) ?? []), p]);
+  }
+  // Überjagung je Beute: das knappste Merkmal (Jäger ohne sie selbst minus Futterangebot
+  // der Beute); dazu die Jäger dieses Merkmals (für die Anzeige).
+  const overhuntOf = (a: Species): { units: number; by: string[] } => {
+    let worst = { units: 0, by: [] as string[] };
+    for (const t of a.provides) {
+      const hunters = (eaters.get(t) ?? []).filter((p) => p.id !== a.id);
+      const units = overhuntUnits(hunters.length, shareOf.get(t) ?? 0);
+      if (units > worst.units) worst = { units, by: hunters.map((p) => p.id) };
+    }
+    return worst;
+  };
+
+  // (4) Zufriedenheit je Tier mit dem Angebot aus Bestand und mit Überjagung.
+  const status: Record<string, AnimalStatus> = {};
+  let happinessSum = 0;
+  for (const a of animals) {
+    let hunters = 0;
+    for (const h of HUNTERS_OF.get(a.id) ?? []) if (present.has(h)) hunters++;
+    const { units: overhunt, by } = overhuntOf(a);
+    const { happiness: z, food, needs, disturbers } = happinessOf(a, foodSupply, OVERHUNT_PENALTY * overhunt);
+    const own = stock.get(a.id);
+    status[a.id] = { happiness: z, food, needs, hunters, disturbers, overhunt };
+    if (own !== undefined) status[a.id]!.stock = own;
+    if (overhunt > 0) status[a.id]!.overhuntedBy = by;
     happinessSum += z;
+  }
+
+  // Nahrungsnetz für die Anzeige (22.7): je Beute-Merkmal mit Beute im Ökosystem.
+  const foodWeb: FoodWebEntry[] = [];
+  for (const tag of PREY_TAGS) {
+    const prey = animals.filter((a) => a.provides.includes(tag));
+    if (prey.length === 0) continue;
+    const hunterList = eaters.get(tag) ?? [];
+    const controllers = animals.filter((a) => !hunterList.includes(a) && a.effects.some((e) => e.kind === 'control' && e.tag === tag));
+    const tagSupply = shareOf.get(tag) ?? 0;
+    const overhunted = prey.some((b) => overhuntUnits(hunterList.filter((p) => p.id !== b.id).length, tagSupply) > 0);
+    foodWeb.push({
+      tag,
+      prey: prey.map((a) => a.id),
+      hunters: hunterList.map((a) => a.id),
+      controllers: controllers.map((a) => a.id),
+      stock: stockOf.get(tag) ?? 0,
+      supply: tagSupply,
+      state: unhunted.has(tag) ? 'unhunted' : overhunted ? 'overhunted' : 'balanced',
+    });
   }
 
   // Wirkungen sammeln
@@ -803,6 +972,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     breakdown: { variety, happiness: happinessPoints, pyramid, communities: communityPoints, extra: harmonyExtra },
     communities,
     animals: status,
+    foodWeb,
     avgHappiness,
     slots: nicheSlots(eco.stage, eco.niches, slotBonusesOf(extraEffects)),
     genusCounts,
@@ -913,6 +1083,8 @@ export interface AppearsContext {
   groups: Readonly<Record<PlantGroup, number>>;
   /** Tiere je Gattung – ohne Fähigkeiten (das Langohr zählt hier nicht als Vogel). */
   genera: Readonly<Record<Genus, number>>;
+  /** Merkmale, die ein Tier bereitstellt, aber keines jagt oder klein hält (`unhunted`, 22.5). */
+  unhunted: ReadonlySet<Tag>;
 }
 
 /** Merkmale, die der Hauptbaum auf dieser Stufe bereitstellt (ohne Art: wie die Eiche). */
@@ -936,14 +1108,15 @@ export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants
   for (const g of GENERA) genera[g] = 0;
   for (const a of animals) genera[a.genus]++;
   const ids = new Set<string>([...animals.map((a) => a.id), ...plants.map((p) => p.id)]);
-  return { tags, ids, groups, genera };
+  return { tags, ids, groups, genera, unhunted: unhuntedTags(animals) };
 }
 
 /**
  * Ist die Erscheinungsbedingung der Art erfüllt (DESIGN_V2.md 5.2, 7.3)? Arten ohne
  * `appears` erscheinen immer. Geprüft wird nur, was im Ökosystem da ist: Merkmale
  * (Hauptbaum, Pflanzen, Tiere), Pflanzengruppen, Arten/Pflanzen und Gattungen (ohne
- * Fähigkeiten). „sonnig“ und „schattig“ gelten hier immer als erfüllt. Gilt nur fürs
+ * Fähigkeiten) und ungejagte Beute (`unhunted`: kein Räuber frisst sie, keine Art hält sie
+ * klein). „sonnig“ und „schattig“ gelten hier immer als erfüllt. Gilt nur fürs
  * Anbieten: Eine schon gezogene Karte bleibt wählbar, auch wenn die Bedingung wegfällt.
  * `eco` darf ein vorberechneter Kontext (appearsContext) sein.
  */
@@ -966,6 +1139,8 @@ export function speciesAppears(
         return ctx.ids.has(c.id);
       case 'genus':
         return ctx.genera[c.genus] >= c.min;
+      case 'unhunted':
+        return ctx.unhunted.has(c.tag);
     }
   };
   return sp.appears.every(met);

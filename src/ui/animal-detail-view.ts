@@ -12,13 +12,12 @@ import { nightBadge, nightDetailText } from './weather-view';
 import { ABILITY_INFO, ARCHITECT, CALM_MIN_HAPPINESS, DECOMPOSER_BOOST } from '../content/abilities';
 import { COMMUNITIES } from '../content/communities';
 import { NICHES_BY_ID } from '../content/niches';
+import { OVERHUNT_PENALTY } from '../content/predation';
 import { SEASONS_BY_ID } from '../content/seasons';
 import { BASE_HAPPINESS, GENUS_INFO, RARITY_NAMES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
 import type { NicheId } from '../content/types';
 import {
   DISTURB_PENALTY,
-  PREDATION_MAX_HUNTERS,
-  PREDATION_PENALTY,
   ecosystemOf,
   environmentEffects,
   evaluate,
@@ -112,9 +111,10 @@ function factorViews(state: GameState, sp: Species, status: AnimalStatus | undef
       tone: 'bad',
     });
   }
-  if (status && status.hunters > 0) {
-    const names = huntersOf(sp, present).map((id) => SPECIES_BY_ID.get(id)!.name);
-    const loss = PREDATION_PENALTY * Math.min(PREDATION_MAX_HUNTERS, status.hunters);
+  // Überjagung (DESIGN_V2.md 22.4): Abzug nur, wenn mehr Jäger als Bestand da sind.
+  if (status && status.overhunt > 0) {
+    const names = (status.overhuntedBy ?? huntersOf(sp, present)).map((id) => SPECIES_BY_ID.get(id)?.name ?? id);
+    const loss = OVERHUNT_PENALTY * status.overhunt;
     factors.push({ key: 'hunters', icon: '👀', label: `ist auf der Hut vor ${listNames(names, 3)} (${points(-loss)})`, tone: 'bad' });
   }
   // Jahreszeit und Baumart: Zufriedenheit der Gattung (Wirkung `happiness`, Kern).

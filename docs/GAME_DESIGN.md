@@ -12,7 +12,8 @@
 > Zwischenhalt (Schritt 2.4, `DESIGN_V2.md` 7.4–7.8); Pflegemaßnahmen als Samen-Senke
 > (9 Maßnahmen mit 1–3 Rängen ab Setzling, wirken bis zum Neuen Zyklus; Schritt 2.7, `DESIGN_V2.md` 8);
 > Jahreszeiten (Jahr = 12 min Spielzeit des Zyklus; 15 Ereignisse, davon je Jahreszeit ein
-> eigenes: Spätfrost, Hitzewelle, Laubfall, Schneebruch) und Hauptbaum-Arten (Eiche, Buche,
+> eigenes: Spätfrost, Hitzewelle, Laubfall, Schneebruch; seit Welle 3 dazu vier Massenjahre,
+> 19 insgesamt, gewichtet nach dem Wetter des Tages – `DESIGN_V2.md` 22) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
 > Erweiterung Amphibien mit Waldtümpel (6. Gattung, 5 Arten seit dem Playtest, eigene Nische; unten);
 > Spielstand v12 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;

@@ -420,8 +420,9 @@ describe('Neuer Zyklus', () => {
     const journal = structuredClone(state.meta.journal);
     expect(journal.plants).toEqual(['hazel', 'moss']);
     const { rngState, lastTick } = state;
-    const h = state.cycle.maxHarmony;
-    const gain = Math.floor(h / 5) + Math.min(45, 3 * Math.max(0, Math.floor(h) - 100)) + 4;
+    // H = round(H_max) wie in cycleMemoryGain (DESIGN_V2.md 10).
+    const h = Math.round(state.cycle.maxHarmony);
+    const gain = Math.floor(h / 5) + Math.min(45, 3 * Math.max(0, h - 100)) + 4;
     const preview = previewNewCycle(state);
     expect(preview).toMatchObject({ blocker: null, memoryGain: gain, memoryBefore: 30, memoryAfter: 30 + gain, newSpecies: 4 });
     const result = startNewCycle(state, 1);

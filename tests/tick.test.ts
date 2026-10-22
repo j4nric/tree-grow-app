@@ -426,7 +426,10 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
     return state;
   }
 
-  it('ohne Wetter und Nacht (`off`) genau wie vor dem Wetter (Stand vor DESIGN_V2.md 21)', () => {
+  // Bis zum Wetter galt hier „genau wie vor dem Wetter“ (20 / 3892806722 / 145529 / 35187 /
+  // 75,94). Seit Räuber und Beute (DESIGN_V2.md 22: Bestand, Überjagung, Massenjahre) rechnet
+  // auch `off` anders – Wetter-Gewichte wirken in `off` nicht, darum nur noch festgelegte Werte.
+  it('ohne Wetter und Nacht (`off`): festgelegte Ergebnisse (seit Räuber und Beute)', () => {
     const state = play(2026, 'off');
     expect({
       waypoint: state.waypoint,
@@ -434,7 +437,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       totalGrowth: Math.round(state.totalGrowth),
       seeds: Math.round(state.seeds),
       harmony: Math.round(evaluate(state).harmony * 100) / 100,
-    }).toEqual({ waypoint: 20, rngState: 3892806722, totalGrowth: 145529, seeds: 35187, harmony: 75.94 });
+    }).toEqual({ waypoint: 21, rngState: 165733899, totalGrowth: 159325, seeds: 32553, harmony: 76.25 });
   });
 
   it('liefert festgelegte Ergebnisse', () => {
@@ -455,7 +458,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
     }).toMatchInlineSnapshot(`
       {
         "communities": [],
-        "harmony": 75.94,
+        "harmony": 77.74,
         "journal": [
           "earthworm",
           "woodlouse",
@@ -512,9 +515,9 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "hazel",
         ],
         "rngState": 3260971052,
-        "seeds": 37672,
+        "seeds": 38750,
         "stage": 5,
-        "totalGrowth": 150160,
+        "totalGrowth": 152481,
         "waypoint": 21,
       }
     `);

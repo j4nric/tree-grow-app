@@ -316,8 +316,25 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
 
 - [ ] Räuber und Beute (`game-designer`, `core-engineer`): Waldkauz, Fuchs, Ringelnatter
   regulieren Bestände statt zu strafen (z. B. viele Mäuse locken den Kauz an → Harmonie)
+  - [x] Design (`game-designer`): Bestand (abgeleitet aus der Zufriedenheit der Beute),
+    Überjagung statt Räuberdruck, vier Massenjahre mit Bedingung „ungejagt“, Wetter →
+    Ereignis-Gewichte; Daten in `src/content/predation.ts` – DESIGN_V2.md 22
+  - [x] Logik ohne Spielstand-Änderung (`core-engineer`, 22.8 Schritt A): Bestand,
+    Überjagung, Bedingung `unhunted`, vier Massenjahre (ohne Lebensraum-Arten),
+    `Evaluation.foodWeb`; `tests/predation.test.ts`, Messung 22.9
+  - [x] Wetter → Ereignis-Gewichte (`core-engineer`, 22.8 Schritt C): `eventWeight`,
+    Wetter des Tages auch offline
+  - [ ] Nahrungsnetz und Bestand in Übersicht und Tierdetails (`ui-dev`, 22.7)
+  - [ ] Balancing prüfen (`game-designer`): Urwald-Gewinn des Harmonie-Spielers liegt mit
+    Räuber und Beute bei 94,9 (Grenze < 95 in `balance-restart.test.ts`, vorher 87–88) –
+    `MEMORY_HARMONY_RULES` ggf. nachziehen (DESIGN_V2.md 15.4, „Stand Räuber und Beute“)
 - [ ] Weitere Lebensräume nach dem Muster Waldtümpel (`game-designer`, `renderer`):
   Totholzhaufen, Trockenmauer, Waldwiese – je 3–5 Arten und eine Lebensgemeinschaft
+  - [x] Design (`game-designer`): Waldwiese (Junger Baum), Totholzhaufen (Alter Baum),
+    Trockenmauer (Hain), 14 Arten, Gattung Reptilien, 4 Lebensgemeinschaften; Daten in
+    `src/content/habitats.ts` (noch nicht verdrahtet) – DESIGN_V2.md 23
+  - [ ] Spielstand v13 und Verdrahtung (`core-engineer`, 23.7 Schritt B)
+  - [ ] Szene und 14 Zeichnungen (`renderer`, 23.7), Nischen, Pflege, Reptilien (`ui-dev`)
 - [ ] Prestige-Stufe 2 „Waldlandschaft“ (`game-designer`, `core-engineer`, `renderer`):
   mehrere Wälder nebeneinander mit eigenem Hauptbaum, Wildwechsel über Korridore;
   dafür Umstieg auf `break_infinity.js` (siehe Phase 4)

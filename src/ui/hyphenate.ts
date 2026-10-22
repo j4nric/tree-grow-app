@@ -51,6 +51,17 @@ export const HYPHENATION: Readonly<Record<string, string>> = {
   Totholzhaufen: 'Tot|holz|hau|fen',
   Weinbergschnecke: 'Wein|berg|schne|cke',
   Zunderschwamm: 'Zun|der|schwamm',
+  // Welle 3: Lebensräume und Räuber/Beute (DESIGN_V2.md 22, 23; content/habitats.ts, predation.ts)
+  Blindschleiche: 'Blind|schlei|che',
+  Ringelnatter: 'Rin|gel|nat|ter',
+  Schlingnatter: 'Schling|nat|ter',
+  Schmetterlingstramete: 'Schmet|ter|lings|tra|me|te',
+  Schneckenjahr: 'Schne|cken|jahr',
+  Trockenmauer: 'Tro|cken|mau|er',
+  Waldeidechse: 'Wald|ei|dech|se',
+  Wiesenkonzert: 'Wie|sen|kon|zert',
+  Wildkaninchen: 'Wild|ka|nin|chen',
+  Zauneidechse: 'Zaun|ei|dech|se',
 };
 
 /**

@@ -131,7 +131,8 @@ describe('Ablehnen: überall derselbe Betrag', () => {
     expect(report.declinedSeeds).toBe(manual);
     const before = state.seeds;
     declineEncounter(state, 0);
-    expect(state.seeds - before).toBe(manual);
+    // (a + b) − a ist in Gleitkomma nicht immer exakt b: bis auf Rundung.
+    expect(state.seeds - before).toBeCloseTo(manual, 9);
   });
 
   it('declinedSeeds ist 0 ohne automatisches Ablehnen', () => {

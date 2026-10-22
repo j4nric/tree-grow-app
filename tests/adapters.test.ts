@@ -535,16 +535,20 @@ describe('Stimmung: Gründe unter 70 %', () => {
     );
   });
 
-  it('Räuberdruck: nennt den Jäger unter 70 %', () => {
+  it('Überjagung: nennt den Jäger unter 70 % – ein satter Jäger allein ist kein Grund', () => {
     const state = stateAt(3, ['oakmoth', 'bluetit']);
     const ev = evaluate(state);
     const moth = SPECIES_BY_ID.get('oakmoth')!;
     expect(ev.animals.oakmoth!.hunters).toBe(1);
     expect(huntersOf(moth, allAnimals(state))).toEqual(['bluetit']);
-    // Ab 70 % kurz, darunter mit Namen
-    expect(ev.animals.oakmoth!.happiness).toBeGreaterThanOrEqual(MOOD_REASON_BELOW);
-    expect(moodText(moth, ev.animals.oakmoth, allAnimals(state))).toBe('ist auf der Hut');
-    const low = { ...ev.animals.oakmoth!, happiness: 0.5 };
+    // Genug Bestand für die Blaumeise: keine Überjagung, also kein Grund (DESIGN_V2.md 22.4).
+    expect(ev.animals.oakmoth!.overhunt).toBe(0);
+    expect(moodText(moth, ev.animals.oakmoth, allAnimals(state))).not.toContain('Hut');
+    // Mit Überjagung: ab 70 % kurz, darunter mit Namen
+    const hunted = { ...ev.animals.oakmoth!, overhunt: 0.5 };
+    expect(hunted.happiness).toBeGreaterThanOrEqual(MOOD_REASON_BELOW);
+    expect(moodText(moth, hunted, allAnimals(state))).toBe('ist auf der Hut');
+    const low = { ...hunted, happiness: 0.5 };
     expect(moodText(moth, low, allAnimals(state))).toBe('ist auf der Hut vor Blaumeise');
     expect(moodText(moth, low)).toBe('ist auf der Hut');
   });
@@ -555,16 +559,16 @@ describe('Stimmung: Gründe unter 70 %', () => {
       const moth = SPECIES_BY_ID.get('oakmoth')!;
       const present = ['oakmoth', 'test-jay', 'bluetit'];
       expect(disturbersOf(moth, present)).toEqual(['test-jay']);
-      const status = { happiness: 0.6, food: 1, needs: [], hunters: 1, disturbers: 1 };
+      const status = { happiness: 0.6, food: 1, needs: [], hunters: 1, disturbers: 1, overhunt: 1 };
       expect(moodText(moth, status, present)).toBe('wird gestört von Testhäher · ist auf der Hut vor Blaumeise');
       expect(moodText(moth, status)).toBe('wird gestört · ist auf der Hut');
-      expect(moodText(moth, { happiness: 0.9, food: 1, needs: [], hunters: 0, disturbers: 0 }, present)).toBe('fühlt sich wohl');
+      expect(moodText(moth, { happiness: 0.9, food: 1, needs: [], hunters: 0, disturbers: 0, overhunt: 0 }, present)).toBe('fühlt sich wohl');
     });
   });
 
   it('ab 70 % nur der wichtigste Grund, darunter höchstens zwei', () => {
     const species = SPECIES_BY_ID.get('bluetit')!;
-    const status = { happiness: 0.8, food: 0.5, needs: [false, false], hunters: 1, disturbers: 0 };
+    const status = { happiness: 0.8, food: 0.5, needs: [false, false], hunters: 1, disturbers: 0, overhunt: 1 };
     expect(moodText(species, status)).toBe('wünscht sich 2× Bäume');
     expect(moodText(species, { ...status, happiness: 0.3 })).toBe('wünscht sich 2× Bäume · wünscht sich Baumhöhle');
   });
@@ -578,6 +582,7 @@ describe('Stimmung: Gründe unter 70 %', () => {
       needs: s.needs.map((n) => n.kind !== kind),
       hunters: 0,
       disturbers: 0,
+      overhunt: 0,
     });
     expect(moodText(sunny, unmet(sunny, 'sunny'))).toBe('wünscht sich einen sonnigen Platz');
     expect(moodText(shady, unmet(shady, 'shady'))).toBe('wünscht sich einen schattigen Platz');

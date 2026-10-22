@@ -1,3 +1,4 @@
+import { PREDATION_EVENT_SEASONS } from './predation';
 import type { Effect, EncounterType, Genus } from './types';
 
 /**
@@ -162,4 +163,5 @@ export const EVENT_SEASONS: Readonly<Record<string, readonly SeasonId[]>> = {
   'leaf-fall': ['autumn'],
   'snow-break': ['winter'], // Nassschnee bricht Äste
   'toad-migration': ['spring'], // Laichwanderung in milden Regennächten im März/April
+  ...PREDATION_EVENT_SEASONS, // Massenjahre (DESIGN_V2.md 22.5)
 };

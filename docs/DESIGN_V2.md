@@ -138,16 +138,18 @@ q = (2 · Futter + erfüllte Wünsche) / (2 + Anzahl Wünsche)
 
 - **Futter** (zählt doppelt) = `max` über die Nahrungsmerkmale des Tiers von
   `min(1, Angebot / Nachfrage)`. Angebot je Merkmal: Hauptbaum 2, jede Pflanze 1, jedes
-  Tier 1, Ereignis 1. Nachfrage: Anzahl der Tiere, die dieses Merkmal fressen. Zwei
-  Räuber teilen sich also eine Wühlmaus.
+  Tier seinen **Bestand** 0,5 … 1,5 (aus seiner Zufriedenheit, seit Welle 3, 22.3; vorher
+  fest 1), Ereignis 1. Nachfrage: Anzahl der Tiere, die dieses Merkmal fressen. Zwei
+  Räuber teilen sich also eine Wühlmaus – eine zufriedene reicht für anderthalb.
 - **Wünsche** an den Lebensraum, je einfach: Pflanzengruppen („2× Sträucher“),
   bestimmte Arten („Große Brennnessel“), Merkmale (Feuchte, Totholz, Baumhöhle),
   **sonnig** (nach allen Begleitpflanzen bleiben ≥ 2 Licht frei) oder **schattig**
   (≥ 3 Bäume inkl. Hauptbaum). Sonnig und schattig ziehen in entgegengesetzte
   Richtungen – mehr Bäume bringen Wachstum, nehmen aber Bienen und Faltern die Sonne.
 - **Störung:** z. B. Eichhörnchen und Eichelhäher plündern Meisennester, der Maulwurf
-  frisst Regenwürmer. **Räuberdruck:** Beute ist etwas weniger zufrieden, wenn sie
-  gejagt wird – dafür hält der Räuber ihren Schaden klein.
+  frisst Regenwürmer. **Überjagung** (seit Welle 3, 22.4; vorher „Räuberdruck“ −10 % je
+  Jäger): Beute ist nur dann etwas weniger zufrieden, wenn mehr Jäger als Bestand da sind
+  (−10 % je fehlender Einheit, höchstens −20 %) – der Räuber hält ihren Schaden trotzdem klein.
 - Seltene Tiere sind also **wählerisch**: Ohne passende Bedingungen bleiben sie
   schwach, mit allen Bedingungen sind sie die stärksten Karten.
 
@@ -254,6 +256,10 @@ den Schwarzspecht.
 ² Erweiterung Amphibien (5.5): Der Waldtümpel hat nie Plätze aus der Stufe. Er öffnet nur
 durch Platz-Wirkungen: Pflege „Waldtümpel“ (Alter Baum +2, Hain +1), Ereignis
 „Regenreicher Frühling“ (+1) und „Krötenwanderung“ (+1).
+
+Entwurf Welle 3 (Abschnitt 23, Spielstand v13): 🌾 Waldwiese (ab Junger Baum), 🪵
+Totholzhaufen (ab Alter Baum) und 🪨 Trockenmauer (ab Hain) – wie der Tümpel ohne Plätze aus
+der Stufe, nur durch Pflege und einzelne Ereignis-Optionen.
 
 Die frühere Nische „Lichtung“ ist im **Waldsaum** aufgegangen: Er öffnet schon beim
 Setzling, weil dort die Begleitpflanzen wachsen und Bienen und Falter leben.
@@ -446,7 +452,8 @@ Laichzeit trägt das Männchen einen gezackten Kamm wie ein kleiner Drache.“
 
 **Abwägungen:** Kröte und Molch wollen Schatten, der Frosch Sonne – ein Tümpel für alle
 drei verlangt einen lichten Wald (wie der Hirschkäfer). Die Kröte jagt Schnecken: gut gegen
-Nacktschnecke und Weinbergschnecke, aber sie drückt deren Zufriedenheit (Räuberdruck).
+Nacktschnecke und Weinbergschnecke; deren Zufriedenheit sinkt erst bei Überjagung (mehr
+Jäger als Schnecken-Futter, 22.4 – vor Welle 3: Räuberdruck je Jäger).
 
 | Wo | Was |
 |---|---|
@@ -495,7 +502,9 @@ Stufe 5 ist ein seltenes Spätziel: alle fünf Arten plus der Platz aus „Regen
 oder „Krötenwanderung“. Der Laubfrosch lebt im Tümpel (nicht im Waldsaum), damit er die
 Gattung zählt, wo der Spieler sie sucht. **Ringelnatter verworfen:** Es gibt keinen Räuber-
 Mechanismus gegen Tiere, der Spaß macht (nur Räuberdruck auf die Zufriedenheit) – eine
-Natter, die die Tümpelbewohner unglücklich macht, wäre eine reine Strafe. Kandidaten für
+Natter, die die Tümpelbewohner unglücklich macht, wäre eine reine Strafe. (Welle 3 löst das:
+Mit Bestand und Überjagung, Abschnitt 22, schadet die Natter den Fröschen nicht, solange genug da sind; sie lebt
+an der Trockenmauer, 23.4.) Kandidaten für
 später: Amphibien-Gäste (Moorfrosch-Balz im Frühling – erst, wenn der Renderer Gäste am Boden
 zeigen kann; heute fliegen unbekannte Gäste als Schwarm). Achievements nennen keine
 Artnamen; „Von allem etwas“ und „Alle Bewohner“ zählen die neue Gattung und alle fünf Arten
@@ -1774,6 +1783,11 @@ mit dem Zyklus neu angelegt.
   Tag keine Ziele. Zähler ganzzahlig 0 … 1e9, Serie 0 ohne gültigen letzten Tag, beste Serie
   nie unter der laufenden.
 
+### 12.10 Lebensräume (Spielstand v13, Entwurf)
+
+Nur drei neue Nischen `niches.meadow`, `niches.deadwood`, `niches.wall`; Bestand, Überjagung
+und Massenjahre sind abgeleitet bzw. nutzen vorhandene Felder. Migration und Laden: 23.6.
+
 ---
 
 ## 13. Umsetzungsplan
@@ -2163,6 +2177,25 @@ gleicher H_max bringt ein späterer Wegpunkt nie mehr (H_max 0–400, Grundlage 
 in 12.7), Ziel (e) an typischen Verläufen (Urwald-Schwelle ≤ 174 − 10, Bonus über dem Sockel
 Harmonie 30 / Wachstum 0), dazu die Sperrklinke selbst (gleiche H_max über mehrere
 Wegpunkte, online = offline, ein ganzer simulierter Zyklus je Strategie bis zum Urwald).
+
+#### Stand Räuber und Beute – Bestand, Überjagung, Massenjahre, Wetter-Gewichte (500 Durchgänge)
+
+`npm run balance` nach Welle 3 Schritt A + C (DESIGN_V2.md 22.9, Futter = max(1, Bestand),
+Einzelwetter wie online): **alle Prüfungen grün**.
+
+| Kennzahl | vorher (main 9dde233, 22.9 mit 100 Durchgängen) | jetzt (500 Durchgänge) |
+|---|---|---|
+| Hain Harmonie / Wachstum / Zufall | 1:00:58 h / 53:21 min / 1:33:07 h | 59:23 min / 52:04 min / 1:30:51 h |
+| Urwald Harmonie | 2:44:21 h | 2:36:28 h |
+| ⚖️ / Ø 😊 beim Hain (Harmonie) | 107,1 / 91,5 % | 111,9 / 96 % |
+| Wachstum ÷ Harmonie beim Hain, Zyklus 1 / 2 / 3 | – | 0,878 / 1,007 / 1,032 |
+| Zyklus 2 schneller (Harmonie / Wachstum / Zufall) | – | −44,6 % / −36,5 % / −24,2 % |
+| Gewinn Zyklus 1 Hain / Urwald (Harmonie) | – | +69,8 / +94,9 (Urwald ÷ Hain 1,36) |
+| 🌰-Bestand beim Hain / im Wald (Harmonie, min Produktion) | – | 9,2 / 11,8 |
+
+**Knapp:** Der Urwald-Gewinn des Harmonie-Spielers (94,9) liegt dicht an der Grenze < 95 aus
+`balance-restart.test.ts` (vorher 87–88) – die zufriedenere Beute hebt H_max. Die Grenze
+bleibt; ob `MEMORY_HARMONY_RULES` nachgezogen werden, prüft der `game-designer` (ROADMAP).
 
 #### Stand Playtest Amphibien – Waldtümpel und mittleres Spiel (500 Durchgänge)
 
@@ -3956,7 +3989,7 @@ sceneSeason(elapsed)        = ((elapsed / S − 0,5) mod 4 + 4) mod 4    // für
 **Bewerten (`evaluate`):** `Ecosystem` bekommt `season?: SeasonId` (und `mainTree`, 17.5).
 Die Wirkungen der Jahreszeit außer `happiness` kommen zu `extraEffects` (Faktor 1, wie
 Zeit-Boni). Bei winterfestem Hauptbaum entfallen Wirkungen mit negativer Zahl.
-`happiness`: in der Schleife „Zufriedenheit je Tier“ nach Störung und Räuberdruck
+`happiness`: in der Schleife „Zufriedenheit je Tier“ nach Störung und Überjagung (22.4)
 `z += Σ points / 100` für die Gattung der Art, dann `calm` und Begrenzung auf 0–1 wie
 bisher. Cache-Schlüssel `ecosystemKey`: `|s:${seasonIndex}` anhängen (die Jahreszeit
 gerundet auf ihren Index – nicht `elapsed`, sonst wäre der Cache jede Sekunde ungültig).
@@ -4877,9 +4910,563 @@ und die Schonzeit: Junger Baum 4:10 / 3:55 min statt vorher 4:06 / 3:51 min (onl
   je +6 %) – Atmosphäre vor Zahl, niemand soll nachts online sein müssen.
 - **Borkenkäferjahr:** kommt später als **Ereignis** (z. B. nach zwei Dürren in einem Jahr,
   mit Wahl Totholz ↔ Samen), nicht als Wetterlage.
-- **Wetter und Begegnungen** (Regen → Krötenwanderung, Sturm → Windwurf): kommt mit Welle 3
-  (Räuber und Beute), vorerst kein Einfluss auf die Gewichte.
+- **Wetter und Begegnungen** (Regen → Krötenwanderung, Sturm → Windwurf): umgesetzt mit
+  Welle 3 (22.6, `WEATHER_EVENT_FACTORS`).
 - **Tagesziele (20):** keine Wetter-Tagesziele („Erlebe einen Sturm“ wäre passiv, „Pflanze
   bei Regen“ ein Zwang zum Zuschauen).
 - Offen bleibt nur die Idee einer Lebensgemeinschaft „Nachtschwärmer“ (Kauz, Langohr,
   Glühwürmchen) mit ganztägiger Harmonie – erst, wenn Welle 3 Gemeinschaften erweitert.
+
+---
+
+## 22. Räuber und Beute
+
+> **Stand:** Logik umgesetzt (Phase 6, Welle 3, Schritt A und C aus 22.8, ohne
+> Spielstand-Änderung, `SAVE_VERSION` bleibt 12): Bestand, Überjagung, Bedingung `unhunted`,
+> die vier Massenjahre (ohne Lebensraum-Arten), `Evaluation.foodWeb` und die Wetter-Gewichte.
+> Zahlen und Ereignisse in `src/content/predation.ts`, Logik in `core/formulas.ts` und
+> `core/tick.ts`, Tests `tests/predation.test.ts` (Logik) und `tests/habitats.test.ts`
+> (Inhalt), Messung 22.9 (`tests/predation-balance.test.ts`). Offen: die neuen Merkmale
+> Amphibien/Kaninchen und die Lebensraum-Arten in den Massenjahren (Schritt B, 23.7) und die
+> Anzeige (22.7, `ui-dev`).
+
+### 22.1 Idee und Leitlinien
+
+Heute ist Jagen für die Beute eine **Strafe**: Jeder Jäger drückt die Zufriedenheit seiner
+Beute um 10 Punkte (höchstens 20, „Räuberdruck“, 2.3) – egal, wie viel Beute da ist. Darum
+wurde die Ringelnatter in 5.5 verworfen: Eine Natter, die die Tümpelbewohner nur
+unglücklich macht, wäre reine Strafe. Welle 3 dreht das um:
+
+- **Jäger regulieren, statt zu strafen.** Solange genug Beute da ist, schadet die Jagd
+  niemandem. Erst wenn mehr Jäger als Beute leben, wird die Beute scheu (**Überjagung**).
+- **Viel Beute macht Jäger satt.** Eine zufriedene Beute hat einen großen **Bestand** und
+  ernährt mehr Jäger. „Viele Mäuse locken den Kauz an“ heißt: Der Kauz wird satt, seine
+  Wirkung steigt, die Pyramide („satte Räuber“) und damit die Harmonie auch.
+- **Ungleichgewicht lädt ein.** Lebt Beute ganz ohne Jäger, kommt ein **Massenjahr**
+  (Ereignis mit Wahl), das die passenden Jäger als Karten einlädt – oder das Massenjahr
+  als Geschenk nimmt.
+- **Nichts stirbt, nichts schwankt von selbst.** Der Bestand ist eine abgeleitete Zahl aus
+  der Zusammensetzung des Waldes, kein Zähler im Spielstand. Keine Räuber-Beute-Zyklen über
+  die Zeit (Lotka-Volterra): Harmonie, die mit der Zeit schwankt, nähme die Sperrklinke
+  H_max in jeder Spitze mit (wie bei der Nacht, 21.6), offline bräuchte sie ein exaktes
+  Integral, und ein Einbruch der Beute wäre doch wieder eine Strafe. Bestand und
+  Überjagung ändern sich nur durch Aktionen, Stufen und Jahreszeiten – wie alle Raten.
+- **Kein Wert wird schlechter als heute:** Überjagung kostet höchstens so viel wie der
+  heutige Räuberdruck (−20 %), meist viel weniger; der Bestand ist nie unter 0,5.
+
+### 22.2 Jagdbeziehungen
+
+Wer wen jagt, folgt wie bisher aus den Daten: Ein **Räuber** frisst ein Merkmal (`food`),
+das eine Beute bereitstellt (`provides`). Neu sind drei Beute-Merkmale und die Arten der
+Lebensräume (23, mit ✦):
+
+| Merkmal | Beute (stellt bereit) | Jäger (frisst bzw. ⊘ hält klein) |
+|---|---|---|
+| Kleinsäuger | Wühlmaus, ✦ Feldmaus | Waldkauz, Rotfuchs, ✦ Turmfalke, ✦ Mauswiesel, ✦ Schlingnatter |
+| ✦ Kaninchen (`hasen`) | ✦ Wildkaninchen | Rotfuchs (**neu:** frisst auch Kaninchen, ⊘ −70 % Fraß) |
+| Raupen | Eichenwickler, Tagpfauenauge | Blaumeise; ⊘ Rote Waldameise |
+| Käfer | Borkenkäfer, Hirschkäfer, ✦ Rosenkäfer | Buntspecht, Schwarzspecht |
+| Schnecken | Nacktschnecke, Weinbergschnecke | Igel, Glühwürmchen, Feuersalamander, Erdkröte, Kammmolch, ✦ Blindschleiche |
+| Würmer | Regenwurm | Rotkehlchen, Maulwurf, Igel, Steinläufer, Feuersalamander, Amphibien, ✦ Blindschleiche |
+| Insekten | alle Insekten, Rollassel, ✦ Feldgrille, ✦ Rosenkäfer, ✦ Mauerbiene | Rotkehlchen, Meise, Spechte, Langohr, Igel, Maulwurf, Steinläufer, Waldameise, Feuersalamander, Erdkröte, Frösche, Bergmolch, ✦ Waldeidechse, ✦ Zaunkönig, ✦ Zauneidechse, ✦ Turmfalke |
+| ✦ Amphibien | **alle fünf Amphibien** (neu: `provides` „amphibien“) | ✦ Ringelnatter |
+| ✦ Echsen | ✦ Waldeidechse, ✦ Blindschleiche, ✦ Zauneidechse | ✦ Turmfalke, ✦ Schlingnatter |
+| Rehe | Reh | Wolf (Landschaft der Angst, unverändert) |
+
+Die vier im Auftrag genannten Paare: **Waldkauz ↔ Mäuse** (Kleinsäuger), **Fuchs ↔
+Kaninchen** (neues Merkmal), **Specht ↔ Käfer** (wie bisher, jetzt mit Bestand) und
+**Ringelnatter ↔ Frösche** (neues Merkmal; die Natter lebt an der Trockenmauer, 23.4).
+Ergänzungen an vorhandenen Arten (Daten: `PROVIDES_ADDITIONS`, `FOOD_ADDITIONS`,
+`EFFECT_ADDITIONS`): Amphibien stellen „Amphibien“ bereit; der Rotfuchs frisst zusätzlich
+Kaninchen und hält sie klein (−70 %, damit ein zufriedener Fuchs das Kaninchen allein
+„bewacht“: 70 % · z ≥ 50 % ab z = 72 %). Seine Kurzwirkung wird „jagt Kleinsäuger (−50 %)
+und Kaninchen (−70 % Fraß), +6 % 🌰“.
+
+### 22.3 Bestand (abgeleitet)
+
+```
+Bestand(b) = STOCK_BASE + STOCK_RANGE · z⁰(b)  = 0,5 + z⁰      → 0,5 (kümmerlich) … 1,5 (reichlich)
+z⁰(b)      = Zufriedenheit der Beute OHNE Räuberdruck/Überjagung (Futter, Wünsche,
+             Störung, Jahreszeit, Baumart, Fähigkeiten – alles wie 2.3)
+Angebot(t) = Hauptbaum 2 + Pflanzen 1 + Ereignisse 1 + Σ_Tiere mit t  max(1, Bestand(Tier))
+             (bisher je Tier fest 1, `SUPPLY_ANIMAL`)
+```
+
+**Entscheidung (Review, Variante b):** Ein kümmerlicher Bestand (< 1) senkt das Futter nicht
+unter den Stand vor Welle 3 – reichlicher Bestand gibt mehr. So wird **kein Tier und keine
+Harmonie schlechter** als vorher (Test gegen eine feste Referenz der alten Formel,
+`tests/predation-main-reference.json`). Der Bestand selbst (0,5 … 1,5) bleibt für die
+Anzeige „knapp / gut / reichlich“.
+
+Reihenfolge, **ohne Kreis**: (1) z⁰ aller Tiere mit dem heutigen Angebot (Tiere je 1),
+(2) Bestand, (3) Angebot mit Bestand, (4) Futter und Zufriedenheit aller Tiere wie bisher,
+nur mit Überjagung statt Räuberdruck (22.4). Genau ein Durchgang, keine Iteration. Gilt für
+jedes Tier, das ein Merkmal bereitstellt (auch Insekten als Futter, Rosenkäfer als Käfer).
+Habitate aus Ereignissen und Pflege und alle Pflanzen bleiben bei 1 Einheit.
+
+Anzeige: Bestand < 0,85 „knapp“, ≥ 1,25 „reichlich“, sonst „gut“ (`STOCK_LOW`,
+`STOCK_HIGH`).
+
+**Wie der Spieler den Bestand hebt:** alles, was die Beute zufrieden macht – Pflanzen mit
+ihrem Futter (Kraut für Mäuse und Kaninchen, Brennnessel für Raupen), ihre Wünsche
+(sonnig für Feldmaus und Kaninchen, Feuchte für Schnecken und Amphibien: Kompost, Moos,
+Waldtümpel), keine Störer, die passende Jahreszeit (Winter: Säugetiere +15 % 😊 – im
+Winter sind die Mäuse satt und der Kauz auch). Und er setzt eine zweite Beute dazu (Feldmaus
+neben die Wühlmaus).
+
+### 22.4 Überjagung statt Räuberdruck
+
+```
+Jäger(t)   = Räuber im Ökosystem, die t fressen (ohne die Beute selbst)
+Druck(b)   = max über die Merkmale t der Beute mit Jäger(t) > 0 von  Jäger(t) − Σ max(1, Bestand)(t)
+z(b)      −= OVERHUNT_PENALTY · clamp(Druck, 0, OVERHUNT_MAX_UNITS)   = 0,10 · (0 … 2)
+             (ersetzt: −0,10 · min(2, Jäger))
+```
+
+**Beispiel Waldkauz ↔ Mäuse** (Alter Baum): Eine Wühlmaus mit vollem Futter (Wurzeln am
+Hauptbaum) hat z⁰ = 100 % → Bestand 1,5.
+
+| Wald | Futter Kauz/Fuchs | Wühlmaus | heute (Futter / Wühlmaus) |
+|---|---|---|---|
+| Wühlmaus + Waldkauz | 100 % | 0 (1 Jäger ≤ 1,5) | 100 % / −10 % |
+| Wühlmaus + Waldkauz + Rotfuchs | je 75 % (1,5 / 2) | −5 % (2 − 1,5) | je 50 % / −20 % |
+| dazu Feldmaus (z⁰ 70 % → 1,2) | je 100 % (2,7 / 2) | 0 | je 100 % / −20 % (Feldmaus −20 %) |
+| Wühlmaus (z⁰ 40 % → 0,9) + Kauz, Fuchs, Mauswiesel | je 33 % (max(1; 0,9) / 3) | −20 % (3 − 1) | je 33 % / −20 % |
+
+**Ringelnatter ↔ Frösche:** Eine Natter und ein Grasfrosch mit z⁰ 80 % (Bestand 1,3): Die
+Natter ist satt, der Frosch verliert nichts (heute −10 %). Auch bei einem kümmerlichen
+Frosch (Bestand < 1) zählt 1 Einheit: Eine Natter allein überjagt nie, erst eine zweite.
+
+**Unbewachte Schädlinge** (−4 ⚖️, 2.4) und Fraß-Minderung (`control`) bleiben unverändert:
+Jäger halten Schädlinge klein, mehr Jäger halten sie kleiner – nur ihre Beute leidet nicht
+mehr darunter.
+
+### 22.5 Massenjahre: Beute ohne Jäger ruft ihre Jäger
+
+Neue Bedingungsart `{ kind: 'unhunted', tag }`: Ein Tier im Ökosystem stellt `tag` bereit,
+aber **kein** lebendes Tier frisst `tag` (als Räuber) oder hält es klein (`control` auf
+`tag`). Nur für Erscheinungsbedingungen (`appears`) von Ereignissen. Vier Ereignisse,
+je höchstens einmal pro Zyklus, Optionen ohne Strafe:
+
+| Ereignis | ab | Jahreszeit | Bedingung | Optionen | Text |
+|---|---|---|---|---|---|
+| 🐛 Raupenjahr | Alter Baum | Frühling, Sommer | Raupen ungejagt | Meisen und Ameisen einladen: nächste Begegnung Blaumeise/Rote Waldameise · Den Kot düngen lassen: +25 % 🌿 5 min | „Fraßgeräusche in der Krone – Raupenkot rieselt wie feiner Regen.“ |
+| 🐭 Mäusejahr | Alter Baum | Sommer, Herbst | Kleinsäuger ungejagt | Sitzwarten für Jäger lassen: nächste Begegnung Waldkauz/Rotfuchs/Mauswiesel · Vorräte anlegen lassen: +40 % 🌰 6 min | „Unter dem Laub raschelt es überall – die Mäuse haben ein gutes Jahr.“ |
+| 🪲 Käferjahr | Hain | Sommer | Käfer ungejagt | Spechte anlocken: nächste Begegnung Buntspecht/Schwarzspecht · Das Holz vermodern lassen: Totholz + 1 Platz Totholzhaufen (Zyklus) | „Die Käfer schwärmen – an der Rinde rieselt braunes Bohrmehl.“ |
+| 🐌 Schneckenjahr | Alter Baum | Frühling, Herbst | Schnecken ungejagt | Schneckenjäger einladen: nächste Begegnung Igel/Glühwürmchen/Blindschleiche · Die Feuchte genießen: +2 💧 (Zyklus) | „Nach dem warmen Regen glänzen überall Schleimspuren im Moos.“ |
+
+- Die Einladung nennt nur Jäger, die genau diese Beute fressen oder klein halten
+  (Inhaltstest), und erfüllt die Regel „Versprechen einlösbar“ (7.4) mit den Nischen der
+  Stufe: Mauswiesel und Blindschleiche stehen als Bonus dabei (ihr Totholzhaufen kann zu
+  sein). Der Käferjahr-Platz öffnet den Totholzhaufen auch ohne Pflege (wie „Regenreicher
+  Frühling“ den Tümpel).
+- Kommt erst ab Alter Baum (Hain): Im Jungen Baum gäbe es für Raupen und Schnecken nur je
+  einen Jäger – das Versprechen wäre nicht einlösbar.
+- Ein Ungleichgewicht wird so **sichtbar und lösbar**, ohne dass etwas schlechter wird.
+  Wer die Beute lieber ohne Jäger behält, nimmt das Massenjahr als Bonus.
+- Gemessen (22.9, echte Logik Schritt A + C, Anteil der Durchgänge bis Urwald):
+  Harmonie-Spieler Raupenjahr 0,14, Käferjahr 0,21, Schneckenjahr 0,04, Mäusejahr 0 (er
+  nimmt keine Mäuse ohne Jäger); Zufallsspieler 0,16 / 0,21 / 0,09 / 0,30 (Prototyp ohne
+  Wetter: 0,20 / 0,16 / 0,05 / < 0,01 bzw. 0,25 / 0,28 / 0,10 / 0,18). Die Zahl der
+  Ereignisse je Durchgang bleibt bei ~10 (sie verdrängen keine Tierbegegnungen, 7.2).
+
+### 22.6 Wetter → Begegnungen (nach der Wetter-Logik, 21)
+
+Heute zieht das Spiel unter allen passenden Ereignissen gleichverteilt. Neu: **Gewicht je
+Ereignis** nach dem Wetter des Tages, an dem der Wegpunkt bzw. Zwischenhalt erreicht wird
+(`WEATHER_EVENT_FACTORS`, sonst 1). Nur Gewichte – kein Ereignis kommt dadurch außerhalb
+seiner Jahreszeit oder Bedingung, und es bleibt einmal pro Zyklus.
+
+| Wetter | Gewicht × | Warum |
+|---|---|---|
+| 🌧️ Landregen | Krötenwanderung ×3, Regenreicher Frühling ×2, Schneckenjahr ×2, Pilzherbst ×2 | Kröten wandern in milden Regennächten |
+| 🌬️ Sturm | Sturmnacht ×3, Windwurf ×3 | Sturm wirft Äste und Bäume |
+| 🌡️ Dürre | Käferjahr ×3, Hitzewelle ×2 | geschwächte Bäume, Käfer schwärmen |
+| 🧊 Frost | Spätfrost ×3, Schneebruch ×2 | |
+| 🌫️ Nebel | Pilzherbst ×2 | |
+| ☀️ Sonnenschein | Mittsommer ×2, Bienenschwarm ×2 | |
+| 🌨️ Neuschnee | Schneebruch ×2 | |
+
+**Online = offline:** Das Wetter eines Tages ist eine reine Funktion (`weatherOfDay`,
+21.4) – auch offline, wo die Raten mit dem Mittelwetter rechnen (21.5), kennt das Ziehen
+den echten Tag. Gleicher Spielstand → gleiche Ereignisse. Das „Borkenkäferjahr“ der Roadmap
+(21.11) ist damit das Käferjahr bei Dürre – ohne eigene Zählung von Dürretagen.
+
+### 22.7 Darstellung und UI
+
+- **Tierdetails und Karte** (`ui-dev`): Beute zeigt „Bestand: reichlich – ernährt
+  Waldkauz und Rotfuchs“; Jäger zeigen „Futter: Kleinsäuger 1,5 für 2 Jäger (75 %)“. Bei
+  Überjagung ein freundlicher Hinweis statt Warnfarbe: „Mehr Jäger als Mäuse – eine Feldmaus
+  oder zufriedenere Wühlmaus hilft.“ Die Kartenvorschau rechnet wie immer ehrlich mit.
+- **Nahrungsnetz** in der Ökosystem-Übersicht (aufklappbar wie die Lebensgemeinschaften):
+  eine Zeile je Merkmal mit Beute im Wald, z. B. „🐭 Kleinsäuger · Bestand 2,7 · 2 Jäger ·
+  im Gleichgewicht“, Zustände *im Gleichgewicht* (Jäger ≤ Futterangebot `supply`), *überjagt*, *ungejagt*
+  (keine Jäger – „ein Massenjahr kann sie einladen“). Höchstens ~6 Zeilen; Merkmale ohne
+  Beute erscheinen nicht. Spoiler-Regel wie 9.2: unentdeckte Jäger heißen „???“.
+- **Renderer** (optional, klein): Nichts verschwindet und nichts vermehrt sich sichtbar.
+  Ein satter Jäger darf sichtbar zufrieden sein (vorhandene Zufriedenheits-Animation);
+  Massenjahre zeigen in der Ereigniskarte ihr Symbol. Kein neuer Zustand in `SceneInput`.
+
+### 22.8 Umsetzungsnotiz für den core-engineer
+
+**Stand:** Schritt A und C **erledigt** (ohne Spielstand-Änderung); Schritt B folgt mit den
+Lebensräumen (23.7). Abweichungen und Ergänzungen gegenüber dem Plan unten:
+
+- **Schritt A ohne neue Merkmale:** `PROVIDES_ADDITIONS` (Amphibien → „amphibien“),
+  `FOOD_ADDITIONS` und `EFFECT_ADDITIONS` (Fuchs → Kaninchen) bleiben unverdrahtet – ihr
+  Gegenüber (Ringelnatter, Wildkaninchen) lebt erst in den neuen Lebensräumen. Unter den
+  vorhandenen 37 Arten gibt es keine Jagdbeziehung, die 22.2 neu einführt; Kauz ↔ Mäuse und
+  Specht ↔ Käfer wirken jetzt mit Bestand.
+- **Massenjahre in Schritt A:** Mäusejahr lädt Waldkauz/Rotfuchs ein, Schneckenjahr
+  Igel/Glühwürmchen, Käferjahr schenkt „Totholz (Zyklus)“ ohne den Platz im Totholzhaufen.
+  Schritt B ergänzt Mauswiesel, Blindschleiche und „+1 Platz Totholzhaufen“ (Tabelle 22.5).
+- **`unhunted`** gilt auch in `evaluate` (Wunsch), gleich wie bei den Erscheinungsbedingungen;
+  kein Tier nutzt es (Test). Ein Pflanzenfresser mit Futter „Raupen“ zählt nicht als Jäger.
+- **Rundung an Tagesgrenzen:** Der Fang „Rundungsrest vor der Grenze“ in `tick` gilt jetzt
+  auch knapp *hinter* der Grenze (|Abstand| ≤ 1e-9 s) – mit den neuen Raten landete ein
+  großer Tick sonst bei 180,00000000000003 s statt 180 s.
+- **Futter = max(1, Bestand)** (Review, Variante b, 22.3): kein Tier und keine Harmonie
+  schlechter als vorher. Überjagung rechnet mit demselben Futterangebot.
+- **Wetter-Gewichte nur mit Wetter:** Im Modus `off` (ohne Wetter, Simulation zum Vergleich)
+  ziehen alle Ereignisse gleich; `live` und `average` mit dem Wetter des echten Tages.
+- **Bekannte Einschränkung bis v13:** Ein älterer Client (Spielstand v12, vor dieser
+  Änderung) kennt die vier Massenjahre nicht und filtert ihre IDs beim Laden aus
+  `cycle.seen` (und damit ihre Zyklus-Boni) – z. B. beim Abgleich über die Synchronisierung.
+  Nichts stürzt ab; schlimmstenfalls kommt ein Massenjahr im selben Zyklus ein zweites Mal
+  bzw. ein Geschenk geht verloren. Den Schutz „Stand ist neuer“ bringt erst `SAVE_VERSION`
+  13 mit Schritt B (23.6/23.7).
+
+**Schnittstellen für `ui-dev`** (alle rein, aus `evaluate(state)`):
+
+| Bedarf | Feld bzw. Aufruf |
+|---|---|
+| Bestand je Tier (nur Beute) | `ev.animals[id].stock` (0,5 … 1,5; `undefined` bei Tieren ohne `provides`); Stufen „knapp“/„gut“/„reichlich“ mit `STOCK_LOW` 0,85 / `STOCK_HIGH` 1,25 (`content/predation.ts`) |
+| Überjagung je Tier | `ev.animals[id].overhunt` (fehlende Einheiten 0 … 2); Abzug = `OVERHUNT_PENALTY · overhunt`; `overhuntedBy` = Jäger des überjagten Merkmals (nur bei Überjagung). `hunters` bleibt die Zahl aller Jäger (Anzeige) |
+| Futter der Jäger | wie bisher `ev.animals[id].food` (0 … 1) – jetzt Σ max(1, Bestand) / Nachfrage |
+| Nahrungsnetz | `ev.foodWeb: FoodWebEntry[]` = `{ tag, prey, hunters, controllers, stock, supply, state }` (`stock` = Σ Bestand für „knapp/reichlich“, `supply` = Σ max(1, Bestand) = Futter für die Jäger; „überjagt“, wenn Jäger > `supply`), `state` ∈ `'balanced' \| 'overhunted' \| 'unhunted'`; eine Zeile je Beute-Merkmal mit Beute im Wald, Reihenfolge wie `TAG_NAMES` (heute höchstens 7: Insekten, Raupen, Käfer, Würmer, Schnecken, Kleinsäuger, Rehe). `controllers` = Arten, die das Merkmal nur klein halten (Waldameise ⊘ Raupen); „ungejagt“ nur ohne Jäger *und* ohne sie |
+| Hilfsfunktionen | `stockFor(z)`, `overhuntUnits(jäger, bestand)`, `unhuntedTags(arten)` (`core/formulas.ts`); `eventWeight(state, id)` (`core/tick.ts`) |
+
+`moodReasons`/`moodText` und die Tierdetails nennen Jäger jetzt nur bei Überjagung und nur
+die des überjagten Merkmals (`overhuntedBy`; kleine Anpassung in `ui/`, damit die Anzeige nicht den alten Abzug zeigt); Bestand, Futter-Zeile
+und Nahrungsnetz (22.7) baut `ui-dev`.
+
+**Schritt A – Logik ohne Spielstand-Änderung** (kann vor den Lebensräumen kommen):
+
+1. `content/types.ts`: Bedingung `{ kind: 'unhunted'; tag: Tag }`.
+2. `formulas.ts` `evaluateEcosystem`: z⁰ je Tier (wie heute ohne Räuberdruck), Bestand, Angebot
+   mit Bestand, dann Zufriedenheit mit Überjagung (22.3, 22.4). Konstanten aus
+   `content/predation.ts`; `PREDATION_PENALTY`/`PREDATION_MAX_HUNTERS` entfallen (Test:
+   Obergrenze bleibt −20 %). `AnimalStatus` bekommt `stock?: number` (nur Beute) und
+   `overhunt: number`; `hunters` bleibt für die Anzeige. `Evaluation.foodWeb:
+   { tag, prey: string[], hunters: string[], stock: number, state: 'balanced' | 'overhunted'
+   | 'unhunted' }[]` für die UI. `condMet` kennt `unhunted` (für Wünsche nicht vorgesehen).
+3. `speciesAppears`/`appearsContext`: `unhunted` aus den Arten im Ökosystem (Futter der
+   Räuber und `control`-Wirkungen). Cache-Schlüssel unverändert – alles hängt nur an der
+   Zusammensetzung.
+4. `PREDATION_EVENTS` in `EVENTS`, `PREDATION_EVENT_SEASONS` in `EVENT_SEASONS`. In Schritt A
+   ohne Arten und Plätze der Lebensräume (Mauswiesel, Blindschleiche, Platz Totholzhaufen
+   kommen mit Schritt B dazu).
+5. Tests: Bestand-Grenzen (z⁰ 0 → 0,5, 1 → 1,5); Beispiele aus 22.4 (Kauz allein, Kauz +
+   Fuchs, mit Feldmaus); Obergrenze −20 %; nie Iteration (Ergebnis unabhängig von der
+   Nischen-Reihenfolge); `unhunted` an/aus durch Jäger bzw. `control`; Massenjahr nur bei
+   ungejagter Beute; online = offline (Golden Test bleibt deterministisch, Snapshots neu).
+   Danach `npm run balance` und 15.4 nachtragen.
+
+**Schritt C – Wetter-Gewichte** (nach der Wetter-Logik aus 21.9): Beim Ziehen eines
+Ereignisses (Wegpunkt und Zwischenhalt) gewichtet `pick` mit `WEATHER_EVENT_FACTORS[
+weatherOfDay(…, Tag des Halts)][id] ?? 1` statt gleichverteilt (mit dem Zufall des
+Spielstands). Test: gleicher Stand → gleiches Ereignis online und in `simulateOffline`;
+Häufigkeit bei Sturm ≈ ×3.
+
+### 22.9 Simulation (echte Logik, 100 Durchgänge bis Urwald, alle Systeme mit Pflege)
+
+Gemessen mit `scripts/simulate.ts` auf der echten Logik (Schritt A und C mit Futter =
+max(1, Bestand) aus dem Review, Einzelwetter wie online, Eiche, erster Zyklus, gleiche Seeds); „vorher“ = main 9dde233 (Wetter und Nachtarten,
+ohne Räuber und Beute), „nur A“ = ohne Wetter-Gewichte (`WEATHER_EVENT_FACTORS` leer). Spalten:
+Zeit bis zur Stufe (Median), ⚖️ beim Hain / Wald, Ø 😊 beim Hain, Waldgedächtnis-Vorschau am
+Hain-Wegpunkt / am Ende.
+
+```bash
+SIM_PREDATION=1 SIM_PREDATION_RUNS=100 SIM_PREDATION_CYCLES=1 npx vitest run tests/predation-balance.test.ts --silent=false   # ~1 min
+```
+
+| Variante | Strategie | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ Hain / Wald | Ø 😊 Hain | Gedächtnis Hain / Urwald |
+|---|---|---|---|---|---|---|---|---|---|
+| vorher | Harmonie | 4:11 min | 21:48 min | 1:00:58 h | 1:51:23 h | 2:44:21 h | 107,1 / 141,5 | 91,5 % | 63 / 96 |
+| nur A | Harmonie | 4:00 min | 20:29 min | 59:10 min | 1:48:24 h | 2:36:46 h | 110,9 / 145,8 | 96,1 % | 78 / 99 |
+| **A + C** | Harmonie | 4:00 min | 20:29 min | **59:03 min (−3,1 %)** | 1:48:51 h | **2:36:59 h (−4,5 %)** | 110,6 / 145,3 | 96,0 % | 78 / 98 |
+| vorher | Wachstum | 3:56 min | 18:49 min | 53:21 min | 1:35:52 h | 2:19:29 h | 100,7 / 126,1 | 86,2 % | 47 / 78 |
+| nur A | Wachstum | 3:54 min | 18:33 min | 52:06 min | 1:32:23 h | 2:14:58 h | 102,6 / 129,4 | 90,7 % | 57 / 84 |
+| **A + C** | Wachstum | 3:54 min | 18:30 min | **52:09 min (−2,2 %)** | 1:31:52 h | **2:14:46 h (−3,4 %)** | 102,6 / 129,7 | 90,7 % | 57 / 84 |
+| vorher | Zufall | 5:00 min | 30:00 min | 1:33:07 h | 2:55:47 h | 4:15:35 h | 83,6 / 109,7 | 83,0 % | 30 / 44 |
+| **A + C** | Zufall | 4:59 min | 29:41 min | 1:32:07 h | 2:51:22 h | 4:11:53 h | 85,0 / 113,1 | 88,6 % | 30 / 45 |
+
+Wachstum ÷ Harmonie beim Hain: vorher 0,875, jetzt 0,883 – kein Stil wird bevorzugt.
+
+**Massenjahre** (Anteil der Durchgänge bis Urwald, je Zyklus höchstens einmal; Raupen /
+Mäuse / Käfer / Schnecken): Harmonie 0,14 / 0,00 / 0,21 / 0,04, Wachstum 0,21 / 0,00 /
+0,10 / 0,03, Zufall 0,16 / 0,30 / 0,21 / 0,09. Ereignisse je Durchgang bleiben bei ~10
+(9,6 / 10,0 / 9,7; vorher 10,0 / 9,7 / 9,5) – sie verdrängen keine Tierbegegnungen.
+
+**Wetter-Gewichte (Schritt C)** ändern das Tempo nicht messbar (A + C gegenüber nur A:
+±0,5 %, Streuung), nur welches Ereignis an welchem Tag kommt. Bis zum Urwald kommen die
+meisten Ereignisse ohnehin einmal; mit Gewichten etwas öfter z. B. Regenreicher Frühling
+(Harmonie 0,48 → 0,55), Pilzherbst (0,50 → 0,59) und Krötenwanderung (0,25 → 0,30). Je
+Ziehung wirkt der Faktor genau (Test: Sturmnacht bei Sturm ≈ ×3).
+
+**Mehrere Zyklen** (60 Durchgänge, je bis Hain, Neustart dort; Zeit · H_max · Gewinn):
+
+| Variante | Strategie | Zyklus 1 | Zyklus 2 | Zyklus 3 |
+|---|---|---|---|---|
+| vorher | Harmonie | 1:00:24 h · 111,2 · +69 | 35:08 min · 117,3 · +73 | 23:13 min · 121,2 · +72 |
+| vorher | Wachstum | 52:44 min · 103,4 · +43,5 | 36:53 min · 106,5 · +45 | 26:41 min · 107,0 · +44 |
+| vorher | Zufall | 1:33:07 h · 86,5 · +29 | 1:14:17 h · 87,4 · +22 | 59:16 min · 90,4 · +21 |
+| **A + C** | Harmonie | 58:11 min · 114,9 · +80 | 33:00 min · 117,7 · +73 | 22:24 min · 126,1 · +73 |
+| **A + C** | Wachstum | 51:30 min · 107,7 · +57 | 32:33 min · 106,5 · +45,5 | 24:25 min · 112,9 · +63 |
+| **A + C** | Zufall | 1:31:55 h · 89,1 · +30 | 1:12:40 h · 85,7 · +21,5 | 57:04 min · 93,5 · +21 |
+
+**Bewertung:**
+
+- **Räuber und Beute** machen die Beute zufriedener (Ø 😊 beim Hain +4,5 Punkte Harmonie-,
+  +4,5 Wachstums-, +5,6 Zufallsspieler) und die Jäger satter: Harmonie +2 … +4, Hain 2–3 %
+  schneller, Urwald 3–5 %. Das liegt im Korridor (Hain 55–65 min) und bringt den Urwald
+  näher ans Ziel (~2:20 h). Der Prototyp (ohne Wetter) hatte −3,3 % / −5,1 % gemessen.
+- **Waldgedächtnis:** Die Hain-Vorschau steigt (Harmonie 63 → 78, Wachstum 47 → 57), der
+  Gewinn im ersten Zyklus ebenso (+69 → +80 bzw. +43,5 → +57). Ab Zyklus 2 bleibt Harmonie
+  gleichauf mit Wachstum (33:00 gegenüber 32:33 min; vorher 35:08 gegenüber 36:53) – der
+  Vorsprung des Harmonie-Spielers aus Zyklus 1 schrumpft, weil der Wachstums-Spieler jetzt
+  mehr Gedächtnis mitnimmt. Kein Ausgleich nötig: die Prüfungen in `balance-cycles` und
+  `balance-restart` (15.4) sind grün; der Urwald-Gewinn (94,9) liegt aber knapp unter
+  seiner Grenze 95.
+- Das frühe Spiel bis zum Jungen Baum ändert sich kaum (Massenjahre erst ab Alter Baum):
+  Der Junge Baum kommt 11 s früher (4:00 statt 4:11 min), weil der Regenwurm nicht mehr unter
+  Rotkehlchen und Maulwurf leidet und beide von seinem Bestand satter werden.
+- **Mäusejahr** kommt bei Harmonie und Wachstum nie (beide nehmen keine Wühlmaus ohne Jäger
+  oder holen schnell Kauz/Fuchs), beim Zufallsspieler in 30 % der Durchgänge – gewollt, es
+  ist die Antwort auf einen Wald voller Mäuse ohne Jäger.
+
+---
+
+## 23. Lebensräume
+
+> **Stand:** Design (Phase 6, Welle 3, Teil A). Daten in `src/content/habitats.ts`, noch
+> **nicht verdrahtet** (Spielstand v13, 23.6). Inhaltstest `tests/habitats.test.ts`.
+> Messung in 22.9.
+
+### 23.1 Idee
+
+Drei neue Lebensräume nach dem Muster Waldtümpel (5.5): Sie entstehen nicht mit dem Baum,
+der Spieler legt sie mit Pflege an. Jeder hat **eigene Arten**, eine
+**Lebensgemeinschaft** und kommt zu einem **eigenen Zeitpunkt**, damit jede Stufe ab dem
+Jungen Baum etwas Neues bringt:
+
+| Lebensraum | ab | öffnet durch | Charakter |
+|---|---|---|---|
+| 🌾 Waldwiese | Junger Baum | Pflege „Waldwiese“ (neu) | sonnig, Beute und ihre Jäger (Mäuse, Kaninchen, Falke) |
+| 🪵 Totholzhaufen | Alter Baum | Pflege „Totholzhaufen“ (erweitert), Käferjahr | Zersetzer und versteckte Jäger |
+| 🪨 Trockenmauer | Hain | Pflege „Trockenmauer“ (neu) | warm und sonnig: Reptilien, Mauerbiene, Nattern |
+
+Der Waldtümpel bleibt im Alten Baum. **Warum diese drei:** die Roadmap nennt sie, und sie
+decken Lebensweisen ab, die im Wald fehlen – offene Wiese, Boden-Totholz (anders als die
+Spechthöhlen in „Höhlen & Totholz“ am Baum) und warmer Stein. Ein **Bach** wäre ein zweites
+Gewässer neben dem Tümpel (gleiche Rolle, gleiche Arten-Gruppe), eine **Felsenhöhle**
+braucht Fledermaus-Arten, die mit dem Langohr schon in den Baumhöhlen wohnen – beide
+verworfen.
+
+### 23.2 Nischen, Pflege, Kosten
+
+Neue Nischen `meadow`, `deadwood`, `wall`: Plätze 0 auf allen Stufen, `opensEarly` – wie
+`pond`. Karten zieht das Spiel nur für offene Nischen; die Bewohner erscheinen also erst mit
+ihrem Lebensraum. Plätze nur aus Wirkungen `slot`:
+
+| Maßnahme | ID | Rang 1 | Rang 2 | Text |
+|---|---|---|---|---|
+| 🌾 Waldwiese (neu) | `meadow` | **Junger Baum, 2.400 🌰**: +2 Plätze Waldwiese | Hain, 16.000 🌰: +2 Plätze Waldwiese, +2 ☀️ | „Einmal im Jahr gemäht, sonst in Ruhe gelassen – so blüht und zirpt die Lichtung.“ |
+| 🪵 Totholzhaufen (erweitert) | `deadwood-pile` | Alter Baum, **4.500 🌰** (vorher 3.500): Totholz, **+2 Plätze Totholzhaufen** | Hain, 14.000 🌰: +1 Platz Stamm & Rinde, **+1 Platz Totholzhaufen**, +2 ⚖️ | „Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.“ |
+| 🪨 Trockenmauer (neu) | `drystone-wall` | **Hain, 12.000 🌰**: +2 Plätze Trockenmauer, +2 ☀️ | Wald, 32.000 🌰: +2 Plätze Trockenmauer, +2 ⚖️ | „Lesesteine ohne Mörtel, in der Sonne geschichtet – jede Ritze ein Zuhause.“ |
+| 🪲 Käferjahr (22.5) | – | „Das Holz vermodern lassen“: Totholz, +1 Platz Totholzhaufen (Zyklus) | | |
+
+- **Kosten:** Pflege vor dem Hain steigt von 27.650 auf 31.050 🌰 (Wiese 2.400,
+  Totholzhaufen +1.000), Hain-Ränge +28.000 (Wiese, Mauer), Wald-Ränge +32.000. Die Wiese
+  liegt mit 2.400 über Nistkästen (650) und Wildblumen-Saum (900): Im Jungen Baum ist sie
+  die große Anschaffung (der Harmonie-Spieler kauft sie zu 73 % dort, der Wachstums-Spieler
+  zu 26 %); der Totholzhaufen kostet mehr als vorher, weil er jetzt zwei Plätze bringt.
+- **Licht:** Die Mauer bringt +2 ☀️ (für sie wird eine sonnige Ecke frei geräumt), der
+  zweite Wiesen-Rang ebenso – beide Lebensräume wollen Sonne, der Wald wird mit den Stufen
+  schattiger (Abwägung wie Lichte/Dichte Krone).
+- Ein Platz aus Pflege geht nie verloren; ein Lebensraum, der nur durch das Käferjahr offen
+  ist (1 Platz), bleibt bis zum Neuen Zyklus.
+
+### 23.3 Gattung Reptilien
+
+Siebte, kleine Gattung wie die Amphibien (5.1): 🦎 **Reptilien** mit fünf Arten auf drei
+Lebensräumen. Wechselwarm: im **Sommer +15 % 😊** (Sonnenbad), im **Winter keine Wirkung**
+(Winterstarre ohne Abzug, wie Amphibien).
+
+| Gattung | 2 | 3 | 5 |
+|---|---|---|---|
+| 🦎 Reptilien | +8 % 🌰 | +6 % 🌿 | +12 % 🌿, +10 % 🌰 (alle fünf: Wiese, Totholzhaufen und Mauer) |
+
+Warum eine eigene Gattung: Eidechsen und Nattern sind weder Bodenleben noch Säugetiere, und
+erst als Gattung tragen sie Vielfalt (+3 ⚖️), Gattungsbonus, Tagesziele („Beobachte …
+Reptilien“) und den Erfolg „Von allem etwas“. Der Erfolg verlangt dann auch ein Reptil –
+wer ihn hat, behält ihn (12.6); sein Text wird „… – auch Amphibien und Reptilien“.
+
+### 23.4 Arten (14)
+
+Alle gewöhnlich oder selten: „Besonders“ bräuchte eine neue Fähigkeit und damit Logik (wie
+beim Playtest Amphibien, 5.5). Stärke wie im Katalog (🌿 schon ×0,75 seit 2.10).
+
+| Art | Gattung | Seltenheit | Ebene | Lebensraum | ab | Nahrung | Wünsche | bietet | Wirkung |
+|---|---|---|---|---|---|---|---|---|---|
+| Feldgrille | Insekten | gewöhnlich | Pflanzenfresser | 🌾 | Junger Baum | Kraut | sonnig | Insekten | +7 % 🌰 |
+| Feldmaus | Säugetiere | gewöhnlich | Pflanzenfresser | 🌾 | Junger Baum | Kraut / Wurzeln | sonnig | Kleinsäuger | Fraß −4 % 🌿, +6 % 🌰 |
+| Wildkaninchen | Säugetiere | gewöhnlich | Pflanzenfresser | 🌾 | Junger Baum | Kraut | sonnig, 1× Sträucher | Kaninchen | +2 ☀️ (hält die Wiese kurz), +4 % 🌰, Fraß −4 % 🌿 |
+| Waldeidechse | Reptilien | gewöhnlich | Räuber | 🌾 | Junger Baum | Insekten | sonnig, Feuchte | Echsen | jagt Insekten (−15 %), +4 % 🌿 |
+| Turmfalke | Vögel | selten | Räuber | 🌾 | Alter Baum | Kleinsäuger / Echsen / Insekten | sonnig, Baumhöhle | – | jagt Kleinsäuger (−40 %), +5 % 🌿 |
+| Zaunkönig | Vögel | gewöhnlich | Räuber | 🪵 | Alter Baum | Insekten | Totholz | – | jagt Insekten (−15 %), +6 % 🌰 |
+| Rosenkäfer | Insekten | gewöhnlich | Zersetzer | 🪵 | Alter Baum | Totholz / Laub | 1× Blumen | Insekten, Käfer | +5 % 🌿, Blumen +15 % 🌰 |
+| Schmetterlingstramete | Pilze | gewöhnlich | Zersetzer | 🪵 | Alter Baum | Totholz | Feuchte | – | +6 % 🌿 |
+| Blindschleiche | Reptilien | gewöhnlich | Räuber | 🪵 | Alter Baum | Schnecken / Würmer | Feuchte, schattig | Echsen | jagt Schnecken (−40 %), +4 % 🌿 |
+| Mauswiesel | Säugetiere | selten | Räuber | 🪵 | Alter Baum | Kleinsäuger | Totholz, 1× Sträucher | – | jagt Kleinsäuger (−60 %), +5 % 🌿 |
+| Zauneidechse | Reptilien | gewöhnlich | Räuber | 🪨 | Hain | Insekten | sonnig | Echsen | jagt Insekten (−15 %), +7 % 🌰 |
+| Rote Mauerbiene | Insekten | gewöhnlich | Pflanzenfresser | 🪨 | Hain | Nektar | sonnig, 1× Sträucher | Insekten | Sträucher +30 % 🌰, Bäume +15 % 🌰, +4 % 🌰 |
+| Ringelnatter | Reptilien | selten | Räuber | 🪨 | Hain | Amphibien | sonnig, Feuchte | – | +6 % 🌿, +2 ⚖️ |
+| Schlingnatter | Reptilien | selten | Räuber | 🪨 | Hain | Echsen / Kleinsäuger | sonnig, Totholz | – | jagt Kleinsäuger (−30 %), +5 % 🌿, +2 ⚖️ |
+
+Kurztexte: Feldgrille „Zirpt vor ihrer Erdröhre – an warmen Abenden singt die ganze Wiese.“ ·
+Feldmaus „Legt unter der Wiese Vorräte an – was sie vergisst, keimt im Frühling.“ ·
+Wildkaninchen „Hält die Wiese kurz und offen. Wo Kaninchen wohnen, ist der Fuchs nicht
+weit.“ · Waldeidechse „Bringt ihre Jungen lebend zur Welt – darum mag sie auch kühle,
+feuchte Lichtungen.“ · Turmfalke „Rüttelt still im Wind über der Wiese – dann stößt er auf
+eine Maus.“ · Zaunkönig „Winzig, mit steil gestelltem Schwanz – und einer Stimme, die den
+ganzen Wald füllt.“ · Rosenkäfer „Die Larven machen aus morschem Holz Erde, der Käfer glänzt
+grüngolden auf den Blüten.“ · Schmetterlingstramete „Bunte Fächer auf jedem alten Ast – sie
+macht Holz zu Humus.“ · Blindschleiche „Keine Schlange, sondern eine Echse ohne Beine – und
+eine geduldige Schneckenjägerin.“ · Mauswiesel „Schlank genug, um Mäusen bis in ihre Gänge
+zu folgen.“ · Zauneidechse „Im Frühling leuchten die Flanken der Männchen grün. Morgens
+wärmt sie sich auf dem Stein.“ · Rote Mauerbiene „Nistet in Mauerritzen und bestäubt im
+April die ersten Blüten.“ · Ringelnatter „Gelbe Halbmonde hinter dem Kopf: harmlos, scheu –
+und eine gute Schwimmerin.“ · Schlingnatter „Selten gesehen: Sie jagt Eidechsen und Mäuse
+und hält sie umschlungen wie eine kleine Würgeschlange.“
+
+**Abwägungen:** Die Wiese ist die **Beute-Wiese** – Feldmaus und Kaninchen fressen ein
+wenig, füttern aber Kauz, Fuchs, Falke und Wiesel (22.3); wer sie nimmt, bekommt satte
+Jäger, wer sie meidet, die Grille und die Eidechse. Der Totholzhaufen ist schattig-feucht
+(Blindschleiche, Tramete), die Mauer sonnig (Eidechse, Biene, Nattern) – beide zugleich
+voll zufrieden verlangen einen lichten, feuchten Wald (wie Hirschkäfer und Tümpel). Die
+**Ringelnatter** braucht Amphibien als Futter: Sie verbindet Mauer und Tümpel und ist dank
+Überjagung (22.4) keine Strafe mehr für die Frösche.
+
+### 23.5 Lebensgemeinschaften (9.2)
+
+| Lebensgemeinschaft | Mitglieder | ⚖️ | Hinweis |
+|---|---|---|---|
+| 🌾 Wiesenkonzert | Feldgrille, Wildbiene oder Tagpfauenauge, Turmfalke | +6 | „Zirpen, Summen – und hoch darüber ein Rütteln in der Luft.“ |
+| 🪵 Unterm Reisig | Zaunkönig, Rosenkäfer oder Schmetterlingstramete, Blindschleiche oder Mauswiesel | +6 | „Wo Reisig liegt, singt, nagt und lauert es.“ |
+| 🪨 Sonnenmauer | Zauneidechse, Rote Mauerbiene, Ringelnatter oder Schlingnatter | +6 | „Warme Steine, summende Ritzen, ein Rascheln im Moos.“ |
+| 🐍 Natter am Ufer | Ringelnatter, Grasfrosch oder Erdkröte, Bergmolch oder Laubfrosch oder Kammmolch | +6 | „Am Ufer liegt jemand in der Sonne und wartet geduldig.“ |
+
+Alle +6 wie die kleinen Gemeinschaften (Blütensaum, Tümpelleben). „Natter am Ufer“ zeigt
+Räuber und Beute als Gewinn: Jäger und Gejagte zusammen bringen Harmonie.
+
+### 23.6 Spielstand v13
+
+**Neue Felder:** nur `niches.meadow`, `niches.deadwood`, `niches.wall` (je `string[]`, wie
+jede Nische). Alles andere ist abgeleitet oder steckt in vorhandenen Feldern:
+
+| Was | wo | neues Feld? |
+|---|---|---|
+| Bestand, Überjagung, Nahrungsnetz | aus der Zusammensetzung (`evaluate`) | nein |
+| Massenjahre | `cycle.seen`, `cycle.bonuses`, `cycle.habitats`, `cycle.forced` (wie alle Ereignisse) | nein |
+| Wetter-Gewichte | `weatherOfDay(cycle, Tag)` (21.4) | nein |
+| Pflege Wiese, Mauer | `cycle.care` (`meadow`, `drystone-wall`) | nein (neue IDs) |
+| Reptilien, neue Arten, Gemeinschaften | `meta.journal`, Tagesziele `genus` | nein (neue IDs) |
+
+**`SAVE_VERSION` 12 → 13** (main ist v12; das Wetter braucht keine neue Version, 21.7).
+Warum eine Version, obwohl das Laden fehlende Nischen schon ergänzt: Ein älteres Spiel kennt
+die Nischen, Arten, Pflege-IDs und die Gattung nicht und würde sie beim Laden still
+verwerfen – auch über die Synchronisierung (wie v11, 12.8). Mit v13 erkennt es den Stand als
+„neuer“ und schützt ihn.
+
+- **Migration v12 → v13:** die drei Nischen leer anlegen. Wer im laufenden Zyklus den
+  Totholzhaufen gekauft hat, bekommt seine zwei Plätze automatisch (sie folgen aus dem Rang;
+  dass er 3.500 statt 4.500 🌰 bezahlt hat, bleibt ein kleines Geschenk). Nichts sonst.
+- **Robustes Laden (ab v13):** wie jede Nische (nur bekannte Arten dieser Nische, gekürzt auf
+  die Plätze); `cycle.care` kennt die neuen IDs; Tagesziele kennen `reptiles`.
+- Tests: v12-Stand mit Totholzhaufen Rang 1 → `niches.deadwood` leer mit 2 Plätzen; v12
+  ohne → Nischen geschlossen; jede Version v2 … v12 lädt; Neuer Zyklus leert die Nischen.
+
+### 23.7 Aufgabenschnitt und Reihenfolge
+
+| # | Agent | Aufgabe | abhängig von |
+|---|---|---|---|
+| 1 | `core-engineer` | ✅ **Schritt A** (22.8): Bestand, Überjagung, `unhunted`, Massenjahre (ohne Lebensraum-Arten), `foodWeb`; Tests; Messung 22.9 | – |
+| 2 | `ui-dev` | Bestand und Futter in Tierdetails und Karte, Nahrungsnetz in der Übersicht, Spielanleitung „Räuber und Beute“ (22.7) | 1 |
+| 3 | `core-engineer` | **Schritt B** (v13, schützt auch die Massenjahr-IDs in `cycle.seen` vor älteren Clients, 22.8): Typen (`reptiles`, Nischen, Merkmale `amphibien`/`echsen`/`hasen` mit Namen in `TAG_NAMES`: „Amphibien“, „Echsen“, „Kaninchen“), `habitats.ts`/`predation.ts` in `SPECIES`, `NICHES`, `TRAITS`, `GENUS_INFO`, `COMMUNITIES`, `CARE` (Totholzhaufen ersetzen), `SEASONS` (Sommer Reptilien +15 %), Ergänzungen an Amphibien und Fuchs (mit Kurzwirkung), Massenjahre vollständig; `W3…`-Typen löschen, `tests/habitats.test.ts` auf die verdrahteten Listen umstellen; Migration v12 → v13; Erfolgstext „Von allem etwas“ | 1, Wetter-Logik gemergt (keine zwei Versionen parallel) |
+| 4 | `renderer` | Szene für die drei Lebensräume und 14 Zeichnungen, Familie Reptilien (Winterstarre wie Amphibien), Ersatzbild für Unbekannte (Eidechse), Anker-Tests wie beim Tümpel (23.8) | 3 (bis dahin: neue Nischen werden nicht gezeichnet) |
+| 5 | `ui-dev` | Nischenliste: drei verschlossene Lebensräume mit Hinweis und „Zur Pflege“ (wie Tümpel), Gattung Reptilien (Symbol, CSS-Klasse `reptiles`, Artikel in Tageszielen „der Reptilien“, Einzahl „Reptil“), Spielanleitung „Lebensräume“ | 3 |
+| 6 | `core-engineer` | ✅ **Schritt C** (22.8): Wetter → Ereignis-Gewichte (zusammen mit Schritt A) | Wetter-Logik |
+| 7 | `game-designer` | Nach 3: `npm run balance` mit allen Systemen, 15.4 und diese Tabellen nachtragen (der Prototyp-Patch ist mit Schritt A gelöscht – er passte nicht mehr auf `formulas.ts`; Vorlage für Schritt B sind 23.2–23.6 und die Daten in `habitats.ts`) | 3 |
+
+**Was zuerst:** Schritt A (1, 2) bringt das Spielgefühl „Jäger sind gut“ sofort, ohne
+Spielstand – und macht die Ringelnatter erst möglich. Die Lebensräume (3–5) brauchen v13 und
+viel Grafik; sie kommen nach der Wetter-Logik, damit nie zwei Spielstand-Änderungen parallel
+laufen. Schritt C ist klein und kann jederzeit nach dem Wetter.
+
+### 23.8 Darstellung (für den `renderer`)
+
+Am Boden ist keine Strecke frei (5.5); darum zwei Ebenen:
+
+- **🪵 Totholzhaufen** als Gegenstück zum Tümpel am **rechten** Bildrand im Erdschnitt: ein
+  halb eingesunkener Reisighaufen unter der Grasnarbe (Äste, Laub, ein morscher Stubben),
+  Bewohner in Lücken des Haufens (Wiesel im Gang, Blindschleiche unter einem Ast,
+  Tramete als Fächer am Stubben, Rosenkäfer, Zaunkönig auf dem höchsten Ast an der
+  Narbe). Gleiche Regeln wie `pondPlaces` (Lage aus allen Bewohnern, keine Überlappung mit
+  Wurzelraum, Laubstreu und Waldsaum), gecachtes Sprite, im Winter Schnee darauf.
+- **🌾 Waldwiese** und **🪨 Trockenmauer** in der **Kulisse** (Mittelgrund hinter dem
+  Hauptbaum): rechts eine helle Lichtung mit hohem Gras und Blüten, links davon eine niedrige
+  Lesesteinmauer. Bewohner dort etwa 70 % groß (Perspektive), der Turmfalke rüttelt über der
+  Wiese im Himmel, die Nattern liegen auf den Steinen. Lichtung und Mauer erscheinen erst, wenn
+  die Nische offen ist (vorher die heutige Kulisse) – Neuzeichnen nur beim Öffnen.
+- **Reptilien** sind wechselwarm: im Winter still (Winterstarre, wie Amphibien), im Sommer
+  sonnen sie sich (kleine Kopfbewegung, Atmen). Nattern als S-Kurve, nicht bedrohlich.
+- Leistung wie 19.3 (gecachte Sprites, Neuaufbau nur bei Änderung); Anker-Tests für 320×480
+  bis 1920×1080, Stufen 3–8, 1–5 Bewohner.
+
+### 23.9 Entscheidungen und offene Fragen
+
+**Entschieden** (mit Begründung):
+
+- **Bestand abgeleitet, keine Populationen im Spielstand.** Deterministisch, offline exakt,
+  kein neues Feld, keine Strafe durch Einbruch; die Harmonie bleibt eine Funktion des
+  Waldes (Sperrklinke).
+- **Bestand = 0,5 + z⁰** statt Anzahl: Die Beute wird so über ihre Zufriedenheit pflegbar –
+  genau das, was der Spieler heute schon tut. Ein schmalerer Bereich (0,75 … 1,25) war nach
+  der Messung nicht nötig.
+- **Überjagung höchstens −20 %** wie der alte Räuberdruck; nie schlechter als heute.
+- **Massenjahre statt automatischer Zuwanderung:** Der Wald fragt, der Spieler entscheidet
+  (Kartenwahl bleibt das Herz des Spiels).
+- **Ringelnatter an der Trockenmauer, nicht im Tümpel:** Sie nähme sonst Amphibien einen
+  Platz, und an der Mauer verbindet sie zwei Lebensräume.
+- **Keine neue Fähigkeit:** alle neuen Arten gewöhnlich oder selten – Daten statt Logik.
+- **Wiese ab Junger Baum, Totholzhaufen ab Alter Baum, Mauer ab Hain:** jede Stufe ab dem
+  Jungen Baum bringt einen Lebensraum; das frühe Spiel bleibt unverändert.
+- **Wetter-Gewichte statt neuer Wetter-Ereignisse:** keine neue Bedingung „Wetter“, kein
+  Zähler für Dürretage; das Käferjahr bei Dürre ist das „Borkenkäferjahr“.
+
+**Offen:**
+
+- **Sonnenmauer zu selten** (2 % der Durchgänge im ersten Zyklus): Zauneidechse und
+  Mauerbiene kommen erst ab Hain und brauchen Sonne. In späteren Zyklen helfen Stammgäste
+  (sie ziehen ein, sobald die Mauer offen ist). Falls zu wenig: Ereignis „Sonnenbad“ (Hain,
+  Frühling/Sommer) mit Einladung der Mauerbewohner – braucht eine Bedingung „Nische offen“.
+- **Mäusejahr kommt selten** (Harmonie- und Wachstums-Spieler 0 %), weil gierige Spieler
+  Mäuse meiden bzw. schnell bejagen. Gewollt: Es ist die Antwort auf einen Wald voller Mäuse
+  ohne Jäger (Zufallsspieler 30 %, 22.9).
+- **„Besondere“ Lebensraum-Arten** (z. B. Uhu an der Mauer, Neuntöter an der Wiese) mit
+  neuer Fähigkeit – später, wenn eine Fähigkeit dafür entworfen ist.
+- **Erfolge:** „Nahrungsnetz im Gleichgewicht“ (alle Merkmale mit Jäger und Beute
+  ausgewogen) und „Alle Lebensräume“ – eine neue Bedingungsart je, nach Schritt B.
+- **Bestand auch für Pflanzen?** Pflanzen bleiben bei 1 Einheit Futter; Versorgung (2.5)
+  regelt sie schon.

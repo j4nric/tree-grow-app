@@ -1,3 +1,4 @@
+import { PREDATION_EVENTS } from './predation';
 import type { Condition, Effect, Tag } from './types';
 
 /**
@@ -308,6 +309,8 @@ export const EVENTS: readonly GameEvent[] = [
       },
     ],
   },
+  // --- Massenjahre: Beute ohne Jäger (DESIGN_V2.md 22.5, Daten in predation.ts) ---------
+  ...PREDATION_EVENTS,
 ];
 
 export const EVENTS_BY_ID: ReadonlyMap<string, GameEvent> = new Map(EVENTS.map((e) => [e.id, e]));

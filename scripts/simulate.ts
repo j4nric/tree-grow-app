@@ -312,6 +312,8 @@ export interface Snapshot {
   dailyDone: number;
   /** Gekaufte Ränge je Maßnahme. */
   careRanks: Record<string, number>;
+  /** Ereignisse und Gäste, die in diesem Zyklus schon gezogen wurden (`cycle.seen`). */
+  seen: string[];
   counts: Counts;
 }
 
@@ -484,6 +486,7 @@ export function runGame(
       seeds: state.seeds,
       ...book,
       careRanks: { ...state.cycle.care },
+      seen: [...state.cycle.seen],
       counts: { ...counts, rarityTaken: [...counts.rarityTaken] },
     };
   };
