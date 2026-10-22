@@ -37,6 +37,9 @@ const PREY_ICONS: Readonly<Record<string, string>> = {
   schnecken: '🐌',
   kleinsaeuger: '🐭',
   rehe: '🦌',
+  // Futter, das bisher nur Pflanzen bieten – falls einmal ein Tier es bereitstellt.
+  nuesse: '🥜',
+  beeren: '🍒',
   // Lebensräume (Schritt B, 23.7) – schon vorbereitet, falls die Merkmale kommen.
   amphibien: '🐸',
   echsen: '🦎',
