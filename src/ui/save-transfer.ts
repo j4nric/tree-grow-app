@@ -33,6 +33,14 @@ const ARM_MS = 5000;
 
 const KEEP = 'Dein Spielstand bleibt unverändert.';
 
+/**
+ * Hinweis beim Start, wenn der Spielstand im Browser aus einer neueren Spielversion stammt
+ * (`storedSaveIsNewer`, DESIGN_V2.md 23.6). Bis zum Neuladen läuft ein leeres Spiel, das
+ * nichts speichert – der Satz beruhigt zuerst: Der Wald ist nicht verloren.
+ */
+export const NEWER_STORED_SAVE_TEXT =
+  'Dein Wald wurde mit einer neueren Spielversion gespeichert und bleibt unverändert erhalten. Bitte lade die Seite neu, um weiterzuspielen – bis dahin wird hier nichts gespeichert.';
+
 /** Meldungen für ungültige Codes (ImportError aus core/save.ts). */
 export const IMPORT_ERROR_TEXTS: Readonly<Record<ImportError, string>> = {
   empty: 'Bitte füge zuerst einen Spielstand-Code ein.',

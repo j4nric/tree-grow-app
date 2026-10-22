@@ -5300,7 +5300,10 @@ Ziehung wirkt der Faktor genau (Test: Sturmnacht bei Sturm ≈ ×3).
 > Tests: `tests/habitats.test.ts` (Inhalt), `tests/habitats-core.test.ts` (Spielstand,
 > Laden, Logik), online = offline in `tests/tick.test.ts`. Messung 23.10. Offen: Szene und
 > Zeichnungen (`renderer`, bis dahin werden die neuen Nischen nicht gezeichnet; Reptilien
-> bekommen vorläufig die Zeichnung der Amphibien), Nischenliste und Spielanleitung (`ui-dev`).
+> bekommen vorläufig die Zeichnung der Amphibien). Oberfläche umgesetzt (`ui-dev`, 23.7
+> Punkt 5): Nischenliste mit „Zur Pflege“, Pflegekarten „Öffnet Lebensraum …“
+> (`careOpensText` in `ui/adapters.ts`), Reptilien, Spielanleitung „Lebensräume“ – Tests
+> `tests/habitats-ui.test.ts`, `e2e/habitats.spec.ts`.
 
 ### 23.1 Idee
 
@@ -5451,7 +5454,9 @@ verwerfen – auch über die Synchronisierung (wie v11, 12.8). Mit v13 erkennt e
   (`importCode` → `'newer'`, `isNewerSchema`); seit v13 auch der gespeicherte Stand im Browser
   (`storedSaveIsNewer`): `main.ts` lädt ihn nicht, überschreibt ihn nie (Speicher gesperrt),
   startet keinen Abgleich und zeigt einen dauerhaften Hinweis (`role="alert"`, Knopf „Seite
-  neu laden“). Auch im laufenden Tab: Schreibt ein anderer Tab einen neueren Stand
+  neu laden“): „Dein Wald wurde mit einer neueren Spielversion gespeichert und bleibt
+  unverändert erhalten. Bitte lade die Seite neu …“ (`NEWER_STORED_SAVE_TEXT` in
+  `ui/save-transfer.ts`). Auch im laufenden Tab: Schreibt ein anderer Tab einen neueren Stand
   (`storage`-Ereignis), oder findet `persist()` vor dem Schreiben einen, sperrt sich der Tab
   ebenso. Im gesperrten Tab lehnen „Spielstand löschen“ und Import mit „Dieser Tab ist
   angehalten. Bitte lade die Seite neu.“ ab (wie das Laden einer Sicherung); Exportieren
