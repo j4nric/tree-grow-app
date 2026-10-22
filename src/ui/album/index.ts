@@ -43,7 +43,7 @@ import {
   type TabId,
 } from './nav';
 import { TURNED_AWAY, createPageTurn } from './page-turn';
-import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage } from './pages/registry';
+import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type TabPage } from './pages/registry';
 import { createPolaroid } from './polaroid';
 import { createSpread } from './spread';
 import { createStageLadder } from './stage-ladder';
@@ -96,7 +96,12 @@ export function createAlbum(deps: AlbumDeps): Album {
     onOpenSave: () => dispatch({ type: 'open', page: { kind: 'save' } }),
   });
   const book = createBook(spread, cover.element, () => dispatch({ type: 'cover', open: !nav.cover }));
-  const env: PageEnv = { deps, back: () => goBack() };
+  const env: PageEnv = {
+    deps,
+    back: () => goBack(),
+    open: (page) => dispatch({ type: 'open', page }),
+    float: (text, x, y) => legacy.float(text, x, y),
+  };
 
   // Linke Seite: Polaroid, Etiketten, Stufenleiste, Rückkehr-Bericht.
   const polaroid = createPolaroid(deps.canvas, () => dispatch({ type: 'fullscreen', open: true }));
@@ -138,6 +143,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   const subpages = new Map<string, Subpage>();
   const savePage = SUBPAGES.save(env);
   subpages.set('save', savePage);
+  for (const [kind, create] of Object.entries(SUBPAGES)) if (!subpages.has(kind)) subpages.set(kind, create(env));
   for (const sub of subpages.values()) {
     sub.page.element.hidden = true;
     spread.sub.append(sub.page.element);
@@ -415,7 +421,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   function fillSubpage(sub: Subpage, state: AlbumNav, level: number): void {
     const below = level > 1 ? subpageOf(state.stack[level - 2]!)?.page.title.textContent : null;
     sub.bookmark.setLabel(below ?? (state.cover ? 'Umschlag' : TAB_LABELS[state.tab]));
-    sub.opened?.();
+    sub.opened?.(state.stack[level - 1]!);
   }
 
   /** Alle weggedrehten Seiten wieder hinlegen (ohne Animation). */
@@ -483,9 +489,24 @@ export function createAlbum(deps: AlbumDeps): Album {
     }
   }
 
+  /** Seiten auffrischen: sichtbare Reiterseite und oberste Unterseite, Punkte an allen Reitern. */
+  function refreshPages(now: number): void {
+    for (const id of TAB_IDS) {
+      const tab: TabPage = tabs[id];
+      if (tab.badge) tabStrip.setDot(id, tab.badge(now));
+    }
+    tabs[nav.tab].update?.(now);
+    const top = nav.stack[nav.stack.length - 1];
+    if (top) subpageOf(top)?.update?.(now);
+  }
+
   // --- Schnittstelle für main.ts ---------------------------------------------------------
   return {
     ...legacy,
+    refresh(now) {
+      legacy.refresh(now);
+      refreshPages(now);
+    },
     sceneFrame: fullscreen.tools,
     banners: book.banners,
     get nav() {
@@ -504,7 +525,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     replaced() {
       legacy.replaced();
       closeNotes();
-      savePage.reset?.();
+      for (const sub of subpages.values()) sub.reset?.();
     },
     adopted(headChanged) {
       legacy.adopted(headChanged);
