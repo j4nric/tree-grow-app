@@ -47,7 +47,8 @@ import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Lay
 import { paintLeaves, paintWood, TREE_FORMS, type LeafPalette, type WoodColors } from './plant';
 import { cycleElapsed, CycleTransition, type CycleGeometry, type OldForest } from './cycle';
 import { DayLayer, dayLevels, normalizeDayPhase, paintDaySky, tintCopy, tintInPlace, tintRgb, type DayFrame, type DayLevels } from './daylight';
-import { MIDGROUND_MEADOW, MIDGROUND_WALL, paintMidground } from './habitat-scenery';
+import { MIDGROUND_MEADOW, MIDGROUND_WALL, midgroundPath, paintMidground } from './habitat-scenery';
+import { IdleQueue, warmCanvas } from './idle';
 import { MoodLayer, type MoodFrame } from './mood';
 import {
   normalizeSpecies,
@@ -240,6 +241,14 @@ export interface SceneInput {
    * gilt als „jetzt“; danach und davor: nichts. Das Feld darf gesetzt bleiben.
    */
   jayFlight?: { startedAt: number };
+  /**
+   * Warteschlange für Arbeit in Leerlaufzeit (idle.ts). Mit Angabe entstehen nicht eilige
+   * Neuaufbauten – neue Jahreszeit-Stufe, Tönung (Tag und Nacht, Wetter) und die scharfen
+   * Detail-Ebenen beim Zoom – in Stücken zwischen den Frames; bis dahin bleibt der vorige,
+   * vollständige Stand sichtbar. Der erste Aufbau und Größenänderungen bleiben synchron.
+   * Ohne Angabe ist alles synchron wie bisher.
+   */
+  idle?: IdleQueue;
 }
 
 /** Überblendung der Kulisse bei einem Standortwechsel (s; bei weniger Bewegung kürzer). */
@@ -407,6 +416,13 @@ interface TintSet {
   back: HTMLCanvasElement | null;
   front: HTMLCanvasElement | null;
   memory: HTMLCanvasElement | null;
+  /**
+   * Bereiche (Gerätepixel), aus denen die Kopien stammen – beim Tönen in Leerlaufzeit hat
+   * der Satz evtl. schon neuere Bereiche; gezeigt wird jede Kopie an ihrem eigenen Platz.
+   */
+  backRect: Rect | null;
+  frontRect: Rect | null;
+  memoryRect: Rect | null;
   /** Wolken-Sprites (gleiche Reihenfolge wie `SizeCache.clouds`). */
   clouds: HTMLCanvasElement[];
 }
@@ -490,6 +506,18 @@ interface Cache {
   shownSite: SceneSiteId | null;
   /** Wie oft die Kulisse gezeichnet wurde (für Tests: kein Neuzeichnen pro Frame). */
   staticBuilds: number;
+  /** Tönen in Leerlaufzeit (null = kein Auftrag). */
+  tintJob: TintJob | null;
+  /** Detail-Ebenen, die in Leerlaufzeit entstehen (gezeigt erst, wenn sie fertig sind). */
+  detailNext: SizeCache | null;
+  /** Ausschnitt, für den sie entstehen (null = kein Auftrag). */
+  detailJob: CameraView | null;
+  /** Neue Jahreszeit-Stufe wartet auf Leerlaufzeit. */
+  seasonPending: boolean;
+  /** Eingabe, Wachstum und Zeit des letzten Frames (für die Arbeit in Leerlaufzeit). */
+  lastInput: SceneInput | null;
+  lastG: number;
+  lastTime: number;
 }
 
 /**
@@ -636,40 +664,64 @@ function drawSheared(
   }
 }
 
-/**
- * Tönt die Ebenen eines Satzes für die aktuelle Tönungsstufe (Tag und Nacht): Kulisse mit
- * Nacht- bzw. Dämmerungshimmel und Lichtfarbe, Baum-Ebenen und Erinnerungsbaum nur in der
- * Lichtfarbe. Neu nur bei neuer Stufe oder wenn die Ebenen neu gezeichnet wurden.
- */
-function updateTint(sc: SizeCache, cache: Cache): void {
-  const day = cache.day;
+/** Was an den getönten Kopien eines Satzes veraltet ist (null = nichts). */
+interface TintPlan {
+  key: number;
+  keyChanged: boolean;
+  /** Kulisse ganz neu (sonst nur der Streifen ab der Grasnarbe). */
+  full: boolean;
+  layers: boolean;
+  memory: boolean;
+  version: number;
+  staticVersion: number;
+  memoryVersion: number;
+}
+
+function tintPlan(sc: SizeCache, cache: Cache): TintPlan | null {
   const t = sc.tint;
   const keyChanged = !t || t.key !== cache.tintKey;
   const full = keyChanged || t.staticVersion !== sc.staticVersion;
   const layers = full || t.version !== sc.version;
   const memory = full || t.memoryVersion !== sc.memoryVersion;
-  if (!layers && !memory) return;
+  if (!layers && !memory) return null;
+  return { key: cache.tintKey, keyChanged, full, layers, memory, version: sc.version, staticVersion: sc.staticVersion, memoryVersion: sc.memoryVersion };
+}
+
+/** Stücke der Tönung (je eines pro Leerlauf-Rückruf): Kulisse, hintere, vordere Ebene, Rest. */
+const TINT_STAGES = 4;
+
+/**
+ * Tönt die Ebenen eines Satzes für die aktuelle Tönungsstufe (Tag und Nacht): Kulisse mit
+ * Nacht- bzw. Dämmerungshimmel und Lichtfarbe, Baum-Ebenen und Erinnerungsbaum nur in der
+ * Lichtfarbe. Neu nur bei neuer Stufe oder wenn die Ebenen neu gezeichnet wurden.
+ */
+function updateTint(sc: SizeCache, cache: Cache, warm = false): void {
+  const plan = tintPlan(sc, cache);
+  if (!plan) return;
+  for (let s = 0; s < TINT_STAGES; s++) tintStage(sc, cache, plan, s, warm);
+}
+
+/**
+ * Ein Stück der Tönung nach `plan`: 0 Kulisse, 1 hintere Ebene, 2 vordere Ebene,
+ * 3 Erinnerungsbaum, Wolken und Abschluss (erst dann gilt der Satz als aktuell). `warm`:
+ * das Ergebnis gleich rastern (Leerlaufzeit), nicht erst beim Zusammensetzen.
+ */
+function tintStage(sc: SizeCache, cache: Cache, plan: TintPlan, stage: number, warm: boolean): void {
+  const set = sc.tint ?? newTintSet();
+  sc.tint = set;
   const fill = cache.tintFill;
-  const set: TintSet = t ?? {
-    key: -1,
-    version: -1,
-    staticVersion: -1,
-    memoryVersion: -1,
-    background: document.createElement('canvas'),
-    back: null,
-    front: null,
-    memory: null,
-    clouds: [],
-  };
-  if (layers) {
+  const copy = !cache.tintWhite || cache.rimeAlpha > 0;
+  if (stage === 0 && plan.layers) {
     // Kulisse: Kopie, Himmel der Stufe darüber, dann die Lichtfarbe. Hat sich nur das
     // Wachstum geändert (Wurzeln, Grasnarbe), genügt der Streifen ab der Grasnarbe.
+    const day = cache.day;
     const bg = set.background;
-    if (bg.width !== sc.pw || bg.height !== sc.ph) {
+    const resized = bg.width !== sc.pw || bg.height !== sc.ph;
+    if (resized) {
       bg.width = sc.pw;
       bg.height = sc.ph;
     }
-    const y0 = full ? 0 : sc.grassTop;
+    const y0 = plan.full || resized ? 0 : sc.grassTop;
     const h = sc.ph - y0;
     const c = bg.getContext('2d')!;
     c.save();
@@ -685,43 +737,133 @@ function updateTint(sc: SizeCache, cache: Cache): void {
     // Wetter über dem Himmel der Tageszeit (gebacken: Wolkendecke, Dunst, Strahlen, Boden).
     if (cache.weatherNow) {
       const { width, height, groundY } = sc.layout;
-      paintWeatherSky(c, cache.weather.baked, width, height, groundY, cache.dayNow ? day.tint.night : 0);
+      const baked = cache.weather.baked;
+      paintWeatherSky(c, baked, width, height, groundY, cache.dayNow ? day.tint.night : 0);
+      // Nebel: Die Kuppe von Waldwiese und Trockenmauer liegt vor dem Dunst (Kontur bleibt).
+      if (baked.fog > 0.005 && sc.habitats) restoreMidground(c, sc, baked.fog);
     }
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalCompositeOperation = 'multiply';
     c.fillStyle = fill;
     c.fillRect(0, y0, sc.pw, h);
     c.restore();
+    if (warm) warmCanvas(bg);
+  } else if (stage === 1 && plan.layers) {
     // Weiße Lichtfarbe ohne Raureif: die Baum-Ebenen bleiben, wie sie sind (keine Kopie).
-    const copy = !cache.tintWhite || cache.rimeAlpha > 0;
     set.back = copy && sc.backRect ? tintLayer(sc.back, sc.backRect, set.back, cache, sc.dpr) : freeCanvas(set.back);
+    set.backRect = set.back && sc.backRect ? { ...sc.backRect } : null;
+    if (warm) warmCanvas(set.back);
+  } else if (stage === 2 && plan.layers) {
     set.front = copy && sc.frontRect ? tintLayer(sc.front, sc.frontRect, set.front, cache, sc.dpr) : freeCanvas(set.front);
-    set.version = sc.version;
-    set.staticVersion = sc.staticVersion;
-  }
-  if (memory) {
-    const mr = sc.memoryRect;
-    const copy = !cache.tintWhite || cache.rimeAlpha > 0;
-    set.memory = copy && sc.memoryCanvas && mr ? tintLayer(sc.memoryCanvas, { x: 0, y: 0, w: mr.w, h: mr.h }, set.memory, cache, sc.dpr) : freeCanvas(set.memory);
-    set.memoryVersion = sc.memoryVersion;
-  }
-  if (keyChanged) {
-    // Wolken dunkler als die Landschaft (Lichtfarbe zweimal), damit sie nicht leuchten.
-    if (cache.tintWhite) {
-      for (const c of set.clouds) freeCanvas(c);
-      set.clouds.length = 0;
-    } else {
-      sc.clouds.forEach((cl, i) => {
-        const r = { x: 0, y: 0, w: cl.sprite.width, h: cl.sprite.height };
-        set.clouds[i] = tintCopy(cl.sprite, r, set.clouds[i] ?? null, cache.cloudFill);
-      });
+    set.frontRect = set.front && sc.frontRect ? { ...sc.frontRect } : null;
+    if (warm) warmCanvas(set.front);
+  } else if (stage === 3) {
+    if (plan.memory) {
+      const mr = sc.memoryRect;
+      set.memory = copy && sc.memoryCanvas && mr ? tintLayer(sc.memoryCanvas, { x: 0, y: 0, w: mr.w, h: mr.h }, set.memory, cache, sc.dpr) : freeCanvas(set.memory);
+      set.memoryRect = set.memory && mr ? { ...mr } : null;
+      set.memoryVersion = plan.memoryVersion;
+      if (warm) warmCanvas(set.memory);
     }
+    if (plan.keyChanged) {
+      // Wolken dunkler als die Landschaft (Lichtfarbe zweimal), damit sie nicht leuchten.
+      if (cache.tintWhite) {
+        for (const c of set.clouds) freeCanvas(c);
+        set.clouds.length = 0;
+      } else {
+        sc.clouds.forEach((cl, i) => {
+          const r = { x: 0, y: 0, w: cl.sprite.width, h: cl.sprite.height };
+          set.clouds[i] = tintCopy(cl.sprite, r, set.clouds[i] ?? null, cache.cloudFill);
+        });
+      }
+    }
+    if (plan.layers) {
+      set.version = plan.version;
+      set.staticVersion = plan.staticVersion;
+    }
+    // Hilfs-Canvas des Raureifs nur während des Tönens behalten.
+    releaseRimeScratch();
+    set.key = plan.key;
+    cache.tintBuilds++;
   }
-  // Hilfs-Canvas des Raureifs nur während des Tönens behalten.
-  releaseRimeScratch();
-  set.key = cache.tintKey;
-  sc.tint = set;
-  cache.tintBuilds++;
+}
+
+function newTintSet(): TintSet {
+  return {
+    key: -1,
+    version: -1,
+    staticVersion: -1,
+    memoryVersion: -1,
+    background: document.createElement('canvas'),
+    back: null,
+    front: null,
+    memory: null,
+    backRect: null,
+    frontRect: null,
+    memoryRect: null,
+    clouds: [],
+  };
+}
+
+/** Laufender Auftrag zum Tönen in Leerlaufzeit. */
+interface TintJob {
+  sc: SizeCache;
+  plan: TintPlan;
+  stage: number;
+}
+
+/**
+ * Tönung in Leerlaufzeit nachführen statt im Frame – nur, wenn der Satz schon eine
+ * vollständige Tönung in seiner Größe hat: Die zeigt er so lange weiter (ein paar Frames
+ * alt, aber in sich stimmig). false: Es muss jetzt synchron getönt werden.
+ */
+function deferTint(sc: SizeCache, cache: Cache, idle: IdleQueue): boolean {
+  const t = sc.tint;
+  if (!t || t.key < 0 || t.background.width !== sc.pw || t.background.height !== sc.ph) return false;
+  if (cache.tintJob && cache.tintJob.sc === sc) return true;
+  const plan = tintPlan(sc, cache);
+  if (!plan) return true;
+  const job: TintJob = { sc, plan, stage: 0 };
+  cache.tintJob = job;
+  const step = (): void => {
+    // Satz verworfen, Tönung aus oder ein neuerer Auftrag: abbrechen (der nächste Frame plant neu).
+    if (cache.tintJob !== job) return;
+    if (!liveSet(cache, sc) || cache.tintKey < 0 || sc.tint !== t) {
+      cache.tintJob = null;
+      return;
+    }
+    tintStage(sc, cache, job.plan, job.stage, true);
+    job.stage++;
+    if (job.stage < TINT_STAGES) idle.schedule('tint', step);
+    else cache.tintJob = null;
+  };
+  idle.schedule('tint', step);
+  return true;
+}
+
+/** Gehört der Satz noch zu diesem Canvas (Basis, Detail oder wartendes Detail)? */
+function liveSet(cache: Cache, sc: SizeCache): boolean {
+  return cache.size === sc || cache.detail === sc || cache.detailNext === sc;
+}
+
+/** Wie klar die Kuppe im Nebel bleibt (Anteil der ungetrübten Kulisse, bei vollem Nebel). */
+const MIDGROUND_FOG_CLEAR = 0.7;
+
+/**
+ * Nebel (gebacken): Die Kuppe von Waldwiese und Trockenmauer liegt im Mittelgrund vor dem
+ * Dunst des Horizonts – sie wird aus der Kulisse ohne Dunst zurückgeholt und bleibt nur
+ * leicht verschleiert. So behält sie bei Nebel (auch nachts) Kontur, und ihre Bewohner
+ * stehen sichtbar auf Boden statt in der Luft.
+ */
+function restoreMidground(c: CanvasRenderingContext2D, sc: SizeCache, fog: number): void {
+  c.save();
+  sceneTransform(c, sc);
+  midgroundPath(c, sc.layout, sc.habitats);
+  c.clip();
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalAlpha = MIDGROUND_FOG_CLEAR * clamp01(fog);
+  c.drawImage(sc.background, 0, 0);
+  c.restore();
 }
 
 /** Getönte Kopie einer Baum-Ebene, bei Frost und Neuschnee mit Raureif bzw. Schneehäubchen. */
@@ -870,6 +1012,13 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       siteFadeAlpha: 0,
       shownSite: null,
       staticBuilds: 0,
+      tintJob: null,
+      detailNext: null,
+      detailJob: null,
+      seasonPending: false,
+      lastInput: null,
+      lastG: 0,
+      lastTime: 0,
     };
     caches.set(ctx.canvas, cache);
   }
@@ -900,6 +1049,10 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     cache.staticBuilds++;
   }
   base = base!;
+  const idle = input.idle ?? null;
+  cache.lastInput = input;
+  cache.lastG = g;
+  cache.lastTime = time;
 
   // Kamera: Ausschnitt begrenzt (nie Leerraum). Ruht sie ~150 ms vergrößert, werden die
   // Detail-Ebenen für genau diesen Ausschnitt scharf gezeichnet; bis dahin (während
@@ -914,19 +1067,24 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       const left = viewLeft(cam);
       const top = viewTop(cam);
       if (!d || d.baseKey !== key || d.zoom !== zoom || d.covL !== left || d.covT !== top) {
-        cache.detail = buildDetailCache(d, `${key}@${zoom}:${left},${top}`, base, cam, look, habitats, site);
-        cache.staticBuilds++;
+        if (idle) {
+          scheduleDetail(cache, base, cam, idle);
+        } else {
+          cache.detail = buildDetailCache(d, `${key}@${zoom}:${left},${top}`, base, cam, look, habitats, site);
+          cache.staticBuilds++;
+        }
       }
     }
-  } else if (cache.detail && camStill) {
-    releaseSizeCache(cache.detail);
+  } else if (camStill && (cache.detail || cache.detailNext)) {
+    if (cache.detail) releaseSizeCache(cache.detail);
     cache.detail = null;
+    dropDetailNext(cache);
   }
   // Detail-Ebenen nur, solange sie den Ausschnitt ganz abdecken (sonst bliebe ein Rand leer).
   const detail = cache.detail;
   const sc = cam && detail && detail.layout.width === width && detail.layout.height === height && covers(detail, cam) ? detail : base;
 
-  updateLayers(sc, base, cache, input, g, time, look);
+  updateLayers(sc, base, cache, input, g, time, look, idle);
   cache.shownSite = sc.site;
   cache.siteFadeAlpha = stepSiteFade(cache, sc, time, input.reducedMotion === true);
   // Häherflug: Zeitpunkt im Flug (NaN = keiner); Sprites nur während des Flugs behalten.
@@ -934,8 +1092,10 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   cache.jayU = jf ? jayElapsed(input.time, jf.startedAt, input.reducedMotion === true) : Number.NaN;
   if (Number.isNaN(cache.jayU) && cache.jay.prepared) cache.jay.release();
   // Tag und Nacht, Wetter: getönte Kopien nur bei neuer Stufe oder neu gezeichneten Ebenen.
-  if (cache.tintKey >= 0) updateTint(sc, cache);
-  else if (sc.tint) releaseTint(sc);
+  // Mit Leerlauf-Warteschlange tönt eine schon getönte Ebene in Stücken nach (deferTint).
+  if (cache.tintKey >= 0) {
+    if (!idle || !deferTint(sc, cache, idle)) updateTint(sc, cache);
+  } else if (sc.tint) releaseTint(sc);
 
   // Sprites einer alten Tiergröße verwerfen. Die Auflösung gehört nicht dazu: Sprites je
   // Auflösungsstufe (Kamera) bleiben erhalten – ihr Schlüssel im SpriteCache enthält sie.
@@ -1037,21 +1197,128 @@ function releaseSizeCache(sc: SizeCache): void {
 }
 
 /**
+ * Neue Jahreszeit-Stufe in Leerlaufzeit: Kulisse und Ebenen neu (wie sonst im Frame) und
+ * gleich gerastert; die Tönung folgt danach in eigenen Stücken (deferTint).
+ */
+function scheduleSeason(sc: SizeCache, cache: Cache, idle: IdleQueue): void {
+  if (cache.seasonPending) return;
+  cache.seasonPending = true;
+  idle.schedule('season', () => {
+    cache.seasonPending = false;
+    const input = cache.lastInput;
+    const base = cache.size;
+    if (!input || !base || !liveSet(cache, sc)) return;
+    updateLayers(sc, base, cache, input, cache.lastG, cache.lastTime, seasonLook(input.season), null);
+    if (cache.tintKey < 0) warmLayers(sc);
+  });
+}
+
+/** Rastert die ungetönten Ebenen eines Satzes vorab (Leerlaufzeit). */
+function warmLayers(sc: SizeCache): void {
+  warmCanvas(sc.background);
+  warmCanvas(sc.back);
+  warmCanvas(sc.front);
+  warmCanvas(sc.memoryCanvas);
+}
+
+/**
+ * Detail-Ebenen für den ruhenden Ausschnitt `cam` in Leerlaufzeit: 1. Satz anlegen und
+ * zeichnen, 2.–5. tönen (falls nötig), 6. rastern und tauschen. Bis dahin bleibt die Basis
+ * bzw. der vorige Ausschnitt skaliert sichtbar. Bewegt sich die Kamera oder ändert sich
+ * die Größe, wird abgebrochen (der nächste ruhende Frame plant neu).
+ */
+function scheduleDetail(cache: Cache, base: SizeCache, cam: CameraView, idle: IdleQueue): void {
+  const zoom = cam.zoom;
+  const left = viewLeft(cam);
+  const top = viewTop(cam);
+  const n = cache.detailNext;
+  if (n && n.baseKey === base.key && n.zoom === zoom && n.covL === left && n.covT === top) return;
+  if (idle.has('detail') && cache.detailJob && sameView(cache.detailJob, cam)) return;
+  dropDetailNext(cache);
+  const job: CameraView = { zoom: cam.zoom, x: cam.x, y: cam.y };
+  cache.detailJob = job;
+  let stage = 0;
+  let plan: TintPlan | null = null;
+  const step = (): void => {
+    if (cache.detailJob !== job) return;
+    const input = cache.lastInput;
+    const still = cache.camZoom === job.zoom && cache.camX === job.x && cache.camY === job.y;
+    if (!input || cache.size !== base || !still) {
+      cache.detailJob = null;
+      dropDetailNext(cache);
+      return;
+    }
+    if (stage === 0) {
+      const look = seasonLook(input.season);
+      // Den gezeigten Detail-Satz nicht überschreiben; einen verdeckten wiederverwenden.
+      const old = cache.detail && !covers(cache.detail, job) ? cache.detail : null;
+      if (old) cache.detail = null;
+      const next = buildDetailCache(old, `${base.key}@${zoom}:${left},${top}`, base, job, look, midgroundMask(input), sceneSite(input.site));
+      cache.staticBuilds++;
+      cache.detailNext = next;
+      updateLayers(next, base, cache, input, cache.lastG, cache.lastTime, look, null);
+      if (cache.tintKey >= 0) plan = tintPlan(next, cache);
+      stage = 1;
+    } else if (stage <= TINT_STAGES && plan) {
+      // Tönungsstufe inzwischen gewechselt: Rest synchron im Frame (deferTint/updateTint).
+      tintStage(cache.detailNext!, cache, plan, stage - 1, true);
+      stage++;
+    } else {
+      const next = cache.detailNext!;
+      if (cache.tintKey < 0) warmLayers(next);
+      if (cache.detail && cache.detail !== next) releaseSizeCache(cache.detail);
+      cache.detail = next;
+      cache.detailNext = null;
+      cache.detailJob = null;
+      return;
+    }
+    if (stage > TINT_STAGES || !plan) stage = TINT_STAGES + 1;
+    idle.schedule('detail', step);
+  };
+  idle.schedule('detail', step);
+}
+
+function sameView(a: CameraView, b: CameraView): boolean {
+  return a.zoom === b.zoom && a.x === b.x && a.y === b.y;
+}
+
+/** Verwirft wartende Detail-Ebenen (Speicher sofort frei). */
+function dropDetailNext(cache: Cache): void {
+  if (cache.detailNext && cache.detailNext !== cache.detail) releaseSizeCache(cache.detailNext);
+  cache.detailNext = null;
+  cache.detailJob = null;
+}
+
+/**
  * Hält einen Ebenen-Satz aktuell: Jahreszeit, Art, Zyklus-Übergang, Erinnerungsbaum und
  * Wachstum. Nur der in diesem Frame gezeigte Satz wird nachgeführt; ein ruhender holt
  * beim nächsten Einsatz nach (sein Wachstum gilt dann sofort als fällig).
  */
-function updateLayers(sc: SizeCache, base: SizeCache, cache: Cache, input: SceneInput, g: number, time: number, look: SeasonLook | null): void {
+function updateLayers(
+  sc: SizeCache,
+  base: SizeCache,
+  cache: Cache,
+  input: SceneInput,
+  g: number,
+  time: number,
+  look: SeasonLook | null,
+  idle: IdleQueue | null = null,
+): void {
   // Jahreszeit (auf 0,05 gerundet): Kulisse und Grasnarbe neu, wenn sich die Rundung
   // ändert; Baum-Ebenen, Pflanzen und Erinnerungsbaum folgen unten.
   const seasonKey = seasonStepKey(look);
-  const seasonChanged = seasonKey !== sc.seasonKey;
+  let seasonChanged = seasonKey !== sc.seasonKey;
   // Ein Lebensraum im Mittelgrund öffnet (oder schließt, Neuer Zyklus): Kulisse neu.
   const habitats = midgroundMask(input);
   const habitatsChanged = habitats !== sc.habitats;
   // Standortwechsel (Waldlandschaft): Kulisse neu, die alte blendet sanft aus.
   const site = sceneSite(input.site);
   const siteChanged = site !== sc.site;
+  // Nur eine neue Jahreszeit-Stufe (eine fertige Szene steht schon): in Leerlaufzeit.
+  if (seasonChanged && idle && !habitatsChanged && !siteChanged && !Number.isNaN(sc.growth)) {
+    scheduleSeason(sc, cache, idle);
+    seasonChanged = false;
+  }
   if (siteChanged && cache.shownSite !== null && cache.shownSite !== site) startSiteFade(sc, cache, time);
   if (seasonChanged || habitatsChanged || siteChanged) {
     paintStatic(sc, look, habitats, site);
@@ -1203,8 +1470,10 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     ctx.setTransform(sx, 0, 0, sy, m.cx, m.cy);
   }
   if (sc.memoryCanvas && sc.memoryRect) {
-    const r = sc.memoryRect;
-    ctx.drawImage(tint?.memory ?? sc.memoryCanvas, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+    // Getönte Kopie an ihrem eigenen Platz (beim Tönen in Leerlaufzeit evtl. ein Stand älter).
+    const tm = tint?.memory && tint.memoryRect ? tint.memory : null;
+    const r = tm ? tint!.memoryRect! : sc.memoryRect;
+    ctx.drawImage(tm ?? sc.memoryCanvas, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
   }
   // Wolken liegen in Szenen-Pixeln × dpr (ohne Ursprung der Ebenen).
   ctx.setTransform(sx, 0, 0, sy, m.tx, m.ty);
@@ -1308,16 +1577,16 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   if (withAnimals) layer.drawMidground(ctx, animals, sc.anchors!, f);
   if (sc.backRect) {
     const kb = reduced ? 0 : stormSkew(windSkew(time, 1.9) * 0.7, time + 0.4, wx ? wx.storm : 0);
-    const r = sc.backRect;
-    if (tint?.back) drawSheared(ctx, tint.back, r, kb, groundPx, quantum, sx, sy, m.cx, m.cy, r.x, r.y);
-    else drawSheared(ctx, sc.back, r, kb, groundPx, quantum, sx, sy, m.cx, m.cy);
+    const tr = tint?.back ? tint.backRect : null;
+    if (tr) drawSheared(ctx, tint!.back!, tr, kb, groundPx, quantum, sx, sy, m.cx, m.cy, tr.x, tr.y);
+    else drawSheared(ctx, sc.back, sc.backRect, kb, groundPx, quantum, sx, sy, m.cx, m.cy);
   }
   // Wildschweine auf der Wiese: vor den Begleitpflanzen, hinter dem Hauptbaum.
   if (visitors) cache.visitors.draw(ctx, visitors, 'meadow', vf);
   if (sc.frontRect) {
-    const r = sc.frontRect;
-    if (tint?.front) drawSheared(ctx, tint.front, r, k, groundPx, quantum, sx, sy, m.cx, m.cy, r.x, r.y);
-    else drawSheared(ctx, sc.front, r, k, groundPx, quantum, sx, sy, m.cx, m.cy);
+    const tr = tint?.front ? tint.frontRect : null;
+    if (tr) drawSheared(ctx, tint!.front!, tr, k, groundPx, quantum, sx, sy, m.cx, m.cy, tr.x, tr.y);
+    else drawSheared(ctx, sc.front, sc.frontRect, k, groundPx, quantum, sx, sy, m.cx, m.cy);
   }
   if (visitors) {
     vf.windSkew = k;

@@ -29,11 +29,35 @@ export function paintMidground(ctx: CanvasRenderingContext2D, layout: Layout, ma
   if (mask & MIDGROUND_MEADOW) paintMeadowHabitat(ctx, layout, midgroundGeometry(layout, S, 1), look);
 }
 
+/**
+ * Umriss der offenen Lebensräume im Mittelgrund (`mask`) als neuer Pfad: Kuppen und der
+ * Mauerkörper – deckende Flächen, z. B. zum Freistellen aus dem Nebeldunst (tree.ts).
+ */
+export function midgroundPath(ctx: CanvasRenderingContext2D, layout: Layout, mask: number): void {
+  ctx.beginPath();
+  if (!mask) return;
+  const S = animalSize(layout.width, layout.height);
+  if (mask & MIDGROUND_WALL) {
+    const w = wallGeometry(midgroundGeometry(layout, S, -1));
+    knollOutline(ctx, w.x0, w.x1, w.crest, layout.groundY, S);
+    stone(ctx, w.wx0, w.top + 0.02 * S, w.wx1 - w.wx0, w.bottom - w.top - 0.02 * S, 0.06 * S);
+  }
+  if (mask & MIDGROUND_MEADOW) {
+    const m = meadowGeometry(midgroundGeometry(layout, S, 1));
+    knollOutline(ctx, m.x0, m.x1, m.crest, layout.groundY, S);
+  }
+}
+
 /** Flache Kuppe vom Boden bis zum Kamm `crest` zwischen x0 und x1 (sanfte Flanken). */
 function knoll(ctx: CanvasRenderingContext2D, x0: number, x1: number, crest: number, groundY: number, S: number): void {
+  ctx.beginPath();
+  knollOutline(ctx, x0, x1, crest, groundY, S);
+}
+
+/** Umriss der Kuppe als Teilpfad (ohne neuen Pfad). */
+function knollOutline(ctx: CanvasRenderingContext2D, x0: number, x1: number, crest: number, groundY: number, S: number): void {
   const flank = Math.min(2.2 * S, (x1 - x0) / 3);
   const dome = S * 0.12;
-  ctx.beginPath();
   ctx.moveTo(x0 - flank * 0.6, groundY + 2);
   ctx.bezierCurveTo(x0, groundY - 0.1 * S, x0 + flank * 0.2, crest, x0 + flank, crest);
   ctx.quadraticCurveTo((x0 + x1) / 2, crest - dome, x1 - flank, crest);
@@ -77,11 +101,15 @@ function meadowBloom(look: SeasonLook | null): { flowers: number; seeds: number 
   return { flowers: clamp01(1 - look.autumn * 1.3 - look.snow * 2), seeds: clamp01(look.autumn * 1.2 - look.snow) };
 }
 
+/** Kuppe der Waldwiese: Kamm und Ausdehnung. */
+function meadowGeometry(m: MidgroundGeometry): { crest: number; x0: number; x1: number } {
+  const S = m.size;
+  return { crest: m.y + 0.06 * S, x0: m.x - (m.halfWidth + 0.9) * S, x1: m.x + (m.halfWidth + 1.3) * S };
+}
+
 function paintMeadowHabitat(ctx: CanvasRenderingContext2D, layout: Layout, m: MidgroundGeometry, look: SeasonLook | null): void {
   const S = m.size;
-  const crest = m.y + 0.06 * S;
-  const x0 = m.x - (m.halfWidth + 0.9) * S;
-  const x1 = m.x + (m.halfWidth + 1.3) * S;
+  const { crest, x0, x1 } = meadowGeometry(m);
   ctx.save();
   knoll(ctx, x0, x1, crest, layout.groundY, S);
   fillKnoll(ctx, crest, layout.groundY, '#aecb86', '#97c08e', look);
@@ -169,18 +197,28 @@ function stone(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
   ctx.closePath();
 }
 
+/** Trockenmauer: Ober- und Unterkante, Kuppe und Mauerkörper. */
+function wallGeometry(m: MidgroundGeometry): { top: number; bottom: number; crest: number; x0: number; x1: number; wx0: number; wx1: number } {
+  const S = m.size;
+  const bottom = m.y + WALL_HEIGHT * S;
+  return {
+    top: m.y,
+    bottom,
+    crest: bottom - 0.04 * S,
+    x0: m.x - (m.halfWidth + 1.3) * S,
+    x1: m.x + (m.halfWidth + 0.9) * S,
+    wx0: m.x - (m.halfWidth + 0.25) * S,
+    wx1: m.x + (m.halfWidth + 0.25) * S,
+  };
+}
+
 function paintWallHabitat(ctx: CanvasRenderingContext2D, layout: Layout, m: MidgroundGeometry, look: SeasonLook | null): void {
   const S = m.size;
-  const top = m.y;
-  const bottom = m.y + WALL_HEIGHT * S;
-  const x0 = m.x - (m.halfWidth + 1.3) * S;
-  const x1 = m.x + (m.halfWidth + 0.9) * S;
+  const { top, bottom, crest, x0, x1, wx0, wx1 } = wallGeometry(m);
   ctx.save();
   // Kuppe, auf der die Mauer steht (etwas trockener als die Wiese)
-  knoll(ctx, x0, x1, bottom - 0.04 * S, layout.groundY, S);
+  knoll(ctx, x0, x1, crest, layout.groundY, S);
   fillKnoll(ctx, bottom, layout.groundY, '#b0c68e', '#97c08e', look);
-  const wx0 = m.x - (m.halfWidth + 0.25) * S;
-  const wx1 = m.x + (m.halfWidth + 0.25) * S;
   // Schatten am Fuß
   ctx.fillStyle = 'rgba(60, 70, 40, 0.25)';
   ctx.beginPath();
