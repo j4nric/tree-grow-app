@@ -105,7 +105,8 @@ test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', a
   // Wechsel zum Heimatwald per Tastatur.
   await map.locator('[data-site="home"]').focus();
   await page.keyboard.press('Enter');
-  await expect(map.locator('[data-ref="site-memory"]')).toContainText('Gedächtnis 320 eigen');
+  // Wirksam heute (320 + ½ · 40, wie im Tagebuch) – der Gewinn dieses Zyklus steht benannt dahinter.
+  await expect(map.locator('[data-ref="site-memory"]')).toHaveText(/^Gedächtnis 320 eigen · 340 wirksam dort( \(nach diesem Zyklus \d+\))?$/);
   await expect(button).toHaveText('Neuen Zyklus beginnen: Heimatwald');
   await button.click();
   await waitForConfirm(page);
