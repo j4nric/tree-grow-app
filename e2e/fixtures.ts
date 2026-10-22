@@ -19,7 +19,15 @@ export const SAVE_KEY = 'tree-grow-save';
  * Tagesziele sind in e2e-Tests aus (`window.__VSZW_DAILY__ = false`), sonst brächte das echte
  * Datum Ziele, Belohnungen und Hinweise in fremde Tests. Einschalten: `test.use({ daily: true })`.
  */
-export const test = base.extend<{ pageErrors: string[]; daily: boolean; dailySwitch: void; guideHint: boolean; guideHintSwitch: void }>({
+export const test = base.extend<{
+  pageErrors: string[];
+  daily: boolean;
+  dailySwitch: void;
+  guideHint: boolean;
+  guideHintSwitch: void;
+  freshLegend: boolean;
+  legendSwitch: void;
+}>({
   /**
    * Haftnotiz „Neu hier?“ beim ersten Start (album/guide-hint.ts): Sie liegt als Notiz über dem
    * Polaroid und gilt in fremden Tests als schon gesehen. Einschalten: `test.use({ guideHint: true })`.
@@ -44,6 +52,27 @@ export const test = base.extend<{ pageErrors: string[]; daily: boolean; dailySwi
   dailySwitch: [
     async ({ context, daily }, use) => {
       if (!daily) await context.addInitScript(() => ((window as unknown as { __VSZW_DAILY__?: boolean }).__VSZW_DAILY__ = false));
+      await use();
+    },
+    { auto: true },
+  ],
+  /*
+   * Legende der Begegnungs-Symbole (Haftnotiz am „?“): Sie öffnet sich beim allerersten Mal
+   * von selbst und läge dann über den Karten. In e2e-Tests gilt sie darum als schon gesehen;
+   * die Legenden-Tests schalten das mit `test.use({ freshLegend: true })` ab.
+   */
+  freshLegend: [false, { option: true }],
+  legendSwitch: [
+    async ({ context, freshLegend }, use) => {
+      if (!freshLegend) {
+        await context.addInitScript(() => {
+          try {
+            localStorage.setItem('tree-grow-legend-seen', '1');
+          } catch {
+            // Dokument ohne Speicher (about:blank, data:-URL) – dort gibt es keine Legende.
+          }
+        });
+      }
       await use();
     },
     { auto: true },
@@ -168,9 +197,14 @@ export async function readNumber(locator: Locator): Promise<number> {
 export const stageLabel = (page: Page) => page.locator('[data-ref="stage"]');
 export const seedsValue = (page: Page) => page.locator('[data-ref="seeds"]');
 export const stack = (page: Page) => page.locator('[data-ref="encounter-stack"]');
+/** Noch verbliebene Dialoge (Tagebuch, Spielanleitung). */
 export const dialog = (page: Page) => page.getByRole('dialog');
 export const niche = (page: Page, id: string) => page.locator(`[data-niche="${id}"]`);
-export const card = (page: Page, species: string) => dialog(page).locator(`[data-species="${species}"]`);
+/** Unterseite „Begegnung“ (U:Begegnung, docs/ALBUM_UI.md A.6) – früher der Kartenwahl-Dialog. */
+export const encounter = (page: Page) => page.locator('[data-ref="page-encounter"]');
+/** Unterseite „Pflanze setzen“ (U:Pflanze setzen) – früher der Dialog der Pflanzenwahl. */
+export const plantPicker = (page: Page) => page.locator('[data-ref="page-plant-picker"]');
+export const card = (page: Page, species: string) => encounter(page).locator(`[data-species="${species}"]`);
 
 /** Reiter des Albums über ihren Hash (docs/ALBUM_UI.md, C.2). */
 export type TabHash = 'nischen' | 'arten' | 'pflege' | 'ziele' | 'landschaft';
@@ -290,16 +324,22 @@ export async function openGame(page: Page): Promise<void> {
   await expect(stageLabel(page)).toContainText('Stufe:');
 }
 
-/** Eingabesperre des Dialogs nach neuen Karten abwarten (300 ms, Schutz vor Doppelklicks). */
+/** Eingabesperre nach neuen Karten abwarten (300 ms, Schutz vor Doppelklicks). */
 export async function settle(page: Page): Promise<void> {
   await page.waitForTimeout(400);
 }
 
-/** Öffnet den Begegnungs-Stapel am Rand der Szene. */
+/** Tippt auf den Zettelstapel und wartet, bis U:Begegnung aufgeschlagen und bedienbar ist. */
 export async function openStack(page: Page): Promise<void> {
   await stack(page).click();
-  await expect(dialog(page)).toBeVisible();
+  await settledSubpage(page, 'encounter');
   await settle(page);
+}
+
+/** „🌱 Pflanze setzen“ im Reiter Nischen: blättert zu U:Pflanze setzen um. */
+export async function openPlantPicker(page: Page): Promise<Locator> {
+  await page.locator('[data-ref="plant-open"]').click();
+  return settledSubpage(page, 'plant-picker');
 }
 
 export async function savedState(page: Page): Promise<Record<string, any>> {

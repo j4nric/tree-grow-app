@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { dialog, expect, openGame, openTab, pageTitle, seedV3, settle, stack, test, waypoint } from './fixtures';
+import { encounter, expect, openGame, openTab, pageTitle, seedV3, settle, stack, test, waypoint } from './fixtures';
 
 /**
  * Funde aus dem Playtest (mobil): wartende Begegnungen bleiben beim Scrollen erreichbar
@@ -34,12 +34,12 @@ for (const width of [360, 390]) {
     expect(box.x + box.width).toBeLessThanOrEqual(width);
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
 
-    // Der Stapel öffnet den Dialog, Esc gibt den Fokus zurück.
+    // Der Stapel blättert zu U:Begegnung um, Esc blättert zurück und gibt den Fokus zurück.
     await stack(page).click();
-    await expect(dialog(page)).toBeVisible();
+    await expect(encounter(page)).toBeVisible();
     await settle(page);
     await page.keyboard.press('Escape');
-    await expect(dialog(page)).toBeHidden();
+    await expect(encounter(page)).toBeHidden();
     await expect(stack(page)).toBeFocused();
   });
 
@@ -96,10 +96,10 @@ test('Letzte Begegnung per Tastatur erledigt: Fokus landet auf der Überschrift 
   await openGame(page);
   await stack(page).focus();
   await page.keyboard.press('Enter');
-  await expect(dialog(page)).toBeVisible();
+  await expect(encounter(page)).toBeVisible();
   await settle(page);
-  await dialog(page).locator('.card-choose').first().click();
-  await expect(dialog(page)).toBeHidden();
+  await encounter(page).locator('.card-choose').first().click();
+  await expect(encounter(page)).toBeHidden();
   await expect(stack(page)).toBeHidden();
   await expect(pageTitle(page)).toBeFocused();
   // Und der Fokus bleibt dort (nicht nachträglich auf body verloren).
