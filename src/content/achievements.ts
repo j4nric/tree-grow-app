@@ -12,6 +12,8 @@ import { YEAR_SECONDS } from './seasons';
  * - Bedingungen sind deklarativ und **monoton**: Was einmal erfüllt ist, bleibt es während
  *   des laufenden Zyklus (Tagebuch und Langzeit-Statistik wachsen nur). Nur `stage` und
  *   `cycleTime` beginnen beim Neuen Zyklus neu – startNewCycle prüft darum vorher.
+ * - Erfolge der Waldlandschaft tragen `requires: 'landscape'` und nennen auch keine
+ *   Standorte, Korridore oder Baumarten.
  * - IDs sind Teil des Spielstands (`meta.achievements`): nie umbenennen, nur ergänzen.
  */
 
@@ -35,7 +37,16 @@ export type AchievementCondition =
   /** Hauptbaum-Arten, die schon einmal gewachsen sind (`meta.stats.grownTrees`). */
   | { kind: 'trees'; atLeast: AchievementTarget }
   /** Spielzeit des laufenden Zyklus in Sekunden (`cycle.elapsed`, Jahreszeiten). */
-  | { kind: 'cycleTime'; atLeast: number };
+  | { kind: 'cycleTime'; atLeast: number }
+  /** Gegründete Wälder der Landschaft (Heimatwald zählt mit; 'all' = SITE_IDS.length). */
+  | { kind: 'forests'; atLeast: AchievementTarget }
+  /**
+   * Korridore der Landschaft ('all' = CORRIDORS.length). `bought`: nur gekaufte, ohne die
+   * Gratis-Korridore der Gründungen – nie zusammen mit 'all' (hinge an der Gründungs-Reihenfolge).
+   */
+  | { kind: 'corridors'; atLeast: AchievementTarget; bought?: boolean }
+  /** Wälder, in denen schon einmal der Urwald erreicht wurde ('all' = SITE_IDS.length). */
+  | { kind: 'ancientForests'; atLeast: AchievementTarget };
 
 export interface Achievement {
   /** Fest, Teil des Spielstands. */
@@ -46,6 +57,12 @@ export interface Achievement {
   /** Ein Satz, neutral formuliert (auch für offene Erfolge sichtbar). */
   description: string;
   condition: AchievementCondition;
+  /**
+   * Verborgen, bis die Voraussetzung erfüllt ist (DESIGN_V2.md 24.12): 'landscape' = erst nach
+   * der Freischaltung der Waldlandschaft sichtbar (core/achievements.ts, isAchievementVisible).
+   * Die Prüfung hängt nicht daran.
+   */
+  requires?: 'landscape';
 }
 
 /** Spielzeit-Erfolg „Geduld der Bäume“: 10 Stunden über alle Zyklen. */
@@ -80,9 +97,17 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'cycle-1', icon: '🔄', title: 'Ein neuer Anfang', description: 'Der erste Zyklus ist abgeschlossen.', condition: { kind: 'cycles', atLeast: 1 } },
   { id: 'cycle-3', icon: '🌙', title: 'Im Kreislauf', description: 'Drei Zyklen sind abgeschlossen.', condition: { kind: 'cycles', atLeast: 3 } },
   { id: 'cycle-10', icon: '♾️', title: 'Ewiger Wald', description: 'Zehn Zyklen sind abgeschlossen.', condition: { kind: 'cycles', atLeast: 10 } },
-  { id: 'trees-all', icon: '🍂', title: 'Baumkundig', description: 'Jede Hauptbaum-Art ist einmal gewachsen.', condition: { kind: 'trees', atLeast: 'all' } },
+  // Fest drei Arten (24.12, 25.7): mit neuen Arten aus der Landschaft hinge er sonst an ihr.
+  { id: 'trees-all', icon: '🍂', title: 'Baumkundig', description: 'Drei Hauptbaum-Arten sind einmal gewachsen.', condition: { kind: 'trees', atLeast: 3 } },
   { id: 'full-year', icon: '🗓️', title: 'Ein ganzes Jahr', description: 'Ein Zyklus erlebt ein volles Jahr mit allen vier Jahreszeiten.', condition: { kind: 'cycleTime', atLeast: YEAR_SECONDS } },
   { id: 'patience', icon: '⏳', title: 'Geduld der Bäume', description: 'Zehn Stunden Spielzeit über alle Zyklen.', condition: { kind: 'stat', key: 'playSeconds', atLeast: PATIENCE_SECONDS } },
+  // --- Landschaft ------------------------------------------------------------
+  // Verborgen bis zur Freischaltung (24.12); Texte ohne Standorte, Korridore und Baumarten.
+  { id: 'forest-2', icon: '🪶', title: 'Weite Wege', description: 'Ein zweiter Wald ist gegründet.', condition: { kind: 'forests', atLeast: 2 }, requires: 'landscape' },
+  { id: 'ancient-2', icon: '🌄', title: 'Wo Eicheln keimten', description: 'Ein zweiter Wald ist zum Urwald geworden.', condition: { kind: 'ancientForests', atLeast: 2 }, requires: 'landscape' },
+  { id: 'corridor-1', icon: '🌉', title: 'Grüne Bänder', description: 'Ein Korridor wurde mit Hähersaat angelegt.', condition: { kind: 'corridors', atLeast: 1, bought: true }, requires: 'landscape' },
+  { id: 'ancient-everywhere', icon: '🏞️', title: 'Uralt überall', description: 'Jeder Wald der Landschaft ist einmal zum Urwald geworden.', condition: { kind: 'ancientForests', atLeast: 'all' }, requires: 'landscape' },
+  { id: 'corridors-all', icon: '🗺️', title: 'Alles verbunden', description: 'Jeder Korridor der Landschaft ist angelegt.', condition: { kind: 'corridors', atLeast: 'all' }, requires: 'landscape' },
 ];
 
 export const ACHIEVEMENTS_BY_ID: ReadonlyMap<string, Achievement> = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
