@@ -443,7 +443,7 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
 
 **Welle 2 – Hauptbäume je Waldtyp und Erfolge verdrahten**
 
-- [ ] **2a** Bedingungsarten `forests`, `corridors`, `ancientForests` (`core-engineer`, 24.11
+- [x] **2a** Bedingungsarten `forests`, `corridors`, `ancientForests` (`core-engineer`, 24.11
   Nr. 6) samt den fünf Erfolgen aus 1b als Daten: monoton, Nachtrag beim Laden wie 12.6.
   Sichtbarkeit `requires: 'landscape'` (24.12, kleiner Eingriff in `achievement-view.ts`).
   Abhängig: 1b. `landscape-trees` (25.7) und `wildwechsel-1` folgen mit 2b
