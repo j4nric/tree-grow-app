@@ -27,9 +27,32 @@ export const STICKER_DRAW_SIZE = 54;
 /** Großer Sticker im Kopf von U:Tier. */
 export const STICKER_BIG_SIZE = 104;
 
-/** Matte Bilder in Leerlaufzeit (eine Aufgabe je Sticker, ein Stück je Rückruf). */
+/** Matte Bilder und Silhouetten in Leerlaufzeit (eine Aufgabe je Sticker). */
 const idle = new IdleQueue();
 let serial = 0;
+/**
+ * Zeitbudget je Leerlauf-Rückruf: Ein Sticker kostet unter 1 ms, darum zeichnet ein Rückruf
+ * weitere wartende, bis das Budget verbraucht ist – sonst bräuchten 15 matte Sticker 15
+ * Rückrufe (bei laufendem Game Loop und gedrosselter CPU mehrere Sekunden).
+ */
+const IDLE_BUDGET_MS = 4;
+let draining = false;
+
+function scheduleIdle(key: string, task: () => void): void {
+  idle.schedule(key, () => {
+    task();
+    if (draining) return;
+    draining = true;
+    const until = performance.now() + IDLE_BUDGET_MS;
+    try {
+      while (performance.now() < until && idle.runNext()) {
+        // weitere Sticker im selben Rückruf
+      }
+    } finally {
+      draining = false;
+    }
+  });
+}
 
 /** Pixeldichte, mit der zuletzt gezeichnet wurde; ändert sie sich (Zoom, anderer Bildschirm), zeichnen alle neu. */
 let dprEpoch = 0;
@@ -97,7 +120,7 @@ export function createStickerImage(size: number, className = 'sticker-img'): Sti
         canvas.height = 1;
       }
       canvas.classList.add('sticker-img-pending');
-      idle.schedule(key, () => {
+      scheduleIdle(key, () => {
         if (shown !== wanted) return;
         paint(variant);
         canvas.classList.remove('sticker-img-pending');

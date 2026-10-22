@@ -506,3 +506,13 @@ body[data-motion='reduce'] .species-tree,
 body[data-motion='reduce'] .species-memory {
   transition: none;
 }
+
+/* Matt: etwas blasser als die Arten, die gerade im Wald leben. */
+.species-cell.is-away .sticker-img {
+  opacity: 0.8;
+}
+
+/* Doppelseite: Die rechte Seite scrollt in sich, oben klebt nichts. */
+.album[data-layout='spread'] .species-section {
+  scroll-margin-top: 12px;
+}
