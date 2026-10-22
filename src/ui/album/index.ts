@@ -6,8 +6,9 @@
  *
  * Hier: Buch, Doppelseite/Einzelseite, Reiter, Umschlag mit seinen Unterseiten (Anleitung,
  * Einstellungen, Konto, Spielstand), Umblättern, Verlauf und Hash, Polaroid mit Vollbild der
- * Szene, Etiketten und Stufenleiste, Rückkehr-Zettel, Haftnotizen, Stempel und Banderolen. Die bisherigen Bauteile hängen bis zu ihrem Schritt als Übergangsinhalt in den
- * Reitern (legacy.ts).
+ * Szene, Etiketten und Stufenleiste, Rückkehr-Zettel, Haftnotizen, Stempel und Banderolen,
+ * Zettelstapel der Begegnungen. Die bisherigen Bauteile hängen bis zu ihrem Schritt als
+ * Übergangsinhalt in den Reitern (legacy.ts).
  */
 import { LANDSCAPE_SITES } from '../../content/landscape';
 import { evaluate } from '../../core/formulas';
@@ -30,6 +31,7 @@ import { createAlbumHistory } from './history';
 import { createLabelNotes } from './label-notes';
 import { createLegacyUi, type LegacyUi } from './legacy';
 import { closeNotes, onNoteChange, openNote, openNoteId } from './note';
+import { createNoteStack } from './note-stack';
 import {
   TAB_IDS,
   TAB_LABELS,
@@ -49,6 +51,7 @@ import {
 import { TURNED_AWAY, createPageTurn } from './page-turn';
 import type { CyclePage } from './pages/cycle-page';
 import { createAccountPage } from './pages/account-page';
+import type { EncounterPage } from './pages/encounter-page';
 import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type TabPage } from './pages/registry';
 import { createPolaroid } from './polaroid';
 import { createReturnReport } from './return-report';
@@ -92,6 +95,12 @@ export interface Album extends LegacyUi {
   mountAccount(section: HTMLElement): void;
   /** Aktueller Navigationszustand (nur lesen; für Tests und Fehlersuche). */
   readonly nav: Readonly<AlbumNav>;
+  /** Die vorderste Begegnung ist erledigt (neue Karten, auch wenn sie gleich aussehen). */
+  encounterResolved(): void;
+  /** U:Begegnung zuschlagen (z. B. Neuer Zyklus, anderer Stand übernommen). */
+  closeEncounters(): void;
+  /** U:Pflanze setzen zuschlagen (nach dem Setzen). */
+  closePlantPicker(): void;
 }
 
 export function createAlbum(deps: AlbumDeps): Album {
@@ -172,6 +181,9 @@ export function createAlbum(deps: AlbumDeps): Album {
     sub.page.element.hidden = true;
     spread.sub.append(sub.page.element);
   }
+  const encounterPage = subpages.get('encounter') as EncounterPage;
+  // Zettelstapel der Begegnungen (C.7): mobil unten rechts, am Desktop im Kopf.
+  const noteStack = createNoteStack(book.dock, () => dispatch({ type: 'open', page: { kind: 'encounter' } }));
 
   document.body.prepend(book.element);
   // Stempel und Zettel (C.5): über dem Album, auch über Unterseiten.
@@ -189,7 +201,6 @@ export function createAlbum(deps: AlbumDeps): Album {
       season: polaroid.season,
       photo: polaroid.stamps,
       albumTarget,
-      dock: book.dock,
     },
     {
       onEcosystem: showSummary,
@@ -200,6 +211,7 @@ export function createAlbum(deps: AlbumDeps): Album {
         if (!unlocked) dispatch({ type: 'landscape-locked' });
       },
       showCareTab: () => dispatch({ type: 'tab', tab: 'care' }),
+      openPlantPicker: () => dispatch({ type: 'open', page: { kind: 'plant-picker' } }),
       focusTarget,
       stamp: (text, options) => stamps.show(text, options),
     },
@@ -550,6 +562,9 @@ export function createAlbum(deps: AlbumDeps): Album {
    * Navigation.
    */
   function refreshPages(now: number): void {
+    const pending = deps.state().pendingEncounters;
+    noteStack.update(pending.length, pending[0]);
+    noteStack.setAway(nav.stack[nav.stack.length - 1]?.kind === 'encounter');
     for (const id of TAB_IDS) {
       const tab: TabPage = tabs[id];
       if (tab.badge) tabStrip.setDot(id, tab.badge(now));
@@ -565,6 +580,21 @@ export function createAlbum(deps: AlbumDeps): Album {
     shownSub = sub;
   }
 
+  /** Ist das Bild der Szene zu sehen (Vollbild oder Polaroid im Bild und nicht verdeckt)? */
+  function photoVisible(): boolean {
+    if (fullscreen.shown) return true;
+    return polaroidInView && !(book.layout === 'single' && nav.stack.length > 0);
+  }
+
+  /** Unterseiten einer Art zuschlagen (zurück, bis keine mehr im Stapel liegt). */
+  function closeKind(kind: PageRef['kind']): void {
+    if (busy()) {
+      queue.push(() => closeKind(kind));
+      return;
+    }
+    if (nav.stack.some((p) => p.kind === kind)) goBackTo((n) => !n.stack.some((p) => p.kind === kind));
+  }
+
   // --- Schnittstelle für main.ts ---------------------------------------------------------
   return {
     ...legacy,
@@ -574,8 +604,12 @@ export function createAlbum(deps: AlbumDeps): Album {
     },
     invalidate(parts) {
       legacy.invalidate(parts);
+      // Seiten (auch U:Begegnung und U:Pflanze setzen) beim nächsten Auffrischen sofort neu.
       pagesDirty = true;
     },
+    encounterResolved: () => encounterPage.resolved(),
+    closeEncounters: () => closeKind('encounter'),
+    closePlantPicker: () => closeKind('plant-picker'),
     focusCycle() {
       if (nav.stack.some((p) => p.kind === 'cycle')) {
         // Zurück zu „Ziele“; danach Fokus auf deren Überschrift statt auf „Vorbereiten ›“.
@@ -585,6 +619,16 @@ export function createAlbum(deps: AlbumDeps): Album {
       } else if (!nav.cover) {
         tabs[nav.tab].page.focusTitle();
       }
+    },
+    /**
+     * Verdeckt etwas die Szene? Alte Dialoge (Tagebuch) oder – mobil – eine Unterseite bzw.
+     * ein weggescrolltes Polaroid. Dann sammelt main.ts die Hinweise in einem Stempel.
+     */
+    overlayOpen: () => legacy.overlayOpen() || !photoVisible(),
+    noteText(text) {
+      // Polaroid nicht zu sehen (mobil weggescrollt oder Unterseite): als Stempel (A.11 #121).
+      if (photoVisible()) legacy.noteText(text);
+      else legacy.notify(text);
     },
     sceneFrame: fullscreen.tools,
     banners: book.banners,
@@ -606,6 +650,8 @@ export function createAlbum(deps: AlbumDeps): Album {
       closeNotes();
       albumTarget.disarm();
       for (const sub of subpages.values()) sub.reset?.();
+      closeKind('encounter');
+      closeKind('plant-picker');
       pagesDirty = true;
     },
     adopted(headChanged) {
@@ -614,6 +660,10 @@ export function createAlbum(deps: AlbumDeps): Album {
       savePage.disarm();
       cyclePage.disarm();
       pagesDirty = true;
+      if (headChanged) {
+        encounterPage.resolved();
+        closeKind('encounter');
+      }
     },
     showReturnReport(view) {
       returnReport.show(view);

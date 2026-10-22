@@ -37,12 +37,14 @@ test('Massenjahr im Stapel: Nahrungsnetz sagt „wartet“, nach der Wahl „war
   await page.locator('[data-ref="food-web-link"]').click();
   await expect(miceHint(page)).toHaveText('Das Mäusejahr wartet unter deinen Begegnungen – dort kannst du Jäger einladen.');
 
+  // Der Zettelstapel blättert von U:Nahrungsnetz aus zu U:Begegnung um (Ebene 2) …
   await page.locator('[data-ref="encounter-stack"]').click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('Mäusejahr');
+  const sheet = page.locator('[data-ref="page-encounter"]');
+  await expect(sheet).toContainText('Mäusejahr');
   await page.waitForTimeout(400); // Eingabesperre nach neuen Karten
-  await dialog.getByRole('button', { name: /Vorräte anlegen lassen/ }).click();
-  await expect(dialog).toBeHidden();
+  await sheet.getByRole('button', { name: /Vorräte anlegen lassen/ }).click();
+  // … und nach der letzten Entscheidung von selbst zurück aufs Nahrungsnetz.
+  await expect(sheet).toBeHidden();
   await expect(miceHint(page)).toHaveText('Das Mäusejahr war schon – ein Jäger fände hier Futter.');
 });
 

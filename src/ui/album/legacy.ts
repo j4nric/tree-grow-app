@@ -8,29 +8,22 @@
  * Spielregeln stehen nicht hier – Aktionen gehen über `deps.actions` an main.ts.
  */
 import { PLANTS_BY_ID } from '../../content/plants';
-import { evaluate, nextPlantCost, type Evaluation } from '../../core/formulas';
+import { evaluate, type Evaluation } from '../../core/formulas';
 import { landscapeUnlocked } from '../../core/landscape';
 import { isNight } from '../../core/weather';
 import {
-  encounterActionKey,
   refreshEcosystemView,
   toEcosystemView,
-  toEncounterView,
   toJournalView,
-  toPlantPickerView,
   type StageBannerView,
 } from '../adapters';
-import { createEncounterDialog } from '../encounter-dialog';
-import { createEncounterStack } from '../encounter-stack';
 import { createFloatLayer } from '../feedback';
 import { formatNumber } from '../format';
 import { createJournalButton, createJournalDialog } from '../journal-dialog';
-import { createPlantPicker } from '../plant-picker';
 import { toSeasonBadgeView } from '../season-view';
 import { seedsLabel } from '../view-format';
 import type { EcosystemView } from '../view-model';
 import { toWeatherBadgeView } from '../weather-view';
-import { applyWildwechselMark } from '../wildwechsel-view';
 import type { CarePage } from './pages/care-page';
 import type { LandscapePage } from './pages/landscape-page';
 import type { NichesPage } from './pages/niches-page';
@@ -54,8 +47,6 @@ export interface LegacyMounts {
   season: HTMLElement;
   /** Bildfläche des Polaroids (Stufen-Banner). */
   photo: HTMLElement;
-  /** Kopf rechts (Begegnungs-Stapel). */
-  dock: HTMLElement;
 }
 
 export interface LegacyHooks {
@@ -65,6 +56,8 @@ export interface LegacyHooks {
   onLandscape(unlocked: boolean): void;
   /** Pflegemaßnahme zeigen: zuerst in den Reiter „Pflege“ wechseln. */
   showCareTab(): void;
+  /** „🌱 Pflanze setzen“: zu U:Pflanze setzen umblättern. */
+  openPlantPicker(): void;
   /** Fokusziel, wenn der Fokus sonst im Nichts landete (Überschrift der aktuellen Seite). */
   focusTarget(): HTMLElement | null;
   /** Meldung in die Stempelschicht (stamps.ts). */
@@ -74,12 +67,10 @@ export interface LegacyHooks {
 export interface LegacyUi {
   refresh(now: number): void;
   invalidate(parts: readonly AlbumPart[]): void;
-  /** Die vorderste Begegnung ist erledigt (neue Karten, auch wenn sie gleich aussehen). */
-  encounterResolved(): void;
   /**
    * Meldung (C.5): Stempel, ab 90 Zeichen Zettel. Solange noch ein alter Dialog mit eigenem
-   * Hinweisfeld offen ist (Kartenwahl, Pflanzenwahl, Tagebuch, Tierdetails), steht sie
-   * dort – außer mit `direct`. Leerer Text: nichts.
+   * Hinweisfeld offen ist (Tagebuch), steht sie dort – außer mit `direct`. Begegnung und
+   * Pflanzenwahl sind Unterseiten: Ihre Meldungen kommen als Stempel. Leerer Text: nichts.
    */
   notify(text: string, options?: NotifyOptions): void;
   showBanner(view: StageBannerView): void;
@@ -90,8 +81,6 @@ export interface LegacyUi {
   /** Schwebender Hinweis an Bildschirm-Koordinaten (z. B. Bestätigung nach einem Kauf). */
   float(text: string, x: number, y: number): void;
   plantFeedback(cost: number, plantId: string): void;
-  closeEncounters(): void;
-  closePlantPicker(): void;
   /** Spielstand ersetzt (Löschen, Import): Dialoge zu, Bestätigungen zurück, alles neu. */
   replaced(): void;
   /** Stand eines anderen Geräts übernommen; `headChanged`: andere vorderste Begegnung. */
@@ -115,38 +104,20 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   const canvas = deps.canvas;
 
   // --- Zustand ------------------------------------------------------------------------
-  /** Der Spieler hat den Stapel geöffnet; bleibt offen, bis „Später“ oder keine Begegnung mehr wartet. */
-  let dialogWanted = false;
-  let encounterDirty = true;
-  let shownActionKey: string | null = null;
-  let shownQueued = -1;
-  /** Zählt erledigte Begegnungen – zwei gleich aussehende nacheinander gelten als verschieden. */
-  let encounterSerial = 0;
   let ecoDirty = true;
   let ecoView: EcosystemView | null = null;
   let ecoEvaluation: Readonly<Evaluation> | null = null;
   let ecoSeen = '';
   const ecoSeenKey = (): string => `${state().cycle.seen.length}/${state().pendingEncounters.length}`;
   let lastPanelRefresh = -Infinity;
-  let pickerWanted = false;
-  let pickerDirty = true;
-  let shownPickerAffordable: boolean | null = null;
-  let pickerSeedsShown = -1;
-  let pickerSeedsAt = -Infinity;
   let seasonShownSecond = -1;
   let shownNight: boolean | null = null;
   let shownLandscape: boolean | null = null;
 
-  const focusFallback = () => {
-    if (document.activeElement === document.body || document.activeElement === null) {
-      hooks.focusTarget()?.focus({ preventScroll: true });
-    }
-  };
-
   // --- Bauteile -----------------------------------------------------------------------
-  // Reiter Nischen (Schritt 5): Pflanzenwahl bis Schritt 6 hier, „Zur Pflege“ über den Reiter Pflege.
+  // Reiter Nischen (Schritt 5): „Pflanze setzen“ blättert um, „Zur Pflege“ über den Reiter Pflege.
   mounts.niches.connect({
-    openPlantPicker,
+    openPlantPicker: () => hooks.openPlantPicker(),
     showCare(id) {
       hooks.showCareTab();
       mounts.care.reveal(id);
@@ -155,16 +126,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   // Die Karte der Landschaft steht im eigenen Reiter; ihr Ziel gilt für U:Neuer Zyklus (Schritt 10 ersetzt sie).
   mounts.landscape.landscape.append(mounts.albumTarget.map.element);
   const seasonWeather = createSeasonWeather(mounts.season);
-  const stack = createEncounterStack(mounts.dock, openEncounters, { float: false });
-  const dialog = createEncounterDialog(document.body, { ...deps.actions.encounter, onDefer: closeEncounters });
-  const picker = createPlantPicker(document.body, {
-    onPlant: (plantId) => deps.actions.plant(plantId),
-    onClose: () => {
-      pickerWanted = false;
-      // Ist der Knopf jetzt weg (Ring voll), den Fokus nicht im Nichts lassen.
-      focusFallback();
-    },
-  });
   const journal = createJournalDialog(document.body, {
     onToggleRegular: (speciesId) => deps.actions.toggleRegular(speciesId),
   });
@@ -175,53 +136,22 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     ecoView = null;
     ecoDirty = true;
     seasonShownSecond = -1;
-    encounterDirty = true;
-    pickerDirty = true;
   });
 
   // --- Dialoge ------------------------------------------------------------------------
 
   function openJournal(): void {
-    closeEncounters();
-    closePlantPicker();
     journal.show(toJournalView(state(), evaluate(state())));
   }
 
-  function openPlantPicker(): void {
-    closeEncounters();
-    pickerWanted = true;
-    pickerDirty = true;
-    refreshPicker();
-  }
-
-  function closePlantPicker(): void {
-    pickerWanted = false;
-    picker.hide();
-  }
-
-  function openEncounters(): void {
-    if (state().pendingEncounters.length === 0) return;
-    closePlantPicker();
-    dialogWanted = true;
-    encounterDirty = true;
-    refreshEncounter();
-  }
-
-  function closeEncounters(): void {
-    dialogWanted = false;
-    dialog.hide();
-  }
-
   function overlayOpen(): boolean {
-    return picker.open || dialog.open || journal.open;
+    return journal.open;
   }
 
   /** Meldung: im offenen alten Dialog dort (er würde den Stempel verdecken), sonst als Stempel. */
   function notify(text: string, options: NotifyOptions = {}): void {
     if (!text) return;
     if (!options.direct) {
-      if (picker.open) return picker.notice(text);
-      if (dialog.open) return dialog.notice(text);
       if (journal.open) return journal.notice(text);
     }
     hooks.stamp(text, options);
@@ -282,57 +212,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
 
   // --- Ansichten ----------------------------------------------------------------------
 
-  /** Auswahl „Pflanze setzen“ nur bei Änderungen neu bauen; die Samen-Zeile gedrosselt. */
-  function refreshPicker(now = performance.now()): void {
-    if (!pickerWanted) {
-      if (picker.open) picker.hide();
-      return;
-    }
-    const s = state();
-    const affordable = s.seeds >= nextPlantCost(s);
-    if (!pickerDirty && picker.open && affordable === shownPickerAffordable) {
-      const whole = Math.floor(s.seeds);
-      if (whole !== pickerSeedsShown || now - pickerSeedsAt >= PANEL_REFRESH_MS) {
-        pickerSeedsShown = whole;
-        pickerSeedsAt = now;
-        picker.updateSeeds(s.seeds);
-      }
-      return;
-    }
-    pickerDirty = false;
-    pickerSeedsShown = Math.floor(s.seeds);
-    pickerSeedsAt = now;
-    shownPickerAffordable = affordable;
-    picker.show(toPlantPickerView(s, evaluate(s)), s.seeds);
-  }
-
-  /** Zeigt die älteste wartende Begegnung, wenn der Spieler den Stapel geöffnet hat. */
-  function refreshEncounter(): void {
-    const s = state();
-    const pending = s.pendingEncounters.length;
-    if (!dialogWanted || pending === 0) {
-      if (pending === 0) dialogWanted = false;
-      if (dialog.open) {
-        dialog.hide();
-        // Der Stapel ist weg – Fokus nicht im Nichts (body) stranden lassen.
-        if (stack.element.hidden) focusFallback();
-      }
-      return;
-    }
-    const queued = pending - 1;
-    const actionKey = encounterActionKey(s, 0);
-    if (!encounterDirty && dialog.open && actionKey === shownActionKey && queued === shownQueued) return;
-    const view = toEncounterView(s, 0, evaluate(s));
-    if (!view) return;
-    // Wildwechsel (24.6): Weg der vordersten Begegnung (main.ts weiß, wie die Karte kam).
-    applyWildwechselMark(view, deps.encounterMark());
-    view.key = String(encounterSerial);
-    encounterDirty = false;
-    shownActionKey = actionKey;
-    shownQueued = queued;
-    dialog.show(view, queued);
-  }
-
   /** Jahreszeit und Wetter: nur neu, wenn eine neue ganze Sekunde Spielzeit beginnt. */
   function refreshSeasonBadge(): void {
     const s = state();
@@ -388,28 +267,19 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     if (ecoDirty) seasonShownSecond = -1;
     refreshSeasonBadge();
     refreshPanel(now);
-    const s = state();
-    stack.update(s.pendingEncounters.length, s.pendingEncounters[0]);
-    refreshEncounter();
-    refreshPicker(now);
   }
 
   function invalidate(parts: readonly AlbumPart[]): void {
     for (const part of parts) {
       if (part === 'eco') ecoDirty = true;
-      else if (part === 'encounter') encounterDirty = true;
-      else if (part === 'picker') pickerDirty = true;
       else if (part === 'season') seasonShownSecond = -1;
+      // 'encounter' und 'picker' gehören den Unterseiten (album/index.ts).
     }
   }
 
   return {
     refresh,
     invalidate,
-    encounterResolved() {
-      encounterSerial++;
-      encounterDirty = true;
-    },
     notify,
     showBanner,
     overlayOpen,
@@ -417,23 +287,14 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     floatSeeds,
     float: (text, x, y) => floats.spawn(text, x, y, 'note'),
     plantFeedback,
-    closeEncounters,
-    closePlantPicker,
     replaced() {
       seasonShownSecond = -1;
-      closeEncounters();
-      closePlantPicker();
       journal.hide();
-      encounterSerial++;
-      invalidate(['eco', 'encounter', 'picker']);
+      invalidate(['eco']);
     },
-    adopted(headChanged) {
+    adopted() {
       seasonShownSecond = -1;
-      if (headChanged) {
-        closeEncounters();
-        encounterSerial++;
-      }
-      invalidate(['eco', 'encounter', 'picker']);
+      invalidate(['eco']);
     },
   };
 }
