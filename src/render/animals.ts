@@ -10,9 +10,10 @@
  * Gesichter. Bei `reducedMotion` stehen alle Tiere still.
  */
 
-import { POND_DEPTH, POND_LIP, POND_WATER_Y, type AnchorResolver, type NicheAnchor } from './anchors';
+import { HABITAT_SCALE, PILE_STUMP_HALF, PILE_STUMP_IN, POND_DEPTH, POND_LIP, POND_WATER_Y, type AnchorResolver, type NicheAnchor } from './anchors';
+import { HABITAT_DEFS, HABITAT_INFO, pileSpriteName, REPTILE_INFO } from './habitat-sprites';
 import { batFlight, batFlying, nightWake, nocturnalPace, owlPose, paintBatFly } from './nocturnal';
-import { amphibianActivity, edgeBare, edgePetals, edgeSeedHeads, fireflySeason, insectActivity, pondIce } from './phenology';
+import { amphibianActivity, edgeBare, edgePetals, edgeSeedHeads, fireflySeason, groundSnow, insectActivity, pondIce, reptileActivity } from './phenology';
 import { ell, eye, line, OUTLINE, outline, paintBird, poly, TAU, type BirdColors, type SpriteDef } from './sprite-kit';
 import { SPECIES_DEFS, SPECIES_INFO, type KindInfo } from './species-sprites';
 import { clamp, clamp01, hash2, smooth01 } from './util';
@@ -25,7 +26,10 @@ export interface SceneAnimal {
   /** Art-ID, z. B. 'robin'. Unbekannte Arten bekommen die Zeichnung ihrer Gattung. */
   id: string;
   family: AnimalFamily;
-  /** Nische: 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' | 'pond' (sonst nicht gezeichnet). */
+  /**
+   * Nische: 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' | 'pond' | 'meadow' |
+   * 'deadwood' | 'wall' (sonst nicht gezeichnet).
+   */
   niche: string;
   /** Platz in der Nische, 0..n. */
   slot: number;
@@ -62,6 +66,9 @@ const KINDS: Record<string, KindInfo> = {
   bracket: { size: 1, motion: 'still', frames: 1, fungus: 'bracket' },
   // Eigene Zeichnungen aller weiteren Arten (species-sprites.ts)
   ...SPECIES_INFO,
+  // Lebensräume: Waldwiese, Totholzhaufen, Trockenmauer (habitat-sprites.ts)
+  ...HABITAT_INFO,
+  reptile: REPTILE_INFO,
 };
 
 /** Art-ID (src/content/species.ts) → Zeichnung. */
@@ -77,6 +84,7 @@ const SPECIES_KIND: Record<string, string> = {
   centipede: 'centipede',
   snail: 'snail',
   ...Object.fromEntries(Object.keys(SPECIES_INFO).map((k) => [k, k])),
+  ...Object.fromEntries(Object.keys(HABITAT_INFO).map((k) => [k, k])),
 };
 
 const FAMILY_KIND: Record<AnimalFamily, string> = {
@@ -86,8 +94,7 @@ const FAMILY_KIND: Record<AnimalFamily, string> = {
   soil: 'snail',
   fungi: 'mushroom',
   amphibians: 'toad',
-  // Platzhalter bis zur eigenen Ersatzzeichnung (Eidechse, DESIGN_V2.md 23.7 Nr. 4).
-  reptiles: 'toad',
+  reptiles: 'reptile',
 };
 
 /** Seltenheit der bekannten Arten (DESIGN_V2.md 5.3), falls `rarity` fehlt – nur ab „besonders“. */
@@ -113,7 +120,7 @@ export function animalKinds(): string[] {
 export function animalKind(a: Pick<SceneAnimal, 'id' | 'family' | 'niche'>): string {
   const kind = SPECIES_KIND[a.id] ?? FAMILY_KIND[a.family] ?? 'insect';
   const fungus = KINDS[kind]?.fungus;
-  const onWood = a.niche === 'bark' || a.niche === 'hollows';
+  const onWood = a.niche === 'bark' || a.niche === 'hollows' || a.niche === 'deadwood';
   if (fungus === 'cap' && onWood) return 'bracket';
   if (fungus === 'bracket' && !onWood) return 'mushroom';
   return kind;
@@ -837,6 +844,7 @@ const DEFS: Record<string, SpriteDef> = {
   // Braunes Langohr im Flug (nachts, nocturnal.ts)
   batFly: { x0: -0.72, y0: -0.4, x1: 0.72, y1: 0.3, paint: paintBatFly },
   ...SPECIES_DEFS,
+  ...HABITAT_DEFS,
   // Durchreisende (visitors.ts)
   ...VISITOR_DEFS,
 };
@@ -1015,21 +1023,30 @@ export interface AnimalFrame {
 }
 
 /** Jahreszeit-Werte dieses Frames (einmal je Frame gerechnet, keine Allokation). */
-const seasonNow = { season: Number.NaN as number | null, insects: 1, amphibians: 1, ice: 0, petals: 1, seeds: 0, bare: 0, glow: 1 };
+const seasonNow = { season: Number.NaN as number | null, insects: 1, amphibians: 1, reptiles: 1, ice: 0, snow: 0, petals: 1, seeds: 0, bare: 0, glow: 1 };
 
 function updateSeason(season: number | null): void {
   if (seasonNow.season === season) return;
   seasonNow.season = season;
   seasonNow.insects = insectActivity(season);
   seasonNow.amphibians = amphibianActivity(season);
+  seasonNow.reptiles = reptileActivity(season);
   seasonNow.ice = pondIce(season);
+  seasonNow.snow = groundSnow(season);
   seasonNow.petals = edgePetals(season);
   seasonNow.seeds = edgeSeedHeads(season);
   seasonNow.bare = edgeBare(season);
   seasonNow.glow = fireflySeason(season);
 }
 
-const NICHE_ORDER: Record<string, number> = { roots: 0, pond: 0.5, litter: 1, edge: 2, bark: 3, hollows: 4, crown: 5 };
+const NICHE_ORDER: Record<string, number> = { roots: 0, pond: 0.5, deadwood: 0.6, meadow: 0.7, wall: 0.8, litter: 1, edge: 2, bark: 3, hollows: 4, crown: 5 };
+
+/** Lebensräume mit eigener Lage der Bewohner (`habitatPlaces`). */
+type HabitatNiche = 'deadwood' | 'meadow' | 'wall';
+
+function isHabitatNiche(n: string): n is HabitatNiche {
+  return n === 'deadwood' || n === 'meadow' || n === 'wall';
+}
 
 interface Pose {
   x: number;
@@ -1060,6 +1077,14 @@ interface PlanEntry {
   insect: boolean;
   /** Amphibie (Gattung 'amphibians'): Winterstarre. */
   amphibian: boolean;
+  /** Reptil (Gattung 'reptiles'): Winterstarre, im Winter halb versteckt. */
+  reptile: boolean;
+  /** Maßstab der Bewegungen (Mittelgrund kleiner); sonst 1. */
+  motionScale: number;
+  /** Schwirrer im Lebensraum: waagerechter Ausschlag (px); 0 = wie bisher (0,32 S). */
+  swayX: number;
+  /** Schwirrer im Lebensraum: so weit (px) sinkt er in Ruhe zum Sitzplatz. */
+  restDrop: number;
   seed: number;
   phase: number;
   niche: string;
@@ -1128,8 +1153,8 @@ export class AnimalLayer {
    * Wurzelraum-Tieren und dem Pilzgeflecht (das hinter der Senke weiterläuft) und unter
    * allen übrigen Tieren; Pflanzen und Gäste reichen nicht bis in die Senke (anchors.ts).
    */
-  draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame, pond = false): void {
-    if (animals.length === 0 && !pond) return;
+  draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame, pond = false, pile = false): void {
+    if (animals.length === 0 && !pond && !pile) return;
     this.sprites.tick();
     updateSeason(f.season ?? null);
     if (anchors !== this.anchors || !this.matches(animals)) this.rebuild(animals, anchors);
@@ -1137,6 +1162,7 @@ export class AnimalLayer {
       if (e.niche === 'roots') drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
     }
     if (pond) drawPond(ctx, anchors, this.sprites, f);
+    if (pile) drawPile(ctx, anchors, this.sprites, f);
     for (const e of this.plan) {
       if (e.niche !== 'roots') drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
     }
@@ -1160,9 +1186,10 @@ export class AnimalLayer {
     this.signature = animals.map((a) => ({ id: a.id, family: a.family, niche: a.niche, slot: normSlot(a.slot), rarity: animalRarity(a) }));
     const plan: PlanEntry[] = [];
     const ponds = pondPlaces(animals, anchors);
+    const habitats = habitatPlaces(animals, anchors);
     animals.forEach((animal, index) => {
       const anchor = anchors.get(animal.niche, animal.slot);
-      if (anchor) plan.push(planEntry(animal, index, anchor, anchors, ponds[index]));
+      if (anchor) plan.push(planEntry(animal, index, anchor, anchors, ponds[index], habitats[index]));
     });
     // Stabile Sortierung: hintere Reihe zuerst, dann Boden … Krone.
     plan.sort((a, b) => b.depth - a.depth || (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9) || a.index - b.index);
@@ -1188,14 +1215,28 @@ export function animalBounds(
   const anchor = anchors.get(animal.niche, animal.slot);
   if (!anchor) return null;
   const all = scene ?? [animal];
-  const place = animal.niche === 'pond' ? pondPlaces(all, anchors)[Math.max(0, all.indexOf(animal))] : null;
-  const e = planEntry(animal, 0, anchor, anchors, place);
+  const at = Math.max(0, all.indexOf(animal));
+  const place = animal.niche === 'pond' ? pondPlaces(all, anchors)[at] : null;
+  const habitat = isHabitatNiche(animal.niche) ? habitatPlaces(all, anchors)[at] : null;
+  const e = planEntry(animal, 0, anchor, anchors, place, habitat);
   const def = DEFS[e.kind] ?? DEFS.insect!;
   // Wendet das Tier um die Körpermitte, belegt es nur seine eigene Breite um diese Mitte.
   const half = (e.pivot ? ((def.x1 - def.x0) / 2) * e.size : Math.max(-def.x0, def.x1) * e.size) + e.travel;
   const cx = e.pivot ? e.x + e.midX * e.size * e.dir : e.x;
-  const lift = e.info.motion === 'hop' ? 0.17 * anchors.size : e.info.motion === 'sniff' ? 0.05 * anchors.size : 0;
+  const Sm = anchors.size * e.motionScale;
+  const lift = e.info.motion === 'hop' ? 0.17 * Sm : e.info.motion === 'sniff' ? 0.05 * Sm : e.info.motion === 'bask' ? BASK_BREATH * Sm : 0;
   const box = { x0: cx - half, x1: cx + half, y0: e.y + def.y0 * e.size - lift, y1: e.y + def.y1 * e.size };
+  if (e.info.motion === 'rattle') {
+    box.y0 -= RATTLE_BOB * Sm;
+    box.y1 += RATTLE_BOB * Sm;
+  }
+  if (e.info.motion === 'hover' && isHabitatNiche(e.niche)) {
+    // Schwirrer im Lebensraum: Ausschlag in `swayX`, auf und ab, in Ruhe zum Sitzplatz.
+    box.x0 -= e.swayX;
+    box.x1 += e.swayX;
+    box.y0 -= HOVER_BOB * Sm;
+    box.y1 += Math.max(HOVER_BOB * Sm, e.restDrop);
+  }
   for (const d of [...e.before, ...e.after]) {
     const dd = DEFS[d.name];
     if (!dd || ignore.includes(d.name)) continue;
@@ -1295,10 +1336,246 @@ export function pondPlaces(animals: readonly SceneAnimal[], anchors: AnchorResol
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Lebensräume: Totholzhaufen, Waldwiese, Trockenmauer (DESIGN_V2.md 23.8)
+// ---------------------------------------------------------------------------
+
+/** Lage eines Bewohners im Lebensraum, berechnet aus allen Bewohnern (`habitatPlaces`). */
+export interface HabitatPlace {
+  /** Körpermitte (wendet darum, `pivot`) bzw. Ursprung des Sprites (CSS-Pixel). */
+  x: number;
+  /** Ursprung des Sprites (CSS-Pixel). */
+  y: number;
+  dir: 1 | -1;
+  /** Zeichengröße in px (Tiergröße × Art × Maßstab). */
+  size: number;
+  /** Maßstab relativ zur Tiergröße S (ohne den Faktor der Art). */
+  scale: number;
+  /** Wendet um die Körpermitte. */
+  pivot: boolean;
+  /** Laufweg je Seite, Ausschlag der Schwirrer, Absinken in Ruhe (px). */
+  travel: number;
+  swayX: number;
+  restDrop: number;
+  /** Reihe: 2 = Mittelgrund (vor allen anderen gezeichnet), sonst 0. */
+  depth: number;
+  before: Deco[];
+  after: Deco[];
+}
+
+/** Lücke zwischen zwei Bewohnern bzw. zum Rand (Tiergrößen). */
+const HABITAT_GAP = 0.08;
+/** Totholzhaufen: oberste und unterste Linie der Bewohner (Tiergrößen unter der Bodenlinie). */
+const PILE_TOP = POND_LIP + 0.04;
+const PILE_FLOOR = POND_DEPTH - 0.08;
+/** Abstand der äußeren Bewohner zum Rand des Haufens (Tiergrößen). */
+const PILE_RIM = 0.12;
+/** Laufweg der Krabbler (Tiergrößen bei Maßstab 1). */
+const HABITAT_TRAVEL = 0.1;
+/** Mauerbiene: so hoch schwirrt sie über ihrem Sitzplatz, so weit seitlich (Tiergrößen bei Maßstab 1). */
+const WALL_HOVER_LIFT = 0.55;
+const WALL_HOVER_SWAY = 0.18;
+/** Zaunkönig: Höhe des Asts unter seinen Füßen (Zeicheneinheiten des Asts). */
+const PERCH_DROP = 0.14;
+
+interface HabitatItem {
+  i: number;
+  kind: string;
+  info: KindInfo;
+  def: SpriteDef;
+  /** Breite und Höhe in Tiergrößen bei Maßstab 1 (samt Bewegung und Dekos). */
+  w: number;
+  h: number;
+  travel: number;
+  sway: number;
+  lift: number;
+  perch: boolean;
+}
+
+function habitatItem(animal: SceneAnimal, i: number, niche: string): HabitatItem {
+  const kind = animalKind(animal);
+  const info = KINDS[kind] ?? KINDS.insect!;
+  const def = DEFS[kind] ?? DEFS.insect!;
+  const travel = info.motion === 'crawl' ? HABITAT_TRAVEL : 0;
+  const hover = info.motion === 'hover';
+  const sway = hover ? WALL_HOVER_SWAY : 0;
+  const lift = info.motion === 'hop' ? 0.17 : info.motion === 'sniff' ? 0.05 : info.motion === 'bask' ? BASK_BREATH : hover ? HOVER_BOB : 0;
+  const perch = niche === 'deadwood' && animal.family === 'birds';
+  const w = (def.x1 - def.x0) * info.size + 2 * travel + 2 * sway;
+  const h = (def.y1 - def.y0) * info.size + lift + (perch ? PERCH_DROP : 0) + (hover ? WALL_HOVER_LIFT + HOVER_BOB : 0);
+  return { i, kind, info, def, w, h, travel, sway, lift, perch };
+}
+
+/** Größter Maßstab in 1/40-Schritten (≤ `k0`), bei dem alle Bewohner mit Lücken in `avail` (S) passen. */
+function fitScale(items: HabitatItem[], avail: number, k0: number, fit: (it: HabitatItem) => number): number {
+  let k = Math.floor(k0 * 40) / 40;
+  const min = k0 * 0.5;
+  for (; k > min; k -= 1 / 40) {
+    let need = HABITAT_GAP * (items.length + 1);
+    for (const it of items) need += it.w * Math.min(k, fit(it));
+    if (need <= avail) break;
+  }
+  return Math.max(min, k);
+}
+
+/**
+ * Plätze aller Bewohner von Totholzhaufen, Waldwiese und Trockenmauer in `animals` (gleiche
+ * Reihenfolge; null für alle anderen) – wie `pondPlaces`: Jeder Bewohner bekommt einen
+ * eigenen Streifen, so überlappen sie sich nie; passen nicht alle hinein, werden sie
+ * gemeinsam kleiner (in Schritten von 1/40). Im Totholzhaufen sitzt der erste Pilz am
+ * Stubben, Vögel oben auf einem Ast, alle anderen in Lücken am Grund; im Mittelgrund stehen
+ * alle auf der Linie des Lebensraums (70 % groß), der Turmfalke rüttelt darüber. Nur beim
+ * Neuaufbau des Plans bzw. beim Tippen berechnet, nie pro Frame.
+ */
+export function habitatPlaces(animals: readonly SceneAnimal[], anchors: AnchorResolver): (HabitatPlace | null)[] {
+  const out: (HabitatPlace | null)[] = animals.map(() => null);
+  for (const niche of ['deadwood', 'meadow', 'wall'] as const) {
+    const idx: number[] = [];
+    animals.forEach((a, i) => {
+      if (a.niche === niche && anchors.get(niche, a.slot)) idx.push(i);
+    });
+    if (idx.length === 0) continue;
+    idx.sort((i, j) => normSlot(animals[i]!.slot) - normSlot(animals[j]!.slot) || i - j);
+    const items = idx.map((i) => habitatItem(animals[i]!, i, niche));
+    if (niche === 'deadwood') placePile(items, anchors, out);
+    else placeMidground(niche, items, anchors, out);
+  }
+  return out;
+}
+
+function placePile(items: HabitatItem[], anchors: AnchorResolver, out: (HabitatPlace | null)[]): void {
+  const p = anchors.pile();
+  const S = p.size;
+  const top = p.y + PILE_TOP * S;
+  const floor = p.y + PILE_FLOOR * S;
+  const band = PILE_FLOOR - PILE_TOP;
+  const fit = (it: HabitatItem) => band / it.h;
+  let left = p.x - (p.halfWidth - PILE_RIM) * S;
+  let right = p.x + (p.halfWidth - PILE_RIM) * S;
+  // Der erste Pilz wächst als Fächer links am Stubben.
+  const fungus = items.find((it) => it.info.fungus);
+  if (fungus) {
+    const k = Math.min(Math.floor(p.maxScale * 40) / 40, fit(fungus));
+    const size = S * fungus.info.size * k;
+    const x = p.x + (p.halfWidth - PILE_STUMP_IN - PILE_STUMP_HALF) * S;
+    const y = (top + floor) / 2 - ((fungus.def.y0 + fungus.def.y1) / 2) * size;
+    out[fungus.i] = { ...habitatBase(), x, y, dir: -1, size, scale: k };
+    right = x - fungus.def.x1 * size - HABITAT_GAP * S;
+  }
+  const rest = items.filter((it) => it !== fungus);
+  if (rest.length === 0) return;
+  const avail = (right - left) / S;
+  const k = fitScale(rest, avail, p.maxScale, fit);
+  let used = 0;
+  for (const it of rest) used += it.w * Math.min(k, fit(it));
+  const space = Math.max(0, (avail - used) / (rest.length + 1)) * S;
+  let at = left + space;
+  for (const it of rest) {
+    const kk = Math.min(k, fit(it));
+    const stripe = it.w * kk * S;
+    const c = at + stripe / 2;
+    const size = S * it.info.size * kk;
+    const place: HabitatPlace = { ...habitatBase(), x: c, y: 0, dir: c < p.x ? 1 : -1, size, scale: kk, pivot: true, travel: it.travel * kk * S };
+    if (it.perch) {
+      // Vogel oben im Haufen auf einem Ast (unter der Narbe), Wippen eingerechnet.
+      place.y = top + it.lift * kk * S - it.def.y0 * size;
+      place.before.push({ name: 'perchTwig', x: c, y: place.y, size: Math.min(stripe, size * 1.1) });
+    } else {
+      place.y = floor - it.def.y1 * size;
+      // Dunkle Lücke im Reisig hinter dem Bewohner.
+      const gap = Math.min((stripe * 0.95) / 1.04, (floor - top) * 1.8);
+      const mid = place.y + ((it.def.y0 + it.def.y1) / 2) * size;
+      place.before.push({ name: 'pileGap', x: c, y: clamp(mid, top + gap * 0.27, floor - gap * 0.27), size: gap });
+    }
+    out[it.i] = place;
+    at += stripe + space;
+  }
+}
+
+function placeMidground(niche: 'meadow' | 'wall', items: HabitatItem[], anchors: AnchorResolver, out: (HabitatPlace | null)[]): void {
+  const m = anchors.midground(niche);
+  const S = m.size;
+  const k0 = HABITAT_SCALE;
+  const left = m.x - m.halfWidth * S;
+  const right = m.x + m.halfWidth * S;
+  // Flieger (Turmfalke) rütteln über der Wiese, gleichmäßig über den Streifen verteilt.
+  const sky = items.filter((it) => it.info.soar && niche === 'meadow');
+  sky.forEach((it, n) => {
+    const c = left + ((n + 1) / (sky.length + 1)) * (right - left);
+    const size = S * it.info.size * k0;
+    out[it.i] = { ...habitatBase(), x: c, y: m.skyY, dir: m.side === 1 ? -1 : 1, size, scale: k0, pivot: true, depth: 2 };
+  });
+  const ground = items.filter((it) => !sky.includes(it));
+  if (ground.length === 0) return;
+  const avail = (right - left) / S;
+  const k = fitScale(ground, avail, k0, () => Infinity);
+  let used = 0;
+  for (const it of ground) used += it.w * k;
+  const space = Math.max(0, (avail - used) / (ground.length + 1)) * S;
+  let at = left + space;
+  ground.forEach((it, n) => {
+    const stripe = it.w * k * S;
+    const c = at + stripe / 2;
+    const size = S * it.info.size * k;
+    // Abwechselnd zum Baum und von ihm weg blickend.
+    const toTree: 1 | -1 = m.side === 1 ? -1 : 1;
+    const place: HabitatPlace = {
+      ...habitatBase(),
+      x: c,
+      y: m.y,
+      dir: n % 2 === 0 ? toTree : (-toTree as 1 | -1),
+      size,
+      scale: k,
+      pivot: true,
+      travel: it.travel * k * S,
+      depth: 2,
+    };
+    if (it.info.motion === 'hover') {
+      // Schwirrt über der Mauer und setzt sich in Ruhe auf den Stein.
+      place.restDrop = WALL_HOVER_LIFT * k * S;
+      place.y = m.y - it.def.y1 * size - place.restDrop;
+      place.swayX = it.sway * k * S;
+    } else if (niche === 'meadow') {
+      // Hohe Halme vor den Füßen: Die Bewohner stehen im Gras.
+      place.after.push({ name: 'meadowTuft', x: c, y: m.y, size: Math.min(S * k, stripe * 0.95 / 0.84) });
+    }
+    out[it.i] = place;
+    at += stripe + space;
+  });
+}
+
+function habitatBase(): HabitatPlace {
+  return { x: 0, y: 0, dir: 1, size: 1, scale: 1, pivot: false, travel: 0, swayX: 0, restDrop: 0, depth: 0, before: [], after: [] };
+}
+
+/** Übernimmt einen Platz im Lebensraum in den Plan eines Tiers. */
+function applyHabitatPlace(e: PlanEntry, place: HabitatPlace): void {
+  e.size = place.size;
+  e.dir = place.dir;
+  e.pivot = place.pivot;
+  e.x = place.pivot ? place.x - e.midX * e.size * e.dir : place.x;
+  e.y = place.y;
+  e.travel = place.travel;
+  e.swayX = place.swayX;
+  e.restDrop = place.restDrop;
+  e.motionScale = place.scale;
+  e.depth = place.depth;
+  e.windArm = 0;
+  e.before = place.before;
+  e.after = place.after;
+}
+
 /** Kleine Krabbler, die am Waldsaum auf der Blüte sitzen. */
 const ON_BLOSSOM = new Set(['insect', 'oakmoth', 'barkbeetle', 'woodlouse', 'stagbeetle']);
 
-function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anchors: AnchorResolver, pondPlace?: PondPlace | null): PlanEntry {
+function planEntry(
+  animal: SceneAnimal,
+  index: number,
+  anchor: NicheAnchor,
+  anchors: AnchorResolver,
+  pondPlace?: PondPlace | null,
+  habitatPlace?: HabitatPlace | null,
+): PlanEntry {
   const kind = animalKind(animal);
   const info = KINDS[kind] ?? KINDS.insect!;
   const def = DEFS[kind] ?? DEFS.insect!;
@@ -1314,6 +1591,10 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
     info,
     insect: animal.family === 'insects',
     amphibian: animal.family === 'amphibians',
+    reptile: animal.family === 'reptiles',
+    motionScale: 1,
+    swayX: 0,
+    restDrop: 0,
     seed,
     phase: (seed & 1023) / 97,
     niche,
@@ -1336,6 +1617,11 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
     pose: { x: 0, y: 0, dir: 1, rot: 0, frame: 0, sprite: null },
     pivot: false,
   };
+
+  if (isHabitatNiche(niche)) {
+    applyHabitatPlace(e, habitatPlace ?? habitatPlaces([animal], anchors)[0]!);
+    return e;
+  }
 
   if (info.fungus) {
     e.dir = anchor.side;
@@ -1488,11 +1774,13 @@ function drawEntry(
     }
   }
   const name = pose.sprite ?? e.kind;
+  // Reptilien in der Winterstarre: halb versteckt in Ritzen und unter Reisig.
+  const seen = e.reptile ? REPTILE_HIDDEN + (1 - REPTILE_HIDDEN) * clamp01(seasonNow.reptiles) : 1;
   if (muted < 0.99) {
-    blit(ctx, sprites.get(name, pose.frame, false, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, 1, f);
+    blit(ctx, sprites.get(name, pose.frame, false, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, seen, f);
   }
   if (muted > 0.01) {
-    blit(ctx, sprites.get(name, pose.frame, true, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, muted < 0.99 ? muted : 1, f);
+    blit(ctx, sprites.get(name, pose.frame, true, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, (muted < 0.99 ? muted : 1) * seen, f);
   }
   for (const d of e.after) blit(ctx, sprites.get(d.name, 0, false, d.size, f.spriteDpr ?? f.dpr), d.x + wx, d.y, 1, 0, 1, f);
   if (e.shimmer === 3) drawSparkles(ctx, e, pose, muted, sprites, f);
@@ -1503,7 +1791,7 @@ function drawEntry(
  * Winterruhe. `happy` ist die schon begrenzte Zufriedenheit; `seasonNow` muss aktuell sein.
  */
 function placePose(e: PlanEntry, happy: number, S: number, f: Pick<AnimalFrame, 'time' | 'windSkew' | 'reducedMotion' | 'nocturnal'>): Pose {
-  const rest = e.insect ? clamp01(seasonNow.insects) : e.amphibian ? clamp01(seasonNow.amphibians) : 1;
+  const rest = e.insect ? clamp01(seasonNow.insects) : e.amphibian ? clamp01(seasonNow.amphibians) : e.reptile ? clamp01(seasonNow.reptiles) : 1;
   // Nachtarten: tagsüber ruhiger, nachts aktiver (nur mit Tageszeit; Igel und Fledermaus
   // halten Winterschlaf – wie die Amphibien von Spätherbst bis Vorfrühling).
   const wake = nightWake(f.nocturnal);
@@ -1516,7 +1804,7 @@ function placePose(e: PlanEntry, happy: number, S: number, f: Pick<AnimalFrame, 
   pose.rot = e.rot;
   pose.frame = 0;
   pose.sprite = null;
-  animate(e, pose, act, f.time, S, f.reducedMotion);
+  animate(e, pose, act, f.time, S * e.motionScale, f.reducedMotion);
   if (wake !== null) {
     if (e.kind === 'owl') {
       const o = owlPose(pose.frame, pose.dir, wake, f.time, e.seed, e.phase, f.reducedMotion);
@@ -1579,10 +1867,11 @@ export function hitTestAnimals(
   let best: AnimalHit | null = null;
   let bestD = Infinity;
   const ponds = pondPlaces(animals, anchors);
+  const habitats = habitatPlaces(animals, anchors);
   animals.forEach((animal, index) => {
     const anchor = anchors.get(animal.niche, animal.slot);
     if (!anchor) return;
-    const e = planEntry(animal, index, anchor, anchors, ponds[index]);
+    const e = planEntry(animal, index, anchor, anchors, ponds[index], habitats[index]);
     const happy = clamp01(Number.isFinite(animal.happiness) ? animal.happiness : 0.5);
     const pose = placePose(e, happy, anchors.size, f);
     const m = spriteMid(e, pose, hitMid);
@@ -1649,6 +1938,14 @@ function drawPond(ctx: CanvasRenderingContext2D, anchors: AnchorResolver, sprite
   if (seasonNow.ice > 0.01) blit(ctx, sprites.get(pondSpriteName(true, p.halfWidth), 0, false, p.size, dpr), p.x, p.y, 1, 0, seasonNow.ice, f);
 }
 
+/** Totholzhaufen an seiner festen Lage (gemerkt in `anchors.pile()`); im Winter mit Schnee. */
+function drawPile(ctx: CanvasRenderingContext2D, anchors: AnchorResolver, sprites: SpriteCache, f: AnimalFrame): void {
+  const p = anchors.pile();
+  const dpr = f.spriteDpr ?? f.dpr;
+  blit(ctx, sprites.get(pileSpriteName(DEFS, false, p.halfWidth), 0, false, p.size, dpr), p.x, p.y, 1, 0, 1, f);
+  if (seasonNow.snow > 0.01) blit(ctx, sprites.get(pileSpriteName(DEFS, true, p.halfWidth), 0, false, p.size, dpr), p.x, p.y, 1, 0, seasonNow.snow, f);
+}
+
 /** Radius um die Sprite-Mitte (Anteil der Größe) – bei eigenem Sprite aus dessen Begrenzung. */
 function midRadius(e: PlanEntry, pose: Pose): number {
   const d = pose.sprite ? DEFS[pose.sprite] : undefined;
@@ -1691,6 +1988,7 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
   const info = e.info;
   if (reduced || act <= 0.01) {
     if (info.motion === 'hover' && e.niche === 'edge') pose.y += (e.size / info.size) * 0.43; // ruht auf der Blüte
+    pose.y += e.restDrop; // Schwirrer im Lebensraum: sitzt auf dem Stein
     return;
   }
   switch (info.motion) {
@@ -1718,8 +2016,8 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
     case 'hover': {
       const slow = e.kind === 'glowworm' ? 0.7 : 1.3;
       const p = t * slow + e.phase;
-      pose.x += S * 0.32 * act * Math.sin(p);
-      pose.y += S * 0.14 * act * Math.sin(p * 2);
+      pose.x += (e.swayX > 0 ? e.swayX : S * 0.32) * act * Math.sin(p);
+      pose.y += S * HOVER_BOB * act * Math.sin(p * 2) + e.restDrop * (1 - Math.min(1, act));
       pose.dir = Math.cos(p) >= 0 ? 1 : -1;
       // Flügelschlag nur bei merklicher Aktivität: darunter in Schüben, die mit der
       // Aktivität kürzer werden (feste Taktrate – kein Phasensprung bei sich ändernder
@@ -1761,10 +2059,31 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
       // Geschäftiges Gewusel an Ort und Stelle (Ameisen, Käferbeine).
       pose.frame = Math.floor(t * (1.5 + 2.5 * act) + e.phase) & 1;
       break;
+    case 'bask': {
+      // Sonnenbad: leises Atmen, ab und zu den Kopf heben (Bild 1).
+      pose.y -= S * BASK_BREATH * act * (0.5 + 0.5 * Math.sin(t * 2.2 + e.phase * 3));
+      const period = 7 - 2.5 * act;
+      const local = frac(t / period + e.phase) * period;
+      pose.frame = local < 1.6 * act ? 1 : 0;
+      break;
+    }
+    case 'rattle': {
+      // Rütteln: schneller Flügelschlag auf der Stelle, kurze Gleitpausen.
+      pose.y += S * RATTLE_BOB * act * Math.sin(t * 2.6 + e.phase);
+      if (frac(t * 0.18 + e.phase) < 0.8 * act) pose.frame = Math.floor(t * 10) & 1;
+      break;
+    }
     case 'still':
       break;
   }
 }
+
+/** Ausschläge der neuen Bewegungen (Tiergrößen): Atmen beim Sonnen, Rütteln, Schwirren. */
+const BASK_BREATH = 0.025;
+const RATTLE_BOB = 0.06;
+const HOVER_BOB = 0.14;
+/** So sichtbar bleiben Reptilien in der Winterstarre (halb versteckt). */
+const REPTILE_HIDDEN = 0.5;
 
 /** Ein Sprite an (x, y) [CSS-px] zeichnen – gespiegelt (dir) und gedreht (rot). */
 function blit(ctx: CanvasRenderingContext2D, s: Sprite, x: number, y: number, dir: number, rot: number, alpha: number, f: AnimalFrame): void {

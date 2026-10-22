@@ -681,6 +681,10 @@ function refreshPanel(now: number): void {
       // Tiere und Pflanzen für die Szene nur bei Änderungen am Ökosystem neu bauen.
       scene.animals = toSceneAnimals(state, ev);
       scene.pond = scenePond(ev);
+      // Lebensräume (DESIGN_V2.md 23.8): offen, sobald die Nische Plätze hat.
+      scene.meadow = (ev.slots.meadow ?? 0) > 0;
+      scene.deadwood = (ev.slots.deadwood ?? 0) > 0;
+      scene.wall = (ev.slots.wall ?? 0) > 0;
       scene.plants = toScenePlants(state, ev);
       scene.visitors = toSceneVisitors(state);
       scene.harmonyTier = harmonyTierIndex(ev.harmony);

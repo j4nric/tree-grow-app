@@ -47,6 +47,7 @@ import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Lay
 import { paintLeaves, paintWood, TREE_FORMS, type LeafPalette, type WoodColors } from './plant';
 import { cycleElapsed, CycleTransition, type CycleGeometry, type OldForest } from './cycle';
 import { DayLayer, dayLevels, normalizeDayPhase, paintDaySky, tintCopy, tintInPlace, tintRgb, type DayFrame, type DayLevels } from './daylight';
+import { MIDGROUND_MEADOW, MIDGROUND_WALL, paintMidground } from './habitat-scenery';
 import { MoodLayer, type MoodFrame } from './mood';
 import {
   normalizeSpecies,
@@ -105,6 +106,18 @@ export interface SceneInput {
    * kleine Senke mit Wasser im Erdschnitt (im Winter mit Eis). Ohne Angabe: kein Tümpel.
    */
   pond?: boolean;
+  /**
+   * Lebensräume (DESIGN_V2.md 23.8), jeweils sobald die Nische offen ist (Pflege oder
+   * Ereignis); ohne Angabe: geschlossen. `meadow` (Waldwiese): helle Lichtung mit hohem
+   * Gras und Blüten im Mittelgrund rechts hinter dem Baum; `wall` (Trockenmauer): niedrige
+   * Lesesteinmauer im Mittelgrund links; beide in der gecachten Kulisse (neu nur beim
+   * Öffnen). `deadwood` (Totholzhaufen): Reisighaufen mit morschem Stubben im Erdschnitt am
+   * rechten Bildrand, Gegenstück zum Tümpel (im Winter mit Schnee). Die Bewohner (Nischen
+   * 'meadow', 'wall', 'deadwood' in `animals`) stehen dort.
+   */
+  meadow?: boolean;
+  deadwood?: boolean;
+  wall?: boolean;
   /**
    * Begleitpflanzen um den Hauptbaum (optional). Sobald die Liste übergeben wird (auch
    * leer), erscheinen die automatischen Nachbarbäume ab „Hain“ nur noch als ferne
@@ -329,6 +342,8 @@ interface SizeCache {
   memory: number;
   /** Jahreszeit (gerundet), mit der Kulisse und Ebenen gezeichnet sind (−1 = Sommer/ohne Angabe). */
   seasonKey: number;
+  /** Lebensräume im Mittelgrund, mit denen die Kulisse gezeichnet ist (Bits, habitat-scenery.ts). */
+  habitats: number;
   /** Art des Hauptbaums, mit der Ebenen und Erinnerungsbaum gezeichnet sind. */
   species: TreeSpecies;
   /** Radius des Samens (CSS-Pixel), beim Neuaufbau der Ebenen gemerkt (für den Schein). */
@@ -821,9 +836,10 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const key =
     base && base.pw === pw && base.ph === ph && base.layout.width === width && base.layout.height === height ? base.key : sizeKey(pw, ph, width, height);
   const builtKey = base ? base.key : null;
+  const habitats = midgroundMask(input);
   if (input.sizeSettled ? key !== builtKey : cache.gate.shouldRebuild(key, builtKey, input.time)) {
     // Kulisse gleich in der richtigen Jahreszeit (nicht zweimal malen).
-    base = buildSizeCache(base, key, width, height, pw, ph, dpr, look);
+    base = buildSizeCache(base, key, width, height, pw, ph, dpr, look, habitats);
     cache.size = base;
   }
   base = base!;
@@ -841,7 +857,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       const left = viewLeft(cam);
       const top = viewTop(cam);
       if (!d || d.baseKey !== key || d.zoom !== zoom || d.covL !== left || d.covT !== top) {
-        cache.detail = buildDetailCache(d, `${key}@${zoom}:${left},${top}`, base, cam, look);
+        cache.detail = buildDetailCache(d, `${key}@${zoom}:${left},${top}`, base, cam, look, habitats);
       }
     }
   } else if (cache.detail && camStill) {
@@ -912,7 +928,7 @@ function covers(d: SizeCache, cam: CameraView): boolean {
  * Detail-Ebenen für den Ausschnitt `cam`: so groß wie das Canvas, Auflösung = Pixeldichte
  * × Zoom – gezeichnet wird nur, was im Ausschnitt liegt. Gleiche Szene wie die Basis.
  */
-function buildDetailCache(old: SizeCache | null, key: string, base: SizeCache, cam: CameraView, look: SeasonLook | null): SizeCache {
+function buildDetailCache(old: SizeCache | null, key: string, base: SizeCache, cam: CameraView, look: SeasonLook | null, habitats: number): SizeCache {
   const { width, height, groundY } = base.layout;
   const fullW = cam.zoom * base.pw;
   const fullH = cam.zoom * base.ph;
@@ -920,7 +936,7 @@ function buildDetailCache(old: SizeCache | null, key: string, base: SizeCache, c
   // Wind verschiebt die Baum-Ebenen waagerecht um bis zu |windSkew| (< 0,0145; bei Sturm
   // bis maxStormSkew) × Höhe über dem Boden: so breit ist der Rand links und rechts.
   const margin = Math.ceil(maxStormSkew(WIND_MAX_SKEW) * groundY * res) + 2;
-  return buildSizeCache(old, key, width, height, base.pw + margin * 2, base.ph, res, look, {
+  return buildSizeCache(old, key, width, height, base.pw + margin * 2, base.ph, res, look, habitats, {
     oxN: viewLeft(cam) - margin / fullW,
     oyN: viewTop(cam),
     fullW,
@@ -957,8 +973,11 @@ function updateLayers(sc: SizeCache, base: SizeCache, cache: Cache, input: Scene
   // ändert; Baum-Ebenen, Pflanzen und Erinnerungsbaum folgen unten.
   const seasonKey = seasonStepKey(look);
   const seasonChanged = seasonKey !== sc.seasonKey;
-  if (seasonChanged) {
-    paintStatic(sc, look);
+  // Ein Lebensraum im Mittelgrund öffnet (oder schließt, Neuer Zyklus): Kulisse neu.
+  const habitats = midgroundMask(input);
+  const habitatsChanged = habitats !== sc.habitats;
+  if (seasonChanged || habitatsChanged) {
+    paintStatic(sc, look, habitats);
     sc.seasonKey = seasonKey;
     sc.staticVersion++;
   }
@@ -1014,6 +1033,7 @@ function updateLayers(sc: SizeCache, base: SizeCache, cache: Cache, input: Scene
     due ||
     plantsChanged ||
     seasonChanged ||
+    habitatsChanged ||
     speciesChanged ||
     sc.withPlants !== (input.plants !== undefined)
   ) {
@@ -1208,7 +1228,8 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   }
   const animals = input.animals ?? NO_ANIMALS;
   const pond = input.pond === true;
-  if ((animals.length > 0 || pond) && sc.anchors) {
+  const pile = input.deadwood === true;
+  if ((animals.length > 0 || pond || pile) && sc.anchors) {
     const f = animalFrame;
     f.time = time;
     f.windSkew = k;
@@ -1224,7 +1245,7 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     f.tx = m.tx;
     f.ty = m.ty;
     f.spriteDpr = spriteDpr;
-    layer.draw(ctx, animals, sc.anchors, f, pond);
+    layer.draw(ctx, animals, sc.anchors, f, pond, pile);
   }
   // Fallende Blätter und Schnee (nur außerhalb des Sommers).
   if (cache.look && !cache.look.summer) {
@@ -1380,6 +1401,8 @@ function buildSizeCache(
   ph: number,
   dpr: number,
   look: SeasonLook | null,
+  /** Lebensräume im Mittelgrund (Bits, `midgroundMask`). */
+  habitats: number,
   /** Detail-Ebenen: Ausschnitt (Anteile), Größe der ganzen Szene in Pixeln, Zoom. */
   view?: { oxN: number; oyN: number; fullW: number; fullH: number; zoom: number; baseDpr: number; baseKey: string; covL: number; covT: number },
 ): SizeCache {
@@ -1430,6 +1453,7 @@ function buildSizeCache(
     memoryRect: null,
     memory: Number.NaN,
     seasonKey: -1,
+    habitats,
     species: 'oak',
     seedR: 4,
     plantSig: null,
@@ -1442,18 +1466,28 @@ function buildSizeCache(
     tint: null,
   };
 
-  paintStatic(sc, look);
+  paintStatic(sc, look, habitats);
   sc.seasonKey = seasonStepKey(look);
   return sc;
 }
 
-/** Statische Kulisse (Himmel, Hügel, Erde) und Grasnarbe – je Größe und Jahreszeit. */
-function paintStatic(sc: SizeCache, look: SeasonLook | null): void {
+/** Bits der offenen Lebensräume im Mittelgrund (Waldwiese, Trockenmauer). */
+function midgroundMask(input: SceneInput): number {
+  return (input.meadow === true ? MIDGROUND_MEADOW : 0) | (input.wall === true ? MIDGROUND_WALL : 0);
+}
+
+/**
+ * Statische Kulisse (Himmel, Hügel, Lebensräume im Mittelgrund, Erde) und Grasnarbe – je
+ * Größe, Jahreszeit und offenen Lebensräumen.
+ */
+function paintStatic(sc: SizeCache, look: SeasonLook | null, habitats: number): void {
   const { layout, dpr, pw, ph } = sc;
   const { width, height } = layout;
   const sky = layerContext(sc.scenery, sc);
   paintSky(sky, width, layout.groundY, look);
   paintHills(sky, width, height, layout.groundY, look);
+  paintMidground(sky, layout, habitats, look);
+  sc.habitats = habitats;
   paintSoil(sky, width, height, layout.groundY);
 
   // Grasnarbe nur als Streifen um die Bodenlinie (Halme reichen bis 1,2 × bladeH hinauf).
