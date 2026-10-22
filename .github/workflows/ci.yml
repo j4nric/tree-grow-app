@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, claude/ci-tempo] # TEMP-MESSUNG
+    branches: [main]
   pull_request:
 
 # Ein neuer Push auf denselben PR bricht den veralteten Lauf ab (spart Runner, keine Warteschlange).
@@ -33,16 +33,18 @@ jobs:
             package-lock.json
             server/package-lock.json
       # node_modules beider Pakete direkt cachen: Bei Treffer braucht es gar kein Netz.
-      # Schlüssel = Lockfiles + Node-Version, also nie veraltete Pakete.
+      # Schlüssel = Lockfiles + Node-Version, also nie veraltete Pakete. Ohne node_modules/.vite
+      # (Caches von Vite/Vitest, sonst eingefroren im ersten gespeicherten Stand).
       - id: modules
         uses: actions/cache@v4
         with:
           path: |
             node_modules
             server/node_modules
+            !node_modules/.vite
           key: modules-${{ runner.os }}-${{ runner.arch }}-node22-${{ hashFiles('package-lock.json', 'server/package-lock.json') }}
-      # Ohne Audit/Fund: Der Audit-Aufruf geht immer ins Netz (nicht im Cache) und ist für den
-      # Test-Lauf ohne Nutzen.
+      # Ohne Audit/Fund: Der Audit-Aufruf geht immer ins Netz (kommt nie aus dem Cache) und ist für
+      # den Test-Lauf ohne Nutzen – eine Anfrage weniger, die hängen kann.
       - if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --no-audit --no-fund
       # Sync-Server (server/): eigene, kleine Abhängigkeiten (nur TypeScript + Node-Typen).
@@ -71,32 +73,17 @@ jobs:
           path: |
             node_modules
             server/node_modules
+            !node_modules/.vite
           key: modules-${{ runner.os }}-${{ runner.arch }}-node22-${{ hashFiles('package-lock.json', 'server/package-lock.json') }}
       - if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --no-audit --no-fund
       # Die Konto-e2e-Tests starten den Sync-Server (playwright.config.ts).
       - if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --prefix server --no-audit --no-fund
-      # Chromium passend zur Playwright-Version (steht im Lockfile) cachen; die System-
-      # Bibliotheken (apt) kommen nicht in den Cache und werden bei Treffer nur nachinstalliert.
-      - id: browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
-      - if: steps.browsers.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-      - if: steps.browsers.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+      # Ein Cache für Chromium lohnt nicht: Die System-Bibliotheken (apt) bräuchten trotzdem
+      # `install-deps`, gemessen 18–23 s gegenüber 20 s für alles zusammen.
+      - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      # TEMP-MESSUNG: Worker-Zahl auf demselben Runner, Ergebnisse als Annotationen.
-      - run: |
-          m() { s=$(date +%s.%N); npx playwright test --reporter=list "${@:2}" > out.txt 2>&1; rc=$?; e=$(date +%s.%N); echo "::notice::$1 rc=$rc wall=$(echo "$e - $s" | bc) $(grep -E '^ +[0-9]+ (passed|flaky|failed|skipped|did not run)' out.txt | tr -s ' ' | tr '\n' ' ')"; }
-          m w2 --workers=2
-          m w3 --workers=3
-          m w4 --workers=4
-          m w4b --workers=4
-          m w3b --workers=3
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
