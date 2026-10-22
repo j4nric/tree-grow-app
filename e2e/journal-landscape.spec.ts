@@ -1,11 +1,13 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, createSite, type GameState, type LandscapeSite } from '../src/core/state';
-import { expect, openGame, openTab, seedRaw, test, waypoint } from './fixtures';
+import { expect, openGame, openTab, seedRaw, tabButton, tabPanel, test, waypoint } from './fixtures';
 
 /**
- * Naturtagebuch, Reiter „Landschaft“ (DESIGN_V2.md 24.11): verborgen vor der Freischaltung,
- * danach je Wald Gedächtnis, Urwald, Leitbaum, Stammgäste, Tiere; Korridore, Hähersaat.
+ * Tagebuch-Teil „Landschaft“ (DESIGN_V2.md 24.11): verborgen vor der Freischaltung, danach je
+ * Wald Gedächtnis, Urwald, Leitbaum, Stammgäste, Tiere; Korridore, Hähersaat. Bis Phase 8,
+ * Schritt 7 ein Reiter im Dialog „Naturtagebuch“, seitdem (bis Schritt 10) der Abschnitt
+ * „Unsere Wälder“ im Album-Reiter „Landschaft“.
  */
 
 const GROVE = STAGES.findIndex((s) => s.id === 'grove');
@@ -42,42 +44,30 @@ const founded = () =>
     free: ['home-floodplain'],
   });
 
-const journal = (page: Page) => page.locator('[data-ref="journal"]');
+const section = (page: Page) => page.locator('[data-ref="journal-landscape"]');
 
 async function open(page: Page, context: BrowserContext, state: GameState): Promise<void> {
   await seedRaw(context, state, 0);
   await openGame(page);
-  await openTab(page, 'arten');
-  await page.locator('[data-ref="journal-open"]').click();
-  await expect(journal(page)).toBeVisible();
+  await openTab(page, 'landschaft');
+  await expect(section(page)).toBeVisible();
 }
 
-test('vor der Freischaltung: kein Reiter „Landschaft“, Pfeiltasten überspringen ihn', async ({ page, context }) => {
-  await open(page, context, landscapeState({ own: 100 }));
-  await expect(journal(page).getByRole('tab', { name: /Landschaft/ })).toHaveCount(0);
-  const html = await journal(page).evaluate((d) => d.outerHTML);
+test('vor der Freischaltung: kein Reiter „Landschaft“, nichts verrät die Landschaft', async ({ page, context }) => {
+  await seedRaw(context, landscapeState({ own: 100 }), 0);
+  await openGame(page);
+  await expect(tabButton(page, 'landschaft')).toBeHidden();
+  await expect(section(page)).toBeHidden();
+  await openTab(page, 'arten');
+  const html = await tabPanel(page, 'arten').evaluate((d) => d.outerHTML);
   expect(html).not.toContain('Auwald');
   expect(html).not.toContain('🪶');
-  // Von „Erfolge“ mit → direkt zu „Statistik“.
-  await journal(page).getByRole('tab', { name: /Erfolge/ }).click();
-  await page.keyboard.press('ArrowRight');
-  await expect(journal(page).getByRole('tab', { name: /Statistik/ })).toBeFocused();
-  await expect(journal(page).getByRole('tab', { name: /Statistik/ })).toHaveAttribute('aria-selected', 'true');
 });
 
-test('nach der Freischaltung: Wälder, Korridore und Hähersaat im Reiter', async ({ page, context }) => {
+test('nach der Freischaltung: Wälder, Korridore und Hähersaat im Reiter Landschaft', async ({ page, context }) => {
   await open(page, context, founded());
-  const tab = journal(page).getByRole('tab', { name: /Landschaft/ });
-  await expect(tab).toBeVisible();
-  await expect(tab).toContainText('2/6');
-  // Tastatur: von „Erfolge“ mit → zur Landschaft.
-  await journal(page).getByRole('tab', { name: /Erfolge/ }).click();
-  await page.keyboard.press('ArrowRight');
-  await expect(tab).toBeFocused();
-  await expect(tab).toHaveAttribute('aria-selected', 'true');
-
-  const panel = journal(page).getByRole('tabpanel', { name: /Landschaft/ });
-  await expect(panel).toBeVisible();
+  const panel = section(page);
+  await expect(panel.getByRole('heading', { name: 'Unsere Wälder' })).toBeVisible();
   await expect(panel.locator('[data-ref="journal-landscape-summary"]')).toHaveText('2 von 6 Wäldern gegründet · 1 von 10 Korridoren');
 
   // Hähersaat: Heimat 4 + 2, Auwald 1 → 7 verdient, 3 für die Gründung.
@@ -115,13 +105,12 @@ for (const width of [360, 390]) {
   test.describe(`Mobil (${width} px)`, () => {
     test.use({ viewport: { width, height: 800 }, isMobile: true, hasTouch: true });
 
-    test('Reiter „Landschaft“ ohne horizontales Scrollen', async ({ page, context }) => {
+    test('Abschnitt „Unsere Wälder“ ohne horizontales Scrollen', async ({ page, context }) => {
       await open(page, context, founded());
-      await journal(page).getByRole('tab', { name: /Landschaft/ }).tap();
-      const panel = journal(page).getByRole('tabpanel', { name: /Landschaft/ });
+      const panel = section(page);
+      await panel.locator('li[data-site="floodplain"]').scrollIntoViewIfNeeded();
       await expect(panel.locator('li[data-site="floodplain"]')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-      expect(await journal(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
       // Kein Element ragt rechts aus dem Reiter heraus.
       const overflow = await panel.evaluate((p) => {
         const right = p.getBoundingClientRect().right + 0.5;

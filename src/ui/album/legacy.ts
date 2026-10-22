@@ -16,12 +16,9 @@ import {
   refreshEcosystemView,
   toEcosystemView,
   toEncounterView,
-  toJournalStats,
-  toJournalView,
   toPlantPickerView,
   type StageBannerView,
 } from '../adapters';
-import { toAchievementTimeProgress } from '../achievement-view';
 import { createCyclePanel } from '../cycle-panel';
 import { toCyclePanelView } from '../cycle-view';
 import { createDailyPanel } from '../daily-panel';
@@ -31,7 +28,8 @@ import { createEncounterStack } from '../encounter-stack';
 import { createFloatLayer } from '../feedback';
 import { formatNumber } from '../format';
 import { createHelp, type Help } from '../help';
-import { createJournalButton, createJournalDialog } from '../journal-dialog';
+import { createJournalLandscapeSection } from '../journal-landscape';
+import { toJournalLandscapeView } from '../journal-landscape-view';
 import { createPlantPicker } from '../plant-picker';
 import { createReturnReportPanel } from '../return-report';
 import { returnToastText, type ReturnReportView } from '../return-report-view';
@@ -44,7 +42,6 @@ import type { CarePage } from './pages/care-page';
 import type { GoalsPage } from './pages/goals-page';
 import type { LandscapePage } from './pages/landscape-page';
 import type { NichesPage } from './pages/niches-page';
-import type { SpeciesPage } from './pages/species-page';
 import { createSeasonWeather } from './season-weather';
 import type { NotifyOptions } from './stamp-rules';
 import type { AlbumDeps, AlbumPart } from './types';
@@ -54,7 +51,6 @@ const PANEL_REFRESH_MS = 200;
 
 export interface LegacyMounts {
   niches: NichesPage;
-  species: SpeciesPage;
   care: CarePage;
   goals: GoalsPage;
   landscape: LandscapePage;
@@ -94,7 +90,7 @@ export interface LegacyUi {
   encounterResolved(): void;
   /**
    * Meldung (C.5): Stempel, ab 90 Zeichen Zettel. Solange noch ein alter Dialog mit eigenem
-   * Hinweisfeld offen ist (Kartenwahl, Pflanzenwahl, Tagebuch, Tierdetails, Hilfe), steht sie
+   * Hinweisfeld offen ist (Kartenwahl, Pflanzenwahl, Hilfe), steht sie
    * dort – außer mit `direct`. Leerer Text: nichts.
    */
   notify(text: string, options?: NotifyOptions): void;
@@ -192,10 +188,10 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       focusFallback();
     },
   });
-  const journal = createJournalDialog(document.body, {
-    onToggleRegular: (speciesId) => deps.actions.toggleRegular(speciesId),
-  });
-  createJournalButton(mounts.species.journal, openJournal);
+  // Tagebuch-Teil „Landschaft“ (bis Schritt 7 im Dialog Naturtagebuch): bis Schritt 10 als
+  // Abschnitt unter der Karte im Reiter Landschaft. Der übrige Dialog ist der Reiter „Arten“.
+  const journalLandscape = createJournalLandscapeSection();
+  mounts.landscape.landscape.append(journalLandscape.element);
   const help: Help = createHelp(mounts.coverMenu, preferences, {
     newGame: deps.newGame,
     hintRoot: mounts.hint,
@@ -212,12 +208,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   });
 
   // --- Dialoge ------------------------------------------------------------------------
-
-  function openJournal(): void {
-    closeEncounters();
-    closePlantPicker();
-    journal.show(toJournalView(state(), evaluate(state())));
-  }
 
   function openPlantPicker(): void {
     closeEncounters();
@@ -245,7 +235,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   }
 
   function overlayOpen(): boolean {
-    return picker.open || dialog.open || journal.open || help.open;
+    return picker.open || dialog.open || help.open;
   }
 
   /** Meldung: im offenen alten Dialog dort (er würde den Stempel verdecken), sonst als Stempel. */
@@ -254,7 +244,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     if (!options.direct) {
       if (picker.open) return picker.notice(text);
       if (dialog.open) return dialog.notice(text);
-      if (journal.open) return journal.notice(text);
       if (help.notice(text)) return;
     }
     hooks.stamp(text, options);
@@ -398,7 +387,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       const announcement = deps.takeLandscapeAnnouncement();
       if (announcement) notify(announcement, { keep: true });
       const ev = evaluate(s);
-      if (journal.open) journal.update(toJournalView(s, ev));
+      journalLandscape.update(unlocked ? toJournalLandscapeView(s) : null);
       if (!ecoView || ev !== ecoEvaluation || ecoSeenKey() !== ecoSeen) {
         ecoEvaluation = ev;
         ecoSeen = ecoSeenKey();
@@ -415,10 +404,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     }
     lastPanelRefresh = now;
     hooks.onEcosystem(ecoView);
-    if (journal.open) {
-      journal.updateStats(toJournalStats(s, evaluate(s)));
-      journal.updateAchievementProgress(toAchievementTimeProgress(s));
-    }
     dailyPanel.update(toDailyView(s, deps.today()));
   }
 
@@ -464,7 +449,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       seasonShownSecond = -1;
       closeEncounters();
       closePlantPicker();
-      journal.hide();
       encounterSerial++;
       invalidate(['eco', 'encounter', 'picker']);
     },

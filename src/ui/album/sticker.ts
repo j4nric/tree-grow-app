@@ -46,8 +46,13 @@ if (typeof window !== 'undefined') {
 /** Ein Tier-Bild auf eigenem kleinen Canvas – zeichnet nur bei Änderung. */
 export interface StickerImage {
   readonly canvas: HTMLCanvasElement;
-  /** Bild setzen (leere ID: leeren). */
-  draw(id: string, variant: StickerVariant, family?: string): void;
+  /**
+   * Bild setzen (leere ID: leeren). `muted` und `silhouette` kommen aus der IdleQueue. Bis
+   * dahin zeigt `muted` das farbige Bild gedämpft (`preview`, Standard); mit `preview: false`
+   * bleibt der Platz leer (viele Sticker auf einmal, Reiter Arten). Eine Silhouette zeigt nie
+   * vorab das farbige Bild – das wäre ein Spoiler.
+   */
+  draw(id: string, variant: StickerVariant, family?: string, options?: { preview?: boolean }): void;
 }
 
 export function createStickerImage(size: number, className = 'sticker-img'): StickerImage {
@@ -59,7 +64,7 @@ export function createStickerImage(size: number, className = 'sticker-img'): Sti
   let shown = '';
   return {
     canvas,
-    draw(id, variant, family) {
+    draw(id, variant, family, options) {
       const wanted = `${id}|${variant}|${dprEpoch}`;
       if (wanted === shown) return;
       shown = wanted;
@@ -85,8 +90,12 @@ export function createStickerImage(size: number, className = 'sticker-img'): Sti
         paint('color');
         return;
       }
-      // Matt erst in Leerlaufzeit; solange farbig mit CSS-Dämpfung.
-      paint('color');
+      // Matt erst in Leerlaufzeit; solange farbig mit CSS-Dämpfung (Silhouette: leer).
+      if (variant === 'muted' && options?.preview !== false) paint('color');
+      else {
+        canvas.width = 1;
+        canvas.height = 1;
+      }
       canvas.classList.add('sticker-img-pending');
       idle.schedule(key, () => {
         if (shown !== wanted) return;
