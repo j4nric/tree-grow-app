@@ -652,7 +652,7 @@ test('Echter v2-Spielstand (alte Wegpunkt-Kurve): lädt ohne Fehler, Stufe und T
   expect(saved.waypoint).toBe(12);
   expect(saved.totalGrowth).toBeGreaterThan(waypoint(12));
   expect(saved.totalGrowth).toBeLessThan(waypoint(13));
-  expect(saved.niches).toEqual({ ...niches, pond: [] }); // Waldtümpel (v11) leer ergänzt
+  expect(saved.niches).toEqual({ ...niches, pond: [], meadow: [], deadwood: [], wall: [] }); // Waldtümpel (v11) und Lebensräume (v13) leer ergänzt
   expect(saved.plants).toEqual([]);
   // Prototyp-Samen werden begrenzt (erste zwei Pflanzen = 58 🌰).
   expect(saved.seeds).toBeLessThan(80);
