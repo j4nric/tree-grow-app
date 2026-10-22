@@ -15,6 +15,7 @@ import {
 import { STAGES } from '../content/stages';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
 import { ANCIENT_STAGE, activeSite, effectiveForestMemory, effectiveMemoryOf, ownMemory } from '../core/landscape';
+import { corridorWildwechselText, wildwechselChanceText } from './wildwechsel-view';
 import type { GameState } from '../core/state';
 import {
   landscapeCorridors,
@@ -97,6 +98,11 @@ export interface LandscapeCorridorView {
   note: string;
   /** In der Liste unter der Karte zeigen (beide Wälder gegründet). */
   listed: boolean;
+  /**
+   * Wildwechsel (24.6): gebaut, am aktiven Wald und der Nachbar hat Tiere im Bestand –
+   * „🦌 Wildwechsel aus den Buchenhallen (7 Arten im Bestand)“; sonst null.
+   */
+  wildwechsel: string | null;
 }
 
 export interface LandscapeMapView {
@@ -111,6 +117,11 @@ export interface LandscapeMapView {
   allowed: boolean;
   sites: LandscapeSiteView[];
   corridors: LandscapeCorridorView[];
+  /**
+   * Wildwechsel am aktiven Wald, z. B. „🦌 Wildwechsel im Heimatwald: 20 % je Tierbegegnung“;
+   * ohne Korridor dort ein Hinweis, solange einer baubar wäre; sonst null.
+   */
+  wildwechsel: string | null;
   /** Hinweis unter der Korridor-Liste, z. B. „7 weitere Korridore, sobald die Wälder an ihren Enden gegründet sind.“; sonst null. */
   corridorHint: string | null;
 }
@@ -248,7 +259,18 @@ export function jaySeedsText(now: number, after: number, allowed: boolean): stri
   return allowed && after !== now ? `${base} – nach diesem Zyklus ${formatNumber(after)}` : base;
 }
 
-function corridorView(choice: CorridorChoice, available: number): LandscapeCorridorView | null {
+/** Zusatz für einen gebauten Korridor: nur am aktiven Wald und mit Tieren im Bestand des Nachbarn. */
+function corridorWildwechsel(game: GameState, ends: readonly [SiteId, SiteId]): string | null {
+  const landscape = game.meta.landscape;
+  if (!landscape) return null;
+  const active = activeSite(landscape);
+  if (!ends.includes(active)) return null;
+  const from = ends[0] === active ? ends[1] : ends[0];
+  const fauna = landscape.sites.find((s) => s.id === from)?.fauna.length ?? 0;
+  return corridorWildwechselText(from, fauna);
+}
+
+function corridorView(game: GameState, choice: CorridorChoice, available: number): LandscapeCorridorView | null {
   const c = CORRIDORS_BY_ID.get(choice.id);
   if (!c) return null;
   const [a, b] = c.sites;
@@ -283,6 +305,7 @@ function corridorView(choice: CorridorChoice, available: number): LandscapeCorri
     cost: choice.cost,
     note,
     listed: state !== 'locked',
+    wildwechsel: state === 'built' ? corridorWildwechsel(game, c.sites) : null,
   };
 }
 
@@ -333,7 +356,7 @@ export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): 
     };
   });
   const corridors = landscapeCorridors(state)
-    .map((c) => corridorView(c, available))
+    .map((c) => corridorView(state, c, available))
     .filter((c): c is LandscapeCorridorView => c !== null);
   const hidden = corridors.filter((c) => !c.listed).length;
   return {
@@ -344,6 +367,11 @@ export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): 
     allowed,
     sites,
     corridors,
+    // Hinweis ohne Korridor nur, wenn am aktiven Wald einer gebaut werden könnte.
+    wildwechsel: wildwechselChanceText(
+      state,
+      corridors.some((c) => c.listed && CORRIDORS_BY_ID.get(c.id)?.sites.includes(landscape.active)),
+    ),
     corridorHint:
       hidden > 0
         ? hidden === 1

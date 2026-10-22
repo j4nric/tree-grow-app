@@ -73,6 +73,7 @@ import { createAnimalDetailDialog } from './ui/animal-detail-dialog';
 import { toAnimalDetailView, type AnimalDetailTarget } from './ui/animal-detail-view';
 import { createEncounterDialog } from './ui/encounter-dialog';
 import { createEncounterStack } from './ui/encounter-stack';
+import { applyWildwechselMark, createWildwechselMarks } from './ui/wildwechsel-view';
 import { createToastPlacement } from './ui/toast-place';
 import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
@@ -277,6 +278,11 @@ let shownQueued = -1;
  * auch zwei gleich aussehende Begegnungen nacheinander als verschieden.
  */
 let encounterSerial = 0;
+/**
+ * Wildwechsel-Karten offener Begegnungen (DESIGN_V2.md 24.6) – nur in der Oberfläche, nicht im
+ * Spielstand: nach dem Neuladen kein Hinweis statt eines womöglich falschen.
+ */
+const wildwechselMarks = createWildwechselMarks();
 
 /** Ökosystem (Auswertung) hat sich geändert → Seitenleiste und Szene-Tiere neu bauen. */
 let ecoDirty = true;
@@ -706,6 +712,8 @@ function refreshEncounter(): void {
   if (!encounterDirty && dialog.open && actionKey === shownActionKey && queued === shownQueued) return;
   const view = toEncounterView(state, 0, evaluate(state));
   if (!view) return;
+  // Wildwechsel (24.6): Weg nur zeigen, solange die Oberfläche weiß, dass die Karte so kam.
+  applyWildwechselMark(view, wildwechselMarks.lookup(state.pendingEncounters[0]));
   view.key = String(encounterSerial);
   encounterDirty = false;
   shownActionKey = actionKey;
@@ -1101,6 +1109,8 @@ function frame(now: number): void {
   const seedsBefore = state.seeds;
   const report = tick(state, dt);
   state.lastTick = Date.now();
+  // Wildwechsel-Karten gleich merken – die Indizes gelten nur direkt nach dem Tick.
+  wildwechselMarks.record(state.pendingEncounters, report.wildwechsel);
   // Tagesziele: tatsächlich gutgeschriebenes Wachstum und erzeugte Samen (ohne automatisches Ablehnen).
   dailyGrowth += Math.max(0, state.totalGrowth - growthBefore);
   dailyProduced += Math.max(0, state.seeds - seedsBefore - report.declinedSeeds);
@@ -1234,6 +1244,7 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   const away = (Date.now() - state.lastTick) / 1000;
   const stageBefore = state.stage;
   const report = away > MAX_FRAME_SECONDS ? simulateOffline(state, away) : null;
+  if (report) wildwechselMarks.record(state.pendingEncounters, report.wildwechsel);
   // Erfolge aus der Offline-Zeit (dieselben wie online, nur auf einmal): ein Hinweis
   // zusammen mit der Begrüßung bzw. dem Zusatzhinweis – nach der Migration v8 → v9 in
   // einem Satz mit den nachgetragenen.

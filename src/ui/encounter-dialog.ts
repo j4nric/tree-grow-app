@@ -14,6 +14,7 @@
 import { el, setText, srOnly } from './dom';
 import { hyphenate } from './hyphenate';
 import { prefersReducedMotion } from './feedback';
+import { WILDWECHSEL_ICON } from './wildwechsel-view';
 import type { CardView, ConditionView, EncounterKind, EncounterView, FactView, PreviewView, ReplaceOptionView } from './view-model';
 import {
   NO_CHANGE_TEXT,
@@ -508,6 +509,19 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
     item.append(band, name);
 
     if (card.nicheLabel) item.append(el('p', 'card-niche', `Nische: ${card.nicheLabel}`));
+    let routeId = '';
+    if (card.route) {
+      // Wildwechsel: Symbol nur als Zierde, für Screenreader „Wildwechsel:“ als Text davor.
+      const route = el('p', 'card-route');
+      route.dataset.ref = 'card-route';
+      routeId = `${prefix}-card-${index}-route`;
+      route.id = routeId;
+      const deer = el('span', 'card-route-icon', WILDWECHSEL_ICON);
+      deer.setAttribute('aria-hidden', 'true');
+      route.append(deer, srOnly('Wildwechsel: '), el('span', '', card.route));
+      item.classList.add('wildwechsel');
+      item.append(route);
+    }
     if (card.facts && card.facts.length > 0) item.append(renderFacts(card.facts));
 
     const options = card.replaceOptions ?? [];
@@ -596,6 +610,7 @@ export function createEncounterDialog(root: HTMLElement, callbacks: EncounterCal
       choose.setAttribute('aria-label', card.disabledReason ? `${base} – gesperrt: ${card.disabledReason}` : base);
     };
     refresh();
+    if (routeId) choose.setAttribute('aria-describedby', routeId);
     select?.addEventListener('change', refresh);
 
     choose.addEventListener('click', () => {

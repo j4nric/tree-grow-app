@@ -1,7 +1,7 @@
 /**
  * Rückkehr-Bericht (Playtest Phase 6): Nach längerer Abwesenheit sammelt sich viel in der
  * Begrüßung – Ertrag, Begegnungen, Mittelwetter, Stammgäste, Erfolge, Tagesziele,
- * Landschaft. Mobil war der Toast dafür sehr hoch und deckte lange die Szene ab.
+ * Landschaft, Wildwechsel. Mobil war der Toast dafür sehr hoch und deckte lange die Szene ab.
  *
  * Darum gibt es drei Fassungen derselben Nachricht:
  * - `summary`: eine Zeile für den Toast im einspaltigen Layout (und als Kopf des Berichts),
@@ -16,13 +16,14 @@ import { averagedWeatherText } from './weather-view';
 import { reachedStage, welcomeAmount, welcomeText, type StageProgress } from './adapters';
 import { regularsArrivedText, withRegulars } from './cycle-view';
 import { formatDuration, formatNumber } from './format';
+import { wildwechselReturnText } from './wildwechsel-view';
 
 /** Was main.ts nach dem Nachrechnen über die Rückkehr weiß. */
 export interface ReturnReportInput {
   /** Tatsächliche Abwesenheit in Sekunden (kann über der simulierten Zeit liegen). */
   away: number;
   report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedSeeds'> &
-    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'regulars'>>;
+    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'regulars' | 'wildwechsel'>>;
   /** Wartende Begegnungen im Stapel. */
   waiting: number;
   stages?: StageProgress;
@@ -59,8 +60,10 @@ export function toReturnReportView(input: ReturnReportInput): ReturnReportView {
     welcomeText(away, { ...report, averaged: false }, waiting, stages),
     averagedWeatherText(report),
     regularsArrivedText(regulars),
+    // Wildwechsel (24.6): wie viele der wartenden Begegnungen ein Tier über Korridore bringen.
+    wildwechselReturnText(report.wildwechsel?.length ?? 0),
     ...notes,
-  ].filter(Boolean);
+  ].filter((d): d is string => !!d);
 
   // Kurzfassung: Dauer, Ertrag, erreichte Stufe, wartende Begegnungen.
   const yields = [welcomeAmount(report.growth, '🌿'), welcomeAmount(report.seeds, '🌰')].filter(Boolean);

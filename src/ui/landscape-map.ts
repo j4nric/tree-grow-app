@@ -57,6 +57,8 @@ interface CorridorNode {
   name: HTMLElement;
   ends: HTMLElement;
   note: HTMLElement;
+  /** Wildwechsel über diesen Korridor (24.6) – nur gebaut, am aktiven Wald, mit Tieren drüben. */
+  wildwechsel: HTMLElement;
   build: HTMLButtonElement;
 }
 
@@ -105,11 +107,13 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
   target.dataset.ref = 'landscape-target';
 
   const corridorTitle = el('h4', 'landscape-corridors-title', 'Korridore');
+  const wildwechsel = el('p', 'landscape-wildwechsel');
+  wildwechsel.dataset.ref = 'wildwechsel-chance';
   const corridorList = el('ul', 'landscape-corridors');
   corridorList.dataset.ref = 'corridors';
   const corridorHint = el('p', 'hint landscape-corridor-hint');
 
-  root.append(heading, question, seeds, map, target, detail, corridorTitle, corridorList, corridorHint, live);
+  root.append(heading, question, seeds, map, target, detail, corridorTitle, wildwechsel, corridorList, corridorHint, live);
 
   const siteNodes = new Map<SiteId, SiteNode>();
   const corridorNodes = new Map<string, CorridorNode>();
@@ -156,7 +160,9 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
     const ends = el('small', 'landscape-corridor-ends');
     const note = el('small', 'landscape-corridor-note');
     note.id = `landscape-corridor-note-${c.id}`;
-    text.append(name, ends, note);
+    const ww = el('small', 'landscape-corridor-wildwechsel');
+    ww.dataset.ref = 'corridor-wildwechsel';
+    text.append(name, ends, note, ww);
     const build = el('button', 'landscape-build');
     build.type = 'button';
     build.dataset.build = c.id;
@@ -183,7 +189,7 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
     row.append(icon, text, build);
     row.title = c.text;
     corridorList.append(row);
-    const node = { line, row, name, ends, note, build };
+    const node = { line, row, name, ends, note, wildwechsel: ww, build };
     corridorNodes.set(c.id, node);
     return node;
   }
@@ -289,10 +295,13 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
     setText(seeds, next.jaySeeds);
     for (const c of next.corridors) {
       const node = corridorNodes.get(c.id) ?? createCorridor(c);
-      const lineClass = `landscape-line ${c.state}${c.free ? ' free' : ''}`;
+      const lineClass = `landscape-line ${c.state}${c.free ? ' free' : ''}${c.wildwechsel ? ' wildwechsel' : ''}`;
       if (node.line.getAttribute('class') !== lineClass) node.line.setAttribute('class', lineClass);
       node.row.hidden = !c.listed;
       node.row.classList.toggle('built', c.state === 'built');
+      node.row.classList.toggle('wildwechsel', c.wildwechsel !== null);
+      node.wildwechsel.hidden = c.wildwechsel === null;
+      setText(node.wildwechsel, c.wildwechsel ?? '');
       setText(node.name, c.name);
       setText(node.ends, c.ends);
       setText(node.note, c.state === 'buildable' ? c.text : c.note);
@@ -301,6 +310,8 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
       if (armed === c.id && c.state !== 'buildable') disarmBuild();
     }
     refreshBuildButtons();
+    wildwechsel.hidden = next.wildwechsel === null;
+    setText(wildwechsel, next.wildwechsel ?? '');
     corridorHint.hidden = next.corridorHint === null;
     setText(corridorHint, next.corridorHint ?? '');
     render();
