@@ -52,7 +52,8 @@ for (const width of [360, 390]) {
     const jumps = panel.locator('.species-jump');
     // Tiere, Pflanzen, Gemeinschaften, Andenken (Erfolge und Statistik im Reiter „Ziele“).
     await expect(jumps).toHaveCount(4);
-    const tops = await jumps.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    // offsetTop: ohne die leichte Drehung der Washi-Streifen.
+    const tops = await jumps.evaluateAll((els) => els.map((e) => (e as HTMLElement).offsetTop));
     expect(new Set(tops).size).toBeLessThanOrEqual(2);
     for (const box of await jumps.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()))) {
       expect(box.height).toBeGreaterThanOrEqual(44);

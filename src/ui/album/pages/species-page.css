@@ -95,6 +95,20 @@
   clip-path: none;
 }
 
+/* Mobil: kompakter und ohne Zähler (sie stehen im Kopf und an den Abschnitten), damit die
+   vier Streifen auch bei 360 px in höchstens zwei Zeilen passen. */
+.album[data-layout='single'] .species-jumps {
+  gap: 6px;
+}
+
+.album[data-layout='single'] .species-jump {
+  padding: 0 11px;
+}
+
+.album[data-layout='single'] .species-jump-count {
+  display: none;
+}
+
 .species-jump-count {
   font-family: var(--font-text);
   font-size: 12px;
