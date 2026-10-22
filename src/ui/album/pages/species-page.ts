@@ -312,6 +312,9 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
       star.disabled = regular.disabled;
       setAttr(star, 'aria-label', `${entry.name} als Stammgast${regular.disabled ? ' – alle Plätze belegt' : ''}`);
       setAttr(star, 'title', regular.disabled ? 'Alle Plätze für Stammgäste sind belegt' : regular.selected ? 'Stammgast' : 'Als Stammgast wählen');
+    } else {
+      // Kein Name am verborgenen Stern lassen (z. B. nach Import eines älteren Spielstands).
+      for (const name of ['aria-label', 'title', 'aria-pressed']) star.removeAttribute(name);
     }
   }
 

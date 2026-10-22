@@ -70,6 +70,15 @@ test('Silhouetten werden gezeichnet, ohne die Art zu verraten', async ({ page, c
   await expect.poll(() => unknown.locator('canvas').evaluate((c: HTMLCanvasElement) => c.width > 1)).toBe(true);
   await expect(unknown).not.toHaveAttribute('data-species');
   await expect(unknown.locator('.sticker-name')).toHaveText('???');
+  // Kein unbekannter Sticker verrät Name oder ID – weder im Text noch in Attributen.
+  const html = await panel(page).locator('.species-cell.is-unknown').evaluateAll((cells) => cells.map((c) => c.outerHTML));
+  expect(html.length).toBeGreaterThan(0);
+  for (const cellHtml of html) {
+    for (const s of SPECIES) {
+      expect(cellHtml).not.toContain(s.name);
+      expect(cellHtml).not.toMatch(new RegExp(`["\\s]${s.id}["\\s]`));
+    }
+  }
 });
 
 test('Sprungmarken und Andenken: Samentütchen und Erinnerungen', async ({ page, context }) => {
