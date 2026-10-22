@@ -29,7 +29,7 @@ import {
   type ActionResult,
   type TickReport,
 } from './core/tick';
-import { drawScene, hitTestAnimal, weatherParam, type AnimalHit, type HitScene, type SceneInput } from './render/tree';
+import { drawScene, hitTestAnimal, siteParam, weatherParam, type AnimalHit, type HitScene, type SceneInput } from './render/tree';
 import { CanvasSizer } from './render/canvas-size';
 import type { CanvasSize } from './render/resize';
 import { Camera } from './render/camera';
@@ -313,6 +313,8 @@ const scene: SceneInput = {
 
 /** Demo/Tests: `?weather=<id>` zeigt dieses Wetter statt des Tageswetters (nur das Bild). */
 const weatherOverride = weatherParam(location.search);
+/** Demo/Tests: `?site=<id>` zeigt die Kulisse dieses Waldtyps (nur das Bild, DESIGN_V2.md 24.11). */
+const siteOverride = siteParam(location.search);
 
 // --- Kamera der Szene (nur Oberflächen-Zustand, nicht im Spielstand) ---------------------
 
@@ -583,6 +585,8 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   shownStage = state.stage;
   // Gleicher Takt wie scene.time (rAF-Zeitstempel / 1000); das Feld darf stehen bleiben.
   scene.cycleTransition = { startedAt: performance.now() / 1000, fromGrowth, fromPlants, fromTree };
+  // Neuer Wald gegründet: ein Eichelhäher trägt die Eichel durchs Bild (Hähersaat, 24.11).
+  if (result.founded) scene.jayFlight = { startedAt: performance.now() / 1000 };
   closeEncounters();
   closePlantPicker();
   encounterSerial++;
@@ -916,6 +920,7 @@ function replaceState(next: GameState): void {
   state = next;
   // Laufende Übergangs-Sequenz und offene Bestätigungen gehören zum alten Stand.
   scene.cycleTransition = undefined;
+  scene.jayFlight = undefined;
   disarmReset();
   cyclePanel.disarm();
   saveTransfer?.reset();
@@ -944,6 +949,7 @@ function adoptState(next: GameState): void {
   const head = JSON.stringify(state.pendingEncounters[0] ?? null);
   state = next;
   scene.cycleTransition = undefined;
+  scene.jayFlight = undefined;
   disarmReset();
   cyclePanel.disarm();
   shownStage = state.stage;
@@ -1168,6 +1174,8 @@ function frame(now: number): void {
   // Tageszeit aus derselben Spielzeit (DESIGN_V2.md 19); Einstellung „Immer Tag“ → Mittag.
   scene.dayPhase = preferences.settings.daytime === 'day' ? NOON_PHASE : dayPhaseAt(state.cycle.elapsed);
   scene.mainTree = state.cycle.mainTree;
+  // Kulisse des aktiven Waldes der Landschaft (DESIGN_V2.md 24.11).
+  scene.site = siteOverride ?? activeSite(state.meta.landscape);
   // Wetter des Tages mit Überblendung am Tageswechsel (DESIGN_V2.md 21.8).
   const weather = sceneWeather(state.cycle);
   scene.weather = weatherOverride ?? weather.weather;

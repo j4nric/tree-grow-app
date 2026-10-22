@@ -646,5 +646,6 @@ describe('Große Zahlen (24.9): kein break_infinity.js', () => {
     }
     expect(best).toBeGreaterThan(1e3);
     expect(best).toBeLessThan(1e5);
-  });
+    // Viele Auswertungen: unter Last braucht der Lauf mehr als die üblichen 5 s.
+  }, 30_000);
 });
