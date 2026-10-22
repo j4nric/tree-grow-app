@@ -160,7 +160,7 @@ export function createNichesPage(env: PageEnv): NichesPage {
   const plantButton = el('button', 'ring-button');
   plantButton.type = 'button';
   plantButton.dataset.ref = 'plant-open';
-  plantButton.setAttribute('aria-haspopup', 'dialog');
+  // Blättert zu U:Pflanze setzen um – kein Dialog mehr (kein aria-haspopup).
   const plantButtonText = el('span', '', '🌱 Pflanze setzen');
   const plantButtonCost = el('span', 'ring-button-cost');
   plantButton.append(plantButtonText, plantButtonCost);

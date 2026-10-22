@@ -413,7 +413,7 @@ test.describe('Mobil (390×844)', () => {
     await expectNoHorizontalScroll(page);
   });
 
-  test('kein horizontales Scrollen mit vollen Nischen, 3 Begegnungen, offenem Dialog und großen Zahlen', async ({
+  test('kein horizontales Scrollen mit vollen Nischen, 3 Begegnungen, offener Begegnungsseite und großen Zahlen', async ({
     page,
     context,
   }) => {
@@ -441,9 +441,13 @@ test.describe('Mobil (390×844)', () => {
     await expectNoHorizontalScroll(page);
 
     await stack(page).tap();
-    await expect(encounter(page)).toBeVisible();
+    // Erst nach dem Umblättern messen – mitten in der Drehung ragt die Seite kurz über den Rand.
+    await settledSubpage(page, 'encounter');
     await expect(card(page, 'robin')).toBeVisible();
     await expectNoHorizontalScroll(page);
+    // Große Zahlen: Das Samen-Etikett zeigt „Mio.“ und passt in seinen Rahmen.
+    await expect(seedsValue(page)).toContainText('Mio.');
+    expect(await seedsValue(page).evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   });
 });
 
@@ -572,7 +576,7 @@ test.describe('Pflanzen mobil (390×844)', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   }
 
-  test('kein horizontales Scrollen: Pflanzring mit Mangel, voller Pflanzen-Dialog, Auswahl', async ({
+  test('kein horizontales Scrollen: Pflanzring mit Mangel, U:Pflanze setzen, Pflanzen-Begegnung', async ({
     page,
     context,
   }) => {
@@ -589,12 +593,13 @@ test.describe('Pflanzen mobil (390×844)', () => {
     await expectNoHorizontalScroll(page);
 
     await plantOpen(page).tap();
-    await expect(picker(page)).toBeVisible();
+    await settledSubpage(page, 'plant-picker');
     await expectNoHorizontalScroll(page);
     await picker(page).locator('[data-ref="bookmark"]').tap();
     await expect(picker(page)).toBeHidden();
 
     await stack(page).tap();
+    await settledSubpage(page, 'encounter');
     await expect(plantCard(page, 'elder')).toBeVisible();
     await expectNoHorizontalScroll(page);
   });
@@ -903,6 +908,7 @@ test.describe('Lebensgemeinschaften', () => {
       await seedNearHumus(context);
       await openGame(page);
       await page.locator('[data-ref="communities-link"]').tap();
+      await settledSubpage(page, 'harmony');
       await expect(community(page, 'humus')).toContainText('Aus Laub wird Erde');
       const noScroll = () =>
         page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
@@ -950,11 +956,18 @@ test('Seitenleiste scrollt für sich: die Seite selbst bleibt fest (Desktop)', a
   await seedRaw(context, state, 0);
   await page.setViewportSize({ width: 1280, height: 800 });
   await openGame(page);
-  // Die rechte Seite des Albums scrollt in sich (wie früher die Seitenleiste).
+  // Die rechte Seite des Albums scrollt in sich (wie früher die Seitenleiste) – und zwar
+  // wirklich: Sonst prüfte die Schleife nur eine Seite, die gar nicht scrollt.
   const panel = page.locator('.spread-right');
+  expect(await panel.evaluate((p) => p.scrollHeight - p.clientHeight)).toBeGreaterThan(300);
   for (const top of [0, 300, 600, 100_000]) {
-    await panel.evaluate((p, top) => (p.scrollTop = top), top);
-    await page.waitForTimeout(250);
+    const reached = await panel.evaluate(async (p, top) => {
+      p.scrollTop = top;
+      // Ein Frame für Layout und Scroll-Handler (statt fester Wartezeit).
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return p.scrollTop;
+    }, top);
+    if (top > 0) expect(reached, `scrollTop ${top}`).toBeGreaterThan(0);
     const { scrollHeight, clientHeight } = await page.evaluate(() => {
       const d = document.documentElement;
       return { scrollHeight: d.scrollHeight, clientHeight: d.clientHeight };
