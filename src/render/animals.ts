@@ -116,6 +116,19 @@ export function animalKinds(): string[] {
   return Object.keys(KINDS);
 }
 
+/**
+ * Zeichnung einer Art-ID ohne Nischen-Sonderfälle (Art, sonst Gattung, sonst null) –
+ * für die Album-Sticker (sticker.ts).
+ */
+export function speciesKindOf(id: string, family?: AnimalFamily): string | null {
+  return SPECIES_KIND[id] ?? (family ? FAMILY_KIND[family] : undefined) ?? null;
+}
+
+/** Zeichnung (SpriteDef) einer Art oder Deko, sonst undefined – für die Album-Sticker. */
+export function spriteDefOf(kind: string): SpriteDef | undefined {
+  return Object.hasOwn(DEFS, kind) ? DEFS[kind] : undefined;
+}
+
 /** Welche Zeichnung bekommt ein Tier? (Art, sonst Gattung; Hutpilze an der Rinde als Konsolen.) */
 export function animalKind(a: Pick<SceneAnimal, 'id' | 'family' | 'niche'>): string {
   const kind = SPECIES_KIND[a.id] ?? FAMILY_KIND[a.family] ?? 'insect';
@@ -959,11 +972,16 @@ function renderSprite(def: SpriteDef, frame: number, size: number, dpr: number):
 
 /** Entsättigte, leicht aufgehellte Variante – „ruht und wirkt matter“. */
 function desaturate(src: Sprite): Sprite {
+  return { ...src, canvas: desaturateCanvas(src.canvas) };
+}
+
+/** Entsättigte Kopie eines Canvas (Szene und Album-Sticker teilen denselben Look). */
+export function desaturateCanvas(src: HTMLCanvasElement): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
-  canvas.width = src.canvas.width;
-  canvas.height = src.canvas.height;
+  canvas.width = src.width;
+  canvas.height = src.height;
   const c = canvas.getContext('2d', { willReadFrequently: true })!;
-  c.drawImage(src.canvas, 0, 0);
+  c.drawImage(src, 0, 0);
   try {
     const img = c.getImageData(0, 0, canvas.width, canvas.height);
     const d = img.data;
@@ -977,7 +995,7 @@ function desaturate(src: Sprite): Sprite {
   } catch {
     // Ohne Pixelzugriff bleibt die Variante unverändert.
   }
-  return { ...src, canvas };
+  return canvas;
 }
 
 // ---------------------------------------------------------------------------

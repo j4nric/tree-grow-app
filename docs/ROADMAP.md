@@ -501,7 +501,7 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   Übergangsinhalt in den Reitern, Hilfe/Einstellungen/Spielstand im Umschlag; UI-Steuerung aus
   `main.ts` nach `album/index.ts` (Review `core-engineer`); Fixture-Helfer, Specs grün.
   Abhängig: nichts
-- [ ] **2** Sticker-Renderer (`renderer`): `render/sticker.ts` mit `renderSpeciesSticker(id, size,
+- [x] **2** Sticker-Renderer (`renderer`): `render/sticker.ts` mit `renderSpeciesSticker(id, size,
   opts)`, `stickerKind`, `stickerFit`, Varianten `muted`/`silhouette`, eigener LRU; Test „jede Art
   hat eine eigene Zeichnung“; Sticker-Tafel in der Render-Demo. Abhängig: nichts (parallel zu 1)
 - [ ] **3** Polaroid und Vollbild (`ui-dev`, Prüfung `renderer`): FLIP mit demselben Canvas, Kamera
