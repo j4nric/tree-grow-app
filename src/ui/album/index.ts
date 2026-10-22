@@ -241,14 +241,19 @@ export function createAlbum(deps: AlbumDeps): Album {
 
   // --- Navigation -----------------------------------------------------------------------
 
-  /** Sofort ausführen oder – während des Blätterns – vormerken (C.3). */
+  /** Läuft eine Animation (Umblättern oder Auf-/Zuziehen des Vollbilds)? */
+  function busy(): boolean {
+    return turn.busy || fullscreen.moving;
+  }
+
+  /** Sofort ausführen oder – während des Blätterns bzw. des Vollbild-FLIP – vormerken (C.3). */
   function whenIdle(task: () => void): void {
-    if (turn.busy) queue.push(task);
+    if (busy()) queue.push(task);
     else task();
   }
 
   function dispatch(action: NavAction): void {
-    if (turn.busy) {
+    if (busy()) {
       queue.push(() => dispatch(action));
       return;
     }
@@ -270,7 +275,7 @@ export function createAlbum(deps: AlbumDeps): Album {
 
   /** Zurück, bis `done` gilt (z. B. Umschlag zu). */
   function goBackTo(done: (nav: AlbumNav) => boolean): void {
-    if (turn.busy) {
+    if (busy()) {
       queue.push(() => goBackTo(done));
       return;
     }
@@ -296,7 +301,7 @@ export function createAlbum(deps: AlbumDeps): Album {
 
   /** Vorgemerkte Eingaben der Reihe nach, bis wieder eine Drehung läuft. */
   function drain(): void {
-    while (!turn.busy) {
+    while (!busy()) {
       const task = queue.shift();
       if (!task) return;
       task();

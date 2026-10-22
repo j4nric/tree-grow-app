@@ -42,6 +42,8 @@ export interface Fullscreen {
   readonly open: boolean;
   /** Liegt das Canvas gerade im Vollbild (auch während des Auf- und Zuziehens)? */
   readonly shown: boolean;
+  /** Läuft (oder wartet) ein Auf- bzw. Zuziehen? Das Album merkt Eingaben solange vor. */
+  readonly moving: boolean;
   /** Öffnen bzw. schließen; erledigt, wenn die Animation durch ist. */
   setOpen(open: boolean): Promise<void>;
   /** Bildunterschrift: Stufe und Jahreszeit. */
@@ -148,6 +150,8 @@ export function createFullscreen(options: FullscreenOptions): Fullscreen {
   let phase: Phase = 'closed';
   let running: Animation[] = [];
   let chain: Promise<void> = Promise.resolve();
+  /** Angeforderte, noch nicht fertige Wechsel (sofort gezählt, nicht erst im Microtask). */
+  let pending = 0;
 
   async function play(animations: Animation[], duration: number): Promise<void> {
     running = animations;
@@ -270,10 +274,16 @@ export function createFullscreen(options: FullscreenOptions): Fullscreen {
     get shown() {
       return phase !== 'closed';
     },
+    get moving() {
+      return pending > 0;
+    },
     setOpen(open) {
       // Läuft gerade eine Animation, springt sie ans Ende; dann der Reihe nach.
       for (const a of running) a.finish();
-      chain = chain.then(() => (open ? show() : hide()));
+      pending++;
+      chain = chain.then(() => (open ? show() : hide())).finally(() => {
+        pending--;
+      });
       return chain;
     },
     setCaption(stageName, season) {
