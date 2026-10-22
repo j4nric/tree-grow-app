@@ -310,7 +310,8 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     „Wetter gemittelt“, Spielanleitung – `src/ui/weather-view.ts`, `weather-badge.ts` (21.8)
   - [ ] Balancing-Folgeaufgabe (game-designer): Samenreserve im Wald (balance-care 14,6 vs.
     Grenze 15 min, vorher 11,1 vs. 12) – Wald-Ränge der Pflege billiger oder früher kaufbar,
-    damit die Grenze wieder auf 12 min sinken kann (DESIGN_V2.md 21.10)
+    damit die Grenze wieder auf 12 min sinken kann (DESIGN_V2.md 21.10). Seit den
+    Lebensräumen 7,5 min (15.4, „Stand Lebensräume“) – Grenze kann wohl zurück auf 12.
 
 **Welle 3 – Tiefe & Langzeitspiel**
 
@@ -327,7 +328,8 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   - [ ] Nahrungsnetz und Bestand in Übersicht und Tierdetails (`ui-dev`, 22.7)
   - [ ] Balancing prüfen (`game-designer`): Urwald-Gewinn des Harmonie-Spielers liegt mit
     Räuber und Beute bei 94,9 (Grenze < 95 in `balance-restart.test.ts`, vorher 87–88) –
-    `MEMORY_HARMONY_RULES` ggf. nachziehen (DESIGN_V2.md 15.4, „Stand Räuber und Beute“)
+    `MEMORY_HARMONY_RULES` ggf. nachziehen (DESIGN_V2.md 15.4, „Stand Räuber und Beute“);
+    seit den Lebensräumen 93,5 („Stand Lebensräume“)
 - [ ] Weitere Lebensräume nach dem Muster Waldtümpel (`game-designer`, `renderer`):
   Totholzhaufen, Trockenmauer, Waldwiese – je 3–5 Arten und eine Lebensgemeinschaft
   - [x] Design (`game-designer`): Waldwiese (Junger Baum), Totholzhaufen (Alter Baum),

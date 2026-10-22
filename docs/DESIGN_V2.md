@@ -2182,6 +2182,32 @@ in 12.7), Ziel (e) an typischen Verläufen (Urwald-Schwelle ≤ 174 − 10, Bonu
 Harmonie 30 / Wachstum 0), dazu die Sperrklinke selbst (gleiche H_max über mehrere
 Wegpunkte, online = offline, ein ganzer simulierter Zyklus je Strategie bis zum Urwald).
 
+#### Stand Lebensräume – Waldwiese, Totholzhaufen, Trockenmauer, Reptilien (500 Durchgänge)
+
+`npm run balance` nach Welle 3 Schritt B (Spielstand v13, 23.10): **alle Prüfungen grün**.
+Neu im Lauf: die Strategie „Reptilien stapeln“ (kommt automatisch mit der Gattung) und die
+Spalte 🦎 in der Tiertabelle.
+
+| Kennzahl | vorher (Stand Räuber und Beute) | jetzt |
+|---|---|---|
+| Hain Harmonie / Wachstum / Zufall | 59:23 min / 52:04 min / 1:30:51 h | 59:05 min / 52:29 min / 1:31:10 h |
+| Urwald Harmonie | 2:36:28 h | 2:35:06 h |
+| ⚖️ / Ø 😊 beim Hain (Harmonie) | 111,9 / 96 % | 111,2 / 96 % |
+| Wachstum ÷ Harmonie beim Hain, Zyklus 1 / 2 / 3 | 0,878 / 1,007 / 1,032 | 0,890 / 1,077 / 1,117 |
+| Zyklus 2 schneller (Harmonie / Wachstum / Zufall) | −44,6 % / −36,5 % / −24,2 % | −44,3 % / −32,5 % / −22,6 % |
+| Gewinn Zyklus 1 Hain / Urwald (Harmonie) | +69,8 / +94,9 (1,36) | +69,3 / +93,5 (1,35) |
+| 🌰-Bestand beim Hain / im Wald (Harmonie, min Produktion) | 9,2 / 11,8 | 6,9 / 7,5 |
+| Reptilien stapeln: Hain / ⚖️ | – | 1:03:34 h / 104,6 (wie Amphibien stapeln 1:03:33 h / 105,4) |
+
+- Die drei Lebensräume sind vor allem eine **Samen-Senke** (Pflege bis Hain Harmonie
+  27.341 🌰, bis Wald 104.568 🌰): Der Bestand im Wald sinkt von 11,8 auf 7,5 Minuten
+  Produktion – die offene Folgeaufgabe „Samenreserve im Wald“ (ROADMAP, 21.10) ist damit
+  entschärft. Waldwiese und Totholzhaufen kaufen alle Strategien bis zum Hain (Rang 1),
+  die Trockenmauer ab dem Hain (Harmonie 1,96 Ränge bis Urwald).
+- Der Urwald-Gewinn des Harmonie-Spielers hat wieder etwas Abstand zur Grenze < 95
+  (93,5). Ab Zyklus 2 ist der Wachstums-Spieler langsamer als vorher (Wachstum ÷ Harmonie
+  1,077) – Harmonie lohnt sich über die Zyklen stärker.
+
 #### Stand Räuber und Beute – Bestand, Überjagung, Massenjahre, Wetter-Gewichte (500 Durchgänge)
 
 `npm run balance` nach Welle 3 Schritt A + C (DESIGN_V2.md 22.9, Futter = max(1, Bestand),
