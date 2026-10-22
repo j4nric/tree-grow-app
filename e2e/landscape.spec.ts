@@ -75,6 +75,10 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(corridor).toBeVisible();
   await expect(corridor).toContainText('Weg der Häher, gratis');
   await expect(corridor.locator('button')).toBeHidden();
+  // Spielanleitung: jetzt der ganze Abschnitt.
+  await page.locator('[data-ref="guide-open"]').click();
+  await expect(page.locator('[data-section="landscape"]')).toContainText('Waldlandschaft und Hähersaat');
+  await page.keyboard.press('Escape');
   // Nach dem Neuladen keine zweite Meldung.
   await page.reload();
   await expect(page.locator('[data-ref="stage"]')).toContainText('Stufe:');
