@@ -112,7 +112,7 @@ export function regularWaitText(state: GameState, wait: RegularWait): string {
 
 /**
  * Hinweis für die Wahl fürs nächste Mal: Arten, deren Nische in jedem Zyklus erst wieder
- * angelegt werden muss, z. B. „zieht erst ein, wenn der Waldtümpel wieder angelegt ist
+ * angelegt werden muss, z. B. „zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist
  * (Pflege ab „Alter Baum“)“. null für alle anderen Arten.
  */
 export function regularNextCycleHint(speciesId: string): string | null {
@@ -120,6 +120,6 @@ export function regularNextCycleHint(speciesId: string): string | null {
   if (!sp || !nicheNeverOpensByStage(sp.niche)) return null;
   const phrase = NICHE_PHRASE[sp.niche];
   const hint = careHint(sp.niche);
-  if (phrase) return `zieht erst ein, wenn ${phrase.nom} wieder angelegt ist${hint}`;
-  return `zieht erst ein, wenn „${NICHES_BY_ID.get(sp.niche)?.name ?? sp.niche}“ wieder Plätze hat${hint}`;
+  if (phrase) return `zieht im nächsten Zyklus erst ein, wenn ${phrase.nom} wieder angelegt ist${hint}`;
+  return `zieht im nächsten Zyklus erst ein, wenn „${NICHES_BY_ID.get(sp.niche)?.name ?? sp.niche}“ wieder Plätze hat${hint}`;
 }

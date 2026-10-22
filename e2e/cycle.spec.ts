@@ -98,7 +98,7 @@ test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pf
   await expect(toadNote).toHaveText('wartet auf den Waldtümpel');
   await expect(toad).toHaveAccessibleDescription('wartet auf den Waldtümpel');
   await expect(regulars.locator('[data-regular="frog"]')).toHaveAccessibleDescription(
-    'zieht erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)',
+    'zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)',
   );
   await expect(regulars.locator('[data-regular-note="earthworm"]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
@@ -106,7 +106,7 @@ test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pf
   // Tümpel anlegen: Die Kröte zieht sofort ein, statt zu warten steht der Hinweis fürs nächste Mal da.
   await niche(page, 'pond').getByRole('button', { name: 'Zur Pflege: Waldtümpel öffnen' }).click();
   await page.locator('[data-ref="care"] [data-buy-care="pond"]').click();
-  await expect(toadNote).toHaveText('zieht erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)');
+  await expect(toadNote).toHaveText('zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)');
   await expect(toad).toContainText('lebt hier');
   expect((await savedState(page)).niches.pond).toEqual(['toad']);
 });
