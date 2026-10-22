@@ -33,13 +33,28 @@ interface Game {
   actions: string[];
 }
 const encode = (g: Game): string => `G:${JSON.stringify(g)}`;
+/**
+ * Gelesene Spielstände, je Text einmal (die Läufe sind deterministisch, dieselben Texte kehren in
+ * Tausenden Abfolgen wieder). Eingefroren: Niemand darf einen gelesenen Stand verändern – wer es
+ * versucht, wirft (ESM = strict mode), statt still einen anderen Lauf zu verfälschen.
+ */
+const decoded = new Map<string, Game | null>();
 function decode(code: string | null | undefined): Game | null {
   if (!code?.startsWith('G:')) return null;
+  const hit = decoded.get(code);
+  if (hit !== undefined) return hit;
+  let game: Game | null;
   try {
-    return JSON.parse(code.slice(2)) as Game;
+    const parsed = JSON.parse(code.slice(2)) as Game;
+    Object.freeze(parsed.actions);
+    game = Object.freeze(parsed);
   } catch {
-    return null;
+    game = null;
   }
+  // Begrenzt, damit der Speicher bei sehr vielen Abfolgen nicht wächst.
+  if (decoded.size >= 200_000) decoded.clear();
+  decoded.set(code, game);
+  return game;
 }
 /** Gehen beim Ersetzen von `old` durch `next` Aktionen verloren? */
 const loses = (old: Game, next: Game): boolean => old.actions.some((a) => !next.actions.includes(a));
@@ -151,18 +166,22 @@ class World {
 
   /** Alle Aktionen, die noch irgendwo leben (Clouds, Tabs, gespeicherter Stand). */
   live(): Set<string> {
-    const games = [
-      ...[...this.clouds.values()].map((r) => decode(r?.data)),
-      ...this.tabs.map((t) => t.game),
-      decode(this.storage.getItem(SAVE)),
-    ];
-    return new Set(games.flatMap((g) => g?.actions ?? []));
+    const live = new Set<string>();
+    const add = (g: Game | null): void => {
+      if (g) for (const a of g.actions) live.add(a);
+    };
+    for (const r of this.clouds.values()) add(decode(r?.data));
+    for (const t of this.tabs) add(t.game);
+    add(decode(this.storage.getItem(SAVE)));
+    return live;
   }
 
-  /** Prüfung (b): Verlorenes liegt im Sicherungs-Ring. */
-  checkBackups(): void {
-    const live = this.live();
-    const ring = readBackups(this.storage).map((e) => decode(e.code)?.actions ?? []);
+  /**
+   * Prüfung (b): Verlorenes liegt im Sicherungs-Ring. `live`/`backups` nur zum Wiederverwenden
+   * innerhalb desselben synchronen Prüfschritts (gleicher Zustand) – sonst frisch gelesen.
+   */
+  checkBackups(live = this.live(), backups = readBackups(this.storage)): void {
+    const ring = backups.map((e) => decode(e.code)?.actions ?? []);
     for (const { what, game } of this.replaced) {
       const missing = game.actions.filter((a) => !live.has(a) && !this.ephemeral.has(a) && !this.sacrificed.has(a));
       if (missing.length === 0) continue;
@@ -176,9 +195,8 @@ class World {
    * Prüfung (c): Keine Aktion, die je gemacht wurde, verschwindet – sie lebt noch (Cloud,
    * Speicher eines offenen Tabs, gespeicherter Stand) oder liegt im Sicherungs-Ring.
    */
-  checkMade(): void {
-    const live = this.live();
-    const ring = new Set(readBackups(this.storage).flatMap((e) => decode(e.code)?.actions ?? []));
+  checkMade(live = this.live(), backups = readBackups(this.storage)): void {
+    const ring = new Set(backups.flatMap((e) => decode(e.code)?.actions ?? []));
     const missing = [...this.made].filter((a) => !live.has(a) && !ring.has(a) && !this.ephemeral.has(a) && !this.sacrificed.has(a));
     if (missing.length > 0) this.violations.push(`(c) Aktion verloren (weder Cloud noch Tab noch Ring): ${missing.join(',')}`);
   }
@@ -187,9 +205,17 @@ class World {
 /** AccountService wie http-service.ts: Sitzung im gemeinsamen Storage, Backend an sein Konto gebunden. */
 function fakeService(world: World, storage: MemoryStorage): AccountService {
   const listeners: ((u: AccountUser | null) => void)[] = [];
+  // Zuletzt gelesene Sitzung: nur neu parsen, wenn sich der Text geändert hat (eingefroren).
+  let lastRaw: string | null = null;
+  let last: { token: string; username: string } | null = null;
   const session = (): { token: string; username: string } | null => {
     const raw = storage.getItem(SESSION);
-    return raw ? (JSON.parse(raw) as { token: string; username: string }) : null;
+    if (!raw) return null;
+    if (raw !== lastRaw) {
+      last = Object.freeze(JSON.parse(raw) as { token: string; username: string });
+      lastRaw = raw;
+    }
+    return last;
   };
   const authed = (user: string): void => {
     const s = session();
@@ -624,8 +650,9 @@ async function runSameAccount(steps: SameStep[], trace?: (step: string, world: W
   const flushTasks = async (): Promise<void> => {
     for (let i = 0; i < 40; i++) await Promise.resolve();
   };
+  // Ring vor dem Schritt = Ring nach der Prüfung des vorigen (dazwischen läuft nichts).
+  let ringBefore = readBackups(storage);
   for (const step of steps) {
-    const ringBefore = readBackups(storage);
     if ('tab' in step) {
       const tab = slots[step.tab];
       if (step.op === 'open') {
@@ -691,9 +718,13 @@ async function runSameAccount(steps: SameStep[], trace?: (step: string, world: W
     // Andere Tabs bemerken Sitzungsänderungen (storage-Ereignis).
     for (const t of world.tabs) t.core.checkSession();
     trace?.(sameLabel(step), world);
-    checkEvictions(world, ringBefore, readBackups(storage));
-    world.checkBackups();
-    world.checkMade();
+    // Ein synchroner Prüfschritt: Ring und lebende Aktionen einmal lesen, für alle Prüfungen.
+    const ring = readBackups(storage);
+    checkEvictions(world, ringBefore, ring);
+    const live = world.live();
+    world.checkBackups(live, ring);
+    world.checkMade(live, ring);
+    ringBefore = ring;
     if (world.violations.length > 0) break;
   }
   for (const t of world.tabs) t.core.dispose();
@@ -724,15 +755,20 @@ function checkEvictions(world: World, before: BackupEntry[], after: BackupEntry[
 describe('Konto-Abgleich: zwei Tabs mit demselben Konto', () => {
   it('Länge 4 vollständig', async () => {
     const failures: string[] = [];
+    let checked = 0;
     for (const a of SAME_STEPS)
       for (const b of SAME_STEPS)
         for (const c of SAME_STEPS)
           for (const d of SAME_STEPS) {
             const steps = [a, b, c, d];
             const violations = await runSameAccount(steps);
+            checked++;
             if (violations.length > 0 && failures.length < 5) failures.push(`${steps.map(sameLabel).join(' → ')}: ${violations.join('; ')}`);
           }
     expect(failures).toEqual([]);
+    // Vollständig: jede der 21⁴ Abfolgen einzeln von vorn durchgespielt.
+    expect(checked).toBe(SAME_STEPS.length ** 4);
+    expect(SAME_STEPS).toHaveLength(21);
   }, 600_000);
 
   it('3000 zufällige Abfolgen der Länge 12', async () => {

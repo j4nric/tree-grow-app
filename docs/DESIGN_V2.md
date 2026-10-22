@@ -2274,8 +2274,8 @@ beendet nur die Schleife. Darum:
 | großer Lauf `npm run balance`, CPU-Zeit / Wandzeit | 2185 s / 17:00 min | 1841 s (**−16 %**) / 17:35 min (`balance.test.ts` mit Pflege ist jetzt die längste Datei) |
 
 Im ganzen `npm run check` auf 4 Kernen bestimmt nicht das Balancing die Wandzeit, sondern
-`tests/sync-sequences.test.ts` (67 s in einem Worker) – Hinweis
-für den `core-engineer`.
+`tests/sync-sequences.test.ts` (67 s in einem Worker; nach dem Dekodier-Cache rund −15 % je
+Datei, die Wandzeit des ganzen Laufs bleibt bei ~86 s, weil mehrere große Dateien parallel laufen).
 
 #### Stand Lebensräume – Waldwiese, Totholzhaufen, Trockenmauer, Reptilien (500 Durchgänge)
 
