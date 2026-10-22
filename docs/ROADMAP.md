@@ -323,6 +323,9 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   - [x] Wetter → Ereignis-Gewichte (`core-engineer`, 22.8 Schritt C): `eventWeight`,
     Wetter des Tages auch offline
   - [ ] Nahrungsnetz und Bestand in Übersicht und Tierdetails (`ui-dev`, 22.7)
+  - [ ] Balancing prüfen (`game-designer`): Urwald-Gewinn des Harmonie-Spielers liegt mit
+    Räuber und Beute bei 94,9 (Grenze < 95 in `balance-restart.test.ts`, vorher 87–88) –
+    `MEMORY_HARMONY_RULES` ggf. nachziehen (DESIGN_V2.md 15.4, „Stand Räuber und Beute“)
 - [ ] Weitere Lebensräume nach dem Muster Waldtümpel (`game-designer`, `renderer`):
   Totholzhaufen, Trockenmauer, Waldwiese – je 3–5 Arten und eine Lebensgemeinschaft
   - [x] Design (`game-designer`): Waldwiese (Junger Baum), Totholzhaufen (Alter Baum),

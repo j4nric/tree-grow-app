@@ -386,8 +386,9 @@ export function moodReasons(species: Species, status: AnimalStatus, present: rea
     reasons.push(rivals.length > 0 ? `teilt sich das Futter mit ${listNames(rivals)}` : 'findet wenig Futter');
   }
   // Jäger stören erst, wenn sie mehr fressen, als Bestand da ist (Überjagung, 22.4).
+  // Genannt werden nur die Jäger des überjagten Merkmals (Kern: `overhuntedBy`).
   if (status.overhunt > 0) {
-    const hunters = named(huntersOf(species, present));
+    const hunters = named(status.overhuntedBy ?? huntersOf(species, present));
     reasons.push(hunters.length > 0 ? `ist auf der Hut vor ${listNames(hunters)}` : 'ist auf der Hut');
   }
   return reasons;

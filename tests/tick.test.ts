@@ -426,9 +426,10 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
     return state;
   }
 
-  // Werte seit Räuber und Beute (DESIGN_V2.md 22: Bestand, Überjagung, Massenjahre,
-  // Wetter-Gewichte beim Ziehen der Ereignisse); davor 20 / 3892806722 / 145529 / 35187 / 75,94.
-  it('ohne Wetter und Nacht (`off`): festgelegte Ergebnisse', () => {
+  // Bis zum Wetter galt hier „genau wie vor dem Wetter“ (20 / 3892806722 / 145529 / 35187 /
+  // 75,94). Seit Räuber und Beute (DESIGN_V2.md 22: Bestand, Überjagung, Massenjahre) rechnet
+  // auch `off` anders – Wetter-Gewichte wirken in `off` nicht, darum nur noch festgelegte Werte.
+  it('ohne Wetter und Nacht (`off`): festgelegte Ergebnisse (seit Räuber und Beute)', () => {
     const state = play(2026, 'off');
     expect({
       waypoint: state.waypoint,
@@ -436,7 +437,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       totalGrowth: Math.round(state.totalGrowth),
       seeds: Math.round(state.seeds),
       harmony: Math.round(evaluate(state).harmony * 100) / 100,
-    }).toEqual({ waypoint: 20, rngState: 1429405239, totalGrowth: 145869, seeds: 33198, harmony: 77.17 });
+    }).toEqual({ waypoint: 21, rngState: 165733899, totalGrowth: 159325, seeds: 32553, harmony: 76.25 });
   });
 
   it('liefert festgelegte Ergebnisse', () => {

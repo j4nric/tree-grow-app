@@ -90,12 +90,12 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
     }
     // Harmonie-Spieler, Zyklus 1 (großer Lauf 1,44 und 87 nach dem frühen Spiel, vorher 1,45 und 88; 2.11b 1,46 und 88, mit Sperrklinke
     // vor dem Abgleich 1,53 und 93; mit der Hain-Schwelle 1,65 und 100; Check-Fenster 1,29–1,76
-    // und 78–93). Seit Räuber und Beute (DESIGN_V2.md 22.9) großer Lauf 1,36 und 95,0: Die
-    // Beute ist zufriedener, H_max höher (Urwald, Zyklus 1: 186,7) – darum im großen Lauf < 100
-    // wie im Check (vorher < 95); das Verhältnis zum Hain sinkt sogar (1,44 → 1,36).
+    // und 78–93). Seit Räuber und Beute (DESIGN_V2.md 22.9, Futter = max(1, Bestand)) großer
+    // Lauf 1,36 und 94,9 – knapp unter der Grenze: Die Beute ist zufriedener, H_max höher
+    // (Urwald, Zyklus 1: 186,6). Steigt der Wert weiter, MEMORY_HARMONY_RULES prüfen (ROADMAP).
     const harmony = (stage: number) => restartGain(row(stage, HARMONY.id), 0);
     expect(harmony(URWALD) / harmony(HAIN)).toBeLessThan(FULL ? 1.5 : 1.9);
-    expect(harmony(URWALD)).toBeLessThan(100);
+    expect(harmony(URWALD)).toBeLessThan(FULL ? 95 : 100);
   });
 
   it('(d) Gelegenheitsspieler: später mehr Gedächtnis als im Hain, Zyklus 2 ≥ 20 % schneller (großer Lauf)', () => {

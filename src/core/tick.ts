@@ -220,10 +220,10 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     if (step === toNext) {
       // Wegpunkt genau erreicht (ohne Rundungsfehler, damit online und offline gleich zählen)
       state.totalGrowth = Math.max(state.totalGrowth, next);
-      reachWaypoint(state, report);
+      reachWaypoint(state, report, mode);
     } else if (step === toInterlude) {
       state.totalGrowth = Math.max(state.totalGrowth, interlude);
-      reachInterlude(state, report);
+      reachInterlude(state, report, mode);
     } else {
       state.totalGrowth = capped(state.totalGrowth + rate * step);
     }
@@ -366,7 +366,7 @@ export function interludeThreshold(state: GameState): number {
  * INTERLUDE_WEIGHTS, nur Typen mit Kandidaten). Bei voller Warteschlange oder ohne
  * Kandidaten passiert nichts – es fehlt ja keine Begegnung.
  */
-function reachInterlude(state: GameState, report: TickReport): void {
+function reachInterlude(state: GameState, report: TickReport, ambient: AmbientMode = 'live'): void {
   state.cycle.interlude = state.waypoint;
   report.interludesReached++;
   if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) return;
@@ -379,7 +379,7 @@ function reachInterlude(state: GameState, report: TickReport): void {
   ];
   const i = weightedIndex(state, weights);
   if (i < 0) return;
-  const encounter = i === 0 ? eventEncounter(state, pickEvent(state, events)) : visitorEncounter(state, pick(state, visitors));
+  const encounter = i === 0 ? eventEncounter(state, pickEvent(state, events, ambient)) : visitorEncounter(state, pick(state, visitors));
   state.pendingEncounters.push(encounter);
   report.encounters++;
   report.interludes++;
@@ -433,7 +433,7 @@ function autoDecline(state: GameState, report: TickReport): void {
   report.autoDeclined++;
 }
 
-function reachWaypoint(state: GameState, report: TickReport): void {
+function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMode = 'live'): void {
   state.waypoint++;
   state.stage = Math.max(state.stage, stageForWaypoint(state.waypoint));
   report.waypoints++;
@@ -449,7 +449,7 @@ function reachWaypoint(state: GameState, report: TickReport): void {
     report.declinedStackFull++;
     return;
   }
-  const encounter = drawEncounter(state);
+  const encounter = drawEncounter(state, ambient);
   if (!encounter) {
     // Weder Art noch Pflanze kommt in Frage: wie Ablehnen.
     autoDecline(state, report);
@@ -467,7 +467,7 @@ function reachWaypoint(state: GameState, report: TickReport): void {
  * zählt „Etwas keimt“ nur mit PLANT_WEIGHT_RING_FULL). Kommt für den Typ
  * keine Karte in Frage, gibt es den anderen; null, wenn gar nichts passt.
  */
-export function drawEncounter(state: GameState): PendingEncounter | null {
+export function drawEncounter(state: GameState, ambient: AmbientMode = 'live'): PendingEncounter | null {
   let type = SCRIPTED_ENCOUNTERS[state.waypoint - 1];
   if (type === undefined && state.cycle.forced) {
     // Vorgabe aus einem Ereignis (`nextEncounter`): gilt für genau diese Begegnung.
@@ -488,7 +488,7 @@ export function drawEncounter(state: GameState): PendingEncounter | null {
     // Ereignis nach Wetter-Gewicht, Gast gleichverteilt; ohne Kandidaten Tier, sonst Pflanze.
     if (type === 'event') {
       const events = eligibleEvents(state);
-      if (events.length > 0) return eventEncounter(state, pickEvent(state, events));
+      if (events.length > 0) return eventEncounter(state, pickEvent(state, events, ambient));
     } else if (type === 'visitor') {
       const visitors = eligibleVisitors(state);
       if (visitors.length > 0) return visitorEncounter(state, pick(state, visitors));
@@ -1045,18 +1045,19 @@ export function eligibleVisitors(state: GameState): Visitor[] {
 /**
  * Gewicht eines Ereignisses beim Ziehen (DESIGN_V2.md 22.6): Faktor aus
  * WEATHER_EVENT_FACTORS für das Wetter des laufenden Tages (`weatherOfDay` – eine reine
- * Funktion von Zyklus und Spielzeit, darum online und offline gleich), sonst 1. Ungültige
- * Faktoren zählen als 1.
+ * Funktion von Zyklus und Spielzeit, darum online und im Mittelmodus offline gleich), sonst 1.
+ * Ungültige Faktoren zählen als 1; im Modus `off` (ohne Wetter) gilt immer 1.
  */
-export function eventWeight(state: Pick<GameState, 'cycle'>, eventId: string): number {
+export function eventWeight(state: Pick<GameState, 'cycle'>, eventId: string, ambient: AmbientMode = 'live'): number {
+  if (ambient === 'off') return 1;
   const factors = WEATHER_EVENT_FACTORS[weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed))];
   const f = factors && Object.hasOwn(factors, eventId) ? factors[eventId] : undefined;
   return f !== undefined && Number.isFinite(f) && f > 0 ? f : 1;
 }
 
 /** Zieht eines der (nicht leeren) Ereignisse nach eventWeight, mit dem Zufall des Spielstands. */
-export function pickEvent(state: GameState, events: readonly GameEvent[]): GameEvent {
-  const i = weightedIndex(state, events.map((e) => eventWeight(state, e.id)));
+export function pickEvent(state: GameState, events: readonly GameEvent[], ambient: AmbientMode = 'live'): GameEvent {
+  const i = weightedIndex(state, events.map((e) => eventWeight(state, e.id, ambient)));
   return events[Math.max(0, i)]!;
 }
 

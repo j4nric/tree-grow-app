@@ -39,6 +39,8 @@ import {
 } from '../src/core/tick';
 import { dayIndex, weatherOfDay } from '../src/core/weather';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
+import reference from './predation-main-reference.json';
+import { referenceCases, referenceEcosystem, type ReferenceCase, type ReferenceValue } from './predation-reference';
 
 /**
  * Räuber und Beute (DESIGN_V2.md 22, Schritt A und C): Bestand, Überjagung statt
@@ -86,7 +88,7 @@ describe('Bestand und Überjagung im Ökosystem (Beispiele aus 22.4)', () => {
   it('Wühlmaus allein: voller Bestand 1,5, ungejagt', () => {
     const ev = evaluateEcosystem(eco(4, ['vole']));
     expect(ev.animals.vole).toMatchObject({ happiness: 1, stock: 1.5, overhunt: 0, hunters: 0 });
-    expect(ev.foodWeb).toEqual([{ tag: 'kleinsaeuger', prey: ['vole'], hunters: [], controllers: [], stock: 1.5, state: 'unhunted' }]);
+    expect(ev.foodWeb).toEqual([{ tag: 'kleinsaeuger', prey: ['vole'], hunters: [], controllers: [], stock: 1.5, supply: 1.5, state: 'unhunted' }]);
   });
 
   it('Wühlmaus + Waldkauz: Kauz satt (100 %), Wühlmaus verliert nichts (früher −10 %)', () => {
@@ -125,8 +127,21 @@ describe('Bestand und Überjagung im Ökosystem (Beispiele aus 22.4)', () => {
     const worm = ev.animals.earthworm!;
     expect(worm.stock).toBeCloseTo(stockFor(alone(4, 'earthworm', ['mole'])));
     // Futter der Würmer-Jäger = Bestand / Nachfrage (Rotkehlchen frisst auch Insekten – keine da).
-    expect(ev.animals.robin!.food).toBeCloseTo(Math.min(1, worm.stock! / 2));
-    expect(worm.overhunt).toBeCloseTo(overhuntUnits(2, worm.stock!));
+    expect(ev.animals.robin!.food).toBeCloseTo(Math.min(1, Math.max(1, worm.stock!) / 2));
+    expect(worm.overhunt).toBeCloseTo(overhuntUnits(2, Math.max(1, worm.stock!)));
+    // Nur die Jäger des überjagten Merkmals werden genannt.
+    expect(worm.overhuntedBy).toEqual(['mole', 'robin']);
+  });
+
+  it('kümmerlicher Bestand senkt das Futter nicht (Variante b: max(1, Bestand))', () => {
+    const ev = evaluateEcosystem(eco(4, ['slug', 'hedgehog', 'toad']));
+    const slug = ev.animals.slug!;
+    expect(slug.stock!).toBeLessThan(1);
+    // Schnecken: 1 Einheit für 2 Jäger (Igel, Erdkröte) – wie vor Welle 3, nicht 0,75 / 2.
+    expect(ev.foodWeb.find((f) => f.tag === 'schnecken')).toMatchObject({ stock: slug.stock, supply: 1, state: 'overhunted' });
+    expect(slug.overhunt).toBeCloseTo(1);
+    expect(slug.overhuntedBy).toEqual(['hedgehog', 'toad']);
+    expect(evaluateEcosystem(eco(4, ['slug', 'hedgehog'])).animals.hedgehog!.food).toBe(1);
   });
 
   it('Pflanzen und Ereignis-Merkmale bleiben bei 1 Einheit: Totholz aus der Sturmnacht', () => {
@@ -155,7 +170,9 @@ describe('Bestand und Überjagung im Ökosystem (Beispiele aus 22.4)', () => {
     const ids = ['earthworm', 'woodlouse', 'slug', 'hedgehog', 'robin', 'centipede', 'woodant', 'oakmoth', 'bluetit', 'vole'];
     const a = evaluateEcosystem(eco(5, ids));
     const b = evaluateEcosystem(eco(5, [...ids].reverse()));
-    expect(b.animals).toEqual(a.animals);
+    const sorted = (ev: Evaluation) =>
+      Object.fromEntries(Object.entries(ev.animals).map(([id, st]) => [id, { ...st, overhuntedBy: st.overhuntedBy && [...st.overhuntedBy].sort() }]));
+    expect(sorted(b)).toEqual(sorted(a));
     expect(b.harmony).toBeCloseTo(a.harmony, 12);
     expect(b.growth).toBeCloseTo(a.growth, 12);
     const norm = (ev: Evaluation) => ev.foodWeb.map((f) => ({ ...f, prey: [...f.prey].sort(), hunters: [...f.hunters].sort(), controllers: [...f.controllers].sort() }));
@@ -220,13 +237,42 @@ describe('Invarianten auf 400 zufälligen Ökosystemen', () => {
       for (const f of ev.foodWeb) {
         expect(f.prey.length).toBeGreaterThan(0);
         expect(f.stock).toBeCloseTo(f.prey.reduce((s, id) => s + ev.animals[id]!.stock!, 0), 12);
+        expect(f.supply).toBeCloseTo(f.prey.reduce((s, id) => s + Math.max(1, ev.animals[id]!.stock!), 0), 12);
         for (const id of f.hunters) expect(SPECIES_BY_ID.get(id)!.food).toContain(f.tag);
         expect(f.state === 'unhunted').toBe(ctx.unhunted.has(f.tag));
         if (f.state === 'unhunted') expect(f.hunters.length + f.controllers.length).toBe(0);
-        const over = f.prey.some((b) => f.hunters.filter((h) => h !== b).length > f.stock);
+        const over = f.prey.some((b) => f.hunters.filter((h) => h !== b).length > f.supply);
         expect(f.state === 'overhunted').toBe(over);
       }
     }
+  });
+});
+
+describe('nie schlechter als vor Räuber und Beute (Variante b, Referenz main 9dde233)', () => {
+  const ref = reference as unknown as { cases: ReferenceCase[]; values: ReferenceValue[] };
+
+  it('die Referenz-Ökosysteme sind dieselben (Arten und Zufall unverändert)', () => {
+    expect(referenceCases()).toEqual(ref.cases);
+  });
+
+  it('kein Tier weniger zufrieden oder schlechter gefüttert, keine Harmonie niedriger', () => {
+    let better = 0;
+    let fedBetter = 0;
+    ref.cases.forEach((c, i) => {
+      const old = ref.values[i]!;
+      const ev = evaluateEcosystem(referenceEcosystem(c));
+      expect(ev.harmony, `#${i}`).toBeGreaterThanOrEqual(old.harmony - 1e-6);
+      if (ev.harmony > old.harmony + 1e-6) better++;
+      for (const [id, [happiness, food]] of Object.entries(old.animals)) {
+        const st = ev.animals[id]!;
+        expect(st.happiness, `#${i} ${id}`).toBeGreaterThanOrEqual(happiness - 1e-6);
+        expect(st.food, `#${i} ${id}`).toBeGreaterThanOrEqual(food - 1e-6);
+        if (st.food > food + 1e-6) fedBetter++;
+      }
+    });
+    // Nicht leer: Die Regel wirkt wirklich (Harmonie und Futter oft besser).
+    expect(better).toBeGreaterThan(ref.cases.length / 3);
+    expect(fedBetter).toBeGreaterThan(50);
   });
 });
 
@@ -377,6 +423,9 @@ describe('Wetter → Ereignis-Gewichte (22.6)', () => {
     expect(eventWeight(state, 'leaf-fall')).toBe(1);
     expect(eventWeight(state, 'nope')).toBe(1);
     expect(eventWeight(state, '__proto__')).toBe(1);
+    // Mittelmodus (offline) mit dem echten Tag; ohne Wetter (`off`) gleich verteilt.
+    expect(eventWeight(state, 'storm', 'average')).toBe(3);
+    expect(eventWeight(state, 'storm', 'off')).toBe(1);
     state.cycle.elapsed = dayWith(state, 'mild', 'autumn') * SEASON_SECONDS + 10;
     expect(eventWeight(state, 'storm')).toBe(1);
     // Kaputte Spielzeit: wie Tag 0 („Wechselhaft“), Gewicht 1.

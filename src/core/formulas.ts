@@ -82,7 +82,8 @@ export const SUPPLY_MAIN_TREE = 2;
 export const SUPPLY_PLANT = 1;
 /**
  * Angebot je Tier im ersten Durchgang (Zufriedenheit z⁰, DESIGN_V2.md 22.3). Danach
- * stellt ein Tier seinen Bestand bereit (STOCK_BASE + STOCK_RANGE · z⁰, predation.ts).
+ * stellt ein Tier max(SUPPLY_ANIMAL, Bestand) bereit (Bestand = STOCK_BASE + STOCK_RANGE · z⁰,
+ * predation.ts) – mehr Futter bei reichlichem Bestand, nie weniger als vor Welle 3.
  */
 export const SUPPLY_ANIMAL = 1;
 /** Harmonie-Multiplikator: 1 + H / HARMONY_DIVISOR (Entscheidung PO). */
@@ -322,10 +323,13 @@ export interface AnimalStatus {
    */
   stock?: number;
   /**
-   * Überjagung (22.4): fehlende Einheiten Bestand, 0 … OVERHUNT_MAX_UNITS – Jäger minus
-   * Bestand im knappsten Merkmal. Abzug an der Zufriedenheit = OVERHUNT_PENALTY · overhunt.
+   * Überjagung (22.4): fehlende Einheiten Futter, 0 … OVERHUNT_MAX_UNITS – Jäger minus
+   * Futterangebot (Σ max(1, Bestand)) im knappsten Merkmal. Abzug an der Zufriedenheit =
+   * OVERHUNT_PENALTY · overhunt.
    */
   overhunt: number;
+  /** Nur bei Überjagung: die Jäger des knappsten Merkmals (Art-IDs, Nischen-Reihenfolge). */
+  overhuntedBy?: string[];
   /** Anzahl anwesender Arten, die diese Art stören (Wirkung `disturb`). */
   disturbers: number;
 }
@@ -346,8 +350,13 @@ export interface FoodWebEntry {
   hunters: string[];
   /** Arten, die es nur klein halten (`control`), ohne es zu fressen (z. B. Waldameise ⊘ Raupen). */
   controllers: string[];
-  /** Summe der Bestände der Beute (0,5 … 1,5 je Art). */
+  /** Summe der Bestände der Beute (0,5 … 1,5 je Art) – für „knapp/gut/reichlich“. */
   stock: number;
+  /**
+   * Futterangebot der Beute für die Jäger: Σ max(SUPPLY_ANIMAL, Bestand), also ≥ 1 je Art.
+   * Danach richten sich Futter der Jäger und der Zustand („überjagt“: Jäger > supply).
+   */
+  supply: number;
   state: FoodWebState;
 }
 
@@ -734,13 +743,18 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   // (1) z⁰ mit dem Angebot aus Durchgang 1, (2) Bestand, (3) Angebot mit Bestand.
   const stock = new Map<string, number>();
   for (const a of animals) if (a.provides.length > 0) stock.set(a.id, stockFor(happinessOf(a, firstSupply, 0).happiness));
+  // Futter je Beute = max(SUPPLY_ANIMAL, Bestand): Ein kümmerlicher Bestand senkt das Futter
+  // nicht unter den Stand vor Welle 3 – kein Räuber wird schlechter (22.3).
   const foodSupply = new Map(plantSupply);
   const stockOf = new Map<Tag, number>();
+  const shareOf = new Map<Tag, number>();
   for (const a of animals) {
     const own = stock.get(a.id);
     if (own === undefined) continue;
+    const share = Math.max(SUPPLY_ANIMAL, own);
     for (const t of a.provides) {
-      addSupply(foodSupply, t, own);
+      addSupply(foodSupply, t, share);
+      addSupply(shareOf, t, share);
       addSupply(stockOf, t, own);
     }
   }
@@ -750,12 +764,14 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     if (p.level !== 'predator') continue;
     for (const t of p.food) eaters.set(t, [...(eaters.get(t) ?? []), p]);
   }
-  // Überjagung je Beute: das knappste Merkmal (Jäger ohne sie selbst minus Bestand).
-  const overhuntOf = (a: Species): number => {
-    let worst = 0;
+  // Überjagung je Beute: das knappste Merkmal (Jäger ohne sie selbst minus Futterangebot
+  // der Beute); dazu die Jäger dieses Merkmals (für die Anzeige).
+  const overhuntOf = (a: Species): { units: number; by: string[] } => {
+    let worst = { units: 0, by: [] as string[] };
     for (const t of a.provides) {
-      const hunters = (eaters.get(t) ?? []).filter((p) => p.id !== a.id).length;
-      worst = Math.max(worst, overhuntUnits(hunters, stockOf.get(t) ?? 0));
+      const hunters = (eaters.get(t) ?? []).filter((p) => p.id !== a.id);
+      const units = overhuntUnits(hunters.length, shareOf.get(t) ?? 0);
+      if (units > worst.units) worst = { units, by: hunters.map((p) => p.id) };
     }
     return worst;
   };
@@ -766,11 +782,12 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   for (const a of animals) {
     let hunters = 0;
     for (const h of HUNTERS_OF.get(a.id) ?? []) if (present.has(h)) hunters++;
-    const overhunt = overhuntOf(a);
+    const { units: overhunt, by } = overhuntOf(a);
     const { happiness: z, food, needs, disturbers } = happinessOf(a, foodSupply, OVERHUNT_PENALTY * overhunt);
     const own = stock.get(a.id);
     status[a.id] = { happiness: z, food, needs, hunters, disturbers, overhunt };
     if (own !== undefined) status[a.id]!.stock = own;
+    if (overhunt > 0) status[a.id]!.overhuntedBy = by;
     happinessSum += z;
   }
 
@@ -781,14 +798,15 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     if (prey.length === 0) continue;
     const hunterList = eaters.get(tag) ?? [];
     const controllers = animals.filter((a) => !hunterList.includes(a) && a.effects.some((e) => e.kind === 'control' && e.tag === tag));
-    const tagStock = stockOf.get(tag) ?? 0;
-    const overhunted = prey.some((b) => overhuntUnits(hunterList.filter((p) => p.id !== b.id).length, tagStock) > 0);
+    const tagSupply = shareOf.get(tag) ?? 0;
+    const overhunted = prey.some((b) => overhuntUnits(hunterList.filter((p) => p.id !== b.id).length, tagSupply) > 0);
     foodWeb.push({
       tag,
       prey: prey.map((a) => a.id),
       hunters: hunterList.map((a) => a.id),
       controllers: controllers.map((a) => a.id),
-      stock: tagStock,
+      stock: stockOf.get(tag) ?? 0,
+      supply: tagSupply,
       state: unhunted.has(tag) ? 'unhunted' : overhunted ? 'overhunted' : 'balanced',
     });
   }
