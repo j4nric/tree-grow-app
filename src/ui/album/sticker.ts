@@ -27,9 +27,32 @@ export const STICKER_DRAW_SIZE = 54;
 /** Großer Sticker im Kopf von U:Tier. */
 export const STICKER_BIG_SIZE = 104;
 
-/** Matte Bilder in Leerlaufzeit (eine Aufgabe je Sticker, ein Stück je Rückruf). */
+/** Matte Bilder und Silhouetten in Leerlaufzeit (eine Aufgabe je Sticker). */
 const idle = new IdleQueue();
 let serial = 0;
+/**
+ * Zeitbudget je Leerlauf-Rückruf: Ein Sticker kostet unter 1 ms, darum zeichnet ein Rückruf
+ * weitere wartende, bis das Budget verbraucht ist – sonst bräuchten 15 matte Sticker 15
+ * Rückrufe (bei laufendem Game Loop und gedrosselter CPU mehrere Sekunden).
+ */
+const IDLE_BUDGET_MS = 4;
+let draining = false;
+
+function scheduleIdle(key: string, task: () => void): void {
+  idle.schedule(key, () => {
+    task();
+    if (draining) return;
+    draining = true;
+    const until = performance.now() + IDLE_BUDGET_MS;
+    try {
+      while (performance.now() < until && idle.runNext()) {
+        // weitere Sticker im selben Rückruf
+      }
+    } finally {
+      draining = false;
+    }
+  });
+}
 
 /** Pixeldichte, mit der zuletzt gezeichnet wurde; ändert sie sich (Zoom, anderer Bildschirm), zeichnen alle neu. */
 let dprEpoch = 0;
@@ -46,8 +69,13 @@ if (typeof window !== 'undefined') {
 /** Ein Tier-Bild auf eigenem kleinen Canvas – zeichnet nur bei Änderung. */
 export interface StickerImage {
   readonly canvas: HTMLCanvasElement;
-  /** Bild setzen (leere ID: leeren). */
-  draw(id: string, variant: StickerVariant, family?: string): void;
+  /**
+   * Bild setzen (leere ID: leeren). `muted` und `silhouette` kommen aus der IdleQueue. Bis
+   * dahin zeigt `muted` das farbige Bild gedämpft (`preview`, Standard); mit `preview: false`
+   * bleibt der Platz leer (viele Sticker auf einmal, Reiter Arten). Eine Silhouette zeigt nie
+   * vorab das farbige Bild – das wäre ein Spoiler.
+   */
+  draw(id: string, variant: StickerVariant, family?: string, options?: { preview?: boolean }): void;
 }
 
 export function createStickerImage(size: number, className = 'sticker-img'): StickerImage {
@@ -59,7 +87,7 @@ export function createStickerImage(size: number, className = 'sticker-img'): Sti
   let shown = '';
   return {
     canvas,
-    draw(id, variant, family) {
+    draw(id, variant, family, options) {
       const wanted = `${id}|${variant}|${dprEpoch}`;
       if (wanted === shown) return;
       shown = wanted;
@@ -85,10 +113,14 @@ export function createStickerImage(size: number, className = 'sticker-img'): Sti
         paint('color');
         return;
       }
-      // Matt erst in Leerlaufzeit; solange farbig mit CSS-Dämpfung.
-      paint('color');
+      // Matt erst in Leerlaufzeit; solange farbig mit CSS-Dämpfung (Silhouette: leer).
+      if (variant === 'muted' && options?.preview !== false) paint('color');
+      else {
+        canvas.width = 1;
+        canvas.height = 1;
+      }
       canvas.classList.add('sticker-img-pending');
-      idle.schedule(key, () => {
+      scheduleIdle(key, () => {
         if (shown !== wanted) return;
         paint(variant);
         canvas.classList.remove('sticker-img-pending');

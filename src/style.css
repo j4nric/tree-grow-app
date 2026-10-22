@@ -1628,94 +1628,7 @@ dialog.encounter .encounter-actions {
   }
 }
 
-/* ---------- Naturtagebuch ---------- */
-
-.journal-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: white;
-  color: var(--accent-dark);
-  font-weight: 600;
-}
-
-.journal-button:hover {
-  background: #eef6e6;
-}
-
-.journal-button-icon {
-  font-size: 1.1rem;
-}
-
-.journal-meta,
-.journal-regulars {
-  margin: 2px 0 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-  text-align: center;
-}
-
-.journal-regulars {
-  color: var(--accent-dark);
-  font-weight: 600;
-}
-
-.journal-regulars[hidden] {
-  display: none;
-}
-
-.journal-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding-bottom: 2px;
-  border-bottom: 1px solid var(--border);
-}
-
-.journal-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  min-height: 44px;
-  padding: 6px 12px;
-  border: none;
-  border-bottom: 3px solid transparent;
-  border-radius: 8px 8px 0 0;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.journal-tab[aria-selected='true'] {
-  color: var(--accent-dark);
-  border-bottom-color: var(--accent);
-  background: #eef6e6;
-}
-
-.journal-tab-count {
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.06);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.journal-panel:focus-visible {
-  outline: 3px solid #1f5fbf;
-  outline-offset: 2px;
-  border-radius: 8px;
-}
-
-.journal-panel[hidden] {
-  display: none;
-}
+/* ---------- Naturtagebuch: Teil „Landschaft“ (bis Schritt 10) ---------- */
 
 .journal-grid {
   list-style: none;
@@ -1761,10 +1674,8 @@ dialog.encounter .encounter-actions {
 }
 
 .journal-facts,
-.journal-effect,
 .journal-text,
-.journal-progress,
-.journal-present {
+.journal-progress {
   margin: 2px 0 0;
   font-size: 0.8rem;
   overflow-wrap: anywhere;
@@ -1780,75 +1691,12 @@ dialog.encounter .encounter-actions {
   font-variant-numeric: tabular-nums;
 }
 
-.journal-effect {
-  color: var(--accent-dark);
-  font-weight: 600;
-}
-
 .journal-text {
   font-style: italic;
   color: var(--muted);
 }
 
-.journal-present {
-  color: var(--accent-dark);
-  font-weight: 600;
-}
-
-.journal-community.active {
-  background: var(--good-bg);
-}
-
-/* Unentdeckt: Silhouette mit „???“, nur der Seltenheitsrahmen bleibt farbig */
-.journal-entry.unknown {
-  background: #f6f4ec;
-  border-style: dashed;
-  border-left-style: solid;
-}
-
-.journal-entry.unknown .journal-icon {
-  background: #e6e2d4;
-  /* Silhouette: das Symbol nur als einfarbiger Schatten */
-  color: transparent;
-  text-shadow: 0 0 0 rgba(60, 55, 40, 0.45);
-}
-
-.journal-entry.unknown .journal-name {
-  color: var(--muted);
-  letter-spacing: 0.1em;
-}
-
-.journal-regular {
-  grid-column: 1 / -1;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 6px 12px;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  background: white;
-  color: var(--accent-dark);
-  font-weight: 600;
-}
-
-.journal-regular[aria-pressed='true'] {
-  background: var(--accent);
-  color: white;
-}
-
-.journal-regular:disabled {
-  border-color: var(--border);
-  color: var(--muted);
-  cursor: not-allowed;
-}
-
-.journal-regular-star {
-  font-size: 1.05rem;
-}
-
-/* Andenken: Hauptbaum-Arten und Erinnerungen als eigene Abschnitte */
+/* Abschnittstitel und Status im Tagebuch-Teil „Landschaft“ (journal-landscape.ts, bis Schritt 10) */
 .journal-section-title {
   margin: 4px 0 8px;
   font-size: 0.9rem;
@@ -1859,27 +1707,6 @@ dialog.encounter .encounter-actions {
 
 .journal-section-title ~ .journal-section-title {
   margin-top: 16px;
-}
-
-.journal-tree {
-  --fam: var(--accent);
-}
-
-.journal-tree.current {
-  background: #eef6e6;
-  border-color: var(--accent);
-}
-
-.journal-entry.locked {
-  background: #f6f4ec;
-  border-style: dashed;
-  border-left-style: solid;
-  --fam: var(--border);
-}
-
-.journal-entry.locked .journal-icon {
-  filter: grayscale(1);
-  opacity: 0.7;
 }
 
 .journal-tree-status {
@@ -1903,15 +1730,7 @@ dialog.encounter .encounter-actions {
   color: var(--accent-dark);
 }
 
-.journal-tab-count[hidden] {
-  display: none;
-}
-
 /* Reiter „Landschaft“: Wälder, Korridore, Hähersaat (DESIGN_V2.md 24.11) */
-.journal-tab[hidden] {
-  display: none;
-}
-
 .journal-landscape-summary {
   margin: 0 0 10px;
   font-weight: 600;
@@ -2076,40 +1895,6 @@ dialog.encounter .encounter-actions {
 }
 
 @media (max-width: 640px) {
-  /*
-   * Reiter in einer waagerecht scrollbaren Zeile statt dreizeiligem Umbruch. Schatten am
-   * Rand zeigen, dass es weitergeht (verschwinden am Anfang bzw. Ende: „local“-Hintergrund).
-   */
-  .journal-tabs {
-    flex-wrap: nowrap;
-    gap: 2px;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-    padding: 2px 2px 0;
-    background:
-      linear-gradient(to right, var(--panel) 40%, rgba(255, 253, 246, 0)) left / 28px 100% no-repeat local,
-      linear-gradient(to left, var(--panel) 40%, rgba(255, 253, 246, 0)) right / 28px 100% no-repeat local,
-      radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0)) left / 12px 100% no-repeat scroll,
-      radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0)) right / 12px 100% no-repeat scroll;
-  }
-
-  .journal-tabs::-webkit-scrollbar {
-    display: none;
-  }
-
-  .journal-tab {
-    gap: 4px;
-    padding: 6px 10px;
-    font-size: 0.92rem;
-    white-space: nowrap;
-  }
-
-  /* Fokusrahmen nach innen – im Scrollbereich würde er sonst abgeschnitten */
-  .journal-tab:focus-visible {
-    outline-offset: -3px;
-  }
-
   .journal-grid {
     grid-template-columns: minmax(0, 1fr);
   }
