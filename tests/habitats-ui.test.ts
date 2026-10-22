@@ -108,7 +108,7 @@ describe('Pflegekarten: „Öffnet Lebensraum …“', () => {
   });
 
   it('isHabitatNiche: Tümpel und die drei neuen, sonst nichts', () => {
-    expect(['pond', ...HABITAT_NICHES.map((n) => n.id)].every((id) => isHabitatNiche(id))).toBe(true);
+    expect((['pond', ...HABITAT_NICHES.map((n) => n.id)] as const).every((id) => isHabitatNiche(id))).toBe(true);
     expect(['roots', 'litter', 'edge', 'crown', 'bark', 'hollows'].some((id) => isHabitatNiche(id as never))).toBe(false);
   });
 });
