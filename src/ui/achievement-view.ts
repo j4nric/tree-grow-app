@@ -7,7 +7,7 @@
  * Fortschritt nennt nur Zahlen, nie Namen von Unentdecktem.
  */
 import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID, type Achievement } from '../content/achievements';
-import { achievementProgress } from '../core/achievements';
+import { achievementProgress, isAchievementVisible } from '../core/achievements';
 import type { GameState } from '../core/state';
 import { formatDuration, formatNumber } from './format';
 import type { JournalAchievementProgressView, JournalAchievementView } from './view-model';
@@ -73,7 +73,8 @@ export function progressText(state: GameState, achievement: Achievement): string
 
 /**
  * Kacheln für den Reiter „Erfolge“: zuerst die freigeschalteten in Freischalt-Reihenfolge,
- * dann die offenen in Inhalts-Reihenfolge mit Fortschritt.
+ * dann die offenen in Inhalts-Reihenfolge mit Fortschritt. Offene, noch verborgene Erfolge
+ * (Landschaft vor der Freischaltung, 24.12) fehlen.
  */
 export function toJournalAchievements(state: GameState): JournalAchievementView[] {
   const unlocked = new Set<string>();
@@ -85,7 +86,7 @@ export function toJournalAchievements(state: GameState): JournalAchievementView[
     out.push({ key: a.id, icon: a.icon, title: a.title, description: a.description, unlocked: true });
   }
   for (const a of ACHIEVEMENTS) {
-    if (unlocked.has(a.id)) continue;
+    if (unlocked.has(a.id) || !isAchievementVisible(state, a)) continue;
     const view: JournalAchievementView = { key: a.id, icon: a.icon, title: a.title, description: a.description, unlocked: false };
     const progress = progressText(state, a);
     if (progress) view.progress = progress;
@@ -110,8 +111,12 @@ export function toAchievementTimeProgress(state: GameState): JournalAchievementP
   return out;
 }
 
-/** Zähler am Reiter, z. B. „3/25“. */
+/**
+ * Zähler am Reiter, z. B. „3/25“. Die Gesamtzahl zählt nur sichtbare Erfolge: vor der
+ * Freischaltung der Landschaft ohne ihre (24.12), danach mit ihnen.
+ */
 export function achievementCountText(state: GameState): string {
   const known = new Set(state.meta.achievements.filter((id) => ACHIEVEMENTS_BY_ID.has(id))).size;
-  return `${formatNumber(known)}/${formatNumber(ACHIEVEMENTS.length)}`;
+  const total = ACHIEVEMENTS.filter((a) => isAchievementVisible(state, a)).length;
+  return `${formatNumber(known)}/${formatNumber(total)}`;
 }

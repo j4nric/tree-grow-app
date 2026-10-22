@@ -439,13 +439,13 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   Karte, Hinweis in der Spielanleitung. Abhängig: 1a – umgesetzt in `ui/wildwechsel-view.ts`:
   Markierung nur in der Oberfläche (nach dem Neuladen kein Hinweis), Chance und hervorgehobene
   Korridore auf der Karte der Landschaft, Zahl im Rückkehr-Bericht
-- [ ] **1d** Zeichnungen Weißtanne und Schwarzerle (`renderer`, 25.6 Nr. 1): Wuchsformen je Stufe
+- [x] **1d** Zeichnungen Weißtanne und Schwarzerle (`renderer`, 25.6 Nr. 1): Wuchsformen je Stufe
   in `src/render/plant.ts`, zunächst nur in der Demo (`?tree=fir|alder`); `TREE_SPECIES` bleibt bis
   2b unverändert. Abhängig: nichts – frühe Welle, weil die Grafik der größte Brocken ist
 
 **Welle 2 – Hauptbäume je Waldtyp und Erfolge verdrahten**
 
-- [ ] **2a** Bedingungsarten `forests`, `corridors`, `ancientForests` (`core-engineer`, 24.11
+- [x] **2a** Bedingungsarten `forests`, `corridors`, `ancientForests` (`core-engineer`, 24.11
   Nr. 6) samt den fünf Erfolgen aus 1b als Daten: monoton, Nachtrag beim Laden wie 12.6.
   Sichtbarkeit `requires: 'landscape'` (24.12, kleiner Eingriff in `achievement-view.ts`).
   Abhängig: 1b. `landscape-trees` (25.7) und `wildwechsel-1` folgen mit 2b
