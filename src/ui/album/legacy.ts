@@ -19,10 +19,6 @@ import {
   toPlantPickerView,
   type StageBannerView,
 } from '../adapters';
-import { createCyclePanel } from '../cycle-panel';
-import { toCyclePanelView } from '../cycle-view';
-import { createDailyPanel } from '../daily-panel';
-import { toDailyView } from '../daily-view';
 import { createEncounterDialog } from '../encounter-dialog';
 import { createEncounterStack } from '../encounter-stack';
 import { createFloatLayer } from '../feedback';
@@ -36,9 +32,9 @@ import type { EcosystemView } from '../view-model';
 import { toWeatherBadgeView } from '../weather-view';
 import { applyWildwechselMark } from '../wildwechsel-view';
 import type { CarePage } from './pages/care-page';
-import type { GoalsPage } from './pages/goals-page';
 import type { LandscapePage } from './pages/landscape-page';
 import type { NichesPage } from './pages/niches-page';
+import type { AlbumTarget } from './cycle-target';
 import { createSeasonWeather } from './season-weather';
 import type { NotifyOptions } from './stamp-rules';
 import type { AlbumDeps, AlbumPart } from './types';
@@ -49,8 +45,9 @@ const PANEL_REFRESH_MS = 200;
 export interface LegacyMounts {
   niches: NichesPage;
   care: CarePage;
-  goals: GoalsPage;
   landscape: LandscapePage;
+  /** Ziel des nächsten Zyklus mit der Karte der Landschaft (bis Schritt 10 hier eingehängt). */
+  albumTarget: AlbumTarget;
   /** Platz in der Bildunterschrift des Polaroids (Jahreszeit, Wetter). */
   season: HTMLElement;
   /** Bildfläche des Polaroids (Stufen-Banner). */
@@ -93,7 +90,6 @@ export interface LegacyUi {
   plantFeedback(cost: number, plantId: string): void;
   closeEncounters(): void;
   closePlantPicker(): void;
-  focusCycle(): void;
   /** Spielstand ersetzt (Löschen, Import): Dialoge zu, Bestätigungen zurück, alles neu. */
   replaced(): void;
   /** Stand eines anderen Geräts übernommen; `headChanged`: andere vorderste Begegnung. */
@@ -154,14 +150,8 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       mounts.care.reveal(id);
     },
   });
-  const dailyPanel = createDailyPanel(mounts.goals.daily);
-  const cyclePanel = createCyclePanel(mounts.goals.cycle, {
-    onNewCycle: (tree, site) => deps.actions.newCycle(tree, site),
-    onBuildCorridor: (id) => deps.actions.buildCorridor(id),
-    onToggleRegular: (speciesId) => deps.actions.toggleRegular(speciesId),
-  });
-  // Die Karte der Landschaft steht im eigenen Reiter; cycle-panel.ts steuert sie weiter.
-  mounts.landscape.landscape.append(cyclePanel.landscapeElement);
+  // Die Karte der Landschaft steht im eigenen Reiter; ihr Ziel gilt für U:Neuer Zyklus (Schritt 10 ersetzt sie).
+  mounts.landscape.landscape.append(mounts.albumTarget.map.element);
   const seasonWeather = createSeasonWeather(mounts.season);
   const stack = createEncounterStack(mounts.dock, openEncounters, { float: false });
   const dialog = createEncounterDialog(document.body, { ...deps.actions.encounter, onDefer: closeEncounters });
@@ -354,7 +344,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     const s = state();
     if (ecoDirty || !ecoView) {
       ecoDirty = false;
-      cyclePanel.update(toCyclePanelView(s));
+      mounts.albumTarget.update(s);
       const unlocked = landscapeUnlocked(s);
       if (unlocked !== shownLandscape) {
         shownLandscape = unlocked;
@@ -382,7 +372,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     }
     lastPanelRefresh = now;
     hooks.onEcosystem(ecoView);
-    dailyPanel.update(toDailyView(s, deps.today()));
   }
 
   function refresh(now: number): void {
@@ -421,9 +410,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     plantFeedback,
     closeEncounters,
     closePlantPicker,
-    focusCycle: () => cyclePanel.focus(),
     replaced() {
-      cyclePanel.disarm();
       seasonShownSecond = -1;
       closeEncounters();
       closePlantPicker();
@@ -431,7 +418,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       invalidate(['eco', 'encounter', 'picker']);
     },
     adopted(headChanged) {
-      cyclePanel.disarm();
       seasonShownSecond = -1;
       if (headChanged) {
         closeEncounters();

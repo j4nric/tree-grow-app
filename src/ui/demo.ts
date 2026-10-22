@@ -271,6 +271,8 @@ const niches = createNichesPage({
   float: (text) => note(text),
   open: (page) => note(`Umblättern: ${page.kind}${'id' in page ? ` ${page.id}` : ''}`),
   eco,
+  // Die Nischen brauchen das Ziel des nächsten Zyklus nicht.
+  albumTarget: {} as Parameters<typeof createNichesPage>[0]['albumTarget'],
 });
 niches.connect({ openPlantPicker: () => note('Pflanze setzen'), showCare: (id) => note(`Zur Pflege: ${id}`) });
 document.getElementById('panel')!.append(niches.page.element);

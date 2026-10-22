@@ -6,6 +6,7 @@ import {
   expect,
   legacyGrowth,
   openGame,
+  openGoalsPage,
   openTab,
   savedState,
   seedRaw,
@@ -100,7 +101,7 @@ test('Tipp auf einen Sticker blättert zu U:Tier, eine Silhouette zeigt nur eine
   await expect(cell(page, 'bluetit').locator('button.sticker')).toBeFocused();
 });
 
-test('Stammgast am Sticker wählen: Zyklus-Panel synchron, gespeichert', async ({ page, context }) => {
+test('Stammgast am Sticker wählen: „Neuer Zyklus“ synchron, gespeichert', async ({ page, context }) => {
   await seedYoungTree(context);
   await openGame(page);
   await openJournal(page);
@@ -115,14 +116,15 @@ test('Stammgast am Sticker wählen: Zyklus-Panel synchron, gespeichert', async (
   await expect(star(page, 'earthworm')).toBeDisabled();
   expect((await savedState(page)).meta.regulars).toEqual(['bluetit']);
 
-  await openTab(page, 'ziele');
+  await openGoalsPage(page, 'cycle');
   const regulars = page.locator('[data-ref="regulars"]');
   await expect(regulars).toContainText('Stammgäste 1/1');
   await expect(regulars.locator('[data-regular="bluetit"]')).toHaveAttribute('aria-pressed', 'true');
 
-  // Und zurück: im Zyklus-Panel abwählen → im Reiter Arten abgewählt.
+  // Und zurück: auf U:Neuer Zyklus abwählen → im Reiter Arten abgewählt.
   await regulars.locator('[data-regular="bluetit"]').click();
   await expect(regulars.locator('[data-regular="bluetit"]')).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('[data-ref="bookmark"]:visible').click();
   await openJournal(page);
   await expect(star(page, 'bluetit')).toHaveAttribute('aria-pressed', 'false');
 });

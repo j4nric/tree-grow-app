@@ -22,6 +22,7 @@ import type { EcosystemView } from '../view-model';
 import { nightRateText } from '../weather-view';
 import { createBook } from './book';
 import { createCover } from './cover';
+import { createAlbumTarget } from './cycle-target';
 import { createBanderole } from './banderole';
 import { createFullscreen } from './fullscreen';
 import { showGuideHint } from './guide-hint';
@@ -46,6 +47,7 @@ import {
   type TabId,
 } from './nav';
 import { TURNED_AWAY, createPageTurn } from './page-turn';
+import type { CyclePage } from './pages/cycle-page';
 import { createAccountPage } from './pages/account-page';
 import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type TabPage } from './pages/registry';
 import { createPolaroid } from './polaroid';
@@ -81,6 +83,8 @@ export interface Album extends LegacyUi {
   showSceneAnimal(target: AnimalDetailTarget): void;
   /** Dauerhafter Hinweis: Im Speicher liegt ein Stand einer neueren Spielversion. */
   showNewerSaveBanner(text: string): void;
+  /** Nach dem Neuen Zyklus: zurück zu „Ziele“, Fokus auf die Überschrift (der Knopf ist weg). */
+  focusCycle(): void;
   /** Rückkehr-Zettel mit neuem Bericht (C.8); die Kurzfassung kommt als Stempel dazu. */
   showReturnReport(view: ReturnReportView): void;
   hideReturnReport(): void;
@@ -107,12 +111,15 @@ export function createAlbum(deps: AlbumDeps): Album {
     onOpen: (kind) => dispatch({ type: 'open', page: { kind } }),
   });
   const book = createBook(spread, cover.element, () => dispatch({ type: 'cover', open: !nav.cover }));
+  // Ziel des nächsten Zyklus: Karte der Landschaft ↔ U:Neuer Zyklus (D.2).
+  const albumTarget = createAlbumTarget((id) => deps.actions.buildCorridor(id));
   /** Ökosystem-Ansicht für die Seiten (legacy.ts rechnet sie, `showSummary` reicht sie weiter). */
   const eco: { view: EcosystemView | null; serial: number } = { view: null, serial: 0 };
   const env: PageEnv = {
     deps,
     back: () => goBack(),
     open: (page) => dispatch({ type: 'open', page }),
+    albumTarget,
     float: (text, x, y) => legacy.float(text, x, y),
     eco,
   };
@@ -160,6 +167,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   subpages.set('account', accountPage);
   subpages.set('return-report', returnReport.subpage);
   for (const [kind, create] of Object.entries(SUBPAGES)) if (!subpages.has(kind)) subpages.set(kind, create(env));
+  const cyclePage = subpages.get('cycle') as CyclePage;
   for (const sub of subpages.values()) {
     sub.page.element.hidden = true;
     spread.sub.append(sub.page.element);
@@ -180,6 +188,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       ...tabs,
       season: polaroid.season,
       photo: polaroid.stamps,
+      albumTarget,
       dock: book.dock,
     },
     {
@@ -467,6 +476,8 @@ export function createAlbum(deps: AlbumDeps): Album {
   }
 
   function showTab(tab: TabId): void {
+    // Gleich befüllen (auch wenn der Game Loop gerade steht, z. B. mit angehaltener Testuhr).
+    queueMicrotask(() => refreshPages(performance.now()));
     tabStrip.select(tab);
     for (const id of TAB_IDS) {
       const page = tabs[id].page.element;
@@ -522,15 +533,36 @@ export function createAlbum(deps: AlbumDeps): Album {
     }
   }
 
-  /** Seiten auffrischen: sichtbare Reiterseite und oberste Unterseite, Punkte an allen Reitern. */
+  // --- Seiten aktualisieren (D.1) ------------------------------------------------------
+
+  /** Spielstand geändert: Seiten sofort (ungedrosselt) nachziehen. */
+  let pagesDirty = true;
+  /** Zuletzt aufgefrischte Reiterseite bzw. Unterseite – eine neu gezeigte Seite wird sofort gefüllt. */
+  let shownTab: TabPage | null = null;
+  let shownSub: Subpage | null = null;
+
+  /**
+   * Punkte an allen Reitern (auch verborgen), dann die Reiterseite des aktuellen Reiters (auf
+   * der Doppelseite neben dem Umschlag sichtbar; darunterliegend bleibt sie so beim
+   * Zurückblättern frisch) und die oberste Unterseite. `force` nach `invalidate`, Ersetzen des
+   * Spielstands oder Seitenwechsel – so stimmt die Seite auch, wenn der Game Loop gerade steht
+   * (angehaltene Testuhr); sonst drosseln die Seiten selbst. Läuft auch direkt nach jeder
+   * Navigation.
+   */
   function refreshPages(now: number): void {
     for (const id of TAB_IDS) {
       const tab: TabPage = tabs[id];
       if (tab.badge) tabStrip.setDot(id, tab.badge(now));
     }
-    tabs[nav.tab].update?.(now);
+    const dirty = pagesDirty;
+    pagesDirty = false;
+    const tab: TabPage = tabs[nav.tab];
+    tab.update?.(now, dirty || tab !== shownTab);
+    shownTab = tab;
     const top = nav.stack[nav.stack.length - 1];
-    if (top) subpageOf(top)?.update?.(now);
+    const sub = top ? (subpageOf(top) ?? null) : null;
+    sub?.update?.(now, dirty || sub !== shownSub);
+    shownSub = sub;
   }
 
   // --- Schnittstelle für main.ts ---------------------------------------------------------
@@ -539,6 +571,20 @@ export function createAlbum(deps: AlbumDeps): Album {
     refresh(now) {
       legacy.refresh(now);
       refreshPages(now);
+    },
+    invalidate(parts) {
+      legacy.invalidate(parts);
+      pagesDirty = true;
+    },
+    focusCycle() {
+      if (nav.stack.some((p) => p.kind === 'cycle')) {
+        // Zurück zu „Ziele“; danach Fokus auf deren Überschrift statt auf „Vorbereiten ›“.
+        triggers.length = 0;
+        goBackTo((n) => n.stack.length === 0);
+        whenIdle(() => tabs[nav.tab].page.focusTitle());
+      } else if (!nav.cover) {
+        tabs[nav.tab].page.focusTitle();
+      }
     },
     sceneFrame: fullscreen.tools,
     banners: book.banners,
@@ -558,11 +604,16 @@ export function createAlbum(deps: AlbumDeps): Album {
     replaced() {
       legacy.replaced();
       closeNotes();
+      albumTarget.disarm();
       for (const sub of subpages.values()) sub.reset?.();
+      pagesDirty = true;
     },
     adopted(headChanged) {
       legacy.adopted(headChanged);
+      albumTarget.disarm();
       savePage.disarm();
+      cyclePage.disarm();
+      pagesDirty = true;
     },
     showReturnReport(view) {
       returnReport.show(view);

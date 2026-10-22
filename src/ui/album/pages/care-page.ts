@@ -381,7 +381,9 @@ export function createCarePage(env: PageEnv): CarePage {
 
   return {
     page,
-    update(now) {
+    update(now, force) {
+      // Nach einer Änderung bzw. beim Zeigen nicht auf die Drosselung warten.
+      if (force) checkedAt = bonusAt = -Infinity;
       ensureViews(now);
       render();
       updateBonuses(now);

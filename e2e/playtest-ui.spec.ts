@@ -3,8 +3,8 @@ import { dialog, expect, openGame, openTab, pageTitle, seedV3, settle, stack, te
 
 /**
  * Funde aus dem Playtest (mobil): wartende Begegnungen bleiben beim Scrollen erreichbar
- * (Zettelstapel fest unten rechts im Album), die Reiter des Naturtagebuchs passen in eine
- * Zeile – ohne Querscrollen der Seite.
+ * (Zettelstapel fest unten rechts im Album), die Sprungmarken im Reiter Arten passen in höchstens zwei
+ * Zeilen – ohne Querscrollen der Seite.
  */
 
 const horizontalOverflow = (page: Page) =>
@@ -43,43 +43,27 @@ for (const width of [360, 390]) {
     await expect(stack(page)).toBeFocused();
   });
 
-  test(`Mobil ${width} px: Naturtagebuch-Reiter in einer Zeile, scrollbar, per Tastatur bedienbar`, async ({ page, context }) => {
+  test(`Mobil ${width} px: Reiter Arten – Sprungmarken in höchstens zwei Zeilen, per Tastatur bedienbar`, async ({ page, context }) => {
     await page.setViewportSize({ width, height: 800 });
     await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'], crown: ['bluetit'] } });
     await openGame(page);
     await openTab(page, 'arten');
-    await page.locator('[data-ref="journal-open"]').click();
-    const journal = page.locator('[data-ref="journal"]');
-    await expect(journal).toBeVisible();
-
-    const tablist = journal.getByRole('tablist');
-    const tabs = journal.getByRole('tab');
-    await expect(tabs).toHaveCount(6);
-    // Eine Zeile: alle Reiter auf derselben Höhe, die Leiste nicht höher als ein Reiter.
-    const tops = await tabs.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-    expect(new Set(tops).size).toBe(1);
-    const listBox = (await tablist.boundingBox())!;
-    expect(listBox.height).toBeLessThan(70);
-    for (const box of await tabs.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) {
-      expect(box).toBeGreaterThanOrEqual(44);
+    const panel = page.locator('[data-ref="page-species"]');
+    const jumps = panel.locator('.species-jump');
+    // Tiere, Pflanzen, Gemeinschaften, Andenken (Erfolge und Statistik im Reiter „Ziele“).
+    await expect(jumps).toHaveCount(4);
+    const tops = await jumps.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    expect(new Set(tops).size).toBeLessThanOrEqual(2);
+    for (const box of await jumps.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()))) {
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
     }
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
 
-    // Tastatur: bis zum letzten Reiter – er wird in die Leiste gescrollt und ist sichtbar.
-    await journal.getByRole('tab', { name: /Arten/ }).focus();
-    await page.keyboard.press('End');
-    const stats = journal.getByRole('tab', { name: /Statistik/ });
-    await expect(stats).toHaveAttribute('aria-selected', 'true');
-    await expect(stats).toBeFocused();
-    await expect
-      .poll(async () => {
-        const tab = (await stats.boundingBox())!;
-        const list = (await tablist.boundingBox())!;
-        return tab.x >= list.x - 1 && tab.x + tab.width <= list.x + list.width + 1;
-      })
-      .toBe(true);
-    await page.keyboard.press('Home');
-    await expect(journal.getByRole('tab', { name: /Arten/ })).toHaveAttribute('aria-selected', 'true');
+    // Tastatur: Sprungmarke „Andenken“ per Enter – der Abschnitt kommt ins Bild.
+    await panel.locator('[data-jump="keepsakes"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(panel.locator('#species-heading-keepsakes')).toBeInViewport();
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
   });
 }

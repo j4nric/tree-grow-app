@@ -200,7 +200,7 @@ describe('Spielanleitung', () => {
     expect(visible).toBe(25);
     expect(t).toContain(`${formatNumber(visible)} leise Erfolge`);
     expect(t).toContain('Naturtagebuch');
-    expect(t).toContain('Reiter „Erfolge“');
+    expect(t).toContain('Reiter „Ziele“ unter „Erfolge“');
     expect(t).toContain('keine Eile');
     expect(t).toContain('keine Zeitlimits');
   });

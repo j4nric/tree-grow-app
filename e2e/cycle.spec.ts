@@ -1,10 +1,13 @@
 import { createInitialState } from '../src/core/state';
 import {
   SAVE_VERSION,
+  back,
   expect,
   gotoTab,
   niche,
+  openGoalsPage,
   openTab,
+  pageTitle,
   savedState,
   seedRaw,
   seedV3,
@@ -16,8 +19,9 @@ import {
 } from './fixtures';
 
 /**
- * Neuer Zyklus und Stammgäste (Schritt 2.8). Startet mit einem v3-Stand – das Laden
- * migriert ihn auf v4 (erster Zyklus, alle Tagebuch-Arten zählen als neu).
+ * Neuer Zyklus und Stammgäste (Schritt 2.8) – im Album auf der Unterseite „Neuer Zyklus“ des
+ * Reiters „Ziele“ (ALBUM_UI.md B.4). Startet mit einem v3-Stand – das Laden migriert ihn auf
+ * v4 (erster Zyklus, alle Tagebuch-Arten zählen als neu).
  */
 
 const GROVE_NICHES = { roots: ['earthworm', 'vole'], litter: ['robin'], edge: ['bee'], crown: ['bluetit'] };
@@ -26,8 +30,12 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
   await seedV3(context, { totalGrowth: waypoint(20) + 1, seeds: 500, niches: GROVE_NICHES, plants: ['hazel'] });
   await gotoTab(page, 'ziele');
   await expect(stageLabel(page)).toHaveText('Stufe: Hain');
+  // Punkt am Reiter und Kurzkarte: ein Neuer Zyklus ist möglich.
+  await expect(page.locator('[data-ref="tab-goals"] .tab-dot')).toBeVisible();
+  await expect(page.locator('[data-ref="cycle-card"]')).toHaveClass(/ready/);
+  await expect(page.locator('[data-ref="cycle-card-line"]')).toHaveText(/^\+\d+ Waldgedächtnis/);
 
-  const panel = page.locator('[data-ref="cycle-panel"]');
+  const panel = await openGoalsPage(page, 'cycle');
   await expect(panel.locator('[data-ref="cycle-blocker"]')).toBeHidden();
   // 5 neue Arten → mindestens 10 Punkte, Prozent in Klammern.
   await expect(panel.locator('[data-ref="cycle-gain"]')).toHaveText(/^\+\d+ Waldgedächtnis \(\+\d+ %\)$/);
@@ -41,8 +49,10 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
   await button.click();
 
   await expect(stamps(page)).toContainText('Zyklus 2 beginnt');
-  // Der Knopf verschwindet – der Fokus landet auf der Überschrift, nicht auf body.
-  await expect(panel.locator('[data-ref="cycle-title"]')).toBeFocused();
+  // Zurück zu „Ziele“ – der Fokus landet auf der Überschrift, nicht auf body.
+  await expect(panel).toBeHidden();
+  await expect(pageTitle(page)).toBeFocused();
+  await expect(pageTitle(page)).toHaveText('Was haben wir vor?');
   // Sofort gespeichert: Stufe 0, Waldgedächtnis gestiegen, Tagebuch bleibt.
   const after = await savedState(page);
   expect(after.version).toBe(SAVE_VERSION);
@@ -59,7 +69,10 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
   expect(after.meta.stats.bestHarmony).toBeGreaterThan(0);
   expect(after.meta.stats.playSeconds).toBeGreaterThan(0);
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
-  // Danach wieder gesperrt.
+  // Danach wieder gesperrt: Kurzkarte mit Grund, kein Punkt am Reiter.
+  await expect(page.locator('[data-ref="cycle-card-line"]')).toContainText('„Hain“');
+  await expect(page.locator('[data-ref="tab-goals"] .tab-dot')).toBeHidden();
+  await openGoalsPage(page, 'cycle');
   await expect(panel.locator('[data-ref="cycle-blocker"]')).toContainText('„Hain“');
   await expect(button).toBeHidden();
 });
@@ -67,7 +80,8 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
 test('vor dem Hain: Grund statt Knopf, keine Stammgäste ohne Waldgedächtnis', async ({ page, context }) => {
   await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'] } });
   await gotoTab(page, 'ziele');
-  const panel = page.locator('[data-ref="cycle-panel"]');
+  await expect(page.locator('[data-ref="tab-goals"] .tab-dot')).toBeHidden();
+  const panel = await openGoalsPage(page, 'cycle');
   await expect(panel.locator('[data-ref="cycle-blocker"]')).toContainText('noch 14 Wegpunkte');
   await expect(panel.locator('[data-ref="new-cycle"]')).toBeHidden();
   await expect(panel.locator('[data-ref="regulars"]')).toBeHidden();
@@ -80,6 +94,7 @@ test('vor dem Hain: Grund statt Knopf, keine Stammgäste ohne Waldgedächtnis', 
 test('Stammgäste wählen: Liste ab 25 Waldgedächtnis, Auswahl wird gespeichert', async ({ page, context }) => {
   await seedV3(context, { totalGrowth: waypoint(6) + 1, niches: { roots: ['earthworm'], litter: ['robin'] }, forestMemory: 30 });
   await gotoTab(page, 'ziele');
+  await openGoalsPage(page, 'cycle');
   const regulars = page.locator('[data-ref="regulars"]');
   await expect(regulars).toBeVisible();
   await expect(regulars).toContainText('Stammgäste 0/1');
@@ -105,6 +120,7 @@ test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pf
   state.meta.regulars = ['toad'];
   await seedRaw(context, state, 0);
   await gotoTab(page, 'ziele');
+  await openGoalsPage(page, 'cycle');
 
   const regulars = page.locator('[data-ref="regulars"]');
   const toad = regulars.locator('[data-regular="toad"]');
@@ -118,9 +134,12 @@ test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pf
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 
   // Tümpel anlegen: Die Kröte zieht sofort ein, statt zu warten steht der Hinweis fürs nächste Mal da.
+  await back(page);
   await openTab(page, 'nischen');
   await niche(page, 'pond').getByRole('button', { name: 'Zur Pflege: Waldtümpel öffnen' }).click();
   await page.locator('[data-ref="care"] [data-buy-care="pond"]').click();
+  await expect.poll(async () => (await savedState(page)).niches.pond).toEqual(['toad']);
+  await openGoalsPage(page, 'cycle');
   await expect(toadNote).toHaveText('zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)');
   await expect(toad).toContainText('lebt hier');
   expect((await savedState(page)).niches.pond).toEqual(['toad']);

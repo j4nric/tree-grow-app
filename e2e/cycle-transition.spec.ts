@@ -1,4 +1,4 @@
-import { expect, gotoTab, savedState, seedV3, stageLabel, stamps, test, waitForConfirm, waypoint } from './fixtures';
+import { expect, gotoTab, openGoalsPage, savedState, seedV3, stageLabel, stamps, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Übergang zum Neuen Zyklus in der Szene (render/cycle.ts, DESIGN_V2.md §10): Der alte
@@ -24,6 +24,7 @@ test('Neuer Zyklus: Übergangs-Sequenz läuft ohne Fehler, danach Stufe-0-Bild',
   });
   await gotoTab(page, 'ziele');
   await expect(stageLabel(page)).toHaveText('Stufe: Hain');
+  await openGoalsPage(page, 'cycle');
   const canvas = page.locator('canvas#scene');
 
   const button = page.locator('[data-ref="new-cycle"]');

@@ -9,7 +9,9 @@ import {
   expect,
   niche,
   openGame,
+  openGoalsPage,
   openTab,
+  pageTitle,
   savedState,
   seedNewGame,
   stack,
@@ -46,7 +48,8 @@ async function stageIndex(page: Page): Promise<number> {
   return STAGES.findIndex((s) => s.name === text);
 }
 
-const cyclePanel = (page: Page) => page.locator('[data-ref="cycle-panel"]');
+const cyclePanel = (page: Page) => page.locator('[data-ref="page-cycle"]');
+const cycleCard = (page: Page) => page.locator('[data-ref="cycle-card"]');
 const plantOpen = (page: Page) => page.locator('[data-ref="plant-open"]');
 const picker = (page: Page) => page.locator('[data-ref="plant-picker"]');
 
@@ -152,9 +155,6 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
     lastWaypoint = waypoint;
 
     if (stage >= NEW_CYCLE_MIN_STAGE) break;
-    // Vor dem Hain: Grund statt Knopf.
-    await expect(blocker).toContainText(`„${HAIN}“`);
-    await expect(newCycleButton).toBeHidden();
 
     if (await stack(page).isVisible()) {
       await stack(page).click();
@@ -185,13 +185,13 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   trail.push(`hain@${gameSeconds}`);
 
   // --- Neuer Zyklus: zwei Klicks --------------------------------------------------------
+  await openGoalsPage(page, 'cycle');
   await expect(blocker).toBeHidden();
   const gainText = (await cyclePanel(page).locator('[data-ref="cycle-gain"]').textContent()) ?? '';
   const gain = Number(/^\+(\d+) Waldgedächtnis/.exec(gainText)?.[1]);
   expect(gain, `Vorschau „${gainText}“`).toBeGreaterThan(0);
   trail.push(`gain${gain}`);
 
-  await openTab(page, 'ziele');
   await newCycleButton.click();
   await expect(newCycleButton).toContainText('Zum Bestätigen erneut klicken');
   // Der zweite Klick zählt erst nach der Schutzzeit gegen Doppelklicks (ui/confirm.ts).
@@ -200,9 +200,10 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   await page.clock.runFor(50);
 
   await expect(stamps(page)).toContainText('Zyklus 2 beginnt');
-  await expect(cyclePanel(page).locator('[data-ref="cycle-title"]')).toBeFocused();
+  // Zurück zu „Ziele“, Fokus auf deren Überschrift.
+  await expect(pageTitle(page)).toBeFocused();
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
-  await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${START_MEMORY + gain} ·`);
+  await expect(cycleCard(page).locator('[data-ref="cycle-card-memory"]')).toContainText(`Waldgedächtnis ${START_MEMORY + gain} ·`);
   const cycle2 = await savedState(page);
   expect(cycle2.version).toBe(SAVE_VERSION);
   expect(cycle2.cycle.number).toBe(2);
@@ -214,6 +215,8 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   expect(Object.values(cycle2.niches as Record<string, string[]>).flat()).toEqual([]);
   expect(cycle2.pendingEncounters).toEqual([]);
   // Wieder gesperrt bis zum Hain.
+  await expect(cycleCard(page).locator('[data-ref="cycle-card-line"]')).toContainText(`„${HAIN}“`);
+  await openGoalsPage(page, 'cycle');
   await expect(blocker).toContainText(`„${HAIN}“`);
   await expect(newCycleButton).toBeHidden();
 
@@ -287,10 +290,11 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   expect(cycleAfter, 'cycle').toEqual(cycleBefore);
   expect(elapsedAfter).toBeGreaterThanOrEqual(elapsedBefore);
   expect(after.cycle.mainTree).toBe('oak');
-  await expect(cyclePanel(page).locator('.cycle-sub')).toHaveText('Zyklus 2');
+  await expect(niche(page, species.niche).locator(`[data-species="${regular}"]`)).toBeVisible();
+  await openGoalsPage(page, 'cycle');
+  await expect(cyclePanel(page).locator('[data-ref="cycle-sub"]')).toHaveText('Zyklus 2');
   await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${START_MEMORY + gain} ·`);
   await expect(regulars.locator(`[data-regular="${regular}"]`)).toHaveAttribute('aria-pressed', 'true');
-  await expect(niche(page, species.niche).locator(`[data-species="${regular}"]`)).toBeVisible();
 
   test.info().annotations.push({ type: 'spur', description: trail.join(' ') });
   test.info().annotations.push({ type: 'laufzeit', description: `${Math.round((Date.now() - startedAt) / 1000)} s` });

@@ -182,6 +182,15 @@ body:has(.album) {
   line-height: 1.4;
 }
 
+/*
+ * Einzelseite: Beim Umblättern ragt die weggedrehte Hauptseite in der 3D-Perspektive ein paar
+ * Pixel über den rechten Rand (dort ist ohnehin kein Bild). `clip` statt `hidden`: kein
+ * eigener Scrollbereich, die Reiterleiste klebt weiter.
+ */
+.album[data-layout='single'] {
+  overflow-x: clip;
+}
+
 /* =====================================================================
    Doppelseite (Querformat ab 761 px) – nach dem Desktop-Mockup
    ===================================================================== */
