@@ -370,6 +370,73 @@ describe('Serie und Tageswechsel', () => {
     expect(checked).toBe(24);
   });
 
+  it('Neuer Zyklus: ersetzte Ziele ziehen nie dieselbe Art (Playtest Schritt 14, M1)', () => {
+    // Die Ziele aus dem Playtest (Seeds 99, 4242, 31337, Hain): alle drei offen, nach dem
+    // Neuen Zyklus passt keines mehr – vorher kam z. B. zweimal „Entscheide 3 Begegnungen“.
+    const reported: Record<number, DailyGoal[]> = {
+      99: [goal('care', 1), goal('plant', 1), goal('observe', 2, { genus: 'birds', season: 'autumn' })],
+      4242: [
+        goal('harmony', 300, { harmony: 55 }),
+        goal('satisfaction', 85, { genus: 'soil' }),
+        goal('observe', 1, { genus: 'insects', season: 'summer' }),
+      ],
+      31337: [
+        goal('observe', 1, { genus: 'mammals', season: 'winter' }),
+        goal('harmony', 300, { harmony: 55 }),
+        goal('satisfaction', 60, { genus: 'insects' }),
+      ],
+    };
+    let replaced = 0;
+    for (const [seed, goals] of Object.entries(reported)) {
+      for (let d = 0; d < 8; d++) {
+        const day = addDays(DAY, d);
+        const state = withGoals(forest(Number(seed), 5), structuredClone(goals), day);
+        expect(startNewCycle(state, 0).ok).toBe(true);
+        const kinds = state.meta.daily.goals.map((g) => g.kind);
+        expect(new Set(kinds).size, `Seed ${seed}, ${day}: ${kinds.join(', ')}`).toBe(goals.length);
+        replaced += kinds.filter((k, i) => k !== goals[i]!.kind).length;
+      }
+    }
+    expect(replaced).toBeGreaterThanOrEqual(2 * 3 * 8); // mindestens zwei Ersatzziele je Fall
+  });
+
+  it('Neuer Zyklus: alle offenen Ziele bleiben verschieden (Seeds × Tage, gezogene Ziele)', () => {
+    for (const seed of [1, 2, 3, 99, 4242, 31337]) {
+      for (const stage of [5, 6]) {
+        for (let d = 0; d < 6; d++) {
+          const day = addDays(DAY, d);
+          const state = forest(seed, stage);
+          updateDaily(state, day, {});
+          const count = state.meta.daily.goals.length;
+          expect(startNewCycle(state, 0).ok).toBe(true);
+          const kinds = state.meta.daily.goals.map((g) => g.kind);
+          expect(new Set(kinds).size, `Seed ${seed}, Stufe ${stage}, ${day}: ${kinds.join(', ')}`).toBe(count);
+        }
+      }
+    }
+  });
+
+  it('Neuer Zyklus: doppelte Ziele (Stand vor der Korrektur) werden ersetzt, erfüllte bleiben', () => {
+    const state = withGoals(forest(99, 5), [goal('decide', 3, { done: true, progress: 3 }), goal('decide', 3), goal('seeds', 34)]);
+    expect(startNewCycle(state, 0).ok).toBe(true);
+    const goals = state.meta.daily.goals;
+    expect(goals[0]).toEqual(goal('decide', 3, { done: true, progress: 3 }));
+    expect(new Set(goals.map((g) => g.kind)).size).toBe(3);
+    // Deterministisch: gleicher Stand → gleiche Ersatzziele.
+    const again = withGoals(forest(99, 5), [goal('decide', 3, { done: true, progress: 3 }), goal('decide', 3), goal('seeds', 34)]);
+    startNewCycle(again, 0);
+    expect(again.meta.daily.goals).toEqual(goals);
+  });
+
+  it('Spielstand mit doppelten Zielen: Laden behält die erste, kein Absturz', () => {
+    const state = withGoals(stateAt(3, ['earthworm']), [goal('decide', 3), goal('decide', 3, { progress: 2 }), goal('seeds', 34)]);
+    const loaded = loadGame(serialize(state), 0)!.state;
+    expect(loaded.meta.daily.goals.map((g) => [g.kind, g.progress])).toEqual([
+      ['decide', 0],
+      ['seeds', 0],
+    ]);
+  });
+
   it('Tag mehr als einen Tag in der Zukunft: zurück auf heute, neue Ziele, Serie 0; ein Tag Vorsprung (Zeitzone) bleibt', () => {
     const state = stateAt(3, ['earthworm', 'woodlouse']);
     updateDaily(state, '2026-10-30', {});
