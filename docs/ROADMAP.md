@@ -426,7 +426,7 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
 
 **Welle 1 – Landschaft vollenden** (ohne Spielstand-Änderung; Rest aus Phase 6)
 
-- [ ] **1a** Schritt B Wildwechsel (`core-engineer`, DESIGN_V2.md 24.6, 24.11 Nr. 4): beim Ziehen
+- [x] **1a** Schritt B Wildwechsel (`core-engineer`, DESIGN_V2.md 24.6, 24.11 Nr. 4): beim Ziehen
   der Tierkarten je Korridor am aktiven Wald 10 % (höchstens 30 %) eine Karte aus `fauna` eines
   Nachbarn (Regeln 24.6, Weg in der Karte), `featured`-Gattungen × 1,5 in ihrer Seltenheit;
   `rngState`, online = offline; `scripts/landscape.ts` zieht mit. Abhängig: nichts

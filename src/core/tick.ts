@@ -27,7 +27,16 @@ import {
   type SeasonId,
 } from '../content/seasons';
 import { STAGES } from '../content/stages';
-import { CORRIDORS, CORRIDORS_BY_ID, HOME_SITE, LANDSCAPE_SITES_BY_ID, MAX_SITE_FAUNA, SITE_IDS, type SiteId } from '../content/landscape';
+import {
+  CORRIDORS,
+  CORRIDORS_BY_ID,
+  FEATURED_GENUS_WEIGHT,
+  HOME_SITE,
+  LANDSCAPE_SITES_BY_ID,
+  MAX_SITE_FAUNA,
+  SITE_IDS,
+  type SiteId,
+} from '../content/landscape';
 import { DEFAULT_MAIN_TREE, MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
 import { ENCOUNTER_TYPES, type EncounterType } from '../content/types';
 import { VISITORS, VISITORS_BY_ID, type Visitor } from '../content/visitors';
@@ -66,6 +75,7 @@ import {
   activeSite,
   corridorBetween,
   effectiveMemoryOf,
+  featuredGenera,
   isSiteAncient,
   isSiteFounded,
   jaySeeds,
@@ -74,7 +84,10 @@ import {
   nextFoundingCost,
   ownMemory,
   siteEntry,
+  wildwechselChance,
+  wildwechselRoutes,
   type JaySeeds,
+  type WildwechselRoute,
 } from './landscape';
 import { countDailyAction } from './daily-actions';
 import { refreshDailyAfterNewCycle } from './daily';
@@ -132,7 +145,27 @@ export interface TickReport {
    * mit dem Mittel (OfflineReport.averaged).
    */
   weather: WeatherId[];
+  /**
+   * Wildwechsel-Karten (DESIGN_V2.md 24.6) in Reihenfolge der Wegpunkte: Art, Herkunftswald,
+   * Korridor, Begegnung (`encounter`, Index in `pendingEncounters` nach dem Tick) und Platz der
+   * Karte in ihr (`card`, Index in `cards`). Höchstens eine je Begegnung.
+   */
+  wildwechsel: WildwechselCard[];
 }
+
+/** Eine Wildwechsel-Karte: diese Art kam über `corridor` aus dem Bestand von `from`. */
+export interface WildwechselCard extends WildwechselRoute {
+  /**
+   * Index der Begegnung in `pendingEncounters`. Gilt direkt nach dem Tick (ein Tick legt nur
+   * an, entfernt nichts); entscheidet der Spieler danach, verschieben sich die Indizes.
+   */
+  encounter: number;
+  /** Index der Karte in `PendingEncounter.cards`. */
+  card: number;
+}
+
+/** Ergebnis von drawWildwechsel: die Karte ohne Begegnung (die kennt erst reachWaypoint). */
+export type WildwechselDraw = Omit<WildwechselCard, 'encounter'>;
 
 export interface OfflineReport extends TickReport {
   /** Tatsächlich simulierte Sekunden (nach Begrenzung). */
@@ -185,6 +218,7 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     expired: [],
     seasons: [],
     weather: [],
+    wildwechsel: [],
   };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
   const mode: AmbientMode = ambient === 'live' && dt > MAX_LIVE_SECONDS ? 'average' : ambient;
@@ -467,7 +501,7 @@ function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMod
     report.declinedStackFull++;
     return;
   }
-  const encounter = drawEncounter(state, ambient);
+  const { encounter, wildwechsel } = drawEncounterWithRoute(state, ambient);
   if (!encounter) {
     // Weder Art noch Pflanze kommt in Frage: wie Ablehnen.
     autoDecline(state, report);
@@ -476,6 +510,7 @@ function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMod
   }
   state.pendingEncounters.push(encounter);
   report.encounters++;
+  if (wildwechsel) report.wildwechsel.push({ ...wildwechsel, encounter: state.pendingEncounters.length - 1 });
 }
 
 /**
@@ -486,13 +521,22 @@ function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMod
  * keine Karte in Frage, gibt es den anderen; null, wenn gar nichts passt.
  */
 export function drawEncounter(state: GameState, ambient: AmbientMode = 'live'): PendingEncounter | null {
+  return drawEncounterWithRoute(state, ambient).encounter;
+}
+
+/** drawEncounter mit der Wildwechsel-Karte (falls eine kam) für den TickReport. */
+function drawEncounterWithRoute(
+  state: GameState,
+  ambient: AmbientMode,
+): { encounter: PendingEncounter | null; wildwechsel: WildwechselDraw | null } {
+  const none = (encounter: PendingEncounter | null) => ({ encounter, wildwechsel: null });
   let type = SCRIPTED_ENCOUNTERS[state.waypoint - 1];
   if (type === undefined && state.cycle.forced) {
     // Vorgabe aus einem Ereignis (`nextEncounter`): gilt für genau diese Begegnung.
     const forced = state.cycle.forced;
     state.cycle.forced = null;
     const built = forcedEncounter(state, forced);
-    if (built) return built;
+    if (built) return none(built);
     // Passt keine ID mehr: Der Vorzug verfällt still, es wird normal gezogen.
   }
   if (type === undefined) {
@@ -506,18 +550,47 @@ export function drawEncounter(state: GameState, ambient: AmbientMode = 'live'): 
     // Ereignis nach Wetter-Gewicht, Gast gleichverteilt; ohne Kandidaten Tier, sonst Pflanze.
     if (type === 'event') {
       const events = eligibleEvents(state);
-      if (events.length > 0) return eventEncounter(state, pickEvent(state, events, ambient));
+      if (events.length > 0) return none(eventEncounter(state, pickEvent(state, events, ambient)));
     } else if (type === 'visitor') {
       const visitors = eligibleVisitors(state);
-      if (visitors.length > 0) return visitorEncounter(state, pick(state, visitors));
+      if (visitors.length > 0) return none(visitorEncounter(state, pick(state, visitors)));
     }
   }
   const order: readonly CardEncounterType[] = type === 'plant' ? ['plant', 'animal'] : ['animal', 'plant'];
   for (const t of order) {
     const cards = drawCards(state, t);
-    if (cards.length > 0) return { type: t, cards, rerolls: 0 };
+    if (cards.length === 0) continue;
+    const wildwechsel = t === 'animal' ? drawWildwechsel(state, cards) : null;
+    return { encounter: { type: t, cards, rerolls: 0 }, wildwechsel };
   }
-  return null;
+  return none(null);
+}
+
+/**
+ * Wildwechsel-Karte (DESIGN_V2.md 24.6): Mit `wildwechselChance` (je gebautem Korridor am
+ * aktiven Wald WILDWECHSEL_CHANCE, höchstens WILDWECHSEL_MAX_CHANCE) ersetzt eine Art aus dem
+ * Bestand (`fauna`) eines Nachbarn eine der gezogenen Tierkarten. Regeln wie bei
+ * Stammgästen: Freischalt-Stufe und offene Nische (Plätze > 0, wie jede Tierkarte) ja,
+ * Erscheinungsbedingung nein; nie eine Art, die schon im Wald lebt oder schon auf einer
+ * Karte dieser Begegnung liegt; höchstens eine je Begegnung. Zufall aus `rngState`, nur am
+ * Wegpunkt (nicht beim Neu würfeln) – online = offline. Ohne Korridor wird nicht gewürfelt.
+ * Verändert `cards` und gibt die Karte zurück (null: kein Wildwechsel).
+ */
+export function drawWildwechsel(state: GameState, cards: string[]): WildwechselDraw | null {
+  if (cards.length === 0) return null;
+  const chance = wildwechselChance(state);
+  if (!(chance > 0) || !(random(state) < chance)) return null;
+  const present = new Set(allAnimals(state));
+  const slots = nicheSlots(state.stage, state.niches, slotBonuses(state));
+  const candidates = wildwechselRoutes(state).filter((r) => {
+    const sp = SPECIES_BY_ID.get(r.species);
+    return !!sp && sp.unlock <= state.stage && slots[sp.niche] > 0 && !present.has(sp.id) && !cards.includes(sp.id);
+  });
+  if (candidates.length === 0) return null;
+  const route = pick(state, candidates);
+  const card = randomInt(state, cards.length);
+  cards[card] = route.species;
+  return { ...route, card };
 }
 
 /** Karten für einen Begegnungstyp (siehe drawAnimals / drawPlants). */
@@ -569,6 +642,8 @@ export function allWaypointsReached(state: GameState): boolean {
  * dran, wenn die übrigen Arten nicht für alle Karten reichen.
  * Ab dem zweiten Zyklus ziehen Arten aus dem Naturtagebuch innerhalb ihrer Seltenheit mit
  * doppeltem Gewicht (DESIGN_V2.md, Abschnitt 10); im ersten Zyklus bleibt es gleichverteilt.
+ * Gattungen des aktiven Waldtyps (`featured`, 24.6) zählen dazu × FEATURED_GENUS_WEIGHT.
+ * Wildwechsel-Karten kommen erst danach (drawWildwechsel, nur am Wegpunkt).
  * Zufall aus `rng` (Standard: der Spielstand selbst). `minRarity` (Standard 0): nur Arten ab
  * dieser Seltenheit (Belohnung der Tagesziele, DESIGN_V2.md 20).
  */
@@ -587,6 +662,9 @@ export function drawAnimals(
   const pools = [eligible.filter((s) => !exclude.includes(s.id)), eligible.filter((s) => exclude.includes(s.id))];
   const weights = rarityWeights(state);
   const journal = state.cycle.number > 1 ? new Set(state.meta.journal.species) : null;
+  // Gattungen des Waldtyps (24.6): × FEATURED_GENUS_WEIGHT in ihrer Seltenheit, mit dem Tagebuch multipliziert.
+  const featured = featuredGenera(state);
+  const weighted = journal !== null || featured.length > 0;
   const cards: string[] = [];
   for (const pool of pools) {
     while (cards.length < CARDS_PER_ENCOUNTER) {
@@ -597,8 +675,16 @@ export function drawAnimals(
       );
       if (r < 0) break;
       const choices = byRarity[r]!;
-      const chosen = journal
-        ? choices[weightedIndex(rng, choices.map((s) => (journal.has(s.id) ? JOURNAL_SPECIES_WEIGHT : 1)))]!
+      const chosen = weighted
+        ? choices[
+            weightedIndex(
+              rng,
+              choices.map(
+                (s) =>
+                  (journal?.has(s.id) ? JOURNAL_SPECIES_WEIGHT : 1) * (featured.includes(s.genus) ? FEATURED_GENUS_WEIGHT : 1),
+              ),
+            )
+          ]!
         : pick(rng, choices);
       cards.push(chosen.id);
     }

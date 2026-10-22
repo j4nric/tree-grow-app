@@ -79,6 +79,7 @@ describe('tick', () => {
       expired: [],
       seasons: [],
       weather: [],
+      wildwechsel: [],
     });
     expect(state.waypoint).toBe(1);
     expect(state.stage).toBe(1);
@@ -129,6 +130,7 @@ describe('tick', () => {
       expired: [],
       seasons: [],
       weather: [],
+      wildwechsel: [],
     });
     expect(state.pendingEncounters[0]!.type).toBe('plant');
   });
@@ -388,8 +390,16 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     start.meta.landscape = {
       active: 'floodplain',
       sites: [
-        { id: 'home', memory: 600, regulars: [], ancient: true, mainTree: 'oak', fauna: [] },
-        ...(['carr', 'beechwood', 'mountain', 'heath'] as const).map((id) => ({ id, memory: 200, regulars: [], ancient: false, mainTree: 'oak' as const, fauna: [] })),
+        // Bestand der Nachbarn für Wildwechsel-Karten (24.6, Schritt B) über beide Korridore.
+        { id: 'home', memory: 600, regulars: [], ancient: true, mainTree: 'oak', fauna: ['owl', 'deer', 'jay', 'fox', 'woodpecker', 'bat'] },
+        ...(['carr', 'beechwood', 'mountain', 'heath'] as const).map((id) => ({
+          id,
+          memory: 200,
+          regulars: [],
+          ancient: false,
+          mainTree: 'oak' as const,
+          fauna: id === 'carr' ? ['treefrog', 'crestednewt', 'porcini', 'snail'] : [],
+        })),
         { id: 'floodplain', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [] },
       ],
       corridors: ['home-floodplain', 'floodplain-carr'],
