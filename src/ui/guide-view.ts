@@ -38,7 +38,7 @@ import { NOCTURNAL } from '../content/daytime';
 import { REPTILE_SUMMER_HAPPINESS } from '../content/habitats';
 import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, PREDATION_EVENTS, STOCK_BASE, STOCK_RANGE } from '../content/predation';
 import { HARMONY_DIVISOR, memoryHarmonyBonus } from '../core/formulas';
-import { HARMONY_TIERS, bonusEffectLabel, listNames } from './adapters';
+import { HARMONY_TIERS, bonusEffectLabel, isHabitatNiche, listNames } from './adapters';
 import { fruitPhrase } from './cycle-view';
 import { formatDuration, formatNumber } from './format';
 
@@ -129,7 +129,7 @@ export function guideSections(): GuideSection[] {
   );
 
   // Lebensräume (DESIGN_V2.md 23, 5.5): Nischen ohne Plätze aus der Stufe, geöffnet durch Pflege.
-  const habitats = NICHES.filter((n) => n.slots.every((x) => x <= 0))
+  const habitats = NICHES.filter((n) => isHabitatNiche(n.id))
     .map((n) => {
       const opener = CARE.find((m) =>
         m.ranks[0]?.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === n.id && e.effect.amount > 0),
@@ -140,6 +140,12 @@ export function guideSections(): GuideSection[] {
   const habitatList = habitats.map(({ niche, opener, at }) =>
     opener ? `${niche.icon} ${niche.name} (Pflege „${opener.name}“ ab „${stageName(at)}“)` : `${niche.icon} ${niche.name}`,
   );
+  // Ereignisse, die einen Lebensraum öffnen – als Beispiel eines der neuen (Käferjahr), sonst der Tümpel.
+  const opensHabitat = (e: (typeof EVENTS)[number], other: boolean) =>
+    e.options.some((o) =>
+      o.effects.some((x) => x.kind === 'cycle' && x.effect.kind === 'slot' && x.effect.amount > 0 && isHabitatNiche(x.effect.niche) && (!other || x.effect.niche !== 'pond')),
+    );
+  const habitatEvent = EVENTS.find((e) => opensHabitat(e, true)) ?? EVENTS.find((e) => opensHabitat(e, false));
   const reptiles = SPECIES.filter((x) => x.genus === 'reptiles');
   const reptileHomes = habitats.filter(({ niche }) => reptiles.some((x) => x.niche === niche.id)).map(({ niche }) => niche.name);
 
@@ -277,7 +283,7 @@ export function guideSections(): GuideSection[] {
       title: 'Ereignisse',
       paragraphs: [
         `Ab „${eventStage}“ kann statt eines Tiers oder einer Pflanze ein Ereignis kommen – ${formatNumber(EVENTS.length)} gibt es: ${listNames(EVENTS.map((e) => e.name), 3)}. Jedes kommt höchstens einmal pro Zyklus.`,
-        `Du wählst eine von ${span(EVENTS.map((e) => e.options.length))} Möglichkeiten, keine ist eine Strafe: Manche Wirkungen (mehr Licht, Wasser, Plätze oder ein Lebensraum wie Totholz) gelten bis zum Neuen Zyklus, Zeit-Boni wie „${timedExample}“ laufen ${span(timedSeconds.map(minutes))} Minuten Spielzeit – auch offline. Die Samen-Option bringt sofort so viele Samen, wie du in ${span(seedSeconds)} Sekunden sammelst, mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰.`,
+        `Du wählst eine von ${span(EVENTS.map((e) => e.options.length))} Möglichkeiten, keine ist eine Strafe: Manche Wirkungen (mehr Licht, Wasser, Plätze oder ein Lebensraum wie Totholz) gelten bis zum Neuen Zyklus${habitatEvent ? ` – manche Lebensräume öffnen auch durch Ereignisse wie „${habitatEvent.name}“, ebenfalls bis zum Neuen Zyklus` : ''}, Zeit-Boni wie „${timedExample}“ laufen ${span(timedSeconds.map(minutes))} Minuten Spielzeit – auch offline. Die Samen-Option bringt sofort so viele Samen, wie du in ${span(seedSeconds)} Sekunden sammelst, mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰.`,
         `Ab „${interludeStage}“ gibt es zwischen zwei Wegpunkten einen Zwischenhalt: Mit ${pct(INTERLUDE_CHANCE)} Wahrscheinlichkeit wartet dort zusätzlich ein Ereignis oder ein Gast, sofern etwas passt.`,
       ],
     },

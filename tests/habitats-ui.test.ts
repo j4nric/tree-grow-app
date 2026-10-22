@@ -174,6 +174,13 @@ describe('Spielanleitung „Lebensräume“', () => {
   });
 });
 
+describe('Spielanleitung „Ereignisse“', () => {
+  it('nennt das Käferjahr als Ereignis, das einen Lebensraum öffnet', () => {
+    const text = guideSections().find((s) => s.id === 'events')!.paragraphs.join(' ');
+    expect(text).toContain('manche Lebensräume öffnen auch durch Ereignisse wie „Käferjahr“, ebenfalls bis zum Neuen Zyklus');
+  });
+});
+
 describe('Lange Namen und Hinweise', () => {
   it('neue lange Namen trennen sauber', () => {
     for (const word of ['Schmetterlingstramete', 'Trockenmauer', 'Totholzhaufen', 'Wiesenkonzert', 'Wildkaninchen']) {
