@@ -182,7 +182,7 @@ describe('Karte der Landschaft: Korridore', () => {
     expect(byId.get('floodplain-carr')!.ends).toBe('Auwald am Fluss – Erlenbruch');
     expect(byId.get('home-heath')!.state).toBe('locked');
     expect(byId.get('home-heath')!.listed).toBe(false);
-    expect(map.corridorHint).toBe('7 weitere Korridore, sobald beide Wälder gegründet sind.');
+    expect(map.corridorHint).toBe('7 weitere Korridore, sobald die Wälder an ihren Enden gegründet sind.');
   });
 
   it('zu teuer: Kosten und Bestand im Text', () => {

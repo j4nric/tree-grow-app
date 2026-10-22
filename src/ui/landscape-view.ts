@@ -108,7 +108,7 @@ export interface LandscapeMapView {
   allowed: boolean;
   sites: LandscapeSiteView[];
   corridors: LandscapeCorridorView[];
-  /** Hinweis unter der Korridor-Liste, z. B. „7 weitere Korridore, sobald beide Wälder gegründet sind.“; sonst null. */
+  /** Hinweis unter der Korridor-Liste, z. B. „7 weitere Korridore, sobald die Wälder an ihren Enden gegründet sind.“; sonst null. */
   corridorHint: string | null;
 }
 
@@ -331,8 +331,8 @@ export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): 
     corridorHint:
       hidden > 0
         ? hidden === 1
-          ? '1 weiterer Korridor, sobald beide Wälder gegründet sind.'
-          : `${formatNumber(hidden)} weitere Korridore, sobald beide Wälder gegründet sind.`
+          ? '1 weiterer Korridor, sobald die Wälder an seinen Enden gegründet sind.'
+          : `${formatNumber(hidden)} weitere Korridore, sobald die Wälder an ihren Enden gegründet sind.`
         : null,
   };
 }

@@ -135,22 +135,30 @@ export function onlyCannibals(entry: Pick<FoodWebEntry, 'prey' | 'hunters'>): bo
   return entry.hunters.length > 0 && entry.hunters.every((h) => entry.prey.includes(h)) && entry.prey.every((p) => entry.hunters.includes(p));
 }
 
+/** Zustand für die Hinweise: wartende Begegnungen optional (ältere Aufrufer, Tests). */
+type HintState = Pick<GameState, 'stage' | 'cycle'> & Partial<Pick<GameState, 'pendingEncounters'>>;
+
 /**
  * Hinweis für ungejagte Beute: Kann ein Massenjahr Jäger einladen (mit Stufe bzw.
- * Jahreszeit), oder ist es in diesem Zyklus schon vorbei? Ungejagt ist nie ein Nachteil.
+ * Jahreszeit), wartet es noch im Stapel, oder ist es in diesem Zyklus schon vorbei?
+ * Ungejagt ist nie ein Nachteil.
  */
-export function unhuntedHint(tag: string, state: Pick<GameState, 'stage' | 'cycle'>): string {
+export function unhuntedHint(tag: string, state: HintState): string {
   const event = massYearFor(tag);
   if (!event) return 'Kein Nachteil – ein Jäger fände hier Futter.';
   if (state.stage < event.minStage) {
     return `Ab „${STAGES[event.minStage]?.name ?? '?'}“ kann ein ${event.name} Jäger einladen.`;
+  }
+  // Gezogen (steht schon in `seen`), aber noch nicht entschieden: Die Wahl ist noch offen.
+  if (state.pendingEncounters?.some((p) => p.type === 'event' && p.cards[0] === event.id)) {
+    return `Das ${event.name} wartet unter deinen Begegnungen – dort kannst du Jäger einladen.`;
   }
   if (state.cycle.seen.includes(event.id)) return `Das ${event.name} war schon – ein Jäger fände hier Futter.`;
   const seasons = eventSeasons(event.id);
   return `Ein ${event.name}${seasons ? ` (${seasons})` : ''} kann Jäger einladen – oder du nimmst es als Geschenk.`;
 }
 
-function rowHint(entry: FoodWebEntry, state: Pick<GameState, 'stage' | 'cycle'>): string {
+function rowHint(entry: FoodWebEntry, state: HintState): string {
   if (entry.state === 'overhunted') return overhuntHint(entry);
   if (entry.state === 'unhunted') return unhuntedHint(entry.tag, state);
   if (entry.hunters.length === 0) return 'Wird klein gehalten, ohne gejagt zu werden.';
@@ -175,7 +183,7 @@ function hunterNames(entry: FoodWebEntry, journal: FoodWebJournal): string {
   );
 }
 
-export function foodWebRow(entry: FoodWebEntry, state: Pick<GameState, 'stage' | 'cycle'>, journal: FoodWebJournal): FoodWebRowView {
+export function foodWebRow(entry: FoodWebEntry, state: HintState, journal: FoodWebJournal): FoodWebRowView {
   return {
     tag: entry.tag,
     icon: preyIcon(entry.tag),
@@ -206,7 +214,7 @@ export function foodWebSummary(entries: readonly Pick<FoodWebEntry, 'state'>[]):
 /** Das Nahrungsnetz der Übersicht: eine Zeile je Beute-Merkmal mit Beute im Wald. */
 export function foodWebView(
   evaluation: Readonly<Pick<Evaluation, 'foodWeb'>>,
-  state: Pick<GameState, 'stage' | 'cycle' | 'meta'>,
+  state: HintState & Pick<GameState, 'meta'>,
 ): FoodWebView {
   const entries = evaluation.foodWeb ?? [];
   return {
@@ -288,7 +296,7 @@ export function detailPredationViews(
   sp: Species,
   status: AnimalStatus | undefined,
   evaluation: Readonly<Pick<Evaluation, 'foodWeb'>>,
-  state: Pick<GameState, 'stage' | 'cycle' | 'meta'>,
+  state: HintState & Pick<GameState, 'meta'>,
 ): DetailPredationView[] {
   const web = evaluation.foodWeb ?? [];
   const journal = state.meta.journal;
