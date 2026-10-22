@@ -86,7 +86,10 @@ export const DAILY_MIN_GOALS = 2;
 /**
  * Planungsfenster der Auswahl (s): Was der Spieler in so viel Spielzeit mit der aktuellen
  * Rate erreicht, gilt als schaffbar (Wegpunkte, Samen für Pflanze und Pflege). Raten
- * zählen dabei nur mit DAILY_RATE_MARGIN (der Winter bremst um 10 %).
+ * zählen dabei nur mit DAILY_RATE_MARGIN. Die Auswahl rechnet ohne Wetter und Nacht
+ * (DESIGN_V2.md 21), damit die Ziele nicht vom Zeitpunkt des Würfelns abhängen; die Marge
+ * deckt den Winter (−10 % 🌿) und einen rauen Tag (gedämpft meist −5 … −10 %) ab – nur der
+ * seltene ungeschützte Wintersturm ohne Tiere (−25 %) liegt knapp darüber.
  */
 export const DAILY_VISIT_SECONDS = 600;
 export const DAILY_RATE_MARGIN = 0.8;

@@ -235,13 +235,14 @@ function weatherShares(season: SeasonId): [WeatherId, number][] {
 
 /**
  * Langfristige Häufigkeit je Wetterlage einer Jahreszeit nach der Regel „nie zwei raue
- * Tage“ (ohne Tag 0 und Schonzeit): p_eff(w) = p(w) × (1 − r_vor) für raue Lagen, r_vor =
+ * Tage“ (nach der Schonzeit): p_eff(w) = p(w) × (1 − r_vor) für raue Lagen, r_vor =
  * Anteil rauer Lagen der Vorjahreszeit. „Wechselhaft“ bekommt den Rest. Summe 1.
+ * `gentle` = Schonzeit (Tage 1 … GENTLE_DAYS − 1): raue Lagen ganz zu „Wechselhaft“.
  */
-export function weatherProbabilities(season: SeasonId): Partial<Record<WeatherId, number>> {
+export function weatherProbabilities(season: SeasonId, gentle = false): Partial<Record<WeatherId, number>> {
   const idx = Math.max(0, SEASON_IDS.indexOf(season));
   const prev = SEASON_IDS[(idx + SEASON_IDS.length - 1) % SEASON_IDS.length]!;
-  const roughPrev = weatherShares(prev).reduce((s, [id, p]) => s + (isRough(id) ? p : 0), 0);
+  const roughPrev = gentle ? 1 : weatherShares(prev).reduce((s, [id, p]) => s + (isRough(id) ? p : 0), 0);
   const out: Partial<Record<WeatherId, number>> = {};
   let sum = 0;
   for (const [id, p] of weatherShares(season)) {
@@ -259,9 +260,10 @@ export function averageWeatherEffectsFor(
   genera: number,
   care: Readonly<Record<string, number>> | undefined,
   mainTree: string | undefined,
+  gentle = false,
 ): TimedEffect[] {
   const out: TimedEffect[] = [];
-  for (const [id, p] of Object.entries(weatherProbabilities(season)) as [WeatherId, number][]) {
+  for (const [id, p] of Object.entries(weatherProbabilities(season, gentle)) as [WeatherId, number][]) {
     if (!(p > 0)) continue;
     const weather = weatherById(id);
     for (const e of dampedWeatherEffects(weather, weatherDampingFor(weather, genera, care, mainTree))) {
@@ -271,9 +273,23 @@ export function averageWeatherEffectsFor(
   return out;
 }
 
-/** Mittelwetter einer Jahreszeit für diesen Spielstand (offline, 21.5). */
-export function averageWeatherEffects(state: Pick<GameState, 'niches' | 'cycle'>, season: SeasonId): TimedEffect[] {
-  return averageWeatherEffectsFor(season, generaWithAnimals(allAnimals(state)).length, state.cycle.care, state.cycle.mainTree);
+/** Mittelwetter einer Jahreszeit für diesen Spielstand (offline, 21.5; `gentle`: Schonzeit). */
+export function averageWeatherEffects(state: Pick<GameState, 'niches' | 'cycle'>, season: SeasonId, gentle = false): TimedEffect[] {
+  return averageWeatherEffectsFor(season, generaWithAnimals(allAnimals(state)).length, state.cycle.care, state.cycle.mainTree, gentle);
+}
+
+/** Mittelwetter: nach der Schonzeit (`average`) bzw. darin, ohne raue Lagen (`gentle-average`). */
+export type AverageWeather = 'average' | 'gentle-average';
+
+/**
+ * Was im Modus „Mittel“ an diesem Tag gilt: Tag 0 sein festes Wetter (FIRST_DAY_WEATHER –
+ * kein Zufall, also exakt), in der übrigen Schonzeit das Mittel ohne raue Lagen, danach das
+ * Mittel nach 21.5. Konstant über den ganzen Tag (der Modus hält nur am Tageswechsel).
+ */
+export function averageWeatherOf(elapsed: number): WeatherId | AverageWeather {
+  const day = dayIndex(elapsed);
+  if (day === 0) return FIRST_DAY_WEATHER;
+  return day < GENTLE_DAYS ? 'gentle-average' : 'average';
 }
 
 // ---------------------------------------------------------------------------
@@ -339,7 +355,7 @@ export function nocturnalSpecies(state: Pick<GameState, 'niches'>, season: Seaso
 
 /** Anteil der Nachtwirkung in einem Modus zur Spielzeit (live: 0 oder 1, Mittel: NIGHT_SHARE). */
 export function nightShare(mode: AmbientMode, elapsed: number): number {
-  if (mode === 'off') return 0;
+  if (mode === 'live') return isNight(elapsed) ? 1 : 0;
   if (mode === 'average') return NIGHT_SHARE;
-  return isNight(elapsed) ? 1 : 0;
+  return 0;
 }

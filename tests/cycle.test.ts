@@ -545,6 +545,17 @@ describe('Stammgäste', () => {
     online.meta.regulars = ['mole', 'woodlouse', 'bee', 'vole'];
     startNewCycle(online, 0);
     const offline = structuredClone(online);
+    // Einzelwetter: kleine Ticks = ein großer Tick (Stammgäste, Wegpunkte, Nacht-Halte).
+    const small = structuredClone(online);
+    const big = structuredClone(online);
+    for (let i = 0; i < 2 * 3600; i++) tick(small, 1);
+    expect(tick(big, 2 * 3600).regulars.length).toBeGreaterThan(0);
+    expect(big.niches).toEqual(small.niches);
+    expect(big.pendingEncounters).toEqual(small.pendingEncounters);
+    expect(big.rngState).toBe(small.rngState);
+    expect(big.meta).toEqual(small.meta);
+    expect(big.totalGrowth).toBeCloseTo(small.totalGrowth, 6);
+    expect(big.seeds).toBeCloseTo(small.seeds, 6);
     // simulateOffline rechnet ab einem Tag mit dem Mittelwetter (DESIGN_V2.md 21.5): online im selben Modus.
     for (let i = 0; i < 2 * 3600; i++) tick(online, 1, 'average');
     const report = simulateOffline(offline, 2 * 3600);

@@ -144,6 +144,21 @@ describe('Ablehnen: überall derselbe Betrag', () => {
   it('online (viele Ticks) = offline (ein Schritt): dieselbe Summe, Rate je Wegpunkt', () => {
     const online = fullStackBeforeWaypoint(grove(77));
     const offline = structuredClone(online);
+    // Einzelwetter: kleine Ticks = ein großer Tick, auch für die abgelehnten Samen.
+    const small = structuredClone(online);
+    const big = structuredClone(online);
+    let smallDeclined = 0;
+    let smallCount = 0;
+    for (let i = 0; i < 3600; i++) {
+      const r = tick(small, 1);
+      smallDeclined += r.declinedSeeds;
+      smallCount += r.autoDeclined;
+    }
+    const bigReport = tick(big, 3600);
+    expect(bigReport.autoDeclined).toBe(smallCount);
+    expect(bigReport.declinedSeeds).toBeCloseTo(smallDeclined, 6);
+    expect(big.seeds).toBeCloseTo(small.seeds, 6);
+    expect(big.rngState).toBe(small.rngState);
     let onlineDeclined = 0;
     let onlineCount = 0;
     for (let i = 0; i < 3600; i++) {
