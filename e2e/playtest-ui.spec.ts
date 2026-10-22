@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { encounter, expect, openGame, openTab, pageTitle, seedV3, settle, stack, test, waypoint } from './fixtures';
+import { encounter, expect, openGame, openTab, pageTitle, seedV3, settle, settledSubpage, stack, test, waypoint } from './fixtures';
 
 /**
  * Funde aus dem Playtest (mobil): wartende Begegnungen bleiben beim Scrollen erreichbar
@@ -36,7 +36,7 @@ for (const width of [360, 390]) {
 
     // Der Stapel blättert zu U:Begegnung um, Esc blättert zurück und gibt den Fokus zurück.
     await stack(page).click();
-    await expect(encounter(page)).toBeVisible();
+    await settledSubpage(page, 'encounter');
     await settle(page);
     await page.keyboard.press('Escape');
     await expect(encounter(page)).toBeHidden();
@@ -96,7 +96,7 @@ test('Letzte Begegnung per Tastatur erledigt: Fokus landet auf der Überschrift 
   await openGame(page);
   await stack(page).focus();
   await page.keyboard.press('Enter');
-  await expect(encounter(page)).toBeVisible();
+  await settledSubpage(page, 'encounter');
   await settle(page);
   await encounter(page).locator('.card-choose').first().click();
   await expect(encounter(page)).toBeHidden();

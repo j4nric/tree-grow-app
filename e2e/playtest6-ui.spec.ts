@@ -6,9 +6,10 @@ import { expect, openGame, seedRaw, settledStamp, stamp, test, waypoint } from '
 /**
  * Funde aus dem Playtest Phase 6 in der Oberfläche. Stapel (K3): Symbol des Ereignisses.
  * Lage der Meldungen (K1, jetzt Stempel und Zettel, docs/ALBUM_UI.md C.5): Sie verdecken
- * weder den Zettelstapel noch die Etiketten. Auf der Doppelseite liegen sie oben über der
- * rechten Seite, mobil oben – unter einer sichtbaren Banderole. Fester Platz statt
- * Ausweichen; Klicks gehen durch (smoke.spec.ts).
+ * weder Zettelstapel, Etiketten, Reiter, Umschlag-Knopf noch Seitentitel. Auf der Doppelseite
+ * liegen sie über dem Fuß der rechten Seite, mobil auf der ungescrollten Hauptansicht oben –
+ * unter einer sichtbaren Banderole. Fester Platz statt Ausweichen; Klicks gehen durch
+ * (smoke.spec.ts).
  */
 
 const GROVE = STAGES.findIndex((s) => s.id === 'grove');
@@ -65,6 +66,9 @@ for (const viewport of [
     await expectFree(box, {
       Stapel: page.locator('[data-ref="encounter-stack"]'),
       Raten: page.locator('.tape-label'),
+      Reiterleiste: page.locator('[data-ref="tabs"]'),
+      'Umschlag-Knopf': page.locator('[data-ref="cover-open"]'),
+      Seitentitel: page.locator('.album-tabpanel:not([hidden]) .page-title'),
     });
     // Ganz zu sehen, ohne Querscrollen.
     expect(box.x).toBeGreaterThanOrEqual(0);
@@ -72,9 +76,15 @@ for (const viewport of [
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
     if (viewport.width > 760) {
-      // Doppelseite: oben im Buch, unter dem Kopf mit Umschlag-Knopf und Zettelstapel.
+      // Doppelseite (seit Schritt 12): über dem Fuß der rechten Seite – waagerecht ganz in
+      // ihr (nicht über Polaroid und Etiketten links, nicht über den Reitern rechts), in
+      // ihrer unteren Hälfte und unter dem Kopf mit Umschlag-Knopf und Zettelstapel.
+      const right = (await page.locator('.spread-right').boundingBox())!;
       const head = (await page.locator('.album-head').boundingBox())!;
       expect(box.y).toBeGreaterThanOrEqual(head.y + head.height - 1);
+      expect(box.x).toBeGreaterThanOrEqual(right.x - 1);
+      expect(box.x + box.width).toBeLessThanOrEqual(right.x + right.width + 1);
+      expect(box.y + box.height / 2).toBeGreaterThan(right.y + right.height / 2);
     }
   });
 }
