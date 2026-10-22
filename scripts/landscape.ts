@@ -98,9 +98,9 @@ function peaks(result: RunResult) {
 
 /**
  * Waldtypen im Vergleich (24.7, wie die Baumarten in 17.4): ein Zyklus bis zum Urwald auf
- * einem frischen Spielstand, in dem der Standort `site` aktiv ist (Eigenheit, Merkmale und
- * seine eigene Gabe; keine weiteren Wälder, keine Korridore), mit festem Waldgedächtnis und
- * dem Leitbaum als Hauptbaum (sonst Eiche). Liefert die Zeit bis zum Urwald (s) und H_max.
+ * einem frischen Spielstand, in dem der Standort `site` aktiv ist (Eigenheit und Merkmale;
+ * alle Wälder gegründet, also überall alle Gaben; keine Korridore), mit festem
+ * Waldgedächtnis und dem Leitbaum als Hauptbaum (sonst Eiche). Liefert die Zeit bis zum Urwald (s) und H_max.
  */
 export function siteRun(
   strategy: Strategy,
@@ -113,7 +113,9 @@ export function siteRun(
   const state = createInitialState(0, seed);
   const tree = mainTree ?? LANDSCAPE_SITES.find((s) => s.id === site)!.leadTree ?? 'oak';
   state.meta.forestMemory = memory;
-  if (site !== HOME_SITE) state.meta.landscape.sites.push(createSite(site, tree));
+  // Alle Wälder gegründet (ruhend, Gedächtnis 0, keine Korridore): überall dieselben Gaben,
+  // der Vergleich misst nur Eigenheit, Merkmale und Leitbaum.
+  for (const s of LANDSCAPE_SITES) if (s.id !== HOME_SITE) state.meta.landscape.sites.push(createSite(s.id));
   state.meta.landscape.active = site;
   const result = runGame(strategy, { seed, targetStage: 7, maxSeconds, care: true, mainTree: tree }, { state, rng: { rngState: normalizeSeed(seed * 7919 + 17) } });
   return { seconds: result.stages[7]?.time ?? null, hain: result.stages[5]?.time ?? null, maxHarmony: state.cycle.maxHarmony };

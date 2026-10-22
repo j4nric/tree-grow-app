@@ -5631,10 +5631,13 @@ Wachstum 0,18 / 0 / 0,15 / 0,05, Zufall 0,33 / 0,15 / 0,25 / 0,12 (vorher 0,14 /
 
 ## 24. Waldlandschaft
 
-> **Stand:** Design (Phase 6, Welle 3, Prestige-Stufe 2). Daten in `src/content/landscape.ts`,
-> noch **nicht verdrahtet**. Inhalte und Rechenregeln in `tests/landscape.test.ts`; Modell auf
-> der echten Logik in `scripts/landscape.ts`, großer Lauf in `tests/landscape-balance.test.ts`
-> (24.10). Spielstand **v14** (v13 = Lebensräume, 23.6). Logik fehlt (24.11).
+> **Stand:** Schritt A umgesetzt (Phase 6, Welle 3, Prestige-Stufe 2): Spielstand **v14**
+> (v13 = Lebensräume, 23.6) mit `meta.landscape`; Daten in `src/content/landscape.ts`, Regeln in
+> `src/core/landscape.ts`, Gründen/Wechseln/Korridore in `src/core/tick.ts`, Laden in
+> `src/core/save.ts` (24.8). Tests `tests/landscape-core.test.ts` (Logik) und
+> `tests/landscape.test.ts` (Inhalte); Simulation auf der echten Logik in `scripts/landscape.ts`,
+> großer Lauf in `tests/landscape-balance.test.ts` (24.10). Offen: Karte (UI), Kulisse,
+> Wildwechsel (Schritt B), Erfolge (24.11).
 > **Kein `break_infinity.js`** – Begründung und Obergrenzen in 24.9.
 
 ### 24.1 Warum eine zweite Ebene – und welche
@@ -5863,9 +5866,29 @@ ebenso die Hähersaat.
 ### 24.7 Waldtypen im Vergleich
 
 Wie bei den Baumarten (17.4) darf kein Waldtyp „der beste“ sein: Ziel ±5 % Zeit bis zum Urwald
-gegenüber dem Heimatwald bei gleichem Gedächtnis. Gemessen mit `siteRun` (frischer Spielstand,
-Gedächtnis 200, Eigenheit, Merkmale und Leitbaum des Standorts, ohne Gaben, mit Pflege;
-80 Durchgänge, Median):
+gegenüber dem Heimatwald bei gleichem Gedächtnis.
+
+**Stand Schritt A (echte Logik):** `siteRun` – frischer Spielstand, Gedächtnis 200, der
+Standort aktiv mit Eigenheit, Merkmalen und Leitbaum; alle Wälder gegründet (ruhend, ohne
+Korridore), also in jedem Vergleich dieselben fünf Gaben; mit Pflege; 80 Durchgänge, Median:
+
+| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | Wachstum: Urwald | gegenüber Heimatwald |
+|---|---|---|---|---|---|
+| 🌳 Heimatwald | Stieleiche | 48:57 min | – | 40:25 min | – |
+| 🌊 Auwald am Fluss | Stieleiche | 49:31 min | +1,1 % | 41:21 min | +2,3 % |
+| 🌫️ Erlenbruch | Stieleiche | 49:31 min | +1,2 % | 40:07 min | −0,7 % |
+| 🍂 Buchenhallen | Rotbuche | 49:57 min | +2,0 % | 41:37 min | +3,0 % |
+| ⛰️ Bergmischwald | Rotbuche | 48:44 min | −0,4 % | 40:31 min | +0,2 % |
+| 🌲 Kiefernheide | Waldkiefer | 48:12 min | −1,5 % | 38:32 min | −4,7 % |
+
+Alle innerhalb ±5 %. Die Kiefernheide liegt für den Wachstums-Spieler knapp an der Grenze
+(−4,7 %; Leitbaum Waldkiefer und +2 ☀️). Mit nur ihrer **eigenen** Gabe statt aller fünf
+(+1 ☀️ dort, aber nicht im Heimatwald) waren es −8,5 % – ein schiefer Vergleich, denn die Gabe
+gilt dann auch im Heimatwald; darum misst `siteRun` jetzt mit allen Gaben. Wird die Heide nach
+Schritt B (Wildwechsel, `featured`) schneller als −5 %, zuerst ihr +2 ☀️ auf +1 senken.
+
+**Entwurf (Modell vor Schritt A):** frischer Spielstand, Gedächtnis 200, Eigenheit, Merkmale
+und Leitbaum des Standorts, ohne Gaben, mit Pflege; 80 Durchgänge, Median:
 
 | Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | Wachstum: Urwald | gegenüber Heimatwald |
 |---|---|---|---|---|---|
@@ -5949,6 +5972,34 @@ interface LandscapeSite {
   Laden ruhende Wälder samt Gedächtnis still verwerfen – auch über die Synchronisierung. Mit v14
   schützt die Versionsprüfung den Stand (wie v11, 12.8).
 
+**Umsetzung (Schritt A)** – Schnittstelle für Oberfläche und Grafik:
+
+- `src/core/landscape.ts` (rein, ohne Zufall): `effectiveForestMemory(state)`,
+  `effectiveMemoryOf(state, site)`, `ownMemory(state, site)`, `jaySeeds(state)` →
+  `{ earned, spent, available }`, `landscapeUnlocked(state)`, `isSiteAncient`, `isSiteFounded`,
+  `corridorBetween(a, b)`, `landscapeTraits(site, gifts)`, `siteHabitats(site)`, `ANCIENT_STAGE`.
+- `formulas.ts`: `ecosystemOf` rechnet mit dem wirksamen Gedächtnis, Merkmalen des Standorts
+  und `Ecosystem.site` / `Ecosystem.gifts`; `environmentEffects(stage, season, tree, site?, gifts?)`
+  und `slotBonuses(state)` zählen Eigenheit und Gaben wie Baum-Eigenheiten; Cache-Schlüssel mit
+  wirksamem Gedächtnis, `|l:<Standort>|g:<Gaben>`. Neu `regularSlotsOf(state)` (Plätze aus dem
+  wirksamen Gedächtnis; `regularSlots(n)` bleibt die reine Formel).
+- `tick.ts`: `previewNewCycle(state).landscape` (`unlocked`, `unlockedAfter`, `jaySeeds`,
+  `jaySeedsAfter`, `sites[]` mit `founded`, `active`, `memory`, `effectiveMemory`, `ancient`,
+  `mainTree` (Vorauswahl), `cost`, `freeCorridor`, `blocker`), `startNewCycle(state, now, tree?,
+  site?)` (Ergebnis zusätzlich `site`, `founded`, `landscapeUnlocked`; Fehler mit Standort:
+  `LandscapeError` = `site-locked`, `not-enough-jay-seeds`, `not-adjacent`,
+  `needs-ancient-forest`), `landscapeCorridors(state)`, `corridorBlocker(state, id)`,
+  `buildCorridor(state, id)` (Fehler zusätzlich `unknown-corridor`, `corridor-built`). Die
+  Fehler stehen bewusst nicht in `ActionError`: Der Aufruf ohne Standort hat denselben Typ wie
+  vorher.
+- `save.ts`: `LoadResult.landscapeUnlocked` – nach der Migration v13 → v14 schon freigeschaltet
+  (Meldung 24.3 einmal).
+- **Abweichungen vom Entwurf:** `fauna` wird schon jetzt beim Verlassen eines Waldes geschrieben
+  (die Tiere des Zyklus, höchstens 40) – Schritt B muss nur noch ziehen. Bleibt ein
+  manipulierter Stand nach dem Verwerfen aller ruhenden Wälder und gekauften Korridore über
+  dem Budget (nur Heimatwald und aktiver Wald übrig), bleibt er so; `available` ist dann 0.
+  Ungültiges eigenes Gedächtnis (NaN, ±Infinity) zählt wie vor v14 als 0.
+
 ### 24.9 Große Zahlen: kein `break_infinity.js`
 
 **Entscheidung: nicht nötig – weder für die Landschaft noch absehbar danach.** CLAUDE.md sieht
@@ -5968,8 +6019,14 @@ Vergleich heute: ~8,4 · 10^3 🌿/s im vollen Urwald, 24.1):
 Die Landschaft hebt die Spitze kaum (+5–15 %, aus den Gaben und Eigenheiten), denn das
 wirksame Gedächtnis endet bei 1000 wie heute.
 
+**Stand Schritt A (echte Logik, 20 Landschaften je Spielweise, Zufall 10):** höchstens
+1,4 · 10^4 🌿/s, 4,9 · 10^3 🌰/s, 1,8 · 10^6 🌰 Bestand, 9,8 · 10^5 Wachstum je Zyklus und
+8,7 · 10^7 über alle Zyklen (24.10). Der Test „voll ausgebaute Landschaft“
+(`tests/landscape-core.test.ts`: alle Gaben, wirksam 1000, Urwald, gierig die wüchsigsten Arten,
+volle Pflege, jede Jahreszeit, jeder Standort) kommt auf ~1,0 · 10^4 🌿/s und prüft < 10^5.
+
 **Warum es nicht wächst:** Alle Faktoren sind begrenzt – Waldgedächtnis ×11 (`MAX_FOREST_MEMORY`
-je Wald, der Zufluss zählt in dieselbe Grenze), Harmonie ×(1 + H/100) mit H gemessen ≤ ~260,
+je Wald, der Zufluss zählt in dieselbe Grenze), Harmonie ×(1 + H/100) mit H gemessen ≤ ~260 (Modell; mit echter Logik und allen Gaben ≤ ~311),
 Gaben additiv (Plätze, Licht, Wasser), Jahreszeit und Wetter ±15 %. Die Wegpunkt-Kurve ist ein
 Polynom (`3,5 · k^3,5`), keine Exponentialfunktion; der Urwald liegt bei 979.776 🌿. Grobe
 obere Schranke für einen voll ausgebauten Wald: < 1e5 🌿/s (gemessen ~1e4). Selbst 1000 Jahre
@@ -6001,27 +6058,59 @@ umgerechnet wird erst beim Gutschreiben in `tick` – so bleibt der Renderer (je
 Decimal-Objekten. Heute nicht umsetzen: Kosten (Abhängigkeit, Rechenzeit, jede Formel und jeder
 Test) ohne Nutzen.
 
-### 24.10 Simulation (Modell auf echter Logik)
+### 24.10 Simulation (echte Logik)
 
-`scripts/landscape.ts` spielt die Landschaft mit dem Simulator (`runGame`): jeder Zyklus ein
-echter Zyklus bis zum Urwald (alle Systeme, mit Pflege). Das Skript verwaltet die Landschaft
-drumherum – eigenes und wirksames Gedächtnis je Wald (`meta.forestMemory` im Zyklus = wirksam,
-beim Neustart = eigenes), Eigenheiten und Gaben (für die Dauer des Zyklus an die Eigenheiten des
-Hauptbaums gehängt – gleiche Typen, also wie im fertigen Spiel), Merkmale über
-`cycle.habitats`. **Nicht im Modell:** Wildwechsel-Karten und `featured`-Gewichte (sie ändern,
-welche Karten kommen, kaum das Tempo; Messung nach der Umsetzung).
+`scripts/landscape.ts` spielt die Landschaft mit dem Simulator (`runGame`) und seit Schritt A
+ganz mit der Logik aus `src/core/`: jeder Zyklus ein echter Zyklus bis zum Urwald (alle
+Systeme, mit Pflege); Gründen, Wechseln und Korridore über `startNewCycle(…, site)` und
+`buildCorridor`, Eigenheiten, Gaben, Merkmale und wirksames Gedächtnis über `evaluate`. Bis
+Schritt A war es ein Modell, das die Landschaft um den Simulator herum nachbaute (Eigenheiten
+an die Baum-Eigenheiten gehängt); die Varianten der Regeln unten stammen aus diesem Modell –
+die Regeln sind jetzt Daten-Konstanten und im Lauf nicht mehr umschaltbar. **Nicht im Lauf:**
+Wildwechsel-Karten und `featured`-Gewichte (Schritt B).
 
 **Spieler-Politik** (vernünftig, nicht optimal): jeder Zyklus bis zum Urwald; danach einen
 neuen Wald gründen, sobald die Hähersaat reicht (Reihenfolge Auwald, Buchenhallen, Kiefernheide,
-Erlenbruch, Bergmischwald – nur neben dem aktiven Wald, sonst zurück in den Heimatwald), dann
-Korridore kaufen, solange es reicht (zuerst die am nächsten Wald), sonst im Wald mit dem
-kleinsten eigenen Gedächtnis weiter. Stammgäste wie `runCycles`.
+Erlenbruch, Bergmischwald – nur neben dem aktiven Wald, sonst zurück in den Heimatwald), sonst
+im Wald mit dem kleinsten eigenen Gedächtnis weiter; nach dem Neustart Korridore kaufen, solange
+es reicht (zuerst die am aktiven Wald). Stammgäste wie `runCycles`.
 
 ```bash
-SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.test.ts --silent=false   # ~25 min
+SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.test.ts -t Spielweisen --silent=false   # ~9 min
+SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Waldtypen --silent=false                        # ~2 min
 ```
 
-**Varianten der Regeln** (Harmonie-Spieler, 20 Durchgänge, Median, kumulierte Spielzeit;
+**Stand Schritt A** (echte Logik; Harmonie und Wachstum 20, Zufall 10 Durchgänge; Median,
+kumulierte Spielzeit; „Ernte“ = Zyklen mit wirksamem Gedächtnis 1000):
+
+| Spielweise | Freischaltung | 2. Wald | 3. | 4. | 5. | 6. Wald | Landschaft vollständig | alle Wälder voll | Zyklen | davon Ernte |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Harmonie | 4,5 h | 4,5 h | 6,4 h | 9,0 h | 10,9 h | 13,0 h | **13,9 h** | **16,4 h** | 66 | 30 (3,1 h) |
+| Wachstum | 4,4 h | 4,4 h | 5,6 h | 8,3 h | 10,3 h | 12,3 h | **13,3 h** | **15,4 h** | 72 | 34 (3,0 h) |
+| Zufall | 16,8 h | 16,8 h | 22,8 h | 29,1 h | 33,5 h | 37,3 h | 38,9 h | 43,5 h | 86 | 34 (5,4 h) |
+
+| Spielweise | erster Urwald: Heimatwald | 2. Wald | 3. | 4. | 5. | 6. Wald | 🌿/s max |
+|---|---|---|---|---|---|---|---|
+| Harmonie | 2:34:57 h | 57 min | 56 min | 35 min | 29 min | 20 min | 1,4 · 10^4 |
+| Wachstum | 2:13:43 h | 44 min | 60 min | 31 min | 22 min | 16 min | 1,4 · 10^4 |
+| Zufall | 4:11:28 h | 1:36:54 h | 1:46:45 h | 56 min | 49 min | 37 min | 1,1 · 10^4 |
+
+Höchste Harmonie je Wald (Median über die Läufe): Harmonie-Spieler 310–311 in jedem Wald,
+Wachstums-Spieler 288–300, Zufall 263–275.
+
+- **Gegenüber dem Modell** ist alles etwas schneller (vollständig 13,9 statt 16,4 h, alle voll
+  16,4 statt 19,8 h), vor allem, weil der Heimatwald seit den Lebensräumen (23) schneller zum
+  Urwald kommt (2:35 statt 2:48 h) und die Gaben jetzt in allen Wäldern wirken. Ziele (a) und
+  (b) halten: 2. Wald 0,37 × Heimatwald, danach nie über 1,1 × des vorigen (Harmonie);
+  vollständig nach 13,9 h (Ziel 12–30 h).
+- **Harmonie gegen Wachstum:** Der Wachstums-Spieler ist über die ganze Landschaft **5,1 %**
+  schneller vollständig (13,3 gegen 13,9 h) und **6,5 %** schneller „alle voll“ (15,4 gegen
+  16,4 h) – weniger als im Modell (~8 %) und unter der Schwelle von 10 %, ab der ein
+  Harmonie-Hebel kommen sollte (24.13: nicht umgesetzt, Option bleibt).
+- Beim Wachstums-Spieler liegt der 3. Wald über dem 2. (60 gegen 44 min, 1,4 ×): Er wird oft
+  vom Auwald aus gegründet (Ring, ein junger Nachbar) – wie im Modell beim Harmonie-Spieler.
+
+**Varianten der Regeln** (Modell vor Schritt A) (Harmonie-Spieler, 20 Durchgänge, Median, kumulierte Spielzeit;
 „Ernte“ = Zyklen mit wirksamem Gedächtnis 1000, also volles Tempo):
 
 | Variante | Freischaltung | 2. Wald | 3. | 4. | 5. | 6. Wald | Landschaft vollständig | alle Wälder voll | Zyklen | davon Ernte |
@@ -6033,7 +6122,7 @@ SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.tes
 | E: Zufluss 0,5, kein Deckel | 4,9 h | 4,9 h | 7,0 h | 9,9 h | 12,2 h | 15,4 h | 16,4 h | 19,5 h | 72 | 40 (5,2 h) |
 | F: wie D, ohne Eigenheiten und Gaben | 4,9 h | 4,9 h | 7,1 h | 10,0 h | 12,7 h | 15,7 h | 16,9 h | 20,4 h | 72 | 35,5 (4,9 h) |
 
-**Erster Zyklus bis zum Urwald je Wald** (in Gründungs-Reihenfolge, Median):
+**Erster Zyklus bis zum Urwald je Wald** (Modell vor Schritt A; in Gründungs-Reihenfolge, Median):
 
 | Variante | Heimatwald | 2. Wald | 3. | 4. | 5. | 6. Wald |
 |---|---|---|---|---|---|---|
@@ -6044,7 +6133,7 @@ SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.tes
 | E: Zufluss 0,5, kein Deckel | 2:47:51 h | 59 min | 1:02:33 h | 38 min | 32 min | 21 min |
 | F: wie D, ohne Eigenheiten und Gaben | 2:47:51 h | 59 min | 1:03:41 h | 42 min | 32 min | 24 min |
 
-**Spielweisen** (Regeln D; Zufall 10 Durchgänge):
+**Spielweisen** (Modell vor Schritt A, Regeln D; Zufall 10 Durchgänge):
 
 | Spielweise | Freischaltung | 2. Wald | 3. | 4. | 5. | 6. Wald | Landschaft vollständig | alle Wälder voll | Zyklen |
 |---|---|---|---|---|---|---|---|---|---|
@@ -6058,7 +6147,7 @@ SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.tes
 | Wachstum | 2:17:38 h | 48 min | 1:02:19 h | 29 min | 23 min | 18 min | 1,2 · 10^4 |
 | Zufall | 4:32:28 h | 1:43:51 h | 2:10:20 h | 1:06:39 h | 53 min | 43 min | 7,0 · 10^3 |
 
-**Bewertung**
+**Bewertung** (Entwurf, Zahlen aus dem Modell; Stand Schritt A oben)
 
 - **Lange Motivation ohne Wand:** Heute ist nach ~7,5 h alles erreicht (24.1). Mit der
   Landschaft gibt es für den Harmonie-Spieler bis ~16 h neue Wälder und Korridore und bis
@@ -6086,11 +6175,11 @@ SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.tes
 
 | # | Agent | Aufgabe | abhängig von |
 |---|---|---|---|
-| 1 | `core-engineer` | **Schritt A (v14):** `LandscapeState` in `state.ts`, `SAVE_VERSION` 14, Migration v13 → v14 und robustes Laden (24.8) mit Tests (jede Version v2 … v13 lädt; manipulierte Kosten). `formulas.ts`: `effectiveForestMemory(state)` (ersetzt `meta.forestMemory` in `ecosystemOf` und `regularSlots`; Cache-Schlüssel), `jaySeeds(state)` → `{ earned, spent, available }`, `landscapeUnlocked(state)`; Eigenheiten und Gaben des Standorts in `environmentEffects` und `slotBonuses` (an derselben Stelle wie die Baum-Eigenheiten, Cache `\|l:${site}\|g:${Gaben}`), Merkmale wie `cycle.habitats`. `tick.ts`: `previewNewCycle` mit `landscape` (wählbare Wälder, gründbare mit Kosten bzw. Sperrgrund), `startNewCycle(state, now, tree?, site?)` (Wechsel/Gründung in der Reihenfolge von 24.5; Fehler `site-locked`, `not-enough-jay-seeds`, `not-adjacent`, `needs-ancient-forest` – bei Fehlern ändert sich nichts), `buildCorridor(state, id)`. Tests: Rechenregeln aus `tests/landscape.test.ts` übernehmen, Wechsel hin und zurück erhält Gedächtnis und Stammgäste, online = offline, Obergrenze 🌿/s (24.9) | Lebensräume v13 gemergt (nie zwei Versionen parallel) |
+| 1 ✅ | `core-engineer` | **Schritt A (v14)** – umgesetzt, Schnittstelle 24.8: `LandscapeState` in `state.ts`, `SAVE_VERSION` 14, Migration v13 → v14 und robustes Laden (24.8) mit Tests (jede Version v2 … v13 lädt; manipulierte Kosten). `formulas.ts`: `effectiveForestMemory(state)` (ersetzt `meta.forestMemory` in `ecosystemOf` und `regularSlots`; Cache-Schlüssel), `jaySeeds(state)` → `{ earned, spent, available }`, `landscapeUnlocked(state)`; Eigenheiten und Gaben des Standorts in `environmentEffects` und `slotBonuses` (an derselben Stelle wie die Baum-Eigenheiten, Cache `\|l:${site}\|g:${Gaben}`), Merkmale wie `cycle.habitats`. `tick.ts`: `previewNewCycle` mit `landscape` (wählbare Wälder, gründbare mit Kosten bzw. Sperrgrund), `startNewCycle(state, now, tree?, site?)` (Wechsel/Gründung in der Reihenfolge von 24.5; Fehler `site-locked`, `not-enough-jay-seeds`, `not-adjacent`, `needs-ancient-forest` – bei Fehlern ändert sich nichts), `buildCorridor(state, id)`. Tests: Rechenregeln aus `tests/landscape.test.ts` übernehmen, Wechsel hin und zurück erhält Gedächtnis und Stammgäste, online = offline, Obergrenze 🌿/s (24.9) | Lebensräume v13 gemergt (nie zwei Versionen parallel) |
 | 2 | `ui-dev` | Karte der Landschaft im Bereich „Neuer Zyklus“ (DOM/SVG, kein Canvas: Knöpfe, Tastatur, Screenreader): Standorte mit Symbol, Name, eigenem/wirksamem Gedächtnis, Eigenheit und Gabe im Tooltip; gesperrte Standorte mit Kosten bzw. Grund („Nur aus dem Urwald“, „Liegt nicht neben …“); Korridore als Linien mit Kaufknopf; Hähersaat-Anzeige („🪶 5 – nach diesem Zyklus 6“); Meldung der Freischaltung; Naturtagebuch-Reiter „Landschaft“; Spielanleitung „Waldlandschaft“; mobil 360/390 px ohne Querscrollen | 1 |
 | 3 | `renderer` | `SceneInput.site`: Kulisse je Waldtyp im Mittel- und Hintergrund (Auwald: Fluss mit Weiden; Erlenbruch: Wasserflächen zwischen Bulten, Nebelbänder; Buchenhallen: graue Säulenstämme, kaum Unterwuchs; Bergmischwald: Berge und Tannen-Silhouetten, im Winter mehr Schnee; Kiefernheide: Sand, lila Heidekraut, Kiefern) – je Standort eine gecachte Ebene, Neuaufbau nur beim Wechsel. Übergang bei der Gründung: ein Eichelhäher fliegt mit einer Eichel durchs Bild (≤ 3 s, bei „Weniger Bewegung“ nur Überblendung). Demo `?site=…`, Anker-Tests wie 23.8 | 1 (Grafik kann mit festem `site` früher beginnen) |
 | 4 | `core-engineer` | **Schritt B (ohne neue Version):** Wildwechsel-Karten und `featured`-Gewichte beim Ziehen der Tierkarten (24.6), `fauna` beim Verlassen eines Waldes schreiben; Tests (Chance, Regeln, Determinismus online = offline) | 1 |
-| 5 | `game-designer` | Erfolge der Landschaft als Daten (24.12); nach 1 und 4 `scripts/landscape.ts` auf die echte Logik umstellen (Eigenheiten nicht mehr an den Baum hängen), großer Lauf, 24.7/24.10 nachtragen, Wildwechsel messen (Vielfalt 7.7) | 1, 4 |
+| 5 | `game-designer` | Erfolge der Landschaft als Daten (24.12); nach 4 großer Lauf (`scripts/landscape.ts` läuft seit Schritt A auf der echten Logik), 24.7/24.10 nachtragen, Wildwechsel messen (Vielfalt 7.7) | 1, 4 |
 | 6 | `core-engineer` | Bedingungsarten `forests`, `corridors`, `ancientForests` in `core/achievements.ts`; Nachtrag beim Laden wie 12.6 | 5 |
 | 7 | `qa-tester` | e2e: Spielstand mit 250 Gedächtnis im Urwald → Freischaltung → Auwald gründen → Neuladen → Wechsel zurück → Gedächtnis und Stammgäste wie vorher; Sync zweier Geräte mit v14 | 2, 3 |
 
@@ -6141,12 +6230,14 @@ Texte ohne Spoiler (keine Standort-Namen). Neue Bedingungen `{ kind: 'forests' |
   als Gewichts-Faktoren je Standort (Daten), sobald das Wetter in core/ ist.
 - **Waldtyp und Lebensräume (23):** z. B. Kiefernheide +1 Platz Trockenmauer, Auwald +1 Platz
   Waldwiese (Auenwiese). Erst nach v13 messen.
-- **Harmonie-Hebel in der Landschaft:** Der Wachstums-Spieler ist ~8 % schneller fertig
-  (24.10). Möglich: +1 🪶 je Wald, dessen höchste Harmonie einmal eine hohe Schwelle (etwa
-  200 – der Harmonie-Spieler liegt in späten Urwald-Zyklen bei ~230, im ersten Zyklus eines
-  Waldes beide Spielweisen bei ~160–190, 24.7) erreicht hat – das hieße ein Feld
-  „beste Harmonie“ je Wald. Erst messen, wenn die Landschaft in core/ ist; Ziel wie bei den
-  Zyklen „gleichauf“.
+- **Harmonie-Hebel in der Landschaft – gemessen, nicht umgesetzt (Option):** Mit der echten
+  Logik ist der Wachstums-Spieler über die ganze Landschaft nur 5,1 % (vollständig) bzw.
+  6,5 % (alle voll) schneller (24.10) – unter der vereinbarten Schwelle von 10 %. Bleibt als
+  Option, falls Schritt B oder spätere Inhalte den Abstand vergrößern: +1 🪶 je Wald, dessen
+  höchste Harmonie einmal eine hohe Schwelle erreicht hat (Feld `bestHarmony` je Wald, neue
+  Spielstand-Version). Achtung bei der Schwelle: Gemessen erreichen beide Spielweisen im
+  Lauf der Landschaft in jedem Wald 288–311 (Harmonie 310–311, Wachstum 288–300) – eine
+  Schwelle um 200 träfe beide; sie müsste bei ~305 liegen und wäre damit sehr knapp.
 - **Nach der Landschaft:** Im Modell ist alles nach ~20 h (Harmonie) bzw. ~50 h (Zufall)
   erreicht. Eine dritte Ebene sollte wieder in die Breite gehen (z. B. wechselnde
   Klima-Epochen als Herausforderungen mit Andenken), nicht in die Höhe.
