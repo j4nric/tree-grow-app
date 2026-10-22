@@ -50,19 +50,20 @@ jobs:
       - if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --prefix server --no-audit --no-fund
       - run: npm run check
-      # TEMP-MESSUNG: Dauern als Annotationen (Logs sind von außen nicht lesbar).
+      # TEMP-MESSUNG: Vergleich auf demselben Runner, Ergebnisse als Annotationen.
       - run: |
-          echo "::notice::nproc=$(nproc) parallel=$(node -p 'require("os").availableParallelism()')"
-          npx vitest run --reporter=json --outputFile=vt.json > /dev/null 2>&1 || true
-          node -e '
-            const r = require("./vt.json");
-            const f = r.testResults.map((t) => [Math.round(t.endTime - t.startTime), t.name.replace(process.cwd() + "/", "")]).sort((a, b) => b[0] - a[0]);
-            const t0 = Math.min(...r.testResults.map((t) => t.startTime)), t1 = Math.max(...r.testResults.map((t) => t.endTime));
-            console.log(`::notice::wall=${Math.round(t1 - t0)} sum=${f.reduce((s, x) => s + x[0], 0)} files=${f.length}`);
-            console.log(`::notice::top ${f.slice(0, 14).map((x) => x[1].split("/").pop() + "=" + x[0]).join(" ")}`);
-            const s = r.testResults.map((t) => [Math.round(t.startTime - t0), Math.round(t.endTime - t0), t.name.split("/").pop()]).sort((a, b) => a[0] - b[0]);
-            console.log(`::notice::start ${s.filter((x) => /sync|security/.test(x[2])).map((x) => x[2] + "@" + x[0] + "-" + x[1]).join(" ")}`);
-          '
+          m() { rm -rf node_modules/.vite/vitest; s=$(date +%s.%N); "${@:2}" > out.txt 2>&1; rc=$?; e=$(date +%s.%N); echo "::notice::$1 rc=$rc wall=$(echo "$e - $s" | bc) $(grep -E 'Duration' out.txt | tail -1)"; }
+          m tsc npm run typecheck
+          m branch-default-1 npx vitest run
+          m branch-w4 npx vitest run --maxWorkers=4
+          m branch-threads npx vitest run --pool=threads
+          m branch-default-2 npx vitest run
+          git fetch -q --depth=1 origin main
+          git checkout FETCH_HEAD -- tests vite.config.ts
+          rm -f tests/sync-harness.ts tests/sync-same4-*.test.ts
+          m main-default-1 npx vitest run
+          m main-w4 npx vitest run --maxWorkers=4
+          m main-default-2 npx vitest run
       - run: npm run typecheck --prefix server
       - run: npm run build
 
