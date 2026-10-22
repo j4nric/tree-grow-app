@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/ci-tempo] # TEMP-MESSUNG
   pull_request:
 
 # Ein neuer Push auf denselben PR bricht den veralteten Lauf ab (spart Runner, keine Warteschlange).
