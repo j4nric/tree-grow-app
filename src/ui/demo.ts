@@ -78,7 +78,7 @@ function ecosystem(t: number): EcosystemView {
       emptyText: '',
       rows: [
         { tag: 'raupen', icon: '🐛', name: 'Raupen', state: 'balanced', stateLabel: 'im Gleichgewicht', stateIcon: '✓', stock: { level: 'high', label: 'reichlich' }, prey: 'Eichenwickler', hunters: 'Blaumeise', hunterCount: 1, controllers: '', hint: 'Die Jäger werden satt, die Beute bleibt gelassen.' },
-        { tag: 'kaefer', icon: '🪲', name: 'Käfer', state: 'overhunted', stateLabel: 'überjagt', stateIcon: '👀', stock: { level: 'low', label: 'knapp' }, prey: 'Borkenkäfer', hunters: 'Buntspecht und Schwarzspecht', hunterCount: 2, controllers: '', hint: 'Mehr Jäger als Futter – zufriedenere Beute oder eine weitere Art mit Käfer hilft.' },
+        { tag: 'kaefer', icon: '🪲', name: 'Käfer', state: 'overhunted', stateLabel: 'überjagt', stateIcon: '👀', stock: { level: 'low', label: 'knapp' }, prey: 'Borkenkäfer', hunters: 'Buntspecht und Schwarzspecht', hunterCount: 2, controllers: '', hint: 'Mehr Jäger als Futter – zufriedenere Beute oder eine weitere Art, die Käfer bietet, hilft.' },
         { tag: 'wuermer', icon: '🪱', name: 'Würmer', state: 'unhunted', stateLabel: 'ungejagt', stateIcon: '○', stock: { level: 'good', label: 'gut' }, prey: 'Regenwurm', hunters: '', hunterCount: 0, controllers: '', hint: 'Kein Nachteil – ein Jäger fände hier Futter.' },
       ],
     },
