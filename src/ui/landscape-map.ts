@@ -8,7 +8,8 @@
  * View-Model in landscape-view.ts.
  */
 import type { SiteId } from '../content/landscape';
-import { el, setAttr, setText } from './dom';
+import { isDeliberateConfirm } from './confirm';
+import { el, setAttr, setText, srOnly } from './dom';
 import { formatNumber } from './format';
 import { hyphenate } from './hyphenate';
 import type { LandscapeCorridorView, LandscapeMapView, LandscapeSiteView } from './landscape-view';
@@ -30,10 +31,12 @@ export interface LandscapeMap {
   target(): SiteId | null;
   /** Auswahl auf den aktiven Wald zurücksetzen (nach dem Neuen Zyklus, Import). */
   reset(): void;
+  /** Offene Bestätigung eines Korridor-Kaufs zurücknehmen. */
+  disarm(): void;
 }
 
 /** Lage auf der Karte in Prozent (Rand frei für die Beschriftung). */
-const left = (x: number) => 8 + x * 84;
+const left = (x: number) => 5 + x * 90;
 const top = (y: number) => 9 + y * 80;
 
 interface SiteNode {
@@ -41,7 +44,12 @@ interface SiteNode {
   icon: HTMLElement;
   name: HTMLElement;
   status: HTMLElement;
+  /** Zusatz nur für Screenreader: „Angaben gezeigt“, „Ziel des nächsten Zyklus“. */
+  state: HTMLElement;
 }
+
+/** So lange bleibt ein Kaufknopf nach dem ersten Klick scharf (wie „Neuer Zyklus“). */
+const BUILD_CONFIRM_MS = 4000;
 
 interface CorridorNode {
   line: SVGLineElement;
@@ -75,7 +83,10 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
   const detail = el('div', 'landscape-detail');
   detail.dataset.ref = 'site-detail';
   detail.id = 'landscape-detail';
-  detail.setAttribute('aria-live', 'polite');
+  // Ansage nur bei Auswahländerungen (der Detailbereich selbst ändert sich laufend).
+  const live = srOnly();
+  live.dataset.ref = 'landscape-live';
+  live.setAttribute('aria-live', 'polite');
   const dTitle = el('h4', 'landscape-detail-title');
   const dType = el('p', 'landscape-detail-type');
   const dText = el('p', 'landscape-detail-text');
@@ -98,7 +109,7 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
   corridorList.dataset.ref = 'corridors';
   const corridorHint = el('p', 'hint landscape-corridor-hint');
 
-  root.append(heading, question, seeds, map, target, detail, corridorTitle, corridorList, corridorHint);
+  root.append(heading, question, seeds, map, target, detail, corridorTitle, corridorList, corridorHint, live);
 
   const siteNodes = new Map<SiteId, SiteNode>();
   const corridorNodes = new Map<string, CorridorNode>();
@@ -118,10 +129,11 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
     icon.setAttribute('aria-hidden', 'true');
     const name = el('span', 'landscape-site-name');
     const status = el('span', 'landscape-site-status');
-    button.append(icon, name, status);
+    const state = srOnly();
+    button.append(icon, name, status, state);
     button.addEventListener('click', () => select(site.id));
     map.append(button);
-    const node = { button, icon, name, status };
+    const node = { button, icon, name, status, state };
     siteNodes.set(site.id, node);
     return node;
   }
@@ -149,13 +161,57 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
     build.type = 'button';
     build.dataset.build = c.id;
     build.setAttribute('aria-describedby', note.id);
-    build.addEventListener('click', () => callbacks.onBuildCorridor(c.id));
+    build.addEventListener('click', (event) => {
+      // Hähersaat ist knapp und der Bau dauerhaft: zweiter Klick bestätigt.
+      if (armed !== c.id) {
+        if (event.detail > 1) return;
+        disarmBuild();
+        armed = c.id;
+        armedAt = performance.now();
+        armTimer = setTimeout(() => {
+          disarmBuild();
+          refreshBuildButtons();
+        }, BUILD_CONFIRM_MS);
+        refreshBuildButtons();
+        return;
+      }
+      if (!isDeliberateConfirm(event, armedAt, performance.now())) return;
+      disarmBuild();
+      refreshBuildButtons();
+      callbacks.onBuildCorridor(c.id);
+    });
     row.append(icon, text, build);
     row.title = c.text;
     corridorList.append(row);
     const node = { line, row, name, ends, note, build };
     corridorNodes.set(c.id, node);
     return node;
+  }
+
+  /** Scharfgeschalteter Kaufknopf (Korridor-ID) – der zweite Klick baut. */
+  let armed: string | null = null;
+  let armedAt = 0;
+  let armTimer: ReturnType<typeof setTimeout> | undefined;
+  function disarmBuild(): void {
+    clearTimeout(armTimer);
+    armTimer = undefined;
+    armed = null;
+  }
+
+  /** Beschriftung der Kaufknöpfe (scharf: „Wirklich bauen?“). */
+  function refreshBuildButtons(): void {
+    for (const c of view?.corridors ?? []) {
+      const node = corridorNodes.get(c.id);
+      if (!node) continue;
+      const isArmed = armed === c.id;
+      node.build.classList.toggle('armed', isArmed);
+      setText(node.build, isArmed ? 'Wirklich bauen? Erneut klicken' : `Bauen · ${formatNumber(c.cost)} 🪶`);
+      setAttr(
+        node.build,
+        'aria-label',
+        isArmed ? `${c.name} wirklich bauen? Zum Bestätigen erneut klicken` : `${c.name} bauen, ${formatNumber(c.cost)} Hähersaat`,
+      );
+    }
   }
 
   const siteOf = (id: SiteId | null) => view?.sites.find((s) => s.id === id);
@@ -174,6 +230,12 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
     if (site && site.action !== null && view?.allowed) chosen = id;
     render();
     const after = currentTarget();
+    if (site) {
+      const what = after === id && view?.allowed ? 'Ziel des nächsten Zyklus.' : (site.blocker ?? '');
+      // Leeren und neu setzen: dieselbe Ansage auch beim zweiten Klick.
+      live.textContent = '';
+      live.textContent = `${site.name}: ${what}`.trim();
+    }
     if (after && after !== before) callbacks.onTargetChange(after);
   }
 
@@ -192,7 +254,8 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
       node.button.classList.toggle('choosable', s.action !== null && !s.active);
       node.button.classList.toggle('target', s.id === tgt && view.allowed);
       node.button.classList.toggle('shown', s.id === shown.id);
-      setAttr(node.button, 'aria-pressed', String(s.id === shown.id));
+      const isTarget = s.id === tgt && view.allowed && !s.active;
+      setText(node.state, [s.id === shown.id ? ', Angaben unten' : '', isTarget ? ', Ziel des nächsten Zyklus' : ''].join(''));
       if (s.active) setAttr(node.button, 'aria-current', 'location');
       else node.button.removeAttribute('aria-current');
     }
@@ -235,9 +298,9 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
       setText(node.note, c.state === 'buildable' ? c.text : c.note);
       node.build.hidden = c.state === 'built';
       node.build.disabled = c.state !== 'buildable';
-      setText(node.build, `Bauen · ${formatNumber(c.cost)} 🪶`);
-      setAttr(node.build, 'aria-label', `${c.name} bauen, ${formatNumber(c.cost)} Hähersaat`);
+      if (armed === c.id && c.state !== 'buildable') disarmBuild();
     }
+    refreshBuildButtons();
     corridorHint.hidden = next.corridorHint === null;
     setText(corridorHint, next.corridorHint ?? '');
     render();
@@ -252,7 +315,14 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
     reset() {
       chosen = null;
       selected = null;
+      disarmBuild();
+      refreshBuildButtons();
       render();
+    },
+    disarm() {
+      if (armed === null) return;
+      disarmBuild();
+      refreshBuildButtons();
     },
   };
 }

@@ -3617,7 +3617,7 @@ body[data-motion='reduce'] .slot.arrive {
 .landscape-map {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 0.92;
+  aspect-ratio: 1 / 1;
   min-height: 300px;
   margin: 4px 0;
   border: 1px solid var(--border);
@@ -3667,7 +3667,7 @@ body[data-motion='reduce'] .slot.arrive {
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  width: 100px;
+  width: 94px;
   min-height: 64px;
   padding: 4px 3px;
   border: 2px dashed #a9a387;
@@ -3862,6 +3862,13 @@ body[data-motion='reduce'] .slot.arrive {
   background: #eef6e6;
 }
 
+.landscape-build.armed {
+  border-color: #a3341f;
+  background: #fbeee9;
+  color: #a3341f;
+  white-space: normal;
+}
+
 .landscape-build:disabled {
   border-color: var(--border);
   color: var(--muted);
@@ -3874,7 +3881,7 @@ body[data-motion='reduce'] .slot.arrive {
 
 @media (max-width: 400px) {
   .landscape-site {
-    width: 92px;
+    width: 88px;
   }
 
   .landscape-site-name {

@@ -265,5 +265,13 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
     }
   }
 
-  return { update, focus: () => title.focus({ preventScroll: false }), element: section, disarm };
+  return {
+    update,
+    focus: () => title.focus({ preventScroll: false }),
+    element: section,
+    disarm: () => {
+      disarm();
+      map.disarm();
+    },
+  };
 }

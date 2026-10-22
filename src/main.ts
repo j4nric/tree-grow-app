@@ -86,7 +86,7 @@ import { seasonWeatherChangeText, toWeatherBadgeView } from './ui/weather-view';
 import type { MainTreeId } from './content/trees';
 import type { SiteId } from './content/landscape';
 import { LANDSCAPE_UNLOCK_TEXT, corridorBuiltText, landscapeErrorText, siteChangeText } from './ui/landscape-view';
-import { activeSite, landscapeAnnouncementDue } from './core/landscape';
+import { activeSite, landscapeAnnouncementDue, landscapeUnlocked } from './core/landscape';
 import type { EcosystemView } from './ui/view-model';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from './sync/config';
 import type { AccountController } from './sync/account';
@@ -383,8 +383,7 @@ const cyclePanel = createCyclePanel(document.querySelector<HTMLElement>('#cycle'
       notify(landscapeErrorText(result.error));
       return;
     }
-    act(result, false);
-    notify(corridorBuiltText(id));
+    act(result, false, undefined, corridorBuiltText(id));
   },
   onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
 });
@@ -464,7 +463,8 @@ function openJournal(): void {
  * (Toast bzw. im offenen Dialog), damit sich nichts gegenseitig verdrängt.
  * `resolves`: Die Begegnung an der Spitze ist bei Erfolg erledigt.
  */
-function act(result: ActionResult, resolves: boolean, type?: PendingEncounterType): boolean {
+/** `lead`: eigener Hinweis der Aktion (z. B. Korridor gebaut), vor den übrigen im selben Text. */
+function act(result: ActionResult, resolves: boolean, type?: PendingEncounterType, lead = ''): boolean {
   let unlocked: string[] = [];
   let dailyText = '';
   if (result.ok) {
@@ -487,7 +487,7 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
   }
   if (unlocked.length > 0) sound.cue('achievement');
   const regulars = result.regulars && result.regulars.length > 0 ? regularsArrivedText(result.regulars) : '';
-  const text = joinNotes(discoveryText(result.discovered), regulars, achievementUnlockedText(unlocked), dailyText);
+  const text = joinNotes(lead, discoveryText(result.discovered), regulars, achievementUnlockedText(unlocked), dailyText);
   if (text) notify(text);
   return true;
 }
@@ -701,10 +701,14 @@ function refreshPanel(now: number): void {
     const cycleView = toCyclePanelView(state);
     cyclePanel.update(cycleView);
     // Spielanleitung: Abschnitt „Waldlandschaft“ erst mit der Karte vollständig (Spoiler).
-    help?.setLandscapeUnlocked(cycleView.landscape !== null);
-    // Sonst nirgends gemeldet (z. B. nach einem Import): hier nachholen.
+    help?.setLandscapeUnlocked(landscapeUnlocked(state));
+    // Sonst nirgends gemeldet (z. B. nach einem Import): hier nachholen – an einen sichtbaren
+    // Toast angehängt, damit er nicht verdrängt wird.
     const announcement = takeLandscapeAnnouncement();
-    if (announcement) notify(announcement);
+    if (announcement) {
+      if (!toast.hidden && toast.textContent) showToast(joinNotes(toast.textContent, announcement));
+      else notify(announcement);
+    }
     const ev = evaluate(state);
     if (journal.open) journal.update(toJournalView(state, ev));
     scene.forestMemory = state.meta.forestMemory;
@@ -1212,6 +1216,8 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
     ecoDirty = true;
   }
   extraNotice = joinNotes(extraNotice, achievementsBackfilledText(achievementsBackfilled, unlocked));
+  // Landschaft freigeschaltet (beim Laden oder offline erreicht, 24.3): im selben Hinweis.
+  extraNotice = joinNotes(extraNotice, takeLandscapeAnnouncement());
   // Tagesziele: Tageswechsel und nur Ziele, die offline zählen dürfen (Zustände des Waldes).
   extraNotice = joinNotes(extraNotice, runDaily({ offline: true }));
   dailySeconds = 0;
@@ -1268,8 +1274,7 @@ function start(): void {
     // aktuellen Format speichern, damit der Hinweis nur einmal kommt.
     persist();
   }
-  // Meldung zur Freischaltung der Landschaft (24.3) auch beim Laden – im selben Hinweis.
-  catchUp(joinNotes(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', takeLandscapeAnnouncement()), backfilled);
+  catchUp(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
 
   resetButton.addEventListener('click', onReset);
   if (storedNewer) freezeForNewerSave();

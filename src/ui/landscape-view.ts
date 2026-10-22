@@ -7,13 +7,14 @@
  */
 import {
   CORRIDORS_BY_ID,
+  JAY_SEEDS_FIRST_ANCIENT,
   LANDSCAPE_SITES_BY_ID,
   type CorridorKind,
   type SiteId,
 } from '../content/landscape';
 import { STAGES } from '../content/stages';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
-import { activeSite, effectiveForestMemory, ownMemory } from '../core/landscape';
+import { ANCIENT_STAGE, activeSite, effectiveForestMemory, ownMemory } from '../core/landscape';
 import type { GameState } from '../core/state';
 import {
   landscapeCorridors,
@@ -271,12 +272,14 @@ function corridorView(choice: CorridorChoice, available: number): LandscapeCorri
 
 /**
  * Karte der Landschaft – null, solange sie verborgen bleibt (vor der Freischaltung zeigt
- * die Oberfläche nichts davon, 24.1). Sichtbar, sobald sie nach diesem Neuen Zyklus frei
- * wäre (`unlockedAfter`) – dann kann man schon aus diesem Urwald gründen.
+ * die Oberfläche nichts davon, 24.1). Sichtbar, sobald sie frei ist oder – im Urwald – nach
+ * diesem Neuen Zyklus frei wäre (`unlockedAfter`): dann kann man schon aus diesem Urwald gründen.
  */
 export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): LandscapeMapView | null {
   const landscape = preview.landscape;
-  if (!landscape.unlocked && !landscape.unlockedAfter) return null;
+  // Vorab (nach diesem Zyklus frei) nur aus dem Urwald – dort kann man schon gründen. Im Hain
+  // verriete die Karte sonst die Landschaft, bevor der Urwald erreicht ist (Spoiler).
+  if (!landscape.unlocked && !(landscape.unlockedAfter && state.stage >= ANCIENT_STAGE)) return null;
   const allowed = preview.blocker === null;
   const activeName = siteName(landscape.active);
   const available = landscape.jaySeeds.available;
@@ -306,7 +309,7 @@ export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): 
       ancientText: choice.founded
         ? choice.ancient
           ? `Hier war schon ${ANCIENT_NAME}.`
-          : `Hier war noch kein ${ANCIENT_NAME} – der erste bringt 2 🪶.`
+          : `Hier war noch kein ${ANCIENT_NAME} – der erste bringt ${formatNumber(JAY_SEEDS_FIRST_ANCIENT)} 🪶.`
         : null,
       action: siteAction(choice),
       blocker: siteBlockerText(choice, activeName, landscape.jaySeedsAfter.available),

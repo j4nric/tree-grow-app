@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LANDSCAPE_SITES, LANDSCAPE_UNLOCK_MEMORY, type SiteId } from '../src/content/landscape';
+import { JAY_SEEDS_FIRST_ANCIENT, LANDSCAPE_SITES, LANDSCAPE_UNLOCK_MEMORY, type SiteId } from '../src/content/landscape';
 import { STAGES } from '../src/content/stages';
 import { regularSlots } from '../src/core/formulas';
 import { ANCIENT_STAGE } from '../src/core/landscape';
@@ -56,6 +56,18 @@ describe('Karte der Landschaft: Sichtbarkeit (Spoiler-Regel)', () => {
     const json = JSON.stringify(toCyclePanelView(state));
     for (const s of LANDSCAPE_SITES.filter((x) => x.id !== 'home')) expect(json).not.toContain(s.name);
     expect(json).not.toContain('🪶');
+  });
+
+  it('im Hain, erst nach diesem Zyklus frei: noch keine Karte (Spoiler), im Urwald schon', () => {
+    const grove = withLandscape(GROVE, { own: LANDSCAPE_UNLOCK_MEMORY - 1 });
+    grove.cycle.maxHarmony = 200;
+    expect(previewNewCycle(grove).landscape.unlocked).toBe(false);
+    expect(previewNewCycle(grove).landscape.unlockedAfter).toBe(true);
+    expect(mapOf(grove)).toBeNull();
+    const ancient = withLandscape(ANCIENT_STAGE, { own: LANDSCAPE_UNLOCK_MEMORY - 1, achievement: false });
+    ancient.cycle.maxHarmony = 200;
+    expect(previewNewCycle(ancient).landscape.unlockedAfter).toBe(true);
+    expect(mapOf(ancient)).not.toBeNull();
   });
 
   it('ohne Urwald-Erfolg auch mit viel Gedächtnis keine Karte', () => {
@@ -259,5 +271,10 @@ describe('Spielanleitung: Waldlandschaft', () => {
     expect(text).toContain('3, 5, 7, 9 und 11 🪶');
     expect(text).toContain('50 %');
     expect(text).toContain('höchstens 500');
+  });
+
+  it('Urwald-Text nennt die Hähersaat aus content', () => {
+    const map = mapOf(withLandscape(GROVE, { sites: [{ ...createSite('home'), ancient: true }, createSite('carr')], corridors: ['home-carr'], free: ['home-carr'] }))!;
+    expect(map.sites.find((s) => s.id === 'carr')!.ancientText).toBe(`Hier war noch kein Urwald – der erste bringt ${JAY_SEEDS_FIRST_ANCIENT} 🪶.`);
   });
 });

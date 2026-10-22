@@ -1,7 +1,7 @@
 import type { BrowserContext } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, createSite, type GameState, type LandscapeSite } from '../src/core/state';
-import { expect, openGame, savedState, seedRaw, test, waitForConfirm, waypoint } from './fixtures';
+import { expect, openGame, overlaps, savedState, seedRaw, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Karte der Landschaft (DESIGN_V2.md 24.5, 24.6): Freischaltung, Gründen, Wechseln,
@@ -49,7 +49,8 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   const flood = map.locator('[data-site="floodplain"]');
   await expect(flood).toContainText('gründen · 3 🪶');
   await flood.click();
-  await expect(flood).toHaveAttribute('aria-pressed', 'true');
+  await expect(flood).toHaveAccessibleName(/Ziel des nächsten Zyklus/);
+  await expect(map.locator('[data-ref="landscape-live"]')).toHaveText('Auwald am Fluss: Ziel des nächsten Zyklus.');
   const detail = map.locator('[data-ref="site-detail"]');
   await expect(detail).toContainText('Auwald am Fluss');
   await expect(detail).toContainText('Verzicht (nur hier): Pilze −15 % 😊');
@@ -139,7 +140,13 @@ test('Korridor bauen: Altwasser zwischen Auwald und Erlenbruch', async ({ page, 
   await expect(build).toBeEnabled();
   // Korridore zu nicht gegründeten Wäldern stehen nicht in der Liste.
   await expect(map.locator('li[data-corridor="home-heath"]')).toBeHidden();
+  // Zwei Klicks: Hähersaat ist knapp, der Bau dauerhaft.
   await build.click();
+  const armed = row.getByRole('button', { name: 'Altwasser wirklich bauen? Zum Bestätigen erneut klicken' });
+  await expect(armed).toBeVisible();
+  expect((await savedState(page)).meta.landscape.corridors).not.toContain('floodplain-carr');
+  await waitForConfirm(page);
+  await armed.click();
   await expect(page.locator('#toast')).toContainText('Altwasser gebaut');
   await expect(map.locator('[data-ref="jay-seeds"]')).toHaveText('🪶 4 Hähersaat');
   await expect(row).toContainText('verbunden');
@@ -148,8 +155,11 @@ test('Korridor bauen: Altwasser zwischen Auwald und Erlenbruch', async ({ page, 
   expect(after.meta.landscape.freeCorridors).not.toContain('floodplain-carr');
 });
 
-test('Mobil 360 px: Karte ohne Querscrollen, Standorte ≥ 44 px', async ({ page, context }) => {
-  await page.setViewportSize({ width: 360, height: 780 });
+for (const [width, height] of [
+  [360, 780],
+  [1280, 720],
+] as const) test(`${width} px: Karte ohne Querscrollen, Standorte ≥ 44 px ohne Überlappung`, async ({ page, context }) => {
+  await page.setViewportSize({ width, height });
   await seed(context, landscapeState(ANCIENT, { own: 300 }));
   await openGame(page);
   const map = panel(page).locator('[data-ref="landscape-map"]');
@@ -163,8 +173,22 @@ test('Mobil 360 px: Karte ohne Querscrollen, Standorte ≥ 44 px', async ({ page
     expect(b.x, id).toBeGreaterThanOrEqual(box.x - 1);
     expect(b.x + b.width, id).toBeLessThanOrEqual(box.x + box.width + 1);
   }
+  const boxes = await Promise.all(['home', 'floodplain', 'carr', 'beechwood', 'mountain', 'heath'].map(async (id) => (await map.locator(`[data-site="${id}"]`).boundingBox())!));
+  // Mindestens 4 px Abstand zwischen den Knöpfen (auch keine 1-px-Überlappung).
+  const grow = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x - 2, y: b.y - 2, width: b.width + 4, height: b.height + 4 });
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) expect(overlaps(grow(boxes[i]!), grow(boxes[j]!)), `${i}/${j}`).toBe(false);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('Hain mit genug Gedächtnis nach diesem Zyklus, aber noch nicht frei: keine Karte (Spoiler)', async ({ page, context }) => {
+  // Erfolg da, Gedächtnis nach dem Zyklus über der Schwelle – aber nicht im Urwald.
+  const state = landscapeState(GROVE, { own: 249, announced: false });
+  state.cycle.maxHarmony = 200;
+  await seed(context, state);
+  await openGame(page);
+  await expect(panel(page).locator('[data-ref="new-cycle"]')).toBeVisible();
+  await expect(panel(page).locator('[data-ref="landscape"]')).toBeHidden();
 });
 
 test('vor der Freischaltung: keine Karte', async ({ page, context }) => {
