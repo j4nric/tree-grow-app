@@ -302,7 +302,9 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     `src/content/weather.ts`, DESIGN_V2.md 21
   - [x] Logik (core-engineer): `src/core/weather.ts`, Wetter in `evaluate`, `TickReport.weather`,
     Mittelwetter offline (`simulateOffline` ab 180 s), Messung mit der echten Logik – 21.9/21.10
-  - [ ] Grafik (renderer) – 21.8
+  - [x] Grafik (renderer): `SceneInput.weather`/`weatherPrevious`/`weatherBlend`, Bilder je Wetter,
+    Nachtverhalten von Kauz, Langohr, Igel, Glühwürmchen, Demo `?weather=` – `src/render/weather.ts`,
+    `src/render/nocturnal.ts`, 21.8
   - [x] Anzeige (ui-dev): Wetter-Abzeichen mit Erklärung und Vorhersage, ein Hinweis für
     Jahreszeit + Wetter, 🌙 an Nachtarten und an der Rate, Schutz-Hinweise der Pflege,
     „Wetter gemittelt“, Spielanleitung – `src/ui/weather-view.ts`, `weather-badge.ts` (21.8)
