@@ -287,7 +287,7 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
 
 **Welle 2 – Lebendiger Alltag**
 
-- [ ] Tag und Nacht (Grafik `renderer`, Wirkung `game-designer`): kurzer Tag-Nacht-Wechsel
+- [x] Tag und Nacht (Grafik `renderer`, Wirkung `game-designer`): kurzer Tag-Nacht-Wechsel
   in der Szene, nachtaktive Arten (Fledermaus, Waldkauz, Glühwürmchen, Igel) mit
   Sichtbarkeit bzw. Effekten nur nachts
   - [x] Grafik (renderer): `SceneInput.dayPhase` 0–1 aus `dayPhaseAt(cycle.elapsed)`
@@ -298,7 +298,7 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     🌿/🌰 (`NOCTURNAL` in `src/content/daytime.ts`, Spielstand unverändert) – DESIGN_V2.md 21.6
   - [x] Wirkung, Logik (core-engineer): Nacht-Halte, Nachtwirkung in `evaluate`, Mittel offline –
     `src/core/weather.ts`, DESIGN_V2.md 21.9
-- [ ] Wetterlagen (Design `game-designer`, Logik `core-engineer`, Grafik `renderer`):
+- [x] Wetterlagen (Design `game-designer`, Logik `core-engineer`, Grafik `renderer`):
   seltene, mehrminütige Zustände (Dürresommer, Sturm, Spätfrost, Borkenkäferjahr) mit
   Gegenmaßnahmen; ein vielfältiges Ökosystem dämpft die Folgen
   - [x] Design (game-designer): 8 Wetterlagen je Tag (= Jahreszeit), deterministisch aus
@@ -312,6 +312,8 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   - [x] Anzeige (ui-dev): Wetter-Abzeichen mit Erklärung und Vorhersage, ein Hinweis für
     Jahreszeit + Wetter, 🌙 an Nachtarten und an der Rate, Schutz-Hinweise der Pflege,
     „Wetter gemittelt“, Spielanleitung – `src/ui/weather-view.ts`, `weather-badge.ts` (21.8)
+  - [x] Borkenkäferjahr: kein Wetter, sondern das Ereignis „Käferjahr“ (Räuber und Beute,
+    #75) – bei Dürre dreifach gewichtet (`WEATHER_EVENT_FACTORS`, DESIGN_V2.md 21.11, 22.6)
   - [x] Balancing-Folgeaufgabe (game-designer): Samenreserve im Wald (balance-care 14,6 vs.
     Grenze 15 min, vorher 11,1 vs. 12) – erledigt ohne Änderung der Wald-Ränge: seit den
     Lebensräumen 7,5 min (großer Lauf), im Check 7,2–8,3 min in drei Seed-Fenstern; die
@@ -319,7 +321,7 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
 
 **Welle 3 – Tiefe & Langzeitspiel**
 
-- [ ] Räuber und Beute (`game-designer`, `core-engineer`): Waldkauz, Fuchs, Ringelnatter
+- [x] Räuber und Beute (`game-designer`, `core-engineer`): Waldkauz, Fuchs, Ringelnatter
   regulieren Bestände statt zu strafen (z. B. viele Mäuse locken den Kauz an → Harmonie)
   - [x] Design (`game-designer`): Bestand (abgeleitet aus der Zufriedenheit der Beute),
     Überjagung statt Räuberdruck, vier Massenjahre mit Bedingung „ungejagt“, Wetter →
@@ -360,7 +362,8 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     `tests/habitats-ui.test.ts`, `e2e/habitats.spec.ts`
 - [ ] Prestige-Stufe 2 „Waldlandschaft“ (`game-designer`, `core-engineer`, `renderer`):
   mehrere Wälder nebeneinander mit eigenem Hauptbaum, Wildwechsel über Korridore;
-  `break_infinity.js` ist dafür **nicht** nötig (gemessen, `DESIGN_V2.md` 24.9)
+  `break_infinity.js` ist dafür **nicht** nötig (gemessen, `DESIGN_V2.md` 24.9). Spielbar und
+  ausgeliefert; offen sind nur Wildwechsel, Erfolge und ein Rest e2e – weiter in Phase 7, Welle 1
   - [x] Design (`game-designer`): sechs Standorte mit Waldtyp, Währung Hähersaat, Korridore
     mit Zufluss, Spielstand v14 nach den Lebensräumen (v13) – `DESIGN_V2.md` 24, Daten
     `src/content/landscape.ts`, Modell `scripts/landscape.ts`
@@ -369,8 +372,7 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     Freischaltung, Eigenheiten und Gaben), `startNewCycle(…, site)` und `buildCorridor` in
     `tick.ts`; Simulation `scripts/landscape.ts` auf der echten Logik, gemessen (24.10) –
     `tests/landscape-core.test.ts`
-  - [ ] Karte (`ui-dev`), Kulisse je Waldtyp (`renderer`), Schritt B Wildwechsel
-    (`core-engineer`), Erfolge und Messung (`game-designer`) – 24.11
+  - [x] Karte (`ui-dev`) und Kulisse je Waldtyp (`renderer`) – 24.11 Nr. 2 und 3
     - [x] Kulisse je Waldtyp (`renderer`): `SceneInput.site` (Horizont, Hintergrund-Bäume,
       Bodenfarben je Standort in der gecachten Kulisse, `src/render/site-scenery.ts`; Wechsel
       blendet über), Häherflug beim Gründen (`SceneInput.jayFlight`, `src/render/jay-flight.ts`),
@@ -394,8 +396,87 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
       Gaben (Tierdetails)
     - [x] Meldung zur Freischaltung (`ui-dev`): zeigen, solange `landscapeAnnouncementDue(state)`,
       danach `markLandscapeAnnounced(state)` (24.8)
+  - [ ] Schritt B Wildwechsel (`core-engineer`, 24.11 Nr. 4) – fehlt: das Ziehen der
+    Wildwechsel-Karte aus `fauna` eines Nachbarn und das Gewicht der `featured`-Gattungen;
+    bisher gibt es nur die Konstanten (`WILDWECHSEL_CHANCE`, `FEATURED_GENUS_WEIGHT` in
+    `src/content/landscape.ts`) und das Schreiben von `fauna` beim Verlassen (`tick.ts`)
+  - [ ] Erfolge und Messung (`game-designer`, 24.11 Nr. 5; Bedingungen `core-engineer`, Nr. 6) –
+    fehlt: die fünf Erfolge aus 24.12 als Daten, die Bedingungsarten `forests`, `corridors`,
+    `ancientForests` in `core/achievements.ts` und die Messung des Wildwechsels (Vielfalt 7.7);
+    die Messung der Landschaft ohne Wildwechsel ist da (24.7/24.10, #81, #85)
+  - [ ] e2e (`qa-tester`, 24.11 Nr. 7) – teilweise: Gründen, Neuladen und Wechsel zurück mit
+    Gedächtnis prüft `e2e/landscape.spec.ts`; fehlt: Stammgäste nach Hin- und Rückweg und der
+    Sync zweier Geräte mit einem v14-Stand samt ruhender Wälder
 - [x] Playtest Phase 6 – Funde behoben (`ui-dev`, `renderer`): Hinweise, Stapel und
   Nahrungsnetz (#86), UI-Unstimmigkeiten und Lage des Toasts (#87, `src/ui/toast-place.ts`),
   Grafik (#88), Rückkehr-Bericht (#89): mobil nur die Kurzfassung im Toast, alle Einzelheiten
   in einer schließbaren Karte oben in der Seitenleiste – `src/ui/return-report-view.ts`,
   `src/ui/return-report.ts`, `tests/return-report-view.test.ts`, `e2e/return-report.spec.ts`
+
+## Phase 7 – Waldtypen mit Charakter
+
+Ziel: Die Landschaft fertigstellen und den Waldtypen mehr Eigenart geben – ohne neuen
+Multiplikator (24.1, 24.9). Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`)
+nacheinander, nie parallel. **Einzige Spielstand-Änderung der Phase: v15** (Hauptbäume, Welle 2).
+
+**Bewusst kein eigener Punkt: Borkenkäfer-Ereignis.** Es gibt es schon als „Käferjahr“ (#75,
+`src/content/predation.ts`): Massenjahr, wenn Käfer ungejagt sind, bei Dürre dreifach gewichtet
+(DESIGN_V2.md 21.11, 22.5/22.6). Ein zweites Borkenkäfer-Ereignis wäre eine Dopplung; in
+Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide von selbst häufiger.
+
+**Welle 1 – Landschaft vollenden** (ohne Spielstand-Änderung; Rest aus Phase 6)
+
+- [ ] **1a** Schritt B Wildwechsel (`core-engineer`, DESIGN_V2.md 24.6, 24.11 Nr. 4): beim Ziehen
+  der Tierkarten je Korridor am aktiven Wald 10 % (höchstens 30 %) eine Karte aus `fauna` eines
+  Nachbarn (Regeln 24.6, Weg in der Karte), `featured`-Gattungen × 1,5 in ihrer Seltenheit;
+  `rngState`, online = offline; `scripts/landscape.ts` zieht mit. Abhängig: nichts
+- [ ] **1b** Erfolge der Landschaft festlegen (`game-designer`, 24.12): Texte und Bedingungen
+  für `forest-2`, `forests-all`, `corridor-1`, `corridors-all`, `ancient-everywhere`, dazu
+  `trees-all` und der neue Erfolg für die Hauptbäume der Landschaft (25.7). Nur Doku: Die neuen
+  Bedingungsarten brauchen Logik, die Daten kommen darum mit 2a. Abhängig: nichts
+- [ ] **1c** Wildwechsel-Karte anzeigen (`ui-dev`): „🦌 kommt über die Schlehenhecke“ auf der
+  Karte, Hinweis in der Spielanleitung. Abhängig: 1a
+- [ ] **1d** Zeichnungen Weißtanne und Schwarzerle (`renderer`, 25.6 Nr. 1): Wuchsformen je Stufe
+  in `src/render/plant.ts`, zunächst nur in der Demo (`?tree=fir|alder`); `TREE_SPECIES` bleibt bis
+  2b unverändert. Abhängig: nichts – frühe Welle, weil die Grafik der größte Brocken ist
+
+**Welle 2 – Hauptbäume je Waldtyp und Erfolge verdrahten**
+
+- [ ] **2a** Bedingungsarten `forests`, `corridors`, `ancientForests` (`core-engineer`, 24.11
+  Nr. 6) samt den fünf Erfolgen aus 1b als Daten: monoton, Nachtrag beim Laden wie 12.6.
+  Abhängig: 1b. `landscape-trees` (25.7) folgt mit 2b
+- [ ] **2b** Hauptbäume je Waldtyp, Spielstand v15 (`core-engineer`, DESIGN_V2.md 25.5/25.6):
+  `MainTreeId` um `fir`, `alder`, Freischaltung `unlockSite`, Leitbäume Bergmischwald → Weißtanne,
+  Erlenbruch → Schwarzerle, Migration v14 → v15 (nur Versionssprung), Laden in der richtigen
+  Reihenfolge, `TREE_SPECIES` = `MAIN_TREE_IDS`. Abhängig: 1a gemergt (gleiche Dateien in
+  `tick.ts`), 1d (Formen vorhanden)
+- [ ] **2c** Messung Wildwechsel (`game-designer`, 24.11 Nr. 5): Vielfalt der Karten (7.7) mit und
+  ohne Wildwechsel, Chance 10 % prüfen, großer Lauf der Landschaft, 24.7/24.10 nachtragen;
+  Kiefernheide für den Wachstums-Spieler im Blick (heute −4,7 %, Grenze ±5 %). Abhängig: 1a
+
+**Welle 3 – Oberfläche, Waldtyp-Wetter, Messung**
+
+- [ ] **3a** Baumwahl mit fünf Arten (`ui-dev`, 25.6 Nr. 4): Karten für Weißtanne und
+  Schwarzerle (vor der Landschaft verborgen, danach gesperrt mit Hinweis), Hauptbaum-Symbol in
+  Karte und Tagebuch-Reiter „Landschaft“, Spielanleitung, Erfolge der Landschaft im Tagebuch.
+  Abhängig: 2a, 2b
+- [ ] **3b** Waldtyp und Wetter – Design (`game-designer`): Gewichte der Wetterlagen je Standort
+  als Daten (Bergmischwald mehr Neuschnee, Auwald mehr Landregen, Kiefernheide mehr Dürre,
+  Erlenbruch mehr Nebel; offene Frage 24.13). **Warum:** Die Waldtypen unterscheiden sich heute
+  nur in Zahlen der Eigenheiten; ein eigenes Wetter macht sie sichtbar und spürbar anders, nutzt
+  die fertige Wetter-Grafik und kostet keinen Spielstand. Die Kiefernheide bekommt so ihr
+  Käferjahr (Dürre) – der Borkenkäfer passt zum Sand-Kiefernwald. Ziel ±5 % wie 24.7.
+  Abhängig: 2c (Messung ohne Wetter als Grundlage)
+- [ ] **3c** Waldtyp und Wetter – Logik (`core-engineer`): `weatherOfDay` mit Standort-Gewichten,
+  Mittelwetter offline je Standort, Vorhersage; kein neues Feld. Abhängig: 3b, 2b gemergt
+- [ ] **3d** Großer Lauf mit neuen Leitbäumen und Wetter je Standort (`game-designer`): 24.7,
+  24.10 und 25.4 mit der echten Logik nachtragen; `scripts/site-trees.ts` und
+  `tests/site-trees-balance.test.ts` entfernen. Abhängig: 2b, 3c
+
+**Welle 4 – Absichern**
+
+- [ ] **4a** e2e Landschaft und Hauptbäume (`qa-tester`): Rest aus Phase 6 (Stammgäste nach
+  Hin- und Rückweg, Sync zweier Geräte mit ruhenden Wäldern); Bergmischwald gründen → Weißtanne
+  vorausgewählt → Neuladen → Weißtanne wächst; Gerät mit v14 lädt keinen v15-Stand
+  (`outdated-client`). Abhängig: 3a
+- [ ] **4b** Playtest Phase 7 (`qa-tester`, Funde an `ui-dev` / `renderer`). Abhängig: 4a

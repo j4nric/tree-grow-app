@@ -5734,8 +5734,8 @@ Wachstum 0,18 / 0 / 0,15 / 0,05, Zufall 0,33 / 0,15 / 0,25 / 0,12 (vorher 0,14 /
 > `src/core/landscape.ts`, Gründen/Wechseln/Korridore in `src/core/tick.ts`, Laden in
 > `src/core/save.ts` (24.8). Tests `tests/landscape-core.test.ts` (Logik) und
 > `tests/landscape.test.ts` (Inhalte); Simulation auf der echten Logik in `scripts/landscape.ts`,
-> großer Lauf in `tests/landscape-balance.test.ts` (24.10). Offen: Karte (UI), Kulisse,
-> Wildwechsel (Schritt B), Erfolge (24.11).
+> großer Lauf in `tests/landscape-balance.test.ts` (24.10). Karte, Tagebuch-Reiter und Kulisse
+> umgesetzt (#82–#84). Offen: Wildwechsel (Schritt B), Erfolge, Rest e2e (24.11) – Phase 7, Welle 1.
 > **Kein `break_infinity.js`** – Begründung und Obergrenzen in 24.9.
 
 ### 24.1 Warum eine zweite Ebene – und welche
@@ -5833,8 +5833,8 @@ Sonne gibt es reichlich.“
   Sie gelten in **jedem** Wald der Landschaft, auch im Heimatwald – das Gegenstück zu den
   Stammgästen: Was ein Wald gelernt hat, kommt allen zugute.
 - **Leitbaum** ist beim ersten Zyklus eines Waldes vorausgewählt (falls freigeschaltet), keine
-  Pflicht. Neue Hauptbaum-Arten (Weißtanne, Schwarzerle) wären schön, brauchen aber Grafik –
-  offene Frage 24.13.
+  Pflicht. Neue Hauptbaum-Arten (Weißtanne, Schwarzerle) sind für Phase 7 entworfen (25):
+  Dann wird die Weißtanne Leitbaum des Bergmischwalds, die Schwarzerle Leitbaum des Erlenbruchs.
 - **Warum diese fünf:** Sie sind die großen naturnahen Waldtypen Mitteleuropas neben dem
   Eichen-Hainbuchenwald (nass – Aue und Bruch; schattig – Buche; kühl – Berg; trocken – Sand)
   und rücken je eine Gattung in den Mittelpunkt, die heute selten dort steht (Amphibien, Pilze,
@@ -6335,9 +6335,8 @@ Texte ohne Spoiler (keine Standort-Namen). Neue Bedingungen `{ kind: 'forests' |
 
 **Offen:**
 
-- **Neue Hauptbaum-Arten je Waldtyp** (Weißtanne im Bergwald, Schwarzerle im Bruch, Silberweide
-  in der Aue): mehr Charakter, aber je ein neuer Baum für den Renderer. Nach dem ersten
-  Playtest der Landschaft entscheiden.
+- **Neue Hauptbaum-Arten je Waldtyp** – entschieden nach dem Playtest Phase 6: Weißtanne und
+  Schwarzerle kommen (Abschnitt 25, Phase 7); die Silberweide nicht (25.1).
 - **Waldtyp und Wetter (21):** Bergwald mehr Neuschnee, Aue mehr Landregen, Heide mehr Dürre –
   als Gewichts-Faktoren je Standort (Daten), sobald das Wetter in core/ ist.
 - **Waldtyp und Lebensräume (23):** z. B. Kiefernheide +1 Platz Trockenmauer, Auwald +1 Platz
@@ -6355,3 +6354,216 @@ Texte ohne Spoiler (keine Standort-Namen). Neue Bedingungen `{ kind: 'forests' |
   Klima-Epochen als Herausforderungen mit Andenken), nicht in die Höhe.
 - **Wildwechsel-Chance:** 10 % je Korridor ist eine Annahme, nicht gemessen (es ändert sich nur
   die Vielfalt der Karten). Nach Schritt B mit der Vielfalts-Messung (7.7) prüfen.
+
+---
+
+## 25. Hauptbäume je Waldtyp (Phase 7)
+
+> **Stand:** Entwurf, gemessen mit der echten Logik (25.4), **noch nicht in `src/content/`**:
+> Die Arten brauchen einen neuen Typ-Wert (`MainTreeId`), eine neue Freischaltung
+> (`unlockSite`), Grafik (`TREE_SPECIES` muss gleich `MAIN_TREE_IDS` sein, Inhaltstest) und
+> Spielstand v15 (25.5) – das ist Logik, also Aufgabe des `core-engineer` (25.6). Bis dahin
+> stehen die Kandidaten nur in `scripts/site-trees.ts` (Messung).
+
+### 25.1 Idee und Auswahl
+
+Die Landschaft (24) hat sechs Waldtypen, aber nur drei Hauptbäume. Zwei Standorte wachsen
+heute mit einem Leitbaum, der botanisch nicht ihr Baum ist: Der **Bergmischwald**
+(Buchen-Tannen-Fichtenwald) hat die Rotbuche, der **Erlenbruch** (Schwarzerlen-Bruchwald) die
+Stieleiche. Jede neue Art macht einen Waldtyp stimmig – und gibt dem Gründen eines Standorts
+eine zweite Belohnung neben der Gabe: **eine neue Frucht für alle Wälder**.
+
+| Kandidat (24.13) | Standort | Entscheidung |
+|---|---|---|
+| 🎄 **Weißtanne** | ⛰️ Bergmischwald | **kommt** – Charakterbaum des Bergwalds, Schattbaumart, Nadelbaum mit Lebensraum für Vögel |
+| 🌿 **Schwarzerle** | 🌫️ Erlenbruch | **kommt** – Namensgeberin des Waldtyps, steht im Wasser, düngt den Boden (Wurzelknöllchen) |
+| Silberweide | 🌊 Auwald | **nicht jetzt** – der Auwald ist eine *Hartholz*aue (24.2), dort ist die Stieleiche richtig; die Weide gehört in die Weichholzaue. Option für einen späteren Standort |
+
+Buchenhallen (Rotbuche), Kiefernheide (Waldkiefer) und Heimatwald (Stieleiche) haben ihren
+Baum schon. Zwei neue Arten heißt auch: zwei neue Bäume für den Renderer statt drei.
+
+### 25.2 Freischaltung und Wahl
+
+- **Freigeschaltet, sobald ihr Standort gegründet ist** (`unlockSite: 'mountain'` bzw.
+  `'carr'` statt `unlockPlant`). Abgeleitet aus `meta.landscape.sites` – **kein neues Feld**,
+  wie bei den Grundarten (17.2). Erzählung: „Aus dem Bergwald bringt der Häher keine Eicheln
+  mit, sondern Tannensamen.“
+- **Wählbar in allen Wäldern**, wie jede Art (17.2): Die Wahl bleibt beim Spieler; den
+  Charakter des Standorts tragen seine Eigenheiten (24.2). Eine Schwarzerle in der Kiefernheide
+  ist ungewöhnlich, aber kein Fehler.
+- **Leitbaum:** Bergmischwald → Weißtanne (statt Rotbuche), Erlenbruch → Schwarzerle (statt
+  Stieleiche). Beim Gründen ist der Leitbaum vorausgewählt (24.5) – die Gründung schaltet ihn
+  im selben Schritt frei. Danach die zuletzt dort gewachsene Art.
+- **Spoiler:** Vor der Freischaltung der Landschaft (24.3) erscheinen die beiden Arten in der
+  Baumwahl **nicht** (wie der Tagebuch-Reiter „Landschaft“). Danach gesperrt mit Hinweis:
+  „Gründe den Bergmischwald – dort keimt sie.“ / „Gründe den Erlenbruch – dort keimt sie.“
+  Die Standorte sind dann bekannt (die Karte zeigt sie).
+
+### 25.3 Werte
+
+Nur bestehende Wirkungsarten der Baum-Eigenheiten (17.3: `slot`, `light`, `water`,
+`groupGrowth`, `groupSeeds`, `happiness`; dazu `winterHardy`). **Keine neue Wirkungsart.**
+
+| Art | Frucht | Merkmale | Gewinn | Verzicht | passt zu |
+|---|---|---|---|---|---|
+| 🎄 Weißtanne | Tannensamen | Laub (Nadelstreu), Wurzeln, Nadeln | Vögel +10 % 😊; ab Junger Baum +1 Platz Stamm & Rinde; winterfest | ab Alter Baum −1 ☀️ (Schattbaum, dichte Krone); keine Nüsse | Vögel, Rindenbewohner, Winter |
+| 🌿 Schwarzerle | Erlensamen | Laub, Wurzeln | Amphibien +10 % 😊; Blumen +15 % 🌿 (Stickstoff aus den Wurzelknöllchen); ab Junger Baum +1 Platz Waldtümpel (öffnet ihn auch ohne Pflege, `opensEarly`) | keine Nüsse; nicht winterfest | Amphibien, Blüten, nasse Wälder |
+
+Daten (für `src/content/trees.ts`; Wirkungen wie in `scripts/site-trees.ts`):
+
+```ts
+{ id: 'fir', name: 'Weißtanne', icon: '🎄', fruit: 'Tannensamen',
+  text: 'Geduldig wächst sie im Schatten der Buchen – und überragt sie am Ende alle.',
+  summary: 'Schattenbaum · winterfest · Nadeln · Vögel +10 % 😊 · +1 Platz Stamm & Rinde · ab Alter Baum −1 ☀️ · keine Nüsse',
+  unlockSite: 'mountain', unlockPlant: null, unlockHint: 'Gründe den Bergmischwald – dort keimt sie.',
+  tags: ['laub', 'wurzeln', 'nadeln'], nutsFromStage: null, winterHardy: true,
+  traits: [ { minStage: 0, effect: { kind: 'happiness', genus: 'birds', points: 10 } },
+            { minStage: 3, effect: { kind: 'slot', niche: 'bark', amount: 1 } },
+            { minStage: 4, effect: { kind: 'light', amount: -1 } } ] },
+{ id: 'alder', name: 'Schwarzerle', icon: '🌿', fruit: 'Erlensamen',
+  text: 'Sie steht mit den Füßen im Wasser – und ihre Wurzeln düngen den Boden.',
+  summary: 'Nassbaum · Amphibien +10 % 😊 · Blumen +15 % 🌿 · ab Junger Baum +1 Platz Waldtümpel · keine Nüsse',
+  unlockSite: 'carr', unlockPlant: null, unlockHint: 'Gründe den Erlenbruch – dort keimt sie.',
+  tags: ['laub', 'wurzeln'], nutsFromStage: null, winterHardy: false,
+  traits: [ { minStage: 0, effect: { kind: 'happiness', genus: 'amphibians', points: 10 } },
+            { minStage: 0, effect: { kind: 'groupGrowth', group: 'flowers', pct: 15 } },
+            { minStage: 3, effect: { kind: 'slot', niche: 'pond', amount: 1 } } ] }
+```
+
+**Botanik:** Die Weißtanne (*Abies alba*) erträgt als junger Baum tiefen Schatten und baut eine
+dichte, dunkle Krone; ihre Zapfen stehen aufrecht und zerfallen am Baum, die geflügelten Samen
+fliegen – darum keine Nüsse. Tannen- und Haubenmeise und Goldhähnchen leben in ihren Zweigen,
+ihre Borke trägt Flechten. Die Schwarzerle (*Alnus glutinosa*) wurzelt im Wasser, bindet mit
+Strahlenpilzen (*Frankia*) Stickstoff – Sumpfdotterblume und Mädesüß blühen darunter üppig –,
+und zwischen ihren Stelzwurzeln stehen Tümpel für Frösche und Molche. Ihre Früchte sind kleine
+verholzte Zäpfchen, keine Nüsse.
+
+**Verworfene Varianten** (gemessen wie 25.4, 80 Durchgänge, Gedächtnis 200; Werte „Standort /
+Heimatwald“, jeweils gegenüber Heimatwald mit Eiche):
+
+| Variante | Harmonie | Wachstum | warum verworfen |
+|---|---|---|---|
+| Weißtanne −2 ☀️ ab Alter Baum (wie die Buche), Platz Rinde | +0,7 / +1,3 % | +4,0 / **+6,1 %** | zu dunkel, Wachstums-Spieler über 5 % |
+| Weißtanne −2 ☀️, ohne Platz Rinde | +0,7 / +1,3 % | +3,6 / **+5,5 %** | dasselbe, und ohne Gewinn ab Junger Baum |
+| Weißtanne Säugetiere statt Vögel, −2 ☀️ | +0,6 / +1,3 % | **+6,3** / +4,6 % | zu langsam; Säugetiere stärkt der Bergwald schon (24.2) |
+| Weißtanne ohne Licht-Abzug | +0,4 / +0,1 % | −0,3 / +0,6 % | schnell genug, aber mit Winterfestigkeit und zwei Gewinnen fast ohne Preis |
+| Weißtanne Vögel +15 %, −1 ☀️ | +0,4 / −1,5 % | +1,5 / +0,7 % | geht; +10 % wie bei Eiche und Kiefer ist einheitlicher |
+| Schwarzerle Blumen +25 %, ohne Tümpel-Platz | +2,2 / +0,1 % | +0,1 / +0,5 % | der Tümpel ist das Bild der Erle; ohne ihn bleibt nur eine Zahl |
+| Schwarzerle Amphibien +15 % | +1,2 / −0,6 % | −1,4 / −1,4 % | kein Unterschied zu +10 % – also die kleinere Zahl |
+
+### 25.4 Messung (echte Logik, ohne neue Logik)
+
+`tests/site-trees-balance.test.ts` (nur mit `SIM_SITE_TREES=1`, ~5 min) trägt die Kandidaten
+aus `scripts/site-trees.ts` zur Laufzeit in `MAIN_TREES_BY_ID` ein (ohne Freischaltung) und
+misst wie „Waldtypen im Vergleich“ (24.7): `siteRun`, alle Wälder gegründet (dieselben Gaben),
+mit Pflege, 80 Durchgänge, Median bis zum Urwald; Bezug Heimatwald mit Stieleiche. Ziel ±5 %.
+Die Zeilen „heute“ stimmen mit 24.7 überein – die Messung rechnet also wie dort.
+
+```bash
+SIM_SITE_TREES=1 npx vitest run tests/site-trees-balance.test.ts --silent=false
+```
+
+**Gedächtnis 200** (wie 24.7):
+
+| Wald | Baum | Harmonie: Urwald | gegenüber | Wachstum: Urwald | gegenüber |
+|---|---|---|---|---|---|
+| 🌳 Heimatwald | Stieleiche | 48:57 min | – | 40:25 min | – |
+| ⛰️ Bergmischwald | Rotbuche (heute) | 48:44 min | −0,4 % | 40:31 min | +0,2 % |
+| ⛰️ Bergmischwald | **Weißtanne** | 49:28 min | +1,0 % | 40:54 min | +1,2 % |
+| 🌳 Heimatwald | Weißtanne | 48:05 min | −1,8 % | 40:43 min | +0,8 % |
+| 🌫️ Erlenbruch | Stieleiche (heute) | 49:31 min | +1,2 % | 40:07 min | −0,7 % |
+| 🌫️ Erlenbruch | **Schwarzerle** | 49:21 min | +0,8 % | 39:53 min | −1,3 % |
+| 🌳 Heimatwald | Schwarzerle | 49:02 min | +0,2 % | 39:50 min | −1,4 % |
+
+**Gedächtnis 0** (ohne Zufluss; mit Gaben, also kein echter allererster Zyklus):
+
+| Wald | Baum | Harmonie: Urwald | gegenüber | Wachstum: Urwald | gegenüber |
+|---|---|---|---|---|---|
+| 🌳 Heimatwald | Stieleiche | 2:39:43 h | – | 2:05:43 h | – |
+| ⛰️ Bergmischwald | Rotbuche (heute) | 2:37:49 h | −1,2 % | 2:08:27 h | +2,2 % |
+| ⛰️ Bergmischwald | **Weißtanne** | 2:34:04 h | −3,5 % | 2:09:37 h | +3,1 % |
+| 🌳 Heimatwald | Weißtanne | 2:35:13 h | −2,8 % | 2:07:30 h | +1,4 % |
+| 🌫️ Erlenbruch | Stieleiche (heute) | 2:38:02 h | −1,0 % | 2:08:48 h | +2,5 % |
+| 🌫️ Erlenbruch | **Schwarzerle** | 2:39:06 h | −0,4 % | 2:08:50 h | +2,5 % |
+| 🌳 Heimatwald | Schwarzerle | 2:37:32 h | −1,4 % | 2:06:52 h | +0,9 % |
+
+Zum Vergleich die Grundarten im Heimatwald bei Gedächtnis 0: Rotbuche +0,5 / +1,6 %,
+Waldkiefer −3,5 / +0,3 % (Harmonie / Wachstum).
+
+**Bewertung:** Beide Arten liegen überall innerhalb ±3,5 % – keine ist „die beste“, und als
+neue Leitbäume verschieben sie ihren Waldtyp um höchstens 1,4 Prozentpunkte gegenüber heute.
+Die Weißtanne ist wie die Kiefer eher ein Harmonie-Baum (winterfest); die −1 ☀️ bremst den
+Wachstums-Spieler leicht. Die Schwarzerle ist im Erlenbruch fast neutral: Ihr Tümpel-Platz
+kommt zum Tümpel des Standorts hinzu (Feuchte, 24.2) – dort ist ihr Gewinn vor allem
+Charakter; anderswo (Heimatwald, Heide) öffnet sie einen Tümpel, den es sonst erst mit Pflege
+gibt.
+
+**Nicht gemessen** (folgt mit 25.6 Nr. 5): die ganze Landschaft mit den neuen Leitbäumen
+(24.10) und mit Wildwechsel. Erwartung: kaum Änderung, weil die Leitbäume nur vorausgewählt
+werden und beide Waldtypen innerhalb ±1,4 Punkten von heute liegen.
+
+### 25.5 Spielstand: v15 – ja
+
+**Kein neues Feld**, aber ein neuer **Wertebereich**: `cycle.mainTree`,
+`meta.landscape.sites[].mainTree` und `meta.stats.grownTrees` können `'fir'` und `'alder'`
+enthalten. Ein Spiel mit v14 kennt diese IDs nicht und macht beim Laden still eine Eiche daraus
+(`save.ts`: unbekannt → `DEFAULT_MAIN_TREE`, `grownTrees` gefiltert). Über die Synchronisierung
+würde ein altes Gerät diesen Stand zurückschreiben – der laufende Zyklus wüchse plötzlich als
+Eiche weiter, gewachsene Arten gingen aus der Statistik verloren. Das ist der Fall aus 24.8
+(„Warum eine neue Version“): **v15** lässt die Versionsprüfung greifen (`newer` beim Import,
+`outdated-client` beim Sync). Und CLAUDE.md: Wer `GameState` ändert – hier den Typ
+`MainTreeId` –, erhöht `SAVE_VERSION`.
+
+- **Migration v14 → v15:** nichts umzubuchen (kein v14-Stand enthält die neuen IDs). Test: jede
+  Version v2 … v14 lädt; v15 mit Weißtanne lädt und behält sie.
+- **Robustes Laden ab v15:** `cycle.mainTree = 'fir'` nur, wenn der Bergmischwald gegründet ist
+  (sonst Eiche); dafür muss `meta.landscape` **vor** der Prüfung des Hauptbaums geladen sein
+  (heute prüft `loadCycleExtras` mit `isTreeUnlocked(known, …)` nur das Tagebuch – die
+  Freischaltung braucht jetzt auch die Landschaft). `sites[].mainTree` und `grownTrees`: jede
+  bekannte ID, die freigeschaltet ist. Fehlt der Standort (manipuliert oder von der
+  Kosten-Prüfung verworfen), wird aus der Weißtanne eine Eiche – kein Absturz.
+- **Größe:** unverändert.
+
+### 25.6 Aufgabenschnitt
+
+| # | Agent | Aufgabe | abhängig von |
+|---|---|---|---|
+| 1 | `renderer` | Wuchsformen für Weißtanne (kegelförmig, waagrechte Astetagen, silbergraue glatte Rinde, aufrechte Zapfen ab Alter Baum, im Winter Schnee auf den Etagen) und Schwarzerle (dunkle rissige Rinde, eiförmige Krone, oft mehrstämmig, Kätzchen im Vorfrühling, schwarze Zäpfchen im Winter, Stelzwurzeln) in `src/render/plant.ts`; Anker (Krone, Rinde, Höhlen) wie 23.8; Demo `?tree=fir\|alder`. Zuerst ohne `TREE_SPECIES` zu ändern | – |
+| 2 | `core-engineer` | **v15:** `MainTreeId` + `MAIN_TREE_IDS` um `fir`, `alder`; Feld `unlockSite?: SiteId` in `MainTree` (content-Typ), `isTreeUnlocked` prüft es gegen `meta.landscape.sites`; beim Gründen gilt der Zielstandort für Vorauswahl und Prüfung schon als gegründet (`previewNewCycle(…).landscape.sites[].mainTree` = Leitbaum, `startNewCycle(…, 'fir', 'mountain')` gelingt); `leadTree` Bergmischwald `'fir'`, Erlenbruch `'alder'`; `TREE_SPECIES` = `MAIN_TREE_IDS`; Laden wie 25.5; Erfolge 25.7. Die Daten aus 25.3 kommen in diesem PR (die Felder sind neu) | 1; Wildwechsel gemergt (gleiche Stellen in `tick.ts`) |
+| 3 | `ui-dev` | Baumwahl mit fünf Karten (verborgen vor der Landschaft, danach gesperrt mit Hinweis), Hauptbaum-Symbol in der Karte der Landschaft und im Tagebuch-Reiter, Spielanleitung (Frucht-Texte über `fruit`), mobil 360 px ohne Querscrollen | 2 |
+| 4 | `qa-tester` | e2e: Bergmischwald gründen → Weißtanne vorausgewählt → Neuladen → Weißtanne wächst, Szene zeigt sie; Erlenbruch mit Schwarzerle: Tümpel ab Junger Baum ohne Pflege; v14-Spiel lehnt den v15-Stand ab | 3 |
+| 5 | `game-designer` | großer Lauf der Landschaft mit den neuen Leitbäumen (24.7, 24.10, 25.4 nachtragen), danach `scripts/site-trees.ts` und `tests/site-trees-balance.test.ts` entfernen | 2 |
+
+### 25.7 Erfolge
+
+- **`trees-all` („Baumkundig“)** zählt heute `MAIN_TREES.length` (`'all'`). Mit fünf Arten
+  hinge er plötzlich an der Landschaft. Darum: Bedingung `{ kind: 'trees', atLeast: 3 }`,
+  Text „Drei Hauptbaum-Arten sind einmal gewachsen.“ – wer ihn hat, behält ihn.
+- **Neu `landscape-trees`** 🎄 „Baumkundig im ganzen Land“ – „Jede Hauptbaum-Art ist einmal
+  gewachsen.“ `{ kind: 'trees', atLeast: 'all' }`. Keine neue Bedingungsart.
+
+### 25.8 Testideen
+
+- **Inhalt:** beide Arten nur mit Wirkungsarten aus 17.3; höchstens ein Verzicht neben den
+  fehlenden Nüssen; `unlockSite` ist ein Standort, dessen `leadTree` diese Art ist;
+  `TREE_SPECIES` = `MAIN_TREE_IDS`; Hinweistexte nennen nur den Standort.
+- **Freischaltung:** ohne gegründeten Bergmischwald ist `fir` gesperrt
+  (`startNewCycle(state, now, 'fir')` → `tree-locked`, nichts ändert sich); Gründung mit
+  `('fir', 'mountain')` gelingt in einem Schritt; danach in jedem Wald wählbar.
+- **Wirkung:** Weißtanne – Rinde +1 ab Junger Baum, −1 ☀️ erst ab Alter Baum, im Winter kein
+  Abzug, Merkmal Nadeln (Waldameise), keine Nüsse vom Hauptbaum (wie die Kiefer); Schwarzerle – Tümpel ab Junger
+  Baum mit einem Platz offen (ohne Pflege), Blumen +15 % 🌿, Amphibien +10 % 😊.
+- **Spielstand:** v14 → v15 ohne Änderung; v15 mit `fir` ohne Bergmischwald lädt als Eiche;
+  `grownTrees` behält `alder` nur mit Erlenbruch; Import eines v15-Codes in einem v14-Spiel →
+  `newer`.
+- **Balancing:** Zeile je neuem Leitbaum in „Waldtypen im Vergleich“ (±5 %); online = offline.
+
+### 25.9 Offene Fragen
+
+- **Silberweide:** erst mit einem Standort Weichholzaue (ein 7. Standort hieße neue
+  Hähersaat-Rechnung, 24.4). Nicht in Phase 7.
+- **Nur am eigenen Standort wählbar?** Botanisch stimmiger, aber eine Sperre mehr in der
+  Baumwahl. Vorschlag: überall wählbar; im Playtest Phase 7 prüfen, ob die Erle in der Heide
+  stört.
+- **Nadeln der Weißtanne und Waldameise:** Die Tanne stellt wie die Kiefer Nadeln bereit, die
+  Waldameise kann kommen. Gewollt – im Bergwald gibt es viele Ameisenhaufen.
