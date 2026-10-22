@@ -21,13 +21,15 @@ import {
   newCycleBlocker,
   simulateOffline,
   startNewCycle,
+  buildCorridor,
+  markLandscapeAnnounced,
   tick,
   toggleRegular,
   type ActionError,
   type ActionResult,
   type TickReport,
 } from './core/tick';
-import { drawScene, hitTestAnimal, weatherParam, type AnimalHit, type HitScene, type SceneInput } from './render/tree';
+import { drawScene, hitTestAnimal, siteParam, weatherParam, type AnimalHit, type HitScene, type SceneInput } from './render/tree';
 import { CanvasSizer } from './render/canvas-size';
 import type { CanvasSize } from './render/resize';
 import { Camera } from './render/camera';
@@ -82,6 +84,9 @@ import { createWeatherBadge } from './ui/weather-badge';
 import { toastDurationFor } from './ui/settings';
 import { seasonWeatherChangeText, toWeatherBadgeView } from './ui/weather-view';
 import type { MainTreeId } from './content/trees';
+import type { SiteId } from './content/landscape';
+import { LANDSCAPE_UNLOCK_TEXT, corridorBuiltText, landscapeErrorText, siteChangeText } from './ui/landscape-view';
+import { activeSite, landscapeAnnouncementDue, landscapeUnlocked } from './core/landscape';
 import type { EcosystemView } from './ui/view-model';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from './sync/config';
 import type { AccountController } from './sync/account';
@@ -308,6 +313,8 @@ const scene: SceneInput = {
 
 /** Demo/Tests: `?weather=<id>` zeigt dieses Wetter statt des Tageswetters (nur das Bild). */
 const weatherOverride = weatherParam(location.search);
+/** Demo/Tests: `?site=<id>` zeigt die Kulisse dieses Waldtyps (nur das Bild, DESIGN_V2.md 24.11). */
+const siteOverride = siteParam(location.search);
 
 // --- Kamera der Szene (nur Oberflächen-Zustand, nicht im Spielstand) ---------------------
 
@@ -371,6 +378,15 @@ let seasonShownSecond = -1;
 let shownNight: boolean | null = null;
 const cyclePanel = createCyclePanel(document.querySelector<HTMLElement>('#cycle')!, {
   onNewCycle: newCycle,
+  onBuildCorridor: (id) => {
+    // Korridor (DESIGN_V2.md 24.6): jederzeit, ändert das wirksame Gedächtnis.
+    const result = buildCorridor(state, id);
+    if (!result.ok) {
+      notify(landscapeErrorText(result.error));
+      return;
+    }
+    act(result, false, undefined, corridorBuiltText(id));
+  },
   onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
 });
 const floats = createFloatLayer(document.body);
@@ -449,7 +465,8 @@ function openJournal(): void {
  * (Toast bzw. im offenen Dialog), damit sich nichts gegenseitig verdrängt.
  * `resolves`: Die Begegnung an der Spitze ist bei Erfolg erledigt.
  */
-function act(result: ActionResult, resolves: boolean, type?: PendingEncounterType): boolean {
+/** `lead`: eigener Hinweis der Aktion (z. B. Korridor gebaut), vor den übrigen im selben Text. */
+function act(result: ActionResult, resolves: boolean, type?: PendingEncounterType, lead = ''): boolean {
   let unlocked: string[] = [];
   let dailyText = '';
   if (result.ok) {
@@ -472,7 +489,7 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
   }
   if (unlocked.length > 0) sound.cue('achievement');
   const regulars = result.regulars && result.regulars.length > 0 ? regularsArrivedText(result.regulars) : '';
-  const text = joinNotes(discoveryText(result.discovered), regulars, achievementUnlockedText(unlocked), dailyText);
+  const text = joinNotes(lead, discoveryText(result.discovered), regulars, achievementUnlockedText(unlocked), dailyText);
   if (text) notify(text);
   return true;
 }
@@ -512,6 +529,17 @@ function runDaily(options: DailyUpdateOptions, float = true): string {
   return dailyCompletedText(result.completed, result.perfect, state.meta.daily.streak);
 }
 
+/**
+ * Meldung zur Freischaltung der Landschaft (DESIGN_V2.md 24.3): einmal, gemerkt im
+ * Spielstand. Liefert den Text (und merkt ihn als gezeigt) oder ''.
+ */
+function takeLandscapeAnnouncement(): string {
+  if (!landscapeAnnouncementDue(state)) return '';
+  markLandscapeAnnounced(state);
+  persist();
+  return LANDSCAPE_UNLOCK_TEXT;
+}
+
 /** Mehrere Hinweise als ein Text (leere weglassen); '' wenn nichts bleibt. */
 function joinNotes(...parts: (string | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -541,20 +569,24 @@ function plant(plantId: string): void {
  * „Neuen Zyklus beginnen“ (schon bestätigt): Waldgedächtnis gutschreiben, Baum beginnt neu
  * – aus der Frucht der gewählten Art.
  */
-function newCycle(mainTree: MainTreeId): void {
+function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   // Alter Baum für die Übergangs-Sequenz der Szene (vor dem Reset festhalten).
   const fromGrowth = growth(state);
   const fromPlants = scene.plants;
   const fromTree = state.cycle.mainTree;
-  const result = startNewCycle(state, Date.now(), mainTree);
+  const fromSite = activeSite(state.meta.landscape);
+  const result = startNewCycle(state, Date.now(), mainTree, site);
   if (!result.ok) {
     const blocker = newCycleBlocker(state);
-    notify(blocker ? newCycleBlockerText(blocker) : ERROR_TEXTS[result.error]);
+    const error = result.error;
+    notify(blocker ? newCycleBlockerText(blocker) : error in ERROR_TEXTS ? ERROR_TEXTS[error as ActionError] : landscapeErrorText(error as Parameters<typeof landscapeErrorText>[0]));
     return;
   }
   shownStage = state.stage;
   // Gleicher Takt wie scene.time (rAF-Zeitstempel / 1000); das Feld darf stehen bleiben.
   scene.cycleTransition = { startedAt: performance.now() / 1000, fromGrowth, fromPlants, fromTree };
+  // Neuer Wald gegründet: ein Eichelhäher trägt die Eichel durchs Bild (Hähersaat, 24.11).
+  if (result.founded) scene.jayFlight = { startedAt: performance.now() / 1000 };
   closeEncounters();
   closePlantPicker();
   encounterSerial++;
@@ -565,7 +597,9 @@ function newCycle(mainTree: MainTreeId): void {
   showToast(
     joinNotes(
       newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars, state.cycle.mainTree),
+      result.site !== fromSite ? siteChangeText(result.site, result.founded) : '',
       achievementUnlockedText(result.achievements),
+      takeLandscapeAnnouncement(),
     ),
   );
 }
@@ -668,7 +702,17 @@ function refreshPanel(now: number): void {
   if (ecoDirty || !ecoView) {
     ecoDirty = false;
     // Neuer Zyklus und Stammgäste ändern sich nur mit Ökosystem, Wegpunkt oder Aktionen.
-    cyclePanel.update(toCyclePanelView(state));
+    const cycleView = toCyclePanelView(state);
+    cyclePanel.update(cycleView);
+    // Spielanleitung: Abschnitt „Waldlandschaft“ erst mit der Karte vollständig (Spoiler).
+    help?.setLandscapeUnlocked(landscapeUnlocked(state));
+    // Sonst nirgends gemeldet (z. B. nach einem Import): hier nachholen – an einen sichtbaren
+    // Toast angehängt, damit er nicht verdrängt wird.
+    const announcement = takeLandscapeAnnouncement();
+    if (announcement) {
+      if (!toast.hidden && toast.textContent) showToast(joinNotes(toast.textContent, announcement));
+      else notify(announcement);
+    }
     const ev = evaluate(state);
     if (journal.open) journal.update(toJournalView(state, ev));
     scene.forestMemory = state.meta.forestMemory;
@@ -876,6 +920,7 @@ function replaceState(next: GameState): void {
   state = next;
   // Laufende Übergangs-Sequenz und offene Bestätigungen gehören zum alten Stand.
   scene.cycleTransition = undefined;
+  scene.jayFlight = undefined;
   disarmReset();
   cyclePanel.disarm();
   saveTransfer?.reset();
@@ -904,6 +949,7 @@ function adoptState(next: GameState): void {
   const head = JSON.stringify(state.pendingEncounters[0] ?? null);
   state = next;
   scene.cycleTransition = undefined;
+  scene.jayFlight = undefined;
   disarmReset();
   cyclePanel.disarm();
   shownStage = state.stage;
@@ -1067,6 +1113,8 @@ function frame(now: number): void {
   if (report.waypoints > 0 || report.seasons.length > 0 || now - lastAchievementCheck >= ACHIEVEMENT_CHECK_MS) {
     lastAchievementCheck = now;
     achievementText = achievementUnlockedText(checkAchievements(state));
+    // Urwald erreicht (Erfolg) mit genug Gedächtnis: die Landschaft öffnet sich.
+    if (achievementText) achievementText = joinNotes(achievementText, takeLandscapeAnnouncement()) || null;
     if (achievementText) {
       persist();
       ecoDirty = true;
@@ -1126,6 +1174,8 @@ function frame(now: number): void {
   // Tageszeit aus derselben Spielzeit (DESIGN_V2.md 19); Einstellung „Immer Tag“ → Mittag.
   scene.dayPhase = preferences.settings.daytime === 'day' ? NOON_PHASE : dayPhaseAt(state.cycle.elapsed);
   scene.mainTree = state.cycle.mainTree;
+  // Kulisse des aktiven Waldes der Landschaft (DESIGN_V2.md 24.11).
+  scene.site = siteOverride ?? activeSite(state.meta.landscape);
   // Wetter des Tages mit Überblendung am Tageswechsel (DESIGN_V2.md 21.8).
   const weather = sceneWeather(state.cycle);
   scene.weather = weatherOverride ?? weather.weather;
@@ -1174,6 +1224,8 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
     ecoDirty = true;
   }
   extraNotice = joinNotes(extraNotice, achievementsBackfilledText(achievementsBackfilled, unlocked));
+  // Landschaft freigeschaltet (beim Laden oder offline erreicht, 24.3): im selben Hinweis.
+  extraNotice = joinNotes(extraNotice, takeLandscapeAnnouncement());
   // Tagesziele: Tageswechsel und nur Ziele, die offline zählen dürfen (Zustände des Waldes).
   extraNotice = joinNotes(extraNotice, runDaily({ offline: true }));
   dailySeconds = 0;

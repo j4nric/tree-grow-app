@@ -36,13 +36,16 @@
  *  weather  Wetter: mild, rain, sun, fog, snow, drought, storm, frost (ohne Angabe: wie bisher)
  *  wprev    Wetter des Vortags für die Überblendung; wb Überblendung 0–1 (Standard 1)
  *           bzw. wb=loop: blendet alle 6 s zwischen wprev und weather hin und her
+ *  site     Standort der Waldlandschaft: home, floodplain, carr, beechwood, mountain, heath
+ *           (ohne Angabe: Heimatwald wie bisher); Auswahl auch im Menü
+ *  jay      Häherflug bei dieser Sekunde (mit t für feste Bilder); Knopf „Häherflug“ spielt ihn ab
  */
 
 import { animalKinds, SpriteCache } from './animals';
 import { layoutFlora, LOW_SIZE, PLANT_SPECIES, type PlacedPlant } from './flora';
 import { paintPlant } from './flora-paint';
 import { normalizeWeather } from './weather';
-import { drawScene, type SceneAnimal, type ScenePlant, type SceneVisitor, type TreeSpecies } from './tree';
+import { drawScene, siteParam, type SceneAnimal, type ScenePlant, type SceneVisitor, type TreeSpecies } from './tree';
 import { VISITOR_DEFS } from './visitor-sprites';
 
 type Fam = SceneAnimal['family'];
@@ -299,6 +302,15 @@ let cycleTransition: { startedAt: number; fromGrowth: number; fromPlants?: reado
 const cycleAt = params.has('cyc') ? Number(params.get('cyc')) : null;
 let pendingCycle = false;
 cycleButton.addEventListener('click', () => (pendingCycle = true));
+/** Standort (Kulisse) und Häherflug. */
+const siteInput = document.querySelector<HTMLSelectElement>('#site')!;
+let site: string | undefined = siteParam(location.search) ?? undefined;
+siteInput.value = site ?? 'home';
+siteInput.addEventListener('change', () => (site = siteInput.value));
+const jayAt = params.has('jay') ? Number(params.get('jay')) : null;
+let jayFlight: { startedAt: number } | undefined;
+let pendingJay = false;
+document.querySelector<HTMLButtonElement>('#jay')!.addEventListener('click', () => (pendingJay = true));
 /** Wachstum pro Sekunde (0 = steht). */
 const rate = Number(params.get('rate') ?? 0) || 0;
 /** Kamera (Zoom, Mitte); mit pan=1 kreist der Ausschnitt ständig. */
@@ -482,6 +494,11 @@ function frame(now: number): void {
     g = 0;
     growthInput.value = '0';
   }
+  if (jayAt !== null && !jayFlight) jayFlight = { startedAt: time - jayAt };
+  if (pendingJay) {
+    pendingJay = false;
+    jayFlight = { startedAt: time };
+  }
   const animals = animalsFor(g, set, happy, variant);
   const plants = plantsFor(g, plantMode, vigor);
   const t0 = performance.now();
@@ -504,6 +521,8 @@ function frame(now: number): void {
     mainTree,
     weather,
     weatherPrevious,
+    site,
+    jayFlight,
     weatherBlend: blendLoop ? Math.abs(((time / 6) % 2) - 1) : weatherBlendParam,
     camera:
       camZoom > 1

@@ -47,7 +47,10 @@ test('Spielanleitung: Abschnitte mit Zahlen aus dem Spiel, keine Platzhalter, Fo
   await open.click();
   await expect(guide(page)).toBeVisible();
   await expect(guide(page).getByRole('heading', { name: '❓ Spielanleitung' })).toBeFocused();
-  await expect(guide(page).locator('[data-section]')).toHaveCount(18);
+  await expect(guide(page).locator('[data-section]')).toHaveCount(19);
+  // Waldlandschaft: im neuen Spiel nur eine Andeutung (Spoiler-Regel).
+  await expect(guide(page).locator('[data-section="landscape"]')).toContainText('Ein Wald bleibt nicht allein');
+  await expect(guide(page).locator('[data-section="landscape"]')).not.toContainText('Hähersaat');
   await expect(guide(page).locator('[data-section="predation"]')).toContainText('knapp, gut oder reichlich');
   await expect(guide(page).locator('[data-section="growth"]')).toContainText(/\d+ Wegpunkte/);
   await expect(guide(page).locator('[data-section="seasons"]')).toContainText('Jeder Zyklus beginnt im Frühling');
