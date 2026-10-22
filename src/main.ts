@@ -73,7 +73,7 @@ import { createAnimalDetailDialog } from './ui/animal-detail-dialog';
 import { toAnimalDetailView, type AnimalDetailTarget } from './ui/animal-detail-view';
 import { createEncounterDialog } from './ui/encounter-dialog';
 import { createEncounterStack } from './ui/encounter-stack';
-import { applyWildwechselMark, createWildwechselMarks } from './ui/wildwechsel-view';
+import { applyWildwechselMark, createWildwechselMarks, wildwechselMarkOf } from './ui/wildwechsel-view';
 import { createToastPlacement } from './ui/toast-place';
 import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
@@ -713,7 +713,7 @@ function refreshEncounter(): void {
   const view = toEncounterView(state, 0, evaluate(state));
   if (!view) return;
   // Wildwechsel (24.6): Weg nur zeigen, solange die Oberfläche weiß, dass die Karte so kam.
-  applyWildwechselMark(view, wildwechselMarks.lookup(state.pendingEncounters[0]));
+  applyWildwechselMark(view, wildwechselMarks.lookup(state.pendingEncounters[0]) ?? wildwechselMarkOf(state, state.pendingEncounters[0]));
   view.key = String(encounterSerial);
   encounterDirty = false;
   shownActionKey = actionKey;

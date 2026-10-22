@@ -266,7 +266,7 @@ describe('checkAchievements', () => {
     s.meta.journal.species = SPECIES.map((x) => x.id);
     s.meta.journal.plants = PLANTS.map((p) => p.id);
     s.meta.journal.communities = COMMUNITIES.map((c) => c.id);
-    s.meta.stats = { ...createStats(), playSeconds: 1e300, bestHarmony: 1e300, visitorsHosted: 99, eventsDecided: 99, careRanksBought: 99, grownTrees: MAIN_TREES.map((t) => t.id) };
+    s.meta.stats = { ...createStats(), playSeconds: 1e300, bestHarmony: 1e300, visitorsHosted: 99, eventsDecided: 99, careRanksBought: 99, wildwechselChosen: 1, grownTrees: MAIN_TREES.map((t) => t.id) };
     s.cycle.number = 11;
     s.cycle.elapsed = YEAR_SECONDS;
     // Ganze Landschaft: alle Wälder Urwald, alle Korridore, die Speichen gratis.
@@ -345,7 +345,7 @@ describe('Spielstand v9', () => {
   }
 
   it('v8 → v9: schaltet still frei, was der Stand erfüllt, und meldet die Anzahl', () => {
-    expect(SAVE_VERSION).toBe(14);
+    expect(SAVE_VERSION).toBe(15);
     const s = groveState(3);
     s.meta.stats.visitorsHosted = 2;
     s.cycle.number = 2;

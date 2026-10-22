@@ -449,11 +449,13 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   Nr. 6) samt den fünf Erfolgen aus 1b als Daten: monoton, Nachtrag beim Laden wie 12.6.
   Sichtbarkeit `requires: 'landscape'` (24.12, kleiner Eingriff in `achievement-view.ts`).
   Abhängig: 1b. `landscape-trees` (25.7) und `wildwechsel-1` folgen mit 2b
-- [ ] **2b** Hauptbäume je Waldtyp, Spielstand v15 (`core-engineer`, DESIGN_V2.md 25.5/25.6):
+- [x] **2b** Hauptbäume je Waldtyp, Spielstand v15 (`core-engineer`, DESIGN_V2.md 25.5/25.6):
   `MainTreeId` um `fir`, `alder`, Freischaltung `unlockSite`, Leitbäume Bergmischwald → Weißtanne,
   Erlenbruch → Schwarzerle, Migration v14 → v15 (nur Versionssprung), Laden in der richtigen
   Reihenfolge, `TREE_SPECIES` = `MAIN_TREE_IDS`. Abhängig: 1a gemergt (gleiche Dateien in
-  `tick.ts`), 1d (Formen vorhanden)
+  `tick.ts`), 1d (Formen vorhanden). Dazu `PendingEncounter.via` und `wildwechselChosen`
+  (Erfolge `wildwechsel-1`, `landscape-trees`); die Wildwechsel-Karte zeigt ihren Weg auch nach
+  dem Neuladen
 - [ ] **2c** Messung Wildwechsel (`game-designer`, 24.11 Nr. 5): Vielfalt der Karten (7.7) mit und
   ohne Wildwechsel, Chance 10 % prüfen, großer Lauf der Landschaft, 24.7/24.10 nachtragen;
   Kiefernheide für den Wachstums-Spieler im Blick (heute −4,7 %, Grenze ±5 %). Abhängig: 1a

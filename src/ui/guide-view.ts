@@ -98,7 +98,8 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
     .map((t) => `ab ${formatNumber(t.min)} „${t.label}“`);
   const lowestTier = HARMONY_TIERS.find((t) => !Number.isFinite(t.min))?.label ?? '';
   // Hauptbaum-Arten: die erste ist immer wählbar, die übrigen über ihre Begleitpflanze.
-  const [firstTree, ...laterTrees] = MAIN_TREES;
+  // Arten der Landschaft (unlockSite) nennt die Anleitung hier nicht (DESIGN_V2.md 25.2, kein Spoiler).
+  const [firstTree, ...laterTrees] = MAIN_TREES.filter((t) => t.unlockSite === undefined);
   const laterFruits = laterTrees.map((t) => fruitPhrase(t.id)).join(' oder ');
   const laterPlants = laterTrees.map((t) => PLANTS_BY_ID.get(t.unlockPlant ?? '')?.name ?? t.name).join(' bzw. ');
   const seasonMinutes = formatNumber(SEASON_SECONDS / 60);

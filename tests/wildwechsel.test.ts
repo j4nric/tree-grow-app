@@ -435,11 +435,13 @@ describe('Spielstände', () => {
     expect(wildwechselRoutes(loaded).map((r) => r.species)).toEqual(['owl', 'wolf']);
   });
 
-  it('kein neues Feld: Wildwechsel ändert am Format nichts (Roundtrip gleich)', () => {
+  it('seit v15 nur das Feld via: Roundtrip gleich, sonst keine Felder an der Begegnung', () => {
     const state = landscapeState({ corridors: SPOKES, fauna: { beechwood: BEECH_FAUNA } });
     tick(state, 1800);
     const loaded = loadGame(serialize(state), 0)!.state;
-    expect(Object.keys(loaded.pendingEncounters[0] ?? {}).sort()).toEqual(['cards', 'rerolls', 'type']);
+    for (const e of loaded.pendingEncounters) {
+      expect(Object.keys(e).sort()).toEqual(e.via ? ['cards', 'rerolls', 'type', 'via'] : ['cards', 'rerolls', 'type']);
+    }
     expect(loaded.pendingEncounters).toEqual(state.pendingEncounters);
   });
 

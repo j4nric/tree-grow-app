@@ -94,7 +94,7 @@ export interface CyclePanelView {
 }
 
 /** „einer Eichel“, „einer Buchecker“, „einem Kiefernsamen“ (Dativ der Frucht). */
-const FRUIT_ARTICLE: Record<MainTreeId, string> = { oak: 'einer', beech: 'einer', pine: 'einem' };
+const FRUIT_ARTICLE: Record<MainTreeId, string> = { oak: 'einer', beech: 'einer', pine: 'einem', fir: 'einem', alder: 'einem' };
 
 /** Frucht der Art mit Artikel im Dativ, z. B. „einer Buchecker“ (unbekannt: Eiche). */
 export function fruitPhrase(id: MainTreeId | string | undefined): string {

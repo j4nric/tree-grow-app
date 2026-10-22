@@ -14,7 +14,9 @@ import { normalizeSeed } from './rng';
  * seit v11 mit der Nische Waldtümpel `niches.pond` der Erweiterung Amphibien; seit v12 mit
  * den Tageszielen `meta.daily`; seit v13 mit den Lebensräumen `niches.meadow`,
  * `niches.deadwood` und `niches.wall`, DESIGN_V2.md 23.6; seit v14 mit der Waldlandschaft
- * `meta.landscape`, DESIGN_V2.md 24.8).
+ * `meta.landscape`, DESIGN_V2.md 24.8; seit v15 mit den Hauptbäumen der Landschaft `fir` und
+ * `alder` in `MainTreeId`, der Wildwechsel-Markierung `PendingEncounter.via` und dem Zähler
+ * `meta.stats.wildwechselChosen`, DESIGN_V2.md 25.5, 24.6, 24.12).
  * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -23,7 +25,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+1 % je Punkt → höchstens
@@ -47,6 +49,12 @@ export interface PendingEncounter {
   cards: string[];
   /** In dieser Begegnung schon neu gewürfelt (Ereignis und Gast: immer 0). */
   rerolls: number;
+  /**
+   * Wildwechsel (seit v15, DESIGN_V2.md 24.6): Karte `card` (Index in `cards`) kam über den
+   * Korridor `corridor` (ID in CORRIDORS) aus dem Bestand eines Nachbarn. Nur bei
+   * Tierbegegnungen, höchstens eine Karte; fehlt = keine Wildwechsel-Karte. Neu würfeln löscht es.
+   */
+  via?: { card: number; corridor: string };
 }
 
 /** Ist das eine Begegnung mit Tier- oder Pflanzenkarten? */
@@ -107,6 +115,8 @@ export interface LifetimeStats {
   plantsPlanted: number;
   /** Gekaufte Pflege-Ränge (buyCare). */
   careRanksBought: number;
+  /** Gewählte Wildwechsel-Karten (chooseCard mit `PendingEncounter.via`, seit v15). */
+  wildwechselChosen: number;
   /** Hauptbaum-Arten, die schon einmal Hauptbaum waren (inkl. der aktuellen), je einmal. */
   grownTrees: MainTreeId[];
 }
@@ -122,6 +132,7 @@ export function createStats(mainTree: MainTreeId = DEFAULT_MAIN_TREE): LifetimeS
     visitorsHosted: 0,
     plantsPlanted: 0,
     careRanksBought: 0,
+    wildwechselChosen: 0,
     grownTrees: [mainTree],
   };
 }
@@ -288,7 +299,7 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 14;
+  version: 15;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */

@@ -7,15 +7,15 @@
  * Reine Ansichtslogik ohne DOM (Tests: tests/wildwechsel-view.test.ts). Die Regeln (Chance,
  * Wege, Bestand) kommen aus core/landscape.ts.
  *
- * Grenze: Welche Karte per Wildwechsel kam, steht nicht im Spielstand – nur im TickReport.
- * Die Markierung lebt darum nur in der Oberfläche und hängt am Objekt der Begegnung
- * (WeakMap): Entscheidet der Spieler über eine andere Begegnung, verschieben sich zwar die
- * Indizes, das Objekt bleibt aber dasselbe. Nach dem Neuladen (neue Objekte) und nach dem
- * Neu würfeln (neues `cards`-Feld) gibt es keine Markierung mehr – lieber kein Hinweis als ein
- * falscher (`wildwechselRoute` nennt auch gewöhnlich gezogene Arten eines Nachbarn).
+ * Markierung: Seit Spielstand v15 steht an der Begegnung, welche Karte per Wildwechsel kam
+ * (`PendingEncounter.via`, auch nach dem Neuladen; Neu würfeln löscht es) – `wildwechselMarkOf`
+ * liest sie. Die Markierung aus dem TickReport (WeakMap am Objekt der Begegnung) nennt dazu den
+ * Herkunftswald direkt; beide ergeben dieselbe Karte. Nie `wildwechselRoute` raten – das nennt
+ * auch gewöhnlich gezogene Arten eines Nachbarn.
  */
 import { CORRIDORS_BY_ID, LANDSCAPE_SITES_BY_ID, WILDWECHSEL_CHANCE, WILDWECHSEL_MAX_CHANCE, type SiteId } from '../content/landscape';
 import { activeSite, landscapeOf, wildwechselChance } from '../core/landscape';
+import type { GameState } from '../core/state';
 import type { LandscapeState, PendingEncounter } from '../core/state';
 import type { WildwechselCard } from '../core/tick';
 import { formatNumber } from './format';
@@ -170,6 +170,21 @@ export function createWildwechselMarks(): WildwechselMarks {
       return entry.mark;
     },
   };
+}
+
+/**
+ * Markierung aus dem Spielstand (`PendingEncounter.via`, seit v15): Art = Karte am Index, Herkunft =
+ * das andere Ende des Korridors (er liegt am aktiven Wald – das prüft das Laden). Sonst null.
+ */
+export function wildwechselMarkOf(state: Pick<GameState, 'meta'>, encounter: PendingEncounter | undefined): WildwechselMark | null {
+  const via = encounter?.type === 'animal' ? encounter.via : undefined;
+  if (!encounter || !via) return null;
+  const species = encounter.cards[via.card];
+  const active = activeSite(landscapeOf(state));
+  const corridor = CORRIDORS_BY_ID.get(via.corridor);
+  const from = corridor?.sites.includes(active) ? corridor.sites.find((s) => s !== active) : undefined;
+  if (species === undefined || from === undefined) return null;
+  return { species, from, corridor: via.corridor, card: via.card };
 }
 
 /** Hängt den Weg an die passende Karte der Ansicht (über die Art – leere Karten fallen dort weg). */

@@ -40,8 +40,12 @@
 > v11-Stände bekommen einen eigenen Startwert und ihre ersten Ziele beim nächsten Start.
 > Seit Spielstand v13 gibt es die Lebensräume (`DESIGN_V2.md` 23.6); v12-Stände bekommen die
 > drei Nischen leer, ein gekaufter Totholzhaufen seine Plätze aus dem Rang, ein im Zyklus
-> gewähltes „Das Holz vermodern lassen“ (Käferjahr) seinen Platz nachgetragen. Ein
-> gespeicherter Stand einer neueren Spielversion wird weder geladen noch überschrieben.
+> gewähltes „Das Holz vermodern lassen“ (Käferjahr) seinen Platz nachgetragen. Seit
+> Spielstand v14 gibt es die Waldlandschaft (`DESIGN_V2.md` 24), seit v15 die Hauptbäume
+> Weißtanne und Schwarzerle, die Wildwechsel-Markierung an offenen Begegnungen und den Zähler
+> gewählter Wildwechsel-Karten (`DESIGN_V2.md` 25.5, 24.6); v14-Stände laden unverändert, der
+> Zähler beginnt bei 0. Ein gespeicherter Stand einer neueren Spielversion wird weder geladen
+> noch überschrieben.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
@@ -254,6 +258,9 @@ steht im Bereich „Neuer Zyklus“ (Radiogruppe, gesperrte Arten mit Hinweis).
 - Der erste Zyklus beginnt immer mit der **Stieleiche**.
 - **Buche und Kiefer** werden wählbar, sobald ihre Begleitpflanze (Rotbuche bzw.
   Waldkiefer) einmal im Pflanzring gewachsen ist – abgeleitet aus dem Naturtagebuch.
+- **Weißtanne und Schwarzerle** (seit v15, `DESIGN_V2.md` 25) werden wählbar, sobald ihr
+  Standort der Waldlandschaft gegründet ist (Bergmischwald bzw. Erlenbruch, dort Leitbaum und
+  beim Gründen vorausgewählt); vor der Freischaltung der Landschaft erscheinen sie nicht.
 - **Wahl beim Neuen Zyklus**; sie gilt für den ganzen Zyklus (`cycle.mainTree`).
 
 | Art | Frucht | Gewinn | Verzicht |
@@ -261,6 +268,8 @@ steht im Bereich „Neuer Zyklus“ (Radiogruppe, gesperrte Arten mit Hinweis).
 | 🌳 Stieleiche | Eichel (Nüsse ab Alter Baum) | +1 Platz Krone (ab Junger Baum); Insekten +10 % 😊 | – |
 | 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum |
 | 🌲 Waldkiefer | Kiefernsamen | +1 ☀️, +1 💧; winterfest (kein Winter-Abzug); Merkmal Nadeln | keine Nüsse |
+| 🎄 Weißtanne | Tannensamen | Vögel +10 % 😊; +1 Platz Stamm & Rinde (ab Junger Baum); winterfest; Merkmal Nadeln | −1 ☀️ ab Alter Baum; keine Nüsse |
+| 🌿 Schwarzerle | Erlensamen | Amphibien +10 % 😊; Blumen +15 % 🌿; +1 Platz Waldtümpel ab Junger Baum (öffnet ihn ohne Pflege) | keine Nüsse; nicht winterfest |
 
 **Simulation** (Balancing 2.10: echte Logik, alle Systeme, 300 Durchgänge, erster Zyklus
 ohne Waldgedächtnis): Hain des Harmonie-Spielers mit Eiche 1:03:14 h (⚖️ 106,7), Buche
@@ -405,7 +414,11 @@ Details, Katalog und Regeln: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 18 (Spiel
 - **25 leise Meilensteine** (`src/content/achievements.ts`): Stufen (Setzling, Hain,
   Urwald), Tagebuch (Arten 5/16/alle, alle Gattungen, Pflanzen 5/alle, Lebensgemeinschaften
   1/5/alle), beste Harmonie 30/60/150, Gäste 1/10, Ereignisse 5, Pflege-Ränge 10, Zyklen
-  1/3/10, alle Hauptbaum-Arten, ein volles Jahr in einem Zyklus, 10 Stunden Spielzeit.
+  1/3/10, drei Hauptbaum-Arten, ein volles Jahr in einem Zyklus, 10 Stunden Spielzeit.
+- **7 Erfolge der Waldlandschaft** (`DESIGN_V2.md` 24.12), verborgen bis zu ihrer
+  Freischaltung (danach 32): zweiter Wald, zweiter Urwald, Wildwechsel (eine gewählte
+  Wildwechsel-Karte, seit v15), gekaufter Korridor, jede Hauptbaum-Art (alle fünf, seit v15),
+  Urwald überall, alle Korridore.
 - Keine Belohnung in Zahlen, keine Zeitlimits, keine Namen von Unentdecktem.
 - Anzeige: Naturtagebuch, Reiter „Erfolge“ (erreichte mit Beschreibung, offene gedämpft
   mit Fortschritt „3/5“); leiser Hinweis „🏅 Erfolg: …“ beim Freischalten.

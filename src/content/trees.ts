@@ -1,3 +1,4 @@
+import type { SiteId } from './landscape';
 import type { HappinessEffect } from './seasons';
 import type { Effect, Tag } from './types';
 
@@ -11,6 +12,9 @@ import type { Effect, Tag } from './types';
  * - Eine Art ist freigeschaltet, sobald ihre Begleitpflanze `unlockPlant` im
  *   Naturtagebuch steht (`meta.journal.plants`, d. h. sie ist einmal im Pflanzring
  *   gewachsen): Aus ihren Samen kann der nächste Hauptbaum keimen. Kein neues Feld nötig.
+ * - Arten der Landschaft (seit v15, DESIGN_V2.md 25.2) haben stattdessen `unlockSite`: Sie
+ *   sind wählbar, sobald ihr Standort gegründet ist (`meta.landscape.sites`), und vor der
+ *   Freischaltung der Landschaft verborgen (core/tick.ts, isTreeVisible).
  * - Gewählt wird beim Neuen Zyklus; die Wahl gilt für den ganzen Zyklus (`cycle.mainTree`).
  * - Jede Art hat eine kleine, klare Eigenheit – ein Gewinn und höchstens ein Verzicht.
  *   Keine ist „die beste“: Eiche für Vielfalt, Buche für Pilze und Bodenleben, Kiefer
@@ -19,8 +23,8 @@ import type { Effect, Tag } from './types';
  */
 
 /** IDs wie `TreeSpecies` im Renderer. */
-export type MainTreeId = 'oak' | 'beech' | 'pine';
-export const MAIN_TREE_IDS: readonly MainTreeId[] = ['oak', 'beech', 'pine'];
+export type MainTreeId = 'oak' | 'beech' | 'pine' | 'fir' | 'alder';
+export const MAIN_TREE_IDS: readonly MainTreeId[] = ['oak', 'beech', 'pine', 'fir', 'alder'];
 
 /** Startbaum des ersten Zyklus und Rückfall für unbekannte Werte. */
 export const DEFAULT_MAIN_TREE: MainTreeId = 'oak';
@@ -59,7 +63,13 @@ export interface MainTree {
    * ist. null = immer wählbar.
    */
   unlockPlant: string | null;
-  /** Hinweis für die gesperrte Auswahl (ohne Spoiler: die Pflanze ist bekannt). */
+  /**
+   * Standort der Landschaft (landscape.ts), der gegründet sein muss, damit die Art wählbar
+   * ist (DESIGN_V2.md 25.2). Fehlt es, zählt nur `unlockPlant`. Der Standort hat diese Art
+   * als Leitbaum (`leadTree`, Inhaltstest).
+   */
+  unlockSite?: SiteId;
+  /** Hinweis für die gesperrte Auswahl (ohne Spoiler: die Pflanze bzw. der Standort ist bekannt). */
   unlockHint: string;
   /** Merkmale, die der Hauptbaum bereitstellt (je SUPPLY_MAIN_TREE). */
   tags: readonly Tag[];
@@ -121,6 +131,45 @@ export const MAIN_TREES: readonly MainTree[] = [
       { minStage: 0, effect: { kind: 'water', amount: 1 } },
     ],
     winterHardy: true,
+  },
+  // --- Landschaft (seit v15, DESIGN_V2.md 25.3) ------------------------------
+  {
+    id: 'fir', name: 'Weißtanne', icon: '🎄', fruit: 'Tannensamen',
+    text: 'Geduldig wächst sie im Schatten der Buchen – und überragt sie am Ende alle.',
+    summary: 'Schattenbaum · winterfest · Nadeln · Vögel +10 % 😊 · +1 Platz Stamm & Rinde · ab Alter Baum −1 ☀️ · keine Nüsse',
+    unlockPlant: null,
+    unlockSite: 'mountain',
+    unlockHint: 'Gründe den Bergmischwald – dort keimt sie.',
+    // Nadelstreu zählt wie bei der Kiefer auch als Laub; die geflügelten Samen sind keine Nüsse.
+    tags: ['laub', 'wurzeln', 'nadeln'],
+    nutsFromStage: null,
+    traits: [
+      // Tannen- und Haubenmeise, Goldhähnchen leben in ihren Zweigen.
+      { minStage: 0, effect: { kind: 'happiness', genus: 'birds', points: 10 } },
+      // Flechten auf der glatten Borke.
+      { minStage: 3, effect: { kind: 'slot', niche: 'bark', amount: 1 } },
+      // Schattbaum: Die dichte Krone schließt sich erst, wenn der Baum groß ist.
+      { minStage: 4, effect: { kind: 'light', amount: -1 } },
+    ],
+    winterHardy: true,
+  },
+  {
+    id: 'alder', name: 'Schwarzerle', icon: '🌿', fruit: 'Erlensamen',
+    text: 'Sie steht mit den Füßen im Wasser – und ihre Wurzeln düngen den Boden.',
+    summary: 'Nassbaum · Amphibien +10 % 😊 · Blumen +15 % 🌿 · ab Junger Baum +1 Platz Waldtümpel · keine Nüsse',
+    unlockPlant: null,
+    unlockSite: 'carr',
+    unlockHint: 'Gründe den Erlenbruch – dort keimt sie.',
+    tags: ['laub', 'wurzeln'],
+    nutsFromStage: null,
+    traits: [
+      { minStage: 0, effect: { kind: 'happiness', genus: 'amphibians', points: 10 } },
+      // Stickstoff aus den Wurzelknöllchen (Frankia): Sumpfdotterblume und Mädesüß blühen üppig.
+      { minStage: 0, effect: { kind: 'groupGrowth', group: 'flowers', pct: 15 } },
+      // Tümpel zwischen den Stelzwurzeln – der Waldtümpel öffnet sich ohne Pflege (opensEarly).
+      { minStage: 3, effect: { kind: 'slot', niche: 'pond', amount: 1 } },
+    ],
+    winterHardy: false,
   },
 ];
 

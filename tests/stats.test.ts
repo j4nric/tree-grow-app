@@ -58,6 +58,7 @@ describe('Startwerte', () => {
       visitorsHosted: 0,
       plantsPlanted: 0,
       careRanksBought: 0,
+      wildwechselChosen: 0,
       grownTrees: ['oak'],
     });
     expect(createStats('pine').grownTrees).toEqual(['pine']);
@@ -292,7 +293,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
   }
 
   it('v7 → v8: Startwerte aus dem laufenden Zyklus, Zähler 0, ab Zyklus 2 auch die Eiche', () => {
-    expect(SAVE_VERSION).toBe(14);
+    expect(SAVE_VERSION).toBe(15);
     const s = loadGame(rawV7(), 0)!.state;
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.meta.stats).toEqual({
@@ -304,6 +305,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
       visitorsHosted: 0,
       plantsPlanted: 0,
       careRanksBought: 0,
+      wildwechselChosen: 0,
       // Jeder erste Zyklus beginnt mit der Stieleiche – sie steht vorn.
       grownTrees: ['oak', 'pine'],
     });
@@ -364,6 +366,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
       visitorsHosted: 0,
       plantsPlanted: 0,
       careRanksBought: 0,
+      wildwechselChosen: 0,
       grownTrees: ['oak'],
     };
     for (const broken of [undefined, null, 'x', 42, [1, 2], {}]) expect(load(broken), String(broken)).toEqual(fallback);
@@ -376,14 +379,16 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
       visitorsHosted: '__INF__',
       plantsPlanted: null,
       careRanksBought: true,
-      grownTrees: ['oak', 'drache', 'oak', 7, 'beech'],
+      wildwechselChosen: -1,
+      grownTrees: ['oak', 'drache', 'oak', 7, 'beech', 'fir', 'alder'],
     });
     expect(s).toEqual({
       ...fallback,
       playSeconds: Number.MAX_VALUE,
       cardsChosen: 3,
       visitorsHosted: MAX_STAT_COUNT,
-      // Rotbuche ist nicht freigeschaltet (nicht im Tagebuch) – kann nicht gewachsen sein.
+      // Rotbuche ist nicht freigeschaltet (nicht im Tagebuch), Weißtanne und Schwarzerle nicht
+      // (Standort nicht gegründet) – keine kann gewachsen sein.
       grownTrees: ['oak'],
     });
   });
