@@ -105,3 +105,25 @@ body[data-motion='reduce'] .tape-label-value.pop {
 .album[data-layout='spread'] .tape-label-caption {
   font-size: 13px;
 }
+
+/* Etikett als Knopf (Haftnotiz) – sieht aus wie ein Schild, nicht wie ein Knopf. */
+button.tape-label {
+  margin: 0;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+button.tape-label:hover {
+  border-style: solid;
+}
+
+button.tape-label[aria-expanded='true'] {
+  border-style: solid;
+  background: var(--note-bg);
+}
+
+.tape-label-info {
+  font-weight: 700;
+}

@@ -1,7 +1,21 @@
 import type { BrowserContext } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, createSite, type GameState, type LandscapeSite } from '../src/core/state';
-import { expect, gotoTab, openCover, openGame, openTab, overlaps, savedState, seedRaw, tabButton, test, waitForConfirm, waypoint } from './fixtures';
+import {
+  expect,
+  gotoTab,
+  openCover,
+  openGame,
+  openTab,
+  overlaps,
+  savedState,
+  seedRaw,
+  stamps,
+  tabButton,
+  test,
+  waitForConfirm,
+  waypoint,
+} from './fixtures';
 
 /**
  * Karte der Landschaft (DESIGN_V2.md 24.5, 24.6): Freischaltung, Gründen, Wechseln,
@@ -39,7 +53,7 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await seed(context, landscapeState(ANCIENT, { own: 300, announced: false }));
   await openGame(page);
   // Meldung der Freischaltung (einmal).
-  await expect(page.locator('#toast')).toContainText('Eichelhäher');
+  await expect(stamps(page)).toContainText('Eichelhäher');
   // Der Reiter „Landschaft“ ist erschienen.
   await openTab(page, 'landschaft');
   const map = page.locator('[data-ref="landscape"]');
@@ -65,7 +79,7 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await button.click();
   await waitForConfirm(page);
   await button.click();
-  await expect(page.locator('#toast')).toContainText('Neuer Wald gegründet: 🌊 Auwald am Fluss');
+  await expect(stamps(page)).toContainText('Neuer Wald gegründet: 🌊 Auwald am Fluss');
 
   const after = await savedState(page);
   expect(after.meta.landscape.active).toBe('floodplain');
@@ -89,7 +103,7 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await page.reload();
   await expect(page.locator('[data-ref="stage"]')).toContainText('Stufe:');
   await page.waitForTimeout(500);
-  await expect(page.locator('#toast')).not.toContainText('Eichelhäher');
+  await expect(stamps(page)).not.toContainText('Eichelhäher');
 });
 
 test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', async ({ page, context }) => {
@@ -117,7 +131,7 @@ test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', a
   await button.click();
   await waitForConfirm(page);
   await button.click();
-  await expect(page.locator('#toast')).toContainText('Du wächst jetzt in: 🌳 Heimatwald');
+  await expect(stamps(page)).toContainText('Du wächst jetzt in: 🌳 Heimatwald');
   const after = await savedState(page);
   expect(after.meta.landscape.active).toBe('home');
   expect(after.meta.forestMemory).toBe(320);
@@ -154,7 +168,7 @@ test('Korridor bauen: Altwasser zwischen Auwald und Erlenbruch', async ({ page, 
   expect((await savedState(page)).meta.landscape.corridors).not.toContain('floodplain-carr');
   await waitForConfirm(page);
   await armed.click();
-  await expect(page.locator('#toast')).toContainText('Altwasser gebaut');
+  await expect(stamps(page)).toContainText('Altwasser gebaut');
   await expect(map.locator('[data-ref="jay-seeds"]')).toHaveText('🪶 4 Hähersaat');
   await expect(row).toContainText('verbunden');
   const after = await savedState(page);

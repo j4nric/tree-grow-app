@@ -679,8 +679,13 @@ src/ui/album/
   stage-ladder.ts     StageLadder: Stufenleiste mit 8 Stufen und Balken
   sticker.ts          StickerSlot: runder Sticker (Canvas-Bild, Rand, Bogen, Drehung, leer/gestrichelt)
   sticker-row.ts      StickerRow: Nischenzeile (Name, Sticker, Hinweis)
-  note.ts             Note: Haftnotiz (popover, Lage, Fallback)
+  note.ts             Note: Haftnotiz (popover, Fallback), openNote() für freie Notizen
+  note-layout.ts      notePosition(): Lage der Haftnotiz (rein)                  ← Vitest
+  notes-text.ts       Texte der Etiketten-Notizen (rein)                         ← Vitest
+  label-notes.ts      Notizen an Wachstum, Samen, Harmonie
+  season-weather.ts   Jahreszeit und Wetter in der Bildunterschrift mit Notizen
   stamps.ts           Stamps: Stempel- und Zettelschicht (ersetzt #toast)
+  stamp-rules.ts      stampKind(), Standzeit, wer weicht (rein)                  ← Vitest
   note-stack.ts       NoteStack: Zettelstapel der Begegnungen
   banderole.ts        Banderole: Update-Hinweis, neuerer Spielstand
   cover.ts            Cover: Buchumschlag (Menü)
@@ -945,6 +950,68 @@ Die Knöpfe in Haftnotizen bekommen abweichend vom Prototyp (36 px) die volle H�
 **Altes CSS:** `style.css` (5350 Zeilen) wird schrittweise ersetzt. Am Ende bleibt nur noch,
 was Album und Szene brauchen (F-12). Damit parallele PRs nicht im selben Riesen-File kollidieren,
 bekommt jede Album-Komponente eine **eigene CSS-Datei** (G-19).
+
+### D.6 Schnittstellen: Haftnotiz und Meldungen (Schritt 4)
+
+**Haftnotiz** (`album/note.ts`):
+
+```ts
+interface NoteMore { label?: string; onMore(): void; available?(): boolean }
+interface NoteContent {
+  title: string;
+  lines?: readonly string[];  // Absätze, leere fallen weg
+  emphasis?: string;          // grüne Kernzahl („jetzt: Wachstum ×1,32“)
+  more?: NoteMore;            // Knopf „Mehr ›“ (Beschriftung änderbar), schließt die Notiz
+  ref?: string;               // data-ref, Standard „note“
+}
+// Freie Notiz an einem beliebigen Element (z. B. Tier-Tipp im Vollbild, Schritt 3).
+// Es gibt nur eine; ein neuer Aufruf ersetzt den Inhalt. Rückgabe: die Notiz (hide()).
+function openNote(anchor: HTMLElement, content: NoteContent): Note;
+// Feste Notizen: einmal bauen, Zeilen per note.line(), Texte per setText.
+function createNote(options: { id: string; title: string; ref?: string; more?: NoteMore }): Note;
+function attachNote(trigger: HTMLElement, note: Note): void;   // aria-expanded, Auf/Zu per Klick
+function closeNotes(): void;
+```
+
+- Umgesetzt im Vollbild (`showSceneAnimal` in `album/index.ts`): Anker ist ein unsichtbares
+  Element an der zuletzt angetippten Stelle der Vollbild-Ebene. Beispiel (aus `album/index.ts`
+  exportiert):
+  `openNote(canvas, { title: 'Waldkauz', lines: ['Zufriedenheit 80 %', 'satt und ruhig'],
+  more: { label: 'Im Album ansehen ›', onMore: () => { closeFullscreen(); openAnimal(id); } } })`.
+  Als Anker taugt jedes Element im Bild; die Notiz liegt unter bzw. über ihm. Für eine Stelle
+  im Canvas genügt ein kleines unsichtbares, absolut gesetztes Element an der Trefferstelle.
+- Es ist immer höchstens eine Notiz offen. `nav.note` führt ihre ID; Reiterwechsel, Umblättern,
+  Umschlag, Vollbild (`fullscreen: true` setzt `note: null`) und Escape schließen sie. Wer im
+  Vollbild eine Notiz öffnet, setzt also zuerst das Vollbild und öffnet die Notiz danach.
+- Fokus: Beim Öffnen geht er in die Notiz (`tabindex=-1`), bei „Verstanden“ und Escape zurück an
+  den Auslöser, bei Klick außerhalb bleibt er, wo geklickt wurde.
+
+**Meldungen** (`album.notify`, `album/stamps.ts`):
+
+```ts
+interface NotifyOptions {
+  error?: boolean;  // roter Rahmen (Fehler einer Aktion)
+  keep?: boolean;   // Zettel bis zum Schließen (Landschaft frei, v1-Hinweis, angehaltener Tab)
+  brief?: boolean;  // höchstens drei Zeilen (Rückkehr-Kurzfassung)
+  direct?: boolean; // nie in ein altes Dialog-Hinweisfeld (bis Schritt 12; früher showToast)
+}
+album.notify(text: string, options?: NotifyOptions): void;   // leerer Text: nichts
+```
+
+- Bis 90 Zeichen Stempel, darüber (oder mit `keep`) Zettel mit „×“. Höchstens zwei zugleich;
+  die älteste weicht, bleibende Zettel zuletzt. Gleicher Text ersetzt die alte Meldung.
+- Platz: mobil oben rechts neben dem Umschlag-Knopf, Desktop oben über der rechten Seite;
+  steht eine Banderole im Bild, rückt die Schicht darunter (gemessen beim Zeigen und per
+  ResizeObserver an den Banderolen, nie pro Frame). Klicks gehen durch, nur „×“ fängt sie.
+- Übergang bis Schritt 12: Ist ein alter Dialog mit eigenem Hinweisfeld offen (Kartenwahl,
+  Pflanzenwahl, Tagebuch, Tierdetails, Hilfe), landet die Meldung dort, sonst verdeckte der
+  modale Dialog den Stempel. Mit den Dialogen fällt diese Weiche weg.
+- e2e: `stamps(page)` ist die Schicht (für „enthält“), `stamp(page)` die neueste Meldung,
+  `settledStamp(page)` dieselbe nach dem Hereinstempeln (für Lage und Größe).
+
+**Banderole** (`album/banderole.ts`): `createBanderole({ tone: 'tape' | 'alert', ref, role, text,
+buttons })` hängt in `album.banners`. Gelb: Update-Hinweis (`pwa.ts`, `mount: album.banners`),
+rot: „neuerer Spielstand“.
 
 ---
 

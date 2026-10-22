@@ -16,6 +16,8 @@ import {
   settle,
   stack,
   stageLabel,
+  stamp,
+  stamps,
   test,
   waitForConfirm,
   waypoint,
@@ -258,7 +260,7 @@ test('v1-Spielstand: Neustart mit Andenken-Meldung', async ({ page, context }) =
     -2 * 60 * 60 * 1000,
   );
   await openGame(page);
-  const toast = page.locator('#toast');
+  const toast = stamps(page);
   await expect(toast).toBeVisible();
   await expect(toast).toContainText('Dein Wald beginnt neu – mit Erinnerungen.');
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
@@ -295,7 +297,7 @@ test('Spielstand einer neueren Spielversion: nicht laden, nie überschreiben, Hi
   await reset.click();
   await waitForConfirm(page);
   await reset.click();
-  await expect(page.locator('#toast')).toContainText('Dieser Tab ist angehalten');
+  await expect(stamps(page)).toContainText('Dieser Tab ist angehalten');
   expect(await savedState(page)).toEqual(future);
   // Export liefert den gespeicherten neueren Stand (für die neuere Spielversion).
   const transfer = page.locator('[data-ref="save-transfer"]');
@@ -354,7 +356,7 @@ test('Offline-Fortschritt: Willkommens-Meldung, Begegnungen warten im Stapel', a
   });
   await openGame(page);
 
-  const toast = page.locator('#toast');
+  const toast = stamps(page);
   await expect(toast).toBeVisible();
   await expect(toast).toContainText('Willkommen zurück');
   await expect(toast).toContainText('1 Std.');
@@ -373,10 +375,12 @@ test('Offline länger als 8 Stunden: Meldung nennt die simulierte Dauer', async 
     lastTickOffsetMs: -30 * 60 * 60 * 1000,
   });
   await openGame(page);
-  const toast = page.locator('#toast');
-  await expect(toast).toContainText('In 8 Std. (max. 8 Std.)');
+  // Die Meldung zeigt die Kurzfassung (C.8), der Rückkehr-Bericht alles Weitere.
+  await expect(stamps(page)).toContainText('Willkommen zurück! 8 Std.');
+  const report = page.locator('[data-ref="return-report-list"]');
+  await expect(report).toContainText('In 8 Std. (max. 8 Std.)');
   // Mehr als 3 Wegpunkte: überzählige Begegnungen ziehen weiter und bringen Samen.
-  await expect(toast).toContainText(/zog(en)? weiter und ließ(en)? \+\d+ 🌰 da/);
+  await expect(report).toContainText(/zog(en)? weiter und ließ(en)? \+\d+ 🌰 da/);
 });
 
 test('ohne Offline-Zeit erscheint keine Willkommens-Meldung', async ({ page, context }) => {
@@ -384,7 +388,7 @@ test('ohne Offline-Zeit erscheint keine Willkommens-Meldung', async ({ page, con
   await openGame(page);
   await page.waitForTimeout(300);
   // Nur der Sammelhinweis der Erfolge (v3-Stand, Migration v8 → v9) – kein Willkommen.
-  await expect(page.locator('#toast')).toHaveText(BACKFILLED_ONLY);
+  await expect(stamp(page)).toHaveText(BACKFILLED_ONLY);
 });
 
 test.describe('Mobil (390×844)', () => {
@@ -663,7 +667,7 @@ test('Wegpunkt bei vollem Stapel: dezenter Hinweis mit den Samen dafür', async 
   // Derselbe Hinweis unsichtbar in der Statuszeile (Screenreader) – kein zweiter Toast.
   await expect(page.locator('#live-status')).toHaveText(/Stapel voll – eine Begegnung zog weiter/);
   // Der Toast zeigt nur den Sammelhinweis der Erfolge (v3-Stand, Migration v8 → v9).
-  await expect(page.locator('#toast')).toHaveText(BACKFILLED_ONLY);
+  await expect(stamp(page)).toHaveText(BACKFILLED_ONLY);
   const saved = await savedState(page);
   expect(saved.pendingEncounters).toHaveLength(3);
   expect(saved.waypoint).toBe(7);
@@ -679,7 +683,7 @@ test('Start 20 s nach dem letzten Speichern, ein Wegpunkt bei vollem Stapel verp
   await openGame(page);
   await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/);
   // Kein Willkommen; der Toast zeigt nur den Sammelhinweis der Erfolge (Migration v8 → v9).
-  await expect(page.locator('#toast')).toHaveText(BACKFILLED_ONLY);
+  await expect(stamp(page)).toHaveText(BACKFILLED_ONLY);
   expect((await savedState(page)).waypoint).toBe(7);
 });
 
@@ -864,7 +868,7 @@ test.describe('Lebensgemeinschaften', () => {
 
     await expect(dialog(page)).toBeHidden();
     // Entdeckung und erster Erfolg in einem Hinweis (nichts verdrängt das andere).
-    await expect(page.locator('#toast')).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱 🏅 Erfolg: „Gemeinsam stark“');
+    await expect(stamp(page)).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱 🏅 Erfolg: „Gemeinsam stark“');
     await expect(community(page, 'humus')).toContainText('Humusküche');
     await expect(community(page, 'humus')).toContainText('+8 ⚖️');
     await expect(community(page, 'humus')).toHaveClass(/state-active/);
@@ -945,15 +949,20 @@ test('Seitenleiste scrollt für sich: die Seite selbst bleibt fest (Desktop)', a
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
-test('Hinweis (Toast) lässt Klicks auf darunterliegende Knöpfe durch', async ({ page, context }) => {
+test('Meldung (Stempel, Zettel) lässt Klicks auf darunterliegende Knöpfe durch', async ({ page, context }) => {
   await seedV3(context, { totalGrowth: waypoint(3) + 1, lastTickOffsetMs: -60 * 60 * 1000 });
   await openGame(page);
-  const toast = page.locator('#toast');
-  await expect(toast).toBeVisible();
-  const box = (await toast.boundingBox())!;
+  // Willkommen nach einer Stunde: ein langer Text, also ein Zettel mit „×“.
+  const slip = stamp(page);
+  await expect(slip).toBeVisible();
+  await expect(slip).toHaveAttribute('data-kind', 'slip');
+  const box = (await slip.boundingBox())!;
   const hit = await page.evaluate(
-    ({ x, y }) => document.elementFromPoint(x, y)?.closest('#toast') != null,
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-ref="stamps"]') != null,
     { x: box.x + box.width / 2, y: box.y + box.height / 2 },
   );
-  expect(hit, 'Toast fängt Klicks ab').toBe(false);
+  expect(hit, 'Meldung fängt Klicks ab').toBe(false);
+  // Nur „×“ fängt Klicks: schließt den Zettel.
+  await slip.getByRole('button', { name: 'Zettel schließen' }).click();
+  await expect(page.locator('[data-ref="stamp"]')).toHaveCount(0);
 });

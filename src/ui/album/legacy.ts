@@ -44,13 +44,9 @@ import { createJournalButton, createJournalDialog } from '../journal-dialog';
 import { createPlantPicker } from '../plant-picker';
 import { createReturnReportPanel } from '../return-report';
 import { returnToastText, type ReturnReportView } from '../return-report-view';
-import { createSeasonBadge } from '../season-badge';
 import { toSeasonBadgeView } from '../season-view';
-import { toastDurationFor } from '../settings';
-import { createToastPlacement } from '../toast-place';
 import { seedsLabel } from '../view-format';
 import type { EcosystemView } from '../view-model';
-import { createWeatherBadge } from '../weather-badge';
 import { toWeatherBadgeView } from '../weather-view';
 import { applyWildwechselMark } from '../wildwechsel-view';
 import type { CarePage } from './pages/care-page';
@@ -58,6 +54,8 @@ import type { GoalsPage } from './pages/goals-page';
 import type { LandscapePage } from './pages/landscape-page';
 import type { NichesPage } from './pages/niches-page';
 import type { SpeciesPage } from './pages/species-page';
+import { createSeasonWeather } from './season-weather';
+import type { NotifyOptions } from './stamp-rules';
 import type { AlbumDeps, AlbumPart } from './types';
 
 /** Seitenleiste ohne Änderungen am Ökosystem höchstens so oft aktualisieren (Samen, Fortschritt). */
@@ -94,6 +92,8 @@ export interface LegacyHooks {
   showCareTab(): void;
   /** Fokusziel, wenn der Fokus sonst im Nichts landete (Überschrift der aktuellen Seite). */
   focusTarget(): HTMLElement | null;
+  /** Meldung in die Stempelschicht (stamps.ts). */
+  stamp(text: string, options?: NotifyOptions): void;
 }
 
 export interface LegacyUi {
@@ -101,8 +101,12 @@ export interface LegacyUi {
   invalidate(parts: readonly AlbumPart[]): void;
   /** Die vorderste Begegnung ist erledigt (neue Karten, auch wenn sie gleich aussehen). */
   encounterResolved(): void;
-  notify(text: string): void;
-  showToast(text: string): void;
+  /**
+   * Meldung (C.5): Stempel, ab 90 Zeichen Zettel. Solange noch ein alter Dialog mit eigenem
+   * Hinweisfeld offen ist (Kartenwahl, Pflanzenwahl, Tagebuch, Tierdetails, Hilfe), steht sie
+   * dort – außer mit `direct`. Leerer Text: nichts.
+   */
+  notify(text: string, options?: NotifyOptions): void;
   showBanner(view: StageBannerView): void;
   /** Verdeckt gerade ein Dialog die Szene? */
   overlayOpen(): boolean;
@@ -120,32 +124,21 @@ export interface LegacyUi {
   showReturnReport(view: ReturnReportView): void;
   hideReturnReport(): void;
   addSettingsSection(section: HTMLElement): void;
-  /** Toast (Hinweis) – Element für die Lage; bleibt bis Schritt 4. */
-  readonly toast: HTMLElement;
 }
 
 export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: LegacyHooks): LegacyUi {
   const preferences = deps.preferences;
   const state = () => deps.state();
 
-  // --- Hinweis (Toast) und Stufen-Banner -------------------------------------------------
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.id = 'toast';
-  toast.setAttribute('role', 'status');
-  toast.hidden = true;
-  const toastPlacement = createToastPlacement(toast);
-  let toastTimer: ReturnType<typeof setTimeout> | undefined;
+  // --- Stufen-Banner ---------------------------------------------------------------------
   const banner = document.createElement('div');
   banner.className = 'stage-banner';
   banner.id = 'stage-banner';
   banner.setAttribute('aria-live', 'polite');
   mounts.photo.append(banner);
-  // „visible“ nur, solange das Banner zu sehen ist – danach darf der Toast wieder nach oben.
   banner.addEventListener('animationend', () => banner.classList.remove('visible'));
   /** Unsichtbare Statuszeile: schwebende Hinweise auch für Screenreader. */
   const liveStatus = document.querySelector<HTMLElement>('#live-status');
-  const singleColumn = matchMedia('(max-width: 760px)');
   const floats = createFloatLayer(document.body);
   const canvas = deps.canvas;
 
@@ -210,8 +203,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   // Die Karte der Landschaft steht im eigenen Reiter; cycle-panel.ts steuert sie weiter.
   mounts.landscape.landscape.append(cyclePanel.landscapeElement);
   const returnReport = createReturnReportPanel(mounts.returnReport, () => hooks.focusTarget());
-  const seasonBadge = createSeasonBadge(mounts.season);
-  const weatherBadge = createWeatherBadge(mounts.season, seasonBadge.element);
+  const seasonWeather = createSeasonWeather(mounts.season);
   const stack = createEncounterStack(mounts.dock, openEncounters, { float: false });
   const dialog = createEncounterDialog(document.body, { ...deps.actions.encounter, onDefer: closeEncounters });
   const picker = createPlantPicker(document.body, {
@@ -232,7 +224,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     hintRoot: mounts.hint,
     hintFocus: mounts.coverButton,
   });
-  document.body.append(toast);
 
   preferences.onChange(() => {
     // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
@@ -291,22 +282,17 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     return picker.open || dialog.open || journal.open || animalDetail.open || help.open;
   }
 
-  /** Kurzer Hinweis: im offenen Dialog dort, sonst als Toast (der Dialog würde ihn verdecken). */
-  function notify(text: string): void {
-    if (picker.open) picker.notice(text);
-    else if (dialog.open) dialog.notice(text);
-    else if (journal.open) journal.notice(text);
-    else if (animalDetail.open) animalDetail.notice(text);
-    else if (!help.notice(text)) showToast(text);
-  }
-
-  function showToast(text: string): void {
-    toast.classList.remove('brief');
-    toast.textContent = text;
-    toast.hidden = false;
-    toastPlacement.update();
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => (toast.hidden = true), toastDurationFor(text, preferences.toastMs()));
+  /** Meldung: im offenen alten Dialog dort (er würde den Stempel verdecken), sonst als Stempel. */
+  function notify(text: string, options: NotifyOptions = {}): void {
+    if (!text) return;
+    if (!options.direct) {
+      if (picker.open) return picker.notice(text);
+      if (dialog.open) return dialog.notice(text);
+      if (journal.open) return journal.notice(text);
+      if (animalDetail.open) return animalDetail.notice(text);
+      if (help.notice(text)) return;
+    }
+    hooks.stamp(text, options);
   }
 
   function showBanner(view: StageBannerView): void {
@@ -421,8 +407,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     const second = Math.floor(s.cycle.elapsed);
     if (second === seasonShownSecond) return;
     seasonShownSecond = second;
-    seasonBadge.update(toSeasonBadgeView(s.cycle.elapsed));
-    weatherBadge.update(toWeatherBadgeView(s, preferences.settings.daytime === 'day'));
+    seasonWeather.update(toSeasonBadgeView(s.cycle.elapsed), toWeatherBadgeView(s, preferences.settings.daytime === 'day'));
     // Sonnenunter- und -aufgang: Nachtwirkungen ändern die Raten – Ansichten neu bauen.
     const night = isNight(s.cycle.elapsed);
     if (night !== shownNight) {
@@ -443,13 +428,10 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
         shownLandscape = unlocked;
         hooks.onLandscape(unlocked);
       }
-      // Sonst nirgends gemeldet (z. B. nach einem Import): hier nachholen – an einen
-      // sichtbaren Toast angehängt, damit er nicht verdrängt wird.
+      // Sonst nirgends gemeldet (z. B. nach einem Import): hier nachholen – als Zettel, der
+      // bleibt (C.5); ein gleichzeitiger Stempel verdrängt ihn nicht.
       const announcement = deps.takeLandscapeAnnouncement();
-      if (announcement) {
-        if (!toast.hidden && toast.textContent) showToast(`${toast.textContent} ${announcement}`);
-        else notify(announcement);
-      }
+      if (announcement) notify(announcement, { keep: true });
       const ev = evaluate(s);
       if (journal.open) journal.update(toJournalView(s, ev));
       if (!ecoView || ev !== ecoEvaluation || ecoSeenKey() !== ecoSeen) {
@@ -519,7 +501,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     refreshPanel(now);
     const s = state();
     stack.update(s.pendingEncounters.length, s.pendingEncounters[0]);
-    toastPlacement.update();
     refreshEncounter();
     refreshPicker(now);
   }
@@ -541,7 +522,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       encounterDirty = true;
     },
     notify,
-    showToast,
     showBanner,
     overlayOpen,
     noteText,
@@ -572,12 +552,11 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     },
     showReturnReport(view) {
       returnReport.show(view);
-      notify(returnToastText(view, singleColumn.matches));
-      // Mobil höchstens drei Zeilen (CSS .toast.brief); showToast nimmt die Klasse wieder weg.
-      if (singleColumn.matches && toast.textContent === view.summary) toast.classList.add('brief');
+      // Kurzfassung als Stempel bzw. Zettel (höchstens drei Zeilen) – Desktop wie mobil;
+      // alles Weitere steht im Rückkehr-Bericht (C.8).
+      notify(returnToastText(view, true), { brief: true });
     },
     hideReturnReport: () => returnReport.hide(),
     addSettingsSection: (section) => help.addSettingsSection(section),
-    toast,
   };
 }

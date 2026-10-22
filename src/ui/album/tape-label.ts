@@ -3,6 +3,8 @@
  * #25–28): Zahl in Caveat (Tintenfarbe je Vorrat), darunter die Beschriftung, ein kleines
  * 🌙 in der Ecke, solange eine Nachtwirkung gilt. `data-ref` der Zahl bleibt wie bisher
  * (`growth-rate`, `seeds`, `harmony`), das 🌙 heißt `<ref>-night`.
+ *
+ * Das Etikett ist ein Knopf: Antippen öffnet seine Haftnotiz (label-notes.ts, C.4).
  */
 import { el, setAttr, setText, srOnly } from '../dom';
 import { restartAnimation } from '../feedback';
@@ -11,7 +13,8 @@ import './tape-label.css';
 export type TapeLabelKind = 'growth' | 'seeds' | 'harmony';
 
 export interface TapeLabel {
-  readonly element: HTMLElement;
+  /** Der Knopf (Auslöser der Haftnotiz). */
+  readonly element: HTMLButtonElement;
   readonly value: HTMLElement;
   setValue(text: string): void;
   /** Zusatz hinter der Beschriftung („+3,2/s“), leer = keiner. */
@@ -27,8 +30,10 @@ export interface TapeLabel {
 /** Ab so vielen Zeichen wird die Zahl kleiner gesetzt (ausgeschriebene Zahlen). */
 const LONG_CHARS = 9;
 
-export function createTapeLabel(kind: TapeLabelKind, label: string, ref: string): TapeLabel {
-  const box = el('div', `tape-label tape-label-${kind}`);
+/** `info`: kleines ⓘ hinter der Beschriftung (Harmonie, wie im Prototyp). */
+export function createTapeLabel(kind: TapeLabelKind, label: string, ref: string, info = false): TapeLabel {
+  const box = el('button', `tape-label tape-label-${kind} note-trigger`);
+  box.type = 'button';
   const value = el('b', 'tape-label-value');
   value.dataset.ref = ref;
   const caption = el('span', 'tape-label-caption');
@@ -36,6 +41,11 @@ export function createTapeLabel(kind: TapeLabelKind, label: string, ref: string)
   const sub = el('span', 'tape-label-sub');
   sub.hidden = true;
   caption.append(name, sub);
+  if (info) {
+    const mark = el('span', 'tape-label-info', ' ⓘ');
+    mark.setAttribute('aria-hidden', 'true');
+    name.append(mark);
+  }
   const moon = el('span', 'tape-label-night', '🌙');
   moon.dataset.ref = `${ref}-night`;
   moon.setAttribute('aria-hidden', 'true');

@@ -1,13 +1,14 @@
 import type { Locator } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, type GameState } from '../src/core/state';
-import { expect, openGame, seedRaw, test, waypoint } from './fixtures';
+import { expect, openGame, seedRaw, settledStamp, stamp, test, waypoint } from './fixtures';
 
 /**
  * Funde aus dem Playtest Phase 6 in der Oberfläche. Stapel (K3): Symbol des Ereignisses.
- * Lage des Hinweis-Toasts (K1): Er verdeckt weder die Kamera-Knöpfe noch den Zettelstapel
- * noch die Etiketten. Auf der Doppelseite liegt er oben über der rechten Seite, mobil oben –
- * unter Stufen-Banner und Update-Hinweis, solange sie oben zu sehen sind (ui/toast-place.ts).
+ * Lage der Meldungen (K1, jetzt Stempel und Zettel, docs/ALBUM_UI.md C.5): Sie verdecken
+ * weder den Zettelstapel noch die Etiketten. Auf der Doppelseite liegen sie oben über der
+ * rechten Seite, mobil oben – unter einer sichtbaren Banderole. Fester Platz statt
+ * Ausweichen; Klicks gehen durch (smoke.spec.ts).
  */
 
 const GROVE = STAGES.findIndex((s) => s.id === 'grove');
@@ -43,7 +44,7 @@ async function expectFree(toast: Box, controls: Record<string, Locator>): Promis
   for (const [name, locator] of Object.entries(controls)) {
     const boxes = await boxesOf(locator);
     expect(boxes.length, `${name} sichtbar`).toBeGreaterThan(0);
-    for (const box of boxes) expect(overlaps(toast, box), `Toast verdeckt ${name}`).toBe(false);
+    for (const box of boxes) expect(overlaps(toast, box), `Meldung verdeckt ${name}`).toBe(false);
   }
 }
 
@@ -53,12 +54,12 @@ for (const viewport of [
   { name: 'schmal', width: 360, height: 740 },
   { name: 'Tablett hochkant', width: 700, height: 900 },
 ]) {
-  test(`Toast (${viewport.name}): Kamera-Knöpfe, Stapel und Raten bleiben frei`, async ({ page, context }) => {
+  test(`Stempel (${viewport.name}): Stapel und Raten bleiben frei`, async ({ page, context }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await seedRaw(context, grove(), 0);
     await openGame(page);
-    const toast = page.locator('#toast');
-    await expect(toast).toContainText('neue Erfolge');
+    await expect(stamp(page)).toContainText('neue Erfolge');
+    const toast = await settledStamp(page);
     await expect(page.locator('[data-ref="encounter-stack"]')).toBeVisible();
     const box = (await toast.boundingBox())!;
     await expectFree(box, {
@@ -78,12 +79,12 @@ for (const viewport of [
   });
 }
 
-test('Toast mobil, gescrollt: Zettelstapel unten, Hinweis oben – beide frei', async ({ page, context }) => {
+test('Stempel mobil, gescrollt: Zettelstapel unten, Meldung oben – beide frei', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedRaw(context, grove(), 0);
   await openGame(page);
-  const toast = page.locator('#toast');
-  await expect(toast).toContainText('neue Erfolge');
+  await expect(stamp(page)).toContainText('neue Erfolge');
+  const toast = await settledStamp(page);
   await page.evaluate(() => window.scrollTo(0, 600));
   await expect(page.locator('[data-ref="encounter-stack"]')).toBeInViewport();
   const box = (await toast.boundingBox())!;
@@ -104,67 +105,34 @@ test('Stapel zeigt das Symbol des vordersten Ereignisses bzw. Gasts', async ({ p
   await expect(icon).not.toHaveText('⛈️');
 });
 
-/** Kurz vor der nächsten Stufe: Der Stufenwechsel (Banner) kommt nach wenigen Frames, der Toast „neue Erfolge“ beim Laden. */
-function beforeNextStage(): GameState {
-  const state = grove();
-  const next = STAGES[GROVE + 1]!.waypoint;
-  state.waypoint = next - 1;
-  state.totalGrowth = waypoint(next) - 0.5;
-  return state;
-}
-
-for (const viewport of [
-  { name: 'mobil', width: 390, height: 844 },
-  { name: 'schmal', width: 360, height: 740 },
-  { name: 'Tablett hochkant', width: 700, height: 900 },
-]) {
-  test(`Stufen-Banner und Toast gleichzeitig (${viewport.name}): kein Überdecken`, async ({ page, context }) => {
-    await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await seedRaw(context, beforeNextStage(), 0);
-    await openGame(page);
-    const banner = page.locator('#stage-banner.visible');
-    const toast = page.locator('#toast');
-    await expect(banner).toBeVisible();
-    await expect(toast).toBeVisible();
-    // Lage nach dem Ausweichen (Übergang 0,2 s) – beide noch zu sehen.
-    await page.waitForTimeout(400);
-    await expect(banner).toHaveCount(1);
-    const box = (await toast.boundingBox())!;
-    await expectFree(box, { 'Stufen-Banner': banner, Stapel: page.locator('[data-ref="encounter-stack"]') });
-    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
-  });
-}
-
-test('Update-Hinweis oben: Toast weicht darunter aus (mobil)', async ({ page, context }) => {
+test('Banderole oben: Meldungen rücken darunter, die Banderole bleibt frei (mobil)', async ({ page, context }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   const state = grove();
   state.pendingEncounters = [];
   await seedRaw(context, state, 0);
   await openGame(page);
-  const toast = page.locator('#toast');
-  await expect(toast).toBeVisible();
-  // Im e2e-Build meldet sich kein Service Worker an – derselbe Hinweis wie aus ui/pwa.ts.
+  await expect(stamp(page)).toBeVisible();
+  const toast = await settledStamp(page);
+  const before = (await toast.boundingBox())!;
+  // Im e2e-Build meldet sich kein Service Worker an – eine Banderole wie aus ui/pwa.ts.
   await page.evaluate(() => {
-    const hint = document.createElement('div');
-    hint.className = 'update-hint';
-    hint.dataset.ref = 'update-hint';
-    const text = document.createElement('span');
-    text.className = 'update-hint-text';
-    text.textContent = 'Neue Version verfügbar.';
+    const band = document.createElement('div');
+    band.className = 'banderole banderole-tape';
+    band.dataset.ref = 'update-hint';
+    const text = document.createElement('p');
+    text.className = 'banderole-text';
+    text.textContent = 'Neue Version verfügbar –';
     const reload = document.createElement('button');
-    reload.className = 'update-hint-reload';
-    reload.textContent = 'Neu laden';
-    hint.append(text, reload);
-    document.body.append(hint);
+    reload.className = 'banderole-button';
+    reload.textContent = 'neu laden';
+    band.append(text, reload);
+    document.querySelector('.album-banners')!.append(band);
   });
   const hint = page.locator('[data-ref="update-hint"]');
   await expect(hint).toBeVisible();
-  await page.waitForTimeout(400);
-  const below = (await toast.boundingBox())!;
-  await expectFree(below, { 'Update-Hinweis': hint });
-  // Hinweis weg: Der Toast rückt wieder nach oben (die Kamera-Knöpfe gibt es nur im Vollbild).
+  await expect.poll(async () => (await toast.boundingBox())!.y).toBeGreaterThan(before.y);
+  await expectFree((await toast.boundingBox())!, { Banderole: hint });
+  // Banderole weg: Die Meldung rückt wieder nach oben.
   await hint.evaluate((h) => ((h as HTMLElement).hidden = true));
-  await page.waitForTimeout(400);
-  const after = (await toast.boundingBox())!;
-  expect(after.y).toBeLessThanOrEqual(below.y);
+  await expect.poll(async () => (await toast.boundingBox())!.y).toBeLessThanOrEqual(before.y + 1);
 });

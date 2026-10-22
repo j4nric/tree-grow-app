@@ -8,7 +8,7 @@ import { YEAR_SECONDS } from '../src/content/seasons';
 import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, dialog, expect, openGame, openStack, openTab, savedState, seedRaw, stack, test, waypoint } from './fixtures';
+import { SAVE_VERSION, dialog, expect, openGame, openStack, openTab, savedState, seedRaw, stack, stamps, test, waypoint } from './fixtures';
 
 /**
  * Erfolge (DESIGN_V2.md 18): Reiter „Erfolge“ im Naturtagebuch, leiser Hinweis beim
@@ -18,7 +18,7 @@ import { SAVE_VERSION, dialog, expect, openGame, openStack, openTab, savedState,
 
 const START = new Date('2026-10-21T08:00:00Z');
 const journal = (page: Page) => page.locator('[data-ref="journal"]');
-const toast = (page: Page) => page.locator('#toast');
+const toast = (page: Page) => stamps(page);
 const achievement = (page: Page, id: string) => journal(page).locator(`[data-achievement="${id}"]`);
 
 async function startClock(page: Page): Promise<void> {

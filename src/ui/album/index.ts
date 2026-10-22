@@ -5,8 +5,9 @@
  * `deps.actions` zurück.
  *
  * Hier: Buch, Doppelseite/Einzelseite, Reiter, Umschlag, Umblättern, Verlauf und Hash,
- * Polaroid mit Vollbild der Szene, Etiketten und Stufenleiste. Die bisherigen Bauteile hängen
- * bis zu ihrem Schritt als Übergangsinhalt in den Reitern (legacy.ts).
+ * Polaroid mit Vollbild der Szene, Etiketten und Stufenleiste, Haftnotizen, Stempel und
+ * Banderolen. Die bisherigen Bauteile hängen bis zu ihrem Schritt als Übergangsinhalt in den
+ * Reitern (legacy.ts).
  */
 import { LANDSCAPE_SITES } from '../../content/landscape';
 import { evaluate } from '../../core/formulas';
@@ -21,9 +22,12 @@ import type { EcosystemView } from '../view-model';
 import { nightRateText } from '../weather-view';
 import { createBook } from './book';
 import { createCover } from './cover';
+import { createBanderole } from './banderole';
 import { createFullscreen } from './fullscreen';
 import { createAlbumHistory } from './history';
+import { createLabelNotes } from './label-notes';
 import { createLegacyUi, type LegacyUi } from './legacy';
+import { closeNotes, onNoteChange, openNote, openNoteId } from './note';
 import {
   TAB_IDS,
   TAB_LABELS,
@@ -41,18 +45,22 @@ import {
 import { TURNED_AWAY, createPageTurn } from './page-turn';
 import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage } from './pages/registry';
 import { createPolaroid } from './polaroid';
-import { showSceneNote } from './scene-note';
 import { createSpread } from './spread';
 import { createStageLadder } from './stage-ladder';
+import { createStamps } from './stamps';
 import { createTabStrip } from './tab-strip';
 import { createTapeLabel } from './tape-label';
 import type { AlbumDeps } from './types';
 
 export type { AlbumDeps, AlbumActions, AlbumPart } from './types';
+export type { NotifyOptions } from './stamp-rules';
+export { openNote, type Note, type NoteContent, type NoteMore } from './note';
 
-export interface Album extends Omit<LegacyUi, 'toast'> {
+export interface Album extends LegacyUi {
   /** Platz für die Kamera-Leiste (im Vollbild unten rechts). */
   readonly sceneFrame: HTMLElement;
+  /** Platz für Banderolen über dem Album (Update-Hinweis aus pwa.ts). */
+  readonly banners: HTMLElement;
   /**
    * Vollbild aufgezogen (bis zum Ende des Zuziehens): Kamera bedienbar, Szene mit
    * Kamera-Ansicht. Während des Aufziehens noch nicht – das Bild kommt aus dem Polaroid.
@@ -95,8 +103,13 @@ export function createAlbum(deps: AlbumDeps): Album {
   const labels = el('div', 'tape-labels');
   const growth = createTapeLabel('growth', 'Wachstum', 'growth-rate');
   const seeds = createTapeLabel('seeds', 'Samen', 'seeds');
-  const harmony = createTapeLabel('harmony', 'Harmonie', 'harmony');
+  const harmony = createTapeLabel('harmony', 'Harmonie', 'harmony', true);
   labels.append(growth.element, seeds.element, harmony.element);
+  const labelNotes = createLabelNotes(
+    { growth, seeds, harmony },
+    // „Mehr ›“ erst, wenn es U:Harmonie gibt (Schritt 5).
+    { onMore: () => dispatch({ type: 'open', page: { kind: 'harmony' } }), available: () => subpages.has('harmony') },
+  );
   const ladder = createStageLadder();
   const returnMount = el('div', 'album-return panel');
   returnMount.id = 'return-report';
@@ -131,6 +144,13 @@ export function createAlbum(deps: AlbumDeps): Album {
   }
 
   document.body.prepend(book.element);
+  // Stempel und Zettel (C.5): über dem Album, auch über Unterseiten.
+  const stamps = createStamps(
+    () => deps.preferences.toastMs(),
+    () => deps.preferences.reducedMotion,
+    book.banners,
+  );
+  book.element.after(stamps.element);
 
   const legacy = createLegacyUi(
     deps,
@@ -154,9 +174,11 @@ export function createAlbum(deps: AlbumDeps): Album {
       },
       showCareTab: () => dispatch({ type: 'tab', tab: 'care' }),
       focusTarget,
+      stamp: (text, options) => stamps.show(text, options),
     },
   );
-  book.element.after(legacy.toast);
+  // Haftnotizen (C.4): offene Notiz steht in nav.note; Navigation schließt sie.
+  onNoteChange((id) => dispatch({ type: 'note', id }));
 
   // --- Szene: Vollbild, Haftnotiz zum Tier, Sichtbarkeit (C.6, D.3) ----------------------
   const fullscreen = createFullscreen({
@@ -167,9 +189,16 @@ export function createAlbum(deps: AlbumDeps): Album {
     reducedMotion: () => deps.preferences.reducedMotion,
     onClose: () => goBack(),
   });
-  /** ID der Haftnotiz zum Tier im Vollbild (`nav.note`). */
-  const SCENE_NOTE = 'scene-animal';
-  let closeSceneNote: (() => void) | null = null;
+  /**
+   * Anker der Tier-Notiz im Vollbild: unsichtbar an der zuletzt angetippten Stelle (der
+   * Treffer-Test meldet nur das Tier, nicht den Punkt).
+   */
+  const sceneAnchor = el('span', 'scene-note-anchor');
+  sceneAnchor.setAttribute('aria-hidden', 'true');
+  sceneAnchor.tabIndex = -1;
+  fullscreen.element.append(sceneAnchor);
+  let lastTap: { x: number; y: number } | null = null;
+  fullscreen.element.addEventListener('pointerdown', (event) => (lastTap = { x: event.clientX, y: event.clientY }), true);
   /** Polaroid im Bild? (IntersectionObserver statt Messung je Frame) */
   let polaroidInView = true;
   if (typeof IntersectionObserver === 'function') {
@@ -187,20 +216,23 @@ export function createAlbum(deps: AlbumDeps): Album {
       legacy.openAnimalDetail(target, polaroid.button);
       return;
     }
-    closeSceneNote?.();
-    closeSceneNote = showSceneNote(fullscreen.element, {
+    const frame = fullscreen.element.getBoundingClientRect();
+    const tap = lastTap ?? { x: frame.left + frame.width / 2, y: frame.top + frame.height / 2 };
+    sceneAnchor.style.left = `${Math.round(tap.x - frame.left)}px`;
+    sceneAnchor.style.top = `${Math.round(tap.y - frame.top)}px`;
+    // Erst das Vollbild, dann die Notiz: `fullscreen: true` leert nav.note (C.1).
+    openNote(sceneAnchor, {
       title: view.name,
-      text: `😊 ${formatPercent(view.happiness)} zufrieden · ${view.mood}`,
-      moreLabel: 'Im Album ansehen ›',
-      onDismiss: () => goBack(),
-      onMore() {
-        // Notiz und Vollbild schließen (über den Verlauf), dann die Tierdetails.
-        if (nav.note !== null) dispatch({ type: 'note', id: null });
-        if (nav.fullscreen) goBack();
-        legacy.openAnimalDetail(target, polaroid.button);
+      lines: [`😊 ${formatPercent(view.happiness)} zufrieden · ${view.mood}`],
+      more: {
+        label: 'Im Album ansehen ›',
+        onMore() {
+          // Die Notiz ist schon zu; Vollbild schließen (über den Verlauf), dann die Tierdetails.
+          if (nav.fullscreen) goBack();
+          legacy.openAnimalDetail(target, polaroid.button);
+        },
       },
     });
-    dispatch({ type: 'note', id: SCENE_NOTE });
   }
 
   setOrientation();
@@ -320,10 +352,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   }
 
   async function render(prev: AlbumNav, next: AlbumNav): Promise<void> {
-    if (prev.note === SCENE_NOTE && next.note !== SCENE_NOTE) {
-      closeSceneNote?.();
-      closeSceneNote = null;
-    }
+    if (next.note === null && openNoteId() !== null) closeNotes();
     if (prev.fullscreen !== next.fullscreen) await fullscreen.setOpen(next.fullscreen);
     if (prev.tab !== next.tab) showTab(next.tab);
     if (prev.cover !== next.cover) {
@@ -445,6 +474,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     harmony.setTitle(view.harmonyTier);
     if (lastHarmony !== null && harmonyRounded > lastHarmony) harmony.pop();
     lastHarmony = harmonyRounded;
+    labelNotes.update(view);
     ladder.update({ stage: state.stage, waypoint: state.waypoint, waypointProgress: view.stageProgress, hint: view.progressHint });
     const site = activeSite(state.meta.landscape);
     if (site !== shownSite) {
@@ -457,6 +487,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   return {
     ...legacy,
     sceneFrame: fullscreen.tools,
+    banners: book.banners,
     get nav() {
       return nav;
     },
@@ -472,6 +503,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     showSceneAnimal,
     replaced() {
       legacy.replaced();
+      closeNotes();
       savePage.reset?.();
     },
     adopted(headChanged) {
@@ -480,14 +512,14 @@ export function createAlbum(deps: AlbumDeps): Album {
     },
     showNewerSaveBanner(text) {
       if (book.banners.querySelector('[data-ref="newer-save-banner"]')) return;
-      const banner = el('div', 'frozen-banner');
-      banner.setAttribute('role', 'alert');
-      banner.dataset.ref = 'newer-save-banner';
-      const reload = el('button', '', 'Seite neu laden');
-      reload.type = 'button';
-      reload.addEventListener('click', () => location.reload());
-      banner.append(el('p', '', text), reload);
-      book.banners.append(banner);
+      const banner = createBanderole({
+        tone: 'alert',
+        ref: 'newer-save-banner',
+        role: 'alert',
+        text,
+        buttons: [{ label: 'Seite neu laden', onClick: () => location.reload() }],
+      });
+      book.banners.prepend(banner.element);
     },
   };
 }

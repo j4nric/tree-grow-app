@@ -12,6 +12,7 @@ import {
   seedV3,
   stack,
   stageLabel,
+  stamps,
   test,
   waypoint,
 } from './fixtures';
@@ -212,7 +213,7 @@ test.describe('Stufen-Banner', () => {
     await expect(banner).toContainText('Hain');
     // Der gleichzeitig freigeschaltete Erfolg steht im Banner (kein zweiter Hinweis daneben).
     await expect(banner.locator('.stage-banner-extra')).toContainText('Nicht mehr allein');
-    await expect(page.locator('#toast')).not.toContainText('Nicht mehr allein');
+    await expect(stamps(page)).not.toContainText('Nicht mehr allein');
     const text = banner.locator('span').first();
     // Layouthöhe statt umschließendem Rechteck: Das Polaroid im Album ist leicht gedreht.
     const { height, fontSize } = await text.evaluate((e) => ({

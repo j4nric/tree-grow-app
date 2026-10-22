@@ -96,12 +96,8 @@ body:has(.album) {
   min-width: 0;
 }
 
-.album-banners:empty {
+.album-banners:not(:has(> :not([hidden]))) {
   display: none;
-}
-
-.album-banners .frozen-banner {
-  margin: 0;
 }
 
 /* ---------- Seiten: gemeinsame Teile ---------- */
@@ -163,11 +159,6 @@ body:has(.album) {
   from {
     opacity: 0;
   }
-}
-
-/* Hinweis (Toast) bis Schritt 4: über allem, auch über Unterseiten. */
-.album ~ .toast {
-  z-index: 40;
 }
 
 /* Zeilenhöhe fest (Nunito hätte mit „normal“ etwa 1,36): gleiche Höhen auf allen Systemen. */
@@ -253,16 +244,6 @@ body:has(.album) {
 
 .album[data-layout='spread'] .album-dock .encounter-stack {
   transform: rotate(var(--tilt-stack-desk));
-}
-
-/* Hinweis oben über der rechten Seite (wie später die Stempel, C.5). */
-.album[data-layout='spread'] ~ .toast {
-  position: fixed;
-  top: 96px;
-  bottom: auto;
-  /* Mitte der rechten Seite (Tischrand 48 px, Reiter 46 px) */
-  left: calc(75% - 50px);
-  max-width: min(40rem, calc(50vw - 150px));
 }
 
 /* Niedrige Fenster: Tisch und Abstände schmaler, damit die linke Seite nicht scrollen muss. */
@@ -353,12 +334,6 @@ html:has(.album[data-layout='single'] .encounter-stack:not([hidden])) {
 
 .album[data-layout='single'] .album-dock .encounter-stack {
   transform: rotate(var(--tilt-stack));
-}
-
-.album[data-layout='single'] ~ .toast {
-  position: fixed;
-  top: max(calc(12px + env(safe-area-inset-top, 0px)), var(--toast-top, 0px));
-  bottom: auto;
 }
 
 /* Breite Einzelseite (Tablet hoch): Polaroid höchstens 560 px (G-7). */

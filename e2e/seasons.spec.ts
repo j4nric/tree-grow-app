@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, gotoTab, openGame, savedState, seedRaw, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, gotoTab, openGame, savedState, seedRaw, stageLabel, stamp, stamps, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Jahreszeiten und Wahl des Hauptbaums (DESIGN_V2.md 16, 17) im Browser. Die Testuhr steht
@@ -11,6 +11,7 @@ import { SAVE_VERSION, expect, gotoTab, openGame, savedState, seedRaw, stageLabe
 
 const START = new Date('2026-10-21T08:00:00Z');
 const season = (page: Page) => page.locator('[data-ref="season"]');
+const seasonLeft = (page: Page) => page.locator('[data-ref="season-left"]');
 const cyclePanel = (page: Page) => page.locator('[data-ref="cycle-panel"]');
 
 async function startClock(page: Page): Promise<void> {
@@ -24,7 +25,9 @@ test('kurz vor dem Wechsel: nach dem Wechsel zeigt die Kopfzeile die neue Jahres
   state.cycle.elapsed = 178; // 2 s vor dem Sommer
   await seedRaw(context, state, 0);
   await openGame(page);
-  await expect(season(page)).toContainText('🌱 Frühling · noch 0:0');
+  // Bildunterschrift kurz (C.4): „🌱 Frühling · ⛅ … · 0:02“, Restzeit vorgelesen „noch … min“.
+  await expect(season(page)).toHaveText('🌱 Frühling');
+  await expect(seasonLeft(page)).toHaveText(/^noch 0:0\d min$/);
   await expect(season(page)).toHaveAttribute('title', /Frühling: \+10 % 🌿/);
   // Wirkungen auch per Tastatur: Knopf klappt eine sichtbare Zeile auf.
   const effects = page.locator('[data-ref="season-effects"]');
@@ -36,10 +39,11 @@ test('kurz vor dem Wechsel: nach dem Wechsel zeigt die Kopfzeile die neue Jahres
   await expect(effects).toHaveText(/Frühling: \+10 % 🌿/);
 
   await page.clock.runFor(3_000);
-  await expect(season(page)).toHaveText(/^☀️ Sommer · noch (3:00|2:5\d) min$/);
+  await expect(season(page)).toHaveText('☀️ Sommer');
+  await expect(seasonLeft(page)).toHaveText(/^noch (3:00|2:5\d) min$/);
   await expect(season(page)).toHaveAttribute('data-season', 'summer');
   // Kurzer Hinweis beim Wechsel – zusammen mit dem Wetter des neuen Tages.
-  await expect(page.locator('#toast')).toContainText(/^☀️ Sommer · \S+ [^–]+ – Lange, helle Tage/);
+  await expect(stamp(page)).toContainText(/^☀️ Sommer · \S+ [^–]+ – Lange, helle Tage/);
 
   // Der Spielstand führt die Spielzeit (gespeichert spätestens beim Verlassen).
   await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
@@ -87,7 +91,7 @@ test('Neuer Zyklus mit der Rotbuche: Auswahl, Sperrhinweis, Spielstand und Anzei
   await button.click();
   await page.clock.runFor(50);
 
-  await expect(page.locator('#toast')).toContainText('Aus einer Buchecker wächst ein neuer Baum.');
+  await expect(stamps(page)).toContainText('Aus einer Buchecker wächst ein neuer Baum.');
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
   await expect(cyclePanel(page).locator('[data-ref="main-tree"]')).toHaveText('Hauptbaum: 🍂 Rotbuche');
   await expect(season(page)).toContainText('🌱 Frühling');

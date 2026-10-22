@@ -519,13 +519,28 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   `object-fit` verhindert Verzerren bis dahin), Verlaufseintrag, Schließen per Knopf, Escape und
   Zurück sowie Wisch nach unten (bei 1×). `camera-input.ts` hat `active` (nur im Vollbild; das Polaroid zeigt immer die ganze
   Szene, die Kamera-Ansicht bleibt fürs nächste Öffnen). Tier-Tipp öffnet den austauschbaren
-  Platzhalter `album/scene-note.ts` (Schritt 4 ersetzt ihn durch `Note`). `sceneVisible` per
+  Platzhalter `album/scene-note.ts` (in Schritt 4 durch `openNote` ersetzt). `sceneVisible` per
   IntersectionObserver (main.ts zeichnet nur dann). **Schärfe:** Nur Papier und Tape des
   Polaroids sind gedreht, Bild und Bildunterschrift stehen gerade – das gedrehte Live-Canvas
   verlor sonst rund ein Drittel seiner Kantenschärfe (gemessen bei Pixeldichte 1, 2 und 3).
-- [ ] **4** Haftnotiz und Stempel (`ui-dev`): `Note` (popover + Fallback), Stempel/Zettel statt
+- [x] **4** Haftnotiz und Stempel (`ui-dev`): `Note` (popover + Fallback), Stempel/Zettel statt
   Toast (`toast-place.ts` entfällt), einheitliches `notify`, Banderole, Notizen für Jahreszeit,
-  Wetter, Etiketten, Gattungen. Specs seasons, weather, daynight. Abhängig: 1
+  Wetter, Etiketten, Gattungen. Specs seasons, weather, daynight. Abhängig: 1.
+  *Umgesetzt:* `album/note.ts` (popover="auto", ohne popover `.note-open` mit eigenem
+  Klick-außerhalb; offene Notiz in `nav.note`), freie Notiz `openNote(anchor, content)` für den
+  Tier-Tipp in Schritt 3 (ALBUM_UI.md D.6). `album/stamps.ts` + `stamp-rules.ts` (ab 90 Zeichen
+  Zettel, höchstens zwei, rückt unter sichtbare Banderolen); `album.notify(text, options)` mit
+  `error`, `keep`, `brief`, `direct` ersetzt `showToast`. Etiketten sind Knöpfe mit Notiz
+  (Harmonie mit „Mehr ›“, sobald es U:Harmonie gibt), Jahreszeit und Wetter in
+  `album/season-weather.ts` (ersetzt `season-badge.ts`/`weather-badge.ts`), Gattungs-Chips öffnen
+  eine Notiz. Update-Hinweis und „neuerer Spielstand“ als Banderole (`album/banderole.ts`). Die
+  Rückkehr-Meldung zeigt Desktop wie mobil die Kurzfassung (C.8). Übergang bis Schritt 12: Ist
+  noch ein alter Dialog mit Hinweisfeld offen, landet `notify` dort (außer `direct`). Neu:
+  `e2e/album-notes.spec.ts`. Nach dem Merge von Schritt 3: Der Tier-Tipp im Vollbild öffnet eine
+  echte Haftnotiz (`openNote` an einem unsichtbaren Anker an der Tippstelle, „Im Album ansehen ›“;
+  `scene-note.ts` entfällt). Bildunterschrift kurz: „🌱 Frühling · ⛅ Wechselhaft · 2:58“
+  (Wirkungen des Wetters in der Notiz und im vorgelesenen Namen). Meldungen im Vollbild über die
+  ganze Breite unter „Zurück ins Album“.
 - [ ] **5** Reiter Nischen (`ui-dev`): Stickerreihen, Gattungen, Lebensräume, Pflanzring;
   Unterseiten Tier, Harmonie, Nahrungsnetz. Specs animal-detail, food-web, habitats.
   Abhängig: 2, 4

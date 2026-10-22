@@ -68,7 +68,7 @@ test.describe('Tier in der Szene', () => {
     await expect(polaroidButton(page)).toHaveCSS('cursor', 'zoom-in');
     await page.mouse.click(p.x, p.y);
     await expect(fullscreen(page)).toBeVisible();
-    await expect(note(page)).toHaveCount(0);
+    await expect(note(page)).toBeHidden();
     await expect(detail(page)).toBeHidden();
   });
 
@@ -85,7 +85,7 @@ test.describe('Tier in der Szene', () => {
     await expect(note(page)).toContainText('zufrieden');
     // Esc schließt zuerst nur die Notiz, das Vollbild bleibt.
     await page.keyboard.press('Escape');
-    await expect(note(page)).toHaveCount(0);
+    await expect(note(page)).toBeHidden();
     await expect(fullscreen(page)).toBeVisible();
 
     await page.mouse.click(p.x, p.y);
@@ -108,7 +108,7 @@ test.describe('Tier in der Szene', () => {
     await page.mouse.move(p.x, p.y);
     await page.mouse.wheel(0, -300);
     const v = await restingView(page, (c) => c.zoom > 1);
-    await expect(note(page)).toHaveCount(0);
+    await expect(note(page)).toBeHidden();
 
     // Ziehen (> 6 px), das auf dem Tier beginnt und endet.
     const q = await wormPoint(page, v);
@@ -118,7 +118,7 @@ test.describe('Tier in der Szene', () => {
     await page.mouse.move(q.x, q.y, { steps: 4 });
     await page.mouse.up();
     // Die Notiz öffnete (wenn überhaupt) schon im pointerup – synchron.
-    await expect(note(page)).toHaveCount(0);
+    await expect(note(page)).toBeHidden();
 
     // Ruhig vergrößert: Klick auf das Tier an seiner gezoomten Stelle öffnet.
     const still = await restingView(page);
@@ -136,7 +136,7 @@ test.describe('Tier in der Szene', () => {
     await page.mouse.click(sky.x, sky.y);
     // Ein Treffer öffnete die Notiz synchron im pointerup; die Kamera bleibt bei 1×.
     expect(await restingView(page)).toEqual({ zoom: 1, x: 0.5, y: 0.5 });
-    await expect(note(page)).toHaveCount(0);
+    await expect(note(page)).toBeHidden();
     await expect(detail(page)).toBeHidden();
   });
 });

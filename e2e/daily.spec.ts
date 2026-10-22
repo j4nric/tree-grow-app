@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { createInitialState, type DailyGoal } from '../src/core/state';
-import { SAVE_VERSION, dialog, expect, gotoTab, openStack, savedState, seedRaw, stack, test, waypoint } from './fixtures';
+import { SAVE_VERSION, dialog, expect, gotoTab, openStack, savedState, seedRaw, stack, stamps, test, waypoint } from './fixtures';
 
 /**
  * Tagesziele (DESIGN_V2.md 20): Karte in der Seitenleiste, ein Ziel durch eine Entscheidung
@@ -16,7 +16,7 @@ const START = new Date('2026-10-21T08:00:00Z');
 const TODAY = '2026-10-21';
 const daily = (page: Page) => page.locator('[data-ref="daily"]');
 const goalItem = (page: Page, kind: string) => daily(page).locator(`[data-goal="${kind}"]`);
-const toast = (page: Page) => page.locator('#toast');
+const toast = (page: Page) => stamps(page);
 
 async function startClock(page: Page, time = START): Promise<void> {
   await page.clock.install({ time });

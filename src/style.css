@@ -495,115 +495,6 @@ footer {
   padding: 0;
 }
 
-/*
- * Hinweis-Toast. Er darf keine Bedienelemente verdecken (Playtest Phase 6): Am Desktop
- * liegt er in der Szene mittig über Begegnungs-Stapel (unten links, 52 px ab 16 px) und
- * Kamera-Knöpfen (unten rechts, 44 px ab 12 px) – nicht über der Seitenleiste. Im
- * einspaltigen Layout steht er oben fest (siehe dort), statt über den Raten.
- */
-.toast {
-  position: absolute;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  /*
-   * Breite nach Inhalt: Ohne „max-content“ dürfte der Toast wegen left: 50% nur die halbe
-   * Breite nutzen – lange Hinweise (Rückkehr-Meldung) wurden mobil schmal und sehr hoch.
-   * Am Desktop höchstens 40rem (wie bisher etwa die halbe Breite).
-   */
-  width: max-content;
-  max-width: min(calc(100% - 32px), 40rem);
-  padding: 12px 18px;
-  border-radius: 10px;
-  background: var(--text);
-  color: white;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  z-index: 20;
-  /* Nur ein Hinweis: Klicks gehen durch (sonst blockiert er 6–12 s die Knöpfe darunter). */
-  pointer-events: none;
-}
-
-/*
- * Hinweis „Neue Version verfügbar – neu laden“ (ui/pwa.ts): oben in der Mitte, bleibt bis
- * zum Klick. Am Desktop liegt der Toast unten in der Szene; im einspaltigen Layout weicht
- * der Toast ihm nach unten aus (ui/toast-place.ts) – der Hinweis verdeckt ihn nicht.
- */
-.update-hint {
-  position: fixed;
-  top: calc(12px + env(safe-area-inset-top, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: max-content;
-  max-width: calc(100% - 24px);
-  padding: 4px 4px 4px 16px;
-  border-radius: 12px;
-  background: var(--text);
-  color: white;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  z-index: 30;
-  animation: update-hint-in 0.3s ease-out;
-}
-
-.update-hint[hidden] {
-  display: none;
-}
-
-.update-hint-text {
-  min-width: 0;
-  margin-right: 6px;
-}
-
-.update-hint-reload,
-.update-hint-close {
-  min-width: 44px;
-  min-height: 44px;
-  border: none;
-  border-radius: 9px;
-  color: white;
-  white-space: nowrap;
-}
-
-.update-hint-reload {
-  padding: 0 14px;
-  /* dunkles Grün: weißer Text mit Kontrast > 4,5 : 1 */
-  background: var(--accent-dark);
-  font-weight: 600;
-}
-
-.update-hint-reload:hover {
-  background: #255a22;
-}
-
-.update-hint-close {
-  padding: 0;
-  background: transparent;
-  font-size: 1.4rem;
-  line-height: 1;
-}
-
-.update-hint-close:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.update-hint button:focus-visible {
-  outline: 3px solid #8fc1ff;
-  outline-offset: 1px;
-}
-
-@keyframes update-hint-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -12px);
-  }
-}
-
-body[data-motion='reduce'] .update-hint {
-  animation: none;
-}
-
 /* Schwebende Zahlen (z. B. Samen beim Ablehnen) */
 .float-layer {
   /* Am Dokument verankert, damit die Zahlen beim Scrollen mitwandern */
@@ -693,8 +584,7 @@ body[data-motion='reduce'] .float-note {
   animation: float-fade 3s linear forwards;
 }
 
-body[data-motion='reduce'] .progress-bar,
-body[data-motion='reduce'] .toast {
+body[data-motion='reduce'] .progress-bar {
   transition: none;
 }
 
@@ -755,41 +645,6 @@ body[data-motion='reduce'] .stage-banner.visible {
     bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     z-index: 15;
     max-width: calc(100vw - 24px);
-  }
-
-  /*
-   * Hinweise oben fest: Beim Start steht dort die Szene (Kamera-Knöpfe liegen unten in ihr),
-   * gescrollt die Seitenleiste – unten blieben sonst Raten und schwebender Stapel verdeckt.
-   */
-  .toast {
-    position: fixed;
-    /* --toast-top: unter Update-Hinweis, Stapel und Stufen-Banner (ui/toast-place.ts) */
-    top: max(calc(12px + env(safe-area-inset-top, 0px)), var(--toast-top, 0px));
-    bottom: auto;
-    transition: top 0.2s ease;
-  }
-
-  /*
-   * Kurzfassung der Rückkehr (ui/return-report-view.ts): höchstens drei Zeilen, auch mit
-   * breiter Schrift – der Rest steht im Rückkehr-Bericht. Screenreader lesen den ganzen Text.
-   */
-  .toast.brief {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    overflow: hidden;
-    line-height: 1.35;
-    /*
-     * overflow schneidet erst am Innenabstand ab – dort schaute sonst die vierte Zeile hervor.
-     * Darum oben und unten Rand in Hintergrundfarbe statt Innenabstand (gleiche Optik).
-     */
-    padding-block: 0;
-    border-block: 12px solid var(--text);
-  }
-
-  .toast.brief[hidden] {
-    display: none;
   }
 
   /* Platz unter dem letzten Eintrag, damit der schwebende Stapel nichts dauerhaft verdeckt */
@@ -1895,7 +1750,7 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   border-style: dashed;
 }
 
-.family-chip[aria-pressed='true'] {
+.family-chip[aria-expanded='true'] {
   box-shadow: 0 0 0 2px var(--fam);
 }
 
@@ -1933,18 +1788,6 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
 .family-pip.reached {
   background: var(--fam);
   color: white;
-}
-
-.family-detail {
-  margin: -4px 0 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #f6f4ea;
-  font-size: 0.8rem;
-}
-
-.family-detail[hidden] {
-  display: none;
 }
 
 /* Nischen mit Platz-Kacheln */
@@ -5279,37 +5122,6 @@ dialog.animal-detail {
   .detail-hero-icon {
     font-size: 1.7rem;
   }
-}
-
-/* Gesperrter Tab: gespeicherter Stand aus einer neueren Spielversion (main.ts, DESIGN_V2.md 23.6). */
-.frozen-banner {
-  margin: 8px 0 12px;
-  padding: 10px 12px;
-  border: 2px solid #b5651d;
-  border-radius: 8px;
-  background: #fff4e5;
-  color: var(--text);
-}
-
-.frozen-banner p {
-  margin: 0 0 8px;
-}
-
-/* Neuer-Stand-Schutz: Knopf „Seite neu laden“ – gut treffbar, gleiche Warnfarbe wie der Rahmen. */
-.frozen-banner button {
-  min-height: 44px;
-  padding: 0.4rem 1rem;
-  font: inherit;
-  font-weight: 600;
-  color: #fff;
-  background: #8a4a12;
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.frozen-banner button:hover {
-  background: #6f3a0c;
 }
 
 /* ======================================================================

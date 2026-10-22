@@ -14,6 +14,7 @@ import {
   seedNewGame,
   stack,
   stageLabel,
+  stamps,
   test,
 } from './fixtures';
 
@@ -198,7 +199,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   await newCycleButton.click();
   await page.clock.runFor(50);
 
-  await expect(page.locator('#toast')).toContainText('Zyklus 2 beginnt');
+  await expect(stamps(page)).toContainText('Zyklus 2 beginnt');
   await expect(cyclePanel(page).locator('[data-ref="cycle-title"]')).toBeFocused();
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
   await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${START_MEMORY + gain} ·`);

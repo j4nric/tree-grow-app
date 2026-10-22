@@ -1,7 +1,7 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
 import { codeFromJson, exportCode, importCode, serialize } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, niche, openCover, openGame, openTab, readNumber, seedsValue, seedV3, test, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, niche, openCover, openGame, openTab, readNumber, seedsValue, seedV3, stamps, test, waypoint } from './fixtures';
 
 /**
  * Konto und Gerätesync: Ohne VITE_SYNC_URL (so ist das e2e-Build gebaut) gibt es kein
@@ -126,7 +126,7 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
       .click();
     await expect(niche(a, 'litter')).toContainText('1/3 belegt');
     await expect(niche(b, 'litter')).toContainText('1/3 belegt', { timeout: 15_000 });
-    await expect(b.locator('#toast')).toContainText('Auf anderem Gerät weitergespielt – übernommen.');
+    await expect(stamps(b)).toContainText('Auf anderem Gerät weitergespielt – übernommen.');
     await expect(b.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('Rang 1/2');
 
     // Abmelden in B: Spiel bleibt, Formular wieder da.

@@ -5,7 +5,7 @@ import { GENTLE_DAYS, type WeatherId } from '../src/content/weather';
 import { createInitialState, type GameState } from '../src/core/state';
 import { weatherOfDay } from '../src/core/weather';
 import { toWeatherBadgeView } from '../src/ui/weather-view';
-import { expect, openGame, seedRaw, test, waypoint } from './fixtures';
+import { expect, openGame, seedRaw, stamp, stamps, test, waypoint } from './fixtures';
 
 /**
  * Wetter und Nacht in der Oberfläche (DESIGN_V2.md 21.8): Abzeichen mit aufklappbarer
@@ -58,8 +58,9 @@ test('Abzeichen: Sturm mit gedämpftem Abzug, Erklärung per Tippen und Tastatur
   await seedRaw(context, state, 0);
   await openGame(page);
 
-  await expect(badge(page)).toHaveText('🌬️ Sturm · −7,5 % 🌿 · +25 % 🌰');
-  await expect(badge(page)).toHaveText(toWeatherBadgeView(state).text);
+  // Kurz in der Bildunterschrift; die Wirkungen stehen im Namen und in der Notiz.
+  await expect(badge(page)).toHaveText('🌬️ Sturm');
+  await expect(badge(page)).toHaveText(toWeatherBadgeView(state).short);
   await expect(badge(page)).toHaveAttribute('data-weather', 'storm');
   await expect(badge(page)).toHaveAccessibleName(/^Wetter heute: Sturm, −7,5 % Wachstum, \+25 % Samen/);
   await expect(badge(page)).toHaveAttribute('title', /Böen zerren .* Morgen: /);
@@ -101,7 +102,7 @@ test('ein Hinweis für Jahreszeit und Wetter am selben Wechsel', async ({ page, 
 
   await page.clock.runFor(3_000);
   await expect(badge(page)).toHaveAttribute('data-weather', 'storm');
-  const toast = page.locator('#toast');
+  const toast = stamp(page);
   await expect(toast).toBeVisible();
   await expect(toast).toContainText(`${season.icon} ${season.name} · 🌬️ Sturm – ${season.text}`);
   await expect(toast).toContainText('Böen zerren an der Krone');
@@ -134,8 +135,9 @@ test('Rückkehr nach Stunden: „Wetter gemittelt“ in der Begrüßung', async 
   const state = forestOn('mild', [], 10);
   await seedRaw(context, state, -3 * 3600 * 1000);
   await openGame(page);
-  await expect(page.locator('#toast')).toContainText('Willkommen zurück!');
-  await expect(page.locator('#toast')).toContainText(/Wetter gemittelt( \(.+\))?\./);
+  await expect(stamps(page)).toContainText('Willkommen zurück!');
+  // Die Meldung zeigt nur die Kurzfassung (C.8); das Wetter steht im Rückkehr-Bericht.
+  await expect(page.locator('[data-ref="return-report-list"]')).toContainText(/Wetter gemittelt( \(.+\))?\./);
 });
 
 test.describe('mobil', () => {

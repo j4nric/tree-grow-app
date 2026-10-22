@@ -177,98 +177,22 @@ html.album-fullscreen-open .float-layer {
   }
 }
 
-/* ---------- Platzhalter-Haftnotiz zum Tier (scene-note.ts, bis Schritt 4) ---------- */
-
-.scene-note {
+/* Anker der Haftnotiz zum Tier (album/index.ts): unsichtbar an der angetippten Stelle. */
+.scene-note-anchor {
   position: absolute;
-  top: calc(68px + env(safe-area-inset-top, 0px));
-  left: 50%;
-  z-index: 2;
-  box-sizing: border-box;
-  width: min(300px, calc(100% - 24px));
-  padding: 18px 16px 12px;
-  background: var(--note-bg);
-  box-shadow: var(--sh-note);
-  color: var(--ink);
-  transform: translateX(-50%) rotate(var(--tilt-note));
-  animation: scene-note-in var(--note-ms) ease-out;
+  width: 160px;
+  height: 24px;
+  margin: -12px 0 0 -80px;
+  pointer-events: none;
+  outline: none;
 }
 
-.scene-note::before {
-  content: '';
-  position: absolute;
-  top: -9px;
-  left: calc(50% - 28px);
-  width: 56px;
-  height: 18px;
-  background: var(--tape-green);
-  opacity: 0.9;
-  transform: rotate(-4deg);
-}
-
-@keyframes scene-note-in {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) rotate(var(--tilt-note)) scale(0.92);
-  }
-}
-
-body[data-motion='reduce'] .scene-note {
-  animation-name: scene-note-fade;
-}
-
-@keyframes scene-note-fade {
-  from {
-    opacity: 0;
-  }
-}
-
-.scene-note-title {
-  margin: 0 0 4px;
-  font-family: var(--font-hand);
-  font-weight: 700;
-  font-size: 24px;
-  line-height: 1.1;
-}
-
-.scene-note-text {
-  margin: 0 0 10px;
-  font-size: 13px;
-}
-
-.scene-note-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.scene-note-actions button {
-  min-height: var(--tap);
-  padding: 0 14px;
-  border: 0;
-  border-radius: var(--r-button);
-  font-family: var(--font-text);
-  font-weight: 800;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.scene-note-more {
-  background: var(--ink-green);
-  color: var(--paper);
-}
-
-.scene-note-more:hover {
-  background: var(--ink-green-dark);
-}
-
-.scene-note-dismiss {
-  background: rgba(59, 58, 54, 0.08);
-  color: var(--ink);
-}
-
-/* Hinweis (Toast, bis Schritt 4) im Vollbild unter dem Knopf „Zurück ins Album“. */
-html.album-fullscreen-open .album ~ .toast {
-  top: calc(68px + env(safe-area-inset-top, 0px));
+/*
+ * Meldungen (Stempel, Zettel) im Vollbild: über die ganze Breite unter dem Knopf
+ * „Zurück ins Album“ (oben rechts) – nie darunter.
+ */
+html.album-fullscreen-open .album ~ .stamps {
+  top: max(calc(68px + env(safe-area-inset-top, 0px)), var(--stamps-below, 0px));
+  left: 12px;
+  right: 12px;
 }

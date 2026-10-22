@@ -10,7 +10,7 @@
  * ein Drittel seiner Kantenschärfe (gemessen, siehe PR). Gerade bleibt es pixelgenau.
  *
  * Bildunterschrift links: Stufe (`data-ref="stage"`, vorgelesen „Stufe: Junger Baum“),
- * rechts: Jahreszeit und Wetter (Abzeichen aus season-badge.ts / weather-badge.ts).
+ * rechts: Jahreszeit und Wetter (Knöpfe mit Haftnotiz aus album/season-weather.ts).
  * Über dem Bild liegt die Stempelschicht (Stufen-Stempel); sie wandert mit ins Vollbild.
  */
 import { el, setText, srOnly } from '../dom';
