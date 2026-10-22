@@ -74,6 +74,7 @@ import {
   normalizeBlend,
   normalizeWeather,
   paintWeatherSky,
+  releaseRimeScratch,
   rimeInPlace,
   stormSkew,
   WeatherLayer,
@@ -656,6 +657,8 @@ function updateTint(sc: SizeCache, cache: Cache): void {
       });
     }
   }
+  // Hilfs-Canvas des Raureifs nur während des Tönens behalten.
+  releaseRimeScratch();
   set.key = cache.tintKey;
   sc.tint = set;
   cache.tintBuilds++;
@@ -1103,7 +1106,8 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     drawClouds(ctx, sc.clouds, layout.width, ct, dpr, cloudAlpha * (1 - 0.8 * wx.sun) * (1 + 0.1 * wx.overcast), cloudSprites);
     if (wx.overcast > 0.05) drawClouds(ctx, sc.clouds, layout.width, ct * 1.3 + 917, dpr, cloudAlpha * 0.85 * wx.overcast, cloudSprites);
   } else {
-    drawClouds(ctx, sc.clouds, layout.width, reduced ? 0 : time, dpr, cloudAlpha, cloudSprites);
+    // Auch ohne Wetter mit dem Vorsprung aus einem Sturm (sonst sprängen die Wolken zurück).
+    drawClouds(ctx, sc.clouds, layout.width, reduced ? 0 : cache.weather.cloudTime(time), dpr, cloudAlpha, cloudSprites);
   }
 
   // Stimmung und Gäste nur, wenn angegeben – sonst bleibt das Bild exakt wie bisher.
@@ -1844,15 +1848,16 @@ export const HIT_MIN_RADIUS = 22;
 /** Gemerkte Ankerpunkte für den Treffer-Test (Größe, Art und Wachstum auf REDRAW_STEP genau). */
 let hitAnchors: { key: string; g: number; anchors: AnchorResolver } | null = null;
 
+/** Wiederverwendete Stärken für den Treffer-Test (keine Allokation je Aufruf). */
+const hitWeather: WeatherLevels = { overcast: 0, rain: 0, snow: 0, fog: 0, drought: 0, storm: 0, frost: 0, sun: 0 };
+const hitDay: DayLevels = { night: 0, twilight: 0, dusk: false, sun: 1 };
+
 /**
  * Welches Tier liegt unter dem Bildschirmpunkt (`x`, `y`, CSS-Pixel im Canvas)? Rechnet
  * über die Kamera in die Szene zurück und nutzt dieselben Ankerpunkte, Sprite-Größen,
  * Bewegungen und denselben Wind wie `drawScene`. Das Tippziel ist auf dem Bildschirm
  * mindestens ~44 px groß. Rein (ohne Canvas); `camera` null = ganze Szene.
  */
-const hitWeather: WeatherLevels = { overcast: 0, rain: 0, snow: 0, fog: 0, drought: 0, storm: 0, frost: 0, sun: 0 };
-const hitDay: DayLevels = { night: 0, twilight: 0, dusk: false, sun: 1 };
-
 export function hitTestAnimal(scene: HitScene, camera: Readonly<CameraView> | null, x: number, y: number): AnimalHit | null {
   const animals = scene.animals;
   const { width, height } = scene;

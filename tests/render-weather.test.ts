@@ -257,8 +257,10 @@ describe('Nachtarten', () => {
     expect(nightWake(2)).toBe(1);
     for (const kind of NOCTURNAL_KINDS) expect(nocturnalPace(kind, null)).toBe(1);
     for (const kind of ['hedgehog', 'glowworm']) {
-      expect(nocturnalPace(kind, 0)).toBeLessThan(1);
-      expect(nocturnalPace(kind, 1)).toBeGreaterThan(1);
+      expect(nocturnalPace(kind, 0)).toBeLessThan(0.5);
+      // Höchstens 1: Laufweg und Rand bleiben wie geplant.
+      expect(nocturnalPace(kind, 1)).toBe(1);
+      for (let w = 0; w <= 1; w += 0.1) expect(nocturnalPace(kind, w)).toBeLessThanOrEqual(1);
     }
     // Winterschlaf: der Igel bleibt ruhig, auch nachts.
     expect(nocturnalPace('hedgehog', 1, 0)).toBe(nocturnalPace('hedgehog', 0, 0));
@@ -388,6 +390,63 @@ describe('Szene mit Wetter', () => {
     expect(tinted).toBeGreaterThan(0);
     // Eine Tönung je Stufe, dazu einmal die Nebelbänder (Sprites, erst beim ersten Nebel).
     expect(tinted).toBeLessThanOrEqual(WEATHER_TONE_STEPS + 1);
+  });
+
+  it('Wolken springen nach einem Sturm nicht zurück, wenn das Wetter wieder mild ist', () => {
+    const canvas = makeCanvas(800, 600);
+    const ctx = canvas.getContext('2d');
+    const input: SceneInput = { growth: 5.5, time: 0, harmonyTier: undefined };
+    /** x der ersten Wolke dieses Frames (zweites drawImage mit drei Argumenten, nach der Kulisse). */
+    const cloudX = (from: number): number => {
+      const three = canvas.calls.slice(from).filter((c) => c.name === 'drawImage' && c.args.length === 3);
+      return three[1]!.args[1] as number;
+    };
+    let last = 0;
+    for (let i = 0; i <= 240; i++) {
+      const from = canvas.calls.length;
+      drawScene(ctx, 800, 600, { ...input, weather: 'storm', time: i / 60 });
+      last = cloudX(from);
+    }
+    for (const weather of ['mild', undefined] as const) {
+      const from = canvas.calls.length;
+      drawScene(ctx, 800, 600, { ...input, weather, time: 241 / 60 });
+      const x = cloudX(from);
+      // Wolken ziehen höchstens ~8 px/s × Größe – ein Frame verschiebt sie um wenige Pixel.
+      expect(Math.abs(x - last), String(weather)).toBeLessThan(4);
+      last = x;
+    }
+  });
+
+  it('Treffer-Test: die fliegende Fledermaus wird in der Mitte ihres Flug-Sprites getroffen', () => {
+    const bat: SceneAnimal[] = [{ id: 'bat', family: 'mammals', niche: 'hollows', slot: 0, happiness: 0.9 }];
+    for (const time of [3, 4.7, 9.2]) {
+      const canvas = makeCanvas(800, 600);
+      const ctx = canvas.getContext('2d');
+      const input: SceneInput = { growth: 6, time, animals: bat, dayPhase: 0 };
+      drawScene(ctx, 800, 600, input);
+      // Flug-Sprite: deutlich breiter als hoch (Höhle und Rand sind eher hoch).
+      let transform: unknown[] = [];
+      let center: [number, number] | null = null;
+      let size = 0;
+      for (const c of canvas.calls) {
+        if (c.name === 'setTransform') transform = c.args;
+        if (c.name !== 'drawImage' || c.args.length !== 5) continue;
+        const img = c.args[0] as StubCanvas;
+        if (!(img.width > img.height * 1.7)) continue;
+        const [a, , , d, e, f] = transform as number[];
+        const [, ox, oy, w, h] = c.args as number[];
+        center = [e! + a! * (ox! + w! / 2), f! + d! * (oy! + h! / 2)];
+        // Begrenzung des Flug-Sprites: 0,7 × Größe hoch (plus Rand).
+        size = h! / 0.7;
+      }
+      expect(center, `t=${time}`).not.toBeNull();
+      const hit = hitTestAnimal({ width: 800, height: 600, growth: 6, time, animals: bat, dayPhase: 0 }, { zoom: 4, x: center![0] / 800, y: center![1] / 600 }, 400, 300);
+      expect(hit?.speciesId, `t=${time}`).toBe('bat');
+      // Auch etwas unterhalb der Mitte (Flügel): nur mit der Mitte des Flug-Sprites ein Treffer.
+      const below = center![1] + 0.6 * size;
+      const hit2 = hitTestAnimal({ width: 800, height: 600, growth: 6, time, animals: bat, dayPhase: 0 }, { zoom: 4, x: center![0] / 800, y: below / 600 }, 400, 300);
+      expect(hit2?.speciesId, `t=${time} unten`).toBe('bat');
+    }
   });
 
   it('Treffer-Test mit Sturm und Nacht wirft nicht', () => {

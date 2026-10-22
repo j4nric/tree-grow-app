@@ -742,3 +742,11 @@ export function rimeInPlace(canvas: HTMLCanvasElement, color: string, alpha: num
   c.drawImage(s, 0, 0, w, h, 0, 0, w, h);
   c.restore();
 }
+
+/** Gibt das Hilfs-Canvas des Raureifs frei (nach dem Tönen; Safari: Größe 0). */
+export function releaseRimeScratch(): void {
+  if (!rimeScratch) return;
+  rimeScratch.width = 0;
+  rimeScratch.height = 0;
+  rimeScratch = null;
+}

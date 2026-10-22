@@ -1584,7 +1584,7 @@ export function hitTestAnimals(
     const happy = clamp01(Number.isFinite(animal.happiness) ? animal.happiness : 0.5);
     const pose = placePose(e, happy, anchors.size, f);
     const m = spriteMid(e, pose, hitMid);
-    const r = Math.max(e.size * e.midR * 0.85, minRadius);
+    const r = Math.max(e.size * midRadius(e, pose) * 0.85, minRadius);
     const d = Math.hypot(x - m.x, y - m.y);
     if (d <= r && d < bestD) {
       bestD = d;
@@ -1619,14 +1619,14 @@ function drawShimmer(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, mu
   const pulse = f.reducedMotion ? 0.85 : 0.75 + 0.25 * Math.sin(f.time * 1.6 + e.phase);
   const base = e.shimmer === 3 ? 0.62 : 0.42;
   const alpha = base * pulse * (1 - 0.5 * muted);
-  blit(ctx, sprites.get('shimmer', 0, false, e.size * e.midR, f.spriteDpr ?? f.dpr), x, y, 1, 0, alpha, f);
+  blit(ctx, sprites.get('shimmer', 0, false, e.size * midRadius(e, pose), f.spriteDpr ?? f.dpr), x, y, 1, 0, alpha, f);
 }
 
 /** Zwei kleine Funken, die abwechselnd an Rand des Tiers aufblitzen (nur legendäre Arten). */
 function drawSparkles(ctx: CanvasRenderingContext2D, e: PlanEntry, pose: Pose, muted: number, sprites: SpriteCache, f: AnimalFrame): void {
   const { x, y } = spriteMid(e, pose, mid);
   const s = sprites.get('sparkle', 0, false, Math.max(8, e.size * 0.34), f.spriteDpr ?? f.dpr);
-  const r = e.size * e.midR * 0.7;
+  const r = e.size * midRadius(e, pose) * 0.7;
   for (let k = 0; k < 2; k++) {
     const t = f.reducedMotion ? 0.3 + k * 0.4 : f.time * 0.9 + e.phase + k * 0.5;
     const n = Math.floor(t);
@@ -1647,13 +1647,21 @@ function drawPond(ctx: CanvasRenderingContext2D, anchors: AnchorResolver, sprite
   if (seasonNow.ice > 0.01) blit(ctx, sprites.get(pondSpriteName(true, p.halfWidth), 0, false, p.size, dpr), p.x, p.y, 1, 0, seasonNow.ice, f);
 }
 
+/** Radius um die Sprite-Mitte (Anteil der Größe) – bei eigenem Sprite aus dessen Begrenzung. */
+function midRadius(e: PlanEntry, pose: Pose): number {
+  const d = pose.sprite ? DEFS[pose.sprite] : undefined;
+  return d ? Math.max(d.x1 - d.x0, d.y1 - d.y0) * 0.62 : e.midR;
+}
+
 /** Wiederverwendeter Punkt für die Sprite-Mitte (keine Allokation pro Frame). */
 const mid = { x: 0, y: 0 };
 
 /** Mitte des Sprites in CSS-Pixeln (mit Spiegelung und Drehung), geschrieben nach `out`. */
 function spriteMid(e: PlanEntry, pose: Pose, out: { x: number; y: number }): { x: number; y: number } {
-  const mx = e.midX * e.size * pose.dir;
-  const my = e.midY * e.size;
+  // Eigenes Sprite (z. B. fliegende Fledermaus): Mitte aus dessen Begrenzung.
+  const d = pose.sprite ? DEFS[pose.sprite] : undefined;
+  const mx = (d ? (d.x0 + d.x1) / 2 : e.midX) * e.size * pose.dir;
+  const my = (d ? (d.y0 + d.y1) / 2 : e.midY) * e.size;
   if (pose.rot === 0) {
     out.x = pose.x + mx;
     out.y = pose.y + my;

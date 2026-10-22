@@ -4747,7 +4747,7 @@ sie verschwinden nie.
   Tageszeit × Wetter (Lichtfarbe multipliziert); Wolkendecke, Nebeldunst, Hitzedunst,
   Sonnenstrahlen, strohiges bzw. bereiftes Gras, nasser Boden, Neuschnee-Decke; Raureif und
   Schneehäubchen als heller Oberkanten-Saum der Baum-Ebenen. Die Überblendung läuft in
-  `WEATHER_TONE_STEPS = 4` Stufen (höchstens 5 Neutönungen je Wechsel), Partikel und
+  `WEATHER_TONE_STEPS = 4` Stufen (höchstens 4 Neutönungen je Wechsel), Partikel und
   Wolken stufenlos.
 - Pro Frame: Regen als ein Pfad (≤ 120 / mobil ≤ 60 Striche), Flocken (≤ 120 / 60),
   Sturmblätter (≤ 20 / 10), Raureif-Glitzern (≤ 14) aus festen Pools; drei vorgefertigte
@@ -4758,9 +4758,11 @@ sie verschwinden nie.
   der Glühwürmchen (Tier und Stimmungs-Partikel).
 - Nachtarten (nur mit Tageszeit): Kauz döst tagsüber (Augen zu, selten ein Blick), nachts
   wach und dreht den Kopf; Langohr fliegt nachts Schleifen um den Stamm (eigenes Flug-Sprite,
-  nicht im Winterschlaf); Igel und Glühwürmchen nachts weiter unterwegs, tagsüber ruhig.
-  Winterschlaf folgt der Winterstarre der Amphibien. Treffer-Test rechnet mit denselben
-  Posen und dem Sturmwind.
+  nicht im Winterschlaf); Igel und Glühwürmchen nachts mit vollem Laufweg, tagsüber ruhig
+  (Ausschlag höchstens wie bisher, damit Rand und Laufweg halten). Winterschlaf folgt der
+  Winterstarre der Amphibien. Treffer-Test rechnet mit denselben Posen (Mitte des
+  Flug-Sprites) und dem Sturmwind. Einstellung „Immer Tag“: Die Szene bekommt Mittag, die
+  Nachtarten zeigen darum ihr Tagesverhalten (Kauz döst) – die Nachtwirkung läuft weiter.
 - Nicht umgesetzt: „Blumen etwas gesättigter“ bei Sonnenschein (bräuchte eine eigene
   Pflanzen-Ebene je Wetter).
 

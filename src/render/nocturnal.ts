@@ -28,18 +28,20 @@ export function nightWake(nocturnal: number | null | undefined): number | null {
 }
 
 /**
- * Faktor für die Bewegung (Aktivität) einer Art: Igel und Glühwürmchen tagsüber ruhiger,
- * nachts weiter unterwegs. `awake` 0–1: nicht im Winterschlaf (Igel, Fledermaus).
- * Ohne Tageszeit (null) und für andere Arten 1.
+ * Faktor 0–1 für die Bewegung (Aktivität) einer Art: Igel und Glühwürmchen tagsüber
+ * ruhiger, nachts voll unterwegs. Höchstens 1 – so bleiben Laufweg und Rand (keepInside)
+ * wie geplant; ein schnelleres Tempo bräuchte eine aufsummierte Phase (Sprünge bei
+ * zeitabhängigem Tempo) und ist darum bewusst nicht drin. `awake` 0–1: nicht im
+ * Winterschlaf (Igel, Fledermaus). Ohne Tageszeit (null) und für andere Arten 1.
  */
 export function nocturnalPace(kind: string, wake: number | null, awake = 1): number {
   if (wake === null) return 1;
   const a = clamp01(Number.isFinite(awake) ? awake : 1);
   switch (kind) {
     case 'hedgehog':
-      return lerp(0.3, 1.45, wake * a);
+      return lerp(0.25, 1, wake * a);
     case 'glowworm':
-      return lerp(0.4, 1.35, wake);
+      return lerp(0.35, 1, wake);
     default:
       return 1;
   }
