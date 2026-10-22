@@ -33,13 +33,23 @@ import {
   effectiveMemoryOf,
   jaySeeds,
   jaySeedsOfSite,
+  landscapeAnnouncementDue,
   landscapeTraits,
   landscapeUnlocked,
   ownMemory,
 } from '../src/core/landscape';
 import { loadGame, serialize } from '../src/core/save';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, createSite, type GameState, type LandscapeSite } from '../src/core/state';
-import { buildCorridor, corridorBlocker, landscapeCorridors, previewNewCycle, recordDiscoveries, setRegulars, startNewCycle } from '../src/core/tick';
+import {
+  buildCorridor,
+  corridorBlocker,
+  landscapeCorridors,
+  markLandscapeAnnounced,
+  previewNewCycle,
+  recordDiscoveries,
+  setRegulars,
+  startNewCycle,
+} from '../src/core/tick';
 import { stateAt } from './helpers';
 
 /**
@@ -68,7 +78,7 @@ function withLandscape(
   if (home) all[0] = home;
   if (!all.some((s) => s.id === active)) all.push(site(active));
   for (const s of all) if (s.id === active) Object.assign(s, { memory: 0, regulars: [] });
-  state.meta.landscape = { active, sites: all, corridors: opts.corridors ?? [], freeCorridors: opts.free ?? [] };
+  state.meta.landscape = { active, sites: all, corridors: opts.corridors ?? [], freeCorridors: opts.free ?? [], announced: false };
   if (opts.unlocked ?? true) state.meta.achievements.push('ancient-forest');
   return state;
 }
@@ -90,6 +100,7 @@ describe('Spielstand v14: Startwerte', () => {
       sites: [{ id: 'home', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [] }],
       corridors: [],
       freeCorridors: [],
+      announced: false,
     });
     expect(landscapeUnlocked(state)).toBe(false);
     expect(jaySeeds(state)).toEqual({ earned: 0, spent: 0, available: 0 });
@@ -335,6 +346,7 @@ describe('Gründen, Wechseln, Korridore (24.5, 24.6)', () => {
       sites: [{ id: 'home', memory: 0, regulars: [], ancient: true, mainTree: 'oak', fauna: [] }],
       corridors: [],
       freeCorridors: [],
+      announced: false,
     });
   });
 
@@ -361,6 +373,38 @@ describe('Gründen, Wechseln, Korridore (24.5, 24.6)', () => {
     expect(buildCorridor(state, 'floodplain-carr')).toEqual({ ok: false, error: 'corridor-built' });
     expect(landscapeCorridors(state).map((c) => c.id)).toEqual(CORRIDORS.map((c) => c.id));
     expect(landscapeCorridors(state).find((c) => c.id === 'floodplain-carr')).toMatchObject({ built: true, free: false, blocker: 'corridor-built' });
+  });
+
+  it('Meldung zur Freischaltung: fällig, bis die UI sie markiert – einmal, dauerhaft, übersteht Speichern', () => {
+    const locked = withLandscape(5, { own: 100 });
+    expect(landscapeAnnouncementDue(locked)).toBe(false);
+    expect(markLandscapeAnnounced(locked)).toBe(false);
+    expect(locked.meta.landscape.announced).toBe(false);
+    const state = withLandscape(5, { own: 300 });
+    expect(landscapeAnnouncementDue(state)).toBe(true);
+    // Ohne UI bleibt sie fällig – auch über Neustarts und Speichern/Laden hinweg.
+    Object.assign(state, { stage: 5, waypoint: 25 });
+    expect(startNewCycle(state, 1).ok).toBe(true);
+    const reloaded = loadGame(serialize(state), 0)!.state;
+    expect(landscapeAnnouncementDue(reloaded)).toBe(true);
+    expect(markLandscapeAnnounced(reloaded)).toBe(true);
+    expect(markLandscapeAnnounced(reloaded)).toBe(false);
+    expect(landscapeAnnouncementDue(reloaded)).toBe(false);
+    expect(loadGame(serialize(reloaded), 0)!.state.meta.landscape.announced).toBe(true);
+  });
+
+  it('ungültiger aktiver Wald (kaputter Stand zur Laufzeit): Neuer Zyklus im Heimatwald statt Fehler', () => {
+    const state = withLandscape(5, { own: 40, sites: [site('floodplain', 70)], corridors: ['home-floodplain'] });
+    state.meta.landscape.active = 'atlantis' as SiteId;
+    expect(effectiveForestMemory(state)).toBe(40 + 35);
+    const result = startNewCycle(state, 1);
+    expect(result).toMatchObject({ ok: true, site: 'home', founded: false });
+    expect(state.meta.landscape.active).toBe('home');
+    // Fehlt sogar der Heimatwald, wird er ergänzt – vorn, vor den übrigen Wäldern.
+    const noHome = withLandscape(5, { own: 10, sites: [site('carr', 50)] });
+    noHome.meta.landscape.sites = noHome.meta.landscape.sites.filter((s) => s.id !== 'home');
+    expect(startNewCycle(noHome, 1)).toMatchObject({ ok: true, site: 'home' });
+    expect(noHome.meta.landscape.sites.map((s) => s.id)).toEqual(['home', 'carr']);
   });
 
   it('jeder Standort liegt am Heimatwald (corridorBetween)', () => {
@@ -420,6 +464,7 @@ describe('Laden v14 (24.8)', () => {
       sites: [{ id: 'home', memory: 0, regulars: [], ancient: true, mainTree: 'oak', fauna: [] }],
       corridors: [],
       freeCorridors: [],
+      announced: false,
     });
     expect(loaded.landscapeUnlocked).toBe(true);
     // Unter 250 oder ohne Erfolg: keine Meldung, ancient nur mit Erfolg.
@@ -458,6 +503,7 @@ describe('Laden v14 (24.8)', () => {
         ];
         d.meta.landscape.corridors = ['home-floodplain', 'floodplain-carr', 'floodplain-carr', 'home-heath', 'nope', 42];
         d.meta.landscape.freeCorridors = ['home-floodplain', 'floodplain-carr', 'home-heath'];
+        d.meta.landscape.announced = 'yes';
       }),
       0,
     )!.state;
@@ -477,6 +523,7 @@ describe('Laden v14 (24.8)', () => {
     expect(loaded.meta.forestMemory).toBe(520);
     expect(l.corridors).toEqual(['home-floodplain', 'floodplain-carr']);
     expect(l.freeCorridors).toEqual(['home-floodplain', 'floodplain-carr']);
+    expect(l.announced).toBe(false); // nur echtes true zählt
     for (const bad of [null, 'x', 7, [], { sites: 'x', corridors: {}, active: 3 }]) {
       const s = loadGame(raw(state, (d) => (d.meta.landscape = bad)), 0)!.state;
       expect(s.meta.landscape.sites.map((x) => x.id)).toEqual(['home']);

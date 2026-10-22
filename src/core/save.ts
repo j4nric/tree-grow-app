@@ -620,6 +620,7 @@ function migrateV11(state: GameState): DailyState {
  *   werden dabei nicht umgebucht. Sein Eintrag hält Gedächtnis 0 und keine Stammgäste.
  * - `corridors`: bekannte IDs, je einmal, nur zwischen gegründeten Wäldern; `freeCorridors`
  *   ⊆ `corridors`, je gegründetem Wald außer dem Heimatwald höchstens einer (an diesem Wald).
+ * - `announced` nur `true`, wenn so gespeichert (sonst kommt die Meldung 24.3 noch einmal).
  * - Kosten-Prüfung: Bezahlt die verdiente Hähersaat nicht alles (manipulierter Stand), fallen
  *   zuerst gekaufte Korridore (zuletzt gebaute zuerst), dann zuletzt gegründete **ruhende**
  *   Wälder samt ihrer Korridore – nie der aktive und nie der Heimatwald.
@@ -646,6 +647,7 @@ function loadLandscape(raw: unknown, state: GameState): LandscapeState {
     sites: [home, ...sites.filter((s) => s.id !== HOME_SITE)],
     corridors: [],
     freeCorridors: [],
+    announced: r.announced === true,
   };
   if (isSite(r.active) && siteEntry(landscape, r.active)) landscape.active = r.active;
   const active = siteEntry(landscape, landscape.active)!;

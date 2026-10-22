@@ -39,7 +39,7 @@ function rich(stage: number, animals: string[] = [], seed = 3): GameState {
 }
 
 describe('Spielstand v13 (DESIGN_V2.md 23.6)', () => {
-  it('SAVE_VERSION ≥ 13 (seit v14 Landschaft); neue Stände haben die drei Nischen leer', () => {
+  it('aktuelle Version mit den Lebensräumen (seit v13); neue Stände haben die drei Nischen leer', () => {
     expect(SAVE_VERSION).toBe(14);
     const state = stateAt(0);
     for (const n of HABITATS) expect(state.niches[n], n).toEqual([]);

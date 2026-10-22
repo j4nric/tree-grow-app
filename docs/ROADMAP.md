@@ -363,3 +363,9 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     `tests/landscape-core.test.ts`
   - [ ] Karte (`ui-dev`), Kulisse je Waldtyp (`renderer`), Schritt B Wildwechsel
     (`core-engineer`), Erfolge und Messung (`game-designer`) – 24.11
+    - [ ] UI rechnet mit dem **wirksamen** Gedächtnis (`ui-dev`): `regularSlotsOf(state)` statt
+      `regularSlots(meta.forestMemory)` (adapters, cycle-view, animal-detail-view), Anzeige
+      des Gedächtnis-Bonus mit `effectiveForestMemory`, `environmentEffects` mit Standort und
+      Gaben (Tierdetails)
+    - [ ] Meldung zur Freischaltung (`ui-dev`): zeigen, solange `landscapeAnnouncementDue(state)`,
+      danach `markLandscapeAnnounced(state)` (24.8)

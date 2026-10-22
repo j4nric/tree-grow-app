@@ -46,6 +46,19 @@ function clampMemory(value: number): number {
   return Number.isFinite(value) ? Math.min(MAX_FOREST_MEMORY, Math.max(0, value)) : 0;
 }
 
+/**
+ * Der aktive Wald – steht `active` nicht unter den gegründeten Wäldern (nur bei kaputten
+ * Ständen zur Laufzeit; das Laden repariert das), gilt der Heimatwald, wie beim Laden.
+ */
+export function activeSite(landscape: LandscapeState): SiteId {
+  return siteEntry(landscape, landscape.active) ? landscape.active : HOME_SITE;
+}
+
+/** Die Meldung zur Freischaltung (24.3) steht noch aus: freigeschaltet, aber noch nicht gezeigt. */
+export function landscapeAnnouncementDue(state: Pick<LandscapeHolder, 'meta'>): boolean {
+  return landscapeUnlocked(state) && !landscapeOf(state).announced;
+}
+
 /** Eintrag eines gegründeten Waldes (undefined = nicht gegründet). */
 export function siteEntry(landscape: LandscapeState, id: SiteId): LandscapeSite | undefined {
   return landscape.sites.find((s) => s.id === id);
@@ -59,7 +72,7 @@ export function isSiteFounded(state: { meta: { landscape?: LandscapeState } }, i
 /** Eigenes Waldgedächtnis eines Waldes (aktiv: `meta.forestMemory`; nicht gegründet: 0). */
 export function ownMemory(state: Pick<LandscapeHolder, 'meta'>, id: SiteId): number {
   const landscape = landscapeOf(state);
-  if (id === landscape.active) return clampMemory(state.meta.forestMemory);
+  if (id === activeSite(landscape)) return clampMemory(state.meta.forestMemory);
   return clampMemory(siteEntry(landscape, id)?.memory ?? 0);
 }
 
@@ -109,7 +122,7 @@ export function effectiveMemoryOf(
  * Gewinn beim Neuen Zyklus und Hähersaat rechnen mit dem eigenen.
  */
 export function effectiveForestMemory(state: Pick<LandscapeHolder, 'meta'>): number {
-  return effectiveMemoryOf(state, landscapeOf(state).active);
+  return effectiveMemoryOf(state, activeSite(landscapeOf(state)));
 }
 
 /** Zählt der Wald als „schon einmal Urwald“? Beim aktiven auch, sobald die Stufe Urwald erreicht ist. */
@@ -117,7 +130,7 @@ export function isSiteAncient(state: LandscapeHolder, id: SiteId): boolean {
   const landscape = landscapeOf(state);
   const entry = siteEntry(landscape, id);
   if (!entry) return false;
-  return entry.ancient || (id === landscape.active && state.stage >= ANCIENT_STAGE);
+  return entry.ancient || (id === activeSite(landscape) && state.stage >= ANCIENT_STAGE);
 }
 
 /** 🪶 Hähersaat (24.4): verdient, ausgegeben, verfügbar. */
