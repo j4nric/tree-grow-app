@@ -363,6 +363,10 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     `tests/landscape-core.test.ts`
   - [ ] Karte (`ui-dev`), Kulisse je Waldtyp (`renderer`), Schritt B Wildwechsel
     (`core-engineer`), Erfolge und Messung (`game-designer`) – 24.11
+    - [x] Kulisse je Waldtyp (`renderer`): `SceneInput.site` (Horizont, Hintergrund-Bäume,
+      Bodenfarben je Standort in der gecachten Kulisse, `src/render/site-scenery.ts`; Wechsel
+      blendet über), Häherflug beim Gründen (`SceneInput.jayFlight`, `src/render/jay-flight.ts`),
+      `?site=<id>` in Spiel und Demo – `tests/render-landscape.test.ts`, `e2e/landscape-scene.spec.ts`
     - [ ] UI rechnet mit dem **wirksamen** Gedächtnis (`ui-dev`): `regularSlotsOf(state)` statt
       `regularSlots(meta.forestMemory)` (adapters, cycle-view, animal-detail-view), Anzeige
       des Gedächtnis-Bonus mit `effectiveForestMemory`, `environmentEffects` mit Standort und
