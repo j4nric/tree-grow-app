@@ -3,23 +3,22 @@ import { GROWTH, HARMONY, RANDOM, formatTime, median, runCycles, type Strategy }
 import {
   firstCycleOf,
   firstCycleTable,
+  harmonyTable,
   medianOrNull,
   milestoneTable,
   peakTable,
   runLandscape,
   siteRun,
-  type LandscapeRules,
   type LandscapeSummary,
 } from '../scripts/landscape';
 import { LANDSCAPE_SITES, SITE_IDS } from '../src/content/landscape';
 import { env } from './balance-setup';
 
 /**
- * Waldlandschaft (DESIGN_V2.md 24.10): Modell auf der echten Logik (scripts/landscape.ts) –
- * die Landschaft selbst ist noch nicht in core/. Nur im großen Lauf, weil eine ganze
- * Landschaft 70–90 Zyklen bis zum Urwald sind (~15 s je Durchgang):
+ * Waldlandschaft (DESIGN_V2.md 24.10) mit der echten Logik aus core/ (scripts/landscape.ts).
+ * Eine ganze Landschaft sind 70–90 Zyklen bis zum Urwald – der große Lauf nur auf Wunsch:
  *
- *   SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.test.ts --silent=false   # ~25 min
+ *   SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.test.ts --silent=false
  *
  * Ziele (24.10): (a) jeder neue Wald erreicht seinen ersten Urwald schneller als der
  * Heimatwald (2. Wald ≤ 0,5 ×, danach nie langsamer als ~1,1 × der vorige), (b) die Landschaft
@@ -32,11 +31,24 @@ const RUNS = Number(env.SIM_LANDSCAPE_RUNS ?? 20);
 const SITE_RUNS = Number(env.SIM_LANDSCAPE_SITE_RUNS ?? 80);
 const options = { maxCycles: 250, cycleMaxSeconds: 6 * 3600 };
 
-function summary(label: string, strategy: Strategy, rules: Partial<LandscapeRules> = {}, runs = RUNS): LandscapeSummary {
-  return { label, runs: Array.from({ length: runs }, (_, k) => runLandscape({ ...options, strategy, seed: 1001 + k, rules })) };
+function summary(label: string, strategy: Strategy, runs = RUNS): LandscapeSummary {
+  return { label, runs: Array.from({ length: runs }, (_, k) => runLandscape({ ...options, strategy, seed: 1001 + k })) };
 }
 
-describe.skipIf(!LARGE)('Waldlandschaft – Modell (großer Lauf)', () => {
+describe('Waldlandschaft – Simulation (kurz)', { timeout: 120_000 }, () => {
+  it('ein Harmonie-Spieler schaltet die Landschaft frei und gründet den zweiten Wald (echte Logik)', () => {
+    const run = runLandscape({ strategy: HARMONY, seed: 1001, maxCycles: 5, cycleMaxSeconds: 6 * 3600 });
+    expect(run.unlockAt).not.toBeNull();
+    expect(Object.keys(run.foundedAt).length).toBeGreaterThanOrEqual(2);
+    expect(run.jayEarned).toBeGreaterThanOrEqual(run.jaySpent);
+    const second = run.cycles.find((c) => c.site !== 'home');
+    // Der zweite Wald startet mit Zufluss über den Gratis-Korridor, nicht bei 0.
+    expect(second?.effective).toBeGreaterThan(0);
+    expect(second?.ownBefore).toBe(0);
+  });
+});
+
+describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', () => {
   it('Heute: Urwald-Neustarts bis zum vollen Waldgedächtnis (ohne Landschaft)', () => {
     const cycles = 16;
     const runs = Array.from({ length: RUNS }, (_, k) => runCycles(HARMONY, { seed: 1001 + k, targetStage: 7, maxSeconds: 6 * 3600, care: true, cycles }));
@@ -48,56 +60,51 @@ describe.skipIf(!LARGE)('Waldlandschaft – Modell (großer Lauf)', () => {
       lines.push(`| ${c + 1} | ${median(runs.map((r) => r[c]!.memory))} | ${median(runs.map((r) => r[c]!.memoryGain))} | ${formatTime(t)} | ${(total / 3600).toFixed(1).replace('.', ',')} h |`);
     }
     console.log(lines.join('\n'));
-    // Das Gedächtnis ist nach höchstens 14 Urwald-Zyklen voll – danach gibt es heute nichts mehr zu gewinnen.
     expect(median(runs.map((r) => r[13]!.memory))).toBe(1000);
   });
 
-  it('Varianten der Regeln (Harmonie-Spieler)', () => {
-    const rows = [
-      summary('A: Zufluss 0,2, kein Deckel, Korridor kaufen', HARMONY, { inflow: 0.2, inflowCap: 1000, freeCorridor: false }),
-      summary('B: Zufluss 0,2, kein Deckel, Korridor mit der Gründung', HARMONY, { inflow: 0.2, inflowCap: 1000 }),
-      summary('C: Zufluss 0,35, Deckel 500', HARMONY, { inflow: 0.35 }),
-      summary('**D: Zufluss 0,5, Deckel 500 (gewählt)**', HARMONY),
-      summary('E: Zufluss 0,5, kein Deckel', HARMONY, { inflowCap: 1000 }),
-      summary('F: wie D, ohne Eigenheiten und Gaben', HARMONY, { siteEffects: false }),
-    ];
-    console.log(`${milestoneTable(rows)}\n\n${firstCycleTable(rows)}\n\n${peakTable(rows)}`);
-    const d = rows[3]!;
+  it('Spielweisen', () => {
+    const rows = [summary('Harmonie', HARMONY), summary('Wachstum', GROWTH), summary('Zufall', RANDOM, Math.min(RUNS, 10))];
+    const complete = rows.map((r) => medianOrNull(r.runs.map((x) => x.completeAt)));
+    const maxed = rows.map((r) => medianOrNull(r.runs.map((x) => x.allMaxedAt)));
+    console.log(`${milestoneTable(rows)}\n\n${firstCycleTable(rows)}\n\n${harmonyTable(rows)}\n\n${peakTable(rows)}`);
+    console.log(
+      `Wachstum gegenüber Harmonie: vollständig ${((complete[0]! / complete[1]! - 1) * 100).toFixed(1)} % schneller, alle voll ${((maxed[0]! / maxed[1]! - 1) * 100).toFixed(1)} % schneller`,
+    );
+    const h = rows[0]!;
     // (a) Jeder neue Wald startet deutlich schneller als der Heimatwald.
-    const first = [0, 1, 2, 3, 4, 5].map((k) => medianOrNull(d.runs.map((run) => firstCycleOf(run, k))));
+    const first = [0, 1, 2, 3, 4, 5].map((k) => medianOrNull(h.runs.map((run) => firstCycleOf(run, k))));
     expect(first[1]!).toBeLessThanOrEqual(0.5 * first[0]!);
     for (let k = 2; k <= 5; k++) expect(first[k]!).toBeLessThanOrEqual(1.1 * first[k - 1]!);
     // (b) Vollständig nach 12–30 h.
-    const complete = medianOrNull(d.runs.map((r) => r.completeAt))!;
-    expect(complete).toBeGreaterThan(12 * 3600);
-    expect(complete).toBeLessThan(30 * 3600);
+    expect(complete[0]!).toBeGreaterThan(12 * 3600);
+    expect(complete[0]!).toBeLessThan(30 * 3600);
     // (d) Größenordnung.
-    for (const r of d.runs) {
-      expect(r.maxGrowth).toBeLessThan(1e5);
-      expect(r.lifetimeGrowth).toBeLessThan(1e9);
+    for (const r of rows) {
+      expect(complete[rows.indexOf(r)], r.label).not.toBeNull();
+      for (const run of r.runs) {
+        expect(run.maxGrowth).toBeLessThan(1e5);
+        expect(run.lifetimeGrowth).toBeLessThan(1e9);
+      }
     }
-  });
-
-  it('Spielweisen (Regeln D)', () => {
-    const rows = [summary('Harmonie', HARMONY), summary('Wachstum', GROWTH), summary('Zufall', RANDOM, {}, Math.min(RUNS, 10))];
-    console.log(`${milestoneTable(rows)}\n\n${firstCycleTable(rows)}\n\n${peakTable(rows)}`);
-    for (const r of rows) expect(medianOrNull(r.runs.map((x) => x.completeAt)), r.label).not.toBeNull();
   });
 
   it('Waldtypen im Vergleich (wie die Baumarten, 17.4)', () => {
     const lines = ['| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | Wachstum: Urwald | gegenüber Heimatwald |', '|---|---|---|---|---|---|'];
     const home: Record<string, number> = {};
     const cells: Record<string, string[]> = {};
+    const deviations: string[] = [];
     for (const strategy of [HARMONY, GROWTH]) {
       for (const site of SITE_IDS) {
         const t = median(Array.from({ length: SITE_RUNS }, (_, k) => siteRun(strategy, site, 3000 + k, 200).seconds ?? 6 * 3600));
         if (site === 'home') home[strategy.id] = t;
         const rel = t / home[strategy.id]! - 1;
         (cells[site] ??= []).push(formatTime(t), `${rel >= 0 ? '+' : '−'}${Math.abs(rel * 100).toFixed(1).replace('.', ',')} %`);
-        expect(Math.abs(rel), `${strategy.id} ${site}`).toBeLessThan(0.05);
+        if (Math.abs(rel) >= 0.05) deviations.push(`${strategy.id} ${site} ${(rel * 100).toFixed(1)} %`);
       }
     }
     for (const s of LANDSCAPE_SITES) lines.push(`| ${s.icon} ${s.name} | ${s.leadTree ?? 'oak'} | ${cells[s.id]!.join(' | ')} |`);
     console.log(lines.join('\n'));
+    expect(deviations).toEqual([]);
   });
 });

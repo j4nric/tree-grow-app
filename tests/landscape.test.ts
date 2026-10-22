@@ -18,7 +18,6 @@ import {
   SITE_IDS,
   WILDWECHSEL_CHANCE,
   WILDWECHSEL_MAX_CHANCE,
-  type SiteId,
 } from '../src/content/landscape';
 import { ACHIEVEMENTS } from '../src/content/achievements';
 import { GENUS_INFO, TAG_NAMES } from '../src/content/species';
@@ -26,12 +25,11 @@ import { STAGES } from '../src/content/stages';
 import { MAIN_TREES_BY_ID, type TreeEffect } from '../src/content/trees';
 import { GENERA, NICHE_IDS, PLANT_GROUPS } from '../src/content/types';
 import { MAX_FOREST_MEMORY } from '../src/core/state';
-import { corridorBetween, effectiveMemory, jaySeedsEarned } from '../scripts/landscape';
+import { corridorBetween } from '../src/core/landscape';
 
 /**
- * Inhalte der Waldlandschaft (DESIGN_V2.md 24) – noch nicht verdrahtet, darum prüft dieser
- * Test die Daten für sich und die Rechenregeln des Modells (scripts/landscape.ts), die der
- * core-engineer übernimmt (24.11).
+ * Inhalte der Waldlandschaft (DESIGN_V2.md 24). Die Rechenregeln (wirksames Gedächtnis,
+ * Hähersaat, Gründen, Laden) prüft tests/landscape-core.test.ts mit der Logik aus core/.
  */
 
 /** Zahl einer Wirkung mit Vorzeichen (Gewinn > 0, Verzicht < 0). */
@@ -155,32 +153,5 @@ describe('Waldlandschaft: Korridore und Hähersaat', () => {
     expect(MAX_SITE_FAUNA).toBeGreaterThan(0);
     expect(FEATURED_GENUS_WEIGHT).toBeGreaterThan(1);
     expect(FEATURED_GENUS_WEIGHT).toBeLessThanOrEqual(2);
-  });
-});
-
-describe('Waldlandschaft: Rechenregeln (Vorlage für core/)', () => {
-  const sites = (entries: [SiteId, number, boolean?][]) =>
-    new Map(entries.map(([id, own, ancient]) => [id, { own, ancient: ancient ?? false }] as const));
-
-  it('wirksames Gedächtnis: eigenes + Zufluss (höchstens 500), höchstens 1000', () => {
-    const s = sites([['home', 600], ['floodplain', 0], ['carr', 300]]);
-    expect(effectiveMemory('floodplain', s, new Set(), 0.5, 500)).toBe(0);
-    expect(effectiveMemory('floodplain', s, new Set(['home-floodplain']), 0.5, 500)).toBe(300);
-    expect(effectiveMemory('floodplain', s, new Set(['home-floodplain', 'floodplain-carr']), 0.5, 500)).toBe(450);
-    // Deckel des Zuflusses: 0,5 · (1000 + 1000) = 1000 → 500.
-    const full = sites([['home', 1000], ['floodplain', 100], ['carr', 1000]]);
-    expect(effectiveMemory('floodplain', full, new Set(['home-floodplain', 'floodplain-carr']), 0.5, 500)).toBe(600);
-    // Obergrenze MAX_FOREST_MEMORY.
-    const late = sites([['home', 1000], ['floodplain', 900]]);
-    expect(effectiveMemory('floodplain', late, new Set(['home-floodplain']), 0.5, 500)).toBe(MAX_FOREST_MEMORY);
-    // Korridore zu anderen Wäldern zählen nicht.
-    expect(effectiveMemory('floodplain', s, new Set(['home-carr']), 0.5, 500)).toBe(0);
-  });
-
-  it('Hähersaat: 1 je volle 100 eigenes Gedächtnis, +2 für den ersten Urwald je Wald', () => {
-    expect(jaySeedsEarned(sites([['home', 266, true]]))).toBe(4);
-    expect(jaySeedsEarned(sites([['home', 1000, true], ['floodplain', 99, false]]))).toBe(12);
-    const max = sites(SITE_IDS.map((id) => [id, MAX_FOREST_MEMORY, true] as [SiteId, number, boolean]));
-    expect(jaySeedsEarned(max)).toBe(MAX_JAY_SEEDS);
   });
 });
