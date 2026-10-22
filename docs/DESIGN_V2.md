@@ -138,17 +138,18 @@ q = (2 · Futter + erfüllte Wünsche) / (2 + Anzahl Wünsche)
 
 - **Futter** (zählt doppelt) = `max` über die Nahrungsmerkmale des Tiers von
   `min(1, Angebot / Nachfrage)`. Angebot je Merkmal: Hauptbaum 2, jede Pflanze 1, jedes
-  Tier 1, Ereignis 1. Nachfrage: Anzahl der Tiere, die dieses Merkmal fressen. Zwei
-  Räuber teilen sich also eine Wühlmaus.
+  Tier seinen **Bestand** 0,5 … 1,5 (aus seiner Zufriedenheit, seit Welle 3, 22.3; vorher
+  fest 1), Ereignis 1. Nachfrage: Anzahl der Tiere, die dieses Merkmal fressen. Zwei
+  Räuber teilen sich also eine Wühlmaus – eine zufriedene reicht für anderthalb.
 - **Wünsche** an den Lebensraum, je einfach: Pflanzengruppen („2× Sträucher“),
   bestimmte Arten („Große Brennnessel“), Merkmale (Feuchte, Totholz, Baumhöhle),
   **sonnig** (nach allen Begleitpflanzen bleiben ≥ 2 Licht frei) oder **schattig**
   (≥ 3 Bäume inkl. Hauptbaum). Sonnig und schattig ziehen in entgegengesetzte
   Richtungen – mehr Bäume bringen Wachstum, nehmen aber Bienen und Faltern die Sonne.
 - **Störung:** z. B. Eichhörnchen und Eichelhäher plündern Meisennester, der Maulwurf
-  frisst Regenwürmer. **Räuberdruck:** Beute ist etwas weniger zufrieden, wenn sie
-  gejagt wird – dafür hält der Räuber ihren Schaden klein. (Entwurf Welle 3: wird zur
-  **Überjagung** – nur noch, wenn mehr Jäger als Beute-Bestand da sind, Abschnitt 22.)
+  frisst Regenwürmer. **Überjagung** (seit Welle 3, 22.4; vorher „Räuberdruck“ −10 % je
+  Jäger): Beute ist nur dann etwas weniger zufrieden, wenn mehr Jäger als Bestand da sind
+  (−10 % je fehlender Einheit, höchstens −20 %) – der Räuber hält ihren Schaden trotzdem klein.
 - Seltene Tiere sind also **wählerisch**: Ohne passende Bedingungen bleiben sie
   schwach, mit allen Bedingungen sind sie die stärksten Karten.
 
@@ -2175,6 +2176,26 @@ gleicher H_max bringt ein späterer Wegpunkt nie mehr (H_max 0–400, Grundlage 
 in 12.7), Ziel (e) an typischen Verläufen (Urwald-Schwelle ≤ 174 − 10, Bonus über dem Sockel
 Harmonie 30 / Wachstum 0), dazu die Sperrklinke selbst (gleiche H_max über mehrere
 Wegpunkte, online = offline, ein ganzer simulierter Zyklus je Strategie bis zum Urwald).
+
+#### Stand Räuber und Beute – Bestand, Überjagung, Massenjahre, Wetter-Gewichte (500 Durchgänge)
+
+`npm run balance` nach Welle 3 Schritt A + C (DESIGN_V2.md 22.9, Einzelwetter wie online):
+alle Prüfungen grün bis auf eine Grenze im großen Lauf, die angepasst ist (unten).
+
+| Kennzahl | vorher (main 9dde233, 22.9 mit 100 Durchgängen) | jetzt (500 Durchgänge) |
+|---|---|---|
+| Hain Harmonie / Wachstum / Zufall | 1:00:58 h / 53:21 min / 1:33:07 h | 59:24 min / 52:03 min / 1:30:51 h |
+| Urwald Harmonie | 2:44:21 h | 2:36:25 h |
+| ⚖️ / Ø 😊 beim Hain (Harmonie) | 107,1 / 91,5 % | 112,0 / 96 % |
+| Wachstum ÷ Harmonie beim Hain, Zyklus 1 / 2 / 3 | – | 0,877 / 1,012 / 1,037 |
+| Zyklus 2 schneller (Harmonie / Wachstum / Zufall) | – | −44,7 % / −36,1 % / −24,2 % |
+| Gewinn Zyklus 1 Hain / Urwald (Harmonie) | – | +69,8 / +95,0 (Urwald ÷ Hain 1,36) |
+| 🌰-Bestand beim Hain / im Wald (Harmonie, min Produktion) | – | 9,2 / 11,8 |
+
+**Angepasst:** `balance-restart.test.ts` (b) „Gewinn Urwald, Harmonie-Spieler“ im großen Lauf
+< 100 statt < 95 (gemessen 95,0, vorher 87–88): Die zufriedenere Beute hebt H_max; das
+Verhältnis Urwald ÷ Hain sinkt dabei (1,44 → 1,36). Wer den Gewinn wieder unter 95 will,
+dreht an `MEMORY_HARMONY_RULES` (Aufgabe `game-designer`).
 
 #### Stand Playtest Amphibien – Waldtümpel und mittleres Spiel (500 Durchgänge)
 
@@ -4855,8 +4876,8 @@ und die Schonzeit: Junger Baum 4:10 / 3:55 min statt vorher 4:06 / 3:51 min (onl
   je +6 %) – Atmosphäre vor Zahl, niemand soll nachts online sein müssen.
 - **Borkenkäferjahr:** kommt später als **Ereignis** (z. B. nach zwei Dürren in einem Jahr,
   mit Wahl Totholz ↔ Samen), nicht als Wetterlage.
-- **Wetter und Begegnungen** (Regen → Krötenwanderung, Sturm → Windwurf): kommt mit Welle 3
-  (Räuber und Beute), vorerst kein Einfluss auf die Gewichte.
+- **Wetter und Begegnungen** (Regen → Krötenwanderung, Sturm → Windwurf): umgesetzt mit
+  Welle 3 (22.6, `WEATHER_EVENT_FACTORS`).
 - **Tagesziele (20):** keine Wetter-Tagesziele („Erlebe einen Sturm“ wäre passiv, „Pflanze
   bei Regen“ ein Zwang zum Zuschauen).
 - Offen bleibt nur die Idee einer Lebensgemeinschaft „Nachtschwärmer“ (Kauz, Langohr,
@@ -4866,11 +4887,14 @@ und die Schonzeit: Junger Baum 4:10 / 3:55 min statt vorher 4:06 / 3:51 min (onl
 
 ## 22. Räuber und Beute
 
-> **Stand:** Design (Phase 6, Welle 3, Teil A). Zahlen und Ereignisse in
-> `src/content/predation.ts`, noch **nicht verdrahtet** (eigene, erweiterte Typen bis
-> Spielstand v13, 23.6). Inhaltstest `tests/habitats.test.ts`. Gemessen mit einem
-> Prototyp der Logik (`scripts/welle3-prototype.patch`, 22.9). Logik fehlt (22.8).
-> Abschnitt 21 (Wetter und Nachtarten) liegt auf dem Wetter-Branch; 22.6 setzt ihn voraus.
+> **Stand:** Logik umgesetzt (Phase 6, Welle 3, Schritt A und C aus 22.8, ohne
+> Spielstand-Änderung, `SAVE_VERSION` bleibt 12): Bestand, Überjagung, Bedingung `unhunted`,
+> die vier Massenjahre (ohne Lebensraum-Arten), `Evaluation.foodWeb` und die Wetter-Gewichte.
+> Zahlen und Ereignisse in `src/content/predation.ts`, Logik in `core/formulas.ts` und
+> `core/tick.ts`, Tests `tests/predation.test.ts` (Logik) und `tests/habitats.test.ts`
+> (Inhalt), Messung 22.9 (`tests/predation-balance.test.ts`). Offen: die neuen Merkmale
+> Amphibien/Kaninchen und die Lebensraum-Arten in den Massenjahren (Schritt B, 23.7) und die
+> Anzeige (22.7, `ui-dev`).
 
 ### 22.1 Idee und Leitlinien
 
@@ -5000,10 +5024,11 @@ je höchstens einmal pro Zyklus, Optionen ohne Strafe:
   einen Jäger – das Versprechen wäre nicht einlösbar.
 - Ein Ungleichgewicht wird so **sichtbar und lösbar**, ohne dass etwas schlechter wird.
   Wer die Beute lieber ohne Jäger behält, nimmt das Massenjahr als Bonus.
-- Gemessen (22.9, je Durchgang bis Urwald): Harmonie-Spieler Raupenjahr 0,20, Käferjahr
-  0,16, Schneckenjahr 0,05, Mäusejahr < 0,01 (er nimmt kaum Mäuse ohne Jäger); Zufallsspieler
-  0,25 / 0,28 / 0,10 / 0,18. Die Zahl der Ereignisse je Durchgang bleibt bei ~10 (sie
-  verdrängen keine Tierbegegnungen, 7.2).
+- Gemessen (22.9, echte Logik Schritt A + C, Anteil der Durchgänge bis Urwald):
+  Harmonie-Spieler Raupenjahr 0,14, Käferjahr 0,21, Schneckenjahr 0,04, Mäusejahr 0 (er
+  nimmt keine Mäuse ohne Jäger); Zufallsspieler 0,16 / 0,21 / 0,09 / 0,30 (Prototyp ohne
+  Wetter: 0,20 / 0,16 / 0,05 / < 0,01 bzw. 0,25 / 0,28 / 0,10 / 0,18). Die Zahl der
+  Ereignisse je Durchgang bleibt bei ~10 (sie verdrängen keine Tierbegegnungen, 7.2).
 
 ### 22.6 Wetter → Begegnungen (nach der Wetter-Logik, 21)
 
@@ -5044,6 +5069,37 @@ den echten Tag. Gleicher Spielstand → gleiche Ereignisse. Das „Borkenkäferj
 
 ### 22.8 Umsetzungsnotiz für den core-engineer
 
+**Stand:** Schritt A und C **erledigt** (ohne Spielstand-Änderung); Schritt B folgt mit den
+Lebensräumen (23.7). Abweichungen und Ergänzungen gegenüber dem Plan unten:
+
+- **Schritt A ohne neue Merkmale:** `PROVIDES_ADDITIONS` (Amphibien → „amphibien“),
+  `FOOD_ADDITIONS` und `EFFECT_ADDITIONS` (Fuchs → Kaninchen) bleiben unverdrahtet – ihr
+  Gegenüber (Ringelnatter, Wildkaninchen) lebt erst in den neuen Lebensräumen. Unter den
+  vorhandenen 37 Arten gibt es keine Jagdbeziehung, die 22.2 neu einführt; Kauz ↔ Mäuse und
+  Specht ↔ Käfer wirken jetzt mit Bestand.
+- **Massenjahre in Schritt A:** Mäusejahr lädt Waldkauz/Rotfuchs ein, Schneckenjahr
+  Igel/Glühwürmchen, Käferjahr schenkt „Totholz (Zyklus)“ ohne den Platz im Totholzhaufen.
+  Schritt B ergänzt Mauswiesel, Blindschleiche und „+1 Platz Totholzhaufen“ (Tabelle 22.5).
+- **`unhunted`** gilt auch in `evaluate` (Wunsch), gleich wie bei den Erscheinungsbedingungen;
+  kein Tier nutzt es (Test). Ein Pflanzenfresser mit Futter „Raupen“ zählt nicht als Jäger.
+- **Rundung an Tagesgrenzen:** Der Fang „Rundungsrest vor der Grenze“ in `tick` gilt jetzt
+  auch knapp *hinter* der Grenze (|Abstand| ≤ 1e-9 s) – mit den neuen Raten landete ein
+  großer Tick sonst bei 180,00000000000003 s statt 180 s.
+
+**Schnittstellen für `ui-dev`** (alle rein, aus `evaluate(state)`):
+
+| Bedarf | Feld bzw. Aufruf |
+|---|---|
+| Bestand je Tier (nur Beute) | `ev.animals[id].stock` (0,5 … 1,5; `undefined` bei Tieren ohne `provides`); Stufen „knapp“/„gut“/„reichlich“ mit `STOCK_LOW` 0,85 / `STOCK_HIGH` 1,25 (`content/predation.ts`) |
+| Überjagung je Tier | `ev.animals[id].overhunt` (fehlende Einheiten 0 … 2); Abzug = `OVERHUNT_PENALTY · overhunt`. `hunters` bleibt die Zahl der Jäger (Anzeige) |
+| Futter der Jäger | wie bisher `ev.animals[id].food` (0 … 1) – jetzt Bestand / Nachfrage |
+| Nahrungsnetz | `ev.foodWeb: FoodWebEntry[]` = `{ tag, prey, hunters, controllers, stock, state }`, `state` ∈ `'balanced' \| 'overhunted' \| 'unhunted'`; eine Zeile je Beute-Merkmal mit Beute im Wald, Reihenfolge wie `TAG_NAMES` (heute höchstens 7: Insekten, Raupen, Käfer, Würmer, Schnecken, Kleinsäuger, Rehe). `controllers` = Arten, die das Merkmal nur klein halten (Waldameise ⊘ Raupen); „ungejagt“ nur ohne Jäger *und* ohne sie |
+| Hilfsfunktionen | `stockFor(z)`, `overhuntUnits(jäger, bestand)`, `unhuntedTags(arten)` (`core/formulas.ts`); `eventWeight(state, id)` (`core/tick.ts`) |
+
+`moodReasons`/`moodText` und die Tierdetails nennen Jäger jetzt nur bei Überjagung (kleine
+Anpassung in `ui/`, damit die Anzeige nicht den alten Abzug zeigt); Bestand, Futter-Zeile
+und Nahrungsnetz (22.7) baut `ui-dev`.
+
 **Schritt A – Logik ohne Spielstand-Änderung** (kann vor den Lebensräumen kommen):
 
 1. `content/types.ts`: Bedingung `{ kind: 'unhunted'; tag: Tag }`.
@@ -5072,65 +5128,71 @@ weatherOfDay(…, Tag des Halts)][id] ?? 1` statt gleichverteilt (mit dem Zufall
 Spielstands). Test: gleicher Stand → gleiches Ereignis online und in `simulateOffline`;
 Häufigkeit bei Sturm ≈ ×3.
 
-### 22.9 Simulation (Prototyp auf echter Logik, 100 Durchgänge bis Urwald)
+### 22.9 Simulation (echte Logik, 100 Durchgänge bis Urwald, alle Systeme mit Pflege)
 
-Gemessen mit `scripts/simulate.ts` und dem Prototyp `scripts/welle3-prototype.patch` (nicht
-mergen; Anleitung im Kopf der Datei): alle Systeme mit Pflege, Eiche, erster Zyklus, ohne
-Wetter (das liegt noch auf seinem Branch). Spalten: Zeit bis zur Stufe (Median), ⚖️ und
-Ø 😊 beim Hain, Waldgedächtnis-Vorschau am Hain-Wegpunkt und am Ende.
+Gemessen mit `scripts/simulate.ts` auf der echten Logik (Schritt A und C, Einzelwetter wie
+online, Eiche, erster Zyklus, gleiche Seeds); „vorher“ = main 9dde233 (Wetter und Nachtarten,
+ohne Räuber und Beute), „nur A“ = ohne Wetter-Gewichte (`WEATHER_EVENT_FACTORS` leer). Spalten:
+Zeit bis zur Stufe (Median), ⚖️ beim Hain / Wald, Ø 😊 beim Hain, Waldgedächtnis-Vorschau am
+Hain-Wegpunkt / am Ende.
 
-**Gierig nach Harmonie**
+```bash
+SIM_PREDATION=1 SIM_PREDATION_RUNS=100 SIM_PREDATION_CYCLES=1 npx vitest run tests/predation-balance.test.ts --silent=false   # ~1 min
+```
 
-| Variante | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ Hain / Wald | Ø 😊 Hain | Gedächtnis Hain / Urwald |
-|---|---|---|---|---|---|---|---|---|
-| heute (main) | 4:11 min | 22:42 min | 1:02:28 h | 1:55:21 h | 2:49:51 h | 107,5 / 140,6 | 91,3 % | 66 / 96 |
-| nur Räuber und Beute (22) | 4:00 min | 21:21 min | 1:00:24 h (−3,3 %) | 1:51:24 h | 2:41:11 h (−5,1 %) | 110,8 / 144,3 | 96,0 % | 76 / 97 |
-| nur Lebensräume (23) | 4:11 min | 22:42 min | 1:03:08 h (+1,1 %) | 1:55:55 h | 2:47:35 h (−1,3 %) | 105,9 / 137,7 | 91,1 % | 60 / 94 |
-| **beides** | 4:00 min | 21:21 min | **1:00:52 h (−2,6 %)** | 1:49:04 h | **2:39:46 h (−5,9 %)** | 109,9 / 140,3 | 96,2 % | 72 / 97 |
+| Variante | Strategie | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ Hain / Wald | Ø 😊 Hain | Gedächtnis Hain / Urwald |
+|---|---|---|---|---|---|---|---|---|---|
+| vorher | Harmonie | 4:11 min | 21:48 min | 1:00:58 h | 1:51:23 h | 2:44:21 h | 107,1 / 141,5 | 91,5 % | 63 / 96 |
+| nur A | Harmonie | 4:00 min | 20:29 min | 59:10 min | 1:48:24 h | 2:36:46 h | 110,9 / 145,8 | 96,1 % | 78 / 99 |
+| **A + C** | Harmonie | 4:00 min | 20:29 min | **59:03 min (−3,1 %)** | 1:48:51 h | **2:36:59 h (−4,5 %)** | 110,6 / 145,3 | 96,1 % | 78 / 98 |
+| vorher | Wachstum | 3:56 min | 18:49 min | 53:21 min | 1:35:52 h | 2:19:29 h | 100,7 / 126,1 | 86,2 % | 47 / 78 |
+| nur A | Wachstum | 3:54 min | 18:33 min | 52:07 min | 1:32:04 h | 2:13:55 h | 102,6 / 130,6 | 90,7 % | 55 / 84 |
+| **A + C** | Wachstum | 3:54 min | 18:30 min | **52:11 min (−2,2 %)** | 1:31:46 h | **2:14:45 h (−3,4 %)** | 102,7 / 130,3 | 90,7 % | 56 / 84 |
+| vorher | Zufall | 5:00 min | 30:00 min | 1:33:07 h | 2:55:47 h | 4:15:35 h | 83,6 / 109,7 | 83,0 % | 30 / 44 |
+| **A + C** | Zufall | 4:59 min | 29:41 min | 1:32:07 h | 2:51:24 h | 4:11:53 h | 85,0 / 113,1 | 88,6 % | 30 / 45 |
 
-**Gierig nach Wachstum** und **Zufällig** (Hain, Urwald, ⚖️ Hain)
+Wachstum ÷ Harmonie beim Hain: vorher 0,875, jetzt 0,884 – kein Stil wird bevorzugt.
 
-| Variante | Wachstum: Hain | Urwald | ⚖️ | Zufällig: Hain | Urwald | ⚖️ |
-|---|---|---|---|---|---|---|
-| heute | 55:07 min | 2:23:10 h | 100,7 | 1:36:31 h | 4:21:06 h | 83,3 |
-| nur 22 | 53:28 min (−3,0 %) | 2:17:01 h | 103,0 | 1:34:46 h | 4:16:30 h | 85,8 |
-| nur 23 | 55:23 min | 2:22:56 h | 101,9 | 1:38:44 h | 4:17:10 h | 81,3 |
-| **beides** | **54:01 min (−2,0 %)** | 2:17:19 h | 102,9 | 1:37:01 h | 4:08:37 h | 83,8 |
+**Massenjahre** (Anteil der Durchgänge bis Urwald, je Zyklus höchstens einmal; Raupen /
+Mäuse / Käfer / Schnecken): Harmonie 0,14 / 0,00 / 0,21 / 0,04, Wachstum 0,20 / 0,00 /
+0,09 / 0,03, Zufall 0,16 / 0,30 / 0,21 / 0,09. Ereignisse je Durchgang bleiben bei ~10
+(9,6 / 10,0 / 9,7; vorher 10,0 / 9,7 / 9,5) – sie verdrängen keine Tierbegegnungen.
 
-Wachstum ÷ Harmonie beim Hain: heute 0,882, beides 0,887 – kein Stil wird bevorzugt.
+**Wetter-Gewichte (Schritt C)** ändern das Tempo nicht messbar (A + C gegenüber nur A:
+±0,5 %, Streuung), nur welches Ereignis an welchem Tag kommt. Bis zum Urwald kommen die
+meisten Ereignisse ohnehin einmal; mit Gewichten etwas öfter z. B. Regenreicher Frühling
+(Harmonie 0,48 → 0,55), Pilzherbst (0,50 → 0,59) und Krötenwanderung (0,25 → 0,30). Je
+Ziehung wirkt der Faktor genau (Test: Sturmnacht bei Sturm ≈ ×3).
 
 **Mehrere Zyklen** (60 Durchgänge, je bis Hain, Neustart dort; Zeit · H_max · Gewinn):
 
 | Variante | Strategie | Zyklus 1 | Zyklus 2 | Zyklus 3 |
 |---|---|---|---|---|
-| heute | Harmonie | 1:02:00 h · 111,1 · +69 | 35:51 min · 116,2 · +72 | 23:52 min · 123,7 · +72 |
-| heute | Wachstum | 54:35 min · 104,2 · +47,5 | 35:26 min · 108,3 · +51 | 24:20 min · 112,8 · +61 |
-| beides | Harmonie | 1:00:52 h · 111,8 · +71,5 | 33:44 min · 118,2 · +74 | 23:32 min · 125,9 · +73 |
-| beides | Wachstum | 53:49 min · 105,1 · +48 | 34:50 min · 105,7 · +44 | 25:22 min · 109,3 · +51,5 |
-
-Zufallsspieler: Zyklus 2 1:15:43 → 1:12:08 h, Gewinn +22 → +22,5.
+| vorher | Harmonie | 1:00:24 h · 111,2 · +69 | 35:08 min · 117,3 · +73 | 23:13 min · 121,2 · +72 |
+| vorher | Wachstum | 52:44 min · 103,4 · +43,5 | 36:53 min · 106,5 · +45 | 26:41 min · 107,0 · +44 |
+| vorher | Zufall | 1:33:07 h · 86,5 · +29 | 1:14:17 h · 87,4 · +22 | 59:16 min · 90,4 · +21 |
+| **A + C** | Harmonie | 58:11 min · 114,9 · +80 | 33:00 min · 117,7 · +73 | 22:24 min · 126,1 · +73 |
+| **A + C** | Wachstum | 52:07 min · 107,5 · +55,5 | 33:04 min · 107,4 · +46,5 | 24:40 min · 112,7 · +62 |
+| **A + C** | Zufall | 1:31:55 h · 89,1 · +30 | 1:12:40 h · 85,7 · +21,5 | 57:10 min · 93,5 · +21 |
 
 **Bewertung:**
 
-- **Räuber und Beute** machen die Beute zufriedener (Ø 😊 beim Hain +4,7 Punkte) und die
-  Jäger satter: Harmonie +3, Hain 2–3 % schneller, Urwald 5 %. Das liegt im Korridor
-  (Hain 55–65 min) und bringt den Urwald näher ans Ziel (~2:20 h). Der Gewinn an
-  Waldgedächtnis steigt im ersten Zyklus etwas (Hain-Vorschau 66 → 76, am Neustart +69 →
-  +71,5), in Zyklus 2 ist der Harmonie-Spieler jetzt schneller als der Wachstums-Spieler
-  (33:44 gegenüber 34:50 min; heute 35:51 gegenüber 35:26) – Harmonie lohnt sich über die
-  Zyklen etwas mehr. Ein Ausgleich (z. B. Bestand 0,75 … 1,25) war nicht nötig.
-- **Lebensräume** allein sind fast neutral im Tempo (Hain +1 %, Urwald −1 %): Sie kosten
-  Samen (Wiese 2.400, Totholzhaufen +1.000) und verteilen die Karten auf mehr Arten. Der
-  Harmonie-Spieler kauft die Wiese zu 73 % schon im Jungen Baum, Totholzhaufen bis zum Hain
-  immer, die Mauer bis zum Urwald zu 98 %. Bis zum Urwald leben im Mittel 4,2 der 14 neuen
-  Arten im Wald (Zufall 4,9), Reptilien 2,0 Arten (Stufe 2 erreicht).
-- Das frühe Spiel bis zum Jungen Baum ändert sich nicht (Wiese erst ab Junger Baum,
-  Massenjahre ab Alter Baum). Der Junge Baum kommt trotzdem 11 s früher (4:00 statt
-  4:11 min): Der Regenwurm leidet nicht mehr unter Rotkehlchen und Maulwurf, und beide
-  werden von seinem Bestand satter.
-- Lebensgemeinschaften bis zum Urwald (Harmonie-Spieler, Anteil der Durchgänge):
-  Wiesenkonzert 26 %, Unterm Reisig 21 %, Natter am Ufer 36 %, Sonnenmauer 2 % – die Mauer
-  ist ein Ziel für spätere Zyklen (23.8).
+- **Räuber und Beute** machen die Beute zufriedener (Ø 😊 beim Hain +4,6 Punkte Harmonie-,
+  +4,5 Wachstums-, +5,6 Zufallsspieler) und die Jäger satter: Harmonie +2 … +4, Hain 2–3 %
+  schneller, Urwald 3–5 %. Das liegt im Korridor (Hain 55–65 min) und bringt den Urwald
+  näher ans Ziel (~2:20 h). Der Prototyp (ohne Wetter) hatte −3,3 % / −5,1 % gemessen.
+- **Waldgedächtnis:** Die Hain-Vorschau steigt (Harmonie 63 → 78, Wachstum 47 → 56), der
+  Gewinn im ersten Zyklus ebenso (+69 → +80 bzw. +43,5 → +55,5). Ab Zyklus 2 bleibt Harmonie
+  gleichauf mit Wachstum (33:00 gegenüber 33:04 min; vorher 35:08 gegenüber 36:53) – der
+  Vorsprung des Harmonie-Spielers aus Zyklus 1 schrumpft, weil der Wachstums-Spieler jetzt
+  mehr Gedächtnis mitnimmt. Kein Ausgleich nötig: die Prüfungen in `balance-cycles` und
+  `balance-restart` (15.4) sind grün.
+- Das frühe Spiel bis zum Jungen Baum ändert sich kaum (Massenjahre erst ab Alter Baum):
+  Der Junge Baum kommt 11 s früher (4:00 statt 4:11 min), weil der Regenwurm nicht mehr unter
+  Rotkehlchen und Maulwurf leidet und beide von seinem Bestand satter werden.
+- **Mäusejahr** kommt bei Harmonie und Wachstum nie (beide nehmen keine Wühlmaus ohne Jäger
+  oder holen schnell Kauz/Fuchs), beim Zufallsspieler in 30 % der Durchgänge – gewollt, es
+  ist die Antwort auf einen Wald voller Mäuse ohne Jäger.
 
 ---
 
@@ -5288,13 +5350,13 @@ verwerfen – auch über die Synchronisierung (wie v11, 12.8). Mit v13 erkennt e
 
 | # | Agent | Aufgabe | abhängig von |
 |---|---|---|---|
-| 1 | `core-engineer` | **Schritt A** (22.8): Bestand, Überjagung, `unhunted`, Massenjahre (ohne Lebensraum-Arten), `foodWeb`; Tests; `npm run balance`, 15.4 | – (parallel zur Wetter-Logik; berührt `formulas.ts` – Merge-Reihenfolge absprechen) |
+| 1 | `core-engineer` | ✅ **Schritt A** (22.8): Bestand, Überjagung, `unhunted`, Massenjahre (ohne Lebensraum-Arten), `foodWeb`; Tests; Messung 22.9 | – |
 | 2 | `ui-dev` | Bestand und Futter in Tierdetails und Karte, Nahrungsnetz in der Übersicht, Spielanleitung „Räuber und Beute“ (22.7) | 1 |
 | 3 | `core-engineer` | **Schritt B** (v13): Typen (`reptiles`, Nischen, Merkmale `amphibien`/`echsen`/`hasen` mit Namen in `TAG_NAMES`: „Amphibien“, „Echsen“, „Kaninchen“), `habitats.ts`/`predation.ts` in `SPECIES`, `NICHES`, `TRAITS`, `GENUS_INFO`, `COMMUNITIES`, `CARE` (Totholzhaufen ersetzen), `SEASONS` (Sommer Reptilien +15 %), Ergänzungen an Amphibien und Fuchs (mit Kurzwirkung), Massenjahre vollständig; `W3…`-Typen löschen, `tests/habitats.test.ts` auf die verdrahteten Listen umstellen; Migration v12 → v13; Erfolgstext „Von allem etwas“ | 1, Wetter-Logik gemergt (keine zwei Versionen parallel) |
 | 4 | `renderer` | Szene für die drei Lebensräume und 14 Zeichnungen, Familie Reptilien (Winterstarre wie Amphibien), Ersatzbild für Unbekannte (Eidechse), Anker-Tests wie beim Tümpel (23.8) | 3 (bis dahin: neue Nischen werden nicht gezeichnet) |
 | 5 | `ui-dev` | Nischenliste: drei verschlossene Lebensräume mit Hinweis und „Zur Pflege“ (wie Tümpel), Gattung Reptilien (Symbol, CSS-Klasse `reptiles`, Artikel in Tageszielen „der Reptilien“, Einzahl „Reptil“), Spielanleitung „Lebensräume“ | 3 |
-| 6 | `core-engineer` | **Schritt C** (22.8): Wetter → Ereignis-Gewichte | Wetter-Logik |
-| 7 | `game-designer` | Nach 3: `npm run balance` mit allen Systemen, 15.4 und diese Tabellen nachtragen; Prototyp-Patch löschen | 3 |
+| 6 | `core-engineer` | ✅ **Schritt C** (22.8): Wetter → Ereignis-Gewichte (zusammen mit Schritt A) | Wetter-Logik |
+| 7 | `game-designer` | Nach 3: `npm run balance` mit allen Systemen, 15.4 und diese Tabellen nachtragen (der Prototyp-Patch ist mit Schritt A gelöscht – er passte nicht mehr auf `formulas.ts`; Vorlage für Schritt B sind 23.2–23.6 und die Daten in `habitats.ts`) | 3 |
 
 **Was zuerst:** Schritt A (1, 2) bringt das Spielgefühl „Jäger sind gut“ sofort, ohne
 Spielstand – und macht die Ringelnatter erst möglich. Die Lebensräume (3–5) brauchen v13 und
@@ -5348,8 +5410,9 @@ Am Boden ist keine Strecke frei (5.5); darum zwei Ebenen:
   Mauerbiene kommen erst ab Hain und brauchen Sonne. In späteren Zyklen helfen Stammgäste
   (sie ziehen ein, sobald die Mauer offen ist). Falls zu wenig: Ereignis „Sonnenbad“ (Hain,
   Frühling/Sommer) mit Einladung der Mauerbewohner – braucht eine Bedingung „Nische offen“.
-- **Mäusejahr kommt selten** (Harmonie-Spieler < 1 %), weil gierige Spieler Mäuse meiden.
-  Gewollt: Es ist die Antwort auf einen Wald voller Mäuse ohne Jäger (Zufallsspieler 18 %).
+- **Mäusejahr kommt selten** (Harmonie- und Wachstums-Spieler 0 %), weil gierige Spieler
+  Mäuse meiden bzw. schnell bejagen. Gewollt: Es ist die Antwort auf einen Wald voller Mäuse
+  ohne Jäger (Zufallsspieler 30 %, 22.9).
 - **„Besondere“ Lebensraum-Arten** (z. B. Uhu an der Mauer, Neuntöter an der Wiese) mit
   neuer Fähigkeit – später, wenn eine Fähigkeit dafür entworfen ist.
 - **Erfolge:** „Nahrungsnetz im Gleichgewicht“ (alle Merkmale mit Jäger und Beute

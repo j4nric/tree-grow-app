@@ -58,7 +58,13 @@ export type Condition =
   /** Sonnig: nach allen Begleitpflanzen bleiben mindestens 2 Licht frei. */
   | { kind: 'sunny' }
   /** Schattig: mindestens 3 Bäume (inkl. Hauptbaum). */
-  | { kind: 'shady' };
+  | { kind: 'shady' }
+  /**
+   * Ungejagt (DESIGN_V2.md 22.5): Ein Tier im Ökosystem stellt `tag` bereit, aber kein
+   * Räuber frisst es und keine Art hält es klein (`control`). Nur für Erscheinungs-
+   * bedingungen von Ereignissen (Massenjahre), nicht als Wunsch eines Tiers.
+   */
+  | { kind: 'unhunted'; tag: Tag };
 
 /**
  * Fähigkeiten besonderer und legendärer Arten (DESIGN_V2.md 5.3). Was sie bewirken und

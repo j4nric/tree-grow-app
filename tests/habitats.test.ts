@@ -28,16 +28,16 @@ import {
   STOCK_RANGE,
   WEATHER_EVENT_FACTORS,
 } from '../src/content/predation';
-import { SEASON_IDS } from '../src/content/seasons';
+import { EVENT_SEASONS, SEASON_IDS } from '../src/content/seasons';
 import { SPECIES, SPECIES_BY_ID, TAG_NAMES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { GENERA } from '../src/content/types';
-import { PREDATION_MAX_HUNTERS, PREDATION_PENALTY } from '../src/core/formulas';
 
 /**
  * Inhaltstest für Welle 3, Teil A (DESIGN_V2.md 22 und 23): Räuber und Beute, Lebensräume.
- * Die Daten sind noch nicht verdrahtet (Spielstand v13 fehlt) – geprüft wird, dass sie in
- * sich stimmig sind und sich beim Verdrahten ohne Kollision einfügen.
+ * Die Lebensräume sind noch nicht verdrahtet (Spielstand v13 fehlt) – geprüft wird, dass sie
+ * in sich stimmig sind und sich beim Verdrahten ohne Kollision einfügen. Räuber und Beute
+ * (Schritt A/C) sind verdrahtet; ihre Logik prüft tests/predation.test.ts.
  */
 
 const PREY_TAGS: readonly W3Tag[] = ['amphibien', 'echsen', 'hasen'];
@@ -180,7 +180,8 @@ describe('Räuber und Beute (DESIGN_V2.md 22)', () => {
     expect(STOCK_BASE + STOCK_RANGE).toBe(1.5);
     expect(STOCK_LOW).toBeGreaterThan(STOCK_BASE);
     expect(STOCK_HIGH).toBeLessThan(STOCK_BASE + STOCK_RANGE);
-    expect(OVERHUNT_PENALTY * OVERHUNT_MAX_UNITS).toBeCloseTo(PREDATION_PENALTY * PREDATION_MAX_HUNTERS);
+    // Bisheriger Räuberdruck: 0,10 je Jäger, höchstens 2 Jäger (−20 %).
+    expect(OVERHUNT_PENALTY * OVERHUNT_MAX_UNITS).toBeCloseTo(0.2);
   });
 
   it('Ergänzungen betreffen vorhandene Arten; jedes neue Beute-Merkmal hat Beute und Jäger', () => {
@@ -200,12 +201,13 @@ describe('Räuber und Beute (DESIGN_V2.md 22)', () => {
   });
 
   it('Massenjahre: nur mit Bedingung „ungejagt“, die ein Räuber beheben kann; Versprechen einlösbar', () => {
-    const ids = new Set(EVENTS.map((e) => e.id));
     for (const e of PREDATION_EVENTS) {
-      expect(ids.has(e.id), e.id).toBe(false);
+      // Verdrahtet (Schritt A): genau einmal in EVENTS, Jahreszeiten in EVENT_SEASONS.
+      expect(EVENTS.filter((x) => x.id === e.id).length, e.id).toBe(1);
+      expect(EVENT_SEASONS[e.id], e.id).toEqual(PREDATION_EVENT_SEASONS[e.id]);
       expect(e.options.length, e.id).toBe(2);
       expect(e.minStage, e.id).toBeGreaterThanOrEqual(3);
-      const unhunted = e.appears.filter((c) => c.kind === 'unhunted');
+      const unhunted = (e.appears ?? []).filter((c) => c.kind === 'unhunted');
       expect(unhunted.length, e.id).toBe(1);
       const tag = (unhunted[0] as { tag: W3Tag }).tag;
       expect(ALL.some((s) => s.provides.includes(tag)), e.id).toBe(true);

@@ -13,6 +13,7 @@ import {
 } from '../content/encounters';
 import { CARE_BY_ID, type CareMeasure, type CareRank } from '../content/care';
 import { EVENTS, EVENTS_BY_ID, type GameEvent } from '../content/events';
+import { WEATHER_EVENT_FACTORS } from '../content/predation';
 import { JOURNAL_SPECIES_WEIGHT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { PLANTS, PLANTS_BY_ID } from '../content/plants';
 import { SPECIES, SPECIES_BY_ID } from '../content/species';
@@ -191,13 +192,14 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     const toInterlude = rate > 0 && interlude < Infinity ? Math.max(0, interlude - state.totalGrowth) / rate : Infinity;
     const toExpiry = nextExpiry(state);
     let toSeason = secondsToNextSeason(state.cycle.elapsed);
-    // Endet der Schritt nur Rundungsrauschen vor der Grenze (Restzeit und Spielzeit werden
-    // getrennt aufsummiert), gilt die Grenze als erreicht – sonst landet offline (ein
-    // großer Tick mit Halten) bei 179,99999999999997 s, online (ganze Sekunden) bei 180 s.
-    if (toSeason > remaining && toSeason - remaining <= SEASON_SNAP_SECONDS) toSeason = remaining;
+    // Endet der Schritt nur Rundungsrauschen vor oder hinter der Grenze (Restzeit und
+    // Spielzeit werden getrennt aufsummiert), gilt die Grenze als genau erreicht – sonst
+    // landet offline (ein großer Tick mit Halten) bei 179,99999999999997 s bzw.
+    // 180,00000000000003 s, online (ganze Sekunden) bei 180 s.
+    if (Math.abs(toSeason - remaining) <= SEASON_SNAP_SECONDS) toSeason = remaining;
     // Sonnenuntergang und -aufgang: nur mit Einzelwetter ein Halt (die Nachtwirkung wechselt).
     let toNight = mode === 'live' ? secondsToNightChange(state.cycle.elapsed) : Infinity;
-    if (toNight > remaining && toNight - remaining <= SEASON_SNAP_SECONDS) toNight = remaining;
+    if (Math.abs(toNight - remaining) <= SEASON_SNAP_SECONDS) toNight = remaining;
     const step = Math.min(remaining, toNext, toInterlude, toExpiry, toSeason, toNight);
     state.seeds = capped(state.seeds + ev.seeds * step);
     remaining -= step;
@@ -377,7 +379,7 @@ function reachInterlude(state: GameState, report: TickReport): void {
   ];
   const i = weightedIndex(state, weights);
   if (i < 0) return;
-  const encounter = i === 0 ? eventEncounter(state, pick(state, events)) : visitorEncounter(state, pick(state, visitors));
+  const encounter = i === 0 ? eventEncounter(state, pickEvent(state, events)) : visitorEncounter(state, pick(state, visitors));
   state.pendingEncounters.push(encounter);
   report.encounters++;
   report.interludes++;
@@ -483,10 +485,10 @@ export function drawEncounter(state: GameState): PendingEncounter | null {
       t === 'plant' && ringFull ? weights[i]! * PLANT_WEIGHT_RING_FULL : weights[i]! * seasonFactor(state, t),
     );
     type = ENCOUNTER_TYPES[weightedIndex(state, drawable)] ?? 'animal';
-    // Ereignis oder Gast: gleichverteilt aus den Kandidaten; ohne Kandidaten Tier, sonst Pflanze.
+    // Ereignis nach Wetter-Gewicht, Gast gleichverteilt; ohne Kandidaten Tier, sonst Pflanze.
     if (type === 'event') {
       const events = eligibleEvents(state);
-      if (events.length > 0) return eventEncounter(state, pick(state, events));
+      if (events.length > 0) return eventEncounter(state, pickEvent(state, events));
     } else if (type === 'visitor') {
       const visitors = eligibleVisitors(state);
       if (visitors.length > 0) return visitorEncounter(state, pick(state, visitors));
@@ -1038,6 +1040,24 @@ export function eligibleVisitors(state: GameState): Visitor[] {
       inSeason(state, VISITOR_SEASONS, v.id) &&
       speciesAppears(ctx, v),
   );
+}
+
+/**
+ * Gewicht eines Ereignisses beim Ziehen (DESIGN_V2.md 22.6): Faktor aus
+ * WEATHER_EVENT_FACTORS für das Wetter des laufenden Tages (`weatherOfDay` – eine reine
+ * Funktion von Zyklus und Spielzeit, darum online und offline gleich), sonst 1. Ungültige
+ * Faktoren zählen als 1.
+ */
+export function eventWeight(state: Pick<GameState, 'cycle'>, eventId: string): number {
+  const factors = WEATHER_EVENT_FACTORS[weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed))];
+  const f = factors && Object.hasOwn(factors, eventId) ? factors[eventId] : undefined;
+  return f !== undefined && Number.isFinite(f) && f > 0 ? f : 1;
+}
+
+/** Zieht eines der (nicht leeren) Ereignisse nach eventWeight, mit dem Zufall des Spielstands. */
+export function pickEvent(state: GameState, events: readonly GameEvent[]): GameEvent {
+  const i = weightedIndex(state, events.map((e) => eventWeight(state, e.id)));
+  return events[Math.max(0, i)]!;
 }
 
 /** Begegnung für ein Ereignis; es gilt ab jetzt als gesehen. */

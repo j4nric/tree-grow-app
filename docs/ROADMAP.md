@@ -313,10 +313,12 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   regulieren Bestände statt zu strafen (z. B. viele Mäuse locken den Kauz an → Harmonie)
   - [x] Design (`game-designer`): Bestand (abgeleitet aus der Zufriedenheit der Beute),
     Überjagung statt Räuberdruck, vier Massenjahre mit Bedingung „ungejagt“, Wetter →
-    Ereignis-Gewichte; Daten in `src/content/predation.ts` (noch nicht verdrahtet) –
-    DESIGN_V2.md 22
-  - [ ] Logik ohne Spielstand-Änderung (`core-engineer`, 22.8 Schritt A)
-  - [ ] Wetter → Ereignis-Gewichte, nach der Wetter-Logik (`core-engineer`, 22.8 Schritt C)
+    Ereignis-Gewichte; Daten in `src/content/predation.ts` – DESIGN_V2.md 22
+  - [x] Logik ohne Spielstand-Änderung (`core-engineer`, 22.8 Schritt A): Bestand,
+    Überjagung, Bedingung `unhunted`, vier Massenjahre (ohne Lebensraum-Arten),
+    `Evaluation.foodWeb`; `tests/predation.test.ts`, Messung 22.9
+  - [x] Wetter → Ereignis-Gewichte (`core-engineer`, 22.8 Schritt C): `eventWeight`,
+    Wetter des Tages auch offline
   - [ ] Nahrungsnetz und Bestand in Übersicht und Tierdetails (`ui-dev`, 22.7)
 - [ ] Weitere Lebensräume nach dem Muster Waldtümpel (`game-designer`, `renderer`):
   Totholzhaufen, Trockenmauer, Waldwiese – je 3–5 Arten und eine Lebensgemeinschaft

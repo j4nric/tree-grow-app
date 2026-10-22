@@ -426,7 +426,9 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
     return state;
   }
 
-  it('ohne Wetter und Nacht (`off`) genau wie vor dem Wetter (Stand vor DESIGN_V2.md 21)', () => {
+  // Werte seit Räuber und Beute (DESIGN_V2.md 22: Bestand, Überjagung, Massenjahre,
+  // Wetter-Gewichte beim Ziehen der Ereignisse); davor 20 / 3892806722 / 145529 / 35187 / 75,94.
+  it('ohne Wetter und Nacht (`off`): festgelegte Ergebnisse', () => {
     const state = play(2026, 'off');
     expect({
       waypoint: state.waypoint,
@@ -434,7 +436,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       totalGrowth: Math.round(state.totalGrowth),
       seeds: Math.round(state.seeds),
       harmony: Math.round(evaluate(state).harmony * 100) / 100,
-    }).toEqual({ waypoint: 20, rngState: 3892806722, totalGrowth: 145529, seeds: 35187, harmony: 75.94 });
+    }).toEqual({ waypoint: 20, rngState: 1429405239, totalGrowth: 145869, seeds: 33198, harmony: 77.17 });
   });
 
   it('liefert festgelegte Ergebnisse', () => {
@@ -455,7 +457,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
     }).toMatchInlineSnapshot(`
       {
         "communities": [],
-        "harmony": 75.94,
+        "harmony": 77.74,
         "journal": [
           "earthworm",
           "woodlouse",
@@ -512,9 +514,9 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "hazel",
         ],
         "rngState": 3260971052,
-        "seeds": 37672,
+        "seeds": 38750,
         "stage": 5,
-        "totalGrowth": 150160,
+        "totalGrowth": 152481,
         "waypoint": 21,
       }
     `);

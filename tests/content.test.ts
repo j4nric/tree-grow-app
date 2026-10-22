@@ -333,8 +333,9 @@ describe('Inhalte v2', () => {
 describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
   /** Bedingungen wie bei den Arten; „sonnig“/„schattig“ gelten in `appears` immer – darum verboten. */
   const checkCondition = (c: Condition, where: string) => {
-    expect(['tag', 'group', 'species', 'genus'], where).toContain(c.kind);
-    if (c.kind === 'tag') expect(TAG_NAMES[c.tag], where).toBeDefined();
+    // „ungejagt“ nur für Ereignisse (Massenjahre, DESIGN_V2.md 22.5).
+    expect(['tag', 'group', 'species', 'genus', 'unhunted'], where).toContain(c.kind);
+    if (c.kind === 'tag' || c.kind === 'unhunted') expect(TAG_NAMES[c.tag], where).toBeDefined();
     if (c.kind === 'group') expect(PLANT_GROUPS, where).toContain(c.group);
     if (c.kind === 'species') expect(SPECIES_BY_ID.has(c.id) || PLANTS_BY_ID.has(c.id), where).toBe(true);
     if (c.kind === 'genus') expect(GENERA, where).toContain(c.genus);
@@ -350,9 +351,10 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
     expect(VISITORS_BY_ID.size).toBe(VISITORS.length);
   });
 
-  it('8–16 Ereignisse mit Name, Symbol, Text und 2–3 Optionen', () => {
+  it('8–20 Ereignisse mit Name, Symbol, Text und 2–3 Optionen', () => {
+    // Bis 16 aus 7.4, dazu die vier Massenjahre (DESIGN_V2.md 22.5).
     expect(EVENTS.length).toBeGreaterThanOrEqual(8);
-    expect(EVENTS.length).toBeLessThanOrEqual(16);
+    expect(EVENTS.length).toBeLessThanOrEqual(20);
     for (const e of EVENTS) {
       expect(e.name.length, e.id).toBeGreaterThan(0);
       expect(e.icon.length, e.id).toBeGreaterThan(0);

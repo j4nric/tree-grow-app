@@ -1,13 +1,19 @@
-import type { CycleEffect, EventEffect, EventOption, GameEvent } from './events';
+import type { GameEvent } from './events';
 import type { SeasonId } from './seasons';
-import type { W3Condition, W3Effect, W3NicheId, W3Tag } from './habitats';
+import type { W3Effect, W3Tag } from './habitats';
+import type { WeatherId } from './weather';
 
 /**
  * Räuber und Beute (docs/DESIGN_V2.md 22, Phase 6 Welle 3). Reine Daten und Zahlen – die
- * Logik (Bestand, Überjagung, Bedingung `unhunted`, Wetter-Gewichte) baut der core-engineer
- * (22.8). **Noch nicht verdrahtet**: Die neuen Merkmale und die Bedingung `unhunted` gibt es
- * erst mit den erweiterten Typen (habitats.ts, `W3…`), die Gewichte nach Wetter erst mit
- * der Wetter-Logik (21). Inhaltstest: `tests/habitats.test.ts`.
+ * Logik (Bestand, Überjagung, Bedingung `unhunted`, Wetter-Gewichte) steht in
+ * `core/formulas.ts` (evaluateEcosystem, speciesAppears) und `core/tick.ts` (eventWeight).
+ *
+ * Verdrahtet (Schritt A und C, 22.8): Bestand, Überjagung, die vier Massenjahre (in
+ * `EVENTS` und `EVENT_SEASONS`) und die Wetter-Gewichte. **Noch nicht verdrahtet**
+ * (Schritt B mit Spielstand v13, 23.7): die Ergänzungen an vorhandenen Arten
+ * (`PROVIDES_ADDITIONS`, `FOOD_ADDITIONS`, `EFFECT_ADDITIONS`) – ihre Beute bzw. ihr
+ * Jäger lebt erst in den neuen Lebensräumen (Wildkaninchen, Ringelnatter). Inhaltstest:
+ * `tests/habitats.test.ts`.
  */
 
 // ---------------------------------------------------------------------------
@@ -60,22 +66,16 @@ export const EFFECT_ADDITIONS: Readonly<Record<string, readonly W3Effect[]>> = {
 // Massenjahre: Beute ohne Jäger ruft ihre Jäger (22.5)
 // ---------------------------------------------------------------------------
 
-/** Ereignis-Wirkungen mit Plätzen in den neuen Nischen (habitats.ts). */
-export type W3EventEffect =
-  | Exclude<EventEffect, { kind: 'cycle' }>
-  | { kind: 'cycle'; effect: Exclude<CycleEffect, { kind: 'slot' }> | { kind: 'slot'; niche: W3NicheId; amount: number } };
-
-export type PredationEvent = Omit<GameEvent, 'appears' | 'options'> & {
-  appears: readonly W3Condition[];
-  options: readonly (Omit<EventOption, 'effects'> & { effects: readonly W3EventEffect[] })[];
-};
-
 /**
  * Vier Ereignisse mit Wahl, die nur kommen, wenn eine Beute im Ökosystem lebt, die kein
  * Tier frisst oder klein hält (`unhunted`). Eine Option lädt die passenden Jäger ein (nächste Begegnung),
  * die andere nimmt das Massenjahr als Geschenk. Keine Option ist eine Strafe.
+ *
+ * Stand Schritt A (ohne Lebensräume): Schritt B ergänzt die Einladungen um Mauswiesel
+ * (Mäusejahr) und Blindschleiche (Schneckenjahr) und das Käferjahr um „+1 Platz
+ * Totholzhaufen (Zyklus)“ (Tabelle in DESIGN_V2.md 22.5).
  */
-export const PREDATION_EVENTS: readonly PredationEvent[] = [
+export const PREDATION_EVENTS: readonly GameEvent[] = [
   {
     id: 'caterpillar-year', name: 'Raupenjahr', icon: '🐛', minStage: 4,
     text: 'Fraßgeräusche in der Krone – Raupenkot rieselt wie feiner Regen.',
@@ -98,7 +98,7 @@ export const PREDATION_EVENTS: readonly PredationEvent[] = [
     options: [
       {
         label: 'Sitzwarten für Jäger lassen', summary: 'nächste Begegnung: Mäusejäger',
-        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['owl', 'fox', 'weasel'] }],
+        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['owl', 'fox'] }],
       },
       {
         label: 'Vorräte anlegen lassen', summary: '+40 % 🌰 für 6 min',
@@ -116,8 +116,8 @@ export const PREDATION_EVENTS: readonly PredationEvent[] = [
         effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['woodpecker', 'blackwoodpecker'] }],
       },
       {
-        label: 'Das Holz vermodern lassen', summary: 'Totholz, +1 Platz Totholzhaufen (Zyklus)',
-        effects: [{ kind: 'habitat', tag: 'totholz' }, { kind: 'cycle', effect: { kind: 'slot', niche: 'deadwood', amount: 1 } }],
+        label: 'Das Holz vermodern lassen', summary: 'Totholz (Zyklus)',
+        effects: [{ kind: 'habitat', tag: 'totholz' }],
       },
     ],
   },
@@ -128,7 +128,7 @@ export const PREDATION_EVENTS: readonly PredationEvent[] = [
     options: [
       {
         label: 'Schneckenjäger einladen', summary: 'nächste Begegnung: Schneckenjäger',
-        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['hedgehog', 'glowworm', 'slowworm'] }],
+        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['hedgehog', 'glowworm'] }],
       },
       {
         label: 'Die Feuchte genießen', summary: '+2 💧 (Zyklus)',
@@ -151,12 +151,12 @@ export const PREDATION_EVENT_SEASONS: Readonly<Record<string, readonly SeasonId[
 // ---------------------------------------------------------------------------
 
 /**
- * Gewicht eines Ereignisses beim Ziehen, wenn am Tag des Wegpunkts dieses Wetter herrscht
- * (sonst 1; heute ziehen alle passenden Ereignisse gleich wahrscheinlich). Schlüssel sind
- * die IDs aus `WeatherId` (weather.ts, Wetter-Branch). Nur Gewichte – kein Ereignis kommt
- * dadurch außerhalb seiner Jahreszeit oder Bedingung.
+ * Gewicht eines Ereignisses beim Ziehen, wenn am Tag des Wegpunkts bzw. Zwischenhalts
+ * dieses Wetter herrscht (`weatherOfDay`, auch offline); fehlt der Eintrag: 1. Nur Gewichte –
+ * kein Ereignis kommt dadurch außerhalb seiner Jahreszeit oder Bedingung, und jedes bleibt
+ * einmal pro Zyklus.
  */
-export const WEATHER_EVENT_FACTORS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+export const WEATHER_EVENT_FACTORS: Readonly<Partial<Record<WeatherId, Readonly<Record<string, number>>>>> = {
   rain: { 'toad-migration': 3, rain: 2, 'slug-year': 2, 'mushroom-autumn': 2 },
   storm: { storm: 3, windthrow: 3 },
   drought: { 'beetle-year': 3, heatwave: 2 },

@@ -185,6 +185,8 @@ export function conditionName(condition: Condition): string {
       return SPECIES_BY_ID.get(condition.id)?.name ?? PLANTS_BY_ID.get(condition.id)?.name ?? condition.id;
     case 'genus':
       return `${condition.min > 1 ? `${condition.min}× ` : ''}${GENUS_INFO[condition.genus].name}`;
+    case 'unhunted':
+      return `${TAG_NAMES[condition.tag]} ohne Jäger`;
   }
 }
 
@@ -209,6 +211,8 @@ function conditionIcon(condition: Condition): string {
       return SPECIES_BY_ID.has(condition.id) ? GENUS_INFO[SPECIES_BY_ID.get(condition.id)!.genus].icon : '🌱';
     case 'genus':
       return GENUS_INFO[condition.genus].icon;
+    case 'unhunted':
+      return TAG_ICONS[condition.tag] ?? '🐾';
   }
 }
 
@@ -315,7 +319,8 @@ export function foodCompetitors(species: Species, present: readonly string[]): s
 
 /**
  * Anwesende Räuber, die etwas fressen, das diese Art bietet – nur für die Namen im Text;
- * die Anzahl (und damit den Abzug) liefert der Kern in `AnimalStatus.hunters`.
+ * die Anzahl liefert der Kern in `AnimalStatus.hunters`, den Abzug (Überjagung,
+ * DESIGN_V2.md 22.4) in `AnimalStatus.overhunt`.
  */
 export function huntersOf(species: Species, present: readonly string[]): string[] {
   return present.filter((id) => {
@@ -347,7 +352,7 @@ export const MOOD_REASON_BELOW = 0.7;
 
 /**
  * Gründe, warum ein Tier nicht ganz zufrieden ist – wichtigste zuerst: kein Futter,
- * fehlende Wünsche, Störer, knappes Futter (Konkurrenz), Räuberdruck. Leer = alles erfüllt.
+ * fehlende Wünsche, Störer, knappes Futter (Konkurrenz), Überjagung. Leer = alles erfüllt.
  */
 export function moodReasons(species: Species, status: AnimalStatus, present: readonly string[] = []): string[] {
   const reasons: string[] = [];
@@ -367,7 +372,8 @@ export function moodReasons(species: Species, status: AnimalStatus, present: rea
     const rivals = named(foodCompetitors(species, present));
     reasons.push(rivals.length > 0 ? `teilt sich das Futter mit ${listNames(rivals)}` : 'findet wenig Futter');
   }
-  if (status.hunters > 0) {
+  // Jäger stören erst, wenn sie mehr fressen, als Bestand da ist (Überjagung, 22.4).
+  if (status.overhunt > 0) {
     const hunters = named(huntersOf(species, present));
     reasons.push(hunters.length > 0 ? `ist auf der Hut vor ${listNames(hunters)}` : 'ist auf der Hut');
   }
