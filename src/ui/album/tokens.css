@@ -4,7 +4,8 @@
  * „Album-Desktop“. Neue Farben gibt es nur über Tokens.
  *
  * Schriften selbst gehostet (offline, PWA, kein Drittanbieter-Aufruf), Teilmenge Latin,
- * Lizenz: SIL Open Font License 1.1 (fonts/OFL-Caveat.txt, fonts/OFL-Nunito.txt).
+ * Lizenz: SIL Open Font License 1.1 – die Texte liegen in public/licenses/ (OFL-Caveat.txt,
+ * OFL-Nunito.txt) und werden mit ausgeliefert (dist/licenses/).
  */
 
 @font-face {

@@ -89,7 +89,7 @@ test('Manifest ist gültig, verlinkt und seine Icons liegen bereit', async ({ pa
   await openGame(page);
   const href = await page.locator('link[rel="manifest"]').getAttribute('href');
   expect(href, 'relativ, damit es unter /tree-grow-app/ funktioniert').toBe('./manifest.webmanifest');
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#3f8f3a');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#e9dfc9');
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', './icons/apple-touch-icon.png');
 
   const manifestUrl = new URL(href!, `${baseURL}/`).href;
@@ -102,8 +102,8 @@ test('Manifest ist gültig, verlinkt und seine Icons liegen bereit', async ({ pa
     display: 'standalone',
     start_url: './',
     scope: './',
-    theme_color: '#3f8f3a',
-    background_color: '#f3f1e8',
+    theme_color: '#e9dfc9',
+    background_color: '#e9dfc9',
   });
   expect(manifest.short_name.length).toBeLessThanOrEqual(15);
   const icons = manifest.icons as { src: string; sizes: string; type: string; purpose: string }[];
