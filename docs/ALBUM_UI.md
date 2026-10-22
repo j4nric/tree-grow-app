@@ -1032,10 +1032,12 @@ album.notify(text: string, options?: NotifyOptions): void;   // leerer Text: nic
 - Platz: mobil oben rechts neben dem Umschlag-Knopf, Desktop oben über der rechten Seite;
   steht eine Banderole im Bild, rückt die Schicht darunter (gemessen beim Zeigen und per
   ResizeObserver an den Banderolen, nie pro Frame). Klicks gehen durch, nur „×“ fängt sie.
-- Übergang bis Schritt 12: Ist ein alter Dialog mit eigenem Hinweisfeld offen (Kartenwahl,
-  Pflanzenwahl, Tagebuch, Tierdetails), landet die Meldung dort, sonst verdeckte der
-  modale Dialog den Stempel. Mit den Dialogen fällt diese Weiche weg (die Hilfe seit
-  Schritt 11).
+- Übergang bis Schritt 12: Ist ein alter Dialog mit eigenem Hinweisfeld offen (Tagebuch),
+  landet die Meldung dort, sonst verdeckte der modale Dialog den Stempel. Mit den Dialogen fällt
+  diese Weiche weg (die Hilfe seit Schritt 11). Kartenwahl, Pflanzenwahl und Tierdetails sind
+  seit Schritt 5/6 Unterseiten; ihre Meldungen kommen als Stempel. Verdeckt mobil eine Unterseite
+  das Polaroid, meldet `overlayOpen()` das ebenfalls – main.ts sammelt die Hinweise dann in einem
+  Stempel, und schwebende Notizen über der Szene (`noteText`) werden zum Stempel (A.11 #121).
 - e2e: `stamps(page)` ist die Schicht (für „enthält“), `stamp(page)` die neueste Meldung,
   `settledStamp(page)` dieselbe nach dem Hereinstempeln (für Lage und Größe).
 
@@ -1284,9 +1286,9 @@ Reiterseite selbst über `album/pages/registry.ts` (eine Zeile pro Seite).
 - **Gedrehtes Live-Canvas:** Das Polaroid ist um −1,4° bzw. −1,5° gedreht. `camera-input.ts`
   rechnet die Drehung über `offsetX/Y` heraus. Schärfe und Leistung prüft der renderer in
   Schritt 3.
-- **`encounter-stack.ts`:** Das Album schaltet Schweben, Marker und IntersectionObserver per
-  `{ float: false }` ab. In Schritt 12 (bzw. 6, neuer Zettelstapel) samt `watchScroll` und dem
-  CSS für `.scene-dock` löschen.
+- ~~**`encounter-stack.ts`:** Das Album schaltet Schweben, Marker und IntersectionObserver per
+  `{ float: false }` ab.~~ Erledigt in Schritt 6: ersetzt durch `album/note-stack.ts`, samt
+  `watchScroll` und dem CSS für `.scene-dock` gelöscht.
 - **Lizenztexte der Schriften** liegen nur im Quellcode (`src/ui/album/fonts/OFL-*.txt`), nicht
   in `dist/`. In Schritt 12 entscheiden, ob sie mit ausgeliefert werden.
 - **`album/legacy.ts`** wird mit jedem Schritt kleiner und in Schritt 12 gelöscht.

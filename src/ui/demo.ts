@@ -5,7 +5,7 @@
 import './album/tokens.css';
 import { createNichesPage } from './album/pages/niches-page';
 import type { AlbumDeps } from './album/types';
-import { createEncounterDialog } from './encounter-dialog';
+import { createEncounterSheet } from './encounter-cards';
 import type { AnimalView, EcosystemView, EncounterView } from './view-model';
 
 const FAMILY = {
@@ -288,18 +288,30 @@ function note(text: string): void {
   log.textContent = `${decisions}. ${text}`;
 }
 
+/** Blatt von U:Begegnung (ohne Album-Seite) – zeigt die Karten mit Beispieldaten. */
+const sheetBox = document.createElement('div');
+sheetBox.className = 'album-subpage encounter-page demo-encounter';
+document.querySelector('.demo-scene')!.append(sheetBox);
+
+function show(key: (typeof order)[number]): void {
+  shownKey = key;
+  sheetBox.hidden = false;
+  sheet.show(encounters[key]!, queued);
+  sheet.revealLegendOnce();
+}
+
 /** Wie im Spiel: Nach einer Entscheidung kommt sofort die nächste wartende Begegnung. */
 function next(): void {
   if (queued <= 0) {
-    dialog.hide();
+    sheetBox.hidden = true;
+    sheet.clear();
     return;
   }
   queued -= 1;
-  shownKey = order[(order.indexOf(shownKey) + 1) % order.length]!;
-  dialog.show(encounters[shownKey]!, queued);
+  show(order[(order.indexOf(shownKey) + 1) % order.length]!);
 }
 
-const dialog = createEncounterDialog(document.body, {
+const sheet = createEncounterSheet({
   onChoose(index, replaceId) {
     note(`Gewählt: Karte ${index + 1}${replaceId ? `, ersetzt ${replaceId}` : ''}`);
     next();
@@ -312,16 +324,13 @@ const dialog = createEncounterDialog(document.body, {
     note('Neu gewürfelt');
     // Gleiche Karten, aber jetzt reicht der Samen nicht mehr: Inhalt wird aktualisiert.
     const view = encounters[shownKey]!;
-    dialog.show({ ...view, canReroll: false, rerollCost: (view.rerollCost ?? 0) * 2 }, queued);
-  },
-  onDefer() {
-    note('Später');
-    dialog.hide();
+    sheet.show({ ...view, canReroll: false, rerollCost: (view.rerollCost ?? 0) * 2 }, queued);
   },
 });
+sheetBox.append(sheet.head, sheet.element);
 
 // Für Playwright-Prüfungen der Demo
-(window as unknown as { demo: unknown }).demo = { dialog, encounters };
+(window as unknown as { demo: unknown }).demo = { sheet, encounters };
 
 const controls = document.getElementById('demo-controls')!;
 for (const [key, label] of [
@@ -333,10 +342,7 @@ for (const [key, label] of [
   button.type = 'button';
   button.className = 'encounter-button secondary';
   button.textContent = label;
-  button.addEventListener('click', () => {
-    shownKey = key;
-    dialog.show(encounters[key]!, queued);
-  });
+  button.addEventListener('click', () => show(key));
   controls.append(button);
 }
 
@@ -354,7 +360,5 @@ const params = new URLSearchParams(location.search);
 const queuedParam = Number(params.get('queued') ?? 2);
 queued = Number.isFinite(queuedParam) && queuedParam > 0 ? Math.floor(queuedParam) : 0;
 const initial = params.get('enc') ?? 'animal';
-if (initial === 'animal' || initial === 'plant' || initial === 'event') {
-  shownKey = initial;
-  dialog.show(encounters[initial]!, queued);
-}
+if (initial === 'animal' || initial === 'plant' || initial === 'event') show(initial);
+else sheetBox.hidden = true;

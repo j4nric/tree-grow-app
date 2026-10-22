@@ -25,6 +25,8 @@ import { createAnimalPage } from './animal-page';
 import { createFoodWebPage } from './food-web-page';
 import { createHarmonyPage } from './harmony-page';
 import { createSitePage } from './site-page';
+import { createEncounterPage } from './encounter-page';
+import { createPlantPickerPage } from './plant-picker-page';
 
 /**
  * Ökosystem-Ansicht für die Seiten: `view` wird bei Änderungen ersetzt bzw. (Zahlen) an
@@ -91,6 +93,8 @@ export const SUBPAGES = {
   animal: createAnimalPage,
   harmony: createHarmonyPage,
   foodweb: createFoodWebPage,
+  encounter: createEncounterPage,
+  'plant-picker': createPlantPickerPage,
   guide: createGuidePage,
   'guide-chapter': createGuideChapterPage,
   settings: createSettingsPage,

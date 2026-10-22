@@ -8,7 +8,7 @@ import { YEAR_SECONDS } from '../src/content/seasons';
 import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, dialog, expect, openGame, openGoalsPage, openStack, openTab, savedState, seedRaw, stack, stamps, subpage, test, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, openGame, openGoalsPage, openStack, openTab, savedState, seedRaw, stack, stamps, subpage, test, waypoint } from './fixtures';
 
 /**
  * Erfolge (DESIGN_V2.md 18): Unterseite „Erfolge“ im Reiter „Ziele“ (ALBUM_UI.md B.4), leiser
@@ -99,7 +99,9 @@ test('Freischalten beim Spielen: leiser Hinweis als Stempel, Kachel wandert zu �
   expect(saved.meta.achievements).toEqual(['full-year']);
 });
 
-test('Begegnungsdialog offen, Stapel voll, Wegpunkt mit Erfolg: beide Hinweise in einem Text', async ({ page, context }) => {
+test('U:Begegnung mobil offen, Stapel voll, Wegpunkt mit Erfolg: beide Hinweise in einem Stempel', async ({ page, context }) => {
+  // Mobil verdeckt die Unterseite das Polaroid – Hinweise kommen gesammelt als ein Zettel.
+  await page.setViewportSize({ width: 390, height: 844 });
   await startClock(page);
   const state = createInitialState(START.getTime(), 4711);
   // Kurz vor dem Setzling (Wegpunkt 3): Der nächste Wegpunkt bringt Stufe und Erfolg.
@@ -111,12 +113,12 @@ test('Begegnungsdialog offen, Stapel voll, Wegpunkt mit Erfolg: beide Hinweise i
   ];
   await seedRaw(context, state, 0);
   await openGame(page);
-  await expect(stack(page)).toHaveText(/3 Begegnungen warten/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /3 Begegnungen warten/);
   await openStack(page);
 
   // In Einzelframes: Der Wegpunkt fällt in tick() eines Frames.
   await page.clock.runFor(2_000);
-  const notice = dialog(page).getByRole('status');
+  const notice = stamps(page);
   // „Stapel voll …“ wird nicht vom Erfolg verdrängt – beides steht im Hinweis.
   await expect(notice).toContainText(/Stapel voll – eine Begegnung zog weiter/);
   await expect(notice).toContainText('🏅 Erfolg: „Ein dünner Stamm“');
