@@ -484,3 +484,56 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   vorausgewählt → Neuladen → Weißtanne wächst; Gerät mit v14 lädt keinen v15-Stand
   (`outdated-client`). Abhängig: 3a
 - [ ] **4b** Playtest Phase 7 (`qa-tester`, Funde an `ui-dev` / `renderer`). Abhängig: 4a
+
+## Phase 8 – Album-Oberfläche
+
+Ziel: Die ganze Oberfläche wird zum **Sammelalbum** (Naturtagebuch zum Einkleben). Das
+Konzept mit Bestandsaufnahme aller 135 UI-Elemente, Seitenstruktur, Interaktionsmodell,
+Architektur und Tests steht in `docs/ALBUM_UI.md`. Es gibt keinen Beta-Schalter: Jeder Schritt
+ist ein eigener PR gegen den Sammel-Branch **`claude/album-ui`** (nicht `main`). Erst wenn alles
+fertig und getestet ist, folgt ein großer PR `claude/album-ui` → `main`. `main` wird regelmäßig
+in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser Phase.
+
+- [x] **0** Konzept `docs/ALBUM_UI.md` (`ui-dev`)
+- [ ] **1** Grundgerüst (`ui-dev`): `claude/album-ui` anlegen; Schriften Caveat/Nunito selbst
+  gehostet (OFL), `tokens.css`, `album/nav.ts` + Tests, Verlauf/Hash, Book/Spread/Page/TabStrip/
+  PageTurn/Bookmark, Polaroid-Rahmen mit dem Canvas, Etiketten, Stufenleiste; alte Panels als
+  Übergangsinhalt in den Reitern, Hilfe/Einstellungen/Spielstand im Umschlag; UI-Steuerung aus
+  `main.ts` nach `album/index.ts` (Review `core-engineer`); Fixture-Helfer, Specs grün.
+  Abhängig: nichts
+- [ ] **2** Sticker-Renderer (`renderer`): `render/sticker.ts` mit `renderSpeciesSticker(id, size,
+  opts)`, `stickerKind`, `stickerFit`, Varianten `muted`/`silhouette`, eigener LRU; Test „jede Art
+  hat eine eigene Zeichnung“; Sticker-Tafel in der Render-Demo. Abhängig: nichts (parallel zu 1)
+- [ ] **3** Polaroid und Vollbild (`ui-dev`, Prüfung `renderer`): FLIP mit demselben Canvas, Kamera
+  nur im Vollbild, Tier-Tipp → Haftnotiz, Zeichnen aussetzen, wenn verdeckt, Stufen-Stempel.
+  Specs camera, scene-animal-tap, canvas-size. Abhängig: 1
+- [ ] **4** Haftnotiz und Stempel (`ui-dev`): `Note` (popover + Fallback), Stempel/Zettel statt
+  Toast (`toast-place.ts` entfällt), einheitliches `notify`, Banderole, Notizen für Jahreszeit,
+  Wetter, Etiketten, Gattungen. Specs seasons, weather, daynight. Abhängig: 1
+- [ ] **5** Reiter Nischen (`ui-dev`): Stickerreihen, Gattungen, Lebensräume, Pflanzring;
+  Unterseiten Tier, Harmonie, Nahrungsnetz. Specs animal-detail, food-web, habitats.
+  Abhängig: 2, 4
+- [ ] **6** Begegnungen (`ui-dev`): Zettelstapel mit Wackeln, Unterseite Begegnung, Unterseite
+  Pflanze setzen. Specs events, playthrough, full-cycle. Abhängig: 4 (Pflanze setzen: 5)
+- [ ] **7** Reiter Arten (`ui-dev`): Sticker-Raster mit Silhouetten, Pflanzen, Gemeinschaften,
+  Andenken, Stammgast-★. Spec journal. Abhängig: 5
+- [ ] **8** Reiter Pflege (`ui-dev`): Gerade wirksam, Pflegeliste, Unterseite Pflegemaßnahme,
+  Punkt am Reiter. Spec care. Abhängig: 4
+- [ ] **9** Reiter Ziele (`ui-dev`): Tagesziele, Unterseiten Neuer Zyklus, Erfolge, Statistik.
+  Specs daily, cycle, cycle-transition, achievements, journal-stats. Abhängig: 4
+- [ ] **10** Reiter Landschaft (`ui-dev`): Karte, Unterseite Standort, Korridore, Wälder,
+  gemeinsames Ziel mit dem Neuen Zyklus. Specs landscape, journal-landscape, wildwechsel.
+  Abhängig: 9
+- [ ] **11** Umschlag und Zettel (`ui-dev`): Anleitung als Kapitel, Einstellungen, Konto,
+  Spielstand + Löschen, „Neu hier?“, Rückkehr-Zettel + Unterseite, Banderolen. Specs help,
+  sound, account, save-transfer, pwa, return-report. Abhängig: 4
+- [ ] **12** Aufräumen (`ui-dev`): Altbauteile und altes CSS löschen, `index.html` neu, Album-Demo,
+  DESIGN_V2.md 11 und README-Bilder. Abhängig: 5–11
+- [ ] **13** e2e-Abschluss (`qa-tester`): restliche Specs (smoke, playtest*-UI), neue
+  `album-*`-Specs (Navigation, Wischen, reduzierte Bewegung, Haftnotiz, Vollbild, 360 px ohne
+  Überlauf), kein `test.fixme`. Abhängig: 12 (album-nav-Spec schon ab 1)
+- [ ] **14** Playtest und Feinschliff (`qa-tester` → `ui-dev`/`renderer`), Leistung messen, dann
+  PR `claude/album-ui` → `main`. Abhängig: 13
+
+Parallel nach 1 und 4: 5, 6, 8, 9, 11; danach 7 und 10. Offene UI-Aufgaben aus Phase 7 (3a)
+möglichst im Album umsetzen (ALBUM_UI.md G.2 Nr. 1).
