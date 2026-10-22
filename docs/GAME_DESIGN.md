@@ -45,10 +45,10 @@
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
-> `scripts/simulate.ts`, `tests/balance.test.ts`, `tests/balance-care.test.ts`,
-> `tests/balance-cycles.test.ts`, `tests/balance-restart.test.ts`,
-> `tests/seasons-balance.test.ts` und `tests/daily-balance.test.ts` (Einstellungen in
-> `tests/balance-setup.ts`). Großer Lauf mit allen Tabellen: `npm run balance`.
+> `scripts/simulate.ts`, `tests/balance.test.ts` (mit Pflege), `tests/balance-cycles.test.ts`
+> (mit Neustart in Hain, Wald, Urwald), `tests/seasons-balance.test.ts` und
+> `tests/daily-balance.test.ts` (Einstellungen in `tests/balance-setup.ts`, geteilte
+> Durchgänge in `tests/balance-runs.ts`). Großer Lauf mit allen Tabellen: `npm run balance`.
 
 ## Tagesziele (v2, umgesetzt)
 
@@ -358,6 +358,12 @@ Keine Regelvariante verschiebt das um mehr als ~0,005 (der Wald-Gewinn hängt fa
 gemerkten Hain-Wert); es war Streuung (200 Durchgänge im selben Fenster: 0,984). Die Zahlen
 bleiben, der große Lauf rechnet den Neustart jetzt mit 200 Durchgängen: Wald 0,984 / 1,057,
 Urwald 0,987 / 1,036, Urwald 1,44 × Hain, Zufall Zyklus 2 29 / 32 % schneller.
+
+**Prüfung Phase 6 (Urwald-Gewinn 93,5 gegen die Grenze < 95):** Die Zahlen bleiben. Der Bonus
+im Urwald ist beim Harmonie-Spieler meist voll (48); gestiegen ist der Gewinn durch höhere
+H_max und neue Arten. Eine Obergrenze 46 brächte nur −0,8 Punkte Puffer, senkte Wachstum ÷
+Harmonie im Urwald um ~0,01 (Grenze 0,95) und kostete in der Landschaft −2 Punkte je
+Urwald-Zyklus (`DESIGN_V2.md` 15.4, „Stand Balancing Phase 6“).
 
 ## Schritt 2.11: Harmonie lohnt sich über die Zyklen (v2, umgesetzt)
 

@@ -310,10 +310,10 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   - [x] Anzeige (ui-dev): Wetter-Abzeichen mit Erklärung und Vorhersage, ein Hinweis für
     Jahreszeit + Wetter, 🌙 an Nachtarten und an der Rate, Schutz-Hinweise der Pflege,
     „Wetter gemittelt“, Spielanleitung – `src/ui/weather-view.ts`, `weather-badge.ts` (21.8)
-  - [ ] Balancing-Folgeaufgabe (game-designer): Samenreserve im Wald (balance-care 14,6 vs.
-    Grenze 15 min, vorher 11,1 vs. 12) – Wald-Ränge der Pflege billiger oder früher kaufbar,
-    damit die Grenze wieder auf 12 min sinken kann (DESIGN_V2.md 21.10). Seit den
-    Lebensräumen 7,5 min (15.4, „Stand Lebensräume“) – Grenze kann wohl zurück auf 12.
+  - [x] Balancing-Folgeaufgabe (game-designer): Samenreserve im Wald (balance-care 14,6 vs.
+    Grenze 15 min, vorher 11,1 vs. 12) – erledigt ohne Änderung der Wald-Ränge: seit den
+    Lebensräumen 7,5 min (großer Lauf), im Check 7,2–8,3 min in drei Seed-Fenstern; die
+    Grenze ist wieder < 12 min (DESIGN_V2.md 15.4, „Stand Balancing Phase 6“)
 
 **Welle 3 – Tiefe & Langzeitspiel**
 
@@ -331,10 +331,16 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     (aufklappbar) in der Übersicht, Bestand an Kacheln und Karten, Abschnitt „Räuber und
     Beute“ in den Tierdetails, Spielanleitung; `src/ui/food-web-view.ts`,
     `tests/food-web-view.test.ts`, `e2e/food-web.spec.ts`
-  - [ ] Balancing prüfen (`game-designer`): Urwald-Gewinn des Harmonie-Spielers liegt mit
-    Räuber und Beute bei 94,9 (Grenze < 95 in `balance-restart.test.ts`, vorher 87–88) –
-    `MEMORY_HARMONY_RULES` ggf. nachziehen (DESIGN_V2.md 15.4, „Stand Räuber und Beute“);
-    seit den Lebensräumen 93,5 („Stand Lebensräume“)
+  - [x] Balancing prüfen (`game-designer`): Urwald-Gewinn des Harmonie-Spielers liegt mit
+    Räuber und Beute bei 94,9 (Grenze < 95, vorher 87–88), seit den Lebensräumen 93,5 –
+    geprüft, `MEMORY_HARMONY_RULES` bleiben: Der Bonus ist gedeckelt, der Anstieg kommt aus
+    H_max und neuen Arten; Obergrenze 48 → 46 brächte nur −0,8 Puffer, kostete ~0,01 beim
+    Verhältnis Wachstum/Harmonie im Urwald (Grenze 0,95) und −2 Punkte je Urwald-Zyklus in der
+    Landschaft (DESIGN_V2.md 15.4, „Stand Balancing Phase 6“)
+  - [x] Laufzeit der Balancing-Tests (`game-designer`): geteilte Durchgänge über Checkpoints
+    im Simulator (`runStages`, `branchCycles`, `tests/balance-runs.ts`); Pflege jetzt in
+    `balance.test.ts`, Neustart in `balance-cycles.test.ts`; CPU im Check −20 % bei gleichen
+    Ergebnissen und Grenzen (DESIGN_V2.md 15.4, „Stand Balancing Phase 6“)
 - [x] Weitere Lebensräume nach dem Muster Waldtümpel (`game-designer`, `renderer`):
   Totholzhaufen, Trockenmauer, Waldwiese – je 3–5 Arten und eine Lebensgemeinschaft
   - [x] Design (`game-designer`): Waldwiese (Junger Baum), Totholzhaufen (Alter Baum),

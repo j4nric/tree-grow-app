@@ -2141,22 +2141,24 @@ Beitrag zum Maß der Strategie, so viele, wie Plätze da sind; der Zufallsspiele
 sie in Nischen-Reihenfolge.
 
 ```bash
-npm run check      # Balancing-Tests mit wenigen Durchgängen (feste Seeds), ~25 s gesamt
-npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200, Neustart 200), alle Tabellen, ~14 min
+npm run check      # Balancing-Tests mit wenigen Durchgängen (feste Seeds), ~80 s CPU, ~30 s auf 4 Kernen
+npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200, Neustart 200), alle Tabellen
 ```
 
-Die Tests liegen in fünf Dateien, die Vitest parallel rechnet (Einstellungen in
-`tests/balance-setup.ts`): `balance.test.ts` (alle Strategien mit allen Systemen),
-`balance-care.test.ts` (mit/ohne Pflege), `seasons-balance.test.ts` (Baumarten),
-`balance-cycles.test.ts` (drei Zyklen) und `balance-restart.test.ts` (drei Zyklen mit
-Neustart in Hain, Wald oder Urwald, seit 2.11b). Im Check: 40 Durchgänge (Harmonie-Spieler bis
+Die Tests liegen in vier Dateien, die Vitest parallel rechnet (Einstellungen in
+`tests/balance-setup.ts`): `balance.test.ts` (alle Strategien mit allen Systemen, dazu
+„Pflegemaßnahmen“ mit/ohne Pflege), `seasons-balance.test.ts` (Baumarten),
+`balance-cycles.test.ts` (drei Zyklen bis Hain, dazu „Neustart in Hain, Wald oder Urwald“,
+seit 2.11b) und `daily-balance.test.ts` (Tagesziele). Bis Phase 6 waren Pflege
+(`balance-care.test.ts`) und Neustart (`balance-restart.test.ts`) eigene Dateien; zusammengelegt,
+weil sie dieselben Durchgänge brauchen (siehe „Laufzeit der Balancing-Tests“ unten). Im Check: 40 Durchgänge (Harmonie-Spieler bis
 Urwald, Wachstum und Zufall bis Wald, die übrigen bis Hain), Pflege 30, Baumarten 30,
 Zyklen 40 (seit 2.11, vorher 20), Neustart 12. Geprüft wird (Grenzen im Check etwas weiter, wo die Stichprobe streut):
 Stufenzeiten des Harmonie-Spielers 0,8–1,25 × Ziel, Hain 55–65 min, Setzling 40–50 s;
 Takt bis Hain im Median 10 s – 8 min, nie über 15 min; Harmonie-Strategie hat die höchste
 Harmonie; kein Gattungs-Stapeln mehr als 10 % schneller; Wachstums-Spieler schneller, aber
 höchstens ~15 % und mindestens 3 Punkte weniger Harmonie; Pflanzen und Pflege als
-Samen-Senke (Bestand beim Hain < 10 min Produktion, im Wald < 12 min, seit Wetter < 15 min, 21.10); frühes Spiel (seit
+Samen-Senke (Bestand beim Hain < 10 min Produktion, im Wald < 12 min – von Wetter bis zu den Lebensräumen < 15 min, 21.10, seit Phase 6 wieder 12); frühes Spiel (seit
 dem Playtest „frühes Spiel“): längste Pause ohne Entscheidung in den ersten 6 min im
 Median ≤ 75 s (Harmonie, Wachstum), jede Strategie < 105 s, Samen ungenutzt vor dem Jungen
 Baum < 250 🌰; Neu würfeln bis zum
@@ -2176,11 +2178,104 @@ vorher: höchstens 10 je Wegpunkt, im Mittel-Verlauf höchstens 1,5) (Check mit 
 Durchgängen, in 11 Seed-Fenstern geprüft: Verhältnis ≥ 0,82, über Zyklus 2 + 3 ≥ 0,86,
 Gedächtnis-Vorsprung > 25, Urwald ≤ 1,9 × Hain und < 100 Punkte, kein Rückgang;
 Reihenfolge Hain → Wald → Urwald beim Wachstums-Spieler nur im großen Lauf, Spannen im
-Kopf von `tests/balance-restart.test.ts`). `tests/cycle.test.ts` prüft die Formel: bei
+Kopf von „Neustart in Hain, Wald oder Urwald“ in `tests/balance-cycles.test.ts`). `tests/cycle.test.ts` prüft die Formel: bei
 gleicher H_max bringt ein späterer Wegpunkt nie mehr (H_max 0–400, Grundlage der Ladegrenze
 in 12.7), Ziel (e) an typischen Verläufen (Urwald-Schwelle ≤ 174 − 10, Bonus über dem Sockel
 Harmonie 30 / Wachstum 0), dazu die Sperrklinke selbst (gleiche H_max über mehrere
 Wegpunkte, online = offline, ein ganzer simulierter Zyklus je Strategie bis zum Urwald).
+
+#### Stand Balancing Phase 6 – Gedächtnis-Puffer, Samenreserve, Laufzeit der Tests (500 Durchgänge)
+
+`npm run balance` auf main 9b2faef (Waldlandschaft, Spielstand v14) mit den geteilten
+Durchgängen (unten, Punkt 3): **alle 49 Prüfungen grün**, alle Zahlen gleich wie im „Stand
+Lebensräume“ – dieselben Seeds, die Landschaft wirkt erst nach dem ersten Urwald, und die
+geteilten Läufe liefern genau dieselben Ergebnisse. Keine Zahl in `src/content/` geändert.
+
+**1. Urwald-Gewinn des Harmonie-Spielers (Grenze < 95): Regeln bleiben.** Gemessen 93,5
+(200 Durchgänge, Urwald ÷ Hain 1,35; Ziel (b) ≤ 1,5). Woraus er besteht (40 Durchgänge,
+Seeds des Checks, erster Zyklus bis Urwald):
+
+| Teil (Mittel) | Harmonie | Wachstum |
+|---|---|---|
+| Gewinn Zyklus 1 / Streuung je Durchgang (SD) | 91,6 / 16,1 | 73,4 / 19,6 |
+| H_max | 183,6 | 156,1 |
+| Sockel ⌊H / 7⌋ + Bonus (Obergrenze 48) | 68,8 (Bonus voll in 22 von 40) | 50,5 (Bonus voll in 1 von 40) |
+| neue Arten | 22,8 | 22,9 |
+
+Gegenprobe Urwald-Obergrenze 48 → 46 (40 Durchgänge, Neustart im Urwald, drei Zyklen):
+
+| Urwald D / T / C | Gewinn Harmonie Zyklus 1 / 2 / 3 | Gewinn Wachstum | Wachstum ÷ Harmonie Zyklus 2 / 3 / 2 + 3 | Harmonie: drei Urwald-Zyklen ≥ 250 (Freischaltung 24.3) |
+|---|---|---|---|---|
+| **7 / 164 / 48 (bleibt)** | 91,6 / 86,7 / 85,6 | 73,4 / 65,0 / 71,0 | 0,968 / 1,071 / 1,007 | 34 von 40 (Median 268) |
+| 7 / 164 / 46 | 90,8 / 86,2 / 85,0 | 73,4 / 65,2 / 70,7 | 0,959 / 1,061 / 0,998 | 34 von 40 (Median 266) |
+
+- **Die Regel tut, was sie soll:** Der Bonus über dem Sockel ist beim Harmonie-Spieler meist
+  voll, beim Wachstums-Spieler fast nie (Ziel (e)). Gestiegen ist der Gewinn seit 2.11b
+  (87–88) durch höhere H_max (Räuber und Beute) und viele neue Arten im ersten Zyklus (23,
+  davon 14 Arten der Lebensräume im Pool) – also durch Inhalt, nicht durch die Regel.
+- **Ein Hebel kostet an anderer Stelle mehr, als er bringt:** Obergrenze −2 bringt im Zyklus 1
+  nur −0,8 Puffer (gut die Hälfte der Durchgänge erreicht sie), senkt aber das Verhältnis
+  Wachstum ÷ Harmonie im Urwald um ~0,01 (Zyklus 2: 0,968 → 0,959, Grenze je Zyklus 0,95;
+  Zyklus 2 + 3: 1,007 → 0,998, Grenze 0,97). Die beiden Urwald-Ziele (a) und (b) ziehen
+  gegeneinander; (a) hat weniger Abstand.
+- **Die Landschaft würde verzerrt:** Dort erreichen alle Spielweisen H_max 288–311 (24.10) –
+  jeder Urwald-Zyklus hätte −2 Punkte (≈ −2,4 % Gedächtnis je Zyklus, Hähersaat und volle
+  Wälder später), ein Teiler 7,5 statt 7 sogar −3. Die Freischaltung nach drei Urwald-Zyklen
+  (250) ist ohnehin knapp (34 von 40).
+- **Puffer:** 1,5 Punkte sind ~1,3 Standardfehler (SD 16 / √200 ≈ 1,1). Der große Lauf hat
+  feste Seeds und kippt nicht von selbst, aber jede Inhaltsänderung mischt die Stichprobe neu.
+  Genau dafür ist die Grenze da: ein Stolperdraht, der zum Nachsehen zwingt, bevor ein
+  Urwald-Zyklus wieder ~100 bringt (das Problem vor 2.11b). Die Zielgröße bleibt Urwald ≤ 1,5
+  × Hain (1,35). **Reißt sie:** zuerst ein zweites Seed-Fenster rechnen (Streuung?), erst dann
+  die Urwald-Obergrenze senken (Kosten siehe Tabelle) – nicht den Teiler.
+
+**2. Samenreserve im Wald: erledigt, ohne Änderung.** Seit den Lebensräumen ist die Reserve
+klein; die Grenze im Wald ist wieder **< 12 min** (Ziel aus 2.10; von Wetter bis Lebensräume
+15 min), die Wald-Ränge der Pflege bleiben, wie sie sind.
+
+| 🌰-Bestand in Minuten Produktion (Harmonie / Wachstum) | beim Hain | im Wald |
+|---|---|---|
+| großer Lauf (500 Durchgänge) | 6,9 / 5,4 | 7,5 / 4,7 |
+| Check, Seed-Fenster 1000 / 5000 / 9000 (je 30), Harmonie | 9,0 / 7,0 / 7,5 | 7,2 / 7,6 / 8,3 |
+| Check, Seed-Fenster 1000 / 5000 / 9000 (je 30), Wachstum | 6,1 / 5,5 / 6,3 | 5,4 / 4,4 / 5,3 |
+
+Knapper ist jetzt der Hain (Check-Fenster 1000: 9,0 gegen < 10) – beobachten, kein Handlungsbedarf.
+
+**3. Laufzeit der Balancing-Tests.** Mehrere Prüfungen rechneten dieselben Durchgänge (gleiche
+Strategie, gleiche Seeds 1000 + 7 i, gleiche Optionen) – nur bis zu verschiedenen Stufen. Ein
+Lauf bis zum Wald ist bis zum Hain genau derselbe wie einer bis zum Hain; die Ziel-Stufe
+beendet nur die Schleife. Darum:
+
+- **Checkpoints im Simulator:** `runGame(…, onStage)` meldet jede neu erreichte Stufe und
+  liefert dort Ergebnis, Spielstand und Zufall als Kopie. `runStages` gibt je Ziel-Stufe das
+  Ergebnis eines eigenen Laufs zurück, `branchCycles` spielt den ersten Zyklus nur einmal bis
+  zur höchsten Stufe und lässt die weiteren Zyklen von den Checkpoints aus laufen.
+  `tests/balance-runs.test.ts` prüft die Gleichheit mit eigenen Läufen (`toEqual`), dazu ein
+  Vergleich aller Ergebnisse vor und nach der Änderung (identisches JSON).
+- **Geteilte Durchgänge** (`tests/balance-runs.ts`, je Testdatei): „Pflegemaßnahmen“ (mit
+  Pflege, Harmonie/Wachstum/Zufall × 30 bis Wald) sind die ersten 30 Durchgänge von
+  `balance.test.ts` – darum in diese Datei gezogen (bis Phase 6 `balance-care.test.ts`). Der
+  Neustart in Hain sind die ersten 12 Durchgänge von „Mehrere Zyklen“, Wald und Urwald zweigen
+  vom selben ersten Zyklus ab – darum in `balance-cycles.test.ts` (bis Phase 6
+  `balance-restart.test.ts`).
+- **Grenzen und Durchgänge unverändert.** Verworfen: Stapel-Strategien mit 20 statt 40
+  Durchgängen (spart 6 s, aber „Neu würfeln zu teuer“ läge im Check-Fenster bei 0,050 gegen die
+  Grenze < 0,05 und der Harmonie-Abstand in einem Fenster bei +3,9 gegen < 5 – nicht mehr
+  dieselbe Aussage); Baumarten und Tagesziele in `balance.test.ts` (sparte nur 3,6 s CPU, die
+  längste Datei würde 11 s länger); die Pflege-Wahl des Simulators zwischenspeichern (nur 10 %
+  Treffer, weil Jahreszeit, Wetter und Nacht die Auswertung an fast jedem Halt ändern).
+
+| Messung (gleiche Maschine, 4 Kerne, abwechselnd gerechnet) | main 9b2faef | jetzt |
+|---|---|---|
+| Balancing-Dateien im Check | 6 | 4 (+ `balance-runs.test.ts`, < 1 s) |
+| Check, CPU-Zeit (user, zwei Runden) | 102 / 101 s | 79 / 82 s (**−20 %**) |
+| Check, Wandzeit (Last 2–3, zwei Runden) | 35,0 / 34,1 s | 31,1 / 32,2 s (−8 %; die längste Datei, `balance.test.ts` mit ~30 s, bestimmt sie) |
+| ganzer `vitest run`, CPU-Zeit (zwei Runden) | 263 / 250 s | 238 / 236 s |
+| großer Lauf `npm run balance`, CPU-Zeit / Wandzeit | GROSS_BASE | GROSS_JETZT |
+
+Im ganzen `npm run check` auf 4 Kernen bestimmt nicht das Balancing die Wandzeit, sondern
+`tests/sync-sequences.test.ts` (67 s in einem Worker) – Hinweis
+für den `core-engineer`.
 
 #### Stand Lebensräume – Waldwiese, Totholzhaufen, Trockenmauer, Reptilien (500 Durchgänge)
 
@@ -3197,10 +3292,10 @@ von ~25 auf ~4 Minuten Produktion, im Wald von ~33 auf ~5. Das Tempo ändert sic
 setzen andere Schwerpunkte (Wildblumen-Saum, Waldtümpel); die Dichte Krone wählt fast
 nur der Zufall.
 
-Geprüft in `tests/balance-care.test.ts` (eigene Datei, läuft parallel zu
-`balance.test.ts`): im normalen Check 40 Durchgänge je Strategie bis zum Wald, die volle
-Zahl (100 bzw. `SIM_RUNS`, bis zum Urwald) mit `SIM_LOG=1 npx vitest run
-tests/balance-care.test.ts`. Prüfungen wie unten beim Modell.
+Geprüft damals in `tests/balance-care.test.ts` (seit Phase 6 „Pflegemaßnahmen“ in
+`tests/balance.test.ts`, mit denselben Durchgängen wie das Spiel mit allen Systemen): im
+normalen Check 30 Durchgänge je Strategie bis zum Wald, die volle Zahl (`SIM_RUNS`, bis zum
+Urwald) mit `npm run balance`. Prüfungen wie unten beim Modell.
 
 #### Stand Schritt 2.7 – Inhalte: Pflegemaßnahmen im Modell (500 Durchgänge, historisch)
 
@@ -4925,7 +5020,10 @@ echten Logik nicht mehr (ein Schalter für beides); im Modell: Wetter −2,3 / �
 **Pflege-Reserve:** Im Wald haben Harmonie-Spieler mit Wetter im Mittel 14,6 statt 11,1 min
 Produktion angespart (30 Durchgänge, `balance-care.test.ts`; gemittelt 13,1 min) – sie kommen
 ~4 % früher und mit +4 % 🌰 dort an, wo auf die Wald-Ränge gespart wird. Die Prüfung erlaubt
-dort jetzt 15 statt 12 min; beim Hain bleibt < 10 min (gemessen 9,4 min).
+dort jetzt 15 statt 12 min; beim Hain bleibt < 10 min (gemessen 9,4 min). **Nachtrag Phase 6:**
+Seit den Lebensräumen (Samen-Senke ab Junger Baum, 23.10) nur noch 7,5 min (großer Lauf), im
+Check 7,2–8,3 min – die Grenze ist wieder 12 min, die Wald-Ränge bleiben (15.4, „Stand
+Balancing Phase 6“).
 
 **Bewertung:** Hain 2–3 % schneller, Urwald 2–3 %, Harmonie unverändert (±0,7), Durststrecken
 gleich (Unterschiede ≤ 1 min, Streuung), frühes Spiel unverändert dank Schonzeit (Junger Baum

@@ -1,7 +1,7 @@
 /**
- * Gemeinsame Einstellungen der Balancing-Tests (tests/balance*.test.ts,
- * tests/seasons-balance.test.ts; DESIGN_V2.md 15.4). Idee aus dem Branch
- * claude/v2-tests-schneller.
+ * Gemeinsame Einstellungen der Balancing-Tests (tests/balance.test.ts, balance-cycles.test.ts,
+ * seasons-balance.test.ts, daily-balance.test.ts; DESIGN_V2.md 15.4). Idee aus dem Branch
+ * claude/v2-tests-schneller. Geteilte Durchgänge: tests/balance-runs.ts.
  *
  * Im normalen `npm run check` laufen wenige Durchgänge mit festen Seeds – schnell und
  * deterministisch; die Grenzen halten so viel Abstand, dass sie damit stabil sind. Der
@@ -20,12 +20,12 @@ export const FULL = !!env.SIM_LOG;
 const requested = env.SIM_RUNS ? Number(env.SIM_RUNS) : null;
 /** Durchgänge je Strategie im Spiel mit allen Systemen (balance.test.ts). */
 export const RUNS = requested ?? 40;
-/** Durchgänge für den Vergleich mit/ohne Pflege (balance-care.test.ts). */
+/** Durchgänge für den Vergleich mit/ohne Pflege (balance.test.ts, „Pflegemaßnahmen“; ≤ RUNS). */
 export const CARE_RUNS = requested ?? 30;
 /** Durchgänge je Strategie und Baumart (seasons-balance.test.ts). */
 export const TREE_RUNS_MAX = 300;
 export const TREE_RUNS = Math.min(requested ?? 30, TREE_RUNS_MAX);
-/** Durchgänge über mehrere Zyklen (balance-cycles.test.ts). */
+/** Durchgänge über mehrere Zyklen (balance-cycles.test.ts, „Mehrere Zyklen“). */
 export const CYCLE_RUNS_MAX = 200;
 // 40 statt 20 seit Schritt 2.11: Das Waldgedächtnis hängt jetzt steil an H_max über 100,
 // mit 20 Durchgängen schwankte das Verhältnis Wachstum/Harmonie in Zyklus 2 je Seed-Fenster
@@ -34,7 +34,8 @@ export const CYCLE_RUNS_MAX = 200;
 export const CYCLE_RUNS = Math.min(requested ?? 40, CYCLE_RUNS_MAX);
 /**
  * Durchgänge über mehrere Zyklen mit Neustart in Hain, Wald und Urwald
- * (balance-restart.test.ts, Schritt 2.11b). Im Check wenige, weil ein Urwald-Zyklus lang ist.
+ * (balance-cycles.test.ts, „Neustart in Hain, Wald oder Urwald“, Schritt 2.11b; bis Phase 6
+ * balance-restart.test.ts). Im Check wenige, weil ein Urwald-Zyklus lang ist.
  */
 // 200 statt 100 seit dem Merge des frühen Spiels (#52): Mit 100 Durchgängen streut das
 // Verhältnis Wachstum/Harmonie in Zyklus 2 im selben Seed-Fenster um ±0,02 (Wald 0,967 mit
