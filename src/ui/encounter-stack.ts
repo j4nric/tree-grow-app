@@ -1,13 +1,14 @@
 /**
  * Begegnungs-Stapel (Design v2, 11.1): ein ruhiger Kartenstapel am Rand der Szene.
  * Er zeigt, wie viele Begegnungen warten, und öffnet auf Wunsch den Kartenwahl-Dialog –
- * der Dialog drängt sich nie von selbst auf.
+ * der Dialog drängt sich nie von selbst auf. Das Symbol oben auf dem Stapel gehört zur
+ * vordersten Begegnung: bei Ereignis und Gast deren eigenes aus content (`stackIcon`).
  *
  * Auf dem Handy liegt die Szene oben auf der Seite: Ist der Stapel aus dem Bild gescrollt,
  * schwebt er unten rechts am Bildschirmrand (Klasse `floating` am Dock, siehe CSS), damit
  * eine wartende Begegnung nie unsichtbar ist.
  *
- * `update()` darf jeden Frame laufen; es ändert nur bei neuer Anzahl etwas am DOM.
+ * `update()` darf jeden Frame laufen; es ändert das DOM nur bei neuer Anzahl bzw. neuem Symbol.
  */
 import { EVENTS_BY_ID } from '../content/events';
 import { VISITORS_BY_ID } from '../content/visitors';

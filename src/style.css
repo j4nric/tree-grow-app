@@ -524,8 +524,9 @@ footer {
 }
 
 /*
- * Hinweis „Neue Version verfügbar – neu laden“ (ui/pwa.ts): oben in der Mitte, damit er
- * weder den Toast unten noch den Begegnungs-Stapel verdeckt; bleibt bis zum Klick.
+ * Hinweis „Neue Version verfügbar – neu laden“ (ui/pwa.ts): oben in der Mitte, bleibt bis
+ * zum Klick. Am Desktop liegt der Toast unten in der Szene; im einspaltigen Layout weicht
+ * der Toast ihm nach unten aus (ui/toast-place.ts) – der Hinweis verdeckt ihn nicht.
  */
 .update-hint {
   position: fixed;
@@ -692,7 +693,8 @@ body[data-motion='reduce'] .float-note {
   animation: float-fade 3s linear forwards;
 }
 
-body[data-motion='reduce'] .progress-bar {
+body[data-motion='reduce'] .progress-bar,
+body[data-motion='reduce'] .toast {
   transition: none;
 }
 
@@ -761,8 +763,10 @@ body[data-motion='reduce'] .stage-banner.visible {
    */
   .toast {
     position: fixed;
-    top: calc(12px + env(safe-area-inset-top, 0px));
+    /* --toast-top: unter Update-Hinweis, Stapel und Stufen-Banner (ui/toast-place.ts) */
+    top: max(calc(12px + env(safe-area-inset-top, 0px)), var(--toast-top, 0px));
     bottom: auto;
+    transition: top 0.2s ease;
   }
 
   /* Platz unter dem letzten Eintrag, damit der schwebende Stapel nichts dauerhaft verdeckt */
@@ -2645,11 +2649,6 @@ dialog.plant-picker {
 
   .scene-dock-marker {
     height: 44px;
-  }
-
-  /* Liegt der Stapel oben rechts in der Szene, kommt der Hinweis darunter */
-  body:has(.scene-dock:not(.floating) .encounter-stack:not([hidden])) .toast {
-    top: calc(68px + env(safe-area-inset-top, 0px));
   }
 
   /* Stufen-Banner unter den Stapel schieben – sonst verdeckt der Stapel den Stufennamen */

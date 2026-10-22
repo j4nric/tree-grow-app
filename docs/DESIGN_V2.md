@@ -2424,7 +2424,7 @@ Rändern, Molche in eigenen Streifen, kleine Bildschirme bis 20 % größere Amph
 „Darstellung“). (2) ~~Stammgäste: Der Harmonie-Spieler wählt 0,15 Amphibien je Neustart als
 Stammgast – sie ziehen erst ein, wenn der Tümpel wieder offen ist. Ein Hinweis bei der Wahl
 („zieht ein, sobald der Waldtümpel angelegt ist“) wäre eine kleine Aufgabe für `ui-dev`.~~ Umgesetzt (`ui/regular-wait.ts`): In der Stammgäste-Auswahl
-steht unter jeder Amphibie „zieht erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab
+steht unter jeder Amphibie „zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab
 „Alter Baum“)“ (allgemein: Nischen ohne Plätze aus der Stufe). Gewählte Stammgäste, die noch
 nicht im Ökosystem leben, zeigen im laufenden Zyklus, worauf sie warten: „wartet auf den
 Waldtümpel“ (vor „Alter Baum“ mit „(Pflege ab „Alter Baum“)“), „wartet auf „Hain““
@@ -4925,7 +4925,7 @@ sie verschwinden nie.
   Pflanzen-Ebene je Wetter).
 
 **UI** (`ui-dev`):
-- Abzeichen neben der Jahreszeit: „🌬️ Sturm · −8 % 🌿 · +25 % 🌰“ (gedämpfte Werte), Tooltip
+- Abzeichen neben der Jahreszeit: „🌬️ Sturm · −7,5 % 🌿 · +25 % 🌰“ (gedämpfte Werte, gerundet wie die Erklärung: eine Nachkommastelle), Tooltip
   mit Text, Dämpfung („Vielfalt −50 %, Lichte Krone −50 %“) und „Morgen: 🌫️ Nebel“.
 - Hinweis beim Wechsel (online) mit dem Text des Wetters – zusammen mit dem
   Jahreszeiten-Hinweis in **einem** Toast (beide fallen auf dieselbe Grenze):

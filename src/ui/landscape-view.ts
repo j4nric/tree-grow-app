@@ -198,7 +198,8 @@ function siteStatus(choice: SiteChoice): string {
 
 function siteMemoryText(state: GameState, choice: SiteChoice, allowed: boolean): string {
   if (choice.active) {
-    // Erst der Stand heute (wie im Tagebuch), dann benannt der Stand nach diesem Zyklus.
+    // Erst der Stand heute (wie im Tagebuch), dann benannt der Stand nach diesem Zyklus
+    // (ganzzahlig wie oben – exakte Vergleiche).
     const own = ownMemory(state, choice.id);
     const effective = effectiveForestMemory(state);
     const inflow = effective > own ? ` · ${formatNumber(effective)} wirksam` : '';
@@ -213,6 +214,8 @@ function siteMemoryText(state: GameState, choice: SiteChoice, allowed: boolean):
   if (choice.founded) {
     // `choice.effectiveMemory` rechnet schon mit dem Gewinn dieses Zyklus (Zufluss vom aktiven
     // Wald) – das Tagebuch zeigt den Stand heute. Weichen beide ab, stehen beide benannt da.
+    // Gedächtnis ist ganzzahlig (der Zufluss wird abgerundet, core/landscape.ts) – der
+    // Vergleich ist exakt, gleiche Anzeige heißt gleicher Wert.
     const today = effectiveMemoryOf(state, choice.id);
     const after = choice.effectiveMemory !== today ? ` (nach diesem Zyklus ${formatNumber(choice.effectiveMemory)})` : '';
     return `Gedächtnis ${formatNumber(choice.memory)} eigen · ${formatNumber(today)} wirksam dort${after}`;

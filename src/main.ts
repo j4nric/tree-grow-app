@@ -69,6 +69,7 @@ import { createAnimalDetailDialog } from './ui/animal-detail-dialog';
 import { toAnimalDetailView, type AnimalDetailTarget } from './ui/animal-detail-view';
 import { createEncounterDialog } from './ui/encounter-dialog';
 import { createEncounterStack } from './ui/encounter-stack';
+import { createToastPlacement } from './ui/toast-place';
 import { createFloatLayer } from './ui/feedback';
 import { createPlantPicker } from './ui/plant-picker';
 import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
@@ -166,6 +167,10 @@ const ctx = canvas.getContext('2d')!;
 const canvasSizer = new CanvasSizer(canvas);
 const banner = document.querySelector<HTMLElement>('#stage-banner')!;
 const toast = document.querySelector<HTMLElement>('#toast')!;
+/** Toast mobil unter Update-Hinweis, Stapel und Stufen-Banner (ui/toast-place.ts). */
+const toastPlacement = createToastPlacement(toast);
+// „visible“ nur, solange das Banner zu sehen ist – danach darf der Toast wieder nach oben.
+banner.addEventListener('animationend', () => banner.classList.remove('visible'));
 /** Unsichtbare Statuszeile: schwebende Hinweise auch für Screenreader. */
 const liveStatus = document.querySelector<HTMLElement>('#live-status')!;
 const resetButton = document.querySelector<HTMLButtonElement>('#reset')!;
@@ -806,6 +811,7 @@ function refreshViews(now: number): void {
   refreshSeasonBadge();
   refreshPanel(now);
   stack.update(state.pendingEncounters.length, state.pendingEncounters[0]);
+  toastPlacement.update();
   refreshEncounter();
   refreshPicker(now);
 }
@@ -880,6 +886,7 @@ function showBanner(view: StageBannerView): void {
 function showToast(text: string): void {
   toast.textContent = text;
   toast.hidden = false;
+  toastPlacement.update();
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (toast.hidden = true), toastDurationFor(text, preferences.toastMs()));
 }
