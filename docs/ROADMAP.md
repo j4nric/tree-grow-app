@@ -40,6 +40,8 @@ Aufgaben derselben Phase ohne gemeinsame Dateien können parallel laufen.
       Bewegung pixelgleich
 - ~~Seitenleiste: DOM-Referenzen einmal merken~~ – mit der v2-Seitenleiste entfallen
 - ~~Schwebende Zahlen über dem Ressourcen-Label~~ – mit v2 entfallen
+- [x] 404-Seite für GitHub Pages (`public/404.html`, „Dieser Pfad ist zugewachsen“, Link auf
+      `/tree-grow-app/`); nicht im Cache des Service Workers, Build-Test `tests/pages-404.test.ts`
 
 ## Neuausrichtung v2 – Ökosystem
 
