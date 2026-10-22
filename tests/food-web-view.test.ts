@@ -273,14 +273,13 @@ describe('Massenjahre in der Oberfläche', () => {
     const state = stateAt(OLD_TREE, ['vole']);
     state.pendingEncounters = [{ type: 'event', cards: ['vole-year'], rerolls: 0 }];
     const hidden = toEventView(state, 0)!.cards[0]!.effects[0]!.label;
-    // Seit den Lebensräumen (v13) jagt auch das Mauswiesel mit.
     expect(hidden).toMatch(/^nächste Begegnung: 3 unbekannte Arten/);
     state.meta.journal.species.push('owl', 'fox', 'weasel');
     const named = toEventView(state, 0)!.cards[0]!.effects[0]!.label;
-    expect(named).toBe('nächste Begegnung: Waldkauz, Rotfuchs oder Mauswiesel');
+    expect(named).toMatch(/^nächste Begegnung: Waldkauz, Rotfuchs oder Mauswiesel$/);
   });
 
-  it('Käferjahr: Totholz bis zum Neuen Zyklus; Bedingungsname „… ohne Jäger“', () => {
+  it('Käferjahr: Totholz und Platz bis zum Neuen Zyklus; Bedingungsname „… ohne Jäger“', () => {
     const state = stateAt(EVENTS_BY_ID.get('beetle-year')!.minStage, ['barkbeetle']);
     state.pendingEncounters = [{ type: 'event', cards: ['beetle-year'], rerolls: 0 }];
     expect(toEventView(state, 0)!.cards[1]!.effects[0]!.label).toBe('Totholz, +1 Platz Totholzhaufen – bis zum Neuen Zyklus');

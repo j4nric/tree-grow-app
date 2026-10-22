@@ -5453,10 +5453,16 @@ verwerfen – auch über die Synchronisierung (wie v11, 12.8). Mit v13 erkennt e
   `SAVE_VERSION` wird nie still gekürzt: Import und Konto-Abgleich lehnen ihn schon ab
   (`importCode` → `'newer'`, `isNewerSchema`); seit v13 auch der gespeicherte Stand im Browser
   (`storedSaveIsNewer`): `main.ts` lädt ihn nicht, überschreibt ihn nie (Speicher gesperrt),
-  startet keinen Abgleich und zeigt „Dein Wald wurde mit einer neueren Spielversion
-  gespeichert und bleibt unverändert erhalten. Bitte lade die Seite neu …“
-  (`NEWER_STORED_SAVE_TEXT` in `ui/save-transfer.ts`). Ein v12-Client (vor dieser Änderung) schützt über
-  Import und Abgleich; seinen lokalen Speicher kann nur ein Neuladen auf v13 heben.
+  startet keinen Abgleich und zeigt einen dauerhaften Hinweis (`role="alert"`, Knopf „Seite
+  neu laden“): „Dein Wald wurde mit einer neueren Spielversion gespeichert und bleibt
+  unverändert erhalten. Bitte lade die Seite neu …“ (`NEWER_STORED_SAVE_TEXT` in
+  `ui/save-transfer.ts`). Auch im laufenden Tab: Schreibt ein anderer Tab einen neueren Stand
+  (`storage`-Ereignis), oder findet `persist()` vor dem Schreiben einen, sperrt sich der Tab
+  ebenso. Im gesperrten Tab lehnen „Spielstand löschen“ und Import mit „Dieser Tab ist
+  angehalten. Bitte lade die Seite neu.“ ab (wie das Laden einer Sicherung); Exportieren
+  liefert den gespeicherten neueren Stand (`codeFromJson`). Ein v12-Client (vor dieser
+  Änderung) schützt nur über Import und Abgleich; seinen lokalen Speicher kann nur ein
+  Neuladen auf v13 heben. Darum kein Rollback über einen `SAVE_VERSION`-Sprung (README).
 - **Robustes Laden (ab v13):** wie jede Nische (nur bekannte Arten dieser Nische, gekürzt auf
   die Plätze); `cycle.care` kennt die neuen IDs; Tagesziele kennen `reptiles`.
 - Tests: v12-Stand mit Totholzhaufen Rang 1 → `niches.deadwood` leer mit 2 Plätzen; v12

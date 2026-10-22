@@ -4660,3 +4660,17 @@ dialog.animal-detail {
     font-size: 1.7rem;
   }
 }
+
+/* Gesperrter Tab: gespeicherter Stand aus einer neueren Spielversion (main.ts, DESIGN_V2.md 23.6). */
+.frozen-banner {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border: 2px solid #b5651d;
+  border-radius: 8px;
+  background: #fff4e5;
+  color: var(--text);
+}
+
+.frozen-banner p {
+  margin: 0 0 8px;
+}
