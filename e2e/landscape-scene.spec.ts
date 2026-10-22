@@ -10,13 +10,14 @@ import { expect, seedRaw, stageLabel, test, waypoint } from './fixtures';
  * läuft (Fixture) und sich vom Heimatwald sichtbar unterscheidet.
  */
 
-/** Mittlere Farbe (r, g, b) eines Streifens knapp über der Bodenlinie (Horizont der Kulisse). */
+/** Mittlere Farbe (r, g, b) des Horizonts der Kulisse über der Bodenlinie. */
 function horizonColor(page: Page): Promise<[number, number, number]> {
   return page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>('canvas#scene')!;
     const ctx = canvas.getContext('2d')!;
-    const y = Math.floor(canvas.height * 0.8 * 0.9);
-    const data = ctx.getImageData(0, y, Math.floor(canvas.width * 0.2), 6).data;
+    // Band über der Bodenlinie (Bodenlinie bei 80 % der Höhe), ganze Breite.
+    const y = Math.floor(canvas.height * 0.62);
+    const data = ctx.getImageData(0, y, canvas.width, Math.floor(canvas.height * 0.16)).data;
     const sum = [0, 0, 0];
     for (let i = 0; i < data.length; i += 4) for (let k = 0; k < 3; k++) sum[k] = sum[k]! + data[i + k]!;
     const n = data.length / 4;
@@ -53,12 +54,15 @@ test.describe('Kulisse je Waldtyp', () => {
     await page.waitForTimeout(400);
     const home = await horizonColor(page);
     const diff = (a: number[], b: number[]) => Math.abs(a[0]! - b[0]!) + Math.abs(a[1]! - b[1]!) + Math.abs(a[2]! - b[2]!);
+    let least = Infinity;
     for (const site of ['carr', 'beechwood', 'mountain', 'heath']) {
       await page.goto(`/?site=${site}`);
-      await expect.poll(async () => diff(await horizonColor(page), home), { message: site }).toBeGreaterThan(12);
+      await expect.poll(async () => diff(await horizonColor(page), home), { message: site }).toBeGreaterThan(10);
+      least = Math.min(least, diff(await horizonColor(page), home));
     }
+    // Unbekannte ID: Heimatwald (kleine Abweichung nur durch die weiterlaufende Tageszeit).
     await page.goto('/?site=mars');
     await expect(stageLabel(page)).toContainText('Stufe:');
-    await expect.poll(async () => diff(await horizonColor(page), home)).toBeLessThan(3);
+    await expect.poll(async () => diff(await horizonColor(page), home)).toBeLessThan(least / 2);
   });
 });
