@@ -341,7 +341,10 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   - [x] Spielstand v13 und Verdrahtung (`core-engineer`, 23.7 Schritt B): Nischen, Arten,
     Reptilien, Pflege, neue Jagdpaare, Massenjahre vollständig, Migration v12 → v13, Schutz
     vor älteren Clients (gespeicherter Stand „neuer“) – `tests/habitats-core.test.ts`
-  - [ ] Szene und 14 Zeichnungen (`renderer`, 23.7), Nischen, Pflege, Reptilien (`ui-dev`)
+  - [x] Szene und 14 Zeichnungen (`renderer`, 23.7 Nr. 4, 23.8): Totholzhaufen im Erdschnitt
+    rechts, Waldwiese und Trockenmauer im Mittelgrund, Reptilien mit Winterstarre –
+    `tests/render-habitats.test.ts`, `e2e/habitats-scene.spec.ts`
+  - [ ] Nischen, Pflege, Reptilien (`ui-dev`)
 - [ ] Prestige-Stufe 2 „Waldlandschaft“ (`game-designer`, `core-engineer`, `renderer`):
   mehrere Wälder nebeneinander mit eigenem Hauptbaum, Wildwechsel über Korridore;
   dafür Umstieg auf `break_infinity.js` (siehe Phase 4)
