@@ -33,6 +33,8 @@ import { TRAIT_THRESHOLDS } from '../content/traits';
 import { VISITORS, VISITOR_FAREWELL_LABEL, VISITOR_HOST_LABEL } from '../content/visitors';
 import { GENERA } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
+import { DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS, GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, WEATHERS } from '../content/weather';
+import { NOCTURNAL } from '../content/daytime';
 import { HARMONY_DIVISOR, memoryHarmonyBonus } from '../core/formulas';
 import { HARMONY_TIERS, bonusEffectLabel, listNames } from './adapters';
 import { fruitPhrase } from './cycle-view';
@@ -111,6 +113,19 @@ export function guideSections(): GuideSection[] {
     }
   }
 
+  // Wetter und Nacht (DESIGN_V2.md 21): alles aus den Daten.
+  const roughWeathers = WEATHERS.filter((w) => w.rough);
+  const protections = roughWeathers
+    .filter((w) => w.protection && CARE_BY_ID.has(w.protection))
+    .map((w) => `„${CARE_BY_ID.get(w.protection!)!.name}“ bei ${w.name}`);
+  const immune = roughWeathers.flatMap((w) =>
+    (w.immuneTrees ?? []).map((t) => `Die ${MAIN_TREES.find((x) => x.id === t)?.name ?? t} ist gegen ${w.name} gefeit`),
+  );
+  const nocturnal = NOCTURNAL.map((n) => `${SPECIES.find((x) => x.id === n.species)?.name ?? n.species} (${n.summary.replace(/ \(.*\)$/, '')})`);
+  const restingNames = NOCTURNAL.filter((n) => n.seasons && !n.seasons.includes('winter')).map(
+    (n) => SPECIES.find((x) => x.id === n.species)?.name ?? n.species,
+  );
+
   return [
     {
       id: 'growth',
@@ -185,6 +200,27 @@ export function guideSections(): GuideSection[] {
         ...SEASONS.map((x) => `${x.icon} ${x.name}: ${x.summary}.`),
         'Manche Ereignisse und Gäste kommen nur zu ihrer Jahreszeit. Pflanzen kosten immer gleich viel – Warten lohnt sich nicht.',
         'Wer mag, hört die Jahreszeiten auch – leiser Wind, Vogelrufe im Frühling und Sommer, Stille im Winter: unter ⚙️ Einstellungen → Klang (anfangs aus).',
+      ],
+    },
+    {
+      id: 'weather',
+      icon: '🌦️',
+      title: 'Wetter',
+      paragraphs: [
+        `Mit jeder Jahreszeit beginnt ein neuer Tag, und mit ihm zieht ein neues Wetter auf – es gilt den ganzen Tag. Die Wirkungen sind klein, und kein Wetter ist nur schlecht:`,
+        ...WEATHERS.map((w) => `${w.icon} ${w.name}: ${w.summary}.`),
+        `Raue Lagen (${all(roughWeathers.map((w) => w.name))}) bremsen das Wachstum, bringen dafür mehr Samen. Jede Gattung mit Tieren dämpft den Abzug um ${pct(DIVERSITY_DAMPING_PER_GENUS)}, höchstens um ${pct(DIVERSITY_DAMPING_MAX)}. Die passende Pflege halbiert ihn: ${all(protections)}.${immune.length > 0 ? ` ${all(immune)}.` : ''}`,
+        `Zwei raue Tage folgen nie aufeinander, und in den ersten ${formatNumber(GENTLE_DAYS)} Tagen eines Zyklus bleibt es ruhig. Das Abzeichen neben der Jahreszeit zeigt das Wetter von heute – antippen verrät, was den Abzug dämpft, und das Wetter von morgen. Warten lohnt sich nicht: Nichts wird billiger oder teurer.`,
+      ],
+    },
+    {
+      id: 'night',
+      icon: '🌙',
+      title: 'Tag, Nacht und Nachtarten',
+      paragraphs: [
+        `Jede Jahreszeit erlebt einen ganzen Tag mit Morgen, Abend und Nacht; die Hälfte der Spielzeit ist Nacht. Nachts werden ${formatNumber(NOCTURNAL.length)} Arten aktiv: ${all(nocturnal)}.${restingNames.length > 0 ? ` ${all(restingNames)} ruhen im Winter.` : ''}`,
+        'Ohne Nachtarten bleibt die Nacht ohne Wirkung – du verpasst nichts, wenn du nachts nicht spielst. Solange ein Nachtbonus wirkt, leuchtet ein 🌙 an der Kachel der Art und an der Rate.',
+        `Bist du länger als ein paar Minuten weg (ab ${formatNumber(OFFLINE_AVERAGE_MIN_SECONDS / 60)} Minuten), rechnet das Spiel mit dem Mittel aus Wetter und Nacht; die Begrüßung sagt dann „Wetter gemittelt“. Die Einstellung „Tageszeit: Immer Tag“ ändert nur das Bild – Nacht und Wetter wirken weiter.`,
       ],
     },
     {

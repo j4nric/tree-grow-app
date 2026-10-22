@@ -160,6 +160,13 @@ export function createCarePanel(root: HTMLElement, callbacks: CarePanelCallbacks
 
     const body = el('div', 'care-body');
     if (item.next) body.append(el('p', 'care-next', item.next));
+    // Schutz vor rauem Wetter (DESIGN_V2.md 21.3): „🛡️ Schützt vor 🌬️ Sturm – halbiert den Abzug“.
+    if (item.protects) {
+      const protects = el('p', 'care-protects', item.protects);
+      protects.dataset.ref = 'care-protects';
+      if (item.protectsDetail) protects.title = item.protectsDetail;
+      body.append(protects);
+    }
     // Vorschau nur, wo ein Kauf in Reichweite ist – gesperrte Zeilen bleiben kurz. Sie
     // steht in eigener Zeile über die ganze Breite (unter Wirkung und Knopf).
     const previewText = item.group === 'buyable' || item.group === 'saving' ? carePreviewText(item.preview) : '';

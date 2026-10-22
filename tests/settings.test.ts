@@ -35,6 +35,9 @@ import {
   serializeSettings,
   takeFirstStartHint,
   toastDuration,
+  toastDurationFor,
+  TOAST_BASE_CHARS,
+  TOAST_MS_PER_CHAR,
 } from '../src/ui/settings';
 
 /** Kleiner Speicher für Tests (wie localStorage). */
@@ -160,7 +163,7 @@ describe('Spielanleitung', () => {
   const sections = guideSections();
   const text = (id: string) => sections.find((s) => s.id === id)!.paragraphs.join(' ');
 
-  it('14 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
+  it('16 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
     expect(sections.map((s) => s.id)).toEqual([
       'growth',
       'encounters',
@@ -170,6 +173,8 @@ describe('Spielanleitung', () => {
       'harmony',
       'cycle',
       'seasons',
+      'weather',
+      'night',
       'seeds',
       'events',
       'visitors',
@@ -272,5 +277,16 @@ describe('Spielanleitung', () => {
     expect(text('seasons')).toContain(`${formatNumber(SEASON_SECONDS / 60)} Minuten`);
     expect(text('seasons')).toContain('⚙️ Einstellungen → Klang');
     for (const season of SEASONS) expect(text('seasons')).toContain(season.summary);
+  });
+});
+
+describe('Anzeigedauer der Hinweise nach Textlänge', () => {
+  it('kurze Texte: Grunddauer; lange länger, höchstens doppelt', () => {
+    expect(toastDurationFor('Kurz.', TOAST_MS)).toBe(TOAST_MS);
+    expect(toastDurationFor('x'.repeat(TOAST_BASE_CHARS), TOAST_MS)).toBe(TOAST_MS);
+    expect(toastDurationFor('x'.repeat(TOAST_BASE_CHARS + 20), TOAST_MS)).toBe(TOAST_MS + 20 * TOAST_MS_PER_CHAR);
+    expect(toastDurationFor('x'.repeat(5000), TOAST_MS)).toBe(2 * TOAST_MS);
+    // Emojis zählen als ein Zeichen.
+    expect(toastDurationFor('🌙'.repeat(TOAST_BASE_CHARS), TOAST_MS)).toBe(TOAST_MS);
   });
 });

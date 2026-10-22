@@ -305,7 +305,9 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   - [x] Grafik (renderer): `SceneInput.weather`/`weatherPrevious`/`weatherBlend`, Bilder je Wetter,
     Nachtverhalten von Kauz, Langohr, Igel, Glühwürmchen, Demo `?weather=` – `src/render/weather.ts`,
     `src/render/nocturnal.ts`, 21.8
-  - [ ] Anzeige (ui-dev) – 21.8
+  - [x] Anzeige (ui-dev): Wetter-Abzeichen mit Erklärung und Vorhersage, ein Hinweis für
+    Jahreszeit + Wetter, 🌙 an Nachtarten und an der Rate, Schutz-Hinweise der Pflege,
+    „Wetter gemittelt“, Spielanleitung – `src/ui/weather-view.ts`, `weather-badge.ts` (21.8)
   - [ ] Balancing-Folgeaufgabe (game-designer): Samenreserve im Wald (balance-care 14,6 vs.
     Grenze 15 min, vorher 11,1 vs. 12) – Wald-Ränge der Pflege billiger oder früher kaufbar,
     damit die Grenze wieder auf 12 min sinken kann (DESIGN_V2.md 21.10)

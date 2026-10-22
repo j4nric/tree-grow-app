@@ -13,7 +13,17 @@ import { EVENTS_BY_ID, type CycleEffect, type EventOption, type TimedEffect } fr
 import { KEEPSAKE_INFO, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { SEASON_SECONDS, YEAR_SECONDS } from '../content/seasons';
 import { MAIN_TREES, MAIN_TREES_BY_ID } from '../content/trees';
-import { seasonAt } from '../core/season';
+import { seasonAt, seasonIdAt } from '../core/season';
+import { isNight } from '../core/weather';
+import type { SeasonId } from '../content/seasons';
+import {
+  activeNightSpecies,
+  averagedWeatherText,
+  happinessFrom,
+  careProtectionDetail,
+  careProtectionText,
+  nightBadge,
+} from './weather-view';
 import { NICHES, NICHES_BY_ID } from '../content/niches';
 import { PLANT_GROUP_INFO, PLANTS, PLANTS_BY_ID, type Plant } from '../content/plants';
 import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
@@ -290,6 +300,9 @@ export function effectView(effect: Effect): EffectView {
 /** Wirkungen einer Art plus „bietet …“ (Futter und Lebensraum für andere). */
 export function effectViews(species: Species): EffectView[] {
   const effects = species.effects.map(effectView);
+  // Nachtaktive Arten: „🌙 nachts +10 % 🌿“ (DESIGN_V2.md 21.8, Karte und Übersicht).
+  const night = nightBadge(species.id);
+  if (night) effects.push({ label: night.label, tone: 'good' });
   if (species.provides.length > 0) {
     effects.push({ label: `bietet ${species.provides.map((t) => TAG_NAMES[t]).join(', ')}`, tone: 'neutral' });
   }
@@ -423,11 +436,12 @@ export function animalView(
   speciesId: string,
   evaluation: Readonly<Evaluation>,
   present: readonly string[] = [],
+  moment?: { season: SeasonId; night: boolean },
 ): AnimalView | null {
   const sp = SPECIES_BY_ID.get(speciesId);
   if (!sp) return null;
   const status = evaluation.animals[sp.id];
-  return {
+  const view: AnimalView = {
     id: sp.id,
     name: sp.name,
     family: sp.genus,
@@ -436,6 +450,10 @@ export function animalView(
     happiness: status?.happiness ?? 0,
     mood: moodText(sp, status, present),
   };
+  // Nachtarten (DESIGN_V2.md 21.6): 🌙 an der Kachel, leuchtet, solange die Nachtwirkung gilt.
+  const night = nightBadge(sp.id, moment?.season, moment?.night ?? false, status?.happiness ?? 0);
+  if (night) view.night = night;
+  return view;
 }
 
 export function harmonyParts(evaluation: Readonly<Evaluation>): HarmonyPartView[] {
@@ -466,10 +484,11 @@ export function familyViews(evaluation: Readonly<Evaluation>): FamilyView[] {
 
 export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): NicheView[] {
   const present = allAnimals(state);
+  const moment = { season: seasonIdAt(state.cycle.elapsed), night: isNight(state.cycle.elapsed) };
   return NICHES.map((niche) => {
     const capacity = evaluation.slots[niche.id] ?? 0;
     const animals = (state.niches[niche.id] ?? [])
-      .map((id) => animalView(id, evaluation, present))
+      .map((id) => animalView(id, evaluation, present, moment))
       .filter((a): a is AnimalView => a !== null);
     // Nischen ohne mögliche Bewohner (Höhlen im Prototyp) bleiben verschlossen statt „0/1 belegt“.
     const inhabitable = animals.length > 0 || SPECIES.some((s) => s.niche === niche.id);
@@ -542,6 +561,7 @@ export function toEcosystemView(state: GameState, evaluation: Readonly<Evaluatio
     niches: nicheViews(state, evaluation),
     plantRing: plantRingView(state, evaluation),
     communities: communityListView(evaluation, state.meta.journal.communities),
+    night: activeNightSpecies(state, happinessFrom(evaluation)),
   };
   refreshEcosystemView(view, state);
   return view;
@@ -1687,7 +1707,8 @@ export type CatchUpNotice = { kind: 'welcome'; text: string; namesStage: boolean
  */
 export function catchUpNotice(
   away: number,
-  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedStackFull' | 'declinedSeeds'>,
+  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedStackFull' | 'declinedSeeds'> &
+    Partial<Pick<OfflineReport, 'averaged' | 'weather'>>,
   waiting: number,
   stages?: StageProgress,
 ): CatchUpNotice {
@@ -1725,7 +1746,8 @@ function welcomeAmount(value: number, icon: string): string {
  */
 export function welcomeText(
   away: number,
-  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedSeeds'>,
+  report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedSeeds'> &
+    Partial<Pick<OfflineReport, 'averaged' | 'weather'>>,
   waiting: number,
   stages?: StageProgress,
 ): string {
@@ -1746,6 +1768,9 @@ export function welcomeText(
   } else if (n > 0) {
     text += ` ${n === 1 ? '1 Begegnung zog' : `${formatNumber(n)} Begegnungen zogen`} weiter und ${n === 1 ? 'ließ' : 'ließen'} ${thanks} da.`;
   }
+  // Offline zählt das Mittelwetter (DESIGN_V2.md 21.5) – ehrlich dazusagen.
+  const weather = averagedWeatherText(report);
+  if (weather) text += ` ${weather}`;
   return text;
 }
 
@@ -2265,6 +2290,8 @@ export function toCareViews(state: GameState, now: Readonly<Evaluation> = evalua
       canBuy: blocker === null,
       group: blocker === null ? 'buyable' : blocker === 'too-expensive' ? 'saving' : !next ? 'maxed' : 'locked',
       boughtText: next ? careBoughtText(measure.id, rank + 1) : null,
+      protects: careProtectionText(measure.id),
+      protectsDetail: careProtectionDetail(measure.id),
       preview: after
         ? {
             harmonyDelta: after.harmony - now.harmony,
