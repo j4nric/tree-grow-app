@@ -14,7 +14,7 @@ const GROVE = STAGES.findIndex((s) => s.id === 'grove');
 /** Spielstand auf Stufe `stage` mit Landschaft. */
 function landscapeState(
   stage: number,
-  opts: { own: number; active?: LandscapeSite['id']; sites?: LandscapeSite[]; corridors?: string[]; free?: string[] },
+  opts: { own: number; active?: LandscapeSite['id']; sites?: LandscapeSite[]; corridors?: string[]; free?: string[]; announced?: boolean },
 ): GameState {
   const state = createInitialState(Date.now(), 4242);
   state.stage = stage;
@@ -25,7 +25,7 @@ function landscapeState(
   state.meta.achievements = ['ancient-forest'];
   const active = opts.active ?? 'home';
   const sites = opts.sites ?? [{ ...createSite('home'), ancient: true }];
-  state.meta.landscape = { active, sites, corridors: opts.corridors ?? [], freeCorridors: opts.free ?? [] };
+  state.meta.landscape = { active, sites, corridors: opts.corridors ?? [], freeCorridors: opts.free ?? [], announced: opts.announced ?? true };
   return state;
 }
 
@@ -36,7 +36,7 @@ async function seed(context: BrowserContext, state: GameState): Promise<void> {
 const panel = (page: import('@playwright/test').Page) => page.locator('[data-ref="cycle-panel"]');
 
 test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async ({ page, context }) => {
-  await seed(context, landscapeState(ANCIENT, { own: 300 }));
+  await seed(context, landscapeState(ANCIENT, { own: 300, announced: false }));
   await openGame(page);
   // Meldung der Freischaltung (einmal).
   await expect(page.locator('#toast')).toContainText('Eichelhäher');
@@ -53,7 +53,7 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   const detail = map.locator('[data-ref="site-detail"]');
   await expect(detail).toContainText('Auwald am Fluss');
   await expect(detail).toContainText('Verzicht (nur hier): Pilze −15 % 😊');
-  await expect(detail).toContainText('Gabe (in allen Wäldern, nach der Gründung)');
+  await expect(detail).toContainText('Gabe (nach der Gründung): Ab Alter Baum +1 Platz Waldtümpel in allen Wäldern');
   await expect(map.locator('[data-ref="landscape-target"]')).toContainText('neuer Wald für 3 🪶');
 
   const button = panel(page).locator('[data-ref="new-cycle"]');

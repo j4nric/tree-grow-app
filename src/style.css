@@ -3667,7 +3667,7 @@ body[data-motion='reduce'] .slot.arrive {
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  width: 92px;
+  width: 100px;
   min-height: 64px;
   padding: 4px 3px;
   border: 2px dashed #a9a387;
@@ -3724,8 +3724,7 @@ body[data-motion='reduce'] .slot.arrive {
 .landscape-site-name {
   font-size: 0.74rem;
   font-weight: 700;
-  overflow-wrap: anywhere;
-  hyphens: auto;
+  hyphens: manual;
 }
 
 .landscape-site-status {
@@ -3875,7 +3874,7 @@ body[data-motion='reduce'] .slot.arrive {
 
 @media (max-width: 400px) {
   .landscape-site {
-    width: 80px;
+    width: 92px;
   }
 
   .landscape-site-name {

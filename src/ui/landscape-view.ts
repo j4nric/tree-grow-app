@@ -13,7 +13,7 @@ import {
 } from '../content/landscape';
 import { STAGES } from '../content/stages';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
-import { effectiveForestMemory, ownMemory } from '../core/landscape';
+import { activeSite, effectiveForestMemory, ownMemory } from '../core/landscape';
 import type { GameState } from '../core/state';
 import {
   landscapeCorridors,
@@ -365,15 +365,7 @@ export function siteChangeText(site: SiteId, founded: boolean): string {
 
 /** Name des aktiven Waldes mit Symbol (für Überschriften), z. B. „🌳 Heimatwald“. */
 export function activeSiteLabel(state: Pick<GameState, 'meta'>): string {
-  const id = state.meta.landscape?.active ?? 'home';
+  const id = state.meta.landscape ? activeSite(state.meta.landscape) : 'home';
   const data = LANDSCAPE_SITES_BY_ID.get(id);
   return data ? `${data.icon} ${data.name}` : id;
-}
-
-/**
- * Wann die Meldung der Freischaltung kommt (24.3): einmal, sobald die Karte erscheint.
- * `shown` = Karte war schon sichtbar. Liefert den neuen Zustand und ob gemeldet wird.
- */
-export function landscapeUnlockStep(shown: boolean, visibleNow: boolean): { shown: boolean; announce: boolean } {
-  return { shown: shown || visibleNow, announce: !shown && visibleNow };
 }

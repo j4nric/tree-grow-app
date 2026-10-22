@@ -10,6 +10,7 @@
 import type { SiteId } from '../content/landscape';
 import { el, setAttr, setText } from './dom';
 import { formatNumber } from './format';
+import { hyphenate } from './hyphenate';
 import type { LandscapeCorridorView, LandscapeMapView, LandscapeSiteView } from './landscape-view';
 import { targetText } from './landscape-view';
 
@@ -182,7 +183,7 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
     const shown = siteOf(selected) ?? siteOf(tgt) ?? view.sites[0]!;
     for (const s of view.sites) {
       const node = siteNodes.get(s.id) ?? createSite(s);
-      setText(node.name, s.name);
+      setText(node.name, hyphenate(s.name));
       setText(node.status, s.status);
       node.button.classList.toggle('active', s.active);
       node.button.classList.toggle('founded', s.founded);
@@ -207,7 +208,7 @@ export function createLandscapeMap(callbacks: LandscapeMapCallbacks): LandscapeM
     dCosts.hidden = shown.costs === null;
     setText(dCosts, shown.costs ? `Verzicht (nur hier): ${shown.costs}` : '');
     dGift.hidden = shown.gift === null;
-    setText(dGift, shown.gift ? `Gabe (in allen Wäldern${shown.giftActive ? ', wirkt' : ', nach der Gründung'}): ${shown.gift}` : '');
+    setText(dGift, shown.gift ? `Gabe (${shown.giftActive ? 'wirkt schon' : 'nach der Gründung'}): ${shown.gift}` : '');
     dGift.classList.toggle('inactive', !shown.giftActive);
     dBlocker.hidden = shown.blocker === null;
     setText(dBlocker, shown.blocker ?? '');

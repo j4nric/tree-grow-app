@@ -22,6 +22,7 @@ import {
   simulateOffline,
   startNewCycle,
   buildCorridor,
+  markLandscapeAnnounced,
   tick,
   toggleRegular,
   type ActionError,
@@ -84,7 +85,8 @@ import { toastDurationFor } from './ui/settings';
 import { seasonWeatherChangeText, toWeatherBadgeView } from './ui/weather-view';
 import type { MainTreeId } from './content/trees';
 import type { SiteId } from './content/landscape';
-import { corridorBuiltText, landscapeErrorText, siteChangeText } from './ui/landscape-view';
+import { LANDSCAPE_UNLOCK_TEXT, corridorBuiltText, landscapeErrorText, siteChangeText } from './ui/landscape-view';
+import { activeSite, landscapeAnnouncementDue } from './core/landscape';
 import type { EcosystemView } from './ui/view-model';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from './sync/config';
 import type { AccountController } from './sync/account';
@@ -525,6 +527,17 @@ function runDaily(options: DailyUpdateOptions, float = true): string {
   return dailyCompletedText(result.completed, result.perfect, state.meta.daily.streak);
 }
 
+/**
+ * Meldung zur Freischaltung der Landschaft (DESIGN_V2.md 24.3): einmal, gemerkt im
+ * Spielstand. Liefert den Text (und merkt ihn als gezeigt) oder ''.
+ */
+function takeLandscapeAnnouncement(): string {
+  if (!landscapeAnnouncementDue(state)) return '';
+  markLandscapeAnnounced(state);
+  persist();
+  return LANDSCAPE_UNLOCK_TEXT;
+}
+
 /** Mehrere Hinweise als ein Text (leere weglassen); '' wenn nichts bleibt. */
 function joinNotes(...parts: (string | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -559,7 +572,7 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   const fromGrowth = growth(state);
   const fromPlants = scene.plants;
   const fromTree = state.cycle.mainTree;
-  const fromSite = state.meta.landscape.active;
+  const fromSite = activeSite(state.meta.landscape);
   const result = startNewCycle(state, Date.now(), mainTree, site);
   if (!result.ok) {
     const blocker = newCycleBlocker(state);
@@ -582,6 +595,7 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
       newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars, state.cycle.mainTree),
       result.site !== fromSite ? siteChangeText(result.site, result.founded) : '',
       achievementUnlockedText(result.achievements),
+      takeLandscapeAnnouncement(),
     ),
   );
 }
@@ -688,6 +702,9 @@ function refreshPanel(now: number): void {
     cyclePanel.update(cycleView);
     // Spielanleitung: Abschnitt „Waldlandschaft“ erst mit der Karte vollständig (Spoiler).
     help?.setLandscapeUnlocked(cycleView.landscape !== null);
+    // Sonst nirgends gemeldet (z. B. nach einem Import): hier nachholen.
+    const announcement = takeLandscapeAnnouncement();
+    if (announcement) notify(announcement);
     const ev = evaluate(state);
     if (journal.open) journal.update(toJournalView(state, ev));
     scene.forestMemory = state.meta.forestMemory;
@@ -1086,6 +1103,8 @@ function frame(now: number): void {
   if (report.waypoints > 0 || report.seasons.length > 0 || now - lastAchievementCheck >= ACHIEVEMENT_CHECK_MS) {
     lastAchievementCheck = now;
     achievementText = achievementUnlockedText(checkAchievements(state));
+    // Urwald erreicht (Erfolg) mit genug Gedächtnis: die Landschaft öffnet sich.
+    if (achievementText) achievementText = joinNotes(achievementText, takeLandscapeAnnouncement()) || null;
     if (achievementText) {
       persist();
       ecoDirty = true;
@@ -1249,7 +1268,8 @@ function start(): void {
     // aktuellen Format speichern, damit der Hinweis nur einmal kommt.
     persist();
   }
-  catchUp(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
+  // Meldung zur Freischaltung der Landschaft (24.3) auch beim Laden – im selben Hinweis.
+  catchUp(joinNotes(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', takeLandscapeAnnouncement()), backfilled);
 
   resetButton.addEventListener('click', onReset);
   if (storedNewer) freezeForNewerSave();

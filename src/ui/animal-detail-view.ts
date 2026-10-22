@@ -32,7 +32,7 @@ import {
   type Evaluation,
 } from '../core/formulas';
 import { seasonIdAt } from '../core/season';
-import { giftSites } from '../core/landscape';
+import { activeSite, giftSites } from '../core/landscape';
 import { LANDSCAPE_SITES_BY_ID } from '../content/landscape';
 import { allAnimals, type GameState } from '../core/state';
 import { regularNextCycleHint } from './regular-wait';
@@ -151,8 +151,9 @@ function factorViews(state: GameState, sp: Species, status: AnimalStatus | undef
   // gegründeten Wälder – gerechnet wie die Eigenheiten der Baumarten.
   const landscape = state.meta?.landscape;
   if (landscape) {
-    const site = LANDSCAPE_SITES_BY_ID.get(landscape.active);
-    const siteValue = sum(environmentEffects(state.stage, undefined, undefined, landscape.active).happiness);
+    const active = activeSite(landscape);
+    const site = LANDSCAPE_SITES_BY_ID.get(active);
+    const siteValue = sum(environmentEffects(state.stage, undefined, undefined, active).happiness);
     if (site && siteValue !== 0) {
       factors.push({ key: 'site', icon: site.icon, label: `${site.name}: ${points(siteValue)}`, tone: siteValue > 0 ? 'good' : 'bad' });
     }
