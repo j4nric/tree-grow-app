@@ -405,14 +405,38 @@ export const EARLY_SEED_STAGE = 3;
 export const SAMPLE_MINUTES: readonly number[] = [5, 10, 20, 30, 45, 60, 90, 120, 180];
 
 /**
+ * Stand eines Durchgangs genau dort, wo ein Lauf mit `targetStage` = erreichte Stufe enden
+ * würde (nach dem Auflösen der Begegnungen am Wegpunkt): Spielstand, Zufall und Ergebnis
+ * bis dahin – alles Kopien, der Durchgang läuft unabhängig weiter.
+ */
+export interface Checkpoint {
+  state: GameState;
+  rng: RngHolder;
+  result: RunResult;
+}
+
+/** Was runGame an einer neu erreichten Stufe anbietet (onStage): Kopien auf Abruf. */
+export interface StageCapture {
+  result(): RunResult;
+  state(): { state: GameState; rng: RngHolder };
+}
+
+/**
  * Ein Zyklus. Ohne `from` beginnt ein neues Spiel (erster Zyklus); mit `from` läuft der
  * Zyklus auf diesem Spielstand weiter (runCycles: nach startNewCycle) und mit dem Zufall
  * der Strategie aus dem vorigen Zyklus.
+ *
+ * `onStage` (optional) meldet jede neu erreichte Stufe unterhalb von `targetStage`; dort
+ * liefert `capture.result()` das Ergebnis und `capture.state()` Spielstand und Zufall (Kopien).
+ * Der Lauf ist bis dahin derselbe wie mit dieser Stufe als Ziel (die Ziel-Stufe beendet nur
+ * die Schleife) – so teilen sich Läufe mit verschiedenen Ziel-Stufen ihren gemeinsamen Anfang
+ * (branchCycles, tests/balance-runs.ts).
  */
 export function runGame(
   strategy: Strategy,
   options: RunOptions,
   from?: { state: GameState; rng: RngHolder },
+  onStage?: (stage: number, capture: StageCapture) => void,
 ): RunResult {
   const state = from?.state ?? createInitialState(0, options.seed);
   if (options.mainTree) state.cycle.mainTree = options.mainTree;
@@ -596,6 +620,22 @@ export function runGame(
       const after = previewNewCycle(state);
       result.memoryPath.push({ waypoint: state.waypoint, arrive, after: after.memoryGain, maxHarmony: after.maxHarmony });
     }
+    // Hier endete ein Lauf mit dieser Stufe als Ziel (Schleifenbedingung oben).
+    if (onStage && state.stage > stageBefore && state.stage < options.targetStage) {
+      onStage(state.stage, {
+        result: () => ({
+          stages: [...result.stages],
+          samples: [...result.samples],
+          gaps: [...result.gaps],
+          decisions: [...result.decisions],
+          variety: result.variety.map((v) => ({ ...v })),
+          memoryPath: [...result.memoryPath],
+          early: { actions: [...result.early.actions], seedPeak: result.early.seedPeak },
+          final: snapshot(),
+        }),
+        state: () => ({ state: structuredClone(state), rng: { ...rng } }),
+      });
+    }
   }
   result.final = snapshot();
   return result;
@@ -652,15 +692,19 @@ export function rankRegulars(state: GameState, strategy: Strategy): string[] {
  * von `targetStage` (mindestens Hain), danach `startNewCycle` (Waldgedächtnis, Tagebuch
  * bleibt, Kartenpool mit Tagebuch-Gewicht) und die Wahl der Stammgäste (rankRegulars,
  * so viele, wie Plätze da sind). Sie ziehen ab dem nächsten Wegpunkt ein.
+ *
+ * Mit `first` ist der erste Zyklus schon gespielt (Checkpoint aus runGame mit demselben Seed
+ * und `targetStage`, siehe restartRuns) – das Ergebnis ist dasselbe wie ohne.
  */
-export function runCycles(strategy: Strategy, options: CycleOptions): CycleRun[] {
-  const state = createInitialState(0, options.seed);
-  const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
+export function runCycles(strategy: Strategy, options: CycleOptions, first?: Checkpoint): CycleRun[] {
+  const state = first?.state ?? createInitialState(0, options.seed);
+  const rng: RngHolder = first?.rng ?? { rngState: normalizeSeed(options.seed * 7919 + 17) };
   const out: CycleRun[] = [];
   let regulars: string[] = [];
   for (let n = 1; n <= options.cycles; n++) {
+    // Das Waldgedächtnis ändert sich nur beim Neuen Zyklus – auch am Checkpoint gilt der Anfangswert.
     const memory = state.meta.forestMemory;
-    const result = runGame(strategy, options, { state, rng });
+    const result = n === 1 && first ? first.result : runGame(strategy, options, { state, rng });
     const preview = previewNewCycle(state);
     out.push({
       number: n,
@@ -968,6 +1012,24 @@ export function monteCarlo(
     strategy,
     runs: Array.from({ length: runs }, (_, i) => runGame(strategy, { ...options, seed: 1000 + 7 * i })),
   }));
+}
+
+/**
+ * Ein Durchgang für mehrere Ziel-Stufen auf einmal: läuft bis zur höchsten und liefert je
+ * Stufe genau das Ergebnis von `runGame(strategy, { ...options, targetStage: stufe })`
+ * (Checkpoints über `onStage`). Für Tests, die dieselben Seeds bis zu verschiedenen Stufen
+ * brauchen (tests/balance-runs.ts).
+ */
+export function runStages(strategy: Strategy, stages: readonly number[], options: Omit<RunOptions, 'targetStage'>): Map<number, RunResult> {
+  const top = Math.max(...stages);
+  const out = new Map<number, RunResult>();
+  const result = runGame(strategy, { ...options, targetStage: top }, undefined, (stage, capture) => {
+    let copy: RunResult | null = null;
+    for (const s of stages) if (s < top && s <= stage && !out.has(s)) out.set(s, (copy ??= capture.result()));
+  });
+  // Ohne Checkpoint endete der Lauf vorher (Sprung über mehrere Stufen, maxSeconds): gleiches Ende.
+  for (const s of stages) if (!out.has(s)) out.set(s, result);
+  return out;
 }
 
 export function median(values: readonly number[]): number {
@@ -1612,4 +1674,52 @@ export function memoryPathTable(rows: readonly RestartRow[]): string {
 /** runCycles für mehrere Durchgänge (Seeds wie monteCarlo). */
 export function monteCarloCycles(strategy: Strategy, runs: number, options: Omit<CycleOptions, 'seed'>): CycleRun[][] {
   return Array.from({ length: runs }, (_, i) => runCycles(strategy, { ...options, seed: 1000 + 7 * i }));
+}
+
+/**
+ * runCycles mit Neustart in mehreren Stufen auf einmal (Seed `seed`): Der erste Zyklus läuft
+ * nur einmal bis zur höchsten Stufe; an den übrigen Stufen zweigt ein Checkpoint ab (runGame,
+ * `onStage`), von dem aus die weiteren Zyklen mit dieser Ziel-Stufe laufen. Ergebnis je Stufe
+ * genau wie `runCycles(strategy, { ...options, seed, targetStage: stufe })` – nur ohne den
+ * gemeinsamen Anfang mehrfach zu rechnen (Laufzeit der Balancing-Tests).
+ */
+export function branchCycles(
+  strategy: Strategy,
+  stages: readonly number[],
+  options: Omit<CycleOptions, 'targetStage'>,
+): Map<number, CycleRun[]> {
+  const top = Math.max(...stages);
+  const state = createInitialState(0, options.seed);
+  const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
+  const checkpoints = new Map<number, Checkpoint>();
+  const result = runGame(strategy, { ...options, targetStage: top }, { state, rng }, (stage, capture) => {
+    // Mehrere Stufen auf einmal übersprungen: jede bekommt ihre eigene Kopie.
+    for (const s of stages) {
+      if (s < top && s <= stage && !checkpoints.has(s)) checkpoints.set(s, { ...capture.state(), result: capture.result() });
+    }
+  });
+  const out = new Map<number, CycleRun[]>();
+  for (const s of stages) {
+    if (s === top) continue;
+    // Ohne Checkpoint endete der Lauf, bevor er weiterlief (Sprung über mehrere Stufen oder
+    // maxSeconds) – dann ist das Ende auch das Ende des kürzeren Laufs.
+    const cp = checkpoints.get(s) ?? structuredClone({ state, rng, result });
+    out.set(s, runCycles(strategy, { ...options, targetStage: s }, cp));
+  }
+  out.set(top, runCycles(strategy, { ...options, targetStage: top }, { state, rng, result }));
+  return out;
+}
+
+/** branchCycles für mehrere Durchgänge (Seeds wie monteCarlo): je Stufe die Durchgänge. */
+export function monteCarloBranches(
+  strategy: Strategy,
+  runs: number,
+  stages: readonly number[],
+  options: Omit<CycleOptions, 'seed' | 'targetStage'>,
+): Map<number, CycleRun[][]> {
+  const out = new Map<number, CycleRun[][]>(stages.map((s) => [s, []]));
+  for (let i = 0; i < runs; i++) {
+    for (const [s, run] of branchCycles(strategy, stages, { ...options, seed: 1000 + 7 * i })) out.get(s)!.push(run);
+  }
+  return out;
 }
