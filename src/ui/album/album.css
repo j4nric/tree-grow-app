@@ -119,16 +119,18 @@ body:has(.album) {
   display: none;
 }
 
-/* Ebene 2 liegt in derselben Ablage wie Ebene 1: beide Unterseiten in einer Zelle übereinander,
-   die weggedrehte zählt nicht zur Höhe (sonst stünde die obere Seite unter ihr). */
-.spread-sub:not([hidden]) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
+/* Ebene 2 liegt in derselben Ablage wie Ebene 1: Die weggedrehte bzw. gerade drehende Seite
+   liegt absolut über der anderen und zählt nicht zur Höhe (sonst stünde die obere darunter). */
+.spread-sub {
+  position: relative;
 }
 
-.spread-sub > .album-page {
-  grid-area: 1 / 1;
+.album .spread-sub > .album-page.turned-away,
+.album .spread-sub > .album-page.turning {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
 }
 
 .album .spread-sub > .album-page.turned-away {

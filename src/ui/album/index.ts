@@ -400,6 +400,8 @@ export function createAlbum(deps: AlbumDeps): Album {
       spread.sub.hidden = false;
       lockScroll();
       await turn.forward(levelElement(next, b.length - 1), sub.page.element);
+      // Ebene 2 teilt sich die Ablage mit Ebene 1: oben anfangen, nicht bei deren Scroll-Lage.
+      if (b.length > 1) spread.sub.scrollTop = 0;
       sub.page.focusTitle();
     } else if (coverSame && a.length === b.length + 1 && prefix(b, a)) {
       // Zurück: verlassene Seite dreht sich über die Unterseite zurück – mit frischem Inhalt.

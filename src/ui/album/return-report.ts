@@ -100,10 +100,14 @@ export function createReturnReport(env: PageEnv, focusFallback: () => HTMLElemen
       slip.hidden = false;
       restartAnimation(slip, 'fresh');
       // Doppelseite: Die linke Seite scrollt in sich – den Zettel ins Bild holen (nur dort).
-      const left = slip.closest<HTMLElement>('.spread-left');
-      if (left && left.scrollHeight > left.clientHeight && getComputedStyle(left).overflowY === 'auto') {
-        slip.scrollIntoView({ block: 'nearest' });
-      }
+      // Erst nach dem nächsten Auffrischen (Etiketten und Stufenleiste füllen sich noch).
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          const left = slip.closest<HTMLElement>('.spread-left');
+          if (slip.hidden || !left || getComputedStyle(left).overflowY !== 'auto') return;
+          if (left.scrollHeight > left.clientHeight) slip.scrollIntoView({ block: 'nearest' });
+        }),
+      );
     },
     hide,
     get open() {
