@@ -4674,3 +4674,20 @@ dialog.animal-detail {
 .frozen-banner p {
   margin: 0 0 8px;
 }
+
+/* Neuer-Stand-Schutz: Knopf „Seite neu laden“ – gut treffbar, gleiche Warnfarbe wie der Rahmen. */
+.frozen-banner button {
+  min-height: 44px;
+  padding: 0.4rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: #8a4a12;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.frozen-banner button:hover {
+  background: #6f3a0c;
+}

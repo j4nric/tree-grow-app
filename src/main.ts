@@ -218,7 +218,7 @@ function freezeForNewerSave(): void {
   banner.setAttribute('role', 'alert');
   banner.dataset.ref = 'newer-save-banner';
   const text = document.createElement('p');
-  text.textContent = `${NEWER_STORED_SAVE_TEXT} Exportieren liefert den gespeicherten neueren Stand.`;
+  text.textContent = `${NEWER_STORED_SAVE_TEXT} Auch ein Export enthält den neueren Stand.`;
   const reload = document.createElement('button');
   reload.type = 'button';
   reload.textContent = 'Seite neu laden';
