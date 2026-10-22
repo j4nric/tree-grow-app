@@ -113,6 +113,7 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   if (version < 8) migrateV7(state);
   if (version < 10) migrateV9(state);
   if (version < 11) migrateV10(state);
+  if (version < 13) migrateV12(state);
   // v6 → v7 (Balancing 2.10): nur die Wegpunkt-Kurve – schon in loadV2 umgerechnet
   // (v6GrowthToV7), bevor Wegpunkt, Stufe und Zwischenhalt abgeleitet werden.
   // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte. Führt
@@ -326,6 +327,32 @@ function migrateV10(state: GameState): void {
     bonuses.push({ source: 'rain', effect: { kind: 'slot', niche: 'pond', amount: 1 } });
   }
 }
+
+/**
+ * v12 → v13 (Lebensräume, DESIGN_V2.md 23.6): neue Nischen `meadow`, `deadwood`, `wall` –
+ * das Laden legt sie leer an (wie jede fehlende Nische). Wer im laufenden Zyklus den
+ * Totholzhaufen gekauft hat, bekommt seine Plätze ohne Zutun: Sie folgen aus dem Rang (dass
+ * er 3.500 statt 4.500 🌰 bezahlt hat, bleibt ein kleines Geschenk). Wie bei v11 (Regenreicher
+ * Frühling) bekommt das Käferjahr seinen neuen Platz nachgetragen, wenn „Das Holz vermodern
+ * lassen“ gewählt war – erkennbar am Totholz, das kein anderes gezogenes Ereignis vergibt.
+ */
+function migrateV12(state: GameState): void {
+  const cycle = state.cycle;
+  if (!cycle.seen.includes(BEETLE_YEAR) || cycle.bonuses.some((b) => b.source === BEETLE_YEAR)) return;
+  if (state.pendingEncounters.some((e) => e.type === 'event' && e.cards[0] === BEETLE_YEAR)) return;
+  const deadwood = cycle.habitats.filter((t) => t === 'totholz').length;
+  let fromOthers = 0;
+  for (const id of cycle.seen) {
+    if (id === BEETLE_YEAR) continue;
+    fromOthers += Math.max(0, ...(EVENTS_BY_ID.get(id)?.options ?? []).map((o) => o.effects.filter((e) => e.kind === 'habitat' && e.tag === 'totholz').length));
+  }
+  if (deadwood <= fromOthers) return;
+  const slot = eventEffects(BEETLE_YEAR, 'cycle').find((e) => e.effect.kind === 'slot');
+  if (slot) cycle.bonuses.push({ source: BEETLE_YEAR, effect: slot.effect });
+}
+
+/** Ereignis „Käferjahr“ (Massenjahr, DESIGN_V2.md 22.5) – für migrateV12. */
+const BEETLE_YEAR = 'beetle-year';
 
 /**
  * v8 → v9 (Erfolge, DESIGN_V2.md 18): Alles, was der Stand schon erfüllt, wird still
@@ -744,6 +771,22 @@ export function loadFromStorage(now: number, storage: Storage = localStorage): L
     return loadGame(storage.getItem(SAVE_KEY), now);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Liegt im Speicher ein Stand aus einer neueren Spielversion (version > SAVE_VERSION)?
+ * Dann darf dieses Spiel ihn weder laden noch überschreiben: Es kennt seine neuen Nischen,
+ * Arten und Ereignisse nicht und würde sie beim Laden still verwerfen (DESIGN_V2.md 22.8,
+ * 23.6) – wie beim Import („newer“) und beim Konto-Abgleich (`isNewerSchema`). Fehlerhafter
+ * oder blockierter Speicher → false.
+ */
+export function storedSaveIsNewer(storage: Storage = localStorage): boolean {
+  try {
+    const raw = storage.getItem(SAVE_KEY);
+    return raw !== null && isNewerSave(raw);
+  } catch {
+    return false;
   }
 }
 

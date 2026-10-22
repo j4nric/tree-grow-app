@@ -228,8 +228,8 @@ describe('Regeln (21.2)', () => {
     }
   });
 
-  it('Laden: Stand ohne cycle.startedAt rechnet mit 0, ohne Absturz; SAVE_VERSION bleibt 12', () => {
-    expect(SAVE_VERSION).toBe(12);
+  it('Laden: Stand ohne cycle.startedAt rechnet mit 0, ohne Absturz (Wetter braucht keine eigene Version)', () => {
+    expect(SAVE_VERSION).toBe(13);
     const state = stateAt(4, ['owl'], 5);
     state.cycle.elapsed = 1234;
     const raw = JSON.parse(serialize(state));

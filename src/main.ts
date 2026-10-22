@@ -3,7 +3,7 @@ import { NOON_PHASE } from './content/daytime';
 import { checkAchievements } from './core/achievements';
 import { dayKeyOf, updateDaily, type DailyUpdateOptions } from './core/daily';
 import { dayPhaseAt, evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
-import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
+import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage, storedSaveIsNewer } from './core/save';
 import { sceneSeason } from './core/season';
 import { isNight, sceneWeather } from './core/weather';
 import { createInitialState, type GameState } from './core/state';
@@ -175,7 +175,13 @@ const sound = createSound(preferences.settings.sound);
 /** Neues Spiel: Der Zufallsgenerator bekommt einmalig die Uhrzeit als Startwert. */
 const newGame = (): GameState => createInitialState(Date.now(), Date.now());
 
-const loaded = loadFromStorage(Date.now());
+/**
+ * Im Speicher liegt ein Stand aus einer neueren Spielversion (z. B. ein veralteter Tab nach
+ * einem Update): nicht laden, nie überschreiben, keinen Abgleich starten – sonst gingen
+ * Nischen, Arten und Ereignisse verloren, die dieses Spiel nicht kennt (DESIGN_V2.md 23.6).
+ */
+const storedNewer = storedSaveIsNewer();
+const loaded = storedNewer ? null : loadFromStorage(Date.now());
 let state = loaded?.state ?? newGame();
 
 let shownStage = state.stage;
@@ -192,7 +198,7 @@ let saveTransfer: SaveTransfer | undefined;
  * dieser Tab den gemeinsamen Spielstand im localStorage nie mehr schreiben – auch nicht beim
  * Verlassen der Seite –, sonst landete sein Spiel nach dem Neuladen im anderen Konto.
  */
-let storageFrozen = false;
+let storageFrozen = storedNewer;
 
 /** Spielstand speichern (außer gesperrt). */
 function persist(): void {
@@ -211,6 +217,8 @@ let account: AccountController | undefined;
 /** Hinweis vor dem Import eines v1-Codes. */
 /** Einmal nach dem Laden eines v2–v6-Stands mit Waldgedächtnis (Balancing 2.10, LoadResult.memoryReweighted). */
 const MEMORY_REWEIGHTED_TEXT = 'Das Waldgedächtnis wurde neu gewichtet: +1 % je Punkt.';
+/** Hinweis beim Start, wenn der gespeicherte Stand aus einer neueren Spielversion stammt. */
+const NEWER_SAVE_TEXT = 'Dein Spielstand stammt aus einer neueren Version des Spiels. Bitte lade die Seite neu – bis dahin wird nichts gespeichert.';
 const V1_IMPORT_NOTE = 'Achtung: Das ist ein Spielstand der ersten Version – dein Wald beginnt damit neu.';
 
 /** Der Spieler hat den Stapel geöffnet; bleibt offen, bis „Später“ oder keine Begegnung mehr wartet. */
@@ -1165,12 +1173,12 @@ function start(): void {
     // aktuellen Format speichern, damit der Hinweis nur einmal kommt.
     persist();
   }
-  catchUp(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
+  catchUp(storedNewer ? NEWER_SAVE_TEXT : loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
 
   resetButton.addEventListener('click', onReset);
   setupSaveTransfer();
-  help = createHelp(document.querySelector<HTMLElement>('#help')!, preferences, { newGame: !loaded });
-  setupAccount();
+  help = createHelp(document.querySelector<HTMLElement>('#help')!, preferences, { newGame: !loaded && !storedNewer });
+  if (!storedNewer) setupAccount();
   preferences.onChange(() => {
     scene.reducedMotion = preferences.reducedMotion;
     camera.reducedMotion = preferences.reducedMotion;

@@ -1193,6 +1193,9 @@ const NICHE_TITLES: Readonly<Record<NicheId, string>> = {
   bark: 'Etwas klopft an der Rinde …',
   hollows: 'Etwas huscht durchs Totholz …',
   pond: 'Etwas plätschert im Tümpel …',
+  meadow: 'Etwas zirpt auf der Wiese …',
+  deadwood: 'Etwas raschelt im Reisig …',
+  wall: 'Etwas sonnt sich auf den Steinen …',
 };
 
 export function encounterTitle(nicheIds: readonly string[]): string {
@@ -2001,6 +2004,7 @@ export const GENUS_SINGULAR: Readonly<Record<Genus, string>> = {
   soil: 'Bodenlebewesen',
   fungi: 'Pilz',
   amphibians: 'Amphibie',
+  reptiles: 'Reptil',
 };
 
 type RatePreview = { harmonyDelta: number; growthDelta: number; seedDelta?: number };

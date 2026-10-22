@@ -82,8 +82,12 @@ describe('Warum ein Stammgast wartet (regularWaitReason)', () => {
 });
 
 describe('Hinweis für die Wahl (regularNextCycleHint)', () => {
-  it('alle Amphibien bekommen den Tümpel-Hinweis, alle anderen keinen', () => {
+  it('alle Amphibien bekommen den Tümpel-Hinweis, Lebensraum-Arten einen Hinweis auf ihren Lebensraum, alle anderen keinen', () => {
     for (const sp of SPECIES) {
+      if (sp.niche === 'meadow' || sp.niche === 'deadwood' || sp.niche === 'wall') {
+        expect(regularNextCycleHint(sp.id), sp.id).toMatch(/^zieht erst ein, wenn/);
+        continue;
+      }
       expect(regularNextCycleHint(sp.id)).toBe(sp.niche === 'pond' ? POND_HINT : null);
     }
     expect(regularNextCycleHint('nope')).toBeNull();

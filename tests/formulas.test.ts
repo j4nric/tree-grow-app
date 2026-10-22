@@ -132,7 +132,7 @@ describe('evaluate', () => {
   it('übersteht unbekannte Arten und ungültige Stufen', () => {
     const ev = evaluateEcosystem({
       stage: 99,
-      niches: { roots: ['gibt-es-nicht'], litter: [], edge: [], crown: [], bark: [], hollows: [], pond: [] },
+      niches: { roots: ['gibt-es-nicht'], litter: [], edge: [], crown: [], bark: [], hollows: [], pond: [], meadow: [], deadwood: [], wall: [] },
       forestMemory: 0,
     });
     expect(Number.isFinite(ev.growth)).toBe(true);
@@ -215,8 +215,8 @@ function memberCombinations(members: readonly (string | readonly string[])[]): s
 }
 
 describe('Lebensgemeinschaften', () => {
-  it('11 Lebensgemeinschaften (9 + 2 der Erweiterung Amphibien); Mitglieder sind Arten oder Pflanzen', () => {
-    expect(COMMUNITIES).toHaveLength(11);
+  it('15 Lebensgemeinschaften (9 + 2 der Erweiterung Amphibien + 4 der Lebensräume); Mitglieder sind Arten oder Pflanzen', () => {
+    expect(COMMUNITIES).toHaveLength(15);
     for (const c of COMMUNITIES) expect(c.name.length * c.hint.length * c.harmony, c.id).toBeGreaterThan(0);
     for (const c of COMMUNITIES) {
       for (const m of c.members) {
@@ -282,7 +282,7 @@ describe('Lebensgemeinschaften', () => {
   it('unbekannte IDs bilden keine Gemeinschaft, Duplikate zählen nicht doppelt', () => {
     const ev = evaluateEcosystem({
       stage: 5,
-      niches: { roots: ['earthworm', 'earthworm', 'gibt-es-nicht'], litter: [], edge: [], crown: [], bark: [], hollows: [], pond: [] },
+      niches: { roots: ['earthworm', 'earthworm', 'gibt-es-nicht'], litter: [], edge: [], crown: [], bark: [], hollows: [], pond: [], meadow: [], deadwood: [], wall: [] },
       plants: ['moss', 'moss', 'fern', 'fern'],
       forestMemory: 0,
     });

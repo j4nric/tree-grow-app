@@ -57,6 +57,7 @@ const GENUS_GENITIVE: Readonly<Record<Genus, readonly [string, string]>> = {
   soil: ['des', 'Bodenlebens'],
   fungi: ['der', 'Pilze'],
   amphibians: ['der', 'Amphibien'],
+  reptiles: ['der', 'Reptilien'],
 };
 
 const genitive = (genus: Genus | undefined) => (genus ? GENUS_GENITIVE[genus].join(' ') : '');

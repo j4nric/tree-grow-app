@@ -1,3 +1,4 @@
+import { REPTILE_TRAITS } from './habitats';
 import type { Effect, Genus } from './types';
 
 /**
@@ -74,4 +75,6 @@ export const TRAITS: Readonly<Record<Genus, readonly TraitTier[]>> = {
     },
     { effects: [{ kind: 'growth', pct: 12 }], text: '+12 % Wachstum' },
   ],
+  // Lebensräume (DESIGN_V2.md 23.3): 5 Arten auf Wiese, Totholzhaufen und Mauer.
+  reptiles: REPTILE_TRAITS,
 };

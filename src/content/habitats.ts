@@ -1,61 +1,24 @@
-import type { CareCycleEffect, CareMeasure, CareRank } from './care';
+import type { CareMeasure } from './care';
 import type { Community } from './communities';
 import type { Niche } from './niches';
-import type { Condition, Effect, Genus, Level, NicheId, Rarity, Tag } from './types';
+import type { Species } from './species';
+import type { TraitTier } from './traits';
+import type { NicheId } from './types';
 
 /**
- * Weitere Lebensräume nach dem Muster Waldtümpel (docs/DESIGN_V2.md 23, Phase 6 Welle 3):
+ * Lebensräume nach dem Muster Waldtümpel (docs/DESIGN_V2.md 23, Phase 6 Welle 3):
  * 🌾 Waldwiese, 🪵 Totholzhaufen und 🪨 Trockenmauer – je eine Nische ohne Plätze aus der
- * Stufe, die nur durch Pflege (und einzelne Ereignis-Optionen) öffnet, mit eigenen Arten,
- * einer Lebensgemeinschaft und der neuen Gattung Reptilien.
+ * Stufe, die nur durch Pflege (und das Käferjahr) öffnet, mit eigenen Arten, einer
+ * Lebensgemeinschaft und der Gattung Reptilien.
  *
- * **Noch nicht verdrahtet.** Neue Nischen ändern `GameState.niches` – das braucht Spielstand
- * v13 mit Migration (DESIGN_V2.md 23.6). Bis dahin stehen die Daten hier für sich, mit
- * eigenen, erweiterten Typen (`W3…`), damit `npm run check` auf main grün bleibt. Beim
- * Verdrahten (Aufgabe des core-engineer, 23.7) wandern die Typ-Erweiterungen nach
- * `types.ts`, die Listen in `SPECIES`, `NICHES`, `TRAITS`, `COMMUNITIES`, `CARE` und
- * `SEASONS`; die `W3…`-Typen entfallen. Inhaltstest: `tests/habitats.test.ts`.
+ * Verdrahtet seit Spielstand v13 (Schritt B, 23.7): Die Listen hier fließen in `NICHES`,
+ * `SPECIES`, `TRAITS`, `COMMUNITIES` und `CARE` (der Totholzhaufen steht direkt in care.ts);
+ * `GENUS_INFO`, `TAG_NAMES` und der Sommer (Reptilien +15 % 😊) stehen in ihren Dateien.
+ * Inhaltstest: `tests/habitats.test.ts`.
  */
 
-/** Neue Nischen (23.2). */
-export type HabitatNicheId = 'meadow' | 'deadwood' | 'wall';
-/** Neue Beute-Merkmale (22.2): Amphibien, Echsen und Kaninchen als Futter. */
-export type PreyTag = 'amphibien' | 'echsen' | 'hasen';
-export type W3Tag = Tag | PreyTag;
-export type W3Genus = Genus | 'reptiles';
-export type W3NicheId = NicheId | HabitatNicheId;
-
-/**
- * Bedingungen mit den neuen Merkmalen und der neuen Art `unhunted` (22.5): Ein Tier im
- * Ökosystem stellt das Merkmal bereit, aber kein lebendes Tier frisst es oder hält es klein (`control`).
- */
-export type W3Condition =
-  | Exclude<Condition, { kind: 'tag' }>
-  | { kind: 'tag'; tag: W3Tag }
-  | { kind: 'unhunted'; tag: W3Tag };
-
-export type W3Effect =
-  | Exclude<Effect, { kind: 'control' } | { kind: 'slot' }>
-  | { kind: 'control'; tag: W3Tag; pct: number }
-  | { kind: 'slot'; niche: W3NicheId; amount: number };
-
-/** Wie `Species` (species.ts), nur mit den erweiterten Typen. */
-export interface HabitatSpecies {
-  id: string;
-  name: string;
-  genus: W3Genus;
-  rarity: Rarity;
-  level: Level;
-  niche: HabitatNicheId;
-  unlock: number;
-  food: readonly W3Tag[];
-  needs: readonly W3Condition[];
-  appears?: readonly W3Condition[];
-  provides: readonly W3Tag[];
-  effects: readonly W3Effect[];
-  summary: string;
-  text: string;
-}
+/** Die Nischen der Lebensräume (23.2). */
+export type HabitatNicheId = Extract<NicheId, 'meadow' | 'deadwood' | 'wall'>;
 
 // ---------------------------------------------------------------------------
 // Nischen
@@ -66,7 +29,7 @@ export interface HabitatSpecies {
  * die Wirkung `slot` aus Pflege und Ereignissen. Karten zieht das Spiel nur für offene
  * Nischen, darum erscheinen die Bewohner erst mit ihrem Lebensraum.
  */
-export const HABITAT_NICHES: readonly (Omit<Niche, 'id'> & { id: HabitatNicheId })[] = [
+export const HABITAT_NICHES: readonly (Niche & { id: HabitatNicheId })[] = [
   {
     id: 'meadow', name: 'Waldwiese', icon: '🌾', place: 'Lichtung mit hohem Gras neben dem Baum',
     slots: [0, 0, 0, 0, 0, 0, 0, 0], opensEarly: true,
@@ -92,20 +55,20 @@ export const REPTILE_INFO = { name: 'Reptilien', icon: '🦎' } as const;
  * verteilt: Die Stufe 5 braucht Waldwiese, Totholzhaufen und Trockenmauer – ein Spätziel
  * wie bei den Amphibien.
  */
-export const REPTILE_TRAITS: readonly { effects: readonly Effect[]; text: string }[] = [
+export const REPTILE_TRAITS: readonly TraitTier[] = [
   { effects: [{ kind: 'seeds', pct: 8 }], text: '+8 % Samen' },
   { effects: [{ kind: 'growth', pct: 6 }], text: '+6 % Wachstum' },
   { effects: [{ kind: 'growth', pct: 12 }, { kind: 'seeds', pct: 10 }], text: '+12 % Wachstum, +10 % Samen' },
 ];
 
-/** Jahreszeit (16.3): Sonnenbad im Sommer. Im Winter Winterstarre ohne Abzug (wie Amphibien). */
-export const REPTILE_SEASON_HAPPINESS = { season: 'summer', genus: 'reptiles', points: 15 } as const;
+/** Jahreszeit (16.3): Sonnenbad im Sommer (steht in SEASONS). Im Winter Winterstarre ohne Abzug (wie Amphibien). */
+export const REPTILE_SUMMER_HAPPINESS = 15;
 
 // ---------------------------------------------------------------------------
 // Arten (14)
 // ---------------------------------------------------------------------------
 
-export const HABITAT_SPECIES: readonly HabitatSpecies[] = [
+export const HABITAT_SPECIES: readonly (Species & { niche: HabitatNicheId })[] = [
   // --- 🌾 Waldwiese (Junger Baum) ---------------------------------------------
   {
     id: 'cricket', name: 'Feldgrille', genus: 'insects', rarity: 0, level: 'herbivore', niche: 'meadow', unlock: 3,
@@ -233,7 +196,7 @@ export const HABITAT_COMMUNITIES: readonly Community[] = [
     harmony: 6, effects: [], hint: 'Zirpen, Summen – und hoch darüber ein Rütteln in der Luft.',
   },
   {
-    id: 'brushpile', name: 'Unterm Reisig', icon: '🪵', members: ['wren', ['rosechafer', 'turkeytail'], ['slowworm', 'weasel']],
+    id: 'brushpile', name: 'Unterm Reisig', icon: '🍂', members: ['wren', ['rosechafer', 'turkeytail'], ['slowworm', 'weasel']],
     harmony: 6, effects: [], hint: 'Wo Reisig liegt, singt, nagt und lauert es.',
   },
   {
@@ -250,22 +213,13 @@ export const HABITAT_COMMUNITIES: readonly Community[] = [
 // Pflege (8.1): Lebensräume öffnen
 // ---------------------------------------------------------------------------
 
-export type W3CareEffect =
-  | { kind: 'cycle'; effect: Exclude<CareCycleEffect, { kind: 'slot' }> | { kind: 'slot'; niche: W3NicheId; amount: number } }
-  | { kind: 'habitat'; tag: Tag };
-
-export type HabitatCareMeasure = Omit<CareMeasure, 'ranks'> & {
-  ranks: readonly (Omit<CareRank, 'effects'> & { effects: readonly W3CareEffect[] })[];
-};
-
-const slot = (niche: W3NicheId, amount: number): W3CareEffect => ({ kind: 'cycle', effect: { kind: 'slot', niche, amount } });
+const slot = (niche: NicheId, amount: number) => ({ kind: 'cycle', effect: { kind: 'slot', niche, amount } }) as const;
 
 /**
- * Zwei neue Maßnahmen und die erweiterte „Totholzhaufen“ (ersetzt den Eintrag in care.ts
- * beim Verdrahten; vorher 3.500 🌰 nur Totholz, Rang 2 ohne Platz Totholzhaufen).
+ * Die zwei neuen Maßnahmen (in CARE eingereiht). Die erweiterte „Totholzhaufen“ (Rang 1
+ * 4.500 🌰 mit +2 Plätzen Totholzhaufen, Rang 2 +1 Platz) steht direkt in care.ts.
  */
-export const HABITAT_CARE: readonly HabitatCareMeasure[] = [
-  {
+export const MEADOW_CARE: CareMeasure = {
     id: 'meadow', name: 'Waldwiese', icon: '🌾',
     text: 'Einmal im Jahr gemäht, sonst in Ruhe gelassen – so blüht und zirpt die Lichtung.',
     boughtText: 'Wiese angelegt',
@@ -276,20 +230,9 @@ export const HABITAT_CARE: readonly HabitatCareMeasure[] = [
         effects: [slot('meadow', 2), { kind: 'cycle', effect: { kind: 'light', amount: 2 } }],
       },
     ],
-  },
-  {
-    id: 'deadwood-pile', name: 'Totholzhaufen', icon: '🪵',
-    text: 'Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.',
-    boughtText: 'Totholz aufgeschichtet',
-    ranks: [
-      { cost: 4_500, minStage: 4, summary: 'Totholz, +2 Plätze Totholzhaufen', effects: [{ kind: 'habitat', tag: 'totholz' }, slot('deadwood', 2)] },
-      {
-        cost: 14_000, minStage: 5, summary: '+1 Platz Stamm & Rinde, +1 Platz Totholzhaufen, +2 ⚖️',
-        effects: [slot('bark', 1), slot('deadwood', 1), { kind: 'cycle', effect: { kind: 'harmony', points: 2 } }],
-      },
-    ],
-  },
-  {
+};
+
+export const WALL_CARE: CareMeasure = {
     id: 'drystone-wall', name: 'Trockenmauer', icon: '🪨',
     text: 'Lesesteine ohne Mörtel, in der Sonne geschichtet – jede Ritze ein Zuhause.',
     boughtText: 'Mauer geschichtet',
@@ -299,9 +242,11 @@ export const HABITAT_CARE: readonly HabitatCareMeasure[] = [
         effects: [slot('wall', 2), { kind: 'cycle', effect: { kind: 'light', amount: 2 } }],
       },
       {
-        cost: 32_000, minStage: 6, summary: '+2 Plätze Trockenmauer, +2 ⚖️',
+        // 36.000 statt 32.000 🌰 aus dem Entwurf: Jeder Rang kostet mindestens das Dreifache (care.ts).
+        cost: 36_000, minStage: 6, summary: '+2 Plätze Trockenmauer, +2 ⚖️',
         effects: [slot('wall', 2), { kind: 'cycle', effect: { kind: 'harmony', points: 2 } }],
       },
     ],
-  },
-];
+};
+
+export const HABITAT_CARE: readonly CareMeasure[] = [MEADOW_CARE, WALL_CARE];

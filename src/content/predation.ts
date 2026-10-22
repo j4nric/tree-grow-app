@@ -1,6 +1,5 @@
 import type { GameEvent } from './events';
 import type { SeasonId } from './seasons';
-import type { W3Effect, W3Tag } from './habitats';
 import type { WeatherId } from './weather';
 
 /**
@@ -9,11 +8,10 @@ import type { WeatherId } from './weather';
  * `core/formulas.ts` (evaluateEcosystem, speciesAppears) und `core/tick.ts` (eventWeight).
  *
  * Verdrahtet (Schritt A und C, 22.8): Bestand, Überjagung, die vier Massenjahre (in
- * `EVENTS` und `EVENT_SEASONS`) und die Wetter-Gewichte. **Noch nicht verdrahtet**
- * (Schritt B mit Spielstand v13, 23.7): die Ergänzungen an vorhandenen Arten
- * (`PROVIDES_ADDITIONS`, `FOOD_ADDITIONS`, `EFFECT_ADDITIONS`) – ihre Beute bzw. ihr
- * Jäger lebt erst in den neuen Lebensräumen (Wildkaninchen, Ringelnatter). Inhaltstest:
- * `tests/habitats.test.ts`.
+ * `EVENTS` und `EVENT_SEASONS`) und die Wetter-Gewichte. Seit Schritt B (Spielstand v13,
+ * 23.7) mit den Lebensraum-Arten; die neuen Jagdpaare (Amphibien stellen „Amphibien“
+ * bereit, der Rotfuchs frisst und hält Kaninchen klein) stehen direkt in species.ts.
+ * Inhaltstest: `tests/habitats.test.ts`.
  */
 
 // ---------------------------------------------------------------------------
@@ -40,29 +38,6 @@ export const OVERHUNT_PENALTY = 0.1;
 export const OVERHUNT_MAX_UNITS = 2;
 
 // ---------------------------------------------------------------------------
-// Neue Jagdbeziehungen zwischen vorhandenen Arten (22.2)
-// ---------------------------------------------------------------------------
-
-/** Zusätzliche `provides` vorhandener Arten (species.ts): Amphibien sind Futter der Ringelnatter. */
-export const PROVIDES_ADDITIONS: Readonly<Record<string, readonly W3Tag[]>> = {
-  toad: ['amphibien'],
-  frog: ['amphibien'],
-  newt: ['amphibien'],
-  treefrog: ['amphibien'],
-  crestednewt: ['amphibien'],
-};
-
-/** Zusätzliche Nahrung vorhandener Arten: Der Fuchs jagt auch Kaninchen. */
-export const FOOD_ADDITIONS: Readonly<Record<string, readonly W3Tag[]>> = {
-  fox: ['hasen'],
-};
-
-/** Zusätzliche Wirkungen vorhandener Arten (Summary in species.ts mit anpassen). */
-export const EFFECT_ADDITIONS: Readonly<Record<string, readonly W3Effect[]>> = {
-  fox: [{ kind: 'control', tag: 'hasen', pct: 70 }],
-};
-
-// ---------------------------------------------------------------------------
 // Massenjahre: Beute ohne Jäger ruft ihre Jäger (22.5)
 // ---------------------------------------------------------------------------
 
@@ -71,9 +46,9 @@ export const EFFECT_ADDITIONS: Readonly<Record<string, readonly W3Effect[]>> = {
  * Tier frisst oder klein hält (`unhunted`). Eine Option lädt die passenden Jäger ein (nächste Begegnung),
  * die andere nimmt das Massenjahr als Geschenk. Keine Option ist eine Strafe.
  *
- * Stand Schritt A (ohne Lebensräume): Schritt B ergänzt die Einladungen um Mauswiesel
- * (Mäusejahr) und Blindschleiche (Schneckenjahr) und das Käferjahr um „+1 Platz
- * Totholzhaufen (Zyklus)“ (Tabelle in DESIGN_V2.md 22.5).
+ * Mauswiesel (Mäusejahr) und Blindschleiche (Schneckenjahr) leben im Totholzhaufen – der
+ * kann noch zu sein; die übrigen Jäger stehen bereit („Versprechen einlösbar“, 7.4). Das
+ * Käferjahr öffnet den Totholzhaufen mit einem Platz auch ohne Pflege (DESIGN_V2.md 22.5).
  */
 export const PREDATION_EVENTS: readonly GameEvent[] = [
   {
@@ -98,7 +73,7 @@ export const PREDATION_EVENTS: readonly GameEvent[] = [
     options: [
       {
         label: 'Sitzwarten für Jäger lassen', summary: 'nächste Begegnung: Mäusejäger',
-        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['owl', 'fox'] }],
+        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['owl', 'fox', 'weasel'] }],
       },
       {
         label: 'Vorräte anlegen lassen', summary: '+40 % 🌰 für 6 min',
@@ -116,8 +91,8 @@ export const PREDATION_EVENTS: readonly GameEvent[] = [
         effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['woodpecker', 'blackwoodpecker'] }],
       },
       {
-        label: 'Das Holz vermodern lassen', summary: 'Totholz (Zyklus)',
-        effects: [{ kind: 'habitat', tag: 'totholz' }],
+        label: 'Das Holz vermodern lassen', summary: 'Totholz, +1 Platz Totholzhaufen (Zyklus)',
+        effects: [{ kind: 'habitat', tag: 'totholz' }, { kind: 'cycle', effect: { kind: 'slot', niche: 'deadwood', amount: 1 } }],
       },
     ],
   },
@@ -128,7 +103,7 @@ export const PREDATION_EVENTS: readonly GameEvent[] = [
     options: [
       {
         label: 'Schneckenjäger einladen', summary: 'nächste Begegnung: Schneckenjäger',
-        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['hedgehog', 'glowworm'] }],
+        effects: [{ kind: 'nextEncounter', type: 'animal', ids: ['hedgehog', 'glowworm', 'slowworm'] }],
       },
       {
         label: 'Die Feuchte genießen', summary: '+2 💧 (Zyklus)',

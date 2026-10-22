@@ -1,3 +1,4 @@
+import { HABITAT_SPECIES } from '../src/content/habitats';
 import { SPECIES, SPECIES_BY_ID } from '../src/content/species';
 import { NICHE_IDS, type NicheId } from '../src/content/types';
 import { evaluateEcosystem, type Ecosystem } from '../src/core/formulas';
@@ -17,6 +18,9 @@ import { random, randomInt, type RngHolder } from '../src/core/rng';
  */
 
 export const REFERENCE_SEED = 2026;
+
+/** Arten, die erst nach der Referenz dazukamen (Lebensräume, DESIGN_V2.md 23.4). */
+const LATER = new Set(HABITAT_SPECIES.map((s) => s.id));
 export const REFERENCE_COUNT = 300;
 
 export interface ReferenceCase {
@@ -40,7 +44,8 @@ export function referenceCases(count = REFERENCE_COUNT, seed = REFERENCE_SEED): 
   const out: ReferenceCase[] = [];
   for (let i = 0; i < count; i++) {
     const stage = 1 + randomInt(rng, 7);
-    const animals = SPECIES.filter((s) => s.unlock <= stage)
+    // Nur der Katalog vor den Lebensräumen (die Referenz stammt von main 9dde233).
+    const animals = SPECIES.filter((s) => s.unlock <= stage && !LATER.has(s.id))
       .filter(() => random(rng) < 0.35)
       .map((s) => s.id);
     const plants = random(rng) < 0.5 ? ['hazel', 'moss'] : [];

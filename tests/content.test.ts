@@ -15,6 +15,7 @@ import {
   SCRIPTED_ENCOUNTERS,
 } from '../src/content/encounters';
 import { COMMUNITIES } from '../src/content/communities';
+import { HABITAT_SPECIES } from '../src/content/habitats';
 import { NICHES, NICHES_BY_ID } from '../src/content/niches';
 import { PLANTS, PLANTS_BY_ID, PLANT_GROUP_INFO } from '../src/content/plants';
 import { ABILITY_INFO } from '../src/content/abilities';
@@ -57,11 +58,13 @@ describe('Inhalte v2', () => {
   });
 
   it('32 Arten in 5 Grundgattungen (6–8 je Gattung), Seltenheit 14 / 8 / 5 / 5 (DESIGN_V2.md 5.2)', () => {
-    const core = SPECIES.filter((s) => s.genus !== 'amphibians');
+    // Ohne die Erweiterungen Amphibien (5.5) und Lebensräume (23.4).
+    const habitat = new Set(HABITAT_SPECIES.map((s) => s.id));
+    const core = SPECIES.filter((s) => s.genus !== 'amphibians' && !habitat.has(s.id));
     expect(core).toHaveLength(32);
-    expect(GENERA).toEqual(['birds', 'insects', 'mammals', 'soil', 'fungi', 'amphibians']);
-    for (const g of GENERA.filter((x) => x !== 'amphibians')) {
-      const of = SPECIES.filter((s) => s.genus === g);
+    expect(GENERA).toEqual(['birds', 'insects', 'mammals', 'soil', 'fungi', 'amphibians', 'reptiles']);
+    for (const g of GENERA.filter((x) => x !== 'amphibians' && x !== 'reptiles')) {
+      const of = core.filter((s) => s.genus === g);
       expect(of.length, g).toBeGreaterThanOrEqual(5);
       expect(of.length, g).toBeLessThanOrEqual(8);
       expect(of.filter((s) => s.rarity === 0).length, g).toBeGreaterThanOrEqual(2);
@@ -79,7 +82,8 @@ describe('Inhalte v2', () => {
     const amphibians = SPECIES.filter((s) => s.genus === 'amphibians');
     expect(amphibians.map((s) => s.id)).toEqual(['toad', 'frog', 'newt', 'treefrog', 'crestednewt']);
     expect(amphibians.map((s) => s.rarity)).toEqual([0, 0, 1, 1, 1]);
-    expect(SPECIES).toHaveLength(37);
+    // 32 Grundarten, 5 Amphibien, 14 Arten der Lebensräume (23.4).
+    expect(SPECIES).toHaveLength(51);
     for (const s of amphibians) {
       expect(s.niche, s.id).toBe('pond');
       expect(s.unlock, s.id).toBeGreaterThanOrEqual(4);
@@ -207,7 +211,7 @@ describe('Inhalte v2', () => {
     const hollows = NICHES_BY_ID.get('hollows')!;
     expect(hollows.slots.findIndex((n) => n > 0)).toBe(4);
     expect(hollows.opensEarly).toBe(true);
-    expect(NICHES.filter((n) => n.opensEarly).map((n) => n.id)).toEqual(['hollows', 'pond']);
+    expect(NICHES.filter((n) => n.opensEarly).map((n) => n.id)).toEqual(['hollows', 'pond', 'meadow', 'deadwood', 'wall']);
     const slotGivers = SPECIES.filter((s) => slotEffects(s).length > 0).map((s) => s.id);
     expect(slotGivers.sort()).toEqual(['barkbeetle', 'blackwoodpecker', 'woodpecker']);
     for (const s of SPECIES) {
@@ -518,10 +522,11 @@ describe('Lebensgemeinschaften: Inhalte', () => {
 });
 
 describe('Pflegemaßnahmen (DESIGN_V2.md 8)', () => {
-  it('6–9 Maßnahmen, IDs eindeutig (auch gegenüber Arten, Pflanzen, Ereignissen, Gästen)', () => {
-    // 9 seit dem Playtest „frühes Spiel“ (Kompost ab Setzling, DESIGN_V2.md 8.1).
+  it('6–11 Maßnahmen, IDs eindeutig (auch gegenüber Arten, Pflanzen, Ereignissen, Gästen)', () => {
+    // 9 seit dem Playtest „frühes Spiel“ (Kompost ab Setzling, DESIGN_V2.md 8.1), 11 seit
+    // den Lebensräumen (Waldwiese, Trockenmauer, 23.2).
     expect(CARE.length).toBeGreaterThanOrEqual(6);
-    expect(CARE.length).toBeLessThanOrEqual(9);
+    expect(CARE.length).toBeLessThanOrEqual(11);
     const ids = [
       ...CARE.map((c) => c.id),
       ...SPECIES.map((x) => x.id),

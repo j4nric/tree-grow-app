@@ -174,7 +174,7 @@ describe('Wirkungen der Jahreszeiten (DESIGN_V2.md 16.3)', () => {
 
   it('Durchreisende bekommen keine Zufriedenheit (sie sind nicht im Ökosystem)', () => {
     const { happiness } = environmentEffects(5, 'summer', 'oak');
-    expect(happiness.map((h) => h.genus).sort()).toEqual(['insects', 'insects']);
+    expect(happiness.map((h) => h.genus).sort()).toEqual(['insects', 'insects', 'reptiles']);
     const state = stateWith(5, ['bee'], 'summer');
     state.cycle.visitors = [{ id: 'hummingbird-moth', remaining: 100 }];
     state.cycle.seen = ['hummingbird-moth'];
@@ -548,7 +548,7 @@ describe('Spielstand v6 (Migration v5 → v6)', () => {
 
   it('v5 → v6: Frühlingsbeginn und Stieleiche, sonst unverändert', () => {
     const s = loadGame(v5(), 0)!.state;
-    expect(SAVE_VERSION).toBe(12);
+    expect(SAVE_VERSION).toBe(13);
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.waypoint).toBe(12);
     expect(s.cycle.elapsed).toBe(0);

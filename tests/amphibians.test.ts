@@ -176,7 +176,7 @@ describe('Amphibien im Ökosystem', () => {
   });
 
   it('Lebensgemeinschaften: Tümpelleben (+6 ⚖️, +2 💧) und Schneckenwacht (+6 ⚖️)', () => {
-    const niches = { roots: [], litter: ['hedgehog'], edge: [], crown: [], bark: [], hollows: [], pond: ['toad', 'newt'] };
+    const niches = { roots: [], litter: ['hedgehog'], edge: [], crown: [], bark: [], hollows: [], pond: ['toad', 'newt'], meadow: [], deadwood: [], wall: [] };
     const ev = evaluateEcosystem({ stage: 4, niches, plants: ['fern'], forestMemory: 0 });
     const pond = ev.communities.find((c) => c.id === 'pond-life')!;
     expect(pond).toMatchObject({ active: true, harmony: 6 });
