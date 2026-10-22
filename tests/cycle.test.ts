@@ -427,7 +427,15 @@ describe('Neuer Zyklus', () => {
     expect(preview).toMatchObject({ blocker: null, memoryGain: gain, memoryBefore: 30, memoryAfter: 30 + gain, newSpecies: 4 });
     const result = startNewCycle(state, 1);
     // Erfolge: Hain vor dem Zurücksetzen, danach der erste abgeschlossene Zyklus.
-    expect(result).toEqual({ ok: true, preview, regulars: [], achievements: expect.arrayContaining(['grove', 'cycle-1']) });
+    expect(result).toEqual({
+      ok: true,
+      preview,
+      regulars: [],
+      achievements: expect.arrayContaining(['grove', 'cycle-1']),
+      site: 'home',
+      founded: false,
+      landscapeUnlocked: false,
+    });
     expect(state.meta.forestMemory).toBe(30 + gain);
     expect(state.meta.journal).toEqual(journal);
     expect(state.meta.regulars).toEqual(['vole']);

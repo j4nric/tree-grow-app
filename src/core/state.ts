@@ -1,6 +1,7 @@
 import type { DailyGoalKind } from '../content/daily';
 import type { CycleEffect, ForcedEncounterType, TimedEffect } from '../content/events';
 import type { SeasonId } from '../content/seasons';
+import { HOME_SITE, type SiteId } from '../content/landscape';
 import { DEFAULT_MAIN_TREE, type MainTreeId } from '../content/trees';
 import { NICHE_IDS, type Genus, type NicheId, type Tag } from '../content/types';
 import { normalizeSeed } from './rng';
@@ -12,7 +13,8 @@ import { normalizeSeed } from './rng';
  * Erfolgen `meta.achievements`; seit v10 mit der Sperrklinke `cycle.bestHarmonyMemory`;
  * seit v11 mit der Nische Waldtümpel `niches.pond` der Erweiterung Amphibien; seit v12 mit
  * den Tageszielen `meta.daily`; seit v13 mit den Lebensräumen `niches.meadow`,
- * `niches.deadwood` und `niches.wall`, DESIGN_V2.md 23.6).
+ * `niches.deadwood` und `niches.wall`, DESIGN_V2.md 23.6; seit v14 mit der Waldlandschaft
+ * `meta.landscape`, DESIGN_V2.md 24.8).
  * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -21,7 +23,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+1 % je Punkt → höchstens
@@ -184,6 +186,53 @@ export function dailySeedOf(seed: number): number {
   return normalizeSeed((Math.floor(Math.abs(Number.isFinite(seed) ? seed : 0)) ^ 0x7a6e5d1c) >>> 0);
 }
 
+/**
+ * Ein gegründeter Wald der Landschaft (seit v14, DESIGN_V2.md 24.8). Beim aktiven Wald
+ * stehen Gedächtnis und Stammgäste in `meta.forestMemory` bzw. `meta.regulars` (eine
+ * Wahrheit je Wert) – sein Eintrag hält dort 0 bzw. [].
+ */
+export interface LandscapeSite {
+  id: SiteId;
+  /** Ruhendes, eigenes Waldgedächtnis (0 … MAX_FOREST_MEMORY, ganzzahlig). Beim aktiven Wald 0. */
+  memory: number;
+  /** Geparkte Stammgäste. Beim aktiven Wald []. */
+  regulars: string[];
+  /** Hier wurde schon einmal der Urwald erreicht (gesetzt beim Neuen Zyklus). */
+  ancient: boolean;
+  /** Zuletzt hier gewachsene Hauptbaum-Art (Vorauswahl beim Wechsel, Bild in der Karte). */
+  mainTree: MainTreeId;
+  /** Bestand beim letzten Verlassen (Tier-IDs, höchstens MAX_SITE_FAUNA) – für den Wildwechsel. */
+  fauna: string[];
+}
+
+/** Waldlandschaft (seit v14): überdauert jeden Neuen Zyklus. */
+export interface LandscapeState {
+  /** Wald, in dem der laufende Zyklus wächst (immer gegründet). */
+  active: SiteId;
+  /** Gegründete Wälder in Gründungs-Reihenfolge, der Heimatwald immer zuerst. */
+  sites: LandscapeSite[];
+  /** Gebaute Korridore (IDs aus CORRIDORS) in Bau-Reihenfolge, je einmal. */
+  corridors: string[];
+  /** Korridore, die mit einer Gründung kamen (kosten nichts; Teilmenge von `corridors`). */
+  freeCorridors: string[];
+  /**
+   * Die Meldung zur Freischaltung (24.3) wurde gezeigt. Die UI zeigt sie, solange
+   * `landscapeUnlocked(state) && !announced`, und ruft danach `markLandscapeAnnounced`.
+   * So geht sie nicht verloren, auch wenn die Freischaltung ohne Karte (vor der UI) geschah.
+   */
+  announced: boolean;
+}
+
+/** Ein frisch gegründeter Wald (ohne Gedächtnis, ohne Stammgäste). */
+export function createSite(id: SiteId, mainTree: MainTreeId = DEFAULT_MAIN_TREE): LandscapeSite {
+  return { id, memory: 0, regulars: [], ancient: false, mainTree, fauna: [] };
+}
+
+/** Startwert der Landschaft: nur der Heimatwald, aktiv, keine Korridore. */
+export function createLandscape(mainTree: MainTreeId = DEFAULT_MAIN_TREE): LandscapeState {
+  return { active: HOME_SITE, sites: [createSite(HOME_SITE, mainTree)], corridors: [], freeCorridors: [], announced: false };
+}
+
 /** Der laufende Zyklus (DESIGN_V2.md, Abschnitt 10). Wird beim Neuen Zyklus neu angelegt. */
 export interface CycleState {
   /** Nummer des Zyklus, ab 1. */
@@ -239,7 +288,7 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 13;
+  version: 14;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */
@@ -298,6 +347,11 @@ export interface GameState {
     achievements: string[];
     /** Tagesziele und Serie (seit v12). */
     daily: DailyState;
+    /**
+     * Waldlandschaft (seit v14, DESIGN_V2.md 24.8): gegründete Wälder, aktiver Wald,
+     * Korridore. `forestMemory` und `regulars` oben gehören immer dem **aktiven** Wald.
+     */
+    landscape: LandscapeState;
   };
   /** Zeitpunkt des letzten Ticks (ms seit Epoch), für Offline-Fortschritt. */
   lastTick: number;
@@ -332,6 +386,7 @@ export function createInitialState(now: number, seed: number = now): GameState {
       stats: createStats(),
       achievements: [],
       daily: createDaily(dailySeedOf(seed)),
+      landscape: createLandscape(),
     },
     lastTick: now,
   };

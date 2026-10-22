@@ -28,6 +28,7 @@ import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, STOCK_BASE, STOCK_RANGE } from '.
 import { BASE_HAPPINESS, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
 import { SEASONS_BY_ID, type HappinessEffect, type SeasonId } from '../content/seasons';
 import { MAIN_TREE_WEIGHT, STAGES } from '../content/stages';
+import type { SiteId } from '../content/landscape';
 import { DEFAULT_MAIN_TREE, MAIN_TREES_BY_ID, type MainTree, type MainTreeId } from '../content/trees';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
 import { VISITORS_BY_ID } from '../content/visitors';
@@ -43,8 +44,9 @@ import {
   type Tag,
 } from '../content/types';
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
+import { activeSite, effectiveForestMemory, giftSites, landscapeOf, landscapeTraits, siteHabitats } from './landscape';
 import { normalizeElapsed, seasonIdAt, seasonIndex } from './season';
-import { MAX_FOREST_MEMORY, type CycleState, type GameState, type PendingEncounterType } from './state';
+import { MAX_FOREST_MEMORY, type CycleState, type GameState, type LandscapeState, type PendingEncounterType } from './state';
 import type { WeatherId } from '../content/weather';
 import {
   averageWeatherEffectsFor,
@@ -136,6 +138,13 @@ export interface Ecosystem {
   night?: number;
   /** Pflege-Ränge des Zyklus – nur für den Schutz vor rauen Lagen (Wirkungen stecken in extraEffects). */
   care?: Readonly<Record<string, number>>;
+  /**
+   * Standort des aktiven Waldes (DESIGN_V2.md 24.2): seine Eigenheiten wirken wie die des
+   * Hauptbaums ab ihrer Stufe. Seine Merkmale stecken schon in `habitats`. Fehlt er: keine.
+   */
+  site?: SiteId;
+  /** Gegründete Wälder, deren Gabe wirkt (24.2, in allen Wäldern). Fehlt das Feld: keine. */
+  gifts?: readonly SiteId[];
 }
 
 /** Platz-Wirkung (Nische, Anzahl). */
@@ -163,8 +172,9 @@ function isPenalty(e: Effect | HappinessEffect): boolean {
 }
 
 /**
- * Wirkungen von Jahreszeit und Baumart (DESIGN_V2.md 16.3, 17.3), alle mit Faktor 1:
- * Eigenheiten des Hauptbaums ab ihrer Stufe, danach die der Jahreszeit. Ein winterfester
+ * Wirkungen von Jahreszeit, Baumart und Landschaft (DESIGN_V2.md 16.3, 17.3, 24.2), alle mit
+ * Faktor 1: Eigenheiten des Hauptbaums ab ihrer Stufe, dann Eigenheiten des Standorts `site`
+ * und Gaben der Wälder `gifts` (gleiche Typen, gleiche Regel), danach die der Jahreszeit. Ein winterfester
  * Hauptbaum (Kiefer) streicht die Abzüge der Jahreszeit. `happiness` getrennt, weil es
  * kein Effect ist (wirkt in der Zufriedenheit je Tier). Ohne Angaben: nichts.
  */
@@ -172,6 +182,8 @@ export function environmentEffects(
   stage: number,
   season?: SeasonId,
   mainTree?: MainTreeId,
+  site?: SiteId,
+  gifts?: readonly SiteId[],
 ): { effects: Effect[]; happiness: HappinessEffect[] } {
   const effects: Effect[] = [];
   const happiness: HappinessEffect[] = [];
@@ -181,6 +193,7 @@ export function environmentEffects(
     else effects.push(e);
   };
   if (tree) for (const t of tree.traits) if (t.minStage <= stage) add(t.effect);
+  for (const t of landscapeTraits(site, gifts)) if (t.minStage <= stage) add(t.effect);
   const s = season !== undefined ? SEASONS_BY_ID.get(season) : undefined;
   for (const e of s?.effects ?? []) {
     if (tree?.winterHardy && isPenalty(e)) continue;
@@ -190,14 +203,18 @@ export function environmentEffects(
 }
 
 /**
- * Alle zusätzlichen Plätze eines Spielstands: Zyklus-Boni, Pflege und Eigenheiten des
- * Hauptbaums ab ihrer Stufe (z. B. Rotbuche: +1 Wurzelraum ab Alter Baum). Gemeinsamer
- * Helfer für evaluate, Kartenwahl, Stammgäste, vorgegebene Begegnungen und das Laden.
+ * Alle zusätzlichen Plätze eines Spielstands: Zyklus-Boni, Pflege, Eigenheiten des
+ * Hauptbaums ab ihrer Stufe (z. B. Rotbuche: +1 Wurzelraum ab Alter Baum) und – seit v14 –
+ * Eigenheit des aktiven Standorts und Gaben der Landschaft (z. B. Auwald: +2 Waldtümpel ab
+ * Junger Baum). Gemeinsamer Helfer für evaluate, Kartenwahl, Stammgäste, vorgegebene
+ * Begegnungen und das Laden.
  */
-export function slotBonuses(state: { stage: number; cycle?: CycleExtras }): SlotBonus[] {
+export function slotBonuses(state: { stage: number; cycle?: CycleExtras; meta?: { landscape?: LandscapeState } }): SlotBonus[] {
   const tree = state.cycle?.mainTree !== undefined ? mainTreeOf(state.cycle.mainTree) : null;
   const out = cycleSlotBonuses(state.cycle);
-  for (const t of tree?.traits ?? []) {
+  const landscape = state.meta?.landscape;
+  const site = landscape ? landscapeTraits(activeSite(landscape), giftSites(landscape)) : [];
+  for (const t of [...(tree?.traits ?? []), ...site]) {
     if (t.minStage <= state.stage && t.effect.kind === 'slot') out.push({ niche: t.effect.niche, amount: t.effect.amount });
   }
   return out;
@@ -260,15 +277,20 @@ export function ecosystemOf(
     const visitor = VISITORS_BY_ID.get(v.id);
     if (visitor && v.remaining > 0) genera.push(visitor.genus);
   }
+  const landscape = landscapeOf(state);
+  const active = activeSite(landscape);
   return {
     stage: state.stage,
     niches: patch.niches ?? state.niches,
     plants: patch.plants ?? state.plants,
-    forestMemory: state.meta.forestMemory,
+    // Wirksames Gedächtnis des aktiven Waldes (eigenes + Korridor-Zufluss, 24.6).
+    forestMemory: effectiveForestMemory(state),
     extraEffects: cycleEffects(state.cycle),
-    habitats: [...(state.cycle?.habitats ?? []), ...careEffects(state.cycle?.care).habitats],
+    habitats: [...(state.cycle?.habitats ?? []), ...careEffects(state.cycle?.care).habitats, ...siteHabitats(active)],
     guestGenera: genera,
     ...environmentOf(state.cycle, ambient),
+    site: active,
+    gifts: giftSites(landscape),
   };
 }
 
@@ -654,7 +676,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const firstSupply = new Map(plantSupply);
   for (const a of animals) for (const t of a.provides) addSupply(firstSupply, t, SUPPLY_ANIMAL);
   // Jahreszeit und Baumart wirken wie Zusatz-Wirkungen (Faktor 1); `happiness` unten je Tier.
-  const environment = environmentEffects(eco.stage, eco.season, eco.mainTree);
+  const environment = environmentEffects(eco.stage, eco.season, eco.mainTree, eco.site, eco.gifts);
   const extraEffects = [...(eco.extraEffects ?? []), ...environment.effects];
   const happinessBonus = {} as Record<Genus, number>;
   for (const g of GENERA) happinessBonus[g] = 0;
@@ -1026,7 +1048,11 @@ let cache: { key: string; value: Evaluation } | null = null;
  * Jahreszeit, Wetter und Nacht (Samen-Sekunden).
  */
 function ecosystemKey(state: GameState, ambient: AmbientMode | null): string {
-  let key = `${state.stage}|${state.meta.forestMemory}|${(state.plants ?? []).join(',')}`;
+  const landscape = landscapeOf(state);
+  // Wirksames Gedächtnis (24.6), Standort und Gaben (24.2) – ändern sich nur beim Neuen Zyklus
+  // und beim Korridorbau.
+  let key = `${state.stage}|${effectiveForestMemory(state)}|${(state.plants ?? []).join(',')}`;
+  key += `|l:${activeSite(landscape)}|g:${giftSites(landscape).join(',')}`;
   // Jahreszeit, Wetter und Nacht nur als Index bzw. ID (nicht `elapsed` – sonst wäre der
   // Cache jede Sekunde ungültig). Die Dämpfung hängt an Nischen, Pflege und Baumart – alle
   // im Schlüssel.
@@ -1614,6 +1640,14 @@ export function cycleMemoryGain(
 export function regularSlots(forestMemory: number): number {
   const memory = Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
   return Math.floor(memory / MEMORY_PER_REGULAR_SLOT);
+}
+
+/**
+ * Plätze für Stammgäste im aktiven Wald – aus dem **wirksamen** Gedächtnis (eigenes +
+ * Korridor-Zufluss, DESIGN_V2.md 24.6). Ohne Korridore wie `regularSlots(meta.forestMemory)`.
+ */
+export function regularSlotsOf(state: Pick<GameState, 'meta'>): number {
+  return regularSlots(effectiveForestMemory(state));
 }
 
 /**

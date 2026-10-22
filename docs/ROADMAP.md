@@ -223,7 +223,9 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   - [x] UI: Radiogruppe in „Neuer Zyklus“ (gesperrte Arten mit Hinweis), Frucht der Art
     in Toast und Spielanleitung, `SceneInput.mainTree` und `cycleTransition.fromTree`
   - [x] Optional: Naturtagebuch, Reiter Andenken – gewachsene Hauptbaum-Arten (`ui-dev`)
-- [ ] Umstieg auf `break_infinity.js`, falls Zahlen > 1e300 (`core-engineer`)
+- [ ] Umstieg auf `break_infinity.js`, falls Zahlen > 1e300 (`core-engineer`) – derzeit nicht
+  absehbar: auch mit der Waldlandschaft < 1e5 🌿/s (`DESIGN_V2.md` 24.9, dort der Plan für den
+  Fall der Fälle)
 - [x] Langzeit-Statistik `meta.stats` (`core-engineer`, danach `ui-dev`): Gesamtspielzeit,
   Gesamt-Wachstum, beste Harmonie, Begegnungen, bewirtete Gäste, gewachsene
   Hauptbaum-Arten über alle Zyklen (neue Spielstand-Version mit Migration); Anzeige im
@@ -350,4 +352,20 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     `tests/habitats-ui.test.ts`, `e2e/habitats.spec.ts`
 - [ ] Prestige-Stufe 2 „Waldlandschaft“ (`game-designer`, `core-engineer`, `renderer`):
   mehrere Wälder nebeneinander mit eigenem Hauptbaum, Wildwechsel über Korridore;
-  dafür Umstieg auf `break_infinity.js` (siehe Phase 4)
+  `break_infinity.js` ist dafür **nicht** nötig (gemessen, `DESIGN_V2.md` 24.9)
+  - [x] Design (`game-designer`): sechs Standorte mit Waldtyp, Währung Hähersaat, Korridore
+    mit Zufluss, Spielstand v14 nach den Lebensräumen (v13) – `DESIGN_V2.md` 24, Daten
+    `src/content/landscape.ts`, Modell `scripts/landscape.ts`
+  - [x] Schritt A (`core-engineer`, v14): `meta.landscape`, Migration v13 → v14 mit robustem
+    Laden und Kosten-Prüfung, `src/core/landscape.ts` (wirksames Gedächtnis, Hähersaat,
+    Freischaltung, Eigenheiten und Gaben), `startNewCycle(…, site)` und `buildCorridor` in
+    `tick.ts`; Simulation `scripts/landscape.ts` auf der echten Logik, gemessen (24.10) –
+    `tests/landscape-core.test.ts`
+  - [ ] Karte (`ui-dev`), Kulisse je Waldtyp (`renderer`), Schritt B Wildwechsel
+    (`core-engineer`), Erfolge und Messung (`game-designer`) – 24.11
+    - [ ] UI rechnet mit dem **wirksamen** Gedächtnis (`ui-dev`): `regularSlotsOf(state)` statt
+      `regularSlots(meta.forestMemory)` (adapters, cycle-view, animal-detail-view), Anzeige
+      des Gedächtnis-Bonus mit `effectiveForestMemory`, `environmentEffects` mit Standort und
+      Gaben (Tierdetails)
+    - [ ] Meldung zur Freischaltung (`ui-dev`): zeigen, solange `landscapeAnnouncementDue(state)`,
+      danach `markLandscapeAnnounced(state)` (24.8)

@@ -27,7 +27,8 @@ import {
   type SeasonId,
 } from '../content/seasons';
 import { STAGES } from '../content/stages';
-import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
+import { CORRIDORS, CORRIDORS_BY_ID, HOME_SITE, LANDSCAPE_SITES_BY_ID, MAX_SITE_FAUNA, SITE_IDS, type SiteId } from '../content/landscape';
+import { DEFAULT_MAIN_TREE, MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
 import { ENCOUNTER_TYPES, type EncounterType } from '../content/types';
 import { VISITORS, VISITORS_BY_ID, type Visitor } from '../content/visitors';
 import { WAYPOINT_COUNT } from '../content/waypoints';
@@ -47,6 +48,7 @@ import {
   plantSlots,
   rarityWeights,
   regularSlots,
+  regularSlotsOf,
   rerollCost,
   resolveChoice,
   seedSeconds,
@@ -59,6 +61,21 @@ import {
   type MemoryHarmonyBonus,
 } from './formulas';
 import { checkAchievements } from './achievements';
+import {
+  ANCIENT_STAGE,
+  activeSite,
+  corridorBetween,
+  effectiveMemoryOf,
+  isSiteAncient,
+  isSiteFounded,
+  jaySeeds,
+  landscapeOf,
+  landscapeUnlocked,
+  nextFoundingCost,
+  ownMemory,
+  siteEntry,
+  type JaySeeds,
+} from './landscape';
 import { countDailyAction } from './daily-actions';
 import { refreshDailyAfterNewCycle } from './daily';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
@@ -69,6 +86,7 @@ import {
   MAX_FOREST_MEMORY,
   allAnimals,
   createCycle,
+  createSite,
   emptyNiches,
   isCardEncounter,
   type CardEncounterType,
@@ -876,6 +894,77 @@ export interface NewCyclePreview {
   mainTree: MainTreeId;
   /** Alle Hauptbaum-Arten in MAIN_TREES-Reihenfolge, mit Sperre (Hinweis: MAIN_TREES_BY_ID). */
   trees: { id: MainTreeId; unlocked: boolean }[];
+  /** Waldlandschaft: wählbare Wälder, Hähersaat jetzt und nach diesem Zyklus (DESIGN_V2.md 24.5). */
+  landscape: LandscapePreview;
+}
+
+/**
+ * Warum ein Wald beim Neuen Zyklus nicht wählbar ist bzw. ein Korridor nicht gebaut werden
+ * kann (DESIGN_V2.md 24.5, 24.6). Eigener Typ neben ActionError: Nur startNewCycle mit
+ * Standort und buildCorridor liefern ihn.
+ */
+export type LandscapeError =
+  /** Landschaft (noch) nicht freigeschaltet, Standort unbekannt oder ein Ende des Korridors nicht gegründet. */
+  | 'site-locked'
+  /** Zu wenig 🪶 Hähersaat (nach der Gutschrift dieses Zyklus). */
+  | 'not-enough-jay-seeds'
+  /** Ein neuer Wald muss neben dem aktiven liegen (Korridor in CORRIDORS). */
+  | 'not-adjacent'
+  /** Gründen nur aus dem Urwald. */
+  | 'needs-ancient-forest'
+  /** Korridor-ID unbekannt. */
+  | 'unknown-corridor'
+  /** Korridor steht schon. */
+  | 'corridor-built';
+
+/** Ein Standort in der Auswahl „Wo keimt der nächste Baum?“ (Karte der Landschaft). */
+export interface SiteChoice {
+  id: SiteId;
+  founded: boolean;
+  /** Hier wächst der laufende Zyklus („Hier“). */
+  active: boolean;
+  /** Eigenes Gedächtnis nach diesem Zyklus (beim aktiven Wald mit dem Gewinn). */
+  memory: number;
+  /**
+   * Wirksames Gedächtnis, wenn der nächste Zyklus hier wächst: eigenes + Zufluss über die
+   * Korridore (nach der Gutschrift, bei einer Gründung mit dem Gratis-Korridor).
+   */
+  effectiveMemory: number;
+  /** Hier war schon einmal Urwald (nach diesem Zyklus). */
+  ancient: boolean;
+  /** Vorausgewählte Hauptbaum-Art: zuletzt hier gewachsen bzw. Leitbaum (falls freigeschaltet). */
+  mainTree: MainTreeId;
+  /** Kosten der Gründung (nur nicht gegründete Wälder, sonst null). */
+  cost: number | null;
+  /** Korridor, der mit der Gründung gratis entsteht (null: gegründet oder nicht benachbart). */
+  freeCorridor: string | null;
+  /** null = wählbar; sonst der Grund. 'cycle-locked': Neuer Zyklus noch gesperrt (vor dem Hain). */
+  blocker: LandscapeError | 'cycle-locked' | null;
+}
+
+/** Vorschau der Landschaft beim Neuen Zyklus. */
+export interface LandscapePreview {
+  /** Jetzt freigeschaltet (24.3). */
+  unlocked: boolean;
+  /** Nach diesem Neuen Zyklus freigeschaltet – dann zeigt die UI die Karte. */
+  unlockedAfter: boolean;
+  active: SiteId;
+  /** Hähersaat jetzt und nach der Gutschrift dieses Zyklus („🪶 5 – nach diesem Zyklus 6“). */
+  jaySeeds: JaySeeds;
+  jaySeedsAfter: JaySeeds;
+  /** Alle Standorte in SITE_IDS-Reihenfolge. */
+  sites: SiteChoice[];
+}
+
+/** Ein Korridor in der Karte der Landschaft (Kauf jederzeit, 24.6). */
+export interface CorridorChoice {
+  id: string;
+  built: boolean;
+  /** Kam mit einer Gründung (kostenlos). */
+  free: boolean;
+  cost: number;
+  /** null = jetzt baubar; sonst der Grund ('corridor-built', wenn er steht). */
+  blocker: LandscapeError | null;
 }
 
 /** Warum „Neuer Zyklus“ gerade nicht geht – null, wenn es geht. */
@@ -887,6 +976,7 @@ export function newCycleBlocker(state: GameState): NewCycleBlocker | null {
 
 /** Was ein Neuer Zyklus jetzt brächte. Ändert nichts. */
 export function previewNewCycle(state: GameState): NewCyclePreview {
+  // Eigenes Gedächtnis des aktiven Waldes: Gewinn und Obergrenze rechnen damit (24.6).
   const memoryBefore = state.meta.forestMemory;
   // Sperrklinke: der beste Harmonie-Anteil dieses Zyklus zählt, wenn er über dem aktuellen liegt.
   const memoryGain = cycleMemoryGain(
@@ -896,19 +986,120 @@ export function previewNewCycle(state: GameState): NewCyclePreview {
     state.waypoint,
     state.cycle.bestHarmonyMemory,
   );
+  const blocker = newCycleBlocker(state);
+  const memoryAfter = memoryBefore + memoryGain;
+  const active = activeSite(landscapeOf(state));
+  const memoryOf = (site: SiteId) => (site === active ? memoryAfter : ownMemory(state, site));
   return {
-    blocker: newCycleBlocker(state),
+    blocker,
     maxHarmony: state.cycle.maxHarmony,
     newSpecies: state.cycle.newSpecies.length,
     memoryGain,
     harmonyBonus: memoryHarmonyBonus(state.waypoint),
     memoryBefore,
-    memoryAfter: memoryBefore + memoryGain,
-    regularSlotsBefore: regularSlots(memoryBefore),
-    regularSlotsAfter: regularSlots(memoryBefore + memoryGain),
+    memoryAfter,
+    // Plätze aus dem wirksamen Gedächtnis des aktiven Waldes (mit Korridor-Zufluss).
+    regularSlotsBefore: regularSlotsOf(state),
+    regularSlotsAfter: regularSlots(effectiveMemoryOf(state, active, memoryOf)),
     mainTree: state.cycle.mainTree,
     trees: MAIN_TREES.map((t) => ({ id: t.id, unlocked: isTreeUnlocked(state, t.id) })),
+    landscape: previewLandscape(state, memoryOf, blocker !== null),
   };
+}
+
+/** Freigeschaltete Art oder DEFAULT_MAIN_TREE. */
+function unlockedOr(state: GameState, id: MainTreeId | null | undefined): MainTreeId {
+  return id && isTreeUnlocked(state, id) ? id : DEFAULT_MAIN_TREE;
+}
+
+/**
+ * Landschaft in der Vorschau des Neuen Zyklus (24.5): Reihenfolge wie beim Neustart –
+ * erst den Gewinn dem aktiven Wald gutschreiben (`memoryOf`) und `ancient` setzen, dann
+ * prüfen, was bezahlbar ist.
+ */
+function previewLandscape(state: GameState, memoryOf: (site: SiteId) => number, cycleLocked: boolean): LandscapePreview {
+  const landscape = landscapeOf(state);
+  const active = activeSite(landscape);
+  const reachedAncient = state.stage >= ANCIENT_STAGE;
+  const unlocked = landscapeUnlocked(state);
+  const unlockedAfter = landscapeUnlocked(state, memoryOf(HOME_SITE), reachedAncient);
+  const after = jaySeeds(state, memoryOf);
+  const cost = nextFoundingCost(landscape);
+  const sites = SITE_IDS.map((id): SiteChoice => {
+    const entry = siteEntry(landscape, id);
+    const isActive = id === active;
+    const free = entry ? undefined : corridorBetween(active, id);
+    let blocker: SiteChoice['blocker'] = null;
+    if (!isActive) {
+      if (!unlockedAfter) blocker = 'site-locked';
+      else if (cycleLocked) blocker = 'cycle-locked';
+      else if (!entry) {
+        if (!reachedAncient) blocker = 'needs-ancient-forest';
+        else if (!free) blocker = 'not-adjacent';
+        else if (cost === null || after.available < cost) blocker = 'not-enough-jay-seeds';
+      }
+    }
+    return {
+      id,
+      founded: entry !== undefined,
+      active: isActive,
+      memory: entry ? memoryOf(id) : 0,
+      effectiveMemory: entry ? effectiveMemoryOf(state, id, memoryOf) : effectiveMemoryOf(state, id, memoryOf, free ? [free] : []),
+      ancient: entry ? isSiteAncient(state, id) : false,
+      mainTree: isActive ? state.cycle.mainTree : unlockedOr(state, entry ? entry.mainTree : LANDSCAPE_SITES_BY_ID.get(id)?.leadTree),
+      cost: entry ? null : cost,
+      freeCorridor: free?.id ?? null,
+      blocker,
+    };
+  });
+  return { unlocked, unlockedAfter, active, jaySeeds: jaySeeds(state), jaySeedsAfter: after, sites };
+}
+
+/**
+ * Die Meldung zur Freischaltung der Landschaft (24.3) ist gezeigt: einmal, dauerhaft. Die UI
+ * zeigt sie, solange `landscapeAnnouncementDue(state)` gilt, und ruft danach diese Aktion.
+ * Gibt zurück, ob sich etwas geändert hat (vor der Freischaltung: nichts, false).
+ */
+export function markLandscapeAnnounced(state: GameState): boolean {
+  if (!landscapeUnlocked(state) || state.meta.landscape.announced) return false;
+  state.meta.landscape.announced = true;
+  return true;
+}
+
+/** Warum dieser Korridor gerade nicht gebaut werden kann – null, wenn es geht. */
+export function corridorBlocker(state: GameState, id: string): LandscapeError | null {
+  const corridor = CORRIDORS_BY_ID.get(id);
+  if (!corridor) return 'unknown-corridor';
+  const landscape = landscapeOf(state);
+  if (landscape.corridors.includes(id)) return 'corridor-built';
+  if (!landscapeUnlocked(state) || !corridor.sites.every((site) => isSiteFounded(state, site))) return 'site-locked';
+  if (jaySeeds(state).available < corridor.cost) return 'not-enough-jay-seeds';
+  return null;
+}
+
+/** Alle Korridore für die Karte der Landschaft (Reihenfolge wie CORRIDORS). */
+export function landscapeCorridors(state: GameState): CorridorChoice[] {
+  const landscape = landscapeOf(state);
+  return CORRIDORS.map((c) => ({
+    id: c.id,
+    built: landscape.corridors.includes(c.id),
+    free: landscape.freeCorridors.includes(c.id),
+    cost: c.cost,
+    blocker: corridorBlocker(state, c.id),
+  }));
+}
+
+/**
+ * Korridor bauen (24.6) – jederzeit, nicht nur beim Neustart: Kosten aus der verfügbaren
+ * Hähersaat (abgeleitet, darum nur der Eintrag in `corridors`). Ändert das wirksame
+ * Gedächtnis der beiden Wälder (und damit evaluate und die Stammgast-Plätze). Bei Fehlern
+ * ändert sich nichts.
+ */
+export function buildCorridor(state: GameState, id: string): { ok: true } | { ok: false; error: LandscapeError } {
+  const blocker = corridorBlocker(state, id);
+  if (blocker) return { ok: false, error: blocker };
+  state.meta.landscape.corridors.push(id);
+  return { ok: true };
 }
 
 /**
@@ -928,9 +1119,25 @@ export function isTreeUnlocked(state: Pick<GameState, 'meta'>, id: string): bool
 }
 
 export type NewCycleResult =
-  /** `achievements`: neu freigeschaltete Erfolge (vor und nach dem Zurücksetzen geprüft). */
-  | { ok: true; preview: NewCyclePreview; regulars: string[]; achievements: string[] }
+  /**
+   * `achievements`: neu freigeschaltete Erfolge (vor und nach dem Zurücksetzen geprüft).
+   * `site`: Wald, in dem der neue Zyklus wächst; `founded`: dieser Wald wurde gerade
+   * gegründet; `landscapeUnlocked`: die Landschaft ist mit diesem Neustart freigeschaltet
+   * (Meldung 24.3, einmal).
+   */
+  | {
+      ok: true;
+      preview: NewCyclePreview;
+      regulars: string[];
+      achievements: string[];
+      site: SiteId;
+      founded: boolean;
+      landscapeUnlocked: boolean;
+    }
   | { ok: false; error: ActionError };
+
+/** Ergebnis von startNewCycle mit Standort: zusätzlich die Fehler der Landschaft. */
+export type LandscapeCycleResult = NewCycleResult | { ok: false; error: LandscapeError };
 
 /**
  * Neuer Zyklus: Waldgedächtnis gutschreiben, dann Wachstum, Samen, Wegpunkt, Stufe,
@@ -943,13 +1150,65 @@ export type NewCycleResult =
  * Erfolge werden vorher geprüft (Stufe und Spielzeit des Zyklus beginnen neu – nichts
  * Erreichtes geht verloren) und danach (abgeschlossene Zyklen, Baumarten).
  */
-export function startNewCycle(state: GameState, now: number, mainTree?: MainTreeId): NewCycleResult {
+export function startNewCycle(state: GameState, now: number, mainTree?: MainTreeId): NewCycleResult;
+export function startNewCycle(state: GameState, now: number, mainTree: MainTreeId | undefined, site: SiteId | undefined): LandscapeCycleResult;
+export function startNewCycle(state: GameState, now: number, mainTree?: MainTreeId, site?: SiteId): LandscapeCycleResult {
   const preview = previewNewCycle(state);
   if (preview.blocker !== null) return { ok: false, error: 'cycle-locked' };
-  const tree = mainTree ?? state.cycle.mainTree;
+  const landscape = state.meta.landscape;
+  // Ungültiger aktiver Wald (kaputter Stand): wie beim Laden der Heimatwald, kein Fehler.
+  const from = activeSite(landscape);
+  const target = site ?? from;
+  const choice = preview.landscape.sites.find((s) => s.id === target);
+  if (!choice) return { ok: false, error: 'site-locked' };
+  if (choice.blocker !== null) return { ok: false, error: choice.blocker };
+  // Ohne Angabe: im selben Wald die Art des laufenden Zyklus, sonst die Vorauswahl des Waldes.
+  const tree = mainTree ?? choice.mainTree;
   if (!isTreeUnlocked(state, tree)) return { ok: false, error: 'tree-locked' };
+  const wasUnlocked = preview.landscape.unlocked;
   const achievements = checkAchievements(state);
+  // 1. Gewinn dem alten Wald gutschreiben, 2. `ancient` setzen, 3. wechseln bzw. gründen (24.5).
   state.meta.forestMemory = preview.memoryAfter;
+  let fromEntry = siteEntry(landscape, from);
+  if (!fromEntry) {
+    fromEntry = createSite(from, state.cycle.mainTree);
+    // Der Heimatwald steht immer zuerst, jeder andere in Gründungs-Reihenfolge hinten.
+    if (from === HOME_SITE) landscape.sites.unshift(fromEntry);
+    else landscape.sites.push(fromEntry);
+  }
+  if (state.stage >= ANCIENT_STAGE) fromEntry.ancient = true;
+  fromEntry.mainTree = state.cycle.mainTree;
+  const founded = !choice.founded && target !== from;
+  if (target !== from) {
+    // Den alten Wald ruhen lassen: Gedächtnis, Stammgäste und Bestand parken.
+    fromEntry.memory = state.meta.forestMemory;
+    fromEntry.regulars = state.meta.regulars;
+    fromEntry.fauna = allAnimals(state).slice(0, MAX_SITE_FAUNA);
+    let entry = siteEntry(landscape, target);
+    let regulars: string[];
+    if (!entry) {
+      // Gründung: bezahlt ist sie, sobald der Wald in `sites` steht (Hähersaat ist abgeleitet);
+      // der Korridor zum alten Wald entsteht gratis („der Weg der Häher“).
+      entry = createSite(target, tree);
+      landscape.sites.push(entry);
+      const corridor = corridorBetween(from, target)!;
+      if (!landscape.corridors.includes(corridor.id)) {
+        landscape.corridors.push(corridor.id);
+        landscape.freeCorridors.push(corridor.id);
+      }
+      // „Die Häher bringen Gesellschaft mit“: die Stammgäste des alten Waldes (gekürzt unten).
+      regulars = [...fromEntry.regulars];
+    } else {
+      regulars = entry.regulars;
+    }
+    state.meta.forestMemory = entry.memory;
+    entry.memory = 0;
+    entry.regulars = [];
+    landscape.active = target;
+    state.meta.regulars = regulars.slice(0, regularSlotsOf(state));
+  }
+  landscape.active = target;
+  siteEntry(landscape, target)!.mainTree = tree;
   state.meta.stats.completedCyclesGrowth = capped(state.meta.stats.completedCyclesGrowth + state.totalGrowth);
   state.totalGrowth = 0;
   state.seeds = 0;
@@ -965,7 +1224,15 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   achievements.push(...checkAchievements(state));
   // Tagesziele überdauern den Zyklus; offene passen sich dem neuen Wald an (DESIGN_V2.md 20.5).
   refreshDailyAfterNewCycle(state);
-  return { ok: true, preview, regulars, achievements };
+  return {
+    ok: true,
+    preview,
+    regulars,
+    achievements,
+    site: target,
+    founded,
+    landscapeUnlocked: !wasUnlocked && landscapeUnlocked(state),
+  };
 }
 
 /** Warum diese Art gerade nicht Stammgast werden kann – null, wenn es geht oder sie es schon ist. */
@@ -976,7 +1243,7 @@ export function regularBlocker(
   if (!SPECIES_BY_ID.has(speciesId)) return 'unknown-species';
   if (!state.meta.journal.species.includes(speciesId)) return 'not-discovered';
   if (state.meta.regulars.includes(speciesId)) return null;
-  if (state.meta.regulars.length >= regularSlots(state.meta.forestMemory)) return 'no-regular-slot';
+  if (state.meta.regulars.length >= regularSlotsOf(state)) return 'no-regular-slot';
   return null;
 }
 
@@ -1006,7 +1273,7 @@ export function setRegulars(state: GameState, speciesIds: readonly string[]): Ac
     if (!SPECIES_BY_ID.has(id)) return fail('unknown-species');
     if (!state.meta.journal.species.includes(id)) return fail('not-discovered');
   }
-  if (ids.length > regularSlots(state.meta.forestMemory)) return fail('no-regular-slot');
+  if (ids.length > regularSlotsOf(state)) return fail('no-regular-slot');
   state.meta.regulars = ids;
   return { ok: true };
 }

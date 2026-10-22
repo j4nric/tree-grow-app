@@ -380,6 +380,34 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     }
   });
 
+  it('gleich in der Waldlandschaft (v14): Auwald aktiv, alle Gaben, Korridor-Zufluss', () => {
+    // Alter Baum im Auwald: Eigenheit (+2 💧, Tümpel, Pilze −15 %), Merkmal Feuchte, Gaben aller
+    // Wälder und wirksames Gedächtnis aus dem Zufluss – alles in evaluate, also online = offline.
+    const start = stateAt(4, ['earthworm', 'robin', 'chanterelle', 'toad', 'frog', 'newt'], 1414);
+    start.meta.forestMemory = 80;
+    start.meta.landscape = {
+      active: 'floodplain',
+      sites: [
+        { id: 'home', memory: 600, regulars: [], ancient: true, mainTree: 'oak', fauna: [] },
+        ...(['carr', 'beechwood', 'mountain', 'heath'] as const).map((id) => ({ id, memory: 200, regulars: [], ancient: false, mainTree: 'oak' as const, fauna: [] })),
+        { id: 'floodplain', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [] },
+      ],
+      corridors: ['home-floodplain', 'floodplain-carr'],
+      freeCorridors: ['home-floodplain'],
+      announced: false,
+    };
+    start.meta.regulars = ['bee'];
+    start.meta.journal.species.push('bee');
+    const ev = evaluate(start);
+    expect(ev.slots.pond).toBe(3);
+    const { live, average } = runPairs(start, 2 * 3600);
+    for (const pair of [live, average]) {
+      expect(pair[0].stage).toBeGreaterThanOrEqual(5);
+      expectSameRun(pair);
+      expect(pair[1].meta.landscape).toEqual(start.meta.landscape);
+    }
+  });
+
   it('gleich mit Platz-Schaffern (Borkenkäfer öffnet Höhlen) über den Alten Baum hinaus', () => {
     const { live, average } = runPairs(stateAt(3, ['barkbeetle', 'earthworm'], 4242), 2 * 3600);
     for (const pair of [live, average]) {

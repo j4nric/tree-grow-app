@@ -632,7 +632,7 @@ export interface CycleOptions extends RunOptions {
  * nach ihrem Beitrag zum Maß der Strategie (Wert mit minus Wert ohne das Tier, echte
  * Logik). Der Zufallsspieler nimmt sie in fester, beliebiger Reihenfolge.
  */
-function rankRegulars(state: GameState, strategy: Strategy): string[] {
+export function rankRegulars(state: GameState, strategy: Strategy): string[] {
   const animals = allAnimals(state);
   if (!strategy.plantValue) return animals;
   const value = strategy.plantValue;
