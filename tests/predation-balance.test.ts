@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GROWTH, HARMONY, RANDOM, formatTime, mean, median, monteCarlo, runCycles, stageStats, type Summary } from '../scripts/simulate';
+import { HABITAT_COMMUNITIES, HABITAT_SPECIES } from '../src/content/habitats';
 import { evaluate } from '../src/core/formulas';
 import { createInitialState } from '../src/core/state';
 import { env, HAIN, MAX_SECONDS, URWALD, WALD } from './balance-setup';
@@ -23,6 +24,14 @@ const WEATHER_EVENTS = ['storm', 'windthrow', 'toad-migration', 'rain', 'late-fr
 
 /** Anteil der Durchgänge, in denen das Ereignis bis zum Ende vorkam (je Zyklus höchstens einmal). */
 const share = (s: Summary, id: string) => s.runs.filter((r) => (r.final.seen ?? []).includes(id)).length / s.runs.length;
+/** Anteil der Durchgänge, in denen `test` für den Schnappschuss gilt (fehlender zählt als nein). */
+const shareOf = (s: Summary, pick: (r: Summary['runs'][number]) => Summary['runs'][number]['final'] | null, test: (x: Summary['runs'][number]['final']) => boolean) =>
+  s.runs.filter((r) => {
+    const x = pick(r);
+    return x !== null && test(x);
+  }).length / s.runs.length;
+const HABITAT_IDS = new Set(HABITAT_SPECIES.map((x) => x.id));
+const HABITAT_CARE_IDS = ['meadow', 'deadwood-pile', 'drystone-wall'];
 
 describe.skipIf(!ON)('Räuber und Beute (Messung)', () => {
   it('Stufenzeiten, Harmonie, Massenjahre bis zum Urwald', () => {
@@ -46,7 +55,15 @@ describe.skipIf(!ON)('Räuber und Beute (Messung)', () => {
       );
       extra.push(
         `${s.strategy.id}: Massenjahre ${MASS_YEARS.map((id) => `${id} ${share(s, id).toFixed(2)}`).join(' · ')}` +
-          `\n   Wetter-Ereignisse ${WEATHER_EVENTS.map((id) => `${id} ${share(s, id).toFixed(2)}`).join(' · ')}`,
+          `\n   Wetter-Ereignisse ${WEATHER_EVENTS.map((id) => `${id} ${share(s, id).toFixed(2)}`).join(' · ')}` +
+          // Lebensräume (DESIGN_V2.md 23): Pflege gekauft bis Alter Baum / Hain / Ende, Lebensraum-Arten
+          // und Reptilien am Ende (Median), aktive Lebensgemeinschaften am Ende.
+          `\n   Lebensräume: ${HABITAT_CARE_IDS.map(
+            (id) =>
+              `${id} ${[4, 5].map((k) => shareOf(s, (r) => r.stages[k] ?? null, (x) => (x.careRanks[id] ?? 0) > 0).toFixed(2)).join(' / ')} / ${shareOf(s, (r) => r.final, (x) => (x.careRanks[id] ?? 0) > 0).toFixed(2)}`,
+          ).join(' · ')}` +
+          `\n   Arten der Lebensräume am Ende ${median(s.runs.map((r) => r.final.animalIds.filter((id) => HABITAT_IDS.has(id)).length))}, Reptilien ${median(s.runs.map((r) => r.final.genus.reptiles ?? 0))}` +
+          ` · Gemeinschaften ${HABITAT_COMMUNITIES.map((c) => `${c.id} ${shareOf(s, (r) => r.final, (x) => x.communities.includes(c.id)).toFixed(2)}`).join(' · ')}`,
       );
     }
     console.log(`\n${lines.join('\n')}\n${extra.join('\n')}`);

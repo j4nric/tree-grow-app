@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
+import { HABITAT_SPECIES } from '../src/content/habitats';
 import { animalSize, createAnchorResolver } from '../src/render/anchors';
 import { AnimalLayer, animalKind, animalKinds, animalRarity, SpriteCache, type AnimalFrame, type SceneAnimal } from '../src/render/animals';
 import { layoutFlora, nudge, plantKind, PLANT_SPECIES, trunkBaseHalf, type PlacedPlant, type ScenePlant } from '../src/render/flora';
@@ -236,7 +237,14 @@ describe('Tierarten', () => {
   it('haben für alle Arten aus src/content/species.ts eine eigene Zeichnung', () => {
     const kinds = new Set(animalKinds());
     const fallback = new Set(['bird', 'insect', 'mammal', 'mushroom', 'bracket']);
+    // Die 14 Lebensraum-Arten (DESIGN_V2.md 23.4) zeichnet der Renderer in einem eigenen
+    // Schritt (23.7 Nr. 4); bis dahin bekommen sie die Zeichnung ihrer Gattung.
+    const later = new Set(HABITAT_SPECIES.map((s) => s.id));
     for (const s of SPECIES) {
+      if (later.has(s.id)) {
+        expect(kinds.has(animalKind({ id: s.id, family: s.genus, niche: s.niche })), s.id).toBe(true);
+        continue;
+      }
       const kind = animalKind({ id: s.id, family: s.genus, niche: s.niche });
       expect(kind, s.id).toBe(s.id);
       expect(kinds.has(kind), s.id).toBe(true);

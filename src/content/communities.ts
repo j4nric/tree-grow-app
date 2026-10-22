@@ -1,3 +1,4 @@
+import { HABITAT_COMMUNITIES } from './habitats';
 import type { Effect } from './types';
 
 /**
@@ -73,6 +74,8 @@ export const COMMUNITIES: readonly Community[] = [
     id: 'slug-watch', name: 'Schneckenwacht', icon: '🐌', members: ['toad', 'hedgehog', ['glowworm', 'salamander']],
     harmony: 6, effects: [], hint: 'Nachts geht es den Schnecken an den Kragen – von drei Seiten.',
   },
+  // Lebensräume (DESIGN_V2.md 23.5)
+  ...HABITAT_COMMUNITIES,
 ];
 
 export const COMMUNITIES_BY_ID: ReadonlyMap<string, Community> = new Map(COMMUNITIES.map((c) => [c.id, c]));

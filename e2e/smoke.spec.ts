@@ -19,6 +19,7 @@ import {
   waypoint,
 } from './fixtures';
 import type { BrowserContext, Page } from '@playwright/test';
+import { SAVE_KEY, codeFromJson } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
 
 /** Toast mit genau dem Sammelhinweis der Erfolge nach der Migration v8 → v9 (sonst nichts). */
@@ -267,6 +268,76 @@ test('v1-Spielstand: Neustart mit Andenken-Meldung', async ({ page, context }) =
   await expect(stageLabel(page)).toContainText('Stufe:');
   await page.waitForTimeout(300);
   await expect(toast).toBeHidden();
+});
+
+test('Spielstand einer neueren Spielversion: nicht laden, nie überschreiben, Hinweis', async ({ page, context }) => {
+  // Z. B. ein veralteter Tab nach einem Update (DESIGN_V2.md 23.6): Er kennt Nischen und Arten
+  // des neueren Stands nicht und würde sie sonst beim Speichern still verwerfen.
+  const future = { version: SAVE_VERSION + 1, totalGrowth: 123_456, niches: { meadow: ['cricket'], canyon: ['eagle'] }, lastTick: 0 };
+  await seedRaw(context, future);
+  await openGame(page);
+  // Dauerhafter Hinweis (kein Toast, der verschwindet), mit Knopf zum Neuladen.
+  const banner = page.locator('[data-ref="newer-save-banner"]');
+  await expect(banner).toHaveAttribute('role', 'alert');
+  await expect(banner).toContainText('neueren Version des Spiels');
+  await expect(banner.getByRole('button', { name: 'Seite neu laden' })).toBeVisible();
+  await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
+  await page.waitForTimeout(1500);
+  expect(await savedState(page)).toEqual(future);
+  // „Spielstand löschen“ ist im gesperrten Tab keine stille Sackgasse: freundlich abgelehnt.
+  const reset = page.locator('#reset');
+  await reset.click();
+  await waitForConfirm(page);
+  await reset.click();
+  await expect(page.locator('#toast')).toContainText('Dieser Tab ist angehalten');
+  expect(await savedState(page)).toEqual(future);
+  // Export liefert den gespeicherten neueren Stand (für die neuere Spielversion).
+  const transfer = page.locator('[data-ref="save-transfer"]');
+  await transfer.locator('summary').click();
+  await transfer.locator('[data-ref="export"]').click();
+  await expect(transfer.locator('[data-ref="export-code"]')).toHaveValue(codeFromJson(JSON.stringify(future)));
+  // Import ist im gesperrten Tab ebenso abgelehnt (dieselbe Meldung).
+  await transfer.locator('[data-ref="import-code"]').fill(codeFromJson(JSON.stringify(createInitialState(0, 1))));
+  await transfer.locator('[data-ref="import"]').click();
+  await expect(transfer.locator('[data-ref="save-status"]')).toContainText('Dieser Tab ist angehalten');
+  expect(await savedState(page)).toEqual(future);
+  // Auch beim Verlassen der Seite bleibt er unangetastet.
+  await page.reload();
+  await expect(stageLabel(page)).toContainText('Stufe:');
+  expect(await savedState(page)).toEqual(future);
+});
+
+test('Zweiter Tab schreibt einen neueren Stand: der erste Tab sperrt sich und überschreibt nie', async ({ page, context }) => {
+  await openGame(page);
+  await expect(page.locator('[data-ref="newer-save-banner"]')).toHaveCount(0);
+  const future = { version: SAVE_VERSION + 1, totalGrowth: 7, niches: { canyon: ['eagle'] }, lastTick: 0 };
+  // Anderer Tab (z. B. schon aktualisiert): das storage-Ereignis kommt im ersten Tab an.
+  const other = await context.newPage();
+  await other.goto('/manifest.webmanifest');
+  await other.evaluate(([key, raw]) => localStorage.setItem(key, raw), [SAVE_KEY, JSON.stringify(future)] as const);
+  await expect(page.locator('[data-ref="newer-save-banner"]')).toBeVisible();
+  // Verlassen (Tab verborgen → persist) schreibt nichts mehr.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(500);
+  expect(JSON.parse((await other.evaluate((key) => localStorage.getItem(key), SAVE_KEY))!)).toEqual(future);
+});
+
+test('Neuerer Stand im selben Tab ohne storage-Ereignis: persist prüft vor dem Schreiben', async ({ page }) => {
+  await openGame(page);
+  const future = { version: SAVE_VERSION + 1, totalGrowth: 7, lastTick: 0 };
+  // Schreiben im selben Tab löst kein storage-Ereignis aus – erst persist() bemerkt ihn.
+  await page.evaluate(([key, raw]) => localStorage.setItem(key, raw), [SAVE_KEY, JSON.stringify(future)] as const);
+  await expect(page.locator('[data-ref="newer-save-banner"]')).toHaveCount(0);
+  // Tab verbergen → persist(): nicht schreiben, sondern sperren.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(page.locator('[data-ref="newer-save-banner"]')).toBeVisible();
+  expect(await savedState(page)).toEqual(future);
 });
 
 test('Offline-Fortschritt: Willkommens-Meldung, Begegnungen warten im Stapel', async ({ page, context }) => {
@@ -652,7 +723,7 @@ test('Echter v2-Spielstand (alte Wegpunkt-Kurve): lädt ohne Fehler, Stufe und T
   expect(saved.waypoint).toBe(12);
   expect(saved.totalGrowth).toBeGreaterThan(waypoint(12));
   expect(saved.totalGrowth).toBeLessThan(waypoint(13));
-  expect(saved.niches).toEqual({ ...niches, pond: [] }); // Waldtümpel (v11) leer ergänzt
+  expect(saved.niches).toEqual({ ...niches, pond: [], meadow: [], deadwood: [], wall: [] }); // Waldtümpel (v11) und Lebensräume (v13) leer ergänzt
   expect(saved.plants).toEqual([]);
   // Prototyp-Samen werden begrenzt (erste zwei Pflanzen = 58 🌰).
   expect(saved.seeds).toBeLessThan(80);
@@ -772,7 +843,7 @@ test.describe('Lebensgemeinschaften', () => {
 
     // Seitenleiste: zugeklappt mit Kurzfassung; aufgeklappt „???“ mit Rätselhinweis und
     // Fortschritt – ohne „fehlt: …“, solange die Gemeinschaft unentdeckt ist.
-    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('0 von 11 aktiv');
+    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('0 von 15 aktiv');
     await communities(page).locator('summary').click();
     await expect(community(page, 'humus')).toContainText('???');
     await expect(community(page, 'humus')).toContainText('Aus Laub wird Erde, aus Erde wird Leben.');
@@ -791,7 +862,7 @@ test.describe('Lebensgemeinschaften', () => {
     await expect(community(page, 'humus')).toContainText('Humusküche');
     await expect(community(page, 'humus')).toContainText('+8 ⚖️');
     await expect(community(page, 'humus')).toHaveClass(/state-active/);
-    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 11 aktiv · +8 ⚖️');
+    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 15 aktiv · +8 ⚖️');
 
     const saved = await savedState(page);
     expect(saved.meta.journal.communities).toEqual(['humus']);

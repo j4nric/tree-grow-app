@@ -370,7 +370,7 @@ describe('Massenjahre (22.5)', () => {
     state.pendingEncounters = [{ type: 'event', cards: ['vole-year'], rerolls: 0 }];
     state.cycle.seen.push('vole-year');
     expect(chooseEventOption(state, 0, 0)).toMatchObject({ ok: true });
-    expect(state.cycle.forced).toEqual({ type: 'animal', ids: ['owl', 'fox'] });
+    expect(state.cycle.forced).toEqual({ type: 'animal', ids: ['owl', 'fox', 'weasel'] });
     // Übersteht Speichern und Laden (Vorgabe nur mit IDs, die ein Ereignis vorgibt).
     expect(deserialize(serialize(state), 0)!.cycle.forced).toEqual(state.cycle.forced);
   });

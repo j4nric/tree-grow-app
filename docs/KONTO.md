@@ -663,6 +663,13 @@ cd deploy && docker compose up -d --build        # bzw. mit --profile caddy / Tr
 Die Daten im Volume `vszw-data` bleiben erhalten. Docker-weite Aufräumbefehle sind nicht
 nötig – auf einem Server mit anderen Apps bitte auch keine verwenden.
 
+**Kein Rollback des Spiels über einen `SAVE_VERSION`-Sprung:** Hat ein Update die
+Spielstand-Version erhöht, schreiben Geräte mit der neuen Version Stände mit höherem
+`schema` in die Cloud. Ein zurückgerollter Build übernimmt sie nicht und sendet nichts
+darüber („Neue Spielversion – bitte neu laden“) – die Konten stehen dann still, bis wieder
+die neue Version ausgeliefert wird. Fehler darum vorwärts beheben (README, „Kein Rollback
+über einen Spielstand-Sprung“).
+
 ## Sicherheitshinweise
 
 - Passwörter liegen nur als scrypt-Hash vor, Sitzungstoken nur als SHA-256-Hash. Wer die

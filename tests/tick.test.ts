@@ -364,6 +364,22 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     }
   });
 
+  it('gleich mit Lebensräumen (v13): Wiese, Totholzhaufen, Mauer, Reptilien und neue Jagdpaare', () => {
+    // Hain mit allen drei Lebensräumen aus Pflege: Fuchs ↔ Kaninchen, Natter ↔ Frosch,
+    // Falke und Schlingnatter ↔ Echsen, Reptilien im Sommer zufriedener.
+    const start = stateAt(5, ['cricket', 'fieldmouse', 'rabbit', 'lizard', 'fox', 'wren', 'slowworm', 'sandlizard', 'grasssnake', 'smoothsnake', 'frog'], 1313);
+    start.cycle.care = { meadow: 2, 'deadwood-pile': 1, 'drystone-wall': 1, pond: 1 };
+    start.plants = ['hazel', 'hazel'];
+    const ev = evaluate(start);
+    expect([ev.slots.meadow, ev.slots.deadwood, ev.slots.wall]).toEqual([4, 2, 2]);
+    expect(ev.traitTiers.reptiles).toBeGreaterThanOrEqual(2);
+    const { live, average } = runPairs(start, 2 * 3600);
+    for (const pair of [live, average]) {
+      expect(pair[0].stage).toBeGreaterThanOrEqual(5);
+      expectSameRun(pair);
+    }
+  });
+
   it('gleich mit Platz-Schaffern (Borkenkäfer öffnet Höhlen) über den Alten Baum hinaus', () => {
     const { live, average } = runPairs(stateAt(3, ['barkbeetle', 'earthworm'], 4242), 2 * 3600);
     for (const pair of [live, average]) {
@@ -489,6 +505,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
             "bluetit",
             "oakmoth",
           ],
+          "deadwood": [],
           "edge": [
             "bee",
             "fox",
@@ -498,12 +515,14 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
             "woodlouse",
             "slug",
           ],
+          "meadow": [],
           "pond": [],
           "roots": [
             "chanterelle",
             "vole",
             "flyagaric",
           ],
+          "wall": [],
         },
         "plants": [
           "nettle",

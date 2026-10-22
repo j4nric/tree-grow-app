@@ -71,7 +71,7 @@ describe('Speichern & Laden v2', () => {
     state.meta.forestMemory = 5;
     // Von Hand geändertes Ökosystem: H_max nachführen wie nach einer Aktion.
     recordDiscoveries(state);
-    expect(SAVE_VERSION).toBe(12);
+    expect(SAVE_VERSION).toBe(13);
     expect(deserialize(serialize(state), 999)).toEqual(state);
     expect(loadGame(serialize(state), 999)).toMatchObject({ migratedFromV1: false, keepsake: false });
   });
@@ -355,7 +355,7 @@ describe('Migration v2 → v3 (Pflanzen)', () => {
     };
     const s = deserialize(rawV2({ totalGrowth: v2Threshold(20) + 10, niches: full }), 0)!;
     expect(s).toMatchObject({ waypoint: 20, stage: 5 });
-    expect(s.niches).toEqual({ ...full, pond: [] }); // niemand wird entlassen; der Waldtümpel ist leer
+    expect(s.niches).toEqual({ ...full, pond: [], meadow: [], deadwood: [], wall: [] }); // niemand wird entlassen; Tümpel und Lebensräume sind leer
     expect(s.totalGrowth).toBeGreaterThanOrEqual(thresholdFor(20));
     expect(s.totalGrowth).toBeLessThan(thresholdFor(21));
     // Weiterspielen: der nächste Wegpunkt ist 21, nicht noch einmal 18.

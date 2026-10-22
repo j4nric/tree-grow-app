@@ -1,3 +1,4 @@
+import { REPTILE_SUMMER_HAPPINESS } from './habitats';
 import { PREDATION_EVENT_SEASONS } from './predation';
 import type { Effect, EncounterType, Genus } from './types';
 
@@ -100,10 +101,12 @@ export const SEASONS: readonly Season[] = [
   {
     id: 'summer', name: 'Sommer', icon: '☀️', renderValue: 1,
     text: 'Lange, helle Tage – über dem Waldsaum summt und flattert es.',
-    summary: '+2 ☀️ · Insekten +10 % 😊',
+    summary: '+2 ☀️ · Insekten +10 %, Reptilien +15 % 😊',
+    // Sonnenbad: Reptilien sind wechselwarm (DESIGN_V2.md 23.3).
     effects: [
       { kind: 'light', amount: 2 },
       { kind: 'happiness', genus: 'insects', points: 10 },
+      { kind: 'happiness', genus: 'reptiles', points: REPTILE_SUMMER_HAPPINESS },
     ],
   },
   {

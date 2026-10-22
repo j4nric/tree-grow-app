@@ -310,7 +310,8 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     „Wetter gemittelt“, Spielanleitung – `src/ui/weather-view.ts`, `weather-badge.ts` (21.8)
   - [ ] Balancing-Folgeaufgabe (game-designer): Samenreserve im Wald (balance-care 14,6 vs.
     Grenze 15 min, vorher 11,1 vs. 12) – Wald-Ränge der Pflege billiger oder früher kaufbar,
-    damit die Grenze wieder auf 12 min sinken kann (DESIGN_V2.md 21.10)
+    damit die Grenze wieder auf 12 min sinken kann (DESIGN_V2.md 21.10). Seit den
+    Lebensräumen 7,5 min (15.4, „Stand Lebensräume“) – Grenze kann wohl zurück auf 12.
 
 **Welle 3 – Tiefe & Langzeitspiel**
 
@@ -330,13 +331,16 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     `tests/food-web-view.test.ts`, `e2e/food-web.spec.ts`
   - [ ] Balancing prüfen (`game-designer`): Urwald-Gewinn des Harmonie-Spielers liegt mit
     Räuber und Beute bei 94,9 (Grenze < 95 in `balance-restart.test.ts`, vorher 87–88) –
-    `MEMORY_HARMONY_RULES` ggf. nachziehen (DESIGN_V2.md 15.4, „Stand Räuber und Beute“)
+    `MEMORY_HARMONY_RULES` ggf. nachziehen (DESIGN_V2.md 15.4, „Stand Räuber und Beute“);
+    seit den Lebensräumen 93,5 („Stand Lebensräume“)
 - [ ] Weitere Lebensräume nach dem Muster Waldtümpel (`game-designer`, `renderer`):
   Totholzhaufen, Trockenmauer, Waldwiese – je 3–5 Arten und eine Lebensgemeinschaft
   - [x] Design (`game-designer`): Waldwiese (Junger Baum), Totholzhaufen (Alter Baum),
     Trockenmauer (Hain), 14 Arten, Gattung Reptilien, 4 Lebensgemeinschaften; Daten in
-    `src/content/habitats.ts` (noch nicht verdrahtet) – DESIGN_V2.md 23
-  - [ ] Spielstand v13 und Verdrahtung (`core-engineer`, 23.7 Schritt B)
+    `src/content/habitats.ts` – DESIGN_V2.md 23
+  - [x] Spielstand v13 und Verdrahtung (`core-engineer`, 23.7 Schritt B): Nischen, Arten,
+    Reptilien, Pflege, neue Jagdpaare, Massenjahre vollständig, Migration v12 → v13, Schutz
+    vor älteren Clients (gespeicherter Stand „neuer“) – `tests/habitats-core.test.ts`
   - [ ] Szene und 14 Zeichnungen (`renderer`, 23.7), Nischen, Pflege, Reptilien (`ui-dev`)
 - [ ] Prestige-Stufe 2 „Waldlandschaft“ (`game-designer`, `core-engineer`, `renderer`):
   mehrere Wälder nebeneinander mit eigenem Hauptbaum, Wildwechsel über Korridore;

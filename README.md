@@ -58,6 +58,17 @@ Workers* „Unregister“ wählen und neu laden. **Achtung:** „Websitedaten l�
 „Clear site data“ löscht auch den Spielstand – vorher über „Spielstand exportieren“
 sichern (oder mit dem Konto synchronisieren).
 
+### Kein Rollback über einen Spielstand-Sprung
+
+Steigt mit einem Update `SAVE_VERSION` (z. B. 12 → 13 mit den Lebensräumen), lässt sich
+der Build danach **nicht** auf die ältere Version zurückrollen: Spielstände im neuen Format
+lädt die ältere Version nicht. Sie wehrt sie ab, statt Arten, Nischen oder Ereignisse still
+zu verwerfen – Import und Konto-Abgleich melden „neuere Spielversion“, ein so gespeicherter
+Stand im Browser wird weder geladen noch überschrieben; der Tab zeigt dauerhaft einen Hinweis
+(gilt ab v13; ältere Builds schützen nur Import und Abgleich). Bei einem fehlerhaften Build
+darum vorwärts reparieren (Fix mit derselben oder höherer `SAVE_VERSION`), bei Bedarf mit
+dem Not-Aus oben – nie einen Build mit kleinerer `SAVE_VERSION` ausrollen.
+
 ## Projekt
 
 - [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) – Spielregeln, Zahlen, geplante Systeme

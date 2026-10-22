@@ -1,3 +1,4 @@
+import { HABITAT_NICHES } from './habitats';
 import type { NicheId } from './types';
 
 /**
@@ -36,6 +37,8 @@ export const NICHES: readonly Niche[] = [
     id: 'pond', name: 'Waldtümpel', icon: '🫧', place: 'Wasser und Ufer der Senke',
     slots: [0, 0, 0, 0, 0, 0, 0, 0], opensEarly: true,
   },
+  // Lebensräume (DESIGN_V2.md 23.2): Waldwiese, Totholzhaufen, Trockenmauer – wie der Tümpel.
+  ...HABITAT_NICHES,
 ];
 
 export const NICHES_BY_ID: ReadonlyMap<NicheId, Niche> = new Map(NICHES.map((n) => [n.id, n]));

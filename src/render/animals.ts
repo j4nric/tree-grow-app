@@ -18,7 +18,7 @@ import { SPECIES_DEFS, SPECIES_INFO, type KindInfo } from './species-sprites';
 import { clamp, clamp01, hash2, smooth01 } from './util';
 import { VISITOR_DEFS } from './visitor-sprites';
 
-export type AnimalFamily = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi' | 'amphibians';
+export type AnimalFamily = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi' | 'amphibians' | 'reptiles';
 
 /** Ein Tier, wie es der Renderer bekommt (unabhängig vom Spielkern). */
 export interface SceneAnimal {
@@ -86,6 +86,8 @@ const FAMILY_KIND: Record<AnimalFamily, string> = {
   soil: 'snail',
   fungi: 'mushroom',
   amphibians: 'toad',
+  // Platzhalter bis zur eigenen Ersatzzeichnung (Eidechse, DESIGN_V2.md 23.7 Nr. 4).
+  reptiles: 'toad',
 };
 
 /** Seltenheit der bekannten Arten (DESIGN_V2.md 5.3), falls `rarity` fehlt – nur ab „besonders“. */

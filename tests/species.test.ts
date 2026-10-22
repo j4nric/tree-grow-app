@@ -183,7 +183,7 @@ describe('Fähigkeiten', () => {
     expect(ev.abilities).toEqual(['minSupply']);
   });
 
-  it('übersteht Grenzfälle: alle 37 Arten auf jeder Stufe, mit und ohne Pflanzen', () => {
+  it('übersteht Grenzfälle: alle 51 Arten auf jeder Stufe, mit und ohne Pflanzen', () => {
     const all = SPECIES.map((s) => s.id);
     for (let stage = -1; stage <= 9; stage++) {
       for (const plants of [[], ['moss', 'birch', 'nettle', 'hazel', 'fern']]) {
@@ -197,8 +197,9 @@ describe('Fähigkeiten', () => {
           expect(s.happiness).toBeGreaterThanOrEqual(0);
           expect(s.happiness).toBeLessThanOrEqual(1);
         }
-        // Alle Arten zusammen: jede Gattung auf der höchsten Stufe (Amphibien seit dem Playtest mit 5 Arten).
-        expect(ev.traitTiers).toEqual({ birds: 3, insects: 3, mammals: 3, soil: 3, fungi: 3, amphibians: 3 });
+        // Alle Arten zusammen: jede Gattung auf der höchsten Stufe (Amphibien seit dem Playtest mit 5 Arten,
+        // Reptilien mit 5 Arten der Lebensräume).
+        expect(ev.traitTiers).toEqual({ birds: 3, insects: 3, mammals: 3, soil: 3, fungi: 3, amphibians: 3, reptiles: 3 });
       }
     }
   });

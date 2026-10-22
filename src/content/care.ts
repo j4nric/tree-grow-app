@@ -1,5 +1,6 @@
 import type { CycleEffect } from './events';
-import type { Condition, Effect, Tag } from './types';
+import { MEADOW_CARE, WALL_CARE } from './habitats';
+import type { Condition, Effect, NicheId, Tag } from './types';
 
 /**
  * Pflegemaßnahmen (docs/DESIGN_V2.md, Abschnitt 8). Reine Daten – die Logik steht in
@@ -60,7 +61,7 @@ export interface CareMeasure {
   ranks: readonly CareRank[];
 }
 
-const slot = (niche: 'litter' | 'hollows' | 'crown' | 'edge' | 'bark' | 'pond', amount = 1): CareEffect => ({
+const slot = (niche: NicheId, amount = 1): CareEffect => ({
   kind: 'cycle',
   effect: { kind: 'slot', niche, amount },
 });
@@ -116,16 +117,23 @@ export const CARE: readonly CareMeasure[] = [
       },
     ],
   },
+  // Lebensraum Waldwiese (DESIGN_V2.md 23.2, Daten in habitats.ts)
+  MEADOW_CARE,
   // --- ab Alter Baum ----------------------------------------------------------
   {
+    // Öffnet seit den Lebensräumen (DESIGN_V2.md 23.2) den Totholzhaufen: Rang 1 4.500 🌰
+    // (vorher 3.500) mit 2 Plätzen, Rang 2 einen dritten.
     id: 'deadwood-pile', name: 'Totholzhaufen', icon: '🪵',
     text: 'Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.',
     boughtText: 'Totholz aufgeschichtet',
     ranks: [
-      { cost: 3_500, minStage: 4, effects: [{ kind: 'habitat', tag: 'totholz' }], summary: 'Totholz' },
       {
-        cost: 14_000, minStage: 5, summary: '+1 Platz Stamm & Rinde, +2 ⚖️',
-        effects: [slot('bark'), { kind: 'cycle', effect: { kind: 'harmony', points: 2 } }],
+        cost: 4_500, minStage: 4, summary: 'Totholz, +2 Plätze Totholzhaufen',
+        effects: [{ kind: 'habitat', tag: 'totholz' }, slot('deadwood', 2)],
+      },
+      {
+        cost: 14_000, minStage: 5, summary: '+1 Platz Stamm & Rinde, +1 Platz Totholzhaufen, +2 ⚖️',
+        effects: [slot('bark'), slot('deadwood'), { kind: 'cycle', effect: { kind: 'harmony', points: 2 } }],
       },
     ],
   },
@@ -197,6 +205,8 @@ export const CARE: readonly CareMeasure[] = [
       { cost: 38_000, minStage: 6, effects: [{ kind: 'cycle', effect: { kind: 'harmony', points: 4 } }], summary: '+4 ⚖️' },
     ],
   },
+  // --- ab Hain: Lebensraum Trockenmauer (DESIGN_V2.md 23.2, Daten in habitats.ts) ---
+  WALL_CARE,
 ];
 
 export const CARE_BY_ID: ReadonlyMap<string, CareMeasure> = new Map(CARE.map((c) => [c.id, c]));

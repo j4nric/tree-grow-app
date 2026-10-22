@@ -3,7 +3,7 @@ import { NOON_PHASE } from './content/daytime';
 import { checkAchievements } from './core/achievements';
 import { dayKeyOf, updateDaily, type DailyUpdateOptions } from './core/daily';
 import { dayPhaseAt, evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
-import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
+import { SAVE_KEY, clearStorage, codeFromJson, exportCode, importCode, isNewerSave, loadFromStorage, saveToStorage, storedSaveIsNewer } from './core/save';
 import { sceneSeason } from './core/season';
 import { isNight, sceneWeather } from './core/weather';
 import { createInitialState, type GameState } from './core/state';
@@ -175,7 +175,13 @@ const sound = createSound(preferences.settings.sound);
 /** Neues Spiel: Der Zufallsgenerator bekommt einmalig die Uhrzeit als Startwert. */
 const newGame = (): GameState => createInitialState(Date.now(), Date.now());
 
-const loaded = loadFromStorage(Date.now());
+/**
+ * Im Speicher liegt ein Stand aus einer neueren Spielversion (z. B. ein veralteter Tab nach
+ * einem Update): nicht laden, nie überschreiben, keinen Abgleich starten – sonst gingen
+ * Nischen, Arten und Ereignisse verloren, die dieses Spiel nicht kennt (DESIGN_V2.md 23.6).
+ */
+const storedNewer = storedSaveIsNewer();
+const loaded = storedNewer ? null : loadFromStorage(Date.now());
 let state = loaded?.state ?? newGame();
 
 let shownStage = state.stage;
@@ -192,11 +198,43 @@ let saveTransfer: SaveTransfer | undefined;
  * dieser Tab den gemeinsamen Spielstand im localStorage nie mehr schreiben – auch nicht beim
  * Verlassen der Seite –, sonst landete sein Spiel nach dem Neuladen im anderen Konto.
  */
-let storageFrozen = false;
+let storageFrozen = storedNewer;
+
+/** Text für Aktionen, die im gesperrten Tab nicht gehen (Import, Löschen, Sicherung laden). */
+const FROZEN_TEXT = 'Dieser Tab ist angehalten. Bitte lade die Seite neu.';
+/** Der gespeicherte Stand stammt aus einer neueren Spielversion (beim Start oder später, z. B. aus einem anderen Tab). */
+let newerFrozen = false;
+
+/**
+ * Ein neuerer Stand liegt im Speicher (DESIGN_V2.md 23.6): ab jetzt nie mehr schreiben und
+ * dauerhaft darauf hinweisen. Der Export liefert ab dann den gespeicherten neueren Stand.
+ */
+function freezeForNewerSave(): void {
+  storageFrozen = true;
+  if (newerFrozen) return;
+  newerFrozen = true;
+  const banner = document.createElement('div');
+  banner.className = 'frozen-banner';
+  banner.setAttribute('role', 'alert');
+  banner.dataset.ref = 'newer-save-banner';
+  const text = document.createElement('p');
+  text.textContent = `${NEWER_SAVE_TEXT} Exportieren liefert den gespeicherten neueren Stand.`;
+  const reload = document.createElement('button');
+  reload.type = 'button';
+  reload.textContent = 'Seite neu laden';
+  reload.addEventListener('click', () => location.reload());
+  banner.append(text, reload);
+  heading.insertAdjacentElement('afterend', banner);
+}
 
 /** Spielstand speichern (außer gesperrt). */
 function persist(): void {
   if (storageFrozen) return;
+  // Ein anderer Tab (neuere Version) hat inzwischen geschrieben: nie darüber speichern.
+  if (storedSaveIsNewer()) {
+    freezeForNewerSave();
+    return;
+  }
   // Offene Aktion eines anderen Tabs im gespeicherten Stand: vorher sichern.
   account?.beforePersist();
   let raw = saveToStorage(state);
@@ -211,6 +249,8 @@ let account: AccountController | undefined;
 /** Hinweis vor dem Import eines v1-Codes. */
 /** Einmal nach dem Laden eines v2–v6-Stands mit Waldgedächtnis (Balancing 2.10, LoadResult.memoryReweighted). */
 const MEMORY_REWEIGHTED_TEXT = 'Das Waldgedächtnis wurde neu gewichtet: +1 % je Punkt.';
+/** Hinweis beim Start, wenn der gespeicherte Stand aus einer neueren Spielversion stammt. */
+const NEWER_SAVE_TEXT = 'Dein Spielstand stammt aus einer neueren Version des Spiels. Bitte lade die Seite neu – bis dahin wird nichts gespeichert.';
 const V1_IMPORT_NOTE = 'Achtung: Das ist ein Spielstand der ersten Version – dein Wald beginnt damit neu.';
 
 /** Der Spieler hat den Stapel geöffnet; bleibt offen, bis „Später“ oder keine Begegnung mehr wartet. */
@@ -817,9 +857,14 @@ function onReset(event: MouseEvent): void {
   // Doppelklick oder gehaltene Enter-Taste bestätigen nicht.
   if (!isDeliberateConfirm(event, resetArmedAt, performance.now())) return;
   disarmReset();
+  // Gesperrter Tab: nichts löschen, nichts ersetzen (wie beim Laden einer Sicherung).
+  if (storageFrozen) {
+    showToast(FROZEN_TEXT);
+    return;
+  }
   // Der bisherige Wald kommt vorher in die Sicherungen des Kontos (falls aktiv).
   account?.backupCurrent();
-  if (!storageFrozen) clearStorage();
+  clearStorage();
   replaceState(newGame());
   account?.markAction();
 }
@@ -909,7 +954,7 @@ function setupAccount(): void {
           save: () => persist(),
           // Sicherung von vor dem Abgleich laden – wie „Importieren“.
           restore: (code) => {
-            if (storageFrozen) return 'Dieser Tab ist angehalten. Bitte lade die Seite neu.';
+            if (storageFrozen) return FROZEN_TEXT;
             const result = importCode(code, Date.now());
             if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
             replaceState(result.result.state);
@@ -928,13 +973,19 @@ function setupAccount(): void {
 /** Bereich „Spielstand exportieren oder importieren“ neben „Spielstand löschen“. */
 function setupSaveTransfer(): void {
   saveTransfer = createSaveTransfer(resetButton.parentElement!, {
-    getCode: () => exportCode(state),
+    getCode: () => {
+      // Gesperrt wegen eines neueren Stands: diesen exportieren (für die neuere Spielversion).
+      const raw = newerFrozen ? storedRaw() : null;
+      return raw !== null && isNewerSave(raw) ? codeFromJson(raw) : exportCode(state);
+    },
     validate: (code) => {
+      if (storageFrozen) return { ok: false, message: FROZEN_TEXT };
       const result = importCode(code, Date.now());
       if (!result.ok) return { ok: false, message: IMPORT_ERROR_TEXTS[result.error] };
       return result.result.migratedFromV1 ? { ok: true, note: V1_IMPORT_NOTE } : { ok: true };
     },
     onImport: (code) => {
+      if (storageFrozen) return FROZEN_TEXT;
       const result = importCode(code, Date.now());
       if (!result.ok) return IMPORT_ERROR_TEXTS[result.error];
       account?.backupCurrent();
@@ -951,6 +1002,15 @@ function setupSaveTransfer(): void {
       return null;
     },
   });
+}
+
+/** Der gespeicherte Stand als Text (null, wenn keiner da oder der Speicher blockiert ist). */
+function storedRaw(): string | null {
+  try {
+    return localStorage.getItem(SAVE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 /** Meldung nach dem Laden eines v1-Stands (beim Start oder per Import). */
@@ -1171,9 +1231,14 @@ function start(): void {
   catchUp(loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
 
   resetButton.addEventListener('click', onReset);
+  if (storedNewer) freezeForNewerSave();
+  // Ein anderer Tab (z. B. schon aktualisiert) schreibt einen neueren Stand: sofort sperren.
+  window.addEventListener('storage', (event) => {
+    if (event.key === SAVE_KEY && event.newValue !== null && isNewerSave(event.newValue)) freezeForNewerSave();
+  });
   setupSaveTransfer();
-  help = createHelp(document.querySelector<HTMLElement>('#help')!, preferences, { newGame: !loaded });
-  setupAccount();
+  help = createHelp(document.querySelector<HTMLElement>('#help')!, preferences, { newGame: !loaded && !storedNewer });
+  if (!storedNewer) setupAccount();
   preferences.onChange(() => {
     scene.reducedMotion = preferences.reducedMotion;
     camera.reducedMotion = preferences.reducedMotion;

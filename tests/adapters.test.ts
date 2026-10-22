@@ -63,7 +63,7 @@ describe('toEcosystemView', () => {
     const state = stateAt(0);
     const view = toEcosystemView(state, evaluate(state));
     expect(view.stageName).toBe('Samen');
-    expect(view.niches.map((n) => n.id)).toEqual(['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond']);
+    expect(view.niches.map((n) => n.id)).toEqual(['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond', 'meadow', 'deadwood', 'wall']);
     expect(view.niches.every((n) => n.capacity === 0 && n.animals.length === 0)).toBe(true);
     expect(view.niches[0]!.unlockHint).toBe('öffnet bei „Keimling“');
     expect(view.niches[3]!.unlockHint).toBe('öffnet bei „Junger Baum“');
@@ -78,6 +78,7 @@ describe('toEcosystemView', () => {
       ['soil', '🪱', 0],
       ['fungi', '🍄', 0],
       ['amphibians', '🐸', 0],
+      ['reptiles', '🦎', 0],
     ]);
     expect(view.families[0]!.thresholds).toEqual([2, 3, 5]);
     expect(view.families[3]!.bonuses[0]).toBe('+2 Wasser');
@@ -715,14 +716,16 @@ describe('Pflanzen: Begegnung „Etwas keimt“', () => {
     const [anemone, moss] = toEncounterView(state, 0)!.cards;
     expect(anemone!.effects).toEqual([
       // Seit Schritt 2.2 profitieren mehr Arten (Tagpfauenauge, Wühlmaus, Reh, Glühwürmchen …).
-      { label: '🌸 Nektar für Wildbiene und Tagpfauenauge', tone: 'good' },
-      { label: '🌱 Kräuter für Wühlmaus, Reh und 2 weitere', tone: 'neutral' },
-      { label: `${PLANT_GROUP_INFO.flowers.icon} Wildbiene, Glühwürmchen und 2 weitere wünschen sich Blumen`, tone: 'good' },
+      // Seit den Lebensräumen auch Rote Mauerbiene, Feldgrille, Feldmaus, Wildkaninchen, Rosenkäfer.
+      { label: '🌸 Nektar für Wildbiene, Tagpfauenauge und 1 weitere', tone: 'good' },
+      { label: '🌱 Kräuter für Wühlmaus, Reh und 5 weitere', tone: 'neutral' },
+      { label: `${PLANT_GROUP_INFO.flowers.icon} Wildbiene, Glühwürmchen und 3 weitere wünschen sich Blumen`, tone: 'good' },
     ]);
     // Der Regenwurm lebt noch nicht: neutral
     expect(moss!.effects).toEqual([
-      // Seit der Erweiterung Amphibien brauchen auch die fünf Tümpelbewohner Feuchte.
-      { label: '💧 Feuchte für Glühwürmchen, Regenwurm und 9 weitere', tone: 'neutral' },
+      // Seit der Erweiterung Amphibien brauchen auch die fünf Tümpelbewohner Feuchte, seit den
+      // Lebensräumen auch Waldeidechse, Schmetterlingstramete, Blindschleiche und Ringelnatter.
+      { label: '💧 Feuchte für Glühwürmchen, Regenwurm und 13 weitere', tone: 'neutral' },
       { label: `${PLANT_GROUP_INFO.mosses.icon} Feuersalamander und Bergmolch wünschen sich Moose & Farne`, tone: 'neutral' },
     ]);
     expect(moss!.facts![3]).toMatchObject({ label: 'speichert Wasser', value: '+2', text: 'speichert 2 Wasser' });
@@ -1001,11 +1004,11 @@ describe('Lebensgemeinschaften', () => {
     const state = withEncounter(['earthworm', 'woodlouse', 'chanterelle', 'oakmoth', 'bluetit'], []);
     const ev = evaluate(state);
     const view = communityListView(ev, ['humus']);
-    expect(view.items).toHaveLength(11);
+    expect(view.items).toHaveLength(15);
     expect(view.activeCount).toBe(1);
     expect(view.harmony).toBe(8);
-    expect(view.summary).toBe('1 von 11 aktiv · +8 ⚖️');
-    expect(view.summaryText).toBe('1 von 11 aktiv, +8 Harmonie');
+    expect(view.summary).toBe('1 von 15 aktiv · +8 ⚖️');
+    expect(view.summaryText).toBe('1 von 15 aktiv, +8 Harmonie');
 
     const [humus, watch] = view.items;
     expect(humus).toMatchObject({
@@ -1042,8 +1045,8 @@ describe('Lebensgemeinschaften', () => {
     expect(humus).toMatchObject({ name: 'Humusküche', discovered: true, state: 'near', missingText: 'fehlt: Pfifferling oder Steinpilz' });
     expect(humus.hint).toBeUndefined();
     const none = communityListView(evaluate(stateAt(0)), []);
-    expect(none.summary).toBe('0 von 11 aktiv');
-    expect(none.summaryText).toBe('0 von 11 aktiv');
+    expect(none.summary).toBe('0 von 15 aktiv');
+    expect(none.summaryText).toBe('0 von 15 aktiv');
     expect(none.items.every((c) => c.name === '???' && c.state === 'open')).toBe(true);
   });
 

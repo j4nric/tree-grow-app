@@ -4,11 +4,12 @@
  */
 
 /**
- * Die Gattungen (eigentlich Lebensweise-Gruppen, DESIGN_V2.md 5.1): fünf Grundgattungen
- * und die Erweiterung Amphibien (DESIGN_V2.md 5.5, nur mit dem Waldtümpel).
+ * Die Gattungen (eigentlich Lebensweise-Gruppen, DESIGN_V2.md 5.1): fünf Grundgattungen,
+ * die Erweiterung Amphibien (DESIGN_V2.md 5.5, nur mit dem Waldtümpel) und die Reptilien
+ * der Lebensräume (23.3, Waldwiese, Totholzhaufen und Trockenmauer).
  */
-export type Genus = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi' | 'amphibians';
-export const GENERA: readonly Genus[] = ['birds', 'insects', 'mammals', 'soil', 'fungi', 'amphibians'];
+export type Genus = 'birds' | 'insects' | 'mammals' | 'soil' | 'fungi' | 'amphibians' | 'reptiles';
+export const GENERA: readonly Genus[] = ['birds', 'insects', 'mammals', 'soil', 'fungi', 'amphibians', 'reptiles'];
 
 /** Pflanzengruppen der Begleitpflanzen (der Hauptbaum zählt als Baum). */
 export type PlantGroup = 'trees' | 'shrubs' | 'flowers' | 'mosses';
@@ -21,11 +22,13 @@ export type Rarity = 0 | 1 | 2 | 3;
 export type Level = 'herbivore' | 'predator' | 'decomposer';
 
 /**
- * Nischen am Hauptbaum (DESIGN_V2.md, Abschnitt 3). Der Waldtümpel (`pond`) hat keine
- * Plätze aus der Stufe – er öffnet nur durch Platz-Wirkungen (Pflege, Ereignis).
+ * Nischen am Hauptbaum (DESIGN_V2.md, Abschnitt 3). Der Waldtümpel (`pond`) und die
+ * Lebensräume Waldwiese (`meadow`), Totholzhaufen (`deadwood`) und Trockenmauer (`wall`,
+ * 23.2) haben keine Plätze aus der Stufe – sie öffnen nur durch Platz-Wirkungen (Pflege,
+ * Ereignis). Neue Nischen immer hinten anfügen (Reihenfolge = Reihenfolge im Ökosystem).
  */
-export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' | 'pond';
-export const NICHE_IDS: readonly NicheId[] = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond'];
+export type NicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' | 'pond' | 'meadow' | 'deadwood' | 'wall';
+export const NICHE_IDS: readonly NicheId[] = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond', 'meadow', 'deadwood', 'wall'];
 
 /** Nahrungs- und Lebensraum-Merkmale. Hauptbaum, Begleitpflanzen und Tiere stellen sie bereit. */
 export type Tag =
@@ -45,7 +48,11 @@ export type Tag =
   | 'wuermer'
   | 'schnecken'
   | 'kleinsaeuger'
-  | 'rehe';
+  | 'rehe'
+  /** Beute-Merkmale der Lebensräume (DESIGN_V2.md 22.2): alle Amphibien, Eidechsen, Wildkaninchen. */
+  | 'amphibien'
+  | 'echsen'
+  | 'hasen';
 
 /** Wunsch eines Tiers an seinen Lebensraum. */
 export type Condition =
