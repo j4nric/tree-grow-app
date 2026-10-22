@@ -1,18 +1,20 @@
 import type { BrowserContext, Page } from '@playwright/test';
-import { expect, openGame, overlaps, savedState, sceneGeometry, seedRaw, test, waypoint } from './fixtures';
+import { expect, fullscreen, openFullscreen, openGame, overlaps, polaroidButton, savedState, sceneGeometry, seedRaw, test, waypoint } from './fixtures';
 import { growth } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
 import { nicheAnchors } from '../src/render/anchors';
 import { sceneToScreen, type CameraView } from '../src/render/camera';
 
 /**
- * Tiere in der Szene antippen: Klick/Tippen ohne Ziehen öffnet die Tierdetails, Esc gibt
- * den Fokus an die Szene zurück. Zoomen (Rad) und Ziehen über einem Tier öffnen nichts.
- * Die Lage des Tiers kommt aus denselben Ankerpunkten wie im Renderer (bei reduzierter
- * Bewegung ruhen Tiere und Wind).
+ * Tiere in der Szene antippen (docs/ALBUM_UI.md, C.6 und G-16): Im Polaroid öffnet ein Tipp
+ * nur das Vollbild (kein Treffer-Test). Im Vollbild öffnet Klick/Tippen ohne Ziehen eine
+ * Haftnotiz zum Tier; „Im Album ansehen“ schließt das Vollbild und zeigt die Tierdetails.
+ * Zoomen (Rad) und Ziehen über einem Tier öffnen nichts. Die Lage des Tiers kommt aus
+ * denselben Ankerpunkten wie im Renderer (bei reduzierter Bewegung ruhen Tiere und Wind).
  */
 
 const detail = (page: Page) => page.locator('[data-ref="animal-detail"]');
+const note = (page: Page) => page.locator('[data-ref="note"]');
 const canvas = (page: Page) => page.locator('canvas#scene');
 
 async function seed(context: BrowserContext): Promise<void> {
@@ -57,29 +59,56 @@ test.describe('Tier in der Szene', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
   });
 
-  test('Klick öffnet die Tierdetails, Esc gibt den Fokus an die Szene zurück', async ({ page, context }) => {
+  test('Im Polaroid öffnet ein Klick auf das Tier nur das Vollbild', async ({ page, context }) => {
     await seed(context);
     await openGame(page);
     const p = await wormPoint(page);
     await page.mouse.move(p.x, p.y);
+    // Kein Treffer-Test im Polaroid: kein Zeiger-Wechsel über dem Tier.
+    await expect(polaroidButton(page)).toHaveCSS('cursor', 'zoom-in');
+    await page.mouse.click(p.x, p.y);
+    await expect(fullscreen(page)).toBeVisible();
+    await expect(note(page)).toHaveCount(0);
+    await expect(detail(page)).toBeHidden();
+  });
+
+  test('Im Vollbild: Klick öffnet die Haftnotiz, „Im Album ansehen“ die Tierdetails', async ({ page, context }) => {
+    await seed(context);
+    await openGame(page);
+    await openFullscreen(page);
+    const p = await wormPoint(page);
+    await page.mouse.move(p.x, p.y);
     await expect(canvas(page)).toHaveCSS('cursor', 'pointer');
     await page.mouse.click(p.x, p.y);
+    await expect(note(page)).toBeVisible();
+    await expect(note(page)).toContainText('Regenwurm');
+    await expect(note(page)).toContainText('zufrieden');
+    // Esc schließt zuerst nur die Notiz, das Vollbild bleibt.
+    await page.keyboard.press('Escape');
+    await expect(note(page)).toHaveCount(0);
+    await expect(fullscreen(page)).toBeVisible();
+
+    await page.mouse.click(p.x, p.y);
+    await note(page).getByRole('button', { name: 'Im Album ansehen' }).click();
     await expect(page.getByRole('dialog', { name: 'Regenwurm' })).toBeVisible();
+    await expect(fullscreen(page)).toBeHidden();
+    // Esc schließt die Tierdetails, der Fokus geht an das Polaroid zurück.
     await page.keyboard.press('Escape');
     await expect(detail(page)).toBeHidden();
-    await expect(canvas(page)).toBeFocused();
+    await expect(polaroidButton(page)).toBeFocused();
   });
 
   test('Rad und Ziehen über dem Tier öffnen nichts; vergrößert öffnet ein Klick', async ({ page, context }) => {
     await seed(context);
     await openGame(page);
+    await openFullscreen(page);
     const p = await wormPoint(page);
 
     // Zoomen mit dem Rad über dem Tier.
     await page.mouse.move(p.x, p.y);
     await page.mouse.wheel(0, -300);
     const v = await restingView(page, (c) => c.zoom > 1);
-    await expect(detail(page)).toBeHidden();
+    await expect(note(page)).toHaveCount(0);
 
     // Ziehen (> 6 px), das auf dem Tier beginnt und endet.
     const q = await wormPoint(page, v);
@@ -88,24 +117,26 @@ test.describe('Tier in der Szene', () => {
     await page.mouse.move(q.x + 12, q.y, { steps: 4 });
     await page.mouse.move(q.x, q.y, { steps: 4 });
     await page.mouse.up();
-    // Der Dialog öffnete (wenn überhaupt) schon im pointerup – synchron.
-    await expect(detail(page)).toBeHidden();
+    // Die Notiz öffnete (wenn überhaupt) schon im pointerup – synchron.
+    await expect(note(page)).toHaveCount(0);
 
     // Ruhig vergrößert: Klick auf das Tier an seiner gezoomten Stelle öffnet.
     const still = await restingView(page);
     const r = await wormPoint(page, still);
     await page.mouse.click(r.x, r.y);
-    await expect(page.getByRole('dialog', { name: 'Regenwurm' })).toBeVisible();
+    await expect(note(page)).toContainText('Regenwurm');
   });
 
   test('Klick daneben (Himmel) öffnet nichts', async ({ page, context }) => {
     await seed(context);
     await openGame(page);
+    await openFullscreen(page);
     const geo = await sceneGeometry(page);
     const sky = geo.toPage(geo.width * 0.1, geo.height * 0.1);
     await page.mouse.click(sky.x, sky.y);
-    // Ein Treffer öffnete den Dialog synchron im pointerup; die Kamera bleibt bei 1×.
+    // Ein Treffer öffnete die Notiz synchron im pointerup; die Kamera bleibt bei 1×.
     expect(await restingView(page)).toEqual({ zoom: 1, x: 0.5, y: 0.5 });
+    await expect(note(page)).toHaveCount(0);
     await expect(detail(page)).toBeHidden();
   });
 });
@@ -113,52 +144,46 @@ test.describe('Tier in der Szene', () => {
 test.describe('Tier in der Szene mobil', () => {
   test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
 
-  test('Tippen öffnet die Tierdetails', async ({ page, context }) => {
+  test('Tippen aufs Polaroid öffnet das Vollbild, Tippen aufs Tier die Haftnotiz', async ({ page, context }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await seed(context);
     await openGame(page);
+    await openFullscreen(page, { tap: true });
     const p = await wormPoint(page);
     await page.touchscreen.tap(p.x, p.y);
+    await expect(note(page)).toContainText('Regenwurm');
+    // Die Notiz passt auf den Bildschirm.
+    const box = (await note(page).boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    await note(page).getByRole('button', { name: 'Im Album ansehen' }).tap();
     await expect(page.getByRole('dialog', { name: 'Regenwurm' })).toBeVisible();
   });
 });
 
-test.describe('Kamera-Leiste bei 700 px', () => {
+test.describe('Vollbild bei 700 × 420', () => {
   test.use({ viewport: { width: 700, height: 420 } });
 
-  test('der Zettelstapel verdeckt die Leiste in keiner Scrollposition', async ({ page, context }) => {
+  test('Kamera-Leiste, Bildunterschrift und „Zurück ins Album“ überdecken sich nicht', async ({ page, context }) => {
     const state = createInitialState(Date.now(), 4242);
     state.totalGrowth = waypoint(8) + 1;
     state.pendingEncounters = [{ type: 'animal', cards: ['robin', 'bluetit', 'bee'], rerolls: 0 }];
     await seedRaw(context, state, 0);
     await openGame(page);
-    const stackEl = page.locator('[data-ref="encounter-stack"]');
-    await expect(stackEl).toBeVisible();
-    // Der Stapel liegt im Album mobil fest unten rechts, die Kamera-Leiste oben im Polaroid.
-    for (let y = 0; y <= 400; y += 8) {
-      // Scrollen, dann zwei Frames.
-      await page.evaluate(
-        (y) =>
-          new Promise<void>((done) => {
-            window.scrollTo(0, y);
-            requestAnimationFrame(() => requestAnimationFrame(() => done()));
-          }),
-        y,
-      );
-      const r = await page.evaluate(() => {
-        const vis = (el: Element) => {
-          const b = el.getBoundingClientRect();
-          // Nur der sichtbare Teil zählt.
-          const top = Math.max(0, b.top);
-          const bottom = Math.min(window.innerHeight, b.bottom);
-          return { x: b.left, y: top, width: b.width, height: Math.max(0, bottom - top) };
-        };
-        return {
-          bar: vis(document.querySelector('.scene-camera')!),
-          stack: vis(document.querySelector('[data-ref="encounter-stack"]')!),
-        };
-      });
-      expect(overlaps(r.bar, r.stack), `scrollY ${y}`).toBe(false);
+    await expect(page.locator('[data-ref="encounter-stack"]')).toBeVisible();
+    await openFullscreen(page);
+    const box = async (selector: string) => (await page.locator(selector).boundingBox())!;
+    const bar = await box('.fullscreen-tools .scene-camera');
+    const caption = await box('.fullscreen-caption');
+    const close = await box('[data-ref="fullscreen-close"]');
+    expect(overlaps(bar, caption)).toBe(false);
+    expect(overlaps(bar, close)).toBe(false);
+    expect(overlaps(caption, close)).toBe(false);
+    for (const b of [bar, caption, close]) {
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.y).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width).toBeLessThanOrEqual(700);
+      expect(b.y + b.height).toBeLessThanOrEqual(420);
     }
   });
 });

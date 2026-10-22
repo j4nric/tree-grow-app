@@ -9,6 +9,10 @@
  * Bei 1× bleibt senkrechtes Seiten-Scrollen über der Szene möglich (`touch-action: pan-y`),
  * vergrößert gehören alle Gesten der Szene (`none`).
  *
+ * Mit `active` (Album: nur im Vollbild, docs/ALBUM_UI.md C.6) ist die Kamera sonst ganz aus:
+ * keine Gesten, kein Rad, keine Tasten, kein Treffer-Test, das Canvas nicht fokussierbar.
+ * Aktiv gehört dann die ganze Fläche der Szene (es gibt darüber keine Seite zu scrollen).
+ *
  * Dazu die Bedienleiste (+, −, Ansicht zurücksetzen) und das Merken der Ansicht für die
  * Sitzung (sessionStorage – kein Teil des Spielstands).
  */
@@ -30,6 +34,11 @@ export interface CameraInputOptions {
   hitTest?: (x: number, y: number) => AnimalHit | null;
   /** Tippen/Klicken auf ein Tier. */
   onAnimalTap?: (hit: AnimalHit) => void;
+  /**
+   * Ist die Kamera gerade bedienbar? (Album: nur im Vollbild.) Ohne Angabe immer – dann
+   * teilt sich die Szene die Gesten mit dem Seiten-Scrollen wie bisher.
+   */
+  active?: () => boolean;
 }
 
 export interface CameraInput {
@@ -63,6 +72,9 @@ function safeSession(): Storage | null {
 
 export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInputOptions): CameraInput {
   const { camera } = options;
+  /** Mit `active` gesteuert: aktiv gehört die ganze Fläche der Szene (Vollbild). */
+  const gated = options.active !== undefined;
+  const isActive = options.active ?? (() => true);
   const gestures = new CameraGestures(camera, { hitTest: options.hitTest, onAnimalTap: options.onAnimalTap });
   /** Lage des Canvas (gemerkt; neu gemessen nach Größenänderung oder Scrollen). */
   let rect = { left: 0, top: 0 };
@@ -76,7 +88,7 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
   let savedRevision = camera.revision;
   let cursor = '';
 
-  canvas.tabIndex = 0;
+  canvas.tabIndex = isActive() ? 0 : -1;
   const label = canvas.getAttribute('aria-label') ?? '';
   canvas.setAttribute('aria-label', `${label}. Zoomen mit Plus und Minus, verschieben mit den Pfeiltasten, 0 zeigt wieder alles.`);
 
@@ -84,7 +96,7 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
     if (!rectDirty) return;
     const r = canvas.getBoundingClientRect();
     rect = { left: r.left, top: r.top };
-    // Layoutgröße (ohne CSS-Drehung des Polaroids im Album); ohne Layout die Bildschirmgröße.
+    // Layoutgröße (ohne CSS-Transformationen); ohne Layout die Bildschirmgröße.
     gestures.width = Math.max(1, canvas.clientWidth || r.width);
     gestures.height = Math.max(1, canvas.clientHeight || r.height);
     rectDirty = false;
@@ -94,8 +106,8 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
     pageScrollsAt = -Infinity;
   };
   /**
-   * Punkt im Canvas: `offsetX/Y` rechnet CSS-Transformationen heraus (das Polaroid im Album
-   * ist leicht gedreht); nur für Ereignisse anderer Ziele über das umschließende Rechteck.
+   * Punkt im Canvas: `offsetX/Y` rechnet CSS-Transformationen heraus; nur für Ereignisse
+   * anderer Ziele über das umschließende Rechteck.
    */
   const local = (e: MouseEvent): { x: number; y: number } => {
     if (e.target === canvas) return { x: e.offsetX, y: e.offsetY };
@@ -109,6 +121,7 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
   };
 
   const onPointerDown = (e: PointerEvent) => {
+    if (!isActive()) return;
     // Vor einer Geste einmal frisch messen (Layout kann sich ohne Scrollen geändert haben).
     if (!gestures.active) rectDirty = true;
     if (!gestures.pointerDown(pointer(e))) return;
@@ -119,6 +132,10 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
     }
   };
   const onPointerMove = (e: PointerEvent) => {
+    if (!isActive()) {
+      hover = null;
+      return;
+    }
     const p = pointer(e);
     if (gestures.pointerMove(p)) {
       e.preventDefault();
@@ -134,13 +151,14 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
   };
 
   const onWheel = (e: WheelEvent) => {
+    if (!isActive()) return;
     // Auf scrollbaren Seiten (einspaltig, mobil) gehört das Rad der Seite – außer mit Strg
     // (Trackpad-Pinch meldet sich als Strg+Rad).
     if (e.timeStamp - pageScrollsAt > PAGE_SCROLL_RECHECK_MS) {
       pageScrolls = document.documentElement.scrollHeight > window.innerHeight + 1;
       pageScrollsAt = e.timeStamp;
     }
-    if (!e.ctrlKey && pageScrolls) return;
+    if (!e.ctrlKey && pageScrolls && !gated) return;
     e.preventDefault();
     measure();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
@@ -152,10 +170,13 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
   };
 
   const onKey = (e: KeyboardEvent) => {
+    if (!isActive()) return;
     if (gestures.key(e.key, { ctrl: e.ctrlKey, meta: e.metaKey, alt: e.altKey })) e.preventDefault();
   };
   // Safari: eigene Pinch-Gesten der Seite über der Szene unterdrücken.
-  const onGesture = (e: Event) => e.preventDefault();
+  const onGesture = (e: Event) => {
+    if (isActive()) e.preventDefault();
+  };
   /**
    * Touch: `touch-action` greift erst für die nächste Berührung und lässt bei 1× (`pan-y`)
    * senkrechtes Scrollen zu – ein Pinch, der bei 1× beginnt, würde sonst teils als
@@ -164,7 +185,11 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
    * Mit einem Finger bei 1× bleibt alles beim Browser (die Seite scrollt).
    */
   const onTouch = (e: TouchEvent) => {
-    if (!e.cancelable) return;
+    if (!e.cancelable || !isActive()) return;
+    if (gated) {
+      e.preventDefault();
+      return;
+    }
     if (e.touches.length >= 2 || camera.zoomed || camera.target.zoom > 1) e.preventDefault();
   };
 
@@ -185,17 +210,25 @@ export function attachCameraInput(canvas: HTMLCanvasElement, options: CameraInpu
   return {
     gestures,
     update(now: number) {
-      // Gesten-Modus: bei 1× darf die Seite senkrecht scrollen, vergrößert nicht.
+      const active = isActive();
+      // Nur bedienbar fokussierbar (Tasten + − Pfeile 0).
+      const tab = active ? 0 : -1;
+      if (canvas.tabIndex !== tab) canvas.tabIndex = tab;
+      // Gesten-Modus: bei 1× darf die Seite senkrecht scrollen, vergrößert nicht; im
+      // Vollbild gehört alles der Szene, außerhalb nichts.
       const zoomed = camera.zoomed || camera.target.zoom > 1;
-      const touch = zoomed ? 'none' : 'pan-y';
+      const touch = !active ? 'pan-y' : gated || zoomed ? 'none' : 'pan-y';
       if (canvas.style.touchAction !== touch) canvas.style.touchAction = touch;
+      // Vergrößert? (Album: Wisch nach unten schließt das Vollbild nur bei 1×.)
+      const zoomedFlag = zoomed ? 'true' : 'false';
+      if (canvas.dataset.zoomed !== zoomedFlag) canvas.dataset.zoomed = zoomedFlag;
       // Zeiger: Hand über Tieren (gedrosselt), Greifhand beim Ziehen bzw. vergrößert.
-      if (!hover) hoverHit = false;
+      if (!hover || !active) hoverHit = false;
       else if (!gestures.active && now - hoverAt >= HOVER_INTERVAL_MS) {
         hoverHit = !!options.hitTest?.(hover.x, hover.y);
         hoverAt = now;
       }
-      const next = gestures.dragging || gestures.pinched ? 'grabbing' : hoverHit ? 'pointer' : zoomed ? 'grab' : '';
+      const next = !active ? '' : gestures.dragging || gestures.pinched ? 'grabbing' : hoverHit ? 'pointer' : zoomed ? 'grab' : '';
       if (cursor !== next) {
         canvas.style.cursor = next;
         cursor = next;
