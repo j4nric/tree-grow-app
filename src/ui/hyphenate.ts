@@ -24,7 +24,10 @@ export const MIN_HYPHENATED_WORD = 12;
  */
 export const HYPHENATION: Readonly<Record<string, string>> = {
   Ameisenstraße: 'Amei|sen|stra|ße',
+  Bachschlucht: 'Bach|schlucht',
+  Bergmischwald: 'Berg|misch|wald',
   Bienenschwarm: 'Bie|nen|schwarm',
+  Buchenhallen: 'Bu|chen|hal|len',
   Buschwindröschen: 'Busch|wind|rös|chen',
   Eichenwickler: 'Ei|chen|wick|ler',
   Eichhörnchen: 'Eich|hörn|chen',
@@ -33,12 +36,14 @@ export const HYPHENATION: Readonly<Record<string, string>> = {
   Glühwürmchen: 'Glüh|würm|chen',
   Hochzeitsflug: 'Hoch|zeits|flug',
   Insektenhotel: 'In|sek|ten|ho|tel',
+  Kiefernheide: 'Kie|fern|hei|de',
   Krötenwanderung: 'Krö|ten|wan|de|rung',
   Lichterabend: 'Lich|ter|abend',
   Nachtflieger: 'Nacht|flie|ger',
   Nachtschicht: 'Nacht|schicht',
   Nacktschnecke: 'Nackt|schne|cke',
   Regenreicher: 'Re|gen|rei|cher',
+  Schlehenhecke: 'Schle|hen|he|cke',
   Schneckenwacht: 'Schne|cken|wacht',
   Schwalbenschwarm: 'Schwal|ben|schwarm',
   Schwarzspecht: 'Schwarz|specht',
@@ -47,6 +52,7 @@ export const HYPHENATION: Readonly<Record<string, string>> = {
   Taubenschwänzchen: 'Tau|ben|schwänz|chen',
   Totholzhaufen: 'Tot|holz|hau|fen',
   Weinbergschnecke: 'Wein|berg|schne|cke',
+  Wiesengraben: 'Wie|sen|gra|ben',
   Zunderschwamm: 'Zun|der|schwamm',
 };
 

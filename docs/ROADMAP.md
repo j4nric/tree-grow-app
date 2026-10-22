@@ -223,7 +223,9 @@ Ausführung in Wellen, damit `main` nach jedem Merge spielbar und grün bleibt:
   - [x] UI: Radiogruppe in „Neuer Zyklus“ (gesperrte Arten mit Hinweis), Frucht der Art
     in Toast und Spielanleitung, `SceneInput.mainTree` und `cycleTransition.fromTree`
   - [x] Optional: Naturtagebuch, Reiter Andenken – gewachsene Hauptbaum-Arten (`ui-dev`)
-- [ ] Umstieg auf `break_infinity.js`, falls Zahlen > 1e300 (`core-engineer`)
+- [ ] Umstieg auf `break_infinity.js`, falls Zahlen > 1e300 (`core-engineer`) – derzeit nicht
+  absehbar: auch mit der Waldlandschaft < 1e5 🌿/s (`DESIGN_V2.md` 24.9, dort der Plan für den
+  Fall der Fälle)
 - [x] Langzeit-Statistik `meta.stats` (`core-engineer`, danach `ui-dev`): Gesamtspielzeit,
   Gesamt-Wachstum, beste Harmonie, Begegnungen, bewirtete Gäste, gewachsene
   Hauptbaum-Arten über alle Zyklen (neue Spielstand-Version mit Migration); Anzeige im
@@ -303,4 +305,9 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   Totholzhaufen, Trockenmauer, Waldwiese – je 3–5 Arten und eine Lebensgemeinschaft
 - [ ] Prestige-Stufe 2 „Waldlandschaft“ (`game-designer`, `core-engineer`, `renderer`):
   mehrere Wälder nebeneinander mit eigenem Hauptbaum, Wildwechsel über Korridore;
-  dafür Umstieg auf `break_infinity.js` (siehe Phase 4)
+  `break_infinity.js` ist dafür **nicht** nötig (gemessen, `DESIGN_V2.md` 24.9)
+  - [x] Design (`game-designer`): sechs Standorte mit Waldtyp, Währung Hähersaat, Korridore
+    mit Zufluss, Spielstand v14 nach den Lebensräumen (v13) – `DESIGN_V2.md` 24, Daten
+    `src/content/landscape.ts` (nicht verdrahtet), Modell `scripts/landscape.ts`
+  - [ ] Schritt A (`core-engineer`, v14), Karte (`ui-dev`), Kulisse je Waldtyp (`renderer`),
+    Schritt B Wildwechsel (`core-engineer`), Erfolge und Messung (`game-designer`) – 24.11
