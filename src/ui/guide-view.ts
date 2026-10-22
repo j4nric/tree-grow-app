@@ -38,6 +38,17 @@ import { NOCTURNAL } from '../content/daytime';
 import { REPTILE_SUMMER_HAPPINESS } from '../content/habitats';
 import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, PREDATION_EVENTS, STOCK_BASE, STOCK_RANGE } from '../content/predation';
 import { HARMONY_DIVISOR, memoryHarmonyBonus } from '../core/formulas';
+import {
+  CORRIDORS,
+  CORRIDOR_INFLOW,
+  CORRIDOR_INFLOW_CAP,
+  FOUNDING_COSTS,
+  JAY_SEEDS_FIRST_ANCIENT,
+  JAY_SEEDS_MEMORY_STEP,
+  LANDSCAPE_SITES,
+  LANDSCAPE_UNLOCK_MEMORY,
+} from '../content/landscape';
+import { MAX_FOREST_MEMORY } from '../core/state';
 import { HARMONY_TIERS, bonusEffectLabel, isHabitatNiche, listNames } from './adapters';
 import { fruitPhrase } from './cycle-view';
 import { formatDuration, formatNumber } from './format';
@@ -63,7 +74,15 @@ export function span(values: readonly number[]): string {
 const minutes = (seconds: number) => Math.round((seconds / 60) * 10) / 10;
 const stageName = (index: number) => STAGES[index]?.name ?? STAGES[STAGES.length - 1]!.name;
 
-export function guideSections(): GuideSection[] {
+export interface GuideOptions {
+  /**
+   * Die Waldlandschaft ist sichtbar (freigeschaltet). Vorher steht im Abschnitt nur eine
+   * Andeutung – keine Namen, keine Zahlen (Spoiler-Regel, DESIGN_V2.md 24.1).
+   */
+  landscape?: boolean;
+}
+
+export function guideSections(options: GuideOptions = {}): GuideSection[] {
   const firstStage = STAGES[0]!.name;
   const lastStage = STAGES[STAGES.length - 1]!.name;
   const ringStage = STAGES.find((s) => s.plantSlots > 0)?.name ?? STAGES[1]?.name ?? '';
@@ -237,6 +256,7 @@ export function guideSections(): GuideSection[] {
         `Je ${formatNumber(MEMORY_PER_REGULAR_SLOT)} Punkte Waldgedächtnis darfst du einen Stammgast wählen – eine entdeckte Art, die in jedem Zyklus von selbst einzieht.`,
       ],
     },
+    landscapeSection(options.landscape === true),
     {
       id: 'seasons',
       icon: '🍂',
@@ -326,4 +346,39 @@ export function guideSections(): GuideSection[] {
       ],
     },
   ];
+}
+
+/**
+ * Abschnitt „Waldlandschaft“ (DESIGN_V2.md 24): vor der Freischaltung nur eine Andeutung,
+ * danach die Regeln mit Zahlen aus content/.
+ */
+function landscapeSection(unlocked: boolean): GuideSection {
+  const ancient = STAGES[STAGES.length - 1]!.name;
+  const cycleStage = STAGES[NEW_CYCLE_MIN_STAGE]?.name ?? ancient;
+  if (!unlocked) {
+    return {
+      id: 'landscape',
+      icon: '🪶',
+      title: 'Ein Wald bleibt nicht allein',
+      paragraphs: [
+        `Ein alter Wald mit viel Waldgedächtnis lockt Besucher an, die weit herumkommen. Wer einen ${ancient} wachsen lässt und sich gut an seine Zyklen erinnert, wird eines Tages sehen, wohin sie fliegen.`,
+      ],
+    };
+  }
+  const others = LANDSCAPE_SITES.filter((s) => s.id !== 'home');
+  const home = LANDSCAPE_SITES.find((s) => s.id === 'home');
+  const spokes = CORRIDORS.filter((c) => c.sites.includes('home'));
+  const ring = CORRIDORS.filter((c) => !c.sites.includes('home'));
+  return {
+    id: 'landscape',
+    icon: '🪶',
+    title: 'Waldlandschaft und Hähersaat',
+    paragraphs: [
+      `Nach deinem ersten ${ancient} und ab ${formatNumber(LANDSCAPE_UNLOCK_MEMORY)} Waldgedächtnis im ${home?.name ?? 'Heimatwald'} öffnet sich bei „Neuer Zyklus“ die Karte der Landschaft: Um deinen ${home?.name ?? 'Heimatwald'} liegen ${formatNumber(others.length)} weitere Standorte – ${all(others.map((s) => `${s.icon} ${s.name}`))}. Jeder ist ein eigener Wald mit eigenem Waldgedächtnis (höchstens ${formatNumber(MAX_FOREST_MEMORY)}), eigenen Stammgästen und einem Waldtyp.`,
+      `🪶 Hähersaat verdienst du, statt sie zu sammeln: ${formatNumber(1)} je volle ${formatNumber(JAY_SEEDS_MEMORY_STEP)} Punkte eigenes Waldgedächtnis eines Waldes und ${formatNumber(JAY_SEEDS_FIRST_ANCIENT)} für den ersten ${ancient} dort. Einen neuen Wald gründest du nur aus dem ${ancient} und nur gleich neben dem Wald, in dem du gerade wächst. Er kostet ${all(FOUNDING_COSTS.map((c) => formatNumber(c)))} 🪶 (der 2. bis ${formatNumber(FOUNDING_COSTS.length + 1)}. Wald); der Korridor dorthin entsteht gratis.`,
+      `Wechseln kannst du ab der Stufe „${cycleStage}“: Der Gewinn des Zyklus geht noch an den alten Wald, danach gelten Gedächtnis, Stammgäste und Eigenheit des neuen. Nichts geht verloren – ein Wald, den du verlässt, ruht und wartet auf dich.`,
+      `Jeder Waldtyp hat eine Eigenheit mit Gewinn und Verzicht, die nur dort wirkt, und eine Gabe, die in allen Wäldern gilt, sobald er gegründet ist. Die Karte zeigt beides.`,
+      `Korridore verbinden zwei gegründete Wälder und lassen sich jederzeit bauen: ${formatNumber(spokes.length)} am ${home?.name ?? 'Heimatwald'} (je ${span(spokes.map((c) => c.cost))} 🪶) und ${formatNumber(ring.length)} im Ring (${span(ring.map((c) => c.cost))} 🪶). Über sie hilft das Gedächtnis der Nachbarn: ${pct(CORRIDOR_INFLOW)} ihres eigenen Gedächtnisses zählt mit, zusammen höchstens ${formatNumber(CORRIDOR_INFLOW_CAP)} – das wirksame Gedächtnis gibt Bonus und Stammgast-Plätze.`,
+    ],
+  };
 }

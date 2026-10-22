@@ -367,9 +367,15 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
       Bodenfarben je Standort in der gecachten Kulisse, `src/render/site-scenery.ts`; Wechsel
       blendet über), Häherflug beim Gründen (`SceneInput.jayFlight`, `src/render/jay-flight.ts`),
       `?site=<id>` in Spiel und Demo – `tests/render-landscape.test.ts`, `e2e/landscape-scene.spec.ts`
-    - [ ] UI rechnet mit dem **wirksamen** Gedächtnis (`ui-dev`): `regularSlotsOf(state)` statt
+    - [x] Karte der Landschaft (`ui-dev`): sechs Standorte als Knöpfe über SVG-Korridoren im
+      Bereich „Neuer Zyklus“, Angaben je Standort (Gedächtnis eigen/wirksam, Leitbaum,
+      Eigenheit mit Gewinn/Verzicht, Gabe), Gründen und Wechseln über den Zyklus-Knopf,
+      Korridor-Liste mit Kaufknöpfen, 🪶-Zeile, Spielanleitung „Waldlandschaft“ (vorher nur
+      Andeutung) – `src/ui/landscape-view.ts`, `src/ui/landscape-map.ts`,
+      `tests/landscape-view.test.ts`, `e2e/landscape.spec.ts`; offen: Tagebuch-Reiter „Landschaft“
+    - [x] UI rechnet mit dem **wirksamen** Gedächtnis (`ui-dev`): `regularSlotsOf(state)` statt
       `regularSlots(meta.forestMemory)` (adapters, cycle-view, animal-detail-view), Anzeige
       des Gedächtnis-Bonus mit `effectiveForestMemory`, `environmentEffects` mit Standort und
       Gaben (Tierdetails)
-    - [ ] Meldung zur Freischaltung (`ui-dev`): zeigen, solange `landscapeAnnouncementDue(state)`,
+    - [x] Meldung zur Freischaltung (`ui-dev`): zeigen, solange `landscapeAnnouncementDue(state)`,
       danach `markLandscapeAnnounced(state)` (24.8)
