@@ -4,6 +4,7 @@ import { COMMUNITIES_BY_ID } from '../content/communities';
 import { DAILY_GOALS_BY_KIND, DAILY_GOAL_COUNT, type DailyGoalKind } from '../content/daily';
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
 import { EVENTS, EVENTS_BY_ID, type CycleEffect, type TimedEffect } from '../content/events';
+import { CORRIDORS_BY_ID, HOME_SITE, LANDSCAPE_UNLOCK_ACHIEVEMENT, MAX_SITE_FAUNA, SITE_IDS, type SiteId } from '../content/landscape';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY, V1_KEEPSAKE_MIN_ENERGY, V1_KEEPSAKE_MIN_STAGE, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { PLANTS_BY_ID } from '../content/plants';
 import { SPECIES_BY_ID } from '../content/species';
@@ -18,6 +19,7 @@ import {
   plantCost,
   plantSlots,
   regularSlots,
+  regularSlotsOf,
   slotBonuses,
   slotEffects,
   stageForWaypoint,
@@ -25,6 +27,7 @@ import {
   waypointsForGrowth,
 } from './formulas';
 import { checkAchievements } from './achievements';
+import { effectiveMemoryOf, jaySeeds, jaySeedsSpent, landscapeUnlocked, siteEntry } from './landscape';
 import { isDayKey } from './daily';
 import { isValidRngState, normalizeSeed } from './rng';
 import { normalizeElapsed } from './season';
@@ -35,6 +38,8 @@ import {
   createCycle,
   createDaily,
   createInitialState,
+  createLandscape,
+  createSite,
   createStats,
   dailySeedOf,
   type CycleBonus,
@@ -42,6 +47,8 @@ import {
   type DailyGoal,
   type DailyState,
   type GameState,
+  type LandscapeSite,
+  type LandscapeState,
   type LifetimeStats,
   type PendingEncounter,
   type TimedBonus,
@@ -82,6 +89,11 @@ export interface LoadResult {
    * bekommen (die Oberfläche meldet sie gesammelt, nicht einzeln). Sonst 0.
    */
   achievementsBackfilled: number;
+  /**
+   * Migration v13 → v14: Der Stand erfüllt schon die Freischaltung der Waldlandschaft (Urwald-
+   * Erfolg und ≥ 250 Gedächtnis) – die Oberfläche zeigt die Meldung 24.3 einmal. Sonst false.
+   */
+  landscapeUnlocked: boolean;
 }
 
 export function serialize(state: GameState): string {
@@ -123,7 +135,9 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   const memoryReweighted = version < 7 && (state.meta.forestMemory > 0 || state.meta.journal.keepsakes.length > 0);
   // v8 → v9 (Erfolge): ganz zuletzt, wenn Tagebuch, Statistik und H_max feststehen.
   const achievementsBackfilled = version < 9 ? migrateV8(state) : 0;
-  return { state, migratedFromV1: false, keepsake: false, memoryReweighted, achievementsBackfilled };
+  // v13 → v14 (Waldlandschaft): nach den Erfolgen (der Urwald-Erfolg setzt `ancient`).
+  const landscapeUnlockedNow = version < 14 ? migrateV13(state) : false;
+  return { state, migratedFromV1: false, keepsake: false, memoryReweighted, achievementsBackfilled, landscapeUnlocked: landscapeUnlockedNow };
 }
 
 /** Wie loadGame, aber nur der Spielstand. */
@@ -145,7 +159,7 @@ function migrateV1(data: Record<string, unknown>, now: number): LoadResult {
     state.meta.forestMemory += V1_KEEPSAKE_MEMORY;
     state.meta.journal.keepsakes.push(V1_KEEPSAKE_ID);
   }
-  return { state, migratedFromV1: true, keepsake, memoryReweighted: false, achievementsBackfilled: 0 };
+  return { state, migratedFromV1: true, keepsake, memoryReweighted: false, achievementsBackfilled: 0, landscapeUnlocked: false };
 }
 
 /** Wegpunkt-Kurve der v2-Stände (Prototyp ohne Pflanzen): Wegpunkt k bei 4 · k^3,2. */
@@ -353,6 +367,21 @@ function migrateV12(state: GameState): void {
 }
 
 /**
+ * v13 → v14 (Waldlandschaft, DESIGN_V2.md 24.8): Das bisherige Spiel ist der Heimatwald –
+ * aktiv, Gedächtnis und Stammgäste bleiben, wo sie sind (`meta.forestMemory`,
+ * `meta.regulars`). `ancient`, wenn der Erfolg „Uralt und voller Leben“ vorhanden ist; die
+ * zuletzt gewachsene Art ist die des laufenden Zyklus. Was ein älterer Stand unter
+ * `meta.landscape` mitbringt, zählt nicht (das Laden legt die Landschaft für < v14 neu an).
+ * Gibt zurück, ob die Landschaft damit schon freigeschaltet ist (Meldung einmal beim Laden).
+ */
+function migrateV13(state: GameState): boolean {
+  const landscape = createLandscape(state.cycle.mainTree);
+  landscape.sites[0]!.ancient = state.meta.achievements.includes(LANDSCAPE_UNLOCK_ACHIEVEMENT);
+  state.meta.landscape = landscape;
+  return landscapeUnlocked(state);
+}
+
+/**
  * v8 → v9 (Erfolge, DESIGN_V2.md 18): Alles, was der Stand schon erfüllt, wird still
  * freigeschaltet (Reihenfolge wie ACHIEVEMENTS). Ab Zyklus 2 ist sicher, dass schon einmal
  * die Stufe für den Neuen Zyklus (Hain) erreicht war – die Stufen-Erfolge bis dorthin
@@ -442,7 +471,12 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   // des Rings zählen nicht (sonst ließe sich eine gesperrte Art per Import setzen).
   const knownPlants = [...stringArray(journal.plants).filter((id) => PLANTS_BY_ID.has(id)), ...state.plants];
   loadCycleExtras(cycle, state, knownPlants, version);
-  // Platz-Boni aus Ereignissen, Pflege und der Baumart (seit v6) zählen beim Kürzen mit.
+  // Seit v14: Waldlandschaft – vor den Nischen, denn Eigenheit des Standorts und Gaben
+  // schaffen Plätze (ältere Stände: nur der Heimatwald, migrateV13 setzt `ancient`).
+  state.meta.forestMemory = clampedOr(meta.forestMemory, 0, 0, MAX_FOREST_MEMORY);
+  state.meta.landscape = version >= 14 ? loadLandscape(meta.landscape, state) : createLandscape(state.cycle.mainTree);
+  // Platz-Boni aus Ereignissen, Pflege, der Baumart (seit v6) und der Landschaft (seit v14)
+  // zählen beim Kürzen mit.
   const bonusSlots = slotBonuses(state);
 
   // Nischen: unbekannte Arten und Duplikate verwerfen, jede Art in ihre eigene Nische,
@@ -524,7 +558,6 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
 
   state.rngState = isValidRngState(data.rngState) ? data.rngState : normalizeSeed(lastTick);
 
-  state.meta.forestMemory = clampedOr(meta.forestMemory, 0, 0, MAX_FOREST_MEMORY);
   state.meta.journal.species = unique(stringArray(journal.species).filter((id) => SPECIES_BY_ID.has(id)));
   for (const id of seen) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
   // Andenken sind freie IDs: Anzahl und Länge begrenzen (fremde oder manipulierte Stände).
@@ -547,10 +580,13 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   const bestPossible = Math.min(MAX_FOREST_MEMORY, harmonyMemoryGain(state.cycle.maxHarmony, 0));
   state.cycle.bestHarmonyMemory = version >= 10 ? Math.floor(clampedOr(cycle.bestHarmonyMemory, 0, 0, bestPossible)) : 0;
   if (typeof cycle.startedAt === 'number' && Number.isFinite(cycle.startedAt)) state.cycle.startedAt = cycle.startedAt;
-  state.meta.regulars = unique(stringArray(meta.regulars).filter((id) => discovered.has(id))).slice(
-    0,
-    regularSlots(state.meta.forestMemory),
-  );
+  // Plätze aus dem wirksamen Gedächtnis (seit v14 mit Korridor-Zufluss, DESIGN_V2.md 24.6).
+  state.meta.regulars = unique(stringArray(meta.regulars).filter((id) => discovered.has(id))).slice(0, regularSlotsOf(state));
+  // Geparkte Stammgäste ruhender Wälder: dieselbe Regel mit dem wirksamen Gedächtnis jenes Waldes.
+  for (const site of state.meta.landscape.sites) {
+    if (site.id === state.meta.landscape.active) continue;
+    site.regulars = site.regulars.filter((id) => discovered.has(id)).slice(0, regularSlots(effectiveMemoryOf(state, site.id)));
+  }
   // Seit v8: Langzeit-Statistik (ältere Stände: migrateV7 setzt sie).
   const known = { meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...state.meta.journal.plants, ...state.plants] } } };
   state.meta.stats = loadStats(version >= 8 ? meta.stats : undefined, state, (id) => isTreeUnlocked(known, id));
@@ -571,6 +607,84 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
  */
 function migrateV11(state: GameState): DailyState {
   return createDaily(dailySeedOf(state.rngState));
+}
+
+/**
+ * Waldlandschaft robust laden (seit v14, DESIGN_V2.md 24.8). Braucht Stufe, Hauptbaum und
+ * `meta.forestMemory` des Stands (schon geladen):
+ * - `sites`: nur bekannte IDs, je einmal, Heimatwald zuerst (fehlt er → ergänzt);
+ *   Gedächtnis 0 … MAX_FOREST_MEMORY ganzzahlig abgerundet, Stammgäste und Bestand nur
+ *   bekannte Arten je einmal (Bestand höchstens MAX_SITE_FAUNA; entdeckt und Plätze prüft
+ *   loadV2 danach), unbekannte Baumart → Eiche.
+ * - `active` muss gegründet sein, sonst Heimatwald – `meta.forestMemory` und `meta.regulars`
+ *   werden dabei nicht umgebucht. Sein Eintrag hält Gedächtnis 0 und keine Stammgäste.
+ * - `corridors`: bekannte IDs, je einmal, nur zwischen gegründeten Wäldern; `freeCorridors`
+ *   ⊆ `corridors`, je gegründetem Wald außer dem Heimatwald höchstens einer (an diesem Wald).
+ * - Kosten-Prüfung: Bezahlt die verdiente Hähersaat nicht alles (manipulierter Stand), fallen
+ *   zuerst gekaufte Korridore (zuletzt gebaute zuerst), dann zuletzt gegründete **ruhende**
+ *   Wälder samt ihrer Korridore – nie der aktive und nie der Heimatwald.
+ */
+function loadLandscape(raw: unknown, state: GameState): LandscapeState {
+  const r = isRecord(raw) ? raw : {};
+  const isSite = (id: unknown): id is SiteId => typeof id === 'string' && SITE_IDS.includes(id as SiteId);
+  const sites: LandscapeSite[] = [];
+  for (const s of Array.isArray(r.sites) ? r.sites : []) {
+    if (!isRecord(s) || !isSite(s.id) || sites.some((x) => x.id === s.id)) continue;
+    const tree = typeof s.mainTree === 'string' && MAIN_TREES_BY_ID.has(s.mainTree as MainTreeId) ? (s.mainTree as MainTreeId) : DEFAULT_MAIN_TREE;
+    sites.push({
+      id: s.id,
+      memory: Math.floor(clampedOr(s.memory, 0, 0, MAX_FOREST_MEMORY)),
+      regulars: unique(stringArray(s.regulars).filter((id) => SPECIES_BY_ID.has(id))),
+      ancient: s.ancient === true,
+      mainTree: tree,
+      fauna: unique(stringArray(s.fauna).filter((id) => SPECIES_BY_ID.has(id))).slice(0, MAX_SITE_FAUNA),
+    });
+  }
+  const home = sites.find((s) => s.id === HOME_SITE) ?? createSite(HOME_SITE, state.cycle.mainTree);
+  const landscape: LandscapeState = {
+    active: HOME_SITE,
+    sites: [home, ...sites.filter((s) => s.id !== HOME_SITE)],
+    corridors: [],
+    freeCorridors: [],
+  };
+  if (isSite(r.active) && siteEntry(landscape, r.active)) landscape.active = r.active;
+  const active = siteEntry(landscape, landscape.active)!;
+  active.memory = 0;
+  active.regulars = [];
+  active.mainTree = state.cycle.mainTree;
+  const founded = (id: SiteId) => siteEntry(landscape, id) !== undefined;
+  landscape.corridors = unique(stringArray(r.corridors)).filter((id) => CORRIDORS_BY_ID.get(id)?.sites.every(founded) ?? false);
+  const assigned = new Set<SiteId>();
+  for (const id of unique(stringArray(r.freeCorridors))) {
+    if (!landscape.corridors.includes(id)) continue;
+    const end = CORRIDORS_BY_ID.get(id)!.sites.find((site) => site !== HOME_SITE && !assigned.has(site));
+    if (end === undefined) continue;
+    assigned.add(end);
+    landscape.freeCorridors.push(id);
+  }
+  // Kosten-Prüfung (manipulierte Stände).
+  const probe = { stage: state.stage, meta: { forestMemory: state.meta.forestMemory, achievements: [], landscape } };
+  while (jaySeedsSpent(landscape) > jaySeeds(probe).earned) {
+    const bought = landscape.corridors.filter((id) => !landscape.freeCorridors.includes(id));
+    if (bought.length > 0) {
+      landscape.corridors.splice(landscape.corridors.lastIndexOf(bought[bought.length - 1]!), 1);
+      continue;
+    }
+    let drop = -1;
+    for (let i = landscape.sites.length - 1; i > 0; i--) {
+      if (landscape.sites[i]!.id !== landscape.active) {
+        drop = i;
+        break;
+      }
+    }
+    if (drop < 0) break; // nur noch Heimatwald und aktiver Wald: bleibt (verfügbar dann 0)
+    const id = landscape.sites[drop]!.id;
+    landscape.sites.splice(drop, 1);
+    const touches = (cid: string) => CORRIDORS_BY_ID.get(cid)!.sites.includes(id);
+    landscape.corridors = landscape.corridors.filter((cid) => !touches(cid));
+    landscape.freeCorridors = landscape.freeCorridors.filter((cid) => !touches(cid));
+  }
+  return landscape;
 }
 
 /** Obergrenze der Zähler der Tagesziele (Serie, erfüllte Ziele, perfekte Tage). */
