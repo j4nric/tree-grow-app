@@ -3,6 +3,7 @@
  * (DESIGN_V2.md, Abschnitt 10). Reine Funktionen ohne DOM – testbar mit Vitest.
  * Die Komponente dazu steht in cycle-panel.ts.
  */
+import { treeWeatherText } from './weather-view';
 import {
   FOREST_MEMORY_BONUS,
   MEMORY_PER_HARMONY_POINT,
@@ -48,7 +49,7 @@ export interface TreeOptionView {
   /** z. B. „Rotbuche“. */
   name: string;
   icon: string;
-  /** Eigenheit in Kurzform (trees.ts `summary`). */
+  /** Eigenheit in Kurzform (trees.ts `summary`, dazu z. B. „trotzt Frost 🧊“). */
   summary: string;
   /** Wählbar (freigeschaltet über das Naturtagebuch). */
   unlocked: boolean;
@@ -147,7 +148,8 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
         id,
         name: t.name,
         icon: t.icon,
-        summary: t.summary,
+        // Raue Lagen, gegen die die Art gefeit ist (Kiefer: Frost, DESIGN_V2.md 21.3).
+        summary: [t.summary, treeWeatherText(t.id)].filter(Boolean).join(' · '),
         unlocked,
         hint: unlocked ? null : t.unlockHint,
         current: id === preview.mainTree,

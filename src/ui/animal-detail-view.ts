@@ -7,6 +7,8 @@
  * Art ist der Unterschied zwischen dem Ökosystem jetzt und demselben Ökosystem ohne sie –
  * genau wie die Vorschau auf der Begegnungskarte (`previewView`).
  */
+import { isNight } from '../core/weather';
+import { nightBadge, nightDetailText } from './weather-view';
 import { ABILITY_INFO, ARCHITECT, CALM_MIN_HAPPINESS, DECOMPOSER_BOOST } from '../content/abilities';
 import { COMMUNITIES } from '../content/communities';
 import { NICHES_BY_ID } from '../content/niches';
@@ -263,6 +265,9 @@ export function toAnimalDetailView(
       effects.push(effectView(e));
     }
   }
+  // Nachtaktive Arten (DESIGN_V2.md 21.6): Nachtwirkung mit Zustand (wirkt gerade, ruht).
+  const night = nightBadge(sp.id, seasonIdAt(state.cycle.elapsed), isNight(state.cycle.elapsed));
+  if (night) effects.push({ label: nightDetailText(night), tone: night.resting ? 'neutral' : 'good' });
   if (sp.provides.length > 0) {
     // „bietet …“ wie auf der Karte (letzte Zeile von effectViews).
     effects.push({ label: `bietet ${sp.provides.map((t) => TAG_NAMES[t]).join(', ')}`, tone: 'neutral' });

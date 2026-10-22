@@ -38,8 +38,8 @@ test('kurz vor dem Wechsel: nach dem Wechsel zeigt die Kopfzeile die neue Jahres
   await page.clock.runFor(3_000);
   await expect(season(page)).toHaveText(/^☀️ Sommer · noch (3:00|2:5\d) min$/);
   await expect(season(page)).toHaveAttribute('data-season', 'summer');
-  // Kurzer Hinweis beim Wechsel.
-  await expect(page.locator('#toast')).toContainText('Sommer: Lange, helle Tage');
+  // Kurzer Hinweis beim Wechsel – zusammen mit dem Wetter des neuen Tages.
+  await expect(page.locator('#toast')).toContainText(/^☀️ Sommer · \S+ [^–]+ – Lange, helle Tage/);
 
   // Der Spielstand führt die Spielzeit (gespeichert spätestens beim Verlassen).
   await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));

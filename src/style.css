@@ -3436,9 +3436,20 @@ body[data-motion='reduce'] .slot.arrive {
   font-size: 0.72rem;
 }
 
-/* Jahreszeit in der Kopfzeile (season-badge.ts) */
-.season {
+/*
+ * Jahreszeit und Wetter in der Kopfzeile (season-badge.ts, weather-badge.ts): beide
+ * Abzeichen nebeneinander (bei Platzmangel untereinander), aufgeklappte Erklärungen
+ * darunter über die volle Breite.
+ */
+#season {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin: 0 0 8px;
+}
+
+.season {
+  display: contents;
 }
 
 .season-badge {
@@ -3459,8 +3470,127 @@ body[data-motion='reduce'] .slot.arrive {
 }
 
 .season-effects {
-  margin: 4px 0 0;
+  order: 1;
+  flex-basis: 100%;
+  margin: 0;
   font-size: 0.85rem;
+}
+
+.weather-badge {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+/* Raue Lage: dezenter warmer Rahmen – kein Alarm, nur ein Hinweis. */
+.weather-badge.rough {
+  border-color: #d9b46a;
+  background: #fffaf0;
+  color: #6b4a12;
+}
+
+.weather-badge[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+.weather-details {
+  order: 2;
+  flex-basis: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  font-size: 0.85rem;
+}
+
+.weather-details[hidden],
+.weather-details p[hidden] {
+  display: none;
+}
+
+.weather-details p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.weather-details p + p {
+  margin-top: 4px;
+}
+
+.weather-mood {
+  font-style: italic;
+}
+
+.weather-tip {
+  color: var(--muted);
+}
+
+/* 🌙 an der Rate (ecosystem-panel.ts), solange ein Nachtbonus wirkt. */
+.eco-night {
+  margin-left: auto;
+  filter: drop-shadow(0 0 3px rgba(255, 214, 102, 0.9));
+}
+
+.eco-night[hidden] {
+  display: none;
+}
+
+/* 🌙 am Ring nachtaktiver Arten: blass am Tag, leuchtend, solange die Nachtwirkung gilt. */
+.slot-ring {
+  position: relative;
+}
+
+.slot-night {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  font-size: 0.7rem;
+  line-height: 1;
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.slot-night[hidden] {
+  display: none;
+}
+
+.slot-night.active {
+  opacity: 1;
+  filter: drop-shadow(0 0 3px rgba(255, 214, 102, 0.95));
+  animation: night-glow 3s ease-in-out infinite;
+}
+
+@keyframes night-glow {
+  50% {
+    filter: drop-shadow(0 0 1px rgba(255, 214, 102, 0.5));
+  }
+}
+
+body[data-motion='reduce'] .slot-night.active {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slot-night.active {
+    animation: none;
+  }
+}
+
+/* Schutz vor rauem Wetter in der Pflege-Liste (care-panel.ts). */
+.care-protects {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .season-effects[hidden] {

@@ -76,7 +76,10 @@ import { isDeliberateConfirm } from './ui/confirm';
 import { formatNumber } from './ui/format';
 import { createSeasonBadge } from './ui/season-badge';
 import { setupServiceWorker } from './ui/pwa';
-import { seasonChangeText, toSeasonBadgeView } from './ui/season-view';
+import { toSeasonBadgeView } from './ui/season-view';
+import { createWeatherBadge } from './ui/weather-badge';
+import { seasonWeatherChangeText, toWeatherBadgeView } from './ui/weather-view';
+import { isNight } from './core/weather';
 import type { MainTreeId } from './content/trees';
 import type { EcosystemView } from './ui/view-model';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from './sync/config';
@@ -313,8 +316,11 @@ const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!,
   onFeedback: (text, x, y) => floats.spawn(text, x, y, 'note'),
 });
 const seasonBadge = createSeasonBadge(document.querySelector<HTMLElement>('#season')!);
+const weatherBadge = createWeatherBadge(document.querySelector<HTMLElement>('#season')!);
 /** Ganze Sekunde Spielzeit, zu der das Abzeichen zuletzt aktualisiert wurde. */
 let seasonShownSecond = -1;
+/** Zuletzt angezeigt: Nacht? (Wechsel → Raten und 🌙 neu, DESIGN_V2.md 21.8). */
+let shownNight: boolean | null = null;
 const cyclePanel = createCyclePanel(document.querySelector<HTMLElement>('#cycle')!, {
   onNewCycle: newCycle,
   onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
@@ -977,7 +983,8 @@ function frame(now: number): void {
     encounterDirty = true;
     ecoDirty = true;
     pickerDirty = true;
-    seasonText = seasonChangeText(report.seasons);
+    // Jahreszeit und Wetter wechseln an derselben Grenze: ein Hinweis für beides.
+    seasonText = seasonWeatherChangeText(report.seasons, report.weather);
   }
   // Erfolge: gedrosselt, bei Wegpunkten und Jahreszeiten sofort (Bedingungen wachsen nur –
   // seltener prüfen verschiebt höchstens den Hinweis, nie das Ergebnis).
@@ -1061,6 +1068,13 @@ function refreshSeasonBadge(): void {
   if (second === seasonShownSecond) return;
   seasonShownSecond = second;
   seasonBadge.update(toSeasonBadgeView(state.cycle.elapsed));
+  weatherBadge.update(toWeatherBadgeView(state, preferences.settings.daytime === 'day'));
+  // Sonnenunter- und -aufgang: Nachtwirkungen ändern die Raten – Seitenleiste neu bauen.
+  const night = isNight(state.cycle.elapsed);
+  if (night !== shownNight) {
+    shownNight = night;
+    ecoDirty = true;
+  }
 }
 
 /**
@@ -1149,6 +1163,8 @@ function start(): void {
     // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
     ecoView = null;
     ecoDirty = true;
+    // Abzeichen (Zahlen, Hinweis zu „Immer Tag“) gleich neu.
+    seasonShownSecond = -1;
     encounterDirty = true;
     pickerDirty = true;
   });

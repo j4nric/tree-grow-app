@@ -12,6 +12,24 @@
  * - Texte (Namen, Wirkungen, Stimmungen) kommen fertig auf Deutsch.
  */
 
+/** 🌙 an einer Nachtart (Kachel, Karte, Details). */
+export interface NightBadgeView {
+  /** „🌙 nachts +10 % 🌿“ (Kurzform aus den Daten). */
+  label: string;
+  /** Name der Nachtwirkung, z. B. „Nachtjagd“. */
+  name: string;
+  /** Wirkt gerade (Nacht und passende Jahreszeit). */
+  active: boolean;
+  /** Ruht in dieser Jahreszeit (Winterschlaf). */
+  resting: boolean;
+}
+
+/** Nachtarten, deren Nachtwirkung gerade auf 🌿 bzw. 🌰 wirkt (Namen). */
+export interface NightRateView {
+  growth: string[];
+  seeds: string[];
+}
+
 /** Seltenheit einer Art (Anzeige: gewöhnlich, selten, besonders, legendär). */
 export type Rarity = 'common' | 'rare' | 'special' | 'legendary';
 
@@ -207,6 +225,8 @@ export interface AnimalView {
   mood: string;
   /** Durchreisender Gast (braucht keinen Platz). */
   visitor?: boolean;
+  /** Nachtaktive Art: 🌙 mit Kurzform, leuchtet, solange die Nachtwirkung gilt. */
+  night?: NightBadgeView;
 }
 
 /** Eine Nische mit Plätzen. */
@@ -254,6 +274,8 @@ export interface EcosystemView {
   niches: NicheView[];
   plantRing: PlantRingView;
   communities: CommunityListView;
+  /** Nachtarten, deren Nachtwirkung gerade gilt (Namen je Rate) – leer: kein 🌙 an der Rate. */
+  night: NightRateView;
 }
 
 /**
@@ -560,6 +582,10 @@ export interface CareView {
   boughtText: string | null;
   /** Vorschau des nächsten Rangs (Harmonie in Punkten, 🌿/🌰 relativ); null, wenn voll ausgebaut. */
   preview: { harmonyDelta: number; growthDelta: number; seedDelta: number } | null;
+  /** Schutz vor rauem Wetter, z. B. „🛡️ Schützt vor 🌬️ Sturm – halbiert den Abzug“; sonst null. */
+  protects?: string | null;
+  /** Erklärung dazu (Tooltip); sonst null. */
+  protectsDetail?: string | null;
 }
 
 /**
