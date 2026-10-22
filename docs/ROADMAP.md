@@ -378,7 +378,14 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
       Eigenheit mit Gewinn/Verzicht, Gabe), Gründen und Wechseln über den Zyklus-Knopf,
       Korridor-Liste mit Kaufknöpfen, 🪶-Zeile, Spielanleitung „Waldlandschaft“ (vorher nur
       Andeutung) – `src/ui/landscape-view.ts`, `src/ui/landscape-map.ts`,
-      `tests/landscape-view.test.ts`, `e2e/landscape.spec.ts`; offen: Tagebuch-Reiter „Landschaft“
+      `tests/landscape-view.test.ts`, `e2e/landscape.spec.ts`
+    - [x] Naturtagebuch-Reiter „Landschaft“ (`ui-dev`): erst nach der Freischaltung sichtbar
+      (vorher verborgen, Pfeiltasten überspringen ihn), Zähler gegründete Wälder; je Wald Name,
+      Waldtyp, Gedächtnis eigen/wirksam, Urwald ja/nein, Leitbaum, Hauptbaum (jetzt bzw. zuletzt),
+      Stammgäste, Tiere (aktiv: laufender Bestand, ruhend: `fauna`, nur entdeckte, seltenste
+      zuerst); gebaute Korridore (gratis/gekauft); Hähersaat verdient/ausgegeben/verfügbar –
+      `src/ui/journal-landscape-view.ts`, `tests/journal-landscape.test.ts`,
+      `e2e/journal-landscape.spec.ts`
     - [x] UI rechnet mit dem **wirksamen** Gedächtnis (`ui-dev`): `regularSlotsOf(state)` statt
       `regularSlots(meta.forestMemory)` (adapters, cycle-view, animal-detail-view), Anzeige
       des Gedächtnis-Bonus mit `effectiveForestMemory`, `environmentEffects` mit Standort und
