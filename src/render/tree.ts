@@ -1033,6 +1033,7 @@ function updateLayers(sc: SizeCache, base: SizeCache, cache: Cache, input: Scene
     due ||
     plantsChanged ||
     seasonChanged ||
+    // Neue Kulisse: der Hintergrund (Kopie der Kulisse samt Wurzeln) muss nachziehen.
     habitatsChanged ||
     speciesChanged ||
     sc.withPlants !== (input.plants !== undefined)
@@ -1212,6 +1213,9 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     f.ty = m.ty;
     f.spriteDpr = spriteDpr;
   }
+  // Bewohner von Waldwiese und Trockenmauer: im Mittelgrund wie ihre Kuppe – hinter
+  // Nachbarbäumen, Begleitpflanzen, Wildschweinen und dem Hauptbaum.
+  if (withAnimals) layer.drawMidground(ctx, animals, sc.anchors!, f);
   if (sc.backRect) {
     const kb = reduced ? 0 : stormSkew(windSkew(time, 1.9) * 0.7, time + 0.4, wx ? wx.storm : 0);
     const r = sc.backRect;
@@ -1220,8 +1224,6 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   }
   // Wildschweine auf der Wiese: vor den Begleitpflanzen, hinter dem Hauptbaum.
   if (visitors) cache.visitors.draw(ctx, visitors, 'meadow', vf);
-  // Bewohner von Waldwiese und Trockenmauer: im Mittelgrund hinter dem Hauptbaum.
-  if (withAnimals) layer.drawMidground(ctx, animals, sc.anchors!, f);
   if (sc.frontRect) {
     const r = sc.frontRect;
     if (tint?.front) drawSheared(ctx, tint.front, r, k, groundPx, quantum, sx, sy, m.cx, m.cy, r.x, r.y);

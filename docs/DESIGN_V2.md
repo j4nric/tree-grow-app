@@ -5513,8 +5513,10 @@ jeder Bewohner ein eigener Streifen, gemeinsam kleiner, wenn es eng wird), Zeich
 - **Mittelgrund:** Die Bewohner stehen 2,7 Tiergrößen über der Bodenlinie (über dem Reh am
   Waldsaum), 70 % groß, auf einer flachen Kuppe; Abstand zum Stamm mindestens 3,2
   Tiergrößen und so weit, dass das Laub aller Hauptbaum-Arten ab Junger Baum in dieser Höhe
-  nicht hinreicht (schmal: so weit es geht). Sie werden **hinter dem Hauptbaum** gezeichnet
-  (nach Begleitpflanzen und Wildschweinen); der Turmfalke rüttelt 1,55 Tiergrößen darüber
+  nicht hinreicht (schmal: so weit es geht; die Blattbüschel aller Arten und Stufen werden
+  dafür einmal gemerkt, je Größe bleibt eine kurze Schleife). Sie liegen in der Tiefe wie
+  ihre Kuppe: **hinter** Nachbarbäumen, Begleitpflanzen, Wildschweinen und dem Hauptbaum
+  (gezeichnet direkt nach der Kulisse); der Turmfalke rüttelt 1,55 Tiergrößen darüber
   am äußeren Rand und liegt vor dem Laub. Wiese und Mauer gehören zur statischen Kulisse
   (neu nur bei Größe, Jahreszeit-Stufe oder beim Öffnen) und werden mit ihr für Tag, Nacht
   und Wetter getönt.

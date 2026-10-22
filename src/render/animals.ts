@@ -1155,9 +1155,9 @@ export class AnimalLayer {
    */
   draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame, pond = false, pile = false): void {
     if (animals.length === 0 && !pond && !pile) return;
-    // Hat `drawMidground` diesen Frame schon begonnen, zählt er nicht doppelt.
-    if (!this.begun) this.begin(animals, anchors, f);
-    this.begun = false;
+    // Hat `drawMidground` diesen Frame (gleiche Zeit, Liste, Anker) schon begonnen, nicht doppelt.
+    if (f.time !== this.midTime || animals !== this.midAnimals || anchors !== this.anchors) this.begin(animals, anchors, f);
+    this.midAnimals = null;
     for (const e of this.plan) {
       if (e.niche === 'roots') drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
     }
@@ -1170,13 +1170,14 @@ export class AnimalLayer {
   }
 
   /**
-   * Bewohner im Mittelgrund (Waldwiese, Trockenmauer, Reihe 2): vor `draw` und hinter dem
-   * Hauptbaum zu zeichnen – Laub und Stamm liegen vor ihnen.
+   * Bewohner im Mittelgrund (Waldwiese, Trockenmauer, Reihe 2): vor `draw` zu zeichnen,
+   * hinter Nachbarbäumen, Begleitpflanzen und Hauptbaum – wie ihre Kuppe in der Kulisse.
    */
   drawMidground(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame): void {
     if (animals.length === 0) return;
     this.begin(animals, anchors, f);
-    this.begun = true;
+    this.midTime = f.time;
+    this.midAnimals = animals;
     for (const e of this.plan) {
       if (e.depth >= 2) drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
     }
@@ -1190,8 +1191,9 @@ export class AnimalLayer {
     if (anchors !== this.anchors || !this.matches(animals)) this.rebuild(animals, anchors);
   }
 
-  /** `drawMidground` hat den Frame schon begonnen. */
-  private begun = false;
+  /** Zeit und Tierliste des letzten `drawMidground` (dessen Frame `draw` fortsetzt). */
+  private midTime = Number.NaN;
+  private midAnimals: readonly SceneAnimal[] | null = null;
 
   private matches(animals: readonly SceneAnimal[]): boolean {
     const sig = this.signature;

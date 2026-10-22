@@ -7,8 +7,8 @@
  * am Stamm einer festen Höhe, am Boden einem festen Abstand zum Stamm.
  */
 
-import { makeLayout, placeMainTree, placeRoots, sproutScale, trunkFootHalf, type Layout, type PlacedTree } from './layout';
-import { normalizeSpecies, TREE_SPECIES, type Branch, type TreeSpecies } from './plant';
+import { heightFraction, MAIN_SEED, makeLayout, placeMainTree, placeRoots, sproutScale, trunkFootHalf, type Layout, type PlacedTree } from './layout';
+import { buildTree, normalizeSpecies, TREE_FORMS, TREE_SPECIES, type Branch, type TreeSpecies } from './plant';
 import { clamp, clamp01, hash2, lerp } from './util';
 
 /** Nischen-IDs, die der Renderer kennt (wie in DESIGN_V2.md / src/content/niches.ts). */
@@ -280,34 +280,68 @@ const foliageMemo = new Map<string, number>();
 /**
  * Wie weit (px von der Stammmitte) reicht das Laub des Hauptbaums auf Seite `side` in der
  * Höhe der Bewohner im Mittelgrund (vom Turmfalken bis zur Linie) – größter Wert über alle
- * Arten und Stufen ab Junger Baum. Die Bewohner stehen hinter dem Baum; so verdeckt ihn das
- * Laub nicht. Gemerkt je Größe (wird nur selten gebraucht).
+ * Arten und Stufen ab Junger Baum (in Schritten von 0,5). Die Bewohner stehen hinter dem
+ * Baum; so verdeckt ihn das Laub nicht. Die Blattbüschel aller Bäume hängen nicht von der
+ * Größe ab und werden einmal gemerkt (`crownLeaves`); je Größe bleibt nur eine billige
+ * Schleife (Maßstab wie `placeTree`). Gemerkt je Größe.
  */
-function foliageReach(layout: Layout, size: number, side: -1 | 1): number {
+export function foliageReach(layout: Layout, size: number, side: -1 | 1): number {
   const key = `${layout.width}x${layout.height}/${side}`;
   let reach = foliageMemo.get(key);
   if (reach !== undefined) return reach;
   reach = 0;
   const line = layout.groundY - HABITAT_LIFT * size;
   const top = line - (SOAR_LIFT + 0.6) * size;
-  for (const species of TREE_SPECIES) {
-    for (let g = 3; g <= 8; g += 0.5) {
-      const t = placeMainTree(layout, g, species);
-      if (!t) continue;
-      for (const l of t.geo.leaves) {
-        const r = l.r * t.scale;
-        const x = t.x + l.x * t.scale;
-        const y = t.y + l.y * t.scale;
-        if (y + r < top || y - r > line + size * 0.1) continue;
-        const d = (x - layout.cx) * side + r * 0.85;
-        if (d > reach) reach = d;
-      }
+  const bottom = line + size * 0.1;
+  for (const t of crownLeaves()) {
+    const scale = Math.min((layout.avail * heightFraction(t.g)) / t.height, layout.avail / t.depth, (layout.width * 0.5) / t.half);
+    const l = t.leaves;
+    for (let i = 0; i < l.length; i += 3) {
+      const r = l[i + 2]! * scale;
+      const y = layout.groundY + l[i + 1]! * scale;
+      if (y + r < top || y - r > bottom) continue;
+      const d = l[i]! * scale * side + r * 0.85;
+      if (d > reach) reach = d;
     }
   }
   reach += size * 0.15;
   if (foliageMemo.size > 32) foliageMemo.clear();
   foliageMemo.set(key, reach);
   return reach;
+}
+
+interface CrownLeaves {
+  g: number;
+  /** Blattbüschel x, y, r je Büschel (Baum-Einheiten, Fuß auf 0, 0). */
+  leaves: Float64Array;
+  /** Wie in `placeTree`: Höhe der Äste, Höhe samt Laub, größte halbe Breite. */
+  height: number;
+  depth: number;
+  half: number;
+}
+
+let crownLeavesMemo: CrownLeaves[] | null = null;
+
+/** Blattbüschel des Hauptbaums aller Arten für g = 3, 3,5 … 8 (einmal berechnet). */
+function crownLeaves(): CrownLeaves[] {
+  if (crownLeavesMemo) return crownLeavesMemo;
+  const out: CrownLeaves[] = [];
+  for (const species of TREE_SPECIES) {
+    for (let g = 3; g <= 8; g += 0.5) {
+      const geo = buildTree(g, MAIN_SEED, species === 'oak' ? undefined : TREE_FORMS[species]);
+      let segTop = 0;
+      for (const sg of geo.segments) segTop = Math.min(segTop, sg.y1, sg.y2);
+      const leaves = new Float64Array(geo.leaves.length * 3);
+      geo.leaves.forEach((l, i) => {
+        leaves[i * 3] = l.x;
+        leaves[i * 3 + 1] = l.y;
+        leaves[i * 3 + 2] = l.r;
+      });
+      out.push({ g, leaves, height: Math.max(-segTop, 1e-6), depth: Math.max(-geo.minY, 1e-6), half: Math.max(-geo.minX, geo.maxX, 1e-6) });
+    }
+  }
+  crownLeavesMemo = out;
+  return out;
 }
 
 const trunkMemo = new Map<string, number>();

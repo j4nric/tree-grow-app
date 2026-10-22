@@ -3,6 +3,7 @@ import { HABITAT_SPECIES } from '../src/content/habitats';
 import {
   animalSize,
   createAnchorResolver,
+  foliageReach,
   HABITAT_LIFT,
   midgroundGeometry,
   pileGeometry,
@@ -242,6 +243,43 @@ describe('Waldwiese und Trockenmauer im Mittelgrund', () => {
     }
   });
 
+  it('Reichweite des Laubs: gemerkte Blattbüschel geben genau das Ergebnis der platzierten Bäume', () => {
+    for (const [w, h] of [...SIZES, [1024, 768] as [number, number], [500, 900] as [number, number]]) {
+      const layout = makeLayout(w, h);
+      const S = animalSize(w, h);
+      for (const side of [-1, 1] as const) {
+        // Bezug: jeden Baum wie im Renderer platzieren (langsam, darum nur im Test).
+        const line = layout.groundY - HABITAT_LIFT * S;
+        const top = line - (1.55 + 0.6) * S;
+        let want = 0;
+        for (const species of TREE_SPECIES) {
+          for (let g = 3; g <= 8; g += 0.5) {
+            const t = placeMainTree(layout, g, species)!;
+            for (const l of t.geo.leaves) {
+              const r = l.r * t.scale;
+              const y = t.y + l.y * t.scale;
+              if (y + r < top || y - r > line + S * 0.1) continue;
+              want = Math.max(want, (t.x + l.x * t.scale - layout.cx) * side + r * 0.85);
+            }
+          }
+        }
+        expect(foliageReach(layout, S, side), `${w}×${h} ${side}`).toBeCloseTo(want + S * 0.15, 6);
+      }
+    }
+  });
+
+  it('neue Größe: Lage im Mittelgrund ohne spürbare Wartezeit (Blattbüschel nur einmal)', () => {
+    midgroundGeometry(makeLayout(640, 480), animalSize(640, 480), 1);
+    const t0 = performance.now();
+    for (let i = 0; i < 20; i++) {
+      const layout = makeLayout(700 + i * 13, 500 + i * 7);
+      midgroundGeometry(layout, animalSize(layout.width, layout.height), 1);
+      midgroundGeometry(layout, animalSize(layout.width, layout.height), -1);
+    }
+    // 40 neue Lagen (inkl. breitester Stamm je Größe) – früher 23–88 ms je Lage.
+    expect((performance.now() - t0) / 40).toBeLessThan(15);
+  });
+
   it('Bewohner überlappen keine Tiere am Boden, am Stamm und im Erdschnitt (Plätze 0–5, Stufen 3–8, alle Baumarten)', { timeout: 30_000 }, () => {
     for (const [w, h] of SIZES) {
       for (const species of TREE_SPECIES) {
@@ -421,6 +459,36 @@ describe('Lebensräume zeichnen', () => {
     };
     expect(alphas(1)).toEqual([1]);
     expect(alphas(3)[0]).toBeCloseTo(0.5, 6);
+  });
+
+  it('drawScene: Bewohner im Mittelgrund liegen hinter Begleitpflanzen und Hauptbaum (wie ihre Kuppe)', () => {
+    const canvas = makeCanvas(800, 600);
+    const ctx = canvas.getContext('2d');
+    const plants: ScenePlant[] = [
+      { id: 'hazel', group: 'shrubs', slot: 0, vigor: 1 },
+      { id: 'birch', group: 'trees', slot: 1, vigor: 1 },
+    ];
+    const animals: SceneAnimal[] = [
+      { id: 'rabbit', family: 'mammals', niche: 'meadow', slot: 0, happiness: 1 },
+      { id: 'sandlizard', family: 'reptiles', niche: 'wall', slot: 0, happiness: 1 },
+    ];
+    const input = { growth: 6, animals, plants, meadow: true, wall: true, sizeSettled: true, reducedMotion: true } as const;
+    drawScene(ctx, 800, 600, { ...input, time: 1 });
+    canvas.calls.length = 0;
+    drawScene(ctx, 800, 600, { ...input, time: 1.1 });
+    const draws = canvas.calls.filter((c) => c.name === 'drawImage');
+    // Ebenen in Canvas-Größe: Hintergrund, dann hintere Ebene (Begleitpflanzen), dann Hauptbaum.
+    const full = draws.map((c, i) => ({ i, src: c.args[0] as StubCanvas })).filter((d) => d.src.width === 800 && d.src.height === 600);
+    const layers = [...new Set(full.map((d) => d.src))];
+    expect(layers.length).toBeGreaterThanOrEqual(3);
+    const backFirst = full.find((d) => d.src === layers[1])!.i;
+    // Sprites der Bewohner sind klein (Wolken sind breiter als 60 px).
+    const residents = draws.map((c, i) => ({ i, w: (c.args[0] as StubCanvas).width })).filter((d) => d.w > 0 && d.w < 60);
+    expect(residents.length).toBeGreaterThanOrEqual(3);
+    for (const r of residents) {
+      expect(r.i).toBeGreaterThan(full[0]!.i);
+      expect(r.i).toBeLessThan(backFirst);
+    }
   });
 
   it('drawScene: Kulisse nur beim Öffnen eines Lebensraums neu, alle Jahreszeiten ohne Fehler', () => {
