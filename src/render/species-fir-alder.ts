@@ -14,8 +14,7 @@
  * über Hashes fester Indizes: gleiche Eingabe → gleiches Bild.
  */
 
-import type { LeafCluster, LeafPalette, PlantGeometry, WoodColors } from './plant';
-import { leafKeep } from './plant';
+import type { LeafPalette, PlantGeometry, WoodColors } from './plant';
 import type { SeasonLook } from './season';
 import { clamp01, hash2, mix, smooth01 } from './util';
 
@@ -48,13 +47,31 @@ function leafSpan(geo: PlantGeometry): [number, number] {
 // Weißtanne
 // ---------------------------------------------------------------------------
 
-/** Größe der Nadeletagen relativ zu den Blattbüscheln der Geometrie. */
-const FIR_TIER_SCALE = 0.8;
+/** Ein Nadelzweig (Fächer) in Zeichenpixeln: obere Kante, fransige Unterkante, Astarm. */
+interface Spray {
+  /** Punkte der Oberkante (x, y) vom Ansatz bis zur Spitze. */
+  top: number[];
+  /** Fransen der Unterkante (x, y), von der Spitze zurück zum Ansatz. */
+  fringe: number[];
+  /** Mittellinie (Astarm) x, y. */
+  arm: number[];
+  /** Dicke des Fächers (px). */
+  w: number;
+  /** Farbstreuung 0–2 und fester Zufallswert 0–1. */
+  tone: number;
+  r: number;
+}
+
+/** Stützpunkte je Fächer (mehr = feinere Fransen). */
+const SPRAY_STEPS = 7;
 
 /**
- * Nadeletagen: jedes Büschel als flache, breite Ellipse – Schatten, Grundton, hellere
- * Oberseite, silbrige Lichter. Mit `snow` > 0 liegt Schnee auf den Etagen (per Seed fest,
- * mit mehr Schnee auf mehr Büscheln).
+ * Nadelzweige der Weißtanne: Jedes Aststück ab dem ersten Seitenast trägt einen flachen,
+ * gefiederten Fächer – oben eine glatte, bläulich-silbrige Kante, unten fransig und leicht
+ * hängend, die Spitze leicht aufgebogen. Seitenzweige setzen eigene Fächer an, so entsteht
+ * das gefiederte Bild mit sichtbarem Astarm. Kahle Aststummel (`Branch.bare`) tragen keine
+ * Nadeln. `dense` > 1 macht die Fächer voller (junger Baum). Mit `snow` > 0 liegt Schnee
+ * auf der Oberkante. Alles in wenigen Füllaufrufen je Farbe (beim Neuaufbau der Ebene).
  */
 export function paintFirTiers(
   ctx: CanvasRenderingContext2D,
@@ -64,36 +81,149 @@ export function paintFirTiers(
   scale: number,
   palette: LeafPalette,
   snow: number,
+  dense = 1,
+  arm = '#5a5a52',
 ): void {
-  const leaves = geo.leaves.filter((l) => l.level >= 1 || geo.maxLevel < 2);
-  const pass = (color: string, dx: number, dy: number, k: number, flat: number, filter: (l: LeafCluster) => boolean) => {
+  const sprays: Spray[] = [];
+  geo.branches.forEach((b, i) => {
+    if ((b.order ?? 0) < 1) return;
+    const foliage = 1 - (b.bare ?? 0);
+    if (foliage < 0.05) return;
+    const x0 = ox + b.x1 * scale;
+    const y0 = oy + b.y1 * scale;
+    const x1 = ox + b.mx * scale;
+    const y1 = oy + b.my * scale;
+    const x2 = ox + b.x2 * scale;
+    const y2 = oy + b.y2 * scale;
+    const l1 = Math.hypot(x1 - x0, y1 - y0);
+    const l2 = Math.hypot(x2 - x1, y2 - y1);
+    const L = l1 + l2;
+    if (L < 1.2) return;
+    const r = rnd(i, 31);
+    // Dicke nach dem Baum (nicht nach dem Aststück): auch die äußeren Zweige tragen volle
+    // Fächer; Seitenzweige etwas schmaler.
+    const w = Math.min(L * 1.4, scale * ((b.order ?? 1) >= 2 ? 0.17 : 0.24)) * foliage * dense * (0.85 + 0.3 * r);
+    // Richtung an der Spitze (für die Verlängerung über das Astende hinaus).
+    const dx = (x2 - x1) / (l2 || 1);
+    const dy = (y2 - y1) / (l2 || 1);
+    const ext = Math.min(w * 0.6, L * 0.25);
+    const top: number[] = [];
+    const fringe: number[] = [];
+    const armPts: number[] = [];
+    for (let k = 0; k <= SPRAY_STEPS; k++) {
+      const t = k / SPRAY_STEPS;
+      // Punkt auf dem Astarm (zwei Teilstücke) bzw. hinter der Spitze.
+      const d = t * (L + ext);
+      let px: number;
+      let py: number;
+      if (d <= l1) {
+        const u = d / (l1 || 1);
+        px = x0 + (x1 - x0) * u;
+        py = y0 + (y1 - y0) * u;
+      } else if (d <= L) {
+        const u = (d - l1) / (l2 || 1);
+        px = x1 + (x2 - x1) * u;
+        py = y1 + (y2 - y1) * u;
+      } else {
+        px = x2 + dx * (d - L);
+        py = y2 + dy * (d - L);
+      }
+      // Aufgebogene Spitze, am Ansatz schmal, in der Mitte am breitesten.
+      const lift = w * 0.3 * t * t;
+      const body = Math.sin(Math.PI * Math.min(1, 0.18 + t * 0.9)) * (1 - 0.35 * t);
+      top.push(px, py - lift - w * 0.2 * body);
+      armPts.push(px, py - lift);
+      // Fransen: abwechselnd lang und kurz, nach außen hängend.
+      const long = k % 2 === 1 ? 1 : 0.55;
+      const hang = w * (0.55 + 0.15 * rnd(i * 16 + k, 32)) * body * long;
+      fringe.push(px - dx * w * 0.12 * long, py - lift + hang);
+    }
+    // Unterkante rückwärts (Spitze → Ansatz).
+    const back: number[] = [];
+    for (let k = fringe.length - 2; k >= 0; k -= 2) back.push(fringe[k]!, fringe[k + 1]!);
+    sprays.push({ top, fringe: back, arm: armPts, w, tone: Math.floor(rnd(i, 33) * 2.999), r });
+  });
+  if (sprays.length === 0) return;
+
+  /** Umriss eines Fächers – verschoben um dy; mit `down` > 0 nur ein Band unter der Oberkante. */
+  const outline = (sp: Spray, dy: number, down = 0) => {
+    const t = sp.top;
+    ctx.moveTo(t[0]!, t[1]! + dy);
+    for (let k = 2; k < t.length; k += 2) ctx.lineTo(t[k]!, t[k + 1]! + dy);
+    const f = down > 0 ? null : sp.fringe;
+    if (f) {
+      for (let k = 0; k < f.length; k += 2) ctx.lineTo(f[k]!, f[k + 1]! + dy);
+    } else {
+      // Nur ein Band unter der Oberkante (für Licht und Schnee).
+      for (let k = t.length - 2; k >= 0; k -= 2) ctx.lineTo(t[k]!, t[k + 1]! + dy + sp.w * down);
+    }
+    ctx.closePath();
+  };
+  const fill = (color: string, filter: (sp: Spray) => boolean, dy: (sp: Spray) => number, down = 0) => {
     ctx.fillStyle = color;
     ctx.beginPath();
-    for (const l of leaves) {
-      if (!filter(l)) continue;
-      const R = l.r * scale * FIR_TIER_SCALE * k;
-      if (R < 0.6) continue;
-      const x = ox + l.x * scale + dx * R;
-      const y = oy + l.y * scale + dy * R;
-      ctx.moveTo(x + R * 1.6, y);
-      ctx.ellipse(x, y, R * 1.6, R * flat, (l.a - 0.5) * 0.14, 0, TAU);
+    let n = 0;
+    for (const sp of sprays) {
+      if (!filter(sp)) continue;
+      outline(sp, dy(sp), down);
+      if (++n >= 64) {
+        ctx.fill();
+        ctx.beginPath();
+        n = 0;
+      }
     }
     ctx.fill();
   };
-  pass(palette.shadow, 0.06, 0.22, 1, 0.38, () => true);
-  pass(palette.tones[0], 0, 0, 0.96, 0.34, () => true);
-  pass(palette.tones[1], -0.08, -0.13, 0.78, 0.24, (l) => l.b > 0.22);
-  pass(palette.tones[2], -0.18, -0.21, 0.52, 0.16, (l) => l.b > 0.55);
-  ctx.globalAlpha = 0.45;
-  pass(palette.highlight, -0.32, -0.3, 0.26, 0.1, (l) => l.b > 0.72);
+  const all = () => true;
+  // Schatten unter dem Fächer, dann der Körper in drei leicht gestreuten Tönen (dunkel).
+  fill(palette.shadow, all, (sp) => sp.w * 0.14);
+  const body = [mix(palette.shadow, palette.tones[0], 0.55), palette.tones[0], mix(palette.tones[0], palette.tones[1], 0.6)];
+  for (let t = 0; t < 3; t++) fill(body[t]!, (sp) => sp.tone === t, () => 0);
+  // Gefiedert: dunkle Nadelstriche vom Astarm in die Fransen.
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = palette.shadow;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = Math.max(0.6, scale * 0.0035);
+  ctx.beginPath();
+  for (const sp of sprays) {
+    if (sp.w < 3) continue;
+    const a = sp.arm;
+    const f = sp.fringe;
+    const n = a.length / 2;
+    for (let k = 1; k < n; k++) {
+      const fi = (n - 1 - k) * 2;
+      ctx.moveTo(a[(k - 1) * 2]!, a[(k - 1) * 2 + 1]!);
+      ctx.lineTo(f[fi]!, f[fi + 1]!);
+    }
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  // Oberseite heller, bläulich-silbrig; Streuung je Ast.
+  const upper = [mix(palette.tones[1], '#7fa3a6', 0.3), mix(palette.tones[2], '#8fb2b2', 0.35), mix(palette.tones[1], palette.tones[2], 0.5)];
+  for (let t = 0; t < 3; t++) fill(upper[t]!, (sp) => sp.tone === t, () => 0, 0.22);
+  // Astarm sichtbar (nur bei kräftigen Fächern).
+  ctx.strokeStyle = arm;
+  ctx.globalAlpha = 0.75;
+  ctx.lineWidth = Math.max(0.7, scale * 0.004);
+  ctx.beginPath();
+  for (const sp of sprays) {
+    if (sp.w < 4) continue;
+    const a = sp.arm;
+    ctx.moveTo(a[0]!, a[1]!);
+    for (let k = 2; k < a.length - 2; k += 2) ctx.lineTo(a[k]!, a[k + 1]!);
+  }
+  ctx.stroke();
+  // Silbrige Lichter auf einigen Oberkanten.
+  ctx.globalAlpha = 0.5;
+  fill(palette.highlight, (sp) => sp.r > 0.6, () => 0, 0.07);
   ctx.globalAlpha = 1;
   if (snow <= 0.02) return;
-  // Schnee: kühler Schatten unter der Haube, dann die weiße Haube oben auf der Etage.
-  const covered = (l: LeafCluster) => leafKeep(l) < 0.15 + 0.8 * snow;
-  ctx.globalAlpha = 0.55 * snow;
-  pass('#c3ced8', -0.04, -0.2, 0.86, 0.2, covered);
+  // Schnee auf der Oberkante: mehr Schnee → mehr und dickere Hauben.
+  const covered = (sp: Spray) => sp.r < 0.2 + 0.8 * snow;
+  ctx.globalAlpha = 0.5 * snow;
+  fill('#c3ced8', covered, (sp) => -sp.w * 0.02, 0.2 + 0.1 * snow);
   ctx.globalAlpha = Math.min(1, 0.4 + 0.6 * snow);
-  pass('#f2f5f7', -0.06, -0.3, 0.8, 0.16, covered);
+  fill('#f2f5f7', covered, (sp) => -sp.w * 0.08, 0.12 + 0.1 * snow);
   ctx.globalAlpha = 1;
 }
 
@@ -173,7 +303,7 @@ export function paintFirCones(ctx: CanvasRenderingContext2D, geo: PlantGeometry,
   for (const i of upper) {
     if (rnd(i, 91) > share) continue;
     const l = geo.leaves[i]!;
-    const R = l.r * scale * FIR_TIER_SCALE;
+    const R = l.r * scale * 0.8;
     const h = Math.max(6, R * 0.8);
     const w = Math.max(2.6, h * 0.36);
     const x = ox + l.x * scale + (rnd(i, 92) - 0.5) * R * 1.4;

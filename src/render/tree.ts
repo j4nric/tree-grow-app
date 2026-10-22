@@ -2137,7 +2137,9 @@ function paintSpeciesTree(
   paintWood(ctx, t.geo, t.x, t.y, t.scale, 1, wood);
   if (species === 'fir') {
     if (g > 0) paintFirBark(ctx, t.geo, t.x, t.y, t.scale, g);
-    paintFirTiers(ctx, t.geo, t.x, t.y, t.scale, palette, look ? look.snow : 0);
+    // Junge Tanne: dichterer, regelmäßiger Kegel (vollere Fächer).
+    const dense = g > 0 ? 1 + 0.6 * (1 - smooth01((g - 3.5) / 2)) : 1;
+    paintFirTiers(ctx, t.geo, t.x, t.y, t.scale, palette, look ? look.snow : 0, dense, wood.shade);
     if (g > 0) paintFirCones(ctx, t.geo, t.x, t.y, t.scale, g, look);
     return;
   }

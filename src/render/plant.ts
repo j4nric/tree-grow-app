@@ -48,6 +48,9 @@ export interface Branch {
   w1: number;
   w2: number;
   children: number[];
+  /** Nur bei Arten mit Quirlen (Weißtanne): Astordnung (0 = Stamm) und kahl 0–1 (Aststummel). */
+  order?: number;
+  bare?: number;
 }
 
 export interface PlantGeometry {
@@ -123,7 +126,7 @@ export function normalizeSpecies(s: string | undefined, fallback: TreeSpecies = 
 }
 
 /** Werte, die sich mit dem Alter ändern dürfen (siehe `TreeForm.aged`). */
-export type AgedFormKey = 'lift' | 'leader0' | 'leader' | 'spreadLow' | 'spreadHigh' | 'side0' | 'side' | 'stemLeader' | 'whorlBase' | 'coneMin' | 'flatTop';
+export type AgedFormKey = 'lift' | 'leader0' | 'leader' | 'spreadLow' | 'spreadHigh' | 'side0' | 'side' | 'stemLeader' | 'whorlBase' | 'coneMin' | 'flatTop' | 'rise';
 
 /**
  * Weiterer Stamm aus dem Stammfuß (Stockausschlag, Schwarzerle): wächst wie ein um
@@ -222,6 +225,8 @@ export interface TreeForm {
    * stufenlos ab (astfreier Schaft im Alter).
    */
   prune?: { from: number; to: number };
+  /** Nur mit `whorls`: Äste zeigen höchstens so weit (Bogenmaß) über die Waagerechte. */
+  rise?: number;
   /** Weitere Stämme aus dem Stammfuß (mehrstämmig). */
   stems?: readonly ExtraStem[];
 }
@@ -311,8 +316,8 @@ export const TREE_FORMS: Record<TreeSpecies, TreeForm> = {
     leader0: 0.8,
     leader: 0.52,
     leaderVar: 0.06,
-    spreadLow: 1.38,
-    spreadHigh: 0.5,
+    spreadLow: 1.48,
+    spreadHigh: 0.32,
     spreadVar: 0.12,
     side0: 0.5,
     side: 0.5,
@@ -331,8 +336,9 @@ export const TREE_FORMS: Record<TreeSpecies, TreeForm> = {
     whorlBase: 0,
     coneMin: 0.4,
     flatTop: 0,
-    prune: { from: 3.3, to: 4.6 },
-    aged: { from: 5.8, to: 8, stemLeader: 0.78, whorlBase: 0.08, coneMin: 1, flatTop: 0.7, lift: 0.2, side0: 0.4 },
+    prune: { from: 4.2, to: 5.6 },
+    rise: 0.28,
+    aged: { from: 5.6, to: 8, stemLeader: 0.74, whorlBase: 0.06, coneMin: 0.6, flatTop: 0.9, lift: 0.14, rise: 0.5, side0: 0.44 },
   },
   // Schwarzerle: durchgehender Leittrieb, schräg aufstrebende Äste – eine eiförmige,
   // oben spitze Krone; aus dem Stammfuß wachsen zwei jüngere Stämme (mehrstämmig).
@@ -409,7 +415,7 @@ export function formAt(form: TreeForm, g: number): TreeForm {
   const t = smooth01((g - aged.from) / Math.max(aged.to - aged.from, 1e-6));
   if (t <= 0) return form;
   const out: TreeForm = { ...form };
-  for (const key of ['lift', 'leader0', 'leader', 'spreadLow', 'spreadHigh', 'side0', 'side', 'stemLeader', 'whorlBase', 'coneMin', 'flatTop'] as const) {
+  for (const key of ['lift', 'leader0', 'leader', 'spreadLow', 'spreadHigh', 'side0', 'side', 'stemLeader', 'whorlBase', 'coneMin', 'flatTop', 'rise'] as const) {
     const v = aged[key];
     if (v !== undefined) out[key] = (form[key] ?? 0) + (v - (form[key] ?? 0)) * t;
   }
@@ -429,6 +435,8 @@ function growBranch(
   width: number,
   /** Astordnung: 0 = Stamm und Leittrieb, je Abzweigung + 1. */
   order: number,
+  /** Kahl 0–1 (abgestorbener Aststummel): weniger Laub, gilt auch für die Kinder. */
+  bare = 0,
 ): number {
   const grow = clamp01(depth - level);
   if (grow <= 0) return -1;
@@ -457,6 +465,10 @@ function growBranch(
   geo.segments.push({ x1: mx, y1: my, x2: ex, y2: ey, w1: wMid, w2: wEnd });
   const index = geo.branches.length;
   const branch: Branch = { level, x1: x, y1: y, mx, my, x2: ex, y2: ey, w1: width, w2: wEnd, children: [] };
+  if (F.whorls) {
+    branch.order = order;
+    branch.bare = bare;
+  }
   geo.branches.push(branch);
   // Astbreite mit einrechnen (am Fuß inkl. Verdickung).
   extend(geo, x, y, width * 0.8);
@@ -471,7 +483,7 @@ function growBranch(
   // Blattbüschel: blenden beim Herauswachsen ein und an inneren Ästen wieder aus.
   const leafIn = level === 0 ? clamp01(depth - 1) : clamp01((depth - level - 0.1) / 0.9);
   const leafOut = clamp01((level === 0 ? 3 : level + F.leafLife) - depth);
-  const f = smooth01(leafIn) * leafOut;
+  const f = smooth01(leafIn) * leafOut * (1 - bare);
   if (f > 0.01) {
     // Mit Quirlen: am ganzen Leittrieb kleine Büschel wie am Stamm (die Etagen tragen die Äste).
     const r = (length * (level === 0 || (F.whorls && order === 0) ? F.leafTrunk : F.leafBranch) + F.leafBase) * f;
@@ -494,10 +506,11 @@ function growBranch(
     level + 1,
     ex,
     ey,
-    F.whorls ? limitDroop(a2 + (rv[1]! - 0.5) * 0.35, F.droop) : a2 + (rv[1]! - 0.5) * 0.35,
+    F.whorls ? limitRise(limitDroop(a2 + (rv[1]! - 0.5) * 0.35, F.droop), F.rise) : a2 + (rv[1]! - 0.5) * 0.35,
     length * (level === 0 ? F.leader0 : F.leader + rv[2]! * F.leaderVar),
     wEnd * 0.8,
     order,
+    bare,
   );
   if (leader >= 0) branch.children.push(leader);
   if (order >= F.maxOrder) return index;
@@ -517,10 +530,11 @@ function growBranch(
       level + 1,
       ex,
       ey,
-      limitDroop(a2 + s * (spread + r1 * F.spreadVar), F.droop),
+      F.whorls ? limitRise(limitDroop(a2 + s * (spread + r1 * F.spreadVar), F.droop), F.rise) : limitDroop(a2 + s * (spread + r1 * F.spreadVar), F.droop),
       length * (level === 0 ? F.side0 : F.side + r1 * F.sideVar),
       wEnd * F.sideWidth,
       order + 1,
+      bare,
     );
     if (side >= 0) branch.children.push(side);
   }
@@ -575,21 +589,32 @@ function growWhorls(
   // Ältere (tiefere) Äste sind länger: jung ein spitzer Kegel. Stetig in `depth`.
   const coneMin = F.coneMin ?? 0.4;
   // Im Alter holen die obersten Äste auf und bilden den breiten, flachen Gipfel.
-  const cone = (coneMin + (1 - coneMin) * smooth01((depth - level - 0.4) / 3)) * (1 + 1.6 * top);
+  const cone = (coneMin + (1 - coneMin) * smooth01((depth - level - 0.4) / 3)) * (1 + 5 * top);
   const firstSide = rv[4]! < 0.5 ? 1 : -1;
-  // Unteres Paar am Stamm: stirbt im Alter ab (stufenlos kürzer, dann ganz weg).
+  // Im Alter unregelmäßig: Etagen verschieden lang, viele Zwischenquirle fallen aus (Lücken).
+  const age = smooth01((depth - 4) / 3);
+  const irregular = 1 + (rv[3]! - 0.5) * 0.8 * age;
+  const thin = level > 1 && rv[9]! < 0.45 ? smooth01((depth - level - 1.5) / 2) * age : 0;
+  // Unteres Paar am Stamm: stirbt im Alter zu kahlen Aststummeln ab.
   const prune = F.prune;
-  const kept = level === 0 && prune ? 1 - smooth01((depth - prune.from) / Math.max(prune.to - prune.from, 1e-6)) : 1;
-  // [x, y, Richtung des Stücks, Längenfaktor, Seed-Index]
-  const pairs: [number, number, number, number, number][] = [];
-  if (kept > 0.02) pairs.push([mx, my, a1, 1.08 * kept, 3]);
-  pairs.push([ex, ey, a2, 1, 1]);
-  for (const [px, py, dir, k, si] of pairs) {
+  const dead = level === 0 && prune ? smooth01((depth - prune.from) / Math.max(prune.to - prune.from, 1e-6)) : 0;
+  // [x, y, Richtung des Stücks, Längenfaktor, Seed-Index, kahl]
+  const pairs: [number, number, number, number, number, number][] = [];
+  const mid = 1.08 * (1 - 0.82 * dead) * (1 - thin);
+  if (mid > 0.02) pairs.push([mx, my, a1, mid * irregular, 3, dead]);
+  // Äste zum Betrachter hin bzw. von ihm weg: verkürzt gesehen, füllen die Etage.
+  pairs.push([ex, ey, a2, -0.5 * irregular, 5, 0]);
+  pairs.push([ex, ey, a2, irregular, 1, 0]);
+  for (const [px, py, dir, k, si, bare] of pairs) {
     for (let i = 0; i < 2; i++) {
       const s = i === 0 ? firstSide : -firstSide;
       const r1 = si === 1 ? rv[5 + i]! : 1 - rv[6 - i]!;
+      // Aststummel: einer der beiden ist kürzer (unregelmäßig).
+      const stub = bare > 0 && i === 1 ? 1 - 0.5 * bare : 1;
+      // Verkürzte Äste (k < 0): etwas tiefer geneigt, Länge |k|.
+      const front = k < 0;
       // Fast waagrecht: Winkel zur Senkrechten, der Knick des Stamms zählt nur wenig.
-      const a = up + (dir - up) * 0.3 + s * (F.spreadLow + (r1 - 0.5) * F.spreadVar);
+      const a = up + (dir - up) * 0.3 + s * (F.spreadLow + (front ? 0.12 : 0) + (r1 - 0.5) * F.spreadVar);
       const side = growBranch(
         geo,
         F,
@@ -599,9 +624,10 @@ function growWhorls(
         px,
         py,
         limitDroop(a, F.droop),
-        (length * (level === 0 ? F.side0 * 0.9 : F.side0) * cone + base) * (0.92 + r1 * 0.16) * k,
-        wEnd * F.sideWidth * (k < 1 ? 0.6 + 0.4 * k : 1),
+        (length * (level === 0 ? F.side0 * (0.9 - 0.3 * age) : F.side0) * cone + base) * (0.92 + r1 * 0.16) * Math.abs(k) * stub,
+        wEnd * F.sideWidth * (k < 1 ? 0.6 + 0.4 * Math.abs(k) : 1),
         1,
+        bare,
       );
       if (side >= 0) branch.children.push(side);
     }
@@ -612,6 +638,18 @@ function growWhorls(
 /** Winkel auf (−π, π]. */
 function wrapAngle(a: number): number {
   return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
+/**
+ * Senkt einen Winkel, der mehr als `rise` über die Waagerechte zeigt (Nadelzweige der
+ * Tanne bleiben flach). Ohne Angabe: unverändert.
+ */
+function limitRise(angle: number, rise: number | undefined): number {
+  if (rise === undefined) return angle;
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  if (-dy <= Math.sin(rise)) return angle;
+  return Math.atan2(-Math.sin(rise), dx >= 0 ? Math.cos(rise) : -Math.cos(rise));
 }
 
 /** Hebt einen Winkel an, der mehr als `droop` unter die Waagerechte zeigt (y nach unten). */

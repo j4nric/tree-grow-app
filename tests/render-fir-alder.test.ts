@@ -193,15 +193,22 @@ describe('Weißtanne und Schwarzerle: Wuchsform', () => {
     expect(formAt(TREE_FORMS.fir, 8).flatTop).toBeCloseTo(TREE_FORMS.fir.aged!.flatTop!, 6);
   });
 
-  it('Tanne: das untere Astpaar stirbt im Alter ab (astfreier Schaft)', () => {
+  it('Tanne: das untere Astpaar stirbt im Alter zu kahlen Aststummeln ab', () => {
+    /** Kahlheit und Länge des Astpaars in der Stammmitte. */
     const lowest = (g: number) => {
       const geo = buildTree(g, 7, TREE_FORMS.fir);
       const trunk = geo.branches[0]!;
-      return Math.max(...trunk.children.slice(1).map((c) => geo.branches[c]!.y1));
+      const low = trunk.children.slice(1).map((c) => geo.branches[c]!).filter((b) => b.y1 > -0.6);
+      return { bare: Math.max(...low.map((b) => b.bare ?? 0)), len: Math.max(...low.map((b) => Math.hypot(b.x2 - b.x1, b.y2 - b.y1))) };
     };
-    // Jung sitzt ein Paar in der Stammmitte, alt erst am Ende des Stammstücks.
-    expect(lowest(3)).toBeGreaterThan(-0.6);
-    expect(lowest(6)).toBeLessThan(-0.9);
+    const young = lowest(3);
+    const old = lowest(6.5);
+    expect(young.bare).toBe(0);
+    expect(old.bare).toBeGreaterThan(0.9);
+    expect(old.len).toBeLessThan(young.len);
+    // Stummel tragen keine Nadeln.
+    const geo = buildTree(6.5, 7, TREE_FORMS.fir);
+    expect(geo.leaves.filter((l) => l.y > -0.6 && l.level === 1)).toEqual([]);
   });
 
   it('Erle: mehrstämmig ab Setzling, Keimblätter und Anker bleiben am Hauptstamm', () => {
