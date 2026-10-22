@@ -62,6 +62,11 @@ export interface EffectView {
 export interface ConditionView {
   label: string;
   met: boolean;
+  /**
+   * Nur teilweise erfüllt (Futter unter `FOOD_ENOUGH` gedeckt): neutrales Symbol ◐ statt ✓,
+   * damit „33 % gedeckt“ nicht wie erfüllt aussieht.
+   */
+  partial?: boolean;
   /** Kurze Erklärung darunter, z. B. bei knappem Futter „teilt sich das Futter mit Amsel“. */
   hint?: string;
 }

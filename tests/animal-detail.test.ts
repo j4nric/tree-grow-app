@@ -7,7 +7,7 @@ import { SEASONS_BY_ID } from '../src/content/seasons';
 import { ecosystemOf, evaluate, evaluateEcosystem, memberOptions } from '../src/core/formulas';
 import type { GameState } from '../src/core/state';
 import { resolveAnimal, toAnimalDetailView } from '../src/ui/animal-detail-view';
-import { formatPercent } from '../src/ui/view-format';
+import { FOOD_ENOUGH, formatPercent, isScarceFood } from '../src/ui/view-format';
 import { stateAt } from './helpers';
 
 /** Auswertung ohne diese Art – zum Nachprüfen des Beitrags (Kern rechnet, nicht der Test). */
@@ -53,6 +53,19 @@ describe('Tierdetails: View-Model', () => {
     const food = view.conditions[0]!;
     expect(food.met).toBe(now.animals.jay!.food > 0);
     expect(food.hint).toBe(`${formatPercent(now.animals.jay!.food)} gedeckt · teilt sich das Futter mit Eichhörnchen`);
+    // ✓ nur bei ausreichender Deckung, sonst ◐ (teilweise).
+    expect(food.partial === true).toBe(isScarceFood(now.animals.jay!.food));
+  });
+
+  it('Futter knapp gedeckt: teilweise statt erfüllt; voll gedeckt: erfüllt', () => {
+    const scarce = stateAt(3, ['earthworm', 'woodlouse', 'oakmoth', 'barkbeetle']);
+    scarce.cycle.mainTree = 'beech';
+    const moth = evaluate(scarce).animals.oakmoth!;
+    expect(moth.food).toBeLessThan(FOOD_ENOUGH);
+    expect(toAnimalDetailView(scarce, 'oakmoth')!.conditions[0]).toMatchObject({ met: true, partial: true });
+    const alone = stateAt(3, ['earthworm']);
+    expect(evaluate(alone).animals.earthworm!.food).toBeGreaterThanOrEqual(FOOD_ENOUGH);
+    expect(toAnimalDetailView(alone, 'earthworm')!.conditions[0]!.partial).toBeUndefined();
   });
 
   it('Jahreszeit: Winter hebt die Zufriedenheit der Säugetiere', () => {

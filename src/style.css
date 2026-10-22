@@ -1169,6 +1169,10 @@ dialog.encounter::backdrop {
   color: var(--accent-dark);
 }
 
+.card-conditions .partial .mark {
+  color: var(--muted);
+}
+
 .card-conditions .unmet {
   color: var(--muted);
 }

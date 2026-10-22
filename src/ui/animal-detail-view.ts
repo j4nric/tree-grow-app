@@ -51,7 +51,7 @@ import {
 } from './adapters';
 import { formatNumber } from './format';
 import { detailPredationViews } from './food-web-view';
-import { formatPercent } from './view-format';
+import { formatPercent, isScarceFood } from './view-format';
 import type {
   AnimalDetailView,
   ConditionView,
@@ -89,6 +89,8 @@ function foodCondition(sp: Species, status: AnimalStatus | undefined, present: r
   const rivals = foodCompetitors(sp, present)
     .map((id) => SPECIES_BY_ID.get(id)?.name)
     .filter((n): n is string => n !== undefined);
+  // ✓ nur bei ausreichender Deckung, sonst neutral ◐ (nicht wie erfüllt).
+  if (isScarceFood(food)) row.partial = true;
   const share = `${formatPercent(Math.min(1, food))} gedeckt`;
   row.hint = rivals.length > 0 ? `${share} · teilt sich das Futter mit ${listNames(rivals, 3)}` : share;
   return row;

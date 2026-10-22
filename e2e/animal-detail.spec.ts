@@ -1,5 +1,10 @@
 import type { BrowserContext, Page } from '@playwright/test';
-import { expect, niche, openGame, seedV3, test, waypoint } from './fixtures';
+import { SPECIES_BY_ID } from '../src/content/species';
+import { STAGES } from '../src/content/stages';
+import { evaluate } from '../src/core/formulas';
+import { createInitialState } from '../src/core/state';
+import { FOOD_ENOUGH } from '../src/ui/view-format';
+import { expect, niche, openGame, seedRaw, seedV3, test, waypoint } from './fixtures';
 
 /**
  * Tierdetails: Jede eingezogene Art in der Nischen-Übersicht ist ein Knopf, der einen
@@ -117,4 +122,39 @@ test('Tierdetails: Ziehen vom Karteninhalt auf den Hintergrund schließt nicht',
   // Ein echter Klick auf den Hintergrund schließt.
   await page.mouse.click(2, 2);
   await expect(dialog).toBeHidden();
+});
+
+test('Tierdetails: knappes Futter mit ◐ statt ✓, volle Zufriedenheit ohne Futtergrund', async ({ page, context }) => {
+  const start = new Date('2026-10-21T08:00:00Z');
+  await page.clock.install({ time: start });
+  await page.clock.pauseAt(new Date(start.getTime() + 1000));
+  // Vier Laubfresser teilen sich das Laub der Rotbuche – der Eichenwickler wird nicht satt.
+  const state = createInitialState(start.getTime(), 7);
+  state.stage = 3;
+  state.waypoint = STAGES[3]!.waypoint;
+  state.totalGrowth = waypoint(state.waypoint) + 1;
+  state.cycle.mainTree = 'beech';
+  for (const id of ['earthworm', 'woodlouse', 'oakmoth', 'barkbeetle']) {
+    state.niches[SPECIES_BY_ID.get(id)!.niche].push(id);
+    state.meta.journal.species.push(id);
+  }
+  const food = evaluate(state).animals.oakmoth!.food;
+  expect(food).toBeGreaterThan(0);
+  expect(food).toBeLessThan(FOOD_ENOUGH);
+  await seedRaw(context, state, 0);
+  await openGame(page);
+
+  // Keine Kachel nennt bei „100 %“ einen Futtergrund.
+  const tiles = page.locator('button.slot-open');
+  await expect(tiles).not.toHaveCount(0);
+  for (const text of await tiles.allInnerTexts()) {
+    expect(text.replace(/\s+/g, ' ')).not.toMatch(/100 % .*(wenig Futter|teilt sich das Futter)/);
+  }
+
+  await tile(page, 'crown', 'oakmoth').click();
+  const row = detail(page).locator('.card-conditions li').first();
+  await expect(row).toHaveClass(/\bpartial\b/);
+  await expect(row.locator('.mark')).toHaveText('◐');
+  await expect(row).toContainText('(teilweise)');
+  await expect(row).toContainText('gedeckt');
 });
