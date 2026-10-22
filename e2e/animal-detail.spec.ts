@@ -4,16 +4,13 @@ import { STAGES } from '../src/content/stages';
 import { evaluate } from '../src/core/formulas';
 import { createInitialState } from '../src/core/state';
 import { FOOD_ENOUGH } from '../src/ui/view-format';
-import { expect, niche, openGame, seedRaw, seedV3, test, waypoint } from './fixtures';
+import { animalPage, back, expect, niche, openAnimal, openGame, seedRaw, seedV3, sticker, test, waypoint } from './fixtures';
 
 /**
- * Tierdetails: Jede eingezogene Art in der Nischen-Übersicht ist ein Knopf, der einen
- * Dialog im Stil der Begegnungskarte öffnet – mit Zufriedenheit und ihren Gründen.
+ * Tierdetails als Unterseite U:Tier (docs/ALBUM_UI.md, A.5 und B.1): Jeder Sticker einer
+ * eingezogenen Art blättert um – mit Zufriedenheit und ihren Gründen, „Was es bewirkt“,
+ * Räuber und Beute, Lebensgemeinschaften. Zurück über das Lesezeichen „‹ Nischen“ oder Escape.
  */
-
-const detail = (page: Page) => page.locator('[data-ref="animal-detail"]');
-const tile = (page: Page, nicheId: string, species: string) =>
-  niche(page, nicheId).locator(`[data-species="${species}"] button.slot-open`);
 
 /** Junger Baum: Regenwurm und Rollassel (Humusküche noch unentdeckt), Blaumeise, Eichelhäher stört sie. */
 async function seed(context: BrowserContext): Promise<void> {
@@ -23,108 +20,97 @@ async function seed(context: BrowserContext): Promise<void> {
   });
 }
 
+async function noHorizontalOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const sub = document.querySelector('[data-ref="page-animal"]')!;
+    return {
+      page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      sub: sub.scrollWidth - sub.clientWidth,
+    };
+  });
+  expect(overflow.page).toBeLessThanOrEqual(0);
+  expect(overflow.sub).toBeLessThanOrEqual(0);
+}
+
 for (const viewport of [
   { name: 'Desktop', width: 1200, height: 700 },
   { name: 'mobil', width: 390, height: 844 },
   { name: 'schmal', width: 360, height: 740 },
 ]) {
-  test(`Tierdetails (${viewport.name}): Kachel öffnet Dialog, Esc gibt den Fokus zurück`, async ({ page, context }) => {
+  test(`U:Tier (${viewport.name}): Sticker blättert um, Escape blättert zurück und gibt den Fokus zurück`, async ({ page, context }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await seed(context);
     await openGame(page);
 
-    const button = tile(page, 'crown', 'bluetit');
+    const button = sticker(page, 'crown', 'bluetit');
     await expect(button).toBeVisible();
-    await expect(button).toHaveAttribute('aria-haspopup', 'dialog');
     const box = await button.boundingBox();
     expect(box!.height).toBeGreaterThanOrEqual(44);
-    await button.click();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
 
-    const dialog = detail(page);
-    await expect(dialog).toBeVisible();
-    await expect(page.getByRole('dialog', { name: 'Blaumeise' })).toBeVisible();
-    await expect(dialog.locator('[data-ref="detail-happiness"]')).toContainText(/😊 \d+\s%/);
-    await expect(dialog).toContainText('Vögel');
-    await expect(dialog).toContainText('Nische: 🌳 Krone');
-    // Gründe: Wünsche mit ✓/✗ und der Störer mit Namen
-    await expect(dialog.locator('[data-factor="disturb"]')).toContainText('wird gestört von Eichelhäher');
-    await expect(dialog.locator('.card-conditions li')).not.toHaveCount(0);
-    // Beitrag als Chips wie auf der Karte
-    await expect(dialog.locator('.detail-contribution .preview-chip')).not.toHaveCount(0);
-
-    // Kein Querscrollen – weder Seite noch Dialog
-    const overflow = await page.evaluate(() => {
-      const d = document.querySelector('[data-ref="animal-detail"]')!;
-      return {
-        page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        dialog: d.scrollWidth - d.clientWidth,
-      };
-    });
-    expect(overflow.page).toBeLessThanOrEqual(0);
-    expect(overflow.dialog).toBeLessThanOrEqual(0);
+    const sub = await openAnimal(page, 'crown', 'bluetit');
+    await expect(sub.locator('.page-title')).toHaveText('Blaumeise');
+    await expect(sub.locator('.page-title')).toBeFocused();
+    await expect(sub.locator('[data-ref="bookmark"]')).toHaveText('‹ Nischen');
+    await expect(sub.locator('[data-ref="detail-happiness"]')).toContainText(/😊 \d+\s%/);
+    await expect(sub).toContainText('Vögel · 🌳 Krone');
+    // Was es braucht: Wünsche mit ✓/✗ und der Störer mit Namen
+    const reasons = sub.locator('[data-ref="detail-reasons"]');
+    await expect(reasons.getByRole('heading', { name: 'Was es braucht' })).toBeVisible();
+    await expect(reasons.locator('[data-factor="disturb"]')).toContainText('wird gestört von Eichelhäher');
+    await expect(reasons.locator('.animal-need')).not.toHaveCount(0);
+    // Was es bewirkt: Beitrag als Pillen
+    const effects = sub.locator('[data-ref="detail-contribution"]');
+    await expect(effects.getByRole('heading', { name: 'Was es bewirkt' })).toBeVisible();
+    await expect(effects.locator('.animal-contribution .animal-pill')).not.toHaveCount(0);
+    // Kopfzeile: Seitenzahl bzw. Kennzahl der Nischen bleibt gleich
+    await noHorizontalOverflow(page);
 
     await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
+    await expect(sub).toBeHidden();
     await expect(button).toBeFocused();
   });
 }
 
-test('Tierdetails per Tastatur: Enter öffnet, „Schließen“ gibt den Fokus zurück', async ({ page, context }) => {
+test('U:Tier per Tastatur: Enter blättert um, das Lesezeichen zurück', async ({ page, context }) => {
   await seed(context);
   await openGame(page);
-  const button = tile(page, 'roots', 'earthworm');
+  const button = sticker(page, 'roots', 'earthworm');
   await button.focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('dialog', { name: 'Regenwurm' })).toBeVisible();
-  await expect(detail(page).locator('[data-ref="detail-close"]')).toBeFocused();
-  await detail(page).locator('[data-ref="detail-close"]').click();
-  await expect(detail(page)).toBeHidden();
+  const sub = animalPage(page);
+  await expect(sub).toBeVisible();
+  await expect(sub.locator('.page-title')).toHaveText('Regenwurm');
+  await back(page);
+  await expect(sub).toBeHidden();
   await expect(button).toBeFocused();
 });
 
-test('Tierdetails: keine Spoiler für unentdeckte Lebensgemeinschaften', async ({ page, context }) => {
+test('U:Tier: keine Spoiler für unentdeckte Lebensgemeinschaften', async ({ page, context }) => {
   await seed(context);
   await openGame(page);
-  await tile(page, 'roots', 'earthworm').click();
-  const dialog = detail(page);
-  const communities = dialog.locator('[data-ref="detail-communities"]');
+  const sub = await openAnimal(page, 'roots', 'earthworm');
+  const communities = sub.locator('[data-ref="detail-communities"]');
   await expect(communities).toContainText('noch unentdeckten Lebensgemeinschaft');
   // Kein Fortschritt an der Art – „2/3“ verriete, dass die übrigen Mitglieder schon da sind.
   await expect(communities).not.toContainText('Mitglieder');
-  // Weder Name noch ID im Dialog – auch nicht in Attributen.
-  const html = await dialog.evaluate((d) => d.outerHTML);
+  // Weder Name noch ID auf der Seite – auch nicht in Attributen.
+  const html = await sub.evaluate((d) => d.outerHTML);
   expect(html).not.toContain('Humusküche');
   expect(html).not.toContain('"humus"');
-  await expect(dialog.locator('[data-community]')).toHaveCount(0);
+  await expect(sub.locator('[data-community]')).toHaveCount(0);
 });
 
-test('Tierdetails: freie Plätze sind keine Knöpfe', async ({ page, context }) => {
+test('Nischen: freie Plätze sind gestrichelte Kreise, keine Knöpfe', async ({ page, context }) => {
   await seed(context);
   await openGame(page);
   const crown = niche(page, 'crown');
-  await expect(crown.locator('button.slot-open')).toHaveCount(2);
-  await expect(crown.locator('.slot.empty button')).toHaveCount(0);
+  await expect(crown.locator('button.sticker:visible')).toHaveCount(2);
+  await expect(crown.locator('.sticker-slot.is-empty button:visible')).toHaveCount(0);
+  await expect(crown.locator('.sticker-empty:visible')).not.toHaveCount(0);
 });
 
-test('Tierdetails: Ziehen vom Karteninhalt auf den Hintergrund schließt nicht', async ({ page, context }) => {
-  await seed(context);
-  await openGame(page);
-  await tile(page, 'crown', 'bluetit').click();
-  const dialog = detail(page);
-  await expect(dialog).toBeVisible();
-  // Textauswahl: Maus auf der Karte drücken, außerhalb loslassen.
-  const title = await dialog.locator('#animal-detail-title').boundingBox();
-  await page.mouse.move(title!.x + 5, title!.y + 5);
-  await page.mouse.down();
-  await page.mouse.move(2, 2, { steps: 4 });
-  await page.mouse.up();
-  await expect(dialog).toBeVisible();
-  // Ein echter Klick auf den Hintergrund schließt.
-  await page.mouse.click(2, 2);
-  await expect(dialog).toBeHidden();
-});
-
-test('Tierdetails: knappes Futter mit ~ statt ✓, volle Zufriedenheit ohne Futtergrund', async ({ page, context }) => {
+test('U:Tier: knappes Futter mit ~ statt ✓; Stimmung voll im Sticker-Titel', async ({ page, context }) => {
   const start = new Date('2026-10-21T08:00:00Z');
   await page.clock.install({ time: start });
   await page.clock.pauseAt(new Date(start.getTime() + 1000));
@@ -144,17 +130,46 @@ test('Tierdetails: knappes Futter mit ~ statt ✓, volle Zufriedenheit ohne Futt
   await seedRaw(context, state, 0);
   await openGame(page);
 
-  // Keine Kachel nennt bei „100 %“ einen Futtergrund.
-  const tiles = page.locator('button.slot-open');
-  await expect(tiles).not.toHaveCount(0);
-  for (const text of await tiles.allInnerTexts()) {
-    expect(text.replace(/\s+/g, ' ')).not.toMatch(/100 % .*(wenig Futter|teilt sich das Futter)/);
+  // Kein Sticker nennt bei „100 %“ einen Futtergrund.
+  const stickers = page.locator('[data-ref="page-niches"] button.sticker');
+  await expect(stickers).not.toHaveCount(0);
+  for (const title of await stickers.evaluateAll((list) => list.map((b) => b.getAttribute('title') ?? ''))) {
+    expect(title).not.toMatch(/100 % .*(wenig Futter|teilt sich das Futter)/);
   }
 
-  await tile(page, 'crown', 'oakmoth').click();
-  const row = detail(page).locator('.card-conditions li').first();
+  const sub = await openAnimal(page, 'crown', 'oakmoth');
+  const row = sub.locator('.animal-need').first();
   await expect(row).toHaveClass(/\bpartial\b/);
-  await expect(row.locator('.mark')).toHaveText('~');
+  await expect(row.locator('.animal-mark')).toHaveText('~');
   await expect(row).toContainText('(teilweise)');
   await expect(row).toContainText('gedeckt');
+});
+
+test('U:Tier: „Zuerst gesehen“ nur mit Eintrag; Stammgast-Schalter wie im Tagebuch', async ({ page, context }) => {
+  const state = createInitialState(Date.now(), 11);
+  state.stage = 3;
+  state.waypoint = STAGES[3]!.waypoint;
+  state.totalGrowth = waypoint(state.waypoint) + 1;
+  for (const id of ['earthworm', 'bluetit']) {
+    state.niches[SPECIES_BY_ID.get(id)!.niche].push(id);
+    state.meta.journal.species.push(id);
+  }
+  state.meta.journal.firstSeen.species.bluetit = { cycle: 1, season: 'spring' };
+  state.meta.forestMemory = 30; // ein Stammgast-Platz
+  await seedRaw(context, state, 0);
+  await openGame(page);
+
+  let sub = await openAnimal(page, 'crown', 'bluetit');
+  await expect(sub.locator('[data-ref="detail-first-seen"]')).toHaveText('Zuerst gesehen: Zyklus 1, Frühling');
+  const toggle = sub.locator('[data-ref="detail-regular-toggle"]');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(sub.locator('[data-ref="detail-regular"]')).toContainText('★ Stammgast');
+  await back(page);
+
+  // Ohne Eintrag (ältere Entdeckung) keine Zeile; der einzige Platz ist belegt.
+  sub = await openAnimal(page, 'roots', 'earthworm');
+  await expect(sub.locator('[data-ref="detail-first-seen"]')).toBeHidden();
+  await expect(sub.locator('[data-ref="detail-regular-toggle"]')).toBeDisabled();
 });

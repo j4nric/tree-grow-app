@@ -1,0 +1,237 @@
+/* Sticker (sticker.ts): runder Aufkleber mit weißem Rand, Bogen der Zufriedenheit,
+   Edelstein für die Seltenheit und fester Neigung je Art und Platz (docs/ALBUM_UI.md, D.4). */
+
+.sticker-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: calc(var(--sticker) + 12px);
+  min-width: 0;
+  list-style: none;
+}
+
+.sticker {
+  --tilt: 0deg;
+  --arc: 0deg;
+  --arc-color: var(--happy-high);
+  --sticker-bg: var(--track);
+  --rarity-line: transparent;
+  position: relative;
+  display: block;
+  flex: none;
+  width: var(--sticker);
+  height: var(--sticker);
+  padding: var(--sticker-border);
+  border: 0;
+  border-radius: 50%;
+  background: var(--photo);
+  box-shadow: 0 0 0 1.5px var(--rarity-line), var(--sh-sticker);
+  transform: rotate(var(--tilt));
+  cursor: pointer;
+  transition: transform 120ms ease-out;
+}
+
+.sticker[hidden] {
+  display: none;
+}
+
+/* Bogen der Zufriedenheit: schmaler Ring am Außenrand des weißen Rands. */
+.sticker::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--arc-color) var(--arc), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  pointer-events: none;
+}
+
+.sticker[data-happy='mid'] {
+  --arc-color: var(--happy-mid);
+}
+
+.sticker[data-happy='low'] {
+  --arc-color: var(--happy-low);
+}
+
+.sticker[data-happy='plant']::before {
+  display: none;
+}
+
+.sticker:hover {
+  transform: rotate(var(--tilt)) scale(1.06);
+}
+
+.sticker:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 3px;
+}
+
+.sticker-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--sticker-bg);
+  overflow: hidden;
+}
+
+.sticker-img {
+  display: block;
+  width: 118%;
+  height: 118%;
+  flex: none;
+}
+
+.sticker-img[width='1'] {
+  display: none;
+}
+
+.sticker-img-pending {
+  filter: saturate(0.35) brightness(1.04);
+}
+
+.sticker-emoji {
+  font-size: calc(var(--sticker) * 0.5);
+  line-height: 1;
+}
+
+.sticker-emoji:empty {
+  display: none;
+}
+
+/* Gattung → Grundfarbe */
+.sticker[data-family='birds'] { --sticker-bg: var(--fam-birds); }
+.sticker[data-family='mammals'] { --sticker-bg: var(--fam-mammals); }
+.sticker[data-family='insects'] { --sticker-bg: var(--fam-insects); }
+.sticker[data-family='soil'] { --sticker-bg: var(--fam-soil); }
+.sticker[data-family='fungi'] { --sticker-bg: var(--fam-fungi); }
+.sticker[data-family='amphibians'] { --sticker-bg: var(--fam-amphibians); }
+.sticker[data-family='reptiles'] { --sticker-bg: var(--fam-reptiles); }
+/* Pflanzengruppen */
+.sticker[data-family='trees'],
+.sticker[data-family='mosses'] { --sticker-bg: var(--fam-amphibians); }
+.sticker[data-family='shrubs'] { --sticker-bg: var(--fam-soil); }
+.sticker[data-family='flowers'] { --sticker-bg: var(--fam-insects); }
+
+/* Seltenheit: Randlinie und Edelstein (G-20) */
+.sticker-gem {
+  position: absolute;
+  top: -3px;
+  right: -2px;
+  display: none;
+  font-size: 13px;
+  line-height: 1;
+  text-shadow: 0 0 2px var(--photo), 0 0 2px var(--photo);
+}
+
+.sticker[data-rarity='rare'] { --rarity-line: var(--gem-rare); }
+.sticker[data-rarity='special'] { --rarity-line: var(--gem-special); }
+.sticker[data-rarity='legendary'] { --rarity-line: var(--gem-legendary); }
+
+.sticker[data-rarity='rare'] .sticker-gem { display: block; color: var(--gem-rare); }
+.sticker[data-rarity='special'] .sticker-gem { display: block; color: var(--gem-special); }
+.sticker[data-rarity='legendary'] .sticker-gem { display: block; color: var(--gem-legendary); }
+
+/* Durchreisender Gast: farbiger Strichrand */
+.sticker.is-visitor {
+  outline: 2px dashed var(--ink-seed);
+  outline-offset: 2px;
+}
+
+/* 🌙 nachtaktiv (leuchtet, solange die Nachtwirkung gilt) */
+.sticker-night {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.6;
+  filter: grayscale(0.4);
+}
+
+.sticker-night.active {
+  opacity: 1;
+  filter: drop-shadow(0 0 3px #f4c95d);
+}
+
+.sticker-night[hidden],
+.sticker-stock[hidden] {
+  display: none;
+}
+
+/* Bestand der Beute: farbiger Punkt */
+.sticker-stock {
+  position: absolute;
+  left: -1px;
+  bottom: 1px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--photo);
+  border-radius: 50%;
+  background: var(--happy-high);
+}
+
+.sticker-stock[data-level='low'] { background: var(--happy-low); }
+.sticker-stock[data-level='high'] { background: var(--ink-green); }
+
+/* Name darunter: darf etwas breiter sein als der Platz (Nachbarn haben Abstand), Wörter
+   brechen nur an Trennstellen (hyphenate.ts bzw. der Browser mit lang="de"). */
+.sticker-name {
+  display: -webkit-box;
+  width: calc(100% + 12px);
+  margin: 0 -6px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  color: var(--ink-soft);
+  hyphens: auto;
+}
+
+.sticker-name[hidden],
+.sticker-empty[hidden] {
+  display: none;
+}
+
+/* Freier Platz: gestrichelter Kreis */
+.sticker-empty {
+  display: block;
+  width: var(--sticker);
+  height: var(--sticker);
+  border: 3px dashed var(--slot-dash);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+/* Einkleben: kurz größer und schiefer, dann fest (nicht bei reduzierter Bewegung). */
+.sticker.sticker-arrive {
+  animation: sticker-arrive 420ms var(--turn-ease);
+}
+
+@keyframes sticker-arrive {
+  from {
+    transform: rotate(calc(var(--tilt) - 16deg)) scale(1.4);
+    box-shadow: 0 0 0 1.5px var(--rarity-line), 0 12px 18px rgba(59, 58, 54, 0.3);
+    opacity: 0.2;
+  }
+  60% {
+    transform: rotate(calc(var(--tilt) + 3deg)) scale(0.96);
+    opacity: 1;
+  }
+}
+
+body[data-motion='reduce'] .sticker.sticker-arrive {
+  animation: none;
+}
+
+body[data-motion='reduce'] .sticker {
+  transition: none;
+}

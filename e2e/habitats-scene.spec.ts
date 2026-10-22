@@ -62,9 +62,12 @@ test.describe('Lebensräume in der Szene', () => {
         const note = page.locator('[data-ref="note"]');
         await expect(note).toContainText(name);
         await note.getByRole('button', { name: 'Im Album ansehen' }).click();
-        await expect(page.getByRole('dialog', { name })).toBeVisible();
+        const sub = page.locator('[data-ref="page-animal"]');
+        await expect(sub).toBeVisible();
+        await expect(sub.locator('.page-title')).toHaveAccessibleName(name);
+        await expect(sub).not.toHaveAttribute('inert', '');
         await page.keyboard.press('Escape');
-        await expect(page.locator('[data-ref="animal-detail"]')).toBeHidden();
+        await expect(sub).toBeHidden();
       }
     });
   }

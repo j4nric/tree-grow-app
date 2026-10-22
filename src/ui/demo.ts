@@ -2,7 +2,9 @@
  * Demo der v2-Komponenten mit Beispieldaten (nicht im Spiel eingebunden).
  * Aufruf: npx vite → /src/ui/demo.html  (Parameter: ?enc=animal|plant|event|none)
  */
-import { createEcosystemPanel } from './ecosystem-panel';
+import './album/tokens.css';
+import { createNichesPage } from './album/pages/niches-page';
+import type { AlbumDeps } from './album/types';
 import { createEncounterDialog } from './encounter-dialog';
 import type { AnimalView, EcosystemView, EncounterView } from './view-model';
 
@@ -261,7 +263,17 @@ const encounters: Record<string, EncounterView> = {
 };
 
 const log = document.getElementById('demo-log')!;
-const panel = createEcosystemPanel(document.getElementById('panel')!);
+// Reiter „Nischen“ des Albums mit Beispieldaten (Album-Demo folgt in Schritt 12).
+const eco: { view: EcosystemView | null; serial: number } = { view: null, serial: 0 };
+const niches = createNichesPage({
+  deps: {} as AlbumDeps,
+  back() {},
+  float: (text) => note(text),
+  open: (page) => note(`Umblättern: ${page.kind}${'id' in page ? ` ${page.id}` : ''}`),
+  eco,
+});
+niches.connect({ openPlantPicker: () => note('Pflanze setzen'), showCare: (id) => note(`Zur Pflege: ${id}`) });
+document.getElementById('panel')!.append(niches.page.element);
 let queued = 2;
 let decisions = 0;
 const order = ['animal', 'plant', 'event'] as const;
@@ -327,7 +339,9 @@ for (const [key, label] of [
 
 const start = performance.now();
 function frame(now: number) {
-  panel.update(ecosystem((now - start) / 1000));
+  eco.view = ecosystem((now - start) / 1000);
+  eco.serial++;
+  niches.update?.(now);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

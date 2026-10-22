@@ -116,7 +116,7 @@ test('Nacht: 🌙 an der Rate und an der Kachel des Waldkauzes', async ({ page, 
   await seedRaw(context, state, 0);
   await openGame(page);
   const moon = page.locator('[data-ref="growth-rate-night"]');
-  const tileMoon = page.locator('.slot[data-species="owl"] .slot-night');
+  const tileMoon = page.locator('[data-species="owl"] .sticker-night');
   await expect(tileMoon).toBeVisible();
   await expect(tileMoon).not.toHaveClass(/active/);
   await expect(moon).toBeHidden();

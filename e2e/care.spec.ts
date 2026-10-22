@@ -12,19 +12,20 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
     seeds: 400,
     niches: { roots: ['earthworm'], litter: ['robin'] },
   });
-  await gotoTab(page, 'pflege');
+  // Die Nischen-Seite schreibt nur, solange sie sichtbar ist (docs/ALBUM_UI.md, D.1).
+  await gotoTab(page, 'nischen');
+  await expect(niche(page, 'litter')).toContainText('1/2 belegt');
+  await openTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const litter = care.locator('[data-care="leaf-litter"]');
   await expect(litter).toContainText('Laub liegen lassen');
   await expect(litter).toContainText('Rang 0/2');
   await expect(litter).toContainText('+1 Platz Laubstreu');
-  await expect(niche(page, 'litter')).toContainText('1/2 belegt');
   // Maßnahmen ab Alter Baum (z. B. Lichte Krone) stehen noch nicht in der Liste.
   await expect(care.locator('[data-care="light-crown"]')).toHaveCount(0);
 
   await litter.getByRole('button', { name: 'Kaufen (200 🌰)' }).click();
 
-  await expect(niche(page, 'litter')).toContainText('1/3 belegt');
   await expect(litter).toContainText('Rang 1/2');
   await expect(litter.locator('[data-ref="care-blocker"]')).toHaveText('Ab Stufe „Hain“');
   // Gesperrt per aria-disabled (nicht `disabled`): bleibt fokussierbar, Grund wird vorgelesen.
@@ -39,9 +40,12 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
   expect(saved.cycle.care).toEqual({ 'leaf-litter': 1 });
   expect(saved.seeds).toBeLessThan(300);
 
-  await page.reload();
-  await expect(care.locator('[data-care="leaf-litter"]')).toContainText('Rang 1/2');
+  await openTab(page, 'nischen');
   await expect(niche(page, 'litter')).toContainText('1/3 belegt');
+  await page.reload();
+  await expect(niche(page, 'litter')).toContainText('1/3 belegt');
+  await openTab(page, 'pflege');
+  await expect(care.locator('[data-care="leaf-litter"]')).toContainText('Rang 1/2');
   expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 1 });
 });
 
@@ -175,8 +179,9 @@ test('Mobil: „Zur Pflege“ beim verschlossenen Waldtümpel öffnet die Pflege
   await expect(item.locator('[data-care-title="pond"]')).toBeFocused();
   await expect(item).toBeInViewport();
   await item.locator('[data-buy-care="pond"]').click();
-  await expect(pond).toContainText('0/2 belegt');
+  // Unsichtbare Reiter holen ihre Anzeige beim Zeigen nach (docs/ALBUM_UI.md, D.1).
   await openTab(page, 'nischen');
+  await expect(pond).toContainText('0/2 belegt');
   await expect(pond.locator('[data-ref="niche-care-link"]')).toBeHidden();
 });
 
