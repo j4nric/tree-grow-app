@@ -4,6 +4,7 @@
  * ohne `album/index.ts` zu ändern.
  */
 import type { TabId, PageRef, SubpageKey } from '../nav';
+import type { AlbumTarget } from '../cycle-target';
 import type { Bookmark } from '../bookmark';
 import type { Page } from '../page';
 import type { AlbumDeps } from '../types';
@@ -14,6 +15,9 @@ import { createCarePage } from './care-page';
 import { createGoalsPage } from './goals-page';
 import { createLandscapePage } from './landscape-page';
 import { createSavePage } from './save-page';
+import { createCyclePage } from './cycle-page';
+import { createAchievementsPage } from './achievements-page';
+import { createStatsPage } from './stats-page';
 import { createGuideChapterPage, createGuidePage } from './guide-page';
 import { createSettingsPage } from './settings-page';
 import { createCareItemPage } from './care-item-page';
@@ -40,6 +44,8 @@ export interface PageEnv {
   open(page: PageRef): void;
   /** Schwebende Bestätigung an Bildschirm-Koordinaten (clientX/Y). */
   float(text: string, x: number, y: number): void;
+  /** Ziel des nächsten Zyklus in der Landschaft (D.2 `albumTarget`). */
+  readonly albumTarget: AlbumTarget;
   /** Aktuelle Ökosystem-Ansicht (aus dem Game Loop, gedrosselt). */
   readonly eco: EcoFeed;
 }
@@ -47,7 +53,8 @@ export interface PageEnv {
 /** Reiterseite (Ebene 0). `update` läuft nur, solange sie sichtbar ist. */
 export interface TabPage {
   readonly page: Page;
-  update?(now: number): void;
+  /** `force`: sofort (Spielstand geändert, Seite neu gezeigt) statt gedrosselt. */
+  update?(now: number, force?: boolean): void;
   /** Punkt am Reiter (G-13); läuft bei jedem Auffrischen, auch verborgen – billig halten. */
   badge?(now: number): boolean;
 }
@@ -58,7 +65,8 @@ export interface Subpage {
   readonly bookmark: Bookmark;
   /** Wird beim Öffnen gerufen (Inhalt füllen); `ref` nennt z. B. die Art. */
   opened?(ref: PageRef): void;
-  update?(now: number): void;
+  /** `force`: sofort (Spielstand geändert) statt gedrosselt. */
+  update?(now: number, force?: boolean): void;
   /** Nach Löschen oder Import des Spielstands: offene Bestätigungen zurücknehmen. */
   reset?(): void;
 }
@@ -74,6 +82,9 @@ export const TAB_PAGES = {
 export const SUBPAGES = {
   save: createSavePage,
   'care-item': createCareItemPage,
+  cycle: createCyclePage,
+  achievements: createAchievementsPage,
+  stats: createStatsPage,
   animal: createAnimalPage,
   harmony: createHarmonyPage,
   foodweb: createFoodWebPage,

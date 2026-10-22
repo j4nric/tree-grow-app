@@ -241,7 +241,9 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
       id = ref.id;
       refresh(performance.now(), true);
     },
-    update(now) {
+    update(now, force) {
+      // Nach einer Änderung bzw. beim Zeigen nicht auf die Drosselung warten.
+      if (force) checkedAt = -Infinity;
       refresh(now);
     },
   };

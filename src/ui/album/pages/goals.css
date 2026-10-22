@@ -1,0 +1,898 @@
+/*
+ * Reiter „Ziele“ und seine Unterseiten (goals-page.ts, cycle-page.ts, achievements-page.ts,
+ * stats-page.ts; docs/ALBUM_UI.md, B.4). Farben nur über Tokens (tokens.css).
+ */
+
+.goals-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.goals-body p {
+  margin: 0;
+}
+
+.goals-body [hidden] {
+  display: none !important;
+}
+
+.goals-section-title,
+.goals-card-title {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+/* ---------- Karten auf der Reiterseite ---------- */
+
+.goals-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 14px 12px;
+  border-radius: var(--r-label);
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+}
+
+/* Tagesziele: blauer Washi-Kopf in der Reiterfarbe */
+.goals-daily {
+  padding-top: 0;
+  overflow: hidden;
+}
+
+.goals-daily-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+  margin: 0 -14px 2px;
+  padding: 10px 14px 6px;
+  background-color: var(--tab-goals);
+  background-image: repeating-linear-gradient(100deg, rgb(255 255 255 / 0.22) 0 7px, transparent 7px 16px);
+}
+
+.goals-daily-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.daily-streak {
+  color: var(--ink-seed);
+}
+
+.goals-daily-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.daily-goal {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icon text text'
+    'icon bar bar'
+    'icon progress reward';
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px 0;
+  border-bottom: 1px dotted var(--rule);
+}
+
+.daily-goal:last-child {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+.goals-daily-icon {
+  grid-area: icon;
+  align-self: start;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--photo);
+  border-radius: 50%;
+  background: var(--tab-goals);
+  box-shadow: var(--sh-sticker);
+  font-size: 18px;
+  transform: rotate(-4deg);
+}
+
+.goals-daily-text {
+  grid-area: text;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.goals-bar {
+  grid-area: bar;
+  display: block;
+  height: 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pill);
+  background: var(--track);
+  overflow: hidden;
+}
+
+.goals-bar-fill {
+  display: block;
+  width: var(--done, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--fill);
+  transition: width 0.4s ease;
+}
+
+.goals-daily-progress {
+  grid-area: progress;
+  font-family: var(--font-hand);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-soft);
+}
+
+.goals-daily-reward {
+  grid-area: reward;
+  justify-self: end;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+  color: var(--ink-seed);
+}
+
+/* Erfüllt: abgehakt (Strich in Grün), Sticker grün */
+.daily-goal.done .goals-daily-icon {
+  background: var(--fill);
+}
+
+.daily-goal.done .goals-daily-text {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-green);
+  text-decoration-thickness: 2px;
+}
+
+.daily-goal.done .goals-daily-reward {
+  color: var(--ink-green);
+}
+
+/* Kurzkarte „Neuer Zyklus“: gestrichelt, solange gesperrt; bereit mit grünem Rand und Stempel */
+.goals-cycle {
+  border: 2px dashed var(--dash);
+  background: var(--paper);
+  box-shadow: none;
+}
+
+.goals-cycle.ready {
+  border: 2px solid var(--ink-green);
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+}
+
+.goals-cycle-stamp {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 0 8px;
+  border: 2px solid var(--ink-green);
+  border-radius: 8px;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--ink-green);
+  transform: rotate(var(--tilt-stamp));
+}
+
+.goals-cycle.ready .goals-cycle-stamp {
+  display: block;
+  animation: goals-stamp var(--stamp-ms) ease-out;
+}
+
+@keyframes goals-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(var(--tilt-stamp)) scale(1.3);
+  }
+}
+
+.goals-cycle-sub {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.goals-cycle-memory {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.goals-cycle-line {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.1;
+  color: var(--ink-green);
+}
+
+.goals-cycle-line.blocked {
+  font-family: var(--font-text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
+.goals-more {
+  align-self: flex-end;
+  min-height: var(--tap);
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-button);
+  background: var(--tape);
+  color: var(--ink);
+  font-family: var(--font-hand) !important;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  box-shadow: 0 2px 4px rgb(59 58 54 / 0.15);
+}
+
+.goals-cycle.ready .goals-more {
+  background: var(--ink-green);
+  color: var(--paper);
+}
+
+.goals-more:hover {
+  filter: brightness(1.05);
+}
+
+/* Link-Karten zu Erfolgen und Statistik */
+.goals-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+}
+
+.goals-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 68px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-label);
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+  color: var(--ink);
+  text-align: left;
+}
+
+.goals-link:hover {
+  box-shadow: var(--sh-sticker-big);
+}
+
+.goals-link-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 3px solid var(--photo);
+  border-radius: 50%;
+  background: var(--note-bg);
+  box-shadow: var(--sh-sticker);
+  font-size: 22px;
+  transform: rotate(-6deg);
+}
+
+[data-ref='stats-open'] .goals-link-icon {
+  background: var(--tab-goals);
+  transform: rotate(5deg);
+}
+
+.goals-link-body {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
+.goals-link-title {
+  flex-basis: 100%;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.goals-link-meta {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.goals-link-stickers {
+  display: inline-flex;
+}
+
+.goals-mini-sticker {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: -4px;
+  border: 2px solid var(--photo);
+  border-radius: 50%;
+  background: var(--note-bg);
+  box-shadow: var(--sh-sticker);
+  font-size: 13px;
+  transform: rotate(var(--tilt, 0deg));
+}
+
+.goals-link-arrow {
+  flex: none;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1;
+  color: var(--ink-faint);
+}
+
+/* ---------- U:Neuer Zyklus ---------- */
+
+.cyc-now {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-left: 4px solid var(--tab-goals);
+  border-radius: 0 var(--r-button) var(--r-button) 0;
+  background: var(--track);
+}
+
+.cyc-tree {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.cyc-memory {
+  font-size: 14px;
+}
+
+.cyc-gain-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cyc-gain {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1.05;
+  color: var(--ink-green);
+}
+
+.cyc-blocker {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.cyc-detail,
+.cyc-hint {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* Regel fürs Waldgedächtnis als gelber Zettel */
+.cyc-rule {
+  margin-top: 6px !important;
+  padding: 10px 12px;
+  background: var(--note-bg);
+  box-shadow: 0 4px 10px rgb(59 58 54 / 0.15);
+  font-size: 13px;
+  line-height: 1.4;
+  transform: rotate(var(--tilt-flavor));
+}
+
+.cyc-target {
+  padding: 8px 12px;
+  border-radius: var(--r-button);
+  background: var(--tab-landscape);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Baumwahl: Samentütchen mit echten Radioknöpfen */
+.cyc-trees {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cyc-tree-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+  gap: 14px 12px;
+  margin-top: 10px;
+}
+
+.cyc-packet {
+  --packet: var(--tab-species);
+  position: relative;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-areas:
+    'sticker name'
+    'sticker info';
+  align-content: start;
+  gap: 2px 12px;
+  min-width: 0;
+  padding: 20px 12px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 3px 3px 12px 12px;
+  background: var(--paper);
+  box-shadow: var(--sh-sticker);
+  cursor: pointer;
+  transform: rotate(var(--tilt, 0deg));
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+/* Klappe des Tütchens mit Falz (gestrichelt) */
+.cyc-packet::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 10px;
+  border-bottom: 2px dashed var(--photo);
+  border-radius: 3px 3px 0 0;
+  background: var(--packet);
+}
+
+.cyc-packet.tree-beech {
+  --packet: var(--fam-mammals);
+}
+
+.cyc-packet.tree-pine {
+  --packet: var(--fam-amphibians);
+}
+
+.cyc-packet.tree-fir {
+  --packet: var(--tab-goals);
+}
+
+.cyc-packet.tree-alder {
+  --packet: var(--tab-landscape);
+}
+
+.cyc-packet input {
+  position: absolute;
+  top: 18px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--ink-green);
+  cursor: inherit;
+}
+
+.cyc-packet-sticker {
+  grid-area: sticker;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: 3px solid var(--photo);
+  border-radius: 50%;
+  background: var(--packet);
+  box-shadow: var(--sh-sticker);
+  font-size: 30px;
+}
+
+.cyc-packet-lock {
+  position: absolute;
+  top: 54px;
+  left: 54px;
+  font-size: 16px;
+}
+
+.cyc-packet-name {
+  grid-area: name;
+  padding-right: 28px;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.cyc-packet-info {
+  grid-area: info;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.cyc-packet:has(input:checked) {
+  border-color: var(--ink-green);
+  box-shadow:
+    0 0 0 2px var(--ink-green),
+    var(--sh-sticker-big);
+  transform: rotate(0deg) translateY(-2px);
+}
+
+/* „gewählt“-Stempel auf dem gewählten Tütchen */
+.cyc-packet:has(input:checked)::after {
+  content: 'gewählt';
+  position: absolute;
+  right: 8px;
+  bottom: -12px;
+  padding: 0 6px;
+  border: 2px solid var(--ink-green);
+  border-radius: 6px;
+  background: var(--paper);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--ink-green);
+  transform: rotate(var(--tilt-stamp));
+}
+
+.cyc-packet:has(input:focus-visible) {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.cyc-packet.locked {
+  background: var(--track);
+  box-shadow: none;
+  cursor: default;
+  transform: none;
+}
+
+.cyc-packet.locked .cyc-packet-sticker {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.cyc-packet.locked .cyc-packet-name {
+  color: var(--ink-soft);
+}
+
+.cyc-packet.locked input {
+  opacity: 0.4;
+}
+
+/* Knopf mit zweitem Klick */
+.cyc-button {
+  min-height: 54px;
+  padding: 6px 18px;
+  border: 0;
+  border-radius: var(--r-button);
+  background: var(--ink-green);
+  color: var(--paper);
+  font-family: var(--font-hand) !important;
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.1;
+  box-shadow: var(--sh-sticker-big);
+}
+
+.cyc-button:hover {
+  background: var(--ink-green-dark);
+}
+
+.cyc-button.armed {
+  background: var(--ink-red);
+  font-family: var(--font-text) !important;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* Stammgäste: Sticker der Art, Name, Nische, Stern */
+.cyc-regulars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cyc-regular-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
+  gap: 10px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cyc-regular-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cyc-regular {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 5px 12px 5px 5px;
+  border: 2px solid transparent;
+  border-radius: 30px 12px 12px 30px;
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+  color: var(--ink);
+  text-align: left;
+}
+
+.cyc-regular.selected {
+  border-color: var(--tape);
+  background: var(--note-bg);
+}
+
+.cyc-regular:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cyc-sticker {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--photo);
+  border-radius: 50%;
+  background: var(--sticker-bg, var(--track));
+  box-shadow: var(--sh-sticker);
+  overflow: hidden;
+}
+
+.cyc-sticker.fam-birds { --sticker-bg: var(--fam-birds); }
+.cyc-sticker.fam-mammals { --sticker-bg: var(--fam-mammals); }
+.cyc-sticker.fam-insects { --sticker-bg: var(--fam-insects); }
+.cyc-sticker.fam-soil { --sticker-bg: var(--fam-soil); }
+.cyc-sticker.fam-fungi { --sticker-bg: var(--fam-fungi); }
+.cyc-sticker.fam-amphibians { --sticker-bg: var(--fam-amphibians); }
+.cyc-sticker.fam-reptiles { --sticker-bg: var(--fam-reptiles); }
+
+.cyc-sticker-canvas {
+  width: 40px;
+  height: 40px;
+}
+
+.cyc-regular-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cycle-regular-name {
+  font-size: 14px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.cycle-regular-niche {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.cyc-regular-star {
+  flex: none;
+  font-size: 22px;
+  color: var(--ink-seed);
+}
+
+.cycle-regular-note {
+  padding: 0 12px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.cycle-regular-note.waiting {
+  font-style: italic;
+  color: var(--ink);
+}
+
+/* ---------- U:Erfolge: Sticker-Bogen ---------- */
+
+.ach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 132px), 1fr));
+  gap: 18px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ach-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  text-align: center;
+}
+
+.ach-sticker {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 4px solid var(--photo);
+  border-radius: 50%;
+  background: var(--note-bg);
+  box-shadow: var(--sh-sticker-big);
+  font-size: 32px;
+  transform: rotate(var(--tilt, 0deg));
+}
+
+.ach-tile.open .ach-sticker {
+  border: 2px dashed var(--slot-dash);
+  background: transparent;
+  box-shadow: none;
+  filter: grayscale(1);
+  opacity: 0.55;
+  transform: none;
+}
+
+.ach-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ach-title {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.ach-tile.open .ach-title {
+  color: var(--ink-soft);
+}
+
+.ach-text {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.ach-progress {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--track);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-green);
+}
+
+/* ---------- U:Statistik ---------- */
+
+.stat-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+  padding: 8px 0;
+  border-bottom: 1px dotted var(--rule);
+}
+
+.stat-label {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.stat-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+  margin: 0 0 0 auto;
+  text-align: right;
+}
+
+.stat-number {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink-green);
+  overflow-wrap: anywhere;
+}
+
+.stat-detail {
+  font-size: 12px;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Doppelseite ---------- */
+
+.album[data-layout='spread'] .goals-body {
+  gap: 20px;
+}
+
+/* ---------- Bewegung ---------- */
+
+body[data-motion='reduce'] .goals-bar-fill,
+body[data-motion='reduce'] .cyc-packet {
+  transition: none;
+}
+
+body[data-motion='reduce'] .goals-cycle.ready .goals-cycle-stamp {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:not([data-motion='full']) .goals-bar-fill,
+  body:not([data-motion='full']) .cyc-packet {
+    transition: none;
+  }
+
+  body:not([data-motion='full']) .goals-cycle.ready .goals-cycle-stamp {
+    animation: none;
+  }
+}

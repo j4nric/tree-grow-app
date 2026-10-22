@@ -262,6 +262,20 @@ export async function openCoverPage(page: Page, kind: 'guide' | 'settings' | 'ac
   await expect(subpage(page, kind)).not.toHaveAttribute('inert', '');
 }
 
+/**
+ * Reiter „Ziele“ → Unterseite „Neuer Zyklus“, „Erfolge“ oder „Statistik“ (docs/ALBUM_UI.md,
+ * B.4). Wartet, bis das Umblättern fertig ist (vorher ist die Seite nicht bedienbar).
+ */
+export async function openGoalsPage(page: Page, kind: 'cycle' | 'achievements' | 'stats'): Promise<Locator> {
+  const target = subpage(page, kind);
+  if (await target.isVisible()) return target;
+  await openTab(page, 'ziele');
+  await page.locator(`[data-ref="${kind}-open"]`).click();
+  await expect(target).toBeVisible();
+  await expect(target).not.toHaveAttribute('inert', '');
+  return target;
+}
+
 /** Umschlag → Unterseite „Spielstand“ (Export, Import, Spielstand löschen). */
 export const openSavePage = (page: Page) => openCoverPage(page, 'save');
 

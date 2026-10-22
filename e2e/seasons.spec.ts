@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, gotoTab, openGame, savedState, seedRaw, stageLabel, stamp, stamps, test, waitForConfirm, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, gotoTab, openGame, openGoalsPage, savedState, seedRaw, stageLabel, stamp, stamps, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Jahreszeiten und Wahl des Hauptbaums (DESIGN_V2.md 16, 17) im Browser. Die Testuhr steht
@@ -12,7 +12,9 @@ import { SAVE_VERSION, expect, gotoTab, openGame, savedState, seedRaw, stageLabe
 const START = new Date('2026-10-21T08:00:00Z');
 const season = (page: Page) => page.locator('[data-ref="season"]');
 const seasonLeft = (page: Page) => page.locator('[data-ref="season-left"]');
-const cyclePanel = (page: Page) => page.locator('[data-ref="cycle-panel"]');
+const cyclePanel = (page: Page) => page.locator('[data-ref="page-cycle"]');
+/** Kurzkarte „Neuer Zyklus“ im Reiter „Ziele“ (zeigt den laufenden Hauptbaum). */
+const cycleCardSub = (page: Page) => page.locator('[data-ref="cycle-card-sub"]');
 
 async function startClock(page: Page): Promise<void> {
   await page.clock.install({ time: START });
@@ -63,6 +65,7 @@ test('Neuer Zyklus mit der Rotbuche: Auswahl, Sperrhinweis, Spielstand und Anzei
   await seedRaw(context, state, 0);
   await gotoTab(page, 'ziele');
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[NEW_CYCLE_MIN_STAGE]!.name}`);
+  await openGoalsPage(page, 'cycle');
   await expect(cyclePanel(page).locator('[data-ref="main-tree"]')).toHaveText('Hauptbaum: 🌳 Stieleiche');
 
   const choice = cyclePanel(page).locator('[data-ref="tree-choice"]');
@@ -93,7 +96,7 @@ test('Neuer Zyklus mit der Rotbuche: Auswahl, Sperrhinweis, Spielstand und Anzei
 
   await expect(stamps(page)).toContainText('Aus einer Buchecker wächst ein neuer Baum.');
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
-  await expect(cyclePanel(page).locator('[data-ref="main-tree"]')).toHaveText('Hauptbaum: 🍂 Rotbuche');
+  await expect(cycleCardSub(page)).toContainText('Hauptbaum 🍂 Rotbuche');
   await expect(season(page)).toContainText('🌱 Frühling');
   const saved = await savedState(page);
   expect(saved.cycle.number).toBe(2);
@@ -102,6 +105,6 @@ test('Neuer Zyklus mit der Rotbuche: Auswahl, Sperrhinweis, Spielstand und Anzei
 
   // Neuladen: die Buche bleibt.
   await page.reload();
-  await expect(cyclePanel(page).locator('[data-ref="main-tree"]')).toHaveText('Hauptbaum: 🍂 Rotbuche');
+  await expect(cycleCardSub(page)).toContainText('Hauptbaum 🍂 Rotbuche');
   expect((await savedState(page)).cycle.mainTree).toBe('beech');
 });

@@ -432,6 +432,16 @@ Ein Punkt am Reiter zeigt, wenn ein Neuer Zyklus möglich ist (G-13).
 **Skizze mobil und Desktop:** Karten untereinander. Die Tagesziele bekommen einen blauen
 Washi-Kopf in der Reiterfarbe.
 
+**Umgesetzt (Schritt 9):** Kennzahl im Kopf ist die Serie („🌞 4 Tage“), ohne Serie der Zyklus.
+Die Kurzkarte ist gestrichelt, solange der Zyklus gesperrt ist („Mehr dazu ›“), und bekommt
+einen „bereit!“-Stempel, sobald er möglich ist („Vorbereiten ›“). Die Baumwahl zeigt alle
+sichtbaren Hauptbäume (`isTreeVisible`) als Samentütchen mit Symbol-Sticker (der Renderer hat
+keine Baum-Sticker); gesperrte mit 🔒 und Hinweis. Stammgäste tragen den Tier-Sticker. Nach dem
+Start blättert die Seite zurück zu „Ziele“. `data-ref`: `daily`, `cycle-card`, `cycle-open`,
+`achievements-open`, `stats-open`; auf U:Neuer Zyklus wie bisher `new-cycle`, `tree-choice`,
+`regulars`, `forest-memory`, `cycle-gain`, `cycle-blocker`, `memory-rule`, `main-tree`, neu
+`cycle-sub`, `cycle-target`.
+
 ### B.5 Reiter „Landschaft“ – „Unsere Wälder“ · „🪶 3 Hähersaat“
 
 1. Frage, Hähersaat und Wildwechsel-Chance.
