@@ -149,6 +149,15 @@ describe('Reiterwechsel', () => {
     const elsewhere = initialNav('care');
     expect(navigate(elsewhere, { type: 'landscape-locked' }, locked)).toBe(elsewhere);
   });
+
+  it('Landschaft verschwindet, während U:Standort auf dem Stapel von „Ziele“ liegt: zuklappen', () => {
+    const nav = run([{ type: 'tab', tab: 'goals' }, { type: 'open', page: { kind: 'cycle' } }, { type: 'open', page: { kind: 'site', id: 'home' } }]);
+    const after = navigate(nav, { type: 'landscape-locked' }, locked);
+    expect(after.tab).toBe('goals');
+    expect(after.stack).toEqual([{ kind: 'cycle' }]);
+    // Ohne Standort auf dem Stapel ändert sich nichts.
+    expect(navigate(after, { type: 'landscape-locked' }, locked)).toBe(after);
+  });
 });
 
 describe('Zurück', () => {

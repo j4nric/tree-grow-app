@@ -18,14 +18,11 @@ import {
 } from '../adapters';
 import { createFloatLayer } from '../feedback';
 import { formatNumber } from '../format';
-import { createJournalLandscapeSection } from '../journal-landscape';
-import { toJournalLandscapeView } from '../journal-landscape-view';
 import { toSeasonBadgeView } from '../season-view';
 import { seedsLabel } from '../view-format';
 import type { EcosystemView } from '../view-model';
 import { toWeatherBadgeView } from '../weather-view';
 import type { CarePage } from './pages/care-page';
-import type { LandscapePage } from './pages/landscape-page';
 import type { NichesPage } from './pages/niches-page';
 import type { AlbumTarget } from './cycle-target';
 import { createSeasonWeather } from './season-weather';
@@ -38,8 +35,7 @@ const PANEL_REFRESH_MS = 200;
 export interface LegacyMounts {
   niches: NichesPage;
   care: CarePage;
-  landscape: LandscapePage;
-  /** Ziel des nächsten Zyklus mit der Karte der Landschaft (bis Schritt 10 hier eingehängt). */
+  /** Ziel des nächsten Zyklus mit der Ansicht der Landschaft (nach Änderungen nachziehen). */
   albumTarget: AlbumTarget;
   /** Platz in der Bildunterschrift des Polaroids (Jahreszeit, Wetter). */
   season: HTMLElement;
@@ -120,13 +116,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       mounts.care.reveal(id);
     },
   });
-  // Die Karte der Landschaft steht im eigenen Reiter; ihr Ziel gilt für U:Neuer Zyklus (Schritt 10 ersetzt sie).
-  mounts.landscape.landscape.append(mounts.albumTarget.map.element);
   const seasonWeather = createSeasonWeather(mounts.season);
-  // Tagebuch-Teil „Landschaft“ (bis Schritt 7 im Dialog Naturtagebuch): bis Schritt 10 als
-  // Abschnitt unter der Karte im Reiter Landschaft. Der übrige Dialog ist der Reiter „Arten“.
-  const journalLandscape = createJournalLandscapeSection();
-  mounts.landscape.landscape.append(journalLandscape.element);
 
   preferences.onChange(() => {
     // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
@@ -234,7 +224,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       const announcement = deps.takeLandscapeAnnouncement();
       if (announcement) notify(announcement, { keep: true });
       const ev = evaluate(s);
-      journalLandscape.update(unlocked ? toJournalLandscapeView(s) : null);
       if (!ecoView || ev !== ecoEvaluation || ecoSeenKey() !== ecoSeen) {
         ecoEvaluation = ev;
         ecoSeen = ecoSeenKey();

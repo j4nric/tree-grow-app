@@ -121,13 +121,18 @@ export function createAlbum(deps: AlbumDeps): Album {
   });
   const book = createBook(spread, cover.element, () => dispatch({ type: 'cover', open: !nav.cover }));
   // Ziel des nächsten Zyklus: Karte der Landschaft ↔ U:Neuer Zyklus (D.2).
-  const albumTarget = createAlbumTarget((id) => deps.actions.buildCorridor(id));
+  const albumTarget = createAlbumTarget();
   /** Ökosystem-Ansicht für die Seiten (legacy.ts rechnet sie, `showSummary` reicht sie weiter). */
   const eco: { view: EcosystemView | null; serial: number } = { view: null, serial: 0 };
   const env: PageEnv = {
     deps,
     back: () => goBack(),
     open: (page) => dispatch({ type: 'open', page }),
+    goto(tab, page) {
+      // Reiterwechsel (leert den Stapel), danach umblättern; im selben Reiter nur umblättern.
+      if (nav.tab !== tab || nav.cover) dispatch({ type: 'tab', tab });
+      dispatch({ type: 'open', page });
+    },
     albumTarget,
     float: (text, x, y) => legacy.float(text, x, y),
     eco,
@@ -208,6 +213,7 @@ export function createAlbum(deps: AlbumDeps): Album {
         if (ctx.landscapeUnlocked === unlocked) return;
         ctx.landscapeUnlocked = unlocked;
         tabStrip.setVisible('landscape', unlocked);
+        // Reiter Landschaft bzw. U:Standort (auch auf dem Stapel von „Ziele“) schließen.
         if (!unlocked) dispatch({ type: 'landscape-locked' });
       },
       showCareTab: () => dispatch({ type: 'tab', tab: 'care' }),

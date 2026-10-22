@@ -161,8 +161,11 @@ export function navigate(nav: AlbumNav, action: NavAction, ctx: NavContext): Alb
       return { ...nav, note: action.id };
     }
     case 'landscape-locked': {
-      if (nav.tab !== 'landscape') return nav;
-      return { ...nav, tab: 'niches', stack: nav.cover ? nav.stack : [], note: null };
+      if (nav.tab === 'landscape') return { ...nav, tab: 'niches', stack: nav.cover ? nav.stack : [], note: null };
+      // U:Standort kann auch in einem anderen Reiter liegen (Ziele: [cycle, site]) – zuschlagen.
+      const site = nav.stack.findIndex((p) => p.kind === 'site');
+      if (site < 0) return nav;
+      return { ...nav, stack: nav.stack.slice(0, site), note: null };
     }
   }
 }

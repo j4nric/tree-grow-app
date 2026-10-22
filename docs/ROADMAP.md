@@ -621,13 +621,23 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   `cycle-page.ts` (alle Zeilen, Ziel-Wald, Baumwahl als Samentütchen – Phase 7, 3a –, Knopf mit
   zweitem Klick, Stammgäste mit Tier-Stickern; nach dem Start zurück zu „Ziele“, Fokus auf die
   Überschrift), `achievements-page.ts` (Sticker-Bogen), `stats-page.ts`; reine Ansichten in
-  `goals-view.ts` (+ Test). Gemeinsames Ziel `album/cycle-target.ts` (`albumTarget`, D.2) hält
-  die Karte der Landschaft, die bis Schritt 10 im Reiter „Landschaft“ hängt. Seiten werden nur
+  `goals-view.ts` (+ Test). Gemeinsames Ziel `album/cycle-target.ts` (`albumTarget`, D.2; seit
+  Schritt 10 ohne eigene Karte). Seiten werden nur
   aktualisiert, solange sie oben liegen (`refreshPages` in `album/index.ts`: aktueller Reiter und oberste Unterseite, gedrosselt, sofort nach `invalidate` oder Seitenwechsel, `update(now, force)` für alle Seiten). Gelöscht:
   `cycle-panel.ts`, `daily-panel.ts`, Reiter Erfolge/Statistik des Tagebuch-Dialogs samt CSS
-- [ ] **10** Reiter Landschaft (`ui-dev`): Karte, Unterseite Standort, Korridore, Wälder,
+- [x] **10** Reiter Landschaft (`ui-dev`): Karte, Unterseite Standort, Korridore, Wälder,
   gemeinsames Ziel mit dem Neuen Zyklus. Specs landscape, journal-landscape, wildwechsel.
-  Abhängig: 9
+  Abhängig: 9. *Umgesetzt:* `album/pages/landscape-page.ts` (R:Landschaft: Frage, Hähersaat,
+  Wildwechsel-Chance, handgezeichnete Karte `album/landscape-map.ts` – vorher `ui/landscape-map.ts`
+  –, Ziel-Zeile mit „Neuer Zyklus ›“, Korridore mit „Bauen“ und zweitem Klick, „Tagebuch der
+  Wälder“ mit Hähersaat-Tabelle; Kennzahl „🪶 3 Hähersaat“) und `site-page.ts` (U:Standort mit
+  allen Angaben, „Als Ziel wählen“ als Umschalter, Stammgäste und Tiere aus dem Tagebuch, Live-
+  Ansage). `album/cycle-target.ts` hält jetzt nur Ansicht und Ziel (`view`, `target`, `choose`);
+  U:Neuer Zyklus verlinkt den Ziel-Wald („… ansehen ›“, Ebene 2). Neu `PageEnv.goto(tab, page)`
+  (Reiterwechsel mit Unterseite, C.1). Reine Ansichten in `pages/landscape-page-view.ts`
+  (+ `tests/album-landscape.test.ts`), Fixture `openLandscapeSite`. Gelöscht: der
+  Übergangsabschnitt `ui/journal-landscape.ts` (aus Schritt 7) und das alte Karten- und
+  Tagebuch-CSS (`.landscape-*`, `.journal-*`) in `style.css`.
 - [x] **11** Umschlag und Zettel (`ui-dev`): Anleitung als Kapitel, Einstellungen, Konto,
   Spielstand + Löschen, „Neu hier?“, Rückkehr-Zettel + Unterseite, Banderolen. Specs help,
   sound, account, save-transfer, pwa, return-report. Abhängig: 4. *Umgesetzt:* Umschlag mit
