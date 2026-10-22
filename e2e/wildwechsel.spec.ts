@@ -7,10 +7,10 @@ import { tick, type WildwechselCard } from '../src/core/tick';
 import { card, dialog, expect, openGame, openStack, seedRaw, stack, test, waypoint } from './fixtures';
 
 /**
- * Wildwechsel in der Oberfläche (DESIGN_V2.md 24.6, Roadmap Phase 7 → 1c): Ein v14-Stand mit
+ * Wildwechsel in der Oberfläche (DESIGN_V2.md 24.6, Roadmap Phase 7 → 1c): Ein Stand mit
  * Korridoren und Bestand (`fauna`) in den Nachbarwäldern steht kurz vor einem Wegpunkt; der
  * Startwert ist so gesucht, dass dort eine Wildwechsel-Karte kommt. Die Karte nennt den Weg –
- * nach dem Neuladen nicht mehr (die Markierung steht nicht im Spielstand).
+ * auch nach dem Neuladen (seit v15 steht die Markierung als `PendingEncounter.via` im Spielstand).
  */
 
 const OLD_TREE = STAGES.findIndex((s) => s.id === 'old-tree');
@@ -59,7 +59,7 @@ function findSeed(): { seed: number; hit: WildwechselCard } {
   throw new Error('Kein Startwert mit Wildwechsel gefunden');
 }
 
-test('Wildwechsel-Karte nennt den Weg, die Landschaft die Chance – nach dem Neuladen kein Hinweis', async ({ page, context }) => {
+test('Wildwechsel-Karte nennt den Weg, die Landschaft die Chance – auch nach dem Neuladen', async ({ page, context }) => {
   const { seed, hit } = findSeed();
   await seedRaw(context, wildwechselState(seed), 0);
   await openGame(page);
@@ -87,13 +87,14 @@ test('Wildwechsel-Karte nennt den Weg, die Landschaft die Chance – nach dem Ne
   // Nur genau diese Karte.
   await expect(dialog(page).locator('[data-ref="card-route"]')).toHaveCount(1);
 
-  // Neuladen: Die Begegnung wartet noch, aber welche Karte über den Korridor kam, weiß der
-  // Spielstand nicht – lieber kein Hinweis als ein falscher.
+  // Neuladen: Die Begegnung wartet noch; welche Karte über den Korridor kam, steht seit v15 im
+  // Spielstand (`via`) – der Hinweis bleibt an genau dieser Karte.
   await page.reload();
   await expect(stack(page)).toBeVisible();
   await openStack(page);
   await expect(card(page, hit.species)).toBeVisible();
-  await expect(dialog(page).locator('[data-ref="card-route"]')).toHaveCount(0);
+  await expect(dialog(page).locator('[data-ref="card-route"]')).toHaveCount(1);
+  await expect(card(page, hit.species).locator('[data-ref="card-route"]')).toContainText(via);
 });
 
 for (const width of [360, 390]) {

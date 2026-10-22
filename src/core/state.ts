@@ -14,7 +14,10 @@ import { normalizeSeed } from './rng';
  * seit v11 mit der Nische Waldtümpel `niches.pond` der Erweiterung Amphibien; seit v12 mit
  * den Tageszielen `meta.daily`; seit v13 mit den Lebensräumen `niches.meadow`,
  * `niches.deadwood` und `niches.wall`, DESIGN_V2.md 23.6; seit v14 mit der Waldlandschaft
- * `meta.landscape`, DESIGN_V2.md 24.8).
+ * `meta.landscape`, DESIGN_V2.md 24.8; seit v15 mit den Hauptbäumen der Landschaft `fir` und
+ * `alder` in `MainTreeId`, der Wildwechsel-Markierung `PendingEncounter.via`, dem Zähler
+ * `meta.stats.wildwechselChosen` und „Zuerst gesehen“ `meta.journal.firstSeen`, DESIGN_V2.md
+ * 25.5, 24.6, 24.12, 25.10).
  * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -23,7 +26,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+1 % je Punkt → höchstens
@@ -47,6 +50,12 @@ export interface PendingEncounter {
   cards: string[];
   /** In dieser Begegnung schon neu gewürfelt (Ereignis und Gast: immer 0). */
   rerolls: number;
+  /**
+   * Wildwechsel (seit v15, DESIGN_V2.md 24.6): Karte `card` (Index in `cards`) kam über den
+   * Korridor `corridor` (ID in CORRIDORS) aus dem Bestand eines Nachbarn. Nur bei
+   * Tierbegegnungen, höchstens eine Karte; fehlt = keine Wildwechsel-Karte. Neu würfeln löscht es.
+   */
+  via?: { card: number; corridor: string };
 }
 
 /** Ist das eine Begegnung mit Tier- oder Pflanzenkarten? */
@@ -107,8 +116,29 @@ export interface LifetimeStats {
   plantsPlanted: number;
   /** Gekaufte Pflege-Ränge (buyCare). */
   careRanksBought: number;
+  /** Gewählte Wildwechsel-Karten (chooseCard mit `PendingEncounter.via`, seit v15). */
+  wildwechselChosen: number;
   /** Hauptbaum-Arten, die schon einmal Hauptbaum waren (inkl. der aktuellen), je einmal. */
   grownTrees: MainTreeId[];
+}
+
+/** Wann eine Art oder Pflanze zuerst entdeckt wurde (Album, DESIGN_V2.md 25.10). */
+export interface FirstSeen {
+  /** Zyklus-Nummer (`cycle.number`, ganzzahlig ≥ 1). */
+  cycle: number;
+  /** Jahreszeit im Moment der Entdeckung. */
+  season: SeasonId;
+}
+
+/** „Zuerst gesehen“ getrennt nach Tieren und Pflanzen (die IDs dürfen sich überschneiden). */
+export interface FirstSeenJournal {
+  species: Record<string, FirstSeen>;
+  plants: Record<string, FirstSeen>;
+}
+
+/** Leeres „Zuerst gesehen“ (neues Spiel, Migration v14 → v15). */
+export function createFirstSeen(): FirstSeenJournal {
+  return { species: {}, plants: {} };
 }
 
 /** Startwerte der Langzeit-Statistik (alles 0, nur die erste Baumart ist gewachsen). */
@@ -122,6 +152,7 @@ export function createStats(mainTree: MainTreeId = DEFAULT_MAIN_TREE): LifetimeS
     visitorsHosted: 0,
     plantsPlanted: 0,
     careRanksBought: 0,
+    wildwechselChosen: 0,
     grownTrees: [mainTree],
   };
 }
@@ -288,7 +319,7 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 14;
+  version: 15;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */
@@ -337,6 +368,12 @@ export interface GameState {
       communities: string[];
       /** Andenken, z. B. „old-oak“ für einen v1-Spielstand. */
       keepsakes: string[];
+      /**
+       * „Zuerst gesehen“ (seit v15, DESIGN_V2.md 25.10): Zyklus und Jahreszeit der ersten
+       * Entdeckung je Art bzw. Pflanze. Nur, was seit v15 entdeckt wurde – ältere Einträge des
+       * Tagebuchs haben keinen Wert (nichts Erfundenes).
+       */
+      firstSeen: FirstSeenJournal;
     };
     /** Langzeit-Statistik über alle Zyklen (seit v8). */
     stats: LifetimeStats;
@@ -382,7 +419,7 @@ export function createInitialState(now: number, seed: number = now): GameState {
     meta: {
       forestMemory: 0,
       regulars: [],
-      journal: { species: [], plants: [], communities: [], keepsakes: [] },
+      journal: { species: [], plants: [], communities: [], keepsakes: [], firstSeen: createFirstSeen() },
       stats: createStats(),
       achievements: [],
       daily: createDaily(dailySeedOf(seed)),

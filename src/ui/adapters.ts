@@ -84,6 +84,7 @@ import {
   visitorSeeds,
   rerollBlocker,
   isTreeUnlocked,
+  isTreeVisible,
   unlockedPlants,
   type OfflineReport,
 } from '../core/tick';
@@ -905,7 +906,8 @@ export function cycleAgeText(elapsed: number): string {
 export function toJournalTrees(state: GameState): JournalTreeView[] {
   const reveal = state.cycle.number > 1 || state.stage >= NEW_CYCLE_MIN_STAGE;
   let hidden = 0;
-  return MAIN_TREES.map((t) => {
+  // Arten der Landschaft erst nach deren Freischaltung (DESIGN_V2.md 25.2, kein Spoiler).
+  return MAIN_TREES.filter((t) => isTreeVisible(state, t.id)).map((t) => {
     const unlocked = isTreeUnlocked(state, t.id);
     const current = t.id === state.cycle.mainTree;
     // Schon einmal Hauptbaum (Langzeit-Statistik, seit v8); die aktuelle Art zählt mit.

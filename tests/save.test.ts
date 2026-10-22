@@ -71,7 +71,7 @@ describe('Speichern & Laden v2', () => {
     state.meta.forestMemory = 5;
     // Von Hand geändertes Ökosystem: H_max nachführen wie nach einer Aktion.
     recordDiscoveries(state);
-    expect(SAVE_VERSION).toBe(14);
+    expect(SAVE_VERSION).toBe(15);
     expect(deserialize(serialize(state), 999)).toEqual(state);
     expect(loadGame(serialize(state), 999)).toMatchObject({ migratedFromV1: false, keepsake: false });
   });
@@ -654,7 +654,7 @@ describe('Robustes Laden v2 (DESIGN_V2.md 12.3)', () => {
     expect(s.lastTick).toBe(777);
     expect(s.meta.forestMemory).toBe(0);
     // Tagebuch kaputt: Die Arten aus den Nischen bleiben trotzdem verzeichnet.
-    expect(s.meta.journal).toEqual({ species: ['earthworm', 'robin'], plants: [], communities: [], keepsakes: [] });
+    expect(s.meta.journal).toEqual({ species: ['earthworm', 'robin'], plants: [], communities: [], keepsakes: [], firstSeen: { species: {}, plants: {} } });
     const nan = deserialize(rawV4({ seeds: Infinity, totalGrowth: NaN }), 0)!;
     expect(nan.seeds).toBe(0);
   });

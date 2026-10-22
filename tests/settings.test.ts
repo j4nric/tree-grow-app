@@ -205,11 +205,19 @@ describe('Spielanleitung', () => {
     expect(t).toContain('keine Zeitlimits');
   });
 
-  it('Erfolge nach der Freischaltung der Landschaft: alle (30)', () => {
+  it('Erfolge nach der Freischaltung der Landschaft: alle (32)', () => {
     const after = guideSections({ landscape: true }).find((s) => s.id === 'achievements')!.paragraphs.join(' ');
-    expect(ACHIEVEMENTS.length).toBe(30);
+    expect(ACHIEVEMENTS.length).toBe(32);
     expect(after).toContain(`${formatNumber(ACHIEVEMENTS.length)} leise Erfolge`);
     expect(guideSections({ landscape: false }).find((s) => s.id === 'achievements')!.paragraphs.join(' ')).toContain('25 leise Erfolge');
+  });
+
+  it('Hauptbäume der Landschaft: erst nach der Freischaltung genannt, mit ihrem Wald (25.2)', () => {
+    const cycle = (landscape: boolean) => guideSections({ landscape }).find((s) => s.id === 'cycle')!.paragraphs.join(' ');
+    for (const word of ['Weißtanne', 'Schwarzerle', 'Bergmischwald', 'Erlenbruch', 'Tannensamen']) expect(cycle(false)).not.toContain(word);
+    expect(cycle(true)).toContain('In der Waldlandschaft keimen außerdem 🎄 Weißtanne (Bergmischwald) und 🌿 Schwarzerle (Erlenbruch)');
+    // Die Begleitpflanzen-Regel nennt weiter nur Buche und Kiefer.
+    expect(cycle(true)).toContain('sobald einmal eine Rotbuche bzw. Waldkiefer in deinem Pflanzring gewachsen ist');
   });
 
   it('span: Spanne „a–b“ oder ein Wert, deutsches Zahlenformat', () => {

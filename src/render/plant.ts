@@ -103,22 +103,17 @@ export function trunkWidthOf(g: number): number {
 
 /**
  * Arten des Hauptbaums, die der Renderer zeichnen kann (ROADMAP Phase 4, DESIGN_V2.md 25):
- * Eiche, Buche, Kiefer und – zunächst nur in der Demo (`?tree=fir|alder`) – Weißtanne und
- * Schwarzerle. Render-lokal: `MainTreeId` (src/content/trees.ts) kennt die beiden neuen
- * Arten erst mit Spielstand v15 (25.6 Nr. 2).
+ * Eiche, Buche, Kiefer und – seit Spielstand v15 (25.6 Nr. 2) spielbar – Weißtanne und
+ * Schwarzerle (Demo `?tree=fir|alder`).
  */
 export type TreeSpecies = 'oak' | 'beech' | 'pine' | 'fir' | 'alder';
+/** Alle Arten mit Zeichnung (Demo, Tests); Reihenfolge wie `MAIN_TREE_IDS`, neue Arten hinten. */
+export const RENDER_TREE_SPECIES: readonly TreeSpecies[] = ['oak', 'beech', 'pine', 'fir', 'alder'];
 /**
  * Spielbare Arten – genau `MAIN_TREE_IDS` (Inhaltstest). Danach richten sich die Anker,
  * die für alle Arten gleich bleiben (Waldsaum, Lebensräume im Mittelgrund).
- *
- * Anschluss in 25.6 Nr. 2: `fir` und `alder` in `MainTreeId`/`MAIN_TREE_IDS` aufnehmen und
- * hier `TREE_SPECIES = RENDER_TREE_SPECIES` setzen. Sonst ist nichts zu tun:
- * `SceneInput.mainTree` nimmt die IDs schon an, die Zeichnungen hängen nur an der ID.
  */
-export const TREE_SPECIES: readonly TreeSpecies[] = ['oak', 'beech', 'pine'];
-/** Alle Arten mit Zeichnung (Demo, Tests); Reihenfolge wie `TREE_SPECIES`, neue Arten hinten. */
-export const RENDER_TREE_SPECIES: readonly TreeSpecies[] = ['oak', 'beech', 'pine', 'fir', 'alder'];
+export const TREE_SPECIES: readonly TreeSpecies[] = RENDER_TREE_SPECIES;
 
 /** Art aus der Eingabe: unbekannt oder ohne Angabe → `fallback` (Standard: Eiche). */
 export function normalizeSpecies(s: string | undefined, fallback: TreeSpecies = 'oak'): TreeSpecies {

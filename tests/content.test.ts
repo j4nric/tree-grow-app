@@ -18,6 +18,7 @@ import { COMMUNITIES } from '../src/content/communities';
 import { HABITAT_SPECIES } from '../src/content/habitats';
 import { NICHES, NICHES_BY_ID } from '../src/content/niches';
 import { PLANTS, PLANTS_BY_ID, PLANT_GROUP_INFO } from '../src/content/plants';
+import { LANDSCAPE_SITES, LANDSCAPE_SITES_BY_ID } from '../src/content/landscape';
 import { ABILITY_INFO } from '../src/content/abilities';
 import { BASE_HAPPINESS, GENUS_INFO, RARITY_NAMES, SPECIES, SPECIES_BY_ID, TAG_NAMES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
@@ -795,8 +796,8 @@ describe('Jahreszeiten: Inhalte (DESIGN_V2.md 16)', () => {
 });
 
 describe('Hauptbaum-Arten: Inhalte (DESIGN_V2.md 17)', () => {
-  it('Eiche, Buche, Kiefer – dieselben IDs wie im Renderer', () => {
-    expect(MAIN_TREE_IDS).toEqual(['oak', 'beech', 'pine']);
+  it('Eiche, Buche, Kiefer, Weißtanne, Schwarzerle – dieselben IDs wie im Renderer', () => {
+    expect(MAIN_TREE_IDS).toEqual(['oak', 'beech', 'pine', 'fir', 'alder']);
     expect([...TREE_SPECIES]).toEqual([...MAIN_TREE_IDS]);
     expect(MAIN_TREES.map((t) => t.id)).toEqual(MAIN_TREE_IDS);
     expect(DEFAULT_MAIN_TREE).toBe('oak');
@@ -817,7 +818,7 @@ describe('Hauptbaum-Arten: Inhalte (DESIGN_V2.md 17)', () => {
   });
 
   it('Buche und Kiefer schalten sich über ihre Begleitpflanze im Naturtagebuch frei', () => {
-    for (const t of MAIN_TREES.filter((x) => x.id !== 'oak')) {
+    for (const t of MAIN_TREES.filter((x) => x.id !== 'oak' && x.unlockSite === undefined)) {
       const plant = PLANTS_BY_ID.get(t.unlockPlant ?? '');
       expect(plant, t.id).toBeDefined();
       expect(plant!.group, t.id).toBe('trees');
@@ -850,12 +851,51 @@ describe('Hauptbaum-Arten: Inhalte (DESIGN_V2.md 17)', () => {
     }
   });
 
-  it('nur die Kiefer ist winterfest, und nur sie trägt Nadeln statt Nüssen', () => {
-    expect(MAIN_TREES.filter((t) => t.winterHardy).map((t) => t.id)).toEqual(['pine']);
-    const pine = MAIN_TREES_BY_ID.get('pine')!;
-    expect(pine.tags).toContain('nadeln');
-    expect(pine.nutsFromStage).toBeNull();
-    for (const t of MAIN_TREES.filter((x) => x.id !== 'pine')) expect(t.nutsFromStage, t.id).not.toBeNull();
+  it('Kiefer und Weißtanne sind winterfest und tragen Nadeln statt Nüssen; die Erle hat keine Nüsse', () => {
+    expect(MAIN_TREES.filter((t) => t.winterHardy).map((t) => t.id)).toEqual(['pine', 'fir']);
+    expect(MAIN_TREES.filter((t) => t.tags.includes('nadeln')).map((t) => t.id)).toEqual(['pine', 'fir']);
+    // Geflügelte Samen (Tanne, Kiefer) und verholzte Zäpfchen (Erle) sind keine Nüsse (25.3).
+    expect(MAIN_TREES.filter((t) => t.nutsFromStage === null).map((t) => t.id)).toEqual(['pine', 'fir', 'alder']);
+  });
+
+  it('Arten der Landschaft (25.3, 25.8): Standort mit dieser Art als Leitbaum, keine Begleitpflanze, Hinweis nennt nur den Standort', () => {
+    const withSite = MAIN_TREES.filter((t) => t.unlockSite !== undefined);
+    expect(withSite.map((t) => [t.id, t.unlockSite])).toEqual([
+      ['fir', 'mountain'],
+      ['alder', 'carr'],
+    ]);
+    for (const t of withSite) {
+      const site = LANDSCAPE_SITES_BY_ID.get(t.unlockSite!)!;
+      expect(site, t.id).toBeDefined();
+      expect(site.leadTree, t.id).toBe(t.id);
+      expect(t.unlockPlant, t.id).toBeNull();
+      expect(t.unlockHint, t.id).toContain(site.name);
+      // Kein Spoiler: weder Baum- noch Pflanzenname im Hinweis.
+      for (const other of MAIN_TREES) expect(t.unlockHint, t.id).not.toContain(other.name);
+      for (const p of PLANTS) expect(t.unlockHint, t.id).not.toContain(p.name);
+    }
+    // Jeder Leitbaum mit eigenem Standort ist genau an diesen gebunden; die Grundarten an keinen.
+    for (const site of LANDSCAPE_SITES) {
+      const lead = site.leadTree ? MAIN_TREES_BY_ID.get(site.leadTree)! : null;
+      if (lead?.unlockSite !== undefined) expect(lead!.unlockSite, site.id).toBe(site.id);
+    }
+    expect(LANDSCAPE_SITES_BY_ID.get('mountain')!.leadTree).toBe('fir');
+    expect(LANDSCAPE_SITES_BY_ID.get('carr')!.leadTree).toBe('alder');
+  });
+
+  it('Werte wie DESIGN_V2.md 25.3: nur Wirkungsarten aus 17.3', () => {
+    expect(MAIN_TREES_BY_ID.get('fir')!.traits).toEqual([
+      { minStage: 0, effect: { kind: 'happiness', genus: 'birds', points: 10 } },
+      { minStage: 3, effect: { kind: 'slot', niche: 'bark', amount: 1 } },
+      { minStage: 4, effect: { kind: 'light', amount: -1 } },
+    ]);
+    expect(MAIN_TREES_BY_ID.get('alder')!.traits).toEqual([
+      { minStage: 0, effect: { kind: 'happiness', genus: 'amphibians', points: 10 } },
+      { minStage: 0, effect: { kind: 'groupGrowth', group: 'flowers', pct: 15 } },
+      { minStage: 3, effect: { kind: 'slot', niche: 'pond', amount: 1 } },
+    ]);
+    const kinds = new Set(['slot', 'light', 'water', 'groupGrowth', 'groupSeeds', 'happiness']);
+    for (const t of MAIN_TREES) for (const x of t.traits) expect(kinds.has(x.effect.kind), `${t.id}: ${x.effect.kind}`).toBe(true);
   });
 });
 

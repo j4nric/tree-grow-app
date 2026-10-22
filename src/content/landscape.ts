@@ -38,7 +38,8 @@ export interface ForestSite {
   summary: string;
   /**
    * Leitbaum: Diese Hauptbaum-Art ist beim ersten Zyklus dort vorausgewählt (falls
-   * freigeschaltet). Keine Pflicht – jede freigeschaltete Art darf wachsen. null = Eiche.
+   * freigeschaltet; eine Art mit `unlockSite` schaltet die Gründung im selben Schritt frei).
+   * Keine Pflicht – jede freigeschaltete Art darf wachsen. null = Eiche.
    */
   leadTree: MainTreeId | null;
   /**
@@ -109,7 +110,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     id: 'carr', name: 'Erlenbruch', forestType: 'Schwarzerlen-Bruchwald', icon: '🌫️',
     text: 'Schwarzerlen auf nassen Bulten, dazwischen Torfmoos und Sumpfdotterblumen. Das Wasser steht hier fast das ganze Jahr.',
     summary: 'Feuchte · Moose & Farne +30 % 🌿 · ab Alter Baum +1 Platz Waldtümpel · Bodenleben −10 % 😊',
-    leadTree: null,
+    leadTree: 'alder',
     traits: [
       { minStage: 0, effect: { kind: 'groupGrowth', group: 'mosses', pct: 30 } },
       { minStage: 4, effect: { kind: 'slot', niche: 'pond', amount: 1 } },
@@ -144,7 +145,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     id: 'mountain', name: 'Bergmischwald', forestType: 'Buchen-Tannen-Fichtenwald', icon: '⛰️',
     text: 'Buche, Tanne und Fichte am Hang. Kühle Luft, viel Regen – und im Winter liegt der Schnee lange.',
     summary: '+2 💧 · ab Junger Baum +1 Platz Krone · Säugetiere +10 % 😊 · Insekten −15 % 😊',
-    leadTree: 'beech',
+    leadTree: 'fir',
     traits: [
       // Steigungsregen: Am Hang regnet es mehr.
       { minStage: 0, effect: { kind: 'water', amount: 2 } },

@@ -92,9 +92,9 @@ function ancientHome(own = 300): GameState {
 
 describe('Spielstand v14: Startwerte', () => {
   it('SAVE_VERSION 14; neuer Stand: nur der Heimatwald, aktiv, ohne Korridore', () => {
-    expect(SAVE_VERSION).toBe(14);
+    expect(SAVE_VERSION).toBe(15);
     const state = stateAt(0);
-    expect(state.version).toBe(14);
+    expect(state.version).toBe(SAVE_VERSION);
     expect(state.meta.landscape).toEqual({
       active: 'home',
       sites: [{ id: 'home', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [] }],
@@ -456,7 +456,7 @@ describe('Laden v14 (24.8)', () => {
       delete d.meta.landscape;
     });
     const loaded = loadGame(v13, 0)!;
-    expect(loaded.state.version).toBe(14);
+    expect(loaded.state.version).toBe(SAVE_VERSION);
     expect(loaded.state.meta.forestMemory).toBe(260);
     expect(loaded.state.meta.regulars).toEqual(['earthworm']);
     expect(loaded.state.meta.landscape).toEqual({
@@ -483,7 +483,7 @@ describe('Laden v14 (24.8)', () => {
     for (let version = 2; version <= 13; version++) {
       const loaded = loadGame(raw(state, (d) => (d.version = version)), 0);
       expect(loaded, `v${version}`).not.toBeNull();
-      expect(loaded!.state.version).toBe(14);
+      expect(loaded!.state.version).toBe(SAVE_VERSION);
       expect(loaded!.state.meta.landscape.active).toBe('home');
       expect(loaded!.state.meta.landscape.sites.map((s) => s.id)).toEqual(['home']);
     }
@@ -602,7 +602,7 @@ describe('Laden v14 (24.8)', () => {
   it('ein v13-Client erkennt einen v14-Stand als neuer (Neuer-Stand-Schutz)', async () => {
     const { isNewerSave } = await import('../src/core/save');
     expect(isNewerSave(serialize(landscapeState()))).toBe(false);
-    expect(isNewerSave(JSON.stringify({ version: 15 }))).toBe(true);
+    expect(isNewerSave(JSON.stringify({ version: SAVE_VERSION + 1 }))).toBe(true);
     const { isNewerSchema } = await import('../src/sync/policy');
     expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a', schema: SAVE_VERSION }, 13)).toBe(true);
   });

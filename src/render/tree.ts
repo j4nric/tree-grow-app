@@ -182,9 +182,8 @@ export interface SceneInput {
    * dichte ovale Krone, im Herbst kupferbraun, trockenes Laub bleibt teils hängen,
    * Bucheckern) oder 'pine' (Waldkiefer: schlanker, astfreier Schaft mit Plattenborke,
    * durchgehender Leittrieb, Nadelbüschel in Etagen – jung kegelig, alt schirmartig –,
-   * Zapfen, immer grün), 'fir' (Weißtanne) oder 'alder' (Schwarzerle) – die beiden
-   * letzten vorerst nur in der Demo, bis `MainTreeId` sie kennt (siehe `TREE_SPECIES` in
-   * plant.ts). Gilt für alle Stufen vom Samen
+   * Zapfen, immer grün), 'fir' (Weißtanne) oder 'alder' (Schwarzerle, beide seit v15
+   * spielbar, siehe `TREE_SPECIES` in plant.ts). Gilt für alle Stufen vom Samen
    * an, für Jahreszeiten, Zyklus-Übergang (Frucht der Art; der alte Baum ist
    * `cycleTransition.fromTree`, fehlt sie oder ist unbekannt, diese Art) und Erinnerungsbaum. Ohne Angabe Eiche.
    */

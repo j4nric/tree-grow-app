@@ -27,7 +27,7 @@ import {
   waypointsForGrowth,
 } from './formulas';
 import { checkAchievements } from './achievements';
-import { effectiveMemoryOf, jaySeeds, jaySeedsSpent, landscapeUnlocked, siteEntry } from './landscape';
+import { effectiveMemoryOf, jaySeeds, jaySeedsSpent, landscapeUnlocked, siteEntry, wildwechselRoute } from './landscape';
 import { isDayKey } from './daily';
 import { isValidRngState, normalizeSeed } from './rng';
 import { normalizeElapsed } from './season';
@@ -37,6 +37,7 @@ import {
   SAVE_VERSION,
   createCycle,
   createDaily,
+  createFirstSeen,
   createInitialState,
   createLandscape,
   createSite,
@@ -46,6 +47,8 @@ import {
   type CycleState,
   type DailyGoal,
   type DailyState,
+  type FirstSeen,
+  type FirstSeenJournal,
   type GameState,
   type LandscapeSite,
   type LandscapeState,
@@ -129,14 +132,19 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   // v6 → v7 (Balancing 2.10): nur die Wegpunkt-Kurve – schon in loadV2 umgerechnet
   // (v6GrowthToV7), bevor Wegpunkt, Stufe und Zwischenhalt abgeleitet werden.
   // Erst nach der Migration: sie verwirft z. B. Pflanzen, die v2 nicht kannte. Führt
-  // auch H_max nach (die aktuelle Harmonie zählt schon für diesen Zyklus).
+  // auch H_max nach (die aktuelle Harmonie zählt schon für diesen Zyklus). Was es dabei ins
+  // Tagebuch nachträgt, war schon früher entdeckt: kein erfundenes „Zuerst gesehen“.
+  const firstSeen = structuredClone(state.meta.journal.firstSeen);
   recordDiscoveries(state);
+  state.meta.journal.firstSeen = firstSeen;
   // v6 → v7: Waldgedächtnis +1 % statt +2 % je Punkt, Punkte unverändert → einmal Hinweis.
   const memoryReweighted = version < 7 && (state.meta.forestMemory > 0 || state.meta.journal.keepsakes.length > 0);
   // v8 → v9 (Erfolge): ganz zuletzt, wenn Tagebuch, Statistik und H_max feststehen.
   const achievementsBackfilled = version < 9 ? migrateV8(state) : 0;
   // v13 → v14 (Waldlandschaft): nach den Erfolgen (der Urwald-Erfolg setzt `ancient`).
   const landscapeUnlockedNow = version < 14 ? migrateV13(state) : false;
+  // v14 → v15 (Hauptbäume der Landschaft, Wildwechsel-Markierung): nur der neue Zähler.
+  if (version < 15) migrateV14(state);
   return { state, migratedFromV1: false, keepsake: false, memoryReweighted, achievementsBackfilled, landscapeUnlocked: landscapeUnlockedNow };
 }
 
@@ -382,6 +390,19 @@ function migrateV13(state: GameState): boolean {
 }
 
 /**
+ * v14 → v15 (Hauptbäume je Waldtyp, DESIGN_V2.md 25.5; Wildwechsel 24.6, 24.12): ein
+ * Versionssprung – kein v14-Stand enthält `fir`/`alder` oder `PendingEncounter.via`, es gibt
+ * nichts umzubuchen. Frühere Wildwechsel sind nicht bekannt: `wildwechselChosen` beginnt bei 0
+ * (die einzige Stelle dafür; ein gleichnamiges Feld eines älteren Stands zählt nicht). Die neue Version lässt die Versionsprüfung greifen,
+ * damit ein v14-Spiel die neuen Baum-IDs nicht still zur Eiche macht.
+ */
+function migrateV14(state: GameState): void {
+  state.meta.stats.wildwechselChosen = 0;
+  // „Zuerst gesehen“ (25.10): für schon Entdecktes ist der Moment nicht bekannt – leer.
+  state.meta.journal.firstSeen = createFirstSeen();
+}
+
+/**
  * v8 → v9 (Erfolge, DESIGN_V2.md 18): Alles, was der Stand schon erfüllt, wird still
  * freigeschaltet (Reihenfolge wie ACHIEVEMENTS). Ab Zyklus 2 ist sicher, dass schon einmal
  * die Stufe für den Neuen Zyklus (Hain) erreicht war – die Stufen-Erfolge bis dorthin
@@ -432,6 +453,8 @@ function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) =>
     visitorsHosted: count(r.visitorsHosted),
     plantsPlanted: count(r.plantsPlanted),
     careRanksBought: count(r.careRanksBought),
+    // Seit v15 (Wildwechsel-Markierung); ältere Stände setzt migrateV14 auf 0.
+    wildwechselChosen: count(r.wildwechselChosen),
     grownTrees,
   };
 }
@@ -470,11 +493,14 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   // loadGame ohnehin nach (recordDiscoveries) – es zählt darum schon hier. Rohdaten jenseits
   // des Rings zählen nicht (sonst ließe sich eine gesperrte Art per Import setzen).
   const knownPlants = [...stringArray(journal.plants).filter((id) => PLANTS_BY_ID.has(id)), ...state.plants];
-  loadCycleExtras(cycle, state, knownPlants, version);
-  // Seit v14: Waldlandschaft – vor den Nischen, denn Eigenheit des Standorts und Gaben
+  // Seit v14: Waldlandschaft – vor dem Hauptbaum (seit v15 schaltet ein gegründeter Standort
+  // Arten frei, DESIGN_V2.md 25.5) und vor den Nischen, denn Eigenheit des Standorts und Gaben
   // schaffen Plätze (ältere Stände: nur der Heimatwald, migrateV13 setzt `ancient`).
   state.meta.forestMemory = clampedOr(meta.forestMemory, 0, 0, MAX_FOREST_MEMORY);
-  state.meta.landscape = version >= 14 ? loadLandscape(meta.landscape, state) : createLandscape(state.cycle.mainTree);
+  if (version >= 14) state.meta.landscape = loadLandscape(meta.landscape, state);
+  loadCycleExtras(cycle, state, knownPlants, version);
+  if (version >= 14) settleLandscapeTrees(state, knownPlants);
+  else state.meta.landscape = createLandscape(state.cycle.mainTree);
   // Platz-Boni aus Ereignissen, Pflege, der Baumart (seit v6) und der Landschaft (seit v14)
   // zählen beim Kürzen mit.
   const bonusSlots = slotBonuses(state);
@@ -548,6 +574,9 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
         cards,
         rerolls: single ? 0 : Math.floor(clampedOr(raw.rerolls, 0, 0, MAX_REROLLS)),
       };
+      // Seit v15: Wildwechsel-Markierung – nur gültig, sonst weggelassen.
+      const via = version >= 15 && type === 'animal' ? loadVia(raw, cards, state.meta.landscape) : null;
+      if (via) encounter.via = via;
       state.pendingEncounters.push(encounter);
       // Wartende Ereignisse und Gäste sind gezogen, also gesehen.
       if (single && !state.cycle.seen.includes(cards[0]!)) state.cycle.seen.push(cards[0]!);
@@ -589,6 +618,14 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
     // Bestand für den Wildwechsel (24.6): nur entdeckte Arten – im Spiel lebt dort nichts anderes.
     site.fauna = site.fauna.filter((id) => discovered.has(id));
   }
+  // Wildwechsel-Markierung (seit v15): erst jetzt steht der Bestand fest – der Weg der Art muss
+  // genau dieser Korridor sein (wie beim Ziehen, wildwechselRoute), sonst keine Markierung.
+  for (const encounter of state.pendingEncounters) {
+    const via = encounter.via;
+    if (via && wildwechselRoute(state, encounter.cards[via.card]!)?.corridor !== via.corridor) delete encounter.via;
+  }
+  // Seit v15: „Zuerst gesehen“ (ältere Stände: migrateV14).
+  state.meta.journal.firstSeen = loadFirstSeen(journal.firstSeen, state);
   // Seit v8: Langzeit-Statistik (ältere Stände: migrateV7 setzt sie).
   const known = { meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...state.meta.journal.plants, ...state.plants] } } };
   state.meta.stats = loadStats(version >= 8 ? meta.stats : undefined, state, (id) => isTreeUnlocked(known, id));
@@ -612,8 +649,55 @@ function migrateV11(state: GameState): DailyState {
 }
 
 /**
- * Waldlandschaft robust laden (seit v14, DESIGN_V2.md 24.8). Braucht Stufe, Hauptbaum und
- * `meta.forestMemory` des Stands (schon geladen):
+ * „Zuerst gesehen“ robust laden (seit v15, DESIGN_V2.md 25.10): nur Arten bzw. Pflanzen, die
+ * bekannt sind und im Naturtagebuch stehen; Zyklus ganzzahlig in [1, laufender Zyklus],
+ * Jahreszeit aus SEASON_IDS. Alles andere fällt weg (dann zeigt die Oberfläche nichts).
+ */
+function loadFirstSeen(raw: unknown, state: GameState): FirstSeenJournal {
+  const r = isRecord(raw) ? raw : {};
+  const out = createFirstSeen();
+  const entry = (value: unknown): FirstSeen | null => {
+    if (!isRecord(value)) return null;
+    const { cycle, season } = value;
+    if (typeof cycle !== 'number' || !Number.isInteger(cycle) || cycle < 1 || cycle > state.cycle.number) return null;
+    if (typeof season !== 'string' || !SEASON_IDS.includes(season as SeasonId)) return null;
+    return { cycle, season: season as SeasonId };
+  };
+  for (const kind of ['species', 'plants'] as const) {
+    const source = isRecord(r[kind]) ? (r[kind] as Record<string, unknown>) : {};
+    for (const id of state.meta.journal[kind]) {
+      if (!Object.hasOwn(source, id)) continue;
+      const value = entry(source[id]);
+      if (value) out[kind][id] = value;
+    }
+  }
+  return out;
+}
+
+/**
+ * Wildwechsel-Markierung einer Tierbegegnung robust laden (seit v15, DESIGN_V2.md 24.6):
+ * `card` ist ein ganzzahliger Index in die **gespeicherten** Karten; er wird auf die geladenen
+ * (`cards`, ungültige und doppelte verworfen) umgerechnet. `corridor` muss gebaut sein und am
+ * aktiven Wald liegen. Sonst null (keine Markierung, die Karte bleibt eine gewöhnliche).
+ */
+function loadVia(raw: Record<string, unknown>, cards: readonly string[], landscape: LandscapeState): PendingEncounter['via'] | null {
+  const via = raw.via;
+  if (!isRecord(via) || typeof via.corridor !== 'string' || !Array.isArray(raw.cards)) return null;
+  if (typeof via.card !== 'number' || !Number.isInteger(via.card) || via.card < 0 || via.card >= raw.cards.length) return null;
+  const id = raw.cards[via.card];
+  // Dieselbe Art unter den geladenen Karten (ungültige davor verschieben den Index).
+  const card = typeof id === 'string' ? cards.indexOf(id) : -1;
+  if (card < 0) return null;
+  const corridor = CORRIDORS_BY_ID.get(via.corridor);
+  if (!corridor || !landscape.corridors.includes(corridor.id) || !corridor.sites.includes(landscape.active)) return null;
+  return { card, corridor: corridor.id };
+}
+
+/**
+ * Waldlandschaft robust laden (seit v14, DESIGN_V2.md 24.8). Braucht Stufe und
+ * `meta.forestMemory` des Stands (schon geladen), aber nicht den Zyklus: Seit v15 wird sie vor
+ * dem Hauptbaum geladen (25.5), dessen Freischaltung von gegründeten Standorten abhängt. Die
+ * Hauptbäume der Wälder ordnet danach settleLandscapeTrees:
  * - `sites`: nur bekannte IDs, je einmal, Heimatwald zuerst (fehlt er → ergänzt);
  *   Gedächtnis 0 … MAX_FOREST_MEMORY ganzzahlig abgerundet, Stammgäste und Bestand nur
  *   bekannte Arten je einmal (Bestand höchstens MAX_SITE_FAUNA; entdeckt und Plätze prüft
@@ -643,7 +727,8 @@ function loadLandscape(raw: unknown, state: GameState): LandscapeState {
       fauna: unique(stringArray(s.fauna).filter((id) => SPECIES_BY_ID.has(id))).slice(0, MAX_SITE_FAUNA),
     });
   }
-  const home = sites.find((s) => s.id === HOME_SITE) ?? createSite(HOME_SITE, state.cycle.mainTree);
+  // Der Hauptbaum des aktiven Waldes folgt erst nach dem Zyklus (settleLandscapeTrees).
+  const home = sites.find((s) => s.id === HOME_SITE) ?? createSite(HOME_SITE);
   const landscape: LandscapeState = {
     active: HOME_SITE,
     sites: [home, ...sites.filter((s) => s.id !== HOME_SITE)],
@@ -655,7 +740,6 @@ function loadLandscape(raw: unknown, state: GameState): LandscapeState {
   const active = siteEntry(landscape, landscape.active)!;
   active.memory = 0;
   active.regulars = [];
-  active.mainTree = state.cycle.mainTree;
   const founded = (id: SiteId) => siteEntry(landscape, id) !== undefined;
   landscape.corridors = unique(stringArray(r.corridors)).filter((id) => CORRIDORS_BY_ID.get(id)?.sites.every(founded) ?? false);
   const assigned = new Set<SiteId>();
@@ -689,6 +773,22 @@ function loadLandscape(raw: unknown, state: GameState): LandscapeState {
     landscape.freeCorridors = landscape.freeCorridors.filter((cid) => !touches(cid));
   }
   return landscape;
+}
+
+/**
+ * Hauptbäume der Landschaft nach dem Laden des Zyklus (seit v15, DESIGN_V2.md 25.5): Der
+ * aktive Wald trägt die Art des laufenden Zyklus; ruhende Wälder behalten ihre, wenn sie
+ * freigeschaltet ist (Begleitpflanze in `knownPlants`, Standort gegründet – nach der
+ * Kosten-Prüfung), sonst Eiche. Ein fehlender Heimatwald (kaputter Stand) bekommt so als
+ * aktiver Wald ebenfalls die Art des Zyklus.
+ */
+function settleLandscapeTrees(state: GameState, knownPlants: readonly string[]): void {
+  const landscape = state.meta.landscape;
+  const known = { meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...knownPlants] } } };
+  for (const site of landscape.sites) {
+    if (site.id === landscape.active) site.mainTree = state.cycle.mainTree;
+    else if (!isTreeUnlocked(known, site.mainTree)) site.mainTree = DEFAULT_MAIN_TREE;
+  }
 }
 
 /** Obergrenze der Zähler der Tagesziele (Serie, erfüllte Ziele, perfekte Tage). */

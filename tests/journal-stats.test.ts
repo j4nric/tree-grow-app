@@ -107,6 +107,7 @@ describe('toJournalStats (Reiter „Statistik“)', () => {
       visitorsHosted: 3,
       plantsPlanted: 12_345,
       careRanksBought: 9,
+      wildwechselChosen: 0,
       grownTrees: ['oak', 'pine'],
     };
     let stats = toJournalStats(state, evaluate(state));
