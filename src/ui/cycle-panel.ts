@@ -9,7 +9,7 @@
  */
 import { isDeliberateConfirm } from './confirm';
 import { el, setText } from './dom';
-import { cycleViewKey, type CyclePanelView } from './cycle-view';
+import { cycleViewKey, treeChoiceFor, type CyclePanelView } from './cycle-view';
 import type { MainTreeId } from '../content/trees';
 import type { SiteId } from '../content/landscape';
 import { createLandscapeMap } from './landscape-map';
@@ -248,14 +248,15 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
    * laufende Art; ist sie (z. B. nach einem Import) gesperrt, die erste freie.
    */
   function updateTrees(view: CyclePanelView): void {
-    const site = targetSite(view);
-    current = site && view.trees.some((t) => t.id === site.mainTree && t.unlocked) ? site.mainTree : view.defaultTree;
+    // Ziel in der Landschaft: dort wählbare Arten und dessen Vorauswahl (Leitbaum beim Gründen).
+    const choice = treeChoiceFor(view, targetSite(view));
+    current = choice.current;
     // Neuer Zyklus begonnen: wieder die (neue) laufende Art vorauswählen.
     if (current !== shownCurrent) chosen = null;
     shownCurrent = current;
-    if (chosen !== null && !view.trees.some((t) => t.id === chosen && t.unlocked)) chosen = null;
+    if (chosen !== null && !choice.trees.some((t) => t.id === chosen && t.unlocked)) chosen = null;
     trees.hidden = !view.allowed;
-    for (const t of view.trees) {
+    for (const t of choice.trees) {
       const item = treeItems.get(t.id) ?? createTreeItem(t.id, t.icon);
       item.row.classList.toggle('locked', !t.unlocked);
       item.input.disabled = !t.unlocked;

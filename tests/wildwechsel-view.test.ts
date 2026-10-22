@@ -17,6 +17,7 @@ import {
   siteInText,
   wildwechselCardText,
   wildwechselChanceText,
+  wildwechselMarkOf,
   wildwechselReturnText,
 } from '../src/ui/wildwechsel-view';
 import { stateAt } from './helpers';
@@ -188,7 +189,7 @@ describe('Markierung offener Begegnungen', () => {
     expect(marks.lookup(e)).toBeNull();
   });
 
-  it('echter Tick: Markierung überlebt Entscheidungen davor, nicht Neu würfeln und nicht Neuladen', () => {
+  it('echter Tick: Markierung überlebt Entscheidungen davor und (über via) das Neuladen, nicht Neu würfeln', () => {
     let checked = false;
     for (let seed = 1; seed <= 300 && !checked; seed++) {
       const state = landscapeState({
@@ -219,13 +220,24 @@ describe('Markierung offener Begegnungen', () => {
       expect(routed.map((c) => c.id)).toEqual([w.species]);
       expect(routed[0]!.route).toBe(wildwechselCardText(w));
 
-      // Neuladen: andere Objekte – kein Hinweis.
-      const loaded = loadGame(serialize(state), state.lastTick);
-      expect(marks.lookup(loaded!.state.pendingEncounters[w.encounter - 1])).toBeNull();
+      // Seit v15 steht dieselbe Markierung im Spielstand (`via`).
+      expect(wildwechselMarkOf(state, state.pendingEncounters[w.encounter - 1])).toEqual(mark);
 
-      // Neu würfeln: neue Karten – kein Hinweis mehr.
+      // Neuladen: andere Objekte – die WeakMap kennt sie nicht, `via` schon (gleicher Hinweis).
+      // Im Spiel ist der Bestand der Nachbarn entdeckt (sonst verwirft das Laden ihn und den Weg).
+      for (const site of state.meta.landscape.sites) {
+        for (const id of site.fauna) if (!state.meta.journal.species.includes(id)) state.meta.journal.species.push(id);
+      }
+      const loaded = loadGame(serialize(state), state.lastTick)!.state;
+      expect(marks.lookup(loaded.pendingEncounters[w.encounter - 1])).toBeNull();
+      expect(wildwechselMarkOf(loaded, loaded.pendingEncounters[w.encounter - 1])).toEqual(mark);
+
+      // Neu würfeln: neue Karten – kein Hinweis mehr (via gelöscht).
       state.seeds = 1e9;
-      if (rerollEncounter(state, w.encounter - 1).ok) expect(marks.lookup(state.pendingEncounters[w.encounter - 1])).toBeNull();
+      if (rerollEncounter(state, w.encounter - 1).ok) {
+        expect(marks.lookup(state.pendingEncounters[w.encounter - 1])).toBeNull();
+        expect(wildwechselMarkOf(state, state.pendingEncounters[w.encounter - 1])).toBeNull();
+      }
       checked = true;
     }
     expect(checked).toBe(true);

@@ -418,6 +418,35 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     }
   });
 
+  it('gleich mit den Hauptbäumen der Landschaft (v15): Schwarzerle im Erlenbruch, Weißtanne im Bergmischwald, Wildwechsel-Markierung', () => {
+    for (const [active, tree, corridor] of [
+      ['carr', 'alder', 'home-carr'],
+      ['mountain', 'fir', 'home-mountain'],
+    ] as const) {
+      // Junger Baum: Tümpel der Erle bzw. Rinde der Tanne öffnen sich, ab Alter Baum −1 ☀️ der Tanne.
+      const start = stateAt(3, ['earthworm', 'robin', 'vole'], 1515);
+      start.cycle.mainTree = tree;
+      start.meta.forestMemory = 60;
+      start.meta.achievements.push('ancient-forest');
+      start.meta.landscape = {
+        active,
+        sites: [
+          { id: 'home', memory: 600, regulars: [], ancient: true, mainTree: 'oak', fauna: ['owl', 'deer', 'jay', 'fox', 'woodpecker', 'toad', 'frog'] },
+          { id: active, memory: 0, regulars: [], ancient: false, mainTree: tree, fauna: [] },
+        ],
+        corridors: [corridor],
+        freeCorridors: [corridor],
+        announced: true,
+      };
+      const { live, average } = runPairs(start, 2 * 3600);
+      for (const pair of [live, average]) {
+        expect(pair[0].stage, tree).toBeGreaterThanOrEqual(4);
+        expectSameRun(pair);
+        expect(pair[1].meta.stats.wildwechselChosen).toBe(0);
+      }
+    }
+  });
+
   it('gleich mit Platz-Schaffern (Borkenkäfer öffnet Höhlen) über den Alten Baum hinaus', () => {
     const { live, average } = runPairs(stateAt(3, ['barkbeetle', 'earthworm'], 4242), 2 * 3600);
     for (const pair of [live, average]) {

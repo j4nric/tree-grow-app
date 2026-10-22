@@ -106,6 +106,7 @@ import {
   type ForcedEncounter,
   type GameState,
   type LifetimeStats,
+  type FirstSeenJournal,
   type PendingEncounter,
 } from './state';
 
@@ -291,7 +292,7 @@ export const MAX_STAT_COUNT = Number.MAX_SAFE_INTEGER;
 
 type StatCounter = Extract<
   keyof LifetimeStats,
-  'cardsChosen' | 'eventsDecided' | 'visitorsHosted' | 'plantsPlanted' | 'careRanksBought'
+  'cardsChosen' | 'eventsDecided' | 'visitorsHosted' | 'plantsPlanted' | 'careRanksBought' | 'wildwechselChosen'
 >;
 
 /** Zählt einen Zähler der Langzeit-Statistik um 1 hoch (höchstens bis MAX_STAT_COUNT). */
@@ -561,7 +562,10 @@ function drawEncounterWithRoute(
     const cards = drawCards(state, t);
     if (cards.length === 0) continue;
     const wildwechsel = t === 'animal' ? drawWildwechsel(state, cards) : null;
-    return { encounter: { type: t, cards, rerolls: 0 }, wildwechsel };
+    const encounter: PendingEncounter = { type: t, cards, rerolls: 0 };
+    // Markierung im Spielstand (seit v15): Karte und Weg bleiben auch nach dem Neuladen bekannt.
+    if (wildwechsel) encounter.via = { card: wildwechsel.card, corridor: wildwechsel.corridor };
+    return { encounter, wildwechsel };
   }
   return none(null);
 }
@@ -762,19 +766,35 @@ export function chooseCard(
   if (!outcome.ok) return fail(outcome.error);
   const encounter = state.pendingEncounters[encounterIndex]!;
   const id = encounter.cards[cardIndex]!;
+  // Gewählte Wildwechsel-Karte (Erfolg `wildwechsel-1`, DESIGN_V2.md 24.12).
+  const viaWildwechsel = encounter.type === 'animal' && encounter.via?.card === cardIndex;
   for (const nicheId of Object.keys(outcome.niches) as (keyof typeof outcome.niches)[]) {
     state.niches[nicheId] = outcome.niches[nicheId];
   }
   state.plants = outcome.plants;
   if (encounter.type === 'animal' && !state.meta.journal.species.includes(id)) {
     state.meta.journal.species.push(id);
+    markFirstSeen(state, 'species', id);
     // Neu im Tagebuch: zählt beim Neuen Zyklus fürs Waldgedächtnis.
     if (!state.cycle.newSpecies.includes(id)) state.cycle.newSpecies.push(id);
   }
   state.pendingEncounters.splice(encounterIndex, 1);
   countStat(state, 'cardsChosen');
+  if (viaWildwechsel) countStat(state, 'wildwechselChosen');
   countDailyAction(state, 'decide');
   return discoveryResult(recordDiscoveries(state));
+}
+
+/**
+ * „Zuerst gesehen“ (seit v15, DESIGN_V2.md 25.10): Zyklus und Jahreszeit des Moments, in dem
+ * die Art bzw. Pflanze ins Naturtagebuch kommt – nur beim ersten Mal. Entdeckt wird nur durch
+ * Aktionen des Spielers (chooseCard, plantSeed); Tick und Offline-Simulation tragen nichts
+ * Neues ein, darum gilt online = offline von selbst.
+ */
+function markFirstSeen(state: GameState, kind: keyof FirstSeenJournal, id: string): void {
+  const record = state.meta.journal.firstSeen[kind];
+  if (Object.hasOwn(record, id)) return;
+  record[id] = { cycle: state.cycle.number, season: seasonIdAt(state.cycle.elapsed) };
 }
 
 /**
@@ -789,7 +809,11 @@ export function chooseCard(
 export function recordDiscoveries(state: GameState): string[] {
   const journal = state.meta.journal;
   const ev = evaluate(state);
-  for (const id of state.plants) if (!journal.plants.includes(id)) journal.plants.push(id);
+  for (const id of state.plants) {
+    if (journal.plants.includes(id)) continue;
+    journal.plants.push(id);
+    markFirstSeen(state, 'plants', id);
+  }
   const fresh = activeCommunities(ev).filter((id) => !journal.communities.includes(id));
   journal.communities.push(...fresh);
   raiseMaxHarmony(state, ev.harmony);
@@ -887,6 +911,8 @@ export function rerollEncounter(state: GameState, encounterIndex: number): Actio
   state.seeds -= rerollCost(state, encounterIndex);
   encounter.cards = drawCards(state, encounter.type, encounter.cards);
   encounter.rerolls++;
+  // Neue Karten: keine davon kam über einen Korridor (24.6, Wildwechsel nur am Wegpunkt).
+  delete encounter.via;
   return { ok: true };
 }
 
@@ -978,7 +1004,7 @@ export interface NewCyclePreview {
   regularSlotsAfter: number;
   /** Art des laufenden Zyklus (vorausgewählt). */
   mainTree: MainTreeId;
-  /** Alle Hauptbaum-Arten in MAIN_TREES-Reihenfolge, mit Sperre (Hinweis: MAIN_TREES_BY_ID). */
+  /** Sichtbare Hauptbaum-Arten (isTreeVisible) in MAIN_TREES-Reihenfolge, mit Sperre (Hinweis: MAIN_TREES_BY_ID). */
   trees: { id: MainTreeId; unlocked: boolean }[];
   /** Waldlandschaft: wählbare Wälder, Hähersaat jetzt und nach diesem Zyklus (DESIGN_V2.md 24.5). */
   landscape: LandscapePreview;
@@ -1020,6 +1046,11 @@ export interface SiteChoice {
   ancient: boolean;
   /** Vorausgewählte Hauptbaum-Art: zuletzt hier gewachsen bzw. Leitbaum (falls freigeschaltet). */
   mainTree: MainTreeId;
+  /**
+   * Wählbare Arten, wenn der nächste Zyklus hier wächst (MAIN_TREES-Reihenfolge): wie
+   * `NewCyclePreview.trees[].unlocked`, aber eine Gründung schaltet ihren Leitbaum schon frei (25.2).
+   */
+  unlockedTrees: MainTreeId[];
   /** Kosten der Gründung (nur nicht gegründete Wälder, sonst null). */
   cost: number | null;
   /** Korridor, der mit der Gründung gratis entsteht (null: gegründet oder nicht benachbart). */
@@ -1088,14 +1119,15 @@ export function previewNewCycle(state: GameState): NewCyclePreview {
     regularSlotsBefore: regularSlotsOf(state),
     regularSlotsAfter: regularSlots(effectiveMemoryOf(state, active, memoryOf)),
     mainTree: state.cycle.mainTree,
-    trees: MAIN_TREES.map((t) => ({ id: t.id, unlocked: isTreeUnlocked(state, t.id) })),
+    // Arten der Landschaft erst nach deren Freischaltung (25.2, isTreeVisible).
+    trees: MAIN_TREES.filter((t) => isTreeVisible(state, t.id)).map((t) => ({ id: t.id, unlocked: isTreeUnlocked(state, t.id) })),
     landscape: previewLandscape(state, memoryOf, blocker !== null),
   };
 }
 
-/** Freigeschaltete Art oder DEFAULT_MAIN_TREE. */
-function unlockedOr(state: GameState, id: MainTreeId | null | undefined): MainTreeId {
-  return id && isTreeUnlocked(state, id) ? id : DEFAULT_MAIN_TREE;
+/** Freigeschaltete Art oder DEFAULT_MAIN_TREE; `site` gilt dabei als gegründet (isTreeUnlocked). */
+function unlockedOr(state: GameState, id: MainTreeId | null | undefined, site?: SiteId): MainTreeId {
+  return id && isTreeUnlocked(state, id, site) ? id : DEFAULT_MAIN_TREE;
 }
 
 /**
@@ -1132,7 +1164,9 @@ function previewLandscape(state: GameState, memoryOf: (site: SiteId) => number, 
       memory: entry ? memoryOf(id) : 0,
       effectiveMemory: entry ? effectiveMemoryOf(state, id, memoryOf) : effectiveMemoryOf(state, id, memoryOf, free ? [free] : []),
       ancient: entry ? isSiteAncient(state, id) : false,
-      mainTree: isActive ? state.cycle.mainTree : unlockedOr(state, entry ? entry.mainTree : LANDSCAPE_SITES_BY_ID.get(id)?.leadTree),
+      // Beim Gründen ist der Leitbaum vorausgewählt – die Gründung schaltet ihn frei (25.2).
+      mainTree: isActive ? state.cycle.mainTree : unlockedOr(state, entry ? entry.mainTree : LANDSCAPE_SITES_BY_ID.get(id)?.leadTree, id),
+      unlockedTrees: MAIN_TREES.filter((t) => isTreeUnlocked(state, t.id, id)).map((t) => t.id),
       cost: entry ? null : cost,
       freeCorridor: free?.id ?? null,
       blocker,
@@ -1189,19 +1223,37 @@ export function buildCorridor(state: GameState, id: string): { ok: true } | { ok
 }
 
 /**
- * Wählbare Hauptbaum-Arten (DESIGN_V2.md 17.2): die Eiche immer, die übrigen, sobald ihre
- * Begleitpflanze im Naturtagebuch steht (`meta.journal.plants`). Abgeleitet, kein eigenes
- * Feld im Spielstand. Reihenfolge wie MAIN_TREES.
+ * Wählbare Hauptbaum-Arten (DESIGN_V2.md 17.2, 25.2): die Eiche immer, die übrigen, sobald
+ * ihre Begleitpflanze im Naturtagebuch steht (`meta.journal.plants`) bzw. ihr Standort der
+ * Landschaft gegründet ist (`meta.landscape.sites`). Abgeleitet, kein eigenes Feld im
+ * Spielstand. Reihenfolge wie MAIN_TREES.
  */
 export function unlockedTrees(state: Pick<GameState, 'meta'>): MainTreeId[] {
   return MAIN_TREES.filter((t) => isTreeUnlocked(state, t.id)).map((t) => t.id);
 }
 
-/** Ist diese Art bekannt und freigeschaltet? */
-export function isTreeUnlocked(state: Pick<GameState, 'meta'>, id: string): boolean {
+/**
+ * Ist diese Art bekannt und freigeschaltet? `founding`: Standort, der gerade gegründet wird –
+ * er gilt für die Prüfung schon als gegründet (25.2: die Gründung schaltet den Leitbaum im
+ * selben Schritt frei; Vorschau und startNewCycle).
+ */
+export function isTreeUnlocked(state: Pick<GameState, 'meta'>, id: string, founding?: SiteId): boolean {
   const tree = MAIN_TREES_BY_ID.get(id as MainTreeId);
   if (!tree) return false;
-  return tree.unlockPlant === null || state.meta.journal.plants.includes(tree.unlockPlant);
+  if (tree.unlockPlant !== null && !state.meta.journal.plants.includes(tree.unlockPlant)) return false;
+  if (tree.unlockSite !== undefined && tree.unlockSite !== founding && !isSiteFounded(state, tree.unlockSite)) return false;
+  return true;
+}
+
+/**
+ * Erscheint diese Art in der Baumwahl? Arten der Landschaft (`unlockSite`) erst nach deren
+ * Freischaltung (25.2, kein Spoiler) – danach gesperrt mit Hinweis, bis der Standort gegründet
+ * ist. Alle übrigen bekannten Arten immer.
+ */
+export function isTreeVisible(state: Pick<GameState, 'meta'>, id: string): boolean {
+  const tree = MAIN_TREES_BY_ID.get(id as MainTreeId);
+  if (!tree) return false;
+  return tree.unlockSite === undefined || landscapeUnlocked(state) || isTreeUnlocked(state, id);
 }
 
 export type NewCycleResult =
@@ -1250,7 +1302,8 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   if (choice.blocker !== null) return { ok: false, error: choice.blocker };
   // Ohne Angabe: im selben Wald die Art des laufenden Zyklus, sonst die Vorauswahl des Waldes.
   const tree = mainTree ?? choice.mainTree;
-  if (!isTreeUnlocked(state, tree)) return { ok: false, error: 'tree-locked' };
+  // Der Zielstandort zählt schon als gegründet: `('fir', 'mountain')` gelingt in einem Schritt (25.2).
+  if (!isTreeUnlocked(state, tree, target)) return { ok: false, error: 'tree-locked' };
   const wasUnlocked = preview.landscape.unlocked;
   const achievements = checkAchievements(state);
   // 1. Gewinn dem alten Wald gutschreiben, 2. `ancient` setzen, 3. wechseln bzw. gründen (24.5).

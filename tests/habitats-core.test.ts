@@ -40,16 +40,16 @@ function rich(stage: number, animals: string[] = [], seed = 3): GameState {
 
 describe('Spielstand v13 (DESIGN_V2.md 23.6)', () => {
   it('aktuelle Version mit den Lebensräumen (seit v13); neue Stände haben die drei Nischen leer', () => {
-    expect(SAVE_VERSION).toBe(14);
+    expect(SAVE_VERSION).toBe(15);
     const state = stateAt(0);
     for (const n of HABITATS) expect(state.niches[n], n).toEqual([]);
-    expect(state.version).toBe(14);
+    expect(state.version).toBe(15);
   });
 
   it('v12 → v13 ohne Pflege: Nischen leer und geschlossen, sonst unverändert', () => {
     const before = stateAt(4, ['earthworm', 'robin', 'bluetit'], 5);
     const loaded = loadGame(asV12(before), 0)!.state;
-    expect(loaded.version).toBe(14);
+    expect(loaded.version).toBe(SAVE_VERSION);
     for (const n of HABITATS) {
       expect(loaded.niches[n], n).toEqual([]);
       expect(evaluate(loaded).slots[n], n).toBe(0);
@@ -157,13 +157,13 @@ describe('Schutz für ältere Clients: „Stand ist neuer“ (DESIGN_V2.md 22.8,
     // Der Abgleich schreibt SAVE_VERSION als Schema mit; ein v12-Spiel blockiert dann.
     expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a', schema: SAVE_VERSION }, 12)).toBe(true);
     expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a', schema: SAVE_VERSION }, SAVE_VERSION)).toBe(false);
-    // Ein Code dieser Version mit Massenjahr-IDs und Lebensraum-Arten trägt die aktuelle Version (seit v14: 14).
+    // Ein Code dieser Version mit Massenjahr-IDs und Lebensraum-Arten trägt die aktuelle Version (seit v15: 15).
     const state = stateAt(5, ['cricket'], 4);
     state.cycle.care = { meadow: 1 };
     state.cycle.seen = ['vole-year'];
     const code = exportCode(state);
     const imported = importCode(code, 0);
-    expect(imported.ok && imported.result.state.version).toBe(14);
+    expect(imported.ok && imported.result.state.version).toBe(15);
     expect(imported.ok && imported.result.state.cycle.seen).toEqual(['vole-year']);
     expect(imported.ok && imported.result.state.niches.meadow).toEqual(['cricket']);
   });

@@ -11,8 +11,12 @@ import {
   treeLabel,
   regularsArrivedText,
   toCyclePanelView,
+  treeChoiceFor,
   withRegulars,
+  type CyclePanelView,
 } from '../src/ui/cycle-view';
+import { ANCIENT_STAGE } from '../src/core/landscape';
+import { createSite, type GameState } from '../src/core/state';
 import { cycleMemoryGain, memoryHarmonyBonus } from '../src/core/formulas';
 import { stateAt } from './helpers';
 
@@ -209,5 +213,58 @@ describe('View-Model „Neuer Zyklus“: Wahl des Hauptbaums (DESIGN_V2.md 17.2)
     expect(newCycleToast(5, 2, [], 'pine')).toContain('Aus einem Kiefernsamen wächst ein neuer Baum.');
     expect(fruitPhrase('maple')).toBe('einer Eichel');
     expect(treeLabel('pine')).toBe('🌲 Waldkiefer');
+  });
+});
+
+describe('View-Model „Neuer Zyklus“: Baumwahl je Ziel in der Landschaft (DESIGN_V2.md 25.2)', () => {
+  /** Urwald im Heimatwald, Landschaft frei: Bergmischwald und Erlenbruch sind gründbar. */
+  function ancientHome(): GameState {
+    const state = stateAt(ANCIENT_STAGE, ['earthworm']);
+    state.meta.forestMemory = 300;
+    state.meta.achievements.push('ancient-forest');
+    return state;
+  }
+  const siteOf = (view: CyclePanelView, id: string) => view.landscape!.sites.find((s) => s.id === id)!;
+
+  it('Bergmischwald gründen: Weißtanne vorausgewählt und wählbar, ohne Ziel gesperrt', () => {
+    const view = toCyclePanelView(ancientHome());
+    const mountain = siteOf(view, 'mountain');
+    expect(mountain).toMatchObject({ action: 'found', mainTree: 'fir', unlockedTrees: ['oak', 'fir'] });
+    const choice = treeChoiceFor(view, mountain);
+    expect(choice.current).toBe('fir');
+    expect(choice.trees.find((t) => t.id === 'fir')).toMatchObject({ unlocked: true, hint: null });
+    expect(choice.trees.find((t) => t.id === 'alder')).toMatchObject({ unlocked: false, hint: 'Gründe den Erlenbruch – dort keimt sie.' });
+    // Hier weiter (kein Ziel): Weißtanne gesperrt mit Hinweis, Vorauswahl die laufende Art.
+    const here = treeChoiceFor(view, undefined);
+    expect(here.current).toBe('oak');
+    expect(here.trees.find((t) => t.id === 'fir')).toMatchObject({ unlocked: false, hint: 'Gründe den Bergmischwald – dort keimt sie.' });
+  });
+
+  it('Spieler mit Buche: Bergmischwald wählt trotzdem die Weißtanne vor, Buche bleibt wählbar', () => {
+    const state = ancientHome();
+    state.meta.journal.plants.push('beech');
+    const view = toCyclePanelView(state);
+    const choice = treeChoiceFor(view, siteOf(view, 'mountain'));
+    expect(choice.current).toBe('fir');
+    expect(choice.trees.filter((t) => t.unlocked).map((t) => t.id)).toEqual(['oak', 'beech', 'fir']);
+  });
+
+  it('Erlenbruch gründen: Schwarzerle; Buchenhallen ohne Buche: Eiche', () => {
+    const view = toCyclePanelView(ancientHome());
+    expect(treeChoiceFor(view, siteOf(view, 'carr')).current).toBe('alder');
+    expect(treeChoiceFor(view, siteOf(view, 'beechwood')).current).toBe('oak');
+  });
+
+  it('Rückkehr in einen gegründeten Wald: die zuletzt dort gewachsene Art, wenn wählbar', () => {
+    const state = ancientHome();
+    state.meta.landscape.sites.push({ ...createSite('mountain', 'fir'), memory: 0 });
+    state.meta.landscape.corridors = ['home-mountain'];
+    state.meta.landscape.freeCorridors = ['home-mountain'];
+    const view = toCyclePanelView(state);
+    const mountain = siteOf(view, 'mountain');
+    expect(mountain.action).not.toBe('found');
+    expect(treeChoiceFor(view, mountain).current).toBe('fir');
+    // Weißtanne jetzt überall wählbar, auch hier.
+    expect(treeChoiceFor(view, undefined).trees.find((t) => t.id === 'fir')!.unlocked).toBe(true);
   });
 });

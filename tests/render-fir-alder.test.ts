@@ -83,9 +83,10 @@ function box(species: TreeSpecies, g: number): [number, number, number] {
 }
 
 describe('Weißtanne und Schwarzerle: Auswahl', () => {
-  it('render-lokal: TREE_SPECIES bleibt gleich MAIN_TREE_IDS, die Demo-Arten kommen dazu', () => {
+  it('seit v15 spielbar: TREE_SPECIES = RENDER_TREE_SPECIES = MAIN_TREE_IDS, die neuen Arten hinten', () => {
     expect([...TREE_SPECIES]).toEqual([...MAIN_TREE_IDS]);
-    expect([...RENDER_TREE_SPECIES]).toEqual([...TREE_SPECIES, ...NEW]);
+    expect([...RENDER_TREE_SPECIES]).toEqual([...TREE_SPECIES]);
+    expect(RENDER_TREE_SPECIES.slice(-NEW.length)).toEqual([...NEW]);
     for (const s of RENDER_TREE_SPECIES) expect(normalizeSpecies(s)).toBe(s);
     expect(normalizeSpecies('maple')).toBe('oak');
   });
@@ -284,7 +285,7 @@ describe('Weißtanne und Schwarzerle: Wuchsform', () => {
   });
 
   it('Laub der Tanne und Erle reicht nicht weiter in den Mittelgrund als das der bisherigen Arten', () => {
-    // Anschluss in 2b (TREE_SPECIES = RENDER_TREE_SPECIES) verschiebt so keine Lebensräume.
+    // Seit 2b gilt TREE_SPECIES = RENDER_TREE_SPECIES – so verschieben sich keine Lebensräume.
     for (const [w, h] of [
       [1200, 700],
       [390, 844],

@@ -5993,7 +5993,12 @@ ebenso die Hähersaat.
   je einmal, ohne Stufen- und Nischen-Regeln), `wildwechselRoute(state, species)` (Weg oder
   null), `featuredGenera(state)`. `tick.ts`: `drawWildwechsel(state, cards)`.
 - **Laden:** `fauna` ruhender Wälder nur aus entdeckten Arten (wie ihre Stammgäste).
-- **Grenze ohne neues Feld:** Welche Karte einer **offenen** Begegnung als Wildwechsel kam,
+- **Seit v15 (2b) umgesetzt:** `PendingEncounter.via` – siehe den folgenden Punkt; die
+  Oberfläche liest die Markierung nach dem Neuladen über `wildwechselMarkOf` (ui/wildwechsel-view.ts).
+  Beim Laden wird `card` auf die geladenen Karten umgerechnet (ungültige davor verschieben ihn),
+  und `corridor` muss nach dem Laden des Bestands der Weg der Art sein
+  (`wildwechselRoute(state, art).corridor`, wie beim Ziehen).
+- **Grenze ohne neues Feld (bis v14):** Welche Karte einer **offenen** Begegnung als Wildwechsel kam,
   steht nicht im Spielstand. Nach dem Neuladen kann die Oberfläche nur noch
   `wildwechselRoute` fragen – die nennt einen Weg auch für eine gewöhnlich gezogene Art, die
   zufällig im Bestand eines Nachbarn lebt. Soll die Karte den Weg genau und dauerhaft zeigen,
@@ -6578,11 +6583,12 @@ In `src/content/achievements.ts` (`AchievementCondition`):
 
 ## 25. Hauptbäume je Waldtyp (Phase 7)
 
-> **Stand:** Entwurf, gemessen mit der echten Logik (25.4), **noch nicht in `src/content/`**:
-> Die Arten brauchen einen neuen Typ-Wert (`MainTreeId`), eine neue Freischaltung
-> (`unlockSite`), Grafik (`TREE_SPECIES` muss gleich `MAIN_TREE_IDS` sein, Inhaltstest) und
-> Spielstand v15 (25.5) – das ist Logik, also Aufgabe des `core-engineer` (25.6). Bis dahin
-> stehen die Kandidaten nur in `scripts/site-trees.ts` (Messung).
+> **Stand:** umgesetzt mit Spielstand v15 (Phase 7, 2b): `fir` und `alder` in `MainTreeId`
+> und `src/content/trees.ts` (Werte wie 25.3), Freischaltung `unlockSite`, Leitbäume
+> Bergmischwald → Weißtanne und Erlenbruch → Schwarzerle, `TREE_SPECIES = RENDER_TREE_SPECIES`
+> (= `MAIN_TREE_IDS`), Laden wie 25.5, Erfolge 25.7. Offen: Baumwahl mit fünf Karten in der
+> Oberfläche (25.6 Nr. 3) und der große Lauf mit den neuen Leitbäumen (Nr. 5);
+> `scripts/site-trees.ts` misst bis dahin weiter (die Kandidaten sind jetzt dieselben Daten).
 
 ### 25.1 Idee und Auswahl
 
@@ -6757,10 +6763,31 @@ Eiche weiter, gewachsene Arten gingen aus der Statistik verloren. Das ist der Fa
 > `src/render/plant.ts`, Farben und Zeichnungen in `src/render/species-fir-alder.ts`, Demo
 > `?tree=fir|alder`. Die IDs sind render-lokal: `TreeSpecies` kennt `fir` und `alder`,
 > `RENDER_TREE_SPECIES` listet alle fünf, `TREE_SPECIES` bleibt gleich `MAIN_TREE_IDS`.
-> **Anschluss in Nr. 2:** `fir`/`alder` in `MainTreeId` und `MAIN_TREE_IDS` aufnehmen und
-> `TREE_SPECIES = RENDER_TREE_SPECIES` setzen – sonst nichts; `SceneInput.mainTree` nimmt die
+> **Anschluss in Nr. 2 (umgesetzt):** `fir`/`alder` in `MainTreeId` und `MAIN_TREE_IDS`,
+> `TREE_SPECIES = RENDER_TREE_SPECIES` – sonst nichts; `SceneInput.mainTree` nimmt die
 > IDs schon an. Stammfuß und Laub im Mittelgrund bleiben innerhalb der bisherigen Arten
 > (Test), Waldsaum und Lebensräume verschieben sich dadurch nicht.
+
+> **Nr. 2 umgesetzt (`core-engineer`, Spielstand v15):**
+> - `MainTree.unlockSite?: SiteId`; `isTreeUnlocked(state, id, founding?)` prüft Begleitpflanze
+>   und gegründeten Standort – `founding` (der Zielstandort einer Gründung) gilt schon als
+>   gegründet: Vorschau (`landscape.sites[].mainTree` = Leitbaum) und `startNewCycle(…, 'fir',
+>   'mountain')` in einem Schritt.
+> - Neu `isTreeVisible(state, id)`: Arten mit `unlockSite` erst nach der Freischaltung der
+>   Landschaft. `previewNewCycle(…).trees` enthält nur sichtbare Arten (vorher immer alle);
+>   kleine Eingriffe in der Oberfläche, damit nichts verraten wird: `toJournalTrees` filtert
+>   ebenso, die Spielanleitung nennt bei „Freischaltung über die Begleitpflanze“ nur Arten ohne
+>   `unlockSite` und die beiden neuen in einem eigenen Satz erst mit sichtbarer Landschaft,
+>   `FRUIT_ARTICLE` kennt die neuen Früchte.
+> - Baumwahl je Ziel: `LandscapePreview.sites[].unlockedTrees` (über
+>   `isTreeUnlocked(state, id, site)`) – beim Gründen und beim Wechsel nimmt die Oberfläche
+>   diese Liste (`treeChoiceFor` in `ui/cycle-view.ts`) für wählbar/gesperrt und die
+>   Vorauswahl: Bergmischwald → Weißtanne vorausgewählt und wählbar, auch wenn die Buche frei ist.
+> - Laden: `meta.landscape` (mit Kosten-Prüfung) vor dem Zyklus, danach `settleLandscapeTrees`
+>   – der aktive Wald trägt die Art des Zyklus, ruhende Wälder behalten ihre nur, wenn sie
+>   freigeschaltet ist (gilt nun auch für Buche und Kiefer ohne Begleitpflanze: Eiche).
+> - Keine neue Wirkungsart: Der Tümpel-Platz der Erle öffnet den Waldtümpel über `opensEarly`
+>   wie die Plätze aus Ereignissen; „keine Nüsse“ ist `nutsFromStage: null`.
 
 ### 25.7 Erfolge
 
@@ -6798,3 +6825,33 @@ Eiche weiter, gewachsene Arten gingen aus der Statistik verloren. Das ist der Fa
   stört.
 - **Nadeln der Weißtanne und Waldameise:** Die Tanne stellt wie die Kiefer Nadeln bereit, die
   Waldameise kann kommen. Gewollt – im Bergwald gibt es viele Ameisenhaufen.
+
+### 25.10 „Zuerst gesehen“ (mit v15)
+
+Für die Tierseite des Albums (`docs/ALBUM_UI.md`, Entscheidung G) reist ein kleines Feld mit
+v15 mit, damit es später keinen eigenen Versionssprung braucht:
+
+```ts
+meta.journal.firstSeen: {
+  species: Record<string, { cycle: number; season: SeasonId }>;
+  plants:  Record<string, { cycle: number; season: SeasonId }>;
+}
+```
+
+- **Ort:** im Naturtagebuch (`meta.journal`) neben den Listen `species` und `plants`, deren
+  Einträge es ergänzt; getrennt nach Tieren und Pflanzen, weil die ID-Räume sich überschneiden
+  dürfen. Die Listen bleiben die Wahrheit über „entdeckt“ (Reihenfolge der Entdeckung);
+  `firstSeen` ist nur ein Zusatz.
+- **Gesetzt** beim ersten Eintrag ins Tagebuch: Art in `chooseCard`, Pflanze in
+  `recordDiscoveries` (nach „Etwas keimt“ oder `plantSeed`) – Zyklus `cycle.number` und
+  Jahreszeit aus `cycle.elapsed`. Nie überschrieben.
+- **Online = offline:** Entdeckt wird nur durch Aktionen des Spielers; Tick und
+  Offline-Simulation wählen keine Karten und setzen keine Pflanzen (offline wartende
+  Begegnungen entscheidet der Spieler danach – dann gilt der Moment seiner Wahl). Die Frage
+  „Moment der Entdeckung oder Ende der Simulation“ stellt sich darum nicht.
+- **Migration v14 → v15:** leer. Schon entdeckte Arten bekommen **keinen** erfundenen Wert –
+  die Oberfläche zeigt dann nichts. Auch was das Laden ins Tagebuch nachträgt (z. B. Pflanzen
+  im Ring alter Stände), bekommt keinen Wert.
+- **Robustes Laden:** nur bekannte IDs, die im Tagebuch stehen; Zyklus ganzzahlig in
+  [1, laufender Zyklus]; Jahreszeit aus `SEASON_IDS`. Sonst fällt der Eintrag weg.
+- **Größe:** höchstens ein Eintrag je Art und Pflanze (heute 51 + 14), wenige KB.

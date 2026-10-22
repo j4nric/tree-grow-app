@@ -105,7 +105,10 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   // Verborgen bis zur Freischaltung (24.12); Texte ohne Standorte, Korridore und Baumarten.
   { id: 'forest-2', icon: '🪶', title: 'Weite Wege', description: 'Ein zweiter Wald ist gegründet.', condition: { kind: 'forests', atLeast: 2 }, requires: 'landscape' },
   { id: 'ancient-2', icon: '🌄', title: 'Wo Eicheln keimten', description: 'Ein zweiter Wald ist zum Urwald geworden.', condition: { kind: 'ancientForests', atLeast: 2 }, requires: 'landscape' },
+  { id: 'wildwechsel-1', icon: '🐾', title: 'Wildwechsel', description: 'Ein Tier ist über einen Korridor in deinen Wald gewechselt.', condition: { kind: 'stat', key: 'wildwechselChosen', atLeast: 1 }, requires: 'landscape' },
   { id: 'corridor-1', icon: '🌉', title: 'Grüne Bänder', description: 'Ein Korridor wurde mit Hähersaat angelegt.', condition: { kind: 'corridors', atLeast: 1, bought: true }, requires: 'landscape' },
+  // Alle Arten (seit v15 fünf): zwei davon schaltet erst die Gründung ihres Standorts frei (25.7).
+  { id: 'landscape-trees', icon: '🎄', title: 'Baumkundig im ganzen Land', description: 'Jede Hauptbaum-Art ist einmal gewachsen.', condition: { kind: 'trees', atLeast: 'all' }, requires: 'landscape' },
   { id: 'ancient-everywhere', icon: '🏞️', title: 'Uralt überall', description: 'Jeder Wald der Landschaft ist einmal zum Urwald geworden.', condition: { kind: 'ancientForests', atLeast: 'all' }, requires: 'landscape' },
   { id: 'corridors-all', icon: '🗺️', title: 'Alles verbunden', description: 'Jeder Korridor der Landschaft ist angelegt.', condition: { kind: 'corridors', atLeast: 'all' }, requires: 'landscape' },
 ];
