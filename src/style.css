@@ -5207,3 +5207,124 @@ dialog.animal-detail {
 .frozen-banner button:hover {
   background: #6f3a0c;
 }
+
+/* ======================================================================
+   Rückkehr-Bericht (ui/return-report.ts): schließbare Karte oben in der Seitenleiste.
+   Mobil direkt unter der Szene; im Fluss der Seite, verdeckt also nichts.
+   ====================================================================== */
+
+.return-report {
+  margin: 0 0 12px;
+  padding: 8px 8px 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  background: #f6f9ee;
+}
+
+.return-report[hidden] {
+  display: none;
+}
+
+.return-report.fresh {
+  animation: return-report-in 0.35s ease-out;
+}
+
+/* body[data-motion] folgt prefers-reduced-motion bzw. der Einstellung (ui/help.ts) */
+body[data-motion='reduce'] .return-report.fresh {
+  animation: none;
+}
+
+@keyframes return-report-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.return-report-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panel .return-report-title {
+  margin: 0;
+  /* Kein Versal-Titel wie die übrigen Abschnitte: kürzer, passt neben die Knöpfe */
+  color: var(--accent-dark);
+  font-size: 1rem;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+/* Sehr schmal: Knöpfe rutschen unter den Titel statt ihn umzubrechen */
+.return-report-head {
+  flex-wrap: wrap;
+}
+
+.return-report-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.return-report-toggle,
+.return-report-close {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+/* Auf- bzw. zugeklappt – der Name „Details“ bleibt gleich (aria-expanded nennt den Zustand) */
+.return-report-toggle::after {
+  content: ' ▾';
+}
+
+.return-report-toggle[aria-expanded='true']::after {
+  content: ' ▴';
+}
+
+.return-report-close {
+  padding: 0;
+  color: var(--muted);
+}
+
+.return-report-toggle:hover,
+.return-report-close:hover {
+  border-color: var(--accent);
+}
+
+.return-report-summary {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.return-report-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 8px 0 0 18px;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.return-report-list[hidden] {
+  display: none;
+}
+
+.return-report-list:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 2px;
+}

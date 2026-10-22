@@ -60,10 +60,12 @@ import { seedsLabel } from './ui/view-format';
 import { achievementUnlockedText, achievementsBackfilledText, toAchievementTimeProgress } from './ui/achievement-view';
 import { createBonusPanel } from './ui/bonus-panel';
 import { createDailyPanel } from './ui/daily-panel';
+import { createReturnReportPanel } from './ui/return-report';
+import { returnToastText, toReturnReportView } from './ui/return-report-view';
 import { dailyCompletedText, toDailyView } from './ui/daily-view';
 import { createCarePanel } from './ui/care-panel';
 import { createCyclePanel } from './ui/cycle-panel';
-import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText, toCyclePanelView, withRegulars } from './ui/cycle-view';
+import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText, toCyclePanelView } from './ui/cycle-view';
 import { createEcosystemPanel } from './ui/ecosystem-panel';
 import { createAnimalDetailDialog } from './ui/animal-detail-dialog';
 import { toAnimalDetailView, type AnimalDetailTarget } from './ui/animal-detail-view';
@@ -373,6 +375,9 @@ const panel = createEcosystemPanel(document.querySelector<HTMLElement>('#ecosyst
 });
 const bonusPanel = createBonusPanel(document.querySelector<HTMLElement>('#bonuses')!);
 const dailyPanel = createDailyPanel(document.querySelector<HTMLElement>('#daily')!);
+/** Rückkehr-Bericht: Details der Willkommens-Meldung, mobil steht im Toast nur die Kurzfassung. */
+const returnReport = createReturnReportPanel(document.querySelector<HTMLElement>('#return-report')!, heading);
+const singleColumn = matchMedia('(max-width: 760px)');
 const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!, {
   onBuy: (id) => act(buyCare(state, id), false),
   onFeedback: (text, x, y) => floats.spawn(text, x, y, 'note'),
@@ -1232,19 +1237,28 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
     persist();
     ecoDirty = true;
   }
-  extraNotice = joinNotes(extraNotice, achievementsBackfilledText(achievementsBackfilled, unlocked));
-  // Landschaft freigeschaltet (beim Laden oder offline erreicht, 24.3): im selben Hinweis.
-  extraNotice = joinNotes(extraNotice, takeLandscapeAnnouncement());
-  // Tagesziele: Tageswechsel und nur Ziele, die offline zählen dürfen (Zustände des Waldes).
-  extraNotice = joinNotes(extraNotice, runDaily({ offline: true }));
+  // Einzeln gesammelt, damit der Rückkehr-Bericht sie als eigene Punkte zeigt.
+  const notes = [
+    extraNotice,
+    achievementsBackfilledText(achievementsBackfilled, unlocked),
+    // Landschaft freigeschaltet (beim Laden oder offline erreicht, 24.3): im selben Hinweis.
+    takeLandscapeAnnouncement(),
+    // Tagesziele: Tageswechsel und nur Ziele, die offline zählen dürfen (Zustände des Waldes).
+    runDaily({ offline: true }),
+  ];
+  extraNotice = joinNotes(...notes);
   dailySeconds = 0;
   dailyGrowth = 0;
   dailyProduced = 0;
   if (report) {
     const notice = catchUpNotice(away, report, state.pendingEncounters.length, { from: stageBefore, to: state.stage });
     if (notice?.kind === 'welcome') {
-      // Ein Toast für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt.
-      notify([withRegulars(notice.text, report.regulars), extraNotice].filter(Boolean).join(' '));
+      // Ein Toast für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt –
+      // mobil nur die Kurzfassung, alles Weitere im Rückkehr-Bericht (ui/return-report.ts).
+      const stages = { from: stageBefore, to: state.stage };
+      const view = toReturnReportView({ away, report, waiting: state.pendingEncounters.length, stages, notes });
+      returnReport.show(view);
+      notify(returnToastText(view, singleColumn.matches));
       extraNotice = '';
       // Die Begrüßung nennt die neue Stufe schon: kein zweites Stufen-Banner im nächsten Frame.
       if (notice.namesStage) {
