@@ -5,6 +5,7 @@
  */
 
 import { seasonColor, seasonHill, seasonSky, type SeasonLook } from './season';
+import type { GrassColors, SoilColors } from './site-scenery';
 import { mulberry32 } from './util';
 
 export const SKY = {
@@ -63,18 +64,18 @@ export function paintHills(ctx: CanvasRenderingContext2D, width: number, height:
   ridge(0.05, 0.018, 7.3, 17.9, 2.1, seasonHill(LAND.hillNear, look));
 }
 
-/** Erdreich mit Steinchen (ohne Wurzeln). */
-export function paintSoil(ctx: CanvasRenderingContext2D, width: number, height: number, groundY: number): void {
+/** Erdreich mit Steinchen (ohne Wurzeln); `colors` je Standort (ohne Angabe: Heimatwald). */
+export function paintSoil(ctx: CanvasRenderingContext2D, width: number, height: number, groundY: number, colors: SoilColors | null = null): void {
   const soil = ctx.createLinearGradient(0, groundY, 0, height);
-  soil.addColorStop(0, LAND.soilTop);
-  soil.addColorStop(1, LAND.soilBottom);
+  soil.addColorStop(0, colors ? colors.top : LAND.soilTop);
+  soil.addColorStop(1, colors ? colors.bottom : LAND.soilBottom);
   ctx.fillStyle = soil;
   ctx.fillRect(0, groundY, width, height - groundY);
 
   const rand = mulberry32(7);
   const soilH = height - groundY;
-  const count = Math.round(width / 30);
-  ctx.fillStyle = LAND.stone;
+  const count = Math.round((width / 30) * (colors ? colors.stones : 1));
+  ctx.fillStyle = colors ? colors.stone : LAND.stone;
   ctx.globalAlpha = 0.45;
   ctx.beginPath();
   for (let i = 0; i < count; i++) {
@@ -86,7 +87,7 @@ export function paintSoil(ctx: CanvasRenderingContext2D, width: number, height: 
   }
   ctx.fill();
   // feine helle Krümel
-  ctx.fillStyle = '#a58a6c';
+  ctx.fillStyle = colors ? colors.crumb : '#a58a6c';
   ctx.globalAlpha = 0.25;
   ctx.beginPath();
   for (let i = 0; i < count * 3; i++) {
@@ -98,14 +99,21 @@ export function paintSoil(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.globalAlpha = 1;
 }
 
-/** Grasnarbe mit kleinen Halmen an der Bodenkante. */
-export function paintGrass(ctx: CanvasRenderingContext2D, width: number, height: number, groundY: number, look: SeasonLook | null = null): void {
-  const grass = seasonColor(LAND.grass, look);
-  const grassLight = seasonColor(LAND.grassLight, look);
+/** Grasnarbe mit kleinen Halmen an der Bodenkante; `colors` je Standort (ohne Angabe: Heimatwald). */
+export function paintGrass(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  groundY: number,
+  look: SeasonLook | null = null,
+  colors: GrassColors | null = null,
+): void {
+  const grass = seasonColor(colors ? colors.blade : LAND.grass, look);
+  const grassLight = seasonColor(colors ? colors.bladeLight : LAND.grassLight, look);
   const band = Math.max(4, height * 0.014);
   const grad = ctx.createLinearGradient(0, groundY - 1, 0, groundY + band);
-  grad.addColorStop(0, grassLight);
-  grad.addColorStop(1, grass);
+  grad.addColorStop(0, colors ? seasonColor(colors.bandLight, look) : grassLight);
+  grad.addColorStop(1, colors ? seasonColor(colors.band, look) : grass);
   ctx.fillStyle = grad;
   ctx.fillRect(0, groundY - 1, width, band + 1);
 
@@ -117,7 +125,7 @@ export function paintGrass(ctx: CanvasRenderingContext2D, width: number, height:
   ] as const) {
     ctx.fillStyle = color;
     ctx.beginPath();
-    const count = Math.round((width / 5) * n);
+    const count = Math.round((width / 5) * n * (colors ? colors.density : 1));
     for (let i = 0; i < count; i++) {
       const x = rand() * width;
       const h = bladeH * (0.4 + rand() * 0.8);

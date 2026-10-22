@@ -65,7 +65,9 @@ import { RESIZE_SETTLE_FRAMES, RESIZE_SETTLE_SECONDS, ResizeGate, seasonStepKey,
 import { clampView, screenToScene, STRETCH_MAX_ZOOM, viewLeft, viewTop, type CameraView } from './camera';
 import { bloomParticles, fireflySeason } from './phenology';
 import { seedGlowAlpha, SeedGlow } from './seed-glow';
-import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, SKY, type Cloud } from './scenery';
+import { createClouds, drawClouds, paintGrass, paintSky, paintSoil, SKY, type Cloud } from './scenery';
+import { paintSiteBackdrop, sceneSite, siteGround, type SceneSiteId } from './site-scenery';
+import { jayElapsed, JayFlight } from './jay-flight';
 import { clamp01, mix, mulberry32, smooth01 } from './util';
 import { VisitorLayer, type SceneVisitor, type VisitorFrame } from './visitors';
 import { ShearBands, windQuantum, windSkew } from './wind';
@@ -93,6 +95,8 @@ export { CYCLE_TRANSITION_LEAD, CYCLE_TRANSITION_REDUCED_SECONDS, CYCLE_TRANSITI
 export type { SceneVisitor } from './visitors';
 export type { TreeSpecies } from './plant';
 export { SCENE_WEATHERS, weatherParam, type SceneWeatherId } from './weather';
+export { SCENE_SITES, siteParam, type SceneSiteId } from './site-scenery';
+export { JAY_FLIGHT_REDUCED_SECONDS, JAY_FLIGHT_SECONDS } from './jay-flight';
 
 export interface SceneInput {
   /** Kontinuierlicher Wachstumswert aus core/formulas.ts `growth()`. */
@@ -220,7 +224,27 @@ export interface SceneInput {
    * WEATHER_BLEND_SECONDS. Ohne Angabe 1; bei `reducedMotion` immer 1 (ohne Überblendung).
    */
   weatherBlend?: number;
+  /**
+   * Standort der Waldlandschaft (DESIGN_V2.md 24, IDs wie `SiteId` in
+   * src/content/landscape.ts): 'home' (Heimatwald, wie ohne Angabe), 'floodplain' (Auwald am
+   * Fluss), 'carr' (Erlenbruch), 'beechwood' (Buchenhallen), 'mountain' (Bergmischwald),
+   * 'heath' (Kiefernheide). Bestimmt Horizont, Hintergrund-Bäume und Bodenfarben
+   * (site-scenery.ts); gecacht in der Kulisse, neu nur beim Wechsel. Ein Wechsel blendet
+   * die alte Kulisse sanft aus (SITE_FADE_SECONDS). Unbekannte IDs gelten wie ohne Angabe.
+   */
+  site?: string;
+  /**
+   * Häherflug beim Gründen eines Waldes (jay-flight.ts): ab `startedAt` (Sekunden, Takt wie
+   * `time`) trägt ein Eichelhäher eine Eichel durchs Bild (JAY_FLIGHT_SECONDS); bei
+   * `reducedMotion` erscheint er nur ruhig und blendet aus. Ein Start bis 1 s in der Zukunft
+   * gilt als „jetzt“; danach und davor: nichts. Das Feld darf gesetzt bleiben.
+   */
+  jayFlight?: { startedAt: number };
 }
+
+/** Überblendung der Kulisse bei einem Standortwechsel (s; bei weniger Bewegung kürzer). */
+export const SITE_FADE_SECONDS = 1.6;
+export const SITE_FADE_REDUCED_SECONDS = 0.8;
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
 const REDRAW_STEP = 0.005;
@@ -344,6 +368,8 @@ interface SizeCache {
   seasonKey: number;
   /** Lebensräume im Mittelgrund, mit denen die Kulisse gezeichnet ist (Bits, habitat-scenery.ts). */
   habitats: number;
+  /** Standort, mit dem die Kulisse gezeichnet ist (site-scenery.ts). */
+  site: SceneSiteId;
   /** Art des Hauptbaums, mit der Ebenen und Erinnerungsbaum gezeichnet sind. */
   species: TreeSpecies;
   /** Radius des Samens (CSS-Pixel), beim Neuaufbau der Ebenen gemerkt (für den Schein). */
@@ -445,6 +471,23 @@ interface Cache {
   rimeAlpha: number;
   /** Versatz des Raureifs in CSS-Pixeln (Dicke des Saums). */
   rimeOffset: number;
+  /** Häherflug (Sprites nur während des Flugs) und Zeitpunkt darin (NaN = keiner). */
+  jay: JayFlight;
+  jayU: number;
+  /**
+   * Überblendung beim Standortwechsel: Kopie der alten Kulisse (wie gezeigt, samt Tönung),
+   * Beginn (Zeit und Frames) und der Ebenen-Satz, zu dem sie passt. null = keine.
+   */
+  siteFade: HTMLCanvasElement | null;
+  siteFadeAt: number;
+  siteFadeFrames: number;
+  siteFadeSet: SizeCache | null;
+  /** Deckkraft der alten Kulisse in diesem Frame (0 = keine Überblendung). */
+  siteFadeAlpha: number;
+  /** Zuletzt gezeigter Standort (null = noch keiner) – nur ein echter Wechsel blendet über. */
+  shownSite: SceneSiteId | null;
+  /** Wie oft die Kulisse gezeichnet wurde (für Tests: kein Neuzeichnen pro Frame). */
+  staticBuilds: number;
 }
 
 /**
@@ -815,6 +858,15 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       rimeColor: '',
       rimeAlpha: 0,
       rimeOffset: 0,
+      jay: new JayFlight(),
+      jayU: Number.NaN,
+      siteFade: null,
+      siteFadeAt: 0,
+      siteFadeFrames: 0,
+      siteFadeSet: null,
+      siteFadeAlpha: 0,
+      shownSite: null,
+      staticBuilds: 0,
     };
     caches.set(ctx.canvas, cache);
   }
@@ -837,10 +889,12 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     base && base.pw === pw && base.ph === ph && base.layout.width === width && base.layout.height === height ? base.key : sizeKey(pw, ph, width, height);
   const builtKey = base ? base.key : null;
   const habitats = midgroundMask(input);
+  const site = sceneSite(input.site);
   if (input.sizeSettled ? key !== builtKey : cache.gate.shouldRebuild(key, builtKey, input.time)) {
     // Kulisse gleich in der richtigen Jahreszeit (nicht zweimal malen).
-    base = buildSizeCache(base, key, width, height, pw, ph, dpr, look, habitats);
+    base = buildSizeCache(base, key, width, height, pw, ph, dpr, look, habitats, site);
     cache.size = base;
+    cache.staticBuilds++;
   }
   base = base!;
 
@@ -857,7 +911,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       const left = viewLeft(cam);
       const top = viewTop(cam);
       if (!d || d.baseKey !== key || d.zoom !== zoom || d.covL !== left || d.covT !== top) {
-        cache.detail = buildDetailCache(d, `${key}@${zoom}:${left},${top}`, base, cam, look, habitats);
+        cache.detail = buildDetailCache(d, `${key}@${zoom}:${left},${top}`, base, cam, look, habitats, site);
+        cache.staticBuilds++;
       }
     }
   } else if (cache.detail && camStill) {
@@ -869,6 +924,12 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const sc = cam && detail && detail.layout.width === width && detail.layout.height === height && covers(detail, cam) ? detail : base;
 
   updateLayers(sc, base, cache, input, g, time, look);
+  cache.shownSite = sc.site;
+  cache.siteFadeAlpha = stepSiteFade(cache, sc, time, input.reducedMotion === true);
+  // Häherflug: Zeitpunkt im Flug (NaN = keiner); Sprites nur während des Flugs behalten.
+  const jf = input.jayFlight;
+  cache.jayU = jf ? jayElapsed(input.time, jf.startedAt, input.reducedMotion === true) : Number.NaN;
+  if (Number.isNaN(cache.jayU) && cache.jay.prepared) cache.jay.release();
   // Tag und Nacht, Wetter: getönte Kopien nur bei neuer Stufe oder neu gezeichneten Ebenen.
   if (cache.tintKey >= 0) updateTint(sc, cache);
   else if (sc.tint) releaseTint(sc);
@@ -928,7 +989,7 @@ function covers(d: SizeCache, cam: CameraView): boolean {
  * Detail-Ebenen für den Ausschnitt `cam`: so groß wie das Canvas, Auflösung = Pixeldichte
  * × Zoom – gezeichnet wird nur, was im Ausschnitt liegt. Gleiche Szene wie die Basis.
  */
-function buildDetailCache(old: SizeCache | null, key: string, base: SizeCache, cam: CameraView, look: SeasonLook | null, habitats: number): SizeCache {
+function buildDetailCache(old: SizeCache | null, key: string, base: SizeCache, cam: CameraView, look: SeasonLook | null, habitats: number, site: SceneSiteId): SizeCache {
   const { width, height, groundY } = base.layout;
   const fullW = cam.zoom * base.pw;
   const fullH = cam.zoom * base.ph;
@@ -936,7 +997,7 @@ function buildDetailCache(old: SizeCache | null, key: string, base: SizeCache, c
   // Wind verschiebt die Baum-Ebenen waagerecht um bis zu |windSkew| (< 0,0145; bei Sturm
   // bis maxStormSkew) × Höhe über dem Boden: so breit ist der Rand links und rechts.
   const margin = Math.ceil(maxStormSkew(WIND_MAX_SKEW) * groundY * res) + 2;
-  return buildSizeCache(old, key, width, height, base.pw + margin * 2, base.ph, res, look, habitats, {
+  return buildSizeCache(old, key, width, height, base.pw + margin * 2, base.ph, res, look, habitats, site, {
     oxN: viewLeft(cam) - margin / fullW,
     oyN: viewTop(cam),
     fullW,
@@ -976,10 +1037,15 @@ function updateLayers(sc: SizeCache, base: SizeCache, cache: Cache, input: Scene
   // Ein Lebensraum im Mittelgrund öffnet (oder schließt, Neuer Zyklus): Kulisse neu.
   const habitats = midgroundMask(input);
   const habitatsChanged = habitats !== sc.habitats;
-  if (seasonChanged || habitatsChanged) {
-    paintStatic(sc, look, habitats);
+  // Standortwechsel (Waldlandschaft): Kulisse neu, die alte blendet sanft aus.
+  const site = sceneSite(input.site);
+  const siteChanged = site !== sc.site;
+  if (siteChanged && cache.shownSite !== null && cache.shownSite !== site) startSiteFade(sc, cache, time);
+  if (seasonChanged || habitatsChanged || siteChanged) {
+    paintStatic(sc, look, habitats, site);
     sc.seasonKey = seasonKey;
     sc.staticVersion++;
+    cache.staticBuilds++;
   }
 
   // Art des Hauptbaums: bei einem Wechsel alle Baum-Ebenen und den Erinnerungsbaum neu.
@@ -1035,6 +1101,7 @@ function updateLayers(sc: SizeCache, base: SizeCache, cache: Cache, input: Scene
     seasonChanged ||
     // Neue Kulisse: der Hintergrund (Kopie der Kulisse samt Wurzeln) muss nachziehen.
     habitatsChanged ||
+    siteChanged ||
     speciesChanged ||
     sc.withPlants !== (input.plants !== undefined)
   ) {
@@ -1085,6 +1152,17 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     ctx.drawImage(bg, 0, 0);
     // Dürre: leises Hitzeflimmern am Horizont – vier Streifen der Kulisse, minimal verschoben.
     if (wx && wx.drought > 0.05 && !reduced) heatShimmer(ctx, bg, sc, wx.drought, time);
+  }
+  // Standortwechsel: die alte Kulisse blendet über der neuen aus.
+  const fadeBg = cache.siteFade;
+  if (fadeBg && cache.siteFadeAlpha > 0) {
+    ctx.globalAlpha = cache.siteFadeAlpha;
+    if (v.clip) {
+      if (v.x1 > v.x0 && v.y1 > v.y0) ctx.drawImage(fadeBg, v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0, v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0);
+    } else {
+      ctx.drawImage(fadeBg, 0, 0);
+    }
+    ctx.globalAlpha = 1;
   }
   // Tag und Nacht: Sterne und Mond direkt über der (getönten) Kulisse.
   if (day) {
@@ -1278,7 +1356,55 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   if (!Number.isNaN(cache.cycleU) && cache.cycle.prepared) {
     cache.cycle.draw(ctx, cache.cycleU, reduced, cycleGeometry(sc), sx, sy, m.tx, m.ty);
   }
+  // Häherflug beim Gründen eines Waldes ganz oben (über dem verblassenden alten Wald).
+  if (!Number.isNaN(cache.jayU)) {
+    const unit = (sc.anchors?.size ?? animalSize(layout.width, layout.height)) * 1.7;
+    cache.jay.draw(ctx, cache.jayU, reduced, layout.width, layout.groundY, unit, dpr, spriteDpr, sx, sy, m.tx, m.ty);
+  }
   ctx.restore();
+}
+
+/**
+ * Deckkraft der alten Kulisse beim Standortwechsel nach `elapsed` Sekunden bzw. `frames`
+ * Frames (falls die Zeit steht): sanft von 1 auf 0 – bei weniger Bewegung schneller.
+ */
+export function siteFadeAlpha(elapsed: number, frames: number, reducedMotion: boolean): number {
+  const d = reducedMotion ? SITE_FADE_REDUCED_SECONDS : SITE_FADE_SECONDS;
+  const byTime = Number.isFinite(elapsed) && elapsed >= 0 ? elapsed / d : 0;
+  const u = Math.max(byTime, frames / (d * 60));
+  return u >= 1 ? 0 : 1 - smooth01(u);
+}
+
+/** Merkt die gezeigte Kulisse (samt Tönung) für die Überblendung beim Standortwechsel. */
+function startSiteFade(sc: SizeCache, cache: Cache, time: number): void {
+  // Ohne gezeichneten Hintergrund (frischer Satz) gibt es nichts zu überblenden.
+  if (Number.isNaN(sc.growth)) return;
+  const src = cache.tintKey >= 0 && sc.tint ? sc.tint.background : sc.background;
+  const c = cache.siteFade ?? document.createElement('canvas');
+  if (c.width !== sc.pw || c.height !== sc.ph) {
+    c.width = sc.pw;
+    c.height = sc.ph;
+  }
+  const x = c.getContext('2d')!;
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  x.globalCompositeOperation = 'copy';
+  x.drawImage(src, 0, 0);
+  x.globalCompositeOperation = 'source-over';
+  cache.siteFade = c;
+  cache.siteFadeAt = time;
+  cache.siteFadeFrames = 0;
+  cache.siteFadeSet = sc;
+}
+
+/** Schritt der Überblendung: Deckkraft dieses Frames; danach (oder bei anderem Ebenen-Satz) freigeben. */
+function stepSiteFade(cache: Cache, sc: SizeCache, time: number, reduced: boolean): number {
+  if (!cache.siteFade) return 0;
+  const a = cache.siteFadeSet === sc ? siteFadeAlpha(time - cache.siteFadeAt, cache.siteFadeFrames++, reduced) : 0;
+  if (a <= 0) {
+    cache.siteFade = freeCanvas(cache.siteFade);
+    cache.siteFadeSet = null;
+  }
+  return a;
 }
 
 /** Wiederverwendete Frame-Daten für das Wetter (keine Allokation pro Frame). */
@@ -1408,6 +1534,8 @@ function buildSizeCache(
   look: SeasonLook | null,
   /** Lebensräume im Mittelgrund (Bits, `midgroundMask`). */
   habitats: number,
+  /** Standort der Waldlandschaft (Kulisse). */
+  site: SceneSiteId,
   /** Detail-Ebenen: Ausschnitt (Anteile), Größe der ganzen Szene in Pixeln, Zoom. */
   view?: { oxN: number; oyN: number; fullW: number; fullH: number; zoom: number; baseDpr: number; baseKey: string; covL: number; covT: number },
 ): SizeCache {
@@ -1459,6 +1587,7 @@ function buildSizeCache(
     memory: Number.NaN,
     seasonKey: -1,
     habitats,
+    site,
     species: 'oak',
     seedR: 4,
     plantSig: null,
@@ -1471,7 +1600,7 @@ function buildSizeCache(
     tint: null,
   };
 
-  paintStatic(sc, look, habitats);
+  paintStatic(sc, look, habitats, site);
   sc.seasonKey = seasonStepKey(look);
   return sc;
 }
@@ -1482,18 +1611,21 @@ function midgroundMask(input: SceneInput): number {
 }
 
 /**
- * Statische Kulisse (Himmel, Hügel, Lebensräume im Mittelgrund, Erde) und Grasnarbe – je
- * Größe, Jahreszeit und offenen Lebensräumen.
+ * Statische Kulisse (Himmel, Horizont des Standorts, Lebensräume im Mittelgrund, Erde) und
+ * Grasnarbe – je Größe, Jahreszeit, offenen Lebensräumen und Standort.
  */
-function paintStatic(sc: SizeCache, look: SeasonLook | null, habitats: number): void {
+function paintStatic(sc: SizeCache, look: SeasonLook | null, habitats: number, site: SceneSiteId): void {
   const { layout, dpr, pw, ph } = sc;
   const { width, height } = layout;
+  // Heimatwald: Farben wie bisher (null), sonst die des Standorts.
+  const ground = site === 'home' ? null : siteGround(site);
   const sky = layerContext(sc.scenery, sc);
   paintSky(sky, width, layout.groundY, look);
-  paintHills(sky, width, height, layout.groundY, look);
+  paintSiteBackdrop(sky, layout, site, look);
   paintMidground(sky, layout, habitats, look);
   sc.habitats = habitats;
-  paintSoil(sky, width, height, layout.groundY);
+  sc.site = site;
+  paintSoil(sky, width, height, layout.groundY, ground ? ground.soil : null);
 
   // Grasnarbe nur als Streifen um die Bodenlinie (Halme reichen bis 1,2 × bladeH hinauf).
   const above = Math.max(4, height * 0.016) * 1.2 + 2;
@@ -1505,7 +1637,7 @@ function paintStatic(sc: SizeCache, look: SeasonLook | null, habitats: number): 
   gc.setTransform(1, 0, 0, 1, 0, 0);
   gc.clearRect(0, 0, sc.grass.width, sc.grass.height);
   gc.setTransform(dpr, 0, 0, dpr, -sc.ox * dpr, -sc.oy * dpr - sc.grassTop);
-  paintGrass(gc, width, height, layout.groundY, look);
+  paintGrass(gc, width, height, layout.groundY, look, ground ? ground.grass : null);
 }
 
 /** Leert eine Ebene und setzt die Transformation CSS-Pixel der Szene → Pixel der Ebene. */
