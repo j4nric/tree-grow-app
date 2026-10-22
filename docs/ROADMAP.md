@@ -392,3 +392,8 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
       Gaben (Tierdetails)
     - [x] Meldung zur Freischaltung (`ui-dev`): zeigen, solange `landscapeAnnouncementDue(state)`,
       danach `markLandscapeAnnounced(state)` (24.8)
+- [x] Playtest Phase 6 – Funde behoben (`ui-dev`, `renderer`): Hinweise, Stapel und
+  Nahrungsnetz (#86), UI-Unstimmigkeiten und Lage des Toasts (#87, `src/ui/toast-place.ts`),
+  Grafik (#88), Rückkehr-Bericht (#89): mobil nur die Kurzfassung im Toast, alle Einzelheiten
+  in einer schließbaren Karte oben in der Seitenleiste – `src/ui/return-report-view.ts`,
+  `src/ui/return-report.ts`, `tests/return-report-view.test.ts`, `e2e/return-report.spec.ts`

@@ -51,12 +51,33 @@ for (const viewport of [
   { name: 'schmal', width: 360, height: 740 },
   { name: 'Desktop', width: 1280, height: 800 },
 ]) {
+  /*
+   * Breite langer Hinweise (CSS: width max-content, max-width min(100% − 32 px, 40rem)).
+   * Mobil steht nach der Rückkehr nur noch die Kurzfassung im Toast (Rückkehr-Bericht,
+   * e2e/return-report.spec.ts) – deren Breite hängt vom Inhalt ab und taugt nicht als Prüfung.
+   * Lange Hinweise gibt es mobil trotzdem (z. B. Zusatzhinweise ohne Begrüßung). Darum
+   * schreibt der Test die ganze Rückkehr-Meldung aus dem Bericht in den Toast: Sie ist sicher
+   * länger als eine Zeile und muss die volle Breite nutzen. Am Desktop zeigt der Toast sie
+   * ohnehin selbst.
+   */
   test(`Lange Rückkehr-Meldung (${viewport.name}): Toast nutzt die Breite, nichts scrollt quer`, async ({ page, context }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await seedRaw(context, grove(), -3 * 3600_000);
     await openGame(page);
     const toast = page.locator('#toast');
     await expect(toast).toContainText('Willkommen zurück!');
+    const items = await page.locator('[data-ref="return-report-list"] li').allTextContents();
+    const full = items.join(' ');
+    expect(full.length).toBeGreaterThan(150);
+    if (viewport.width <= 760) {
+      // Den Toast mit der langen Meldung füllen und sichtbar halten (sein Zeitgeber ist egal).
+      await toast.evaluate((node, text) => {
+        node.textContent = text;
+        (node as HTMLElement).hidden = false;
+      }, full);
+    } else {
+      await expect(toast).toHaveText(full);
+    }
     const box = (await toast.boundingBox())!;
     // Vorher höchstens die halbe Breite (left: 50%) – mobil ein schmaler, sehr hoher Block.
     expect(box.width).toBeGreaterThanOrEqual(Math.min(viewport.width - 32, 640) - 2);

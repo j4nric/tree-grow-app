@@ -1784,7 +1784,7 @@ export interface StageProgress {
 }
 
 /** Name der offline erreichten Stufe; undefined, wenn keine neue Stufe dazukam. */
-function reachedStage(stages: StageProgress | undefined): string | undefined {
+export function reachedStage(stages: StageProgress | undefined): string | undefined {
   return stages && stages.to > stages.from ? STAGES[stages.to]?.name : undefined;
 }
 
@@ -1792,7 +1792,7 @@ function reachedStage(stages: StageProgress | undefined): string | undefined {
  * Ertrag für die Willkommens-Meldung: ab 10 ganze Zahlen (abgerundet), darunter eine
  * Nachkommastelle – so wird aus 0,4 kein „+0“. '' , wenn gerundet nichts bleibt.
  */
-function welcomeAmount(value: number, icon: string): string {
+export function welcomeAmount(value: number, icon: string): string {
   const shown = value >= 10 ? Math.floor(value) : Math.round(value * 10) / 10;
   return shown > 0 ? `+${formatNumber(shown)} ${icon}` : '';
 }
