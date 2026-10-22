@@ -1706,6 +1706,9 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   font-weight: 600;
   line-height: 1.5;
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   background: #efece2;
   color: var(--muted);
 }

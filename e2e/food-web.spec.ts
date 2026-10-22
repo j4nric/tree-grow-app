@@ -53,7 +53,8 @@ for (const viewport of [
     await expect(mice.locator('[data-ref="food-web-prey"]')).toContainText(/Beute: Wühlmaus · Bestand (knapp|gut|reichlich)/);
     await expect(mice.locator('[data-ref="food-web-hunters"]')).toContainText('Waldkauz');
     await expect(mice.locator('[data-ref="food-web-hunters"]')).toContainText('Rotfuchs');
-    await expect(mice.locator('[data-ref="food-web-hint"]')).toContainText('zufriedenere Beute');
+    // Bestand am Maximum: Zwei Jäger brauchen mehr, als eine Wühlmaus je bieten kann.
+    await expect(mice.locator('[data-ref="food-web-hint"]')).toHaveText('Mehr Jäger als Futter – eine weitere Art mit Kleinsäuger hilft.');
 
     const worms = web.locator('[data-tag="wuermer"]');
     await expect(worms.locator('[data-ref="food-web-state"]')).toHaveText(/ungejagt/);
@@ -86,7 +87,8 @@ test('Tierdetails: Bestand der Beute, Futter des Jägers; Kachel zeigt den Besta
   await expect(section.getByRole('heading', { name: 'Räuber und Beute' })).toBeVisible();
   await expect(section.locator('[data-predation="stock"]')).toContainText(/Bestand: (knapp|gut|reichlich)/);
   await expect(section.locator('[data-predation="prey-kleinsaeuger"]')).toContainText('Kleinsäuger: überjagt von');
-  await expect(section.locator('[data-predation="prey-kleinsaeuger"]')).toContainText('zufriedenere Beute');
+  await expect(section.locator('[data-predation="prey-kleinsaeuger"]')).toContainText('eine weitere Art mit Kleinsäuger hilft');
+  await expect(section.locator('[data-predation="prey-kleinsaeuger"]')).not.toContainText('zufriedenere Beute');
   await noHorizontalOverflow(page);
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();

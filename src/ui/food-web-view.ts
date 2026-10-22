@@ -8,7 +8,7 @@
  * nie als Zahl, sondern als „knapp“, „gut“ oder „reichlich“ (`STOCK_LOW`/`STOCK_HIGH`).
  */
 import { EVENTS, type GameEvent } from '../content/events';
-import { STOCK_HIGH, STOCK_LOW } from '../content/predation';
+import { STOCK_BASE, STOCK_HIGH, STOCK_LOW, STOCK_RANGE } from '../content/predation';
 import { EVENT_SEASONS, SEASONS_BY_ID } from '../content/seasons';
 import { SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
 import { STAGES } from '../content/stages';
@@ -111,9 +111,28 @@ function eventSeasons(id: string): string {
   return `${seasons.slice(0, -1).join(', ')} oder ${seasons[seasons.length - 1]}`;
 }
 
-/** Was bei Überjagung hilft – freundlich, ohne Warnton. */
-export function overhuntHint(tag: string): string {
-  return `Mehr Jäger als Futter – zufriedenere Beute oder eine weitere Art mit ${tagName(tag)} hilft.`;
+/** Größter Bestand einer Beute-Art (rundum zufrieden). */
+const STOCK_MAX = STOCK_BASE + STOCK_RANGE;
+
+/**
+ * Was bei Überjagung hilft – freundlich, ohne Warnton. Zufriedenere Beute hilft nur, solange
+ * ihr Bestand noch wachsen kann: Sind mehr Jäger da, als die Beute selbst rundum zufrieden
+ * ernähren könnte (Arten × höchster Bestand), oder ist der Bestand schon am Maximum, hilft
+ * nur eine weitere Art mit dem Merkmal.
+ */
+export function overhuntHint(entry: Pick<FoodWebEntry, 'tag' | 'prey' | 'hunters' | 'stock'>): string {
+  const name = tagName(entry.tag);
+  // Wer sich selbst frisst (Rote Waldameise), zählt nicht als Jäger seiner eigenen Art.
+  const hunters = entry.hunters.filter((h) => !entry.prey.includes(h)).length;
+  const most = entry.prey.length * STOCK_MAX;
+  const atMax = entry.stock >= most - 1e-9;
+  if (hunters > most + 1e-9 || atMax) return `Mehr Jäger als Futter – eine weitere Art mit ${name} hilft.`;
+  return `Mehr Jäger als Futter – zufriedenere Beute oder eine weitere Art mit ${name} hilft.`;
+}
+
+/** Fressen nur Arten, die selbst die Beute sind (Rote Waldameise allein bei den Insekten)? */
+export function onlyCannibals(entry: Pick<FoodWebEntry, 'prey' | 'hunters'>): boolean {
+  return entry.hunters.length > 0 && entry.hunters.every((h) => entry.prey.includes(h)) && entry.prey.every((p) => entry.hunters.includes(p));
 }
 
 /**
@@ -132,9 +151,10 @@ export function unhuntedHint(tag: string, state: Pick<GameState, 'stage' | 'cycl
 }
 
 function rowHint(entry: FoodWebEntry, state: Pick<GameState, 'stage' | 'cycle'>): string {
-  if (entry.state === 'overhunted') return overhuntHint(entry.tag);
+  if (entry.state === 'overhunted') return overhuntHint(entry);
   if (entry.state === 'unhunted') return unhuntedHint(entry.tag, state);
   if (entry.hunters.length === 0) return 'Wird klein gehalten, ohne gejagt zu werden.';
+  if (onlyCannibals(entry)) return 'Nur Artgenossen fressen hier – kein Nachteil, ein weiterer Jäger fände Futter.';
   // Futterangebot (≥ 1 je Beute) reicht noch für einen ganzen Jäger mehr?
   if (entry.supply - entry.hunters.length >= 1 - 1e-9) return 'Die Jäger werden satt – es reicht noch für einen weiteren.';
   return 'Die Jäger werden satt, die Beute bleibt gelassen.';
@@ -143,6 +163,16 @@ function rowHint(entry: FoodWebEntry, state: Pick<GameState, 'stage' | 'cycle'>)
 /** Bestand je Merkmal: Durchschnitt der Beute (so heißt „reichlich“ dasselbe wie am Tier). */
 function entryStock(entry: FoodWebEntry): StockView {
   return stockView(entry.prey.length > 0 ? entry.stock / entry.prey.length : 0);
+}
+
+/** Jäger mit Namen; wer selbst Beute dieses Merkmals ist, „frisst Artgenossen“. */
+function hunterNames(entry: FoodWebEntry, journal: FoodWebJournal): string {
+  return names(
+    entry.hunters.map((id) => {
+      const name = speciesName(id, journal);
+      return entry.prey.includes(id) && name !== '???' ? `${name} (frisst Artgenossen)` : name;
+    }),
+  );
 }
 
 export function foodWebRow(entry: FoodWebEntry, state: Pick<GameState, 'stage' | 'cycle'>, journal: FoodWebJournal): FoodWebRowView {
@@ -155,7 +185,7 @@ export function foodWebRow(entry: FoodWebEntry, state: Pick<GameState, 'stage' |
     stateIcon: FOOD_WEB_STATE_ICONS[entry.state],
     stock: entryStock(entry),
     prey: namesOf(entry.prey, journal),
-    hunters: namesOf(entry.hunters, journal),
+    hunters: hunterNames(entry, journal),
     hunterCount: entry.hunters.length,
     controllers: namesOf(entry.controllers, journal),
     hint: rowHint(entry, state),
@@ -280,6 +310,8 @@ export function detailPredationViews(
       if (hunters.length > 0) {
         row.label = `${name}: ernährt ${namesOf(hunters, journal)}`;
         row.tone = 'good';
+      } else if (e.hunters.includes(sp.id)) {
+        row.label = `${name}: nur von ihr selbst gefressen`;
       } else if (e.controllers.length > 0) {
         row.label = `${name}: klein gehalten von ${namesOf(e.controllers, journal)}`;
       } else {
@@ -288,7 +320,7 @@ export function detailPredationViews(
       if (e.state === 'overhunted') {
         row.label = `${name}: überjagt von ${namesOf(hunters, journal)}`;
         row.tone = 'neutral';
-        row.hint = overhuntHint(e.tag);
+        row.hint = overhuntHint(e);
       } else if (e.state === 'unhunted') {
         row.hint = unhuntedHint(e.tag, state);
       }
@@ -300,7 +332,12 @@ export function detailPredationViews(
       key: `hunt-${e.tag}`,
       icon: preyIcon(e.tag),
       label: `Futter ${huntEntryText(e)}`,
-      hint: e.state === 'overhunted' ? overhuntHint(e.tag) : `Im Gleichgewicht – Bestand ${entryStock(e).label}.`,
+      hint:
+        e.state === 'overhunted'
+          ? overhuntHint(e)
+          : onlyCannibals(e)
+            ? 'Frisst Artgenossen – im Gleichgewicht.'
+            : `Im Gleichgewicht – Bestand ${entryStock(e).label}.`,
       tone: e.state === 'overhunted' ? 'neutral' : 'good',
     });
   }

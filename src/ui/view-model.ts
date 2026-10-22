@@ -268,7 +268,7 @@ export interface FoodWebRowView {
   stock: StockView;
   /** „Wühlmaus“, „Eichenwickler und Tagpfauenauge“ (unentdeckte: „???“). */
   prey: string;
-  /** „Waldkauz und Rotfuchs“ – leer, wenn keiner frisst. */
+  /** „Waldkauz und Rotfuchs“ – leer, wenn keiner frisst; Beute, die sich selbst frisst: „… (frisst Artgenossen)“. */
   hunters: string;
   hunterCount: number;
   /** Arten, die es nur klein halten, z. B. „Rote Waldameise“ – leer, wenn keine. */
@@ -280,7 +280,7 @@ export interface FoodWebRowView {
 /** Das Nahrungsnetz für die Übersicht (aufklappbar wie die Lebensgemeinschaften). */
 export interface FoodWebView {
   rows: FoodWebRowView[];
-  /** Kurzfassung für die zugeklappte Zeile, z. B. „2 ausgeglichen · 1 überjagt“. */
+  /** Kurzfassung für die zugeklappte Zeile, z. B. „1 überjagt · 2 im Gleichgewicht“ (überjagt zuerst). */
   summary: string;
   /** Text, wenn noch keine Beute im Wald lebt (dann `rows` leer). */
   emptyText: string;

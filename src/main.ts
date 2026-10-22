@@ -232,6 +232,8 @@ let ecoView: EcosystemView | null = null;
 /** Spielanleitung und Einstellungen (ab start()). */
 let help: Help | undefined;
 let ecoEvaluation: Readonly<Evaluation> | null = null;
+/** Gesehene Ereignisse beim letzten Neubau – die Hinweise im Nahrungsnetz nennen Massenjahre, die schon waren. */
+let ecoSeen = -1;
 let lastPanelRefresh = -Infinity;
 /** Letzte gedrosselte Prüfung der Erfolge im Game Loop (performance.now). */
 let lastAchievementCheck = -Infinity;
@@ -632,8 +634,9 @@ function refreshPanel(now: number): void {
     const ev = evaluate(state);
     if (journal.open) journal.update(toJournalView(state, ev));
     scene.forestMemory = state.meta.forestMemory;
-    if (!ecoView || ev !== ecoEvaluation) {
+    if (!ecoView || ev !== ecoEvaluation || state.cycle.seen.length !== ecoSeen) {
       ecoEvaluation = ev;
+      ecoSeen = state.cycle.seen.length;
       ecoView = toEcosystemView(state, ev);
       // Tiere und Pflanzen für die Szene nur bei Änderungen am Ökosystem neu bauen.
       scene.animals = toSceneAnimals(state, ev);
