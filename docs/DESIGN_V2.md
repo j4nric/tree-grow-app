@@ -6534,6 +6534,15 @@ Eiche weiter, gewachsene Arten gingen aus der Statistik verloren. Das ist der Fa
 | 4 | `qa-tester` | e2e: Bergmischwald gründen → Weißtanne vorausgewählt → Neuladen → Weißtanne wächst, Szene zeigt sie; Erlenbruch mit Schwarzerle: Tümpel ab Junger Baum ohne Pflege; v14-Spiel lehnt den v15-Stand ab | 3 |
 | 5 | `game-designer` | großer Lauf der Landschaft mit den neuen Leitbäumen (24.7, 24.10, 25.4 nachtragen), danach `scripts/site-trees.ts` und `tests/site-trees-balance.test.ts` entfernen | 2 |
 
+> **Nr. 1 umgesetzt (`renderer`):** Wuchsformen `TREE_FORMS.fir` / `.alder` in
+> `src/render/plant.ts`, Farben und Zeichnungen in `src/render/species-fir-alder.ts`, Demo
+> `?tree=fir|alder`. Die IDs sind render-lokal: `TreeSpecies` kennt `fir` und `alder`,
+> `RENDER_TREE_SPECIES` listet alle fünf, `TREE_SPECIES` bleibt gleich `MAIN_TREE_IDS`.
+> **Anschluss in Nr. 2:** `fir`/`alder` in `MainTreeId` und `MAIN_TREE_IDS` aufnehmen und
+> `TREE_SPECIES = RENDER_TREE_SPECIES` setzen – sonst nichts; `SceneInput.mainTree` nimmt die
+> IDs schon an. Stammfuß und Laub im Mittelgrund bleiben innerhalb der bisherigen Arten
+> (Test), Waldsaum und Lebensräume verschieben sich dadurch nicht.
+
 ### 25.7 Erfolge
 
 - **`trees-all` („Baumkundig“)** zählt heute `MAIN_TREES.length` (`'all'`). Mit fünf Arten

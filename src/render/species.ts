@@ -8,6 +8,8 @@
  *   Kiefer  schlanker, rötlicher Schaft mit Plattenborke, Nadelbüschel in Etagen,
  *           jung kegelig, alt schirmartig; Zapfen; das ganze Jahr grün;
  *           Frucht: geflügelter Samen bzw. Zapfen
+ *   Tanne    Weißtanne, Schwarzerle: siehe species-fir-alder.ts (zunächst nur Demo)
+ *   Erle
  *
  * Wuchsformen stehen in `plant.ts` (`TREE_FORMS`), hier nur Farben und Zeichnungen.
  * Alles wird beim Neuaufbau der Ebenen gezeichnet – keine Arbeit pro Frame.
@@ -16,6 +18,17 @@
 import type { LeafCluster, LeafPalette, PlantGeometry, TreeSpecies, WoodColors } from './plant';
 import { seasonLeaves, type SeasonLook } from './season';
 import { hash2, mix } from './util';
+import {
+  ALDER_AUTUMN,
+  ALDER_LEAVES,
+  ALDER_WOOD,
+  FIR_NEEDLES,
+  FIR_WOOD,
+  firAlderLeafAmount,
+  paintFirAlderCotyledons,
+  paintFirAlderFruit,
+  paintFirAlderSeed,
+} from './species-fir-alder';
 
 export type { TreeSpecies } from './plant';
 export { normalizeSpecies } from './plant';
@@ -35,6 +48,7 @@ export const BEECH_WINTER_LEAVES = 0.12;
  * Winter einen Teil ihres trockenen Laubs.
  */
 export function speciesLeafAmount(species: TreeSpecies, look: SeasonLook | null): number {
+  if (species === 'fir' || species === 'alder') return firAlderLeafAmount(species, look);
   if (!look) return 1;
   if (species === 'pine') return 1;
   if (species === 'beech') return Math.max(look.leaves, BEECH_WINTER_LEAVES * look.autumn);
@@ -44,6 +58,8 @@ export function speciesLeafAmount(species: TreeSpecies, look: SeasonLook | null)
 /** Laubfarben der Art in der Jahreszeit (Eiche: `oak`, die bisherige Palette). */
 export function speciesLeaves(species: TreeSpecies, oak: LeafPalette, look: SeasonLook | null): LeafPalette {
   if (species === 'pine') return PINE_NEEDLES;
+  if (species === 'fir') return FIR_NEEDLES;
+  if (species === 'alder') return seasonLeaves(ALDER_LEAVES, look, ALDER_AUTUMN);
   if (species === 'beech') {
     const p = seasonLeaves(BEECH_LEAVES, look, BEECH_AUTUMN);
     // Im Winter (Schnee) bleicht das hängende Laub zu trockenem Beige aus.
@@ -57,7 +73,7 @@ export function speciesLeaves(species: TreeSpecies, oak: LeafPalette, look: Seas
 
 /** Holz der Art: junger, grüner Trieb (`stem`) verholzt mit `lignin` zur Rinde der Art. */
 export function speciesWood(species: TreeSpecies, stem: WoodColors, oak: WoodColors, lignin: number): WoodColors {
-  const w = species === 'beech' ? BEECH_WOOD : species === 'pine' ? PINE_WOOD : oak;
+  const w = species === 'beech' ? BEECH_WOOD : species === 'pine' ? PINE_WOOD : species === 'fir' ? FIR_WOOD : species === 'alder' ? ALDER_WOOD : oak;
   return { base: mix(stem.base, w.base, lignin), shade: mix(stem.shade, w.shade, lignin), light: mix(stem.light, w.light, lignin) };
 }
 
@@ -173,6 +189,10 @@ export function paintCones(ctx: CanvasRenderingContext2D, geo: PlantGeometry, ox
 
 /** Samen im Boden (Keimung): Eichel, Buchecker oder geflügelter Kiefernsamen. */
 export function paintSeed(ctx: CanvasRenderingContext2D, species: TreeSpecies, cx: number, cy: number, r: number): void {
+  if (species === 'fir' || species === 'alder') {
+    paintFirAlderSeed(ctx, species, cx, cy, r);
+    return;
+  }
   if (species === 'beech') {
     // Buchecker: dreikantige, glänzend braune Nuss.
     ctx.fillStyle = '#7a4a26';
@@ -214,6 +234,10 @@ export function paintSeed(ctx: CanvasRenderingContext2D, species: TreeSpecies, c
 /** Keimblätter: Eiche zwei schmale, Buche zwei breite, nierenförmige, Kiefer ein Nadelkranz. */
 export function paintCotyledons(ctx: CanvasRenderingContext2D, species: TreeSpecies, x: number, y: number, size: number, palette: LeafPalette): void {
   if (size < 0.5) return;
+  if (species === 'fir' || species === 'alder') {
+    paintFirAlderCotyledons(ctx, species, x, y, size);
+    return;
+  }
   if (species === 'pine') {
     ctx.strokeStyle = PINE_NEEDLES.tones[1];
     ctx.lineCap = 'round';
@@ -249,6 +273,10 @@ export function paintCotyledons(ctx: CanvasRenderingContext2D, species: TreeSpec
  */
 export function paintFruit(g: CanvasRenderingContext2D, species: TreeSpecies): void {
   // Zeicheneinheiten: Breite 1, Höhe 1,25 (wie die Eichel).
+  if (species === 'fir' || species === 'alder') {
+    paintFirAlderFruit(g, species);
+    return;
+  }
   if (species === 'beech') {
     g.fillStyle = '#7a4a26';
     g.beginPath();

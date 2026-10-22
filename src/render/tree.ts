@@ -61,6 +61,7 @@ import {
   speciesWood,
   type TreeSpecies,
 } from './species';
+import { paintAlderBark, paintAlderCatkins, paintFirBark, paintFirCones, paintFirTiers, paintStiltRoots } from './species-fir-alder';
 import { normalizeSeason, paintSnowCover, SeasonParticles, seasonLeaves, seasonLook, seasonWood, type SeasonFrame, type SeasonLook } from './season';
 import { RESIZE_SETTLE_FRAMES, RESIZE_SETTLE_SECONDS, ResizeGate, seasonStepKey, settled, sizeKey } from './resize';
 import { clampView, screenToScene, STRETCH_MAX_ZOOM, viewLeft, viewTop, type CameraView } from './camera';
@@ -181,7 +182,9 @@ export interface SceneInput {
    * dichte ovale Krone, im Herbst kupferbraun, trockenes Laub bleibt teils hängen,
    * Bucheckern) oder 'pine' (Waldkiefer: schlanker, astfreier Schaft mit Plattenborke,
    * durchgehender Leittrieb, Nadelbüschel in Etagen – jung kegelig, alt schirmartig –,
-   * Zapfen, immer grün). Gilt für alle Stufen vom Samen
+   * Zapfen, immer grün), 'fir' (Weißtanne) oder 'alder' (Schwarzerle) – die beiden
+   * letzten vorerst nur in der Demo, bis `MainTreeId` sie kennt (siehe `TREE_SPECIES` in
+   * plant.ts). Gilt für alle Stufen vom Samen
    * an, für Jahreszeiten, Zyklus-Übergang (Frucht der Art; der alte Baum ist
    * `cycleTransition.fromTree`, fehlt sie oder ist unbekannt, diese Art) und Erinnerungsbaum. Ohne Angabe Eiche.
    */
@@ -1920,7 +1923,7 @@ function renderMemory(sc: SizeCache, memory: number, look: SeasonLook | null, sp
   if (species === 'oak') {
     paintTree(c, tree, hazeWood(seasonWood(WOOD, look), 0.7), hazePalette(seasonLeaves(PALETTES[2]!, look), 0.7), look ? look.leaves : 1);
   } else {
-    paintSpeciesTree(c, tree, species, hazeWood(seasonWood(speciesWood(species, WOOD, WOOD, 1), look), 0.7), hazePalette(speciesLeaves(species, PALETTES[2]!, look), 0.7), speciesLeafAmount(species, look), 0);
+    paintSpeciesTree(c, tree, species, hazeWood(seasonWood(speciesWood(species, WOOD, WOOD, 1), look), 0.7), hazePalette(speciesLeaves(species, PALETTES[2]!, look), 0.7), speciesLeafAmount(species, look), 0, look);
   }
   sc.memoryCanvas = canvas;
   sc.memoryRect = r;
@@ -2110,16 +2113,40 @@ function paintMainTree(ctx: CanvasRenderingContext2D, main: PlacedTree, g: numbe
     paintTree(ctx, main, seasonWood(mixWood(STEM, WOOD, lignin), look), seasonLeaves(PALETTES[0]!, look), look ? look.leaves : 1);
     return;
   }
-  paintSpeciesTree(ctx, main, species, seasonWood(speciesWood(species, STEM, WOOD, lignin), look), speciesLeaves(species, PALETTES[0]!, look), speciesLeafAmount(species, look), g);
+  paintSpeciesTree(ctx, main, species, seasonWood(speciesWood(species, STEM, WOOD, lignin), look), speciesLeaves(species, PALETTES[0]!, look), speciesLeafAmount(species, look), g, look);
 }
 
 /**
- * Buche (runde Blattballen, glatte Rinde) oder Kiefer (Schuppenborke, Nadelbüschel,
- * Zapfen). `g`: Alter für Borke und Zapfen – 0 lässt diese Einzelheiten weg (ferner,
- * dunstiger Erinnerungsbaum).
+ * Buche (runde Blattballen, glatte Rinde), Kiefer (Schuppenborke, Nadelbüschel, Zapfen),
+ * Weißtanne (silbergraue Rinde, Nadeletagen mit Schnee, aufrechte Zapfen) oder
+ * Schwarzerle (Stelzwurzeln, rissige Borke, Kätzchen und Zäpfchen im Winter). `g`: Alter
+ * für Borke und Zapfen – 0 lässt diese Einzelheiten weg (ferner, dunstiger
+ * Erinnerungsbaum). `look`: Jahreszeit für Schnee, Zapfen und Kätzchen.
  */
-function paintSpeciesTree(ctx: CanvasRenderingContext2D, t: PlacedTree, species: TreeSpecies, wood: WoodColors, palette: LeafPalette, leaves: number, g: number): void {
+function paintSpeciesTree(
+  ctx: CanvasRenderingContext2D,
+  t: PlacedTree,
+  species: TreeSpecies,
+  wood: WoodColors,
+  palette: LeafPalette,
+  leaves: number,
+  g: number,
+  look: SeasonLook | null = null,
+): void {
+  if (species === 'alder' && g > 0) paintStiltRoots(ctx, t.geo, t.x, t.y, t.scale, g, wood);
   paintWood(ctx, t.geo, t.x, t.y, t.scale, 1, wood);
+  if (species === 'fir') {
+    if (g > 0) paintFirBark(ctx, t.geo, t.x, t.y, t.scale, g);
+    paintFirTiers(ctx, t.geo, t.x, t.y, t.scale, palette, look ? look.snow : 0);
+    if (g > 0) paintFirCones(ctx, t.geo, t.x, t.y, t.scale, g, look);
+    return;
+  }
+  if (species === 'alder') {
+    if (g > 0) paintAlderBark(ctx, t.geo, t.x, t.y, t.scale, g);
+    paintLeaves(ctx, t.geo, t.x, t.y, t.scale, palette, leaves);
+    if (g > 0) paintAlderCatkins(ctx, t.geo, t.x, t.y, t.scale, g, look);
+    return;
+  }
   if (species === 'pine') {
     paintPineBark(ctx, t.geo, t.x, t.y, t.scale, g);
     // Kleine, getrennte Nadelbüschel: Zwischen den Etagen bleibt Himmel sichtbar.
