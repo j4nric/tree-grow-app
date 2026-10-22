@@ -11,6 +11,9 @@ import { isDeliberateConfirm } from './confirm';
 import { el, setText } from './dom';
 import { cycleViewKey, type CyclePanelView } from './cycle-view';
 import type { MainTreeId } from '../content/trees';
+import type { SiteId } from '../content/landscape';
+import { createLandscapeMap } from './landscape-map';
+import { newCycleButtonText } from './landscape-view';
 
 /** So lange bleibt der Knopf nach dem ersten Klick scharf. */
 export const CONFIRM_MS = 4000;
@@ -19,8 +22,13 @@ const BUTTON_TEXT = 'Neuen Zyklus beginnen';
 const CONFIRM_TEXT = 'Wirklich neu beginnen? Zum Bestätigen erneut klicken';
 
 export interface CyclePanelCallbacks {
-  /** Zweiter Klick auf „Neuen Zyklus beginnen“, mit der gewählten Art des Hauptbaums. */
-  onNewCycle(mainTree: MainTreeId): void;
+  /**
+   * Zweiter Klick auf „Neuen Zyklus beginnen“, mit der gewählten Art des Hauptbaums und –
+   * bei offener Landschaft – dem gewählten Wald (undefined = hier weiter).
+   */
+  onNewCycle(mainTree: MainTreeId, site?: SiteId): void;
+  /** Korridor in der Karte der Landschaft bauen. */
+  onBuildCorridor(id: string): void;
   /** Art als Stammgast an- oder abwählen. */
   onToggleRegular(speciesId: string): void;
 }
@@ -75,10 +83,12 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
   button.dataset.ref = 'new-cycle';
   let armTimer: ReturnType<typeof setTimeout> | undefined;
   let armedAt = 0;
+  /** Beschriftung je nach Ziel in der Landschaft („Auwald am Fluss gründen (3 🪶)“). */
+  let buttonText = BUTTON_TEXT;
   const disarm = () => {
     clearTimeout(armTimer);
     armTimer = undefined;
-    button.textContent = BUTTON_TEXT;
+    button.textContent = buttonText;
     button.classList.remove('armed');
   };
   button.addEventListener('click', (event) => {
@@ -93,8 +103,38 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
     // Doppelklick oder gehaltene Enter-Taste bestätigen nicht.
     if (!isDeliberateConfirm(event, armedAt, performance.now())) return;
     disarm();
-    callbacks.onNewCycle(chosen ?? current);
+    const target = map.target();
+    callbacks.onNewCycle(chosen ?? current, target !== null && target !== lastView?.landscape?.active ? target : undefined);
   });
+
+  // Karte der Landschaft (erst sichtbar, wenn sie freigeschaltet ist).
+  const map = createLandscapeMap({
+    onTargetChange: () => {
+      // Anderes Ziel: Vorauswahl des Baums aus diesem Wald (Leitbaum bzw. zuletzt dort).
+      disarm();
+      chosen = null;
+      if (lastView) {
+        updateButton(lastView);
+        updateTrees(lastView);
+      }
+    },
+    onBuildCorridor: (id) => callbacks.onBuildCorridor(id),
+  });
+  let lastView: CyclePanelView | null = null;
+  let shownTitle = '';
+
+  /** Ziel-Wald in der Karte (undefined = hier). */
+  function targetSite(view: CyclePanelView) {
+    const id = map.target();
+    return view.landscape?.sites.find((s) => s.id === id && !s.active && s.action !== null);
+  }
+
+  function updateButton(view: CyclePanelView): void {
+    const text = newCycleButtonText(targetSite(view));
+    if (text === buttonText) return;
+    buttonText = text;
+    if (armTimer === undefined) button.textContent = text;
+  }
 
   const regulars = el('div', 'cycle-regulars');
   regulars.dataset.ref = 'regulars';
@@ -107,7 +147,7 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
   const list = el('ul', 'cycle-regular-list');
   regulars.append(regularsTitle, regularsHint, list);
 
-  section.append(title, sub, tree, memory, blocker, gain, detail, rule, slotsGain, trees, button, regulars);
+  section.append(title, sub, tree, memory, blocker, gain, detail, rule, slotsGain, map.element, trees, button, regulars);
   root.append(section);
 
   let shownKey = '';
@@ -116,6 +156,12 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
     const key = cycleViewKey(view);
     if (key === shownKey) return;
     shownKey = key;
+    lastView = view;
+    // Neuer Zyklus oder anderer Wald: Ziel wieder „hier“.
+    if (view.title !== shownTitle) map.reset();
+    shownTitle = view.title;
+    map.update(view.landscape);
+    updateButton(view);
     setText(sub, view.title);
     setText(memory, view.memory);
     blocker.hidden = view.blocker === null;
@@ -202,7 +248,8 @@ export function createCyclePanel(root: HTMLElement, callbacks: CyclePanelCallbac
    * laufende Art; ist sie (z. B. nach einem Import) gesperrt, die erste freie.
    */
   function updateTrees(view: CyclePanelView): void {
-    current = view.defaultTree;
+    const site = targetSite(view);
+    current = site && view.trees.some((t) => t.id === site.mainTree && t.unlocked) ? site.mainTree : view.defaultTree;
     // Neuer Zyklus begonnen: wieder die (neue) laufende Art vorauswählen.
     if (current !== shownCurrent) chosen = null;
     shownCurrent = current;

@@ -25,13 +25,15 @@ import {
   mainTreeOf,
   memberOptions,
   nicheOverflow,
-  regularSlots,
+  regularSlotsOf,
   slotBonuses,
   slotEffects,
   type AnimalStatus,
   type Evaluation,
 } from '../core/formulas';
 import { seasonIdAt } from '../core/season';
+import { giftSites } from '../core/landscape';
+import { LANDSCAPE_SITES_BY_ID } from '../content/landscape';
 import { allAnimals, type GameState } from '../core/state';
 import { regularNextCycleHint } from './regular-wait';
 import {
@@ -144,6 +146,20 @@ function factorViews(state: GameState, sp: Species, status: AnimalStatus | undef
     const tree = mainTreeOf(treeId);
     const value = sum(environmentEffects(state.stage, undefined, tree.id).happiness);
     if (value !== 0) factors.push({ key: 'tree', icon: tree.icon, label: `${tree.name}: ${points(value)}`, tone: value > 0 ? 'good' : 'bad' });
+  }
+  // Waldlandschaft (DESIGN_V2.md 24.2): Eigenheit des Standorts (nur dort) und Gaben aller
+  // gegründeten Wälder – gerechnet wie die Eigenheiten der Baumarten.
+  const landscape = state.meta?.landscape;
+  if (landscape) {
+    const site = LANDSCAPE_SITES_BY_ID.get(landscape.active);
+    const siteValue = sum(environmentEffects(state.stage, undefined, undefined, landscape.active).happiness);
+    if (site && siteValue !== 0) {
+      factors.push({ key: 'site', icon: site.icon, label: `${site.name}: ${points(siteValue)}`, tone: siteValue > 0 ? 'good' : 'bad' });
+    }
+    const giftValue = sum(environmentEffects(state.stage, undefined, undefined, undefined, giftSites(landscape)).happiness);
+    if (giftValue !== 0) {
+      factors.push({ key: 'gifts', icon: '🪶', label: `Gaben der Landschaft: ${points(giftValue)}`, tone: giftValue > 0 ? 'good' : 'bad' });
+    }
   }
   if (ev.abilities.includes('decomposerBoost') && sp.level === DECOMPOSER_BOOST.level) {
     factors.push({ key: 'decomposerBoost', icon: '✨', label: `${ABILITY_INFO.decomposerBoost.name}: ${points(DECOMPOSER_BOOST.happiness)}`, tone: 'good' });
@@ -275,7 +291,7 @@ export function toAnimalDetailView(
   }
 
   let regular: string | null = null;
-  if (regularSlots(state.meta.forestMemory) > 0) {
+  if (regularSlotsOf(state) > 0) {
     // Amphibien: Der Waldtümpel muss in jedem Zyklus erst wieder angelegt werden.
     const later = regularNextCycleHint(sp.id);
     regular = state.meta.regulars.includes(sp.id)

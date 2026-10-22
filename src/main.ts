@@ -21,6 +21,7 @@ import {
   newCycleBlocker,
   simulateOffline,
   startNewCycle,
+  buildCorridor,
   tick,
   toggleRegular,
   type ActionError,
@@ -82,6 +83,8 @@ import { createWeatherBadge } from './ui/weather-badge';
 import { toastDurationFor } from './ui/settings';
 import { seasonWeatherChangeText, toWeatherBadgeView } from './ui/weather-view';
 import type { MainTreeId } from './content/trees';
+import type { SiteId } from './content/landscape';
+import { corridorBuiltText, landscapeErrorText, siteChangeText } from './ui/landscape-view';
 import type { EcosystemView } from './ui/view-model';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from './sync/config';
 import type { AccountController } from './sync/account';
@@ -371,6 +374,16 @@ let seasonShownSecond = -1;
 let shownNight: boolean | null = null;
 const cyclePanel = createCyclePanel(document.querySelector<HTMLElement>('#cycle')!, {
   onNewCycle: newCycle,
+  onBuildCorridor: (id) => {
+    // Korridor (DESIGN_V2.md 24.6): jederzeit, ändert das wirksame Gedächtnis.
+    const result = buildCorridor(state, id);
+    if (!result.ok) {
+      notify(landscapeErrorText(result.error));
+      return;
+    }
+    act(result, false);
+    notify(corridorBuiltText(id));
+  },
   onToggleRegular: (speciesId) => act(toggleRegular(state, speciesId), false),
 });
 const floats = createFloatLayer(document.body);
@@ -541,15 +554,17 @@ function plant(plantId: string): void {
  * „Neuen Zyklus beginnen“ (schon bestätigt): Waldgedächtnis gutschreiben, Baum beginnt neu
  * – aus der Frucht der gewählten Art.
  */
-function newCycle(mainTree: MainTreeId): void {
+function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   // Alter Baum für die Übergangs-Sequenz der Szene (vor dem Reset festhalten).
   const fromGrowth = growth(state);
   const fromPlants = scene.plants;
   const fromTree = state.cycle.mainTree;
-  const result = startNewCycle(state, Date.now(), mainTree);
+  const fromSite = state.meta.landscape.active;
+  const result = startNewCycle(state, Date.now(), mainTree, site);
   if (!result.ok) {
     const blocker = newCycleBlocker(state);
-    notify(blocker ? newCycleBlockerText(blocker) : ERROR_TEXTS[result.error]);
+    const error = result.error;
+    notify(blocker ? newCycleBlockerText(blocker) : error in ERROR_TEXTS ? ERROR_TEXTS[error as ActionError] : landscapeErrorText(error as Parameters<typeof landscapeErrorText>[0]));
     return;
   }
   shownStage = state.stage;
@@ -565,6 +580,7 @@ function newCycle(mainTree: MainTreeId): void {
   showToast(
     joinNotes(
       newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars, state.cycle.mainTree),
+      result.site !== fromSite ? siteChangeText(result.site, result.founded) : '',
       achievementUnlockedText(result.achievements),
     ),
   );
@@ -668,7 +684,10 @@ function refreshPanel(now: number): void {
   if (ecoDirty || !ecoView) {
     ecoDirty = false;
     // Neuer Zyklus und Stammgäste ändern sich nur mit Ökosystem, Wegpunkt oder Aktionen.
-    cyclePanel.update(toCyclePanelView(state));
+    const cycleView = toCyclePanelView(state);
+    cyclePanel.update(cycleView);
+    // Spielanleitung: Abschnitt „Waldlandschaft“ erst mit der Karte vollständig (Spoiler).
+    help?.setLandscapeUnlocked(cycleView.landscape !== null);
     const ev = evaluate(state);
     if (journal.open) journal.update(toJournalView(state, ev));
     scene.forestMemory = state.meta.forestMemory;

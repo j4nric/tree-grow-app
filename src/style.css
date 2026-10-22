@@ -3588,6 +3588,312 @@ body[data-motion='reduce'] .slot.arrive {
 }
 
 /*
+ * Karte der Landschaft im Bereich „Neuer Zyklus“ (landscape-map.ts, DESIGN_V2.md 24.5):
+ * Standorte als Knöpfe über einer SVG-Ebene mit den Korridoren. Zustand immer auch als
+ * Text im Knopf (nicht nur Farbe): „hier“, „gegründet“, „gründen · 3 🪶“.
+ */
+.landscape {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.landscape-title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.landscape-question {
+  font-weight: 600;
+}
+
+.landscape-seeds {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #5b4a1c;
+}
+
+.landscape-map {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 0.92;
+  min-height: 300px;
+  margin: 4px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 50%, #eef3dc 0 22%, transparent 60%),
+    linear-gradient(180deg, #f1f4e4, #e9eed6);
+  overflow: hidden;
+}
+
+.landscape-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.landscape-line {
+  stroke: #b9b39a;
+  stroke-width: 2;
+  stroke-dasharray: 2 5;
+  stroke-linecap: round;
+}
+
+.landscape-line.built {
+  stroke: var(--accent-dark);
+  stroke-width: 5;
+  stroke-dasharray: none;
+}
+
+.landscape-line.buildable {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-dasharray: 8 5;
+}
+
+.landscape-line.unaffordable {
+  stroke: #8f8a72;
+  stroke-width: 2.5;
+  stroke-dasharray: 6 6;
+}
+
+.landscape-site {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 92px;
+  min-height: 64px;
+  padding: 4px 3px;
+  border: 2px dashed #a9a387;
+  border-radius: 12px;
+  background: rgba(255, 253, 246, 0.94);
+  color: var(--text);
+  line-height: 1.15;
+  text-align: center;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.landscape-site:hover {
+  border-color: var(--accent);
+}
+
+.landscape-site.founded {
+  border-style: solid;
+  border-color: #8fb37f;
+  background: #fbfdf4;
+}
+
+.landscape-site.active {
+  border-color: var(--accent-dark);
+  border-width: 3px;
+}
+
+.landscape-site.choosable {
+  border-color: var(--accent);
+}
+
+.landscape-site.target {
+  background: #e3f1d6;
+  box-shadow: 0 0 0 3px rgba(63, 143, 58, 0.35);
+}
+
+.landscape-site.shown {
+  box-shadow: 0 0 0 3px #1f5fbf55;
+}
+
+.landscape-site.target.shown {
+  box-shadow: 0 0 0 3px rgba(63, 143, 58, 0.35), 0 0 0 6px #1f5fbf44;
+}
+
+.landscape-site-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.landscape-site.unfounded .landscape-site-icon {
+  filter: grayscale(0.6);
+  opacity: 0.75;
+}
+
+.landscape-site-name {
+  font-size: 0.74rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.landscape-site-status {
+  font-size: 0.66rem;
+  color: #5c5746;
+}
+
+.landscape-site.active .landscape-site-status {
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.landscape-target {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+
+.landscape-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+
+.landscape-detail [hidden] {
+  display: none;
+}
+
+.landscape-detail-title {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.landscape-detail-type {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.landscape-detail-text {
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.landscape-detail-line {
+  font-size: 0.8rem;
+}
+
+.landscape-gain {
+  color: var(--accent-dark);
+}
+
+.landscape-cost {
+  color: #8a3b1f;
+}
+
+.landscape-gift.inactive {
+  color: var(--muted);
+}
+
+.landscape-blocker {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #7a4b00;
+}
+
+.landscape-corridors-title {
+  margin: 8px 0 0;
+  font-size: 0.875rem;
+}
+
+.landscape-corridors {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landscape-corridor {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+
+.landscape-corridor[hidden] {
+  display: none;
+}
+
+.landscape-corridor.built {
+  background: #f1f7ea;
+}
+
+.landscape-corridor-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.landscape-corridor-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.landscape-corridor-ends,
+.landscape-corridor-note {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.landscape-build {
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: white;
+  color: var(--accent-dark);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.landscape-build:hover:not(:disabled) {
+  background: #eef6e6;
+}
+
+.landscape-build:disabled {
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: default;
+}
+
+.landscape-build[hidden] {
+  display: none;
+}
+
+@media (max-width: 400px) {
+  .landscape-site {
+    width: 80px;
+  }
+
+  .landscape-site-name {
+    font-size: 0.68rem;
+  }
+}
+
+body[data-motion='reduce'] .landscape-site {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:not([data-motion='full']) .landscape-site {
+    transition: none;
+  }
+}
+
+/*
  * Jahreszeit und Wetter in der Kopfzeile (season-badge.ts, weather-badge.ts): beide
  * Abzeichen nebeneinander (bei Platzmangel untereinander), aufgeklappte Erklärungen
  * darunter über die volle Breite.
