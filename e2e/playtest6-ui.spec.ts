@@ -62,7 +62,6 @@ for (const viewport of [
     await expect(page.locator('[data-ref="encounter-stack"]')).toBeVisible();
     const box = (await toast.boundingBox())!;
     await expectFree(box, {
-      'Kamera-Knöpfe': page.locator('.scene-camera-button'),
       Stapel: page.locator('[data-ref="encounter-stack"]'),
       Raten: page.locator('.tape-label'),
     });
@@ -163,10 +162,9 @@ test('Update-Hinweis oben: Toast weicht darunter aus (mobil)', async ({ page, co
   await page.waitForTimeout(400);
   const below = (await toast.boundingBox())!;
   await expectFree(below, { 'Update-Hinweis': hint });
-  // Hinweis weg: Der Toast rückt wieder nach oben (bis unter die Kamera-Knöpfe im Polaroid).
+  // Hinweis weg: Der Toast rückt wieder nach oben (die Kamera-Knöpfe gibt es nur im Vollbild).
   await hint.evaluate((h) => ((h as HTMLElement).hidden = true));
   await page.waitForTimeout(400);
   const after = (await toast.boundingBox())!;
   expect(after.y).toBeLessThanOrEqual(below.y);
-  await expectFree(after, { 'Kamera-Knöpfe': page.locator('.scene-camera-button') });
 });

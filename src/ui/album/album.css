@@ -369,7 +369,7 @@ html:has(.album[data-layout='single'] .encounter-stack:not([hidden])) {
   }
 
   .album[data-layout='single'] .polaroid {
-    width: min(100%, 560px);
+    width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(560px + 2 * var(--paper-bleed-x)));
     align-self: center;
   }
 }

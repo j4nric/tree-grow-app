@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { cover, expect, openCover, openGame, openSavePage, pageTitle, subpage, test } from './fixtures';
+import { cover, expect, fullscreen, openCover, openFullscreen, openGame, openSavePage, pageTitle, polaroidButton, subpage, test } from './fixtures';
 
 /**
  * Navigation des Albums (docs/ALBUM_UI.md, C.1–C.3): Umblättern, Zurück über Escape,
@@ -132,4 +132,79 @@ test('Layoutwechsel bei offener Unterseite: sichtbar, bedienbar, Zurück geht', 
   await page.keyboard.press('Escape');
   await expect(cover(page)).toBeHidden();
   await expect(pageTitle(page)).toBeVisible();
+});
+
+/** Vollbild zu, Canvas zurück im Polaroid, Album bedienbar (nichts mehr `inert`). */
+async function expectAlbumBack(page: Page): Promise<void> {
+  await expect(fullscreen(page)).toBeHidden();
+  await expect(polaroidButton(page).locator('canvas#scene')).toHaveCount(1);
+  await expect(page.locator('[data-ref="album"]')).not.toHaveAttribute('inert', '');
+  await expect(page.locator('html')).not.toHaveClass(/album-fullscreen-open/);
+  await expectFlat(page);
+  await expect(pageTitle(page)).toBeVisible();
+}
+
+for (const viewport of [
+  { name: 'Desktop', width: 1200, height: 700 },
+  { name: 'mobil', width: 390, height: 844 },
+]) {
+  test.describe(`Vollbild ${viewport.name}`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    for (const how of ['Escape', 'Browser-Zurück'] as const) {
+      test(`öffnen und sofort ${how}: das Album ist wieder sichtbar und bedienbar`, async ({ page }) => {
+        await openGame(page);
+        const historyBefore = await page.evaluate(() => history.length);
+        await polaroidButton(page).click();
+        // Noch während des Aufziehens zurück.
+        if (how === 'Escape') await page.keyboard.press('Escape');
+        else await page.goBack();
+        await expectAlbumBack(page);
+        // Die App ist nicht verlassen, der Verlauf wächst nicht.
+        expect(page.url()).toContain('localhost');
+        expect(await page.evaluate(() => history.length)).toBeLessThanOrEqual(historyBefore + 1);
+        // Bedienbar: Umschlag auf und zu, Vollbild noch einmal auf und zu.
+        await openCover(page);
+        await page.keyboard.press('Escape');
+        await expect(cover(page)).toBeHidden();
+        await openFullscreen(page);
+        await page.keyboard.press('Escape');
+        await expectAlbumBack(page);
+      });
+    }
+  });
+}
+
+test('Layoutwechsel 390 ↔ 1200 bei offenem Vollbild: füllt die Fläche, schließt sauber', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openGame(page);
+  await openFullscreen(page);
+  for (const [width, height] of [
+    [1200, 700],
+    [390, 844],
+    [1200, 700],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(page.locator('[data-ref="album"]')).toHaveAttribute('data-layout', width > 760 ? 'spread' : 'single');
+    await expect(fullscreen(page)).toBeVisible();
+    // Das Canvas folgt der neuen Fläche (Backing-Store = Layout × Pixeldichte).
+    await expect
+      .poll(() =>
+        page.locator('canvas#scene').evaluate((el, w) => {
+          const c = el as HTMLCanvasElement;
+          return Math.abs(c.clientWidth - w) <= 1 && Math.abs(c.width - Math.round(c.clientWidth * devicePixelRatio)) <= 1;
+        }, width),
+      )
+      .toBe(true);
+    await expect(page.locator('[data-ref="fullscreen-close"]')).toBeInViewport();
+  }
+  await page.locator('[data-ref="fullscreen-close"]').click();
+  await expectAlbumBack(page);
+  await expect(polaroidButton(page)).toBeInViewport();
+  // Auch mobil danach alles in Ordnung.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectFlat(page);
+  await openFullscreen(page);
+  await page.keyboard.press('Escape');
+  await expectAlbumBack(page);
 });

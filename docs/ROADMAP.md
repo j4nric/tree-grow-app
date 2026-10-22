@@ -512,9 +512,17 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
 - [x] **2** Sticker-Renderer (`renderer`): `render/sticker.ts` mit `renderSpeciesSticker(id, size,
   opts)`, `stickerKind`, `stickerFit`, Varianten `muted`/`silhouette`, eigener LRU; Test „jede Art
   hat eine eigene Zeichnung“; Sticker-Tafel in der Render-Demo. Abhängig: nichts (parallel zu 1)
-- [ ] **3** Polaroid und Vollbild (`ui-dev`, Prüfung `renderer`): FLIP mit demselben Canvas, Kamera
+- [x] **3** Polaroid und Vollbild (`ui-dev`, Prüfung `renderer`): FLIP mit demselben Canvas, Kamera
   nur im Vollbild, Tier-Tipp → Haftnotiz, Zeichnen aussetzen, wenn verdeckt, Stufen-Stempel.
-  Specs camera, scene-animal-tap, canvas-size. Abhängig: 1
+  Specs camera, scene-animal-tap, canvas-size. Abhängig: 1. *Umgesetzt:* `album/fullscreen.ts`
+  (FLIP: Canvas behält während der Animation seine Größe, danach genau ein Resize;
+  `object-fit` verhindert Verzerren bis dahin), Verlaufseintrag, Schließen per Knopf, Escape und
+  Zurück sowie Wisch nach unten (bei 1×). `camera-input.ts` hat `active` (nur im Vollbild; das Polaroid zeigt immer die ganze
+  Szene, die Kamera-Ansicht bleibt fürs nächste Öffnen). Tier-Tipp öffnet den austauschbaren
+  Platzhalter `album/scene-note.ts` (Schritt 4 ersetzt ihn durch `Note`). `sceneVisible` per
+  IntersectionObserver (main.ts zeichnet nur dann). **Schärfe:** Nur Papier und Tape des
+  Polaroids sind gedreht, Bild und Bildunterschrift stehen gerade – das gedrehte Live-Canvas
+  verlor sonst rund ein Drittel seiner Kantenschärfe (gemessen bei Pixeldichte 1, 2 und 3).
 - [ ] **4** Haftnotiz und Stempel (`ui-dev`): `Note` (popover + Fallback), Stempel/Zettel statt
   Toast (`toast-place.ts` entfällt), einheitliches `notify`, Banderole, Notizen für Jahreszeit,
   Wetter, Etiketten, Gattungen. Specs seasons, weather, daynight. Abhängig: 1

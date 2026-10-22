@@ -271,12 +271,12 @@ function hitTestScene(x: number, y: number): AnimalHit | null {
 }
 
 /**
- * Tippen oder Klicken auf ein Tier in der Szene öffnet seine Detailansicht (`hit.index` =
- * Platz in `state.niches`); beim Schließen geht der Fokus an die Szene zurück. Per
- * Tastatur sind dieselben Tiere über die Kacheln der Seitenleiste erreichbar.
+ * Tippen oder Klicken auf ein Tier in der Szene (nur im Vollbild) öffnet eine Haftnotiz zum
+ * Tier mit „Im Album ansehen“ (`hit.index` = Platz in `state.niches`). Per Tastatur sind
+ * dieselben Tiere über die Kacheln der Reiter erreichbar.
  */
 function onAnimalTap(hit: AnimalHit): void {
-  album.openAnimalDetail({ niche: hit.nicheId, index: hit.index }, canvas);
+  album.showSceneAnimal({ niche: hit.nicheId, index: hit.index });
 }
 
 // --- Oberfläche (Album) ---------------------------------------------------------------
@@ -335,7 +335,8 @@ const album = createAlbum({
     resetGame,
   },
 });
-const cameraInput = attachCameraInput(canvas, { camera, hitTest: hitTestScene, onAnimalTap });
+// Kamera und Tier-Tipp nur im Vollbild; im Polaroid öffnet ein Tipp das Vollbild (Album).
+const cameraInput = attachCameraInput(canvas, { camera, hitTest: hitTestScene, onAnimalTap, active: () => album.fullscreen });
 const cameraControls = createCameraControls(album.sceneFrame, camera);
 
 /**
@@ -774,7 +775,11 @@ function frame(now: number): void {
   scene.weather = weatherOverride ?? weather.weather;
   scene.weatherPrevious = weatherOverride ?? weather.previous;
   scene.weatherBlend = weatherOverride ? 1 : weather.blend;
-  drawScene(ctx, size.width, size.height, scene);
+  // Kamera-Ansicht nur im Vollbild; das Polaroid zeigt immer die ganze Szene.
+  scene.camera = album.fullscreen ? camera.view : undefined;
+  // Szene nicht zu sehen (Polaroid weggescrollt, mobil unter einer Unterseite): nicht
+  // zeichnen. Spiel, Kamera und Klang laufen weiter.
+  if (album.sceneVisible) drawScene(ctx, size.width, size.height, scene);
   // Klang folgt der Szene (Jahreszeit, Harmoniestufe); gedrosselt, still ohne Web Audio.
   sound.update({ season: scene.season ?? 0, harmonyTier: scene.harmonyTier ?? 0 }, scene.time);
 

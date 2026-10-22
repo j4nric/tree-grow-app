@@ -88,7 +88,6 @@ for (const viewport of [
     // Keine Überdeckung der Bedienelemente (zusätzlich zur Toast-Platzierung: auch die Karte).
     await expect(page.locator('[data-ref="encounter-stack"]')).toBeVisible();
     await expectNotCovered(toast, {
-      'Kamera-Knöpfe': page.locator('.scene-camera-button'),
       Stapel: page.locator('[data-ref="encounter-stack"]'),
       Raten: page.locator('.tape-label'),
       Bericht: report(page).getByRole('button'),
