@@ -230,7 +230,7 @@ export const HABITAT_SCALE = 0.7;
  * Rinden- und Höhlenbewohnern und der tiefsten Kronenplätze des Jungen Baums.
  */
 const HABITAT_CLEAR = 3.2;
-const HABITAT_HALF_MIN = 1.2;
+const HABITAT_HALF_MIN = 1.6;
 const HABITAT_HALF_MAX = 3.6;
 /** Der Turmfalke rüttelt so hoch über der Linie der Wiese (Mitte, Tiergrößen). */
 export const SOAR_LIFT = 1.3;
@@ -255,13 +255,51 @@ export interface MidgroundGeometry {
  * Stamm aller Arten mit Rand) und dem Bildrand.
  */
 export function midgroundGeometry(layout: Layout, size: number, side: -1 | 1): MidgroundGeometry {
-  const clear = Math.max(HABITAT_CLEAR * size, maxTrunkHalf(layout) + size * 0.8);
   const margin = size * 0.15;
+  // Höchstens so viel Abstand, dass der Streifen noch HABITAT_HALF_MIN breit ins Bild passt.
+  const most = layout.cx - margin - 2 * HABITAT_HALF_MIN * size;
+  const want = Math.max(HABITAT_CLEAR * size, maxTrunkHalf(layout) + size * 0.8, foliageReach(layout, size, side));
+  const clear = Math.max(HABITAT_CLEAR * size, Math.min(want, most));
   const room = (layout.cx - clear - margin) / (2 * size);
   const halfWidth = Math.floor(clamp(room, HABITAT_HALF_MIN, HABITAT_HALF_MAX) * 20) / 20;
   const x = layout.cx + side * (clear + halfWidth * size);
   const y = layout.groundY - HABITAT_LIFT * size;
   return { x, y, halfWidth, size, side, skyY: y - SOAR_LIFT * size };
+}
+
+const foliageMemo = new Map<string, number>();
+
+/**
+ * Wie weit (px von der Stammmitte) reicht das Laub des Hauptbaums auf Seite `side` in der
+ * Höhe der Bewohner im Mittelgrund (vom Turmfalken bis zur Linie) – größter Wert über alle
+ * Arten und Stufen ab Junger Baum. Die Bewohner stehen hinter dem Baum; so verdeckt ihn das
+ * Laub nicht. Gemerkt je Größe (wird nur selten gebraucht).
+ */
+function foliageReach(layout: Layout, size: number, side: -1 | 1): number {
+  const key = `${layout.width}x${layout.height}/${side}`;
+  let reach = foliageMemo.get(key);
+  if (reach !== undefined) return reach;
+  reach = 0;
+  const line = layout.groundY - HABITAT_LIFT * size;
+  const top = line - (SOAR_LIFT + 0.6) * size;
+  for (const species of TREE_SPECIES) {
+    for (let g = 3; g <= 8; g += 0.5) {
+      const t = placeMainTree(layout, g, species);
+      if (!t) continue;
+      for (const l of t.geo.leaves) {
+        const r = l.r * t.scale;
+        const x = t.x + l.x * t.scale;
+        const y = t.y + l.y * t.scale;
+        if (y + r < top || y - r > line + size * 0.1) continue;
+        const d = (x - layout.cx) * side + r * 0.85;
+        if (d > reach) reach = d;
+      }
+    }
+  }
+  reach += size * 0.15;
+  if (foliageMemo.size > 32) foliageMemo.clear();
+  foliageMemo.set(key, reach);
+  return reach;
 }
 
 const trunkMemo = new Map<string, number>();

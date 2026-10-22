@@ -31,7 +31,7 @@ export function paintMidground(ctx: CanvasRenderingContext2D, layout: Layout, ma
 
 /** Flache Kuppe vom Boden bis zum Kamm `crest` zwischen x0 und x1 (sanfte Flanken). */
 function knoll(ctx: CanvasRenderingContext2D, x0: number, x1: number, crest: number, groundY: number, S: number): void {
-  const flank = Math.min(1.6 * S, (x1 - x0) / 3);
+  const flank = Math.min(2.2 * S, (x1 - x0) / 3);
   const dome = S * 0.12;
   ctx.beginPath();
   ctx.moveTo(x0 - flank * 0.6, groundY + 2);
@@ -84,7 +84,7 @@ function paintMeadowHabitat(ctx: CanvasRenderingContext2D, layout: Layout, m: Mi
   const x1 = m.x + (m.halfWidth + 1.3) * S;
   ctx.save();
   knoll(ctx, x0, x1, crest, layout.groundY, S);
-  fillKnoll(ctx, crest, layout.groundY, '#b5d184', '#97c08e', look);
+  fillKnoll(ctx, crest, layout.groundY, '#aecb86', '#97c08e', look);
   // Sonniger Schimmer der Lichtung
   ctx.globalAlpha = 0.35;
   ctx.fillStyle = seasonColor('#d7e8a0', look);
@@ -102,7 +102,7 @@ function paintMeadowHabitat(ctx: CanvasRenderingContext2D, layout: Layout, m: Mi
     for (let i = 0; i < n / 3; i++) {
       const x = x0 + S * 0.6 + rand() * (x1 - x0 - S * 1.2);
       const base = crest + (0.02 + rand() * 0.18) * S;
-      const h = (0.18 + rand() * 0.3) * S * (1 - Math.abs(x - m.x) / (x1 - x0));
+      const h = (0.22 + rand() * 0.34) * S * (1 - Math.abs(x - m.x) / (x1 - x0));
       const lean = (rand() - 0.5) * 0.12 * S;
       ctx.moveTo(x - 0.018 * S, base);
       ctx.lineTo(x + lean, base - h);
@@ -178,7 +178,7 @@ function paintWallHabitat(ctx: CanvasRenderingContext2D, layout: Layout, m: Midg
   ctx.save();
   // Kuppe, auf der die Mauer steht (etwas trockener als die Wiese)
   knoll(ctx, x0, x1, bottom - 0.04 * S, layout.groundY, S);
-  fillKnoll(ctx, bottom, layout.groundY, '#b9c98c', '#97c08e', look);
+  fillKnoll(ctx, bottom, layout.groundY, '#b0c68e', '#97c08e', look);
   const wx0 = m.x - (m.halfWidth + 0.25) * S;
   const wx1 = m.x + (m.halfWidth + 0.25) * S;
   // Schatten am Fuß

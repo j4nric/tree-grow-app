@@ -1190,6 +1190,28 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
 
   const groundPx = (layout.groundY - sc.oy) * dpr;
   const quantum = windQuantum(dpr);
+  const k = reduced ? 0 : stormSkew(windSkew(time, 0), time, wx ? wx.storm : 0);
+  const animals = input.animals ?? NO_ANIMALS;
+  const pond = input.pond === true;
+  const pile = input.deadwood === true;
+  const withAnimals = (animals.length > 0 || pond || pile) && sc.anchors !== null;
+  const f = animalFrame;
+  if (withAnimals) {
+    f.time = time;
+    f.windSkew = k;
+    f.reducedMotion = reduced;
+    f.season = cache.season;
+    f.night = day ? day.night : 0;
+    // Nachtarten (nocturnal.ts): nur mit Tageszeit-Angabe – sonst Verhalten wie bisher.
+    f.nocturnal = Number.isNaN(cache.day.phase) ? undefined : day ? clamp01(day.night + 0.5 * day.twilight) : 0;
+    f.rain = wx ? wx.rain : 0;
+    f.dpr = dpr;
+    f.sx = sx;
+    f.sy = sy;
+    f.tx = m.tx;
+    f.ty = m.ty;
+    f.spriteDpr = spriteDpr;
+  }
   if (sc.backRect) {
     const kb = reduced ? 0 : stormSkew(windSkew(time, 1.9) * 0.7, time + 0.4, wx ? wx.storm : 0);
     const r = sc.backRect;
@@ -1198,7 +1220,8 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   }
   // Wildschweine auf der Wiese: vor den Begleitpflanzen, hinter dem Hauptbaum.
   if (visitors) cache.visitors.draw(ctx, visitors, 'meadow', vf);
-  const k = reduced ? 0 : stormSkew(windSkew(time, 0), time, wx ? wx.storm : 0);
+  // Bewohner von Waldwiese und Trockenmauer: im Mittelgrund hinter dem Hauptbaum.
+  if (withAnimals) layer.drawMidground(ctx, animals, sc.anchors!, f);
   if (sc.frontRect) {
     const r = sc.frontRect;
     if (tint?.front) drawSheared(ctx, tint.front, r, k, groundPx, quantum, sx, sy, m.cx, m.cy, r.x, r.y);
@@ -1226,27 +1249,7 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     wf.crown = sc.crown && sc.growth >= CROWN_GROWTH ? sc.crown : null;
     cache.weather.drawGround(ctx, wx, wf);
   }
-  const animals = input.animals ?? NO_ANIMALS;
-  const pond = input.pond === true;
-  const pile = input.deadwood === true;
-  if ((animals.length > 0 || pond || pile) && sc.anchors) {
-    const f = animalFrame;
-    f.time = time;
-    f.windSkew = k;
-    f.reducedMotion = reduced;
-    f.season = cache.season;
-    f.night = day ? day.night : 0;
-    // Nachtarten (nocturnal.ts): nur mit Tageszeit-Angabe – sonst Verhalten wie bisher.
-    f.nocturnal = Number.isNaN(cache.day.phase) ? undefined : day ? clamp01(day.night + 0.5 * day.twilight) : 0;
-    f.rain = wx ? wx.rain : 0;
-    f.dpr = dpr;
-    f.sx = sx;
-    f.sy = sy;
-    f.tx = m.tx;
-    f.ty = m.ty;
-    f.spriteDpr = spriteDpr;
-    layer.draw(ctx, animals, sc.anchors, f, pond, pile);
-  }
+  if (withAnimals) layer.draw(ctx, animals, sc.anchors!, f, pond, pile);
   // Fallende Blätter und Schnee (nur außerhalb des Sommers).
   if (cache.look && !cache.look.summer) {
     const sf = seasonFrame;

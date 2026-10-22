@@ -1155,19 +1155,43 @@ export class AnimalLayer {
    */
   draw(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame, pond = false, pile = false): void {
     if (animals.length === 0 && !pond && !pile) return;
-    this.sprites.tick();
-    updateSeason(f.season ?? null);
-    if (anchors !== this.anchors || !this.matches(animals)) this.rebuild(animals, anchors);
+    // Hat `drawMidground` diesen Frame schon begonnen, zählt er nicht doppelt.
+    if (!this.begun) this.begin(animals, anchors, f);
+    this.begun = false;
     for (const e of this.plan) {
       if (e.niche === 'roots') drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
     }
     if (pond) drawPond(ctx, anchors, this.sprites, f);
     if (pile) drawPile(ctx, anchors, this.sprites, f);
     for (const e of this.plan) {
-      if (e.niche !== 'roots') drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
+      if (e.niche !== 'roots' && e.depth < 2) drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
     }
     ctx.globalAlpha = 1;
   }
+
+  /**
+   * Bewohner im Mittelgrund (Waldwiese, Trockenmauer, Reihe 2): vor `draw` und hinter dem
+   * Hauptbaum zu zeichnen – Laub und Stamm liegen vor ihnen.
+   */
+  drawMidground(ctx: CanvasRenderingContext2D, animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame): void {
+    if (animals.length === 0) return;
+    this.begin(animals, anchors, f);
+    this.begun = true;
+    for (const e of this.plan) {
+      if (e.depth >= 2) drawEntry(ctx, e, animals[e.index]!.happiness, anchors.size, this.sprites, f);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** Frame beginnen: Sprite-Generation, Jahreszeit, Plan bei Änderung neu. */
+  private begin(animals: readonly SceneAnimal[], anchors: AnchorResolver, f: AnimalFrame): void {
+    this.sprites.tick();
+    updateSeason(f.season ?? null);
+    if (anchors !== this.anchors || !this.matches(animals)) this.rebuild(animals, anchors);
+  }
+
+  /** `drawMidground` hat den Frame schon begonnen. */
+  private begun = false;
 
   private matches(animals: readonly SceneAnimal[]): boolean {
     const sig = this.signature;
@@ -1503,7 +1527,8 @@ function placeMidground(niche: 'meadow' | 'wall', items: HabitatItem[], anchors:
   sky.forEach((it, n) => {
     const c = left + ((n + 1) / (sky.length + 1)) * (right - left);
     const size = S * it.info.size * k0;
-    out[it.i] = { ...habitatBase(), x: c, y: m.skyY, dir: m.side === 1 ? -1 : 1, size, scale: k0, pivot: true, depth: 2 };
+    // In der Luft vor dem Laub (Reihe 0): Auf schmalen Bildschirmen reicht die Krone bis hierher.
+    out[it.i] = { ...habitatBase(), x: c, y: m.skyY, dir: m.side === 1 ? -1 : 1, size, scale: k0, pivot: true };
   });
   const ground = items.filter((it) => !sky.includes(it));
   if (ground.length === 0) return;

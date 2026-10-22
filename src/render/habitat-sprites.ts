@@ -196,24 +196,23 @@ function paintKestrel(c: CanvasRenderingContext2D, frame: number): void {
   const cream = '#efe2c6';
   const up = frame === 0;
   // Ferner Flügel hinter dem Körper
-  wing(c, 0.02, -0.06, up ? -0.26 : -0.12, up ? -0.5 : 0.36, 0.13, '#9a5832', '#3d281c');
-  // Gefächerter Schwanz, schräg nach unten
-  const tail = [-0.1, 0.06, -0.38, 0.32, -0.3, 0.42, -0.14, 0.44, -0.02, 0.12];
+  falconWing(c, up ? [0, -0.06, -0.08, -0.3, -0.3, -0.56, -0.18, -0.3, -0.1, -0.04] : [0, -0.04, 0.1, 0.12, 0.1, 0.42, -0.02, 0.2, -0.08, 0.02], '#99592f', '#3d281c');
+  // Gefächerter Schwanz, schräg nach unten, mit dunkler Endbinde
+  const tail = [-0.1, 0.04, -0.36, 0.28, -0.27, 0.37, -0.03, 0.12];
   outline(c, 0.08, () => {
     polyPath(c, tail);
     ellPath(c, 0.02, 0, 0.25, 0.13, -0.6);
     ellPath(c, 0.19, -0.2, 0.11, 0.1);
   });
   poly(c, tail, grey);
-  line(c, [-0.35, 0.36, -0.15, 0.4], '#2e2a28', 0.04);
-  line(c, [-0.33, 0.405, -0.16, 0.435], '#e6e0d6', 0.02);
+  line(c, [-0.31, 0.27, -0.24, 0.33], '#2e2a28', 0.035);
   // Körper: Rücken rotbraun, Brust rahmfarben gefleckt
   ell(c, 0.02, 0, 0.25, 0.13, -0.6, rufous);
-  ell(c, 0.07, 0.04, 0.15, 0.09, -0.6, cream);
+  ell(c, 0.08, 0.03, 0.15, 0.08, -0.6, cream);
   for (const [x, y] of [
-    [0.06, 0.05],
-    [0.12, -0.01],
-    [0.01, 0.1],
+    [0.07, 0.04],
+    [0.13, -0.02],
+    [0.02, 0.09],
   ] as const) {
     ell(c, x, y, 0.016, 0.012, 0, '#6a4a32');
   }
@@ -222,43 +221,20 @@ function paintKestrel(c: CanvasRenderingContext2D, frame: number): void {
   ell(c, 0.22, -0.15, 0.06, 0.05, 0, cream);
   line(c, [0.2, -0.18, 0.19, -0.11], '#3a3634', 0.025);
   poly(c, [0.29, -0.22, 0.36, -0.19, 0.3, -0.16], '#e0b84a');
-  line(c, [0.34, -0.2, 0.35, -0.17], '#3a3028', 0.012);
   eye(c, 0.23, -0.22, 0.026);
-  // Naher Flügel davor: rotbraun mit dunklen Flecken und Handschwingen
-  wing(c, 0.04, -0.05, up ? 0.06 : 0.3, up ? -0.56 : 0.32, 0.15, rufous, dark);
-  for (const [x, y] of up
-    ? ([
-        [0.05, -0.18],
-        [0.07, -0.28],
-      ] as const)
-    : ([
-        [0.12, 0.04],
-        [0.18, 0.12],
-      ] as const)) {
-    ell(c, x, y, 0.018, 0.013, 0, dark);
-  }
+  // Naher Flügel davor
+  falconWing(c, up ? [0.04, -0.06, 0.16, -0.3, 0.1, -0.62, -0.02, -0.34, -0.06, -0.06] : [0.04, -0.04, 0.22, 0.06, 0.38, 0.34, 0.12, 0.18, -0.02, 0.04], rufous, dark);
 }
 
-/** Spitzer Falkenflügel von der Schulter (sx, sy) zur Spitze (tx, ty); dunkle Handschwingen. */
-function wing(c: CanvasRenderingContext2D, sx: number, sy: number, tx: number, ty: number, w: number, base: string, tip: string): void {
-  const dx = tx - sx;
-  const dy = ty - sy;
-  const len = Math.hypot(dx, dy) || 1;
-  // Normale zur Flügelachse (Hinterkante liegt auf der dem Schwanz zugewandten Seite)
-  const nx = -dy / len;
-  const ny = dx / len;
-  const k = nx < 0 ? 1 : -1;
-  const ax = sx + dx * 0.45 + nx * w * k;
-  const ay = sy + dy * 0.45 + ny * w * k;
-  const bx = sx - nx * 0.06 * k - dx * 0.05;
-  const by = sy - ny * 0.06 * k - dy * 0.05;
-  const pts = [sx + nx * 0.03 * k * -1, sy + ny * 0.03 * k * -1, tx, ty, ax, ay, bx, by];
+/** Spitzer Falkenflügel: Schulter, Vorderkante, Spitze, Hinterkante, Achsel (je x, y); dunkle Handschwingen. */
+function falconWing(c: CanvasRenderingContext2D, pts: number[], base: string, tip: string): void {
   outline(c, 0.07, () => polyPath(c, pts));
   poly(c, pts, base);
-  // Handschwingen: äußeres Drittel dunkel
-  const px = sx + dx * 0.62;
-  const py = sy + dy * 0.62;
-  poly(c, [px - nx * 0.02 * k, py - ny * 0.02 * k, tx, ty, ax + (tx - ax) * 0.35, ay + (ty - ay) * 0.35], tip);
+  const [, , ax, ay, tx, ty, bx, by] = pts as [number, number, number, number, number, number, number, number];
+  // Handschwingen: von der Mitte der Kanten bis zur Spitze
+  poly(c, [ax + (tx - ax) * 0.25, ay + (ty - ay) * 0.25, tx, ty, bx + (tx - bx) * 0.25, by + (ty - by) * 0.25], tip);
+  // Flecken auf dem Oberflügel
+  ell(c, (pts[0]! + ax + bx) / 3, (pts[1]! + ay + by) / 3, 0.02, 0.014, 0, tip);
 }
 
 // ---------------------------------------------------------------------------
