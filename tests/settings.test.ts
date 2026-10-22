@@ -163,11 +163,12 @@ describe('Spielanleitung', () => {
   const sections = guideSections();
   const text = (id: string) => sections.find((s) => s.id === id)!.paragraphs.join(' ');
 
-  it('16 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
+  it('17 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
     expect(sections.map((s) => s.id)).toEqual([
       'growth',
       'encounters',
       'niches',
+      'predation',
       'plants',
       'communities',
       'harmony',
