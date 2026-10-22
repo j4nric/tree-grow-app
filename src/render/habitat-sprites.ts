@@ -694,7 +694,13 @@ export const HABITAT_DEFS: Record<string, SpriteDef> = {
  * Zeichnung wird beim ersten Abruf in `defs` angelegt. Je Canvas-Größe nur eine Breite.
  */
 export function pileSpriteName(defs: Record<string, SpriteDef>, snow: boolean, rx: number): string {
-  const name = `${snow ? 'pileSnow' : 'pile'}@${rx}`;
+  // Namen gemerkt: pro Frame entsteht kein neuer String.
+  if (rx !== pileNames.rx) {
+    pileNames.rx = rx;
+    pileNames.plain = `pile@${rx}`;
+    pileNames.snow = `pileSnow@${rx}`;
+  }
+  const name = snow ? pileNames.snow : pileNames.plain;
   if (!defs[name]) {
     defs[name] = {
       x0: -rx - 0.02,
@@ -706,3 +712,5 @@ export function pileSpriteName(defs: Record<string, SpriteDef>, snow: boolean, r
   }
   return name;
 }
+
+const pileNames = { rx: Number.NaN, plain: '', snow: '' };
