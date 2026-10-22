@@ -1,0 +1,198 @@
+/*
+ * Vollbild der Szene (fullscreen.ts, docs/ALBUM_UI.md C.6): Ebene über dem ganzen Album.
+ * Oben rechts „✕ Zurück ins Album“, unten rechts die Kamera-Leiste, unten links die
+ * Bildunterschrift als Polaroid-Rand. Das Papier bleibt hell, nur die Szene zeigt Nacht und
+ * Wetter; dahinter liegt ein dunkler Tisch (sichtbar nur kurz beim Aufziehen).
+ */
+
+/* Solange das Vollbild offen ist, scrollt das Dokument nicht. */
+html.album-fullscreen-open {
+  overflow: hidden;
+}
+
+/* Schwebende Hinweise (feedback.ts) auch über dem Vollbild. */
+html.album-fullscreen-open .float-layer {
+  z-index: 36;
+}
+
+.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  font-family: var(--font-text);
+  color: var(--ink);
+}
+
+.fullscreen[hidden] {
+  display: none;
+}
+
+/* Während des Auf- und Zuziehens nicht bedienbar. */
+.fullscreen.fullscreen-moving {
+  pointer-events: none;
+}
+
+.fullscreen-backdrop {
+  position: absolute;
+  inset: 0;
+  background: #2a241d;
+}
+
+.fullscreen-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.fullscreen-stage #scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Bis der Renderer die neue Größe hat: altes Bild unverzerrt eingepasst. */
+  object-fit: contain;
+}
+
+.fullscreen-stage #scene:focus-visible {
+  outline: 3px solid var(--tape);
+  outline-offset: -3px;
+}
+
+/* Stempelschicht über der ganzen Szene (Stufen-Stempel) */
+.fullscreen > .scene-stamps {
+  top: calc(56px + env(safe-area-inset-top, 0px));
+}
+
+.fullscreen-chrome {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.fullscreen-chrome > * {
+  pointer-events: auto;
+}
+
+.fullscreen-close {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-button);
+  background: var(--paper);
+  box-shadow: var(--sh-slip);
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fullscreen-close:hover {
+  background: var(--note-bg);
+}
+
+.fullscreen-close-icon {
+  font-family: var(--font-text);
+  font-size: 18px;
+}
+
+.fullscreen :focus-visible {
+  outline: 3px solid var(--tape);
+  outline-offset: 2px;
+}
+
+/* Bildunterschrift als Stück Polaroid-Rand unten links */
+.fullscreen-caption {
+  position: absolute;
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
+  /* Platz für die Kamera-Leiste rechts (3 × 44 px + Abstände) */
+  max-width: calc(100% - 200px);
+  margin: 0;
+  padding: 6px 14px 8px;
+  background: var(--photo);
+  box-shadow: var(--sh-photo);
+  pointer-events: none;
+}
+
+.fullscreen-caption-stage {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.fullscreen-caption-season {
+  color: var(--ink-soft);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.fullscreen-tools {
+  position: absolute;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.fullscreen-tools .scene-camera {
+  position: static;
+}
+
+.fullscreen .scene-camera-button {
+  border: 0;
+  background: var(--paper);
+  box-shadow: var(--sh-slip);
+  color: var(--ink);
+}
+
+.fullscreen .scene-camera-button:hover {
+  background: var(--note-bg);
+}
+
+@media (max-width: 480px) {
+  .fullscreen-caption {
+    max-width: calc(100% - 190px);
+    padding: 4px 10px 6px;
+  }
+
+  .fullscreen-caption-stage {
+    font-size: 24px;
+  }
+
+  .fullscreen-caption-season {
+    font-size: 18px;
+  }
+}
+
+/* Anker der Haftnotiz zum Tier (album/index.ts): unsichtbar an der angetippten Stelle. */
+.scene-note-anchor {
+  position: absolute;
+  width: 160px;
+  height: 24px;
+  margin: -12px 0 0 -80px;
+  pointer-events: none;
+  outline: none;
+}
+
+/*
+ * Meldungen (Stempel, Zettel) im Vollbild: über die ganze Breite unter dem Knopf
+ * „Zurück ins Album“ (oben rechts) – nie darunter.
+ */
+html.album-fullscreen-open .album ~ .stamps {
+  top: max(calc(68px + env(safe-area-inset-top, 0px)), var(--stamps-below, 0px));
+  left: 12px;
+  right: 12px;
+}

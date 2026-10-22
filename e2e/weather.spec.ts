@@ -58,8 +58,9 @@ test('Abzeichen: Sturm mit gedämpftem Abzug, Erklärung per Tippen und Tastatur
   await seedRaw(context, state, 0);
   await openGame(page);
 
-  await expect(badge(page)).toHaveText('🌬️ Sturm · −7,5 % 🌿 · +25 % 🌰');
-  await expect(badge(page)).toHaveText(toWeatherBadgeView(state).text);
+  // Kurz in der Bildunterschrift; die Wirkungen stehen im Namen und in der Notiz.
+  await expect(badge(page)).toHaveText('🌬️ Sturm');
+  await expect(badge(page)).toHaveText(toWeatherBadgeView(state).short);
   await expect(badge(page)).toHaveAttribute('data-weather', 'storm');
   await expect(badge(page)).toHaveAccessibleName(/^Wetter heute: Sturm, −7,5 % Wachstum, \+25 % Samen/);
   await expect(badge(page)).toHaveAttribute('title', /Böen zerren .* Morgen: /);

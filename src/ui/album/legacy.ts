@@ -204,7 +204,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   mounts.landscape.landscape.append(cyclePanel.landscapeElement);
   const returnReport = createReturnReportPanel(mounts.returnReport, () => hooks.focusTarget());
   const seasonWeather = createSeasonWeather(mounts.season);
-  const stack = createEncounterStack(mounts.dock, openEncounters);
+  const stack = createEncounterStack(mounts.dock, openEncounters, { float: false });
   const dialog = createEncounterDialog(document.body, { ...deps.actions.encounter, onDefer: closeEncounters });
   const picker = createPlantPicker(document.body, {
     onPlant: (plantId) => deps.actions.plant(plantId),

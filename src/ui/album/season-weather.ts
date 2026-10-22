@@ -1,11 +1,12 @@
 /**
- * Jahreszeit und Wetter in der Bildunterschrift des Polaroids (docs/ALBUM_UI.md, A.2 #29/#30):
- * zwei Knöpfe, jeder öffnet eine Haftnotiz – Jahreszeit mit Stimmung und Wirkungen, Wetter
+ * Jahreszeit und Wetter in der Bildunterschrift des Polaroids (docs/ALBUM_UI.md, A.2 #29/#30),
+ * kurz wie im Konzept: „🌱 Frühling · ⛅ Wechselhaft · 2:58“. Zwei Knöpfe, jeder öffnet eine
+ * Haftnotiz – Jahreszeit mit Stimmung und Wirkungen, Wetter
  * mit Stimmung, Wirkung heute, Dämpfung, Tipp, Vorhersage, Tag/Nacht und „Immer Tag“.
  * Ersetzt season-badge.ts und weather-badge.ts; `data-ref` der Knöpfe und Zeilen bleiben.
  * `update()` darf jeden Frame laufen – das DOM ändert sich nur bei neuen Texten.
  */
-import { el, setAttr, setText } from '../dom';
+import { el, setAttr, setText, srOnly } from '../dom';
 import type { SeasonBadgeView } from '../season-view';
 import type { WeatherBadgeView } from '../weather-view';
 import { attachNote, createNote } from './note';
@@ -23,7 +24,18 @@ export function createSeasonWeather(root: HTMLElement): SeasonWeather {
   const weather = el('button', 'weather-badge note-trigger');
   weather.type = 'button';
   weather.dataset.ref = 'weather';
-  root.append(season, weather);
+  const dot = () => {
+    const sep = el('span', 'caption-sep', '·');
+    sep.setAttribute('aria-hidden', 'true');
+    return sep;
+  };
+  // Restzeit: sichtbar „2:58“, vorgelesen „noch 2:58 min“.
+  const left = el('span', 'season-left');
+  left.dataset.ref = 'season-left';
+  const leftValue = el('span');
+  left.append(srOnly('noch '), leftValue, srOnly(' min'));
+  const leftSep = dot();
+  root.append(season, dot(), weather, leftSep, left);
 
   const seasonNote = createNote({ id: 'season', title: 'Jahreszeit', ref: 'season-note' });
   const seasonMood = seasonNote.line();
@@ -47,7 +59,9 @@ export function createSeasonWeather(root: HTMLElement): SeasonWeather {
   };
 
   function update(s: SeasonBadgeView, w: WeatherBadgeView): void {
-    setText(season, s.text);
+    setText(season, `${s.icon} ${s.name}`);
+    setText(leftValue, s.left);
+    if (left.hidden !== !s.left) left.hidden = leftSep.hidden = !s.left;
     setAttr(season, 'title', s.title);
     setAttr(season, 'data-season', s.id);
     seasonNote.setTitle(`${s.icon} ${s.name}`);
@@ -56,7 +70,7 @@ export function createSeasonWeather(root: HTMLElement): SeasonWeather {
     // „🌱 Frühling · noch 2:58 min“ → „noch 2:58 min“
     setLine(seasonLeft, s.text.split(' · ').slice(1).join(' · '));
 
-    setText(weather, w.text);
+    setText(weather, w.short);
     setAttr(weather, 'aria-label', w.label);
     setAttr(weather, 'title', w.title);
     setAttr(weather, 'data-weather', w.id);

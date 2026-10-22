@@ -204,7 +204,10 @@ export async function gotoTab(page: Page, tab: TabHash): Promise<void> {
 export async function openCover(page: Page): Promise<void> {
   const button = page.locator('[data-ref="cover-open"]');
   if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  // Ruhezustand: sichtbar, keine Schließ-Animation mehr.
   await expect(cover(page)).toBeVisible();
+  await expect(cover(page)).not.toHaveClass(/cover-out/);
 }
 
 /** Umschlag → Unterseite „Spielstand“ (Export, Import, Spielstand löschen). */
@@ -265,14 +268,14 @@ export function overlaps(
 
 /**
  * Lage des Szenen-Canvas: Layoutgröße (`width`, `height`) und Umrechnung eines Punkts im
- * Canvas in Seitenkoordinaten. Das Polaroid im Album ist leicht gedreht – das umschließende
- * Rechteck (`boundingBox`) ist darum etwas größer als das Canvas.
+ * Canvas in Seitenkoordinaten. Rechnet CSS-Transformationen der Vorfahren mit ein (das Bild im
+ * Polaroid steht heute gerade, das umschließende Rechteck wäre sonst bei einer Drehung größer).
  */
 export async function sceneGeometry(page: Page): Promise<{ width: number; height: number; toPage(x: number, y: number): { x: number; y: number } }> {
   const g = await page.locator('canvas#scene').evaluate((el) => {
     const style = getComputedStyle(el);
     const r = el.getBoundingClientRect();
-    // Lineare Teile aller Transformationen bis zur Wurzel (Drehung des Polaroids).
+    // Lineare Teile aller Transformationen bis zur Wurzel.
     let m = new DOMMatrix();
     for (let node: Element | null = el; node; node = node.parentElement) {
       const t = getComputedStyle(node).transform;
@@ -289,4 +292,41 @@ export async function sceneGeometry(page: Page): Promise<{ width: number; height
       return { x: g.cx + g.a * dx + g.c * dy, y: g.cy + g.b * dx + g.d * dy };
     },
   };
+}
+
+/** Vollbild der Szene (docs/ALBUM_UI.md, C.6). */
+export const fullscreen = (page: Page) => page.locator('[data-ref="fullscreen"]');
+/** Polaroid-Knopf „Szene vergrößern“ (hält das Canvas, solange kein Vollbild offen ist). */
+export const polaroidButton = (page: Page) => page.locator('[data-ref="polaroid-open"]');
+
+/**
+ * Öffnet das Vollbild per Klick (bzw. `tap`) auf das Polaroid und wartet, bis es aufgezogen
+ * ist und der Renderer die neue Größe übernommen hat (Backing-Store = Layout × Pixeldichte) –
+ * erst dann stimmen Treffer-Test und Kamera mit der Lage im Vollbild überein.
+ */
+export async function openFullscreen(page: Page, options: { tap?: boolean } = {}): Promise<void> {
+  if (options.tap) await polaroidButton(page).tap();
+  else await polaroidButton(page).click();
+  await expect(fullscreen(page)).toBeVisible();
+  await expect(fullscreen(page)).not.toHaveClass(/fullscreen-moving/);
+  await expect
+    .poll(() =>
+      page.locator('canvas#scene').evaluate((el) => {
+        const c = el as HTMLCanvasElement;
+        const d = window.devicePixelRatio;
+        return (
+          !!c.closest('[data-ref="fullscreen"]') &&
+          Math.abs(c.width - Math.round(c.clientWidth * d)) <= 1 &&
+          Math.abs(c.height - Math.round(c.clientHeight * d)) <= 1
+        );
+      }),
+    )
+    .toBe(true);
+}
+
+/** Schließt das Vollbild per „Zurück ins Album“ und wartet, bis das Canvas wieder im Polaroid liegt. */
+export async function closeFullscreen(page: Page): Promise<void> {
+  await page.locator('[data-ref="fullscreen-close"]').click();
+  await expect(fullscreen(page)).toBeHidden();
+  await expect(polaroidButton(page).locator('canvas#scene')).toHaveCount(1);
 }

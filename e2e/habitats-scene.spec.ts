@@ -1,5 +1,5 @@
 import type { BrowserContext, Page } from '@playwright/test';
-import { expect, openGame, savedState, sceneGeometry, seedRaw, test, waypoint } from './fixtures';
+import { expect, openFullscreen, openGame, savedState, sceneGeometry, seedRaw, test, waypoint } from './fixtures';
 import { STAGES } from '../src/content/stages';
 import { growth } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
@@ -10,8 +10,9 @@ import { makeLayout, placeMainTree } from '../src/render/layout';
 /**
  * Lebensräume in der Szene (DESIGN_V2.md 23.8): Mit gekaufter Pflege stehen Waldwiese und
  * Trockenmauer im Mittelgrund, der Totholzhaufen im Erdschnitt; ein Tippen auf einen
- * Bewohner öffnet seine Tierdetails. Die Lage kommt aus denselben Ankerpunkten wie im
- * Renderer (bei reduzierter Bewegung ruhen Tiere und Wind).
+ * Bewohner im Vollbild öffnet seine Haftnotiz, „Im Album ansehen“ die Tierdetails. Die Lage
+ * kommt aus denselben Ankerpunkten wie im Renderer (bei reduzierter Bewegung ruhen Tiere
+ * und Wind).
  */
 
 async function seed(context: BrowserContext): Promise<void> {
@@ -45,7 +46,7 @@ test.describe('Lebensräume in der Szene', () => {
     { width: 1200, height: 760 },
     { width: 390, height: 844 },
   ]) {
-    test(`Tippen auf Bewohner von Wiese, Totholzhaufen und Mauer öffnet die Tierdetails (${viewport.width}×${viewport.height})`, async ({ page, context }) => {
+    test(`Tippen auf Bewohner von Wiese, Totholzhaufen und Mauer (Vollbild) öffnet die Tierdetails (${viewport.width}×${viewport.height})`, async ({ page, context }) => {
       await page.setViewportSize(viewport);
       await seed(context);
       await openGame(page);
@@ -55,8 +56,12 @@ test.describe('Lebensräume in der Szene', () => {
         { id: 'sandlizard', family: 'reptiles', niche: 'wall', slot: 0, happiness: 1 },
       ];
       for (const [i, name] of ['Wildkaninchen', 'Mauswiesel', 'Zauneidechse'].entries()) {
+        await openFullscreen(page);
         const p = await residentPoint(page, scene[i]!, scene);
         await page.mouse.click(p.x, p.y);
+        const note = page.locator('[data-ref="note"]');
+        await expect(note).toContainText(name);
+        await note.getByRole('button', { name: 'Im Album ansehen' }).click();
         await expect(page.getByRole('dialog', { name })).toBeVisible();
         await page.keyboard.press('Escape');
         await expect(page.locator('[data-ref="animal-detail"]')).toBeHidden();

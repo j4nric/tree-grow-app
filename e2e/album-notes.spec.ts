@@ -1,6 +1,6 @@
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
-import { expect, note, openGame, seedRaw, settledStamp, stamp, test, waypoint } from './fixtures';
+import { expect, note, openFullscreen, openGame, overlaps, seedRaw, settledStamp, stamp, test, waypoint } from './fixtures';
 
 /**
  * Haftnotizen und Meldungen des Albums (docs/ALBUM_UI.md, C.4 und C.5): auf und zu, Klick
@@ -128,3 +128,30 @@ test.describe('mobil', () => {
     expect(box.x + box.width).toBeLessThanOrEqual(360);
   });
 });
+
+for (const viewport of [
+  { name: 'Desktop', width: 1200, height: 700 },
+  { name: 'mobil', width: 390, height: 844 },
+]) {
+  test(`Vollbild (${viewport.name}): Meldung über der Szene, nicht unter „Zurück ins Album“`, async ({ page, context }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await seedRaw(context, grove(), 0);
+    await openGame(page);
+    await expect(stamp(page)).toContainText('neue Erfolge');
+    await openFullscreen(page);
+    const message = await settledStamp(page);
+    await expect(message).toBeVisible();
+    const box = (await message.boundingBox())!;
+    const close = (await page.locator('[data-ref="fullscreen-close"]').boundingBox())!;
+    expect(overlaps(box, close), 'Meldung verdeckt „Zurück ins Album“').toBe(false);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    // Über der Szene: Die Schicht liegt höher als die Vollbild-Ebene.
+    const [layerZ, fullZ] = await page.evaluate(() => [
+      Number(getComputedStyle(document.querySelector('[data-ref="stamps"]')!).zIndex),
+      Number(getComputedStyle(document.querySelector('[data-ref="fullscreen"]')!).zIndex),
+    ]);
+    expect(layerZ).toBeGreaterThan(fullZ);
+  });
+}

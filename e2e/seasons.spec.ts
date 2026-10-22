@@ -11,6 +11,7 @@ import { SAVE_VERSION, expect, gotoTab, openGame, savedState, seedRaw, stageLabe
 
 const START = new Date('2026-10-21T08:00:00Z');
 const season = (page: Page) => page.locator('[data-ref="season"]');
+const seasonLeft = (page: Page) => page.locator('[data-ref="season-left"]');
 const cyclePanel = (page: Page) => page.locator('[data-ref="cycle-panel"]');
 
 async function startClock(page: Page): Promise<void> {
@@ -24,7 +25,9 @@ test('kurz vor dem Wechsel: nach dem Wechsel zeigt die Kopfzeile die neue Jahres
   state.cycle.elapsed = 178; // 2 s vor dem Sommer
   await seedRaw(context, state, 0);
   await openGame(page);
-  await expect(season(page)).toContainText('🌱 Frühling · noch 0:0');
+  // Bildunterschrift kurz (C.4): „🌱 Frühling · ⛅ … · 0:02“, Restzeit vorgelesen „noch … min“.
+  await expect(season(page)).toHaveText('🌱 Frühling');
+  await expect(seasonLeft(page)).toHaveText(/^noch 0:0\d min$/);
   await expect(season(page)).toHaveAttribute('title', /Frühling: \+10 % 🌿/);
   // Wirkungen auch per Tastatur: Knopf klappt eine sichtbare Zeile auf.
   const effects = page.locator('[data-ref="season-effects"]');
@@ -36,7 +39,8 @@ test('kurz vor dem Wechsel: nach dem Wechsel zeigt die Kopfzeile die neue Jahres
   await expect(effects).toHaveText(/Frühling: \+10 % 🌿/);
 
   await page.clock.runFor(3_000);
-  await expect(season(page)).toHaveText(/^☀️ Sommer · noch (3:00|2:5\d) min$/);
+  await expect(season(page)).toHaveText('☀️ Sommer');
+  await expect(seasonLeft(page)).toHaveText(/^noch (3:00|2:5\d) min$/);
   await expect(season(page)).toHaveAttribute('data-season', 'summer');
   // Kurzer Hinweis beim Wechsel – zusammen mit dem Wetter des neuen Tages.
   await expect(stamp(page)).toContainText(/^☀️ Sommer · \S+ [^–]+ – Lange, helle Tage/);
