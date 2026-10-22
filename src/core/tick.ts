@@ -62,6 +62,8 @@ import { countDailyAction } from './daily-actions';
 import { refreshDailyAfterNewCycle } from './daily';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import { MAX_ELAPSED, nextSeasonBoundary, normalizeElapsed, seasonIdAt, secondsToNextSeason } from './season';
+import { GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, type WeatherId } from '../content/weather';
+import { dayIndex, nextNightChange, secondsToNightChange, weatherOfDay, weatherSeed, weatherOfDayFromSeed, type AmbientMode } from './weather';
 import {
   MAX_FOREST_MEMORY,
   allAnimals,
@@ -105,17 +107,33 @@ export interface TickReport {
   expired: string[];
   /** Erreichte Jahreszeiten in Reihenfolge (je Wechsel ein Eintrag, für den Hinweis in der UI). */
   seasons: SeasonId[];
+  /**
+   * Wetter der erreichten Tage, parallel zu `seasons` (je Wechsel ein Eintrag, gekürzt wie
+   * `seasons`). Auch offline gefüllt – dort nur für den Text („4 × Regen“), gerechnet wird
+   * mit dem Mittel (OfflineReport.averaged).
+   */
+  weather: WeatherId[];
 }
 
 export interface OfflineReport extends TickReport {
   /** Tatsächlich simulierte Sekunden (nach Begrenzung). */
   seconds: number;
+  /** Mit Mittelwetter und halber Nachtwirkung gerechnet (ab OFFLINE_AVERAGE_MIN_SECONDS, 21.5)? */
+  averaged: boolean;
   growth: number;
   seeds: number;
 }
 
 /** Restdauern ab hier gelten als abgelaufen (Rundung bei vielen kleinen Ticks). */
 const EXPIRY_EPSILON = 1e-9;
+
+/**
+ * Längster Tick mit Einzelwetter (100 Jahre Spielzeit = 20 h). Ein noch größerer Tick
+ * (nur in Tests oder nach absurden Uhrsprüngen; online kommt höchstens 1 s je Frame,
+ * offline rechnet simulateOffline gemittelt) rechnet ganz im Modus „Mittel“: Mit
+ * Einzelwetter bräuchte er je Tag drei Runden und könnte keine Jahre überspringen.
+ */
+export const MAX_LIVE_SECONDS = 100 * YEAR_SECONDS;
 
 /**
  * Lässt `dt` Sekunden Spielzeit vergehen. Verändert `state` direkt.
@@ -126,8 +144,15 @@ const EXPIRY_EPSILON = 1e-9;
  * einem Schritt gerechnet. Darum liefern viele kleine Ticks und ein großer dasselbe Ergebnis
  * (bis auf Rundung). Deterministisch: Zeit kommt nur über `dt`, Zufall nur über
  * `state.rngState`.
+ *
+ * Wetter und Nacht (DESIGN_V2.md 21) nach `ambient`: `live` (Standard) mit dem Wetter des
+ * Tages und Halten bei Sonnenuntergang und -aufgang (Sekunde 81 und 171 jedes Tages; der
+ * Wetterwechsel fällt auf den Jahreszeiten-Halt), `average` mit dem Mittelwetter je
+ * Jahreszeit (Tag 0 sein festes Wetter, Schonzeit ohne raue Lagen: averageWeatherOf) und
+ * der halben Nachtwirkung ohne Nacht-Halte (offline), `off` ohne beides.
+ * Ganze Jahre werden nur ohne Einzelwetter übersprungen.
  */
-export function tick(state: GameState, dt: number): TickReport {
+export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'): TickReport {
   const report: TickReport = {
     waypoints: 0,
     encounters: 0,
@@ -140,22 +165,25 @@ export function tick(state: GameState, dt: number): TickReport {
     interludesReached: 0,
     expired: [],
     seasons: [],
+    weather: [],
   };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
+  const mode: AmbientMode = ambient === 'live' && dt > MAX_LIVE_SECONDS ? 'average' : ambient;
   // Kaputte Spielzeit (NaN, negativ, zu groß) nicht weiterschleppen.
   state.cycle.elapsed = normalizeElapsed(state.cycle.elapsed);
   let remaining = dt;
   // Schleife endet: Jede Runde verbraucht die Restzeit oder erreicht einen Halt – davon
   // gibt es endlich viele (Wegpunkte, je ein Zwischenhalt, endlich viele Boni, eine
-  // Jahreszeitgrenze je SEASON_SECONDS).
+  // Jahreszeitgrenze je SEASON_SECONDS, live zwei Nachtgrenzen je Tag).
   while (remaining > 0) {
-    // Lange Zeitsprünge: ganze Jahre am Stück, solange darin kein anderer Halt liegt.
-    const years = skipYears(state, remaining, report);
+    // Lange Zeitsprünge: ganze Jahre am Stück, solange darin kein anderer Halt liegt
+    // (nicht mit Einzelwetter – jedes Jahr hat anderes Wetter).
+    const years = mode === 'live' ? 0 : skipYears(state, remaining, report, mode);
     if (years > 0) {
       remaining -= years * YEAR_SECONDS;
       continue;
     }
-    const ev = evaluate(state);
+    const ev = evaluate(state, mode);
     const next = thresholdFor(state.waypoint + 1);
     const rate = ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth : 0;
     const toNext = rate > 0 ? Math.max(0, next - state.totalGrowth) / rate : Infinity;
@@ -167,7 +195,10 @@ export function tick(state: GameState, dt: number): TickReport {
     // getrennt aufsummiert), gilt die Grenze als erreicht – sonst landet offline (ein
     // großer Tick mit Halten) bei 179,99999999999997 s, online (ganze Sekunden) bei 180 s.
     if (toSeason > remaining && toSeason - remaining <= SEASON_SNAP_SECONDS) toSeason = remaining;
-    const step = Math.min(remaining, toNext, toInterlude, toExpiry, toSeason);
+    // Sonnenuntergang und -aufgang: nur mit Einzelwetter ein Halt (die Nachtwirkung wechselt).
+    let toNight = mode === 'live' ? secondsToNightChange(state.cycle.elapsed) : Infinity;
+    if (toNight > remaining && toNight - remaining <= SEASON_SNAP_SECONDS) toNight = remaining;
+    const step = Math.min(remaining, toNext, toInterlude, toExpiry, toSeason, toNight);
     state.seeds = capped(state.seeds + ev.seeds * step);
     remaining -= step;
     countDown(state, step, report);
@@ -175,9 +206,12 @@ export function tick(state: GameState, dt: number): TickReport {
     // schon die neue Jahreszeit. An der Grenze exakt setzen (kein Rundungsdrift).
     if (step === toSeason) {
       state.cycle.elapsed = nextSeasonBoundary(state.cycle.elapsed);
-      reportSeason(report, seasonIdAt(state.cycle.elapsed));
+      reportSeason(report, seasonIdAt(state.cycle.elapsed), weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed)));
       // Die Jahreszeit hebt oder senkt die Harmonie: H_max hier nachführen.
-      raiseMaxHarmony(state, evaluate(state).harmony);
+      raiseMaxHarmony(state, evaluate(state, mode).harmony);
+    } else if (step === toNight) {
+      // Exakt auf die Grenze (Sekunde 81 bzw. 171), wie bei der Jahreszeit.
+      state.cycle.elapsed = nextNightChange(state.cycle.elapsed);
     } else {
       state.cycle.elapsed = normalizeElapsed(state.cycle.elapsed + step);
     }
@@ -217,9 +251,11 @@ export const SEASON_SNAP_SECONDS = 1e-9;
 /** So viele Jahreszeitwechsel merkt sich ein TickReport höchstens (die letzten; 8 h offline = 160). */
 export const MAX_REPORTED_SEASONS = 160;
 
-function reportSeason(report: TickReport, id: SeasonId): void {
+function reportSeason(report: TickReport, id: SeasonId, weather: WeatherId): void {
   report.seasons.push(id);
+  report.weather.push(weather);
   if (report.seasons.length > MAX_REPORTED_SEASONS) report.seasons.shift();
+  if (report.weather.length > MAX_REPORTED_SEASONS) report.weather.shift();
 }
 
 /**
@@ -231,17 +267,20 @@ function reportSeason(report: TickReport, id: SeasonId): void {
  * weiterrechnen). Ohne diesen Vorlauf bräuchte ein riesiger Zeitsprung je 180 s eine
  * Runde; im Spiel (≤ 8 h offline) ändert er nur die Rundung.
  */
-function skipYears(state: GameState, remaining: number, report: TickReport): number {
+function skipYears(state: GameState, remaining: number, report: TickReport, mode: Exclude<AmbientMode, 'live'>): number {
   const elapsed = state.cycle.elapsed;
   let years = Math.floor(remaining / YEAR_SECONDS);
   if (years < 1 || elapsed % YEAR_SECONDS !== 0) return 0;
+  // Mittel erst nach der Schonzeit überspringen (davor gilt je Tag ein anderes Mittel).
+  if (mode === 'average' && elapsed < GENTLE_DAYS * SEASON_SECONDS) return 0;
   years = Math.min(years, Math.floor((MAX_ELAPSED - elapsed) / YEAR_SECONDS));
   // Kein Bonus darf in den Jahren ablaufen (genau am Ende zählt schon: lieber normal rechnen).
   const expiry = nextExpiry(state);
   if (expiry < Infinity) years = Math.min(years, Math.ceil(expiry / YEAR_SECONDS) - 1);
   if (years < 1) return 0;
-  // Raten je Jahreszeit (wie evaluate, nur mit der jeweiligen Jahreszeit).
-  const eco = ecosystemOf(state);
+  // Raten je Jahreszeit (wie evaluate, nur mit der jeweiligen Jahreszeit; im Mittel-Modus
+  // mit dem Mittelwetter dieser Jahreszeit und dem Nachtanteil).
+  const eco = ecosystemOf(state, {}, mode);
   let growth = 0;
   let seeds = 0;
   const harmonies: number[] = [];
@@ -262,11 +301,17 @@ function skipYears(state: GameState, remaining: number, report: TickReport): num
   countDown(state, years * YEAR_SECONDS, report);
   // Jede Jahreszeit wurde durchlaufen: H_max wie beim schrittweisen Wechsel nachführen.
   for (const h of harmonies) raiseMaxHarmony(state, h);
-  // Je Jahr die Wechsel Sommer, Herbst, Winter, Frühling (gemerkt werden nur die letzten).
+  // Je Jahr die Wechsel Sommer, Herbst, Winter, Frühling (gemerkt werden nur die letzten)
+  // mit dem Wetter dieser Tage (nur für den Text; gerechnet wurde ohne Einzelwetter).
   const reported = Math.min(years, Math.ceil(MAX_REPORTED_SEASONS / SEASON_IDS.length));
-  for (let y = 0; y < reported; y++) {
-    for (const id of SEASON_IDS.slice(1)) reportSeason(report, id);
-    reportSeason(report, SEASON_IDS[0]!);
+  const seed = weatherSeed(state.cycle);
+  const lastDay = dayIndex(state.cycle.elapsed);
+  for (let y = reported - 1; y >= 0; y--) {
+    const yearStart = lastDay - y * SEASON_IDS.length;
+    for (let i = 1; i <= SEASON_IDS.length; i++) {
+      const day = yearStart - SEASON_IDS.length + i;
+      reportSeason(report, SEASON_IDS[i % SEASON_IDS.length]!, weatherOfDayFromSeed(seed, day));
+    }
   }
   return years;
 }
@@ -364,14 +409,18 @@ function capped(value: number): number {
 /**
  * Simuliert die Zeit, in der das Spiel geschlossen war (höchstens 8 Stunden).
  * Begegnungen werden wie online gezogen; mehr als 3 offene werden automatisch
- * abgelehnt und als Samen gutgeschrieben.
+ * abgelehnt und als Samen gutgeschrieben. Ab OFFLINE_AVERAGE_MIN_SECONDS mit dem
+ * Mittelwetter je Jahreszeit und NIGHT_SHARE der Nachtwirkung (tick im Modus `average`).
  */
 export function simulateOffline(state: GameState, seconds: number): OfflineReport {
   const total = Number.isFinite(seconds) ? Math.min(Math.max(seconds, 0), MAX_OFFLINE_SECONDS) : 0;
   const growthBefore = state.totalGrowth;
   const seedsBefore = state.seeds;
-  const report = tick(state, total);
-  return { ...report, seconds: total, growth: state.totalGrowth - growthBefore, seeds: state.seeds - seedsBefore };
+  // Ab einem Tag Abwesenheit: Mittelwetter und halbe Nachtwirkung (DESIGN_V2.md 21.5);
+  // kürzere Lücken (Tab kurz verdeckt) wie online.
+  const averaged = total >= OFFLINE_AVERAGE_MIN_SECONDS;
+  const report = tick(state, total, averaged ? 'average' : 'live');
+  return { ...report, seconds: total, averaged, growth: state.totalGrowth - growthBefore, seeds: state.seeds - seedsBefore };
 }
 
 /** Automatisches Ablehnen am Wegpunkt: Samen wie beim Ablehnen von Hand, im Bericht summiert. */

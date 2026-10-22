@@ -36,11 +36,14 @@ describe('Pflegemaßnahmen', () => {
         const before = stageStats(find(without, id), stage);
         const after = stageStats(find(withCare, id), stage);
         // Bestand in Minuten Produktion: höchstens halb so groß wie ohne Pflege; beim Hain unter
-        // 10 min (Ziel 2.10), im Wald unter 12 min – dort wird auf die Wald-Ränge
-        // (30.000–45.000 🌰) gespart, die erst mit dem Wald kaufbar werden.
+        // 10 min (Ziel 2.10), im Wald unter 15 min – dort wird auf die Wald-Ränge
+        // (30.000–45.000 🌰) gespart, die erst mit dem Wald kaufbar werden. 15 statt 12 min
+        // seit Wetter und Nacht (DESIGN_V2.md 21.10): Harmonie-Spieler kommen ~4 % früher und
+        // mit +4 % 🌰 in den Wald und haben dort im Mittel 14,6 statt 11,1 min angespart
+        // (30 Durchgänge; ohne Wetter 11,1 min).
         const minutes = (st: typeof before) => st.seeds / st.seedsRate / 60;
         expect(minutes(after), `${id}, Stufe ${stage}`).toBeLessThan(0.5 * minutes(before));
-        expect(minutes(after), `${id}, Stufe ${stage}`).toBeLessThan(stage === HAIN ? 10 : 12);
+        expect(minutes(after), `${id}, Stufe ${stage}`).toBeLessThan(stage === HAIN ? 10 : 15);
         expect(after.spentCare, `${id}, Stufe ${stage}`).toBeGreaterThan(0);
       }
     }

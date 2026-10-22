@@ -290,10 +290,22 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     (`DAY_SECONDS` = 180 s = eine Jahreszeit, jede Jahreszeit ein ganzer Tag), Dämmerung, Nacht mit Sternen und Mond,
     Glühwürmchen leuchten nachts stärker, Einstellung „Tageszeit“ (Wechsel / Immer Tag),
     Demo `?phase=` – DESIGN_V2.md 19
-  - [ ] Wirkung (game-designer): nachtaktive Arten und ihre Effekte (Spielstand unverändert)
+  - [x] Wirkung, Design (game-designer): Waldkauz, Langohr, Igel, Glühwürmchen nachts +6 … +12 %
+    🌿/🌰 (`NOCTURNAL` in `src/content/daytime.ts`, Spielstand unverändert) – DESIGN_V2.md 21.6
+  - [x] Wirkung, Logik (core-engineer): Nacht-Halte, Nachtwirkung in `evaluate`, Mittel offline –
+    `src/core/weather.ts`, DESIGN_V2.md 21.9
 - [ ] Wetterlagen (Design `game-designer`, Logik `core-engineer`, Grafik `renderer`):
   seltene, mehrminütige Zustände (Dürresommer, Sturm, Spätfrost, Borkenkäferjahr) mit
   Gegenmaßnahmen; ein vielfältiges Ökosystem dämpft die Folgen
+  - [x] Design (game-designer): 8 Wetterlagen je Tag (= Jahreszeit), deterministisch aus
+    Zyklus + Tag, Dämpfung durch Vielfalt und Pflege, Mittel offline, kein neues Feld –
+    `src/content/weather.ts`, DESIGN_V2.md 21
+  - [x] Logik (core-engineer): `src/core/weather.ts`, Wetter in `evaluate`, `TickReport.weather`,
+    Mittelwetter offline (`simulateOffline` ab 180 s), Messung mit der echten Logik – 21.9/21.10
+  - [ ] Grafik (renderer) und Anzeige (ui-dev) – 21.8
+  - [ ] Balancing-Folgeaufgabe (game-designer): Samenreserve im Wald (balance-care 14,6 vs.
+    Grenze 15 min, vorher 11,1 vs. 12) – Wald-Ränge der Pflege billiger oder früher kaufbar,
+    damit die Grenze wieder auf 12 min sinken kann (DESIGN_V2.md 21.10)
 
 **Welle 3 – Tiefe & Langzeitspiel**
 

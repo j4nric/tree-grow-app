@@ -545,7 +545,19 @@ describe('Stammgäste', () => {
     online.meta.regulars = ['mole', 'woodlouse', 'bee', 'vole'];
     startNewCycle(online, 0);
     const offline = structuredClone(online);
-    for (let i = 0; i < 2 * 3600; i++) tick(online, 1);
+    // Einzelwetter: kleine Ticks = ein großer Tick (Stammgäste, Wegpunkte, Nacht-Halte).
+    const small = structuredClone(online);
+    const big = structuredClone(online);
+    for (let i = 0; i < 2 * 3600; i++) tick(small, 1);
+    expect(tick(big, 2 * 3600).regulars.length).toBeGreaterThan(0);
+    expect(big.niches).toEqual(small.niches);
+    expect(big.pendingEncounters).toEqual(small.pendingEncounters);
+    expect(big.rngState).toBe(small.rngState);
+    expect(big.meta).toEqual(small.meta);
+    expect(big.totalGrowth).toBeCloseTo(small.totalGrowth, 6);
+    expect(big.seeds).toBeCloseTo(small.seeds, 6);
+    // simulateOffline rechnet ab einem Tag mit dem Mittelwetter (DESIGN_V2.md 21.5): online im selben Modus.
+    for (let i = 0; i < 2 * 3600; i++) tick(online, 1, 'average');
     const report = simulateOffline(offline, 2 * 3600);
     expect(report.regulars.length).toBeGreaterThan(0);
     expect(offline.niches).toEqual(online.niches);
@@ -568,8 +580,10 @@ describe('Stammgäste', () => {
     const offline = structuredClone(online);
     // Bis genau auf die Grenze: online in Sekunden-Schritten, offline in einem Stück.
     const seen: string[] = [];
-    for (let i = 0; i < SEASON_SECONDS; i++) seen.push(...tick(online, 1).seasons);
+    // Ein ganzer Tag offline: Mittelwetter (DESIGN_V2.md 21.5) – online im selben Modus.
+    for (let i = 0; i < SEASON_SECONDS; i++) seen.push(...tick(online, 1, 'average').seasons);
     const report = simulateOffline(offline, SEASON_SECONDS);
+    expect(report.averaged).toBe(true);
     expect(online.cycle.elapsed).toBe(SEASON_SECONDS);
     expect(offline.cycle.elapsed).toBe(SEASON_SECONDS);
     expect(seen).toEqual(['summer']);

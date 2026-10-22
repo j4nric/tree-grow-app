@@ -324,8 +324,20 @@ describe('online gleich offline (mit Boni, Gästen und Zwischenhalt)', () => {
     chooseEventOption(online, 0, option('midsummer', 'Lange Tage nutzen'));
     hostVisitor(online, 0);
     chooseEventOption(online, 0, option('rain', 'Alles austreiben lassen'));
-    const offline = structuredClone(online);
-    for (let i = 0; i < 3 * 3600; i++) tick(online, 1);
+    const start = structuredClone(online);
+    // Einzelwetter: kleine Ticks = großer Tick (prüft auch die Nacht-Halte zwischen den Boni).
+    const small = structuredClone(start);
+    const big = structuredClone(start);
+    for (let i = 0; i < 3 * 3600; i++) tick(small, 1);
+    expect(tick(big, 3 * 3600).expired.sort()).toEqual(['midsummer', 'peregrine', 'rain']);
+    expect(big.pendingEncounters).toEqual(small.pendingEncounters);
+    expect(big.rngState).toBe(small.rngState);
+    expect(big.cycle).toEqual({ ...small.cycle, elapsed: big.cycle.elapsed });
+    expect(big.totalGrowth).toBeCloseTo(small.totalGrowth, 4);
+    expect(big.seeds).toBeCloseTo(small.seeds, 4);
+    // Mittel (offline, DESIGN_V2.md 21.5): kleine Ticks im selben Modus = simulateOffline.
+    const offline = structuredClone(start);
+    for (let i = 0; i < 3 * 3600; i++) tick(online, 1, 'average');
     const report = simulateOffline(offline, 3 * 3600);
     expect(report.expired.sort()).toEqual(['midsummer', 'peregrine', 'rain']);
     expect(offline.waypoint).toBe(online.waypoint);
@@ -513,8 +525,20 @@ describe('Härtung (Review #31)', () => {
     chooseEventOption(online, 0, 0);
     hostVisitor(online, 0);
     const offline = structuredClone(online);
-    for (let i = 0; i < 20 * 60 * 60; i++) tick(online, 1 / 60);
+    const big = structuredClone(online);
+    const frames = structuredClone(online);
+    // Mittel (offline ab einem Tag, DESIGN_V2.md 21.5): 20 min Frames = simulateOffline, wie
+    // vor dem Wetter. Einzelwetter: 6 min Frames = ein großer Tick – genug für beide
+    // Nachtgrenzen (81, 171 s), einen Tageswechsel (180 s) und die nächste Nacht (261 s).
+    for (let i = 0; i < 20 * 60 * 60; i++) tick(online, 1 / 60, 'average');
+    for (let i = 0; i < 6 * 60 * 60; i++) tick(frames, 1 / 60);
     simulateOffline(offline, 20 * 60);
+    tick(big, 6 * 60);
+    expect(Math.abs(big.cycle.elapsed - frames.cycle.elapsed)).toBeLessThan(1e-6);
+    expect(big.pendingEncounters).toEqual(frames.pendingEncounters);
+    expect(big.rngState).toBe(frames.rngState);
+    expect(big.totalGrowth).toBeCloseTo(frames.totalGrowth, 3);
+    expect(big.seeds).toBeCloseTo(frames.seeds, 3);
     expect(offline.cycle.timed).toEqual(online.cycle.timed);
     expect(offline.cycle.visitors).toEqual(online.cycle.visitors);
     expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
@@ -522,7 +546,7 @@ describe('Härtung (Review #31)', () => {
     expect(offline.waypoint).toBe(online.waypoint);
     expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 3);
     expect(offline.seeds).toBeCloseTo(online.seeds, 3);
-  });
+  }, 60_000);
 
   it('Zeit-Bonus und Gast mit gleicher Restdauer laufen im selben Schritt ab', () => {
     const state = stateAt(5, ['earthworm'], 1);

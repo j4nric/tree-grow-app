@@ -167,7 +167,8 @@ export function genusSeason(genus: Genus): SeasonId | null {
 }
 
 function seasonalEvaluations(state: GameState): Record<SeasonId, Evaluation> {
-  const eco = ecosystemOf({ ...state, cycle: { ...state.cycle, timed: [], visitors: [] } });
+  // Ohne Wetter und Nacht: Die Ziele schätzen das Ökosystem je Jahreszeit, nicht den Tag.
+  const eco = ecosystemOf({ ...state, cycle: { ...state.cycle, timed: [], visitors: [] } }, {}, 'off');
   const out = {} as Record<SeasonId, Evaluation>;
   for (const id of SEASON_IDS) out[id] = evaluateEcosystem({ ...eco, season: id });
   return out;
@@ -295,7 +296,8 @@ function propose(template: DailyGoalTemplate, ctx: GenerationContext, rng: RngHo
  */
 export function generateDailyGoals(state: GameState, day: string): DailyGoal[] {
   const rng: RngHolder = { rngState: normalizeSeed((state.meta.daily.seed ^ hashText(day)) >>> 0) };
-  const ev = evaluate(state);
+  // Ohne Wetter und Nacht: Die Ziele hängen nicht davon ab, wann am Tag gewürfelt wird.
+  const ev = evaluate(state, 'off');
   const ctx: GenerationContext = {
     state,
     ev,
@@ -349,7 +351,7 @@ export function refreshDailyAfterNewCycle(state: GameState): void {
   };
   const ctx: GenerationContext = {
     state,
-    ev: evaluate(state),
+    ev: evaluate(state, 'off'), // ohne Wetter und Nacht wie generateDailyGoals
     seasonal: seasonalEvaluations(state),
     budget: Math.max(0, state.seeds) + seedSecondsRate(state) * DAILY_VISIT_SECONDS * DAILY_RATE_MARGIN,
     ringFree: Math.max(0, plantSlots(state.stage) - state.plants.length),

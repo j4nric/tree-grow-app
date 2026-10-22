@@ -111,15 +111,20 @@ describe('Spielzeit und Wachstum in tick', () => {
   });
 
   it('online = offline: viele kleine Ticks und ein großer liefern dieselbe Statistik', () => {
-    const online = groveState(77);
-    online.cycle.elapsed = SEASON_SECONDS - 30; // eine Jahreszeitgrenze liegt im Weg
-    const offline = structuredClone(online);
-    for (let i = 0; i < 2 * 3600; i++) tick(online, 1);
-    simulateOffline(offline, 2 * 3600);
-    expect(online.waypoint).toBeGreaterThan(NEW_CYCLE_MIN_STAGE);
-    expect(offline.meta.stats).toEqual(online.meta.stats);
-    expect(offline.meta.stats.playSeconds).toBe(online.meta.stats.playSeconds);
-    expect(lifetimeGrowth(offline) / lifetimeGrowth(online)).toBeCloseTo(1, 12);
+    const start = groveState(77);
+    start.cycle.elapsed = SEASON_SECONDS - 30; // eine Jahreszeitgrenze liegt im Weg
+    // Einzelwetter: kleine Ticks = großer Tick; Mittel (offline, 21.5): kleine Ticks = simulateOffline.
+    for (const mode of ['live', 'average'] as const) {
+      const online = structuredClone(start);
+      const offline = structuredClone(start);
+      for (let i = 0; i < 2 * 3600; i++) tick(online, 1, mode);
+      if (mode === 'live') tick(offline, 2 * 3600);
+      else simulateOffline(offline, 2 * 3600);
+      expect(online.waypoint).toBeGreaterThan(NEW_CYCLE_MIN_STAGE);
+      expect(offline.meta.stats, mode).toEqual(online.meta.stats);
+      expect(offline.meta.stats.playSeconds).toBe(online.meta.stats.playSeconds);
+      expect(lifetimeGrowth(offline) / lifetimeGrowth(online), mode).toBeCloseTo(1, 12);
+    }
   });
 
   it('deterministisch: gleicher Stand, gleiche Folge → gleiche Statistik', () => {

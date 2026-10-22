@@ -71,6 +71,7 @@ import {
   unlockedPlants,
 } from '../src/core/tick';
 import { seasonIndex, secondsToNextSeason } from '../src/core/season';
+import { secondsToNightChange, type AmbientMode } from '../src/core/weather';
 import type { MainTreeId } from '../src/content/trees';
 
 // ---------------------------------------------------------------------------
@@ -376,6 +377,12 @@ export interface RunOptions {
   /** Art des Hauptbaums (Standard: Stieleiche wie im ersten Zyklus). */
   mainTree?: MainTreeId;
   /**
+   * Wetter und Nacht (DESIGN_V2.md 21) wie in tick(): `live` (Standard, wie online),
+   * `average` (Mittelwetter und halbe Nachtwirkung wie offline) oder `off` (ohne beides,
+   * zum Vergleich).
+   */
+  ambient?: AmbientMode;
+  /**
    * Tagesziele mitspielen (DESIGN_V2.md 20.6): die Ziele dieses Tages („JJJJ-MM-TT“) entstehen
    * beim Start; jede gespielte Sekunde zählt als aktiv. Der Spieler verfolgt sie nicht
    * gezielt – sie werden erfüllt, wenn seine Strategie sie ohnehin erfüllt. Standard: aus
@@ -451,8 +458,9 @@ export function runGame(
     if (time <= EARLY_SECONDS) result.early.actions.push(time);
   };
   const cycleWaypoint = STAGES[NEW_CYCLE_MIN_STAGE]!.waypoint;
+  const ambient: AmbientMode = options.ambient ?? 'live';
   const snapshot = (): Snapshot => {
-    const ev = evaluate(state);
+    const ev = evaluate(state, ambient);
     const genus = Object.fromEntries(GENERA.map((g) => [g, 0])) as Record<Genus, number>;
     for (const id of allAnimals(state)) genus[SPECIES_BY_ID.get(id)!.genus]++;
     return {
@@ -532,24 +540,26 @@ export function runGame(
         act();
       }
     }
-    const ev = evaluate(state);
+    const ev = evaluate(state, ambient);
     // Bis die nächste geplante Pflanze bezahlbar ist (+1 µs gegen Rundung).
     const toPlant =
       plan !== null && ev.seeds > 0 ? Math.max(0, (nextPlantCost(state) - state.seeds) / ev.seeds) + 1e-6 : Infinity;
     const stageBefore = state.stage;
     const nextSample = (SAMPLE_MINUTES[sample] ?? Infinity) * 60;
-    const toWaypoint = secondsToNextWaypoint(state);
+    const toWaypoint = secondsToNextWaypoint(state, ambient);
     // Zwischenhalt und Ablauf von Boni: dort anhalten, damit Zeitpunkte und Raten stimmen.
     const interlude = interludeThreshold(state);
     const toInterlude = interlude < Infinity && ev.growth > 0 ? Math.max(0, interlude - state.totalGrowth) / ev.growth : Infinity;
     // Jahreszeitgrenze: Raten wechseln, Käufe neu planen.
     const toSeason = secondsToNextSeason(state.cycle.elapsed);
+    // Sonnenuntergang und -aufgang (nur mit Einzelwetter): Nachtarten ändern die Raten.
+    const toNight = ambient === 'live' ? secondsToNightChange(state.cycle.elapsed) : Infinity;
     const toCare = careNeed !== null && ev.seeds > 0 ? Math.max(0, (careNeed - state.seeds) / ev.seeds) + 1e-6 : Infinity;
-    const dt = Math.min(toWaypoint, toPlant, nextSample - time, nextExpiry(state), toInterlude, toSeason, toCare, options.maxSeconds - time);
+    const dt = Math.min(toWaypoint, toPlant, nextSample - time, nextExpiry(state), toInterlude, toSeason, toNight, toCare, options.maxSeconds - time);
     if (!(dt < Infinity)) break;
     const seedsBefore = state.seeds;
     const growthBefore = state.totalGrowth;
-    const report = tick(state, dt);
+    const report = tick(state, dt, ambient);
     time += dt;
     // Samen steigen zwischen zwei Halten nur – der Höchststand liegt also an einem Halt.
     if (stageBefore < EARLY_SEED_STAGE) result.early.seedPeak = Math.max(result.early.seedPeak, state.seeds);

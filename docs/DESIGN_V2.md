@@ -2138,7 +2138,7 @@ Stufenzeiten des Harmonie-Spielers 0,8–1,25 × Ziel, Hain 55–65 min, Setzlin
 Takt bis Hain im Median 10 s – 8 min, nie über 15 min; Harmonie-Strategie hat die höchste
 Harmonie; kein Gattungs-Stapeln mehr als 10 % schneller; Wachstums-Spieler schneller, aber
 höchstens ~15 % und mindestens 3 Punkte weniger Harmonie; Pflanzen und Pflege als
-Samen-Senke (Bestand beim Hain < 10 min Produktion, im Wald < 12 min); frühes Spiel (seit
+Samen-Senke (Bestand beim Hain < 10 min Produktion, im Wald < 12 min, seit Wetter < 15 min, 21.10); frühes Spiel (seit
 dem Playtest „frühes Spiel“): längste Pause ohne Entscheidung in den ersten 6 min im
 Median ≤ 75 s (Harmonie, Wachstum), jede Strategie < 105 s, Samen ungenutzt vor dem Jungen
 Baum < 250 🌰; Neu würfeln bis zum
@@ -2945,7 +2945,8 @@ die Strecken nach dem Hain unter 11 min (mit 50 % waren es im Hain 11:15 min).
 - **Baumarten:** alle innerhalb ±5 % der Eiche; die Kiefer bleibt für Wachstums-Spieler
   am schnellsten (Winterfestigkeit).
 - **Wirtschaft:** Pflege bleibt die Senke (8,4 statt 38,7 min Bestand beim Hain). Im Wald
-  sparen Harmonie-Spieler auf die Wald-Ränge (10,8 min) – die Prüfung erlaubt dort 12 min.
+  sparen Harmonie-Spieler auf die Wald-Ränge (10,8 min) – die Prüfung erlaubt dort 12 min
+  (seit Wetter und Nacht 15 min: gemessen 14,6 min, 21.10).
 - **Neuer Zyklus:** Zyklus 2 ist 28,8 % schneller (Ziel 20–35 %), der erste Stammgast
   kommt nach einem Zyklus (33 Punkte), der zweite nach zwei.
 
@@ -4234,7 +4235,7 @@ umbrechen mobil (360/390 px ohne Querscrollen).
 ## 19. Tag und Nacht
 
 Erster Teil von Phase 6, Welle 2: nur die **Grafik**. Die Tageszeit hat (noch) keine
-Wirkung auf Raten, Tiere oder Begegnungen; nachtaktive Arten folgen vom `game-designer`.
+Wirkung auf Raten, Tiere oder Begegnungen; die Wirkung nachtaktiver Arten ist in 21 entworfen.
 Der Spielstand ist unverändert (kein neues Feld, kein `SAVE_VERSION`).
 
 ### 19.1 Zeitmodell
@@ -4493,3 +4494,358 @@ Abschnitt „Tagesziele“.
   Bedingungsart über `meta.daily`).
 - **Gezielter Spieler im Simulator:** Die Messung lässt Ziele nebenbei erfüllen. Ein Spieler,
   der Ziele jagt, bekäme höchstens die Obergrenze (≤ 4,6 %).
+
+---
+
+## 21. Wetter und Nachtarten
+
+> **Stand:** Logik umgesetzt (Phase 6, Welle 2); Grafik und Anzeige folgen (21.8). Daten in
+> `src/content/weather.ts` (Wetterlagen) und `src/content/daytime.ts` (`NOCTURNAL`,
+> Nachtgrenzen), Logik in `src/core/weather.ts`, `evaluate` (`core/formulas.ts`) und `tick`
+> (`core/tick.ts`), Tests in `tests/weather.test.ts` (Daten) und `tests/weather-core.test.ts`
+> (Logik). Spielstand unverändert – kein neues Feld, kein `SAVE_VERSION` (bleibt 12).
+
+### 21.1 Idee und Leitlinien
+
+Jeder Tag hat ein Wetter, und nachts wird der Wald lebendig. Beides soll man **sehen und
+spüren**, aber nie planen müssen:
+
+- **Klein.** Jede Wirkung liegt zwischen −15 % und +30 % (Gruppenbonus), die meisten bei
+  ±10 %. Über ein Jahr gemittelt: 🌿 +0,4 bis +1,3 %, 🌰 +4 %.
+- **Kein Wetter ist nur schlecht.** Raue Lagen (Dürre, Sturm, Frost) tauschen Wachstum gegen
+  Samen – Risiko gegen Bonus, ohne Entscheidung. Ein vielfältiges Ökosystem und die passende
+  Pflegemaßnahme dämpfen den Abzug (Roadmap: „ein vielfältiges Ökosystem dämpft die Folgen“).
+- **Kein Warten, kein Zwang.** Nichts wird billiger oder teurer; Samen-Sekunden (Ereignisse,
+  Gäste) rechnen ohne Wetter und Nacht – wie ohne Jahreszeit (16.6). Wer nie zuschaut,
+  bekommt offline dasselbe Mittel.
+- **Nie Harmonie.** Wetter und Nacht haben nur Wirkungen vom Typ `TimedEffect` (🌿, 🌰,
+  Gruppen). Sie verschieben weder Zufriedenheit noch Harmonie, also weder H_max noch das
+  Waldgedächtnis, und das Mittel offline ist exakt (alles linear in B).
+- **Kein neuer Halt für das Wetter.** Ein Wetter gilt genau einen Tag = eine Jahreszeit und
+  wechselt an der schon vorhandenen Grenze der Jahreszeit.
+
+### 21.2 Zeitmodell und Auswahl
+
+- **Ein Wetter je Tag.** Tag n = `floor(elapsed / 180)` (dieselbe Grenze wie die Jahreszeit;
+  sie fällt immer auf den hellen Vormittag, 19.1). Jahreszeit des Tages = `n mod 4`.
+- **Deterministisch ohne neues Feld:** Startwert je Zyklus aus Zyklusnummer und Startzeit,
+  je Tag eine Zahl in [0, 1) (21.4). Gleicher Spielstand → gleiches Wetter, auf jedem Gerät,
+  nach Neuladen und im Sync. Jeder Zyklus hat eine neue Folge.
+- **Regeln:**
+  1. Tag 0 (der erste Frühling) ist immer „Wechselhaft“ – der Samen keimt in Ruhe, der
+     Frühlingsbonus bleibt wie getestet.
+  2. **Schonzeit:** Im ersten Jahr (Tage 0–3, `GENTLE_DAYS = 4`, 12 min) keine rauen Lagen –
+     das frühe Spiel bleibt unverändert. Ohne diese Regel kam der Junge Baum im Modell 9 s
+     später (+3,6 %).
+  3. **Nie zwei raue Tage hintereinander** (dann „Wechselhaft“).
+- **Vorhersage:** Weil alles feststeht, kann die UI das Wetter von morgen zeigen. Kein
+  Anreiz zum Warten (nichts wird billiger), nur Vorfreude.
+
+### 21.3 Wetterlagen
+
+Faktor 1 (nicht mit Zufriedenheit skaliert), solange der Tag dauert; Wirkungen wie
+Zeit-Boni in B_🌿 / B_🌰 bzw. als Gruppenbonus.
+
+| Wetter | Wirkung | Frühling | Sommer | Herbst | Winter | Schutz (ab Rang 1) | Text |
+|---|---|---|---|---|---|---|---|
+| ⛅ Wechselhaft | – | 40 | 40 | 35 | 35 | – | „Wolken ziehen, mal Sonne, mal ein Schauer – ein ganz gewöhnlicher Tag.“ |
+| 🌧️ Landregen | +10 % 🌿 | 25 | 15 | 10 | – | – | „Ein langer, sanfter Regen. Der Boden trinkt sich satt.“ |
+| ☀️ Sonnenschein | +10 % 🌰, Blumen +20 % 🌰 | 20 | 30 | 10 | – | – | „Blauer Himmel – die Blüten öffnen sich weit.“ |
+| 🌫️ Nebel | +5 % 🌿, Moose & Farne +30 % 🌿 | 10 | – | 25 | 10 | – | „Feuchter Nebel hängt zwischen den Stämmen. Moose und Farne lieben es.“ |
+| 🌨️ Neuschnee | +5 % 🌿 | – | – | – | 30 | – | „Eine weiche Schneedecke hält die Wurzeln warm.“ |
+| 🌡️ Dürre (rau) | −15 % 🌿, +20 % 🌰 | – | 10 | – | – | 💧 Waldtümpel | „Seit Tagen kein Tropfen. Der Baum spart Wasser und lässt früh Früchte reifen.“ |
+| 🌬️ Sturm (rau) | −15 % 🌿, +25 % 🌰 | – | 5 | 20 | 5 | ☀️ Lichte Krone | „Böen zerren an der Krone – und tragen Samen weit ins Land.“ |
+| 🧊 Frost (rau) | −10 % 🌿, +15 % 🌰 | 5 | – | – | 20 | 🍂 Laub liegen lassen; Kiefer frei | „Raureif glitzert an jedem Zweig. Die Kälte bricht die Keimruhe der Samen.“ |
+
+Gewichte in Prozent (Summe je Jahreszeit 100, `WEATHER_WEIGHTS`). Raue Lagen: Frühling 5 %,
+Sommer 15 %, Herbst 20 %, Winter 25 %; „Wechselhaft“ immer mindestens 35 % (Inhaltstest).
+Gemessene Häufigkeit nach den Regeln (2000 Zyklen × 400 Tage, `tests/weather-balance.test.ts`, echte Logik – gleich wie im Modell):
+
+| Jahreszeit | ⛅ | 🌧️ | ☀️ | 🌫️ | 🌨️ | 🌡️ | 🌬️ | 🧊 |
+|---|---|---|---|---|---|---|---|---|
+| Frühling | 41,4 % | 24,9 % | 20,0 % | 10,0 % | – | – | – | 3,7 % |
+| Sommer | 40,9 % | 14,9 % | 30,2 % | – | – | 9,3 % | 4,7 % | – |
+| Herbst | 38,1 % | 10,0 % | 10,0 % | 25,0 % | – | – | 16,8 % | – |
+| Winter | 40,1 % | – | – | 10,0 % | 30,1 % | – | 4,0 % | 15,9 % |
+
+Nie zwei raue Tage in Folge (gezählt: 0).
+
+**Warum diese Lagen:** Jede Jahreszeit hat ein Wetter, das sie prägt (Frühlingsregen,
+Sommersonne, Herbstnebel und -sturm, Winterschnee), und höchstens zwei Gefahren, die sich
+wie im echten Wald anfühlen: Spätfrost, Sommerdürre und Gewittersturm, Herbststurm,
+Barfrost. „Borkenkäferjahr“ aus der Roadmap ist kein Wetter, sondern eine Folge der Dürre
+(offene Fragen, 21.11). Wetter-Ereignisse mit Wahl (Hitzewelle, Spätfrost, Sturmnacht, 7.4)
+bleiben unabhängig davon bestehen.
+
+**Dämpfung rauer Lagen** (nur negative Werte, die Samen bleiben voll):
+
+```
+Abzug    = Grundabzug × (1 − Vielfalt) × Schutz
+Vielfalt = min(0,5; 0,1 × Gattungen mit mindestens einem Tier)   // 6 Gattungen inkl. Amphibien
+Schutz   = 0,5, wenn die Pflegemaßnahme `protection` mindestens Rang 1 hat, sonst 1
+Kiefer (winterfest): Frost-Abzug entfällt ganz (wie beim Winter, 17)
+```
+
+Beispiele Sturm (−15 % 🌿): mit einer Wühlmaus (1 Gattung) −13,5 %; Hain mit 5 Gattungen
+−7,5 %; dazu Lichte Krone −3,75 %. Schlimmster Tag: Winter (−10 %) + Sturm (−15 %, im Winter 5 %) ohne Tiere
+und ohne Lichte Krone = −25 % 🌿 für 3 min – mit +25 % 🌰 (Winter + Frost: −20 % 🌿, +15 % 🌰). Botanik: Wasser aus dem Tümpel puffert die Dürre, eine
+ausgelichtete Krone fängt weniger Wind, eine Laubdecke schützt die Wurzeln vor Frost; Frost
+bricht die Keimruhe vieler Baumsamen (Stratifikation).
+
+**Mittel je Jahreszeit** (langfristig; 🌿 ungedämpft → mit 50 % Dämpfung):
+
+| Jahreszeit | 🌿 | 🌰 | Gruppen |
+|---|---|---|---|
+| Frühling | +2,6 → +2,8 % | +2,6 % | Blumen +4 % 🌰, Moose +3 % 🌿 |
+| Sommer | −0,6 → +0,5 % | +6,1 % | Blumen +6 % 🌰 |
+| Herbst | −0,3 → +1,0 % | +5,3 % | Moose +7,5 % 🌿, Blumen +2 % 🌰 |
+| Winter | −0,2 → +0,9 % | +3,4 % | Moose +3 % 🌿 |
+| **Jahr** | **+0,4 → +1,3 %** | **+4,3 %** | |
+
+### 21.4 Formeln (für den `core-engineer`)
+
+```ts
+// Startwert des Wetters eines Zyklus (kein neues Feld: cycle.number und cycle.startedAt)
+weatherSeed(cycle)   = normalizeSeed((cycle.startedAt ?? 0) + cycle.number * 1_000_003)
+weatherRoll(seed, n) = random({ rngState: normalizeSeed((seed ^ Math.imul(n >>> 0, 0x9e3779b1)) >>> 0) })
+rawWeather(seed, n)  = gewichtete Wahl aus WEATHER_WEIGHTS[SEASON_IDS[n mod 4]] mit weatherRoll
+                       (Reihenfolge der Einträge wie in den Daten)
+weatherOfDay(seed, n):
+  n = 0                                           → FIRST_DAY_WEATHER ('mild')
+  raw = rawWeather(seed, n) nicht rau             → raw
+  n < GENTLE_DAYS                                 → AFTER_ROUGH_WEATHER ('mild')
+  n − 1 ≥ GENTLE_DAYS und rawWeather(n − 1) rau   → AFTER_ROUGH_WEATHER
+  sonst                                           → raw
+weatherEffects(state, w) = w.effects; negative pct × (1 − Vielfalt) × Schutz (0 bei immuneTrees)
+```
+
+Regel 3 prüft das **Rohwetter** des Vortags: War der Vortag rau, war schon sein Rohwetter
+rau – also nie zwei raue Tage, ohne Rekursion. Umsetzung: `src/core/weather.ts` (das Modell
+`scripts/weather-model.ts` ist gelöscht). `startedAt` fehlt nur bei Ständen vor v4 → 0 (ebenso
+NaN/Infinity). `random` läuft auf einem eigenen Halter und verändert den Spielstand-Zufall
+(`rngState`) nicht. „Gattungen mit mindestens einem Tier“ zählt nur Tiere in den Nischen, je
+Gattung einmal – „zählt als Vogel“ (Langohr) und Gäste nicht.
+
+**Nacht:** `isNight(elapsed) = dayPhaseAt(elapsed) ≥ 0,75 oder < 0,25` – Sekunde 81 bis 171
+jedes Tages (`NIGHT_START_PHASE`, `NIGHT_END_PHASE`). Die Grafik zeigt volle Nacht nur
+~0,83–0,17; spielerisch zählt die Dämmerung schon mit (die Tiere werden bei Sonnenuntergang
+wach), damit Nacht und Tag je genau die Hälfte sind.
+
+### 21.5 Offline: Mittel statt Einzelwetter
+
+`simulateOffline` ab `OFFLINE_AVERAGE_MIN_SECONDS = 180` (kürzere Lücken wie online) rechnet
+je Jahreszeit mit dem **Mittelwetter**:
+
+```
+p_eff(w) = p(w) × (1 − r_vor)   für raue w,   r_vor = Anteil rauer Lagen der Vorjahreszeit
+Mittelwetter(s) = Σ_w p_eff(w) × weatherEffects(state, w)    // gebrochen, z. B. +2,6 % 🌿
+Nacht offline   = NIGHT_SHARE (0,5) × Nachtwirkung
+```
+
+„Wechselhaft“ bekommt den Rest. **Erstes Jahr** (umgesetzt nach dem Review): Tag 0 rechnet
+offline mit seinem festen Wetter („Wechselhaft“, exakt), die Tage 1–3 (Schonzeit) mit dem
+**Schonzeit-Mittel** – raue Anteile ganz zu „Wechselhaft“ umgebucht
+(`weatherProbabilities(season, true)`, `averageWeatherOf(elapsed)`, Cache-Schlüssel
+`|w:avg:<Art>`). Jahre werden im Mittel erst nach der Schonzeit übersprungen.
+
+**Sprungstelle bei 180 s:** Unter 180 s Abwesenheit rechnet `simulateOffline` mit dem
+Einzelwetter (wie online), ab 180 s mit dem Mittel. Zwischen 179 und 180 s kann das Ergebnis
+darum springen – höchstens um den Unterschied zwischen Tageswetter und Mittel für diese
+3 min (wenige Prozent der Rate, ein paar Sekunden Produktion). Gewollt: Kurze Lücken (Tab
+verdeckt) bleiben exakt wie online, lange sind unabhängig vom Zufall des Tages. Dadurch:
+
+- **Kein Halt offline** für Wetter oder Nacht; `skipYears` bleibt exakt (ein Jahr = Σ Mittel
+  je Jahreszeit × 180 s). 8 h offline kosten nichts zusätzlich.
+- Online und offline liefern im Mittel dasselbe (Modell: Hain −1,3 % gemittelt gegenüber
+  −2,4 % mit Einzelwetter bzw. −1,9 / −2,9 % – innerhalb der Streuung).
+- Die Rückkehr-Meldung sagt ehrlich „Wetter gemittelt“; optional nennt sie die Tage, die es
+  gegeben hätte („4 × Regen, 1 × Sturm“) – nur Text, berechnet mit `weatherOfDay`.
+- **Invariante ändert sich:** viele kleine Ticks = ein großer Tick (beide Einzelwetter);
+  `simulateOffline` = Ticks im Modus „Mittel“. Umgesetzt: Die Äquivalenztests in
+  `tick.test.ts`, `seasons.test.ts`, `events.test.ts`, `stats.test.ts` prüfen beide Hälften
+  mit unveränderter Genauigkeit; `care`, `cycle` und `decline` vergleichen `simulateOffline`
+  mit kleinen Ticks im Modus „Mittel“. Online gegen offline gilt nur noch im Mittel
+  (`weather-core.test.ts`: Einzelwetter über viele Zyklen ≈ Mittelwetter ± 0,3 Prozentpunkte;
+  8 h Hain mit Nachtarten ± 3 %).
+- **Riesige Ticks:** Ein `tick` über `MAX_LIVE_SECONDS` (100 Jahre Spielzeit = 20 h) rechnet
+  ganz gemittelt – mit Einzelwetter bräuchte er drei Runden je Tag und könnte keine Jahre
+  überspringen. Kommt im Spiel nicht vor (online ≤ 1 s je Frame, offline gemittelt).
+
+### 21.6 Nachtaktive Arten
+
+Nachts (21.4) bekommt eine nachtaktive Art eine **Zusatzwirkung**, mit ihrer Zufriedenheit
+skaliert wie ihre Grundwirkung. Ohne Nachtarten ist die Nacht folgenlos – keine Strafe,
+nichts zu verpassen (offline zählt der Nachtanteil).
+
+| Art | Nachtwirkung | Jahreszeiten | Name | Text |
+|---|---|---|---|---|
+| 🦉 Waldkauz | +10 % 🌿 | ganzjährig | Nachtjagd | „Im Dunkeln hält der Kauz die Mäuse von den Wurzeln fern – auch im Winter.“ |
+| 🦇 Braunes Langohr | +12 % 🌰 | nicht im Winter | Nachtfalterjagd | „Fängt die Falter, deren Raupen sonst an den Früchten fressen. Im Winter schläft es.“ |
+| 🦔 Igel | +6 % 🌿 | nicht im Winter | Nachtschmaus | „Schmatzt nachts Schnecken weg. Den Winter verschläft er im Laubhaufen.“ |
+| ✨ Glühwürmchen | +6 % 🌿 | nicht im Winter | Leuchtende Jäger | „Die leuchtenden Larven jagen nachts Schnecken am Waldsaum.“ |
+
+Auswahl wie in der Roadmap (Fledermaus, Waldkauz, Glühwürmchen, Igel). Nacktschnecke und
+Steinläufer sind laut Text auch nachtaktiv, bekommen aber nichts: Die Schnecke würde nachts
+mehr fressen (eine Strafe), der Steinläufer ist zu unauffällig. Winter: Igel und Fledermaus
+halten Winterschlaf, Glühwürmchen leuchten nicht (wie die Grafik, 19.2); der Kauz balzt
+gerade im Winter – so hat auch die Winternacht etwas.
+
+**Bewusst keine Harmonie** (z. B. für das Glühwürmchen): Harmonie, die nur nachts gilt, nähme
+die Sperrklinke H_max in jeder Nacht mit – faktisch ein Dauerbonus.
+
+**Werte:** Zuerst gerechnet mit +6 / +8 / +4 / +4 – nicht messbar (Hain −0,2 bzw. −1,1 %).
+Mit den heutigen Werten gemessen am Ende des Laufs (40 Durchgänge, Sommernacht gegenüber Tag):
+Beim Hain haben 19–25 von 40 Wäldern eine Nachtart, 🌿/s steigt nachts im Mittel um 2 %,
+höchstens um 7,5 %; im Urwald (35–38 von 40) um 2–3 % 🌿/s und 3 % 🌰/s. Spürbar wird die
+Nacht über die Anzeige (21.8), nicht über die Zahl allein – gewollt, damit niemand nachts
+online sein „muss“.
+
+### 21.7 Spielstand
+
+**Keine neuen Felder, kein `SAVE_VERSION`.** Wetter = f(`cycle.number`, `cycle.startedAt`,
+`cycle.elapsed`), Nacht = f(`cycle.elapsed`), Dämpfung = f(Ökosystem, `cycle.care`,
+`cycle.mainTree`). Das Wetter setzt auf v12 auf. Auch ein Wetter-Protokoll ist unnötig: Die UI
+kann vergangene und kommende Tage jederzeit neu berechnen. Erst wenn ein eigener Seed nötig
+wird (z. B. „Wetter neu würfeln“), v13.
+
+### 21.8 Darstellung und UI
+
+**Renderer** (`SceneInput.weather?: WeatherId` und `weatherBlend` 0–1 für die Überblendung
+über `WEATHER_BLEND_SECONDS = 6` s am Tageswechsel; „Weniger Bewegung“: ohne Überblendung,
+halb so viele Partikel, kein Wind-Ausschlag):
+
+| Wetter | Bild |
+|---|---|
+| ⛅ Wechselhaft | wie heute |
+| 🌧️ Landregen | graue Wolkendecke (getönte Wolken-Sprites), schräge Regenstriche als gepoolte Partikel (Desktop ≤ 120, mobil ≤ 60), feucht glänzender Boden; Glühwürmchen-Schein aus |
+| ☀️ Sonnenschein | kaum Wolken, kräftigere Sonnenstrahlen, Blumen etwas gesättigter |
+| 🌫️ Nebel | 2–3 gecachte Nebelbänder (Verlauf, halbtransparent) in Bodennähe, langsam driftend; Hintergrund blasser |
+| 🌨️ Neuschnee | fallende Flocken (Partikel wie Regen, langsamer), Schneehäubchen auf Ästen (Winterbild verstärkt) |
+| 🌡️ Dürre | warmer, leicht gelber Ton der Landschaft (über die vorhandenen Tönungsstufen), Gras strohig, Hitzeflimmern nur ohne „Weniger Bewegung“ |
+| 🌬️ Sturm | dunkle, schnell ziehende Wolken, Wind-Ausschlag ×2–3 (vorhandener Wind), fliegende Blätter; **keine Blitze und kein Flackern** (Lichtempfindlichkeit) |
+| 🧊 Frost | Raureif: weißlicher Saum an Ästen und Gras, leises Glitzern (wenige Sprites) |
+
+Leistung wie 19.3: Tönungen über die vorhandenen getönten Kopien (neue Tönungsstufe nur beim
+Wechsel), Partikel aus einem Pool, Nebel als vorgefertigte Sprites – kein Vollbild-Effekt pro
+Frame. Nachts liegt das Wetter über der Nachttönung (Regen kaum sichtbar, Schnee hell).
+Nachtarten: Kauz, Fledermaus, Igel und Glühwürmchen nachts sichtbar aktiver (Fledermaus fliegt
+Kreise, Igel wandert durchs Laub), tagsüber ruhiger (Kauz döst in der Höhle) – nur Bewegung,
+sie verschwinden nie.
+
+**UI** (`ui-dev`):
+- Abzeichen neben der Jahreszeit: „🌬️ Sturm · −8 % 🌿 · +25 % 🌰“ (gedämpfte Werte), Tooltip
+  mit Text, Dämpfung („Vielfalt −50 %, Lichte Krone −50 %“) und „Morgen: 🌫️ Nebel“.
+- Hinweis beim Wechsel (online) mit dem Text des Wetters – zusammen mit dem
+  Jahreszeiten-Hinweis in **einem** Toast (beide fallen auf dieselbe Grenze):
+  „🍂 Herbst · 🌬️ Sturm“.
+- Pflegemaßnahmen mit Schutzwirkung zeigen „Schützt vor Sturm“ (bzw. Dürre, Frost).
+- Nachtarten: Karte und Übersicht zeigen „🌙 nachts +10 % 🌿“; nachts leuchtet das 🌙 an den
+  aktiven Arten, die Raten-Anzeige bekommt ein kleines 🌙, solange eine Nachtwirkung gilt.
+- Rückkehr-Meldung: „Wetter gemittelt“ (21.5).
+- Einstellung „Tageszeit: Immer Tag“ (19.1) betrifft nur das Bild – die Wirkung läuft weiter
+  wie bei der Jahreszeit; der Tooltip sagt das.
+
+### 21.9 Aufgabenschnitt
+
+**`core-engineer`** (ohne Spielstand-Änderung) – **erledigt**, siehe Schnittstellen unten:
+1. `core/weather.ts` (rein, wie `season.ts`): `weatherSeed`, `weatherOfDay(cycle, n)`,
+   `weatherAt(state)`, `weatherForecast(state)` (morgen), `isNight(elapsed)`,
+   `secondsToNightChange(elapsed)`, `averageWeatherEffects(state, season)`.
+2. `evaluate`: Wetterwirkungen (gedämpft) zu `extraEffects` wie die Jahreszeit; Nachtwirkungen
+   je Nachtart × Zufriedenheit (wie die Grundwirkung, nur `growth`/`seeds`). Cache-Schlüssel
+   `|w:${weatherId}|n:${night ? 1 : 0}` bzw. `|w:avg`. `Ecosystem` bekommt `weather?` und
+   `night?` (bzw. das Mittel). `seedSecondsRate` ohne beides.
+3. `tick`: online zwei neue Halte je Tag (Sekunde 81 und 171); der Wetterwechsel fällt auf den
+   Jahreszeiten-Halt. `TickReport.weather: WeatherId[]` (erreichte Tage, gekürzt wie
+   `seasons`). Modus „Mittel“ für `simulateOffline` ab 180 s: keine Nacht-Halte, `skipYears`
+   mit Mittelwerten.
+4. Tests: Häufigkeiten (≥ 10 000 Tage, ±1 Prozentpunkt), Regeln (Tag 0, Schonzeit, nie zwei
+   rau), Dämpfung (Gattungen, Schutz, Kiefer), Nachtgrenzen 80,999 / 81 / 171, Mittel =
+   Σ p_eff × Wirkung, kleine Ticks = großer Tick, Neuer Zyklus → neue Folge, Laden ohne
+   `startedAt`. Danach `tests/weather-balance.test.ts` auf die echte Logik umstellen und
+   `scripts/weather-model.ts` löschen.
+
+**Schnittstellen für `renderer` und `ui-dev`** (alle rein, jeden Frame nutzbar):
+
+| Bedarf | Aufruf |
+|---|---|
+| Wetter der Szene mit Überblendung | `sceneWeather(state.cycle)` → `{ weather, previous, blend }` (`blend` 0 → 1 über `WEATHER_BLEND_SECONDS` ab Tagesbeginn; Tag 0 und gleiches Wetter: 1) |
+| Abzeichen | `weatherAt(state)` (Daten: Name, Icon, Text, `summary`), `weatherEffects(state)` (gedämpfte `TimedEffect[]`) |
+| Tooltip-Dämpfung | `weatherDamping(state, weather?)` → `{ rough, genera, diversity, protectedBy, immune, factor }` |
+| Vorhersage | `weatherForecast(state)` (Wetter von morgen) |
+| Hinweis beim Wechsel | `TickReport.weather: WeatherId[]` – parallel zu `seasons`, gleich gekürzt |
+| Rückkehr-Meldung | `OfflineReport.averaged` (gemittelt gerechnet) und `.weather` (die Tage, die es gegeben hätte) |
+| Nacht | `isNight(elapsed)`, `secondsToNightChange(elapsed)`, `nocturnalSpecies(state, season)` (wirkende Nachtarten) |
+| Mittel / Häufigkeit | `averageWeatherEffects(state, season)`, `weatherProbabilities(season)` |
+
+`evaluate(state, ambient = 'live')`, `ecosystemOf(state, patch, ambient)` und
+`tick(state, dt, ambient = 'live')` kennen die Modi `live` | `average` | `off`; die UI braucht
+nur den Standard.
+
+**`renderer`**: `SceneInput.weather` / `weatherBlend` und die Bilder aus 21.8, Nachtverhalten
+der vier Arten, Demo `?weather=…`.
+
+**`ui-dev`**: Abzeichen mit Vorhersage, gemeinsamer Toast, Nachtsymbole, Schutz-Hinweise,
+Rückkehr-Text (21.8).
+
+### 21.10 Simulation (echte Logik, 100 Durchgänge bis Urwald, alle Systeme mit Pflege)
+
+Gemessen mit `RunOptions.ambient` in `scripts/simulate.ts` (`off` | `live` | `average`, wie
+`tick`); das Modell `scripts/weather-model.ts` ist gelöscht. „ohne“ = Modus `off`.
+
+```bash
+SIM_WEATHER=1 SIM_WEATHER_RUNS=100 SIM_WEATHER_FULL=1 npx vitest run tests/weather-balance.test.ts --silent=false   # ~1 min
+```
+
+**Gierig nach Harmonie**
+
+| Variante | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | Durststrecke 90 % Alter Baum / Hain |
+|---|---|---|---|---|---|---|---|
+| ohne | 4:11 min | 22:42 min | 1:02:32 h | 1:54:49 h | 2:49:52 h | 107,7 | 9:49 / 9:41 min |
+| **Wetter + Nacht (online)** | 4:11 min | 21:48 min | **1:00:58 h (−2,5 %)** | 1:51:23 h | 2:44:21 h | 107,1 | 9:54 / 9:39 min |
+| Wetter + Nacht, gemittelt (offline) | 4:10 min | 22:22 min | 1:01:37 h (−1,5 %) | 1:52:23 h | 2:42:01 h | 107,6 | 9:58 / 9:11 min |
+
+**Gierig nach Wachstum**
+
+| Variante | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain |
+|---|---|---|---|---|---|---|
+| ohne | 3:56 min | 19:38 min | 54:48 min | 1:37:52 h | 2:23:26 h | 101,4 |
+| **Wetter + Nacht (online)** | 3:56 min | 18:49 min | **53:21 min (−2,6 %)** | 1:35:52 h | 2:19:29 h | 100,7 |
+| Wetter + Nacht, gemittelt (offline) | 3:55 min | 19:20 min | 54:01 min (−1,4 %) | 1:36:10 h | 2:19:33 h | 101,1 |
+
+**Abweichungen gegenüber dem Modell** (Entwurf, gleiche Seeds): Häufigkeiten (21.3) gleich
+auf 0,1 Prozentpunkte – dieselbe Rechnung. Online Hain 1:00:58 statt 1:00:59 h (Harmonie)
+bzw. 53:21 statt 53:32 min (Wachstum), Urwald 2:44:21 statt 2:44:22 h bzw. 2:19:29 statt
+2:19:14 h; gemittelt (mit Schonzeit-Mittel) Hain 1:01:37 statt 1:01:40 h bzw. 54:01 statt 54:03 min. Die
+„ohne“-Zeile liegt 4 s (Harmonie) bzw. 19 s (Wachstum) anders als im Modell, weil die
+Strategien ihre Wahl jetzt mit der echten Bewertung (inkl. Wetter des Tages) treffen und der
+Simulator an den Nachtgrenzen anhält. Die beiden Näherungen des Modells (Zufriedenheit der
+Nachtart am Beginn der Nacht, Vielfalt am Beginn des Tages) fallen weg; der Unterschied liegt
+unter einer Minute bis zum Urwald. Die Zeilen „nur Wetter“ / „nur Nachtarten“ gibt es mit der
+echten Logik nicht mehr (ein Schalter für beides); im Modell: Wetter −2,3 / −2,7 %, Nacht
+−0,2 / −1,4 % beim Hain.
+
+**Pflege-Reserve:** Im Wald haben Harmonie-Spieler mit Wetter im Mittel 14,6 statt 11,1 min
+Produktion angespart (30 Durchgänge, `balance-care.test.ts`; gemittelt 13,1 min) – sie kommen
+~4 % früher und mit +4 % 🌰 dort an, wo auf die Wald-Ränge gespart wird. Die Prüfung erlaubt
+dort jetzt 15 statt 12 min; beim Hain bleibt < 10 min (gemessen 9,4 min).
+
+**Bewertung:** Hain 2–3 % schneller, Urwald 2–3 %, Harmonie unverändert (±0,7), Durststrecken
+gleich (Unterschiede ≤ 1 min, Streuung), frühes Spiel unverändert dank Schonzeit (Junger Baum
+gleich). Wachstums- und Harmonie-Spieler profitieren gleich – das Wetter bevorzugt keinen
+Stil; online und offline liegen im Mittel gleichauf (gemittelt 1 % langsamer bis zum Hain,
+im Urwald gleich). Seit dem Schonzeit-Mittel (Review) kennt auch die gemittelte Zeile Tag 0
+und die Schonzeit: Junger Baum 4:10 / 3:55 min statt vorher 4:06 / 3:51 min (online 4:11 / 3:56).
+
+### 21.11 Offene Fragen (entschieden)
+
+- **Nachtwirkung:** bleibt wie entworfen (Kauz +10 %, Langohr +12 %, Igel und Glühwürmchen
+  je +6 %) – Atmosphäre vor Zahl, niemand soll nachts online sein müssen.
+- **Borkenkäferjahr:** kommt später als **Ereignis** (z. B. nach zwei Dürren in einem Jahr,
+  mit Wahl Totholz ↔ Samen), nicht als Wetterlage.
+- **Wetter und Begegnungen** (Regen → Krötenwanderung, Sturm → Windwurf): kommt mit Welle 3
+  (Räuber und Beute), vorerst kein Einfluss auf die Gewichte.
+- **Tagesziele (20):** keine Wetter-Tagesziele („Erlebe einen Sturm“ wäre passiv, „Pflanze
+  bei Regen“ ein Zwang zum Zuschauen).
+- Offen bleibt nur die Idee einer Lebensgemeinschaft „Nachtschwärmer“ (Kauz, Langohr,
+  Glühwürmchen) mit ganztägiger Harmonie – erst, wenn Welle 3 Gemeinschaften erweitert.

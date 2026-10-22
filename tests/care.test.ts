@@ -130,7 +130,17 @@ describe('Pflege: Kauf und Wirkung', () => {
       // alles kaufen, was geht
     }
     const offline = structuredClone(online);
-    for (let i = 0; i < 3600; i++) tick(online, 1);
+    // Einzelwetter (Schutz vor rauen Lagen wirkt dort): kleine Ticks = ein großer Tick.
+    const small = structuredClone(online);
+    const big = structuredClone(online);
+    for (let i = 0; i < 3600; i++) tick(small, 1);
+    tick(big, 3600);
+    expect(big.pendingEncounters).toEqual(small.pendingEncounters);
+    expect(big.rngState).toBe(small.rngState);
+    expect(big.totalGrowth).toBeCloseTo(small.totalGrowth, 4);
+    expect(big.seeds).toBeCloseTo(small.seeds, 4);
+    // simulateOffline rechnet ab einem Tag mit dem Mittelwetter (DESIGN_V2.md 21.5): online im selben Modus.
+    for (let i = 0; i < 3600; i++) tick(online, 1, 'average');
     simulateOffline(offline, 3600);
     expect(offline.cycle.care).toEqual(online.cycle.care);
     expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
