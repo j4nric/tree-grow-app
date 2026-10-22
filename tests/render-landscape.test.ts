@@ -300,6 +300,25 @@ describe('drawScene: Kulisse je Standort im Cache', () => {
     expect(sceneCacheStats(el)!.siteFade).toBe(false);
   });
 
+  it('bei laufender Zeit rein zeitbasiert: mit 144 Hz so lang wie mit 60 Hz', () => {
+    for (const hz of [60, 144]) {
+      const canvas = makeCanvas(800, 600);
+      const el = canvas as unknown as HTMLCanvasElement;
+      const ctx = canvas.getContext('2d');
+      drawScene(ctx, 800, 600, { ...base, time: 1, site: 'home', reducedMotion: false });
+      drawScene(ctx, 800, 600, { ...base, time: 2, site: 'heath', reducedMotion: false });
+      const n = Math.round(hz * SITE_FADE_SECONDS);
+      let ended = -1;
+      for (let i = 1; i <= n + 5 && ended < 0; i++) {
+        drawScene(ctx, 800, 600, { ...base, time: 2 + i / hz, site: 'heath', reducedMotion: false });
+        if (!sceneCacheStats(el)!.siteFade) ended = i / hz;
+      }
+      // Endet nach SITE_FADE_SECONDS (± ein Frame), nicht nach 96 Frames.
+      expect(ended, `${hz} Hz`).toBeGreaterThan(SITE_FADE_SECONDS - 2 / hz);
+      expect(ended, `${hz} Hz`).toBeLessThan(SITE_FADE_SECONDS + 2 / hz);
+    }
+  });
+
   it('erster Frame mit einem Standort: keine Überblendung (nichts Altes zu zeigen)', () => {
     const canvas = makeCanvas(800, 600);
     frames(canvas, { site: 'heath' }, 1, 2);

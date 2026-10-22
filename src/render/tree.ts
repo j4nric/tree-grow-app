@@ -476,11 +476,13 @@ interface Cache {
   jayU: number;
   /**
    * Überblendung beim Standortwechsel: Kopie der alten Kulisse (wie gezeigt, samt Tönung),
-   * Beginn (Zeit und Frames) und der Ebenen-Satz, zu dem sie passt. null = keine.
+   * Beginn, Frames mit stehender Zeit, Zeit des letzten Frames und der Ebenen-Satz, zu dem
+   * sie passt. null = keine.
    */
   siteFade: HTMLCanvasElement | null;
   siteFadeAt: number;
   siteFadeFrames: number;
+  siteFadeLast: number;
   siteFadeSet: SizeCache | null;
   /** Deckkraft der alten Kulisse in diesem Frame (0 = keine Überblendung). */
   siteFadeAlpha: number;
@@ -863,6 +865,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       siteFade: null,
       siteFadeAt: 0,
       siteFadeFrames: 0,
+      siteFadeLast: 0,
       siteFadeSet: null,
       siteFadeAlpha: 0,
       shownSite: null,
@@ -1375,7 +1378,9 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
 
 /**
  * Deckkraft der alten Kulisse beim Standortwechsel nach `elapsed` Sekunden bzw. `frames`
- * Frames (falls die Zeit steht): sanft von 1 auf 0 – bei weniger Bewegung schneller.
+ * Frames mit stehender Zeit (Pause, feste Demo-Zeit – nur diese werden gezählt, sonst
+ * ist die Überblendung rein zeitbasiert, unabhängig von der Bildrate): sanft von 1 auf 0 –
+ * bei weniger Bewegung schneller.
  */
 export function siteFadeAlpha(elapsed: number, frames: number, reducedMotion: boolean): number {
   const d = reducedMotion ? SITE_FADE_REDUCED_SECONDS : SITE_FADE_SECONDS;
@@ -1402,13 +1407,22 @@ function startSiteFade(sc: SizeCache, cache: Cache, time: number): void {
   cache.siteFade = c;
   cache.siteFadeAt = time;
   cache.siteFadeFrames = 0;
+  cache.siteFadeLast = time;
   cache.siteFadeSet = sc;
 }
 
-/** Schritt der Überblendung: Deckkraft dieses Frames; danach (oder bei anderem Ebenen-Satz) freigeben. */
+/**
+ * Schritt der Überblendung: Deckkraft dieses Frames; danach freigeben. Frames zählen nur,
+ * solange die Zeit steht (oder zurückspringt) – bei laufender Zeit gilt allein die Zeit.
+ * Wechselt der gezeigte Ebenen-Satz während der Überblendung (Zoom: Basis ↔ Detail), endet
+ * sie sofort: Die Kopie passt nur zu Größe und Ausschnitt ihres Satzes, und ein Zoom in
+ * den ~1,6 s nach einem Neuen Zyklus ist selten – eine Kopie je Satz lohnt den Speicher nicht.
+ */
 function stepSiteFade(cache: Cache, sc: SizeCache, time: number, reduced: boolean): number {
   if (!cache.siteFade) return 0;
-  const a = cache.siteFadeSet === sc ? siteFadeAlpha(time - cache.siteFadeAt, cache.siteFadeFrames++, reduced) : 0;
+  if (!(time > cache.siteFadeLast)) cache.siteFadeFrames++;
+  cache.siteFadeLast = time;
+  const a = cache.siteFadeSet === sc ? siteFadeAlpha(time - cache.siteFadeAt, cache.siteFadeFrames, reduced) : 0;
   if (a <= 0) {
     cache.siteFade = freeCanvas(cache.siteFade);
     cache.siteFadeSet = null;
