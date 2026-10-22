@@ -1186,3 +1186,14 @@ Reiterseite selbst über `album/pages/registry.ts` (eine Zeile pro Seite).
 - **Lizenztexte der Schriften** liegen nur im Quellcode (`src/ui/album/fonts/OFL-*.txt`), nicht
   in `dist/`. In Schritt 12 entscheiden, ob sie mit ausgeliefert werden.
 - **`album/legacy.ts`** wird mit jedem Schritt kleiner und in Schritt 12 gelöscht.
+- **Neuladen auf einer Unterseite (Review KANN 5):** Der aktuelle Eintrag wird `album:0`,
+  die älteren Einträge (`album:1`, Grundeintrag) liegen aber noch darunter. Die ersten zwei
+  Zurück-Drücke bleiben ohne sichtbare Wirkung, erst der dritte verlässt die App. Lösung offen:
+  `history.go(-n)` beim Start oder ein Hinweis in C.2.
+- **Veralteter Hash nach `landscape-locked` bei offenem Umschlag (Review KANN 7):** Reiter
+  Landschaft → Umschlag → alten Stand importieren → Umschlag schließen: `go(-1)` landet auf
+  dem Grundeintrag mit `#landschaft`, angezeigt wird Nischen. Folgenlos, weil `tabFromHash`
+  zurückfällt.
+- **`toast-place.ts` misst `.polaroid .scene-camera` (Review KANN 9):** Solange einspaltig ein
+  Toast sichtbar ist, gibt es pro Frame ein `getBoundingClientRect()`. Entfällt mit Schritt 4
+  (toast-place wird gelöscht).
