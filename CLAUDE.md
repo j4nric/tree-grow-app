@@ -53,8 +53,10 @@ docs/        GAME_DESIGN.md (Spielregeln & Zahlen), ROADMAP.md (Aufgaben).
 - **Zahlen und Balancing** stehen in `docs/GAME_DESIGN.md`. Wer Werte in `content/`
   ändert, aktualisiert das Dokument.
 - **Jede Logikänderung bekommt Tests.** `npm run check` muss grün sein.
-- **Große Zahlen:** Bis Stufe „Urwald“ reichen JS-`number`s. Erst bei Prestige über
-  ~1e300 auf `break_infinity.js` umstellen (eigene Aufgabe in der Roadmap).
+- **Große Zahlen:** JS-`number`s reichen, auch für die Waldlandschaft (gemessen < 1e5 🌿/s,
+  Begründung in `docs/DESIGN_V2.md` §24.9). Neue Prestige-Ebenen gehen in die Breite, nicht
+  in unbegrenzte Multiplikatoren: jeder Faktor bekommt eine Obergrenze. `break_infinity.js`
+  erst, wenn eine Messung ~1e300 zeigt (Migrationsplan in §24.9).
 - **Performance:** Der Renderer läuft jeden Frame. Teure Zeichnungen cachen
   (z. B. Offscreen-Canvas), nicht pro Frame neu berechnen.
 - Keine neuen Abhängigkeiten ohne Begründung im PR.
