@@ -150,6 +150,8 @@ body[data-motion='reduce'] .tab-new {
 
 .tab-strip[data-fit^='icons'] .tab:not([aria-selected='true'])::before,
 .tab-strip[data-fit='icons-only'] .tab::before {
+  /* Rückfall für Browser ohne Alternativtext-Syntax (Safari < 17.4, Firefox < 128). */
+  content: attr(data-icon);
   content: attr(data-icon) / '';
   font-family: var(--font-text);
   font-size: 20px;

@@ -34,7 +34,7 @@ export const NICHES: readonly Niche[] = [
     // Erweiterung Amphibien (DESIGN_V2.md 5.5): keine Plätze aus der Stufe. Der Tümpel
     // entsteht durch die Pflege „Waldtümpel“ (+2, im Hain +2) oder das Ereignis
     // „Regenreicher Frühling“ (+1) bzw. „Krötenwanderung“ (+1).
-    id: 'pond', name: 'Waldtümpel', icon: '🏞️', place: 'Wasser und Ufer der Senke',
+    id: 'pond', name: 'Waldtümpel', icon: '🪷', place: 'Wasser und Ufer der Senke',
     slots: [0, 0, 0, 0, 0, 0, 0, 0], opensEarly: true,
   },
   // Lebensräume (DESIGN_V2.md 23.2): Waldwiese, Totholzhaufen, Trockenmauer – wie der Tümpel.

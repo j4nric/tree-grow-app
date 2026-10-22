@@ -247,7 +247,7 @@ Jede Nische hat begrenzte Plätze; eine Art lebt höchstens einmal im Ökosystem
 | 🪵 Stamm & Rinde | Borke | – | – | 1 | 2 | 2 | 3 | 3 |
 | 🕳️ Höhlen & Totholz | Spechthöhlen, tote Äste | – | – | (–)¹ | 1 | 2 | 2 | 3 |
 | **Summe** | | 1 | 4 | 9 | 13 | 16 | 20 | 22 |
-| 🏞️ Waldtümpel² | Wasser und Ufer der Senke | – | – | – | – | – | – | – |
+| 🪷 Waldtümpel² | Wasser und Ufer der Senke | – | – | – | – | – | – | – |
 
 ¹ Höhlen öffnen sich schon früher, wenn Totholz entsteht: +1 durch Borkenkäfer,
 Buntspecht, Ereignis „Sturmnacht“ oder Pflege „Nistkästen“; +1 Krone und Höhlen durch
