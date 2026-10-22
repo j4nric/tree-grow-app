@@ -9,20 +9,35 @@
  *
  * `update()` darf jeden Frame laufen; es ändert nur bei neuer Anzahl etwas am DOM.
  */
+import { EVENTS_BY_ID } from '../content/events';
+import { VISITORS_BY_ID } from '../content/visitors';
+import type { PendingEncounter } from '../core/state';
 import { el, setAttr, setText } from './dom';
 import { restartAnimation } from './feedback';
 import { waitingText } from './view-format';
 
 export interface EncounterStack {
-  /** `kind`: Typ der vordersten Begegnung – bestimmt das Symbol auf dem Stapel. */
-  update(count: number, kind?: 'animal' | 'plant' | 'event' | 'visitor'): void;
+  /** `head`: vorderste Begegnung – bestimmt das Symbol auf dem Stapel (`stackIcon`). */
+  update(count: number, head?: Pick<PendingEncounter, 'type' | 'cards'>): void;
   readonly element: HTMLButtonElement;
 }
 
 export { waitingText };
 
-/** Symbol auf dem Stapel je Art der obersten Begegnung. */
+/** Symbol auf dem Stapel je Art der obersten Begegnung (Ersatz, wenn die Karte unbekannt ist). */
 const STACK_ICONS = { animal: '🐾', plant: '🌱', event: '⛈️', visitor: '🦢' } as const;
+
+/**
+ * Symbol der vordersten Begegnung: bei Ereignis und Gast das eigene Symbol aus content
+ * (🌩️ Sturmnacht, 🐝 Bienenschwarm, 🦢 Kranichzug …), sonst das der Art der Begegnung.
+ */
+export function stackIcon(head: Pick<PendingEncounter, 'type' | 'cards'> | undefined): string {
+  if (!head) return STACK_ICONS.animal;
+  const id = head.cards[0] ?? '';
+  if (head.type === 'event') return EVENTS_BY_ID.get(id)?.icon ?? STACK_ICONS.event;
+  if (head.type === 'visitor') return VISITORS_BY_ID.get(id)?.icon ?? STACK_ICONS.visitor;
+  return STACK_ICONS[head.type] ?? STACK_ICONS.animal;
+}
 
 export function createEncounterStack(root: HTMLElement, onOpen: () => void): EncounterStack {
   const button = el('button', 'encounter-stack');
@@ -46,13 +61,10 @@ export function createEncounterStack(root: HTMLElement, onOpen: () => void): Enc
   watchScroll(root);
 
   let shown = -1;
-  let shownKind = '';
 
-  function update(count: number, kind: 'animal' | 'plant' | 'event' | 'visitor' = 'animal'): void {
-    if (kind !== shownKind) {
-      shownKind = kind;
-      setText(icon, STACK_ICONS[kind]);
-    }
+  function update(count: number, head?: Pick<PendingEncounter, 'type' | 'cards'>): void {
+    // setText ändert das DOM nur bei neuem Symbol.
+    setText(icon, stackIcon(head));
     if (count === shown) return;
     const grew = shown >= 0 && count > shown;
     shown = count;

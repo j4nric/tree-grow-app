@@ -805,7 +805,7 @@ function refreshViews(now: number): void {
   if (ecoDirty) seasonShownSecond = -1;
   refreshSeasonBadge();
   refreshPanel(now);
-  stack.update(state.pendingEncounters.length, state.pendingEncounters[0]?.type ?? 'animal');
+  stack.update(state.pendingEncounters.length, state.pendingEncounters[0]);
   refreshEncounter();
   refreshPicker(now);
 }

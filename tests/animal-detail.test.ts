@@ -53,7 +53,7 @@ describe('Tierdetails: View-Model', () => {
     const food = view.conditions[0]!;
     expect(food.met).toBe(now.animals.jay!.food > 0);
     expect(food.hint).toBe(`${formatPercent(now.animals.jay!.food)} gedeckt · teilt sich das Futter mit Eichhörnchen`);
-    // ✓ nur bei ausreichender Deckung, sonst ◐ (teilweise).
+    // ✓ nur bei ausreichender Deckung, sonst ~ (teilweise).
     expect(food.partial === true).toBe(isScarceFood(now.animals.jay!.food));
   });
 

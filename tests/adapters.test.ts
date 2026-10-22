@@ -534,7 +534,7 @@ describe('Stimmung und Futter-Haken: knapp nur unter FOOD_ENOUGH', () => {
     expect(isFullHappiness(0.994)).toBe(false);
   });
 
-  it('Bedingungen: ✓ nur bei ausreichender Deckung, sonst teilweise (◐)', () => {
+  it('Bedingungen: ✓ nur bei ausreichender Deckung, sonst teilweise (~)', () => {
     const [enough] = conditionViews(moth, status(1, 1));
     expect(enough).toMatchObject({ met: true });
     expect(enough!.partial).toBeUndefined();

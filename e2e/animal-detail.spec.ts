@@ -124,7 +124,7 @@ test('Tierdetails: Ziehen vom Karteninhalt auf den Hintergrund schließt nicht',
   await expect(dialog).toBeHidden();
 });
 
-test('Tierdetails: knappes Futter mit ◐ statt ✓, volle Zufriedenheit ohne Futtergrund', async ({ page, context }) => {
+test('Tierdetails: knappes Futter mit ~ statt ✓, volle Zufriedenheit ohne Futtergrund', async ({ page, context }) => {
   const start = new Date('2026-10-21T08:00:00Z');
   await page.clock.install({ time: start });
   await page.clock.pauseAt(new Date(start.getTime() + 1000));
@@ -154,7 +154,7 @@ test('Tierdetails: knappes Futter mit ◐ statt ✓, volle Zufriedenheit ohne Fu
   await tile(page, 'crown', 'oakmoth').click();
   const row = detail(page).locator('.card-conditions li').first();
   await expect(row).toHaveClass(/\bpartial\b/);
-  await expect(row.locator('.mark')).toHaveText('◐');
+  await expect(row.locator('.mark')).toHaveText('~');
   await expect(row).toContainText('(teilweise)');
   await expect(row).toContainText('gedeckt');
 });

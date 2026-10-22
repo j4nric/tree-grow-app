@@ -495,9 +495,15 @@ footer {
   padding: 0;
 }
 
+/*
+ * Hinweis-Toast. Er darf keine Bedienelemente verdecken (Playtest Phase 6): Am Desktop
+ * liegt er in der Szene mittig über Begegnungs-Stapel (unten links, 52 px ab 16 px) und
+ * Kamera-Knöpfen (unten rechts, 44 px ab 12 px) – nicht über der Seitenleiste. Im
+ * einspaltigen Layout steht er oben fest (siehe dort), statt über den Raten.
+ */
 .toast {
-  position: fixed;
-  bottom: 20px;
+  position: absolute;
+  bottom: 80px;
   left: 50%;
   transform: translateX(-50%);
   /*
@@ -749,9 +755,14 @@ body[data-motion='reduce'] .stage-banner.visible {
     max-width: calc(100vw - 24px);
   }
 
-  /* Hinweise (Toast) über den schwebenden Stapel heben, statt ihn zu verdecken */
-  body:has(.scene-dock.floating .encounter-stack:not([hidden])) .toast {
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  /*
+   * Hinweise oben fest: Beim Start steht dort die Szene (Kamera-Knöpfe liegen unten in ihr),
+   * gescrollt die Seitenleiste – unten blieben sonst Raten und schwebender Stapel verdeckt.
+   */
+  .toast {
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    bottom: auto;
   }
 
   /* Platz unter dem letzten Eintrag, damit der schwebende Stapel nichts dauerhaft verdeckt */
@@ -1169,8 +1180,11 @@ dialog.encounter::backdrop {
   color: var(--accent-dark);
 }
 
+/* Teilweise erfüllt (knappes Futter): neutral, kein Grün – das Zeichen ist sonst sehr klein */
 .card-conditions .partial .mark {
-  color: var(--muted);
+  color: var(--rarity-rare-text);
+  font-size: 1.15em;
+  line-height: 1;
 }
 
 .card-conditions .unmet {
@@ -2631,6 +2645,11 @@ dialog.plant-picker {
 
   .scene-dock-marker {
     height: 44px;
+  }
+
+  /* Liegt der Stapel oben rechts in der Szene, kommt der Hinweis darunter */
+  body:has(.scene-dock:not(.floating) .encounter-stack:not([hidden])) .toast {
+    top: calc(68px + env(safe-area-inset-top, 0px));
   }
 
   /* Stufen-Banner unter den Stapel schieben – sonst verdeckt der Stapel den Stufennamen */

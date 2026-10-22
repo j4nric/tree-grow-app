@@ -304,7 +304,7 @@ export const PREVIEW_LEGEND: readonly LegendEntry[] = [
   { key: 'seeds', icon: '🌰', text: 'Samen pro Sekunde' },
   { key: 'happiness', icon: '😊', text: 'erwartete Zufriedenheit des Tiers' },
   { key: 'supply', icon: '☀️💧', text: 'Versorgung der Pflanzen mit Licht und Wasser' },
-  { key: 'conditions', icon: '✓ ✗', text: 'Futter und Wünsche erfüllt oder nicht' },
+  { key: 'conditions', icon: '✓ ~ ✗', text: 'Futter und Wünsche erfüllt, knapp oder nicht' },
   { key: 'tone', icon: '▲ ▼', text: 'Wirkung: Vorteil oder Nachteil' },
 ];
 
