@@ -31,6 +31,8 @@
  *           (Platz = Reihenfolge); in der Übersicht (gallery=1) immer dabei
  *  pond     1 = Waldtümpel mit Amphibien (ab Stufe Alter Baum: Erdkröte, Grasfrosch, Bergmolch, Laubfrosch, Kammmolch)
  *  pondn    Anzahl der Tümpelbewohner 0–5 (Standard 4; Reihenfolge wie oben, mit v verschoben)
+ *  hab      1 = Lebensräume: Waldwiese (ab Junger Baum), Totholzhaufen (ab Alter Baum),
+ *           Trockenmauer (ab Hain), je mit habn Bewohnern (Standard 4, 0–5; mit v verschoben)
  *  weather  Wetter: mild, rain, sun, fog, snow, drought, storm, frost (ohne Angabe: wie bisher)
  *  wprev    Wetter des Vortags für die Überblendung; wb Überblendung 0–1 (Standard 1)
  *           bzw. wb=loop: blendet alle 6 s zwischen wprev und weather hin und her
@@ -91,6 +93,26 @@ const BY_NICHE: Record<string, [string, Fam][]> = {
     ['bat', 'mammals'],
     ['stagbeetle', 'insects'],
   ],
+  meadow: [
+    ['rabbit', 'mammals'],
+    ['kestrel', 'birds'],
+    ['cricket', 'insects'],
+    ['lizard', 'reptiles'],
+    ['fieldmouse', 'mammals'],
+  ],
+  deadwood: [
+    ['wren', 'birds'],
+    ['turkeytail', 'fungi'],
+    ['slowworm', 'reptiles'],
+    ['weasel', 'mammals'],
+    ['rosechafer', 'insects'],
+  ],
+  wall: [
+    ['sandlizard', 'reptiles'],
+    ['grasssnake', 'reptiles'],
+    ['masonbee', 'insects'],
+    ['smoothsnake', 'reptiles'],
+  ],
   pond: [
     ['toad', 'amphibians'],
     ['frog', 'amphibians'],
@@ -110,6 +132,10 @@ const SLOTS: Record<string, number[]> = {
   hollows: [0, 0, 0, 0, 1, 2, 2, 3],
   // Waldtümpel: nur mit ?pond=1 (im Spiel durch Pflege oder Ereignis).
   pond: [0, 0, 0, 0, 4, 4, 4, 4],
+  // Lebensräume: nur mit ?hab=1 (im Spiel durch Pflege).
+  meadow: [0, 0, 0, 1, 1, 1, 1, 1],
+  deadwood: [0, 0, 0, 0, 1, 1, 1, 1],
+  wall: [0, 0, 0, 0, 0, 1, 1, 1],
 };
 
 const PROTO: [string, Fam, string, number][] = [
@@ -156,7 +182,16 @@ function animalsFor(g: number, set: string, happy: number | null, variant: numbe
   const stage = Math.max(0, Math.min(7, Math.floor(g)));
   const list: SceneAnimal[] = [];
   for (const [niche, species] of Object.entries(BY_NICHE)) {
-    const n = niche === 'pond' ? (pond && SLOTS.pond![stage]! > 0 ? pondCount : 0) : SLOTS[niche]![stage]!;
+    const n =
+      niche === 'pond'
+        ? pond && SLOTS.pond![stage]! > 0
+          ? pondCount
+          : 0
+        : niche === 'meadow' || niche === 'deadwood' || niche === 'wall'
+          ? habitats && SLOTS[niche]![stage]! > 0
+            ? habitatCount
+            : 0
+          : SLOTS[niche]![stage]!;
     for (let slot = 0; slot < n; slot++) {
       const [id, family] = species[(slot + variant * n) % species.length]!;
       if (list.some((a) => a.id === id)) continue;
@@ -194,6 +229,9 @@ const plantMode = params.get('plants') ?? 'stage';
 const vigor = params.has('vig') ? Number(params.get('vig')) : null;
 const gallery = params.get('gallery') === '1';
 const pond = params.get('pond') === '1';
+const habitats = params.get('hab') === '1';
+const habitatCount = Math.max(0, Math.min(5, Math.round(Number(params.get('habn') ?? 4)) || 0));
+const habitatOpen = (niche: string) => habitats && SLOTS[niche]![Math.max(0, Math.min(7, Math.floor(g)))]! > 0;
 /** Tümpelbewohner (0–5; Standard 4 wie Pflege Rang 2). */
 const pondCount = Math.max(0, Math.min(5, Math.round(Number(params.get('pondn') ?? 4)) || 0));
 let happy: number | null = params.has('h') ? Number(params.get('h')) : null;
@@ -452,6 +490,9 @@ function frame(now: number): void {
     time,
     animals,
     pond,
+    meadow: habitatOpen('meadow'),
+    deadwood: habitatOpen('deadwood'),
+    wall: habitatOpen('wall'),
     plants,
     reducedMotion: reducedInput.checked,
     harmonyTier,

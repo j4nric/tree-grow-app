@@ -335,7 +335,7 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     Räuber und Beute bei 94,9 (Grenze < 95 in `balance-restart.test.ts`, vorher 87–88) –
     `MEMORY_HARMONY_RULES` ggf. nachziehen (DESIGN_V2.md 15.4, „Stand Räuber und Beute“);
     seit den Lebensräumen 93,5 („Stand Lebensräume“)
-- [ ] Weitere Lebensräume nach dem Muster Waldtümpel (`game-designer`, `renderer`):
+- [x] Weitere Lebensräume nach dem Muster Waldtümpel (`game-designer`, `renderer`):
   Totholzhaufen, Trockenmauer, Waldwiese – je 3–5 Arten und eine Lebensgemeinschaft
   - [x] Design (`game-designer`): Waldwiese (Junger Baum), Totholzhaufen (Alter Baum),
     Trockenmauer (Hain), 14 Arten, Gattung Reptilien, 4 Lebensgemeinschaften; Daten in
@@ -343,7 +343,9 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   - [x] Spielstand v13 und Verdrahtung (`core-engineer`, 23.7 Schritt B): Nischen, Arten,
     Reptilien, Pflege, neue Jagdpaare, Massenjahre vollständig, Migration v12 → v13, Schutz
     vor älteren Clients (gespeicherter Stand „neuer“) – `tests/habitats-core.test.ts`
-  - [ ] Szene und 14 Zeichnungen (`renderer`, 23.7)
+  - [x] Szene und 14 Zeichnungen (`renderer`, 23.7 Nr. 4, 23.8): Totholzhaufen im Erdschnitt
+    rechts, Waldwiese und Trockenmauer im Mittelgrund, Reptilien mit Winterstarre –
+    `tests/render-habitats.test.ts`, `e2e/habitats-scene.spec.ts`
   - [x] Oberfläche (`ui-dev`, 23.7 Punkt 5): verschlossene Lebensräume mit Hinweis und
     „Zur Pflege“, Pflegekarten „Öffnet Lebensraum …“, Gattung Reptilien (Farbe, Tagebuch,
     Tagesziele, Stammgast-Hinweise), Spielanleitung „Lebensräume“ –
