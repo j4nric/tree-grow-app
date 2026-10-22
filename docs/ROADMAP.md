@@ -302,7 +302,10 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     `src/content/weather.ts`, DESIGN_V2.md 21
   - [x] Logik (core-engineer): `src/core/weather.ts`, Wetter in `evaluate`, `TickReport.weather`,
     Mittelwetter offline (`simulateOffline` ab 180 s), Messung mit der echten Logik – 21.9/21.10
-  - [ ] Grafik (renderer) und Anzeige (ui-dev) – 21.8
+  - [x] Grafik (renderer): `SceneInput.weather`/`weatherPrevious`/`weatherBlend`, Bilder je Wetter,
+    Nachtverhalten von Kauz, Langohr, Igel, Glühwürmchen, Demo `?weather=` – `src/render/weather.ts`,
+    `src/render/nocturnal.ts`, 21.8
+  - [ ] Anzeige (ui-dev) – 21.8
 
 **Welle 3 – Tiefe & Langzeitspiel**
 

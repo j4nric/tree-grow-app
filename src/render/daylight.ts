@@ -321,11 +321,15 @@ export class DayLayer {
     return dayLevels(bucketPhase(bucket), this.stepLevels);
   }
 
-  /** Sterne und Mond – direkt nach der Kulisse (hinter Wolken und Bäumen). */
-  drawLights(ctx: CanvasRenderingContext2D, lv: DayLevels, f: DayFrame): void {
-    const starAlpha = lv.night * lv.night;
+  /**
+   * Sterne und Mond – direkt nach der Kulisse (hinter Wolken und Bäumen). `clear` 0–1:
+   * klarer Himmel (1) bis ganz bedeckt (0, Wetter: Wolkendecke, Nebel, Schneefall).
+   */
+  drawLights(ctx: CanvasRenderingContext2D, lv: DayLevels, f: DayFrame, clear = 1): void {
+    const sky = Number.isFinite(clear) ? clamp01(clear) : 1;
+    const starAlpha = lv.night * lv.night * sky;
     if (starAlpha > 0.01) this.drawStars(ctx, starAlpha, f);
-    if (lv.night > 0.01) this.drawMoon(ctx, lv.night, f);
+    if (lv.night * sky > 0.01) this.drawMoon(ctx, lv.night * sky, f);
     ctx.globalAlpha = 1;
   }
 

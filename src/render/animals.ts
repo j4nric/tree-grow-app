@@ -11,6 +11,7 @@
  */
 
 import { POND_DEPTH, POND_LIP, POND_WATER_Y, type AnchorResolver, type NicheAnchor } from './anchors';
+import { batFlight, batFlying, nightWake, nocturnalPace, owlPose, paintBatFly } from './nocturnal';
 import { amphibianActivity, edgeBare, edgePetals, edgeSeedHeads, fireflySeason, insectActivity, pondIce } from './phenology';
 import { ell, eye, line, OUTLINE, outline, paintBird, poly, TAU, type BirdColors, type SpriteDef } from './sprite-kit';
 import { SPECIES_DEFS, SPECIES_INFO, type KindInfo } from './species-sprites';
@@ -831,6 +832,8 @@ const DEFS: Record<string, SpriteDef> = {
   pondWade: { x0: -WADE_HALF, y0: -0.04, x1: WADE_HALF, y1: 0.17, paint: (c) => paintPondWade(c) },
   shimmer: { x0: -1, y0: -1, x1: 1, y1: 1, paint: (c) => paintShimmer(c) },
   sparkle: { x0: -0.5, y0: -0.5, x1: 0.5, y1: 0.5, paint: (c) => paintSparkle(c) },
+  // Braunes Langohr im Flug (nachts, nocturnal.ts)
+  batFly: { x0: -0.72, y0: -0.4, x1: 0.72, y1: 0.3, paint: paintBatFly },
   ...SPECIES_DEFS,
   // Durchreisende (visitors.ts)
   ...VISITOR_DEFS,
@@ -987,6 +990,14 @@ export interface AnimalFrame {
    * Ohne Angabe Tag.
    */
   night?: number;
+  /**
+   * Wachheit der Nachtarten 0 (Tag) – 1 (Nacht) aus der Tageszeit (nocturnal.ts): Kauz,
+   * Fledermaus, Igel und Glühwürmchen nachts aktiver, tagsüber ruhiger. Ohne Angabe (keine
+   * Tageszeit) wie bisher.
+   */
+  nocturnal?: number;
+  /** Regen 0–1 (Wetter): löscht den Schein der Glühwürmchen. Ohne Angabe 0. */
+  rain?: number;
   dpr: number;
   /** Zusätzliche Skalierung (z. B. altes Bild während einer Größenänderung, Kamera-Zoom). */
   sx: number;
@@ -1026,6 +1037,8 @@ interface Pose {
   /** Drehung (rad), z. B. −π/2 für Krabbeln den Stamm hinauf. */
   rot: number;
   frame: number;
+  /** Anderes Sprite als die Art (z. B. 'batFly' für die fliegende Fledermaus), sonst null. */
+  sprite: string | null;
 }
 
 interface Deco {
@@ -1318,7 +1331,7 @@ function planEntry(animal: SceneAnimal, index: number, anchor: NicheAnchor, anch
     midY: (def.y0 + def.y1) / 2,
     midR: Math.max(def.x1 - def.x0, def.y1 - def.y0) * 0.62,
     perchDrop: 0,
-    pose: { x: 0, y: 0, dir: 1, rot: 0, frame: 0 },
+    pose: { x: 0, y: 0, dir: 1, rot: 0, frame: 0, sprite: null },
     pivot: false,
   };
 
@@ -1456,11 +1469,13 @@ function drawEntry(
     else blit(ctx, sprites.get(d.name, 0, false, d.size, f.spriteDpr ?? f.dpr), d.x + wx, d.y, 1, 0, 1, f);
   }
   if (e.shimmer > 0) drawShimmer(ctx, e, pose, muted, sprites, f);
-  if (e.kind === 'glowworm' && seasonNow.glow > 0.01) {
+  // Regen löscht den Schein (das Tier bleibt sichtbar).
+  const rainGlow = 1 - clamp01(f.rain ?? 0);
+  if (e.kind === 'glowworm' && seasonNow.glow * rainGlow > 0.01) {
     // Leuchten nur in der Glühwürmchen-Zeit; im Winter sitzt es dunkel am Boden.
     const hx = pose.x - 0.12 * e.size * pose.dir;
     const hy = pose.y + 0.04 * e.size;
-    const glow = seasonNow.glow * (1 - 0.5 * muted);
+    const glow = seasonNow.glow * rainGlow * (1 - 0.5 * muted);
     blit(ctx, sprites.get('glowHalo', 0, false, e.size, f.spriteDpr ?? f.dpr), hx, hy, 1, 0, glow, f);
     const night = f.night ?? 0;
     if (night > 0.01) {
@@ -1470,11 +1485,12 @@ function drawEntry(
       ctx.globalCompositeOperation = 'source-over';
     }
   }
+  const name = pose.sprite ?? e.kind;
   if (muted < 0.99) {
-    blit(ctx, sprites.get(e.kind, pose.frame, false, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, 1, f);
+    blit(ctx, sprites.get(name, pose.frame, false, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, 1, f);
   }
   if (muted > 0.01) {
-    blit(ctx, sprites.get(e.kind, pose.frame, true, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, muted < 0.99 ? muted : 1, f);
+    blit(ctx, sprites.get(name, pose.frame, true, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, muted < 0.99 ? muted : 1, f);
   }
   for (const d of e.after) blit(ctx, sprites.get(d.name, 0, false, d.size, f.spriteDpr ?? f.dpr), d.x + wx, d.y, 1, 0, 1, f);
   if (e.shimmer === 3) drawSparkles(ctx, e, pose, muted, sprites, f);
@@ -1484,22 +1500,43 @@ function drawEntry(
  * Lage des Tiers in diesem Frame (nach `e.pose`): Ruhelage, Wind, Bewegung und
  * Winterruhe. `happy` ist die schon begrenzte Zufriedenheit; `seasonNow` muss aktuell sein.
  */
-function placePose(e: PlanEntry, happy: number, S: number, f: Pick<AnimalFrame, 'time' | 'windSkew' | 'reducedMotion'>): Pose {
+function placePose(e: PlanEntry, happy: number, S: number, f: Pick<AnimalFrame, 'time' | 'windSkew' | 'reducedMotion' | 'nocturnal'>): Pose {
   const rest = e.insect ? clamp01(seasonNow.insects) : e.amphibian ? clamp01(seasonNow.amphibians) : 1;
-  const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6) * rest;
+  // Nachtarten: tagsüber ruhiger, nachts aktiver (nur mit Tageszeit; Igel und Fledermaus
+  // halten Winterschlaf – wie die Amphibien von Spätherbst bis Vorfrühling).
+  const wake = nightWake(f.nocturnal);
+  const awake = clamp01(seasonNow.amphibians);
+  const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6) * rest * nocturnalPace(e.kind, wake, awake);
   const pose = e.pose;
   pose.x = e.x + f.windSkew * e.windArm;
   pose.y = e.y;
   pose.dir = e.dir;
   pose.rot = e.rot;
   pose.frame = 0;
+  pose.sprite = null;
   animate(e, pose, act, f.time, S, f.reducedMotion);
+  if (wake !== null) {
+    if (e.kind === 'owl') {
+      const o = owlPose(pose.frame, pose.dir, wake, f.time, e.seed, e.phase, f.reducedMotion);
+      pose.frame = o.frame;
+      pose.dir = o.dir;
+    } else if (e.kind === 'bat' && happy > 0.15 && batFlying(wake, awake, f.reducedMotion)) {
+      // Nachts fliegt das Langohr Schleifen um den Stamm (die Höhle bleibt leer).
+      const fl = batFlight(pose.x, e.y - e.size * 0.5, S, f.time, e.phase);
+      pose.x = fl.x;
+      pose.y = fl.y;
+      pose.dir = fl.dir;
+      pose.frame = fl.frame;
+      pose.sprite = 'batFly';
+    }
+  }
   // Um die Körpermitte wenden (Molche): Beim Spiegeln bleibt die Mitte stehen.
   if (e.pivot && pose.dir !== e.dir) pose.x += (e.dir - pose.dir) * e.midX * e.size;
-  if (!(pose.frame >= 0 && pose.frame < e.info.frames)) pose.frame = 0;
+  // Eigenes Sprite (Flug) hat zwei Frames, sonst gilt die Zahl der Art.
+  if (!(pose.frame >= 0 && pose.frame < (pose.sprite ? 2 : e.info.frames))) pose.frame = 0;
   // Winter: ohne Blüten ruht das Insekt an der Rosette am Boden (Schwirrer nur, wenn sie ruhen).
   if (e.perchDrop > 0 && seasonNow.bare > 0) {
-    pose.y += e.perchDrop * seasonNow.bare * (e.info.motion === 'hover' ? 1 - act : 1);
+    pose.y += e.perchDrop * seasonNow.bare * (e.info.motion === 'hover' ? 1 - Math.min(1, act) : 1);
   }
   return pose;
 }
@@ -1530,7 +1567,7 @@ export interface AnimalHit {
 export function hitTestAnimals(
   animals: readonly SceneAnimal[],
   anchors: AnchorResolver,
-  f: Pick<AnimalFrame, 'time' | 'windSkew' | 'reducedMotion' | 'season'>,
+  f: Pick<AnimalFrame, 'time' | 'windSkew' | 'reducedMotion' | 'season' | 'nocturnal'>,
   x: number,
   y: number,
   minRadius = 0,
@@ -1681,7 +1718,7 @@ function animate(e: PlanEntry, pose: Pose, act: number, t: number, S: number, re
         pose.frame = Math.floor(t * (e.kind === 'peacock' ? 5 : 14)) & 1;
       }
       // Mit nachlassender Aktivität (Winterruhe, Unzufriedenheit) stufenlos auf die Blüte sinken.
-      if (e.niche === 'edge') pose.y += (1 - act) * (e.size / info.size) * 0.43;
+      if (e.niche === 'edge') pose.y += (1 - Math.min(1, act)) * (e.size / info.size) * 0.43;
       break;
     }
     case 'crawl':
