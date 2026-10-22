@@ -378,7 +378,8 @@ Unterseiten:
 - **U:Tier:** Lesezeichen „‹ Nischen“; Kopf mit großem Sticker, Name, Gattung · Nische,
   Seltenheits-Pille, Zufriedenheit; „Was er braucht“; „Was er bewirkt“; „Räuber und Beute“
   (Link „Nahrungsnetz ›“, das ist Ebene 2); „Lebensgemeinschaften“; Stammgast ★; Notiz zur Art.
-  „Zuerst gesehen“ entfällt vorerst (G-12).
+  „Zuerst gesehen“ kommt seit v15 aus `meta.journal.firstSeen` und steht nur da, wenn der Stand
+  den Wert kennt (G-12 ist damit erledigt).
 - **U:Harmonie:** Zusammensetzung, Lebensgemeinschaften live, Erklärung der Harmoniestufen.
 - **U:Nahrungsnetz:** wie heute, als Liste mit kleinen Stickern für die Jäger.
 - **U:Pflanze setzen:** Samenzeile und Liste der Pflanzen mit „Setzen“.

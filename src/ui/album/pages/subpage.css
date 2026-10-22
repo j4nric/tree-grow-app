@@ -1,0 +1,78 @@
+/* Gemeinsame Bausteine der Unterseiten aus Schritt 5 (U:Tier, U:Harmonie, U:Nahrungsnetz):
+   Abschnitt mit Caveat-Überschrift, Einleitung, grüne Kernzahl, Link-Knopf „… ›“. */
+
+.sub-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sub-section[hidden] {
+  display: none;
+}
+
+.sub-heading {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.sub-intro {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.sub-intro[hidden] {
+  display: none;
+}
+
+.sub-emphasis {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-green);
+}
+
+.sub-link {
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--tab-goals);
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(59, 58, 54, 0.15);
+}
+
+.sub-link:hover {
+  filter: brightness(1.04);
+}
+
+.sub-link:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+/* Ton der Zeilen (gut / neutral / schlecht) wie auf den Karten */
+.album-subpage .tone-good {
+  --tone: var(--ink-green);
+}
+
+.album-subpage .tone-bad {
+  --tone: var(--ink-red);
+}
+
+.album-subpage .tone-neutral {
+  --tone: var(--ink-soft);
+}

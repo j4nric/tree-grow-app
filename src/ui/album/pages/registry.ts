@@ -8,6 +8,7 @@ import type { AlbumTarget } from '../cycle-target';
 import type { Bookmark } from '../bookmark';
 import type { Page } from '../page';
 import type { AlbumDeps } from '../types';
+import type { EcosystemView } from '../../view-model';
 import { createNichesPage } from './niches-page';
 import { createSpeciesPage } from './species-page';
 import { createCarePage } from './care-page';
@@ -18,6 +19,19 @@ import { createCyclePage } from './cycle-page';
 import { createAchievementsPage } from './achievements-page';
 import { createStatsPage } from './stats-page';
 import { createCareItemPage } from './care-item-page';
+import { createAnimalPage } from './animal-page';
+import { createFoodWebPage } from './food-web-page';
+import { createHarmonyPage } from './harmony-page';
+
+/**
+ * Ökosystem-Ansicht für die Seiten: `view` wird bei Änderungen ersetzt bzw. (Zahlen) an
+ * Ort und Stelle aufgefrischt; `serial` zählt jede Auffrischung. Seiten vergleichen `serial`
+ * und schreiben nur, wenn sich etwas getan hat.
+ */
+export interface EcoFeed {
+  readonly view: EcosystemView | null;
+  readonly serial: number;
+}
 
 /** Was eine Seite vom Album bekommt. */
 export interface PageEnv {
@@ -30,6 +44,8 @@ export interface PageEnv {
   float(text: string, x: number, y: number): void;
   /** Ziel des nächsten Zyklus in der Landschaft (D.2 `albumTarget`). */
   readonly albumTarget: AlbumTarget;
+  /** Aktuelle Ökosystem-Ansicht (aus dem Game Loop, gedrosselt). */
+  readonly eco: EcoFeed;
 }
 
 /** Reiterseite (Ebene 0). `update` läuft nur, solange sie sichtbar ist. */
@@ -45,7 +61,7 @@ export interface TabPage {
 export interface Subpage {
   readonly page: Page;
   readonly bookmark: Bookmark;
-  /** Wird beim Öffnen gerufen (Inhalt füllen). */
+  /** Wird beim Öffnen gerufen (Inhalt füllen); `ref` nennt z. B. die Art. */
   opened?(ref: PageRef): void;
   /** `force`: sofort (Spielstand geändert) statt gedrosselt. */
   update?(now: number, force?: boolean): void;
@@ -67,6 +83,9 @@ export const SUBPAGES = {
   cycle: createCyclePage,
   achievements: createAchievementsPage,
   stats: createStatsPage,
+  animal: createAnimalPage,
+  harmony: createHarmonyPage,
+  foodweb: createFoodWebPage,
 } satisfies Partial<Record<PageKind, (env: PageEnv) => Subpage>>;
 
 export type SubpageKind = keyof typeof SUBPAGES;

@@ -195,6 +195,7 @@ export function foodWebRow(entry: FoodWebEntry, state: HintState, journal: FoodW
     prey: namesOf(entry.prey, journal),
     hunters: hunterNames(entry, journal),
     hunterCount: entry.hunters.length,
+    hunterIds: entry.hunters.filter((id) => journal.species.includes(id) && SPECIES_BY_ID.has(id)),
     controllers: namesOf(entry.controllers, journal),
     hint: rowHint(entry, state),
   };

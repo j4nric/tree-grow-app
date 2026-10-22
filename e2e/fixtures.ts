@@ -170,6 +170,28 @@ export const pageTitle = (page: Page) => page.locator('.album-tabpanel:not([hidd
 export const subpage = (page: Page, kind: string) => page.locator(`[data-ref="page-${kind}"]`);
 export const cover = (page: Page) => page.locator('[data-ref="cover"]');
 
+/** Sticker einer Art in einer Nische (Reiter Nischen, docs/ALBUM_UI.md B.1) – ein Knopf. */
+export const sticker = (page: Page, nicheId: string, species: string) =>
+  page.locator(`[data-niche="${nicheId}"] [data-species="${species}"] button.sticker`);
+/** Unterseite „Tier“ (U:Tier). */
+export const animalPage = (page: Page) => subpage(page, 'animal');
+
+/** Wartet, bis eine Unterseite fertig aufgeschlagen ist (nicht mehr `inert`). */
+export async function settledSubpage(page: Page, kind: string): Promise<Locator> {
+  const sub = subpage(page, kind);
+  await expect(sub).toBeVisible();
+  await expect(sub).not.toHaveAttribute('inert', '');
+  return sub;
+}
+
+/** Tipp auf einen Sticker: blättert zu U:Tier um und wartet, bis die Seite bedienbar ist. */
+export async function openAnimal(page: Page, nicheId: string, species: string): Promise<Locator> {
+  await sticker(page, nicheId, species).click();
+  const sub = await settledSubpage(page, 'animal');
+  await expect(sub).toHaveAttribute('data-species', species);
+  return sub;
+}
+
 /**
  * Meldungen (docs/ALBUM_UI.md, C.5) – Ersatz für den Toast. `stamps` ist die ganze Schicht
  * (für „enthält“), `stamp` die neueste Meldung (Stempel oder Zettel; für genaue Texte).

@@ -57,6 +57,7 @@ describe('Nahrungsnetz der Übersicht', () => {
     const mice = view.rows.find((r) => r.tag === 'kleinsaeuger')!;
     expect(mice).toMatchObject({ icon: '🐭', name: 'Kleinsäuger', prey: 'Wühlmaus', hunterCount: 2 });
     expect(mice.hunters.split(' und ').sort()).toEqual(['Rotfuchs', 'Waldkauz']);
+    expect([...mice.hunterIds!].sort()).toEqual(['fox', 'owl']);
     // Zwei Jäger, eine Wühlmaus (Bestand ≤ 1,5) → überjagt, mit freundlichem Hinweis.
     expect(mice.state).toBe('overhunted');
     expect(mice.stateLabel).toBe('überjagt');
@@ -165,6 +166,8 @@ describe('Nahrungsnetz der Übersicht', () => {
     const mice = foodWebView(evaluate(state), state).rows.find((r) => r.tag === 'kleinsaeuger')!;
     expect(mice.hunters).toBe('???');
     expect(mice.prey).toBe('Wühlmaus');
+    // Kein Sticker für unentdeckte Jäger (Album, U:Nahrungsnetz).
+    expect(mice.hunterIds).toEqual([]);
   });
 
   it('steht in der Ökosystem-Übersicht', () => {

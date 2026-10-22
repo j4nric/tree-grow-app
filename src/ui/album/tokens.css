@@ -68,6 +68,13 @@
   --fam-reptiles: #e8e2c0;
   --rarity-bg: #e8e2f3;
   --rarity-ink: #4a2f75; /* Pille „selten“ */
+  /* Sticker: Edelstein und Randlinie je Seltenheit, Bogen der Zufriedenheit (Schritt 5) */
+  --gem-rare: #6f5bb5;
+  --gem-special: #c98a1c;
+  --gem-legendary: #b8325a;
+  --happy-high: #7fb069;
+  --happy-mid: #e0b44a;
+  --happy-low: #c95f6f;
   /* Schrift */
   --font-hand: 'Caveat', 'Segoe Print', cursive; /* nur Überschriften und Zahlen */
   --font-text: 'Nunito', system-ui, sans-serif;

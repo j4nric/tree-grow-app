@@ -13,7 +13,7 @@ import { sceneToScreen, type CameraView } from '../src/render/camera';
  * denselben Ankerpunkten wie im Renderer (bei reduzierter Bewegung ruhen Tiere und Wind).
  */
 
-const detail = (page: Page) => page.locator('[data-ref="animal-detail"]');
+const detail = (page: Page) => page.locator('[data-ref="page-animal"]');
 const note = (page: Page) => page.locator('[data-ref="note"]');
 const canvas = (page: Page) => page.locator('canvas#scene');
 
@@ -72,7 +72,7 @@ test.describe('Tier in der Szene', () => {
     await expect(detail(page)).toBeHidden();
   });
 
-  test('Im Vollbild: Klick öffnet die Haftnotiz, „Im Album ansehen“ die Tierdetails', async ({ page, context }) => {
+  test('Im Vollbild: Klick öffnet die Haftnotiz, „Im Album ansehen“ U:Tier', async ({ page, context }) => {
     await seed(context);
     await openGame(page);
     await openFullscreen(page);
@@ -90,9 +90,11 @@ test.describe('Tier in der Szene', () => {
 
     await page.mouse.click(p.x, p.y);
     await note(page).getByRole('button', { name: 'Im Album ansehen' }).click();
-    await expect(page.getByRole('dialog', { name: 'Regenwurm' })).toBeVisible();
+    await expect(detail(page)).toBeVisible();
+    await expect(detail(page)).toHaveAttribute('data-species', 'earthworm');
     await expect(fullscreen(page)).toBeHidden();
-    // Esc schließt die Tierdetails, der Fokus geht an das Polaroid zurück.
+    await expect(detail(page)).not.toHaveAttribute('inert', '');
+    // Esc blättert zurück, der Fokus geht an das Polaroid.
     await page.keyboard.press('Escape');
     await expect(detail(page)).toBeHidden();
     await expect(polaroidButton(page)).toBeFocused();
@@ -157,7 +159,8 @@ test.describe('Tier in der Szene mobil', () => {
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(390);
     await note(page).getByRole('button', { name: 'Im Album ansehen' }).tap();
-    await expect(page.getByRole('dialog', { name: 'Regenwurm' })).toBeVisible();
+    await expect(detail(page)).toBeVisible();
+    await expect(detail(page).locator('.page-title')).toHaveText('Regenwurm');
   });
 });
 
