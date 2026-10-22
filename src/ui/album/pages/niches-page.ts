@@ -27,7 +27,7 @@ export const STICKER_TIP_KEY = 'tree-grow-sticker-tip-seen';
 const STICKER_TIP = 'Tippe auf einen Sticker, um umzublättern.';
 const VISITOR_TEXT = 'Zu Gast – zieht bald weiter und braucht keinen Platz.';
 
-/** Was der Reiter außer der Navigation braucht (Übergang: Pflanzenwahl und Pflege in legacy.ts). */
+/** Was der Reiter außer der Navigation braucht: Pflanzenwahl und Pflege (verbindet album/index.ts). */
 export interface NichesActions {
   openPlantPicker(): void;
   /** „Zur Pflege ›“: Reiter Pflege bei der Maßnahme. */
@@ -35,7 +35,7 @@ export interface NichesActions {
 }
 
 export interface NichesPage extends TabPage {
-  /** Aktionen verbinden (legacy.ts, solange Pflanzenwahl und Pflege dort stehen). */
+  /** Aktionen verbinden (album/index.ts). */
   connect(actions: NichesActions): void;
   /** Knopf „Pflanze setzen“ (Fokusziel nach der Pflanzenwahl). */
   readonly plantButton: HTMLButtonElement;

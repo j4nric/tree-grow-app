@@ -29,7 +29,7 @@ import { hyphenate } from '../../hyphenate';
 import { RARITY_LABELS } from '../../view-format';
 import type { JournalCommunityView, JournalEntryView, JournalKeepsakeView, JournalTreeView, JournalView } from '../../view-model';
 import { openNote } from '../note';
-import { STICKER_DRAW_SIZE, createStickerImage, type StickerImage } from '../sticker';
+import { STICKER_DRAW_SIZE, createStickerImage, stickerDprEpoch, type StickerImage } from '../sticker';
 import { stickerTilt } from '../sticker-rules';
 import type { StickerVariant } from '../../../render/sticker';
 import type { PageEnv, TabPage } from './registry';
@@ -445,8 +445,16 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
   let lastKey = '';
   let measured = false;
 
+  let shownDpr = stickerDprEpoch();
+
   function update(_now: number, force = false): void {
-    // Ohne neue Ökosystem-Ansicht (gedrosselt, legacy.ts) kann sich nichts geändert haben.
+    // Pixeldichte gewechselt (Zoom, anderer Bildschirm): sichtbare Sticker gleich scharf neu –
+    // der IntersectionObserver meldet sich erst beim nächsten Scrollen.
+    if (shownDpr !== stickerDprEpoch()) {
+      shownDpr = stickerDprEpoch();
+      for (const cell of speciesCells) if (cell.visible) paint(cell);
+    }
+    // Ohne neue Ökosystem-Ansicht (gedrosselt, eco-refresh.ts) kann sich nichts geändert haben.
     if (!force && env.eco.serial === shownSerial) return;
     shownSerial = env.eco.serial;
     const state = env.deps.state();

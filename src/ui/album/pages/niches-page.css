@@ -505,3 +505,27 @@
 .niches-link.alert .niches-link-summary {
   color: var(--ink-red);
 }
+
+/*
+ * Mobil: verschlossene Nischen und Lebensräume kompakt – Name und „verschlossen“ in einer
+ * Zeile, der Hinweis darunter über die volle Breite in der Textschrift.
+ */
+.album[data-layout='single'] .nrow.is-locked {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  padding: 6px 0;
+}
+
+.album[data-layout='single'] .nrow.is-locked .nrow-label {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+
+.album[data-layout='single'] .nrow.is-locked .nrow-hint-text {
+  font-family: var(--font-text);
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.35;
+}

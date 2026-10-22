@@ -92,7 +92,6 @@ import { formatDuration, formatNumber } from './format';
 import { animalStock, foodWebView, huntFoodText, overhuntNotes, preyIcon, stockEffectView } from './food-web-view';
 import { memoryBonusLabel, treeLabel } from './cycle-view';
 import { effectiveForestMemory } from '../core/landscape';
-import { journalLandscapeCount, toJournalLandscapeView } from './journal-landscape-view';
 import { RARITY_LABELS, formatSigned, formatSignedPercent, isFullHappiness, isScarceFood, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
 import type {
@@ -842,7 +841,6 @@ export function toJournalView(
     communities: communities.filter((e) => e.discovered).length,
   };
   const trees = toJournalTrees(state);
-  const landscape = toJournalLandscapeView(state);
   const tabCounts = {
     species: ofTotal(found.species, species.length),
     plants: ofTotal(found.plants, plants.length),
@@ -850,7 +848,6 @@ export function toJournalView(
     // Andenken: Erinnerungen plus freigeschaltete Hauptbaum-Arten (die Eiche immer).
     keepsakes: formatNumber(keepsakes.length + trees.filter((t) => t.unlocked).length),
     achievements: achievementCountText(state),
-    landscape: journalLandscapeCount(landscape),
     stats: '',
   };
   // Bonus aus dem wirksamen Gedächtnis (eigenes + Zufluss über Korridore, 24.6).
@@ -863,7 +860,7 @@ export function toJournalView(
       (effectiveMemory > 0 ? ` (${memoryBonusLabel(effectiveMemory)} Wachstum und Samen)` : ''),
     regulars:
       slots > 0
-        ? `Stammgäste ${ofTotal(state.meta.regulars.length, slots)} – sie ziehen in jedem Zyklus von selbst ein. Wähle sie bei den Arten.`
+        ? `Stammgäste ${ofTotal(state.meta.regulars.length, slots)} – sie ziehen in jedem Zyklus von selbst ein. Tippe auf eine Art und wähle sie als Stammgast.`
         : null,
     species,
     plants,
@@ -872,7 +869,6 @@ export function toJournalView(
     trees,
     stats: toJournalStats(state, evaluation),
     achievements: toJournalAchievements(state),
-    landscape,
     tabCounts,
   };
 }

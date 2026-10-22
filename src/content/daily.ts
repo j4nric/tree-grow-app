@@ -68,7 +68,7 @@ export const DAILY_GOALS: readonly DailyGoalTemplate[] = [
   { kind: 'decide', icon: '🃏', text: 'Entscheide {encounters} – annehmen, ablehnen oder ziehen lassen.', weight: 4, minStage: 0, offline: false },
   { kind: 'observe', icon: '🔭', text: 'Beobachte {season} {species} {genus} in deinem Wald.', weight: 4, minStage: 1, offline: false },
   { kind: 'satisfaction', icon: '😊', text: 'Bring die Zufriedenheit {yourGenus} auf {n} %.', weight: 3, minStage: 1, offline: true, group: 'hold' },
-  { kind: 'community', icon: '🧩', text: 'Ein Rätsel im Naturtagebuch: „{hint}“ Entdecke diese Lebensgemeinschaft.', weight: 5, minStage: 1, offline: true, group: 'build' },
+  { kind: 'community', icon: '🧩', text: 'Ein Rätsel unter Arten › Gemeinschaften: „{hint}“ Entdecke diese Lebensgemeinschaft.', weight: 5, minStage: 1, offline: true, group: 'build' },
   { kind: 'plant', icon: '🌱', text: 'Setze eine Begleitpflanze in den Pflanzring.', weight: 3, minStage: 1, offline: false, group: 'build' },
   { kind: 'care', icon: '🧤', text: 'Gönn deinem Wald eine Pflege.', weight: 3, minStage: 2, offline: false, group: 'build' },
   { kind: 'harmony', icon: '⚖️', text: 'Halte die Harmonie {minutes} Minuten lang bei mindestens {harmony}.', weight: 3, minStage: 1, offline: false, group: 'hold' },

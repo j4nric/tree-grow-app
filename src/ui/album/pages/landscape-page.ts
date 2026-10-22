@@ -47,7 +47,7 @@ export function createLandscapePage(env: PageEnv): TabPage {
   page.body.classList.add('lsc-body');
   page.body.dataset.ref = 'landscape';
 
-  // --- 1. Kopf: Frage, Hähersaat, Wildwechsel -------------------------------------------
+  // --- 1. Kopf: Frage, Hähersaat nach dem Zyklus, Wildwechsel ----------------------------
   const head = el('div', 'lsc-head');
   const question = el('p', 'lsc-question');
   const seeds = el('p', 'lsc-seeds');
@@ -288,6 +288,8 @@ export function createLandscapePage(env: PageEnv): TabPage {
     if (!changed) return;
     setText(question, view.question);
     setText(seeds, view.jaySeeds);
+    // Steht schon rechts im Seitenkopf: nur zeigen, wenn die Zeile mehr sagt („– nach diesem Zyklus …“).
+    seeds.hidden = view.jaySeeds === landscapePageMeta(view);
     wildwechsel.hidden = view.wildwechsel === null;
     setText(wildwechsel, view.wildwechsel ?? '');
     updateCorridors(view);

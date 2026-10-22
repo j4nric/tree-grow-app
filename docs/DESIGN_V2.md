@@ -247,7 +247,7 @@ Jede Nische hat begrenzte Plätze; eine Art lebt höchstens einmal im Ökosystem
 | 🪵 Stamm & Rinde | Borke | – | – | 1 | 2 | 2 | 3 | 3 |
 | 🕳️ Höhlen & Totholz | Spechthöhlen, tote Äste | – | – | (–)¹ | 1 | 2 | 2 | 3 |
 | **Summe** | | 1 | 4 | 9 | 13 | 16 | 20 | 22 |
-| 🫧 Waldtümpel² | Wasser und Ufer der Senke | – | – | – | – | – | – | – |
+| 🪷 Waldtümpel² | Wasser und Ufer der Senke | – | – | – | – | – | – | – |
 
 ¹ Höhlen öffnen sich schon früher, wenn Totholz entsteht: +1 durch Borkenkäfer,
 Buntspecht, Ereignis „Sturmnacht“ oder Pflege „Nistkästen“; +1 Krone und Höhlen durch
@@ -1456,85 +1456,96 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
 
 ## 11. Darstellung & UI
 
-### 11.1 Kartenwahl-Dialog
+Die Oberfläche ist ein **Sammelalbum** („Naturtagebuch · ‹Wald›“). Das ausführliche Konzept –
+Seitenstruktur, Navigation, Komponenten, Tokens – steht in [`ALBUM_UI.md`](ALBUM_UI.md); hier
+nur das, was das Spiel ausmacht. Mobil (Hochformat, bis 760 px) ist das Album eine Einzelseite
+auf Karton, im Querformat ab 761 px eine Doppelseite auf dem Tisch: links immer die Szene,
+rechts der aktuelle Reiter.
+
+### 11.1 Begegnungen: Zettelstapel und Unterseite „Begegnung“
 
 ```
-┌──────────────────────── Etwas regt sich in der Krone … ───────────────────────┐
-│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐                         │
-│  │ 🐦 VÖGEL     │   │ 🐝 INSEKTEN  │   │ 🦔 SÄUGETIER │                         │
-│  │ Blaumeise   │   │Eichenwickler│   │ Eichhörnchen│                         │
-│  │ gewöhnlich  │   │ gewöhnlich  │   │ gewöhnlich  │                         │
-│  │ [Bild]      │   │ [Bild]      │   │ [Bild]      │                         │
-│  │ 🍽 Raupen ✗  │   │ 🍽 Laub ✓    │   │ 🍽 Nüsse ✓   │                         │
-│  │ 🌳 2 Bäume ✓ │   │             │   │ 🌳 2 Bäume ✓ │                         │
-│  │ 🕳 Höhle ✗   │   │             │   │             │                         │
-│  │ 😊 55 %      │   │ 😊 100 %     │   │ 😊 100 %     │                         │
-│  │ ⚖️ +6  🌿 +1% │   │ ⚖️ +5 🌿 −7% │   │ ⚖️ +7 🌰 +12%│                         │
-│  └─────────────┘   └─────────────┘   └─────────────┘                         │
-│  Krone: 2/2 belegt – wen entlassen?  [Rotkehlchen ▾]                          │
-│  [ Neu würfeln – 36 🌰 ]                       [ Ablehnen – +18 🌰 ]           │
-└───────────────────────────────────────────────────────────────────────────────┘
+Mobil (Einzelseite)                       Desktop (Doppelseite, rechte Seite)
+┌───────────────────────────┐             ┌───────────────────────────────────────────┐
+│ ‹ Später                  │             │ ‹ Später                                  │
+│ ┌───────────────────────┐ │             │ ┌───────────────────────────────────────┐ │
+│ │ 🐦 TIER ZIEHT EIN   ? │ │             │ │ Etwas regt sich in der Krone …      ? │ │
+│ │ Etwas regt sich …     │ │             │ └───────────────────────────────────────┘ │
+│ └───────────────────────┘ │             │ ┌──────────┐ ┌──────────┐ ┌──────────┐    │
+│ ┌─────────┐ ┌─────────┐ ▸ │             │ │ (Sticker)│ │ (Sticker)│ │ (Sticker)│    │
+│ │(Sticker)│ │(Sticker)│   │             │ │ Blaumeise│ │Eichenw.  │ │Eichhörn. │    │
+│ │Blaumeise│ │Eichenw. │   │             │ │ ✓ ✗ …    │ │ ✓ …      │ │ ✓ …      │    │
+│ │ ✓ ✗ …   │ │ ✓ …     │   │             │ │ ⚖️ 🌿 🌰  │ │ ⚖️ 🌿 🌰  │ │ ⚖️ 🌿 🌰  │    │
+│ │[Einkleben]│[Einkleben]  │             │ │[Einkleben]│[Einkleben]│ │[Einkleben]│   │
+│ └─────────┘ └─────────┘   │             │ └──────────┘ └──────────┘ └──────────┘    │
+│ [Neu würfeln · 36 🌰] [Ablehnen · +18 🌰] │ [Neu würfeln · 36 🌰]   [Ablehnen · +18 🌰] │
+└───────────────────────────┘             └───────────────────────────────────────────┘
 ```
 
+- **Zettelstapel:** Wartende Begegnungen (max. 3) liegen als gelber Zettelstapel mobil unten
+  rechts, am Desktop oben im Kopf („3 Zettel: Sturmnacht!“). Ein neuer Zettel wackelt kurz –
+  kein Popup, das sich aufdrängt. Antippen blättert zur Unterseite „Begegnung“; „‹ Später“
+  blättert zurück, die Begegnung wartet weiter.
+- **Karten** im Album-Stil: Tier-Sticker aus den Renderer-Zeichnungen, Gattung über die
+  Grundfarbe, Seltenheit über Edelstein und Randlinie. Legendäre Karten mit kurzem Schimmer –
+  ohne Glücksspiel-Effekte. Knopf „Einkleben“.
 - **Vorschau** je Karte: erwartete Zufriedenheit mit Haken/Kreuzen je Bedingung und die
-  Änderung von Harmonie, Wachstum, Samen – der wichtigste Baustein gegen Frust.
-- Gattung farbig (Rahmen), Seltenheit als Edelstein-Rand (Moos, Bernstein, Amethyst,
-  Gold). Legendäre Karten mit kurzem Schimmer – ohne Glücksspiel-Effekte.
-- Ist die Nische voll, zeigt die Karte „ersetzt …“ mit Auswahl; die Vorschau rechnet
-  den Tausch mit ein.
-- Die Begegnungs-Warteschlange (max. 3) ist ein ruhiger Stapel am Bildrand, kein
-  Popup, das sich aufdrängt.
+  Änderung von Harmonie, Wachstum, Samen – der wichtigste Baustein gegen Frust. Die Legende der
+  Symbole ist eine Haftnotiz am „?“ (beim ersten Mal offen).
+- Ist die Nische voll, zeigt die Karte „ersetzt …“ mit Auswahl; die Vorschau rechnet den Tausch
+  mit ein. Mobil laufen die Karten in einer waagerecht scrollenden Reihe (`data-no-swipe`).
+- **Pflanze setzen** ist eine eigene Unterseite mit denselben Karten (aus dem Reiter Nischen).
 
-### 11.2 Ökosystem-Übersicht (Seitenleiste)
+### 11.2 Das Album: Szene, Etiketten und fünf Reiter
 
-- **Kopf:** 🌿/s, 🌰 (Vorrat und /s), ⚖️ Harmonie mit Stufe und Multiplikator,
-  Fortschritt zum nächsten Wegpunkt (Kerbe am Stamm).
-- **Gattungsleiste** wie in TFT: je Gattung Zähler und Schwellen 2 · 3 · 5, aktive
-  Boni hervorgehoben, Hover zeigt die Texte.
-- **Nischen** als Zeilen mit Platz-Kacheln; Tierkarte mit Zufriedenheitsring.
-  Hover: Linien zu Beute (rot), Partnern (grün), Störern (grau).
-- **Pflanzenring:** Plätze mit Pflanzen, Licht- und Wasserbalken (Bedarf/Angebot),
-  „Pflanze setzen“ (Kosten).
-- **Harmonie-Aufschlüsselung:** Vielfalt, Zufriedenheit, Pyramide (kleines Dreieck mit
-  den Ebenen), Lebensgemeinschaften, Abzüge.
-- **Lebensgemeinschaften** (aufklappbar, anfangs zu): Die Kopfzeile zeigt eine
-  Kurzfassung wie „1 von 9 aktiv · +8 ⚖️“. Aufgeklappt stehen die aktiven Gemeinschaften
-  oben, mit Symbol, Name, Harmonie-Beitrag und Extra-Wirkung (z. B. „+5 % 🌿“). Darunter
-  folgen die übrigen nach Fortschritt, jeweils mit „x/y“ und kleinem Balken; ab 50 % ist
-  der Balken golden („fast fertig“). Entdeckte, aber gerade unvollständige Gemeinschaften
-  nennen dann „fehlt: Pfifferling oder Steinpilz“. Unentdeckte erscheinen als „???“ mit
-  Rätselhinweis und Fortschritt, ohne „fehlt“ (Spoiler-Regel, 9.2). Entsteht eine
-  Gemeinschaft, leuchtet ihre Zeile kurz auf.
-- **Kartenvorschau:** Tier- und Pflanzenkarten sowie „Pflanze setzen“ zeigen unter der
-  Vorschau „✨ vervollständigt …“ bzw. „⚠️ löst … auf“ samt Harmonie. Beim Ersetzen ist
-  eine Option vorausgewählt, die keine Gemeinschaft auflöst, sofern es eine gibt.
-- **Naturtagebuch** (Dialog „📖 Naturtagebuch“ in der Seitenleiste) mit den Reitern Arten,
-  Pflanzen, Gemeinschaften und Andenken. Die Kopfzeile zeigt die Zähler
-  („12/32 Arten · 5/14 Pflanzen · 2/9 Gemeinschaften“), den Zyklus und das Waldgedächtnis.
-  Entdeckte Arten haben Gattung, Seltenheit, Nische und einen Stammgast-Schalter, der mit
-  dem Zyklus-Panel synchron ist. Unentdeckte Arten und Pflanzen erscheinen als Silhouette
-  mit „???“. Gattungs- bzw. Gruppensymbol und Seltenheitsrahmen bleiben **bewusst** als
-  Hinweis sichtbar, der Name dagegen nie (auch nicht in Attributen oder IDs). Unentdeckte
-  Gemeinschaften zeigen nur Rätselhinweis und Fortschritt „x/y“ (Spoiler-Regel, 9.2).
-- **Pflege** als Schalterliste.
-- **Tierdetails:** Jede Tier-Kachel in den Nischen ist ein Knopf (Klick, Tippen, Enter)
-  und öffnet einen Dialog im Stil der Begegnungskarte: Gattung, Seltenheit, Nische,
-  Zufriedenheit mit Ring und Stimmung; **Beitrag gerade** als Vorschau-Chips (⚖️, 🌿, 🌰,
-  😊) = Ökosystem jetzt gegenüber demselben ohne diese Art (Kern rechnet beide Seiten);
-  **Zufriedenheit – warum?** mit Futter (Anteil gedeckt, mit wem geteilt), Wünschen ✓/✗,
-  Grundzufriedenheit der Seltenheit, Störern, Räubern, Jahreszeit, Baumart und
-  Fähigkeiten; Wirkungen, Fähigkeiten, Lebensgemeinschaften, Stammgast-Status und
-  Tagebuch-Text. **Unentdeckte Gemeinschaften** erscheinen an der Art nur als Anzahl
-  („Gehört zu einer noch unentdeckten Lebensgemeinschaft“) – ohne Name, Rätselhinweis
-  und Fortschritt: „2/3“ an einer bestimmten Art verriete, dass die übrigen Mitglieder
-  schon im Ökosystem leben (Spoiler-Regel 9.2; Hinweise und Fortschritt stehen im
-  Tagebuch). Die Jahreszeit zählt mit Hauptbaum (die Kiefer streicht Abzüge).
-  **Platz-Schaffer** (Buntspecht, Borkenkäfer, Schwarzspecht …) bekommen unter dem
-  Beitrag den Hinweis, dass ohne sie Plätze wegfielen und Bewohner ausziehen müssten –
-  die Chips rechnen mit allen Bewohnern und zeigen das nicht.
-  Keine Spielaktion im Dialog (kein Ersetzen oder Entlassen). Die gekürzte Stimmung auf
-  der Kachel steht voll im Tooltip und in den Tierdetails (früheres Aufklappen per
-  Tippen entfällt). Einstieg auch für die Szene: `openAnimalDetail(target)` in `main.ts`.
+- **Linke Seite (mobil oben):** Die Szene im **Polaroid** (Antippen = Vollbild mit Kamera,
+  11.4), darunter die Bildunterschrift (Stufe, Jahreszeit, Wetter, Restzeit; Jahreszeit und
+  Wetter öffnen eine Haftnotiz). Drei **Etiketten** auf Washi-Tape: 🌿 Wachstum/s, 🌰 Samen
+  (Vorrat und /s), ⚖️ Harmonie mit Stufe – jedes öffnet eine Haftnotiz (Harmonie mit „Mehr ›“
+  zur Aufschlüsselung). Darunter die **Stufenleiste** mit allen acht Stufen und dem Fortschritt
+  zum nächsten Wegpunkt; nach längerer Abwesenheit der Rückkehr-Zettel „Während du weg warst …“.
+- **Reiter** (mobil waagerecht und oben klebend, am Desktop senkrecht am Buchrand): Nischen,
+  Arten, Pflege, Ziele und – nach der Freischaltung – Landschaft. Ein Punkt am Reiter zeigt
+  „hier gibt es etwas“ (Pflege kaufbar, Neuer Zyklus möglich). Passen mobil nicht alle Reiter in
+  die Breite, werden sie schmaler bzw. zeigen Symbole; der gewählte behält seinen Namen.
+- **Nischen** („Wer wohnt wo?“): Lebensgemeinschaften und Nahrungsnetz als Links zu eigenen
+  Unterseiten, Gattungen als runde Abzeichen mit Schwellen 2 · 3 · 5 (Haftnotiz mit den Boni),
+  dann je Nische eine Stickerreihe mit freien Plätzen als gestrichelte Kreise. Der Sticker
+  zeigt die Zufriedenheit als Bogen im Rand, 🌙 bei Nachtarten und den Bestand als Eckchen.
+  Verschlossene Nischen und Lebensräume nennen, was sie öffnet („Zur Pflege ›“). Zuletzt der
+  **Pflanzring** mit Licht- und Wasserbalken und „Pflanze setzen“.
+- **Arten** („Wer war schon da?“): alle Arten nach Gattung als Stickerbogen – farbig, wer
+  gerade im Wald lebt; matt, wer schon einmal da war; Silhouette mit „???“, wer noch unentdeckt
+  ist. Gattungs- bzw. Gruppensymbol und Seltenheitsrahmen bleiben **bewusst** als Hinweis
+  sichtbar, der Name dagegen nie (auch nicht in Attributen oder IDs). Dazu Pflanzen,
+  Lebensgemeinschaften (Unentdeckte nur mit Rätselhinweis und Fortschritt „x/y“, Spoiler-Regel
+  9.2) und Andenken. ★ markiert Stammgäste. Sprungmarken führen zu den Abschnitten.
+- **Pflege** („Was tun wir für den Wald?“): „Gerade wirksam“ als Zettel mit Restzeit, darunter
+  die Maßnahmen nach kaufbar / sparen / später / voll ausgebaut; jede öffnet ihre Unterseite mit
+  Wirkung, Rängen und Kaufen.
+- **Ziele** („Was haben wir vor?“): Tagesziele, Kurzkarte zum Neuen Zyklus (Unterseite mit
+  Gewinn, Baumwahl, Ziel-Wald und Stammgästen), Erfolge und Statistik als Unterseiten.
+- **Landschaft** („Unsere Wälder“): handgezeichnete Karte, Standort-Unterseiten, Korridore und
+  das Tagebuch der Wälder; Kennzahl „🪶 n Hähersaat“ im Seitenkopf (24).
+- **Tierseite** (Unterseite „Tier“, aus jedem Sticker und aus der Szene): großer Sticker mit
+  Gattung, Seltenheit, Nische, Zufriedenheit und Stimmung; **Beitrag gerade** als Vorschau-Chips
+  (⚖️, 🌿, 🌰, 😊) = Ökosystem jetzt gegenüber demselben ohne diese Art (Kern rechnet beide
+  Seiten); **Zufriedenheit – warum?** mit Futter (Anteil gedeckt, mit wem geteilt), Wünschen
+  ✓/✗, Grundzufriedenheit der Seltenheit, Störern, Räubern, Jahreszeit, Baumart und
+  Fähigkeiten; Wirkungen, Räuber und Beute, Lebensgemeinschaften, Stammgast-Schalter und
+  Tagebuch-Text. **Unentdeckte Gemeinschaften** erscheinen an der Art nur als Anzahl („Gehört zu
+  einer noch unentdeckten Lebensgemeinschaft“) – ohne Name, Rätselhinweis und Fortschritt
+  (Spoiler-Regel 9.2; Hinweise stehen unter Arten › Gemeinschaften). **Platz-Schaffer**
+  (Buntspecht, Borkenkäfer, Schwarzspecht …) bekommen den Hinweis, dass ohne sie Plätze
+  wegfielen. Keine Spielaktion außer dem Stammgast-Schalter. Zieht die Art aus, während die
+  Seite offen ist, bleibt sie offen („ist ausgezogen“).
+- **Umschlag** (☰): Spielanleitung in Kapiteln, Einstellungen, Konto (falls eingerichtet) und
+  Spielstand. Beim allerersten Start weist eine Haftnotiz „Neu hier?“ auf die Anleitung hin.
+- **Meldungen** kommen als Stempel (kurz) oder Zettel (ab 90 Zeichen oder bleibend) – nie über
+  Reitern, Lesezeichen oder Seitentitel. Neue Stufen stempeln sich ins Bild.
+- **Navigation:** Unterseiten werden umgeblättert und sind höchstens zwei tief; „‹ Zurück“ als
+  Lesezeichen, Escape, Browser- und Android-Zurück schließen die oberste Ebene. Der Reiter steht
+  im Hash (`#arten`).
 
 ### 11.3 Tiere im Baum (Renderer)
 
@@ -1560,11 +1571,14 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
   weich ab; zwei Finger zoomen zum Mittelpunkt (über 4× gibt es kurz nach und federt
   zurück, knapp über 1× rastet es auf die ganze Szene ein); Doppelklick/Doppeltipp zoomt
   hinein (bei 4× wieder ganz heraus); Tastatur bei fokussierter Szene: + / − / Pfeile /
-  0. Bedienleiste unten rechts in der Szene: „+“, „−“, „⟲ Ansicht zurücksetzen“.
+  0. Bedienleiste unten rechts im Vollbild: „+“, „−“, „⟲ Ansicht zurücksetzen“.
+- **Nur im Vollbild:** Im Polaroid gibt es keine Kamera und keinen Tier-Tipp – Antippen öffnet
+  das Vollbild (gleiches Canvas, FLIP-Animation); „✕ Zurück ins Album“ bzw. Zurück schließt es.
 - Bei 1× scrollt die Seite mobil über der Szene weiter (`touch-action: pan-y`), vergrößert
   gehören die Gesten der Szene. Bei reduzierter Bewegung springt die Kamera ohne Gleiten.
-- Klick/Tippen ohne Ziehen auf ein Tier öffnet seine Detailansicht (Treffer-Test aus den
-  Ankerpunkten, Tippziel mindestens ~44 px); per Tastatur über die Kacheln der Seitenleiste.
+- Klick/Tippen ohne Ziehen auf ein Tier (im Vollbild) öffnet eine Haftnotiz mit Name und
+  Stimmung, „Im Album ansehen ›“ blättert zur Tierseite (Treffer-Test aus den Ankerpunkten,
+  Tippziel mindestens ~44 px); per Tastatur über die Sticker im Reiter Nischen.
 - Die Kamera ist reiner Oberflächen-Zustand (sessionStorage), **kein Teil des Spielstands**.
 - Schärfe: Während einer Geste wird das vorhandene Bild skaliert gezeigt; ruht die Kamera
   ~150 ms, zeichnet der Renderer den sichtbaren Ausschnitt in voller Auflösung neu

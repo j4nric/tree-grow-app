@@ -96,6 +96,16 @@
 }
 
 .scene-stamps .stage-banner {
+  position: absolute;
+  left: 50%;
+  /* Ohne feste Breite stünde wegen left: 50 % nur die halbe Szene zur Verfügung → unnötige Umbrüche */
+  width: max-content;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
   top: 14%;
   max-width: calc(100% - 28px);
   padding: 8px 18px 10px;
@@ -126,6 +136,9 @@
 }
 
 .scene-stamps .stage-banner .stage-banner-extra {
+  margin-top: 2px;
+  padding-top: 6px;
+  font-size: 0.9rem;
   border-top: 1px dashed var(--dash);
   color: var(--ink-green-dark);
   font-weight: 800;
@@ -294,7 +307,18 @@ body[data-motion='reduce'] .scene-stamps .stage-banner.visible {
 }
 
 /* Rückkehr-Bericht auf der linken Seite: Polaroid kleiner, damit alles ohne Scrollen passt. */
-.album[data-layout='spread'] .spread-left:has(.return-report:not([hidden])) .polaroid {
-  width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 580px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
-  min-width: 260px;
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid {
+  width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 560px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+  min-width: 250px;
+}
+
+/* Dann auch die Bildunterschrift kleiner: Jahreszeit und Wetter in einer Zeile unter der Stufe. */
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid-stage {
+  font-size: 24px;
+}
+
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid-season,
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid .season-badge,
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid .weather-badge {
+  font-size: 18px;
 }

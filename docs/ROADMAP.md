@@ -534,7 +534,7 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   Klick-außerhalb; offene Notiz in `nav.note`), freie Notiz `openNote(anchor, content)` für den
   Tier-Tipp in Schritt 3 (ALBUM_UI.md D.6). `album/stamps.ts` + `stamp-rules.ts` (ab 90 Zeichen
   Zettel, höchstens zwei, rückt unter sichtbare Banderolen); `album.notify(text, options)` mit
-  `error`, `keep`, `brief`, `direct` ersetzt `showToast`. Etiketten sind Knöpfe mit Notiz
+  `error`, `keep`, `brief` (bis Schritt 12 auch `direct`) ersetzt `showToast`. Etiketten sind Knöpfe mit Notiz
   (Harmonie mit „Mehr ›“, sobald es U:Harmonie gibt), Jahreszeit und Wetter in
   `album/season-weather.ts` (ersetzt `season-badge.ts`/`weather-badge.ts`), Gattungs-Chips öffnen
   eine Notiz. Update-Hinweis und „neuerer Spielstand“ als Banderole (`album/banderole.ts`). Die
@@ -653,8 +653,23 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   `initPreferences` liegt jetzt in `ui/preferences.ts`; `help.ts` und `return-report.ts` samt
   CSS gelöscht, Hinweisfeld der Hilfe entfällt (Meldungen gehen als Stempel). Ebene 2 liegt in
   derselben Ablage wie Ebene 1 (übereinander, die weggedrehte zählt nicht zur Höhe).
-- [ ] **12** Aufräumen (`ui-dev`): Altbauteile und altes CSS löschen, `index.html` neu, Album-Demo,
-  DESIGN_V2.md 11 und README-Bilder. Abhängig: 5–11
+- [x] **12** Aufräumen (`ui-dev`): Altbauteile und altes CSS löschen, `index.html` neu, Album-Demo,
+  DESIGN_V2.md 11 und README-Bilder. Abhängig: 5–11. *Umgesetzt:* `album/legacy.ts` gelöscht –
+  Ökosystem-Auffrischung in `album/eco-refresh.ts`, schwebende Zahlen in `album/floats.ts`,
+  Stufen-Stempel in `album/stage-banner.ts`, Verdrahtung in `album/index.ts`; `NotifyOptions.direct`
+  und `JournalView.landscape` entfallen. `style.css` auf globale Grundregeln gekürzt (≈ 2000 →
+  ≈ 150 Zeilen; Kamera-Leiste und Stufen-Stempel in fullscreen.css/polaroid.css). `index.html`
+  als Album-Gerüst, `theme-color` und Manifest-Farben = Karton (`#e9dfc9`). Schrift-Lizenzen
+  (SIL OFL) in `public/licenses/` (landen in `dist/licenses/`). Album-Demo `src/ui/demo.html`
+  mit Beispielstand. Playtest-Funde: Reiterleiste passt mobil stufenweise (`data-fit`: enger,
+  Symbole, nur gewählter Reiter mit Namen), Meldungen unten statt über Navigation (oben nur auf
+  der ungescrollten Hauptansicht und im Vollbild), Rückkehr-Zettel am Desktop ohne Scrollen,
+  „Neu hier?“ mobil unter den Etiketten, verschlossene Lebensräume mobil kompakt, Waldtümpel
+  🏞️, Hähersaat nur einmal im Kopf, matte Sticker deutlicher, Sprungmarken ohne Streifen unter
+  der Leiste, Sticker nach Pixeldichte-Wechsel scharf, Fokus-Rückgabe nach „Neuer Zyklus ›“ auf
+  U:Standort, Texte ohne alte Tagebuch-/Dialog-Verweise. Neuladen auf einer Unterseite spult den
+  Verlauf zurück (G.3), veralteter Hash wird ersetzt. Neu: `e2e/album-layout.spec.ts`,
+  `tests/album-sticker-idle.test.ts`.
 - [ ] **13** e2e-Abschluss (`qa-tester`): restliche Specs (smoke, playtest*-UI), neue
   `album-*`-Specs (Navigation, Wischen, reduzierte Bewegung, Haftnotiz, Vollbild, 360 px ohne
   Überlauf), kein `test.fixme`. Abhängig: 12 (album-nav-Spec schon ab 1)

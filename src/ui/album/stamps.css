@@ -1,16 +1,16 @@
 /*
- * Meldungsschicht (stamps.ts, docs/ALBUM_UI.md C.5): Stempel und Zettel an festem Platz –
- * mobil oben (neben dem Umschlag-Knopf), Desktop oben über der rechten Seite. Über Unterseiten
- * und Zettelstapel; Klicks gehen durch, nur „×“ am Zettel fängt sie.
+ * Meldungsschicht (stamps.ts, docs/ALBUM_UI.md C.5): Stempel und Zettel an festem Platz, der
+ * keine Navigation verdeckt – unten über der Seite (mobil über dem Zettelstapel, Desktop über
+ * der rechten Seite). Nur mobil ganz oben auf der Hauptansicht (nichts gescrollt, keine
+ * Unterseite) und im Vollbild stehen sie oben über dem Bild (`.stamps-top`, index.ts).
+ * Über Unterseiten und Zettelstapel; Klicks gehen durch, nur „×“ am Zettel fängt sie.
  */
 
 .stamps {
   position: fixed;
-  /* --stamps-below: Unterkante sichtbarer Banderolen (stamps.ts) */
-  top: max(calc(16px + env(safe-area-inset-top, 0px)), var(--stamps-below, 0px));
-  /* Umschlag-Knopf links (mobil nur ☰) bleibt frei */
-  left: 72px;
-  right: 10px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: 12px;
+  right: 12px;
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -23,11 +23,30 @@
   display: none;
 }
 
-/* Desktop: mittig über der rechten Seite (Tischrand 48 px, Reiter 46 px), unter dem Kopf */
+/* Mobil liegt unten rechts der Zettelstapel (album.css, .album-dock): darüber bleiben. */
+html:has(.album[data-layout='single'] .note-stack:not([hidden])) .stamps:not(.stamps-top) {
+  bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Oben über dem Bild: Umschlag-Knopf links (mobil nur ☰) bleibt frei. */
+.stamps.stamps-top {
+  /* --stamps-below: Unterkante sichtbarer Banderolen (stamps.ts) */
+  top: max(calc(16px + env(safe-area-inset-top, 0px)), var(--stamps-below, 0px));
+  bottom: auto;
+  left: 72px;
+  right: 10px;
+}
+
+/* Desktop: mittig über der rechten Seite (Tischrand 48 px, Reiter 46 px), über ihrem Fuß */
 .album[data-layout='spread'] ~ .stamps {
-  top: max(96px, var(--stamps-below, 0px));
+  bottom: 40px;
   left: calc(50% + 6px);
   right: 104px;
+}
+
+.album[data-layout='spread'] ~ .stamps.stamps-top {
+  top: max(96px, var(--stamps-below, 0px));
+  bottom: auto;
 }
 
 .stamp {

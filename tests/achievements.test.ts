@@ -463,16 +463,16 @@ describe('Oberfläche: Texte und Naturtagebuch', () => {
   it('Sammelhinweis nach der Migration', () => {
     expect(achievementsBackfilledText(0)).toBeNull();
     expect(achievementsBackfilledText(Number.NaN)).toBeNull();
-    expect(achievementsBackfilledText(1)).toBe('🏅 1 Erfolg nachgetragen – zu finden im Naturtagebuch.');
-    expect(achievementsBackfilledText(7)).toBe('🏅 7 Erfolge nachgetragen – zu finden im Naturtagebuch.');
+    expect(achievementsBackfilledText(1)).toBe('🏅 1 Erfolg nachgetragen – zu finden unter Ziele › Erfolge.');
+    expect(achievementsBackfilledText(7)).toBe('🏅 7 Erfolge nachgetragen – zu finden unter Ziele › Erfolge.');
   });
 
   it('Sammelhinweis nach der Migration mit neuen Erfolgen aus der Offline-Zeit: ein Satz', () => {
-    expect(achievementsBackfilledText(3, [])).toBe('🏅 3 Erfolge nachgetragen – zu finden im Naturtagebuch.');
-    expect(achievementsBackfilledText(3, ['drache'])).toBe('🏅 3 Erfolge nachgetragen – zu finden im Naturtagebuch.');
-    expect(achievementsBackfilledText(3, ['plants-5'])).toBe('🏅 3 Erfolge nachgetragen, dazu neu: „Bunter Saum“ – zu finden im Naturtagebuch.');
+    expect(achievementsBackfilledText(3, [])).toBe('🏅 3 Erfolge nachgetragen – zu finden unter Ziele › Erfolge.');
+    expect(achievementsBackfilledText(3, ['drache'])).toBe('🏅 3 Erfolge nachgetragen – zu finden unter Ziele › Erfolge.');
+    expect(achievementsBackfilledText(3, ['plants-5'])).toBe('🏅 3 Erfolge nachgetragen, dazu neu: „Bunter Saum“ – zu finden unter Ziele › Erfolge.');
     expect(achievementsBackfilledText(1, ['sapling', 'grove'])).toBe(
-      '🏅 1 Erfolg nachgetragen, dazu 2 neue: „Ein dünner Stamm“ und „Nicht mehr allein“ – zu finden im Naturtagebuch.',
+      '🏅 1 Erfolg nachgetragen, dazu 2 neue: „Ein dünner Stamm“ und „Nicht mehr allein“ – zu finden unter Ziele › Erfolge.',
     );
     // Nichts nachgetragen: der gewohnte Hinweis für neue Erfolge.
     expect(achievementsBackfilledText(0, ['grove'])).toBe('🏅 Erfolg: „Nicht mehr allein“');

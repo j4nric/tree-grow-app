@@ -35,35 +35,65 @@ let serial = 0;
  * weitere wartende, bis das Budget verbraucht ist – sonst bräuchten 15 matte Sticker 15
  * Rückrufe (bei laufendem Game Loop und gedrosselter CPU mehrere Sekunden).
  */
-const IDLE_BUDGET_MS = 4;
-let draining = false;
+export const IDLE_BUDGET_MS = 4;
 
-function scheduleIdle(key: string, task: () => void): void {
-  idle.schedule(key, () => {
-    task();
-    if (draining) return;
-    draining = true;
-    const until = performance.now() + IDLE_BUDGET_MS;
-    try {
-      while (performance.now() < until && idle.runNext()) {
-        // weitere Sticker im selben Rückruf
+/**
+ * `schedule(key, task)` auf einer IdleQueue: Der Rückruf führt seine Aufgabe aus und danach
+ * weitere wartende, solange das Zeitbudget reicht. Wirft eine Aufgabe, ist der Rückruf zu Ende
+ * – der nächste arbeitet trotzdem wieder mit Budget (`draining` wird zurückgesetzt).
+ * Exportiert für Tests (Uhr und Warteschlange austauschbar).
+ */
+export function createIdleScheduler(
+  queue: IdleQueue,
+  budgetMs = IDLE_BUDGET_MS,
+  now: () => number = () => performance.now(),
+): (key: string, task: () => void) => void {
+  let draining = false;
+  return (key, task) => {
+    queue.schedule(key, () => {
+      task();
+      if (draining) return;
+      draining = true;
+      const until = now() + budgetMs;
+      try {
+        while (now() < until && queue.runNext()) {
+          // weitere Sticker im selben Rückruf
+        }
+      } finally {
+        draining = false;
       }
-    } finally {
-      draining = false;
-    }
-  });
+    });
+  };
 }
+
+const scheduleIdle = createIdleScheduler(idle);
 
 /** Pixeldichte, mit der zuletzt gezeichnet wurde; ändert sie sich (Zoom, anderer Bildschirm), zeichnen alle neu. */
 let dprEpoch = 0;
 let lastDpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
+function checkDpr(): void {
+  const dpr = window.devicePixelRatio || 1;
+  if (dpr === lastDpr) return;
+  lastDpr = dpr;
+  dprEpoch++;
+  watchDpr();
+}
+/** Wechsel auf einen anderen Bildschirm meldet kein `resize` – darum auch per Media Query. */
+function watchDpr(): void {
+  if (typeof window.matchMedia !== 'function') return;
+  window.matchMedia(`(resolution: ${lastDpr}dppx)`).addEventListener('change', checkDpr, { once: true });
+}
 if (typeof window !== 'undefined') {
-  window.addEventListener('resize', () => {
-    const dpr = window.devicePixelRatio || 1;
-    if (dpr === lastDpr) return;
-    lastDpr = dpr;
-    dprEpoch++;
-  });
+  window.addEventListener('resize', checkDpr);
+  watchDpr();
+}
+
+/**
+ * Zähler der Pixeldichte-Wechsel: Seiten, die Bilder nur bei Bedarf zeichnen (Reiter Arten),
+ * vergleichen ihn im `update` und zeichnen ihre sichtbaren Sticker dann neu.
+ */
+export function stickerDprEpoch(): number {
+  return dprEpoch;
 }
 
 /** Ein Tier-Bild auf eigenem kleinen Canvas – zeichnet nur bei Änderung. */

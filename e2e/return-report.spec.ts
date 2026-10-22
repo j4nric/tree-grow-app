@@ -143,6 +143,20 @@ test('Abheften direkt am Zettel: Fokus an die Überschrift der Seite', async ({ 
   await expect(pageTitle(page)).toBeFocused();
 });
 
+test('Desktop 1200 × 700: linke Seite mit Rückkehr-Zettel passt ohne Scrollen, Polaroid ganz zu sehen', async ({ page, context }) => {
+  await page.setViewportSize({ width: 1200, height: 700 });
+  await seedRaw(context, grove(), -3 * 3600_000);
+  await openGame(page);
+  await expect(report(page)).toBeVisible();
+  const left = page.locator('.spread-left');
+  await expect.poll(() => left.evaluate((l) => l.scrollHeight - l.clientHeight)).toBeLessThanOrEqual(1);
+  expect(await left.evaluate((l) => l.scrollTop)).toBe(0);
+  const page_ = (await left.boundingBox())!;
+  const polaroid = (await page.locator('[data-ref="polaroid"]').boundingBox())!;
+  expect(polaroid.y).toBeGreaterThanOrEqual(page_.y);
+  await expect(page.locator('[data-ref="return-report-details"]')).toBeInViewport({ ratio: 1 });
+});
+
 test('ohne Abwesenheit kein Rückkehr-Bericht', async ({ page, context }) => {
   await seedRaw(context, grove(), 0);
   await openGame(page);

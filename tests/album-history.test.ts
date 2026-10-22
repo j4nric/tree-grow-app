@@ -35,6 +35,7 @@ class FakeHistory {
   go(n: number): void {
     setTimeout(() => {
       this.index = Math.max(0, Math.min(this.entries.length - 1, this.index + n));
+      location.hash = new URL(this.entries[this.index]!.url, 'http://x').hash;
       if (this.dropNext > 0) {
         this.dropNext--;
         return;
@@ -149,6 +150,31 @@ describe('Album-Verlauf', () => {
     const h = createAlbumHistory({ onBack: vi.fn() });
     expect(h.depth).toBe(0);
     expect(fake.state).toEqual({ album: 0 });
+  });
+
+  it('Neuladen auf einer Unterseite mit altem Verlauf: zurück auf den Grundeintrag, Hash bleibt (KANN 5)', async () => {
+    // Grundeintrag (#nischen), dann zwei Ebenen; neu geladen auf der obersten im Reiter Arten.
+    fake.entries = [
+      { state: null, url: '/#nischen' },
+      { state: { album: 1 }, url: '/#nischen' },
+      { state: { album: 2 }, url: '/#arten' },
+    ];
+    fake.index = 2;
+    location.hash = '#arten';
+    const onBack = vi.fn();
+    const h = createAlbumHistory({ onBack });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fake.index).toBe(0);
+    expect(h.depth).toBe(0);
+    expect(onBack).not.toHaveBeenCalled();
+    // Der Reiter vom Neuladen steht jetzt auf dem Grundeintrag.
+    expect(fake.entries[0]!.url).toBe('/#arten');
+    // Eine neue Ebene ersetzt die alten Einträge; Zurück meldet Tiefe 0.
+    h.sync(1);
+    expect(fake.length).toBe(2);
+    h.back();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(onBack).toHaveBeenCalledWith(0);
   });
 
   it('Hash wird ersetzt, nicht angehängt', () => {

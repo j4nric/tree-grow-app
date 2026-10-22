@@ -1,7 +1,8 @@
 /**
  * Stamps: Meldungsschicht über dem Album, auch über Unterseiten und Vollbild (docs/ALBUM_UI.md,
- * C.5). Ersetzt den Toast und `toast-place.ts` – Stempel und Zettel haben einen festen Platz
- * (mobil oben, Desktop oben über der rechten Seite), es gibt nichts mehr auszuweichen.
+ * C.5). Ersetzt den alten Toast – Stempel und Zettel haben einen festen Platz, der keine
+ * Navigation verdeckt: unten über der Seite; nur mobil ganz oben auf der Hauptansicht und im
+ * Vollbild oben über dem Bild (`setTop`, entscheidet album/index.ts).
  *
  * - **Stempel** (bis 90 Zeichen): Tintenrahmen, −3°, Caveat; „stempelt“ herein.
  * - **Zettel** (länger oder `keep`): gelber Zettel mit Tape und „×“, steht doppelt so lange
@@ -25,6 +26,8 @@ export interface Stamps {
   show(text: string, options?: NotifyOptions): void;
   /** Alle Meldungen weg (z. B. Spielstand ersetzt). */
   clear(): void;
+  /** Oben über dem Bild statt unten über der Seite (nur, wo oben keine Navigation liegt). */
+  setTop(top: boolean): void;
 }
 
 interface Shown {
@@ -113,6 +116,11 @@ export function createStamps(toastMs: () => number, reducedMotion: () => boolean
     show,
     clear() {
       for (const item of [...shown]) remove(item, false);
+    },
+    setTop(top) {
+      if (layer.classList.contains('stamps-top') === top) return;
+      layer.classList.toggle('stamps-top', top);
+      placeBelow();
     },
   };
 }

@@ -152,20 +152,6 @@ body:has(.album) {
   z-index: 25;
 }
 
-/* Übergangsinhalt: die bisherigen Bauteile ohne den Rahmen der alten Seitenleiste. */
-.album .panel {
-  position: relative;
-  overflow: visible;
-  padding: 0;
-  border: 0;
-  background: none;
-}
-
-.album .panel > :first-child h2:first-child,
-.album .panel > section:first-child > h2:first-child {
-  margin-top: 0;
-}
-
 /* Reiterwechsel: kurzes Überblenden statt Umblättern (G-3). */
 .album-tabpanel.tab-fade {
   animation: album-tab-fade var(--tab-fade-ms) ease-out;
@@ -346,6 +332,11 @@ body:has(.album) {
   bottom: calc(22px + env(safe-area-inset-bottom, 0px));
   z-index: 22;
   max-width: calc(100vw - 36px);
+}
+
+/* Tastaturfokus nicht unter der klebenden Reiterleiste verstecken (WCAG 2.4.11). */
+html:has(.album[data-layout='single']) {
+  scroll-padding-top: 54px;
 }
 
 /* Tastaturfokus nicht unter dem fest liegenden Zettelstapel verstecken (WCAG 2.4.11). */
