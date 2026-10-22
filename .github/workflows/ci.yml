@@ -50,6 +50,19 @@ jobs:
       - if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --prefix server --no-audit --no-fund
       - run: npm run check
+      # TEMP-MESSUNG: Dauern als Annotationen (Logs sind von außen nicht lesbar).
+      - run: |
+          echo "::notice::nproc=$(nproc) parallel=$(node -p 'require("os").availableParallelism()')"
+          npx vitest run --reporter=json --outputFile=vt.json > /dev/null 2>&1 || true
+          node -e '
+            const r = require("./vt.json");
+            const f = r.testResults.map((t) => [Math.round(t.endTime - t.startTime), t.name.replace(process.cwd() + "/", "")]).sort((a, b) => b[0] - a[0]);
+            const t0 = Math.min(...r.testResults.map((t) => t.startTime)), t1 = Math.max(...r.testResults.map((t) => t.endTime));
+            console.log(`::notice::wall=${Math.round(t1 - t0)} sum=${f.reduce((s, x) => s + x[0], 0)} files=${f.length}`);
+            console.log(`::notice::top ${f.slice(0, 14).map((x) => x[1].split("/").pop() + "=" + x[0]).join(" ")}`);
+            const s = r.testResults.map((t) => [Math.round(t.startTime - t0), Math.round(t.endTime - t0), t.name.split("/").pop()]).sort((a, b) => a[0] - b[0]);
+            console.log(`::notice::start ${s.filter((x) => /sync|security/.test(x[2])).map((x) => x[2] + "@" + x[0] + "-" + x[1]).join(" ")}`);
+          '
       - run: npm run typecheck --prefix server
       - run: npm run build
 
