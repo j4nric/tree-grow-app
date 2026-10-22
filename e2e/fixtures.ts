@@ -197,8 +197,6 @@ export async function readNumber(locator: Locator): Promise<number> {
 export const stageLabel = (page: Page) => page.locator('[data-ref="stage"]');
 export const seedsValue = (page: Page) => page.locator('[data-ref="seeds"]');
 export const stack = (page: Page) => page.locator('[data-ref="encounter-stack"]');
-/** Noch verbliebene Dialoge (Tagebuch, Spielanleitung). */
-export const dialog = (page: Page) => page.getByRole('dialog');
 export const niche = (page: Page, id: string) => page.locator(`[data-niche="${id}"]`);
 /** Unterseite „Begegnung“ (U:Begegnung, docs/ALBUM_UI.md A.6) – früher der Kartenwahl-Dialog. */
 export const encounter = (page: Page) => page.locator('[data-ref="page-encounter"]');
@@ -329,6 +327,20 @@ export async function openLandscapeSite(page: Page, site: string): Promise<Locat
 
 /** Umschlag → Unterseite „Spielstand“ (Export, Import, Spielstand löschen). */
 export const openSavePage = (page: Page) => openCoverPage(page, 'save');
+
+/**
+ * Wartet, bis im Album keine Animation mehr läuft (Umblättern, Umschlag, Überblenden) – statt
+ * einer festen Wartezeit. Danach prüfen die Tests den Ruhezustand.
+ */
+export async function albumAnimationsDone(page: Page): Promise<void> {
+  await page.waitForFunction(() =>
+    document.getAnimations().every((a) => {
+      if (a.playState !== 'running') return true;
+      const target = (a.effect as KeyframeEffect | null)?.target;
+      return !(target instanceof Element && target.closest('[data-ref="album"], [data-ref="cover"]'));
+    }),
+  );
+}
 
 /** Zurück über das Lesezeichen der obersten Unterseite. */
 export async function back(page: Page): Promise<void> {

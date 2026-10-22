@@ -95,6 +95,8 @@ test('Nächste Begegnung ohne neues Umblättern, leerer Stapel blättert zurück
 test('U:Pflanze setzen: Lesezeichen „‹ Nischen“, Samen-Zeile, Escape blättert zurück', async ({ page, context }) => {
   await seedV3(context, { totalGrowth: waypoint(3) + 1, seeds: 30 });
   await openGame(page);
+  // Der Knopf blättert um, er öffnet kein Popup (früher Dialog: aria-haspopup="dialog").
+  await expect(page.locator('[data-ref="plant-open"]')).not.toHaveAttribute('aria-haspopup');
   const picker = await openPlantPicker(page);
   await expect(picker.locator('[data-ref="bookmark"]')).toHaveText('‹ Nischen');
   await expect(picker.locator('[data-ref="picker-seeds"]')).toHaveText('Du hast 30 🌰');

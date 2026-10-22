@@ -670,9 +670,21 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   U:Standort, Texte ohne alte Tagebuch-/Dialog-Verweise. Neuladen auf einer Unterseite spult den
   Verlauf zurück (G.3), veralteter Hash wird ersetzt. Neu: `e2e/album-layout.spec.ts`,
   `tests/album-sticker-idle.test.ts`.
-- [ ] **13** e2e-Abschluss (`qa-tester`): restliche Specs (smoke, playtest*-UI), neue
+- [x] **13** e2e-Abschluss (`qa-tester`): restliche Specs (smoke, playtest*-UI), neue
   `album-*`-Specs (Navigation, Wischen, reduzierte Bewegung, Haftnotiz, Vollbild, 360 px ohne
   Überlauf), kein `test.fixme`. Abhängig: 12 (album-nav-Spec schon ab 1)
+  Erledigt: `e2e/album-viewports.spec.ts` (Matrix 360 × 740, 390 × 844, 1200 × 700: alle Reiter
+  samt Hash, alle Unterseiten und Umschlag-Seiten mit Zurück über Lesezeichen, Browser-Zurück
+  und Escape, nie Ebene 3, Begegnung einkleben, Pflege kaufen, Neuer Zyklus, Neuladen; kein
+  Querscrollen, Bedienelemente ≥ 44 px, Meldungen über keiner Navigation, Screenshots je Reiter
+  als Anhang), `album-nav.spec.ts` ergänzt (Hash, Neuladen, unbekannter/gesperrter Hash,
+  Tastatur, reduzierte Bewegung ohne `rotateY` mit Gegenprobe), `tests/album-sticker-colors.test.ts`
+  (Gattung → Sticker-Farbe). Feste Wartezeiten nach dem Umblättern durch `albumAnimationsDone`
+  ersetzt, Überlauf-Messungen erst nach dem Umblättern. Ohne Wischen: Die Geste fehlt noch (13a).
+- [ ] **13a** Wisch-Zurück auf Unterseiten (`ui-dev`, C.2): `album/swipe.ts` (Schwellen 60 px,
+  waagerecht ≥ 2 × senkrecht oder > 0,5 px/ms, `data-no-swipe`, Canvas ausgenommen) mit Vitest,
+  dazu ein e2e-Test mit Touch-Emulation in `album-nav.spec.ts`. Die `data-no-swipe`-Marker sind
+  schon gesetzt.
 - [ ] **14** Playtest und Feinschliff (`qa-tester` → `ui-dev`/`renderer`), Leistung messen, dann
   PR `claude/album-ui` → `main`. Abhängig: 13
 

@@ -1085,7 +1085,7 @@ rot: „neuerer Spielstand“.
 | Bereich | Tests |
 |---|---|
 | `album/nav.ts` | Stapel nie tiefer als 2 (Ersetzen der obersten); Reiterwechsel leert den Stapel; Zurück-Reihenfolge Haftnotiz → Vollbild → Unterseite → Umschlag; Landschaft-Reiter verschwindet → zurück zu Nischen; Begegnung öffnen bei vollem Stapel; Hash ↔ Reiter (unbekannter Hash → Nischen, gesperrte Landschaft → Nischen) |
-| `album/swipe.ts` | Schwellen für Weite, Richtung und Tempo; senkrechtes Scrollen löst nicht aus; Abbruch |
+| `album/swipe.ts` | Schwellen für Weite, Richtung und Tempo; senkrechtes Scrollen löst nicht aus; Abbruch. **Stand Schritt 13:** Die Geste ist noch nicht gebaut (ROADMAP 13a), daher noch ohne Test. |
 | `album/sticker.ts` | `stickerTilt` fest und im Bereich ±6°; Zuordnung Gattung → Sticker-Farbe |
 | `album/stamps` (rein) | `stampKind(text)` Stempel/Zettel an der 90-Zeichen-Grenze; Fehler erkennen; höchstens 2 sichtbar |
 | `render/sticker.ts` | `stickerFit` passt jeden Rahmen ein (kein Überstand, zentriert); **jede Art aus `content/species.ts` und jeder Gast** hat eine eigene Zeichnung (`stickerKind` ≠ Gattungs-Ersatz), damit neue Arten nicht still auf den Ersatz fallen |
@@ -1159,6 +1159,13 @@ Alle heutigen View-Tests (`ui-view`, `journal-view`, `cycle-view`, `daily-view`,
   Unterseite.
 - **Screenshots** bei 1200 × 700, 390 × 844 und 360 × 740 je Reiter (nur ansehen, kein
   Pixelvergleich).
+
+**Stand nach Schritt 13:** Navigation und reduzierte Bewegung in `album-nav.spec.ts`,
+Haftnotiz in `album-notes.spec.ts`, Vollbild in `camera.spec.ts` und `album-nav.spec.ts`,
+Zettelstapel in `album-encounter.spec.ts`, 360/390/1200 samt Screenshots (Anhänge im
+HTML-Bericht und in `test-results/`) in `album-viewports.spec.ts`. Messungen erst nach dem
+Umblättern (`settledSubpage`, `albumAnimationsDone` in `e2e/fixtures.ts`), nie mitten in der
+Drehung. Wischen fehlt, bis die Geste gebaut ist (ROADMAP 13a).
 
 ---
 
