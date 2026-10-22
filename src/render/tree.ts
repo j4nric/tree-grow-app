@@ -1367,7 +1367,7 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   }
   // Häherflug beim Gründen eines Waldes ganz oben (über dem verblassenden alten Wald).
   if (!Number.isNaN(cache.jayU)) {
-    const unit = (sc.anchors?.size ?? animalSize(layout.width, layout.height)) * 1.7;
+    const unit = (sc.anchors?.size ?? animalSize(layout.width, layout.height)) * 2.4;
     cache.jay.draw(ctx, cache.jayU, reduced, layout.width, layout.groundY, unit, dpr, spriteDpr, sx, sy, m.tx, m.ty);
   }
   ctx.restore();

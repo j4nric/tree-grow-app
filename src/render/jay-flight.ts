@@ -86,31 +86,34 @@ const WHITE = '#f4efe8';
 const BLUE = '#3f7fc4';
 const BLUE_DARK = '#24508c';
 
-/** Flügel mit blau-schwarz gebänderter Decke, weißem Spiegel und schwarzen Schwingen. */
-function wing(c: CanvasRenderingContext2D, tipY: number, folded: boolean): void {
-  const tipX = folded ? 0.34 : 0.22;
+/** Breiter, gerundeter Flügel: schwarze Schwingen, weißer Spiegel, blau gebänderte Decke. */
+function wing(c: CanvasRenderingContext2D, tipY: number, glide: boolean): void {
+  const tipX = glide ? 0.3 : 0.12;
   const shape = () => {
-    c.moveTo(-0.14, -0.05);
-    c.quadraticCurveTo(-0.16, tipY * 0.6, tipX, tipY);
-    c.quadraticCurveTo(0.14, tipY * 0.35, 0.16, -0.03);
+    c.moveTo(-0.16, -0.04);
+    // Vorderkante zur Spitze, dann breite, gerundete Hinterkante zurück zum Körper
+    c.quadraticCurveTo(-0.2, tipY * 0.7, tipX - 0.06, tipY);
+    c.quadraticCurveTo(tipX + 0.16, tipY * 0.85, tipX + 0.12, tipY * 0.5);
+    c.quadraticCurveTo(0.22, tipY * 0.2, 0.16, -0.02);
     c.closePath();
   };
+  outline(c, 0.06, shape);
   c.fillStyle = DARK;
   c.beginPath();
   shape();
   c.fill();
-  // Weißer Flügelspiegel
-  ell(c, 0.04, tipY * 0.45, 0.07, Math.max(0.03, Math.abs(tipY) * 0.09), 0, WHITE);
-  // Blau gebänderte Flügeldecke an der Schulter
-  const by = tipY * 0.2;
-  ell(c, -0.06, by, 0.08, Math.max(0.03, Math.abs(tipY) * 0.1), 0, BLUE);
-  for (const x of [-0.12, -0.07, -0.02]) line(c, [x, by - 0.03, x + 0.01, by + 0.03], BLUE_DARK, 0.018);
+  // Weißer Flügelspiegel in den Armschwingen
+  ell(c, 0.07, tipY * 0.5, 0.075, Math.max(0.035, Math.abs(tipY) * 0.1), 0, WHITE);
+  // Blau-schwarz gebänderte Flügeldecke nahe der Schulter
+  const by = tipY * 0.22;
+  ell(c, -0.06, by, 0.09, Math.max(0.035, Math.abs(tipY) * 0.11), 0, BLUE);
+  for (const x of [-0.12, -0.07, -0.02]) line(c, [x, by - 0.035, x + 0.01, by + 0.035], BLUE_DARK, 0.018);
 }
 
 /** Eichelhäher im Flug, blickt nach links, eine Eichel im Schnabel. */
 export function paintFlyingJay(c: CanvasRenderingContext2D, frame: number): void {
-  const tipY = frame === 0 ? -0.5 : frame === 1 ? 0.42 : -0.08;
-  const tail = [0.24, -0.05, 0.62, -0.08, 0.64, 0.05, 0.24, 0.05];
+  const tipY = frame === 0 ? -0.5 : frame === 1 ? 0.42 : -0.3;
+  const tail = [0.24, -0.05, 0.54, -0.08, 0.56, 0.05, 0.24, 0.05];
   outline(c, 0.07, () => {
     polyPath(c, tail);
     ellPath(c, 0, 0, 0.3, 0.12);
@@ -131,12 +134,8 @@ export function paintFlyingJay(c: CanvasRenderingContext2D, frame: number): void
   // Eichel im Schnabel
   ell(c, -0.53, -0.01, 0.045, 0.032, 0.3, '#a8752f');
   ell(c, -0.5, -0.025, 0.035, 0.022, 0.3, '#6b4a26');
-  if (frame === 2) {
-    // Gleiten: Flügel ausgebreitet, leicht nach hinten gezogen
-    wing(c, tipY, true);
-  } else {
-    wing(c, tipY, false);
-  }
+  // Gleiten: Flügel halb erhoben und nach hinten gezogen
+  wing(c, tipY, frame === 2);
 }
 
 /** Begrenzung des Sprites in Zeicheneinheiten (alle Bilder). */
