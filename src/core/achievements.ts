@@ -138,7 +138,15 @@ export function hasAchievement(state: GameState, id: string): boolean {
  * freigeschaltet. Die Prüfung (checkAchievements) hängt nicht daran.
  */
 export function isAchievementVisible(state: GameState, a: Achievement): boolean {
-  return !a.requires || landscapeUnlocked(state) || hasAchievement(state, a.id);
+  return isAchievementVisibleIn(a, landscapeUnlocked(state), hasAchievement(state, a.id));
+}
+
+/**
+ * Dieselbe Regel ohne Spielstand (z. B. für die Spielanleitung, die nur weiß, ob die
+ * Landschaft freigeschaltet ist): `landscape` = landscapeUnlocked, `unlocked` = schon erreicht.
+ */
+export function isAchievementVisibleIn(a: Achievement, landscape: boolean, unlocked = false): boolean {
+  return !a.requires || landscape || unlocked;
 }
 
 /**

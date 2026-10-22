@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID, type Achievement } from '../src/content/achievements';
 import { CORRIDORS, HOME_SITE, SITE_IDS, type SiteId } from '../src/content/landscape';
 import { STAGES } from '../src/content/stages';
-import { checkAchievements, isAchieved, isAchievementVisible, targetOf, valueOf } from '../src/core/achievements';
+import { checkAchievements, isAchieved, isAchievementVisible, isAchievementVisibleIn, targetOf, valueOf } from '../src/core/achievements';
 import { thresholdFor } from '../src/core/formulas';
 import { ANCIENT_STAGE, landscapeUnlocked } from '../src/core/landscape';
 import { loadGame, serialize } from '../src/core/save';
@@ -200,6 +200,15 @@ describe('Sichtbarkeit und Zähler', () => {
     s.meta.achievements.push('ancient-forest');
     expect(landscapeUnlocked(s)).toBe(true);
     for (const id of LANDSCAPE_IDS) expect(isAchievementVisible(s, byId(id)), id).toBe(true);
+  });
+
+  it('isAchievementVisibleIn: dieselbe Regel ohne Spielstand', () => {
+    expect(isAchievementVisibleIn(byId('forest-2'), false)).toBe(false);
+    expect(isAchievementVisibleIn(byId('forest-2'), false, true)).toBe(true);
+    expect(isAchievementVisibleIn(byId('forest-2'), true)).toBe(true);
+    expect(isAchievementVisibleIn(byId('trees-all'), false)).toBe(true);
+    expect(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, false))).toHaveLength(25);
+    expect(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, true))).toHaveLength(30);
   });
 
   it('Kacheln und Zähler: N/25 vor, N/30 nach der Freischaltung', () => {
