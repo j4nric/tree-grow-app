@@ -404,6 +404,14 @@ Abstand. Gattungen und Pflanzring stehen nebeneinander, wenn die Seite breiter a
 
 **Skizze Desktop:** Raster mit 7 Spalten, die Abschnitte stehen untereinander.
 
+**Umgesetzt (Schritt 7):** Der ★-Knopf sitzt oben links am Sticker (26 px, Trefferfläche
+40 px), die Stammgast-Wahl mit voller Knopfgröße steht auf U:Tier. Unentdeckte Tiere zeigen
+die Silhouette auf blassem Gattungsgrund mit Seltenheitsrand, unentdeckte Pflanzen ihr
+Gruppen-Emoji als dunklen Schatten. Die Haftnotiz einer Silhouette nennt Gattung, Seltenheit,
+Nische und die Stufe bzw. „besondere Bedingungen“, nie Namen oder ID. Die echte ID für das Bild
+bleibt im Skript. Zeichnen: siehe ROADMAP Phase 8, Schritt 7 (IntersectionObserver, IdleQueue,
+Messwerte).
+
 ### B.3 Reiter „Pflege“ – „Was tun wir für den Wald?“ · „2 kaufbar“
 
 1. **Gerade wirksam** (Boni mit Restzeit-Balken). Fehlt, wenn kein Bonus wirkt.
@@ -1292,6 +1300,9 @@ Reiterseite selbst über `album/pages/registry.ts` (eine Zeile pro Seite).
 - **Lizenztexte der Schriften** liegen nur im Quellcode (`src/ui/album/fonts/OFL-*.txt`), nicht
   in `dist/`. In Schritt 12 entscheiden, ob sie mit ausgeliefert werden.
 - **`album/legacy.ts`** wird mit jedem Schritt kleiner und in Schritt 12 gelöscht.
+- **Tagebuch-Teil „Landschaft“:** erledigt in Schritt 10 – steht als „Tagebuch der Wälder“ in
+  R:Landschaft (Stammgäste und Tiere zusätzlich auf U:Standort); `ui/journal-landscape.ts` und
+  die `.journal-*`-Regeln in `style.css` sind gelöscht.
 - **Neuladen auf einer Unterseite (Review KANN 5):** Der aktuelle Eintrag wird `album:0`,
   die älteren Einträge (`album:1`, Grundeintrag) liegen aber noch darunter. Die ersten zwei
   Zurück-Drücke bleiben ohne sichtbare Wirkung, erst der dritte verlässt die App. Lösung offen:

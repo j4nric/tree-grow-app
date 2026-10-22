@@ -54,13 +54,9 @@ test('vor der Freischaltung: kein Reiter „Landschaft“, nichts verrät die W�
   await open(page, context, landscapeState({ own: 100 }));
   await expect(tabButton(page, 'landschaft')).toBeHidden();
   await expect(diary(page)).toBeHidden();
-  // Auch das alte Naturtagebuch (Reiter „Arten“) hat keinen Reiter „Landschaft“ mehr.
+  // Auch der Reiter „Arten“ verrät nichts.
   await openTab(page, 'arten');
-  await page.locator('[data-ref="journal-open"]').click();
-  const journal = page.locator('[data-ref="journal"]');
-  await expect(journal).toBeVisible();
-  await expect(journal.getByRole('tab', { name: /Landschaft/ })).toHaveCount(0);
-  const html = await journal.evaluate((d) => d.outerHTML);
+  const html = await tabPanel(page, 'arten').evaluate((d) => d.outerHTML);
   expect(html).not.toContain('Auwald');
   expect(html).not.toContain('🪶');
 });

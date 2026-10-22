@@ -14,19 +14,16 @@ import { isNight } from '../../core/weather';
 import {
   refreshEcosystemView,
   toEcosystemView,
-  toJournalView,
   type StageBannerView,
 } from '../adapters';
 import { createFloatLayer } from '../feedback';
 import { formatNumber } from '../format';
-import { createJournalButton, createJournalDialog } from '../journal-dialog';
 import { toSeasonBadgeView } from '../season-view';
 import { seedsLabel } from '../view-format';
 import type { EcosystemView } from '../view-model';
 import { toWeatherBadgeView } from '../weather-view';
 import type { CarePage } from './pages/care-page';
 import type { NichesPage } from './pages/niches-page';
-import type { SpeciesPage } from './pages/species-page';
 import type { AlbumTarget } from './cycle-target';
 import { createSeasonWeather } from './season-weather';
 import type { NotifyOptions } from './stamp-rules';
@@ -37,7 +34,6 @@ const PANEL_REFRESH_MS = 200;
 
 export interface LegacyMounts {
   niches: NichesPage;
-  species: SpeciesPage;
   care: CarePage;
   /** Ziel des nächsten Zyklus mit der Ansicht der Landschaft (nach Änderungen nachziehen). */
   albumTarget: AlbumTarget;
@@ -66,9 +62,8 @@ export interface LegacyUi {
   refresh(now: number): void;
   invalidate(parts: readonly AlbumPart[]): void;
   /**
-   * Meldung (C.5): Stempel, ab 90 Zeichen Zettel. Solange noch ein alter Dialog mit eigenem
-   * Hinweisfeld offen ist (Tagebuch), steht sie dort – außer mit `direct`. Begegnung und
-   * Pflanzenwahl sind Unterseiten: Ihre Meldungen kommen als Stempel. Leerer Text: nichts.
+   * Meldung (C.5): Stempel, ab 90 Zeichen Zettel (`direct` ist seit Schritt 7 ohne Wirkung –
+   * es gibt keine alten Dialoge mit Hinweisfeld mehr). Leerer Text: nichts.
    */
   notify(text: string, options?: NotifyOptions): void;
   showBanner(view: StageBannerView): void;
@@ -122,10 +117,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     },
   });
   const seasonWeather = createSeasonWeather(mounts.season);
-  const journal = createJournalDialog(document.body, {
-    onToggleRegular: (speciesId) => deps.actions.toggleRegular(speciesId),
-  });
-  createJournalButton(mounts.species.journal, openJournal);
 
   preferences.onChange(() => {
     // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
@@ -136,20 +127,14 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
 
   // --- Dialoge ------------------------------------------------------------------------
 
-  function openJournal(): void {
-    journal.show(toJournalView(state(), evaluate(state())));
-  }
-
+  /** Seit Schritt 7 gibt es keinen alten Dialog mehr; album/index.ts prüft das verdeckte Polaroid. */
   function overlayOpen(): boolean {
-    return journal.open;
+    return false;
   }
 
-  /** Meldung: im offenen alten Dialog dort (er würde den Stempel verdecken), sonst als Stempel. */
+  /** Meldung als Stempel bzw. Zettel (C.5). */
   function notify(text: string, options: NotifyOptions = {}): void {
     if (!text) return;
-    if (!options.direct) {
-      if (journal.open) return journal.notice(text);
-    }
     hooks.stamp(text, options);
   }
 
@@ -239,7 +224,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       const announcement = deps.takeLandscapeAnnouncement();
       if (announcement) notify(announcement, { keep: true });
       const ev = evaluate(s);
-      if (journal.open) journal.update(toJournalView(s, ev));
       if (!ecoView || ev !== ecoEvaluation || ecoSeenKey() !== ecoSeen) {
         ecoEvaluation = ev;
         ecoSeen = ecoSeenKey();
@@ -285,7 +269,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     plantFeedback,
     replaced() {
       seasonShownSecond = -1;
-      journal.hide();
       invalidate(['eco']);
     },
     adopted() {

@@ -1,15 +1,16 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { SEASON_SECONDS, YEAR_SECONDS } from '../src/content/seasons';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, openGame, openGoalsPage, openTab, savedState, seedRaw, subpage, test, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, openGame, openGoalsPage, openTab, savedState, seedRaw, subpage, tabPanel, test, waypoint } from './fixtures';
 
 /**
  * Unterseite „Statistik“ im Reiter „Ziele“ (Kennzahlen aus dem Spielstand, ALBUM_UI.md B.4)
- * und Naturtagebuch, Reiter „Andenken“ (Hauptbaum-Arten: freigeschaltet, gesperrt mit
- * Hinweis, aktuelle Art markiert).
+ * und Abschnitt „Andenken“ im Reiter „Arten“ (Hauptbaum-Arten: freigeschaltet, gesperrt mit
+ * Hinweis, aktuelle Art markiert; ALBUM_UI.md B.2).
  */
 
-const journal = (page: Page) => page.locator('[data-ref="journal"]');
+/** Abschnitt „Andenken“ im Reiter „Arten“. */
+const keepsakes = (page: Page) => tabPanel(page, 'arten').locator('[data-ref="species-keepsakes"]');
 const statsPage = (page: Page) => subpage(page, 'stats');
 const stat = (page: Page, key: string) => statsPage(page).locator(`[data-stat="${key}"]`);
 
@@ -33,10 +34,10 @@ async function seedSecondCycle(context: BrowserContext): Promise<void> {
   await seedRaw(context, state, 0);
 }
 
-async function openJournal(page: Page): Promise<void> {
+async function openKeepsakes(page: Page): Promise<void> {
   await openTab(page, 'arten');
-  await page.locator('[data-ref="journal-open"]').click();
-  await expect(journal(page)).toBeVisible();
+  await tabPanel(page, 'arten').locator('[data-jump="keepsakes"]').click();
+  await expect(keepsakes(page)).toBeVisible();
 }
 
 test('Statistik: per Tastatur erreichbar, Kennzahlen aus dem Spielstand, Samen laufen mit', async ({
@@ -108,9 +109,8 @@ test('Alter Spielstand (v7, ohne Statistik): Über alle Zyklen beginnt beim lauf
 test('Andenken: Hauptbaum-Arten mit Status, gesperrte mit Hinweis, aktuelle markiert', async ({ page, context }) => {
   await seedSecondCycle(context);
   await openGame(page);
-  await openJournal(page);
-  await journal(page).getByRole('tab', { name: /Andenken/ }).click();
-  const panel = journal(page).getByRole('tabpanel', { name: /Andenken/ });
+  await openKeepsakes(page);
+  const panel = keepsakes(page);
   await expect(panel.getByRole('heading', { name: 'Hauptbaum-Arten' })).toBeVisible();
 
   const oak = panel.locator('[data-tree="oak"]');
@@ -121,11 +121,11 @@ test('Andenken: Hauptbaum-Arten mit Status, gesperrte mit Hinweis, aktuelle mark
   await expect(oak).toContainText('schon gewachsen');
   await expect(pine).toContainText('Waldkiefer');
   await expect(pine).toContainText('wächst in diesem Zyklus');
-  await expect(pine).toHaveClass(/current/);
+  await expect(pine).toHaveClass(/is-current/);
   await expect(beech).toContainText('gesperrt');
   await expect(beech).toContainText('Lass einmal eine Rotbuche im Pflanzring wachsen.');
   // Zähler: Eiche und Kiefer freigeschaltet, keine Erinnerungen.
-  await expect(journal(page).getByRole('tab', { name: /Andenken/ })).toContainText('2');
+  await expect(tabPanel(page, 'arten').locator('[data-jump="keepsakes"]')).toContainText('2');
   await expect(panel).toContainText('Noch keine Erinnerungen');
 });
 
@@ -134,12 +134,11 @@ test('Andenken im ersten Zyklus: gesperrte Arten ohne Namen (keine Spoiler)', as
   state.totalGrowth = waypoint(3) + 1;
   await seedRaw(context, state, 0);
   await openGame(page);
-  await openJournal(page);
-  await journal(page).getByRole('tab', { name: /Andenken/ }).click();
-  const panel = journal(page).getByRole('tabpanel', { name: /Andenken/ });
+  await openKeepsakes(page);
+  const panel = keepsakes(page);
   await expect(panel.locator('[data-tree="oak"]')).toContainText('wächst in diesem Zyklus');
-  await expect(panel.locator('.journal-tree.unknown')).toHaveCount(2);
-  const html = await journal(page).evaluate((d) => d.outerHTML);
+  await expect(panel.locator('.species-tree.is-unknown')).toHaveCount(2);
+  const html = await tabPanel(page, 'arten').evaluate((d) => d.outerHTML);
   expect(html).not.toContain('Rotbuche');
   expect(html).not.toContain('Waldkiefer');
   expect(html).not.toContain('data-tree="beech"');
@@ -160,16 +159,13 @@ for (const width of [360, 390]) {
       expect(await statsPage(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
       await page.locator('[data-ref="bookmark"]:visible').tap();
       await expect(statsPage(page)).toBeHidden();
-      await openJournal(page);
-      await journal(page).getByRole('tab', { name: /Andenken/ }).tap();
+      await openKeepsakes(page);
       expect(await noScroll()).toBe(true);
-      expect(await journal(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
-      // Die Reiter scrollen in ihrer eigenen Leiste (nicht die Seite); alle bleiben 44 px hoch.
-      for (const box of await journal(page).getByRole('tab').evaluateAll((tabs) => tabs.map((t) => t.getBoundingClientRect().toJSON()))) {
-        expect(box.height).toBeGreaterThanOrEqual(44);
+      // Kein Samentütchen ragt rechts aus der Seite.
+      const right = (await tabPanel(page, 'arten').boundingBox())!;
+      for (const box of await keepsakes(page).locator('li').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()))) {
+        expect(box.x + box.width).toBeLessThanOrEqual(right.x + right.width + 0.5);
       }
-      const bar = (await journal(page).getByRole('tablist').boundingBox())!;
-      expect(bar.x + bar.width).toBeLessThanOrEqual(width);
     });
   });
 }
