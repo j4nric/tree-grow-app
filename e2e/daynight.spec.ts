@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { DAY_SECONDS, DAY_START_PHASE } from '../src/content/daytime';
 import { createInitialState } from '../src/core/state';
-import { expect, openCover, openGame, seedRaw, test } from './fixtures';
+import { expect, openCover, openCoverPage, openGame, seedRaw, subpage, test } from './fixtures';
 
 /**
  * Tag und Nacht (DESIGN_V2.md 19): Die Szene zeigt nachts einen dunklen Himmel; die
@@ -9,8 +9,16 @@ import { expect, openCover, openGame, seedRaw, test } from './fixtures';
  * Geprüft wird die mittlere Helligkeit eines Streifens oben im Himmel (rechts vom Mond).
  */
 
-const settings = (page: Page) => page.locator('[data-ref="settings"]');
+const settings = (page: Page) => subpage(page, 'settings');
 const daytimeGroup = (page: Page) => settings(page).locator('[data-setting="daytime"]');
+
+/** Einstellungen und Umschlag schließen (Escape: Unterseite, dann Umschlag). */
+async function closeSettings(page: Page): Promise<void> {
+  await page.keyboard.press('Escape');
+  await expect(settings(page)).toBeHidden();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-ref="cover"]')).toBeHidden();
+}
 
 /** Mittlere Helligkeit (0–255) oben im Himmel der Szene. */
 function skyBrightness(page: Page): Promise<number> {
@@ -46,16 +54,15 @@ for (const viewport of [
     // Nachts: dunkler Himmel (der Taghimmel ist oben hellblau, Helligkeit > 150).
     await expect.poll(() => skyBrightness(page)).toBeLessThan(90);
 
-    await openCover(page);
-    await page.locator('[data-ref="settings-open"]').click();
-    await expect(settings(page)).toBeVisible();
+    await openCoverPage(page, 'settings');
     await expect(settings(page).getByRole('group', { name: 'Tageszeit' })).toBeVisible();
     await expect(daytimeGroup(page).getByLabel(/^Wechsel/)).toBeChecked();
     await daytimeGroup(page).getByLabel('Immer Tag').check();
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tree-grow-settings') ?? '{}').daytime)).toBe('day');
+    // Zurück ins Album (mobil verdeckt die Unterseite die Szene, sie wird dann nicht gezeichnet).
+    await closeSettings(page);
     // Die Szene gleitet in wenigen Sekunden zum Tag.
     await expect.poll(() => skyBrightness(page), { timeout: 10_000 }).toBeGreaterThan(150);
-    await page.keyboard.press('Escape');
 
     // Bleibt nach dem Neuladen (sofort hell, kein Gleiten beim Start).
     await page.reload();
@@ -64,9 +71,9 @@ for (const viewport of [
     await expect.poll(() => skyBrightness(page)).toBeGreaterThan(150);
 
     // Zurück auf Wechsel: wieder Nacht.
-    await openCover(page);
-    await page.locator('[data-ref="settings-open"]').click();
+    await openCoverPage(page, 'settings');
     await daytimeGroup(page).getByLabel(/^Wechsel/).check();
+    await closeSettings(page);
     await expect.poll(() => skyBrightness(page), { timeout: 10_000 }).toBeLessThan(90);
   });
 }

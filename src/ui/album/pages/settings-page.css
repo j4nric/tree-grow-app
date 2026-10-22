@@ -1,0 +1,116 @@
+/* Unterseite „Einstellungen“ (settings-page.ts): jede Gruppe als Karteikarte mit
+   Handschrift-Überschrift auf Washi-Streifen; echte Radio-Knöpfe, Zeilen ≥ 44 px. */
+
+.settings-lead {
+  margin: -4px 0 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.settings-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.setting-card {
+  min-width: 0;
+  margin: 0;
+  padding: 6px 12px 8px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-label);
+  background: var(--paper);
+}
+
+.setting-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -4px;
+  padding: 0 8px 0 4px;
+  background: var(--paper);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.setting-icon {
+  font-family: var(--font-text);
+  font-size: 17px;
+}
+
+.setting-legend-text {
+  position: relative;
+  isolation: isolate;
+}
+
+.setting-legend-text::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: -3px;
+  right: -3px;
+  bottom: 2px;
+  height: 10px;
+  background: var(--tab-species);
+  opacity: 0.75;
+  transform: rotate(-1deg);
+}
+
+.setting-card:nth-child(2n) .setting-legend-text::before {
+  background: var(--tab-goals);
+}
+
+.setting-card:nth-child(3n) .setting-legend-text::before {
+  background: var(--tab-care);
+}
+
+.setting-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 2px 6px;
+  border-radius: var(--r-button);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.setting-choice:hover {
+  background: var(--track);
+}
+
+.setting-choice:has(input:checked) {
+  background: var(--note-bg);
+}
+
+.setting-choice input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--ink-green);
+}
+
+.setting-choice input:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+.setting-choice-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Doppelseite: Karten in zwei Spalten, wenn Platz ist */
+@media (min-width: 1400px) {
+  .album[data-layout='spread'] .settings-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}

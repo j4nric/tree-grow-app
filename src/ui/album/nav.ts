@@ -46,6 +46,13 @@ export type PageRef =
 
 export type PageKind = PageRef['kind'];
 
+/** Schlüssel der Unterseite zu einem Verweis: Kapitel der Anleitung haben eine eigene Seite (Ebene 2). */
+export type SubpageKey = PageKind | 'guide-chapter';
+
+export function subpageKey(ref: PageRef): SubpageKey {
+  return ref.kind === 'guide' && ref.section ? 'guide-chapter' : ref.kind;
+}
+
 export interface AlbumNav {
   tab: TabId;
   /** Umschlag offen (eigene Ebene 0). */
@@ -118,7 +125,8 @@ export function navigate(nav: AlbumNav, action: NavAction, ctx: NavContext): Alb
       const below = nav.stack.findIndex((p) => samePage(p, page));
       // Je Seitenart gibt es ein Blatt (D.1): dieselbe Art mit anderer ID (Tier, Standort …)
       // ersetzt es samt allem darüber.
-      const sameKind = nav.stack.findIndex((p) => p.kind === page.kind);
+      // (Inhaltsverzeichnis und Kapitel der Anleitung sind verschiedene Blätter, subpageKey.)
+      const sameKind = nav.stack.findIndex((p) => subpageKey(p) === subpageKey(page));
       let stack: PageRef[];
       if (below >= 0) stack = nav.stack.slice(0, below + 1);
       else if (sameKind >= 0) stack = [...nav.stack.slice(0, sameKind), page];
