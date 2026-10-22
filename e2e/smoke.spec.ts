@@ -31,7 +31,7 @@ import { SAVE_KEY, codeFromJson } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
 
 /** Toast mit genau dem Sammelhinweis der Erfolge nach der Migration v8 → v9 (sonst nichts). */
-const BACKFILLED_ONLY = /^🏅 \d+ Erfolge? nachgetragen – zu finden im Naturtagebuch\.$/;
+const BACKFILLED_ONLY = /^🏅 \d+ Erfolge? nachgetragen – zu finden unter Ziele › Erfolge\.$/;
 
 /**
  * Smoke-Tests für „Vom Samen zum Wald“ (Album: Begegnungen und Kartenwahl).

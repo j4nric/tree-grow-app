@@ -29,7 +29,7 @@ describe('Texte der Tagesziele', () => {
     expect(dailyGoalText(goal('satisfaction', 90, { genus: 'insects' }))).toBe('Bring die Zufriedenheit deiner Insekten auf 90 %.');
     expect(dailyGoalText(goal('harmony', 300, { harmony: 25 }))).toBe('Halte die Harmonie 5 Minuten lang bei mindestens 25.');
     expect(dailyGoalText(goal('community', 1, { community: 'humus' }))).toBe(
-      'Ein Rätsel im Naturtagebuch: „Aus Laub wird Erde, aus Erde wird Leben.“ Entdecke diese Lebensgemeinschaft.',
+      'Ein Rätsel unter Arten › Gemeinschaften: „Aus Laub wird Erde, aus Erde wird Leben.“ Entdecke diese Lebensgemeinschaft.',
     );
     expect(dailyGoalText(goal('growth', 1200))).toBe('Lass deinen Baum um 1.200 🌿 wachsen.');
     expect(dailyGoalText(goal('seeds', 30))).toBe('Sammle 30 🌰.');

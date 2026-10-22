@@ -218,7 +218,7 @@ function communityViews(state: GameState, sp: Species, ev: Readonly<Evaluation>)
           ? 'Gehört zu einer noch unentdeckten Lebensgemeinschaft'
           : `Gehört zu ${formatNumber(hidden)} noch unentdeckten Lebensgemeinschaften`,
       active: false,
-      hint: 'Rätselhinweise stehen im Naturtagebuch.',
+      hint: 'Rätselhinweise stehen unter Arten › Gemeinschaften.',
     });
   }
   return out;
@@ -301,7 +301,7 @@ export function toAnimalDetailView(
       ? later
         ? `★ Stammgast – ${later}`
         : '★ Stammgast – zieht im nächsten Zyklus gleich wieder ein'
-      : '☆ Kein Stammgast – im Naturtagebuch wählbar';
+      : '☆ Kein Stammgast – auf der Seite der Art wählbar';
   }
 
   const niche = NICHES_BY_ID.get(sp.niche);
