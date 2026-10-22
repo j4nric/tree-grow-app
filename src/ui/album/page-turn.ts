@@ -46,6 +46,14 @@ const SAFETY_MS = 200;
 
 export function createPageTurn(options: PageTurnOptions): PageTurn {
   let busy = false;
+  /**
+   * Zählt die Drehungen. Beginnt eine neue, während die alte noch läuft, wird die alte
+   * abgebrochen und ihr Abschluss bleibt wirkungslos (sonst setzte er `turned-away` an
+   * eine Seite, die die neue Drehung gerade zeigt).
+   */
+  let generation = 0;
+  /** Abbruch der laufenden Drehung (Animation stoppen, Elemente aufräumen). */
+  let abortCurrent: (() => void) | null = null;
 
   /**
    * Senkrechte Drehachse: mitten im sichtbaren Teil der Seite. Bei einer langen, mit dem
@@ -59,7 +67,17 @@ export function createPageTurn(options: PageTurnOptions): PageTurn {
     return `0 ${Math.round(Number.isFinite(middle) ? middle : rect.height / 2)}px`;
   }
 
+  /** Inline-Stile und Drehklasse entfernen (Ende oder Abbruch einer Drehung). */
+  function clean(front: HTMLElement): void {
+    front.style.willChange = '';
+    front.style.transformOrigin = '';
+    front.style.backfaceVisibility = '';
+    front.classList.remove(TURNING);
+  }
+
   async function run(front: HTMLElement, under: HTMLElement, direction: 'forward' | 'back'): Promise<void> {
+    abortCurrent?.();
+    const mine = ++generation;
     busy = true;
     front.inert = true;
     under.inert = true;
@@ -86,20 +104,36 @@ export function createPageTurn(options: PageTurnOptions): PageTurn {
       front.style.backfaceVisibility = 'hidden';
     }
     front.style.willChange = reduced ? 'opacity' : 'transform';
+    let animation: Animation | null = null;
+    let wake: () => void = () => undefined;
+    abortCurrent = () => {
+      abortCurrent = null;
+      animation?.cancel();
+      clean(front);
+      front.inert = false;
+      under.inert = false;
+      wake();
+    };
     try {
       if (typeof front.animate === 'function') {
-        const animation = front.animate(frames, { duration, easing, fill: 'forwards' });
+        animation = front.animate(frames, { duration, easing, fill: 'forwards' });
         await Promise.race([
           animation.finished.catch(() => undefined),
-          new Promise((resolve) => setTimeout(resolve, duration + SAFETY_MS)),
+          new Promise<void>((resolve) => {
+            wake = resolve;
+            setTimeout(resolve, duration + SAFETY_MS);
+          }),
         ]);
         animation.cancel();
       }
     } finally {
-      front.style.willChange = '';
-      front.style.transformOrigin = '';
-      front.style.backfaceVisibility = '';
-      front.classList.remove(TURNING);
+      // Abgebrochen: Die neue Drehung bestimmt den Zustand.
+      if (mine === generation) finish();
+    }
+
+    function finish(): void {
+      abortCurrent = null;
+      clean(front);
       if (direction === 'forward') {
         front.classList.add(TURNED_AWAY);
         under.inert = false;

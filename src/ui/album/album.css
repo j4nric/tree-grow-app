@@ -346,6 +346,11 @@ body:has(.album) {
   max-width: calc(100vw - 36px);
 }
 
+/* Tastaturfokus nicht unter dem fest liegenden Zettelstapel verstecken (WCAG 2.4.11). */
+html:has(.album[data-layout='single'] .encounter-stack:not([hidden])) {
+  scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
 .album[data-layout='single'] .album-dock .encounter-stack {
   transform: rotate(var(--tilt-stack));
 }
