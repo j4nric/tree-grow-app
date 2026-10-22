@@ -16,7 +16,9 @@
 > 19 insgesamt, gewichtet nach dem Wetter des Tages – `DESIGN_V2.md` 22) und Hauptbaum-Arten (Eiche, Buche,
 > Kiefer; Wahl beim Neuen Zyklus; `DESIGN_V2.md` 16 und 17);
 > Erweiterung Amphibien mit Waldtümpel (6. Gattung, 5 Arten seit dem Playtest, eigene Nische; unten);
-> Spielstand v12 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
+> Lebensräume Waldwiese, Totholzhaufen und Trockenmauer (3 Nischen aus Pflege, 14 Arten,
+> 7. Gattung Reptilien, 4 Lebensgemeinschaften, 11 Pflegemaßnahmen; `DESIGN_V2.md` 23);
+> Spielstand v13 (v1-Stände starten neu, ab „Junger Baum“ mit +5 Waldgedächtnis;
 > v2-Stände behalten ihren Fortschritt, Samen werden auf 58 begrenzt; v3-Stände laufen
 > verlustfrei als erster Zyklus weiter; v4-Stände bekommen leere Ereignis-Felder, v5-Stände ohne Pflege eine leere Pflege;
 > v5-Stände beginnen beim Laden im Frühling und wachsen als Stieleiche weiter; v3- bis
@@ -36,6 +38,10 @@
 > im Zyklus gewählter „Waldtümpel“ aus dem Regenreichen Frühling seinen Platz nachgetragen.
 > Seit Spielstand v12 gibt es Tagesziele mit Serie (`DESIGN_V2.md` 20 und 12.9, unten);
 > v11-Stände bekommen einen eigenen Startwert und ihre ersten Ziele beim nächsten Start.
+> Seit Spielstand v13 gibt es die Lebensräume (`DESIGN_V2.md` 23.6); v12-Stände bekommen die
+> drei Nischen leer, ein gekaufter Totholzhaufen seine Plätze aus dem Rang, ein im Zyklus
+> gewähltes „Das Holz vermodern lassen“ (Käferjahr) seinen Platz nachgetragen. Ein
+> gespeicherter Stand einer neueren Spielversion wird weder geladen noch überschrieben.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:

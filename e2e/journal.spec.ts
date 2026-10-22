@@ -32,7 +32,7 @@ test('Naturtagebuch: Zähler, Reiter, keine Spoiler, Esc gibt den Fokus zurück'
   await openJournal(page);
 
   await expect(journal(page).locator('[data-ref="journal-counts"]')).toHaveText(
-    '3/37 Arten · 1/14 Pflanzen · 0/11 Gemeinschaften',
+    '3/51 Arten · 1/14 Pflanzen · 0/15 Gemeinschaften',
   );
   await expect(journal(page).locator('[data-ref="journal-meta"]')).toHaveText(
     'Zyklus 1 · Waldgedächtnis 30 (+30 % Wachstum und Samen)',

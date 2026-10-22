@@ -332,8 +332,10 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   Totholzhaufen, Trockenmauer, Waldwiese – je 3–5 Arten und eine Lebensgemeinschaft
   - [x] Design (`game-designer`): Waldwiese (Junger Baum), Totholzhaufen (Alter Baum),
     Trockenmauer (Hain), 14 Arten, Gattung Reptilien, 4 Lebensgemeinschaften; Daten in
-    `src/content/habitats.ts` (noch nicht verdrahtet) – DESIGN_V2.md 23
-  - [ ] Spielstand v13 und Verdrahtung (`core-engineer`, 23.7 Schritt B)
+    `src/content/habitats.ts` – DESIGN_V2.md 23
+  - [x] Spielstand v13 und Verdrahtung (`core-engineer`, 23.7 Schritt B): Nischen, Arten,
+    Reptilien, Pflege, neue Jagdpaare, Massenjahre vollständig, Migration v12 → v13, Schutz
+    vor älteren Clients (gespeicherter Stand „neuer“) – `tests/habitats-core.test.ts`
   - [ ] Szene und 14 Zeichnungen (`renderer`, 23.7), Nischen, Pflege, Reptilien (`ui-dev`)
 - [ ] Prestige-Stufe 2 „Waldlandschaft“ (`game-designer`, `core-engineer`, `renderer`):
   mehrere Wälder nebeneinander mit eigenem Hauptbaum, Wildwechsel über Korridore;

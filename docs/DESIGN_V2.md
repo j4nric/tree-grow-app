@@ -1096,13 +1096,16 @@ nur ~1.700 🌰, der Bestand wächst auf 25–35 Minuten Produktion). Inhalte:
 | 🍂 Laub liegen lassen | `leaf-litter` | – | **Setzling, 200 🌰** (vorher Junger Baum, 750): +1 Platz Laubstreu | Hain, 7.000 🌰: +2 💧, +3 ⚖️ | – | „Im Herbst bleibt das Laub, wo es fällt.“ |
 | 🏠 Nistkästen | `nest-boxes` | – | Junger Baum, **650 🌰** (vorher 1.100): Baumhöhle, +1 Platz Höhlen | Hain, 11.000 🌰: +1 Platz Krone | – | „Ein Holzkasten mit kleinem Flugloch. Gemütlich – und leicht zu finden.“ |
 | 🌼 Wildblumen-Saum | `wildflower-hem` | – | Junger Baum, 900 🌰: Blumen +40 % 🌰 | Alter Baum, 8.000 🌰: +1 Platz Waldsaum | Wald, 30.000 🌰: Blumen +40 % 🌿 und 🌰 | „Margeriten, Klee und hohes Gras am Rand des Baums.“ |
-| 🪵 Totholzhaufen | `deadwood-pile` | – | Alter Baum, 3.500 🌰: Totholz | Hain, 14.000 🌰: +1 Platz Stamm & Rinde, +2 ⚖️ | – | „Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.“ |
+| 🌾 Waldwiese (23.2) | `meadow` | – | Junger Baum, 2.400 🌰: +2 Plätze Waldwiese | Hain, 16.000 🌰: +2 Plätze Waldwiese, +2 ☀️ | – | „Einmal im Jahr gemäht, sonst in Ruhe gelassen – so blüht und zirpt die Lichtung.“ |
+| 🪵 Totholzhaufen | `deadwood-pile` | – | Alter Baum, **4.500 🌰** (vor den Lebensräumen 3.500): Totholz, **+2 Plätze Totholzhaufen** (23.2) | Hain, 14.000 🌰: +1 Platz Stamm & Rinde, **+1 Platz Totholzhaufen**, +2 ⚖️ | – | „Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.“ |
 | ☀️ Lichte Krone | `light-crown` | nicht mit Dichter Krone | Alter Baum, 4.000 🌰: +3 ☀️ | Hain, 15.000 🌰: +2 ☀️ | Wald, 45.000 🌰: +2 ☀️ | „Ein paar Äste weniger – Sonnenflecken tanzen über den Boden.“ |
 | 🌳 Dichte Krone | `dense-crown` | nicht mit Lichter Krone | Alter Baum, 4.000 🌰: +1 Platz Krone, −2 ☀️ | Hain, 15.000 🌰: Bäume +10 % 🌿 | Wald, 45.000 🌰: Bäume +10 % 🌿 | „Ein Dach aus Blättern, unter dem Vögel sicher brüten.“ |
 | 💧 Waldtümpel | `pond` | – | Alter Baum, **7.500 🌰** (vorher 5.500): Feuchte, +3 💧, **+2 Plätze Waldtümpel** (5.5) | Hain, **22.500 🌰** (vorher 22.000): +3 💧, +2 ⚖️, **+1 Platz Waldtümpel** | – | „Eine feuchte Senke, in der sich der Regen sammelt.“ |
 | 🐝 Insektenhotel | `insect-hotel` | ≥ 1 Insekt | Alter Baum, 2.700 🌰: +3 ⚖️ | Hain, 12.500 🌰: Blumen und Sträucher +25 % 🌰 | Wald, 38.000 🌰: +4 ⚖️ | „Hohle Stängel und gebohrte Löcher – jedes Zimmer ist bald belegt.“ |
+| 🪨 Trockenmauer (23.2) | `drystone-wall` | – | Hain, 12.000 🌰: +2 Plätze Trockenmauer, +2 ☀️ | Wald, 36.000 🌰: +2 Plätze Trockenmauer, +2 ⚖️ | – | „Lesesteine ohne Mörtel, in der Sonne geschichtet – jede Ritze ein Zuhause.“ |
 
-Summe: vor dem Hain 27.650 🌰 (bis zur Erweiterung Amphibien 25.650, bis zum Playtest „frühes Spiel“ 26.450), Hain-Ränge
+Summe seit den Lebensräumen (23.2, 11 Maßnahmen): vor dem Hain 31.050 🌰, Hain-Ränge 110.000 🌰,
+Wald-Ränge 149.000 🌰. Davor: vor dem Hain 27.650 🌰 (bis zur Erweiterung Amphibien 25.650, bis zum Playtest „frühes Spiel“ 26.450), Hain-Ränge
 82.000 🌰 (vorher 81.500), Wald-Ränge 113.000 🌰 (mit nur einer der beiden Kronen). **Seit dem Balancing 2.10** (vorher 19.700 / 47.000 / 75.000):
 Ränge ab Junger Baum ×1,25, ab Alter Baum ×1,35, ab Hain ×1,8 (Kronen ×1,5, damit Rang 3
 weiter mindestens das Dreifache kostet), ab Wald ×1,5 – die gestreckte Wegpunkt-Kurve
@@ -1783,10 +1786,11 @@ mit dem Zyklus neu angelegt.
   Tag keine Ziele. Zähler ganzzahlig 0 … 1e9, Serie 0 ohne gültigen letzten Tag, beste Serie
   nie unter der laufenden.
 
-### 12.10 Lebensräume (Spielstand v13, Entwurf)
+### 12.10 Lebensräume (Spielstand v13)
 
 Nur drei neue Nischen `niches.meadow`, `niches.deadwood`, `niches.wall`; Bestand, Überjagung
-und Massenjahre sind abgeleitet bzw. nutzen vorhandene Felder. Migration und Laden: 23.6.
+und Massenjahre sind abgeleitet bzw. nutzen vorhandene Felder. Migration, Laden und der
+Schutz vor älteren Clients („Stand ist neuer“): 23.6.
 
 ---
 
@@ -4929,6 +4933,12 @@ und die Schonzeit: Junger Baum 4:10 / 3:55 min statt vorher 4:06 / 3:51 min (onl
 > (Inhalt), Messung 22.9 (`tests/predation-balance.test.ts`). Offen: die neuen Merkmale
 > Amphibien/Kaninchen und die Lebensraum-Arten in den Massenjahren (Schritt B, 23.7) und die
 > Anzeige (22.7, `ui-dev`).
+>
+> **Schritt B erledigt** (mit den Lebensräumen, Spielstand v13, 23.7): Amphibien stellen
+> „Amphibien“ bereit (Ringelnatter), der Rotfuchs frisst und hält Kaninchen klein, Echsen
+> für Turmfalke und Schlingnatter; Massenjahre mit Mauswiesel, Blindschleiche und Platz im
+> Totholzhaufen. Die Ergänzungen stehen direkt in `species.ts` (die Hilfslisten
+> `PROVIDES_ADDITIONS`, `FOOD_ADDITIONS`, `EFFECT_ADDITIONS` sind entfallen).
 
 ### 22.1 Idee und Leitlinien
 
@@ -5129,12 +5139,13 @@ Lebensräumen (23.7). Abweichungen und Ergänzungen gegenüber dem Plan unten:
   schlechter als vorher. Überjagung rechnet mit demselben Futterangebot.
 - **Wetter-Gewichte nur mit Wetter:** Im Modus `off` (ohne Wetter, Simulation zum Vergleich)
   ziehen alle Ereignisse gleich; `live` und `average` mit dem Wetter des echten Tages.
-- **Bekannte Einschränkung bis v13:** Ein älterer Client (Spielstand v12, vor dieser
-  Änderung) kennt die vier Massenjahre nicht und filtert ihre IDs beim Laden aus
-  `cycle.seen` (und damit ihre Zyklus-Boni) – z. B. beim Abgleich über die Synchronisierung.
-  Nichts stürzt ab; schlimmstenfalls kommt ein Massenjahr im selben Zyklus ein zweites Mal
-  bzw. ein Geschenk geht verloren. Den Schutz „Stand ist neuer“ bringt erst `SAVE_VERSION`
-  13 mit Schritt B (23.6/23.7).
+- **Bekannte Einschränkung bis v13 (behoben):** Ein älterer Client (Spielstand v12, vor
+  dieser Änderung) kannte die vier Massenjahre nicht und filterte ihre IDs beim Laden aus
+  `cycle.seen`. Seit `SAVE_VERSION` 13 (Schritt B) trägt jeder Stand dieser Version die 13:
+  Ein v12-Client lehnt ihn beim Import („neuere Spielversion“) und beim Abgleich (Schema 13
+  > 12, „Neue Spielversion – bitte neu laden“) ab, statt IDs zu verwerfen (23.6). Ein v12-Stand
+  aus der Zeit zwischen Schritt A und B, den ein v12-Client schon gekürzt hat, bleibt gekürzt
+  (harmlos, s. o.).
 
 **Schnittstellen für `ui-dev`** (alle rein, aus `evaluate(state)`):
 
@@ -5143,7 +5154,7 @@ Lebensräumen (23.7). Abweichungen und Ergänzungen gegenüber dem Plan unten:
 | Bestand je Tier (nur Beute) | `ev.animals[id].stock` (0,5 … 1,5; `undefined` bei Tieren ohne `provides`); Stufen „knapp“/„gut“/„reichlich“ mit `STOCK_LOW` 0,85 / `STOCK_HIGH` 1,25 (`content/predation.ts`) |
 | Überjagung je Tier | `ev.animals[id].overhunt` (fehlende Einheiten 0 … 2); Abzug = `OVERHUNT_PENALTY · overhunt`; `overhuntedBy` = Jäger des überjagten Merkmals (nur bei Überjagung). `hunters` bleibt die Zahl aller Jäger (Anzeige) |
 | Futter der Jäger | wie bisher `ev.animals[id].food` (0 … 1) – jetzt Σ max(1, Bestand) / Nachfrage |
-| Nahrungsnetz | `ev.foodWeb: FoodWebEntry[]` = `{ tag, prey, hunters, controllers, stock, supply, state }` (`stock` = Σ Bestand für „knapp/reichlich“, `supply` = Σ max(1, Bestand) = Futter für die Jäger; „überjagt“, wenn Jäger > `supply`), `state` ∈ `'balanced' \| 'overhunted' \| 'unhunted'`; eine Zeile je Beute-Merkmal mit Beute im Wald, Reihenfolge wie `TAG_NAMES` (heute höchstens 7: Insekten, Raupen, Käfer, Würmer, Schnecken, Kleinsäuger, Rehe). `controllers` = Arten, die das Merkmal nur klein halten (Waldameise ⊘ Raupen); „ungejagt“ nur ohne Jäger *und* ohne sie |
+| Nahrungsnetz | `ev.foodWeb: FoodWebEntry[]` = `{ tag, prey, hunters, controllers, stock, supply, state }` (`stock` = Σ Bestand für „knapp/reichlich“, `supply` = Σ max(1, Bestand) = Futter für die Jäger; „überjagt“, wenn Jäger > `supply`), `state` ∈ `'balanced' \| 'overhunted' \| 'unhunted'`; eine Zeile je Beute-Merkmal mit Beute im Wald, Reihenfolge wie `TAG_NAMES` (seit v13 höchstens 10: Insekten, Raupen, Käfer, Würmer, Schnecken, Kleinsäuger, Rehe, Amphibien, Echsen, Kaninchen). `controllers` = Arten, die das Merkmal nur klein halten (Waldameise ⊘ Raupen); „ungejagt“ nur ohne Jäger *und* ohne sie |
 | Hilfsfunktionen | `stockFor(z)`, `overhuntUnits(jäger, bestand)`, `unhuntedTags(arten)` (`core/formulas.ts`); `eventWeight(state, id)` (`core/tick.ts`) |
 
 `moodReasons`/`moodText` und die Tierdetails nennen Jäger jetzt nur bei Überjagung und nur
@@ -5249,9 +5260,13 @@ Ziehung wirkt der Faktor genau (Test: Sturmnacht bei Sturm ≈ ×3).
 
 ## 23. Lebensräume
 
-> **Stand:** Design (Phase 6, Welle 3, Teil A). Daten in `src/content/habitats.ts`, noch
-> **nicht verdrahtet** (Spielstand v13, 23.6). Inhaltstest `tests/habitats.test.ts`.
-> Messung in 22.9.
+> **Stand:** Logik umgesetzt (Phase 6, Welle 3, Schritt B, Spielstand v13). Daten in
+> `src/content/habitats.ts` (fließen in `NICHES`, `SPECIES`, `TRAITS`, `COMMUNITIES`,
+> `CARE`), Totholzhaufen in `care.ts`, Reptilien in `GENUS_INFO`, `TAG_NAMES` und `SEASONS`.
+> Tests: `tests/habitats.test.ts` (Inhalt), `tests/habitats-core.test.ts` (Spielstand,
+> Laden, Logik), online = offline in `tests/tick.test.ts`. Messung 23.10. Offen: Szene und
+> Zeichnungen (`renderer`, bis dahin werden die neuen Nischen nicht gezeichnet; Reptilien
+> bekommen vorläufig die Zeichnung der Amphibien), Nischenliste und Spielanleitung (`ui-dev`).
 
 ### 23.1 Idee
 
@@ -5283,11 +5298,11 @@ ihrem Lebensraum. Plätze nur aus Wirkungen `slot`:
 |---|---|---|---|---|
 | 🌾 Waldwiese (neu) | `meadow` | **Junger Baum, 2.400 🌰**: +2 Plätze Waldwiese | Hain, 16.000 🌰: +2 Plätze Waldwiese, +2 ☀️ | „Einmal im Jahr gemäht, sonst in Ruhe gelassen – so blüht und zirpt die Lichtung.“ |
 | 🪵 Totholzhaufen (erweitert) | `deadwood-pile` | Alter Baum, **4.500 🌰** (vorher 3.500): Totholz, **+2 Plätze Totholzhaufen** | Hain, 14.000 🌰: +1 Platz Stamm & Rinde, **+1 Platz Totholzhaufen**, +2 ⚖️ | „Ein Stapel alter Äste – Kinderstube für Käfer, Versteck für Igel.“ |
-| 🪨 Trockenmauer (neu) | `drystone-wall` | **Hain, 12.000 🌰**: +2 Plätze Trockenmauer, +2 ☀️ | Wald, 32.000 🌰: +2 Plätze Trockenmauer, +2 ⚖️ | „Lesesteine ohne Mörtel, in der Sonne geschichtet – jede Ritze ein Zuhause.“ |
+| 🪨 Trockenmauer (neu) | `drystone-wall` | **Hain, 12.000 🌰**: +2 Plätze Trockenmauer, +2 ☀️ | Wald, **36.000 🌰** (Entwurf 32.000; jeder Rang kostet mindestens das Dreifache, 8.1): +2 Plätze Trockenmauer, +2 ⚖️ | „Lesesteine ohne Mörtel, in der Sonne geschichtet – jede Ritze ein Zuhause.“ |
 | 🪲 Käferjahr (22.5) | – | „Das Holz vermodern lassen“: Totholz, +1 Platz Totholzhaufen (Zyklus) | | |
 
 - **Kosten:** Pflege vor dem Hain steigt von 27.650 auf 31.050 🌰 (Wiese 2.400,
-  Totholzhaufen +1.000), Hain-Ränge +28.000 (Wiese, Mauer), Wald-Ränge +32.000. Die Wiese
+  Totholzhaufen +1.000), Hain-Ränge +28.000 (Wiese, Mauer), Wald-Ränge +36.000. Die Wiese
   liegt mit 2.400 über Nistkästen (650) und Wildblumen-Saum (900): Im Jungen Baum ist sie
   die große Anschaffung (der Harmonie-Spieler kauft sie zu 73 % dort, der Wachstums-Spieler
   zu 26 %); der Totholzhaufen kostet mehr als vorher, weil er jetzt zwei Plätze bringt.
@@ -5363,11 +5378,12 @@ voll zufrieden verlangen einen lichten, feuchten Wald (wie Hirschkäfer und Tüm
 | Lebensgemeinschaft | Mitglieder | ⚖️ | Hinweis |
 |---|---|---|---|
 | 🌾 Wiesenkonzert | Feldgrille, Wildbiene oder Tagpfauenauge, Turmfalke | +6 | „Zirpen, Summen – und hoch darüber ein Rütteln in der Luft.“ |
-| 🪵 Unterm Reisig | Zaunkönig, Rosenkäfer oder Schmetterlingstramete, Blindschleiche oder Mauswiesel | +6 | „Wo Reisig liegt, singt, nagt und lauert es.“ |
+| 🍂 Unterm Reisig | Zaunkönig, Rosenkäfer oder Schmetterlingstramete, Blindschleiche oder Mauswiesel | +6 | „Wo Reisig liegt, singt, nagt und lauert es.“ |
 | 🪨 Sonnenmauer | Zauneidechse, Rote Mauerbiene, Ringelnatter oder Schlingnatter | +6 | „Warme Steine, summende Ritzen, ein Rascheln im Moos.“ |
 | 🐍 Natter am Ufer | Ringelnatter, Grasfrosch oder Erdkröte, Bergmolch oder Laubfrosch oder Kammmolch | +6 | „Am Ufer liegt jemand in der Sonne und wartet geduldig.“ |
 
-Alle +6 wie die kleinen Gemeinschaften (Blütensaum, Tümpelleben). „Natter am Ufer“ zeigt
+Alle +6 wie die kleinen Gemeinschaften (Blütensaum, Tümpelleben). Symbol von „Unterm Reisig“
+🍂 statt 🪵 (Symbole der Gemeinschaften sind eindeutig, 🪵 hat die Totholz-Kette). „Natter am Ufer“ zeigt
 Räuber und Beute als Gewinn: Jäger und Gejagte zusammen bringen Harmonie.
 
 ### 23.6 Spielstand v13
@@ -5391,7 +5407,18 @@ verwerfen – auch über die Synchronisierung (wie v11, 12.8). Mit v13 erkennt e
 
 - **Migration v12 → v13:** die drei Nischen leer anlegen. Wer im laufenden Zyklus den
   Totholzhaufen gekauft hat, bekommt seine zwei Plätze automatisch (sie folgen aus dem Rang;
-  dass er 3.500 statt 4.500 🌰 bezahlt hat, bleibt ein kleines Geschenk). Nichts sonst.
+  dass er 3.500 statt 4.500 🌰 bezahlt hat, bleibt ein kleines Geschenk). **Umgesetzt
+  zusätzlich** (wie v11 beim Regenreichen Frühling): Wer im Zyklus beim Käferjahr „Das Holz
+  vermodern lassen“ gewählt hat, bekommt den neuen Platz im Totholzhaufen nachgetragen –
+  erkennbar am Totholz in `cycle.habitats`, das kein anderes gezogenes Ereignis (Sturmnacht,
+  Schneebruch, Blitzschlag) vergeben haben kann; im Zweifel nichts.
+- **Schutz vor älteren Clients („Stand ist neuer“):** Ein Stand mit `version` >
+  `SAVE_VERSION` wird nie still gekürzt: Import und Konto-Abgleich lehnen ihn schon ab
+  (`importCode` → `'newer'`, `isNewerSchema`); seit v13 auch der gespeicherte Stand im Browser
+  (`storedSaveIsNewer`): `main.ts` lädt ihn nicht, überschreibt ihn nie (Speicher gesperrt),
+  startet keinen Abgleich und zeigt „Dein Spielstand stammt aus einer neueren Version des
+  Spiels. Bitte lade die Seite neu …“. Ein v12-Client (vor dieser Änderung) schützt über
+  Import und Abgleich; seinen lokalen Speicher kann nur ein Neuladen auf v13 heben.
 - **Robustes Laden (ab v13):** wie jede Nische (nur bekannte Arten dieser Nische, gekürzt auf
   die Plätze); `cycle.care` kennt die neuen IDs; Tagesziele kennen `reptiles`.
 - Tests: v12-Stand mit Totholzhaufen Rang 1 → `niches.deadwood` leer mit 2 Plätzen; v12
@@ -5403,7 +5430,7 @@ verwerfen – auch über die Synchronisierung (wie v11, 12.8). Mit v13 erkennt e
 |---|---|---|---|
 | 1 | `core-engineer` | ✅ **Schritt A** (22.8): Bestand, Überjagung, `unhunted`, Massenjahre (ohne Lebensraum-Arten), `foodWeb`; Tests; Messung 22.9 | – |
 | 2 | `ui-dev` | Bestand und Futter in Tierdetails und Karte, Nahrungsnetz in der Übersicht, Spielanleitung „Räuber und Beute“ (22.7) | 1 |
-| 3 | `core-engineer` | **Schritt B** (v13, schützt auch die Massenjahr-IDs in `cycle.seen` vor älteren Clients, 22.8): Typen (`reptiles`, Nischen, Merkmale `amphibien`/`echsen`/`hasen` mit Namen in `TAG_NAMES`: „Amphibien“, „Echsen“, „Kaninchen“), `habitats.ts`/`predation.ts` in `SPECIES`, `NICHES`, `TRAITS`, `GENUS_INFO`, `COMMUNITIES`, `CARE` (Totholzhaufen ersetzen), `SEASONS` (Sommer Reptilien +15 %), Ergänzungen an Amphibien und Fuchs (mit Kurzwirkung), Massenjahre vollständig; `W3…`-Typen löschen, `tests/habitats.test.ts` auf die verdrahteten Listen umstellen; Migration v12 → v13; Erfolgstext „Von allem etwas“ | 1, Wetter-Logik gemergt (keine zwei Versionen parallel) |
+| 3 | `core-engineer` | ✅ **Schritt B** (v13, schützt auch die Massenjahr-IDs in `cycle.seen` vor älteren Clients, 22.8): Typen (`reptiles`, Nischen, Merkmale `amphibien`/`echsen`/`hasen` mit Namen in `TAG_NAMES`: „Amphibien“, „Echsen“, „Kaninchen“), `habitats.ts`/`predation.ts` in `SPECIES`, `NICHES`, `TRAITS`, `GENUS_INFO`, `COMMUNITIES`, `CARE` (Totholzhaufen ersetzen), `SEASONS` (Sommer Reptilien +15 %), Ergänzungen an Amphibien und Fuchs (mit Kurzwirkung), Massenjahre vollständig; `W3…`-Typen löschen, `tests/habitats.test.ts` auf die verdrahteten Listen umstellen; Migration v12 → v13; Erfolgstext „Von allem etwas“ | 1, Wetter-Logik gemergt (keine zwei Versionen parallel) |
 | 4 | `renderer` | Szene für die drei Lebensräume und 14 Zeichnungen, Familie Reptilien (Winterstarre wie Amphibien), Ersatzbild für Unbekannte (Eidechse), Anker-Tests wie beim Tümpel (23.8) | 3 (bis dahin: neue Nischen werden nicht gezeichnet) |
 | 5 | `ui-dev` | Nischenliste: drei verschlossene Lebensräume mit Hinweis und „Zur Pflege“ (wie Tümpel), Gattung Reptilien (Symbol, CSS-Klasse `reptiles`, Artikel in Tageszielen „der Reptilien“, Einzahl „Reptil“), Spielanleitung „Lebensräume“ | 3 |
 | 6 | `core-engineer` | ✅ **Schritt C** (22.8): Wetter → Ereignis-Gewichte (zusammen mit Schritt A) | Wetter-Logik |
@@ -5470,3 +5497,67 @@ Am Boden ist keine Strecke frei (5.5); darum zwei Ebenen:
   ausgewogen) und „Alle Lebensräume“ – eine neue Bedingungsart je, nach Schritt B.
 - **Bestand auch für Pflanzen?** Pflanzen bleiben bei 1 Einheit Futter; Versorgung (2.5)
   regelt sie schon.
+
+
+### 23.10 Simulation (echte Logik, Schritt B, 100 Durchgänge bis Urwald, alle Systeme mit Pflege)
+
+Gemessen wie 22.9 (`scripts/simulate.ts`, Eiche, erster Zyklus, Einzelwetter wie online,
+gleiche Seeds); „vorher“ = main 5dfb35f (Räuber und Beute A + C, Zeile „A + C“ aus 22.9).
+Die Strategien bewerten die neue Pflege mit der echten Vorschau (`previewCare`, Plätze
+pauschal) – keine Sonderregel für die Lebensräume.
+
+```bash
+SIM_PREDATION=1 SIM_PREDATION_RUNS=100 SIM_PREDATION_CYCLES=1 SIM_PREDATION_LABEL=Lebensräume npx vitest run tests/predation-balance.test.ts --silent=false   # ~1,5 min
+```
+
+| Variante | Strategie | Junger Baum | Alter Baum | Hain | Wald | Urwald | ⚖️ Hain / Wald | Ø 😊 Hain | Gedächtnis Hain / Urwald |
+|---|---|---|---|---|---|---|---|---|---|
+| vorher | Harmonie | 4:00 min | 20:29 min | 59:03 min | 1:48:51 h | 2:36:59 h | 110,6 / 145,3 | 96,0 % | 78 / 98 |
+| **Lebensräume** | Harmonie | 4:00 min | 20:29 min | **58:51 min** | 1:46:25 h | **2:35:06 h** | 110,0 / 141,0 | 96,6 % | 73 / 96 |
+| vorher | Wachstum | 3:54 min | 18:30 min | 52:09 min | 1:31:52 h | 2:14:46 h | 102,6 / 129,7 | 90,7 % | 57 / 84 |
+| **Lebensräume** | Wachstum | 3:54 min | 18:30 min | **52:23 min** | 1:31:13 h | **2:13:35 h** | 101,7 / 125,6 | 90,9 % | 51 / 75 |
+| vorher | Zufall | 4:59 min | 29:41 min | 1:32:07 h | 2:51:22 h | 4:11:53 h | 85,0 / 113,1 | 88,6 % | 30 / 45 |
+| **Lebensräume** | Zufall | 4:59 min | 29:37 min | 1:31:34 h | 2:50:29 h | 4:01:40 h | 83,6 / 108,6 | 87,1 % | 30 / 44 |
+
+Wachstum ÷ Harmonie beim Hain: 0,890 (vorher 0,883) – kein Stil wird bevorzugt.
+
+**Lebensräume** (Anteil der Durchgänge mit gekaufter Pflege beim Erreichen von Alter Baum /
+Hain / am Ende; Lebensraum-Arten und Reptilien am Ende im Median; aktive Gemeinschaften am Ende):
+
+| Strategie | Waldwiese | Totholzhaufen | Trockenmauer | Arten · Reptilien | Wiesenkonzert · Unterm Reisig · Sonnenmauer · Natter am Ufer |
+|---|---|---|---|---|---|
+| Harmonie | 0,71 / 1,00 / 1,00 | 0 / 1,00 / 1,00 | 0 / 0 / 1,00 | 4 · 2 | 0,27 · 0,26 · 0,03 · 0,26 |
+| Wachstum | 0,21 / 1,00 / 1,00 | 0 / 1,00 / 1,00 | 0 / 0 / 1,00 | 4 · 1 | 0,18 · 0,06 · 0 · 0,13 |
+| Zufall | 0,98 / 1,00 / 1,00 | 0 / 1,00 / 1,00 | 0 / 0 / 1,00 | 5 · 2 | 0,14 · 0,07 · 0 · 0,06 |
+
+**Massenjahre** (Raupen / Mäuse / Käfer / Schnecken): Harmonie 0,17 / 0 / 0,25 / 0,01,
+Wachstum 0,18 / 0 / 0,15 / 0,05, Zufall 0,33 / 0,15 / 0,25 / 0,12 (vorher 0,14 / 0 / 0,21 /
+0,04 · 0,21 / 0 / 0,10 / 0,03 · 0,16 / 0,30 / 0,21 / 0,09). Ereignisse je Durchgang 9,8.
+
+**Mehrere Zyklen** (60 Durchgänge, je bis Hain; Zeit · H_max · Gewinn):
+
+| Variante | Strategie | Zyklus 1 | Zyklus 2 | Zyklus 3 |
+|---|---|---|---|---|
+| vorher | Harmonie | 58:11 min · 114,9 · +80 | 33:00 min · 117,7 · +73 | 22:24 min · 126,1 · +73 |
+| **Lebensräume** | Harmonie | 58:37 min · 113,6 · +75 | 33:01 min · 116,8 · +73 | 22:25 min · 124,7 · +74 |
+| vorher | Wachstum | 51:30 min · 107,7 · +57 | 32:33 min · 106,5 · +45,5 | 24:25 min · 112,9 · +63 |
+| **Lebensräume** | Wachstum | 52:12 min · 105,7 · +51,5 | 33:38 min · 105,0 · +40 | 24:17 min · 109,8 · +53,5 |
+| vorher | Zufall | 1:31:55 h · 89,1 · +30 | 1:12:40 h · 85,7 · +21,5 | 57:04 min · 93,5 · +21 |
+| **Lebensräume** | Zufall | 1:34:45 h · 86,6 · +30 | 1:11:24 h · 86,5 · +22,5 | 56:03 min · 88,7 · +22 |
+
+**Bewertung:**
+
+- **Tempo unverändert** (±1 % bis zum Hain, Urwald 1–4 % schneller): Die Lebensräume sind
+  zusätzliche Plätze und eine Samen-Senke, keine Abkürzung. Das frühe Spiel bis zum Alten
+  Baum ist gleich (die Wiese kommt erst nach dem Jungen Baum in die Rechnung).
+- **Waldwiese wie geplant** die große Anschaffung im Jungen Baum: Harmonie-Spieler 71 % vor
+  dem Alten Baum (Entwurf 73 %), Wachstums-Spieler 21 % (26 %). Totholzhaufen und Mauer
+  kaufen alle, sobald es geht.
+- **Harmonie im Wald etwas niedriger** (−4 Punkte; Waldgedächtnis-Vorschau beim Hain
+  Harmonie 78 → 73, Wachstum 57 → 51), vermutlich weil mehr Arten im Kartenpool die Ziehungen
+  der Gemeinschaften des Grundkatalogs verdünnen und die neuen Plätze sich mit gewöhnlichen
+  Arten füllen (Harmonie nur über Vielfalt und Gemeinschaften). Die Gewinne liegen wieder näher
+  am Stand vor Räuber und Beute (Harmonie +69 / Wachstum +43,5, 22.9) – der Urwald-Gewinn
+  des Harmonie-Spielers (Grenze < 95, `balance-restart`) hat damit wieder Abstand.
+- **Sonnenmauer bleibt selten** (≤ 3 %, offene Frage 23.9), Natter am Ufer kommt bei jedem
+  vierten Harmonie-Durchgang zustande – Räuber und Beute als Gewinn wirkt.
