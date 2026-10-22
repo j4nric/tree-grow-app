@@ -21,7 +21,7 @@ describe('toJournalView (Naturtagebuch)', () => {
     expect(view.plants).toHaveLength(PLANTS.length);
     expect(view.communities).toHaveLength(COMMUNITIES.length);
     expect(view.keepsakes).toEqual([]);
-    expect(view.tabCounts).toEqual({ species: '0/51', plants: '0/14', communities: '0/15', keepsakes: '1', achievements: '0/25', stats: '' });
+    expect(view.tabCounts).toEqual({ species: '0/51', plants: '0/14', communities: '0/15', keepsakes: '1', achievements: '0/25', landscape: '', stats: '' });
 
     const text = allText(view);
     for (const sp of SPECIES) {

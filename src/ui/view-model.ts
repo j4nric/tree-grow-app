@@ -602,6 +602,54 @@ export interface JournalStatView {
   section?: 'total';
 }
 
+/** Eine Angabe zu einem Wald im Reiter „Landschaft“, z. B. „Waldgedächtnis“ – „120 eigen · 270 wirksam“. */
+export interface JournalLandscapeRowView {
+  /** Fester Schlüssel: memory, ancient, lead, tree, regulars, fauna. */
+  key: string;
+  label: string;
+  value: string;
+}
+
+/** Ein gegründeter Wald im Reiter „Landschaft“ (DESIGN_V2.md 24.11). */
+export interface JournalSiteView {
+  id: string;
+  icon: string;
+  name: string;
+  /** Waldtyp, z. B. „Hartholzaue“. */
+  forestType: string;
+  /** Hier wächst der laufende Zyklus. */
+  active: boolean;
+  /** Hier war schon einmal Urwald (beim aktiven Wald auch: Stufe Urwald jetzt erreicht). */
+  ancient: boolean;
+  rows: JournalLandscapeRowView[];
+}
+
+/** Ein gebauter Korridor im Reiter „Landschaft“. */
+export interface JournalCorridorView {
+  id: string;
+  icon: string;
+  name: string;
+  /** „Heimatwald – Auwald am Fluss“ */
+  ends: string;
+  /** „mit der Gründung, gratis“ bzw. „gebaut für 3 🪶“ */
+  note: string;
+}
+
+/** Reiter „Landschaft“ (DESIGN_V2.md 24.3, 24.11) – nur nach der Freischaltung. */
+export interface JournalLandscapeView {
+  /** z. B. „3 von 6 Wäldern gegründet · 2 von 10 Korridoren“. */
+  summary: string;
+  /** Hähersaat: verdient, ausgegeben, verfügbar (Zeilen wie im Reiter „Statistik“). */
+  jaySeeds: JournalLandscapeRowView[];
+  /** Wie man Hähersaat verdient (ein Satz). */
+  jaySeedsNote: string;
+  /** Gegründete Wälder in Gründungs-Reihenfolge (Heimatwald zuerst). */
+  sites: JournalSiteView[];
+  corridors: JournalCorridorView[];
+  /** Hinweis auf noch nicht gegründete Wälder (ohne Namen) – null, wenn alle gegründet sind. */
+  sitesHint: string | null;
+}
+
 /** Das Naturtagebuch (DESIGN_V2.md 10 und 11.2). */
 export interface JournalView {
   /** z. B. „12/32 Arten · 5/14 Pflanzen · 2/9 Gemeinschaften“. */
@@ -623,8 +671,18 @@ export interface JournalView {
   stats: JournalStatView[];
   /** Erfolge: freigeschaltete zuerst, dann offene mit Fortschritt. */
   achievements: JournalAchievementView[];
-  /** Zähler je Reiter, z. B. „12/32“ (Statistik ohne Zähler: leer). */
-  tabCounts: { species: string; plants: string; communities: string; keepsakes: string; achievements: string; stats: string };
+  /** Reiter „Landschaft“ – null, solange die Landschaft nicht freigeschaltet ist (Reiter verborgen). */
+  landscape: JournalLandscapeView | null;
+  /** Zähler je Reiter, z. B. „12/32“ (Statistik ohne Zähler: leer; Landschaft verborgen: leer). */
+  tabCounts: {
+    species: string;
+    plants: string;
+    communities: string;
+    keepsakes: string;
+    achievements: string;
+    landscape: string;
+    stats: string;
+  };
 }
 
 /** Gruppen der Pflege-Liste in Anzeige-Reihenfolge. */

@@ -91,6 +91,7 @@ import { formatDuration, formatNumber } from './format';
 import { animalStock, foodWebView, huntFoodText, overhuntNotes, preyIcon, stockEffectView } from './food-web-view';
 import { memoryBonusLabel, treeLabel } from './cycle-view';
 import { effectiveForestMemory } from '../core/landscape';
+import { journalLandscapeCount, toJournalLandscapeView } from './journal-landscape-view';
 import { RARITY_LABELS, formatSigned, formatSignedPercent, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
 import type {
@@ -837,6 +838,7 @@ export function toJournalView(
     communities: communities.filter((e) => e.discovered).length,
   };
   const trees = toJournalTrees(state);
+  const landscape = toJournalLandscapeView(state);
   const tabCounts = {
     species: ofTotal(found.species, species.length),
     plants: ofTotal(found.plants, plants.length),
@@ -844,6 +846,7 @@ export function toJournalView(
     // Andenken: Erinnerungen plus freigeschaltete Hauptbaum-Arten (die Eiche immer).
     keepsakes: formatNumber(keepsakes.length + trees.filter((t) => t.unlocked).length),
     achievements: achievementCountText(state),
+    landscape: journalLandscapeCount(landscape),
     stats: '',
   };
   // Bonus aus dem wirksamen Gedächtnis (eigenes + Zufluss über Korridore, 24.6).
@@ -865,6 +868,7 @@ export function toJournalView(
     trees,
     stats: toJournalStats(state, evaluation),
     achievements: toJournalAchievements(state),
+    landscape,
     tabCounts,
   };
 }

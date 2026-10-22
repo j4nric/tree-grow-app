@@ -3031,6 +3031,156 @@ dialog.plant-picker {
   display: none;
 }
 
+/* Reiter „Landschaft“: Wälder, Korridore, Hähersaat (DESIGN_V2.md 24.11) */
+.journal-tab[hidden] {
+  display: none;
+}
+
+.journal-landscape-summary {
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.journal-site {
+  --fam: #6b8e4e;
+}
+
+.journal-site.ancient {
+  --fam: #3f6b2a;
+}
+
+.journal-site.current {
+  background: #eef6e6;
+  border-color: var(--accent);
+}
+
+.journal-site .journal-tree-status {
+  margin-bottom: 2px;
+}
+
+.journal-site-facts {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  font-size: 0.86rem;
+}
+
+.journal-site-facts-row {
+  display: grid;
+  grid-template-columns: minmax(0, 8.5em) minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.journal-site-facts dt {
+  color: var(--muted);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.journal-site-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.journal-seeds {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 6px;
+}
+
+.journal-seeds-row {
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+
+.journal-seeds-row dt {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.journal-seeds-row dd {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.journal-seeds + .journal-text {
+  margin: 0 0 4px;
+}
+
+.journal-landscape-summary ~ .journal-progress {
+  margin: 8px 0 0;
+}
+
+.journal-corridors {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.journal-corridor {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+
+.journal-corridor-icon {
+  font-size: 1.2rem;
+  line-height: 1.3;
+}
+
+.journal-corridor-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.journal-corridor-ends,
+.journal-corridor-note {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .journal-seeds {
+    gap: 6px;
+  }
+
+  .journal-seeds-row {
+    padding: 6px 8px;
+  }
+
+  .journal-site-facts-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .journal-corridors {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .journal-empty {
   margin: 0;
   color: var(--muted);
