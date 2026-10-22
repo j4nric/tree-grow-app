@@ -12,7 +12,7 @@
 import { LANDSCAPE_SITES } from '../../content/landscape';
 import { evaluate } from '../../core/formulas';
 import { activeSite, landscapeUnlocked } from '../../core/landscape';
-import { toAnimalDetailView, type AnimalDetailTarget } from '../animal-detail-view';
+import { resolveAnimal, toAnimalDetailView, type AnimalDetailTarget } from '../animal-detail-view';
 import { el } from '../dom';
 import { restartAnimation } from '../feedback';
 import { formatNumber, formatRate } from '../format';
@@ -35,6 +35,7 @@ import {
   historyDepth,
   initialNav,
   navigate,
+  pageNumber,
   tabFromHash,
   type AlbumNav,
   type NavAction,
@@ -43,7 +44,7 @@ import {
   type TabId,
 } from './nav';
 import { TURNED_AWAY, createPageTurn } from './page-turn';
-import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage } from './pages/registry';
+import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type SubpageKind } from './pages/registry';
 import { createPolaroid } from './polaroid';
 import { createSpread } from './spread';
 import { createStageLadder } from './stage-ladder';
@@ -96,7 +97,9 @@ export function createAlbum(deps: AlbumDeps): Album {
     onOpenSave: () => dispatch({ type: 'open', page: { kind: 'save' } }),
   });
   const book = createBook(spread, cover.element, () => dispatch({ type: 'cover', open: !nav.cover }));
-  const env: PageEnv = { deps, back: () => goBack() };
+  /** Ökosystem-Ansicht für die Seiten (legacy.ts rechnet sie, `showSummary` reicht sie weiter). */
+  const eco: { view: EcosystemView | null; serial: number } = { view: null, serial: 0 };
+  const env: PageEnv = { deps, back: () => goBack(), open: (page) => dispatch({ type: 'open', page }), eco };
 
   // Linke Seite: Polaroid, Etiketten, Stufenleiste, Rückkehr-Bericht.
   const polaroid = createPolaroid(deps.canvas, () => dispatch({ type: 'fullscreen', open: true }));
@@ -138,6 +141,9 @@ export function createAlbum(deps: AlbumDeps): Album {
   const subpages = new Map<string, Subpage>();
   const savePage = SUBPAGES.save(env);
   subpages.set('save', savePage);
+  for (const [kind, create] of Object.entries(SUBPAGES) as [SubpageKind, (env: PageEnv) => Subpage][]) {
+    if (!subpages.has(kind)) subpages.set(kind, create(env));
+  }
   for (const sub of subpages.values()) {
     sub.page.element.hidden = true;
     spread.sub.append(sub.page.element);
@@ -213,7 +219,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     const view = toAnimalDetailView(state, target, evaluate(state));
     if (!view) return;
     if (!fullscreen.open) {
-      legacy.openAnimalDetail(target, polaroid.button);
+      openAnimal(view.id);
       return;
     }
     const frame = fullscreen.element.getBoundingClientRect();
@@ -227,12 +233,21 @@ export function createAlbum(deps: AlbumDeps): Album {
       more: {
         label: 'Im Album ansehen ›',
         onMore() {
-          // Die Notiz ist schon zu; Vollbild schließen (über den Verlauf), dann die Tierdetails.
-          if (nav.fullscreen) goBack();
-          legacy.openAnimalDetail(target, polaroid.button);
+          // Die Notiz ist schon zu; `open` schließt das Vollbild und blättert zu U:Tier um.
+          openAnimal(view.id, polaroid.button);
         },
       },
     });
+  }
+
+  /** U:Tier aufschlagen (Sticker, Vollbild-Notiz, später der Reiter Arten). */
+  function openAnimal(target: AnimalDetailTarget, trigger?: HTMLElement): void {
+    const id = typeof target === 'string' ? target : resolveAnimal(deps.state(), target);
+    if (!id) return;
+    dispatch({ type: 'open', page: { kind: 'animal', id } });
+    // Aus dem Vollbild: Nach „Zurück“ bekommt das Polaroid den Fokus (die Notiz ist weg).
+    const top = nav.stack[nav.stack.length - 1];
+    if (trigger && top?.kind === 'animal' && top.id === id) triggers[nav.stack.length - 1] = trigger;
   }
 
   setOrientation();
@@ -374,8 +389,9 @@ export function createAlbum(deps: AlbumDeps): Album {
       await turn.forward(levelElement(next, b.length - 1), sub.page.element);
       sub.page.focusTitle();
     } else if (coverSame && a.length === b.length + 1 && prefix(b, a)) {
-      // Zurück: verlassene Seite dreht sich über die Unterseite zurück.
+      // Zurück: verlassene Seite dreht sich über die Unterseite zurück – mit frischem Inhalt.
       const sub = subpageOf(a[a.length - 1]!)!;
+      refreshLevel(next, b.length, performance.now());
       await turn.back(levelElement(next, b.length), sub.page.element);
       if (b.length === 0) spread.sub.hidden = true;
       lockScroll();
@@ -389,6 +405,8 @@ export function createAlbum(deps: AlbumDeps): Album {
       if (top) fillSubpage(subpageOf(top)!, next, b.length);
       settleTurns();
     }
+    // Was jetzt oben liegt, sofort nachziehen (z. B. Reiterseite nach dem Schließen des Umschlags).
+    refreshLevel(nav, nav.stack.length, performance.now());
   }
 
   /**
@@ -413,9 +431,20 @@ export function createAlbum(deps: AlbumDeps): Album {
   }
 
   function fillSubpage(sub: Subpage, state: AlbumNav, level: number): void {
-    const below = level > 1 ? subpageOf(state.stack[level - 2]!)?.page.title.textContent : null;
+    const below = level > 1 ? subpageOf(state.stack[level - 2]!)?.page.title.getAttribute('aria-label') ?? subpageOf(state.stack[level - 2]!)?.page.title.textContent : null;
     sub.bookmark.setLabel(below ?? (state.cover ? 'Umschlag' : TAB_LABELS[state.tab]));
-    sub.opened?.();
+    sub.page.setNumber(pageNumber({ ...state, stack: state.stack.slice(0, level) }));
+    sub.opened?.(state.stack[level - 1]!);
+  }
+
+  /**
+   * Nur sichtbare Seiten werden aktualisiert (D.1): die oberste Unterseite bzw. – ohne
+   * Unterseite und Umschlag – der aktuelle Reiter. Unsichtbare holen beim Zeigen nach.
+   */
+  function refreshLevel(state: AlbumNav, level: number, now: number): void {
+    if (level > 0) subpageOf(state.stack[level - 1]!)?.update?.(now);
+    // Auf der Doppelseite liegt der Umschlag links – die Reiterseite rechts bleibt sichtbar.
+    else if (!state.cover || book.layout === 'spread') tabs[state.tab].update?.(now);
   }
 
   /** Alle weggedrehten Seiten wieder hinlegen (ohne Animation). */
@@ -438,6 +467,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       const page = tabs[id].page.element;
       const show = id === tab;
       if (page.hidden === !show) continue;
+      if (show) tabs[id].update?.(performance.now());
       page.hidden = !show;
       if (show) restartAnimation(page, 'tab-fade');
     }
@@ -459,6 +489,8 @@ export function createAlbum(deps: AlbumDeps): Album {
   let shownSite = '';
 
   function showSummary(view: EcosystemView): void {
+    eco.view = view;
+    eco.serial++;
     const state = deps.state();
     polaroid.setStage(view.stageName);
     const season = toSeasonBadgeView(state.cycle.elapsed);
@@ -486,6 +518,10 @@ export function createAlbum(deps: AlbumDeps): Album {
   // --- Schnittstelle für main.ts ---------------------------------------------------------
   return {
     ...legacy,
+    refresh(now) {
+      legacy.refresh(now);
+      refreshLevel(nav, nav.stack.length, now);
+    },
     sceneFrame: fullscreen.tools,
     banners: book.banners,
     get nav() {

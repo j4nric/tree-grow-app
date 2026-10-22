@@ -34,7 +34,7 @@ test('Massenjahr im Stapel: Nahrungsnetz sagt „wartet“, nach der Wahl „war
   state.pendingEncounters = [{ type: 'event', cards: ['vole-year'], rerolls: 0 }];
   await seedRaw(context, state, 0);
   await openGame(page);
-  await page.locator('[data-ref="food-web"] summary').click();
+  await page.locator('[data-ref="food-web-link"]').click();
   await expect(miceHint(page)).toHaveText('Das Mäusejahr wartet unter deinen Begegnungen – dort kannst du Jäger einladen.');
 
   await page.locator('[data-ref="encounter-stack"]').click();

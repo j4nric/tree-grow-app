@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SEASON_SECONDS } from '../src/content/seasons';
-import { slotOpensDetails } from '../src/ui/ecosystem-panel';
+import { slotOpensDetails } from '../src/ui/album/pages/niches-view';
 import { MEMORY_PER_REGULAR_SLOT } from '../src/content/memory';
 import { COMMUNITIES } from '../src/content/communities';
 import { SEASONS_BY_ID } from '../src/content/seasons';

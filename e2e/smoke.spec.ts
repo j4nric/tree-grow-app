@@ -1,5 +1,6 @@
 import {
   SAVE_VERSION,
+  back,
   card,
   dialog,
   expect,
@@ -7,6 +8,7 @@ import {
   openGame,
   openSavePage,
   openStack,
+  openTab,
   pageTitle,
   readNumber,
   savedState,
@@ -237,8 +239,10 @@ test('„Spielstand löschen“ setzt nach Bestätigung zurück', async ({ page,
   await expect(page.getByRole('button', { name: 'Spielstand löschen' })).toBeVisible();
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
   expect(await readNumber(seedsValue(page))).toBeLessThan(5);
-  await expect(niche(page, 'crown')).not.toContainText('Blaumeise');
   await expect(stack(page)).toBeHidden();
+  // Der Reiter Nischen zieht beim Zeigen nach (nur sichtbare Seiten schreiben, D.1).
+  await openTab(page, 'nischen');
+  await expect(niche(page, 'crown')).not.toContainText('Blaumeise');
 
   // Auch nach dem Neuladen bleibt der Stand zurückgesetzt.
   await page.reload();
@@ -793,7 +797,7 @@ test.describe('Feinschliff mobil (390×844)', () => {
     expect(await legendSeen()).toBe('1');
   });
 
-  test('lange Gründe: Tier-Kacheln bleiben flach, der volle Text per Tooltip und in den Tierdetails', async ({ page, context }) => {
+  test('lange Gründe: Sticker bleiben klein, der volle Text im Titel und auf U:Tier', async ({ page, context }) => {
     // Rotbuche statt Eiche: ohne deren Insekten-Bonus bleibt die Biene unter 70 % und
     // nennt zwei Gründe (DESIGN_V2.md 17.3).
     const state = createInitialState(Date.now(), 123456789);
@@ -810,21 +814,16 @@ test.describe('Feinschliff mobil (390×844)', () => {
     state.cycle.mainTree = 'beech';
     await seedRaw(context, state, 0);
     await openGame(page);
-    const bee = niche(page, 'edge').locator('[data-species="bee"]');
-    const mood = bee.locator('.slot-mood');
-    await expect(mood).toHaveAttribute('title', /·/);
-    const full = (await mood.getAttribute('title'))!;
-    expect(await mood.textContent()).toBe(full);
-    // Höchstens zwei Textzeilen
-    const { height, lineHeight } = await mood.evaluate((e) => ({
-      height: e.getBoundingClientRect().height,
-      lineHeight: parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.3,
-    }));
-    expect(height).toBeLessThanOrEqual(lineHeight * 2 + 1);
-    // Wirklich gekürzt – Tippen auf die Kachel öffnet die Tierdetails mit allen Gründen
-    expect(await mood.evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
-    await mood.click();
-    const detail = page.locator('[data-ref="animal-detail"]');
+    const bee = niche(page, 'edge').locator('[data-species="bee"] button.sticker');
+    // Stimmung steht nicht auf dem Sticker, aber vollständig im Titel und für Screenreader.
+    await expect(bee).toHaveAttribute('title', /^Wildbiene: \d+\s%.*·/);
+    const full = (await bee.getAttribute('title'))!.replace(/^Wildbiene: /, '');
+    await expect(bee).toContainText(full);
+    // Höchstens zwei Namenszeilen, der Sticker bleibt 48 px groß.
+    const box = (await bee.boundingBox())!;
+    expect(Math.round(box.height)).toBeLessThanOrEqual(56);
+    await bee.click();
+    const detail = page.locator('[data-ref="page-animal"]');
     await expect(detail).toBeVisible();
     await expect(detail.locator('[data-ref="detail-happiness"]')).toContainText(full.split(' · ')[0]!);
   });
@@ -851,14 +850,16 @@ test.describe('Lebensgemeinschaften', () => {
     await openGame(page);
     await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
 
-    // Seitenleiste: zugeklappt mit Kurzfassung; aufgeklappt „???“ mit Rätselhinweis und
+    // Reiter Nischen: Link mit Kurzfassung; U:Harmonie zeigt „???“ mit Rätselhinweis und
     // Fortschritt – ohne „fehlt: …“, solange die Gemeinschaft unentdeckt ist.
     await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('0 von 15 aktiv');
-    await communities(page).locator('summary').click();
+    await page.locator('[data-ref="communities-link"]').click();
+    await expect(page.locator('[data-ref="page-harmony"]')).not.toHaveAttribute('inert', '');
     await expect(community(page, 'humus')).toContainText('???');
     await expect(community(page, 'humus')).toContainText('Aus Laub wird Erde, aus Erde wird Leben.');
     await expect(community(page, 'humus')).not.toContainText('fehlt');
     await expect(community(page, 'humus')).toContainText('2/3');
+    await back(page);
 
     await openStack(page);
     const mushroom = card(page, 'chanterelle');
@@ -869,10 +870,11 @@ test.describe('Lebensgemeinschaften', () => {
     await expect(dialog(page)).toBeHidden();
     // Entdeckung und erster Erfolg in einem Hinweis (nichts verdrängt das andere).
     await expect(stamp(page)).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱 🏅 Erfolg: „Gemeinsam stark“');
+    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 15 aktiv · +8 ⚖️');
+    await page.locator('[data-ref="communities-link"]').click();
     await expect(community(page, 'humus')).toContainText('Humusküche');
     await expect(community(page, 'humus')).toContainText('+8 ⚖️');
     await expect(community(page, 'humus')).toHaveClass(/state-active/);
-    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 15 aktiv · +8 ⚖️');
 
     const saved = await savedState(page);
     expect(saved.meta.journal.communities).toEqual(['humus']);
@@ -887,11 +889,12 @@ test.describe('Lebensgemeinschaften', () => {
     }) => {
       await seedNearHumus(context);
       await openGame(page);
-      await communities(page).locator('summary').click();
+      await page.locator('[data-ref="communities-link"]').tap();
       await expect(community(page, 'humus')).toContainText('Aus Laub wird Erde');
       const noScroll = () =>
         page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
       expect(await noScroll()).toBe(true);
+      await back(page);
       await openStack(page);
       await expect(card(page, 'chanterelle')).toContainText('vervollständigt Humusküche');
       expect(await noScroll()).toBe(true);

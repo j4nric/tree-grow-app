@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { createInitialState } from '../src/core/state';
-import { expect, niche, openGame, seedRaw, test, waypoint } from './fixtures';
+import { animalPage, expect, niche, openGame, openTab, seedRaw, test, waypoint } from './fixtures';
 
 /**
  * Lebensräume (DESIGN_V2.md 23.7 Punkt 5): Waldwiese, Totholzhaufen und Trockenmauer stehen
@@ -47,11 +47,11 @@ test('Mobil: verschlossene Waldwiese führt mit „Zur Pflege“ zur Maßnahme, 
   await expect(item.locator('[data-ref="care-opens"]')).toHaveText('Öffnet Lebensraum 🌾 Waldwiese');
 
   await item.locator('[data-buy-care="meadow"]').click();
+  await expect(item.locator('[data-ref="care-opens"]')).toHaveCount(0);
+  await openTab(page, 'nischen');
   await expect(meadow).toContainText('0/2 belegt');
   await expect(meadow.locator('[data-ref="niche-care-link"]')).toBeHidden();
   await expect(meadow).not.toContainText('öffnet durch');
-  // Rang 2 öffnet nichts mehr – nur noch Plätze.
-  await expect(item.locator('[data-ref="care-opens"]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
 
@@ -59,7 +59,7 @@ for (const viewport of [
   { name: 'Desktop', width: 1200, height: 700 },
   { name: 'schmal', width: 360, height: 740 },
 ]) {
-  test(`Offene Trockenmauer (${viewport.name}): Reptilien-Kachel wie in jeder Nische, Tierdetails mit Gattung`, async ({ page, context }) => {
+  test(`Offene Trockenmauer (${viewport.name}): Reptilien-Sticker wie in jeder Nische, U:Tier mit Gattung`, async ({ page, context }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await seed(context, (state) => {
       state.totalGrowth = waypoint(20) + 1; // Hain
@@ -73,20 +73,21 @@ for (const viewport of [
     await expect(wall).toContainText('1/2 belegt');
     await expect(wall.locator('[data-ref="niche-care-link"]')).toBeHidden();
     const tile = wall.locator('[data-species="sandlizard"]');
-    await expect(tile).toHaveClass(/family-reptiles/);
-    await expect(tile).toContainText('🦎');
-    const button = tile.locator('button.slot-open');
+    const button = tile.locator('button.sticker');
+    await expect(button).toHaveAttribute('data-family', 'reptiles');
+    await expect(tile).toContainText('Zauneidechse');
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await button.click();
-    const dialog = page.getByRole('dialog', { name: 'Zauneidechse' });
-    await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText('Reptilien');
-    await expect(dialog).toContainText('Trockenmauer');
+    const sub = animalPage(page);
+    await expect(sub).toBeVisible();
+    await expect(sub.locator('.page-title')).toHaveAccessibleName('Zauneidechse');
+    await expect(sub).toContainText('Reptilien');
+    await expect(sub).toContainText('Trockenmauer');
     await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
+    await expect(sub).toBeHidden();
     await expect(button).toBeFocused();
     // Gattungsleiste: Reptilien als siebte Gattung.
-    await expect(page.locator('.family-chip.family-reptiles')).toBeVisible();
+    await expect(page.locator('.family-badge[data-family="reptiles"]')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
 }

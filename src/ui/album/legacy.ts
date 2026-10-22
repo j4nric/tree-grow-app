@@ -26,15 +26,12 @@ import {
   type StageBannerView,
 } from '../adapters';
 import { toAchievementTimeProgress } from '../achievement-view';
-import { createAnimalDetailDialog } from '../animal-detail-dialog';
-import { toAnimalDetailView, type AnimalDetailTarget } from '../animal-detail-view';
 import { createBonusPanel } from '../bonus-panel';
 import { createCarePanel } from '../care-panel';
 import { createCyclePanel } from '../cycle-panel';
 import { toCyclePanelView } from '../cycle-view';
 import { createDailyPanel } from '../daily-panel';
 import { toDailyView } from '../daily-view';
-import { createEcosystemPanel } from '../ecosystem-panel';
 import { createEncounterDialog } from '../encounter-dialog';
 import { createEncounterStack } from '../encounter-stack';
 import { createFloatLayer } from '../feedback';
@@ -113,7 +110,6 @@ export interface LegacyUi {
   noteText(text: string): void;
   floatSeeds(amount: number): void;
   plantFeedback(cost: number, plantId: string): void;
-  openAnimalDetail(target: AnimalDetailTarget, returnFocus?: HTMLElement | null): boolean;
   closeEncounters(): void;
   closePlantPicker(): void;
   focusCycle(): void;
@@ -165,8 +161,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   let shownNight: boolean | null = null;
   let careKey = '';
   let careEvaluation: Readonly<Evaluation> | null = null;
-  let detailEvaluation: Readonly<Evaluation> | null = null;
-  let detailExtra = '';
   let shownLandscape: boolean | null = null;
 
   const focusFallback = () => {
@@ -176,19 +170,14 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   };
 
   // --- Bauteile -----------------------------------------------------------------------
-  const panel = createEcosystemPanel(
-    mounts.niches.ecosystem,
-    {
-      onOpenPlantPicker: openPlantPicker,
-      onOpenEncounters: openEncounters,
-      onOpenAnimal: (_niche, _index, speciesId, button) => openAnimalDetail(speciesId, button),
-      onShowCare: (id) => {
-        hooks.showCareTab();
-        carePanel.reveal(id);
-      },
+  // Reiter Nischen (Schritt 5): Pflanzenwahl und Pflege stehen bis zu ihren Schritten hier.
+  mounts.niches.connect({
+    openPlantPicker,
+    showCare(id) {
+      hooks.showCareTab();
+      carePanel.reveal(id);
     },
-    { header: false },
-  );
+  });
   const bonusPanel = createBonusPanel(mounts.care.bonuses);
   const carePanel = createCarePanel(mounts.care.care, {
     onBuy: (id) => deps.actions.buyCare(id),
@@ -218,7 +207,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     onToggleRegular: (speciesId) => deps.actions.toggleRegular(speciesId),
   });
   createJournalButton(mounts.species.journal, openJournal);
-  const animalDetail = createAnimalDetailDialog(document.body);
   const help: Help = createHelp(mounts.coverMenu, preferences, {
     newGame: deps.newGame,
     hintRoot: mounts.hint,
@@ -236,20 +224,9 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
 
   // --- Dialoge ------------------------------------------------------------------------
 
-  function openAnimalDetail(target: AnimalDetailTarget, returnFocus?: HTMLElement | null): boolean {
-    const view = toAnimalDetailView(state(), target, evaluate(state()));
-    if (!view) return false;
-    closeEncounters();
-    closePlantPicker();
-    journal.hide();
-    animalDetail.show(view, returnFocus);
-    return true;
-  }
-
   function openJournal(): void {
     closeEncounters();
     closePlantPicker();
-    animalDetail.hide();
     journal.show(toJournalView(state(), evaluate(state())));
   }
 
@@ -279,7 +256,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   }
 
   function overlayOpen(): boolean {
-    return picker.open || dialog.open || journal.open || animalDetail.open || help.open;
+    return picker.open || dialog.open || journal.open || help.open;
   }
 
   /** Meldung: im offenen alten Dialog dort (er würde den Stempel verdecken), sonst als Stempel. */
@@ -289,7 +266,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       if (picker.open) return picker.notice(text);
       if (dialog.open) return dialog.notice(text);
       if (journal.open) return journal.notice(text);
-      if (animalDetail.open) return animalDetail.notice(text);
       if (help.notice(text)) return;
     }
     hooks.stamp(text, options);
@@ -449,13 +425,11 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       return;
     }
     lastPanelRefresh = now;
-    panel.update(ecoView);
     hooks.onEcosystem(ecoView);
     if (journal.open) {
       journal.updateStats(toJournalStats(s, evaluate(s)));
       journal.updateAchievementProgress(toAchievementTimeProgress(s));
     }
-    refreshAnimalDetail();
     bonusPanel.update(activeBonusViews(s));
     dailyPanel.update(toDailyView(s, deps.today()));
     refreshCare();
@@ -474,24 +448,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     careEvaluation = ev;
     careKey = key;
     carePanel.update(toCareViews(s, ev));
-  }
-
-  /** Offene Tierdetails nachziehen; zieht die Art aus, schließt der Dialog (Fokus an die Nische). */
-  function refreshAnimalDetail(): void {
-    const detailId = animalDetail.speciesId;
-    if (!detailId) {
-      detailEvaluation = null;
-      return;
-    }
-    const s = state();
-    const ev = evaluate(s);
-    const extra = `${s.meta.regulars.join(',')}|${s.meta.journal.communities.join(',')}|${s.meta.forestMemory}`;
-    if (ev === detailEvaluation && extra === detailExtra) return;
-    detailEvaluation = ev;
-    detailExtra = extra;
-    const view = toAnimalDetailView(s, detailId, ev);
-    const niche = animalDetail.nicheId;
-    animalDetail.update(view, view ? null : niche ? panel.nicheFocusTarget(niche) : null);
   }
 
   function refresh(now: number): void {
@@ -527,7 +483,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     noteText,
     floatSeeds,
     plantFeedback,
-    openAnimalDetail,
     closeEncounters,
     closePlantPicker,
     focusCycle: () => cyclePanel.focus(),
@@ -537,7 +492,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       closeEncounters();
       closePlantPicker();
       journal.hide();
-      animalDetail.hide();
       encounterSerial++;
       invalidate(['eco', 'encounter', 'picker']);
     },

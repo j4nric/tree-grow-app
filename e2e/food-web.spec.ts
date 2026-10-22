@@ -1,15 +1,13 @@
 import type { BrowserContext, Page } from '@playwright/test';
-import { expect, niche, openGame, seedV3, test, waypoint } from './fixtures';
+import { back, expect, openAnimal, openGame, seedV3, settledSubpage, sticker, test, waypoint } from './fixtures';
 
 /**
- * Räuber und Beute (DESIGN_V2.md 22.7): Nahrungsnetz in der Ökosystem-Übersicht, Bestand
- * an den Kacheln und Räuber/Beute in den Tierdetails – mobil bedienbar, ohne Querscrollen.
+ * Räuber und Beute (DESIGN_V2.md 22.7) im Album: Link „Nahrungsnetz ›“ im Reiter Nischen
+ * blättert zu U:Nahrungsnetz um; Bestand als Punkt am Sticker und im Kopf von U:Tier;
+ * „Räuber und Beute“ in U:Tier mit „Nahrungsnetz ›“ (Ebene 2) – mobil ohne Querscrollen.
  */
 
 const foodWeb = (page: Page) => page.locator('[data-ref="food-web"]');
-const detail = (page: Page) => page.locator('[data-ref="animal-detail"]');
-const tile = (page: Page, nicheId: string, species: string) =>
-  niche(page, nicheId).locator(`[data-species="${species}"] button.slot-open`);
 
 /** Wald mit Wühlmaus, Waldkauz und Rotfuchs (zwei Jäger, eine Maus → überjagt) und einem Regenwurm ohne Jäger. */
 async function seed(context: BrowserContext): Promise<void> {
@@ -30,29 +28,29 @@ for (const viewport of [
   { name: 'mobil', width: 390, height: 844 },
   { name: 'schmal', width: 360, height: 740 },
 ]) {
-  test(`Nahrungsnetz (${viewport.name}): aufklappbar, Zustand als Text, Hinweis`, async ({ page, context }) => {
+  test(`Nahrungsnetz (${viewport.name}): Link blättert um, Zustand als Text, Hinweis, Jäger-Sticker`, async ({ page, context }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await seed(context);
     await openGame(page);
 
-    const web = foodWeb(page);
-    const summary = web.locator('summary');
-    await expect(summary).toContainText('Nahrungsnetz');
-    await expect(web.locator('[data-ref="food-web-summary"]')).toHaveText('1 überjagt · 1 ungejagt');
-    const box = await summary.boundingBox();
-    expect(box!.height).toBeGreaterThanOrEqual(44);
-
-    // Per Tastatur aufklappen (echtes <summary>).
-    await summary.focus();
+    const link = page.locator('[data-ref="food-web-link"]');
+    await expect(link).toContainText('Nahrungsnetz');
+    await expect(page.locator('[data-ref="food-web-summary"]')).toHaveText('1 überjagt · 1 ungejagt');
+    expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    // Per Tastatur (echter Knopf).
+    await link.focus();
     await page.keyboard.press('Enter');
-    await expect(web).toHaveAttribute('open', '');
+    const sub = await settledSubpage(page, 'foodweb');
+    await expect(sub.locator('[data-ref="bookmark"]')).toHaveText('‹ Nischen');
 
+    const web = foodWeb(page);
     const mice = web.locator('[data-tag="kleinsaeuger"]');
     await expect(mice).toBeVisible();
     await expect(mice.locator('[data-ref="food-web-state"]')).toHaveText(/überjagt/);
     await expect(mice.locator('[data-ref="food-web-prey"]')).toContainText(/Beute: Wühlmaus · Bestand (knapp|gut|reichlich)/);
     await expect(mice.locator('[data-ref="food-web-hunters"]')).toContainText('Waldkauz');
     await expect(mice.locator('[data-ref="food-web-hunters"]')).toContainText('Rotfuchs');
+    await expect(mice.locator('.web-hunter:visible')).toHaveCount(2);
     // Bestand am Maximum: Zwei Jäger brauchen mehr, als eine Wühlmaus je bieten kann.
     await expect(mice.locator('[data-ref="food-web-hint"]')).toHaveText('Mehr Jäger als Futter – eine weitere Art, die Kleinsäuger bietet, hilft.');
 
@@ -62,27 +60,31 @@ for (const viewport of [
 
     await mice.scrollIntoViewIfNeeded();
     await noHorizontalOverflow(page);
-    // Zeilen bleiben in der Seitenleiste (nichts ragt heraus).
-    const panel = await page.locator('.eco').boundingBox();
+    // Zeilen bleiben auf der Seite (nichts ragt heraus).
+    const panel = await sub.boundingBox();
     const row = await mice.boundingBox();
     expect(row!.x + row!.width).toBeLessThanOrEqual(panel!.x + panel!.width + 1);
+
+    await back(page);
+    await expect(sub).toBeHidden();
+    await expect(link).toBeFocused();
   });
 }
 
-test('Tierdetails: Bestand der Beute, Futter des Jägers; Kachel zeigt den Bestand', async ({ page, context }) => {
+test('U:Tier: Bestand der Beute, Futter des Jägers, „Nahrungsnetz ›“ als Ebene 2', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seed(context);
   await openGame(page);
 
-  // Kachel der Wühlmaus: Bestand in Worten, keine Zahl.
-  const vole = tile(page, 'roots', 'vole');
-  await expect(vole.locator('.slot-stock')).toHaveText(/^Bestand (knapp|gut|reichlich)$/);
-  await expect(tile(page, 'hollows', 'owl').locator('.slot-stock')).toBeHidden();
+  // Sticker der Wühlmaus: Bestand als Punkt und in Worten (Screenreader), keine Zahl.
+  const vole = sticker(page, 'roots', 'vole');
+  await expect(vole.locator('.sticker-stock')).toBeVisible();
+  await expect(vole).toContainText(/Bestand (knapp|gut|reichlich)/);
+  await expect(sticker(page, 'hollows', 'owl').locator('.sticker-stock')).toBeHidden();
 
-  await vole.click();
-  const dialog = detail(page);
-  await expect(dialog).toBeVisible();
-  const section = dialog.locator('[data-ref="detail-predation"]');
+  let sub = await openAnimal(page, 'roots', 'vole');
+  await expect(sub.locator('[data-ref="detail-stock"]')).toContainText(/Bestand: (knapp|gut|reichlich)/);
+  const section = sub.locator('[data-ref="detail-predation"]');
   await expect(section).toBeVisible();
   await expect(section.getByRole('heading', { name: 'Räuber und Beute' })).toBeVisible();
   await expect(section.locator('[data-predation="stock"]')).toContainText(/Bestand: (knapp|gut|reichlich)/);
@@ -90,16 +92,25 @@ test('Tierdetails: Bestand der Beute, Futter des Jägers; Kachel zeigt den Besta
   await expect(section.locator('[data-predation="prey-kleinsaeuger"]')).toContainText('eine weitere Art, die Kleinsäuger bietet, hilft');
   await expect(section.locator('[data-predation="prey-kleinsaeuger"]')).not.toContainText('zufriedenere Beute');
   await noHorizontalOverflow(page);
+
+  // Ebene 2: Nahrungsnetz, das Lesezeichen nennt die Art.
+  await section.locator('[data-ref="detail-food-web"]').click();
+  const web = await settledSubpage(page, 'foodweb');
+  await expect(web.locator('[data-ref="bookmark"]')).toHaveText('‹ Wühlmaus');
+  await back(page);
+  await expect(web).toBeHidden();
+  await expect(sub).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(dialog).toBeHidden();
+  await expect(sub).toBeHidden();
   await expect(vole).toBeFocused();
 
-  await tile(page, 'hollows', 'owl').click();
-  await expect(dialog.locator('[data-predation="hunt-kleinsaeuger"]')).toContainText('Futter Kleinsäuger: zu knapp für 2 Jäger');
+  sub = await openAnimal(page, 'hollows', 'owl');
+  await expect(sub.locator('[data-predation="hunt-kleinsaeuger"]')).toContainText('Futter Kleinsäuger: zu knapp für 2 Jäger');
   await page.keyboard.press('Escape');
+  await expect(sub).toBeHidden();
 
   // Der Regenwurm hat keinen Jäger: Hinweis, dass das kein Nachteil ist.
-  await tile(page, 'roots', 'earthworm').click();
-  await expect(dialog.locator('[data-predation="prey-wuermer"]')).toContainText('Würmer: noch kein Jäger');
-  await expect(dialog.locator('[data-predation="prey-wuermer"]')).toContainText('Kein Nachteil');
+  sub = await openAnimal(page, 'roots', 'earthworm');
+  await expect(sub.locator('[data-predation="prey-wuermer"]')).toContainText('Würmer: noch kein Jäger');
+  await expect(sub.locator('[data-predation="prey-wuermer"]')).toContainText('Kein Nachteil');
 });

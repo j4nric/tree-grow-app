@@ -281,6 +281,8 @@ export interface FoodWebRowView {
   /** „Waldkauz und Rotfuchs“ – leer, wenn keiner frisst; Beute, die sich selbst frisst: „… (frisst Artgenossen)“. */
   hunters: string;
   hunterCount: number;
+  /** Entdeckte Jäger als Art-IDs (für kleine Sticker im Album; Unentdeckte fehlen). */
+  hunterIds?: string[];
   /** Arten, die es nur klein halten, z. B. „Rote Waldameise“ – leer, wenn keine. */
   controllers: string;
   /** Was das bedeutet bzw. was hilft, z. B. „Ein Raupenjahr kann Jäger einladen.“ */

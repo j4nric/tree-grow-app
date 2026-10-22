@@ -541,9 +541,24 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   `scene-note.ts` entfällt). Bildunterschrift kurz: „🌱 Frühling · ⛅ Wechselhaft · 2:58“
   (Wirkungen des Wetters in der Notiz und im vorgelesenen Namen). Meldungen im Vollbild über die
   ganze Breite unter „Zurück ins Album“.
-- [ ] **5** Reiter Nischen (`ui-dev`): Stickerreihen, Gattungen, Lebensräume, Pflanzring;
+- [x] **5** Reiter Nischen (`ui-dev`): Stickerreihen, Gattungen, Lebensräume, Pflanzring;
   Unterseiten Tier, Harmonie, Nahrungsnetz. Specs animal-detail, food-web, habitats.
-  Abhängig: 2, 4
+  Abhängig: 2, 4. *Umgesetzt:* `album/sticker.ts` (StickerSlot: eigenes kleines Canvas, zeichnet
+  nur bei neuer Art/Variante/Pixeldichte; matte Bilder über die IdleQueue, bis dahin CSS-gedämpft;
+  Zufriedenheit als Bogen im weißen Rand, Seltenheit als Edelstein und Randlinie, 🌙 und
+  Bestandspunkt) und `sticker-rules.ts` (`stickerTilt` fest je Art und Platz, ±6°).
+  `pages/niches-page.ts` (Gattungs-Abzeichen mit Notiz, Reihen „Am Baum“ und „Lebensräume“,
+  Pflanzring mit Messbändern, Links zu U:Harmonie und U:Nahrungsnetz – oben statt am Ende,
+  damit sie mobil ohne Scrollen erreichbar sind; Kennzahl „9 von 14 Plätzen“), Unterseiten
+  `animal-page.ts` (Kopf, „Was es braucht“, „Was es bewirkt“, Räuber und Beute → Nahrungsnetz als
+  Ebene 2, Lebensgemeinschaften, Stammgast-★, Notiz, „Zuerst gesehen“ aus `meta.journal.firstSeen`;
+  ausgezogen bleibt die Seite offen), `harmony-page.ts` (Zusammensetzung, Gemeinschaften,
+  Stufen; „Mehr ›“ der Harmonie-Notiz), `food-web-page.ts` (Jäger als kleine Sticker,
+  `FoodWebRowView.hunterIds`). Je Seitenart ein Blatt (`nav.ts`: andere ID derselben Art ersetzt
+  sie). Nur sichtbare Seiten schreiben (`PageEnv.eco` mit Zähler, `album.refresh` aktualisiert
+  die oberste Seite). `ecosystem-panel.ts` und `animal-detail-dialog.ts` gelöscht; „Im Album
+  ansehen ›“ aus dem Vollbild blättert zu U:Tier um. Neu: `e2e/album-animal.spec.ts`,
+  `tests/album-niches.test.ts`.
 - [ ] **6** Begegnungen (`ui-dev`): Zettelstapel mit Wackeln, Unterseite Begegnung, Unterseite
   Pflanze setzen. Specs events, playthrough, full-cycle. Abhängig: 4 (Pflanze setzen: 5)
 - [ ] **7** Reiter Arten (`ui-dev`): Sticker-Raster mit Silhouetten, Pflanzen, Gemeinschaften,

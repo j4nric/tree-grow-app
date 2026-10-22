@@ -124,7 +124,8 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
       .locator('[data-ref="care"] [data-care="leaf-litter"]')
       .getByRole('button', { name: 'Kaufen (200 🌰)' })
       .click();
-    await expect(niche(a, 'litter')).toContainText('1/3 belegt');
+    // A steht im Reiter Pflege (der Reiter Nischen schreibt nur, solange er sichtbar ist).
+    await expect(a.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('Rang 1/2');
     await expect(niche(b, 'litter')).toContainText('1/3 belegt', { timeout: 15_000 });
     await expect(stamps(b)).toContainText('Auf anderem Gerät weitergespielt – übernommen.');
     await expect(b.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('Rang 1/2');

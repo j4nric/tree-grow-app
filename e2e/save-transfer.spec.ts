@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { codeFromJson } from '../src/core/save';
-import { expect, niche, openGame, openSavePage, savedState, seedV3, stageLabel, stamps, test, waitForConfirm, waypoint } from './fixtures';
+import { expect, niche, openGame, openSavePage, openTab, savedState, seedV3, stageLabel, stamps, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Spielstand exportieren und importieren als Text-Code (Phase 5): Export, Löschen,
@@ -21,7 +21,7 @@ function comparable(save: Record<string, any>) {
 
 async function openTransfer(page: Page): Promise<void> {
   await openSavePage(page);
-  await transfer(page).locator('summary').click();
+  if (!(await transfer(page).locator('[data-ref="export"]').isVisible())) await transfer(page).locator('summary').click();
   await expect(transfer(page).locator('[data-ref="export"]')).toBeVisible();
 }
 
@@ -61,10 +61,13 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
   await reset.click();
   await page.clock.runFor(100);
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
-  await expect(niche(page, 'roots')).not.toContainText('Regenwurm');
   // Nach dem Löschen steht kein alter Code mehr im Export-Feld.
   await expect(transfer(page).locator('[data-ref="export-code"]')).toBeHidden();
   expect(await transfer(page).locator('[data-ref="export-code"]').inputValue()).toBe('');
+  // Der Reiter Nischen liegt unter dem Umschlag und zieht erst beim Zeigen nach (D.1).
+  await openTab(page, 'nischen');
+  await expect(niche(page, 'roots')).not.toContainText('Regenwurm');
+  await openTransfer(page);
 
   // Importieren: erster Klick prüft und fragt nach, zweiter lädt.
   await transfer(page).locator('[data-ref="import-code"]').fill(code);
@@ -77,6 +80,7 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
   await page.clock.runFor(100);
   await expect(transfer(page).locator('[data-ref="save-status"]')).toHaveText('Spielstand geladen.');
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
+  await openTab(page, 'nischen');
   await expect(niche(page, 'roots')).toContainText('Regenwurm');
   await expect(niche(page, 'crown')).toContainText('Blaumeise');
 

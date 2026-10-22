@@ -1,0 +1,170 @@
+/* Unterseite „Harmonie“ (harmony-page.ts): Zusammensetzung, Lebensgemeinschaften live,
+   Harmoniestufen. */
+
+.harmony-page .page-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.harmony-parts,
+.hcom-list,
+.harmony-tier-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.harmony-part {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 2px dotted var(--rule);
+  font-size: 14px;
+}
+
+.harmony-part[hidden] {
+  display: none;
+}
+
+.harmony-part-value {
+  font-family: var(--font-hand);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--tone);
+}
+
+.harmony-total {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: right;
+}
+
+/* Lebensgemeinschaften */
+.hcom-count {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.harmony-page .hcom {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icon text value'
+    'icon track track';
+  align-items: center;
+  gap: 2px 8px;
+  padding: 7px 0;
+  border-bottom: 2px dotted var(--rule);
+}
+
+.harmony-page .hcom-icon {
+  grid-area: icon;
+  font-size: 20px;
+  text-align: center;
+}
+
+.harmony-page .hcom-text {
+  grid-area: text;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.harmony-page .hcom-name {
+  font-size: 14px;
+  font-weight: 800;
+  hyphens: manual;
+}
+
+.harmony-page .hcom-note {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.harmony-page .hcom-note[hidden] {
+  display: none;
+}
+
+.harmony-page .hcom-value {
+  grid-area: value;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.harmony-page .hcom-track {
+  grid-area: track;
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.harmony-page .hcom-bar {
+  --progress: 0;
+  display: block;
+  width: calc(var(--progress) * 100%);
+  height: 100%;
+  background: var(--fill);
+}
+
+.harmony-page .hcom.state-active .hcom-value {
+  color: var(--ink-green);
+}
+
+.harmony-page .hcom.state-near .hcom-bar {
+  background: var(--tape);
+}
+
+.harmony-page .hcom.undiscovered .hcom-name {
+  color: var(--ink-soft);
+}
+
+.harmony-page .hcom.formed {
+  animation: community-formed 1200ms ease-out;
+}
+
+@keyframes community-formed {
+  0%,
+  30% {
+    background: var(--note-bg);
+  }
+}
+
+body[data-motion='reduce'] .harmony-page .hcom.formed {
+  animation-duration: 400ms;
+}
+
+/* Harmoniestufen */
+.harmony-tier {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 10px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.harmony-tier.current {
+  border-radius: 8px;
+  background: var(--note-bg);
+  color: var(--ink);
+  font-weight: 800;
+  transform: rotate(-0.5deg);
+}
+
+.harmony-tier-range {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}

@@ -39,10 +39,31 @@ describe('Unterseiten-Stapel', () => {
     const nav = run([
       { type: 'open', page: { kind: 'animal', id: 'robin' } },
       { type: 'open', page: { kind: 'foodweb' } },
+      { type: 'open', page: { kind: 'harmony' } },
+    ]);
+    expect(nav.stack).toEqual([{ kind: 'animal', id: 'robin' }, { kind: 'harmony' }]);
+    expect(nav.stack.length).toBeLessThanOrEqual(MAX_DEPTH);
+  });
+
+  it('je Seitenart ein Blatt: dieselbe Art mit anderer ID ersetzt sie samt allem darüber', () => {
+    const top = run([
+      { type: 'open', page: { kind: 'animal', id: 'robin' } },
       { type: 'open', page: { kind: 'animal', id: 'owl' } },
     ]);
-    expect(nav.stack).toEqual([{ kind: 'animal', id: 'robin' }, { kind: 'animal', id: 'owl' }]);
-    expect(nav.stack.length).toBeLessThanOrEqual(MAX_DEPTH);
+    expect(top.stack).toEqual([{ kind: 'animal', id: 'owl' }]);
+    const below = run([
+      { type: 'open', page: { kind: 'animal', id: 'robin' } },
+      { type: 'open', page: { kind: 'foodweb' } },
+      { type: 'open', page: { kind: 'animal', id: 'owl' } },
+    ]);
+    expect(below.stack).toEqual([{ kind: 'animal', id: 'owl' }]);
+    // Aus dem Vollbild: schließt es und ersetzt die offene Tierseite.
+    const fromScene = navigate(
+      run([{ type: 'open', page: { kind: 'animal', id: 'robin' } }, { type: 'fullscreen', open: true }]),
+      { type: 'open', page: { kind: 'animal', id: 'owl' } },
+      open,
+    );
+    expect(fromScene).toMatchObject({ fullscreen: false, stack: [{ kind: 'animal', id: 'owl' }] });
   });
 
   it('dieselbe Seite oben: keine Änderung (gleiches Objekt)', () => {
