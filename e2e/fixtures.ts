@@ -36,7 +36,15 @@ export const test = base.extend<{ pageErrors: string[]; daily: boolean; dailySwi
   freshLegend: [false, { option: true }],
   legendSwitch: [
     async ({ context, freshLegend }, use) => {
-      if (!freshLegend) await context.addInitScript(() => localStorage.setItem('tree-grow-legend-seen', '1'));
+      if (!freshLegend) {
+        await context.addInitScript(() => {
+          try {
+            localStorage.setItem('tree-grow-legend-seen', '1');
+          } catch {
+            // Dokument ohne Speicher (about:blank, data:-URL) – dort gibt es keine Legende.
+          }
+        });
+      }
       await use();
     },
     { auto: true },
