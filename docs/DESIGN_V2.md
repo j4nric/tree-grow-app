@@ -427,8 +427,8 @@ leuchtet der Waldsaum.“
 **Idee:** Ein Tümpel ist ein eigener Lebensraum. Er entsteht nicht von selbst mit dem
 Baum, der Spieler legt ihn an (Pflege „Waldtümpel“) oder ein nasses Frühjahr schenkt ihn
 („Regenreicher Frühling“). Erst dann ziehen Amphibien ein. So bleibt die Erweiterung eine
-bewusste Entscheidung und spoilert nichts: Die Nische steht verschlossen in der
-Seitenleiste mit dem Hinweis „öffnet durch Pflege „Waldtümpel“ (ab „Alter Baum“)“.
+bewusste Entscheidung und spoilert nichts: Die Nische steht verschlossen im Reiter
+„Nischen“ (Abschnitt „Lebensräume“, mit Link „Zur Pflege ›“) mit dem Hinweis „öffnet durch Pflege „Waldtümpel“ (ab „Alter Baum“)“.
 
 **Umsetzung nur mit Daten** (keine neue Logik): neue Gattung `amphibians` und neue Nische
 `pond` mit Plätzen 0 auf allen Stufen und `opensEarly`; Plätze kommen über die
@@ -490,7 +490,7 @@ und den 14 Begleitpflanzen bei 320×480 bis 1920×1080, Stufen 4–8, und keine 
 der Bewohner untereinander für 1–5 Bewohner in allen Belegungen
 (`tests/render-anchors.test.ts`). Unbekannte Amphibien bekommen die Zeichnung der Kröte.
 Ist der Tümpel offen, aber noch keine Amphibie freigeschaltet (Regen im Jungen Baum),
-zeigt die Seitenleiste „Bewohner ab „Alter Baum““. Pflege mit Plätzen lässt passende
+zeigt der Reiter „Nischen“ „Bewohner ab „Alter Baum““. Pflege mit Plätzen lässt passende
 Stammgäste sofort einziehen.
 
 **Playtest (entschieden, Zahlen in 15.4 „Stand Playtest Amphibien“):** Amphibien wurden nicht
@@ -1179,10 +1179,11 @@ begrenzt. Beim Laden zählen nur bekannte Maßnahmen, Ränge ganzzahlig in 1 …
 und höchstens bis zum letzten Rang, dessen `minStage` die aktuelle Stufe erlaubt; von sich
 ausschließenden Maßnahmen (Kronen) bleibt nur die erste in `CARE`-Reihenfolge. `requires`
 gilt bewusst nur beim Kauf, nicht beim Laden.
-Die Seitenleiste zeigt die Liste „Pflege“ (`src/ui/care-panel.ts`, View `toCareViews`):
-Maßnahmen ab ihrer Stufe mit nächstem Rang, Kosten, Wirkung, Vorschau als kurze Zeile
+Der Reiter „Pflege“ im Album (`src/ui/album/pages/care-page.ts`, View `toCareViews`,
+ALBUM_UI.md B.3) zeigt die Maßnahmen ab ihrer Stufe mit Rang, Vorschau als kurze Zeile
 („+3 ⚖️ / +2 % 🌿“), Blocker-Text (zu wenig Samen: „Noch X 🌰“, aufgerundet) und
-Kaufen-Knopf. Gesperrte Knöpfe tragen `aria-disabled` statt `disabled` (fokussierbar,
+Kaufen-Knopf; Tipp auf den Namen blättert zur Unterseite „Pflegemaßnahme“ mit nächstem
+Rang, Kosten, Wirkung, „öffnet …“ und „schützt vor …“. Gesperrte Knöpfe tragen `aria-disabled` statt `disabled` (fokussierbar,
 Sperrgrund vorlesbar); nach dem letzten Rang geht der Fokus auf den Titel der Maßnahme.
 Doppelklick, gehaltene Enter-Taste und Klicks binnen 400 ms nach einem Kauf kaufen keinen
 weiteren Rang.
@@ -1248,10 +1249,11 @@ eine Karte eine Gemeinschaft, nennt sie den Namen („✨ vervollständigt Humus
 Lebensgemeinschaft: Humusküche 🌱“.
 
 Entdeckte Gemeinschaften nennen im Naturtagebuch **alle** Mitglieder, auch Arten, die
-selbst noch unentdeckt sind. Das ist gewollt, genau wie „fehlt: …“ in der Seitenleiste:
-Die Gemeinschaft ist dann ein Ziel, auf das man hinarbeiten kann. Den Fortschritt „x/y“
-zeigen Seitenleiste und Tagebuch für jede Gemeinschaft, die gerade nicht besteht, auch
-für unentdeckte.
+selbst noch unentdeckt sind. Das ist gewollt, genau wie „fehlt: …“ auf der Unterseite
+„Harmonie“: Die Gemeinschaft ist dann ein Ziel, auf das man hinarbeiten kann. Den
+Fortschritt „x/y“ zeigen die Unterseite „Harmonie“ (Abschnitt „Lebensgemeinschaften“,
+erreichbar über das Lesezeichen im Reiter „Nischen“) und der Reiter „Arten“ (Abschnitt
+„Gemeinschaften“) für jede Gemeinschaft, die gerade nicht besteht, auch für unentdeckte.
 
 | Lebensgemeinschaft | Mitglieder | ⚖️ | Extra | Hinweis |
 |---|---|---|---|---|
@@ -1448,9 +1450,10 @@ neuer Baum. „Aus der Asche wächst ein stärkerer Wald.“
 - Stammgäste ziehen beim Erreichen jedes Wegpunkts (vor dem Ziehen der Karten) und beim
   Zyklusstart ein – in Wahl-Reihenfolge, kostenlos, nur bei freiem Platz in ihrer Nische
   und erst ab ihrer Freischalt-Stufe. Erscheinungsbedingungen gelten für sie nicht.
-- Bedienung: Bereich „Neuer Zyklus“ in der Seitenleiste mit Grund oder Vorschau
-  („+33 Waldgedächtnis (+66 %)“), Bestätigung per zweitem Klick, danach ein Toast.
-  Stammgäste-Liste erscheint ab dem ersten Platz.
+- Bedienung: Kurzkarte „Neuer Zyklus“ im Reiter „Ziele“ mit Grund oder Vorschau
+  („+33 Waldgedächtnis (+66 %)“) und „Vorbereiten ›“ zur Unterseite „Neuer Zyklus“; dort
+  Bestätigung per zweitem Klick, danach ein Stempel. Die Stammgäste-Auswahl steht auf der
+  Unterseite und erscheint ab dem ersten Platz.
 
 ---
 
@@ -4153,8 +4156,9 @@ warten. Pflanzen- und Neu-würfeln-Kosten bleiben gleich. H_max (Waldgedächtnis
 die Harmonie einschließlich Jahreszeit; der Effekt ist klein (~+1) und trifft alle gleich.
 
 **Darstellung:** `SceneInput.season = sceneSeason(state.cycle.elapsed)`; in der
-Seitenleiste ein kleines Abzeichen „🍂 Herbst · noch 1:20 min“ mit der Kurzform als
-Tooltip; beim Wechsel (online) ein kurzer Hinweis mit dem Text der Jahreszeit. Die
+Bildunterschrift des Polaroids Jahreszeit und Restzeit („Herbst · wechselhaft · 1:20“),
+ein Tipp auf die Jahreszeit öffnet eine Haftnotiz mit den Wirkungen; beim Wechsel
+(online) ein kurzer Stempel mit dem Text der Jahreszeit. Die
 Kartenvorschau rechnet mit der aktuellen Jahreszeit (ehrlich, was jetzt gilt).
 
 **Tests (Vorschlag):** Grenzen von `seasonIndex` (179,999 / 180 / 720); jede Wirkung
@@ -4290,8 +4294,8 @@ Jahreszeit-Wirkungen. Cache-Schlüssel: `|m:${mainTree}`.
 
 **Darstellung:** `SceneInput.mainTree = state.cycle.mainTree`. Texte mit „Eichel“ in
 `cycle-view.ts` und `guide-view.ts` über `MAIN_TREES_BY_ID.get(…).fruit`
-(„Aus einer Buchecker wächst ein neuer Baum.“). Seitenleiste: Name der Art beim
-Hauptbaum. Naturtagebuch, Reiter Andenken: optional die gewachsenen Hauptbaum-Arten.
+(„Aus einer Buchecker wächst ein neuer Baum.“). Unterseite „Neuer Zyklus“: Name der Art
+beim Hauptbaum. Reiter „Arten“, Abschnitt „Andenken“: die gewachsenen Hauptbaum-Arten.
 
 **Tests (Vorschlag):** Freischaltung aus dem Tagebuch; `startNewCycle` mit gesperrter
 Art scheitert ohne Änderung; Eiche = heutiges Verhalten (alle bisherigen Tests grün);
@@ -4646,15 +4650,15 @@ verdient – der Anteil war dadurch um ein Hundertstel zu klein). Ergebnis: Ante
 
 ### 20.7 Darstellung
 
-Karte „Tagesziele“ in der Seitenleiste direkt unter dem Knopf „Naturtagebuch“ (kurz, immer
-sichtbar, ohne Dialog – ein eigener Reiter im Tagebuch wäre einen Klick weiter weg): Zeile
+Karte „Tagesziele“ als erster Abschnitt im Reiter „Ziele“ (ALBUM_UI.md B.4; Kennzahl im
+Seitenkopf ist die Serie „🌞 4 Tage“, ohne Dialog): Zeile
 „1/3 erfüllt“ bzw. „Alle erfüllt – bis morgen!“ und die Serie „🌞 3 Tage in Folge“; je Ziel
 Symbol, Text, dünner Balken (`role="progressbar"`, per `aria-labelledby` am Zieltext, mit
 `aria-valuenow/-max/-text`), Fortschritt
 („2/3“, „2:30/5:00 min“, „60/75 %“, „345/1.200 🌿“) und Belohnung („+36 🌰“ bzw. „🎴 seltene
 Begegnung“; erfüllt: „✓ erfüllt“, grüner Rand). Liste und Bereich sind über
 `aria-labelledby` an der Überschrift beschriftet. Neu gebaut wird nur bei neuem Tag oder
-erfülltem Ziel; Fortschritt und Belohnung laufen gedrosselt mit der Seitenleiste. Mobil
+erfülltem Ziel; Fortschritt und Belohnung laufen gedrosselt mit der Album-Aktualisierung. Mobil
 (360/390 px) bricht der Text um, nichts scrollt quer (e2e). Die Spielanleitung hat einen
 Abschnitt „Tagesziele“.
 
