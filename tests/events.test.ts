@@ -527,13 +527,14 @@ describe('Härtung (Review #31)', () => {
     const offline = structuredClone(online);
     const big = structuredClone(online);
     const frames = structuredClone(online);
-    // Mittel (offline ab einem Tag, DESIGN_V2.md 21.5) und Einzelwetter (ein großer Tick).
-    for (let i = 0; i < 20 * 60 * 60; i++) {
-      tick(online, 1 / 60, 'average');
-      tick(frames, 1 / 60);
-    }
+    // Mittel (offline ab einem Tag, DESIGN_V2.md 21.5): 20 min Frames = simulateOffline, wie
+    // vor dem Wetter. Einzelwetter: 6 min Frames = ein großer Tick – genug für beide
+    // Nachtgrenzen (81, 171 s), einen Tageswechsel (180 s) und die nächste Nacht (261 s).
+    for (let i = 0; i < 20 * 60 * 60; i++) tick(online, 1 / 60, 'average');
+    for (let i = 0; i < 6 * 60 * 60; i++) tick(frames, 1 / 60);
     simulateOffline(offline, 20 * 60);
-    tick(big, 20 * 60);
+    tick(big, 6 * 60);
+    expect(Math.abs(big.cycle.elapsed - frames.cycle.elapsed)).toBeLessThan(1e-6);
     expect(big.pendingEncounters).toEqual(frames.pendingEncounters);
     expect(big.rngState).toBe(frames.rngState);
     expect(big.totalGrowth).toBeCloseTo(frames.totalGrowth, 3);
@@ -545,7 +546,7 @@ describe('Härtung (Review #31)', () => {
     expect(offline.waypoint).toBe(online.waypoint);
     expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 3);
     expect(offline.seeds).toBeCloseTo(online.seeds, 3);
-  }, 120_000);
+  }, 60_000);
 
   it('Zeit-Bonus und Gast mit gleicher Restdauer laufen im selben Schritt ab', () => {
     const state = stateAt(5, ['earthworm'], 1);

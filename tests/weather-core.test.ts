@@ -45,6 +45,7 @@ import {
   weatherRoll,
   weatherSeed,
 } from '../src/core/weather';
+import { generateDailyGoals } from '../src/core/daily';
 import { stateAt } from './helpers';
 
 /** Logik für Wetter und Nachtarten (DESIGN_V2.md 21, src/core/weather.ts). Daten: weather.test.ts. */
@@ -436,15 +437,64 @@ describe('Mittel offline (21.5)', () => {
 
   it('evaluate im Modus „Mittel“: Mittelwetter der Jahreszeit + NIGHT_SHARE der Nachtwirkung, Tag und Nacht gleich', () => {
     const state = stateAt(5, ['owl', 'vole'], 4);
-    state.cycle.elapsed = SEASON_SECONDS + 10; // Sommer
+    state.cycle.elapsed = 5 * SEASON_SECONDS + 10; // Sommer, nach der Schonzeit
     const avg = evaluate(state, 'average');
     const off = evaluate(state, 'off');
     const z = off.animals.owl!.happiness;
     const weather = sumPct(averageWeatherEffects(state, 'summer'), 'growth') / 100;
     expect(avg.growthBonus - off.growthBonus).toBeCloseTo(weather + NIGHT_SHARE * 0.1 * z, 12);
-    state.cycle.elapsed = SEASON_SECONDS + 100; // Sommernacht: dasselbe
+    state.cycle.elapsed = 5 * SEASON_SECONDS + 100; // Sommernacht: dasselbe
     expect(evaluate(state, 'average').growthBonus).toBeCloseTo(avg.growthBonus, 12);
     expect(evaluate(state, 'average').harmony).toBe(avg.harmony);
+  });
+
+  it('Schonzeit offline: Tag 0 sein festes Wetter, Tage 1–3 Mittel ohne raue Lagen, danach Mittel', () => {
+    for (const season of SEASON_IDS) {
+      const gentle = weatherProbabilities(season, true);
+      expect(Object.values(gentle).reduce((a, b) => a + b!, 0), season).toBeCloseTo(1, 12);
+      for (const w of WEATHERS) if (w.rough) expect(gentle[w.id] ?? 0, `${season} ${w.id}`).toBe(0);
+    }
+    expect(weatherProbabilities('spring', true).mild).toBeCloseTo(0.45, 12); // 40 % + 5 % Frost
+    // Gemessen: Tage 1–3 vieler Zyklen = Schonzeit-Mittel ± 1 Prozentpunkt.
+    const counts = new Map<string, number>();
+    let n = 0;
+    for (let c = 1; c <= 4000; c++) {
+      const seed = weatherSeed(cycleOf(c, 1_650_000_000_000 + c * 86_400_017));
+      const w = weatherOfDayFromSeed(seed, 1); // Sommer
+      counts.set(w, (counts.get(w) ?? 0) + 1);
+      n++;
+    }
+    for (const [id, p] of Object.entries(weatherProbabilities('summer', true))) {
+      expect(Math.abs((counts.get(id) ?? 0) / n - p!), id).toBeLessThan(0.01);
+    }
+    // evaluate im Modus „Mittel“ je Tag.
+    const state = stateAt(5, ['vole'], 4);
+    const avgGrowth = (t: number) => {
+      state.cycle.elapsed = t;
+      return evaluate(state, 'average').growthBonus - evaluate(state, 'off').growthBonus;
+    };
+    expect(avgGrowth(10)).toBeCloseTo(0, 12); // Tag 0: Wechselhaft, keine Nachtart
+    expect(avgGrowth(SEASON_SECONDS + 10)).toBeCloseTo(sumPct(averageWeatherEffects(state, 'summer', true), 'growth') / 100, 12);
+    expect(avgGrowth(5 * SEASON_SECONDS + 10)).toBeCloseTo(sumPct(averageWeatherEffects(state, 'summer'), 'growth') / 100, 12);
+    // Sommer in der Schonzeit ohne Dürre und Sturm: besser als das Sommer-Mittel danach.
+    expect(avgGrowth(SEASON_SECONDS + 10)).toBeGreaterThan(avgGrowth(5 * SEASON_SECONDS + 10));
+    // Cache: Schonzeit-Sommer und späterer Sommer sind verschiedene Einträge.
+    state.cycle.elapsed = SEASON_SECONDS + 10;
+    const a = evaluate(state, 'average');
+    state.cycle.elapsed = 5 * SEASON_SECONDS + 10;
+    expect(evaluate(state, 'average')).not.toBe(a);
+  });
+
+  it('Schonzeit offline: kleine Ticks im Mittel = simulateOffline über das erste Jahr hinweg', () => {
+    const start = stateAt(3, ['owl', 'vole', 'robin'], 21);
+    const small = structuredClone(start);
+    const offline = structuredClone(start);
+    for (let i = 0; i < 2 * YEAR_SECONDS + 30; i++) tick(small, 1, 'average');
+    simulateOffline(offline, 2 * YEAR_SECONDS + 30);
+    expect(offline.waypoint).toBe(small.waypoint);
+    expect(offline.rngState).toBe(small.rngState);
+    expect(offline.totalGrowth).toBeCloseTo(small.totalGrowth, 6);
+    expect(offline.seeds).toBeCloseTo(small.seeds, 6);
   });
 
   it('Einzelwetter über viele Zyklen gemittelt ≈ Mittelwetter (je Jahreszeit ± 0,3 Prozentpunkte)', () => {
@@ -622,6 +672,28 @@ describe('Cache und Samen-Sekunden (21.9)', () => {
     expect(seedSecondsRate(state)).toBe(stormDay);
     state.cycle.elapsed = 10;
     expect(seedSecondsRate(state)).toBe(stormDay);
+  });
+});
+
+describe('Tagesziele ohne Wetter und Nacht (21, Review)', () => {
+  it('gleiche Ziele am Tag, in der Nacht, an rauen und milden Tagen derselben Jahreszeit', () => {
+    const state = stateOnWeather('storm', ['vole', 'robin', 'owl', 'bat', 'bee']);
+    state.seeds = 5000;
+    const stormDay = dayIndex(state.cycle.elapsed);
+    const mildDay = (() => {
+      for (let d = stormDay + 4; d < 100_000; d += 4) if (weatherOfDay(state.cycle, d) === 'mild') return d;
+      throw new Error('kein milder Tag');
+    })();
+    const goalsAt = (t: number) => {
+      state.cycle.elapsed = t;
+      return Array.from({ length: 12 }, (_, i) => generateDailyGoals(state, `2026-10-${String(10 + i).padStart(2, '0')}`));
+    };
+    const base = goalsAt(stormDay * SEASON_SECONDS + 10);
+    expect(evaluate(state).growth).not.toBe(evaluate(state, 'off').growth); // der Sturm wirkt
+    expect(base.flat().some((g) => g.kind === 'growth')).toBe(true); // ein Ziel, das an der Rate hängt
+    expect(goalsAt(stormDay * SEASON_SECONDS + 100)).toEqual(base); // Nacht
+    expect(goalsAt(mildDay * SEASON_SECONDS + 10)).toEqual(base); // milder Tag
+    expect(goalsAt(mildDay * SEASON_SECONDS + 100)).toEqual(base);
   });
 });
 

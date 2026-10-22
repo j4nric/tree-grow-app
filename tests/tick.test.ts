@@ -417,14 +417,25 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
 
 describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
   /** 2 Stunden spielen, alle 10 s entscheiden und Pflanzen setzen. */
-  function play(seed: number): GameState {
+  function play(seed: number, ambient: 'live' | 'off' = 'live'): GameState {
     const state = createInitialState(0, seed);
     for (let t = 0; t < 2 * 3600; t += 10) {
-      tick(state, 10);
+      tick(state, 10, ambient);
       resolveAndPlant(state);
     }
     return state;
   }
+
+  it('ohne Wetter und Nacht (`off`) genau wie vor dem Wetter (Stand vor DESIGN_V2.md 21)', () => {
+    const state = play(2026, 'off');
+    expect({
+      waypoint: state.waypoint,
+      rngState: state.rngState,
+      totalGrowth: Math.round(state.totalGrowth),
+      seeds: Math.round(state.seeds),
+      harmony: Math.round(evaluate(state).harmony * 100) / 100,
+    }).toEqual({ waypoint: 20, rngState: 3892806722, totalGrowth: 145529, seeds: 35187, harmony: 75.94 });
+  });
 
   it('liefert festgelegte Ergebnisse', () => {
     const state = play(2026);

@@ -303,6 +303,9 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   - [x] Logik (core-engineer): `src/core/weather.ts`, Wetter in `evaluate`, `TickReport.weather`,
     Mittelwetter offline (`simulateOffline` ab 180 s), Messung mit der echten Logik – 21.9/21.10
   - [ ] Grafik (renderer) und Anzeige (ui-dev) – 21.8
+  - [ ] Balancing-Folgeaufgabe (game-designer): Samenreserve im Wald (balance-care 14,6 vs.
+    Grenze 15 min, vorher 11,1 vs. 12) – Wald-Ränge der Pflege billiger oder früher kaufbar,
+    damit die Grenze wieder auf 12 min sinken kann (DESIGN_V2.md 21.10)
 
 **Welle 3 – Tiefe & Langzeitspiel**
 

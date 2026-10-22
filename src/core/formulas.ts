@@ -55,7 +55,9 @@ import {
   weatherById,
   weatherDampingFor,
   weatherOfDay,
+  averageWeatherOf,
   type AmbientMode,
+  type AverageWeather,
 } from './weather';
 
 /*
@@ -119,10 +121,10 @@ export interface Ecosystem {
   mainTree?: MainTreeId;
   /**
    * Wetter des Tages (DESIGN_V2.md 21.3) oder `'average'` = Mittelwetter der Jahreszeit
-   * (offline, 21.5; braucht `season`). Wirkungen mit Faktor 1, Abzüge rauer Lagen gedämpft
+   * (offline, 21.5; braucht `season`), `'gentle-average'` = dasselbe in der Schonzeit. Wirkungen mit Faktor 1, Abzüge rauer Lagen gedämpft
    * (Gattungen mit Tier, Pflege `care`, Hauptbaum). Fehlt es, wirkt kein Wetter.
    */
-  weather?: WeatherId | 'average';
+  weather?: WeatherId | AverageWeather;
   /**
    * Anteil der Nachtwirkung nachtaktiver Arten (21.6): 1 nachts, 0 tagsüber, NIGHT_SHARE
    * im Mittel offline. Skaliert mit der Zufriedenheit der Art wie ihre Grundwirkung.
@@ -277,7 +279,7 @@ function environmentOf(cycle: CycleExtras | undefined, ambient: AmbientMode): En
   const out: Environment = {};
   if (cycle?.elapsed !== undefined) {
     out.season = seasonIdAt(cycle.elapsed);
-    if (ambient === 'average') out.weather = 'average';
+    if (ambient === 'average') out.weather = averageWeatherOf(cycle.elapsed);
     else if (ambient === 'live') out.weather = weatherOfDay({ number: cycle.number ?? 0, startedAt: cycle.startedAt }, dayIndex(cycle.elapsed));
     const night = nightShare(ambient, cycle.elapsed);
     if (night > 0) out.night = night;
@@ -295,8 +297,9 @@ function ecosystemWeatherEffects(eco: Ecosystem, animals: readonly Species[]): E
   if (eco.weather === undefined) return [];
   const genera = generaWithAnimals(animals.map((a) => a.id)).length;
   const tree = eco.mainTree !== undefined ? mainTreeOf(eco.mainTree).id : undefined;
-  if (eco.weather === 'average') {
-    return eco.season !== undefined ? averageWeatherEffectsFor(eco.season, genera, eco.care, tree) : [];
+  if (eco.weather === 'average' || eco.weather === 'gentle-average') {
+    const gentle = eco.weather === 'gentle-average';
+    return eco.season !== undefined ? averageWeatherEffectsFor(eco.season, genera, eco.care, tree, gentle) : [];
   }
   const weather = weatherById(eco.weather);
   return dampedWeatherEffects(weather, weatherDampingFor(weather, genera, eco.care, tree));
@@ -863,7 +866,7 @@ function ecosystemKey(state: GameState, ambient: AmbientMode | null): string {
       if (ambient === 'live') {
         key += `|w:${weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed))}|n:${nightShare('live', state.cycle.elapsed) > 0 ? 1 : 0}`;
       } else {
-        key += ambient === 'average' ? '|w:avg' : '|w:off';
+        key += ambient === 'average' ? `|w:avg:${averageWeatherOf(state.cycle.elapsed)}` : '|w:off';
       }
     }
     key += `|m:${mainTreeOf(state.cycle.mainTree).id}`;

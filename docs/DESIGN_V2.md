@@ -4587,8 +4587,8 @@ Kiefer (winterfest): Frost-Abzug entfällt ganz (wie beim Winter, 17)
 ```
 
 Beispiele Sturm (−15 % 🌿): mit einer Wühlmaus (1 Gattung) −13,5 %; Hain mit 5 Gattungen
-−7,5 %; dazu Lichte Krone −3,75 %. Schlimmster Tag: Winter (−10 %) + Frost (−10 %) ohne Tiere
-= −20 % 🌿 für 3 min – mit +15 % 🌰. Botanik: Wasser aus dem Tümpel puffert die Dürre, eine
+−7,5 %; dazu Lichte Krone −3,75 %. Schlimmster Tag: Winter (−10 %) + Sturm (−15 %, im Winter 5 %) ohne Tiere
+und ohne Lichte Krone = −25 % 🌿 für 3 min – mit +25 % 🌰 (Winter + Frost: −20 % 🌿, +15 % 🌰). Botanik: Wasser aus dem Tümpel puffert die Dürre, eine
 ausgelichtete Krone fängt weniger Wind, eine Laubdecke schützt die Wurzeln vor Frost; Frost
 bricht die Keimruhe vieler Baumsamen (Stratifikation).
 
@@ -4642,8 +4642,17 @@ Mittelwetter(s) = Σ_w p_eff(w) × weatherEffects(state, w)    // gebrochen, z. 
 Nacht offline   = NIGHT_SHARE (0,5) × Nachtwirkung
 ```
 
-„Wechselhaft“ bekommt den Rest. Tag 0 und die Schonzeit bleiben offline außen vor – ein
-Zyklus beginnt praktisch nie offline. Dadurch:
+„Wechselhaft“ bekommt den Rest. **Erstes Jahr** (umgesetzt nach dem Review): Tag 0 rechnet
+offline mit seinem festen Wetter („Wechselhaft“, exakt), die Tage 1–3 (Schonzeit) mit dem
+**Schonzeit-Mittel** – raue Anteile ganz zu „Wechselhaft“ umgebucht
+(`weatherProbabilities(season, true)`, `averageWeatherOf(elapsed)`, Cache-Schlüssel
+`|w:avg:<Art>`). Jahre werden im Mittel erst nach der Schonzeit übersprungen.
+
+**Sprungstelle bei 180 s:** Unter 180 s Abwesenheit rechnet `simulateOffline` mit dem
+Einzelwetter (wie online), ab 180 s mit dem Mittel. Zwischen 179 und 180 s kann das Ergebnis
+darum springen – höchstens um den Unterschied zwischen Tageswetter und Mittel für diese
+3 min (wenige Prozent der Rate, ein paar Sekunden Produktion). Gewollt: Kurze Lücken (Tab
+verdeckt) bleiben exakt wie online, lange sind unabhängig vom Zufall des Tages. Dadurch:
 
 - **Kein Halt offline** für Wetter oder Nacht; `skipYears` bleibt exakt (ein Jahr = Σ Mittel
   je Jahreszeit × 180 s). 8 h offline kosten nichts zusätzlich.
@@ -4794,7 +4803,7 @@ SIM_WEATHER=1 SIM_WEATHER_RUNS=100 SIM_WEATHER_FULL=1 npx vitest run tests/weath
 |---|---|---|---|---|---|---|---|
 | ohne | 4:11 min | 22:42 min | 1:02:32 h | 1:54:49 h | 2:49:52 h | 107,7 | 9:49 / 9:41 min |
 | **Wetter + Nacht (online)** | 4:11 min | 21:48 min | **1:00:58 h (−2,5 %)** | 1:51:23 h | 2:44:21 h | 107,1 | 9:54 / 9:39 min |
-| Wetter + Nacht, gemittelt (offline) | 4:06 min | 22:24 min | 1:01:37 h (−1,5 %) | 1:52:56 h | 2:42:53 h | 107,4 | 9:57 / 9:12 min |
+| Wetter + Nacht, gemittelt (offline) | 4:10 min | 22:22 min | 1:01:37 h (−1,5 %) | 1:52:23 h | 2:42:01 h | 107,6 | 9:58 / 9:11 min |
 
 **Gierig nach Wachstum**
 
@@ -4802,12 +4811,12 @@ SIM_WEATHER=1 SIM_WEATHER_RUNS=100 SIM_WEATHER_FULL=1 npx vitest run tests/weath
 |---|---|---|---|---|---|---|
 | ohne | 3:56 min | 19:38 min | 54:48 min | 1:37:52 h | 2:23:26 h | 101,4 |
 | **Wetter + Nacht (online)** | 3:56 min | 18:49 min | **53:21 min (−2,6 %)** | 1:35:52 h | 2:19:29 h | 100,7 |
-| Wetter + Nacht, gemittelt (offline) | 3:51 min | 19:20 min | 53:58 min (−1,5 %) | 1:36:04 h | 2:19:24 h | 101,1 |
+| Wetter + Nacht, gemittelt (offline) | 3:55 min | 19:20 min | 54:01 min (−1,4 %) | 1:36:10 h | 2:19:33 h | 101,1 |
 
 **Abweichungen gegenüber dem Modell** (Entwurf, gleiche Seeds): Häufigkeiten (21.3) gleich
 auf 0,1 Prozentpunkte – dieselbe Rechnung. Online Hain 1:00:58 statt 1:00:59 h (Harmonie)
 bzw. 53:21 statt 53:32 min (Wachstum), Urwald 2:44:21 statt 2:44:22 h bzw. 2:19:29 statt
-2:19:14 h; gemittelt Hain 1:01:37 statt 1:01:40 h bzw. 53:58 statt 54:03 min. Die
+2:19:14 h; gemittelt (mit Schonzeit-Mittel) Hain 1:01:37 statt 1:01:40 h bzw. 54:01 statt 54:03 min. Die
 „ohne“-Zeile liegt 4 s (Harmonie) bzw. 19 s (Wachstum) anders als im Modell, weil die
 Strategien ihre Wahl jetzt mit der echten Bewertung (inkl. Wetter des Tages) treffen und der
 Simulator an den Nachtgrenzen anhält. Die beiden Näherungen des Modells (Zufriedenheit der
@@ -4825,8 +4834,8 @@ dort jetzt 15 statt 12 min; beim Hain bleibt < 10 min (gemessen 9,4 min).
 gleich (Unterschiede ≤ 1 min, Streuung), frühes Spiel unverändert dank Schonzeit (Junger Baum
 gleich). Wachstums- und Harmonie-Spieler profitieren gleich – das Wetter bevorzugt keinen
 Stil; online und offline liegen im Mittel gleichauf (gemittelt 1 % langsamer bis zum Hain,
-im Urwald gleich). Die gemittelte Zeile weicht im ersten Jahr leicht ab, weil sie Tag 0 und
-die Schonzeit nicht kennt (Junger Baum 5 s früher).
+im Urwald gleich). Seit dem Schonzeit-Mittel (Review) kennt auch die gemittelte Zeile Tag 0
+und die Schonzeit: Junger Baum 4:10 / 3:55 min statt vorher 4:06 / 3:51 min (online 4:11 / 3:56).
 
 ### 21.11 Offene Fragen (entschieden)
 

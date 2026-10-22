@@ -62,7 +62,7 @@ import { countDailyAction } from './daily-actions';
 import { refreshDailyAfterNewCycle } from './daily';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import { MAX_ELAPSED, nextSeasonBoundary, normalizeElapsed, seasonIdAt, secondsToNextSeason } from './season';
-import { OFFLINE_AVERAGE_MIN_SECONDS, type WeatherId } from '../content/weather';
+import { GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, type WeatherId } from '../content/weather';
 import { dayIndex, nextNightChange, secondsToNightChange, weatherOfDay, weatherSeed, weatherOfDayFromSeed, type AmbientMode } from './weather';
 import {
   MAX_FOREST_MEMORY,
@@ -148,7 +148,8 @@ export const MAX_LIVE_SECONDS = 100 * YEAR_SECONDS;
  * Wetter und Nacht (DESIGN_V2.md 21) nach `ambient`: `live` (Standard) mit dem Wetter des
  * Tages und Halten bei Sonnenuntergang und -aufgang (Sekunde 81 und 171 jedes Tages; der
  * Wetterwechsel fällt auf den Jahreszeiten-Halt), `average` mit dem Mittelwetter je
- * Jahreszeit und der halben Nachtwirkung ohne Nacht-Halte (offline), `off` ohne beides.
+ * Jahreszeit (Tag 0 sein festes Wetter, Schonzeit ohne raue Lagen: averageWeatherOf) und
+ * der halben Nachtwirkung ohne Nacht-Halte (offline), `off` ohne beides.
  * Ganze Jahre werden nur ohne Einzelwetter übersprungen.
  */
 export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'): TickReport {
@@ -270,6 +271,8 @@ function skipYears(state: GameState, remaining: number, report: TickReport, mode
   const elapsed = state.cycle.elapsed;
   let years = Math.floor(remaining / YEAR_SECONDS);
   if (years < 1 || elapsed % YEAR_SECONDS !== 0) return 0;
+  // Mittel erst nach der Schonzeit überspringen (davor gilt je Tag ein anderes Mittel).
+  if (mode === 'average' && elapsed < GENTLE_DAYS * SEASON_SECONDS) return 0;
   years = Math.min(years, Math.floor((MAX_ELAPSED - elapsed) / YEAR_SECONDS));
   // Kein Bonus darf in den Jahren ablaufen (genau am Ende zählt schon: lieber normal rechnen).
   const expiry = nextExpiry(state);
