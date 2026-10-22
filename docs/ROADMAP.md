@@ -430,8 +430,9 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   der Tierkarten je Korridor am aktiven Wald 10 % (höchstens 30 %) eine Karte aus `fauna` eines
   Nachbarn (Regeln 24.6, Weg in der Karte), `featured`-Gattungen × 1,5 in ihrer Seltenheit;
   `rngState`, online = offline; `scripts/landscape.ts` zieht mit. Abhängig: nichts
-- [ ] **1b** Erfolge der Landschaft festlegen (`game-designer`, 24.12): Texte und Bedingungen
-  für `forest-2`, `forests-all`, `corridor-1`, `corridors-all`, `ancient-everywhere`, dazu
+- [x] **1b** Erfolge der Landschaft festlegen (`game-designer`, 24.12): Texte und Bedingungen
+  für `forest-2`, `ancient-2`, `corridor-1`, `corridors-all`, `ancient-everywhere` (statt
+  `forests-all`, fiele fast mit `ancient-everywhere` zusammen), `wildwechsel-1` (mit v15), dazu
   `trees-all` und der neue Erfolg für die Hauptbäume der Landschaft (25.7). Nur Doku: Die neuen
   Bedingungsarten brauchen Logik, die Daten kommen darum mit 2a. Abhängig: nichts
 - [ ] **1c** Wildwechsel-Karte anzeigen (`ui-dev`): „🦌 kommt über die Schlehenhecke“ auf der
@@ -444,7 +445,8 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
 
 - [ ] **2a** Bedingungsarten `forests`, `corridors`, `ancientForests` (`core-engineer`, 24.11
   Nr. 6) samt den fünf Erfolgen aus 1b als Daten: monoton, Nachtrag beim Laden wie 12.6.
-  Abhängig: 1b. `landscape-trees` (25.7) folgt mit 2b
+  Sichtbarkeit `requires: 'landscape'` (24.12, kleiner Eingriff in `achievement-view.ts`).
+  Abhängig: 1b. `landscape-trees` (25.7) und `wildwechsel-1` folgen mit 2b
 - [ ] **2b** Hauptbäume je Waldtyp, Spielstand v15 (`core-engineer`, DESIGN_V2.md 25.5/25.6):
   `MainTreeId` um `fir`, `alder`, Freischaltung `unlockSite`, Leitbäume Bergmischwald → Weißtanne,
   Erlenbruch → Schwarzerle, Migration v14 → v15 (nur Versionssprung), Laden in der richtigen

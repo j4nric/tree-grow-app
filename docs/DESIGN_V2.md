@@ -4378,6 +4378,9 @@ Harmonie-Fernziel 150 statt 120: 120 fiel in Messungen fast immer schon im erste
 
 Neue Erfolge: nur ergänzen, IDs nie umbenennen (sie stehen im Spielstand).
 
+Erfolge der Landschaft (sieben, verborgen bis zur Freischaltung, Phase 7) und die Änderung
+von `trees-all` auf fest drei Arten: 24.12.
+
 ### 18.3 Darstellung
 
 Naturtagebuch, Reiter „Erfolge“ (vor „Statistik“) mit Zähler „N/25“. Abschnitt „Erreicht“
@@ -5735,7 +5738,7 @@ Wachstum 0,18 / 0 / 0,15 / 0,05, Zufall 0,33 / 0,15 / 0,25 / 0,12 (vorher 0,14 /
 > `src/core/save.ts` (24.8). Tests `tests/landscape-core.test.ts` (Logik) und
 > `tests/landscape.test.ts` (Inhalte); Simulation auf der echten Logik in `scripts/landscape.ts`,
 > großer Lauf in `tests/landscape-balance.test.ts` (24.10). Karte, Tagebuch-Reiter und Kulisse
-> umgesetzt (#82–#84). Offen: Wildwechsel (Schritt B), Erfolge, Rest e2e (24.11) – Phase 7, Welle 1.
+> umgesetzt (#82–#84). Offen: Wildwechsel (Schritt B), Erfolge (festgelegt in 24.12, Umsetzung Phase 7, 2a/2b), Rest e2e (24.11) – Phase 7.
 > **Kein `break_infinity.js`** – Begründung und Obergrenzen in 24.9.
 
 ### 24.1 Warum eine zweite Ebene – und welche
@@ -6333,7 +6336,7 @@ Wachstums-Spieler 288–300, Zufall 263–275.
 | 3 ✅ | `renderer` | `SceneInput.site`: Kulisse je Waldtyp im Mittel- und Hintergrund (Auwald: Fluss mit Weiden; Erlenbruch: Wasserflächen zwischen Bulten, Nebelbänder; Buchenhallen: graue Säulenstämme, kaum Unterwuchs; Bergmischwald: Berge und Tannen-Silhouetten, im Winter mehr Schnee; Kiefernheide: Sand, lila Heidekraut, Kiefern) – je Standort eine gecachte Ebene, Neuaufbau nur beim Wechsel. Übergang bei der Gründung: ein Eichelhäher fliegt mit einer Eichel durchs Bild (≤ 3 s, bei „Weniger Bewegung“ nur Überblendung). Demo `?site=…`, Anker-Tests wie 23.8 | 1 (Grafik kann mit festem `site` früher beginnen) |
 | 4 ✅ | `core-engineer` | **Schritt B (ohne neue Version)** – umgesetzt, Schnittstelle am Ende von 24.6: Wildwechsel-Karten und `featured`-Gewichte beim Ziehen der Tierkarten (24.6), `fauna` beim Verlassen eines Waldes schreiben; Tests (Chance, Regeln, Determinismus online = offline) | 1 |
 | 5 | `game-designer` | Erfolge der Landschaft als Daten (24.12); nach 4 großer Lauf (`scripts/landscape.ts` läuft seit Schritt A auf der echten Logik), 24.7/24.10 nachtragen, Wildwechsel messen (Vielfalt 7.7) | 1, 4 |
-| 6 | `core-engineer` | Bedingungsarten `forests`, `corridors`, `ancientForests` in `core/achievements.ts`; Nachtrag beim Laden wie 12.6 | 5 |
+| 6 | `core-engineer` | Bedingungsarten `forests`, `corridors` (mit `bought`), `ancientForests` in `core/achievements.ts`, Sichtbarkeit `requires: 'landscape'`, die fünf Erfolge und `trees-all` aus 24.12 (festgelegt in Phase 7, 1b); kein Nachtrag in `save.ts` nötig (24.12, Spielstand) | 5 |
 | 7 | `qa-tester` | e2e: Spielstand mit 250 Gedächtnis im Urwald → Freischaltung → Auwald gründen → Neuladen → Wechsel zurück → Gedächtnis und Stammgäste wie vorher; Sync zweier Geräte mit v14 | 2, 3 |
 
 **Reihenfolge:** 1 → (2 ∥ 3) → 4 → 5 → 6 → 7. Schritt A macht die ganze Ebene spielbar (ohne
@@ -6342,18 +6345,193 @@ Spielstand-Änderung – darum zuerst und erst nach v13. Die Karte (2) ist der K
 die Kulisse (3) der Kern des Gefühls; beide parallel. Wildwechsel (4) ist reine Logik ohne neue
 Version und kann nachgeliefert werden.
 
-### 24.12 Erfolge (Vorschlag, nach Schritt A)
+### 24.12 Erfolge der Landschaft
 
-| ID | | Titel | Bedingung |
+> **Stand:** festgelegt (Phase 7, Welle 1, Schritt 1b) – nur Doku. Umsetzung: 2a
+> (`core-engineer`, fünf Erfolge, drei Bedingungsarten, Sichtbarkeit, `trees-all`) und 2b
+> (`landscape-trees`, `wildwechsel-1` mit v15). Ersetzt den Vorschlag nach Schritt A
+> (`forests-all` entfällt, `ancient-2` und `wildwechsel-1` kommen dazu, Begründung unten).
+
+**Leitlinien:** wie 18 – leise, keine Belohnung in Zahlen, nichts verfällt. Dazu:
+
+- **Für Gelegenheitsspieler erreichbar:** Vier Erfolge kommen im ersten Drittel der
+  Landschaft (2. bzw. 3.–4. Wald), zwei sind Langzeitziele, einer hängt an der eigenen Wahl der
+  Reihenfolge.
+- **Keine Ernte-Erfolge:** Kein Erfolg für „alle Wälder voll“ (Gedächtnis 1000 überall) oder
+  für Hähersaat – das wären die Ernte-Zyklen aus 24.10 (die Hälfte aller Zyklen, volles Tempo,
+  nur noch Gedächtnis); sie sind freiwillig und sollen es bleiben.
+- **Keine Spoiler:** Vor der Freischaltung der Landschaft (24.3) sind alle Erfolge dieses
+  Abschnitts **verborgen** – wie der Tagebuch-Reiter „Landschaft“ und die neuen Baumarten in
+  der Baumwahl (25.2). Ihre Texte nennen keine Standorte, Korridore oder Baumarten.
+
+#### Katalog (7 neue, 1 geänderter)
+
+Reihenfolge = Reihenfolge in `ACHIEVEMENTS`: die neuen **am Ende**, nach `patience`, unter
+einem Kommentar `// --- Landschaft ---`, geordnet nach der gemessenen Zeit (unten).
+`trees-all` bleibt an seinem Platz.
+
+| # | ID | | Titel | Text (`description`) | Bedingung | verborgen | mit |
+|---|---|---|---|---|---|---|---|
+| – | `trees-all` (geändert) | 🍂 | Baumkundig | Drei Hauptbaum-Arten sind einmal gewachsen. | `{ kind: 'trees', atLeast: 3 }` | nein | 2a |
+| 1 | `forest-2` | 🪶 | Weite Wege | Ein zweiter Wald ist gegründet. | `{ kind: 'forests', atLeast: 2 }` | ja | 2a |
+| 2 | `ancient-2` | 🌄 | Wo Eicheln keimten | Ein zweiter Wald ist zum Urwald geworden. | `{ kind: 'ancientForests', atLeast: 2 }` | ja | 2a |
+| 3 | `wildwechsel-1` | 🐾 | Wildwechsel | Ein Tier ist über einen Korridor in deinen Wald gewechselt. | `{ kind: 'stat', key: 'wildwechselChosen', atLeast: 1 }` | ja | 2b (v15) |
+| 4 | `corridor-1` | 🌉 | Grüne Bänder | Ein Korridor wurde mit Hähersaat angelegt. | `{ kind: 'corridors', atLeast: 1, bought: true }` | ja | 2a |
+| 5 | `landscape-trees` | 🎄 | Baumkundig im ganzen Land | Jede Hauptbaum-Art ist einmal gewachsen. | `{ kind: 'trees', atLeast: 'all' }` | ja | 2b (v15) |
+| 6 | `ancient-everywhere` | 🏞️ | Uralt überall | Jeder Wald der Landschaft ist einmal zum Urwald geworden. | `{ kind: 'ancientForests', atLeast: 'all' }` | ja | 2a |
+| 7 | `corridors-all` | 🗺️ | Alles verbunden | Jeder Korridor der Landschaft ist angelegt. | `{ kind: 'corridors', atLeast: 'all' }` | ja | 2a |
+
+Langzeitziele: **6** und **7**. Symbole bewusst ohne die Währungs-Symbole 🌿 und 🌰 und ohne
+Dopplung mit bestehenden Erfolgen (🌲 hat `ancient-forest`, 🕸️ `community-5`). 🪶 ist das
+Hähersaat-Symbol – der erste Erfolg der Ebene trägt ihr Zeichen. 🎄 wie in 25.7 (verborgen,
+und nach der Freischaltung zeigt die Baumwahl die Weißtanne ohnehin gesperrt, 25.2).
+
+**`trees-all` (25.7):** heute `'all'` = 3; mit fünf Arten (2b) hinge „Baumkundig“ an der
+Landschaft. Darum fest **3** und neuer Text. Die Änderung kommt schon mit **2a** (heute ohne
+Wirkung, 3 = alle), damit 2b sie nicht vergessen kann. Wer ihn hat, behält ihn (12.6: Gespeichertes
+wird nicht neu geprüft). Nicht verborgen – er gehört zur ersten Ebene.
+
+#### Schwellen und Begründung (Messung 24.10, Stand Schritt A)
+
+Zeiten als kumulierte Spielzeit im Modell (Median; Harmonie / Wachstum je 20, Zufall 10
+Landschaften). Echte Spieler liegen beim Zwei- bis Dreifachen (24.10, Bewertung); der
+„Zufall“-Spieler steht für den ruhigen Gelegenheitsspieler.
+
+| Erfolg | Harmonie | Wachstum | Zufall | Rechnung (aus 24.10) |
+|---|---|---|---|---|
+| `forest-2` | 4,5 h | 4,4 h | 16,8 h | = 2. Wald (gründbar, sobald freigeschaltet) |
+| `wildwechsel-1` | ~4,5–5,5 h | ~4,4–5,1 h | ~17–18 h | Schätzung: erster Zyklus im 2. Wald, s. u. |
+| `ancient-2` | 5,5 h | 5,1 h | 18,4 h | 2. Wald + sein erster Urwald (57 / 44 / 1:37 h) |
+| `corridor-1` | 6,4–9,0 h | 5,6–8,3 h | 22,8–29,1 h | 3. bis spätestens 4. Wald, s. u. |
+| `landscape-trees` | 6,4–13,0 h | 5,6–12,3 h | 22,8–37,3 h | frühestens 3. Wald, mit der Politik-Reihenfolge 6. Wald |
+| `ancient-everywhere` | 13,3 h | 12,6 h | 37,9 h | 6. Wald + sein erster Urwald (20 / 16 / 37 min) |
+| `corridors-all` | 13,9 h | 13,3 h | 38,9 h | = „Landschaft vollständig“ |
+
+- **`forest-2` – 2 statt „irgendein Korridor“:** Die Gründung ist der Moment, in dem die
+  Landschaft spürbar wird (Häherflug, neue Kulisse). Er fällt auf die Freischaltung, weil die
+  Hähersaat dann schon reicht (Heimatwald ≥ 250 Gedächtnis + 2 für den Urwald = 4 🪶 ≥ 3).
+- **`ancient-2` statt `forests-all`:** Der erste Urwald im neuen Wald ist das Versprechen aus
+  24.10 („jeder neue Wald startet schneller“: 57 min statt 2:35 h) – das soll gefeiert werden,
+  eine knappe Stunde nach der Gründung. `forests-all` dagegen fiele fast mit
+  `ancient-everywhere` zusammen: Der erste Urwald des 6. Waldes kommt 20 min (Harmonie) bis
+  37 min (Zufall) nach seiner Gründung – zwei Erfolge für denselben Moment, ein drittes
+  Langzeitziel ohne eigenen Weg dorthin. `ancient-everywhere` setzt alle sechs Wälder voraus
+  und sagt mehr: nicht nur gegründet, auch gewachsen.
+- **`corridor-1` zählt nur gekaufte Korridore** (`bought: true`): Jede Gründung bringt ihren
+  Korridor gratis (24.5); „ein Korridor“ fiele auf `forest-2` und brächte nichts Neues. Der erste
+  **selbst gebaute** Korridor ist eine eigene Entscheidung (Hähersaat für Zufluss statt für den
+  nächsten Wald) und lehrt den Kaufknopf in der Karte. Wann er möglich ist: Mit drei Wäldern
+  nur, wenn zwei Ring-Wälder Nachbarn sind oder einer vom Ring aus gegründet wurde; mit **vier**
+  Wäldern **immer** (drei von fünf Ring-Standorten enthalten immer ein Nachbarpaar; je Gründung
+  nur ein Gratis-Korridor) – daher „3. bis spätestens 4. Wald“, ab 2 🪶 (Speiche).
+- **`wildwechsel-1` – 1 statt 10:** Ein Erfolg, der den Wildwechsel einmal sichtbar macht (die
+  Karte „… kommt über …“, 24.6). Schätzung: im ersten Zyklus des 2. Waldes ~35 Begegnungen bis
+  zum Urwald (Wegpunkte 1–36, Abschnitt 3), davon die meisten Tierkarten; je Tierbegegnung 10 % (ein
+  Korridor); der neue Wald ist leer, der Bestand des Heimatwalds (bis 40 Arten) fast ganz
+  verfügbar → P(mindestens eine Wildwechsel-Karte) ≈ 1 − 0,9^30 ≈ 96 %. Gezählt wird erst, wenn
+  der Spieler die Karte **wählt**. **Nachmessen in 2c** (Vielfalt 7.7): Median der Zyklen bis
+  zur ersten gewählten Wildwechsel-Karte; Ziel ≤ 2 Zyklen nach `forest-2`. Liegt es darüber,
+  bleibt die Schwelle 1, nur der Text der Spielanleitung weist deutlicher darauf hin.
+- **`landscape-trees` – vom Spieler steuerbar:** Die Gründung schaltet die Art frei und wählt
+  sie als Leitbaum vor (25.2); sie zählt als gewachsen, sobald der Zyklus mit ihr beginnt
+  (`grownTrees` enthält den aktuellen Baum). Wer Bergmischwald und Erlenbruch zuerst gründet,
+  hat den Erfolg mit dem 3. Wald (6,4 h); in zufälliger Reihenfolge liegt der spätere der beiden
+  im Mittel auf Platz 4 von 5 Ring-Gründungen, also beim 5. Wald (~10,9 h Harmonie). Darum kein
+  drittes Langzeitziel, sondern ein Anreiz, die Reihenfolge zu wählen.
+- **Zwei Langzeitziele, zwei Wege:** `ancient-everywhere` belohnt das Spielen in jedem Wald,
+  `corridors-all` das Ausgeben der Hähersaat (63 von höchstens 72, 24.4) – unabhängig von der
+  Ernte. Beide liegen beim Ende der Landschaft (Harmonie ~13–14 h im Modell, echte Spieler
+  ~30–40 h; Zufall ~38–39 h, echt ~80–120 h), deutlich vor „alle Wälder voll“ (16,4 h).
+  `corridors-all` setzt alle sechs Wälder voraus (Korridore nur zwischen gegründeten).
+
+#### Neue Bedingungsarten (für den `core-engineer`, 2a)
+
+In `src/content/achievements.ts` (`AchievementCondition`):
+
+```ts
+/** Gegründete Wälder der Landschaft (Heimatwald zählt mit; 'all' = SITE_IDS.length = 6). */
+| { kind: 'forests'; atLeast: AchievementTarget }
+/** Korridore der Landschaft ('all' = CORRIDORS.length = 10). bought: nur gekaufte, ohne die Gratis-Korridore der Gründungen. */
+| { kind: 'corridors'; atLeast: AchievementTarget; bought?: boolean }
+/** Wälder, in denen schon einmal der Urwald erreicht wurde ('all' = SITE_IDS.length = 6). */
+| { kind: 'ancientForests'; atLeast: AchievementTarget }
+```
+
+| Art | Wert (`valueOf`) | Ziel `'all'` (`targetOf`) | liest |
 |---|---|---|---|
-| `forest-2` | 🪶 | Weite Wege | ein zweiter Wald ist gegründet |
-| `forests-all` | 🗺️ | Eine ganze Landschaft | alle sechs Wälder |
-| `corridor-1` | 🌿 | Grüne Bänder | ein Korridor |
-| `corridors-all` | 🕸️ | Alles verbunden | alle zehn Korridore |
-| `ancient-everywhere` | 🌲 | Uralt überall | in jedem Wald einmal Urwald |
+| `forests` | bekannte Standort-IDs in `sites`, je einmal (`knownCount` mit `LANDSCAPE_SITES_BY_ID`) | `SITE_IDS.length` | `meta.landscape.sites[].id` |
+| `corridors` | bekannte IDs in `corridors`, je einmal (`CORRIDORS_BY_ID`); mit `bought` ohne die IDs aus `freeCorridors` | `CORRIDORS.length` | `meta.landscape.corridors`, `meta.landscape.freeCorridors` |
+| `ancientForests` | gegründete Wälder (je einmal, bekannt) mit `isSiteAncient(state, id)` | `SITE_IDS.length` | `meta.landscape.sites[].ancient`, für den aktiven Wald zusätzlich `stage` (≥ `ANCIENT_STAGE`) |
 
-Texte ohne Spoiler (keine Standort-Namen). Neue Bedingungen `{ kind: 'forests' | 'corridors' |
-'ancientForests'; atLeast: number | 'all' }`, monoton (nichts wird abgerissen).
+- **Über `landscapeOf(state)`** (core/landscape.ts) lesen – fehlt `meta.landscape` (Test-Stände),
+  gilt die Startlandschaft (nur Heimatwald): `forests` 1, `corridors` 0, `ancientForests` 0
+  oder 1. Kein Import-Kreis: core/landscape.ts importiert core/achievements.ts nicht.
+- **`ancientForests` wie die Hähersaat** (`isSiteAncient`): Der aktive Wald zählt, sobald die
+  Stufe Urwald erreicht ist – der Erfolg kommt also im Moment des Urwalds, nicht erst beim
+  Neuen Zyklus. `startNewCycle` setzt `ancient` vor dem Wechsel (24.5) und prüft ohnehin vor dem
+  Zurücksetzen (18.1).
+- **Monoton** (18.1): Wälder und Korridore werden im Spiel nie entfernt, `ancient` nie
+  zurückgesetzt. Nur die Kosten-Prüfung beim Laden eines **manipulierten** Stands verwirft
+  etwas (24.8) – ein dann schon gespeicherter Erfolg bleibt (12.6), wie bei jedem Erfolg.
+- **`bought` und `'all'`** zusammen sind nicht erlaubt (Inhaltstest; gekauft höchstens
+  10 − Gratis-Korridore, das hinge an der Gründungs-Reihenfolge).
+- **`stat` bleibt für Zähler:** `wildwechsel-1` braucht **keine** neue Bedingungsart, nur ein
+  neues Feld in `LifetimeStats` (unten). `landscape-trees` nutzt `trees` wie bisher.
+
+#### Sichtbarkeit (verborgen bis zur Landschaft)
+
+- **Daten:** neues optionales Feld `Achievement.requires?: 'landscape'`, gesetzt bei allen
+  sieben neuen Erfolgen (nicht bei `trees-all`). Inhaltstest: Jeder Erfolg mit `forests`,
+  `corridors`, `ancientForests` oder `stat`-Schlüssel `wildwechselChosen` hat es, und
+  `landscape-trees` auch.
+- **Logik** (core/achievements.ts): `isAchievementVisible(state, a)` = `!a.requires ||
+  landscapeUnlocked(state) || hasAchievement(state, a.id)`. Die **Prüfung** hängt nicht daran
+  (`checkAchievements` bleibt wie sie ist) – praktisch kann keiner der sieben vor der
+  Freischaltung erfüllt sein (Gründen setzt sie voraus).
+- **Oberfläche** (`src/ui/achievement-view.ts`, kleiner Eingriff im Bereich des `ui-dev`, im PR
+  nennen): `toJournalAchievements` lässt offene, nicht sichtbare Kacheln weg;
+  `achievementCountText` zählt als Gesamtzahl nur sichtbare – vor der Freischaltung „N/25“
+  (wie heute), danach „N/30“ (2a) bzw. „N/32“ (2b). Der Sprung im Zähler fällt mit der Meldung
+  der Freischaltung (24.3) zusammen und ist gewollt: Die neue Ebene bringt neue Ziele mit.
+  `toAchievementTimeProgress` braucht nichts (keine Zeit-Erfolge in der Landschaft).
+
+#### Spielstand
+
+- **2a: keine neue Version.** Die drei Bedingungsarten lesen nur Felder aus v14
+  (`meta.landscape`), die neuen IDs sind gewöhnliche Einträge in `meta.achievements`. Bestehende
+  v14-Stände bekommen ihre Erfolge beim ersten Start mit 2a über die normale Prüfung nach dem
+  Laden (`catchUp` in main.ts: „🏅 3 neue Erfolge: …“) – kein Nachtrag in `save.ts` nötig,
+  denn alle Werte stehen im Stand (anders als die Stufe früherer Zyklen in 12.6). Ein älteres
+  Spiel verwirft beim Laden die unbekannten IDs; zurück im neuen Spiel kommen sie über dieselbe
+  Prüfung wieder (abgeleitet, nichts geht verloren).
+- **2b: `wildwechsel-1` reist mit v15** (25.5), keine eigene Version. Neues Feld
+  `meta.stats.wildwechselChosen: number` (`LifetimeStats`, `createStats` 0): zählt in
+  `chooseCard`, wenn die gewählte Tierkarte eine Wildwechsel-Karte ist – die Markierung, die 1a
+  für „… kommt über …“ an der Begegnung ablegt (z. B. `PendingEncounter.via`). Migration
+  v14 → v15: 0 (frühere Wildwechsel sind nicht bekannt; der Erfolg kommt beim nächsten).
+  Robustes Laden wie die anderen Zähler (`count()`, `MAX_STAT_COUNT`). Ein v14-Spiel würde das
+  Feld verwerfen – genau das verhindert v15.
+  **Falls 2b ohne das Feld gemergt ist** oder 1a keine Markierung ablegt: `wildwechsel-1`
+  entfällt vorerst und kommt mit der nächsten ohnehin nötigen Version – **keine** eigene
+  Version nur für einen Erfolg.
+- `landscape-trees` braucht nur die neuen Baum-IDs aus v15 (`grownTrees`), kein Feld.
+
+#### Tests (2a, 2b)
+
+- **Inhalt** (`tests/achievements.test.ts`): Anzahl 20–25 → **20–35**; Bedingungsarten-Liste um
+  `ancientForests`, `corridors`, `forests` erweitern; Spoiler-Test zusätzlich mit den Namen aus
+  `LANDSCAPE_SITES`, `CORRIDORS` und `MAIN_TREES` (Titel und Text); Ziele ≤ Inhalte auch für die
+  neuen Arten; `bought` nie mit `'all'`; `requires` wie oben.
+- **Logik:** je Art Wert und Ziel (unbekannte und doppelte IDs zählen nicht; `bought` ohne
+  Gratis-Korridore); `ancientForests` zählt den aktiven Wald ab Stufe Urwald; Gründen mit
+  `startNewCycle(…, site)` schaltet `forest-2` frei, Korridor-Kauf mit `buildCorridor`
+  `corridor-1`; Wechsel hin und zurück verliert nichts; `isAchievementVisible` vor/nach
+  `landscapeUnlocked`; Zähler „N/25“ vs. „N/30“; v14-Stand mit drei Wäldern lädt und bekommt
+  `forest-2` und `ancient-2` bei der ersten Prüfung; online = offline (ein großer Tick bis zum
+  Urwald im 2. Wald = viele kleine).
+- **2b:** `wildwechselChosen` zählt nur Wildwechsel-Karten und nur beim Wählen; v14 → v15 = 0;
+  kaputte Werte → 0; `landscape-trees` erst mit beiden neuen Arten in `grownTrees`; `trees-all`
+  bleibt bei drei Arten erreichbar.
 
 ### 24.13 Entscheidungen und offene Fragen
 
@@ -6582,6 +6760,9 @@ Eiche weiter, gewachsene Arten gingen aus der Statistik verloren. Das ist der Fa
   Text „Drei Hauptbaum-Arten sind einmal gewachsen.“ – wer ihn hat, behält ihn.
 - **Neu `landscape-trees`** 🎄 „Baumkundig im ganzen Land“ – „Jede Hauptbaum-Art ist einmal
   gewachsen.“ `{ kind: 'trees', atLeast: 'all' }`. Keine neue Bedingungsart.
+- Festgelegt mit allen Erfolgen der Landschaft in **24.12**: `trees-all` ändert sich schon mit
+  2a, `landscape-trees` (verborgen bis zur Landschaft) kommt mit 2b, ebenso `wildwechsel-1`
+  (Zähler `meta.stats.wildwechselChosen`, reist mit v15).
 
 ### 25.8 Testideen
 
