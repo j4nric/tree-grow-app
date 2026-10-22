@@ -7,7 +7,7 @@ import type { MainTreeId } from '../../content/trees';
 import type { SiteId } from '../../content/landscape';
 import type { Evaluation } from '../../core/formulas';
 import type { GameState } from '../../core/state';
-import type { EncounterCallbacks } from '../encounter-dialog';
+import type { EncounterCallbacks } from '../encounter-cards';
 import type { Preferences } from '../help';
 import type { SaveTransferCallbacks } from '../save-transfer';
 import type { WildwechselMark } from '../wildwechsel-view';
@@ -15,7 +15,7 @@ import type { WildwechselMark } from '../wildwechsel-view';
 /** Spieleraktionen; main.ts führt sie über core/tick.ts aus (act). */
 export interface AlbumActions {
   /** Kartenwahl der vordersten Begegnung: Wählen, Ablehnen, Neu würfeln. */
-  encounter: Required<Pick<EncounterCallbacks, 'onChoose' | 'onDecline' | 'onReroll'>>;
+  encounter: EncounterCallbacks;
   plant(plantId: string): void;
   /** Kauft den nächsten Rang einer Pflegemaßnahme; `true` bei Erfolg. */
   buyCare(id: string): boolean | void;

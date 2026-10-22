@@ -5,7 +5,7 @@ import { STAGES } from '../src/content/stages';
 import { CONFIRM_MIN_MS } from '../src/ui/confirm';
 import {
   SAVE_VERSION,
-  dialog,
+  encounter,
   expect,
   niche,
   openGame,
@@ -48,7 +48,7 @@ async function stageIndex(page: Page): Promise<number> {
 
 const cyclePanel = (page: Page) => page.locator('[data-ref="cycle-panel"]');
 const plantOpen = (page: Page) => page.locator('[data-ref="plant-open"]');
-const picker = (page: Page) => page.locator('[data-ref="plant-picker"]');
+const picker = (page: Page) => page.locator('[data-ref="page-plant-picker"]');
 
 /** Zeit vergehen lassen und ein paar Frames laufen lassen (Ansichten aktualisieren). */
 async function advance(page: Page, ms: number): Promise<void> {
@@ -59,7 +59,7 @@ async function advance(page: Page, ms: number): Promise<void> {
 /** Oberste Begegnung: erste wählbare Karte, sonst ablehnen. Gibt die Wahl zurück (null = abgelehnt). */
 async function chooseFirst(page: Page): Promise<string | null> {
   await page.clock.fastForward(400); // Eingabesperre nach neuen Karten (läuft auf der Testuhr)
-  const cards = dialog(page).locator('.encounter-card');
+  const cards = encounter(page).locator('.encounter-card');
   await expect(cards.first()).toBeVisible();
   // Ereignis oder Gast (seit Schritt 2.4): erste Option bzw. bewirten, wenn die Samen
   // reichen, sonst „Ziehen lassen“ (geht immer).
@@ -73,14 +73,14 @@ async function chooseFirst(page: Page): Promise<string | null> {
   }
   const count = await cards.count();
   for (let i = 0; i < count; i++) {
-    const choose = cards.nth(i).getByRole('button', { name: /wählen/ });
+    const choose = cards.nth(i).getByRole('button', { name: /einkleben/ });
     if (await choose.isDisabled()) continue;
     const id = (await cards.nth(i).getAttribute('data-card')) ?? '';
     await choose.click();
     await page.clock.runFor(50);
     return id;
   }
-  await dialog(page).getByRole('button', { name: /Ablehnen/ }).click();
+  await encounter(page).getByRole('button', { name: /Ablehnen/ }).click();
   await page.clock.runFor(50);
   return null;
 }
@@ -104,7 +104,7 @@ async function plantIfAffordable(page: Page): Promise<string | null> {
     await page.clock.runFor(50);
     return id;
   }
-  await picker(page).getByRole('button', { name: 'Schließen' }).click();
+  await picker(page).locator('[data-ref="bookmark"]').click();
   await expect(picker(page)).toBeHidden();
   return null;
 }
@@ -158,12 +158,14 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
 
     if (await stack(page).isVisible()) {
       await stack(page).click();
-      await expect(dialog(page)).toBeVisible();
-      while (await dialog(page).isVisible()) {
+      await expect(encounter(page)).toBeVisible();
+      // Bis der Stapel leer ist; danach blättert U:Begegnung von selbst zurück.
+      while (((await savedState(page)).pendingEncounters ?? []).length > 0) {
         const chosen = await chooseFirst(page);
         trail.push(chosen ?? '-');
         encounters++;
       }
+      await expect(encounter(page)).toBeHidden();
       await expect(stack(page)).toBeHidden();
     }
     const plant = await plantIfAffordable(page);

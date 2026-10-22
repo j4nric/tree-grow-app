@@ -2,9 +2,10 @@ import {
   SAVE_VERSION,
   back,
   card,
-  dialog,
+  encounter,
   expect,
   niche,
+  note,
   openGame,
   openSavePage,
   openStack,
@@ -16,6 +17,7 @@ import {
   seedsValue,
   seedV3,
   settle,
+  settledSubpage,
   stack,
   stageLabel,
   stamp,
@@ -32,9 +34,9 @@ import { createInitialState } from '../src/core/state';
 const BACKFILLED_ONLY = /^🏅 \d+ Erfolge? nachgetragen – zu finden im Naturtagebuch\.$/;
 
 /**
- * Smoke-Tests für „Vom Samen zum Wald“ (v2-Prototyp: Begegnungen und Kartenwahl).
- * Bedienung: Wartende Begegnungen liegen als Stapel am Rand der Szene; erst ein Klick
- * darauf öffnet den Kartenwahl-Dialog.
+ * Smoke-Tests für „Vom Samen zum Wald“ (Album: Begegnungen und Kartenwahl).
+ * Bedienung: Wartende Begegnungen liegen als Zettelstapel bereit; erst ein Tipp darauf
+ * blättert zu U:Begegnung um.
  * Bewusst ohne Pixel- oder Layout-Vergleiche: Selektoren nur über Rollen, Text und
  * data-ref-/data-Attribute, damit Änderungen an Optik und Renderer die Tests nicht brechen.
  * Gemeinsame Hilfen (Spielstand setzen, Fehler sammeln) stehen in fixtures.ts.
@@ -50,7 +52,7 @@ test('Spiel startet ohne Fehler mit Titel und Canvas, ohne Klick-Button, Upgrade
   await expect(page.getByRole('button', { name: /Wachsen/ })).toHaveCount(0);
   await expect(page.locator('.upgrade')).toHaveCount(0);
   await expect(stack(page)).toBeHidden();
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(niche(page, 'roots')).toContainText('verschlossen');
 
   const canvas = page.locator('canvas#scene');
@@ -69,10 +71,10 @@ test('Wachstum läuft von selbst, die erste Begegnung wartet ruhig im Stapel', a
   // Erster Wegpunkt bei 4 Gesamt-Wachstum: nach ~4 s ist der Samen ein Keimling.
   await expect(stageLabel(page)).toHaveText('Stufe: Keimling', { timeout: 8_000 });
   await expect(stack(page)).toBeVisible();
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
   // Der Dialog drängt sich nicht auf.
   await page.waitForTimeout(300);
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
 
   await openStack(page);
   const worm = card(page, 'earthworm');
@@ -83,8 +85,8 @@ test('Wachstum läuft von selbst, die erste Begegnung wartet ruhig im Stapel', a
   await expect(worm).toContainText('Harmonie'); // Vorschau (Screenreader-Text)
 
   // „Später“ legt die Begegnung zurück auf den Stapel.
-  await dialog(page).getByRole('button', { name: 'Später' }).click();
-  await expect(dialog(page)).toBeHidden();
+  await encounter(page).getByRole('button', { name: /^Später/ }).click();
+  await expect(encounter(page)).toBeHidden();
   await expect(stack(page)).toBeVisible();
 });
 
@@ -104,25 +106,25 @@ test('Karte wählen: Tier zieht ein, nächste Begegnung folgt, Neuladen zeigt de
   });
   await openGame(page);
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
-  await expect(stack(page)).toHaveText(/2 Begegnungen warten/);
-  await expect(dialog(page)).toBeHidden();
+  await expect(stack(page)).toHaveAttribute('aria-label', /2 Begegnungen warten/);
+  await expect(encounter(page)).toBeHidden();
 
   await openStack(page);
-  await expect(dialog(page)).toContainText('noch 1 weitere Begegnung wartet');
-  await card(page, 'bluetit').getByRole('button', { name: 'Blaumeise wählen' }).click();
+  await expect(encounter(page)).toContainText('noch 1 weitere Begegnung wartet');
+  await card(page, 'bluetit').getByRole('button', { name: 'Blaumeise einkleben' }).click();
 
   // Die nächste wartende Begegnung erscheint direkt.
   await expect(card(page, 'woodlouse')).toBeVisible();
   await expect(card(page, 'barkbeetle')).toBeVisible();
   await expect(niche(page, 'crown')).toContainText('Blaumeise');
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
 
   await page.reload();
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(niche(page, 'crown')).toContainText('Blaumeise');
   await expect(niche(page, 'roots')).toContainText('Regenwurm');
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
   await openStack(page);
   await expect(card(page, 'woodlouse')).toBeVisible();
   await expect(card(page, 'barkbeetle')).toBeVisible();
@@ -145,25 +147,25 @@ test('Neu würfeln kostet Samen, Ablehnen bringt Samen, Escape legt zurück', as
   await openGame(page);
   await openStack(page);
 
-  const reroll = dialog(page).getByRole('button', { name: /Neu würfeln \(−10 🌰\)/ });
+  const reroll = encounter(page).getByRole('button', { name: /Neu würfeln \(−10 🌰\)/ });
   await expect(reroll).toBeEnabled();
   await reroll.click();
-  await expect(dialog(page).getByRole('button', { name: /Neu würfeln \(−20 🌰\)/ })).toBeDisabled();
+  await expect(encounter(page).getByRole('button', { name: /Neu würfeln \(−20 🌰\)/ })).toBeDisabled();
   // Der Grund steht sichtbar im Dialog (nicht nur im title-Attribut).
-  await expect(dialog(page).getByText('Neu würfeln: Nicht genug Samen')).toBeVisible();
+  await expect(encounter(page).getByText('Neu würfeln: Nicht genug Samen')).toBeVisible();
   expect(await readNumber(seedsValue(page))).toBeLessThan(5);
   expect((await savedState(page)).pendingEncounters[0].rerolls).toBe(1);
 
   await settle(page);
-  await dialog(page).getByRole('button', { name: /Ablehnen \(\+5 🌰\)/ }).click();
+  await encounter(page).getByRole('button', { name: /Ablehnen \(\+5 🌰\)/ }).click();
   // Die zweite Begegnung (Rotkehlchen) folgt direkt.
   await expect(card(page, 'robin')).toBeVisible();
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
   expect(await readNumber(seedsValue(page))).toBeGreaterThanOrEqual(7);
 
   await settle(page);
   await page.keyboard.press('Escape');
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(stack(page)).toBeVisible();
 });
 
@@ -182,10 +184,10 @@ test('Doppelklick auf „Ablehnen“ lehnt bei gleich aussehenden Begegnungen nu
   await openGame(page);
   await expect(stageLabel(page)).toHaveText('Stufe: Keimling');
   await openStack(page);
-  await dialog(page).getByRole('button', { name: /Ablehnen/ }).dblclick();
+  await encounter(page).getByRole('button', { name: /Ablehnen/ }).dblclick();
 
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
-  await expect(dialog(page)).toBeVisible();
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
+  await expect(encounter(page)).toBeVisible();
   await expect(card(page, 'earthworm')).toBeVisible();
   await page.waitForTimeout(500);
   expect((await savedState(page)).pendingEncounters).toHaveLength(1);
@@ -203,10 +205,10 @@ test('Volle Nische: Tier ersetzen', async ({ page, context }) => {
   await expect(robin).toContainText('voll');
   await robin.getByRole('combobox').selectOption('centipede');
   await expect(robin).toContainText('ersetzt Steinläufer');
-  await robin.getByRole('button', { name: 'Rotkehlchen wählen (ersetzt Steinläufer)' }).click();
+  await robin.getByRole('button', { name: 'Rotkehlchen einkleben (ersetzt Steinläufer)' }).click();
 
   // Keine Begegnung mehr: Dialog und Stapel verschwinden.
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(stack(page)).toBeHidden();
   await expect(niche(page, 'litter')).toContainText('Rotkehlchen');
   await expect(niche(page, 'litter')).toContainText('Rollassel');
@@ -368,8 +370,8 @@ test('Offline-Fortschritt: Willkommens-Meldung, Begegnungen warten im Stapel', a
   await expect(toast).toContainText('🌿');
   await expect(toast).toContainText(/Begegnung/);
   // In einer Stunde vergehen mehrere Wegpunkte – höchstens 3 Begegnungen warten.
-  await expect(stack(page)).toHaveText(/3 Begegnungen warten/);
-  await expect(dialog(page)).toBeHidden();
+  await expect(stack(page)).toHaveAttribute('aria-label', /3 Begegnungen warten/);
+  await expect(encounter(page)).toBeHidden();
 });
 
 test('Offline länger als 8 Stunden: Meldung nennt die simulierte Dauer', async ({ page, context }) => {
@@ -435,12 +437,12 @@ test.describe('Mobil (390×844)', () => {
     });
     await openGame(page);
     await expect(stageLabel(page)).toHaveText('Stufe: Hain');
-    await expect(stack(page)).toHaveText(/3 Begegnungen warten/);
+    await expect(stack(page)).toHaveAttribute('aria-label', /3 Begegnungen warten/);
     await expect(stack(page)).toBeInViewport();
     await expectNoHorizontalScroll(page);
 
     await stack(page).tap();
-    await expect(dialog(page)).toBeVisible();
+    await expect(encounter(page)).toBeVisible();
     await expect(card(page, 'robin')).toBeVisible();
     await expectNoHorizontalScroll(page);
   });
@@ -450,10 +452,10 @@ test.describe('Mobil (390×844)', () => {
 // Pflanzen: Begegnung „Etwas keimt“, Pflanzring, „Pflanze setzen“
 // ---------------------------------------------------------------------------
 
-const plantCard = (page: Page, plant: string) => dialog(page).locator(`[data-plant="${plant}"]`);
+const plantCard = (page: Page, plant: string) => encounter(page).locator(`[data-plant="${plant}"]`);
 const plantRing = (page: Page) => page.locator('[data-ref="plant-ring"]');
 const plantOpen = (page: Page) => page.locator('[data-ref="plant-open"]');
-const picker = (page: Page) => page.locator('[data-ref="plant-picker"]');
+const picker = (page: Page) => page.locator('[data-ref="page-plant-picker"]');
 
 test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring', async ({ page, context }) => {
   // Keimling kurz vor Wegpunkt 2 – die festgelegte zweite Begegnung ist „Etwas keimt“.
@@ -461,16 +463,16 @@ test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring',
   await openGame(page);
   await expect(stageLabel(page)).toHaveText('Stufe: Keimling');
   await expect(plantRing(page)).toContainText('frei');
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/, { timeout: 8_000 });
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/, { timeout: 8_000 });
 
   await openStack(page);
-  await expect(dialog(page)).toContainText('Etwas keimt');
-  await expect(dialog(page)).toContainText('kostenlos im Pflanzring (0/1 belegt)');
-  const cards = dialog(page).locator('[data-plant]');
+  await expect(encounter(page)).toContainText('Etwas keimt');
+  await expect(encounter(page)).toContainText('kostenlos im Pflanzring (0/1 belegt)');
+  const cards = encounter(page).locator('[data-plant]');
   await expect(cards).toHaveCount(2);
-  await expect(dialog(page)).not.toContainText('Unbekannt');
+  await expect(encounter(page)).not.toContainText('Unbekannt');
   // Keimling: nur zwei Pflanzen freigeschaltet – Neuwürfeln erklärt, warum es nicht geht.
-  await expect(dialog(page).getByText('Neu würfeln: Keine anderen Pflanzen verfügbar')).toBeVisible();
+  await expect(encounter(page).getByText('Neu würfeln: Keine anderen Pflanzen verfügbar')).toBeVisible();
 
   const moss = plantCard(page, 'moss');
   await expect(moss).toContainText('Frauenhaarmoos');
@@ -478,9 +480,9 @@ test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring',
   await expect(moss).toContainText('speichert Wasser');
   await expect(moss).toContainText('Feuchte für Regenwurm');
   await expect(moss).toContainText('Versorgung mit Licht und Wasser');
-  await moss.getByRole('button', { name: 'Frauenhaarmoos wählen' }).click();
+  await moss.getByRole('button', { name: 'Frauenhaarmoos einkleben' }).click();
 
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(stack(page)).toBeHidden();
   await expect(plantRing(page).locator('[data-plant="moss"]')).toContainText('Frauenhaarmoos');
   await expect(page.locator('[data-ref="plant-slots"]')).toHaveText('1/1 belegt');
@@ -509,9 +511,9 @@ test('Pflanzring voll: „Welche Pflanze weicht?“ ersetzt die gewählte Pflanz
   await expect(nettle.getByRole('combobox', { name: 'Welche Pflanze weicht?' })).toBeVisible();
   await nettle.getByRole('combobox').selectOption('bramble');
   await expect(nettle).toContainText('ersetzt Brombeere');
-  await nettle.getByRole('button', { name: 'Große Brennnessel wählen (ersetzt Brombeere)' }).click();
+  await nettle.getByRole('button', { name: 'Große Brennnessel einkleben (ersetzt Brombeere)' }).click();
 
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(plantRing(page)).toContainText('Große Brennnessel');
   await expect(plantRing(page)).toContainText('Hasel');
   await expect(plantRing(page)).not.toContainText('Brombeere');
@@ -590,7 +592,7 @@ test.describe('Pflanzen mobil (390×844)', () => {
     await plantOpen(page).tap();
     await expect(picker(page)).toBeVisible();
     await expectNoHorizontalScroll(page);
-    await picker(page).getByRole('button', { name: 'Schließen' }).tap();
+    await picker(page).locator('[data-ref="bookmark"]').tap();
     await expect(picker(page)).toBeHidden();
 
     await stack(page).tap();
@@ -603,28 +605,38 @@ test.describe('Pflanzen mobil (390×844)', () => {
 // Feinschliff aus dem Playtest: Legende, Futter-Erklärung, verpasste Begegnungen
 // ---------------------------------------------------------------------------
 
-test('Legende der Vorschau-Symbole: bei der ersten Begegnung offen, danach zugeklappt', async ({ page, context }) => {
-  await seedV3(context, {
-    totalGrowth: waypoint(6) + 1,
-    pendingEncounters: [{ type: 'animal', cards: ['bluetit', 'oakmoth'], rerolls: 0 }],
-  });
-  await openGame(page);
-  await openStack(page);
-  const legend = dialog(page).locator('.encounter-legend');
-  await expect(legend).toHaveAttribute('open', '');
-  for (const text of ['Harmonie', 'erwartete Zufriedenheit', 'Futter und Wünsche']) {
-    await expect(legend).toContainText(text);
-  }
-  // Nur Symbole, die in dieser Begegnung vorkommen: Tiere haben keine Licht-/Wasser-Versorgung.
-  await expect(legend).not.toContainText('Licht und Wasser');
+test.describe('Legende ungesehen', () => {
+  test.use({ freshLegend: true });
 
-  // Beim nächsten Besuch zugeklappt, aber jederzeit aufklappbar.
-  await page.reload();
-  await openStack(page);
-  await expect(legend).not.toHaveAttribute('open', '');
-  await expect(legend.getByText('erwartete Zufriedenheit')).toBeHidden();
-  await legend.getByText('Was bedeuten die Symbole?').click();
-  await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
+  test('Legende der Vorschau-Symbole: Haftnotiz am „?“, beim ersten Mal von selbst offen', async ({ page, context }) => {
+    await seedV3(context, {
+      totalGrowth: waypoint(6) + 1,
+      pendingEncounters: [{ type: 'animal', cards: ['bluetit', 'oakmoth'], rerolls: 0 }],
+    });
+    await openGame(page);
+    await openStack(page);
+    const legend = note(page, 'encounter-legend');
+    const open = encounter(page).locator('[data-ref="encounter-legend-open"]');
+    await expect(legend).toBeVisible();
+    await expect(open).toHaveAttribute('aria-expanded', 'true');
+    for (const text of ['Harmonie', 'erwartete Zufriedenheit', 'Futter und Wünsche']) {
+      await expect(legend).toContainText(text);
+    }
+    // Nur Symbole, die in dieser Begegnung vorkommen: Tiere haben keine Licht-/Wasser-Versorgung.
+    await expect(legend).not.toContainText('Licht und Wasser');
+    // Der Fokus bleibt auf der ersten Karte (Pfeiltasten und Enter wirken sofort).
+    await expect(card(page, 'bluetit').getByRole('button', { name: 'Blaumeise einkleben' })).toBeFocused();
+    await legend.getByRole('button', { name: 'Verstanden' }).click();
+    await expect(legend).toBeHidden();
+
+    // Beim nächsten Besuch bleibt sie zu, ist aber jederzeit am „?“ zu öffnen.
+    await page.reload();
+    await openStack(page);
+    await expect(legend).toBeHidden();
+    await open.click();
+    await expect(legend).toBeVisible();
+    await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
+  });
 });
 
 test('Knappes Futter: Karte und Seitenleiste nennen, mit wem das Futter geteilt wird', async ({ page, context }) => {
@@ -639,8 +651,8 @@ test('Knappes Futter: Karte und Seitenleiste nennen, mit wem das Futter geteilt 
   await openStack(page);
   await expect(card(page, 'oakmoth')).toContainText('(knapp)');
   await expect(card(page, 'oakmoth')).toContainText('teilt sich das Futter mit Regenwurm und Rollassel');
-  await card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler wählen' }).click();
-  await expect(dialog(page)).toBeHidden();
+  await card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler einkleben' }).click();
+  await expect(encounter(page)).toBeHidden();
   // Unter 70 %: Der Regenwurm nennt jetzt auch die Futterkonkurrenz.
   await expect(niche(page, 'roots')).toContainText('teilt sich das Futter mit');
 });
@@ -662,7 +674,7 @@ test('Wegpunkt bei vollem Stapel: dezenter Hinweis mit den Samen dafür', async 
   await pauseClock(page);
   await seedV3(context, { totalGrowth: waypoint(7) - 1, pendingEncounters: FULL_STACK });
   await openGame(page);
-  await expect(stack(page)).toHaveText(/3 Begegnungen warten/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /3 Begegnungen warten/);
   await expect(page.locator('.float-note')).toHaveCount(0);
   // Eine Sekunde in Einzelframes: Der Wegpunkt fällt sicher in tick() eines Frames,
   // nicht ins Nachrechnen (catchUp) nach einem Zeitsprung.
@@ -725,7 +737,7 @@ test('Echter v2-Spielstand (alte Wegpunkt-Kurve): lädt ohne Fehler, Stufe und T
   for (const [id, list] of Object.entries(niches)) {
     for (const animal of list) await expect(niche(page, id).locator(`[data-species="${animal}"]`)).toBeVisible();
   }
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
 
   // Neuladen speichert (beforeunload) und lädt den umgerechneten Stand (jetzt v4): alles bleibt.
   await page.reload();
@@ -764,7 +776,7 @@ test('Volle Nische: Futter-Erklärung folgt der gewählten Ersetzen-Option', asy
 });
 
 test.describe('Feinschliff mobil (390×844)', () => {
-  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, freshLegend: true });
 
   test('erste Begegnung: Legende zu, Wählen und Ablehnen ohne Scrollen sichtbar – auch aufgeklappt', async ({
     page,
@@ -777,21 +789,23 @@ test.describe('Feinschliff mobil (390×844)', () => {
     });
     await openGame(page);
     await stack(page).tap();
-    await expect(dialog(page)).toBeVisible();
+    await settledSubpage(page, 'encounter');
     await settle(page);
-    const legend = dialog(page).locator('.encounter-legend');
-    await expect(legend).not.toHaveAttribute('open', '');
-    await expect(legend.getByText('Was bedeuten die Symbole?')).toBeVisible();
-    // Zugeklappt wird der Merker nicht gesetzt – erst, wenn die Legende wirklich offen war.
+    // Schmal: Die Legende öffnet sich nicht von selbst, das „?“ steht im Kopf.
+    const legend = note(page, 'encounter-legend');
+    const open = encounter(page).locator('[data-ref="encounter-legend-open"]');
+    await expect(open).toBeVisible();
+    await expect(legend).toBeHidden();
+    // Zu geblieben wird der Merker nicht gesetzt – erst, wenn die Legende wirklich offen war.
     const legendSeen = () => page.evaluate(() => localStorage.getItem('tree-grow-legend-seen'));
     expect(await legendSeen()).toBeNull();
-    const choose = card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler wählen' });
-    const decline = dialog(page).getByRole('button', { name: /Ablehnen/ });
+    const choose = card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler einkleben' });
+    const decline = encounter(page).getByRole('button', { name: /Ablehnen/ });
     await expect(choose).toBeInViewport();
     await expect(decline).toBeInViewport();
 
-    // Aufgeklappt: Die Aktionsleiste bleibt am unteren Rand.
-    await legend.getByText('Was bedeuten die Symbole?').tap();
+    // Aufgeklappt: Karten und Knöpfe bleiben, wo sie sind.
+    await open.tap();
     await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
     await expect(decline).toBeInViewport();
     expect(await legendSeen()).toBe('1');
@@ -865,9 +879,9 @@ test.describe('Lebensgemeinschaften', () => {
     const mushroom = card(page, 'chanterelle');
     await expect(mushroom).toContainText('✨ vervollständigt Humusküche (+8 Harmonie)');
     await expect(card(page, 'bluetit')).not.toContainText('vervollständigt');
-    await mushroom.getByRole('button', { name: 'Pfifferling wählen' }).click();
+    await mushroom.getByRole('button', { name: 'Pfifferling einkleben' }).click();
 
-    await expect(dialog(page)).toBeHidden();
+    await expect(encounter(page)).toBeHidden();
     // Entdeckung und erster Erfolg in einem Hinweis (nichts verdrängt das andere).
     await expect(stamp(page)).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱 🏅 Erfolg: „Gemeinsam stark“');
     await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 15 aktiv · +8 ⚖️');

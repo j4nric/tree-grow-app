@@ -633,28 +633,9 @@ body[data-motion='reduce'] .stage-banner.visible {
     height: auto;
   }
 
-  /*
-   * Szene aus dem Bild gescrollt: Der Stapel wartender Begegnungen schwebt unten rechts,
-   * damit er beim Lesen der Seitenleiste sichtbar bleibt (unter dem Toast, über der Seite).
-   */
-  .scene-dock.floating {
-    position: fixed;
-    top: auto;
-    left: auto;
-    right: 12px;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    z-index: 15;
-    max-width: calc(100vw - 24px);
-  }
-
   /* Platz unter dem letzten Eintrag, damit der schwebende Stapel nichts dauerhaft verdeckt */
   .panel {
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  }
-
-  /* Solange der Stapel schwebt: Tastaturfokus nicht unter ihm verstecken (WCAG 2.4.11) */
-  html:has(.scene-dock.floating .encounter-stack:not([hidden])) {
-    scroll-padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   }
 
   .scene {
@@ -809,15 +790,6 @@ dialog.encounter::backdrop {
   text-align: center;
 }
 
-.encounter-kind {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 .encounter-title {
   margin: 0;
   font-size: 1.35rem;
@@ -833,187 +805,6 @@ dialog.encounter::backdrop {
   display: none;
 }
 
-.encounter-queue {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 4px 0 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.encounter-queue[hidden] {
-  display: none;
-}
-
-/* Kleiner Kartenstapel als Symbol für wartende Begegnungen */
-.queue-pips {
-  display: inline-flex;
-}
-
-.queue-pips .pip {
-  width: 12px;
-  height: 16px;
-  margin-left: -5px;
-  border: 1.5px solid var(--muted);
-  border-radius: 3px;
-  background: var(--panel);
-}
-
-.queue-pips .pip:first-child {
-  margin-left: 0;
-}
-
-.encounter-cards {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: 14px;
-  align-items: stretch;
-}
-
-.encounter-cards[data-count='1'],
-.encounter-cards[data-count='2'] {
-  max-width: 720px;
-  width: 100%;
-  margin: 0 auto;
-}
-
-.encounter-swipe {
-  display: none;
-  margin: -6px 0 0;
-  text-align: center;
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-/* Vorgaben ohne Spezifität, damit .family-* und .rarity-* sie überschreiben */
-:where(.encounter-card) {
-  --fam: #6f6a58;
-  --fam-bg: #efece0;
-  --fam-text: var(--text);
-  --gem: var(--border);
-  --gem-text: var(--muted);
-}
-
-.encounter-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  padding-bottom: 12px;
-  border: 2px solid var(--gem);
-  border-radius: 14px;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-  transition: box-shadow 0.15s;
-}
-
-.encounter-card:focus-within {
-  box-shadow:
-    0 0 0 3px rgba(31, 95, 191, 0.25),
-    0 6px 16px rgba(0, 0, 0, 0.1);
-}
-
-.encounter-card.rarity-special,
-.encounter-card.rarity-legendary {
-  border-width: 3px;
-}
-
-.encounter-card.rarity-legendary {
-  background: linear-gradient(180deg, #fffaea 0%, white 45%);
-  box-shadow:
-    0 0 0 1px rgba(212, 165, 20, 0.35),
-    0 4px 18px rgba(212, 165, 20, 0.25);
-}
-
-.encounter-card > :not(.card-band) {
-  margin-left: 12px;
-  margin-right: 12px;
-}
-
-.card-band {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px 8px;
-  padding: 8px 12px;
-  background: var(--fam-bg);
-  border-bottom: 3px solid var(--fam);
-  color: var(--fam-text);
-  font-size: 0.75rem;
-}
-
-.card-family {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.card-family-icon {
-  font-size: 1.1rem;
-}
-
-.card-rarity {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: white;
-  border: 1px solid var(--gem);
-  color: var(--gem-text);
-  font-weight: 700;
-}
-
-.card-rarity .gem {
-  color: var(--gem);
-}
-
-.card-name {
-  margin-top: 2px;
-  margin-bottom: 0;
-  font-size: 1.15rem;
-  line-height: 1.2;
-}
-
-.card-niche {
-  margin-top: -4px;
-  margin-bottom: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-/* Wildwechsel (24.6): Weg der Art über einen Korridor – dezent, Text statt nur Symbol. */
-.card-route {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 0;
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: #f3ecdc;
-  color: #5b4a1c;
-  font-size: 0.8rem;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-}
-
-.card-route-icon {
-  flex: none;
-}
-
-.encounter-card.wildwechsel .card-route-icon {
-  animation: wildwechsel-step 2.4s ease-in-out 0.4s 2;
-}
-
 @keyframes wildwechsel-step {
   0%,
   100% {
@@ -1024,172 +815,6 @@ dialog.encounter::backdrop {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .encounter-card.wildwechsel .card-route-icon {
-    animation: none;
-  }
-}
-
-.card-replace {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
-  border-left: 3px solid var(--rarity-rare);
-  border-radius: 6px;
-  background: #fff4d6;
-  font-size: 0.85rem;
-}
-
-.card-replace-text {
-  margin: 0;
-  font-weight: 600;
-  color: #6a4500;
-}
-
-.card-replace-label {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.card-replace-select {
-  flex: 1 1 9em;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 8px;
-  border: 1px solid #d9c38a;
-  border-radius: 8px;
-  background: white;
-  color: var(--text);
-  font: inherit;
-}
-
-.card-replace-select:focus-visible {
-  outline: 3px solid #1f5fbf;
-  outline-offset: 1px;
-}
-
-.card-conditions,
-.card-effects {
-  list-style: none;
-  margin-top: 0;
-  margin-bottom: 0;
-  padding: 0;
-  display: grid;
-  gap: 3px;
-  font-size: 0.875rem;
-}
-
-.card-conditions li,
-.card-effects li {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-}
-
-.card-conditions .mark,
-.card-effects .mark {
-  flex-shrink: 0;
-  width: 1em;
-  text-align: center;
-  font-weight: 700;
-}
-
-.card-conditions .met .mark {
-  color: var(--accent-dark);
-}
-
-/* Teilweise erfüllt (knappes Futter): neutral, kein Grün – das Zeichen ist sonst sehr klein */
-.card-conditions .partial .mark {
-  color: var(--rarity-rare-text);
-  font-size: 1.15em;
-  line-height: 1;
-}
-
-.card-conditions .unmet {
-  color: var(--muted);
-}
-
-.condition-hint {
-  display: block;
-  font-size: 0.78rem;
-  font-style: italic;
-  color: var(--muted);
-}
-
-.card-conditions .unmet .mark {
-  color: var(--bad);
-}
-
-.card-effects li .mark {
-  color: var(--tone);
-  font-size: 0.7rem;
-}
-
-.card-effects li.tone-bad {
-  color: var(--bad);
-}
-
-.card-preview {
-  list-style: none;
-  margin-top: 2px;
-  margin-bottom: 0;
-  padding: 8px 0 0;
-  border-top: 1px dashed var(--border);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.preview-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--tone-bg);
-  color: var(--tone);
-  font-weight: 700;
-  font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.card-flavor {
-  margin-top: 0;
-  margin-bottom: 0;
-  font-size: 0.8rem;
-  font-style: italic;
-  color: var(--muted);
-}
-
-.card-choose {
-  margin-top: auto;
-  min-height: 44px;
-  padding: 10px;
-  border: none;
-  border-radius: 10px;
-  background: var(--accent);
-  color: white;
-  font-weight: 600;
-}
-
-.card-choose:hover:not(:disabled) {
-  background: var(--accent-dark);
-}
-
-.card-choose:disabled {
-  background: #e7e3d4;
-  color: var(--muted);
-  cursor: not-allowed;
-}
-
-.encounter-card.chosen {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(63, 143, 58, 0.25);
-}
-
 .encounter-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1197,13 +822,13 @@ dialog.encounter::backdrop {
   gap: 10px;
 }
 
-/* Kartenwahl: Aktionen bleiben am unteren Rand sichtbar, auch wenn der Dialog scrollt */
-dialog.encounter:not(.plant-picker) {
+/* Tagebuch und Hilfe: Aktionen bleiben am unteren Rand sichtbar, auch wenn der Dialog scrollt */
+dialog.encounter {
   /* Fokus nicht unter der klebenden Aktionsleiste verstecken (WCAG 2.4.11) */
   scroll-padding-bottom: 72px;
 }
 
-dialog.encounter:not(.plant-picker) .encounter-actions {
+dialog.encounter .encounter-actions {
   position: sticky;
   bottom: 0;
   z-index: 1;
@@ -1244,25 +869,6 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
 .encounter-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-/* Karten werden ausgeteilt; legendäre Karten schimmern einmal kurz */
-.encounter.dealing .encounter-card {
-  animation: deal 0.35s ease-out both;
-  animation-delay: var(--deal-delay, 0ms);
-}
-
-.encounter-card.rarity-legendary::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(105deg, transparent 35%, rgba(255, 236, 160, 0.55) 50%, transparent 65%);
-  transform: translateX(-120%);
-  pointer-events: none;
-}
-
-.encounter.dealing .encounter-card.rarity-legendary::after {
-  animation: shimmer 1.4s ease-in-out 0.5s 1 both;
 }
 
 @keyframes deal {
@@ -1691,29 +1297,6 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   font-style: italic;
 }
 
-/* Kartenvorschau: „✨ vervollständigt Humusküche (+8 Harmonie)“ */
-.card-communities {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 2px;
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.card-communities li {
-  color: var(--accent-dark);
-}
-
-.card-communities li.tone-bad {
-  color: var(--bad);
-}
-
-.card-communities[hidden] {
-  display: none;
-}
-
 .panel .eco-title {
   margin: 8px 0 -4px;
 }
@@ -2024,105 +1607,6 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   }
 }
 
-/* ---------- Begegnungs-Stapel am Rand der Szene ---------- */
-
-.scene-dock {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  max-width: calc(100% - 32px);
-}
-
-/*
- * Unsichtbarer Platzhalter genau dort, wo der Stapel in der Szene liegt (gleiche Ecke und
- * Höhe wie .scene-dock in jedem Layout): Ist er nicht mehr ganz zu sehen, schwebt der
- * Stapel (nur im einspaltigen Layout ≤ 760 px, siehe dort).
- */
-.scene-dock-marker {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  width: 1px;
-  height: 52px;
-  pointer-events: none;
-  visibility: hidden;
-}
-
-.encounter-stack {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  max-width: 100%;
-  min-height: 52px;
-  padding: 8px 16px 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: rgba(255, 253, 246, 0.95);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
-  color: var(--text);
-  font-weight: 600;
-  text-align: left;
-  transition:
-    transform 0.15s,
-    box-shadow 0.15s;
-}
-
-.encounter-stack[hidden] {
-  display: none;
-}
-
-.encounter-stack:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
-}
-
-/* Kleiner Kartenstapel: bis zu drei gefächerte Karten */
-.stack-cards {
-  position: relative;
-  flex-shrink: 0;
-  width: 30px;
-  height: 38px;
-}
-
-.stack-card {
-  position: absolute;
-  inset: 0;
-  border: 1.5px solid var(--rarity-common);
-  border-radius: 5px;
-  background: white;
-}
-
-.stack-card:nth-child(1) {
-  transform: rotate(-10deg) translateX(-3px);
-  background: #eef4e6;
-}
-
-.stack-card:nth-child(2) {
-  transform: rotate(6deg) translateX(2px);
-  background: #f6f9f0;
-}
-
-.encounter-stack[data-count='1'] .stack-card:nth-child(-n + 2),
-.encounter-stack[data-count='2'] .stack-card:nth-child(1) {
-  display: none;
-}
-
-.stack-icon {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 1rem;
-}
-
-.stack-text {
-  min-width: 0;
-}
-
-.encounter-stack.nudge {
-  animation: nudge 0.7s ease-out;
-}
-
 @keyframes nudge {
   0% {
     transform: translateY(0);
@@ -2154,23 +1638,6 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   display: none;
 }
 
-.card-replace-note {
-  margin: 0;
-  font-size: 0.8rem;
-  color: #6a4500;
-}
-
-.encounter-reroll-hint {
-  margin: -6px 0 0;
-  font-size: 0.8rem;
-  color: var(--muted);
-  text-align: center;
-}
-
-.encounter-reroll-hint[hidden] {
-  display: none;
-}
-
 /* ---------- Pflanzen: Gruppenfarben, Kennzahlen, Pflanzring, Auswahl ---------- */
 
 /* Pflanzengruppen als „Gattung“ der Pflanzenkarten */
@@ -2193,58 +1660,6 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   --fam: #4f8a6e;
   --fam-bg: #e1f0e8;
   --fam-text: #2f604a;
-}
-
-/* Pflanzenkarten haben keine Seltenheit: Rahmen in der Gruppenfarbe */
-.encounter-card.family-trees,
-.encounter-card.family-shrubs,
-.encounter-card.family-flowers,
-.encounter-card.family-mosses {
-  border-color: color-mix(in srgb, var(--fam) 55%, white);
-}
-
-/* Kennzahlen (Wachstum, Samen, Licht, Wasser) als kleines Raster */
-.card-facts {
-  list-style: none;
-  margin-top: 0;
-  margin-bottom: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-}
-
-.card-fact {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  min-width: 0;
-  padding: 4px 2px;
-  border-radius: 8px;
-  background: #f6f4ea;
-  text-align: center;
-}
-
-.card-fact-label {
-  font-size: 0.66rem;
-  line-height: 1.15;
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-
-.card-fact-value {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.card-fact-icon {
-  font-size: 0.8rem;
 }
 
 /* Pflanzring in der Seitenleiste */
@@ -2435,136 +1850,18 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
   color: var(--muted);
 }
 
-/* Auswahl „Pflanze setzen“ – „Schließen“ und Hinweise bleiben beim Scrollen sichtbar */
-.plant-picker .encounter-actions .encounter-notice {
-  flex-basis: 100%;
-}
-
-.plant-picker .encounter-actions {
-  position: sticky;
-  bottom: -20px;
-  margin: 0 -20px -20px;
-  padding: 10px 20px 14px;
-  background: var(--panel);
-  border-top: 1px solid var(--border);
-}
-
 .plant-groups-caption {
   margin: 0 0 -4px;
   font-size: 0.72rem;
   color: var(--muted);
 }
 
-dialog.plant-picker {
-  width: min(960px, calc(100vw - 24px));
-}
-
-.picker-seeds {
-  margin: 2px 0 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--accent-dark);
-}
-
-.picker-seeds.short {
-  color: var(--bad);
-}
-
-.picker-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 10px;
-}
-
-.picker-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  padding: 10px 12px 12px;
-  border: 1px solid var(--border);
-  border-top: 4px solid var(--fam);
-  border-radius: 12px;
-  background: white;
-}
-
-.picker-row:focus-within {
-  box-shadow: 0 0 0 3px rgba(31, 95, 191, 0.25);
-}
-
-.picker-row.chosen {
-  border-color: var(--accent);
-}
-
-.picker-row-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.picker-row-icon {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--fam-bg);
-  font-size: 1.1rem;
-}
-
-.picker-row-names {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.picker-row-name {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.2;
-}
-
-.picker-row-group {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--fam-text);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.picker-row .card-preview {
-  margin-top: auto;
-}
-
 /* ---------- Mobil ---------- */
 
 @media (max-width: 640px) {
-  /* Szene ist niedrig: Stapel nach oben rechts, damit Wurzelraum und Tiere frei bleiben */
-  .scene-dock,
-  .scene-dock-marker {
-    top: 12px;
-    right: 12px;
-    bottom: auto;
-    left: auto;
-  }
-
-  .scene-dock-marker {
-    height: 44px;
-  }
-
   /* Stufen-Banner unter den Stapel schieben – sonst verdeckt der Stapel den Stufennamen */
   .stage-banner {
     top: 72px;
-  }
-
-  .encounter-stack {
-    min-height: 44px;
-    padding: 6px 12px 6px 10px;
-    font-size: 0.9rem;
   }
 
   dialog.encounter {
@@ -2580,57 +1877,13 @@ dialog.plant-picker {
     font-size: 1.15rem;
   }
 
-  /* Karten nebeneinander zum Wischen; die nächste Karte lugt hervor */
-  .encounter-cards,
-  .encounter-cards[data-count='1'],
-  .encounter-cards[data-count='2'] {
-    grid-auto-columns: 85%;
-    width: auto;
-    max-width: none;
-    margin: 0 -12px;
-    padding: 4px 12px 8px;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    scroll-padding: 0 12px;
-  }
-
-  .encounter-cards[data-count='1'] {
-    grid-auto-columns: 100%;
-  }
-
-  .encounter-card {
-    scroll-snap-align: center;
-  }
-
-  .encounter-swipe {
-    display: block;
-  }
-
-  .encounter-cards[data-count='1'] + .encounter-swipe {
-    display: none;
-  }
-
   .encounter-actions .encounter-button {
     flex: 1 1 140px;
   }
 
-  dialog.encounter:not(.plant-picker) .encounter-actions {
+  dialog.encounter .encounter-actions {
     margin: 0 -12px;
     padding: 8px 12px;
-  }
-
-  dialog.plant-picker {
-    width: calc(100vw - 16px);
-  }
-
-  .plant-picker .encounter-actions {
-    bottom: -16px;
-    margin: 0 -12px -16px;
-    padding: 10px 12px 12px;
-  }
-
-  .picker-list {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -3359,24 +2612,12 @@ dialog.help-dialog {
 
 /* ---------- Weniger Bewegung ---------- */
 
-/* Gesteuert über `data-motion="reduce"` am body (siehe oben bei den schwebenden Zahlen). */
-body[data-motion='reduce'] .encounter.dealing .encounter-card {
-  animation: none;
-}
-
-body[data-motion='reduce'] .encounter-card.rarity-legendary::after {
-  display: none;
-}
-
-body[data-motion='reduce'] .encounter-card,
-body[data-motion='reduce'] .encounter-stack,
 body[data-motion='reduce'] .eco-harmony summary::before,
 body[data-motion='reduce'] .plant-meter-bar {
   transition: none;
 }
 
 body[data-motion='reduce'] .eco-stat-value.pop,
-body[data-motion='reduce'] .encounter-stack.nudge,
 body[data-motion='reduce'] .family-chip.tier-up,
 body[data-motion='reduce'] .community.formed,
 body[data-motion='reduce'] .slot.arrive {
@@ -3405,106 +2646,18 @@ body[data-motion='reduce'] .slot.arrive {
     animation-name: banner-fade;
   }
 
-  body:not([data-motion='full']) .encounter.dealing .encounter-card {
-    animation: none;
-  }
-
-  body:not([data-motion='full']) .encounter-card.rarity-legendary::after {
-    display: none;
-  }
-
-  body:not([data-motion='full']) .encounter-card,
-  body:not([data-motion='full']) .encounter-stack,
   body:not([data-motion='full']) .eco-harmony summary::before,
   body:not([data-motion='full']) .plant-meter-bar {
     transition: none;
   }
 
   body:not([data-motion='full']) .eco-stat-value.pop,
-  body:not([data-motion='full']) .encounter-stack.nudge,
   body:not([data-motion='full']) .family-chip.tier-up,
   body:not([data-motion='full']) .community.formed,
   body:not([data-motion='full']) .slot.arrive {
     animation-name: highlight;
     animation-timing-function: linear;
   }
-}
-
-/* Legende der Vorschau-Symbole im Kartenwahl-Dialog (aufklappbar, dezent) */
-.encounter-legend {
-  width: 100%;
-  text-align: center;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.encounter-legend[hidden] {
-  display: none;
-}
-
-.encounter-legend-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 14px 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.encounter-legend-summary::-webkit-details-marker {
-  display: none;
-}
-
-.encounter-legend-summary:hover {
-  color: var(--text);
-}
-
-.encounter-legend-summary:focus-visible {
-  outline: 3px solid #1f5fbf;
-  outline-offset: 1px;
-}
-
-.legend-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1.5px solid currentColor;
-  border-radius: 50%;
-  font-weight: 700;
-  font-size: 0.8rem;
-}
-
-.encounter-legend[open] .legend-mark {
-  background: var(--muted);
-  border-color: var(--muted);
-  color: white;
-}
-
-.encounter-legend-list {
-  list-style: none;
-  max-width: 820px;
-  margin: 4px auto 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
-  gap: 4px 16px;
-  text-align: left;
-}
-
-.encounter-legend-list li {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-}
-
-.legend-icon {
-  flex-shrink: 0;
-  min-width: 2.2em;
-  text-align: center;
 }
 
 /* Neuer Zyklus und Stammgäste (cycle-panel.ts) */
@@ -4330,245 +3483,6 @@ body[data-motion='reduce'] .daily-bar-fill {
 
 /* ---------- Ereignis- und Gast-Karten im Kartenwahl-Dialog ---------- */
 
-/* Kopf mit großem Bild-Symbol, Stimmungstext und Eckdaten (Gattung, Dauer, Wirkung) */
-.encounter-head-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-/* Mit Bild-Symbol: Symbol links, Texte daneben – der ganze Block sitzt mittig */
-.encounter-header.has-hero {
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 16px;
-  width: fit-content;
-  max-width: 720px;
-  margin-inline: auto;
-  text-align: left;
-}
-
-.encounter-hero-icon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: #efece0;
-  font-size: 2.6rem;
-  line-height: 1;
-}
-
-.encounter-hero-icon[hidden] {
-  display: none;
-}
-
-.encounter-header.has-hero .encounter-subtitle {
-  color: var(--text);
-}
-
-.encounter-header.has-hero .encounter-queue {
-  justify-content: flex-start;
-}
-
-.encounter-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.encounter-facts[hidden] {
-  display: none;
-}
-
-.encounter-facts li {
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: #efece0;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-/* Optionen: die ganze Karte ist ein großer Knopf mit Wirkungszeile */
-.encounter-card.option-card {
-  gap: 8px;
-  padding: 8px;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-  overflow: visible;
-}
-
-.encounter-card.option-card > :not(.card-band) {
-  margin-left: 0;
-  margin-right: 0;
-}
-
-.option-choose {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  width: 100%;
-  min-height: 88px;
-  margin-top: 0;
-  padding: 14px 16px;
-  border: 2px solid var(--fam);
-  border-radius: 14px;
-  background: var(--fam-bg);
-  color: var(--fam-text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  transition:
-    background 0.15s,
-    box-shadow 0.15s,
-    transform 0.15s;
-}
-
-.option-choose:hover:not(:disabled):not([aria-disabled='true']) {
-  background: white;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-  transform: translateY(-1px);
-}
-
-.option-choose:active:not(:disabled):not([aria-disabled='true']) {
-  transform: translateY(0);
-}
-
-.option-choose:focus-visible {
-  outline: 3px solid #1f5fbf;
-  outline-offset: 3px;
-}
-
-.option-choose:disabled,
-.option-choose[aria-disabled='true'] {
-  cursor: not-allowed;
-  border-color: var(--border);
-  background: #f4f2ea;
-  color: var(--muted);
-  box-shadow: none;
-}
-
-.option-label {
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-
-.option-effects {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  color: var(--text);
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.option-choose:disabled .option-effects,
-.option-choose[aria-disabled='true'] .option-effects {
-  color: var(--muted);
-}
-
-/* Erklärung unter der Vorschau, z. B. warum sie vom Nennwert abweicht */
-.option-note {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.35;
-}
-
-.option-effect {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-}
-
-.option-effect .mark {
-  flex-shrink: 0;
-  width: 1em;
-  color: var(--tone);
-  font-weight: 700;
-  text-align: center;
-}
-
-.option-reason {
-  color: var(--bad);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.option-card .card-preview {
-  margin-top: -2px;
-  padding: 0 0 0 12px;
-  border-top: none;
-}
-
-.option-card .card-preview[hidden] {
-  display: none;
-}
-
-.option-card.chosen .option-choose {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(63, 143, 58, 0.25);
-}
-
-body[data-motion='reduce'] .option-choose {
-  transition: none;
-  transform: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  body:not([data-motion='full']) .option-choose {
-    transition: none;
-    transform: none;
-  }
-}
-
-/* Handy: Optionen untereinander statt zum Wischen nebeneinander */
-@media (max-width: 640px) {
-  .encounter-cards[data-kind='event'],
-  .encounter-cards[data-kind='visitor'] {
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
-    margin: 0;
-    padding: 0;
-    overflow-x: visible;
-    scroll-snap-type: none;
-  }
-
-  .encounter-cards[data-kind='event'] + .encounter-swipe,
-  .encounter-cards[data-kind='visitor'] + .encounter-swipe {
-    display: none;
-  }
-
-  .encounter-card.option-card {
-    padding: 4px 0;
-  }
-
-  .option-choose {
-    min-height: 64px;
-    padding: 10px 12px;
-  }
-
-  .encounter-header.has-hero {
-    gap: 12px;
-  }
-
-  .encounter-hero-icon {
-    width: 52px;
-    height: 52px;
-    font-size: 1.9rem;
-  }
-}
-
 /* Erfolge im Naturtagebuch: erreicht mit goldenem Rand, offen gedämpft (wie gesperrt) */
 .journal-achievement.discovered {
   --fam: #c9a227;
@@ -4635,10 +3549,6 @@ dialog.animal-detail {
   min-width: 0;
 }
 
-.detail-head-text .encounter-kind {
-  text-align: left;
-}
-
 .detail-name {
   overflow-wrap: break-word;
   hyphens: auto;
@@ -4674,8 +3584,7 @@ dialog.animal-detail {
 }
 
 .detail-section[hidden],
-.detail-regular[hidden],
-.card-flavor[hidden] {
+.detail-regular[hidden] {
   display: none;
 }
 

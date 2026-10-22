@@ -242,10 +242,6 @@ body:has(.album) {
   z-index: 1;
 }
 
-.album[data-layout='spread'] .album-dock .encounter-stack {
-  transform: rotate(var(--tilt-stack-desk));
-}
-
 /* Niedrige Fenster: Tisch und Abstände schmaler, damit die linke Seite nicht scrollen muss. */
 @media (max-height: 760px) {
   .album[data-layout='spread'] {
@@ -328,12 +324,8 @@ body:has(.album) {
 }
 
 /* Tastaturfokus nicht unter dem fest liegenden Zettelstapel verstecken (WCAG 2.4.11). */
-html:has(.album[data-layout='single'] .encounter-stack:not([hidden])) {
+html:has(.album[data-layout='single'] .note-stack:not([hidden])) {
   scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-}
-
-.album[data-layout='single'] .album-dock .encounter-stack {
-  transform: rotate(var(--tilt-stack));
 }
 
 /* Breite Einzelseite (Tablet hoch): Polaroid höchstens 560 px (G-7). */

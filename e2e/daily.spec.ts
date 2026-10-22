@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { createInitialState, type DailyGoal } from '../src/core/state';
-import { SAVE_VERSION, dialog, expect, gotoTab, openStack, savedState, seedRaw, stack, stamps, test, waypoint } from './fixtures';
+import { SAVE_VERSION, encounter, expect, gotoTab, openStack, savedState, seedRaw, stack, stamps, test, waypoint } from './fixtures';
 
 /**
  * Tagesziele (DESIGN_V2.md 20): Karte in der Seitenleiste, ein Ziel durch eine Entscheidung
@@ -56,9 +56,9 @@ test('Tagesziel durch Ablehnen erfüllen: Hinweis mit Samen, Haken, Serie, gespe
   await expect(goalItem(page, 'growth')).toContainText('Lass deinen Baum um 1 Mio. 🌿 wachsen.');
 
   await openStack(page);
-  // Eingabesperre des Dialogs läuft über die (angehaltene) Testuhr.
+  // Eingabesperre der Karten läuft über die (angehaltene) Testuhr.
   await page.clock.runFor(500);
-  await dialog(page).getByRole('button', { name: /^Ablehnen/ }).click();
+  await encounter(page).getByRole('button', { name: /^Ablehnen/ }).click();
   await expect(stack(page)).toBeHidden();
   await expect(toast(page)).toContainText('✅ Tagesziel erfüllt:');
   await expect(toast(page)).toContainText(/\+\d+(,\d)? 🌰/);

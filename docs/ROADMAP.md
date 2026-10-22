@@ -559,8 +559,24 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   die oberste Seite). `ecosystem-panel.ts` und `animal-detail-dialog.ts` gelöscht; „Im Album
   ansehen ›“ aus dem Vollbild blättert zu U:Tier um. Neu: `e2e/album-animal.spec.ts`,
   `tests/album-niches.test.ts`.
-- [ ] **6** Begegnungen (`ui-dev`): Zettelstapel mit Wackeln, Unterseite Begegnung, Unterseite
+- [x] **6** Begegnungen (`ui-dev`): Zettelstapel mit Wackeln, Unterseite Begegnung, Unterseite
   Pflanze setzen. Specs events, playthrough, full-cycle. Abhängig: 4 (Pflanze setzen: 5)
+  *Umgesetzt:* `album/note-stack.ts` (gelber Zettel „2 Zettel: Besuch wartet!“ bzw. „Sturmnacht!“,
+  Symbol der vordersten Begegnung als Eck-Sticker, Schatten für den 2. und 3. Zettel, einmal
+  Wackeln bei neuem Zettel – reduziert nur Farbblitz; mobil fest unten rechts, Desktop im Kopf, auf
+  U:Begegnung verborgen) mit den reinen Texten in `note-stack-view.ts` (`stackIcon` zieht um).
+  `ui/encounter-cards.ts` (Kartenaufbau und Eingabeschutz ohne `<dialog>`: Kopf als Zettel,
+  Sticker-Karten im Notizzettel-Stil mit Renderer-Sticker bzw. Gruppen-Emoji, „Einkleben“,
+  Tausch bei voller Nische, Wildwechsel-Zeile, Ereignis-/Gast-Optionen als große Knöpfe, Legende
+  als Haftnotiz am „?“ – öffnet sich beim allerersten Mal von selbst, schmal nicht) und
+  `ui/plant-offers.ts` (Pflanzenzettel mit „Setzen“). Unterseiten `pages/encounter-page.ts`
+  (Lesezeichen „‹ Später“, nächste Begegnung ohne neues Umblättern mit Überblenden, leerer Stapel
+  blättert von selbst zurück, Fokus auf die erste wählbare Karte) und `pages/plant-picker-page.ts`
+  (nach dem Setzen zurück zu den Nischen). Meldungen während Begegnung und Pflanzenwahl kommen als
+  Stempel (die Weiche ins alte Hinweisfeld entfällt); mobil sammelt `overlayOpen()` die Hinweise in
+  einem Stempel, solange eine Unterseite das Polaroid verdeckt. `encounter-dialog.ts`,
+  `encounter-stack.ts`, `plant-picker.ts` samt CSS gelöscht. Neu: `e2e/album-encounter.spec.ts`,
+  `tests/album-note-stack.test.ts`; e2e-Option `freshLegend` (sonst gilt die Legende als gesehen).
 - [ ] **7** Reiter Arten (`ui-dev`): Sticker-Raster mit Silhouetten, Pflanzen, Gemeinschaften,
   Andenken, Stammgast-★. Spec journal. Abhängig: 5
 - [x] **8** Reiter Pflege (`ui-dev`): Gerade wirksam, Pflegeliste, Unterseite Pflegemaßnahme,

@@ -6,7 +6,7 @@
  *
  * Hier: Buch, Doppelseite/Einzelseite, Reiter, Umschlag, Umblättern, Verlauf und Hash,
  * Polaroid mit Vollbild der Szene, Etiketten und Stufenleiste, Haftnotizen, Stempel und
- * Banderolen. Die bisherigen Bauteile hängen bis zu ihrem Schritt als Übergangsinhalt in den
+ * Banderolen, Zettelstapel der Begegnungen. Die bisherigen Bauteile hängen bis zu ihrem Schritt als Übergangsinhalt in den
  * Reitern (legacy.ts).
  */
 import { LANDSCAPE_SITES } from '../../content/landscape';
@@ -28,6 +28,7 @@ import { createAlbumHistory } from './history';
 import { createLabelNotes } from './label-notes';
 import { createLegacyUi, type LegacyUi } from './legacy';
 import { closeNotes, onNoteChange, openNote, openNoteId } from './note';
+import { createNoteStack } from './note-stack';
 import {
   TAB_IDS,
   TAB_LABELS,
@@ -44,6 +45,8 @@ import {
   type TabId,
 } from './nav';
 import { TURNED_AWAY, createPageTurn } from './page-turn';
+import type { EncounterPage } from './pages/encounter-page';
+import type { PlantPickerPage } from './pages/plant-picker-page';
 import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type TabPage } from './pages/registry';
 import { createPolaroid } from './polaroid';
 import { createSpread } from './spread';
@@ -78,6 +81,12 @@ export interface Album extends LegacyUi {
   showNewerSaveBanner(text: string): void;
   /** Aktueller Navigationszustand (nur lesen; für Tests und Fehlersuche). */
   readonly nav: Readonly<AlbumNav>;
+  /** Die vorderste Begegnung ist erledigt (neue Karten, auch wenn sie gleich aussehen). */
+  encounterResolved(): void;
+  /** U:Begegnung zuschlagen (z. B. Neuer Zyklus, anderer Stand übernommen). */
+  closeEncounters(): void;
+  /** U:Pflanze setzen zuschlagen (nach dem Setzen). */
+  closePlantPicker(): void;
 }
 
 export function createAlbum(deps: AlbumDeps): Album {
@@ -152,6 +161,10 @@ export function createAlbum(deps: AlbumDeps): Album {
     sub.page.element.hidden = true;
     spread.sub.append(sub.page.element);
   }
+  const encounterPage = subpages.get('encounter') as EncounterPage;
+  const plantPickerPage = subpages.get('plant-picker') as PlantPickerPage;
+  // Zettelstapel der Begegnungen (C.7): mobil unten rechts, am Desktop im Kopf.
+  const noteStack = createNoteStack(book.dock, () => dispatch({ type: 'open', page: { kind: 'encounter' } }));
 
   document.body.prepend(book.element);
   // Stempel und Zettel (C.5): über dem Album, auch über Unterseiten.
@@ -172,7 +185,6 @@ export function createAlbum(deps: AlbumDeps): Album {
       coverMenu: cover.menu,
       hint: book.headStart,
       coverButton: book.coverButton,
-      dock: book.dock,
     },
     {
       onEcosystem: showSummary,
@@ -183,6 +195,7 @@ export function createAlbum(deps: AlbumDeps): Album {
         if (!unlocked) dispatch({ type: 'landscape-locked' });
       },
       showCareTab: () => dispatch({ type: 'tab', tab: 'care' }),
+      openPlantPicker: () => dispatch({ type: 'open', page: { kind: 'plant-picker' } }),
       focusTarget,
       stamp: (text, options) => stamps.show(text, options),
     },
@@ -511,6 +524,9 @@ export function createAlbum(deps: AlbumDeps): Album {
 
   /** Seiten auffrischen: sichtbare Reiterseite und oberste Unterseite, Punkte an allen Reitern. */
   function refreshPages(now: number): void {
+    const pending = deps.state().pendingEncounters;
+    noteStack.update(pending.length, pending[0]);
+    noteStack.setAway(nav.stack[nav.stack.length - 1]?.kind === 'encounter');
     for (const id of TAB_IDS) {
       const tab: TabPage = tabs[id];
       if (tab.badge) tabStrip.setDot(id, tab.badge(now));
@@ -520,12 +536,45 @@ export function createAlbum(deps: AlbumDeps): Album {
     if (top) subpageOf(top)?.update?.(now);
   }
 
+  /** Ist das Bild der Szene zu sehen (Vollbild oder Polaroid im Bild und nicht verdeckt)? */
+  function photoVisible(): boolean {
+    if (fullscreen.shown) return true;
+    return polaroidInView && !(book.layout === 'single' && nav.stack.length > 0);
+  }
+
+  /** Unterseiten einer Art zuschlagen (zurück, bis keine mehr im Stapel liegt). */
+  function closeKind(kind: PageRef['kind']): void {
+    if (busy()) {
+      queue.push(() => closeKind(kind));
+      return;
+    }
+    if (nav.stack.some((p) => p.kind === kind)) goBackTo((n) => !n.stack.some((p) => p.kind === kind));
+  }
+
   // --- Schnittstelle für main.ts ---------------------------------------------------------
   return {
     ...legacy,
     refresh(now) {
       legacy.refresh(now);
       refreshPages(now);
+    },
+    invalidate(parts) {
+      legacy.invalidate(parts);
+      if (parts.includes('encounter')) encounterPage.invalidate();
+      if (parts.includes('picker')) plantPickerPage.invalidate();
+    },
+    encounterResolved: () => encounterPage.resolved(),
+    closeEncounters: () => closeKind('encounter'),
+    closePlantPicker: () => closeKind('plant-picker'),
+    /**
+     * Verdeckt etwas die Szene? Alte Dialoge (Tagebuch, Hilfe) oder – mobil – eine Unterseite
+     * bzw. ein weggescrolltes Polaroid. Dann sammelt main.ts die Hinweise in einem Stempel.
+     */
+    overlayOpen: () => legacy.overlayOpen() || !photoVisible(),
+    noteText(text) {
+      // Polaroid nicht zu sehen (mobil weggescrollt oder Unterseite): als Stempel (A.11 #121).
+      if (photoVisible()) legacy.noteText(text);
+      else legacy.notify(text);
     },
     sceneFrame: fullscreen.tools,
     banners: book.banners,
@@ -546,10 +595,18 @@ export function createAlbum(deps: AlbumDeps): Album {
       legacy.replaced();
       closeNotes();
       for (const sub of subpages.values()) sub.reset?.();
+      closeKind('encounter');
+      closeKind('plant-picker');
     },
     adopted(headChanged) {
       legacy.adopted(headChanged);
       savePage.disarm();
+      encounterPage.invalidate();
+      plantPickerPage.invalidate();
+      if (headChanged) {
+        encounterPage.resolved();
+        closeKind('encounter');
+      }
     },
     showNewerSaveBanner(text) {
       if (book.banners.querySelector('[data-ref="newer-save-banner"]')) return;

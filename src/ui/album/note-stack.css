@@ -1,0 +1,138 @@
+/* Zettelstapel der Begegnungen (note-stack.ts, docs/ALBUM_UI.md C.7): gelber Zettel,
+   dahinter ein zweiter und dritter als Schatten; wackelt, wenn ein neuer kommt. */
+
+.note-stack {
+  --stack-tilt: var(--tilt-stack);
+  --stack-under: 0 0 0 transparent;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  box-sizing: border-box;
+  /* Mockup: 150 px – etwas breiter, damit „Besuch wartet!“ in eine Zeile passt */
+  width: 158px;
+  min-height: 64px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--note-bg);
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.02;
+  text-align: left;
+  cursor: pointer;
+  transform: rotate(var(--stack-tilt));
+  box-shadow: var(--stack-under), var(--sh-slip);
+  transition: transform 120ms ease-out;
+}
+
+.note-stack[hidden] {
+  display: none;
+}
+
+.note-stack[data-count='2'] {
+  --stack-under: var(--sh-stack-1);
+}
+
+.note-stack[data-count='3'] {
+  --stack-under: 4px 4px 0 var(--note-under), 8px 8px 0 #ead78a;
+}
+
+.note-stack:hover {
+  transform: rotate(var(--stack-tilt)) translateY(-2px);
+}
+
+.note-stack:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 3px;
+}
+
+/* Symbol der vordersten Begegnung als kleiner Sticker an der Ecke */
+.note-stack-icon {
+  position: absolute;
+  top: -12px;
+  right: -10px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--photo);
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: var(--sh-sticker);
+  font-family: var(--font-text);
+  font-size: 17px;
+  line-height: 1;
+  transform: rotate(8deg);
+}
+
+.note-stack-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: break-word;
+  hyphens: manual;
+}
+
+.note-stack-headline {
+  min-width: 0;
+}
+
+/* Desktop: im Kopf rechts, etwas breiter und flacher */
+.album[data-layout='spread'] .note-stack {
+  --stack-tilt: var(--tilt-stack-desk);
+  width: auto;
+  max-width: 300px;
+  min-height: var(--tap);
+  align-items: center;
+  padding-right: 26px;
+}
+
+.album[data-layout='spread'] .note-stack-text {
+  flex-direction: row;
+  flex-wrap: wrap;
+  column-gap: 0.25em;
+}
+
+/* Neuer Zettel: einmal wackeln (±3°, 600 ms) */
+.note-stack.note-stack-wobble {
+  animation: note-stack-wobble var(--wobble-ms) ease-in-out;
+}
+
+@keyframes note-stack-wobble {
+  0%,
+  100% {
+    transform: rotate(var(--stack-tilt));
+  }
+  20% {
+    transform: rotate(calc(var(--stack-tilt) + var(--wobble-deg))) scale(1.04);
+  }
+  45% {
+    transform: rotate(calc(var(--stack-tilt) - var(--wobble-deg))) scale(1.04);
+  }
+  70% {
+    transform: rotate(calc(var(--stack-tilt) + var(--wobble-deg) / 2));
+  }
+}
+
+/* Reduzierte Bewegung: nur ein kurzer Farbblitz */
+body[data-motion='reduce'] .note-stack {
+  transition: none;
+}
+
+body[data-motion='reduce'] .note-stack.note-stack-wobble {
+  animation: note-stack-flash var(--wobble-ms) ease-out;
+}
+
+@keyframes note-stack-flash {
+  0%,
+  100% {
+    background: var(--note-bg);
+  }
+  30% {
+    background: var(--tape);
+  }
+}
