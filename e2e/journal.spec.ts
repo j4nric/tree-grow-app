@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { COMMUNITIES } from '../src/content/communities';
 import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
-import { expect, legacyGrowth, openGame, openTab, savedState, seedRaw, seedV3, stamps, test, waypoint } from './fixtures';
+import { expect, legacyGrowth, openGame, openGoalsPage, openTab, savedState, seedRaw, seedV3, stamps, test, waypoint } from './fixtures';
 
 /**
  * Naturtagebuch (DESIGN_V2.md 10, 11.2): Knopf in der Seitenleiste, modaler Dialog mit
@@ -78,13 +78,15 @@ test('Stammgast im Tagebuch wählen: Zyklus-Panel synchron, gespeichert', async 
   expect((await savedState(page)).meta.regulars).toEqual(['bluetit']);
 
   await journal(page).getByRole('button', { name: 'Schließen' }).click();
-  await openTab(page, 'ziele');
+  await openGoalsPage(page, 'cycle');
   const regulars = page.locator('[data-ref="regulars"]');
   await expect(regulars).toContainText('Stammgäste 1/1');
   await expect(regulars.locator('[data-regular="bluetit"]')).toHaveAttribute('aria-pressed', 'true');
 
   // Und zurück: im Zyklus-Panel abwählen → im Tagebuch abgewählt.
   await regulars.locator('[data-regular="bluetit"]').click();
+  await expect(regulars.locator('[data-regular="bluetit"]')).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('[data-ref="bookmark"]:visible').click();
   await openJournal(page);
   await expect(journal(page).locator('[data-species="bluetit"] .journal-regular')).toHaveAttribute('aria-pressed', 'false');
 });

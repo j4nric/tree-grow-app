@@ -8,7 +8,7 @@ import type { SiteId } from '../../content/landscape';
 import type { Evaluation } from '../../core/formulas';
 import type { GameState } from '../../core/state';
 import type { EncounterCallbacks } from '../encounter-cards';
-import type { Preferences } from '../help';
+import type { Preferences } from '../preferences';
 import type { SaveTransferCallbacks } from '../save-transfer';
 import type { WildwechselMark } from '../wildwechsel-view';
 

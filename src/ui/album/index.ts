@@ -4,10 +4,11 @@
  * `invalidate(...)` und Hinweise mit `notify(text)`; Spieleraktionen kommen über
  * `deps.actions` zurück.
  *
- * Hier: Buch, Doppelseite/Einzelseite, Reiter, Umschlag, Umblättern, Verlauf und Hash,
- * Polaroid mit Vollbild der Szene, Etiketten und Stufenleiste, Haftnotizen, Stempel und
- * Banderolen, Zettelstapel der Begegnungen. Die bisherigen Bauteile hängen bis zu ihrem Schritt als Übergangsinhalt in den
- * Reitern (legacy.ts).
+ * Hier: Buch, Doppelseite/Einzelseite, Reiter, Umschlag mit seinen Unterseiten (Anleitung,
+ * Einstellungen, Konto, Spielstand), Umblättern, Verlauf und Hash, Polaroid mit Vollbild der
+ * Szene, Etiketten und Stufenleiste, Rückkehr-Zettel, Haftnotizen, Stempel und Banderolen,
+ * Zettelstapel der Begegnungen. Die bisherigen Bauteile hängen bis zu ihrem Schritt als
+ * Übergangsinhalt in den Reitern (legacy.ts).
  */
 import { LANDSCAPE_SITES } from '../../content/landscape';
 import { evaluate } from '../../core/formulas';
@@ -22,8 +23,10 @@ import type { EcosystemView } from '../view-model';
 import { nightRateText } from '../weather-view';
 import { createBook } from './book';
 import { createCover } from './cover';
+import { createAlbumTarget } from './cycle-target';
 import { createBanderole } from './banderole';
 import { createFullscreen } from './fullscreen';
+import { showGuideHint } from './guide-hint';
 import { createAlbumHistory } from './history';
 import { createLabelNotes } from './label-notes';
 import { createLegacyUi, type LegacyUi } from './legacy';
@@ -37,6 +40,7 @@ import {
   initialNav,
   navigate,
   pageNumber,
+  subpageKey,
   tabFromHash,
   type AlbumNav,
   type NavAction,
@@ -45,16 +49,19 @@ import {
   type TabId,
 } from './nav';
 import { TURNED_AWAY, createPageTurn } from './page-turn';
+import type { CyclePage } from './pages/cycle-page';
+import { createAccountPage } from './pages/account-page';
 import type { EncounterPage } from './pages/encounter-page';
-import type { PlantPickerPage } from './pages/plant-picker-page';
 import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type TabPage } from './pages/registry';
 import { createPolaroid } from './polaroid';
+import { createReturnReport } from './return-report';
 import { createSpread } from './spread';
 import { createStageLadder } from './stage-ladder';
 import { createStamps } from './stamps';
 import { createTabStrip } from './tab-strip';
 import { createTapeLabel } from './tape-label';
 import type { AlbumDeps } from './types';
+import { returnToastText, type ReturnReportView } from '../return-report-view';
 
 export type { AlbumDeps, AlbumActions, AlbumPart } from './types';
 export type { NotifyOptions } from './stamp-rules';
@@ -79,6 +86,13 @@ export interface Album extends LegacyUi {
   showSceneAnimal(target: AnimalDetailTarget): void;
   /** Dauerhafter Hinweis: Im Speicher liegt ein Stand einer neueren Spielversion. */
   showNewerSaveBanner(text: string): void;
+  /** Nach dem Neuen Zyklus: zurück zu „Ziele“, Fokus auf die Überschrift (der Knopf ist weg). */
+  focusCycle(): void;
+  /** Rückkehr-Zettel mit neuem Bericht (C.8); die Kurzfassung kommt als Stempel dazu. */
+  showReturnReport(view: ReturnReportView): void;
+  hideReturnReport(): void;
+  /** Konto-Abschnitt (sync/account.ts) in die Unterseite „Konto“; zeigt den Eintrag im Umschlag. */
+  mountAccount(section: HTMLElement): void;
   /** Aktueller Navigationszustand (nur lesen; für Tests und Fehlersuche). */
   readonly nav: Readonly<AlbumNav>;
   /** Die vorderste Begegnung ist erledigt (neue Karten, auch wenn sie gleich aussehen). */
@@ -103,15 +117,18 @@ export function createAlbum(deps: AlbumDeps): Album {
   const spread = createSpread(tabStrip.element);
   const cover = createCover({
     onClose: () => goBackTo((n) => !n.cover),
-    onOpenSave: () => dispatch({ type: 'open', page: { kind: 'save' } }),
+    onOpen: (kind) => dispatch({ type: 'open', page: { kind } }),
   });
   const book = createBook(spread, cover.element, () => dispatch({ type: 'cover', open: !nav.cover }));
+  // Ziel des nächsten Zyklus: Karte der Landschaft ↔ U:Neuer Zyklus (D.2).
+  const albumTarget = createAlbumTarget((id) => deps.actions.buildCorridor(id));
   /** Ökosystem-Ansicht für die Seiten (legacy.ts rechnet sie, `showSummary` reicht sie weiter). */
   const eco: { view: EcosystemView | null; serial: number } = { view: null, serial: 0 };
   const env: PageEnv = {
     deps,
     back: () => goBack(),
     open: (page) => dispatch({ type: 'open', page }),
+    albumTarget,
     float: (text, x, y) => legacy.float(text, x, y),
     eco,
   };
@@ -129,9 +146,8 @@ export function createAlbum(deps: AlbumDeps): Album {
     { onMore: () => dispatch({ type: 'open', page: { kind: 'harmony' } }), available: () => subpages.has('harmony') },
   );
   const ladder = createStageLadder();
-  const returnMount = el('div', 'album-return panel');
-  returnMount.id = 'return-report';
-  spread.left.append(polaroid.element, labels, ladder.element, returnMount);
+  const returnReport = createReturnReport(env, () => focusTarget());
+  spread.left.append(polaroid.element, labels, ladder.element, returnReport.slip);
 
   // Reiterseiten (eine Zeile je Seite in pages/registry.ts).
   const tabs = {
@@ -156,13 +172,16 @@ export function createAlbum(deps: AlbumDeps): Album {
   const subpages = new Map<string, Subpage>();
   const savePage = SUBPAGES.save(env);
   subpages.set('save', savePage);
+  const accountPage = createAccountPage(env);
+  subpages.set('account', accountPage);
+  subpages.set('return-report', returnReport.subpage);
   for (const [kind, create] of Object.entries(SUBPAGES)) if (!subpages.has(kind)) subpages.set(kind, create(env));
+  const cyclePage = subpages.get('cycle') as CyclePage;
   for (const sub of subpages.values()) {
     sub.page.element.hidden = true;
     spread.sub.append(sub.page.element);
   }
   const encounterPage = subpages.get('encounter') as EncounterPage;
-  const plantPickerPage = subpages.get('plant-picker') as PlantPickerPage;
   // Zettelstapel der Begegnungen (C.7): mobil unten rechts, am Desktop im Kopf.
   const noteStack = createNoteStack(book.dock, () => dispatch({ type: 'open', page: { kind: 'encounter' } }));
 
@@ -181,10 +200,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       ...tabs,
       season: polaroid.season,
       photo: polaroid.stamps,
-      returnReport: returnMount,
-      coverMenu: cover.menu,
-      hint: book.headStart,
-      coverButton: book.coverButton,
+      albumTarget,
     },
     {
       onEcosystem: showSummary,
@@ -202,6 +218,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   );
   // Haftnotizen (C.4): offene Notiz steht in nav.note; Navigation schließt sie.
   onNoteChange((id) => dispatch({ type: 'note', id }));
+  showGuideHint(deps.newGame, book.coverButton, () => dispatch({ type: 'open', page: { kind: 'guide' } }));
 
   // --- Szene: Vollbild, Haftnotiz zum Tier, Sichtbarkeit (C.6, D.3) ----------------------
   const fullscreen = createFullscreen({
@@ -321,7 +338,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       queue.push(() => dispatch(action));
       return;
     }
-    if (action.type === 'open' && !subpages.has(action.page.kind)) return;
+    if (action.type === 'open' && !subpages.has(subpageKey(action.page))) return;
     const next = navigate(nav, action, ctx);
     if (next === nav) return;
     if (action.type === 'open') triggers[next.stack.length - 1] = activeButton();
@@ -380,7 +397,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   }
 
   function subpageOf(ref: PageRef): Subpage | undefined {
-    return subpages.get(ref.kind);
+    return subpages.get(subpageKey(ref));
   }
 
   async function render(prev: AlbumNav, next: AlbumNav): Promise<void> {
@@ -404,6 +421,8 @@ export function createAlbum(deps: AlbumDeps): Album {
       spread.sub.hidden = false;
       lockScroll();
       await turn.forward(levelElement(next, b.length - 1), sub.page.element);
+      // Ebene 2 teilt sich die Ablage mit Ebene 1: oben anfangen, nicht bei deren Scroll-Lage.
+      if (b.length > 1) spread.sub.scrollTop = 0;
       sub.page.focusTitle();
     } else if (coverSame && a.length === b.length + 1 && prefix(b, a)) {
       // Zurück: verlassene Seite dreht sich über die Unterseite zurück – mit frischem Inhalt.
@@ -469,6 +488,8 @@ export function createAlbum(deps: AlbumDeps): Album {
   }
 
   function showTab(tab: TabId): void {
+    // Gleich befüllen (auch wenn der Game Loop gerade steht, z. B. mit angehaltener Testuhr).
+    queueMicrotask(() => refreshPages(performance.now()));
     tabStrip.select(tab);
     for (const id of TAB_IDS) {
       const page = tabs[id].page.element;
@@ -518,11 +539,28 @@ export function createAlbum(deps: AlbumDeps): Album {
     const site = activeSite(state.meta.landscape);
     if (site !== shownSite) {
       shownSite = site;
-      book.setForestName(LANDSCAPE_SITES.find((s) => s.id === site)?.name ?? '');
+      const name = LANDSCAPE_SITES.find((s) => s.id === site)?.name ?? '';
+      book.setForestName(name);
+      cover.setForestName(name);
     }
   }
 
-  /** Seiten auffrischen: sichtbare Reiterseite und oberste Unterseite, Punkte an allen Reitern. */
+  // --- Seiten aktualisieren (D.1) ------------------------------------------------------
+
+  /** Spielstand geändert: Seiten sofort (ungedrosselt) nachziehen. */
+  let pagesDirty = true;
+  /** Zuletzt aufgefrischte Reiterseite bzw. Unterseite – eine neu gezeigte Seite wird sofort gefüllt. */
+  let shownTab: TabPage | null = null;
+  let shownSub: Subpage | null = null;
+
+  /**
+   * Punkte an allen Reitern (auch verborgen), dann die Reiterseite des aktuellen Reiters (auf
+   * der Doppelseite neben dem Umschlag sichtbar; darunterliegend bleibt sie so beim
+   * Zurückblättern frisch) und die oberste Unterseite. `force` nach `invalidate`, Ersetzen des
+   * Spielstands oder Seitenwechsel – so stimmt die Seite auch, wenn der Game Loop gerade steht
+   * (angehaltene Testuhr); sonst drosseln die Seiten selbst. Läuft auch direkt nach jeder
+   * Navigation.
+   */
   function refreshPages(now: number): void {
     const pending = deps.state().pendingEncounters;
     noteStack.update(pending.length, pending[0]);
@@ -531,9 +569,15 @@ export function createAlbum(deps: AlbumDeps): Album {
       const tab: TabPage = tabs[id];
       if (tab.badge) tabStrip.setDot(id, tab.badge(now));
     }
-    tabs[nav.tab].update?.(now);
+    const dirty = pagesDirty;
+    pagesDirty = false;
+    const tab: TabPage = tabs[nav.tab];
+    tab.update?.(now, dirty || tab !== shownTab);
+    shownTab = tab;
     const top = nav.stack[nav.stack.length - 1];
-    if (top) subpageOf(top)?.update?.(now);
+    const sub = top ? (subpageOf(top) ?? null) : null;
+    sub?.update?.(now, dirty || sub !== shownSub);
+    shownSub = sub;
   }
 
   /** Ist das Bild der Szene zu sehen (Vollbild oder Polaroid im Bild und nicht verdeckt)? */
@@ -560,15 +604,25 @@ export function createAlbum(deps: AlbumDeps): Album {
     },
     invalidate(parts) {
       legacy.invalidate(parts);
-      if (parts.includes('encounter')) encounterPage.invalidate();
-      if (parts.includes('picker')) plantPickerPage.invalidate();
+      // Seiten (auch U:Begegnung und U:Pflanze setzen) beim nächsten Auffrischen sofort neu.
+      pagesDirty = true;
     },
     encounterResolved: () => encounterPage.resolved(),
     closeEncounters: () => closeKind('encounter'),
     closePlantPicker: () => closeKind('plant-picker'),
+    focusCycle() {
+      if (nav.stack.some((p) => p.kind === 'cycle')) {
+        // Zurück zu „Ziele“; danach Fokus auf deren Überschrift statt auf „Vorbereiten ›“.
+        triggers.length = 0;
+        goBackTo((n) => n.stack.length === 0);
+        whenIdle(() => tabs[nav.tab].page.focusTitle());
+      } else if (!nav.cover) {
+        tabs[nav.tab].page.focusTitle();
+      }
+    },
     /**
-     * Verdeckt etwas die Szene? Alte Dialoge (Tagebuch, Hilfe) oder – mobil – eine Unterseite
-     * bzw. ein weggescrolltes Polaroid. Dann sammelt main.ts die Hinweise in einem Stempel.
+     * Verdeckt etwas die Szene? Alte Dialoge (Tagebuch) oder – mobil – eine Unterseite bzw.
+     * ein weggescrolltes Polaroid. Dann sammelt main.ts die Hinweise in einem Stempel.
      */
     overlayOpen: () => legacy.overlayOpen() || !photoVisible(),
     noteText(text) {
@@ -594,19 +648,33 @@ export function createAlbum(deps: AlbumDeps): Album {
     replaced() {
       legacy.replaced();
       closeNotes();
+      albumTarget.disarm();
       for (const sub of subpages.values()) sub.reset?.();
       closeKind('encounter');
       closeKind('plant-picker');
+      pagesDirty = true;
     },
     adopted(headChanged) {
       legacy.adopted(headChanged);
+      albumTarget.disarm();
       savePage.disarm();
-      encounterPage.invalidate();
-      plantPickerPage.invalidate();
+      cyclePage.disarm();
+      pagesDirty = true;
       if (headChanged) {
         encounterPage.resolved();
         closeKind('encounter');
       }
+    },
+    showReturnReport(view) {
+      returnReport.show(view);
+      // Kurzfassung als Stempel bzw. Zettel (höchstens drei Zeilen) – Desktop wie mobil;
+      // alles Weitere steht im Rückkehr-Bericht (C.8).
+      legacy.notify(returnToastText(view, true), { brief: true });
+    },
+    hideReturnReport: () => returnReport.hide(),
+    mountAccount(section) {
+      accountPage.mount(section);
+      cover.showAccount();
     },
     showNewerSaveBanner(text) {
       if (book.banners.querySelector('[data-ref="newer-save-banner"]')) return;

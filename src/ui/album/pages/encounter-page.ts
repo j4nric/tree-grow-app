@@ -26,9 +26,8 @@ import './encounter-page.css';
 /** Beschriftung des Lesezeichens: „Später“ legt die Begegnung zurück (A.6 #78). */
 export const LATER_LABEL = 'Später';
 
+/** Neu aufbauen nach Aktionen, neuer Stufe usw. über `update(now, true)` (PageEnv-Schnittstelle). */
 export interface EncounterPage extends Subpage {
-  /** Ansicht neu bauen (z. B. nach einer Aktion, neuer Stufe, Zahlenformat). */
-  invalidate(): void;
   /** Die vorderste Begegnung ist erledigt (neue Karten, auch wenn sie gleich aussehen). */
   resolved(): void;
 }
@@ -125,7 +124,8 @@ export function createEncounterPage(env: PageEnv): EncounterPage {
       setLaterLabel();
       refresh();
     },
-    update() {
+    update(_now, force) {
+      if (force) dirty = true;
       refresh();
       // Erst wenn die Seite ruhig liegt (nicht mehr beim Umblättern): Legende beim ersten Mal.
       if (opened && !leaving && !page.element.inert && !page.element.hidden) sheet.revealLegendOnce();
@@ -134,9 +134,6 @@ export function createEncounterPage(env: PageEnv): EncounterPage {
       sheet.clear();
       dirty = true;
       serial++;
-    },
-    invalidate() {
-      dirty = true;
     },
     resolved() {
       serial++;

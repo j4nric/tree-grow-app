@@ -54,7 +54,8 @@ for (const width of [360, 390]) {
 
     const tablist = journal.getByRole('tablist');
     const tabs = journal.getByRole('tab');
-    await expect(tabs).toHaveCount(6);
+    // Arten, Pflanzen, Gemeinschaften, Andenken (Landschaft verborgen; Erfolge und Statistik im Reiter „Ziele“).
+    await expect(tabs).toHaveCount(4);
     // Eine Zeile: alle Reiter auf derselben Höhe, die Leiste nicht höher als ein Reiter.
     const tops = await tabs.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
     expect(new Set(tops).size).toBe(1);
@@ -68,12 +69,12 @@ for (const width of [360, 390]) {
     // Tastatur: bis zum letzten Reiter – er wird in die Leiste gescrollt und ist sichtbar.
     await journal.getByRole('tab', { name: /Arten/ }).focus();
     await page.keyboard.press('End');
-    const stats = journal.getByRole('tab', { name: /Statistik/ });
-    await expect(stats).toHaveAttribute('aria-selected', 'true');
-    await expect(stats).toBeFocused();
+    const last = journal.getByRole('tab', { name: /Andenken/ });
+    await expect(last).toHaveAttribute('aria-selected', 'true');
+    await expect(last).toBeFocused();
     await expect
       .poll(async () => {
-        const tab = (await stats.boundingBox())!;
+        const tab = (await last.boundingBox())!;
         const list = (await tablist.boundingBox())!;
         return tab.x >= list.x - 1 && tab.x + tab.width <= list.x + list.width + 1;
       })

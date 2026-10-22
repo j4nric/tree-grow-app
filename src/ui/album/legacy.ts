@@ -14,30 +14,21 @@ import { isNight } from '../../core/weather';
 import {
   refreshEcosystemView,
   toEcosystemView,
-  toJournalStats,
   toJournalView,
   type StageBannerView,
 } from '../adapters';
-import { toAchievementTimeProgress } from '../achievement-view';
-import { createCyclePanel } from '../cycle-panel';
-import { toCyclePanelView } from '../cycle-view';
-import { createDailyPanel } from '../daily-panel';
-import { toDailyView } from '../daily-view';
 import { createFloatLayer } from '../feedback';
 import { formatNumber } from '../format';
-import { createHelp, type Help } from '../help';
 import { createJournalButton, createJournalDialog } from '../journal-dialog';
-import { createReturnReportPanel } from '../return-report';
-import { returnToastText, type ReturnReportView } from '../return-report-view';
 import { toSeasonBadgeView } from '../season-view';
 import { seedsLabel } from '../view-format';
 import type { EcosystemView } from '../view-model';
 import { toWeatherBadgeView } from '../weather-view';
 import type { CarePage } from './pages/care-page';
-import type { GoalsPage } from './pages/goals-page';
 import type { LandscapePage } from './pages/landscape-page';
 import type { NichesPage } from './pages/niches-page';
 import type { SpeciesPage } from './pages/species-page';
+import type { AlbumTarget } from './cycle-target';
 import { createSeasonWeather } from './season-weather';
 import type { NotifyOptions } from './stamp-rules';
 import type { AlbumDeps, AlbumPart } from './types';
@@ -49,20 +40,13 @@ export interface LegacyMounts {
   niches: NichesPage;
   species: SpeciesPage;
   care: CarePage;
-  goals: GoalsPage;
   landscape: LandscapePage;
+  /** Ziel des nächsten Zyklus mit der Karte der Landschaft (bis Schritt 10 hier eingehängt). */
+  albumTarget: AlbumTarget;
   /** Platz in der Bildunterschrift des Polaroids (Jahreszeit, Wetter). */
   season: HTMLElement;
   /** Bildfläche des Polaroids (Stufen-Banner). */
   photo: HTMLElement;
-  /** Linke Seite unter der Stufenleiste (Rückkehr-Bericht). */
-  returnReport: HTMLElement;
-  /** Einträge im Umschlag (Spielanleitung, Einstellungen). */
-  coverMenu: HTMLElement;
-  /** Neben dem Umschlag-Knopf (Hinweis „Neu hier?“). */
-  hint: HTMLElement;
-  /** Umschlag-Knopf (Fokusziel, wenn der Hinweis „Neu hier?“ verschwindet). */
-  coverButton: HTMLElement;
 }
 
 export interface LegacyHooks {
@@ -85,8 +69,8 @@ export interface LegacyUi {
   invalidate(parts: readonly AlbumPart[]): void;
   /**
    * Meldung (C.5): Stempel, ab 90 Zeichen Zettel. Solange noch ein alter Dialog mit eigenem
-   * Hinweisfeld offen ist (Tagebuch, Hilfe), steht sie dort – außer mit `direct`. Begegnung
-   * und Pflanzenwahl sind Unterseiten: Ihre Meldungen kommen als Stempel. Leerer Text: nichts.
+   * Hinweisfeld offen ist (Tagebuch), steht sie dort – außer mit `direct`. Begegnung und
+   * Pflanzenwahl sind Unterseiten: Ihre Meldungen kommen als Stempel. Leerer Text: nichts.
    */
   notify(text: string, options?: NotifyOptions): void;
   showBanner(view: StageBannerView): void;
@@ -97,14 +81,10 @@ export interface LegacyUi {
   /** Schwebender Hinweis an Bildschirm-Koordinaten (z. B. Bestätigung nach einem Kauf). */
   float(text: string, x: number, y: number): void;
   plantFeedback(cost: number, plantId: string): void;
-  focusCycle(): void;
   /** Spielstand ersetzt (Löschen, Import): Dialoge zu, Bestätigungen zurück, alles neu. */
   replaced(): void;
   /** Stand eines anderen Geräts übernommen; `headChanged`: andere vorderste Begegnung. */
   adopted(headChanged: boolean): void;
-  showReturnReport(view: ReturnReportView): void;
-  hideReturnReport(): void;
-  addSettingsSection(section: HTMLElement): void;
 }
 
 export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: LegacyHooks): LegacyUi {
@@ -143,25 +123,13 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       mounts.care.reveal(id);
     },
   });
-  const dailyPanel = createDailyPanel(mounts.goals.daily);
-  const cyclePanel = createCyclePanel(mounts.goals.cycle, {
-    onNewCycle: (tree, site) => deps.actions.newCycle(tree, site),
-    onBuildCorridor: (id) => deps.actions.buildCorridor(id),
-    onToggleRegular: (speciesId) => deps.actions.toggleRegular(speciesId),
-  });
-  // Die Karte der Landschaft steht im eigenen Reiter; cycle-panel.ts steuert sie weiter.
-  mounts.landscape.landscape.append(cyclePanel.landscapeElement);
-  const returnReport = createReturnReportPanel(mounts.returnReport, () => hooks.focusTarget());
+  // Die Karte der Landschaft steht im eigenen Reiter; ihr Ziel gilt für U:Neuer Zyklus (Schritt 10 ersetzt sie).
+  mounts.landscape.landscape.append(mounts.albumTarget.map.element);
   const seasonWeather = createSeasonWeather(mounts.season);
   const journal = createJournalDialog(document.body, {
     onToggleRegular: (speciesId) => deps.actions.toggleRegular(speciesId),
   });
   createJournalButton(mounts.species.journal, openJournal);
-  const help: Help = createHelp(mounts.coverMenu, preferences, {
-    newGame: deps.newGame,
-    hintRoot: mounts.hint,
-    hintFocus: mounts.coverButton,
-  });
 
   preferences.onChange(() => {
     // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
@@ -177,7 +145,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   }
 
   function overlayOpen(): boolean {
-    return journal.open || help.open;
+    return journal.open;
   }
 
   /** Meldung: im offenen alten Dialog dort (er würde den Stempel verdecken), sonst als Stempel. */
@@ -185,7 +153,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     if (!text) return;
     if (!options.direct) {
       if (journal.open) return journal.notice(text);
-      if (help.notice(text)) return;
     }
     hooks.stamp(text, options);
   }
@@ -265,9 +232,8 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     const s = state();
     if (ecoDirty || !ecoView) {
       ecoDirty = false;
-      cyclePanel.update(toCyclePanelView(s));
+      mounts.albumTarget.update(s);
       const unlocked = landscapeUnlocked(s);
-      help.setLandscapeUnlocked(unlocked);
       if (unlocked !== shownLandscape) {
         shownLandscape = unlocked;
         hooks.onLandscape(unlocked);
@@ -294,11 +260,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     }
     lastPanelRefresh = now;
     hooks.onEcosystem(ecoView);
-    if (journal.open) {
-      journal.updateStats(toJournalStats(s, evaluate(s)));
-      journal.updateAchievementProgress(toAchievementTimeProgress(s));
-    }
-    dailyPanel.update(toDailyView(s, deps.today()));
   }
 
   function refresh(now: number): void {
@@ -326,25 +287,14 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     floatSeeds,
     float: (text, x, y) => floats.spawn(text, x, y, 'note'),
     plantFeedback,
-    focusCycle: () => cyclePanel.focus(),
     replaced() {
-      cyclePanel.disarm();
       seasonShownSecond = -1;
       journal.hide();
       invalidate(['eco']);
     },
     adopted() {
-      cyclePanel.disarm();
       seasonShownSecond = -1;
       invalidate(['eco']);
     },
-    showReturnReport(view) {
-      returnReport.show(view);
-      // Kurzfassung als Stempel bzw. Zettel (höchstens drei Zeilen) – Desktop wie mobil;
-      // alles Weitere steht im Rückkehr-Bericht (C.8).
-      notify(returnToastText(view, true), { brief: true });
-    },
-    hideReturnReport: () => returnReport.hide(),
-    addSettingsSection: (section) => help.addSettingsSection(section),
   };
 }

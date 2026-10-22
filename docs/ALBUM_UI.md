@@ -432,6 +432,16 @@ Ein Punkt am Reiter zeigt, wenn ein Neuer Zyklus möglich ist (G-13).
 **Skizze mobil und Desktop:** Karten untereinander. Die Tagesziele bekommen einen blauen
 Washi-Kopf in der Reiterfarbe.
 
+**Umgesetzt (Schritt 9):** Kennzahl im Kopf ist die Serie („🌞 4 Tage“), ohne Serie der Zyklus.
+Die Kurzkarte ist gestrichelt, solange der Zyklus gesperrt ist („Mehr dazu ›“), und bekommt
+einen „bereit!“-Stempel, sobald er möglich ist („Vorbereiten ›“). Die Baumwahl zeigt alle
+sichtbaren Hauptbäume (`isTreeVisible`) als Samentütchen mit Symbol-Sticker (der Renderer hat
+keine Baum-Sticker); gesperrte mit 🔒 und Hinweis. Stammgäste tragen den Tier-Sticker. Nach dem
+Start blättert die Seite zurück zu „Ziele“. `data-ref`: `daily`, `cycle-card`, `cycle-open`,
+`achievements-open`, `stats-open`; auf U:Neuer Zyklus wie bisher `new-cycle`, `tree-choice`,
+`regulars`, `forest-memory`, `cycle-gain`, `cycle-blocker`, `memory-rule`, `main-tree`, neu
+`cycle-sub`, `cycle-target`.
+
 ### B.5 Reiter „Landschaft“ – „Unsere Wälder“ · „🪶 3 Hähersaat“
 
 1. Frage, Hähersaat und Wildwechsel-Chance.
@@ -1004,14 +1014,21 @@ album.notify(text: string, options?: NotifyOptions): void;   // leerer Text: nic
 - Platz: mobil oben rechts neben dem Umschlag-Knopf, Desktop oben über der rechten Seite;
   steht eine Banderole im Bild, rückt die Schicht darunter (gemessen beim Zeigen und per
   ResizeObserver an den Banderolen, nie pro Frame). Klicks gehen durch, nur „×“ fängt sie.
-- Übergang bis Schritt 12: Ist ein alter Dialog mit eigenem Hinweisfeld offen (Tagebuch, Hilfe),
+- Übergang bis Schritt 12: Ist ein alter Dialog mit eigenem Hinweisfeld offen (Tagebuch),
   landet die Meldung dort, sonst verdeckte der modale Dialog den Stempel. Mit den Dialogen fällt
-  diese Weiche weg. Kartenwahl, Pflanzenwahl und Tierdetails sind seit Schritt 5/6 Unterseiten;
-  ihre Meldungen kommen als Stempel. Verdeckt mobil eine Unterseite das Polaroid, meldet
-  `overlayOpen()` das ebenfalls – main.ts sammelt die Hinweise dann in einem Stempel, und
-  schwebende Notizen über der Szene (`noteText`) werden zum Stempel (A.11 #121).
+  diese Weiche weg (die Hilfe seit Schritt 11). Kartenwahl, Pflanzenwahl und Tierdetails sind
+  seit Schritt 5/6 Unterseiten; ihre Meldungen kommen als Stempel. Verdeckt mobil eine Unterseite
+  das Polaroid, meldet `overlayOpen()` das ebenfalls – main.ts sammelt die Hinweise dann in einem
+  Stempel, und schwebende Notizen über der Szene (`noteText`) werden zum Stempel (A.11 #121).
 - e2e: `stamps(page)` ist die Schicht (für „enthält“), `stamp(page)` die neueste Meldung,
   `settledStamp(page)` dieselbe nach dem Hereinstempeln (für Lage und Größe).
+
+**Umschlag-Seiten** (Schritt 11): Der Umschlag öffnet `{ kind: 'guide' }` (Inhaltsverzeichnis),
+`settings`, `account` und `save`. Ein Kapitel ist `{ kind: 'guide', section }` auf Ebene 2 mit
+eigener Seite (`subpageKey` in `pages/registry.ts`); Weiterblättern zum Nachbarkapitel ersetzt
+die oberste Seite. Der Konto-Abschnitt kommt über `album.mountAccount(section)` (sync/account.ts
+über main.ts) und schaltet den Eintrag im Umschlag frei. Rückkehr: `album.showReturnReport(view)`
+zeigt den Zettel und stempelt die Kurzfassung, `hideReturnReport()` blendet ihn aus.
 
 **Banderole** (`album/banderole.ts`): `createBanderole({ tone: 'tape' | 'alert', ref, role, text,
 buttons })` hängt in `album.banners`. Gelb: Update-Hinweis (`pwa.ts`, `mount: album.banners`),

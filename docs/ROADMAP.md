@@ -463,10 +463,14 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
 
 **Welle 3 – Oberfläche, Waldtyp-Wetter, Messung**
 
-- [ ] **3a** Baumwahl mit fünf Arten (`ui-dev`, 25.6 Nr. 4): Karten für Weißtanne und
+- [x] **3a** Baumwahl mit fünf Arten (`ui-dev`, 25.6 Nr. 4): Karten für Weißtanne und
   Schwarzerle (vor der Landschaft verborgen, danach gesperrt mit Hinweis), Hauptbaum-Symbol in
   Karte und Tagebuch-Reiter „Landschaft“, Spielanleitung, Erfolge der Landschaft im Tagebuch.
-  Abhängig: 2a, 2b
+  Abhängig: 2a, 2b. *Umgesetzt im Album* (ALBUM_UI.md G.2 Nr. 1, Phase 8 Schritt 9): Baumwahl
+  als Samentütchen auf U:Neuer Zyklus (`album/pages/cycle-page.ts`) mit allen Arten aus
+  `isTreeVisible` und Sperre/Vorauswahl über `treeChoiceFor`; Symbol als Sticker (der Renderer
+  bietet noch keine Baum-Sticker). Symbol in Karte und Tagebuch, Anleitung und Sichtbarkeit der
+  Erfolge (`isAchievementVisible`, jetzt U:Erfolge) kamen schon mit 2a/2b
 - [ ] **3b** Waldtyp und Wetter – Design (`game-designer`): Gewichte der Wetterlagen je Standort
   als Daten (Bergmischwald mehr Neuschnee, Auwald mehr Landregen, Kiefernheide mehr Dürre,
   Erlenbruch mehr Nebel; offene Frage 24.13). **Warum:** Die Waldtypen unterscheiden sich heute
@@ -591,14 +595,35 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   Seiten-Schnittstelle: `PageEnv.open/float`, `TabPage.badge` (Punkt am Reiter, läuft immer),
   `Subpage.opened(ref)`; Unterseiten registrieren sich nur noch in `pages/registry.ts`.
   `care-panel.ts` und `bonus-panel.ts` samt CSS gelöscht. Neu: `e2e/album-care.spec.ts`.
-- [ ] **9** Reiter Ziele (`ui-dev`): Tagesziele, Unterseiten Neuer Zyklus, Erfolge, Statistik.
-  Specs daily, cycle, cycle-transition, achievements, journal-stats. Abhängig: 4
+- [x] **9** Reiter Ziele (`ui-dev`): Tagesziele, Unterseiten Neuer Zyklus, Erfolge, Statistik.
+  Specs daily, cycle, cycle-transition, achievements, journal-stats. Abhängig: 4.
+  *Umgesetzt:* `album/pages/goals-page.ts` (Tagesziele mit Washi-Kopf, Kurzkarte Zyklus mit
+  „bereit!“-Stempel, Link-Karten Erfolge/Statistik, Punkt am Reiter über `TabPage.badge`),
+  `cycle-page.ts` (alle Zeilen, Ziel-Wald, Baumwahl als Samentütchen – Phase 7, 3a –, Knopf mit
+  zweitem Klick, Stammgäste mit Tier-Stickern; nach dem Start zurück zu „Ziele“, Fokus auf die
+  Überschrift), `achievements-page.ts` (Sticker-Bogen), `stats-page.ts`; reine Ansichten in
+  `goals-view.ts` (+ Test). Gemeinsames Ziel `album/cycle-target.ts` (`albumTarget`, D.2) hält
+  die Karte der Landschaft, die bis Schritt 10 im Reiter „Landschaft“ hängt. Seiten werden nur
+  aktualisiert, solange sie oben liegen (`refreshPages` in `album/index.ts`: aktueller Reiter und oberste Unterseite, gedrosselt, sofort nach `invalidate` oder Seitenwechsel, `update(now, force)` für alle Seiten). Gelöscht:
+  `cycle-panel.ts`, `daily-panel.ts`, Reiter Erfolge/Statistik des Tagebuch-Dialogs samt CSS
 - [ ] **10** Reiter Landschaft (`ui-dev`): Karte, Unterseite Standort, Korridore, Wälder,
   gemeinsames Ziel mit dem Neuen Zyklus. Specs landscape, journal-landscape, wildwechsel.
   Abhängig: 9
-- [ ] **11** Umschlag und Zettel (`ui-dev`): Anleitung als Kapitel, Einstellungen, Konto,
+- [x] **11** Umschlag und Zettel (`ui-dev`): Anleitung als Kapitel, Einstellungen, Konto,
   Spielstand + Löschen, „Neu hier?“, Rückkehr-Zettel + Unterseite, Banderolen. Specs help,
-  sound, account, save-transfer, pwa, return-report. Abhängig: 4
+  sound, account, save-transfer, pwa, return-report. Abhängig: 4. *Umgesetzt:* Umschlag mit
+  eingeklebtem Titelschild und vier Papierstreifen (`album/cover.ts`), jeder blättert zu seiner
+  Unterseite: U:Anleitung als Inhaltsverzeichnis (Ebene 1) mit Kapitelseiten (Ebene 2,
+  `{ kind: 'guide', section }`, eigene Seite über `subpageKey`), „‹ Kapitel davor / nächstes
+  Kapitel ›“ ersetzt die oberste Seite; Inhalt und Sichtbarkeitsregel (Landschaft, Erfolge)
+  unverändert aus `guide-view.ts`. U:Einstellungen (`pages/settings-page.ts`), U:Konto
+  (`pages/account-page.ts`, `album.mountAccount`; Eintrag nur mit Sync-Adresse), U:Spielstand
+  mit Export/Import als Karteikarten und „Neu anfangen“. „Neu hier?“ ist eine Haftnotiz am
+  Umschlag-Knopf (`album/guide-hint.ts`, ohne Fokusraub). Rückkehr-Zettel „Während du weg
+  warst …“ mit „Details ›“ (U:Rückkehr-Bericht) und „Abheften“ (`album/return-report.ts`).
+  `initPreferences` liegt jetzt in `ui/preferences.ts`; `help.ts` und `return-report.ts` samt
+  CSS gelöscht, Hinweisfeld der Hilfe entfällt (Meldungen gehen als Stempel). Ebene 2 liegt in
+  derselben Ablage wie Ebene 1 (übereinander, die weggedrehte zählt nicht zur Höhe).
 - [ ] **12** Aufräumen (`ui-dev`): Altbauteile und altes CSS löschen, `index.html` neu, Album-Demo,
   DESIGN_V2.md 11 und README-Bilder. Abhängig: 5–11
 - [ ] **13** e2e-Abschluss (`qa-tester`): restliche Specs (smoke, playtest*-UI), neue

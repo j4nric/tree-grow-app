@@ -54,10 +54,6 @@ body:has(.album) {
   min-width: 0;
 }
 
-.album-head-start .help-hint {
-  margin-top: 0;
-}
-
 .album-cover-button {
   display: inline-flex;
   align-items: center;
@@ -121,6 +117,26 @@ body:has(.album) {
 
 .spread-sub[hidden] {
   display: none;
+}
+
+/* Ebene 2 liegt in derselben Ablage wie Ebene 1: Die weggedrehte bzw. gerade drehende Seite
+   liegt absolut über der anderen und zählt nicht zur Höhe (sonst stünde die obere darunter). */
+.spread-sub {
+  position: relative;
+}
+
+.album .spread-sub > .album-page.turned-away,
+.album .spread-sub > .album-page.turning {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.album .spread-sub > .album-page.turned-away {
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Weggedrehte Seite: unsichtbar, aber mit Layout (Scroll-Lage bleibt erhalten). */
@@ -348,11 +364,6 @@ html:has(.album[data-layout='single'] .note-stack:not([hidden])) {
     width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(560px + 2 * var(--paper-bleed-x)));
     align-self: center;
   }
-}
-
-/* Rückkehr-Bericht verborgen: kein leerer Platz auf der linken Seite */
-.album-return:not(:has(> .return-report:not([hidden]))) {
-  display: none;
 }
 
 /* Reiterseite füllt die rechte Seite (Seitenzahl unten) */

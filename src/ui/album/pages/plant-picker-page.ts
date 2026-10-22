@@ -23,12 +23,8 @@ import './encounter-page.css';
 /** Samenzeile höchstens so oft neu (sie ändert sich mit jedem Frame). */
 const SEEDS_REFRESH_MS = 200;
 
-export interface PlantPickerPage extends Subpage {
-  /** Liste neu bauen (nach einer Aktion, neuer Stufe, Zahlenformat). */
-  invalidate(): void;
-}
-
-export function createPlantPickerPage(env: PageEnv): PlantPickerPage {
+/** Liste neu nach einer Aktion, neuer Stufe usw. über `update(now, true)` (PageEnv-Schnittstelle). */
+export function createPlantPickerPage(env: PageEnv): Subpage {
   const deps = env.deps;
   const base = createPage({
     kind: 'plant-picker',
@@ -112,13 +108,11 @@ export function createPlantPickerPage(env: PageEnv): PlantPickerPage {
       offers.guard();
       refresh(performance.now());
     },
-    update(now) {
+    update(now, force) {
+      if (force) dirty = true;
       refresh(now);
     },
     reset() {
-      dirty = true;
-    },
-    invalidate() {
       dirty = true;
     },
   };

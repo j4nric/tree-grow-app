@@ -1,0 +1,150 @@
+/* Unterseite „Konto“ (account-page.ts mit dem Abschnitt aus account-panel.ts). */
+
+.account-page .account {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Die Seite heißt schon „Konto“: Titel des Abschnitts nur für Screenreader (aria-labelledby). */
+.account-page .account-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.account-text,
+.account-who,
+.account-sync {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* Kurze Erklärung als gelber Zettel */
+.account-page .account > .account-text {
+  padding: 10px 12px;
+  background: var(--note-bg);
+  box-shadow: var(--sh-slip);
+  transform: rotate(-0.5deg);
+}
+
+.account-who {
+  font-family: var(--font-hand);
+  font-size: 26px;
+  line-height: 1.1;
+  color: var(--ink-green);
+}
+
+.account-sync,
+.account-hint {
+  color: var(--ink-soft);
+}
+
+.account-hint {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.account-sync.tone-bad {
+  color: var(--ink-red);
+  font-weight: 800;
+}
+
+.account-form,
+.account-signed-in {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  min-width: 0;
+  padding: 12px 14px 14px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-label);
+  background: var(--paper);
+}
+
+.account-form .save-label {
+  width: 100%;
+}
+
+.account-form .save-label label {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.account-form[hidden],
+.account-signed-in[hidden],
+.account-text[hidden] {
+  display: none;
+}
+
+.account-input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--tap);
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 2px solid var(--rule);
+  border-radius: var(--r-button);
+  background: var(--photo);
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.account-input:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 1px;
+}
+
+.account-input[aria-invalid='true'] {
+  border-color: var(--ink-red);
+}
+
+.account-restore,
+.account-restore-choice,
+.account-stale {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.account-restore[hidden],
+.account-restore-choice[hidden],
+.account-stale[hidden] {
+  display: none;
+}
+
+.account-backups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-backup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 2px dotted var(--rule);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.account-backup-label {
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
+}

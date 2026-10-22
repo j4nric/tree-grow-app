@@ -1,6 +1,6 @@
 /**
- * Spielstand exportieren und importieren als Text-Code (Bereich „Spielstand“ unten in der
- * Seitenleiste, neben „Spielstand löschen“).
+ * Spielstand exportieren und importieren als Text-Code (Umschlag → Unterseite „Spielstand“,
+ * über „Spielstand löschen“; docs/ALBUM_UI.md, A.12 #131).
  *
  * Reine Darstellung: Den Code erzeugt bzw. prüft und lädt main.ts über core/save.ts
  * (`exportCode` / `importCode`). Überschreiben braucht einen zweiten Klick (kein confirm()).
@@ -52,9 +52,9 @@ export const IMPORT_ERROR_TEXTS: Readonly<Record<ImportError, string>> = {
 };
 
 export function createSaveTransfer(root: HTMLElement, callbacks: SaveTransferCallbacks): SaveTransfer {
-  const details = el('details', 'save-transfer');
-  details.dataset.ref = 'save-transfer';
-  const summary = el('summary', '', 'Spielstand exportieren oder importieren');
+  const box = el('section', 'save-transfer');
+  box.dataset.ref = 'save-transfer';
+  box.setAttribute('aria-label', 'Spielstand exportieren oder importieren');
 
   // Exportieren
   const exportBox = el('div', 'save-block');
@@ -100,8 +100,8 @@ export function createSaveTransfer(root: HTMLElement, callbacks: SaveTransferCal
   status.setAttribute('role', 'status');
   status.dataset.ref = 'save-status';
 
-  details.append(summary, exportBox, importBox, status);
-  root.prepend(details);
+  box.append(exportBox, importBox, status);
+  root.prepend(box);
 
   let armTimer: ReturnType<typeof setTimeout> | undefined;
   let armedAt = 0;
@@ -186,5 +186,5 @@ export function createSaveTransfer(root: HTMLElement, callbacks: SaveTransferCal
     exportButton.textContent = 'Code erzeugen';
   }
 
-  return { element: details, reset };
+  return { element: box, reset };
 }

@@ -19,7 +19,35 @@ export const SAVE_KEY = 'tree-grow-save';
  * Tagesziele sind in e2e-Tests aus (`window.__VSZW_DAILY__ = false`), sonst brächte das echte
  * Datum Ziele, Belohnungen und Hinweise in fremde Tests. Einschalten: `test.use({ daily: true })`.
  */
-export const test = base.extend<{ pageErrors: string[]; daily: boolean; dailySwitch: void; freshLegend: boolean; legendSwitch: void }>({
+export const test = base.extend<{
+  pageErrors: string[];
+  daily: boolean;
+  dailySwitch: void;
+  guideHint: boolean;
+  guideHintSwitch: void;
+  freshLegend: boolean;
+  legendSwitch: void;
+}>({
+  /**
+   * Haftnotiz „Neu hier?“ beim ersten Start (album/guide-hint.ts): Sie liegt als Notiz über dem
+   * Polaroid und gilt in fremden Tests als schon gesehen. Einschalten: `test.use({ guideHint: true })`.
+   */
+  guideHint: [false, { option: true }],
+  guideHintSwitch: [
+    async ({ context, guideHint }, use) => {
+      if (!guideHint) {
+        await context.addInitScript(() => {
+          try {
+            localStorage.setItem('tree-grow-guide-hint-seen', '1');
+          } catch {
+            // about:blank o. Ä. ohne Speicher
+          }
+        });
+      }
+      await use();
+    },
+    { auto: true },
+  ],
   daily: [false, { option: true }],
   dailySwitch: [
     async ({ context, daily }, use) => {
@@ -258,15 +286,32 @@ export async function openCover(page: Page): Promise<void> {
   await expect(cover(page)).not.toHaveClass(/cover-out/);
 }
 
-/** Umschlag → Unterseite „Spielstand“ (Export, Import, Spielstand löschen). */
-export async function openSavePage(page: Page): Promise<void> {
-  if (await subpage(page, 'save').isVisible()) return;
+/** Umschlag → Unterseite (Spielanleitung, Einstellungen, Konto, Spielstand), Umblättern abgewartet. */
+export async function openCoverPage(page: Page, kind: 'guide' | 'settings' | 'account' | 'save'): Promise<void> {
+  if (await subpage(page, kind).isVisible()) return;
   await openCover(page);
-  await page.locator('[data-ref="save-open"]').click();
-  await expect(subpage(page, 'save')).toBeVisible();
+  await page.locator(`[data-ref="${kind}-open"]`).click();
+  await expect(subpage(page, kind)).toBeVisible();
   // Umblättern abwarten (die Seite ist währenddessen nicht bedienbar).
-  await expect(subpage(page, 'save')).not.toHaveAttribute('inert', '');
+  await expect(subpage(page, kind)).not.toHaveAttribute('inert', '');
 }
+
+/**
+ * Reiter „Ziele“ → Unterseite „Neuer Zyklus“, „Erfolge“ oder „Statistik“ (docs/ALBUM_UI.md,
+ * B.4). Wartet, bis das Umblättern fertig ist (vorher ist die Seite nicht bedienbar).
+ */
+export async function openGoalsPage(page: Page, kind: 'cycle' | 'achievements' | 'stats'): Promise<Locator> {
+  const target = subpage(page, kind);
+  if (await target.isVisible()) return target;
+  await openTab(page, 'ziele');
+  await page.locator(`[data-ref="${kind}-open"]`).click();
+  await expect(target).toBeVisible();
+  await expect(target).not.toHaveAttribute('inert', '');
+  return target;
+}
+
+/** Umschlag → Unterseite „Spielstand“ (Export, Import, Spielstand löschen). */
+export const openSavePage = (page: Page) => openCoverPage(page, 'save');
 
 /** Zurück über das Lesezeichen der obersten Unterseite. */
 export async function back(page: Page): Promise<void> {

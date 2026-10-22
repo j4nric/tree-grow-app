@@ -8,18 +8,20 @@ import { YEAR_SECONDS } from '../src/content/seasons';
 import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, openGame, openStack, openTab, savedState, seedRaw, stack, stamps, test, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, openGame, openGoalsPage, openStack, openTab, savedState, seedRaw, stack, stamps, subpage, test, waypoint } from './fixtures';
 
 /**
- * Erfolge (DESIGN_V2.md 18): Reiter „Erfolge“ im Naturtagebuch, leiser Hinweis beim
- * Freischalten (auch bei offenem Tagebuch), Sammelhinweis nach der Migration v8 → v9 und
- * Mobilansicht. Die Testuhr steht still; Zeit vergeht nur über `page.clock`.
+ * Erfolge (DESIGN_V2.md 18): Unterseite „Erfolge“ im Reiter „Ziele“ (ALBUM_UI.md B.4), leiser
+ * Hinweis beim Freischalten (als Stempel, auch bei offener Seite), Sammelhinweis nach der
+ * Migration v8 → v9 und Mobilansicht. Die Testuhr steht still; Zeit vergeht nur über
+ * `page.clock`.
  */
 
 const START = new Date('2026-10-21T08:00:00Z');
-const journal = (page: Page) => page.locator('[data-ref="journal"]');
+const sheet = (page: Page) => subpage(page, 'achievements');
 const toast = (page: Page) => stamps(page);
-const achievement = (page: Page, id: string) => journal(page).locator(`[data-achievement="${id}"]`);
+const achievement = (page: Page, id: string) => sheet(page).locator(`[data-achievement="${id}"]`);
+const count = (page: Page) => sheet(page).locator('[data-ref="achievements-count"]');
 
 async function startClock(page: Page): Promise<void> {
   await page.clock.install({ time: START });
@@ -37,13 +39,7 @@ async function seedV8Grove(context: BrowserContext): Promise<void> {
   await seedRaw(context, { ...state, version: 8, meta }, 0);
 }
 
-async function openJournal(page: Page): Promise<void> {
-  await openTab(page, 'arten');
-  await page.locator('[data-ref="journal-open"]').click();
-  await expect(journal(page)).toBeVisible();
-}
-
-test('v8-Stand: ein Sammelhinweis, Reiter „Erfolge“ mit Zähler, erreichte und offene Kacheln', async ({ page, context }) => {
+test('v8-Stand: ein Sammelhinweis, Unterseite „Erfolge“ mit Zähler, erreichte und offene Kacheln', async ({ page, context }) => {
   await startClock(page);
   await seedV8Grove(context);
   await openGame(page);
@@ -57,16 +53,12 @@ test('v8-Stand: ein Sammelhinweis, Reiter „Erfolge“ mit Zähler, erreichte u
   expect(saved.meta.achievements).toEqual(expect.arrayContaining(['sapling', 'grove', 'visitor-1']));
   const unlocked = saved.meta.achievements.length as number;
 
-  await openJournal(page);
-  const tab = journal(page).getByRole('tab', { name: /Erfolge/ });
-  await expect(tab).toContainText(`${unlocked}/${VISIBLE}`);
-  // Per Tastatur: Ende → Statistik, einmal links → Erfolge.
-  await page.keyboard.press('End');
-  await page.keyboard.press('ArrowLeft');
-  await expect(tab).toBeFocused();
-  await expect(tab).toHaveAttribute('aria-selected', 'true');
-  const panel = journal(page).getByRole('tabpanel', { name: /Erfolge/ });
-  await expect(panel).toBeVisible();
+  // Link-Karte im Reiter „Ziele“ mit Zähler, dann die Unterseite (Fokus auf ihre Überschrift).
+  await openTab(page, 'ziele');
+  await expect(page.locator('[data-ref="achievements-open"]')).toContainText(`${unlocked}/${VISIBLE}`);
+  const panel = await openGoalsPage(page, 'achievements');
+  await expect(panel.getByRole('heading', { name: 'Erfolge', exact: true })).toBeFocused();
+  await expect(count(page)).toHaveText(`${unlocked}/${VISIBLE}`);
 
   const done = panel.getByRole('list', { name: 'Erreicht' });
   const open = panel.getByRole('list', { name: 'Noch offen' });
@@ -78,31 +70,31 @@ test('v8-Stand: ein Sammelhinweis, Reiter „Erfolge“ mit Zähler, erreichte u
   const species = achievement(page, 'species-5');
   await expect(species).toHaveAttribute('data-unlocked', 'false');
   await expect(species).toContainText('Erste Nachbarn');
-  await expect(species.locator('.journal-progress')).toHaveText('Fortschritt 3/5');
-  await expect(achievement(page, 'visitor-10').locator('.journal-progress')).toContainText('3/10');
+  await expect(species.locator('.ach-progress')).toHaveText('Fortschritt 3/5');
+  await expect(achievement(page, 'visitor-10').locator('.ach-progress')).toContainText('3/10');
   // Nichts Unentdecktes beim Namen.
   const html = await panel.evaluate((p) => p.textContent ?? '');
   for (const s of SPECIES.filter((x) => !['bluetit', 'earthworm', 'robin'].includes(x.id))) expect(html).not.toContain(s.name);
 });
 
-test('Freischalten beim Spielen: leiser Hinweis, bei offenem Tagebuch im Dialog', async ({ page, context }) => {
+test('Freischalten beim Spielen: leiser Hinweis als Stempel, Kachel wandert zu „Erreicht“', async ({ page, context }) => {
   await startClock(page);
   const state = createInitialState(START.getTime(), 777);
   state.cycle.elapsed = YEAR_SECONDS - 2; // 2 s vor dem ersten vollen Jahr
   await seedRaw(context, state, 0);
   await openGame(page);
-  await openJournal(page);
-  await journal(page).getByRole('tab', { name: /Erfolge/ }).click();
-  await expect(journal(page).getByRole('tab', { name: /Erfolge/ })).toContainText(`0/${VISIBLE}`);
-  await expect(journal(page).getByRole('tabpanel', { name: /Erfolge/ })).toContainText('Noch keine Erfolge');
+  await openGoalsPage(page, 'achievements');
+  await expect(count(page)).toHaveText(`0/${VISIBLE}`);
+  await expect(sheet(page)).toContainText('Noch keine Erfolge');
+  await expect(achievement(page, 'full-year')).toHaveAttribute('data-unlocked', 'false');
 
   await page.clock.runFor(3_000);
-  // Wie andere Hinweise: im offenen Dialog statt als Toast (gemeinsam mit der Jahreszeit).
-  const notice = journal(page).getByRole('status');
-  await expect(notice).toContainText('🏅 Erfolg: „Ein ganzes Jahr“');
-  await expect(notice).toContainText('Frühling');
+  // Gemeinsam mit der Jahreszeit in einem Hinweis (Stempelschicht).
+  await expect(toast(page)).toContainText('🏅 Erfolg: „Ein ganzes Jahr“');
+  await expect(toast(page)).toContainText('Frühling');
   await expect(achievement(page, 'full-year')).toHaveAttribute('data-unlocked', 'true');
-  await expect(journal(page).getByRole('tab', { name: /Erfolge/ })).toContainText(`1/${VISIBLE}`);
+  await expect(sheet(page).getByRole('list', { name: 'Erreicht' }).locator('[data-achievement="full-year"]')).toBeVisible();
+  await expect(count(page)).toHaveText(`1/${VISIBLE}`);
   const saved = await savedState(page);
   expect(saved.meta.achievements).toEqual(['full-year']);
 });
@@ -133,15 +125,14 @@ test('U:Begegnung mobil offen, Stapel voll, Wegpunkt mit Erfolg: beide Hinweise 
   expect((await savedState(page)).meta.achievements).toEqual(['sapling']);
 });
 
-test('Offenes Tagebuch: Fortschritt der Zeit-Erfolge läuft mit', async ({ page, context }) => {
+test('Offene Seite: Fortschritt der Zeit-Erfolge läuft mit', async ({ page, context }) => {
   await startClock(page);
   const state = createInitialState(START.getTime(), 778);
   state.cycle.elapsed = 118; // knapp 2 Min. von 12 Min. (ein Jahr)
   await seedRaw(context, state, 0);
   await openGame(page);
-  await openJournal(page);
-  await journal(page).getByRole('tab', { name: /Erfolge/ }).click();
-  const progress = achievement(page, 'full-year').locator('.journal-progress');
+  await openGoalsPage(page, 'achievements');
+  const progress = achievement(page, 'full-year').locator('.ach-progress');
   const before = await progress.textContent();
   expect(before).toContain('1 Min.');
   // Kachel bleibt dieselbe (kein Neubau), nur der Text ändert sich.
@@ -156,19 +147,18 @@ for (const width of [360, 390]) {
   test.describe(`Mobil (${width} px)`, () => {
     test.use({ viewport: { width, height: 800 }, isMobile: true, hasTouch: true });
 
-    test('Reiter „Erfolge“ ohne horizontales Scrollen', async ({ page, context }) => {
+    test('Unterseite „Erfolge“ ohne horizontales Scrollen', async ({ page, context }) => {
       await startClock(page);
       await seedV8Grove(context);
       await openGame(page);
-      await openJournal(page);
-      await journal(page).getByRole('tab', { name: /Erfolge/ }).tap();
-      await expect(journal(page).getByRole('tabpanel', { name: /Erfolge/ })).toBeVisible();
+      await openGoalsPage(page, 'achievements');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-      expect(await journal(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
-      for (const box of await journal(page).getByRole('tab').evaluateAll((tabs) => tabs.map((t) => t.getBoundingClientRect().toJSON()))) {
-        expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(await sheet(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
+      for (const box of await sheet(page).locator('[data-achievement]').evaluateAll((tiles) => tiles.map((t) => t.getBoundingClientRect().toJSON()))) {
         expect(box.right).toBeLessThanOrEqual(width);
       }
+      const bookmark = (await sheet(page).locator('[data-ref="bookmark"]').boundingBox())!;
+      expect(bookmark.height).toBeGreaterThanOrEqual(44);
     });
   });
 }
