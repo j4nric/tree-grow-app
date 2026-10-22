@@ -110,7 +110,9 @@ describe('Wetter-Abzeichen', () => {
     const state = stateOnWeather('storm', GROVE);
     state.cycle.care = { 'light-crown': 1 };
     const view = toWeatherBadgeView(state);
-    expect(view.text).toBe('🌬️ Sturm · −4 % 🌿 · +25 % 🌰');
+    expect(view.text).toBe('🌬️ Sturm · −3,8 % 🌿 · +25 % 🌰');
+    // Abzeichen und Erklärung runden gleich.
+    expect(view.effects).toContain('−3,8 % 🌿');
     expect(view.damping).toBe('Abzug gedämpft: Vielfalt −50 % (5 Gattungen), Lichte Krone −50 %.');
     expect(view.tip).toBeNull();
   });
