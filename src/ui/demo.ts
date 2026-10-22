@@ -72,6 +72,7 @@ function ecosystem(t: number): EcosystemView {
       { id: 'roots', icon: '🪱', label: 'Wurzelraum', capacity: 3, animals: [animals.regenwurm] },
       { id: 'meadow', icon: '🌾', label: 'Lichtung', capacity: 0, animals: [], unlockHint: 'öffnet sich bei Windwurf' },
     ],
+    night: { growth: ['Waldkauz'], seeds: [] },
     communities: {
       activeCount: 1,
       harmony: 8,

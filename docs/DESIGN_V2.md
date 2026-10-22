@@ -4532,7 +4532,10 @@ Abschnitt „Tagesziele“.
 
 ## 21. Wetter und Nachtarten
 
-> **Stand:** Logik umgesetzt (Phase 6, Welle 2); Grafik und Anzeige folgen (21.8). Daten in
+> **Stand:** Logik und Anzeige umgesetzt (Phase 6, Welle 2); die Grafik folgt (21.8). Anzeige
+> in `src/ui/weather-view.ts` (View-Model: Abzeichen, gemeinsamer Hinweis, 🌙, Schutz, „Wetter
+> gemittelt“) und `src/ui/weather-badge.ts` (Abzeichen mit Erklärung), Tests in
+> `tests/weather-view.test.ts` und `e2e/weather.spec.ts`. Daten in
 > `src/content/weather.ts` (Wetterlagen) und `src/content/daytime.ts` (`NOCTURNAL`,
 > Nachtgrenzen), Logik in `src/core/weather.ts`, `evaluate` (`core/formulas.ts`) und `tick`
 > (`core/tick.ts`), Tests in `tests/weather.test.ts` (Daten) und `tests/weather-core.test.ts`
