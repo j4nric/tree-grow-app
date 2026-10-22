@@ -48,6 +48,7 @@ import {
   rarityKey,
 } from './adapters';
 import { formatNumber } from './format';
+import { detailPredationViews } from './food-web-view';
 import { formatPercent } from './view-format';
 import type {
   AnimalDetailView,
@@ -75,7 +76,7 @@ function points(fraction: number): string {
   return `${value < 0 ? '−' : '+'}${formatNumber(Math.abs(value))} Prozentpunkte`;
 }
 
-/** Futterzeile: wie viel gedeckt ist und mit wem die Art es teilt. */
+/** Futterzeile: wie viel gedeckt ist und mit wem die Art es teilt (Beute der Jäger: Abschnitt „Räuber und Beute“). */
 function foodCondition(sp: Species, status: AnimalStatus | undefined, present: readonly string[]): ConditionView {
   const food = status?.food ?? 0;
   const row: ConditionView = { label: foodLabel(sp), met: food > 0 };
@@ -300,6 +301,7 @@ export function toAnimalDetailView(
     contributionNote: contributionNote(state, sp, niches),
     conditions,
     factors: factorViews(state, sp, status, now),
+    predation: detailPredationViews(sp, status, now, state),
     effects,
     abilities,
     communities: communityViews(state, sp, now),
