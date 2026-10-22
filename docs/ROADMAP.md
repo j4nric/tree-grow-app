@@ -325,7 +325,10 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     `Evaluation.foodWeb`; `tests/predation.test.ts`, Messung 22.9
   - [x] Wetter → Ereignis-Gewichte (`core-engineer`, 22.8 Schritt C): `eventWeight`,
     Wetter des Tages auch offline
-  - [ ] Nahrungsnetz und Bestand in Übersicht und Tierdetails (`ui-dev`, 22.7)
+  - [x] Nahrungsnetz und Bestand in Übersicht und Tierdetails (`ui-dev`, 22.7): Nahrungsnetz
+    (aufklappbar) in der Übersicht, Bestand an Kacheln und Karten, Abschnitt „Räuber und
+    Beute“ in den Tierdetails, Spielanleitung; `src/ui/food-web-view.ts`,
+    `tests/food-web-view.test.ts`, `e2e/food-web.spec.ts`
   - [ ] Balancing prüfen (`game-designer`): Urwald-Gewinn des Harmonie-Spielers liegt mit
     Räuber und Beute bei 94,9 (Grenze < 95 in `balance-restart.test.ts`, vorher 87–88) –
     `MEMORY_HARMONY_RULES` ggf. nachziehen (DESIGN_V2.md 15.4, „Stand Räuber und Beute“);

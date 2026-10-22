@@ -259,7 +259,12 @@ describe('toEncounterView', () => {
 
     const withFood = withEncounter(['oakmoth'], ['bluetit']);
     const fed = toEncounterView(withFood, 0)!.cards[0]!;
-    expect(fed.conditions![0]).toEqual({ label: '🍽 Raupen / Insekten', met: true });
+    // Jäger: wie es um die Beute steht (Nahrungsnetz nach dem Einzug, DESIGN_V2.md 22.7).
+    expect(fed.conditions![0]).toEqual({
+      label: '🍽 Raupen / Insekten',
+      met: true,
+      hint: 'Raupen: reicht für 1 Jäger · Insekten: reicht für 1 Jäger',
+    });
   });
 
   it('volle Nische: Ersetzen-Optionen mit eigener Vorschau', () => {

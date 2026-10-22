@@ -63,6 +63,7 @@ import {
   type AnimalStatus,
   type ChoiceError,
   type Evaluation,
+  type FoodWebEntry,
 } from '../core/formulas';
 import { allAnimals, type GameState } from '../core/state';
 import { achievementCountText, toJournalAchievements } from './achievement-view';
@@ -87,6 +88,7 @@ import {
   type OfflineReport,
 } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
+import { animalStock, foodWebView, huntFoodText, overhuntNotes, preyIcon, stockEffectView } from './food-web-view';
 import { memoryBonusLabel, treeLabel } from './cycle-view';
 import { RARITY_LABELS, formatSigned, formatSignedPercent, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
@@ -222,7 +224,7 @@ function conditionIcon(condition: Condition): string {
     case 'genus':
       return GENUS_INFO[condition.genus].icon;
     case 'unhunted':
-      return TAG_ICONS[condition.tag] ?? '🐾';
+      return preyIcon(condition.tag);
   }
 }
 
@@ -240,6 +242,7 @@ export function conditionViews(
   species: Species,
   status: AnimalStatus | undefined,
   present: readonly string[] = [],
+  foodWeb?: readonly FoodWebEntry[],
 ): ConditionView[] {
   const food = status?.food ?? 0;
   const foodRow: ConditionView = { label: foodLabel(species), met: food > 0 };
@@ -247,6 +250,10 @@ export function conditionViews(
     foodRow.label += ' (knapp)';
     foodRow.hint = scarceFoodText(species, present);
   }
+  // Jäger: wie es um die Beute steht (Nahrungsnetz, DESIGN_V2.md 22.7), z. B.
+  // „Kleinsäuger: Bestand gut für 2 Jäger“.
+  const hunt = foodWeb ? huntFoodText(species.id, foodWeb) : '';
+  if (hunt) foodRow.hint = foodRow.hint ? `${foodRow.hint} · ${hunt}` : hunt;
   const conditions: ConditionView[] = [foodRow];
   species.needs.forEach((need, i) => {
     conditions.push({ label: `${conditionIcon(need)} ${conditionName(need)}`, met: status?.needs[i] ?? false });
@@ -460,6 +467,9 @@ export function animalView(
   // Nachtarten (DESIGN_V2.md 21.6): 🌙 an der Kachel, leuchtet, solange die Nachtwirkung gilt.
   const night = nightBadge(sp.id, moment?.season, moment?.night ?? false, status?.happiness ?? 0);
   if (night) view.night = night;
+  // Beute im Wald: Bestand in Worten (DESIGN_V2.md 22.7).
+  const stock = animalStock(sp.id, evaluation);
+  if (stock) view.stock = stock;
   return view;
 }
 
@@ -568,6 +578,7 @@ export function toEcosystemView(state: GameState, evaluation: Readonly<Evaluatio
     niches: nicheViews(state, evaluation),
     plantRing: plantRingView(state, evaluation),
     communities: communityListView(evaluation, state.meta.journal.communities),
+    foodWeb: foodWebView(evaluation, state),
     night: activeNightSpecies(state, happinessFrom(evaluation)),
   };
   refreshEcosystemView(view, state);
@@ -1141,6 +1152,7 @@ export function toCardView(
           sp,
           result.animals[sp.id],
           allAnimals(state).filter((id) => id !== occupant),
+          result.foodWeb,
         );
       } else {
         option.disabledReason = REPLACE_BLOCKED;
@@ -1169,8 +1181,9 @@ export function toCardView(
       sp,
       after?.animals[sp.id],
       allAnimals(state).filter((id) => id !== afterReplaced),
+      after?.foodWeb,
     ),
-    effects: effectViews(sp),
+    effects: [...effectViews(sp), ...predationEffects(sp, now, after, state.meta.journal, status === 'present')],
     preview,
     flavor: sp.text,
   };
@@ -1182,6 +1195,26 @@ export function toCardView(
   const reason = blockedFree ? 'Gerade nicht möglich' : noSwap ? 'Kein Tausch möglich' : DISABLED_REASONS[status];
   if (reason) card.disabledReason = reason;
   return card;
+}
+
+/**
+ * Räuber und Beute auf der Tierkarte (DESIGN_V2.md 22.7), gerechnet mit dem Wald nach
+ * dem Einzug: Beute zeigt ihren Bestand und wen sie ernährt, ein Jäger einen freundlichen
+ * Hinweis, wenn er eine Beute überjagen würde. Ohne Vorschau (`after`) nichts.
+ */
+function predationEffects(
+  sp: Species,
+  now: Readonly<Evaluation>,
+  after: Readonly<Evaluation> | null,
+  journal: EncounterJournal,
+  present: boolean,
+): EffectView[] {
+  if (!after) return [];
+  const out: EffectView[] = [];
+  const stock = stockEffectView(sp, after, journal);
+  if (stock) out.push(stock);
+  if (!present) out.push(...overhuntNotes(sp.id, now, after));
+  return out;
 }
 
 /** Überschrift je Nische; bei gemischten Nischen eine allgemeine. */
