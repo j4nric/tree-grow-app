@@ -220,6 +220,20 @@ export async function openSavePage(page: Page): Promise<void> {
   await expect(subpage(page, 'save')).not.toHaveAttribute('inert', '');
 }
 
+/**
+ * Reiter „Ziele“ → Unterseite „Neuer Zyklus“, „Erfolge“ oder „Statistik“ (docs/ALBUM_UI.md,
+ * B.4). Wartet, bis das Umblättern fertig ist (vorher ist die Seite nicht bedienbar).
+ */
+export async function openGoalsPage(page: Page, kind: 'cycle' | 'achievements' | 'stats'): Promise<Locator> {
+  const target = subpage(page, kind);
+  if (await target.isVisible()) return target;
+  await openTab(page, 'ziele');
+  await page.locator(`[data-ref="${kind}-open"]`).click();
+  await expect(target).toBeVisible();
+  await expect(target).not.toHaveAttribute('inert', '');
+  return target;
+}
+
 /** Zurück über das Lesezeichen der obersten Unterseite. */
 export async function back(page: Page): Promise<void> {
   await page.locator('[data-ref="bookmark"]:visible').click();

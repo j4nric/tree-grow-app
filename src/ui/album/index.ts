@@ -22,6 +22,7 @@ import type { EcosystemView } from '../view-model';
 import { nightRateText } from '../weather-view';
 import { createBook } from './book';
 import { createCover } from './cover';
+import { createAlbumTarget } from './cycle-target';
 import { createBanderole } from './banderole';
 import { createFullscreen } from './fullscreen';
 import { createAlbumHistory } from './history';
@@ -43,6 +44,7 @@ import {
   type TabId,
 } from './nav';
 import { TURNED_AWAY, createPageTurn } from './page-turn';
+import type { CyclePage } from './pages/cycle-page';
 import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage } from './pages/registry';
 import { createPolaroid } from './polaroid';
 import { createSpread } from './spread';
@@ -75,6 +77,8 @@ export interface Album extends LegacyUi {
   showSceneAnimal(target: AnimalDetailTarget): void;
   /** Dauerhafter Hinweis: Im Speicher liegt ein Stand einer neueren Spielversion. */
   showNewerSaveBanner(text: string): void;
+  /** Nach dem Neuen Zyklus: zurück zu „Ziele“, Fokus auf die Überschrift (der Knopf ist weg). */
+  focusCycle(): void;
   /** Aktueller Navigationszustand (nur lesen; für Tests und Fehlersuche). */
   readonly nav: Readonly<AlbumNav>;
 }
@@ -96,7 +100,14 @@ export function createAlbum(deps: AlbumDeps): Album {
     onOpenSave: () => dispatch({ type: 'open', page: { kind: 'save' } }),
   });
   const book = createBook(spread, cover.element, () => dispatch({ type: 'cover', open: !nav.cover }));
-  const env: PageEnv = { deps, back: () => goBack() };
+  // Ziel des nächsten Zyklus: Karte der Landschaft ↔ U:Neuer Zyklus (D.2).
+  const albumTarget = createAlbumTarget((id) => deps.actions.buildCorridor(id));
+  const env: PageEnv = {
+    deps,
+    back: () => goBack(),
+    open: (page) => dispatch({ type: 'open', page }),
+    albumTarget,
+  };
 
   // Linke Seite: Polaroid, Etiketten, Stufenleiste, Rückkehr-Bericht.
   const polaroid = createPolaroid(deps.canvas, () => dispatch({ type: 'fullscreen', open: true }));
@@ -138,6 +149,10 @@ export function createAlbum(deps: AlbumDeps): Album {
   const subpages = new Map<string, Subpage>();
   const savePage = SUBPAGES.save(env);
   subpages.set('save', savePage);
+  const cyclePage: CyclePage = SUBPAGES.cycle(env);
+  subpages.set('cycle', cyclePage);
+  subpages.set('achievements', SUBPAGES.achievements(env));
+  subpages.set('stats', SUBPAGES.stats(env));
   for (const sub of subpages.values()) {
     sub.page.element.hidden = true;
     spread.sub.append(sub.page.element);
@@ -159,6 +174,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       season: polaroid.season,
       photo: polaroid.stamps,
       returnReport: returnMount,
+      albumTarget,
       coverMenu: cover.menu,
       hint: book.headStart,
       coverButton: book.coverButton,
@@ -433,6 +449,8 @@ export function createAlbum(deps: AlbumDeps): Album {
   }
 
   function showTab(tab: TabId): void {
+    // Gleich befüllen (auch wenn der Game Loop gerade steht, z. B. mit angehaltener Testuhr).
+    queueMicrotask(() => refreshPages(performance.now()));
     tabStrip.select(tab);
     for (const id of TAB_IDS) {
       const page = tabs[id].page.element;
@@ -483,9 +501,46 @@ export function createAlbum(deps: AlbumDeps): Album {
     }
   }
 
+  // --- Seiten aktualisieren (D.1: nur die sichtbare) ------------------------------------
+
+  /** Spielstand geändert oder andere Seite gezeigt: sichtbare Seite sofort (ungedrosselt) nachziehen. */
+  let pagesDirty = true;
+  let shownPage: object | null = null;
+
+  function refreshPages(now: number): void {
+    for (const id of TAB_IDS) {
+      const dot = tabs[id].dot;
+      if (dot) tabStrip.setDot(id, dot());
+    }
+    const top = nav.stack[nav.stack.length - 1];
+    const visible = top ? subpageOf(top) : nav.cover ? undefined : tabs[nav.tab];
+    const force = pagesDirty || visible !== shownPage;
+    pagesDirty = false;
+    shownPage = visible ?? null;
+    visible?.update?.(now, force);
+  }
+
   // --- Schnittstelle für main.ts ---------------------------------------------------------
   return {
     ...legacy,
+    refresh(now) {
+      legacy.refresh(now);
+      refreshPages(now);
+    },
+    invalidate(parts) {
+      legacy.invalidate(parts);
+      pagesDirty = true;
+    },
+    focusCycle() {
+      if (nav.stack.some((p) => p.kind === 'cycle')) {
+        // Zurück zu „Ziele“; danach Fokus auf deren Überschrift statt auf „Vorbereiten ›“.
+        triggers.length = 0;
+        goBackTo((n) => n.stack.length === 0);
+        whenIdle(() => tabs[nav.tab].page.focusTitle());
+      } else if (!nav.cover) {
+        tabs[nav.tab].page.focusTitle();
+      }
+    },
     sceneFrame: fullscreen.tools,
     banners: book.banners,
     get nav() {
@@ -504,11 +559,16 @@ export function createAlbum(deps: AlbumDeps): Album {
     replaced() {
       legacy.replaced();
       closeNotes();
-      savePage.reset?.();
+      albumTarget.disarm();
+      for (const sub of subpages.values()) sub.reset?.();
+      pagesDirty = true;
     },
     adopted(headChanged) {
       legacy.adopted(headChanged);
+      albumTarget.disarm();
       savePage.disarm();
+      cyclePage.disarm();
+      pagesDirty = true;
     },
     showNewerSaveBanner(text) {
       if (book.banners.querySelector('[data-ref="newer-save-banner"]')) return;

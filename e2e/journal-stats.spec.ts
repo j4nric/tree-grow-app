@@ -1,15 +1,17 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { SEASON_SECONDS, YEAR_SECONDS } from '../src/content/seasons';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, openGame, openTab, savedState, seedRaw, test, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, openGame, openGoalsPage, openTab, savedState, seedRaw, subpage, test, waypoint } from './fixtures';
 
 /**
- * Naturtagebuch, Reiter „Statistik“ (Kennzahlen aus dem Spielstand) und „Andenken“
- * (Hauptbaum-Arten: freigeschaltet, gesperrt mit Hinweis, aktuelle Art markiert).
+ * Unterseite „Statistik“ im Reiter „Ziele“ (Kennzahlen aus dem Spielstand, ALBUM_UI.md B.4)
+ * und Naturtagebuch, Reiter „Andenken“ (Hauptbaum-Arten: freigeschaltet, gesperrt mit
+ * Hinweis, aktuelle Art markiert).
  */
 
 const journal = (page: Page) => page.locator('[data-ref="journal"]');
-const stat = (page: Page, key: string) => journal(page).locator(`[data-stat="${key}"]`);
+const statsPage = (page: Page) => subpage(page, 'stats');
+const stat = (page: Page, key: string) => statsPage(page).locator(`[data-stat="${key}"]`);
 
 /** Zweiter Zyklus, Waldkiefer als Hauptbaum (freigeschaltet), Junger Baum, ein Stammgast. */
 async function seedSecondCycle(context: BrowserContext): Promise<void> {
@@ -43,16 +45,15 @@ test('Statistik: per Tastatur erreichbar, Kennzahlen aus dem Spielstand, Samen l
 }) => {
   await seedSecondCycle(context);
   await openGame(page);
-  await openJournal(page);
-
-  // Reiter per Tastatur: Ende → Statistik (letzter Reiter).
-  await expect(journal(page).getByRole('tab', { name: /Arten/ })).toBeFocused();
-  await page.keyboard.press('End');
-  const tab = journal(page).getByRole('tab', { name: 'Statistik' });
-  await expect(tab).toBeFocused();
-  await expect(tab).toHaveAttribute('aria-selected', 'true');
-  const panel = journal(page).getByRole('tabpanel', { name: 'Statistik' });
+  await openTab(page, 'ziele');
+  // Link-Karte per Tastatur: Fokus auf die Karte, Enter blättert um.
+  const link = page.locator('[data-ref="stats-open"]');
+  await expect(link).toContainText('Zyklus 2 · 1 Std. 2 Min. gespielt');
+  await link.focus();
+  await page.keyboard.press('Enter');
+  const panel = statsPage(page);
   await expect(panel).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Statistik', exact: true })).toBeFocused();
 
   await expect(stat(page, 'cycle')).toContainText('Zyklus');
   await expect(stat(page, 'cycle')).toContainText('1 Zyklus abgeschlossen');
@@ -76,8 +77,8 @@ test('Statistik: per Tastatur erreichbar, Kennzahlen aus dem Spielstand, Samen l
   await expect(total.locator('[data-stat="total-trees"]')).toContainText('Stieleiche, Waldkiefer');
   await expect(panel.locator('[data-ref="journal-stats"] [data-stat^="total-"]')).toHaveCount(0);
 
-  // Samen wachsen weiter – die Zahl im offenen Dialog läuft mit (ohne Neubau der Zeilen).
-  const seeds = stat(page, 'seeds').locator('.journal-stat-number');
+  // Samen wachsen weiter – die Zahl auf der offenen Seite läuft mit (ohne Neubau der Zeilen).
+  const seeds = stat(page, 'seeds').locator('.stat-number');
   const before = await seeds.textContent();
   await seeds.evaluate((e) => e.setAttribute('data-e2e-marker', '1'));
   await expect(seeds).not.toHaveText(before ?? '', { timeout: 5000 });
@@ -98,8 +99,7 @@ test('Alter Spielstand (v7, ohne Statistik): Über alle Zyklen beginnt beim lauf
   expect(saved.version).toBe(SAVE_VERSION);
   expect(saved.meta.stats).toMatchObject({ cardsChosen: 0, grownTrees: ['oak'] });
   expect(saved.meta.stats.playSeconds).toBeGreaterThanOrEqual(2 * YEAR_SECONDS);
-  await openJournal(page);
-  await journal(page).getByRole('tab', { name: 'Statistik' }).click();
+  await openGoalsPage(page, 'stats');
   await expect(stat(page, 'total-time')).toContainText('24 Min.');
   await expect(stat(page, 'total-cards')).toContainText('0');
   await expect(stat(page, 'total-trees')).toContainText('Stieleiche');
@@ -153,14 +153,17 @@ for (const width of [360, 390]) {
     test('Statistik und Andenken ohne horizontales Scrollen', async ({ page, context }) => {
       await seedSecondCycle(context);
       await openGame(page);
-      await openJournal(page);
       const noScroll = () =>
         page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
-      for (const name of [/Statistik/, /Andenken/]) {
-        await journal(page).getByRole('tab', { name }).tap();
-        expect(await noScroll()).toBe(true);
-        expect(await journal(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
-      }
+      await openGoalsPage(page, 'stats');
+      expect(await noScroll()).toBe(true);
+      expect(await statsPage(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
+      await page.locator('[data-ref="bookmark"]:visible').tap();
+      await expect(statsPage(page)).toBeHidden();
+      await openJournal(page);
+      await journal(page).getByRole('tab', { name: /Andenken/ }).tap();
+      expect(await noScroll()).toBe(true);
+      expect(await journal(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
       // Die Reiter scrollen in ihrer eigenen Leiste (nicht die Seite); alle bleiben 44 px hoch.
       for (const box of await journal(page).getByRole('tab').evaluateAll((tabs) => tabs.map((t) => t.getBoundingClientRect().toJSON()))) {
         expect(box.height).toBeGreaterThanOrEqual(44);

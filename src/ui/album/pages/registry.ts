@@ -3,7 +3,8 @@
  * Zeile** hier. Spätere Schritte tauschen ihre Seite aus bzw. tragen ihre Unterseite ein,
  * ohne `album/index.ts` zu ändern.
  */
-import type { TabId, PageKind } from '../nav';
+import type { TabId, PageKind, PageRef } from '../nav';
+import type { AlbumTarget } from '../cycle-target';
 import type { Bookmark } from '../bookmark';
 import type { Page } from '../page';
 import type { AlbumDeps } from '../types';
@@ -13,18 +14,28 @@ import { createCarePage } from './care-page';
 import { createGoalsPage } from './goals-page';
 import { createLandscapePage } from './landscape-page';
 import { createSavePage } from './save-page';
+import { createCyclePage } from './cycle-page';
+import { createAchievementsPage } from './achievements-page';
+import { createStatsPage } from './stats-page';
 
 /** Was eine Seite vom Album bekommt. */
 export interface PageEnv {
   readonly deps: AlbumDeps;
   /** Eine Ebene zurück (über den Verlauf). */
   back(): void;
+  /** Unterseite aufschlagen (Umblättern). */
+  open(page: PageRef): void;
+  /** Ziel des nächsten Zyklus in der Landschaft (D.2 `albumTarget`). */
+  readonly albumTarget: AlbumTarget;
 }
 
 /** Reiterseite (Ebene 0). `update` läuft nur, solange sie sichtbar ist. */
 export interface TabPage {
   readonly page: Page;
-  update?(now: number): void;
+  /** `force`: sofort (Spielstand geändert, Seite neu gezeigt) statt gedrosselt. */
+  update?(now: number, force?: boolean): void;
+  /** Punkt am Reiter („hier gibt es etwas“); läuft jeden Frame, auch verborgen – nur billig rechnen. */
+  dot?(): boolean;
 }
 
 /** Unterseite (Ebene 1–2): eigenes Lesezeichen, je Art einmal gebaut. */
@@ -33,7 +44,8 @@ export interface Subpage {
   readonly bookmark: Bookmark;
   /** Wird beim Öffnen gerufen (Inhalt füllen). */
   opened?(): void;
-  update?(now: number): void;
+  /** `force`: sofort (Spielstand geändert) statt gedrosselt. */
+  update?(now: number, force?: boolean): void;
   /** Nach Löschen oder Import des Spielstands: offene Bestätigungen zurücknehmen. */
   reset?(): void;
 }
@@ -48,6 +60,9 @@ export const TAB_PAGES = {
 
 export const SUBPAGES = {
   save: createSavePage,
+  cycle: createCyclePage,
+  achievements: createAchievementsPage,
+  stats: createStatsPage,
 } satisfies Partial<Record<PageKind, (env: PageEnv) => Subpage>>;
 
 export type SubpageKind = keyof typeof SUBPAGES;

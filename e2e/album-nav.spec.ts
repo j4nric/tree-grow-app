@@ -92,7 +92,7 @@ for (const viewport of [
     test('Doppelklick aufs Lesezeichen geht nur eine Ebene zurück', async ({ page }) => {
       await openGame(page);
       await openSavePage(page);
-      await page.locator('[data-ref="bookmark"]').dblclick();
+      await page.locator('[data-ref="bookmark"]:visible').dblclick();
       await page.waitForTimeout(900);
       await expect(cover(page)).toBeVisible();
       await expect(subpage(page, 'save')).toBeHidden();
@@ -122,7 +122,7 @@ test('Layoutwechsel bei offener Unterseite: sichtbar, bedienbar, Zurück geht', 
     await save.locator('[data-ref="save-transfer"] summary').click();
   }
 
-  await page.locator('[data-ref="bookmark"]').click();
+  await page.locator('[data-ref="bookmark"]:visible').click();
   await expect(save).toBeHidden();
   await expect(cover(page)).toBeVisible();
   await expectFlat(page);

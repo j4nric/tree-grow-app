@@ -58,11 +58,11 @@ test('vor der Freischaltung: kein Reiter „Landschaft“, Pfeiltasten überspri
   const html = await journal(page).evaluate((d) => d.outerHTML);
   expect(html).not.toContain('Auwald');
   expect(html).not.toContain('🪶');
-  // Von „Erfolge“ mit → direkt zu „Statistik“.
-  await journal(page).getByRole('tab', { name: /Erfolge/ }).click();
+  // Von „Andenken“ mit → wieder vorn zu „Arten“ (Landschaft übersprungen).
+  await journal(page).getByRole('tab', { name: /Andenken/ }).click();
   await page.keyboard.press('ArrowRight');
-  await expect(journal(page).getByRole('tab', { name: /Statistik/ })).toBeFocused();
-  await expect(journal(page).getByRole('tab', { name: /Statistik/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(journal(page).getByRole('tab', { name: /Arten/ })).toBeFocused();
+  await expect(journal(page).getByRole('tab', { name: /Arten/ })).toHaveAttribute('aria-selected', 'true');
 });
 
 test('nach der Freischaltung: Wälder, Korridore und Hähersaat im Reiter', async ({ page, context }) => {
@@ -70,8 +70,8 @@ test('nach der Freischaltung: Wälder, Korridore und Hähersaat im Reiter', asyn
   const tab = journal(page).getByRole('tab', { name: /Landschaft/ });
   await expect(tab).toBeVisible();
   await expect(tab).toContainText('2/6');
-  // Tastatur: von „Erfolge“ mit → zur Landschaft.
-  await journal(page).getByRole('tab', { name: /Erfolge/ }).click();
+  // Tastatur: von „Andenken“ mit → zur Landschaft.
+  await journal(page).getByRole('tab', { name: /Andenken/ }).click();
   await page.keyboard.press('ArrowRight');
   await expect(tab).toBeFocused();
   await expect(tab).toHaveAttribute('aria-selected', 'true');

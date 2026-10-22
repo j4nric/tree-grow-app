@@ -20,20 +20,14 @@ import {
   toCareViews,
   toEcosystemView,
   toEncounterView,
-  toJournalStats,
   toJournalView,
   toPlantPickerView,
   type StageBannerView,
 } from '../adapters';
-import { toAchievementTimeProgress } from '../achievement-view';
 import { createAnimalDetailDialog } from '../animal-detail-dialog';
 import { toAnimalDetailView, type AnimalDetailTarget } from '../animal-detail-view';
 import { createBonusPanel } from '../bonus-panel';
 import { createCarePanel } from '../care-panel';
-import { createCyclePanel } from '../cycle-panel';
-import { toCyclePanelView } from '../cycle-view';
-import { createDailyPanel } from '../daily-panel';
-import { toDailyView } from '../daily-view';
 import { createEcosystemPanel } from '../ecosystem-panel';
 import { createEncounterDialog } from '../encounter-dialog';
 import { createEncounterStack } from '../encounter-stack';
@@ -50,10 +44,10 @@ import type { EcosystemView } from '../view-model';
 import { toWeatherBadgeView } from '../weather-view';
 import { applyWildwechselMark } from '../wildwechsel-view';
 import type { CarePage } from './pages/care-page';
-import type { GoalsPage } from './pages/goals-page';
 import type { LandscapePage } from './pages/landscape-page';
 import type { NichesPage } from './pages/niches-page';
 import type { SpeciesPage } from './pages/species-page';
+import type { AlbumTarget } from './cycle-target';
 import { createSeasonWeather } from './season-weather';
 import type { NotifyOptions } from './stamp-rules';
 import type { AlbumDeps, AlbumPart } from './types';
@@ -65,8 +59,9 @@ export interface LegacyMounts {
   niches: NichesPage;
   species: SpeciesPage;
   care: CarePage;
-  goals: GoalsPage;
   landscape: LandscapePage;
+  /** Ziel des nächsten Zyklus mit der Karte der Landschaft (bis Schritt 10 hier eingehängt). */
+  albumTarget: AlbumTarget;
   /** Platz in der Bildunterschrift des Polaroids (Jahreszeit, Wetter). */
   season: HTMLElement;
   /** Bildfläche des Polaroids (Stufen-Banner). */
@@ -116,7 +111,6 @@ export interface LegacyUi {
   openAnimalDetail(target: AnimalDetailTarget, returnFocus?: HTMLElement | null): boolean;
   closeEncounters(): void;
   closePlantPicker(): void;
-  focusCycle(): void;
   /** Spielstand ersetzt (Löschen, Import): Dialoge zu, Bestätigungen zurück, alles neu. */
   replaced(): void;
   /** Stand eines anderen Geräts übernommen; `headChanged`: andere vorderste Begegnung. */
@@ -194,14 +188,8 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     onBuy: (id) => deps.actions.buyCare(id),
     onFeedback: (text, x, y) => floats.spawn(text, x, y, 'note'),
   });
-  const dailyPanel = createDailyPanel(mounts.goals.daily);
-  const cyclePanel = createCyclePanel(mounts.goals.cycle, {
-    onNewCycle: (tree, site) => deps.actions.newCycle(tree, site),
-    onBuildCorridor: (id) => deps.actions.buildCorridor(id),
-    onToggleRegular: (speciesId) => deps.actions.toggleRegular(speciesId),
-  });
-  // Die Karte der Landschaft steht im eigenen Reiter; cycle-panel.ts steuert sie weiter.
-  mounts.landscape.landscape.append(cyclePanel.landscapeElement);
+  // Die Karte der Landschaft steht im eigenen Reiter; ihr Ziel gilt für U:Neuer Zyklus (Schritt 10 ersetzt sie).
+  mounts.landscape.landscape.append(mounts.albumTarget.map.element);
   const returnReport = createReturnReportPanel(mounts.returnReport, () => hooks.focusTarget());
   const seasonWeather = createSeasonWeather(mounts.season);
   const stack = createEncounterStack(mounts.dock, openEncounters, { float: false });
@@ -421,7 +409,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     const s = state();
     if (ecoDirty || !ecoView) {
       ecoDirty = false;
-      cyclePanel.update(toCyclePanelView(s));
+      mounts.albumTarget.update(s);
       const unlocked = landscapeUnlocked(s);
       help.setLandscapeUnlocked(unlocked);
       if (unlocked !== shownLandscape) {
@@ -451,13 +439,8 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     lastPanelRefresh = now;
     panel.update(ecoView);
     hooks.onEcosystem(ecoView);
-    if (journal.open) {
-      journal.updateStats(toJournalStats(s, evaluate(s)));
-      journal.updateAchievementProgress(toAchievementTimeProgress(s));
-    }
     refreshAnimalDetail();
     bonusPanel.update(activeBonusViews(s));
-    dailyPanel.update(toDailyView(s, deps.today()));
     refreshCare();
   }
 
@@ -530,9 +513,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     openAnimalDetail,
     closeEncounters,
     closePlantPicker,
-    focusCycle: () => cyclePanel.focus(),
     replaced() {
-      cyclePanel.disarm();
       seasonShownSecond = -1;
       closeEncounters();
       closePlantPicker();
@@ -542,7 +523,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       invalidate(['eco', 'encounter', 'picker']);
     },
     adopted(headChanged) {
-      cyclePanel.disarm();
       seasonShownSecond = -1;
       if (headChanged) {
         closeEncounters();

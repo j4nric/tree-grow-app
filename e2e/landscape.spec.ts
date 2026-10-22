@@ -6,6 +6,7 @@ import {
   gotoTab,
   openCover,
   openGame,
+  openGoalsPage,
   openTab,
   overlaps,
   savedState,
@@ -47,7 +48,8 @@ async function seed(context: BrowserContext, state: GameState): Promise<void> {
   await seedRaw(context, state, 0);
 }
 
-const panel = (page: import('@playwright/test').Page) => page.locator('[data-ref="cycle-panel"]');
+/** Unterseite „Neuer Zyklus“ (Reiter „Ziele“); das Ziel aus der Karte gilt für ihren Knopf. */
+const panel = (page: import('@playwright/test').Page) => page.locator('[data-ref="page-cycle"]');
 
 test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async ({ page, context }) => {
   await seed(context, landscapeState(ANCIENT, { own: 300, announced: false }));
@@ -73,9 +75,10 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(detail).toContainText('Gabe (nach der Gründung): Ab Alter Baum +1 Platz Waldtümpel in allen Wäldern');
   await expect(map.locator('[data-ref="landscape-target"]')).toContainText('neuer Wald für 3 🪶');
 
+  await openGoalsPage(page, 'cycle');
   const button = panel(page).locator('[data-ref="new-cycle"]');
   await expect(button).toHaveText('Auwald am Fluss gründen (3 🪶)');
-  await openTab(page, 'ziele');
+  await expect(panel(page).locator('[data-ref="cycle-target"]')).toContainText('neuer Wald für 3 🪶');
   await button.click();
   await waitForConfirm(page);
   await button.click();
@@ -86,7 +89,7 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   expect(after.meta.landscape.sites.map((s: { id: string }) => s.id)).toEqual(['home', 'floodplain']);
   expect(after.meta.landscape.freeCorridors).toEqual(['home-floodplain']);
   expect(after.meta.forestMemory).toBe(0);
-  await expect(panel(page).locator('.cycle-sub')).toContainText('🌊 Auwald am Fluss');
+  await expect(page.locator('[data-ref="cycle-card-sub"]')).toContainText('🌊 Auwald am Fluss');
   await expect(map.locator('[data-site="floodplain"]')).toContainText('hier');
   // Der Gratis-Korridor steht in der Liste – ohne Kaufknopf.
   await openTab(page, 'landschaft');
@@ -120,14 +123,16 @@ test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', a
   await map.locator('[data-site="mountain"]').click();
   await expect(map.locator('[data-ref="site-blocker"]')).toContainText('Nur aus dem Urwald');
   const button = panel(page).locator('[data-ref="new-cycle"]');
+  await openGoalsPage(page, 'cycle');
   await expect(button).toHaveText('Neuen Zyklus beginnen');
+  await openTab(page, 'landschaft');
   // Wechsel zum Heimatwald per Tastatur.
   await map.locator('[data-site="home"]').focus();
   await page.keyboard.press('Enter');
   // Wirksam heute (320 + ½ · 40, wie im Tagebuch) – der Gewinn dieses Zyklus steht benannt dahinter.
   await expect(map.locator('[data-ref="site-memory"]')).toHaveText(/^Gedächtnis 320 eigen · 340 wirksam dort( \(nach diesem Zyklus \d+\))?$/);
+  await openGoalsPage(page, 'cycle');
   await expect(button).toHaveText('Neuen Zyklus beginnen: Heimatwald');
-  await openTab(page, 'ziele');
   await button.click();
   await waitForConfirm(page);
   await button.click();
@@ -218,7 +223,9 @@ test('Hain mit genug Gedächtnis nach diesem Zyklus, aber noch nicht frei: keine
   state.cycle.maxHarmony = 200;
   await seed(context, state);
   await gotoTab(page, 'ziele');
+  await openGoalsPage(page, 'cycle');
   await expect(panel(page).locator('[data-ref="new-cycle"]')).toBeVisible();
+  await expect(panel(page).locator('[data-ref="cycle-target"]')).toBeHidden();
   await expect(page.locator('[data-ref="landscape"]')).toBeHidden();
   await expect(tabButton(page, 'landschaft')).toBeHidden();
 });
@@ -227,7 +234,9 @@ test('vor der Freischaltung: keine Karte', async ({ page, context }) => {
   const state = landscapeState(ANCIENT, { own: 100 });
   await seed(context, state);
   await gotoTab(page, 'ziele');
+  await openGoalsPage(page, 'cycle');
   await expect(panel(page).locator('[data-ref="new-cycle"]')).toBeVisible();
+  await expect(panel(page).locator('[data-ref="cycle-target"]')).toBeHidden();
   await expect(page.locator('[data-ref="landscape"]')).toBeHidden();
   await expect(tabButton(page, 'landschaft')).toBeHidden();
 });

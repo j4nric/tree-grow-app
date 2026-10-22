@@ -1,6 +1,7 @@
 /**
- * Naturtagebuch (Design v2, Abschnitte 10, 11.2 und 18): Arten, Pflanzen,
- * Lebensgemeinschaften, Andenken, Erfolge, Landschaft und Statistik als Reiter in einem modalen Dialog. Entdeckte Einträge mit Angaben,
+ * Naturtagebuch (Design v2, Abschnitte 10 und 11.2): Arten, Pflanzen, Lebensgemeinschaften,
+ * Andenken und Landschaft als Reiter in einem modalen Dialog (Übergang bis Phase 8, Schritt 7;
+ * Erfolge und Statistik stehen seit Schritt 9 im Album unter „Ziele“). Entdeckte Einträge mit Angaben,
  * unentdeckte als Silhouette mit „???“. Entdeckte Arten lassen sich als Stammgast wählen.
  *
  * Reine Darstellung: zeigt ein `JournalView` und meldet Stammgast-Schalter über einen
@@ -11,22 +12,18 @@
  * ist (`view.landscape === null`); die Pfeiltasten überspringen ihn dann.
  *
  * Der Inhalt wird nur neu gebaut, wenn sich die Ansicht ändert (Entdeckung, Stammgast) –
- * nie pro Frame. Die Kennzahlen im Reiter „Statistik“ stehen in fest angelegten Zeilen;
- * `updateStats` tauscht dort nur Texte (gedrosselt aus main.ts).
+ * nie pro Frame.
  */
 import { el, setText, srOnly } from './dom';
 import { hyphenate } from './hyphenate';
 import { prefersReducedMotion } from './feedback';
 import type {
-  JournalAchievementProgressView,
-  JournalAchievementView,
   JournalCommunityView,
   JournalEntryView,
   JournalKeepsakeView,
   JournalLandscapeRowView,
   JournalLandscapeView,
   JournalSiteView,
-  JournalStatView,
   JournalTreeView,
   JournalView,
 } from './view-model';
@@ -41,25 +38,19 @@ export interface JournalDialog {
   show(view: JournalView): void;
   /** Aktualisiert den offenen Dialog (tut nichts, wenn er zu ist). */
   update(view: JournalView): void;
-  /** Nur die Kennzahlen im Reiter „Statistik“ (tut nichts, wenn der Dialog zu ist). */
-  updateStats(stats: readonly JournalStatView[]): void;
-  /** Nur der laufende Fortschritt der Zeit-Erfolge im Reiter „Erfolge“ (nur Texte). */
-  updateAchievementProgress(progress: readonly JournalAchievementProgressView[]): void;
   hide(): void;
   notice(text: string): void;
   readonly open: boolean;
 }
 
-type TabId = 'species' | 'plants' | 'communities' | 'keepsakes' | 'achievements' | 'landscape' | 'stats';
+type TabId = 'species' | 'plants' | 'communities' | 'keepsakes' | 'landscape';
 
 const TABS: readonly { id: TabId; label: string }[] = [
   { id: 'species', label: 'Arten' },
   { id: 'plants', label: 'Pflanzen' },
   { id: 'communities', label: 'Gemeinschaften' },
   { id: 'keepsakes', label: 'Andenken' },
-  { id: 'achievements', label: 'Erfolge' },
   { id: 'landscape', label: 'Landschaft' },
-  { id: 'stats', label: 'Statistik' },
 ];
 
 /** Knopf „📖 Naturtagebuch“ für die Seitenleiste. */
@@ -280,71 +271,6 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     return li;
   }
 
-  /** Erfolg: freigeschaltet mit Symbol, Titel, Beschreibung; offen gedämpft mit Fortschritt. */
-  function achievementItem(a: JournalAchievementView): HTMLElement {
-    const li = el('li', `journal-entry journal-achievement ${a.unlocked ? 'discovered' : 'locked'}`);
-    li.dataset.achievement = a.key;
-    li.dataset.unlocked = String(a.unlocked);
-    const icon = el('span', 'journal-icon', a.icon);
-    icon.setAttribute('aria-hidden', 'true');
-    const body = el('div', 'journal-body');
-    if (!a.unlocked) body.append(srOnly('Noch offen: '));
-    body.append(el('h4', 'journal-name', a.title), el('p', 'journal-facts', a.description));
-    if (a.progress) {
-      const progress = el('p', 'journal-progress');
-      const value = el('span', 'journal-progress-value', a.progress);
-      progress.append(srOnly('Fortschritt '), value);
-      body.append(progress);
-      if (a.live) progressValues.set(a.key, value);
-    }
-    li.append(icon, body);
-    return li;
-  }
-
-  /** Laufender Fortschritt der Zeit-Erfolge: Textknoten je Erfolgs-ID (nur Texte tauschen). */
-  const progressValues = new Map<string, HTMLElement>();
-
-  function renderAchievementProgress(progress: readonly { key: string; progress?: string }[]): void {
-    for (const p of progress) {
-      const node = progressValues.get(p.key);
-      if (node && p.progress) setText(node, p.progress);
-    }
-  }
-
-  // Statistik: Zeilen einmal anlegen, danach nur Texte tauschen.
-  const statList = el('dl', 'journal-stats');
-  statList.dataset.ref = 'journal-stats';
-  // Abschnitt „Über alle Zyklen“ (Langzeit-Statistik) mit eigener Überschrift.
-  const totalTitle = el('h3', 'journal-section-title', 'Über alle Zyklen');
-  totalTitle.id = 'journal-stats-total-title';
-  const totalList = el('dl', 'journal-stats');
-  totalList.dataset.ref = 'journal-stats-total';
-  totalList.setAttribute('aria-labelledby', totalTitle.id);
-  const statRows = new Map<string, { value: HTMLElement; detail: HTMLElement }>();
-  tabs.get('stats')!.panel.append(statList, totalTitle, totalList);
-
-  function renderStats(stats: readonly JournalStatView[]): void {
-    for (const s of stats) {
-      let row = statRows.get(s.key);
-      if (!row) {
-        const wrap = el('div', 'journal-stat');
-        wrap.dataset.stat = s.key;
-        const dt = el('dt', 'journal-stat-label', s.label);
-        const dd = el('dd', 'journal-stat-value');
-        const value = el('span', 'journal-stat-number');
-        const detail = el('span', 'journal-stat-detail');
-        dd.append(value, detail);
-        wrap.append(dt, dd);
-        (s.section === 'total' ? totalList : statList).append(wrap);
-        row = { value, detail };
-        statRows.set(s.key, row);
-      }
-      setText(row.value, s.value);
-      setText(row.detail, s.detail ?? '');
-      row.detail.hidden = !s.detail;
-    }
-  }
-
   /** Beschreibungsliste aus Zeilen „Bezeichnung – Wert“ (Angaben zu einem Wald, Hähersaat). */
   function rowList(rows: readonly JournalLandscapeRowView[], className: string): HTMLDListElement {
     const dl = el('dl', className);
@@ -433,18 +359,9 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
   }
 
   function render(view: JournalView): void {
-    renderStats(view.stats);
-    // Kennzahlen und der Fortschritt der Zeit-Erfolge ändern sich laufend – sie zählen
-    // nicht zur Signatur (kein Neubau), nur ihre Texte werden getauscht.
-    const next = JSON.stringify({
-      ...view,
-      stats: null,
-      achievements: view.achievements.map((a) => (a.live ? { ...a, progress: null } : a)),
-    });
-    if (next === signature) {
-      renderAchievementProgress(view.achievements);
-      return;
-    }
+    // Kennzahlen und Erfolge zeigt das Album (Reiter „Ziele“) – sie zählen nicht zur Signatur.
+    const next = JSON.stringify({ ...view, stats: null, achievements: null, tabCounts: { ...view.tabCounts, achievements: '', stats: '' } });
+    if (next === signature) return;
     signature = next;
     const focusKey = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.focusKey : undefined;
 
@@ -480,19 +397,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
       memoryTitle,
       ...list('journal-memories-title', view.keepsakes.map(keepsakeItem), 'Noch keine Erinnerungen – sie halten besondere Momente fest.', true),
     );
-    progressValues.clear();
     renderLandscape(view.landscape);
-    const done = view.achievements.filter((a) => a.unlocked);
-    const open = view.achievements.filter((a) => !a.unlocked);
-    const doneTitle = el('h3', 'journal-section-title', 'Erreicht');
-    doneTitle.id = 'journal-achievements-done-title';
-    const openTitle = el('h3', 'journal-section-title', 'Noch offen');
-    openTitle.id = 'journal-achievements-open-title';
-    tabs.get('achievements')!.panel.replaceChildren(
-      doneTitle,
-      ...list(doneTitle.id, done.map(achievementItem), 'Noch keine Erfolge – sie kommen ganz von selbst, Schritt für Schritt.', true),
-      ...(open.length > 0 ? [openTitle, ...list(openTitle.id, open.map(achievementItem), '', true)] : []),
-    );
     if (focusKey) dialog.querySelector<HTMLElement>(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true });
   }
 
@@ -509,14 +414,6 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
 
   function update(view: JournalView): void {
     if (dialog.open) render(view);
-  }
-
-  function updateStats(stats: readonly JournalStatView[]): void {
-    if (dialog.open) renderStats(stats);
-  }
-
-  function updateAchievementProgress(progress: readonly JournalAchievementProgressView[]): void {
-    if (dialog.open) renderAchievementProgress(progress);
   }
 
   function clearNotice(): void {
@@ -561,8 +458,6 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
   return {
     show,
     update,
-    updateStats,
-    updateAchievementProgress,
     hide,
     notice,
     get open() {
