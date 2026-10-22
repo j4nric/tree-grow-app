@@ -9,8 +9,10 @@
   align-items: flex-start;
   gap: 8px;
   box-sizing: border-box;
-  /* Mockup: 150 px – etwas breiter, damit „Besuch wartet!“ in eine Zeile passt */
-  width: 158px;
+  /* Mockup: 150 px – wächst mit, damit „Besuch wartet!“ in eine Zeile passt */
+  width: max-content;
+  min-width: 150px;
+  max-width: min(200px, calc(100vw - 36px));
   min-height: 64px;
   margin: 0;
   padding: 8px 10px;
