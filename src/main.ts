@@ -30,6 +30,7 @@ import {
   type TickReport,
 } from './core/tick';
 import { drawScene, hitTestAnimal, siteParam, weatherParam, type AnimalHit, type HitScene, type SceneInput } from './render/tree';
+import { IdleQueue } from './render/idle';
 import { CanvasSizer } from './render/canvas-size';
 import type { CanvasSize } from './render/resize';
 import { Camera } from './render/camera';
@@ -319,6 +320,8 @@ const scene: SceneInput = {
   harmonyTier: undefined,
   // Die Größe kommt schon entprellt aus dem CanvasSizer: keine zweite Wartezeit im Renderer.
   sizeSettled: true,
+  // Neue Jahreszeit-Stufe, Tönung und Zoom-Details in Leerlaufzeit statt in einem langen Frame.
+  idle: new IdleQueue(),
 };
 
 /** Demo/Tests: `?weather=<id>` zeigt dieses Wetter statt des Tageswetters (nur das Bild). */
