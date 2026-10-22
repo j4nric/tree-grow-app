@@ -112,7 +112,7 @@ export interface LandscapeMapView {
   corridorHint: string | null;
 }
 
-const CORRIDOR_ICONS: Record<CorridorKind, string> = {
+export const CORRIDOR_ICONS: Record<CorridorKind, string> = {
   hedge: '🌿',
   stream: '💧',
   path: '🥾',
