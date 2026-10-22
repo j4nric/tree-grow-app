@@ -35,6 +35,7 @@ import { GENERA } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS, GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, WEATHERS } from '../content/weather';
 import { NOCTURNAL } from '../content/daytime';
+import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, PREDATION_EVENTS, STOCK_BASE, STOCK_RANGE } from '../content/predation';
 import { HARMONY_DIVISOR, memoryHarmonyBonus } from '../core/formulas';
 import { HARMONY_TIERS, bonusEffectLabel, listNames } from './adapters';
 import { fruitPhrase } from './cycle-view';
@@ -151,7 +152,19 @@ export function guideSections(): GuideSection[] {
       title: 'Nischen und Zufriedenheit',
       paragraphs: [
         `Tiere wohnen in ${formatNumber(NICHES.length)} Nischen: ${all(NICHES.map((n) => n.name))}. Mit jeder Stufe öffnen sich mehr Plätze. Ist eine Nische voll, kannst du ein Tier gegen ein neues tauschen.`,
-        `Jedes Tier braucht Futter und hat Wünsche (z. B. Totholz oder Feuchte). Je mehr davon erfüllt ist, desto zufriedener ist es. Räuber und Störer in der Nähe senken seine Zufriedenheit.`,
+        `Jedes Tier braucht Futter und hat Wünsche (z. B. Totholz oder Feuchte). Je mehr davon erfüllt ist, desto zufriedener ist es. Störer in der Nähe senken seine Zufriedenheit, Jäger nur, wenn sie mehr fressen, als da ist.`,
+      ],
+    },
+    {
+      id: 'predation',
+      icon: '🦉',
+      title: 'Räuber und Beute',
+      paragraphs: [
+        'Manche Tiere leben von anderen: der Waldkauz von Kleinsäugern, Spechte von Käfern, der Igel von Schnecken. Das ist gut so – Jäger halten Schädlinge klein und machen die Nahrungspyramide stimmig. Nichts stirbt, und nichts schwankt von selbst.',
+        `Jede Beute hat einen Bestand: knapp, gut oder reichlich. Je zufriedener sie ist, desto größer ihr Bestand – eine rundum zufriedene Art ernährt bis zu ${formatNumber(STOCK_BASE + STOCK_RANGE)} Jäger. Passendes Futter, erfüllte Wünsche, keine Störer und eine zweite Beute-Art helfen.`,
+        `Leben mehr Jäger als Futter da ist, ist die Beute überjagt: Sie wird scheu und verliert bis zu ${formatNumber(Math.round(OVERHUNT_PENALTY * OVERHUNT_MAX_UNITS * 100))} Prozentpunkte Zufriedenheit. Dann hilft zufriedenere Beute oder eine weitere Art, die dasselbe Futter bietet.`,
+        `Lebt Beute ganz ohne Jäger, kann ab „${stageName(Math.min(...PREDATION_EVENTS.map((e) => e.minStage)))}“ ein Massenjahr kommen – ${all(PREDATION_EVENTS.map((e) => e.name))}. Du lädst die passenden Jäger ein oder nimmst das Massenjahr als Geschenk.`,
+        'Wer wen jagt, zeigt das Nahrungsnetz in der Ökosystem-Übersicht. Bestand und Futter stehen auch an den Kacheln, auf den Karten und in den Tierdetails.',
       ],
     },
     {

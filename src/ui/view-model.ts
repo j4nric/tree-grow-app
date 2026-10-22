@@ -233,6 +233,71 @@ export interface AnimalView {
   visitor?: boolean;
   /** Nachtaktive Art: 🌙 mit Kurzform, leuchtet, solange die Nachtwirkung gilt. */
   night?: NightBadgeView;
+  /** Nur Beute (Futter für Jäger im Wald, DESIGN_V2.md 22.3): Bestand knapp/gut/reichlich. */
+  stock?: StockView;
+}
+
+/** Stufe eines Bestands (DESIGN_V2.md 22.3): knapp (< STOCK_LOW), gut, reichlich (≥ STOCK_HIGH). */
+export type StockLevel = 'low' | 'good' | 'high';
+
+/** Bestand in Worten, z. B. `{ level: 'high', label: 'reichlich' }` – keine Zahl. */
+export interface StockView {
+  level: StockLevel;
+  label: string;
+}
+
+/** Zustand eines Merkmals im Nahrungsnetz (wie `FoodWebState` im Kern). */
+export type FoodWebStateKey = 'balanced' | 'overhunted' | 'unhunted';
+
+/**
+ * Eine Zeile im Nahrungsnetz der Ökosystem-Übersicht (DESIGN_V2.md 22.7): ein Beute-Merkmal
+ * mit Beute im Wald, wer davon lebt und was der Spieler tun kann.
+ */
+export interface FoodWebRowView {
+  /** Merkmal (Tag-ID), z. B. `kleinsaeuger`. */
+  tag: string;
+  icon: string;
+  /** z. B. „Kleinsäuger“. */
+  name: string;
+  state: FoodWebStateKey;
+  /** „im Gleichgewicht“, „überjagt“ oder „ungejagt“. */
+  stateLabel: string;
+  /** Symbol zum Zustand (Schmuck – der Zustand steht immer auch als Text da). */
+  stateIcon: string;
+  /** Bestand aller Beute dieses Merkmals im Schnitt. */
+  stock: StockView;
+  /** „Wühlmaus“, „Eichenwickler und Tagpfauenauge“ (unentdeckte: „???“). */
+  prey: string;
+  /** „Waldkauz und Rotfuchs“ – leer, wenn keiner frisst; Beute, die sich selbst frisst: „… (frisst Artgenossen)“. */
+  hunters: string;
+  hunterCount: number;
+  /** Arten, die es nur klein halten, z. B. „Rote Waldameise“ – leer, wenn keine. */
+  controllers: string;
+  /** Was das bedeutet bzw. was hilft, z. B. „Ein Raupenjahr kann Jäger einladen.“ */
+  hint: string;
+}
+
+/** Das Nahrungsnetz für die Übersicht (aufklappbar wie die Lebensgemeinschaften). */
+export interface FoodWebView {
+  rows: FoodWebRowView[];
+  /** Kurzfassung für die zugeklappte Zeile, z. B. „1 überjagt · 2 im Gleichgewicht“ (überjagt zuerst). */
+  summary: string;
+  /** Text, wenn noch keine Beute im Wald lebt (dann `rows` leer). */
+  emptyText: string;
+}
+
+/**
+ * Räuber und Beute in den Tierdetails: eine Zeile je Rolle der Art – als Beute (Bestand,
+ * wen sie ernährt) und als Jäger (wie es um ihr Futter steht).
+ */
+export interface DetailPredationView {
+  /** Schlüssel für Tests und DOM, z. B. `stock`, `prey-raupen`, `hunt-kleinsaeuger`. */
+  key: string;
+  icon: string;
+  label: string;
+  /** Freundlicher Hinweis, z. B. was bei Überjagung hilft. */
+  hint?: string;
+  tone: Tone;
 }
 
 /** Eine Nische mit Plätzen. */
@@ -280,6 +345,8 @@ export interface EcosystemView {
   niches: NicheView[];
   plantRing: PlantRingView;
   communities: CommunityListView;
+  /** Nahrungsnetz: wer jagt wen (DESIGN_V2.md 22.7). */
+  foodWeb: FoodWebView;
   /** Nachtarten, deren Nachtwirkung gerade gilt (Namen je Rate) – leer: kein 🌙 an der Rate. */
   night: NightRateView;
 }
@@ -667,6 +734,8 @@ export interface AnimalDetailView {
   conditions: ConditionView[];
   /** Weitere Einflüsse: Störer, Räuber, Jahreszeit, Baumart, Fähigkeiten. */
   factors: DetailFactorView[];
+  /** Räuber und Beute: Bestand, wen sie ernährt, wie es um ihr Futter steht (leer: keine Rolle). */
+  predation: DetailPredationView[];
   /** Wirkungen der Art (ohne Fähigkeiten). */
   effects: EffectView[];
   abilities: DetailAbilityView[];
