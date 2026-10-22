@@ -5,9 +5,24 @@ on:
     branches: [main]
   pull_request:
 
+# Ein neuer Push auf denselben PR bricht den veralteten Lauf ab (spart Runner, keine Warteschlange).
+# Auf main läuft jeder Commit zu Ende.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # npm wartet sonst bis zu 5 min auf eine hängende Registry-Anfrage (fetch-timeout 300000) –
+  # genau so lange hingen einzelne `npm ci` (300–420 s statt 2 s). Kürzer warten, öfter versuchen.
+  npm_config_fetch_timeout: '30000'
+  npm_config_fetch_retries: '4'
+  npm_config_fetch_retry_mintimeout: '2000'
+  npm_config_fetch_retry_maxtimeout: '10000'
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,16 +32,30 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
-      - run: npm ci
+      # node_modules beider Pakete direkt cachen: Bei Treffer braucht es gar kein Netz.
+      # Schlüssel = Lockfiles + Node-Version, also nie veraltete Pakete.
+      - id: modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            server/node_modules
+          key: modules-${{ runner.os }}-${{ runner.arch }}-node22-${{ hashFiles('package-lock.json', 'server/package-lock.json') }}
+      # Ohne Audit/Fund: Der Audit-Aufruf geht immer ins Netz (nicht im Cache) und ist für den
+      # Test-Lauf ohne Nutzen.
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --no-fund
       # Sync-Server (server/): eigene, kleine Abhängigkeiten (nur TypeScript + Node-Typen).
       # Seine Tests laufen in `npm run check` mit (Vitest des Spiels).
-      - run: npm ci --prefix server
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --prefix server --no-audit --no-fund
       - run: npm run check
       - run: npm run typecheck --prefix server
       - run: npm run build
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,10 +65,29 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
-      - run: npm ci
+      - id: modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            server/node_modules
+          key: modules-${{ runner.os }}-${{ runner.arch }}-node22-${{ hashFiles('package-lock.json', 'server/package-lock.json') }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --no-fund
       # Die Konto-e2e-Tests starten den Sync-Server (playwright.config.ts).
-      - run: npm ci --prefix server
-      - run: npx playwright install --with-deps chromium
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --prefix server --no-audit --no-fund
+      # Chromium passend zur Playwright-Version (steht im Lockfile) cachen; die System-
+      # Bibliotheken (apt) kommen nicht in den Cache und werden bei Treffer nur nachinstalliert.
+      - id: browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.browsers.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
