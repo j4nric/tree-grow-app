@@ -3,7 +3,8 @@ import type { Genus, Tag } from './types';
 
 /**
  * Waldlandschaft – die Prestige-Ebene über dem Neuen Zyklus (docs/DESIGN_V2.md, Abschnitt
- * 24). Reine Daten, noch **nicht verdrahtet** (Spielstand v14, 24.8). Gemessen mit
+ * 24). Reine Daten, verdrahtet seit Spielstand v14 (Schritt A, 24.8): Regeln in
+ * src/core/landscape.ts, Aktionen in core/tick.ts, Laden in core/save.ts. Gemessen mit
  * scripts/landscape.ts (24.10), Invarianten in tests/landscape.test.ts.
  *
  * Kurzfassung:

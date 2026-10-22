@@ -355,6 +355,11 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
   `break_infinity.js` ist dafür **nicht** nötig (gemessen, `DESIGN_V2.md` 24.9)
   - [x] Design (`game-designer`): sechs Standorte mit Waldtyp, Währung Hähersaat, Korridore
     mit Zufluss, Spielstand v14 nach den Lebensräumen (v13) – `DESIGN_V2.md` 24, Daten
-    `src/content/landscape.ts` (nicht verdrahtet), Modell `scripts/landscape.ts`
-  - [ ] Schritt A (`core-engineer`, v14), Karte (`ui-dev`), Kulisse je Waldtyp (`renderer`),
-    Schritt B Wildwechsel (`core-engineer`), Erfolge und Messung (`game-designer`) – 24.11
+    `src/content/landscape.ts`, Modell `scripts/landscape.ts`
+  - [x] Schritt A (`core-engineer`, v14): `meta.landscape`, Migration v13 → v14 mit robustem
+    Laden und Kosten-Prüfung, `src/core/landscape.ts` (wirksames Gedächtnis, Hähersaat,
+    Freischaltung, Eigenheiten und Gaben), `startNewCycle(…, site)` und `buildCorridor` in
+    `tick.ts`; Simulation `scripts/landscape.ts` auf der echten Logik, gemessen (24.10) –
+    `tests/landscape-core.test.ts`
+  - [ ] Karte (`ui-dev`), Kulisse je Waldtyp (`renderer`), Schritt B Wildwechsel
+    (`core-engineer`), Erfolge und Messung (`game-designer`) – 24.11
