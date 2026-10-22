@@ -3,7 +3,7 @@
  * Zeile** hier. Spätere Schritte tauschen ihre Seite aus bzw. tragen ihre Unterseite ein,
  * ohne `album/index.ts` zu ändern.
  */
-import type { TabId, PageKind, PageRef } from '../nav';
+import type { TabId, PageRef, SubpageKey } from '../nav';
 import type { AlbumTarget } from '../cycle-target';
 import type { Bookmark } from '../bookmark';
 import type { Page } from '../page';
@@ -18,6 +18,8 @@ import { createSavePage } from './save-page';
 import { createCyclePage } from './cycle-page';
 import { createAchievementsPage } from './achievements-page';
 import { createStatsPage } from './stats-page';
+import { createGuideChapterPage, createGuidePage } from './guide-page';
+import { createSettingsPage } from './settings-page';
 import { createCareItemPage } from './care-item-page';
 import { createAnimalPage } from './animal-page';
 import { createFoodWebPage } from './food-web-page';
@@ -86,6 +88,9 @@ export const SUBPAGES = {
   animal: createAnimalPage,
   harmony: createHarmonyPage,
   foodweb: createFoodWebPage,
-} satisfies Partial<Record<PageKind, (env: PageEnv) => Subpage>>;
+  guide: createGuidePage,
+  'guide-chapter': createGuideChapterPage,
+  settings: createSettingsPage,
+} satisfies Partial<Record<SubpageKey, (env: PageEnv) => Subpage>>;
 
 export type SubpageKind = keyof typeof SUBPAGES;

@@ -1,0 +1,161 @@
+/* Formular-Bausteine der Umschlag-Seiten „Spielstand“ und „Konto“ (save-transfer.ts,
+   account-panel.ts, save-page.ts): Karteikarten mit Handschrift-Titel, Knöpfe ≥ 44 px,
+   Textfelder auf Papier. */
+
+.save-block {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 14px 14px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-label);
+  background: var(--paper);
+}
+
+.save-title {
+  justify-self: start;
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.save-hint {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.save-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.save-label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.save-label[hidden],
+.save-button[hidden] {
+  display: none;
+}
+
+.save-code {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 2px solid var(--rule);
+  border-radius: var(--r-button);
+  background: var(--photo);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--ink);
+  word-break: break-all;
+  resize: vertical;
+}
+
+.save-code:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 1px;
+}
+
+.save-button {
+  min-height: var(--tap);
+  max-width: 100%;
+  padding: 6px 16px;
+  border: 2px solid var(--ink-green);
+  border-radius: var(--r-button);
+  background: var(--ink-green);
+  color: var(--paper);
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+  cursor: pointer;
+  box-shadow: 0 2px 0 var(--ink-green-dark);
+}
+
+.save-block > .save-button {
+  justify-self: start;
+}
+
+.save-button:hover {
+  background: var(--ink-green-dark);
+  border-color: var(--ink-green-dark);
+}
+
+.save-button:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.save-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.save-button:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Zweiter Klick zum Bestätigen: rot umrandet wie ein Fehler-Stempel */
+.save-button.armed {
+  border-color: var(--ink-red);
+  background: var(--paper);
+  color: var(--ink-red);
+  box-shadow: none;
+}
+
+.save-status {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.save-status:empty {
+  display: none;
+}
+
+.save-status.tone-good {
+  color: var(--ink-green);
+  font-weight: 800;
+}
+
+.save-status.tone-bad {
+  color: var(--ink-red);
+  font-weight: 800;
+}
+
+/* Zweitrangige Knöpfe (Abbrechen, Sicherungen): Umriss statt Fläche */
+.link-button {
+  min-height: var(--tap);
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--ink-green);
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 1px;
+}

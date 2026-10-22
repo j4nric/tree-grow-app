@@ -10,6 +10,8 @@ import { createBookmark } from '../bookmark';
 import { createPage } from '../page';
 import { initialNav, pageNumber } from '../nav';
 import type { PageEnv, Subpage } from './registry';
+import './forms.css';
+import './save-page.css';
 
 const RESET_TEXT = 'Spielstand löschen';
 const RESET_CONFIRM_TEXT = 'Wirklich alles löschen? Zum Bestätigen erneut klicken';
@@ -33,12 +35,16 @@ export function createSavePage(env: PageEnv): SavePage {
   page.element.prepend(bookmark.element);
 
   const box = el('div', 'save-page');
-  const footer = el('div', 'save-page-reset');
-  const reset = el('button', 'link-button', RESET_TEXT);
+  const footer = el('section', 'save-block save-page-reset');
+  footer.setAttribute('aria-labelledby', 'save-reset-title');
+  const resetTitle = el('h3', 'save-title', 'Neu anfangen');
+  resetTitle.id = 'save-reset-title';
+  const resetHint = el('p', 'save-hint', 'Löscht deinen Wald auf diesem Gerät. Exportiere ihn vorher, wenn du ihn aufheben willst.');
+  const reset = el('button', 'save-button save-reset', RESET_TEXT);
   reset.type = 'button';
   reset.id = 'reset';
   reset.dataset.ref = 'reset';
-  footer.append(reset);
+  footer.append(resetTitle, resetHint, reset);
   box.append(footer);
   page.body.append(box);
   // Export und Import stehen vor „Spielstand löschen“ (save-transfer.ts hängt sich vorn an).

@@ -1,5 +1,5 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
-import { expect, openCover, openGame, savedState, seedV3, stageLabel } from './fixtures';
+import { expect, openCoverPage, openGame, savedState, seedV3, stageLabel } from './fixtures';
 
 /**
  * Installierbare App (PWA) gegen den Produktions-Build (vite preview, playwright.config.ts):
@@ -82,11 +82,8 @@ async function cachedUrls(page: Page): Promise<{ cache: string; urls: string[] }
 
 const account = (page: Page) => page.locator('[data-ref="account"]');
 
-async function openSettings(page: Page): Promise<void> {
-  await openCover(page);
-  await page.locator('[data-ref="settings-open"]').click();
-  await expect(page.locator('dialog[data-ref="settings"]')).toBeVisible();
-}
+/** Umschlag → Unterseite „Konto“. */
+const openAccount = (page: Page) => openCoverPage(page, 'account');
 
 test('Manifest ist gültig, verlinkt und seine Icons liegen bereit', async ({ page, baseURL }) => {
   await openGame(page);
@@ -141,7 +138,7 @@ test('Service Worker: Offline-Start nach einem Besuch, Konto zeigt Offline, Sync
 
   // Konto anlegen: Netzaufrufe an den Sync-Server (andere Origin) inkl. Event-Stream
   const name = `pwa${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`;
-  await openSettings(page);
+  await openAccount(page);
   await account(page).getByLabel('Benutzername').fill(name);
   await account(page).getByLabel('Passwort').fill('geheim-wald-1');
   await account(page).getByRole('button', { name: 'Konto anlegen' }).click();
@@ -175,7 +172,7 @@ test('Service Worker: Offline-Start nach einem Besuch, Konto zeigt Offline, Sync
   const reload = await page.reload();
   expect(reload?.fromServiceWorker()).toBe(true);
   await expect(stageLabel(page)).toContainText('Stufe:');
-  await openSettings(page);
+  await openAccount(page);
   await expect(account(page).locator('[data-ref="account-who"]')).toHaveText(`Angemeldet als ${name}`);
   await expect(account(page).locator('[data-ref="account-sync"]')).toHaveText(/^Offline/, { timeout: 15_000 });
   await context.setOffline(false);

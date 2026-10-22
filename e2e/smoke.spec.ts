@@ -305,7 +305,6 @@ test('Spielstand einer neueren Spielversion: nicht laden, nie überschreiben, Hi
   expect(await savedState(page)).toEqual(future);
   // Export liefert den gespeicherten neueren Stand (für die neuere Spielversion).
   const transfer = page.locator('[data-ref="save-transfer"]');
-  await transfer.locator('summary').click();
   await transfer.locator('[data-ref="export"]').click();
   await expect(transfer.locator('[data-ref="export-code"]')).toHaveValue(codeFromJson(JSON.stringify(future)));
   // Import ist im gesperrten Tab ebenso abgelehnt (dieselbe Meldung).
