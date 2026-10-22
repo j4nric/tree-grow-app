@@ -65,6 +65,10 @@ export function regularWaitReason(state: GameState, speciesId: string): RegularW
 /** „den Waldtümpel“ / „der Waldtümpel“ – sonst die Nische mit Namen. */
 const NICHE_PHRASE: Partial<Record<NicheId, { acc: string; nom: string }>> = {
   pond: { acc: 'den Waldtümpel', nom: 'der Waldtümpel' },
+  // Lebensräume (DESIGN_V2.md 23): wie der Tümpel in jedem Zyklus neu angelegt.
+  meadow: { acc: 'die Waldwiese', nom: 'die Waldwiese' },
+  deadwood: { acc: 'den Totholzhaufen', nom: 'der Totholzhaufen' },
+  wall: { acc: 'die Trockenmauer', nom: 'die Trockenmauer' },
 };
 
 function stageName(stage: number): string {

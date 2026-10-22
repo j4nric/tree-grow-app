@@ -830,6 +830,11 @@ body[data-motion='reduce'] .stage-banner.visible {
   --fam-bg: #e0f1ec;
   --fam-text: #245a4f;
 }
+.family-reptiles {
+  --fam: #6e8a1f;
+  --fam-bg: #eef3d9;
+  --fam-text: #46590f;
+}
 .family-plants {
   --fam: #3f8f3a;
   --fam-bg: #e6f2e0;
@@ -3745,6 +3750,13 @@ body[data-motion='reduce'] .slot-night.active::after {
 }
 
 /* Schutz vor rauem Wetter in der Pflege-Liste (care-panel.ts). */
+.care-opens {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+
 .care-protects {
   margin: 2px 0 0;
   font-size: 0.8rem;

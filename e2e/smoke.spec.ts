@@ -275,7 +275,7 @@ test('Spielstand einer neueren Spielversion: nicht laden, nie überschreiben, Hi
   const future = { version: SAVE_VERSION + 1, totalGrowth: 123_456, niches: { meadow: ['cricket'], canyon: ['eagle'] }, lastTick: 0 };
   await seedRaw(context, future);
   await openGame(page);
-  await expect(page.locator('#toast')).toContainText('neueren Version des Spiels');
+  await expect(page.locator('#toast')).toContainText('neueren Spielversion gespeichert');
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
   await page.waitForTimeout(1500);
   expect(await savedState(page)).toEqual(future);

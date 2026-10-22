@@ -72,7 +72,7 @@ import { createPlantPicker } from './ui/plant-picker';
 import { createJournalButton, createJournalDialog } from './ui/journal-dialog';
 import { createHelp, initPreferences, type Help } from './ui/help';
 import { createSound } from './ui/sound';
-import { IMPORT_ERROR_TEXTS, createSaveTransfer, type SaveTransfer } from './ui/save-transfer';
+import { IMPORT_ERROR_TEXTS, NEWER_STORED_SAVE_TEXT, createSaveTransfer, type SaveTransfer } from './ui/save-transfer';
 import { isDeliberateConfirm } from './ui/confirm';
 import { formatNumber } from './ui/format';
 import { createSeasonBadge } from './ui/season-badge';
@@ -217,8 +217,6 @@ let account: AccountController | undefined;
 /** Hinweis vor dem Import eines v1-Codes. */
 /** Einmal nach dem Laden eines v2–v6-Stands mit Waldgedächtnis (Balancing 2.10, LoadResult.memoryReweighted). */
 const MEMORY_REWEIGHTED_TEXT = 'Das Waldgedächtnis wurde neu gewichtet: +1 % je Punkt.';
-/** Hinweis beim Start, wenn der gespeicherte Stand aus einer neueren Spielversion stammt. */
-const NEWER_SAVE_TEXT = 'Dein Spielstand stammt aus einer neueren Version des Spiels. Bitte lade die Seite neu – bis dahin wird nichts gespeichert.';
 const V1_IMPORT_NOTE = 'Achtung: Das ist ein Spielstand der ersten Version – dein Wald beginnt damit neu.';
 
 /** Der Spieler hat den Stapel geöffnet; bleibt offen, bis „Später“ oder keine Begegnung mehr wartet. */
@@ -1176,7 +1174,7 @@ function start(): void {
     // aktuellen Format speichern, damit der Hinweis nur einmal kommt.
     persist();
   }
-  catchUp(storedNewer ? NEWER_SAVE_TEXT : loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
+  catchUp(storedNewer ? NEWER_STORED_SAVE_TEXT : loaded?.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '', backfilled);
 
   resetButton.addEventListener('click', onReset);
   setupSaveTransfer();

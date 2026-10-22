@@ -35,6 +35,7 @@ import { GENERA } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS, GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, WEATHERS } from '../content/weather';
 import { NOCTURNAL } from '../content/daytime';
+import { REPTILE_SUMMER_HAPPINESS } from '../content/habitats';
 import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, PREDATION_EVENTS, STOCK_BASE, STOCK_RANGE } from '../content/predation';
 import { HARMONY_DIVISOR, memoryHarmonyBonus } from '../core/formulas';
 import { HARMONY_TIERS, bonusEffectLabel, listNames } from './adapters';
@@ -127,6 +128,21 @@ export function guideSections(): GuideSection[] {
     (n) => SPECIES.find((x) => x.id === n.species)?.name ?? n.species,
   );
 
+  // Lebensräume (DESIGN_V2.md 23, 5.5): Nischen ohne Plätze aus der Stufe, geöffnet durch Pflege.
+  const habitats = NICHES.filter((n) => n.slots.every((x) => x <= 0))
+    .map((n) => {
+      const opener = CARE.find((m) =>
+        m.ranks[0]?.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === n.id && e.effect.amount > 0),
+      );
+      return { niche: n, opener, at: opener?.ranks[0]?.minStage ?? STAGES.length };
+    })
+    .sort((a, b) => a.at - b.at);
+  const habitatList = habitats.map(({ niche, opener, at }) =>
+    opener ? `${niche.icon} ${niche.name} (Pflege „${opener.name}“ ab „${stageName(at)}“)` : `${niche.icon} ${niche.name}`,
+  );
+  const reptiles = SPECIES.filter((x) => x.genus === 'reptiles');
+  const reptileHomes = habitats.filter(({ niche }) => reptiles.some((x) => x.niche === niche.id)).map(({ niche }) => niche.name);
+
   return [
     {
       id: 'growth',
@@ -151,8 +167,19 @@ export function guideSections(): GuideSection[] {
       icon: '🏡',
       title: 'Nischen und Zufriedenheit',
       paragraphs: [
-        `Tiere wohnen in ${formatNumber(NICHES.length)} Nischen: ${all(NICHES.map((n) => n.name))}. Mit jeder Stufe öffnen sich mehr Plätze. Ist eine Nische voll, kannst du ein Tier gegen ein neues tauschen.`,
+        `Tiere wohnen in ${formatNumber(NICHES.length)} Nischen: ${all(NICHES.map((n) => n.name))}. Mit jeder Stufe öffnen sich mehr Plätze, Lebensräume öffnest du selbst. Ist eine Nische voll, kannst du ein Tier gegen ein neues tauschen.`,
         `Jedes Tier braucht Futter und hat Wünsche (z. B. Totholz oder Feuchte). Je mehr davon erfüllt ist, desto zufriedener ist es. Störer in der Nähe senken seine Zufriedenheit, Jäger nur, wenn sie mehr fressen, als da ist.`,
+      ],
+    },
+    {
+      id: 'habitats',
+      icon: '🌾',
+      title: 'Lebensräume',
+      paragraphs: [
+        `${formatNumber(habitats.length)} Nischen wachsen nicht mit dem Baum – du legst sie als Lebensräume mit Pflege selbst an: ${all(habitatList)}. Jeder hat eigene Bewohner, die erst als Karten kommen, wenn er offen ist.`,
+        'In der Ökosystem-Übersicht steht ein verschlossener Lebensraum mit einem Hinweis. Sobald seine Pflege in der Liste steht, führt „Zur Pflege“ direkt dorthin – auf der Pflegekarte steht dann „Öffnet Lebensraum …“.',
+        'Die Plätze bleiben bis zum Neuen Zyklus. Danach legst du den Lebensraum neu an; Stammgäste, die dort wohnen, ziehen ein, sobald er wieder offen ist.',
+        `${GENUS_INFO.reptiles.icon} ${GENUS_INFO.reptiles.name} – ${formatNumber(reptiles.length)} Arten – leben nur in Lebensräumen: ${all(reptileHomes)}. Sie sind wechselwarm: Im Sommer sonnen sie sich (+${formatNumber(REPTILE_SUMMER_HAPPINESS)} Prozentpunkte Zufriedenheit), im Winter halten sie Winterstarre, ganz ohne Nachteil.`,
       ],
     },
     {
