@@ -515,9 +515,20 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
 - [ ] **3** Polaroid und Vollbild (`ui-dev`, Prüfung `renderer`): FLIP mit demselben Canvas, Kamera
   nur im Vollbild, Tier-Tipp → Haftnotiz, Zeichnen aussetzen, wenn verdeckt, Stufen-Stempel.
   Specs camera, scene-animal-tap, canvas-size. Abhängig: 1
-- [ ] **4** Haftnotiz und Stempel (`ui-dev`): `Note` (popover + Fallback), Stempel/Zettel statt
+- [x] **4** Haftnotiz und Stempel (`ui-dev`): `Note` (popover + Fallback), Stempel/Zettel statt
   Toast (`toast-place.ts` entfällt), einheitliches `notify`, Banderole, Notizen für Jahreszeit,
-  Wetter, Etiketten, Gattungen. Specs seasons, weather, daynight. Abhängig: 1
+  Wetter, Etiketten, Gattungen. Specs seasons, weather, daynight. Abhängig: 1.
+  *Umgesetzt:* `album/note.ts` (popover="auto", ohne popover `.note-open` mit eigenem
+  Klick-außerhalb; offene Notiz in `nav.note`), freie Notiz `openNote(anchor, content)` für den
+  Tier-Tipp in Schritt 3 (ALBUM_UI.md D.6). `album/stamps.ts` + `stamp-rules.ts` (ab 90 Zeichen
+  Zettel, höchstens zwei, rückt unter sichtbare Banderolen); `album.notify(text, options)` mit
+  `error`, `keep`, `brief`, `direct` ersetzt `showToast`. Etiketten sind Knöpfe mit Notiz
+  (Harmonie mit „Mehr ›“, sobald es U:Harmonie gibt), Jahreszeit und Wetter in
+  `album/season-weather.ts` (ersetzt `season-badge.ts`/`weather-badge.ts`), Gattungs-Chips öffnen
+  eine Notiz. Update-Hinweis und „neuerer Spielstand“ als Banderole (`album/banderole.ts`). Die
+  Rückkehr-Meldung zeigt Desktop wie mobil die Kurzfassung (C.8). Übergang bis Schritt 12: Ist
+  noch ein alter Dialog mit Hinweisfeld offen, landet `notify` dort (außer `direct`). Neu:
+  `e2e/album-notes.spec.ts`.
 - [ ] **5** Reiter Nischen (`ui-dev`): Stickerreihen, Gattungen, Lebensräume, Pflanzring;
   Unterseiten Tier, Harmonie, Nahrungsnetz. Specs animal-detail, food-web, habitats.
   Abhängig: 2, 4

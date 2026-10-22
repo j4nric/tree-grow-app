@@ -15,6 +15,8 @@ export interface SeasonBadgeView {
   text: string;
   /** Wirkungen in Kurzform (Tooltip), z. B. „+20 % 🌰 · Pilze +15 % 😊“. */
   title: string;
+  /** Stimmungstext der Jahreszeit (Haftnotiz), z. B. „Der Saft steigt, …“. */
+  mood: string;
 }
 
 /** Restzeit als „m:ss min“ (aufgerundet auf ganze Sekunden), z. B. 80 → „1:20 min“. */
@@ -34,5 +36,6 @@ export function toSeasonBadgeView(elapsed: number): SeasonBadgeView {
     name: season.name,
     text: `${season.icon} ${season.name}${rest}`,
     title: `${season.name}: ${season.summary}`,
+    mood: season.text,
   };
 }

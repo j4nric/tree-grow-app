@@ -35,6 +35,7 @@ import {
   toneOf,
 } from './view-format';
 import { nightRateText } from './weather-view';
+import { createNote } from './album/note';
 
 export interface EcosystemPanel {
   update(view: EcosystemView): void;
@@ -109,6 +110,8 @@ interface PartRow {
 interface FamilyChip {
   root: HTMLButtonElement;
   icon: HTMLElement;
+  /** Name der Gattung (Titel der Haftnotiz). */
+  label: string;
   count: HTMLElement;
   pipBox: HTMLElement;
   pips: HTMLElement[];
@@ -277,10 +280,12 @@ export function createEcosystemPanel(
   // Gattungsleiste
   const familiesTitle = el('h2', 'eco-title', 'Gattungen');
   const familyBar = el('div', 'family-bar');
-  const familyDetail = el('p', 'family-detail');
-  familyDetail.setAttribute('aria-live', 'polite');
+  // Erklärung einer Gattung als Haftnotiz (docs/ALBUM_UI.md, C.4) – eine für alle Chips.
+  const familyNote = createNote({ id: 'family', title: '', ref: 'family-note' });
+  const familyNoteText = familyNote.line('', 'family-detail');
   const familyChips = new Map<string, FamilyChip>();
   let familyOrder = '';
+  /** Gattung, deren Notiz gerade offen ist (oder zuletzt war). */
   let selectedFamily: string | null = null;
 
   // Nischen
@@ -344,7 +349,7 @@ export function createEcosystemPanel(
   ring.append(ringHint, supplyBox, plantList, groupCaption, groupBox, action);
 
   if (options.header !== false) panel.append(head, stats);
-  panel.append(details, communities, foodWeb, ringTitle, ring, familiesTitle, familyBar, familyDetail, nichesTitle, nicheList);
+  panel.append(details, communities, foodWeb, ringTitle, ring, familiesTitle, familyBar, nichesTitle, nicheList);
   root.append(panel);
 
   let lastHarmony: number | null = null;
@@ -503,20 +508,26 @@ export function createEcosystemPanel(
     foodWebEmpty.hidden = !empty;
   }
 
-  function selectFamily(id: string | null): void {
-    selectedFamily = selectedFamily === id ? null : id;
-    for (const [key, chip] of familyChips) {
-      setAttr(chip.root, 'aria-pressed', String(key === selectedFamily));
+  /** Notiz der Gattung auf- bzw. zuklappen (`wasOpen`: beim Drücken offen, s. note.ts). */
+  function toggleFamily(id: string, wasOpen: boolean): void {
+    const chip = familyChips.get(id);
+    if (!chip) return;
+    if (wasOpen) {
+      familyNote.hide(true);
+      return;
     }
-    familyDetail.textContent = selectedFamily ? (familyChips.get(selectedFamily)?.description ?? '') : '';
-    familyDetail.hidden = !selectedFamily;
+    selectedFamily = id;
+    familyNote.setTitle(`${chip.icon.textContent ?? ''} ${chip.label}`.trim());
+    setText(familyNoteText, chip.description);
+    familyNote.show(chip.root);
   }
-  familyDetail.hidden = true;
 
   function buildFamilyChip(family: FamilyView): FamilyChip {
     const button = el('button', `family-chip family-${family.id}`);
     button.type = 'button';
-    button.setAttribute('aria-pressed', 'false');
+    button.classList.add('note-trigger');
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-controls', familyNote.element.id);
     const icon = el('span', 'family-icon', family.icon);
     icon.setAttribute('aria-hidden', 'true');
     const count = el('span', 'family-count');
@@ -525,8 +536,15 @@ export function createEcosystemPanel(
     pipBox.setAttribute('aria-hidden', 'true');
     const sr = srOnly();
     button.append(icon, count, pipBox, sr);
-    button.addEventListener('click', () => selectFamily(family.id));
-    const chip: FamilyChip = { root: button, icon, count, pipBox, pips: [], thresholdsKey: '', sr, tier: -1, description: '' };
+    let openOnPress: boolean | null = null;
+    const isOpen = () => familyNote.isOpen && selectedFamily === family.id;
+    button.addEventListener('pointerdown', () => (openOnPress = isOpen()));
+    button.addEventListener('click', () => {
+      const wasOpen = openOnPress ?? isOpen();
+      openOnPress = null;
+      toggleFamily(family.id, wasOpen);
+    });
+    const chip: FamilyChip = { root: button, icon, label: family.label, count, pipBox, pips: [], thresholdsKey: '', sr, tier: -1, description: '' };
     buildPips(chip, family.thresholds);
     return chip;
   }
@@ -557,7 +575,7 @@ export function createEcosystemPanel(
         chip.description = description;
         setText(chip.sr, description);
         chip.root.title = description;
-        if (selectedFamily === family.id) familyDetail.textContent = description;
+        if (selectedFamily === family.id) setText(familyNoteText, description);
       }
       // Neue Schwelle erreicht: kurz aufleuchten (nicht beim ersten Aufbau)
       if (activeTier > chip.tier && seenFirstUpdate) restartAnimation(chip.root, 'tier-up');
@@ -571,7 +589,7 @@ export function createEcosystemPanel(
       for (const id of [...familyChips.keys()]) {
         if (present.has(id)) continue;
         familyChips.delete(id);
-        if (selectedFamily === id) selectFamily(id);
+        if (selectedFamily === id && familyNote.isOpen) familyNote.hide();
       }
     }
   }

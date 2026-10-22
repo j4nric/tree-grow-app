@@ -1,0 +1,155 @@
+/*
+ * Haftnotiz (note.ts, docs/ALBUM_UI.md C.4): gelber Zettel mit Washi-Streifen, +2° gedreht,
+ * Titel in Caveat 24 px, Text 13 px, Knöpfe 44 px hoch (G-21). Liegt als popover in der
+ * obersten Ebene; ohne popover-API fest positioniert über allem (.note-open).
+ */
+
+.note {
+  /* Vorgaben des Browsers für [popover] zurücksetzen */
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  border: 0;
+  overflow: visible;
+  box-sizing: border-box;
+  width: min(290px, calc(100vw - 24px));
+  max-height: none;
+  padding: 14px 16px 12px;
+  background: var(--note-bg);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: var(--sh-note);
+  transform: rotate(var(--tilt-note));
+  z-index: 60;
+}
+
+.note:not(:popover-open):not(.note-open) {
+  display: none;
+}
+
+.note:focus {
+  outline: none;
+}
+
+.note:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 3px;
+}
+
+/* Washi-Streifen oben, leicht schräg (Album-Prototyp: 56 × 18, −4°) */
+.note-tape {
+  position: absolute;
+  top: -9px;
+  left: calc(50% - 28px);
+  width: 56px;
+  height: 18px;
+  background: var(--tape-green);
+  opacity: 0.9;
+  transform: rotate(-4deg);
+}
+
+.note-title {
+  margin: 0 0 6px;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.note-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note-line[hidden] {
+  display: none;
+}
+
+/* „jetzt: Wachstum ×1,32“ und ähnliche Kernzahlen */
+.note-emphasis {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-green);
+}
+
+.note-soft {
+  color: var(--ink-soft);
+}
+
+.note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.note-ok,
+.note-more {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 14px;
+  border-radius: var(--r-button);
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.note-ok {
+  border: 0;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.note-more {
+  border: 2px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+}
+
+.note-more[hidden] {
+  display: none;
+}
+
+.note-ok:focus-visible,
+.note-more:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+/* Aufklappen: 160 ms scale(.92) → 1 mit Einblenden; reduziert nur Einblenden. */
+.note.note-in {
+  animation: note-in var(--note-ms) ease-out;
+}
+
+@keyframes note-in {
+  from {
+    opacity: 0;
+    transform: rotate(var(--tilt-note)) scale(0.92);
+  }
+}
+
+body[data-motion='reduce'] .note.note-in {
+  animation-name: note-fade;
+}
+
+@keyframes note-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Auslöser einer Notiz: offen = leicht hervorgehoben */
+[aria-expanded='true'].note-trigger {
+  background: var(--note-bg);
+}

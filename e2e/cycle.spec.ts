@@ -1,5 +1,19 @@
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, gotoTab, niche, openTab, savedState, seedRaw, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import {
+  SAVE_VERSION,
+  expect,
+  gotoTab,
+  niche,
+  openTab,
+  savedState,
+  seedRaw,
+  seedV3,
+  stageLabel,
+  stamps,
+  test,
+  waitForConfirm,
+  waypoint,
+} from './fixtures';
 
 /**
  * Neuer Zyklus und Stammgäste (Schritt 2.8). Startet mit einem v3-Stand – das Laden
@@ -26,7 +40,7 @@ test('Neuer Zyklus im Hain: zwei Klicks, Toast, Stufe 0 und mehr Waldgedächtnis
   await waitForConfirm(page);
   await button.click();
 
-  await expect(page.locator('#toast')).toContainText('Zyklus 2 beginnt');
+  await expect(stamps(page)).toContainText('Zyklus 2 beginnt');
   // Der Knopf verschwindet – der Fokus landet auf der Überschrift, nicht auf body.
   await expect(panel.locator('[data-ref="cycle-title"]')).toBeFocused();
   // Sofort gespeichert: Stufe 0, Waldgedächtnis gestiegen, Tagebuch bleibt.

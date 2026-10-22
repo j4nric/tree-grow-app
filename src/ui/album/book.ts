@@ -20,7 +20,7 @@ export interface Book {
   readonly headStart: HTMLElement;
   /** Kopfzeile rechts: Zettelstapel der Begegnungen. */
   readonly dock: HTMLElement;
-  /** Bänder über dem Buch (neuerer Spielstand). */
+  /** Banderolen über dem Buch (Update-Hinweis, neuerer Spielstand). */
   readonly banners: HTMLElement;
   readonly coverButton: HTMLButtonElement;
   readonly layout: BookLayout;

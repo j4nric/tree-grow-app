@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { codeFromJson } from '../src/core/save';
-import { expect, niche, openGame, openSavePage, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { expect, niche, openGame, openSavePage, savedState, seedV3, stageLabel, stamps, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Spielstand exportieren und importieren als Text-Code (Phase 5): Export, Löschen,
@@ -176,7 +176,7 @@ test('Import eines v1-Codes: Hinweis vorher und dieselbe Meldung wie beim Start'
   await expect(transfer(page).locator('[data-ref="save-status"]')).toContainText('ersten Version');
   await waitForConfirm(page);
   await importButton.click();
-  await expect(page.locator('#toast')).toContainText('Dein Wald beginnt neu – mit Erinnerungen');
+  await expect(stamps(page)).toContainText('Dein Wald beginnt neu – mit Erinnerungen');
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
 });
 

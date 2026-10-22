@@ -1,13 +1,13 @@
 import type { Locator, Page } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, type GameState } from '../src/core/state';
-import { expect, openGame, overlaps, pageTitle, seedRaw, test, waypoint } from './fixtures';
+import { expect, openGame, overlaps, pageTitle, seedRaw, stamp, stamps, test, waypoint } from './fixtures';
 
 /**
- * Rückkehr-Bericht (Playtest Phase 6): Nach 3 Std. Abwesenheit steht mobil nur die
- * Kurzfassung im Toast (oben fest, darf nur kurz sein), alles Weitere in der schließbaren
- * Karte „Rückkehr-Bericht“ oben in der Seitenleiste – per Tastatur und Touch erreichbar.
- * Am Desktop zeigt der Toast weiter die ganze Meldung (unten in der Szene, stört nicht).
+ * Rückkehr-Bericht (Playtest Phase 6): Nach 3 Std. Abwesenheit steht nur die Kurzfassung in
+ * der Meldung (Zettel oben, höchstens drei Zeilen – Desktop wie mobil, docs/ALBUM_UI.md C.8),
+ * alles Weitere in der schließbaren Karte „Rückkehr-Bericht“ – per Tastatur und Touch
+ * erreichbar.
  */
 
 const GROVE = STAGES.findIndex((s) => s.id === 'grove');
@@ -58,8 +58,6 @@ for (const viewport of [
   { name: 'schmal, DejaVu Sans 110 %', width: 360, height: 740, font: 'DejaVu Sans', scale: 1.1 },
   { name: 'Desktop', width: 1280, height: 800 },
 ]) {
-  const narrow = viewport.width <= 760;
-
   test(`Rückkehr nach 3 Std. (${viewport.name}): Kurzfassung, Details erreichbar, nichts verdeckt`, async ({ page, context }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await seedRaw(context, grove(), -3 * 3600_000);
@@ -69,26 +67,21 @@ for (const viewport of [
       await page.addStyleTag({ content: `:root, body, button { font-family: '${viewport.font}', sans-serif !important; }` });
     }
 
-    const toast = page.locator('#toast');
+    const toast = stamp(page);
     await expect(toast).toContainText('Willkommen zurück!');
-    await expect(toast).toHaveAttribute('role', 'status');
+    await expect(stamps(page)).toHaveAttribute('role', 'status');
     const summary = await page.locator('[data-ref="return-report-summary"]').textContent();
     expect(summary).toMatch(/^Willkommen zurück! 3 Std\.: \+[\d.]+ 🌿/);
-    if (narrow) {
-      // Mobil: nur die Kurzfassung – eine flache Leiste statt eines hohen Blocks.
-      await expect(toast).toHaveText(`${summary} · mehr im Rückkehr-Bericht`);
-      await expect(toast).not.toContainText('Wetter gemittelt');
-      // Höchstens drei Zeilen, unabhängig von Schrift und Größe (CSS line-clamp).
-      expect(await lineCount(toast)).toBeLessThanOrEqual(3);
-    } else {
-      // Desktop: weiter die ganze Meldung.
-      await expect(toast).toContainText(/Wetter gemittelt( \(.+\))?\./);
-    }
+    // Nur die Kurzfassung – eine flache Leiste statt eines hohen Blocks.
+    await expect(toast).toHaveText(`${summary} · mehr im Rückkehr-Bericht`);
+    await expect(toast).not.toContainText('Wetter gemittelt');
+    // Höchstens drei Zeilen, unabhängig von Schrift und Größe (CSS line-clamp).
+    expect(await lineCount(toast.locator('.stamp-text'))).toBeLessThanOrEqual(3);
 
-    // Keine Überdeckung der Bedienelemente (zusätzlich zur Toast-Platzierung: auch die Karte).
+    // Keine Überdeckung der Bedienelemente (auch nicht der Karte). Die Kamera-Knöpfe ziehen
+    // in Schritt 3 ins Vollbild – der Zettel lässt Klicks ohnehin durch (smoke.spec.ts).
     await expect(page.locator('[data-ref="encounter-stack"]')).toBeVisible();
     await expectNotCovered(toast, {
-      'Kamera-Knöpfe': page.locator('.scene-camera-button'),
       Stapel: page.locator('[data-ref="encounter-stack"]'),
       Raten: page.locator('.tape-label'),
       Bericht: report(page).getByRole('button'),

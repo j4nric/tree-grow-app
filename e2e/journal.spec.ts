@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { COMMUNITIES } from '../src/content/communities';
 import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
-import { expect, legacyGrowth, openGame, openTab, savedState, seedRaw, seedV3, test, waypoint } from './fixtures';
+import { expect, legacyGrowth, openGame, openTab, savedState, seedRaw, seedV3, stamps, test, waypoint } from './fixtures';
 
 /**
  * Naturtagebuch (DESIGN_V2.md 10, 11.2): Knopf in der Seitenleiste, modaler Dialog mit
@@ -174,7 +174,7 @@ test('Stammgast zieht bei offenem Tagebuch ein: Hinweis im Dialog, kein Toast, �
   await expect(page.locator('#live-status')).toHaveText('');
   // Der v3-Stand mit Waldgedächtnis zeigt beim Laden den Hinweis zur Neugewichtung (2.10);
   // der Einzug selbst darf keinen Toast auslösen.
-  await expect(page.locator('#toast')).not.toContainText('Rotkehlchen');
+  await expect(stamps(page)).not.toContainText('Rotkehlchen');
   await expect(page.locator('.float-note')).toHaveCount(0);
   expect((await savedState(page)).niches.litter).toEqual(['robin']);
 });

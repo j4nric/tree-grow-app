@@ -170,6 +170,22 @@ export const pageTitle = (page: Page) => page.locator('.album-tabpanel:not([hidd
 export const subpage = (page: Page, kind: string) => page.locator(`[data-ref="page-${kind}"]`);
 export const cover = (page: Page) => page.locator('[data-ref="cover"]');
 
+/**
+ * Meldungen (docs/ALBUM_UI.md, C.5) – Ersatz für den Toast. `stamps` ist die ganze Schicht
+ * (für „enthält“), `stamp` die neueste Meldung (Stempel oder Zettel; für genaue Texte).
+ * Ausgeblendete Meldungen verlieren ihr `data-ref` sofort.
+ */
+export const stamps = (page: Page) => page.locator('[data-ref="stamps"]');
+export const stamp = (page: Page) => page.locator('[data-ref="stamp"]').last();
+/** Neueste Meldung, nachdem sie fertig „hereingestempelt“ ist (für Lage und Größe). */
+export async function settledStamp(page: Page): Promise<Locator> {
+  const latest = stamp(page);
+  await latest.evaluate((node) => Promise.all(node.getAnimations().map((a) => a.finished)));
+  return latest;
+}
+/** Haftnotiz (C.4) mit `data-ref`, z. B. `weather-details`, `harmony-note`. */
+export const note = (page: Page, ref = 'note') => page.locator(`[data-ref="${ref}"]`);
+
 /** Wechselt per Klick in einen Reiter des Albums. */
 export async function openTab(page: Page, tab: TabHash): Promise<void> {
   await tabButton(page, tab).click();

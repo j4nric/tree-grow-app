@@ -1,4 +1,4 @@
-import { expect, gotoTab, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { expect, gotoTab, savedState, seedV3, stageLabel, stamps, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Übergang zum Neuen Zyklus in der Szene (render/cycle.ts, DESIGN_V2.md §10): Der alte
@@ -30,7 +30,7 @@ test('Neuer Zyklus: Übergangs-Sequenz läuft ohne Fehler, danach Stufe-0-Bild',
   await button.click();
   await waitForConfirm(page, { clock: true });
   await button.click();
-  await expect(page.locator('#toast')).toContainText('Zyklus 2 beginnt');
+  await expect(stamps(page)).toContainText('Zyklus 2 beginnt');
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
   expect((await savedState(page)).meta.forestMemory).toBeGreaterThan(0);
 

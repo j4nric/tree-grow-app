@@ -5,7 +5,7 @@
  * `deps.actions` zurück.
  *
  * Hier: Buch, Doppelseite/Einzelseite, Reiter, Umschlag, Umblättern, Verlauf und Hash,
- * Polaroid, Etiketten und Stufenleiste. Die bisherigen Bauteile hängen bis zu ihrem
+ * Polaroid, Etiketten und Stufenleiste, Haftnotizen, Stempel und Banderolen. Die bisherigen Bauteile hängen bis zu ihrem
  * Schritt als Übergangsinhalt in den Reitern (legacy.ts).
  */
 import { LANDSCAPE_SITES } from '../../content/landscape';
@@ -18,8 +18,11 @@ import type { EcosystemView } from '../view-model';
 import { nightRateText } from '../weather-view';
 import { createBook } from './book';
 import { createCover } from './cover';
+import { createBanderole } from './banderole';
 import { createAlbumHistory } from './history';
+import { createLabelNotes } from './label-notes';
 import { createLegacyUi, type LegacyUi } from './legacy';
+import { closeNotes, onNoteChange, openNoteId } from './note';
 import {
   TAB_IDS,
   TAB_LABELS,
@@ -39,15 +42,20 @@ import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage } from './pages/registr
 import { createPolaroid } from './polaroid';
 import { createSpread } from './spread';
 import { createStageLadder } from './stage-ladder';
+import { createStamps } from './stamps';
 import { createTabStrip } from './tab-strip';
 import { createTapeLabel } from './tape-label';
 import type { AlbumDeps } from './types';
 
 export type { AlbumDeps, AlbumActions, AlbumPart } from './types';
+export type { NotifyOptions } from './stamp-rules';
+export { openNote, type Note, type NoteContent, type NoteMore } from './note';
 
-export interface Album extends Omit<LegacyUi, 'toast'> {
+export interface Album extends LegacyUi {
   /** Bildfläche des Polaroids (Kamera-Knöpfe). */
   readonly sceneFrame: HTMLElement;
+  /** Platz für Banderolen über dem Album (Update-Hinweis aus pwa.ts). */
+  readonly banners: HTMLElement;
   /** Dauerhafter Hinweis: Im Speicher liegt ein Stand einer neueren Spielversion. */
   showNewerSaveBanner(text: string): void;
   /** Aktueller Navigationszustand (nur lesen; für Tests und Fehlersuche). */
@@ -78,8 +86,13 @@ export function createAlbum(deps: AlbumDeps): Album {
   const labels = el('div', 'tape-labels');
   const growth = createTapeLabel('growth', 'Wachstum', 'growth-rate');
   const seeds = createTapeLabel('seeds', 'Samen', 'seeds');
-  const harmony = createTapeLabel('harmony', 'Harmonie', 'harmony');
+  const harmony = createTapeLabel('harmony', 'Harmonie', 'harmony', true);
   labels.append(growth.element, seeds.element, harmony.element);
+  const labelNotes = createLabelNotes(
+    { growth, seeds, harmony },
+    // „Mehr ›“ erst, wenn es U:Harmonie gibt (Schritt 5).
+    { onMore: () => dispatch({ type: 'open', page: { kind: 'harmony' } }), available: () => subpages.has('harmony') },
+  );
   const ladder = createStageLadder();
   const returnMount = el('div', 'album-return panel');
   returnMount.id = 'return-report';
@@ -114,6 +127,13 @@ export function createAlbum(deps: AlbumDeps): Album {
   }
 
   document.body.prepend(book.element);
+  // Stempel und Zettel (C.5): über dem Album, auch über Unterseiten.
+  const stamps = createStamps(
+    () => deps.preferences.toastMs(),
+    () => deps.preferences.reducedMotion,
+    book.banners,
+  );
+  book.element.after(stamps.element);
 
   const legacy = createLegacyUi(
     deps,
@@ -137,9 +157,11 @@ export function createAlbum(deps: AlbumDeps): Album {
       },
       showCareTab: () => dispatch({ type: 'tab', tab: 'care' }),
       focusTarget,
+      stamp: (text, options) => stamps.show(text, options),
     },
   );
-  book.element.after(legacy.toast);
+  // Haftnotizen (C.4): offene Notiz steht in nav.note; Navigation schließt sie.
+  onNoteChange((id) => dispatch({ type: 'note', id }));
   setOrientation();
   book.onLayoutChange(() => {
     setOrientation();
@@ -231,6 +253,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   }
 
   async function render(prev: AlbumNav, next: AlbumNav): Promise<void> {
+    if (next.note === null && openNoteId() !== null) closeNotes();
     if (prev.tab !== next.tab) showTab(next.tab);
     if (prev.cover !== next.cover) {
       cover.setOpen(next.cover, !deps.preferences.reducedMotion);
@@ -336,6 +359,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     harmony.setTitle(view.harmonyTier);
     if (lastHarmony !== null && harmonyRounded > lastHarmony) harmony.pop();
     lastHarmony = harmonyRounded;
+    labelNotes.update(view);
     ladder.update({ stage: state.stage, waypoint: state.waypoint, waypointProgress: view.stageProgress, hint: view.progressHint });
     const site = activeSite(state.meta.landscape);
     if (site !== shownSite) {
@@ -348,11 +372,13 @@ export function createAlbum(deps: AlbumDeps): Album {
   return {
     ...legacy,
     sceneFrame: polaroid.photo,
+    banners: book.banners,
     get nav() {
       return nav;
     },
     replaced() {
       legacy.replaced();
+      closeNotes();
       savePage.reset?.();
     },
     adopted(headChanged) {
@@ -361,14 +387,14 @@ export function createAlbum(deps: AlbumDeps): Album {
     },
     showNewerSaveBanner(text) {
       if (book.banners.querySelector('[data-ref="newer-save-banner"]')) return;
-      const banner = el('div', 'frozen-banner');
-      banner.setAttribute('role', 'alert');
-      banner.dataset.ref = 'newer-save-banner';
-      const reload = el('button', '', 'Seite neu laden');
-      reload.type = 'button';
-      reload.addEventListener('click', () => location.reload());
-      banner.append(el('p', '', text), reload);
-      book.banners.append(banner);
+      const banner = createBanderole({
+        tone: 'alert',
+        ref: 'newer-save-banner',
+        role: 'alert',
+        text,
+        buttons: [{ label: 'Seite neu laden', onClick: () => location.reload() }],
+      });
+      book.banners.prepend(banner.element);
     },
   };
 }

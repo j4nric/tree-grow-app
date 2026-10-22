@@ -326,7 +326,7 @@ const album = createAlbum({
       // Korridor (DESIGN_V2.md 24.6): jederzeit, ändert das wirksame Gedächtnis.
       const result = buildCorridor(state, id);
       if (!result.ok) {
-        album.notify(landscapeErrorText(result.error));
+        album.notify(landscapeErrorText(result.error), { error: true });
         return;
       }
       act(result, false, undefined, corridorBuiltText(id));
@@ -372,7 +372,7 @@ function refreshSceneEcosystem(ev: Readonly<Evaluation>, rebuilt: boolean): void
  * Führt das Ergebnis einer Spieleraktion nach: Erfolge prüfen, sofort speichern
  * (Entscheidungen sollen ein Neuladen sicher überstehen), Ansichten aktualisieren, Fehler
  * kurz anzeigen. Neu entdeckte Lebensgemeinschaften und Erfolge in einem ruhigen Hinweis
- * (Toast bzw. im offenen Dialog), damit sich nichts gegenseitig verdrängt.
+ * (Stempel bzw. im offenen Dialog), damit sich nichts gegenseitig verdrängt.
  * `resolves`: Die Begegnung an der Spitze ist bei Erfolg erledigt.
  */
 /** `lead`: eigener Hinweis der Aktion (z. B. Korridor gebaut), vor den übrigen im selben Text. */
@@ -392,7 +392,7 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
   invalidate('encounter', 'eco', 'picker');
   album.refresh(performance.now());
   if (!result.ok) {
-    album.notify(errorText(result.error, type));
+    album.notify(errorText(result.error, type), { error: true });
     return false;
   }
   if (unlocked.length > 0) sound.cue('achievement');
@@ -477,7 +477,7 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   if (!result.ok) {
     const blocker = newCycleBlocker(state);
     const error = result.error;
-    album.notify(blocker ? newCycleBlockerText(blocker) : error in ERROR_TEXTS ? ERROR_TEXTS[error as ActionError] : landscapeErrorText(error as Parameters<typeof landscapeErrorText>[0]));
+    album.notify(blocker ? newCycleBlockerText(blocker) : error in ERROR_TEXTS ? ERROR_TEXTS[error as ActionError] : landscapeErrorText(error as Parameters<typeof landscapeErrorText>[0]), { error: true });
     return;
   }
   shownStage = state.stage;
@@ -492,13 +492,14 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   // Der Knopf ist jetzt ausgeblendet – Fokus auf die Überschrift des Bereichs statt auf body.
   album.focusCycle();
   // Erfolge prüft startNewCycle selbst (vor dem Zurücksetzen) – im selben Hinweis melden.
-  album.showToast(
+  album.notify(
     joinNotes(
       newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars, state.cycle.mainTree),
       result.site !== fromSite ? siteChangeText(result.site, result.founded) : '',
       achievementUnlockedText(result.achievements),
       takeLandscapeAnnouncement(),
     ),
+    { direct: true },
   );
 }
 
@@ -521,7 +522,7 @@ function tickNoteText(report: TickReport): string | null {
 function resetGame(): void {
   // Gesperrter Tab: nichts löschen, nichts ersetzen (wie beim Laden einer Sicherung).
   if (storageFrozen) {
-    album.showToast(FROZEN_TEXT);
+    album.notify(FROZEN_TEXT, { direct: true, keep: true });
     return;
   }
   // Der bisherige Wald kommt vorher in die Sicherungen des Kontos (falls aktiv).
@@ -642,7 +643,7 @@ function saveTransferCallbacks(): SaveTransferCallbacks {
             imported.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '',
             achievementsBackfilledText(imported.achievementsBackfilled),
           );
-      if (text) album.showToast(text);
+      if (text) album.notify(text, { direct: true });
       return null;
     },
   };
@@ -733,7 +734,7 @@ function frame(now: number): void {
     dailyProduced = 0;
   }
   const stageChanged = state.stage !== shownStage;
-  // Neue Stufe ohne offenen Dialog: Der Erfolg steht im Stufen-Banner, nicht zusätzlich als Toast.
+  // Neue Stufe ohne offenen Dialog: Der Erfolg steht im Stufen-Banner, nicht zusätzlich als Stempel.
   const bannerAchievement = stageChanged && !album.overlayOpen() ? achievementText : null;
   if (album.overlayOpen()) {
     // Ein Hinweisfeld im Dialog: alles in einem Text, sonst verdrängt der letzte die übrigen.
@@ -818,8 +819,8 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   if (report) {
     const notice = catchUpNotice(away, report, state.pendingEncounters.length, { from: stageBefore, to: state.stage });
     if (notice?.kind === 'welcome') {
-      // Ein Toast für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt –
-      // mobil nur die Kurzfassung, alles Weitere im Rückkehr-Bericht (ui/return-report.ts).
+      // Eine Meldung für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt –
+      // Desktop wie mobil nur die Kurzfassung, alles Weitere im Rückkehr-Bericht (ui/return-report.ts).
       const stages = { from: stageBefore, to: state.stage };
       const view = toReturnReportView({ away, report, waiting: state.pendingEncounters.length, stages, notes });
       album.showReturnReport(view);
@@ -858,7 +859,7 @@ function start(): void {
   if (loaded?.migratedFromV1) {
     // Alter v1-Stand: Neustart, sofort als v2 speichern, damit die Meldung nur einmal kommt.
     persist();
-    album.showToast(v1NoticeText(loaded.keepsake));
+    album.notify(v1NoticeText(loaded.keepsake), { direct: true, keep: true });
   }
   const backfilled = loaded?.achievementsBackfilled ?? 0;
   if (loaded?.memoryReweighted || backfilled > 0) {
@@ -892,6 +893,7 @@ function start(): void {
   });
   // Installierbare App: Offline-Start und Hinweis auf neue Versionen (nur im Build).
   setupServiceWorker({
+    mount: album.banners,
     beforeReload: () => {
       persist();
       return account?.flush();
