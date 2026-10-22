@@ -178,8 +178,3 @@ export function toJournalLandscapeView(state: GameState): JournalLandscapeView |
         : null,
   };
 }
-
-/** Zähler am Reiter: gegründete Wälder, z. B. „2/6“; leer, solange verborgen. */
-export function journalLandscapeCount(view: JournalLandscapeView | null): string {
-  return view ? `${formatNumber(view.sites.length)}/${formatNumber(LANDSCAPE_SITES.length)}` : '';
-}

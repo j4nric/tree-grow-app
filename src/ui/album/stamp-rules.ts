@@ -18,11 +18,6 @@ export interface NotifyOptions {
   keep?: boolean;
   /** Kurzfassung: höchstens drei Zeilen (Rückkehr). */
   brief?: boolean;
-  /**
-   * Immer in der Meldungsschicht – auch wenn noch ein alter Dialog mit eigenem Hinweisfeld
-   * offen ist (bis Schritt 12; früher `showToast`).
-   */
-  direct?: boolean;
 }
 
 export function stampKind(text: string, options: NotifyOptions = {}): StampKind {

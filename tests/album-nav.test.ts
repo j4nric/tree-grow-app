@@ -6,6 +6,7 @@ import {
   historyDepth,
   initialNav,
   navigate,
+  opensNewPage,
   pageNumber,
   samePage,
   subpageKey,
@@ -278,5 +279,26 @@ describe('Spielanleitung im Umschlag (Schritt 11)', () => {
     expect(nav.stack).toEqual([{ kind: 'guide' }]);
     nav = navigate(nav, { type: 'back' }, open);
     expect(nav).toMatchObject({ cover: true, stack: [] });
+  });
+});
+
+describe('opensNewPage (Fokus-Rückgabe, Schritt 12)', () => {
+  const ctx: NavContext = { landscapeUnlocked: true };
+  it('vorwärts und ersetzt: neue Seite; zurück zu einer Seite weiter unten: keine', () => {
+    let nav = initialNav('goals');
+    const cycle = navigate(nav, { type: 'open', page: { kind: 'cycle' } }, ctx);
+    expect(opensNewPage(nav, cycle)).toBe(true);
+    const site = navigate(cycle, { type: 'open', page: { kind: 'site', id: 'floodplain' } }, ctx);
+    expect(opensNewPage(cycle, site)).toBe(true);
+    // Anderer Standort ersetzt das Blatt: neuer Auslöser.
+    const other = navigate(site, { type: 'open', page: { kind: 'site', id: 'carr' } }, ctx);
+    expect(other.stack).toHaveLength(2);
+    expect(opensNewPage(site, other)).toBe(true);
+    // „Neuer Zyklus ›“ auf U:Standort: zurück zu U:Neuer Zyklus – dessen Auslöser bleibt.
+    const back = navigate(other, { type: 'open', page: { kind: 'cycle' } }, ctx);
+    expect(back.stack).toEqual([{ kind: 'cycle' }]);
+    expect(opensNewPage(other, back)).toBe(false);
+    nav = navigate(back, { type: 'back' }, ctx);
+    expect(opensNewPage(back, nav)).toBe(false);
   });
 });

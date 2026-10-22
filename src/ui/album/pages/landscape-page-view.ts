@@ -13,30 +13,11 @@ import {
   type LandscapeSiteView,
 } from '../../landscape-view';
 import type { JournalLandscapeRowView, JournalLandscapeView } from '../../view-model';
+import { isOtherTarget } from '../cycle-target';
 
 /** Kennzahl rechts im Seitenkopf, z. B. „🪶 3 Hähersaat“. */
 export function landscapePageMeta(view: Pick<LandscapeMapView, 'available'> | null): string {
   return view ? `🪶 ${formatNumber(view.available)} Hähersaat` : '';
-}
-
-/**
- * Ziel des nächsten Zyklus (D.2 `albumTarget`): der gewählte Standort, solange er wählbar ist,
- * sonst der aktive Wald („hier“). Ohne Ansicht (Landschaft verborgen) gibt es keins.
- */
-export function resolveTarget(view: Pick<LandscapeMapView, 'active' | 'sites'> | null, chosen: SiteId | null): SiteId | null {
-  if (!view) return null;
-  const pick = view.sites.find((s) => s.id === chosen);
-  return pick && pick.action !== null ? pick.id : view.active;
-}
-
-/** Ist dieser Standort ein anderes Ziel als „hier“ (und darf der Zyklus beginnen)? */
-export function isOtherTarget(view: Pick<LandscapeMapView, 'allowed'>, site: Pick<LandscapeSiteView, 'id' | 'active'>, target: SiteId | null): boolean {
-  return view.allowed && !site.active && site.id === target;
-}
-
-/** Zusatz im Knopf auf der Karte nur für Screenreader: „, Ziel des nächsten Zyklus“. */
-export function siteButtonExtra(view: Pick<LandscapeMapView, 'allowed'>, site: Pick<LandscapeSiteView, 'id' | 'active'>, target: SiteId | null): string {
-  return isOtherTarget(view, site, target) ? ', Ziel des nächsten Zyklus' : '';
 }
 
 /** Zeile „Ziel des nächsten Zyklus“ unter der Karte; null, solange kein Zyklus möglich ist. */

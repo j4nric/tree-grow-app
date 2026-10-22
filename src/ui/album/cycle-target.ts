@@ -4,7 +4,7 @@
  * im Reiter „Landschaft“ zeigt es, U:Neuer Zyklus liest es für Knopf und Baumwahl.
  *
  * Hält dazu die Ansicht der Karte (`toLandscapeMapView`), damit alle drei Seiten dieselbe
- * sehen; sie wird nur nach Änderungen am Ökosystem neu gerechnet (legacy.ts). Wie bisher
+ * sehen; sie wird nur nach Änderungen am Ökosystem neu gerechnet (eco-refresh.ts). Wie bisher
  * fällt das Ziel beim Neuen Zyklus, beim Wechsel des Waldes und beim Import zurück auf „hier“;
  * dabei verfallen auch offene Bestätigungen („Bauen“, `onDisarm`).
  */
@@ -12,8 +12,27 @@ import type { SiteId } from '../../content/landscape';
 import type { GameState } from '../../core/state';
 import { previewNewCycle } from '../../core/tick';
 import { activeSite, landscapeOf } from '../../core/landscape';
-import { toLandscapeMapView, type LandscapeMapView } from '../landscape-view';
-import { resolveTarget } from './pages/landscape-page-view';
+import { toLandscapeMapView, type LandscapeMapView, type LandscapeSiteView } from '../landscape-view';
+
+/**
+ * Ziel des nächsten Zyklus (D.2 `albumTarget`): der gewählte Standort, solange er wählbar ist,
+ * sonst der aktive Wald („hier“). Ohne Ansicht (Landschaft verborgen) gibt es keins.
+ */
+export function resolveTarget(view: Pick<LandscapeMapView, 'active' | 'sites'> | null, chosen: SiteId | null): SiteId | null {
+  if (!view) return null;
+  const pick = view.sites.find((s) => s.id === chosen);
+  return pick && pick.action !== null ? pick.id : view.active;
+}
+
+/** Ist dieser Standort ein anderes Ziel als „hier“ (und darf der Zyklus beginnen)? */
+export function isOtherTarget(view: Pick<LandscapeMapView, 'allowed'>, site: Pick<LandscapeSiteView, 'id' | 'active'>, target: SiteId | null): boolean {
+  return view.allowed && !site.active && site.id === target;
+}
+
+/** Zusatz im Knopf auf der Karte nur für Screenreader: „, Ziel des nächsten Zyklus“. */
+export function siteButtonExtra(view: Pick<LandscapeMapView, 'allowed'>, site: Pick<LandscapeSiteView, 'id' | 'active'>, target: SiteId | null): string {
+  return isOtherTarget(view, site, target) ? ', Ziel des nächsten Zyklus' : '';
+}
 
 export interface AlbumTarget {
   /** Ansicht der Karte (null, solange die Landschaft verborgen ist). Neues Objekt je Änderung. */

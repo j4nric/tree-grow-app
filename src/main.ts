@@ -500,7 +500,6 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
       achievementUnlockedText(result.achievements),
       takeLandscapeAnnouncement(),
     ),
-    { direct: true },
   );
 }
 
@@ -523,7 +522,7 @@ function tickNoteText(report: TickReport): string | null {
 function resetGame(): void {
   // Gesperrter Tab: nichts löschen, nichts ersetzen (wie beim Laden einer Sicherung).
   if (storageFrozen) {
-    album.notify(FROZEN_TEXT, { direct: true, keep: true });
+    album.notify(FROZEN_TEXT, { keep: true });
     return;
   }
   // Der bisherige Wald kommt vorher in die Sicherungen des Kontos (falls aktiv).
@@ -644,7 +643,7 @@ function saveTransferCallbacks(): SaveTransferCallbacks {
             imported.memoryReweighted ? MEMORY_REWEIGHTED_TEXT : '',
             achievementsBackfilledText(imported.achievementsBackfilled),
           );
-      if (text) album.notify(text, { direct: true });
+      if (text) album.notify(text);
       return null;
     },
   };
@@ -864,7 +863,7 @@ function start(): void {
   if (loaded?.migratedFromV1) {
     // Alter v1-Stand: Neustart, sofort als v2 speichern, damit die Meldung nur einmal kommt.
     persist();
-    album.notify(v1NoticeText(loaded.keepsake), { direct: true, keep: true });
+    album.notify(v1NoticeText(loaded.keepsake), { keep: true });
   }
   const backfilled = loaded?.achievementsBackfilled ?? 0;
   if (loaded?.memoryReweighted || backfilled > 0) {

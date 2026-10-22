@@ -7,8 +7,8 @@
  * Hier: Buch, Doppelseite/Einzelseite, Reiter, Umschlag mit seinen Unterseiten (Anleitung,
  * Einstellungen, Konto, Spielstand), Umblättern, Verlauf und Hash, Polaroid mit Vollbild der
  * Szene, Etiketten und Stufenleiste, Rückkehr-Zettel, Haftnotizen, Stempel und Banderolen,
- * Zettelstapel der Begegnungen. Die bisherigen Bauteile hängen bis zu ihrem Schritt als
- * Übergangsinhalt in den Reitern (legacy.ts).
+ * Zettelstapel der Begegnungen. Die Ökosystem-Ansicht frischt eco-refresh.ts auf, schwebende
+ * Zahlen kommen aus floats.ts.
  */
 import { LANDSCAPE_SITES } from '../../content/landscape';
 import { evaluate } from '../../core/formulas';
@@ -29,7 +29,8 @@ import { createFullscreen } from './fullscreen';
 import { showGuideHint } from './guide-hint';
 import { createAlbumHistory } from './history';
 import { createLabelNotes } from './label-notes';
-import { createLegacyUi, type LegacyUi } from './legacy';
+import { createEcoRefresh } from './eco-refresh';
+import { createFloats } from './floats';
 import { closeNotes, onNoteChange, openNote, openNoteId } from './note';
 import { createNoteStack } from './note-stack';
 import {
@@ -39,6 +40,7 @@ import {
   historyDepth,
   initialNav,
   navigate,
+  opensNewPage,
   pageNumber,
   subpageKey,
   tabFromHash,
@@ -55,19 +57,42 @@ import type { EncounterPage } from './pages/encounter-page';
 import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type TabPage } from './pages/registry';
 import { createPolaroid } from './polaroid';
 import { createReturnReport } from './return-report';
+import { createSeasonWeather } from './season-weather';
 import { createSpread } from './spread';
+import { createStageBanner } from './stage-banner';
 import { createStageLadder } from './stage-ladder';
 import { createStamps } from './stamps';
 import { createTabStrip } from './tab-strip';
 import { createTapeLabel } from './tape-label';
-import type { AlbumDeps } from './types';
+import type { AlbumDeps, AlbumPart } from './types';
+import type { NotifyOptions } from './stamp-rules';
+import type { StageBannerView } from '../adapters';
 import { returnToastText, type ReturnReportView } from '../return-report-view';
 
 export type { AlbumDeps, AlbumActions, AlbumPart } from './types';
 export type { NotifyOptions } from './stamp-rules';
 export { openNote, type Note, type NoteContent, type NoteMore } from './note';
 
-export interface Album extends LegacyUi {
+export interface Album {
+  refresh(now: number): void;
+  /** Spielstand geändert: diese Teile beim nächsten Auffrischen neu. */
+  invalidate(parts: readonly AlbumPart[]): void;
+  /** Meldung (C.5): Stempel, ab 90 Zeichen Zettel. Leerer Text: nichts. */
+  notify(text: string, options?: NotifyOptions): void;
+  /** Stufen-Stempel über dem Bild (neue Stufe, ggf. mit Erfolg). */
+  showBanner(view: StageBannerView): void;
+  /** Verdeckt gerade etwas die Szene (mobil: Unterseite, Polaroid weggescrollt)? */
+  overlayOpen(): boolean;
+  /** Hinweissatz über der Szene – ist sie nicht zu sehen, als Stempel. */
+  noteText(text: string): void;
+  /** „+12 🌰“ über dem Samen-Etikett. */
+  floatSeeds(amount: number): void;
+  /** Gesetzte Pflanze: Kosten und Name schweben auf. */
+  plantFeedback(cost: number, plantId: string): void;
+  /** Spielstand ersetzt (Löschen, Import): Notizen zu, Bestätigungen zurück, alles neu. */
+  replaced(): void;
+  /** Stand eines anderen Geräts übernommen; `headChanged`: andere vorderste Begegnung. */
+  adopted(headChanged: boolean): void;
   /** Platz für die Kamera-Leiste (im Vollbild unten rechts). */
   readonly sceneFrame: HTMLElement;
   /** Platz für Banderolen über dem Album (Update-Hinweis aus pwa.ts). */
@@ -103,6 +128,9 @@ export interface Album extends LegacyUi {
   closePlantPicker(): void;
 }
 
+/** Mobil: Meldungen nur oben, solange die Hauptansicht höchstens so weit gescrollt ist (px). */
+const STAMPS_TOP_MAX_SCROLL = 48;
+
 export function createAlbum(deps: AlbumDeps): Album {
   const ctx: NavContext = { landscapeUnlocked: landscapeUnlocked(deps.state()) };
   let nav: AlbumNav = initialNav(tabFromHash(location.hash, ctx));
@@ -122,7 +150,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   const book = createBook(spread, cover.element, () => dispatch({ type: 'cover', open: !nav.cover }));
   // Ziel des nächsten Zyklus: Karte der Landschaft ↔ U:Neuer Zyklus (D.2).
   const albumTarget = createAlbumTarget();
-  /** Ökosystem-Ansicht für die Seiten (legacy.ts rechnet sie, `showSummary` reicht sie weiter). */
+  /** Ökosystem-Ansicht für die Seiten (eco-refresh.ts rechnet sie, `showSummary` reicht sie weiter). */
   const eco: { view: EcosystemView | null; serial: number } = { view: null, serial: 0 };
   const env: PageEnv = {
     deps,
@@ -134,7 +162,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       dispatch({ type: 'open', page });
     },
     albumTarget,
-    float: (text, x, y) => legacy.float(text, x, y),
+    float: (text, x, y) => floats.note(text, x, y),
     eco,
   };
 
@@ -199,32 +227,54 @@ export function createAlbum(deps: AlbumDeps): Album {
   );
   book.element.after(stamps.element);
 
-  const legacy = createLegacyUi(
-    deps,
-    {
-      ...tabs,
-      season: polaroid.season,
-      photo: polaroid.stamps,
-      albumTarget,
+  const floats = createFloats(deps.canvas);
+  const stageBanner = createStageBanner(polaroid.stamps);
+  const notify = (text: string, options?: NotifyOptions): void => {
+    if (!text) return;
+    placeStamps();
+    stamps.show(text, options);
+  };
+  /**
+   * Platz der Meldungen (C.5): oben über dem Bild nur, wo oben keine Navigation liegt – im
+   * Vollbild und mobil auf der Hauptansicht, solange nichts gescrollt ist (sonst klebt dort
+   * die Reiterleiste bzw. liegt das Lesezeichen einer Unterseite). Sonst unten.
+   */
+  function placeStamps(): void {
+    const homeTop = book.layout === 'single' && nav.stack.length === 0 && !nav.cover && window.scrollY < STAMPS_TOP_MAX_SCROLL;
+    stamps.setTop(nav.fullscreen || homeTop);
+  }
+  window.addEventListener('scroll', placeStamps, { passive: true });
+  // Reiter Nischen (Schritt 5): „Pflanze setzen“ blättert um, „Zur Pflege“ über den Reiter Pflege.
+  tabs.niches.connect({
+    openPlantPicker: () => dispatch({ type: 'open', page: { kind: 'plant-picker' } }),
+    showCare(id) {
+      dispatch({ type: 'tab', tab: 'care' });
+      tabs.care.reveal(id);
     },
-    {
-      onEcosystem: showSummary,
-      onLandscape(unlocked) {
-        if (ctx.landscapeUnlocked === unlocked) return;
-        ctx.landscapeUnlocked = unlocked;
-        tabStrip.setVisible('landscape', unlocked);
-        // Reiter Landschaft bzw. U:Standort (auch auf dem Stapel von „Ziele“) schließen.
-        if (!unlocked) dispatch({ type: 'landscape-locked' });
-      },
-      showCareTab: () => dispatch({ type: 'tab', tab: 'care' }),
-      openPlantPicker: () => dispatch({ type: 'open', page: { kind: 'plant-picker' } }),
-      focusTarget,
-      stamp: (text, options) => stamps.show(text, options),
+  });
+  const ecoRefresh = createEcoRefresh(deps, {
+    albumTarget,
+    seasonWeather: createSeasonWeather(polaroid.season),
+    onEcosystem: showSummary,
+    onLandscape(unlocked) {
+      if (ctx.landscapeUnlocked === unlocked) return;
+      ctx.landscapeUnlocked = unlocked;
+      tabStrip.setVisible('landscape', unlocked);
+      // Reiter Landschaft bzw. U:Standort (auch auf dem Stapel von „Ziele“) schließen.
+      if (!unlocked) dispatch({ type: 'landscape-locked' });
     },
-  );
+    // Als Zettel, der bleibt (C.5); ein gleichzeitiger Stempel verdrängt ihn nicht.
+    announce: (text) => notify(text, { keep: true }),
+  });
   // Haftnotizen (C.4): offene Notiz steht in nav.note; Navigation schließt sie.
   onNoteChange((id) => dispatch({ type: 'note', id }));
-  showGuideHint(deps.newGame, book.coverButton, () => dispatch({ type: 'open', page: { kind: 'guide' } }));
+  showGuideHint(
+    deps.newGame,
+    book.coverButton,
+    () => dispatch({ type: 'open', page: { kind: 'guide' } }),
+    // Mobil unter den Etiketten statt über dem Polaroid (der Samen soll zu sehen sein).
+    () => (book.layout === 'single' ? labels : null),
+  );
 
   // --- Szene: Vollbild, Haftnotiz zum Tier, Sichtbarkeit (C.6, D.3) ----------------------
   const fullscreen = createFullscreen({
@@ -293,6 +343,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   setOrientation();
   book.onLayoutChange(() => {
     setOrientation();
+    placeStamps();
     // Weggedrehte Seite gehört zum alten Layout (mobil: Hauptansicht, Doppelseite: rechte
     // Seite): neu setzen – während einer Drehung erst danach.
     whenIdle(settleTurns);
@@ -317,6 +368,9 @@ export function createAlbum(deps: AlbumDeps): Album {
   window.addEventListener('hashchange', () => {
     const tab = tabFromHash(location.hash, ctx);
     if (tab !== nav.tab || historyDepth(nav) > 0) dispatch({ type: 'tab', tab });
+    // Veralteter Hash eines älteren Eintrags (z. B. #landschaft nach dem Sperren der Landschaft
+    // bei offenem Umschlag, KANN 7): durch den Hash des gezeigten Reiters ersetzen.
+    else if (location.hash !== hashOf(tab)) albumHistory.setHash(hashOf(tab));
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
@@ -347,7 +401,8 @@ export function createAlbum(deps: AlbumDeps): Album {
     if (action.type === 'open' && !subpages.has(subpageKey(action.page))) return;
     const next = navigate(nav, action, ctx);
     if (next === nav) return;
-    if (action.type === 'open') triggers[next.stack.length - 1] = activeButton();
+    // Auslöser merken – nicht, wenn nur zu einer Seite weiter unten zurückgeblättert wird.
+    if (action.type === 'open' && opensNewPage(nav, next)) triggers[next.stack.length - 1] = activeButton();
     commit(next, true);
   }
 
@@ -383,6 +438,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     nav = next;
     if (record) albumHistory.sync(historyDepth(next));
     if (prev.tab !== next.tab) albumHistory.setHash(hashOf(next.tab));
+    placeStamps();
     void render(prev, next).finally(drain);
   }
 
@@ -449,6 +505,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     }
     // Was jetzt oben liegt, sofort nachziehen (z. B. Reiterseite nach dem Schließen des Umschlags).
     refreshPages(performance.now());
+    placeStamps();
   }
 
   /**
@@ -603,13 +660,16 @@ export function createAlbum(deps: AlbumDeps): Album {
 
   // --- Schnittstelle für main.ts ---------------------------------------------------------
   return {
-    ...legacy,
+    notify,
+    showBanner: (view) => stageBanner.show(view),
+    floatSeeds: (amount) => floats.seeds(amount),
+    plantFeedback: (cost, plantId) => floats.plant(cost, plantId),
     refresh(now) {
-      legacy.refresh(now);
+      ecoRefresh.refresh(now);
       refreshPages(now);
     },
     invalidate(parts) {
-      legacy.invalidate(parts);
+      ecoRefresh.invalidate(parts);
       // Seiten (auch U:Begegnung und U:Pflanze setzen) beim nächsten Auffrischen sofort neu.
       pagesDirty = true;
     },
@@ -627,14 +687,14 @@ export function createAlbum(deps: AlbumDeps): Album {
       }
     },
     /**
-     * Verdeckt etwas die Szene? Alte Dialoge (Tagebuch) oder – mobil – eine Unterseite bzw.
-     * ein weggescrolltes Polaroid. Dann sammelt main.ts die Hinweise in einem Stempel.
+     * Verdeckt etwas die Szene? Mobil eine Unterseite bzw. ein weggescrolltes Polaroid. Dann
+     * sammelt main.ts die Hinweise in einem Stempel.
      */
-    overlayOpen: () => legacy.overlayOpen() || !photoVisible(),
+    overlayOpen: () => !photoVisible(),
     noteText(text) {
       // Polaroid nicht zu sehen (mobil weggescrollt oder Unterseite): als Stempel (A.11 #121).
-      if (photoVisible()) legacy.noteText(text);
-      else legacy.notify(text);
+      if (photoVisible()) floats.sceneNote(text);
+      else notify(text);
     },
     sceneFrame: fullscreen.tools,
     banners: book.banners,
@@ -652,7 +712,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     },
     showSceneAnimal,
     replaced() {
-      legacy.replaced();
+      ecoRefresh.reset();
       closeNotes();
       albumTarget.disarm();
       for (const sub of subpages.values()) sub.reset?.();
@@ -661,7 +721,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       pagesDirty = true;
     },
     adopted(headChanged) {
-      legacy.adopted(headChanged);
+      ecoRefresh.reset();
       albumTarget.disarm();
       savePage.disarm();
       cyclePage.disarm();
@@ -675,7 +735,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       returnReport.show(view);
       // Kurzfassung als Stempel bzw. Zettel (höchstens drei Zeilen) – Desktop wie mobil;
       // alles Weitere steht im Rückkehr-Bericht (C.8).
-      legacy.notify(returnToastText(view, true), { brief: true });
+      notify(returnToastText(view, true), { brief: true });
     },
     hideReturnReport: () => returnReport.hide(),
     mountAccount(section) {

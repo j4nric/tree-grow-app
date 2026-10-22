@@ -1,7 +1,7 @@
 /**
  * View-Model für den Bereich „Neuer Zyklus“ und die Stammgäste-Auswahl
  * (DESIGN_V2.md, Abschnitt 10). Reine Funktionen ohne DOM – testbar mit Vitest.
- * Die Komponente dazu steht in cycle-panel.ts.
+ * Die Seite dazu steht in album/pages/cycle-page.ts.
  */
 import { treeWeatherText } from './weather-view';
 import {

@@ -668,7 +668,7 @@ export interface JournalView {
   counts: string;
   /** z. B. „Zyklus 2 · Waldgedächtnis 30 (+60 % Wachstum und Samen)“. */
   meta: string;
-  /** z. B. „Stammgäste 1/2 – wähle unten bei den Arten“; null, solange es keine Plätze gibt. */
+  /** z. B. „Stammgäste 1/2 – … Tippe auf eine Art und wähle sie als Stammgast.“; null, solange es keine Plätze gibt. */
   regulars: string | null;
   species: JournalEntryView[];
   plants: JournalEntryView[];
@@ -683,8 +683,6 @@ export interface JournalView {
   stats: JournalStatView[];
   /** Erfolge: freigeschaltete zuerst, dann offene mit Fortschritt. */
   achievements: JournalAchievementView[];
-  /** Reiter „Landschaft“ – null, solange die Landschaft nicht freigeschaltet ist (Reiter verborgen). */
-  landscape: JournalLandscapeView | null;
   /** Zähler je Reiter, z. B. „12/32“ (Statistik ohne Zähler: leer; Landschaft verborgen: leer). */
   tabCounts: {
     species: string;
@@ -692,7 +690,6 @@ export interface JournalView {
     communities: string;
     keepsakes: string;
     achievements: string;
-    landscape: string;
     stats: string;
   };
 }

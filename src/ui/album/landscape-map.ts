@@ -12,7 +12,7 @@ import type { SiteId } from '../../content/landscape';
 import { el, setAttr, setText, srOnly } from '../dom';
 import { hyphenate } from '../hyphenate';
 import type { LandscapeCorridorView, LandscapeMapView, LandscapeSiteView } from '../landscape-view';
-import { isOtherTarget, siteButtonExtra } from './pages/landscape-page-view';
+import { isOtherTarget, siteButtonExtra } from './cycle-target';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

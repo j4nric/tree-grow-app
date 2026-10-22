@@ -171,6 +171,17 @@ export function navigate(nav: AlbumNav, action: NavAction, ctx: NavContext): Alb
 }
 
 /**
+ * Hat ein Schritt eine neue Seite obenauf gelegt (vorwärts oder ersetzt)? Nein, wenn er nur zu
+ * einer Seite weiter unten zurückführt („Neuer Zyklus ›“ auf U:Standort über U:Neuer Zyklus):
+ * Dann behält die Ebene ihren Auslöser für „Zurück“ (Fokus-Rückgabe, album/index.ts).
+ */
+export function opensNewPage(prev: AlbumNav, next: AlbumNav): boolean {
+  const top = next.stack.length - 1;
+  if (top < 0) return false;
+  return next.stack.length > prev.stack.length || prev.stack[top] !== next.stack[top];
+}
+
+/**
  * Tiefe im Browser-Verlauf: Umschlag, jede Unterseite und das Vollbild legen je einen
  * Eintrag an (C.2), Haftnotizen nicht.
  */

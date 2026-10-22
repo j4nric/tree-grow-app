@@ -4,14 +4,11 @@ import { STAGES } from '../src/content/stages';
 import { ANCIENT_STAGE } from '../src/core/landscape';
 import { createSite, type GameState, type LandscapeSite } from '../src/core/state';
 import { previewNewCycle } from '../src/core/tick';
-import { createAlbumTarget } from '../src/ui/album/cycle-target';
+import { createAlbumTarget, isOtherTarget, resolveTarget, siteButtonExtra } from '../src/ui/album/cycle-target';
 import {
   corridorBuildLabel,
-  isOtherTarget,
   landscapePageMeta,
-  resolveTarget,
   siteAnnouncement,
-  siteButtonExtra,
   siteChoiceView,
   siteDiaryRows,
   targetLine,
