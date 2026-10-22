@@ -4532,7 +4532,9 @@ Abschnitt „Tagesziele“.
 
 ## 21. Wetter und Nachtarten
 
-> **Stand:** Logik und Anzeige umgesetzt (Phase 6, Welle 2); die Grafik folgt (21.8). Anzeige
+> **Stand:** Logik, Anzeige und Grafik umgesetzt (Phase 6, Welle 2). Grafik in
+> `src/render/weather.ts` und `src/render/nocturnal.ts` (21.8, Tests
+> `tests/render-weather.test.ts`, `e2e/weather-scene.spec.ts`). Anzeige
 > in `src/ui/weather-view.ts` (View-Model: Abzeichen, gemeinsamer Hinweis, 🌙, Schutz, „Wetter
 > gemittelt“) und `src/ui/weather-badge.ts` (Abzeichen mit Erklärung), Tests in
 > `tests/weather-view.test.ts` und `e2e/weather.spec.ts`. Daten in
@@ -4767,6 +4769,35 @@ Frame. Nachts liegt das Wetter über der Nachttönung (Regen kaum sichtbar, Schn
 Nachtarten: Kauz, Fledermaus, Igel und Glühwürmchen nachts sichtbar aktiver (Fledermaus fliegt
 Kreise, Igel wandert durchs Laub), tagsüber ruhiger (Kauz döst in der Höhle) – nur Bewegung,
 sie verschwinden nie.
+
+**Umsetzung Renderer** (`src/render/weather.ts`, `src/render/nocturnal.ts`, Tests
+`tests/render-weather.test.ts`, e2e `e2e/weather-scene.spec.ts`):
+- `SceneInput.weather`, `weatherPrevious`, `weatherBlend` (IDs wie `WeatherId`; unbekannt oder
+  fehlend = wie bisher, „mild“ pixelgleich zu ohne Angabe). `main.ts` übergibt
+  `sceneWeather(state.cycle)` jeden Frame. Demo/Test: `?weather=<id>` im Spiel (nur das Bild)
+  und in `src/render/demo.html` (`weather`, `wprev`, `wb=0…1|loop`).
+- Gebacken in die getönten Kopien (wie Tag/Nacht, 19.3): gemeinsame Tönungsstufe aus
+  Tageszeit × Wetter (Lichtfarbe multipliziert); Wolkendecke, Nebeldunst, Hitzedunst,
+  Sonnenstrahlen, strohiges bzw. bereiftes Gras, nasser Boden, Neuschnee-Decke; Raureif und
+  Schneehäubchen als heller Oberkanten-Saum der Baum-Ebenen. Die Überblendung läuft in
+  `WEATHER_TONE_STEPS = 4` Stufen (höchstens 4 Neutönungen je Wechsel), Partikel und
+  Wolken stufenlos.
+- Pro Frame: Regen als ein Pfad (≤ 120 / mobil ≤ 60 Striche), Flocken (≤ 120 / 60),
+  Sturmblätter (≤ 20 / 10), Raureif-Glitzern (≤ 14) aus festen Pools; drei vorgefertigte
+  Nebelbänder (halbe Auflösung) über den Bäumen, hinter den Tieren; Hitzeflimmern als vier
+  verschobene Streifen der Kulisse (nicht bei „Weniger Bewegung“ und nicht im Zoom). Sturm:
+  Wind × (1 + 1,6 · Sturm) plus kurze Böen, Wolken bis 4× schneller – ohne Blitze und
+  Flackern. Wolkendecke, Nebel und Schnee verdecken Sterne und Mond; Regen löscht den Schein
+  der Glühwürmchen (Tier und Stimmungs-Partikel).
+- Nachtarten (nur mit Tageszeit): Kauz döst tagsüber (Augen zu, selten ein Blick), nachts
+  wach und dreht den Kopf; Langohr fliegt nachts Schleifen um den Stamm (eigenes Flug-Sprite,
+  nicht im Winterschlaf); Igel und Glühwürmchen nachts mit vollem Laufweg, tagsüber ruhig
+  (Ausschlag höchstens wie bisher, damit Rand und Laufweg halten). Winterschlaf folgt der
+  Winterstarre der Amphibien. Treffer-Test rechnet mit denselben Posen (Mitte des
+  Flug-Sprites) und dem Sturmwind. Einstellung „Immer Tag“: Die Szene bekommt Mittag, die
+  Nachtarten zeigen darum ihr Tagesverhalten (Kauz döst) – die Nachtwirkung läuft weiter.
+- Nicht umgesetzt: „Blumen etwas gesättigter“ bei Sonnenschein (bräuchte eine eigene
+  Pflanzen-Ebene je Wetter).
 
 **UI** (`ui-dev`):
 - Abzeichen neben der Jahreszeit: „🌬️ Sturm · −8 % 🌿 · +25 % 🌰“ (gedämpfte Werte), Tooltip

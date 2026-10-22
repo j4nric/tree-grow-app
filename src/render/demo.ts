@@ -31,11 +31,15 @@
  *           (Platz = Reihenfolge); in der Übersicht (gallery=1) immer dabei
  *  pond     1 = Waldtümpel mit Amphibien (ab Stufe Alter Baum: Erdkröte, Grasfrosch, Bergmolch, Laubfrosch, Kammmolch)
  *  pondn    Anzahl der Tümpelbewohner 0–5 (Standard 4; Reihenfolge wie oben, mit v verschoben)
+ *  weather  Wetter: mild, rain, sun, fog, snow, drought, storm, frost (ohne Angabe: wie bisher)
+ *  wprev    Wetter des Vortags für die Überblendung; wb Überblendung 0–1 (Standard 1)
+ *           bzw. wb=loop: blendet alle 6 s zwischen wprev und weather hin und her
  */
 
 import { animalKinds, SpriteCache } from './animals';
 import { layoutFlora, LOW_SIZE, PLANT_SPECIES, type PlacedPlant } from './flora';
 import { paintPlant } from './flora-paint';
+import { normalizeWeather } from './weather';
 import { drawScene, type SceneAnimal, type ScenePlant, type SceneVisitor, type TreeSpecies } from './tree';
 import { VISITOR_DEFS } from './visitor-sprites';
 
@@ -264,6 +268,11 @@ const camZoom = Number(params.get('zoom') ?? 1) || 1;
 const camCx = Number(params.get('cx') ?? 0.5);
 const camCy = Number(params.get('cy') ?? 0.5);
 const camPan = params.get('pan') === '1';
+/** Wetter (?weather=, ?wprev=, ?wb=). */
+const weather = normalizeWeather(params.get('weather')) ?? undefined;
+const weatherPrevious = normalizeWeather(params.get('wprev')) ?? undefined;
+const blendLoop = params.get('wb') === 'loop';
+const weatherBlendParam = params.has('wb') && !blendLoop ? Number(params.get('wb')) : undefined;
 const startG = g;
 let lastNow = 0;
 reducedInput.checked =
@@ -452,6 +461,9 @@ function frame(now: number): void {
     season,
     dayPhase,
     mainTree,
+    weather,
+    weatherPrevious,
+    weatherBlend: blendLoop ? Math.abs(((time / 6) % 2) - 1) : weatherBlendParam,
     camera:
       camZoom > 1
         ? { zoom: camZoom, x: camCx + (camPan ? 0.1 * Math.cos(now / 700) : 0), y: camCy + (camPan ? 0.1 * Math.sin(now / 700) : 0) }

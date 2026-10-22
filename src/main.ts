@@ -5,6 +5,7 @@ import { dayKeyOf, updateDaily, type DailyUpdateOptions } from './core/daily';
 import { dayPhaseAt, evaluate, growth, nextPlantCost, type Evaluation } from './core/formulas';
 import { clearStorage, exportCode, importCode, loadFromStorage, saveToStorage } from './core/save';
 import { sceneSeason } from './core/season';
+import { isNight, sceneWeather } from './core/weather';
 import { createInitialState, type GameState } from './core/state';
 import type { PendingEncounterType } from './core/state';
 import {
@@ -26,7 +27,7 @@ import {
   type ActionResult,
   type TickReport,
 } from './core/tick';
-import { drawScene, hitTestAnimal, type AnimalHit, type HitScene, type SceneInput } from './render/tree';
+import { drawScene, hitTestAnimal, weatherParam, type AnimalHit, type HitScene, type SceneInput } from './render/tree';
 import { CanvasSizer } from './render/canvas-size';
 import type { CanvasSize } from './render/resize';
 import { Camera } from './render/camera';
@@ -80,7 +81,6 @@ import { toSeasonBadgeView } from './ui/season-view';
 import { createWeatherBadge } from './ui/weather-badge';
 import { toastDurationFor } from './ui/settings';
 import { seasonWeatherChangeText, toWeatherBadgeView } from './ui/weather-view';
-import { isNight } from './core/weather';
 import type { MainTreeId } from './content/trees';
 import type { EcosystemView } from './ui/view-model';
 import { adoptedLastTick, codeCheck, progressOfState, readSyncUrl } from './sync/config';
@@ -266,6 +266,9 @@ const scene: SceneInput = {
   sizeSettled: true,
 };
 
+/** Demo/Tests: `?weather=<id>` zeigt dieses Wetter statt des Tageswetters (nur das Bild). */
+const weatherOverride = weatherParam(location.search);
+
 // --- Kamera der Szene (nur Oberflächen-Zustand, nicht im Spielstand) ---------------------
 
 /** Zoom und Ausschnitt; die Ansicht der Sitzung bleibt beim Neuladen erhalten. */
@@ -287,6 +290,10 @@ function hitTestScene(x: number, y: number): AnimalHit | null {
   hitScene.reducedMotion = scene.reducedMotion;
   hitScene.mainTree = scene.mainTree;
   hitScene.season = scene.season;
+  hitScene.dayPhase = scene.dayPhase;
+  hitScene.weather = scene.weather;
+  hitScene.weatherPrevious = scene.weatherPrevious;
+  hitScene.weatherBlend = scene.weatherBlend;
   return hitTestAnimal(hitScene, camera.view, x, y);
 }
 
@@ -1054,6 +1061,11 @@ function frame(now: number): void {
   // Tageszeit aus derselben Spielzeit (DESIGN_V2.md 19); Einstellung „Immer Tag“ → Mittag.
   scene.dayPhase = preferences.settings.daytime === 'day' ? NOON_PHASE : dayPhaseAt(state.cycle.elapsed);
   scene.mainTree = state.cycle.mainTree;
+  // Wetter des Tages mit Überblendung am Tageswechsel (DESIGN_V2.md 21.8).
+  const weather = sceneWeather(state.cycle);
+  scene.weather = weatherOverride ?? weather.weather;
+  scene.weatherPrevious = weatherOverride ?? weather.previous;
+  scene.weatherBlend = weatherOverride ? 1 : weather.blend;
   drawScene(ctx, size.width, size.height, scene);
   // Klang folgt der Szene (Jahreszeit, Harmoniestufe); gedrosselt, still ohne Web Audio.
   sound.update({ season: scene.season ?? 0, harmonyTier: scene.harmonyTier ?? 0 }, scene.time);

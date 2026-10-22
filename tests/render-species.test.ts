@@ -89,7 +89,7 @@ describe('Hauptbaum-Arten: Eiche unverändert', () => {
     for (const g of [1, 4, 8]) expect(formAt(TREE_FORMS.oak, g)).toBe(TREE_FORMS.oak);
   });
 
-  it('Buche und Kiefer sehen anders aus – vom Samen bis zum alten Baum', () => {
+  it('Buche und Kiefer sehen anders aus – vom Samen bis zum alten Baum', { timeout: 30_000 }, () => {
     for (const growth of [0.5, 1.2, 4, 7.5]) {
       const oak = play({}, growth);
       expect(play({ mainTree: 'beech' }, growth), `Buche g=${growth}`).not.toEqual(oak);

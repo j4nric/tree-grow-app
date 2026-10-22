@@ -46,7 +46,7 @@ import { paintNeedleClumps, paintPlant } from './flora-paint';
 import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
 import { paintLeaves, paintWood, TREE_FORMS, type LeafPalette, type WoodColors } from './plant';
 import { cycleElapsed, CycleTransition, type CycleGeometry, type OldForest } from './cycle';
-import { DayLayer, paintDaySky, tintCopy, tintInPlace, type DayFrame, type DayLevels } from './daylight';
+import { DayLayer, dayLevels, normalizeDayPhase, paintDaySky, tintCopy, tintInPlace, tintRgb, type DayFrame, type DayLevels } from './daylight';
 import { MoodLayer, type MoodFrame } from './mood';
 import {
   normalizeSpecies,
@@ -68,6 +68,20 @@ import { createClouds, drawClouds, paintGrass, paintHills, paintSky, paintSoil, 
 import { clamp01, mix, mulberry32, smooth01 } from './util';
 import { VisitorLayer, type SceneVisitor, type VisitorFrame } from './visitors';
 import { ShearBands, windQuantum, windSkew } from './wind';
+import {
+  maxStormSkew,
+  mixWeather,
+  normalizeBlend,
+  normalizeWeather,
+  paintWeatherSky,
+  releaseRimeScratch,
+  rimeInPlace,
+  stormSkew,
+  WeatherLayer,
+  type SceneWeatherId,
+  type WeatherFrame,
+  type WeatherLevels,
+} from './weather';
 
 export type { AnimalFamily, AnimalHit, SceneAnimal } from './animals';
 export type { CameraView } from './camera';
@@ -77,6 +91,7 @@ export { MAX_HARMONY_TIER } from './mood';
 export { CYCLE_TRANSITION_LEAD, CYCLE_TRANSITION_REDUCED_SECONDS, CYCLE_TRANSITION_SECONDS } from './cycle';
 export type { SceneVisitor } from './visitors';
 export type { TreeSpecies } from './plant';
+export { SCENE_WEATHERS, weatherParam, type SceneWeatherId } from './weather';
 
 export interface SceneInput {
   /** Kontinuierlicher Wachstumswert aus core/formulas.ts `growth()`. */
@@ -178,6 +193,20 @@ export interface SceneInput {
    * Bild nur in Stufen (DAY_BUCKETS je Tag) und ohne Funkeln.
    */
   dayPhase?: number;
+  /**
+   * Wetter des Tages (DESIGN_V2.md 21.8, IDs wie `WeatherId` in src/content/weather.ts):
+   * 'mild' (wie ohne Angabe), 'rain', 'sun', 'fog', 'snow', 'drought', 'storm', 'frost'.
+   * Unbekannte IDs gelten wie ohne Angabe. Das Wetter liegt über Jahreszeit und Nacht
+   * (Regen nachts kaum sichtbar, Schnee hell); Bild siehe weather.ts.
+   */
+  weather?: SceneWeatherId;
+  /** Wetter des Vortags, von dem aus übergeblendet wird (ohne Angabe: `weather`). */
+  weatherPrevious?: SceneWeatherId;
+  /**
+   * Überblendung 0 (Vortag) … 1 (heute), z. B. `sceneWeather(cycle).blend` über
+   * WEATHER_BLEND_SECONDS. Ohne Angabe 1; bei `reducedMotion` immer 1 (ohne Überblendung).
+   */
+  weatherBlend?: number;
 }
 
 /** Ab dieser Änderung des Wachstums werden die Ebenen neu gezeichnet. */
@@ -383,6 +412,24 @@ interface Cache {
   dayNow: DayLevels | null;
   /** Wie oft getönt wurde (für Tests). */
   tintBuilds: number;
+  /** Wetter (Überblendung, Partikel-Pools, Nebelbänder). */
+  weather: WeatherLayer;
+  /** Stärken des Wetters in diesem Frame (null = ohne Angabe oder mild). */
+  weatherNow: WeatherLevels | null;
+  /**
+   * Gemeinsame Tönung aus Tageszeit und Wetter: Schlüssel (−1 = keine – Ebenen wie
+   * gezeichnet), Lichtfarbe der Landschaft und der Wolken, Raureif an den Baum-Ebenen.
+   * Neu berechnet nur bei neuem Schlüssel.
+   */
+  tintKey: number;
+  tintFill: string;
+  cloudFill: string;
+  /** Lichtfarbe ist weiß (nur gebackener Himmel, z. B. Sonnenschein): Baum-Ebenen ohne Kopie. */
+  tintWhite: boolean;
+  rimeColor: string;
+  rimeAlpha: number;
+  /** Versatz des Raureifs in CSS-Pixeln (Dicke des Saums). */
+  rimeOffset: number;
 }
 
 /**
@@ -537,12 +584,12 @@ function drawSheared(
 function updateTint(sc: SizeCache, cache: Cache): void {
   const day = cache.day;
   const t = sc.tint;
-  const keyChanged = !t || t.key !== day.tintKey;
+  const keyChanged = !t || t.key !== cache.tintKey;
   const full = keyChanged || t.staticVersion !== sc.staticVersion;
   const layers = full || t.version !== sc.version;
   const memory = full || t.memoryVersion !== sc.memoryVersion;
   if (!layers && !memory) return;
-  const fill = day.tintFill;
+  const fill = cache.tintFill;
   const set: TintSet = t ?? {
     key: -1,
     version: -1,
@@ -574,32 +621,89 @@ function updateTint(sc: SizeCache, cache: Cache): void {
     c.drawImage(sc.background, 0, y0, sc.pw, h, 0, y0, sc.pw, h);
     c.globalCompositeOperation = 'source-over';
     sceneTransform(c, sc);
-    paintDaySky(c, day.tint, sc.layout.width, sc.layout.groundY);
+    if (cache.dayNow) paintDaySky(c, day.tint, sc.layout.width, sc.layout.groundY);
+    // Wetter über dem Himmel der Tageszeit (gebacken: Wolkendecke, Dunst, Strahlen, Boden).
+    if (cache.weatherNow) {
+      const { width, height, groundY } = sc.layout;
+      paintWeatherSky(c, cache.weather.baked, width, height, groundY, cache.dayNow ? day.tint.night : 0);
+    }
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalCompositeOperation = 'multiply';
     c.fillStyle = fill;
     c.fillRect(0, y0, sc.pw, h);
     c.restore();
-    set.back = sc.backRect ? tintCopy(sc.back, sc.backRect, set.back, fill) : freeCanvas(set.back);
-    set.front = sc.frontRect ? tintCopy(sc.front, sc.frontRect, set.front, fill) : freeCanvas(set.front);
+    // Weiße Lichtfarbe ohne Raureif: die Baum-Ebenen bleiben, wie sie sind (keine Kopie).
+    const copy = !cache.tintWhite || cache.rimeAlpha > 0;
+    set.back = copy && sc.backRect ? tintLayer(sc.back, sc.backRect, set.back, cache, sc.dpr) : freeCanvas(set.back);
+    set.front = copy && sc.frontRect ? tintLayer(sc.front, sc.frontRect, set.front, cache, sc.dpr) : freeCanvas(set.front);
     set.version = sc.version;
     set.staticVersion = sc.staticVersion;
   }
   if (memory) {
     const mr = sc.memoryRect;
-    set.memory = sc.memoryCanvas && mr ? tintCopy(sc.memoryCanvas, { x: 0, y: 0, w: mr.w, h: mr.h }, set.memory, fill) : freeCanvas(set.memory);
+    const copy = !cache.tintWhite || cache.rimeAlpha > 0;
+    set.memory = copy && sc.memoryCanvas && mr ? tintLayer(sc.memoryCanvas, { x: 0, y: 0, w: mr.w, h: mr.h }, set.memory, cache, sc.dpr) : freeCanvas(set.memory);
     set.memoryVersion = sc.memoryVersion;
   }
   if (keyChanged) {
     // Wolken dunkler als die Landschaft (Lichtfarbe zweimal), damit sie nicht leuchten.
-    sc.clouds.forEach((cl, i) => {
-      const r = { x: 0, y: 0, w: cl.sprite.width, h: cl.sprite.height };
-      set.clouds[i] = tintCopy(cl.sprite, r, set.clouds[i] ?? null, day.cloudFill);
-    });
+    if (cache.tintWhite) {
+      for (const c of set.clouds) freeCanvas(c);
+      set.clouds.length = 0;
+    } else {
+      sc.clouds.forEach((cl, i) => {
+        const r = { x: 0, y: 0, w: cl.sprite.width, h: cl.sprite.height };
+        set.clouds[i] = tintCopy(cl.sprite, r, set.clouds[i] ?? null, cache.cloudFill);
+      });
+    }
   }
-  set.key = day.tintKey;
+  // Hilfs-Canvas des Raureifs nur während des Tönens behalten.
+  releaseRimeScratch();
+  set.key = cache.tintKey;
   sc.tint = set;
   cache.tintBuilds++;
+}
+
+/** Getönte Kopie einer Baum-Ebene, bei Frost und Neuschnee mit Raureif bzw. Schneehäubchen. */
+function tintLayer(src: HTMLCanvasElement, r: Rect, dst: HTMLCanvasElement | null, cache: Cache, dpr: number): HTMLCanvasElement {
+  const out = tintCopy(src, r, dst, cache.tintFill);
+  if (cache.rimeAlpha > 0) rimeInPlace(out, cache.rimeColor, cache.rimeAlpha, cache.rimeOffset * dpr);
+  return out;
+}
+
+/** Wiederverwendete Farben für die gemeinsame Tönung (keine Allokation pro Frame). */
+const dayRgb = [255, 255, 255];
+
+/**
+ * Gemeinsame Tönungsstufe aus Tageszeit und Wetter. Schlüssel aus beiden Stufen; Farben
+ * und Strings entstehen nur, wenn er sich ändert. Lichtfarbe = Tag/Nacht × Wetter
+ * (beides multiply); der Raureif wird mit derselben Lichtfarbe gedämpft (nachts nicht grell).
+ */
+function updateTintSpec(cache: Cache): void {
+  const dayKey = cache.dayNow ? cache.day.tintKey : -1;
+  const weatherKey = cache.weatherNow ? cache.weather.toneKey : -1;
+  const key = dayKey < 0 && weatherKey < 0 ? -1 : (weatherKey + 1) * 4096 + (dayKey + 1);
+  if (key === cache.tintKey) return;
+  cache.tintKey = key;
+  if (key < 0) return;
+  if (dayKey >= 0) tintRgb(cache.day.tint, dayRgb);
+  else dayRgb[0] = dayRgb[1] = dayRgb[2] = 255;
+  const w = cache.weather.toneRgb;
+  const lv = cache.weather.baked;
+  const wActive = weatherKey >= 0;
+  const r = Math.round((dayRgb[0]! * (wActive ? w[0]! : 255)) / 255);
+  const g = Math.round((dayRgb[1]! * (wActive ? w[1]! : 255)) / 255);
+  const b = Math.round((dayRgb[2]! * (wActive ? w[2]! : 255)) / 255);
+  cache.tintFill = `rgb(${r}, ${g}, ${b})`;
+  cache.cloudFill = `rgb(${Math.round((r * r) / 255)}, ${Math.round((g * g) / 255)}, ${Math.round((b * b) / 255)})`;
+  cache.tintWhite = r === 255 && g === 255 && b === 255;
+  // Raureif (Frost) und Schneehäubchen (Neuschnee) als heller Saum oben an Ästen und Laub.
+  const frost = wActive ? lv.frost : 0;
+  const snow = wActive ? lv.snow : 0;
+  cache.rimeAlpha = Math.max(frost * 0.95, snow * 0.9);
+  cache.rimeOffset = snow > frost ? 2.4 : 1.8;
+  const base = snow > frost ? [252, 253, 255] : [238, 245, 253];
+  cache.rimeColor = `rgb(${Math.round((base[0]! * r) / 255)}, ${Math.round((base[1]! * g) / 255)}, ${Math.round((base[2]! * b) / 255)})`;
 }
 
 /** Gibt ein Canvas frei (Safari: Größe 0) und liefert null. */
@@ -687,12 +791,24 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       day: new DayLayer(),
       dayNow: null,
       tintBuilds: 0,
+      weather: new WeatherLayer(),
+      weatherNow: null,
+      tintKey: -1,
+      tintFill: '',
+      cloudFill: '',
+      tintWhite: true,
+      rimeColor: '',
+      rimeAlpha: 0,
+      rimeOffset: 0,
     };
     caches.set(ctx.canvas, cache);
   }
 
   // Tageszeit dieses Frames (vor den Ebenen: der alte Wald des Zyklus-Übergangs wird getönt).
   cache.dayNow = cache.day.update(input.dayPhase, time, input.reducedMotion === true);
+  // Wetter dieses Frames und die gemeinsame Tönungsstufe (Tag/Nacht × Wetter).
+  cache.weatherNow = cache.weather.update(input.weather, input.weatherPrevious, input.weatherBlend, time, input.reducedMotion === true);
+  updateTintSpec(cache);
 
   // Jahreszeit dieses Frames (gemerkt je Rundung – keine Allokation pro Frame).
   const look = seasonLook(input.season);
@@ -737,8 +853,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const sc = cam && detail && detail.layout.width === width && detail.layout.height === height && covers(detail, cam) ? detail : base;
 
   updateLayers(sc, base, cache, input, g, time, look);
-  // Tag und Nacht: getönte Kopien nur bei neuer Stufe oder neu gezeichneten Ebenen.
-  if (cache.dayNow) updateTint(sc, cache);
+  // Tag und Nacht, Wetter: getönte Kopien nur bei neuer Stufe oder neu gezeichneten Ebenen.
+  if (cache.tintKey >= 0) updateTint(sc, cache);
   else if (sc.tint) releaseTint(sc);
 
   // Sprites einer alten Tiergröße verwerfen. Die Auflösung gehört nicht dazu: Sprites je
@@ -801,9 +917,9 @@ function buildDetailCache(old: SizeCache | null, key: string, base: SizeCache, c
   const fullW = cam.zoom * base.pw;
   const fullH = cam.zoom * base.ph;
   const res = fullW / width;
-  // Wind verschiebt die Baum-Ebenen waagerecht um bis zu |windSkew| (< 0,0145) × Höhe über
-  // dem Boden: so breit ist der Rand links und rechts, damit am Bildrand nichts fehlt.
-  const margin = Math.ceil(WIND_MAX_SKEW * groundY * res) + 2;
+  // Wind verschiebt die Baum-Ebenen waagerecht um bis zu |windSkew| (< 0,0145; bei Sturm
+  // bis maxStormSkew) × Höhe über dem Boden: so breit ist der Rand links und rechts.
+  const margin = Math.ceil(maxStormSkew(WIND_MAX_SKEW) * groundY * res) + 2;
   return buildSizeCache(old, key, width, height, base.pw + margin * 2, base.ph, res, look, {
     oxN: viewLeft(cam) - margin / fullW,
     oyN: viewTop(cam),
@@ -874,7 +990,7 @@ function updateLayers(sc: SizeCache, base: SizeCache, cache: Cache, input: Scene
       cache.cyclePlants = ct.fromPlants ? ct.fromPlants.map(plantSig) : null;
       const old = paintOldForest(base, fromGrowth, ct.fromPlants, look, fromTree);
       // Nachts der alte Wald in der Lichtfarbe beim Start (bleibt für den Übergang so).
-      if (old && cache.dayNow) tintInPlace(old.canvas, cache.day.tintFill);
+      if (old && cache.tintKey >= 0 && !cache.tintWhite) tintInPlace(old.canvas, cache.tintFill);
       cache.cycle.prepare(cycleKey, cycleGeometry(base), old, species);
     }
   }
@@ -931,7 +1047,8 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   const spriteDpr = sc.zoom <= 1 ? dpr : sc.baseDpr * (sc.zoom <= 2 ? 2 : 4);
   // Tag und Nacht: getönte Kopien der Ebenen (gleiche Lage, Baum-Ebenen nur ihr Bereich).
   const day = cache.dayNow;
-  const tint = day ? sc.tint : null;
+  const wx = cache.weatherNow;
+  const tint = cache.tintKey >= 0 ? sc.tint : null;
   const bg = tint ? tint.background : sc.background;
   ctx.save();
   ctx.setTransform(sx, 0, 0, sy, m.cx, m.cy);
@@ -945,6 +1062,8 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     if (v.x1 > v.x0 && v.y1 > v.y0) ctx.drawImage(bg, v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0, v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0);
   } else {
     ctx.drawImage(bg, 0, 0);
+    // Dürre: leises Hitzeflimmern am Horizont – vier Streifen der Kulisse, minimal verschoben.
+    if (wx && wx.drought > 0.05 && !reduced) heatShimmer(ctx, bg, sc, wx.drought, time);
   }
   // Tag und Nacht: Sterne und Mond direkt über der (getönten) Kulisse.
   if (day) {
@@ -960,7 +1079,8 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     df.baseDpr = sc.baseDpr;
     df.time = time;
     df.reducedMotion = reduced;
-    cache.day.drawLights(ctx, day, df);
+    // Wolkendecke, Nebel und Schneefall verdecken Sterne und Mond.
+    cache.day.drawLights(ctx, day, df, wx ? clamp01(1 - wx.overcast - 0.8 * wx.fog - 0.5 * wx.snow) : 1);
     ctx.setTransform(sx, 0, 0, sy, m.cx, m.cy);
   }
   // Spielbeginn: warmer, sanft pulsierender Schein am Samen (bis zum Keimling).
@@ -978,7 +1098,17 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   // Wolken liegen in Szenen-Pixeln × dpr (ohne Ursprung der Ebenen).
   ctx.setTransform(sx, 0, 0, sy, m.tx, m.ty);
   // Nachts treten die Wolken zurück (sie würden sonst über dem dunklen Himmel leuchten).
-  drawClouds(ctx, sc.clouds, layout.width, reduced ? 0 : time, dpr, day ? 0.9 * (1 - 0.35 * day.night) : 0.9, tint ? tint.clouds : null);
+  const cloudAlpha = day ? 0.9 * (1 - 0.35 * day.night) : 0.9;
+  const cloudSprites = tint && tint.clouds.length > 0 ? tint.clouds : null;
+  if (wx) {
+    // Sonne: kaum Wolken; Wolkendecke: zweite, versetzte Lage dichter Wolken; Sturm: schneller.
+    const ct = reduced ? 0 : cache.weather.cloudTime(time);
+    drawClouds(ctx, sc.clouds, layout.width, ct, dpr, cloudAlpha * (1 - 0.8 * wx.sun) * (1 + 0.1 * wx.overcast), cloudSprites);
+    if (wx.overcast > 0.05) drawClouds(ctx, sc.clouds, layout.width, ct * 1.3 + 917, dpr, cloudAlpha * 0.85 * wx.overcast, cloudSprites);
+  } else {
+    // Auch ohne Wetter mit dem Vorsprung aus einem Sturm (sonst sprängen die Wolken zurück).
+    drawClouds(ctx, sc.clouds, layout.width, reduced ? 0 : cache.weather.cloudTime(time), dpr, cloudAlpha, cloudSprites);
+  }
 
   // Stimmung und Gäste nur, wenn angegeben – sonst bleibt das Bild exakt wie bisher.
   const level = cache.mood.update(input.harmonyTier, time, reduced);
@@ -998,8 +1128,9 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     mf.reducedMotion = reduced;
     // Ungerundete Jahreszeit: stufenlos, ohne Sprünge bei jeder Rundungsstufe.
     mf.bloom = bloomParticles(cache.season);
-    mf.fireflies = fireflySeason(cache.season);
-    mf.sun = day ? day.sun : undefined;
+    // Regen löscht den Schein der Glühwürmchen; Schnee, Nebel und Wolken dämpfen die Sonne.
+    mf.fireflies = fireflySeason(cache.season) * (wx ? 1 - clamp01(wx.rain + wx.snow) : 1);
+    mf.sun = wx ? (day ? day.sun : 1) * clamp01(1 - 0.7 * wx.overcast - 0.5 * wx.fog) : day ? day.sun : undefined;
     mf.night = day ? day.night : undefined;
   }
   const visitors = input.visitors && input.visitors.length > 0 ? input.visitors : null;
@@ -1040,14 +1171,14 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   const groundPx = (layout.groundY - sc.oy) * dpr;
   const quantum = windQuantum(dpr);
   if (sc.backRect) {
-    const kb = reduced ? 0 : windSkew(time, 1.9) * 0.7;
+    const kb = reduced ? 0 : stormSkew(windSkew(time, 1.9) * 0.7, time + 0.4, wx ? wx.storm : 0);
     const r = sc.backRect;
     if (tint?.back) drawSheared(ctx, tint.back, r, kb, groundPx, quantum, sx, sy, m.cx, m.cy, r.x, r.y);
     else drawSheared(ctx, sc.back, r, kb, groundPx, quantum, sx, sy, m.cx, m.cy);
   }
   // Wildschweine auf der Wiese: vor den Begleitpflanzen, hinter dem Hauptbaum.
   if (visitors) cache.visitors.draw(ctx, visitors, 'meadow', vf);
-  const k = reduced ? 0 : windSkew(time, 0);
+  const k = reduced ? 0 : stormSkew(windSkew(time, 0), time, wx ? wx.storm : 0);
   if (sc.frontRect) {
     const r = sc.frontRect;
     if (tint?.front) drawSheared(ctx, tint.front, r, k, groundPx, quantum, sx, sy, m.cx, m.cy, r.x, r.y);
@@ -1056,6 +1187,24 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   if (visitors) {
     vf.windSkew = k;
     cache.visitors.draw(ctx, visitors, 'front', vf);
+  }
+  // Wetter: Nebelbänder über den Bäumen, hinter den Tieren.
+  const wf = weatherFrame;
+  if (wx) {
+    wf.width = layout.width;
+    wf.height = layout.height;
+    wf.groundY = layout.groundY;
+    wf.top = layout.top;
+    wf.dpr = dpr;
+    wf.sx = sx;
+    wf.sy = sy;
+    wf.tx = m.tx;
+    wf.ty = m.ty;
+    wf.time = time;
+    wf.reducedMotion = reduced;
+    wf.night = day ? day.night : 0;
+    wf.crown = sc.crown && sc.growth >= CROWN_GROWTH ? sc.crown : null;
+    cache.weather.drawGround(ctx, wx, wf);
   }
   const animals = input.animals ?? NO_ANIMALS;
   const pond = input.pond === true;
@@ -1066,6 +1215,9 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     f.reducedMotion = reduced;
     f.season = cache.season;
     f.night = day ? day.night : 0;
+    // Nachtarten (nocturnal.ts): nur mit Tageszeit-Angabe – sonst Verhalten wie bisher.
+    f.nocturnal = Number.isNaN(cache.day.phase) ? undefined : day ? clamp01(day.night + 0.5 * day.twilight) : 0;
+    f.rain = wx ? wx.rain : 0;
     f.dpr = dpr;
     f.sx = sx;
     f.sy = sy;
@@ -1089,6 +1241,9 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     sf.reducedMotion = reduced;
     cache.seasonParticles.draw(ctx, cache.look, sf);
   }
+  // Wetter: Raureif-Glitzern, Sturmblätter, Schnee und Regen – über allem außer
+  // Stimmungslicht und Zyklus-Übergang.
+  if (wx) cache.weather.draw(ctx, wx, wf);
   if (level !== null) {
     cache.mood.drawLight(ctx, level, mf);
     cache.mood.drawParticles(ctx, level, mf);
@@ -1098,6 +1253,27 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
     cache.cycle.draw(ctx, cache.cycleU, reduced, cycleGeometry(sc), sx, sy, m.tx, m.ty);
   }
   ctx.restore();
+}
+
+/** Wiederverwendete Frame-Daten für das Wetter (keine Allokation pro Frame). */
+const weatherFrame: WeatherFrame = { width: 1, height: 1, groundY: 1, top: 0, dpr: 1, sx: 1, sy: 1, tx: 0, ty: 0, time: 0, reducedMotion: false, night: 0, crown: null };
+
+/**
+ * Hitzeflimmern (Dürre): vier schmale Streifen der Kulisse über dem Horizont, jeweils um
+ * Bruchteile eines Pixels verschoben – nur drawImage, ohne Kamera-Zoom.
+ */
+function heatShimmer(ctx: CanvasRenderingContext2D, bg: HTMLCanvasElement, sc: SizeCache, drought: number, time: number): void {
+  const { layout, dpr } = sc;
+  const strip = Math.max(2, Math.round(layout.height * 0.022 * dpr));
+  const bottom = Math.round((layout.groundY - sc.oy) * dpr) - Math.round(layout.height * 0.02 * dpr);
+  ctx.globalAlpha = 0.7 * clamp01(drought);
+  for (let i = 0; i < 4; i++) {
+    const y = bottom - (i + 1) * strip;
+    if (y < 0) break;
+    const dx = Math.sin(time * 2.3 + i * 1.9) * 0.7 * dpr;
+    ctx.drawImage(bg, 0, y, sc.pw, strip, dx, y, sc.pw, strip);
+  }
+  ctx.globalAlpha = 1;
 }
 
 /** Maße für den Zyklus-Übergang (Samen wie in `paintUnderground`). */
@@ -1660,7 +1836,8 @@ function paintUnderground(
 // --- Treffer-Test --------------------------------------------------------------------
 
 /** Szene für den Treffer-Test: Größe des Canvas (CSS-Pixel) und die Felder aus `SceneInput`. */
-export interface HitScene extends Pick<SceneInput, 'growth' | 'time' | 'animals' | 'reducedMotion' | 'mainTree' | 'season'> {
+export interface HitScene
+  extends Pick<SceneInput, 'growth' | 'time' | 'animals' | 'reducedMotion' | 'mainTree' | 'season' | 'dayPhase' | 'weather' | 'weatherPrevious' | 'weatherBlend'> {
   width: number;
   height: number;
 }
@@ -1670,6 +1847,10 @@ export const HIT_MIN_RADIUS = 22;
 
 /** Gemerkte Ankerpunkte für den Treffer-Test (Größe, Art und Wachstum auf REDRAW_STEP genau). */
 let hitAnchors: { key: string; g: number; anchors: AnchorResolver } | null = null;
+
+/** Wiederverwendete Stärken für den Treffer-Test (keine Allokation je Aufruf). */
+const hitWeather: WeatherLevels = { overcast: 0, rain: 0, snow: 0, fog: 0, drought: 0, storm: 0, frost: 0, sun: 0 };
+const hitDay: DayLevels = { night: 0, twilight: 0, dusk: false, sun: 1 };
 
 /**
  * Welches Tier liegt unter dem Bildschirmpunkt (`x`, `y`, CSS-Pixel im Canvas)? Rechnet
@@ -1692,10 +1873,21 @@ export function hitTestAnimal(scene: HitScene, camera: Readonly<CameraView> | nu
   }
   const time = Number.isFinite(scene.time) ? scene.time : 0;
   const reduced = scene.reducedMotion === true;
+  // Wie in der Zeichnung: Sturm verstärkt den Wind, Nachtarten folgen der Tageszeit.
+  const current = normalizeWeather(scene.weather);
+  const storm = current ? mixWeather(normalizeWeather(scene.weatherPrevious) ?? current, current, normalizeBlend(scene.weatherBlend, reduced), hitWeather).storm : 0;
+  const phase = normalizeDayPhase(scene.dayPhase);
+  const lv = phase === null ? null : dayLevels(phase, hitDay);
   return hitTestAnimals(
     animals,
     hitAnchors.anchors,
-    { time, windSkew: reduced ? 0 : windSkew(time, 0), reducedMotion: reduced, season: normalizeSeason(scene.season) },
+    {
+      time,
+      windSkew: reduced ? 0 : stormSkew(windSkew(time, 0), time, storm),
+      reducedMotion: reduced,
+      season: normalizeSeason(scene.season),
+      nocturnal: lv ? clamp01(lv.night + 0.5 * lv.twilight) : undefined,
+    },
     p.x,
     p.y,
     HIT_MIN_RADIUS / view.zoom,
