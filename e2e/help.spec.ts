@@ -8,6 +8,9 @@ import { expect, note, openCover, openCoverPage, openGame, seedV3, subpage, test
  * und wirken nach dem Neuladen.
  */
 
+// Hier zählt der erste Start: „Neu hier?“ nicht vorab als gesehen markieren (fixtures.ts).
+test.use({ guideHint: true });
+
 const guide = (page: Page) => subpage(page, 'guide');
 const chapterPage = (page: Page) => subpage(page, 'guide-chapter');
 const settings = (page: Page) => subpage(page, 'settings');

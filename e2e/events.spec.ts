@@ -1,4 +1,4 @@
-import { SAVE_VERSION, dialog, expect, gotoTab, openGame, openStack, savedState, seedV3, settle, test, waypoint } from './fixtures';
+import { SAVE_VERSION, dialog, expect, gotoTab, openGame, openStack, openTab, savedState, seedV3, settle, test, waypoint } from './fixtures';
 
 /**
  * Ereignisse mit Wahl und Durchreisende (Schritt 2.4): im Kartenwahl-Dialog wählen, der
@@ -97,11 +97,12 @@ test('Ereignis- und Gast-Karten: große Knöpfe mit Wirkungszeile, Tastatur, mob
   await page.keyboard.press('Enter');
   await expect(d).toBeHidden();
 
-  // Aktive Boni: je Quelle eine Zeile, Zeit-Boni mit Restzeit-Balken.
+  // Aktive Boni (Reiter „Pflege“, „Gerade wirksam“): je Quelle eine Zeile, Zeit-Boni mit Restzeit-Balken.
+  await openTab(page, 'pflege');
   const bonuses = page.locator('[data-ref="bonuses"]');
   await expect(bonuses.locator('[data-bonus="timed:rain"]')).toContainText('+25 % 🌿');
   await expect(bonuses.locator('[data-bonus="visitor:bramblings"]')).toContainText('+12 % 🌿, +12 % 🌰');
-  const fill = bonuses.locator('[data-bonus="visitor:bramblings"] .bonus-bar-fill');
+  const fill = bonuses.locator('[data-bonus="visitor:bramblings"] .care-bonus-fill');
   await expect(fill).toHaveAttribute('style', /--left: (100|9\d(\.\d)?)%/);
 });
 
@@ -116,10 +117,11 @@ test('Aktive Boni: Wirkungen derselben Quelle stehen in einer Zeile, ohne Balken
   await openStack(page);
   await dialog(page).getByRole('button', { name: 'Totholz liegen lassen' }).click();
   await expect(dialog(page)).toBeHidden();
+  await openTab(page, 'pflege');
   const bonuses = page.locator('[data-ref="bonuses"]');
-  await expect(bonuses.locator('.bonus')).toHaveCount(1);
+  await expect(bonuses.locator('.care-bonus')).toHaveCount(1);
   await expect(bonuses.locator('[data-bonus="cycle:storm"]')).toContainText('Totholz, +1 Platz Höhlen & Totholz');
-  await expect(bonuses.locator('.bonus-bar')).toHaveCount(0);
+  await expect(bonuses.locator('.care-bonus-bar')).toHaveCount(0);
   await expect(bonuses).toContainText('bis zum Neuen Zyklus');
 });
 

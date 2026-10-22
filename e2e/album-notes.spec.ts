@@ -34,8 +34,8 @@ test('Etikett Harmonie: Notiz mit „Verstanden“, Klick außerhalb, Escape, nu
   await expect(harmonyLabel(page)).toHaveAttribute('aria-expanded', 'true');
   await expect(harmony).toContainText('Wie gut dein Wald zusammenpasst');
   await expect(harmony).toContainText(/jetzt: Wachstum ×\d/);
-  // „Mehr ›“ erst, wenn es U:Harmonie gibt (Schritt 5).
-  await expect(harmony.getByRole('button', { name: 'Mehr ›' })).toBeHidden();
+  // „Mehr ›“ führt zu U:Harmonie (Schritt 5) – geprüft im eigenen Test unten.
+  await expect(harmony.getByRole('button', { name: 'Mehr ›' })).toBeVisible();
   // Ganz im Bild.
   const box = (await harmony.boundingBox())!;
   const viewport = page.viewportSize()!;
@@ -84,10 +84,26 @@ test('Reiterwechsel schließt die offene Notiz', async ({ page, context }) => {
   await expect(note(page, 'season-note')).toBeHidden();
 });
 
+test('Harmonie-Notiz: „Mehr ›“ blättert zu U:Harmonie um, das Lesezeichen zurück', async ({ page, context }) => {
+  await seedRaw(context, grove(), 0);
+  await openGame(page);
+  await harmonyLabel(page).click();
+  await note(page, 'harmony-note').getByRole('button', { name: 'Mehr ›' }).click();
+  await expect(note(page, 'harmony-note')).toBeHidden();
+  const sub = page.locator('[data-ref="page-harmony"]');
+  await expect(sub).toBeVisible();
+  await expect(sub).not.toHaveAttribute('inert', '');
+  await expect(sub.locator('[data-ref="harmony-parts"]')).toContainText('Summe:');
+  await expect(sub.locator('[data-ref="harmony-tiers"] [aria-current="true"]')).toHaveCount(1);
+  await expect(sub.locator('.page-title')).toBeFocused();
+  await sub.locator('[data-ref="bookmark"]').click();
+  await expect(sub).toBeHidden();
+});
+
 test('Gattung: Chip öffnet die Erklärung als Haftnotiz', async ({ page, context }) => {
   await seedRaw(context, grove(), 0);
   await openGame(page);
-  const chip = page.locator('.family-chip').first();
+  const chip = page.locator('.family-badge').first();
   await chip.click();
   const family = note(page, 'family-note');
   await expect(family).toBeVisible();

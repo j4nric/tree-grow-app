@@ -123,8 +123,13 @@ export function navigate(nav: AlbumNav, action: NavAction, ctx: NavContext): Alb
       }
       // Liegt die Seite schon weiter unten: dorthin zurück statt doppelt.
       const below = nav.stack.findIndex((p) => samePage(p, page));
+      // Je Seitenart gibt es ein Blatt (D.1): dieselbe Art mit anderer ID (Tier, Standort …)
+      // ersetzt es samt allem darüber.
+      // (Inhaltsverzeichnis und Kapitel der Anleitung sind verschiedene Blätter, subpageKey.)
+      const sameKind = nav.stack.findIndex((p) => subpageKey(p) === subpageKey(page));
       let stack: PageRef[];
       if (below >= 0) stack = nav.stack.slice(0, below + 1);
+      else if (sameKind >= 0) stack = [...nav.stack.slice(0, sameKind), page];
       else if (nav.stack.length >= MAX_DEPTH) stack = [...nav.stack.slice(0, MAX_DEPTH - 1), page];
       else stack = [...nav.stack, page];
       // Umblättern schließt die Haftnotiz; „Im Album ansehen“ schließt das Vollbild.

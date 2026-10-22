@@ -1,0 +1,770 @@
+/* Reiter „Pflege“ und Unterseite „Pflegemaßnahme“ (care-page.ts, care-item-page.ts).
+   Album-Optik: Handschrift-Überschriften mit Washi-Streifen, Symbol als Sticker,
+   gepunktete Trennlinien, gestrichelte Etiketten, gelber Zettel für „Gerade wirksam“. */
+
+/* --- gemeinsame Bausteine -------------------------------------------------------------- */
+
+.care-section-title {
+  position: relative;
+  align-self: flex-start;
+  margin: 0;
+  padding: 0 6px;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink);
+  isolation: isolate;
+}
+
+/* Washi-Streifen hinter der Überschrift */
+.care-section-title::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  right: 0;
+  bottom: 2px;
+  height: 11px;
+  background: var(--tab-care);
+  opacity: 0.75;
+  transform: rotate(-1deg);
+}
+
+.care-buy {
+  justify-self: end;
+  min-height: var(--tap);
+  padding: 6px 14px;
+  border: 2px solid var(--ink-green);
+  border-radius: var(--r-button);
+  background: var(--ink-green);
+  color: var(--paper);
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 0 var(--ink-green-dark);
+}
+
+.care-buy[hidden] {
+  display: none;
+}
+
+.care-buy:hover:not([aria-disabled='true']) {
+  background: var(--ink-green-dark);
+  border-color: var(--ink-green-dark);
+}
+
+.care-buy:active:not([aria-disabled='true']) {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.care-buy:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Zu wenig Samen oder gesperrt: gestricheltes Etikett statt Knopf-Farbe */
+.care-buy[aria-disabled='true'] {
+  border: 2px dashed var(--dash);
+  background: var(--paper);
+  color: var(--ink-soft);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.care-saving .care-buy[aria-disabled='true'] {
+  border-color: var(--ink-seed);
+  color: var(--ink-seed);
+}
+
+.care-flash {
+  animation: care-flash 0.9s ease-out;
+}
+
+@keyframes care-flash {
+  0% {
+    background-color: var(--note-bg);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+body[data-motion='reduce'] .care-flash {
+  animation: none;
+}
+
+/* --- Gerade wirksam: gelber Zettel mit Tape ---------------------------------------------- */
+
+.care-active {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 4px 22px;
+  padding: 16px 14px 12px;
+  background: var(--note-bg);
+  box-shadow: var(--sh-slip);
+  transform: rotate(-0.6deg);
+}
+
+.care-active[hidden] {
+  display: none;
+}
+
+.care-active-tape {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  width: 70px;
+  height: 18px;
+  margin-left: -35px;
+  background: var(--tape-green);
+  opacity: 0.9;
+  transform: rotate(-4deg);
+}
+
+.care-active .care-section-title::before {
+  background: var(--tape);
+}
+
+.care-bonus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.care-bonus {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icon name left'
+    'icon effect effect'
+    'icon bar bar';
+  align-items: baseline;
+  column-gap: 8px;
+  font-size: 14px;
+}
+
+.care-bonus-icon {
+  grid-area: icon;
+  align-self: start;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.care-bonus-name {
+  grid-area: name;
+  min-width: 0;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.care-bonus-effect {
+  grid-area: effect;
+  min-width: 0;
+  color: var(--ink-green);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.care-bonus-left {
+  grid-area: left;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.care-bonus-cycle .care-bonus-left {
+  display: none;
+}
+
+.care-bonus-cycle {
+  grid-template-areas:
+    'icon name name'
+    'icon effect effect';
+}
+
+/* Zwischenzeile „bis zum Neuen Zyklus“ */
+.care-bonus-group {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 2px dotted var(--note-under);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 19px;
+  color: var(--ink-soft);
+}
+
+.care-bonus-group::first-letter {
+  text-transform: uppercase;
+}
+
+.care-bonus-group:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Restzeit als Washi-Band, das schrumpft */
+.care-bonus-bar {
+  grid-area: bar;
+  display: block;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 2px;
+  background: rgba(255, 253, 247, 0.8);
+  overflow: hidden;
+}
+
+.care-bonus-fill {
+  display: block;
+  width: var(--left, 100%);
+  height: 100%;
+  background: repeating-linear-gradient(135deg, var(--fill) 0 6px, #8fbd7a 6px 12px);
+  transition: width 0.25s linear;
+}
+
+body[data-motion='reduce'] .care-bonus-fill {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:not([data-motion='full']) .care-bonus-fill {
+    transition: none;
+  }
+}
+
+/* --- Pflegemaßnahmen ----------------------------------------------------------------- */
+
+.care-measures {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.care-hint,
+.care-empty {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.care-empty {
+  font-family: var(--font-hand);
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.care-hint[hidden],
+.care-empty[hidden] {
+  display: none;
+}
+
+.care-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.care-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label label label'
+    'icon head head'
+    'icon body body'
+    '. preview preview'
+    '. buy buy';
+  align-items: center;
+  column-gap: 10px;
+  padding: 8px 4px 10px;
+  border-bottom: 2px dotted var(--rule);
+  border-radius: 6px;
+}
+
+.care-row:last-child {
+  border-bottom: 0;
+}
+
+/* Handschrift-Überschrift über der ersten Zeile jeder Gruppe */
+.care-row[data-group-label]::before {
+  content: attr(data-group-label);
+  grid-area: label;
+  margin: 4px 0 2px;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1;
+  color: var(--ink-faint);
+}
+
+.care-row.care-group-start {
+  margin-top: 4px;
+}
+
+.care-icon {
+  grid-area: icon;
+  align-self: start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--photo);
+  border-radius: 50%;
+  background: var(--tab-care);
+  box-shadow: var(--sh-sticker);
+  font-size: 22px;
+  line-height: 1;
+  transform: rotate(var(--tilt, 0deg));
+}
+
+.care-head {
+  grid-area: head;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  min-width: 0;
+}
+
+/* Name als Knopf: blättert zu U:Pflegemaßnahme */
+.care-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: var(--tap);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 15px;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: underline dotted var(--dash);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.care-open:hover {
+  color: var(--ink-green-dark);
+}
+
+.care-open:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.care-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.care-open-arrow {
+  font-family: var(--font-hand);
+  font-size: 20px;
+  line-height: 0.8;
+  color: var(--ink-soft);
+}
+
+/* Rang als kleines gestricheltes Etikett */
+.care-rank {
+  flex: none;
+  padding: 0 7px;
+  border: 1.5px dashed var(--dash);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.care-maxed .care-rank {
+  border-color: var(--ink-green);
+  color: var(--ink-green);
+}
+
+.care-body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.care-body p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.care-body p[hidden],
+.care-preview[hidden] {
+  display: none;
+}
+
+.care-opens {
+  font-weight: 800;
+  color: var(--ink-green);
+}
+
+.care-blocker {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.care-saving .care-blocker {
+  color: var(--ink-seed);
+}
+
+.care-row .care-buy {
+  grid-area: buy;
+  margin-top: 6px;
+}
+
+.album[data-layout='spread'] .care-row .care-buy {
+  margin-top: 0;
+}
+
+.care-preview {
+  grid-area: preview;
+  margin: 2px 0 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--ink-green);
+}
+
+.care-locked .care-head,
+.care-locked .care-body,
+.care-locked .care-icon {
+  opacity: 0.7;
+}
+
+.care-locked .care-icon,
+.care-maxed .care-icon {
+  background: var(--track);
+}
+
+/* Voll ausgebaut: ruhige Zeile */
+.care-maxed .care-open {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.care-maxed .care-body:not(:has(p:not([hidden]))) {
+  display: none;
+}
+
+.album[data-layout='spread'] .care-row {
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label label label'
+    'icon head buy'
+    'icon body buy'
+    '. preview preview';
+  column-gap: 14px;
+}
+
+.album[data-layout='spread'] .care-icon {
+  width: 48px;
+  height: 48px;
+  font-size: 24px;
+}
+
+/* Ganz schmal: kleineres Symbol */
+@media (max-width: 380px) {
+  .care-row {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    column-gap: 8px;
+  }
+
+  .care-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+}
+
+/* --- U:Pflegemaßnahme -------------------------------------------------------------------- */
+
+.care-item-page .page-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.care-item-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.care-item-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border: 5px solid var(--photo);
+  border-radius: 50%;
+  background: var(--tab-care);
+  box-shadow: var(--sh-sticker-big);
+  font-size: 42px;
+  line-height: 1;
+  transform: rotate(var(--tilt, 0deg));
+}
+
+.care-item-page[data-group='locked'] .care-item-icon,
+.care-item-page[data-group='maxed'] .care-item-icon {
+  background: var(--track);
+}
+
+.care-item-head-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.care-item-rank {
+  padding: 2px 10px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-label);
+  background: var(--paper);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.care-item-status {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.care-item-page[data-group='buyable'] .care-item-status {
+  color: var(--ink-green);
+}
+
+.care-item-page[data-group='saving'] .care-item-status {
+  color: var(--ink-seed);
+}
+
+/* Stimmungstext als gelber Zettel (wie die Notiz zur Art im Prototyp) */
+.care-item-flavor {
+  margin: 0 4px;
+  padding: 10px 12px;
+  background: var(--note-bg);
+  box-shadow: 0 4px 10px rgba(59, 58, 54, 0.15);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1.15;
+  transform: rotate(var(--tilt-flavor));
+}
+
+.care-item-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.care-item-page [hidden] {
+  display: none !important;
+}
+
+.care-item-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.care-item-pill {
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--tab-care);
+  font-size: 13px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.care-item-opens {
+  background: var(--tape-green);
+}
+
+.care-item-protects,
+.care-item-protects-detail,
+.care-item-preview {
+  margin: 0;
+  font-size: 14px;
+}
+
+.care-item-protects {
+  font-weight: 800;
+}
+
+.care-item-protects-detail {
+  color: var(--ink-soft);
+}
+
+.care-item-preview {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--ink-green);
+}
+
+.care-item-ranks,
+.care-item-needs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.care-item-rank-line {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-areas:
+    'mark name'
+    '. cost';
+  column-gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 2px dotted var(--rule);
+  font-size: 14px;
+}
+
+.care-item-rank-line:last-child {
+  border-bottom: 0;
+}
+
+.care-item-mark {
+  grid-area: mark;
+  font-weight: 800;
+  text-align: center;
+}
+
+.care-item-rank-name {
+  grid-area: name;
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.care-item-rank-cost {
+  grid-area: cost;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.care-rank-done .care-item-mark,
+.care-rank-done .care-item-rank-name {
+  color: var(--ink-green);
+}
+
+.care-rank-next {
+  margin: 0 -6px;
+  padding: 6px;
+  border-bottom: 0;
+  border-radius: 8px;
+  background: rgba(242, 193, 204, 0.35);
+}
+
+.care-rank-later {
+  color: var(--ink-soft);
+}
+
+.care-need {
+  display: flex;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.care-need .care-item-mark {
+  flex: none;
+  width: 22px;
+}
+
+.care-need-met .care-item-mark {
+  color: var(--ink-green);
+}
+
+.care-need-open {
+  color: var(--ink-red);
+  font-weight: 700;
+}
+
+.care-item-buy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 4px;
+}
+
+.care-item-buy {
+  min-height: 48px;
+  padding: 8px 20px;
+  font-size: 16px;
+}
+
+.care-item-page[data-group='saving'] .care-item-buy[aria-disabled='true'] {
+  border-color: var(--ink-seed);
+  color: var(--ink-seed);
+}
+
+.care-item-blocker {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+/* Stempel „voll ausgebaut“ */
+.care-item-maxed {
+  padding: 2px 12px;
+  border: 2px solid var(--ink-green);
+  border-radius: 8px;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--ink-green);
+  transform: rotate(var(--tilt-stamp));
+}
+
+.album[data-layout='spread'] .care-item-page .page-body {
+  gap: 18px;
+}

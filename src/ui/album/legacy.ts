@@ -7,17 +7,13 @@
  * Regeln wie bisher: DOM einmal bauen, Strukturen nur bei Änderungen neu, Zahlen gedrosselt.
  * Spielregeln stehen nicht hier – Aktionen gehen über `deps.actions` an main.ts.
  */
-import { CARE } from '../../content/care';
 import { PLANTS_BY_ID } from '../../content/plants';
 import { evaluate, nextPlantCost, type Evaluation } from '../../core/formulas';
 import { landscapeUnlocked } from '../../core/landscape';
-import { nextCareRank } from '../../core/tick';
 import { isNight } from '../../core/weather';
 import {
-  activeBonusViews,
   encounterActionKey,
   refreshEcosystemView,
-  toCareViews,
   toEcosystemView,
   toEncounterView,
   toJournalStats,
@@ -26,15 +22,10 @@ import {
   type StageBannerView,
 } from '../adapters';
 import { toAchievementTimeProgress } from '../achievement-view';
-import { createAnimalDetailDialog } from '../animal-detail-dialog';
-import { toAnimalDetailView, type AnimalDetailTarget } from '../animal-detail-view';
-import { createBonusPanel } from '../bonus-panel';
-import { createCarePanel } from '../care-panel';
 import { createCyclePanel } from '../cycle-panel';
 import { toCyclePanelView } from '../cycle-view';
 import { createDailyPanel } from '../daily-panel';
 import { toDailyView } from '../daily-view';
-import { createEcosystemPanel } from '../ecosystem-panel';
 import { createEncounterDialog } from '../encounter-dialog';
 import { createEncounterStack } from '../encounter-stack';
 import { createFloatLayer } from '../feedback';
@@ -101,8 +92,9 @@ export interface LegacyUi {
   overlayOpen(): boolean;
   noteText(text: string): void;
   floatSeeds(amount: number): void;
+  /** Schwebender Hinweis an Bildschirm-Koordinaten (z. B. Bestätigung nach einem Kauf). */
+  float(text: string, x: number, y: number): void;
   plantFeedback(cost: number, plantId: string): void;
-  openAnimalDetail(target: AnimalDetailTarget, returnFocus?: HTMLElement | null): boolean;
   closeEncounters(): void;
   closePlantPicker(): void;
   focusCycle(): void;
@@ -149,10 +141,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   let pickerSeedsAt = -Infinity;
   let seasonShownSecond = -1;
   let shownNight: boolean | null = null;
-  let careKey = '';
-  let careEvaluation: Readonly<Evaluation> | null = null;
-  let detailEvaluation: Readonly<Evaluation> | null = null;
-  let detailExtra = '';
   let shownLandscape: boolean | null = null;
 
   const focusFallback = () => {
@@ -162,23 +150,13 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   };
 
   // --- Bauteile -----------------------------------------------------------------------
-  const panel = createEcosystemPanel(
-    mounts.niches.ecosystem,
-    {
-      onOpenPlantPicker: openPlantPicker,
-      onOpenEncounters: openEncounters,
-      onOpenAnimal: (_niche, _index, speciesId, button) => openAnimalDetail(speciesId, button),
-      onShowCare: (id) => {
-        hooks.showCareTab();
-        carePanel.reveal(id);
-      },
+  // Reiter Nischen (Schritt 5): Pflanzenwahl bis Schritt 6 hier, „Zur Pflege“ über den Reiter Pflege.
+  mounts.niches.connect({
+    openPlantPicker,
+    showCare(id) {
+      hooks.showCareTab();
+      mounts.care.reveal(id);
     },
-    { header: false },
-  );
-  const bonusPanel = createBonusPanel(mounts.care.bonuses);
-  const carePanel = createCarePanel(mounts.care.care, {
-    onBuy: (id) => deps.actions.buyCare(id),
-    onFeedback: (text, x, y) => floats.spawn(text, x, y, 'note'),
   });
   const dailyPanel = createDailyPanel(mounts.goals.daily);
   const cyclePanel = createCyclePanel(mounts.goals.cycle, {
@@ -203,7 +181,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     onToggleRegular: (speciesId) => deps.actions.toggleRegular(speciesId),
   });
   createJournalButton(mounts.species.journal, openJournal);
-  const animalDetail = createAnimalDetailDialog(document.body);
 
   preferences.onChange(() => {
     // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
@@ -216,20 +193,9 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
 
   // --- Dialoge ------------------------------------------------------------------------
 
-  function openAnimalDetail(target: AnimalDetailTarget, returnFocus?: HTMLElement | null): boolean {
-    const view = toAnimalDetailView(state(), target, evaluate(state()));
-    if (!view) return false;
-    closeEncounters();
-    closePlantPicker();
-    journal.hide();
-    animalDetail.show(view, returnFocus);
-    return true;
-  }
-
   function openJournal(): void {
     closeEncounters();
     closePlantPicker();
-    animalDetail.hide();
     journal.show(toJournalView(state(), evaluate(state())));
   }
 
@@ -259,7 +225,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   }
 
   function overlayOpen(): boolean {
-    return picker.open || dialog.open || journal.open || animalDetail.open;
+    return picker.open || dialog.open || journal.open;
   }
 
   /** Meldung: im offenen alten Dialog dort (er würde den Stempel verdecken), sonst als Stempel. */
@@ -269,7 +235,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       if (picker.open) return picker.notice(text);
       if (dialog.open) return dialog.notice(text);
       if (journal.open) return journal.notice(text);
-      if (animalDetail.open) return animalDetail.notice(text);
     }
     hooks.stamp(text, options);
   }
@@ -427,49 +392,12 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       return;
     }
     lastPanelRefresh = now;
-    panel.update(ecoView);
     hooks.onEcosystem(ecoView);
     if (journal.open) {
       journal.updateStats(toJournalStats(s, evaluate(s)));
       journal.updateAchievementProgress(toAchievementTimeProgress(s));
     }
-    refreshAnimalDetail();
-    bonusPanel.update(activeBonusViews(s));
     dailyPanel.update(toDailyView(s, deps.today()));
-    refreshCare();
-  }
-
-  /** Pflege-Liste: Vorschauen nur neu, wenn Ökosystem, Bezahlbarkeit oder Fehlbetrag sich ändern. */
-  function refreshCare(): void {
-    const s = state();
-    const ev = evaluate(s);
-    let key = '';
-    for (const m of CARE) {
-      const cost = nextCareRank(s, m.id)?.cost;
-      key += (cost === undefined ? '-' : cost <= s.seeds ? '1' : Math.ceil(cost - s.seeds)) + ',';
-    }
-    if (ev === careEvaluation && key === careKey) return;
-    careEvaluation = ev;
-    careKey = key;
-    carePanel.update(toCareViews(s, ev));
-  }
-
-  /** Offene Tierdetails nachziehen; zieht die Art aus, schließt der Dialog (Fokus an die Nische). */
-  function refreshAnimalDetail(): void {
-    const detailId = animalDetail.speciesId;
-    if (!detailId) {
-      detailEvaluation = null;
-      return;
-    }
-    const s = state();
-    const ev = evaluate(s);
-    const extra = `${s.meta.regulars.join(',')}|${s.meta.journal.communities.join(',')}|${s.meta.forestMemory}`;
-    if (ev === detailEvaluation && extra === detailExtra) return;
-    detailEvaluation = ev;
-    detailExtra = extra;
-    const view = toAnimalDetailView(s, detailId, ev);
-    const niche = animalDetail.nicheId;
-    animalDetail.update(view, view ? null : niche ? panel.nicheFocusTarget(niche) : null);
   }
 
   function refresh(now: number): void {
@@ -504,8 +432,8 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
     overlayOpen,
     noteText,
     floatSeeds,
+    float: (text, x, y) => floats.spawn(text, x, y, 'note'),
     plantFeedback,
-    openAnimalDetail,
     closeEncounters,
     closePlantPicker,
     focusCycle: () => cyclePanel.focus(),
@@ -515,7 +443,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       closeEncounters();
       closePlantPicker();
       journal.hide();
-      animalDetail.hide();
       encounterSerial++;
       invalidate(['eco', 'encounter', 'picker']);
     },

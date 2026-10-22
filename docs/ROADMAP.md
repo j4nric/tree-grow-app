@@ -541,15 +541,40 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   `scene-note.ts` entfällt). Bildunterschrift kurz: „🌱 Frühling · ⛅ Wechselhaft · 2:58“
   (Wirkungen des Wetters in der Notiz und im vorgelesenen Namen). Meldungen im Vollbild über die
   ganze Breite unter „Zurück ins Album“.
-- [ ] **5** Reiter Nischen (`ui-dev`): Stickerreihen, Gattungen, Lebensräume, Pflanzring;
+- [x] **5** Reiter Nischen (`ui-dev`): Stickerreihen, Gattungen, Lebensräume, Pflanzring;
   Unterseiten Tier, Harmonie, Nahrungsnetz. Specs animal-detail, food-web, habitats.
-  Abhängig: 2, 4
+  Abhängig: 2, 4. *Umgesetzt:* `album/sticker.ts` (StickerSlot: eigenes kleines Canvas, zeichnet
+  nur bei neuer Art/Variante/Pixeldichte; matte Bilder über die IdleQueue, bis dahin CSS-gedämpft;
+  Zufriedenheit als Bogen im weißen Rand, Seltenheit als Edelstein und Randlinie, 🌙 und
+  Bestandspunkt) und `sticker-rules.ts` (`stickerTilt` fest je Art und Platz, ±6°).
+  `pages/niches-page.ts` (Gattungs-Abzeichen mit Notiz, Reihen „Am Baum“ und „Lebensräume“,
+  Pflanzring mit Messbändern, Links zu U:Harmonie und U:Nahrungsnetz – oben statt am Ende,
+  damit sie mobil ohne Scrollen erreichbar sind; Kennzahl „9 von 14 Plätzen“), Unterseiten
+  `animal-page.ts` (Kopf, „Was es braucht“, „Was es bewirkt“, Räuber und Beute → Nahrungsnetz als
+  Ebene 2, Lebensgemeinschaften, Stammgast-★, Notiz, „Zuerst gesehen“ aus `meta.journal.firstSeen`;
+  ausgezogen bleibt die Seite offen), `harmony-page.ts` (Zusammensetzung, Gemeinschaften,
+  Stufen; „Mehr ›“ der Harmonie-Notiz), `food-web-page.ts` (Jäger als kleine Sticker,
+  `FoodWebRowView.hunterIds`). Je Seitenart ein Blatt (`nav.ts`: andere ID derselben Art ersetzt
+  sie). Nur sichtbare Seiten schreiben (`PageEnv.eco` mit Zähler, `album.refresh` aktualisiert
+  die oberste Seite). `ecosystem-panel.ts` und `animal-detail-dialog.ts` gelöscht; „Im Album
+  ansehen ›“ aus dem Vollbild blättert zu U:Tier um. Neu: `e2e/album-animal.spec.ts`,
+  `tests/album-niches.test.ts`.
 - [ ] **6** Begegnungen (`ui-dev`): Zettelstapel mit Wackeln, Unterseite Begegnung, Unterseite
   Pflanze setzen. Specs events, playthrough, full-cycle. Abhängig: 4 (Pflanze setzen: 5)
 - [ ] **7** Reiter Arten (`ui-dev`): Sticker-Raster mit Silhouetten, Pflanzen, Gemeinschaften,
   Andenken, Stammgast-★. Spec journal. Abhängig: 5
-- [ ] **8** Reiter Pflege (`ui-dev`): Gerade wirksam, Pflegeliste, Unterseite Pflegemaßnahme,
+- [x] **8** Reiter Pflege (`ui-dev`): Gerade wirksam, Pflegeliste, Unterseite Pflegemaßnahme,
   Punkt am Reiter. Spec care. Abhängig: 4
+  *Umgesetzt:* `album/pages/care-page.ts` (R:Pflege: „Gerade wirksam“ als gelber Zettel mit
+  Restzeit-Washi-Band, Pflegeliste mit festen Zeilen je Maßnahme, Gruppen-Überschriften in
+  Handschrift, Kennzahl „2 kaufbar“ im Seitenkopf, `reveal(id)` für „Zur Pflege“) und
+  `album/pages/care-item-page.ts` (U:Pflegemaßnahme: Stimmungstext, Wirkung des nächsten Rangs,
+  „Öffnet Lebensraum …“, Schutz, Vorschau, alle Ränge, Voraussetzungen mit ✓/✗, Kaufen bzw.
+  Stempel „voll ausgebaut“). Reine Ansichtslogik in `ui/care-view.ts` (`careOrder`,
+  `carePreviewText`, `careSummaryText`, `careTabDot`, `barWidth`, `toCareItemView`).
+  Seiten-Schnittstelle: `PageEnv.open/float`, `TabPage.badge` (Punkt am Reiter, läuft immer),
+  `Subpage.opened(ref)`; Unterseiten registrieren sich nur noch in `pages/registry.ts`.
+  `care-panel.ts` und `bonus-panel.ts` samt CSS gelöscht. Neu: `e2e/album-care.spec.ts`.
 - [ ] **9** Reiter Ziele (`ui-dev`): Tagesziele, Unterseiten Neuer Zyklus, Erfolge, Statistik.
   Specs daily, cycle, cycle-transition, achievements, journal-stats. Abhängig: 4
 - [ ] **10** Reiter Landschaft (`ui-dev`): Karte, Unterseite Standort, Korridore, Wälder,

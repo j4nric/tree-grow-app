@@ -19,7 +19,27 @@ export const SAVE_KEY = 'tree-grow-save';
  * Tagesziele sind in e2e-Tests aus (`window.__VSZW_DAILY__ = false`), sonst brächte das echte
  * Datum Ziele, Belohnungen und Hinweise in fremde Tests. Einschalten: `test.use({ daily: true })`.
  */
-export const test = base.extend<{ pageErrors: string[]; daily: boolean; dailySwitch: void }>({
+export const test = base.extend<{ pageErrors: string[]; daily: boolean; dailySwitch: void; guideHint: boolean; guideHintSwitch: void }>({
+  /**
+   * Haftnotiz „Neu hier?“ beim ersten Start (album/guide-hint.ts): Sie liegt als Notiz über dem
+   * Polaroid und gilt in fremden Tests als schon gesehen. Einschalten: `test.use({ guideHint: true })`.
+   */
+  guideHint: [false, { option: true }],
+  guideHintSwitch: [
+    async ({ context, guideHint }, use) => {
+      if (!guideHint) {
+        await context.addInitScript(() => {
+          try {
+            localStorage.setItem('tree-grow-guide-hint-seen', '1');
+          } catch {
+            // about:blank o. Ä. ohne Speicher
+          }
+        });
+      }
+      await use();
+    },
+    { auto: true },
+  ],
   daily: [false, { option: true }],
   dailySwitch: [
     async ({ context, daily }, use) => {
@@ -169,6 +189,28 @@ export const pageTitle = (page: Page) => page.locator('.album-tabpanel:not([hidd
 /** Unterseite des Albums, z. B. `subpage(page, 'save')`. */
 export const subpage = (page: Page, kind: string) => page.locator(`[data-ref="page-${kind}"]`);
 export const cover = (page: Page) => page.locator('[data-ref="cover"]');
+
+/** Sticker einer Art in einer Nische (Reiter Nischen, docs/ALBUM_UI.md B.1) – ein Knopf. */
+export const sticker = (page: Page, nicheId: string, species: string) =>
+  page.locator(`[data-niche="${nicheId}"] [data-species="${species}"] button.sticker`);
+/** Unterseite „Tier“ (U:Tier). */
+export const animalPage = (page: Page) => subpage(page, 'animal');
+
+/** Wartet, bis eine Unterseite fertig aufgeschlagen ist (nicht mehr `inert`). */
+export async function settledSubpage(page: Page, kind: string): Promise<Locator> {
+  const sub = subpage(page, kind);
+  await expect(sub).toBeVisible();
+  await expect(sub).not.toHaveAttribute('inert', '');
+  return sub;
+}
+
+/** Tipp auf einen Sticker: blättert zu U:Tier um und wartet, bis die Seite bedienbar ist. */
+export async function openAnimal(page: Page, nicheId: string, species: string): Promise<Locator> {
+  await sticker(page, nicheId, species).click();
+  const sub = await settledSubpage(page, 'animal');
+  await expect(sub).toHaveAttribute('data-species', species);
+  return sub;
+}
 
 /**
  * Meldungen (docs/ALBUM_UI.md, C.5) – Ersatz für den Toast. `stamps` ist die ganze Schicht
