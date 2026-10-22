@@ -680,11 +680,15 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   als Anhang), `album-nav.spec.ts` ergänzt (Hash, Neuladen, unbekannter/gesperrter Hash,
   Tastatur, reduzierte Bewegung ohne `rotateY` mit Gegenprobe), `tests/album-sticker-colors.test.ts`
   (Gattung → Sticker-Farbe). Feste Wartezeiten nach dem Umblättern durch `albumAnimationsDone`
-  ersetzt, Überlauf-Messungen erst nach dem Umblättern. Ohne Wischen: Die Geste fehlt noch (13a).
-- [ ] **13a** Wisch-Zurück auf Unterseiten (`ui-dev`, C.2): `album/swipe.ts` (Schwellen 60 px,
-  waagerecht ≥ 2 × senkrecht oder > 0,5 px/ms, `data-no-swipe`, Canvas ausgenommen) mit Vitest,
-  dazu ein e2e-Test mit Touch-Emulation in `album-nav.spec.ts`. Die `data-no-swipe`-Marker sind
-  schon gesetzt.
+  ersetzt, Überlauf-Messungen erst nach dem Umblättern. Wischen: siehe 13a.
+- [x] **13a** Wisch-Zurück auf Unterseiten (`ui-dev`, C.2): `album/swipe.ts` (Schwellen 60 px,
+  waagerecht ≥ 2 × senkrecht, oder > 0,5 px/ms ab 20 px; `data-no-swipe`, Eingabefelder,
+  Canvas und die linken 20 px ausgenommen; nur auf Unterseiten) mit Vitest
+  (`tests/album-swipe.test.ts`, Mitführen in `tests/album-page-turn.test.ts`). Die Seite folgt
+  dem Finger (`PageTurn.drag`, Kante unter dem Finger, bis −20°) und blättert über den Verlauf
+  zu Ende; bei reduzierter Bewegung nur Auslösen. e2e mit Touch-Emulation in
+  `e2e/album-swipe.spec.ts` (U:Tier zurück, Schnipser, Scrollen, Rand, Kartenreihe, Reiterseite).
+  Der Wisch nach unten im Vollbild (C.6) war schon in Schritt 3 gebaut.
 - [ ] **14** Playtest und Feinschliff (`qa-tester` → `ui-dev`/`renderer`), Leistung messen, dann
   PR `claude/album-ui` → `main`. Abhängig: 13
 

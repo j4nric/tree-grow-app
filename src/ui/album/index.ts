@@ -61,6 +61,7 @@ import { createSeasonWeather } from './season-weather';
 import { createSpread } from './spread';
 import { createStageBanner } from './stage-banner';
 import { createStageLadder } from './stage-ladder';
+import { attachSwipeBack } from './swipe';
 import { createStamps } from './stamps';
 import { createTabStrip } from './tab-strip';
 import { createTapeLabel } from './tape-label';
@@ -378,6 +379,19 @@ export function createAlbum(deps: AlbumDeps): Album {
     if (document.querySelector('dialog[open]')) return;
     if (nav.note === null && historyDepth(nav) === 0) return;
     goBack();
+  });
+  // Wisch nach rechts auf einer Unterseite = Zurück (C.2). Nie auf Reiterseiten, nie im Vollbild.
+  attachSwipeBack(book.element, {
+    canStart(target) {
+      const top = nav.stack[nav.stack.length - 1];
+      if (!top || nav.fullscreen || nav.note !== null || busy()) return false;
+      return subpageOf(top)?.page.element.contains(target) ?? false;
+    },
+    follow() {
+      if (deps.preferences.reducedMotion || nav.stack.length === 0) return null;
+      return turn.drag(levelElement(nav, nav.stack.length - 1));
+    },
+    back: () => goBack(),
   });
 
   // --- Navigation -----------------------------------------------------------------------
