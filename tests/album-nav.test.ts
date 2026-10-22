@@ -8,6 +8,7 @@ import {
   navigate,
   pageNumber,
   samePage,
+  subpageKey,
   tabFromHash,
   visibleTabs,
   type AlbumNav,
@@ -224,5 +225,28 @@ describe('samePage und Seitenzahlen', () => {
     const sub = run([{ type: 'open', page: { kind: 'harmony' } }]);
     expect(pageNumber(sub)).toBe(pageNumber(sub));
     expect(pageNumber(sub)).not.toBe(12);
+  });
+});
+
+describe('Spielanleitung im Umschlag (Schritt 11)', () => {
+  it('Inhaltsverzeichnis und Kapitel sind verschiedene Seiten', () => {
+    expect(subpageKey({ kind: 'guide' })).toBe('guide');
+    expect(subpageKey({ kind: 'guide', section: 'growth' })).toBe('guide-chapter');
+    expect(subpageKey({ kind: 'settings' })).toBe('settings');
+    expect(subpageKey({ kind: 'animal', id: 'x' })).toBe('animal');
+  });
+
+  it('Umschlag → Anleitung → Kapitel; Weiterblättern ersetzt das Kapitel, Zurück führt zum Verzeichnis', () => {
+    let nav = navigate(initialNav(), { type: 'cover', open: true }, open);
+    nav = navigate(nav, { type: 'open', page: { kind: 'guide' } }, open);
+    nav = navigate(nav, { type: 'open', page: { kind: 'guide', section: 'growth' } }, open);
+    expect(nav.stack).toEqual([{ kind: 'guide' }, { kind: 'guide', section: 'growth' }]);
+    nav = navigate(nav, { type: 'open', page: { kind: 'guide', section: 'encounters' } }, open);
+    expect(nav.stack).toEqual([{ kind: 'guide' }, { kind: 'guide', section: 'encounters' }]);
+    expect(historyDepth(nav)).toBe(3);
+    nav = navigate(nav, { type: 'back' }, open);
+    expect(nav.stack).toEqual([{ kind: 'guide' }]);
+    nav = navigate(nav, { type: 'back' }, open);
+    expect(nav).toMatchObject({ cover: true, stack: [] });
   });
 });

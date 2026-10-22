@@ -116,10 +116,9 @@ test('Layoutwechsel bei offener Unterseite: sichtbar, bedienbar, Zurück geht', 
     await expect(page.locator('[data-ref="album"]')).toHaveAttribute('data-layout', width > 760 ? 'spread' : 'single');
     await expect(save).toBeVisible();
     await expect(save).not.toHaveAttribute('inert', '');
-    // Bedienbar: Export aufklappen geht.
-    await save.locator('[data-ref="save-transfer"] summary').click();
-    await expect(save.locator('[data-ref="export"]')).toBeVisible();
-    await save.locator('[data-ref="save-transfer"] summary').click();
+    // Bedienbar: „Code erzeugen“ geht.
+    await save.locator('[data-ref="export"]').click();
+    await expect(save.locator('[data-ref="export-code"]')).toBeVisible();
   }
 
   await page.locator('[data-ref="bookmark"]').click();

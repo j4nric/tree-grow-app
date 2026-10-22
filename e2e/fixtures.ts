@@ -210,15 +210,18 @@ export async function openCover(page: Page): Promise<void> {
   await expect(cover(page)).not.toHaveClass(/cover-out/);
 }
 
-/** Umschlag → Unterseite „Spielstand“ (Export, Import, Spielstand löschen). */
-export async function openSavePage(page: Page): Promise<void> {
-  if (await subpage(page, 'save').isVisible()) return;
+/** Umschlag → Unterseite (Spielanleitung, Einstellungen, Konto, Spielstand), Umblättern abgewartet. */
+export async function openCoverPage(page: Page, kind: 'guide' | 'settings' | 'account' | 'save'): Promise<void> {
+  if (await subpage(page, kind).isVisible()) return;
   await openCover(page);
-  await page.locator('[data-ref="save-open"]').click();
-  await expect(subpage(page, 'save')).toBeVisible();
+  await page.locator(`[data-ref="${kind}-open"]`).click();
+  await expect(subpage(page, kind)).toBeVisible();
   // Umblättern abwarten (die Seite ist währenddessen nicht bedienbar).
-  await expect(subpage(page, 'save')).not.toHaveAttribute('inert', '');
+  await expect(subpage(page, kind)).not.toHaveAttribute('inert', '');
 }
+
+/** Umschlag → Unterseite „Spielstand“ (Export, Import, Spielstand löschen). */
+export const openSavePage = (page: Page) => openCoverPage(page, 'save');
 
 /** Zurück über das Lesezeichen der obersten Unterseite. */
 export async function back(page: Page): Promise<void> {

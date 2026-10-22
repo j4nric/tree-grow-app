@@ -1,13 +1,13 @@
 import type { Locator, Page } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, type GameState } from '../src/core/state';
-import { expect, openGame, overlaps, pageTitle, seedRaw, stamp, stamps, test, waypoint } from './fixtures';
+import { expect, openGame, overlaps, pageTitle, seedRaw, stamp, stamps, subpage, test, waypoint } from './fixtures';
 
 /**
- * Rückkehr-Bericht (Playtest Phase 6): Nach 3 Std. Abwesenheit steht nur die Kurzfassung in
- * der Meldung (Zettel oben, höchstens drei Zeilen – Desktop wie mobil, docs/ALBUM_UI.md C.8),
- * alles Weitere in der schließbaren Karte „Rückkehr-Bericht“ – per Tastatur und Touch
- * erreichbar.
+ * Rückkehr-Bericht (Playtest Phase 6, Album: docs/ALBUM_UI.md C.8): Nach 3 Std. Abwesenheit
+ * steht nur die Kurzfassung in der Meldung (höchstens drei Zeilen – Desktop wie mobil) und im
+ * Zettel „Während du weg warst …“ auf der linken Seite; „Details ›“ blättert zur Unterseite
+ * mit allen Punkten, „Abheften“ blendet den Zettel aus – per Tastatur und Touch erreichbar.
  */
 
 const GROVE = STAGES.findIndex((s) => s.id === 'grove');
@@ -26,8 +26,10 @@ function grove(): GameState {
 }
 
 const report = (page: Page) => page.locator('[data-ref="return-report"]');
+const reportPage = (page: Page) => subpage(page, 'return-report');
 const detailsButton = (page: Page) => page.locator('[data-ref="return-report-details"]');
 const list = (page: Page) => page.locator('[data-ref="return-report-list"]');
+const fileButton = (page: Page) => report(page).locator('[data-ref="return-report-close"]');
 
 async function expectNotCovered(toast: Locator, controls: Record<string, Locator>): Promise<void> {
   const box = (await toast.boundingBox())!;
@@ -87,34 +89,41 @@ for (const viewport of [
       Bericht: report(page).getByRole('button'),
     });
 
-    // Karte gleich zu sehen (mobil direkt unter der Szene), Knöpfe groß genug für Touch.
+    // Zettel gleich zu sehen (mobil unter den Etiketten, Desktop auf der linken Seite),
+    // Knöpfe groß genug für Touch.
     await expect(report(page)).toBeVisible();
+    await expect(report(page)).toContainText('Während du weg warst');
     await expect(detailsButton(page)).toBeInViewport();
     for (const button of await report(page).getByRole('button').all()) {
       const b = (await button.boundingBox())!;
       expect(b.width).toBeGreaterThanOrEqual(44);
       expect(b.height).toBeGreaterThanOrEqual(44);
     }
-    await expect(list(page)).toBeHidden();
+    await expect(reportPage(page)).toBeHidden();
 
-    // Tastatur: Details öffnen → Fokus auf der Liste, alles einsehbar; Escape klappt zu.
+    // Tastatur: „Details ›“ blättert zur Unterseite, Fokus auf ihrer Überschrift, alles einsehbar.
     await detailsButton(page).focus();
     await page.keyboard.press('Enter');
-    await expect(detailsButton(page)).toHaveAttribute('aria-expanded', 'true');
+    await expect(reportPage(page)).toBeVisible();
+    await expect(reportPage(page)).not.toHaveAttribute('inert', '');
+    await expect(reportPage(page).getByRole('heading', { name: 'Rückkehr-Bericht' })).toBeFocused();
     await expect(list(page)).toBeVisible();
-    await expect(list(page)).toBeFocused();
     await expect(list(page)).toContainText('Willkommen zurück! In 3 Std.');
     await expect(list(page)).toContainText(/Wetter gemittelt( \(.+\))?\./);
     await expect(list(page)).toContainText(/Begegnungen? warte/);
     await expect(list(page)).toContainText('neue Erfolge');
+    expect(await reportPage(page).evaluate((p) => p.scrollWidth - p.clientWidth)).toBeLessThanOrEqual(0);
+    // Escape blättert zurück, der Fokus geht an „Details ›“.
     await page.keyboard.press('Escape');
-    await expect(list(page)).toBeHidden();
+    await expect(reportPage(page)).toBeHidden();
     await expect(detailsButton(page)).toBeFocused();
+    await expect(report(page)).toBeVisible();
 
-    // Zeiger/Touch: erneut öffnen, dann schließen – Fokus geht an die Überschrift der Seite.
+    // Zeiger/Touch: Unterseite erneut, dort „Abheften“ – zurück, der Zettel ist weg.
     await detailsButton(page).click();
-    await expect(list(page)).toBeVisible();
-    await page.getByRole('button', { name: 'Rückkehr-Bericht schließen' }).click();
+    await expect(reportPage(page)).not.toHaveAttribute('inert', '');
+    await reportPage(page).getByRole('button', { name: 'Abheften' }).click();
+    await expect(reportPage(page)).toBeHidden();
     await expect(report(page)).toBeHidden();
     await expect(pageTitle(page)).toBeFocused();
 
@@ -122,6 +131,17 @@ for (const viewport of [
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
 }
+
+test('Abheften direkt am Zettel: Fokus an die Überschrift der Seite', async ({ page, context }) => {
+  await seedRaw(context, grove(), -3 * 3600_000);
+  await openGame(page);
+  await expect(report(page)).toBeVisible();
+  await expect(fileButton(page)).toHaveText('Abheften');
+  await fileButton(page).focus();
+  await page.keyboard.press('Enter');
+  await expect(report(page)).toBeHidden();
+  await expect(pageTitle(page)).toBeFocused();
+});
 
 test('ohne Abwesenheit kein Rückkehr-Bericht', async ({ page, context }) => {
   await seedRaw(context, grove(), 0);

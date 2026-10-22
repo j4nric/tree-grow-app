@@ -4,13 +4,14 @@ import { createInitialState, createSite, type GameState, type LandscapeSite } fr
 import {
   expect,
   gotoTab,
-  openCover,
+  openCoverPage,
   openGame,
   openTab,
   overlaps,
   savedState,
   seedRaw,
   stamps,
+  subpage,
   tabButton,
   test,
   waitForConfirm,
@@ -95,8 +96,8 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(corridor).toContainText('Weg der Häher, gratis');
   await expect(corridor.locator('button')).toBeHidden();
   // Spielanleitung: jetzt der ganze Abschnitt.
-  await openCover(page);
-  await page.locator('[data-ref="guide-open"]').click();
+  await openCoverPage(page, 'guide');
+  await subpage(page, 'guide').locator('[data-chapter="landscape"]').click();
   await expect(page.locator('[data-section="landscape"]')).toContainText('Waldlandschaft und Hähersaat');
   await page.keyboard.press('Escape');
   // Nach dem Neuladen keine zweite Meldung.

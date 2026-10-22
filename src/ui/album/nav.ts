@@ -46,6 +46,13 @@ export type PageRef =
 
 export type PageKind = PageRef['kind'];
 
+/** Schlüssel der Unterseite zu einem Verweis: Kapitel der Anleitung haben eine eigene Seite (Ebene 2). */
+export type SubpageKey = PageKind | 'guide-chapter';
+
+export function subpageKey(ref: PageRef): SubpageKey {
+  return ref.kind === 'guide' && ref.section ? 'guide-chapter' : ref.kind;
+}
+
 export interface AlbumNav {
   tab: TabId;
   /** Umschlag offen (eigene Ebene 0). */

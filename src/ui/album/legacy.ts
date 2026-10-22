@@ -39,11 +39,8 @@ import { createEncounterDialog } from '../encounter-dialog';
 import { createEncounterStack } from '../encounter-stack';
 import { createFloatLayer } from '../feedback';
 import { formatNumber } from '../format';
-import { createHelp, type Help } from '../help';
 import { createJournalButton, createJournalDialog } from '../journal-dialog';
 import { createPlantPicker } from '../plant-picker';
-import { createReturnReportPanel } from '../return-report';
-import { returnToastText, type ReturnReportView } from '../return-report-view';
 import { toSeasonBadgeView } from '../season-view';
 import { seedsLabel } from '../view-format';
 import type { EcosystemView } from '../view-model';
@@ -71,14 +68,6 @@ export interface LegacyMounts {
   season: HTMLElement;
   /** Bildfläche des Polaroids (Stufen-Banner). */
   photo: HTMLElement;
-  /** Linke Seite unter der Stufenleiste (Rückkehr-Bericht). */
-  returnReport: HTMLElement;
-  /** Einträge im Umschlag (Spielanleitung, Einstellungen). */
-  coverMenu: HTMLElement;
-  /** Neben dem Umschlag-Knopf (Hinweis „Neu hier?“). */
-  hint: HTMLElement;
-  /** Umschlag-Knopf (Fokusziel, wenn der Hinweis „Neu hier?“ verschwindet). */
-  coverButton: HTMLElement;
   /** Kopf rechts (Begegnungs-Stapel). */
   dock: HTMLElement;
 }
@@ -103,7 +92,7 @@ export interface LegacyUi {
   encounterResolved(): void;
   /**
    * Meldung (C.5): Stempel, ab 90 Zeichen Zettel. Solange noch ein alter Dialog mit eigenem
-   * Hinweisfeld offen ist (Kartenwahl, Pflanzenwahl, Tagebuch, Tierdetails, Hilfe), steht sie
+   * Hinweisfeld offen ist (Kartenwahl, Pflanzenwahl, Tagebuch, Tierdetails), steht sie
    * dort – außer mit `direct`. Leerer Text: nichts.
    */
   notify(text: string, options?: NotifyOptions): void;
@@ -121,9 +110,6 @@ export interface LegacyUi {
   replaced(): void;
   /** Stand eines anderen Geräts übernommen; `headChanged`: andere vorderste Begegnung. */
   adopted(headChanged: boolean): void;
-  showReturnReport(view: ReturnReportView): void;
-  hideReturnReport(): void;
-  addSettingsSection(section: HTMLElement): void;
 }
 
 export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: LegacyHooks): LegacyUi {
@@ -202,7 +188,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   });
   // Die Karte der Landschaft steht im eigenen Reiter; cycle-panel.ts steuert sie weiter.
   mounts.landscape.landscape.append(cyclePanel.landscapeElement);
-  const returnReport = createReturnReportPanel(mounts.returnReport, () => hooks.focusTarget());
   const seasonWeather = createSeasonWeather(mounts.season);
   const stack = createEncounterStack(mounts.dock, openEncounters, { float: false });
   const dialog = createEncounterDialog(document.body, { ...deps.actions.encounter, onDefer: closeEncounters });
@@ -219,11 +204,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   });
   createJournalButton(mounts.species.journal, openJournal);
   const animalDetail = createAnimalDetailDialog(document.body);
-  const help: Help = createHelp(mounts.coverMenu, preferences, {
-    newGame: deps.newGame,
-    hintRoot: mounts.hint,
-    hintFocus: mounts.coverButton,
-  });
 
   preferences.onChange(() => {
     // Zahlenformat kann sich geändert haben: Ansichten vollständig neu aufbauen.
@@ -279,7 +259,7 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
   }
 
   function overlayOpen(): boolean {
-    return picker.open || dialog.open || journal.open || animalDetail.open || help.open;
+    return picker.open || dialog.open || journal.open || animalDetail.open;
   }
 
   /** Meldung: im offenen alten Dialog dort (er würde den Stempel verdecken), sonst als Stempel. */
@@ -290,7 +270,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       if (dialog.open) return dialog.notice(text);
       if (journal.open) return journal.notice(text);
       if (animalDetail.open) return animalDetail.notice(text);
-      if (help.notice(text)) return;
     }
     hooks.stamp(text, options);
   }
@@ -423,7 +402,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       ecoDirty = false;
       cyclePanel.update(toCyclePanelView(s));
       const unlocked = landscapeUnlocked(s);
-      help.setLandscapeUnlocked(unlocked);
       if (unlocked !== shownLandscape) {
         shownLandscape = unlocked;
         hooks.onLandscape(unlocked);
@@ -550,13 +528,5 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       }
       invalidate(['eco', 'encounter', 'picker']);
     },
-    showReturnReport(view) {
-      returnReport.show(view);
-      // Kurzfassung als Stempel bzw. Zettel (höchstens drei Zeilen) – Desktop wie mobil;
-      // alles Weitere steht im Rückkehr-Bericht (C.8).
-      notify(returnToastText(view, true), { brief: true });
-    },
-    hideReturnReport: () => returnReport.hide(),
-    addSettingsSection: (section) => help.addSettingsSection(section),
   };
 }

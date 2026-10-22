@@ -3,7 +3,7 @@
  * Zeile** hier. Spätere Schritte tauschen ihre Seite aus bzw. tragen ihre Unterseite ein,
  * ohne `album/index.ts` zu ändern.
  */
-import type { TabId, PageKind } from '../nav';
+import type { TabId, PageRef, SubpageKey } from '../nav';
 import type { Bookmark } from '../bookmark';
 import type { Page } from '../page';
 import type { AlbumDeps } from '../types';
@@ -13,12 +13,16 @@ import { createCarePage } from './care-page';
 import { createGoalsPage } from './goals-page';
 import { createLandscapePage } from './landscape-page';
 import { createSavePage } from './save-page';
+import { createGuideChapterPage, createGuidePage } from './guide-page';
+import { createSettingsPage } from './settings-page';
 
 /** Was eine Seite vom Album bekommt. */
 export interface PageEnv {
   readonly deps: AlbumDeps;
   /** Eine Ebene zurück (über den Verlauf). */
   back(): void;
+  /** Unterseite aufschlagen (Umblättern). */
+  open(page: PageRef): void;
 }
 
 /** Reiterseite (Ebene 0). `update` läuft nur, solange sie sichtbar ist. */
@@ -32,7 +36,7 @@ export interface Subpage {
   readonly page: Page;
   readonly bookmark: Bookmark;
   /** Wird beim Öffnen gerufen (Inhalt füllen). */
-  opened?(): void;
+  opened?(ref: PageRef): void;
   update?(now: number): void;
   /** Nach Löschen oder Import des Spielstands: offene Bestätigungen zurücknehmen. */
   reset?(): void;
@@ -48,6 +52,9 @@ export const TAB_PAGES = {
 
 export const SUBPAGES = {
   save: createSavePage,
-} satisfies Partial<Record<PageKind, (env: PageEnv) => Subpage>>;
+  guide: createGuidePage,
+  'guide-chapter': createGuideChapterPage,
+  settings: createSettingsPage,
+} satisfies Partial<Record<SubpageKey, (env: PageEnv) => Subpage>>;
 
 export type SubpageKind = keyof typeof SUBPAGES;

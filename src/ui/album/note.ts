@@ -43,11 +43,18 @@ export interface Note {
   setTitle(text: string): void;
   /** Neue Zeile im Inhalt (nur beim Aufbau aufrufen). */
   line(className?: string, ref?: string): HTMLParagraphElement;
-  show(anchor: HTMLElement): void;
+  show(anchor: HTMLElement, options?: NoteShowOptions): void;
   /** Schließen; `focusAnchor` gibt den Fokus in jedem Fall an den Auslöser zurück. */
   hide(focusAnchor?: boolean): void;
   /** Lage neu rechnen (z. B. wenn der Inhalt länger wurde). */
   position(): void;
+}
+
+export interface NoteShowOptions {
+  /** Fokus in die Notiz setzen (Standard: ja). Nein, wenn sie von selbst aufgeht. */
+  focus?: boolean;
+  /** Bekommt beim Schließen den Fokus statt des Ankers (z. B. wenn der Anker kein Knopf ist). */
+  returnFocus?: HTMLElement | null;
 }
 
 /** Inhalt einer freien Notiz (`openNote`). */
@@ -119,6 +126,7 @@ function build(options: NoteOptions): NoteImpl {
   document.body.append(root);
 
   let anchor: HTMLElement | null = null;
+  let returnFocus: HTMLElement | null = null;
   let open = false;
   let moreOptions: NoteMore | null = null;
   let frame = 0;
@@ -165,11 +173,12 @@ function build(options: NoteOptions): NoteImpl {
     if (anchor?.hasAttribute('aria-expanded')) setAttr(anchor, 'aria-expanded', String(value));
   }
 
-  function show(next: HTMLElement): void {
+  function show(next: HTMLElement, showOptions: NoteShowOptions = {}): void {
     if (open && anchor === next) return;
     if (current && current !== note) current.hide();
     if (open) setExpanded(false);
     anchor = next;
+    returnFocus = showOptions.returnFocus ?? null;
     open = true;
     current = note;
     refreshMore();
@@ -187,7 +196,7 @@ function build(options: NoteOptions): NoteImpl {
     window.addEventListener('resize', reposition);
     window.addEventListener('scroll', reposition, true);
     if (!POPOVER) document.addEventListener('pointerdown', outside, true);
-    root.focus({ preventScroll: true });
+    if (showOptions.focus !== false) root.focus({ preventScroll: true });
     emit(options.id);
   }
 
@@ -201,7 +210,7 @@ function build(options: NoteOptions): NoteImpl {
     window.removeEventListener('scroll', reposition, true);
     document.removeEventListener('pointerdown', outside, true);
     root.classList.remove('note-in');
-    const back = anchor;
+    const back = returnFocus ?? anchor;
     if (current === note) {
       current = null;
       emit(null);
