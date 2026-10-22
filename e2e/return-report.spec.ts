@@ -39,9 +39,23 @@ async function expectNotCovered(toast: Locator, controls: Record<string, Locator
   }
 }
 
+/** Zeilen eines Textblocks: Höhe ohne Rand und Innenabstand durch die Zeilenhöhe (aus dem CSS). */
+async function lineCount(locator: Locator): Promise<number> {
+  return locator.evaluate((node) => {
+    const css = getComputedStyle(node);
+    // clientHeight: ohne Rand (die Kurzfassung hat oben/unten Rand statt Innenabstand).
+    const inner = node.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom);
+    const line = parseFloat(css.lineHeight);
+    if (!Number.isFinite(line) || line <= 0) throw new Error(`line-height nicht gesetzt: ${css.lineHeight}`);
+    return Math.round(inner / line);
+  });
+}
+
 for (const viewport of [
   { name: 'mobil', width: 390, height: 844 },
   { name: 'schmal', width: 360, height: 740 },
+  // Breite Schrift wie auf Linux-Runnern ohne Inter, dazu 110 % Schriftgröße.
+  { name: 'schmal, DejaVu Sans 110 %', width: 360, height: 740, font: 'DejaVu Sans', scale: 1.1 },
   { name: 'Desktop', width: 1280, height: 800 },
 ]) {
   const narrow = viewport.width <= 760;
@@ -50,6 +64,10 @@ for (const viewport of [
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await seedRaw(context, grove(), -3 * 3600_000);
     await openGame(page);
+    if (viewport.font) {
+      await page.evaluate((s) => (document.documentElement.style.fontSize = `${s * 100}%`), viewport.scale);
+      await page.addStyleTag({ content: `:root, body, button { font-family: '${viewport.font}', sans-serif !important; }` });
+    }
 
     const toast = page.locator('#toast');
     await expect(toast).toContainText('Willkommen zurück!');
@@ -60,8 +78,8 @@ for (const viewport of [
       // Mobil: nur die Kurzfassung – eine flache Leiste statt eines hohen Blocks.
       await expect(toast).toHaveText(`${summary} · mehr im Rückkehr-Bericht`);
       await expect(toast).not.toContainText('Wetter gemittelt');
-      const box = (await toast.boundingBox())!;
-      expect(box.height).toBeLessThanOrEqual(90);
+      // Höchstens drei Zeilen, unabhängig von Schrift und Größe (CSS line-clamp).
+      expect(await lineCount(toast)).toBeLessThanOrEqual(3);
     } else {
       // Desktop: weiter die ganze Meldung.
       await expect(toast).toContainText(/Wetter gemittelt( \(.+\))?\./);

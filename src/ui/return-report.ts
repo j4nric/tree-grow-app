@@ -79,10 +79,7 @@ export function createReturnReportPanel(root: HTMLElement, fallbackFocus?: HTMLE
     }
   });
 
-  close.addEventListener('click', () => {
-    hide();
-    fallbackFocus?.focus({ preventScroll: true });
-  });
+  close.addEventListener('click', hide);
 
   section.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || toggle.getAttribute('aria-expanded') !== 'true') return;
@@ -91,7 +88,12 @@ export function createReturnReportPanel(root: HTMLElement, fallbackFocus?: HTMLE
     toggle.focus();
   });
 
+  /** Liegt der Fokus in `node`? (Dann darf es nicht einfach verschwinden.) */
+  const focusIn = (node: HTMLElement) => node.contains(document.activeElement);
+
   function hide(): void {
+    // Fokus nicht mit der Karte verschwinden lassen (sonst landet er auf body).
+    if (focusIn(section)) fallbackFocus?.focus({ preventScroll: true });
     section.hidden = true;
     setExpanded(false);
   }
@@ -104,6 +106,8 @@ export function createReturnReportPanel(root: HTMLElement, fallbackFocus?: HTMLE
         shownDetails = [...view.details];
         list.replaceChildren(...view.details.map((text) => el('li', 'return-report-item', text)));
       }
+      // Fokus in der aufgeklappten Liste: vor dem Zuklappen auf „Details“ setzen.
+      if (focusIn(list)) toggle.focus({ preventScroll: true });
       setExpanded(false);
       // Neu einblenden: kurze Einblend-Animation (CSS, entfällt bei reduzierter Bewegung).
       section.classList.remove('fresh');

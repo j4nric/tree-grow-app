@@ -39,6 +39,7 @@ import {
   harmonyTierIndex,
   tickDeclineText,
   catchUpNotice,
+  WELCOME_MIN_SECONDS,
   discoveryText,
   refreshEcosystemView,
   toEcosystemView,
@@ -889,6 +890,7 @@ function showBanner(view: StageBannerView): void {
 }
 
 function showToast(text: string): void {
+  toast.classList.remove('brief');
   toast.textContent = text;
   toast.hidden = false;
   toastPlacement.update();
@@ -1259,6 +1261,8 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
       const view = toReturnReportView({ away, report, waiting: state.pendingEncounters.length, stages, notes });
       returnReport.show(view);
       notify(returnToastText(view, singleColumn.matches));
+      // Mobil höchstens drei Zeilen (CSS .toast.brief); showToast nimmt die Klasse wieder weg.
+      if (singleColumn.matches && toast.textContent === view.summary) toast.classList.add('brief');
       extraNotice = '';
       // Die Begrüßung nennt die neue Stufe schon: kein zweites Stufen-Banner im nächsten Frame.
       if (notice.namesStage) {
@@ -1268,6 +1272,10 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
         pickerDirty = true;
       }
     } else {
+      // Längere Rückkehr ohne Willkommen (nichts gewachsen): Der alte Bericht gehört zu einer
+      // früheren Rückkehr. Kurze Tab-Wechsel (ab 1 s) lassen ihn stehen – sonst wäre er weg,
+      // bevor er gelesen ist.
+      if (away > WELCOME_MIN_SECONDS) returnReport.hide();
       // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.
       const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');
       // Im offenen Dialog teilen sich beide Hinweise ein Feld: zusammenfassen.

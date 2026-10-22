@@ -769,6 +769,29 @@ body[data-motion='reduce'] .stage-banner.visible {
     transition: top 0.2s ease;
   }
 
+  /*
+   * Kurzfassung der Rückkehr (ui/return-report-view.ts): höchstens drei Zeilen, auch mit
+   * breiter Schrift – der Rest steht im Rückkehr-Bericht. Screenreader lesen den ganzen Text.
+   */
+  .toast.brief {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+    line-height: 1.35;
+    /*
+     * overflow schneidet erst am Innenabstand ab – dort schaute sonst die vierte Zeile hervor.
+     * Darum oben und unten Rand in Hintergrundfarbe statt Innenabstand (gleiche Optik).
+     */
+    padding-block: 0;
+    border-block: 12px solid var(--text);
+  }
+
+  .toast.brief[hidden] {
+    display: none;
+  }
+
   /* Platz unter dem letzten Eintrag, damit der schwebende Stapel nichts dauerhaft verdeckt */
   .panel {
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
@@ -5242,8 +5265,10 @@ body[data-motion='reduce'] .return-report.fresh {
   }
 }
 
+/* Sehr schmal: Knöpfe rutschen unter den Titel statt ihn umzubrechen (flex-wrap) */
 .return-report-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -5257,11 +5282,6 @@ body[data-motion='reduce'] .return-report.fresh {
   text-transform: none;
   letter-spacing: 0;
   white-space: nowrap;
-}
-
-/* Sehr schmal: Knöpfe rutschen unter den Titel statt ihn umzubrechen */
-.return-report-head {
-  flex-wrap: wrap;
 }
 
 .return-report-actions {
