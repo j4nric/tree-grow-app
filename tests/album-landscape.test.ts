@@ -173,6 +173,24 @@ describe('Gemeinsames Ziel (albumTarget, D.2)', () => {
     expect(target.target()).toBe('home');
   });
 
+  it('Neuer Zyklus bzw. anderer Wald nimmt offene Bau-Bestätigungen zurück (wie früher map.reset)', () => {
+    const target = createAlbumTarget();
+    let n = 0;
+    target.onDisarm(() => n++);
+    const state = withLandscape(ANCIENT_STAGE);
+    target.update(state);
+    expect(n).toBe(0);
+    target.update(state);
+    expect(n).toBe(0);
+    state.cycle.number += 1;
+    target.update(state);
+    expect(n).toBe(1);
+    state.meta.landscape!.active = 'floodplain';
+    state.meta.landscape!.sites.push(createSite('floodplain'));
+    target.update(state);
+    expect(n).toBe(2);
+  });
+
   it('disarm erreicht alle Seiten (offene Bestätigungen)', () => {
     const target = createAlbumTarget();
     let n = 0;

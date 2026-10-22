@@ -5,7 +5,8 @@
  *
  * Hält dazu die Ansicht der Karte (`toLandscapeMapView`), damit alle drei Seiten dieselbe
  * sehen; sie wird nur nach Änderungen am Ökosystem neu gerechnet (legacy.ts). Wie bisher
- * fällt das Ziel beim Neuen Zyklus, beim Wechsel des Waldes und beim Import zurück auf „hier“.
+ * fällt das Ziel beim Neuen Zyklus, beim Wechsel des Waldes und beim Import zurück auf „hier“;
+ * dabei verfallen auch offene Bestätigungen („Bauen“, `onDisarm`).
  */
 import type { SiteId } from '../../content/landscape';
 import type { GameState } from '../../core/state';
@@ -61,7 +62,11 @@ export function createAlbumTarget(): AlbumTarget {
     update(state) {
       track(() => {
         const cycle = `${state.cycle.number}|${activeSite(landscapeOf(state))}`;
-        if (cycle !== shownCycle) chosen = null;
+        if (cycle !== shownCycle) {
+          // Neuer Zyklus bzw. anderer Wald: Ziel zurück auf „hier“, offene Bau-Bestätigung zurück.
+          chosen = null;
+          if (shownCycle !== '') for (const listener of disarmers) listener();
+        }
         shownCycle = cycle;
         view = toLandscapeMapView(state, previewNewCycle(state));
       });

@@ -113,7 +113,13 @@ export function createSitePage(env: PageEnv): SitePage {
     shownTarget = tgt;
     const site = view?.sites.find((s) => s.id === id);
     page.body.hidden = !site;
-    if (!view || !site) return;
+    if (!view || !site) {
+      // Landschaft gesperrt (Import eines älteren Stands): kein veralteter Titel.
+      page.setTitle('Standort');
+      page.setMeta('');
+      delete page.element.dataset.siteId;
+      return;
+    }
     page.element.dataset.siteId = site.id;
     page.setTitle(`${site.icon} ${site.name}`);
     page.setMeta(site.status);
@@ -170,6 +176,10 @@ export function createSitePage(env: PageEnv): SitePage {
       id = ref.id;
       live.textContent = '';
       render(true);
+      // Nicht wählbar: den Grund ansagen (A.10 #110, Live-Ansage).
+      const view = albumTarget.view();
+      const site = view?.sites.find((s) => s.id === id);
+      if (view && site?.blocker) live.textContent = siteAnnouncement(view, site, albumTarget.target());
     },
     update(_now, force) {
       render(force === true);

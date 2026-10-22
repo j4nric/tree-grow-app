@@ -72,12 +72,12 @@ export function createLandscapePage(env: PageEnv): TabPage {
 
   // --- 4. Korridore ---------------------------------------------------------------------
   const corridors = el('section', 'lsc-section lsc-corridors');
-  const corridorTitle = el('h3', 'lsc-title', 'Korridore');
+  const corridorTitle = el('h3', 'lsc-title');
   corridorTitle.id = 'lsc-corridors-title';
   const corridorList = el('ul', 'lsc-corridor-list');
   corridorList.dataset.ref = 'corridors';
   corridorList.setAttribute('aria-labelledby', corridorTitle.id);
-  const corridorEmpty = el('p', 'lsc-hint', 'Noch keine Korridore – der erste entsteht mit der Gründung eines Waldes.');
+  const corridorEmpty = el('p', 'lsc-hint');
   const corridorHint = el('p', 'lsc-hint');
   corridors.append(corridorTitle, corridorList, corridorEmpty, corridorHint);
   const corridorNodes = new Map<string, CorridorNode>();
@@ -85,16 +85,16 @@ export function createLandscapePage(env: PageEnv): TabPage {
   // --- 5. Tagebuch der Wälder -----------------------------------------------------------
   const diary = el('section', 'lsc-section lsc-diary');
   diary.dataset.ref = 'landscape-diary';
-  const diaryTitle = el('h3', 'lsc-title', 'Tagebuch der Wälder');
+  const diaryTitle = el('h3', 'lsc-title');
   const summary = el('p', 'lsc-summary');
   summary.dataset.ref = 'landscape-summary';
-  const seedsTitle = el('h4', 'lsc-subtitle', '🪶 Hähersaat');
+  const seedsTitle = el('h4', 'lsc-subtitle');
   seedsTitle.id = 'lsc-seeds-title';
   const seedTable = el('dl', 'lsc-seed-table');
   seedTable.dataset.ref = 'landscape-jay-seeds';
   seedTable.setAttribute('aria-labelledby', seedsTitle.id);
   const seedsNote = el('p', 'lsc-hint');
-  const forestsTitle = el('h4', 'lsc-subtitle', 'Wälder');
+  const forestsTitle = el('h4', 'lsc-subtitle');
   forestsTitle.id = 'lsc-forests-title';
   const forests = el('ul', 'lsc-forests');
   forests.dataset.ref = 'landscape-forests';
@@ -275,6 +275,12 @@ export function createLandscapePage(env: PageEnv): TabPage {
     page.setMeta(landscapePageMeta(view));
     page.body.hidden = view === null;
     if (!view) return;
+    // Feste Überschriften erst mit der ersten Ansicht – vorher steht nichts (auch verborgen) im DOM.
+    setText(corridorTitle, 'Korridore');
+    setText(corridorEmpty, 'Noch keine Korridore – der erste entsteht mit der Gründung eines Waldes.');
+    setText(diaryTitle, 'Tagebuch der Wälder');
+    setText(seedsTitle, '🪶 Hähersaat');
+    setText(forestsTitle, 'Wälder');
     map.update(view, tgt);
     const line = targetLine(view, tgt);
     targetText.hidden = line === null;

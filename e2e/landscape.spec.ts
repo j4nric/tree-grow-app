@@ -149,6 +149,8 @@ test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', a
   const mountain = await openLandscapeSite(page, 'mountain');
   await expect(mountain.locator('[data-ref="site-blocker"]')).toContainText('Nur aus dem Urwald');
   await expect(mountain.locator('[data-ref="site-choose"]')).toBeHidden();
+  // Der Grund wird angesagt (Live-Ansage, A.10 #110).
+  await expect(mountain.locator('[data-ref="landscape-live"]')).toContainText('Bergmischwald: Nur aus dem Urwald');
   // Escape blättert zurück, der Fokus geht an den Standort-Knopf.
   await page.keyboard.press('Escape');
   await expect(subpage(page, 'site')).toBeHidden();
@@ -312,4 +314,9 @@ test('vor der Freischaltung: keine Karte', async ({ page, context }) => {
   await expect(panel(page).locator('[data-ref="cycle-target"]')).toBeHidden();
   await expect(page.locator('[data-ref="landscape"]')).toBeHidden();
   await expect(tabButton(page, 'landschaft')).toBeHidden();
+  // Auch verborgen steht nichts von der Landschaft im DOM (Spoiler).
+  const hidden = await page.locator('[data-ref="landscape"]').evaluate((n) => n.textContent ?? '');
+  expect(hidden).not.toContain('Hähersaat');
+  expect(hidden).not.toContain('Korridore');
+  expect(hidden).not.toContain('Wälder');
 });

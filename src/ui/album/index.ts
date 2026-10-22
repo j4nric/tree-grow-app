@@ -213,6 +213,7 @@ export function createAlbum(deps: AlbumDeps): Album {
         if (ctx.landscapeUnlocked === unlocked) return;
         ctx.landscapeUnlocked = unlocked;
         tabStrip.setVisible('landscape', unlocked);
+        // Reiter Landschaft bzw. U:Standort (auch auf dem Stapel von „Ziele“) schließen.
         if (!unlocked) dispatch({ type: 'landscape-locked' });
       },
       showCareTab: () => dispatch({ type: 'tab', tab: 'care' }),
