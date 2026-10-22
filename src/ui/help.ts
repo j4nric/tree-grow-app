@@ -8,7 +8,7 @@
  */
 import { el } from './dom';
 import { formatNumber, setNumberStyle, type NumberStyle } from './format';
-import { guideSections } from './guide-view';
+import { guideSections, type GuideSection } from './guide-view';
 import {
   LONG_TOAST_MS,
   TOAST_MS,
@@ -161,20 +161,30 @@ function createModal(root: HTMLElement, ref: string, title: string): Modal {
   };
 }
 
-function buildGuide(body: HTMLElement): void {
+/** Inhalt eines Abschnitts der Anleitung (Überschrift und Absätze) in `box`. */
+function fillGuideSection(box: HTMLElement, section: GuideSection): void {
+  box.className = `help-section${section.soon ? ' soon' : ''}`;
+  box.dataset.section = section.id;
+  const title = el('h3', 'help-section-title');
+  const icon = el('span', 'help-section-icon', section.icon);
+  icon.setAttribute('aria-hidden', 'true');
+  title.append(icon, el('span', '', section.title));
+  if (section.soon) title.append(el('span', 'help-soon', 'kommt bald'));
+  box.replaceChildren(title, ...section.paragraphs.map((p) => el('p', 'help-text', p)));
+}
+
+/** Baut die Anleitung; liefert die Abschnitte nach ID (zum Austauschen einzelner). */
+function buildGuide(body: HTMLElement): Map<string, HTMLElement> {
   const nav = el('p', 'help-lead', 'Kurz erklärt: So wächst dein Wald.');
   body.append(nav);
+  const boxes = new Map<string, HTMLElement>();
   for (const section of guideSections()) {
-    const box = el('section', `help-section${section.soon ? ' soon' : ''}`);
-    box.dataset.section = section.id;
-    const title = el('h3', 'help-section-title');
-    const icon = el('span', 'help-section-icon', section.icon);
-    icon.setAttribute('aria-hidden', 'true');
-    title.append(icon, el('span', '', section.title));
-    if (section.soon) title.append(el('span', 'help-soon', 'kommt bald'));
-    box.append(title, ...section.paragraphs.map((p) => el('p', 'help-text', p)));
+    const box = el('section');
+    fillGuideSection(box, section);
+    boxes.set(section.id, box);
     body.append(box);
   }
+  return boxes;
 }
 
 interface Choice<T extends string> {
@@ -278,6 +288,8 @@ export interface Help {
   notice(text: string): boolean;
   /** Weiterer Abschnitt am Ende der Einstellungen (z. B. „Konto“). */
   addSettingsSection(section: HTMLElement): void;
+  /** Waldlandschaft freigeschaltet: Abschnitt der Anleitung mit allen Regeln statt Andeutung. */
+  setLandscapeUnlocked(unlocked: boolean): void;
 }
 
 export interface HelpOptions {
@@ -312,7 +324,8 @@ export function createHelp(root: HTMLElement, prefs: Preferences, options: HelpO
   root.append(bar);
 
   const guide = createModal(document.body, 'guide', '❓ Spielanleitung');
-  buildGuide(guide.body);
+  const guideBoxes = buildGuide(guide.body);
+  let landscapeShown = false;
   const settings = createModal(document.body, 'settings', '⚙️ Einstellungen');
   buildSettings(settings.body, prefs);
 
@@ -358,6 +371,13 @@ export function createHelp(root: HTMLElement, prefs: Preferences, options: HelpO
     },
     addSettingsSection(section) {
       settings.body.append(section);
+    },
+    setLandscapeUnlocked(unlocked) {
+      if (unlocked === landscapeShown) return;
+      landscapeShown = unlocked;
+      const box = guideBoxes.get('landscape');
+      const section = guideSections({ landscape: unlocked }).find((s) => s.id === 'landscape');
+      if (box && section) fillGuideSection(box, section);
     },
   };
 }

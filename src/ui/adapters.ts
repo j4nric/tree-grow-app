@@ -55,7 +55,7 @@ import {
   plantSlots,
   previewChoice,
   previewPlant,
-  regularSlots,
+  regularSlotsOf,
   rerollCost,
   secondsToNextWaypoint,
   slotEffects,
@@ -90,6 +90,7 @@ import {
 import { formatDuration, formatNumber } from './format';
 import { animalStock, foodWebView, huntFoodText, overhuntNotes, preyIcon, stockEffectView } from './food-web-view';
 import { memoryBonusLabel, treeLabel } from './cycle-view';
+import { effectiveForestMemory } from '../core/landscape';
 import { RARITY_LABELS, formatSigned, formatSignedPercent, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
 import type {
@@ -724,7 +725,7 @@ export function toJournalView(
 ): JournalView {
   const journal = state.meta.journal;
   const present = new Set(allAnimals(state));
-  const slots = regularSlots(state.meta.forestMemory);
+  const slots = regularSlotsOf(state);
 
   let hiddenSpecies = 0;
   const species: JournalEntryView[] = SPECIES.map((sp) => {
@@ -845,12 +846,14 @@ export function toJournalView(
     achievements: achievementCountText(state),
     stats: '',
   };
-  const memory = state.meta.forestMemory;
+  // Bonus aus dem wirksamen Gedächtnis (eigenes + Zufluss über Korridore, 24.6).
+  const effectiveMemory = effectiveForestMemory(state);
   return {
     counts: `${tabCounts.species} Arten · ${tabCounts.plants} Pflanzen · ${tabCounts.communities} Gemeinschaften`,
     meta:
-      `Zyklus ${formatNumber(state.cycle.number)} · Waldgedächtnis ${formatNumber(memory)}` +
-      (memory > 0 ? ` (${memoryBonusLabel(memory)} Wachstum und Samen)` : ''),
+      `Zyklus ${formatNumber(state.cycle.number)} · Waldgedächtnis ${formatNumber(state.meta.forestMemory)}` +
+      (effectiveMemory > state.meta.forestMemory ? `, wirksam ${formatNumber(effectiveMemory)}` : '') +
+      (effectiveMemory > 0 ? ` (${memoryBonusLabel(effectiveMemory)} Wachstum und Samen)` : ''),
     regulars:
       slots > 0
         ? `Stammgäste ${ofTotal(state.meta.regulars.length, slots)} – sie ziehen in jedem Zyklus von selbst ein. Wähle sie bei den Arten.`
@@ -932,7 +935,9 @@ export function toJournalStats(state: GameState, evaluation: Readonly<Pick<Evalu
   const stage = STAGES[state.stage];
   const cycles = state.cycle.number;
   const memory = state.meta.forestMemory;
-  const slots = regularSlots(memory);
+  // Bonus und Plätze aus dem wirksamen Gedächtnis (eigenes + Zufluss über Korridore, 24.6).
+  const effective = effectiveForestMemory(state);
+  const slots = regularSlotsOf(state);
   // Wie die Seitenleiste: angezeigt gerundet, Stufe aus dem Rohwert.
   const harmonyRaw = Number.isFinite(evaluation.harmony) ? evaluation.harmony : 0;
   const newSpecies = state.cycle.newSpecies.length;
@@ -978,7 +983,10 @@ export function toJournalStats(state: GameState, evaluation: Readonly<Pick<Evalu
       key: 'memory',
       label: 'Waldgedächtnis',
       value: formatNumber(memory),
-      detail: memory > 0 ? `${memoryBonusLabel(memory)} Wachstum und Samen` : 'wächst mit jedem Neuen Zyklus',
+      detail:
+        effective > 0
+          ? `${effective > memory ? `${formatNumber(effective)} wirksam (+${formatNumber(effective - memory)} über Korridore) · ` : ''}${memoryBonusLabel(effective)} Wachstum und Samen`
+          : 'wächst mit jedem Neuen Zyklus',
     },
     {
       key: 'regulars',

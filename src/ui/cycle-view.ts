@@ -14,11 +14,13 @@ import { NICHES_BY_ID } from '../content/niches';
 import { GENUS_INFO, SPECIES_BY_ID } from '../content/species';
 import { STAGES } from '../content/stages';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
-import { memoryHarmonyBonus, regularSlots, type MemoryHarmonyBonus } from '../core/formulas';
+import { memoryHarmonyBonus, regularSlotsOf, type MemoryHarmonyBonus } from '../core/formulas';
+import { effectiveForestMemory } from '../core/landscape';
 import { allAnimals, type GameState } from '../core/state';
 import { previewNewCycle, regularBlocker, type NewCycleBlocker } from '../core/tick';
 import { formatNumber } from './format';
 import { regularNextCycleHint, regularWaitReason, regularWaitText } from './regular-wait';
+import { activeSiteLabel, toLandscapeMapView, type LandscapeMapView } from './landscape-view';
 
 /** Eine entdeckte Art in der Stammgäste-Auswahl. */
 export interface RegularOptionView {
@@ -87,6 +89,8 @@ export interface CyclePanelView {
   trees: TreeOptionView[];
   /** Vorauswahl: die laufende Art, ist sie gesperrt (z. B. nach einem Import), die erste freie. */
   defaultTree: MainTreeId;
+  /** Karte der Landschaft (DESIGN_V2.md 24.5); null, solange sie verborgen ist. */
+  landscape: LandscapeMapView | null;
 }
 
 /** „einer Eichel“, „einer Buchecker“, „einem Kiefernsamen“ (Dativ der Frucht). */
@@ -106,7 +110,9 @@ export function memoryBonusLabel(points: number): string {
 export function toCyclePanelView(state: GameState): CyclePanelView {
   const preview = previewNewCycle(state);
   const allowed = preview.blocker === null;
-  const slots = regularSlots(state.meta.forestMemory);
+  // Plätze aus dem wirksamen Gedächtnis (mit Korridor-Zufluss, 24.6).
+  const slots = regularSlotsOf(state);
+  const landscape = toLandscapeMapView(state, preview);
   const newSlots = preview.regularSlotsAfter - preview.regularSlotsBefore;
   const species = preview.newSpecies === 1 ? '1 neue Art' : `${formatNumber(preview.newSpecies)} neue Arten`;
   const present = new Set(allAnimals(state));
@@ -129,14 +135,15 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
     });
   }
   return {
-    title: `Zyklus ${formatNumber(state.cycle.number)}`,
+    // Mit offener Landschaft: in welchem Wald der Zyklus wächst.
+    title: landscape ? `Zyklus ${formatNumber(state.cycle.number)} · ${activeSiteLabel(state)}` : `Zyklus ${formatNumber(state.cycle.number)}`,
     allowed,
     blocker: preview.blocker ? newCycleBlockerText(preview.blocker) : null,
     gain: allowed ? `+${formatNumber(preview.memoryGain)} Waldgedächtnis (${memoryBonusLabel(preview.memoryGain)})` : null,
     gainDetail: allowed ? `Höchste Harmonie ${formatNumber(Math.round(preview.maxHarmony))} · ${species}` : null,
     memoryRule: memoryRuleText(preview.harmonyBonus),
     slotsGain: allowed && newSlots > 0 ? (newSlots === 1 ? '+1 Platz für Stammgäste' : `+${newSlots} Plätze für Stammgäste`) : null,
-    memory: `Waldgedächtnis ${formatNumber(state.meta.forestMemory)} · ${memoryBonusLabel(state.meta.forestMemory)} Wachstum und Samen`,
+    memory: memoryLineText(state),
     regularSlots: slots,
     regularsTitle: `Stammgäste ${state.meta.regulars.length}/${slots}`,
     regulars,
@@ -155,7 +162,20 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
         current: id === preview.mainTree,
       };
     }),
+    landscape,
   };
+}
+
+/**
+ * Bestand des Waldgedächtnisses mit Bonus aus dem **wirksamen** Gedächtnis (24.6), z. B.
+ * „Waldgedächtnis 30 · +60 % Wachstum und Samen“ bzw. mit Korridoren „Waldgedächtnis 300
+ * (+150 über Korridore) · +900 % Wachstum und Samen“.
+ */
+export function memoryLineText(state: Pick<GameState, 'meta'>): string {
+  const own = state.meta.forestMemory;
+  const effective = effectiveForestMemory(state);
+  const inflow = effective > own ? ` (+${formatNumber(effective - own)} über Korridore)` : '';
+  return `Waldgedächtnis ${formatNumber(own)}${inflow} · ${memoryBonusLabel(effective)} Wachstum und Samen`;
 }
 
 /** Schlüssel, der sich nur ändert, wenn die Ansicht neu gebaut werden muss (spart DOM-Arbeit). */
