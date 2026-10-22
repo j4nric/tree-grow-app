@@ -32,7 +32,6 @@ import type { EcosystemView } from '../view-model';
 import { toWeatherBadgeView } from '../weather-view';
 import { applyWildwechselMark } from '../wildwechsel-view';
 import type { CarePage } from './pages/care-page';
-import type { LandscapePage } from './pages/landscape-page';
 import type { NichesPage } from './pages/niches-page';
 import type { SpeciesPage } from './pages/species-page';
 import type { AlbumTarget } from './cycle-target';
@@ -47,8 +46,7 @@ export interface LegacyMounts {
   niches: NichesPage;
   species: SpeciesPage;
   care: CarePage;
-  landscape: LandscapePage;
-  /** Ziel des nächsten Zyklus mit der Karte der Landschaft (bis Schritt 10 hier eingehängt). */
+  /** Ziel des nächsten Zyklus mit der Ansicht der Landschaft (nach Änderungen nachziehen). */
   albumTarget: AlbumTarget;
   /** Platz in der Bildunterschrift des Polaroids (Jahreszeit, Wetter). */
   season: HTMLElement;
@@ -152,8 +150,6 @@ export function createLegacyUi(deps: AlbumDeps, mounts: LegacyMounts, hooks: Leg
       mounts.care.reveal(id);
     },
   });
-  // Die Karte der Landschaft steht im eigenen Reiter; ihr Ziel gilt für U:Neuer Zyklus (Schritt 10 ersetzt sie).
-  mounts.landscape.landscape.append(mounts.albumTarget.map.element);
   const seasonWeather = createSeasonWeather(mounts.season);
   const stack = createEncounterStack(mounts.dock, openEncounters, { float: false });
   const dialog = createEncounterDialog(document.body, { ...deps.actions.encounter, onDefer: closeEncounters });

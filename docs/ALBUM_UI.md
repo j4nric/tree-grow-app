@@ -456,6 +456,22 @@ Standort-Knöpfe sind mindestens 44 px groß.
 
 **Skizze Desktop:** Die Karte ist 100 % breit, Korridore und Wälder stehen darunter.
 
+**Umgesetzt (Schritt 10):** Kennzahl im Kopf „🪶 3 Hähersaat“. Die Karte ist auf der Einzelseite
+höher als 4 : 3 (1 : 1,2, mindestens 360 px): Bei 360 px Breite, 125 % Schrift oder breiterer
+Schrift (DejaVu Sans) überlappen sich die Standort-Knöpfe (≥ 44 px, mit Name und Zustand) sonst;
+auf der Doppelseite 4 : 3. Ein Tipp auf einen Standort blättert zu U:Standort; dort wählt
+„Als Ziel wählen“ den Wald (gedrückt = Ziel, erneut tippen = doch hier bleiben, mit Live-Ansage)
+und „Neuer Zyklus ›“ springt zu U:Neuer Zyklus. Abschnitt 5 heißt „Tagebuch der Wälder“ (die
+Seite selbst heißt schon „Unsere Wälder“); jeder Wald darin blättert ebenfalls zu U:Standort.
+U:Neuer Zyklus verlinkt den Ziel-Wald („Auwald am Fluss ansehen ›“, U:Standort auf Ebene 2).
+Reiterwechsel mit Unterseite über `PageEnv.goto(tab, page)`. `data-ref`: `landscape`,
+`jay-seeds`, `wildwechsel-chance`, `landscape-map`, `data-site`, `landscape-target`,
+`landscape-cycle-open`, `corridors`, `data-build`, `corridor-wildwechsel`, `landscape-diary`,
+`landscape-summary`, `landscape-jay-seeds`, `data-forest`, `forest-open`; auf U:Standort
+`site-detail`, `site-status`, `site-memory`, `site-blocker`, `site-choose`, `site-choice-hint`,
+`site-cycle-open`, `site-diary`, `landscape-live` (Seite mit `data-site-id`); auf U:Neuer Zyklus
+`cycle-site-open`.
+
 ### B.6 Unterseiten-Übersicht
 
 | Unterseite | erreichbar von | Ebene | Inhalt |
@@ -745,7 +761,9 @@ src/ui/album/
 **Gemeinsamer UI-Zustand:** `albumTarget` (Ziel-Wald des nächsten Zyklus) ist heute in
 `landscape-map.ts` versteckt. Künftig liegt er im Album, damit R:Landschaft, U:Standort und
 U:Neuer Zyklus denselben Wert sehen. Wie heute fällt er beim Neuen Zyklus und beim Import
-zurück auf „hier“.
+zurück auf „hier“. Umgesetzt in `album/cycle-target.ts`: `view()` (Ansicht der Karte, nur nach
+Änderungen am Ökosystem neu), `target()`, `choose(id | null)`, `onChange`, `disarm`/`onDisarm`
+(offene Bau-Bestätigungen nach Import).
 
 ### D.3 Die Szene im Polaroid
 

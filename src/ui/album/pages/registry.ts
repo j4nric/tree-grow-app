@@ -24,6 +24,7 @@ import { createCareItemPage } from './care-item-page';
 import { createAnimalPage } from './animal-page';
 import { createFoodWebPage } from './food-web-page';
 import { createHarmonyPage } from './harmony-page';
+import { createSitePage } from './site-page';
 
 /**
  * Ökosystem-Ansicht für die Seiten: `view` wird bei Änderungen ersetzt bzw. (Zahlen) an
@@ -42,6 +43,8 @@ export interface PageEnv {
   back(): void;
   /** Unterseite aufschlagen (Umblättern). */
   open(page: PageRef): void;
+  /** In einen anderen Reiter wechseln und dort eine Unterseite aufschlagen (C.1, „Neuer Zyklus ›“). */
+  goto(tab: TabId, page: PageRef): void;
   /** Schwebende Bestätigung an Bildschirm-Koordinaten (clientX/Y). */
   float(text: string, x: number, y: number): void;
   /** Ziel des nächsten Zyklus in der Landschaft (D.2 `albumTarget`). */
@@ -91,6 +94,7 @@ export const SUBPAGES = {
   guide: createGuidePage,
   'guide-chapter': createGuideChapterPage,
   settings: createSettingsPage,
+  site: createSitePage,
 } satisfies Partial<Record<SubpageKey, (env: PageEnv) => Subpage>>;
 
 export type SubpageKind = keyof typeof SUBPAGES;

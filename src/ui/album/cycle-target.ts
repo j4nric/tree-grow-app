@@ -1,53 +1,74 @@
 /**
  * Gemeinsames Ziel des nächsten Zyklus (docs/ALBUM_UI.md, D.2 `albumTarget`): Welcher Wald
- * der Landschaft beim Neuen Zyklus keimt. Die Karte der Landschaft (landscape-map.ts) wählt
- * es; U:Neuer Zyklus liest es für Knopf und Baumwahl.
+ * der Landschaft beim Neuen Zyklus keimt. U:Standort wählt es („Als Ziel wählen“), die Karte
+ * im Reiter „Landschaft“ zeigt es, U:Neuer Zyklus liest es für Knopf und Baumwahl.
  *
- * Bis Schritt 10 hängt die bisherige Karte im Reiter „Landschaft“ (legacy.ts); sie gehört
- * hierher, damit beide Seiten denselben Wert sehen. Wie bisher fällt das Ziel beim Neuen
- * Zyklus, beim Wechsel des Waldes und beim Import zurück auf „hier“.
+ * Hält dazu die Ansicht der Karte (`toLandscapeMapView`), damit alle drei Seiten dieselbe
+ * sehen; sie wird nur nach Änderungen am Ökosystem neu gerechnet (legacy.ts). Wie bisher
+ * fällt das Ziel beim Neuen Zyklus, beim Wechsel des Waldes und beim Import zurück auf „hier“.
  */
 import type { SiteId } from '../../content/landscape';
 import type { GameState } from '../../core/state';
 import { previewNewCycle } from '../../core/tick';
 import { activeSite, landscapeOf } from '../../core/landscape';
-import { createLandscapeMap, type LandscapeMap } from '../landscape-map';
-import { toLandscapeMapView } from '../landscape-view';
+import { toLandscapeMapView, type LandscapeMapView } from '../landscape-view';
+import { resolveTarget } from './pages/landscape-page-view';
 
 export interface AlbumTarget {
-  /** Karte der Landschaft (bis Schritt 10 im Reiter „Landschaft“). */
-  readonly map: LandscapeMap;
+  /** Ansicht der Karte (null, solange die Landschaft verborgen ist). Neues Objekt je Änderung. */
+  view(): LandscapeMapView | null;
   /** Ziel-Wald des nächsten Zyklus (aktiver Wald, wenn nichts anderes gewählt ist). */
   target(): SiteId | null;
+  /** Standort als Ziel wählen; null bzw. nicht wählbar: zurück auf „hier“. */
+  choose(id: SiteId | null): void;
   /** Ziel hat sich geändert (auch beim Zurückfallen auf „hier“). */
   onChange(listener: (target: SiteId) => void): void;
-  /** Karte aus dem Spielstand nachziehen (nach Änderungen am Ökosystem). */
+  /** Ansicht aus dem Spielstand nachziehen (nach Änderungen am Ökosystem). */
   update(state: GameState): void;
-  /** Offene Bestätigung eines Korridor-Kaufs zurücknehmen. */
+  /** Spielstand ersetzt: offene Bestätigungen (Korridor bauen) zurücknehmen. */
   disarm(): void;
+  onDisarm(listener: () => void): void;
 }
 
-export function createAlbumTarget(onBuildCorridor: (id: string) => void): AlbumTarget {
+export function createAlbumTarget(): AlbumTarget {
   const listeners: ((target: SiteId) => void)[] = [];
-  const map = createLandscapeMap({
-    onTargetChange: (target) => {
-      for (const listener of listeners) listener(target);
-    },
-    onBuildCorridor,
-  });
+  const disarmers: (() => void)[] = [];
+  let view: LandscapeMapView | null = null;
+  let chosen: SiteId | null = null;
   /** Zyklus und Wald der letzten Ansicht – ändert sich eins, gilt wieder „hier“. */
   let shownCycle = '';
 
+  const target = () => resolveTarget(view, chosen);
+
+  /** Ändert `change` das Ziel, erfahren es alle Zuhörer. */
+  function track(change: () => void): void {
+    const before = target();
+    change();
+    const after = target();
+    if (after && after !== before) for (const listener of listeners) listener(after);
+  }
+
   return {
-    map,
-    target: () => map.target(),
+    view: () => view,
+    target,
+    choose(id) {
+      track(() => {
+        const site = view?.sites.find((s) => s.id === id);
+        chosen = site && site.action !== null && view?.allowed ? site.id : null;
+      });
+    },
     onChange: (listener) => void listeners.push(listener),
     update(state) {
-      const cycle = `${state.cycle.number}|${activeSite(landscapeOf(state))}`;
-      if (cycle !== shownCycle) map.reset();
-      shownCycle = cycle;
-      map.update(toLandscapeMapView(state, previewNewCycle(state)));
+      track(() => {
+        const cycle = `${state.cycle.number}|${activeSite(landscapeOf(state))}`;
+        if (cycle !== shownCycle) chosen = null;
+        shownCycle = cycle;
+        view = toLandscapeMapView(state, previewNewCycle(state));
+      });
     },
-    disarm: () => map.disarm(),
+    disarm() {
+      for (const listener of disarmers) listener();
+    },
+    onDisarm: (listener) => void disarmers.push(listener),
   };
 }

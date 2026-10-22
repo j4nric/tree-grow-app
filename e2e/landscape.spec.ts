@@ -2,11 +2,13 @@ import type { BrowserContext } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, createSite, type GameState, type LandscapeSite } from '../src/core/state';
 import {
+  back,
   expect,
   gotoTab,
   openCoverPage,
   openGame,
   openGoalsPage,
+  openLandscapeSite,
   openTab,
   overlaps,
   savedState,
@@ -14,14 +16,16 @@ import {
   stamps,
   subpage,
   tabButton,
+  tabPanel,
   test,
   waitForConfirm,
   waypoint,
 } from './fixtures';
 
 /**
- * Karte der Landschaft (DESIGN_V2.md 24.5, 24.6): Freischaltung, Gründen, Wechseln,
- * Korridor bauen. Spielstände als v14 direkt aus createInitialState (fester Seed).
+ * Reiter „Landschaft“ (docs/ALBUM_UI.md, B.5; DESIGN_V2.md 24.5, 24.6): Freischaltung, Karte,
+ * U:Standort mit „Als Ziel wählen“, „Neuer Zyklus ›“, Gründen, Wechseln, Korridor bauen.
+ * Spielstände direkt aus createInitialState (fester Seed).
  */
 
 const ANCIENT = STAGES.findIndex((s) => s.id === 'ancient-forest');
@@ -57,8 +61,9 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await openGame(page);
   // Meldung der Freischaltung (einmal).
   await expect(stamps(page)).toContainText('Eichelhäher');
-  // Der Reiter „Landschaft“ ist erschienen.
+  // Der Reiter „Landschaft“ ist erschienen; Kennzahl im Kopf ist die Hähersaat.
   await openTab(page, 'landschaft');
+  await expect(tabPanel(page, 'landschaft').locator('.page-meta')).toHaveText('🪶 5 Hähersaat');
   const map = page.locator('[data-ref="landscape"]');
   await expect(map).toBeVisible();
   await expect(map.locator('[data-ref="jay-seeds"]')).toContainText('🪶 5 Hähersaat');
@@ -67,16 +72,35 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(map.locator('[data-site="home"]')).toHaveAttribute('aria-current', 'location');
   const flood = map.locator('[data-site="floodplain"]');
   await expect(flood).toContainText('gründen · 3 🪶');
-  await flood.click();
-  await expect(flood).toHaveAccessibleName(/Ziel des nächsten Zyklus/);
-  await expect(map.locator('[data-ref="landscape-live"]')).toHaveText('Auwald am Fluss: Ziel des nächsten Zyklus.');
-  const detail = map.locator('[data-ref="site-detail"]');
-  await expect(detail).toContainText('Auwald am Fluss');
+  await expect(map.locator('[data-ref="landscape-target"]')).toContainText('der nächste Baum keimt hier');
+
+  // Tipp auf den Standort blättert zu U:Standort um – dort stehen alle Angaben.
+  const site = await openLandscapeSite(page, 'floodplain');
+  await expect(site.locator('.page-title')).toHaveText('🌊 Auwald am Fluss');
+  await expect(site.locator('[data-ref="bookmark"]')).toHaveText('‹ Landschaft');
+  const detail = site.locator('[data-ref="site-detail"]');
   await expect(detail).toContainText('Verzicht (nur hier): Pilze −15 % 😊');
   await expect(detail).toContainText('Gabe (nach der Gründung): Ab Alter Baum +1 Platz Waldtümpel in allen Wäldern');
+  await expect(site.locator('[data-ref="site-cycle-open"]')).toBeHidden();
+  const choose = site.locator('[data-ref="site-choose"]');
+  await expect(choose).toHaveText('Als Ziel wählen');
+  await choose.click();
+  await expect(choose).toHaveAttribute('aria-pressed', 'true');
+  await expect(site.locator('[data-ref="landscape-live"]')).toHaveText('Auwald am Fluss: Ziel des nächsten Zyklus.');
+  await expect(site.locator('[data-ref="site-cycle-open"]')).toBeVisible();
+
+  // Zurück auf der Karte: Ziel markiert, Zeile darunter nennt es.
+  await back(page);
+  await expect(subpage(page, 'site')).toBeHidden();
+  await expect(flood).toHaveAccessibleName(/Ziel des nächsten Zyklus/);
+  await expect(flood).toHaveClass(/target/);
   await expect(map.locator('[data-ref="landscape-target"]')).toContainText('neuer Wald für 3 🪶');
 
-  await openGoalsPage(page, 'cycle');
+  // „Neuer Zyklus ›“ wechselt in den Reiter „Ziele“ und blättert zu U:Neuer Zyklus um.
+  await map.locator('[data-ref="landscape-cycle-open"]').click();
+  await expect(tabButton(page, 'ziele')).toHaveAttribute('aria-selected', 'true');
+  await expect(panel(page)).toBeVisible();
+  await expect(panel(page)).not.toHaveAttribute('inert', '');
   const button = panel(page).locator('[data-ref="new-cycle"]');
   await expect(button).toHaveText('Auwald am Fluss gründen (3 🪶)');
   await expect(panel(page).locator('[data-ref="cycle-target"]')).toContainText('neuer Wald für 3 🪶');
@@ -91,9 +115,10 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   expect(after.meta.landscape.freeCorridors).toEqual(['home-floodplain']);
   expect(after.meta.forestMemory).toBe(0);
   await expect(page.locator('[data-ref="cycle-card-sub"]')).toContainText('🌊 Auwald am Fluss');
-  await expect(map.locator('[data-site="floodplain"]')).toContainText('hier');
-  // Der Gratis-Korridor steht in der Liste – ohne Kaufknopf.
+  // Der Gratis-Korridor steht in der Liste – ohne Kaufknopf; das Ziel ist wieder „hier“.
   await openTab(page, 'landschaft');
+  await expect(map.locator('[data-site="floodplain"]')).toContainText('hier');
+  await expect(map.locator('[data-site="floodplain"]')).not.toHaveClass(/target/);
   const corridor = map.locator('li[data-corridor="home-floodplain"]');
   await expect(corridor).toBeVisible();
   await expect(corridor).toContainText('Weg der Häher, gratis');
@@ -120,25 +145,50 @@ test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', a
   await gotoTab(page, 'landschaft');
   const map = page.locator('[data-ref="landscape"]');
   await expect(map).toBeVisible();
-  // Gründen geht nur aus dem Urwald – mit Grund als Text.
-  await map.locator('[data-site="mountain"]').click();
-  await expect(map.locator('[data-ref="site-blocker"]')).toContainText('Nur aus dem Urwald');
+  // Gründen geht nur aus dem Urwald – mit Grund als Text, ohne „Als Ziel wählen“.
+  const mountain = await openLandscapeSite(page, 'mountain');
+  await expect(mountain.locator('[data-ref="site-blocker"]')).toContainText('Nur aus dem Urwald');
+  await expect(mountain.locator('[data-ref="site-choose"]')).toBeHidden();
+  // Escape blättert zurück, der Fokus geht an den Standort-Knopf.
+  await page.keyboard.press('Escape');
+  await expect(subpage(page, 'site')).toBeHidden();
+  await expect(map.locator('[data-site="mountain"]')).toBeFocused();
   const button = panel(page).locator('[data-ref="new-cycle"]');
   await openGoalsPage(page, 'cycle');
   await expect(button).toHaveText('Neuen Zyklus beginnen');
+  await expect(panel(page).locator('[data-ref="cycle-site-open"]')).toBeHidden();
   await openTab(page, 'landschaft');
   // Wechsel zum Heimatwald per Tastatur.
-  // Erst wenn die Seite nach dem Zurückblättern wieder bedienbar ist (nicht mehr inert).
   const homeSite = map.locator('[data-site="home"]');
   await expect(async () => {
     await homeSite.focus();
     await expect(homeSite).toBeFocused({ timeout: 200 });
   }).toPass();
   await page.keyboard.press('Enter');
+  const site = subpage(page, 'site');
+  await expect(site).toHaveAttribute('data-site-id', 'home');
+  await expect(site).not.toHaveAttribute('inert', '');
   // Wirksam heute (320 + ½ · 40, wie im Tagebuch) – der Gewinn dieses Zyklus steht benannt dahinter.
-  await expect(map.locator('[data-ref="site-memory"]')).toHaveText(/^Gedächtnis 320 eigen · 340 wirksam dort( \(nach diesem Zyklus \d+\))?$/);
-  await openGoalsPage(page, 'cycle');
+  await expect(site.locator('[data-ref="site-memory"]')).toHaveText(/^Gedächtnis 320 eigen · 340 wirksam dort( \(nach diesem Zyklus \d+\))?$/);
+  // Aus dem Tagebuch: Stammgäste des ruhenden Waldes.
+  await expect(site.locator('[data-ref="site-diary"] [data-row="regulars"]')).toContainText('keine');
+  const choose = site.locator('[data-ref="site-choose"]');
+  await choose.focus();
+  await page.keyboard.press('Enter');
+  await expect(choose).toHaveAttribute('aria-pressed', 'true');
+  await expect(site.locator('[data-ref="site-choice-hint"]')).toContainText('wechselt hierher');
+  await site.locator('[data-ref="site-cycle-open"]').click();
+  await expect(panel(page)).not.toHaveAttribute('inert', '');
   await expect(button).toHaveText('Neuen Zyklus beginnen: Heimatwald');
+  // Von U:Neuer Zyklus zum Ziel-Wald (Ebene 2) und zurück.
+  const siteOpen = panel(page).locator('[data-ref="cycle-site-open"]');
+  await expect(siteOpen).toHaveText('Heimatwald ansehen ›');
+  await siteOpen.click();
+  await expect(site).not.toHaveAttribute('inert', '');
+  await expect(site.locator('[data-ref="bookmark"]')).toHaveText('‹ Neuer Zyklus');
+  await back(page);
+  await expect(panel(page)).not.toHaveAttribute('inert', '');
+  await expect(siteOpen).toBeFocused();
   await button.click();
   await waitForConfirm(page);
   await button.click();
@@ -182,6 +232,10 @@ test('Korridor bauen: Altwasser zwischen Auwald und Erlenbruch', async ({ page, 
   await expect(stamps(page)).toContainText('Altwasser gebaut');
   await expect(map.locator('[data-ref="jay-seeds"]')).toHaveText('🪶 4 Hähersaat');
   await expect(row).toContainText('verbunden');
+  // Tagebuch der Wälder: Hähersaat-Tabelle zieht mit.
+  const table = map.locator('[data-ref="landscape-jay-seeds"]');
+  await expect(table.locator('[data-row="spent"]')).toContainText('11 🪶');
+  await expect(table.locator('[data-row="available"]')).toContainText('4 🪶');
   const after = await savedState(page);
   expect(after.meta.landscape.corridors).toContain('floodplain-carr');
   expect(after.meta.landscape.freeCorridors).not.toContain('floodplain-carr');
@@ -221,6 +275,19 @@ for (const [width, height, scale, font] of [
   for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) expect(overlaps(grow(boxes[i]!), grow(boxes[j]!)), `${i}/${j}`).toBe(false);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+  // „Neuer Zyklus ›“ und die Bau-Knöpfe: Tippziele ≥ 44 px.
+  const more = (await page.locator('[data-ref="landscape-cycle-open"]').boundingBox())!;
+  expect(more.height).toBeGreaterThanOrEqual(44);
+  // U:Standort: ebenfalls ohne Querscrollen, „Als Ziel wählen“ ≥ 44 px und ganz im Bild.
+  const site = await openLandscapeSite(page, 'floodplain');
+  const choose = (await site.locator('[data-ref="site-choose"]').boundingBox())!;
+  expect(choose.height).toBeGreaterThanOrEqual(44);
+  expect(choose.x).toBeGreaterThanOrEqual(0);
+  expect(choose.x + choose.width).toBeLessThanOrEqual(width);
+  const subOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(subOverflow).toBeLessThanOrEqual(0);
+  const sitePage = await site.evaluate((p) => p.scrollWidth - p.clientWidth);
+  expect(sitePage).toBeLessThanOrEqual(0);
 });
 
 test('Hain mit genug Gedächtnis nach diesem Zyklus, aber noch nicht frei: keine Karte (Spoiler)', async ({ page, context }) => {

@@ -75,7 +75,7 @@ describe('Reiter „Landschaft“: Sichtbarkeit (Spoiler-Regel)', () => {
     expect(journalLandscapeCount(view)).toBe(`1/${LANDSCAPE_SITES.length}`);
     expect(toJournalView(state, evaluate(state)).tabCounts.landscape).toBe('1/6');
     expect(view.summary).toBe('1 von 6 Wäldern gegründet · 0 von 10 Korridoren');
-    expect(view.sitesHint).toBe('5 Wälder warten noch – gründen kannst du im Bereich „Neuer Zyklus“.');
+    expect(view.sitesHint).toBe('5 Wälder warten noch – tippe auf der Karte auf einen Standort und wähle ihn als Ziel des nächsten Zyklus.');
     expect(view.corridors).toEqual([]);
   });
 });

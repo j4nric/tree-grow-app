@@ -1,6 +1,6 @@
 /**
  * Naturtagebuch (Design v2, Abschnitte 10 und 11.2): Arten, Pflanzen, Lebensgemeinschaften,
- * Andenken und Landschaft als Reiter in einem modalen Dialog (Übergang bis Phase 8, Schritt 7;
+ * und Andenken als Reiter in einem modalen Dialog (Übergang bis Phase 8, Schritt 7;
  * Erfolge und Statistik stehen seit Schritt 9 im Album unter „Ziele“). Entdeckte Einträge mit Angaben,
  * unentdeckte als Silhouette mit „???“. Entdeckte Arten lassen sich als Stammgast wählen.
  *
@@ -8,8 +8,8 @@
  * Callback. Der native `<dialog>` (showModal) hält den Fokus im Dialog und schließt mit
  * Escape; danach geht der Fokus an den auslösenden Knopf zurück.
  *
- * Der Reiter „Landschaft“ (24.11) bleibt verborgen, solange die Landschaft nicht freigeschaltet
- * ist (`view.landscape === null`); die Pfeiltasten überspringen ihn dann.
+ * Der frühere Reiter „Landschaft“ (24.11) steht seit Schritt 10 im Album (Reiter „Landschaft“,
+ * Abschnitt „Tagebuch der Wälder“).
  *
  * Der Inhalt wird nur neu gebaut, wenn sich die Ansicht ändert (Entdeckung, Stammgast) –
  * nie pro Frame.
@@ -21,9 +21,6 @@ import type {
   JournalCommunityView,
   JournalEntryView,
   JournalKeepsakeView,
-  JournalLandscapeRowView,
-  JournalLandscapeView,
-  JournalSiteView,
   JournalTreeView,
   JournalView,
 } from './view-model';
@@ -43,14 +40,13 @@ export interface JournalDialog {
   readonly open: boolean;
 }
 
-type TabId = 'species' | 'plants' | 'communities' | 'keepsakes' | 'landscape';
+type TabId = 'species' | 'plants' | 'communities' | 'keepsakes';
 
 const TABS: readonly { id: TabId; label: string }[] = [
   { id: 'species', label: 'Arten' },
   { id: 'plants', label: 'Pflanzen' },
   { id: 'communities', label: 'Gemeinschaften' },
   { id: 'keepsakes', label: 'Andenken' },
-  { id: 'landscape', label: 'Landschaft' },
 ];
 
 /** Knopf „📖 Naturtagebuch“ für die Seitenleiste. */
@@ -113,8 +109,7 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     tabs.set(id, { tab, count, panel });
   }
   tabList.addEventListener('keydown', (event) => {
-    // Verborgene Reiter (Landschaft vor der Freischaltung) überspringen.
-    const order = TABS.map((t) => t.id).filter((id) => !tabs.get(id)!.tab.hidden);
+    const order = TABS.map((t) => t.id);
     const at = order.indexOf(selected);
     let next: TabId | null = null;
     if (event.key === 'ArrowRight') next = order[(at + 1) % order.length]!;
@@ -140,17 +135,12 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
   dialog.append(inner);
   root.append(dialog);
 
-  // Landschaft: verborgen bis zur ersten Ansicht mit freigeschalteter Landschaft.
-  tabs.get('landscape')!.tab.hidden = true;
-  tabs.get('landscape')!.panel.hidden = true;
-
   let selected: TabId = 'species';
   let signature = '';
   let returnFocus: HTMLElement | null = null;
   let showing = false;
 
   function selectTab(id: TabId, focus = false): void {
-    if (tabs.get(id)!.tab.hidden) id = 'species';
     selected = id;
     for (const [key, refs] of tabs) {
       const on = key === id;
@@ -271,84 +261,6 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
     return li;
   }
 
-  /** Beschreibungsliste aus Zeilen „Bezeichnung – Wert“ (Angaben zu einem Wald, Hähersaat). */
-  function rowList(rows: readonly JournalLandscapeRowView[], className: string): HTMLDListElement {
-    const dl = el('dl', className);
-    for (const r of rows) {
-      const wrap = el('div', `${className}-row`);
-      wrap.dataset.row = r.key;
-      wrap.append(el('dt', '', r.label), el('dd', '', hyphenate(r.value)));
-      dl.append(wrap);
-    }
-    return dl;
-  }
-
-  function siteItem(s: JournalSiteView): HTMLElement {
-    const li = el('li', `journal-entry discovered journal-site${s.active ? ' current' : ''}${s.ancient ? ' ancient' : ''}`);
-    li.dataset.site = s.id;
-    const icon = el('span', 'journal-icon', s.icon);
-    icon.setAttribute('aria-hidden', 'true');
-    const body = el('div', 'journal-body');
-    const name = el('h4', 'journal-name', hyphenate(s.name));
-    body.append(name);
-    if (s.active) {
-      const badge = el('p', 'journal-tree-status current');
-      const star = el('span', '', '★ ');
-      star.setAttribute('aria-hidden', 'true');
-      badge.append(star, 'hier wächst dein Wald');
-      body.append(badge);
-    }
-    if (s.forestType) body.append(el('p', 'journal-facts', hyphenate(s.forestType)));
-    li.append(icon, body, rowList(s.rows, 'journal-site-facts'));
-    return li;
-  }
-
-  function renderLandscape(view: JournalLandscapeView | null): void {
-    const { tab, panel } = tabs.get('landscape')!;
-    tab.hidden = view === null;
-    if (!view) {
-      panel.replaceChildren();
-      if (selected === 'landscape') selectTab('species');
-      return;
-    }
-    const summary = el('p', 'journal-landscape-summary', view.summary);
-    summary.dataset.ref = 'journal-landscape-summary';
-    const seedsTitle = el('h3', 'journal-section-title', '🪶 Hähersaat');
-    seedsTitle.id = 'journal-landscape-seeds-title';
-    const seeds = rowList(view.jaySeeds, 'journal-seeds');
-    seeds.dataset.ref = 'journal-jay-seeds';
-    seeds.setAttribute('aria-labelledby', seedsTitle.id);
-    const seedsNote = el('p', 'journal-text', view.jaySeedsNote);
-    const sitesTitle = el('h3', 'journal-section-title', 'Wälder');
-    sitesTitle.id = 'journal-landscape-sites-title';
-    const siteNodes = list(sitesTitle.id, view.sites.map(siteItem), '', true);
-    for (const node of siteNodes) node.classList.add('journal-sites');
-    const hint = view.sitesHint ? [el('p', 'journal-progress', view.sitesHint)] : [];
-    const corridorTitle = el('h3', 'journal-section-title', 'Korridore');
-    corridorTitle.id = 'journal-landscape-corridors-title';
-    const corridorNodes = list(
-      corridorTitle.id,
-      view.corridors.map((c) => {
-        const li = el('li', 'journal-corridor');
-        li.dataset.corridor = c.id;
-        const icon = el('span', 'journal-corridor-icon', c.icon);
-        icon.setAttribute('aria-hidden', 'true');
-        const text = el('span', 'journal-corridor-text');
-        text.append(
-          el('strong', 'journal-corridor-name', hyphenate(c.name)),
-          el('span', 'journal-corridor-ends', hyphenate(c.ends)),
-          el('span', 'journal-corridor-note', c.note),
-        );
-        li.append(icon, text);
-        return li;
-      }),
-      'Noch keine Korridore – der erste entsteht mit der Gründung eines Waldes.',
-      true,
-    );
-    for (const node of corridorNodes) if (node instanceof HTMLUListElement) node.className = 'journal-corridors';
-    panel.replaceChildren(summary, seedsTitle, seeds, seedsNote, sitesTitle, ...siteNodes, ...hint, corridorTitle, ...corridorNodes);
-  }
-
   /** `label` ist ein Name oder – mit `labelledBy` – die ID einer sichtbaren Überschrift. */
   function list(label: string, items: HTMLElement[], empty: string, labelledBy = false): HTMLElement[] {
     if (items.length === 0) return [el('p', 'journal-empty', empty)];
@@ -359,8 +271,9 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
   }
 
   function render(view: JournalView): void {
-    // Kennzahlen und Erfolge zeigt das Album (Reiter „Ziele“) – sie zählen nicht zur Signatur.
-    const next = JSON.stringify({ ...view, stats: null, achievements: null, tabCounts: { ...view.tabCounts, achievements: '', stats: '' } });
+    // Kennzahlen, Erfolge und Landschaft zeigt das Album (Reiter „Ziele“ bzw. „Landschaft“) –
+    // sie zählen nicht zur Signatur.
+    const next = JSON.stringify({ ...view, stats: null, achievements: null, landscape: null, tabCounts: { ...view.tabCounts, achievements: '', stats: '', landscape: '' } });
     if (next === signature) return;
     signature = next;
     const focusKey = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.focusKey : undefined;
@@ -397,7 +310,6 @@ export function createJournalDialog(root: HTMLElement, callbacks: JournalCallbac
       memoryTitle,
       ...list('journal-memories-title', view.keepsakes.map(keepsakeItem), 'Noch keine Erinnerungen – sie halten besondere Momente fest.', true),
     );
-    renderLandscape(view.landscape);
     if (focusKey) dialog.querySelector<HTMLElement>(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true });
   }
 

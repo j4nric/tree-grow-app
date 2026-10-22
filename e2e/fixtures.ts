@@ -276,6 +276,23 @@ export async function openGoalsPage(page: Page, kind: 'cycle' | 'achievements' |
   return target;
 }
 
+/**
+ * Reiter „Landschaft“ → Tipp auf einen Standort der Karte → U:Standort (docs/ALBUM_UI.md, B.5).
+ * Wartet, bis das Umblättern fertig ist und die Seite den Standort zeigt.
+ */
+export async function openLandscapeSite(page: Page, site: string): Promise<Locator> {
+  const target = subpage(page, 'site');
+  if ((await target.isVisible()) && (await target.getAttribute('data-site-id')) === site) return target;
+  if (!(await tabPanel(page, 'landschaft').isVisible())) await openTab(page, 'landschaft');
+  const button = page.locator(`[data-ref="landscape-map"] [data-site="${site}"]`);
+  // Der Klick wartet, bis die Reiterseite nach einem Zurückblättern wieder bedienbar ist.
+  await button.click();
+  await expect(target).toBeVisible();
+  await expect(target).not.toHaveAttribute('inert', '');
+  await expect(target).toHaveAttribute('data-site-id', site);
+  return target;
+}
+
 /** Umschlag → Unterseite „Spielstand“ (Export, Import, Spielstand löschen). */
 export const openSavePage = (page: Page) => openCoverPage(page, 'save');
 

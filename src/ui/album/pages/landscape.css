@@ -1,0 +1,728 @@
+/*
+ * Reiter „Landschaft“, Karte und U:Standort (landscape-page.ts, landscape-map.ts, site-page.ts;
+ * docs/ALBUM_UI.md, B.5). Farben nur über Tokens (tokens.css). Zustand immer auch als Text.
+ */
+
+.lsc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.lsc-body p {
+  margin: 0;
+}
+
+.lsc-body[hidden],
+.lsc-body [hidden] {
+  display: none !important;
+}
+
+.lsc-title {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.lsc-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.lsc-hint {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.lsc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ---------- Kopf ---------- */
+
+.lsc-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lsc-question {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.lsc-seeds {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink-seed);
+}
+
+.lsc-wildwechsel {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: var(--r-button);
+  background: var(--note-bg);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Karte (handgezeichnet) ---------- */
+
+.lsc-map {
+  position: relative;
+  width: 100%;
+  /*
+   * Hochkant auf der Einzelseite: Heimatwald und die unteren Standorte liegen waagerecht dicht
+   * beieinander – genug Höhe, damit Knöpfe mit zwei Namenszeilen (auch bei größerer Schrift
+   * und breiterer Schrift) frei bleiben. Auf der Doppelseite 4 : 3 (unten).
+   */
+  aspect-ratio: 1 / 1.2;
+  min-height: 360px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-label);
+  background:
+    radial-gradient(ellipse 30% 22% at 50% 52%, rgb(127 176 105 / 0.22), transparent 70%),
+    radial-gradient(ellipse 24% 18% at 18% 38%, rgb(127 176 105 / 0.16), transparent 70%),
+    radial-gradient(ellipse 22% 16% at 82% 38%, rgb(127 176 105 / 0.16), transparent 70%),
+    repeating-linear-gradient(0deg, transparent 0 23px, rgb(185 173 146 / 0.18) 23px 24px),
+    var(--paper);
+  overflow: hidden;
+}
+
+.album[data-layout='spread'] .lsc-map {
+  aspect-ratio: 4 / 3;
+}
+
+.lsc-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.lsc-line {
+  stroke: var(--slot-dash);
+  stroke-width: 2;
+  stroke-dasharray: 2 5;
+  stroke-linecap: round;
+}
+
+.lsc-line.built {
+  stroke: var(--ink-green);
+  stroke-width: 5;
+  stroke-dasharray: none;
+}
+
+.lsc-line.buildable {
+  stroke: var(--fill);
+  stroke-width: 3;
+  stroke-dasharray: 8 5;
+}
+
+.lsc-line.unaffordable {
+  stroke: var(--ink-faint);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 6;
+}
+
+/* Wildwechsel (24.6): gebaute Korridore, über die Tiere kommen – Spur läuft langsam */
+.lsc-line.built.wildwechsel {
+  stroke: var(--ink-seed);
+  stroke-dasharray: 10 4;
+  animation: lsc-trail 3s linear infinite;
+}
+
+@keyframes lsc-trail {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
+.lsc-site {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 94px;
+  min-height: 64px;
+  padding: 4px 3px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-label);
+  background: rgb(255 253 247 / 0.94);
+  color: var(--ink);
+  font-family: var(--font-text);
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.lsc-site:hover {
+  border-color: var(--ink-green);
+}
+
+.lsc-site:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+.lsc-site.founded {
+  border-style: solid;
+  border-color: var(--fill);
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+}
+
+.lsc-site.active {
+  border-color: var(--ink-green);
+  border-width: 3px;
+  background: var(--photo);
+}
+
+.lsc-site.choosable {
+  border-color: var(--ink-green);
+}
+
+/* Ziel des nächsten Zyklus: Washi-Gelb wie ein Merkzettel */
+.lsc-site.target {
+  background: var(--note-bg);
+  box-shadow: 0 0 0 3px var(--tape);
+}
+
+.lsc-site-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.lsc-site.unfounded .lsc-site-icon {
+  filter: grayscale(0.6);
+  opacity: 0.75;
+}
+
+.lsc-site-name {
+  font-size: 0.74rem;
+  font-weight: 800;
+  hyphens: manual;
+  /* Höchstens zwei Zeilen – die Knopfhöhe bleibt begrenzt (Abstände auf der Karte). */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.lsc-site-status {
+  max-width: 100%;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lsc-site.active .lsc-site-status {
+  color: var(--ink-green);
+  font-weight: 800;
+}
+
+@media (max-width: 400px) {
+  .lsc-site {
+    width: 88px;
+  }
+
+  .lsc-site-name {
+    font-size: 0.68rem;
+  }
+}
+
+/* ---------- Ziel des nächsten Zyklus ---------- */
+
+.lsc-target-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+}
+
+.lsc-target {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: var(--r-button);
+  background: var(--tab-landscape);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.lsc-more {
+  min-height: var(--tap);
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-button);
+  background: var(--tape);
+  color: var(--ink);
+  font-family: var(--font-hand) !important;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgb(59 58 54 / 0.15);
+}
+
+.lsc-more:hover {
+  filter: brightness(1.05);
+}
+
+.lsc-more:focus-visible,
+.lsc-build:focus-visible,
+.lsc-forest-open:focus-visible,
+.site-choose:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+/* ---------- Korridore ---------- */
+
+.lsc-corridor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lsc-corridor {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  min-width: 0;
+  padding: 6px 10px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-button);
+  background: var(--paper);
+}
+
+.lsc-corridor.built {
+  border-style: solid;
+  border-color: var(--fill);
+  background: var(--photo);
+}
+
+.lsc-corridor.wildwechsel {
+  box-shadow: inset 4px 0 0 var(--ink-seed);
+}
+
+.lsc-corridor.lsc-fresh {
+  animation: lsc-fresh 520ms ease-out;
+}
+
+@keyframes lsc-fresh {
+  0% {
+    transform: scale(1.04) rotate(-1deg);
+    background: var(--note-bg);
+  }
+}
+
+.lsc-corridor-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.lsc-corridor-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lsc-corridor-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.lsc-corridor-ends,
+.lsc-corridor-note {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.lsc-corridor-wildwechsel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-seed);
+}
+
+.lsc-build {
+  min-height: var(--tap);
+  padding: 4px 12px;
+  border: 2px solid var(--ink-green);
+  border-radius: var(--r-button);
+  background: var(--photo);
+  color: var(--ink-green-dark);
+  font-family: var(--font-text);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lsc-build:hover:not(:disabled) {
+  background: var(--track);
+}
+
+.lsc-build.armed {
+  border-color: var(--ink-red);
+  color: var(--ink-red);
+  white-space: normal;
+  max-width: 9.5em;
+}
+
+.lsc-build:disabled {
+  border-color: var(--rule);
+  color: var(--ink-faint);
+  cursor: default;
+}
+
+/* ---------- Tagebuch der Wälder ---------- */
+
+.lsc-diary {
+  padding-top: 12px;
+  border-top: 1px dotted var(--rule);
+}
+
+.lsc-summary {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.lsc-seed-table {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.lsc-seed-table-row {
+  min-width: 0;
+  padding: 6px 10px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-label);
+  background: var(--paper);
+  text-align: center;
+}
+
+.lsc-seed-table-row dt {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.lsc-seed-table-row dd {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink-seed);
+}
+
+.lsc-forests {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lsc-forest {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px 12px;
+  border-radius: var(--r-label);
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+  transform: rotate(var(--tilt, 0deg));
+}
+
+.lsc-forest.current {
+  outline: 2px solid var(--ink-green);
+  outline-offset: -2px;
+}
+
+.lsc-forest-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.lsc-forest-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 6px 0 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-hand) !important;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.05;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lsc-forest-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--photo);
+  border-radius: 50%;
+  background: var(--tab-landscape);
+  box-shadow: var(--sh-sticker);
+  font-family: var(--font-text);
+  font-size: 18px;
+}
+
+.lsc-forest-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lsc-forest-arrow {
+  color: var(--ink-soft);
+}
+
+.lsc-forest-here {
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--track);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-green);
+}
+
+.lsc-forest-type {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.lsc-facts {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px dotted var(--rule);
+  font-size: 13px;
+}
+
+.lsc-facts-row {
+  display: grid;
+  grid-template-columns: minmax(0, 9em) minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.lsc-facts dt {
+  font-weight: 800;
+  color: var(--ink-soft);
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.lsc-facts dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+@media (max-width: 480px) {
+  .lsc-seed-table {
+    gap: 6px;
+  }
+
+  .lsc-seed-table-row {
+    padding: 4px 6px;
+  }
+
+  .lsc-facts-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+.album[data-layout='spread'] .lsc-forests {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+/* ---------- U:Standort ---------- */
+
+.site-type {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.site-text {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.site-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--r-label);
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+}
+
+.site-line {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.site-gain {
+  color: var(--ink-green);
+  font-weight: 700;
+}
+
+.site-cost {
+  color: var(--ink-red);
+  font-weight: 700;
+}
+
+.site-gift.inactive {
+  color: var(--ink-soft);
+}
+
+.site-blocker {
+  padding: 8px 12px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-button);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--ink-seed);
+}
+
+.site-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.site-choose {
+  min-height: var(--tap);
+  padding: 0 18px;
+  border: 2px solid var(--ink-green);
+  border-radius: var(--r-button);
+  background: var(--ink-green);
+  color: var(--paper);
+  font-family: var(--font-hand) !important;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgb(59 58 54 / 0.2);
+}
+
+.site-choose.chosen {
+  background: var(--note-bg);
+  color: var(--ink-green-dark);
+}
+
+.site-choose.site-chosen {
+  animation: lsc-stamp var(--stamp-ms) ease-out;
+}
+
+@keyframes lsc-stamp {
+  from {
+    transform: scale(1.15) rotate(var(--tilt-stamp));
+  }
+}
+
+.site-choice-hint {
+  flex: 1 1 100%;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.site-diary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---------- Bewegung ---------- */
+
+body[data-motion='reduce'] .lsc-line.built.wildwechsel,
+body[data-motion='reduce'] .lsc-corridor.lsc-fresh,
+body[data-motion='reduce'] .site-choose.site-chosen {
+  animation: none;
+}
+
+body[data-motion='reduce'] .lsc-site {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:not([data-motion='full']) .lsc-line.built.wildwechsel,
+  body:not([data-motion='full']) .lsc-corridor.lsc-fresh,
+  body:not([data-motion='full']) .site-choose.site-chosen {
+    animation: none;
+  }
+
+  body:not([data-motion='full']) .lsc-site {
+    transition: none;
+  }
+}

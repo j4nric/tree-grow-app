@@ -93,6 +93,14 @@ export function createCyclePage(env: PageEnv): CyclePage {
   // --- Ziel-Wald (Karte der Landschaft) --------------------------------------------------
   const target = el('p', 'cyc-target');
   target.dataset.ref = 'cycle-target';
+  // Ziel-Wald ansehen: U:Standort auf Ebene 2 (B.6).
+  const siteOpen = el('button', 'goals-more cyc-site-open');
+  siteOpen.type = 'button';
+  siteOpen.dataset.ref = 'cycle-site-open';
+  siteOpen.addEventListener('click', () => {
+    const site = view ? targetSite(view) : undefined;
+    if (site) env.open({ kind: 'site', id: site.id });
+  });
 
   // --- Baumwahl ------------------------------------------------------------------------
   const trees = el('fieldset', 'cyc-trees');
@@ -151,7 +159,7 @@ export function createCyclePage(env: PageEnv): CyclePage {
   const regularItems = new Map<string, RegularItem>();
   let regularOrder = '';
 
-  page.body.append(now, gainBox, target, trees, button, regulars);
+  page.body.append(now, gainBox, target, siteOpen, trees, button, regulars);
 
   let view: CyclePanelView | null = null;
   let shownKey = '';
@@ -186,6 +194,8 @@ export function createCyclePage(env: PageEnv): CyclePage {
       const active = map.sites.find((s) => s.id === map.active);
       setText(target, targetText(site, active ? `${active.icon} ${active.name}` : ''));
     }
+    siteOpen.hidden = target.hidden || !site;
+    if (site) setText(siteOpen, `${site.name} ansehen ›`);
   }
 
   function createTreeItem(id: MainTreeId, icon: string, index: number): TreeItem {
