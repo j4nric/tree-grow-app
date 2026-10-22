@@ -47,7 +47,7 @@ export type Tone = 'good' | 'bad' | 'neutral';
 
 /**
  * Gattung bzw. Gruppe als Schlüssel für Farbe/Symbol. Bekannte Werte haben eigene Farben
- * im CSS (`birds`, `insects`, `mammals`, `soil`, `fungi`, `amphibians`, `plants`, `event`); andere
+ * im CSS (`birds`, `insects`, `mammals`, `soil`, `fungi`, `amphibians`, `reptiles`, `plants`, `event`); andere
  * Schlüssel erscheinen neutral.
  */
 export type FamilyKey = string;
@@ -659,6 +659,11 @@ export interface CareView {
   protects?: string | null;
   /** Erklärung dazu (Tooltip); sonst null. */
   protectsDetail?: string | null;
+  /**
+   * Der nächste Rang öffnet einen verschlossenen Lebensraum (DESIGN_V2.md 23.2), z. B.
+   * „Öffnet Lebensraum 🌾 Waldwiese“; sonst null.
+   */
+  opens?: string | null;
 }
 
 /**

@@ -160,6 +160,12 @@ export function createCarePanel(root: HTMLElement, callbacks: CarePanelCallbacks
 
     const body = el('div', 'care-body');
     if (item.next) body.append(el('p', 'care-next', item.next));
+    // Lebensräume (DESIGN_V2.md 23.2): Der Rang öffnet eine verschlossene Nische.
+    if (item.opens) {
+      const opens = el('p', 'care-opens', item.opens);
+      opens.dataset.ref = 'care-opens';
+      body.append(opens);
+    }
     // Schutz vor rauem Wetter (DESIGN_V2.md 21.3): „🛡️ Schützt vor 🌬️ Sturm – halbiert den Abzug“.
     if (item.protects) {
       const protects = el('p', 'care-protects', item.protects);

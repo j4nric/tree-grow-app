@@ -279,7 +279,7 @@ test('Spielstand einer neueren Spielversion: nicht laden, nie überschreiben, Hi
   // Dauerhafter Hinweis (kein Toast, der verschwindet), mit Knopf zum Neuladen.
   const banner = page.locator('[data-ref="newer-save-banner"]');
   await expect(banner).toHaveAttribute('role', 'alert');
-  await expect(banner).toContainText('neueren Version des Spiels');
+  await expect(banner).toContainText('neueren Spielversion gespeichert');
   await expect(banner.getByRole('button', { name: 'Seite neu laden' })).toBeVisible();
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
   await page.waitForTimeout(1500);

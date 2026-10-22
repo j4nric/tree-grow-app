@@ -830,6 +830,11 @@ body[data-motion='reduce'] .stage-banner.visible {
   --fam-bg: #e0f1ec;
   --fam-text: #245a4f;
 }
+.family-reptiles {
+  --fam: #6e8a1f;
+  --fam-bg: #eef3d9;
+  --fam-text: #46590f;
+}
 .family-plants {
   --fam: #3f8f3a;
   --fam-bg: #e6f2e0;
@@ -1910,7 +1915,7 @@ dialog.encounter:not(.plant-picker) .encounter-actions {
 
 .niche-care-link {
   margin-left: 0.4rem;
-  min-height: 32px;
+  min-height: 44px;
   padding: 0.2rem 0.6rem;
   font: inherit;
   font-style: normal;
@@ -3745,6 +3750,13 @@ body[data-motion='reduce'] .slot-night.active::after {
 }
 
 /* Schutz vor rauem Wetter in der Pflege-Liste (care-panel.ts). */
+.care-opens {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+
 .care-protects {
   margin: 2px 0 0;
   font-size: 0.8rem;
@@ -4661,4 +4673,21 @@ dialog.animal-detail {
 
 .frozen-banner p {
   margin: 0 0 8px;
+}
+
+/* Neuer-Stand-Schutz: Knopf „Seite neu laden“ – gut treffbar, gleiche Warnfarbe wie der Rahmen. */
+.frozen-banner button {
+  min-height: 44px;
+  padding: 0.4rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: #8a4a12;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.frozen-banner button:hover {
+  background: #6f3a0c;
 }

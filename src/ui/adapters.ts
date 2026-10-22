@@ -7,7 +7,7 @@
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
 import { ABILITY_INFO } from '../content/abilities';
-import { CARE, CARE_BY_ID } from '../content/care';
+import { CARE, CARE_BY_ID, type CareEffect } from '../content/care';
 import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
 import { EVENTS_BY_ID, type CycleEffect, type EventOption, type TimedEffect } from '../content/events';
 import { KEEPSAKE_INFO, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
@@ -2304,6 +2304,33 @@ export function sortCareViews(items: readonly CareView[]): CareView[] {
 }
 
 /**
+ * Lebensräume (DESIGN_V2.md 23, 5.5): Nischen ohne Plätze aus der Stufe – Waldtümpel,
+ * Waldwiese, Totholzhaufen, Trockenmauer. Sie öffnen nur durch Pflege oder Ereignisse.
+ */
+export function isHabitatNiche(nicheId: NicheId): boolean {
+  const niche = NICHES_BY_ID.get(nicheId);
+  return !!niche && niche.slots.every((n) => n <= 0);
+}
+
+/**
+ * „Öffnet Lebensraum 🌾 Waldwiese“ auf der Pflegekarte: Der nächste Rang schafft Plätze in
+ * einem Lebensraum, der gerade noch verschlossen ist. Ist er schon offen (z. B. durch ein
+ * Ereignis), bleibt die Zeile weg – dann sagt „+2 Plätze …“ genug. null ohne solche Plätze.
+ */
+export function careOpensText(effects: readonly CareEffect[], now: Readonly<Pick<Evaluation, 'slots'>>): string | null {
+  const opened: string[] = [];
+  for (const e of effects) {
+    if (e.kind !== 'cycle' || e.effect.kind !== 'slot' || e.effect.amount <= 0) continue;
+    const id = e.effect.niche;
+    if (!isHabitatNiche(id) || (now.slots[id] ?? 0) > 0) continue;
+    const niche = NICHES_BY_ID.get(id)!;
+    const label = `${niche.icon} ${niche.name}`;
+    if (!opened.includes(label)) opened.push(label);
+  }
+  return opened.length > 0 ? `Öffnet Lebensraum ${listNames(opened, opened.length)}` : null;
+}
+
+/**
  * Pflege-Liste für die Seitenleiste: alle Maßnahmen, die auf dieser Stufe schon gekauft
  * wurden oder deren nächster Rang höchstens eine Stufe entfernt ist. Mit Kosten,
  * Kurzwirkung, Blocker-Text und Vorschau (previewCare).
@@ -2336,6 +2363,7 @@ export function toCareViews(state: GameState, now: Readonly<Evaluation> = evalua
       boughtText: next ? careBoughtText(measure.id, rank + 1) : null,
       protects: careProtectionText(measure.id),
       protectsDetail: careProtectionDetail(measure.id),
+      opens: next ? careOpensText(next.effects, now) : null,
       preview: after
         ? {
             harmonyDelta: after.harmony - now.harmony,
