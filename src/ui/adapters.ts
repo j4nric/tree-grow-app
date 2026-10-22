@@ -19,6 +19,7 @@ import type { SeasonId } from '../content/seasons';
 import {
   activeNightSpecies,
   averagedWeatherText,
+  happinessFrom,
   careProtectionDetail,
   careProtectionText,
   nightBadge,
@@ -450,7 +451,7 @@ export function animalView(
     mood: moodText(sp, status, present),
   };
   // Nachtarten (DESIGN_V2.md 21.6): 🌙 an der Kachel, leuchtet, solange die Nachtwirkung gilt.
-  const night = nightBadge(sp.id, moment?.season, moment?.night ?? false);
+  const night = nightBadge(sp.id, moment?.season, moment?.night ?? false, status?.happiness ?? 0);
   if (night) view.night = night;
   return view;
 }
@@ -560,7 +561,7 @@ export function toEcosystemView(state: GameState, evaluation: Readonly<Evaluatio
     niches: nicheViews(state, evaluation),
     plantRing: plantRingView(state, evaluation),
     communities: communityListView(evaluation, state.meta.journal.communities),
-    night: activeNightSpecies(state),
+    night: activeNightSpecies(state, happinessFrom(evaluation)),
   };
   refreshEcosystemView(view, state);
   return view;

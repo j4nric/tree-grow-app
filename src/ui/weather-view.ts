@@ -22,6 +22,7 @@ import {
   type Weather,
   type WeatherId,
 } from '../content/weather';
+import { evaluate, type Evaluation } from '../core/formulas';
 import { seasonIdAt } from '../core/season';
 import type { GameState } from '../core/state';
 import {
@@ -170,37 +171,74 @@ export function forecastText(weather: Weather): string {
   return `Morgen: ${[`${weather.icon} ${weather.name}`, ...effects].join(' · ')}`;
 }
 
-/** Namen von Nachtarten mit Wirkung, z. B. „Waldkauz (+10 % 🌿)“. */
-function nocturnalNames(list: readonly Nocturnal[]): string {
+/**
+ * Zufriedenheit einer Art (0–1) – die Nachtwirkung skaliert damit wie die Grundwirkung
+ * (evaluate). Standard: aus `evaluate(state)`.
+ */
+export type HappinessOf = (speciesId: string) => number;
+
+/** Zufriedenheit aus einer Auswertung (unbekannte Arten: 0). */
+export function happinessFrom(evaluation: Readonly<Pick<Evaluation, 'animals'>>): HappinessOf {
+  return (id) => {
+    const z = evaluation.animals[id]?.happiness;
+    return typeof z === 'number' && Number.isFinite(z) ? Math.min(1, Math.max(0, z)) : 0;
+  };
+}
+
+/**
+ * Ab dieser Zufriedenheit zeigt die UI eine Nachtwirkung als „wirkt“ (🌙 leuchtet,
+ * Nachtbonus an der Rate). Darunter (z. B. ein Kauz ohne Beute mit seiner Grund-
+ * zufriedenheit von 5 %) wäre der Bonus kaum ein Prozent – nur Anzeige, die Rechnung in
+ * evaluate bleibt stufenlos.
+ */
+export const NIGHT_VISIBLE_MIN_HAPPINESS = 0.1;
+
+/** Nachtwirkungen mit Zufriedenheit skaliert, z. B. „+6,8 % 🌿“. */
+export function scaledNightEffects(n: Nocturnal, happiness: number): string {
+  return n.effects.map((e) => weatherEffectLabel({ ...e, pct: e.pct * happiness })).join(', ');
+}
+
+/** Nachtarten, deren Wirkung sichtbar zählt (Zufriedenheit über der Schwelle). */
+function visibleNocturnal(state: Pick<GameState, 'niches'>, season: SeasonId, happinessOf: HappinessOf): Nocturnal[] {
+  return nocturnalSpecies(state, season).filter((n) => happinessOf(n.species) >= NIGHT_VISIBLE_MIN_HAPPINESS);
+}
+
+/** Namen von Nachtarten mit skalierter Wirkung, z. B. „Waldkauz (+6,8 % 🌿)“. */
+function nocturnalNames(list: readonly Nocturnal[], happinessOf: HappinessOf): string {
   return list
-    .map((n) => {
-      const name = SPECIES_BY_ID.get(n.species)?.name ?? n.species;
-      return `${name} (${n.effects.map((e) => weatherEffectLabel(e)).join(', ')})`;
-    })
+    .map((n) => `${SPECIES_BY_ID.get(n.species)?.name ?? n.species} (${scaledNightEffects(n, happinessOf(n.species))})`)
     .join(', ');
 }
 
-/** Tag oder Nacht mit Restzeit und Nachtarten, z. B. „🌙 Nacht · noch 1:20 min – nachtaktiv: Waldkauz (+10 % 🌿)“. */
-export function daytimeText(state: Pick<GameState, 'cycle' | 'niches'>): string {
+/**
+ * Tag oder Nacht mit Restzeit und Nachtarten, z. B. „🌙 Nacht · noch 1:20 min – nachtaktiv:
+ * Waldkauz (+6,8 % 🌿)“ (Wirkung mit Zufriedenheit skaliert; sehr unzufriedene Arten fehlen).
+ */
+export function daytimeText(state: GameState, happinessOf: HappinessOf = happinessFrom(evaluate(state))): string {
   const elapsed = state.cycle.elapsed;
   const night = isNight(elapsed);
   const left = secondsToNightChange(elapsed);
-  const active = nocturnalSpecies(state, seasonIdAt(elapsed));
+  const active = visibleNocturnal(state, seasonIdAt(elapsed), happinessOf);
   if (night) {
     const head = `🌙 Nacht${Number.isFinite(left) ? ` · noch ${seasonTimeLeft(left)}` : ''}`;
-    return active.length > 0
-      ? `${head} – nachtaktiv: ${nocturnalNames(active)}.`
+    if (active.length > 0) return `${head} – nachtaktiv: ${nocturnalNames(active, happinessOf)}.`;
+    return nocturnalSpecies(state, seasonIdAt(elapsed)).length > 0
+      ? `${head} – deine Nachtarten wirken erst, wenn sie zufriedener sind.`
       : `${head} – ohne nachtaktive Arten bleibt die Nacht ohne Wirkung.`;
   }
   const head = `☀️ Tag${Number.isFinite(left) ? ` · Nacht in ${seasonTimeLeft(left)}` : ''}`;
-  return active.length > 0 ? `${head} – dann wirken: ${nocturnalNames(active)}.` : `${head}.`;
+  return active.length > 0 ? `${head} – dann wirken: ${nocturnalNames(active, happinessOf)}.` : `${head}.`;
 }
 
 /** Hinweis zur Einstellung „Tageszeit: Immer Tag“ (19.1): Sie betrifft nur das Bild. */
 export const ALWAYS_DAY_NOTE = 'Einstellung „Immer Tag“: Nur das Bild bleibt hell – Nacht und Wetter wirken weiter.';
 
 /** Abzeichen des Wetters zum Spielstand. `alwaysDay`: Einstellung „Tageszeit: Immer Tag“. */
-export function toWeatherBadgeView(state: Pick<GameState, 'cycle' | 'niches'>, alwaysDay = false): WeatherBadgeView {
+export function toWeatherBadgeView(
+  state: GameState,
+  alwaysDay = false,
+  happinessOf: HappinessOf = happinessFrom(evaluate(state)),
+): WeatherBadgeView {
   const weather = weatherAt(state);
   const damping = weatherDamping(state, weather);
   const damped = weatherEffects(state, weather);
@@ -219,7 +257,7 @@ export function toWeatherBadgeView(state: Pick<GameState, 'cycle' | 'niches'>, a
     damping: weatherDampingText(weather, damping, state.cycle.mainTree),
     tip: weatherTipText(weather, damping),
     forecast: forecastLine,
-    daytime: daytimeText(state),
+    daytime: daytimeText(state, happinessOf),
     daytimeNote: alwaysDay ? ALWAYS_DAY_NOTE : null,
     night: isNight(state.cycle.elapsed),
   };
@@ -263,29 +301,47 @@ export function averagedWeatherText(report: { averaged?: boolean; weather?: read
 
 /**
  * 🌙-Anzeige einer Art; null für Arten ohne Nachtwirkung. `season` und `night` beschreiben
- * den Moment (für Karten im Tagebuch ohne laufenden Zyklus: weglassen).
+ * den Moment (für Karten im Tagebuch ohne laufenden Zyklus: weglassen), `happiness` die
+ * Zufriedenheit der Art (Standard 1 = volle Wirkung, z. B. auf Karten).
  */
-export function nightBadge(speciesId: string, season?: SeasonId, night = false): NightBadgeView | null {
+export function nightBadge(speciesId: string, season?: SeasonId, night = false, happiness = 1): NightBadgeView | null {
   const n = NOCTURNAL_BY_SPECIES.get(speciesId);
   if (!n) return null;
   const inSeason = season === undefined || nocturnalInSeason(n, season);
-  return { label: `🌙 ${n.summary}`, name: n.name, active: night && inSeason, resting: !inSeason };
+  const z = Number.isFinite(happiness) ? Math.min(1, Math.max(0, happiness)) : 0;
+  const content = z >= NIGHT_VISIBLE_MIN_HAPPINESS;
+  return {
+    label: `🌙 ${n.summary}`,
+    name: n.name,
+    active: night && inSeason && content,
+    resting: !inSeason,
+    tooUnhappy: inSeason && !content,
+    scaled: scaledNightEffects(n, z),
+    happiness: z,
+  };
 }
 
-/** Text der Nachtwirkung für die Tierdetails, z. B. „🌙 Nachtjagd: nachts +10 % 🌿 – wirkt gerade“. */
+/**
+ * Text der Nachtwirkung für die Tierdetails mit dem Wert bei der aktuellen Zufriedenheit,
+ * z. B. „🌙 Nachtjagd: nachts +10 % 🌿 – wirkt gerade: +6,8 % 🌿 bei 68 % Zufriedenheit“.
+ */
 export function nightDetailText(badge: NightBadgeView): string {
-  const state = badge.active ? ' – wirkt gerade' : badge.resting ? ' – ruht in dieser Jahreszeit' : '';
-  return `🌙 ${badge.name}: ${badge.label.replace(/^🌙 /, '')}${state}`;
+  const summary = badge.label.replace(/^🌙 /, '');
+  // Ruht die Art, sagt der Zusatz schon, warum – „(nicht im Winter)“ wäre doppelt.
+  if (badge.resting) return `🌙 ${badge.name}: ${summary.replace(/ \(.*\)$/, '')} – ruht in dieser Jahreszeit`;
+  if (badge.tooUnhappy) return `🌙 ${badge.name}: ${summary} – wirkt erst, wenn sie zufriedener ist`;
+  const at = `${badge.scaled} bei ${Math.round(badge.happiness * 100)} % Zufriedenheit`;
+  return `🌙 ${badge.name}: ${summary} – ${badge.active ? `wirkt gerade: ${at}` : `nachts ${at}`}`;
 }
 
 /**
  * 🌙 an der Raten-Anzeige: Namen der Nachtarten, deren Nachtwirkung gerade gilt, getrennt
  * nach 🌿 und 🌰 (leer = kein 🌙). Nur Anzeige; die Rechnung steckt längst in den Raten.
  */
-export function activeNightSpecies(state: Pick<GameState, 'cycle' | 'niches'>): NightRateView {
+export function activeNightSpecies(state: GameState, happinessOf: HappinessOf = happinessFrom(evaluate(state))): NightRateView {
   const out: NightRateView = { growth: [], seeds: [] };
   if (!isNight(state.cycle.elapsed)) return out;
-  for (const n of nocturnalSpecies(state, seasonIdAt(state.cycle.elapsed))) {
+  for (const n of visibleNocturnal(state, seasonIdAt(state.cycle.elapsed), happinessOf)) {
     const name = SPECIES_BY_ID.get(n.species)?.name ?? n.species;
     if (n.effects.some((e) => e.kind === 'growth' || e.kind === 'groupGrowth')) out.growth.push(name);
     if (n.effects.some((e) => e.kind === 'seeds' || e.kind === 'groupSeeds')) out.seeds.push(name);

@@ -78,6 +78,7 @@ import { createSeasonBadge } from './ui/season-badge';
 import { setupServiceWorker } from './ui/pwa';
 import { toSeasonBadgeView } from './ui/season-view';
 import { createWeatherBadge } from './ui/weather-badge';
+import { toastDurationFor } from './ui/settings';
 import { seasonWeatherChangeText, toWeatherBadgeView } from './ui/weather-view';
 import { isNight } from './core/weather';
 import type { MainTreeId } from './content/trees';
@@ -316,7 +317,7 @@ const carePanel = createCarePanel(document.querySelector<HTMLElement>('#care')!,
   onFeedback: (text, x, y) => floats.spawn(text, x, y, 'note'),
 });
 const seasonBadge = createSeasonBadge(document.querySelector<HTMLElement>('#season')!);
-const weatherBadge = createWeatherBadge(document.querySelector<HTMLElement>('#season')!);
+const weatherBadge = createWeatherBadge(document.querySelector<HTMLElement>('#season')!, seasonBadge.element);
 /** Ganze Sekunde Spielzeit, zu der das Abzeichen zuletzt aktualisiert wurde. */
 let seasonShownSecond = -1;
 /** Zuletzt angezeigt: Nacht? (Wechsel → Raten und 🌙 neu, DESIGN_V2.md 21.8). */
@@ -702,6 +703,8 @@ let detailEvaluation: Readonly<Evaluation> | null = null;
 let detailExtra = '';
 
 function refreshViews(now: number): void {
+  // Ökosystem geändert (Aktion, Wegpunkt …): Dämpfung im Wetter-Abzeichen gleich mitziehen.
+  if (ecoDirty) seasonShownSecond = -1;
   refreshSeasonBadge();
   refreshPanel(now);
   stack.update(state.pendingEncounters.length, state.pendingEncounters[0]?.type ?? 'animal');
@@ -780,7 +783,7 @@ function showToast(text: string): void {
   toast.textContent = text;
   toast.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (toast.hidden = true), preferences.toastMs());
+  toastTimer = setTimeout(() => (toast.hidden = true), toastDurationFor(text, preferences.toastMs()));
 }
 
 // --- Spielstand löschen (zweiter Klick bestätigt, ohne confirm()) --------------------

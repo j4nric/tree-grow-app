@@ -22,6 +22,12 @@ export interface NightBadgeView {
   active: boolean;
   /** Ruht in dieser Jahreszeit (Winterschlaf). */
   resting: boolean;
+  /** In der Jahreszeit aktiv, aber zu unzufrieden, als dass die Wirkung zählt. */
+  tooUnhappy: boolean;
+  /** Wirkung bei der aktuellen Zufriedenheit, z. B. „+6,8 % 🌿“. */
+  scaled: string;
+  /** Zufriedenheit 0–1, mit der `scaled` gerechnet ist. */
+  happiness: number;
 }
 
 /** Nachtarten, deren Nachtwirkung gerade auf 🌿 bzw. 🌰 wirkt (Namen). */

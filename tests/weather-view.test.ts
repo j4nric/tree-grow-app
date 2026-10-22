@@ -16,6 +16,8 @@ import {
   careProtectionDetail,
   careProtectionText,
   daytimeText,
+  happinessFrom,
+  NIGHT_VISIBLE_MIN_HAPPINESS,
   forecastText,
   nightBadge,
   nightDetailText,
@@ -154,27 +156,37 @@ describe('Wetter-Abzeichen', () => {
   });
 });
 
+/** Feste Zufriedenheit für alle Arten (statt der Auswertung). */
+const happy = (z: number) => () => z;
+
 describe('Tag und Nacht im Abzeichen', () => {
-  it('nachts mit Waldkauz: Restzeit und Nachtart', () => {
+  it('nachts mit Waldkauz: Restzeit und Nachtart mit skalierter Wirkung', () => {
     const state = stateInSeason(0, ['owl'], 100);
     expect(toWeatherBadgeView(state).night).toBe(true);
-    expect(daytimeText(state)).toBe('🌙 Nacht · noch 1:11 min – nachtaktiv: Waldkauz (+10 % 🌿).');
+    expect(daytimeText(state, happy(1))).toBe('🌙 Nacht · noch 1:11 min – nachtaktiv: Waldkauz (+10 % 🌿).');
+    expect(daytimeText(state, happy(0.68))).toBe('🌙 Nacht · noch 1:11 min – nachtaktiv: Waldkauz (+6,8 % 🌿).');
+    // Standard: Zufriedenheit aus der Auswertung (wie evaluate).
+    const z = evaluate(state).animals.owl!.happiness;
+    expect(daytimeText(state)).toBe(daytimeText(state, happy(z)));
   });
 
   it('tagsüber: Zeit bis zur Nacht und wer dann wirkt', () => {
     const state = stateInSeason(0, ['owl'], 21);
-    expect(daytimeText(state)).toBe('☀️ Tag · Nacht in 1:00 min – dann wirken: Waldkauz (+10 % 🌿).');
+    expect(daytimeText(state, happy(1))).toBe('☀️ Tag · Nacht in 1:00 min – dann wirken: Waldkauz (+10 % 🌿).');
     expect(daytimeText(stateInSeason(0, [], 21))).toBe('☀️ Tag · Nacht in 1:00 min.');
   });
 
-  it('nachts ohne Nachtarten: keine Strafe', () => {
+  it('nachts ohne Nachtarten oder mit sehr unzufriedenen: keine Wirkung genannt', () => {
     expect(daytimeText(stateInSeason(0, [], 100))).toContain('ohne nachtaktive Arten bleibt die Nacht ohne Wirkung');
+    const state = stateInSeason(0, ['owl'], 100);
+    expect(daytimeText(state, happy(NIGHT_VISIBLE_MIN_HAPPINESS / 2))).toContain('wirken erst, wenn sie zufriedener sind');
+    expect(daytimeText(state, happy(NIGHT_VISIBLE_MIN_HAPPINESS))).toContain('nachtaktiv: Waldkauz');
   });
 
   it('Winter: Langohr schläft, Kauz jagt', () => {
     const state = stateInSeason(3, ['owl', 'bat'], 100);
-    expect(daytimeText(state)).toContain('Waldkauz');
-    expect(daytimeText(state)).not.toContain('Langohr');
+    expect(daytimeText(state, happy(1))).toContain('Waldkauz');
+    expect(daytimeText(state, happy(1))).not.toContain('Langohr');
   });
 });
 
@@ -222,37 +234,77 @@ describe('Rückkehr-Meldung', () => {
 });
 
 describe('Nachtarten', () => {
-  it('🌙 an Nachtarten, aktiv nur nachts in ihrer Jahreszeit', () => {
+  it('🌙 an Nachtarten, aktiv nur nachts in ihrer Jahreszeit und wenn zufrieden genug', () => {
     expect(nightBadge('vole')).toBeNull();
-    expect(nightBadge('owl')).toEqual({ label: '🌙 nachts +10 % 🌿', name: 'Nachtjagd', active: false, resting: false });
+    expect(nightBadge('owl')).toEqual({
+      label: '🌙 nachts +10 % 🌿',
+      name: 'Nachtjagd',
+      active: false,
+      resting: false,
+      tooUnhappy: false,
+      scaled: '+10 % 🌿',
+      happiness: 1,
+    });
     expect(nightBadge('owl', 'winter', true)!.active).toBe(true);
-    expect(nightBadge('bat', 'winter', true)).toMatchObject({ active: false, resting: true });
+    expect(nightBadge('owl', 'winter', true, 0.5)).toMatchObject({ active: true, scaled: '+5 % 🌿' });
+    expect(nightBadge('owl', 'winter', true, 0.01)).toMatchObject({ active: false, tooUnhappy: true });
+    expect(nightBadge('owl', 'winter', true, NaN)).toMatchObject({ active: false, happiness: 0 });
+    expect(nightBadge('bat', 'winter', true)).toMatchObject({ active: false, resting: true, tooUnhappy: false });
     expect(nightBadge('bat', 'summer', false)).toMatchObject({ active: false, resting: false });
   });
 
-  it('Text für die Tierdetails', () => {
-    expect(nightDetailText(nightBadge('owl', 'spring', true)!)).toBe('🌙 Nachtjagd: nachts +10 % 🌿 – wirkt gerade');
-    expect(nightDetailText(nightBadge('hedgehog', 'winter', true)!)).toBe(
-      '🌙 Nachtschmaus: nachts +6 % 🌿 (nicht im Winter) – ruht in dieser Jahreszeit',
+  it('Text für die Tierdetails mit skaliertem Wert', () => {
+    expect(nightDetailText(nightBadge('owl', 'spring', true, 0.68)!)).toBe(
+      '🌙 Nachtjagd: nachts +10 % 🌿 – wirkt gerade: +6,8 % 🌿 bei 68 % Zufriedenheit',
     );
-    expect(nightDetailText(nightBadge('owl', 'spring', false)!)).toBe('🌙 Nachtjagd: nachts +10 % 🌿');
+    expect(nightDetailText(nightBadge('owl', 'spring', false, 1)!)).toBe(
+      '🌙 Nachtjagd: nachts +10 % 🌿 – nachts +10 % 🌿 bei 100 % Zufriedenheit',
+    );
+    // Winterschlaf: kein doppeltes „(nicht im Winter)“.
+    expect(nightDetailText(nightBadge('hedgehog', 'winter', true)!)).toBe('🌙 Nachtschmaus: nachts +6 % 🌿 – ruht in dieser Jahreszeit');
+    expect(nightDetailText(nightBadge('hedgehog', 'summer', true, 0.01)!)).toBe(
+      '🌙 Nachtschmaus: nachts +6 % 🌿 (nicht im Winter) – wirkt erst, wenn sie zufriedener ist',
+    );
   });
 
-  it('🌙 an der Rate: getrennt nach 🌿 und 🌰, nur nachts', () => {
+  it('🌙 an der Rate: getrennt nach 🌿 und 🌰, nur nachts und nur zufrieden genug', () => {
     const night = stateInSeason(1, ['owl', 'bat', 'vole'], 100);
-    expect(activeNightSpecies(night)).toEqual({ growth: ['Waldkauz'], seeds: ['Braunes Langohr'] });
-    expect(activeNightSpecies(stateInSeason(1, ['owl', 'bat'], 10))).toEqual({ growth: [], seeds: [] });
-    expect(activeNightSpecies(stateInSeason(3, ['bat'], 100))).toEqual({ growth: [], seeds: [] });
+    expect(activeNightSpecies(night, happy(1))).toEqual({ growth: ['Waldkauz'], seeds: ['Braunes Langohr'] });
+    expect(activeNightSpecies(night, (id) => (id === 'bat' ? 0 : 1))).toEqual({ growth: ['Waldkauz'], seeds: [] });
+    expect(activeNightSpecies(stateInSeason(1, ['owl', 'bat'], 10), happy(1))).toEqual({ growth: [], seeds: [] });
+    expect(activeNightSpecies(stateInSeason(3, ['bat'], 100), happy(1))).toEqual({ growth: [], seeds: [] });
     expect(nightRateText([])).toBe('');
     expect(nightRateText(['Waldkauz'])).toBe('Nachtbonus: Waldkauz');
     expect(nightRateText(['Waldkauz', 'Igel', 'Glühwürmchen'])).toBe('Nachtbonus: Waldkauz, Igel und Glühwürmchen');
   });
 
+  it('Kauz ohne Beute (Grundzufriedenheit 5 %): kein leuchtendes 🌙, kein Nachtbonus an der Rate', () => {
+    const state = stateInSeason(1, ['owl'], 100);
+    const ev = evaluate(state);
+    expect(ev.animals.owl!.happiness).toBeLessThan(NIGHT_VISIBLE_MIN_HAPPINESS);
+    const owl = nicheViews(state, ev).flatMap((n) => n.animals).find((a) => a.id === 'owl')!;
+    expect(owl.night).toMatchObject({ active: false, tooUnhappy: true });
+    expect(toEcosystemView(state, ev).night.growth).toEqual([]);
+    expect(daytimeText(state)).toContain('wirken erst, wenn sie zufriedener sind');
+    expect(toAnimalDetailView(state, 'owl')!.effects.find((e) => e.label.startsWith('🌙'))).toMatchObject({
+      label: '🌙 Nachtjagd: nachts +10 % 🌿 – wirkt erst, wenn sie zufriedener ist',
+      tone: 'neutral',
+    });
+  });
+
+  it('Zufriedenheit aus der Auswertung (begrenzt auf 0–1)', () => {
+    const of = happinessFrom({ animals: { owl: { happiness: 0.4 } as never, bat: { happiness: 2 } as never } });
+    expect(of('owl')).toBe(0.4);
+    expect(of('bat')).toBe(1);
+    expect(of('hedgehog')).toBe(0);
+  });
+
   it('Seitenleiste: Kachel und Rate bekommen den Zustand', () => {
     const state = stateInSeason(1, ['owl', 'vole'], 100);
     const ev = evaluate(state);
+    expect(ev.animals.owl!.happiness).toBeGreaterThanOrEqual(NIGHT_VISIBLE_MIN_HAPPINESS);
     const owl = nicheViews(state, ev).flatMap((n) => n.animals).find((a) => a.id === 'owl')!;
-    expect(owl.night).toMatchObject({ label: '🌙 nachts +10 % 🌿', active: true });
+    expect(owl.night).toMatchObject({ label: '🌙 nachts +10 % 🌿', active: true, happiness: ev.animals.owl!.happiness });
     const vole = nicheViews(state, ev).flatMap((n) => n.animals).find((a) => a.id === 'vole')!;
     expect(vole.night).toBeUndefined();
     expect(toEcosystemView(state, ev).night.growth).toEqual(['Waldkauz']);
@@ -263,9 +315,11 @@ describe('Nachtarten', () => {
   it('Karte (effectViews) und Tierdetails nennen die Nachtwirkung', () => {
     expect(effectViews(SPECIES_BY_ID.get('owl')!).map((e) => e.label)).toContain('🌙 nachts +10 % 🌿');
     expect(effectViews(SPECIES_BY_ID.get('vole')!).some((e) => e.label.includes('🌙'))).toBe(false);
-    const state = stateInSeason(1, ['owl'], 100);
+    const state = stateInSeason(1, ['owl', 'vole'], 100);
     const detail = toAnimalDetailView(state, 'owl')!;
-    expect(detail.effects.map((e) => e.label)).toContain('🌙 Nachtjagd: nachts +10 % 🌿 – wirkt gerade');
+    const z = evaluate(state).animals.owl!.happiness;
+    expect(detail.effects.map((e) => e.label)).toContain(nightDetailText(nightBadge('owl', 'summer', true, z)!));
+    expect(detail.effects.find((e) => e.label.startsWith('🌙'))!.label).toMatch(/Zufriedenheit$/);
   });
 });
 

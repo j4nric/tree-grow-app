@@ -33,7 +33,7 @@ import { TRAIT_THRESHOLDS } from '../content/traits';
 import { VISITORS, VISITOR_FAREWELL_LABEL, VISITOR_HOST_LABEL } from '../content/visitors';
 import { GENERA } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
-import { DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS, GENTLE_DAYS, WEATHERS } from '../content/weather';
+import { DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS, GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, WEATHERS } from '../content/weather';
 import { NOCTURNAL } from '../content/daytime';
 import { HARMONY_DIVISOR, memoryHarmonyBonus } from '../core/formulas';
 import { HARMONY_TIERS, bonusEffectLabel, listNames } from './adapters';
@@ -220,7 +220,7 @@ export function guideSections(): GuideSection[] {
       paragraphs: [
         `Jede Jahreszeit erlebt einen ganzen Tag mit Morgen, Abend und Nacht; die Hälfte der Spielzeit ist Nacht. Nachts werden ${formatNumber(NOCTURNAL.length)} Arten aktiv: ${all(nocturnal)}.${restingNames.length > 0 ? ` ${all(restingNames)} ruhen im Winter.` : ''}`,
         'Ohne Nachtarten bleibt die Nacht ohne Wirkung – du verpasst nichts, wenn du nachts nicht spielst. Solange ein Nachtbonus wirkt, leuchtet ein 🌙 an der Kachel der Art und an der Rate.',
-        'Bist du weg, rechnet das Spiel mit dem Mittel aus Wetter und Nacht; die Begrüßung sagt dann „Wetter gemittelt“. Die Einstellung „Tageszeit: Immer Tag“ ändert nur das Bild – Nacht und Wetter wirken weiter.',
+        `Bist du länger als ein paar Minuten weg (ab ${formatNumber(OFFLINE_AVERAGE_MIN_SECONDS / 60)} Minuten), rechnet das Spiel mit dem Mittel aus Wetter und Nacht; die Begrüßung sagt dann „Wetter gemittelt“. Die Einstellung „Tageszeit: Immer Tag“ ändert nur das Bild – Nacht und Wetter wirken weiter.`,
       ],
     },
     {

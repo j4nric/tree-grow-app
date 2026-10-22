@@ -266,8 +266,8 @@ export function toAnimalDetailView(
     }
   }
   // Nachtaktive Arten (DESIGN_V2.md 21.6): Nachtwirkung mit Zustand (wirkt gerade, ruht).
-  const night = nightBadge(sp.id, seasonIdAt(state.cycle.elapsed), isNight(state.cycle.elapsed));
-  if (night) effects.push({ label: nightDetailText(night), tone: night.resting ? 'neutral' : 'good' });
+  const night = nightBadge(sp.id, seasonIdAt(state.cycle.elapsed), isNight(state.cycle.elapsed), status?.happiness ?? 0);
+  if (night) effects.push({ label: nightDetailText(night), tone: night.resting || night.tooUnhappy ? 'neutral' : 'good' });
   if (sp.provides.length > 0) {
     // „bietet …“ wie auf der Karte (letzte Zeile von effectViews).
     effects.push({ label: `bietet ${sp.provides.map((t) => TAG_NAMES[t]).join(', ')}`, tone: 'neutral' });

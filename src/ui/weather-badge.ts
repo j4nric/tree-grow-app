@@ -13,7 +13,11 @@ export interface WeatherBadge {
   readonly element: HTMLButtonElement;
 }
 
-export function createWeatherBadge(root: HTMLElement): WeatherBadge {
+/**
+ * `anchor`: Knopf, hinter dem das Abzeichen in der DOM-Reihenfolge steht (Jahreszeit) – so
+ * folgen beide Knöpfe in der Tab-Reihenfolge direkt aufeinander, die Erklärung danach.
+ */
+export function createWeatherBadge(root: HTMLElement, anchor?: HTMLElement): WeatherBadge {
   const badge = el('button', 'weather-badge');
   badge.type = 'button';
   badge.dataset.ref = 'weather';
@@ -55,7 +59,9 @@ export function createWeatherBadge(root: HTMLElement): WeatherBadge {
   badge.addEventListener('keydown', closeOnEscape);
   details.addEventListener('keydown', closeOnEscape);
 
-  root.append(badge, details);
+  if (anchor?.parentElement) anchor.after(badge);
+  else root.append(badge);
+  root.append(details);
 
   const setLine = (p: HTMLElement, text: string | null) => {
     setText(p, text ?? '');

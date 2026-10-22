@@ -65,6 +65,10 @@ test('Abzeichen: Sturm mit gedämpftem Abzug, Erklärung per Tippen und Tastatur
   await expect(badge(page)).toHaveAttribute('title', /Böen zerren .* Morgen: /);
   await expect(badge(page)).toHaveAttribute('aria-expanded', 'false');
   await expect(details(page)).toBeHidden();
+  // Tab-Reihenfolge: Jahreszeit, dann gleich das Wetter.
+  await page.locator('[data-ref="season"]').focus();
+  await page.keyboard.press('Tab');
+  await expect(badge(page)).toBeFocused();
 
   // Antippen klappt die Erklärung auf: Wirkung, Dämpfung, Tipp, Vorhersage.
   await badge(page).click();
@@ -106,7 +110,8 @@ test('ein Hinweis für Jahreszeit und Wetter am selben Wechsel', async ({ page, 
 test('Nacht: 🌙 an der Rate und an der Kachel des Waldkauzes', async ({ page, context }) => {
   await startClock(page);
   // Sekunde 79: kurz vor Sonnenuntergang (Nacht ab Sekunde 81).
-  const state = forestOn('mild', ['owl'], 79);
+  // Mit Beute (Wühlmaus) ist der Kauz zufrieden genug, dass sein Nachtbonus zählt.
+  const state = forestOn('mild', ['owl', 'vole'], 79);
   await seedRaw(context, state, 0);
   await openGame(page);
   const moon = page.locator('[data-ref="growth-rate-night"]');
@@ -121,7 +126,7 @@ test('Nacht: 🌙 an der Rate und an der Kachel des Waldkauzes', async ({ page, 
   await expect(tileMoon).toHaveClass(/active/);
   await expect(page.locator('[data-ref="seeds-night"]')).toBeHidden();
   await badge(page).click();
-  await expect(details(page).locator('[data-ref="weather-daytime"]')).toContainText('nachtaktiv: Waldkauz (+10 % 🌿)');
+  await expect(details(page).locator('[data-ref="weather-daytime"]')).toContainText(/nachtaktiv: Waldkauz \(\+[\d,]+ % 🌿\)/);
 });
 
 test('Rückkehr nach Stunden: „Wetter gemittelt“ in der Begrüßung', async ({ page, context }) => {
