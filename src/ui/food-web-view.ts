@@ -118,7 +118,7 @@ const STOCK_MAX = STOCK_BASE + STOCK_RANGE;
  * Was bei Überjagung hilft – freundlich, ohne Warnton. Zufriedenere Beute hilft nur, solange
  * ihr Bestand noch wachsen kann: Sind mehr Jäger da, als die Beute selbst rundum zufrieden
  * ernähren könnte (Arten × höchster Bestand), oder ist der Bestand schon am Maximum, hilft
- * nur eine weitere Art mit dem Merkmal.
+ * nur eine weitere Art, die das Merkmal bietet („Art, die Würmer bietet“ – kein Dativ nötig).
  */
 export function overhuntHint(entry: Pick<FoodWebEntry, 'tag' | 'prey' | 'hunters' | 'stock'>): string {
   const name = tagName(entry.tag);
@@ -126,8 +126,8 @@ export function overhuntHint(entry: Pick<FoodWebEntry, 'tag' | 'prey' | 'hunters
   const hunters = entry.hunters.filter((h) => !entry.prey.includes(h)).length;
   const most = entry.prey.length * STOCK_MAX;
   const atMax = entry.stock >= most - 1e-9;
-  if (hunters > most + 1e-9 || atMax) return `Mehr Jäger als Futter – eine weitere Art mit ${name} hilft.`;
-  return `Mehr Jäger als Futter – zufriedenere Beute oder eine weitere Art mit ${name} hilft.`;
+  if (hunters > most + 1e-9 || atMax) return `Mehr Jäger als Futter – eine weitere Art, die ${name} bietet, hilft.`;
+  return `Mehr Jäger als Futter – zufriedenere Beute oder eine weitere Art, die ${name} bietet, hilft.`;
 }
 
 /** Fressen nur Arten, die selbst die Beute sind (Rote Waldameise allein bei den Insekten)? */

@@ -22,6 +22,8 @@
         <canvas id="scene" role="application" aria-roledescription="Szene" aria-label="Dein Baum und seine Bewohner"></canvas>
         <div class="stage-banner" id="stage-banner" aria-live="polite"></div>
         <div class="scene-dock" id="scene-dock"></div>
+        <!-- Hinweise: am Desktop über der Szene (über Stapel und Kamera-Knöpfen), mobil oben fest -->
+        <div class="toast" id="toast" role="status" hidden></div>
       </section>
       <aside class="panel" id="panel">
         <h1 tabindex="-1">Vom Samen zum Wald</h1>
@@ -38,7 +40,6 @@
         </footer>
       </aside>
     </main>
-    <div class="toast" id="toast" role="status" hidden></div>
     <div class="sr-only" id="live-status" role="status"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

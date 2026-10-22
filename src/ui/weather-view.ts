@@ -1,6 +1,6 @@
 /**
  * View-Model für Wetter und Nacht (DESIGN_V2.md 21.8): Abzeichen neben der Jahreszeit
- * („🌬️ Sturm · −8 % 🌿 · +25 % 🌰“) mit aufklappbaren Details (Text, Dämpfung, Vorhersage,
+ * („🌬️ Sturm · −7,5 % 🌿 · +25 % 🌰“) mit aufklappbaren Details (Text, Dämpfung, Vorhersage,
  * Tag/Nacht), gemeinsamer Hinweis für Jahreszeiten- und Wetterwechsel, 🌙 an Nachtarten,
  * Schutz-Hinweise der Pflege und „Wetter gemittelt“ in der Rückkehr-Meldung.
  * Reine Funktionen ohne DOM – alle Werte kommen aus core/weather.ts; getestet in
@@ -50,9 +50,9 @@ export interface WeatherBadgeView {
   id: WeatherId;
   /** Raue Lage (Dürre, Sturm, Frost) – das Abzeichen bekommt einen dezenten Rahmen. */
   rough: boolean;
-  /** Sichtbarer Text, z. B. „🌬️ Sturm · −8 % 🌿 · +25 % 🌰“. */
+  /** Sichtbarer Text, z. B. „🌬️ Sturm · −7,5 % 🌿 · +25 % 🌰“. */
   text: string;
-  /** Vorlesbarer Name des Knopfs, z. B. „Wetter heute: Sturm, −8 % Wachstum, +25 % Samen“. */
+  /** Vorlesbarer Name des Knopfs, z. B. „Wetter heute: Sturm, −7,5 % Wachstum, +25 % Samen“. */
   label: string;
   /** Tooltip (Maus): Text und Vorhersage in einer Zeile. */
   title: string;
@@ -82,7 +82,7 @@ export function signedPct(pct: number, whole = false): string {
   return `${pct < 0 ? MINUS : '+'}${formatNumber(shown)} %`;
 }
 
-/** Eine Wetterwirkung als Kurztext, z. B. „−8 % 🌿“ oder „Blumen +20 % 🌰“. */
+/** Eine Wetterwirkung als Kurztext, z. B. „−7,5 % 🌿“ oder „Blumen +20 % 🌰“. */
 export function weatherEffectLabel(effect: TimedEffect, whole = false): string {
   const value = signedPct(effect.pct, whole);
   switch (effect.kind) {
@@ -97,20 +97,24 @@ export function weatherEffectLabel(effect: TimedEffect, whole = false): string {
   }
 }
 
-/** Kurzform für das Abzeichen: nur 🌿 und 🌰 (Gruppen stehen in den Details), ganze Prozent. */
+/**
+ * Kurzform für das Abzeichen: nur 🌿 und 🌰 (Gruppen stehen in den Details). Gerundet wie die
+ * Erklärung (eine Nachkommastelle, ganze Zahlen ohne „,0“) – sonst stünde „−8 %“ im Abzeichen
+ * neben „−7,5 %“ in den Details.
+ */
 export function weatherBadgeEffects(effects: readonly TimedEffect[]): string[] {
-  return badgeEffects(effects).map((e) => weatherEffectLabel(e, true));
+  return badgeEffects(effects).map((e) => weatherEffectLabel(e));
 }
 
 /** 🌿 und 🌰, die gerundet nicht verschwinden (Kiefer bei Frost: kein „±0 %“ im Abzeichen). */
 function badgeEffects(effects: readonly TimedEffect[]): TimedEffect[] {
-  return effects.filter((e) => (e.kind === 'growth' || e.kind === 'seeds') && Math.round(Math.abs(e.pct)) > 0);
+  return effects.filter((e) => (e.kind === 'growth' || e.kind === 'seeds') && Math.round(Math.abs(e.pct) * 10) > 0);
 }
 
-/** Für Screenreader: „−8 % Wachstum, +25 % Samen“. */
+/** Für Screenreader: „−7,5 % Wachstum, +25 % Samen“. */
 function spokenEffects(effects: readonly TimedEffect[]): string {
   return badgeEffects(effects)
-    .map((e) => `${signedPct(e.pct, true)} ${e.kind === 'growth' ? 'Wachstum' : 'Samen'}`)
+    .map((e) => `${signedPct(e.pct)} ${e.kind === 'growth' ? 'Wachstum' : 'Samen'}`)
     .join(', ');
 }
 

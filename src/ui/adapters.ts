@@ -92,7 +92,7 @@ import { animalStock, foodWebView, huntFoodText, overhuntNotes, preyIcon, stockE
 import { memoryBonusLabel, treeLabel } from './cycle-view';
 import { effectiveForestMemory } from '../core/landscape';
 import { journalLandscapeCount, toJournalLandscapeView } from './journal-landscape-view';
-import { RARITY_LABELS, formatSigned, formatSignedPercent, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
+import { RARITY_LABELS, formatSigned, formatSignedPercent, isFullHappiness, isScarceFood, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
 import type {
   ActiveBonusView,
@@ -248,7 +248,8 @@ export function conditionViews(
 ): ConditionView[] {
   const food = status?.food ?? 0;
   const foodRow: ConditionView = { label: foodLabel(species), met: food > 0 };
-  if (food > 0 && food < 1) {
+  if (isScarceFood(food)) {
+    foodRow.partial = true;
     foodRow.label += ' (knapp)';
     foodRow.hint = scarceFoodText(species, present);
   }
@@ -390,7 +391,9 @@ export function moodReasons(species: Species, status: AnimalStatus, present: rea
     const names = named(disturbersOf(species, present));
     reasons.push(names.length > 0 ? `wird gestört von ${listNames(names)}` : 'wird gestört');
   }
-  if (status.food > 0 && status.food < 1) {
+  // Futter als Grund nur, wenn es wirklich knapp ist – bei voller Zufriedenheit nie
+  // („100 % · findet wenig Futter“ widerspräche sich).
+  if (isScarceFood(status.food) && !isFullHappiness(status.happiness)) {
     const rivals = named(foodCompetitors(species, present));
     reasons.push(rivals.length > 0 ? `teilt sich das Futter mit ${listNames(rivals)}` : 'findet wenig Futter');
   }

@@ -62,7 +62,7 @@ describe('Nahrungsnetz der Übersicht', () => {
     expect(mice.stateLabel).toBe('überjagt');
     // Bestand am Maximum: Zwei Jäger brauchen mehr, als eine Wühlmaus je bieten kann (1,5) –
     // zufriedenere Beute hilft nicht, nur eine weitere Art.
-    expect(mice.hint).toBe('Mehr Jäger als Futter – eine weitere Art mit Kleinsäuger hilft.');
+    expect(mice.hint).toBe('Mehr Jäger als Futter – eine weitere Art, die Kleinsäuger bietet, hilft.');
     expect(mice.stock).toEqual(stockView(ev.animals.vole!.stock!));
     // Würmer: der Igel frisst sie → im Gleichgewicht.
     const worms = view.rows.find((r) => r.tag === 'wuermer')!;
@@ -78,12 +78,12 @@ describe('Nahrungsnetz der Übersicht', () => {
     const base = { tag: 'kleinsaeuger' as const, prey: ['vole'] };
     // Bestand kann noch wachsen und reichte dann für alle Jäger.
     expect(overhuntHint({ ...base, hunters: ['owl'], stock: 0.6 })).toBe(
-      'Mehr Jäger als Futter – zufriedenere Beute oder eine weitere Art mit Kleinsäuger hilft.',
+      'Mehr Jäger als Futter – zufriedenere Beute oder eine weitere Art, die Kleinsäuger bietet, hilft.',
     );
     // Bestand schon am Maximum.
-    expect(overhuntHint({ ...base, hunters: ['owl'], stock: max })).toBe('Mehr Jäger als Futter – eine weitere Art mit Kleinsäuger hilft.');
+    expect(overhuntHint({ ...base, hunters: ['owl'], stock: max })).toBe('Mehr Jäger als Futter – eine weitere Art, die Kleinsäuger bietet, hilft.');
     // Mehr Jäger, als die Beute rundum zufrieden ernähren könnte.
-    expect(overhuntHint({ ...base, hunters: ['owl', 'fox'], stock: 0.6 })).toBe('Mehr Jäger als Futter – eine weitere Art mit Kleinsäuger hilft.');
+    expect(overhuntHint({ ...base, hunters: ['owl', 'fox'], stock: 0.6 })).toBe('Mehr Jäger als Futter – eine weitere Art, die Kleinsäuger bietet, hilft.');
   });
 
   it('Arten, die sich selbst fressen (Rote Waldameise): „frisst Artgenossen“, kein Jäger von außen', () => {
@@ -228,7 +228,7 @@ describe('Tierdetails: Räuber und Beute', () => {
     expect(view.predation[0]!.label).toBe(`Bestand: ${stockView(ev.animals.vole!.stock!).label}`);
     const prey = view.predation[1]!;
     expect(prey.label).toMatch(/^Kleinsäuger: überjagt von (Waldkauz und Rotfuchs|Rotfuchs und Waldkauz)$/);
-    expect(prey.hint).toBe('Mehr Jäger als Futter – eine weitere Art mit Kleinsäuger hilft.');
+    expect(prey.hint).toBe('Mehr Jäger als Futter – eine weitere Art, die Kleinsäuger bietet, hilft.');
     // Freundlich: kein Warnton.
     expect(prey.tone).toBe('neutral');
   });
@@ -247,7 +247,7 @@ describe('Tierdetails: Räuber und Beute', () => {
     const state = stateAt(OLD_TREE, ['vole', 'owl', 'fox']);
     const owl = toAnimalDetailView(state, 'owl')!;
     expect(owl.predation).toEqual([
-      { key: 'hunt-kleinsaeuger', icon: '🐭', label: 'Futter Kleinsäuger: zu knapp für 2 Jäger', hint: 'Mehr Jäger als Futter – eine weitere Art mit Kleinsäuger hilft.', tone: 'neutral' },
+      { key: 'hunt-kleinsaeuger', icon: '🐭', label: 'Futter Kleinsäuger: zu knapp für 2 Jäger', hint: 'Mehr Jäger als Futter – eine weitere Art, die Kleinsäuger bietet, hilft.', tone: 'neutral' },
     ]);
     const calm = stateAt(OLD_TREE, ['vole', 'owl']);
     const fed = toAnimalDetailView(calm, 'owl')!.predation[0]!;

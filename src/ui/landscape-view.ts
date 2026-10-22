@@ -14,7 +14,7 @@ import {
 } from '../content/landscape';
 import { STAGES } from '../content/stages';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
-import { ANCIENT_STAGE, activeSite, effectiveForestMemory, ownMemory } from '../core/landscape';
+import { ANCIENT_STAGE, activeSite, effectiveForestMemory, effectiveMemoryOf, ownMemory } from '../core/landscape';
 import type { GameState } from '../core/state';
 import {
   landscapeCorridors,
@@ -50,7 +50,10 @@ export interface LandscapeSiteView {
   status: string;
   /** Stimmungstext. */
   text: string;
-  /** Gedächtnis eigen/wirksam, z. B. „Gedächtnis 120 eigen · 270 wirksam dort“. */
+  /**
+   * Gedächtnis eigen/wirksam heute, z. B. „Gedächtnis 120 eigen · 270 wirksam dort“; ändert der
+   * laufende Zyklus den Wert, mit „(nach diesem Zyklus 275)“.
+   */
   memory: string;
   /** Hauptbaum bzw. Leitbaum, z. B. „Leitbaum: 🌲 Waldkiefer“. */
   tree: string;
@@ -195,14 +198,27 @@ function siteStatus(choice: SiteChoice): string {
 
 function siteMemoryText(state: GameState, choice: SiteChoice, allowed: boolean): string {
   if (choice.active) {
+    // Erst der Stand heute (wie im Tagebuch), dann benannt der Stand nach diesem Zyklus
+    // (ganzzahlig wie oben – exakte Vergleiche).
     const own = ownMemory(state, choice.id);
     const effective = effectiveForestMemory(state);
-    const after = allowed && choice.memory > own ? ` (nach diesem Zyklus ${formatNumber(choice.memory)})` : '';
     const inflow = effective > own ? ` · ${formatNumber(effective)} wirksam` : '';
-    return `Gedächtnis ${formatNumber(own)} eigen${after}${inflow}`;
+    const later: string[] = [];
+    if (allowed && choice.memory > own) later.push(`${formatNumber(choice.memory)} eigen`);
+    if (allowed && choice.effectiveMemory > choice.memory && choice.effectiveMemory !== effective) {
+      later.push(`${formatNumber(choice.effectiveMemory)} wirksam`);
+    }
+    const after = later.length > 0 ? ` (nach diesem Zyklus ${later.join(' · ')})` : '';
+    return `Gedächtnis ${formatNumber(own)} eigen${inflow}${after}`;
   }
   if (choice.founded) {
-    return `Gedächtnis ${formatNumber(choice.memory)} eigen · ${formatNumber(choice.effectiveMemory)} wirksam dort`;
+    // `choice.effectiveMemory` rechnet schon mit dem Gewinn dieses Zyklus (Zufluss vom aktiven
+    // Wald) – das Tagebuch zeigt den Stand heute. Weichen beide ab, stehen beide benannt da.
+    // Gedächtnis ist ganzzahlig (der Zufluss wird abgerundet, core/landscape.ts) – der
+    // Vergleich ist exakt, gleiche Anzeige heißt gleicher Wert.
+    const today = effectiveMemoryOf(state, choice.id);
+    const after = choice.effectiveMemory !== today ? ` (nach diesem Zyklus ${formatNumber(choice.effectiveMemory)})` : '';
+    return `Gedächtnis ${formatNumber(choice.memory)} eigen · ${formatNumber(today)} wirksam dort${after}`;
   }
   const corridor = choice.freeCorridor ? CORRIDORS_BY_ID.get(choice.freeCorridor) : undefined;
   return corridor
