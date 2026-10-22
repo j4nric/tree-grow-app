@@ -199,13 +199,21 @@ const POND_SLOTS = [-0.8, 0.75, -0.05, 1, -1];
 
 /**
  * Totholzhaufen: Gegenstück zum Tümpel am **rechten** Bildrand im Erdschnitt – gleiche
- * Maße (POND_LIP … POND_DEPTH, gleiche halbe Breite), gespiegelt. So gelten dieselben
- * Regeln: nichts an der Oberfläche reicht hinein, der Wurzelraum liegt tiefer.
+ * Höhen (POND_LIP … POND_DEPTH), gleiche Regeln: nichts an der Oberfläche reicht hinein,
+ * der Wurzelraum liegt tiefer bzw. daneben.
  */
 export function pileGeometry(layout: Layout, size: number): PondGeometry {
   const p = pondGeometry(layout, size);
-  return { ...p, x: layout.width - p.x };
+  // Zum Stamm hin mehr Abstand als der Tümpel: Rechts liegt ein Wurzelraum-Platz flacher.
+  const margin = size * 0.1;
+  const room = (layout.cx - PILE_TRUNK_CLEAR * size - margin) / (2 * size);
+  const halfWidth = Math.floor(clamp(room, POND_HALF_WIDTH, POND_HALF_WIDTH_MAX) * 20) / 20;
+  const x = layout.width - Math.min(layout.cx - size, halfWidth * size + margin);
+  return { ...p, x, halfWidth };
 }
+
+/** So viel Abstand (Tiergrößen) hält der linke Rand des Haufens von der Stammmitte. */
+const PILE_TRUNK_CLEAR = 2.4;
 
 /** Morscher Stubben am äußeren Ende des Haufens: Abstand seiner Mitte vom Rand und halbe Breite (Tiergrößen). */
 export const PILE_STUMP_IN = 0.5;
@@ -233,7 +241,7 @@ const HABITAT_CLEAR = 3.2;
 const HABITAT_HALF_MIN = 1.6;
 const HABITAT_HALF_MAX = 3.6;
 /** Der Turmfalke rüttelt so hoch über der Linie der Wiese (Mitte, Tiergrößen). */
-export const SOAR_LIFT = 1.3;
+export const SOAR_LIFT = 1.55;
 
 export interface MidgroundGeometry {
   /** Mitte des Streifens und Linie, auf der die Bewohner stehen (CSS-Pixel). */

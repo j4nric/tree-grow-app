@@ -1522,11 +1522,15 @@ function placeMidground(niche: 'meadow' | 'wall', items: HabitatItem[], anchors:
   const k0 = HABITAT_SCALE;
   const left = m.x - m.halfWidth * S;
   const right = m.x + m.halfWidth * S;
-  // Flieger (Turmfalke) rütteln über der Wiese, gleichmäßig über den Streifen verteilt.
+  // Flieger (Turmfalke) rütteln über der Wiese.
   const sky = items.filter((it) => it.info.soar && niche === 'meadow');
-  sky.forEach((it, n) => {
-    const c = left + ((n + 1) / (sky.length + 1)) * (right - left);
+  // Vom äußeren Rand her: Dort reicht die Krone am wenigsten tief.
+  let edge = m.side === 1 ? right : left;
+  sky.forEach((it) => {
     const size = S * it.info.size * k0;
+    const half = (it.w * k0 * S) / 2;
+    const c = edge - m.side * half;
+    edge -= m.side * (2 * half + HABITAT_GAP * S);
     // In der Luft vor dem Laub (Reihe 0): Auf schmalen Bildschirmen reicht die Krone bis hierher.
     out[it.i] = { ...habitatBase(), x: c, y: m.skyY, dir: m.side === 1 ? -1 : 1, size, scale: k0, pivot: true };
   });
