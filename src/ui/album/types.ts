@@ -17,7 +17,8 @@ export interface AlbumActions {
   /** Kartenwahl der vordersten Begegnung: Wählen, Ablehnen, Neu würfeln. */
   encounter: Required<Pick<EncounterCallbacks, 'onChoose' | 'onDecline' | 'onReroll'>>;
   plant(plantId: string): void;
-  buyCare(id: string): void;
+  /** Kauft den nächsten Rang einer Pflegemaßnahme; `true` bei Erfolg. */
+  buyCare(id: string): boolean | void;
   newCycle(mainTree: MainTreeId, site?: SiteId): void;
   buildCorridor(id: string): void;
   toggleRegular(speciesId: string): void;

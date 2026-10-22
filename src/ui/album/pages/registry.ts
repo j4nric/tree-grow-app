@@ -14,6 +14,7 @@ import { createCarePage } from './care-page';
 import { createGoalsPage } from './goals-page';
 import { createLandscapePage } from './landscape-page';
 import { createSavePage } from './save-page';
+import { createCareItemPage } from './care-item-page';
 import { createAnimalPage } from './animal-page';
 import { createFoodWebPage } from './food-web-page';
 import { createHarmonyPage } from './harmony-page';
@@ -35,6 +36,8 @@ export interface PageEnv {
   back(): void;
   /** Unterseite aufschlagen (Umblättern). */
   open(page: PageRef): void;
+  /** Schwebende Bestätigung an Bildschirm-Koordinaten (clientX/Y). */
+  float(text: string, x: number, y: number): void;
   /** Aktuelle Ökosystem-Ansicht (aus dem Game Loop, gedrosselt). */
   readonly eco: EcoFeed;
 }
@@ -43,6 +46,8 @@ export interface PageEnv {
 export interface TabPage {
   readonly page: Page;
   update?(now: number): void;
+  /** Punkt am Reiter (G-13); läuft bei jedem Auffrischen, auch verborgen – billig halten. */
+  badge?(now: number): boolean;
 }
 
 /** Unterseite (Ebene 1–2): eigenes Lesezeichen, je Art einmal gebaut. */
@@ -66,6 +71,7 @@ export const TAB_PAGES = {
 
 export const SUBPAGES = {
   save: createSavePage,
+  'care-item': createCareItemPage,
   animal: createAnimalPage,
   harmony: createHarmonyPage,
   foodweb: createFoodWebPage,

@@ -268,6 +268,7 @@ const eco: { view: EcosystemView | null; serial: number } = { view: null, serial
 const niches = createNichesPage({
   deps: {} as AlbumDeps,
   back() {},
+  float: (text) => note(text),
   open: (page) => note(`Umblättern: ${page.kind}${'id' in page ? ` ${page.id}` : ''}`),
   eco,
 });

@@ -44,7 +44,7 @@ import {
   type TabId,
 } from './nav';
 import { TURNED_AWAY, createPageTurn } from './page-turn';
-import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type SubpageKind } from './pages/registry';
+import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type TabPage } from './pages/registry';
 import { createPolaroid } from './polaroid';
 import { createSpread } from './spread';
 import { createStageLadder } from './stage-ladder';
@@ -99,7 +99,13 @@ export function createAlbum(deps: AlbumDeps): Album {
   const book = createBook(spread, cover.element, () => dispatch({ type: 'cover', open: !nav.cover }));
   /** Ökosystem-Ansicht für die Seiten (legacy.ts rechnet sie, `showSummary` reicht sie weiter). */
   const eco: { view: EcosystemView | null; serial: number } = { view: null, serial: 0 };
-  const env: PageEnv = { deps, back: () => goBack(), open: (page) => dispatch({ type: 'open', page }), eco };
+  const env: PageEnv = {
+    deps,
+    back: () => goBack(),
+    open: (page) => dispatch({ type: 'open', page }),
+    float: (text, x, y) => legacy.float(text, x, y),
+    eco,
+  };
 
   // Linke Seite: Polaroid, Etiketten, Stufenleiste, Rückkehr-Bericht.
   const polaroid = createPolaroid(deps.canvas, () => dispatch({ type: 'fullscreen', open: true }));
@@ -141,9 +147,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   const subpages = new Map<string, Subpage>();
   const savePage = SUBPAGES.save(env);
   subpages.set('save', savePage);
-  for (const [kind, create] of Object.entries(SUBPAGES) as [SubpageKind, (env: PageEnv) => Subpage][]) {
-    if (!subpages.has(kind)) subpages.set(kind, create(env));
-  }
+  for (const [kind, create] of Object.entries(SUBPAGES)) if (!subpages.has(kind)) subpages.set(kind, create(env));
   for (const sub of subpages.values()) {
     sub.page.element.hidden = true;
     spread.sub.append(sub.page.element);
@@ -391,7 +395,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     } else if (coverSame && a.length === b.length + 1 && prefix(b, a)) {
       // Zurück: verlassene Seite dreht sich über die Unterseite zurück – mit frischem Inhalt.
       const sub = subpageOf(a[a.length - 1]!)!;
-      refreshLevel(next, b.length, performance.now());
+      refreshPages(performance.now());
       await turn.back(levelElement(next, b.length), sub.page.element);
       if (b.length === 0) spread.sub.hidden = true;
       lockScroll();
@@ -406,7 +410,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       settleTurns();
     }
     // Was jetzt oben liegt, sofort nachziehen (z. B. Reiterseite nach dem Schließen des Umschlags).
-    refreshLevel(nav, nav.stack.length, performance.now());
+    refreshPages(performance.now());
   }
 
   /**
@@ -435,16 +439,6 @@ export function createAlbum(deps: AlbumDeps): Album {
     sub.bookmark.setLabel(below ?? (state.cover ? 'Umschlag' : TAB_LABELS[state.tab]));
     sub.page.setNumber(pageNumber({ ...state, stack: state.stack.slice(0, level) }));
     sub.opened?.(state.stack[level - 1]!);
-  }
-
-  /**
-   * Nur sichtbare Seiten werden aktualisiert (D.1): die oberste Unterseite bzw. – ohne
-   * Unterseite und Umschlag – der aktuelle Reiter. Unsichtbare holen beim Zeigen nach.
-   */
-  function refreshLevel(state: AlbumNav, level: number, now: number): void {
-    if (level > 0) subpageOf(state.stack[level - 1]!)?.update?.(now);
-    // Auf der Doppelseite liegt der Umschlag links – die Reiterseite rechts bleibt sichtbar.
-    else if (!state.cover || book.layout === 'spread') tabs[state.tab].update?.(now);
   }
 
   /** Alle weggedrehten Seiten wieder hinlegen (ohne Animation). */
@@ -515,12 +509,23 @@ export function createAlbum(deps: AlbumDeps): Album {
     }
   }
 
+  /** Seiten auffrischen: sichtbare Reiterseite und oberste Unterseite, Punkte an allen Reitern. */
+  function refreshPages(now: number): void {
+    for (const id of TAB_IDS) {
+      const tab: TabPage = tabs[id];
+      if (tab.badge) tabStrip.setDot(id, tab.badge(now));
+    }
+    tabs[nav.tab].update?.(now);
+    const top = nav.stack[nav.stack.length - 1];
+    if (top) subpageOf(top)?.update?.(now);
+  }
+
   // --- Schnittstelle für main.ts ---------------------------------------------------------
   return {
     ...legacy,
     refresh(now) {
       legacy.refresh(now);
-      refreshLevel(nav, nav.stack.length, now);
+      refreshPages(now);
     },
     sceneFrame: fullscreen.tools,
     banners: book.banners,
@@ -540,7 +545,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     replaced() {
       legacy.replaced();
       closeNotes();
-      savePage.reset?.();
+      for (const sub of subpages.values()) sub.reset?.();
     },
     adopted(headChanged) {
       legacy.adopted(headChanged);
