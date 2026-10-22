@@ -1122,9 +1122,13 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
  * Zähler des Caches eines Canvas (für Tests: Kulisse nur bei Änderung neu, keine Arbeit pro
  * Frame) – null, wenn auf diesem Canvas noch nichts gezeichnet wurde.
  */
-export function sceneCacheStats(canvas: HTMLCanvasElement): { staticBuilds: number; siteFade: boolean; jaySpriteBuilds: number; jayPrepared: boolean } | null {
+export function sceneCacheStats(
+  canvas: HTMLCanvasElement,
+): { staticBuilds: number; tintBuilds: number; siteFade: boolean; jaySpriteBuilds: number; jayPrepared: boolean } | null {
   const c = caches.get(canvas);
-  return c ? { staticBuilds: c.staticBuilds, siteFade: c.siteFade !== null, jaySpriteBuilds: c.jay.builds, jayPrepared: c.jay.prepared } : null;
+  return c
+    ? { staticBuilds: c.staticBuilds, tintBuilds: c.tintBuilds, siteFade: c.siteFade !== null, jaySpriteBuilds: c.jay.builds, jayPrepared: c.jay.prepared }
+    : null;
 }
 
 /** Ruht die Kamera (gleicher Ausschnitt seit ~150 ms bzw. einigen Frames bei stehender Zeit)? */
