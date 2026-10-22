@@ -1005,10 +1005,18 @@ album.notify(text: string, options?: NotifyOptions): void;   // leerer Text: nic
   steht eine Banderole im Bild, rückt die Schicht darunter (gemessen beim Zeigen und per
   ResizeObserver an den Banderolen, nie pro Frame). Klicks gehen durch, nur „×“ fängt sie.
 - Übergang bis Schritt 12: Ist ein alter Dialog mit eigenem Hinweisfeld offen (Kartenwahl,
-  Pflanzenwahl, Tagebuch, Tierdetails, Hilfe), landet die Meldung dort, sonst verdeckte der
-  modale Dialog den Stempel. Mit den Dialogen fällt diese Weiche weg.
+  Pflanzenwahl, Tagebuch, Tierdetails), landet die Meldung dort, sonst verdeckte der
+  modale Dialog den Stempel. Mit den Dialogen fällt diese Weiche weg (die Hilfe seit
+  Schritt 11).
 - e2e: `stamps(page)` ist die Schicht (für „enthält“), `stamp(page)` die neueste Meldung,
   `settledStamp(page)` dieselbe nach dem Hereinstempeln (für Lage und Größe).
+
+**Umschlag-Seiten** (Schritt 11): Der Umschlag öffnet `{ kind: 'guide' }` (Inhaltsverzeichnis),
+`settings`, `account` und `save`. Ein Kapitel ist `{ kind: 'guide', section }` auf Ebene 2 mit
+eigener Seite (`subpageKey` in `pages/registry.ts`); Weiterblättern zum Nachbarkapitel ersetzt
+die oberste Seite. Der Konto-Abschnitt kommt über `album.mountAccount(section)` (sync/account.ts
+über main.ts) und schaltet den Eintrag im Umschlag frei. Rückkehr: `album.showReturnReport(view)`
+zeigt den Zettel und stempelt die Kurzfassung, `hideReturnReport()` blendet ihn aus.
 
 **Banderole** (`album/banderole.ts`): `createBanderole({ tone: 'tape' | 'alert', ref, role, text,
 buttons })` hängt in `album.banners`. Gelb: Update-Hinweis (`pwa.ts`, `mount: album.banners`),

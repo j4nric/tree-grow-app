@@ -50,7 +50,7 @@ import { toReturnReportView } from './ui/return-report-view';
 import { dailyCompletedText } from './ui/daily-view';
 import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText } from './ui/cycle-view';
 import { createWildwechselMarks, wildwechselMarkOf } from './ui/wildwechsel-view';
-import { initPreferences } from './ui/help';
+import { initPreferences } from './ui/preferences';
 import { createSound } from './ui/sound';
 import { IMPORT_ERROR_TEXTS, NEWER_STORED_SAVE_TEXT, type SaveTransferCallbacks } from './ui/save-transfer';
 import { setupServiceWorker } from './ui/pwa';
@@ -574,7 +574,7 @@ function setupAccount(): void {
     .then(({ startAccount }) => {
       account = startAccount({
         url,
-        mount: (section) => album.addSettingsSection(section),
+        mount: (section) => album.mountAccount(section),
         game: {
           snapshot: () => exportCode(state),
           localProgress: () => progressOfState(state),
@@ -825,7 +825,7 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
     const notice = catchUpNotice(away, report, state.pendingEncounters.length, { from: stageBefore, to: state.stage });
     if (notice?.kind === 'welcome') {
       // Eine Meldung für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt –
-      // Desktop wie mobil nur die Kurzfassung, alles Weitere im Rückkehr-Bericht (ui/return-report.ts).
+      // Desktop wie mobil nur die Kurzfassung, alles Weitere im Rückkehr-Bericht (ui/album/return-report.ts).
       const stages = { from: stageBefore, to: state.stage };
       const view = toReturnReportView({ away, report, waiting: state.pendingEncounters.length, stages, notes });
       album.showReturnReport(view);

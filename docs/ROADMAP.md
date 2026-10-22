@@ -580,9 +580,21 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
 - [ ] **10** Reiter Landschaft (`ui-dev`): Karte, Unterseite Standort, Korridore, Wälder,
   gemeinsames Ziel mit dem Neuen Zyklus. Specs landscape, journal-landscape, wildwechsel.
   Abhängig: 9
-- [ ] **11** Umschlag und Zettel (`ui-dev`): Anleitung als Kapitel, Einstellungen, Konto,
+- [x] **11** Umschlag und Zettel (`ui-dev`): Anleitung als Kapitel, Einstellungen, Konto,
   Spielstand + Löschen, „Neu hier?“, Rückkehr-Zettel + Unterseite, Banderolen. Specs help,
-  sound, account, save-transfer, pwa, return-report. Abhängig: 4
+  sound, account, save-transfer, pwa, return-report. Abhängig: 4. *Umgesetzt:* Umschlag mit
+  eingeklebtem Titelschild und vier Papierstreifen (`album/cover.ts`), jeder blättert zu seiner
+  Unterseite: U:Anleitung als Inhaltsverzeichnis (Ebene 1) mit Kapitelseiten (Ebene 2,
+  `{ kind: 'guide', section }`, eigene Seite über `subpageKey`), „‹ Kapitel davor / nächstes
+  Kapitel ›“ ersetzt die oberste Seite; Inhalt und Sichtbarkeitsregel (Landschaft, Erfolge)
+  unverändert aus `guide-view.ts`. U:Einstellungen (`pages/settings-page.ts`), U:Konto
+  (`pages/account-page.ts`, `album.mountAccount`; Eintrag nur mit Sync-Adresse), U:Spielstand
+  mit Export/Import als Karteikarten und „Neu anfangen“. „Neu hier?“ ist eine Haftnotiz am
+  Umschlag-Knopf (`album/guide-hint.ts`, ohne Fokusraub). Rückkehr-Zettel „Während du weg
+  warst …“ mit „Details ›“ (U:Rückkehr-Bericht) und „Abheften“ (`album/return-report.ts`).
+  `initPreferences` liegt jetzt in `ui/preferences.ts`; `help.ts` und `return-report.ts` samt
+  CSS gelöscht, Hinweisfeld der Hilfe entfällt (Meldungen gehen als Stempel). Ebene 2 liegt in
+  derselben Ablage wie Ebene 1 (übereinander, die weggedrehte zählt nicht zur Höhe).
 - [ ] **12** Aufräumen (`ui-dev`): Altbauteile und altes CSS löschen, `index.html` neu, Album-Demo,
   DESIGN_V2.md 11 und README-Bilder. Abhängig: 5–11
 - [ ] **13** e2e-Abschluss (`qa-tester`): restliche Specs (smoke, playtest*-UI), neue

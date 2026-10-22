@@ -4,9 +4,9 @@
  * `invalidate(...)` und Hinweise mit `notify(text)`; Spieleraktionen kommen über
  * `deps.actions` zurück.
  *
- * Hier: Buch, Doppelseite/Einzelseite, Reiter, Umschlag, Umblättern, Verlauf und Hash,
- * Polaroid mit Vollbild der Szene, Etiketten und Stufenleiste, Haftnotizen, Stempel und
- * Banderolen. Die bisherigen Bauteile hängen bis zu ihrem Schritt als Übergangsinhalt in den
+ * Hier: Buch, Doppelseite/Einzelseite, Reiter, Umschlag mit seinen Unterseiten (Anleitung,
+ * Einstellungen, Konto, Spielstand), Umblättern, Verlauf und Hash, Polaroid mit Vollbild der
+ * Szene, Etiketten und Stufenleiste, Rückkehr-Zettel, Haftnotizen, Stempel und Banderolen. Die bisherigen Bauteile hängen bis zu ihrem Schritt als Übergangsinhalt in den
  * Reitern (legacy.ts).
  */
 import { LANDSCAPE_SITES } from '../../content/landscape';
@@ -24,6 +24,7 @@ import { createBook } from './book';
 import { createCover } from './cover';
 import { createBanderole } from './banderole';
 import { createFullscreen } from './fullscreen';
+import { showGuideHint } from './guide-hint';
 import { createAlbumHistory } from './history';
 import { createLabelNotes } from './label-notes';
 import { createLegacyUi, type LegacyUi } from './legacy';
@@ -36,6 +37,7 @@ import {
   initialNav,
   navigate,
   pageNumber,
+  subpageKey,
   tabFromHash,
   type AlbumNav,
   type NavAction,
@@ -44,14 +46,17 @@ import {
   type TabId,
 } from './nav';
 import { TURNED_AWAY, createPageTurn } from './page-turn';
+import { createAccountPage } from './pages/account-page';
 import { SUBPAGES, TAB_PAGES, type PageEnv, type Subpage, type TabPage } from './pages/registry';
 import { createPolaroid } from './polaroid';
+import { createReturnReport } from './return-report';
 import { createSpread } from './spread';
 import { createStageLadder } from './stage-ladder';
 import { createStamps } from './stamps';
 import { createTabStrip } from './tab-strip';
 import { createTapeLabel } from './tape-label';
 import type { AlbumDeps } from './types';
+import { returnToastText, type ReturnReportView } from '../return-report-view';
 
 export type { AlbumDeps, AlbumActions, AlbumPart } from './types';
 export type { NotifyOptions } from './stamp-rules';
@@ -76,6 +81,11 @@ export interface Album extends LegacyUi {
   showSceneAnimal(target: AnimalDetailTarget): void;
   /** Dauerhafter Hinweis: Im Speicher liegt ein Stand einer neueren Spielversion. */
   showNewerSaveBanner(text: string): void;
+  /** Rückkehr-Zettel mit neuem Bericht (C.8); die Kurzfassung kommt als Stempel dazu. */
+  showReturnReport(view: ReturnReportView): void;
+  hideReturnReport(): void;
+  /** Konto-Abschnitt (sync/account.ts) in die Unterseite „Konto“; zeigt den Eintrag im Umschlag. */
+  mountAccount(section: HTMLElement): void;
   /** Aktueller Navigationszustand (nur lesen; für Tests und Fehlersuche). */
   readonly nav: Readonly<AlbumNav>;
 }
@@ -94,7 +104,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   const spread = createSpread(tabStrip.element);
   const cover = createCover({
     onClose: () => goBackTo((n) => !n.cover),
-    onOpenSave: () => dispatch({ type: 'open', page: { kind: 'save' } }),
+    onOpen: (kind) => dispatch({ type: 'open', page: { kind } }),
   });
   const book = createBook(spread, cover.element, () => dispatch({ type: 'cover', open: !nav.cover }));
   /** Ökosystem-Ansicht für die Seiten (legacy.ts rechnet sie, `showSummary` reicht sie weiter). */
@@ -120,9 +130,8 @@ export function createAlbum(deps: AlbumDeps): Album {
     { onMore: () => dispatch({ type: 'open', page: { kind: 'harmony' } }), available: () => subpages.has('harmony') },
   );
   const ladder = createStageLadder();
-  const returnMount = el('div', 'album-return panel');
-  returnMount.id = 'return-report';
-  spread.left.append(polaroid.element, labels, ladder.element, returnMount);
+  const returnReport = createReturnReport(env, () => focusTarget());
+  spread.left.append(polaroid.element, labels, ladder.element, returnReport.slip);
 
   // Reiterseiten (eine Zeile je Seite in pages/registry.ts).
   const tabs = {
@@ -147,6 +156,9 @@ export function createAlbum(deps: AlbumDeps): Album {
   const subpages = new Map<string, Subpage>();
   const savePage = SUBPAGES.save(env);
   subpages.set('save', savePage);
+  const accountPage = createAccountPage(env);
+  subpages.set('account', accountPage);
+  subpages.set('return-report', returnReport.subpage);
   for (const [kind, create] of Object.entries(SUBPAGES)) if (!subpages.has(kind)) subpages.set(kind, create(env));
   for (const sub of subpages.values()) {
     sub.page.element.hidden = true;
@@ -168,10 +180,6 @@ export function createAlbum(deps: AlbumDeps): Album {
       ...tabs,
       season: polaroid.season,
       photo: polaroid.stamps,
-      returnReport: returnMount,
-      coverMenu: cover.menu,
-      hint: book.headStart,
-      coverButton: book.coverButton,
       dock: book.dock,
     },
     {
@@ -189,6 +197,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   );
   // Haftnotizen (C.4): offene Notiz steht in nav.note; Navigation schließt sie.
   onNoteChange((id) => dispatch({ type: 'note', id }));
+  showGuideHint(deps.newGame, book.coverButton, () => dispatch({ type: 'open', page: { kind: 'guide' } }));
 
   // --- Szene: Vollbild, Haftnotiz zum Tier, Sichtbarkeit (C.6, D.3) ----------------------
   const fullscreen = createFullscreen({
@@ -308,7 +317,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       queue.push(() => dispatch(action));
       return;
     }
-    if (action.type === 'open' && !subpages.has(action.page.kind)) return;
+    if (action.type === 'open' && !subpages.has(subpageKey(action.page))) return;
     const next = navigate(nav, action, ctx);
     if (next === nav) return;
     if (action.type === 'open') triggers[next.stack.length - 1] = activeButton();
@@ -367,7 +376,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   }
 
   function subpageOf(ref: PageRef): Subpage | undefined {
-    return subpages.get(ref.kind);
+    return subpages.get(subpageKey(ref));
   }
 
   async function render(prev: AlbumNav, next: AlbumNav): Promise<void> {
@@ -391,6 +400,8 @@ export function createAlbum(deps: AlbumDeps): Album {
       spread.sub.hidden = false;
       lockScroll();
       await turn.forward(levelElement(next, b.length - 1), sub.page.element);
+      // Ebene 2 teilt sich die Ablage mit Ebene 1: oben anfangen, nicht bei deren Scroll-Lage.
+      if (b.length > 1) spread.sub.scrollTop = 0;
       sub.page.focusTitle();
     } else if (coverSame && a.length === b.length + 1 && prefix(b, a)) {
       // Zurück: verlassene Seite dreht sich über die Unterseite zurück – mit frischem Inhalt.
@@ -505,7 +516,9 @@ export function createAlbum(deps: AlbumDeps): Album {
     const site = activeSite(state.meta.landscape);
     if (site !== shownSite) {
       shownSite = site;
-      book.setForestName(LANDSCAPE_SITES.find((s) => s.id === site)?.name ?? '');
+      const name = LANDSCAPE_SITES.find((s) => s.id === site)?.name ?? '';
+      book.setForestName(name);
+      cover.setForestName(name);
     }
   }
 
@@ -550,6 +563,17 @@ export function createAlbum(deps: AlbumDeps): Album {
     adopted(headChanged) {
       legacy.adopted(headChanged);
       savePage.disarm();
+    },
+    showReturnReport(view) {
+      returnReport.show(view);
+      // Kurzfassung als Stempel bzw. Zettel (höchstens drei Zeilen) – Desktop wie mobil;
+      // alles Weitere steht im Rückkehr-Bericht (C.8).
+      legacy.notify(returnToastText(view, true), { brief: true });
+    },
+    hideReturnReport: () => returnReport.hide(),
+    mountAccount(section) {
+      accountPage.mount(section);
+      cover.showAccount();
     },
     showNewerSaveBanner(text) {
       if (book.banners.querySelector('[data-ref="newer-save-banner"]')) return;

@@ -21,7 +21,6 @@ function comparable(save: Record<string, any>) {
 
 async function openTransfer(page: Page): Promise<void> {
   await openSavePage(page);
-  if (!(await transfer(page).locator('[data-ref="export"]').isVisible())) await transfer(page).locator('summary').click();
   await expect(transfer(page).locator('[data-ref="export"]')).toBeVisible();
 }
 
