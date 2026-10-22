@@ -147,17 +147,25 @@ export interface TickReport {
   weather: WeatherId[];
   /**
    * Wildwechsel-Karten (DESIGN_V2.md 24.6) in Reihenfolge der Wegpunkte: Art, Herkunftswald,
-   * Korridor und Platz der Karte in ihrer Begegnung (`card`, Index in `cards`). Höchstens eine
-   * je Begegnung; die Begegnung liegt beim Erreichen am Ende von `pendingEncounters`.
+   * Korridor, Begegnung (`encounter`, Index in `pendingEncounters` nach dem Tick) und Platz der
+   * Karte in ihr (`card`, Index in `cards`). Höchstens eine je Begegnung.
    */
   wildwechsel: WildwechselCard[];
 }
 
 /** Eine Wildwechsel-Karte: diese Art kam über `corridor` aus dem Bestand von `from`. */
 export interface WildwechselCard extends WildwechselRoute {
+  /**
+   * Index der Begegnung in `pendingEncounters`. Gilt direkt nach dem Tick (ein Tick legt nur
+   * an, entfernt nichts); entscheidet der Spieler danach, verschieben sich die Indizes.
+   */
+  encounter: number;
   /** Index der Karte in `PendingEncounter.cards`. */
   card: number;
 }
+
+/** Ergebnis von drawWildwechsel: die Karte ohne Begegnung (die kennt erst reachWaypoint). */
+export type WildwechselDraw = Omit<WildwechselCard, 'encounter'>;
 
 export interface OfflineReport extends TickReport {
   /** Tatsächlich simulierte Sekunden (nach Begrenzung). */
@@ -502,7 +510,7 @@ function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMod
   }
   state.pendingEncounters.push(encounter);
   report.encounters++;
-  if (wildwechsel) report.wildwechsel.push(wildwechsel);
+  if (wildwechsel) report.wildwechsel.push({ ...wildwechsel, encounter: state.pendingEncounters.length - 1 });
 }
 
 /**
@@ -520,7 +528,7 @@ export function drawEncounter(state: GameState, ambient: AmbientMode = 'live'): 
 function drawEncounterWithRoute(
   state: GameState,
   ambient: AmbientMode,
-): { encounter: PendingEncounter | null; wildwechsel: WildwechselCard | null } {
+): { encounter: PendingEncounter | null; wildwechsel: WildwechselDraw | null } {
   const none = (encounter: PendingEncounter | null) => ({ encounter, wildwechsel: null });
   let type = SCRIPTED_ENCOUNTERS[state.waypoint - 1];
   if (type === undefined && state.cycle.forced) {
@@ -568,7 +576,7 @@ function drawEncounterWithRoute(
  * Wegpunkt (nicht beim Neu würfeln) – online = offline. Ohne Korridor wird nicht gewürfelt.
  * Verändert `cards` und gibt die Karte zurück (null: kein Wildwechsel).
  */
-export function drawWildwechsel(state: GameState, cards: string[]): WildwechselCard | null {
+export function drawWildwechsel(state: GameState, cards: string[]): WildwechselDraw | null {
   if (cards.length === 0) return null;
   const chance = wildwechselChance(state);
   if (!(chance > 0) || !(random(state) < chance)) return null;

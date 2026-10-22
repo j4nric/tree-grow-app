@@ -8,6 +8,7 @@ import {
   WILDWECHSEL_MAX_CHANCE,
   type SiteId,
 } from '../src/content/landscape';
+import { DAILY_RARE_MIN_RARITY } from '../src/content/daily';
 import { SPECIES_BY_ID } from '../src/content/species';
 import { evaluate, nicheSlots, slotBonuses } from '../src/core/formulas';
 import { featuredGenera, wildwechselChance, wildwechselRoute, wildwechselRoutes } from '../src/core/landscape';
@@ -19,6 +20,7 @@ import {
   drawCards,
   drawEncounter,
   drawWildwechsel,
+  rerollBlocker,
   rerollEncounter,
   simulateOffline,
   startNewCycle,
@@ -279,11 +281,40 @@ describe('Determinismus und online = offline', () => {
       found = true;
       // Die gemeldete Karte liegt wirklich in einer offenen Begegnung, der Weg stimmt.
       for (const w of liveSmall) {
-        expect(small.pendingEncounters.some((e) => e.type === 'animal' && e.cards[w.card] === w.species)).toBe(true);
+        expect(small.pendingEncounters[w.encounter]!.type).toBe('animal');
+        expect(small.pendingEncounters[w.encounter]!.cards[w.card]).toBe(w.species);
         expect(wildwechselRoute(small, w.species)).toEqual({ species: w.species, from: w.from, corridor: w.corridor });
       }
     }
     expect(found).toBe(true);
+  });
+});
+
+describe('Index der Begegnung im Bericht', () => {
+  it('großer Tick mit mehreren Begegnungen und Zwischenhalten: pendingEncounters[encounter].cards[card] ist die Art', () => {
+    // Hain: Zwischenhalte legen Ereignisse und Gäste dazwischen, die Indizes verschieben sich.
+    let checked = 0;
+    for (let seed = 1; seed <= 300 && checked < 3; seed++) {
+      const state = landscapeState({
+        stage: 5,
+        corridors: SPOKES,
+        fauna: { beechwood: BEECH_FAUNA, heath: ['bee', 'peacock', 'glowworm', 'stagbeetle'], carr: ['treefrog', 'snail', 'salamander'] },
+        seed,
+      });
+      state.meta.forestMemory = 0;
+      const report = tick(state, 3 * 3600);
+      if (report.wildwechsel.length === 0 || report.interludes === 0 || state.pendingEncounters.length < 2) continue;
+      for (const w of report.wildwechsel) {
+        expect(state.pendingEncounters[w.encounter]!.type).toBe('animal');
+        expect(state.pendingEncounters[w.encounter]!.cards[w.card]).toBe(w.species);
+      }
+      // Indizes je Begegnung verschieden, aufsteigend (Reihenfolge der Wegpunkte).
+      const indices = report.wildwechsel.map((w) => w.encounter);
+      expect([...indices].sort((a, b) => a - b)).toEqual(indices);
+      expect(new Set(indices).size).toBe(indices.length);
+      if (report.wildwechsel.some((w) => w.encounter > 0)) checked++;
+    }
+    expect(checked).toBe(3);
   });
 });
 
@@ -320,6 +351,50 @@ describe('Gattungen des Waldtyps (featured, × FEATURED_GENUS_WEIGHT)', () => {
       expect(home.rngState).toBe(plain.rngState);
     }
   });
+
+  it('auch ab dem zweiten Zyklus (Tagebuch-Gewicht, featured = []) wie vor Schritt B', () => {
+    const journal = ['robin', 'bluetit', 'owl', 'woodpecker', 'deer', 'bee', 'slug'];
+    for (let seed = 1; seed <= 50; seed++) {
+      const plain = stateAt(4, ['vole'], seed);
+      const home = landscapeState({ sites: ['home', 'beechwood'], animals: ['vole'], seed });
+      home.meta.forestMemory = plain.meta.forestMemory;
+      for (const s of [plain, home]) {
+        s.cycle.number = 3;
+        s.meta.journal.species.push(...journal);
+      }
+      expect(featuredGenera(home)).toEqual([]);
+      expect(drawAnimals(home)).toEqual(drawAnimals(plain));
+      expect(home.rngState).toBe(plain.rngState);
+    }
+  });
+
+  it('Belohnung der Tagesziele: minRarity gilt auch mit featured', () => {
+    const state = landscapeState({ active: 'floodplain', animals: ['vole'] });
+    state.cycle.number = 2;
+    state.meta.journal.species.push('robin', 'toad', 'newt');
+    let drawn = 0;
+    for (let i = 1; i <= 500; i++) {
+      state.rngState = normalizeSeed(i);
+      for (const id of drawAnimals(state, [], state, DAILY_RARE_MIN_RARITY)) {
+        expect(SPECIES_BY_ID.get(id)!.rarity).toBeGreaterThanOrEqual(DAILY_RARE_MIN_RARITY);
+        drawn++;
+      }
+    }
+    expect(drawn).toBeGreaterThan(0);
+  });
+
+  it('Auwald: rerollBlocker sieht dieselben Karten voraus, die rerollEncounter zieht', () => {
+    const state = landscapeState({ active: 'floodplain', corridors: SPOKES, fauna: { home: BEECH_FAUNA }, animals: ['vole'] });
+    state.seeds = 1e12;
+    state.pendingEncounters = [{ type: 'animal', cards: ['robin', 'toad', 'earthworm'], rerolls: 0 }];
+    for (let i = 0; i < 30; i++) {
+      state.pendingEncounters[0]!.rerolls = 0;
+      expect(rerollBlocker(state, 0)).toBeNull();
+      const expected = drawCards(state, 'animal', state.pendingEncounters[0]!.cards, { rngState: state.rngState });
+      expect(rerollEncounter(state, 0)).toEqual({ ok: true });
+      expect(state.pendingEncounters[0]!.cards).toEqual(expected);
+    }
+  });
 });
 
 describe('Spielstände', () => {
@@ -340,6 +415,7 @@ describe('Spielstände', () => {
 
   it('v14 mit kaputtem oder fehlendem Bestand lädt; nur bekannte Arten wandern', () => {
     const state = landscapeState({ corridors: ['home-beechwood', 'home-heath'] });
+    state.meta.journal.species.push('owl', 'deer');
     const data = JSON.parse(serialize(state));
     const beech = data.meta.landscape.sites.find((s: { id: string }) => s.id === 'beechwood');
     beech.fauna = [42, 'unknown-animal', 'owl', 'owl', null, { id: 'deer' }];
@@ -349,6 +425,14 @@ describe('Spielstände', () => {
     expect(loaded.version).toBe(state.version);
     expect(wildwechselRoutes(loaded)).toEqual([{ species: 'owl', from: 'beechwood', corridor: 'home-beechwood' }]);
     expect(wildwechselRate(loaded, 2000)).toBeGreaterThan(0.15);
+  });
+
+  it('Laden: Bestand ruhender Wälder nur aus entdeckten Arten (wie die Stammgäste)', () => {
+    const state = landscapeState({ corridors: ['home-beechwood'], fauna: { beechwood: ['owl', 'deer', 'wolf'] } });
+    state.meta.journal.species.push('owl', 'wolf');
+    const loaded = loadGame(serialize(state), 0)!.state;
+    expect(loaded.meta.landscape.sites.find((s) => s.id === 'beechwood')!.fauna).toEqual(['owl', 'wolf']);
+    expect(wildwechselRoutes(loaded).map((r) => r.species)).toEqual(['owl', 'wolf']);
   });
 
   it('kein neues Feld: Wildwechsel ändert am Format nichts (Roundtrip gleich)', () => {

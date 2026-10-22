@@ -504,6 +504,8 @@ describe('Laden v14 (24.8)', () => {
         d.meta.landscape.corridors = ['home-floodplain', 'floodplain-carr', 'floodplain-carr', 'home-heath', 'nope', 42];
         d.meta.landscape.freeCorridors = ['home-floodplain', 'floodplain-carr', 'home-heath'];
         d.meta.landscape.announced = 'yes';
+        // Alle Arten entdeckt: Der Bestand wird nur auf MAX_SITE_FAUNA gekürzt (nicht auf das Tagebuch).
+        d.meta.journal.species = SPECIES.map((s) => s.id);
       }),
       0,
     )!.state;

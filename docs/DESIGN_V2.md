@@ -5970,6 +5970,9 @@ ebenso die Hähersaat.
   Zufallswert gegen die Chance; nur bei einem Treffer und mindestens einer passenden Art zwei
   weitere (welche Art, gleichverteilt über alle passenden; welche Karte, gleichverteilt).
   Online = offline, weil derselbe Wegpunkt-Pfad zieht (`tests/tick.test.ts`, Landschaft).
+- **Offen für die Messung (2c):** Die Karte ersetzt immer eine gezogene Karte, auch wenn
+  weniger als drei gezogen wurden (wenige passende Arten). Anhängen statt Ersetzen gäbe dann
+  eine Karte mehr – mit der Vielfalts-Messung (7.7) entscheiden.
 - **„Offene Nische“** heißt hier wie bei jeder Tierkarte: die Nische hat auf dieser Stufe
   Plätze (> 0) – ist sie voll, kann der Spieler tauschen. Der Weg einer Art ist der erste
   gebaute Korridor (Bau-Reihenfolge), dessen Nachbar sie im Bestand hat.
@@ -5977,13 +5980,16 @@ ebenso die Hähersaat.
   Tagesziele) innerhalb der Seltenheit × 1,5, multipliziert mit dem Tagebuch-Gewicht. Im
   Heimatwald (keine `featured`) unverändert, auch im Zufall.
 - **Bericht:** `TickReport.wildwechsel: WildwechselCard[]` (auch im `OfflineReport`), je
-  Treffer `{ species, from: SiteId, corridor: string, card: number }` – `card` ist der Index in
-  `cards` der Begegnung, die beim Erreichen am Ende von `pendingEncounters` liegt. Den Namen
+  Treffer `{ species, from: SiteId, corridor: string, encounter: number, card: number }` –
+  `encounter` ist der Index in `pendingEncounters` direkt nach dem Tick (ein Tick legt nur an;
+  nach Entscheidungen des Spielers verschieben sich die Indizes), `card` der Index in ihren
+  `cards`. Den Namen
   des Weges liefert `CORRIDORS_BY_ID.get(corridor).name` („über die Schlehenhecke“).
 - **Abfragen** (`core/landscape.ts`, rein): `wildwechselChance(state)`,
   `wildwechselRoutes(state)` (alle Arten aus dem Bestand der Nachbarn über gebaute Korridore,
   je einmal, ohne Stufen- und Nischen-Regeln), `wildwechselRoute(state, species)` (Weg oder
   null), `featuredGenera(state)`. `tick.ts`: `drawWildwechsel(state, cards)`.
+- **Laden:** `fauna` ruhender Wälder nur aus entdeckten Arten (wie ihre Stammgäste).
 - **Grenze ohne neues Feld:** Welche Karte einer **offenen** Begegnung als Wildwechsel kam,
   steht nicht im Spielstand. Nach dem Neuladen kann die Oberfläche nur noch
   `wildwechselRoute` fragen – die nennt einen Weg auch für eine gewöhnlich gezogene Art, die
