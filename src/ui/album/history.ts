@@ -10,7 +10,8 @@
  * - Der Hash nennt nur den Reiter und wird ersetzt, nicht angehängt (`replaceState`).
  *
  * Schließt das Album mehrere Ebenen auf einmal (Reiterwechsel, Umschlag zu), spult es den
- * Verlauf selbst zurück; die dabei kommenden `popstate` sind still.
+ * Verlauf selbst zurück; die dabei kommenden `popstate` sind still. Genauso beim Neuladen auf
+ * einer Unterseite: zurück auf den Grundeintrag (die Seite selbst wird nicht wiederhergestellt).
  */
 
 export interface AlbumHistory {
@@ -44,7 +45,7 @@ export const HISTORY_SETTLE_MS = 1000;
 export function createAlbumHistory(options: AlbumHistoryOptions): AlbumHistory {
   // Ein Neuladen auf einer Unterseite stellt sie nicht wieder her (C.2): Tiefe 0.
   let depth = 0;
-  if (stateDepth(history.state) !== 0) history.replaceState({ ...(history.state as object), album: 0 }, '');
+  const staleDepth = stateDepth(history.state);
   /** Eigenes `history.go(-n)` läuft: die kommenden `popstate` sind still. */
   let rewinding = false;
   /** Ziel-Tiefe des laufenden Zurückspulens. */
@@ -112,6 +113,23 @@ export function createAlbumHistory(options: AlbumHistoryOptions): AlbumHistory {
     depth = target;
     options.onBack(target);
   });
+
+  if (staleDepth > 0) {
+    if (history.length > staleDepth) {
+      // Unter dem aktuellen Eintrag liegen noch die Einträge der alten Ebenen (KANN 5): auf den
+      // Grundeintrag zurückspulen, sonst blieben die ersten Zurück-Drücke ohne Wirkung. Der
+      // Hash des Reiters, mit dem neu geladen wurde, kommt danach auf den Grundeintrag.
+      depth = staleDepth;
+      rewinding = true;
+      expected = 0;
+      pendingHash = location.hash;
+      armSafety();
+      history.go(-staleDepth);
+    } else {
+      // Verlauf kürzer als erwartet (wiederhergestellte Sitzung o. Ä.): nicht über den Anfang hinaus.
+      history.replaceState({ ...(history.state as object), album: 0 }, '');
+    }
+  }
 
   const api: AlbumHistory = {
     get depth() {

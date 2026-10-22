@@ -66,7 +66,9 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(tabPanel(page, 'landschaft').locator('.page-meta')).toHaveText('🪶 5 Hähersaat');
   const map = page.locator('[data-ref="landscape"]');
   await expect(map).toBeVisible();
-  await expect(map.locator('[data-ref="jay-seeds"]')).toContainText('🪶 5 Hähersaat');
+  // Nur einmal: rechts im Seitenkopf (die Zeile unter der Frage nur mit „– nach diesem Zyklus …“).
+  await expect(map.locator('[data-ref="jay-seeds"]')).toBeHidden();
+  await expect(page.getByText('🪶 5 Hähersaat', { exact: true }).filter({ visible: true })).toHaveCount(1);
   // Heimatwald ist „hier“, die übrigen sind wählbar (gründen · 3 🪶).
   await expect(map.locator('[data-site="home"]')).toContainText('hier');
   await expect(map.locator('[data-site="home"]')).toHaveAttribute('aria-current', 'location');
@@ -217,7 +219,8 @@ test('Korridor bauen: Altwasser zwischen Auwald und Erlenbruch', async ({ page, 
   await gotoTab(page, 'landschaft');
   const map = page.locator('[data-ref="landscape"]');
   // Verdient 6 + 2 + 3 + 2 + 2 = 15, ausgegeben 3 + 5 = 8.
-  await expect(map.locator('[data-ref="jay-seeds"]')).toHaveText('🪶 7 Hähersaat');
+  const meta = tabPanel(page, 'landschaft').locator('.page-meta');
+  await expect(meta).toHaveText('🪶 7 Hähersaat');
   const row = map.locator('li[data-corridor="floodplain-carr"]');
   await expect(row).toBeVisible();
   const build = row.getByRole('button', { name: 'Altwasser bauen, 3 Hähersaat' });
@@ -232,7 +235,7 @@ test('Korridor bauen: Altwasser zwischen Auwald und Erlenbruch', async ({ page, 
   await waitForConfirm(page);
   await armed.click();
   await expect(stamps(page)).toContainText('Altwasser gebaut');
-  await expect(map.locator('[data-ref="jay-seeds"]')).toHaveText('🪶 4 Hähersaat');
+  await expect(meta).toHaveText('🪶 4 Hähersaat');
   await expect(row).toContainText('verbunden');
   // Tagebuch der Wälder: Hähersaat-Tabelle zieht mit.
   const table = map.locator('[data-ref="landscape-jay-seeds"]');

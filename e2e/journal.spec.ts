@@ -239,7 +239,8 @@ for (const width of [360, 390]) {
       for (const h of await species(page).locator('.species-jump').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) {
         expect(h).toBeGreaterThanOrEqual(44);
       }
-      // Sprungmarke „Gemeinschaften“: Abschnitt im Bild, nicht unter der Reiterleiste.
+      // Sprungmarke „Gemeinschaften“: Abschnitt im Bild, nicht unter der Reiterleiste – und
+      // knapp darunter, ohne Streifen des vorigen Abschnitts dazwischen.
       await species(page).locator('[data-jump="communities"]').tap();
       const heading = species(page).locator('#species-heading-communities');
       await expect(heading).toBeInViewport();
@@ -247,7 +248,8 @@ for (const width of [360, 390]) {
         .poll(async () => {
           const box = (await heading.boundingBox())!;
           const tabs = (await page.locator('.tab-strip').boundingBox())!;
-          return box.y >= tabs.y + tabs.height - 1;
+          const gap = box.y - (tabs.y + tabs.height);
+          return gap >= -1 && gap <= 24;
         })
         .toBe(true);
       expect(await noScroll()).toBe(true);

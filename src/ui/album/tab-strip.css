@@ -106,6 +106,55 @@ body[data-motion='reduce'] .tab-new {
   }
 }
 
+/*
+ * Zu schmal für alle Reiter (tab-strip.ts, `data-fit`): erst enger und kleiner, dann Symbole
+ * statt Namen (der gewählte Reiter behält seinen Namen, notfalls kleiner), zuletzt nur Symbole. Der Name bleibt
+ * als Text im Knopf (zugänglicher Name); das Symbol kommt aus `data-icon` und wird nicht
+ * vorgelesen (Alternativtext "").
+ */
+.tab-strip[data-fit] .tab {
+  padding: 0 8px;
+  font-size: 19px;
+}
+
+.album[data-layout='single'] .tab-strip[data-fit] {
+  gap: 3px;
+  padding-left: 4px;
+}
+
+/* Gewählter Reiter mit Namen neben den Symbolen: etwas kleiner, damit er daneben passt. */
+.tab-strip[data-fit='icons'] .tab[aria-selected='true'] {
+  font-size: 17px;
+}
+
+.tab-strip[data-fit='icons-small'] .tab[aria-selected='true'] {
+  padding: 0 6px;
+  font-size: 14px;
+}
+
+.tab-strip[data-fit^='icons'] .tab:not([aria-selected='true']),
+.tab-strip[data-fit='icons-only'] .tab {
+  min-width: var(--tap);
+  padding: 0 6px;
+}
+
+.tab-strip[data-fit^='icons'] .tab:not([aria-selected='true']) .tab-label,
+.tab-strip[data-fit='icons-only'] .tab .tab-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.tab-strip[data-fit^='icons'] .tab:not([aria-selected='true'])::before,
+.tab-strip[data-fit='icons-only'] .tab::before {
+  content: attr(data-icon) / '';
+  font-family: var(--font-text);
+  font-size: 20px;
+}
+
 /* ---------- Doppelseite: senkrecht am rechten Buchrand ---------- */
 
 .album[data-layout='spread'] .tab-strip {

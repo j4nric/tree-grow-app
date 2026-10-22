@@ -104,7 +104,7 @@ Details, Texte und offene Punkte: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 5.5 
 - **Neue Gattung 🐸 Amphibien** mit Erdkröte, Grasfrosch (gewöhnlich), Bergmolch und
   – seit dem Playtest unten – Laubfrosch (selten, ab Alter Baum) und Kammmolch (selten,
   ab Hain), alle im **Waldtümpel**. Der Feuersalamander bleibt Bodenleben.
-- **Neue Nische 🫧 Waldtümpel** ohne Plätze aus der Stufe: Sie öffnet nur durch Pflege
+- **Neue Nische 🏞️ Waldtümpel** ohne Plätze aus der Stufe: Sie öffnet nur durch Pflege
   „Waldtümpel“ (+2, im Hain +2) oder die Ereignisse „Regenreicher Frühling“ und
   „Krötenwanderung“ (je +1). Erst dann kommen Amphibien-Karten.
 - **Jahreszeit:** Frühling = Laichzeit, Amphibien +15 % 😊; neues Frühlings-Ereignis

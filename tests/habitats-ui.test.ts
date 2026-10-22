@@ -83,7 +83,7 @@ describe('Pflegekarten: „Öffnet Lebensraum …“', () => {
     expect(care(grove, 'meadow')!.opens).toBe('Öffnet Lebensraum 🌾 Waldwiese');
     expect(care(grove, 'deadwood-pile')!.opens).toBe('Öffnet Lebensraum 🪵 Totholzhaufen');
     expect(care(grove, 'drystone-wall')!.opens).toBe('Öffnet Lebensraum 🪨 Trockenmauer');
-    expect(care(grove, 'pond')!.opens).toBe('Öffnet Lebensraum 🫧 Waldtümpel');
+    expect(care(grove, 'pond')!.opens).toBe('Öffnet Lebensraum 🏞️ Waldtümpel');
     // Andere Pflege mit Plätzen (Nistkästen → Höhlen) öffnet keinen Lebensraum.
     expect(care(grove, 'nest-boxes')!.opens).toBeNull();
     expect(care(grove, 'compost')!.opens).toBeNull();
@@ -164,7 +164,7 @@ describe('Spielanleitung „Lebensräume“', () => {
     expect(text).toContain('4 Nischen wachsen nicht mit dem Baum');
     expect(text).toContain('🌾 Waldwiese (Pflege „Waldwiese“ ab „Junger Baum“)');
     expect(text).toContain('🪵 Totholzhaufen (Pflege „Totholzhaufen“ ab „Alter Baum“)');
-    expect(text).toContain('🫧 Waldtümpel (Pflege „Waldtümpel“ ab „Alter Baum“)');
+    expect(text).toContain('🏞️ Waldtümpel (Pflege „Waldtümpel“ ab „Alter Baum“)');
     expect(text).toContain('🪨 Trockenmauer (Pflege „Trockenmauer“ ab „Hain“)');
     expect(text).toContain('„Zur Pflege“');
     expect(text).toContain('Öffnet Lebensraum');

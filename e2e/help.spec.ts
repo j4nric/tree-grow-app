@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, note, openCover, openCoverPage, openGame, seedV3, subpage, test, waypoint } from './fixtures';
+import { expect, note, openCover, openCoverPage, openGame, overlaps, seedV3, subpage, test, waypoint } from './fixtures';
 
 /**
  * Spielanleitung, Einstellungen und der Hinweis „Neu hier?“ beim ersten Start – im Album
@@ -53,6 +53,18 @@ test('erster Start: Haftnotiz „Neu hier?“ öffnet die Anleitung und kommt da
   await openCover(page);
   await expect(page.locator('[data-ref="guide-open"]')).toBeVisible();
   await expect(hint(page)).toHaveCount(0);
+});
+
+test('mobil: „Neu hier?“ liegt unter den Etiketten, das Bild mit dem Samen bleibt frei', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openGame(page);
+  await expect(hint(page)).toBeVisible();
+  const box = (await hint(page).boundingBox())!;
+  const photo = (await page.locator('.polaroid-photo').boundingBox())!;
+  expect(overlaps(box, photo), 'Notiz verdeckt das Polaroid').toBe(false);
+  await expect(hint(page)).toBeInViewport({ ratio: 1 });
+  await hint(page).getByRole('button', { name: 'Verstanden' }).click();
+  await expect(page.locator('[data-ref="cover-open"]')).toBeFocused();
 });
 
 test('geladener Spielstand: kein Hinweis „Neu hier?“', async ({ page, context }) => {

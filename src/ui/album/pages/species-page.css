@@ -120,8 +120,12 @@
 
 .species-section {
   min-width: 0;
-  /* Mobil klebt die Reiterleiste oben: Sprungziel nicht darunter verstecken. */
-  scroll-margin-top: 80px;
+  /*
+   * Mobil klebt die Reiterleiste oben: Den Abstand gibt `scroll-padding-top` am Dokument
+   * (album.css, Höhe der Leiste). Kein Zuschlag hier – sonst bliebe zwischen Leiste und
+   * Überschrift ein Streifen des vorigen Abschnitts stehen.
+   */
+  scroll-margin-top: 0;
 }
 
 .species-heading {
@@ -226,9 +230,21 @@
   letter-spacing: 0.08em;
 }
 
-/* Entdeckt, aber gerade nicht im Wald: matter Sticker (Renderer-Variante „muted“) */
+/*
+ * Entdeckt, aber gerade nicht im Wald: matter Sticker (Renderer-Variante „muted“), blasser
+ * Grund, flacher Schatten und blassere Schrift – klar unterscheidbar von den farbigen
+ * Stickern der Arten, die gerade hier leben.
+ */
 .species-cell.is-away .sticker-face {
-  background: color-mix(in srgb, var(--sticker-bg) 60%, var(--paper));
+  background: color-mix(in srgb, var(--sticker-bg) 30%, var(--paper));
+}
+
+.species-cell.is-away .sticker {
+  box-shadow: 0 0 0 1.5px var(--rarity-line), 0 1px 2px rgba(59, 58, 54, 0.1);
+}
+
+.species-cell.is-away .sticker-name {
+  color: var(--ink-soft);
 }
 
 /* Pflanzen: Emoji als Silhouette, solange unentdeckt */
@@ -238,8 +254,8 @@
 }
 
 .species-cell-plant.is-away .sticker-emoji {
-  filter: saturate(0.4);
-  opacity: 0.8;
+  filter: saturate(0.3);
+  opacity: 0.6;
 }
 
 /* Punkt „lebt hier“ unten rechts */
@@ -521,9 +537,9 @@ body[data-motion='reduce'] .species-memory {
   transition: none;
 }
 
-/* Matt: etwas blasser als die Arten, die gerade im Wald leben. */
+/* Matt: deutlich blasser als die Arten, die gerade im Wald leben. */
 .species-cell.is-away .sticker-img {
-  opacity: 0.8;
+  opacity: 0.6;
 }
 
 /* Doppelseite: Die rechte Seite scrollt in sich, oben klebt nichts. */
