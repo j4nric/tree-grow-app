@@ -1,5 +1,8 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { ACHIEVEMENTS } from '../src/content/achievements';
+
+// Ohne freigeschaltete Landschaft sind deren Erfolge verborgen und zählen nicht mit.
+const VISIBLE = ACHIEVEMENTS.filter((a) => a.requires !== 'landscape').length;
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { YEAR_SECONDS } from '../src/content/seasons';
 import { SPECIES } from '../src/content/species';
@@ -55,7 +58,7 @@ test('v8-Stand: ein Sammelhinweis, Reiter „Erfolge“ mit Zähler, erreichte u
 
   await openJournal(page);
   const tab = page.getByRole('tab', { name: /Erfolge/ });
-  await expect(tab).toContainText(`${unlocked}/${ACHIEVEMENTS.length}`);
+  await expect(tab).toContainText(`${unlocked}/${VISIBLE}`);
   // Per Tastatur: Ende → Statistik, einmal links → Erfolge.
   await page.keyboard.press('End');
   await page.keyboard.press('ArrowLeft');
@@ -67,7 +70,7 @@ test('v8-Stand: ein Sammelhinweis, Reiter „Erfolge“ mit Zähler, erreichte u
   const done = panel.getByRole('list', { name: 'Erreicht' });
   const open = panel.getByRole('list', { name: 'Noch offen' });
   await expect(done.getByRole('listitem')).toHaveCount(unlocked);
-  await expect(open.getByRole('listitem')).toHaveCount(ACHIEVEMENTS.length - unlocked);
+  await expect(open.getByRole('listitem')).toHaveCount(VISIBLE - unlocked);
   await expect(achievement(page, 'grove')).toContainText('Nicht mehr allein');
   await expect(achievement(page, 'grove')).toHaveAttribute('data-unlocked', 'true');
   // Offen: Titel, neutrale Beschreibung und Fortschritt (für Screenreader beschriftet).
@@ -89,7 +92,7 @@ test('Freischalten beim Spielen: leiser Hinweis, bei offenem Tagebuch im Dialog'
   await openGame(page);
   await openJournal(page);
   await page.getByRole('tab', { name: /Erfolge/ }).click();
-  await expect(page.getByRole('tab', { name: /Erfolge/ })).toContainText(`0/${ACHIEVEMENTS.length}`);
+  await expect(page.getByRole('tab', { name: /Erfolge/ })).toContainText(`0/${VISIBLE}`);
   await expect(page.getByRole('tabpanel', { name: /Erfolge/ })).toContainText('Noch keine Erfolge');
 
   await page.clock.runFor(3_000);
@@ -98,7 +101,7 @@ test('Freischalten beim Spielen: leiser Hinweis, bei offenem Tagebuch im Dialog'
   await expect(notice).toContainText('🏅 Erfolg: „Ein ganzes Jahr“');
   await expect(notice).toContainText('Frühling');
   await expect(achievement(page, 'full-year')).toHaveAttribute('data-unlocked', 'true');
-  await expect(page.getByRole('tab', { name: /Erfolge/ })).toContainText(`1/${ACHIEVEMENTS.length}`);
+  await expect(page.getByRole('tab', { name: /Erfolge/ })).toContainText(`1/${VISIBLE}`);
   const saved = await savedState(page);
   expect(saved.meta.achievements).toEqual(['full-year']);
 });
