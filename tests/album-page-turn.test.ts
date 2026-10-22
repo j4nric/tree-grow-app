@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TURNED_AWAY, TURNING, createPageTurn } from '../src/ui/album/page-turn';
+import { HELD_MS, TURNED_AWAY, TURNING, createPageTurn } from '../src/ui/album/page-turn';
 
 /**
  * Umblättern (docs/ALBUM_UI.md, C.3): Zustand nach dem Blättern und Abbruch einer laufenden
@@ -7,6 +7,10 @@ import { TURNED_AWAY, TURNING, createPageTurn } from '../src/ui/album/page-turn'
  */
 
 class FakeAnimation {
+  constructor(
+    readonly frames: Keyframe[] = [],
+    readonly options: KeyframeAnimationOptions = {},
+  ) {}
   cancelled = false;
   private resolve!: () => void;
   finished = new Promise<void>((r) => (this.resolve = r));
@@ -24,19 +28,19 @@ function fakeElement() {
   return {
     inert: false,
     hidden: false,
-    style: { willChange: '', transformOrigin: '', backfaceVisibility: '' },
+    style: { willChange: '', transformOrigin: '', backfaceVisibility: '', transform: '' },
     classList: {
       add: (c: string) => classes.add(c),
       remove: (...cs: string[]) => cs.forEach((c) => classes.delete(c)),
       contains: (c: string) => classes.has(c),
     },
     animations,
-    animate() {
-      const a = new FakeAnimation();
+    animate(frames: Keyframe[], options: KeyframeAnimationOptions) {
+      const a = new FakeAnimation(frames, options);
       animations.push(a);
       return a;
     },
-    getBoundingClientRect: () => ({ top: 0, bottom: 800, height: 800 }),
+    getBoundingClientRect: () => ({ top: 0, bottom: 800, height: 800, width: 400 }),
   };
 }
 
@@ -93,5 +97,98 @@ describe('PageTurn', () => {
     expect(front.inert).toBe(false);
     expect(under.hidden).toBe(true);
     expect(under.inert).toBe(false);
+  });
+
+  describe('drag (Wisch-Zurück)', () => {
+    /** Weggedrehte Seite wie nach dem Vorwärtsblättern. */
+    function awayPage(): FakeElement {
+      const front = fakeElement();
+      front.classList.add(TURNED_AWAY);
+      front.inert = true;
+      return front;
+    }
+
+    it('zeigt die weggedrehte Seite, folgt dem Winkel und schnappt beim Abbruch zurück', async () => {
+      const turn = createPageTurn({ reducedMotion: () => false });
+      const front = awayPage();
+      const drag = turn.drag(el(front))!;
+      expect(drag.width).toBe(400);
+      expect(front.classList.contains(TURNED_AWAY)).toBe(false);
+      expect(front.classList.contains(TURNING)).toBe(true);
+      expect(front.inert).toBe(true);
+      drag.set(-60);
+      expect(front.style.transform).toContain('rotateY(-60deg)');
+      // Nicht über flach hinaus.
+      drag.set(15);
+      expect(front.style.transform).toContain('rotateY(0deg)');
+      drag.release(false);
+      expect(turn.busy).toBe(false);
+      front.animations[0]!.finish();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(front.classList.contains(TURNED_AWAY)).toBe(true);
+      expect(front.classList.contains(TURNING)).toBe(false);
+      expect(front.style.transform).toBe('');
+      expect(front.style.willChange).toBe('');
+    });
+
+    it('nach dem Loslassen blättert back() vom gezogenen Winkel aus zu Ende (kürzer)', async () => {
+      const turn = createPageTurn({ reducedMotion: () => false });
+      const front = awayPage();
+      const under = fakeElement();
+      const drag = turn.drag(el(front))!;
+      drag.set(-40);
+      drag.release(true);
+      // Die Seite bleibt stehen, bis back() kommt.
+      expect(front.style.transform).toContain('rotateY(-40deg)');
+      const done = turn.back(el(front), el(under));
+      const animation = front.animations[0]!;
+      expect(String(animation.frames[0]!.transform)).toContain('rotateY(-40deg)');
+      expect(String(animation.frames[1]!.transform)).toContain('rotateY(0deg)');
+      expect(Number(animation.options.duration)).toBeLessThan(380);
+      animation.finish();
+      await done;
+      expect(front.classList.contains(TURNED_AWAY)).toBe(false);
+      expect(front.inert).toBe(false);
+      expect(under.hidden).toBe(true);
+      expect(front.style.transform).toBe('');
+    });
+
+    it('kommt nach dem Loslassen kein back(), schnappt die Seite zurück', () => {
+      vi.useFakeTimers();
+      try {
+        const turn = createPageTurn({ reducedMotion: () => false });
+        const front = awayPage();
+        const drag = turn.drag(el(front))!;
+        drag.set(-50);
+        drag.release(true);
+        vi.advanceTimersByTime(HELD_MS + 1000);
+        expect(front.classList.contains(TURNED_AWAY)).toBe(true);
+        expect(front.classList.contains(TURNING)).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('während einer Drehung gibt es kein Mitführen; eine neue Drehung beendet es', async () => {
+      const turn = createPageTurn({ reducedMotion: () => false });
+      const page = fakeElement();
+      const under = fakeElement();
+      const turning = turn.forward(el(page), el(under));
+      expect(turn.drag(el(fakeElement()))).toBeNull();
+      page.animations[0]!.finish();
+      await turning;
+      const other = awayPage();
+      const drag = turn.drag(el(other))!;
+      drag.set(-30);
+      // Ein Reiterwechsel o. Ä. blättert dazwischen: Die gezogene Seite liegt wieder weggedreht.
+      const next = turn.forward(el(page), el(under));
+      expect(other.classList.contains(TURNED_AWAY)).toBe(true);
+      expect(other.style.transform).toBe('');
+      drag.set(-10);
+      expect(other.style.transform).toBe('');
+      page.animations[1]!.finish();
+      await next;
+    });
   });
 });

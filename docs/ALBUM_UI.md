@@ -594,6 +594,24 @@ function navigate(nav: AlbumNav, action: NavAction, ctx: { landscapeUnlocked: bo
   Begegnung, waagerecht scrollende Reihen, Eingabefelder, Landschaftskarte) und das Canvas.
   Auf Reiterseiten gibt es **keine** Wischgeste zum Reiterwechsel (das verhindert
   Fehlbedienung beim Scrollen).
+  **Umsetzung (13a, `album/swipe.ts`):**
+  - Die Richtung steht nach 10 px fest; senkrecht oder nach links ist die Geste für diesen
+    Kontakt aus. Das Verhältnis 2 : 1 gilt immer, die Bedingungen „60 px“ und „> 0,5 px/ms“
+    (Tempo über die letzten 100 ms, dazu mindestens 20 px) sind die beiden Alternativen.
+  - Nur Finger und Stift (keine Maus), nur ein Finger, nur mit Beginn **in** der obersten
+    Unterseite, nicht bei offener Haftnotiz, im Vollbild oder während des Blätterns. Nicht aus
+    den linken 20 px des Bildschirms: Dort gehört die Geste dem Browser (iOS-Rand-Wischen, das
+    über den Verlauf dasselbe tut, R8).
+  - Auslösen geht über denselben Weg wie das Lesezeichen (`history.back()`), Verlauf und Stapel
+    bleiben gleich.
+  - Mitführen: Die darunterliegende Seite (mobil die Hauptansicht, Desktop die rechte Seite bzw.
+    Ebene 1) dreht sich so von −90° her ein, dass ihre rechte Kante unter dem Finger liegt
+    (Perspektive eingerechnet), höchstens bis −20°. Nach dem Loslassen blättert `PageTurn.back`
+    von dort aus zu Ende, sonst schnappt sie in ≤ 220 ms zurück. Layout wird nur einmal zu
+    Beginn der Geste gelesen. Bei reduzierter Bewegung ohne Mitführen (nur Auslösen,
+    Überblenden wie beim Lesezeichen).
+  - Unterseiten haben `touch-action: pan-y pinch-zoom` (sonst bricht der Browser waagerechte
+    Gesten mit `pointercancel` ab); `[data-no-swipe]` darin `pan-x pan-y pinch-zoom`.
 
 ### C.3 Umblättern
 
@@ -1217,7 +1235,7 @@ Reiterseite selbst über `album/pages/registry.ts` (eine Zeile pro Seite).
 | R5 | **Caveat-Zahlen springen** (keine Ziffern gleicher Breite) bei laufenden Werten | Feste Mindestbreite je Etikett (`min-width` in ch), Zahl rechtsbündig. Samen nur bei neuer ganzer Zahl aktualisieren (gibt es schon). |
 | R6 | **5 Reiter bei 360 px** (Caveat 21 px) passen nicht | Innenabstand 10 px, bei Überlauf waagerecht scrollbar mit gewähltem Reiter im Bild (wie heute im Tagebuch). Vier Reiter passen; Landschaft kommt erst spät hinzu. **Seit Schritt 12:** `tab-strip.ts` misst bei Größen- und Schriftwechsel und schaltet stufenweise (`data-fit`): enger/kleiner → Symbole statt Namen (der gewählte Reiter behält ihn) → Name kleiner → nur Symbole. Geprüft mit DejaVu Sans und 125 % bei 360/390 px (`e2e/album-layout.spec.ts`). |
 | R7 | **`popover` fehlt** auf älteren iOS-Versionen | Fallback mit Klasse und Klick-außerhalb (C.4) |
-| R8 | **Gesten-Konflikte:** iOS-Rand-Wischen, Kartenreihe, Kamera | Verlauf per `pushState`, damit das iOS-Zurück dasselbe tut; `data-no-swipe`; Kamera nur im Vollbild |
+| R8 | **Gesten-Konflikte:** iOS-Rand-Wischen, Kartenreihe, Kamera | Verlauf per `pushState`, damit das iOS-Zurück dasselbe tut; Wisch-Zurück beginnt nie in den linken 20 px; `data-no-swipe`; Kamera nur im Vollbild (dort schließt nur der Wisch nach unten, C.6) |
 | R9 | **Schriften laden verzögert** (Layout springt beim ersten Start) | `font-display: swap`, ähnliche Fallback-Schriften, Precache. Danach kommen sie immer aus dem Cache. |
 | R10 | **Verlust kleiner Funktionen** beim Umbau (z. B. Fokus-Rückgabe, Doppelklick-Schutz, Live-Ansagen) | Tabelle A als Prüfliste im PR jedes Schritts abhaken, Review gegen die `#`-Nummern |
 | R11 | **Großer Abschluss-PR** schwer zu prüfen | Er besteht aus bereits geprüften Teil-PRs. Der Reviewer prüft dort nur noch Merge-Stand, Specs und Screenshots. |

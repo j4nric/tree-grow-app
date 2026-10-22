@@ -673,6 +673,14 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
 - [ ] **13** e2e-Abschluss (`qa-tester`): restliche Specs (smoke, playtest*-UI), neue
   `album-*`-Specs (Navigation, Wischen, reduzierte Bewegung, Haftnotiz, Vollbild, 360 px ohne
   Überlauf), kein `test.fixme`. Abhängig: 12 (album-nav-Spec schon ab 1)
+- [x] **13a** Wisch-Zurück auf Unterseiten (`ui-dev`, C.2): `album/swipe.ts` (Schwellen 60 px,
+  waagerecht ≥ 2 × senkrecht, oder > 0,5 px/ms ab 20 px; `data-no-swipe`, Eingabefelder,
+  Canvas und die linken 20 px ausgenommen; nur auf Unterseiten) mit Vitest
+  (`tests/album-swipe.test.ts`, Mitführen in `tests/album-page-turn.test.ts`). Die Seite folgt
+  dem Finger (`PageTurn.drag`, Kante unter dem Finger, bis −20°) und blättert über den Verlauf
+  zu Ende; bei reduzierter Bewegung nur Auslösen. e2e mit Touch-Emulation in
+  `e2e/album-swipe.spec.ts` (U:Tier zurück, Schnipser, Scrollen, Rand, Kartenreihe, Reiterseite).
+  Der Wisch nach unten im Vollbild (C.6) war schon in Schritt 3 gebaut.
 - [ ] **14** Playtest und Feinschliff (`qa-tester` → `ui-dev`/`renderer`), Leistung messen, dann
   PR `claude/album-ui` → `main`. Abhängig: 13
 
