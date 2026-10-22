@@ -72,7 +72,10 @@ describe('Formatierung', () => {
     expect(weatherEffectLabel({ kind: 'groupGrowth', group: 'mosses', pct: 30 })).toMatch(/\+30 % 🌿$/);
   });
 
-  it('Abzeichen zeigt nur 🌿 und 🌰, ganze Prozent, ohne „±0 %“', () => {
+  it('Abzeichen zeigt nur 🌿 und 🌰, gerundet wie die Details, ohne „±0 %“', () => {
+    expect(weatherBadgeEffects([{ kind: 'growth', pct: -7.5 }, { kind: 'seeds', pct: 25 }])).toEqual(['−7,5 % 🌿', '+25 % 🌰']);
+    expect(weatherBadgeEffects([{ kind: 'growth', pct: -0.3 }])).toEqual(['−0,3 % 🌿']);
+    expect(weatherBadgeEffects([{ kind: 'growth', pct: -0.04 }])).toEqual([]);
     const sun = WEATHERS_BY_ID.get('sun')!;
     expect(weatherBadgeEffects(sun.effects)).toEqual(['+10 % 🌰']);
     expect(weatherBadgeEffects([{ kind: 'growth', pct: -0 }, { kind: 'seeds', pct: 15 }])).toEqual(['+15 % 🌰']);
@@ -91,8 +94,8 @@ describe('Wetter-Abzeichen', () => {
     const view = toWeatherBadgeView(state);
     expect(view.id).toBe('storm');
     expect(view.rough).toBe(true);
-    expect(view.text).toBe('🌬️ Sturm · −8 % 🌿 · +25 % 🌰');
-    expect(view.label).toBe('Wetter heute: Sturm, −8 % Wachstum, +25 % Samen. Details');
+    expect(view.text).toBe('🌬️ Sturm · −7,5 % 🌿 · +25 % 🌰');
+    expect(view.label).toBe('Wetter heute: Sturm, −7,5 % Wachstum, +25 % Samen. Details');
     expect(view.effects).toBe('Heute: −7,5 % 🌿 (statt −15 %) · +25 % 🌰');
     expect(view.damping).toBe('Abzug gedämpft: Vielfalt −50 % (5 Gattungen).');
     // Vielfalt ist ausgeschöpft – nur die Pflege hilft noch.
