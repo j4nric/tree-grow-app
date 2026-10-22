@@ -86,6 +86,20 @@ export function toastDuration(settings: Pick<Settings, 'longToasts'>): number {
   return settings.longToasts ? LONG_TOAST_MS : TOAST_MS;
 }
 
+/** Bis zu so vielen Zeichen reicht die Grunddauer eines Hinweises. */
+export const TOAST_BASE_CHARS = 90;
+/** Je weiteres Zeichen so viele ms länger (etwa Lesetempo). */
+export const TOAST_MS_PER_CHAR = 50;
+
+/**
+ * Anzeigedauer nach Textlänge: lange Hinweise (z. B. Jahreszeit + Wetter) bleiben länger
+ * stehen, höchstens doppelt so lange wie die Grunddauer.
+ */
+export function toastDurationFor(text: string, base: number): number {
+  const extra = Math.max(0, [...text].length - TOAST_BASE_CHARS) * TOAST_MS_PER_CHAR;
+  return Math.min(base * 2, base + extra);
+}
+
 /** Lädt die Einstellungen; ohne localStorage (privater Modus) einfach die Standardwerte. */
 export function loadSettings(storage: Pick<Storage, 'getItem'> | null = safeStorage()): Settings {
   try {

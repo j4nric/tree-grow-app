@@ -32,6 +32,7 @@ import {
   nicheSlotsLabel,
   toneOf,
 } from './view-format';
+import { nightRateText } from './weather-view';
 
 export interface EcosystemPanel {
   update(view: EcosystemView): void;
@@ -115,6 +116,7 @@ interface SlotTile {
   icon: HTMLElement;
   name: HTMLElement;
   mood: HTMLElement;
+  night: HTMLElement;
   sr: HTMLElement;
   animalId: string | null;
 }
@@ -187,9 +189,16 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     const value = el('b', 'eco-stat-value');
     value.dataset.ref = ref;
     const sub = el('small', 'eco-stat-sub');
+    // Kleines 🌙, solange eine Nachtwirkung auf diese Rate wirkt (DESIGN_V2.md 21.8).
+    const moon = el('span', 'eco-night', '🌙');
+    moon.dataset.ref = `${ref}-night`;
+    moon.setAttribute('aria-hidden', 'true');
+    moon.hidden = true;
+    const moonSr = srOnly();
+    top.append(moon, moonSr);
     box.append(top, value, sub);
     stats.append(box);
-    return { box, value, sub };
+    return { box, value, sub, moon, moonSr };
   };
   const growth = stat('🌿', 'Wachstum', 'growth-rate');
   const seeds = stat('🌰', 'Samen', 'seeds');
@@ -471,12 +480,17 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     // Gekürzte Gründe: voller Text im Tooltip und in den Tierdetails (Tippen auf die Kachel).
     const mood = el('span', 'slot-mood');
     text.append(name, mood);
+    // Nachtaktive Arten: 🌙 am Ring, leuchtet, solange die Nachtwirkung gilt.
+    const night = el('span', 'slot-night', '🌙');
+    night.setAttribute('aria-hidden', 'true');
+    night.hidden = true;
+    ring.append(night);
     const sr = srOnly();
     // Die ganze Kachel eines Tiers ist ein Knopf → Tierdetails. Freie Plätze bleiben schlicht.
     const button = el('button', 'slot-open');
     button.type = 'button';
     button.setAttribute('aria-haspopup', 'dialog');
-    const tile: SlotTile = { root: li, button, parts: [ring, text, sr], ring, icon, name, mood, sr, animalId: null };
+    const tile: SlotTile = { root: li, button, parts: [ring, text, sr], ring, icon, name, mood, night, sr, animalId: null };
     button.addEventListener('click', () => {
       if (tile.animalId) callbacks.onOpenAnimal?.(nicheId, index, tile.animalId, button);
     });
@@ -507,6 +521,7 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
       setText(tile.name, 'frei');
       setText(tile.mood, '');
       tile.mood.removeAttribute('title');
+      if (!tile.night.hidden) tile.night.hidden = true;
       setText(tile.sr, '');
       placeParts(tile, false);
       return;
@@ -528,8 +543,13 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     // Lange Gründe sind optisch auf zwei Zeilen gekürzt – voller Text im Tooltip und in den Tierdetails.
     setAttr(tile.mood, 'title', mood);
     setVar(tile.ring, '--h', happiness.toFixed(3));
+    const night = animal.night;
+    if (tile.night.hidden === Boolean(night)) tile.night.hidden = !night;
+    tile.night.classList.toggle('active', night?.active === true);
+    setAttr(tile.night, 'title', night ? `${night.label}${night.active ? ' – wirkt gerade' : ''}` : '');
+    const nightSr = night ? `, nachtaktiv${night.active ? ', Nachtbonus wirkt gerade' : ''}` : '';
     const opens = slotOpensDetails(animal, Boolean(callbacks.onOpenAnimal));
-    setText(tile.sr, `, ${RARITY_LABELS[animal.rarity]}${animal.visitor ? ', zu Gast' : ''}${opens ? '. Details ansehen' : ''}`);
+    setText(tile.sr, `, ${RARITY_LABELS[animal.rarity]}${animal.visitor ? ', zu Gast' : ''}${nightSr}${opens ? '. Details ansehen' : ''}`);
     placeParts(tile, opens);
   }
 
@@ -711,6 +731,14 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     action.hidden = locked;
   }
 
+  function setNight(stat: { moon: HTMLElement; moonSr: HTMLElement }, names: readonly string[]): void {
+    const text = nightRateText(names);
+    const show = text !== '';
+    if (stat.moon.hidden === show) stat.moon.hidden = !show;
+    setAttr(stat.moon, 'title', text);
+    setText(stat.moonSr, show ? ` (${text})` : '');
+  }
+
   function update(view: EcosystemView): void {
     setText(stage, `Stufe: ${view.stageName}`);
     const pct = unitInterval(view.stageProgress) * 100;
@@ -727,6 +755,8 @@ export function createEcosystemPanel(root: HTMLElement, callbacks: EcosystemPane
     }
 
     setStatValue(growth.value, formatRate(view.growthPerSec));
+    setNight(growth, view.night.growth);
+    setNight(seeds, view.night.seeds);
     setText(growth.sub, `mit ⚖️ ${formatMultiplier(view.harmonyMultiplier)}`);
     setStatValue(seeds.value, formatNumber(Math.floor(view.seeds)));
     setText(seeds.sub, `+${formatRate(view.seedsPerSec)}`);

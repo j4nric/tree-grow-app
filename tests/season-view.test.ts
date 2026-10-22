@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SEASONS } from '../src/content/seasons';
-import { seasonChangeText, seasonTimeLeft, toSeasonBadgeView } from '../src/ui/season-view';
+import { seasonTimeLeft, toSeasonBadgeView } from '../src/ui/season-view';
+import { seasonWeatherChangeText } from '../src/ui/weather-view';
 
 describe('Jahreszeit in der Kopfzeile (DESIGN_V2.md 16.6)', () => {
   it('Abzeichen: Symbol, Name, Restzeit; Wirkungen als Tooltip', () => {
@@ -28,8 +29,9 @@ describe('Jahreszeit in der Kopfzeile (DESIGN_V2.md 16.6)', () => {
   });
 
   it('Hinweis beim Wechsel: die zuletzt erreichte Jahreszeit mit ihrem Text', () => {
-    expect(seasonChangeText([])).toBe('');
-    expect(seasonChangeText(['summer'])).toBe(`☀️ Sommer: ${SEASONS[1]!.text}`);
-    expect(seasonChangeText(['summer', 'autumn'])).toContain('Herbst');
+    // Ohne Wetter (z. B. alter Bericht) wie früher; mit Wetter siehe tests/weather-view.test.ts.
+    expect(seasonWeatherChangeText([], [])).toBe('');
+    expect(seasonWeatherChangeText(['summer'], [])).toBe(`☀️ Sommer: ${SEASONS[1]!.text}`);
+    expect(seasonWeatherChangeText(['summer', 'autumn'], [])).toContain('Herbst');
   });
 });
