@@ -581,6 +581,12 @@ function navigate(nav: AlbumNav, action: NavAction, ctx: { landscapeUnlocked: bo
   schließt die **Android-Zurück-Taste** die Unterseite, statt die App zu verlassen (G-6). Ein
   Zurück-Knopf in der Oberfläche ruft `history.back()` auf, damit Verlauf und Stapel nie
   auseinanderlaufen. Haftnotizen bekommen keinen Verlaufseintrag.
+- **Neuladen auf einer Unterseite (Schritt 12):** Der Eintrag trägt noch `album = n`; darunter
+  liegen die Einträge der alten Ebenen. Das Album spult beim Start mit `history.go(-n)` auf den
+  Grundeintrag zurück und setzt dort den Hash des Reiters, mit dem neu geladen wurde (nur, wenn
+  der Verlauf mindestens so lang ist – sonst wie bisher nur `album = 0`). Zeigt ein älterer
+  Eintrag einen Hash, der nicht mehr zum gezeigten Reiter passt (z. B. `#landschaft` nach dem
+  Sperren der Landschaft), ersetzt das Album ihn beim `hashchange`.
 - **Wischen:** Auf einer Unterseite gilt ein waagerechter Wisch nach rechts als „Zurück“:
   mindestens 60 px weit, waagerecht mindestens doppelt so weit wie senkrecht, oder schneller
   als 0,5 px/ms. Die Seite folgt dem Finger dabei leicht (rotateY bis −20°) und schnappt
@@ -633,7 +639,12 @@ Die Werte stammen aus dem Album-Prototyp:
 
 Es gibt **eine Meldungsschicht** (`Stamps`) über dem Album, auch über dem Vollbild:
 
-- **Ort:** mobil oben mittig unter der Banderole, Desktop oben über der rechten Seite.
+- **Ort (seit Schritt 12):** nie über der Navigation. Unten über der Seite – mobil über dem
+  Zettelstapel, Desktop mittig über dem Fuß der rechten Seite. Nur mobil auf der ungescrollten
+  Hauptansicht (oben liegt dort nur das Bild) und im Vollbild oben über dem Bild, unter
+  sichtbaren Banderolen (`.stamps-top`, entschieden in `album/index.ts` bei Navigation, Scrollen
+  und jeder Meldung). Vorher lag die Schicht immer oben und verdeckte mobil Reiter, Lesezeichen
+  und Seitentitel.
 - **Stempel** (Text bis 90 Zeichen): Tintenrahmen 2 px, abgerundet, −3° gedreht, Caveat
   22 px, Papier dahinter. Er „stempelt“ in 220 ms herein (`scale(1.3) → 1`, Deckkraft) und
   verschwindet nach `toastDurationFor(text, preferences.toastMs())`. Höchstens 2 sind
@@ -721,6 +732,10 @@ src/ui/album/
   season-weather.ts   Jahreszeit und Wetter in der Bildunterschrift mit Notizen
   stamps.ts           Stamps: Stempel- und Zettelschicht (ersetzt #toast)
   stamp-rules.ts      stampKind(), Standzeit, wer weicht (rein)                  ← Vitest
+  eco-refresh.ts      Ökosystem-Ansicht nur nach Änderungen neu, Jahreszeit/Wetter je Sekunde (Schritt 12)
+  floats.ts           schwebende Zahlen und Hinweise über Szene, Samen, Pflanzring (Schritt 12)
+  stage-banner.ts     Stufen-Stempel über dem Bild (Schritt 12)
+  cycle-target.ts     gemeinsames Ziel des nächsten Zyklus (D.2) mit resolveTarget/isOtherTarget
   note-stack.ts       NoteStack: Zettelstapel der Begegnungen
   banderole.ts        Banderole: Update-Hinweis, neuerer Spielstand
   cover.ts            Cover: Buchumschlag (Menü)
@@ -764,6 +779,7 @@ src/ui/album/
 | `care-panel.ts` | Pure Funktionen (`careOrder`, `carePreviewText`, `careSummaryText`) nach `care-view.ts` verschieben (bleiben getestet). Die Zeilen-DOM-Logik geht in `care-page.ts` über. |
 | `ecosystem-panel.ts`, `journal-dialog.ts`, `animal-detail-dialog.ts`, `cycle-panel.ts`, `landscape-map.ts`, `daily-panel.ts`, `bonus-panel.ts`, `return-report.ts`, `season-badge.ts`, `weather-badge.ts`, `encounter-stack.ts`, `help.ts` | Die Bauteile wandern in die Seiten. Pure Exporte (`slotOpensDetails`, `barWidth`, `stackIcon`, `waitingText`, `initPreferences`) werden vorher in `*-view.ts` bzw. `preferences.ts` verschoben. Am Ende werden die Dateien gelöscht (F-12). `landscape-map.ts` bleibt wahrscheinlich fast ganz erhalten (nur neue Klassen). |
 | `toast-place.ts` | löschen (#7); den Test `toast-place.test.ts` mit löschen |
+| *Stand Schritt 12* | Alle oben als „gelöscht (F-12)“ geführten Dateien, `album/legacy.ts` und das alte CSS der Seitenleiste und Dialoge sind gelöscht; `style.css` enthält nur noch globale Grundregeln (Reset, `.sr-only`, `#scene`, schwebende Zahlen). |
 | `main.ts` | Der Game Loop bleibt. Alles, was heute Seitenleiste und Dialoge steuert (`refreshPanel`, `refreshEncounter`, `refreshPicker`, `notify`, `showToast`, `showBanner`, `overlayOpen`), geht in `album/index.ts` über. main.ts ruft nur noch `album.refresh(state, now, flags)` und `album.notify(text)` auf. Siehe G-25 zur Zuständigkeit. |
 
 **Gemeinsamer UI-Zustand:** `albumTarget` (Ziel-Wald des nächsten Zyklus) ist heute in
@@ -1199,7 +1215,7 @@ Reiterseite selbst über `album/pages/registry.ts` (eine Zeile pro Seite).
 | R3 | **Leistung:** viele Sticker-Canvas (Reiter Arten: über 50 Arten + Pflanzen); 3D-Drehung auf schwachen Android-Geräten | Sticker faul und nur bei Änderung zeichnen, LRU-Cache; nur ein Element animiert; unsichtbare Seiten nicht aktualisieren; Szene nicht zeichnen, wenn verdeckt. Messen in Schritt 14. |
 | R4 | **Neubau der Render-Caches** beim Vollbild-Wechsel (spürbarer Ruckler) | FLIP nur mit transform, ein einziges Resize am Ende, `IdleQueue`. Falls es trotzdem ruckelt: die Vollbild-Größe im Hintergrund vorbereiten (Renderer-Aufgabe). |
 | R5 | **Caveat-Zahlen springen** (keine Ziffern gleicher Breite) bei laufenden Werten | Feste Mindestbreite je Etikett (`min-width` in ch), Zahl rechtsbündig. Samen nur bei neuer ganzer Zahl aktualisieren (gibt es schon). |
-| R6 | **5 Reiter bei 360 px** (Caveat 21 px) passen nicht | Innenabstand 10 px, bei Überlauf waagerecht scrollbar mit gewähltem Reiter im Bild (wie heute im Tagebuch). Vier Reiter passen; Landschaft kommt erst spät hinzu. |
+| R6 | **5 Reiter bei 360 px** (Caveat 21 px) passen nicht | Innenabstand 10 px, bei Überlauf waagerecht scrollbar mit gewähltem Reiter im Bild (wie heute im Tagebuch). Vier Reiter passen; Landschaft kommt erst spät hinzu. **Seit Schritt 12:** `tab-strip.ts` misst bei Größen- und Schriftwechsel und schaltet stufenweise (`data-fit`): enger/kleiner → Symbole statt Namen (der gewählte Reiter behält ihn) → Name kleiner → nur Symbole. Geprüft mit DejaVu Sans und 125 % bei 360/390 px (`e2e/album-layout.spec.ts`). |
 | R7 | **`popover` fehlt** auf älteren iOS-Versionen | Fallback mit Klasse und Klick-außerhalb (C.4) |
 | R8 | **Gesten-Konflikte:** iOS-Rand-Wischen, Kartenreihe, Kamera | Verlauf per `pushState`, damit das iOS-Zurück dasselbe tut; `data-no-swipe`; Kamera nur im Vollbild |
 | R9 | **Schriften laden verzögert** (Layout springt beim ersten Start) | `font-display: swap`, ähnliche Fallback-Schriften, Precache. Danach kommen sie immer aus dem Cache. |
@@ -1297,20 +1313,25 @@ Reiterseite selbst über `album/pages/registry.ts` (eine Zeile pro Seite).
 - ~~**`encounter-stack.ts`:** Das Album schaltet Schweben, Marker und IntersectionObserver per
   `{ float: false }` ab.~~ Erledigt in Schritt 6: ersetzt durch `album/note-stack.ts`, samt
   `watchScroll` und dem CSS für `.scene-dock` gelöscht.
-- **Lizenztexte der Schriften** liegen nur im Quellcode (`src/ui/album/fonts/OFL-*.txt`), nicht
-  in `dist/`. In Schritt 12 entscheiden, ob sie mit ausgeliefert werden.
-- **`album/legacy.ts`** wird mit jedem Schritt kleiner und in Schritt 12 gelöscht.
+- ~~**Lizenztexte der Schriften** liegen nur im Quellcode, nicht in `dist/`.~~ Erledigt in
+  Schritt 12: Sie werden mit ausgeliefert – `public/licenses/OFL-Caveat.txt` und
+  `OFL-Nunito.txt` landen in `dist/licenses/` (geprüft in `e2e/album-layout.spec.ts`).
+- ~~**`album/legacy.ts`** wird mit jedem Schritt kleiner und in Schritt 12 gelöscht.~~ Erledigt:
+  gelöscht; Ökosystem-Auffrischung in `album/eco-refresh.ts`, schwebende Zahlen in
+  `album/floats.ts`, Stufen-Stempel in `album/stage-banner.ts`, der Rest in `album/index.ts`.
 - **Tagebuch-Teil „Landschaft“:** erledigt in Schritt 10 – steht als „Tagebuch der Wälder“ in
   R:Landschaft (Stammgäste und Tiere zusätzlich auf U:Standort); `ui/journal-landscape.ts` und
   die `.journal-*`-Regeln in `style.css` sind gelöscht.
-- **Neuladen auf einer Unterseite (Review KANN 5):** Der aktuelle Eintrag wird `album:0`,
+- ~~**Neuladen auf einer Unterseite (Review KANN 5):** Der aktuelle Eintrag wird `album:0`,
   die älteren Einträge (`album:1`, Grundeintrag) liegen aber noch darunter. Die ersten zwei
-  Zurück-Drücke bleiben ohne sichtbare Wirkung, erst der dritte verlässt die App. Lösung offen:
-  `history.go(-n)` beim Start oder ein Hinweis in C.2.
-- **Veralteter Hash nach `landscape-locked` bei offenem Umschlag (Review KANN 7):** Reiter
+  Zurück-Drücke bleiben ohne sichtbare Wirkung, erst der dritte verlässt die App.~~ Erledigt in
+  Schritt 12: `history.go(-n)` beim Start, wenn der Verlauf lang genug ist (C.2, Vitest in
+  `tests/album-history.test.ts`).
+- ~~**Veralteter Hash nach `landscape-locked` bei offenem Umschlag (Review KANN 7):** Reiter
   Landschaft → Umschlag → alten Stand importieren → Umschlag schließen: `go(-1)` landet auf
   dem Grundeintrag mit `#landschaft`, angezeigt wird Nischen. Folgenlos, weil `tabFromHash`
-  zurückfällt.
-- **`toast-place.ts` misst `.polaroid .scene-camera` (Review KANN 9):** Solange einspaltig ein
+  zurückfällt.~~ Erledigt in Schritt 12: Der `hashchange`-Handler ersetzt einen Hash, der nicht
+  zum gezeigten Reiter passt.
+- ~~**`toast-place.ts` misst `.polaroid .scene-camera` (Review KANN 9):** Solange einspaltig ein
   Toast sichtbar ist, gibt es pro Frame ein `getBoundingClientRect()`. Entfällt mit Schritt 4
-  (toast-place wird gelöscht).
+  (toast-place wird gelöscht).~~ Erledigt: `toast-place.ts` samt Test ist seit Schritt 4 gelöscht.

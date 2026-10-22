@@ -3,6 +3,15 @@
 Ein grafisches Incremental Game im Browser: Du beginnst als kleiner Samen und wächst
 über Keimling, Setzling und Baum bis zu einem riesigen Urwald.
 
+![Das Album am Desktop: links die Szene im Polaroid mit Etiketten und Stufenleiste, rechts der Reiter „Nischen“ mit Stickerreihen](docs/img/album-desktop.png)
+
+<img src="docs/img/album-mobil.png" alt="Das Album auf dem Handy: Polaroid, Etiketten, Reiterleiste und Nischen" width="300" />
+
+Die Oberfläche ist ein Sammelalbum: Die Szene klebt als Polaroid im Buch, Tiere als Sticker
+in den Reitern Nischen, Arten, Pflege, Ziele und Landschaft (Konzept:
+[`docs/ALBUM_UI.md`](docs/ALBUM_UI.md)). Eine Album-Demo mit Beispieldaten gibt es unter
+`/src/ui/demo.html` (mit `npm run dev`).
+
 ## Loslegen
 
 ```bash
@@ -72,6 +81,7 @@ dem Not-Aus oben – nie einen Build mit kleinerer `SAVE_VERSION` ausrollen.
 ## Projekt
 
 - [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) – Spielregeln, Zahlen, geplante Systeme
+- [`docs/ALBUM_UI.md`](docs/ALBUM_UI.md) – Album-Oberfläche: Seiten, Navigation, Komponenten
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) – Aufgaben nach Phasen
 - [`docs/KONTO.md`](docs/KONTO.md) – optionales Konto mit Gerätesync (Sync-Server in `server/`)
 - [`CLAUDE.md`](CLAUDE.md) – Architektur und Regeln für Entwickler und Claude-Agenten
@@ -85,7 +95,7 @@ Unter [`.claude/agents/`](.claude/agents/) liegen spezialisierte Rollen:
 | `game-designer` | Balancing, Inhalte, `docs/GAME_DESIGN.md` |
 | `core-engineer` | Spiellogik in `src/core/`, Speichern, Game Loop |
 | `renderer` | Prozeduraler Baum und Szene in `src/render/` |
-| `ui-dev` | Oberfläche in `src/ui/` und `src/style.css` |
+| `ui-dev` | Oberfläche in `src/ui/` (Album in `src/ui/album/`) und `src/style.css` |
 | `qa-tester` | Unit- und Playwright-Tests |
 | `reviewer` | Code-Review (nur lesend) |
 
@@ -94,3 +104,9 @@ In einer Claude-Code-Session einfach ansprechen, z. B.
 
 Für parallele Arbeit: pro Roadmap-Aufgabe eine eigene Session auf claude.ai/code
 starten. Jede Session arbeitet auf ihrem eigenen Branch und öffnet einen PR.
+
+## Lizenzen
+
+Die Schriften Caveat und Nunito liegen selbst gehostet in `src/ui/album/fonts/` und stehen
+unter der SIL Open Font License 1.1; die Lizenztexte werden unter `licenses/` mit
+ausgeliefert (`public/licenses/`).
