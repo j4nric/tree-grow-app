@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID, PATIENCE_SECONDS, type Achievement } from '../src/content/achievements';
 import { COMMUNITIES } from '../src/content/communities';
+import { CORRIDORS, LANDSCAPE_SITES, SITE_IDS } from '../src/content/landscape';
 import { EVENTS } from '../src/content/events';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { PLANTS } from '../src/content/plants';
@@ -20,7 +21,7 @@ import {
   valueOf,
 } from '../src/core/achievements';
 import { codeFromJson, exportCode, importCode, loadGame, serialize } from '../src/core/save';
-import { SAVE_VERSION, createInitialState, createStats, type GameState } from '../src/core/state';
+import { SAVE_VERSION, createInitialState, createSite, createStats, type GameState } from '../src/core/state';
 import { recordDiscoveries, simulateOffline, startNewCycle, tick } from '../src/core/tick';
 import {
   achievementCountText,
@@ -58,9 +59,9 @@ function raw(state: GameState, patch: (data: Record<string, any>) => void): stri
 }
 
 describe('Inhalte', () => {
-  it('20–25 Erfolge, eindeutige IDs, Titel, Symbol und Beschreibung', () => {
+  it('20–35 Erfolge, eindeutige IDs, Titel, Symbol und Beschreibung', () => {
     expect(ACHIEVEMENTS.length).toBeGreaterThanOrEqual(20);
-    expect(ACHIEVEMENTS.length).toBeLessThanOrEqual(25);
+    expect(ACHIEVEMENTS.length).toBeLessThanOrEqual(35);
     expect(ACHIEVEMENTS_BY_ID.size).toBe(ACHIEVEMENTS.length);
     expect(new Set(ACHIEVEMENTS.map((a) => a.title)).size).toBe(ACHIEVEMENTS.length);
     for (const a of ACHIEVEMENTS) {
@@ -84,12 +85,20 @@ describe('Inhalte', () => {
       }
       if (c.kind === 'genera') expect(target, a.id).toBeLessThanOrEqual(GENERA.length);
       if (c.kind === 'trees') expect(target, a.id).toBeLessThanOrEqual(MAIN_TREES.length);
+      if (c.kind === 'forests' || c.kind === 'ancientForests') expect(target, a.id).toBeLessThanOrEqual(SITE_IDS.length);
+      if (c.kind === 'corridors') expect(target, a.id).toBeLessThanOrEqual(CORRIDORS.length);
+      // Gekauft höchstens 10 − Gratis-Korridore: hinge an der Gründungs-Reihenfolge (24.12).
+      if (c.kind === 'corridors' && c.bought) expect(c.atLeast, a.id).not.toBe('all');
       if (c.kind === 'stat') expect(Object.keys(createStats()), a.id).toContain(c.key);
     }
   });
 
-  it('verraten nichts: keine Namen von Arten, Pflanzen, Gemeinschaften, Gästen oder Ereignissen', () => {
-    const names = [...SPECIES, ...PLANTS, ...COMMUNITIES, ...VISITORS, ...EVENTS].map((x) => ('name' in x ? x.name : ''));
+  it('verraten nichts: keine Namen von Arten, Pflanzen, Gemeinschaften, Gästen, Ereignissen, Standorten, Korridoren oder Hauptbäumen', () => {
+    const names = [...SPECIES, ...PLANTS, ...COMMUNITIES, ...VISITORS, ...EVENTS, ...LANDSCAPE_SITES, ...CORRIDORS, ...MAIN_TREES].map((x) =>
+      'name' in x ? x.name : '',
+    );
+    // Auch die Waldtypen der Standorte (z. B. „Hartholzaue“).
+    names.push(...LANDSCAPE_SITES.map((x) => x.forestType));
     for (const a of ACHIEVEMENTS) {
       const text = `${a.title} ${a.description}`;
       for (const name of names.filter((n) => n.length > 3)) expect(text, `${a.id}: ${name}`).not.toContain(name);
@@ -98,7 +107,7 @@ describe('Inhalte', () => {
 
   it('decken das ganze Spiel ab (jede Bedingungsart mindestens einmal)', () => {
     const kinds = new Set(ACHIEVEMENTS.map((a) => a.condition.kind));
-    expect([...kinds].sort()).toEqual(['cycleTime', 'cycles', 'genera', 'journal', 'stage', 'stat', 'trees']);
+    expect([...kinds].sort()).toEqual(['ancientForests', 'corridors', 'cycleTime', 'cycles', 'forests', 'genera', 'journal', 'stage', 'stat', 'trees']);
   });
 });
 
@@ -205,10 +214,13 @@ describe('Bedingungen', () => {
     expect(isAchieved(s, byId('cycle-10'))).toBe(true);
   });
 
-  it('trees: alle Hauptbaum-Arten gewachsen (unbekannte und doppelte zählen nicht)', () => {
+  it('trees: drei Hauptbaum-Arten gewachsen (unbekannte und doppelte zählen nicht)', () => {
     const s = createInitialState(0, 1);
     s.meta.stats.grownTrees = ['oak', 'oak', 'drache' as 'oak', 'beech'];
-    expect(achievementProgress(s, byId('trees-all'))).toEqual({ value: 2, target: MAIN_TREES.length });
+    // Fest drei (24.12, 25.7) – unabhängig davon, wie viele Arten es gibt.
+    expect(byId('trees-all').condition).toEqual({ kind: 'trees', atLeast: 3 });
+    expect(achievementProgress(s, byId('trees-all'))).toEqual({ value: 2, target: 3 });
+    expect(isAchieved(s, byId('trees-all'))).toBe(false);
     s.meta.stats.grownTrees = MAIN_TREES.map((t) => t.id);
     expect(isAchieved(s, byId('trees-all'))).toBe(true);
   });
@@ -257,6 +269,15 @@ describe('checkAchievements', () => {
     s.meta.stats = { ...createStats(), playSeconds: 1e300, bestHarmony: 1e300, visitorsHosted: 99, eventsDecided: 99, careRanksBought: 99, grownTrees: MAIN_TREES.map((t) => t.id) };
     s.cycle.number = 11;
     s.cycle.elapsed = YEAR_SECONDS;
+    // Ganze Landschaft: alle Wälder Urwald, alle Korridore, die Speichen gratis.
+    const spokes = CORRIDORS.filter((c) => c.sites.includes('home')).map((c) => c.id);
+    s.meta.landscape = {
+      active: 'home',
+      sites: SITE_IDS.map((id) => ({ ...createSite(id), memory: 1000, ancient: true })),
+      corridors: CORRIDORS.map((c) => c.id),
+      freeCorridors: spokes,
+      announced: true,
+    };
     expect(checkAchievements(s)).toEqual(ACHIEVEMENTS.map((a) => a.id));
     expect(checkAchievements(s)).toEqual([]);
   });
@@ -465,7 +486,9 @@ describe('Oberfläche: Texte und Naturtagebuch', () => {
     s.meta.stats.playSeconds = 2 * 3600 + 30;
     s.meta.achievements = ['visitor-1', 'grove'];
     const view = toJournalAchievements(s);
-    expect(view).toHaveLength(ACHIEVEMENTS.length);
+    // Ohne Landschaft fehlen ihre Erfolge (24.12).
+    const visible = ACHIEVEMENTS.filter((a) => !a.requires);
+    expect(view).toHaveLength(visible.length);
     expect(view.slice(0, 2).map((v) => [v.key, v.unlocked])).toEqual([
       ['visitor-1', true],
       ['grove', true],
@@ -483,7 +506,7 @@ describe('Oberfläche: Texte und Naturtagebuch', () => {
     expect(at('patience').progress).toBe('2 Std./10 Std.');
     expect(at('full-year').progress).toBe('0 Sek./12 Min.');
     expect(progressText(s, byId('species-all'))).toBe(`3/${SPECIES.length}`);
-    expect(achievementCountText(s)).toBe(`2/${ACHIEVEMENTS.length}`);
+    expect(achievementCountText(s)).toBe(`2/${visible.length}`);
   });
 
   it('Zeit-Erfolge: laufender Fortschritt außerhalb der Signatur, nur offene', () => {

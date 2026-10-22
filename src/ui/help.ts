@@ -375,9 +375,13 @@ export function createHelp(root: HTMLElement, prefs: Preferences, options: HelpO
     setLandscapeUnlocked(unlocked) {
       if (unlocked === landscapeShown) return;
       landscapeShown = unlocked;
-      const box = guideBoxes.get('landscape');
-      const section = guideSections({ landscape: unlocked }).find((s) => s.id === 'landscape');
-      if (box && section) fillGuideSection(box, section);
+      // Landschaft und Erfolge (deren Zahl mit der Freischaltung wächst, 24.12) neu füllen.
+      const sections = guideSections({ landscape: unlocked });
+      for (const id of ['landscape', 'achievements']) {
+        const box = guideBoxes.get(id);
+        const section = sections.find((s) => s.id === id);
+        if (box && section) fillGuideSection(box, section);
+      }
     },
   };
 }

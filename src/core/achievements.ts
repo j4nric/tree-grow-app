@@ -1,9 +1,11 @@
 import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID, type Achievement, type AchievementCondition, type AchievementTarget } from '../content/achievements';
 import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
+import { CORRIDORS, CORRIDORS_BY_ID, LANDSCAPE_SITES_BY_ID, SITE_IDS, type SiteId } from '../content/landscape';
 import { PLANTS, PLANTS_BY_ID } from '../content/plants';
 import { SPECIES, SPECIES_BY_ID } from '../content/species';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
 import { GENERA } from '../content/types';
+import { isSiteAncient, landscapeOf, landscapeUnlocked } from './landscape';
 import type { GameState } from './state';
 
 /*
@@ -36,6 +38,11 @@ export function targetOf(condition: AchievementCondition): number {
       return all(condition.atLeast, GENERA.length);
     case 'trees':
       return all(condition.atLeast, MAIN_TREES.length);
+    case 'forests':
+    case 'ancientForests':
+      return all(condition.atLeast, SITE_IDS.length);
+    case 'corridors':
+      return all(condition.atLeast, CORRIDORS.length);
     default:
       return condition.atLeast;
   }
@@ -87,7 +94,26 @@ export function valueOf(state: GameState, condition: AchievementCondition, optio
       return knownCount(state.meta.stats.grownTrees as MainTreeId[], MAIN_TREES_BY_ID);
     case 'cycleTime':
       return safe(state.cycle.elapsed);
+    case 'forests':
+      return foundedSites(state).length;
+    case 'corridors': {
+      const corridors = landscapeOf(state).corridors;
+      if (!condition.bought) return knownCount(corridors, CORRIDORS_BY_ID);
+      const free = new Set(landscapeOf(state).freeCorridors);
+      return knownCount(Array.isArray(corridors) ? corridors.filter((id) => !free.has(id)) : [], CORRIDORS_BY_ID);
+    }
+    case 'ancientForests':
+      return foundedSites(state).filter((id) => isSiteAncient(state, id)).length;
   }
+}
+
+/** Gegründete Wälder der Landschaft: bekannte Standort-IDs, je einmal (fehlt sie: Heimatwald). */
+function foundedSites(state: GameState): SiteId[] {
+  const sites = landscapeOf(state).sites;
+  if (!Array.isArray(sites)) return [];
+  const ids = new Set<SiteId>();
+  for (const s of sites) if (s && LANDSCAPE_SITES_BY_ID.has(s.id)) ids.add(s.id);
+  return [...ids];
 }
 
 /** Fortschritt eines Erfolgs, Wert auf das Ziel begrenzt (für „3/5“ in der Anzeige). */
@@ -104,6 +130,23 @@ export function isAchieved(state: GameState, achievement: Achievement, options: 
 /** Ist dieser Erfolg schon freigeschaltet? */
 export function hasAchievement(state: GameState, id: string): boolean {
   return state.meta.achievements.includes(id);
+}
+
+/**
+ * Darf der Erfolg im Naturtagebuch erscheinen (24.12)? Erfolge mit `requires: 'landscape'`
+ * bleiben bis zur Freischaltung der Landschaft verborgen – außer sie sind schon
+ * freigeschaltet. Die Prüfung (checkAchievements) hängt nicht daran.
+ */
+export function isAchievementVisible(state: GameState, a: Achievement): boolean {
+  return isAchievementVisibleIn(a, landscapeUnlocked(state), hasAchievement(state, a.id));
+}
+
+/**
+ * Dieselbe Regel ohne Spielstand (z. B. für die Spielanleitung, die nur weiß, ob die
+ * Landschaft freigeschaltet ist): `landscape` = landscapeUnlocked, `unlocked` = schon erreicht.
+ */
+export function isAchievementVisibleIn(a: Achievement, landscape: boolean, unlocked = false): boolean {
+  return !a.requires || landscape || unlocked;
 }
 
 /**

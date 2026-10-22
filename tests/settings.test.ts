@@ -195,11 +195,21 @@ describe('Spielanleitung', () => {
 
   it('Erfolge: Anzahl aus content, Fundort Naturtagebuch, keine Eile', () => {
     const t = text('achievements');
-    expect(t).toContain(`${formatNumber(ACHIEVEMENTS.length)} leise Erfolge`);
+    // Vor der Freischaltung der Landschaft nur die sichtbaren (24.12): 25.
+    const visible = ACHIEVEMENTS.filter((a) => !a.requires).length;
+    expect(visible).toBe(25);
+    expect(t).toContain(`${formatNumber(visible)} leise Erfolge`);
     expect(t).toContain('Naturtagebuch');
     expect(t).toContain('Reiter „Erfolge“');
     expect(t).toContain('keine Eile');
     expect(t).toContain('keine Zeitlimits');
+  });
+
+  it('Erfolge nach der Freischaltung der Landschaft: alle (30)', () => {
+    const after = guideSections({ landscape: true }).find((s) => s.id === 'achievements')!.paragraphs.join(' ');
+    expect(ACHIEVEMENTS.length).toBe(30);
+    expect(after).toContain(`${formatNumber(ACHIEVEMENTS.length)} leise Erfolge`);
+    expect(guideSections({ landscape: false }).find((s) => s.id === 'achievements')!.paragraphs.join(' ')).toContain('25 leise Erfolge');
   });
 
   it('span: Spanne „a–b“ oder ein Wert, deutsches Zahlenformat', () => {

@@ -37,6 +37,7 @@ import { DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS, GENTLE_DAYS, OFFLIN
 import { NOCTURNAL } from '../content/daytime';
 import { REPTILE_SUMMER_HAPPINESS } from '../content/habitats';
 import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, PREDATION_EVENTS, STOCK_BASE, STOCK_RANGE } from '../content/predation';
+import { isAchievementVisibleIn } from '../core/achievements';
 import { HARMONY_DIVISOR, memoryHarmonyBonus } from '../core/formulas';
 import {
   CORRIDORS,
@@ -77,7 +78,8 @@ const stageName = (index: number) => STAGES[index]?.name ?? STAGES[STAGES.length
 export interface GuideOptions {
   /**
    * Die Waldlandschaft ist sichtbar (freigeschaltet). Vorher steht im Abschnitt nur eine
-   * Andeutung – keine Namen, keine Zahlen (Spoiler-Regel, DESIGN_V2.md 24.1).
+   * Andeutung – keine Namen, keine Zahlen (Spoiler-Regel, DESIGN_V2.md 24.1). Auch die Zahl
+   * der Erfolge zählt deren Erfolge erst danach mit (24.12, wie der Zähler im Naturtagebuch).
    */
   landscape?: boolean;
 }
@@ -332,7 +334,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       icon: '🏅',
       title: 'Erfolge',
       paragraphs: [
-        `${formatNumber(ACHIEVEMENTS.length)} leise Erfolge begleiten dich durch das ganze Spiel: Stufen, Einträge im Naturtagebuch, Harmonie, Gäste, Zyklen und Spielzeit. Du findest sie im Naturtagebuch im Reiter „Erfolge“ – offene mit ihrem Fortschritt.`,
+        `${formatNumber(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, options.landscape === true)).length)} leise Erfolge begleiten dich durch das ganze Spiel: Stufen, Einträge im Naturtagebuch, Harmonie, Gäste, Zyklen und Spielzeit. Du findest sie im Naturtagebuch im Reiter „Erfolge“ – offene mit ihrem Fortschritt.`,
         'Es gibt keine Eile: Erfolge haben keine Zeitlimits, bringen keine Belohnung in Zahlen und gehen nie verloren, auch nicht beim Neuen Zyklus. Sie kommen ganz von selbst, Schritt für Schritt.',
       ],
     },
