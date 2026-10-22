@@ -12,7 +12,7 @@ import { normalizeSpecies, TREE_SPECIES, type Branch, type TreeSpecies } from '.
 import { clamp, clamp01, hash2, lerp } from './util';
 
 /** Nischen-IDs, die der Renderer kennt (wie in DESIGN_V2.md / src/content/niches.ts). */
-export const SCENE_NICHES = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond'] as const;
+export const SCENE_NICHES = ['roots', 'litter', 'edge', 'crown', 'bark', 'hollows', 'pond', 'meadow', 'deadwood', 'wall'] as const;
 export type SceneNiche = (typeof SCENE_NICHES)[number];
 
 export function isSceneNiche(n: string): n is SceneNiche {
@@ -42,7 +42,7 @@ export interface NicheAnchor {
    * stehen die Tiere etwas kleiner in einer hinteren Reihe.
    */
   scale: number;
-  /** Reihe: 0 vorn auf der Bodenlinie, 1 dahinter auf der Wiese (wird zuerst gezeichnet). */
+  /** Reihe: 0 vorn auf der Bodenlinie, 1 dahinter auf der Wiese, 2 Mittelgrund (Waldwiese, Trockenmauer); hintere zuerst gezeichnet. */
   depth: number;
 }
 
@@ -58,6 +58,10 @@ export interface AnchorResolver {
   get(niche: string, slot: number): NicheAnchor | null;
   /** Lage des Waldtümpels (gemerkt; hängt nur von der Canvas-Größe ab). */
   pond(): PondGeometry;
+  /** Lage des Totholzhaufens (gemerkt; Spiegelbild des Tümpels am rechten Rand). */
+  pile(): PondGeometry;
+  /** Lage von Waldwiese bzw. Trockenmauer im Mittelgrund (gemerkt; nur von der Größe abhängig). */
+  midground(niche: 'meadow' | 'wall'): MidgroundGeometry;
 }
 
 export function createAnchorResolver(layout: Layout, g: number, main: PlacedTree | null): AnchorResolver {
@@ -69,12 +73,23 @@ export function createAnchorResolver(layout: Layout, g: number, main: PlacedTree
     return roots.reach;
   };
   let pond: PondGeometry | null = null;
+  let pile: PondGeometry | null = null;
+  let meadow: MidgroundGeometry | null = null;
+  let wall: MidgroundGeometry | null = null;
   return {
     layout,
     size,
     pond() {
       if (!pond) pond = pondGeometry(layout, size);
       return pond;
+    },
+    pile() {
+      if (!pile) pile = pileGeometry(layout, size);
+      return pile;
+    },
+    midground(niche) {
+      if (niche === 'meadow') return (meadow ??= midgroundGeometry(layout, size, 1));
+      return (wall ??= midgroundGeometry(layout, size, -1));
     },
     get(niche, slot) {
       if (!isSceneNiche(niche) || !Number.isFinite(slot) || slot < 0) return null;
@@ -177,6 +192,95 @@ export function pondGeometry(layout: Layout, size: number): PondGeometry {
  * Kröte und Frösche an den flachen Rändern, Molche nebeneinander in der Mitte.
  */
 const POND_SLOTS = [-0.8, 0.75, -0.05, 1, -1];
+
+// ---------------------------------------------------------------------------
+// Totholzhaufen (DESIGN_V2.md 23.8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Totholzhaufen: Gegenstück zum Tümpel am **rechten** Bildrand im Erdschnitt – gleiche
+ * Maße (POND_LIP … POND_DEPTH, gleiche halbe Breite), gespiegelt. So gelten dieselben
+ * Regeln: nichts an der Oberfläche reicht hinein, der Wurzelraum liegt tiefer.
+ */
+export function pileGeometry(layout: Layout, size: number): PondGeometry {
+  const p = pondGeometry(layout, size);
+  return { ...p, x: layout.width - p.x };
+}
+
+/** Morscher Stubben am äußeren Ende des Haufens: Abstand seiner Mitte vom Rand und halbe Breite (Tiergrößen). */
+export const PILE_STUMP_IN = 0.5;
+export const PILE_STUMP_HALF = 0.24;
+
+/** Nominelle Plätze im Haufen (Anteil der halben Breite); die echte Lage: animals.ts, `habitatPlaces`. */
+const PILE_SLOTS = [-0.6, 0.2, -0.95, 0.6, -0.25];
+
+// ---------------------------------------------------------------------------
+// Waldwiese und Trockenmauer im Mittelgrund (DESIGN_V2.md 23.8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Die Bewohner stehen auf einer Linie so hoch über der Bodenlinie (Tiergrößen), dass sie
+ * über den Köpfen der Großtiere am Waldsaum bleiben (Reh: 2,6) – sie liegen weiter hinten.
+ */
+export const HABITAT_LIFT = 2.7;
+/** Größe der Bewohner im Mittelgrund (Perspektive). */
+export const HABITAT_SCALE = 0.7;
+/**
+ * Abstand der Lebensräume von der Stammmitte (Tiergrößen): außerhalb von Stamm,
+ * Rinden- und Höhlenbewohnern und der tiefsten Kronenplätze des Jungen Baums.
+ */
+const HABITAT_CLEAR = 3.2;
+const HABITAT_HALF_MIN = 1.2;
+const HABITAT_HALF_MAX = 3.6;
+/** Der Turmfalke rüttelt so hoch über der Linie der Wiese (Mitte, Tiergrößen). */
+export const SOAR_LIFT = 1.3;
+
+export interface MidgroundGeometry {
+  /** Mitte des Streifens und Linie, auf der die Bewohner stehen (CSS-Pixel). */
+  x: number;
+  y: number;
+  /** Halbe Breite des Streifens in Tiergrößen (auf 0,05 gerundet). */
+  halfWidth: number;
+  /** Tiergröße S. */
+  size: number;
+  /** Seite relativ zum Stamm: 1 rechts (Wiese), −1 links (Mauer). */
+  side: -1 | 1;
+  /** Mitte der Flughöhe über dem Streifen (Turmfalke). */
+  skyY: number;
+}
+
+/**
+ * Lage eines Lebensraums im Mittelgrund – hängt nur von der Canvas-Größe ab: ein Streifen
+ * zwischen dem Abstand zum Stamm (mindestens HABITAT_CLEAR bzw. breitester ausgewachsener
+ * Stamm aller Arten mit Rand) und dem Bildrand.
+ */
+export function midgroundGeometry(layout: Layout, size: number, side: -1 | 1): MidgroundGeometry {
+  const clear = Math.max(HABITAT_CLEAR * size, maxTrunkHalf(layout) + size * 0.8);
+  const margin = size * 0.15;
+  const room = (layout.cx - clear - margin) / (2 * size);
+  const halfWidth = Math.floor(clamp(room, HABITAT_HALF_MIN, HABITAT_HALF_MAX) * 20) / 20;
+  const x = layout.cx + side * (clear + halfWidth * size);
+  const y = layout.groundY - HABITAT_LIFT * size;
+  return { x, y, halfWidth, size, side, skyY: y - SOAR_LIFT * size };
+}
+
+const trunkMemo = new Map<string, number>();
+
+/** Breitester ausgewachsener Stamm aller Arten (halbe Breite am Fuß, px) – gemerkt je Größe. */
+function maxTrunkHalf(layout: Layout): number {
+  const key = `${layout.width}x${layout.height}`;
+  let t = trunkMemo.get(key);
+  if (t === undefined) {
+    t = 0;
+    for (const species of TREE_SPECIES) t = Math.max(t, trunkBaseHalf(8, placeMainTree(layout, 8, species), layout));
+    if (trunkMemo.size > 16) trunkMemo.clear();
+    trunkMemo.set(key, t);
+  }
+  return t;
+}
+
+/** Nominelle Plätze im Streifen (Anteil der halben Breite). */
+const MIDGROUND_SLOTS = [-0.55, 0.45, -0.1, 0.85, -0.9];
 
 // ---------------------------------------------------------------------------
 
@@ -294,6 +398,21 @@ function computeAnchor(
       a = { ...base, x: pond.x + u * size, y: pond.waterY, side: u < 0 ? -1 : 1 };
       break;
     }
+    case 'deadwood': {
+      const pile = pileGeometry(layout, size);
+      const off = PILE_SLOTS[slot % PILE_SLOTS.length]!;
+      const u = (off - Math.sign(off) * 0.1 * Math.floor(slot / PILE_SLOTS.length)) * (pile.halfWidth - 0.6);
+      a = { ...base, x: pile.x + u * size, y: pile.y + (POND_DEPTH - 0.1) * size, side: u < 0 ? -1 : 1 };
+      break;
+    }
+    case 'meadow':
+    case 'wall': {
+      const m = midgroundGeometry(layout, size, niche === 'meadow' ? 1 : -1);
+      const off = MIDGROUND_SLOTS[slot % MIDGROUND_SLOTS.length]!;
+      const u = (off - Math.sign(off) * 0.1 * Math.floor(slot / MIDGROUND_SLOTS.length)) * (m.halfWidth - 0.4);
+      a = { ...base, x: m.x + u * size, y: m.y, side: m.side, scale: HABITAT_SCALE, depth: 2 };
+      break;
+    }
   }
   // Nie aus dem Bild ragen.
   const m = size * 0.6;
@@ -363,8 +482,7 @@ function edgeRow(layout: Layout, size: number): EdgeRow {
   const gap = EDGE_GAP * size;
   // Breitester ausgewachsener Stamm aller Arten: Die Reihe hängt nicht von der Art ab,
   // so springen die Tiere beim Artwechsel nicht und stehen nie auf dem Stamm.
-  let trunk = 0;
-  for (const species of TREE_SPECIES) trunk = Math.max(trunk, trunkBaseHalf(8, placeMainTree(layout, 8, species), layout));
+  const trunk = maxTrunkHalf(layout);
   const pitch = Math.max(width * 0.075, foot + gap);
   const r0 = Math.min(width * 0.33, half - m - EDGE_REACH_OUT * size - pitch);
   // Pilzbereich vorn: alte Grenze (33 % − 0,8 S); rückt der Waldsaum nach innen, mit

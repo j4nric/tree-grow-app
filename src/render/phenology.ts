@@ -241,3 +241,36 @@ export function amphibianActivity(season: number | null): number {
 export function pondIce(season: number | null): number {
   return atRaw(POND_ICE, season, 0);
 }
+
+/**
+ * Reptilien (DESIGN_V2.md 23.8): wechselwarm, Winterstarre wie die Amphibien – sie ziehen
+ * sich etwas früher zurück und kommen erst mit der Frühlingssonne wieder heraus.
+ */
+const REPTILE_ACTIVITY: Points = [
+  [0, 1],
+  [2.0, 1],
+  [2.4, 0],
+  [3.45, 0],
+  [3.75, 1],
+  [4, 1],
+];
+
+/** Bewegung der Reptilien 0 (Winterstarre, versteckt) – 1 (munter). Ungerundete Jahreszeit. */
+export function reptileActivity(season: number | null): number {
+  return atRaw(REPTILE_ACTIVITY, season);
+}
+
+/** Schnee auf dem Totholzhaufen: wie die Schneedecke der Kulisse (season.ts). */
+const GROUND_SNOW: Points = [
+  [0, 0],
+  [2.7, 0],
+  [3.0, 1],
+  [3.25, 1],
+  [3.6, 0],
+  [4, 0],
+];
+
+/** Schnee am Boden 0–1 für Werte pro Frame (ungerundete Jahreszeit). */
+export function groundSnow(season: number | null): number {
+  return atRaw(GROUND_SNOW, season, 0);
+}
