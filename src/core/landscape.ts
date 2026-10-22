@@ -10,11 +10,13 @@ import {
   LANDSCAPE_SITES_BY_ID,
   LANDSCAPE_UNLOCK_ACHIEVEMENT,
   LANDSCAPE_UNLOCK_MEMORY,
+  WILDWECHSEL_CHANCE,
+  WILDWECHSEL_MAX_CHANCE,
   type Corridor,
   type SiteId,
 } from '../content/landscape';
 import { STAGES } from '../content/stages';
-import type { Tag } from '../content/types';
+import type { Genus, Tag } from '../content/types';
 import type { TreeTrait } from '../content/trees';
 import { MAX_FOREST_MEMORY, createLandscape, type GameState, type LandscapeSite, type LandscapeState } from './state';
 
@@ -218,4 +220,61 @@ export function landscapeTraits(site: SiteId | undefined, gifts: readonly SiteId
 /** Merkmale, die der Standort immer bereitstellt (je 1 Einheit wie `cycle.habitats`). */
 export function siteHabitats(site: SiteId | undefined): readonly Tag[] {
   return site !== undefined ? (LANDSCAPE_SITES_BY_ID.get(site)?.habitats ?? []) : [];
+}
+
+/** Gattungen, die im aktiven Wald häufiger als Karte kommen (`featured`, 24.6; Heimatwald: keine). */
+export function featuredGenera(state: { meta: { landscape?: LandscapeState } }): readonly Genus[] {
+  return LANDSCAPE_SITES_BY_ID.get(activeSite(landscapeOf(state)))?.featured ?? [];
+}
+
+/**
+ * Chance, dass eine Tierbegegnung eine Wildwechsel-Karte zeigt (24.6):
+ * `min(WILDWECHSEL_MAX_CHANCE, WILDWECHSEL_CHANCE · gebaute Korridore am aktiven Wald)`.
+ * Ohne Korridor 0 – dann wird auch nicht gewürfelt (der Zufall läuft wie vor Schritt B).
+ */
+export function wildwechselChance(state: { meta: { landscape?: LandscapeState } }): number {
+  const landscape = landscapeOf(state);
+  const corridors = builtCorridorsAt(landscape, activeSite(landscape)).length;
+  return Math.min(WILDWECHSEL_MAX_CHANCE, WILDWECHSEL_CHANCE * corridors);
+}
+
+/** Weg einer Art über einen Korridor: woher sie kommt und über welchen Korridor. */
+export interface WildwechselRoute {
+  species: string;
+  /** Der ruhende Nachbarwald, in dessen Bestand (`fauna`) die Art lebt. */
+  from: SiteId;
+  /** ID des Korridors (CORRIDORS_BY_ID: Name und Art für „kommt über die Schlehenhecke“). */
+  corridor: string;
+}
+
+/**
+ * Alle Arten, die über gebaute Korridore aus dem Bestand (`fauna`) der Nachbarn kommen
+ * können – je Art einmal, mit dem ersten Weg (Korridore in Bau-Reihenfolge, Bestand in
+ * gespeicherter Reihenfolge). Ohne Regeln zu Stufe, Nische und Ökosystem (die prüft tick.ts
+ * beim Ziehen). Reine Ableitung, kein Zufall.
+ */
+export function wildwechselRoutes(state: { meta: { landscape?: LandscapeState } }): WildwechselRoute[] {
+  const landscape = landscapeOf(state);
+  const active = activeSite(landscape);
+  const out: WildwechselRoute[] = [];
+  const seen = new Set<string>();
+  for (const corridor of builtCorridorsAt(landscape, active)) {
+    const from = otherEnd(corridor, active);
+    for (const species of siteEntry(landscape, from)?.fauna ?? []) {
+      if (seen.has(species)) continue;
+      seen.add(species);
+      out.push({ species, from, corridor: corridor.id });
+    }
+  }
+  return out;
+}
+
+/**
+ * Über welchen Korridor eine Art in den aktiven Wald kommen kann (null: über keinen) –
+ * für die Anzeige einer Karte nach dem Neuladen. Achtung: Auch eine gewöhnlich gezogene
+ * Karte einer Art aus dem Bestand eines Nachbarn hat einen Weg; welche Karte wirklich als
+ * Wildwechsel kam, meldet nur `TickReport.wildwechsel`.
+ */
+export function wildwechselRoute(state: { meta: { landscape?: LandscapeState } }, species: string): WildwechselRoute | null {
+  return wildwechselRoutes(state).find((r) => r.species === species) ?? null;
 }

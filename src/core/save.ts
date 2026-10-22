@@ -586,6 +586,8 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   for (const site of state.meta.landscape.sites) {
     if (site.id === state.meta.landscape.active) continue;
     site.regulars = site.regulars.filter((id) => discovered.has(id)).slice(0, regularSlots(effectiveMemoryOf(state, site.id)));
+    // Bestand für den Wildwechsel (24.6): nur entdeckte Arten – im Spiel lebt dort nichts anderes.
+    site.fauna = site.fauna.filter((id) => discovered.has(id));
   }
   // Seit v8: Langzeit-Statistik (ältere Stände: migrateV7 setzt sie).
   const known = { meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...state.meta.journal.plants, ...state.plants] } } };
