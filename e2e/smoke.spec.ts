@@ -269,6 +269,22 @@ test('v1-Spielstand: Neustart mit Andenken-Meldung', async ({ page, context }) =
   await expect(toast).toBeHidden();
 });
 
+test('Spielstand einer neueren Spielversion: nicht laden, nie überschreiben, Hinweis', async ({ page, context }) => {
+  // Z. B. ein veralteter Tab nach einem Update (DESIGN_V2.md 23.6): Er kennt Nischen und Arten
+  // des neueren Stands nicht und würde sie sonst beim Speichern still verwerfen.
+  const future = { version: SAVE_VERSION + 1, totalGrowth: 123_456, niches: { meadow: ['cricket'], canyon: ['eagle'] }, lastTick: 0 };
+  await seedRaw(context, future);
+  await openGame(page);
+  await expect(page.locator('#toast')).toContainText('neueren Version des Spiels');
+  await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
+  await page.waitForTimeout(1500);
+  expect(await savedState(page)).toEqual(future);
+  // Auch beim Verlassen der Seite bleibt er unangetastet.
+  await page.reload();
+  await expect(stageLabel(page)).toContainText('Stufe:');
+  expect(await savedState(page)).toEqual(future);
+});
+
 test('Offline-Fortschritt: Willkommens-Meldung, Begegnungen warten im Stapel', async ({ page, context }) => {
   await seedV3(context, {
     totalGrowth: waypoint(3) + 1,

@@ -328,6 +328,9 @@ function migrateV10(state: GameState): void {
   }
 }
 
+/** Ereignis „Käferjahr“ (Massenjahr, DESIGN_V2.md 22.5) – für migrateV12. */
+const BEETLE_YEAR = 'beetle-year';
+
 /**
  * v12 → v13 (Lebensräume, DESIGN_V2.md 23.6): neue Nischen `meadow`, `deadwood`, `wall` –
  * das Laden legt sie leer an (wie jede fehlende Nische). Wer im laufenden Zyklus den
@@ -340,19 +343,14 @@ function migrateV12(state: GameState): void {
   const cycle = state.cycle;
   if (!cycle.seen.includes(BEETLE_YEAR) || cycle.bonuses.some((b) => b.source === BEETLE_YEAR)) return;
   if (state.pendingEncounters.some((e) => e.type === 'event' && e.cards[0] === BEETLE_YEAR)) return;
-  const deadwood = cycle.habitats.filter((t) => t === 'totholz').length;
-  let fromOthers = 0;
-  for (const id of cycle.seen) {
-    if (id === BEETLE_YEAR) continue;
-    fromOthers += Math.max(0, ...(EVENTS_BY_ID.get(id)?.options ?? []).map((o) => o.effects.filter((e) => e.kind === 'habitat' && e.tag === 'totholz').length));
-  }
-  if (deadwood <= fromOthers) return;
+  // Totholz, das andere gezogene Ereignisse höchstens vergeben haben (je Ereignis die beste Option).
+  const deadwoodOf = (id: string) =>
+    Math.max(0, ...(EVENTS_BY_ID.get(id)?.options ?? []).map((o) => o.effects.filter((e) => e.kind === 'habitat' && e.tag === 'totholz').length));
+  const fromOthers = cycle.seen.filter((id) => id !== BEETLE_YEAR).reduce((sum, id) => sum + deadwoodOf(id), 0);
+  if (cycle.habitats.filter((t) => t === 'totholz').length <= fromOthers) return;
   const slot = eventEffects(BEETLE_YEAR, 'cycle').find((e) => e.effect.kind === 'slot');
   if (slot) cycle.bonuses.push({ source: BEETLE_YEAR, effect: slot.effect });
 }
-
-/** Ereignis „Käferjahr“ (Massenjahr, DESIGN_V2.md 22.5) – für migrateV12. */
-const BEETLE_YEAR = 'beetle-year';
 
 /**
  * v8 → v9 (Erfolge, DESIGN_V2.md 18): Alles, was der Stand schon erfüllt, wird still
