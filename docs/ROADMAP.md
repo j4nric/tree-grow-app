@@ -437,7 +437,7 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   Bedingungsarten brauchen Logik, die Daten kommen darum mit 2a. Abhängig: nichts
 - [ ] **1c** Wildwechsel-Karte anzeigen (`ui-dev`): „🦌 kommt über die Schlehenhecke“ auf der
   Karte, Hinweis in der Spielanleitung. Abhängig: 1a
-- [ ] **1d** Zeichnungen Weißtanne und Schwarzerle (`renderer`, 25.6 Nr. 1): Wuchsformen je Stufe
+- [x] **1d** Zeichnungen Weißtanne und Schwarzerle (`renderer`, 25.6 Nr. 1): Wuchsformen je Stufe
   in `src/render/plant.ts`, zunächst nur in der Demo (`?tree=fir|alder`); `TREE_SPECIES` bleibt bis
   2b unverändert. Abhängig: nichts – frühe Welle, weil die Grafik der größte Brocken ist
 
