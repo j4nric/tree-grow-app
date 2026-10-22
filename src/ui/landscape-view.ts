@@ -186,11 +186,11 @@ export function landscapeErrorText(error: LandscapeError | 'cycle-locked'): stri
 
 /** Kurzer Zustand im Knopf auf der Karte. */
 function siteStatus(choice: SiteChoice): string {
-  const ancient = choice.ancient ? ` · ${ANCIENT_NAME}` : '';
-  if (choice.active) return `hier${ancient}`;
-  if (choice.founded) return `gegründet${ancient}`;
+  // Kurz (eine Zeile im Knopf); alles Weitere steht in den Angaben darunter.
+  if (choice.active) return choice.ancient ? `hier · ${ANCIENT_NAME}` : 'hier';
+  if (choice.founded) return choice.ancient ? `schon ${ANCIENT_NAME}` : 'gegründet';
   if (choice.blocker === null) return `gründen · ${formatNumber(choice.cost ?? 0)} 🪶`;
-  return choice.cost !== null ? `nicht gegründet · ${formatNumber(choice.cost)} 🪶` : 'nicht gegründet';
+  return choice.cost !== null ? `gesperrt · ${formatNumber(choice.cost)} 🪶` : 'gesperrt';
 }
 
 function siteMemoryText(state: GameState, choice: SiteChoice, allowed: boolean): string {

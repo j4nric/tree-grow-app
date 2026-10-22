@@ -155,13 +155,23 @@ test('Korridor bauen: Altwasser zwischen Auwald und Erlenbruch', async ({ page, 
   expect(after.meta.landscape.freeCorridors).not.toContain('floodplain-carr');
 });
 
-for (const [width, height] of [
-  [360, 780],
-  [1280, 720],
-] as const) test(`${width} px: Karte ohne Querscrollen, Standorte ≥ 44 px ohne Überlappung`, async ({ page, context }) => {
+for (const [width, height, scale, font] of [
+  [360, 780, 1, ''],
+  [360, 780, 1.1, ''],
+  [360, 780, 1.25, ''],
+  [390, 844, 1, ''],
+  [1280, 720, 1, ''],
+  [1280, 720, 1.1, ''],
+  // Breite Schrift wie auf Linux-Runnern ohne Inter.
+  [360, 780, 1.1, 'DejaVu Sans'],
+  [1280, 720, 1.1, 'DejaVu Sans'],
+] as const) test(`${width} px, Schrift ${scale * 100} %${font ? ` ${font}` : ''}: Karte ohne Querscrollen, Standorte ≥ 44 px ohne Überlappung`, async ({ page, context }) => {
   await page.setViewportSize({ width, height });
   await seed(context, landscapeState(ANCIENT, { own: 300 }));
   await openGame(page);
+  // Größere Schrift (andere Schriftbreiten auf anderen Systemen): Knöpfe werden höher.
+  await page.evaluate((s) => (document.documentElement.style.fontSize = `${s * 100}%`), scale);
+  if (font) await page.addStyleTag({ content: `:root, body, button { font-family: '${font}', sans-serif !important; }` });
   const map = panel(page).locator('[data-ref="landscape-map"]');
   await map.scrollIntoViewIfNeeded();
   await expect(map).toBeVisible();

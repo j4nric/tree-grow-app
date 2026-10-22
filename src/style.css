@@ -3617,8 +3617,12 @@ body[data-motion='reduce'] .slot.arrive {
 .landscape-map {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1;
-  min-height: 300px;
+  /*
+   * Hochkant: Heimatwald und die unteren Standorte liegen waagerecht dicht beieinander –
+   * genug Höhe, damit Knöpfe mit zwei Namenszeilen (auch bei größerer Schrift) frei bleiben.
+   */
+  aspect-ratio: 1 / 1.2;
+  min-height: 360px;
   margin: 4px 0;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -3725,11 +3729,21 @@ body[data-motion='reduce'] .slot.arrive {
   font-size: 0.74rem;
   font-weight: 700;
   hyphens: manual;
+  /* Höchstens zwei Zeilen – die Knopfhöhe bleibt begrenzt (Abstände auf der Karte). */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 .landscape-site-status {
+  max-width: 100%;
   font-size: 0.66rem;
   color: #5c5746;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .landscape-site.active .landscape-site-status {
