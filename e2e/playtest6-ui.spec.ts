@@ -79,7 +79,7 @@ for (const viewport of [
   });
 }
 
-test('Stempel mobil, gescrollt: Zettelstapel unten, Meldung oben – beide frei', async ({ page, context }) => {
+test('Stempel mobil, gescrollt: Meldung unten über dem Zettelstapel, Reiterleiste oben frei', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedRaw(context, grove(), 0);
   await openGame(page);
@@ -87,9 +87,14 @@ test('Stempel mobil, gescrollt: Zettelstapel unten, Meldung oben – beide frei'
   const toast = await settledStamp(page);
   await page.evaluate(() => window.scrollTo(0, 600));
   await expect(page.locator('[data-ref="encounter-stack"]')).toBeInViewport();
+  // Gescrollt klebt oben die Reiterleiste: Die Meldung rückt nach unten (Schritt 12).
+  await expect.poll(async () => (await toast.boundingBox())!.y).toBeGreaterThan(422);
   const box = (await toast.boundingBox())!;
-  expect(box.y).toBeLessThan(100);
-  await expectFree(box, { 'schwebender Stapel': page.locator('[data-ref="encounter-stack"]') });
+  expect(box.y + box.height).toBeLessThanOrEqual(844);
+  await expectFree(box, {
+    'schwebender Stapel': page.locator('[data-ref="encounter-stack"]'),
+    Reiterleiste: page.locator('[data-ref="tabs"]'),
+  });
 });
 
 test('Stapel zeigt das Symbol des vordersten Ereignisses bzw. Gasts', async ({ page, context }) => {

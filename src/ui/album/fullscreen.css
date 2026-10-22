@@ -213,6 +213,7 @@ html.album-fullscreen-open .float-layer {
  */
 html.album-fullscreen-open .album ~ .stamps {
   top: max(calc(68px + env(safe-area-inset-top, 0px)), var(--stamps-below, 0px));
+  bottom: auto;
   left: 12px;
   right: 12px;
 }
