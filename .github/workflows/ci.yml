@@ -50,20 +50,6 @@ jobs:
       - if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --prefix server --no-audit --no-fund
       - run: npm run check
-      # TEMP-MESSUNG: Vergleich auf demselben Runner, Ergebnisse als Annotationen.
-      - run: |
-          m() { rm -rf node_modules/.vite/vitest; s=$(date +%s.%N); "${@:2}" > out.txt 2>&1; rc=$?; e=$(date +%s.%N); echo "::notice::$1 rc=$rc wall=$(echo "$e - $s" | bc) $(grep -E 'Duration' out.txt | tail -1)"; }
-          m tsc npm run typecheck
-          m branch-default-1 npx vitest run
-          m branch-w4 npx vitest run --maxWorkers=4
-          m branch-threads npx vitest run --pool=threads
-          m branch-default-2 npx vitest run
-          git fetch -q --depth=1 origin main
-          git checkout FETCH_HEAD -- tests vite.config.ts
-          rm -f tests/sync-harness.ts tests/sync-same4-*.test.ts
-          m main-default-1 npx vitest run
-          m main-w4 npx vitest run --maxWorkers=4
-          m main-default-2 npx vitest run
       - run: npm run typecheck --prefix server
       - run: npm run build
 
@@ -103,6 +89,14 @@ jobs:
       - if: steps.browsers.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
       - run: npm run test:e2e
+      # TEMP-MESSUNG: Worker-Zahl auf demselben Runner, Ergebnisse als Annotationen.
+      - run: |
+          m() { s=$(date +%s.%N); npx playwright test --reporter=list "${@:2}" > out.txt 2>&1; rc=$?; e=$(date +%s.%N); echo "::notice::$1 rc=$rc wall=$(echo "$e - $s" | bc) $(grep -E '^ +[0-9]+ (passed|flaky|failed|skipped|did not run)' out.txt | tr -s ' ' | tr '\n' ' ')"; }
+          m w2 --workers=2
+          m w3 --workers=3
+          m w4 --workers=4
+          m w4b --workers=4
+          m w3b --workers=3
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
