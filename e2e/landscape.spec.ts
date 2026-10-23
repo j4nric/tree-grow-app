@@ -172,15 +172,19 @@ test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', a
   await expect(button).toHaveText('Neuen Zyklus beginnen');
   await expect(panel(page).locator('[data-ref="cycle-site-open"]')).toBeHidden();
   await openTab(page, 'landschaft');
-  // Wechsel zum Heimatwald per Tastatur.
+  // Wechsel zum Heimatwald per Tastatur. Direkt nach dem Reiterwechsel kann das Umblättern ein
+  // Enter noch schlucken – dann nochmals fokussieren und drücken, solange die Seite zu ist.
   const homeSite = map.locator('[data-site="home"]');
-  await expect(async () => {
-    await homeSite.focus();
-    await expect(homeSite).toBeFocused({ timeout: 200 });
-  }).toPass();
-  await page.keyboard.press('Enter');
   const site = subpage(page, 'site');
-  await expect(site).toHaveAttribute('data-site-id', 'home');
+  await expect(async () => {
+    if (!(await site.isVisible())) {
+      await homeSite.focus();
+      await expect(homeSite).toBeFocused({ timeout: 200 });
+      await page.keyboard.press('Enter');
+    }
+    await expect(site).toBeVisible({ timeout: 1000 });
+    await expect(site).toHaveAttribute('data-site-id', 'home', { timeout: 200 });
+  }).toPass();
   await expect(site).not.toHaveAttribute('inert', '');
   // Wirksam heute (320 + ½ · 40, wie im Tagebuch) – der Gewinn dieses Zyklus steht benannt dahinter.
   await expect(site.locator('[data-ref="site-memory"]')).toHaveText(/^Gedächtnis 320 eigen · 340 wirksam dort( \(nach diesem Zyklus \d+\))?$/);
