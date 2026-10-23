@@ -87,20 +87,32 @@ const BLOCKED_EVENTS = ['click', 'auxclick', 'dblclick', 'contextmenu', 'pointer
 function guard(front: HTMLElement): (replay: boolean) => void {
   let pending: HTMLElement | null = null;
   const stop = (event: Event) => {
-    event.stopPropagation();
+    // `pointerup` nur entschärfen, nicht anhalten: Gesten (swipe.ts) müssen das Ende einer
+    // Berührung sehen, die vor der Drehung begann.
+    if (event.type !== 'pointerup') event.stopPropagation();
     if (event.cancelable) event.preventDefault();
     if (event.type === 'click' && typeof (event.target as HTMLElement | null)?.click === 'function') pending = event.target as HTMLElement;
   };
+  // Ein späterer Klick außerhalb der drehenden Seite (z. B. Umschlag-Knopf) gewinnt: Dann wird
+  // nichts nachgeholt, sonst kehrte sich die Reihenfolge der Eingaben um.
+  const outside = (event: Event) => {
+    if (!front.contains(event.target as Node | null)) pending = null;
+  };
   for (const type of BLOCKED_EVENTS) front.addEventListener(type, stop, true);
+  document.addEventListener('click', outside, true);
   return (replay) => {
     for (const type of BLOCKED_EVENTS) front.removeEventListener(type, stop, true);
+    document.removeEventListener('click', outside, true);
     const target = pending;
     pending = null;
     if (!replay || !target) return;
     // Nach dem Abschluss der Drehung (und nach dem, was der Aufrufer danach tut, z. B. Fokus):
     // als eigene Aufgabe. MessageChannel statt setTimeout – läuft auch mit angehaltener Testuhr.
     later(() => {
-      if (target.isConnected && !target.closest('[inert], [hidden], .turned-away')) target.click();
+      if (!target.isConnected || target.closest('[inert], [hidden], .turned-away')) return;
+      // Erst fokussieren: Das Album merkt sich den fokussierten Knopf als Auslöser fürs Zurück.
+      target.focus({ preventScroll: true });
+      target.click();
     });
   };
 }

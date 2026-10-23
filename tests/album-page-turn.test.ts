@@ -49,6 +49,8 @@ function fakeElement() {
     removeEventListener(type: string, listener: (event: Event) => void) {
       listeners.get(type)?.delete(listener);
     },
+    /** Ziele mit `inside: true` liegen auf dieser Seite. */
+    contains: (node: unknown) => (node as { inside?: boolean } | null)?.inside === true,
     /** Eingabe auf der Seite: `true`, wenn sie durchkommt (nicht abgefangen). */
     input(type: string, target?: unknown): boolean {
       let stopped = false;
@@ -63,8 +65,26 @@ function fakeElement() {
 type FakeElement = ReturnType<typeof fakeElement>;
 const el = (e: FakeElement) => e as unknown as HTMLElement;
 
+/** Lauscher am Dokument (Capture), z. B. für Klicks außerhalb der drehenden Seite. */
+const docListeners = new Map<string, Set<(event: Event) => void>>();
+/** Klick irgendwo im Dokument (nach den Lauschern der Seite). */
+function documentClick(target: unknown): void {
+  const event = { type: 'click', target } as unknown as Event;
+  for (const listener of docListeners.get('click') ?? []) listener(event);
+}
+
 beforeEach(() => {
-  vi.stubGlobal('document', { documentElement: {} });
+  docListeners.clear();
+  vi.stubGlobal('document', {
+    documentElement: {},
+    addEventListener(type: string, listener: (event: Event) => void) {
+      if (!docListeners.has(type)) docListeners.set(type, new Set());
+      docListeners.get(type)!.add(listener);
+    },
+    removeEventListener(type: string, listener: (event: Event) => void) {
+      docListeners.get(type)?.delete(listener);
+    },
+  });
   vi.stubGlobal('getComputedStyle', () => ({ getPropertyValue: () => '' }));
   vi.stubGlobal('window', { innerHeight: 800 });
 });
@@ -143,18 +163,21 @@ describe('PageTurn', () => {
 
   it('Klick während des Zurückblätterns wird vorgemerkt und danach ausgelöst, vorwärts verfällt er', async () => {
     const turn = createPageTurn({ reducedMotion: () => false });
-    const target = { isConnected: true, clicks: 0, closest: () => null, click() { this.clicks++; } };
+    const target = { inside: true, isConnected: true, clicks: 0, focused: 0, closest: () => null, focus() { this.focused++; }, click() { this.clicks++; } };
     const front = fakeElement();
     front.classList.add(TURNED_AWAY);
     front.inert = true;
     const under = fakeElement();
     const back = turn.back(el(front), el(under));
     expect(front.input('click', target)).toBe(false);
+    documentClick(target);
     front.animations[0]!.finish();
     await back;
     expect(target.clicks).toBe(0);
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(target.clicks).toBe(1);
+    // Vor dem Klick fokussiert: Das Album merkt sich so den richtigen Auslöser fürs Zurück.
+    expect(target.focused).toBe(1);
     // Vorwärts: Die Seite ist danach weggedreht und `inert` – der Klick verfällt.
     const away = { ...target, clicks: 0, closest: () => ({}), click() { this.clicks++; } };
     const forward = turn.forward(el(front), el(under));
@@ -163,6 +186,33 @@ describe('PageTurn', () => {
     await forward;
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(away.clicks).toBe(0);
+  });
+
+  it('späterer Klick außerhalb der drehenden Seite gewinnt: nichts wird nachgeholt', async () => {
+    const turn = createPageTurn({ reducedMotion: () => false });
+    const target = { inside: true, isConnected: true, clicks: 0, closest: () => null, focus() {}, click() { this.clicks++; } };
+    const front = fakeElement();
+    front.classList.add(TURNED_AWAY);
+    front.inert = true;
+    const back = turn.back(el(front), el(fakeElement()));
+    front.input('click', target);
+    documentClick(target);
+    documentClick({ inside: false }); // z. B. Umschlag-Knopf im Kopf
+    front.animations[0]!.finish();
+    await back;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(target.clicks).toBe(0);
+    expect(docListeners.get('click')?.size ?? 0).toBe(0);
+  });
+
+  it('pointerup wird während der Drehung nicht angehalten (Gesten sehen das Ende der Berührung)', async () => {
+    const turn = createPageTurn({ reducedMotion: () => false });
+    const front = fakeElement();
+    const forward = turn.forward(el(front), el(fakeElement()));
+    expect(front.input('pointerdown')).toBe(false);
+    expect(front.input('pointerup')).toBe(true);
+    front.animations[0]!.finish();
+    await forward;
   });
 
   it('lange, gescrollte Seite: Achse in der Mitte des sichtbaren Teils, Zuschnitt auf ihn', async () => {
