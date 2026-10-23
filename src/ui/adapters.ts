@@ -6,6 +6,7 @@
  * Hier stehen nur Anzeige-Entscheidungen (Texte, Symbole, Reihenfolge). Alle Zahlen
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
+import type { SiteId } from '../content/landscape';
 import { ABILITY_INFO } from '../content/abilities';
 import { CARE, CARE_BY_ID, type CareEffect } from '../content/care';
 import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
@@ -1808,6 +1809,8 @@ export function welcomeText(
     Partial<Pick<OfflineReport, 'averaged' | 'weather'>>,
   waiting: number,
   stages?: StageProgress,
+  /** Wald des Zyklus – das gemittelte Wetter nennt ihn außerhalb des Heimatwalds (24.14). */
+  site?: SiteId,
 ): string {
   // Simuliert werden höchstens MAX_OFFLINE_SECONDS – die Meldung nennt die tatsächliche Zeit.
   const capped = report.seconds < away ? ` (max. ${formatDuration(MAX_OFFLINE_SECONDS)})` : '';
@@ -1827,7 +1830,7 @@ export function welcomeText(
     text += ` ${n === 1 ? '1 Begegnung zog' : `${formatNumber(n)} Begegnungen zogen`} weiter und ${n === 1 ? 'ließ' : 'ließen'} ${thanks} da.`;
   }
   // Offline zählt das Mittelwetter (DESIGN_V2.md 21.5) – ehrlich dazusagen.
-  const weather = averagedWeatherText(report);
+  const weather = averagedWeatherText(report, site);
   if (weather) text += ` ${weather}`;
   return text;
 }

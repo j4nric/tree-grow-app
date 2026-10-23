@@ -133,7 +133,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     position: { x: 0.85, y: 0.35 },
   },
   {
-    id: 'carr', name: 'Erlenbruch', forestType: 'Schwarzerlen-Bruchwald', icon: '🌫️',
+    id: 'carr', name: 'Erlenbruch', forestType: 'Schwarzerlen-Bruchwald', icon: '🐸',
     text: 'Schwarzerlen auf nassen Bulten, dazwischen Torfmoos und Sumpfdotterblumen. Das Wasser steht hier fast das ganze Jahr.',
     summary: 'Feuchte · Moose & Farne +30 % 🌿 · ab Alter Baum +1 Platz Waldtümpel · Bodenleben −10 % 😊',
     leadTree: 'alder',

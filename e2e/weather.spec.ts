@@ -2,7 +2,8 @@ import type { Page } from '@playwright/test';
 import { SEASONS_BY_ID, SEASON_IDS, SEASON_SECONDS } from '../src/content/seasons';
 import { STAGES } from '../src/content/stages';
 import { GENTLE_DAYS, type WeatherId } from '../src/content/weather';
-import { createInitialState, type GameState } from '../src/core/state';
+import type { SiteId } from '../src/content/landscape';
+import { createInitialState, createSite, type GameState } from '../src/core/state';
 import { weatherOfDay } from '../src/core/weather';
 import { toWeatherBadgeView } from '../src/ui/weather-view';
 import { expect, openGame, seedRaw, stamp, stamps, test, waypoint } from './fixtures';
@@ -78,6 +79,8 @@ test('Abzeichen: Sturm mit gedämpftem Abzug, Erklärung per Tippen und Tastatur
   await expect(details(page).locator('[data-ref="weather-effects"]')).toHaveText('Heute: −7,5 % 🌿 (statt −15 %) · +25 % 🌰');
   await expect(details(page).locator('[data-ref="weather-damping"]')).toHaveText('Abzug gedämpft: Vielfalt −50 % (5 Gattungen).');
   await expect(details(page).locator('[data-ref="weather-tip"]')).toContainText('„Lichte Krone“ halbiert den Abzug');
+  // Heimatwald: kein Wetter des Waldtyps.
+  await expect(details(page).locator('[data-ref="weather-site"]')).toBeHidden();
   await expect(details(page).locator('[data-ref="weather-forecast"]')).toHaveText(/^Morgen: /);
   await expect(details(page).locator('[data-ref="weather-daytime"]')).toContainText('☀️ Tag');
   await expect(details(page).locator('[data-ref="weather-daytime-note"]')).toBeHidden();
@@ -138,6 +141,49 @@ test('Rückkehr nach Stunden: „Wetter gemittelt“ in der Begrüßung', async 
   await expect(stamps(page)).toContainText('Willkommen zurück!');
   // Die Meldung zeigt nur die Kurzfassung (C.8); das Wetter steht im Rückkehr-Bericht.
   await expect(page.locator('[data-ref="return-report-list"]')).toContainText(/Wetter gemittelt( \(.+\))?\./);
+});
+
+/** Alter Baum im Bergmischwald (Landschaft offen, Weißtanne) an einem Tag mit diesem Wetter. */
+function mountainOn(id: WeatherId, second: number): GameState {
+  const state = forestOn('mild', [], second);
+  state.meta.forestMemory = 300;
+  state.meta.achievements.push('ancient-forest');
+  state.cycle.mainTree = 'fir';
+  const site: SiteId = 'mountain';
+  state.meta.landscape = {
+    active: site,
+    sites: [{ ...createSite('home'), ancient: true, memory: 300 }, { ...createSite(site, 'fir') }],
+    corridors: ['home-mountain'],
+    freeCorridors: ['home-mountain'],
+    announced: true,
+  };
+  for (let d = GENTLE_DAYS + 1; d < 10_000; d++) {
+    if (weatherOfDay(state.cycle, d, site) !== id) continue;
+    state.cycle.elapsed = d * SEASON_SECONDS + second;
+    return state;
+  }
+  throw new Error(`kein Tag mit ${id} im Bergmischwald`);
+}
+
+test('Bergmischwald: Die Notiz nennt das Wetter des Waldtyps, die Rückkehr den Wald (Playtest Phase 7, S1/S3)', async ({ page, context }) => {
+  await startClock(page);
+  await seedRaw(context, mountainOn('snow', 10), 0);
+  await openGame(page);
+  await expect(badge(page)).toHaveAttribute('data-weather', 'snow');
+  await badge(page).click();
+  await expect(details(page).locator('[data-ref="weather-site"]')).toHaveText(
+    'Wetter im Bergmischwald: 🌨️ Viel Neuschnee im Winter, Steigungsregen am Hang.',
+  );
+});
+
+test('Bergmischwald: Rückkehr-Bericht nennt den Wald beim gemittelten Wetter (S3)', async ({ page, context }) => {
+  await startClock(page);
+  await seedRaw(context, mountainOn('mild', 10), -3 * 3600 * 1000);
+  await openGame(page);
+  const item = page.locator('[data-ref="return-report-list"] li').filter({ hasText: 'gemittelt' });
+  await expect(item).toHaveText(/^⛅ Wetter im Bergmischwald gemittelt( \(.+\))?\.$/);
+  // Eigenes Symbol: kein 🌿 davor.
+  await expect(item).toHaveClass(/return-page-item-own/);
 });
 
 test.describe('mobil', () => {

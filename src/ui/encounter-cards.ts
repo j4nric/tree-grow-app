@@ -295,8 +295,13 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
   const queuePips = el('span', 'queue-pips');
   queuePips.setAttribute('aria-hidden', 'true');
   queue.append(queuePips, queueText);
+  // Wildwechsel (24.6): Am Handy liegt die Karte oft rechts außerhalb – der Kopf nennt sie
+  // (Playtest Phase 7, K4), die Reihe rollt sie ins Bild.
+  const routeHint = el('p', 'encounter-route-hint');
+  routeHint.dataset.ref = 'encounter-route-hint';
+  routeHint.hidden = true;
   const headText = el('div', 'encounter-head-text');
-  headText.append(kind, title, subtitle, factList, queue);
+  headText.append(kind, title, subtitle, routeHint, factList, queue);
 
   // Legende der Symbole: „?“-Knopf mit Haftnotiz (A.6 #75).
   const legendButton = el('button', 'enc-legend-button');
@@ -404,6 +409,25 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
     }
     focusCard(next);
   });
+
+  /**
+   * Liegt die Wildwechsel-Karte außerhalb der Reihe (schmale Ansicht), rollt die Reihe sie ins
+   * Bild – sofort, ohne Gleiten (das Austeilen bewegt die Karten schon). Breit passt alles, dann
+   * bleibt die Reihe am Anfang.
+   */
+  function revealRoutedCard(): void {
+    const index = cards.findIndex((c) => c.card.route);
+    if (index <= 0) return;
+    requestAnimationFrame(() => {
+      const root = cards[index]?.root;
+      const first = cards[0]?.root;
+      if (!root?.isConnected || !first || cardsBox.scrollWidth <= cardsBox.clientWidth) return;
+      // offsetLeft misst ohne die Drehung des Austeilens.
+      const start = root.offsetLeft - first.offsetLeft;
+      if (start + root.offsetWidth <= cardsBox.clientWidth) return;
+      cardsBox.scrollLeft = start;
+    });
+  }
 
   function focusCard(index: number): void {
     const card = cards[index];
@@ -660,6 +684,9 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
     setText(title, view.title);
     setText(subtitle, view.subtitle ?? '');
     subtitle.hidden = !view.subtitle;
+    const routed = view.cards.find((c) => c.route);
+    setText(routeHint, routed ? `${WILDWECHSEL_ICON} Wildwechsel: ${routed.name} ${routed.route}` : '');
+    routeHint.hidden = !routed;
     setText(heroIcon, view.icon ?? '');
     heroIcon.hidden = !view.icon;
     head.classList.toggle('has-hero', Boolean(view.icon));
@@ -701,6 +728,7 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
         if (!prefersReducedMotion()) restartAnimation(cardsBox, 'dealing');
         cardsBox.scrollLeft = 0;
         guardUntil = performance.now() + INPUT_GUARD_MS;
+        revealRoutedCard();
       }
       applyDisabled();
       if (focusedIndex >= 0 && cards[focusedIndex] && !cards[focusedIndex].choose.disabled) {

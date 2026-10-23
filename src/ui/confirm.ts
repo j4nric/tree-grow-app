@@ -28,3 +28,22 @@ export function isDeliberateConfirm(event: Pick<MouseEvent, 'detail'>, armedAt: 
 export function isKeyRepeat(event: Pick<KeyboardEvent, 'key' | 'repeat'>): boolean {
   return event.repeat && (event.key === 'Enter' || event.key === ' ');
 }
+
+/** Verb der zweiten Bestätigung je nach Eingabe: „tippen“ (Touch) oder „klicken“ (Maus, Tastatur). */
+export type ConfirmVerb = 'tippen' | 'klicken';
+
+/**
+ * Hauptsächlich Touch (grober Zeiger ohne Hover)? Ohne `matchMedia` (Tests): nein. Gilt für die
+ * ganze Sitzung – ein Tablet mit Maus wird zur Maus, sobald der Browser das meldet.
+ */
+export function confirmVerb(win: Pick<Window, 'matchMedia'> | undefined = typeof window !== 'undefined' ? window : undefined): ConfirmVerb {
+  return win?.matchMedia?.('(pointer: coarse)').matches ? 'tippen' : 'klicken';
+}
+
+/**
+ * Text eines scharfen Knopfs, z. B. „Wirklich neu beginnen? Zum Bestätigen erneut tippen“ –
+ * überall dieselbe Wendung (Neuer Zyklus, Korridor, Spielstand löschen, Import).
+ */
+export function confirmAgainText(question: string, verb: ConfirmVerb = confirmVerb()): string {
+  return `${question} Zum Bestätigen erneut ${verb}`;
+}

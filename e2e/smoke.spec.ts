@@ -889,8 +889,9 @@ test.describe('Lebensgemeinschaften', () => {
     await mushroom.getByRole('button', { name: 'Pfifferling einkleben' }).click();
 
     await expect(encounter(page)).toBeHidden();
-    // Entdeckung und erster Erfolg in einem Hinweis (nichts verdrängt das andere).
-    await expect(stamp(page)).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱 🏅 Erfolg: „Gemeinsam stark“');
+    // Entdeckung und erster Erfolg in einem Hinweis (nichts verdrängt das andere), jeder Teil mit
+    // Satzzeichen (Playtest Phase 7, S4).
+    await expect(stamp(page)).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱. 🏅 Erfolg: „Gemeinsam stark“.');
     await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 15 aktiv · +8 ⚖️');
     await page.locator('[data-ref="communities-link"]').click();
     await expect(community(page, 'humus')).toContainText('Humusküche');

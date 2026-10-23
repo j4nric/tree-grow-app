@@ -5,6 +5,7 @@
  * (`toLandscapeMapView`, landscape-view.ts); hier steht nur, was das Album daraus zeigt.
  */
 import type { SiteId } from '../../../content/landscape';
+import { confirmAgainText, confirmVerb, type ConfirmVerb } from '../../confirm';
 import { formatNumber } from '../../format';
 import {
   targetText,
@@ -39,7 +40,12 @@ export interface SiteChoiceView {
   hint: string;
 }
 
-export function siteChoiceView(view: LandscapeMapView, site: LandscapeSiteView, target: SiteId | null): SiteChoiceView {
+export function siteChoiceView(
+  view: LandscapeMapView,
+  site: LandscapeSiteView,
+  target: SiteId | null,
+  verb: ConfirmVerb = confirmVerb(),
+): SiteChoiceView {
   const visible = view.allowed && !site.active && site.action !== null;
   const chosen = visible && site.id === target;
   const what =
@@ -50,7 +56,7 @@ export function siteChoiceView(view: LandscapeMapView, site: LandscapeSiteView, 
     visible,
     chosen,
     label: chosen ? '✓ Ziel des nächsten Zyklus' : 'Als Ziel wählen',
-    hint: visible ? (chosen ? `Der nächste Zyklus ${what}. Erneut tippen: doch hier bleiben.` : `Der nächste Zyklus ${what}.`) : '',
+    hint: visible ? (chosen ? `Der nächste Zyklus ${what}. Erneut ${verb}: doch hier bleiben.` : `Der nächste Zyklus ${what}.`) : '',
   };
 }
 
@@ -61,9 +67,15 @@ export function siteAnnouncement(view: LandscapeMapView, site: LandscapeSiteView
 }
 
 /** Text und Name des Bau-Knopfs eines Korridors (scharf: zweiter Klick baut). */
-export function corridorBuildLabel(c: Pick<LandscapeCorridorView, 'name' | 'cost'>, armed: boolean): { text: string; label: string } {
+export function corridorBuildLabel(
+  c: Pick<LandscapeCorridorView, 'name' | 'cost'>,
+  armed: boolean,
+  verb: ConfirmVerb = confirmVerb(),
+): { text: string; label: string } {
+  // Kurz im Knopf, der Name sagt dasselbe wie die anderen scharfen Knöpfe (Touch: „tippen“).
+  const again = verb === 'tippen' ? 'Erneut tippen' : 'Erneut klicken';
   return armed
-    ? { text: 'Wirklich bauen? Erneut tippen', label: `${c.name} wirklich bauen? Zum Bestätigen erneut klicken` }
+    ? { text: `Wirklich bauen? ${again}`, label: confirmAgainText(`${c.name} wirklich bauen?`, verb) }
     : { text: `Bauen · ${formatNumber(c.cost)} 🪶`, label: `${c.name} bauen, ${formatNumber(c.cost)} Hähersaat` };
 }
 

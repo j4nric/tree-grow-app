@@ -455,6 +455,7 @@
   grid-template-columns: 58px minmax(0, 1fr);
   grid-template-areas:
     'sticker name'
+    'sticker note'
     'sticker info';
   align-content: start;
   gap: 2px 12px;
@@ -537,6 +538,27 @@
   font-size: 24px;
   line-height: 1.05;
   overflow-wrap: anywhere;
+}
+
+/* „Wächst jetzt im Heimatwald“ bzw. Grund der Vorauswahl (Leitbaum) – kleines Etikett. */
+.cyc-packet-note {
+  grid-area: note;
+  justify-self: start;
+  max-width: 100%;
+  margin: 1px 0 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.06);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.cyc-packet-note.reason {
+  background: var(--note-bg);
+  color: var(--ink-green);
 }
 
 .cyc-packet-info {

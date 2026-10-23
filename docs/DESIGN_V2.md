@@ -5822,7 +5822,7 @@ Sechs Standorte: der Heimatwald in der Mitte, fünf Standorte rundherum (Lage f�
         |                    /          \                       |
     Wallhecke         Feldhecke        Wiesengraben          Altwasser
         |                /                    \                 |
- 🌲 Kiefernheide ─────────────── Grünbrücke ─────────────── 🌫️ Erlenbruch
+ 🌲 Kiefernheide ─────────────── Grünbrücke ─────────────── 🐸 Erlenbruch
 ```
 
 Speichen (Heimatwald ↔ Ring) kosten 2 🪶, der Ring 3–5 🪶 (24.4).
@@ -5831,7 +5831,7 @@ Speichen (Heimatwald ↔ Ring) kosten 2 🪶, der Ring 3–5 🪶 (24.4).
 |---|---|---|---|---|---|
 | 🌳 Heimatwald | Eichen-Hainbuchenwald | Stieleiche | – (ausgewogen) | – | – |
 | 🌊 Auwald am Fluss | Hartholzaue | Stieleiche | Feuchte, +2 💧, ab Junger Baum +2 Plätze Waldtümpel · **Pilze −15 % 😊** | ab Alter Baum +1 Platz Waldtümpel | Amphibien, Vögel |
-| 🌫️ Erlenbruch | Schwarzerlen-Bruchwald | Stieleiche | Feuchte, Moose & Farne +30 % 🌿, ab Alter Baum +1 Platz Waldtümpel · **Bodenleben −10 % 😊** | Amphibien +5 % 😊 | Amphibien, Pilze |
+| 🐸 Erlenbruch | Schwarzerlen-Bruchwald | Stieleiche | Feuchte, Moose & Farne +30 % 🌿, ab Alter Baum +1 Platz Waldtümpel · **Bodenleben −10 % 😊** | Amphibien +5 % 😊 | Amphibien, Pilze |
 | 🍂 Buchenhallen | Hallenbuchenwald | Rotbuche | Vögel +10 % 😊, ab Alter Baum +1 Platz Höhlen & Totholz · **Blumen −15 % 🌰** | ab Hain +1 Platz Höhlen & Totholz | Vögel, Pilze |
 | ⛰️ Bergmischwald | Buchen-Tannen-Fichtenwald | Rotbuche | +2 💧, ab Junger Baum +1 Platz Krone, Säugetiere +10 % 😊 · **Insekten −15 % 😊** | +1 💧 | Säugetiere, Vögel |
 | 🌲 Kiefernheide | Sand-Kiefernwald | Waldkiefer | +2 ☀️, Blumen +10 % 🌰, Insekten +10 % 😊 · **−3 💧, Bodenleben −10 % 😊** | +1 ☀️ | Insekten |
@@ -6069,7 +6069,7 @@ derselbe Lauf mit `withoutSiteWeather` (jeder Wald mit dem Wetter des Heimatwald
 |---|---|---|---|---|---|---|---|---|
 | 🌳 Heimatwald | Stieleiche | 49:29 min | – | – | 41:12 min | – | – | 29 (29) / 28 (28) |
 | 🌊 Auwald am Fluss | Stieleiche | 49:28 min | ±0,0 % | ±0,0 % | 41:35 min | +0,9 % | +1,3 % | 37 (32) / 23 (24) |
-| 🌫️ Erlenbruch | Schwarzerle | 50:04 min | +1,2 % | +1,3 % | 40:57 min | −0,6 % | ±0,0 % | 43 (43) / 35 (30) |
+| 🐸 Erlenbruch | Schwarzerle | 50:04 min | +1,2 % | +1,3 % | 40:57 min | −0,6 % | ±0,0 % | 43 (43) / 35 (30) |
 | 🍂 Buchenhallen | Rotbuche | 50:01 min | +1,1 % | +1,1 % | 40:42 min | −1,2 % | −1,7 % | 40 (34) / 25 (26) |
 | ⛰️ Bergmischwald | Weißtanne | 48:42 min | −1,6 % | −1,3 % | 41:45 min | +1,3 % | +1,2 % | 32 (41) / 23 (22) |
 | 🌲 Kiefernheide | Waldkiefer | 50:05 min | +1,2 % | +1,0 % | 39:48 min | **−3,4 %** | −3,8 % | 40 (41) / 38 (40) |
@@ -6094,7 +6094,7 @@ spielt hier keine Rolle (keine Korridore):
 |---|---|---|---|---|---|
 | 🌳 Heimatwald | Stieleiche | 49:29 min | – | 41:12 min | – |
 | 🌊 Auwald am Fluss | Stieleiche | 49:29 min | ±0,0 % | 41:43 min | +1,3 % |
-| 🌫️ Erlenbruch | Schwarzerle | 50:08 min | +1,3 % | 41:13 min | ±0,0 % |
+| 🐸 Erlenbruch | Schwarzerle | 50:08 min | +1,3 % | 41:13 min | ±0,0 % |
 | 🍂 Buchenhallen | Rotbuche | 50:03 min | +1,1 % | 40:29 min | −1,7 % |
 | ⛰️ Bergmischwald | Weißtanne | 48:49 min | −1,3 % | 41:41 min | +1,2 % |
 | 🌲 Kiefernheide | Waldkiefer | 49:59 min | +1,0 % | 39:38 min | **−3,8 %** |
@@ -6112,7 +6112,7 @@ Korridore), also in jedem Vergleich dieselben fünf Gaben; mit Pflege; 80 Durchg
 |---|---|---|---|---|---|
 | 🌳 Heimatwald | Stieleiche | 48:57 min | – | 40:25 min | – |
 | 🌊 Auwald am Fluss | Stieleiche | 49:31 min | +1,1 % | 41:21 min | +2,3 % |
-| 🌫️ Erlenbruch | Stieleiche | 49:31 min | +1,2 % | 40:07 min | −0,7 % |
+| 🐸 Erlenbruch | Stieleiche | 49:31 min | +1,2 % | 40:07 min | −0,7 % |
 | 🍂 Buchenhallen | Rotbuche | 49:57 min | +2,0 % | 41:37 min | +3,0 % |
 | ⛰️ Bergmischwald | Rotbuche | 48:44 min | −0,4 % | 40:31 min | +0,2 % |
 | 🌲 Kiefernheide | Waldkiefer | 48:12 min | −1,5 % | 38:32 min | −4,7 % |
@@ -6130,7 +6130,7 @@ und Leitbaum des Standorts, ohne Gaben, mit Pflege; 80 Durchgänge, Median:
 |---|---|---|---|---|---|
 | 🌳 Heimatwald | Stieleiche | 51:44 min | – | 43:41 min | – |
 | 🌊 Auwald am Fluss | Stieleiche | 53:09 min | +2,7 % | 44:22 min | +1,6 % |
-| 🌫️ Erlenbruch | Stieleiche | 53:23 min | +3,2 % | 43:36 min | −0,2 % |
+| 🐸 Erlenbruch | Stieleiche | 53:23 min | +3,2 % | 43:36 min | −0,2 % |
 | 🍂 Buchenhallen | Rotbuche | 52:00 min | +0,5 % | 43:23 min | −0,7 % |
 | ⛰️ Bergmischwald | Rotbuche | 51:06 min | −1,2 % | 44:26 min | +1,7 % |
 | 🌲 Kiefernheide | Waldkiefer | 51:58 min | +0,4 % | 42:16 min | −3,2 % |
@@ -6840,7 +6840,7 @@ keinen Spielstand. Leitlinien:
 |---|---|---|---|
 | 🌳 Heimatwald | – | – | der Wald, den du kennst |
 | 🌊 Auwald am Fluss | 🌧️ Landregen × 2, 🌡️ Dürre × 0,5 | „Oft Landregen, selten Dürre – der Fluss ist nie weit.“ | Westwind-Regen über der Aue, hoher Grundwasserstand |
-| 🌫️ Erlenbruch | 🌫️ Nebel × 2, 🌡️ Dürre × 0,5 | „Oft Nebel über dem Wasser, selten Dürre.“ | Nebel über stehendem Wasser, nasser Torf trocknet nie aus |
+| 🐸 Erlenbruch | 🌫️ Nebel × 2, 🌡️ Dürre × 0,5 | „Oft Nebel über dem Wasser, selten Dürre.“ | Nebel über stehendem Wasser, nasser Torf trocknet nie aus |
 | 🍂 Buchenhallen | 🌫️ Nebel × 1,5, 🌬️ Sturm × 0,5 | „Windstill unter dem Dach, im Herbst Nebel zwischen den Säulen.“ | geschlossenes Kronendach bremst den Wind |
 | ⛰️ Bergmischwald | 🌨️ Neuschnee × 2, 🌧️ Landregen × 1,5 | „Viel Neuschnee im Winter, Steigungsregen am Hang.“ | Höhenlage, Steigungsregen (wie die Eigenheit +2 💧) |
 | 🌲 Kiefernheide | 🌡️ Dürre × 2,5, ☀️ Sonnenschein × 1,5, 🌧️ Landregen × 0,5 | „Viel Sonne, im Sommer oft Dürre – dann schwärmen die Borkenkäfer.“ | Sand speichert kein Wasser; Dürre ruft das Käferjahr (22.6) |
@@ -6874,7 +6874,7 @@ Tage 4–400, also nach der Schonzeit; „rau“ = 🌡️ + 🌬️ + 🧊):
 | | Sommer | 36,7 % | **27,2 %** | 27,3 % | – | – | 4,3 % | 4,4 % | – | 8,7 % |
 | | Herbst | 33,5 % | **18,2 %** | 9,1 % | 22,7 % | – | – | 16,4 % | – | 16,4 % |
 | | Winter | 39,5 % | – | – | 10,0 % | 30,1 % | – | 4,1 % | 16,4 % | 20,5 % |
-| 🌫️ Erlenbruch | Frühling | 37,5 % | 22,6 % | 18,2 % | **18,1 %** | – | – | – | 3,5 % | 3,5 % |
+| 🐸 Erlenbruch | Frühling | 37,5 % | 22,6 % | 18,2 % | **18,1 %** | – | – | – | 3,5 % | 3,5 % |
 | | Sommer | 42,5 % | 15,7 % | 31,7 % | – | – | 5,0 % | 5,0 % | – | 10,0 % |
 | | Herbst | 29,7 % | 8,1 % | 8,0 % | **39,9 %** | – | – | 14,3 % | – | 14,3 % |
 | | Winter | 35,4 % | – | – | **18,1 %** | 27,3 % | – | 3,9 % | 15,3 % | 19,2 % |
@@ -6901,7 +6901,7 @@ Pflege; „Hain“ = Abzüge mit 5 Gattungen halb gedämpft):
 |---|---|---|---|---|---|
 | 🌳 Heimatwald | +0,4 % | +1,3 % | +4,3 % | +3,4 % | +3,0 % |
 | 🌊 Auwald am Fluss | +1,4 % | +2,2 % | +3,8 % | +3,1 % | +2,6 % |
-| 🌫️ Erlenbruch | +0,9 % | +1,7 % | +3,8 % | +5,7 % | +2,9 % |
+| 🐸 Erlenbruch | +0,9 % | +1,7 % | +3,8 % | +5,7 % | +2,9 % |
 | 🍂 Buchenhallen | +1,0 % | +1,7 % | +3,6 % | +4,9 % | +3,0 % |
 | ⛰️ Bergmischwald | +1,2 % | +2,0 % | +3,9 % | +3,0 % | +2,8 % |
 | 🌲 Kiefernheide | −0,5 % | +0,5 % | +5,2 % | +3,4 % | +4,1 % |
@@ -6918,7 +6918,7 @@ Urwald; „ohne“ = heutige Gewichte):
 |---|---|---|---|---|---|---|
 | 🌳 Heimatwald | 49:29 min | – | – | 41:12 min | – | – |
 | 🌊 Auwald am Fluss | 49:28 min | ±0,0 % | ±0,0 % | 41:35 min | +0,9 % | +1,3 % |
-| 🌫️ Erlenbruch | 50:04 min | +1,2 % | +1,3 % | 40:57 min | −0,6 % | ±0,0 % |
+| 🐸 Erlenbruch | 50:04 min | +1,2 % | +1,3 % | 40:57 min | −0,6 % | ±0,0 % |
 | 🍂 Buchenhallen | 50:01 min | +1,1 % | +1,1 % | 40:42 min | −1,2 % | −1,7 % |
 | ⛰️ Bergmischwald | 48:42 min | −1,6 % | −1,3 % | 41:45 min | +1,3 % | +1,2 % |
 | 🌲 Kiefernheide | 50:05 min | +1,2 % | +1,0 % | 39:48 min | **−3,4 %** | −3,8 % |
@@ -6980,6 +6980,11 @@ dafür (raue Lagen tragen +15–25 % 🌰). Die Heide tauscht genau umgekehrt.
 **Oberfläche (klein, `ui-dev`, nach 3c):** `weatherSummary` als Zeile in der Karte bzw.
 U:Landschaft beim Standort („🌫️ Oft Nebel über dem Wasser, selten Dürre.“). Die Wetter-Notiz
 braucht nichts Neues – sie zeigt das Wetter des Tages wie bisher.
+*Nach dem Playtest Phase 7 (S1–S3):* Die Wetter-Notiz nennt außerhalb des Heimatwalds doch eine
+Zeile „Wetter im Bergmischwald: 🌨️ …“ (sonst erfuhr man nur auf U:Standort, warum es hier oft
+schneit); die Karte zeigt je Standort das Zeichen der häufigsten Lage, das Tagebuch der Wälder
+eine Zeile „Wetter“, die Spielanleitung alle Wälder im Kapitel „Wetter“, und der Rückkehr-Bericht
+sagt „Wetter im Bergmischwald gemittelt (…)“.
 
 ---
 
@@ -7003,7 +7008,7 @@ eine zweite Belohnung neben der Gabe: **eine neue Frucht für alle Wälder**.
 | Kandidat (24.13) | Standort | Entscheidung |
 |---|---|---|
 | 🎄 **Weißtanne** | ⛰️ Bergmischwald | **kommt** – Charakterbaum des Bergwalds, Schattbaumart, Nadelbaum mit Lebensraum für Vögel |
-| 🌿 **Schwarzerle** | 🌫️ Erlenbruch | **kommt** – Namensgeberin des Waldtyps, steht im Wasser, düngt den Boden (Wurzelknöllchen) |
+| 🌿 **Schwarzerle** | 🐸 Erlenbruch | **kommt** – Namensgeberin des Waldtyps, steht im Wasser, düngt den Boden (Wurzelknöllchen) |
 | Silberweide | 🌊 Auwald | **nicht jetzt** – der Auwald ist eine *Hartholz*aue (24.2), dort ist die Stieleiche richtig; die Weide gehört in die Weichholzaue. Option für einen späteren Standort |
 
 Buchenhallen (Rotbuche), Kiefernheide (Waldkiefer) und Heimatwald (Stieleiche) haben ihren
@@ -7094,8 +7099,8 @@ Die Zeilen „heute“ stimmen mit 24.7 überein – die Messung rechnet also wi
 | ⛰️ Bergmischwald | Rotbuche (heute) | 48:44 min | −0,4 % | 40:31 min | +0,2 % |
 | ⛰️ Bergmischwald | **Weißtanne** | 49:28 min | +1,0 % | 40:54 min | +1,2 % |
 | 🌳 Heimatwald | Weißtanne | 48:05 min | −1,8 % | 40:43 min | +0,8 % |
-| 🌫️ Erlenbruch | Stieleiche (heute) | 49:31 min | +1,2 % | 40:07 min | −0,7 % |
-| 🌫️ Erlenbruch | **Schwarzerle** | 49:21 min | +0,8 % | 39:53 min | −1,3 % |
+| 🐸 Erlenbruch | Stieleiche (heute) | 49:31 min | +1,2 % | 40:07 min | −0,7 % |
+| 🐸 Erlenbruch | **Schwarzerle** | 49:21 min | +0,8 % | 39:53 min | −1,3 % |
 | 🌳 Heimatwald | Schwarzerle | 49:02 min | +0,2 % | 39:50 min | −1,4 % |
 
 **Gedächtnis 0** (ohne Zufluss; mit Gaben, also kein echter allererster Zyklus):
@@ -7106,8 +7111,8 @@ Die Zeilen „heute“ stimmen mit 24.7 überein – die Messung rechnet also wi
 | ⛰️ Bergmischwald | Rotbuche (heute) | 2:37:49 h | −1,2 % | 2:08:27 h | +2,2 % |
 | ⛰️ Bergmischwald | **Weißtanne** | 2:34:04 h | −3,5 % | 2:09:37 h | +3,1 % |
 | 🌳 Heimatwald | Weißtanne | 2:35:13 h | −2,8 % | 2:07:30 h | +1,4 % |
-| 🌫️ Erlenbruch | Stieleiche (heute) | 2:38:02 h | −1,0 % | 2:08:48 h | +2,5 % |
-| 🌫️ Erlenbruch | **Schwarzerle** | 2:39:06 h | −0,4 % | 2:08:50 h | +2,5 % |
+| 🐸 Erlenbruch | Stieleiche (heute) | 2:38:02 h | −1,0 % | 2:08:48 h | +2,5 % |
+| 🐸 Erlenbruch | **Schwarzerle** | 2:39:06 h | −0,4 % | 2:08:50 h | +2,5 % |
 | 🌳 Heimatwald | Schwarzerle | 2:37:32 h | −1,4 % | 2:06:52 h | +0,9 % |
 
 Zum Vergleich die Grundarten im Heimatwald bei Gedächtnis 0: Rotbuche +0,5 / +1,6 %,

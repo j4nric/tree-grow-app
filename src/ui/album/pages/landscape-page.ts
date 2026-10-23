@@ -14,6 +14,7 @@
 import type { SiteId } from '../../../content/landscape';
 import { isDeliberateConfirm } from '../../confirm';
 import { el, setAttr, setText } from '../../dom';
+import { keepNumberWithIcon } from '../../format';
 import { restartAnimation } from '../../feedback';
 import { hyphenate } from '../../hyphenate';
 import { toJournalLandscapeView } from '../../journal-landscape-view';
@@ -172,7 +173,7 @@ export function createLandscapePage(env: PageEnv): TabPage {
       const isArmed = armed === c.id;
       const label = corridorBuildLabel(c, isArmed);
       node.build.classList.toggle('armed', isArmed);
-      setText(node.build, label.text);
+      setText(node.build, keepNumberWithIcon(label.text));
       setAttr(node.build, 'aria-label', label.label);
     }
   }
@@ -192,7 +193,7 @@ export function createLandscapePage(env: PageEnv): TabPage {
       setText(node.wildwechsel, c.wildwechsel ?? '');
       setText(node.name, hyphenate(c.name));
       setText(node.ends, hyphenate(c.ends));
-      setText(node.note, c.state === 'buildable' ? c.text : c.note);
+      setText(node.note, keepNumberWithIcon(c.state === 'buildable' ? c.text : c.note));
       node.build.hidden = c.state === 'built';
       node.build.disabled = c.state !== 'buildable';
       if (armed === c.id && c.state !== 'buildable') disarm();
@@ -284,10 +285,10 @@ export function createLandscapePage(env: PageEnv): TabPage {
     map.update(view, tgt);
     const line = targetLine(view, tgt);
     targetText.hidden = line === null;
-    setText(targetText, line ?? '');
+    setText(targetText, keepNumberWithIcon(line ?? ''));
     if (!changed) return;
     setText(question, view.question);
-    setText(seeds, view.jaySeeds);
+    setText(seeds, keepNumberWithIcon(view.jaySeeds));
     // Steht schon rechts im Seitenkopf: nur zeigen, wenn die Zeile mehr sagt („– nach diesem Zyklus …“).
     seeds.hidden = view.jaySeeds === landscapePageMeta(view);
     wildwechsel.hidden = view.wildwechsel === null;

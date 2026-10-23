@@ -576,7 +576,19 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   Import eines Hain-Stands statt Minuten Spielzeit; älteres Spiel = Build gegen einen Stand mit
   `SAVE_VERSION + 1`, live per Abo und per 422 beim Senden, dazu v14 → v15 direkt an der API).
   Sync-Server im e2e mit `AUTH_PER_IP_15MIN` (sonst 429 bei `--repeat-each`)
-- [ ] **4b** Playtest Phase 7 (`qa-tester`, Funde an `ui-dev` / `renderer`). Abhängig: 4a
+- [x] **4b** Playtest Phase 7 (`qa-tester`, Funde an `ui-dev` / `renderer`). Abhängig: 4a.
+  *Funde `ui-dev` erledigt* (S1–S5, K1, K3–K7): Notiz „Wetter heute“ mit dem Wetter des Waldtyps
+  (`weather-site`), Wetter-Zeichen je Standort auf der Karte, Zeile „Wetter“ im Tagebuch der
+  Wälder, Kapitel „Wetter“ und „Landschaft“ der Spielanleitung; Rückkehr-Bericht „⛅ Wetter im
+  Bergmischwald gemittelt (…)“; Meldungen mit Satzgrenze (`joinSentences`); Baumwahl mit Grund
+  der Vorauswahl („Leitbaum im Bergmischwald – …“) und „Wächst jetzt im Heimatwald“ statt
+  „(jetzt)“; Erlenbruch 🐸 statt 🌫️; Sperrgrund auf der Karte („erst im Urwald · 5 🪶“); Zahl und
+  🪶 umbrechen nicht getrennt; „erneut tippen“ bzw. „klicken“ je Eingabe; „Feuchte“ erklärt;
+  Wildwechsel-Hinweis im Kopf der Begegnung, die Kartenreihe rollt die Karte ins Bild. Tests in
+  `tests/playtest7-ui.test.ts`, `e2e/playtest7-ui.spec.ts`. *Funde `renderer` erledigt* in #125 (S6 ferne Tanne,
+  S7 Wipfel und Zapfen der Weißtanne, K8 Tannen als Begleitbäume). K9 (Laub blendet nach dem Laden
+  1–5 s ein) bleibt bewusst: Folge des Zeichnens in Leerlaufzeit (#88), nur in Screenshots auffällig.
+  K10 (Käferjahr der Heide) erledigt mit 3e.
 
 ## Phase 8 – Album-Oberfläche
 

@@ -220,6 +220,22 @@
   line-height: 1;
 }
 
+/* Wetter des Waldtyps (24.14): kleines Zeichen der häufigsten Lage an der Ecke des Knopfs. */
+.lsc-site-weather {
+  position: absolute;
+  top: -9px;
+  right: -7px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
 .lsc-site.unfounded .lsc-site-icon {
   filter: grayscale(0.6);
   opacity: 0.75;
@@ -675,6 +691,12 @@
 .site-gain {
   color: var(--ink-green);
   font-weight: 700;
+}
+
+.site-habitat {
+  margin-top: -2px;
+  font-size: 13px;
+  color: var(--ink-soft);
 }
 
 .site-cost {

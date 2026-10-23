@@ -7,7 +7,7 @@
  * Ein ungültiger Code ändert nichts – die Meldung sagt, warum.
  */
 import type { ImportError } from '../core/save';
-import { isDeliberateConfirm } from './confirm';
+import { confirmAgainText, confirmVerb, isDeliberateConfirm } from './confirm';
 import { el } from './dom';
 
 export interface SaveTransferCallbacks {
@@ -28,7 +28,7 @@ export interface SaveTransfer {
   reset(): void;
 }
 
-/** So lange bleibt „Zum Bestätigen erneut klicken“ scharf. */
+/** So lange bleibt „Zum Bestätigen erneut klicken“ (bzw. „tippen“) scharf. */
 const ARM_MS = 5000;
 
 const KEEP = 'Dein Spielstand bleibt unverändert.';
@@ -157,10 +157,10 @@ export function createSaveTransfer(root: HTMLElement, callbacks: SaveTransferCal
         say(check.message, 'bad');
         return;
       }
-      importButton.textContent = 'Aktuellen Spielstand überschreiben? Zum Bestätigen erneut klicken';
+      importButton.textContent = confirmAgainText('Aktuellen Spielstand überschreiben?');
       importButton.classList.add('armed');
       say(
-        `Der Code ist gültig.${check.note ? ` ${check.note}` : ''} Ein zweiter Klick ersetzt deinen aktuellen Spielstand.`,
+        `Der Code ist gültig.${check.note ? ` ${check.note}` : ''} Ein zweiter ${confirmVerb() === 'tippen' ? 'Tipp' : 'Klick'} ersetzt deinen aktuellen Spielstand.`,
       );
       armedAt = performance.now();
       armTimer = setTimeout(disarm, ARM_MS);

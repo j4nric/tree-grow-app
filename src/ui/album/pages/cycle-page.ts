@@ -17,9 +17,10 @@ import { hyphenate } from '../../hyphenate';
 import { SPECIES_BY_ID } from '../../../content/species';
 import type { MainTreeId } from '../../../content/trees';
 import { renderSpeciesSticker } from '../../../render/sticker';
-import { isDeliberateConfirm } from '../../confirm';
+import { confirmAgainText, isDeliberateConfirm } from '../../confirm';
 import { cycleViewKey, toCyclePanelView, treeChoiceFor, type CyclePanelView, type RegularOptionView } from '../../cycle-view';
 import { el, setAttr, setText } from '../../dom';
+import { keepNumberWithIcon } from '../../format';
 import { newCycleButtonText, targetText } from '../../landscape-view';
 import { createBookmark } from '../bookmark';
 import { initialNav, pageNumber } from '../nav';
@@ -29,7 +30,6 @@ import './goals.css';
 
 /** So lange bleibt der Knopf nach dem ersten Klick scharf. */
 export const CONFIRM_MS = 4000;
-const CONFIRM_TEXT = 'Wirklich neu beginnen? Zum Bestätigen erneut klicken';
 const REFRESH_MS = 200;
 /** Größe der Stammgast-Sticker (CSS-Pixel). */
 const STICKER_PX = 40;
@@ -39,6 +39,8 @@ interface TreeItem {
   input: HTMLInputElement;
   name: HTMLElement;
   info: HTMLElement;
+  /** „Wächst jetzt …“ bzw. warum die Art vorausgewählt ist. */
+  note: HTMLElement;
   lock: HTMLElement;
 }
 
@@ -132,7 +134,7 @@ export function createCyclePage(env: PageEnv): CyclePage {
   button.addEventListener('click', (event) => {
     if (armTimer === undefined) {
       if (event.detail > 1) return;
-      button.textContent = CONFIRM_TEXT;
+      button.textContent = confirmAgainText('Wirklich neu beginnen?');
       button.classList.add('armed');
       armedAt = performance.now();
       armTimer = setTimeout(disarm, CONFIRM_MS);
@@ -184,7 +186,7 @@ export function createCyclePage(env: PageEnv): CyclePage {
 
   function updateTarget(v: CyclePanelView): void {
     const site = targetSite(v);
-    const text = newCycleButtonText(site);
+    const text = keepNumberWithIcon(newCycleButtonText(site));
     if (text !== buttonText) {
       buttonText = text;
       if (armTimer === undefined) button.textContent = text;
@@ -193,7 +195,7 @@ export function createCyclePage(env: PageEnv): CyclePage {
     target.hidden = !map || !v.allowed;
     if (map) {
       const active = map.sites.find((s) => s.id === map.active);
-      setText(target, targetText(site, active ? `${active.icon} ${active.name}` : ''));
+      setText(target, keepNumberWithIcon(targetText(site, active ? `${active.icon} ${active.name}` : '')));
     }
     siteOpen.hidden = target.hidden || !site;
     if (site) setText(siteOpen, `${site.name} ansehen ›`);
@@ -210,7 +212,6 @@ export function createCyclePage(env: PageEnv): CyclePage {
     input.value = id;
     input.dataset.tree = id;
     const infoId = `cycle-tree-info-${id}`;
-    input.setAttribute('aria-describedby', infoId);
     input.addEventListener('change', () => {
       if (input.checked) chosen = id;
     });
@@ -223,9 +224,14 @@ export function createCyclePage(env: PageEnv): CyclePage {
     lock.setAttribute('aria-hidden', 'true');
     const info = el('small', 'cyc-packet-info');
     info.id = infoId;
-    row.append(input, sticker, lock, name, info);
+    const note = el('small', 'cyc-packet-note');
+    note.id = `cycle-tree-note-${id}`;
+    note.dataset.ref = 'tree-note';
+    note.hidden = true;
+    input.setAttribute('aria-describedby', `${note.id} ${infoId}`);
+    row.append(input, sticker, lock, name, note, info);
     treeList.append(row);
-    const item = { row, input, name, info, lock };
+    const item = { row, input, name, info, note, lock };
     treeItems.set(id, item);
     return item;
   }
@@ -252,7 +258,12 @@ export function createCyclePage(env: PageEnv): CyclePage {
       item.lock.hidden = t.unlocked;
       item.input.disabled = !t.unlocked;
       item.input.checked = t.id === (chosen ?? current);
-      setText(item.name, t.current ? `${t.name} (jetzt)` : t.name);
+      // „Wächst jetzt“ steht als eigene Zeile (nicht „(jetzt)“ am Namen – neben einer anderen
+      // Vorauswahl las sich das wie die Auswahl selbst).
+      setText(item.name, t.name);
+      setText(item.note, t.note ?? '');
+      item.note.hidden = !t.note;
+      item.note.classList.toggle('reason', t.note !== null && !t.current);
       setText(item.info, t.hint ?? t.summary);
     });
     // Nach einem Import wieder verborgene Arten (Landschaft gesperrt) ausblenden.

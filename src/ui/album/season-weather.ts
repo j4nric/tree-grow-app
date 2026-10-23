@@ -2,7 +2,7 @@
  * Jahreszeit und Wetter in der Bildunterschrift des Polaroids (docs/ALBUM_UI.md, A.2 #29/#30),
  * kurz wie im Konzept: „🌱 Frühling · ⛅ Wechselhaft · 2:58“. Zwei Knöpfe, jeder öffnet eine
  * Haftnotiz – Jahreszeit mit Stimmung und Wirkungen, Wetter
- * mit Stimmung, Wirkung heute, Dämpfung, Tipp, Vorhersage, Tag/Nacht und „Immer Tag“.
+ * mit Stimmung, Wetter des Waldtyps, Wirkung heute, Dämpfung, Tipp, Vorhersage, Tag/Nacht und „Immer Tag“.
  * Ersetzt season-badge.ts und weather-badge.ts; `data-ref` der Knöpfe und Zeilen bleiben.
  * `update()` darf jeden Frame laufen – das DOM ändert sich nur bei neuen Texten.
  */
@@ -45,6 +45,8 @@ export function createSeasonWeather(root: HTMLElement): SeasonWeather {
 
   const weatherNote = createNote({ id: 'weather', title: 'Wetter heute', ref: 'weather-details' });
   const mood = weatherNote.line('', 'weather-mood');
+  // Wetter des Waldtyps (24.14): warum es hier oft schneit – nur außerhalb des Heimatwalds.
+  const site = weatherNote.line('note-soft', 'weather-site');
   const effects = weatherNote.line('note-emphasis', 'weather-effects');
   const damping = weatherNote.line('', 'weather-damping');
   const tip = weatherNote.line('note-soft', 'weather-tip');
@@ -76,6 +78,7 @@ export function createSeasonWeather(root: HTMLElement): SeasonWeather {
     setAttr(weather, 'data-weather', w.id);
     weather.classList.toggle('rough', w.rough);
     setLine(mood, w.mood);
+    setLine(site, w.site);
     setLine(effects, w.effects);
     setLine(damping, w.damping);
     setLine(tip, w.tip);
