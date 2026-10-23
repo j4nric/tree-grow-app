@@ -109,11 +109,11 @@ describe('Karte der Landschaft: Standorte', () => {
     expect(map.sites.find((s) => s.id === 'heath')!.weather).toBe('🌡️ Viel Sonne, im Sommer oft Dürre – dann schwärmen die Borkenkäfer.');
     expect(map.sites.find((s) => s.id === 'carr')!.weather).toBe('🌫️ Oft Nebel über dem Wasser, selten Dürre.');
     // Ereignisse des Waldtyps (Phase 9, 1c): eigene Zeile „Hier öfter“, nicht im Wetter-Text.
-    expect(flood.events).toBe('🌧️ Regenreicher Frühling, 🐌 Schneckenjahr');
+    expect(flood.events).toBe('🌧️ Regenreicher Frühling (📜 Kapitel „Frühjahrshochwasser“), 🐌 Schneckenjahr');
     expect(flood.eventIcons).toBe('🌧️🐌');
     expect(home.events).toBeNull();
     expect(home.eventIcons).toBeNull();
-    expect(map.sites.find((s) => s.id === 'heath')!.events).toBe('🪲 Käferjahr');
+    expect(map.sites.find((s) => s.id === 'heath')!.events).toBe('🪲 Käferjahr (📜 Kapitel)');
     expect(map.sites.find((s) => s.id === 'mountain')!.events).toBeNull();
     for (const s of map.sites) expect(s.weather ?? '', s.id).not.toContain('öfter');
     expect(newCycleButtonText(flood)).toBe('Auwald am Fluss gründen (3 🪶)');
@@ -127,13 +127,20 @@ describe('Karte der Landschaft: Standorte', () => {
     const texts = Object.fromEntries(LANDSCAPE_SITES.map((s) => [s.id, siteEventText(s)]));
     expect(texts).toEqual({
       home: null,
-      floodplain: '🌧️ Regenreicher Frühling, 🐌 Schneckenjahr',
-      carr: '🐸 Krötenwanderung',
-      beechwood: '🌰 Mastjahr, 🐭 Mäusejahr',
+      floodplain: '🌧️ Regenreicher Frühling (📜 Kapitel „Frühjahrshochwasser“), 🐌 Schneckenjahr',
+      carr: '🐸 Krötenwanderung (📜 Kapitel „Die Krötennacht“)',
+      beechwood: '🌰 Mastjahr (📜 Kapitel „Buchenmast“), 🐭 Mäusejahr',
       mountain: null,
-      heath: '🪲 Käferjahr',
+      heath: '🪲 Käferjahr (📜 Kapitel)',
     });
-    expect(siteEventHints(byId('heath'))).toEqual([{ id: 'beetle-year', icon: '🪲', name: 'Käferjahr' }]);
+    // Playtest Phase 9, F6: Das Ereignis des Waldes ist markiert; „Das Käferjahr“ ist nur der Name mit Artikel.
+    expect(siteEventHints(byId('heath'))).toEqual([{ id: 'beetle-year', icon: '🪲', name: 'Käferjahr', chapter: '' }]);
+    expect(siteEventHints(byId('floodplain'))).toEqual([
+      { id: 'rain', icon: '🌧️', name: 'Regenreicher Frühling', chapter: 'Frühjahrshochwasser' },
+      { id: 'slug-year', icon: '🐌', name: 'Schneckenjahr' },
+    ]);
+    // Ohne Angaben zur Chronik (nur eventFactors): keine Markierung.
+    expect(siteEventHints({ eventFactors: { 'beetle-year': 3 } })).toEqual([{ id: 'beetle-year', icon: '🪲', name: 'Käferjahr' }]);
     // Aus den Daten, nicht hart kodiert: jedes Ereignis mit Faktor > 1 genau einmal.
     for (const site of LANDSCAPE_SITES) {
       const ids = Object.entries(site.eventFactors).filter(([, f]) => f > 1).map(([id]) => id);
@@ -336,7 +343,7 @@ describe('Spielanleitung: Waldlandschaft', () => {
     expect(text).toContain('50 %');
     expect(text).toContain('höchstens 500');
     // Phase 9, 1c: jeder Wald erlebt eigene Ereignisse öfter – Beispiel aus den Daten.
-    expect(text).toContain('Jeder Wald erlebt außerdem eigene Ereignisse öfter, etwa 🌊 Auwald am Fluss: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr.');
+    expect(text).toContain('Jeder Wald erlebt außerdem eigene Ereignisse öfter, etwa 🌊 Auwald am Fluss: 🌧️ Regenreicher Frühling (📜 Kapitel „Frühjahrshochwasser“), 🐌 Schneckenjahr.');
     expect(text).toContain('„Hier öfter“');
   });
 

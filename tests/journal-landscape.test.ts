@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LANDSCAPE_SITES, LANDSCAPE_SITES_BY_ID, LANDSCAPE_UNLOCK_MEMORY, type SiteId } from '../src/content/landscape';
+import { COMMON_SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { MAIN_TREES_BY_ID } from '../src/content/trees';
 import { evaluate } from '../src/core/formulas';
@@ -10,6 +11,8 @@ import {
   FAUNA_HIGHLIGHTS,
   faunaHighlightsText,
   memoryText,
+  REGULARS_SHOWN,
+  regularsRow,
   regularsText,
   toJournalLandscapeView,
 } from '../src/ui/journal-landscape-view';
@@ -146,6 +149,19 @@ describe('Reiter „Landschaft“: Angaben je Wald', () => {
     state.meta.regulars = [];
     expect(row(toJournalLandscapeView(state)!.sites[1]!, 'regulars')!.value).toBe('keine');
     expect(regularsText(['robin', 'unbekannt', 'robin'])).toBe('Rotkehlchen');
+  });
+
+  it('Playtest Phase 9, F9: lange Stammgast-Listen eingeklappt (erste 8 + „und n weitere ›“)', () => {
+    const ids = COMMON_SPECIES.slice(0, 20).map((s) => s.id);
+    const row20 = regularsRow(ids);
+    expect(row20.value).toBe(regularsText(ids));
+    expect(row20.collapsed).toEqual({
+      short: `${COMMON_SPECIES.slice(0, REGULARS_SHOWN).map((s) => s.name).join(', ')} …`,
+      more: 'und 12 weitere ›',
+    });
+    // Kurze Listen bleiben ganz (kein Knopf für „und 1 weitere“).
+    expect(regularsRow(ids.slice(0, 10)).collapsed).toBeUndefined();
+    expect(regularsRow(ids.slice(0, 11)).collapsed?.more).toBe('und 3 weitere ›');
   });
 
   it('Tiere: ruhender Wald mit Bestand beim Verlassen, aktiver mit laufendem Bestand', () => {

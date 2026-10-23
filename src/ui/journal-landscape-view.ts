@@ -90,6 +90,25 @@ export function regularsText(ids: readonly string[]): string {
   return names.length > 0 ? joinNames(names) : 'keine';
 }
 
+/** So viele Stammgäste zeigt eine eingeklappte Liste (F9). */
+export const REGULARS_SHOWN = 8;
+/** Erst ab so vielen wird eingeklappt – „und 1 weitere“ lohnt den Knopf nicht. */
+const REGULARS_COLLAPSE_FROM = REGULARS_SHOWN + 3;
+
+/**
+ * Zeile „Stammgäste“: ganze Liste, ab REGULARS_COLLAPSE_FROM Namen eingeklappt auf die ersten
+ * REGULARS_SHOWN mit „und 12 weitere ›“ (Playtest Phase 9, F9 – mobil waren die Listen sehr lang).
+ */
+export function regularsRow(ids: readonly string[]): JournalLandscapeRowView {
+  const row: JournalLandscapeRowView = { key: 'regulars', label: 'Stammgäste', value: regularsText(ids) };
+  const names = [...new Set(ids)].map((id) => SPECIES_BY_ID.get(id)?.name).filter((n): n is string => !!n);
+  if (names.length >= REGULARS_COLLAPSE_FROM) {
+    const rest = names.length - REGULARS_SHOWN;
+    row.collapsed = { short: `${names.slice(0, REGULARS_SHOWN).join(', ')} …`, more: `und ${formatNumber(rest)} weitere ›` };
+  }
+  return row;
+}
+
 /** Gedächtnis eigen/wirksam, z. B. „120 eigen · 270 wirksam“. */
 export function memoryText(own: number, effective: number): string {
   return `${formatNumber(own)} eigen · ${formatNumber(effective)} wirksam`;
@@ -100,7 +119,10 @@ function siteView(state: GameState, entry: LandscapeSite, active: SiteId): Journ
   const isActive = entry.id === active;
   const ancient = isSiteAncient(state, entry.id);
   const weather = siteWeatherText(entry.id);
+  // Waldchronik (26.7) ganz oben (F9): „4 / 6 – offen: Erster Schnee, Kennart“.
+  const chronicle = siteChronicleView(state, entry.id);
   const rows: JournalLandscapeRowView[] = [
+    ...(chronicle ? [{ key: 'chronicle', label: 'Chronik', value: chronicleShortText(chronicle) }] : []),
     { key: 'memory', label: 'Waldgedächtnis', value: memoryText(ownMemory(state, entry.id), effectiveMemoryOf(state, entry.id)) },
     {
       key: 'ancient',
@@ -116,14 +138,11 @@ function siteView(state: GameState, entry: LandscapeSite, active: SiteId): Journ
       ? { key: 'tree', label: 'Hauptbaum jetzt', value: treeName(state.cycle.mainTree) }
       : { key: 'tree', label: 'Zuletzt gewachsen', value: treeName(entry.mainTree) },
     // Stammgäste des aktiven Waldes stehen in meta.regulars, die ruhender im Eintrag (24.8).
-    { key: 'regulars', label: 'Stammgäste', value: regularsText(isActive ? state.meta.regulars : entry.regulars) },
+    regularsRow(isActive ? state.meta.regulars : entry.regulars),
   ];
   // Tiere: im aktiven Wald der laufende Bestand, sonst der beim letzten Verlassen.
   const fauna = faunaHighlightsText(isActive ? allAnimals(state) : entry.fauna, state.meta.journal.species);
   if (fauna) rows.push({ key: 'fauna', label: isActive ? 'Lebt gerade hier' : 'Zuletzt gesehen', value: fauna });
-  // Waldchronik (26.7): „4 / 6 – offen: Erster Schnee, Kennart“.
-  const chronicle = siteChronicleView(state, entry.id);
-  if (chronicle) rows.push({ key: 'chronicle', label: 'Chronik', value: chronicleShortText(chronicle) });
   return {
     id: entry.id,
     icon: data?.icon ?? '🌳',

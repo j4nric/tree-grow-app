@@ -49,8 +49,9 @@ for (const width of [360, 390]) {
     await openGame(page);
     await openTab(page, 'arten');
     const panel = page.locator('[data-ref="page-species"]');
-    const jumps = panel.locator('.species-jump');
-    // Tiere, Pflanzen, Gemeinschaften, Andenken (Erfolge und Statistik im Reiter „Ziele“).
+    const jumps = panel.locator('.species-jump:visible');
+    // Tiere, Pflanzen, Gemeinschaften, Andenken (Erfolge und Statistik im Reiter „Ziele“);
+    // „Chroniken“ erst mit der Landschaft (Playtest Phase 9, F8).
     await expect(jumps).toHaveCount(4);
     // offsetTop: ohne die leichte Drehung der Washi-Streifen.
     const tops = await jumps.evaluateAll((els) => els.map((e) => (e as HTMLElement).offsetTop));

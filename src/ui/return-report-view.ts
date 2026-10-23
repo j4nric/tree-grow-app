@@ -14,6 +14,7 @@
 import type { SiteId } from '../content/landscape';
 import type { OfflineReport } from '../core/tick';
 import { averagedWeatherText } from './weather-view';
+import { chapterCountText } from './chronicle-view';
 import { reachedStage, welcomeAmount, welcomeText, type StageProgress } from './adapters';
 import { regularsArrivedText, withRegulars } from './cycle-view';
 import { formatDuration, formatNumber, joinSentences } from './format';
@@ -30,6 +31,8 @@ export interface ReturnReportInput {
   stages?: StageProgress;
   /** Wald des Zyklus (Landschaft) – das gemittelte Wetter nennt ihn außerhalb des Heimatwalds. */
   site?: SiteId;
+  /** Offline neu geschriebene Kapitel der Chronik – „· 📜 2 neue Kapitel“ in der Kurzfassung (F7). */
+  chapters?: number;
   /** Zusatzhinweise in Reihenfolge (Erfolge, Landschaft, Tagesziele, Migration …); leere fallen weg. */
   notes?: readonly (string | null | undefined)[];
 }
@@ -84,6 +87,8 @@ export function toReturnReportView(input: ReturnReportInput): ReturnReportView {
   const reached = reachedStage(stages);
   if (reached) parts.push(`Stufe „${reached}“`);
   if (waiting > 0) parts.push(waiting === 1 ? '1 Begegnung wartet' : `${formatNumber(waiting)} Begegnungen warten`);
+  const chapters = chapterCountText(input.chapters ?? 0);
+  if (chapters) parts.push(chapters);
   // Mehr als die Kurzfassung: gedeckelte Zeit, weitergezogene Begegnungen, weitere Punkte.
   const more = details.length > 1 || report.seconds < away || report.autoDeclined > 0;
   const headline = parts.join(' · ');

@@ -216,6 +216,21 @@
   overflow-wrap: break-word;
 }
 
+/* Verweilen im Urwald (F3): worauf man wartet – ruhiger blauer Zettelstreifen. */
+.chr-wait,
+.cyc-dwell {
+  margin: 0 0 var(--s-3);
+  padding: 6px 10px;
+  border-left: 4px solid #6f9cc2;
+  border-radius: 4px;
+  background: rgba(220, 235, 247, 0.55);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+}
+
 /* ---------- Bewegung ---------- */
 
 body[data-motion='reduce'] .chr-chapter.chr-fresh,

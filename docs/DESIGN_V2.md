@@ -7724,6 +7724,15 @@ Jahreszeit); Andenken-Texte ≤ 120 Zeichen.
   Urwald, Erster Schnee, Ereignis, Kennart, Einklang, Gedächtnis. Andenken offener Chroniken
   stehen in R:Arten als „???“ mit Wald und Stand. Mit der Freischaltung nennt der Hinweis die
   schon geschriebenen Kapitel des Heimatwalds statt je eines Stempels.
+- **Nach dem Playtest Phase 9 (4b):** Im alten Wald heißt die offene Kennart „Der Wald ist alt
+  genug – jetzt kann sie jederzeit kommen.“ (ruhend: „… wächst du wieder hier, …“). Steht der
+  aktive Wald im Urwald und ist „Erster Schnee“ offen, nennen U:Standort und U:Neuer Zyklus die
+  Restzeit: „❄️ Noch 1:19 min bis zum Winter – bleib, dann schreibt der Wald „Erster Schnee“.“
+  Kapitel kommen als eigener Stempel, eine vollständige Chronik als bleibender Zettel mit dem
+  Andenken. „Hier öfter“ markiert das Ereignis des Waldes („🌧️ Regenreicher Frühling (📜 Kapitel
+  „Frühjahrshochwasser“)“). Die Kurzfassung des Rückkehr-Berichts zählt neue Kapitel; R:Arten hat
+  die Sprungmarke „Chroniken“, offene Andenken nennen ihre offenen Kapitel; im Tagebuch der Wälder
+  steht „Chronik“ oben, lange Stammgast-Listen sind eingeklappt (erste 8 + „und n weitere ›“).
 
 ### 26.8 Messplan und Ziele (Aufgabe 2c)
 

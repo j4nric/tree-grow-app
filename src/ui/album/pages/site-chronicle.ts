@@ -11,7 +11,7 @@
 import { CHRONICLE_CHAPTERS, type ChapterId } from '../../../content/chronicle';
 import type { SiteId } from '../../../content/landscape';
 import type { GameState } from '../../../core/state';
-import { chronicleVisible, siteChronicleView } from '../../chronicle-view';
+import { chronicleVisible, firstSnowWaitText, siteChronicleView } from '../../chronicle-view';
 import { el, setText, srOnly } from '../../dom';
 import { restartAnimation } from '../../feedback';
 import { hyphenate } from '../../hyphenate';
@@ -30,6 +30,11 @@ export interface SiteChronicle {
   readonly element: HTMLElement;
   /** Chronik des Standorts zeigen (verborgen vor der Landschaft). */
   show(state: GameState, site: SiteId): void;
+  /**
+   * Nur den Verweilen-Hinweis nachziehen („❄️ Noch 1:19 min bis zum Winter …“, F3) – billig,
+   * setzt Text nur bei Änderung; der Aufrufer drosselt.
+   */
+  tick(state: GameState, site: SiteId): void;
 }
 
 export function createSiteChronicle(): SiteChronicle {
@@ -42,6 +47,10 @@ export function createSiteChronicle(): SiteChronicle {
   const count = el('span', 'chr-count');
   count.dataset.ref = 'site-chronicle-count';
   title.append(name, ' ', count);
+  // Verweilen im Urwald (Playtest Phase 9, F3): worauf man wartet, wenn „Erster Schnee“ offen ist.
+  const wait = el('p', 'chr-wait');
+  wait.dataset.ref = 'chronicle-wait';
+  wait.hidden = true;
   const list = el('ol', 'chr-list');
   list.dataset.ref = 'site-chronicle-list';
   const empty = el('p', 'lsc-hint chr-empty', 'Die Chronik beginnt mit der Gründung dieses Waldes – dann schreibt er sein Tagebuch in sechs Kapiteln.');
@@ -75,13 +84,23 @@ export function createSiteChronicle(): SiteChronicle {
   caption.append(keepsakeLabel, keepsakeName, keepsakeText);
   keepsake.append(keepsakeIcon, caption);
 
-  section.append(title, list, keepsake, empty);
+  section.append(title, wait, list, keepsake, empty);
   section.hidden = true;
 
   let shownSite: SiteId | null = null;
 
+  function updateWait(state: GameState, site: SiteId): void {
+    const text = firstSnowWaitText(state, site);
+    wait.hidden = text === null;
+    setText(wait, text ?? '');
+  }
+
   return {
     element: section,
+    tick(state, site) {
+      if (section.hidden) return;
+      updateWait(state, site);
+    },
     show(state, site) {
       const visible = chronicleVisible(state);
       section.hidden = !visible;
@@ -93,6 +112,7 @@ export function createSiteChronicle(): SiteChronicle {
       const sameSite = shownSite === site;
       shownSite = site;
       list.hidden = view === null;
+      updateWait(state, site);
       empty.hidden = view !== null;
       setText(count, view ? `${view.written} / ${view.total}` : '');
       section.classList.toggle('complete', view?.complete === true);

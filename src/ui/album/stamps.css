@@ -166,6 +166,44 @@ html:has(.album[data-layout='single'] .note-stack:not([hidden])) .stamps:not(.st
   outline-offset: -3px;
 }
 
+/* Vollständige Chronik (F4): Papier statt Gelb, Wachsrand, das Andenken als runder Sticker. */
+.stamp-slip.stamp-keepsake {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 12px;
+  background: var(--paper);
+  border: 2px solid var(--wax);
+  border-radius: 6px;
+}
+
+.stamp-keepsake .stamp-tape {
+  background: var(--wax);
+  opacity: 0.55;
+}
+
+.stamp-keepsake-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 3px solid var(--photo);
+  border-radius: 50%;
+  background: var(--fam-soil);
+  box-shadow: var(--sh-sticker);
+  font-size: 30px;
+  line-height: 1;
+  transform: rotate(-4deg);
+}
+
+.stamp-keepsake.stamp-older .stamp-keepsake-icon {
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  border-width: 2px;
+}
+
 /* Kurzfassung (Rückkehr): höchstens drei Zeilen; Screenreader lesen den ganzen Text. */
 .stamp-brief .stamp-text {
   display: -webkit-box;

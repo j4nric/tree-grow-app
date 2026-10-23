@@ -11,7 +11,10 @@ import { kennartCaption, kennartIndices, speciesGroups } from '../src/ui/album/p
 import {
   CHRONICLE_TOTAL,
   chapterDate,
+  chapterCountText,
+  chapterNewsCount,
   chapterNewsText,
+  chapterNotes,
   chapterTitle,
   chaptersSince,
   chronicleKeepsakes,
@@ -19,9 +22,14 @@ import {
   chronicleTargetText,
   chronicleTotalText,
   chronicleUnlockText,
+  firstSnowWaitText,
+  KENNART_READY_HINT,
+  KENNART_READY_RESTING_HINT,
+  secondsToWinter,
   siteChronicleView,
   siteIn,
 } from '../src/ui/chronicle-view';
+import { toReturnReportView } from '../src/ui/return-report-view';
 import { guideSections } from '../src/ui/guide-view';
 import { toJournalLandscapeView } from '../src/ui/journal-landscape-view';
 import { toLandscapeMapView } from '../src/ui/landscape-view';
@@ -84,7 +92,9 @@ describe('Chronik: U:Standort', () => {
     expect(open).toHaveLength(4);
     for (const c of open) {
       expect(c.date).toBeNull();
-      expect(c.hint).toBe(CHRONICLE_CHAPTERS.find((x) => x.id === c.id)!.hint);
+      // Kennart im alten, ruhenden Wald: eigener Hinweis (F2), sonst der aus den Inhalten.
+      if (c.id === 'kennart') expect(c.hint).toBe(KENNART_READY_RESTING_HINT);
+      else expect(c.hint).toBe(CHRONICLE_CHAPTERS.find((x) => x.id === c.id)!.hint);
     }
     // Keine Kennart beim Namen, solange das Kapitel offen ist.
     expect(JSON.stringify(view)).not.toContain('Biber');
@@ -134,6 +144,8 @@ describe('Chronik: Landschaft, Tagebuch, Ziel-Wald', () => {
     const row = (id: string) => journal.sites.find((s) => s.id === id)!.rows.find((r) => r.key === 'chronicle');
     expect(row('home')).toEqual({ key: 'chronicle', label: 'Chronik', value: '1 / 6 – offen: Erster Schnee, Ereignis, Kennart, Einklang, Gedächtnis' });
     expect(row('floodplain')?.value).toBe('6 / 6 – vollständig');
+    // F9: „Chronik“ steht ganz oben (mobil lag sie unter langen Listen).
+    for (const site of journal.sites) expect(site.rows[0]?.key, site.id).toBe('chronicle');
   });
 
   it('Ziel-Wald: offene Kapitel; ein neuer Wald beginnt seine Chronik', () => {
@@ -180,6 +192,9 @@ describe('R:Arten: Andenken und Reihe „Kennarten“', () => {
     expect(flood).toMatchObject({ complete: true, icon: '🪵', name: 'Biberholz', site: '🌊 Auwald am Fluss · Chronik vollständig' });
     const home = list.find((k) => k.key === 'home')!;
     expect(home).toMatchObject({ complete: false, name: '???', site: '🌳 Heimatwald · Chronik 1 / 6' });
+    // F8: offene Andenken nennen ihre offenen Kapitel statt sechsmal desselben Satzes.
+    expect(home.text).toBe('Noch offen: Erster Schnee, Ereignis, Kennart, Einklang, Gedächtnis.');
+    expect(list.find((k) => k.key === 'carr')!.text).toBe('Mit der Gründung beginnt seine Chronik.');
     expect(JSON.stringify(home)).not.toContain('Eichel des Hähers');
     expect(list.find((k) => k.key === 'carr')!.site).toBe('🐸 Erlenbruch · noch nicht gegründet');
     // Zähler „Andenken“ zählt vollständige Chroniken mit.
@@ -212,5 +227,81 @@ describe('Spielanleitung „Chroniken und Kennarten“', () => {
     for (const c of CHRONICLE_CHAPTERS) expect(text).toContain(c.title);
     expect(text).toContain('36 Kapitel');
     for (const name of ['Biber', 'Moorfrosch', 'Luchs', 'Stachelbart']) expect(text).not.toContain(name);
+  });
+});
+
+describe('Playtest Phase 9: Funde ui-dev (F2–F4, F7)', () => {
+  it('F2: offene Kennart im alten Wald – ohne Spoiler, aktiv bzw. ruhend', () => {
+    // Heimatwald noch nie Urwald, Zyklus vor dem Urwald: der allgemeine Hinweis.
+    const young = landscape({ home: [] });
+    young.meta.landscape.sites[0]!.ancient = false;
+    young.stage = ANCIENT - 1;
+    const hintOf = (s: GameState, site: SiteId) => siteChronicleView(s, site)!.chapters.find((c) => c.id === 'kennart')!.hint;
+    expect(hintOf(young, 'home')).toBe(CHRONICLE_CHAPTERS.find((c) => c.id === 'kennart')!.hint);
+    // Der laufende Zyklus erreicht den Urwald: jetzt kann sie kommen.
+    young.stage = ANCIENT;
+    expect(hintOf(young, 'home')).toBe(KENNART_READY_HINT);
+    // Alter, ruhender Wald: erst, wenn man wieder dort wächst.
+    expect(hintOf(landscape({ floodplain: [] }), 'floodplain')).toBe(KENNART_READY_RESTING_HINT);
+    for (const t of [KENNART_READY_HINT, KENNART_READY_RESTING_HINT]) for (const k of KENNARTEN) expect(t).not.toContain(k.name);
+  });
+
+  it('F3: Restzeit bis zum Winter – im Winter bis zum nächsten', () => {
+    expect(secondsToWinter(0)).toBe(540);
+    expect(secondsToWinter(461)).toBe(79);
+    expect(secondsToWinter(540)).toBe(720);
+    expect(secondsToWinter(700)).toBe(560);
+    expect(secondsToWinter(720 * 3 + 100)).toBe(440);
+    expect(secondsToWinter(Number.NaN)).toBe(540);
+  });
+
+  it('F3: Verweilen im Urwald nennt, worauf man wartet – nur aktiver Wald, Urwald, Kapitel offen', () => {
+    const state = landscape({ home: [entry('ancient')], floodplain: [] });
+    state.cycle.elapsed = 461;
+    expect(firstSnowWaitText(state)).toBe('❄️ Noch 1:19 min bis zum Winter – bleib, dann schreibt der Wald „Erster Schnee“.');
+    expect(firstSnowWaitText(state, 'home')).toBe(firstSnowWaitText(state));
+    // Anderes Ziel: Der Hinweis nennt den Wald, in dem man verweilen würde.
+    expect(firstSnowWaitText(state, undefined, true)).toBe('❄️ Noch 1:19 min bis zum Winter – bleibst du, schreibt die Chronik im Heimatwald „Erster Schnee“.');
+    // Ruhender Wald, vor dem Urwald, Kapitel schon geschrieben, vor der Landschaft: nichts.
+    expect(firstSnowWaitText(state, 'floodplain')).toBeNull();
+    const young = landscape({ home: [] });
+    young.stage = ANCIENT - 1;
+    expect(firstSnowWaitText(young)).toBeNull();
+    expect(firstSnowWaitText(landscape({ home: [entry('first-snow')] }))).toBeNull();
+    expect(firstSnowWaitText(landscape({ home: [] }, { unlocked: false }))).toBeNull();
+  });
+
+  it('F4: Kapitel als eigener Stempel, vollständige Chronik als Zettel mit Andenken', () => {
+    const state = landscape({ home: [entry('ancient')], floodplain: full() });
+    const notes = chapterNotes(state, [
+      { site: 'home', chapter: 'harmony' },
+      { site: 'floodplain', chapter: 'memory' },
+    ]);
+    expect(notes).toHaveLength(2);
+    expect(notes[0]).toEqual({ text: '📜 Neues Kapitel im Heimatwald: Voller Einklang.', keepsake: null });
+    expect(notes[1]!.keepsake?.icon).toBe('🪵');
+    expect(notes[1]!.text).toBe(
+      '📜 Die Chronik im Auwald am Fluss ist vollständig! Letztes Kapitel: Ein Wald erinnert sich. Andenken: Biberholz – „Ein Ast, rundum benagt, glatt wie gedrechselt.“',
+    );
+    expect(chapterNotes(state, [])).toEqual([]);
+    expect(chapterNotes(landscape({ home: [] }, { unlocked: false }), [{ site: 'home', chapter: 'harmony' }])).toEqual([]);
+  });
+
+  it('F7: Kurzfassung des Rückkehr-Berichts zählt neue Kapitel', () => {
+    const state = landscape({ home: [entry('ancient')] });
+    const news = [
+      { site: 'home' as const, chapter: 'harmony' as const },
+      { site: 'home' as const, chapter: 'harmony' as const },
+      { site: 'floodplain' as const, chapter: 'memory' as const },
+    ];
+    expect(chapterNewsCount(state, news)).toBe(2);
+    expect(chapterNewsCount(landscape({ home: [] }, { unlocked: false }), news)).toBe(0);
+    expect(chapterCountText(0)).toBe('');
+    expect(chapterCountText(1)).toBe('📜 1 neues Kapitel');
+    expect(chapterCountText(3)).toBe('📜 3 neue Kapitel');
+    const report = { seconds: 3600, growth: 100, seeds: 10, autoDeclined: 0, declinedSeeds: 0 };
+    const view = toReturnReportView({ away: 3600, report, waiting: 0, chapters: 2, notes: ['📜 Neue Kapitel …'] });
+    expect(view.headline).toContain(' · 📜 2 neue Kapitel');
+    expect(toReturnReportView({ away: 3600, report, waiting: 0 }).headline).not.toContain('📜');
   });
 });
