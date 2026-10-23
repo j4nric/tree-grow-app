@@ -1,3 +1,4 @@
+import type { ChapterId } from '../content/chronicle';
 import type { DailyGoalKind } from '../content/daily';
 import type { CycleEffect, ForcedEncounterType, TimedEffect } from '../content/events';
 import type { SeasonId } from '../content/seasons';
@@ -17,7 +18,8 @@ import { normalizeSeed } from './rng';
  * `meta.landscape`, DESIGN_V2.md 24.8; seit v15 mit den Hauptbäumen der Landschaft `fir` und
  * `alder` in `MainTreeId`, der Wildwechsel-Markierung `PendingEncounter.via`, dem Zähler
  * `meta.stats.wildwechselChosen` und „Zuerst gesehen“ `meta.journal.firstSeen`, DESIGN_V2.md
- * 25.5, 24.6, 24.12, 25.10).
+ * 25.5, 24.6, 24.12, 25.10; seit v16 mit der Waldchronik `meta.landscape.sites[].chronicle`
+ * und den Kennarten als neuem Wertebereich der Art-IDs, DESIGN_V2.md 26.6).
  * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -26,7 +28,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+1 % je Punkt → höchstens
@@ -218,6 +220,18 @@ export function dailySeedOf(seed: number): number {
 }
 
 /**
+ * Ein Kapitel der Waldchronik (seit v16, DESIGN_V2.md 26.4/26.6). Je Kapitel und Wald höchstens
+ * ein Eintrag; einmal geschrieben, bleibt er.
+ */
+export interface ChronicleEntry {
+  chapter: ChapterId;
+  /** Zyklus (`cycle.number`) beim Schreiben; null = vor v16 (Migration, „schon früher“). */
+  cycle: number | null;
+  /** Jahreszeit beim Schreiben; null = vor v16. */
+  season: SeasonId | null;
+}
+
+/**
  * Ein gegründeter Wald der Landschaft (seit v14, DESIGN_V2.md 24.8). Beim aktiven Wald
  * stehen Gedächtnis und Stammgäste in `meta.forestMemory` bzw. `meta.regulars` (eine
  * Wahrheit je Wert) – sein Eintrag hält dort 0 bzw. [].
@@ -234,6 +248,11 @@ export interface LandscapeSite {
   mainTree: MainTreeId;
   /** Bestand beim letzten Verlassen (Tier-IDs, höchstens MAX_SITE_FAUNA) – für den Wildwechsel. */
   fauna: string[];
+  /**
+   * Waldchronik (seit v16, DESIGN_V2.md 26.4): je Kapitel höchstens ein Eintrag, in
+   * Schreib-Reihenfolge. Geschrieben wird nur im aktiven Wald (core/landscape.ts, writeChapter).
+   */
+  chronicle: ChronicleEntry[];
 }
 
 /** Waldlandschaft (seit v14): überdauert jeden Neuen Zyklus. */
@@ -256,7 +275,7 @@ export interface LandscapeState {
 
 /** Ein frisch gegründeter Wald (ohne Gedächtnis, ohne Stammgäste). */
 export function createSite(id: SiteId, mainTree: MainTreeId = DEFAULT_MAIN_TREE): LandscapeSite {
-  return { id, memory: 0, regulars: [], ancient: false, mainTree, fauna: [] };
+  return { id, memory: 0, regulars: [], ancient: false, mainTree, fauna: [], chronicle: [] };
 }
 
 /** Startwert der Landschaft: nur der Heimatwald, aktiv, keine Korridore. */
@@ -319,7 +338,7 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 15;
+  version: 16;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – einzige Währung. */

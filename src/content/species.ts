@@ -1,10 +1,11 @@
 import { HABITAT_SPECIES, REPTILE_INFO } from './habitats';
+import type { SiteId } from './landscape';
 import type { Condition, Effect, Genus, Level, NicheId, Rarity, Tag } from './types';
 
 /**
- * Alle 51 Tierarten (und Pilze): 32 in den 5 Grundgattungen (docs/DESIGN_V2.md, 5.3),
- * 5 Amphibien der Erweiterung Waldtümpel (5.5, Laubfrosch und Kammmolch seit dem Playtest)
- * und 14 Arten der Lebensräume (23.4, Daten in habitats.ts). Die Grafik-Ebene
+ * Alle 57 Tierarten (und Pilze): 32 in den 5 Grundgattungen (docs/DESIGN_V2.md, 5.3),
+ * 5 Amphibien der Erweiterung Waldtümpel (5.5, Laubfrosch und Kammmolch seit dem Playtest),
+ * 14 Arten der Lebensräume (23.4, Daten in habitats.ts) und 6 Kennarten der Landschaft (26.3). Die Grafik-Ebene
  * erwartet genau diese IDs. 🌿-Wirkungen seit dem Balancing 2.10 ×0,75 gegenüber dem
  * Prototyp (DESIGN_V2.md 15.4). Borkenkäfer (Totholz) und Buntspecht (gezimmerte Höhle)
  * bringen je +1 Platz in „Höhlen & Totholz“,
@@ -386,9 +387,93 @@ export const SPECIES: readonly Species[] = [
 
   // --- Lebensräume (DESIGN_V2.md 23.4): Waldwiese, Totholzhaufen, Trockenmauer ----
   ...HABITAT_SPECIES,
+
+  // --- Kennarten (DESIGN_V2.md 26.3) ---------------------------------------------
+  // Je Wald der Landschaft eine seltene Art, die nur dort lebt und nur, wenn der Wald alt ist
+  // (Bedingung `site`). Nur vorhandene Wirkungsarten, keine Fähigkeit; besonders, ab Hain.
+  // Startwerte – Aufgabe 2c misst sie (±5 % je Waldtyp). Haselmaus und Ziegenmelker sind
+  // nachtaktiv (daytime.ts). Erscheinen nie vor der Landschaft: `site` braucht ihre Freischaltung.
+  {
+    id: 'dormouse', name: 'Haselmaus', genus: 'mammals', rarity: 2, level: 'herbivore', niche: 'crown', unlock: 5,
+    food: ['nuesse', 'beeren'], needs: [{ kind: 'group', group: 'shrubs', min: 1 }],
+    appears: [{ kind: 'site', site: 'home' }],
+    provides: [],
+    effects: [{ kind: 'seeds', pct: 6 }, { kind: 'harmony', points: 4 }],
+    summary: '+6 % 🌰, +4 ⚖️',
+    text: 'Schläft sieben Monate im Jahr – und klettert in Sommernächten bis in die Haselspitzen.',
+  },
+  {
+    id: 'beaver', name: 'Biber', genus: 'mammals', rarity: 2, level: 'herbivore', niche: 'pond', unlock: 5,
+    food: ['laub', 'kraut'], needs: [{ kind: 'tag', tag: 'feucht' }],
+    appears: [{ kind: 'site', site: 'floodplain' }],
+    // Statt „+1 Platz Waldtümpel“ (26.3, Entwurf): Eine Platz-Wirkung in der eigenen Nische
+    // machte dem Biber selbst Platz und öffnete als Stammgast einen geschlossenen Tümpel (Regel
+    // „Platz-Wirkungen nie in der eigenen Nische“, tests/content.test.ts). Sein Damm schafft
+    // darum Feuchte und Wasser – Startwert für 2c.
+    provides: ['feucht'],
+    effects: [{ kind: 'water', amount: 2 }, { kind: 'harmony', points: 4 }],
+    summary: '+2 💧, schafft Feuchte, +4 ⚖️',
+    text: 'Er staut den Bach, und wo vorher ein Rinnsal war, quaken bald die Frösche.',
+  },
+  {
+    id: 'moorfrog', name: 'Moorfrosch', genus: 'amphibians', rarity: 2, level: 'predator', niche: 'pond', unlock: 5,
+    food: ['insekten', 'wuermer'], needs: [{ kind: 'tag', tag: 'feucht' }, { kind: 'group', group: 'mosses', min: 1 }],
+    appears: [{ kind: 'site', site: 'carr' }],
+    provides: ['amphibien'],
+    effects: [{ kind: 'groupGrowth', group: 'mosses', pct: 10 }, { kind: 'harmony', points: 6 }],
+    summary: 'Moose & Farne +10 % 🌿, +6 ⚖️',
+    text: 'Ein paar Tage im Frühling sind die Männchen himmelblau. Dann ist das ganze Bruch ein Konzert.',
+  },
+  {
+    id: 'hericium', name: 'Ästiger Stachelbart', genus: 'fungi', rarity: 2, level: 'decomposer', niche: 'bark', unlock: 5,
+    food: ['totholz'], needs: [{ kind: 'tag', tag: 'totholz' }, { kind: 'shady' }],
+    appears: [{ kind: 'site', site: 'beechwood' }],
+    provides: [],
+    effects: [{ kind: 'growth', pct: 6 }, { kind: 'harmony', points: 4 }],
+    summary: '+6 % 🌿, +4 ⚖️',
+    text: 'Wie ein weißer Korallenstock an einer toten Buche. Er wächst nur, wo der Wald sehr alt ist.',
+  },
+  {
+    id: 'lynx', name: 'Luchs', genus: 'mammals', rarity: 2, level: 'predator', niche: 'edge', unlock: 5,
+    food: ['rehe'], needs: [{ kind: 'group', group: 'trees', min: 3 }],
+    appears: [{ kind: 'site', site: 'mountain' }, { kind: 'species', id: 'deer' }],
+    provides: [],
+    effects: [{ kind: 'growth', pct: 6 }, { kind: 'control', tag: 'rehe', pct: 30 }, { kind: 'harmony', points: 4 }],
+    summary: '+6 % 🌿, hält Rehe klein (−30 % Fraß), +4 ⚖️',
+    text: 'Pinselohren im Unterholz. Du siehst ihn nie – er sieht dich immer.',
+  },
+  {
+    id: 'nightjar', name: 'Ziegenmelker', genus: 'birds', rarity: 2, level: 'predator', niche: 'edge', unlock: 5,
+    food: ['insekten'], needs: [{ kind: 'sunny' }],
+    appears: [{ kind: 'site', site: 'heath' }],
+    provides: [],
+    effects: [{ kind: 'seeds', pct: 5 }, { kind: 'harmony', points: 4 }],
+    summary: '+5 % 🌰, +4 ⚖️',
+    text: 'Schnurrt in der Dämmerung wie eine Nähmaschine. Am Tag ist er ein Stück Kiefernrinde.',
+  },
 ];
 
 export const SPECIES_BY_ID: ReadonlyMap<string, Species> = new Map(SPECIES.map((s) => [s.id, s]));
+
+/**
+ * Wald einer Kennart (DESIGN_V2.md 26.3): der Standort ihrer Bedingung `site`, sonst null (keine
+ * Kennart). Kennarten zählen nicht zu „alle Arten“ (Erfolg `species-all`), sondern eigens.
+ */
+export function kennartSite(sp: Pick<Species, 'appears'> | undefined): SiteId | null {
+  for (const c of sp?.appears ?? []) if (c.kind === 'site') return c.site;
+  return null;
+}
+
+/** Ist diese Art-ID eine Kennart? (Unbekannte IDs: nein.) */
+export function isKennart(id: string): boolean {
+  return kennartSite(SPECIES_BY_ID.get(id)) !== null;
+}
+
+/** Die Kennarten in SPECIES-Reihenfolge. */
+export const KENNARTEN: readonly Species[] = SPECIES.filter((s) => kennartSite(s) !== null);
+
+/** Alle übrigen Arten – „alle Bewohner“ ohne Landschaft (Erfolg `species-all`, Zähler „n von m“). */
+export const COMMON_SPECIES: readonly Species[] = SPECIES.filter((s) => kennartSite(s) === null);
 
 /** Anzeigenamen der Merkmale (für Wünsche und Nahrung auf Karten). */
 export const TAG_NAMES: Readonly<Record<Tag, string>> = {

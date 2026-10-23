@@ -25,7 +25,7 @@ import {
 import { NICHES } from '../content/niches';
 import { PLANT_COST_BASE, PLANT_COST_GROWTH, PLANTS, PLANTS_BY_ID } from '../content/plants';
 import { EVENTS, SEED_SECONDS_MIN_SEEDS } from '../content/events';
-import { GENUS_INFO, SPECIES } from '../content/species';
+import { COMMON_SPECIES, GENUS_INFO, SPECIES, isKennart } from '../content/species';
 import { SEASONS, SEASON_SECONDS } from '../content/seasons';
 import { STAGES } from '../content/stages';
 import { MAIN_TREES } from '../content/trees';
@@ -157,8 +157,10 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
   const immune = roughWeathers.flatMap((w) =>
     (w.immuneTrees ?? []).map((t) => `Die ${MAIN_TREES.find((x) => x.id === t)?.name ?? t} ist gegen ${w.name} gefeit`),
   );
-  const nocturnal = NOCTURNAL.map((n) => `${SPECIES.find((x) => x.id === n.species)?.name ?? n.species} (${n.summary.replace(/ \(.*\)$/, '')})`);
-  const restingNames = NOCTURNAL.filter((n) => n.seasons && !n.seasons.includes('winter')).map(
+  // Kennarten (26.3) erst mit der Landschaft nennen – vorher sind sie unsichtbar (Spoiler-Regel).
+  const shownNocturnal = NOCTURNAL.filter((n) => options.landscape === true || !isKennart(n.species));
+  const nocturnal = shownNocturnal.map((n) => `${SPECIES.find((x) => x.id === n.species)?.name ?? n.species} (${n.summary.replace(/ \(.*\)$/, '')})`);
+  const restingNames = shownNocturnal.filter((n) => n.seasons && !n.seasons.includes('winter')).map(
     (n) => SPECIES.find((x) => x.id === n.species)?.name ?? n.species,
   );
 
@@ -248,7 +250,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       icon: '🐝',
       title: 'Gattungen und Lebensgemeinschaften',
       paragraphs: [
-        `Es gibt ${formatNumber(SPECIES.length)} Arten in ${formatNumber(GENERA.length)} Gattungen: ${all(GENERA.map((g) => GENUS_INFO[g].name))}. Ab ${all(TRAIT_THRESHOLDS.map((t) => formatNumber(t)))} Arten einer Gattung gibt es jeweils einen Bonus.`,
+        `Es gibt ${formatNumber((options.landscape === true ? SPECIES : COMMON_SPECIES).length)} Arten in ${formatNumber(GENERA.length)} Gattungen: ${all(GENERA.map((g) => GENUS_INFO[g].name))}. Ab ${all(TRAIT_THRESHOLDS.map((t) => formatNumber(t)))} Arten einer Gattung gibt es jeweils einen Bonus.`,
         `${formatNumber(COMMUNITIES.length)} Lebensgemeinschaften warten darauf, entdeckt zu werden: Leben bestimmte Arten und Pflanzen zusammen, bringen sie Harmonie. Anfangs kennst du nur einen Rätselhinweis.`,
       ],
     },
@@ -301,7 +303,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       icon: '🌙',
       title: 'Tag, Nacht und Nachtarten',
       paragraphs: [
-        `Jede Jahreszeit erlebt einen ganzen Tag mit Morgen, Abend und Nacht; die Hälfte der Spielzeit ist Nacht. Nachts werden ${formatNumber(NOCTURNAL.length)} Arten aktiv: ${all(nocturnal)}.${restingNames.length > 0 ? ` ${all(restingNames)} ruhen im Winter.` : ''}`,
+        `Jede Jahreszeit erlebt einen ganzen Tag mit Morgen, Abend und Nacht; die Hälfte der Spielzeit ist Nacht. Nachts werden ${formatNumber(shownNocturnal.length)} Arten aktiv: ${all(nocturnal)}.${restingNames.length > 0 ? ` ${all(restingNames)} ruhen im Winter.` : ''}`,
         'Ohne Nachtarten bleibt die Nacht ohne Wirkung – du verpasst nichts, wenn du nachts nicht spielst. Solange ein Nachtbonus wirkt, leuchtet ein 🌙 am Sticker der Art und am Etikett der Rate.',
         `Bist du länger als ein paar Minuten weg (ab ${formatNumber(OFFLINE_AVERAGE_MIN_SECONDS / 60)} Minuten), rechnet das Spiel mit dem Mittel aus Wetter und Nacht; die Begrüßung sagt dann „Wetter gemittelt“. Die Einstellung „Tageszeit: Immer Tag“ ändert nur das Bild – Nacht und Wetter wirken weiter.`,
       ],

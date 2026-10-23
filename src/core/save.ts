@@ -1,4 +1,5 @@
 import { ACHIEVEMENTS_BY_ID } from '../content/achievements';
+import { CHAPTER_IDS, type ChapterId } from '../content/chronicle';
 import { CARE } from '../content/care';
 import { COMMUNITIES_BY_ID } from '../content/communities';
 import { DAILY_GOALS_BY_KIND, DAILY_GOAL_COUNT, type DailyGoalKind } from '../content/daily';
@@ -27,7 +28,17 @@ import {
   waypointsForGrowth,
 } from './formulas';
 import { checkAchievements } from './achievements';
-import { effectiveMemoryOf, jaySeeds, jaySeedsSpent, landscapeUnlocked, siteEntry, wildwechselRoute } from './landscape';
+import {
+  effectiveMemoryOf,
+  isSiteAncient,
+  jaySeeds,
+  jaySeedsSpent,
+  kennartOf,
+  landscapeUnlocked,
+  ownMemory,
+  siteEntry,
+  wildwechselRoute,
+} from './landscape';
 import { isDayKey } from './daily';
 import { isValidRngState, normalizeSeed } from './rng';
 import { normalizeElapsed } from './season';
@@ -43,6 +54,7 @@ import {
   createSite,
   createStats,
   dailySeedOf,
+  type ChronicleEntry,
   type CycleBonus,
   type CycleState,
   type DailyGoal,
@@ -145,6 +157,9 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   const landscapeUnlockedNow = version < 14 ? migrateV13(state) : false;
   // v14 → v15 (Hauptbäume der Landschaft, Wildwechsel-Markierung): nur der neue Zähler.
   if (version < 15) migrateV14(state);
+  // v15 → v16 (Waldchronik) und robustes Laden ab v16: ganz zuletzt, wenn Landschaft (`ancient`
+  // auch aus migrateV13), Gedächtnis, Tagebuch und Zyklus-Nummer feststehen.
+  loadChronicles(isRecord(data.meta) ? data.meta.landscape : undefined, state, version);
   return { state, migratedFromV1: false, keepsake: false, memoryReweighted, achievementsBackfilled, landscapeUnlocked: landscapeUnlockedNow };
 }
 
@@ -400,6 +415,51 @@ function migrateV14(state: GameState): void {
   state.meta.stats.wildwechselChosen = 0;
   // „Zuerst gesehen“ (25.10): für schon Entdecktes ist der Moment nicht bekannt – leer.
   state.meta.journal.firstSeen = createFirstSeen();
+}
+
+/**
+ * Waldchronik (DESIGN_V2.md 26.6). Für Stände vor v16 ist das die **Migration v15 → v16**: Jeder
+ * Wald bekommt die Kapitel, die sich aus dem Stand ableiten lassen – ohne Datum (`cycle`/`season`
+ * null): „Uralt geworden“, falls `ancient`, und „Ein Wald erinnert sich“, falls sein eigenes
+ * Gedächtnis voll ist (aktiver Wald: `meta.forestMemory`). Alles andere bleibt leer, nichts
+ * Erfundenes; was ein älterer Stand unter `chronicle` mitbringt, zählt nicht.
+ *
+ * **Robustes Laden ab v16:** je Wald der erste gespeicherte Eintrag gleicher ID (wie
+ * loadLandscape); nur bekannte Kapitel, je einmal, in gespeicherter Reihenfolge; `cycle`
+ * ganzzahlig in [1, laufender Zyklus], sonst null; `season` aus SEASON_IDS, sonst null.
+ * Kapitel mit prüfbarer Bedingung nur, wenn sie gilt: `ancient` (Wald als Urwald gutgeschrieben),
+ * `memory` (eigenes Gedächtnis voll), `kennart` (seine Kennart steht im Tagebuch), `first-snow`
+ * (der Wald ist alt – ohne Urwald kein Schnee im Urwald). Fehlen `ancient` oder `memory`, obwohl
+ * die Bedingung gilt, werden sie ohne Datum ergänzt (hinten). Höchstens sechs Einträge je Wald.
+ */
+function loadChronicles(raw: unknown, state: GameState, version: number): void {
+  const rawSites = version >= 16 && isRecord(raw) && Array.isArray(raw.sites) ? raw.sites : [];
+  const journal = new Set(state.meta.journal.species);
+  for (const site of state.meta.landscape.sites) {
+    const stored = rawSites.find((s): s is Record<string, unknown> => isRecord(s) && s.id === site.id);
+    const holds: Partial<Record<ChapterId, boolean>> = {
+      ancient: site.ancient,
+      memory: ownMemory(state, site.id) >= MAX_FOREST_MEMORY,
+      kennart: journal.has(kennartOf(site.id) ?? ''),
+      'first-snow': isSiteAncient(state, site.id),
+    };
+    const chronicle: ChronicleEntry[] = [];
+    for (const e of Array.isArray(stored?.chronicle) ? stored.chronicle : []) {
+      if (!isRecord(e) || typeof e.chapter !== 'string' || !CHAPTER_IDS.includes(e.chapter as ChapterId)) continue;
+      const chapter = e.chapter as ChapterId;
+      if (holds[chapter] === false || chronicle.some((x) => x.chapter === chapter)) continue;
+      const { cycle, season } = e;
+      chronicle.push({
+        chapter,
+        cycle: typeof cycle === 'number' && Number.isInteger(cycle) && cycle >= 1 && cycle <= state.cycle.number ? cycle : null,
+        season: typeof season === 'string' && SEASON_IDS.includes(season as SeasonId) ? (season as SeasonId) : null,
+      });
+    }
+    for (const chapter of ['ancient', 'memory'] as const) {
+      if (holds[chapter] && !chronicle.some((x) => x.chapter === chapter)) chronicle.push({ chapter, cycle: null, season: null });
+    }
+    site.chronicle = chronicle;
+  }
 }
 
 /**
@@ -725,6 +785,8 @@ function loadLandscape(raw: unknown, state: GameState): LandscapeState {
       ancient: s.ancient === true,
       mainTree: tree,
       fauna: unique(stringArray(s.fauna).filter((id) => SPECIES_BY_ID.has(id))).slice(0, MAX_SITE_FAUNA),
+      // Seit v16: die Chronik lädt loadChronicles zuletzt (sie braucht Tagebuch und Zyklus).
+      chronicle: [],
     });
   }
   // Der Hauptbaum des aktiven Waldes folgt erst nach dem Zyklus (settleLandscapeTrees).

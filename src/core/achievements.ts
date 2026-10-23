@@ -2,10 +2,10 @@ import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID, type Achievement, type AchievementCon
 import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
 import { CORRIDORS, CORRIDORS_BY_ID, LANDSCAPE_SITES_BY_ID, SITE_IDS, type SiteId } from '../content/landscape';
 import { PLANTS, PLANTS_BY_ID } from '../content/plants';
-import { SPECIES, SPECIES_BY_ID } from '../content/species';
+import { COMMON_SPECIES, KENNARTEN, SPECIES_BY_ID } from '../content/species';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
 import { GENERA } from '../content/types';
-import { isSiteAncient, landscapeOf, landscapeUnlocked } from './landscape';
+import { completedChronicles, isSiteAncient, landscapeOf, landscapeUnlocked } from './landscape';
 import type { GameState } from './state';
 
 /*
@@ -33,13 +33,14 @@ export function targetOf(condition: AchievementCondition): number {
   const all = (target: AchievementTarget, total: number) => (target === 'all' ? total : target);
   switch (condition.kind) {
     case 'journal':
-      return all(condition.atLeast, condition.what === 'species' ? SPECIES.length : condition.what === 'plants' ? PLANTS.length : COMMUNITIES.length);
+      return all(condition.atLeast, JOURNAL_TOTALS[condition.what]);
     case 'genera':
       return all(condition.atLeast, GENERA.length);
     case 'trees':
       return all(condition.atLeast, MAIN_TREES.length);
     case 'forests':
     case 'ancientForests':
+    case 'chronicles':
       return all(condition.atLeast, SITE_IDS.length);
     case 'corridors':
       return all(condition.atLeast, CORRIDORS.length);
@@ -47,6 +48,21 @@ export function targetOf(condition: AchievementCondition): number {
       return condition.atLeast;
   }
 }
+
+/**
+ * „Alle“ je Teil des Naturtagebuchs. Arten ohne Kennarten (26.3: `species-all` bleibt ohne
+ * Landschaft erreichbar), Kennarten eigens.
+ */
+const JOURNAL_TOTALS: Readonly<Record<'species' | 'kennarten' | 'plants' | 'communities', number>> = {
+  species: COMMON_SPECIES.length,
+  kennarten: KENNARTEN.length,
+  plants: PLANTS.length,
+  communities: COMMUNITIES.length,
+};
+
+/** Arten ohne Kennarten bzw. nur Kennarten – für knownCount. */
+const COMMON_SPECIES_BY_ID: ReadonlyMap<string, unknown> = new Map(COMMON_SPECIES.map((s) => [s.id, s]));
+const KENNARTEN_BY_ID: ReadonlyMap<string, unknown> = new Map(KENNARTEN.map((s) => [s.id, s]));
 
 /** Zahl ≥ 0 (NaN, negativ, keine Zahl → 0; +Infinity bleibt). */
 const safe = (n: unknown): number => (typeof n === 'number' && n > 0 ? n : 0);
@@ -72,7 +88,8 @@ export function valueOf(state: GameState, condition: AchievementCondition, optio
     case 'stage':
       return Math.max(safe(state.stage), safe(options.minStage));
     case 'journal':
-      if (condition.what === 'species') return knownCount(journal.species, SPECIES_BY_ID);
+      if (condition.what === 'species') return knownCount(journal.species, COMMON_SPECIES_BY_ID);
+      if (condition.what === 'kennarten') return knownCount(journal.species, KENNARTEN_BY_ID);
       if (condition.what === 'plants') return knownCount(journal.plants, PLANTS_BY_ID);
       return knownCount(journal.communities, COMMUNITIES_BY_ID);
     case 'genera': {
@@ -107,6 +124,8 @@ export function valueOf(state: GameState, condition: AchievementCondition, optio
     case 'daily':
       // Ganze Zähler (das Laden normalisiert sie schon); fehlt `meta.daily`, zählt 0.
       return Math.floor(safe(state.meta.daily?.[condition.key]));
+    case 'chronicles':
+      return completedChronicles(state).length;
   }
 }
 

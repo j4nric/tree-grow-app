@@ -29,8 +29,11 @@ export type AchievementTarget = number | 'all';
 export type AchievementCondition =
   /** Stufe des laufenden Zyklus (Index in STAGES). */
   | { kind: 'stage'; atLeast: number }
-  /** Einträge im Naturtagebuch. */
-  | { kind: 'journal'; what: 'species' | 'plants' | 'communities'; atLeast: AchievementTarget }
+  /**
+   * Einträge im Naturtagebuch. `species` zählt die Arten ohne Kennarten ('all' bleibt ohne
+   * Landschaft erreichbar), `kennarten` nur die Kennarten (DESIGN_V2.md 26.3, 26.5).
+   */
+  | { kind: 'journal'; what: 'species' | 'kennarten' | 'plants' | 'communities'; atLeast: AchievementTarget }
   /** Gattungen mit mindestens einer Art im Naturtagebuch. */
   | { kind: 'genera'; atLeast: AchievementTarget }
   /** Wert der Langzeit-Statistik (Zähler, Spielzeit in Sekunden, beste Harmonie). */
@@ -51,7 +54,9 @@ export type AchievementCondition =
   /** Wälder, in denen schon einmal der Urwald erreicht wurde ('all' = SITE_IDS.length). */
   | { kind: 'ancientForests'; atLeast: AchievementTarget }
   /** Zähler der Tagesziele (`meta.daily`): längste Serie, erfüllte Ziele, perfekte Tage. */
-  | { kind: 'daily'; key: AchievementDailyKey; atLeast: number };
+  | { kind: 'daily'; key: AchievementDailyKey; atLeast: number }
+  /** Wälder mit vollständiger Chronik (6 / 6 Kapitel, 26.4; 'all' = SITE_IDS.length). */
+  | { kind: 'chronicles'; atLeast: AchievementTarget };
 
 export interface Achievement {
   /** Fest, Teil des Spielstands. */
@@ -120,6 +125,10 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'landscape-trees', icon: '🎄', title: 'Baumkundig im ganzen Land', description: 'Jede Hauptbaum-Art ist einmal gewachsen.', condition: { kind: 'trees', atLeast: 'all' }, requires: 'landscape' },
   { id: 'ancient-everywhere', icon: '🏞️', title: 'Uralt überall', description: 'Jeder Wald der Landschaft ist einmal zum Urwald geworden.', condition: { kind: 'ancientForests', atLeast: 'all' }, requires: 'landscape' },
   { id: 'corridors-all', icon: '🗺️', title: 'Alles verbunden', description: 'Jeder Korridor der Landschaft ist angelegt.', condition: { kind: 'corridors', atLeast: 'all' }, requires: 'landscape' },
+  // Waldchronik und Kennarten (26.5): ohne Zahlen-Belohnung, Texte ohne Wälder und Arten.
+  { id: 'chronicle-1', icon: '📜', title: 'Eine Waldgeschichte', description: 'Die Chronik eines Waldes ist vollständig.', condition: { kind: 'chronicles', atLeast: 1 }, requires: 'landscape' },
+  { id: 'chronicle-all', icon: '📚', title: 'Sechs Geschichten', description: 'Jeder Wald der Landschaft hat seine Chronik.', condition: { kind: 'chronicles', atLeast: 'all' }, requires: 'landscape' },
+  { id: 'kennarten-all', icon: '🔎', title: 'Kennerblick', description: 'Jede Kennart steht im Naturtagebuch.', condition: { kind: 'journal', what: 'kennarten', atLeast: 'all' }, requires: 'landscape' },
 ];
 
 export const ACHIEVEMENTS_BY_ID: ReadonlyMap<string, Achievement> = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));

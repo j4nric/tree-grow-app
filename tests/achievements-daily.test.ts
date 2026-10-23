@@ -51,7 +51,8 @@ describe('Inhalt (26.5)', () => {
       expect(byId(id).requires).toBeUndefined();
       expect(isAchievementVisibleIn(byId(id), false)).toBe(true);
     }
-    expect(ACHIEVEMENTS).toHaveLength(34);
+    // Katalog seit Phase 9, 2b: 37 (dazu Chronik und Kennarten, 26.5).
+    expect(ACHIEVEMENTS).toHaveLength(37);
   });
 
   it('stehen vor den Erfolgen der Landschaft (die bleiben am Ende)', () => {

@@ -13,12 +13,24 @@ import {
   WILDWECHSEL_CHANCE,
   WILDWECHSEL_MAX_CHANCE,
   type Corridor,
+  type Keepsake,
   type SiteId,
 } from '../content/landscape';
+import { CHAPTER_IDS, CHRONICLE_HARMONY, type ChapterId } from '../content/chronicle';
+import type { SeasonId } from '../content/seasons';
 import { STAGES } from '../content/stages';
 import type { Genus, Tag } from '../content/types';
 import type { TreeTrait } from '../content/trees';
-import { MAX_FOREST_MEMORY, createLandscape, type GameState, type LandscapeSite, type LandscapeState } from './state';
+import { seasonIdAt } from './season';
+import {
+  MAX_FOREST_MEMORY,
+  allAnimals,
+  createLandscape,
+  type ChronicleEntry,
+  type GameState,
+  type LandscapeSite,
+  type LandscapeState,
+} from './state';
 
 /*
  * Waldlandschaft (DESIGN_V2.md 24): abgeleitete Werte über `meta.landscape` – reine
@@ -277,4 +289,101 @@ export function wildwechselRoutes(state: { meta: { landscape?: LandscapeState } 
  */
 export function wildwechselRoute(state: { meta: { landscape?: LandscapeState } }, species: string): WildwechselRoute | null {
   return wildwechselRoutes(state).find((r) => r.species === species) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Kennarten und Waldchronik (DESIGN_V2.md 26.3–26.6)
+// ---------------------------------------------------------------------------
+
+/** Kennart eines Standorts (Art-ID, 26.3); unbekannter Standort: null. */
+export function kennartOf(site: SiteId): string | null {
+  return LANDSCAPE_SITES_BY_ID.get(site)?.kennart ?? null;
+}
+
+/** Andenken einer vollständigen Chronik dieses Standorts (abgeleitet, 26.4); unbekannt: null. */
+export function keepsakeOf(site: SiteId): Keepsake | null {
+  return LANDSCAPE_SITES_BY_ID.get(site)?.keepsake ?? null;
+}
+
+/**
+ * Der Standort, für den die Bedingung `{ kind: 'site', site }` gerade gilt (26.3): Die
+ * Landschaft ist freigeschaltet und der aktive Wald ist alt – schon einmal Urwald oder der
+ * laufende Zyklus steht im Urwald (isSiteAncient). Sonst undefined: Vor der Landschaft erscheint
+ * keine Kennart. Teil-Stände ohne Erfolgsliste (Vorschauen, Tests) zählen als „nicht frei“.
+ */
+export function oldSiteOf(state: LandscapeHolder): SiteId | undefined {
+  if (!Array.isArray(state.meta.achievements) || !landscapeUnlocked(state)) return undefined;
+  const active = activeSite(landscapeOf(state));
+  return isSiteAncient(state, active) ? active : undefined;
+}
+
+/** Ein neu geschriebenes Kapitel (TickReport.chapters, Stempel und Rückkehr-Bericht). */
+export interface ChapterNews {
+  site: SiteId;
+  chapter: ChapterId;
+}
+
+/** Chronik eines Waldes in Schreib-Reihenfolge (nicht gegründet: leer). */
+export function chronicleOf(state: { meta: { landscape?: LandscapeState } }, site: SiteId): readonly ChronicleEntry[] {
+  const chronicle = siteEntry(landscapeOf(state), site)?.chronicle;
+  return Array.isArray(chronicle) ? chronicle : [];
+}
+
+/** Steht dieses Kapitel schon in der Chronik des Waldes? */
+export function hasChapter(state: { meta: { landscape?: LandscapeState } }, site: SiteId, chapter: ChapterId): boolean {
+  return chronicleOf(state, site).some((e) => e.chapter === chapter);
+}
+
+/** Ist die Chronik dieses Waldes vollständig (alle sechs Kapitel)? */
+export function chronicleComplete(state: { meta: { landscape?: LandscapeState } }, site: SiteId): boolean {
+  const written = new Set(chronicleOf(state, site).map((e) => e.chapter));
+  return CHAPTER_IDS.every((id) => written.has(id));
+}
+
+/** Gegründete Wälder mit vollständiger Chronik (Gründungs-Reihenfolge, bekannte IDs je einmal). */
+export function completedChronicles(state: { meta: { landscape?: LandscapeState } }): SiteId[] {
+  const sites = landscapeOf(state).sites;
+  if (!Array.isArray(sites)) return [];
+  const out: SiteId[] = [];
+  for (const s of sites) {
+    if (s && LANDSCAPE_SITES_BY_ID.has(s.id) && !out.includes(s.id) && chronicleComplete(state, s.id)) out.push(s.id);
+  }
+  return out;
+}
+
+/**
+ * Schreibt ein Kapitel in die Chronik eines gegründeten Waldes – einmal, danach nie wieder
+ * (monoton). Gestempelt mit Zyklus und Jahreszeit (`season`, Standard: die laufende). Gibt
+ * zurück, ob es neu ist. Nur der Spielstand selbst (`meta.landscape`), nie die Vorgabe von
+ * landscapeOf. Aufrufer sorgen dafür, dass nur der aktive Wald schreibt (26.4).
+ */
+export function writeChapter(
+  state: Pick<GameState, 'cycle' | 'meta'>,
+  site: SiteId,
+  chapter: ChapterId,
+  season: SeasonId = seasonIdAt(state.cycle.elapsed),
+): boolean {
+  const landscape = state.meta.landscape as LandscapeState | undefined;
+  const entry = landscape ? siteEntry(landscape, site) : undefined;
+  if (!entry) return false;
+  if (!Array.isArray(entry.chronicle)) entry.chronicle = [];
+  if (entry.chronicle.some((e) => e.chapter === chapter)) return false;
+  entry.chronicle.push({ chapter, cycle: state.cycle.number, season });
+  return true;
+}
+
+/**
+ * Kapitel, die der Zustand des aktiven Waldes trägt (26.4): „Die Kennart“ – seine Kennart lebt
+ * im Ökosystem (Karte, Stammgast oder Wildwechsel) – und „Voller Einklang“ – H_max dieses
+ * Zyklus ≥ CHRONICLE_HARMONY. Läuft mit jeder Änderung von H_max und des Ökosystems
+ * (raiseMaxHarmony in tick.ts) – an denselben Stellen online wie offline. Ruhende Wälder
+ * schreiben nichts.
+ */
+export function syncActiveChronicle(state: GameState, season?: SeasonId): void {
+  const landscape = state.meta.landscape as LandscapeState | undefined;
+  if (!landscape) return;
+  const site = activeSite(landscape);
+  const kennart = kennartOf(site);
+  if (kennart !== null && allAnimals(state).includes(kennart)) writeChapter(state, site, 'kennart', season);
+  if (state.cycle.maxHarmony >= CHRONICLE_HARMONY) writeChapter(state, site, 'harmony', season);
 }

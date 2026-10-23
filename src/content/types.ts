@@ -1,3 +1,5 @@
+import type { SiteId } from './landscape';
+
 /**
  * Gemeinsame Typen der Spielinhalte (v2-Prototyp, docs/DESIGN_V2.md).
  * Reine Typen und Konstanten-Listen – keine Logik.
@@ -71,7 +73,13 @@ export type Condition =
    * Räuber frisst es und keine Art hält es klein (`control`). Nur für Erscheinungs-
    * bedingungen von Ereignissen (Massenjahre), nicht als Wunsch eines Tiers.
    */
-  | { kind: 'unhunted'; tag: Tag };
+  | { kind: 'unhunted'; tag: Tag }
+  /**
+   * Alter Wald (Kennarten, DESIGN_V2.md 26.3): Die Landschaft ist freigeschaltet, `site` ist der
+   * aktive Wald und er ist alt – schon einmal Urwald oder der laufende Zyklus steht im Urwald.
+   * Nur für Erscheinungsbedingungen (`appears`), nicht als Wunsch eines Tiers.
+   */
+  | { kind: 'site'; site: SiteId };
 
 /**
  * Fähigkeiten besonderer und legendärer Arten (DESIGN_V2.md 5.3). Was sie bewirken und

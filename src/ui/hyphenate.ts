@@ -68,6 +68,13 @@ export const HYPHENATION: Readonly<Record<string, string>> = {
   Wiesenkonzert: 'Wie|sen|kon|zert',
   Wildkaninchen: 'Wild|ka|nin|chen',
   Zauneidechse: 'Zaun|ei|dech|se',
+  // Phase 9: Kennarten, Nachtwirkungen und Andenken der Chronik (DESIGN_V2.md 26.3, 26.4)
+  Dämmerungsjagd: 'Däm|me|rungs|jagd',
+  Erlenzäpfchen: 'Er|len|zäpf|chen',
+  Heidekrautzweig: 'Hei|de|kraut|zweig',
+  Nachtklettern: 'Nacht|klet|tern',
+  Tannenzapfen: 'Tan|nen|zap|fen',
+  Ziegenmelker: 'Zie|gen|mel|ker',
 };
 
 /**

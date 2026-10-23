@@ -20,7 +20,19 @@ import { stateAt } from './helpers';
 
 const byId = (id: string): Achievement => ACHIEVEMENTS_BY_ID.get(id)!;
 
-const LANDSCAPE_IDS = ['forest-2', 'ancient-2', 'wildwechsel-1', 'corridor-1', 'landscape-trees', 'ancient-everywhere', 'corridors-all'];
+const LANDSCAPE_IDS = [
+  'forest-2',
+  'ancient-2',
+  'wildwechsel-1',
+  'corridor-1',
+  'landscape-trees',
+  'ancient-everywhere',
+  'corridors-all',
+  // Waldchronik und Kennarten (Phase 9, 2b, DESIGN_V2.md 26.5).
+  'chronicle-1',
+  'chronicle-all',
+  'kennarten-all',
+];
 
 function site(id: SiteId, memory = 0, ancient = false): LandscapeSite {
   return { ...createSite(id), memory, ancient };
@@ -50,7 +62,7 @@ function ancientHome(): GameState {
 }
 
 describe('Inhalte der Landschaft', () => {
-  it('sieben Erfolge am Ende, in dieser Reihenfolge, alle mit requires: landscape', () => {
+  it('zehn Erfolge am Ende, in dieser Reihenfolge, alle mit requires: landscape', () => {
     expect(ACHIEVEMENTS.slice(-LANDSCAPE_IDS.length).map((a) => a.id)).toEqual(LANDSCAPE_IDS);
     for (const id of LANDSCAPE_IDS) expect(byId(id).requires, id).toBe('landscape');
     expect(byId('trees-all').requires).toBeUndefined();
@@ -64,6 +76,8 @@ describe('Inhalte der Landschaft', () => {
         c.kind === 'corridors' ||
         c.kind === 'ancientForests' ||
         (c.kind === 'stat' && c.key === 'wildwechselChosen') ||
+        c.kind === 'chronicles' ||
+        (c.kind === 'journal' && c.what === 'kennarten') ||
         a.id === 'landscape-trees';
       expect(a.requires === 'landscape', a.id).toBe(landscape);
     }
@@ -213,10 +227,10 @@ describe('Sichtbarkeit und Zähler', () => {
     expect(isAchievementVisibleIn(byId('forest-2'), true)).toBe(true);
     expect(isAchievementVisibleIn(byId('trees-all'), false)).toBe(true);
     expect(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, false))).toHaveLength(27);
-    expect(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, true))).toHaveLength(34);
+    expect(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, true))).toHaveLength(37);
   });
 
-  it('Kacheln und Zähler: N/27 vor, N/34 nach der Freischaltung', () => {
+  it('Kacheln und Zähler: N/27 vor, N/37 nach der Freischaltung', () => {
     const before = withLandscape(5, { unlocked: false });
     const hidden = ACHIEVEMENTS.filter((a) => a.requires === 'landscape').length;
     expect(hidden).toBe(LANDSCAPE_IDS.length);
@@ -228,9 +242,9 @@ describe('Sichtbarkeit und Zähler', () => {
 
     const after = withLandscape(5);
     expect(landscapeUnlocked(after)).toBe(true);
-    expect(achievementCountText(after)).toBe('1/34');
+    expect(achievementCountText(after)).toBe('1/37');
     const tiles = toJournalAchievements(after);
-    expect(tiles).toHaveLength(34);
+    expect(tiles).toHaveLength(37);
     expect(tiles.filter((v) => !v.unlocked).slice(-LANDSCAPE_IDS.length).map((v) => v.key)).toEqual(LANDSCAPE_IDS);
     expect(tiles.find((v) => v.key === 'forest-2')!.progress).toBe('1/2');
     expect(tiles.find((v) => v.key === 'corridors-all')!.progress).toBe(`0/${CORRIDORS.length}`);
@@ -248,7 +262,7 @@ describe('Sichtbarkeit und Zähler', () => {
 
 describe('Spielstand (2a ohne neue Version)', () => {
   it('v14-Stand mit drei Wäldern lädt und bekommt forest-2 und ancient-2 bei der ersten Prüfung (catchUp)', () => {
-    expect(SAVE_VERSION).toBe(15);
+    expect(SAVE_VERSION).toBe(16);
     // Heimatwald 1000 Gedächtnis + Urwald = 12 🪶; Gründungen 3 + 5 = 8.
     const state = withLandscape(0, {
       active: 'carr',

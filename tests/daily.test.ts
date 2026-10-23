@@ -487,8 +487,8 @@ describe('Spielstand v12', () => {
     const raw = JSON.stringify({ ...state, version: 11, meta });
     const a = loadGame(raw, 0)!.state;
     const b = loadGame(raw, 0)!.state;
-    expect(SAVE_VERSION).toBe(15);
-    expect(a.version).toBe(15);
+    expect(SAVE_VERSION).toBe(16);
+    expect(a.version).toBe(16);
     expect(a.meta.daily).toMatchObject({ day: '', goals: [], streak: 0, bestStreak: 0, lastDay: '', goalsDone: 0, perfectDays: 0 });
     expect(a.meta.daily.seed).toBeGreaterThan(0);
     expect(b.meta.daily.seed).toBe(a.meta.daily.seed);

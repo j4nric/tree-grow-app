@@ -13,7 +13,7 @@ import { EVENTS, SEED_SECONDS_MIN_SEEDS } from '../src/content/events';
 import { FOREST_MEMORY_BONUS, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { NICHES } from '../src/content/niches';
 import { PLANT_COST_BASE, PLANTS } from '../src/content/plants';
-import { SPECIES } from '../src/content/species';
+import { COMMON_SPECIES, SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { TRAIT_THRESHOLDS } from '../src/content/traits';
 import { VISITORS } from '../src/content/visitors';
@@ -205,9 +205,9 @@ describe('Spielanleitung', () => {
     expect(t).toContain('keine Zeitlimits');
   });
 
-  it('Erfolge nach der Freischaltung der Landschaft: alle (34)', () => {
+  it('Erfolge nach der Freischaltung der Landschaft: alle (37)', () => {
     const after = guideSections({ landscape: true }).find((s) => s.id === 'achievements')!.paragraphs.join(' ');
-    expect(ACHIEVEMENTS.length).toBe(34);
+    expect(ACHIEVEMENTS.length).toBe(37);
     expect(after).toContain(`${formatNumber(ACHIEVEMENTS.length)} leise Erfolge`);
     expect(guideSections({ landscape: false }).find((s) => s.id === 'achievements')!.paragraphs.join(' ')).toContain('27 leise Erfolge');
   });
@@ -264,6 +264,13 @@ describe('Spielanleitung', () => {
     expect(t.match(/schließen sich aus/g)).toHaveLength(CARE.filter((c) => c.excludes?.length).length / 2);
   });
 
+  it('Kennarten (26.3) erst mit der Landschaft beim Namen – auch nicht unter den Nachtaktiven', () => {
+    const all = (landscape: boolean) => JSON.stringify(guideSections({ landscape }));
+    for (const name of ['Haselmaus', 'Ziegenmelker', 'Biber', 'Moorfrosch', 'Luchs', 'Stachelbart']) expect(all(false), name).not.toContain(name);
+    expect(all(true)).toContain('Haselmaus');
+    expect(all(true)).toContain('Ziegenmelker');
+  });
+
   it('Zahlen stammen aus content und core', () => {
     expect(text('growth')).toContain(`${formatNumber(WAYPOINT_COUNT)} Wegpunkte`);
     expect(text('growth')).toContain(STAGES[STAGES.length - 1]!.name);
@@ -273,7 +280,9 @@ describe('Spielanleitung', () => {
     expect(text('niches')).toContain(`${formatNumber(NICHES.length)} Nischen`);
     expect(text('plants')).toContain(`${formatNumber(PLANTS.length)} verschiedene`);
     expect(text('plants')).toContain(`${formatNumber(PLANT_COST_BASE)} 🌰`);
-    expect(text('communities')).toContain(`${formatNumber(SPECIES.length)} Arten`);
+    // Vor der Landschaft ohne die Kennarten (26.3), danach alle.
+    expect(text('communities')).toContain(`${formatNumber(COMMON_SPECIES.length)} Arten`);
+    expect(guideSections({ landscape: true }).find((s) => s.id === 'communities')!.paragraphs.join(' ')).toContain(`${formatNumber(SPECIES.length)} Arten`);
     expect(text('communities')).toContain(`${formatNumber(COMMUNITIES.length)} Lebensgemeinschaften`);
     for (const t of TRAIT_THRESHOLDS) expect(text('communities')).toContain(formatNumber(t));
     expect(text('harmony')).toContain(`+${formatNumber(100 / HARMONY_DIVISOR)} %`);

@@ -86,6 +86,9 @@ import {
   siteEntry,
   wildwechselChance,
   wildwechselRoutes,
+  syncActiveChronicle,
+  writeChapter,
+  type ChapterNews,
   type JaySeeds,
   type WildwechselRoute,
 } from './landscape';
@@ -152,6 +155,11 @@ export interface TickReport {
    * Karte in ihr (`card`, Index in `cards`). Höchstens eine je Begegnung.
    */
   wildwechsel: WildwechselCard[];
+  /**
+   * Neu geschriebene Kapitel der Waldchronik (DESIGN_V2.md 26.4) in Schreib-Reihenfolge – nur
+   * im aktiven Wald, also höchstens sechs. Für Stempel und Rückkehr-Bericht.
+   */
+  chapters: ChapterNews[];
 }
 
 /** Eine Wildwechsel-Karte: diese Art kam über `corridor` aus dem Bestand von `from`. */
@@ -220,8 +228,13 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     seasons: [],
     weather: [],
     wildwechsel: [],
+    chapters: [],
   };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
+  // Chronik des aktiven Waldes (26.4): Was der Tick neu schreibt, meldet der Bericht. Im Tick
+  // schreibt nur der aktive Wald, und die Chronik wächst nur – der Rest nach `before` ist neu.
+  const chronicleSite = state.meta.landscape ? siteEntry(state.meta.landscape, activeSite(state.meta.landscape)) : undefined;
+  const before = chronicleSite?.chronicle?.length ?? 0;
   const mode: AmbientMode = ambient === 'live' && dt > MAX_LIVE_SECONDS ? 'average' : ambient;
   // Kaputte Spielzeit (NaN, negativ, zu groß) nicht weiterschleppen.
   state.cycle.elapsed = normalizeElapsed(state.cycle.elapsed);
@@ -261,7 +274,10 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     // schon die neue Jahreszeit. An der Grenze exakt setzen (kein Rundungsdrift).
     if (step === toSeason) {
       state.cycle.elapsed = nextSeasonBoundary(state.cycle.elapsed);
-      reportSeason(report, seasonIdAt(state.cycle.elapsed), weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed), weatherSiteOf(state)));
+      const season = seasonIdAt(state.cycle.elapsed);
+      reportSeason(report, season, weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed), weatherSiteOf(state)));
+      // Kapitel „Erster Schnee im Urwald“ (26.4) – an genau dieser Grenze, online wie offline.
+      if (season === 'winter') writeFirstSnow(state);
       // Die Jahreszeit hebt oder senkt die Harmonie: H_max hier nachführen.
       raiseMaxHarmony(state, evaluate(state, mode).harmony);
     } else if (step === toNight) {
@@ -284,6 +300,9 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
   // Langzeit-Statistik: die ganze Spielzeit (auch über MAX_ELAPSED hinaus), je Tick einmal.
   // Das Wachstum braucht hier nichts – es steht exakt in `totalGrowth` (lifetimeGrowth).
   state.meta.stats.playSeconds = capped(state.meta.stats.playSeconds + dt);
+  if (chronicleSite && Array.isArray(chronicleSite.chronicle)) {
+    for (const e of chronicleSite.chronicle.slice(before)) report.chapters.push({ site: chronicleSite.id, chapter: e.chapter });
+  }
   return report;
 }
 
@@ -354,8 +373,15 @@ function skipYears(state: GameState, remaining: number, report: TickReport, mode
   state.totalGrowth = capped(state.totalGrowth + growth * years);
   state.cycle.elapsed = elapsed + years * YEAR_SECONDS;
   countDown(state, years * YEAR_SECONDS, report);
-  // Jede Jahreszeit wurde durchlaufen: H_max wie beim schrittweisen Wechsel nachführen.
-  for (const h of harmonies) raiseMaxHarmony(state, h);
+  // Jede Jahreszeit wurde durchlaufen: H_max wie beim schrittweisen Wechsel nachführen – in der
+  // Reihenfolge der Grenzen ab Frühlingsbeginn (Sommer, Herbst, Winter, Frühling), damit die
+  // Chronik dieselben Kapitel mit derselben Jahreszeit schreibt wie Schritt für Schritt (26.4).
+  // Spätere Jahre bringen nichts Neues (H_max ist ein Höchstwert, Kapitel stehen einmal).
+  for (let i = 1; i <= SEASON_IDS.length; i++) {
+    const season = SEASON_IDS[i % SEASON_IDS.length]!;
+    if (season === 'winter') writeFirstSnow(state);
+    raiseMaxHarmony(state, harmonies[i % SEASON_IDS.length]!, season);
+  }
   // Je Jahr die Wechsel Sommer, Herbst, Winter, Frühling (gemerkt werden nur die letzten)
   // mit dem Wetter dieser Tage (nur für den Text; gerechnet wurde ohne Einzelwetter).
   const reported = Math.min(years, Math.ceil(MAX_REPORTED_SEASONS / SEASON_IDS.length));
@@ -370,6 +396,14 @@ function skipYears(state: GameState, remaining: number, report: TickReport, mode
     }
   }
   return years;
+}
+
+/**
+ * Kapitel „Erster Schnee im Urwald“ (26.4): Die Jahreszeit ist gerade zu Winter gewechselt und
+ * der Zyklus steht im Urwald – geschrieben im aktiven Wald (auch vor der Landschaft, still).
+ */
+function writeFirstSnow(state: GameState): void {
+  if (state.stage >= ANCIENT_STAGE) writeChapter(state, activeSite(state.meta.landscape), 'first-snow', 'winter');
 }
 
 /** Kleinste Restdauer eines Zeit-Bonus oder Gastes (Infinity, wenn keiner wirkt). */
@@ -827,12 +861,15 @@ export function recordDiscoveries(state: GameState): string[] {
  * Vorschau nach (raiseBestHarmonyMemory) – auch ohne neue H_max, denn nach einem Wegpunkt
  * (reachWaypoint → recordDiscoveries) gilt eine neue Schwelle.
  */
-function raiseMaxHarmony(state: GameState, harmony: number): void {
+function raiseMaxHarmony(state: GameState, harmony: number, season?: SeasonId): void {
   if (Number.isFinite(harmony)) {
     if (harmony > state.cycle.maxHarmony) state.cycle.maxHarmony = harmony;
     if (harmony > state.meta.stats.bestHarmony) state.meta.stats.bestHarmony = harmony;
   }
   raiseBestHarmonyMemory(state);
+  // Chronik (26.4): „Voller Einklang“ und „Die Kennart“ hängen an H_max und am Ökosystem – die
+  // ändern sich nur hier bzw. kurz davor (recordDiscoveries). `season`: Stempel im Schnellvorlauf.
+  syncActiveChronicle(state, season);
 }
 
 /**
@@ -1272,6 +1309,11 @@ export type NewCycleResult =
       site: SiteId;
       founded: boolean;
       landscapeUnlocked: boolean;
+      /**
+       * Neu geschriebene Kapitel der Chronik (26.4): „Uralt geworden“ und „Ein Wald erinnert
+       * sich“ im alten Wald, dazu „Die Kennart“, falls ein Stammgast sie gleich mitbringt.
+       */
+      chapters: ChapterNews[];
     }
   | { ok: false; error: ActionError };
 
@@ -1318,6 +1360,11 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   }
   if (state.stage >= ANCIENT_STAGE) fromEntry.ancient = true;
   fromEntry.mainTree = state.cycle.mainTree;
+  // Chronik des alten Waldes (26.4), gestempelt mit dem endenden Zyklus: „Uralt geworden“, sobald
+  // er als Urwald gutgeschrieben ist, „Ein Wald erinnert sich“ mit vollem eigenen Gedächtnis.
+  const chronicleBefore = new Map(landscape.sites.map((s) => [s.id, s.chronicle?.length ?? 0]));
+  if (fromEntry.ancient) writeChapter(state, from, 'ancient');
+  if (state.meta.forestMemory >= MAX_FOREST_MEMORY) writeChapter(state, from, 'memory');
   const founded = !choice.founded && target !== from;
   if (target !== from) {
     // Den alten Wald ruhen lassen: Gedächtnis, Stammgäste und Bestand parken.
@@ -1364,6 +1411,11 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   achievements.push(...checkAchievements(state));
   // Tagesziele überdauern den Zyklus; offene passen sich dem neuen Wald an (DESIGN_V2.md 20.5).
   refreshDailyAfterNewCycle(state);
+  // Neue Kapitel: im alten Wald und – bringt ein Stammgast gleich die Kennart mit – im neuen.
+  const chapters: ChapterNews[] = [];
+  for (const id of new Set([from, target])) {
+    for (const e of siteEntry(landscape, id)?.chronicle.slice(chronicleBefore.get(id) ?? 0) ?? []) chapters.push({ site: id, chapter: e.chapter });
+  }
   return {
     ok: true,
     preview,
@@ -1372,6 +1424,7 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
     site: target,
     founded,
     landscapeUnlocked: !wasUnlocked && landscapeUnlocked(state),
+    chapters,
   };
 }
 
@@ -1546,6 +1599,9 @@ export function chooseEventOption(state: GameState, encounterIndex: number, opti
   if (blocker) return fail(blocker);
   const event = EVENTS_BY_ID.get(state.pendingEncounters[encounterIndex]!.cards[0]!)!;
   const option = event.options[optionIndex]!;
+  // Kapitel „Ereignis des Waldes“ (26.4): hier entschieden, gleich welche Option.
+  const active = activeSite(state.meta.landscape);
+  if (LANDSCAPE_SITES_BY_ID.get(active)?.chronicleEvent === event.id) writeChapter(state, active, 'signature');
   const seeds = eventOptionSeeds(state, event.id, optionIndex);
   const cycle = state.cycle;
   for (const e of option.effects) {

@@ -20,7 +20,7 @@ import { NICHES, NICHES_BY_ID } from '../src/content/niches';
 import { PLANTS, PLANTS_BY_ID, PLANT_GROUP_INFO } from '../src/content/plants';
 import { LANDSCAPE_SITES, LANDSCAPE_SITES_BY_ID } from '../src/content/landscape';
 import { ABILITY_INFO } from '../src/content/abilities';
-import { BASE_HAPPINESS, GENUS_INFO, RARITY_NAMES, SPECIES, SPECIES_BY_ID, TAG_NAMES } from '../src/content/species';
+import { BASE_HAPPINESS, GENUS_INFO, KENNARTEN, RARITY_NAMES, SPECIES, SPECIES_BY_ID, TAG_NAMES, isKennart } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../src/content/traits';
 import { ENCOUNTER_TYPES, GENERA, NICHE_IDS, PLANT_GROUPS } from '../src/content/types';
@@ -59,9 +59,9 @@ describe('Inhalte v2', () => {
   });
 
   it('32 Arten in 5 Grundgattungen (6–8 je Gattung), Seltenheit 14 / 8 / 5 / 5 (DESIGN_V2.md 5.2)', () => {
-    // Ohne die Erweiterungen Amphibien (5.5) und Lebensräume (23.4).
+    // Ohne die Erweiterungen Amphibien (5.5), Lebensräume (23.4) und Kennarten (26.3).
     const habitat = new Set(HABITAT_SPECIES.map((s) => s.id));
-    const core = SPECIES.filter((s) => s.genus !== 'amphibians' && !habitat.has(s.id));
+    const core = SPECIES.filter((s) => s.genus !== 'amphibians' && !habitat.has(s.id) && !isKennart(s.id));
     expect(core).toHaveLength(32);
     expect(GENERA).toEqual(['birds', 'insects', 'mammals', 'soil', 'fungi', 'amphibians', 'reptiles']);
     for (const g of GENERA.filter((x) => x !== 'amphibians' && x !== 'reptiles')) {
@@ -80,11 +80,13 @@ describe('Inhalte v2', () => {
   });
 
   it('Erweiterung Amphibien (DESIGN_V2.md 5.5): 5 Arten im Waldtümpel, Gattungsstufe 5 nur mit Ereignis-Platz', () => {
-    const amphibians = SPECIES.filter((s) => s.genus === 'amphibians');
+    // Ohne die Kennarten (26.3: Moorfrosch und Biber leben auch im Tümpel, aber nur im alten Wald).
+    const amphibians = SPECIES.filter((s) => s.genus === 'amphibians' && !isKennart(s.id));
     expect(amphibians.map((s) => s.id)).toEqual(['toad', 'frog', 'newt', 'treefrog', 'crestednewt']);
     expect(amphibians.map((s) => s.rarity)).toEqual([0, 0, 1, 1, 1]);
-    // 32 Grundarten, 5 Amphibien, 14 Arten der Lebensräume (23.4).
-    expect(SPECIES).toHaveLength(51);
+    // 32 Grundarten, 5 Amphibien, 14 Arten der Lebensräume (23.4), 6 Kennarten (26.3).
+    expect(SPECIES).toHaveLength(57);
+    expect(KENNARTEN).toHaveLength(6);
     for (const s of amphibians) {
       expect(s.niche, s.id).toBe('pond');
       expect(s.unlock, s.id).toBeGreaterThanOrEqual(4);
@@ -96,7 +98,7 @@ describe('Inhalte v2', () => {
     expect(sunny).toEqual(['frog', 'treefrog']);
     for (const id of sunny) expect(SPECIES_BY_ID.get(id)!.effects.some((e) => e.kind === 'seeds'), id).toBe(true);
     // Nur Amphibien leben im Tümpel; alle Stufen der Gattung sind mit 5 Arten erreichbar.
-    expect(SPECIES.filter((s) => s.niche === 'pond')).toEqual(amphibians);
+    expect(SPECIES.filter((s) => s.niche === 'pond' && !isKennart(s.id))).toEqual(amphibians);
     expect(amphibians.length).toBe(TRAIT_THRESHOLDS[2]!);
     // Volle Pflege öffnet 4 Plätze – den fünften bringt ein Ereignis (Regen, Krötenwanderung).
     const pondSlots = (effects: readonly Effect[]) =>
@@ -113,7 +115,12 @@ describe('Inhalte v2', () => {
   it('besondere und legendäre Arten haben Erscheinungsbedingung und Fähigkeit, die übrigen nicht', () => {
     for (const s of SPECIES) {
       const abilities = s.effects.filter((e) => e.kind === 'ability');
-      if (s.rarity >= 2) {
+      if (isKennart(s.id)) {
+        // Kennarten (26.3): besonders, mit Bedingung `site`, aber bewusst ohne Fähigkeit.
+        expect(s.rarity, s.id).toBe(2);
+        expect(s.appears?.length, s.id).toBeGreaterThan(0);
+        expect(abilities, s.id).toHaveLength(0);
+      } else if (s.rarity >= 2) {
         expect(s.appears?.length, `${s.id}: erscheint, wenn …`).toBeGreaterThan(0);
         expect(abilities, `${s.id}: Fähigkeit`).toHaveLength(1);
       } else {
