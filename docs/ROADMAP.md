@@ -360,10 +360,10 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     „Zur Pflege“, Pflegekarten „Öffnet Lebensraum …“, Gattung Reptilien (Farbe, Tagebuch,
     Tagesziele, Stammgast-Hinweise), Spielanleitung „Lebensräume“ –
     `tests/habitats-ui.test.ts`, `e2e/habitats.spec.ts`
-- [ ] Prestige-Stufe 2 „Waldlandschaft“ (`game-designer`, `core-engineer`, `renderer`):
+- [x] Prestige-Stufe 2 „Waldlandschaft“ (`game-designer`, `core-engineer`, `renderer`):
   mehrere Wälder nebeneinander mit eigenem Hauptbaum, Wildwechsel über Korridore;
   `break_infinity.js` ist dafür **nicht** nötig (gemessen, `DESIGN_V2.md` 24.9). Spielbar und
-  ausgeliefert; offen sind nur Wildwechsel, Erfolge und ein Rest e2e – weiter in Phase 7, Welle 1
+  ausgeliefert; Wildwechsel, Erfolge und der Rest e2e folgten in Phase 7 (1a, 2a/2b, 4a)
   - [x] Design (`game-designer`): sechs Standorte mit Waldtyp, Währung Hähersaat, Korridore
     mit Zufluss, Spielstand v14 nach den Lebensräumen (v13) – `DESIGN_V2.md` 24, Daten
     `src/content/landscape.ts`, Modell `scripts/landscape.ts`
@@ -405,7 +405,7 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
     die fünf Erfolge aus 24.12 als Daten, die Bedingungsarten `forests`, `corridors`,
     `ancientForests` in `core/achievements.ts` und die Messung des Wildwechsels (Vielfalt 7.7);
     die Messung der Landschaft ohne Wildwechsel ist da (24.7/24.10, #81, #85)
-  - [ ] e2e (`qa-tester`, 24.11 Nr. 7) – teilweise: Gründen, Neuladen und Wechsel zurück mit
+  - [x] e2e (`qa-tester`, 24.11 Nr. 7) – Rest erledigt in Phase 7, 4a (`e2e/landscape-trees.spec.ts`); vorher teilweise: Gründen, Neuladen und Wechsel zurück mit
     Gedächtnis prüft `e2e/landscape.spec.ts`; fehlt: Stammgäste nach Hin- und Rückweg und der
     Sync zweier Geräte mit einem v14-Stand samt ruhender Wälder
 - [x] Playtest Phase 6 – Funde behoben (`ui-dev`, `renderer`): Hinweise, Stapel und
@@ -560,7 +560,8 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
      Durchgänge): Heide 71 / 52 von 160 (Heimatwald 29 / 28), Zeit 50:04 / 39:43 min (vorher
      50:05 / 39:48; Wachstum −3,4 → −3,6 %), alle Waldtypen ±3,6 %; Landschaft 14,2 / 13,3 /
      39,4 h, Wachstum gegen Harmonie 6,1 / 6,2 % (< 10 %). **Keine Zahl geändert.** Optional (Playtest): weitere Wälder mit
-     passendem Massenjahr (Auwald Schneckenjahr), erst nach dem Playtest Phase 7.
+     passendem Massenjahr (Auwald Schneckenjahr), erst nach dem Playtest Phase 7. → entschieden
+     in Phase 9, 1a (DESIGN_V2.md 26.2).
   Abhängig: 3c. **Erledigt (Nr. 1–4):** `ForestSite.eventFactors` (Heide `{ 'beetle-year': 3 }`),
   `eventWeight` = Wetter-Faktor × Faktor des Waldes (auch im Modus `off`); Tests in
   `tests/landscape.test.ts`, `tests/predation.test.ts` (Beispiele, unbekannter Standort,
@@ -805,3 +806,99 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
 
 Parallel nach 1 und 4: 5, 6, 8, 9, 11; danach 7 und 10. Offene UI-Aufgaben aus Phase 7 (3a)
 möglichst im Album umsetzen (ALBUM_UI.md G.2 Nr. 1).
+
+## Phase 9 – Geschichten der Wälder
+
+Ziel: Nach „Landschaft vollständig“ (~14 h) und „alle Wälder voll“ (~16,5 h) gibt es heute nur
+noch Ernte. Phase 9 gibt jedem Wald eine **Geschichte**, die man erleben und einkleben kann –
+in die Breite, ohne neuen Multiplikator (DESIGN_V2.md **26**, 24.1): ein eigenes Ereignis je
+Waldtyp, sechs **Kennarten**, die nur in alten Wäldern leben, und eine **Waldchronik** mit sechs
+Kapiteln je Wald, deren Abschluss ein Andenken bringt. Dazu kleine Rituale (Erfolge für die
+Tagesziel-Serie) und die Album-Folgeaufgaben aus Phase 8. Reihenfolge in Wellen;
+Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung der Phase: v16**
+(Chronik und Kennarten, Welle 2). Keine neuen Abhängigkeiten, kein Server.
+
+**Bewusst kein eigener Punkt: dritte Prestige-Ebene / Klima-Epochen.** Erst wenn die Messung
+(2c) und der Playtest (4b) zeigen, dass die Chroniken zu früh enden (26.10, 26.11).
+
+**Welle 1 – Kleines zuerst** (ohne Spielstand-Änderung)
+
+- [ ] **1a** Ereignis und Lebensraum je Waldtyp (`game-designer`, 26.2): `eventFactors` Auwald
+  `{ rain: 2, 'slug-year': 3 }`, Erlenbruch `{ 'toad-migration': 3 }`, Buchenhallen
+  `{ 'mast-year': 2, 'vole-year': 3 }`, Bergmischwald und Heimatwald `{}`, Kiefernheide wie
+  bisher; Kiefernheide ab Hain +1 Platz Trockenmauer (Eigenheit `slot`), Kurztexte. Offiziellen
+  Lauf „Waldtypen“ (24.7) um eine Spalte „Ereignis des Waldes“ erweitern und nachmessen; prüfen,
+  ob der Mauer-Platz die Mauer ohne Pflege öffnet und wie oft die Sonnenmauer in der Heide
+  entsteht (23.9). **Warum:** beantwortet die offene Frage „weitere Massenjahre je Wald“ aus 3e
+  mit einer Messung statt nach Gefühl: Das Schneckenjahr allein bliebe im Auwald unsichtbar
+  (10 / 8 von 160), Regenreicher Frühling, Krötennacht und Buchenmast werden dagegen spürbar
+  (78–81 %, 47–50 %, 56–66 %) – bei allen Wäldern innerhalb ±3 % (vorab gemessen, 26.2). Nur
+  Daten. Abhängig: nichts
+- [ ] **1b** Album-Folgeaufgaben (`ui-dev`, 26.9): PNG-Kodierung bei kaltem Cache auf dem ersten
+  Weg nach Arten messen (erst ab > 50 ms in einem Task handeln); `hidden="until-found"` mit
+  `beforematch` für die aufgeschobenen Blöcke (`deferred-reveal.ts`), sonst wie heute;
+  Safari-Notiz (kein `requestIdleCallback`, `setTimeout`-Ersatz in WebKit prüfen) in
+  ALBUM_UI.md R3 und `render/idle.ts`; optional Landschaftskarte mit DejaVu Sans bei 125 %.
+  **Warum:** Rest aus Phase 8, Schritt 14 / R3 – die Strg+F-Suche findet heute keine Art
+  unterhalb des ersten Bildschirms, und Safari ist ungemessen. Klein, eine PR. Abhängig: nichts
+- [ ] **1c** Ereignis des Waldes anzeigen (`ui-dev`): U:Standort und Karte nennen die Ereignisse
+  mit Faktor („Hier öfter: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr“, aus `eventFactors`);
+  Spielanleitung „Landschaft“. **Warum:** Ein Gewicht, das niemand sieht, ist kein Charakter.
+  Abhängig: 1a
+- [ ] **1d** Erfolge der Tagesziele (`core-engineer`, Daten aus 26.5): Bedingungsart `daily`
+  (`bestStreak` | `goalsDone` | `perfectDays`), Erfolge `daily-streak-7` „Sieben Morgen“ und
+  `daily-50` „Fünfzig Handgriffe“, Nachtrag beim Laden wie 12.6, Tests. **Warum:** offene Frage
+  20.8 – das tägliche Ritual bekommt ein sanftes Ziel ohne Zahlen-Belohnung; die Zähler stehen
+  seit v12 im Spielstand. Abhängig: nichts
+
+**Welle 2 – Kennarten und Waldchronik (Spielstand v16)**
+
+- [ ] **2a** Zeichnungen der sechs Kennarten (`renderer`, 26.3/26.7): Haselmaus, Biber,
+  Moorfrosch (im Frühling blau), Ästiger Stachelbart, Luchs, Ziegenmelker – Szene und Sticker,
+  Anker wie 23.8, Nachtarten wie 21.8; zunächst nur in der Demo (`?species=`), Test „jede Art
+  hat eine eigene Zeichnung“ erst mit 2b. **Warum:** Sticker sind das Herz des Albums; die
+  Grafik ist der größte Brocken und hängt an nichts. Abhängig: nichts – frühe Welle möglich
+- [ ] **2b** Waldchronik und Kennarten, Spielstand v16 (`core-engineer`, 26.3–26.6): Bedingung
+  `{ kind: 'site', site }` (Landschaft offen, aktiver Wald, alt oder jetzt Urwald); die sechs
+  Kennarten als Daten aus 26.3 (Block „Kennarten“ in `species.ts`, zwei in `NOCTURNAL`);
+  `ForestSite.kennart`, `.chronicleEvent`, `.keepsake`, `content/chronicle.ts`;
+  `LandscapeSite.chronicle` mit den sechs Kapiteln an den Stellen aus 26.4 (`startNewCycle`,
+  Winter-Grenze in `tick`, Entscheidung eines Ereignisses, Änderungen am Ökosystem),
+  `TickReport.chapters` / `OfflineReport.chapters`; Bedingungsarten `chronicles` und `journal:
+  'kennarten'`, `species-all` ohne Kennarten, Erfolge `chronicle-1`, `chronicle-all`,
+  `kennarten-all`; `SAVE_VERSION` 16, Migration v15 → v16 (abgeleitete Kapitel ohne Datum),
+  robustes Laden (26.6), Tests (jede Version v2 … v15 lädt; online = offline für `first-snow`;
+  Kennart nie vor der Landschaft; Goldwerte ohne Landschaft unverändert). **Warum:** Die Ernte
+  nach der Landschaft bekommt Ziele, die zu Orten gehören – und ein Grund, im Urwald zu
+  verweilen. Das Feld ist nötig, weil Kapitel wie „Erster Schnee“ und „Ereignis des Waldes“
+  nicht aus dem Spielstand ableitbar sind; die Kennarten-IDs brauchen die Versionsprüfung
+  (Fall 25.5). Abhängig: 1a und 1d gemergt (gleiche Dateien `landscape.ts`, `achievements.ts`)
+- [ ] **2c** Messung Chronik und Kennarten (`game-designer`, 26.8): Chronik-Politik in
+  `scripts/landscape.ts` (offene Kapitel zuerst, im Urwald bis zum Winter verweilen), großer Lauf
+  Harmonie / Wachstum / Zufall, Ziele (a)–(f) aus 26.8; Stellschrauben Seltenheit der Kennarten,
+  `CHRONICLE_HARMONY`, Wirkungen; 24.7/24.10 und 26 nachtragen. **Warum:** Zahlen nie nach
+  Gefühl – die Startwerte in 26.3/26.4 sind Schätzungen. Abhängig: 2b
+
+**Welle 3 – Oberfläche**
+
+- [ ] **3a** Chronik und Kennarten im Album (`ui-dev`, 26.7): Abschnitt „Chronik“ auf
+  U:Standort (sechs Zettel, Stempel mit Datum, Hinweise ohne Spoiler, Andenken), Kennzahl
+  „📜 9 / 36 Kapitel“ und Wachssiegel auf der Karte, Spalte „Chronik“ im Tagebuch der Wälder,
+  offene Kapitel beim Ziel-Wald in U:Neuer Zyklus, Reihe „Kennarten“ und Andenken in R:Arten
+  (verborgen vor der Landschaft), Stempel je Kapitel, Kapitel im Rückkehr-Bericht,
+  Spielanleitung „Chroniken und Kennarten“, mobil 360 px ohne Querscrollen. **Warum:** Die
+  Chronik ist eine Album-Funktion – erst als Seite zum Durchblättern wird sie zur Geschichte.
+  Abhängig: 2b (Sticker aus 2a; ohne sie zeigt der Sticker die Gattung)
+
+**Welle 4 – Absichern**
+
+- [ ] **4a** e2e Phase 9 (`qa-tester`): v15-Stand lädt als v16 mit abgeleiteten Kapiteln;
+  Kapitel per Fixture schreiben → Stempel → Neuladen → Chronik und Andenken bleiben; Kennarten
+  vor der Landschaft unsichtbar (Arten, Zähler, Hash); v15-Gerät lehnt den v16-Stand ab
+  (`outdated-client`, `newer` beim Import). Abhängig: 3a
+- [ ] **4b** Playtest Phase 9 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
+  Spätspiel-Stand mit voller Landschaft – trägt die Chronik? Wird das Verweilen im Urwald als
+  schön oder als Warten erlebt? Sind Kennarten zu selten? Danach Entscheidung über eine dritte
+  Ebene (26.11). Abhängig: 4a
+
+Parallel: 1a, 1b, 1d und 2a sofort; 1c nach 1a; 2b nach 1a und 1d; 2c und 3a nach 2b.
