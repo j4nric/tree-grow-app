@@ -845,11 +845,14 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   mit Faktor („Hier öfter: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr“, aus `eventFactors`);
   Spielanleitung „Landschaft“. **Warum:** Ein Gewicht, das niemand sieht, ist kein Charakter.
   Abhängig: 1a
-- [ ] **1d** Erfolge der Tagesziele (`core-engineer`, Daten aus 26.5): Bedingungsart `daily`
+- [x] **1d** Erfolge der Tagesziele (`core-engineer`, Daten aus 26.5): Bedingungsart `daily`
   (`bestStreak` | `goalsDone` | `perfectDays`), Erfolge `daily-streak-7` „Sieben Morgen“ und
   `daily-50` „Fünfzig Handgriffe“, Nachtrag beim Laden wie 12.6, Tests. **Warum:** offene Frage
   20.8 – das tägliche Ritual bekommt ein sanftes Ziel ohne Zahlen-Belohnung; die Zähler stehen
-  seit v12 im Spielstand. Abhängig: nichts
+  seit v12 im Spielstand. Abhängig: nichts. **Erledigt:** ohne Spielstand-Änderung; Nachtrag bei der
+  ersten Prüfung nach dem Laden, ein erfülltes Tagesziel prüft die Erfolge sofort (ein Hinweis);
+  Tests in `tests/achievements-daily.test.ts` und `e2e/daily.spec.ts`. Katalog 34 (27 sichtbar ohne
+  Landschaft)
 
 **Welle 2 – Kennarten und Waldchronik (Spielstand v16)**
 

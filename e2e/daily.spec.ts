@@ -33,11 +33,17 @@ const goal = (kind: DailyGoal['kind'], target: number, extra: Partial<DailyGoal>
 });
 
 /** Keimling mit einer wartenden Tierbegegnung und festen Zielen für `day`. */
-async function seedDay(context: BrowserContext, day: string, goals: DailyGoal[], streak = { streak: 0, lastDay: '' }): Promise<void> {
+async function seedDay(
+  context: BrowserContext,
+  day: string,
+  goals: DailyGoal[],
+  streak = { streak: 0, lastDay: '' },
+  goalsDone = 0,
+): Promise<void> {
   const state = createInitialState(START.getTime(), 777);
   state.totalGrowth = waypoint(1) + 1;
   state.pendingEncounters = [{ type: 'animal', cards: ['earthworm'], rerolls: 0 }];
-  state.meta.daily = { ...state.meta.daily, day, goals, ...streak, bestStreak: streak.streak };
+  state.meta.daily = { ...state.meta.daily, day, goals, ...streak, bestStreak: streak.streak, goalsDone };
   await seedRaw(context, state, 0);
 }
 
@@ -78,6 +84,21 @@ test('Tagesziel durch Ablehnen erfüllen: Hinweis mit Samen, Haken, Serie, gespe
   await page.reload();
   await expect(goalItem(page, 'decide')).toHaveClass(/done/);
   expect((await savedState(page)).meta.daily.goalsDone).toBe(1);
+});
+
+test('Siebter Morgen in Folge, fünfzigstes Ziel: beide Erfolge im selben Hinweis (26.5)', async ({ page, context }) => {
+  await startClock(page);
+  await seedDay(context, TODAY, [goal('decide', 1), goal('growth', 1_000_000)], { streak: 6, lastDay: '2026-10-20' }, 49);
+  await gotoTab(page, 'ziele');
+  await openStack(page);
+  await page.clock.runFor(500);
+  await encounter(page).getByRole('button', { name: /^Ablehnen/ }).click();
+  await expect(toast(page)).toContainText('✅ Tagesziel:');
+  await expect(toast(page)).toContainText('Sieben Morgen');
+  await expect(toast(page)).toContainText('Fünfzig Handgriffe');
+  const saved = await savedState(page);
+  expect(saved.meta.daily).toMatchObject({ streak: 7, bestStreak: 7, goalsDone: 50 });
+  expect(saved.meta.achievements).toEqual(expect.arrayContaining(['daily-streak-7', 'daily-50']));
 });
 
 test('Mitternacht: neue Ziele, die Serie von gestern zählt weiter', async ({ page, context }) => {

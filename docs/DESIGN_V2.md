@@ -7502,6 +7502,12 @@ Neue Erfolge, ohne Zahlen-Belohnung (18.1):
 - Neue Bedingungsarten `chronicles` (vollständige Chroniken, `'all'` = Zahl der Standorte) und
   `daily` (Schlüssel `bestStreak` | `goalsDone` | `perfectDays`); `journal` bekommt `what:
   'kennarten'`. Monoton; Nachtrag beim Laden wie 12.6. Katalog danach: 37 Erfolge.
+- **Stand (Phase 9, 1d):** Bedingungsart `daily` (`core/achievements.ts`, `valueOf`: ganzzahlig,
+  kaputte Zähler und fehlendes `meta.daily` zählen 0) sowie `daily-streak-7` und `daily-50` sind
+  umgesetzt – ohne neues Feld und ohne neue Spielstand-Version. Nachtrag: Die erste Prüfung nach
+  dem Laden (`catchUp` in `main.ts`) schaltet frei, was die Zähler schon erfüllen; ein erfülltes
+  Tagesziel prüft die Erfolge sofort, beide stehen im selben Hinweis. Katalog bis 2b: 34 Erfolge
+  (27 vor der Landschaft). Tests: `tests/achievements-daily.test.ts`, `e2e/daily.spec.ts`.
 
 ### 26.6 Spielstand v16
 
