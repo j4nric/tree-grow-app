@@ -3,35 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>UI-Demo – Vom Samen zum Wald (v2)</title>
+    <title>Album-Demo – Vom Samen zum Wald</title>
     <link rel="stylesheet" href="/src/style.css" />
     <style>
-      /* Nur für die Demo-Seite */
-      .demo-scene {
-        padding: 24px;
-        background: linear-gradient(#cfe6f5, #eaf3df 70%, #c9b28a);
-      }
-      .demo-title {
-        margin: 0 0 12px;
-        font-size: 1.2rem;
-      }
-      .demo-controls {
+      /* Nur für die Demo-Seite: Leiste mit Auslösern unten links */
+      .demo-bar {
+        position: fixed;
+        left: 12px;
+        bottom: 12px;
+        z-index: 70;
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 6px;
+        max-width: min(420px, calc(100vw - 24px));
+        padding: 6px 10px;
+        border-radius: 10px;
+        background: #fffdf7;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        font: 600 14px system-ui, sans-serif;
+      }
+      .demo-bar summary {
+        min-height: 44px;
+        line-height: 44px;
+        cursor: pointer;
+      }
+      .demo-bar button {
+        min-height: 44px;
+        padding: 0 10px;
+        border: 1px solid #b9ad92;
+        border-radius: 8px;
+        background: #fff;
       }
     </style>
   </head>
   <body>
-    <!-- Nur zum Prüfen der v2-Komponenten, nicht im Spiel eingebunden. -->
-    <main class="layout">
-      <section class="scene demo-scene">
-        <h1 class="demo-title">Komponenten-Demo (v2)</h1>
-        <div class="demo-controls" id="demo-controls"></div>
-        <p class="demo-log" id="demo-log" aria-live="polite"></p>
-      </section>
-      <aside class="panel" id="panel"></aside>
-    </main>
+    <!-- Album-Demo mit Beispieldaten (src/ui/demo.ts), nicht im Spiel eingebunden. -->
+    <canvas id="scene" role="img" aria-label="Szene (Demo-Platzhalter)"></canvas>
+    <div class="sr-only" id="live-status" role="status"></div>
     <script type="module" src="./demo.ts"></script>
   </body>
 </html>

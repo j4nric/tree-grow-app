@@ -1,0 +1,841 @@
+/* Begegnungs-Karten (encounter-cards.ts, docs/ALBUM_UI.md A.6): Kopf als Zettel, Sticker-Karten
+   im Notizzettel-Stil, Optionen als große Knöpfe, „Neu würfeln“ und „Ablehnen“. Gilt auch für
+   die Pflanzenzettel auf U:Pflanze setzen (plant-offers.ts). */
+
+/* ---------- Kopf als Zettel ---------- */
+
+.enc-head {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 16px 14px 14px 16px;
+  background: var(--note-bg);
+  box-shadow: var(--sh-slip);
+  transform: rotate(-0.8deg);
+}
+
+.enc-tape {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  width: 64px;
+  height: 18px;
+  margin-left: -32px;
+  background: var(--tape-green);
+  opacity: 0.9;
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+
+.enc-head .encounter-head-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.enc-head .encounter-kind {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.enc-head .encounter-title,
+.album[data-layout='spread'] .enc-head .encounter-title {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.02;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  hyphens: manual;
+}
+
+.album[data-layout='spread'] .enc-head .encounter-title {
+  font-size: 32px;
+}
+
+.enc-head .encounter-subtitle {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-style: italic;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
+.enc-head .encounter-subtitle[hidden],
+.enc-head .encounter-hero-icon[hidden],
+.enc-head .encounter-facts[hidden],
+.enc-head .encounter-queue[hidden] {
+  display: none;
+}
+
+.enc-head .encounter-hero-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border: 4px solid var(--photo);
+  border-radius: 50%;
+  background: var(--paper);
+  font-size: 34px;
+  line-height: 1;
+  box-shadow: var(--sh-sticker-big);
+  transform: rotate(-4deg);
+}
+
+.enc-head .encounter-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.enc-head .encounter-facts li {
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.enc-head .encounter-queue {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* Weitere Zettel als kleiner Stapel */
+.enc-head .queue-pips {
+  display: inline-flex;
+}
+
+.enc-head .queue-pips .pip {
+  width: 12px;
+  height: 15px;
+  margin-left: -5px;
+  border-radius: 1px;
+  background: var(--note-under);
+  box-shadow: 0 1px 2px rgba(59, 58, 54, 0.3);
+}
+
+.enc-head .queue-pips .pip:first-child {
+  margin-left: 0;
+}
+
+/* „?“: Legende als Haftnotiz */
+.enc-legend-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 2px dashed var(--ink-soft);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.enc-legend-button[hidden] {
+  display: none;
+}
+
+.enc-legend-button[aria-expanded='true'],
+.enc-legend-button:hover {
+  border-style: solid;
+  background: var(--photo);
+}
+
+.enc-legend-button:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+.encounter-legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.encounter-legend-list li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 4px;
+}
+
+.encounter-legend-list .legend-icon {
+  text-align: center;
+}
+
+/* ---------- Blatt: Karten und Knöpfe ---------- */
+
+.enc-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/*
+ * Tier- und Pflanzenkarten stehen immer in einer Reihe (kein Umbruch in eine zweite Reihe,
+ * deren „Einkleben“ weit unter dem Bildrand läge – Playtest Schritt 14, S1). Passen nicht
+ * alle nebeneinander, lugt die nächste Karte hervor und die Reihe scrollt waagerecht.
+ */
+.enc-sheet .encounter-cards {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(200px, 1fr);
+  align-items: start;
+  gap: 14px;
+  min-width: 0;
+  margin: 0 -8px;
+  padding: 14px 8px 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding: 0 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dash) transparent;
+}
+
+.enc-sheet .encounter-cards .encounter-card {
+  scroll-snap-align: start;
+}
+
+/* Ereignis-Optionen und Gast: untereinander */
+.enc-sheet .encounter-cards[data-kind='event'],
+.enc-sheet .encounter-cards[data-kind='visitor'] {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  margin: 0;
+  padding: 12px 2px 4px;
+  overflow-x: visible;
+}
+
+.enc-sheet .encounter-swipe {
+  display: none;
+  margin: -4px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+/* Schmal: Karten nebeneinander zum Wischen, die nächste lugt hervor (A.6 #74). */
+@media (max-width: 640px) {
+  .enc-sheet .encounter-cards:not([data-kind='event']):not([data-kind='visitor']) {
+    grid-auto-columns: 84%;
+    margin: 0 -18px;
+    padding: 14px 18px 10px;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 18px;
+    scrollbar-width: none;
+  }
+
+  .enc-sheet .encounter-cards[data-count='1']:not([data-kind='event']):not([data-kind='visitor']) {
+    grid-auto-columns: 100%;
+  }
+
+  .enc-sheet .encounter-cards .encounter-card {
+    scroll-snap-align: center;
+  }
+
+  .enc-sheet .encounter-cards:not([data-count='1']):not([data-kind='event']):not([data-kind='visitor']) + .encounter-swipe {
+    display: block;
+  }
+}
+
+/* ---------- Sticker-Karte im Notizzettel-Stil ---------- */
+
+.encounter-card,
+.picker-row {
+  --card-tilt: 0deg;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 20px 14px 14px;
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--sh-slip);
+  transform: rotate(var(--card-tilt));
+  list-style: none;
+}
+
+.encounter-card:has(:focus-visible),
+.picker-row:has(:focus-visible) {
+  box-shadow: 0 0 0 3px var(--tape), var(--sh-slip);
+}
+
+.encounter-card.chosen,
+.picker-row.chosen {
+  opacity: 0.6;
+}
+
+/* Seltene Karten: Randlinie in der Farbe des Edelsteins */
+.encounter-card.rarity-rare { box-shadow: 0 0 0 2px var(--gem-rare), var(--sh-slip); }
+.encounter-card.rarity-special { box-shadow: 0 0 0 2px var(--gem-special), var(--sh-slip); }
+.encounter-card.rarity-legendary { box-shadow: 0 0 0 2px var(--gem-legendary), var(--sh-slip); }
+
+.encounter-card > *,
+.picker-row > * {
+  min-width: 0;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sticker.enc-sticker {
+  --sticker: 64px;
+  --sticker-border: 4px;
+  cursor: default;
+}
+
+.sticker.enc-sticker:hover {
+  transform: rotate(var(--tilt));
+}
+
+.sticker.enc-sticker .sticker-emoji {
+  font-size: 30px;
+}
+
+.card-names {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.card-name {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 27px;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  hyphens: manual;
+}
+
+.card-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.card-rarity {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--rarity-bg);
+  color: var(--rarity-ink);
+}
+
+.card-niche {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* Wildwechsel (1c): kam über einen Korridor */
+.card-route {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  padding: 5px 9px;
+  border-radius: var(--r-button);
+  background: #e3edd8;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink-green-dark);
+}
+
+.card-route-icon {
+  flex: none;
+}
+
+.encounter-card.wildwechsel .card-route-icon {
+  display: inline-block;
+  animation: enc-route-hop 1.6s ease-in-out 2;
+}
+
+@keyframes enc-route-hop {
+  0%,
+  60%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: translateY(-3px) rotate(-6deg);
+  }
+}
+
+/* Kennzahlen (Pflanzen) */
+.card-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 6px;
+  border: 1.5px dashed var(--dash);
+  border-radius: 8px;
+}
+
+.card-fact-label {
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--ink-soft);
+  overflow-wrap: break-word;
+}
+
+.card-fact-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.card-fact-icon {
+  font-family: var(--font-text);
+  font-size: 13px;
+}
+
+/* Tausch bei voller Nische */
+.card-replace {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 2px dashed var(--ink-red);
+  border-radius: var(--r-button);
+}
+
+.card-replace-text,
+.card-replace-note {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-red);
+}
+
+/* „Nische … voll. Wer zieht weiter?“ als eine Beschriftung, die Auswahl darunter */
+.card-replace-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.card-replace-label .card-replace-text {
+  display: inline;
+}
+
+.card-replace-label .card-replace-select {
+  display: block;
+  margin-top: 4px;
+}
+
+.card-replace-select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 8px;
+  border: 2px solid var(--dash);
+  border-radius: var(--r-button);
+  background: var(--photo);
+  color: var(--ink);
+  font: 700 14px var(--font-text);
+}
+
+.card-replace-select:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 1px;
+}
+
+/* Bedingungen und Wirkungen */
+.card-conditions,
+.card-effects,
+.card-communities {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.card-communities[hidden] {
+  display: none;
+}
+
+.card-conditions li,
+.card-effects li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 4px;
+}
+
+.card-conditions .mark,
+.card-effects .mark {
+  font-weight: 800;
+  text-align: center;
+}
+
+.card-conditions .met .mark {
+  color: var(--ink-green);
+}
+
+.card-conditions .partial {
+  color: var(--ink-seed);
+}
+
+.card-conditions .unmet {
+  color: var(--ink-red);
+}
+
+.condition-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.condition-hint::before {
+  content: ' ';
+}
+
+.card-effects .tone-good .mark,
+.card-communities .tone-good {
+  color: var(--ink-green);
+}
+
+.card-effects .tone-bad,
+.card-communities .tone-bad {
+  color: var(--ink-red);
+}
+
+.card-communities li {
+  font-weight: 800;
+}
+
+/* Vorschau: kleine Pillen */
+.card-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card-preview[hidden] {
+  display: none;
+}
+
+.preview-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  background: var(--track);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.preview-chip.tone-good {
+  background: #e3edd8;
+  color: var(--ink-green-dark);
+}
+
+.preview-chip.tone-bad {
+  background: #f6dde3;
+  color: var(--ink-red);
+}
+
+.preview-chip.tone-neutral {
+  color: var(--ink-soft);
+}
+
+.card-flavor {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--ink-soft);
+}
+
+/* Einkleben / Setzen */
+.card-choose {
+  min-height: var(--tap);
+  padding: 8px 14px;
+  border: 0;
+  border-radius: var(--r-button);
+  background: var(--ink-green);
+  color: var(--photo);
+  font: 800 15px/1.2 var(--font-text);
+  cursor: pointer;
+}
+
+.card-choose:hover:not(:disabled) {
+  background: var(--ink-green-dark);
+}
+
+.card-choose:focus-visible {
+  outline: 3px solid var(--tape);
+  outline-offset: 2px;
+}
+
+.card-choose:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Gesperrt mit Grund: gestrichelt statt grün */
+.card-choose.blocked {
+  border: 2px dashed var(--dash);
+  background: transparent;
+  color: var(--ink-soft);
+  opacity: 1;
+}
+
+/* ---------- Ereignis- und Gast-Optionen ---------- */
+
+.encounter-card.option-card {
+  padding: 14px 12px 12px;
+}
+
+.option-choose {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  border: 2px solid var(--ink-green);
+  border-radius: var(--r-button);
+  background: var(--photo);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.option-choose:hover:not(:disabled):not([aria-disabled='true']) {
+  background: #eef4e8;
+}
+
+.option-choose:active:not(:disabled):not([aria-disabled='true']) {
+  transform: translateY(1px);
+}
+
+.option-choose:focus-visible {
+  outline: 3px solid var(--tape);
+  outline-offset: 2px;
+}
+
+.option-choose:disabled {
+  cursor: default;
+}
+
+.option-choose[aria-disabled='true'] {
+  border-style: dashed;
+  border-color: var(--dash);
+  cursor: not-allowed;
+}
+
+.option-choose[aria-disabled='true'] .option-label,
+.option-choose[aria-disabled='true'] .option-effects {
+  opacity: 0.6;
+}
+
+.option-label {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 25px;
+  line-height: 1.05;
+}
+
+.option-effects {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.option-effect {
+  display: flex;
+  gap: 5px;
+}
+
+.option-effect.tone-good .mark {
+  color: var(--ink-green);
+}
+
+.option-effect.tone-bad {
+  color: var(--ink-red);
+}
+
+.option-reason {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-red);
+}
+
+.option-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
+.option-card.chosen .option-choose {
+  background: #eef4e8;
+}
+
+/* ---------- Neu würfeln, Ablehnen ---------- */
+
+.enc-sheet .encounter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.enc-sheet .encounter-actions[hidden] {
+  display: none;
+}
+
+.enc-sheet .encounter-button {
+  flex: 1 1 150px;
+  min-height: var(--tap);
+  padding: 6px 14px;
+  border: 2px solid var(--ink);
+  border-radius: var(--r-button);
+  background: transparent;
+  color: var(--ink);
+  font: 800 14px/1.2 var(--font-text);
+  cursor: pointer;
+}
+
+.enc-sheet .encounter-button[hidden] {
+  display: none;
+}
+
+.enc-sheet .encounter-button:hover:not(:disabled) {
+  background: rgba(59, 58, 54, 0.06);
+}
+
+.enc-sheet .encounter-button:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+.enc-sheet .encounter-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.enc-sheet .encounter-reroll-hint {
+  margin: -4px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.enc-sheet .encounter-reroll-hint[hidden] {
+  display: none;
+}
+
+/* ---------- Austeilen ---------- */
+
+.encounter-cards.dealing .encounter-card {
+  animation: enc-deal 380ms var(--turn-ease) backwards;
+  animation-delay: var(--deal-delay, 0ms);
+}
+
+@keyframes enc-deal {
+  from {
+    opacity: 0;
+    transform: translateY(18px) rotate(calc(var(--card-tilt) - 6deg)) scale(0.94);
+  }
+}
+
+body[data-motion='reduce'] .encounter-cards.dealing .encounter-card,
+body[data-motion='reduce'] .encounter-card.wildwechsel .card-route-icon {
+  animation: none;
+}
+
+/* Demo-Seite (src/ui/demo.html): Blatt ohne Album */
+.demo-encounter {
+  max-width: 760px;
+  margin-top: 16px;
+  padding: 16px 18px 20px;
+  border-radius: var(--r-page);
+  background: var(--paper);
+  box-shadow: var(--sh-page);
+}
+
+.demo-encounter[hidden] {
+  display: none;
+}

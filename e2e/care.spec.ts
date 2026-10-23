@@ -1,9 +1,10 @@
 import type { Page } from '@playwright/test';
-import { expect, niche, openGame, savedState, seedV3, test, waypoint } from './fixtures';
+import { expect, gotoTab, niche, openGame, openTab, savedState, seedV3, test, waypoint } from './fixtures';
 
 /**
- * Pflegemaßnahmen (Schritt 2.7): eine Maßnahme kaufen, die Wirkung sehen (ein Platz mehr
- * in der Laubstreu), Neuladen behält den Rang.
+ * Pflegemaßnahmen (Schritt 2.7) im Reiter „Pflege“ des Albums (docs/ALBUM_UI.md, B.3): eine
+ * Maßnahme kaufen, die Wirkung sehen (ein Platz mehr in der Laubstreu), Neuladen behält den
+ * Rang. Die Unterseite U:Pflegemaßnahme prüft e2e/album-care.spec.ts.
  */
 test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch nach dem Neuladen', async ({ page, context }) => {
   await seedV3(context, {
@@ -11,19 +12,20 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
     seeds: 400,
     niches: { roots: ['earthworm'], litter: ['robin'] },
   });
-  await openGame(page);
+  // Die Nischen-Seite schreibt nur, solange sie sichtbar ist (docs/ALBUM_UI.md, D.1).
+  await gotoTab(page, 'nischen');
+  await expect(niche(page, 'litter')).toContainText('1/2 belegt');
+  await openTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const litter = care.locator('[data-care="leaf-litter"]');
   await expect(litter).toContainText('Laub liegen lassen');
   await expect(litter).toContainText('Rang 0/2');
   await expect(litter).toContainText('+1 Platz Laubstreu');
-  await expect(niche(page, 'litter')).toContainText('1/2 belegt');
   // Maßnahmen ab Alter Baum (z. B. Lichte Krone) stehen noch nicht in der Liste.
   await expect(care.locator('[data-care="light-crown"]')).toHaveCount(0);
 
   await litter.getByRole('button', { name: 'Kaufen (200 🌰)' }).click();
 
-  await expect(niche(page, 'litter')).toContainText('1/3 belegt');
   await expect(litter).toContainText('Rang 1/2');
   await expect(litter.locator('[data-ref="care-blocker"]')).toHaveText('Ab Stufe „Hain“');
   // Gesperrt per aria-disabled (nicht `disabled`): bleibt fokussierbar, Grund wird vorgelesen.
@@ -38,9 +40,12 @@ test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch
   expect(saved.cycle.care).toEqual({ 'leaf-litter': 1 });
   expect(saved.seeds).toBeLessThan(300);
 
-  await page.reload();
-  await expect(care.locator('[data-care="leaf-litter"]')).toContainText('Rang 1/2');
+  await openTab(page, 'nischen');
   await expect(niche(page, 'litter')).toContainText('1/3 belegt');
+  await page.reload();
+  await expect(niche(page, 'litter')).toContainText('1/3 belegt');
+  await openTab(page, 'pflege');
+  await expect(care.locator('[data-care="leaf-litter"]')).toContainText('Rang 1/2');
   expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 1 });
 });
 
@@ -50,7 +55,7 @@ test('Pflege per Tastatur: Fokus bleibt auf dem Knopf, nach dem letzten Rang auf
     seeds: 100_000,
     niches: { roots: ['earthworm'] },
   });
-  await openGame(page);
+  await gotoTab(page, 'pflege');
   const litter = page.locator('[data-ref="care"] [data-care="leaf-litter"]');
   const buy = litter.locator('[data-buy-care="leaf-litter"]');
   await expect(buy).toHaveText('Kaufen (200 🌰)');
@@ -64,7 +69,7 @@ test('Pflege per Tastatur: Fokus bleibt auf dem Knopf, nach dem letzten Rang auf
   await page.waitForTimeout(450);
   await page.keyboard.press('Enter');
   await expect(litter).toContainText('voll ausgebaut');
-  await expect(buy).toHaveCount(0);
+  await expect(buy).toBeHidden();
   await expect(litter.locator('[data-care-title="leaf-litter"]')).toBeFocused();
   expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 2 });
 });
@@ -75,7 +80,7 @@ test('Pflege: Doppelklick und gehaltene Enter-Taste kaufen nur einen Rang', asyn
     seeds: 100_000,
     niches: { roots: ['earthworm'] },
   });
-  await openGame(page);
+  await gotoTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const litter = care.locator('[data-care="leaf-litter"]');
   await litter.locator('[data-buy-care="leaf-litter"]').dblclick();
@@ -105,14 +110,14 @@ test('Pflege: kaufbar zuerst, Reihenfolge bleibt beim Kauf stehen, Bestätigung 
     seeds: 2600,
     niches: { roots: ['earthworm'], edge: ['bee'] },
   });
-  await openGame(page);
+  await gotoTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const groups = await care.locator('[data-care]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.group!));
   const rank: Record<string, number> = { buyable: 0, saving: 1, locked: 2, maxed: 3 };
   const ranks = groups.map((g) => rank[g]!);
   expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
   expect(groups[0]).toBe('buyable');
-  await expect(care.locator('[data-ref="care-summary"]')).toHaveText(/\d+ kaufbar/);
+  await expect(page.locator('[data-ref="care-summary"]')).toHaveText(/\d+ kaufbar/);
   await expect(care.locator('[data-care="insect-hotel"] [data-ref="care-preview"]')).toContainText('+3 ⚖️');
 
   const order = await careIds(page);
@@ -128,23 +133,33 @@ test('Pflege: kaufbar zuerst, Reihenfolge bleibt beim Kauf stehen, Bestätigung 
   await expect(boxes).toBeFocused();
 
   // Fokus verlässt die Liste → neu sortiert (Nistkästen ist jetzt zu teuer und rutscht nach hinten).
-  await page.locator('[data-ref="guide-open"]').focus();
+  await page.locator('[data-ref="tab-care"]').focus();
   await expect.poll(async () => (await careIds(page)).indexOf('nest-boxes')).toBeGreaterThan(order.indexOf('nest-boxes'));
 });
 
-test('Pflege auf dem Handy: zugeklappt mit Zusammenfassung, aufklappbar, ohne Querscrollen', async ({ page, context }) => {
+test('Pflege auf dem Handy: Kennzahl im Kopf, Punkt am Reiter, große Knöpfe, ohne Querscrollen', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 1200, niches: { roots: ['earthworm'] } });
   await openGame(page);
+  // Punkt am Reiter schon, bevor die Seite offen ist (G-13).
+  const dot = page.locator('[data-ref="tab-care"] .tab-dot');
+  await expect(dot).toBeVisible();
+  await openTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const buy = care.locator('[data-buy-care="leaf-litter"]');
   // Kompost 200, Laub 200, Nistkästen 650, Wildblumen-Saum 900 🌰.
-  await expect(care.locator('[data-ref="care-summary"]')).toHaveText('4 kaufbar');
-  await expect(buy).toBeHidden();
-  await care.getByText('Pflege', { exact: true }).click();
+  await expect(page.locator('[data-ref="care-summary"]')).toHaveText('4 kaufbar');
   await expect(buy).toBeVisible();
   expect((await buy.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect((await care.locator('[data-care-title="leaf-litter"]').boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  // Drei Käufe (zusammen 1.050 🌰), danach reicht es für nichts mehr: Punkt weg.
+  for (const id of ['compost', 'leaf-litter', 'nest-boxes']) {
+    await care.locator(`[data-buy-care="${id}"]`).click();
+    await expect(care.locator(`[data-care="${id}"]`)).toContainText(/Rang 1\/|voll ausgebaut/);
+  }
+  await expect(page.locator('[data-ref="care-summary"]')).toHaveText('');
+  await expect(dot).toBeHidden();
 });
 
 test('Mobil: „Zur Pflege“ beim verschlossenen Waldtümpel öffnet die Pflege bei der Maßnahme', async ({ page, context }) => {
@@ -157,15 +172,15 @@ test('Mobil: „Zur Pflege“ beim verschlossenen Waldtümpel öffnet die Pflege
   await openGame(page);
   const pond = niche(page, 'pond');
   await expect(pond).toContainText('öffnet durch Pflege „Waldtümpel“');
-  // Schmal ist die Pflege zugeklappt – der Knopf am Hinweis führt hin (Playtest Amphibien).
-  const details = page.locator('[data-ref="care"] details');
-  await expect(details).not.toHaveAttribute('open', '');
+  // Der Knopf am Hinweis führt hin (Playtest Amphibien): Reiter „Pflege“, Zeile im Bild.
   await pond.getByRole('button', { name: 'Zur Pflege: Waldtümpel öffnen' }).click();
-  await expect(details).toHaveAttribute('open', '');
+  await expect(page.locator('[data-ref="tab-care"]')).toHaveAttribute('aria-selected', 'true');
   const item = page.locator('[data-ref="care"] [data-care="pond"]');
   await expect(item.locator('[data-care-title="pond"]')).toBeFocused();
   await expect(item).toBeInViewport();
   await item.locator('[data-buy-care="pond"]').click();
+  // Unsichtbare Reiter holen ihre Anzeige beim Zeigen nach (docs/ALBUM_UI.md, D.1).
+  await openTab(page, 'nischen');
   await expect(pond).toContainText('0/2 belegt');
   await expect(pond.locator('[data-ref="niche-care-link"]')).toBeHidden();
 });
@@ -176,7 +191,7 @@ test('Pflege: nach einem Mausklick wird neu sortiert, sobald die Maus die Liste 
     seeds: 2600,
     niches: { roots: ['earthworm'], edge: ['bee'] },
   });
-  await openGame(page);
+  await gotoTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const order = await careIds(page);
   const boxes = care.locator('[data-buy-care="nest-boxes"]');

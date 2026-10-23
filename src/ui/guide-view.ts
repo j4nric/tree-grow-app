@@ -197,7 +197,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       title: 'Begegnungen und Kartenwahl',
       paragraphs: [
         `An jedem Wegpunkt wartet eine Begegnung mit bis zu ${formatNumber(CARDS_PER_ENCOUNTER)} Karten: ein Tier, das einziehen möchte, oder eine Pflanze, die keimt. Die Vorschau auf jeder Karte zeigt, was sich ändert.`,
-        `Begegnungen warten ruhig im Stapel am Bildrand – höchstens ${formatNumber(MAX_PENDING_ENCOUNTERS)}. Ablehnen bringt die Samen von ${formatNumber(DECLINE_SEED_SECONDS)} Sekunden, mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰, Neu würfeln kostet ${formatNumber(REROLL_BASE_COST)} 🌰, jedes weitere Mal ×${formatNumber(REROLL_COST_GROWTH)} in derselben Begegnung.`,
+        `Begegnungen warten ruhig im Zettelstapel – höchstens ${formatNumber(MAX_PENDING_ENCOUNTERS)}. Ablehnen bringt die Samen von ${formatNumber(DECLINE_SEED_SECONDS)} Sekunden, mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰, Neu würfeln kostet ${formatNumber(REROLL_BASE_COST)} 🌰, jedes weitere Mal ×${formatNumber(REROLL_COST_GROWTH)} in derselben Begegnung.`,
       ],
     },
     {
@@ -215,7 +215,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       title: 'Lebensräume',
       paragraphs: [
         `${formatNumber(habitats.length)} Nischen wachsen nicht mit dem Baum – du legst sie als Lebensräume mit Pflege selbst an: ${all(habitatList)}. Jeder hat eigene Bewohner, die erst als Karten kommen, wenn er offen ist.`,
-        'In der Ökosystem-Übersicht steht ein verschlossener Lebensraum mit einem Hinweis. Sobald seine Pflege in der Liste steht, führt „Zur Pflege“ direkt dorthin – auf der Pflegekarte steht dann „Öffnet Lebensraum …“.',
+        'Im Reiter „Nischen“ steht ein verschlossener Lebensraum mit einem Hinweis. Sobald seine Pflege in der Liste steht, führt „Zur Pflege“ direkt dorthin – bei der Maßnahme steht dann „Öffnet Lebensraum …“.',
         'Die Plätze bleiben bis zum Neuen Zyklus. Danach legst du den Lebensraum neu an; Stammgäste, die dort wohnen, ziehen ein, sobald er wieder offen ist.',
         `${GENUS_INFO.reptiles.icon} ${GENUS_INFO.reptiles.name} – ${formatNumber(reptiles.length)} Arten – leben nur in Lebensräumen: ${all(reptileHomes)}. Sie sind wechselwarm: Im Sommer sonnen sie sich (+${formatNumber(REPTILE_SUMMER_HAPPINESS)} Prozentpunkte Zufriedenheit), im Winter halten sie Winterstarre, ganz ohne Nachteil.`,
       ],
@@ -229,7 +229,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
         `Jede Beute hat einen Bestand: knapp, gut oder reichlich. Je zufriedener sie ist, desto größer ihr Bestand – eine rundum zufriedene Art ernährt bis zu ${formatNumber(STOCK_BASE + STOCK_RANGE)} Jäger. Passendes Futter, erfüllte Wünsche, keine Störer und eine zweite Beute-Art helfen.`,
         `Leben mehr Jäger als Futter da ist, ist die Beute überjagt: Sie wird scheu und verliert bis zu ${formatNumber(Math.round(OVERHUNT_PENALTY * OVERHUNT_MAX_UNITS * 100))} Prozentpunkte Zufriedenheit. Dann hilft zufriedenere Beute oder eine weitere Art, die dasselbe Futter bietet.`,
         `Lebt Beute ganz ohne Jäger, kann ab „${stageName(Math.min(...PREDATION_EVENTS.map((e) => e.minStage)))}“ ein Massenjahr kommen – ${all(PREDATION_EVENTS.map((e) => e.name))}. Du lädst die passenden Jäger ein oder nimmst das Massenjahr als Geschenk.`,
-        'Wer wen jagt, zeigt das Nahrungsnetz in der Ökosystem-Übersicht. Bestand und Futter stehen auch an den Kacheln, auf den Karten und in den Tierdetails.',
+        'Wer wen jagt, zeigt das Nahrungsnetz im Reiter „Nischen“. Bestand und Futter stehen auch auf den Karten und auf der Seite jeder Art.',
       ],
     },
     {
@@ -289,7 +289,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
         `Mit jeder Jahreszeit beginnt ein neuer Tag, und mit ihm zieht ein neues Wetter auf – es gilt den ganzen Tag. Die Wirkungen sind klein, und kein Wetter ist nur schlecht:`,
         ...WEATHERS.map((w) => `${w.icon} ${w.name}: ${w.summary}.`),
         `Raue Lagen (${all(roughWeathers.map((w) => w.name))}) bremsen das Wachstum, bringen dafür mehr Samen. Jede Gattung mit Tieren dämpft den Abzug um ${pct(DIVERSITY_DAMPING_PER_GENUS)}, höchstens um ${pct(DIVERSITY_DAMPING_MAX)}. Die passende Pflege halbiert ihn: ${all(protections)}.${immune.length > 0 ? ` ${all(immune)}.` : ''}`,
-        `Zwei raue Tage folgen nie aufeinander, und in den ersten ${formatNumber(GENTLE_DAYS)} Tagen eines Zyklus bleibt es ruhig. Das Abzeichen neben der Jahreszeit zeigt das Wetter von heute – antippen verrät, was den Abzug dämpft, und das Wetter von morgen. Warten lohnt sich nicht: Nichts wird billiger oder teurer.`,
+        `Zwei raue Tage folgen nie aufeinander, und in den ersten ${formatNumber(GENTLE_DAYS)} Tagen eines Zyklus bleibt es ruhig. Das Wetter neben der Jahreszeit unter dem Bild zeigt das Wetter von heute – antippen verrät, was den Abzug dämpft, und das Wetter von morgen. Warten lohnt sich nicht: Nichts wird billiger oder teurer.`,
       ],
     },
     {
@@ -298,7 +298,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       title: 'Tag, Nacht und Nachtarten',
       paragraphs: [
         `Jede Jahreszeit erlebt einen ganzen Tag mit Morgen, Abend und Nacht; die Hälfte der Spielzeit ist Nacht. Nachts werden ${formatNumber(NOCTURNAL.length)} Arten aktiv: ${all(nocturnal)}.${restingNames.length > 0 ? ` ${all(restingNames)} ruhen im Winter.` : ''}`,
-        'Ohne Nachtarten bleibt die Nacht ohne Wirkung – du verpasst nichts, wenn du nachts nicht spielst. Solange ein Nachtbonus wirkt, leuchtet ein 🌙 an der Kachel der Art und an der Rate.',
+        'Ohne Nachtarten bleibt die Nacht ohne Wirkung – du verpasst nichts, wenn du nachts nicht spielst. Solange ein Nachtbonus wirkt, leuchtet ein 🌙 am Sticker der Art und am Etikett der Rate.',
         `Bist du länger als ein paar Minuten weg (ab ${formatNumber(OFFLINE_AVERAGE_MIN_SECONDS / 60)} Minuten), rechnet das Spiel mit dem Mittel aus Wetter und Nacht; die Begrüßung sagt dann „Wetter gemittelt“. Die Einstellung „Tageszeit: Immer Tag“ ändert nur das Bild – Nacht und Wetter wirken weiter.`,
       ],
     },
@@ -345,7 +345,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       icon: '🏅',
       title: 'Erfolge',
       paragraphs: [
-        `${formatNumber(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, options.landscape === true)).length)} leise Erfolge begleiten dich durch das ganze Spiel: Stufen, Einträge im Naturtagebuch, Harmonie, Gäste, Zyklen und Spielzeit. Du findest sie im Naturtagebuch im Reiter „Erfolge“ – offene mit ihrem Fortschritt.`,
+        `${formatNumber(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, options.landscape === true)).length)} leise Erfolge begleiten dich durch das ganze Spiel: Stufen, Einträge im Naturtagebuch, Harmonie, Gäste, Zyklen und Spielzeit. Du findest sie im Reiter „Ziele“ unter „Erfolge“ – offene mit ihrem Fortschritt.`,
         'Es gibt keine Eile: Erfolge haben keine Zeitlimits, bringen keine Belohnung in Zahlen und gehen nie verloren, auch nicht beim Neuen Zyklus. Sie kommen ganz von selbst, Schritt für Schritt.',
       ],
     },
@@ -387,7 +387,7 @@ function landscapeSection(unlocked: boolean): GuideSection {
     icon: '🪶',
     title: 'Waldlandschaft und Hähersaat',
     paragraphs: [
-      `Nach deinem ersten ${ancient} und ab ${formatNumber(LANDSCAPE_UNLOCK_MEMORY)} Waldgedächtnis im ${home?.name ?? 'Heimatwald'} öffnet sich bei „Neuer Zyklus“ die Karte der Landschaft: Um deinen ${home?.name ?? 'Heimatwald'} liegen ${formatNumber(others.length)} weitere Standorte – ${all(others.map((s) => `${s.icon} ${s.name}`))}. Jeder ist ein eigener Wald mit eigenem Waldgedächtnis (höchstens ${formatNumber(MAX_FOREST_MEMORY)}), eigenen Stammgästen und einem Waldtyp.`,
+      `Nach deinem ersten ${ancient} und ab ${formatNumber(LANDSCAPE_UNLOCK_MEMORY)} Waldgedächtnis im ${home?.name ?? 'Heimatwald'} öffnet sich der Reiter „Landschaft“ mit der Karte: Um deinen ${home?.name ?? 'Heimatwald'} liegen ${formatNumber(others.length)} weitere Standorte – ${all(others.map((s) => `${s.icon} ${s.name}`))}. Jeder ist ein eigener Wald mit eigenem Waldgedächtnis (höchstens ${formatNumber(MAX_FOREST_MEMORY)}), eigenen Stammgästen und einem Waldtyp.`,
       `🪶 Hähersaat verdienst du, statt sie zu sammeln: ${formatNumber(1)} je volle ${formatNumber(JAY_SEEDS_MEMORY_STEP)} Punkte eigenes Waldgedächtnis eines Waldes und ${formatNumber(JAY_SEEDS_FIRST_ANCIENT)} für den ersten ${ancient} dort. Einen neuen Wald gründest du nur aus dem ${ancient} und nur gleich neben dem Wald, in dem du gerade wächst. Er kostet ${all(FOUNDING_COSTS.map((c) => formatNumber(c)))} 🪶 (der 2. bis ${formatNumber(FOUNDING_COSTS.length + 1)}. Wald); der Korridor dorthin entsteht gratis.`,
       `Wechseln kannst du ab der Stufe „${cycleStage}“: Der Gewinn des Zyklus geht noch an den alten Wald, danach gelten Gedächtnis, Stammgäste und Eigenheit des neuen. Nichts geht verloren – ein Wald, den du verlässt, ruht und wartet auf dich.`,
       `Jeder Waldtyp hat eine Eigenheit mit Gewinn und Verzicht, die nur dort wirkt, und eine Gabe, die in allen Wäldern gilt, sobald er gegründet ist. Die Karte zeigt beides.`,

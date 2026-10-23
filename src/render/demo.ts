@@ -40,15 +40,19 @@
  *  site     Standort der Waldlandschaft: home, floodplain, carr, beechwood, mountain, heath
  *           (ohne Angabe: Heimatwald wie bisher); Auswahl auch im Menü
  *  jay      Häherflug bei dieser Sekunde (mit t für feste Bilder); Knopf „Häherflug“ spielt ihn ab
+ *  stickers 1 = Sticker-Tafel des Albums: alle Arten und Gäste farbig, matt und als
+ *           Silhouette (ss = Größe in px, Standard 64; guide=1 zeigt die 80-%-Fläche)
  */
 
 import { animalKinds, SpriteCache } from './animals';
 import { layoutFlora, LOW_SIZE, PLANT_SPECIES, type PlacedPlant } from './flora';
 import { paintPlant } from './flora-paint';
 import { RENDER_TREE_SPECIES } from './plant';
+import { showStickerSheet } from './sticker-demo';
 import { normalizeWeather } from './weather';
 import { drawScene, siteParam, type SceneAnimal, type ScenePlant, type SceneVisitor, type TreeSpecies } from './tree';
 import { VISITOR_DEFS } from './visitor-sprites';
+import { VISITOR_IDS } from './visitors';
 
 type Fam = SceneAnimal['family'];
 
@@ -545,7 +549,13 @@ function frame(now: number): void {
   growthValue.textContent = g.toFixed(2);
   requestAnimationFrame(frame);
 }
-if (gallery) {
+if (params.get('stickers') === '1') {
+  const entries: [string, Fam | undefined][] = [
+    ...Object.values(BY_NICHE).flatMap((list) => list.map(([id, family]): [string, Fam] => [id, family])),
+    ...VISITOR_IDS.map((id): [string, undefined] => [id, undefined]),
+  ];
+  showStickerSheet(entries, params);
+} else if (gallery) {
   document.querySelector('#controls')!.classList.add('hidden');
   drawGallery();
 } else {

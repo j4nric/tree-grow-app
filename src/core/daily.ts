@@ -340,7 +340,8 @@ export function generateDailyGoals(state: GameState, day: string): DailyGoal[] {
  * (Zielwert und Parameter wie bei der Auswahl); Wachstum und Samen behalten ihren Anteil,
  * Harmonie halten die gesammelten Sekunden, Zählziele ihren Stand, Zustände (Beobachten,
  * Zufriedenheit) beginnen bei 0. Passt eine Art nicht mehr, tritt eine andere, jetzt
- * schaffbare an ihre Stelle (Belohnung bleibt). Erfüllte Ziele bleiben unverändert.
+ * schaffbare an ihre Stelle (Belohnung bleibt); alle Ziele bleiben verschiedene Arten (ein
+ * doppeltes aus älteren Ständen wird ersetzt). Erfüllte Ziele bleiben unverändert.
  * Zufall aus Startwert, Tag und Zyklusnummer – deterministisch. Ruft startNewCycle auf.
  */
 export function refreshDailyAfterNewCycle(state: GameState): void {
@@ -358,15 +359,17 @@ export function refreshDailyAfterNewCycle(state: GameState): void {
     plantsPlanned: 0,
   };
   const groupOf = (kind: DailyGoalKind) => DAILY_GOALS_BY_KIND.get(kind)?.group;
-  daily.goals = daily.goals.map((old, i) => {
+  /** Ein Ziel neu berechnen; `others`: die übrigen Ziele, gegen die es verschieden sein muss. */
+  const refreshGoal = (old: DailyGoal, others: readonly DailyGoal[]): DailyGoal => {
     if (old.done) return old;
-    const others = daily.goals.filter((_, j) => j !== i);
     const clash = (t: DailyGoalTemplate) => {
       const g = t.group;
       return !!g && others.some((o) => (groupOf(o.kind) ?? g) !== g);
     };
     const own = DAILY_GOALS_BY_KIND.get(old.kind)!;
-    const same = own.minStage <= state.stage ? propose(own, ctx, rng) : null;
+    // Eine schon vergebene Art (doppeltes Ziel aus einem Stand vor der Korrektur) wird ersetzt.
+    const taken = others.some((o) => o.kind === old.kind);
+    const same = !taken && own.minStage <= state.stage ? propose(own, ctx, rng) : null;
     let next: DailyGoal;
     if (same) {
       next = { ...same.goal, reward: old.reward };
@@ -394,7 +397,14 @@ export function refreshDailyAfterNewCycle(state: GameState): void {
       ctx.plantsPlanned += c.plants;
     }
     return next;
-  });
+  };
+  // Neue Liste schrittweise aufbauen: Ersatz-Kandidaten werden gegen die schon gewählten
+  // neuen Ziele (davor) und die alten Ziele (danach) geprüft – sonst zögen zwei ersetzte
+  // Ziele dieselbe Art (Playtest Schritt 14, M1).
+  const before = daily.goals;
+  const chosen: DailyGoal[] = [];
+  for (let i = 0; i < before.length; i++) chosen.push(refreshGoal(before[i]!, [...chosen, ...before.slice(i + 1)]));
+  daily.goals = chosen;
 }
 
 // ---------------------------------------------------------------------------

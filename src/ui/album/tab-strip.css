@@ -1,0 +1,192 @@
+/*
+ * Reiter (tab-strip.ts): mobil waagerecht über der Heftseite (aktiv = Papierfarbe, klebt
+ * oben), auf der Doppelseite senkrecht am rechten Buchrand (aktiv = Washi-Gelb, 6 px breiter).
+ */
+
+.tab-strip {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  position: relative;
+  flex: none;
+  min-height: var(--tap);
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-tab);
+  color: var(--ink);
+  font-family: var(--font-hand) !important;
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab[hidden] {
+  display: none;
+}
+
+.tab-niches {
+  background: var(--tab-niches);
+}
+.tab-species {
+  background: var(--tab-species);
+}
+.tab-care {
+  background: var(--tab-care);
+}
+.tab-goals {
+  background: var(--tab-goals);
+}
+.tab-landscape {
+  background: var(--tab-landscape);
+}
+
+.tab:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: -3px;
+}
+
+/* Punkt: hier gibt es etwas (Pflege kaufbar, Neuer Zyklus möglich) */
+.tab-dot {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-red);
+}
+
+.tab-dot[hidden] {
+  display: none;
+}
+
+/* Neu erschienen (Landschaft freigeschaltet): kurz eingeklebt */
+.tab-new {
+  animation: tab-stick-in 0.5s var(--turn-ease);
+}
+
+@keyframes tab-stick-in {
+  from {
+    opacity: 0;
+    transform: scale(1.25) rotate(-4deg);
+  }
+}
+
+body[data-motion='reduce'] .tab-new {
+  animation: album-tab-fade 0.3s ease-out;
+}
+
+/* ---------- mobil: waagerecht ---------- */
+
+.album[data-layout='single'] .tab-strip {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 6px 0 0 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--card);
+}
+
+.album[data-layout='single'] .tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.album[data-layout='single'] .tab[aria-selected='true'] {
+  background: var(--paper);
+}
+
+@media (max-width: 380px) {
+  .album[data-layout='single'] .tab {
+    padding: 0 10px;
+  }
+}
+
+/*
+ * Zu schmal für alle Reiter (tab-strip.ts, `data-fit`): erst enger und kleiner, dann Symbole
+ * statt Namen (der gewählte Reiter behält seinen Namen, notfalls kleiner), zuletzt nur Symbole. Der Name bleibt
+ * als Text im Knopf (zugänglicher Name); das Symbol kommt aus `data-icon` und wird nicht
+ * vorgelesen (Alternativtext "").
+ */
+.tab-strip[data-fit] .tab {
+  padding: 0 8px;
+  font-size: 19px;
+}
+
+.album[data-layout='single'] .tab-strip[data-fit] {
+  gap: 3px;
+  padding-left: 4px;
+}
+
+/* Gewählter Reiter mit Namen neben den Symbolen: etwas kleiner, damit er daneben passt. */
+.tab-strip[data-fit='icons'] .tab[aria-selected='true'] {
+  font-size: 17px;
+}
+
+.tab-strip[data-fit='icons-small'] .tab[aria-selected='true'] {
+  padding: 0 6px;
+  font-size: 14px;
+}
+
+.tab-strip[data-fit^='icons'] .tab:not([aria-selected='true']),
+.tab-strip[data-fit='icons-only'] .tab {
+  min-width: var(--tap);
+  padding: 0 6px;
+}
+
+.tab-strip[data-fit^='icons'] .tab:not([aria-selected='true']) .tab-label,
+.tab-strip[data-fit='icons-only'] .tab .tab-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.tab-strip[data-fit^='icons'] .tab:not([aria-selected='true'])::before,
+.tab-strip[data-fit='icons-only'] .tab::before {
+  /* Rückfall für Browser ohne Alternativtext-Syntax (Safari < 17.4, Firefox < 128). */
+  content: attr(data-icon);
+  content: attr(data-icon) / '';
+  font-family: var(--font-text);
+  font-size: 20px;
+}
+
+/* ---------- Doppelseite: senkrecht am rechten Buchrand ---------- */
+
+.album[data-layout='spread'] .tab-strip {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+  position: relative;
+  z-index: 6;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 30px;
+  margin-right: -56px;
+}
+
+.album[data-layout='spread'] .tab {
+  width: 50px;
+  min-height: 84px;
+  padding: 10px 0;
+  border-radius: 0 12px 12px 0;
+  font-size: 20px;
+  writing-mode: vertical-rl;
+}
+
+.album[data-layout='spread'] .tab[aria-selected='true'] {
+  width: 56px;
+  background: var(--tape);
+}
+
+.album[data-layout='spread'] .tab-dot {
+  top: 6px;
+  right: 6px;
+}

@@ -1,13 +1,13 @@
 import type { Locator, Page } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, type GameState } from '../src/core/state';
-import { expect, openGame, overlaps, seedRaw, test, waypoint } from './fixtures';
+import { expect, openGame, overlaps, pageTitle, seedRaw, stamp, stamps, subpage, test, waypoint } from './fixtures';
 
 /**
- * Rückkehr-Bericht (Playtest Phase 6): Nach 3 Std. Abwesenheit steht mobil nur die
- * Kurzfassung im Toast (oben fest, darf nur kurz sein), alles Weitere in der schließbaren
- * Karte „Rückkehr-Bericht“ oben in der Seitenleiste – per Tastatur und Touch erreichbar.
- * Am Desktop zeigt der Toast weiter die ganze Meldung (unten in der Szene, stört nicht).
+ * Rückkehr-Bericht (Playtest Phase 6, Album: docs/ALBUM_UI.md C.8): Nach 3 Std. Abwesenheit
+ * steht nur die Kurzfassung in der Meldung (höchstens drei Zeilen – Desktop wie mobil) und im
+ * Zettel „Während du weg warst …“ auf der linken Seite; „Details ›“ blättert zur Unterseite
+ * mit allen Punkten, „Abheften“ blendet den Zettel aus – per Tastatur und Touch erreichbar.
  */
 
 const GROVE = STAGES.findIndex((s) => s.id === 'grove');
@@ -26,8 +26,10 @@ function grove(): GameState {
 }
 
 const report = (page: Page) => page.locator('[data-ref="return-report"]');
+const reportPage = (page: Page) => subpage(page, 'return-report');
 const detailsButton = (page: Page) => page.locator('[data-ref="return-report-details"]');
 const list = (page: Page) => page.locator('[data-ref="return-report-list"]');
+const fileButton = (page: Page) => report(page).locator('[data-ref="return-report-close"]');
 
 async function expectNotCovered(toast: Locator, controls: Record<string, Locator>): Promise<void> {
   const box = (await toast.boundingBox())!;
@@ -58,8 +60,6 @@ for (const viewport of [
   { name: 'schmal, DejaVu Sans 110 %', width: 360, height: 740, font: 'DejaVu Sans', scale: 1.1 },
   { name: 'Desktop', width: 1280, height: 800 },
 ]) {
-  const narrow = viewport.width <= 760;
-
   test(`Rückkehr nach 3 Std. (${viewport.name}): Kurzfassung, Details erreichbar, nichts verdeckt`, async ({ page, context }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await seedRaw(context, grove(), -3 * 3600_000);
@@ -69,66 +69,105 @@ for (const viewport of [
       await page.addStyleTag({ content: `:root, body, button { font-family: '${viewport.font}', sans-serif !important; }` });
     }
 
-    const toast = page.locator('#toast');
+    const toast = stamp(page);
     await expect(toast).toContainText('Willkommen zurück!');
-    await expect(toast).toHaveAttribute('role', 'status');
+    await expect(stamps(page)).toHaveAttribute('role', 'status');
     const summary = await page.locator('[data-ref="return-report-summary"]').textContent();
     expect(summary).toMatch(/^Willkommen zurück! 3 Std\.: \+[\d.]+ 🌿/);
-    if (narrow) {
-      // Mobil: nur die Kurzfassung – eine flache Leiste statt eines hohen Blocks.
-      await expect(toast).toHaveText(`${summary} · mehr im Rückkehr-Bericht`);
-      await expect(toast).not.toContainText('Wetter gemittelt');
-      // Höchstens drei Zeilen, unabhängig von Schrift und Größe (CSS line-clamp).
-      expect(await lineCount(toast)).toBeLessThanOrEqual(3);
-    } else {
-      // Desktop: weiter die ganze Meldung.
-      await expect(toast).toContainText(/Wetter gemittelt( \(.+\))?\./);
-    }
+    // Der Zettel zeigt die Kurzfassung – der Stempel grüßt nur (Playtest Schritt 14, S4), kein
+    // doppelter Text. Screenreader hören die Kurzfassung trotzdem (unsichtbarer Rest im Stempel).
+    await expect(toast.locator('.stamp-text')).toHaveText(/^Willkommen zurück! 3 Std\./);
+    // Sichtbar (ohne den Teil nur für Screenreader) steht nur der Gruß.
+    const visible = await toast.locator('.stamp-text').evaluate((n) =>
+      [...n.childNodes].filter((c) => !(c instanceof Element && c.classList.contains('sr-only'))).map((c) => c.textContent).join('').trim(),
+    );
+    expect(visible).toBe('Willkommen zurück! 3 Std.');
+    // Einzeilig (früher bis zu drei Zeilen, mobil mit abgeschnittenem „mehr im…“).
+    expect(await lineCount(toast.locator('.stamp-text'))).toBe(1);
+    await expect(toast).toContainText(summary!.replace('Willkommen zurück! 3 Std.: ', ''));
+    await expect(toast).toContainText('Mehr im Rückkehr-Bericht.');
+    await expect(toast).not.toContainText('Wetter gemittelt');
+    // Höchstens drei Zeilen, unabhängig von Schrift und Größe (CSS line-clamp).
+    expect(await lineCount(toast.locator('.stamp-text'))).toBeLessThanOrEqual(3);
 
-    // Keine Überdeckung der Bedienelemente (zusätzlich zur Toast-Platzierung: auch die Karte).
+    // Keine Überdeckung der Bedienelemente (auch nicht der Karte). Die Kamera-Knöpfe ziehen
+    // in Schritt 3 ins Vollbild – der Zettel lässt Klicks ohnehin durch (smoke.spec.ts).
     await expect(page.locator('[data-ref="encounter-stack"]')).toBeVisible();
     await expectNotCovered(toast, {
-      'Kamera-Knöpfe': page.locator('.scene-camera-button'),
       Stapel: page.locator('[data-ref="encounter-stack"]'),
-      Raten: page.locator('.eco-stat'),
+      Raten: page.locator('.tape-label'),
       Bericht: report(page).getByRole('button'),
     });
 
-    // Karte gleich zu sehen (mobil direkt unter der Szene), Knöpfe groß genug für Touch.
+    // Zettel gleich zu sehen (mobil unter den Etiketten, Desktop auf der linken Seite),
+    // Knöpfe groß genug für Touch.
     await expect(report(page)).toBeVisible();
+    await expect(report(page)).toContainText('Während du weg warst');
     await expect(detailsButton(page)).toBeInViewport();
     for (const button of await report(page).getByRole('button').all()) {
       const b = (await button.boundingBox())!;
       expect(b.width).toBeGreaterThanOrEqual(44);
       expect(b.height).toBeGreaterThanOrEqual(44);
     }
-    await expect(list(page)).toBeHidden();
+    await expect(reportPage(page)).toBeHidden();
 
-    // Tastatur: Details öffnen → Fokus auf der Liste, alles einsehbar; Escape klappt zu.
+    // Tastatur: „Details ›“ blättert zur Unterseite, Fokus auf ihrer Überschrift, alles einsehbar.
     await detailsButton(page).focus();
     await page.keyboard.press('Enter');
-    await expect(detailsButton(page)).toHaveAttribute('aria-expanded', 'true');
+    await expect(reportPage(page)).toBeVisible();
+    await expect(reportPage(page)).not.toHaveAttribute('inert', '');
+    await expect(reportPage(page).getByRole('heading', { name: 'Rückkehr-Bericht' })).toBeFocused();
+    // Auf dem Bericht selbst kein Willkommens-Stempel mehr („mehr im Rückkehr-Bericht“ wäre dort doppelt).
+    await expect(page.locator('[data-ref="stamp"]', { hasText: 'Willkommen zurück' })).toHaveCount(0);
     await expect(list(page)).toBeVisible();
-    await expect(list(page)).toBeFocused();
     await expect(list(page)).toContainText('Willkommen zurück! In 3 Std.');
     await expect(list(page)).toContainText(/Wetter gemittelt( \(.+\))?\./);
     await expect(list(page)).toContainText(/Begegnungen? warte/);
     await expect(list(page)).toContainText('neue Erfolge');
+    expect(await reportPage(page).evaluate((p) => p.scrollWidth - p.clientWidth)).toBeLessThanOrEqual(0);
+    // Escape blättert zurück, der Fokus geht an „Details ›“.
     await page.keyboard.press('Escape');
-    await expect(list(page)).toBeHidden();
+    await expect(reportPage(page)).toBeHidden();
     await expect(detailsButton(page)).toBeFocused();
+    await expect(report(page)).toBeVisible();
 
-    // Zeiger/Touch: erneut öffnen, dann schließen – Fokus geht an die Überschrift.
+    // Zeiger/Touch: Unterseite erneut, dort „Abheften“ – zurück, der Zettel ist weg.
     await detailsButton(page).click();
-    await expect(list(page)).toBeVisible();
-    await page.getByRole('button', { name: 'Rückkehr-Bericht schließen' }).click();
+    await expect(reportPage(page)).not.toHaveAttribute('inert', '');
+    await reportPage(page).getByRole('button', { name: 'Abheften' }).click();
+    await expect(reportPage(page)).toBeHidden();
     await expect(report(page)).toBeHidden();
-    await expect(page.locator('.panel h1')).toBeFocused();
+    await expect(pageTitle(page)).toBeFocused();
 
     // Nichts scrollt quer.
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
 }
+
+test('Abheften direkt am Zettel: Fokus an die Überschrift der Seite', async ({ page, context }) => {
+  await seedRaw(context, grove(), -3 * 3600_000);
+  await openGame(page);
+  await expect(report(page)).toBeVisible();
+  await expect(fileButton(page)).toHaveText('Abheften');
+  await fileButton(page).focus();
+  await page.keyboard.press('Enter');
+  await expect(report(page)).toBeHidden();
+  await expect(pageTitle(page)).toBeFocused();
+});
+
+test('Desktop 1200 × 700: linke Seite mit Rückkehr-Zettel passt ohne Scrollen, Polaroid ganz zu sehen', async ({ page, context }) => {
+  await page.setViewportSize({ width: 1200, height: 700 });
+  await seedRaw(context, grove(), -3 * 3600_000);
+  await openGame(page);
+  await expect(report(page)).toBeVisible();
+  const left = page.locator('.spread-left');
+  await expect.poll(() => left.evaluate((l) => l.scrollHeight - l.clientHeight)).toBeLessThanOrEqual(1);
+  expect(await left.evaluate((l) => l.scrollTop)).toBe(0);
+  const page_ = (await left.boundingBox())!;
+  const polaroid = (await page.locator('[data-ref="polaroid"]').boundingBox())!;
+  expect(polaroid.y).toBeGreaterThanOrEqual(page_.y);
+  await expect(page.locator('[data-ref="return-report-details"]')).toBeInViewport({ ratio: 1 });
+});
 
 test('ohne Abwesenheit kein Rückkehr-Bericht', async ({ page, context }) => {
   await seedRaw(context, grove(), 0);

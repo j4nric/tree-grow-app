@@ -1,9 +1,9 @@
 /**
- * View-Model der Karte der Landschaft im Bereich „Neuer Zyklus“ (DESIGN_V2.md 24.5, 24.6).
+ * View-Model der Karte der Landschaft (Reiter „Landschaft“, U:Standort, U:Neuer Zyklus; DESIGN_V2.md 24.5, 24.6).
  * Reine Funktionen ohne DOM – getestet in tests/landscape-view.test.ts. Alle Regeln (was
  * wählbar ist, was es kostet) kommen aus core/ (`previewNewCycle(state).landscape`,
  * `landscapeCorridors`); hier stehen nur Texte, Symbole und Reihenfolge. Die Komponente dazu
- * steht in landscape-map.ts.
+ * steht in album/landscape-map.ts.
  */
 import {
   CORRIDORS_BY_ID,

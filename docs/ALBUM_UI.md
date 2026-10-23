@@ -187,7 +187,7 @@ Spalte „heute“: Datei und, falls vorhanden, `data-ref`.
 | 67 | Stapel: Zahl, Symbol der vordersten Begegnung (`stackIcon`), öffnet auf Wunsch, schwebt mobil | encounter-stack.ts | Z | **Zettelstapel** „2 Zettel: Besuch wartet!“ (Text aus `waitingText`, Symbol bleibt). Neue Zettel wackeln. `data-ref="encounter-stack"` bleibt. |
 | 68 | Dialog „Kartenwahl“: Art, Titel, Untertitel, großes Symbol und Eckdaten (Ereignis/Gast), Warteschlange mit Pips | encounter-dialog.ts | U:Begegnung | Unterseite mit Zettel-Optik im Kopf |
 | 69 | Tierkarte: Gattungsband, Seltenheit, Name, Nische, Vorschau-Chips, Bedingungen, Wirkungen, Gemeinschafts-Hinweise (`card-communities`), Hinweis (`card-note`), Wildwechsel-Zeile (1c) | encounter-dialog.ts | U:Begegnung | Karten als „Polaroid-Kärtchen“ mit Sticker; Knopf „Einkleben“ statt „Wählen“ (Text aus dem View-Model) |
-| 70 | Ersetzen bei voller Nische („Wen entlassen?“, bevorzugte Option, Sperrgrund) | encounter-dialog.ts | U:Begegnung | unverändert in der Karte |
+| 70 | Ersetzen bei voller Nische („Wer zieht weiter?“, bevorzugte Option, Sperrgrund) | encounter-dialog.ts | U:Begegnung | unverändert in der Karte |
 | 71 | Pflanzenbegegnung („Etwas keimt …“) mit eigenen Fehlertexten | adapters.ts, main.ts | U:Begegnung | gleiche Seite |
 | 72 | Ereignis mit Optionen | `toEventView` | U:Begegnung | Optionen als Karten |
 | 73 | Durchreisender Gast: bewirten / ziehen lassen | `toVisitorView` | U:Begegnung | zwei Karten |
@@ -327,7 +327,9 @@ als Ganzes:
 ```
 
 - Sobald die Etiketten aus dem Bild scrollen, erscheint über den Reitern eine schmale
-  **Vorratsleiste** mit Samen, Wachstum und Harmonie in Caveat 20 px (G-21).
+  **Vorratsleiste** mit Samen, Wachstum und Harmonie in Caveat 20 px (G-21). Umgesetzt in
+  `album/supply-bar.ts`: Sie erscheint, sobald die Reiterleiste klebt (Marke direkt über den
+  Reitern), und verschiebt nichts im Textfluss. U:Pflegemaßnahme zeigt den Vorrat am Knopf.
 - **Unterseiten auf dem Handy:** Wie im Prototyp dreht sich die **ganze Hauptseite**
   (Polaroid, Etiketten, Heft) um die linke Kante weg, darunter liegt die Unterseite in voller
   Höhe. Der Zettelstapel und die Stempel bleiben darüber.
@@ -378,7 +380,8 @@ Unterseiten:
 - **U:Tier:** Lesezeichen „‹ Nischen“; Kopf mit großem Sticker, Name, Gattung · Nische,
   Seltenheits-Pille, Zufriedenheit; „Was er braucht“; „Was er bewirkt“; „Räuber und Beute“
   (Link „Nahrungsnetz ›“, das ist Ebene 2); „Lebensgemeinschaften“; Stammgast ★; Notiz zur Art.
-  „Zuerst gesehen“ entfällt vorerst (G-12).
+  „Zuerst gesehen“ kommt seit v15 aus `meta.journal.firstSeen` und steht nur da, wenn der Stand
+  den Wert kennt (G-12 ist damit erledigt).
 - **U:Harmonie:** Zusammensetzung, Lebensgemeinschaften live, Erklärung der Harmoniestufen.
 - **U:Nahrungsnetz:** wie heute, als Liste mit kleinen Stickern für die Jäger.
 - **U:Pflanze setzen:** Samenzeile und Liste der Pflanzen mit „Setzen“.
@@ -402,6 +405,14 @@ Abstand. Gattungen und Pflanzring stehen nebeneinander, wenn die Seite breiter a
 **Skizze mobil:** Raster mit 5 Spalten à 56 px, darunter der Name zweizeilig mit Silbentrennung.
 
 **Skizze Desktop:** Raster mit 7 Spalten, die Abschnitte stehen untereinander.
+
+**Umgesetzt (Schritt 7):** Der ★-Knopf sitzt oben links am Sticker (26 px, Trefferfläche
+40 px), die Stammgast-Wahl mit voller Knopfgröße steht auf U:Tier. Unentdeckte Tiere zeigen
+die Silhouette auf blassem Gattungsgrund mit Seltenheitsrand, unentdeckte Pflanzen ihr
+Gruppen-Emoji als dunklen Schatten. Die Haftnotiz einer Silhouette nennt Gattung, Seltenheit,
+Nische und die Stufe bzw. „besondere Bedingungen“, nie Namen oder ID. Die echte ID für das Bild
+bleibt im Skript. Zeichnen: siehe ROADMAP Phase 8, Schritt 7 (IntersectionObserver, IdleQueue,
+Messwerte).
 
 ### B.3 Reiter „Pflege“ – „Was tun wir für den Wald?“ · „2 kaufbar“
 
@@ -431,6 +442,16 @@ Ein Punkt am Reiter zeigt, wenn ein Neuer Zyklus möglich ist (G-13).
 **Skizze mobil und Desktop:** Karten untereinander. Die Tagesziele bekommen einen blauen
 Washi-Kopf in der Reiterfarbe.
 
+**Umgesetzt (Schritt 9):** Kennzahl im Kopf ist die Serie („🌞 4 Tage“), ohne Serie der Zyklus.
+Die Kurzkarte ist gestrichelt, solange der Zyklus gesperrt ist („Mehr dazu ›“), und bekommt
+einen „bereit!“-Stempel, sobald er möglich ist („Vorbereiten ›“). Die Baumwahl zeigt alle
+sichtbaren Hauptbäume (`isTreeVisible`) als Samentütchen mit Symbol-Sticker (der Renderer hat
+keine Baum-Sticker); gesperrte mit 🔒 und Hinweis. Stammgäste tragen den Tier-Sticker. Nach dem
+Start blättert die Seite zurück zu „Ziele“. `data-ref`: `daily`, `cycle-card`, `cycle-open`,
+`achievements-open`, `stats-open`; auf U:Neuer Zyklus wie bisher `new-cycle`, `tree-choice`,
+`regulars`, `forest-memory`, `cycle-gain`, `cycle-blocker`, `memory-rule`, `main-tree`, neu
+`cycle-sub`, `cycle-target`.
+
 ### B.5 Reiter „Landschaft“ – „Unsere Wälder“ · „🪶 3 Hähersaat“
 
 1. Frage, Hähersaat und Wildwechsel-Chance.
@@ -444,6 +465,22 @@ Washi-Kopf in der Reiterfarbe.
 Standort-Knöpfe sind mindestens 44 px groß.
 
 **Skizze Desktop:** Die Karte ist 100 % breit, Korridore und Wälder stehen darunter.
+
+**Umgesetzt (Schritt 10):** Kennzahl im Kopf „🪶 3 Hähersaat“. Die Karte ist auf der Einzelseite
+höher als 4 : 3 (1 : 1,2, mindestens 360 px): Bei 360 px Breite, 125 % Schrift oder breiterer
+Schrift (DejaVu Sans) überlappen sich die Standort-Knöpfe (≥ 44 px, mit Name und Zustand) sonst;
+auf der Doppelseite 4 : 3. Ein Tipp auf einen Standort blättert zu U:Standort; dort wählt
+„Als Ziel wählen“ den Wald (gedrückt = Ziel, erneut tippen = doch hier bleiben, mit Live-Ansage)
+und „Neuer Zyklus ›“ springt zu U:Neuer Zyklus. Abschnitt 5 heißt „Tagebuch der Wälder“ (die
+Seite selbst heißt schon „Unsere Wälder“); jeder Wald darin blättert ebenfalls zu U:Standort.
+U:Neuer Zyklus verlinkt den Ziel-Wald („Auwald am Fluss ansehen ›“, U:Standort auf Ebene 2).
+Reiterwechsel mit Unterseite über `PageEnv.goto(tab, page)`. `data-ref`: `landscape`,
+`jay-seeds`, `wildwechsel-chance`, `landscape-map`, `data-site`, `landscape-target`,
+`landscape-cycle-open`, `corridors`, `data-build`, `corridor-wildwechsel`, `landscape-diary`,
+`landscape-summary`, `landscape-jay-seeds`, `data-forest`, `forest-open`; auf U:Standort
+`site-detail`, `site-status`, `site-memory`, `site-blocker`, `site-choose`, `site-choice-hint`,
+`site-cycle-open`, `site-diary`, `landscape-live` (Seite mit `data-site-id`); auf U:Neuer Zyklus
+`cycle-site-open`.
 
 ### B.6 Unterseiten-Übersicht
 
@@ -546,6 +583,12 @@ function navigate(nav: AlbumNav, action: NavAction, ctx: { landscapeUnlocked: bo
   schließt die **Android-Zurück-Taste** die Unterseite, statt die App zu verlassen (G-6). Ein
   Zurück-Knopf in der Oberfläche ruft `history.back()` auf, damit Verlauf und Stapel nie
   auseinanderlaufen. Haftnotizen bekommen keinen Verlaufseintrag.
+- **Neuladen auf einer Unterseite (Schritt 12):** Der Eintrag trägt noch `album = n`; darunter
+  liegen die Einträge der alten Ebenen. Das Album spult beim Start mit `history.go(-n)` auf den
+  Grundeintrag zurück und setzt dort den Hash des Reiters, mit dem neu geladen wurde (nur, wenn
+  der Verlauf mindestens so lang ist – sonst wie bisher nur `album = 0`). Zeigt ein älterer
+  Eintrag einen Hash, der nicht mehr zum gezeigten Reiter passt (z. B. `#landschaft` nach dem
+  Sperren der Landschaft), ersetzt das Album ihn beim `hashchange`.
 - **Wischen:** Auf einer Unterseite gilt ein waagerechter Wisch nach rechts als „Zurück“:
   mindestens 60 px weit, waagerecht mindestens doppelt so weit wie senkrecht, oder schneller
   als 0,5 px/ms. Die Seite folgt dem Finger dabei leicht (rotateY bis −20°) und schnappt
@@ -553,6 +596,24 @@ function navigate(nav: AlbumNav, action: NavAction, ctx: { landscapeUnlocked: bo
   Begegnung, waagerecht scrollende Reihen, Eingabefelder, Landschaftskarte) und das Canvas.
   Auf Reiterseiten gibt es **keine** Wischgeste zum Reiterwechsel (das verhindert
   Fehlbedienung beim Scrollen).
+  **Umsetzung (13a, `album/swipe.ts`):**
+  - Die Richtung steht nach 10 px fest; senkrecht oder nach links ist die Geste für diesen
+    Kontakt aus. Das Verhältnis 2 : 1 gilt immer, die Bedingungen „60 px“ und „> 0,5 px/ms“
+    (Tempo über die letzten 100 ms, dazu mindestens 20 px) sind die beiden Alternativen.
+  - Nur Finger und Stift (keine Maus), nur ein Finger, nur mit Beginn **in** der obersten
+    Unterseite, nicht bei offener Haftnotiz, im Vollbild oder während des Blätterns. Nicht aus
+    den linken 20 px des Bildschirms: Dort gehört die Geste dem Browser (iOS-Rand-Wischen, das
+    über den Verlauf dasselbe tut, R8).
+  - Auslösen geht über denselben Weg wie das Lesezeichen (`history.back()`), Verlauf und Stapel
+    bleiben gleich.
+  - Mitführen: Die darunterliegende Seite (mobil die Hauptansicht, Desktop die rechte Seite bzw.
+    Ebene 1) dreht sich so von −90° her ein, dass ihre rechte Kante unter dem Finger liegt
+    (Perspektive eingerechnet), höchstens bis −20°. Nach dem Loslassen blättert `PageTurn.back`
+    von dort aus zu Ende, sonst schnappt sie in ≤ 220 ms zurück. Layout wird nur einmal zu
+    Beginn der Geste gelesen. Bei reduzierter Bewegung ohne Mitführen (nur Auslösen,
+    Überblenden wie beim Lesezeichen).
+  - Unterseiten haben `touch-action: pan-y pinch-zoom` (sonst bricht der Browser waagerechte
+    Gesten mit `pointercancel` ab); `[data-no-swipe]` darin `pan-x pan-y pinch-zoom`.
 
 ### C.3 Umblättern
 
@@ -569,8 +630,15 @@ Die Werte stammen aus dem Album-Prototyp:
 - **Mobil** dreht sich die ganze Hauptansicht (Polaroid, Etiketten, Heft) wie im Prototyp,
   **Desktop** nur die rechte Seite um den Falz.
 - **Reduzierte Bewegung** (`data-motion="reduce"`): Überblenden in 150 ms, ohne 3D.
-- Während des Blätterns sind beide Seiten nicht bedienbar (`inert`). Eine zweite Eingabe wird
-  vorgemerkt und danach ausgeführt.
+- Während des Blätterns sind beide Seiten nicht bedienbar. Eine zweite Eingabe wird
+  vorgemerkt und danach ausgeführt. Die Unterseite ist dabei `inert`; die drehende Seite fängt
+  Zeiger und Klicks per Capture-Lauscher ab (ein Klick darauf wird vorgemerkt und nach der
+  Drehung ausgelöst, wenn sein Ziel dann bedienbar ist) und bekommt `inert` erst am Ende zusammen mit
+  `turned-away` (`visibility: hidden` + `content-visibility: hidden`). Grund (Schritt 14, S9):
+  `inert` erbt sich, an der großen Hauptansicht kostete jede Änderung eine Stil-Neuberechnung
+  des ganzen Teilbaums; im gesperrten Teilbaum entfällt sie. Mobil schneidet `clip-path` die
+  drehende Hauptansicht für die Dauer der Drehung auf den sichtbaren Streifen zu (gerastert
+  wird nur er; zu sehen ist der Unterschied nicht, weil die Perspektive nur nach außen vergrößert).
 - `will-change: transform` gilt nur während der Animation. Es animiert genau ein Element. Es
   gibt keine Schnappschüsse und keinen Curl.
 
@@ -598,7 +666,19 @@ Die Werte stammen aus dem Album-Prototyp:
 
 Es gibt **eine Meldungsschicht** (`Stamps`) über dem Album, auch über dem Vollbild:
 
-- **Ort:** mobil oben mittig unter der Banderole, Desktop oben über der rechten Seite.
+- **Ort (seit Schritt 12):** nie über der Navigation. Unten über der Seite – mobil über dem
+  Zettelstapel, Desktop mittig über dem Fuß der rechten Seite. Nur mobil auf der Hauptansicht
+  (oben liegt dort nur das Bild) und im Vollbild oben über dem Bild, unter sichtbaren
+  Banderolen (`.stamps-top`, entschieden in `album/index.ts`). Vorher lag die Schicht immer oben
+  und verdeckte mobil Reiter, Lesezeichen und Seitentitel.
+- **Stabil und ausweichend (Schritt 14):** Oben oder unten wird entschieden, wenn eine Meldung
+  erscheint (oben, solange über der Bildunterschrift Platz ist). Beim Scrollen wechselt sie nur
+  noch nach unten, wenn die Knöpfe unter dem Bild heranrücken – mit kurzem Überblenden, nie
+  zurück, solange sie steht (`stampsOnTop`). Unten rückt die Schicht über scharfe Bestätigungen
+  (`.armed`), markierte Knöpfe (`data-stamp-avoid`, z. B. „Schließen“ im Umschlag) und den
+  fokussierten Knopf (`stampLift`, höchstens bis unter Reiterleiste bzw. Lesezeichen). Von zwei
+  Meldungen steht die ältere einzeilig und kleiner (`.stamp-older`); Zahl und Symbol („+24 🌰“)
+  brechen nicht auseinander.
 - **Stempel** (Text bis 90 Zeichen): Tintenrahmen 2 px, abgerundet, −3° gedreht, Caveat
   22 px, Papier dahinter. Er „stempelt“ in 220 ms herein (`scale(1.3) → 1`, Deckkraft) und
   verschwindet nach `toastDurationFor(text, preferences.toastMs())`. Höchstens 2 sind
@@ -654,8 +734,11 @@ Es gibt **eine Meldungsschicht** (`Stamps`) über dem Album, auch über dem Voll
 
 Der Zettel „Während du weg warst …“ hat eine Kurzfassung (`headline`) und die Knöpfe
 „Details ›“ (→ U:Rückkehr-Bericht mit `details`) und „Abheften“ (blendet aus). Der
-Willkommens-Stempel zeigt dazu die Kurzfassung (C.5). Die Regeln zum Ersetzen bzw.
-Ausblenden bei späterer Rückkehr bleiben wie in main.ts.
+Willkommens-Stempel grüßt nur („Willkommen zurück! 8 Std.“, `returnStamp`) – die Kurzfassung
+steht ja im Zettel; Screenreader hören sie im Stempel mit (unsichtbarer Rest). Auf
+U:Rückkehr-Bericht verschwindet der Stempel. Am Desktop unter 760 px Höhe ist der Zettel
+kompakt (Kurzfassung neben den Knöpfen), damit das Polaroid groß bleibt. Die Regeln zum
+Ersetzen bzw. Ausblenden bei späterer Rückkehr bleiben wie in main.ts.
 
 ---
 
@@ -679,8 +762,18 @@ src/ui/album/
   stage-ladder.ts     StageLadder: Stufenleiste mit 8 Stufen und Balken
   sticker.ts          StickerSlot: runder Sticker (Canvas-Bild, Rand, Bogen, Drehung, leer/gestrichelt)
   sticker-row.ts      StickerRow: Nischenzeile (Name, Sticker, Hinweis)
-  note.ts             Note: Haftnotiz (popover, Lage, Fallback)
+  note.ts             Note: Haftnotiz (popover, Fallback), openNote() für freie Notizen
+  note-layout.ts      notePosition(): Lage der Haftnotiz (rein)                  ← Vitest
+  notes-text.ts       Texte der Etiketten-Notizen (rein)                         ← Vitest
+  label-notes.ts      Notizen an Wachstum, Samen, Harmonie
+  season-weather.ts   Jahreszeit und Wetter in der Bildunterschrift mit Notizen
   stamps.ts           Stamps: Stempel- und Zettelschicht (ersetzt #toast)
+  stamp-rules.ts      stampKind(), Standzeit, wer weicht, stampLift/stampsOnTop (rein) ← Vitest
+  stamp-place.ts      Platz der Schicht: oben/unten, Ausweichen über Bestätigungen
+  eco-refresh.ts      Ökosystem-Ansicht nur nach Änderungen neu, Jahreszeit/Wetter je Sekunde (Schritt 12)
+  floats.ts           schwebende Zahlen und Hinweise über Szene, Samen, Pflanzring (Schritt 12)
+  stage-banner.ts     Stufen-Stempel über dem Bild (Schritt 12)
+  cycle-target.ts     gemeinsames Ziel des nächsten Zyklus (D.2) mit resolveTarget/isOtherTarget
   note-stack.ts       NoteStack: Zettelstapel der Begegnungen
   banderole.ts        Banderole: Update-Hinweis, neuerer Spielstand
   cover.ts            Cover: Buchumschlag (Menü)
@@ -724,12 +817,15 @@ src/ui/album/
 | `care-panel.ts` | Pure Funktionen (`careOrder`, `carePreviewText`, `careSummaryText`) nach `care-view.ts` verschieben (bleiben getestet). Die Zeilen-DOM-Logik geht in `care-page.ts` über. |
 | `ecosystem-panel.ts`, `journal-dialog.ts`, `animal-detail-dialog.ts`, `cycle-panel.ts`, `landscape-map.ts`, `daily-panel.ts`, `bonus-panel.ts`, `return-report.ts`, `season-badge.ts`, `weather-badge.ts`, `encounter-stack.ts`, `help.ts` | Die Bauteile wandern in die Seiten. Pure Exporte (`slotOpensDetails`, `barWidth`, `stackIcon`, `waitingText`, `initPreferences`) werden vorher in `*-view.ts` bzw. `preferences.ts` verschoben. Am Ende werden die Dateien gelöscht (F-12). `landscape-map.ts` bleibt wahrscheinlich fast ganz erhalten (nur neue Klassen). |
 | `toast-place.ts` | löschen (#7); den Test `toast-place.test.ts` mit löschen |
+| *Stand Schritt 12* | Alle oben als „gelöscht (F-12)“ geführten Dateien, `album/legacy.ts` und das alte CSS der Seitenleiste und Dialoge sind gelöscht; `style.css` enthält nur noch globale Grundregeln (Reset, `.sr-only`, `#scene`, schwebende Zahlen). |
 | `main.ts` | Der Game Loop bleibt. Alles, was heute Seitenleiste und Dialoge steuert (`refreshPanel`, `refreshEncounter`, `refreshPicker`, `notify`, `showToast`, `showBanner`, `overlayOpen`), geht in `album/index.ts` über. main.ts ruft nur noch `album.refresh(state, now, flags)` und `album.notify(text)` auf. Siehe G-25 zur Zuständigkeit. |
 
 **Gemeinsamer UI-Zustand:** `albumTarget` (Ziel-Wald des nächsten Zyklus) ist heute in
 `landscape-map.ts` versteckt. Künftig liegt er im Album, damit R:Landschaft, U:Standort und
 U:Neuer Zyklus denselben Wert sehen. Wie heute fällt er beim Neuen Zyklus und beim Import
-zurück auf „hier“.
+zurück auf „hier“. Umgesetzt in `album/cycle-target.ts`: `view()` (Ansicht der Karte, nur nach
+Änderungen am Ökosystem neu), `target()`, `choose(id | null)`, `onChange`, `disarm`/`onDisarm`
+(offene Bau-Bestätigungen nach Import).
 
 ### D.3 Die Szene im Polaroid
 
@@ -792,6 +888,13 @@ export function renderSpeciesSticker(
 export function stickerFit(def: Pick<SpriteDef, 'x0' | 'y0' | 'x1' | 'y1'>, size: number): { scale: number; ox: number; oy: number };
 ```
 
+- **Umgesetzt (Schritt 2), Abweichungen:** Schlanke Tiere (Seitenverhältnis ab 3 : 1, z. B.
+  Wurm, Eidechse, Schlange) füllen bis 90 % statt 80 %, ihr Rahmen bleibt im Kreis. Wenige
+  Zeichnungen haben einen engeren Sticker-Rahmen (`stickerFrame`: Glühwürmchen mit Lichthof,
+  Gäste im Flug), Kranich und Falke zeigen Bild 1 (`stickerPose`, gesenkte Flügel). Unbekannte
+  IDs ohne Gattung ergeben ein leeres Bild. Gemessen (Chromium, 59 Arten/Gäste, 48 px @2x):
+  erstes Zeichnen farbig ≈ 7–20 ms gesamt, matt ≈ 35–45 ms, Silhouette ≈ 10 ms; mit 4-facher
+  CPU-Drosselung bis ≈ 5 ms je mattem Sticker. Die Tafel: `/src/render/demo.html?stickers=1`.
 - `animals.ts` exportiert dafür `spriteDefOf(kind)` und `speciesKindOf(id, family)`. Das sind
   kleine Exporte; die Logik bleibt, wo sie ist.
 - **`silhouette`:** Bild 0 wird gezeichnet und mit `globalCompositeOperation = 'source-in'`
@@ -939,6 +1042,79 @@ Die Knöpfe in Haftnotizen bekommen abweichend vom Prototyp (36 px) die volle H�
 was Album und Szene brauchen (F-12). Damit parallele PRs nicht im selben Riesen-File kollidieren,
 bekommt jede Album-Komponente eine **eigene CSS-Datei** (G-19).
 
+### D.6 Schnittstellen: Haftnotiz und Meldungen (Schritt 4)
+
+**Haftnotiz** (`album/note.ts`):
+
+```ts
+interface NoteMore { label?: string; onMore(): void; available?(): boolean }
+interface NoteContent {
+  title: string;
+  lines?: readonly string[];  // Absätze, leere fallen weg
+  emphasis?: string;          // grüne Kernzahl („jetzt: Wachstum ×1,32“)
+  more?: NoteMore;            // Knopf „Mehr ›“ (Beschriftung änderbar), schließt die Notiz
+  ref?: string;               // data-ref, Standard „note“
+}
+// Freie Notiz an einem beliebigen Element (z. B. Tier-Tipp im Vollbild, Schritt 3).
+// Es gibt nur eine; ein neuer Aufruf ersetzt den Inhalt. Rückgabe: die Notiz (hide()).
+function openNote(anchor: HTMLElement, content: NoteContent): Note;
+// Feste Notizen: einmal bauen, Zeilen per note.line(), Texte per setText.
+function createNote(options: { id: string; title: string; ref?: string; more?: NoteMore }): Note;
+function attachNote(trigger: HTMLElement, note: Note): void;   // aria-expanded, Auf/Zu per Klick
+function closeNotes(): void;
+```
+
+- Umgesetzt im Vollbild (`showSceneAnimal` in `album/index.ts`): Anker ist ein unsichtbares
+  Element an der zuletzt angetippten Stelle der Vollbild-Ebene. Beispiel (aus `album/index.ts`
+  exportiert):
+  `openNote(canvas, { title: 'Waldkauz', lines: ['Zufriedenheit 80 %', 'satt und ruhig'],
+  more: { label: 'Im Album ansehen ›', onMore: () => { closeFullscreen(); openAnimal(id); } } })`.
+  Als Anker taugt jedes Element im Bild; die Notiz liegt unter bzw. über ihm. Für eine Stelle
+  im Canvas genügt ein kleines unsichtbares, absolut gesetztes Element an der Trefferstelle.
+- Es ist immer höchstens eine Notiz offen. `nav.note` führt ihre ID; Reiterwechsel, Umblättern,
+  Umschlag, Vollbild (`fullscreen: true` setzt `note: null`) und Escape schließen sie. Wer im
+  Vollbild eine Notiz öffnet, setzt also zuerst das Vollbild und öffnet die Notiz danach.
+- Fokus: Beim Öffnen geht er in die Notiz (`tabindex=-1`), bei „Verstanden“ und Escape zurück an
+  den Auslöser, bei Klick außerhalb bleibt er, wo geklickt wurde.
+
+**Meldungen** (`album.notify`, `album/stamps.ts`):
+
+```ts
+interface NotifyOptions {
+  error?: boolean;  // roter Rahmen (Fehler einer Aktion)
+  keep?: boolean;   // Zettel bis zum Schließen (Landschaft frei, v1-Hinweis, angehaltener Tab)
+  brief?: boolean;  // höchstens drei Zeilen
+  spoken?: string;  // nur für Screenreader angehängt (Rückkehr: Kurzfassung steht im Zettel)
+  direct?: boolean; // nie in ein altes Dialog-Hinweisfeld (bis Schritt 12; früher showToast)
+}
+album.notify(text: string, options?: NotifyOptions): void;   // leerer Text: nichts
+```
+
+- Bis 90 Zeichen Stempel, darüber (oder mit `keep`) Zettel mit „×“. Höchstens zwei zugleich;
+  die älteste weicht, bleibende Zettel zuletzt. Gleicher Text ersetzt die alte Meldung.
+- Platz: seit Schritt 12/14 wie in C.5 (unten, mobil auf der Hauptansicht oben; Ausweichen in
+  `stamp-place.ts`); steht eine Banderole im Bild, rückt die Schicht darunter (gemessen beim Zeigen und per
+  ResizeObserver an den Banderolen, nie pro Frame). Klicks gehen durch, nur „×“ fängt sie.
+- Übergang bis Schritt 12: Ist ein alter Dialog mit eigenem Hinweisfeld offen (Tagebuch),
+  landet die Meldung dort, sonst verdeckte der modale Dialog den Stempel. Mit den Dialogen fällt
+  diese Weiche weg (die Hilfe seit Schritt 11). Kartenwahl, Pflanzenwahl und Tierdetails sind
+  seit Schritt 5/6 Unterseiten; ihre Meldungen kommen als Stempel. Verdeckt mobil eine Unterseite
+  das Polaroid, meldet `overlayOpen()` das ebenfalls – main.ts sammelt die Hinweise dann in einem
+  Stempel, und schwebende Notizen über der Szene (`noteText`) werden zum Stempel (A.11 #121).
+- e2e: `stamps(page)` ist die Schicht (für „enthält“), `stamp(page)` die neueste Meldung,
+  `settledStamp(page)` dieselbe nach dem Hereinstempeln (für Lage und Größe).
+
+**Umschlag-Seiten** (Schritt 11): Der Umschlag öffnet `{ kind: 'guide' }` (Inhaltsverzeichnis),
+`settings`, `account` und `save`. Ein Kapitel ist `{ kind: 'guide', section }` auf Ebene 2 mit
+eigener Seite (`subpageKey` in `pages/registry.ts`); Weiterblättern zum Nachbarkapitel ersetzt
+die oberste Seite. Der Konto-Abschnitt kommt über `album.mountAccount(section)` (sync/account.ts
+über main.ts) und schaltet den Eintrag im Umschlag frei. Rückkehr: `album.showReturnReport(view)`
+zeigt den Zettel und stempelt die Kurzfassung, `hideReturnReport()` blendet ihn aus.
+
+**Banderole** (`album/banderole.ts`): `createBanderole({ tone: 'tape' | 'alert', ref, role, text,
+buttons })` hängt in `album.banners`. Gelb: Update-Hinweis (`pwa.ts`, `mount: album.banners`),
+rot: „neuerer Spielstand“.
+
 ---
 
 ## E. Teststrategie
@@ -948,7 +1124,7 @@ bekommt jede Album-Komponente eine **eigene CSS-Datei** (G-19).
 | Bereich | Tests |
 |---|---|
 | `album/nav.ts` | Stapel nie tiefer als 2 (Ersetzen der obersten); Reiterwechsel leert den Stapel; Zurück-Reihenfolge Haftnotiz → Vollbild → Unterseite → Umschlag; Landschaft-Reiter verschwindet → zurück zu Nischen; Begegnung öffnen bei vollem Stapel; Hash ↔ Reiter (unbekannter Hash → Nischen, gesperrte Landschaft → Nischen) |
-| `album/swipe.ts` | Schwellen für Weite, Richtung und Tempo; senkrechtes Scrollen löst nicht aus; Abbruch |
+| `album/swipe.ts` | Schwellen für Weite, Richtung und Tempo; senkrechtes Scrollen löst nicht aus; Abbruch. Umgesetzt in 13a: `tests/album-swipe.test.ts`. |
 | `album/sticker.ts` | `stickerTilt` fest und im Bereich ±6°; Zuordnung Gattung → Sticker-Farbe |
 | `album/stamps` (rein) | `stampKind(text)` Stempel/Zettel an der 90-Zeichen-Grenze; Fehler erkennen; höchstens 2 sichtbar |
 | `render/sticker.ts` | `stickerFit` passt jeden Rahmen ein (kein Überstand, zentriert); **jede Art aus `content/species.ts` und jeder Gast** hat eine eigene Zeichnung (`stickerKind` ≠ Gattungs-Ersatz), damit neue Arten nicht still auf den Ersatz fallen |
@@ -1023,6 +1199,13 @@ Alle heutigen View-Tests (`ui-view`, `journal-view`, `cycle-view`, `daily-view`,
 - **Screenshots** bei 1200 × 700, 390 × 844 und 360 × 740 je Reiter (nur ansehen, kein
   Pixelvergleich).
 
+**Stand nach Schritt 13:** Navigation und reduzierte Bewegung in `album-nav.spec.ts`,
+Haftnotiz in `album-notes.spec.ts`, Vollbild in `camera.spec.ts` und `album-nav.spec.ts`,
+Zettelstapel in `album-encounter.spec.ts`, 360/390/1200 samt Screenshots (Anhänge im
+HTML-Bericht und in `test-results/`) in `album-viewports.spec.ts`. Messungen erst nach dem
+Umblättern (`settledSubpage`, `albumAnimationsDone` in `e2e/fixtures.ts`), nie mitten in der
+Drehung. Wischen: `e2e/album-swipe.spec.ts` (13a).
+
 ---
 
 ## F. Umsetzungsplan
@@ -1075,12 +1258,12 @@ Reiterseite selbst über `album/pages/registry.ts` (eine Zeile pro Seite).
 |---|---|---|
 | R1 | **Langlebiger Branch:** Auf `main` läuft Phase 7 weiter (2b, 3a: Baumwahl mit fünf Arten). Konflikte in `cycle-panel.ts`, `landscape-map.ts`, `main.ts` | `main` regelmäßig in `album-ui` mergen. UI-Aufgaben aus Phase 7, die noch offen sind (3a), möglichst **im Album** umsetzen statt doppelt (G-1). |
 | R2 | **e2e-Aufwand:** 35 Specs, viele auf alte Texte und Selektoren | `data-ref` behalten, Übergangsinhalt in Schritt 1, Migration pro Bereich, Fixture-Helfer |
-| R3 | **Leistung:** viele Sticker-Canvas (Reiter Arten: über 50 Arten + Pflanzen); 3D-Drehung auf schwachen Android-Geräten | Sticker faul und nur bei Änderung zeichnen, LRU-Cache; nur ein Element animiert; unsichtbare Seiten nicht aktualisieren; Szene nicht zeichnen, wenn verdeckt. Messen in Schritt 14. |
+| R3 | **Leistung:** viele Sticker-Canvas (Reiter Arten: über 50 Arten + Pflanzen); 3D-Drehung auf schwachen Android-Geräten | Sticker faul und nur bei Änderung zeichnen, LRU-Cache; nur ein Element animiert; unsichtbare Seiten nicht aktualisieren; Szene nicht zeichnen, wenn verdeckt. Messen in Schritt 14. **Schritt 14 (S9):** Umblättern ohne erbende Stil-Neuberechnung der Hauptansicht (`inert` erst im gesperrten Teilbaum, `content-visibility: hidden` für weggedrehte Seiten), drehende Hauptansicht mobil auf den sichtbaren Streifen zugeschnitten. Reiter Arten: `content-visibility: auto` je Gattungsblock ausprobiert und verworfen (erster Wechsel kaum kürzer, dafür Long Tasks beim Scrollen). Rest: jedes Sticker-Canvas ist eine eigene Compositing-Ebene (über 70 Ebenen auf Nischen) – bei Software-Raster (headless) bremst das den Compositor. |
 | R4 | **Neubau der Render-Caches** beim Vollbild-Wechsel (spürbarer Ruckler) | FLIP nur mit transform, ein einziges Resize am Ende, `IdleQueue`. Falls es trotzdem ruckelt: die Vollbild-Größe im Hintergrund vorbereiten (Renderer-Aufgabe). |
 | R5 | **Caveat-Zahlen springen** (keine Ziffern gleicher Breite) bei laufenden Werten | Feste Mindestbreite je Etikett (`min-width` in ch), Zahl rechtsbündig. Samen nur bei neuer ganzer Zahl aktualisieren (gibt es schon). |
-| R6 | **5 Reiter bei 360 px** (Caveat 21 px) passen nicht | Innenabstand 10 px, bei Überlauf waagerecht scrollbar mit gewähltem Reiter im Bild (wie heute im Tagebuch). Vier Reiter passen; Landschaft kommt erst spät hinzu. |
+| R6 | **5 Reiter bei 360 px** (Caveat 21 px) passen nicht | Innenabstand 10 px, bei Überlauf waagerecht scrollbar mit gewähltem Reiter im Bild (wie heute im Tagebuch). Vier Reiter passen; Landschaft kommt erst spät hinzu. **Seit Schritt 12:** `tab-strip.ts` misst bei Größen- und Schriftwechsel und schaltet stufenweise (`data-fit`): enger/kleiner → Symbole statt Namen (der gewählte Reiter behält ihn) → Name kleiner → nur Symbole. Geprüft mit DejaVu Sans und 125 % bei 360/390 px (`e2e/album-layout.spec.ts`). |
 | R7 | **`popover` fehlt** auf älteren iOS-Versionen | Fallback mit Klasse und Klick-außerhalb (C.4) |
-| R8 | **Gesten-Konflikte:** iOS-Rand-Wischen, Kartenreihe, Kamera | Verlauf per `pushState`, damit das iOS-Zurück dasselbe tut; `data-no-swipe`; Kamera nur im Vollbild |
+| R8 | **Gesten-Konflikte:** iOS-Rand-Wischen, Kartenreihe, Kamera | Verlauf per `pushState`, damit das iOS-Zurück dasselbe tut; Wisch-Zurück beginnt nie in den linken 20 px; `data-no-swipe`; Kamera nur im Vollbild (dort schließt nur der Wisch nach unten, C.6) |
 | R9 | **Schriften laden verzögert** (Layout springt beim ersten Start) | `font-display: swap`, ähnliche Fallback-Schriften, Precache. Danach kommen sie immer aus dem Cache. |
 | R10 | **Verlust kleiner Funktionen** beim Umbau (z. B. Fokus-Rückgabe, Doppelklick-Schutz, Live-Ansagen) | Tabelle A als Prüfliste im PR jedes Schritts abhaken, Review gegen die `#`-Nummern |
 | R11 | **Großer Abschluss-PR** schwer zu prüfen | Er besteht aus bereits geprüften Teil-PRs. Der Reviewer prüft dort nur noch Merge-Stand, Specs und Screenshots. |
@@ -1165,3 +1348,36 @@ Reiterseite selbst über `album/pages/registry.ts` (eine Zeile pro Seite).
     Washi-Gelb und 6 px breiter (Desktop-Mockup). Inaktiv bekommt Nischen ein helles Ocker
     (#F6E3B4), weil beide Mockups ihn nur aktiv zeigen und Gelb am Desktop schon „aktiv“ bedeutet.
     **Warum:** Beide Mockups übernehmen, wie sie sind; nur die fehlende Farbe ist ergänzt.
+
+### G.3 Offene Punkte aus Schritt 1 (für Schritt 3 und 12)
+
+- **Kamera-Knöpfe im Polaroid** (bis Schritt 3): oben rechts; `toast-place.ts` zählt sie als
+  Hindernis. Mit dem Vollbild (Schritt 3) entfällt beides.
+- **Gedrehtes Live-Canvas:** Das Polaroid ist um −1,4° bzw. −1,5° gedreht. `camera-input.ts`
+  rechnet die Drehung über `offsetX/Y` heraus. Schärfe und Leistung prüft der renderer in
+  Schritt 3.
+- ~~**`encounter-stack.ts`:** Das Album schaltet Schweben, Marker und IntersectionObserver per
+  `{ float: false }` ab.~~ Erledigt in Schritt 6: ersetzt durch `album/note-stack.ts`, samt
+  `watchScroll` und dem CSS für `.scene-dock` gelöscht.
+- ~~**Lizenztexte der Schriften** liegen nur im Quellcode, nicht in `dist/`.~~ Erledigt in
+  Schritt 12: Sie werden mit ausgeliefert – `public/licenses/OFL-Caveat.txt` und
+  `OFL-Nunito.txt` landen in `dist/licenses/` (geprüft in `e2e/album-layout.spec.ts`).
+- ~~**`album/legacy.ts`** wird mit jedem Schritt kleiner und in Schritt 12 gelöscht.~~ Erledigt:
+  gelöscht; Ökosystem-Auffrischung in `album/eco-refresh.ts`, schwebende Zahlen in
+  `album/floats.ts`, Stufen-Stempel in `album/stage-banner.ts`, der Rest in `album/index.ts`.
+- **Tagebuch-Teil „Landschaft“:** erledigt in Schritt 10 – steht als „Tagebuch der Wälder“ in
+  R:Landschaft (Stammgäste und Tiere zusätzlich auf U:Standort); `ui/journal-landscape.ts` und
+  die `.journal-*`-Regeln in `style.css` sind gelöscht.
+- ~~**Neuladen auf einer Unterseite (Review KANN 5):** Der aktuelle Eintrag wird `album:0`,
+  die älteren Einträge (`album:1`, Grundeintrag) liegen aber noch darunter. Die ersten zwei
+  Zurück-Drücke bleiben ohne sichtbare Wirkung, erst der dritte verlässt die App.~~ Erledigt in
+  Schritt 12: `history.go(-n)` beim Start, wenn der Verlauf lang genug ist (C.2, Vitest in
+  `tests/album-history.test.ts`).
+- ~~**Veralteter Hash nach `landscape-locked` bei offenem Umschlag (Review KANN 7):** Reiter
+  Landschaft → Umschlag → alten Stand importieren → Umschlag schließen: `go(-1)` landet auf
+  dem Grundeintrag mit `#landschaft`, angezeigt wird Nischen. Folgenlos, weil `tabFromHash`
+  zurückfällt.~~ Erledigt in Schritt 12: Der `hashchange`-Handler ersetzt einen Hash, der nicht
+  zum gezeigten Reiter passt.
+- ~~**`toast-place.ts` misst `.polaroid .scene-camera` (Review KANN 9):** Solange einspaltig ein
+  Toast sichtbar ist, gibt es pro Frame ein `getBoundingClientRect()`. Entfällt mit Schritt 4
+  (toast-place wird gelöscht).~~ Erledigt: `toast-place.ts` samt Test ist seit Schritt 4 gelöscht.

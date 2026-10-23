@@ -1,0 +1,138 @@
+/*
+ * Album-Oberfläche: Schriften und CSS-Variablen (docs/ALBUM_UI.md, D.5).
+ * Alle Werte stammen aus den Mockups „Sammelalbum hoch“, „Album-Prototyp“ und
+ * „Album-Desktop“. Neue Farben gibt es nur über Tokens.
+ *
+ * Schriften selbst gehostet (offline, PWA, kein Drittanbieter-Aufruf), Teilmenge Latin,
+ * Lizenz: SIL Open Font License 1.1 – die Texte liegen in public/licenses/ (OFL-Caveat.txt,
+ * OFL-Nunito.txt) und werden mit ausgeliefert (dist/licenses/).
+ */
+
+@font-face {
+  font-family: 'Caveat';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/caveat-700-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  /* variable Schrift, Achse wght auf 600–800 begrenzt */
+  font-weight: 600 800;
+  font-display: swap;
+  src: url('./fonts/nunito-var-latin.woff2') format('woff2');
+}
+
+:root {
+  /* Papier, Karton, Einband */
+  --paper: #fffdf7; /* Seiten, Etiketten */
+  --photo: #ffffff; /* Polaroid-Rahmen, Sticker-Rand */
+  --card: #e9dfc9; /* Karton (Mobil-Hintergrund) */
+  --desk: #cbbe9f; /* Tisch hinter dem Buch (Desktop) */
+  --binding: #6b4e3a; /* Einband, Umschlag-Knopf */
+  --binding-ink: #4a3b2c; /* Titel auf dem Tisch */
+  --spine: #d9cdb2; /* Buchfalz */
+  /* Tinte */
+  --ink: #3b3a36;
+  --ink-soft: #6b6553;
+  --ink-faint: #8c846f; /* künftige Stufen, Seitenzahl */
+  --ink-green: #3e6b4e; /* Wachstum, Hauptknopf, erreichte Stufe */
+  --ink-green-dark: #28503a;
+  --ink-seed: #8a5a2b; /* Samen */
+  --ink-red: #a8364f; /* Harmonie, Fehler-Stempel */
+  /* Washi und Zettel */
+  --tape: #f4c95d; /* Washi-Tape, Lesezeichen, aktiver Reiter Desktop */
+  --tape-green: #bfd8c2; /* Tape der Haftnotiz */
+  --note-bg: #fff4b8; /* Haftnotiz, Zettel */
+  --note-under: #f4e39a; /* Zettel darunter (Stapel) */
+  /* Linien */
+  --dash: #b9ad92; /* Etikett-Strichrand, Stufenleiste */
+  --slot-dash: #c9bfa6; /* leerer Sticker-Platz */
+  --rule: #ddd3bc; /* gepunktete Trennlinie */
+  --track: #f3eddf; /* Balken-Hintergrund */
+  --fill: #7fb069; /* Balken-Füllung */
+  /* Reiterfarben (inaktiv); aktiv = --paper (mobil) bzw. --tape (Desktop) */
+  --tab-niches: #f6e3b4; /* eigene Wahl: Mockups zeigen Nischen nur aktiv (G-28) */
+  --tab-species: #bfd8c2;
+  --tab-care: #f2c1cc;
+  --tab-goals: #c9d6ee;
+  --tab-landscape: #d9c7e8;
+  /* Sticker-Grund je Gattung */
+  --fam-birds: #dcebf7;
+  --fam-mammals: #fce3d3;
+  --fam-insects: #fff2c2;
+  --fam-soil: #f6e3cf;
+  --fam-fungi: #fde1d6;
+  --fam-amphibians: #e3edd8;
+  --fam-reptiles: #e8e2c0;
+  --rarity-bg: #e8e2f3;
+  --rarity-ink: #4a2f75; /* Pille „selten“ */
+  /* Sticker: Edelstein und Randlinie je Seltenheit, Bogen der Zufriedenheit (Schritt 5) */
+  --gem-rare: #6f5bb5;
+  --gem-special: #c98a1c;
+  --gem-legendary: #b8325a;
+  --happy-high: #7fb069;
+  --happy-mid: #e0b44a;
+  --happy-low: #c95f6f;
+  /* Schrift */
+  --font-hand: 'Caveat', 'Segoe Print', cursive; /* nur Überschriften und Zahlen */
+  --font-text: 'Nunito', system-ui, sans-serif;
+  /* Abstände */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 30px;
+  --page-pad-mobile: 16px 14px 12px;
+  --page-pad-desk: 26px 30px;
+  --niche-col: 104px; /* Desktop: 150px */
+  --sticker: 48px; /* Desktop: 54px; Tierseite 104px */
+  --sticker-border: 3px; /* Tierseite 5px */
+  --tap: 44px; /* Mindestgröße aller Knöpfe */
+  /* Radien */
+  --r-label: 12px;
+  --r-label-desk: 14px;
+  --r-page: 16px;
+  --r-page-inner: 4px;
+  --r-tab: 12px 12px 0 0; /* senkrecht: 0 12px 12px 0 */
+  --r-button: 10px;
+  --r-book: 18px;
+  --r-spread: 10px;
+  --r-pill: 999px;
+  /* Schatten */
+  --sh-photo: 0 8px 18px rgba(59, 58, 54, 0.18);
+  --sh-page: 0 8px 18px rgba(59, 58, 54, 0.15);
+  --sh-sticker: 0 2px 5px rgba(59, 58, 54, 0.2);
+  --sh-sticker-big: 0 3px 8px rgba(59, 58, 54, 0.25);
+  --sh-note: 0 8px 16px rgba(59, 58, 54, 0.25);
+  --sh-slip: 0 6px 12px rgba(59, 58, 54, 0.2);
+  --sh-stack-1: 4px 4px 0 var(--note-under);
+  --sh-book: 0 16px 30px rgba(59, 58, 54, 0.3);
+  --sh-gutter-left: inset -18px 0 24px -18px rgba(59, 58, 54, 0.35);
+  --sh-gutter-right: inset 18px 0 24px -18px rgba(59, 58, 54, 0.35);
+  --sh-turn: 30px 0 40px rgba(59, 58, 54, 0.35);
+  /* Drehungen */
+  --tilt-photo: -1.4deg;
+  --tilt-photo-desk: -1.5deg;
+  --tilt-tape: 3deg;
+  --tilt-note: 2deg;
+  --tilt-stack: 3deg;
+  --tilt-stack-desk: 2deg;
+  --tilt-flavor: -1deg;
+  --tilt-stamp: -3deg;
+  /* Bewegung */
+  --turn-ms: 380ms;
+  --turn-ease: cubic-bezier(0.3, 0.7, 0.3, 1);
+  --turn-angle: -104deg;
+  --turn-perspective: 1400px;
+  --fade-ms: 150ms; /* Überblenden bei reduzierter Bewegung */
+  --tab-fade-ms: 120ms;
+  --note-ms: 160ms;
+  --stamp-ms: 220ms;
+  --wobble-ms: 600ms;
+  --wobble-deg: 3deg;
+  --flip-ms: 300ms; /* Polaroid ↔ Vollbild */
+}

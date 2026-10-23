@@ -50,8 +50,10 @@ export interface WeatherBadgeView {
   id: WeatherId;
   /** Raue Lage (Dürre, Sturm, Frost) – das Abzeichen bekommt einen dezenten Rahmen. */
   rough: boolean;
-  /** Sichtbarer Text, z. B. „🌬️ Sturm · −7,5 % 🌿 · +25 % 🌰“. */
+  /** Langform mit Wirkungen, z. B. „🌬️ Sturm · −7,5 % 🌿 · +25 % 🌰“. */
   text: string;
+  /** Kurzform für die Bildunterschrift, z. B. „🌬️ Sturm“ (Wirkungen stehen in der Notiz). */
+  short: string;
   /** Vorlesbarer Name des Knopfs, z. B. „Wetter heute: Sturm, −7,5 % Wachstum, +25 % Samen“. */
   label: string;
   /** Tooltip (Maus): Text und Vorhersage in einer Zeile. */
@@ -254,6 +256,7 @@ export function toWeatherBadgeView(
     id: weather.id,
     rough: !!weather.rough,
     text: [`${weather.icon} ${weather.name}`, ...shortEffects].join(' · '),
+    short: `${weather.icon} ${weather.name}`,
     label: `Wetter heute: ${weather.name}${spoken ? `, ${spoken}` : ''}. Details`,
     title: `${weather.text} ${forecastLine}`,
     mood: weather.text,

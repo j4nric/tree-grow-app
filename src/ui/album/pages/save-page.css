@@ -1,0 +1,51 @@
+/* Unterseite „Spielstand“ (save-page.ts, save-transfer.ts): Exportieren und Importieren
+   als Karteikarten, darunter „Neu anfangen“ mit rotem Strichrand. */
+
+.save-page,
+.save-transfer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.save-transfer > .save-status {
+  padding: 0 4px;
+}
+
+.save-page-reset {
+  margin-top: 6px;
+  border-color: var(--ink-red);
+}
+
+.save-page-reset .save-title {
+  color: var(--ink-red);
+}
+
+.save-reset {
+  justify-self: start;
+  border-color: var(--ink-red);
+  background: var(--paper);
+  color: var(--ink-red);
+  box-shadow: none;
+}
+
+.save-reset:hover {
+  background: color-mix(in srgb, var(--ink-red) 10%, var(--paper));
+  border-color: var(--ink-red);
+}
+
+.save-reset.armed {
+  background: var(--ink-red);
+  color: var(--paper);
+}
+
+@media (min-width: 1100px) {
+  .album[data-layout='spread'] .save-transfer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .album[data-layout='spread'] .save-transfer > .save-status {
+    grid-column: 1 / -1;
+  }
+}

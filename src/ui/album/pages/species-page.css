@@ -1,0 +1,549 @@
+/* Reiter „Arten“ (species-page.ts): Kopf, Sprungmarken, Sticker-Raster nach Gattung,
+   Pflanzen, Gemeinschaften, Andenken (docs/ALBUM_UI.md, B.2). Mobil Sticker 48 px in
+   Spalten ab 56 px (5 bei 360 px), Doppelseite 54 px (7 Spalten). */
+
+.species-page .page-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.album[data-layout='spread'] .species-page {
+  --sticker: 54px;
+}
+
+/* --- Kopf ------------------------------------------------------------------------------ */
+
+.species-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.species-intro p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
+.species-counts {
+  font-weight: 800;
+  color: var(--ink) !important;
+}
+
+.species-regulars {
+  font-weight: 700;
+  color: var(--ink-seed) !important;
+}
+
+.species-regulars[hidden] {
+  display: none;
+}
+
+/* --- Sprungmarken als Washi-Streifen --------------------------------------------------- */
+
+.species-jumps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.species-jump {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-height: var(--tap);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--tab-species) 85%, transparent);
+  box-shadow: 0 1px 2px rgba(59, 58, 54, 0.15);
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: var(--tap);
+  cursor: pointer;
+  transform: rotate(-1.2deg);
+  /* Ausgefranste Tape-Enden */
+  clip-path: polygon(0 8%, 3% 0, 97% 4%, 100% 0, 99% 92%, 100% 100%, 2% 96%, 0 100%);
+}
+
+.species-jump:nth-child(2) {
+  background: color-mix(in srgb, var(--tape) 70%, transparent);
+  transform: rotate(1deg);
+}
+
+.species-jump:nth-child(3) {
+  background: color-mix(in srgb, var(--tab-care) 80%, transparent);
+  transform: rotate(-0.6deg);
+}
+
+.species-jump:nth-child(4) {
+  background: color-mix(in srgb, var(--tab-landscape) 85%, transparent);
+  transform: rotate(1.4deg);
+}
+
+.species-jump:hover {
+  filter: brightness(0.97);
+}
+
+.species-jump:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+  clip-path: none;
+}
+
+/* Mobil: kompakter und ohne Zähler (sie stehen im Kopf und an den Abschnitten), damit die
+   vier Streifen auch bei 360 px in höchstens zwei Zeilen passen. */
+.album[data-layout='single'] .species-jumps {
+  gap: 6px;
+}
+
+.album[data-layout='single'] .species-jump {
+  padding: 0 11px;
+}
+
+.album[data-layout='single'] .species-jump-count {
+  display: none;
+}
+
+.species-jump-count {
+  font-family: var(--font-text);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+/* --- Abschnitte ------------------------------------------------------------------------ */
+
+.species-section {
+  min-width: 0;
+  /*
+   * Mobil klebt die Reiterleiste oben: Den Abstand gibt `scroll-padding-top` am Dokument
+   * (album.css, Höhe der Leiste). Kein Zuschlag hier – sonst bliebe zwischen Leiste und
+   * Überschrift ein Streifen des vorigen Abschnitts stehen.
+   */
+  scroll-margin-top: 0;
+}
+
+.species-heading {
+  margin: 0 0 6px;
+  padding-bottom: 2px;
+  border-bottom: 2px dotted var(--rule);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.species-heading-count,
+.species-group-count {
+  font-family: var(--font-text);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.species-group {
+  margin-top: 8px;
+}
+
+.species-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.species-group-count {
+  margin-left: auto;
+}
+
+.species-group-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--track);
+  box-shadow: inset 0 0 0 2px var(--photo);
+  font-size: 14px;
+}
+
+.species-group[data-genus='birds'] .species-group-icon { background: var(--fam-birds); }
+.species-group[data-genus='mammals'] .species-group-icon { background: var(--fam-mammals); }
+.species-group[data-genus='insects'] .species-group-icon { background: var(--fam-insects); }
+.species-group[data-genus='soil'] .species-group-icon { background: var(--fam-soil); }
+.species-group[data-genus='fungi'] .species-group-icon { background: var(--fam-fungi); }
+.species-group[data-genus='amphibians'] .species-group-icon { background: var(--fam-amphibians); }
+.species-group[data-genus='reptiles'] .species-group-icon { background: var(--fam-reptiles); }
+
+/* --- Sticker-Raster -------------------------------------------------------------------- */
+
+.species-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 10px 2px;
+  margin: 0;
+  padding: 4px 0 0;
+  list-style: none;
+}
+
+.album[data-layout='spread'] .species-grid {
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+}
+
+.species-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.species-cell .sticker-name {
+  width: 100%;
+  margin: 0;
+}
+
+/* Unentdeckt: Silhouette auf blassem Grund, „???“ */
+.species-cell.is-unknown .sticker-face {
+  background: color-mix(in srgb, var(--sticker-bg) 45%, var(--paper));
+}
+
+.species-cell.is-unknown .sticker {
+  box-shadow: 0 0 0 1.5px var(--rarity-line), 0 1px 3px rgba(59, 58, 54, 0.14);
+}
+
+.species-cell.is-unknown .sticker-name {
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+}
+
+/*
+ * Entdeckt, aber gerade nicht im Wald: matter Sticker (Renderer-Variante „muted“), blasser
+ * Grund, flacher Schatten und blassere Schrift – klar unterscheidbar von den farbigen
+ * Stickern der Arten, die gerade hier leben.
+ */
+.species-cell.is-away .sticker-face {
+  background: color-mix(in srgb, var(--sticker-bg) 30%, var(--paper));
+}
+
+.species-cell.is-away .sticker {
+  box-shadow: 0 0 0 1.5px var(--rarity-line), 0 1px 2px rgba(59, 58, 54, 0.1);
+}
+
+.species-cell.is-away .sticker-name {
+  color: var(--ink-soft);
+}
+
+/* Pflanzen: Emoji als Silhouette, solange unentdeckt */
+.species-cell-plant.is-unknown .sticker-emoji {
+  filter: grayscale(1) brightness(0);
+  opacity: 0.4;
+}
+
+.species-cell-plant.is-away .sticker-emoji {
+  filter: saturate(0.3);
+  opacity: 0.6;
+}
+
+/* Punkt „lebt hier“ unten rechts */
+.species-here {
+  position: absolute;
+  right: -1px;
+  bottom: 1px;
+  display: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--photo);
+  border-radius: 50%;
+  background: var(--ink-green);
+  box-sizing: border-box;
+}
+
+.species-cell.is-present .species-here {
+  display: block;
+}
+
+/* Stammgast-Stern oben links am Sticker (Trefferfläche größer als das Bild) */
+.species-star {
+  position: absolute;
+  top: -6px;
+  left: calc(50% - var(--sticker) / 2 - 10px);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+  color: var(--ink-faint);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Trefferfläche 44 × 44 px (26 px + 2 × 9 px, Playtest Schritt 14, K1) */
+.species-star::before {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+
+.species-star[hidden] {
+  display: none;
+}
+
+.species-star[aria-pressed='true'] {
+  background: var(--tape);
+  color: var(--ink);
+}
+
+.species-star:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.species-star:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+/* --- Gemeinschaften -------------------------------------------------------------------- */
+
+.species-communities,
+.species-trees,
+.species-memories {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.species-communities[hidden],
+.species-memories[hidden],
+.species-empty[hidden] {
+  display: none;
+}
+
+.species-community {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1.5px solid var(--rule);
+  border-radius: var(--r-button);
+  background: var(--photo);
+}
+
+.species-community.is-active {
+  border-color: var(--fill);
+  box-shadow: inset 4px 0 0 var(--fill);
+}
+
+.species-community.is-unknown {
+  border-style: dashed;
+  background: transparent;
+}
+
+.species-community-icon,
+.species-tree-icon,
+.species-memory-icon {
+  flex: none;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.species-community.is-unknown .species-community-icon {
+  opacity: 0.5;
+}
+
+.species-community-body,
+.species-tree-body,
+.species-memory-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.species-community-name,
+.species-tree-name,
+.species-memory-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.species-community.is-unknown .species-community-name {
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+}
+
+.species-community-active {
+  align-self: flex-start;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--fill) 28%, var(--photo));
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--ink-green-dark);
+}
+
+.species-community-effect {
+  font-weight: 800;
+  color: var(--ink-green);
+}
+
+.species-community-hint {
+  font-style: italic;
+}
+
+.species-community-progress {
+  font-weight: 800;
+  color: var(--ink-seed);
+}
+
+/* --- Andenken: Samentütchen und Zettel ------------------------------------------------- */
+
+.species-keepsakes .species-group-title {
+  margin-top: 6px;
+}
+
+.species-tree {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 10px 10px;
+  border-radius: 3px 3px 10px 10px;
+  background: var(--card);
+  box-shadow: var(--sh-sticker);
+}
+
+/* Gefalzter Rand oben am Tütchen */
+.species-tree::before {
+  content: '';
+  position: absolute;
+  inset: 6px 8px auto;
+  border-top: 2px dashed color-mix(in srgb, var(--binding) 35%, transparent);
+}
+
+.species-tree:nth-child(odd) {
+  transform: rotate(-0.6deg);
+}
+
+.species-tree:nth-child(even) {
+  transform: rotate(0.5deg);
+}
+
+.species-tree.is-current {
+  box-shadow: 0 0 0 2px var(--tape), var(--sh-sticker);
+}
+
+.species-tree.is-locked .species-tree-icon,
+.species-tree.is-unknown .species-tree-icon {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.species-tree.is-unknown .species-tree-name {
+  color: var(--ink-faint);
+}
+
+.species-tree-status {
+  align-self: flex-start;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.species-tree-status.current {
+  background: var(--tape);
+  color: var(--ink);
+}
+
+.species-tree-status.grown,
+.species-tree-status.unlocked {
+  color: var(--ink-green);
+}
+
+.species-tree-hint,
+.species-tree-text {
+  font-style: italic;
+}
+
+.species-memory {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 12px 10px;
+  background: var(--note-bg);
+  box-shadow: var(--sh-slip);
+  transform: rotate(-0.8deg);
+}
+
+.species-memory:nth-child(even) {
+  transform: rotate(0.9deg);
+}
+
+.species-memory::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 52px;
+  height: 16px;
+  background: color-mix(in srgb, var(--tape-green) 85%, transparent);
+  transform: translateX(-50%) rotate(-4deg);
+}
+
+.species-empty {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 19px;
+  color: var(--ink-soft);
+}
+
+body[data-motion='reduce'] .species-jump,
+body[data-motion='reduce'] .species-tree,
+body[data-motion='reduce'] .species-memory {
+  transition: none;
+}
+
+/* Matt: deutlich blasser als die Arten, die gerade im Wald leben. */
+.species-cell.is-away .sticker-img {
+  opacity: 0.6;
+}
+
+/* Doppelseite: Die rechte Seite scrollt in sich, oben klebt nichts. */
+.album[data-layout='spread'] .species-section {
+  scroll-margin-top: 12px;
+}

@@ -1,5 +1,5 @@
 /**
- * Naturtagebuch, Reiter „Landschaft“ (DESIGN_V2.md 24.3, 24.11): je gegründetem Wald Name,
+ * Tagebuch der Wälder im Album-Reiter „Landschaft“ (DESIGN_V2.md 24.3, 24.11): je gegründetem Wald Name,
  * Waldtyp, Gedächtnis eigen/wirksam, Urwald ja/nein, Leitbaum, Stammgäste und Tiere; dazu die
  * gebauten Korridore und die Hähersaat-Bilanz.
  *
@@ -174,12 +174,7 @@ export function toJournalLandscapeView(state: GameState): JournalLandscapeView |
     corridors,
     sitesHint:
       missing > 0
-        ? `${missing === 1 ? 'Ein Wald wartet' : `${formatNumber(missing)} Wälder warten`} noch – gründen kannst du im Bereich „Neuer Zyklus“.`
+        ? `${missing === 1 ? 'Ein Wald wartet' : `${formatNumber(missing)} Wälder warten`} noch – tippe auf der Karte auf einen Standort und wähle ihn als Ziel des nächsten Zyklus.`
         : null,
   };
-}
-
-/** Zähler am Reiter: gegründete Wälder, z. B. „2/6“; leer, solange verborgen. */
-export function journalLandscapeCount(view: JournalLandscapeView | null): string {
-  return view ? `${formatNumber(view.sites.length)}/${formatNumber(LANDSCAPE_SITES.length)}` : '';
 }

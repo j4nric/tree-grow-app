@@ -1,0 +1,300 @@
+/*
+ * Buchumschlag (cover.ts): Innenseite des Einbands. Mobil schwenkt er von links herein,
+ * auf der Doppelseite klappt er über die linke Seite (Scharnier am Buchfalz).
+ */
+
+.cover {
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: var(--binding);
+  color: var(--paper);
+  box-shadow: var(--sh-book);
+}
+
+.cover[hidden] {
+  display: none;
+}
+
+.cover-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 100%;
+  padding: 30px 20px 22px;
+  box-sizing: border-box;
+}
+
+/* Leinen-Struktur des Einbands: feine Linien statt Bild (kein Asset). */
+.cover {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 253, 247, 0.035) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.04) 0 1px, transparent 1px 5px);
+  background-color: var(--binding);
+}
+
+/* Eingeklebtes Schild mit Titel */
+.cover-plate {
+  position: relative;
+  align-self: stretch;
+  padding: 18px 18px 14px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--sh-photo);
+  transform: rotate(-1.2deg);
+}
+
+.cover-tape {
+  position: absolute;
+  top: -10px;
+  width: 70px;
+  height: 22px;
+  background: var(--tape);
+  opacity: 0.88;
+}
+
+.cover-tape-left {
+  left: -12px;
+  transform: rotate(-24deg);
+}
+
+.cover-tape-right {
+  right: -12px;
+  transform: rotate(22deg);
+}
+
+.cover-sprout {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  font-size: 26px;
+  transform: rotate(8deg);
+}
+
+.cover-title {
+  margin: 0;
+  padding-right: 30px;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1.02;
+  color: var(--ink-green-dark);
+}
+
+.cover-title:focus {
+  outline: none;
+}
+
+.cover-subtitle {
+  margin: 4px 0 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.1;
+  color: var(--ink-soft);
+}
+
+/* Einträge: Papierstreifen auf dem Einband, leicht schief eingeklebt */
+.cover-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cover-entry {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 58px;
+  padding: 6px 12px 6px 8px;
+  border: 0;
+  border-radius: 4px var(--r-label) var(--r-label) 4px;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+  transform: rotate(0.6deg);
+}
+
+.cover-entry[hidden] {
+  display: none;
+}
+
+.cover-entry:nth-child(2n) {
+  transform: rotate(-0.7deg);
+}
+
+.cover-entry:hover {
+  background: var(--note-bg);
+}
+
+.cover-entry:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.cover-entry-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 3px solid var(--photo);
+  border-radius: 50%;
+  background: var(--tab-niches);
+  box-shadow: var(--sh-sticker);
+  font-size: 19px;
+}
+
+.cover-entry-settings .cover-entry-icon {
+  background: var(--tab-goals);
+}
+
+.cover-entry-account .cover-entry-icon {
+  background: var(--tab-landscape);
+}
+
+.cover-entry-save .cover-entry-icon {
+  background: var(--tab-species);
+}
+
+.cover-entry-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cover-entry-text {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 25px;
+  line-height: 1.05;
+}
+
+.cover-entry-hint {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.cover-entry-more {
+  font-family: var(--font-hand);
+  font-size: 30px;
+  line-height: 1;
+  color: var(--ink-soft);
+}
+
+.cover :focus-visible {
+  outline: 3px solid var(--tape);
+  outline-offset: 3px;
+}
+
+.cover-close {
+  align-self: flex-start;
+  min-height: var(--tap);
+  margin-top: auto;
+  padding: 0 20px;
+  border: 2px solid var(--paper);
+  border-radius: var(--r-button);
+  background: none;
+  color: var(--paper);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.cover-close:hover {
+  background: rgba(255, 253, 247, 0.12);
+}
+
+/* ---------- mobil: von links herein ---------- */
+
+.album[data-layout='single'] .cover {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  width: min(88vw, 380px);
+  transform-origin: left center;
+}
+
+.album[data-layout='single'] .cover.cover-in {
+  animation: cover-swing-in var(--turn-ms) var(--turn-ease);
+}
+
+.album[data-layout='single'] .cover.cover-out {
+  animation: cover-swing-in var(--turn-ms) var(--turn-ease) reverse forwards;
+}
+
+@keyframes cover-swing-in {
+  from {
+    transform: perspective(var(--turn-perspective)) rotateY(-90deg);
+  }
+  to {
+    transform: perspective(var(--turn-perspective)) rotateY(0deg);
+  }
+}
+
+/* ---------- Doppelseite: Buchdeckel über der linken Seite ---------- */
+
+.album[data-layout='spread'] .cover {
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 5;
+  border-radius: var(--r-spread) 2px 2px var(--r-spread);
+  transform-origin: right center;
+}
+
+.album[data-layout='spread'] .cover-inner {
+  gap: 20px;
+  padding: 34px 40px 26px;
+}
+
+.album[data-layout='spread'] .cover-title {
+  font-size: 50px;
+}
+
+.album[data-layout='spread'] .cover-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.album[data-layout='spread'] .cover.cover-in {
+  animation: cover-fold-in var(--turn-ms) var(--turn-ease);
+}
+
+.album[data-layout='spread'] .cover.cover-out {
+  animation: cover-fold-in var(--turn-ms) var(--turn-ease) reverse forwards;
+}
+
+@keyframes cover-fold-in {
+  from {
+    transform: perspective(var(--turn-perspective)) rotateY(90deg);
+  }
+  to {
+    transform: perspective(var(--turn-perspective)) rotateY(0deg);
+  }
+}
+
+/* Reduzierte Bewegung: nur überblenden */
+body[data-motion='reduce'] .album .cover.cover-in {
+  animation: cover-fade var(--fade-ms) ease-out;
+}
+
+body[data-motion='reduce'] .album .cover.cover-out {
+  animation: cover-fade var(--fade-ms) ease-out reverse forwards;
+}
+
+@keyframes cover-fade {
+  from {
+    opacity: 0;
+  }
+}

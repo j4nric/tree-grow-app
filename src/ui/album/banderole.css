@@ -1,0 +1,108 @@
+/* Banderole (banderole.ts): dauerhaftes Band quer über dem Album. */
+
+.album-banners {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.banderole {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 6px 8px 6px 16px;
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.35;
+  box-shadow: var(--sh-sticker);
+  animation: banderole-in 0.3s ease-out;
+}
+
+.banderole[hidden] {
+  display: none;
+}
+
+/* Gelb wie Washi-Tape, mit gezackten Enden */
+.banderole-tape {
+  background: var(--tape);
+  transform: rotate(-0.4deg);
+  clip-path: polygon(0 0, 100% 0, 99.2% 25%, 100% 50%, 99.2% 75%, 100% 100%, 0 100%, 0.8% 75%, 0 50%, 0.8% 25%);
+}
+
+.banderole-alert {
+  border: 2px solid var(--ink-red);
+  border-radius: var(--r-button);
+  background: var(--paper);
+  color: var(--ink-red);
+}
+
+.banderole-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.banderole-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.banderole-button {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-button);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.banderole-alert .banderole-button {
+  background: var(--ink-red);
+}
+
+.banderole-button.banderole-icon {
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.banderole-button.banderole-icon:hover {
+  background: rgba(59, 58, 54, 0.1);
+}
+
+.banderole-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.banderole-button:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+@keyframes banderole-in {
+  from {
+    opacity: 0;
+    translate: 0 -8px;
+  }
+}
+
+body[data-motion='reduce'] .banderole {
+  animation: none;
+}

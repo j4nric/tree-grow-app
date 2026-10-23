@@ -1,19 +1,28 @@
 import {
   SAVE_VERSION,
+  back,
   card,
-  dialog,
+  encounter,
   expect,
+  landscapeUnlockState,
   niche,
+  note,
   openGame,
+  openSavePage,
   openStack,
+  openTab,
+  pageTitle,
   readNumber,
   savedState,
   seedRaw,
-  seedV3,
   seedsValue,
+  seedV3,
   settle,
+  settledSubpage,
   stack,
   stageLabel,
+  stamp,
+  stamps,
   test,
   waitForConfirm,
   waypoint,
@@ -23,12 +32,12 @@ import { SAVE_KEY, codeFromJson } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
 
 /** Toast mit genau dem Sammelhinweis der Erfolge nach der Migration v8 → v9 (sonst nichts). */
-const BACKFILLED_ONLY = /^🏅 \d+ Erfolge? nachgetragen – zu finden im Naturtagebuch\.$/;
+const BACKFILLED_ONLY = /^🏅 \d+ Erfolge? nachgetragen – zu finden unter Ziele › Erfolge\.$/;
 
 /**
- * Smoke-Tests für „Vom Samen zum Wald“ (v2-Prototyp: Begegnungen und Kartenwahl).
- * Bedienung: Wartende Begegnungen liegen als Stapel am Rand der Szene; erst ein Klick
- * darauf öffnet den Kartenwahl-Dialog.
+ * Smoke-Tests für „Vom Samen zum Wald“ (Album: Begegnungen und Kartenwahl).
+ * Bedienung: Wartende Begegnungen liegen als Zettelstapel bereit; erst ein Tipp darauf
+ * blättert zu U:Begegnung um.
  * Bewusst ohne Pixel- oder Layout-Vergleiche: Selektoren nur über Rollen, Text und
  * data-ref-/data-Attribute, damit Änderungen an Optik und Renderer die Tests nicht brechen.
  * Gemeinsame Hilfen (Spielstand setzen, Fehler sammeln) stehen in fixtures.ts.
@@ -37,12 +46,14 @@ const BACKFILLED_ONLY = /^🏅 \d+ Erfolge? nachgetragen – zu finden im Naturt
 test('Spiel startet ohne Fehler mit Titel und Canvas, ohne Klick-Button, Upgrades und Dialog', async ({ page }) => {
   await openGame(page);
   await expect(page).toHaveTitle('Vom Samen zum Wald');
-  await expect(page.getByRole('heading', { level: 1, name: 'Vom Samen zum Wald' })).toBeVisible();
+  // Titel auf dem Buchumschlag, sichtbar ist die Reiterseite „Nischen“.
+  await expect(page.getByRole('heading', { level: 1, name: 'Vom Samen zum Wald', includeHidden: true })).toHaveCount(1);
+  await expect(pageTitle(page)).toHaveText('Wer wohnt wo?');
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
   await expect(page.getByRole('button', { name: /Wachsen/ })).toHaveCount(0);
   await expect(page.locator('.upgrade')).toHaveCount(0);
   await expect(stack(page)).toBeHidden();
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(niche(page, 'roots')).toContainText('verschlossen');
 
   const canvas = page.locator('canvas#scene');
@@ -61,10 +72,10 @@ test('Wachstum läuft von selbst, die erste Begegnung wartet ruhig im Stapel', a
   // Erster Wegpunkt bei 4 Gesamt-Wachstum: nach ~4 s ist der Samen ein Keimling.
   await expect(stageLabel(page)).toHaveText('Stufe: Keimling', { timeout: 8_000 });
   await expect(stack(page)).toBeVisible();
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
   // Der Dialog drängt sich nicht auf.
   await page.waitForTimeout(300);
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
 
   await openStack(page);
   const worm = card(page, 'earthworm');
@@ -75,8 +86,8 @@ test('Wachstum läuft von selbst, die erste Begegnung wartet ruhig im Stapel', a
   await expect(worm).toContainText('Harmonie'); // Vorschau (Screenreader-Text)
 
   // „Später“ legt die Begegnung zurück auf den Stapel.
-  await dialog(page).getByRole('button', { name: 'Später' }).click();
-  await expect(dialog(page)).toBeHidden();
+  await encounter(page).getByRole('button', { name: /^Später/ }).click();
+  await expect(encounter(page)).toBeHidden();
   await expect(stack(page)).toBeVisible();
 });
 
@@ -96,25 +107,25 @@ test('Karte wählen: Tier zieht ein, nächste Begegnung folgt, Neuladen zeigt de
   });
   await openGame(page);
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
-  await expect(stack(page)).toHaveText(/2 Begegnungen warten/);
-  await expect(dialog(page)).toBeHidden();
+  await expect(stack(page)).toHaveAttribute('aria-label', /2 Begegnungen warten/);
+  await expect(encounter(page)).toBeHidden();
 
   await openStack(page);
-  await expect(dialog(page)).toContainText('noch 1 weitere Begegnung wartet');
-  await card(page, 'bluetit').getByRole('button', { name: 'Blaumeise wählen' }).click();
+  await expect(encounter(page)).toContainText('noch 1 weitere Begegnung wartet');
+  await card(page, 'bluetit').getByRole('button', { name: 'Blaumeise einkleben' }).click();
 
   // Die nächste wartende Begegnung erscheint direkt.
   await expect(card(page, 'woodlouse')).toBeVisible();
   await expect(card(page, 'barkbeetle')).toBeVisible();
   await expect(niche(page, 'crown')).toContainText('Blaumeise');
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
 
   await page.reload();
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(niche(page, 'crown')).toContainText('Blaumeise');
   await expect(niche(page, 'roots')).toContainText('Regenwurm');
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
   await openStack(page);
   await expect(card(page, 'woodlouse')).toBeVisible();
   await expect(card(page, 'barkbeetle')).toBeVisible();
@@ -137,25 +148,25 @@ test('Neu würfeln kostet Samen, Ablehnen bringt Samen, Escape legt zurück', as
   await openGame(page);
   await openStack(page);
 
-  const reroll = dialog(page).getByRole('button', { name: /Neu würfeln \(−10 🌰\)/ });
+  const reroll = encounter(page).getByRole('button', { name: /Neu würfeln \(−10 🌰\)/ });
   await expect(reroll).toBeEnabled();
   await reroll.click();
-  await expect(dialog(page).getByRole('button', { name: /Neu würfeln \(−20 🌰\)/ })).toBeDisabled();
+  await expect(encounter(page).getByRole('button', { name: /Neu würfeln \(−20 🌰\)/ })).toBeDisabled();
   // Der Grund steht sichtbar im Dialog (nicht nur im title-Attribut).
-  await expect(dialog(page).getByText('Neu würfeln: Nicht genug Samen')).toBeVisible();
+  await expect(encounter(page).getByText('Neu würfeln: Nicht genug Samen')).toBeVisible();
   expect(await readNumber(seedsValue(page))).toBeLessThan(5);
   expect((await savedState(page)).pendingEncounters[0].rerolls).toBe(1);
 
   await settle(page);
-  await dialog(page).getByRole('button', { name: /Ablehnen \(\+5 🌰\)/ }).click();
+  await encounter(page).getByRole('button', { name: /Ablehnen \(\+5 🌰\)/ }).click();
   // Die zweite Begegnung (Rotkehlchen) folgt direkt.
   await expect(card(page, 'robin')).toBeVisible();
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
   expect(await readNumber(seedsValue(page))).toBeGreaterThanOrEqual(7);
 
   await settle(page);
   await page.keyboard.press('Escape');
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(stack(page)).toBeVisible();
 });
 
@@ -174,10 +185,10 @@ test('Doppelklick auf „Ablehnen“ lehnt bei gleich aussehenden Begegnungen nu
   await openGame(page);
   await expect(stageLabel(page)).toHaveText('Stufe: Keimling');
   await openStack(page);
-  await dialog(page).getByRole('button', { name: /Ablehnen/ }).dblclick();
+  await encounter(page).getByRole('button', { name: /Ablehnen/ }).dblclick();
 
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
-  await expect(dialog(page)).toBeVisible();
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
+  await expect(encounter(page)).toBeVisible();
   await expect(card(page, 'earthworm')).toBeVisible();
   await page.waitForTimeout(500);
   expect((await savedState(page)).pendingEncounters).toHaveLength(1);
@@ -193,18 +204,19 @@ test('Volle Nische: Tier ersetzen', async ({ page, context }) => {
   await openStack(page);
   const robin = card(page, 'robin');
   await expect(robin).toContainText('voll');
-  await robin.getByRole('combobox').selectOption('centipede');
-  await expect(robin).toContainText('ersetzt Steinläufer');
-  await robin.getByRole('button', { name: 'Rotkehlchen wählen (ersetzt Steinläufer)' }).click();
+  await robin.getByRole('combobox', { name: 'Wer zieht weiter?' }).selectOption('centipede');
+  // Wer ersetzt wird, zeigt die Auswahl selbst; der Knopf nennt es (zugänglicher Name).
+  await expect(robin.locator('.card-choose')).toHaveAccessibleName('Rotkehlchen einkleben (ersetzt Steinläufer)');
+  await robin.getByRole('button', { name: 'Rotkehlchen einkleben (ersetzt Steinläufer)' }).click();
 
   // Keine Begegnung mehr: Dialog und Stapel verschwinden.
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(stack(page)).toBeHidden();
   await expect(niche(page, 'litter')).toContainText('Rotkehlchen');
   await expect(niche(page, 'litter')).toContainText('Rollassel');
   await expect(niche(page, 'litter')).not.toContainText('Steinläufer');
   // Der Stapel ist verschwunden: Der Fokus landet auf der Überschrift statt im Nichts.
-  await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
+  await expect(pageTitle(page)).toBeFocused();
   expect((await savedState(page)).niches.litter).toEqual(['woodlouse', 'robin']);
 });
 
@@ -220,6 +232,7 @@ test('„Spielstand löschen“ setzt nach Bestätigung zurück', async ({ page,
   await expect(stack(page)).toBeVisible();
 
   // Ein einzelner Klick fragt nur nach und lässt den Stand unverändert.
+  await openSavePage(page);
   await page.getByRole('button', { name: 'Spielstand löschen' }).click();
   await expect(page.getByRole('button', { name: /Wirklich alles löschen/ })).toBeVisible();
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
@@ -230,8 +243,10 @@ test('„Spielstand löschen“ setzt nach Bestätigung zurück', async ({ page,
   await expect(page.getByRole('button', { name: 'Spielstand löschen' })).toBeVisible();
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
   expect(await readNumber(seedsValue(page))).toBeLessThan(5);
-  await expect(niche(page, 'crown')).not.toContainText('Blaumeise');
   await expect(stack(page)).toBeHidden();
+  // Der Reiter Nischen zieht beim Zeigen nach (nur sichtbare Seiten schreiben, D.1).
+  await openTab(page, 'nischen');
+  await expect(niche(page, 'crown')).not.toContainText('Blaumeise');
 
   // Auch nach dem Neuladen bleibt der Stand zurückgesetzt.
   await page.reload();
@@ -253,7 +268,7 @@ test('v1-Spielstand: Neustart mit Andenken-Meldung', async ({ page, context }) =
     -2 * 60 * 60 * 1000,
   );
   await openGame(page);
-  const toast = page.locator('#toast');
+  const toast = stamps(page);
   await expect(toast).toBeVisible();
   await expect(toast).toContainText('Dein Wald beginnt neu – mit Erinnerungen.');
   await expect(stageLabel(page)).toHaveText(/Stufe: (Samen|Keimling)/);
@@ -285,15 +300,15 @@ test('Spielstand einer neueren Spielversion: nicht laden, nie überschreiben, Hi
   await page.waitForTimeout(1500);
   expect(await savedState(page)).toEqual(future);
   // „Spielstand löschen“ ist im gesperrten Tab keine stille Sackgasse: freundlich abgelehnt.
+  await openSavePage(page);
   const reset = page.locator('#reset');
   await reset.click();
   await waitForConfirm(page);
   await reset.click();
-  await expect(page.locator('#toast')).toContainText('Dieser Tab ist angehalten');
+  await expect(stamps(page)).toContainText('Dieser Tab ist angehalten');
   expect(await savedState(page)).toEqual(future);
   // Export liefert den gespeicherten neueren Stand (für die neuere Spielversion).
   const transfer = page.locator('[data-ref="save-transfer"]');
-  await transfer.locator('summary').click();
   await transfer.locator('[data-ref="export"]').click();
   await expect(transfer.locator('[data-ref="export-code"]')).toHaveValue(codeFromJson(JSON.stringify(future)));
   // Import ist im gesperrten Tab ebenso abgelehnt (dieselbe Meldung).
@@ -348,7 +363,7 @@ test('Offline-Fortschritt: Willkommens-Meldung, Begegnungen warten im Stapel', a
   });
   await openGame(page);
 
-  const toast = page.locator('#toast');
+  const toast = stamps(page);
   await expect(toast).toBeVisible();
   await expect(toast).toContainText('Willkommen zurück');
   await expect(toast).toContainText('1 Std.');
@@ -356,8 +371,8 @@ test('Offline-Fortschritt: Willkommens-Meldung, Begegnungen warten im Stapel', a
   await expect(toast).toContainText('🌿');
   await expect(toast).toContainText(/Begegnung/);
   // In einer Stunde vergehen mehrere Wegpunkte – höchstens 3 Begegnungen warten.
-  await expect(stack(page)).toHaveText(/3 Begegnungen warten/);
-  await expect(dialog(page)).toBeHidden();
+  await expect(stack(page)).toHaveAttribute('aria-label', /3 Begegnungen warten/);
+  await expect(encounter(page)).toBeHidden();
 });
 
 test('Offline länger als 8 Stunden: Meldung nennt die simulierte Dauer', async ({ page, context }) => {
@@ -367,10 +382,12 @@ test('Offline länger als 8 Stunden: Meldung nennt die simulierte Dauer', async 
     lastTickOffsetMs: -30 * 60 * 60 * 1000,
   });
   await openGame(page);
-  const toast = page.locator('#toast');
-  await expect(toast).toContainText('In 8 Std. (max. 8 Std.)');
+  // Die Meldung zeigt die Kurzfassung (C.8), der Rückkehr-Bericht alles Weitere.
+  await expect(stamps(page)).toContainText('Willkommen zurück! 8 Std.');
+  const report = page.locator('[data-ref="return-report-list"]');
+  await expect(report).toContainText('In 8 Std. (max. 8 Std.)');
   // Mehr als 3 Wegpunkte: überzählige Begegnungen ziehen weiter und bringen Samen.
-  await expect(toast).toContainText(/zog(en)? weiter und ließ(en)? \+\d+ 🌰 da/);
+  await expect(report).toContainText(/zog(en)? weiter und ließ(en)? \+\d+ 🌰 da/);
 });
 
 test('ohne Offline-Zeit erscheint keine Willkommens-Meldung', async ({ page, context }) => {
@@ -378,7 +395,7 @@ test('ohne Offline-Zeit erscheint keine Willkommens-Meldung', async ({ page, con
   await openGame(page);
   await page.waitForTimeout(300);
   // Nur der Sammelhinweis der Erfolge (v3-Stand, Migration v8 → v9) – kein Willkommen.
-  await expect(page.locator('#toast')).toHaveText(BACKFILLED_ONLY);
+  await expect(stamp(page)).toHaveText(BACKFILLED_ONLY);
 });
 
 test.describe('Mobil (390×844)', () => {
@@ -398,7 +415,7 @@ test.describe('Mobil (390×844)', () => {
     await expectNoHorizontalScroll(page);
   });
 
-  test('kein horizontales Scrollen mit vollen Nischen, 3 Begegnungen, offenem Dialog und großen Zahlen', async ({
+  test('kein horizontales Scrollen mit vollen Nischen, 3 Begegnungen, offener Begegnungsseite und großen Zahlen', async ({
     page,
     context,
   }) => {
@@ -421,14 +438,18 @@ test.describe('Mobil (390×844)', () => {
     });
     await openGame(page);
     await expect(stageLabel(page)).toHaveText('Stufe: Hain');
-    await expect(stack(page)).toHaveText(/3 Begegnungen warten/);
+    await expect(stack(page)).toHaveAttribute('aria-label', /3 Begegnungen warten/);
     await expect(stack(page)).toBeInViewport();
     await expectNoHorizontalScroll(page);
 
     await stack(page).tap();
-    await expect(dialog(page)).toBeVisible();
+    // Erst nach dem Umblättern messen – mitten in der Drehung ragt die Seite kurz über den Rand.
+    await settledSubpage(page, 'encounter');
     await expect(card(page, 'robin')).toBeVisible();
     await expectNoHorizontalScroll(page);
+    // Große Zahlen: Das Samen-Etikett zeigt „Mio.“ und passt in seinen Rahmen.
+    await expect(seedsValue(page)).toContainText('Mio.');
+    expect(await seedsValue(page).evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   });
 });
 
@@ -436,10 +457,10 @@ test.describe('Mobil (390×844)', () => {
 // Pflanzen: Begegnung „Etwas keimt“, Pflanzring, „Pflanze setzen“
 // ---------------------------------------------------------------------------
 
-const plantCard = (page: Page, plant: string) => dialog(page).locator(`[data-plant="${plant}"]`);
+const plantCard = (page: Page, plant: string) => encounter(page).locator(`[data-plant="${plant}"]`);
 const plantRing = (page: Page) => page.locator('[data-ref="plant-ring"]');
 const plantOpen = (page: Page) => page.locator('[data-ref="plant-open"]');
-const picker = (page: Page) => page.locator('[data-ref="plant-picker"]');
+const picker = (page: Page) => page.locator('[data-ref="page-plant-picker"]');
 
 test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring', async ({ page, context }) => {
   // Keimling kurz vor Wegpunkt 2 – die festgelegte zweite Begegnung ist „Etwas keimt“.
@@ -447,16 +468,16 @@ test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring',
   await openGame(page);
   await expect(stageLabel(page)).toHaveText('Stufe: Keimling');
   await expect(plantRing(page)).toContainText('frei');
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/, { timeout: 8_000 });
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/, { timeout: 8_000 });
 
   await openStack(page);
-  await expect(dialog(page)).toContainText('Etwas keimt');
-  await expect(dialog(page)).toContainText('kostenlos im Pflanzring (0/1 belegt)');
-  const cards = dialog(page).locator('[data-plant]');
+  await expect(encounter(page)).toContainText('Etwas keimt');
+  await expect(encounter(page)).toContainText('kostenlos im Pflanzring (0/1 belegt)');
+  const cards = encounter(page).locator('[data-plant]');
   await expect(cards).toHaveCount(2);
-  await expect(dialog(page)).not.toContainText('Unbekannt');
+  await expect(encounter(page)).not.toContainText('Unbekannt');
   // Keimling: nur zwei Pflanzen freigeschaltet – Neuwürfeln erklärt, warum es nicht geht.
-  await expect(dialog(page).getByText('Neu würfeln: Keine anderen Pflanzen verfügbar')).toBeVisible();
+  await expect(encounter(page).getByText('Neu würfeln: Keine anderen Pflanzen verfügbar')).toBeVisible();
 
   const moss = plantCard(page, 'moss');
   await expect(moss).toContainText('Frauenhaarmoos');
@@ -464,9 +485,9 @@ test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring',
   await expect(moss).toContainText('speichert Wasser');
   await expect(moss).toContainText('Feuchte für Regenwurm');
   await expect(moss).toContainText('Versorgung mit Licht und Wasser');
-  await moss.getByRole('button', { name: 'Frauenhaarmoos wählen' }).click();
+  await moss.getByRole('button', { name: 'Frauenhaarmoos einkleben' }).click();
 
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(stack(page)).toBeHidden();
   await expect(plantRing(page).locator('[data-plant="moss"]')).toContainText('Frauenhaarmoos');
   await expect(page.locator('[data-ref="plant-slots"]')).toHaveText('1/1 belegt');
@@ -494,10 +515,10 @@ test('Pflanzring voll: „Welche Pflanze weicht?“ ersetzt die gewählte Pflanz
   await expect(nettle).toContainText('Pflanzring voll');
   await expect(nettle.getByRole('combobox', { name: 'Welche Pflanze weicht?' })).toBeVisible();
   await nettle.getByRole('combobox').selectOption('bramble');
-  await expect(nettle).toContainText('ersetzt Brombeere');
-  await nettle.getByRole('button', { name: 'Große Brennnessel wählen (ersetzt Brombeere)' }).click();
+  await expect(nettle.locator('.card-choose')).toHaveAccessibleName('Große Brennnessel einkleben (ersetzt Brombeere)');
+  await nettle.getByRole('button', { name: 'Große Brennnessel einkleben (ersetzt Brombeere)' }).click();
 
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page)).toBeHidden();
   await expect(plantRing(page)).toContainText('Große Brennnessel');
   await expect(plantRing(page)).toContainText('Hasel');
   await expect(plantRing(page)).not.toContainText('Brombeere');
@@ -557,7 +578,7 @@ test.describe('Pflanzen mobil (390×844)', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   }
 
-  test('kein horizontales Scrollen: Pflanzring mit Mangel, voller Pflanzen-Dialog, Auswahl', async ({
+  test('kein horizontales Scrollen: Pflanzring mit Mangel, U:Pflanze setzen, Pflanzen-Begegnung', async ({
     page,
     context,
   }) => {
@@ -574,12 +595,13 @@ test.describe('Pflanzen mobil (390×844)', () => {
     await expectNoHorizontalScroll(page);
 
     await plantOpen(page).tap();
-    await expect(picker(page)).toBeVisible();
+    await settledSubpage(page, 'plant-picker');
     await expectNoHorizontalScroll(page);
-    await picker(page).getByRole('button', { name: 'Schließen' }).tap();
+    await picker(page).locator('[data-ref="bookmark"]').tap();
     await expect(picker(page)).toBeHidden();
 
     await stack(page).tap();
+    await settledSubpage(page, 'encounter');
     await expect(plantCard(page, 'elder')).toBeVisible();
     await expectNoHorizontalScroll(page);
   });
@@ -589,28 +611,38 @@ test.describe('Pflanzen mobil (390×844)', () => {
 // Feinschliff aus dem Playtest: Legende, Futter-Erklärung, verpasste Begegnungen
 // ---------------------------------------------------------------------------
 
-test('Legende der Vorschau-Symbole: bei der ersten Begegnung offen, danach zugeklappt', async ({ page, context }) => {
-  await seedV3(context, {
-    totalGrowth: waypoint(6) + 1,
-    pendingEncounters: [{ type: 'animal', cards: ['bluetit', 'oakmoth'], rerolls: 0 }],
-  });
-  await openGame(page);
-  await openStack(page);
-  const legend = dialog(page).locator('.encounter-legend');
-  await expect(legend).toHaveAttribute('open', '');
-  for (const text of ['Harmonie', 'erwartete Zufriedenheit', 'Futter und Wünsche']) {
-    await expect(legend).toContainText(text);
-  }
-  // Nur Symbole, die in dieser Begegnung vorkommen: Tiere haben keine Licht-/Wasser-Versorgung.
-  await expect(legend).not.toContainText('Licht und Wasser');
+test.describe('Legende ungesehen', () => {
+  test.use({ freshLegend: true });
 
-  // Beim nächsten Besuch zugeklappt, aber jederzeit aufklappbar.
-  await page.reload();
-  await openStack(page);
-  await expect(legend).not.toHaveAttribute('open', '');
-  await expect(legend.getByText('erwartete Zufriedenheit')).toBeHidden();
-  await legend.getByText('Was bedeuten die Symbole?').click();
-  await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
+  test('Legende der Vorschau-Symbole: Haftnotiz am „?“, beim ersten Mal von selbst offen', async ({ page, context }) => {
+    await seedV3(context, {
+      totalGrowth: waypoint(6) + 1,
+      pendingEncounters: [{ type: 'animal', cards: ['bluetit', 'oakmoth'], rerolls: 0 }],
+    });
+    await openGame(page);
+    await openStack(page);
+    const legend = note(page, 'encounter-legend');
+    const open = encounter(page).locator('[data-ref="encounter-legend-open"]');
+    await expect(legend).toBeVisible();
+    await expect(open).toHaveAttribute('aria-expanded', 'true');
+    for (const text of ['Harmonie', 'erwartete Zufriedenheit', 'Futter und Wünsche']) {
+      await expect(legend).toContainText(text);
+    }
+    // Nur Symbole, die in dieser Begegnung vorkommen: Tiere haben keine Licht-/Wasser-Versorgung.
+    await expect(legend).not.toContainText('Licht und Wasser');
+    // Der Fokus bleibt auf der ersten Karte (Pfeiltasten und Enter wirken sofort).
+    await expect(card(page, 'bluetit').getByRole('button', { name: 'Blaumeise einkleben' })).toBeFocused();
+    await legend.getByRole('button', { name: 'Verstanden' }).click();
+    await expect(legend).toBeHidden();
+
+    // Beim nächsten Besuch bleibt sie zu, ist aber jederzeit am „?“ zu öffnen.
+    await page.reload();
+    await openStack(page);
+    await expect(legend).toBeHidden();
+    await open.click();
+    await expect(legend).toBeVisible();
+    await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
+  });
 });
 
 test('Knappes Futter: Karte und Seitenleiste nennen, mit wem das Futter geteilt wird', async ({ page, context }) => {
@@ -625,8 +657,8 @@ test('Knappes Futter: Karte und Seitenleiste nennen, mit wem das Futter geteilt 
   await openStack(page);
   await expect(card(page, 'oakmoth')).toContainText('(knapp)');
   await expect(card(page, 'oakmoth')).toContainText('teilt sich das Futter mit Regenwurm und Rollassel');
-  await card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler wählen' }).click();
-  await expect(dialog(page)).toBeHidden();
+  await card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler einkleben' }).click();
+  await expect(encounter(page)).toBeHidden();
   // Unter 70 %: Der Regenwurm nennt jetzt auch die Futterkonkurrenz.
   await expect(niche(page, 'roots')).toContainText('teilt sich das Futter mit');
 });
@@ -648,7 +680,7 @@ test('Wegpunkt bei vollem Stapel: dezenter Hinweis mit den Samen dafür', async 
   await pauseClock(page);
   await seedV3(context, { totalGrowth: waypoint(7) - 1, pendingEncounters: FULL_STACK });
   await openGame(page);
-  await expect(stack(page)).toHaveText(/3 Begegnungen warten/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /3 Begegnungen warten/);
   await expect(page.locator('.float-note')).toHaveCount(0);
   // Eine Sekunde in Einzelframes: Der Wegpunkt fällt sicher in tick() eines Frames,
   // nicht ins Nachrechnen (catchUp) nach einem Zeitsprung.
@@ -657,7 +689,7 @@ test('Wegpunkt bei vollem Stapel: dezenter Hinweis mit den Samen dafür', async 
   // Derselbe Hinweis unsichtbar in der Statuszeile (Screenreader) – kein zweiter Toast.
   await expect(page.locator('#live-status')).toHaveText(/Stapel voll – eine Begegnung zog weiter/);
   // Der Toast zeigt nur den Sammelhinweis der Erfolge (v3-Stand, Migration v8 → v9).
-  await expect(page.locator('#toast')).toHaveText(BACKFILLED_ONLY);
+  await expect(stamp(page)).toHaveText(BACKFILLED_ONLY);
   const saved = await savedState(page);
   expect(saved.pendingEncounters).toHaveLength(3);
   expect(saved.waypoint).toBe(7);
@@ -673,7 +705,7 @@ test('Start 20 s nach dem letzten Speichern, ein Wegpunkt bei vollem Stapel verp
   await openGame(page);
   await expect(page.locator('.float-note')).toHaveText(/Stapel voll – eine Begegnung zog weiter · \+\d+ 🌰/);
   // Kein Willkommen; der Toast zeigt nur den Sammelhinweis der Erfolge (Migration v8 → v9).
-  await expect(page.locator('#toast')).toHaveText(BACKFILLED_ONLY);
+  await expect(stamp(page)).toHaveText(BACKFILLED_ONLY);
   expect((await savedState(page)).waypoint).toBe(7);
 });
 
@@ -711,7 +743,7 @@ test('Echter v2-Spielstand (alte Wegpunkt-Kurve): lädt ohne Fehler, Stufe und T
   for (const [id, list] of Object.entries(niches)) {
     for (const animal of list) await expect(niche(page, id).locator(`[data-species="${animal}"]`)).toBeVisible();
   }
-  await expect(stack(page)).toHaveText(/1 Begegnung wartet/);
+  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/);
 
   // Neuladen speichert (beforeunload) und lädt den umgerechneten Stand (jetzt v4): alles bleibt.
   await page.reload();
@@ -750,9 +782,9 @@ test('Volle Nische: Futter-Erklärung folgt der gewählten Ersetzen-Option', asy
 });
 
 test.describe('Feinschliff mobil (390×844)', () => {
-  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, freshLegend: true });
 
-  test('erste Begegnung: Legende zu, Wählen und Ablehnen ohne Scrollen sichtbar – auch aufgeklappt', async ({
+  test('erste Begegnung: Legende öffnet sich auch mobil von selbst, Wählen und Ablehnen ohne Scrollen sichtbar', async ({
     page,
     context,
   }) => {
@@ -763,27 +795,30 @@ test.describe('Feinschliff mobil (390×844)', () => {
     });
     await openGame(page);
     await stack(page).tap();
-    await expect(dialog(page)).toBeVisible();
+    await settledSubpage(page, 'encounter');
     await settle(page);
-    const legend = dialog(page).locator('.encounter-legend');
-    await expect(legend).not.toHaveAttribute('open', '');
-    await expect(legend.getByText('Was bedeuten die Symbole?')).toBeVisible();
-    // Zugeklappt wird der Merker nicht gesetzt – erst, wenn die Legende wirklich offen war.
+    // Wie am Desktop (Playtest Schritt 14, K2): Neue Handy-Spieler sehen die Symbole erklärt.
+    const legend = note(page, 'encounter-legend');
+    const open = encounter(page).locator('[data-ref="encounter-legend-open"]');
+    await expect(legend).toBeVisible();
+    await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
     const legendSeen = () => page.evaluate(() => localStorage.getItem('tree-grow-legend-seen'));
-    expect(await legendSeen()).toBeNull();
-    const choose = card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler wählen' });
-    const decline = dialog(page).getByRole('button', { name: /Ablehnen/ });
+    expect(await legendSeen()).toBe('1');
+    // Die Notiz liegt über dem Kopf, nicht über den Knöpfen.
+    const choose = card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler einkleben' });
+    const decline = encounter(page).getByRole('button', { name: /Ablehnen/ });
     await expect(choose).toBeInViewport();
     await expect(decline).toBeInViewport();
-
-    // Aufgeklappt: Die Aktionsleiste bleibt am unteren Rand.
-    await legend.getByText('Was bedeuten die Symbole?').tap();
-    await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
+    await legend.getByRole('button', { name: 'Verstanden' }).tap();
+    await expect(legend).toBeHidden();
+    await expect(open).toBeVisible();
+    // Wieder aufgeklappt: Karten und Knöpfe bleiben, wo sie sind.
+    await open.tap();
+    await expect(legend).toBeVisible();
     await expect(decline).toBeInViewport();
-    expect(await legendSeen()).toBe('1');
   });
 
-  test('lange Gründe: Tier-Kacheln bleiben flach, der volle Text per Tooltip und in den Tierdetails', async ({ page, context }) => {
+  test('lange Gründe: Sticker bleiben klein, der volle Text im Titel und auf U:Tier', async ({ page, context }) => {
     // Rotbuche statt Eiche: ohne deren Insekten-Bonus bleibt die Biene unter 70 % und
     // nennt zwei Gründe (DESIGN_V2.md 17.3).
     const state = createInitialState(Date.now(), 123456789);
@@ -800,21 +835,16 @@ test.describe('Feinschliff mobil (390×844)', () => {
     state.cycle.mainTree = 'beech';
     await seedRaw(context, state, 0);
     await openGame(page);
-    const bee = niche(page, 'edge').locator('[data-species="bee"]');
-    const mood = bee.locator('.slot-mood');
-    await expect(mood).toHaveAttribute('title', /·/);
-    const full = (await mood.getAttribute('title'))!;
-    expect(await mood.textContent()).toBe(full);
-    // Höchstens zwei Textzeilen
-    const { height, lineHeight } = await mood.evaluate((e) => ({
-      height: e.getBoundingClientRect().height,
-      lineHeight: parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.3,
-    }));
-    expect(height).toBeLessThanOrEqual(lineHeight * 2 + 1);
-    // Wirklich gekürzt – Tippen auf die Kachel öffnet die Tierdetails mit allen Gründen
-    expect(await mood.evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
-    await mood.click();
-    const detail = page.locator('[data-ref="animal-detail"]');
+    const bee = niche(page, 'edge').locator('[data-species="bee"] button.sticker');
+    // Stimmung steht nicht auf dem Sticker, aber vollständig im Titel und für Screenreader.
+    await expect(bee).toHaveAttribute('title', /^Wildbiene: \d+\s%.*·/);
+    const full = (await bee.getAttribute('title'))!.replace(/^Wildbiene: /, '');
+    await expect(bee).toContainText(full);
+    // Höchstens zwei Namenszeilen, der Sticker bleibt 48 px groß.
+    const box = (await bee.boundingBox())!;
+    expect(Math.round(box.height)).toBeLessThanOrEqual(56);
+    await bee.click();
+    const detail = page.locator('[data-ref="page-animal"]');
     await expect(detail).toBeVisible();
     await expect(detail.locator('[data-ref="detail-happiness"]')).toContainText(full.split(' · ')[0]!);
   });
@@ -841,28 +871,31 @@ test.describe('Lebensgemeinschaften', () => {
     await openGame(page);
     await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
 
-    // Seitenleiste: zugeklappt mit Kurzfassung; aufgeklappt „???“ mit Rätselhinweis und
+    // Reiter Nischen: Link mit Kurzfassung; U:Harmonie zeigt „???“ mit Rätselhinweis und
     // Fortschritt – ohne „fehlt: …“, solange die Gemeinschaft unentdeckt ist.
     await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('0 von 15 aktiv');
-    await communities(page).locator('summary').click();
+    await page.locator('[data-ref="communities-link"]').click();
+    await expect(page.locator('[data-ref="page-harmony"]')).not.toHaveAttribute('inert', '');
     await expect(community(page, 'humus')).toContainText('???');
     await expect(community(page, 'humus')).toContainText('Aus Laub wird Erde, aus Erde wird Leben.');
     await expect(community(page, 'humus')).not.toContainText('fehlt');
     await expect(community(page, 'humus')).toContainText('2/3');
+    await back(page);
 
     await openStack(page);
     const mushroom = card(page, 'chanterelle');
     await expect(mushroom).toContainText('✨ vervollständigt Humusküche (+8 Harmonie)');
     await expect(card(page, 'bluetit')).not.toContainText('vervollständigt');
-    await mushroom.getByRole('button', { name: 'Pfifferling wählen' }).click();
+    await mushroom.getByRole('button', { name: 'Pfifferling einkleben' }).click();
 
-    await expect(dialog(page)).toBeHidden();
+    await expect(encounter(page)).toBeHidden();
     // Entdeckung und erster Erfolg in einem Hinweis (nichts verdrängt das andere).
-    await expect(page.locator('#toast')).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱 🏅 Erfolg: „Gemeinsam stark“');
+    await expect(stamp(page)).toHaveText('Neue Lebensgemeinschaft: Humusküche 🌱 🏅 Erfolg: „Gemeinsam stark“');
+    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 15 aktiv · +8 ⚖️');
+    await page.locator('[data-ref="communities-link"]').click();
     await expect(community(page, 'humus')).toContainText('Humusküche');
     await expect(community(page, 'humus')).toContainText('+8 ⚖️');
     await expect(community(page, 'humus')).toHaveClass(/state-active/);
-    await expect(page.locator('[data-ref="communities-summary"]')).toHaveText('1 von 15 aktiv · +8 ⚖️');
 
     const saved = await savedState(page);
     expect(saved.meta.journal.communities).toEqual(['humus']);
@@ -877,11 +910,13 @@ test.describe('Lebensgemeinschaften', () => {
     }) => {
       await seedNearHumus(context);
       await openGame(page);
-      await communities(page).locator('summary').click();
+      await page.locator('[data-ref="communities-link"]').tap();
+      await settledSubpage(page, 'harmony');
       await expect(community(page, 'humus')).toContainText('Aus Laub wird Erde');
       const noScroll = () =>
         page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
       expect(await noScroll()).toBe(true);
+      await back(page);
       await openStack(page);
       await expect(card(page, 'chanterelle')).toContainText('vervollständigt Humusküche');
       expect(await noScroll()).toBe(true);
@@ -924,29 +959,42 @@ test('Seitenleiste scrollt für sich: die Seite selbst bleibt fest (Desktop)', a
   await seedRaw(context, state, 0);
   await page.setViewportSize({ width: 1280, height: 800 });
   await openGame(page);
-  const panel = page.locator('#panel');
+  // Die rechte Seite des Albums scrollt in sich (wie früher die Seitenleiste) – und zwar
+  // wirklich: Sonst prüfte die Schleife nur eine Seite, die gar nicht scrollt.
+  const panel = page.locator('.spread-right');
+  expect(await panel.evaluate((p) => p.scrollHeight - p.clientHeight)).toBeGreaterThan(300);
   for (const top of [0, 300, 600, 100_000]) {
-    await panel.evaluate((p, top) => (p.scrollTop = top), top);
-    await page.waitForTimeout(250);
+    const reached = await panel.evaluate(async (p, top) => {
+      p.scrollTop = top;
+      // Ein Frame für Layout und Scroll-Handler (statt fester Wartezeit).
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return p.scrollTop;
+    }, top);
+    if (top > 0) expect(reached, `scrollTop ${top}`).toBeGreaterThan(0);
     const { scrollHeight, clientHeight } = await page.evaluate(() => {
       const d = document.documentElement;
       return { scrollHeight: d.scrollHeight, clientHeight: d.clientHeight };
     });
     expect(scrollHeight, `Seitenleiste bei scrollTop ${top}`).toBeLessThanOrEqual(clientHeight);
   }
-  await page.locator('#reset').focus();
+  await page.locator('.spread-right button:visible').last().focus();
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
-test('Hinweis (Toast) lässt Klicks auf darunterliegende Knöpfe durch', async ({ page, context }) => {
-  await seedV3(context, { totalGrowth: waypoint(3) + 1, lastTickOffsetMs: -60 * 60 * 1000 });
+test('Meldung (Stempel, Zettel) lässt Klicks auf darunterliegende Knöpfe durch', async ({ page, context }) => {
+  await seedRaw(context, landscapeUnlockState(), 0);
   await openGame(page);
-  const toast = page.locator('#toast');
-  await expect(toast).toBeVisible();
-  const box = (await toast.boundingBox())!;
+  // Landschaft frei: ein langer Hinweis, also ein Zettel mit „×“.
+  const slip = stamp(page);
+  await expect(slip).toBeVisible();
+  await expect(slip).toHaveAttribute('data-kind', 'slip');
+  const box = (await slip.boundingBox())!;
   const hit = await page.evaluate(
-    ({ x, y }) => document.elementFromPoint(x, y)?.closest('#toast') != null,
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-ref="stamps"]') != null,
     { x: box.x + box.width / 2, y: box.y + box.height / 2 },
   );
-  expect(hit, 'Toast fängt Klicks ab').toBe(false);
+  expect(hit, 'Meldung fängt Klicks ab').toBe(false);
+  // Nur „×“ fängt Klicks: schließt den Zettel.
+  await slip.getByRole('button', { name: 'Zettel schließen' }).click();
+  await expect(page.locator('[data-ref="stamp"]')).toHaveCount(0);
 });

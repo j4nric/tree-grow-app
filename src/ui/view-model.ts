@@ -79,6 +79,12 @@ export interface PreviewView {
   growthDelta: number;
   /** Relative Änderung von 🌰/s (optional). */
   seedDelta?: number;
+  /**
+   * Absolute Änderung von 🌿/s bzw. 🌰/s (optional). Bei sehr kleiner Basis (erste Pflanze)
+   * zeigt die Vorschau ab +200 % diesen Wert („+0,8/s“) statt einer riesigen Prozentzahl.
+   */
+  growthPerSec?: number;
+  seedsPerSec?: number;
   /** Erwartete Zufriedenheit des neuen Tiers (0–1, nur bei Tieren). */
   happiness?: number;
   /** Versorgung der Begleitpflanzen mit Licht und Wasser danach (0–1, nur bei Pflanzen). */
@@ -143,7 +149,7 @@ export interface CardView {
   replaceOptions?: ReplaceOptionView[];
   /** Hinweis, wenn voll – Standard „Nische … voll“, bei Pflanzen „Pflanzring voll“. */
   fullText?: string;
-  /** Frage über der Ersetzen-Auswahl – Standard „Wen entlassen?“. */
+  /** Frage über der Ersetzen-Auswahl – Standard „Wer zieht weiter?“ (encounter-cards.ts). */
   replacePrompt?: string;
   /** Kennzahlen (Pflanzen: Wachstum, Samen, Licht, Wasser). */
   facts?: FactView[];
@@ -281,6 +287,8 @@ export interface FoodWebRowView {
   /** „Waldkauz und Rotfuchs“ – leer, wenn keiner frisst; Beute, die sich selbst frisst: „… (frisst Artgenossen)“. */
   hunters: string;
   hunterCount: number;
+  /** Entdeckte Jäger als Art-IDs (für kleine Sticker im Album; Unentdeckte fehlen). */
+  hunterIds?: string[];
   /** Arten, die es nur klein halten, z. B. „Rote Waldameise“ – leer, wenn keine. */
   controllers: string;
   /** Was das bedeutet bzw. was hilft, z. B. „Ein Raupenjahr kann Jäger einladen.“ */
@@ -666,7 +674,7 @@ export interface JournalView {
   counts: string;
   /** z. B. „Zyklus 2 · Waldgedächtnis 30 (+60 % Wachstum und Samen)“. */
   meta: string;
-  /** z. B. „Stammgäste 1/2 – wähle unten bei den Arten“; null, solange es keine Plätze gibt. */
+  /** z. B. „Stammgäste 1/2 – … Tippe auf eine Art und wähle sie als Stammgast.“; null, solange es keine Plätze gibt. */
   regulars: string | null;
   species: JournalEntryView[];
   plants: JournalEntryView[];
@@ -681,8 +689,6 @@ export interface JournalView {
   stats: JournalStatView[];
   /** Erfolge: freigeschaltete zuerst, dann offene mit Fortschritt. */
   achievements: JournalAchievementView[];
-  /** Reiter „Landschaft“ – null, solange die Landschaft nicht freigeschaltet ist (Reiter verborgen). */
-  landscape: JournalLandscapeView | null;
   /** Zähler je Reiter, z. B. „12/32“ (Statistik ohne Zähler: leer; Landschaft verborgen: leer). */
   tabCounts: {
     species: string;
@@ -690,7 +696,6 @@ export interface JournalView {
     communities: string;
     keepsakes: string;
     achievements: string;
-    landscape: string;
     stats: string;
   };
 }

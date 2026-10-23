@@ -9,7 +9,6 @@ import { toJournalView } from '../src/ui/adapters';
 import {
   FAUNA_HIGHLIGHTS,
   faunaHighlightsText,
-  journalLandscapeCount,
   memoryText,
   regularsText,
   toJournalLandscapeView,
@@ -52,13 +51,10 @@ const row = (site: { rows: { key: string; value: string; label: string }[] }, ke
   site.rows.find((r) => r.key === key);
 
 describe('Reiter „Landschaft“: Sichtbarkeit (Spoiler-Regel)', () => {
-  it('vor der Freischaltung: keine Ansicht, kein Zähler, kein Standort-Name im Tagebuch', () => {
+  it('vor der Freischaltung: keine Ansicht, kein Standort-Name im Tagebuch', () => {
     const state = withLandscape({ own: LANDSCAPE_UNLOCK_MEMORY - 1 });
     expect(toJournalLandscapeView(state)).toBeNull();
-    const journal = toJournalView(state, evaluate(state));
-    expect(journal.landscape).toBeNull();
-    expect(journal.tabCounts.landscape).toBe('');
-    const json = JSON.stringify(journal);
+    const json = JSON.stringify(toJournalView(state, evaluate(state)));
     for (const s of LANDSCAPE_SITES.filter((x) => x.id !== 'home')) expect(json).not.toContain(s.name);
     expect(json).not.toContain('🪶');
   });
@@ -67,15 +63,13 @@ describe('Reiter „Landschaft“: Sichtbarkeit (Spoiler-Regel)', () => {
     expect(toJournalLandscapeView(withLandscape({ own: 900, achievement: false }))).toBeNull();
   });
 
-  it('nach der Freischaltung sichtbar, Zähler = gegründete Wälder', () => {
+  it('nach der Freischaltung sichtbar, nur der Heimatwald gegründet', () => {
     const state = withLandscape({ own: LANDSCAPE_UNLOCK_MEMORY });
     const view = toJournalLandscapeView(state)!;
     expect(view).not.toBeNull();
     expect(view.sites.map((s) => s.id)).toEqual(['home']);
-    expect(journalLandscapeCount(view)).toBe(`1/${LANDSCAPE_SITES.length}`);
-    expect(toJournalView(state, evaluate(state)).tabCounts.landscape).toBe('1/6');
     expect(view.summary).toBe('1 von 6 Wäldern gegründet · 0 von 10 Korridoren');
-    expect(view.sitesHint).toBe('5 Wälder warten noch – gründen kannst du im Bereich „Neuer Zyklus“.');
+    expect(view.sitesHint).toBe('5 Wälder warten noch – tippe auf der Karte auf einen Standort und wähle ihn als Ziel des nächsten Zyklus.');
     expect(view.corridors).toEqual([]);
   });
 });
@@ -227,6 +221,5 @@ describe('Reiter „Landschaft“: Korridore und Hähersaat', () => {
     const view = toJournalLandscapeView(state)!;
     expect(view.sites).toHaveLength(6);
     expect(view.sitesHint).toBeNull();
-    expect(journalLandscapeCount(view)).toBe('6/6');
   });
 });

@@ -4,7 +4,7 @@ import { STAGES } from '../src/content/stages';
 import { loadGame, serialize } from '../src/core/save';
 import { createInitialState, createSite, type GameState } from '../src/core/state';
 import { tick, type WildwechselCard } from '../src/core/tick';
-import { card, dialog, expect, openGame, openStack, seedRaw, stack, test, waypoint } from './fixtures';
+import { card, encounter, expect, gotoTab, openGame, openStack, openTab, seedRaw, stack, test, waypoint } from './fixtures';
 
 /**
  * Wildwechsel in der Oberfläche (DESIGN_V2.md 24.6, Roadmap Phase 7 → 1c): Ein Stand mit
@@ -62,7 +62,7 @@ function findSeed(): { seed: number; hit: WildwechselCard } {
 test('Wildwechsel-Karte nennt den Weg, die Landschaft die Chance – auch nach dem Neuladen', async ({ page, context }) => {
   const { seed, hit } = findSeed();
   await seedRaw(context, wildwechselState(seed), 0);
-  await openGame(page);
+  await gotoTab(page, 'landschaft');
   await expect(stack(page)).toBeVisible();
 
   // Landschaft: Chance am aktiven Wald und der Korridor mit Bestand drüben.
@@ -85,7 +85,7 @@ test('Wildwechsel-Karte nennt den Weg, die Landschaft die Chance – auch nach d
   await expect(route).toContainText('Wildwechsel:');
   await expect(routed.locator('.card-choose')).toHaveAccessibleDescription(/Wildwechsel: kommt/);
   // Nur genau diese Karte.
-  await expect(dialog(page).locator('[data-ref="card-route"]')).toHaveCount(1);
+  await expect(encounter(page).locator('[data-ref="card-route"]')).toHaveCount(1);
 
   // Neuladen: Die Begegnung wartet noch; welche Karte über den Korridor kam, steht seit v15 im
   // Spielstand (`via`) – der Hinweis bleibt an genau dieser Karte.
@@ -93,7 +93,7 @@ test('Wildwechsel-Karte nennt den Weg, die Landschaft die Chance – auch nach d
   await expect(stack(page)).toBeVisible();
   await openStack(page);
   await expect(card(page, hit.species)).toBeVisible();
-  await expect(dialog(page).locator('[data-ref="card-route"]')).toHaveCount(1);
+  await expect(encounter(page).locator('[data-ref="card-route"]')).toHaveCount(1);
   await expect(card(page, hit.species).locator('[data-ref="card-route"]')).toContainText(via);
 });
 
@@ -114,6 +114,7 @@ for (const width of [360, 390]) {
     });
     expect(fits).toBe(true);
     await page.keyboard.press('Escape');
+    await openTab(page, 'landschaft');
     const chance = page.locator('[data-ref="wildwechsel-chance"]');
     await chance.scrollIntoViewIfNeeded();
     const noOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);

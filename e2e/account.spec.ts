@@ -1,7 +1,7 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
 import { codeFromJson, exportCode, importCode, serialize } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, niche, openGame, readNumber, seedsValue, seedV3, test, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, niche, openCover, openCoverPage, openGame, openTab, readNumber, seedsValue, seedV3, stamps, subpage, test, waypoint } from './fixtures';
 
 /**
  * Konto und Gerätesync: Ohne VITE_SYNC_URL (so ist das e2e-Build gebaut) gibt es kein
@@ -42,24 +42,28 @@ async function enableSync(context: BrowserContext): Promise<void> {
 
 const account = (page: Page) => page.locator('[data-ref="account"]');
 
-async function openSettings(page: Page): Promise<void> {
-  await page.locator('[data-ref="settings-open"]').click();
-  await expect(page.locator('dialog[data-ref="settings"]')).toBeVisible();
+/** Umschlag → Unterseite „Konto“ (docs/ALBUM_UI.md, B.7). */
+const openAccount = (page: Page) => openCoverPage(page, 'account');
+
+/** Zurück aus „Konto“ und Umschlag zu: wieder das Album mit dem Wald. */
+async function closeAccount(page: Page): Promise<void> {
+  await subpage(page, 'account').locator('[data-ref="bookmark"]').click();
+  await expect(subpage(page, 'account')).toBeHidden();
+  await page.locator('[data-ref="cover-close"]').click();
+  await expect(page.locator('[data-ref="cover"]')).toBeHidden();
 }
 
-async function closeSettings(page: Page): Promise<void> {
-  await page.locator('dialog[data-ref="settings"]').getByRole('button', { name: 'Schließen' }).click();
-  await expect(page.locator('dialog[data-ref="settings"]')).toBeHidden();
-}
-
-test('ohne VITE_SYNC_URL: kein Konto in den Einstellungen, keine Netzaufrufe', async ({ page }) => {
+test('ohne VITE_SYNC_URL: kein Konto im Umschlag, keine Netzaufrufe', async ({ page }) => {
   const requests: string[] = [];
   page.on('request', (req) => {
     if (!req.url().startsWith('http://localhost') || req.url().includes('/api/')) requests.push(req.url());
   });
   await openGame(page);
-  await openSettings(page);
-  await expect(page.locator('dialog[data-ref="settings"]')).toContainText('Zahlenformat');
+  await openCover(page);
+  await expect(page.locator('[data-ref="settings-open"]')).toBeVisible();
+  await expect(page.locator('[data-ref="account-open"]')).toBeHidden();
+  await openCoverPage(page, 'settings');
+  await expect(subpage(page, 'settings')).toContainText('Zahlenformat');
   await expect(account(page)).toHaveCount(0);
   expect(requests).toEqual([]);
 });
@@ -84,17 +88,17 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
     await openGame(b);
 
     // A legt das Konto an (Formular, Tastatur-taugliche Felder mit Beschriftung).
-    await openSettings(a);
+    await openAccount(a);
     await expect(account(a)).toContainText('Konto');
     await account(a).getByLabel('Benutzername').fill(name);
     await account(a).getByLabel('Passwort').fill('geheim-wald-1');
     await account(a).getByRole('button', { name: 'Konto anlegen' }).click();
     await expect(account(a).locator('[data-ref="account-who"]')).toHaveText(`Angemeldet als ${name}`);
     await expect(account(a).locator('[data-ref="account-sync"]')).toHaveText(/Synchronisiert|Gespeichert/);
-    await closeSettings(a);
+    await closeAccount(a);
 
     // B meldet sich an: Der Stand aus dem Konto ist weiter → B übernimmt ihn.
-    await openSettings(b);
+    await openAccount(b);
     await account(b).getByLabel('Benutzername').fill(name);
     await account(b).getByLabel('Passwort').fill('falsch-falsch');
     await account(b).getByRole('button', { name: 'Anmelden' }).click();
@@ -102,7 +106,7 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
     await account(b).getByLabel('Passwort').fill('geheim-wald-1');
     await account(b).getByLabel('Passwort').press('Enter');
     await expect(account(b).locator('[data-ref="account-who"]')).toHaveText(`Angemeldet als ${name}`);
-    await expect(b.locator('dialog[data-ref="settings"]')).toContainText('Dein Wald aus dem Konto ist geladen');
+    await expect(stamps(b)).toContainText('Dein Wald aus dem Konto ist geladen');
     // Vor dem Ersetzen wurden beide Stände gesichert (lokal und Cloud).
     const ring = await b.evaluate(
       () => JSON.parse(localStorage.getItem('vszw-backups') ?? '[]') as { code: string; reason: string; owner: string | null }[],
@@ -113,22 +117,25 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
     expect(cloud?.code).toMatch(/^VSZW1:/);
     expect(cloud?.owner).toBe(name);
     expect(local?.code).not.toBe(cloud?.code);
-    await closeSettings(b);
+    await closeAccount(b);
     await expect(niche(b, 'litter')).toContainText('1/2 belegt');
     await expect(niche(b, 'roots')).toContainText('Regenwurm');
 
     // Aktion in A: Pflege kaufen → B übernimmt sie (Live über Server-Sent Events).
+    await openTab(a, 'pflege');
     await a
       .locator('[data-ref="care"] [data-care="leaf-litter"]')
       .getByRole('button', { name: 'Kaufen (200 🌰)' })
       .click();
-    await expect(niche(a, 'litter')).toContainText('1/3 belegt');
+    // A steht im Reiter Pflege (der Reiter Nischen schreibt nur, solange er sichtbar ist).
+    await expect(a.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('Rang 1/2');
     await expect(niche(b, 'litter')).toContainText('1/3 belegt', { timeout: 15_000 });
-    await expect(b.locator('#toast')).toContainText('Auf anderem Gerät weitergespielt – übernommen.');
+    await expect(stamps(b)).toContainText('Auf anderem Gerät weitergespielt – übernommen.');
+    await openTab(b, 'pflege');
     await expect(b.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('Rang 1/2');
 
     // Abmelden in B: Spiel bleibt, Formular wieder da.
-    await openSettings(b);
+    await openAccount(b);
     await account(b).getByRole('button', { name: 'Abmelden' }).click();
     await expect(account(b).locator('[data-ref="account-status"]')).toHaveText(/Abgemeldet/);
     await expect(account(b).getByLabel('Benutzername')).toBeVisible();
@@ -145,7 +152,7 @@ syncTest('Konto-Abschnitt passt auf 360 px', async ({ browser, baseURL }) => {
   try {
     await enableSync(context);
     await openGame(page);
-    await openSettings(page);
+    await openAccount(page);
     const section = account(page);
     await section.getByLabel('Benutzername').scrollIntoViewIfNeeded();
     await expect(section.getByLabel('Benutzername')).toBeVisible();
@@ -180,7 +187,7 @@ syncTest('Stand einer neueren Spielversion im Konto: nichts übernehmen, nichts 
   try {
     await enableSync(context);
     await openGame(page);
-    await openSettings(page);
+    await openAccount(page);
     await account(page).getByLabel('Benutzername').fill(name);
     await account(page).getByLabel('Passwort').fill('geheim-wald-1');
     await account(page).getByRole('button', { name: 'Anmelden' }).click();
@@ -201,20 +208,21 @@ syncTest('Abmelden mit noch nicht gesendeten Änderungen: erst Hinweis, dann tro
     await enableSync(context);
     await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 400, niches: { roots: ['earthworm'], litter: ['robin'] } });
     await openGame(page);
-    await openSettings(page);
+    await openAccount(page);
     await account(page).getByLabel('Benutzername').fill(name);
     await account(page).getByLabel('Passwort').fill('geheim-wald-1');
     await account(page).getByRole('button', { name: 'Konto anlegen' }).click();
     await expect(account(page).locator('[data-ref="account-sync"]')).toHaveText(/Synchronisiert|Gespeichert/);
-    await closeSettings(page);
+    await closeAccount(page);
 
     // Offline eine Aktion: Sie kann nicht gesendet werden.
     await context.setOffline(true);
+    await openTab(page, 'pflege');
     await page
       .locator('[data-ref="care"] [data-care="leaf-litter"]')
       .getByRole('button', { name: 'Kaufen (200 🌰)' })
       .click();
-    await openSettings(page);
+    await openAccount(page);
     const signOut = account(page).locator('[data-ref="account-signout"]');
     await signOut.click();
     await expect(account(page).locator('[data-ref="account-status"]')).toContainText('noch nicht im Konto');
@@ -236,7 +244,7 @@ syncTest('zwei Tabs, ein Browser: Abmelden und anderes Konto im zweiten Tab halt
   try {
     await enableSync(context);
     await openGame(tab1);
-    await openSettings(tab1);
+    await openAccount(tab1);
     await account(tab1).getByLabel('Benutzername').fill(`eins${suffix}`);
     await account(tab1).getByLabel('Passwort').fill('geheim-wald-1');
     await account(tab1).getByRole('button', { name: 'Konto anlegen' }).click();
@@ -244,7 +252,7 @@ syncTest('zwei Tabs, ein Browser: Abmelden und anderes Konto im zweiten Tab halt
 
     // Tab 2 teilt die Sitzung; Abmelden dort meldet auch Tab 1 ab.
     await openGame(tab2);
-    await openSettings(tab2);
+    await openAccount(tab2);
     await expect(account(tab2).locator('[data-ref="account-who"]')).toHaveText(`Angemeldet als eins${suffix}`);
     await account(tab2).getByRole('button', { name: 'Abmelden' }).click();
     await expect(account(tab2).getByLabel('Benutzername')).toBeVisible();
@@ -274,7 +282,7 @@ syncTest('Sicherungen im Konto-Abschnitt wiederherstellen (Liste, mit Bestätigu
     }, exportCode(state));
     await openGame(page);
     expect(await readNumber(seedsValue(page))).toBeLessThan(4321);
-    await openSettings(page);
+    await openAccount(page);
     const open = account(page).locator('[data-ref="account-restore"]');
     await expect(open).toHaveText('Sicherung vor dem Sync wiederherstellen');
     // Die frühere Einzel-Sicherung steht jetzt als Eintrag in der Liste.
@@ -288,15 +296,15 @@ syncTest('Sicherungen im Konto-Abschnitt wiederherstellen (Liste, mit Bestätigu
     await open.click();
     await entries.first().click();
     await expect(account(page).locator('[data-ref="account-status"]')).toHaveText('Sicherung geladen.');
-    await closeSettings(page);
+    await closeAccount(page);
     expect(await readNumber(seedsValue(page))).toBeGreaterThanOrEqual(4321);
     // Auch das Wiederherstellen lässt sich zurücknehmen: der Stand davor wurde gesichert.
-    await openSettings(page);
+    await openAccount(page);
     await open.click();
     await expect(account(page).locator('[data-ref="account-backups"]')).toContainText('Stand vor dem Wiederherstellen');
     await account(page).locator('[data-ref="account-backup"][data-reason="before-restore"]').click();
     await expect(account(page).locator('[data-ref="account-status"]')).toHaveText('Sicherung geladen.');
-    await closeSettings(page);
+    await closeAccount(page);
     expect(await readNumber(seedsValue(page))).toBeLessThan(4321);
   } finally {
     await context.close();
@@ -325,7 +333,7 @@ syncTest('veralteter Tab schreibt nie in den gemeinsamen Spielstand – auch nic
     await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 400, niches: { roots: ['earthworm'] } });
     // Tab 1 spielt mit Konto A.
     await openGame(tab1);
-    await openSettings(tab1);
+    await openAccount(tab1);
     await account(tab1).getByLabel('Benutzername').fill(`aaa${suffix}`);
     await account(tab1).getByLabel('Passwort').fill('geheim-wald-1');
     await account(tab1).getByRole('button', { name: 'Konto anlegen' }).click();
@@ -333,13 +341,13 @@ syncTest('veralteter Tab schreibt nie in den gemeinsamen Spielstand – auch nic
 
     // Tab 2: abmelden, mit B anmelden → B's Wald wird geladen.
     await openGame(tab2);
-    await openSettings(tab2);
+    await openAccount(tab2);
     await account(tab2).getByRole('button', { name: 'Abmelden' }).click();
     await account(tab2).getByLabel('Benutzername').fill(`bbb${suffix}`);
     await account(tab2).getByLabel('Passwort').fill('geheim-wald-1');
     await account(tab2).getByRole('button', { name: 'Anmelden' }).click();
-    await expect(tab2.locator('dialog[data-ref="settings"]')).toContainText('Dein Wald aus dem Konto ist geladen');
-    await closeSettings(tab2);
+    await expect(stamps(tab2)).toContainText('Dein Wald aus dem Konto ist geladen');
+    await closeAccount(tab2);
     expect(await readNumber(seedsValue(tab2))).toBeGreaterThanOrEqual(7777);
 
     // Tab 1 ist angehalten: keine Wiederherstellen-Box, nur „Neu laden“ – ohne vorher zu speichern.

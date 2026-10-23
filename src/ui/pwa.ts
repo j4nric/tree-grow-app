@@ -8,6 +8,7 @@
  * vor dem Laden `window.__VSZW_SW__ = true` – sonst blieben alte Builds im Cache hängen.
  * Mit VSZW_SW_KILL=1 gebaut (Not-Aus, README): keinen anmelden, vorhandene abmelden.
  */
+import { createBanderole } from './album/banderole';
 
 /** Text des Hinweises vor dem Knopf „neu laden“ (geschütztes Leerzeichen: Strich bricht nie allein um). */
 export const UPDATE_TEXT = 'Neue Version verfügbar –';
@@ -92,42 +93,41 @@ export function watchForUpdate(reg: RegistrationLike, hasController: () => boole
   });
 }
 
-/** Kleiner Hinweis oben in der Mitte (einmal aufgebaut, danach nur Text und Sichtbarkeit). */
-function createUpdateHint(onReload: () => void): { show(text: string): void } {
-  const root = document.createElement('div');
-  root.className = 'update-hint';
-  root.setAttribute('role', 'status');
-  root.dataset.ref = 'update-hint';
-  root.hidden = true;
-  const text = document.createElement('span');
-  text.className = 'update-hint-text';
-  const reload = document.createElement('button');
-  reload.type = 'button';
-  reload.className = 'update-hint-reload';
-  reload.textContent = UPDATE_BUTTON;
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'update-hint-close';
-  close.setAttribute('aria-label', 'Später');
-  close.title = 'Später';
-  close.textContent = '×';
-  root.append(text, reload, close);
-  document.body.append(root);
-  reload.addEventListener('click', () => {
-    reload.disabled = true;
-    onReload();
+/**
+ * Update-Hinweis als gelbe Banderole über dem Album (docs/ALBUM_UI.md, A.1 #12): einmal
+ * aufgebaut, danach nur Text und Sichtbarkeit; „×“ blendet ihn bis zum nächsten Mal aus.
+ */
+function createUpdateHint(mount: HTMLElement, onReload: () => void): { show(text: string): void } {
+  const banderole = createBanderole({
+    tone: 'tape',
+    ref: 'update-hint',
+    role: 'status',
+    buttons: [
+      {
+        label: UPDATE_BUTTON,
+        onClick: (button) => {
+          button.disabled = true;
+          onReload();
+        },
+      },
+      { label: '×', ariaLabel: 'Später', onClick: () => banderole.hide() },
+    ],
   });
-  close.addEventListener('click', () => (root.hidden = true));
+  banderole.hide();
+  mount.append(banderole.element);
+  const reload = banderole.buttons[0]!;
   return {
     show: (value) => {
-      text.textContent = value;
+      banderole.setText(value);
       reload.disabled = false;
-      root.hidden = false;
+      banderole.show();
     },
   };
 }
 
 export interface ServiceWorkerOptions {
+  /** Platz für den Update-Hinweis (Banderolen über dem Album), sonst body. */
+  mount?: HTMLElement;
   /** Vor dem Neuladen: Spielstand sichern (persist()) und an das Konto senden (Promise). */
   beforeReload(): Promise<unknown> | void;
 }
@@ -188,7 +188,7 @@ export function setupServiceWorker(options: ServiceWorkerOptions): void {
     }
     void withTimeout(Promise.resolve(pending), FLUSH_WAIT_MS).then(next);
   };
-  const hint = createUpdateHint(() =>
+  const hint = createUpdateHint(options.mount ?? document.body, () =>
     saveThen(() => {
       // Kein wartender Worker (Hinweis aus einem anderen Tab): einfach neu laden.
       if (!waiting || waiting.state !== 'installed') return reloadNow();

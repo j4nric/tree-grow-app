@@ -5,14 +5,18 @@ import { STAGES } from '../src/content/stages';
 import { CONFIRM_MIN_MS } from '../src/ui/confirm';
 import {
   SAVE_VERSION,
-  dialog,
+  encounter,
   expect,
   niche,
   openGame,
+  openGoalsPage,
+  openTab,
+  pageTitle,
   savedState,
   seedNewGame,
   stack,
   stageLabel,
+  stamps,
   test,
 } from './fixtures';
 
@@ -44,9 +48,10 @@ async function stageIndex(page: Page): Promise<number> {
   return STAGES.findIndex((s) => s.name === text);
 }
 
-const cyclePanel = (page: Page) => page.locator('[data-ref="cycle-panel"]');
+const cyclePanel = (page: Page) => page.locator('[data-ref="page-cycle"]');
+const cycleCard = (page: Page) => page.locator('[data-ref="cycle-card"]');
 const plantOpen = (page: Page) => page.locator('[data-ref="plant-open"]');
-const picker = (page: Page) => page.locator('[data-ref="plant-picker"]');
+const picker = (page: Page) => page.locator('[data-ref="page-plant-picker"]');
 
 /** Zeit vergehen lassen und ein paar Frames laufen lassen (Ansichten aktualisieren). */
 async function advance(page: Page, ms: number): Promise<void> {
@@ -57,7 +62,7 @@ async function advance(page: Page, ms: number): Promise<void> {
 /** Oberste Begegnung: erste wählbare Karte, sonst ablehnen. Gibt die Wahl zurück (null = abgelehnt). */
 async function chooseFirst(page: Page): Promise<string | null> {
   await page.clock.fastForward(400); // Eingabesperre nach neuen Karten (läuft auf der Testuhr)
-  const cards = dialog(page).locator('.encounter-card');
+  const cards = encounter(page).locator('.encounter-card');
   await expect(cards.first()).toBeVisible();
   // Ereignis oder Gast (seit Schritt 2.4): erste Option bzw. bewirten, wenn die Samen
   // reichen, sonst „Ziehen lassen“ (geht immer).
@@ -71,14 +76,14 @@ async function chooseFirst(page: Page): Promise<string | null> {
   }
   const count = await cards.count();
   for (let i = 0; i < count; i++) {
-    const choose = cards.nth(i).getByRole('button', { name: /wählen/ });
+    const choose = cards.nth(i).getByRole('button', { name: /einkleben/ });
     if (await choose.isDisabled()) continue;
     const id = (await cards.nth(i).getAttribute('data-card')) ?? '';
     await choose.click();
     await page.clock.runFor(50);
     return id;
   }
-  await dialog(page).getByRole('button', { name: /Ablehnen/ }).click();
+  await encounter(page).getByRole('button', { name: /Ablehnen/ }).click();
   await page.clock.runFor(50);
   return null;
 }
@@ -102,7 +107,7 @@ async function plantIfAffordable(page: Page): Promise<string | null> {
     await page.clock.runFor(50);
     return id;
   }
-  await picker(page).getByRole('button', { name: 'Schließen' }).click();
+  await picker(page).locator('[data-ref="bookmark"]').click();
   await expect(picker(page)).toBeHidden();
   return null;
 }
@@ -150,18 +155,17 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
     lastWaypoint = waypoint;
 
     if (stage >= NEW_CYCLE_MIN_STAGE) break;
-    // Vor dem Hain: Grund statt Knopf.
-    await expect(blocker).toContainText(`„${HAIN}“`);
-    await expect(newCycleButton).toBeHidden();
 
     if (await stack(page).isVisible()) {
       await stack(page).click();
-      await expect(dialog(page)).toBeVisible();
-      while (await dialog(page).isVisible()) {
+      await expect(encounter(page)).toBeVisible();
+      // Bis der Stapel leer ist; danach blättert U:Begegnung von selbst zurück.
+      while (((await savedState(page)).pendingEncounters ?? []).length > 0) {
         const chosen = await chooseFirst(page);
         trail.push(chosen ?? '-');
         encounters++;
       }
+      await expect(encounter(page)).toBeHidden();
       await expect(stack(page)).toBeHidden();
     }
     const plant = await plantIfAffordable(page);
@@ -183,6 +187,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   trail.push(`hain@${gameSeconds}`);
 
   // --- Neuer Zyklus: zwei Klicks --------------------------------------------------------
+  await openGoalsPage(page, 'cycle');
   await expect(blocker).toBeHidden();
   const gainText = (await cyclePanel(page).locator('[data-ref="cycle-gain"]').textContent()) ?? '';
   const gain = Number(/^\+(\d+) Waldgedächtnis/.exec(gainText)?.[1]);
@@ -196,10 +201,11 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   await newCycleButton.click();
   await page.clock.runFor(50);
 
-  await expect(page.locator('#toast')).toContainText('Zyklus 2 beginnt');
-  await expect(cyclePanel(page).locator('[data-ref="cycle-title"]')).toBeFocused();
+  await expect(stamps(page)).toContainText('Zyklus 2 beginnt');
+  // Zurück zu „Ziele“, Fokus auf deren Überschrift.
+  await expect(pageTitle(page)).toBeFocused();
   await expect(stageLabel(page)).toHaveText(`Stufe: ${STAGES[0]!.name}`);
-  await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${START_MEMORY + gain} ·`);
+  await expect(cycleCard(page).locator('[data-ref="cycle-card-memory"]')).toContainText(`Waldgedächtnis ${START_MEMORY + gain} ·`);
   const cycle2 = await savedState(page);
   expect(cycle2.version).toBe(SAVE_VERSION);
   expect(cycle2.cycle.number).toBe(2);
@@ -211,6 +217,8 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   expect(Object.values(cycle2.niches as Record<string, string[]>).flat()).toEqual([]);
   expect(cycle2.pendingEncounters).toEqual([]);
   // Wieder gesperrt bis zum Hain.
+  await expect(cycleCard(page).locator('[data-ref="cycle-card-line"]')).toContainText(`„${HAIN}“`);
+  await openGoalsPage(page, 'cycle');
   await expect(blocker).toContainText(`„${HAIN}“`);
   await expect(newCycleButton).toBeHidden();
 
@@ -252,6 +260,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
     break;
   }
   expect(arrivedAt, `Stammgast ${regular} ist nicht eingezogen`).toBeGreaterThan(0);
+  await openTab(page, 'nischen');
   await expect(niche(page, species.niche).locator(`[data-species="${regular}"]`)).toBeVisible();
 
   // --- Neuladen: derselbe Zustand -------------------------------------------------------
@@ -283,10 +292,11 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
   expect(cycleAfter, 'cycle').toEqual(cycleBefore);
   expect(elapsedAfter).toBeGreaterThanOrEqual(elapsedBefore);
   expect(after.cycle.mainTree).toBe('oak');
-  await expect(cyclePanel(page).locator('.cycle-sub')).toHaveText('Zyklus 2');
+  await expect(niche(page, species.niche).locator(`[data-species="${regular}"]`)).toBeVisible();
+  await openGoalsPage(page, 'cycle');
+  await expect(cyclePanel(page).locator('[data-ref="cycle-sub"]')).toHaveText('Zyklus 2');
   await expect(cyclePanel(page).locator('[data-ref="forest-memory"]')).toContainText(`Waldgedächtnis ${START_MEMORY + gain} ·`);
   await expect(regulars.locator(`[data-regular="${regular}"]`)).toHaveAttribute('aria-pressed', 'true');
-  await expect(niche(page, species.niche).locator(`[data-species="${regular}"]`)).toBeVisible();
 
   test.info().annotations.push({ type: 'spur', description: trail.join(' ') });
   test.info().annotations.push({ type: 'laufzeit', description: `${Math.round((Date.now() - startedAt) / 1000)} s` });

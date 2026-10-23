@@ -1,0 +1,346 @@
+/*
+ * Polaroid (polaroid.ts): weißer Rahmen, Washi-Tape, Bildunterschrift. Mobil Seitenbreite
+ * minus Rand im Verhältnis 342 : 230, Desktop bis 500 × 300 (5 : 3), nach Fensterhöhe kleiner.
+ *
+ * Gedreht sind nur Papier und Tape; Bild und Bildunterschrift stehen gerade, damit das
+ * Live-Canvas nicht in jedem Frame schräg abgetastet (und unscharf) wird.
+ */
+
+.polaroid {
+  /*
+   * Rand, um den das gedrehte Papier eingerückt ist: Seine Ecken ragen dann nicht über das
+   * Polaroid hinaus (kein Überlauf). Bei 1,5° und bis 560 px Breite reichen 7 bzw. 6 px.
+   */
+  --paper-bleed-y: 7px;
+  --paper-bleed-x: 6px;
+  position: relative;
+  box-sizing: border-box;
+  /* Der Rand liegt außerhalb des Platzes im Layout (wie zuvor beim ganz gedrehten Polaroid). */
+  width: calc(100% + 2 * var(--paper-bleed-x));
+  margin: calc(-1 * var(--paper-bleed-y)) calc(-1 * var(--paper-bleed-x));
+  padding: calc(10px + var(--paper-bleed-y)) calc(10px + var(--paper-bleed-x)) calc(4px + var(--paper-bleed-y));
+}
+
+/* Das gedrehte Papier liegt hinter Bild und Bildunterschrift. */
+.polaroid-paper {
+  position: absolute;
+  inset: var(--paper-bleed-y) var(--paper-bleed-x);
+  background: var(--paper);
+  box-shadow: var(--sh-photo);
+  transform: rotate(var(--tilt-photo));
+  pointer-events: none;
+}
+
+.polaroid-photo,
+.polaroid-caption {
+  position: relative;
+}
+
+.polaroid-tape {
+  position: absolute;
+  top: calc(var(--paper-bleed-y) - 10px);
+  left: calc(50% - 50px);
+  width: 100px;
+  height: 24px;
+  background: var(--tape);
+  opacity: 0.85;
+  transform: rotate(var(--tilt-tape));
+  z-index: 2;
+  pointer-events: none;
+}
+
+.polaroid-photo.scene {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 342 / 230;
+  background: #d7ecf2;
+}
+
+/* Die ganze Bildfläche ist der Knopf „Szene vergrößern“ (C.6); die Seite scrollt darüber. */
+.polaroid-open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  cursor: zoom-in;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.polaroid-open:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 3px;
+}
+
+.polaroid-photo #scene {
+  width: 100%;
+  height: 100%;
+  /* Während eines Größenwechsels (Vollbild zurück) beschneiden statt verzerren. */
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* ---------- Stempelschicht: Stufen-Stempel über dem Bild (A.1 #4, C.6) ---------- */
+
+.scene-stamps {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.scene-stamps .stage-banner {
+  position: absolute;
+  left: 50%;
+  /* Ohne feste Breite stünde wegen left: 50 % nur die halbe Szene zur Verfügung → unnötige Umbrüche */
+  width: max-content;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  top: 14%;
+  max-width: calc(100% - 28px);
+  padding: 8px 18px 10px;
+  border: 2px solid var(--ink-green);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 0 0 4px rgba(255, 253, 247, 0.85), var(--sh-slip);
+  color: var(--ink-green-dark);
+  font-family: var(--font-text);
+  transform: translate(-50%, 0) rotate(var(--tilt-stamp));
+}
+
+.scene-stamps .stage-banner strong {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.scene-stamps .stage-banner strong::before {
+  content: 'Neue Stufe: ';
+}
+
+.scene-stamps .stage-banner > span {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.scene-stamps .stage-banner .stage-banner-extra {
+  margin-top: 2px;
+  padding-top: 6px;
+  font-size: 0.9rem;
+  border-top: 1px dashed var(--dash);
+  color: var(--ink-green-dark);
+  font-weight: 800;
+}
+
+/* „Stempeln“: groß aufsetzen, stehen bleiben, ausblenden (Dauer wie das alte Banner). */
+.scene-stamps .stage-banner.visible {
+  animation: stage-stamp 4s var(--turn-ease) forwards;
+}
+
+.scene-stamps .stage-banner.visible.long {
+  animation-duration: 6s;
+}
+
+@keyframes stage-stamp {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) rotate(var(--tilt-stamp)) scale(1.3);
+  }
+  6%,
+  85% {
+    opacity: 1;
+    transform: translate(-50%, 0) rotate(var(--tilt-stamp)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0) rotate(var(--tilt-stamp)) scale(1);
+  }
+}
+
+body[data-motion='reduce'] .scene-stamps .stage-banner.visible {
+  animation-name: stage-stamp-fade;
+}
+
+@keyframes stage-stamp-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  6%,
+  85% {
+    opacity: 1;
+  }
+}
+
+.album[data-layout='spread'] .scene-stamps .stage-banner strong {
+  font-size: 32px;
+}
+
+.polaroid-caption {
+  position: relative;
+  /* Breite der Bildunterschrift entscheidet über die Restzeit (Container-Abfrage unten). */
+  container-type: inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 10px;
+  padding: 2px 4px 0;
+}
+
+.polaroid-stage {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.3;
+}
+
+/* Jahreszeit · Wetter · Restzeit rechts in der Bildunterschrift (Knöpfe öffnen Haftnotizen). */
+.polaroid-season {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0 2px;
+  min-width: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.polaroid-season .caption-sep[hidden],
+.polaroid-season .season-left[hidden] {
+  display: none;
+}
+
+.polaroid-season .season-left {
+  padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.polaroid-season .season {
+  display: contents;
+}
+
+.polaroid .season-badge,
+.polaroid .weather-badge {
+  min-height: var(--tap);
+  padding: 0 4px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  box-shadow: none;
+  color: var(--ink-soft);
+  font-family: var(--font-hand) !important;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.1;
+  text-align: right;
+}
+
+.polaroid .season-badge[aria-expanded='true'],
+.polaroid .weather-badge[aria-expanded='true'] {
+  background: var(--note-bg);
+}
+
+.polaroid .weather-badge.rough {
+  color: var(--ink-red);
+}
+
+/*
+ * Schmale Bildunterschrift (mobil, Desktop mit Rückkehr-Zettel – Playtest Schritt 14 S3/S5):
+ * Die Restzeit steht dann nur in der Haftnotiz der Jahreszeit („noch 2:58 min“). Sonst stünde
+ * sie allein in einer weiteren Zeile, und mobil bräche die Bildunterschrift oft in zwei.
+ */
+@container (max-width: 380px) {
+  .polaroid-season .season-left,
+  .polaroid-season .caption-sep:has(+ .season-left) {
+    display: none;
+  }
+}
+
+/* Schmal: Jahreszeit und Wetter passen in eine Zeile unter die Stufe. */
+@media (max-width: 420px) {
+  .polaroid .season-badge,
+  .polaroid .weather-badge,
+  .polaroid-season {
+    padding: 0 2px;
+    font-size: 18px;
+  }
+}
+
+/* ---------- Doppelseite ---------- */
+
+.album[data-layout='spread'] .polaroid {
+  align-self: center;
+  flex: none;
+  /* 500 px breit, bei niedrigen Fenstern kleiner (Rest der linken Seite ≈ 400 px) */
+  width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 410px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+  padding: calc(12px + var(--paper-bleed-y)) calc(12px + var(--paper-bleed-x)) calc(6px + var(--paper-bleed-y));
+}
+
+.album[data-layout='spread'] .polaroid-paper {
+  background: var(--photo);
+  transform: rotate(var(--tilt-photo-desk));
+}
+
+.album[data-layout='spread'] .polaroid-tape {
+  top: calc(var(--paper-bleed-y) - 12px);
+  left: calc(50% - 60px);
+  width: 120px;
+  height: 28px;
+}
+
+.album[data-layout='spread'] .polaroid-photo.scene {
+  aspect-ratio: 5 / 3;
+}
+
+.album[data-layout='spread'] .polaroid-stage {
+  font-size: 30px;
+}
+
+.album[data-layout='spread'] .polaroid .season-badge,
+.album[data-layout='spread'] .polaroid .weather-badge,
+.album[data-layout='spread'] .polaroid-season {
+  font-size: 22px;
+}
+
+/* Rückkehr-Bericht auf der linken Seite: Polaroid kleiner, damit alles ohne Scrollen passt. */
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid {
+  width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 560px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+  min-width: 250px;
+}
+
+/* Niedrige Fenster: Der Zettel ist dort kompakt (return-report.css) – das Polaroid darf größer
+   bleiben (Playtest Schritt 14 S3: bei 1200 × 700 waren es nur 269 px). */
+@media (max-height: 760px) {
+  .album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid {
+    width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 500px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+  }
+}
+
+/* Dann auch die Bildunterschrift kleiner: Jahreszeit und Wetter in einer Zeile unter der Stufe. */
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid-stage {
+  font-size: 24px;
+}
+
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid-season,
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid .season-badge,
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid .weather-badge {
+  font-size: 18px;
+}

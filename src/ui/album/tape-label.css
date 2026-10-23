@@ -1,0 +1,129 @@
+/* Etiketten Wachstum, Samen, Harmonie (tape-label.ts) – gestrichelte Vorratsschilder. */
+
+.tape-labels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tape-label {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-label);
+  background: var(--paper);
+}
+
+.tape-label-harmony {
+  border-color: var(--ink-red);
+}
+
+.tape-label-value {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.tape-label-value.long {
+  font-size: 20px;
+}
+
+.tape-label-growth .tape-label-value {
+  color: var(--ink-green);
+}
+
+.tape-label-seeds .tape-label-value {
+  color: var(--ink-seed);
+}
+
+.tape-label-harmony .tape-label-value {
+  color: var(--ink-red);
+}
+
+.tape-label-value.pop {
+  animation: tape-pop 0.3s ease-out;
+}
+
+@keyframes tape-pop {
+  40% {
+    transform: scale(1.18);
+  }
+}
+
+body[data-motion='reduce'] .tape-label-value.pop {
+  animation: none;
+}
+
+.tape-label-caption {
+  font-size: 11px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+/* Rate hinter „Samen“ nur auf der Doppelseite (Desktop-Mockup). */
+.tape-label-sub {
+  font-weight: 800;
+}
+
+.album[data-layout='single'] .tape-label-sub {
+  display: none;
+}
+
+.tape-label-night {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  font-size: 13px;
+}
+
+.tape-label-night[hidden] {
+  display: none;
+}
+
+.album[data-layout='spread'] .tape-labels {
+  gap: 12px;
+}
+
+.album[data-layout='spread'] .tape-label {
+  padding: 8px 14px;
+  border-radius: var(--r-label-desk);
+}
+
+.album[data-layout='spread'] .tape-label-value {
+  font-size: 34px;
+}
+
+.album[data-layout='spread'] .tape-label-value.long {
+  font-size: 26px;
+}
+
+.album[data-layout='spread'] .tape-label-caption {
+  font-size: 13px;
+}
+
+/* Etikett als Knopf (Haftnotiz) – sieht aus wie ein Schild, nicht wie ein Knopf. */
+button.tape-label {
+  margin: 0;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+button.tape-label:hover {
+  border-style: solid;
+}
+
+button.tape-label[aria-expanded='true'] {
+  border-style: solid;
+  background: var(--note-bg);
+}
+
+.tape-label-info {
+  font-weight: 700;
+}

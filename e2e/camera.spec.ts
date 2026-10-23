@@ -1,11 +1,12 @@
-import { expect, openGame, seedV3, test, waypoint } from './fixtures';
+import { closeFullscreen, expect, fullscreen, openFullscreen, openGame, overlaps, polaroidButton, seedV3, test, waypoint } from './fixtures';
 import type { CDPSession, Page } from '@playwright/test';
 
 /**
- * Kamera der Szene: Zoom per Knopf, Rad, Doppelklick und Pinch, Verschieben per Ziehen
- * und Tastatur, harte Grenzen, Zurücksetzen und Seiten-Scrollen bei 1× (mobil).
- * Die Ansicht steht in sessionStorage (`tree-grow-camera`) – daraus lesen die Tests
- * Zoom und Ausschnitt, ohne den Renderer anzufassen.
+ * Kamera der Szene – nur im Vollbild (docs/ALBUM_UI.md, C.6): Zoom per Knopf, Rad,
+ * Doppelklick und Pinch, Verschieben per Ziehen und Tastatur, harte Grenzen, Zurücksetzen.
+ * Im Polaroid gibt es keine Kamera: Rad und Wischen scrollen die Seite, ein Tipp öffnet das
+ * Vollbild. Die Ansicht steht in sessionStorage (`tree-grow-camera`) – daraus lesen die
+ * Tests Zoom und Ausschnitt, ohne den Renderer anzufassen.
  */
 
 interface View {
@@ -92,11 +93,13 @@ async function seedTree(context: Parameters<typeof seedV3>[0]): Promise<void> {
 }
 
 test.describe('Desktop', () => {
-  test.use({ viewport: { width: 1280, height: 800 } });
+  // Im Vollbild zeichnet die Szene über die ganze Fläche – kleiner als üblich hält den Test flott.
+  test.use({ viewport: { width: 1024, height: 640 } });
 
   test('Knöpfe zoomen hinein und heraus, Zurücksetzen zeigt wieder alles', async ({ page, context }) => {
     await seedTree(context);
     await openGame(page);
+    await openFullscreen(page);
     await expect(reset(page)).toHaveAttribute('aria-disabled', 'true');
     await expect(zoomOut(page)).toHaveAttribute('aria-disabled', 'true');
     for (const b of [zoomIn(page), zoomOut(page), reset(page)]) {
@@ -130,6 +133,7 @@ test.describe('Desktop', () => {
   test('Mausrad zoomt zum Zeiger, Ziehen verschiebt', async ({ page, context }) => {
     await seedTree(context);
     await openGame(page);
+    await openFullscreen(page);
     const box = (await canvas(page).boundingBox())!;
     // Rad über dem linken oberen Viertel: Zoom zum Zeiger (Mitte wandert dorthin).
     await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.25);
@@ -153,6 +157,7 @@ test.describe('Desktop', () => {
   test('Grenzen halten an allen Seiten (kein Leerraum)', async ({ page, context }) => {
     await seedTree(context);
     await openGame(page);
+    await openFullscreen(page);
     const box = (await canvas(page).boundingBox())!;
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
@@ -188,6 +193,7 @@ test.describe('Desktop', () => {
   test('Doppelklick zoomt hinein, Tastatur verschiebt und setzt zurück', async ({ page, context }) => {
     await seedTree(context);
     await openGame(page);
+    await openFullscreen(page);
     const box = (await canvas(page).boundingBox())!;
     // Himmel (kein Tier) doppelt anklicken.
     await canvas(page).dblclick({ position: { x: box.width * 0.2, y: box.height * 0.15 } });
@@ -207,25 +213,79 @@ test.describe('Desktop', () => {
   });
 });
 
-test.describe('Mobil', () => {
-  test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
+test.describe('Polaroid und Vollbild', () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
 
-  test('bei 1× scrollt die Seite über der Szene; Pinch zoomt; vergrößert scrollt sie nicht', async ({ page, context }) => {
+  test('im Polaroid keine Kamera: Rad und Tastatur zoomen nicht, Enter öffnet das Vollbild', async ({ page, context }) => {
     await seedTree(context);
     await openGame(page);
-    const box = (await canvas(page).boundingBox())!;
+    await expect(page.locator('.scene-camera')).toBeHidden();
+    const box = (await polaroidButton(page).boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, -300);
+    await page.waitForTimeout(300);
+    expect((await view(page)).zoom).toBe(1);
+    // Das Canvas ist im Polaroid nicht fokussierbar; die Tastatur landet auf dem Knopf.
+    await expect(canvas(page)).toHaveAttribute('tabindex', '-1');
+    await polaroidButton(page).focus();
+    await page.keyboard.press('+');
+    await page.waitForTimeout(300);
+    expect((await view(page)).zoom).toBe(1);
+    await page.keyboard.press('Enter');
+    await expect(fullscreen(page)).toBeVisible();
+    await expect(canvas(page)).toBeFocused();
+  });
+
+  test('dasselbe Canvas wandert ins Vollbild; Knopf, Escape und Zurück schließen, die Ansicht bleibt', async ({ page, context }) => {
+    await seedTree(context);
+    await openGame(page);
+    await canvas(page).evaluate((c) => ((c as HTMLCanvasElement & { __mark?: number }).__mark = 42));
+    const historyBefore = await page.evaluate(() => history.length);
+    await openFullscreen(page);
+    expect(await canvas(page).evaluate((c) => (c as HTMLCanvasElement & { __mark?: number }).__mark)).toBe(42);
+    await expect(page.locator('canvas#scene')).toHaveCount(1);
+    // Verlauf: das Vollbild hat einen eigenen Eintrag (Android-Zurück schließt es).
+    expect(await page.evaluate(() => history.length)).toBe(historyBefore + 1);
+    // Bildunterschrift im Vollbild
+    await expect(page.locator('.fullscreen-caption')).toContainText((await page.locator('.polaroid-stage-name').textContent())!);
+
+    await zoomIn(page).click();
+    await viewWhen(page, (v) => Math.abs(v.zoom - 1.5) < 1e-6);
+    await closeFullscreen(page);
+    await expect(polaroidButton(page)).toBeFocused();
+    // Die Kamera-Ansicht bleibt für das nächste Öffnen erhalten.
+    await openFullscreen(page);
+    expect((await view(page)).zoom).toBeCloseTo(1.5, 6);
+    await expect(reset(page)).toHaveAttribute('aria-disabled', 'false');
+
+    // Escape schließt.
+    await page.keyboard.press('Escape');
+    await expect(fullscreen(page)).toBeHidden();
+    await expect(polaroidButton(page).locator('canvas#scene')).toHaveCount(1);
+
+    // Browser-Zurück schließt, ohne die Seite zu verlassen.
+    await openFullscreen(page);
+    const url = page.url();
+    await page.goBack();
+    await expect(fullscreen(page)).toBeHidden();
+    expect(page.url()).toBe(url);
+    await expect(polaroidButton(page)).toBeVisible();
+  });
+});
+
+test.describe('Mobil', () => {
+  test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+
+  test('Wischen über dem Polaroid scrollt die Seite; im Vollbild zoomt Pinch und Wischen verschiebt', async ({ page, context }) => {
+    await seedTree(context);
+    await openGame(page);
     const cdp = await context.newCDPSession(page);
-    const x = box.x + box.width / 2;
-    const y = box.y + box.height * 0.6;
+    const photo = (await polaroidButton(page).boundingBox())!;
 
-    // Bedienleiste liegt nicht über dem Begegnungs-Stapel (oben rechts) und in der Szene.
-    const bar = (await page.locator('.scene-camera').boundingBox())!;
-    expect(bar.y + bar.height).toBeLessThanOrEqual(box.y + box.height + 1);
-    expect(bar.y).toBeGreaterThan(box.y + box.height / 2);
-
-    // 1×: senkrecht wischen scrollt die Seite.
-    await swipe(cdp, x, y, -200);
+    // Polaroid: senkrecht wischen scrollt die Seite, die Kamera bleibt bei 1×.
+    await swipe(cdp, photo.x + photo.width / 2, photo.y + photo.height * 0.6, -200);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
+    await expect(fullscreen(page)).toBeHidden();
     // Der Wisch kann nachgleiten (Fling) und ein einmaliges scrollTo überholen – daher
     // zurücksetzen und erst weiter, wenn die Seite 10 Frames lang oben stehen bleibt.
     await expect
@@ -238,6 +298,13 @@ test.describe('Mobil', () => {
       )
       .toBe(0);
     expect((await view(page)).zoom).toBe(1);
+
+    await openFullscreen(page, { tap: true });
+    const box = (await canvas(page).boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height * 0.6;
+    // Im Vollbild gehören alle Gesten der Szene, auch bei 1×.
+    await expect(canvas(page)).toHaveCSS('touch-action', 'none');
 
     // Pinch mit zwei Fingern (CDP-Touch): auseinander → Zoom > 1.
     const steps = 12;
@@ -252,34 +319,28 @@ test.describe('Mobil', () => {
                 { x: x + d, y, id: 2 },
               ],
       });
-    // Pinch beginnt bei 1× (touch-action: pan-y) – auch dabei scrollt die Seite nicht.
     await touch('touchStart', 30);
-    for (let i = 1; i <= steps; i++) {
-      await touch('touchMove', 30 + (i * 60) / steps);
-      if (i % 4 === 0) expect(await page.evaluate(() => window.scrollY), `während des Pinch (Schritt ${i})`).toBe(0);
-    }
+    for (let i = 1; i <= steps; i++) await touch('touchMove', 30 + (i * 60) / steps);
     await touch('touchEnd', 0);
-    expect(await page.evaluate(() => window.scrollY)).toBe(0);
     const pinched = await viewWhen(page, (v) => v.zoom > 2);
     expectInside(pinched);
-    await expect(canvas(page)).toHaveCSS('touch-action', 'none');
 
-    // Vergrößert: Wischen verschiebt die Szene, die Seite bleibt stehen – auch nach dem
-    // Ausgleiten (einige Frames abwarten).
+    // Vergrößert: Wischen verschiebt die Szene – auch nach unten, ohne zu schließen.
     await swipe(cdp, x, y, -120);
     const panned = await viewWhen(page, (v) => v.y > pinched.y);
     expectInside(panned);
-    expect(
-      await page.evaluate(async () => {
-        for (let i = 0; i < 10; i++) await new Promise((r) => requestAnimationFrame(r));
-        return window.scrollY;
-      }),
-    ).toBe(0);
     for (const px of await edgePixels(page)) expect(px[3]).toBe(255);
+    await swipe(cdp, x, y - 100, 150);
+    await viewWhen(page, (v) => v.y < panned.y);
+    await expect(fullscreen(page)).toBeVisible();
 
-    // Zurücksetzen: wieder 1×, die Seite scrollt wieder.
+    // Zurücksetzen: wieder 1×; ein Wisch nach unten schließt, das Canvas liegt wieder im
+    // Polaroid (pan-y).
     await reset(page).click();
     await viewWhen(page, isHome);
+    await swipe(cdp, x, y - 100, 150);
+    await expect(fullscreen(page)).toBeHidden();
+    await expect(polaroidButton(page).locator('canvas#scene')).toHaveCount(1);
     await expect(canvas(page)).toHaveCSS('touch-action', 'pan-y');
   });
 });
@@ -287,17 +348,25 @@ test.describe('Mobil', () => {
 test.describe('Mobil 360 px', () => {
   test.use({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true });
 
-  test('Bedienleiste überdeckt den Begegnungs-Stapel nicht', async ({ page, context }) => {
+  test('Vollbild: Bedienleiste, Bildunterschrift und Schließen-Knopf frei und im Bild', async ({ page, context }) => {
     await seedV3(context, {
       totalGrowth: waypoint(12) + 1,
       niches: { roots: ['earthworm'] },
       pendingEncounters: [{ type: 'animal', cards: ['robin', 'bluetit', 'bee'], rerolls: 0 }],
     });
     await openGame(page);
-    const stackBox = (await page.locator('[data-ref="encounter-stack"]').boundingBox())!;
-    const bar = (await page.locator('.scene-camera').boundingBox())!;
-    const overlapX = Math.min(stackBox.x + stackBox.width, bar.x + bar.width) - Math.max(stackBox.x, bar.x);
-    const overlapY = Math.min(stackBox.y + stackBox.height, bar.y + bar.height) - Math.max(stackBox.y, bar.y);
-    expect(overlapX <= 0 || overlapY <= 0).toBe(true);
+    await openFullscreen(page, { tap: true });
+    const bar = (await page.locator('.fullscreen-tools .scene-camera').boundingBox())!;
+    const caption = (await page.locator('.fullscreen-caption').boundingBox())!;
+    const close = (await page.locator('[data-ref="fullscreen-close"]').boundingBox())!;
+    expect(overlaps(bar, caption)).toBe(false);
+    expect(overlaps(bar, close)).toBe(false);
+    for (const b of [bar, caption, close]) {
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width).toBeLessThanOrEqual(360);
+      expect(b.y + b.height).toBeLessThanOrEqual(740);
+    }
+    expect(close.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
   });
 });

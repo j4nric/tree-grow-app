@@ -7,7 +7,8 @@
     <meta name="description" content="Ein gemütliches Aufbauspiel: Vom kleinen Samen wächst ein ganzer Wald mit seinen Bewohnern." />
     <!-- Installierbare App (PWA): Manifest, Farben, Icons; Service Worker siehe src/ui/pwa.ts -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#3f8f3a" />
+    <!-- Karton des Albums (--card in src/ui/album/tokens.css) -->
+    <meta name="theme-color" content="#e9dfc9" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -17,31 +18,19 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <main class="layout">
-      <section class="scene">
-        <canvas id="scene" role="application" aria-roledescription="Szene" aria-label="Dein Baum und seine Bewohner"></canvas>
-        <div class="stage-banner" id="stage-banner" aria-live="polite"></div>
-        <div class="scene-dock" id="scene-dock"></div>
-        <!-- Hinweise: am Desktop über der Szene (über Stapel und Kamera-Knöpfen), mobil oben fest -->
-        <div class="toast" id="toast" role="status" hidden></div>
-      </section>
-      <aside class="panel" id="panel">
-        <h1 tabindex="-1">Vom Samen zum Wald</h1>
-        <!-- Rückkehr-Bericht nach Abwesenheit (ui/return-report.ts), sonst verborgen -->
-        <div id="return-report"></div>
-        <div id="season"></div>
-        <div id="help"></div>
-        <div id="ecosystem"></div>
-        <div id="journal"></div>
-        <div id="daily"></div>
-        <div id="bonuses"></div>
-        <div id="care"></div>
-        <div id="cycle"></div>
-        <footer>
-          <button type="button" class="link-button" id="reset">Spielstand löschen</button>
-        </footer>
-      </aside>
-    </main>
+    <!--
+      Album-Gerüst (docs/ALBUM_UI.md, B.0 und D.1): src/ui/album/index.ts baut das Buch einmal
+      auf und setzt es vor das Canvas – Kopf mit Umschlag-Knopf, Doppelseite bzw. Einzelseite
+      mit Polaroid und Reitern, Ablage der Unterseiten, Umschlag. Das Szenen-Canvas wandert
+      ins Polaroid (Vollbild: fullscreen.ts). Danach folgen die Stempelschicht (#stamps), die
+      Statuszeile für Screenreader und die Ebene der schwebenden Zahlen.
+    -->
+    <noscript>
+      <p style="margin: 2rem; font-family: system-ui, sans-serif">
+        „Vom Samen zum Wald“ braucht JavaScript – bitte aktiviere es, damit dein Wald wachsen kann.
+      </p>
+    </noscript>
+    <canvas id="scene" role="application" aria-roledescription="Szene" aria-label="Dein Baum und seine Bewohner"></canvas>
     <div class="sr-only" id="live-status" role="status"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

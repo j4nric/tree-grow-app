@@ -40,14 +40,14 @@ export function achievementUnlockedText(ids: readonly string[] | undefined): str
 /**
  * Einmal nach der Migration v8 → v9: „🏅 3 Erfolge nachgetragen“ (null bei 0). Kommen beim
  * Nachrechnen der Offline-Zeit gleich noch Erfolge dazu (`fresh`), steht alles in einem
- * Satz: „🏅 3 Erfolge nachgetragen, dazu neu: „Bunter Saum“ – zu finden im Naturtagebuch.“
+ * Satz: „🏅 3 Erfolge nachgetragen, dazu neu: „Bunter Saum“ – zu finden unter Ziele › Erfolge.“
  */
 export function achievementsBackfilledText(count: number, fresh: readonly string[] = []): string | null {
   const names = titles(fresh);
   if (!(count > 0)) return achievementUnlockedText(fresh);
   const n = Math.floor(count);
   const extra = names.length === 0 ? '' : names.length === 1 ? `, dazu neu: ${joinTitles(names)}` : `, dazu ${formatNumber(names.length)} neue: ${joinTitles(names)}`;
-  return `🏅 ${formatNumber(n)} ${n === 1 ? 'Erfolg' : 'Erfolge'} nachgetragen${extra} – zu finden im Naturtagebuch.`;
+  return `🏅 ${formatNumber(n)} ${n === 1 ? 'Erfolg' : 'Erfolge'} nachgetragen${extra} – zu finden unter Ziele › Erfolge.`;
 }
 
 /** Läuft der Fortschritt mit der Spielzeit (ändert sich jede Sekunde)? */

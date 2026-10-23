@@ -141,15 +141,49 @@ export function toDailyView(state: GameState, today: string): DailyView {
 }
 
 /**
- * Hinweis nach erfüllten Zielen, z. B. „✅ Tagesziel erfüllt: Setze eine Begleitpflanze … +120 🌰“.
+ * Kurzform eines erfüllten Ziels für den Stempel (Playtest Schritt 14, S8): „2 Begegnungen
+ * entschieden“ statt der ganzen Aufgabe – so bleibt die Meldung ein Stempel (unter 90 Zeichen)
+ * und wird kein Zettel. Die ganze Aufgabe steht weiter auf „Ziele“.
+ */
+export function dailyGoalDoneText(goal: DailyGoal): string {
+  const n = formatNumber(goal.target);
+  switch (goal.kind) {
+    case 'decide':
+      return `${goal.target === 1 ? 'eine Begegnung' : `${n} Begegnungen`} entschieden`;
+    case 'observe':
+      return `${goal.target === 1 ? 'eine Art' : `${n} Arten`} ${genitive(goal.genus)} beobachtet`.replace(/\s+/g, ' ').trim();
+    case 'satisfaction': {
+      // Nominativ aus dem Genitiv: „Bodenlebens“ → „Bodenleben“, sonst gleich.
+      const word = goal.genus ? GENUS_GENITIVE[goal.genus][1].replace(/ens$/, 'en') : 'Arten';
+      return `${word} zu ${n} % zufrieden`;
+    }
+    case 'community':
+      return 'Lebensgemeinschaft entdeckt';
+    case 'plant':
+      return 'Begleitpflanze gesetzt';
+    case 'care':
+      return 'Pflege gegönnt';
+    case 'harmony':
+      return `Harmonie ${formatNumber(Math.round(goal.target / 60))} Min. gehalten`;
+    case 'growth':
+      return `um ${n} 🌿 gewachsen`;
+    case 'seeds':
+      return `${n} 🌰 gesammelt`;
+    default:
+      return dailyGoalText(goal);
+  }
+}
+
+/**
+ * Hinweis nach erfüllten Zielen, z. B. „✅ Tagesziel: Begleitpflanze gesetzt · +120 🌰“.
  * Mehrere in einem Satz; bei allen erfüllt mit Serie. '' wenn nichts erfüllt wurde.
  */
 export function dailyCompletedText(completed: readonly DailyCompletion[], perfect: boolean, streak: number): string {
   if (completed.length === 0) return '';
-  const rewards = (c: DailyCompletion) => (c.rare ? '🎴 Eine seltene Begegnung wartet.' : `+${seedsLabel(c.seeds)} 🌰`);
+  const rewards = (c: DailyCompletion) => (c.rare ? '🎴 seltene Begegnung wartet' : `+${seedsLabel(c.seeds)} 🌰`);
   const head =
     completed.length === 1
-      ? `✅ Tagesziel erfüllt: ${dailyGoalText(completed[0]!.goal)} ${rewards(completed[0]!)}`
-      : `✅ ${formatNumber(completed.length)} Tagesziele erfüllt: ${completed.map(rewards).join(' · ')}`;
-  return perfect ? `${head} Alle Tagesziele geschafft${streak > 1 ? ` – ${days(streak)} in Folge` : ''}!` : head;
+      ? `✅ Tagesziel: ${dailyGoalDoneText(completed[0]!.goal)} · ${rewards(completed[0]!)}`
+      : `✅ ${formatNumber(completed.length)} Tagesziele: ${completed.map(rewards).join(' · ')}`;
+  return perfect ? `${head} · Alle erfüllt${streak > 1 ? ` · 🌞 ${days(streak)}` : ''}!` : head;
 }

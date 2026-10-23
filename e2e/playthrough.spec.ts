@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { SPECIES_BY_ID } from '../src/content/species';
 import {
   SAVE_VERSION,
-  dialog,
+  encounter,
   expect,
   niche,
   openGame,
@@ -12,6 +12,7 @@ import {
   seedV3,
   stack,
   stageLabel,
+  stamps,
   test,
   waypoint,
 } from './fixtures';
@@ -63,7 +64,7 @@ async function previewValue(card: Locator, icon: string): Promise<number> {
  *   (z. B. weil ein voller Ring eine bessere Pflanze ersetzen müsste).
  */
 async function decide(page: Page): Promise<Decision> {
-  const cards = dialog(page).locator('.encounter-card');
+  const cards = encounter(page).locator('.encounter-card');
   await expect(cards.first()).toBeVisible();
   // Ereignis oder Gast (seit Schritt 2.4): erste Option bzw. „Ziehen lassen“ (immer möglich).
   if ((await cards.first().getAttribute('data-option')) !== null) {
@@ -79,7 +80,7 @@ async function decide(page: Page): Promise<Decision> {
   for (let i = 0; i < count; i++) {
     const c = cards.nth(i);
     offered.push((await c.getAttribute('data-card')) ?? '');
-    if (await c.getByRole('button', { name: /wählen/ }).isDisabled()) continue;
+    if (await c.getByRole('button', { name: /einkleben/ }).isDisabled()) continue;
     const harmony = await previewValue(c, '⚖️');
     // Pflanzen: Wachstum (in %) zählt zuerst, Harmonie entscheidet bei Gleichstand.
     const score = kind === 'plant' ? (await previewValue(c, '🌿')) + harmony / 1000 : harmony;
@@ -88,10 +89,10 @@ async function decide(page: Page): Promise<Decision> {
     if (!best || score > best.score) best = { index: i, score, replaced };
   }
   if (best && best.score > 0) {
-    await cards.nth(best.index).getByRole('button', { name: /wählen/ }).click();
+    await cards.nth(best.index).getByRole('button', { name: /einkleben/ }).click();
     return { kind, offered, chosen: offered[best.index]!, replaced: best.replaced };
   }
-  await dialog(page).getByRole('button', { name: /Ablehnen/ }).click();
+  await encounter(page).getByRole('button', { name: /Ablehnen/ }).click();
   return { kind, offered, chosen: null, replaced: null };
 }
 
@@ -125,8 +126,9 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
 
     if (!(await stack(page).isVisible())) continue;
     await stack(page).click();
-    await expect(dialog(page)).toBeVisible();
-    while (await dialog(page).isVisible()) {
+    await expect(encounter(page)).toBeVisible();
+    // Bis der Stapel leer ist; danach blättert U:Begegnung von selbst zurück.
+    while (((await savedState(page)).pendingEncounters ?? []).length > 0) {
       await page.clock.fastForward(400); // Eingabesperre nach neuen Karten (läuft auf der Testuhr)
       const present = await savedAnimals(page);
       const plantsBefore = ((await savedState(page)).plants ?? []) as string[];
@@ -151,6 +153,7 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
         expect(plants.length).toBe(plantsBefore.length + (d.replaced ? 0 : 1));
       }
     }
+    await expect(encounter(page)).toBeHidden();
     await expect(stack(page)).toBeHidden();
   }
 
@@ -198,8 +201,8 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
     for (const animal of list) await expect(niche(page, id).locator(`[data-species="${animal}"]`)).toBeVisible();
   }
   await stack(page).click();
-  await expect(dialog(page)).toBeVisible();
-  for (const id of pending) await expect(dialog(page).locator(`[data-card="${id}"]`)).toBeVisible();
+  await expect(encounter(page)).toBeVisible();
+  for (const id of pending) await expect(encounter(page).locator(`[data-card="${id}"]`)).toBeVisible();
 });
 
 test.describe('Stufen-Banner', () => {
@@ -212,10 +215,11 @@ test.describe('Stufen-Banner', () => {
     await expect(banner).toContainText('Hain');
     // Der gleichzeitig freigeschaltete Erfolg steht im Banner (kein zweiter Hinweis daneben).
     await expect(banner.locator('.stage-banner-extra')).toContainText('Nicht mehr allein');
-    await expect(page.locator('#toast')).not.toContainText('Nicht mehr allein');
+    await expect(stamps(page)).not.toContainText('Nicht mehr allein');
     const text = banner.locator('span').first();
+    // Layouthöhe statt umschließendem Rechteck: Das Polaroid im Album ist leicht gedreht.
     const { height, fontSize } = await text.evaluate((e) => ({
-      height: e.getBoundingClientRect().height,
+      height: (e as HTMLElement).offsetHeight,
       fontSize: parseFloat(getComputedStyle(e).fontSize),
     }));
     // Eine Zeile (vorher: auf die halbe Szenenbreite begrenzt → zwei Zeilen)

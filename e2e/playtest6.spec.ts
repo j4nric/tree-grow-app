@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, type GameState } from '../src/core/state';
-import { expect, openGame, seedRaw, test, waypoint } from './fixtures';
+import { expect, landscapeUnlockState, openGame, seedRaw, stamp, stamps, test, waypoint } from './fixtures';
 
 /**
  * Funde aus dem Playtest Phase 6 (Tag/Nacht, Wetter, Räuber und Beute, Lebensräume,
@@ -34,15 +34,17 @@ test('Massenjahr im Stapel: Nahrungsnetz sagt „wartet“, nach der Wahl „war
   state.pendingEncounters = [{ type: 'event', cards: ['vole-year'], rerolls: 0 }];
   await seedRaw(context, state, 0);
   await openGame(page);
-  await page.locator('[data-ref="food-web"] summary').click();
+  await page.locator('[data-ref="food-web-link"]').click();
   await expect(miceHint(page)).toHaveText('Das Mäusejahr wartet unter deinen Begegnungen – dort kannst du Jäger einladen.');
 
+  // Der Zettelstapel blättert von U:Nahrungsnetz aus zu U:Begegnung um (Ebene 2) …
   await page.locator('[data-ref="encounter-stack"]').click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('Mäusejahr');
+  const sheet = page.locator('[data-ref="page-encounter"]');
+  await expect(sheet).toContainText('Mäusejahr');
   await page.waitForTimeout(400); // Eingabesperre nach neuen Karten
-  await dialog.getByRole('button', { name: /Vorräte anlegen lassen/ }).click();
-  await expect(dialog).toBeHidden();
+  await sheet.getByRole('button', { name: /Vorräte anlegen lassen/ }).click();
+  // … und nach der letzten Entscheidung von selbst zurück aufs Nahrungsnetz.
+  await expect(sheet).toBeHidden();
   await expect(miceHint(page)).toHaveText('Das Mäusejahr war schon – ein Jäger fände hier Futter.');
 });
 
@@ -52,38 +54,30 @@ for (const viewport of [
   { name: 'Desktop', width: 1280, height: 800 },
 ]) {
   /*
-   * Breite langer Hinweise (CSS: width max-content, max-width min(100% − 32 px, 40rem)).
-   * Mobil steht nach der Rückkehr nur noch die Kurzfassung im Toast (Rückkehr-Bericht,
-   * e2e/return-report.spec.ts) – deren Breite hängt vom Inhalt ab und taugt nicht als Prüfung.
-   * Lange Hinweise gibt es mobil trotzdem (z. B. Zusatzhinweise ohne Begrüßung). Darum
-   * schreibt der Test die ganze Rückkehr-Meldung aus dem Bericht in den Toast: Sie ist sicher
-   * länger als eine Zeile und muss die volle Breite nutzen. Am Desktop zeigt der Toast sie
-   * ohnehin selbst.
+   * Breite langer Hinweise: Lange Meldungen (über 90 Zeichen) stehen als Zettel in der
+   * Meldungsschicht (docs/ALBUM_UI.md, C.5) – breit statt als schmaler, sehr hoher Block,
+   * höchstens 26rem, ganz im Bild. Der Hinweis „Landschaft frei“ ist so ein langer Text (die
+   * Rückkehr stempelt seit Playtest Schritt 14 nur noch kurz – die Kurzfassung steht im Zettel).
    */
-  test(`Lange Rückkehr-Meldung (${viewport.name}): Toast nutzt die Breite, nichts scrollt quer`, async ({ page, context }) => {
+  test(`Langer Hinweis (${viewport.name}): Zettel nutzt die Breite, nichts scrollt quer`, async ({ page, context }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await seedRaw(context, grove(), -3 * 3600_000);
+    await seedRaw(context, landscapeUnlockState(), 0);
     await openGame(page);
-    const toast = page.locator('#toast');
-    await expect(toast).toContainText('Willkommen zurück!');
-    const items = await page.locator('[data-ref="return-report-list"] li').allTextContents();
-    const full = items.join(' ');
-    expect(full.length).toBeGreaterThan(150);
-    if (viewport.width <= 760) {
-      // Den Toast mit der langen Meldung füllen und sichtbar halten (sein Zeitgeber ist egal).
-      await toast.evaluate((node, text) => {
-        node.textContent = text;
-        (node as HTMLElement).hidden = false;
-      }, full);
-    } else {
-      await expect(toast).toHaveText(full);
-    }
-    const box = (await toast.boundingBox())!;
-    // Vorher höchstens die halbe Breite (left: 50%) – mobil ein schmaler, sehr hoher Block.
-    expect(box.width).toBeGreaterThanOrEqual(Math.min(viewport.width - 32, 640) - 2);
-    expect(box.width).toBeLessThanOrEqual(Math.min(viewport.width - 32, 640) + 1);
+    const slip = stamp(page);
+    await expect(slip).toContainText('Eichelhäher');
+    await expect(slip).toHaveAttribute('data-kind', 'slip');
+    // Layoutbreite (ohne die leichte Drehung) gegen die Breite der Schicht.
+    const { width, layer } = await slip.evaluate((node) => ({
+      width: (node as HTMLElement).offsetWidth,
+      layer: (node.parentElement as HTMLElement).clientWidth,
+    }));
+    const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+    expect(width).toBe(Math.min(layer, Math.round(26 * rem)));
+    expect(layer).toBeGreaterThanOrEqual(Math.min(viewport.width - 82, 26 * rem));
+    const box = (await slip.boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    expect(await stamps(page).getAttribute('role')).toBe('status');
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
 }

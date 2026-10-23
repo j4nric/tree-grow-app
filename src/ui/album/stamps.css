@@ -1,0 +1,220 @@
+/*
+ * Meldungsschicht (stamps.ts, docs/ALBUM_UI.md C.5): Stempel und Zettel an festem Platz, der
+ * keine Navigation verdeckt – unten über der Seite (mobil über dem Zettelstapel, Desktop über
+ * der rechten Seite). Nur mobil oben auf der Hauptansicht (solange über dem Bild Platz ist,
+ * keine Unterseite) und im Vollbild stehen sie oben über dem Bild (`.stamps-top`, index.ts).
+ * Unten rücken sie über Bestätigungen und „Schließen“ (`--stamps-lift`).
+ * Über Unterseiten und Zettelstapel; Klicks gehen durch, nur „×“ am Zettel fängt sie.
+ */
+
+.stamps {
+  position: fixed;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: 12px;
+  right: 12px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  /* --stamps-lift: über Bestätigung, „Schließen“ oder den fokussierten Knopf (index.ts) */
+  translate: 0 calc(-1 * var(--stamps-lift, 0px));
+  transition:
+    translate 160ms ease-out,
+    opacity 140ms ease-in;
+}
+
+/* Seitenwechsel, während Meldungen zu sehen sind: aus- und am neuen Platz wieder einblenden. */
+.stamps.stamps-moving {
+  opacity: 0;
+}
+
+.stamps.stamps-top {
+  translate: none;
+}
+
+body[data-motion='reduce'] .stamps {
+  transition: none;
+}
+
+.stamps:empty {
+  display: none;
+}
+
+/* Mobil liegt unten rechts der Zettelstapel (album.css, .album-dock): darüber bleiben. */
+html:has(.album[data-layout='single'] .note-stack:not([hidden])) .stamps:not(.stamps-top) {
+  bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Oben über dem Bild: Umschlag-Knopf links (mobil nur ☰) bleibt frei. */
+.stamps.stamps-top {
+  /* --stamps-below: Unterkante sichtbarer Banderolen (stamps.ts) */
+  top: max(calc(16px + env(safe-area-inset-top, 0px)), var(--stamps-below, 0px));
+  bottom: auto;
+  left: 72px;
+  right: 10px;
+}
+
+/* Desktop: mittig über der rechten Seite (Tischrand 48 px, Reiter 46 px), über ihrem Fuß */
+.album[data-layout='spread'] ~ .stamps {
+  bottom: 40px;
+  left: calc(50% + 6px);
+  right: 104px;
+}
+
+.album[data-layout='spread'] ~ .stamps.stamps-top {
+  top: max(96px, var(--stamps-below, 0px));
+  bottom: auto;
+}
+
+.stamp {
+  position: relative;
+  box-sizing: border-box;
+  max-width: 100%;
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-weight: 600;
+  animation: stamp-in var(--stamp-ms) cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.stamp-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Stempel: Tintenrahmen, −3°, Caveat ---------- */
+
+.stamp-stamp {
+  /* schmal genug, dass die Drehung oben nicht aus dem Bild ragt */
+  max-width: min(100%, 26rem);
+  padding: 4px 14px 6px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 0 0 3px rgba(255, 253, 247, 0.85), var(--sh-sticker);
+  transform: rotate(var(--tilt-stamp));
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.stamp-error {
+  border-color: var(--ink-red);
+  color: var(--ink-red);
+}
+
+/* ---------- Zettel: gelb, Tape, „×“ ---------- */
+
+.stamp-slip {
+  width: min(100%, 26rem);
+  padding: 14px 44px 12px 16px;
+  background: var(--note-bg);
+  box-shadow: var(--sh-slip);
+  transform: rotate(-1deg);
+  font-size: 14px;
+}
+
+.stamp-slip .stamp-text {
+  line-height: 1.4;
+}
+
+.stamp-slip.stamp-error {
+  border-left: 4px solid var(--ink-red);
+  color: var(--ink);
+}
+
+.stamp-tape {
+  position: absolute;
+  top: -8px;
+  left: calc(50% - 28px);
+  width: 56px;
+  height: 16px;
+  background: var(--tape);
+  opacity: 0.85;
+  transform: rotate(3deg);
+}
+
+.stamp-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-button);
+  background: transparent;
+  color: var(--ink);
+  font: 700 22px/1 var(--font-text);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.stamp-close::before {
+  content: '×';
+}
+
+.stamp-close:hover {
+  background: rgba(59, 58, 54, 0.08);
+}
+
+.stamp-close:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: -3px;
+}
+
+/* Kurzfassung (Rückkehr): höchstens drei Zeilen; Screenreader lesen den ganzen Text. */
+.stamp-brief .stamp-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+/* Die ältere von zwei Meldungen: einzeilig und kleiner, bis sie weicht (stamps.ts). */
+.stamp.stamp-older {
+  font-size: 16px;
+  opacity: 0.92;
+}
+
+.stamp-older .stamp-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+  overflow-wrap: normal;
+}
+
+.stamp-slip.stamp-older {
+  padding-block: 8px 6px;
+  font-size: 13px;
+}
+
+/* ---------- Bewegung ---------- */
+
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    scale: 1.3;
+  }
+}
+
+.stamp.stamp-out {
+  opacity: 0;
+  transition: opacity 180ms ease-in;
+}
+
+body[data-motion='reduce'] .stamp {
+  animation: stamp-fade var(--stamp-ms) ease-out;
+}
+
+@keyframes stamp-fade {
+  from {
+    opacity: 0;
+  }
+}

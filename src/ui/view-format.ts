@@ -44,6 +44,25 @@ export function formatSigned(value: number): string {
   return rounded > 0 ? `+${text}` : `${MINUS}${text}`;
 }
 
+/**
+ * Ab dieser relativen Änderung (+200 %) zeigt die Vorschau die absolute Rate („+0,8/s“):
+ * Bei kleiner Basis (erste Pflanze) sagt „+551,9 %“ wenig (Playtest Schritt 14, K10).
+ */
+export const PREVIEW_ABSOLUTE_FROM = 2;
+
+/** Vorzeichenbehaftete Rate: 0,8 → „+0,8/s“, −2 → „−2/s“. */
+export function formatSignedRate(value: number): string {
+  return `${formatSigned(value)}/s`;
+}
+
+/** Wert eines Raten-Chips: Prozent, bei sehr großer Änderung mit bekannter Rate absolut. */
+function rateChipValue(fraction: number, perSec: number | undefined): string {
+  if (perSec !== undefined && Number.isFinite(perSec) && Math.abs(fraction) >= PREVIEW_ABSOLUTE_FROM && roundDisplay(perSec) !== 0) {
+    return formatSignedRate(perSec);
+  }
+  return formatSignedPercent(fraction);
+}
+
 /** Bruchteil als vorzeichenbehaftete Prozentangabe: 0,05 → „+5 %“, −0,075 → „−7,5 %“. */
 export function formatSignedPercent(fraction: number): string {
   return `${formatSigned(fraction * 100)} %`;
@@ -105,8 +124,8 @@ export function previewParts(preview: PreviewView): PreviewPart[] {
     parts.push({
       key: 'growth',
       icon: '🌿',
-      value: formatSignedPercent(preview.growthDelta),
-      text: `Wachstum ${formatSignedPercent(preview.growthDelta)}`,
+      value: rateChipValue(preview.growthDelta, preview.growthPerSec),
+      text: `Wachstum ${rateChipValue(preview.growthDelta, preview.growthPerSec)}`,
       tone: percentToneOf(preview.growthDelta),
     });
   }
@@ -114,8 +133,8 @@ export function previewParts(preview: PreviewView): PreviewPart[] {
     parts.push({
       key: 'seeds',
       icon: '🌰',
-      value: formatSignedPercent(preview.seedDelta),
-      text: `Samen ${formatSignedPercent(preview.seedDelta)}`,
+      value: rateChipValue(preview.seedDelta, preview.seedsPerSec),
+      text: `Samen ${rateChipValue(preview.seedDelta, preview.seedsPerSec)}`,
       tone: percentToneOf(preview.seedDelta),
     });
   }

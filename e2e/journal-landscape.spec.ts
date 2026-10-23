@@ -1,11 +1,12 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, createSite, type GameState, type LandscapeSite } from '../src/core/state';
-import { expect, openGame, seedRaw, test, waypoint } from './fixtures';
+import { expect, openGame, openTab, seedRaw, subpage, tabButton, tabPanel, test, waypoint } from './fixtures';
 
 /**
- * Naturtagebuch, Reiter „Landschaft“ (DESIGN_V2.md 24.11): verborgen vor der Freischaltung,
- * danach je Wald Gedächtnis, Urwald, Leitbaum, Stammgäste, Tiere; Korridore, Hähersaat.
+ * Tagebuch der Wälder im Reiter „Landschaft“ (docs/ALBUM_UI.md, B.5 und A.10 #114;
+ * DESIGN_V2.md 24.11): verborgen vor der Freischaltung, danach je Wald Gedächtnis, Urwald,
+ * Leitbaum, Stammgäste, Tiere; Korridore, Hähersaat.
  */
 
 const GROVE = STAGES.findIndex((s) => s.id === 'grove');
@@ -42,50 +43,38 @@ const founded = () =>
     free: ['home-floodplain'],
   });
 
-const journal = (page: Page) => page.locator('[data-ref="journal"]');
+const diary = (page: Page) => page.locator('[data-ref="landscape-diary"]');
 
 async function open(page: Page, context: BrowserContext, state: GameState): Promise<void> {
   await seedRaw(context, state, 0);
   await openGame(page);
-  await page.locator('[data-ref="journal-open"]').click();
-  await expect(journal(page)).toBeVisible();
 }
 
-test('vor der Freischaltung: kein Reiter „Landschaft“, Pfeiltasten überspringen ihn', async ({ page, context }) => {
+test('vor der Freischaltung: kein Reiter „Landschaft“, nichts verrät die Wälder', async ({ page, context }) => {
   await open(page, context, landscapeState({ own: 100 }));
-  await expect(page.getByRole('tab', { name: /Landschaft/ })).toHaveCount(0);
-  const html = await journal(page).evaluate((d) => d.outerHTML);
+  await expect(tabButton(page, 'landschaft')).toBeHidden();
+  await expect(diary(page)).toBeHidden();
+  // Auch der Reiter „Arten“ verrät nichts.
+  await openTab(page, 'arten');
+  const html = await tabPanel(page, 'arten').evaluate((d) => d.outerHTML);
   expect(html).not.toContain('Auwald');
   expect(html).not.toContain('🪶');
-  // Von „Erfolge“ mit → direkt zu „Statistik“.
-  await page.getByRole('tab', { name: /Erfolge/ }).click();
-  await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: /Statistik/ })).toBeFocused();
-  await expect(page.getByRole('tab', { name: /Statistik/ })).toHaveAttribute('aria-selected', 'true');
 });
 
-test('nach der Freischaltung: Wälder, Korridore und Hähersaat im Reiter', async ({ page, context }) => {
+test('nach der Freischaltung: Wälder und Hähersaat im Reiter „Landschaft“', async ({ page, context }) => {
   await open(page, context, founded());
-  const tab = page.getByRole('tab', { name: /Landschaft/ });
-  await expect(tab).toBeVisible();
-  await expect(tab).toContainText('2/6');
-  // Tastatur: von „Erfolge“ mit → zur Landschaft.
-  await page.getByRole('tab', { name: /Erfolge/ }).click();
-  await page.keyboard.press('ArrowRight');
-  await expect(tab).toBeFocused();
-  await expect(tab).toHaveAttribute('aria-selected', 'true');
-
-  const panel = page.getByRole('tabpanel', { name: /Landschaft/ });
+  await openTab(page, 'landschaft');
+  const panel = diary(page);
   await expect(panel).toBeVisible();
-  await expect(panel.locator('[data-ref="journal-landscape-summary"]')).toHaveText('2 von 6 Wäldern gegründet · 1 von 10 Korridoren');
+  await expect(panel.locator('[data-ref="landscape-summary"]')).toHaveText('2 von 6 Wäldern gegründet · 1 von 10 Korridoren');
 
   // Hähersaat: Heimat 4 + 2, Auwald 1 → 7 verdient, 3 für die Gründung.
-  const seeds = panel.locator('[data-ref="journal-jay-seeds"]');
+  const seeds = panel.locator('[data-ref="landscape-jay-seeds"]');
   await expect(seeds.locator('[data-row="earned"]')).toContainText('7 🪶');
   await expect(seeds.locator('[data-row="spent"]')).toContainText('3 🪶');
   await expect(seeds.locator('[data-row="available"]')).toContainText('4 🪶');
 
-  const home = panel.locator('li[data-site="home"]');
+  const home = panel.locator('li[data-forest="home"]');
   await expect(home).toContainText('Heimatwald');
   await expect(home).toContainText('Eichen');
   await expect(home.locator('[data-row="memory"]')).toContainText('400 eigen · 460 wirksam');
@@ -97,17 +86,26 @@ test('nach der Freischaltung: Wälder, Korridore und Hähersaat im Reiter', asyn
   expect(fauna).toBe('Schwarzspecht (legendär), Waldkauz (besonders) und Rotkehlchen');
   expect(await home.locator('[data-row="fauna"] dd').evaluate((d) => d.textContent)).toContain('\u00ad');
 
-  const flood = panel.locator('li[data-site="floodplain"]');
+  const flood = panel.locator('li[data-forest="floodplain"]');
   await expect(flood).toContainText('hier wächst dein Wald');
   await expect(flood).toContainText('Hartholzaue');
   await expect(flood.locator('[data-row="memory"]')).toContainText('120 eigen · 320 wirksam');
   await expect(flood.locator('[data-row="ancient"]')).toContainText('noch nicht');
   await expect(flood.locator('[data-row="regulars"]')).toContainText('keine');
 
-  const corridor = panel.locator('li[data-corridor="home-floodplain"]');
+  // Der Mühlbach steht bei den Korridoren (gratis mit der Gründung).
+  const corridor = page.locator('[data-ref="corridors"] li[data-corridor="home-floodplain"]');
   await expect(corridor).toContainText('Mühlbach');
   await expect(corridor).toContainText('Heimatwald – Auwald am Fluss');
-  await expect(corridor).toContainText('mit der Gründung, gratis');
+  await expect(corridor).toContainText('gratis');
+
+  // Ein Wald im Tagebuch blättert zu U:Standort – mit Stammgästen und Tieren.
+  await home.locator('[data-ref="forest-open"]').click();
+  const site = subpage(page, 'site');
+  await expect(site).toHaveAttribute('data-site-id', 'home');
+  await expect(site).not.toHaveAttribute('inert', '');
+  await expect(site.locator('[data-ref="site-diary"] [data-row="regulars"]')).toContainText('Rotkehlchen');
+  await expect(site.locator('[data-ref="site-diary"] [data-row="fauna"]')).toContainText('Waldkauz');
 });
 
 for (const width of [360, 390]) {
@@ -116,17 +114,19 @@ for (const width of [360, 390]) {
 
     test('Reiter „Landschaft“ ohne horizontales Scrollen', async ({ page, context }) => {
       await open(page, context, founded());
-      await page.getByRole('tab', { name: /Landschaft/ }).tap();
-      const panel = page.getByRole('tabpanel', { name: /Landschaft/ });
-      await expect(panel.locator('li[data-site="floodplain"]')).toBeVisible();
+      await tabButton(page, 'landschaft').tap();
+      const panel = tabPanel(page, 'landschaft');
+      await expect(panel.locator('li[data-forest="floodplain"]')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-      expect(await journal(page).evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
-      // Kein Element ragt rechts aus dem Reiter heraus.
+      // Kein Element ragt rechts aus der Seite heraus.
       const overflow = await panel.evaluate((p) => {
         const right = p.getBoundingClientRect().right + 0.5;
-        return [...p.querySelectorAll('*')].filter((n) => n.getBoundingClientRect().right > right).length;
+        return [...p.querySelectorAll('*')].filter((n) => n.getBoundingClientRect().right > right).map((n) => n.className);
       });
-      expect(overflow).toBe(0);
+      expect(overflow).toEqual([]);
+      // Tippziele der Wälder ≥ 44 px.
+      const forestOpen = (await panel.locator('li[data-forest="home"] [data-ref="forest-open"]').boundingBox())!;
+      expect(forestOpen.height).toBeGreaterThanOrEqual(44);
     });
   });
 }

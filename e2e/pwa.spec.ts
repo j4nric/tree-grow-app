@@ -1,5 +1,5 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
-import { expect, openGame, savedState, seedV3, stageLabel } from './fixtures';
+import { expect, openCoverPage, openGame, savedState, seedV3, stageLabel } from './fixtures';
 
 /**
  * Installierbare App (PWA) gegen den Produktions-Build (vite preview, playwright.config.ts):
@@ -82,16 +82,14 @@ async function cachedUrls(page: Page): Promise<{ cache: string; urls: string[] }
 
 const account = (page: Page) => page.locator('[data-ref="account"]');
 
-async function openSettings(page: Page): Promise<void> {
-  await page.locator('[data-ref="settings-open"]').click();
-  await expect(page.locator('dialog[data-ref="settings"]')).toBeVisible();
-}
+/** Umschlag → Unterseite „Konto“. */
+const openAccount = (page: Page) => openCoverPage(page, 'account');
 
 test('Manifest ist gültig, verlinkt und seine Icons liegen bereit', async ({ page, baseURL }) => {
   await openGame(page);
   const href = await page.locator('link[rel="manifest"]').getAttribute('href');
   expect(href, 'relativ, damit es unter /tree-grow-app/ funktioniert').toBe('./manifest.webmanifest');
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#3f8f3a');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#e9dfc9');
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', './icons/apple-touch-icon.png');
 
   const manifestUrl = new URL(href!, `${baseURL}/`).href;
@@ -104,8 +102,8 @@ test('Manifest ist gültig, verlinkt und seine Icons liegen bereit', async ({ pa
     display: 'standalone',
     start_url: './',
     scope: './',
-    theme_color: '#3f8f3a',
-    background_color: '#f3f1e8',
+    theme_color: '#e9dfc9',
+    background_color: '#e9dfc9',
   });
   expect(manifest.short_name.length).toBeLessThanOrEqual(15);
   const icons = manifest.icons as { src: string; sizes: string; type: string; purpose: string }[];
@@ -140,7 +138,7 @@ test('Service Worker: Offline-Start nach einem Besuch, Konto zeigt Offline, Sync
 
   // Konto anlegen: Netzaufrufe an den Sync-Server (andere Origin) inkl. Event-Stream
   const name = `pwa${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`;
-  await openSettings(page);
+  await openAccount(page);
   await account(page).getByLabel('Benutzername').fill(name);
   await account(page).getByLabel('Passwort').fill('geheim-wald-1');
   await account(page).getByRole('button', { name: 'Konto anlegen' }).click();
@@ -174,7 +172,7 @@ test('Service Worker: Offline-Start nach einem Besuch, Konto zeigt Offline, Sync
   const reload = await page.reload();
   expect(reload?.fromServiceWorker()).toBe(true);
   await expect(stageLabel(page)).toContainText('Stufe:');
-  await openSettings(page);
+  await openAccount(page);
   await expect(account(page).locator('[data-ref="account-who"]')).toHaveText(`Angemeldet als ${name}`);
   await expect(account(page).locator('[data-ref="account-sync"]')).toHaveText(/^Offline/, { timeout: 15_000 });
   await context.setOffline(false);

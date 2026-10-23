@@ -463,10 +463,14 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
 
 **Welle 3 – Oberfläche, Waldtyp-Wetter, Messung**
 
-- [ ] **3a** Baumwahl mit fünf Arten (`ui-dev`, 25.6 Nr. 4): Karten für Weißtanne und
+- [x] **3a** Baumwahl mit fünf Arten (`ui-dev`, 25.6 Nr. 4): Karten für Weißtanne und
   Schwarzerle (vor der Landschaft verborgen, danach gesperrt mit Hinweis), Hauptbaum-Symbol in
   Karte und Tagebuch-Reiter „Landschaft“, Spielanleitung, Erfolge der Landschaft im Tagebuch.
-  Abhängig: 2a, 2b
+  Abhängig: 2a, 2b. *Umgesetzt im Album* (ALBUM_UI.md G.2 Nr. 1, Phase 8 Schritt 9): Baumwahl
+  als Samentütchen auf U:Neuer Zyklus (`album/pages/cycle-page.ts`) mit allen Arten aus
+  `isTreeVisible` und Sperre/Vorauswahl über `treeChoiceFor`; Symbol als Sticker (der Renderer
+  bietet noch keine Baum-Sticker). Symbol in Karte und Tagebuch, Anleitung und Sichtbarkeit der
+  Erfolge (`isAchievementVisible`, jetzt U:Erfolge) kamen schon mit 2a/2b
 - [ ] **3b** Waldtyp und Wetter – Design (`game-designer`): Gewichte der Wetterlagen je Standort
   als Daten (Bergmischwald mehr Neuschnee, Auwald mehr Landregen, Kiefernheide mehr Dürre,
   Erlenbruch mehr Nebel; offene Frage 24.13). **Warum:** Die Waldtypen unterscheiden sich heute
@@ -498,45 +502,205 @@ fertig und getestet ist, folgt ein großer PR `claude/album-ui` → `main`. `mai
 in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser Phase.
 
 - [x] **0** Konzept `docs/ALBUM_UI.md` (`ui-dev`)
-- [ ] **1** Grundgerüst (`ui-dev`): `claude/album-ui` anlegen; Schriften Caveat/Nunito selbst
+- [x] **1** Grundgerüst (`ui-dev`): `claude/album-ui` anlegen; Schriften Caveat/Nunito selbst
   gehostet (OFL), `tokens.css`, `album/nav.ts` + Tests, Verlauf/Hash, Book/Spread/Page/TabStrip/
   PageTurn/Bookmark, Polaroid-Rahmen mit dem Canvas, Etiketten, Stufenleiste; alte Panels als
   Übergangsinhalt in den Reitern, Hilfe/Einstellungen/Spielstand im Umschlag; UI-Steuerung aus
   `main.ts` nach `album/index.ts` (Review `core-engineer`); Fixture-Helfer, Specs grün.
-  Abhängig: nichts
-- [ ] **2** Sticker-Renderer (`renderer`): `render/sticker.ts` mit `renderSpeciesSticker(id, size,
+  Abhängig: nichts. *Umgesetzt:* Übergangssteuerung der alten Bauteile in `album/legacy.ts`
+  (jeder Schritt löscht dort seinen Teil), Seiten in `album/pages/registry.ts` (eine Zeile je
+  Seite), „Spielstand“ ist schon eine echte Unterseite des Umschlags (Umblättern, Lesezeichen,
+  Verlauf). Die Karte der Landschaft hängt im Reiter „Landschaft“, ihr Ziel gilt weiter für den
+  Knopf im Reiter „Ziele“. Kamera-Knöpfe bis Schritt 3 oben rechts im Polaroid;
+  `camera-input.ts` rechnet die Drehung des Polaroids heraus (`offsetX/Y`).
+- [x] **2** Sticker-Renderer (`renderer`): `render/sticker.ts` mit `renderSpeciesSticker(id, size,
   opts)`, `stickerKind`, `stickerFit`, Varianten `muted`/`silhouette`, eigener LRU; Test „jede Art
   hat eine eigene Zeichnung“; Sticker-Tafel in der Render-Demo. Abhängig: nichts (parallel zu 1)
-- [ ] **3** Polaroid und Vollbild (`ui-dev`, Prüfung `renderer`): FLIP mit demselben Canvas, Kamera
+- [x] **3** Polaroid und Vollbild (`ui-dev`, Prüfung `renderer`): FLIP mit demselben Canvas, Kamera
   nur im Vollbild, Tier-Tipp → Haftnotiz, Zeichnen aussetzen, wenn verdeckt, Stufen-Stempel.
-  Specs camera, scene-animal-tap, canvas-size. Abhängig: 1
-- [ ] **4** Haftnotiz und Stempel (`ui-dev`): `Note` (popover + Fallback), Stempel/Zettel statt
+  Specs camera, scene-animal-tap, canvas-size. Abhängig: 1. *Umgesetzt:* `album/fullscreen.ts`
+  (FLIP: Canvas behält während der Animation seine Größe, danach genau ein Resize;
+  `object-fit` verhindert Verzerren bis dahin), Verlaufseintrag, Schließen per Knopf, Escape und
+  Zurück sowie Wisch nach unten (bei 1×). `camera-input.ts` hat `active` (nur im Vollbild; das Polaroid zeigt immer die ganze
+  Szene, die Kamera-Ansicht bleibt fürs nächste Öffnen). Tier-Tipp öffnet den austauschbaren
+  Platzhalter `album/scene-note.ts` (in Schritt 4 durch `openNote` ersetzt). `sceneVisible` per
+  IntersectionObserver (main.ts zeichnet nur dann). **Schärfe:** Nur Papier und Tape des
+  Polaroids sind gedreht, Bild und Bildunterschrift stehen gerade – das gedrehte Live-Canvas
+  verlor sonst rund ein Drittel seiner Kantenschärfe (gemessen bei Pixeldichte 1, 2 und 3).
+- [x] **4** Haftnotiz und Stempel (`ui-dev`): `Note` (popover + Fallback), Stempel/Zettel statt
   Toast (`toast-place.ts` entfällt), einheitliches `notify`, Banderole, Notizen für Jahreszeit,
-  Wetter, Etiketten, Gattungen. Specs seasons, weather, daynight. Abhängig: 1
-- [ ] **5** Reiter Nischen (`ui-dev`): Stickerreihen, Gattungen, Lebensräume, Pflanzring;
+  Wetter, Etiketten, Gattungen. Specs seasons, weather, daynight. Abhängig: 1.
+  *Umgesetzt:* `album/note.ts` (popover="auto", ohne popover `.note-open` mit eigenem
+  Klick-außerhalb; offene Notiz in `nav.note`), freie Notiz `openNote(anchor, content)` für den
+  Tier-Tipp in Schritt 3 (ALBUM_UI.md D.6). `album/stamps.ts` + `stamp-rules.ts` (ab 90 Zeichen
+  Zettel, höchstens zwei, rückt unter sichtbare Banderolen); `album.notify(text, options)` mit
+  `error`, `keep`, `brief` (bis Schritt 12 auch `direct`) ersetzt `showToast`. Etiketten sind Knöpfe mit Notiz
+  (Harmonie mit „Mehr ›“, sobald es U:Harmonie gibt), Jahreszeit und Wetter in
+  `album/season-weather.ts` (ersetzt `season-badge.ts`/`weather-badge.ts`), Gattungs-Chips öffnen
+  eine Notiz. Update-Hinweis und „neuerer Spielstand“ als Banderole (`album/banderole.ts`). Die
+  Rückkehr-Meldung zeigt Desktop wie mobil die Kurzfassung (C.8). Übergang bis Schritt 12: Ist
+  noch ein alter Dialog mit Hinweisfeld offen, landet `notify` dort (außer `direct`). Neu:
+  `e2e/album-notes.spec.ts`. Nach dem Merge von Schritt 3: Der Tier-Tipp im Vollbild öffnet eine
+  echte Haftnotiz (`openNote` an einem unsichtbaren Anker an der Tippstelle, „Im Album ansehen ›“;
+  `scene-note.ts` entfällt). Bildunterschrift kurz: „🌱 Frühling · ⛅ Wechselhaft · 2:58“
+  (Wirkungen des Wetters in der Notiz und im vorgelesenen Namen). Meldungen im Vollbild über die
+  ganze Breite unter „Zurück ins Album“.
+- [x] **5** Reiter Nischen (`ui-dev`): Stickerreihen, Gattungen, Lebensräume, Pflanzring;
   Unterseiten Tier, Harmonie, Nahrungsnetz. Specs animal-detail, food-web, habitats.
-  Abhängig: 2, 4
-- [ ] **6** Begegnungen (`ui-dev`): Zettelstapel mit Wackeln, Unterseite Begegnung, Unterseite
+  Abhängig: 2, 4. *Umgesetzt:* `album/sticker.ts` (StickerSlot: eigenes kleines Canvas, zeichnet
+  nur bei neuer Art/Variante/Pixeldichte; matte Bilder über die IdleQueue, bis dahin CSS-gedämpft;
+  Zufriedenheit als Bogen im weißen Rand, Seltenheit als Edelstein und Randlinie, 🌙 und
+  Bestandspunkt) und `sticker-rules.ts` (`stickerTilt` fest je Art und Platz, ±6°).
+  `pages/niches-page.ts` (Gattungs-Abzeichen mit Notiz, Reihen „Am Baum“ und „Lebensräume“,
+  Pflanzring mit Messbändern, Links zu U:Harmonie und U:Nahrungsnetz – oben statt am Ende,
+  damit sie mobil ohne Scrollen erreichbar sind; Kennzahl „9 von 14 Plätzen“), Unterseiten
+  `animal-page.ts` (Kopf, „Was es braucht“, „Was es bewirkt“, Räuber und Beute → Nahrungsnetz als
+  Ebene 2, Lebensgemeinschaften, Stammgast-★, Notiz, „Zuerst gesehen“ aus `meta.journal.firstSeen`;
+  ausgezogen bleibt die Seite offen), `harmony-page.ts` (Zusammensetzung, Gemeinschaften,
+  Stufen; „Mehr ›“ der Harmonie-Notiz), `food-web-page.ts` (Jäger als kleine Sticker,
+  `FoodWebRowView.hunterIds`). Je Seitenart ein Blatt (`nav.ts`: andere ID derselben Art ersetzt
+  sie). Nur sichtbare Seiten schreiben (`PageEnv.eco` mit Zähler, `album.refresh` aktualisiert
+  die oberste Seite). `ecosystem-panel.ts` und `animal-detail-dialog.ts` gelöscht; „Im Album
+  ansehen ›“ aus dem Vollbild blättert zu U:Tier um. Neu: `e2e/album-animal.spec.ts`,
+  `tests/album-niches.test.ts`.
+- [x] **6** Begegnungen (`ui-dev`): Zettelstapel mit Wackeln, Unterseite Begegnung, Unterseite
   Pflanze setzen. Specs events, playthrough, full-cycle. Abhängig: 4 (Pflanze setzen: 5)
-- [ ] **7** Reiter Arten (`ui-dev`): Sticker-Raster mit Silhouetten, Pflanzen, Gemeinschaften,
+  *Umgesetzt:* `album/note-stack.ts` (gelber Zettel „2 Zettel: Besuch wartet!“ bzw. „Sturmnacht!“,
+  Symbol der vordersten Begegnung als Eck-Sticker, Schatten für den 2. und 3. Zettel, einmal
+  Wackeln bei neuem Zettel – reduziert nur Farbblitz; mobil fest unten rechts, Desktop im Kopf, auf
+  U:Begegnung verborgen) mit den reinen Texten in `note-stack-view.ts` (`stackIcon` zieht um).
+  `ui/encounter-cards.ts` (Kartenaufbau und Eingabeschutz ohne `<dialog>`: Kopf als Zettel,
+  Sticker-Karten im Notizzettel-Stil mit Renderer-Sticker bzw. Gruppen-Emoji, „Einkleben“,
+  Tausch bei voller Nische, Wildwechsel-Zeile, Ereignis-/Gast-Optionen als große Knöpfe, Legende
+  als Haftnotiz am „?“ – öffnet sich beim allerersten Mal von selbst, schmal nicht) und
+  `ui/plant-offers.ts` (Pflanzenzettel mit „Setzen“). Unterseiten `pages/encounter-page.ts`
+  (Lesezeichen „‹ Später“, nächste Begegnung ohne neues Umblättern mit Überblenden, leerer Stapel
+  blättert von selbst zurück, Fokus auf die erste wählbare Karte) und `pages/plant-picker-page.ts`
+  (nach dem Setzen zurück zu den Nischen). Meldungen während Begegnung und Pflanzenwahl kommen als
+  Stempel (die Weiche ins alte Hinweisfeld entfällt); mobil sammelt `overlayOpen()` die Hinweise in
+  einem Stempel, solange eine Unterseite das Polaroid verdeckt. `encounter-dialog.ts`,
+  `encounter-stack.ts`, `plant-picker.ts` samt CSS gelöscht. Neu: `e2e/album-encounter.spec.ts`,
+  `tests/album-note-stack.test.ts`; e2e-Option `freshLegend` (sonst gilt die Legende als gesehen).
+- [x] **7** Reiter Arten (`ui-dev`): Sticker-Raster mit Silhouetten, Pflanzen, Gemeinschaften,
   Andenken, Stammgast-★. Spec journal. Abhängig: 5
-- [ ] **8** Reiter Pflege (`ui-dev`): Gerade wirksam, Pflegeliste, Unterseite Pflegemaßnahme,
+  *Umgesetzt:* `album/pages/species-page.ts` (R:Arten: Kopf mit `journal-counts/-meta/-regulars`,
+  Sprungmarken als Washi-Streifen, Tiere nach Gattung mit „n von m“ – farbig, wenn die Art im
+  Wald lebt, matt, wenn sie entdeckt, aber nicht da ist, unentdeckt als Silhouette „???“;
+  ★-Knopf am Sticker (`toggleRegular`), grüner Punkt „lebt hier“; Tipp → U:Tier mit Lesezeichen
+  „‹ Arten“, Tipp auf eine Silhouette → Haftnotiz mit Gattung, Seltenheit, Nische und Stufe statt
+  Spoiler; Pflanzen mit Gruppen-Emoji und Notiz; Gemeinschaften; Andenken als Samentütchen und
+  Zettel). Reine Logik in `pages/species-view.ts` (+ `tests/album-species.test.ts`). **Leistung:**
+  feste Zellen je Art und Pflanze (einmal gebaut, danach nur Klassen und Texte), `toJournalView`
+  nur bei neuem `speciesPageKey` bzw. neuer Auswertung; Bilder erst, wenn ein
+  IntersectionObserver die Zelle meldet; matte Bilder und Silhouetten aus der IdleQueue
+  (`StickerImage.draw(…, { preview: false })`, Silhouetten nie mit farbiger Vorschau; ein
+  Leerlauf-Rückruf zeichnet bis zu 4 ms lang weitere Sticker). Gemessen mit vollem Tagebuch
+  (51 Arten, 14 Pflanzen, 15 Gemeinschaften; Chromium, Rechner unter Last): Aufbau 3–4 ms,
+  erste Darstellung 5–9 ms, alle sichtbaren Sticker (Desktop 15) ≈ 0,36 s nach dem
+  Reiterwechsel; mit 4-facher CPU-Drosselung 7–36 ms, 14–30 ms und ≈ 0,8 s
+  (`performance.measure` `album-species-build` / `album-species-first-render`).
+  `journal-dialog.ts` gelöscht; der Tagebuch-Teil „Landschaft“ steht bis Schritt 10 als Abschnitt
+  „Unsere Wälder“ im Reiter Landschaft (`ui/journal-landscape.ts`, eingehängt in `legacy.ts`).
+  Neu: `e2e/album-species.spec.ts`; journal- und journal-landscape-Spec umgestellt.
+- [x] **8** Reiter Pflege (`ui-dev`): Gerade wirksam, Pflegeliste, Unterseite Pflegemaßnahme,
   Punkt am Reiter. Spec care. Abhängig: 4
-- [ ] **9** Reiter Ziele (`ui-dev`): Tagesziele, Unterseiten Neuer Zyklus, Erfolge, Statistik.
-  Specs daily, cycle, cycle-transition, achievements, journal-stats. Abhängig: 4
-- [ ] **10** Reiter Landschaft (`ui-dev`): Karte, Unterseite Standort, Korridore, Wälder,
+  *Umgesetzt:* `album/pages/care-page.ts` (R:Pflege: „Gerade wirksam“ als gelber Zettel mit
+  Restzeit-Washi-Band, Pflegeliste mit festen Zeilen je Maßnahme, Gruppen-Überschriften in
+  Handschrift, Kennzahl „2 kaufbar“ im Seitenkopf, `reveal(id)` für „Zur Pflege“) und
+  `album/pages/care-item-page.ts` (U:Pflegemaßnahme: Stimmungstext, Wirkung des nächsten Rangs,
+  „Öffnet Lebensraum …“, Schutz, Vorschau, alle Ränge, Voraussetzungen mit ✓/✗, Kaufen bzw.
+  Stempel „voll ausgebaut“). Reine Ansichtslogik in `ui/care-view.ts` (`careOrder`,
+  `carePreviewText`, `careSummaryText`, `careTabDot`, `barWidth`, `toCareItemView`).
+  Seiten-Schnittstelle: `PageEnv.open/float`, `TabPage.badge` (Punkt am Reiter, läuft immer),
+  `Subpage.opened(ref)`; Unterseiten registrieren sich nur noch in `pages/registry.ts`.
+  `care-panel.ts` und `bonus-panel.ts` samt CSS gelöscht. Neu: `e2e/album-care.spec.ts`.
+- [x] **9** Reiter Ziele (`ui-dev`): Tagesziele, Unterseiten Neuer Zyklus, Erfolge, Statistik.
+  Specs daily, cycle, cycle-transition, achievements, journal-stats. Abhängig: 4.
+  *Umgesetzt:* `album/pages/goals-page.ts` (Tagesziele mit Washi-Kopf, Kurzkarte Zyklus mit
+  „bereit!“-Stempel, Link-Karten Erfolge/Statistik, Punkt am Reiter über `TabPage.badge`),
+  `cycle-page.ts` (alle Zeilen, Ziel-Wald, Baumwahl als Samentütchen – Phase 7, 3a –, Knopf mit
+  zweitem Klick, Stammgäste mit Tier-Stickern; nach dem Start zurück zu „Ziele“, Fokus auf die
+  Überschrift), `achievements-page.ts` (Sticker-Bogen), `stats-page.ts`; reine Ansichten in
+  `goals-view.ts` (+ Test). Gemeinsames Ziel `album/cycle-target.ts` (`albumTarget`, D.2; seit
+  Schritt 10 ohne eigene Karte). Seiten werden nur
+  aktualisiert, solange sie oben liegen (`refreshPages` in `album/index.ts`: aktueller Reiter und oberste Unterseite, gedrosselt, sofort nach `invalidate` oder Seitenwechsel, `update(now, force)` für alle Seiten). Gelöscht:
+  `cycle-panel.ts`, `daily-panel.ts`, Reiter Erfolge/Statistik des Tagebuch-Dialogs samt CSS
+- [x] **10** Reiter Landschaft (`ui-dev`): Karte, Unterseite Standort, Korridore, Wälder,
   gemeinsames Ziel mit dem Neuen Zyklus. Specs landscape, journal-landscape, wildwechsel.
-  Abhängig: 9
-- [ ] **11** Umschlag und Zettel (`ui-dev`): Anleitung als Kapitel, Einstellungen, Konto,
+  Abhängig: 9. *Umgesetzt:* `album/pages/landscape-page.ts` (R:Landschaft: Frage, Hähersaat,
+  Wildwechsel-Chance, handgezeichnete Karte `album/landscape-map.ts` – vorher `ui/landscape-map.ts`
+  –, Ziel-Zeile mit „Neuer Zyklus ›“, Korridore mit „Bauen“ und zweitem Klick, „Tagebuch der
+  Wälder“ mit Hähersaat-Tabelle; Kennzahl „🪶 3 Hähersaat“) und `site-page.ts` (U:Standort mit
+  allen Angaben, „Als Ziel wählen“ als Umschalter, Stammgäste und Tiere aus dem Tagebuch, Live-
+  Ansage). `album/cycle-target.ts` hält jetzt nur Ansicht und Ziel (`view`, `target`, `choose`);
+  U:Neuer Zyklus verlinkt den Ziel-Wald („… ansehen ›“, Ebene 2). Neu `PageEnv.goto(tab, page)`
+  (Reiterwechsel mit Unterseite, C.1). Reine Ansichten in `pages/landscape-page-view.ts`
+  (+ `tests/album-landscape.test.ts`), Fixture `openLandscapeSite`. Gelöscht: der
+  Übergangsabschnitt `ui/journal-landscape.ts` (aus Schritt 7) und das alte Karten- und
+  Tagebuch-CSS (`.landscape-*`, `.journal-*`) in `style.css`.
+- [x] **11** Umschlag und Zettel (`ui-dev`): Anleitung als Kapitel, Einstellungen, Konto,
   Spielstand + Löschen, „Neu hier?“, Rückkehr-Zettel + Unterseite, Banderolen. Specs help,
-  sound, account, save-transfer, pwa, return-report. Abhängig: 4
-- [ ] **12** Aufräumen (`ui-dev`): Altbauteile und altes CSS löschen, `index.html` neu, Album-Demo,
-  DESIGN_V2.md 11 und README-Bilder. Abhängig: 5–11
-- [ ] **13** e2e-Abschluss (`qa-tester`): restliche Specs (smoke, playtest*-UI), neue
+  sound, account, save-transfer, pwa, return-report. Abhängig: 4. *Umgesetzt:* Umschlag mit
+  eingeklebtem Titelschild und vier Papierstreifen (`album/cover.ts`), jeder blättert zu seiner
+  Unterseite: U:Anleitung als Inhaltsverzeichnis (Ebene 1) mit Kapitelseiten (Ebene 2,
+  `{ kind: 'guide', section }`, eigene Seite über `subpageKey`), „‹ Kapitel davor / nächstes
+  Kapitel ›“ ersetzt die oberste Seite; Inhalt und Sichtbarkeitsregel (Landschaft, Erfolge)
+  unverändert aus `guide-view.ts`. U:Einstellungen (`pages/settings-page.ts`), U:Konto
+  (`pages/account-page.ts`, `album.mountAccount`; Eintrag nur mit Sync-Adresse), U:Spielstand
+  mit Export/Import als Karteikarten und „Neu anfangen“. „Neu hier?“ ist eine Haftnotiz am
+  Umschlag-Knopf (`album/guide-hint.ts`, ohne Fokusraub). Rückkehr-Zettel „Während du weg
+  warst …“ mit „Details ›“ (U:Rückkehr-Bericht) und „Abheften“ (`album/return-report.ts`).
+  `initPreferences` liegt jetzt in `ui/preferences.ts`; `help.ts` und `return-report.ts` samt
+  CSS gelöscht, Hinweisfeld der Hilfe entfällt (Meldungen gehen als Stempel). Ebene 2 liegt in
+  derselben Ablage wie Ebene 1 (übereinander, die weggedrehte zählt nicht zur Höhe).
+- [x] **12** Aufräumen (`ui-dev`): Altbauteile und altes CSS löschen, `index.html` neu, Album-Demo,
+  DESIGN_V2.md 11 und README-Bilder. Abhängig: 5–11. *Umgesetzt:* `album/legacy.ts` gelöscht –
+  Ökosystem-Auffrischung in `album/eco-refresh.ts`, schwebende Zahlen in `album/floats.ts`,
+  Stufen-Stempel in `album/stage-banner.ts`, Verdrahtung in `album/index.ts`; `NotifyOptions.direct`
+  und `JournalView.landscape` entfallen. `style.css` auf globale Grundregeln gekürzt (≈ 2000 →
+  ≈ 150 Zeilen; Kamera-Leiste und Stufen-Stempel in fullscreen.css/polaroid.css). `index.html`
+  als Album-Gerüst, `theme-color` und Manifest-Farben = Karton (`#e9dfc9`). Schrift-Lizenzen
+  (SIL OFL) in `public/licenses/` (landen in `dist/licenses/`). Album-Demo `src/ui/demo.html`
+  mit Beispielstand. Playtest-Funde: Reiterleiste passt mobil stufenweise (`data-fit`: enger,
+  Symbole, nur gewählter Reiter mit Namen), Meldungen unten statt über Navigation (oben nur auf
+  der ungescrollten Hauptansicht und im Vollbild), Rückkehr-Zettel am Desktop ohne Scrollen,
+  „Neu hier?“ mobil unter den Etiketten, verschlossene Lebensräume mobil kompakt, Waldtümpel
+  🏞️, Hähersaat nur einmal im Kopf, matte Sticker deutlicher, Sprungmarken ohne Streifen unter
+  der Leiste, Sticker nach Pixeldichte-Wechsel scharf, Fokus-Rückgabe nach „Neuer Zyklus ›“ auf
+  U:Standort, Texte ohne alte Tagebuch-/Dialog-Verweise. Neuladen auf einer Unterseite spult den
+  Verlauf zurück (G.3), veralteter Hash wird ersetzt. Neu: `e2e/album-layout.spec.ts`,
+  `tests/album-sticker-idle.test.ts`.
+- [x] **13** e2e-Abschluss (`qa-tester`): restliche Specs (smoke, playtest*-UI), neue
   `album-*`-Specs (Navigation, Wischen, reduzierte Bewegung, Haftnotiz, Vollbild, 360 px ohne
   Überlauf), kein `test.fixme`. Abhängig: 12 (album-nav-Spec schon ab 1)
-- [ ] **14** Playtest und Feinschliff (`qa-tester` → `ui-dev`/`renderer`), Leistung messen, dann
+  Erledigt: `e2e/album-viewports.spec.ts` (Matrix 360 × 740, 390 × 844, 1200 × 700: alle Reiter
+  samt Hash, alle Unterseiten und Umschlag-Seiten mit Zurück über Lesezeichen, Browser-Zurück
+  und Escape, nie Ebene 3, Begegnung einkleben, Pflege kaufen, Neuer Zyklus, Neuladen; kein
+  Querscrollen, Bedienelemente ≥ 44 px, Meldungen über keiner Navigation, Screenshots je Reiter
+  als Anhang), `album-nav.spec.ts` ergänzt (Hash, Neuladen, unbekannter/gesperrter Hash,
+  Tastatur, reduzierte Bewegung ohne `rotateY` mit Gegenprobe), `tests/album-sticker-colors.test.ts`
+  (Gattung → Sticker-Farbe). Feste Wartezeiten nach dem Umblättern durch `albumAnimationsDone`
+  ersetzt, Überlauf-Messungen erst nach dem Umblättern. Wischen: siehe 13a.
+- [x] **13a** Wisch-Zurück auf Unterseiten (`ui-dev`, C.2): `album/swipe.ts` (Schwellen 60 px,
+  waagerecht ≥ 2 × senkrecht, oder > 0,5 px/ms ab 20 px; `data-no-swipe`, Eingabefelder,
+  Canvas und die linken 20 px ausgenommen; nur auf Unterseiten) mit Vitest
+  (`tests/album-swipe.test.ts`, Mitführen in `tests/album-page-turn.test.ts`). Die Seite folgt
+  dem Finger (`PageTurn.drag`, Kante unter dem Finger, bis −20°) und blättert über den Verlauf
+  zu Ende; bei reduzierter Bewegung nur Auslösen. e2e mit Touch-Emulation in
+  `e2e/album-swipe.spec.ts` (U:Tier zurück, Schnipser, Scrollen, Rand, Kartenreihe, Reiterseite).
+  Der Wisch nach unten im Vollbild (C.6) war schon in Schritt 3 gebaut.
+- [x] **14** Playtest und Feinschliff (`qa-tester` → `ui-dev`/`renderer`), Leistung messen, dann
   PR `claude/album-ui` → `main`. Abhängig: 13
+  Erledigt: zwei Playtests (Handy 390/360, Desktop 1280/1200) mit Rückkehrer und Spätspiel,
+  keine Konsolenfehler, kein Querscrollen, kein Speicherleck. Funde behoben in #115 (doppelte
+  Tagesziele nach dem Neuen Zyklus, DESIGN_V2), #116 (Meldungen verdecken keine Bedienelemente,
+  Rückkehr ohne Doppelung, Reiterwechsel mobil), #117 (Einkleben im Bild, Vorratsleiste,
+  Landschaftskarte hochkant, erster Start) und #118 (Umblättern ohne Stil-Neuberechnung der
+  Hauptansicht). Messung 390 × 844 bei 4× CPU-Drosselung: Leerlauf ≈ 59 fps (alte UI ≈ 40),
+  Dauerumblättern 39 → 44–46 fps.
+  Offen als Folgeaufgaben: erster Wechsel zu Arten (2 Long Tasks ≈ 200 ms bei 4× Drosselung),
+  Sticker-Canvas als eigene Compositing-Ebenen (ggf. `<img>`), Landschaftskarte am Desktop mit
+  DejaVu Sans bei 125 % (Bergmischwald knapp).
 
 Parallel nach 1 und 4: 5, 6, 8, 9, 11; danach 7 und 10. Offene UI-Aufgaben aus Phase 7 (3a)
 möglichst im Album umsetzen (ALBUM_UI.md G.2 Nr. 1).

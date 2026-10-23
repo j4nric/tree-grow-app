@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { codeFromJson } from '../src/core/save';
-import { expect, niche, openGame, savedState, seedV3, stageLabel, test, waitForConfirm, waypoint } from './fixtures';
+import { expect, niche, openGame, openSavePage, openTab, savedState, seedV3, stageLabel, stamps, test, waitForConfirm, waypoint } from './fixtures';
 
 /**
  * Spielstand exportieren und importieren als Text-Code (Phase 5): Export, Löschen,
@@ -20,7 +20,7 @@ function comparable(save: Record<string, any>) {
 }
 
 async function openTransfer(page: Page): Promise<void> {
-  await transfer(page).locator('summary').click();
+  await openSavePage(page);
   await expect(transfer(page).locator('[data-ref="export"]')).toBeVisible();
 }
 
@@ -60,10 +60,13 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
   await reset.click();
   await page.clock.runFor(100);
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
-  await expect(niche(page, 'roots')).not.toContainText('Regenwurm');
   // Nach dem Löschen steht kein alter Code mehr im Export-Feld.
   await expect(transfer(page).locator('[data-ref="export-code"]')).toBeHidden();
   expect(await transfer(page).locator('[data-ref="export-code"]').inputValue()).toBe('');
+  // Der Reiter Nischen liegt unter dem Umschlag und zieht erst beim Zeigen nach (D.1).
+  await openTab(page, 'nischen');
+  await expect(niche(page, 'roots')).not.toContainText('Regenwurm');
+  await openTransfer(page);
 
   // Importieren: erster Klick prüft und fragt nach, zweiter lädt.
   await transfer(page).locator('[data-ref="import-code"]').fill(code);
@@ -76,6 +79,7 @@ test('Exportieren, Löschen, Importieren: derselbe Spielstand', async ({ page, c
   await page.clock.runFor(100);
   await expect(transfer(page).locator('[data-ref="save-status"]')).toHaveText('Spielstand geladen.');
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
+  await openTab(page, 'nischen');
   await expect(niche(page, 'roots')).toContainText('Regenwurm');
   await expect(niche(page, 'crown')).toContainText('Blaumeise');
 
@@ -129,6 +133,7 @@ test('Doppelklick überspringt keine Bestätigung – weder beim Import noch bei
   const before = comparable(await savedState(page));
 
   // Löschen per Doppelklick: nur scharf geschaltet, nichts gelöscht.
+  await openSavePage(page);
   await page.locator('#reset').dblclick();
   await expect(page.locator('#reset')).toContainText('Wirklich alles löschen');
   await expect(stageLabel(page)).toHaveText('Stufe: Junger Baum');
@@ -174,7 +179,7 @@ test('Import eines v1-Codes: Hinweis vorher und dieselbe Meldung wie beim Start'
   await expect(transfer(page).locator('[data-ref="save-status"]')).toContainText('ersten Version');
   await waitForConfirm(page);
   await importButton.click();
-  await expect(page.locator('#toast')).toContainText('Dein Wald beginnt neu – mit Erinnerungen');
+  await expect(stamps(page)).toContainText('Dein Wald beginnt neu – mit Erinnerungen');
   await expect(stageLabel(page)).toHaveText('Stufe: Samen');
 });
 

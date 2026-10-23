@@ -1,4 +1,4 @@
-import { SAVE_VERSION, dialog, expect, openGame, openStack, savedState, seedV3, settle, test, waypoint } from './fixtures';
+import { SAVE_VERSION, encounter, expect, gotoTab, openGame, openStack, openTab, savedState, seedV3, settle, test, waypoint } from './fixtures';
 
 /**
  * Ereignisse mit Wahl und Durchreisende (Schritt 2.4): im Kartenwahl-Dialog wählen, der
@@ -14,24 +14,25 @@ test('Ereignis und Gast wählen: Boni erscheinen mit Restzeit und bleiben nach d
       { type: 'visitor', cards: ['cranes'], rerolls: 0 },
     ],
   });
-  await openGame(page);
+  // Boni stehen im Reiter „Pflege“ (Abschnitt „Gerade wirksam“).
+  await gotoTab(page, 'pflege');
   const bonuses = page.locator('[data-ref="bonuses"]');
   await expect(bonuses).toBeHidden();
 
   await openStack(page);
-  await expect(dialog(page)).toContainText('Mittsommer');
-  await expect(dialog(page)).toContainText('Die längsten Tage des Jahres');
+  await expect(encounter(page)).toContainText('Mittsommer');
+  await expect(encounter(page)).toContainText('Die längsten Tage des Jahres');
   // Ereignis: Optionsknöpfe statt „Wählen“, kein Ablehnen, kein Neu würfeln.
-  await expect(dialog(page).getByRole('button', { name: 'Alles blühen lassen' })).toBeVisible();
-  await expect(dialog(page).getByRole('button', { name: /Neu würfeln/ })).toBeHidden();
-  await dialog(page).getByRole('button', { name: 'Lange Tage nutzen' }).click();
+  await expect(encounter(page).getByRole('button', { name: 'Alles blühen lassen' })).toBeVisible();
+  await expect(encounter(page).getByRole('button', { name: /Neu würfeln/ })).toBeHidden();
+  await encounter(page).getByRole('button', { name: 'Lange Tage nutzen' }).click();
 
   // Nächste Begegnung: der Gast.
-  await expect(dialog(page)).toContainText('Kranichzug');
+  await expect(encounter(page)).toContainText('Kranichzug');
   await settle(page);
-  await expect(dialog(page).getByRole('button', { name: /^Ziehen lassen \(\+[\d,.]+ 🌰\)$/ })).toBeVisible();
-  await dialog(page).getByRole('button', { name: /^Bewirten \(−[\d,.]+ 🌰\)$/ }).click();
-  await expect(dialog(page)).toBeHidden();
+  await expect(encounter(page).getByRole('button', { name: /^Ziehen lassen \(\+[\d,.]+ 🌰\)$/ })).toBeVisible();
+  await encounter(page).getByRole('button', { name: /^Bewirten \(−[\d,.]+ 🌰\)$/ }).click();
+  await expect(encounter(page)).toBeHidden();
 
   await expect(bonuses).toBeVisible();
   await expect(bonuses.locator('[data-bonus^="timed:midsummer"]')).toContainText('+30 % 🌿');
@@ -64,7 +65,7 @@ test('Ereignis- und Gast-Karten: große Knöpfe mit Wirkungszeile, Tastatur, mob
   });
   await openGame(page);
   await openStack(page);
-  const d = dialog(page);
+  const d = encounter(page);
   await expect(d.locator('.encounter-subtitle')).toHaveCSS('font-style', 'italic');
   // Wirkungszeile aus den Daten, Zeit-Boni mit „Min.“.
   const grow = d.getByRole('button', { name: 'Alles austreiben lassen' });
@@ -96,11 +97,12 @@ test('Ereignis- und Gast-Karten: große Knöpfe mit Wirkungszeile, Tastatur, mob
   await page.keyboard.press('Enter');
   await expect(d).toBeHidden();
 
-  // Aktive Boni: je Quelle eine Zeile, Zeit-Boni mit Restzeit-Balken.
+  // Aktive Boni (Reiter „Pflege“, „Gerade wirksam“): je Quelle eine Zeile, Zeit-Boni mit Restzeit-Balken.
+  await openTab(page, 'pflege');
   const bonuses = page.locator('[data-ref="bonuses"]');
   await expect(bonuses.locator('[data-bonus="timed:rain"]')).toContainText('+25 % 🌿');
   await expect(bonuses.locator('[data-bonus="visitor:bramblings"]')).toContainText('+12 % 🌿, +12 % 🌰');
-  const fill = bonuses.locator('[data-bonus="visitor:bramblings"] .bonus-bar-fill');
+  const fill = bonuses.locator('[data-bonus="visitor:bramblings"] .care-bonus-fill');
   await expect(fill).toHaveAttribute('style', /--left: (100|9\d(\.\d)?)%/);
 });
 
@@ -113,12 +115,13 @@ test('Aktive Boni: Wirkungen derselben Quelle stehen in einer Zeile, ohne Balken
   });
   await openGame(page);
   await openStack(page);
-  await dialog(page).getByRole('button', { name: 'Totholz liegen lassen' }).click();
-  await expect(dialog(page)).toBeHidden();
+  await encounter(page).getByRole('button', { name: 'Totholz liegen lassen' }).click();
+  await expect(encounter(page)).toBeHidden();
+  await openTab(page, 'pflege');
   const bonuses = page.locator('[data-ref="bonuses"]');
-  await expect(bonuses.locator('.bonus')).toHaveCount(1);
+  await expect(bonuses.locator('.care-bonus')).toHaveCount(1);
   await expect(bonuses.locator('[data-bonus="cycle:storm"]')).toContainText('Totholz, +1 Platz Höhlen & Totholz');
-  await expect(bonuses.locator('.bonus-bar')).toHaveCount(0);
+  await expect(bonuses.locator('.care-bonus-bar')).toHaveCount(0);
   await expect(bonuses).toContainText('bis zum Neuen Zyklus');
 });
 
@@ -131,7 +134,7 @@ test('Gast ohne genug Samen: „Bewirten“ per aria-disabled gesperrt, fokussie
   });
   await openGame(page);
   await openStack(page);
-  const d = dialog(page);
+  const d = encounter(page);
   const host = d.getByRole('button', { name: /^Bewirten/ });
   await expect(host).toHaveAttribute('aria-disabled', 'true');
   await expect(host).not.toHaveAttribute('disabled', '');
@@ -158,7 +161,7 @@ test('Ereignis-Karte: keine Spoiler für unentdeckte Arten – auch nicht in Att
   });
   await openGame(page);
   await openStack(page);
-  const d = dialog(page);
+  const d = encounter(page);
   const forced = d.getByRole('button', { name: 'Den Hüten Zeit lassen' });
   await expect(forced).toContainText('nächste Begegnung: Pfifferling oder 3 unbekannte Arten (🍄)');
   // Weder Namen noch IDs der unentdeckten Pilze stehen irgendwo im DOM (Text, title, aria, data-*).
