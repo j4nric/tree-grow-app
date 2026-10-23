@@ -359,9 +359,12 @@ body:has(.album) {
   max-width: calc(100vw - 36px);
 }
 
-/* Tastaturfokus nicht unter der klebenden Reiterleiste verstecken (WCAG 2.4.11). */
+/*
+ * Tastaturfokus nicht unter der klebenden Reiterleiste verstecken (WCAG 2.4.11). Gescrollt
+ * liegt darüber die Vorratsleiste (supply-bar.css, 30 px) – sie zählt mit.
+ */
 html:has(.album[data-layout='single']) {
-  scroll-padding-top: 54px;
+  scroll-padding-top: 84px;
 }
 
 /* Tastaturfokus nicht unter dem fest liegenden Zettelstapel verstecken (WCAG 2.4.11). */

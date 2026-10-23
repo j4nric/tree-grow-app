@@ -97,6 +97,18 @@ describe('Vorschau', () => {
     expect(parts[3]).toMatchObject({ text: `Zufriedenheit 55${NBSP}%`, tone: 'neutral' });
     expect(previewParts({ harmonyDelta: 0, growthDelta: 0, happiness: 0.3 }).map((p) => p.key)).toEqual(['happiness']);
   });
+
+  it('ab +200 % mit bekannter Rate absolut („+0,8/s“ statt „+551,9 %“), sonst Prozent', () => {
+    const big = previewParts({ harmonyDelta: 0, growthDelta: 0.275, seedDelta: 5.519, growthPerSec: 0.55, seedsPerSec: 0.8 });
+    expect(big.find((p) => p.key === 'growth')!.value).toBe(`+27,5${NBSP}%`);
+    expect(big.find((p) => p.key === 'seeds')).toMatchObject({ value: '+0,8/s', text: 'Samen +0,8/s', tone: 'good' });
+    // Genau +200 % zählt schon als groß; Rückgänge mit typografischem Minus.
+    expect(previewParts({ harmonyDelta: 0, growthDelta: 2, growthPerSec: 3 })[0]!.value).toBe('+3/s');
+    expect(previewParts({ harmonyDelta: 0, growthDelta: -0.75, growthPerSec: -3 })[0]!.value).toBe(`${MINUS}75${NBSP}%`);
+    // Ohne Rate (Ereignis-Optionen) oder bei gerundet 0/s bleibt es bei Prozent.
+    expect(previewParts({ harmonyDelta: 0, growthDelta: 0, seedDelta: 3 })[0]!.value).toBe(`+300${NBSP}%`);
+    expect(previewParts({ harmonyDelta: 0, growthDelta: 0, seedDelta: 3, seedsPerSec: 0.02 })[0]!.value).toBe(`+300${NBSP}%`);
+  });
 });
 
 describe('„keine Änderung“-Chip', () => {

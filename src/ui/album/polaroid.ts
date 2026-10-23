@@ -26,6 +26,8 @@ export interface Polaroid {
   readonly stamps: HTMLElement;
   /** Platz rechts in der Bildunterschrift (Jahreszeit, Wetter). */
   readonly season: HTMLElement;
+  /** Bildunterschrift (ihre Knöpfe bleiben frei von Meldungen, index.ts). */
+  readonly caption: HTMLElement;
   setStage(name: string): void;
 }
 
@@ -61,6 +63,7 @@ export function createPolaroid(canvas: HTMLCanvasElement, onOpen: () => void): P
     button,
     stamps,
     season,
+    caption,
     setStage: (name) => setText(stageName, name),
   };
 }

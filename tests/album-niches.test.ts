@@ -9,7 +9,10 @@ import { STICKER_TILT_MAX, happinessArc, stickerTilt, stickerVariant } from '../
 import {
   HABITAT_NICHE_IDS,
   animalBasics,
+  ecosystemLinksVisible,
   firstSeenText,
+  isQuietLocked,
+  lockedSummary,
   harmonyTierRows,
   nichesPageHeader,
   regularToggleView,
@@ -140,5 +143,36 @@ describe('U:Tier', () => {
   it('Grunddaten auch ohne lebende Art (ausgezogen)', () => {
     expect(animalBasics('owl')).toMatchObject({ id: 'owl', name: 'Waldkauz', familyLabel: 'Vögel', nicheLabel: '🕳️ Höhlen & Totholz' });
     expect(animalBasics('gibt-es-nicht')).toBeNull();
+  });
+});
+
+describe('Erster Start: Verschlossenes zusammengefasst, Links erst mit Inhalt (Playtest Schritt 14, S10)', () => {
+  it('nur verschlossene Nischen ohne Pflege-Knopf werden zusammengefasst', () => {
+    expect(isQuietLocked({ capacity: 0, animals: [] })).toBe(true);
+    expect(isQuietLocked({ capacity: 0, animals: [], careLink: 'meadow' })).toBe(false);
+    expect(isQuietLocked({ capacity: 2, animals: [] })).toBe(false);
+    expect(isQuietLocked({ capacity: 0, animals: [animal('fox')] })).toBe(false);
+  });
+
+  it('beim Samen: alle zehn Nischen und der Pflanzring in einer Zeile', () => {
+    const state = stateAt(0);
+    const view = toEcosystemView(state, evaluate(state));
+    const quiet = view.niches.filter(isQuietLocked);
+    expect(quiet).toHaveLength(view.niches.length);
+    expect(view.plantRing.capacity).toBe(0);
+    expect(lockedSummary(quiet.length, true)).toBe(`Noch ${quiet.length} Nischen und der Pflanzring verschlossen`);
+  });
+
+  it('Text der Zeile', () => {
+    expect(lockedSummary(1, false)).toBe('Noch eine Nische verschlossen');
+    expect(lockedSummary(3, false)).toBe('Noch 3 Nischen verschlossen');
+    expect(lockedSummary(0, true)).toBe('Noch verschlossen: der Pflanzring');
+    expect(lockedSummary(0, false)).toBe('');
+  });
+
+  it('Links zu Lebensgemeinschaften und Nahrungsnetz erst mit einem Tier oder einer entdeckten Gemeinschaft', () => {
+    expect(ecosystemLinksVisible([{ animals: [] }, { animals: [] }], 0)).toBe(false);
+    expect(ecosystemLinksVisible([{ animals: [] }, { animals: [animal('earthworm')] }], 0)).toBe(true);
+    expect(ecosystemLinksVisible([{ animals: [] }], 1)).toBe(true);
   });
 });

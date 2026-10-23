@@ -48,7 +48,7 @@ const TABS: readonly TabHash[] = ['nischen', 'arten', 'pflege', 'ziele', 'landsc
 
 /**
  * Bekannte Ausnahmen der 44-px-Regel (mit Grund). Der Stammgast-Stern auf dem Sticker im
- * Reiter Arten ist 26 px groß, seine Trefferfläche per ::before 40 px – er sitzt auf der
+ * Reiter Arten ist 26 px groß, seine Trefferfläche per ::before 44 px – er sitzt auf der
  * Ecke des 48-px-Stickers und würde sonst dessen Fläche überdecken.
  */
 const SMALL_OK = ['.species-star'];

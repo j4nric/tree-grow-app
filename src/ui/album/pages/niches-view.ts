@@ -34,6 +34,38 @@ export function splitNiches<T extends Pick<NicheView, 'id'>>(niches: readonly T[
 }
 
 /**
+ * Verschlossen und (noch) nichts zu tun: kein Platz, kein Tier und kein „Zur Pflege ›“. Solche
+ * Nischen fasst der Reiter in einer Zeile zusammen (Playtest Schritt 14, S10) – beim ersten
+ * Start sonst eine Wand aus zehn grauen Zeilen. Verschlossene Lebensräume mit Pflege-Knopf
+ * bleiben einzeln stehen, weil man dort etwas tun kann.
+ */
+export function isQuietLocked(niche: Pick<NicheView, 'capacity' | 'animals' | 'careLink'>): boolean {
+  return niche.capacity <= 0 && niche.animals.length === 0 && !niche.careLink;
+}
+
+/**
+ * Zeile über den zusammengefassten verschlossenen Nischen, z. B. „Noch 10 Nischen und der
+ * Pflanzring verschlossen“; leer, wenn nichts verschlossen ist.
+ */
+export function lockedSummary(niches: number, ringLocked: boolean): string {
+  const ring = ringLocked ? 'der Pflanzring' : '';
+  if (niches <= 0) return ring ? 'Noch verschlossen: der Pflanzring' : '';
+  const count = niches === 1 ? 'eine Nische' : `${formatNumber(niches)} Nischen`;
+  return `Noch ${count}${ring ? ` und ${ring}` : ''} verschlossen`;
+}
+
+/** Zusatz unter der Zeile: Wann sich das Verschlossene öffnet. */
+export const LOCKED_SUMMARY_HINT = 'Sie öffnen sich, während der Baum wächst.';
+
+/**
+ * Lesezeichen-Links „Lebensgemeinschaften“ und „Nahrungsnetz“ erst, wenn es dort etwas zu
+ * sehen gibt: sobald ein Tier eingezogen ist oder eine Gemeinschaft entdeckt wurde (S10).
+ */
+export function ecosystemLinksVisible(niches: readonly Pick<NicheView, 'animals'>[], discoveredCommunities: number): boolean {
+  return discoveredCommunities > 0 || niches.some((n) => n.animals.length > 0);
+}
+
+/**
  * Kennzahl im Seitenkopf: belegte von allen offenen Plätzen, z. B. „9 von 14 Plätzen“.
  * Durchreisende Gäste brauchen keinen Platz und zählen nicht mit.
  */

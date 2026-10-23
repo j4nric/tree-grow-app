@@ -79,6 +79,12 @@ export interface PreviewView {
   growthDelta: number;
   /** Relative Änderung von 🌰/s (optional). */
   seedDelta?: number;
+  /**
+   * Absolute Änderung von 🌿/s bzw. 🌰/s (optional). Bei sehr kleiner Basis (erste Pflanze)
+   * zeigt die Vorschau ab +200 % diesen Wert („+0,8/s“) statt einer riesigen Prozentzahl.
+   */
+  growthPerSec?: number;
+  seedsPerSec?: number;
   /** Erwartete Zufriedenheit des neuen Tiers (0–1, nur bei Tieren). */
   happiness?: number;
   /** Versorgung der Begleitpflanzen mit Licht und Wasser danach (0–1, nur bei Pflanzen). */
@@ -143,7 +149,7 @@ export interface CardView {
   replaceOptions?: ReplaceOptionView[];
   /** Hinweis, wenn voll – Standard „Nische … voll“, bei Pflanzen „Pflanzring voll“. */
   fullText?: string;
-  /** Frage über der Ersetzen-Auswahl – Standard „Wen entlassen?“. */
+  /** Frage über der Ersetzen-Auswahl – Standard „Wer zieht weiter?“ (encounter-cards.ts). */
   replacePrompt?: string;
   /** Kennzahlen (Pflanzen: Wachstum, Samen, Licht, Wasser). */
   facts?: FactView[];

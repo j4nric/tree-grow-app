@@ -298,10 +298,11 @@
   cursor: pointer;
 }
 
+/* Trefferfläche 44 × 44 px (26 px + 2 × 9 px, Playtest Schritt 14, K1) */
 .species-star::before {
   content: '';
   position: absolute;
-  inset: -7px;
+  inset: -9px;
   border-radius: 50%;
 }
 
