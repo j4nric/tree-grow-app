@@ -60,8 +60,9 @@ test('Tagesziel durch Ablehnen erfüllen: Hinweis mit Samen, Haken, Serie, gespe
   await page.clock.runFor(500);
   await encounter(page).getByRole('button', { name: /^Ablehnen/ }).click();
   await expect(stack(page)).toBeHidden();
-  await expect(toast(page)).toContainText('✅ Tagesziel erfüllt:');
-  await expect(toast(page)).toContainText(/\+\d+(,\d)? 🌰/);
+  await expect(toast(page)).toContainText('✅ Tagesziel:');
+  // Zahl und 🌰 mit geschütztem Leerzeichen (brechen nicht auseinander).
+  await expect(toast(page)).toContainText(/\+\d+(,\d)?\s🌰/);
   await expect(decide).toHaveClass(/done/);
   await expect(decide).toContainText('✓ erfüllt');
   await expect(decide.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');

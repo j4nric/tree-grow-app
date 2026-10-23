@@ -4,6 +4,7 @@ import {
   card,
   encounter,
   expect,
+  landscapeUnlockState,
   niche,
   note,
   openGame,
@@ -979,9 +980,9 @@ test('Seitenleiste scrollt für sich: die Seite selbst bleibt fest (Desktop)', a
 });
 
 test('Meldung (Stempel, Zettel) lässt Klicks auf darunterliegende Knöpfe durch', async ({ page, context }) => {
-  await seedV3(context, { totalGrowth: waypoint(3) + 1, lastTickOffsetMs: -60 * 60 * 1000 });
+  await seedRaw(context, landscapeUnlockState(), 0);
   await openGame(page);
-  // Willkommen nach einer Stunde: ein langer Text, also ein Zettel mit „×“.
+  // Landschaft frei: ein langer Hinweis, also ein Zettel mit „×“.
   const slip = stamp(page);
   await expect(slip).toBeVisible();
   await expect(slip).toHaveAttribute('data-kind', 'slip');

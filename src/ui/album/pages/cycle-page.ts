@@ -13,6 +13,7 @@
  * nur aktualisiert (Fokus und Auswahl bleiben erhalten). Aktualisiert wird nur, solange die
  * Seite offen ist.
  */
+import { hyphenate } from '../../hyphenate';
 import { SPECIES_BY_ID } from '../../../content/species';
 import type { MainTreeId } from '../../../content/trees';
 import { renderSpeciesSticker } from '../../../render/sticker';
@@ -274,7 +275,8 @@ export function createCyclePage(env: PageEnv): CyclePage {
     canvas.getContext('2d')?.drawImage(image, 0, 0);
     sticker.append(canvas);
     const text = el('span', 'cyc-regular-text');
-    const name = el('span', 'cycle-regular-name', r.name);
+    // Weiche Trennstellen: „Schmetterlings-tramete“ statt „Schmetterlingstr|amete“ (K4).
+    const name = el('span', 'cycle-regular-name', hyphenate(r.name));
     const niche = el('small', 'cycle-regular-niche');
     text.append(name, niche);
     const star = el('span', 'cyc-regular-star');

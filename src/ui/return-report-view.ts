@@ -32,6 +32,8 @@ export interface ReturnReportInput {
 }
 
 export interface ReturnReportView {
+  /** Nur der Gruß mit der Dauer: „Willkommen zurück! 3 Std.“ (Stempel neben dem Zettel). */
+  greeting: string;
   /** Kurzfassung für den Toast: „Willkommen zurück! 3 Std.: +12.400 🌿, +300 🌰 · …“. */
   summary: string;
   /** Dieselbe Kurzfassung ohne den Verweis auf den Bericht – Kopf der Karte selbst. */
@@ -67,7 +69,8 @@ export function toReturnReportView(input: ReturnReportInput): ReturnReportView {
 
   // Kurzfassung: Dauer, Ertrag, erreichte Stufe, wartende Begegnungen.
   const yields = [welcomeAmount(report.growth, '🌿'), welcomeAmount(report.seeds, '🌰')].filter(Boolean);
-  const head = `Willkommen zurück! ${formatDuration(report.seconds)}${yields.length > 0 ? `: ${yields.join(', ')}` : ''}`;
+  const greeting = `Willkommen zurück! ${formatDuration(report.seconds)}`;
+  const head = `${greeting}${yields.length > 0 ? `: ${yields.join(', ')}` : ''}`;
   const parts = [head];
   const reached = reachedStage(stages);
   if (reached) parts.push(`Stufe „${reached}“`);
@@ -75,13 +78,16 @@ export function toReturnReportView(input: ReturnReportInput): ReturnReportView {
   // Mehr als die Kurzfassung: gedeckelte Zeit, weitergezogene Begegnungen, weitere Punkte.
   const more = details.length > 1 || report.seconds < away || report.autoDeclined > 0;
   const headline = parts.join(' · ');
-  return { summary: more ? `${headline} · ${RETURN_REPORT_MORE}` : headline, headline, full, details, more };
+  return { greeting, summary: more ? `${headline} · ${RETURN_REPORT_MORE}` : headline, headline, full, details, more };
 }
 
 /**
- * Text für den Toast: im einspaltigen Layout (`narrow`) die Kurzfassung – der Toast steht
- * dort oben über der Szene –, am Desktop die ganze Meldung (unten in der Szene, stört nicht).
+ * Willkommens-Stempel neben dem Rückkehr-Zettel (Playtest Schritt 14, S4): Der Zettel zeigt
+ * schon die Kurzfassung, der Stempel grüßt nur („Willkommen zurück! 8 Std.“). Screenreader
+ * hören den Rest der Kurzfassung mit (`spoken`) – der Zettel selbst ist keine Live-Region.
  */
-export function returnToastText(view: ReturnReportView, narrow: boolean): string {
-  return narrow ? view.summary : view.full;
+export function returnStamp(view: ReturnReportView): { text: string; spoken: string } {
+  const rest = view.headline.slice(view.greeting.length).replace(/^[:\s·]+/, '');
+  const spoken = [rest, view.more ? 'Mehr im Rückkehr-Bericht.' : ''].filter(Boolean).join(' · ');
+  return { text: view.greeting, spoken };
 }

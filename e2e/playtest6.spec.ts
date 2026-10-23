@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, type GameState } from '../src/core/state';
-import { expect, openGame, seedRaw, stamp, stamps, test, waypoint } from './fixtures';
+import { expect, landscapeUnlockState, openGame, seedRaw, stamp, stamps, test, waypoint } from './fixtures';
 
 /**
  * Funde aus dem Playtest Phase 6 (Tag/Nacht, Wetter, Räuber und Beute, Lebensräume,
@@ -56,15 +56,15 @@ for (const viewport of [
   /*
    * Breite langer Hinweise: Lange Meldungen (über 90 Zeichen) stehen als Zettel in der
    * Meldungsschicht (docs/ALBUM_UI.md, C.5) – breit statt als schmaler, sehr hoher Block,
-   * höchstens 26rem, ganz im Bild. Die Rückkehr-Kurzfassung mit Verweis auf den Bericht ist
-   * so ein langer Text.
+   * höchstens 26rem, ganz im Bild. Der Hinweis „Landschaft frei“ ist so ein langer Text (die
+   * Rückkehr stempelt seit Playtest Schritt 14 nur noch kurz – die Kurzfassung steht im Zettel).
    */
-  test(`Lange Rückkehr-Meldung (${viewport.name}): Zettel nutzt die Breite, nichts scrollt quer`, async ({ page, context }) => {
+  test(`Langer Hinweis (${viewport.name}): Zettel nutzt die Breite, nichts scrollt quer`, async ({ page, context }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await seedRaw(context, grove(), -3 * 3600_000);
+    await seedRaw(context, landscapeUnlockState(), 0);
     await openGame(page);
     const slip = stamp(page);
-    await expect(slip).toContainText('Willkommen zurück!');
+    await expect(slip).toContainText('Eichelhäher');
     await expect(slip).toHaveAttribute('data-kind', 'slip');
     // Layoutbreite (ohne die leichte Drehung) gegen die Breite der Schicht.
     const { width, layer } = await slip.evaluate((node) => ({

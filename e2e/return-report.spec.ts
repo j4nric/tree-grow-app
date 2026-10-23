@@ -74,8 +74,18 @@ for (const viewport of [
     await expect(stamps(page)).toHaveAttribute('role', 'status');
     const summary = await page.locator('[data-ref="return-report-summary"]').textContent();
     expect(summary).toMatch(/^Willkommen zurück! 3 Std\.: \+[\d.]+ 🌿/);
-    // Nur die Kurzfassung – eine flache Leiste statt eines hohen Blocks.
-    await expect(toast).toHaveText(`${summary} · mehr im Rückkehr-Bericht`);
+    // Der Zettel zeigt die Kurzfassung – der Stempel grüßt nur (Playtest Schritt 14, S4), kein
+    // doppelter Text. Screenreader hören die Kurzfassung trotzdem (unsichtbarer Rest im Stempel).
+    await expect(toast.locator('.stamp-text')).toHaveText(/^Willkommen zurück! 3 Std\./);
+    // Sichtbar (ohne den Teil nur für Screenreader) steht nur der Gruß.
+    const visible = await toast.locator('.stamp-text').evaluate((n) =>
+      [...n.childNodes].filter((c) => !(c instanceof Element && c.classList.contains('sr-only'))).map((c) => c.textContent).join('').trim(),
+    );
+    expect(visible).toBe('Willkommen zurück! 3 Std.');
+    // Einzeilig (früher bis zu drei Zeilen, mobil mit abgeschnittenem „mehr im…“).
+    expect(await lineCount(toast.locator('.stamp-text'))).toBe(1);
+    await expect(toast).toContainText(summary!.replace('Willkommen zurück! 3 Std.: ', ''));
+    await expect(toast).toContainText('Mehr im Rückkehr-Bericht.');
     await expect(toast).not.toContainText('Wetter gemittelt');
     // Höchstens drei Zeilen, unabhängig von Schrift und Größe (CSS line-clamp).
     expect(await lineCount(toast.locator('.stamp-text'))).toBeLessThanOrEqual(3);
@@ -107,6 +117,8 @@ for (const viewport of [
     await expect(reportPage(page)).toBeVisible();
     await expect(reportPage(page)).not.toHaveAttribute('inert', '');
     await expect(reportPage(page).getByRole('heading', { name: 'Rückkehr-Bericht' })).toBeFocused();
+    // Auf dem Bericht selbst kein Willkommens-Stempel mehr („mehr im Rückkehr-Bericht“ wäre dort doppelt).
+    await expect(page.locator('[data-ref="stamp"]', { hasText: 'Willkommen zurück' })).toHaveCount(0);
     await expect(list(page)).toBeVisible();
     await expect(list(page)).toContainText('Willkommen zurück! In 3 Std.');
     await expect(list(page)).toContainText(/Wetter gemittelt( \(.+\))?\./);
