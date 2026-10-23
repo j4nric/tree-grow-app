@@ -251,12 +251,15 @@ describe('Spielstand: aktiver Wald bestimmt das Wetter', () => {
     const state = stateIn('heath');
     const day = dayWhere(state.cycle, 'heath', (here, home) => here === 'drought' && home !== 'drought');
     state.cycle.elapsed = day * SEASON_SECONDS + 10;
-    expect(eventWeight(state, 'beetle-year')).toBe(WEATHER_EVENT_FACTORS.drought!['beetle-year']);
+    // Wetter-Faktor der Dürre mal Faktor der Heide (3e).
+    expect(eventWeight(state, 'beetle-year')).toBe(WEATHER_EVENT_FACTORS.drought!['beetle-year']! * 3);
     const home = structuredClone(state);
     home.meta.landscape.active = HOME_SITE;
     const homeFactor = WEATHER_EVENT_FACTORS[weatherAt(home).id]?.['beetle-year'] ?? 1;
     expect(eventWeight(home, 'beetle-year')).toBe(homeFactor);
-    expect(eventWeight(state, 'beetle-year', 'off')).toBe(1);
+    // Ohne Wetter bleibt der Faktor des Waldes (er ist kein Wetter).
+    expect(eventWeight(state, 'beetle-year', 'off')).toBe(3);
+    expect(eventWeight(home, 'beetle-year', 'off')).toBe(1);
   });
 
   it('Dämpfung und Wirkungen des Tages im aktiven Wald; evaluate live sieht sie', () => {

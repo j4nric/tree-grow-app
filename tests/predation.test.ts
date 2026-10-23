@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { EVENTS_BY_ID } from '../src/content/events';
+import { EVENTS, EVENTS_BY_ID } from '../src/content/events';
+import { HOME_SITE, type SiteId } from '../src/content/landscape';
 import {
   OVERHUNT_MAX_UNITS,
   OVERHUNT_PENALTY,
@@ -11,7 +12,7 @@ import {
 import { SEASON_SECONDS } from '../src/content/seasons';
 import { SPECIES, SPECIES_BY_ID, TAG_NAMES } from '../src/content/species';
 import { NICHE_IDS, type NicheId, type Tag } from '../src/content/types';
-import { GENTLE_DAYS } from '../src/content/weather';
+import { GENTLE_DAYS, type WeatherId } from '../src/content/weather';
 import {
   appearsContext,
   evaluate,
@@ -26,7 +27,7 @@ import {
 import { random, randomInt, type RngHolder } from '../src/core/rng';
 import { seasonIdAt } from '../src/core/season';
 import { deserialize, serialize } from '../src/core/save';
-import type { GameState } from '../src/core/state';
+import { createSite, type GameState } from '../src/core/state';
 import {
   chooseEventOption,
   declineEncounter,
@@ -490,6 +491,126 @@ describe('Wetter → Ereignis-Gewichte (22.6)', () => {
   });
 });
 
+/** FNV-1a über einen Text – kurzer Fingerabdruck langer Ziehfolgen. */
+function fnv(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
+
+/** Spielstand mit aktivem Wald `site` (gegründet). */
+function stateInSite(site: SiteId, stage = 5, animals: string[] = ['barkbeetle'], seed = 4): GameState {
+  const state = stateAt(stage, animals, seed);
+  state.cycle.startedAt = 1_700_000_000_000;
+  if (site !== HOME_SITE) state.meta.landscape.sites.push(createSite(site));
+  state.meta.landscape.active = site;
+  return state;
+}
+
+/** Erster Tag nach der Schonzeit, an dem im Wald `site` das Wetter `weather` ist. */
+function siteDayWith(state: GameState, site: SiteId, weather: WeatherId): number {
+  for (let d = GENTLE_DAYS + 1; d < 100_000; d++) if (weatherOfDay(state.cycle, d, site) === weather) return d;
+  throw new Error(`kein Tag mit ${weather} in ${site}`);
+}
+
+describe('Ereignis-Gewicht des Standorts (24.13, Phase 7, 3e)', () => {
+  it('Wetter-Faktor × Faktor des Waldes: Heide Dürre 9, Heide Sonne 3, Heimatwald Dürre 3, Heide ohne Wetter 3', () => {
+    const drought = WEATHER_EVENT_FACTORS.drought!['beetle-year']!;
+    expect(drought).toBe(3);
+    const heath = stateInSite('heath');
+    heath.cycle.elapsed = siteDayWith(heath, 'heath', 'drought') * SEASON_SECONDS + 10;
+    expect(eventWeight(heath, 'beetle-year')).toBe(9);
+    expect(eventWeight(heath, 'beetle-year', 'average')).toBe(9);
+    expect(eventWeight(heath, 'beetle-year', 'off')).toBe(3);
+    // Andere Ereignisse: nur das Wetter (Hitzewelle × 2 bei Dürre), kein Faktor des Waldes.
+    expect(eventWeight(heath, 'heatwave')).toBe(WEATHER_EVENT_FACTORS.drought!.heatwave);
+    expect(eventWeight(heath, 'storm')).toBe(1);
+    expect(eventWeight(heath, 'storm', 'off')).toBe(1);
+    heath.cycle.elapsed = siteDayWith(heath, 'heath', 'sun') * SEASON_SECONDS + 10;
+    expect(eventWeight(heath, 'beetle-year')).toBe(3);
+    const home = stateInSite(HOME_SITE);
+    home.cycle.elapsed = siteDayWith(home, HOME_SITE, 'drought') * SEASON_SECONDS + 10;
+    expect(eventWeight(home, 'beetle-year')).toBe(3);
+    expect(eventWeight(home, 'beetle-year', 'off')).toBe(1);
+  });
+
+  it('kaputte Spielzeit und fremde Schlüssel: Faktor des Waldes bleibt, sonst 1', () => {
+    const heath = stateInSite('heath');
+    heath.cycle.elapsed = NaN; // wie Tag 0 („Wechselhaft“)
+    expect(eventWeight(heath, 'beetle-year')).toBe(3);
+    expect(eventWeight(heath, '__proto__')).toBe(1);
+    expect(eventWeight(heath, 'hasOwnProperty')).toBe(1);
+    expect(eventWeight(heath, 'nope')).toBe(1);
+  });
+
+  it('unbekannter Standort: wie der Heimatwald bzw. Faktor 1 – kein Absturz', () => {
+    // Aktiver Wald nicht gegründet → Heimatwald.
+    const ghost = stateInSite(HOME_SITE);
+    ghost.meta.landscape.active = 'heath';
+    const home = stateInSite(HOME_SITE);
+    for (let d = GENTLE_DAYS; d < GENTLE_DAYS + 40; d++) {
+      ghost.cycle.elapsed = home.cycle.elapsed = d * SEASON_SECONDS + 10;
+      expect(eventWeight(ghost, 'beetle-year')).toBe(eventWeight(home, 'beetle-year'));
+    }
+    // Manipulierter Stand mit unbekannter ID als Wald: kein Faktor des Waldes.
+    const odd = stateInSite(HOME_SITE);
+    odd.meta.landscape.sites.push({ ...createSite('heath'), id: 'nowhere' as SiteId });
+    odd.meta.landscape.active = 'nowhere' as SiteId;
+    odd.cycle.elapsed = 10;
+    expect(eventWeight(odd, 'beetle-year')).toBe(1);
+    expect(eventWeight(odd, 'beetle-year', 'off')).toBe(1);
+  });
+
+  // Fingerabdrücke mit dem Stand vor 3e gemessen (origin/main nach PR #123).
+  const GOLD_HOME = 'a7afbd79';
+  const GOLD_NO_LANDSCAPE = 'a7afbd79';
+
+  /** Gewichte und Ziehungen über alle Ereignisse an 400 Tagen in drei Modi. */
+  function drawFingerprint(state: GameState): string {
+    let out = '';
+    for (let d = 0; d < 400; d++) {
+      state.cycle.elapsed = d * SEASON_SECONDS + 10;
+      for (const mode of ['live', 'average', 'off'] as const) {
+        out += EVENTS.map((e) => eventWeight(state, e.id, mode)).join(',') + ';';
+        out += pickEvent(state, EVENTS, mode).id + '|';
+      }
+    }
+    return fnv(out);
+  }
+
+  it('Heimatwald und Stände ohne Landschaft ziehen wie vor 3e (Goldwerte)', () => {
+    expect(drawFingerprint(stateInSite(HOME_SITE))).toBe(GOLD_HOME);
+    const bare = stateInSite(HOME_SITE);
+    delete (bare.meta as { landscape?: unknown }).landscape;
+    expect(drawFingerprint(bare)).toBe(GOLD_NO_LANDSCAPE);
+  });
+
+  it('pickEvent in der Heide wählt das Käferjahr bei gleichem Zufall öfter', () => {
+    const count = (site: SiteId, mode: 'live' | 'off') => {
+      const s = stateInSite(site, 5, ['barkbeetle', 'earthworm'], 9);
+      s.cycle.elapsed = (GENTLE_DAYS + 1) * SEASON_SECONDS + 10; // Sommer
+      expect(seasonIdAt(s.cycle.elapsed)).toBe('summer');
+      const events = eligibleEvents(s);
+      expect(events.map((e) => e.id)).toContain('beetle-year');
+      let n = 0;
+      for (let i = 0; i < 5000; i++) {
+        const probe = structuredClone(s);
+        probe.rngState = s.rngState + i * 7919;
+        if (pickEvent(probe, events, mode).id === 'beetle-year') n++;
+      }
+      return { n, count: events.length };
+    };
+    const homeOff = count(HOME_SITE, 'off');
+    const heathOff = count('heath', 'off');
+    expect(heathOff.count).toBe(homeOff.count); // dieselben Ereignisse, nur andere Gewichte
+    expect(heathOff.n).toBeGreaterThan(homeOff.n * 2);
+    expect(count('heath', 'live').n).toBeGreaterThan(count(HOME_SITE, 'live').n);
+  });
+});
+
 /**
  * Spielt `hours` Stunden in Abschnitten: online je Sekunde (Modus `mode`), offline in einem
  * Stück (simulateOffline) bzw. als ein großer Tick. Nach jedem Abschnitt dieselben Entscheidungen:
@@ -547,6 +668,36 @@ describe('online = offline mit Massenjahren und Wetter-Gewichten', { timeout: 12
     expect(big.cycle.seen).toEqual(small.cycle.seen);
     expect(big.cycle.bonuses).toEqual(small.cycle.bonuses);
     expect(big.waypoint).toBe(small.waypoint);
+    expect(big.rngState).toBe(small.rngState);
+    expect(big.totalGrowth).toBeCloseTo(small.totalGrowth, 4);
+  });
+
+  it('Kiefernheide (Faktor des Waldes, 3e): Sekunden-Ticks = simulateOffline bzw. großer Tick, Käferjahr kommt', () => {
+    const heath = () => {
+      const s = stateInSite('heath', 5, ['barkbeetle', 'vole', 'earthworm'], 31);
+      s.plants = ['hazel'];
+      s.cycle.elapsed = GENTLE_DAYS * SEASON_SECONDS;
+      return s;
+    };
+    const online = playChunks(heath(), 24, 600, (s, dt) => {
+      for (let i = 0; i < dt; i++) tick(s, 1, 'average');
+    });
+    const offline = playChunks(heath(), 24, 600, (s, dt) => {
+      expect(simulateOffline(s, dt).averaged).toBe(true);
+    });
+    expect(online.cycle.seen).toContain('beetle-year');
+    expect(offline.cycle.seen).toEqual(online.cycle.seen);
+    expect(offline.cycle.bonuses).toEqual(online.cycle.bonuses);
+    expect(offline.rngState).toBe(online.rngState);
+    expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 4);
+    const small = playChunks(heath(), 24, 600, (s, dt) => {
+      for (let i = 0; i < dt; i++) tick(s, 1);
+    });
+    const big = playChunks(heath(), 24, 600, (s, dt) => {
+      tick(s, dt);
+    });
+    expect(small.cycle.seen).toContain('beetle-year');
+    expect(big.cycle.seen).toEqual(small.cycle.seen);
     expect(big.rngState).toBe(small.rngState);
     expect(big.totalGrowth).toBeCloseTo(small.totalGrowth, 4);
   });

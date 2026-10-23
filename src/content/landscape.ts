@@ -69,6 +69,14 @@ export interface ForestSite {
   weather: Readonly<Partial<Record<WeatherId, number>>>;
   /** Kurztext zum Wetter für Karte und Tooltip („Oft Landregen“), leer beim Heimatwald. */
   weatherSummary: string;
+  /**
+   * Ereignisse des Waldtyps (DESIGN_V2.md 24.13/24.14, Phase 7, 3e): Faktor auf das
+   * Zieh-Gewicht eines Ereignisses (ID aus EVENTS), solange hier der aktive Wald wächst – mal
+   * dem Faktor des Tageswetters (WEATHER_EVENT_FACTORS), auch ohne Wetter (Modus `off`). Fehlt
+   * die ID, gilt 1. Ändert nur, *welches* Ereignis gezogen wird: Stufe, Jahreszeit, Bedingungen
+   * und „einmal je Zyklus“ bleiben. Gelesen von `eventWeight` in core/tick.ts.
+   */
+  eventFactors: Readonly<Record<string, number>>;
   /** Lage auf der Landschaftskarte (0–1, x nach rechts, y nach unten). */
   position: { x: number; y: number };
 }
@@ -99,6 +107,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     giftSummary: '–',
     weather: {},
     weatherSummary: '',
+    eventFactors: {},
     position: { x: 0.5, y: 0.5 },
   },
   {
@@ -120,6 +129,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // Flussnebel und Landregen aus dem Westen; das Grundwasser steht hoch, Dürre ist selten.
     weather: { rain: 2, drought: 0.5 },
     weatherSummary: 'Oft Landregen, selten Dürre – der Fluss ist nie weit.',
+    eventFactors: {},
     position: { x: 0.85, y: 0.35 },
   },
   {
@@ -140,6 +150,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // Über dem stehenden Wasser bildet sich an kühlen Tagen Nebel; der nasse Torf trocknet nie aus.
     weather: { fog: 2, drought: 0.5 },
     weatherSummary: 'Oft Nebel über dem Wasser, selten Dürre.',
+    eventFactors: {},
     position: { x: 0.75, y: 0.8 },
   },
   {
@@ -161,6 +172,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // Unter dem geschlossenen Dach ist es windstill; im Herbst hängt der Nebel zwischen den Säulen.
     weather: { fog: 1.5, storm: 0.5 },
     weatherSummary: 'Windstill unter dem Dach, im Herbst Nebel zwischen den Säulen.',
+    eventFactors: {},
     position: { x: 0.15, y: 0.35 },
   },
   {
@@ -183,6 +195,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // Steigungsregen am Hang, im Winter liegt viel Schnee.
     weather: { snow: 2, rain: 1.5 },
     weatherSummary: 'Viel Neuschnee im Winter, Steigungsregen am Hang.',
+    eventFactors: {},
     position: { x: 0.5, y: 0.12 },
   },
   {
@@ -205,6 +218,8 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // Sand speichert kein Wasser: Sommerdürre ist hier häufig – und mit ihr das Käferjahr (22.6).
     weather: { drought: 2.5, sun: 1.5, rain: 0.5 },
     weatherSummary: 'Viel Sonne, im Sommer oft Dürre – dann schwärmen die Borkenkäfer.',
+    // Sommerdürre schwächt die Kiefern – die Borkenkäfer schwärmen hier öfter als anderswo (24.13).
+    eventFactors: { 'beetle-year': 3 },
     position: { x: 0.25, y: 0.8 },
   },
 ];

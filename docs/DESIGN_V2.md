@@ -6910,6 +6910,10 @@ Geschichte „Dürre → Borkenkäfer“ stimmt im Bild, in der Zahl nicht. Soll
 haben, braucht das Ereignis selbst eine Regel (offene Frage 24.13); für 3b bewusst nicht.
 **Entschieden in 3d:** Gewicht des Standorts auf das Ereignis, Kiefernheide Käferjahr × 3
 (24.13, Aufgabe 3e).
+**Umgesetzt in 3e:** `ForestSite.eventFactors` (Daten), `eventWeight` = Faktor des Tageswetters ×
+Faktor des aktiven Waldes; der Faktor des Waldes gilt auch ohne Wetter (Modus `off`). Heide:
+Dürretag 3 × 3 = 9, sonst 3. Bedingungen („Käfer ungejagt“, Sommer, Hain, einmal je Zyklus)
+unverändert; kein Feld im Spielstand.
 
 **Warum diese Zahlen:** Faktor 2 (bzw. 2,5 für die Dürre der Heide) ist die kleinste Zahl, die
 man ohne Statistik bemerkt: In einem Zyklus bis zum Urwald (~16 Tage, vier Frühlinge) regnet es

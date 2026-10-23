@@ -533,7 +533,7 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   gegen Harmonie 6,4 / 6,2 % (< 10 %); Häufigkeiten 24.14 auf die Nachkommastelle wie vorab.
   **Keine Zahl geändert.** Hilfsskripte entfernt. Offene Frage 24.13 (Käferjahr der Heide)
   entschieden: ja, als Gewicht des Standorts → 3e
-- [ ] **3e** Käferjahr der Kiefernheide: Ereignis-Gewicht je Standort (`core-engineer`, 24.13).
+- [x] **3e** Käferjahr der Kiefernheide: Ereignis-Gewicht je Standort (`core-engineer`, 24.13).
   **Warum:** Der Kurztext der Heide verspricht „dann schwärmen die Borkenkäfer“, das Wetter allein
   macht das Käferjahr aber nicht häufiger (40 / 38 von 160 Durchgängen gegen 29 / 28 im
   Heimatwald; das Wetter-Gewicht wirkt nur an Dürretagen). Gemessen mit einem Gewicht × 3 an jedem
@@ -558,7 +558,11 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   5. Danach (`game-designer`, klein): 24.7-Lauf Käferjahr-Spalte nachmessen (Erwartung Heide
      ~70 / ~50 von 160, Zeit ±0,5 %), 24.13 abhaken. Optional (Playtest): weitere Wälder mit
      passendem Massenjahr (Auwald Schneckenjahr), erst nach dem Playtest Phase 7.
-  Abhängig: 3c
+  Abhängig: 3c. **Erledigt (Nr. 1–4):** `ForestSite.eventFactors` (Heide `{ 'beetle-year': 3 }`),
+  `eventWeight` = Wetter-Faktor × Faktor des Waldes (auch im Modus `off`); Tests in
+  `tests/landscape.test.ts`, `tests/predation.test.ts` (Beispiele, unbekannter Standort,
+  Goldwerte Heimatwald / ohne Landschaft, `pickEvent`, online = offline in der Heide) und
+  `tests/site-weather-core.test.ts`. Kein neues Feld, keine neue Spielstand-Version. Offen: Nr. 5.
 
 **Welle 4 – Absichern**
 

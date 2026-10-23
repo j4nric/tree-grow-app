@@ -1450,15 +1450,23 @@ export function eligibleVisitors(state: GameState): Visitor[] {
 }
 
 /**
- * Gewicht eines Ereignisses beim Ziehen (DESIGN_V2.md 22.6): Faktor aus
+ * Gewicht eines Ereignisses beim Ziehen (DESIGN_V2.md 22.6, 24.13): Faktor aus
  * WEATHER_EVENT_FACTORS für das Wetter des laufenden Tages im aktiven Wald (`weatherOfDay` – eine reine
- * Funktion von Zyklus und Spielzeit, darum online und im Mittelmodus offline gleich), sonst 1.
- * Ungültige Faktoren zählen als 1; im Modus `off` (ohne Wetter) gilt immer 1.
+ * Funktion von Zyklus und Spielzeit, darum online und im Mittelmodus offline gleich) mal dem
+ * Faktor des aktiven Waldes (`ForestSite.eventFactors`, Phase 7, 3e). Fehlende oder ungültige
+ * Faktoren zählen als 1; im Modus `off` (ohne Wetter) fällt nur der Wetter-Faktor weg – der des
+ * Waldes ist kein Wetter und gilt immer. Der aktive Wald ist fest je Zyklus, darum ebenfalls
+ * online und offline gleich.
  */
 export function eventWeight(state: WeatherHolder, eventId: string, ambient: AmbientMode = 'live'): number {
-  if (ambient === 'off') return 1;
-  const factors = WEATHER_EVENT_FACTORS[weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed), weatherSiteOf(state))];
-  const f = factors && Object.hasOwn(factors, eventId) ? factors[eventId] : undefined;
+  const site = weatherSiteOf(state);
+  const weather = ambient === 'off' ? undefined : WEATHER_EVENT_FACTORS[weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed), site)];
+  return validFactor(weather, eventId) * validFactor(LANDSCAPE_SITES_BY_ID.get(site)?.eventFactors, eventId);
+}
+
+/** Faktor `factors[id]`, falls eigener Schlüssel, endlich und > 0 – sonst 1. */
+function validFactor(factors: Readonly<Record<string, number | undefined>> | undefined, id: string): number {
+  const f = factors && Object.hasOwn(factors, id) ? factors[id] : undefined;
   return f !== undefined && Number.isFinite(f) && f > 0 ? f : 1;
 }
 
