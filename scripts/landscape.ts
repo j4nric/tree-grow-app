@@ -454,3 +454,18 @@ export function withoutFeatured<T>(fn: () => T): T {
     LANDSCAPE_SITES.forEach((s, i) => ((s as { featured: ForestSite['featured'] }).featured = saved[i]!));
   }
 }
+
+/**
+ * Führt `fn` ohne das Wetter der Waldtypen aus (`ForestSite.weather`, 24.14): jeder Wald zieht
+ * dann das Wetter des Heimatwaldes – nur für Vergleichsläufe („wie vor 3c“). Ändert die Daten
+ * zur Laufzeit (core/weather.ts liest sie bei jedem Zug) und stellt sie danach wieder her.
+ */
+export function withoutSiteWeather<T>(fn: () => T): T {
+  const saved = LANDSCAPE_SITES.map((s) => s.weather);
+  for (const s of LANDSCAPE_SITES) (s as { weather: ForestSite['weather'] }).weather = {};
+  try {
+    return fn();
+  } finally {
+    LANDSCAPE_SITES.forEach((s, i) => ((s as { weather: ForestSite['weather'] }).weather = saved[i]!));
+  }
+}
