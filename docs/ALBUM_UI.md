@@ -482,6 +482,14 @@ Reiterwechsel mit Unterseite über `PageEnv.goto(tab, page)`. `data-ref`: `lands
 `site-cycle-open`, `site-diary`, `landscape-live` (Seite mit `data-site-id`); auf U:Neuer Zyklus
 `cycle-site-open`.
 
+**Waldchronik (Phase 9, 3a; DESIGN_V2.md 26.7):** Kopf mit „📜 9 / 36 Kapitel“
+(`chronicle-total`), Wachssiegel am Standort-Knopf (`site-seal`, Andenken-Symbol auf `--wax`),
+Zeile „Chronik“ (`data-row="chronicle"`) im Tagebuch der Wälder. U:Standort: Abschnitt
+`site-chronicle` mit Zähler `site-chronicle-count`, sechs Zetteln in `site-chronicle-list`
+(`data-chapter`, Stempel `chapter-stamp`) und dem Andenken `site-keepsake`; U:Neuer Zyklus
+`cycle-chronicle`. R:Arten: Reihe `species-kennarten` (Zähler `species-count-kennarten`, erst mit
+der Landschaft im DOM), Andenken der Chroniken `species-chronicles` (`data-chronicle`).
+
 ### B.6 Unterseiten-Übersicht
 
 | Unterseite | erreichbar von | Ebene | Inhalt |

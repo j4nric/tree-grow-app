@@ -918,7 +918,7 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
 
 **Welle 3 – Oberfläche**
 
-- [ ] **3a** Chronik und Kennarten im Album (`ui-dev`, 26.7): Abschnitt „Chronik“ auf
+- [x] **3a** Chronik und Kennarten im Album (`ui-dev`, 26.7): Abschnitt „Chronik“ auf
   U:Standort (sechs Zettel, Stempel mit Datum, Hinweise ohne Spoiler, Andenken), Kennzahl
   „📜 9 / 36 Kapitel“ und Wachssiegel auf der Karte, Spalte „Chronik“ im Tagebuch der Wälder,
   offene Kapitel beim Ziel-Wald in U:Neuer Zyklus, Reihe „Kennarten“ und Andenken in R:Arten
@@ -926,6 +926,19 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   Spielanleitung „Chroniken und Kennarten“, mobil 360 px ohne Querscrollen. **Warum:** Die
   Chronik ist eine Album-Funktion – erst als Seite zum Durchblättern wird sie zur Geschichte.
   Abhängig: 2b (Sticker aus 2a; ohne sie zeigt der Sticker die Gattung)
+  **Erledigt:** Texte und Ansichten rein in `ui/chronicle-view.ts` (Kennzahl, Zettel, Datum
+  „7. Zyklus · Winter“ / „schon früher“, offene Kapitel als Kurzname, Stempeltext, Andenken);
+  U:Standort `album/pages/site-chronicle.ts` (sechs Zettel, Stempel, Andenken als großer
+  Sticker, „Stempel-Effekt“ bei neuem Kapitel, ohne Bewegung bei reduzierter Bewegung), Karte
+  mit Wachssiegel (`site-seal`, Token `--wax`), Kennzahl `chronicle-total`, Zeile „Chronik“ im
+  Tagebuch der Wälder, `cycle-chronicle` auf U:Neuer Zyklus, R:Arten mit eigener Reihe
+  „🔎 Kennarten“ (Silhouette mit ihrem Wald, erst mit der Landschaft im DOM) und „Chroniken“ unter
+  Andenken (offen „???“ ohne Namen), Spielanleitung „Chroniken und Kennarten“ (nur mit der
+  Landschaft, ohne Kennart beim Namen). Stempel: `main.ts` vergleicht `chronicleOf` vorher/nachher
+  (`chronicleMark`/`chaptersSince`, kein neues Feld in core) nach Aktionen, Ticks und dem Neuen
+  Zyklus; offline `OfflineReport.chapters` als Punkt im Rückkehr-Bericht; die Freischaltung nennt
+  die still geschriebenen Kapitel („📜 Im Heimatwald stehen schon 3 Kapitel der Chronik.“). Tests
+  `tests/chronicle-view.test.ts`, `e2e/chronicle.spec.ts` (inkl. 360/390 px ohne Querscrollen)
 
 **Welle 4 – Absichern**
 

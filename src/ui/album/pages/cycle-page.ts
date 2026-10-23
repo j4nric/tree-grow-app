@@ -1,7 +1,7 @@
 /**
  * Unterseite „Neuer Zyklus“ (docs/ALBUM_UI.md, B.4 und A.9 #102–105; DESIGN_V2.md 10, 17.2,
  * 25.2): Zyklus und Wald, Hauptbaum jetzt, Waldgedächtnis, Gewinn bzw. Grund, Regel, Ziel-Wald
- * aus der Landschaft, Baumwahl als „Samentütchen“ mit echten Radioknöpfen, Knopf mit zweitem
+ * aus der Landschaft mit seinen offenen Kapiteln der Chronik (26.7), Baumwahl als „Samentütchen“ mit echten Radioknöpfen, Knopf mit zweitem
  * Klick und die Stammgäste.
  *
  * Baumwahl (Phase 7, 3a): alle sichtbaren Hauptbäume (`isTreeVisible` über previewNewCycle) –
@@ -22,11 +22,13 @@ import { cycleViewKey, toCyclePanelView, treeChoiceFor, type CyclePanelView, typ
 import { el, setAttr, setText } from '../../dom';
 import { keepNumberWithIcon } from '../../format';
 import { newCycleButtonText, targetText } from '../../landscape-view';
+import { chronicleTargetText } from '../../chronicle-view';
 import { createBookmark } from '../bookmark';
 import { initialNav, pageNumber } from '../nav';
 import { createPage } from '../page';
 import type { PageEnv, Subpage } from './registry';
 import './goals.css';
+import './chronicle.css';
 
 /** So lange bleibt der Knopf nach dem ersten Klick scharf. */
 export const CONFIRM_MS = 4000;
@@ -96,6 +98,9 @@ export function createCyclePage(env: PageEnv): CyclePage {
   // --- Ziel-Wald (Karte der Landschaft) --------------------------------------------------
   const target = el('p', 'cyc-target');
   target.dataset.ref = 'cycle-target';
+  // Waldchronik des Ziel-Walds (26.7): „📜 Chronik 4 / 6 – offen: Erster Schnee, Kennart“.
+  const targetChronicle = el('p', 'cyc-chronicle');
+  targetChronicle.dataset.ref = 'cycle-chronicle';
   // Ziel-Wald ansehen: U:Standort auf Ebene 2 (B.6).
   const siteOpen = el('button', 'goals-more cyc-site-open');
   siteOpen.type = 'button';
@@ -162,7 +167,7 @@ export function createCyclePage(env: PageEnv): CyclePage {
   const regularItems = new Map<string, RegularItem>();
   let regularOrder = '';
 
-  page.body.append(now, gainBox, target, siteOpen, trees, button, regulars);
+  page.body.append(now, gainBox, target, targetChronicle, siteOpen, trees, button, regulars);
 
   let view: CyclePanelView | null = null;
   let shownKey = '';
@@ -197,6 +202,10 @@ export function createCyclePage(env: PageEnv): CyclePage {
       const active = map.sites.find((s) => s.id === map.active);
       setText(target, keepNumberWithIcon(targetText(site, active ? `${active.icon} ${active.name}` : '')));
     }
+    // Offene Kapitel beim Ziel-Wald – ohne anderes Ziel die des Waldes hier.
+    const chronicleText = map && !target.hidden ? chronicleTargetText(deps.state(), site?.id ?? map.active) : null;
+    targetChronicle.hidden = chronicleText === null;
+    setText(targetChronicle, chronicleText ?? '');
     siteOpen.hidden = target.hidden || !site;
     if (site) setText(siteOpen, `${site.name} ansehen ›`);
   }

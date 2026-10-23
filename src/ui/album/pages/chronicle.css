@@ -1,0 +1,231 @@
+/*
+ * Waldchronik im Album (DESIGN_V2.md 26.7; site-chronicle.ts, landscape-map.ts, landscape-page.ts,
+ * cycle-page.ts): Zettel mit Stempel auf U:Standort, Andenken als großer Sticker, Wachssiegel
+ * auf der Karte, Kennzahl im Reiter „Landschaft“, Hinweis beim Ziel-Wald.
+ * Mobil zuerst: zwei Spalten ab 360 px, ohne Querscrollen.
+ */
+
+/* ---------- U:Standort: Abschnitt „Chronik“ ---------- */
+
+.site-chronicle {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chr-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.chr-count {
+  font-family: var(--font-hand);
+  font-size: 20px;
+  color: var(--ink-soft);
+}
+
+.site-chronicle.complete .chr-count {
+  color: var(--ink-red);
+}
+
+.chr-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chr-chapter {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  min-height: 84px;
+  padding: 8px 10px 10px;
+  border: 2px dashed var(--slot-dash);
+  border-radius: var(--r-page-inner);
+  background: var(--paper);
+  color: var(--ink-soft);
+  transform: rotate(var(--tilt, 0deg));
+}
+
+/* Geschrieben: gelber Zettel mit Schatten, darauf der Stempel. */
+.chr-chapter.written {
+  border: 0;
+  background: var(--note-bg);
+  box-shadow: var(--sh-slip);
+  color: var(--ink);
+}
+
+.chr-icon {
+  font-size: 20px;
+  line-height: 1;
+  opacity: 0.55;
+  filter: grayscale(0.7);
+}
+
+.chr-chapter.written .chr-icon {
+  opacity: 1;
+  filter: none;
+}
+
+.chr-title {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+  hyphens: manual;
+}
+
+.chr-hint {
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Stempel mit Datum: Rahmen in Harmonie-Rot, leicht schräg. */
+.chr-stamp {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 1px 7px;
+  border: 2px solid var(--ink-red);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--ink-red);
+  transform: rotate(var(--tilt-stamp));
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.chr-chapter.chr-fresh .chr-stamp {
+  animation: chr-stamp var(--stamp-ms) ease-out;
+}
+
+.chr-chapter.chr-fresh {
+  animation: chr-slip 600ms var(--turn-ease);
+}
+
+@keyframes chr-stamp {
+  from {
+    transform: rotate(var(--tilt-stamp)) scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes chr-slip {
+  40% {
+    transform: rotate(var(--tilt, 0deg)) scale(1.04);
+  }
+}
+
+/* Andenken: großer Sticker mit weißem Rand, daneben Name und Text. */
+.chr-keepsake {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--r-label);
+  background: var(--photo);
+  box-shadow: var(--sh-sticker-big);
+  min-width: 0;
+}
+
+.chr-keepsake-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border: 4px solid var(--photo);
+  border-radius: 50%;
+  background: var(--fam-soil);
+  box-shadow: var(--sh-sticker-big);
+  font-size: 38px;
+  line-height: 1;
+  transform: rotate(-4deg);
+}
+
+.chr-keepsake-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chr-keepsake-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-red);
+}
+
+.chr-keepsake-name {
+  font-family: var(--font-hand);
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink);
+  overflow-wrap: break-word;
+}
+
+.chr-keepsake-text {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+/* ---------- Karte: Wachssiegel ---------- */
+
+.lsc-site-seal {
+  position: absolute;
+  right: -8px;
+  bottom: -9px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 46% 54% 50% 50%;
+  background: radial-gradient(circle at 35% 30%, var(--wax), var(--ink-red) 60%);
+  box-shadow: 0 1px 3px rgb(59 58 54 / 0.35);
+  font-size: 0.72rem;
+  line-height: 1;
+  transform: rotate(-8deg);
+}
+
+.lsc-site-seal[hidden] {
+  display: none;
+}
+
+/* ---------- Reiter „Landschaft“ und U:Neuer Zyklus ---------- */
+
+.lsc-chronicle,
+.cyc-chronicle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-seed);
+  overflow-wrap: break-word;
+}
+
+/* ---------- Bewegung ---------- */
+
+body[data-motion='reduce'] .chr-chapter.chr-fresh,
+body[data-motion='reduce'] .chr-chapter.chr-fresh .chr-stamp {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:not([data-motion='full']) .chr-chapter.chr-fresh,
+  body:not([data-motion='full']) .chr-chapter.chr-fresh .chr-stamp {
+    animation: none;
+  }
+}
