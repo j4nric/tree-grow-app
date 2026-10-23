@@ -977,12 +977,22 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   Rand in den Pflanzring; einmal je Setzen, gecacht, reduzierte Bewegung ohne; zunächst nur in der
   Demo (`?demo=sowing`). **Warum:** Die Aussaat ersetzt ein Ereignis, das der Spieler „bekam“ –
   ein sichtbarer Moment macht den Kauf zum Säen. Unabhängig von allem. Abhängig: nichts
-- [ ] **1c** Forschungsbaum-Layout (`ui-dev`, 27.12): Reiter „Forschung“ als Ansicht aus
+- [x] **1c** Forschungsbaum-Layout (`ui-dev`, 27.12): Reiter „Forschung“ als Ansicht aus
   `RESEARCH` mit Platzhalter-Zuständen (Demo-Schalter), mobil 390 px (Äste aufklappbar, Zweig mit
   Ebenen, Gabel als zwei halbe Karten mit „oder“, Querverweise „braucht …“) und Desktop (Raster
   6 × 5, SVG-Verbindungen einmal je Layout); `aria-disabled`, 44-px-Treffer, kein Querscrollen
   bei 360 px. **Warum:** Die Baumdarstellung ist neu und auf dem Handy der heikle Teil; sie hängt
   nur an den Daten. Abhängig: 1a
+  *Erledigt:* reine Ansicht `src/ui/album/research-tree.ts` (+ `.css`), Abbildung Zustand →
+  Texte/Klassen/aria in `src/ui/research-view.ts` (inkl. `researchStatusFromBlocker` für 4a),
+  Beispielzustände in `src/ui/research-fixtures.ts`, Vorschau `src/ui/research-preview.html`
+  (`?state=start|middle|late&frame=full|page`). Umgeschaltet nach der **Breite des Baums** (nicht
+  des Fensters): Liste mit Ast-Register unter 940 px – auch die rechte Album-Seite bei 1200 px –,
+  Raster 6 × 5 darüber. Im Raster stehen Gabeln untereinander („oder“ dazwischen; Spalten zu schmal
+  für zwei halbe Karten), die SVG-Linien laufen als Leitungen in den Spaltenzwischenräumen (Weg B
+  rechts), damit keine Linie hinter einer Karte verschwindet. „Anderer Weg gewählt“ schlägt in der
+  Anzeige die Stufensperre. Tests: `tests/research-view.test.ts`, `e2e/research-tree.spec.ts`
+  (360/390/1200 px, eigener Vite-Server).
 
 **Welle 2 – Spielstand v17** (nacheinander)
 

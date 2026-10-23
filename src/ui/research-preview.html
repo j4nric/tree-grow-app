@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Forschungsbaum-Vorschau – Vom Samen zum Wald</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <style>
+      /* Nur für die Vorschau: Papierseite und Schalter */
+      body {
+        background: var(--card, #e9dfc9);
+      }
+      .preview {
+        box-sizing: border-box;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 12px;
+      }
+      .preview-page {
+        box-sizing: border-box;
+        margin: 0 auto;
+        padding: 16px 14px 20px;
+        border-radius: 16px;
+        background: var(--paper, #fffdf7);
+        box-shadow: 0 8px 18px rgba(59, 58, 54, 0.15);
+      }
+      .preview[data-frame='page'] .preview-page {
+        max-width: 470px;
+      }
+      .preview-title {
+        margin: 0 0 10px;
+        font-family: var(--font-hand);
+        font-size: 30px;
+        line-height: 1.1;
+      }
+      .preview-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 0 0 12px;
+        font: 700 13px var(--font-text, system-ui);
+      }
+      .preview-bar button {
+        min-height: 44px;
+        padding: 0 10px;
+        border: 2px solid var(--dash, #b9ad92);
+        border-radius: 10px;
+        background: var(--paper, #fff);
+        color: var(--ink, #3b3a36);
+        font: inherit;
+        cursor: pointer;
+      }
+      .preview-bar button[aria-pressed='true'] {
+        border-color: var(--ink-green, #3e6b4e);
+        background: var(--ink-green, #3e6b4e);
+        color: var(--paper, #fff);
+      }
+      .preview-bar button:focus-visible {
+        outline: 3px solid var(--ink, #3b3a36);
+        outline-offset: 2px;
+      }
+      .preview-log {
+        min-height: 1.4em;
+        margin: 0 0 10px;
+        font: 600 13px var(--font-text, system-ui);
+        color: var(--ink-soft, #6b6553);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Vorschau des Forschungsbaums (Phase 10, 1c) mit Beispielzuständen – nicht im Spiel
+         eingebunden. Aufruf: `npx vite` → /src/ui/research-preview.html?state=middle&frame=page -->
+    <main class="preview" id="preview"></main>
+    <script type="module" src="./research-preview.ts"></script>
+  </body>
+</html>
