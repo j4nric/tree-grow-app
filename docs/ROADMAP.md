@@ -689,8 +689,18 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   zu Ende; bei reduzierter Bewegung nur Auslösen. e2e mit Touch-Emulation in
   `e2e/album-swipe.spec.ts` (U:Tier zurück, Schnipser, Scrollen, Rand, Kartenreihe, Reiterseite).
   Der Wisch nach unten im Vollbild (C.6) war schon in Schritt 3 gebaut.
-- [ ] **14** Playtest und Feinschliff (`qa-tester` → `ui-dev`/`renderer`), Leistung messen, dann
+- [x] **14** Playtest und Feinschliff (`qa-tester` → `ui-dev`/`renderer`), Leistung messen, dann
   PR `claude/album-ui` → `main`. Abhängig: 13
+  Erledigt: zwei Playtests (Handy 390/360, Desktop 1280/1200) mit Rückkehrer und Spätspiel,
+  keine Konsolenfehler, kein Querscrollen, kein Speicherleck. Funde behoben in #115 (doppelte
+  Tagesziele nach dem Neuen Zyklus, DESIGN_V2), #116 (Meldungen verdecken keine Bedienelemente,
+  Rückkehr ohne Doppelung, Reiterwechsel mobil), #117 (Einkleben im Bild, Vorratsleiste,
+  Landschaftskarte hochkant, erster Start) und #118 (Umblättern ohne Stil-Neuberechnung der
+  Hauptansicht). Messung 390 × 844 bei 4× CPU-Drosselung: Leerlauf ≈ 59 fps (alte UI ≈ 40),
+  Dauerumblättern 39 → 44–46 fps.
+  Offen als Folgeaufgaben: erster Wechsel zu Arten (2 Long Tasks ≈ 200 ms bei 4× Drosselung),
+  Sticker-Canvas als eigene Compositing-Ebenen (ggf. `<img>`), Landschaftskarte am Desktop mit
+  DejaVu Sans bei 125 % (Bergmischwald knapp).
 
 Parallel nach 1 und 4: 5, 6, 8, 9, 11; danach 7 und 10. Offene UI-Aufgaben aus Phase 7 (3a)
 möglichst im Album umsetzen (ALBUM_UI.md G.2 Nr. 1).
