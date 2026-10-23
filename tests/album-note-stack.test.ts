@@ -12,9 +12,9 @@ describe('stackIcon', () => {
     expect(stackIcon({ type: 'event', cards: ['bee-swarm'] })).toBe('🐝');
   });
 
-  it('Tiere, Pflanzen und Unbekanntes: Symbol der Art der Begegnung', () => {
+  it('Tiere, Aussaat und Unbekanntes: Symbol der Art des Zettels', () => {
     expect(stackIcon({ type: 'animal', cards: ['earthworm'] })).toBe('🐾');
-    expect(stackIcon({ type: 'plant', cards: ['fern'] })).toBe('🌱');
+    expect(stackIcon({ type: 'sowing', cards: ['fern'] })).toBe('🌱');
     expect(stackIcon({ type: 'event', cards: ['gibt-es-nicht'] })).toBe('⛈️');
     expect(stackIcon({ type: 'visitor', cards: [] })).toBe('🦢');
     expect(stackIcon(undefined)).toBe('🐾');
@@ -22,9 +22,9 @@ describe('stackIcon', () => {
 });
 
 describe('Text des Zettelstapels', () => {
-  it('„2 Zettel: Besuch wartet!“ bei Tieren, „Etwas keimt!“ bei Pflanzen', () => {
+  it('„2 Zettel: Besuch wartet!“ bei Tieren, „Aussaat!“ bei offener Aussaat', () => {
     expect(stackText(2, { type: 'animal', cards: ['earthworm'] })).toBe('2 Zettel: Besuch wartet!');
-    expect(stackText(1, { type: 'plant', cards: ['fern'] })).toBe('1 Zettel: Etwas keimt!');
+    expect(stackText(1, { type: 'sowing', cards: ['fern'] })).toBe('1 Zettel: Aussaat!');
     expect(stackText(3, undefined)).toBe('3 Zettel: Besuch wartet!');
   });
 

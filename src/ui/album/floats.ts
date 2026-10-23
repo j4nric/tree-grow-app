@@ -1,6 +1,6 @@
 /**
  * Schwebende Zahlen und kurze Hinweise (Juice, docs/ALBUM_UI.md A.11): Samen über dem
- * Samen-Etikett, Kosten und Name einer gesetzten Pflanze, Hinweissätze über der Szene. Die
+ * Samen-Etikett, Kosten einer Aussaat, Name einer gesetzten Pflanze, Hinweissätze über der Szene. Die
  * Ebene liegt über der ganzen Seite (ui/feedback.ts) und ist für Screenreader verborgen –
  * Hinweissätze gehen darum zusätzlich in die unsichtbare Statuszeile `#live-status`.
  */
@@ -14,8 +14,10 @@ export interface Floats {
   sceneNote(text: string): void;
   /** „+12 🌰“ über dem Samen-Etikett. */
   seeds(amount: number): void;
-  /** Gesetzte Pflanze: Kosten über dem Samen-Etikett, Name über dem Pflanzring. */
-  plant(cost: number, plantId: string): void;
+  /** Aus einer Aussaat gesetzte Pflanze: Name über dem Pflanzring. */
+  plant(plantId: string): void;
+  /** „−35 🌰“ über dem Samen-Etikett (ausgegebene Samen, z. B. Säen). */
+  spent(amount: number): void;
   /** Hinweis an Bildschirm-Koordinaten (z. B. Bestätigung nach einem Kauf). */
   note(text: string, x: number, y: number): void;
 }
@@ -44,9 +46,11 @@ export function createFloats(canvas: HTMLCanvasElement): Floats {
       // Gerundet wie der Knopf („Ablehnen (+144 🌰)“), damit beide dieselbe Zahl zeigen.
       if (at && amount > 0) layer.spawn(`+${seedsLabel(amount)} 🌰`, at.x, at.y);
     },
-    plant(cost, plantId) {
+    spent(amount) {
       const seedsAt = topCenter(document.querySelector('[data-ref="seeds"]'));
-      if (seedsAt) layer.spawn(`−${formatNumber(Math.ceil(cost))} 🌰`, seedsAt.x, seedsAt.y);
+      if (seedsAt && amount > 0) layer.spawn(`−${formatNumber(Math.ceil(amount))} 🌰`, seedsAt.x, seedsAt.y);
+    },
+    plant(plantId) {
       const ringAt = topCenter(document.querySelector('[data-ref="plant-ring"]'), true);
       if (ringAt) layer.spawn(`🌱 ${PLANTS_BY_ID.get(plantId)?.name ?? ''}`, ringAt.x, ringAt.y + 24);
     },

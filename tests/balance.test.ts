@@ -130,13 +130,20 @@ describe('Balancing v2 (echte Logik, alle Systeme)', () => {
     expect(g.harmony).toBeGreaterThan((FULL ? 0.85 : 0.8) * h.harmony);
   });
 
-  it('Pflanzen sind eine Samen-Senke: jede Strategie setzt und pflanzt bis zum Hain', () => {
+  it('die Aussaat ist eine Samen-Senke: jede Strategie sät bis zum Hain, bewertende auch zum Tauschen', () => {
     for (const s of summaries) {
       const st = stageStats(s, HAIN);
       expect(st.plants, s.strategy.name).toBeGreaterThanOrEqual(4);
-      expect(st.counts.plantsBought, s.strategy.name).toBeGreaterThan(1);
-      expect(st.counts.plantEncounters, s.strategy.name).toBeGreaterThan(2);
+      // Aussaaten bis zum Hain: mindestens den Ring gefüllt (5 Plätze im Alten Baum).
+      expect(st.counts.plantsBought, s.strategy.name).toBeGreaterThanOrEqual(4);
+      expect(st.counts.plantEncounters, s.strategy.name).toBeGreaterThan(4);
       expect(st.spentPlants, s.strategy.name).toBeGreaterThan(0);
+    }
+    // Ziel 27.11: 8–15 Aussaaten bis zum Hain, davon ≥ 2 Tausch (Check: Harmonie 13,6, Wachstum 12,5).
+    for (const s of [harmony, byId(GROWTH.id)]) {
+      const st = stageStats(s, HAIN);
+      expect(st.counts.plantsBought, s.strategy.name).toBeGreaterThan(8);
+      expect(st.counts.plantsBought, s.strategy.name).toBeLessThan(18);
     }
     expect(stageStats(harmony, HAIN).supply).toBeGreaterThan(0.9);
   });
@@ -197,22 +204,23 @@ describe('Frühes Spiel: Takt der Entscheidungen und Samen mit Zweck', () => {
     expect(earlyStats(harmony).pauseMedian).toBeLessThan((FULL ? 135 : 150));
   });
 
-  it('Samen stapeln sich vor dem Jungen Baum nicht (Höchststand im Mittel < 400 🌰 bis Phase 10, 2b)', () => {
-    // Bis v16 < 250 🌰 (Check 260): Kompost und Laub kosteten 200 🌰. Seit v17 (Phase 10, 2a)
-    // kostet die Forschung ⚖️ – die Samen bekommen ihre Senke erst mit der Aussaat (2b, Ziel
-    // 27.11; Check-Lauf mit Forschung: Harmonie-Spieler ~313 🌰). Phase 10, 3a misst neu.
-    for (const s of [harmony, byId(GROWTH.id)]) expect(earlyStats(s).seedPeak, s.strategy.name).toBeLessThan(400);
+  it('Samen stapeln sich vor dem Jungen Baum nicht (Höchststand im Mittel < 250 🌰, Check 260)', () => {
+    // Bis v16 kosteten Kompost und Laub 200 🌰; in 2a (Forschung mit ⚖️) vorübergehend < 400
+    // (Check: Harmonie-Spieler ~313 🌰). Seit der Aussaat (Phase 10, 2b) ist sie die Senke:
+    // Check Harmonie-Spieler 255, Wachstums-Spieler 227 🌰 – wieder unter der alten Grenze.
+    for (const s of [harmony, byId(GROWTH.id)]) expect(earlyStats(s).seedPeak, s.strategy.name).toBeLessThan(FULL ? 250 : 260);
   });
 });
 
 describe('Wirtschaft (Samen-Senke, Neu würfeln, Bewirten)', () => {
-  it('Samenbestand beim Hain unter 45 Minuten Produktion (bis Phase 10, 2b), Forschung wird gekauft', () => {
-    // Bis v16 unter 10 min: Die Pflege war die Samen-Senke. Seit v17 kostet die Forschung ⚖️;
-    // ohne Aussaat liegen beim Hain ~36 min Produktion (DESIGN_V2.md 27.6, Vorab-Messung 27.10).
-    // Die Aussaat (Phase 10, 2b) bringt die Senke zurück, Ziel 27.11: ≤ 15 min (Messung 3a).
+  it('Samenbestand beim Hain unter 10 Minuten Produktion, Forschung wird gekauft', () => {
+    // Bis v16 war die Pflege die Samen-Senke (< 10 min); in 2a (Forschung mit ⚖️) vorübergehend
+    // < 45 min (~36 min, DESIGN_V2.md 27.10). Seit der Aussaat (Phase 10, 2b) mit Tausch im vollen
+    // Ring wieder darunter (Check: Harmonie-Spieler 8,8, Wachstums-Spieler 5,1 min; 13–14 bzw.
+    // ~12,5 Aussaaten bis zum Hain). Ziel 27.11 ≤ 15 min; Phase 10, 3a misst mit 500 Durchgängen.
     for (const s of [harmony, byId(GROWTH.id)]) {
       const st = stageStats(s, HAIN);
-      expect(st.seeds / st.seedsRate / 60, s.strategy.name).toBeLessThan(45);
+      expect(st.seeds / st.seedsRate / 60, s.strategy.name).toBeLessThan(10);
       expect(st.spentCare, s.strategy.name).toBeGreaterThan(0);
     }
   });
@@ -230,7 +238,7 @@ describe('Wirtschaft (Samen-Senke, Neu würfeln, Bewirten)', () => {
 
 /** Anteil der Kartenbegegnungen vor `beforeStage`, bei denen Neu würfeln zu teuer war. */
 function rerollTooExpensiveBefore(s: Summary, beforeStage: number): number {
-  const vs = s.runs.flatMap((r) => r.variety.filter((v) => v.stage < beforeStage && (v.type === 'animal' || v.type === 'plant')));
+  const vs = s.runs.flatMap((r) => r.variety.filter((v) => v.stage < beforeStage && v.type === 'animal'));
   return vs.filter((v) => v.rerollBlocked === 'too-expensive').length / Math.max(1, vs.length);
 }
 
@@ -301,7 +309,7 @@ describe('Pflegemaßnahmen', () => {
     for (const s of withCare) for (const r of s.runs) expect(r.final.seeds).toBeGreaterThanOrEqual(0);
   });
 
-  it('Forschung kostet ⚖️: Samenreserve wie ohne Forschung, bis die Aussaat kommt (bewertende Strategien)', () => {
+  it('Forschung kostet ⚖️, die Aussaat ist die Samen-Senke: Reserve beim Hain < 10, im Wald < 12 min (bewertende Strategien)', () => {
     for (const id of [HARMONY.id, GROWTH.id]) {
       for (const stage of [HAIN, WALD]) {
         const before = stageStats(find(without, id), stage);
@@ -314,11 +322,13 @@ describe('Pflegemaßnahmen', () => {
         // DESIGN_V2.md 15.4 „Stand Balancing Phase 6“): Harmonie-Spieler im Wald 7,2 / 7,6 /
         // 8,3 min in drei Seed-Fenstern à 30 Durchgänge (Check-Fenster 7,2), großer Lauf siehe dort.
         //
-        // Seit v17 (Phase 10, 2a) kostet die Forschung ⚖️ statt 🌰: Die Reserve ist wie ohne
-        // Forschung (Check: Harmonie-Spieler beim Hain 35,5 statt 35,2 min), bis die Aussaat
-        // (2b) die Senke zurückbringt – Ziel 27.11 ≤ 15 min, Messung Phase 10, 3a.
+        // Seit v17 (Phase 10, 2a) kostet die Forschung ⚖️ statt 🌰: Sie senkt die Reserve nicht
+        // mehr (darum kein „halb so groß“), die Senke ist seit 2b die Aussaat – mit und ohne
+        // Forschung. Check: Harmonie-Spieler Hain 8,8 / Wald 9,0 min (ohne Forschung 8,0 / 12,7),
+        // Wachstums-Spieler 5,1 / 9,3 (5,9 / 8,8). Ziel 27.11 ≤ 15 min; Messung Phase 10, 3a.
         const minutes = (st: typeof before) => st.seeds / st.seedsRate / 60;
         expect(minutes(after), `${id}, Stufe ${stage}`).toBeLessThan(1.25 * minutes(before));
+        expect(minutes(after), `${id}, Stufe ${stage}`).toBeLessThan(stage === HAIN ? 10 : 12);
         expect(after.spentCare, `${id}, Stufe ${stage}`).toBeGreaterThan(0);
       }
     }

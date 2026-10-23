@@ -113,6 +113,10 @@ export interface SeedV3 {
   /** Begleitpflanzen im Pflanzring (Pflanzen-IDs, Duplikate erlaubt). */
   plants?: string[];
   niches?: Partial<Record<NicheId, string[]>>;
+  /**
+   * Offene Begegnungen. `type: 'plant'` („Etwas keimt“ bis Phase 10) lädt das Spiel als offene
+   * Aussaat (die erste, weitere ziehen weiter) – so legen Tests eine Aussaat mit festen Karten an.
+   */
   pendingEncounters?: { type: 'animal' | 'plant' | 'event' | 'visitor'; cards: string[]; rerolls: number }[];
   rngState?: number;
   forestMemory?: number;
@@ -216,8 +220,8 @@ export const stack = (page: Page) => page.locator('[data-ref="encounter-stack"]'
 export const niche = (page: Page, id: string) => page.locator(`[data-niche="${id}"]`);
 /** Unterseite „Begegnung“ (U:Begegnung, docs/ALBUM_UI.md A.6) – früher der Kartenwahl-Dialog. */
 export const encounter = (page: Page) => page.locator('[data-ref="page-encounter"]');
-/** Unterseite „Pflanze setzen“ (U:Pflanze setzen) – früher der Dialog der Pflanzenwahl. */
-export const plantPicker = (page: Page) => page.locator('[data-ref="page-plant-picker"]');
+/** Knopf „🌱 Säen“ im Pflanzring (Reiter Nischen, DESIGN_V2.md 27.6). */
+export const sowButton = (page: Page) => page.locator('[data-ref="sow"]');
 export const card = (page: Page, species: string) => encounter(page).locator(`[data-species="${species}"]`);
 
 /** Reiter des Albums über ihren Hash (docs/ALBUM_UI.md, C.2). */
@@ -402,10 +406,12 @@ export async function openStack(page: Page): Promise<void> {
   await settle(page);
 }
 
-/** „🌱 Pflanze setzen“ im Reiter Nischen: blättert zu U:Pflanze setzen um. */
-export async function openPlantPicker(page: Page): Promise<Locator> {
-  await page.locator('[data-ref="plant-open"]').click();
-  return settledSubpage(page, 'plant-picker');
+/** „🌱 Säen“ im Reiter Nischen: sät (bzw. öffnet die offene Aussaat) und blättert zu U:Begegnung um. */
+export async function sowNow(page: Page): Promise<Locator> {
+  await sowButton(page).click();
+  const sub = await settledSubpage(page, 'encounter');
+  await settle(page);
+  return sub;
 }
 
 export async function savedState(page: Page): Promise<Record<string, any>> {

@@ -50,8 +50,7 @@ async function stageIndex(page: Page): Promise<number> {
 
 const cyclePanel = (page: Page) => page.locator('[data-ref="page-cycle"]');
 const cycleCard = (page: Page) => page.locator('[data-ref="cycle-card"]');
-const plantOpen = (page: Page) => page.locator('[data-ref="plant-open"]');
-const picker = (page: Page) => page.locator('[data-ref="page-plant-picker"]');
+const sowOpen = (page: Page) => page.locator('[data-ref="sow"]');
 
 /** Zeit vergehen lassen und ein paar Frames laufen lassen (Ansichten aktualisieren). */
 async function advance(page: Page, ms: number): Promise<void> {
@@ -83,33 +82,26 @@ async function chooseFirst(page: Page): Promise<string | null> {
     await page.clock.runFor(50);
     return id;
   }
-  await encounter(page).getByRole('button', { name: /Ablehnen/ }).click();
+  // Tier: „Ablehnen“, Aussaat: „Zurücklegen“.
+  await encounter(page).getByRole('button', { name: /Ablehnen|Zurücklegen/ }).click();
   await page.clock.runFor(50);
   return null;
 }
 
-/** Erste setzbare Pflanze setzen, wenn die Samen reichen. Gibt die Pflanze zurück. */
-async function plantIfAffordable(page: Page): Promise<string | null> {
-  const button = plantOpen(page);
+/**
+ * Säen, wenn der Ring Platz hat und die Samen reichen (DESIGN_V2.md 27.6): „🌱 Säen“ öffnet die
+ * Aussaat in U:Begegnung, dort die erste wählbare Karte (sonst zurücklegen). Gibt die Pflanze zurück.
+ */
+async function sowIfAffordable(page: Page): Promise<string | null> {
+  const button = sowOpen(page);
   if (!(await button.isVisible())) return null;
-  if (/noch nicht genug/.test((await button.getAttribute('aria-label')) ?? '')) return null;
+  const label = (await button.getAttribute('aria-label')) ?? '';
+  if (/noch nicht genug|tauschen|Aussaat offen/.test(label)) return null;
   await button.click();
-  await expect(picker(page)).toBeVisible();
-  await page.clock.fastForward(400); // Eingabesperre nach dem Öffnen
-  const rows = picker(page).locator('[data-plant]');
-  const count = await rows.count();
-  for (let i = 0; i < count; i++) {
-    const choose = rows.nth(i).getByRole('button', { name: /setzen für/ });
-    if ((await choose.count()) === 0 || (await choose.isDisabled())) continue;
-    const id = (await rows.nth(i).getAttribute('data-plant')) ?? '';
-    await choose.click();
-    await expect(picker(page)).toBeHidden();
-    await page.clock.runFor(50);
-    return id;
-  }
-  await picker(page).locator('[data-ref="bookmark"]').click();
-  await expect(picker(page)).toBeHidden();
-  return null;
+  await expect(encounter(page)).toBeVisible();
+  const id = await chooseFirst(page);
+  await expect(encounter(page)).toBeHidden();
+  return id;
 }
 
 test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht ein, Neuladen', async ({
@@ -159,8 +151,10 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
     if (await stack(page).isVisible()) {
       await stack(page).click();
       await expect(encounter(page)).toBeVisible();
-      // Bis der Stapel leer ist; danach blättert U:Begegnung von selbst zurück.
-      while (((await savedState(page)).pendingEncounters ?? []).length > 0) {
+      // Bis der Stapel leer ist (Begegnungen und die offene Aussaat); danach blättert
+      // U:Begegnung von selbst zurück.
+      const waiting = (s: Record<string, any>) => (s.pendingEncounters ?? []).length > 0 || !!s.cycle?.sowing;
+      while (waiting(await savedState(page))) {
         const chosen = await chooseFirst(page);
         trail.push(chosen ?? '-');
         encounters++;
@@ -168,7 +162,7 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
       await expect(encounter(page)).toBeHidden();
       await expect(stack(page)).toBeHidden();
     }
-    const plant = await plantIfAffordable(page);
+    const plant = await sowIfAffordable(page);
     if (plant) {
       trail.push(`+${plant}`);
       planted++;

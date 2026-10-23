@@ -4,18 +4,27 @@
  */
 import { EVENTS_BY_ID } from '../../content/events';
 import { VISITORS_BY_ID } from '../../content/visitors';
-import type { PendingEncounter } from '../../core/state';
+import type { GameState, PendingEncounter } from '../../core/state';
 import { formatNumber } from '../format';
 
-/** Vorderste Begegnung, so weit der Stapel sie braucht. */
-export type StackHead = Pick<PendingEncounter, 'type' | 'cards'>;
+/**
+ * Vorderster Zettel, so weit der Stapel ihn braucht: eine Begegnung oder die offene Aussaat
+ * (`type: 'sowing'`, Karten = Pflanzen-IDs; liegt oben, zählt nicht zu den drei Begegnungen).
+ */
+export type StackHead = { type: PendingEncounter['type'] | 'sowing'; cards: readonly string[] };
 
-/** Symbol auf dem Stapel je Art der obersten Begegnung (Ersatz, wenn die Karte unbekannt ist). */
-const STACK_ICONS = { animal: '🐾', plant: '🌱', event: '⛈️', visitor: '🦢' } as const;
+/** Symbol auf dem Stapel je Art des obersten Zettels (Ersatz, wenn die Karte unbekannt ist). */
+const STACK_ICONS = { animal: '🐾', sowing: '🌱', event: '⛈️', visitor: '🦢' } as const;
+
+/** Vorderster Zettel aus dem Spielstand: die offene Aussaat zuerst, sonst die erste Begegnung. */
+export function stackHeadOf(state: Pick<GameState, 'pendingEncounters' | 'cycle'>): StackHead | undefined {
+  const sowing = state.cycle.sowing;
+  return sowing ? { type: 'sowing', cards: sowing.cards } : state.pendingEncounters[0];
+}
 
 /**
- * Symbol der vordersten Begegnung: bei Ereignis und Gast das eigene Symbol aus content
- * (🌩️ Sturmnacht, 🐝 Bienenschwarm, 🦢 Kranichzug …), sonst das der Art der Begegnung.
+ * Symbol des vordersten Zettels: bei Ereignis und Gast das eigene Symbol aus content
+ * (🌩️ Sturmnacht, 🐝 Bienenschwarm, 🦢 Kranichzug …), sonst das der Art (🐾 Tier, 🌱 Aussaat).
  */
 export function stackIcon(head: StackHead | undefined): string {
   if (!head) return STACK_ICONS.animal;
@@ -26,11 +35,11 @@ export function stackIcon(head: StackHead | undefined): string {
 }
 
 /**
- * Zeile nach „2 Zettel:“ – je nach oberster Begegnung: „Besuch wartet!“ (Tier), „Etwas
- * keimt!“ (Pflanze), bei Ereignis und Gast deren Name („Sturmnacht!“, „Kranichzug!“).
+ * Zeile nach „2 Zettel:“ – je nach oberstem Zettel: „Besuch wartet!“ (Tier), „Aussaat!“ (offene
+ * Aussaat), bei Ereignis und Gast deren Name („Sturmnacht!“, „Kranichzug!“).
  */
 export function stackHeadline(head: StackHead | undefined): string {
-  if (head?.type === 'plant') return 'Etwas keimt!';
+  if (head?.type === 'sowing') return 'Aussaat!';
   const id = head?.cards[0] ?? '';
   if (head?.type === 'event') return `${EVENTS_BY_ID.get(id)?.name ?? 'Ein Ereignis'}!`;
   if (head?.type === 'visitor') return `${VISITORS_BY_ID.get(id)?.name ?? 'Besuch auf der Durchreise'}!`;

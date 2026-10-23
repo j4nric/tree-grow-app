@@ -29,8 +29,11 @@ export type TimedEffect = Extract<Effect, { kind: 'growth' | 'seeds' | 'groupGro
  */
 export type CycleEffect = Extract<Effect, { kind: 'light' | 'water' | 'slot' | 'harmony' }>;
 
-/** Begegnungstypen, die ein Ereignis als nächste Begegnung erzwingen kann. */
-export type ForcedEncounterType = 'animal' | 'plant';
+/**
+ * Begegnungstypen, die ein Ereignis als nächste Begegnung erzwingen kann – seit Phase 10 nur
+ * Tiere (Begegnungen sind Tiere, 27.5; Pflanzen schenkt `freeSowing`).
+ */
+export type ForcedEncounterType = 'animal';
 
 /**
  * Wirkung einer Ereignis-Option. Alle Zahlen sind positiv.
@@ -49,16 +52,21 @@ export type ForcedEncounterType = 'animal' | 'plant';
  *   (Zufall des Spielstands), höchstens FORCED_MAX_CARDS (encounters.ts) – die übrige Karte
  *   wird normal gezogen, damit eine andere Wahl bleibt. Arten nur, wenn sie
  *   freigeschaltet sind, noch nicht im Ökosystem leben und ihre Nische offen ist
- *   (Seltenheit und Erscheinungsbedingung werden übergangen); Pflanzen nur, wenn sie
- *   freigeschaltet sind. Fehlende Karten werden normal gezogen. Passt keine ID mehr,
+ *   (Seltenheit und Erscheinungsbedingung werden übergangen). Fehlende Karten werden
+ *   normal gezogen. Passt keine ID mehr,
  *   verfällt der Vorzug still.
+ * - `freeSowing`: eine geschenkte Aussaat (DESIGN_V2.md 27.5/27.6), deren Karten zuerst aus
+ *   `ids` kommen (höchstens FORCED_MAX_CARDS, nur freigeschaltete Pflanzen, der Rest normal
+ *   gezogen). Kostet nichts und zählt nicht als Aussaat des Zyklus. Ist gerade eine Aussaat
+ *   offen, wartet sie (`cycle.freeSowing`).
  */
 export type EventEffect =
   | { kind: 'seedsNow'; seconds: number }
   | { kind: 'timed'; seconds: number; effect: TimedEffect }
   | { kind: 'cycle'; effect: CycleEffect }
   | { kind: 'habitat'; tag: Tag }
-  | { kind: 'nextEncounter'; type: ForcedEncounterType; ids: readonly string[] };
+  | { kind: 'nextEncounter'; type: ForcedEncounterType; ids: readonly string[] }
+  | { kind: 'freeSowing'; ids: readonly string[] };
 
 export interface EventOption {
   /** Knopftext, kurz und im Imperativ bzw. als Handlung. */
@@ -252,8 +260,8 @@ export const EVENTS: readonly GameEvent[] = [
     appears: [{ kind: 'genus', genus: 'birds', min: 2 }],
     options: [
       {
-        label: 'Sämlinge stehen lassen', summary: 'nächste Begegnung: Beerensträucher',
-        effects: [{ kind: 'nextEncounter', type: 'plant', ids: ['rowan', 'elder', 'bramble'] }],
+        label: 'Sämlinge stehen lassen', summary: 'eine Aussaat gratis – Eberesche, Holunder oder Brombeere',
+        effects: [{ kind: 'freeSowing', ids: ['rowan', 'elder', 'bramble'] }],
       },
       {
         label: 'Beeren reifen lassen', summary: '+40 % 🌰 für 6 min',

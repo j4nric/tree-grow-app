@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ENCOUNTER_WEIGHTS, PLANT_WEIGHT_RING_FULL } from '../src/content/encounters';
-import { SEASONS_BY_ID, SEASON_SECONDS, YEAR_SECONDS, type SeasonId } from '../src/content/seasons';
+import { ENCOUNTER_WEIGHTS } from '../src/content/encounters';
+import { SEASON_SECONDS, YEAR_SECONDS, type SeasonId } from '../src/content/seasons';
 import { SPECIES_BY_ID } from '../src/content/species';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
 import {
@@ -13,6 +13,7 @@ import {
   seedSeconds,
   seedSecondsRate,
   slotBonuses,
+  sowingCost,
   type Ecosystem,
 } from '../src/core/formulas';
 import { loadGame, serialize, v6Threshold } from '../src/core/save';
@@ -394,28 +395,25 @@ describe('tick und Offline mit Jahreszeiten (DESIGN_V2.md 16.6)', () => {
 });
 
 describe('Ziehen nach Jahreszeit (DESIGN_V2.md 16.4)', () => {
-  const share = (season: SeasonId, plants: string[]) => {
-    let n = 0;
-    for (let seed = 1; seed <= 3000; seed++) {
-      const state = stateWith(3, [], season, 'oak', seed);
-      state.waypoint = 10;
-      state.plants = plants;
-      if (drawEncounter(state)!.type === 'plant') n++;
-    }
-    return n / 3000;
-  };
-
-  it('Frühling: „Etwas keimt“ × 1,5 – aber nur, solange der Ring Platz hat', () => {
-    const [animal, plant, event, visitor] = ENCOUNTER_WEIGHTS[3]!;
-    const factor = SEASONS_BY_ID.get('spring')!.encounterFactors!.plant!;
-    expect(share('spring', [])).toBeCloseTo((plant * factor) / (animal + plant * factor + event + visitor), 1);
-    expect(share('summer', [])).toBeCloseTo(plant / (animal + plant + event + visitor), 1);
-    expect(share('spring', [])).toBeGreaterThan(share('summer', []) + 0.04);
-    // Voller Ring: wie sonst PLANT_WEIGHT_RING_FULL, kein Frühlingsfaktor.
-    const full = ['hazel', 'hazel', 'birch'];
-    const expected = (plant * PLANT_WEIGHT_RING_FULL) / (animal + plant * PLANT_WEIGHT_RING_FULL + event + visitor);
-    expect(share('spring', full)).toBeCloseTo(expected, 1);
-    expect(Math.abs(share('spring', full) - share('summer', full))).toBeLessThan(0.03);
+  it('Frühling: „Saatzeit“ statt „Etwas keimt“ × 1,5 – die Tiere bleiben gleich häufig (27.5)', () => {
+    const share = (season: SeasonId) => {
+      let n = 0;
+      for (let seed = 1; seed <= 1000; seed++) {
+        const state = stateWith(3, [], season, 'oak', seed);
+        state.waypoint = 10;
+        if (drawEncounter(state)!.type === 'animal') n++;
+      }
+      return n / 1000;
+    };
+    const [animal, event, visitor] = ENCOUNTER_WEIGHTS[3]!;
+    expect(share('spring')).toBeGreaterThanOrEqual(animal / (animal + event + visitor) - 0.05);
+    expect(Math.abs(share('spring') - share('summer'))).toBeLessThan(0.05);
+    // Der Preis der Aussaat sinkt im Frühling (×0,8).
+    const spring = stateWith(3, [], 'spring');
+    const summer = stateWith(3, [], 'summer');
+    spring.cycle.sowings = summer.cycle.sowings = 4;
+    expect(sowingCost(spring)).toBe(86); // ⌈107,1875 · 0,8⌉
+    expect(sowingCost(summer)).toBe(108);
   });
 
   it('Kraniche nicht im Winter, Bergfinken nicht im Frühling; Ereignisse nach ihrer Jahreszeit', () => {

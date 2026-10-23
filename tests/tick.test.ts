@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENCOUNTER_WEIGHTS, MAX_PENDING_ENCOUNTERS, PLANT_WEIGHT_RING_FULL } from '../src/content/encounters';
+import { ENCOUNTER_WEIGHTS, MAX_PENDING_ENCOUNTERS } from '../src/content/encounters';
 import { PLANTS, PLANTS_BY_ID, type Plant } from '../src/content/plants';
 import { SEASONS_BY_ID } from '../src/content/seasons';
 import { SPECIES_BY_ID } from '../src/content/species';
@@ -13,7 +13,10 @@ import {
   drawAnimals,
   drawEncounter,
   drawPlants,
-  plantSeed,
+  chooseSowing,
+  discardSowing,
+  sow,
+  sowBlocker,
   simulateOffline,
   tick,
 } from '../src/core/tick';
@@ -22,30 +25,36 @@ import { SPRING_GROWTH, resolveSpecial, stateAt, researchFor } from './helpers';
 
 /**
  * Feste Wahl-Strategie für Golden Tests: erste Karte mit freiem Platz; sonst die erste
- * Karte mit voller Nische (bzw. vollem Pflanzring) und das erste Tier dort entlassen
- * (bzw. die erste Pflanze ersetzen); sonst ablehnen. Scheitert der Tausch, ablehnen.
+ * Karte mit voller Nische und das erste Tier dort entlassen; sonst ablehnen. Scheitert der
+ * Tausch, ablehnen. Eine offene Aussaat zuerst: erste Karte (bei vollem Ring anstelle der
+ * ersten Pflanze, die anders ist), sonst zurücklegen.
  */
 function resolveAll(state: GameState): void {
-  while (state.pendingEncounters.length > 0) {
+  while (state.pendingEncounters.length > 0 || state.cycle.sowing) {
+    if (state.cycle.sowing) {
+      const id = state.cycle.sowing.cards[0]!;
+      const full = state.plants.length >= evaluate(state).plantSlots;
+      const replace = full ? state.plants.find((p) => p !== id) : undefined;
+      if (!chooseSowing(state, 0, replace).ok) discardSowing(state);
+      continue;
+    }
     if (resolveSpecial(state)) continue;
-    const { type, cards } = state.pendingEncounters[0]!;
+    const { cards } = state.pendingEncounters[0]!;
     const statuses = cards.map((_, c) => cardStatus(state, 0, c));
     const free = statuses.indexOf('free');
     const full = statuses.indexOf('full');
     if (free >= 0) chooseCard(state, 0, free);
     else if (full >= 0) {
-      const replace = type === 'plant' ? state.plants[0] : state.niches[SPECIES_BY_ID.get(cards[full]!)!.niche][0];
+      const replace = state.niches[SPECIES_BY_ID.get(cards[full]!)!.niche][0];
       if (!chooseCard(state, 0, full, replace).ok) declineEncounter(state, 0);
     } else declineEncounter(state, 0);
   }
 }
 
-/** Wie resolveAll, setzt danach Pflanzen (immer die erste freigeschaltete), solange Samen reichen. */
+/** Wie resolveAll, sät danach (erste Karte), solange der Ring Platz hat und die Samen reichen. */
 function resolveAndPlant(state: GameState): void {
   resolveAll(state);
-  while (plantSeed(state, state.stage >= 2 ? 'hazel' : 'anemone').ok) {
-    // weiter, bis Ring voll oder Samen alle
-  }
+  while (state.plants.length < evaluate(state).plantSlots && sowBlocker(state) === null && sow(state).ok) resolveAll(state);
 }
 
 describe('tick', () => {
@@ -76,6 +85,7 @@ describe('tick', () => {
       declinedSeeds: 0,
       regulars: [],
       interludes: 0,
+      sowings: 0,
       interludesReached: 0,
       expired: [],
       seasons: [],
@@ -96,24 +106,28 @@ describe('tick', () => {
     const report = tick(state, 120);
     expect(state.waypoint).toBe(report.waypoints);
     expect(report.waypoints).toBeGreaterThanOrEqual(2);
-    expect(report.encounters + report.autoDeclined).toBe(report.waypoints);
+    // Wegpunkt 2 öffnet die geschenkte Aussaat – keine Begegnung (27.5).
+    expect(report.sowings).toBe(1);
+    expect(report.encounters + report.autoDeclined + report.sowings).toBe(report.waypoints);
     expect(state.totalGrowth).toBeGreaterThanOrEqual(thresholdFor(state.waypoint));
     expect(state.totalGrowth).toBeLessThan(thresholdFor(state.waypoint + 1));
   });
 
-  it('die ersten Begegnungen sind festgelegt: Tier, Pflanze, Tier', () => {
+  it('die ersten Wegpunkte sind festgelegt: Tier, Aussaat (Geschenk), Tier', () => {
     const state = createInitialState(0, 42);
     tick(state, 4);
     expect(state.pendingEncounters.map((e) => e.type)).toEqual(['animal']);
-    tick(state, 1e-9 + (thresholdFor(2) - state.totalGrowth) / evaluate(state).growth);
-    expect(state.pendingEncounters.map((e) => e.type)).toEqual(['animal', 'plant']);
+    const two = tick(state, 1e-9 + (thresholdFor(2) - state.totalGrowth) / evaluate(state).growth);
+    expect(two).toMatchObject({ waypoints: 1, encounters: 0, sowings: 1 });
+    expect(state.pendingEncounters.map((e) => e.type)).toEqual(['animal']);
     // Keimling: nur Buschwindröschen und Frauenhaarmoos sind freigeschaltet.
-    expect([...state.pendingEncounters[1]!.cards].sort()).toEqual(['anemone', 'moss']);
+    expect([...state.cycle.sowing!.cards].sort()).toEqual(['anemone', 'moss']);
+    expect(state.cycle.sowings).toBe(1);
     tick(state, 1e-9 + (thresholdFor(3) - state.totalGrowth) / evaluate(state).growth);
-    expect(state.pendingEncounters.map((e) => e.type)).toEqual(['animal', 'plant', 'animal']);
+    expect(state.pendingEncounters.map((e) => e.type)).toEqual(['animal', 'animal']);
   });
 
-  it('Tierbegegnung ohne passende Art wird zu „Etwas keimt“', () => {
+  it('Tierbegegnung ohne passende Art: keine Pflanze als Ersatz, wie Ablehnen gutgeschrieben', () => {
     // Wegpunkt 1 (Tier, festgelegt), aber alle Keimling-Gäste leben schon hier.
     const state = createInitialState(0, 8);
     state.niches.roots.push('earthworm', 'vole', 'chanterelle');
@@ -121,13 +135,14 @@ describe('tick', () => {
     const report = tick(state, 1);
     expect(report).toEqual({
       waypoints: 1,
-      encounters: 1,
-      autoDeclined: 0,
+      encounters: 0,
+      autoDeclined: 1,
       declinedStackFull: 0,
-      declinedNoCards: 0,
-      declinedSeeds: 0,
+      declinedNoCards: 1,
+      declinedSeeds: declineReward(state),
       regulars: [],
       interludes: 0,
+      sowings: 0,
       interludesReached: 0,
       expired: [],
       seasons: [],
@@ -135,10 +150,10 @@ describe('tick', () => {
       wildwechsel: [],
       chapters: [],
     });
-    expect(state.pendingEncounters[0]!.type).toBe('plant');
+    expect(state.pendingEncounters).toEqual([]);
   });
 
-  it('drawEncounter: null, wenn weder Art noch Pflanze passt (wird wie Ablehnen gutgeschrieben)', () => {
+  it('drawEncounter: null, wenn keine Art passt (wird wie Ablehnen gutgeschrieben)', () => {
     const state = createInitialState(0, 8); // Stufe 0: nichts freigeschaltet
     state.waypoint = 10; // hinter den festgelegten Begegnungen
     const rng = state.rngState;
@@ -146,9 +161,9 @@ describe('tick', () => {
     expect(state.rngState).not.toBe(rng); // der Typ wurde gewürfelt
   });
 
-  it('Begegnungstypen folgen den Gewichten der Stufe (Tier, Pflanze, Ereignis, Gast)', () => {
+  it('Begegnungstypen folgen den Gewichten der Stufe (Tier, Ereignis, Gast)', () => {
     for (const stage of [2, 4]) {
-      const counts: Record<string, number> = { animal: 0, plant: 0, event: 0, visitor: 0 };
+      const counts: Record<string, number> = { animal: 0, event: 0, visitor: 0 };
       const n = 4000;
       for (let seed = 1; seed <= n; seed++) {
         const state = stateAt(stage, [], seed);
@@ -156,30 +171,14 @@ describe('tick', () => {
         counts[drawEncounter(state)!.type]!++;
       }
       // Alter Baum ohne Tiere: Es gibt Ereignisse und Gäste ohne Bedingungen. Frühling:
-      // „Etwas keimt“ × Faktor (der Ring ist leer).
+      // Faktoren der Jahreszeit (heute keine auf Begegnungen).
       const factors = SEASONS_BY_ID.get('spring')!.encounterFactors ?? {};
-      const weights = (['animal', 'plant', 'event', 'visitor'] as const).map((t, i) => ENCOUNTER_WEIGHTS[stage]![i]! * (factors[t] ?? 1));
+      const weights = (['animal', 'event', 'visitor'] as const).map((t, i) => ENCOUNTER_WEIGHTS[stage]![i]! * (factors[t] ?? 1));
       const total = weights.reduce((a, b) => a + b, 0);
-      (['animal', 'plant', 'event', 'visitor'] as const).forEach((type, i) => {
+      (['animal', 'event', 'visitor'] as const).forEach((type, i) => {
         expect(counts[type]! / n, `Stufe ${stage}, ${type}`).toBeCloseTo(weights[i]! / total, 1);
       });
     }
-  });
-
-  it('voller Pflanzring: „Etwas keimt“ kommt seltener (PLANT_WEIGHT_RING_FULL)', () => {
-    const stage = 3; // Junger Baum: 3 Pflanzplätze
-    const n = 4000;
-    let plants = 0;
-    for (let seed = 1; seed <= n; seed++) {
-      const state = stateAt(stage, [], seed);
-      state.waypoint = 10;
-      state.plants = ['hazel', 'hazel', 'birch'];
-      if (drawEncounter(state)!.type === 'plant') plants++;
-    }
-    const [animal, plant, event, visitor] = ENCOUNTER_WEIGHTS[stage]!;
-    const expected = (plant * PLANT_WEIGHT_RING_FULL) / (animal + plant * PLANT_WEIGHT_RING_FULL + event + visitor);
-    expect(plants / n).toBeCloseTo(expected, 1);
-    expect(plants / n).toBeLessThan(plant / (animal + plant + event + visitor) - 0.05);
   });
 
   it('Pflanzenkarten: was schon im Ring wächst, kommt seltener (PLANT_WEIGHT_IN_RING)', () => {
@@ -321,6 +320,9 @@ function expectSameRun([online, offline]: [GameState, GameState], digits = 6): v
   expect(offline.stage).toBe(online.stage);
   expect(offline.niches).toEqual(online.niches);
   expect(offline.pendingEncounters).toEqual(online.pendingEncounters);
+  // Aussaat (Phase 10, 2b): das Geschenk an Wegpunkt 2 öffnet online wie offline gleich.
+  expect(offline.cycle.sowing).toEqual(online.cycle.sowing);
+  expect(offline.cycle.sowings).toBe(online.cycle.sowings);
   expect(offline.rngState).toBe(online.rngState);
   expect(offline.cycle.elapsed).toBeCloseTo(online.cycle.elapsed, 6);
   expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, digits);
@@ -341,15 +343,16 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     expect(report.declinedStackFull).toBe(report.autoDeclined);
   });
 
-  it('gleich mit Begleitpflanzen (Versorgung < 1) und Pflanzen-Begegnungen', () => {
-    // Seed 301: Der Ring ist voll (halbes Pflanzengewicht), es muss trotzdem eine
-    // Pflanzen-Begegnung kommen – die Vorbedingung unten prüft das.
+  it('gleich mit Begleitpflanzen (Versorgung < 1) und geschenkter Aussaat an Wegpunkt 2', () => {
     const start = stateAt(2, ['bee'], 301);
     start.plants = ['fern', 'fern']; // Setzling: Wasser 3 < Bedarf 4 → V = 3/4
     expect(evaluate(start).supply).toBeLessThan(1);
     const { live, average } = runPairs(start, 3600);
-    for (const pair of [live, average]) {
-      expect(pair[0].pendingEncounters.some((e) => e.type === 'plant')).toBe(true);
+    for (const pair of [live, average]) expectSameRun(pair);
+    // Vom ersten Wegpunkt an: Die geschenkte Aussaat an Wegpunkt 2 öffnet online wie offline gleich.
+    const fresh = runPairs(createInitialState(0, 301), 600);
+    for (const pair of [fresh.live, fresh.average]) {
+      expect(pair[0].cycle.sowing).not.toBeNull();
       expectSameRun(pair);
     }
   });
@@ -465,7 +468,7 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     }
   });
 
-  it('auch mit Frame-Schritten (60 fps) und Entscheidungen dazwischen (Tiere, Pflanzen, Pflanzen setzen)', () => {
+  it('auch mit Frame-Schritten (60 fps) und Entscheidungen dazwischen (Tiere, Aussaat, Säen)', () => {
     const a = createInitialState(0, 7);
     const b = createInitialState(0, 7);
     // Beide spielen 10 Minuten; Entscheidungen jeweils nach derselben Spielzeit.
@@ -508,7 +511,7 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
 });
 
 describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
-  /** 2 Stunden spielen, alle 10 s entscheiden und Pflanzen setzen. */
+  /** 2 Stunden spielen, alle 10 s entscheiden und säen. */
   function play(seed: number, ambient: 'live' | 'off' = 'live'): GameState {
     const state = createInitialState(0, seed);
     for (let t = 0; t < 2 * 3600; t += 10) {
@@ -521,6 +524,8 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
   // Bis zum Wetter galt hier „genau wie vor dem Wetter“ (20 / 3892806722 / 145529 / 35187 /
   // 75,94). Seit Räuber und Beute (DESIGN_V2.md 22: Bestand, Überjagung, Massenjahre) rechnet
   // auch `off` anders – Wetter-Gewichte wirken in `off` nicht, darum nur noch festgelegte Werte.
+  // Phase 10, 2b (27.5): ohne „Etwas keimt“ – mehr Tierbegegnungen, Pflanzen nur noch über die
+  // Aussaat (vorher 21 / 165733899 / 159325 / 32553 / 76,25).
   it('ohne Wetter und Nacht (`off`): festgelegte Ergebnisse (seit Räuber und Beute)', () => {
     const state = play(2026, 'off');
     expect({
@@ -529,9 +534,11 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       totalGrowth: Math.round(state.totalGrowth),
       seeds: Math.round(state.seeds),
       harmony: Math.round(evaluate(state).harmony * 100) / 100,
-    }).toEqual({ waypoint: 21, rngState: 165733899, totalGrowth: 159325, seeds: 32553, harmony: 76.25 });
+    }).toEqual({ waypoint: 22, rngState: 1485770136, totalGrowth: 191379, seeds: 82883, harmony: 101.06 });
   });
 
+  // Neu aufgenommen in Phase 10, 2b (27.5): „Etwas keimt“ entfällt, die feste Strategie sät
+  // (erste Karte) – mehr Tiere, gemischte Pflanzen statt fünfmal Hasel, darum höhere Harmonie.
   it('liefert festgelegte Ergebnisse', () => {
     const state = play(2026);
     const ev = evaluate(state);
@@ -549,71 +556,95 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       harmony: Math.round(ev.harmony * 100) / 100,
     }).toMatchInlineSnapshot(`
       {
-        "communities": [],
-        "harmony": 77.74,
+        "communities": [
+          "caterpillar-watch",
+          "flower-hem",
+          "seed-couriers",
+        ],
+        "harmony": 117.99,
         "journal": [
           "earthworm",
-          "woodlouse",
-          "vole",
+          "chanterelle",
           "mole",
           "slug",
-          "chanterelle",
+          "vole",
+          "woodlouse",
           "bluetit",
           "oakmoth",
-          "flyagaric",
+          "tinder",
+          "peacock",
           "bee",
-          "fox",
+          "owl",
+          "barkbeetle",
+          "bat",
+          "squirrel",
+          "centipede",
+          "deer",
+          "robin",
           "woodpecker",
+          "stagbeetle",
+          "flyagaric",
+          "jay",
         ],
         "journalPlants": [
           "anemone",
-          "hazel",
-          "fern",
-          "rowan",
-          "nettle",
+          "bramble",
+          "strawberry",
           "birch",
+          "hazel",
+          "nettle",
+          "rowan",
         ],
         "niches": {
           "bark": [
             "woodpecker",
+            "barkbeetle",
           ],
           "crown": [
             "bluetit",
             "oakmoth",
+            "squirrel",
+            "jay",
           ],
           "deadwood": [],
           "edge": [
+            "peacock",
             "bee",
-            "fox",
+            "deer",
           ],
-          "hollows": [],
+          "hollows": [
+            "owl",
+            "bat",
+            "stagbeetle",
+          ],
           "litter": [
+            "centipede",
             "woodlouse",
-            "slug",
+            "robin",
           ],
           "meadow": [],
           "pond": [],
           "roots": [
-            "chanterelle",
-            "vole",
             "flyagaric",
+            "mole",
+            "chanterelle",
           ],
           "wall": [],
         },
         "plants": [
-          "nettle",
-          "hazel",
-          "hazel",
+          "anemone",
+          "bramble",
+          "strawberry",
           "birch",
           "hazel",
-          "hazel",
-          "hazel",
+          "nettle",
+          "rowan",
         ],
-        "rngState": 3260971052,
-        "seeds": 38750,
+        "rngState": 726052072,
+        "seeds": 152357,
         "stage": 5,
-        "totalGrowth": 152481,
-        "waypoint": 21,
+        "totalGrowth": 259184,
+        "waypoint": 24,
       }
     `);
   });

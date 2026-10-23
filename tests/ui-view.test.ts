@@ -18,7 +18,6 @@ import {
   queuedText,
   replaceHint,
   rerollLabel,
-  seedsLine,
   swapHint,
   toneOf,
   toneSymbol,
@@ -208,12 +207,5 @@ describe('Pflanzen', () => {
   it('Ersetzen-Hinweis für den Pflanzring', () => {
     expect(swapHint('Pflanzring voll', 'Hasel')).toBe('Pflanzring voll – ersetzt Hasel');
     expect(swapHint('Pflanzring voll', undefined)).toBe('Pflanzring voll');
-  });
-
-  it('Samenzeile der Auswahl: exakter Vergleich, fehlende Menge aufgerundet', () => {
-    expect(seedsLine(137.5, 137.18)).toBe('Du hast 137 🌰');
-    expect(seedsLine(137.1, 137.18)).toBe('Du hast 137 🌰 – noch 1 🌰 bis zur nächsten Pflanze');
-    expect(seedsLine(10.9, 72.2)).toBe('Du hast 10 🌰 – noch 62 🌰 bis zur nächsten Pflanze');
-    expect(seedsLine(-3, 20)).toBe('Du hast 0 🌰 – noch 23 🌰 bis zur nächsten Pflanze');
   });
 });

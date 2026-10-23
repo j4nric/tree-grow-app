@@ -17,9 +17,10 @@ import {
   type DailyGoalKind,
   type DailyGoalTemplate,
 } from '../content/daily';
-import { MAX_PENDING_ENCOUNTERS } from '../content/encounters';
+import { MAX_PENDING_ENCOUNTERS, SCRIPTED_ENCOUNTERS } from '../content/encounters';
 import { PLANTS_BY_ID } from '../content/plants';
 import { RESEARCH } from '../content/research';
+import { SOWING_MIN_STAGE } from '../content/sowing';
 import { SEASONS, SEASON_IDS, type SeasonId } from '../content/seasons';
 import { SPECIES_BY_ID } from '../content/species';
 import { GENERA, type Genus } from '../content/types';
@@ -29,10 +30,10 @@ import {
   evaluate,
   evaluateEcosystem,
   harmonyIncome,
-  plantCost,
   plantSlots,
   seedSeconds,
   seedSecondsRate,
+  sowingCostAt,
   thresholdFor,
   type Evaluation,
 } from './formulas';
@@ -54,7 +55,7 @@ import { drawAnimals, researchBlocker } from './tick';
  *      zurücksetzen, wenn ein Tag fehlt),
  *   2. führt den Fortschritt nach (Zustände und aktiv gespielte Zeit),
  *   3. erfüllt und belohnt fertige Ziele (Samen-Sekunden bzw. seltene Begegnung, Serie).
- * Aktionen (Begegnung entscheiden, Pflanze setzen, Pflege kaufen) zählen schon in tick.ts
+ * Aktionen (Begegnung entscheiden, aus einer Aussaat setzen, Forschung) zählen schon in tick.ts
  * (countDailyAction, core/daily-actions.ts).
  */
 
@@ -133,8 +134,17 @@ interface GenerationContext {
   budget: number;
   /** Freie Plätze im Pflanzring (abzüglich geplanter Pflanzen). */
   ringFree: number;
-  /** Bereits geplante Pflanzen (für die Kosten weiterer). */
+  /** Bereits geplante Pflanzen bzw. Aussaaten (für die Kosten weiterer). */
   plantsPlanned: number;
+}
+
+/**
+ * Preis der `i`-ten weiteren Aussaat (0 = die nächste) nach den schon geplanten – mit dem
+ * Zähler, der Forschung und der Jahreszeit von jetzt (DESIGN_V2.md 27.6).
+ */
+function plannedSowingCost(ctx: GenerationContext, i: number): number {
+  const c = ctx.state.cycle;
+  return sowingCostAt(c.sowings + ctx.plantsPlanned + i, c.research, c.elapsed);
 }
 
 /** Abgerundet auf zwei geltende Ziffern (≥ 1): 384 → 380, 7,6 → 7. */
@@ -214,17 +224,22 @@ function propose(template: DailyGoalTemplate, ctx: GenerationContext, rng: RngHo
       return { goal: goal('seeds', roundTarget(rate * DAILY_PRODUCE_SECONDS)), cost: 0, plants: 0 };
     }
     case 'decide': {
-      // Offene Begegnungen plus Wegpunkte, die im Besuch zur jetzigen Rate sicher kommen.
+      // Offene Begegnungen plus Wegpunkte, die im Besuch zur jetzigen Rate sicher kommen. Der
+      // Wegpunkt der geschenkten Aussaat (27.5) zählt nicht – dort kommt evtl. keine Begegnung.
       let n = state.pendingEncounters.length;
       const reach = state.totalGrowth + growthRate * window;
-      for (let k = state.waypoint + 1; k <= WAYPOINT_COUNT && n < DAILY_MAX_DECIDE && thresholdFor(k) <= reach; k++) n++;
+      for (let k = state.waypoint + 1; k <= WAYPOINT_COUNT && n < DAILY_MAX_DECIDE && thresholdFor(k) <= reach; k++) {
+        if (SCRIPTED_ENCOUNTERS[k - 1] !== 'sowing') n++;
+      }
       n = Math.min(DAILY_MAX_DECIDE, n);
       return n >= 1 ? { goal: goal('decide', n), cost: 0, plants: 0 } : null;
     }
     case 'plant': {
-      const cost = plantCost(state.plants.length + ctx.plantsPlanned);
-      const unlocked = [...PLANTS_BY_ID.values()].some((p) => p.unlock <= state.stage);
-      if (!unlocked || ctx.ringFree < 1 || cost > ctx.budget) return null;
+      // „Säe einmal aus und setze die Pflanze“ (27.5): eine Aussaat muss bezahlbar sein; bei
+      // vollem Ring ersetzt die Pflanze eine andere (Säen geht immer ab dem Keimling).
+      const cost = plannedSowingCost(ctx, 0);
+      const unlocked = state.stage >= SOWING_MIN_STAGE && [...PLANTS_BY_ID.values()].some((p) => p.unlock <= state.stage);
+      if (!unlocked || cost > ctx.budget) return null;
       return { goal: goal('plant', 1), cost, plants: 1 };
     }
     case 'care': {
@@ -272,8 +287,8 @@ function propose(template: DailyGoalTemplate, ctx: GenerationContext, rng: RngHo
       return { goal: goal('satisfaction', pick.target, { genus: pick.genus }), cost: 0, plants: 0 };
     }
     case 'community': {
-      // Unentdeckte Lebensgemeinschaften, denen nur noch Pflanzen fehlen, die jetzt gesetzt
-      // werden können (freigeschaltet, Platz im Ring, Samen reichen).
+      // Unentdeckte Lebensgemeinschaften, denen nur noch Pflanzen fehlen, die jetzt gesät
+      // werden können (freigeschaltet, Platz im Ring, Samen reichen für so viele Aussaaten).
       const known = new Set(state.meta.journal.communities);
       const options: { id: string; plants: number; cost: number }[] = [];
       for (const c of ev.communities) {
@@ -282,7 +297,7 @@ function propose(template: DailyGoalTemplate, ctx: GenerationContext, rng: RngHo
         const k = c.missing.length;
         if (!plantable || k > ctx.ringFree) continue;
         let cost = 0;
-        for (let i = 0; i < k; i++) cost += plantCost(state.plants.length + ctx.plantsPlanned + i);
+        for (let i = 0; i < k; i++) cost += plannedSowingCost(ctx, i);
         if (cost <= ctx.budget) options.push({ id: c.id, plants: k, cost });
       }
       if (options.length === 0) return null;

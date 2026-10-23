@@ -45,16 +45,20 @@ export const MAX_HARMONY_POINTS = 1e12;
  */
 export const MAX_FOREST_MEMORY = 1000;
 
-/** Begegnungen mit Karten zum Auswählen (Tier- bzw. Pflanzenkarten, neu würfelbar). */
-export type CardEncounterType = 'animal' | 'plant';
+/**
+ * Begegnungen mit Karten zum Auswählen (Tierkarten, neu würfelbar). Bis v16 auch „Etwas
+ * keimt“ (`'plant'`) – seit v17 nie gespeichert; ältere Stände wandelt das Laden in eine
+ * offene Aussaat um (save.ts, DESIGN_V2.md 27.9 Schritt 4).
+ */
+export type CardEncounterType = 'animal';
 
-/** Alle Begegnungstypen (DESIGN_V2.md 7.1). */
+/** Alle Begegnungstypen (DESIGN_V2.md 7.1, 27.5: Tiere, Ereignisse, Gäste). */
 export type PendingEncounterType = CardEncounterType | 'event' | 'visitor';
 
 export interface PendingEncounter {
   /**
-   * „Tier zieht ein“ (Karten = Art-IDs), „Etwas keimt“ (Karten = Pflanzen-IDs),
-   * Ereignis (cards = [Ereignis-ID]) oder Durchreisende (cards = [Gast-ID]).
+   * „Tier zieht ein“ (Karten = Art-IDs), Ereignis (cards = [Ereignis-ID]) oder Durchreisende
+   * (cards = [Gast-ID]).
    */
   type: PendingEncounterType;
   /** IDs der angebotenen Karten (1–3, verschieden; bei Ereignis und Gast genau eine). */
@@ -69,9 +73,9 @@ export interface PendingEncounter {
   via?: { card: number; corridor: string };
 }
 
-/** Ist das eine Begegnung mit Tier- oder Pflanzenkarten? */
+/** Ist das eine Begegnung mit Tierkarten? */
 export function isCardEncounter(type: PendingEncounterType | undefined): type is CardEncounterType {
-  return type === 'animal' || type === 'plant';
+  return type === 'animal';
 }
 
 /** Zyklus-Bonus aus einer Ereignis-Option (`cycle`). */
@@ -139,13 +143,16 @@ export interface LifetimeStats {
   completedCyclesGrowth: number;
   /** Höchste Harmonie aller Zyklen (wie `cycle.maxHarmony`, nie kleiner). */
   bestHarmony: number;
-  /** Angenommene Begegnungen: Tier- oder Pflanzenkarte gewählt (chooseCard). */
+  /** Angenommene Begegnungen: Tierkarte gewählt (chooseCard; bis Phase 10 auch Pflanzenkarten). */
   cardsChosen: number;
   /** Entschiedene Ereignisse (chooseEventOption). */
   eventsDecided: number;
   /** Bewirtete Gäste (hostVisitor). */
   visitorsHosted: number;
-  /** Für Samen gesetzte Pflanzen (plantSeed; gekeimte zählen als Karte). */
+  /**
+   * Gesetzte Pflanzen aus Aussaaten (chooseSowing, auch geschenkte; bis Phase 10: für Samen
+   * gesetzte Pflanzen, gekeimte zählten als Karte).
+   */
   plantsPlanted: number;
   /**
    * Erforschte Knoten (research; bis v16: gekaufte Pflege-Ränge). Name bleibt wegen des
@@ -326,7 +333,7 @@ export interface CycleState {
   number: number;
   /**
    * Höchste Harmonie dieses Zyklus (H_max, nie unter 0). Wird nach jeder Änderung am
-   * Ökosystem nachgeführt (Karte wählen, Pflanze setzen, Stammgäste, Stufenwechsel, Laden).
+   * Ökosystem nachgeführt (Karte wählen, Aussaat setzen, Stammgäste, Stufenwechsel, Laden).
    */
   maxHarmony: number;
   /**
@@ -362,7 +369,7 @@ export interface CycleState {
   research: string[];
   /**
    * Aussaaten dieses Zyklus (seit v17, DESIGN_V2.md 27.6): bezahlte und die geschenkte erste;
-   * die Vogelsaat zählt nicht. Ganzzahlig, 0 … MAX_SOWINGS. Logik: Phase 10, 2b.
+   * die Vogelsaat zählt nicht. Ganzzahlig, 0 … MAX_SOWINGS. Zählt beim Öffnen (sow).
    */
   sowings: number;
   /** Offene Aussaat (höchstens eine): Karten = Pflanzen-IDs, Würfe dieser Aussaat. Sonst null. */
@@ -386,7 +393,7 @@ export interface GameState {
   version: 17;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
-  /** 🌰 Samen – kaufen Pflanzen, Gäste und Neu würfeln. */
+  /** 🌰 Samen – kaufen Aussaaten, Gäste und Neu würfeln. */
   seeds: number;
   /**
    * ⚖️ Harmonie-Vorrat (seit v17, DESIGN_V2.md 27.3): Forschungswährung, Zyklus-Wert wie
@@ -431,7 +438,7 @@ export interface GameState {
     journal: {
       /** Arten, die schon einmal im Ökosystem gelebt haben. */
       species: string[];
-      /** Pflanzen, die schon einmal im Pflanzring gewachsen sind (gekeimt oder gesetzt). */
+      /** Pflanzen, die schon einmal im Pflanzring gewachsen sind (gesetzt aus einer Aussaat). */
       plants: string[];
       /** Lebensgemeinschaften, die schon einmal bestanden haben (entdeckt). */
       communities: string[];

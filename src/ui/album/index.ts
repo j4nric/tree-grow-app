@@ -32,6 +32,7 @@ import { createEcoRefresh } from './eco-refresh';
 import { createFloats } from './floats';
 import { closeNotes, onNoteChange, openNote, openNoteId } from './note';
 import { createNoteStack } from './note-stack';
+import { stackHeadOf } from './note-stack-view';
 import {
   TAB_IDS,
   TAB_LABELS,
@@ -68,7 +69,7 @@ import { createSupplyBar } from './supply-bar';
 import { createTapeLabel } from './tape-label';
 import type { AlbumDeps, AlbumPart } from './types';
 import type { NotifyOptions } from './stamp-rules';
-import type { StageBannerView } from '../adapters';
+import { waitingNotes, type StageBannerView } from '../adapters';
 import { returnStamp, type ReturnReportView } from '../return-report-view';
 
 export type { AlbumDeps, AlbumActions, AlbumPart } from './types';
@@ -89,8 +90,12 @@ export interface Album {
   noteText(text: string): void;
   /** „+12 🌰“ über dem Samen-Etikett. */
   floatSeeds(amount: number): void;
-  /** Gesetzte Pflanze: Kosten und Name schweben auf. */
-  plantFeedback(cost: number, plantId: string): void;
+  /** Aus einer Aussaat gesetzte Pflanze: der Name schwebt über dem Pflanzring auf. */
+  plantFeedback(plantId: string): void;
+  /** „−35 🌰“ über dem Samen-Etikett (z. B. Säen). */
+  floatSpent(amount: number): void;
+  /** U:Begegnung aufschlagen (z. B. nach „Säen“: die offene Aussaat liegt oben). */
+  openEncounters(): void;
   /** Spielstand ersetzt (Löschen, Import): Notizen zu, Bestätigungen zurück, alles neu. */
   replaced(): void;
   /** Stand eines anderen Geräts übernommen; `headChanged`: andere vorderste Begegnung. */
@@ -126,8 +131,6 @@ export interface Album {
   encounterResolved(): void;
   /** U:Begegnung zuschlagen (z. B. Neuer Zyklus, anderer Stand übernommen). */
   closeEncounters(): void;
-  /** U:Pflanze setzen zuschlagen (nach dem Setzen). */
-  closePlantPicker(): void;
 }
 
 /** Mobil: Liegt die Reiterleiste beim Reiterwechsel tiefer (Anteil der Höhe), rückt sie nach oben. */
@@ -259,9 +262,9 @@ export function createAlbum(deps: AlbumDeps): Album {
   function placeStamps(): void {
     stampPlacement.place();
   }
-  // Reiter Nischen (Schritt 5): „Pflanze setzen“ blättert um, „Zur Pflege“ über den Reiter Pflege.
+  // Reiter Nischen (Schritt 5): „Säen“ öffnet die Aussaat (main.ts), „Zur Pflege“ über den Reiter Pflege.
   tabs.niches.connect({
-    openPlantPicker: () => dispatch({ type: 'open', page: { kind: 'plant-picker' } }),
+    sow: () => deps.actions.sow(),
     showCare(id) {
       dispatch({ type: 'tab', tab: 'care' });
       tabs.care.reveal(id);
@@ -684,8 +687,8 @@ export function createAlbum(deps: AlbumDeps): Album {
    * Navigation.
    */
   function refreshPages(now: number): void {
-    const pending = deps.state().pendingEncounters;
-    noteStack.update(pending.length, pending[0]);
+    const state = deps.state();
+    noteStack.update(waitingNotes(state), stackHeadOf(state));
     noteStack.setAway(nav.stack[nav.stack.length - 1]?.kind === 'encounter');
     for (const id of TAB_IDS) {
       const tab: TabPage = tabs[id];
@@ -722,19 +725,20 @@ export function createAlbum(deps: AlbumDeps): Album {
     notify,
     showBanner: (view) => stageBanner.show(view),
     floatSeeds: (amount) => floats.seeds(amount),
-    plantFeedback: (cost, plantId) => floats.plant(cost, plantId),
+    plantFeedback: (plantId) => floats.plant(plantId),
+    floatSpent: (amount) => floats.spent(amount),
+    openEncounters: () => dispatch({ type: 'open', page: { kind: 'encounter' } }),
     refresh(now) {
       ecoRefresh.refresh(now);
       refreshPages(now);
     },
     invalidate(parts) {
       ecoRefresh.invalidate(parts);
-      // Seiten (auch U:Begegnung und U:Pflanze setzen) beim nächsten Auffrischen sofort neu.
+      // Seiten (auch U:Begegnung) beim nächsten Auffrischen sofort neu.
       pagesDirty = true;
     },
     encounterResolved: () => encounterPage.resolved(),
     closeEncounters: () => closeKind('encounter'),
-    closePlantPicker: () => closeKind('plant-picker'),
     focusCycle() {
       if (nav.stack.some((p) => p.kind === 'cycle')) {
         // Zurück zu „Ziele“; danach Fokus auf deren Überschrift statt auf „Vorbereiten ›“.
@@ -777,7 +781,6 @@ export function createAlbum(deps: AlbumDeps): Album {
       albumTarget.disarm();
       for (const sub of subpages.values()) sub.reset?.();
       closeKind('encounter');
-      closeKind('plant-picker');
       pagesDirty = true;
     },
     adopted(headChanged) {

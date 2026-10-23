@@ -8,11 +8,14 @@
  * Nach einer Entscheidung kommt die nächste ohne neues Umblättern (der Inhalt wird
  * überblendet), bis keine mehr wartet – dann blättert die Seite von selbst zurück.
  *
- * Reine Darstellung: Die Karten kommen aus `toEncounterView`, der Wildwechsel-Weg aus
+ * Die offene Aussaat (DESIGN_V2.md 27.6) liegt obenauf und zeigt sich hier wie eine Begegnung
+ * mit Pflanzenkarten („Zurücklegen“ statt „Ablehnen“).
+ *
+ * Reine Darstellung: Die Karten kommen aus `toHeadView`, der Wildwechsel-Weg aus
  * `deps.encounterMark()`; Entscheidungen gehen über `deps.actions.encounter` an main.ts.
  */
 import { evaluate } from '../../../core/formulas';
-import { encounterActionKey, toEncounterView } from '../../adapters';
+import { headActionKey, toHeadView, waitingNotes } from '../../adapters';
 import { createEncounterSheet } from '../../encounter-cards';
 import { restartAnimation, prefersReducedMotion } from '../../feedback';
 import { applyWildwechselMark } from '../../wildwechsel-view';
@@ -81,7 +84,7 @@ export function createEncounterPage(env: PageEnv): EncounterPage {
   function refresh(): void {
     if (!opened) return;
     const state = deps.state();
-    const pending = state.pendingEncounters.length;
+    const pending = waitingNotes(state);
     if (pending === 0) {
       if (!leaving) {
         leaving = true;
@@ -92,9 +95,9 @@ export function createEncounterPage(env: PageEnv): EncounterPage {
     }
     leaving = false;
     const queued = pending - 1;
-    const actionKey = encounterActionKey(state, 0);
+    const actionKey = headActionKey(state);
     if (!dirty && actionKey === shownActionKey && queued === shownQueued && serial === shownSerial) return;
-    const view = toEncounterView(state, 0, evaluate(state));
+    const view = toHeadView(state, evaluate(state));
     if (!view) return;
     // Wildwechsel (24.6): Weg der vordersten Begegnung (main.ts weiß, wie die Karte kam).
     applyWildwechselMark(view, deps.encounterMark());

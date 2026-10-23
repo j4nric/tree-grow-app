@@ -123,9 +123,9 @@ export type Effect =
   | { kind: 'ability'; id: AbilityId };
 
 /**
- * Begegnungstypen (DESIGN_V2.md, Abschnitt 7). Reihenfolge = Spalten in
- * ENCOUNTER_WEIGHTS: „Tier zieht ein“, „Etwas keimt“, Ereignisse (events.ts) und
- * Durchreisende (visitors.ts).
+ * Begegnungstypen (DESIGN_V2.md, Abschnitt 7 und 27.5). Reihenfolge = Spalten in
+ * ENCOUNTER_WEIGHTS: „Tier zieht ein“, Ereignisse (events.ts) und Durchreisende
+ * (visitors.ts). Pflanzen kommen seit Phase 10 nur über die Aussaat (sowing.ts).
  */
-export type EncounterType = 'animal' | 'plant' | 'event' | 'visitor';
-export const ENCOUNTER_TYPES: readonly EncounterType[] = ['animal', 'plant', 'event', 'visitor'];
+export type EncounterType = 'animal' | 'event' | 'visitor';
+export const ENCOUNTER_TYPES: readonly EncounterType[] = ['animal', 'event', 'visitor'];

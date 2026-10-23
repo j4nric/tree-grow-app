@@ -1,7 +1,7 @@
 import { NOON_PHASE } from './content/daytime';
 import { checkAchievements } from './core/achievements';
 import { dayKeyOf, updateDaily, type DailyUpdateOptions } from './core/daily';
-import { dayPhaseAt, growth, nextPlantCost, type Evaluation } from './core/formulas';
+import { dayPhaseAt, growth, sowingCost, type Evaluation } from './core/formulas';
 import { SAVE_KEY, clearStorage, codeFromJson, exportCode, importCode, isNewerSave, loadFromStorage, saveToStorage, storedSaveIsNewer } from './core/save';
 import { sceneSeason } from './core/season';
 import { sceneWeather } from './core/weather';
@@ -13,8 +13,11 @@ import {
   declineEncounter,
   farewellVisitor,
   hostVisitor,
-  plantSeed,
+  chooseSowing,
+  discardSowing,
   rerollEncounter,
+  rerollSowing,
+  sow,
   research,
   newCycleBlocker,
   simulateOffline,
@@ -94,6 +97,9 @@ const DAILY_CHECK_MS = 1000;
 const syncUrl =
   readSyncUrl((window as unknown as { __VSZW_SYNC_URL__?: unknown }).__VSZW_SYNC_URL__) ?? readSyncUrl(import.meta.env.VITE_SYNC_URL);
 
+/** Wofür eine Aktion lief (für abweichende Fehlertexte). */
+type ActionKind = PendingEncounterType | 'research' | 'sowing';
+
 const ERROR_TEXTS: Record<ActionError, string> = {
   'no-encounter': 'Diese Begegnung gibt es nicht mehr.',
   'no-card': 'Diese Karte gibt es nicht mehr.',
@@ -105,9 +111,9 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'no-cards': 'Keine passenden Tiere.',
   'no-alternatives': 'Keine anderen Tiere verfügbar.',
   'would-evict': 'Dann verlören Höhlenbewohner ihren Platz.',
-  'ring-full': 'Kein Platz mehr für Pflanzen.',
-  'unknown-plant': 'Diese Pflanze gibt es nicht.',
-  locked: 'Diese Pflanze wächst hier noch nicht.',
+  'ring-full': 'Der Pflanzring ist voll – wähle, welche Pflanze weicht.',
+  'no-sowing': 'Es ist keine Aussaat offen.',
+  open: 'Es ist schon eine Aussaat offen.',
   'cycle-locked': CYCLE_LOCKED_TEXT,
   'tree-locked': 'Diese Baumart kannst du noch nicht wählen.',
   'unknown-species': 'Diese Art gibt es nicht.',
@@ -124,12 +130,13 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'already-active': 'Dieser Gast rastet schon hier.',
 };
 
-/** Abweichende Texte, wenn die Aktion eine Pflanzenbegegnung („Etwas keimt“) betraf. */
-const PLANT_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
+/** Abweichende Texte, wenn die Aktion die Aussaat betraf (DESIGN_V2.md 27.6). */
+const SOWING_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
   'no-cards': 'Keine passenden Pflanzen.',
   'no-alternatives': 'Keine anderen Pflanzen verfügbar.',
   'invalid-replace': 'Diese Pflanze kann gerade nicht weichen.',
   closed: 'Der Pflanzring ist noch verschlossen.',
+  stage: 'Säen geht erst, wenn der Pflanzring offen ist.',
 };
 
 /** Abweichende Texte für die Forschung (bezahlt mit ⚖️ statt 🌰). */
@@ -137,8 +144,8 @@ const RESEARCH_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
   'too-expensive': 'Nicht genug Harmonie im Vorrat.',
 };
 
-function errorText(error: ActionError, type: PendingEncounterType | 'research' | undefined): string {
-  const special = type === 'plant' ? PLANT_ERROR_TEXTS[error] : type === 'research' ? RESEARCH_ERROR_TEXTS[error] : undefined;
+function errorText(error: ActionError, type: ActionKind | undefined): string {
+  const special = type === 'sowing' ? SOWING_ERROR_TEXTS[error] : type === 'research' ? RESEARCH_ERROR_TEXTS[error] : undefined;
   return special ?? ERROR_TEXTS[error];
 }
 
@@ -314,6 +321,12 @@ const album = createAlbum({
   actions: {
     encounter: {
       onChoose: (cardIndex, replaceId) => {
+        // Die offene Aussaat liegt obenauf (U:Begegnung zeigt sie zuerst, 27.12).
+        if (state.cycle.sowing) {
+          const result = chooseSowing(state, cardIndex, replaceId);
+          if (act(result, true, 'sowing') && result.ok && result.planted) album.plantFeedback(result.planted);
+          return;
+        }
         const type = state.pendingEncounters[0]?.type;
         // Ereignis: Karte = Option; Gast: Karte 0 = bewirten, 1 = ziehen lassen.
         const result =
@@ -328,14 +341,20 @@ const album = createAlbum({
       },
       onDecline: () => {
         const before = state.seeds;
-        if (act(declineEncounter(state, 0), true)) album.floatSeeds(state.seeds - before);
+        const sowing = state.cycle.sowing !== null;
+        const result = sowing ? discardSowing(state) : declineEncounter(state, 0);
+        if (act(result, true, sowing ? 'sowing' : undefined)) album.floatSeeds(state.seeds - before);
       },
       onReroll: () => {
+        if (state.cycle.sowing) {
+          act(rerollSowing(state), false, 'sowing');
+          return;
+        }
         const type = state.pendingEncounters[0]?.type;
         act(rerollEncounter(state, 0), false, type);
       },
     },
-    plant,
+    sow: sowNow,
     // Reiter „Pflege“ (Notliste der Forschung bis Phase 10, 4a): erforscht einen Knoten.
     buyCare: (id) => act(research(state, id), false, 'research'),
     newCycle,
@@ -394,7 +413,7 @@ function refreshSceneEcosystem(ev: Readonly<Evaluation>, rebuilt: boolean): void
  * `resolves`: Die Begegnung an der Spitze ist bei Erfolg erledigt.
  */
 /** `lead`: eigener Hinweis der Aktion (z. B. Korridor gebaut), vor den übrigen im selben Text. */
-function act(result: ActionResult, resolves: boolean, type?: PendingEncounterType | 'research', lead = ''): boolean {
+function act(result: ActionResult, resolves: boolean, type?: ActionKind, lead = ''): boolean {
   let unlocked: string[] = [];
   let dailyText = '';
   if (result.ok) {
@@ -491,14 +510,17 @@ function joinNotes(...parts: (string | null | undefined)[]): string {
   return joinSentences(...parts);
 }
 
-/** „Pflanze setzen“: Samen ausgeben, Auswahl schließen, kurz zeigen, was passiert ist. */
-function plant(plantId: string): void {
-  const cost = nextPlantCost(state);
-  const result = plantSeed(state, plantId);
-  // Bei Erfolg schließt die Auswahl – vorher, damit act() sie nicht neu aufbaut.
-  if (result.ok) album.closePlantPicker();
-  if (!act(result, false)) return;
-  album.plantFeedback(cost, plantId);
+/**
+ * „🌱 Säen“ (DESIGN_V2.md 27.6): Ist schon eine Aussaat offen, nur U:Begegnung aufschlagen;
+ * sonst säen (Samen ausgeben, Karten ziehen) und dann aufschlagen.
+ */
+function sowNow(): void {
+  if (!state.cycle.sowing) {
+    const cost = sowingCost(state);
+    if (!act(sow(state), false, 'sowing')) return;
+    album.floatSpent(cost);
+  }
+  album.openEncounters();
 }
 
 /**
@@ -524,7 +546,6 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   // Neuer Wald gegründet: ein Eichelhäher trägt die Eichel durchs Bild (Hähersaat, 24.11).
   if (result.founded) scene.jayFlight = { startedAt: performance.now() / 1000 };
   album.closeEncounters();
-  album.closePlantPicker();
   album.encounterResolved();
   // Freischaltung zuerst (sie fasst die Kapitel des Heimatwalds zusammen), dann neue Kapitel
   // des alten Waldes („Uralt geworden“) – beide im Hinweis des Zyklus statt als eigener Stempel.
@@ -595,13 +616,15 @@ function replaceState(next: GameState): void {
  * Begegnungs-Karten nur, wenn oben noch dieselbe Begegnung liegt.
  */
 function adoptState(next: GameState): void {
-  const head = JSON.stringify(state.pendingEncounters[0] ?? null);
+  // Vorderster Zettel: die offene Aussaat (liegt obenauf) und die erste Begegnung.
+  const headOf = () => JSON.stringify([state.cycle.sowing, state.pendingEncounters[0] ?? null]);
+  const head = headOf();
   state = next;
   chapterMark = chronicleMark(state);
   scene.cycleTransition = undefined;
   scene.jayFlight = undefined;
   shownStage = state.stage;
-  album.adopted(JSON.stringify(state.pendingEncounters[0] ?? null) !== head);
+  album.adopted(headOf() !== head);
   catchUp();
   persist();
   album.refresh(performance.now());
@@ -735,8 +758,8 @@ function frame(now: number): void {
     persist();
     invalidate('encounter', 'eco');
   }
-  // Neue Begegnung wartet: ein weiches „Pling“.
-  if (report.encounters > 0) sound.cue('encounter');
+  // Neue Begegnung (oder die geschenkte Aussaat an Wegpunkt 2) wartet: ein weiches „Pling“.
+  if (report.encounters > 0 || report.sowings > 0) sound.cue('encounter');
   // Neue Kapitel der Chronik (Erster Schnee, Kennart, Voller Einklang): sofort speichern, Stempel.
   let chapterText: string | null = null;
   if (report.chapters.length > 0) {

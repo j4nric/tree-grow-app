@@ -115,7 +115,8 @@ describe('toJournalStats (Reiter „Statistik“)', () => {
     expect(statOf(stats, 'total-time').value).toBe('2 Tage 3 Std.');
     expect(statOf(stats, 'total-growth').value).toBe(`${formatNumber(1_234_567)} 🌿`);
     expect(statOf(stats, 'total-harmony').value).toBe('88 ⚖️');
-    expect(statOf(stats, 'total-cards')).toMatchObject({ value: '42', detail: 'Tier- und Pflanzenkarten gewählt' });
+    expect(statOf(stats, 'total-cards')).toMatchObject({ value: '42', detail: 'Tierkarten gewählt' });
+    expect(statOf(stats, 'total-plants')).toMatchObject({ label: 'Pflanzen gesät', detail: 'aus Aussaaten gesetzt' });
     expect(statOf(stats, 'total-events').value).toBe('7');
     expect(statOf(stats, 'total-visitors').value).toBe('3');
     expect(statOf(stats, 'total-plants').value).toBe('12.345');

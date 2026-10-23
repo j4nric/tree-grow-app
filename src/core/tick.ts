@@ -8,9 +8,9 @@ import {
   INTERLUDE_WEIGHTS,
   MAX_PENDING_ENCOUNTERS,
   PLANT_WEIGHT_IN_RING,
-  PLANT_WEIGHT_RING_FULL,
   SCRIPTED_ENCOUNTERS,
 } from '../content/encounters';
+import { MAX_SOWINGS, SOWING_MIN_STAGE } from '../content/sowing';
 import { RESEARCH_BY_ID, type ResearchNode } from '../content/research';
 import { EVENTS, EVENTS_BY_ID, type GameEvent } from '../content/events';
 import { WEATHER_EVENT_FACTORS } from '../content/predation';
@@ -52,22 +52,25 @@ import {
   evaluateEcosystem,
   evaluate,
   harmonyIncome,
-  nextPlantCost,
   nicheSlots,
   nichesAfterChoice,
-  plantSlots,
   rarityWeights,
   regularSlots,
   regularSlotsOf,
   rerollCost,
   resolveChoice,
+  resolveSowing,
   seedSeconds,
   slotBonuses,
+  sowingCardCount,
+  sowingCost,
+  sowingRerollCost,
   speciesAppears,
   stageForWaypoint,
   thresholdFor,
   type ChoiceError,
   type Evaluation,
+  type SowingChoiceError,
   type MemoryHarmonyBonus,
 } from './formulas';
 import { checkAchievements } from './achievements';
@@ -114,6 +117,7 @@ import {
   type LifetimeStats,
   type FirstSeenJournal,
   type PendingEncounter,
+  type SowingState,
 } from './state';
 
 /** Offline-Fortschritt wird auf diese Dauer begrenzt. */
@@ -129,7 +133,7 @@ export interface TickReport {
   autoDeclined: number;
   /** Davon abgelehnt, weil die Warteschlange voll war. */
   declinedStackFull: number;
-  /** Davon abgelehnt, weil weder Art noch Pflanze in Frage kam. */
+  /** Davon abgelehnt, weil keine Art in Frage kam. */
   declinedNoCards: number;
   /** Summe der für automatisch abgelehnte Begegnungen gutgeschriebenen Samen (Rate je Wegpunkt). */
   declinedSeeds: number;
@@ -137,6 +141,11 @@ export interface TickReport {
   regulars: string[];
   /** Am Zwischenhalt (ab Hain) in die Warteschlange gelegte Ereignisse und Gäste. */
   interludes: number;
+  /**
+   * Am Wegpunkt geöffnete geschenkte Aussaaten (Wegpunkt 2, DESIGN_V2.md 27.5): 0 oder 1.
+   * Keine Begegnung – zählt nicht in `encounters`.
+   */
+  sowings: number;
   /**
    * Erreichte Zwischenhalte – auch ohne Ergebnis. Auch dann ändert sich der Spielstand
    * (Zufall, `cycle.interlude`): main.ts speichert sofort, damit Neuladen nichts neu würfelt.
@@ -228,6 +237,7 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     declinedSeeds: 0,
     regulars: [],
     interludes: 0,
+    sowings: 0,
     interludesReached: 0,
     expired: [],
     seasons: [],
@@ -567,6 +577,12 @@ function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMod
   // Stufe und Stammgäste können die Harmonie ändern (H_max) und Gemeinschaften bilden.
   // Führt auch die Sperrklinke zur neuen Schwelle nach (raiseMaxHarmony).
   recordDiscoveries(state);
+  // Einführung der Aussaat (27.5): Wegpunkt 2 öffnet die geschenkte erste Aussaat – keine
+  // Begegnung, darum vor der Warteschlange (sie zählt nicht zu den drei und verdrängt keine).
+  if (SCRIPTED_ENCOUNTERS[state.waypoint - 1] === 'sowing' && giftSowingOpen(state)) {
+    report.sowings++;
+    return;
+  }
   if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) {
     // Warteschlange voll: überzählige Begegnung gleich ablehnen – nichts verfällt.
     autoDecline(state, report);
@@ -575,7 +591,7 @@ function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMod
   }
   const { encounter, wildwechsel } = drawEncounterWithRoute(state, ambient);
   if (!encounter) {
-    // Weder Art noch Pflanze kommt in Frage: wie Ablehnen.
+    // Keine Art kommt in Frage: wie Ablehnen.
     autoDecline(state, report);
     report.declinedNoCards++;
     return;
@@ -586,11 +602,11 @@ function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMod
 }
 
 /**
- * Zieht die Begegnung für den gerade erreichten Wegpunkt (DESIGN_V2.md, 7.1/7.2): Die
- * ersten Wegpunkte sind festgelegt (Tier, Pflanze, Tier), danach entscheidet das
- * Gewicht der Stufe zwischen „Tier zieht ein“ und „Etwas keimt“ (bei vollem Pflanzenring
- * zählt „Etwas keimt“ nur mit PLANT_WEIGHT_RING_FULL). Kommt für den Typ
- * keine Karte in Frage, gibt es den anderen; null, wenn gar nichts passt.
+ * Zieht die Begegnung für den gerade erreichten Wegpunkt (DESIGN_V2.md, 7.1/7.2, 27.5): Die
+ * ersten Wegpunkte sind festgelegt (Tier, Aussaat, Tier – die Aussaat öffnet reachWaypoint,
+ * hier gilt sie als Tier), danach entscheidet das Gewicht der Stufe zwischen „Tier zieht
+ * ein“, Ereignis und Gast. Kommt für Ereignis bzw. Gast kein Kandidat in Frage, gibt es ein
+ * Tier; null, wenn auch keine Art passt.
  */
 export function drawEncounter(state: GameState, ambient: AmbientMode = 'live'): PendingEncounter | null {
   return drawEncounterWithRoute(state, ambient).encounter;
@@ -602,8 +618,8 @@ function drawEncounterWithRoute(
   ambient: AmbientMode,
 ): { encounter: PendingEncounter | null; wildwechsel: WildwechselDraw | null } {
   const none = (encounter: PendingEncounter | null) => ({ encounter, wildwechsel: null });
-  let type = SCRIPTED_ENCOUNTERS[state.waypoint - 1];
-  if (type === undefined && state.cycle.forced) {
+  const scripted = SCRIPTED_ENCOUNTERS[state.waypoint - 1];
+  if (scripted === undefined && state.cycle.forced) {
     // Vorgabe aus einem Ereignis (`nextEncounter`): gilt für genau diese Begegnung.
     const forced = state.cycle.forced;
     state.cycle.forced = null;
@@ -611,15 +627,12 @@ function drawEncounterWithRoute(
     if (built) return none(built);
     // Passt keine ID mehr: Der Vorzug verfällt still, es wird normal gezogen.
   }
-  if (type === undefined) {
+  if (scripted === undefined) {
     const weights = ENCOUNTER_WEIGHTS[state.stage] ?? ENCOUNTER_WEIGHTS[ENCOUNTER_WEIGHTS.length - 1]!;
-    const ringFull = state.plants.length >= plantSlots(state.stage);
-    // Jahreszeit: Faktoren auf die Gewichte; der für „Etwas keimt“ nur bei freiem Ring.
-    const drawable = ENCOUNTER_TYPES.map((t, i) =>
-      t === 'plant' && ringFull ? weights[i]! * PLANT_WEIGHT_RING_FULL : weights[i]! * seasonFactor(state, t),
-    );
-    type = ENCOUNTER_TYPES[weightedIndex(state, drawable)] ?? 'animal';
-    // Ereignis nach Wetter-Gewicht, Gast gleichverteilt; ohne Kandidaten Tier, sonst Pflanze.
+    // Jahreszeit: Faktoren auf die Gewichte.
+    const drawable = ENCOUNTER_TYPES.map((t, i) => weights[i]! * seasonFactor(state, t));
+    const type = ENCOUNTER_TYPES[weightedIndex(state, drawable)] ?? 'animal';
+    // Ereignis nach Wetter-Gewicht, Gast gleichverteilt; ohne Kandidaten ein Tier.
     if (type === 'event') {
       const events = eligibleEvents(state);
       if (events.length > 0) return none(eventEncounter(state, pickEvent(state, events, ambient)));
@@ -628,17 +641,13 @@ function drawEncounterWithRoute(
       if (visitors.length > 0) return none(visitorEncounter(state, pick(state, visitors)));
     }
   }
-  const order: readonly CardEncounterType[] = type === 'plant' ? ['plant', 'animal'] : ['animal', 'plant'];
-  for (const t of order) {
-    const cards = drawCards(state, t);
-    if (cards.length === 0) continue;
-    const wildwechsel = t === 'animal' ? drawWildwechsel(state, cards) : null;
-    const encounter: PendingEncounter = { type: t, cards, rerolls: 0 };
-    // Markierung im Spielstand (seit v15): Karte und Weg bleiben auch nach dem Neuladen bekannt.
-    if (wildwechsel) encounter.via = { card: wildwechsel.card, corridor: wildwechsel.corridor };
-    return { encounter, wildwechsel };
-  }
-  return none(null);
+  const cards = drawAnimals(state);
+  if (cards.length === 0) return none(null);
+  const wildwechsel = drawWildwechsel(state, cards);
+  const encounter: PendingEncounter = { type: 'animal', cards, rerolls: 0 };
+  // Markierung im Spielstand (seit v15): Karte und Weg bleiben auch nach dem Neuladen bekannt.
+  if (wildwechsel) encounter.via = { card: wildwechsel.card, corridor: wildwechsel.corridor };
+  return { encounter, wildwechsel };
 }
 
 /**
@@ -668,29 +677,34 @@ export function drawWildwechsel(state: GameState, cards: string[]): WildwechselD
   return { ...route, card };
 }
 
-/** Karten für einen Begegnungstyp (siehe drawAnimals / drawPlants). */
+/** Karten für einen Begegnungstyp mit Karten (seit Phase 10 nur Tiere, siehe drawAnimals). */
 export function drawCards(
   state: GameState,
-  type: CardEncounterType,
+  _type: CardEncounterType,
   exclude: readonly string[] = [],
   rng: RngHolder = state,
 ): string[] {
-  return type === 'plant' ? drawPlants(state, exclude, rng) : drawAnimals(state, exclude, rng);
+  return drawAnimals(state, exclude, rng);
 }
 
 /**
- * Zieht bis zu drei verschiedene Pflanzenkarten gewichtet (schon im Ring:
- * PLANT_WEIGHT_IN_RING, sonst 1) aus allen Pflanzen, die
- * auf dieser Stufe freigeschaltet sind – auch solche, die schon wachsen (Duplikate
+ * Zieht bis zu `count` (Standard: CARDS_PER_ENCOUNTER) verschiedene Pflanzenkarten für eine
+ * Aussaat, gewichtet (schon im Ring: PLANT_WEIGHT_IN_RING, sonst 1) aus allen Pflanzen, die
+ * auf dieser Stufe freigeschaltet sind – auch solche, die schon wachsen (Duplikate im Ring
  * erlaubt). Pflanzen in `exclude` kommen nur zum Auffüllen dran (wie bei drawAnimals).
  */
-export function drawPlants(state: GameState, exclude: readonly string[] = [], rng: RngHolder = state): string[] {
+export function drawPlants(
+  state: GameState,
+  exclude: readonly string[] = [],
+  rng: RngHolder = state,
+  count: number = CARDS_PER_ENCOUNTER,
+): string[] {
   const eligible = PLANTS.filter((p) => p.unlock <= state.stage);
   const pools = [eligible.filter((p) => !exclude.includes(p.id)), eligible.filter((p) => exclude.includes(p.id))];
   const cards: string[] = [];
   for (const pool of pools) {
     const left = pool.map((p) => p.id);
-    while (cards.length < CARDS_PER_ENCOUNTER && left.length > 0) {
+    while (cards.length < count && left.length > 0) {
       // Pflanzen, die schon im Ring wachsen, kommen seltener (PLANT_WEIGHT_IN_RING).
       const i = weightedIndex(
         rng,
@@ -777,12 +791,14 @@ export type ActionError =
   | 'too-expensive'
   /** Keine Art bzw. Pflanze kommt in Frage. */
   | 'no-cards'
+  /** Aussaat: Es ist keine offen (chooseSowing, discardSowing, rerollSowing). */
+  | 'no-sowing'
+  /** Säen: Es ist schon eine Aussaat offen (höchstens eine, 27.6). */
+  | 'open'
+  /** Aussaat: Wahl einer Karte (siehe SowingChoiceError in formulas.ts). */
+  | SowingChoiceError
   /** Neu würfeln brächte nur dieselben Karten (zu wenige passende Arten). */
   | 'no-alternatives'
-  /** Pflanze setzen: unbekannte Pflanzen-ID. */
-  | 'unknown-plant'
-  /** Pflanze setzen: erst auf einer späteren Stufe freigeschaltet. */
-  | 'locked'
   /** Neuer Zyklus: Stufe „Hain“ noch nicht erreicht (Text: newCycleBlocker). */
   | 'cycle-locked'
   /** Neuer Zyklus: Baumart unbekannt oder noch nicht freigeschaltet (unlockedTrees). */
@@ -804,15 +820,24 @@ export type ActionError =
 
 /**
  * Ergebnis einer Spieleraktion. `discovered`: Lebensgemeinschaften, die durch die Aktion
- * zum ersten Mal entstanden sind (chooseCard, plantSeed) – für die Entdeckungs-Meldung.
+ * zum ersten Mal entstanden sind (chooseCard, chooseSowing) – für die Entdeckungs-Meldung.
  * Fehlt, wenn nichts Neues entdeckt wurde.
- */
-/**
  * `regulars`: Stammgäste, die durch die Aktion eingezogen sind (Forschung mit Plätzen).
  * `harmony`: Änderung des Harmonie-Vorrats (Forschung: die Kosten, negativ).
+ * `seeds`: Samen, die die Aktion gebracht (Ereignis, Zurücklegen) bzw. gekostet hat (Säen: negativ).
+ * `planted`: die aus einer Aussaat gesetzte Pflanze (chooseSowing; für die Aussaat-Animation, 4d).
+ * `sowing`: Die Aktion hat eine Aussaat geöffnet (sow, Vogelsaat, wartende Vogelsaat danach).
  */
 export type ActionResult =
-  | { ok: true; discovered?: string[]; seeds?: number; harmony?: number; regulars?: string[] }
+  | {
+      ok: true;
+      discovered?: string[];
+      seeds?: number;
+      harmony?: number;
+      regulars?: string[];
+      planted?: string;
+      sowing?: boolean;
+    }
   | { ok: false; error: ActionError };
 
 const fail = (error: ActionError): ActionResult => ({ ok: false, error });
@@ -822,13 +847,10 @@ const discoveryResult = (discovered: string[]): ActionResult =>
   discovered.length > 0 ? { ok: true, discovered } : { ok: true };
 
 /**
- * Wählt eine Karte, die Begegnung ist danach erledigt.
- * - Tierkarte: Das Tier zieht in seine Nische. Ist sie voll, muss `replaceId` ein Tier
- *   dieser Nische nennen – es wird entlassen (bleibt im Naturtagebuch).
- * - Pflanzenkarte („Etwas keimt“): Die Pflanze keimt kostenlos im Pflanzring. Ist er
- *   voll, muss `replaceId` eine Pflanze im Ring nennen – sie wird ersetzt.
- * Ohne Ersatz bei voller Nische/vollem Ring bleibt die Begegnung offen ('niche-full' /
- * 'ring-full'); der Spieler kann dann tauschen, ablehnen oder neu würfeln. Ein Tausch,
+ * Wählt eine Tierkarte, die Begegnung ist danach erledigt: Das Tier zieht in seine Nische.
+ * Ist sie voll, muss `replaceId` ein Tier dieser Nische nennen – es wird entlassen (bleibt im
+ * Naturtagebuch). Ohne Ersatz bei voller Nische bleibt die Begegnung offen ('niche-full');
+ * der Spieler kann dann tauschen, ablehnen oder neu würfeln. Ein Tausch,
  * der anderen Tieren den Platz nähme, scheitert mit 'would-evict'. Gleiche Prüfung wie
  * previewChoice / choiceBlocker.
  */
@@ -864,7 +886,7 @@ export function chooseCard(
 /**
  * „Zuerst gesehen“ (seit v15, DESIGN_V2.md 25.10): Zyklus und Jahreszeit des Moments, in dem
  * die Art bzw. Pflanze ins Naturtagebuch kommt – nur beim ersten Mal. Entdeckt wird nur durch
- * Aktionen des Spielers (chooseCard, plantSeed); Tick und Offline-Simulation tragen nichts
+ * Aktionen des Spielers (chooseCard, chooseSowing); Tick und Offline-Simulation tragen nichts
  * Neues ein, darum gilt online = offline von selbst.
  */
 function markFirstSeen(state: GameState, kind: keyof FirstSeenJournal, id: string): void {
@@ -877,9 +899,9 @@ function markFirstSeen(state: GameState, kind: keyof FirstSeenJournal, id: strin
  * Trägt ins Naturtagebuch ein, was gerade im Ökosystem ist: wachsende Pflanzen und
  * aktive Lebensgemeinschaften (je einmal, in der Reihenfolge der Entdeckung). Arten
  * trägt chooseCard selbst ein. Führt außerdem die höchste Harmonie des Zyklus (H_max)
- * nach. Läuft nach jeder Änderung am Ökosystem: chooseCard, plantSeed, Wegpunkt (Stufe,
+ * nach. Läuft nach jeder Änderung am Ökosystem: chooseCard, chooseSowing, Wegpunkt (Stufe,
  * Stammgäste), Neuer Zyklus und Laden.
- * Gibt die neu entdeckten Lebensgemeinschaften zurück (chooseCard und plantSeed reichen
+ * Gibt die neu entdeckten Lebensgemeinschaften zurück (chooseCard und chooseSowing reichen
  * sie als `discovered` an die UI weiter).
  */
 export function recordDiscoveries(state: GameState): string[] {
@@ -924,45 +946,13 @@ function raiseBestHarmonyMemory(state: GameState): void {
   if (now > state.cycle.bestHarmonyMemory) state.cycle.bestHarmonyMemory = Math.min(MAX_FOREST_MEMORY, now);
 }
 
-/**
- * Setzt eine Pflanze für Samen in den Pflanzring (die Samen-Senke, DESIGN_V2.md 4).
- * Kosten: 20 · 1,9^n bei n Begleitpflanzen (nextPlantCost). Duplikate sind erlaubt.
- */
-export function plantSeed(state: GameState, plantId: string): ActionResult {
-  const blocker = plantBlocker(state, plantId);
-  if (blocker) return fail(blocker);
-  state.seeds -= nextPlantCost(state);
-  state.plants.push(plantId);
-  countStat(state, 'plantsPlanted');
-  countDailyAction(state, 'plant');
-  return discoveryResult(recordDiscoveries(state));
-}
-
-/** Warum „Pflanze setzen“ gerade nicht geht – null, wenn es geht. Ändert nichts. */
-export function plantBlocker(
-  state: GameState,
-  plantId: string,
-): 'unknown-plant' | 'locked' | 'ring-full' | 'too-expensive' | null {
-  const plant = PLANTS_BY_ID.get(plantId);
-  if (!plant) return 'unknown-plant';
-  if (plant.unlock > state.stage) return 'locked';
-  if (state.plants.length >= plantSlots(state.stage)) return 'ring-full';
-  if (!(state.seeds >= nextPlantCost(state))) return 'too-expensive';
-  return null;
-}
-
-/** Kann diese Pflanze jetzt gesetzt werden? (Für den Knopf in der UI.) */
-export function canPlant(state: GameState, plantId: string): boolean {
-  return plantBlocker(state, plantId) === null;
-}
-
 /** Pflanzen, die auf der aktuellen Stufe gesetzt werden können (ohne Blick auf Samen und Ring). */
 export function unlockedPlants(state: Pick<GameState, 'stage'>): string[] {
   return PLANTS.filter((p) => p.unlock <= state.stage).map((p) => p.id);
 }
 
 /**
- * Lehnt eine Tier- oder Pflanzenbegegnung ab und schreibt Samen gut. Ereignisse haben
+ * Lehnt eine Tierbegegnung ab und schreibt Samen gut. Ereignisse haben
  * kein Ablehnen (die Samen-Option ist die neutrale Wahl), Gäste „ziehen lassen“
  * (farewellVisitor) – dort scheitert es mit 'wrong-type'.
  */
@@ -977,8 +967,8 @@ export function declineEncounter(state: GameState, encounterIndex: number): Acti
 }
 
 /**
- * Würfelt die Karten einer Begegnung neu (kostet Samen, jedes weitere Mal doppelt so
- * viel) – Tierkarten wie Pflanzenkarten. Die bisherigen Karten kommen nur zum Auffüllen
+ * Würfelt die Karten einer Tierbegegnung neu (kostet Samen, jedes weitere Mal doppelt so
+ * viel). Die bisherigen Karten kommen nur zum Auffüllen
  * wieder. Kommt keine Karte in Frage oder wären es dieselben Karten, bleibt alles
  * unverändert und es kostet nichts.
  */
@@ -1021,6 +1011,167 @@ export function rerollBlocker(
 
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((x) => b.includes(x)) && b.every((x) => a.includes(x));
+}
+
+// ---------------------------------------------------------------------------
+// Aussaat (DESIGN_V2.md 27.5/27.6)
+// ---------------------------------------------------------------------------
+
+/** Warum „Säen“ gerade nicht geht (27.6). */
+export type SowBlocker = 'stage' | 'open' | 'too-expensive';
+
+/**
+ * Warum „Säen“ gerade nicht geht – null, wenn es geht. Ändert nichts. Reihenfolge: Stufe
+ * (vor dem Keimling bzw. ohne freigeschaltete Pflanze), schon eine Aussaat offen, Samen
+ * reichen nicht (sowingCost; eine wartende Vogelsaat ist gratis).
+ */
+export function sowBlocker(state: GameState): SowBlocker | null {
+  if (state.stage < SOWING_MIN_STAGE || !PLANTS.some((p) => p.unlock <= state.stage)) return 'stage';
+  if (state.cycle.sowing) return 'open';
+  if (!(state.seeds >= sowingCost(state))) return 'too-expensive';
+  return null;
+}
+
+/**
+ * „Säen“ (27.6): zieht sofort die Pflanzenkarten (sowingCardCount: 3, mit „Saatgut sortieren“
+ * 4) und legt sie als offene Aussaat in den Spielstand – Neuladen würfelt nicht neu. Kostet
+ * sowingCost (die erste des Zyklus ist gratis) und zählt `cycle.sowings` hoch. Wartet eine
+ * geschenkte Aussaat der Vogelsaat (`cycle.freeSowing`), öffnet „Säen“ stattdessen sie: gratis,
+ * ohne Zähler. `seeds` im Ergebnis: die Kosten (negativ, 0 wenn gratis).
+ */
+export function sow(state: GameState): ActionResult {
+  const blocker = sowBlocker(state);
+  if (blocker) return fail(blocker);
+  if (state.cycle.freeSowing) {
+    openWaitingFreeSowing(state);
+    return { ok: true, seeds: 0, sowing: true };
+  }
+  const cost = sowingCost(state);
+  state.seeds = Math.max(0, state.seeds - cost);
+  openSowing(state);
+  return { ok: true, seeds: cost > 0 ? -cost : 0, sowing: true };
+}
+
+/**
+ * Öffnet eine (bezahlte oder die geschenkte erste) Aussaat: Zähler +1, Karten ziehen. Kosten
+ * zieht der Aufrufer ab. Ohne Karte bleibt nichts offen (sowBlocker verhindert das).
+ */
+function openSowing(state: GameState): void {
+  state.cycle.sowings = Math.min(MAX_SOWINGS, Math.max(0, Math.floor(state.cycle.sowings) || 0) + 1);
+  const cards = drawPlants(state, [], state, sowingCardCount(state.cycle.research));
+  state.cycle.sowing = cards.length > 0 ? { cards, rerolls: 0 } : null;
+}
+
+/**
+ * Wegpunkt 2 (27.5): öffnet die geschenkte erste Aussaat, falls sie noch frei ist (`sowings`
+ * = 0), keine Aussaat offen ist und die Stufe sie erlaubt. Gibt zurück, ob sie geöffnet wurde.
+ */
+function giftSowingOpen(state: GameState): boolean {
+  if (state.cycle.sowings > 0 || sowBlocker(state) !== null || sowingCost(state) !== 0 || state.cycle.freeSowing) return false;
+  openSowing(state);
+  return state.cycle.sowing !== null;
+}
+
+/**
+ * Geschenkte Aussaat mit Vorgabe (Vogelsaat, 27.5): zuerst zufällig bis zu FORCED_MAX_CARDS
+ * der vorgegebenen Pflanzen, die freigeschaltet sind, der Rest normal gezogen – ohne die übrigen
+ * Vorgaben, damit eine andere Wahl bleibt (wie forcedEncounter). Kostet nichts, zählt nicht als
+ * Aussaat. Passt keine Vorgabe mehr, wird ganz normal gezogen (geschenkt bleibt sie).
+ */
+function openFreeSowing(state: GameState, ids: readonly string[]): void {
+  const fits = ids.filter((id, i) => ids.indexOf(id) === i && (PLANTS_BY_ID.get(id)?.unlock ?? Infinity) <= state.stage);
+  const chosen: string[] = [];
+  while (fits.length > 0 && chosen.length < FORCED_MAX_CARDS) chosen.push(fits.splice(randomInt(state, fits.length), 1)[0]!);
+  const count = sowingCardCount(state.cycle.research);
+  const rest = drawPlants(state, [...chosen, ...ids], state, count).filter((id) => !chosen.includes(id));
+  const cards = [...chosen, ...rest].slice(0, count);
+  state.cycle.sowing = cards.length > 0 ? { cards, rerolls: 0 } : null;
+}
+
+/**
+ * Schenkt eine Aussaat mit Vorgabe (Ereignis-Wirkung `freeSowing`): sofort offen, wenn gerade
+ * keine Aussaat offen ist und die Stufe sie erlaubt – sonst wartet sie in `cycle.freeSowing`
+ * (öffnet nach der laufenden Aussaat bzw. mit „Säen“). Gibt zurück, ob sie jetzt offen ist.
+ */
+function giveFreeSowing(state: GameState, ids: readonly string[]): boolean {
+  state.cycle.freeSowing = { ids: [...ids] };
+  return openWaitingFreeSowing(state);
+}
+
+/** Öffnet eine wartende Vogelsaat, wenn die Hand frei ist (keine Aussaat offen, Stufe erreicht). */
+function openWaitingFreeSowing(state: GameState): boolean {
+  const waiting = state.cycle.freeSowing;
+  if (!waiting || state.cycle.sowing || state.stage < SOWING_MIN_STAGE) return false;
+  state.cycle.freeSowing = null;
+  openFreeSowing(state, waiting.ids);
+  return state.cycle.sowing !== null;
+}
+
+/**
+ * Wählt eine Karte der offenen Aussaat (27.6): Ring frei → die Pflanze wird gesetzt; Ring voll →
+ * `replaceId` muss eine Pflanze im Ring nennen, sie wird ersetzt (sonst 'ring-full', die Aussaat
+ * bleibt offen). Danach ist die Aussaat erledigt; eine wartende Vogelsaat öffnet sofort.
+ * Zählt `plantsPlanted` und das Tagesziel `plant`; Tagebuch und „Zuerst gesehen“ über
+ * recordDiscoveries. `planted`: die gesetzte Pflanze.
+ */
+export function chooseSowing(state: GameState, cardIndex: number, replaceId?: string): ActionResult {
+  const outcome = resolveSowing(state, cardIndex, replaceId);
+  if (!outcome.ok) return fail(outcome.error);
+  const planted = state.cycle.sowing!.cards[cardIndex]!;
+  state.plants = outcome.plants;
+  state.cycle.sowing = null;
+  countStat(state, 'plantsPlanted');
+  countDailyAction(state, 'plant');
+  const discovered = recordDiscoveries(state);
+  const result: ActionResult = { ok: true, planted };
+  if (discovered.length > 0) result.discovered = discovered;
+  if (openWaitingFreeSowing(state)) result.sowing = true;
+  return result;
+}
+
+/**
+ * Legt die offene Aussaat zurück (27.6): DECLINE_SEED_SECONDS Samen-Sekunden wie Ablehnen
+ * (declineReward). Der Zähler bleibt erhöht – Säen und Zurücklegen ist kein kostenloses Neu
+ * würfeln. Eine wartende Vogelsaat öffnet danach. `seeds`: die erhaltenen Samen.
+ */
+export function discardSowing(state: GameState): ActionResult {
+  if (!state.cycle.sowing) return fail('no-sowing');
+  const reward = declineReward(state);
+  state.seeds = capped(state.seeds + reward);
+  state.cycle.sowing = null;
+  const result: ActionResult = { ok: true, seeds: reward };
+  if (openWaitingFreeSowing(state)) result.sowing = true;
+  return result;
+}
+
+/**
+ * Warum „Neu würfeln“ der Aussaat gerade nicht geht – null, wenn es geht. Verändert den
+ * Spielstand nicht (der Zufall wird auf einer Kopie des Generators vorgezogen).
+ */
+export function rerollSowingBlocker(state: GameState): 'no-sowing' | 'no-cards' | 'no-alternatives' | 'too-expensive' | null {
+  const sowing = state.cycle.sowing;
+  if (!sowing) return 'no-sowing';
+  const cards = drawPlants(state, sowing.cards, { rngState: state.rngState }, sowingCardCount(state.cycle.research));
+  if (cards.length === 0) return 'no-cards';
+  if (sameSet(cards, sowing.cards)) return 'no-alternatives';
+  if (!(state.seeds >= sowingRerollCost(state))) return 'too-expensive';
+  return null;
+}
+
+/**
+ * Würfelt die Karten der offenen Aussaat neu: wie bei Tieren 10 🌰 · 2^Würfe (mit
+ * `sowFreeReroll`, „Anzuchtbeet“: der erste Wurf gratis, sowingRerollCost). Die bisherigen
+ * Karten kommen nur zum Auffüllen wieder; Kartenzahl nach der aktuellen Forschung.
+ */
+export function rerollSowing(state: GameState): ActionResult {
+  const blocker = rerollSowingBlocker(state);
+  if (blocker) return fail(blocker);
+  const sowing: SowingState = state.cycle.sowing!;
+  const cost = sowingRerollCost(state);
+  state.seeds = Math.max(0, state.seeds - cost);
+  sowing.cards = drawPlants(state, sowing.cards, state, sowingCardCount(state.cycle.research));
+  sowing.rerolls++;
+  return { ok: true, seeds: cost > 0 ? -cost : 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -1589,7 +1740,7 @@ function visitorEncounter(state: GameState, visitor: Visitor): PendingEncounter 
 /**
  * Baut die vorgegebene Begegnung (`nextEncounter`): zuerst zufällig bis zu FORCED_MAX_CARDS
  * der vorgegebenen IDs, die passen (Arten: freigeschaltet, noch nicht im Ökosystem, Nische
- * offen – Seltenheit und Erscheinungsbedingung zählen nicht; Pflanzen: freigeschaltet),
+ * offen – Seltenheit und Erscheinungsbedingung zählen nicht),
  * Rest normal gezogen – ohne die übrigen Vorgaben, damit eine andere Wahl bleibt. Nur wenn
  * sonst nichts passt, füllen weitere Vorgaben auf. null, wenn keine ID passt.
  */
@@ -1598,7 +1749,6 @@ function forcedEncounter(state: GameState, forced: ForcedEncounter): PendingEnco
   const present = new Set(allAnimals(state));
   const fits = forced.ids.filter((id, i) => {
     if (forced.ids.indexOf(id) !== i) return false;
-    if (forced.type === 'plant') return (PLANTS_BY_ID.get(id)?.unlock ?? Infinity) <= state.stage;
     const sp = SPECIES_BY_ID.get(id);
     return !!sp && sp.unlock <= state.stage && !present.has(id) && slots[sp.niche] > 0;
   });
@@ -1649,6 +1799,7 @@ export function chooseEventOption(state: GameState, encounterIndex: number, opti
   if (LANDSCAPE_SITES_BY_ID.get(active)?.chronicleEvent === event.id) writeChapter(state, active, 'signature');
   const seeds = eventOptionSeeds(state, event.id, optionIndex);
   const cycle = state.cycle;
+  let sowingOpened = false;
   for (const e of option.effects) {
     switch (e.kind) {
       case 'seedsNow':
@@ -1665,6 +1816,10 @@ export function chooseEventOption(state: GameState, encounterIndex: number, opti
       case 'nextEncounter':
         cycle.forced = { type: e.type, ids: [...e.ids] };
         break;
+      case 'freeSowing':
+        // Vogelsaat (27.5): geschenkte Aussaat – sofort offen oder wartend.
+        if (giveFreeSowing(state, e.ids)) sowingOpened = true;
+        break;
     }
   }
   state.seeds = capped(state.seeds + seeds);
@@ -1672,7 +1827,10 @@ export function chooseEventOption(state: GameState, encounterIndex: number, opti
   countStat(state, 'eventsDecided');
   countDailyAction(state, 'decide');
   const discovered = recordDiscoveries(state);
-  return discovered.length > 0 ? { ok: true, discovered, seeds } : { ok: true, seeds };
+  const result: ActionResult = { ok: true, seeds };
+  if (discovered.length > 0) result.discovered = discovered;
+  if (sowingOpened) result.sowing = true;
+  return result;
 }
 
 /** Kosten fürs Bewirten und Dank fürs Ziehenlassen eines Gastes (Samen, zur aktuellen Rate). */
@@ -1805,7 +1963,7 @@ export function research(state: GameState, id: string): ActionResult {
 }
 
 /**
- * Vorschau: das Ökosystem mit diesem Knoten (wie previewPlant). Prüft weder Vorrat noch
+ * Vorschau: das Ökosystem mit diesem Knoten (wie previewSowing). Prüft weder Vorrat noch
  * Stufe, Gabel oder Voraussetzung (siehe researchBlocker); null bei unbekanntem oder schon
  * erforschtem Knoten.
  */

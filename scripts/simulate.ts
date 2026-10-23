@@ -1,17 +1,19 @@
 /**
  * Balancing-Simulator für das v2-Spiel – auf der ECHTEN Spiellogik aus src/core/
- * (tick, chooseCard, declineEncounter, rerollEncounter, plantSeed, evaluate,
- * previewChoice …) – er misst genau das, was der Spieler erlebt: Tier- und
- * Pflanzenbegegnungen, Pflanzen setzen, Pflege, Ereignisse, Gäste, Jahreszeiten,
+ * (tick, chooseCard, declineEncounter, rerollEncounter, sow, chooseSowing, evaluate,
+ * previewChoice …) – er misst genau das, was der Spieler erlebt: Tierbegegnungen, die
+ * Aussaat (Phase 10, 2b), Forschung, Ereignisse, Gäste, Jahreszeiten,
  * Baumarten und (runCycles) mehrere Zyklen mit Waldgedächtnis und Stammgästen. Das
  * frühere Referenzmodell scripts/v2/ ist seit Schritt 2.10 entfernt.
  *
- * Der Spieler löst jede Begegnung sofort auf (online) und setzt Pflanzen, sobald die
- * Samen reichen und es sich nach seiner Strategie lohnt. Ereignisse und Durchreisende
+ * Der Spieler löst jede Begegnung sofort auf (online) und sät, sobald die Samen reichen und
+ * es sich nach seiner Strategie lohnt (planSow): bei freiem Ring, wenn eine freigeschaltete
+ * Pflanze verbessert, bei vollem Ring, wenn ein Tausch verbessern könnte. Aus den gezogenen
+ * Karten wählt er wie bei Tieren (decideSowing); passt keine, legt er sie zurück. Ereignisse und Durchreisende
  * (Schritt 2.4) kommen aus der echten Logik (drawEncounter, Zwischenhalt) und werden mit
  * chooseEventOption / hostVisitor / farewellVisitor aufgelöst. Die Zeit läuft
  * ereignisgesteuert von Halt zu Halt (Wegpunkt, Zwischenhalt, Ablauf eines Bonus,
- * nächster Pflanzenkauf); tick() rechnet dazwischen exakt.
+ * nächste Aussaat); tick() rechnet dazwischen exakt.
  *
  * Ausführen (Tabellen im Protokoll, DESIGN_V2.md Abschnitt 15.4):
  *   npm run balance    # großer Lauf: alle Balancing-Tests mit vielen Durchgängen und Tabellen
@@ -34,12 +36,15 @@ import { EVENTS_BY_ID } from '../src/content/events';
 import {
   cardStatus,
   evaluate,
+  ecosystemOf,
+  evaluateEcosystem,
   harmonyIncome,
-  nextPlantCost,
   plantSlots,
+  plantsAfterChoice,
   previewChoice,
-  previewPlant,
+  previewSowing,
   regularSlots,
+  sowingCost,
   secondsToNextWaypoint,
   type Evaluation,
 } from '../src/core/formulas';
@@ -57,14 +62,18 @@ import {
   interludeThreshold,
   nextExpiry,
   isTreeUnlocked,
-  plantSeed,
+  chooseSowing,
+  discardSowing,
   previewNewCycle,
   previewResearch,
   rerollBlocker,
+  rerollSowingBlocker,
   rerollEncounter,
   research,
   researchBlocker,
   setRegulars,
+  sow,
+  sowBlocker,
   startNewCycle,
   tick,
   unlockedPlants,
@@ -80,11 +89,11 @@ import type { MainTreeId } from '../src/content/trees';
 
 /**
  * Eine Möglichkeit, eine Karte zu spielen (bei voller Nische je zu entlassendem Tier,
- * bei vollem Pflanzring je zu ersetzender Pflanze).
+ * bei vollem Pflanzring je zu ersetzender Pflanze). `kind: 'sowing'`: Karte der offenen Aussaat.
  */
 export interface Option {
   card: number;
-  kind: PendingEncounterType;
+  kind: PendingEncounterType | 'sowing';
   /** Art- oder Pflanzen-ID der Karte. */
   id: string;
   replace?: string;
@@ -102,12 +111,25 @@ export function optionsFor(state: GameState): Option[] {
       const ev = previewChoice(state, 0, card);
       if (ev) out.push({ card, kind: enc.type, id, ev });
     } else if (status === 'full') {
-      const candidates =
-        enc.type === 'plant' ? [...new Set(state.plants)] : state.niches[SPECIES_BY_ID.get(id)!.niche];
-      for (const replace of candidates) {
+      for (const replace of state.niches[SPECIES_BY_ID.get(id)!.niche]) {
         const ev = previewChoice(state, 0, card, replace);
         if (ev) out.push({ card, kind: enc.type, id, replace, ev });
       }
+    }
+  });
+  return out;
+}
+
+/** Alle gültigen Platzierungen der Karten der offenen Aussaat (bei vollem Ring je Ersatz). */
+export function sowingOptionsFor(state: GameState): Option[] {
+  const sowing = state.cycle.sowing;
+  if (!sowing) return [];
+  const out: Option[] = [];
+  const full = state.plants.length >= plantSlots(state.stage);
+  sowing.cards.forEach((id, card) => {
+    for (const replace of full ? [...new Set(state.plants)] : [undefined]) {
+      const ev = previewSowing(state, card, replace);
+      if (ev) out.push(replace === undefined ? { card, kind: 'sowing', id, ev } : { card, kind: 'sowing', id, replace, ev });
     }
   });
   return out;
@@ -125,8 +147,8 @@ export interface Strategy {
   /** Entscheidet über die erste offene Begegnung. `rng` ist der eigene Zufall der Strategie. */
   decide(state: GameState, options: Option[], current: Evaluation, rng: RngHolder): Action;
   /**
-   * Bewertung für das Setzen von Pflanzen mit Samen (höher = besser; gesetzt wird nur,
-   * was verbessert). null = Zufallsspieler: setzt irgendeine freigeschaltete Pflanze.
+   * Bewertung der Pflanzen bei der Aussaat (höher = besser; gesät und gewählt wird nur, was
+   * verbessert). null = Zufallsspieler: sät bei freiem Ring und wählt eine beliebige Karte.
    */
   plantValue: ((ev: Evaluation) => number) | null;
 }
@@ -150,14 +172,12 @@ function best(options: Option[], value: (o: Option) => number): Option | null {
 /**
  * Höchstens ein Wurf je Tierbegegnung (wie im früheren Prototyp scripts/v2), und nur,
  * wenn die Logik ihn zulässt (Samen reichen, es gibt andere Karten – rerollBlocker liefert sonst
- * 'too-expensive' / 'no-alternatives'). Pflanzenbegegnungen werden nicht neu gewürfelt.
+ * 'too-expensive' / 'no-alternatives'). Aussaaten werden nicht neu gewürfelt.
  */
 function canReroll(state: GameState): boolean {
   const enc = state.pendingEncounters[0];
   return !!enc && enc.type === 'animal' && enc.rerolls < 1 && rerollBlocker(state, 0) === null;
 }
-
-const isPlantEncounter = (state: GameState) => state.pendingEncounters[0]?.type === 'plant';
 
 /** Nimmt die beste Option, wenn sie verbessert; sonst einmal neu würfeln, sonst ablehnen. */
 function greedy(id: string, name: string, value: (ev: Evaluation) => number): Strategy {
@@ -196,8 +216,7 @@ export const RAREST: Strategy = {
   id: 'rarest',
   name: 'Immer die seltenste Karte',
   plantValue: byHarmony,
-  decide(state, options, current, rng) {
-    if (isPlantEncounter(state)) return HARMONY.decide(state, options, current, rng);
+  decide(_state, options) {
     if (options.length === 0) return { kind: 'decline' };
     const rarity = (o: Option) => SPECIES_BY_ID.get(o.id)!.rarity;
     const top = Math.max(...options.map(rarity));
@@ -211,8 +230,7 @@ export function stacker(genus: Genus): Strategy {
     name: `${GENUS_INFO[genus].name} stapeln`,
     plantValue: byHarmony,
     decide(state, options, current, rng) {
-      // Pflanzen wählt der Stapler wie der Harmonie-Spieler.
-      if (isPlantEncounter(state)) return HARMONY.decide(state, options, current, rng);
+      // Pflanzen (Aussaat) wählt der Stapler wie der Harmonie-Spieler (decideSowing).
       const isOwn = (id: string) => SPECIES_BY_ID.get(id)!.genus === genus;
       const own = options.filter((o) => isOwn(o.id) && (o.replace === undefined || !isOwn(o.replace)));
       // Lieber ein freier Platz oder ein fremdes Tier ersetzen; nie ein eigenes.
@@ -244,9 +262,12 @@ export interface DecisionStat {
 
 /** Zähler eines Durchgangs (kumuliert). */
 export interface Counts {
-  /** Begegnungen, die der Spieler gesehen hat (ohne automatisch abgelehnte). */
+  /** Begegnungen, die der Spieler gesehen hat (ohne automatisch abgelehnte; ohne Aussaaten). */
   encounters: number;
-  /** … davon „Etwas keimt“ (Pflanzenkarten). */
+  /**
+   * Aufgelöste Aussaaten (gekauft, Geschenk an Wegpunkt 2, Vogelsaat; seit Phase 10, 2b – bis
+   * dahin „Etwas keimt“). Name bleibt wegen der Tabellen.
+   */
   plantEncounters: number;
   /** … davon Tierbegegnungen mit mindestens einer Karte, deren Nische voll ist. */
   fullNiche: number;
@@ -256,7 +277,7 @@ export interface Counts {
   autoDeclined: number;
   /** Gewählte Tierkarten je Seltenheit. */
   rarityTaken: number[];
-  /** Gewählte Pflanzenkarten (gratis) und mit Samen gesetzte Pflanzen. */
+  /** Aus Aussaaten gesetzte Pflanzen und vom Spieler ausgelöste Aussaaten („Säen“, auch die erste gratis). */
   plantsTaken: number;
   plantsBought: number;
   /** Ereignisse, Gäste, davon bewirtet. */
@@ -298,7 +319,7 @@ export interface Snapshot {
   /** Bisher verdient: passiv (Baum × Harmonie) und durch (automatisches) Ablehnen. */
   earnedPassive: number;
   earnedDecline: number;
-  /** Bisher ausgegeben für Neu würfeln und für Pflanzen. */
+  /** Bisher ausgegeben für Neu würfeln und für Aussaaten. */
   spent: number;
   spentPlants: number;
   /** Samen aus Ereignissen und Gästen bzw. fürs Bewirten ausgegeben. */
@@ -358,7 +379,8 @@ export interface VarietyStat {
   stage: number;
   /** Spielzeit (s), zu der die Begegnung aufgelöst wurde. */
   time: number;
-  type: EncounterType;
+  /** Begegnungstyp oder `'sowing'` (Aussaat, Phase 10, 2b). */
+  type: EncounterType | 'sowing';
   /** Anzahl Karten der ersten Ziehung. */
   cards: number;
   /** Gleiches Karten-Set wie die vorige Begegnung desselben Typs. */
@@ -369,7 +391,7 @@ export interface VarietyStat {
   worthwhile: boolean;
   /** Eine Karte der ersten Ziehung kam als Wildwechsel über einen Korridor (24.6, `via`). */
   wildwechsel?: boolean;
-  /** Karten der ersten Ziehung (Tier- und Pflanzenbegegnungen), für die Vielfalt der Landschaft (2c). */
+  /** Karten der ersten Ziehung (Tierbegegnungen und Aussaaten), für die Vielfalt der Landschaft (2c). */
   ids?: string[];
 }
 
@@ -521,17 +543,18 @@ export function runGame(
   result.stages[0] = snapshot();
   let sample = 0;
 
-  // planPlant bewertet jede Pflanze (teuer) und hängt nur vom Ökosystem (wie der
-  // Cache-Schlüssel von evaluate), vom Wegpunkt und von der Zahl gesetzter Pflanzen ab –
+  // planSow bewertet jede Pflanze (teuer) und hängt nur vom Ökosystem (wie der
+  // Cache-Schlüssel von evaluate), vom Wegpunkt und von der Zahl der Aussaaten ab –
   // darum je Zustand nur einmal rechnen (gleiche Ergebnisse; Idee aus dem Branch
   // claude/v2-tests-schneller).
   let planKey = '';
-  let planValue: string | null = null;
-  const nextPlan = (): string | null => {
+  let planValue = false;
+  const nextPlan = (): boolean => {
     const c = state.cycle;
     const key = [
       state.waypoint,
       counts.plantsBought,
+      state.cycle.sowings,
       state.plants.join(','),
       NICHE_IDS.map((n) => state.niches[n].join(',')).join(';'),
       JSON.stringify([c.research, c.bonuses, c.habitats, c.timed.map((t) => t.effect), c.visitors.map((v) => v.id)]),
@@ -539,21 +562,28 @@ export function runGame(
     ].join('|');
     if (key !== planKey) {
       planKey = key;
-      planValue = planPlant(state, strategy, counts);
+      planValue = planSow(state, strategy, counts);
     }
     return planValue;
   };
+  /** Offene Aussaat (gekauft, Geschenk, Vogelsaat) nach der Strategie auflösen. */
+  const settleSowing = () => {
+    const before = state.seeds;
+    if (resolveSowingNow(state, strategy, rng, counts, result.variety, time)) act();
+    book.earnedDecline += Math.max(0, state.seeds - before);
+  };
 
   while (state.stage < options.targetStage && time < options.maxSeconds && !allWaypointsReached(state)) {
-    // Pflanzen setzen, solange es sich lohnt und die Samen reichen.
-    for (let plan = nextPlan(); plan !== null; plan = nextPlan()) {
-      const cost = nextPlantCost(state);
-      if (!plantSeed(state, plan).ok) break;
+    // Säen, solange es sich lohnt und die Samen reichen (eine offene Aussaat zuerst auflösen).
+    settleSowing();
+    for (let guard = 0; guard < 50 && nextPlan() && sowBlocker(state) === null; guard++) {
+      const cost = sowingCost(state);
+      if (!sow(state).ok) break;
       book.spentPlants += cost;
       counts.plantsBought++;
-      act();
+      settleSowing();
     }
-    const plan = nextPlan();
+    const plan = nextPlan() && sowBlocker(state) === 'too-expensive';
     // Forschung (seit v17 mit ⚖️ aus dem Vorrat): erforschen, was die Strategie anspart,
     // sobald es reicht. Vorläufig (bis Phase 10, 3a) mit derselben Wahl wie früher die Pflege.
     let careNeed: number | null = null;
@@ -572,9 +602,8 @@ export function runGame(
       }
     }
     const ev = evaluate(state, ambient);
-    // Bis die nächste geplante Pflanze bezahlbar ist (+1 µs gegen Rundung).
-    const toPlant =
-      plan !== null && ev.seeds > 0 ? Math.max(0, (nextPlantCost(state) - state.seeds) / ev.seeds) + 1e-6 : Infinity;
+    // Bis die nächste geplante Aussaat bezahlbar ist (+1 µs gegen Rundung).
+    const toPlant = plan && ev.seeds > 0 ? Math.max(0, (sowingCost(state) - state.seeds) / ev.seeds) + 1e-6 : Infinity;
     const stageBefore = state.stage;
     const nextSample = (SAMPLE_MINUTES[sample] ?? Infinity) * 60;
     const toWaypoint = secondsToNextWaypoint(state, ambient);
@@ -735,7 +764,7 @@ export function runCycles(strategy: Strategy, options: CycleOptions, first?: Che
 const SEED_VALUE = 0.4;
 /** Horizont für Wirkungen „bis zum Zyklusende“ (s). */
 const CYCLE_HORIZON = 1800;
-/** Pauschaler Wert (s Wachstum) einer vorgegebenen nächsten Begegnung. */
+/** Pauschaler Wert (s Wachstum) einer vorgegebenen nächsten Begegnung bzw. geschenkten Aussaat. */
 const FORCED_VALUE = 45;
 
 /**
@@ -755,7 +784,7 @@ function eventOptionValue(state: GameState, optionIndex: number): number {
   for (const e of event.options[optionIndex]!.effects) {
     if (e.kind === 'timed') span = Math.max(span, e.seconds);
     else if (e.kind === 'cycle' || e.kind === 'habitat') span = Math.max(span, CYCLE_HORIZON);
-    else if (e.kind === 'nextEncounter') forced = FORCED_VALUE;
+    else if (e.kind === 'nextEncounter' || e.kind === 'freeSowing') forced = FORCED_VALUE;
   }
   const seeds = Math.max(1e-9, before.seeds);
   const gain = after.growth / Math.max(1e-9, before.growth) - 1 + SEED_VALUE * (after.seeds / seeds - 1);
@@ -861,25 +890,84 @@ function careTarget(state: GameState, strategy: Strategy): string | null {
 }
 
 /**
- * Welche Pflanze würde die Strategie als Nächstes setzen? null, wenn der Ring voll ist,
- * nichts freigeschaltet ist oder (bei bewertenden Strategien) keine Pflanze verbessert.
- * Der Zufallsspieler nimmt eine je Zustand feste, aber beliebige Pflanze (wie im früheren
- * Prototyp scripts/v2).
+ * Würde die Strategie jetzt säen (wenn die Samen reichen)? Bei freiem Ring: Zufallsspieler
+ * immer, bewertende Strategien, wenn eine freigeschaltete Pflanze ihre Wertung verbessert. Bei
+ * vollem Ring (Tausch, 27.6): Zufallsspieler nie, bewertende Strategien, wenn eine
+ * freigeschaltete Pflanze eine im Ring mit Gewinn ersetzen könnte (Obergrenze dessen, was die
+ * Karten bringen können). Vorläufig – Phase 10, 3a stellt Kauf und Tausch je Strategie ein.
  */
-function planPlant(state: GameState, strategy: Strategy, counts: Counts): string | null {
-  if (state.plants.length >= plantSlots(state.stage)) return null;
+function planSow(state: GameState, strategy: Strategy, counts: Counts): boolean {
+  void counts;
+  const slots = plantSlots(state.stage);
+  if (slots <= 0 || sowBlocker(state) === 'stage' || sowBlocker(state) === 'open') return false;
   const pool = unlockedPlants(state);
-  if (pool.length === 0) return null;
-  if (!strategy.plantValue) return pool[(counts.plantsBought * 7 + state.waypoint) % pool.length]!;
-  const now = strategy.plantValue(evaluate(state));
-  let top: { id: string; value: number } | null = null;
+  if (pool.length === 0) return false;
+  const full = state.plants.length >= slots;
+  if (!strategy.plantValue) return !full;
+  const value = strategy.plantValue;
+  const now = value(evaluate(state));
   for (const id of pool) {
-    const ev = previewPlant(state, id);
-    if (!ev) continue;
-    const value = strategy.plantValue(ev);
-    if (value > now + 1e-9 && (!top || value > top.value)) top = { id, value };
+    for (const replace of full ? [...new Set(state.plants)] : [undefined]) {
+      const plants = plantsAfterChoice(state, id, replace);
+      if (!plants) continue;
+      if (value(evaluateEcosystem(ecosystemOf(state, { plants }))) > now + 1e-9) return true;
+    }
   }
-  return top?.id ?? null;
+  return false;
+}
+
+/**
+ * Wahl bei der offenen Aussaat: Zufallsspieler nimmt eine zufällige Karte (bei vollem Ring
+ * zufällig ersetzen oder zurücklegen), bewertende Strategien die beste Platzierung, wenn sie
+ * verbessert – sonst zurücklegen. Kein Neu würfeln.
+ */
+function decideSowing(strategy: Strategy, state: GameState, options: Option[], current: Evaluation, rng: RngHolder): Option | null {
+  if (!strategy.plantValue) {
+    const card = randomInt(rng, state.cycle.sowing!.cards.length);
+    const mine = options.filter((o) => o.card === card);
+    if (mine.length === 0) return null;
+    if (mine.length === 1 && mine[0]!.replace === undefined) return mine[0]!;
+    const k = randomInt(rng, mine.length + 1);
+    return k < mine.length ? mine[k]! : null;
+  }
+  const value = strategy.plantValue;
+  const top = best(options, (o) => value(o.ev));
+  return top && value(top.ev) > value(current) + 1e-9 ? top : null;
+}
+
+/**
+ * Löst die offene Aussaat auf (falls eine offen ist; eine wartende Vogelsaat öffnet danach
+ * und wird mit aufgelöst). Gibt zurück, ob etwas aufgelöst wurde.
+ */
+function resolveSowingNow(state: GameState, strategy: Strategy, rng: RngHolder, counts: Counts, variety: VarietyStat[], time: number): boolean {
+  let any = false;
+  for (let guard = 0; state.cycle.sowing && guard < 10; guard++) {
+    any = true;
+    const current = evaluate(state);
+    const options = sowingOptionsFor(state);
+    const cards = state.cycle.sowing.cards;
+    variety.push({
+      stage: state.stage,
+      time,
+      type: 'sowing',
+      cards: cards.length,
+      sameAsPrevious: sameCards(lastCards.get(variety) ?? {}, 'sowing', cards),
+      rerollBlocked: rerollSowingBlocker(state),
+      worthwhile: options.some((o) => o.ev.harmony > current.harmony + 1e-9 || o.ev.growth > current.growth + 1e-9),
+      ids: [...cards],
+    });
+    rememberCards(variety, 'sowing', cards);
+    counts.plantEncounters++;
+    const choice = decideSowing(strategy, state, options, current, rng);
+    if (choice) {
+      if (!chooseSowing(state, choice.card, choice.replace).ok) throw new Error(`Ungültige Aussaat ${choice.id} (${strategy.id})`);
+      counts.plantsTaken++;
+    } else {
+      discardSowing(state);
+      counts.declines++;
+    }
+  }
+  return any;
 }
 
 function resolveAll(
@@ -893,7 +981,14 @@ function resolveAll(
   time: number,
 ): void {
   // Schutz gegen Endlosschleifen: jede Strategie würfelt höchstens einmal je Begegnung.
-  for (let guard = 0; state.pendingEncounters.length > 0 && guard < 50; guard++) {
+  for (let guard = 0; (state.pendingEncounters.length > 0 || state.cycle.sowing) && guard < 50; guard++) {
+    // Die offene Aussaat (Geschenk an Wegpunkt 2, Vogelsaat) liegt obenauf (27.12).
+    if (state.cycle.sowing) {
+      const before = state.seeds;
+      resolveSowingNow(state, strategy, rng, counts, variety, time);
+      book.earnedDecline += Math.max(0, state.seeds - before);
+      continue;
+    }
     const enc = state.pendingEncounters[0]!;
     if (enc.type === 'event' || enc.type === 'visitor') {
       resolveExtra(state, strategy, rng, counts, book, variety, time);
@@ -916,8 +1011,7 @@ function resolveAll(
       });
       rememberCards(variety, enc.type, enc.cards);
       counts.encounters++;
-      if (enc.type === 'plant') counts.plantEncounters++;
-      else if (enc.cards.some((_, c) => cardStatus(state, 0, c) === 'full')) counts.fullNiche++;
+      if (enc.cards.some((_, c) => cardStatus(state, 0, c) === 'full')) counts.fullNiche++;
     }
     else if (improves) variety[variety.length - 1]!.worthwhile = true;
     recordDecision(state, options, current, decisions);
@@ -933,8 +1027,7 @@ function resolveAll(
       if (!chooseCard(state, 0, option.card, option.replace).ok) {
         throw new Error(`Ungültige Wahl ${option.id} (${strategy.id})`);
       }
-      if (option.kind === 'plant') counts.plantsTaken++;
-      else if (option.kind !== 'animal') throw new Error('unerwarteter Begegnungstyp');
+      if (option.kind !== 'animal') throw new Error('unerwarteter Begegnungstyp');
       else counts.rarityTaken[SPECIES_BY_ID.get(option.id)!.rarity]!++;
     } else {
       declineEncounter(state, 0);
@@ -945,17 +1038,17 @@ function resolveAll(
 }
 
 /** Letztes Karten-Set je Begegnungstyp, je Durchgang (am variety-Array festgemacht). */
-const lastCards = new WeakMap<VarietyStat[], Partial<Record<PendingEncounterType, string[]>>>();
+const lastCards = new WeakMap<VarietyStat[], Partial<Record<PendingEncounterType | 'sowing', string[]>>>();
 
-function rememberCards(variety: VarietyStat[], type: PendingEncounterType, cards: readonly string[]): void {
+function rememberCards(variety: VarietyStat[], type: PendingEncounterType | 'sowing', cards: readonly string[]): void {
   const map = lastCards.get(variety) ?? {};
   map[type] = [...cards];
   lastCards.set(variety, map);
 }
 
 function sameCards(
-  map: Partial<Record<PendingEncounterType, string[]>>,
-  type: PendingEncounterType,
+  map: Partial<Record<PendingEncounterType | 'sowing', string[]>>,
+  type: PendingEncounterType | 'sowing',
   cards: readonly string[],
 ): boolean {
   const prev = map[type];
@@ -1149,8 +1242,12 @@ export function decisionStats(summary: Summary, beforeStage: number) {
  * Durststrecke: Zeit seit der letzten lohnenden Begegnung (bzw. Spielstart), gemessen an
  * jeder lohnenden Begegnung dieser Stufe und am Ende der Stufe (Erreichen der nächsten).
  */
-/** Begegnungen mit Karten (Tier, Pflanze) – nur dort zählen Kartenzahl und Neu würfeln. */
-const isCards = (v: VarietyStat) => v.type === 'animal' || v.type === 'plant';
+/**
+ * Begegnungen mit Karten am Wegpunkt (seit Phase 10 nur Tiere) – nur dort zählen Kartenzahl und
+ * Neu würfeln. Aussaaten kauft der Spieler selbst (direkt danach reichen die Samen oft nicht für
+ * einen Wurf); sie zählen für Wiederholung, „lohnend“ und Durststrecke mit.
+ */
+const isCards = (v: VarietyStat) => v.type === 'animal';
 
 export function varietyStats(summary: Summary, stage: number) {
   const vs = summary.runs.flatMap((r) => r.variety.filter((v) => v.stage === stage));
@@ -1165,7 +1262,7 @@ export function varietyStats(summary: Summary, stage: number) {
     sameAnimalShare:
       vs.filter((v) => v.type === 'animal' && v.sameAsPrevious).length / Math.max(1, vs.filter((v) => v.type === 'animal').length),
     samePlantShare:
-      vs.filter((v) => v.type === 'plant' && v.sameAsPrevious).length / Math.max(1, vs.filter((v) => v.type === 'plant').length),
+      vs.filter((v) => v.type === 'sowing' && v.sameAsPrevious).length / Math.max(1, vs.filter((v) => v.type === 'sowing').length),
     fewCardsShare: cardShare((v) => v.cards <= 2),
     rerollOpenShare: cardShare((v) => v.rerollBlocked === null),
     rerollTooExpensiveShare: cardShare((v) => v.rerollBlocked === 'too-expensive'),
@@ -1246,7 +1343,7 @@ export function varietyBefore(summary: Summary, beforeStage: number) {
   const vs = summary.runs.flatMap((r) => r.variety.filter((v) => v.stage < beforeStage));
   const n = Math.max(1, vs.length);
   const share = (f: (v: VarietyStat) => boolean) => vs.filter(f).length / n;
-  // Kartenzahl und Neu würfeln nur bei Tier- und Pflanzenbegegnungen (Ereignisse/Gäste: eine Karte, kein Wurf).
+  // Kartenzahl und Neu würfeln nur bei Tierbegegnungen (Ereignisse/Gäste: eine Karte, kein Wurf; Aussaat: Kauf).
   const cards = vs.filter(isCards);
   const cardShare = (f: (v: VarietyStat) => boolean) => cards.filter(f).length / Math.max(1, cards.length);
   // Längste Durststrecke je Durchgang über alle Stufen vor `beforeStage`.

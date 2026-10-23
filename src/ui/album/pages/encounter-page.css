@@ -1,13 +1,12 @@
-/* Unterseiten „Begegnung“ und „Pflanze setzen“ (encounter-page.ts, plant-picker-page.ts):
-   Kopf als Zettel mit Washi-Streifen, darunter die Karten bzw. Pflanzenzettel. */
+/* Unterseite „Begegnung“ (encounter-page.ts, auch für die Aussaat):
+   Kopf als Zettel mit Washi-Streifen, darunter die Karten. */
 
 .album-subpage .page-head.enc-page-head {
   display: block;
   padding-top: 4px;
 }
 
-.encounter-page .page-body,
-.plant-picker-page .page-body {
+.encounter-page .page-body {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -28,37 +27,4 @@
 body[data-motion='reduce'] .encounter-page.enc-swap .enc-head,
 body[data-motion='reduce'] .encounter-page.enc-swap .enc-sheet {
   animation: none;
-}
-
-/* ---------- Pflanze setzen ---------- */
-
-.picker-seeds {
-  margin: 4px 0 0;
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--ink-seed);
-}
-
-.picker-seeds.short {
-  color: var(--ink-red);
-}
-
-.picker-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  align-items: start;
-  gap: 18px 14px;
-  margin: 0;
-  padding: 10px 2px 4px;
-  list-style: none;
-}
-
-@media (max-width: 480px) {
-  .picker-list {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.picker-row-group {
-  text-transform: none;
 }

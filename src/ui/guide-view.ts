@@ -23,7 +23,8 @@ import {
   NEW_CYCLE_MIN_STAGE,
 } from '../content/memory';
 import { NICHES } from '../content/niches';
-import { PLANT_COST_BASE, PLANT_COST_GROWTH, PLANTS, PLANTS_BY_ID } from '../content/plants';
+import { PLANTS, PLANTS_BY_ID } from '../content/plants';
+import { SOWING_BASE, SOWING_GROWTH } from '../content/sowing';
 import { EVENTS, SEED_SECONDS_MIN_SEEDS } from '../content/events';
 import { COMMON_SPECIES, GENUS_INFO, SPECIES, isKennart } from '../content/species';
 import { SEASONS, SEASON_SECONDS } from '../content/seasons';
@@ -96,6 +97,15 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
   const lastStage = STAGES[STAGES.length - 1]!.name;
   const ringStage = STAGES.find((s) => s.plantSlots > 0)?.name ?? STAGES[1]?.name ?? '';
   const cycleStage = STAGES[NEW_CYCLE_MIN_STAGE]?.name ?? lastStage;
+  // Saatzeit (27.5): Jahreszeit mit Rabatt auf die Aussaat.
+  const sowingSeason = SEASONS.find((x) => (x.sowingCostFactor ?? 1) < 1);
+  const springSowing = sowingSeason
+    ? `Im ${sowingSeason.name} ist Saatzeit: Säen kostet ${formatNumber(Math.round((1 - sowingSeason.sowingCostFactor!) * 100))} % weniger.`
+    : '';
+  // Forschungsast „Saat“: Knoten mit Aussaat-Wirkung (mehr Karten, Rabatt, Neu würfeln).
+  const sowingNodes = RESEARCH.filter((n) => n.effects.some((e) => e.kind === 'sowCards' || e.kind === 'sowCost' || e.kind === 'sowFreeReroll')).map(
+    (n) => `„${n.name}“`,
+  );
   // Harmoniestufen aufsteigend, ohne die unterste (sie beginnt bei −∞).
   const tiers = [...HARMONY_TIERS]
     .filter((t) => Number.isFinite(t.min))
@@ -193,7 +203,8 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       icon: '🃏',
       title: 'Begegnungen und Kartenwahl',
       paragraphs: [
-        `An jedem Wegpunkt wartet eine Begegnung mit bis zu ${formatNumber(CARDS_PER_ENCOUNTER)} Karten: ein Tier, das einziehen möchte, oder eine Pflanze, die keimt. Die Vorschau auf jeder Karte zeigt, was sich ändert.`,
+        `An jedem Wegpunkt wartet eine Begegnung mit bis zu ${formatNumber(CARDS_PER_ENCOUNTER)} Karten: Tiere, die einziehen möchten. Ab „${eventStage}“ kommen auch Ereignisse, ab „${visitorStage}“ Gäste auf der Durchreise. Die Vorschau auf jeder Karte zeigt, was sich ändert.`,
+        'Pflanzen kommen nicht über Begegnungen – du säst sie selbst (Kapitel „Säen“).',
         `Begegnungen warten ruhig im Zettelstapel – höchstens ${formatNumber(MAX_PENDING_ENCOUNTERS)}. Ablehnen bringt die Samen von ${formatNumber(DECLINE_SEED_SECONDS)} Sekunden, mindestens ${formatNumber(SEED_SECONDS_MIN_SEEDS)} 🌰, Neu würfeln kostet ${formatNumber(REROLL_BASE_COST)} 🌰, jedes weitere Mal ×${formatNumber(REROLL_COST_GROWTH)} in derselben Begegnung.`,
       ],
     },
@@ -230,11 +241,22 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       ],
     },
     {
+      id: 'sowing',
+      icon: '🌱',
+      title: 'Säen',
+      paragraphs: [
+        `Ab „${ringStage}“ wachsen Begleitpflanzen im Pflanzring – ${formatNumber(PLANTS.length)} verschiedene. Du bekommst sie durch Säen: „🌱 Säen“ im Reiter „Nischen“ zieht ${formatNumber(CARDS_PER_ENCOUNTER)} Pflanzenkarten, und du wählst eine davon.`,
+        `Die erste Aussaat jedes Zyklus ist ein Geschenk – der Wind bringt sie am zweiten Wegpunkt. Danach kostet Säen ${formatNumber(SOWING_BASE)} 🌰, jede weitere Aussaat im Zyklus ×${formatNumber(SOWING_GROWTH)}. ${springSowing}`,
+        `Ist der Pflanzring voll, ersetzt die neue Pflanze eine andere – das zählt wie jede Aussaat. Passt keine Karte, legst du sie zurück: Das bringt die Samen von ${formatNumber(DECLINE_SEED_SECONDS)} Sekunden, der Preis der nächsten Aussaat bleibt aber gestiegen. Neu würfeln kostet wie bei Tieren. Es ist immer höchstens eine Aussaat offen.`,
+        `In der Forschung bringt ${all(sowingNodes)} mehr aus jeder Aussaat.`,
+      ],
+    },
+    {
       id: 'plants',
       icon: '🌿',
       title: 'Pflanzen, Licht und Wasser',
       paragraphs: [
-        `Ab „${ringStage}“ wachsen Begleitpflanzen im Pflanzring – ${formatNumber(PLANTS.length)} verschiedene. Sie keimen über Begegnungen, oder du setzt sie für Samen: Eine Pflanze kostet ${formatNumber(PLANT_COST_BASE)} 🌰 bei leerem Ring, mit jeder wachsenden Pflanze ×${formatNumber(PLANT_COST_GROWTH)}.`,
+        'Jede Pflanze bringt Wachstum und Samen und bietet Tieren Futter oder einen Lebensraum. Dieselbe Pflanze darf mehrfach wachsen, Pflanzen sterben nicht.',
         `Pflanzen brauchen Licht ☀️ und Wasser 💧. Reicht es nicht, wachsen sie langsamer. Moos speichert Wasser, Schattenpflanzen kommen mit wenig Licht aus.`,
       ],
     },
@@ -276,7 +298,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       paragraphs: [
         `Jeder Zyklus beginnt im Frühling; alle ${seasonMinutes} Minuten Spielzeit wechselt die Jahreszeit – auch, während das Spiel geschlossen ist. Keine ist ein Hindernis, jede bringt etwas Eigenes:`,
         ...SEASONS.map((x) => `${x.icon} ${x.name}: ${x.summary}.`),
-        'Manche Ereignisse und Gäste kommen nur zu ihrer Jahreszeit. Pflanzen kosten immer gleich viel – Warten lohnt sich nicht.',
+        'Manche Ereignisse und Gäste kommen nur zu ihrer Jahreszeit. Nur das Säen ist im Frühling günstiger – sonst kostet alles zu jeder Jahreszeit gleich viel.',
         'Wer mag, hört die Jahreszeiten auch – leiser Wind, Vogelrufe im Frühling und Sommer, Stille im Winter: unter ⚙️ Einstellungen → Klang (anfangs aus).',
       ],
     },

@@ -252,24 +252,14 @@ export function seedsLabel(seeds: number): string {
 }
 
 /** „Ablehnen (+N 🌰)“, gerundet wie seedsLabel. */
-export function declineLabel(reward: number): string {
-  return `Ablehnen (+${seedsLabel(reward)} 🌰)`;
+export function declineLabel(reward: number, verb = 'Ablehnen'): string {
+  return `${verb} (+${seedsLabel(reward)} 🌰)`;
 }
 
 /** Hinweis bei voller Nische: „Nische Krone voll – ersetzt Rotkehlchen“. */
 export function replaceHint(nicheLabel: string, replacedName: string | undefined): string {
   const full = `Nische ${nicheLabel} voll`;
   return replacedName ? `${full} – ersetzt ${replacedName}` : full;
-}
-
-/**
- * Samenvorrat im Kopf der Auswahl „Pflanze setzen“. `cost` ist exakt: Ob es reicht,
- * entscheidet derselbe Vergleich wie im Kern; die fehlende Menge wird aufgerundet.
- */
-export function seedsLine(seeds: number, cost: number): string {
-  const have = `Du hast ${formatNumber(Math.floor(Math.max(0, seeds)))} 🌰`;
-  if (!(cost > 0) || seeds >= cost) return have;
-  return `${have} – noch ${formatNumber(Math.ceil(cost - seeds))} 🌰 bis zur nächsten Pflanze`;
 }
 
 /** Hinweis bei vollem Platz mit gewähltem Ersatz: „Pflanzring voll – ersetzt Hasel“. */

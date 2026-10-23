@@ -65,7 +65,7 @@ const CARD_STICKER_SIZE = 64;
 
 const KIND_LABELS: Record<EncounterKind, { icon: string; text: string }> = {
   animal: { icon: '🐾', text: 'Ein Tier zieht ein' },
-  plant: { icon: '🌱', text: 'Etwas keimt' },
+  plant: { icon: '🌱', text: 'Aussaat' },
   event: { icon: '⛈️', text: 'Ein Ereignis' },
   visitor: { icon: '🦢', text: 'Besuch auf der Durchreise' },
 };
@@ -746,7 +746,7 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
       rerollHint.hidden = !reason;
     }
     decline.hidden = view.declineReward === null;
-    if (view.declineReward !== null) setText(decline, declineLabel(view.declineReward));
+    if (view.declineReward !== null) setText(decline, declineLabel(view.declineReward, view.declineVerb));
     actions.hidden = reroll.hidden && decline.hidden;
     applyDisabled();
 

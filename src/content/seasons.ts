@@ -1,5 +1,6 @@
 import { REPTILE_SUMMER_HAPPINESS } from './habitats';
 import { PREDATION_EVENT_SEASONS } from './predation';
+import { SPRING_SOWING_FACTOR } from './sowing';
 import type { Effect, EncounterType, Genus } from './types';
 
 /**
@@ -16,8 +17,8 @@ import type { Effect, EncounterType, Genus } from './types';
  *   Nur die Grafik blendet stufenlos über (`SceneInput.season`, siehe `render`).
  * - Sanft und ohne Zwang zum Warten: Jede Jahreszeit bringt mindestens eine positive
  *   Wirkung; der einzige Abzug ist −10 % 🌿 im Winter (die Kiefer ist davon frei, trees.ts).
- *   Nichts, was man kauft oder wählt, wird in einer Jahreszeit billiger oder teurer:
  *   Samen-Sekunden (Ereignisse, Gäste) rechnen OHNE Jahreszeit, wie ohne Zeit-Boni.
+ *   Einzige Ausnahme beim Kaufen: die „Saatzeit“ im Frühling (`sowingCostFactor`, 27.5).
  * - Über ein Jahr gemittelt: Wachstum ±0 (+10 / 0 / 0 / −10), Samen +5 %, dazu etwas
  *   mehr Zufriedenheit. Die Zeiten bis zum Hain bleiben damit praktisch gleich
  *   (Simulation DESIGN_V2.md 16.5).
@@ -69,12 +70,14 @@ export interface Season {
   effects: readonly SeasonEffect[];
   /**
    * Faktoren auf die Gewichte der Begegnungstypen am Wegpunkt (ENCOUNTER_WEIGHTS),
-   * fehlend = 1. Nie 0: keine Jahreszeit schließt einen Typ aus. Der Faktor für
-   * „Etwas keimt“ gilt nur, solange der Pflanzring Platz hat – bei vollem Ring bleibt es
-   * bei PLANT_WEIGHT_RING_FULL (sonst kämen mehr Karten, die nur ersetzen können, und die
-   * Strecken ohne lohnende Wahl würden länger, DESIGN_V2.md 7.7).
+   * fehlend = 1. Nie 0: keine Jahreszeit schließt einen Typ aus.
    */
   encounterFactors?: Readonly<Partial<Record<EncounterType, number>>>;
+  /**
+   * Faktor auf den Preis der Aussaat (sowing.ts, DESIGN_V2.md 27.5), fehlend = 1 – im
+   * Frühling „Saatzeit“ (SPRING_SOWING_FACTOR). Gilt nur für bezahlte Aussaaten.
+   */
+  sowingCostFactor?: number;
   /**
    * Wert für `SceneInput.season` (0 Frühling · 1 Sommer · 2 Herbst · 3 Winter) in der
    * MITTE dieser Jahreszeit. Für die Grafik gilt stufenlos
@@ -89,14 +92,14 @@ export const SEASONS: readonly Season[] = [
   {
     id: 'spring', name: 'Frühling', icon: '🌱', renderValue: 0,
     text: 'Der Saft steigt, überall bricht frisches Grün auf.',
-    summary: '+10 % 🌿 · „Etwas keimt“ öfter · Amphibien +15 % 😊',
+    summary: '+10 % 🌿 · Aussaat −20 % 🌰 · Amphibien +15 % 😊',
     // Laichzeit: Die Amphibien wandern zum Tümpel (DESIGN_V2.md 5.5).
     effects: [
       { kind: 'growth', pct: 10 },
       { kind: 'happiness', genus: 'amphibians', points: 15 },
     ],
-    // Pflanzenbegegnungen ×1,5, solange der Ring Platz hat (Junger Baum: 25 → 37,5).
-    encounterFactors: { plant: 1.5 },
+    // „Saatzeit“ (27.5): Die Aussaat kostet 20 % weniger (ersetzt „Etwas keimt“ ×1,5).
+    sowingCostFactor: SPRING_SOWING_FACTOR,
   },
   {
     id: 'summer', name: 'Sommer', icon: '☀️', renderValue: 1,

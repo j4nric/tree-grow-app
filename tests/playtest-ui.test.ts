@@ -31,7 +31,7 @@ describe('Wartende Begegnungen in der Seitenleiste', () => {
     expect(progressHint(state)).toMatch(/^Nächste Begegnung in /);
     state.pendingEncounters = [{ type: 'animal', cards: ['bluetit'], rerolls: 0 }];
     expect(progressHint(state)).toBe('1 Begegnung wartet');
-    state.pendingEncounters.push({ type: 'plant', cards: ['moss'], rerolls: 0 });
+    state.pendingEncounters.push({ type: 'event', cards: ['storm'], rerolls: 0 });
     const view = toEcosystemView(state, evaluate(state));
     expect(view.progressHint).toBe('2 Begegnungen warten');
     expect(view.progressHint).not.toContain('Nächste Begegnung');

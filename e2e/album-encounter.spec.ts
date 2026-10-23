@@ -3,12 +3,12 @@ import { PLANTS } from '../src/content/plants';
 import { SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, type GameState } from '../src/core/state';
-import { encounter, expect, openGame, openPlantPicker, openStack, pageTitle, savedState, seedRaw, seedV3, stack, test, waypoint } from './fixtures';
+import { encounter, expect, openGame, openStack, pageTitle, savedState, seedRaw, seedV3, sowButton, sowNow, stack, test, waypoint } from './fixtures';
 
 /**
  * Zettelstapel und U:Begegnung (docs/ALBUM_UI.md, C.7 und A.6): Text und Schatten des
  * Stapels, Wackeln bei neuen Zetteln, „‹ Später“, nächste Begegnung ohne neues Umblättern,
- * leerer Stapel blättert von selbst zurück; U:Pflanze setzen als Unterseite der Nischen.
+ * leerer Stapel blättert von selbst zurück; „🌱 Säen“ öffnet die Aussaat in U:Begegnung.
  */
 
 test('Zettelstapel: „2 Zettel: Besuch wartet!“, Ereignis mit Namen, Symbol als Sticker', async ({ page, context }) => {
@@ -48,7 +48,8 @@ test('Neuer Zettel wackelt einmal; U:Begegnung: „‹ Später“, Escape und Zu
   await page.clock.runFor(100);
   await expect(stack(page)).toHaveAttribute('data-count', '1');
   await expect(stack(page)).not.toHaveClass(/note-stack-wobble/);
-  // Wegpunkt 2: ein zweiter Zettel – der Stapel wackelt (Klasse bis zum Ende der Animation).
+  // Wegpunkt 2: die geschenkte Aussaat als zweiter Zettel (27.5) – der Stapel wackelt (Klasse
+  // bis zum Ende der Animation).
   await page.clock.fastForward(10_000);
   await page.clock.runFor(50);
   await expect(stack(page)).toHaveAttribute('data-count', '2');
@@ -69,7 +70,9 @@ test('Neuer Zettel wackelt einmal; U:Begegnung: „‹ Später“, Escape und Zu
   await openStack(page);
   await page.keyboard.press('Escape');
   await expect(encounter(page)).toBeHidden();
-  expect((await savedState(page)).pendingEncounters).toHaveLength(2);
+  const saved = await savedState(page);
+  expect(saved.pendingEncounters).toHaveLength(1);
+  expect(saved.cycle.sowing).not.toBeNull();
 });
 
 test('Nächste Begegnung ohne neues Umblättern, leerer Stapel blättert zurück', async ({ page, context }) => {
@@ -97,19 +100,58 @@ test('Nächste Begegnung ohne neues Umblättern, leerer Stapel blättert zurück
   await expect(pageTitle(page)).toBeFocused();
 });
 
-test('U:Pflanze setzen: Lesezeichen „‹ Nischen“, Samen-Zeile, Escape blättert zurück', async ({ page, context }) => {
+test('„🌱 Säen“: erste Aussaat gratis, Kartenwahl in U:Begegnung, danach Preis mit Saatzeit', async ({ page, context }) => {
+  // Setzling (2 Pflanzplätze), Frühling: Die erste Aussaat ist gratis, die zweite kostet ⌈20 · 0,8⌉.
   await seedV3(context, { totalGrowth: waypoint(3) + 1, seeds: 30 });
   await openGame(page);
-  // Der Knopf blättert um, er öffnet kein Popup (früher Dialog: aria-haspopup="dialog").
-  await expect(page.locator('[data-ref="plant-open"]')).not.toHaveAttribute('aria-haspopup');
-  const picker = await openPlantPicker(page);
-  await expect(picker.locator('[data-ref="bookmark"]')).toHaveText('‹ Nischen');
-  await expect(picker.locator('[data-ref="picker-seeds"]')).toHaveText('Du hast 30 🌰');
-  // Fokus auf der ersten setzbaren Pflanze.
-  await expect(picker.locator('.picker-choose:not([disabled])').first()).toBeFocused();
+  await expect(sowButton(page)).toContainText('🌱 Säen');
+  await expect(sowButton(page)).toContainText('gratis');
+  // Der Knopf blättert um, er öffnet kein Popup.
+  await expect(sowButton(page)).not.toHaveAttribute('aria-haspopup');
+  const sheet = await sowNow(page);
+  await expect(sheet).toContainText('Aussaat – drei Samen, ein Platz');
+  await expect(sheet.locator('[data-ref="encounter-decline"]')).toContainText('Zurücklegen');
+  await expect(sheet.locator('[data-ref="encounter-reroll"]')).toBeVisible();
+  // Der Stapel liegt solange verborgen; die Aussaat steht im Spielstand (Neuladen würfelt nicht neu).
+  const cards = (await savedState(page)).cycle.sowing.cards as string[];
+  expect(cards).toHaveLength(3);
+  await sheet.getByRole('button', { name: /einkleben/ }).first().click();
+  await expect(encounter(page)).toBeHidden();
+  const saved = await savedState(page);
+  expect(saved.cycle.sowing).toBeNull();
+  expect(saved.cycle.sowings).toBe(1);
+  expect(saved.plants).toEqual([cards[0]]);
+  await expect(sowButton(page)).toContainText('16 🌰');
+  await expect(sowButton(page)).toContainText('Saatzeit');
+});
+
+test('offene Aussaat: Zettel „Aussaat!“ oben auf dem Stapel, „‹ Später“ legt sie zurück, Neuladen behält die Karten', async ({ page, context }) => {
+  // Eine „Etwas keimt“-Begegnung aus einem alten Stand wird beim Laden die offene Aussaat (27.9).
+  await seedV3(context, {
+    totalGrowth: waypoint(3) + 1,
+    seeds: 30,
+    pendingEncounters: [
+      { type: 'animal', cards: ['bluetit'], rerolls: 0 },
+      { type: 'plant', cards: ['hazel', 'fern', 'nettle'], rerolls: 0 },
+    ],
+  });
+  await openGame(page);
+  await expect(stack(page)).toHaveText('🌱2 Zettel: Aussaat!');
+  await expect(sowButton(page)).toContainText('Aussaat offen');
+  await openStack(page);
+  await expect(encounter(page)).toContainText('Aussaat – drei Samen, ein Platz');
+  await expect(encounter(page)).toContainText('Hasel');
   await page.keyboard.press('Escape');
-  await expect(picker).toBeHidden();
-  await expect(page.locator('[data-ref="plant-open"]')).toBeFocused();
+  await expect(encounter(page)).toBeHidden();
+  await page.reload();
+  await expect(stack(page)).toHaveText('🌱2 Zettel: Aussaat!');
+  // Zurücklegen: Samen gutgeschrieben, danach liegt die Tierbegegnung oben.
+  await openStack(page);
+  await encounter(page).locator('[data-ref="encounter-decline"]').click();
+  await expect(encounter(page)).toContainText('Blaumeise');
+  const saved = await savedState(page);
+  expect(saved.cycle.sowing).toBeNull();
+  expect(saved.seeds).toBeGreaterThan(30);
 });
 
 /**

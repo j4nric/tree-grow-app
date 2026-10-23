@@ -24,7 +24,8 @@ import {
  * läuft über `page.clock` im Zeitraffer (Sprünge < 60 s, damit keine Willkommens-Meldung
  * kommt), der Zufallsgenerator startet mit festem Seed. Wie ein Spieler öffnet der Test
  * den Stapel, liest die Vorschau und wählt bei Tieren die Karte mit dem größten
- * Harmonie-Plus, bei Pflanzen die mit dem größten Wachstums-Plus – lohnt keine, lehnt er ab.
+ * Harmonie-Plus, bei Pflanzen (Aussaat) die mit dem größten Wachstums-Plus – lohnt keine, lehnt
+ * er ab bzw. legt sie zurück. Hat der Pflanzring Platz und reichen die Samen, sät er.
  * Geprüft werden Regeln, die für jeden Seed gelten.
  */
 
@@ -35,6 +36,8 @@ interface Decision {
   offered: string[];
   chosen: string | null;
   replaced: string | null;
+  /** Vom Spieler gesät („🌱 Säen“) – keine Begegnung eines Wegpunkts. */
+  sown?: boolean;
 }
 
 async function stageIndex(page: Page): Promise<number> {
@@ -59,9 +62,9 @@ async function previewValue(card: Locator, icon: string): Promise<number> {
  * Löst die oberste Begegnung im offenen Dialog wie ein vernünftiger Spieler:
  * - Tiere: die Karte mit dem größten Harmonie-Plus (mit der vorausgewählten Ersetzung);
  *   lohnt keine, wird abgelehnt.
- * - Pflanzen („Etwas keimt“, gratis): die Karte mit dem größten Wachstums-Plus, bei
- *   Gleichstand die mit mehr Harmonie; nur ablehnen, wenn jede Karte das Wachstum senkt
- *   (z. B. weil ein voller Ring eine bessere Pflanze ersetzen müsste).
+ * - Pflanzen (Aussaat): die Karte mit dem größten Wachstums-Plus, bei Gleichstand die mit
+ *   mehr Harmonie; nur zurücklegen, wenn jede Karte das Wachstum senkt (z. B. weil ein voller
+ *   Ring eine bessere Pflanze ersetzen müsste).
  */
 async function decide(page: Page): Promise<Decision> {
   const cards = encounter(page).locator('.encounter-card');
@@ -92,12 +95,14 @@ async function decide(page: Page): Promise<Decision> {
     await cards.nth(best.index).getByRole('button', { name: /einkleben/ }).click();
     return { kind, offered, chosen: offered[best.index]!, replaced: best.replaced };
   }
-  await encounter(page).getByRole('button', { name: /Ablehnen/ }).click();
+  await encounter(page).getByRole('button', { name: /Ablehnen|Zurücklegen/ }).click();
   return { kind, offered, chosen: null, replaced: null };
 }
 
 test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', async ({ page, context }) => {
-  test.setTimeout(120_000);
+  // 180 statt 120 s seit Phase 10, 2b: Der Spieler sät jetzt selbst (mehr Entscheidungen); allein
+  // ~1:30 min, mit zwei Workern unter Last knapp über 2 min.
+  test.setTimeout(180_000);
   // Uhr anhalten: Zeit vergeht nur über fastForward/runFor → jeder Lauf ist gleich.
   await page.clock.install({ time: new Date('2026-10-21T08:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-21T08:00:01Z'));
@@ -124,15 +129,28 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
     // Am Ziel: Die Begegnung zum Alter Baum bleibt bewusst offen (Neuladen-Prüfung unten).
     if (stage === STAGES.indexOf('Alter Baum')) break;
 
-    if (!(await stack(page).isVisible())) continue;
-    await stack(page).click();
+    // Säen, wenn der Ring Platz hat und die Samen reichen (die erste Aussaat ist gratis).
+    const sow = page.locator('[data-ref="sow"]');
+    let sown = false;
+    if (!(await stack(page).isVisible())) {
+      const label = (await sow.isVisible()) ? ((await sow.getAttribute('aria-label')) ?? '') : 'nein';
+      if (/nein|noch nicht genug|tauschen|Aussaat offen/.test(label)) continue;
+      await sow.click();
+      sown = true;
+    } else {
+      await stack(page).click();
+    }
     await expect(encounter(page)).toBeVisible();
-    // Bis der Stapel leer ist; danach blättert U:Begegnung von selbst zurück.
-    while (((await savedState(page)).pendingEncounters ?? []).length > 0) {
+    // Bis der Stapel leer ist (Begegnungen und die offene Aussaat); danach blättert U:Begegnung
+    // von selbst zurück.
+    const waiting = (s: Record<string, any>) => (s.pendingEncounters ?? []).length > 0 || !!s.cycle?.sowing;
+    while (waiting(await savedState(page))) {
+      const sowing = !!(await savedState(page)).cycle?.sowing;
       await page.clock.fastForward(400); // Eingabesperre nach neuen Karten (läuft auf der Testuhr)
       const present = await savedAnimals(page);
       const plantsBefore = ((await savedState(page)).plants ?? []) as string[];
       const d = await decide(page);
+      if (sown && sowing) d.sown = true;
       // Karten einer Begegnung sind verschieden; Tiere leben noch nicht im Ökosystem
       // (Pflanzen dürfen mehrfach wachsen).
       expect(new Set(d.offered).size, `doppelte Karten: ${d.offered}`).toBe(d.offered.length);
@@ -160,13 +178,17 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
   await expect(stageLabel(page)).toHaveText('Stufe: Alter Baum');
   const chosen = decisions.filter((d) => d.chosen && d.kind === 'animal');
   expect(chosen.length, `ein vernünftiger Spieler findet mehrere passende Tiere: ${JSON.stringify(decisions)}`).toBeGreaterThanOrEqual(4);
-  // Die erste Begegnung (Keimling) ist ein Tier – nur Arten, die schon am Keimling leben können.
-  expect(decisions[0]!.kind, 'die erste Begegnung ist ein Tier').toBe('animal');
-  for (const id of decisions[0]!.offered) {
+  // Die erste Tierbegegnung (Keimling) – nur Arten, die schon am Keimling leben können.
+  const firstAnimal = decisions.find((d) => d.kind === 'animal')!;
+  for (const id of firstAnimal.offered) {
     expect(SPECIES_BY_ID.get(id)?.unlock, `${id} an der ersten Begegnung`).toBeLessThanOrEqual(1);
   }
-  // Wegpunkt 2 bringt immer „Etwas keimt“ – ab dann wächst mindestens eine Begleitpflanze.
-  expect(decisions[1]!.kind, 'die zweite Begegnung ist eine Pflanze').toBe('plant');
+  // Die erste Aussaat kommt früh: als Geschenk an Wegpunkt 2 – oder, wer schon am Keimling selbst
+  // sät (die erste ist gratis), an ihrer Stelle; dann bringt Wegpunkt 2 ein Tier (27.5).
+  expect(decisions.findIndex((d) => d.kind === 'plant'), 'erste Aussaat unter den ersten drei Entscheidungen').toBeLessThan(3);
+  // Nur Tiere, Ereignisse und Gäste an den Wegpunkten – Pflanzen kommen nur über die Aussaat
+  // (höchstens das Geschenk an Wegpunkt 2 öffnet ohne „Säen“).
+  expect(decisions.filter((d) => d.kind === 'plant' && !d.sown).length).toBeLessThanOrEqual(1);
   const plantsChosen = decisions.filter((d) => d.chosen && d.kind === 'plant');
   expect(plantsChosen.length, JSON.stringify(decisions)).toBeGreaterThanOrEqual(2);
 
@@ -177,7 +199,7 @@ test('Langlauf: vom leeren Spielstand bis „Alter Baum“ mit festem Seed', asy
   // „Alter Baum“ bleibt offen). Ohne passende Art entfällt sie (z. B. Wegpunkt 2 im
   // Keimling bei besetztem Wurzelraum) – das darf nur selten passieren.
   expect(saved.pendingEncounters.length).toBeGreaterThanOrEqual(1);
-  const encounters = decisions.length + saved.pendingEncounters.length;
+  const encounters = decisions.filter((d) => !d.sown).length + saved.pendingEncounters.length;
   const trail = JSON.stringify(decisions);
   expect(encounters, trail).toBeLessThanOrEqual(saved.waypoint);
   expect(encounters, trail).toBeGreaterThanOrEqual(saved.waypoint - 2);
