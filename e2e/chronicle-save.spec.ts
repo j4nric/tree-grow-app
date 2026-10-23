@@ -29,9 +29,10 @@ import {
 
 /**
  * Phase 9, 4a (ROADMAP; DESIGN_V2.md 26.6/26.7) – ergänzt `e2e/chronicle.spec.ts` (3a) um die
- * Lücken: Ein v15-Stand lädt als v16 mit abgeleiteten Kapiteln; das letzte Kapitel per Fixture
- * → Stempel → Andenken und Siegel bleiben nach dem Neuladen; Kennarten vor der Landschaft
- * unsichtbar auch über Hash/URL und Zähler; ein v15-Gerät lehnt den v16-Stand ab
+ * Lücken: Ein v15-Stand lädt (über v16) als aktueller Stand mit abgeleiteten Kapiteln; das
+ * letzte Kapitel per Fixture → Stempel → Andenken und Siegel bleiben nach dem Neuladen;
+ * Kennarten vor der Landschaft unsichtbar auch über Hash/URL und Zähler; ein älteres Gerät
+ * lehnt den neueren Stand ab
  * (`outdated-client` beim Sync, `newer` beim Import).
  */
 
@@ -58,9 +59,9 @@ function landscapeState(stage: number, sites: GameState['meta']['landscape']['si
   return state;
 }
 
-// --- Migration v15 → v16 -------------------------------------------------------------------
+// --- Migration v15 → v16 (→ aktuell) ------------------------------------------------------
 
-test('v15-Stand lädt als v16: abgeleitete Kapitel ohne Datum, Erfundenes zählt nicht, kein Stempel', async ({ page, context }) => {
+test('v15-Stand lädt als aktueller Stand: abgeleitete Kapitel ohne Datum, Erfundenes zählt nicht, kein Stempel', async ({ page, context }) => {
   // Heimatwald aktiv (uralt, volles Gedächtnis über meta.forestMemory), Auwald ruhend und uralt
   // mit halbem Gedächtnis, Erlenbruch jung. Hain: im Test entsteht kein neues Kapitel.
   const state = landscapeState(
@@ -76,6 +77,12 @@ test('v15-Stand lädt als v16: abgeleitete Kapitel ohne Datum, Erfundenes zählt
   const v15 = JSON.parse(serialize(state)) as Record<string, any>;
   v15.version = 15;
   for (const s of v15.meta.landscape.sites) delete s.chronicle;
+  // Wie ein echter v15-Stand: Pflege statt Forschung, ohne Harmonie-Vorrat und Aussaat (v17).
+  delete v15.harmonyPoints;
+  delete v15.meta.research;
+  delete v15.cycle.research;
+  delete v15.cycle.sowing;
+  v15.cycle.care = {};
   // Ein gleichnamiges Feld in einem v15-Stand ist nicht von uns – es zählt nicht.
   v15.meta.landscape.sites[2].chronicle = [{ chapter: 'harmony', cycle: 2, season: 'summer' }];
   await seedRaw(context, v15, 0);
@@ -102,12 +109,11 @@ test('v15-Stand lädt als v16: abgeleitete Kapitel ohne Datum, Erfundenes zählt
   // Die Migration ist kein „neues Kapitel“.
   await expect(stamps(page)).not.toContainText('Kapitel');
 
-  // Gespeichert wird im Format v16 – mit genau den abgeleiteten Kapiteln.
+  // Gespeichert wird im aktuellen Format (v15 → v16 → …) – mit genau den abgeleiteten Kapiteln.
   await page.reload();
   await expect(page.locator('[data-ref="stage"]')).toContainText('Stufe:');
   const saved = await savedState(page);
   expect(saved.version).toBe(SAVE_VERSION);
-  expect(SAVE_VERSION).toBe(16);
   expect(savedChronicle(saved, 'home')).toEqual([entry('ancient', null), entry('memory', null)]);
   expect(savedChronicle(saved, 'floodplain')).toEqual([entry('ancient', null)]);
   expect(savedChronicle(saved, 'carr')).toEqual([]);
@@ -239,7 +245,7 @@ test('Vor der Landschaft: Kennarten weder über den Hash noch in Zählern, Stati
 
 // --- Ein v15-Gerät lehnt den v16-Stand ab ---------------------------------------------------
 
-/** v16-Stand mit Chronik und einer Kennart im Tagebuch (das, was ein v15-Spiel verlöre). */
+/** Aktueller Stand mit Chronik und einer Kennart im Tagebuch (das, was ein älteres Spiel verlöre). */
 function chronicleSave(): GameState {
   const state = landscapeState(GROVE, [{ ...createSite('home'), ancient: true }, { ...createSite('floodplain'), ancient: true }], ['home-floodplain']);
   state.meta.landscape.active = 'floodplain';
@@ -287,30 +293,30 @@ declare const process: { env: Record<string, string | undefined> };
 const SYNC_URL = `http://localhost:${Number(process.env.E2E_SYNC_PORT ?? Number(process.env.E2E_PORT ?? 4173) + 1)}`;
 const uniqueName = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`;
 
-base('Sync: ein v15-Gerät darf den v16-Stand mit Chronik nicht überschreiben (422 outdated-client)', async ({ request }) => {
-  const reg = await request.post(`${SYNC_URL}/api/register`, { data: { username: uniqueName('v16'), password: 'geheim-wald-1' } });
+base('Sync: ein älteres Gerät (SAVE_VERSION - 1) darf den Stand mit Chronik nicht überschreiben (422 outdated-client)', async ({ request }) => {
+  const reg = await request.post(`${SYNC_URL}/api/register`, { data: { username: uniqueName('chron'), password: 'geheim-wald-1' } });
   expect(reg.status()).toBe(201);
   const headers = { Authorization: `Bearer ${((await reg.json()) as { token: string }).token}` };
-  // Der v16-Code trägt Chronik und Kennart.
+  // Der Code trägt Chronik und Kennart.
   const code = exportCode(chronicleSave());
   const decoded = importCode(code, 0);
   expect(decoded.ok).toBe(true);
   if (!decoded.ok) return;
-  expect(decoded.result.state.version).toBe(16);
+  expect(decoded.result.state.version).toBe(SAVE_VERSION);
   expect(chronicleOf(decoded.result.state, 'floodplain')).toEqual([entry('ancient', 3, 'winter'), entry('kennart', 4, 'summer')]);
 
-  const put = await request.put(`${SYNC_URL}/api/save`, { headers, data: { data: code, baseVersion: 0, deviceId: 'v16', action: true, schema: 16 } });
+  const put = await request.put(`${SYNC_URL}/api/save`, { headers, data: { data: code, baseVersion: 0, deviceId: 'neu', action: true, schema: SAVE_VERSION } });
   expect(put.status()).toBe(200);
   const { version } = (await put.json()) as { version: number };
-  // Ein v15-Gerät (ohne Chronik, ohne Biber) will darüber schreiben – auch mit passender Basis.
+  // Ein älteres Gerät (ohne Biber) will darüber schreiben – auch mit passender Basis.
   const old = createInitialState(0, 1);
   const rejected = await request.put(`${SYNC_URL}/api/save`, {
     headers,
-    data: { data: exportCode(old), baseVersion: version, deviceId: 'v15', action: true, schema: 15 },
+    data: { data: exportCode(old), baseVersion: version, deviceId: 'alt', action: true, schema: SAVE_VERSION - 1 },
   });
   expect(rejected.status()).toBe(422);
-  expect(await rejected.json()).toMatchObject({ error: 'outdated-client', schema: 16 });
-  // Im Konto liegt unverändert der v16-Stand mit seiner Chronik.
+  expect(await rejected.json()).toMatchObject({ error: 'outdated-client', schema: SAVE_VERSION });
+  // Im Konto liegt unverändert der neuere Stand mit seiner Chronik.
   const res = await request.get(`${SYNC_URL}/api/save`, { headers });
-  expect(await res.json()).toMatchObject({ data: code, version, deviceId: 'v16', schema: 16 });
+  expect(await res.json()).toMatchObject({ data: code, version, deviceId: 'neu', schema: SAVE_VERSION });
 });

@@ -956,7 +956,10 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   lehnt ein v15-Gerät (`schema: 15`) mit 422 `outdated-client` ab, der v16-Stand bleibt. Unit-Test
   in `tests/chronicle.test.ts`: „Voller Einklang“ im Schnellvorlauf (`skipYears`) mit derselben
   Jahreszeit (Sommer) wie Schritt für Schritt. `e2e/landscape.spec.ts` mit `--repeat-each=5`
-  stabil (85/85)
+  stabil (85/85). Nach Phase 10, 2a (v17) versionsneutral: der v15-Stand lädt über v16 in die
+  aktuelle Version, „älteres Gerät“ = `SAVE_VERSION - 1`. Dazu zwei wackelnde Tests robust:
+  `album-encounter.spec.ts` (U:Pflanze setzen) mit angehaltener Testuhr, `album-viewports.spec.ts`
+  ohne DOM-Schnappschüsse im Trace (die kosteten bei 1200 × 700 je Aufruf ~300 ms)
 - [ ] **4b** Playtest Phase 9 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
   Spätspiel-Stand mit voller Landschaft – trägt die Chronik? Wird das Verweilen im Urwald als
   schön oder als Warten erlebt? Sind Kennarten zu selten? Danach Entscheidung über eine dritte

@@ -98,6 +98,10 @@ test('Nächste Begegnung ohne neues Umblättern, leerer Stapel blättert zurück
 });
 
 test('U:Pflanze setzen: Lesezeichen „‹ Nischen“, Samen-Zeile, Escape blättert zurück', async ({ page, context }) => {
+  // Uhr anhalten: Sonst sammelt der Baum in Echtzeit weiter Samen, und unter Last stand in der
+  // Samen-Zeile schon „31“ oder „32“ statt „30“. Das Umblättern läuft auch mit angehaltener Uhr.
+  await page.clock.install({ time: new Date('2026-10-22T08:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-22T08:00:01Z'));
   await seedV3(context, { totalGrowth: waypoint(3) + 1, seeds: 30 });
   await openGame(page);
   // Der Knopf blättert um, er öffnet kein Popup (früher Dialog: aria-haspopup="dialog").
