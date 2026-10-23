@@ -7465,7 +7465,7 @@ Urwald war – genau dann, wenn es heute keinen Grund mehr gibt.
 | Wald | Kennart | Gattung · Nische | Seltenheit · ab | Wünsche (`needs`) | Wirkung | Text |
 |---|---|---|---|---|---|---|
 | 🌳 Heimatwald | 🐭 **Haselmaus** (`dormouse`) | Säugetiere · Krone | besonders · Hain | Sträucher ≥ 1 | +6 % 🌰, +4 ⚖️, nachtaktiv | „Schläft sieben Monate im Jahr – und klettert in Sommernächten bis in die Haselspitzen.“ |
-| 🌊 Auwald | 🦫 **Biber** (`beaver`) | Säugetiere · Waldtümpel | besonders · Hain | Feuchte | ~~+1 Platz Waldtümpel~~ **+2 💧, schafft Feuchte** (2b, siehe unten), +4 ⚖️ | „Er staut den Bach, und wo vorher ein Rinnsal war, quaken bald die Frösche.“ |
+| 🌊 Auwald | 🦫 **Biber** (`beaver`) | Säugetiere · Waldtümpel | besonders · Hain | ~~Feuchte~~ **≥ 2 Bäume** (Review 2b) | ~~+1 Platz Waldtümpel~~ **+2 💧, schafft Feuchte** (2b, siehe unten), +4 ⚖️ | „Er staut den Bach, und wo vorher ein Rinnsal war, quaken bald die Frösche.“ |
 | 🐸 Erlenbruch | 🐸 **Moorfrosch** (`moorfrog`) | Amphibien · Waldtümpel | besonders · Hain | Feuchte, Moose & Farne ≥ 1 | Moose & Farne +10 % 🌿, +6 ⚖️ | „Ein paar Tage im Frühling sind die Männchen himmelblau. Dann ist das ganze Bruch ein Konzert.“ |
 | 🍂 Buchenhallen | 🍄 **Ästiger Stachelbart** (`hericium`) | Pilze · Stamm & Rinde | besonders · Hain | Totholz, schattig | +6 % 🌿, +4 ⚖️ | „Wie ein weißer Korallenstock an einer toten Buche. Er wächst nur, wo der Wald sehr alt ist.“ |
 | ⛰️ Bergmischwald | 🐈 **Luchs** (`lynx`) | Säugetiere · Waldrand | besonders · Hain | Bäume ≥ 3; frisst Rehe | +6 % 🌿, hält Rehe klein (−30 % Fraß), +4 ⚖️ | „Pinselohren im Unterholz. Du siehst ihn nie – er sieht dich immer.“ |
@@ -7489,7 +7489,10 @@ Urwald war – genau dann, wenn es heute keinen Grund mehr gibt.
   Nische – der Biber machte sich selbst Platz, und als Stammgast (Einzug ohne
   Erscheinungsbedingung, `moveInRegulars`) öffnete er einen geschlossenen Tümpel, den das Laden
   danach wieder kürzte (Regel „Platz-Wirkungen nie in der eigenen Nische“, `tests/content.test.ts`).
-  Darum mit vorhandenen Wirkungsarten: +2 💧 und das Merkmal Feuchte (`provides`), +4 ⚖️. Frage
+  Darum mit vorhandenen Wirkungsarten: +2 💧 und das Merkmal Feuchte (`provides`), +4 ⚖️. Sein
+  Wunsch ist darum nicht mehr Feuchte, sondern ≥ 2 Bäume (zum Fällen): Sonst deckte er seinen
+  eigenen Wunsch und wäre in jedem Wald zufrieden (Regel „eine Art deckt nie ihren eigenen
+  Wunsch“, `tests/content.test.ts`). Frage
   an 2c / Game Design: genügt das als Bild „staut den Bach“, oder soll er Platz in einer anderen
   Nische schaffen?
 - **Wildwechsel:** Erlaubt und gewollt. Eine Kennart im Bestand (`fauna`) ihres Waldes kann

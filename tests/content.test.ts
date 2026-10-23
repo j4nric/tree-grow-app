@@ -248,6 +248,14 @@ describe('Inhalte v2', () => {
     }
   });
 
+  it('Eine Art deckt nie ihren eigenen Wunsch (sonst wäre sie überall zufrieden)', () => {
+    for (const s of SPECIES) {
+      for (const n of s.needs) {
+        if (n.kind === 'tag') expect(s.provides ?? [], `${s.id}: ${n.tag}`).not.toContain(n.tag);
+      }
+    }
+  });
+
   it('Pflanzen: gültige Gruppen, Merkmale, Freischaltung und Zahlen', () => {
     for (const p of PLANTS) {
       expect(PLANT_GROUPS, p.id).toContain(p.group);

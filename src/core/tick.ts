@@ -1414,7 +1414,7 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   // Neue Kapitel: im alten Wald und – bringt ein Stammgast gleich die Kennart mit – im neuen.
   const chapters: ChapterNews[] = [];
   for (const id of new Set([from, target])) {
-    for (const e of siteEntry(landscape, id)?.chronicle.slice(chronicleBefore.get(id) ?? 0) ?? []) chapters.push({ site: id, chapter: e.chapter });
+    for (const e of siteEntry(landscape, id)?.chronicle?.slice(chronicleBefore.get(id) ?? 0) ?? []) chapters.push({ site: id, chapter: e.chapter });
   }
   return {
     ok: true,

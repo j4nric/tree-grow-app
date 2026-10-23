@@ -404,12 +404,13 @@ export const SPECIES: readonly Species[] = [
   },
   {
     id: 'beaver', name: 'Biber', genus: 'mammals', rarity: 2, level: 'herbivore', niche: 'pond', unlock: 5,
-    food: ['laub', 'kraut'], needs: [{ kind: 'tag', tag: 'feucht' }],
+    food: ['laub', 'kraut'], needs: [{ kind: 'group', group: 'trees', min: 2 }],
     appears: [{ kind: 'site', site: 'floodplain' }],
     // Statt „+1 Platz Waldtümpel“ (26.3, Entwurf): Eine Platz-Wirkung in der eigenen Nische
     // machte dem Biber selbst Platz und öffnete als Stammgast einen geschlossenen Tümpel (Regel
     // „Platz-Wirkungen nie in der eigenen Nische“, tests/content.test.ts). Sein Damm schafft
-    // darum Feuchte und Wasser – Startwert für 2c.
+    // darum Feuchte und Wasser – Startwert für 2c. Er wünscht sich Bäume zum Fällen, nicht
+    // Feuchte: sonst deckte er seinen eigenen Wunsch (Regel in tests/content.test.ts).
     provides: ['feucht'],
     effects: [{ kind: 'water', amount: 2 }, { kind: 'harmony', points: 4 }],
     summary: '+2 💧, schafft Feuchte, +4 ⚖️',
