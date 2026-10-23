@@ -942,10 +942,24 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
 
 **Welle 4 – Absichern**
 
-- [ ] **4a** e2e Phase 9 (`qa-tester`): v15-Stand lädt als v16 mit abgeleiteten Kapiteln;
+- [x] **4a** e2e Phase 9 (`qa-tester`): v15-Stand lädt als v16 mit abgeleiteten Kapiteln;
   Kapitel per Fixture schreiben → Stempel → Neuladen → Chronik und Andenken bleiben; Kennarten
   vor der Landschaft unsichtbar (Arten, Zähler, Hash); v15-Gerät lehnt den v16-Stand ab
   (`outdated-client`, `newer` beim Import). Abhängig: 3a
+  **Erledigt:** `e2e/chronicle-save.spec.ts` ergänzt `e2e/chronicle.spec.ts` (3a) um die Lücken:
+  v15-Stand (mit fremdem Feld `chronicle`) lädt als v16 mit „schon früher“-Kapiteln, ohne Stempel,
+  gespeichert als v16; letztes Kapitel online → Stempel und Erfolg „Eine Waldgeschichte“ →
+  Andenken, Siegel, Andenken in R:Arten – auch nach dem Neuladen; vor der Landschaft verrät nichts
+  eine Kennart (Hashes wie `#arten/beaver`, `#kennarten`, `#landschaft` → `#nischen`; Zähler je
+  Gattung und gesamt, Statistik, Anleitung „Gattungen“ und „Nachtarten“; auch mit einer Kennart im
+  Tagebuch); Import eines Codes einer neueren Version → `newer`, nichts geändert; Sync-Server
+  lehnt ein v15-Gerät (`schema: 15`) mit 422 `outdated-client` ab, der v16-Stand bleibt. Unit-Test
+  in `tests/chronicle.test.ts`: „Voller Einklang“ im Schnellvorlauf (`skipYears`) mit derselben
+  Jahreszeit (Sommer) wie Schritt für Schritt. `e2e/landscape.spec.ts` mit `--repeat-each=5`
+  stabil (85/85). Nach Phase 10, 2a (v17) versionsneutral: der v15-Stand lädt über v16 in die
+  aktuelle Version, „älteres Gerät“ = `SAVE_VERSION - 1`. Dazu zwei wackelnde Tests robust:
+  `album-encounter.spec.ts` (U:Pflanze setzen) mit angehaltener Testuhr, `album-viewports.spec.ts`
+  ohne DOM-Schnappschüsse im Trace (die kosteten bei 1200 × 700 je Aufruf ~300 ms)
 - [ ] **4b** Playtest Phase 9 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
   Spätspiel-Stand mit voller Landschaft – trägt die Chronik? Wird das Verweilen im Urwald als
   schön oder als Warten erlebt? Sind Kennarten zu selten? Danach Entscheidung über eine dritte

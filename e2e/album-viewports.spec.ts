@@ -37,6 +37,16 @@ import {
  * mitten in der Drehung ragt die Seite kurz über den Rand.
  */
 
+/*
+ * Trace ohne DOM-Schnappschüsse (Screenshots und Schritte bleiben): Der Trace-Rekorder nimmt vor
+ * und nach jedem Playwright-Aufruf einen Schnappschuss des ganzen DOM und liest dafür u. a.
+ * scrollTop/scrollLeft jedes Elements – das erzwingt jedes Mal ein Layout. Bei 1200 × 700 mit
+ * offener Unterseite kostete so jeder Aufruf ~300 ms statt ~40 ms (rohes CDP: 5 ms); der Test
+ * „Nischen: U:Tier …“ brauchte 22 s statt 9,5 s und lief unter Last über die 30-s-Grenze.
+ * Diese Datei macht Hunderte Messaufrufe – hier lohnen sich die Schnappschüsse nicht.
+ */
+test.use({ trace: { mode: 'retain-on-failure', snapshots: false, screenshots: true, sources: true } });
+
 const VIEWPORTS = [
   { name: '360 × 740', width: 360, height: 740 },
   { name: '390 × 844', width: 390, height: 844 },
