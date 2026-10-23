@@ -268,6 +268,10 @@ Setzling, weil dort die Begleitpflanzen wachsen und Bienen und Falter leben.
 
 ## 4. Pflanzen
 
+> **Geplant (Phase 10, 27.5/27.6):** „Etwas keimt“ und „Pflanze setzen“ werden durch die
+> **Aussaat** ersetzt – Kauf mit Samen, Preis je Kauf `20 · 1,75^(n−1)` 🌰 (die erste im Zyklus
+> gratis), danach die bekannte Kartenwahl. Bis zur Umsetzung gilt dieser Abschnitt.
+
 Pflanzen haben **Wachstum**, **Samen**, **Licht-** und **Wasserbedarf** und bieten
 Tieren **Futter und Lebensraum**. Sie kommen über Begegnungen („Etwas keimt“, gratis)
 oder werden mit Samen gesetzt:
@@ -616,6 +620,9 @@ Bedingung oder Partnerschaft.
 ---
 
 ## 7. Begegnungen
+
+> **Geplant (Phase 10, 27.5):** Begegnungen werden reine Tierbegegnungen (dazu Ereignisse und
+> Gäste); „Etwas keimt“ verlässt das Deck, Pflanzen kommen über die Aussaat (27.6).
 
 ### 7.1 Typen
 
@@ -1055,6 +1062,9 @@ bis 60 min 127 🌰, bis 120 min 377 🌰.
 
 ## 8. Pflegemaßnahmen
 
+> **Geplant (Phase 10, 27.7):** Die Pflege wird ein **Forschungsbaum** (6 Äste, 5 Gabeln) mit
+> Kosten in Harmonie ⚖️ statt Samen; jeder Rang unten wird ein Knoten mit gleicher Wirkung.
+
 Pflege ist die **Samen-Senke** des Spiels (Befund seit 2.1: Pflanzen binden bis zum Hain
 nur ~1.700 🌰, der Bestand wächst auf 25–35 Minuten Produktion). Inhalte:
 `src/content/care.ts`; Logik in `src/core/tick.ts` (`buyCare`, `careBlocker`) und
@@ -1211,6 +1221,10 @@ Slot öffnet Höhlen vor dem Alten Baum (Nistkästen im Jungen Baum); Neuer Zykl
 ---
 
 ## 9. Harmonie
+
+> **Geplant (Phase 10, 27.3/27.4):** H wird zur **Harmonie-Produktion** in ⚖️ pro Minute
+> (gleiche Zahl), die einen ausgebbaren Vorrat füllt; der Bonus `1 + H/100` richtet sich nach
+> der Produktion, nicht nach dem Vorrat.
 
 ### 9.1 Formel
 
@@ -7768,3 +7782,658 @@ Wirkung der Kennarten. Nicht verstellt werden die Regeln der Landschaft (24.4–
 - **Echtzeit-Rituale** (Uhrzeit, echte Jahreszeit, Login-Belohnungen): Tagesziele reichen;
   Kalenderdruck passt nicht zum ruhigen Spiel.
 - **Neue Abhängigkeiten oder Server:** keine; alles läuft im Spielstand und offline.
+
+---
+
+## 27. Forschung, Pflanzenkauf und Harmonie-Produktion (Phase 10)
+
+> **Stand:** Entwurf (Phase 10, Konzept). Alle Zahlen sind **Startwerte** aus einer
+> Vorab-Messung auf der echten Logik ohne Code-Umbau (27.10); die echte Messung ist Aufgabe
+> 3a/3b der Phase 10. Spielstand **v17** (nach v16 aus Phase 9, 2b). Aufgaben und Reihenfolge:
+> `docs/ROADMAP.md`, Phase 10. Ersetzt nach der Umsetzung: „Etwas keimt“ (7.1, 7.2, 7.7),
+> „Pflanze setzen“ (4), die Pflegemaßnahmen (8) und die Rolle der Harmonie als reine Punktzahl (9.1).
+
+### 27.1 Playtest-Feedback und Leitlinien
+
+Der Spieler hat nach dem Spielen geschrieben (wörtlich):
+
+1. „‚Etwas keimt‘-Event ist zu häufig. Begegnungen enthalten auch Pflanzen, hier sollten nur
+   Tiere sein.“
+2. „Pflanzen sollen stattdessen durch Samen kaufbar sein, fester Preis, um Auswahl-Event zu
+   triggern – wird mit jedem Kauf teurer.“
+3. „Pflege in Techtree umwandeln, mehr Abzweigungen, derzeit sehr linear. Währung sollten hier
+   Harmonie-Punkte sein.“
+4. „Änderung von Harmonie zu einer Forschungswährung.“
+5. „Harmonie-Bonus muss umgebaut werden, sodass stattdessen die Harmonie-Produktion als
+   Richtwert genommen wird.“
+
+**Befund (Vorab-Messung 27.10):** Heute ist bis zum Urwald jede siebte Begegnung „Etwas keimt“
+(6,4 von 47 beim Harmonie-Spieler), bis zum Alten Baum sogar jede fünfte bis sechste (2 von 11)
+– und 7.7 zeigt, dass bei vollem Ring nur ~70 % davon lohnen. „Pflanze setzen“ kostet bis zum
+Urwald zusammen ~7.000 🌰, das sind **2,4 %** aller verdienten Samen: Der Kauf ist heute keine
+Entscheidung, sondern ein Häkchen. Die Pflege ist eine Liste von 11 Maßnahmen, von denen sich
+nur die beiden Kronen ausschließen; der Harmonie-Spieler kauft bis zum Urwald 20 von 25 Rängen
+in fast immer derselben Reihenfolge (27.10, Tabelle „Pflege heute“).
+
+**Leitlinien**
+
+- **Tempo bleibt:** Spielzeit bis Hain, Urwald und „Landschaft vollständig“ grob wie heute
+  (Ziele mit Toleranz in 27.11). Kein neuer Multiplikator (24.1) – die Harmonie wird ausgebbar,
+  aber nicht stärker.
+- **Eine Zahl für die Harmonie:** Was der Spieler heute als „Harmonie 110“ sieht, wird zur
+  **Harmonie-Produktion „110 ⚖️/min“** – gleiche Zahl, gleiche Formel (9.1), gleiche Schwellen.
+  Neu ist nur, dass die Produktion einen **Vorrat** füllt, den man in der Forschung ausgibt.
+  So bleiben Waldgedächtnis, Sperrklinke, Harmoniestufen, Chronik und Erfolge numerisch gültig.
+- **Begegnungen sind Tiere** (plus die bestehenden Ereignisse und Gäste). Pflanzen kommen nur
+  noch über die **Aussaat** – eine Entscheidung, die der Spieler selbst anstößt.
+- **Zwei Währungen, zwei Aufgaben:** 🌰 Samen kaufen Pflanzen (Aussaat), Gäste und Neu würfeln;
+  ⚖️ Harmonie kauft Forschung. Nichts tauscht die eine in die andere.
+- **Echte Abzweigungen:** Der Forschungsbaum hat sechs Äste mit fünf Entweder-oder-Gabeln;
+  Querverbindungen machen aus Leitern ein Netz. Jede Gabel ist eine Abwägung zwischen gleich
+  starken Wegen, keine Rechenaufgabe.
+- **Nur vorhandene Wirkungsarten**, mit zwei kleinen Ausnahmen für die Aussaat (27.7, „Neue
+  Wirkungen“) und `happiness` (gibt es schon bei Jahreszeiten und Eigenheiten, neu auch in der
+  Forschung).
+
+### 27.2 Kernentscheidungen auf einen Blick
+
+| Frage | Entscheidung | Abschnitt |
+|---|---|---|
+| Was wird aus „Etwas keimt“? | Entfällt aus dem Begegnungs-Deck; seine Gewichte gehen an „Tier zieht ein“. Wegpunkt 2 öffnet stattdessen die erste (geschenkte) Aussaat. | 27.5 |
+| Wie kauft man Pflanzen? | Knopf **„🌱 Säen“**: kostet Samen, öffnet die bekannte Kartenwahl (3 Pflanzenkarten). Preis `20 · 1,75^(n−1)` 🌰 für die n-te Aussaat des Zyklus, die erste ist gratis; Zähler je Zyklus. | 27.6 |
+| Voller Pflanzring? | Säen bleibt möglich: Die Karte ersetzt eine Pflanze (Vorschau wie heute) oder wird zurückgelegt (10 Samen-Sekunden wie Ablehnen). | 27.6 |
+| Ab wann? | Ab Keimling (erster Pflanzplatz). | 27.6 |
+| Was ist Harmonie? | **Produktion** `p` = heutige Harmonie H in ⚖️ pro Minute; sie füllt einen **Vorrat** ⚖️ mit `p/60 · G` je Sekunde (G = Faktor des Waldgedächtnisses). | 27.3 |
+| Harmonie-Bonus? | `1 + p/100` auf 🌿 und 🌰 – aus der Produktion, **nicht** aus dem Vorrat und **ohne** Gedächtnisfaktor. Ausgeben senkt den Bonus nie. | 27.4 |
+| Was wird aus der Pflege? | Ein **Forschungsbaum** (6 Äste, 32 Knoten, 5 Gabeln), Kosten in ⚖️. Jeder heutige Pflege-Rang hat einen Knoten mit gleicher Wirkung; neu sind 7 Knoten. | 27.7 |
+| Neuer Zyklus? | Knoten und Vorrat gehören zum Zyklus (wie Pflege und Samen heute) und beginnen neu; der **Forschungsplan** merkt sich die Reihenfolge des letzten Zyklus. | 27.8 |
+| Spielstand? | **v17**: Vorrat, Forschung, Aussaat-Zähler und offene Aussaat; Migration v16 → v17 bucht Pflege-Ränge in Knoten um und schenkt 10 min Produktion. | 27.9 |
+
+### 27.3 Harmonie als Forschungswährung
+
+```
+Harmonie-Produktion   p  = H                          ⚖️/min   (H wie in 9.1, unverändert)
+Ertrag in den Vorrat     = p / 60 · G                 ⚖️/s     G = 1 + 1 % · wirksames Waldgedächtnis (24.6)
+Harmonie-Bonus           = 1 + p / 100                auf 🌿 und 🌰 (27.4)
+```
+
+- **Vorrat** `harmonyPoints` (⚖️, ≥ 0, Kommazahl wie die Samen). Er wächst in `tick` mit der
+  Produktion, die zwischen zwei Halten konstant ist – genau wie die Samen (online = offline,
+  12.4). Offline wie Samen bis 8 h; die Rückkehr-Meldung nennt „+840 ⚖️“.
+- **Pro Minute statt pro Sekunde:** Bei pro Sekunde stünde dort „1,8 ⚖️/s“ statt „110“, und
+  alle bekannten Schwellen (Harmoniestufen 30/60/90/120, Chronik 250, Erfolge 30/60/150,
+  Gedächtnis-Schwellen 100/148/164) würden krumm. Mit „pro Minute“ bleibt jede Zahl, die der
+  Spieler kennt, gleich – und eine Minute passt zum ruhigen Takt des Spiels.
+- **Warum der Gedächtnisfaktor G auf den Ertrag gehört:** Die Pflege kostete Samen, und Samen
+  wachsen mit dem Waldgedächtnis (×11 bei 1000 Punkten). Ohne G könnte ein später Zyklus
+  (Urwald in ~8 min, 24.1) kaum Forschung kaufen: 8 min × Ø ~150 ⚖️/min ≈ 1.200 ⚖️ gegen
+  ~21.000 ⚖️ für einen ganzen Weg durch den Baum. Mit G gilt dieselbe Rechnung wie heute bei
+  den Samen: Ein 8-min-Urwald bringt mit ×11 grob 11 · 8 / 155 ≈ 0,57 × den Ertrag des ersten Zyklus –
+  die Samen heute grob ebenso, weil beide mit G und der Spielzeit skalieren – die Forschung ist
+  in späten Zyklen so erreichbar wie heute die Pflege. Im ersten Zyklus ist G = 1.
+- **Warum G nicht auf den Bonus wirkt:** Das Gedächtnis multipliziert 🌿 und 🌰 schon direkt
+  (`1 + 1 % · Gedächtnis`). Ginge es zusätzlich in die Produktion des Bonus ein, wirkte es
+  quadratisch – ein neuer Multiplikator, den 24.1 ausschließt.
+- **Keine Produktions-Multiplikatoren in der Forschung:** Knoten erhöhen die Produktion nur
+  über die vorhandene Wirkung `harmony` (+N Punkte, wie heute Pflege und Ereignisse). Ein
+  „+10 % Harmonie“-Knoten hätte Bonus, Gedächtnis und Chronik zugleich verschoben.
+- **Verworfen:** Bonus aus dem *Vorrat* (Ausgeben würde bestrafen – das Gegenteil einer
+  Währung); Bonus aus der *gesamten* je gesammelten Harmonie (wächst ohne Entscheidung, Inflation);
+  Vorrat über den Zyklus behalten (27.8).
+
+### 27.4 Harmonie-Bonus aus der Produktion – und was daran hängt
+
+**Formel:** unverändert `1 + p / 100`, linear, ohne Deckel. Eine Kurve (Wurzel, Logarithmus)
+würde jede Messung seit 2.11 verschieben und die Spielweisen neu sortieren; die Rückmeldung
+verlangt den *Richtwert* Produktion, nicht eine andere Steigung. Die Produktion ist der Wert,
+den der Spieler optimiert; der Vorrat ist, was er davon ausgibt.
+
+| Teil | heute | ab Phase 10 | Logik-Änderung |
+|---|---|---|---|
+| Multiplikator in `evaluate` | `1 + H / HARMONY_DIVISOR` | dasselbe, Name in der UI „Harmonie-Bonus aus 110 ⚖️/min“ | keine |
+| `harmonyTier` / `HARMONY_TIERS` (Anzeige, Szene, Klang) | aus H | aus p (= H) | keine; Texte „ab 30 ⚖️/min“ |
+| `cycle.maxHarmony` (H_max) | höchste H des Zyklus | höchste Produktion des Zyklus | keine; Texte |
+| Sperrklinke `cycle.bestHarmonyMemory` (12.7) | aus H_max und Wegpunkt | unverändert (gleiche Zahl); Feldname bleibt | keine |
+| Waldgedächtnis (10) | `⌊H/D + min(C, 3·max(0, H−T))⌋` | dieselbe Formel mit höchster Produktion; Spieltexte „höchste Harmonie-Produktion“ | keine; Schwellen ggf. nach 3a (27.11) |
+| Landschaft, Hähersaat (24.4) | aus dem Gedächtnis | unverändert | keine |
+| Chronik `CHRONICLE_HARMONY` = 250 (26.4) | H_max ≥ 250 | höchste Produktion ≥ 250 ⚖️/min; Titel „Voller Einklang“ bleibt | keine; Hinweistext |
+| Erfolge `harmony-30/60/150` (`stat bestHarmony`) | „Die Harmonie erreicht 30.“ | „Die Harmonie-Produktion erreicht 30 ⚖️/min.“ | nur Texte |
+| Tagesziel `harmony` (20.2) | „Halte die Harmonie … bei mindestens {harmony}“ | „… die Harmonie-Produktion … bei mindestens {harmony} ⚖️/min“ | nur Text |
+| Statistik `bestHarmony` | „Beste Harmonie“ | „Beste Harmonie-Produktion“; neu `harmonyEarned` (gesammelt, alle Zyklen) | Feld neu (v17) |
+| Wetter (21) | berührt Harmonie nie | berührt Produktion nie | keine |
+
+Weil p numerisch H ist, ändert der Umbau der Harmonie **allein** keine Zahl im Spiel. Was
+sich verschiebt, kommt aus den anderen beiden Umbauten (mehr Tierbegegnungen, Forschung statt
+Pflege) – gemessen in 27.10, Ziele in 27.11.
+
+### 27.5 Begegnungen nur mit Tieren
+
+**Neue Gewichte** (`ENCOUNTER_WEIGHTS` ohne Spalte „Pflanze“, Reihenfolge Tier, Ereignis, Gast):
+
+| Stufe | Tier | Ereignis | Gast | heute (Tier : Pflanze : Ereignis : Gast) |
+|---|---|---|---|---|
+| Samen, Keimling, Setzling | 100 | – | – | 60 : 40 : – : – |
+| Junger Baum | 90 | 10 | – | 65 : 25 : 10 : – |
+| ab Alter Baum | 80 | 10 | 10 | 60 : 20 : 10 : 10 |
+
+Der Anteil von Ereignissen und Gästen bleibt absichtlich gleich (jedes kommt höchstens einmal
+je Zyklus, 7.2; bis zum Urwald kommen heute je Durchgang 9,8 Ereignisse und 6,6 Gäste). Der Zwischenhalt ab dem
+Hain bleibt unverändert. Kommt kein Ereignis oder Gast in Frage, gibt es ein Tier; passt auch
+kein Tier, zieht die Begegnung weiter (10 Samen-Sekunden, 7.9).
+
+**Einführung:** `SCRIPTED_ENCOUNTERS` wird `['animal', 'sowing', 'animal']`. `'sowing'` ist keine
+Begegnung: Ist die geschenkte erste Aussaat des Zyklus noch nicht benutzt und keine Aussaat
+offen, öffnet Wegpunkt 2 sie („Der Wind trägt Samen heran …“, gleiche Kartenwahl); sonst wird an
+Wegpunkt 2 normal ein Tier gezogen. So lernt der Spieler die Aussaat im selben Moment, in dem er
+heute die erste Pflanze bekommt (~0:20 min), und sieht danach den Knopf mit dem nächsten Preis.
+
+**Folgen – alles, was „Etwas keimt“ voraussetzt:**
+
+| Stelle | heute | ab Phase 10 |
+|---|---|---|
+| `PLANT_WEIGHT_RING_FULL` (7.7) | halbes Gewicht für „Etwas keimt“ bei vollem Ring | entfällt |
+| `PLANT_WEIGHT_IN_RING` = 0,35 (7.7) | Pflanzen im Ring seltener als Karte | bleibt – gilt für die Karten der Aussaat |
+| Frühling (16.3, `encounterFactors: { plant: 1.5 }`) | „Etwas keimt“ öfter | **„Saatzeit“: Aussaat −20 % 🌰** (`SPRING_SOWING_FACTOR = 0,8`); Kurztext „+10 % 🌿 · Aussaat −20 % 🌰 · Amphibien +15 % 😊“ |
+| Ereignis 🫐 Vogelsaat, Option „Sämlinge stehen lassen“ (`nextEncounter: plant`) | nächste Begegnung zeigt Eberesche/Holunder/Brombeere | **eine geschenkte Aussaat** mit diesen Karten zuerst (bis zu 2, die dritte normal, wie 7.4); zählt nicht als Kauf. Ist gerade eine Aussaat offen, wartet sie (`cycle.freeSowing`). Text: „Sämlinge stehen lassen: eine Aussaat gratis – Eberesche, Holunder oder Brombeere“ |
+| `nextEncounter` mit `type: 'plant'` | möglich | Inhaltstest verbietet es; Typ `ForcedEncounterType` nur noch `'animal'` |
+| Neu würfeln (7.1) | Tier- und Pflanzenbegegnung | Tierbegegnung und offene Aussaat (gleiche Kosten 10 · 2^n je Aussaat) |
+| Tagesziel `plant` (20.2) „Setze eine Begleitpflanze …“ | zählt `plantSeed` | „Säe einmal aus und setze die Pflanze.“ – zählt das Setzen aus einer Aussaat |
+| Statistik `cardsChosen` / `plantsPlanted` | Tier- und Pflanzenkarten / gekaufte Pflanzen | nur Tierkarten / gesetzte Pflanzen aus Aussaaten (auch geschenkte); Texte anpassen |
+| Erfolge `plants-5`, `plants-all` (Tagebuch) | Pflanzen im Tagebuch | unverändert – eingetragen wird beim Setzen aus der Aussaat |
+| Lebensgemeinschaften mit Pflanzen (Blütensaum, Birkenbund, Feuchter Grund, Tümpelleben) | Pflanze aus Begegnung oder Kauf | nur über die Aussaat – mit 4 Karten (Forschung „Saatgut sortieren“) gut erreichbar; 3a misst die Entdeckung je Gemeinschaft |
+| Naturtagebuch, „Zuerst gesehen“ (25.10) | `chooseCard` (Pflanze) und `plantSeed` | beim Setzen aus der Aussaat |
+| Wetter-Gewichte (21, 24.14) | wirken nur auf Ereignisse | nichts zu tun (kein Gewicht auf „Pflanze“) |
+| Wildwechsel (24.6) | nur Tierbegegnungen | unverändert |
+| Durststrecke (7.7) | kam fast nur von Pflanzenbegegnungen bei vollem Ring | sollte kürzer werden; 3a misst (Ziel < 15 min, 90 %) |
+| Chronik (26.4) | kein Kapitel hängt an Pflanzen | unverändert; nur `harmony` liest die Produktion (27.4) |
+| Spielanleitung (`guide-view.ts`) | „ein Tier … oder eine Pflanze, die keimt“ | Kapitel „Begegnungen“ (nur Tiere, Ereignisse, Gäste), neues Kapitel „Säen“, „Pflege“ → „Forschung“, „Harmonie“ (Produktion, Vorrat, Bonus) |
+| Zettelstapel (`note-stack-view.ts` „Etwas keimt!“), `PLANT_ENCOUNTER_TITLE`, `encounter-cards.ts` | Pflanzenbegegnung | Zettel „Aussaat“ für die offene Aussaat (27.12); Titel „Aussaat – drei Samen, ein Platz“ |
+| Offene Pflanzenbegegnungen im Spielstand | `pendingEncounters[].type = 'plant'` | Migration v16 → v17 (27.9) |
+
+### 27.6 Aussaat: Pflanzen mit Samen kaufen
+
+**Ablauf:** Der Knopf **„🌱 Säen · 35 🌰“** (Pflanzring auf R:Nischen und Kurzleiste) zieht
+sofort 3 Pflanzenkarten wie heute „Etwas keimt“ (`drawPlants`: alle freigeschalteten Pflanzen,
+schon wachsende mit Gewicht 0,35, Duplikate möglich) und öffnet die Kartenwahl. Wählen setzt
+die Pflanze (Ring frei) oder ersetzt eine (Ring voll, Vorschau wie heute). Die Karten stehen
+beim Kauf fest und liegen im Spielstand (`cycle.sowing`) – Neuladen würfelt nicht neu (12.4).
+
+```
+Preis der n-ten Aussaat im Zyklus (n = bisherige Aussaaten dieses Zyklus, `cycle.sowings`):
+  n = 0:   0                                   die erste ist ein Geschenk (Wegpunkt 2 öffnet sie)
+  n ≥ 1:   ⌈ 20 · 1,75^(n−1) · (1 − Rabatt) · Saatzeit ⌉ 🌰
+           Rabatt: Forschung „Samenbank“ 25 %; Saatzeit: im Frühling × 0,8, sonst × 1
+```
+
+| n | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 🌰 | 20 | 35 | 62 | 108 | 188 | 329 | 575 | 1.006 | 1.760 | 3.079 | 5.388 | 9.429 | 16.501 | 28.876 | 50.532 | 88.431 |
+| Summe bis dahin (inkl. Geschenk) | 20 | 55 | 117 | 225 | 413 | 742 | 1.317 | 2.323 | 4.083 | 7.162 | 12.550 | 21.979 | 38.480 | 67.356 | 117.888 | 206.319 |
+
+**Warum 20 · 1,75^(n−1) und je Kauf (nicht je Ringplatz):**
+
+- **Die Samen brauchen eine Senke.** Die Pflege, heute die Senke (8), kostet künftig Harmonie.
+  Ohne sie lägen beim Hain ~31.700 🌰 ungenutzt – 36 min Produktion statt heute 8 (27.10).
+  Pflanzen sind heute fast gratis (2,4 % der Samen). Ein Preis, der **mit jedem Kauf** steigt
+  – auch beim Tausch im vollen Ring –, macht die Aussaat zur Samen-Senke: Mit dem Einkommen des
+  Harmonie-Spielers sind bis zum Hain ~13 Aussaaten bezahlbar (7 zum Füllen, ~6 zum Tauschen),
+  bis zum Wald ~16, bis zum Urwald ~17 (Summe 206.319 🌰 von ~297.000 verdient; der Rest für
+  Gäste und Neu würfeln). Ziel 3a: Samenbestand beim Hain ≤ 15 min Produktion.
+- **Die Abwägung:** Jeder Tausch macht die nächste Aussaat teurer. Wer im Wald dreimal tauscht,
+  zahlt die drei neuen Urwald-Plätze mit 50–155 Tsd. 🌰 (bei ~77 🌰/s 11–33 min) – Ring füllen oder
+  Ring verbessern ist eine echte Wahl.
+- **Gemessen (Vorab, 27.10):** Die Basis ist im Modell fast egal (1,6 / 1,75 / 1,9: Hain
+  56:10 / 56:11 / 56:26 min, Urwald 2:24:54 / 2:24:47 / 2:26:18 h), weil das Füllen des Rings
+  billig bleibt. 1,9 macht die Urwald-Plätze nach ein paar Tauschen unbezahlbar (300 Tsd.+),
+  mit 1,6 kosten 13 Aussaaten zusammen nur ~9.400 statt ~22.000 🌰 – zu wenig Senke. 1,75 liegt dazwischen; 3a misst mit tauschenden
+  Strategien nach.
+- **Geschenkte erste Aussaat:** Ohne Pflanzenbegegnung an Wegpunkt 2 kam der Setzling im Modell
+  bei 0:54 statt 0:46 min (die erste Pflanze kostete ~2 min Samen); mit dem Geschenk bei 0:44 min
+  – der Sweetspot ~45 s (3) bleibt.
+- **Zähler je Zyklus** (`cycle.sowings`, beginnt mit dem Neuen Zyklus bei 0): Der Ring beginnt
+  leer, und die Samen auch.
+
+**Regeln**
+
+- **Ab Keimling** (`SOWING_MIN_STAGE = 1`, der erste Pflanzplatz). Vorher ist der Knopf nicht da.
+- **Höchstens eine offene Aussaat.** Sie wartet wie eine Begegnung (kein Zeitdruck), zählt
+  **nicht** zu den 3 Begegnungen der Warteschlange und verdrängt keine. Solange sie offen ist,
+  heißt der Knopf „Aussaat offen ›“.
+- **Zurücklegen** (statt Ablehnen): 10 Samen-Sekunden (`declineReward`, 7.9). Der Zähler bleibt
+  erhöht – Säen und Zurücklegen ist kein kostenloses Neu würfeln.
+- **Neu würfeln:** wie bei Tieren, 10 🌰 · 2^n je Aussaat (Forschung „Anzuchtbeet“: der erste
+  Wurf je Aussaat gratis).
+- **Voller Ring:** Säen bleibt möglich; jede Karte zeigt, welche Pflanze sie ersetzen würde und
+  was das bringt (wie heute bei „Etwas keimt“). Kein Blocker `ring-full` mehr.
+- **Geschenkte Aussaaten** (erste des Zyklus, Vogelsaat) kosten nichts und erhöhen den Zähler
+  nur bei der ersten (sie *ist* Aussaat 0). Die Vogelsaat-Aussaat erhöht ihn nicht.
+- **Offline:** Es wird nichts gesät; eine offene Aussaat wartet.
+- **Aktionen (core):** `sow(state)`, `sowBlocker(state)` (`'stage' | 'open' | 'too-expensive'`),
+  `sowingCost(state)`, `chooseSowing(state, card, replaceId?)`, `discardSowing(state)`,
+  `rerollSowing(state)`; Vorschau über das vorhandene `previewChoice`-Muster. `plantSeed`,
+  `plantBlocker`, `nextPlantCost`, `PLANT_COST_BASE/GROWTH` entfallen (U:Pflanze setzen auch).
+
+### 27.7 Der Forschungsbaum
+
+**Regeln**
+
+- **Knoten statt Ränge.** Jeder Knoten wird einmal mit ⚖️ erforscht und wirkt bis zum Neuen
+  Zyklus (wie Pflege). Kein Verkaufen, kein Umentscheiden im Zyklus.
+- **Ebenen = Stufen:** Ein Knoten ist ab seiner Stufe (`minStage`) erforschbar: Setzling, Junger
+  Baum, Alter Baum, Hain, Wald. Vor dem Hain kosten alle Knoten eines Weges mehr, als bis dahin
+  gesammelt wird – man wählt, was zuerst kommt (wie 8).
+- **Voraussetzungen** (`requires`: alle; `requiresAny`: einer davon) – auch über Äste hinweg.
+  Bedingungen wie heute (`requires` der Pflege, z. B. ≥ 1 Insekt) heißen `condition` und gelten
+  nur beim Erforschen.
+- **Gabeln** (`excludes`, gegenseitig): Fünf Stellen, an denen man einen von zwei Wegen wählt.
+  Bei der Krone gilt die Wahl für alle drei Ebenen (Lichte oder Dichte Krone I–III).
+- **Wirkungen** wie die Pflege (`cycle`: Licht, Wasser, Platz, Harmonie, 🌿/🌰/Gruppen-Boni;
+  `habitat`), dazu `happiness` je Gattung und zwei Aussaat-Wirkungen (unten).
+- **Blocker** (Reihenfolge): `'unknown-node'`, `'owned'`, `'stage'`, `'excluded'`, `'requires'`,
+  `'condition'`, `'too-expensive'`. Aktionen `research(state, id)`, `researchBlocker`,
+  `previewResearch` (wie `previewCare`).
+
+**Die sechs Äste** (Kosten in ⚖️; „⟂“ = Gabel; „← heute“ = Pflege-Rang mit gleicher Wirkung):
+
+| Ast | ID | Name | Ebene | ⚖️ | braucht | Wirkung | ← heute |
+|---|---|---|---|---|---|---|---|
+| 🪱 Boden | `compost` | Kompost | Setzling | 100 | – | Feuchte | Kompost |
+| 🪱 Boden | `leaf-litter` | Laub liegen lassen | Setzling | 80 | – | +1 Platz Laubstreu | Laub R1 |
+| 🪱 Boden | `deadwood-pile` | Totholzhaufen | Alter Baum | 600 | Laub liegen lassen | Totholz, +2 Plätze Totholzhaufen | Totholz R1 |
+| 🪱 Boden | `humus` | Humusschicht | Hain | 430 | Kompost, Laub liegen lassen | +2 💧, +3 ⚖️ | Laub R2 |
+| 🪱 Boden | `beetle-castle` ⟂ | Käferburg | Hain | 850 | Totholzhaufen | +1 Platz Stamm & Rinde, +1 Platz Totholzhaufen, +2 ⚖️ | Totholz R2 |
+| 🪱 Boden | `fungus-garden` ⟂ | Pilzgarten | Hain | 850 | Totholzhaufen, Kompost | Pilze +15 % 😊, Bäume +10 % 🌿, +2 ⚖️ | **neu** |
+| 💧 Wasser | `pond` | Waldtümpel | Alter Baum | 1.000 | Kompost | Feuchte, +3 💧, +2 Plätze Waldtümpel | Tümpel R1 |
+| 💧 Wasser | `pond-deepen` ⟂ | Tümpel vertiefen | Hain | 1.370 | Waldtümpel | +3 💧, +2 ⚖️, +2 Plätze Waldtümpel | Tümpel R2 |
+| 💧 Wasser | `spring-brook` ⟂ | Quellbach | Hain | 1.370 | Waldtümpel | +3 💧, Moose & Farne +30 % 🌿, Amphibien +10 % 😊 | **neu** |
+| 🌳 Krone | `nest-boxes` | Nistkästen | Junger Baum | 250 | – | Baumhöhle, +1 Platz Höhlen | Nistkästen R1 |
+| 🌳 Krone | `light-crown` ⟂ | Lichte Krone | Alter Baum | 550 | Nistkästen | +3 ☀️ | Lichte Krone R1 |
+| 🌳 Krone | `dense-crown` ⟂ | Dichte Krone | Alter Baum | 550 | Nistkästen | +1 Platz Krone, −2 ☀️ | Dichte Krone R1 |
+| 🌳 Krone | `nest-boxes-2` | Mehr Nistkästen | Hain | 670 | Nistkästen | +1 Platz Krone | Nistkästen R2 |
+| 🌳 Krone | `light-crown-2` / `dense-crown-2` | Lichte / Dichte Krone II | Hain | 830 | Stufe I desselben Wegs | +2 ☀️ / Bäume +10 % 🌿 | Kronen R2 |
+| 🌳 Krone | `light-crown-3` / `dense-crown-3` | Lichte / Dichte Krone III | Wald | 2.500 | Stufe II desselben Wegs | +2 ☀️ / Bäume +10 % 🌿 | Kronen R3 |
+| 🌼 Saum | `wildflower-hem` | Wildblumen-Saum | Junger Baum | 300 | – | Blumen +40 % 🌰 | Wildblumen R1 |
+| 🌼 Saum | `hem-wide` | Breiter Saum | Alter Baum | 1.100 | Wildblumen-Saum | +1 Platz Waldsaum | Wildblumen R2 |
+| 🌼 Saum | `insect-hotel` | Insektenhotel | Alter Baum | 350 | Wildblumen-Saum; Bedingung ≥ 1 Insekt | +3 ⚖️ | Insektenhotel R1 |
+| 🌼 Saum | `bloom-store` ⟂ | Blütenvorrat | Hain | 760 | Insektenhotel | Blumen und Sträucher +25 % 🌰 | Insektenhotel R2 |
+| 🌼 Saum | `bee-wall` ⟂ | Wildbienenwand | Hain | 760 | Insektenhotel | Insekten +10 % 😊, +2 ⚖️ | **neu** |
+| 🌼 Saum | `hem-bloom` | Blühender Saum | Wald | 1.650 | Breiter Saum | Blumen +40 % 🌿 und 🌰 | Wildblumen R3 |
+| 🌼 Saum | `insect-hotel-3` | Großes Insektenhotel | Wald | 2.100 | Blütenvorrat **oder** Wildbienenwand | +4 ⚖️ | Insektenhotel R3 |
+| 🌾 Offenland | `meadow` | Waldwiese | Junger Baum | 600 | – | +2 Plätze Waldwiese | Waldwiese R1 |
+| 🌾 Offenland | `meadow-2` | Spätmahd | Hain | 980 | Waldwiese | +2 Plätze Waldwiese, +2 ☀️ | Waldwiese R2 |
+| 🌾 Offenland | `drystone-wall` | Trockenmauer | Hain | 730 | Waldwiese | +2 Plätze Trockenmauer, +2 ☀️ | Mauer R1 |
+| 🌾 Offenland | `drystone-wall-2` | Mauer verlängern | Wald | 2.000 | Trockenmauer | +2 Plätze Trockenmauer, +2 ⚖️ | Mauer R2 |
+| 🌱 Saat | `seed-sorting` | Saatgut sortieren | Junger Baum | 200 | – | Aussaat zeigt 4 statt 3 Karten | **neu** |
+| 🌱 Saat | `seed-bank` ⟂ | Samenbank | Alter Baum | 500 | Saatgut sortieren | Aussaat −25 % 🌰 | **neu** |
+| 🌱 Saat | `nursery` ⟂ | Anzuchtbeet | Alter Baum | 500 | Saatgut sortieren | erstes Neu würfeln je Aussaat gratis | **neu** |
+| 🌱 Saat | `dead-hedge` | Benjeshecke | Hain | 760 | Saatgut sortieren, Nistkästen | Sträucher +30 % 🌰, +2 ⚖️ | **neu** |
+
+Die IDs der Knoten mit gleicher Wirkung wie heute übernehmen, wo es geht, die ID der Maßnahme
+(`compost`, `leaf-litter`, `nest-boxes`, `wildflower-hem`, `meadow`, `deadwood-pile`,
+`light-crown`, `dense-crown`, `pond`, `insect-hotel`, `drystone-wall`) – Album-Verweise
+(„Zur Pflege“ an verschlossenen Nischen, ALBUM_UI.md Nr. 38) zeigen dann auf den Knoten Rang 1.
+
+**Texte** (je ein Satz; bestehende Texte der Pflege bleiben):
+
+| Knoten | Text |
+|---|---|
+| Humusschicht | „Aus dem Laub vom letzten Herbst ist schwarze, krümelige Erde geworden.“ |
+| Käferburg | „Halb eingegrabene Eichenstämme – darin wachsen Hirschkäferlarven fünf Jahre lang.“ |
+| Pilzgarten | „Morsche Stubben im Halbschatten – das Myzel spinnt sich bis zu den Baumwurzeln.“ |
+| Tümpel vertiefen | „Eine tiefe Stelle friert im Winter nicht durch – die Molche danken es.“ |
+| Quellbach | „Ein Rinnsal sickert aus dem Hang und hält Moos und Farn das ganze Jahr nass.“ |
+| Mehr Nistkästen | „Ein zweiter Kasten, höher am Stamm – die Meisen streiten nicht mehr.“ |
+| Breiter Saum | „Der Saum wird jedes Jahr ein Stück breiter, weil niemand ihn mäht.“ |
+| Blütenvorrat | „Frühblüher, Sommerblumen, Herbstastern – irgendwo blüht immer etwas.“ |
+| Wildbienenwand | „Ein Lehmhang mit tausend Löchern – jede Wildbiene gräbt ihr eigenes.“ |
+| Blühender Saum | „Vom ersten Huflattich bis zum letzten Efeu summt es am Saum.“ |
+| Großes Insektenhotel | „Ein Hochhaus aus Schilf, Ziegeln und Hartholz – mit Warteliste.“ |
+| Spätmahd | „Gemäht wird erst im September, wenn alle Gräser ausgesamt haben.“ |
+| Mauer verlängern | „Noch ein paar Lesesteine vom Feldrand – die Mauer wächst, die Eidechsen auch.“ |
+| Saatgut sortieren | „Kleine Tüten, sauber beschriftet – so findet jede Saat ihren Platz.“ |
+| Samenbank | „Trocken, dunkel und kühl – so bleiben Samen jahrelang keimfähig.“ |
+| Anzuchtbeet | „Erst im Schutz vorziehen, dann auspflanzen – was nicht taugt, kommt auf den Kompost.“ |
+| Benjeshecke | „Ein Wall aus Reisig: Die Vögel rasten darin und säen Schlehe, Holunder und Brombeere.“ |
+
+**Die fünf Gabeln – warum jede eine Abwägung ist**
+
+| Gabel | Weg A | Weg B | Abwägung |
+|---|---|---|---|
+| Krone (Alter Baum, gilt für I–III) | Licht: +3/+2/+2 ☀️ | Dichte: +1 Platz Krone, −2 ☀️, dann Bäume +10/+10 % 🌿 | wie heute (8): Sonne für Saum, Wiese, Mauer – oder Vögel und Bäume |
+| Boden (Hain) | Käferburg: 2 Plätze (Stamm & Rinde, Totholzhaufen) | Pilzgarten: Pilze zufriedener, Bäume +10 % 🌿 | neue Arten (Vielfalt, Gemeinschaft Totholz-Kette) – oder die Pilze, die man schon hat, und Wachstum |
+| Wasser (Hain) | Tümpel vertiefen: 2 Plätze Waldtümpel | Quellbach: Moose & Farne +30 % 🌿, Amphibien +10 % 😊 | mehr Amphibien – oder bessere Amphibien und ein Grund für Farne im Ring |
+| Saum (Hain) | Blütenvorrat: +25 % 🌰 auf Blumen und Sträucher | Wildbienenwand: Insekten +10 % 😊, +2 ⚖️ | Samen (für Aussaaten) – oder Harmonie (für Forschung) |
+| Saat (Alter Baum) | Samenbank: Aussaat −25 % | Anzuchtbeet: erstes Neu würfeln gratis | mehr Aussaaten – oder bessere Karten je Aussaat |
+
+**Neue Wirkungen (für den `core-engineer`):**
+
+- `happiness` in Forschungs-Wirkungen: `{ kind: 'happiness'; genus; points }` wie bei Jahreszeiten
+  (16.3) und Eigenheiten (24.2) – +points Prozentpunkte Zufriedenheit für alle Tiere der Gattung,
+  vor der Begrenzung auf 0–1. Beispiel Pilzgarten: Steinpilz z = 0,62 → 0,77. Gehört in den
+  Cache-Schlüssel wie alle Forschung.
+- `sowCards: 1` – `drawPlants` zieht `CARDS_PER_ENCOUNTER + Σ sowCards` Karten (höchstens 4) für
+  Aussaaten; Tierbegegnungen bleiben bei 3. Wirkt ab der nächsten Aussaat.
+- `sowCost: −25` (%) – in `sowingCost` als Faktor `max(0,25; 1 + Σ sowCost / 100)`.
+- `sowFreeReroll: 1` – das erste Neu würfeln einer Aussaat kostet 0 (danach 10 · 2^(n−1)).
+- Die Aussaat-Wirkungen berühren `evaluate` nicht (nur die Aussaat-Funktionen).
+
+**Kosten – woher die Zahlen kommen:** Jeder Knoten soll ungefähr dann bezahlbar sein, wenn der
+Harmonie-Spieler heute den entsprechenden Pflege-Rang kauft (Tabelle „Pflege heute“, 27.10).
+Budget je Ebene = Harmonie, die in dieser Stufe zufließt (Harmonie-Spieler, 27.10):
+
+| Ebene | Knoten eines Weges (⚖️) | Zufluss in der Stufe (H / W / Z) | heute gekaufte Pflege (🌰, H) |
+|---|---|---|---|
+| Setzling | Kompost, Laub = **180** | 187 / 177 / 202 | 200 (+200 im Jungen Baum) |
+| Junger Baum | Nistkästen, Wildblumen, Wiese, Saatgut = **1.350** | 1.329 / 1.139 / 1.528 | 3.250 |
+| Alter Baum | Totholz, Krone I, Tümpel, Insektenhotel, Breiter Saum, Samenbank/Anzucht = **4.100** | 3.921 / 3.115 / 4.992 | 27.600 |
+| Hain | 9 Knoten = **7.380** | 6.144 / 4.626 / 7.532 | ~72.000 |
+| Wald | Blühender Saum, Großes Insektenhotel, Mauer verlängern, Krone III = **8.250** | 7.705 / 5.731 / 8.576 | ~127.000 |
+| **Summe** | **21.260** (25 von 32 Knoten) | **19.306 / 14.808 / 22.850** bis Urwald | 230.050 |
+
+Der Umrechnungsfaktor ⚖️/🌰 sinkt mit der Stufe (Setzling ~0,4, Alter Baum ~0,15, Hain ~0,06),
+weil die Harmonie fast linear wächst, die Samen dagegen exponentiell. Gleiche Kaufzeitpunkte
+heißen darum *nicht* „Samenpreis × Faktor“, sondern „Budget der Stufe“. Bis zum Hain bekommt
+der Harmonie-Spieler 5.457 ⚖️ (Weg bis Alter Baum: 5.630) – fast alles bis zum Alten Baum, wie
+heute 10 der 11 Ränge vor dem Hain. Der Wachstums-Spieler (4.451 ⚖️) bekommt ~80 % davon – heute
+kaufte er bis zum Hain Pflege für 14.650 🌰, ebenfalls etwa die Ränge bis Alter Baum ohne Tümpel.
+
+**Was aus den heutigen Pflegemaßnahmen wird:** Jeder der 25 Ränge ist ein Knoten (Tabelle oben,
+Spalte „← heute“) mit gleicher Wirkung; die Wirkungen sind 1:1 dieselben Daten. Ränge werden
+zu Knoten-Ketten (Wildblumen R1 → Breiter Saum → Blühender Saum), die Ränge 2 von Laub,
+Totholzhaufen, Tümpel und Insektenhotel sind jetzt Knoten mit eigenem Namen, z. T. an einer Gabel.
+Neu sind 7 Knoten (Pilzgarten, Quellbach, Wildbienenwand, Saatgut sortieren, Samenbank,
+Anzuchtbeet, Benjeshecke). `content/care.ts` wird zu `content/research.ts`
+(`RESEARCH`, `RESEARCH_BY_ID`, `RESEARCH_BRANCHES`); `MEADOW_CARE`/`WALL_CARE` in `habitats.ts`
+werden Knoten-Daten.
+
+**Inhaltstests (Vorschlag):** Voraussetzungen kreisfrei und nur auf frühere oder gleiche Ebenen;
+`excludes` gegenseitig; jede Gabel hat zwei Wege mit gleichen Kosten; jeder Ast hat einen Knoten
+ohne Voraussetzung auf seiner ersten Ebene; jede heutige Pflege-Wirkung kommt genau einmal vor
+(Migrations-Tabelle 27.9 vollständig); Texte ≤ 120 Zeichen; Kosten je Ebene steigend.
+
+### 27.8 Neuer Zyklus und Prestige
+
+| | wird zurückgesetzt | bleibt |
+|---|---|---|
+| Harmonie-Vorrat `harmonyPoints` | ✔ | |
+| erforschte Knoten `cycle.research` | ✔ | |
+| Aussaat-Zähler, offene und geschenkte Aussaat | ✔ | |
+| **Forschungsplan** `meta.research.plan` (Reihenfolge des letzten Zyklus) | | ✔ |
+| Statistik `harmonyEarned`, `careRanksBought` (zählt jetzt Knoten) | | ✔ |
+
+- **Warum Forschung nicht bleibt:** Bleibende Knoten wären eine zweite Prestige-Ebene mit
+  Multiplikator (24.1): Zyklus 2 begänne mit allen Plätzen und Boni des ersten, der gemessene
+  Abstand Zyklus 2 (−20 bis −35 % bis zum Hain, 15.4) und die Landschaft (24.10) kippten. Die
+  Pflege war aus demselben Grund je Zyklus. Die Gabeln werden dadurch **jeden Zyklus neu**
+  entschieden – passend zum Waldtyp (Auwald: Quellbach; Kiefernheide: Lichte Krone).
+- **Warum der Vorrat nicht bleibt:** Sparen über den Neustart wäre der beste Zug (alles in den
+  ersten Minuten kaufen) und nähme jeder Ebene ihre Wahl.
+- **Forschungsplan (Komfort, Welle 4):** Beim Neuen Zyklus wird die Reihenfolge der in diesem
+  Zyklus erforschten Knoten gemerkt. Mit „Plan folgen“ (Schalter `meta.research.auto`) erforscht
+  das Spiel im nächsten Zyklus selbst, streng in dieser Reihenfolge: Ist der nächste Knoten
+  bezahlbar und erlaubt, wird er gekauft; fehlt die Stufe, wartet der Plan; ist er unmöglich
+  (Gabel anders entschieden), wird er übersprungen. Läuft in `tick` mit einem Halt, wenn der Vorrat
+  die Kosten erreicht – online = offline. Grund: Späte Zyklen dauern 8–20 min; 25 Klicks je
+  Zyklus wären Pflicht statt Entscheidung. Von Hand forschen geht immer und schreibt den Plan
+  fort.
+
+### 27.9 Spielstand v17
+
+**Neue und geänderte Felder:**
+
+```ts
+interface GameState {
+  // … wie v16
+  /** Harmonie-Vorrat (⚖️), Forschungswährung (27.3). Zyklus-Wert wie `seeds`. */
+  harmonyPoints: number;
+}
+
+interface CycleState {
+  // … wie v16, OHNE `care`
+  /** Erforschte Knoten in Kauf-Reihenfolge (IDs aus RESEARCH_BY_ID). */
+  research: string[];
+  /** Aussaaten dieses Zyklus (bezahlte und die geschenkte erste; Vogelsaat zählt nicht). */
+  sowings: number;
+  /** Offene Aussaat (höchstens eine): Karten = Pflanzen-IDs, Würfe dieser Aussaat. */
+  sowing: { cards: string[]; rerolls: number } | null;
+  /** Geschenkte Aussaat aus der Vogelsaat, die auf eine freie Hand wartet (IDs zuerst). */
+  freeSowing: { ids: string[] } | null;
+}
+
+interface Meta {
+  // … wie v16
+  research: { plan: string[]; auto: boolean };
+}
+
+interface LifetimeStats {
+  // … wie v16; `careRanksBought` zählt ab v17 erforschte Knoten (Name bleibt, Erfolg `care-10`)
+  /** Gesammelte Harmonie aller Zyklen (⚖️). */
+  harmonyEarned: number;
+}
+// PendingEncounterType ohne 'plant' (ab v17 nie gespeichert); ForcedEncounterType nur 'animal'.
+```
+
+**Migration v16 → v17** (niemand verliert eine Wirkung, die er schon hat):
+
+1. `cycle.care` → `cycle.research` nach dieser Tabelle, danach fehlende **Voraussetzungen**
+   geschenkt hinzufügen (z. B. Wiese ohne Wildblumen-Saum → Wildblumen-Saum dazu), soweit ihre
+   Stufe erreicht ist; Reihenfolge = Reihenfolge in `RESEARCH`. Von zwei Kronen bleibt wie bisher
+   nur die erste (8.2).
+
+   | `care` | Rang 1 | Rang 2 | Rang 3 |
+   |---|---|---|---|
+   | `compost` | `compost` | – | – |
+   | `leaf-litter` | `leaf-litter` | `humus` | – |
+   | `nest-boxes` | `nest-boxes` | `nest-boxes-2` | – |
+   | `wildflower-hem` | `wildflower-hem` | `hem-wide` | `hem-bloom` |
+   | `meadow` | `meadow` | `meadow-2` | – |
+   | `deadwood-pile` | `deadwood-pile` | `beetle-castle` | – |
+   | `light-crown` / `dense-crown` | `…-crown` | `…-crown-2` | `…-crown-3` |
+   | `pond` | `pond` | `pond-deepen` | – |
+   | `insect-hotel` | `insect-hotel` | `bloom-store` | `insect-hotel-3` |
+   | `drystone-wall` | `drystone-wall` | `drystone-wall-2` | – |
+
+2. `harmonyPoints` = **Startguthaben** `round(10 · H)` mit der Harmonie des Stands (10 min
+   Produktion, G nicht mitgerechnet). Grund: Wer gerade auf einen Pflege-Rang spart, hat Samen
+   statt Harmonie – die Samen bleiben ihm (für Aussaaten), die Forschung soll nicht bei 0 stehen.
+3. `cycle.sowings` = Zahl der Begleitpflanzen im Ring (der Preis setzt dort fort, wo der Ring
+   steht; die geschenkte erste gilt damit als benutzt, sobald eine Pflanze wächst).
+4. Offene Begegnungen vom Typ `'plant'`: die erste wird `cycle.sowing` (gleiche Karten, Würfe),
+   jede weitere zieht weiter (`declineReward`, Samen gutgeschrieben). `cycle.forced` mit
+   `type: 'plant'` → `cycle.freeSowing`, `forced` = null.
+5. `meta.research = { plan: [], auto: false }`, `meta.stats.harmonyEarned = 0`.
+6. `cycle.maxHarmony`, `bestHarmonyMemory`, `meta.stats.bestHarmony`, Gedächtnis: unverändert
+   (gleiche Zahl, 27.4).
+
+**Robustes Laden ab v17:**
+
+- `harmonyPoints`: endlich und ≥ 0, sonst 0; höchstens `MAX_HARMONY_POINTS` (1e12).
+- `cycle.research`: nur bekannte IDs, je einmal, `minStage` ≤ Stufe; Knoten ohne erfüllte
+  Voraussetzung werden (wiederholt, bis nichts mehr fällt) entfernt; von einer Gabel bleibt der
+  zuerst gekaufte Weg. `condition` gilt nur beim Erforschen (wie 8.2).
+- `cycle.sowings`: ganzzahlig 0 … 200, sonst die Zahl der Begleitpflanzen.
+- `cycle.sowing`: nur bekannte, freigeschaltete Pflanzen, 1 … 4 Karten (4 nur mit
+  `sowCards`), `rerolls` ganzzahlig ≥ 0; sonst null. `freeSowing`: IDs wie die Vogelsaat sie
+  vergibt und nur, wenn die Vogelsaat in `cycle.seen` steht; sonst null.
+- `meta.research.plan`: bekannte IDs, je einmal; `auto` boolesch, sonst false.
+- `pendingEncounters` mit Typ `'plant'` in einem v17-Stand: wie Migration Schritt 4.
+- Ein v17-Stand mit `cycle.care` (manipuliert): `care` wird ignoriert.
+
+**Warum eine neue Version:** Ein v16-Spiel kennt weder Vorrat noch Forschung und würde beim
+Laden die Forschung verwerfen und `care` leer setzen – über die Synchronisierung ginge der Zyklus
+verloren (Fall 25.5). Darum **v17**: `newer` beim Import, `outdated-client` (422) beim Sync
+(KONTO.md). Größe: + ≤ 2 KB.
+
+**Tests (Vorschlag):** jede Version v2 … v16 lädt; jede Zeile der Migrations-Tabelle; geschenkte
+Voraussetzungen; Startguthaben; offene Pflanzenbegegnung → offene Aussaat; Vorrat online in vielen
+Ticks = ein großer Tick = offline; Ertrag mit G (Gedächtnis 0 / 100 / 1000, Landschaft mit
+Zufluss); Bonus ändert sich beim Ausgeben nicht; Neuer Zyklus setzt Vorrat, Forschung, Aussaat
+zurück und schreibt den Plan; Gabel-Ausschluss; Aussaat-Preis (Geschenk, Frühling, Samenbank,
+Aufrunden); Zurücklegen zahlt 10 Samen-Sekunden und lässt den Zähler stehen; Golden-Test der
+Ziehung ohne Pflanzenbegegnungen neu aufnehmen.
+
+### 27.10 Vorab-Messung (echte Logik, ohne Code-Umbau)
+
+Gemessen mit `scripts/simulate.ts` (`runGame`, alle Systeme mit Pflege, Eiche, erster Zyklus,
+100 Durchgänge je Strategie, Seeds 1000 + 7 i, Median; Integral ∫H dt als Trapez über
+Stufen- und Minuten-Schnappschüsse, Genauigkeit ~±5 %). Die Varianten liefen über ein
+temporäres Testskript, das `ENCOUNTER_WEIGHTS`/`SCRIPTED_ENCOUNTERS` zur Laufzeit ändert und die
+Pflanzenkosten per `vi.mock` ersetzt – nicht eingecheckt.
+
+**Heute (main):**
+
+| Stufe | Zeit H / W / Z | H beim Erreichen H / W / Z | ⚖️ gesammelt bei p = H/min, H / W / Z | 🌰 verdient H / W / Z | Pflege bis dahin (🌰, H) |
+|---|---|---|---|---|---|
+| Setzling | 0:46 / 0:46 / 0:48 min | 49,7 / 49,7 / 42,2 | 20 / 20 / 20 | 19 / 19 / 22 | 0 |
+| Junger Baum | 4:00 / 3:54 / 4:59 min | 64,6 / 62,3 / 55,1 | 207 / 197 / 222 | 344 / 327 / 602 | 200 |
+| Alter Baum | 20:29 / 18:30 / 29:37 min | 86,5 / 83,5 / 66,1 | 1.536 / 1.336 / 1.750 | 4.336 / 3.083 / 8.631 | 3.450 |
+| Hain | 58:51 / 52:23 min / 1:31:34 h | 109,8 / 100,9 / 82,9 | 5.457 / 4.451 / 6.742 | 31.735 / 17.345 / 56.343 | 31.050 |
+| Wald | 1:46:25 / 1:31:13 / 2:50:29 h | 139,9 / 125,6 / 108,7 | 11.601 / 9.077 / 14.274 | 117.307 / 58.486 / 185.707 | 103.050 |
+| Urwald | 2:35:06 / 2:13:35 / 4:01:40 h | 174,9 / 154,2 / 137,5 | 19.306 / 14.808 / 22.850 | 296.543 / 144.668 / 419.565 | 230.050 |
+
+- **Harmonie-Produktion typischer Läufe** (Mittel über die Zeit bis zur Stufe, ⚖️/min): bis Hain
+  92,5 / 85,8 / 72,6, bis Urwald 124,6 / 111,7 / 95,7. Samenrate beim Hain 14,6 / 9,2 / 15,2 🌰/s
+  (40 Durchgänge) – die ~31.700 🌰 des Harmonie-Spielers wären ohne Pflege 36 min Produktion.
+- **„Etwas keimt“ gegen Tiere** (bis Urwald, Mittel): 6,4 / 6,5 / 6,0 Pflanzenbegegnungen von
+  47,0 Begegnungen (13,6 %; dazu 9,8 Ereignisse und ~6,5 Gäste, der Rest Tiere ≈ 24). Bis zum
+  Alten Baum 2 von 11, bis zum Hain 3,5 von 19 (18 %).
+- **Pflanzen bis Urwald:** geschenkt genommen 4,3 / 5,0 / 5,2, gekauft 7,0 / 7,2 / 7,1; Ring
+  beim Erreichen des Urwalds 9 von 12 Plätzen (füllt sich danach). Für Pflanzen ausgegeben:
+  6.991 🌰 (2,4 % der Samen).
+- **Pflege heute** (Harmonie-Spieler, Anteil der Durchgänge mit dem Rang vor der Stufe): vor dem
+  Jungen Baum Laub R1 (100 %); vor dem Alten Baum Kompost, Nistkästen (100 %), Wiese R1 (71 %),
+  Wildblumen R1 (35 %); vor dem Hain Totholz R1, Insektenhotel R1 (100 %), Lichte Krone R1
+  (93 %), Tümpel R1 (92 %), Wildblumen R2 (52 %); vor dem Wald Nistkästen R2 (94 %), Mauer R1
+  (95 %), Laub R2 (86 %), Insektenhotel R2 (80 %), Wiese R2 (57 %), Tümpel R2 (35 %); bis zum
+  Urwald Wildblumen R3 (87 %), Insektenhotel R3 (74 %), Mauer R2 (96 %). Dichte Krone: 4 %.
+
+**Varianten** (Harmonie / Wachstum / Zufall; Modell: Der Simulator setzt Pflanzen gezielt –
+eine Obergrenze für die Wahl aus 3 Karten – und tauscht nicht über die Aussaat):
+
+| Variante | Setzling | Hain | Wald | Urwald | H Hain / Urwald (Harmonie) |
+|---|---|---|---|---|---|
+| heute | 0:46 / 0:46 / 0:48 | 58:51 / 52:23 / 1:31:34 | 1:46:25 / 1:31:13 / 2:50:29 | 2:35:06 / 2:13:35 / 4:01:40 | 109,8 / 174,9 |
+| ohne „Etwas keimt“, Kauf zum heutigen Preis 20 · 1,9^n | 0:54 / 0:54 / 0:56 | 57:06 / 49:11 / 1:33:41 | 1:41:04 / 1:26:28 / 2:49:01 | 2:25:15 / 2:04:45 / 3:54:03 | 113,1 / 191,2 |
+| ohne „Etwas keimt“, Aussaat gratis + 20 · 1,6^(n−1) | 0:44 / 0:44 / 0:45 | 56:10 / 48:06 / 1:36:26 | 1:40:40 / 1:25:05 / 2:53:59 | 2:24:54 / 2:01:36 / 4:04:21 | 115,3 / 189,1 |
+| **ohne „Etwas keimt“, Aussaat gratis + 20 · 1,75^(n−1)** | **0:44 / 0:44 / 0:45** | **56:11 / 48:07 / 1:36:26** | **1:40:40 / 1:25:11 / 2:54:00** | **2:24:47 / 2:01:40 / 4:04:55** | **115,0 / 189,1** |
+| ohne „Etwas keimt“, Aussaat gratis + 20 · 1,9^(n−1) | 0:44 / 0:44 / 0:45 | 56:26 / 48:06 / 1:36:26 | 1:40:41 / 1:25:06 / 2:54:00 | 2:26:18 / 2:01:30 / 4:06:07 | 115,3 / 189,0 |
+
+**Bewertung:**
+
+- Ohne „Etwas keimt“ kommen ~6 Tiere mehr; das hebt die Harmonie (Hain +5, Urwald +14) und macht
+  den Harmonie-Spieler 4,5 % (Hain) bzw. 6,6 % (Urwald) schneller, den Wachstums-Spieler 8,1 % bzw.
+  8,9 %; der Zufallsspieler wird 5 % langsamer (er nahm die Gratis-Pflanzen und kauft schlechter).
+  Alle liegen im Korridor von 3 (Hain 55–65 min), aber **Wachstum ÷ Harmonie** fällt am Hain von
+  0,89 auf 0,86, am Urwald von 0,86 auf 0,84 – die Grenze 0,85 (15.4) ist in Gefahr.
+- **H_max +5 am Hain** heißt im Gedächtnis (10) ~+16 Punkte (110 → 52, 115 → 68), also ein
+  schnellerer zweiter Zyklus und eine frühere Landschaft. Das ist der größte Effekt des Umbaus und
+  der erste Punkt für 3a (27.11).
+- Der Preis der Aussaat ändert im Modell fast nichts (die Ringfüllung kostet bis zum Hain
+  ~230 🌰); er wirkt erst mit tauschenden Spielern – das misst 3a.
+- Noch **nicht** messbar ohne Code: die Wahl aus 3 Karten statt gezielt (macht langsamer), die
+  Forschung in ⚖️ statt Pflege in 🌰 (Kaufzeitpunkte sind auf heute abgestimmt, 27.7), der
+  Gedächtnisfaktor G in späten Zyklen und die neuen Knoten.
+
+### 27.11 Ziele der echten Messung (Phase 10, 3a/3b) und Stellschrauben
+
+| Kennzahl (erster Zyklus, 500 Durchgänge, alle Systeme) | heute | Ziel |
+|---|---|---|
+| Setzling (Harmonie) | 0:46 min | 40–50 s |
+| Hain (Harmonie / Wachstum / Zufall) | 58:51 / 52:23 / 1:31:34 | 55–65 min / ≥ 0,85 × Harmonie / ≤ 1:45 h |
+| Urwald (Harmonie) | 2:35 h | ±7 % (2:24–2:46 h) |
+| Wachstum ÷ Harmonie (Hain, Urwald) | 0,89 / 0,86 | ≥ 0,85 |
+| H_max Hain (Harmonie, Mittel) | ~110 | ±3 (sonst Gedächtnis-Schwellen nachziehen) |
+| Zyklus 2 bis Hain gegenüber Zyklus 1 | −28 % | −20 bis −35 % (15.4) |
+| Landschaft vollständig (Harmonie / Wachstum, 24.10) | 14,2 / 13,3 h | ±0,7 h, Abstand ≤ 10 % |
+| Samenbestand beim Hain in min Produktion | 8,4 | ≤ 15 |
+| Harmonie-Vorrat ungenutzt beim Hain | – | ≤ 10 min Produktion |
+| Aussaaten bis Hain (davon Tausch) | – | 8–15 (≥ 2) |
+| Knoten bis Hain (Harmonie) | 10–11 Pflege-Ränge | 9–13 |
+| jede Gabel: Anteil Weg A beim Harmonie-Spieler | Krone 96 % Licht | 25–75 % (sonst Weg B stärken) |
+| Durststrecke bis Hain, 90 % (7.7) | 8:38 min | < 15 min |
+| längste Pause frühes Spiel (15.4) | 1:08 min | ≤ 1:30 min |
+| Lebensgemeinschaften mit Pflanzen entdeckt bis Urwald | (messen) | nicht schlechter als heute −10 % |
+
+**Stellschrauben, in dieser Reihenfolge:**
+
+1. **Tempo und H_max:** Anteil der Tiere am Wegpunkt (Ereignis- und Gast-Gewichte um je 5 heben
+   statt Tiere) und Forschungskosten (alle Ebenen mit einem Faktor). Bleibt H_max am Hain > +3:
+   alle drei Gedächtnis-Schwellen T (`MEMORY_HARMONY_RULES`) um denselben Betrag heben – nicht die
+   Formel.
+2. **Samen-Senke:** `SOWING_GROWTH` 1,6–1,9, dann `SOWING_BASE`.
+3. **Gabeln:** die schwächere Seite um eine Stufe stärken (z. B. Dichte Krone I +1 Platz Höhlen).
+4. **Spielweisen-Abstand:** Kosten der Ebenen Alter Baum/Hain (der Wachstums-Spieler hat weniger ⚖️).
+
+Nicht verstellt werden: Wegpunkt-Kurve (3), Formel der Harmonie (9.1) und des Bonus (27.4),
+Regeln der Landschaft (24.4–24.6).
+
+### 27.12 Darstellung (Skizze für `ui-dev` und `renderer`)
+
+**Kopf und Harmonie** (überall): Neben 🌰 steht der Vorrat **„⚖️ 1.234“**, darunter klein
+„+110/min“ (mit G: „+217/min“). Das Etikett „Harmonie ⓘ“ (ALBUM_UI.md Nr. 27) zeigt die
+Produktion: „Harmonie 110/min · Lebendiges Gefüge · Bonus ×2,10“. U:Harmonie bekommt oben drei
+Zeilen: *Produktion* (Summe der Bausteine wie heute, „/min“), *Vorrat* (mit „Gedächtnis
+×1,97“, falls G > 1) und *Bonus* („aus der Produktion – Ausgeben senkt ihn nicht“).
+
+**Reiter „Pflege“ → „Forschung“** (Symbol 🔍, gleicher Platz in der Reiterleiste). Kopf: Vorrat,
+„+110/min“, „N erforschbar“.
+
+- **Mobil (390 px):** Sechs Äste untereinander als aufklappbare Abschnitte (Muster wie die
+  Lebensgemeinschaften, unter 640 px anfangs zu, offen bleibt der Ast mit einem erforschbaren
+  Knoten). Im Ast ein senkrechter **Zweig**: links eine Linie (Stamm), daran die Knoten als Karten
+  (volle Breite, ~64 px hoch: Symbol, Name, Kurzwirkung, Knopf „Erforschen · ⚖️ 550“), gruppiert
+  nach Ebenen mit Stufen-Etikett („ab Alter Baum“). Eine **Gabel** zeigt zwei halbe Karten
+  nebeneinander (je ~170 px) mit „oder“ dazwischen; nach der Wahl wird die andere Seite blass
+  mit „anderer Weg gewählt“. Voraussetzungen aus anderen Ästen als kleines Etikett „braucht 🌳
+  Nistkästen ›“ (springt dorthin). Kein Querscrollen; Mindest-Trefferfläche 44 px.
+- **Desktop (≥ 900 px):** Raster mit sechs Spalten (Äste) und fünf Zeilen (Ebenen), Verbindungen
+  als dünne SVG-Linien zwischen den Karten (einmal je Layout gezeichnet, nicht je Frame); Gabeln
+  liegen in einer Zelle nebeneinander.
+- **Zustände einer Karte:** erforscht (Stempel „erforscht“, Farbe des Asts) · erforschbar (Knopf
+  aktiv) · zu wenig ⚖️ („Noch 120 ⚖️ · ~1 min“, aus der aktuellen Produktion) · gesperrt
+  (Stufe/Voraussetzung, blass, `aria-disabled`, Sperrgrund vorlesbar) · ausgeschlossen.
+  Bestätigung und Festhalten wie heute bei der Pflege (8.2: Aufleuchten, schwebender Text,
+  Doppelklick-Schutz, Sortierung ruht während der Bedienung – hier ohne Umsortieren, der Baum hat
+  feste Plätze).
+- **U:Forschungsknoten** (ersetzt U:Pflegemaßnahme): Text, Wirkung, Vorschau („+3 ⚖️/min,
+  +2 % 🌿“), „öffnet …“, Gabel-Partner, Voraussetzungen, Kosten.
+- **Forschungsplan** (Welle 4): Schalter „Plan des letzten Zyklus folgen“ oben im Reiter;
+  geplante Knoten tragen eine kleine Nummer.
+- „Zur Pflege“-Verweise an verschlossenen Nischen (Nr. 38) heißen „Zur Forschung“.
+
+**Aussaat:** Im Abschnitt „Pflanzring“ (R:Nischen) und in der Kurzleiste der Knopf **„🌱 Säen ·
+35 🌰“** (Frühling: durchgestrichener Preis und „Saatzeit“; erste: „🌱 Säen · gratis“; voller
+Ring: „🌱 Säen (tauschen) · 188 🌰“). Er öffnet die vorhandene Kartenwahl (U:Begegnung mit
+Pflanzenkarten) mit dem Titel „Aussaat – drei Samen, ein Platz“ (vier mit „Saatgut sortieren“) und
+den Knöpfen „Neu würfeln · 10 🌰“ und „Zurücklegen · +12 🌰“. Wird sie ohne Wahl geschlossen,
+liegt oben auf dem Zettelstapel ein grüner Zettel „Aussaat“ (zählt nicht zu den 3 Begegnungen).
+U:Pflanze setzen entfällt. Spielanleitung: Kapitel „Säen“ und „Forschung“ neu, „Harmonie“ und
+„Begegnungen“ angepasst; Texte der Jahreszeit, des Tagesziels, der Erfolge (27.4, 27.5).
+
+**Renderer (klein):** Beim Setzen aus einer Aussaat fliegen ein paar Samen (Ahornflügel,
+Pusteblume) vom Rand in den Pflanzring, bevor die Pflanze wie heute erscheint (reduzierte
+Bewegung: ohne). Sonst ändert sich nichts – die Szene liest weiter `harmonyTier` (aus der
+Produktion, gleiche Zahl).
+
+### 27.13 Risiken und offene Fragen
+
+| Risiko / Frage | Einschätzung | Umgang |
+|---|---|---|
+| H_max steigt (+5 am Hain), Gedächtnis +~16 je Hain-Zyklus | sicher im Modell | 3a misst; Stellschraube 1 (Gewichte, Kosten, Schwellen) |
+| Wachstums-Spieler zu schnell (÷ Harmonie < 0,85) | wahrscheinlich | Forschung belohnt Harmonie-Spieler stärker (mehr ⚖️); 3a misst |
+| Samen verlieren spät an Wert (Gäste, Aussaat reichen nicht als Senke) | möglich ab Wald | Ziel Samenbestand ≤ 15 min; sonst `SOWING_GROWTH` senken, damit Tausch lockt; Idee für später: 🌰 für Neu würfeln in Ereignissen |
+| Wahl aus 3 Karten zieht im Ring-Endspiel die falschen Pflanzen | mittel | `seed-sorting` (4 Karten), `PLANT_WEIGHT_IN_RING` 0,35, Anzuchtbeet; 3a misst Gemeinschaften mit Pflanzen |
+| Späte 8-min-Zyklen: Forschung als Klick-Pflicht | sicher ohne Plan | Forschungsplan (Welle 4) |
+| Zwei Währungen überfordern Einsteiger | gering | ⚖️ erst ab Setzling sichtbar (vorher nur „Harmonie 50/min“), Spielanleitung, erster Knoten mit Hinweis „Harmonie ausgeben“ |
+| Phase 9 (v16) läuft parallel | sicher | 2a erst nach Phase 9, 2b; Phase 9, 2c (Chronik-Messung) erst nach Phase 10, 3b |
+| Gedächtnisfaktor G auf den Ertrag macht späte Zyklen „zu reich“ | gering | gleiche Skalierung wie heute die Samen (27.3); 3b prüft Knoten je Zyklus in der Landschaft |
+| Ereignis-Option „+N ⚖️“ als Sofort-Harmonie (Harmonie-Sekunden)? | offen | nicht in Phase 10; nach dem Playtest 5b |
+| Urwald-Ebene im Baum (Krönung je Ast)? | offen | erst, wenn 3b zeigt, dass im Urwald ⚖️ übrig bleiben |
+
+### 27.14 Bewusst nicht in Phase 10
+
+- **Bleibende Forschung / zweite Prestige-Ebene** (27.8, 24.1).
+- **Harmonie für Samen tauschen** oder umgekehrt – zwei Währungen mit zwei Aufgaben.
+- **Prozent-Boni auf die Harmonie-Produktion** (27.3).
+- **Neue Arten oder Pflanzen** – der Umbau soll erst gemessen werden.
+- **Klima-Epochen** (26.11) – weiter nach dem Playtest.
