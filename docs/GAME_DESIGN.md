@@ -77,7 +77,10 @@
 > 5 Gabeln) mit Kosten in **Harmonie** – die Harmonie wird zur Produktion in ⚖️/min (gleiche
 > Zahl wie heute), die einen Vorrat füllt; der Bonus `1 + p/100` richtet sich nach der
 > Produktion. Vorab-Messung und Ziele: `DESIGN_V2.md` 27.10/27.11. Bis zur Umsetzung gelten die
-> Zahlen oben.
+> Zahlen oben. Die Daten liegen seit Phase 10, 1a bereit (`src/content/research.ts`: 32 Knoten
+> zu 80–2.500 ⚖️, ein ganzer Weg 21.260 ⚖️, davon 5.630 ⚖️ vor dem Hain; `src/content/sowing.ts`:
+> `SOWING_BASE` 20, `SOWING_GROWTH` 1,75, ab Keimling, Frühling × 0,8, Rabatt höchstens −75 %,
+> höchstens 4 Karten), sind aber noch nicht verdrahtet – es gilt weiter die Pflege aus `care.ts`.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
