@@ -288,7 +288,7 @@ export function ecosystemOf(
     extraEffects: cycleEffects(state.cycle),
     habitats: [...(state.cycle?.habitats ?? []), ...careEffects(state.cycle?.care).habitats, ...siteHabitats(active)],
     guestGenera: genera,
-    ...environmentOf(state.cycle, ambient),
+    ...environmentOf(state.cycle, ambient, active),
     site: active,
     gifts: giftSites(landscape),
   };
@@ -300,12 +300,12 @@ type Environment = Pick<Ecosystem, 'season' | 'mainTree' | 'weather' | 'night' |
  * Jahreszeit, Wetter und Nacht (aus der Spielzeit) und Hauptbaum des Zyklus – nur, was
  * der Zyklus kennt. `ambient` wählt Einzelwetter (live), Mittel (offline) oder keins.
  */
-function environmentOf(cycle: CycleExtras | undefined, ambient: AmbientMode): Environment {
+function environmentOf(cycle: CycleExtras | undefined, ambient: AmbientMode, site: SiteId): Environment {
   const out: Environment = {};
   if (cycle?.elapsed !== undefined) {
     out.season = seasonIdAt(cycle.elapsed);
     if (ambient === 'average') out.weather = averageWeatherOf(cycle.elapsed);
-    else if (ambient === 'live') out.weather = weatherOfDay({ number: cycle.number ?? 0, startedAt: cycle.startedAt }, dayIndex(cycle.elapsed));
+    else if (ambient === 'live') out.weather = weatherOfDay({ number: cycle.number ?? 0, startedAt: cycle.startedAt }, dayIndex(cycle.elapsed), site);
     const night = nightShare(ambient, cycle.elapsed);
     if (night > 0) out.night = night;
   }
@@ -324,7 +324,7 @@ function ecosystemWeatherEffects(eco: Ecosystem, animals: readonly Species[]): E
   const tree = eco.mainTree !== undefined ? mainTreeOf(eco.mainTree).id : undefined;
   if (eco.weather === 'average' || eco.weather === 'gentle-average') {
     const gentle = eco.weather === 'gentle-average';
-    return eco.season !== undefined ? averageWeatherEffectsFor(eco.season, genera, eco.care, tree, gentle) : [];
+    return eco.season !== undefined ? averageWeatherEffectsFor(eco.season, genera, eco.care, tree, gentle, eco.site) : [];
   }
   const weather = weatherById(eco.weather);
   return dampedWeatherEffects(weather, weatherDampingFor(weather, genera, eco.care, tree));
@@ -1060,9 +1060,9 @@ function ecosystemKey(state: GameState, ambient: AmbientMode | null): string {
     if (ambient !== null) {
       key += `|s:${seasonIndex(state.cycle.elapsed)}`;
       if (ambient === 'live') {
-        key += `|w:${weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed))}|n:${nightShare('live', state.cycle.elapsed) > 0 ? 1 : 0}`;
+        key += `|w:${weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed), activeSite(landscape))}|n:${nightShare('live', state.cycle.elapsed) > 0 ? 1 : 0}`;
       } else {
-        key += ambient === 'average' ? `|w:avg:${averageWeatherOf(state.cycle.elapsed)}` : '|w:off';
+        key += ambient === 'average' ? `|w:avg:${averageWeatherOf(state.cycle.elapsed)}:${activeSite(landscape)}` : '|w:off';
       }
     }
     key += `|m:${mainTreeOf(state.cycle.mainTree).id}`;

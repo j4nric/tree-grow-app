@@ -83,6 +83,7 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   const detail = site.locator('[data-ref="site-detail"]');
   await expect(detail).toContainText('Verzicht (nur hier): Pilze −15 % 😊');
   await expect(detail).toContainText('Gabe (nach der Gründung): Ab Alter Baum +1 Platz Waldtümpel in allen Wäldern');
+  await expect(site.locator('[data-ref="site-weather"]')).toHaveText('Wetter: 🌧️ Oft Landregen, selten Dürre – der Fluss ist nie weit.');
   await expect(site.locator('[data-ref="site-cycle-open"]')).toBeHidden();
   const choose = site.locator('[data-ref="site-choose"]');
   await expect(choose).toHaveText('Als Ziel wählen');

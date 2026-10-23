@@ -9,7 +9,9 @@
  * Gilt nur für Läufe mit festem Standort (siteRun), nicht für die ganze Landschaft und nicht für
  * den Modus „Mittel“ (dessen Cache-Schlüssel kennt den Standort erst mit 3c).
  *
- * Wenn der core-engineer 3c umsetzt, entfällt diese Datei (wie scripts/site-trees.ts mit 3d).
+ * Seit 3c zieht core/weather.ts selbst mit den Gewichten des aktiven Waldes – `withSiteWeather`
+ * wendet die Faktoren in Läufen mit aktivem Standort darum DOPPELT an. Nicht mehr für neue Zahlen
+ * verwenden; 3d entfernt die Datei (wie scripts/site-trees.ts).
  *
  * Ausführen: SIM_SITE_WEATHER=1 npx vitest run tests/site-weather-balance.test.ts --silent=false
  */

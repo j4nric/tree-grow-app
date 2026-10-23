@@ -6711,9 +6711,10 @@ In `src/content/achievements.ts` (`AchievementCondition`):
 
 ### 24.14 Waldtyp und Wetter (Phase 7, 3b)
 
-> **Stand:** Design und Daten (3b). Faktoren `ForestSite.weather` und Kurztext
-> `ForestSite.weatherSummary` in `src/content/landscape.ts`, Inhaltstests in
-> `tests/landscape.test.ts` – **noch ohne Wirkung**: `core/weather.ts` liest sie erst mit 3c.
+> **Stand:** umgesetzt (3c, ohne neue Spielstand-Version). Faktoren `ForestSite.weather` und
+> Kurztext `ForestSite.weatherSummary` in `src/content/landscape.ts` (Inhaltstests
+> `tests/landscape.test.ts`); `core/weather.ts` zieht mit `siteWeatherWeights` im aktiven Wald
+> (Logik-Tests `tests/site-weather-core.test.ts`), U:Standort zeigt die Wetter-Zeile.
 > Gemessen vorab mit der echten Logik über `scripts/site-weather.ts` (Gewichte des Standorts zur
 > Laufzeit) und `tests/site-weather-balance.test.ts`. Beantwortet die offene Frage aus 24.13.
 

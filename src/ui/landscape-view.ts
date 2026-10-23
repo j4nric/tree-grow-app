@@ -13,6 +13,7 @@ import {
   type SiteId,
 } from '../content/landscape';
 import { STAGES } from '../content/stages';
+import { WEATHERS_BY_ID, type WeatherId } from '../content/weather';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
 import { ANCIENT_STAGE, activeSite, effectiveForestMemory, effectiveMemoryOf, ownMemory } from '../core/landscape';
 import { corridorWildwechselText, wildwechselChanceText } from './wildwechsel-view';
@@ -70,6 +71,11 @@ export interface LandscapeSiteView {
   gift: string | null;
   /** Die Gabe wirkt schon (Wald gegründet). */
   giftActive: boolean;
+  /**
+   * Wetter des Waldtyps (DESIGN_V2.md 24.14) mit dem Zeichen der häufigsten Lage, z. B.
+   * „🌫️ Oft Nebel über dem Wasser, selten Dürre.“ – null beim Heimatwald.
+   */
+  weather: string | null;
   /** Urwald-Zustand als Satz, z. B. „Hier war schon Urwald (+2 🪶).“; null, solange nicht gegründet. */
   ancientText: string | null;
   /** null = nicht wählbar (siehe blocker). */
@@ -348,6 +354,7 @@ export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): 
       costs,
       gift,
       giftActive: gift !== null && choice.founded,
+      weather: siteWeatherText(choice.id),
       ancientText: choice.founded
         ? choice.ancient
           ? `Hier war schon ${ANCIENT_NAME}.`
@@ -418,4 +425,19 @@ export function activeSiteLabel(state: Pick<GameState, 'meta'>): string {
   const id = state.meta.landscape ? activeSite(state.meta.landscape) : 'home';
   const data = LANDSCAPE_SITES_BY_ID.get(id);
   return data ? `${data.icon} ${data.name}` : id;
+}
+
+/**
+ * Wetter-Zeile eines Standorts (24.14): Zeichen der Lage mit dem größten Faktor, dann der
+ * Kurztext. null ohne Kurztext (Heimatwald).
+ */
+export function siteWeatherText(id: SiteId): string | null {
+  const data = LANDSCAPE_SITES_BY_ID.get(id);
+  if (!data?.weatherSummary) return null;
+  let top: WeatherId | null = null;
+  for (const [w, f] of Object.entries(data.weather) as [WeatherId, number][]) {
+    if (f > 1 && (top === null || f > data.weather[top]!)) top = w;
+  }
+  const icon = top !== null ? WEATHERS_BY_ID.get(top)?.icon : undefined;
+  return icon ? `${icon} ${data.weatherSummary}` : data.weatherSummary;
 }

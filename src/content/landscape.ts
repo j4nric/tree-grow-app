@@ -64,7 +64,7 @@ export interface ForestSite {
    * WEATHER_WEIGHTS – in jeder Jahreszeit, in der sie vorkommt (eine Lage kommt so nie
    * außerhalb ihrer Jahreszeit). Fehlt eine Lage, gilt 1; „Wechselhaft“ hat nie einen Faktor.
    * Danach gelten die Regeln von 21.2 unverändert (Tag 0, Schonzeit, nie zwei raue Tage).
-   * Wirksam erst mit Phase 7, 3c (`core-engineer`) – bis dahin nur Daten mit Inhaltstest.
+   * Gelesen von `siteWeatherWeights` in core/weather.ts (Phase 7, 3c) für den aktiven Wald.
    */
   weather: Readonly<Partial<Record<WeatherId, number>>>;
   /** Kurztext zum Wetter für Karte und Tooltip („Oft Landregen“), leer beim Heimatwald. */

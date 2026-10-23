@@ -497,7 +497,7 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   (Kiefernheide Wachstum −3,8 → −3,4 %), Sommerdürre in der Heide 19,3 statt 9,4 %. **Befund:**
   Das Käferjahr wird dadurch nicht häufiger (begrenzt durch „Käfer ungejagt“ und einmal je
   Zyklus), es fällt nur öfter auf einen Dürretag – offene Frage in 24.13
-- [ ] **3c** Waldtyp und Wetter – Logik (`core-engineer`): `weatherOfDay` mit Standort-Gewichten,
+- [x] **3c** Waldtyp und Wetter – Logik (`core-engineer`): `weatherOfDay` mit Standort-Gewichten,
   Mittelwetter offline je Standort, Vorhersage; kein neues Feld. Abhängig: 3b, 2b gemergt.
   **Genaue Aufgabe** (DESIGN_V2.md 24.14, „Umsetzung“):
   1. `core/weather.ts`: `siteWeatherWeights(season, site)` = `WEATHER_WEIGHTS[season][w] ×
@@ -518,7 +518,9 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
      Standort; Vorhersage, Szene und Ereignis-Gewichte nutzen den aktiven Wald; Wechsel mit
      `startNewCycle` → neue Folge; kleine Ticks = großer Tick, `simulateOffline` im Mittel.
   Keine neue Spielstand-Version, kein neues Feld. Danach klein (`ui-dev`): `weatherSummary` beim
-  Standort in Karte/U:Landschaft
+  Standort in Karte/U:Landschaft. **Erledigt:** `siteWeatherWeights`, `weatherSiteOf` in
+  `core/weather.ts`; Goldwerte Heimatwald, Tabelle 24.14 je Wald und online = offline in
+  `tests/site-weather-core.test.ts`; U:Standort zeigt „Wetter: 🌫️ …“ (`site-weather`).
 - [ ] **3d** Großer Lauf mit neuen Leitbäumen und Wetter je Standort (`game-designer`): 24.7,
   24.10 und 25.4 mit der echten Logik nachtragen; `scripts/site-trees.ts` und
   `tests/site-trees-balance.test.ts` entfernen, ebenso `scripts/site-weather.ts` und
