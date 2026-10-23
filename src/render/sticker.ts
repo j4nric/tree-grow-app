@@ -67,11 +67,14 @@ const STICKER_FRAME: Readonly<Record<string, Pick<SpriteDef, 'x0' | 'y0' | 'x1' 
 
 /**
  * Bild für den Sticker, falls nicht Bild 0: Kranich und Falke sind mit gesenkten Flügeln
- * (Bild 1) deutlich besser zu erkennen als im Flügelschlag nach oben.
+ * (Bild 1) deutlich besser zu erkennen als im Flügelschlag nach oben; der Moorfrosch zeigt
+ * sein blaues Frühlingskleid.
  */
 const STICKER_POSE: Readonly<Record<string, number>> = {
   'visitor:crane': 1,
   'visitor:falcon': 1,
+  // Moorfrosch im blauen Hochzeitskleid – so kennt man ihn (und unterscheidet ihn vom Grasfrosch).
+  moorfrog: 1,
 };
 
 /** Welches Bild der Zeichnung der Sticker zeigt (meist 0). */

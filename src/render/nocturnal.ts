@@ -10,6 +10,11 @@
  *   Igel            tagsüber fast still; nachts wandert er weiter durchs Laub
  *   Glühwürmchen    tagsüber ruhig; nachts schwirrt es weiter umher (der Schein steht in
  *                   animals.ts)
+ *   Haselmaus       Kennart (26.3): tagsüber schläft sie eingerollt in der Krone (Bild 1),
+ *                   nachts sitzt sie wach mit Haselnuss; im Winterschlaf immer eingerollt
+ *   Ziegenmelker    Kennart (26.3): tagsüber flach am Boden mit geschlossenen Augen
+ *                   (Bild 1), nachts Kopf hoch; im Winter ruhend (er ist „in Afrika“,
+ *                   verschwindet in der Szene aber nicht)
  *
  * Gilt nur, wenn die Szene eine Tageszeit hat (`AnimalFrame.nocturnal`); ohne Angabe bleibt
  * alles wie bisher. Bei „Weniger Bewegung“ ruhen die Tiere wie alle anderen (nur der Kauz
@@ -19,7 +24,21 @@
 import { clamp01, hash2, lerp, smooth01 } from './util';
 
 /** Arten mit Nachtverhalten (Art-IDs aus src/content/species.ts). */
-export const NOCTURNAL_KINDS: ReadonlySet<string> = new Set(['owl', 'bat', 'hedgehog', 'glowworm']);
+export const NOCTURNAL_KINDS: ReadonlySet<string> = new Set(['owl', 'bat', 'hedgehog', 'glowworm', 'dormouse', 'nightjar']);
+
+/** Nachtarten, die tagsüber und in ihrer Ruhezeit im Jahr ein Schlafbild (Bild 1) zeigen. */
+export const SLEEPER_KINDS: ReadonlySet<string> = new Set(['dormouse', 'nightjar']);
+
+/**
+ * Schläft eine Art mit Schlafbild gerade? Tagsüber (Wachheit unter ½) oder in ihrer
+ * Ruhezeit im Jahr (`awake` unter ½: Winterschlaf der Haselmaus, Zugzeit des
+ * Ziegenmelkers). Ohne Tageszeit (null) nur nach der Jahreszeit.
+ */
+export function sleeping(kind: string, wake: number | null, awake = 1): boolean {
+  if (!SLEEPER_KINDS.has(kind)) return false;
+  const a = Number.isFinite(awake) ? awake : 1;
+  return a < 0.5 || (wake !== null && wake < 0.5);
+}
 
 /** Wachheit der Nachtarten 0 (Tag) – 1 (Nacht) oder null (ohne Tageszeit: wie bisher). */
 export function nightWake(nocturnal: number | null | undefined): number | null {
@@ -42,6 +61,10 @@ export function nocturnalPace(kind: string, wake: number | null, awake = 1): num
       return lerp(0.25, 1, wake * a);
     case 'glowworm':
       return lerp(0.35, 1, wake);
+    case 'dormouse':
+    case 'nightjar':
+      // Schläfer: tagsüber und in der Ruhezeit ganz still, nachts munter.
+      return wake * a;
     default:
       return 1;
   }
