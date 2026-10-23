@@ -630,8 +630,15 @@ Die Werte stammen aus dem Album-Prototyp:
 - **Mobil** dreht sich die ganze Hauptansicht (Polaroid, Etiketten, Heft) wie im Prototyp,
   **Desktop** nur die rechte Seite um den Falz.
 - **Reduzierte Bewegung** (`data-motion="reduce"`): Überblenden in 150 ms, ohne 3D.
-- Während des Blätterns sind beide Seiten nicht bedienbar (`inert`). Eine zweite Eingabe wird
-  vorgemerkt und danach ausgeführt.
+- Während des Blätterns sind beide Seiten nicht bedienbar. Eine zweite Eingabe wird
+  vorgemerkt und danach ausgeführt. Die Unterseite ist dabei `inert`; die drehende Seite fängt
+  Zeiger und Klicks per Capture-Lauscher ab (ein Klick darauf wird vorgemerkt und nach der
+  Drehung ausgelöst, wenn sein Ziel dann bedienbar ist) und bekommt `inert` erst am Ende zusammen mit
+  `turned-away` (`visibility: hidden` + `content-visibility: hidden`). Grund (Schritt 14, S9):
+  `inert` erbt sich, an der großen Hauptansicht kostete jede Änderung eine Stil-Neuberechnung
+  des ganzen Teilbaums; im gesperrten Teilbaum entfällt sie. Mobil schneidet `clip-path` die
+  drehende Hauptansicht für die Dauer der Drehung auf den sichtbaren Streifen zu (gerastert
+  wird nur er; zu sehen ist der Unterschied nicht, weil die Perspektive nur nach außen vergrößert).
 - `will-change: transform` gilt nur während der Animation. Es animiert genau ein Element. Es
   gibt keine Schnappschüsse und keinen Curl.
 
@@ -1251,7 +1258,7 @@ Reiterseite selbst über `album/pages/registry.ts` (eine Zeile pro Seite).
 |---|---|---|
 | R1 | **Langlebiger Branch:** Auf `main` läuft Phase 7 weiter (2b, 3a: Baumwahl mit fünf Arten). Konflikte in `cycle-panel.ts`, `landscape-map.ts`, `main.ts` | `main` regelmäßig in `album-ui` mergen. UI-Aufgaben aus Phase 7, die noch offen sind (3a), möglichst **im Album** umsetzen statt doppelt (G-1). |
 | R2 | **e2e-Aufwand:** 35 Specs, viele auf alte Texte und Selektoren | `data-ref` behalten, Übergangsinhalt in Schritt 1, Migration pro Bereich, Fixture-Helfer |
-| R3 | **Leistung:** viele Sticker-Canvas (Reiter Arten: über 50 Arten + Pflanzen); 3D-Drehung auf schwachen Android-Geräten | Sticker faul und nur bei Änderung zeichnen, LRU-Cache; nur ein Element animiert; unsichtbare Seiten nicht aktualisieren; Szene nicht zeichnen, wenn verdeckt. Messen in Schritt 14. |
+| R3 | **Leistung:** viele Sticker-Canvas (Reiter Arten: über 50 Arten + Pflanzen); 3D-Drehung auf schwachen Android-Geräten | Sticker faul und nur bei Änderung zeichnen, LRU-Cache; nur ein Element animiert; unsichtbare Seiten nicht aktualisieren; Szene nicht zeichnen, wenn verdeckt. Messen in Schritt 14. **Schritt 14 (S9):** Umblättern ohne erbende Stil-Neuberechnung der Hauptansicht (`inert` erst im gesperrten Teilbaum, `content-visibility: hidden` für weggedrehte Seiten), drehende Hauptansicht mobil auf den sichtbaren Streifen zugeschnitten. Reiter Arten: `content-visibility: auto` je Gattungsblock ausprobiert und verworfen (erster Wechsel kaum kürzer, dafür Long Tasks beim Scrollen). Rest: jedes Sticker-Canvas ist eine eigene Compositing-Ebene (über 70 Ebenen auf Nischen) – bei Software-Raster (headless) bremst das den Compositor. |
 | R4 | **Neubau der Render-Caches** beim Vollbild-Wechsel (spürbarer Ruckler) | FLIP nur mit transform, ein einziges Resize am Ende, `IdleQueue`. Falls es trotzdem ruckelt: die Vollbild-Größe im Hintergrund vorbereiten (Renderer-Aufgabe). |
 | R5 | **Caveat-Zahlen springen** (keine Ziffern gleicher Breite) bei laufenden Werten | Feste Mindestbreite je Etikett (`min-width` in ch), Zahl rechtsbündig. Samen nur bei neuer ganzer Zahl aktualisieren (gibt es schon). |
 | R6 | **5 Reiter bei 360 px** (Caveat 21 px) passen nicht | Innenabstand 10 px, bei Überlauf waagerecht scrollbar mit gewähltem Reiter im Bild (wie heute im Tagebuch). Vier Reiter passen; Landschaft kommt erst spät hinzu. **Seit Schritt 12:** `tab-strip.ts` misst bei Größen- und Schriftwechsel und schaltet stufenweise (`data-fit`): enger/kleiner → Symbole statt Namen (der gewählte Reiter behält ihn) → Name kleiner → nur Symbole. Geprüft mit DejaVu Sans und 125 % bei 360/390 px (`e2e/album-layout.spec.ts`). |
