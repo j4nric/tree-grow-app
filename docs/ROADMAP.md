@@ -945,7 +945,7 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
 
 **Welle 1 – Vorbereitung** (ohne Spielstand, parallel)
 
-- [ ] **1a** Daten Forschungsbaum und Aussaat (`game-designer`, 27.6/27.7): neue Datei
+- [x] **1a** Daten Forschungsbaum und Aussaat (`game-designer`, 27.6/27.7): neue Datei
   `src/content/research.ts` mit den 32 Knoten (ID, Ast, Ebene, Kosten, `requires`/`requiresAny`,
   `excludes`, `condition`, Wirkungen, Text, `boughtText`), `RESEARCH_BRANCHES` (Symbol, Name,
   Farbe) und den Wirkungstypen `happiness`, `sowCards`, `sowCost`, `sowFreeReroll` als Typen;
@@ -956,6 +956,10 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   ≤ 120 Zeichen). **Warum:** Der Baum ist die größte Design-Arbeit und reine Daten; der
   `core-engineer` baut 2a dann gegen feste Inhalte, und die UI-Skizze 1c kann sofort beginnen.
   Abhängig: nichts
+  *Erledigt:* `src/content/research.ts` (32 Knoten, 6 Äste, `RESEARCH_FORKS`,
+  `CARE_TO_RESEARCH`), Aussaat-Konstanten in `src/content/sowing.ts`, neue Wirkungen als Typ
+  `ResearchEffect` in `research.ts` (keine Änderung an `content/types.ts` oder `core/`),
+  `tests/research.test.ts`; drei neue Wörter in `ui/hyphenate.ts`.
 - [ ] **1b** Aussaat-Animation (`renderer`, 27.12): Samen (Ahornflügel, Pusteblume) fliegen vom
   Rand in den Pflanzring; einmal je Setzen, gecacht, reduzierte Bewegung ohne; zunächst nur in der
   Demo (`?demo=sowing`). **Warum:** Die Aussaat ersetzt ein Ereignis, das der Spieler „bekam“ –

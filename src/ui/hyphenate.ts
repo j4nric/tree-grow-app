@@ -68,6 +68,10 @@ export const HYPHENATION: Readonly<Record<string, string>> = {
   Wiesenkonzert: 'Wie|sen|kon|zert',
   Wildkaninchen: 'Wild|ka|nin|chen',
   Zauneidechse: 'Zaun|ei|dech|se',
+  // Phase 10: Forschungsbaum (DESIGN_V2.md 27.7; content/research.ts)
+  Blütenvorrat: 'Blü|ten|vor|rat',
+  Humusschicht: 'Hu|mus|schicht',
+  Wildbienenwand: 'Wild|bie|nen|wand',
 };
 
 /**
