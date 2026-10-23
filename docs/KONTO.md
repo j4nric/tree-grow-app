@@ -147,7 +147,7 @@ wertlos. Abmelden löscht die offenen Tickets der Sitzung. Regeln: Benutzername 
 
 | Was | Grenze |
 |---|---|
-| Anmelden und Registrieren je IP | 20 Versuche in 15 Minuten |
+| Anmelden und Registrieren je IP | 20 Versuche in 15 Minuten (`AUTH_PER_IP_15MIN`) |
 | Fehlgeschlagene Anmeldungen je Benutzername **und IP** | 10 in 15 Minuten (diese IP ist dann für dieses Konto gesperrt; Erfolg setzt zurück) |
 | Fehlgeschlagene Anmeldungen je Benutzername über alle IPs | 100 in 15 Minuten (gegen verteiltes Raten; eine einzelne fremde IP kann ein Konto so nicht aussperren) |
 | Neue Konten je IP | 3 je Stunde (`REGISTRATIONS_PER_IP_HOUR`) – eine IP allein kann das Gesamtkontingent nicht aufbrauchen |

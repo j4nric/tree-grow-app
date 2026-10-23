@@ -9,6 +9,7 @@
  *   MAX_ACCOUNTS     höchstens so viele Konten (Standard 1000)
  *   MIN_FREE_MB      darunter freier Platz auf dem Daten-Volume → 507 (Standard 512)
  *   REGISTRATIONS_PER_IP_HOUR  neue Konten je IP (IPv6: je /64) und Stunde (Standard 3)
+ *   AUTH_PER_IP_15MIN  Anmeldungen und Registrierungen je IP in 15 Minuten (Standard 20)
  *   ADMIN_BACKUP_TOKEN  geheimes Token (mind. 32 Zeichen) für GET /api/admin/backup (leer = Endpunkt aus)
  */
 import { mkdirSync } from 'node:fs';
@@ -55,6 +56,7 @@ const app = createApp({
   db,
   allowedOrigins,
   trustProxy: process.env.TRUST_PROXY === '1',
+  authLimit: { limit: envInt('AUTH_PER_IP_15MIN', 20), windowMs: 15 * 60_000 },
   limits: {
     maxAccounts: envInt('MAX_ACCOUNTS', 1000),
     registrationsPerIp: { limit: envInt('REGISTRATIONS_PER_IP_HOUR', 3), windowMs: 60 * 60_000 },
