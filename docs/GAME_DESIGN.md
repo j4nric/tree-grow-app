@@ -62,6 +62,14 @@
 > Waldtypen ±2,9 % (vorher ±3,6 %), Landschaft vollständig nach 14,0 h (Harmonie) bzw. 13,3 h
 > (Wachstum), Abstand 5,6 %.
 >
+> **Geplant (Phase 10, `DESIGN_V2.md` 27, Spielstand v17):** Begegnungen nur noch mit Tieren
+> (dazu Ereignisse und Gäste), Pflanzen über die **Aussaat** (Samen, `20 · 1,75^(n−1)` 🌰 je
+> Kauf im Zyklus, erste gratis), die Pflege wird ein **Forschungsbaum** (6 Äste, 32 Knoten,
+> 5 Gabeln) mit Kosten in **Harmonie** – die Harmonie wird zur Produktion in ⚖️/min (gleiche
+> Zahl wie heute), die einen Vorrat füllt; der Bonus `1 + p/100` richtet sich nach der
+> Produktion. Vorab-Messung und Ziele: `DESIGN_V2.md` 27.10/27.11. Bis zur Umsetzung gelten die
+> Zahlen oben.
+>
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
 > `scripts/simulate.ts`, `tests/balance.test.ts` (mit Pflege), `tests/balance-cycles.test.ts`

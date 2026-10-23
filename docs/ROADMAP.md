@@ -898,7 +898,10 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   `scripts/landscape.ts` (offene Kapitel zuerst, im Urwald bis zum Winter verweilen), großer Lauf
   Harmonie / Wachstum / Zufall, Ziele (a)–(f) aus 26.8; Stellschrauben Seltenheit der Kennarten,
   `CHRONICLE_HARMONY`, Wirkungen; 24.7/24.10 und 26 nachtragen. **Warum:** Zahlen nie nach
-  Gefühl – die Startwerte in 26.3/26.4 sind Schätzungen. Abhängig: 2b
+  Gefühl – die Startwerte in 26.3/26.4 sind Schätzungen. Abhängig: 2b. **Verschoben hinter
+  Phase 10, 3b** (DESIGN_V2.md 27.13): Phase 10 stellt die Ökonomie um (Begegnungen nur Tiere,
+  Aussaat, Forschung in ⚖️) und verschiebt nach der Vorab-Messung H_max und Gedächtnis
+  (27.10) – eine Chronik-Messung davor wäre sofort veraltet
 
 **Welle 3 – Oberfläche**
 
@@ -922,4 +925,122 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   schön oder als Warten erlebt? Sind Kennarten zu selten? Danach Entscheidung über eine dritte
   Ebene (26.11). Abhängig: 4a
 
-Parallel: 1a, 1b, 1d und 2a sofort; 1c nach 1a; 2b nach 1a und 1d; 2c und 3a nach 2b.
+Parallel: 1a, 1b, 1d und 2a sofort; 1c nach 1a; 2b nach 1a und 1d; 3a nach 2b; 2c nach 2b **und
+Phase 10, 3b**.
+
+## Phase 10 – Forschung, Aussaat und Harmonie-Produktion
+
+Ziel: Das Playtest-Feedback nach Phase 9 umsetzen (DESIGN_V2.md **27**, Wortlaut in 27.1):
+**Begegnungen nur mit Tieren** (dazu Ereignisse und Gäste) – „Etwas keimt“ verlässt das Deck;
+Pflanzen kommen über die **Aussaat**, einen Kauf mit Samen, der mit jedem Kauf teurer wird und die
+bekannte Kartenwahl öffnet; die Pflege wird ein **Forschungsbaum** mit sechs Ästen und fünf
+Gabeln, bezahlt mit **Harmonie**, die als Produktion (⚖️/min) einen Vorrat füllt; der
+**Harmonie-Bonus** richtet sich nach dieser Produktion. Tempo bis Urwald und Landschaft bleibt
+grob gleich (Ziele 27.11). Reihenfolge in Wellen; Zustandsänderungen nacheinander, nie parallel.
+**Einzige Spielstand-Änderung der Phase: v17** (Welle 2, nach Phase 9 v16). Keine neuen
+Abhängigkeiten, kein Server-Umbau (Versionsprüfung wie 25.5).
+
+**Bewusst nicht:** bleibende Forschung (zweite Prestige-Ebene), Tausch Harmonie ↔ Samen,
+Prozent-Boni auf die Harmonie-Produktion (27.14).
+
+**Welle 1 – Vorbereitung** (ohne Spielstand, parallel)
+
+- [ ] **1a** Daten Forschungsbaum und Aussaat (`game-designer`, 27.6/27.7): neue Datei
+  `src/content/research.ts` mit den 32 Knoten (ID, Ast, Ebene, Kosten, `requires`/`requiresAny`,
+  `excludes`, `condition`, Wirkungen, Text, `boughtText`), `RESEARCH_BRANCHES` (Symbol, Name,
+  Farbe) und den Wirkungstypen `happiness`, `sowCards`, `sowCost`, `sowFreeReroll` als Typen;
+  Aussaat-Konstanten (`SOWING_BASE = 20`, `SOWING_GROWTH = 1,75`, `SOWING_MIN_STAGE = 1`,
+  `SPRING_SOWING_FACTOR = 0,8`, `MAX_SOWING_CARDS = 4`); Migrations-Tabelle Pflege → Knoten als
+  Daten (`CARE_TO_RESEARCH`). Noch nicht verdrahtet – `care.ts` bleibt bis 2a. Inhaltstests aus
+  27.7 (kreisfrei, Gabeln gegenseitig und gleich teuer, jede Pflege-Wirkung genau einmal, Texte
+  ≤ 120 Zeichen). **Warum:** Der Baum ist die größte Design-Arbeit und reine Daten; der
+  `core-engineer` baut 2a dann gegen feste Inhalte, und die UI-Skizze 1c kann sofort beginnen.
+  Abhängig: nichts
+- [ ] **1b** Aussaat-Animation (`renderer`, 27.12): Samen (Ahornflügel, Pusteblume) fliegen vom
+  Rand in den Pflanzring; einmal je Setzen, gecacht, reduzierte Bewegung ohne; zunächst nur in der
+  Demo (`?demo=sowing`). **Warum:** Die Aussaat ersetzt ein Ereignis, das der Spieler „bekam“ –
+  ein sichtbarer Moment macht den Kauf zum Säen. Unabhängig von allem. Abhängig: nichts
+- [ ] **1c** Forschungsbaum-Layout (`ui-dev`, 27.12): Reiter „Forschung“ als Ansicht aus
+  `RESEARCH` mit Platzhalter-Zuständen (Demo-Schalter), mobil 390 px (Äste aufklappbar, Zweig mit
+  Ebenen, Gabel als zwei halbe Karten mit „oder“, Querverweise „braucht …“) und Desktop (Raster
+  6 × 5, SVG-Verbindungen einmal je Layout); `aria-disabled`, 44-px-Treffer, kein Querscrollen
+  bei 360 px. **Warum:** Die Baumdarstellung ist neu und auf dem Handy der heikle Teil; sie hängt
+  nur an den Daten. Abhängig: 1a
+
+**Welle 2 – Spielstand v17** (nacheinander)
+
+- [ ] **2a** Harmonie-Vorrat und Forschung, Spielstand v17 (`core-engineer`, 27.3/27.4/27.7–27.9):
+  `harmonyPoints`, Ertrag `p/60 · G` in `tick` (online = offline, Halt-Logik wie Samen),
+  `cycle.research` statt `cycle.care`, Aktionen `research`/`researchBlocker`/`previewResearch`,
+  Wirkungen über den Pflege-Pfad plus `happiness` je Gattung; **alle** v17-Felder schon hier
+  (`cycle.sowings`, `sowing`, `freeSowing`, `meta.research`, `stats.harmonyEarned`), damit 2b den
+  Typ nicht mehr ändert; `SAVE_VERSION` 17, Migration v16 → v17 (Tabelle, geschenkte
+  Voraussetzungen, Startguthaben 10 min, offene Pflanzenbegegnung → offene Aussaat), robustes
+  Laden, Neuer Zyklus setzt zurück und schreibt `meta.research.plan`; Texte der Erfolge
+  (`harmony-*`, `care-10`) und des Tagesziels `harmony` („⚖️/min“). **Kleine UI-Anpassung im
+  PR:** R:Pflege listet die Knoten flach mit Erforschen-Knopf (Adapter von `toCareViews`), damit
+  `main` spielbar bleibt. Tests aus 27.9. **Warum:** Feedback 3–5 – die Harmonie wird ausgebbar,
+  der Bonus hängt an der Produktion, die Pflege wird ein Baum; das Feld braucht die
+  Versionsprüfung (Fall 25.5). Abhängig: 1a; **Phase 9, 2b gemergt** (v16)
+- [ ] **2b** Aussaat und Begegnungen nur mit Tieren (`core-engineer`, 27.5/27.6): `sow`,
+  `sowBlocker`, `sowingCost`, `chooseSowing`, `discardSowing`, `rerollSowing`; Preis mit
+  Geschenk, Frühling, `sowCost`; `sowCards`, `sowFreeReroll`; `ENCOUNTER_WEIGHTS` ohne
+  Pflanzenspalte, `SCRIPTED_ENCOUNTERS` mit `'sowing'`, `PLANT_WEIGHT_RING_FULL` und
+  `plantSeed`/`plantBlocker`/`nextPlantCost` entfernen; Vogelsaat → `freeSowing`
+  (`ForcedEncounterType` nur `'animal'`, Inhaltstest), Frühling „Saatzeit“, Tagesziel `plant`,
+  Statistik `plantsPlanted`/`cardsChosen`; Golden-Test der Ziehung neu. **Kleine UI-Anpassung im
+  PR:** Knopf „Säen“ statt U:Pflanze setzen, öffnet die vorhandene Kartenwahl. **Warum:**
+  Feedback 1–2 – Pflanzen sind eine eigene Entscheidung des Spielers statt jeder siebten
+  Begegnung, und die Samen bekommen mit dem steigenden Preis ihre Senke zurück. Abhängig: 2a
+
+**Welle 3 – Messen und Balancing**
+
+- [ ] **3a** Messung erster Zyklus (`game-designer`, 27.10/27.11): `scripts/simulate.ts` auf
+  Aussaat (Kauf und Tausch je Strategie, Wahl aus den gezogenen Karten) und Forschung (Wahl an
+  den Gabeln nach Strategie, Kauf sobald bezahlbar) umstellen; großer Lauf (500 Durchgänge,
+  Harmonie / Wachstum / Zufall und Stapler), alle Ziele aus 27.11; Stellschrauben in der
+  Reihenfolge aus 27.11; Tabellen 15.4, 27.10 und GAME_DESIGN.md nachtragen. **Warum:** Zahlen
+  nie nach Gefühl – die Startwerte in 27.6/27.7 stammen aus einem Modell ohne Kartenwahl und ohne
+  Forschung, und die Vorab-Messung zeigt H_max +5 am Hain (Gedächtnis +~16). Abhängig: 2b
+- [ ] **3b** Messung Zyklen und Landschaft (`game-designer`, 27.11): `balance-cycles` (Zyklus 2,
+  Neustart in Hain/Wald/Urwald), `scripts/landscape.ts` (Landschaft vollständig ±0,7 h, Waldtypen
+  ±5 % wie 24.7, Knoten je Zyklus in vollen Wäldern mit G); falls nötig Gedächtnis-Schwellen
+  (`MEMORY_HARMONY_RULES`) um ΔH_max heben; 10, 24.10 und 27 nachtragen. **Warum:** Der
+  Gedächtnisfaktor auf den Ertrag (27.3) und die höhere Harmonie wirken erst über viele Zyklen.
+  Danach darf **Phase 9, 2c** (Chronik) messen. Abhängig: 3a
+
+**Welle 4 – Oberfläche und Komfort**
+
+- [ ] **4a** Forschung, Harmonie und Aussaat im Album (`ui-dev`, 27.12): Reiter „Pflege“ →
+  „Forschung“ (Layout aus 1c an die echte Logik: Zustände, Vorschau, „Noch 120 ⚖️ · ~1 min“,
+  Bestätigung und Doppelklick-Schutz wie die Pflege), U:Forschungsknoten statt U:Pflegemaßnahme,
+  Kopf „⚖️ Vorrat · +110/min“, Etikett und U:Harmonie (Produktion, Vorrat, Bonus), Knopf „🌱
+  Säen“ mit Preis/Saatzeit/Tausch, grüner Zettel „Aussaat“ auf dem Stapel, Rückkehr-Meldung mit
+  ⚖️, „Zur Forschung“ an verschlossenen Nischen, Spielanleitung (Begegnungen, Säen, Forschung,
+  Harmonie), Statistik, Jahreszeiten- und Tagesziel-Texte; ALBUM_UI.md nachtragen. **Warum:** Der
+  Baum und die zweite Währung müssen auf dem Handy lesbar sein, sonst ist die Abzweigung keine
+  Entscheidung. Abhängig: 1c, 2b (Zahlen aus 3a kommen nur als Daten)
+- [ ] **4b** Forschungsplan (`core-engineer`, 27.8): `meta.research.auto`; in `tick` Halt, sobald
+  der Vorrat die Kosten des nächsten geplanten Knotens erreicht, Kauf streng in Plan-Reihenfolge
+  (warten bei fehlender Stufe, überspringen bei anders entschiedener Gabel); Aktion
+  `setResearchAuto`; online = offline (Tests). **Warum:** Späte Zyklen dauern 8–20 min – 25
+  Klicks je Zyklus wären Pflicht statt Wahl. Abhängig: 2a
+- [ ] **4c** Schalter „Plan folgen“ und Plan-Nummern (`ui-dev`, 27.12). Klein. Abhängig: 4a, 4b
+- [ ] **4d** Aussaat-Animation einhängen (`renderer`): aus 1b beim Setzen aus einer Aussaat
+  (Bericht aus `chooseSowing`), Stufenbild unverändert. Abhängig: 1b, 2b
+
+**Welle 5 – Absichern**
+
+- [ ] **5a** e2e Phase 10 (`qa-tester`): v16-Stand lädt als v17 (Pflege-Ränge → Knoten,
+  Startguthaben, offene Pflanzenbegegnung → Aussaat-Zettel); Säen → Karte → Neuladen → gleiche
+  Karten; Gabel wählen → andere Seite gesperrt → Neuladen; Neuer Zyklus setzt Vorrat und Baum
+  zurück, Plan folgt; v16-Gerät lehnt v17 ab (`outdated-client`, `newer` beim Import); R:Forschung
+  bei 360/390 px ohne Querscrollen. Abhängig: 4a, 4c
+- [ ] **5b** Playtest Phase 10 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
+  Fühlen sich die Gabeln wie Entscheidungen an? Ist „Säen“ zu teuer/zu billig, verlieren Samen ab
+  dem Wald ihren Sinn? Versteht man Vorrat gegen Produktion? Offene Fragen 27.13 entscheiden.
+  Abhängig: 5a
+
+Parallel: 1a und 1b sofort; 1c nach 1a; 2a nach 1a und Phase 9, 2b; 2b nach 2a; 3a nach 2b; 3b
+nach 3a, danach Phase 9, 2c; 4a nach 1c und 2b (parallel zu 3a/3b); 4b nach 2a; 4c nach 4a und
+4b; 4d nach 1b und 2b; 5a nach 4a und 4c; 5b nach 5a.
