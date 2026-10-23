@@ -7491,7 +7491,7 @@ Urwald war – genau dann, wenn es heute keinen Grund mehr gibt.
 | 🌊 Auwald | 🦫 **Biber** (`beaver`) | Säugetiere · Waldtümpel | besonders · Hain | ~~Feuchte~~ **≥ 2 Bäume** (Review 2b) | ~~+1 Platz Waldtümpel~~ **+2 💧, schafft Feuchte** (2b, siehe unten), +4 ⚖️ | „Er staut den Bach, und wo vorher ein Rinnsal war, quaken bald die Frösche.“ |
 | 🐸 Erlenbruch | 🐸 **Moorfrosch** (`moorfrog`) | Amphibien · Waldtümpel | besonders · Hain | Feuchte, Moose & Farne ≥ 1 | Moose & Farne +10 % 🌿, +6 ⚖️ | „Ein paar Tage im Frühling sind die Männchen himmelblau. Dann ist das ganze Bruch ein Konzert.“ |
 | 🍂 Buchenhallen | 🍄 **Ästiger Stachelbart** (`hericium`) | Pilze · Stamm & Rinde | besonders · Hain | Totholz, schattig | +6 % 🌿, +4 ⚖️ | „Wie ein weißer Korallenstock an einer toten Buche. Er wächst nur, wo der Wald sehr alt ist.“ |
-| ⛰️ Bergmischwald | 🐈 **Luchs** (`lynx`) | Säugetiere · Waldrand | besonders · Hain | Bäume ≥ 3; frisst Rehe | +6 % 🌿, hält Rehe klein (−30 % Fraß), +4 ⚖️ | „Pinselohren im Unterholz. Du siehst ihn nie – er sieht dich immer.“ |
+| ⛰️ Bergmischwald | 🐈 **Luchs** (`lynx`) | Säugetiere · Waldrand | besonders · Hain | Bäume ≥ 3; frisst Rehe (erscheint ~~nur mit Reh~~ **auch ohne**, Playtest 4b) | +6 % 🌿, hält Rehe klein (−30 % Fraß), +4 ⚖️ | „Pinselohren im Unterholz. Du siehst ihn nie – er sieht dich immer.“ |
 | 🌲 Kiefernheide | 🌙 **Ziegenmelker** (`nightjar`) | Vögel · Waldrand | besonders · Hain | sonnig; frisst Insekten | +5 % 🌰, +4 ⚖️, nachtaktiv | „Schnurrt in der Dämmerung wie eine Nähmaschine. Am Tag ist er ein Stück Kiefernrinde.“ |
 
 **Regeln**
@@ -7501,7 +7501,8 @@ Urwald war – genau dann, wenn es heute keinen Grund mehr gibt.
   Wald alt ist – `isSiteAncient(state, site)` **oder** der laufende Zyklus steht im Urwald
   (`stage ≥ 7`). Das Zweite macht schon den ersten Urwald eines Waldes zur Gelegenheit, wenn
   man dort verweilt (passt zum Kapitel „Erster Schnee“, 26.4). Jede Kennart hat genau diese
-  Bedingung (dazu der Luchs `{ kind: 'species', id: 'deer' }`).
+  Bedingung und **keine weitere** (bis zum Playtest Phase 9, 4b hatte der Luchs dazu
+  `{ kind: 'species', id: 'deer' }`, siehe „Luchs“ unten).
 - **Nur vorhandene Wirkungsarten**, keine Fähigkeit; Seltenheit 2 (besonders), Stufe 5 (Hain),
   wie die Lebensraum-Arten (23.9 „keine neue Fähigkeit“). Biber: Platz-Wirkung wie andere
   Platz-Arten (öffnet keinen geschlossenen Tümpel – im Auwald ist er ab Junger Baum offen).
@@ -7518,6 +7519,16 @@ Urwald war – genau dann, wenn es heute keinen Grund mehr gibt.
   Wunsch“, `tests/content.test.ts`). Frage
   an 2c / Game Design: genügt das als Bild „staut den Bach“, oder soll er Platz in einer anderen
   Nische schaffen?
+- **Luchs, Änderung nach dem Playtest Phase 9 (4b):** Die zweite Bedingung „Reh im Wald“
+  (`{ kind: 'species', id: 'deer' }`) ist gestrichen. Wer nie ein Reh aufnimmt (der
+  Harmonie-Spieler, und der Wachstums-Spieler in der Hälfte der Läufe), sah den Luchs nie – damit
+  waren das Kapitel „Kennart“ des Bergmischwalds, „Kennerblick“ und „Sechs Geschichten“ (26.5)
+  für diese Spielweisen gesperrt. Gestrichen statt ersetzt: Jede Ersatzbedingung, die *jeder*
+  alte Bergwald erfüllt, wäre nur Schein; die Regel „eine Kennart = Bedingung `site`, sonst
+  nichts“ gilt jetzt ausnahmslos (Test `tests/chronicle.test.ts`). Das Reh bleibt seine
+  **Nahrung** (`food: ['rehe']`) und sein **Gegenspieler** (−30 % Fraß): Ohne Reh ist der Luchs
+  hungrig und darum weniger zufrieden (schwächere Wirkung) – mit Reh lohnt er sich voll. So
+  bleibt das Nahrungsnetz die Belohnung, nicht die Schranke. Messung in 26.8.
 - **Wildwechsel:** Erlaubt und gewollt. Eine Kennart im Bestand (`fauna`) ihres Waldes kann
   über einen Korridor in einen Nachbarwald wechseln – die Regel „Erscheinungsbedingung nein“
   (24.6) gilt unverändert. Das Kapitel „Kennart“ zählt aber nur in ihrem eigenen Wald.
@@ -7724,6 +7735,15 @@ Jahreszeit); Andenken-Texte ≤ 120 Zeichen.
   Urwald, Erster Schnee, Ereignis, Kennart, Einklang, Gedächtnis. Andenken offener Chroniken
   stehen in R:Arten als „???“ mit Wald und Stand. Mit der Freischaltung nennt der Hinweis die
   schon geschriebenen Kapitel des Heimatwalds statt je eines Stempels.
+- **Nach dem Playtest Phase 9 (4b):** Im alten Wald heißt die offene Kennart „Der Wald ist alt
+  genug – jetzt kann sie jederzeit kommen.“ (ruhend: „… wächst du wieder hier, …“). Steht der
+  aktive Wald im Urwald und ist „Erster Schnee“ offen, nennen U:Standort und U:Neuer Zyklus die
+  Restzeit: „❄️ Noch 1:19 min bis zum Winter – bleib, dann schreibt der Wald „Erster Schnee“.“
+  Kapitel kommen als eigener Stempel, eine vollständige Chronik als bleibender Zettel mit dem
+  Andenken. „Hier öfter“ markiert das Ereignis des Waldes („🌧️ Regenreicher Frühling (📜 Kapitel
+  „Frühjahrshochwasser“)“). Die Kurzfassung des Rückkehr-Berichts zählt neue Kapitel; R:Arten hat
+  die Sprungmarke „Chroniken“, offene Andenken nennen ihre offenen Kapitel; im Tagebuch der Wälder
+  steht „Chronik“ oben, lange Stammgast-Listen sind eingeklappt (erste 8 + „und n weitere ›“).
 
 ### 26.8 Messplan und Ziele (Aufgabe 2c)
 
@@ -7743,6 +7763,26 @@ Zufall (10), Median:
 
 Stellschrauben, in dieser Reihenfolge: Seltenheit der Kennarten (2 → 1), `CHRONICLE_HARMONY`,
 Wirkung der Kennarten. Nicht verstellt werden die Regeln der Landschaft (24.4–24.6).
+
+**Messung Luchs (Playtest Phase 9, 4b) – vorläufig.** Die Ökonomie ändert sich gerade (Phase 10,
+Forschung und Harmonie-Produktion); die Zahlen gelten für main nach Phase 10, 2a und werden in
+2c neu gemessen. `scripts/landscape.ts` zählt dafür je Wald die alten Zyklen (`oldCycles`, Zyklus
+erreicht den Urwald) und den ersten alten Zyklus mit Kapitel „Kennart“ (`kennartAt`). Ohne
+Chronik-Politik (Lauf bis „alle Wälder voll“), je Spielweise 6 Seeds (1001–1006), 11–14 alte
+Bergwald-Zyklen je Lauf. Wert = alter Bergwald-Zyklus, in dem der Luchs zum ersten Mal im Wald ist:
+
+| Spielweise | vorher (Luchs braucht Reh) | nachher (nur `site`) |
+|---|---|---|
+| Harmonie | nie, nie, nie, nie, nie, nie | 2, 1, 2, 2, 2, 1 – Median 2, max. 2 |
+| Wachstum | 7, 7, nie, 5, nie, nie | 2, 2, 2, 1, 2, 2 – Median 2, max. 2 |
+| Zufall | 4, 4, 2, 2, 3, 5 | 4, 4, 2, 2, 3, 5 – Median 3,5, max. 5 (unverändert: er hat meist ein Reh) |
+
+Die anderen Kennarten in denselben Läufen: 1–3 alte Zyklen (Harmonie/Wachstum, ohne Heimatwald,
+dessen alte Zyklen vor der Freischaltung mitzählen), Zufall bis 7. Ziel (d) „Kennart im Median
+≤ 2 Zyklen nach alt“ hält der Luchs damit für Harmonie und Wachstum; der Zufall-Spieler liegt bei
+allen Kennarten darüber (Frage an 2c, nicht an den Luchs). Tempo praktisch unberührt:
+„Landschaft vollständig“ je Lauf Harmonie ±0,1 h (12,9–14,7 h), Wachstum ≤ +0,3 h, Zufall
+≤ +0,8 h (je ein Seed; der Zufall läuft nach der ersten anderen Karte auseinander).
 
 ### 26.9 Album-Folgeaufgaben aus Phase 8 (eine kleine `ui-dev`-Aufgabe)
 

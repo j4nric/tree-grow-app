@@ -18,12 +18,17 @@ export interface NotifyOptions {
   keep?: boolean;
   /** Kurzfassung: höchstens drei Zeilen (Rückkehr). */
   brief?: boolean;
+  /**
+   * Symbol eines Andenkens (vollständige Chronik, Playtest Phase 9, F4): hervorgehobener Zettel
+   * mit dem Andenken als großem Sticker – immer ein Zettel.
+   */
+  keepsake?: string;
   /** Nur für Screenreader angehängt (der Rest steht sichtbar woanders, z. B. im Rückkehr-Zettel). */
   spoken?: string;
 }
 
 export function stampKind(text: string, options: NotifyOptions = {}): StampKind {
-  return options.keep || [...text].length > SLIP_MIN_CHARS ? 'slip' : 'stamp';
+  return options.keep || options.keepsake || [...text].length > SLIP_MIN_CHARS ? 'slip' : 'stamp';
 }
 
 /**

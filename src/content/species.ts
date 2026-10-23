@@ -437,7 +437,9 @@ export const SPECIES: readonly Species[] = [
   {
     id: 'lynx', name: 'Luchs', genus: 'mammals', rarity: 2, level: 'predator', niche: 'edge', unlock: 5,
     food: ['rehe'], needs: [{ kind: 'group', group: 'trees', min: 3 }],
-    appears: [{ kind: 'site', site: 'mountain' }, { kind: 'species', id: 'deer' }],
+    // Nur `site` (Playtest Phase 9, 4b): „Reh im Wald“ sperrte ihn für Spieler ohne Reh. Das Reh
+    // bleibt Nahrung – ohne Reh ist er hungrig und wirkt schwächer (DESIGN_V2.md 26.3).
+    appears: [{ kind: 'site', site: 'mountain' }],
     provides: [],
     effects: [{ kind: 'growth', pct: 6 }, { kind: 'control', tag: 'rehe', pct: 30 }, { kind: 'harmony', points: 4 }],
     summary: '+6 % 🌿, hält Rehe klein (−30 % Fraß), +4 ⚖️',

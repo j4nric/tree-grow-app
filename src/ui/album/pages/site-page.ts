@@ -23,6 +23,9 @@ import { siteAnnouncement, siteChoiceView, siteDiaryRows } from './landscape-pag
 import { createSiteChronicle } from './site-chronicle';
 import './landscape.css';
 
+/** So oft zieht U:Standort die Restzeit bis zum Winter nach (ms). */
+const WAIT_REFRESH_MS = 250;
+
 export interface SitePage extends Subpage {
   /** Gezeigter Standort (null vor dem ersten Öffnen). */
   readonly id: SiteId | null;
@@ -100,6 +103,7 @@ export function createSitePage(env: PageEnv): SitePage {
   page.body.append(type, text, lines, blocker, choice, chronicle.element, diary, live);
 
   let id: SiteId | null = null;
+  let lastWait = -Infinity;
   let shownView: LandscapeMapView | null = null;
   let shownTarget: SiteId | null = null;
   let shownDiary = '';
@@ -199,8 +203,13 @@ export function createSitePage(env: PageEnv): SitePage {
       const site = view?.sites.find((s) => s.id === id);
       if (view && site?.blocker) live.textContent = siteAnnouncement(view, site, albumTarget.target());
     },
-    update(_now, force) {
+    update(now, force) {
       render(force === true);
+      // Restzeit bis zum Winter beim Verweilen (F3): gedrosselt, nur Text.
+      if (id !== null && now - lastWait >= WAIT_REFRESH_MS) {
+        lastWait = now;
+        chronicle.tick(env.deps.state(), id);
+      }
     },
   };
 }

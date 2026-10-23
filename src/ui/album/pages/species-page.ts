@@ -333,6 +333,20 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
   chronicleList.hidden = true;
   keepsakes.root.append(treeTitle, treeList, memoryTitle, memoryList, memoryEmpty, chronicleTitle, chronicleList);
 
+  // Eigene Sprungmarke „Chroniken“ (Playtest Phase 9, F8): die Andenken der Chroniken stehen
+  // ganz unten im Abschnitt Andenken – erst mit der Landschaft sichtbar.
+  const chronicleJump = el('button', 'species-jump species-jump-chronicles');
+  chronicleJump.type = 'button';
+  chronicleJump.dataset.jump = 'chronicles';
+  const chronicleJumpCount = el('span', 'species-jump-count');
+  chronicleJump.append(el('span', '', 'Chroniken'), chronicleJumpCount);
+  chronicleJump.hidden = true;
+  chronicleJump.addEventListener('click', () => {
+    deferred.all();
+    chronicleTitle.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+  });
+  jumps.append(chronicleJump);
+
   page.body.append(intro, jumps, ...[...sections.values()].map((s) => s.root));
   later.push(
     placeholder(plants.root, SECTION_HEAD_EST_PX + estimateGridHeight(PLANTS.length)),
@@ -548,6 +562,8 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
       chronicleList.replaceChildren(...view.chronicles.map(chronicleItem));
       chronicleTitle.hidden = view.chronicles.length === 0;
       chronicleList.hidden = view.chronicles.length === 0;
+      chronicleJump.hidden = view.chronicles.length === 0;
+      setText(chronicleJumpCount, `${view.chronicles.filter((c) => c.complete).length}/${view.chronicles.length}`);
       treeList.replaceChildren(...view.trees.map(treeItem));
       memoryList.replaceChildren(...view.keepsakes.map(memoryItem));
       memoryList.hidden = view.keepsakes.length === 0;

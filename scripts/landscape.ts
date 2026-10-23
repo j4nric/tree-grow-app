@@ -22,7 +22,7 @@ import { CORRIDORS, HOME_SITE, LANDSCAPE_SITES, type ForestSite, type SiteId } f
 import type { MainTreeId } from '../src/content/trees';
 import { regularSlotsOf } from '../src/core/formulas';
 import { SPECIES_BY_ID } from '../src/content/species';
-import { effectiveForestMemory, jaySeeds, wildwechselChance } from '../src/core/landscape';
+import { effectiveForestMemory, hasChapter, jaySeeds, wildwechselChance } from '../src/core/landscape';
 import { normalizeSeed, type RngHolder } from '../src/core/rng';
 import { allAnimals, createInitialState, createSite, MAX_FOREST_MEMORY, type GameState } from '../src/core/state';
 import { buildCorridor, corridorBlocker, previewNewCycle, setRegulars, startNewCycle } from '../src/core/tick';
@@ -108,6 +108,9 @@ export interface LandscapeRun {
   /** Hähersaat am Ende: verdient / ausgegeben. */
   jayEarned: number;
   jaySpent: number;
+  /** Alte Zyklen je Wald (Zyklus erreicht den Urwald) und davon der erste mit Kapitel „Kennart“ (26.3, 26.8 d). */
+  oldCycles: Partial<Record<SiteId, number>>;
+  kennartAt: Partial<Record<SiteId, number>>;
 }
 
 /** Vielfalt der Begegnungen eines Zyklus (7.7) und Wildwechsel-Karten (24.6). */
@@ -212,7 +215,7 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
   const run: LandscapeRun = {
     cycles: [], unlockAt: null, foundedAt: { home: 0 }, allFoundedAt: null, completeAt: null, allMaxedAt: null,
     firstCycle: {}, bestHarmony: {}, maxGrowth: 0, maxSeedsRate: 0, maxSeedsHeld: 0, maxCycleGrowth: 0, lifetimeGrowth: 0,
-    totalSeconds: 0, jayEarned: 0, jaySpent: 0,
+    totalSeconds: 0, jayEarned: 0, jaySpent: 0, oldCycles: {}, kennartAt: {},
   };
 
   for (let n = 1; n <= options.maxCycles; n++) {
@@ -235,6 +238,8 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
     run.bestHarmony[active] = Math.max(run.bestHarmony[active] ?? 0, state.cycle.maxHarmony);
     cyclesAt.set(active, (cyclesAt.get(active) ?? 0) + 1);
     if (ancient && run.firstCycle[active] === undefined) run.firstCycle[active] = seconds;
+    if (ancient) run.oldCycles[active] = (run.oldCycles[active] ?? 0) + 1;
+    if (run.kennartAt[active] === undefined && hasChapter(state, active, 'kennart')) run.kennartAt[active] = run.oldCycles[active] ?? 0;
 
     const preview = previewNewCycle(state);
     run.cycles.push({

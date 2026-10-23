@@ -211,15 +211,41 @@ export function createLandscapePage(env: PageEnv): TabPage {
   // --- Tagebuch der Wälder --------------------------------------------------------------
   let diaryKey = '';
 
-  function rowList(rows: readonly JournalLandscapeRowView[], className: string): HTMLDListElement {
+  /** Aufgeklappte lange Listen je Wald („home:regulars“) – bleiben beim Neubau des Tagebuchs. */
+  const expanded = new Set<string>();
+
+  function rowList(rows: readonly JournalLandscapeRowView[], className: string, owner = ''): HTMLDListElement {
     const dl = el('dl', className);
     for (const r of rows) {
       const wrap = el('div', `${className}-row`);
       wrap.dataset.row = r.key;
-      wrap.append(el('dt', '', r.label), el('dd', '', hyphenate(r.value)));
+      wrap.append(el('dt', '', r.label), r.collapsed ? collapsibleValue(r, `${owner}:${r.key}`) : el('dd', '', hyphenate(r.value)));
       dl.append(wrap);
     }
     return dl;
+  }
+
+  /** Lange Liste (F9): Anfang und „und 12 weitere ›“; der Knopf klappt die ganze Liste auf und zu. */
+  function collapsibleValue(r: JournalLandscapeRowView, key: string): HTMLElement {
+    const dd = el('dd', 'lsc-collapsible');
+    const text = el('span', 'lsc-collapsible-text');
+    const toggle = el('button', 'lsc-collapsible-toggle');
+    toggle.type = 'button';
+    toggle.dataset.ref = 'row-more';
+    const show = (open: boolean) => {
+      setText(text, hyphenate(open ? r.value : r.collapsed!.short));
+      setText(toggle, open ? 'weniger ‹' : r.collapsed!.more);
+      setAttr(toggle, 'aria-expanded', String(open));
+    };
+    toggle.addEventListener('click', () => {
+      const open = !expanded.has(key);
+      if (open) expanded.add(key);
+      else expanded.delete(key);
+      show(open);
+    });
+    show(expanded.has(key));
+    dd.append(text, ' ', toggle);
+    return dd;
   }
 
   function forestItem(s: JournalSiteView, index: number): HTMLLIElement {
@@ -245,7 +271,7 @@ export function createLandscapePage(env: PageEnv): TabPage {
     }
     li.append(head);
     if (s.forestType) li.append(el('p', 'lsc-forest-type', hyphenate(s.forestType)));
-    li.append(rowList(s.rows, 'lsc-facts'));
+    li.append(rowList(s.rows, 'lsc-facts', s.id));
     return li;
   }
 

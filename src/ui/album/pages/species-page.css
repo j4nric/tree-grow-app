@@ -97,6 +97,16 @@
   transform: rotate(1.4deg);
 }
 
+.species-jump:nth-child(5) {
+  /* Chroniken (F8): Wachsrot wie das Siegel einer vollständigen Chronik */
+  background: color-mix(in srgb, var(--wax) 28%, var(--paper));
+  transform: rotate(-1deg);
+}
+
+.species-jump[hidden] {
+  display: none;
+}
+
 .species-jump:hover {
   filter: brightness(0.97);
 }
