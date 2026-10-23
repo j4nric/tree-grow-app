@@ -1,8 +1,9 @@
 /*
  * Meldungsschicht (stamps.ts, docs/ALBUM_UI.md C.5): Stempel und Zettel an festem Platz, der
  * keine Navigation verdeckt – unten über der Seite (mobil über dem Zettelstapel, Desktop über
- * der rechten Seite). Nur mobil ganz oben auf der Hauptansicht (nichts gescrollt, keine
- * Unterseite) und im Vollbild stehen sie oben über dem Bild (`.stamps-top`, index.ts).
+ * der rechten Seite). Nur mobil oben auf der Hauptansicht (solange über dem Bild Platz ist,
+ * keine Unterseite) und im Vollbild stehen sie oben über dem Bild (`.stamps-top`, index.ts).
+ * Unten rücken sie über Bestätigungen und „Schließen“ (`--stamps-lift`).
  * Über Unterseiten und Zettelstapel; Klicks gehen durch, nur „×“ am Zettel fängt sie.
  */
 
@@ -17,6 +18,24 @@
   align-items: center;
   gap: 10px;
   pointer-events: none;
+  /* --stamps-lift: über Bestätigung, „Schließen“ oder den fokussierten Knopf (index.ts) */
+  translate: 0 calc(-1 * var(--stamps-lift, 0px));
+  transition:
+    translate 160ms ease-out,
+    opacity 140ms ease-in;
+}
+
+/* Seitenwechsel, während Meldungen zu sehen sind: aus- und am neuen Platz wieder einblenden. */
+.stamps.stamps-moving {
+  opacity: 0;
+}
+
+.stamps.stamps-top {
+  translate: none;
+}
+
+body[data-motion='reduce'] .stamps {
+  transition: none;
 }
 
 .stamps:empty {
@@ -154,6 +173,26 @@ html:has(.album[data-layout='single'] .note-stack:not([hidden])) .stamps:not(.st
   -webkit-line-clamp: 3;
   line-clamp: 3;
   overflow: hidden;
+}
+
+/* Die ältere von zwei Meldungen: einzeilig und kleiner, bis sie weicht (stamps.ts). */
+.stamp.stamp-older {
+  font-size: 16px;
+  opacity: 0.92;
+}
+
+.stamp-older .stamp-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+  overflow-wrap: normal;
+}
+
+.stamp-slip.stamp-older {
+  padding-block: 8px 6px;
+  font-size: 13px;
 }
 
 /* ---------- Bewegung ---------- */

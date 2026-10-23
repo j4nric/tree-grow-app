@@ -85,6 +85,8 @@ export function createCover(callbacks: CoverCallbacks): Cover {
   const close = el('button', 'cover-close', 'Schließen');
   close.type = 'button';
   close.dataset.ref = 'cover-close';
+  // Meldungen rücken darüber (index.ts, Playtest Schritt 14 M2)
+  close.dataset.stampAvoid = '';
   close.addEventListener('click', callbacks.onClose);
   inner.append(plate, menu, close);
   cover.append(inner);

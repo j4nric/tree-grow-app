@@ -660,11 +660,18 @@ Die Werte stammen aus dem Album-Prototyp:
 Es gibt **eine Meldungsschicht** (`Stamps`) über dem Album, auch über dem Vollbild:
 
 - **Ort (seit Schritt 12):** nie über der Navigation. Unten über der Seite – mobil über dem
-  Zettelstapel, Desktop mittig über dem Fuß der rechten Seite. Nur mobil auf der ungescrollten
-  Hauptansicht (oben liegt dort nur das Bild) und im Vollbild oben über dem Bild, unter
-  sichtbaren Banderolen (`.stamps-top`, entschieden in `album/index.ts` bei Navigation, Scrollen
-  und jeder Meldung). Vorher lag die Schicht immer oben und verdeckte mobil Reiter, Lesezeichen
-  und Seitentitel.
+  Zettelstapel, Desktop mittig über dem Fuß der rechten Seite. Nur mobil auf der Hauptansicht
+  (oben liegt dort nur das Bild) und im Vollbild oben über dem Bild, unter sichtbaren
+  Banderolen (`.stamps-top`, entschieden in `album/index.ts`). Vorher lag die Schicht immer oben
+  und verdeckte mobil Reiter, Lesezeichen und Seitentitel.
+- **Stabil und ausweichend (Schritt 14):** Oben oder unten wird entschieden, wenn eine Meldung
+  erscheint (oben, solange über der Bildunterschrift Platz ist). Beim Scrollen wechselt sie nur
+  noch nach unten, wenn die Knöpfe unter dem Bild heranrücken – mit kurzem Überblenden, nie
+  zurück, solange sie steht (`stampsOnTop`). Unten rückt die Schicht über scharfe Bestätigungen
+  (`.armed`), markierte Knöpfe (`data-stamp-avoid`, z. B. „Schließen“ im Umschlag) und den
+  fokussierten Knopf (`stampLift`, höchstens bis unter Reiterleiste bzw. Lesezeichen). Von zwei
+  Meldungen steht die ältere einzeilig und kleiner (`.stamp-older`); Zahl und Symbol („+24 🌰“)
+  brechen nicht auseinander.
 - **Stempel** (Text bis 90 Zeichen): Tintenrahmen 2 px, abgerundet, −3° gedreht, Caveat
   22 px, Papier dahinter. Er „stempelt“ in 220 ms herein (`scale(1.3) → 1`, Deckkraft) und
   verschwindet nach `toastDurationFor(text, preferences.toastMs())`. Höchstens 2 sind
@@ -720,8 +727,11 @@ Es gibt **eine Meldungsschicht** (`Stamps`) über dem Album, auch über dem Voll
 
 Der Zettel „Während du weg warst …“ hat eine Kurzfassung (`headline`) und die Knöpfe
 „Details ›“ (→ U:Rückkehr-Bericht mit `details`) und „Abheften“ (blendet aus). Der
-Willkommens-Stempel zeigt dazu die Kurzfassung (C.5). Die Regeln zum Ersetzen bzw.
-Ausblenden bei späterer Rückkehr bleiben wie in main.ts.
+Willkommens-Stempel grüßt nur („Willkommen zurück! 8 Std.“, `returnStamp`) – die Kurzfassung
+steht ja im Zettel; Screenreader hören sie im Stempel mit (unsichtbarer Rest). Auf
+U:Rückkehr-Bericht verschwindet der Stempel. Am Desktop unter 760 px Höhe ist der Zettel
+kompakt (Kurzfassung neben den Knöpfen), damit das Polaroid groß bleibt. Die Regeln zum
+Ersetzen bzw. Ausblenden bei späterer Rückkehr bleiben wie in main.ts.
 
 ---
 
@@ -751,7 +761,8 @@ src/ui/album/
   label-notes.ts      Notizen an Wachstum, Samen, Harmonie
   season-weather.ts   Jahreszeit und Wetter in der Bildunterschrift mit Notizen
   stamps.ts           Stamps: Stempel- und Zettelschicht (ersetzt #toast)
-  stamp-rules.ts      stampKind(), Standzeit, wer weicht (rein)                  ← Vitest
+  stamp-rules.ts      stampKind(), Standzeit, wer weicht, stampLift/stampsOnTop (rein) ← Vitest
+  stamp-place.ts      Platz der Schicht: oben/unten, Ausweichen über Bestätigungen
   eco-refresh.ts      Ökosystem-Ansicht nur nach Änderungen neu, Jahreszeit/Wetter je Sekunde (Schritt 12)
   floats.ts           schwebende Zahlen und Hinweise über Szene, Samen, Pflanzring (Schritt 12)
   stage-banner.ts     Stufen-Stempel über dem Bild (Schritt 12)
@@ -1065,7 +1076,8 @@ function closeNotes(): void;
 interface NotifyOptions {
   error?: boolean;  // roter Rahmen (Fehler einer Aktion)
   keep?: boolean;   // Zettel bis zum Schließen (Landschaft frei, v1-Hinweis, angehaltener Tab)
-  brief?: boolean;  // höchstens drei Zeilen (Rückkehr-Kurzfassung)
+  brief?: boolean;  // höchstens drei Zeilen
+  spoken?: string;  // nur für Screenreader angehängt (Rückkehr: Kurzfassung steht im Zettel)
   direct?: boolean; // nie in ein altes Dialog-Hinweisfeld (bis Schritt 12; früher showToast)
 }
 album.notify(text: string, options?: NotifyOptions): void;   // leerer Text: nichts
@@ -1073,8 +1085,8 @@ album.notify(text: string, options?: NotifyOptions): void;   // leerer Text: nic
 
 - Bis 90 Zeichen Stempel, darüber (oder mit `keep`) Zettel mit „×“. Höchstens zwei zugleich;
   die älteste weicht, bleibende Zettel zuletzt. Gleicher Text ersetzt die alte Meldung.
-- Platz: mobil oben rechts neben dem Umschlag-Knopf, Desktop oben über der rechten Seite;
-  steht eine Banderole im Bild, rückt die Schicht darunter (gemessen beim Zeigen und per
+- Platz: seit Schritt 12/14 wie in C.5 (unten, mobil auf der Hauptansicht oben; Ausweichen in
+  `stamp-place.ts`); steht eine Banderole im Bild, rückt die Schicht darunter (gemessen beim Zeigen und per
   ResizeObserver an den Banderolen, nie pro Frame). Klicks gehen durch, nur „×“ fängt sie.
 - Übergang bis Schritt 12: Ist ein alter Dialog mit eigenem Hinweisfeld offen (Tagebuch),
   landet die Meldung dort, sonst verdeckte der modale Dialog den Stempel. Mit den Dialogen fällt

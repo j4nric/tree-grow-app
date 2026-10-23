@@ -4,7 +4,7 @@ import { SPECIES } from '../src/content/species';
 import { MAX_OFFLINE_SECONDS } from '../src/core/tick';
 import { welcomeText } from '../src/ui/adapters';
 import { withRegulars } from '../src/ui/cycle-view';
-import { RETURN_REPORT_MORE, returnToastText, toReturnReportView } from '../src/ui/return-report-view';
+import { RETURN_REPORT_MORE, returnStamp, toReturnReportView } from '../src/ui/return-report-view';
 
 /** Rückkehr nach 3 Std.: Ertrag, gemitteltes Wetter, keine Besonderheiten. */
 const base = { seconds: 3 * 3600, growth: 12_400.7, seeds: 300.2, autoDeclined: 0, declinedSeeds: 0 };
@@ -76,11 +76,19 @@ describe('toReturnReportView', () => {
   });
 });
 
-describe('returnToastText', () => {
-  const view = toReturnReportView({ away: base.seconds, report: { ...base, averaged: true, weather: [] }, waiting: 0, notes: ['Mehr.'] });
+describe('returnStamp', () => {
+  it('grüßt nur – die Kurzfassung steht im Zettel, Screenreader hören sie mit (S4)', () => {
+    const view = toReturnReportView({ away: base.seconds, report: { ...base, averaged: true, weather: [] }, waiting: 2, notes: ['Mehr.'] });
+    expect(view.greeting).toBe('Willkommen zurück! 3 Std.');
+    const stamp = returnStamp(view);
+    expect(stamp.text).toBe('Willkommen zurück! 3 Std.');
+    expect(stamp.spoken).toBe('+12.400 🌿, +300 🌰 · 2 Begegnungen warten · Mehr im Rückkehr-Bericht.');
+    // Kein „mehr im Rückkehr-Bericht“ im sichtbaren Text (S4: stand sonst auch auf dem Bericht selbst).
+    expect(stamp.text).not.toContain(RETURN_REPORT_MORE);
+  });
 
-  it('mobil die Kurzfassung, am Desktop die ganze Meldung', () => {
-    expect(returnToastText(view, true)).toBe(view.summary);
-    expect(returnToastText(view, false)).toBe(view.full);
+  it('ohne Ertrag und ohne mehr: nichts zum Vorlesen dazu', () => {
+    const view = toReturnReportView({ away: base.seconds, report: { ...base, growth: 0, seeds: 0 }, waiting: 0 });
+    expect(returnStamp(view)).toEqual({ text: 'Willkommen zurück! 3 Std.', spoken: '' });
   });
 });

@@ -125,6 +125,7 @@ const actions: [string, () => void][] = [
     () => {
       const headline = 'Willkommen zurück! 3 Std.: +242.310 🌿, +15.904 🌰 · 2 Begegnungen warten';
       album.showReturnReport({
+        greeting: 'Willkommen zurück! 3 Std.',
         headline,
         summary: `${headline} · mehr im Rückkehr-Bericht`,
         full: `${headline}. Wetter gemittelt.`,

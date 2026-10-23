@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { NOTE_EDGE, NOTE_GAP, notePosition } from '../src/ui/album/note-layout';
 import { growthNoteView, harmonyNoteView, seedsNoteView, type LabelNoteInput } from '../src/ui/album/notes-text';
-import { MAX_STAMPS, SLIP_MIN_CHARS, stampDuration, stampKind, stampsToDrop } from '../src/ui/album/stamp-rules';
+import { MAX_STAMPS, SLIP_MIN_CHARS, STAMP_GAP, stampDuration, stampKind, stampLift, stampsOnTop, stampsToDrop } from '../src/ui/album/stamp-rules';
+import { stampDisplayText } from '../src/ui/album/stamps';
 
 /** Haftnotizen und Stempel des Albums (docs/ALBUM_UI.md, C.4 und C.5). */
 
@@ -65,6 +66,69 @@ describe('Stempel oder Zettel', () => {
     expect(stampsToDrop([{ serial: 1, keep: false }, { serial: 2, keep: false }])).toEqual([1]);
     expect(stampsToDrop([{ serial: 1, keep: true }, { serial: 2, keep: false }])).toEqual([2]);
     expect(stampsToDrop([{ serial: 3, keep: true }, { serial: 1, keep: true }])).toEqual([1]);
+  });
+});
+
+/** Wie DOMRect: Felder nur als Getter am Prototyp (Spread ergäbe {}). */
+class Box {
+  constructor(
+    private x: number,
+    private y: number,
+    private w: number,
+    private h: number,
+  ) {}
+  get left() {
+    return this.x;
+  }
+  get right() {
+    return this.x + this.w;
+  }
+  get top() {
+    return this.y;
+  }
+  get bottom() {
+    return this.y + this.h;
+  }
+}
+
+describe('Lage der Meldungen (Playtest Schritt 14: M2, S2)', () => {
+  // 390 × 844: Stempel unten (y 754–838), „Schließen“ im Umschlag (y 778–822).
+  const layer = new Box(11, 754, 368, 84);
+
+  it('rückt über „Schließen“ bzw. die scharfe Bestätigung – mit Abstand', () => {
+    const close = new Box(20, 778, 145, 44);
+    const lift = stampLift(layer, [close], 120);
+    expect(lift).toBe(838 - (778 - STAMP_GAP));
+    expect(layer.bottom - lift).toBeLessThanOrEqual(close.top - STAMP_GAP);
+  });
+
+  it('nichts zu tun, wenn nichts darunter liegt (auch nicht seitlich daneben)', () => {
+    expect(stampLift(layer, [], 120)).toBe(0);
+    expect(stampLift(layer, [new Box(11, 300, 300, 44)], 120)).toBe(0);
+    expect(stampLift(new Box(642, 585, 418, 86), [new Box(98, 606, 145, 44)], 96)).toBe(0);
+  });
+
+  it('über mehrere Knöpfe übereinander hinweg, aber nie über die Navigation oben', () => {
+    const lift = stampLift(layer, [new Box(20, 790, 300, 44), new Box(20, 700, 300, 44)], 120);
+    expect(layer.bottom - lift).toBeLessThanOrEqual(700 - STAMP_GAP);
+    expect(stampLift(layer, [new Box(20, 150, 300, 44), new Box(20, 200, 300, 600)], 120)).toBe(754 - 120);
+  });
+
+  it('oben bleibt oben, bis die Knöpfe unter dem Bild heranrücken – zurück erst bei der nächsten Meldung', () => {
+    // Neue Meldung: oben, wenn über der Bildunterschrift Platz ist.
+    expect(stampsOnTop(true, false, 310, 114)).toBe(true);
+    expect(stampsOnTop(true, false, 100, 114)).toBe(false);
+    // Sichtbar und oben: bleibt beim Scrollen (kein Sprung bei 48 px) …
+    expect(stampsOnTop(false, true, 262, 114)).toBe(true);
+    // … bis die Bildunterschrift den Stempel erreicht.
+    expect(stampsOnTop(false, true, 118, 114)).toBe(false);
+    // Unten bleibt unten, solange die Meldung zu sehen ist (auch ganz oben).
+    expect(stampsOnTop(false, false, 310, 114)).toBe(false);
+  });
+
+  it('Zahl und Symbol brechen nicht auseinander („+24 🌰“)', () => {
+    expect(stampDisplayText('✅ Tagesziel: 2 Begegnungen entschieden · +10.255 🌰')).toBe('✅ Tagesziel: 2 Begegnungen entschieden · +10.255\u00a0🌰');
+    expect(stampDisplayText('Willkommen zurück! 3 Std.')).toBe('Willkommen zurück! 3 Std.');
   });
 });
 

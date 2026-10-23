@@ -2,7 +2,8 @@ import { test as base, expect, type BrowserContext, type Locator, type Page } fr
 import { WAYPOINT_THRESHOLDS } from '../src/content/waypoints';
 import { CONFIRM_MIN_MS } from '../src/ui/confirm';
 import { v7GrowthToV6 } from '../src/core/save';
-import { createInitialState } from '../src/core/state';
+import { STAGES } from '../src/content/stages';
+import { createInitialState, createSite, type GameState } from '../src/core/state';
 
 export { SAVE_VERSION } from '../src/core/state';
 
@@ -251,6 +252,24 @@ export async function openAnimal(page: Page, nicheId: string, species: string): 
  */
 export const stamps = (page: Page) => page.locator('[data-ref="stamps"]');
 export const stamp = (page: Page) => page.locator('[data-ref="stamp"]').last();
+/**
+ * Urwald, dessen Landschaft gerade frei wird: Beim Laden kommt der Hinweis mit dem Eichelhäher
+ * als bleibender Zettel mit „×“ (lang, `keep`) – für Tests der Zettel-Optik. (Die Rückkehr
+ * stempelt seit Playtest Schritt 14 nur noch kurz.)
+ */
+export function landscapeUnlockState(): GameState {
+  const ancient = STAGES.findIndex((s) => s.id === 'ancient-forest');
+  const state = createInitialState(Date.now(), 4242);
+  state.stage = ancient;
+  state.waypoint = STAGES[ancient]!.waypoint;
+  state.totalGrowth = waypoint(state.waypoint) + 1;
+  state.cycle.number = 4;
+  state.meta.forestMemory = 300;
+  state.meta.achievements = ['ancient-forest'];
+  state.meta.landscape = { active: 'home', sites: [{ ...createSite('home'), ancient: true }], corridors: [], freeCorridors: [], announced: false };
+  return state;
+}
+
 /** Neueste Meldung, nachdem sie fertig „hereingestempelt“ ist (für Lage und Größe). */
 export async function settledStamp(page: Page): Promise<Locator> {
   const latest = stamp(page);
