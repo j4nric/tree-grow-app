@@ -55,15 +55,6 @@ export function speciesGroups(species: readonly { genus: Genus }[] = SPECIES): S
   return groups;
 }
 
-/**
- * Geschätzte Höhe eines Sticker-Rasters für `content-visibility: auto` (species-page.css),
- * bis der Browser sie einmal gemessen hat: fünf Spalten (mobil), je Zeile gut 80 px, dazu
- * die Überschrift. Nur für Bildlaufleiste und Sprungmarken wichtig, nicht fürs Aussehen.
- */
-export function gridHeightEstimate(cells: number, header = 30): number {
-  return header + Math.ceil(Math.max(0, cells) / 5) * 82;
-}
-
 /** Wie viele der Einträge an den Indizes entdeckt sind. */
 export function discoveredIn(entries: readonly Pick<JournalEntryView, 'discovered'>[], indices: readonly number[]): number {
   let n = 0;

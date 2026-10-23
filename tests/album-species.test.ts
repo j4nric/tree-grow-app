@@ -13,7 +13,6 @@ import {
   speciesPageHeader,
   speciesPageKey,
   speciesStickerVariant,
-  gridHeightEstimate,
 } from '../src/ui/album/pages/species-view';
 import { stateAt } from './helpers';
 
@@ -47,16 +46,6 @@ describe('Reiter Arten: Gruppen und Zähler', () => {
     expect(discoveredIn(view.species, birds.indices)).toBe(2);
     const soil = speciesGroups().find((g) => g.genus === 'soil')!;
     expect(discoveredIn(view.species, soil.indices)).toBe(1);
-  });
-});
-
-describe('Reiter Arten: geschätzte Höhe für content-visibility', () => {
-  it('Überschrift plus je fünf Sticker eine Zeile', () => {
-    expect(gridHeightEstimate(0)).toBe(30);
-    expect(gridHeightEstimate(5)).toBe(30 + 82);
-    expect(gridHeightEstimate(6)).toBe(30 + 2 * 82);
-    expect(gridHeightEstimate(11, 0)).toBe(3 * 82);
-    expect(gridHeightEstimate(-3)).toBe(30);
   });
 });
 

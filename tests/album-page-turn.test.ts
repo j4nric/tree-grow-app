@@ -50,9 +50,9 @@ function fakeElement() {
       listeners.get(type)?.delete(listener);
     },
     /** Eingabe auf der Seite: `true`, wenn sie durchkommt (nicht abgefangen). */
-    input(type: string): boolean {
+    input(type: string, target?: unknown): boolean {
       let stopped = false;
-      const event = { cancelable: true, stopPropagation: () => (stopped = true), preventDefault: () => undefined } as unknown as Event;
+      const event = { type, target, cancelable: true, stopPropagation: () => (stopped = true), preventDefault: () => undefined } as unknown as Event;
       for (const listener of listeners.get(type) ?? []) listener(event);
       return !stopped;
     },
@@ -139,6 +139,30 @@ describe('PageTurn', () => {
     expect(front.inert).toBe(false);
     expect(under.hidden).toBe(true);
     expect(under.inert).toBe(false);
+  });
+
+  it('Klick während des Zurückblätterns wird vorgemerkt und danach ausgelöst, vorwärts verfällt er', async () => {
+    const turn = createPageTurn({ reducedMotion: () => false });
+    const target = { isConnected: true, clicks: 0, closest: () => null, click() { this.clicks++; } };
+    const front = fakeElement();
+    front.classList.add(TURNED_AWAY);
+    front.inert = true;
+    const under = fakeElement();
+    const back = turn.back(el(front), el(under));
+    expect(front.input('click', target)).toBe(false);
+    front.animations[0]!.finish();
+    await back;
+    expect(target.clicks).toBe(0);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(target.clicks).toBe(1);
+    // Vorwärts: Die Seite ist danach weggedreht und `inert` – der Klick verfällt.
+    const away = { ...target, clicks: 0, closest: () => ({}), click() { this.clicks++; } };
+    const forward = turn.forward(el(front), el(under));
+    front.input('click', away);
+    front.animations[1]!.finish();
+    await forward;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(away.clicks).toBe(0);
   });
 
   it('lange, gescrollte Seite: Achse in der Mitte des sichtbaren Teils, Zuschnitt auf ihn', async () => {

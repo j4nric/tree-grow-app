@@ -35,7 +35,6 @@ import type { StickerVariant } from '../../../render/sticker';
 import type { PageEnv, TabPage } from './registry';
 import {
   discoveredIn,
-  gridHeightEstimate,
   ofCount,
   plantNote,
   silhouetteHint,
@@ -192,7 +191,6 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
   for (const group of groups) {
     const box = el('div', 'species-group');
     box.dataset.genus = group.genus;
-    box.style.setProperty('--cv-est', `${gridHeightEstimate(group.indices.length)}px`);
     const head = el('h4', 'species-group-title');
     const icon = el('span', 'species-group-icon', group.icon);
     icon.setAttribute('aria-hidden', 'true');
@@ -252,7 +250,6 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
     return cell;
   });
   plants.root.append(plantGrid);
-  plants.root.style.setProperty('--cv-est', `${gridHeightEstimate(PLANTS.length)}px`);
 
   // --- Gemeinschaften und Andenken (bei Änderung neu) ------------------------------------
   const communities = sections.get('communities')!;

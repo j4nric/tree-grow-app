@@ -77,17 +77,44 @@ const BLOCKED_EVENTS = ['click', 'auxclick', 'dblclick', 'contextmenu', 'pointer
 
 /**
  * Drehende Seite nicht bedienbar machen, ohne `inert` (siehe oben): Zeiger und Klicks (auch
- * per Tastatur ausgelöste) fängt ein Lauscher in der Capture-Phase ab. Gibt das Aufräumen zurück.
+ * per Tastatur ausgelöste) fängt ein Lauscher in der Capture-Phase ab.
+ *
+ * Anders als mit `inert` bleibt die Seite dabei fokussierbar. Ein Klick während der Drehung
+ * geht darum nicht verloren, sondern wird vorgemerkt (C.3): `release(true)` löst den letzten
+ * danach noch einmal aus – nur, wenn sein Ziel dann bedienbar ist (nicht `inert`, nicht
+ * verborgen; vorwärts ist die Seite dann weggedreht und `inert`, der Klick verfällt).
  */
-function guard(front: HTMLElement): () => void {
+function guard(front: HTMLElement): (replay: boolean) => void {
+  let pending: HTMLElement | null = null;
   const stop = (event: Event) => {
     event.stopPropagation();
     if (event.cancelable) event.preventDefault();
+    if (event.type === 'click' && typeof (event.target as HTMLElement | null)?.click === 'function') pending = event.target as HTMLElement;
   };
   for (const type of BLOCKED_EVENTS) front.addEventListener(type, stop, true);
-  return () => {
+  return (replay) => {
     for (const type of BLOCKED_EVENTS) front.removeEventListener(type, stop, true);
+    const target = pending;
+    pending = null;
+    if (!replay || !target) return;
+    // Nach dem Abschluss der Drehung (und nach dem, was der Aufrufer danach tut, z. B. Fokus):
+    // als eigene Aufgabe. MessageChannel statt setTimeout – läuft auch mit angehaltener Testuhr.
+    later(() => {
+      if (target.isConnected && !target.closest('[inert], [hidden], .turned-away')) target.click();
+    });
   };
+}
+
+/** Eigene Aufgabe nach der aktuellen (ohne Timer). */
+function later(task: () => void): void {
+  if (typeof MessageChannel === 'function') {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      task();
+    };
+    channel.port2.postMessage(null);
+  } else setTimeout(task, 0);
 }
 
 export function createPageTurn(options: PageTurnOptions): PageTurn {
@@ -246,7 +273,7 @@ export function createPageTurn(options: PageTurnOptions): PageTurn {
     abortCurrent = () => {
       abortCurrent = null;
       animation?.cancel();
-      unguard();
+      unguard(false);
       clean(front);
       front.inert = false;
       under.inert = false;
@@ -296,7 +323,7 @@ export function createPageTurn(options: PageTurnOptions): PageTurn {
 
     function finish(): void {
       abortCurrent = null;
-      unguard();
+      unguard(true);
       clean(front);
       if (direction === 'forward') {
         // Beides in einem Zug: `turned-away` sperrt den Teilbaum, `inert` kostet dann nichts.

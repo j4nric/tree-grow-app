@@ -547,31 +547,3 @@ body[data-motion='reduce'] .species-memory {
 .album[data-layout='spread'] .species-section {
   scroll-margin-top: 12px;
 }
-
-/*
- * Leistung (S9): Der Reiter ist rund 4 700 px hoch (mobil). Beim ersten Aufschlagen müsste der
- * Browser alles auf einmal stylen, layouten und malen (bei 4× Drosselung über 150 ms am Stück).
- * `content-visibility: auto` überspringt Blöcke weit außerhalb des Bildes; sie kommen dran,
- * kurz bevor sie ins Bild scrollen. Die Höhe schätzt `--cv-est` (species-page.ts), danach
- * gilt die gemessene (`auto`). `overflow-clip-margin` lässt Fokusrahmen, Schatten und Neigung
- * über den Blockrand hinaus sichtbar – ohne Unterstützung dafür (z. B. Safari) bleibt alles
- * wie bisher.
- */
-@supports (overflow-clip-margin: 12px) and (content-visibility: auto) {
-  .species-group,
-  .species-plants,
-  .species-community,
-  .species-keepsakes {
-    content-visibility: auto;
-    contain-intrinsic-block-size: auto var(--cv-est, 200px);
-    overflow-clip-margin: 12px;
-  }
-
-  .species-community {
-    --cv-est: 130px;
-  }
-
-  .species-keepsakes {
-    --cv-est: 900px;
-  }
-}
