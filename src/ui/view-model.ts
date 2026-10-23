@@ -11,6 +11,7 @@
  * - Harmonie-Änderungen sind Punkte: 6 = +6 Harmonie.
  * - Texte (Namen, Wirkungen, Stimmungen) kommen fertig auf Deutsch.
  */
+import type { ChronicleKeepsakeView } from './chronicle-view';
 
 /** 🌙 an einer Nachtart (Kachel, Karte, Details). */
 export interface NightBadgeView {
@@ -622,7 +623,7 @@ export interface JournalStatView {
 
 /** Eine Angabe zu einem Wald im Reiter „Landschaft“, z. B. „Waldgedächtnis“ – „120 eigen · 270 wirksam“. */
 export interface JournalLandscapeRowView {
-  /** Fester Schlüssel: memory, ancient, lead, tree, regulars, fauna. */
+  /** Fester Schlüssel: memory, ancient, lead, tree, regulars, fauna, chronicle. */
   key: string;
   label: string;
   value: string;
@@ -682,6 +683,8 @@ export interface JournalView {
   keepsakes: JournalKeepsakeView[];
   /** Hauptbaum-Arten im Reiter „Andenken“ (MAIN_TREES-Reihenfolge). */
   trees: JournalTreeView[];
+  /** Andenken der sechs Waldchroniken (26.7) – leer vor der Landschaft. */
+  chronicles: ChronicleKeepsakeView[];
   /**
    * Kennzahlen im Reiter „Statistik“. Ändern sich laufend (Samen, Spielzeit) – der Dialog
    * aktualisiert dafür nur Texte und baut nichts neu.

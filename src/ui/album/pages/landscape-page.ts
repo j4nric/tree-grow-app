@@ -1,7 +1,7 @@
 /**
  * Reiter „Landschaft“ – „Unsere Wälder“ · „🪶 3 Hähersaat“ (docs/ALBUM_UI.md, B.5 und A.10);
  * erst nach der Freischaltung sichtbar:
- * 1. Frage, Hähersaat und Wildwechsel-Chance am aktiven Wald,
+ * 1. Frage, Hähersaat, Wildwechsel-Chance am aktiven Wald und „📜 9 / 36 Kapitel“ (26.7),
  * 2. handgezeichnete Karte mit sechs Standorten – Tipp blättert zu U:Standort um,
  * 3. Ziel des nächsten Zyklus mit „Neuer Zyklus ›“ (Sprung in den Reiter „Ziele“),
  * 4. Korridore mit „Bauen“ (zweiter Klick bestätigt),
@@ -25,6 +25,7 @@ import type { PageEnv, TabPage } from './registry';
 import { createTabPanel } from './tab-pages';
 import { corridorBuildLabel, landscapePageMeta, targetLine } from './landscape-page-view';
 import './landscape.css';
+import './chronicle.css';
 
 /** So lange bleibt ein Bau-Knopf nach dem ersten Klick scharf (wie „Neuer Zyklus“). */
 export const BUILD_CONFIRM_MS = 4000;
@@ -55,7 +56,10 @@ export function createLandscapePage(env: PageEnv): TabPage {
   seeds.dataset.ref = 'jay-seeds';
   const wildwechsel = el('p', 'lsc-wildwechsel');
   wildwechsel.dataset.ref = 'wildwechsel-chance';
-  head.append(question, seeds, wildwechsel);
+  // Waldchronik (26.7): „📜 9 / 36 Kapitel“ – alle Kapitel aller Wälder.
+  const chronicle = el('p', 'lsc-chronicle');
+  chronicle.dataset.ref = 'chronicle-total';
+  head.append(question, seeds, wildwechsel, chronicle);
 
   // --- 2. Karte -------------------------------------------------------------------------
   const map = createLandscapeMap((id) => env.open({ kind: 'site', id }));
@@ -293,6 +297,9 @@ export function createLandscapePage(env: PageEnv): TabPage {
     seeds.hidden = view.jaySeeds === landscapePageMeta(view);
     wildwechsel.hidden = view.wildwechsel === null;
     setText(wildwechsel, view.wildwechsel ?? '');
+    chronicle.hidden = view.chronicle === null;
+    setText(chronicle, view.chronicle ?? '');
+    setAttr(chronicle, 'title', 'Kapitel der Waldchroniken – jeder Wald schreibt sechs');
     updateCorridors(view);
     updateDiary(toJournalLandscapeView(deps.state()));
   }

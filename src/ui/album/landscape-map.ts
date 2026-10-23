@@ -60,6 +60,10 @@ interface SiteNode {
   status: HTMLElement;
   /** Zusatz nur für Screenreader: „Ziel des nächsten Zyklus“. */
   state: HTMLElement;
+  /** Wachssiegel der vollständigen Chronik (26.7) – verborgen, solange sie offen ist. */
+  seal: HTMLElement;
+  /** Chronik für Screenreader: „, Chronik 4 / 6 – offen: …“. */
+  chronicle: HTMLElement;
 }
 
 export function createLandscapeMap(onSite: (id: SiteId) => void): LandscapeMap {
@@ -116,9 +120,16 @@ export function createLandscapeMap(onSite: (id: SiteId) => void): LandscapeMap {
       events.title = `Hier öfter: ${site.events}`;
       button.append(events, srOnly(`, hier öfter: ${site.events}`));
     }
+    // Waldchronik (26.7): Wachssiegel mit dem Andenken an der unteren Ecke, sobald sie vollständig ist.
+    const seal = el('span', 'lsc-site-seal');
+    seal.setAttribute('aria-hidden', 'true');
+    seal.dataset.ref = 'site-seal';
+    seal.hidden = true;
+    const chronicle = srOnly();
+    button.append(seal, chronicle);
     button.addEventListener('click', () => onSite(site.id));
     map.append(button);
-    const node = { button, name, status, state };
+    const node = { button, name, status, state, seal, chronicle };
     sites.set(site.id, node);
     return node;
   }
@@ -165,6 +176,11 @@ export function createLandscapeMap(onSite: (id: SiteId) => void): LandscapeMap {
         node.button.classList.toggle('choosable', s.action !== null && !s.active);
         node.button.classList.toggle('target', isOtherTarget(view, s, target));
         setText(node.state, siteButtonExtra(view, s, target));
+        node.seal.hidden = s.seal === null;
+        setText(node.seal, s.seal ?? '');
+        if (s.seal) setAttr(node.seal, 'title', 'Chronik vollständig');
+        node.button.classList.toggle('sealed', s.seal !== null);
+        setText(node.chronicle, s.chronicle ? `, ${s.chronicle}` : '');
         if (s.active) setAttr(node.button, 'aria-current', 'location');
         else node.button.removeAttribute('aria-current');
       }

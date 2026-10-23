@@ -29,6 +29,7 @@ import {
   type SiteChoice,
 } from '../core/tick';
 import { formatNumber } from './format';
+import { chronicleShortText, chronicleTotalText, siteChronicleView } from './chronicle-view';
 
 /** Meldung beim ersten Öffnen der Landschaft (24.3) – einmal, auch nach dem Laden. */
 export const LANDSCAPE_UNLOCK_TEXT =
@@ -101,6 +102,13 @@ export interface LandscapeSiteView {
   blocker: string | null;
   /** Kosten der Gründung (nur nicht gegründete Wälder). */
   cost: number | null;
+  /**
+   * Waldchronik (DESIGN_V2.md 26.7), z. B. „Chronik 4 / 6 – offen: Erster Schnee, Kennart“ –
+   * null vor der Landschaft und für nicht gegründete Wälder.
+   */
+  chronicle: string | null;
+  /** Wachssiegel: Die Chronik ist vollständig – Symbol des Andenkens, sonst null. */
+  seal: string | null;
 }
 
 export type CorridorState = 'built' | 'buildable' | 'unaffordable' | 'locked';
@@ -149,6 +157,8 @@ export interface LandscapeMapView {
   wildwechsel: string | null;
   /** Hinweis unter der Korridor-Liste, z. B. „7 weitere Korridore, sobald die Wälder an ihren Enden gegründet sind.“; sonst null. */
   corridorHint: string | null;
+  /** Kennzahl der Waldchronik (26.7), z. B. „📜 9 / 36 Kapitel“ – null vor der Landschaft. */
+  chronicle: string | null;
 }
 
 export const CORRIDOR_ICONS: Record<CorridorKind, string> = {
@@ -347,6 +357,12 @@ function corridorView(game: GameState, choice: CorridorChoice, available: number
   };
 }
 
+/** Chronik und Siegel eines Standorts (26.7). */
+function siteChronicleFields(state: GameState, id: SiteId): Pick<LandscapeSiteView, 'chronicle' | 'seal'> {
+  const view = siteChronicleView(state, id);
+  return { chronicle: view ? `Chronik ${chronicleShortText(view)}` : null, seal: view?.keepsake?.icon ?? null };
+}
+
 /**
  * Karte der Landschaft – null, solange sie verborgen bleibt (vor der Freischaltung zeigt
  * die Oberfläche nichts davon, 24.1). Sichtbar, sobald sie frei ist oder – im Urwald – nach
@@ -396,6 +412,7 @@ export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): 
       action: siteAction(choice),
       blocker: siteBlockerText(choice, activeName, landscape.jaySeedsAfter.available),
       cost: choice.cost,
+      ...siteChronicleFields(state, choice.id),
     };
   });
   const corridors = landscapeCorridors(state)
@@ -421,6 +438,7 @@ export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): 
           ? '1 weiterer Korridor, sobald die Wälder an seinen Enden gegründet sind.'
           : `${formatNumber(hidden)} weitere Korridore, sobald die Wälder an ihren Enden gegründet sind.`
         : null,
+    chronicle: chronicleTotalText(state) || null,
   };
 }
 

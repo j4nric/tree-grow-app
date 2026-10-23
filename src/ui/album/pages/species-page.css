@@ -561,3 +561,56 @@ body[data-motion='reduce'] .species-memory {
 .album[data-layout='spread'] .species-section {
   scroll-margin-top: 12px;
 }
+
+/* ---------- Waldchronik (DESIGN_V2.md 26.7): Andenken und Reihe „Kennarten“ ---------- */
+
+/* Offene Chronik: blasser Zettel mit gestricheltem Rand, „?“ statt des Andenkens. */
+.species-chronicle.is-unknown {
+  border: 2px dashed var(--slot-dash);
+  background: var(--paper);
+  box-shadow: none;
+}
+
+.species-chronicle.is-unknown::before {
+  display: none;
+}
+
+.species-chronicle.is-unknown .species-memory-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--track);
+  font-weight: 800;
+  color: var(--ink-faint);
+}
+
+.species-chronicle.is-unknown .species-memory-name {
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+}
+
+/* Vollständig: das Andenken mit Wachssiegel-Rand wie auf der Karte. */
+.species-chronicle.is-complete .species-memory-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 3px solid var(--photo);
+  border-radius: 50%;
+  background: var(--fam-soil);
+  box-shadow: var(--sh-sticker);
+}
+
+.species-chronicle-site {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* Unentdeckte Kennart: Name des Waldes statt „???“ – kleiner, damit er in zwei Zeilen passt. */
+.species-kennarten .species-cell.is-unknown .sticker-name {
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+}

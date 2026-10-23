@@ -35,6 +35,7 @@ import { GENERA } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS, GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, WEATHERS } from '../content/weather';
 import { NOCTURNAL } from '../content/daytime';
+import { CHRONICLE_CHAPTERS, CHRONICLE_HARMONY } from '../content/chronicle';
 import { REPTILE_SUMMER_HAPPINESS } from '../content/habitats';
 import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, PREDATION_EVENTS, STOCK_BASE, STOCK_RANGE } from '../content/predation';
 import { isAchievementVisibleIn } from '../core/achievements';
@@ -274,6 +275,8 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       ],
     },
     landscapeSection(options.landscape === true),
+    // Chroniken und Kennarten (26.7): erst mit der Landschaft – vorher schreibt der Heimatwald still mit.
+    ...(options.landscape === true ? [chronicleSection()] : []),
     {
       id: 'seasons',
       icon: '🍂',
@@ -382,6 +385,28 @@ function siteWeatherParagraphs(): string[] {
     `Jeder Waldtyp der Landschaft hat sein eigenes Wetter – es gilt, solange dort dein Zyklus wächst. Der ${home?.name ?? 'Heimatwald'} hat das gewohnte Wetter; die Notiz „Wetter heute“ nennt das Wetter des Waldes, in dem du gerade wächst:`,
     ...weatherSites().map((s) => `${s.icon} ${s.name}: ${siteWeatherText(s.id) ?? s.weatherSummary}`),
   ];
+}
+
+/**
+ * Abschnitt „Chroniken und Kennarten“ (DESIGN_V2.md 26.3, 26.4, 26.7) – nur mit der Landschaft.
+ * Nennt Kapitel und Regeln mit Zahlen aus content/, aber keine Kennart beim Namen (die Reihe
+ * „Kennarten“ zeigt sie als Silhouette mit ihrem Wald).
+ */
+function chronicleSection(): GuideSection {
+  const ancient = STAGES[STAGES.length - 1]!.name;
+  const titles = CHRONICLE_CHAPTERS.map((c) => `${c.icon} „${c.title}“`);
+  const sites = LANDSCAPE_SITES.length;
+  return {
+    id: 'chronicle',
+    icon: '📜',
+    title: 'Chroniken und Kennarten',
+    paragraphs: [
+      `Jeder Wald der Landschaft schreibt eine Chronik in ${formatNumber(CHRONICLE_CHAPTERS.length)} Kapiteln: ${all(titles)}. Ein Kapitel schreibt nur der Wald, in dem du gerade wächst – einmal und für immer, auch während das Spiel geschlossen ist. Keines kostet etwas, keines verfällt.`,
+      `„Erster Schnee“ verlangt Geduld: Bleib nach dem ${ancient} noch, bis der Winter kommt, statt gleich neu zu beginnen. „Voller Einklang“ heißt eine höchste Harmonie von ${formatNumber(CHRONICLE_HARMONY)} in einem Zyklus, „Ein Wald erinnert sich“ das volle eigene Gedächtnis von ${formatNumber(MAX_FOREST_MEMORY)}. Das Ereignis des Waldes entscheidest du, wenn es dort als Begegnung kommt – gleich wie.`,
+      `Jeder neue Eintrag kommt als Stempel „📜 Neues Kapitel“ mit Zyklus und Jahreszeit. Der Standort zeigt die Chronik als sechs Zettel – offene mit einem Hinweis. Die Karte zählt alle ${formatNumber(sites * CHRONICLE_CHAPTERS.length)} Kapitel; eine vollständige Chronik bekommt ein Wachssiegel und schenkt dir ein Andenken (Reiter „Arten“ → Andenken).`,
+      `🔎 Kennarten: Jeder der ${formatNumber(sites)} Wälder hat eine seltene Art, die nur dort lebt – und nur, wenn der Wald alt ist: Er war schon einmal ${ancient}, oder dein Zyklus steht dort gerade im ${ancient}. Im Reiter „Arten“ stehen sie in einer eigenen Reihe, unentdeckt als Silhouette mit ihrem Wald. Wandert eine Kennart über einen Korridor in einen anderen Wald, zählt ihr Kapitel trotzdem nur in ihrem eigenen.`,
+    ],
+  };
 }
 
 /**

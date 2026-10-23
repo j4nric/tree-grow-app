@@ -71,6 +71,8 @@ export const HYPHENATION: Readonly<Record<string, string>> = {
   // Phase 9: Kennarten, Nachtwirkungen und Andenken der Chronik (DESIGN_V2.md 26.3, 26.4)
   Dämmerungsjagd: 'Däm|me|rungs|jagd',
   Erlenzäpfchen: 'Er|len|zäpf|chen',
+  // Titel des Kapitels „Ereignis des Waldes“ (Zettel auf U:Standort, 26.7)
+  Frühjahrshochwasser: 'Früh|jahrs|hoch|was|ser',
   Heidekrautzweig: 'Hei|de|kraut|zweig',
   Nachtklettern: 'Nacht|klet|tern',
   Tannenzapfen: 'Tan|nen|zap|fen',

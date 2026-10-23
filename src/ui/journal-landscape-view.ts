@@ -30,6 +30,7 @@ import {
 } from '../core/landscape';
 import { allAnimals, type GameState, type LandscapeSite } from '../core/state';
 import { formatNumber } from './format';
+import { chronicleShortText, siteChronicleView } from './chronicle-view';
 import { CORRIDOR_ICONS, siteWeatherText } from './landscape-view';
 import { RARITY_LABELS } from './view-format';
 import type {
@@ -120,6 +121,9 @@ function siteView(state: GameState, entry: LandscapeSite, active: SiteId): Journ
   // Tiere: im aktiven Wald der laufende Bestand, sonst der beim letzten Verlassen.
   const fauna = faunaHighlightsText(isActive ? allAnimals(state) : entry.fauna, state.meta.journal.species);
   if (fauna) rows.push({ key: 'fauna', label: isActive ? 'Lebt gerade hier' : 'Zuletzt gesehen', value: fauna });
+  // Waldchronik (26.7): „4 / 6 – offen: Erster Schnee, Kennart“.
+  const chronicle = siteChronicleView(state, entry.id);
+  if (chronicle) rows.push({ key: 'chronicle', label: 'Chronik', value: chronicleShortText(chronicle) });
   return {
     id: entry.id,
     icon: data?.icon ?? '🌳',
