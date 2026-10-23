@@ -256,9 +256,26 @@ for (const [width, height, scale, font] of [
   // Breite Schrift wie auf Linux-Runnern ohne Inter.
   [360, 780, 1.1, 'DejaVu Sans'],
   [1280, 720, 1.1, 'DejaVu Sans'],
+  // Playtest Schritt 14 (S7): Handy mit breiter Schrift und 125 % – eigene Hochformat-Lage.
+  [360, 740, 1.25, 'DejaVu Sans'],
+  [390, 844, 1.25, 'DejaVu Sans'],
 ] as const) test(`${width} px, Schrift ${scale * 100} %${font ? ` ${font}` : ''}: Karte ohne Querscrollen, Standorte ≥ 44 px ohne Überlappung`, async ({ page, context }) => {
   await page.setViewportSize({ width, height });
-  await seed(context, landscapeState(ANCIENT, { own: 300 }));
+  // Spätspiel wie im Playtest: vier Wälder, drei Korridore – lange Zustände („hier · Urwald“).
+  await seed(
+    context,
+    landscapeState(ANCIENT, {
+      own: 300,
+      sites: [
+        { ...createSite('home'), ancient: true },
+        { ...createSite('floodplain', 'alder'), ancient: true },
+        { ...createSite('beechwood', 'beech'), ancient: true },
+        { ...createSite('mountain', 'fir') },
+      ],
+      corridors: ['home-floodplain', 'home-beechwood', 'home-mountain'],
+      free: ['home-floodplain'],
+    }),
+  );
   await gotoTab(page, 'landschaft');
   // Größere Schrift (andere Schriftbreiten auf anderen Systemen): Knöpfe werden höher.
   await page.evaluate((s) => (document.documentElement.style.fontSize = `${s * 100}%`), scale);
@@ -278,6 +295,38 @@ for (const [width, height, scale, font] of [
   // Mindestens 4 px Abstand zwischen den Knöpfen (auch keine 1-px-Überlappung).
   const grow = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x - 2, y: b.y - 2, width: b.width + 4, height: b.height + 4 });
   for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) expect(overlaps(grow(boxes[i]!), grow(boxes[j]!)), `${i}/${j}`).toBe(false);
+  // Ganz in der Karte (auch oben und unten) und Namen nicht abgeschnitten („Auwald a…“).
+  for (const [i, b] of boxes.entries()) {
+    expect(b.y, `oben ${i}`).toBeGreaterThanOrEqual(box.y - 1);
+    expect(b.y + b.height, `unten ${i}`).toBeLessThanOrEqual(box.y + box.height + 1);
+  }
+  const clipped = await map.locator('.lsc-site-name, .lsc-site-status').evaluateAll((nodes) =>
+    // Bis 4 px Glyphen-Rundung; eine abgeschnittene Zeile wären rund 15 px.
+      nodes.filter((n) => n.scrollHeight > n.clientHeight + 4 || n.scrollWidth > n.clientWidth + 1).map((n) => `${n.textContent} ${n.scrollHeight}/${n.clientHeight} ${n.scrollWidth}/${n.clientWidth}`),
+  );
+  expect(clipped, 'abgeschnittene Beschriftung').toEqual([]);
+  // Die gebauten Korridore vom Heimatwald bleiben zwischen den Knöpfen sichtbar: Die Mitte
+  // der Strecke zwischen zwei Knopfrändern liegt auf keinem Knopf.
+  const lines = await map.evaluate((m) => {
+    const layer = [...m.querySelectorAll<SVGSVGElement>('.lsc-lines')].find((svg) => getComputedStyle(svg).display !== 'none')!;
+    const r = layer.getBoundingClientRect();
+    return [...layer.querySelectorAll<SVGLineElement>('line.built')].map((l) => {
+      const at = (t: number) => ({
+        x: r.left + ((+l.getAttribute('x1')! * (1 - t) + +l.getAttribute('x2')! * t) / 100) * r.width,
+        y: r.top + ((+l.getAttribute('y1')! * (1 - t) + +l.getAttribute('y2')! * t) / 100) * r.height,
+      });
+      // Anteil der Strecke, der nicht unter einem Knopf liegt.
+      let free = 0;
+      for (let k = 0; k <= 40; k++) {
+        const p = at(k / 40);
+        const hit = document.elementFromPoint(p.x, p.y);
+        if (!hit?.closest('.lsc-site')) free++;
+      }
+      return { id: l.dataset.corridor, free: free / 41 };
+    });
+  });
+  expect(lines.length).toBeGreaterThan(0);
+  for (const line of lines) expect(line.free, `Korridor ${line.id} sichtbar`).toBeGreaterThan(0.1);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
   // „Neuer Zyklus ›“ und die Bau-Knöpfe: Tippziele ≥ 44 px.

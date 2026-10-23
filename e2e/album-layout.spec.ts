@@ -126,8 +126,10 @@ test.describe('mobil', () => {
     // Gescrollt: Die Reiterleiste klebt oben – die Meldung rückt nach unten.
     await page.evaluate(() => window.scrollTo(0, 700));
     await expect(layer).not.toHaveClass(/stamps-top/);
+    // Darüber die Vorratsleiste (30 px): Die Reiter kleben direkt darunter.
     const strip = (await page.locator('[data-ref="tabs"]').boundingBox())!;
-    expect(strip.y).toBeLessThanOrEqual(1);
+    expect(strip.y).toBeLessThanOrEqual(31);
+    await expect.poll(async () => overlaps((await stamp(page).boundingBox())!, (await page.locator('.supply-bar-inner').boundingBox())!)).toBe(false);
     await expect.poll(async () => overlaps((await stamp(page).boundingBox())!, strip)).toBe(false);
 
     // Unterseite: Lesezeichen und Titel oben bleiben frei.

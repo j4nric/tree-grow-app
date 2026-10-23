@@ -529,3 +529,92 @@
   font-size: 13px;
   line-height: 1.35;
 }
+
+/*
+ * Verschlossenes, zusammengefasst (S10): eine Zeile „🔒 Noch 10 Nischen … verschlossen –
+ * öffnen sich, während der Baum wächst ›“, aufgeklappt die Zeilen mit „öffnet bei …“.
+ */
+.niches-locked[hidden] {
+  display: none;
+}
+
+.niches-locked-summary {
+  position: relative;
+  display: block;
+  min-height: var(--tap);
+  box-sizing: border-box;
+  padding: 10px 36px 10px 12px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-button);
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  list-style: none;
+  cursor: pointer;
+}
+
+.niches-locked-summary::-webkit-details-marker {
+  display: none;
+}
+
+.niches-locked-summary:hover {
+  border-color: var(--ink-soft);
+}
+
+.niches-locked-summary:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
+.niches-locked-text {
+  color: var(--ink);
+}
+
+.niches-locked-icon {
+  margin-right: 6px;
+}
+
+.niches-locked-hint {
+  display: block;
+  font-weight: 600;
+}
+
+.niches-locked-arrow {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  margin-top: -11px;
+  font-family: var(--font-hand);
+  font-size: 22px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.niches-locked[open] .niches-locked-arrow {
+  transform: rotate(90deg);
+}
+
+.niches-locked-list {
+  margin-top: 4px;
+}
+
+body[data-motion='reduce'] .niches-locked-arrow {
+  transition: none;
+}
+
+/* Mobil: beide Lesezeichen-Links gleich – randbündig untereinander, gleiche Höhe (S10). */
+.album[data-layout='single'] .niches-links {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.album[data-layout='single'] .niches-link,
+.album[data-layout='single'] .niches-link + .niches-link {
+  margin-left: -16px;
+  border-radius: 0 12px 12px 0;
+}
+
+.niches-links[hidden] {
+  display: none;
+}

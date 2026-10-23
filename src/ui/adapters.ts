@@ -1089,6 +1089,8 @@ export function previewView(
     harmonyDelta: after.harmony - now.harmony,
     growthDelta: relative(after.growth, now.growth),
     seedDelta: relative(after.seeds, now.seeds),
+    growthPerSec: after.growth - now.growth,
+    seedsPerSec: after.seeds - now.seeds,
   };
   const happiness = speciesId === undefined ? undefined : after.animals[speciesId]?.happiness;
   if (happiness !== undefined) preview.happiness = happiness;

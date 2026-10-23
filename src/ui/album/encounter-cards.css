@@ -61,7 +61,7 @@
 }
 
 .album[data-layout='spread'] .enc-head .encounter-title {
-  font-size: 36px;
+  font-size: 32px;
 }
 
 .enc-head .encounter-subtitle {
@@ -203,20 +203,42 @@
   min-width: 0;
 }
 
+/*
+ * Tier- und Pflanzenkarten stehen immer in einer Reihe (kein Umbruch in eine zweite Reihe,
+ * deren „Einkleben“ weit unter dem Bildrand läge – Playtest Schritt 14, S1). Passen nicht
+ * alle nebeneinander, lugt die nächste Karte hervor und die Reihe scrollt waagerecht.
+ */
 .enc-sheet .encounter-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(200px, 1fr);
   align-items: start;
-  gap: 18px 14px;
+  gap: 14px;
   min-width: 0;
-  padding: 12px 2px 4px;
+  margin: 0 -8px;
+  padding: 14px 8px 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding: 0 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dash) transparent;
+}
+
+.enc-sheet .encounter-cards .encounter-card {
+  scroll-snap-align: start;
 }
 
 /* Ereignis-Optionen und Gast: untereinander */
 .enc-sheet .encounter-cards[data-kind='event'],
 .enc-sheet .encounter-cards[data-kind='visitor'] {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
+  margin: 0;
+  padding: 12px 2px 4px;
+  overflow-x: visible;
 }
 
 .enc-sheet .encounter-swipe {
@@ -231,16 +253,12 @@
 /* Schmal: Karten nebeneinander zum Wischen, die nächste lugt hervor (A.6 #74). */
 @media (max-width: 640px) {
   .enc-sheet .encounter-cards:not([data-kind='event']):not([data-kind='visitor']) {
-    display: grid;
-    grid-template-columns: none;
-    grid-auto-flow: column;
     grid-auto-columns: 84%;
     margin: 0 -18px;
     padding: 14px 18px 10px;
-    overflow-x: auto;
     scroll-snap-type: x mandatory;
     scroll-padding: 0 18px;
-    overscroll-behavior-x: contain;
+    scrollbar-width: none;
   }
 
   .enc-sheet .encounter-cards[data-count='1']:not([data-kind='event']):not([data-kind='visitor']) {
@@ -456,12 +474,21 @@
   color: var(--ink-red);
 }
 
+/* „Nische … voll. Wer zieht weiter?“ als eine Beschriftung, die Auswahl darunter */
 .card-replace-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: block;
   font-size: 13px;
   font-weight: 800;
+  line-height: 1.3;
+}
+
+.card-replace-label .card-replace-text {
+  display: inline;
+}
+
+.card-replace-label .card-replace-select {
+  display: block;
+  margin-top: 4px;
 }
 
 .card-replace-select {
@@ -598,7 +625,6 @@
 
 /* Einkleben / Setzen */
 .card-choose {
-  margin-top: auto;
   min-height: var(--tap);
   padding: 8px 14px;
   border: 0;

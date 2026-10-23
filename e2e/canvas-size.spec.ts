@@ -148,6 +148,9 @@ test.describe('Szene nur zeichnen, wenn sie zu sehen ist', () => {
       await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
       return (await page.evaluate(() => JSON.parse(localStorage.getItem('tree-grow-save')!).totalGrowth)) as number;
     };
+    // Beim ersten Start ist der Reiter Nischen kurz (Verschlossenes zusammengefasst): Platz
+    // schaffen, damit das Polaroid wirklich ganz aus dem Bild scrollt.
+    await page.evaluate(() => (document.body.style.paddingBottom = '1200px'));
     await page.evaluate(() => window.scrollTo(0, 900));
     await page.waitForTimeout(300);
     const before = await grown();

@@ -64,6 +64,7 @@ import { createStageLadder } from './stage-ladder';
 import { attachSwipeBack } from './swipe';
 import { createStamps } from './stamps';
 import { createTabStrip } from './tab-strip';
+import { createSupplyBar } from './supply-bar';
 import { createTapeLabel } from './tape-label';
 import type { AlbumDeps, AlbumPart } from './types';
 import type { NotifyOptions } from './stamp-rules';
@@ -182,6 +183,9 @@ export function createAlbum(deps: AlbumDeps): Album {
   const ladder = createStageLadder();
   const returnReport = createReturnReport(env, () => focusTarget());
   spread.left.append(polaroid.element, labels, ladder.element, returnReport.slip);
+  // Mobil: Vorratsleiste über den klebenden Reitern (B.0, G.2-14).
+  const supply = createSupplyBar();
+  tabStrip.element.before(supply.marker, supply.element);
 
   // Reiterseiten (eine Zeile je Seite in pages/registry.ts).
   const tabs = {
@@ -612,6 +616,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     if (lastHarmony !== null && harmonyRounded > lastHarmony) harmony.pop();
     lastHarmony = harmonyRounded;
     labelNotes.update(view);
+    supply.update({ seeds: view.seeds, growthPerSec: view.growthPerSec, harmony: view.harmony });
     ladder.update({ stage: state.stage, waypoint: state.waypoint, waypointProgress: view.stageProgress, hint: view.progressHint });
     const site = activeSite(state.meta.landscape);
     if (site !== shownSite) {

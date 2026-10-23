@@ -118,6 +118,10 @@
   height: 100%;
 }
 
+.lsc-lines-portrait {
+  display: none;
+}
+
 .lsc-line {
   stroke: var(--slot-dash);
   stroke-width: 2;
@@ -158,6 +162,8 @@
 
 .lsc-site {
   position: absolute;
+  left: var(--x);
+  top: var(--y);
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
@@ -231,14 +237,17 @@
   overflow: hidden;
 }
 
+/* Zustand höchstens zwei Zeilen (statt „hier · Ur…“ bei breiter Schrift). */
 .lsc-site-status {
   max-width: 100%;
   font-size: 0.66rem;
   font-weight: 700;
   color: var(--ink-soft);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .lsc-site.active .lsc-site-status {
@@ -253,6 +262,39 @@
 
   .lsc-site-name {
     font-size: 0.68rem;
+  }
+}
+
+/*
+ * Handy im Hochformat (landscape-map.ts, PORTRAIT): eigene Lage über die volle Höhe statt der
+ * gestreckten Querlage. Knöpfe ein Drittel breit (abzüglich Luft), damit die Seitenspalten
+ * die Mitte nie berühren; Namen dürfen dreizeilig werden (breite Schrift, 125 %).
+ */
+@media (max-width: 640px) {
+  .album[data-layout='single'] .lsc-map {
+    aspect-ratio: 1 / 1.4;
+    min-height: 420px;
+  }
+
+  .album[data-layout='single'] .lsc-lines-wide {
+    display: none;
+  }
+
+  .album[data-layout='single'] .lsc-lines-portrait {
+    display: block;
+  }
+
+  .album[data-layout='single'] .lsc-site {
+    left: var(--px);
+    top: var(--py);
+    width: calc(100% / 3 - 10px);
+    min-height: 60px;
+    padding: 3px 2px;
+  }
+
+  .album[data-layout='single'] .lsc-site-name {
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
   }
 }
 

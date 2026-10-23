@@ -5,12 +5,14 @@
  *
  * - **Tier- und Pflanzenkarten** sind Sticker-Karten im Notizzettel-Stil: Washi-Streifen,
  *   runder Sticker (Renderer-Zeichnung bzw. Gruppen-Emoji), Name in Caveat, Nische,
- *   Wildwechsel-Zeile, Kennzahlen, Tausch bei voller Nische, Bedingungen, Wirkungen,
- *   Vorschau, Lebensgemeinschaften, Naturtext und „Einkleben“.
+ *   Wildwechsel-Zeile, Kennzahlen, Tausch bei voller Nische, Vorschau, Lebensgemeinschaften
+ *   und „Einkleben“ – danach die Einzelheiten (Bedingungen, Wirkungen, Naturtext). So liegt
+ *   der Knopf auch bei langen Karten (Spätspiel, volle Nische) ohne Scrollen im Bild
+ *   (Playtest Schritt 14, S1); die Karten stehen immer in einer Reihe (zu breit: wischen).
  * - **Ereignis- und Gast-Optionen** sind große Knöpfe mit Wirkungszeile; gesperrte Optionen
  *   per `aria-disabled` (fokussierbar, Grund vorlesbar).
  * - **Legende** der Symbole als Haftnotiz am „?“-Knopf; beim allerersten Mal öffnet sie sich
- *   von selbst (nicht auf schmalen Bildschirmen, dort bleiben Karten und Knöpfe frei).
+ *   von selbst – auch auf dem Handy (dort sähe man ⚖️ 🌿 🌰 😊 sonst nie erklärt).
  *
  * Reine Darstellung: zeigt ein `EncounterView` und meldet Entscheidungen über Callbacks.
  * Spielregeln (Kosten, Vorschau, Ersetzen) kommen fertig aus dem View-Model.
@@ -55,6 +57,9 @@ export interface EncounterCallbacks {
 /** Knopftext auf Tier- und Pflanzenkarten (statt „Wählen“, docs/ALBUM_UI.md A.6 #69). */
 export const CHOOSE_TEXT = 'Einkleben';
 
+/** Frage über der Ersetzen-Auswahl bei voller Nische (früher „Wen entlassen?“, Playtest K6). */
+export const REPLACE_PROMPT = 'Wer zieht weiter?';
+
 /** Kantenlänge des Stickers auf einer Karte. */
 const CARD_STICKER_SIZE = 64;
 
@@ -85,11 +90,6 @@ function markLegendSeen(): void {
   } catch {
     // Speichern nicht möglich – dann öffnet sich die Legende beim nächsten Mal wieder.
   }
-}
-
-/** Schmaler Bildschirm (wie die Mobil-Ansicht im CSS). */
-function narrowScreen(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 640px)').matches;
 }
 
 /** So lange werden Eingaben nach dem Erscheinen einer neuen Begegnung ignoriert. */
@@ -520,7 +520,8 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
       band.append(gem);
     }
     names.append(name, band);
-    if (card.nicheLabel) names.append(el('p', 'card-niche', `Nische: ${card.nicheLabel}`));
+    // Bei voller Nische nennt der Tausch-Kasten die Nische schon – eine Zeile weniger (S1).
+    if (card.nicheLabel && !card.nicheFull) names.append(el('p', 'card-niche', `Nische: ${card.nicheLabel}`));
     top.append(cardSticker(card, encounterKind === 'plant' ? 'plant' : 'animal', index), names);
     item.append(tapeStrip(), top);
 
@@ -546,11 +547,12 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
     let select: HTMLSelectElement | null = null;
     if (card.nicheFull) {
       const box = el('div', 'card-replace');
-      replaceText = el('p', 'card-replace-text');
-      box.append(replaceText);
       if (replaceOptions.length > 1) {
+        // Kompakt: „Nische voll“ und die Frage in einer Beschriftung, darunter die Auswahl –
+        // wer ersetzt wird, zeigt die Auswahl selbst (und das aria-label von „Einkleben“).
         const label = el('label', 'card-replace-label');
-        label.append(el('span', '', card.replacePrompt ?? 'Wen entlassen?'));
+        const full = el('span', 'card-replace-text', card.fullText ?? replaceHint(card.nicheLabel ?? '', undefined));
+        label.append(full, '. ', el('span', 'card-replace-prompt', card.replacePrompt ?? REPLACE_PROMPT));
         select = el('select', 'card-replace-select');
         for (const option of replaceOptions) {
           const opt = el('option', '', option.disabledReason ? `${option.name} – ${option.disabledReason}` : option.name);
@@ -565,6 +567,8 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
         label.append(select);
         box.append(label);
       } else {
+        replaceText = el('p', 'card-replace-text');
+        box.append(replaceText);
         // Nur ein Tier in der Nische: Kann es nicht weichen, steht der Grund hier.
         for (const option of replaceOptions.filter((o) => o.disabledReason)) {
           box.append(el('p', 'card-replace-note', `${option.name}: ${option.disabledReason}`));
@@ -572,6 +576,14 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
       }
       item.append(box);
     }
+
+    // Erst das Wesentliche und der Knopf, dann die Einzelheiten (S1: Knopf ohne Scrollen).
+    const previewList = el('ul', 'card-preview');
+    previewList.setAttribute('aria-label', 'Vorschau');
+    const communityList = communityHintList();
+    const choose = el('button', 'card-choose');
+    choose.type = 'button';
+    item.append(previewList, communityList, choose);
 
     // Bedingungen – bei voller Nische je nach gewähltem Tausch.
     let conditionList: HTMLElement | null = null;
@@ -581,16 +593,7 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
       item.append(conditionList);
     }
     if (card.effects.length > 0) item.append(renderEffects(card, 'Wirkungen'));
-
-    const previewList = el('ul', 'card-preview');
-    previewList.setAttribute('aria-label', 'Vorschau');
-    const communityList = communityHintList();
-    item.append(previewList, communityList);
     if (card.flavor) item.append(el('p', 'card-flavor', card.flavor));
-
-    const choose = el('button', 'card-choose');
-    choose.type = 'button';
-    item.append(choose);
 
     const selectedReplace = (): ReplaceOptionView | undefined =>
       card.nicheFull ? (usable.find((o) => o.id === select?.value) ?? preferredReplaceOption(replaceOptions)) : undefined;
@@ -721,9 +724,8 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
 
     updateLegend(view);
     // Erste Begegnung überhaupt → Legende öffnet sich von selbst (sobald das Blatt ruhig
-    // liegt). Auf schmalen Bildschirmen bleibt sie zu, damit Karten und Knöpfe frei sind –
-    // dort wird noch nicht entschieden: Der Merker kommt erst, wenn sie wirklich offen war.
-    if (!legendChecked && newEncounter && !narrowScreen() && !legendButton.hidden) {
+    // liegt), auch auf dem Handy. Der Merker kommt erst, wenn sie wirklich offen war.
+    if (!legendChecked && newEncounter && !legendButton.hidden) {
       legendChecked = true;
       legendWanted = !legendSeen();
     }

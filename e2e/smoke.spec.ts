@@ -203,8 +203,9 @@ test('Volle Nische: Tier ersetzen', async ({ page, context }) => {
   await openStack(page);
   const robin = card(page, 'robin');
   await expect(robin).toContainText('voll');
-  await robin.getByRole('combobox').selectOption('centipede');
-  await expect(robin).toContainText('ersetzt Steinläufer');
+  await robin.getByRole('combobox', { name: 'Wer zieht weiter?' }).selectOption('centipede');
+  // Wer ersetzt wird, zeigt die Auswahl selbst; der Knopf nennt es (zugänglicher Name).
+  await expect(robin.locator('.card-choose')).toHaveAccessibleName('Rotkehlchen einkleben (ersetzt Steinläufer)');
   await robin.getByRole('button', { name: 'Rotkehlchen einkleben (ersetzt Steinläufer)' }).click();
 
   // Keine Begegnung mehr: Dialog und Stapel verschwinden.
@@ -513,7 +514,7 @@ test('Pflanzring voll: „Welche Pflanze weicht?“ ersetzt die gewählte Pflanz
   await expect(nettle).toContainText('Pflanzring voll');
   await expect(nettle.getByRole('combobox', { name: 'Welche Pflanze weicht?' })).toBeVisible();
   await nettle.getByRole('combobox').selectOption('bramble');
-  await expect(nettle).toContainText('ersetzt Brombeere');
+  await expect(nettle.locator('.card-choose')).toHaveAccessibleName('Große Brennnessel einkleben (ersetzt Brombeere)');
   await nettle.getByRole('button', { name: 'Große Brennnessel einkleben (ersetzt Brombeere)' }).click();
 
   await expect(encounter(page)).toBeHidden();
@@ -782,7 +783,7 @@ test('Volle Nische: Futter-Erklärung folgt der gewählten Ersetzen-Option', asy
 test.describe('Feinschliff mobil (390×844)', () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, freshLegend: true });
 
-  test('erste Begegnung: Legende zu, Wählen und Ablehnen ohne Scrollen sichtbar – auch aufgeklappt', async ({
+  test('erste Begegnung: Legende öffnet sich auch mobil von selbst, Wählen und Ablehnen ohne Scrollen sichtbar', async ({
     page,
     context,
   }) => {
@@ -795,24 +796,25 @@ test.describe('Feinschliff mobil (390×844)', () => {
     await stack(page).tap();
     await settledSubpage(page, 'encounter');
     await settle(page);
-    // Schmal: Die Legende öffnet sich nicht von selbst, das „?“ steht im Kopf.
+    // Wie am Desktop (Playtest Schritt 14, K2): Neue Handy-Spieler sehen die Symbole erklärt.
     const legend = note(page, 'encounter-legend');
     const open = encounter(page).locator('[data-ref="encounter-legend-open"]');
-    await expect(open).toBeVisible();
-    await expect(legend).toBeHidden();
-    // Zu geblieben wird der Merker nicht gesetzt – erst, wenn die Legende wirklich offen war.
+    await expect(legend).toBeVisible();
+    await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
     const legendSeen = () => page.evaluate(() => localStorage.getItem('tree-grow-legend-seen'));
-    expect(await legendSeen()).toBeNull();
+    expect(await legendSeen()).toBe('1');
+    // Die Notiz liegt über dem Kopf, nicht über den Knöpfen.
     const choose = card(page, 'oakmoth').getByRole('button', { name: 'Eichenwickler einkleben' });
     const decline = encounter(page).getByRole('button', { name: /Ablehnen/ });
     await expect(choose).toBeInViewport();
     await expect(decline).toBeInViewport();
-
-    // Aufgeklappt: Karten und Knöpfe bleiben, wo sie sind.
+    await legend.getByRole('button', { name: 'Verstanden' }).tap();
+    await expect(legend).toBeHidden();
+    await expect(open).toBeVisible();
+    // Wieder aufgeklappt: Karten und Knöpfe bleiben, wo sie sind.
     await open.tap();
-    await expect(legend.getByText('erwartete Zufriedenheit')).toBeVisible();
+    await expect(legend).toBeVisible();
     await expect(decline).toBeInViewport();
-    expect(await legendSeen()).toBe('1');
   });
 
   test('lange Gründe: Sticker bleiben klein, der volle Text im Titel und auf U:Tier', async ({ page, context }) => {
