@@ -126,5 +126,5 @@ test('Ohne hidden="until-found" und requestIdleCallback (Safari): Sperre wie bis
   const frames = await page.evaluate(() => (window as unknown as { __revealFrames: number[] }).__revealFrames);
   expect(frames.length).toBe(before.length);
   expect(new Set(frames).size).toBe(frames.length);
-  await expect(panel(page).locator(`[data-species="${SPECIES[SPECIES.length - 1]!.id}"]`)).toBeAttached();
+  await expect(panel(page).locator(`[data-species="${COMMON_SPECIES[COMMON_SPECIES.length - 1]!.id}"]`)).toBeAttached();
 });
