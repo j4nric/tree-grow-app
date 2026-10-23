@@ -6037,6 +6037,29 @@ ebenso die Hähersaat.
 Wie bei den Baumarten (17.4) darf kein Waldtyp „der beste“ sein: Ziel ±5 % Zeit bis zum Urwald
 gegenüber dem Heimatwald bei gleichem Gedächtnis.
 
+**Stand 3e (Phase 7, Käferjahr je Standort):** wie „Stand 3d“, jetzt mit
+`ForestSite.eventFactors` (Kiefernheide Käferjahr × 3 an jedem Tag, 24.13). „ohne“ = derselbe
+Lauf mit `withoutSiteWeather` – der Standort-Faktor auf das Ereignis gilt dort weiter (er ist
+kein Wetter). 160 Durchgänge, Median, Gedächtnis 200; Käferjahr = Durchgänge mit Käferjahr bis
+zum Urwald:
+
+| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | Wachstum: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | Käferjahr H / W (ohne) |
+|---|---|---|---|---|---|---|---|---|
+| 🌳 Heimatwald | Stieleiche | 49:29 min | – | – | 41:12 min | – | – | 29 (29) / 28 (28) |
+| 🌊 Auwald am Fluss | Stieleiche | 49:28 min | ±0,0 % | ±0,0 % | 41:35 min | +0,9 % | +1,3 % | 37 (32) / 23 (24) |
+| 🌫️ Erlenbruch | Schwarzerle | 50:04 min | +1,2 % | +1,3 % | 40:57 min | −0,6 % | ±0,0 % | 43 (43) / 35 (30) |
+| 🍂 Buchenhallen | Rotbuche | 50:01 min | +1,1 % | +1,1 % | 40:42 min | −1,2 % | −1,7 % | 40 (34) / 25 (26) |
+| ⛰️ Bergmischwald | Weißtanne | 48:42 min | −1,6 % | −1,3 % | 41:45 min | +1,3 % | +1,2 % | 32 (41) / 23 (22) |
+| 🌲 Kiefernheide | Waldkiefer | 50:04 min | +1,2 % | +1,0 % | 39:43 min | **−3,6 %** | −3,6 % | **71 (66) / 52 (58)** |
+
+Das Käferjahr kommt in der Heide jetzt in 71 / 52 von 160 Durchgängen (3d: 40 / 38; Heimatwald
+29 / 28) – wie vorab in 24.13 gemessen (71 / 52), also fast doppelt so oft wie in jedem anderen
+Wald. Das Tempo bleibt: Heide 50:05 → 50:04 min (Harmonie), 39:48 → 39:43 min (Wachstum,
+−3,4 → −3,6 %), alle anderen Wälder auf die Sekunde wie in 3d. Alle Waldtypen innerhalb
+**±3,6 %** (Ziel ±5 %). Landschaft (Spielweisen, 20 Durchgänge): vollständig 14,2 h (Harmonie),
+13,3 h (Wachstum), 39,4 h (Zufall); Wachstum gegenüber Harmonie 6,1 / 6,2 % (< 10 %).
+**Keine Zahl geändert.**
+
 **Stand 3d (Phase 7, echte Logik mit Wetter je Standort):** wie „Stand 2c“, jetzt mit dem
 Wetter des Waldtyps aus `core/weather.ts` (3c, 24.14) – keine Hilfsskripte mehr; „ohne“ =
 derselbe Lauf mit `withoutSiteWeather` (jeder Wald mit dem Wetter des Heimatwaldes, = Stand 2c).
@@ -6750,7 +6773,7 @@ In `src/content/achievements.ts` (`AchievementCondition`):
   Logik ist der Wachstums-Spieler über die ganze Landschaft nur 5,1 % (vollständig) bzw.
   6,5 % (alle voll) schneller (24.10) – unter der vereinbarten Schwelle von 10 %. Nach Schritt B
   (Wildwechsel, `featured`) und den neuen Leitbäumen (2c): 6,5 % bzw. 6,8 %, mit dem Wetter je
-  Standort (3d): 6,4 % bzw. 6,2 % – weiter darunter, nicht umgesetzt. Bleibt als Option, falls spätere Inhalte den Abstand vergrößern: +1 🪶 je Wald, dessen
+  Standort (3d): 6,4 % bzw. 6,2 %, mit dem Käferjahr je Standort (3e): 6,1 % bzw. 6,2 % – weiter darunter, nicht umgesetzt. Bleibt als Option, falls spätere Inhalte den Abstand vergrößern: +1 🪶 je Wald, dessen
   höchste Harmonie einmal eine hohe Schwelle erreicht hat (Feld `bestHarmony` je Wald, neue
   Spielstand-Version). Achtung bei der Schwelle: Gemessen erreichen beide Spielweisen im
   Lauf der Landschaft in jedem Wald 288–311 (Harmonie 310–311, Wachstum 288–300) – eine
@@ -6784,6 +6807,8 @@ In `src/content/achievements.ts` (`AchievementCondition`):
   schwärmen die Borkenkäfer“ – mit 3e hält sie es; der Spieler erlebt den Waldtyp als
   Geschichte, nicht nur als Zahl. Klein: ein Datenfeld, ein Faktor in `eventWeight`, keine
   Spielstand-Version. Spezifikation in ROADMAP Phase 7, 3e.
+  **Umgesetzt in 3e, nachgemessen (24.7 „Stand 3e“):** Heide 71 / 52 von 160 (Heimatwald
+  29 / 28), Zeit 50:04 / 39:43 min (−3,6 % Wachstum, innerhalb ±5 %). Erledigt.
 
 ### 24.14 Waldtyp und Wetter (Phase 7, 3b)
 
@@ -6914,6 +6939,8 @@ haben, braucht das Ereignis selbst eine Regel (offene Frage 24.13); für 3b bewu
 Faktor des aktiven Waldes; der Faktor des Waldes gilt auch ohne Wetter (Modus `off`). Heide:
 Dürretag 3 × 3 = 9, sonst 3. Bedingungen („Käfer ungejagt“, Sommer, Hain, einmal je Zyklus)
 unverändert; kein Feld im Spielstand.
+**Nachgemessen in 3e** (24.7 „Stand 3e“): Kiefernheide Käferjahr 71 / 52 von 160 (Harmonie /
+Wachstum), Zeit unverändert innerhalb ±0,2 %.
 
 **Warum diese Zahlen:** Faktor 2 (bzw. 2,5 für die Dürre der Heide) ist die kleinste Zahl, die
 man ohne Statistik bemerkt: In einem Zyklus bis zum Urwald (~16 Tage, vier Frühlinge) regnet es

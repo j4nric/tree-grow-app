@@ -5,7 +5,8 @@ import { makeLayout, placeMainTree } from '../src/render/layout';
 import { buildTree, formAt, normalizeSpecies, RENDER_TREE_SPECIES, TREE_FORMS, TREE_SPECIES, type TreeSpecies } from '../src/render/plant';
 import { seasonLook } from '../src/render/season';
 import { speciesLeafAmount } from '../src/render/species';
-import { drawScene, type SceneInput, type ScenePlant } from '../src/render/tree';
+import { FIR_NEEDLES, firConeSpots, paintFirTiers } from '../src/render/species-fir-alder';
+import { drawScene, firHaze, neighborIsFir, type SceneInput, type ScenePlant } from '../src/render/tree';
 
 /**
  * Weißtanne und Schwarzerle (DESIGN_V2.md 25.6 Nr. 1): zunächst nur render-lokal
@@ -354,3 +355,94 @@ describe('Weißtanne und Schwarzerle: Jahreszeiten und Leistung', () => {
     expect(offscreen('alder', 0.048)).toBe(0);
   });
 });
+
+describe('Weißtanne: Wipfel, Zapfen und ferne Tannen (Playtest Phase 7, S6/S7/K8)', () => {
+  /** Zeichen-Stub: merkt sich alle Punkte aus moveTo/lineTo. */
+  function pointCtx(): { ctx: CanvasRenderingContext2D; pts: [number, number][] } {
+    const pts: [number, number][] = [];
+    const ctx = new Proxy({} as Record<string | symbol, unknown>, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        return (...a: number[]) => {
+          if (prop === 'moveTo' || prop === 'lineTo') pts.push([a[0]!, a[1]!]);
+        };
+      },
+      set(target, prop, v) {
+        target[prop] = v;
+        return true;
+      },
+    }) as unknown as CanvasRenderingContext2D;
+    return { ctx, pts };
+  }
+  const SCALE = 300;
+
+  it('Leittrieb ragt nie kahl über die Krone: die Nadel-Spitze reicht bis zum Wipfel (g 2–8)', () => {
+    for (let g = 2; g <= 8; g += 0.25) {
+      const geo = buildTree(g, 7, TREE_FORMS.fir);
+      const trunk = geo.branches.filter((b) => (b.order ?? 0) === 0);
+      const tip = trunk.reduce((a, b) => (b.y2 < a.y2 ? b : a));
+      const { ctx, pts } = pointCtx();
+      paintFirTiers(ctx, geo, 0, 0, SCALE, FIR_NEEDLES, 0);
+      // Benadelt bis zur Spitze: Ein gezeichneter Punkt liegt (fast) auf dem Wipfel – oder
+      // der Wipfel steckt in der Krone (flacher Gipfel im Alter).
+      const near = pts.some(([x, y]) => Math.hypot(x - tip.x2 * SCALE, y - tip.y2 * SCALE) < 1.5);
+      const inside = Math.min(...pts.map(([, y]) => y)) <= tip.y2 * SCALE - 2;
+      expect(near || inside, `g=${g}`).toBe(true);
+      // Vor dem Fix: Ab Setzling ragte der Leittrieb kahl heraus – die Spitze muss jetzt benadelt sein.
+      if (g >= 3 && g <= 6) expect(near, `g=${g}`).toBe(true);
+    }
+  });
+
+  it('Zapfen sitzen auf Ästen der oberen Krone – nie über dem Wipfel oder frei in der Luft', () => {
+    let total = 0;
+    for (let g = 4; g <= 8; g += 0.2) {
+      const geo = buildTree(g, 7, TREE_FORMS.fir);
+      const tipY = Math.min(...geo.branches.filter((b) => (b.order ?? 0) === 0).map((b) => b.y2)) * SCALE;
+      const arms = geo.branches.filter((b) => b.order === 1);
+      const cones = firConeSpots(geo, 0, 0, SCALE, g, 0);
+      expect(cones.length % 4).toBe(0);
+      for (let k = 0; k < cones.length; k += 4) {
+        const [x, y, , h] = [cones[k]!, cones[k + 1]!, cones[k + 2]!, cones[k + 3]!];
+        total++;
+        expect(y - h, `g=${g}`).toBeGreaterThan(tipY);
+        // Fuß nah an einem Astarm (Abstand zur Strecke Ansatz–Mitte–Spitze).
+        const dist = Math.min(
+          ...arms.flatMap((b) => [
+            segDist(x, y, b.x1 * SCALE, b.y1 * SCALE, b.mx * SCALE, b.my * SCALE),
+            segDist(x, y, b.mx * SCALE, b.my * SCALE, b.x2 * SCALE, b.y2 * SCALE),
+          ]),
+        );
+        expect(dist, `g=${g}`).toBeLessThan(SCALE * 0.06);
+      }
+      // Im Winter zerfallen die meisten Zapfen.
+      expect(firConeSpots(geo, 0, 0, SCALE, g, 1).length).toBeLessThanOrEqual(cones.length);
+    }
+    expect(total).toBeGreaterThan(20);
+    // Vor „Alter Baum“ keine Zapfen.
+    expect(firConeSpots(buildTree(3.9, 7, TREE_FORMS.fir), 0, 0, SCALE, 3.9)).toEqual([]);
+  });
+
+  it('ferne Tannen: weniger Dunst als Laubbäume, Nachbarn um die Tanne meist Tannen', () => {
+    expect(firHaze(0.7)).toBeLessThan(0.45);
+    expect(firHaze(0)).toBe(0);
+    const seeds = Array.from({ length: 12 }, (_, i) => 1000 + i);
+    const firs = seeds.filter((s) => neighborIsFir('fir', s)).length;
+    expect(firs).toBeGreaterThanOrEqual(8);
+    expect(firs).toBeLessThan(12);
+    for (const sp of ['oak', 'beech', 'pine', 'alder'] as const) expect(seeds.some((s) => neighborIsFir(sp, s))).toBe(false);
+  });
+
+  it('Hain mit Weißtanne: Nachbarn als Tannen gezeichnet, ohne NaN, stabil', () => {
+    const a = play({ mainTree: 'fir', season: 1 }, 6.5);
+    expect(a.filter((c) => /NaN|Infinity/.test(c))).toEqual([]);
+    expect(play({ mainTree: 'fir', season: 1 }, 6.5)).toEqual(a);
+  });
+});
+
+/** Abstand eines Punkts zur Strecke. */
+function segDist(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(px - ax - dx * t, py - ay - dy * t);
+}
