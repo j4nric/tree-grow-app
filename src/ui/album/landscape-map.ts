@@ -109,6 +109,13 @@ export function createLandscapeMap(onSite: (id: SiteId) => void): LandscapeMap {
       weather.title = `Wetter: ${site.weather}`;
       button.append(weather, srOnly(`, Wetter: ${site.weather}`));
     }
+    // Ereignisse des Waldtyps (Phase 9, 1c): Zeichen an der linken Ecke, der Satz als Tooltip und vorgelesen.
+    if (site.events && site.eventIcons) {
+      const events = el('span', 'lsc-site-events', site.eventIcons);
+      events.setAttribute('aria-hidden', 'true');
+      events.title = `Hier öfter: ${site.events}`;
+      button.append(events, srOnly(`, hier öfter: ${site.events}`));
+    }
     button.addEventListener('click', () => onSite(site.id));
     map.append(button);
     const node = { button, name, status, state };

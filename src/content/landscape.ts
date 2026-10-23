@@ -67,7 +67,10 @@ export interface ForestSite {
    * Gelesen von `siteWeatherWeights` in core/weather.ts (Phase 7, 3c) für den aktiven Wald.
    */
   weather: Readonly<Partial<Record<WeatherId, number>>>;
-  /** Kurztext zum Wetter für Karte und Tooltip („Oft Landregen“), leer beim Heimatwald. */
+  /**
+   * Kurztext zum Wetter für Karte und Tooltip („Oft Landregen“), leer beim Heimatwald. Nur Wetter:
+   * die häufigeren Ereignisse nennt die Oberfläche aus `eventFactors` („Hier öfter: …“, Phase 9, 1c).
+   */
   weatherSummary: string;
   /**
    * Ereignisse des Waldtyps (DESIGN_V2.md 24.13/24.14, Phase 7, 3e): Faktor auf das
@@ -153,7 +156,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     giftSummary: 'Ab Alter Baum +1 Platz Waldtümpel in allen Wäldern – Kröten wandern den Bach hinauf.',
     // Flussnebel und Landregen aus dem Westen; das Grundwasser steht hoch, Dürre ist selten.
     weather: { rain: 2, drought: 0.5 },
-    weatherSummary: 'Oft Landregen, selten Dürre. Im Frühjahr steigt der Fluss – Regenreicher Frühling öfter.',
+    weatherSummary: 'Oft Landregen, selten Dürre – im Frühjahr steigt der Fluss.',
     // Frühjahrshochwasser, danach Schnecken im Schlick (26.2). Das Schneckenjahr bleibt selten
     // (braucht ungejagte Schnecken), spürbar ist der Regenreiche Frühling (× 3 brächte kaum mehr).
     eventFactors: { rain: 2, 'slug-year': 3 },
@@ -180,7 +183,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     giftSummary: 'Amphibien +5 % 😊 in allen Wäldern – im Bruch laichen sie sicher.',
     // Über dem stehenden Wasser bildet sich an kühlen Tagen Nebel; der nasse Torf trocknet nie aus.
     weather: { fog: 2, drought: 0.5 },
-    weatherSummary: 'Oft Nebel über dem Wasser, selten Dürre – Krötennächte öfter.',
+    weatherSummary: 'Oft Nebel über dem Wasser, selten Dürre.',
     // Krötennacht: Im Bruch laichen sie sicher (26.2) – braucht die Erdkröte im Wald.
     eventFactors: { 'toad-migration': 3 },
     position: { x: 0.75, y: 0.8 },
@@ -207,7 +210,7 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     giftSummary: 'Ab Hain +1 Platz Höhlen & Totholz in allen Wäldern – Spechte streifen weit umher.',
     // Unter dem geschlossenen Dach ist es windstill; im Herbst hängt der Nebel zwischen den Säulen.
     weather: { fog: 1.5, storm: 0.5 },
-    weatherSummary: 'Windstill unter dem Dach, im Herbst Nebel zwischen den Säulen – Buchenmast öfter.',
+    weatherSummary: 'Windstill unter dem Dach, im Herbst Nebel zwischen den Säulen.',
     // Buchenmast – und im Jahr danach die Mäuse (26.2). Mast × 3 kostete den Harmonie-Spieler zu viel.
     eventFactors: { 'mast-year': 2, 'vole-year': 3 },
     position: { x: 0.15, y: 0.35 },

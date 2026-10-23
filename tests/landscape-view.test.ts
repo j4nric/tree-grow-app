@@ -16,6 +16,8 @@ import {
   landscapeErrorText,
   newCycleButtonText,
   siteChangeText,
+  siteEventHints,
+  siteEventText,
   splitSiteSummary,
   targetText,
   toLandscapeMapView,
@@ -103,13 +105,44 @@ describe('Karte der Landschaft: Standorte', () => {
     expect(flood.ancientText).toBeNull();
     // Wetter des Waldtyps (24.14): Zeichen der häufigsten Lage + Kurztext; Heimatwald ohne.
     expect(home.weather).toBeNull();
-    expect(flood.weather).toBe('🌧️ Oft Landregen, selten Dürre. Im Frühjahr steigt der Fluss – Regenreicher Frühling öfter.');
+    expect(flood.weather).toBe('🌧️ Oft Landregen, selten Dürre – im Frühjahr steigt der Fluss.');
     expect(map.sites.find((s) => s.id === 'heath')!.weather).toBe('🌡️ Viel Sonne, im Sommer oft Dürre – dann schwärmen die Borkenkäfer.');
-    expect(map.sites.find((s) => s.id === 'carr')!.weather).toBe('🌫️ Oft Nebel über dem Wasser, selten Dürre – Krötennächte öfter.');
+    expect(map.sites.find((s) => s.id === 'carr')!.weather).toBe('🌫️ Oft Nebel über dem Wasser, selten Dürre.');
+    // Ereignisse des Waldtyps (Phase 9, 1c): eigene Zeile „Hier öfter“, nicht im Wetter-Text.
+    expect(flood.events).toBe('🌧️ Regenreicher Frühling, 🐌 Schneckenjahr');
+    expect(flood.eventIcons).toBe('🌧️🐌');
+    expect(home.events).toBeNull();
+    expect(home.eventIcons).toBeNull();
+    expect(map.sites.find((s) => s.id === 'heath')!.events).toBe('🪲 Käferjahr');
+    expect(map.sites.find((s) => s.id === 'mountain')!.events).toBeNull();
+    for (const s of map.sites) expect(s.weather ?? '', s.id).not.toContain('öfter');
     expect(newCycleButtonText(flood)).toBe('Auwald am Fluss gründen (3 🪶)');
     expect(targetText(flood, '🌳 Heimatwald')).toContain('Der Gewinn dieses Zyklus geht noch an 🌳 Heimatwald.');
     // Leitbaum gesperrt: die Eiche wächst, der Grund steht dabei.
     expect(map.sites.find((s) => s.id === 'heath')!.tree).toContain('noch nicht freigeschaltet');
+  });
+
+  it('Hier öfter: Ereignisse mit Faktor > 1 aus eventFactors, Symbol und Name aus den Ereignis-Daten (Phase 9, 1c)', () => {
+    const byId = (id: SiteId) => LANDSCAPE_SITES.find((s) => s.id === id)!;
+    const texts = Object.fromEntries(LANDSCAPE_SITES.map((s) => [s.id, siteEventText(s)]));
+    expect(texts).toEqual({
+      home: null,
+      floodplain: '🌧️ Regenreicher Frühling, 🐌 Schneckenjahr',
+      carr: '🐸 Krötenwanderung',
+      beechwood: '🌰 Mastjahr, 🐭 Mäusejahr',
+      mountain: null,
+      heath: '🪲 Käferjahr',
+    });
+    expect(siteEventHints(byId('heath'))).toEqual([{ id: 'beetle-year', icon: '🪲', name: 'Käferjahr' }]);
+    // Aus den Daten, nicht hart kodiert: jedes Ereignis mit Faktor > 1 genau einmal.
+    for (const site of LANDSCAPE_SITES) {
+      const ids = Object.entries(site.eventFactors).filter(([, f]) => f > 1).map(([id]) => id);
+      expect(siteEventHints(site).map((h) => h.id), site.id).toEqual(ids);
+    }
+    // Faktor ≤ 1, ungültig oder unbekannt: übergangen; ohne Wald leer.
+    expect(siteEventHints({ eventFactors: { rain: 1, storm: 0.5, 'mast-year': Number.NaN, 'gibt-es-nicht': 3 } })).toEqual([]);
+    expect(siteEventText({ eventFactors: {} })).toBeNull();
+    expect(siteEventHints(undefined)).toEqual([]);
   });
 
   it('Sperrgründe als deutsche Sätze', () => {
@@ -302,6 +335,9 @@ describe('Spielanleitung: Waldlandschaft', () => {
     expect(text).toContain('3, 5, 7, 9 und 11 🪶');
     expect(text).toContain('50 %');
     expect(text).toContain('höchstens 500');
+    // Phase 9, 1c: jeder Wald erlebt eigene Ereignisse öfter – Beispiel aus den Daten.
+    expect(text).toContain('Jeder Wald erlebt außerdem eigene Ereignisse öfter, etwa 🌊 Auwald am Fluss: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr.');
+    expect(text).toContain('„Hier öfter“');
   });
 
   it('Urwald-Text nennt die Hähersaat aus content', () => {
