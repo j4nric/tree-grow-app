@@ -14,6 +14,23 @@
  * Gebaut wird die Seite weiterhin vollständig (DOM, Daten, Aktualisieren) – verborgen ist nur
  * die Darstellung. Braucht jemand die ganze Seite sofort (Sprungmarke), deckt `all` den Rest
  * auf einmal auf.
+ *
+ * **Seitensuche (Strg+F):** Wo der Browser `hidden="until-found"` kennt (Chromium, Firefox
+ * ab 139), trägt ein gesperrter Block dieses Attribut statt der eigenen Sperre: Der Browser
+ * sperrt ihn genauso (`content-visibility: hidden`, die geschätzte Höhe bleibt über
+ * `contain-intrinsic-block-size`), durchsucht ihn aber. Findet die Suche (oder ein
+ * Textfragment `#:~:text=`) etwas darin, kommt vorher `beforematch` – dann deckt `all` alle
+ * Blöcke sofort auf (wie eine Sprungmarke; die Blöcke davor ändern sonst noch ihre Höhe und
+ * verschieben den Fund). Ohne Unterstützung (Safari bis heute) bleibt die Sperre per
+ * `data-deferred` wie zuvor; die Suche findet dann erst aufgedeckte Blöcke – nach wenigen
+ * Leerlauf-Rückrufen also alles.
+ *
+ * **Safari:** kein `requestIdleCallback`. `IdleQueue` nimmt dort den Rückruf gleich nach dem
+ * nächsten Frame (render/idle.ts, `afterFramePost`): weiter ein Block je Frame, nur ohne auf
+ * Leerlauf zu warten – nach etwa neun Frames ist alles aufgedeckt. Der frühere Ersatz
+ * `setTimeout(…, 1)` deckte mehrere Blöcke vor demselben Frame auf, die der Browser dann
+ * zusammen auslegen musste. Gemessen in Chromium ohne `requestIdleCallback` (WebKit fehlt in der
+ * Testumgebung), siehe docs/ALBUM_UI.md R3.
  */
 import { IdleQueue } from '../../../render/idle';
 
@@ -65,6 +82,47 @@ export function createDeferredReveal(
       return count - next;
     },
   };
+}
+
+/** Was ein gesperrter Block können muss (ein HTMLElement; in Tests ein Ersatz). */
+export interface DeferredBlock {
+  readonly dataset: DOMStringMap;
+  readonly style: Pick<CSSStyleDeclaration, 'setProperty' | 'removeProperty'>;
+  setAttribute(name: string, value: string): void;
+  getAttribute(name: string): string | null;
+  removeAttribute(name: string): void;
+  addEventListener(type: 'beforematch', listener: () => void, options?: { once?: boolean }): void;
+}
+
+/** Kennt der Browser `hidden="until-found"` (erkennbar am Ereignis `beforematch`)? */
+export function supportsHiddenUntilFound(): boolean {
+  return typeof HTMLElement !== 'undefined' && 'onbeforematch' in HTMLElement.prototype;
+}
+
+/**
+ * Block bis zum Aufdecken sperren und mit geschätzter Höhe Platz halten. Mit `untilFound`
+ * sperrt der Browser per `hidden="until-found"` (durchsuchbar), sonst die eigene CSS-Regel
+ * über `data-deferred`. Die Höhe gilt in beiden Fällen (`--deferred-height`).
+ */
+export function deferBlock(block: DeferredBlock, heightPx: number, untilFound = supportsHiddenUntilFound()): void {
+  block.dataset.deferred = untilFound ? 'until-found' : '';
+  block.style.setProperty('--deferred-height', `${Math.round(heightPx)}px`);
+  if (untilFound) block.setAttribute('hidden', 'until-found');
+}
+
+/** Gesperrten Block aufdecken (beides entfernen – egal, wie er gesperrt war). */
+export function showBlock(block: DeferredBlock): void {
+  delete block.dataset.deferred;
+  block.style.removeProperty('--deferred-height');
+  if (block.getAttribute('hidden') === 'until-found') block.removeAttribute('hidden');
+}
+
+/**
+ * Findet die Seitensuche etwas in einem der Blöcke (`beforematch`), ruft `found` – meist
+ * `deferred.all()`. Ohne `hidden="until-found"` kommt das Ereignis nie; dann schadet es nicht.
+ */
+export function revealOnFind(blocks: readonly DeferredBlock[], found: () => void): void {
+  for (const block of blocks) block.addEventListener('beforematch', found, { once: true });
 }
 
 /**

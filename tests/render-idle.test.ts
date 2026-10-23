@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIDGROUND_MEADOW, MIDGROUND_WALL, midgroundPath } from '../src/render/habitat-scenery';
-import { IdleQueue, type IdlePost } from '../src/render/idle';
+import { IDLE_TIMEOUT_MS, IdleQueue, afterFramePost, defaultIdlePost, type IdlePost } from '../src/render/idle';
 import { makeLayout } from '../src/render/layout';
 import { RESIZE_SETTLE_SECONDS } from '../src/render/resize';
 import { drawScene, sceneCacheStats, type SceneAnimal, type SceneInput } from '../src/render/tree';
@@ -90,6 +90,113 @@ describe('IdleQueue', () => {
       expect(done).toEqual(['a']);
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it('ohne requestIdleCallback und Frames: je setTimeout-Rückruf genau ein Stück', () => {
+    vi.useFakeTimers();
+    try {
+      const q = new IdleQueue();
+      const done: string[] = [];
+      for (const k of ['a', 'b', 'c']) q.schedule(k, () => done.push(k));
+      expect(vi.getTimerCount()).toBe(1);
+      vi.advanceTimersToNextTimer();
+      expect(done).toEqual(['a']);
+      vi.advanceTimersToNextTimer();
+      expect(done).toEqual(['a', 'b']);
+      vi.advanceTimersToNextTimer();
+      expect(done).toEqual(['a', 'b', 'c']);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Safari-Ersatz (afterFramePost): ein Stück je Frame, als eigener Task nach dem Frame', () => {
+    vi.useFakeTimers();
+    try {
+      const frames: (() => void)[] = [];
+      const q = new IdleQueue(afterFramePost((cb) => frames.push(cb)));
+      const done: string[] = [];
+      for (const k of ['a', 'b', 'c']) q.schedule(k, () => done.push(k));
+      expect(frames).toHaveLength(1);
+      // Vor dem Frame passiert nichts – auch nicht nach 1 ms.
+      vi.advanceTimersByTime(1);
+      expect(done).toEqual([]);
+      // Frame: Das Stück läuft danach in einem eigenen Task, nicht im Frame selbst.
+      frames.shift()!();
+      expect(done).toEqual([]);
+      vi.advanceTimersByTime(0);
+      expect(done).toEqual(['a']);
+      // Das nächste Stück wartet auf den nächsten Frame.
+      vi.advanceTimersByTime(1);
+      expect(done).toEqual(['a']);
+      frames.shift()!();
+      vi.advanceTimersByTime(0);
+      frames.shift()!();
+      vi.advanceTimersByTime(0);
+      expect(done).toEqual(['a', 'b', 'c']);
+      expect(frames).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Safari-Ersatz ohne Frames (Hintergrund): spätestens nach dem Zeitlimit, genau einmal', () => {
+    vi.useFakeTimers();
+    try {
+      const frames: (() => void)[] = [];
+      const post = afterFramePost((cb) => frames.push(cb));
+      let runs = 0;
+      post(() => runs++);
+      vi.advanceTimersByTime(IDLE_TIMEOUT_MS - 1);
+      expect(runs).toBe(0);
+      vi.advanceTimersByTime(1);
+      expect(runs).toBe(1);
+      // Kommt der Frame doch noch, läuft nichts doppelt.
+      frames.shift()!();
+      vi.runAllTimers();
+      expect(runs).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ohne requestIdleCallback, mit requestAnimationFrame: Standard ist der Safari-Ersatz', () => {
+    vi.useFakeTimers();
+    const g = globalThis as { requestAnimationFrame?: unknown };
+    const frames: (() => void)[] = [];
+    g.requestAnimationFrame = (cb: () => void) => frames.push(cb);
+    try {
+      let runs = 0;
+      defaultIdlePost()(() => runs++);
+      vi.advanceTimersByTime(1);
+      expect(runs).toBe(0);
+      frames.shift()!();
+      vi.advanceTimersByTime(0);
+      expect(runs).toBe(1);
+    } finally {
+      delete g.requestAnimationFrame;
+      vi.useRealTimers();
+    }
+  });
+
+  it('mit requestIdleCallback: dieses, mit Zeitlimit', () => {
+    const calls: { timeout?: number }[] = [];
+    const g = globalThis as { requestIdleCallback?: unknown };
+    g.requestIdleCallback = (cb: () => void, opts?: { timeout: number }) => {
+      calls.push(opts ?? {});
+      cb();
+      return 1;
+    };
+    try {
+      const done: string[] = [];
+      new IdleQueue(defaultIdlePost()).schedule('a', () => done.push('a'));
+      expect(done).toEqual(['a']);
+      expect(calls).toEqual([{ timeout: IDLE_TIMEOUT_MS }]);
+    } finally {
+      delete g.requestIdleCallback;
     }
   });
 });
