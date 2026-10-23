@@ -956,7 +956,7 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   ≤ 120 Zeichen). **Warum:** Der Baum ist die größte Design-Arbeit und reine Daten; der
   `core-engineer` baut 2a dann gegen feste Inhalte, und die UI-Skizze 1c kann sofort beginnen.
   Abhängig: nichts
-- [ ] **1b** Aussaat-Animation (`renderer`, 27.12): Samen (Ahornflügel, Pusteblume) fliegen vom
+- [x] **1b** Aussaat-Animation (`renderer`, 27.12): Samen (Ahornflügel, Pusteblume) fliegen vom
   Rand in den Pflanzring; einmal je Setzen, gecacht, reduzierte Bewegung ohne; zunächst nur in der
   Demo (`?demo=sowing`). **Warum:** Die Aussaat ersetzt ein Ereignis, das der Spieler „bekam“ –
   ein sichtbarer Moment macht den Kauf zum Säen. Unabhängig von allem. Abhängig: nichts
