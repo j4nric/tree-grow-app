@@ -17,7 +17,8 @@ test('Erforschen: ⚖️ weg, ein Platz mehr, Knoten erledigt – auch nach dem 
   await gotoTab(page, 'nischen');
   await expect(niche(page, 'litter')).toContainText('1/2 belegt');
   await openTab(page, 'pflege');
-  await expect(page.locator('[data-ref="care-summary"]')).toContainText('⚖️ 400');
+  // Der Vorrat wächst ab dem Laden weiter (+48/min), darum nur die Größenordnung.
+  await expect(page.locator('[data-ref="care-summary"]')).toContainText(/⚖️ 4\d\d\b/);
   const care = page.locator('[data-ref="care"]');
   const litter = care.locator('[data-care="leaf-litter"]');
   await expect(litter).toContainText('Laub liegen lassen');
