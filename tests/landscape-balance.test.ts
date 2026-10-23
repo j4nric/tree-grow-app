@@ -9,6 +9,9 @@ import {
   peakTable,
   runLandscape,
   siteRun,
+  varietyLandscapeTable,
+  wildwechselChanceTable,
+  withoutFeatured,
   type LandscapeSummary,
 } from '../scripts/landscape';
 import { LANDSCAPE_SITES, SITE_IDS } from '../src/content/landscape';
@@ -31,9 +34,16 @@ const RUNS = Number(env.SIM_LANDSCAPE_RUNS ?? 20);
 const SITE_RUNS = Number(env.SIM_LANDSCAPE_SITE_RUNS ?? 80);
 const options = { maxCycles: 250, cycleMaxSeconds: 6 * 3600 };
 
-function summary(label: string, strategy: Strategy, runs = RUNS): LandscapeSummary {
-  return { label, runs: Array.from({ length: runs }, (_, k) => runLandscape({ ...options, strategy, seed: 1001 + k })) };
+function summary(label: string, strategy: Strategy, runs = RUNS, wildwechsel = true): LandscapeSummary {
+  return { label, runs: Array.from({ length: runs }, (_, k) => runLandscape({ ...options, strategy, seed: 1001 + k, wildwechsel })) };
 }
+
+/**
+ * Wildwechsel-Varianten (2c): `on` = Spiel heute, `off` = ohne Wildwechsel-Karten (Bestand der
+ * Nachbarn leer), `none` = zusätzlich ohne `featured` (wie vor Schritt B). Auswahl mit
+ * SIM_LANDSCAPE_WW=on,off,none (Standard: alle drei; einzeln, um parallel zu rechnen).
+ */
+const WW_VARIANTS = (env.SIM_LANDSCAPE_WW ?? 'on,off,none').split(',');
 
 describe('Waldlandschaft – Simulation (kurz)', { timeout: 120_000 }, () => {
   it('ein Harmonie-Spieler schaltet die Landschaft frei und gründet den zweiten Wald (echte Logik)', () => {
@@ -48,7 +58,7 @@ describe('Waldlandschaft – Simulation (kurz)', { timeout: 120_000 }, () => {
   });
 });
 
-describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', () => {
+describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', { timeout: 7_200_000 }, () => {
   it('Heute: Urwald-Neustarts bis zum vollen Waldgedächtnis (ohne Landschaft)', () => {
     const cycles = 16;
     const runs = Array.from({ length: RUNS }, (_, k) => runCycles(HARMONY, { seed: 1001 + k, targetStage: 7, maxSeconds: 6 * 3600, care: true, cycles }));
@@ -85,6 +95,26 @@ describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', () => {
       for (const run of r.runs) {
         expect(run.maxGrowth).toBeLessThan(1e5);
         expect(run.lifetimeGrowth).toBeLessThan(1e9);
+      }
+    }
+  });
+
+  it('Wildwechsel: Vielfalt der Karten mit und ohne (7.7, 24.6)', () => {
+    const labels = { on: 'mit Wildwechsel', off: 'ohne Wildwechsel', none: 'ohne Wildwechsel und ohne featured' } as const;
+    for (const v of WW_VARIANTS as (keyof typeof labels)[]) {
+      const make = () => [
+        summary(`Harmonie, ${labels[v]}`, HARMONY, RUNS, v === 'on'),
+        summary(`Wachstum, ${labels[v]}`, GROWTH, RUNS, v === 'on'),
+        summary(`Zufall, ${labels[v]}`, RANDOM, Math.min(RUNS, 10), v === 'on'),
+      ];
+      const rows = v === 'none' ? withoutFeatured(make) : make();
+      console.log(`### ${labels[v]}\n\n${milestoneTable(rows)}\n\n${firstCycleTable(rows)}\n\n${varietyLandscapeTable(rows)}\n\n${wildwechselChanceTable(rows)}`);
+      const complete = rows.map((r) => medianOrNull(r.runs.map((x) => x.completeAt)));
+      const maxed = rows.map((r) => medianOrNull(r.runs.map((x) => x.allMaxedAt)));
+      console.log(`Wachstum gegenüber Harmonie (${labels[v]}): vollständig ${((complete[0]! / complete[1]! - 1) * 100).toFixed(1)} %, alle voll ${((maxed[0]! / maxed[1]! - 1) * 100).toFixed(1)} %`);
+      for (const r of rows) for (const run of r.runs) for (const c of run.cycles) {
+        expect(c.wildwechselOffered).toBeLessThanOrEqual(c.animalEncounters);
+        if (v !== 'on') expect(c.wildwechselOffered).toBe(0);
       }
     }
   });

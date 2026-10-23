@@ -26,6 +26,8 @@ import { MAIN_TREES_BY_ID, type TreeEffect } from '../src/content/trees';
 import { GENERA, NICHE_IDS, PLANT_GROUPS } from '../src/content/types';
 import { MAX_FOREST_MEMORY } from '../src/core/state';
 import { corridorBetween } from '../src/core/landscape';
+import { SEASON_IDS } from '../src/content/seasons';
+import { WEATHERS_BY_ID, WEATHER_WEIGHTS, type WeatherId } from '../src/content/weather';
 
 /**
  * Inhalte der Waldlandschaft (DESIGN_V2.md 24). Die Rechenregeln (wirksames Gedächtnis,
@@ -106,6 +108,63 @@ describe('Waldlandschaft: Standorte', () => {
       if (e.kind === 'light' || e.kind === 'water') expect(e.amount).toBe(1);
       if (e.kind === 'happiness') expect(e.points).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+describe('Waldlandschaft: Wetter je Waldtyp (24.14, Daten für Phase 7, 3c)', () => {
+  /** Anteile einer Jahreszeit an einem Standort nach der Formel aus 24.14 (vor „nie zwei rau“). */
+  const shares = (site: (typeof LANDSCAPE_SITES)[number], season: (typeof SEASON_IDS)[number]) => {
+    const entries = (Object.entries(WEATHER_WEIGHTS[season]) as [WeatherId, number][]).map(([id, w]) => [id, w * (site.weather[id] ?? 1)] as const);
+    const total = entries.reduce((a, [, w]) => a + w, 0);
+    return new Map(entries.map(([id, w]) => [id, w / total]));
+  };
+
+  it('Heimatwald ohne Faktoren, jeder andere Wald mit eigenem Wetter und Kurztext', () => {
+    const home = LANDSCAPE_SITES_BY_ID.get(HOME_SITE)!;
+    expect(home.weather).toEqual({});
+    expect(home.weatherSummary).toBe('');
+    for (const site of LANDSCAPE_SITES.filter((s) => s.id !== HOME_SITE)) {
+      expect(Object.values(site.weather).some((f) => f! > 1), site.id).toBe(true);
+      expect(site.weatherSummary.length, site.id).toBeGreaterThan(10);
+    }
+    // Jeder Wald hat ein anderes Wetter.
+    const keys = LANDSCAPE_SITES.map((s) => JSON.stringify(Object.entries(s.weather).sort()));
+    expect(new Set(keys).size).toBe(LANDSCAPE_SITES.length);
+  });
+
+  it('Faktoren nur für bekannte Lagen, nie für „Wechselhaft“, zwischen 0,5 und 2,5', () => {
+    for (const site of LANDSCAPE_SITES) {
+      for (const [id, f] of Object.entries(site.weather) as [WeatherId, number][]) {
+        expect(WEATHERS_BY_ID.has(id), `${site.id} ${id}`).toBe(true);
+        expect(id, site.id).not.toBe('mild');
+        expect(f, `${site.id} ${id}`).toBeGreaterThanOrEqual(0.5);
+        expect(f, `${site.id} ${id}`).toBeLessThanOrEqual(2.5);
+        expect(f, `${site.id} ${id}`).not.toBe(1);
+        // Ein Faktor wirkt nur, wenn die Lage in mindestens einer Jahreszeit vorkommt.
+        expect(SEASON_IDS.some((s) => (WEATHER_WEIGHTS[s][id] ?? 0) > 0), `${site.id} ${id}`).toBe(true);
+      }
+    }
+  });
+
+  it('jede Jahreszeit bleibt ruhig genug: „Wechselhaft“ ≥ 25 %, raue Lagen ≤ 30 %', () => {
+    for (const site of LANDSCAPE_SITES) {
+      for (const season of SEASON_IDS) {
+        const m = shares(site, season);
+        const rough = [...m].filter(([id]) => WEATHERS_BY_ID.get(id)!.rough).reduce((a, [, p]) => a + p, 0);
+        expect(m.get('mild')!, `${site.id} ${season}`).toBeGreaterThanOrEqual(0.25);
+        expect(rough, `${site.id} ${season}`).toBeLessThanOrEqual(0.3);
+      }
+    }
+  });
+
+  it('Charakter: Bergmischwald mehr Neuschnee, Auwald mehr Landregen, Kiefernheide mehr Dürre, Erlenbruch mehr Nebel', () => {
+    const home = LANDSCAPE_SITES_BY_ID.get(HOME_SITE)!;
+    const more = (site: (typeof SITE_IDS)[number], id: WeatherId, season: (typeof SEASON_IDS)[number]) =>
+      shares(LANDSCAPE_SITES_BY_ID.get(site)!, season).get(id)! > shares(home, season).get(id)!;
+    expect(more('mountain', 'snow', 'winter')).toBe(true);
+    expect(more('floodplain', 'rain', 'spring')).toBe(true);
+    expect(more('heath', 'drought', 'summer')).toBe(true);
+    expect(more('carr', 'fog', 'autumn')).toBe(true);
   });
 });
 

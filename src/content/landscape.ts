@@ -1,5 +1,6 @@
 import type { TreeTrait, MainTreeId } from './trees';
 import type { Genus, Tag } from './types';
+import type { WeatherId } from './weather';
 
 /**
  * Waldlandschaft – die Prestige-Ebene über dem Neuen Zyklus (docs/DESIGN_V2.md, Abschnitt
@@ -58,6 +59,16 @@ export interface ForestSite {
   gift: TreeTrait | null;
   /** Kurztext der Gabe. */
   giftSummary: string;
+  /**
+   * Wetter des Waldtyps (DESIGN_V2.md 24.14): Faktor auf das Gewicht einer Wetterlage in
+   * WEATHER_WEIGHTS – in jeder Jahreszeit, in der sie vorkommt (eine Lage kommt so nie
+   * außerhalb ihrer Jahreszeit). Fehlt eine Lage, gilt 1; „Wechselhaft“ hat nie einen Faktor.
+   * Danach gelten die Regeln von 21.2 unverändert (Tag 0, Schonzeit, nie zwei raue Tage).
+   * Wirksam erst mit Phase 7, 3c (`core-engineer`) – bis dahin nur Daten mit Inhaltstest.
+   */
+  weather: Readonly<Partial<Record<WeatherId, number>>>;
+  /** Kurztext zum Wetter für Karte und Tooltip („Oft Landregen“), leer beim Heimatwald. */
+  weatherSummary: string;
   /** Lage auf der Landschaftskarte (0–1, x nach rechts, y nach unten). */
   position: { x: number; y: number };
 }
@@ -86,6 +97,8 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     featured: [],
     gift: null,
     giftSummary: '–',
+    weather: {},
+    weatherSummary: '',
     position: { x: 0.5, y: 0.5 },
   },
   {
@@ -104,6 +117,9 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     featured: ['amphibians', 'birds'],
     gift: { minStage: 4, effect: { kind: 'slot', niche: 'pond', amount: 1 } },
     giftSummary: 'Ab Alter Baum +1 Platz Waldtümpel in allen Wäldern – Kröten wandern den Bach hinauf.',
+    // Flussnebel und Landregen aus dem Westen; das Grundwasser steht hoch, Dürre ist selten.
+    weather: { rain: 2, drought: 0.5 },
+    weatherSummary: 'Oft Landregen, selten Dürre – der Fluss ist nie weit.',
     position: { x: 0.85, y: 0.35 },
   },
   {
@@ -121,6 +137,9 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     featured: ['amphibians', 'fungi'],
     gift: { minStage: 0, effect: { kind: 'happiness', genus: 'amphibians', points: 5 } },
     giftSummary: 'Amphibien +5 % 😊 in allen Wäldern – im Bruch laichen sie sicher.',
+    // Über dem stehenden Wasser bildet sich an kühlen Tagen Nebel; der nasse Torf trocknet nie aus.
+    weather: { fog: 2, drought: 0.5 },
+    weatherSummary: 'Oft Nebel über dem Wasser, selten Dürre.',
     position: { x: 0.75, y: 0.8 },
   },
   {
@@ -139,6 +158,9 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     featured: ['birds', 'fungi'],
     gift: { minStage: 5, effect: { kind: 'slot', niche: 'hollows', amount: 1 } },
     giftSummary: 'Ab Hain +1 Platz Höhlen & Totholz in allen Wäldern – Spechte streifen weit umher.',
+    // Unter dem geschlossenen Dach ist es windstill; im Herbst hängt der Nebel zwischen den Säulen.
+    weather: { fog: 1.5, storm: 0.5 },
+    weatherSummary: 'Windstill unter dem Dach, im Herbst Nebel zwischen den Säulen.',
     position: { x: 0.15, y: 0.35 },
   },
   {
@@ -158,6 +180,9 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     featured: ['mammals', 'birds'],
     gift: { minStage: 0, effect: { kind: 'water', amount: 1 } },
     giftSummary: '+1 💧 in allen Wäldern – Quellwasser aus den Bergen.',
+    // Steigungsregen am Hang, im Winter liegt viel Schnee.
+    weather: { snow: 2, rain: 1.5 },
+    weatherSummary: 'Viel Neuschnee im Winter, Steigungsregen am Hang.',
     position: { x: 0.5, y: 0.12 },
   },
   {
@@ -177,6 +202,9 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     featured: ['insects'],
     gift: { minStage: 0, effect: { kind: 'light', amount: 1 } },
     giftSummary: '+1 ☀️ in allen Wäldern – lichte Ränder wie in der Heide.',
+    // Sand speichert kein Wasser: Sommerdürre ist hier häufig – und mit ihr das Käferjahr (22.6).
+    weather: { drought: 2.5, sun: 1.5, rain: 0.5 },
+    weatherSummary: 'Viel Sonne, im Sommer oft Dürre – dann schwärmen die Borkenkäfer.',
     position: { x: 0.25, y: 0.8 },
   },
 ];

@@ -5756,7 +5756,9 @@ Wachstum 0,18 / 0 / 0,15 / 0,05, Zufall 0,33 / 0,15 / 0,25 / 0,12 (vorher 0,14 /
 > `src/core/save.ts` (24.8). Tests `tests/landscape-core.test.ts` (Logik) und
 > `tests/landscape.test.ts` (Inhalte); Simulation auf der echten Logik in `scripts/landscape.ts`,
 > großer Lauf in `tests/landscape-balance.test.ts` (24.10). Karte, Tagebuch-Reiter und Kulisse
-> umgesetzt (#82–#84). Offen: Wildwechsel (Schritt B), Erfolge (festgelegt in 24.12, Umsetzung Phase 7, 2a/2b), Rest e2e (24.11) – Phase 7.
+> umgesetzt (#82–#84). Phase 7: Wildwechsel (Schritt B, 1a) und Erfolge (2a/2b) umgesetzt,
+> Wildwechsel gemessen (2c, 24.10), Wetter je Waldtyp entworfen (3b, **24.14**; Logik 3c).
+> Offen: Rest e2e (24.11, Phase 7 4a).
 > **Kein `break_infinity.js`** – Begründung und Obergrenzen in 24.9.
 
 ### 24.1 Warum eine zweite Ebene – und welche
@@ -5991,9 +5993,11 @@ ebenso die Hähersaat.
   Zufallswert gegen die Chance; nur bei einem Treffer und mindestens einer passenden Art zwei
   weitere (welche Art, gleichverteilt über alle passenden; welche Karte, gleichverteilt).
   Online = offline, weil derselbe Wegpunkt-Pfad zieht (`tests/tick.test.ts`, Landschaft).
-- **Offen für die Messung (2c):** Die Karte ersetzt immer eine gezogene Karte, auch wenn
+- **Entschieden mit der Messung (2c):** Die Karte ersetzt immer eine gezogene Karte, auch wenn
   weniger als drei gezogen wurden (wenige passende Arten). Anhängen statt Ersetzen gäbe dann
-  eine Karte mehr – mit der Vielfalts-Messung (7.7) entscheiden.
+  eine Karte mehr – gemessen kommen Begegnungen mit weniger als drei Karten in der Landschaft
+  nicht vor (0,0 %, 24.10 „Wildwechsel und Vielfalt“). **Ersetzen bleibt**, ebenso die Chance
+  10 % je Korridor (höchstens 30 %).
 - **„Offene Nische“** heißt hier wie bei jeder Tierkarte: die Nische hat auf dieser Stufe
   Plätze (> 0) – ist sie voll, kann der Spieler tauschen. Der Weg einer Art ist der erste
   gebaute Korridor (Bau-Reihenfolge), dessen Nachbar sie im Bestand hat.
@@ -6032,6 +6036,26 @@ ebenso die Hähersaat.
 
 Wie bei den Baumarten (17.4) darf kein Waldtyp „der beste“ sein: Ziel ±5 % Zeit bis zum Urwald
 gegenüber dem Heimatwald bei gleichem Gedächtnis.
+
+**Stand 2c (Phase 7, echte Logik):** wie „Stand Schritt A“ unten, aber mit `featured` (Schritt B),
+den Leitbäumen Weißtanne und Schwarzerle (2b) und **eigenem Wetter je Durchgang** (`siteRun`
+setzt jetzt eine Startzeit aus dem Seed; vorher hatten alle Durchgänge dieselbe Wetterfolge,
+weil das Wetter an Zyklusnummer und Startzeit hängt, 21.4); 160 Durchgänge, Median. Wildwechsel
+spielt hier keine Rolle (keine Korridore):
+
+| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | Wachstum: Urwald | gegenüber Heimatwald |
+|---|---|---|---|---|---|
+| 🌳 Heimatwald | Stieleiche | 49:29 min | – | 41:12 min | – |
+| 🌊 Auwald am Fluss | Stieleiche | 49:29 min | ±0,0 % | 41:43 min | +1,3 % |
+| 🌫️ Erlenbruch | Schwarzerle | 50:08 min | +1,3 % | 41:13 min | ±0,0 % |
+| 🍂 Buchenhallen | Rotbuche | 50:03 min | +1,1 % | 40:29 min | −1,7 % |
+| ⛰️ Bergmischwald | Weißtanne | 48:49 min | −1,3 % | 41:41 min | +1,2 % |
+| 🌲 Kiefernheide | Waldkiefer | 49:59 min | +1,0 % | 39:38 min | **−3,8 %** |
+
+Alle innerhalb ±5 %, die Kiefernheide für den Wachstums-Spieler mit −3,8 % (Schritt A: −4,7 %;
+mit 80 Durchgängen und gemeinsamer Wetterfolge −3,2 %) – `featured` (Insekten) macht sie nicht
+schneller. **Keine Änderung:** Ihr +2 ☀️ bleibt. Mit dem Wetter je Standort (3b, 24.14) rückt
+sie weiter zur Mitte (−3,4 %).
 
 **Stand Schritt A (echte Logik):** `siteRun` – frischer Spielstand, Gedächtnis 200, der
 Standort aktiv mit Eigenheit, Merkmalen und Leitbaum; alle Wälder gegründet (ruhend, ohne
@@ -6245,8 +6269,10 @@ Systeme, mit Pflege); Gründen, Wechseln und Korridore über `startNewCycle(…,
 `buildCorridor`, Eigenheiten, Gaben, Merkmale und wirksames Gedächtnis über `evaluate`. Bis
 Schritt A war es ein Modell, das die Landschaft um den Simulator herum nachbaute (Eigenheiten
 an die Baum-Eigenheiten gehängt); die Varianten der Regeln unten stammen aus diesem Modell –
-die Regeln sind jetzt Daten-Konstanten und im Lauf nicht mehr umschaltbar. **Nicht im Lauf:**
-Wildwechsel-Karten und `featured`-Gewichte (Schritt B).
+die Regeln sind jetzt Daten-Konstanten und im Lauf nicht mehr umschaltbar. Seit Schritt B
+ziehen Wildwechsel-Karten und `featured`-Gewichte mit (die echte Logik); für den Vergleich
+schaltet `runLandscape({ wildwechsel: false })` den Wildwechsel ab (Bestand der Nachbarn leer,
+gewürfelt wird weiter) und `withoutFeatured(…)` die Gattungen der Waldtypen (2c).
 
 **Spieler-Politik** (vernünftig, nicht optimal): jeder Zyklus bis zum Urwald; danach einen
 neuen Wald gründen, sobald die Hähersaat reicht (Reihenfolge Auwald, Buchenhallen, Kiefernheide,
@@ -6257,7 +6283,79 @@ es reicht (zuerst die am aktiven Wald). Stammgäste wie `runCycles`.
 ```bash
 SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.test.ts -t Spielweisen --silent=false   # ~9 min
 SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Waldtypen --silent=false                        # ~2 min
+SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 SIM_LANDSCAPE_WW=on npx vitest run tests/landscape-balance.test.ts -t Wildwechsel --silent=false   # ~8 min je Variante (on, off, none)
 ```
+
+**Stand 2c (Phase 7)** – echte Logik mit Wildwechsel, `featured` und den Leitbäumen Weißtanne
+und Schwarzerle (2b); sonst wie „Stand Schritt A“ (Harmonie und Wachstum 20, Zufall 10
+Durchgänge, dieselben Seeds; Median, kumulierte Spielzeit):
+
+| Spielweise | Freischaltung | 2. Wald | 3. | 4. | 5. | 6. Wald | Landschaft vollständig | alle Wälder voll | Zyklen | davon Ernte |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Harmonie | 4,5 h | 4,5 h | 6,4 h | 9,1 h | 11,0 h | 13,2 h | **14,2 h** | **16,5 h** | 66 | 30 (3,1 h) |
+| Wachstum | 4,4 h | 4,4 h | 5,6 h | 8,3 h | 10,4 h | 12,4 h | **13,3 h** | **15,5 h** | 72 | 34 (3,0 h) |
+| Zufall | 16,8 h | 16,8 h | 23,1 h | 29,2 h | 32,9 h | 36,6 h | 38,4 h | 42,6 h | 86,5 | 34 (5,5 h) |
+| *Harmonie ohne Wildwechsel* | 4,5 h | 4,5 h | 6,4 h | 9,0 h | 11,0 h | 13,1 h | 14,0 h | 16,5 h | 66 | 30 (3,1 h) |
+| *Wachstum ohne Wildwechsel* | 4,4 h | 4,4 h | 5,6 h | 8,3 h | 10,4 h | 12,5 h | 13,2 h | 15,5 h | 72 | 34 (3,0 h) |
+| *Zufall ohne Wildwechsel* | 16,8 h | 16,8 h | 22,2 h | 28,3 h | 32,2 h | 37,1 h | 39,1 h | 43,1 h | 86 | 34 (5,3 h) |
+| *Harmonie ohne Wildwechsel und `featured`* | 4,5 h | 4,5 h | 6,5 h | 9,1 h | 11,0 h | 13,1 h | 14,2 h | 16,6 h | 66 | 30 (3,1 h) |
+| *Wachstum ohne Wildwechsel und `featured`* | 4,4 h | 4,4 h | 5,7 h | 8,6 h | 10,5 h | 12,8 h | 13,7 h | 15,8 h | 72 | 33 (3,0 h) |
+| *Zufall ohne Wildwechsel und `featured`* | 16,8 h | 16,8 h | 22,9 h | 29,8 h | 34,6 h | 39,2 h | 40,8 h | 45,2 h | 86 | 34 (5,5 h) |
+
+| Spielweise | erster Urwald: Heimatwald | 2. Wald | 3. | 4. | 5. | 6. Wald |
+|---|---|---|---|---|---|---|
+| Harmonie | 2:34:57 h | 58 min | 58 min | 36 min | 28 min | 20 min |
+| Wachstum | 2:13:43 h | 42 min | 1:02:38 h | 30 min | 21 min | 17 min |
+| Zufall | 4:11:28 h | 1:32:00 h | 1:41:57 h | 1:02:30 h | 50 min | 39 min |
+
+- **Tempo:** Wildwechsel und `featured` verschieben die Landschaft um höchstens ±0,2 h
+  (Harmonie, Wachstum) – Streuung. Der Zufallsspieler ist mit beiden ~2,4 h schneller fertig
+  (38,4 gegen 40,8 h; `featured` hilft ihm, weil er Karten nicht bewertet). Ziele (a) und (b)
+  halten: 2. Wald 0,37 × Heimatwald, danach nie über 1,1 × des vorigen (Harmonie: 58, 58, 36,
+  28, 20 min); vollständig nach 14,2 h.
+- **Harmonie gegen Wachstum:** 6,5 % (vollständig) bzw. 6,8 % (alle voll) – vorher 5,1 / 6,5 %,
+  weiter unter 10 % (24.13).
+
+**Wildwechsel und Vielfalt (7.7)** – nur Zyklen mit Korridor am aktiven Wald (dieselben Läufe;
+„gleiches Set“, „lohnend“ über alle Begegnungen, „1–2 Karten“ und „Neu würfeln“ über Tier- und
+Pflanzenbegegnungen ab Setzling; Durststrecke = längste Zeit ohne lohnende Begegnung je Zyklus;
+„Arten auf Karten“ = verschiedene Arten auf den Tierkarten der ersten Ziehung je Zyklus):
+
+| Variante | Zyklen mit Korridor | Tierbegegnungen je Zyklus | mit Wildwechsel-Karte | gewählt je Zyklus | gleiches Set | 1–2 Karten | Neu würfeln möglich | lohnend | Durststrecke Median / 90 % | Arten auf Karten | selten/legendär je Zyklus | Arten im Wald (Urwald) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Harmonie, mit | 63 | 24,6 | 20,3 % | 1,35 | 0,4 % | 0,0 % | 91,2 % | 89,8 % | 30 s / 1:25 min | **27,5** | **6,46** | 37,7 |
+| Harmonie, ohne | 63 | 24,6 | – | – | 0,5 % | 0,0 % | 91,1 % | 89,9 % | 31 s / 1:25 min | 27,0 | 6,23 | 37,7 |
+| Wachstum, mit | 68 | 25,0 | 19,3 % | 1,47 | 1,4 % | 0,0 % | 93,0 % | 89,1 % | 29 s / 1:09 min | **28,1** | **5,72** | 37,5 |
+| Wachstum, ohne | 68 | 25,0 | – | – | 1,4 % | 0,0 % | 93,0 % | 89,0 % | 30 s / 1:10 min | 27,5 | 5,64 | 37,4 |
+| Zufall, mit | 78 | 24,9 | 20,0 % | 1,31 | 0,5 % | 0,0 % | 91,9 % | 93,3 % | 45 s / 3:02 min | 31,2 | **9,22** | 36,1 |
+| Zufall, ohne | 78 | 25,0 | – | – | 0,5 % | 0,0 % | 91,9 % | 93,4 % | 44 s / 2:56 min | 31,2 | 9,01 | 35,9 |
+
+**Chance prüfen** (Anteil der Tierbegegnungen mit Wildwechsel-Karte je Chance am aktiven Wald):
+
+| Spielweise | 10 % (1 Korridor) | 20 % (2) | 30 % (3+) | davon gewählt 10 / 20 / 30 % | erste gewählte ab 2. Wald: Zyklen Median / 90 % |
+|---|---|---|---|---|---|
+| Harmonie | 9,8 % (3889 Begegnungen) | 16,3 % | 26,1 % | 42,7 / 31,8 / 23,2 % | 1 / 2 |
+| Wachstum | 7,7 % (4392) | 16,0 % | 24,8 % | 41,5 / 34,0 / 27,6 % | 1 / 4 |
+| Zufall | 8,5 % (3020) | 17,7 % | 26,0 % | 33,7 / 28,5 / 24,0 % | 1 / 2 |
+
+**Bewertung (2c):**
+
+- **Die Chance stimmt:** Getroffen wird fast die Nennchance; was fehlt (bis ~2,5 Punkte bei
+  10 %, ~4–5 bei 30 %), sind Würfe ohne passende Art (Bestand der Nachbarn schon im Wald, Nische
+  noch zu). Wildwechsel ist eine **Überraschung, kein Tempo**: Zeiten und alle Kennzahlen aus 7.7
+  (gleiches Set, Neu würfeln, lohnend, Durststrecke) bleiben gleich; es kommen etwas mehr
+  verschiedene Arten (+0,5–0,6 je Zyklus) und seltene Karten (+0,1–0,2) auf den Tisch, und
+  der Spieler wählt je Zyklus 1,3–1,5 Tiere aus der Nachbarschaft. **Keine Änderung:**
+  `WILDWECHSEL_CHANCE` bleibt 0,1, `WILDWECHSEL_MAX_CHANCE` 0,3. Mehr lohnt nicht: Mit jedem
+  Korridor sinkt der Anteil gewählter Wildwechsel-Karten (43 → 32 → 23 %, Harmonie) – die
+  Nachbarn teilen dann meist den Bestand des eigenen Waldes. Weniger würde die Karte im ersten
+  Zyklus des 2. Waldes (ein Korridor) zu selten machen (heute ~2,4 je Zyklus, `wildwechsel-1`
+  im Median schon dort).
+- **Ersetzen statt Anhängen (offen aus 24.6):** Begegnungen mit weniger als drei Karten kommen
+  in der Landschaft nicht vor (0,0 %) – der Fall, in dem Anhängen eine Karte mehr gäbe, ist
+  praktisch leer. **Ersetzen bleibt.**
+- **`featured`** (×1,5 in der Seltenheit) macht die Wälder nicht langsamer; dem Zufallsspieler
+  hilft es, weil die Gattungen des Waldtyps zu Eigenheit und Leitbaum passen.
 
 **Stand Schritt A** (echte Logik; Harmonie und Wachstum 20, Zufall 10 Durchgänge; Median,
 kumulierte Spielzeit; „Ernte“ = Zyklen mit wirksamem Gedächtnis 1000):
@@ -6358,7 +6456,7 @@ Wachstums-Spieler 288–300, Zufall 263–275.
 | 2 ✅ | `ui-dev` | Karte der Landschaft im Bereich „Neuer Zyklus“ (DOM/SVG, kein Canvas: Knöpfe, Tastatur, Screenreader): Standorte mit Symbol, Name, eigenem/wirksamem Gedächtnis, Eigenheit und Gabe im Tooltip; gesperrte Standorte mit Kosten bzw. Grund („Nur aus dem Urwald“, „Liegt nicht neben …“); Korridore als Linien mit Kaufknopf; Hähersaat-Anzeige („🪶 5 – nach diesem Zyklus 6“); Meldung der Freischaltung; Naturtagebuch-Reiter „Landschaft“; Spielanleitung „Waldlandschaft“; mobil 360/390 px ohne Querscrollen. **Reiter „Landschaft“ umgesetzt** (`src/ui/journal-landscape-view.ts`): verborgen bis `landscapeUnlocked(state)` (Spoiler; Pfeiltasten überspringen ihn), Zähler „gegründet/6“; je gegründetem Wald (Gründungs-Reihenfolge) Name, Waldtyp, Gedächtnis eigen/wirksam (`ownMemory`, `effectiveMemoryOf`), Urwald ja/nein (`isSiteAncient`), Leitbaum, Hauptbaum jetzt bzw. zuletzt gewachsen, Stammgäste (aktiv `meta.regulars`, ruhend `sites[].regulars`), Tiere (aktiv: laufender Bestand, ruhend: `sites[].fauna`; nur entdeckte Arten, seltenste zuerst, höchstens 4 und „N weitere“); gebaute Korridore (gratis mit der Gründung bzw. gekauft für n 🪶); Hähersaat verdient/ausgegeben/verfügbar (`jaySeeds`) | 1 |
 | 3 ✅ | `renderer` | `SceneInput.site`: Kulisse je Waldtyp im Mittel- und Hintergrund (Auwald: Fluss mit Weiden; Erlenbruch: Wasserflächen zwischen Bulten, Nebelbänder; Buchenhallen: graue Säulenstämme, kaum Unterwuchs; Bergmischwald: Berge und Tannen-Silhouetten, im Winter mehr Schnee; Kiefernheide: Sand, lila Heidekraut, Kiefern) – je Standort eine gecachte Ebene, Neuaufbau nur beim Wechsel. Übergang bei der Gründung: ein Eichelhäher fliegt mit einer Eichel durchs Bild (≤ 3 s, bei „Weniger Bewegung“ nur Überblendung). Demo `?site=…`, Anker-Tests wie 23.8 | 1 (Grafik kann mit festem `site` früher beginnen) |
 | 4 ✅ | `core-engineer` | **Schritt B (ohne neue Version)** – umgesetzt, Schnittstelle am Ende von 24.6: Wildwechsel-Karten und `featured`-Gewichte beim Ziehen der Tierkarten (24.6), `fauna` beim Verlassen eines Waldes schreiben; Tests (Chance, Regeln, Determinismus online = offline) | 1 |
-| 5 | `game-designer` | Erfolge der Landschaft als Daten (24.12); nach 4 großer Lauf (`scripts/landscape.ts` läuft seit Schritt A auf der echten Logik), 24.7/24.10 nachtragen, Wildwechsel messen (Vielfalt 7.7) | 1, 4 |
+| 5 ✅ | `game-designer` | Erfolge der Landschaft als Daten (24.12); nach 4 großer Lauf (`scripts/landscape.ts` läuft seit Schritt A auf der echten Logik), 24.7/24.10 nachtragen, Wildwechsel messen (Vielfalt 7.7) | 1, 4 |
 | 6 | `core-engineer` | Bedingungsarten `forests`, `corridors` (mit `bought`), `ancientForests` in `core/achievements.ts`, Sichtbarkeit `requires: 'landscape'`, die fünf Erfolge und `trees-all` aus 24.12 (festgelegt in Phase 7, 1b); kein Nachtrag in `save.ts` nötig (24.12, Spielstand) | 5 |
 | 7 | `qa-tester` | e2e: Spielstand mit 250 Gedächtnis im Urwald → Freischaltung → Auwald gründen → Neuladen → Wechsel zurück → Gedächtnis und Stammgäste wie vorher; Sync zweier Geräte mit v14 | 2, 3 |
 
@@ -6455,6 +6553,9 @@ Landschaften). Echte Spieler liegen beim Zwei- bis Dreifachen (24.10, Bewertung)
   der Spieler die Karte **wählt**. **Nachmessen in 2c** (Vielfalt 7.7): Median der Zyklen bis
   zur ersten gewählten Wildwechsel-Karte; Ziel ≤ 2 Zyklen nach `forest-2`. Liegt es darüber,
   bleibt die Schwelle 1, nur der Text der Spielanleitung weist deutlicher darauf hin.
+  **Gemessen (2c, 24.10):** Median **1** Zyklus (schon im ersten Zyklus des 2. Waldes),
+  90-%-Quantil 2 (Harmonie, Zufall) bzw. 4 (Wachstum); in keinem der 50 Läufe nie. Ziel erreicht,
+  Schwelle 1 bleibt.
 - **`landscape-trees` – vom Spieler steuerbar:** Die Gründung schaltet die Art frei und wählt
   sie als Leitbaum vor (25.2); sie zählt als gewachsen, sobald der Zyklus mit ihr beginnt
   (`grownTrees` enthält den aktuellen Baum). Wer Bergmischwald und Erlenbruch zuerst gründet,
@@ -6579,14 +6680,17 @@ In `src/content/achievements.ts` (`AchievementCondition`):
 
 - **Neue Hauptbaum-Arten je Waldtyp** – entschieden nach dem Playtest Phase 6: Weißtanne und
   Schwarzerle kommen (Abschnitt 25, Phase 7); die Silberweide nicht (25.1).
-- **Waldtyp und Wetter (21):** Bergwald mehr Neuschnee, Aue mehr Landregen, Heide mehr Dürre –
-  als Gewichts-Faktoren je Standort (Daten), sobald das Wetter in core/ ist.
+- **Waldtyp und Wetter (21)** – entschieden in Phase 7, 3b: Faktoren auf die Wetter-Gewichte je
+  Standort (`ForestSite.weather`), Bergmischwald mehr Neuschnee, Auwald mehr Landregen,
+  Kiefernheide mehr Dürre, Erlenbruch mehr Nebel, Buchenhallen windstill – Abschnitt **24.14**.
+  Logik mit 3c.
 - **Waldtyp und Lebensräume (23):** z. B. Kiefernheide +1 Platz Trockenmauer, Auwald +1 Platz
   Waldwiese (Auenwiese). Erst nach v13 messen.
 - **Harmonie-Hebel in der Landschaft – gemessen, nicht umgesetzt (Option):** Mit der echten
   Logik ist der Wachstums-Spieler über die ganze Landschaft nur 5,1 % (vollständig) bzw.
-  6,5 % (alle voll) schneller (24.10) – unter der vereinbarten Schwelle von 10 %. Bleibt als
-  Option, falls Schritt B oder spätere Inhalte den Abstand vergrößern: +1 🪶 je Wald, dessen
+  6,5 % (alle voll) schneller (24.10) – unter der vereinbarten Schwelle von 10 %. Nach Schritt B
+  (Wildwechsel, `featured`) und den neuen Leitbäumen (2c): 6,5 % bzw. 6,8 % – weiter darunter,
+  nicht umgesetzt. Bleibt als Option, falls spätere Inhalte den Abstand vergrößern: +1 🪶 je Wald, dessen
   höchste Harmonie einmal eine hohe Schwelle erreicht hat (Feld `bestHarmony` je Wald, neue
   Spielstand-Version). Achtung bei der Schwelle: Gemessen erreichen beide Spielweisen im
   Lauf der Landschaft in jedem Wald 288–311 (Harmonie 310–311, Wachstum 288–300) – eine
@@ -6594,8 +6698,177 @@ In `src/content/achievements.ts` (`AchievementCondition`):
 - **Nach der Landschaft:** Im Modell ist alles nach ~20 h (Harmonie) bzw. ~50 h (Zufall)
   erreicht. Eine dritte Ebene sollte wieder in die Breite gehen (z. B. wechselnde
   Klima-Epochen als Herausforderungen mit Andenken), nicht in die Höhe.
-- **Wildwechsel-Chance:** 10 % je Korridor ist eine Annahme, nicht gemessen (es ändert sich nur
-  die Vielfalt der Karten). Nach Schritt B mit der Vielfalts-Messung (7.7) prüfen.
+- **Wildwechsel-Chance – gemessen in 2c, bleibt 10 % je Korridor (höchstens 30 %):** Sie ändert
+  kein Tempo (Landschaft vollständig 14,2 gegen 14,0 h ohne Wildwechsel, Harmonie) und keine
+  Kennzahl aus 7.7; sie bringt im Mittel 1,3–1,5 gewählte Nachbar-Arten je Zyklus und etwas
+  mehr verschiedene und seltene Karten (24.10, „Wildwechsel und Vielfalt“). Höher lohnt nicht:
+  Schon bei 30 % wird nur noch jede vierte Wildwechsel-Karte gewählt (bei 10 %: 34–43 %) – die
+  Nachbarn haben dann meist dieselben Arten wie der eigene Wald.
+- **Käferjahr der Kiefernheide (24.14):** Das häufigere Dürrewetter macht das Käferjahr dort
+  nicht messbar häufiger (es ist durch „Käfer ungejagt“ und „einmal je Zyklus“ begrenzt, nicht
+  durch das Wetter). Soll die Heide es sichtbar öfter haben, braucht es eine Regel für das
+  Ereignis selbst (z. B. Gewicht je Standort) – eigene Aufgabe, erst nach dem Playtest Phase 7.
+
+### 24.14 Waldtyp und Wetter (Phase 7, 3b)
+
+> **Stand:** Design und Daten (3b). Faktoren `ForestSite.weather` und Kurztext
+> `ForestSite.weatherSummary` in `src/content/landscape.ts`, Inhaltstests in
+> `tests/landscape.test.ts` – **noch ohne Wirkung**: `core/weather.ts` liest sie erst mit 3c.
+> Gemessen vorab mit der echten Logik über `scripts/site-weather.ts` (Gewichte des Standorts zur
+> Laufzeit) und `tests/site-weather-balance.test.ts`. Beantwortet die offene Frage aus 24.13.
+
+**Idee:** Die Waldtypen unterscheiden sich bisher in Zahlen (Eigenheit, Gabe, Leitbaum). Ein
+eigenes Wetter macht sie **sichtbar** anders – die Wetter-Grafik (21.8) ist fertig – und kostet
+keinen Spielstand. Leitlinien:
+
+- **Nur Häufigkeiten.** Keine neue Wetterlage, keine neue Wirkung, keine Lage außerhalb ihrer
+  Jahreszeit (Neuschnee bleibt im Winter, Dürre im Sommer). Die Regeln aus 21.2 gelten
+  unverändert: Tag 0 „Wechselhaft“, Schonzeit, nie zwei raue Tage.
+- **Heimatwald unverändert** (keine Faktoren) – alle bisherigen Messungen (21.3, 21.10, 15.4)
+  bleiben gültig, ebenso jeder Stand ohne Landschaft.
+- **Charakter vor Tempo:** Ziel ±5 % wie 24.7; jeder Wald bekommt eine Lage, die ihn prägt,
+  und höchstens eine, die seltener wird.
+- **Kein neues Feld:** Das Wetter hängt weiter an Zyklusnummer und Startzeit (21.4), dazu am
+  aktiven Wald (`meta.landscape.active`) – und der ändert sich nur beim Neuen Zyklus, also nie
+  innerhalb eines Zyklus. Gleicher Spielstand → gleiches Wetter, online wie offline.
+
+| Wald | Faktoren | Kurztext (`weatherSummary`) | Warum |
+|---|---|---|---|
+| 🌳 Heimatwald | – | – | der Wald, den du kennst |
+| 🌊 Auwald am Fluss | 🌧️ Landregen × 2, 🌡️ Dürre × 0,5 | „Oft Landregen, selten Dürre – der Fluss ist nie weit.“ | Westwind-Regen über der Aue, hoher Grundwasserstand |
+| 🌫️ Erlenbruch | 🌫️ Nebel × 2, 🌡️ Dürre × 0,5 | „Oft Nebel über dem Wasser, selten Dürre.“ | Nebel über stehendem Wasser, nasser Torf trocknet nie aus |
+| 🍂 Buchenhallen | 🌫️ Nebel × 1,5, 🌬️ Sturm × 0,5 | „Windstill unter dem Dach, im Herbst Nebel zwischen den Säulen.“ | geschlossenes Kronendach bremst den Wind |
+| ⛰️ Bergmischwald | 🌨️ Neuschnee × 2, 🌧️ Landregen × 1,5 | „Viel Neuschnee im Winter, Steigungsregen am Hang.“ | Höhenlage, Steigungsregen (wie die Eigenheit +2 💧) |
+| 🌲 Kiefernheide | 🌡️ Dürre × 2,5, ☀️ Sonnenschein × 1,5, 🌧️ Landregen × 0,5 | „Viel Sonne, im Sommer oft Dürre – dann schwärmen die Borkenkäfer.“ | Sand speichert kein Wasser; Dürre ruft das Käferjahr (22.6) |
+
+**Formel (für 3c):**
+
+```
+Gewicht(w, Jahreszeit, Standort) = WEATHER_WEIGHTS[Jahreszeit][w] × (ForestSite.weather[w] ?? 1)
+```
+
+Reihenfolge der Lagen wie in `WEATHER_WEIGHTS`, gezogen wird wie bisher mit `weatherRoll` gegen
+die Summe der Gewichte (also implizit normiert). Lagen ohne Grundgewicht bleiben weg.
+
+**Grenzen (Inhaltstest):** Faktoren nur für bekannte Lagen, nie für „Wechselhaft“, zwischen 0,5
+und 2,5 und ≠ 1; jeder Wald außer dem Heimatwald hat mindestens einen Faktor > 1 und ein anderes
+Wetter als alle anderen; in jeder Jahreszeit und jedem Wald (vor der Regel „nie zwei rau“)
+„Wechselhaft“ ≥ 25 % und raue Lagen ≤ 30 % (heute: 35 % bzw. 25 %). Knapp sind Erlenbruch im
+Herbst (Wechselhaft 28 %) und Bergmischwald im Winter (27 %); die Kiefernheide im Sommer hat
+24,5 % raue Lagen – Dürre × 3 hätte die Grenze gerissen (31 %).
+
+**Häufigkeiten nach den Regeln** (echte Logik mit den Gewichten des Standorts, 2000 Zyklen,
+Tage 4–400, also nach der Schonzeit; „rau“ = 🌡️ + 🌬️ + 🧊):
+
+| Wald | Jahreszeit | ⛅ | 🌧️ | ☀️ | 🌫️ | 🌨️ | 🌡️ | 🌬️ | 🧊 | rau |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 🌳 Heimatwald | Frühling | 41,4 % | 24,9 % | 20,0 % | 10,0 % | – | – | – | 3,7 % | 3,7 % |
+| | Sommer | 40,7 % | 14,9 % | 30,1 % | – | – | 9,4 % | 4,8 % | – | 14,2 % |
+| | Herbst | 37,9 % | 10,0 % | 10,0 % | 25,0 % | – | – | 17,0 % | – | 17,0 % |
+| | Winter | 39,9 % | – | – | 10,0 % | 30,1 % | – | 4,0 % | 16,0 % | 20,1 % |
+| 🌊 Auwald | Frühling | 33,2 % | **39,8 %** | 16,0 % | 8,0 % | – | – | – | 3,0 % | 3,0 % |
+| | Sommer | 36,7 % | **27,2 %** | 27,3 % | – | – | 4,3 % | 4,4 % | – | 8,7 % |
+| | Herbst | 33,5 % | **18,2 %** | 9,1 % | 22,7 % | – | – | 16,4 % | – | 16,4 % |
+| | Winter | 39,5 % | – | – | 10,0 % | 30,1 % | – | 4,1 % | 16,4 % | 20,5 % |
+| 🌫️ Erlenbruch | Frühling | 37,5 % | 22,6 % | 18,2 % | **18,1 %** | – | – | – | 3,5 % | 3,5 % |
+| | Sommer | 42,5 % | 15,7 % | 31,7 % | – | – | 5,0 % | 5,0 % | – | 10,0 % |
+| | Herbst | 29,7 % | 8,1 % | 8,0 % | **39,9 %** | – | – | 14,3 % | – | 14,3 % |
+| | Winter | 35,4 % | – | – | **18,1 %** | 27,3 % | – | 3,9 % | 15,3 % | 19,2 % |
+| 🍂 Buchenhallen | Frühling | 39,3 % | 23,7 % | 19,0 % | 14,3 % | – | – | – | 3,7 % | 3,7 % |
+| | Sommer | 41,6 % | 15,3 % | 30,9 % | – | – | 9,7 % | **2,4 %** | – | 12,2 % |
+| | Herbst | 35,4 % | 9,8 % | 9,8 % | **36,5 %** | – | – | **8,6 %** | – | 8,6 % |
+| | Winter | 36,3 % | – | – | 14,6 % | 29,3 % | – | 2,2 % | 17,7 % | 19,9 % |
+| ⛰️ Bergmischwald | Frühling | 36,6 % | **33,2 %** | 17,8 % | 8,8 % | – | – | – | 3,6 % | 3,6 % |
+| | Sommer | 37,8 % | 20,9 % | 27,9 % | – | – | 8,8 % | 4,5 % | – | 13,3 % |
+| | Herbst | 36,0 % | 14,3 % | 9,6 % | 23,8 % | – | – | 16,4 % | – | 16,4 % |
+| | Winter | 30,5 % | – | – | 7,6 % | **46,2 %** | – | 3,2 % | 12,5 % | 15,7 % |
+| 🌲 Kiefernheide | Frühling | 42,5 % | 12,7 % | **30,7 %** | 10,3 % | – | – | – | 3,8 % | 3,8 % |
+| | Sommer | 33,9 % | 6,1 % | **36,8 %** | – | – | **19,3 %** | 3,9 % | – | 23,2 % |
+| | Herbst | 39,9 % | 5,0 % | 15,1 % | 25,0 % | – | – | 15,1 % | – | 15,1 % |
+| | Winter | 39,9 % | – | – | 10,0 % | 30,1 % | – | 4,0 % | 16,0 % | 20,1 % |
+
+Nie zwei raue Tage in Folge (gezählt: 0 je Wald). Die Heide hat im Sommer doppelt so oft Dürre
+wie der Heimatwald (19,3 gegen 9,4 %), der Bergwald im Winter anderthalbmal so oft Neuschnee.
+
+**Mittel über das Jahr** (Mittelwetter 21.5 mit den Gewichten des Standorts, Eiche, ohne
+Pflege; „Hain“ = Abzüge mit 5 Gattungen halb gedämpft):
+
+| Wald | 🌿 ungedämpft | 🌿 Hain | 🌰 | Moose & Farne 🌿 | Blumen 🌰 |
+|---|---|---|---|---|---|
+| 🌳 Heimatwald | +0,4 % | +1,3 % | +4,3 % | +3,4 % | +3,0 % |
+| 🌊 Auwald am Fluss | +1,4 % | +2,2 % | +3,8 % | +3,1 % | +2,6 % |
+| 🌫️ Erlenbruch | +0,9 % | +1,7 % | +3,8 % | +5,7 % | +2,9 % |
+| 🍂 Buchenhallen | +1,0 % | +1,7 % | +3,6 % | +4,9 % | +3,0 % |
+| ⛰️ Bergmischwald | +1,2 % | +2,0 % | +3,9 % | +3,0 % | +2,8 % |
+| 🌲 Kiefernheide | −0,5 % | +0,5 % | +5,2 % | +3,4 % | +4,1 % |
+
+Höchstens ±1 Prozentpunkt gegenüber dem Heimatwald – die nassen Wälder wachsen eine Spur mehr,
+die Heide tauscht Wachstum gegen Samen (Dürre +20 % 🌰, Sonne Blumen +20 % 🌰). Das passt zu
+ihren Eigenheiten (Erlenbruch Moose +30 % 🌿, Heide Blumen +10 % 🌰).
+
+**Waldtypen im Vergleich mit Wetter je Standort** (wie 24.7 „Stand 2c“: `siteRun`, Gedächtnis
+200, alle Wälder gegründet, mit Pflege, 160 Durchgänge mit eigenem Wetter, Median bis zum
+Urwald; „ohne“ = heutige Gewichte):
+
+| Wald | Harmonie: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | Wachstum: Urwald | gegenüber Heimatwald | ohne Standort-Wetter |
+|---|---|---|---|---|---|---|
+| 🌳 Heimatwald | 49:29 min | – | – | 41:12 min | – | – |
+| 🌊 Auwald am Fluss | 49:28 min | ±0,0 % | ±0,0 % | 41:35 min | +0,9 % | +1,3 % |
+| 🌫️ Erlenbruch | 50:04 min | +1,2 % | +1,3 % | 40:57 min | −0,6 % | ±0,0 % |
+| 🍂 Buchenhallen | 50:01 min | +1,1 % | +1,1 % | 40:42 min | −1,2 % | −1,7 % |
+| ⛰️ Bergmischwald | 48:42 min | −1,6 % | −1,3 % | 41:45 min | +1,3 % | +1,2 % |
+| 🌲 Kiefernheide | 50:05 min | +1,2 % | +1,0 % | 39:48 min | **−3,4 %** | −3,8 % |
+
+Alle innerhalb ±3,5 % (Ziel ±5 %); das Wetter verschiebt keinen Wald um mehr als 0,6 Punkte.
+Die Kiefernheide rückt für den Wachstums-Spieler zur Mitte (−3,8 → −3,4 %): Dürre bremst ihn.
+
+**Käferjahr (22.5/22.6):** Anteil der Durchgänge mit Käferjahr bis zum Urwald, mit / ohne
+Standort-Wetter, Harmonie bzw. Wachstum: Heimatwald 29 / 28 von 160 (gleich), Kiefernheide
+40 (41) bzw. 38 (40). **Kein messbarer Unterschied** – das Käferjahr ist durch „Käfer
+ungejagt“ (Hain, Sommer) und „einmal je Zyklus“ begrenzt; die Dürre (× 3 Gewicht) entscheidet
+nur, *wann* es kommt, nicht *ob*. In der Heide fällt es dadurch öfter auf einen Dürretag – die
+Geschichte „Dürre → Borkenkäfer“ stimmt im Bild, in der Zahl nicht. Soll die Heide es häufiger
+haben, braucht das Ereignis selbst eine Regel (offene Frage 24.13); für 3b bewusst nicht.
+
+**Warum diese Zahlen:** Faktor 2 (bzw. 2,5 für die Dürre der Heide) ist die kleinste Zahl, die
+man ohne Statistik bemerkt: In einem Zyklus bis zum Urwald (~16 Tage, vier Frühlinge) regnet es
+im Auwald an 1,6 statt an einem Frühlingstag, im Bergwald schneit es an fast jedem zweiten
+Wintertag. Der Verzicht (× 0,5) nimmt jedem nassen Wald die
+Dürre und den Buchenhallen den Sturm – je eine raue Lage weniger, aber immer weniger Samen
+dafür (raue Lagen tragen +15–25 % 🌰). Die Heide tauscht genau umgekehrt.
+
+**Umsetzung (3c, `core-engineer`)** – Schnittstelle, kein neues Feld, keine Version:
+
+1. `core/weather.ts`: neues `siteWeatherWeights(season, site)` (Formel oben; unbekannter
+   Standort → Heimatwald). `rawWeather(seed, day, site = HOME_SITE)`,
+   `weatherOfDayFromSeed(seed, day, site = HOME_SITE)`, `weatherOfDay(cycle, day, site =
+   HOME_SITE)` ziehen mit diesen Gewichten; Regel 3 prüft das Rohwetter des Vortags **am selben
+   Standort**. Ohne Standort-Argument bleibt alles wie heute.
+2. Standort des Wetters = `activeSite(landscapeOf(state))` (core/landscape.ts) –
+   `weatherAt(state)`, `weatherForecast(state)` (Vorhersage am selben Standort),
+   `weatherDamping(state)` (Standard-Wetter), `averageWeatherEffects(state, …)`.
+   `sceneWeather(cycle, site = HOME_SITE)` bekommt den Standort als zweites Argument (main.ts
+   übergibt `activeSite(landscapeOf(state))`, eine Zeile).
+3. Alle Aufrufe mit Standort: `formulas.ts` (Wetter des Tages in `ecosystemOf` und im
+   Cache-Schlüssel – der Schlüssel enthält schon die Wetter-ID, das reicht), `tick.ts`
+   (`reportSeason`, Tage der Offline-Meldung, `WEATHER_EVENT_FACTORS` beim Ziehen der Ereignisse).
+4. Offline (21.5): `weatherProbabilities(season, gentle, site = HOME_SITE)` rechnet Anteile **und**
+   den rauen Anteil der Vorjahreszeit mit den Gewichten des Standorts;
+   `averageWeatherEffectsFor(…, gentle, site)`. `ecosystemOf` übergibt `eco.site`. Der
+   Cache-Schlüssel im Modus „Mittel“ bekommt den Standort (`|w:avg:<Art>:<Standort>`), sonst
+   rechnete ein Wechsel des Waldes mit dem alten Mittel.
+5. Tests: Heimatwald und Stände ohne Landschaft ziehen Tag für Tag dasselbe Wetter wie vor 3c
+   (Goldwerte über viele Seeds); Häufigkeiten je Standort wie die Tabelle oben (≥ 10 000 Tage,
+   ±1 Punkt); nie zwei raue Tage je Standort; Mittel = Σ p_eff × Wirkung je Standort; Vorhersage
+   und Szene nutzen den aktiven Wald; Wechsel des Waldes mit `startNewCycle` → neue Folge;
+   kleine Ticks = großer Tick und `simulateOffline` im Mittel je Standort (wie 21.5).
+6. Danach (3d, `game-designer`): `scripts/site-weather.ts` und
+   `tests/site-weather-balance.test.ts` entfernen, 24.7/24.10/24.14 mit der echten Logik
+   nachmessen (die ganze Landschaft – heute misst das Skript nur Läufe in einem Wald).
+
+**Oberfläche (klein, `ui-dev`, nach 3c):** `weatherSummary` als Zeile in der Karte bzw.
+U:Landschaft beim Standort („🌫️ Oft Nebel über dem Wasser, selten Dürre.“). Die Wetter-Notiz
+braucht nichts Neues – sie zeigt das Wetter des Tages wie bisher.
 
 ---
 
@@ -6741,9 +7014,10 @@ kommt zum Tümpel des Standorts hinzu (Feuchte, 24.2) – dort ist ihr Gewinn vo
 Charakter; anderswo (Heimatwald, Heide) öffnet sie einen Tümpel, den es sonst erst mit Pflege
 gibt.
 
-**Nicht gemessen** (folgt mit 25.6 Nr. 5): die ganze Landschaft mit den neuen Leitbäumen
-(24.10) und mit Wildwechsel. Erwartung: kaum Änderung, weil die Leitbäume nur vorausgewählt
-werden und beide Waldtypen innerhalb ±1,4 Punkten von heute liegen.
+**Nachtrag 2c (Phase 7):** Seit 2b sind Weißtanne und Schwarzerle echte Leitbäume; der große
+Lauf der Landschaft mit ihnen und mit Wildwechsel steht in 24.10 („Stand 2c“), die Waldtypen mit
+den neuen Leitbäumen in 24.7 („Stand 2c“: Bergmischwald −1,3 / +1,2 %, Erlenbruch +1,3 / 0,0 %).
+Wie erwartet kaum Änderung. Offen bleibt nur der Lauf mit dem Wetter je Standort (3d, nach 3c).
 
 ### 25.5 Spielstand: v15 – ja
 
