@@ -846,10 +846,14 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   ALBUM_UI.md R3 und `render/idle.ts`; optional Landschaftskarte mit DejaVu Sans bei 125 %.
   **Warum:** Rest aus Phase 8, Schritt 14 / R3 – die Strg+F-Suche findet heute keine Art
   unterhalb des ersten Bildschirms, und Safari ist ungemessen. Klein, eine PR. Abhängig: nichts
-- [ ] **1c** Ereignis des Waldes anzeigen (`ui-dev`): U:Standort und Karte nennen die Ereignisse
+- [x] **1c** Ereignis des Waldes anzeigen (`ui-dev`): U:Standort und Karte nennen die Ereignisse
   mit Faktor („Hier öfter: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr“, aus `eventFactors`);
   Spielanleitung „Landschaft“. **Warum:** Ein Gewicht, das niemand sieht, ist kein Charakter.
-  Abhängig: 1a
+  Abhängig: 1a. **Erledigt:** `siteEventHints`/`siteEventText` in `ui/landscape-view.ts` (Symbol
+  und Name aus `EVENTS_BY_ID`); Zeile „Hier öfter“ in U:Standort, Zeichen-Schild links oben am
+  Standort der Karte (Tooltip, vorgelesen); ein Satz in der Spielanleitung. Die „… öfter“-Anhänge
+  aus 1a sind aus `weatherSummary` entfernt („Wetter“ ist wieder nur Wetter, 26.2 „Anzeige“).
+  Tests in `tests/landscape-view.test.ts`, `e2e/landscape.spec.ts`
 - [x] **1d** Erfolge der Tagesziele (`core-engineer`, Daten aus 26.5): Bedingungsart `daily`
   (`bestStreak` | `goalsDone` | `perfectDays`), Erfolge `daily-streak-7` „Sieben Morgen“ und
   `daily-50` „Fünfzig Handgriffe“, Nachtrag beim Laden wie 12.6, Tests. **Warum:** offene Frage

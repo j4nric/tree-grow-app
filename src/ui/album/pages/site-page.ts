@@ -1,8 +1,8 @@
 /**
  * Unterseite „Standort“ (docs/ALBUM_UI.md, A.10 #110 und #114): Tipp auf einen Standort der
  * Karte (oder einen Wald im Tagebuch, oder den Ziel-Wald auf U:Neuer Zyklus) blättert hierher.
- * Zeigt Waldtyp, Stimmungstext, Gedächtnis, Baum, Urwald, Eigenheit, Verzicht, Gabe, Wetter und den
- * Grund, falls er nicht wählbar ist; bei gegründeten Wäldern dazu Stammgäste und Tiere aus dem
+ * Zeigt Waldtyp, Stimmungstext, Gedächtnis, Baum, Urwald, Eigenheit, Verzicht, Gabe, Wetter, die häufigeren
+ * Ereignisse („Hier öfter“) und den Grund, falls er nicht wählbar ist; bei gegründeten Wäldern dazu Stammgäste und Tiere aus dem
  * Tagebuch. „Als Ziel wählen“ setzt das gemeinsame Ziel des nächsten Zyklus (`albumTarget`),
  * „Neuer Zyklus ›“ blättert zu U:Neuer Zyklus im Reiter „Ziele“.
  *
@@ -58,7 +58,10 @@ export function createSitePage(env: PageEnv): SitePage {
   // Wetter des Waldtyps (DESIGN_V2.md 24.14), z. B. „🌫️ Oft Nebel über dem Wasser, selten Dürre.“
   const weather = el('p', 'site-line site-weather');
   weather.dataset.ref = 'site-weather';
-  lines.append(memory, tree, ancient, gains, habitat, costs, gift, weather);
+  // Ereignisse, die der Waldtyp öfter erlebt (Phase 9, 1c), z. B. „Hier öfter: 🐸 Krötenwanderung“.
+  const events = el('p', 'site-line site-events');
+  events.dataset.ref = 'site-events';
+  lines.append(memory, tree, ancient, gains, habitat, costs, gift, weather, events);
   const blocker = el('p', 'site-blocker');
   blocker.dataset.ref = 'site-blocker';
 
@@ -147,6 +150,7 @@ export function createSitePage(env: PageEnv): SitePage {
     line(gift, site.gift, `Gabe (${site.giftActive ? 'wirkt schon' : 'nach der Gründung'}): `);
     gift.classList.toggle('inactive', !site.giftActive);
     line(weather, site.weather, 'Wetter: ');
+    line(events, site.events, 'Hier öfter: ');
     line(blocker, site.blocker);
 
     const c = siteChoiceView(view, site, tgt);

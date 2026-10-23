@@ -187,10 +187,8 @@ describe('Waldlandschaft: Ereignisse je Waldtyp (24.13, Phase 7, 3e)', () => {
       mountain: {},
       heath: { 'beetle-year': 3 },
     });
-    // Der Kurztext nennt das Ereignis (die Oberfläche zeigt die Faktoren in Aufgabe 1c).
-    expect(LANDSCAPE_SITES_BY_ID.get('floodplain')!.weatherSummary).toContain('Regenreicher Frühling öfter');
-    expect(LANDSCAPE_SITES_BY_ID.get('carr')!.weatherSummary).toContain('Krötennächte öfter');
-    expect(LANDSCAPE_SITES_BY_ID.get('beechwood')!.weatherSummary).toContain('Buchenmast öfter');
+    // Der Wetter-Text bleibt Wetter: Die Ereignisse nennt die Oberfläche als „Hier öfter“ (1c).
+    for (const site of LANDSCAPE_SITES) expect(site.weatherSummary, site.id).not.toContain('öfter');
   });
 
   it('Kiefernheide: ab Hain +1 Platz Trockenmauer – öffnet die Mauer ohne Pflege (26.2)', () => {

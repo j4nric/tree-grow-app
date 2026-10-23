@@ -74,6 +74,13 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(map.locator('[data-site="home"]')).toHaveAttribute('aria-current', 'location');
   const flood = map.locator('[data-site="floodplain"]');
   await expect(flood).toContainText('gründen · 3 🪶');
+  // Ereignisse des Waldtyps (Phase 9, 1c): Zeichen an der Ecke, Satz als Tooltip und im Namen.
+  await expect(flood.locator('.lsc-site-events')).toHaveText('🌧️🐌');
+  await expect(flood.locator('.lsc-site-events')).toHaveAttribute('title', 'Hier öfter: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr');
+  await expect(flood).toHaveAccessibleName(/hier öfter: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr/);
+  await expect(map.locator('[data-site="heath"] .lsc-site-events')).toHaveAttribute('title', 'Hier öfter: 🪲 Käferjahr');
+  await expect(map.locator('[data-site="home"] .lsc-site-events')).toHaveCount(0);
+  await expect(map.locator('[data-site="mountain"] .lsc-site-events')).toHaveCount(0);
   await expect(map.locator('[data-ref="landscape-target"]')).toContainText('der nächste Baum keimt hier');
 
   // Tipp auf den Standort blättert zu U:Standort um – dort stehen alle Angaben.
@@ -83,7 +90,9 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   const detail = site.locator('[data-ref="site-detail"]');
   await expect(detail).toContainText('Verzicht (nur hier): Pilze −15 % 😊');
   await expect(detail).toContainText('Gabe (nach der Gründung): Ab Alter Baum +1 Platz Waldtümpel in allen Wäldern');
-  await expect(site.locator('[data-ref="site-weather"]')).toHaveText('Wetter: 🌧️ Oft Landregen, selten Dürre. Im Frühjahr steigt der Fluss – Regenreicher Frühling öfter.');
+  await expect(site.locator('[data-ref="site-weather"]')).toHaveText('Wetter: 🌧️ Oft Landregen, selten Dürre – im Frühjahr steigt der Fluss.');
+  // Ereignisse des Waldtyps (Phase 9, 1c): eigene Zeile, aus eventFactors.
+  await expect(site.locator('[data-ref="site-events"]')).toHaveText('Hier öfter: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr');
   await expect(site.locator('[data-ref="site-cycle-open"]')).toBeHidden();
   const choose = site.locator('[data-ref="site-choose"]');
   await expect(choose).toHaveText('Als Ziel wählen');
