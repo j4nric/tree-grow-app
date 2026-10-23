@@ -529,10 +529,13 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
 
 **Welle 4 – Absichern**
 
-- [ ] **4a** e2e Landschaft und Hauptbäume (`qa-tester`): Rest aus Phase 6 (Stammgäste nach
+- [x] **4a** e2e Landschaft und Hauptbäume (`qa-tester`): Rest aus Phase 6 (Stammgäste nach
   Hin- und Rückweg, Sync zweier Geräte mit ruhenden Wäldern); Bergmischwald gründen → Weißtanne
   vorausgewählt → Neuladen → Weißtanne wächst; Gerät mit v14 lädt keinen v15-Stand
-  (`outdated-client`). Abhängig: 3a
+  (`outdated-client`). Abhängig: 3a – umgesetzt in `e2e/landscape-trees.spec.ts` (Rückweg per
+  Import eines Hain-Stands statt Minuten Spielzeit; älteres Spiel = Build gegen einen Stand mit
+  `SAVE_VERSION + 1`, live per Abo und per 422 beim Senden, dazu v14 → v15 direkt an der API).
+  Sync-Server im e2e mit `AUTH_PER_IP_15MIN` (sonst 429 bei `--repeat-each`)
 - [ ] **4b** Playtest Phase 7 (`qa-tester`, Funde an `ui-dev` / `renderer`). Abhängig: 4a
 
 ## Phase 8 – Album-Oberfläche
