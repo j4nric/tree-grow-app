@@ -10,8 +10,8 @@
  *   mindestens 60 px weit oder (ab 20 px) schneller als 0,5 px/ms.
  * - Richtung entscheidet sich nach 10 px: senkrecht oder nach links → die Geste ist für den
  *   Rest des Kontakts aus (Scrollen bleibt Scrollen).
- * - Nie aus `[data-no-swipe]`, Eingabefeldern, Canvas oder aus den linken 20 px des Bildschirms
- *   (dort gehört die Geste dem Browser, z. B. iOS-Rand-Wischen). Nur Finger und Stift, keine Maus.
+ * - Nie aus `[data-no-swipe]`, Eingabefeldern, Canvas, Sticker-Bildern (früher Canvas, jetzt
+ *   `<img data-sticker-image>`) oder aus den linken 20 px des Bildschirms (dort gehört die Geste dem Browser, z. B. iOS-Rand-Wischen). Nur Finger und Stift, keine Maus.
  * - Ein zweiter Finger oder `pointercancel` (Browser übernimmt) bricht ab.
  */
 
@@ -150,7 +150,7 @@ export interface SwipeBackOptions {
 }
 
 /** Hier beginnt nie eine Wisch-Zurück-Geste. */
-const EXCLUDED = '[data-no-swipe], input, textarea, select, canvas, [contenteditable=""], [contenteditable="true"]';
+const EXCLUDED = '[data-no-swipe], input, textarea, select, canvas, [data-sticker-image], [contenteditable=""], [contenteditable="true"]';
 
 /** Wisch-Zurück an `root` anbringen; gibt eine Abmelde-Funktion zurück. */
 export function attachSwipeBack(root: HTMLElement, options: SwipeBackOptions): () => void {

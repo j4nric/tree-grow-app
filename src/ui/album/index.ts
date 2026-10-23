@@ -15,7 +15,6 @@ import { evaluate } from '../../core/formulas';
 import { activeSite, landscapeUnlocked } from '../../core/landscape';
 import { resolveAnimal, toAnimalDetailView, type AnimalDetailTarget } from '../animal-detail-view';
 import { el } from '../dom';
-import { restartAnimation } from '../feedback';
 import { formatNumber, formatRate } from '../format';
 import { toSeasonBadgeView } from '../season-view';
 import { formatMultiplier, formatPercent } from '../view-format';
@@ -206,6 +205,10 @@ export function createAlbum(deps: AlbumDeps): Album {
     page.element.removeAttribute('aria-label');
     page.element.hidden = id !== nav.tab;
     spread.right.append(page.element);
+    // Überblenden beim Reiterwechsel (showTab): Klasse nach dem Ende wieder weg.
+    page.element.addEventListener('animationend', (event) => {
+      if (event.target === page.element && event.animationName === 'album-tab-fade') page.element.classList.remove('tab-fade');
+    });
   }
   tabStrip.select(nav.tab);
   tabStrip.setVisible('landscape', ctx.landscapeUnlocked);
@@ -590,8 +593,20 @@ export function createAlbum(deps: AlbumDeps): Album {
       if (page.hidden === !show) continue;
       if (show) tabs[id].update?.(performance.now());
       page.hidden = !show;
-      if (show) restartAnimation(page, 'tab-fade');
+      if (show) fadeIn(page);
+      else page.classList.remove('tab-fade');
     }
+  }
+
+  /**
+   * Überblenden der neuen Reiterseite ohne erzwungenes Layout (R3): `restartAnimation` liest
+   * `offsetWidth` und legte so im Klick die ganze Seite aus (Arten: ≈ 1200 Objekte). Die Klasse
+   * kommt beim Verbergen weg, beim Zeigen dazu – dazwischen liegt ein Frame, also startet die
+   * Animation neu, ohne dass jetzt schon gerechnet werden muss. Entfernt wird sie am Ende der
+   * Animation (ein fester Listener je Seite, siehe oben).
+   */
+  function fadeIn(page: HTMLElement): void {
+    page.classList.add('tab-fade');
   }
 
   /**

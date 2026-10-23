@@ -97,7 +97,7 @@ export function createFoodWebPage(env: PageEnv): Subpage {
     while (row.hunterStickers.length < ids.length) {
       const root = el('span', 'web-hunter');
       const image = createStickerImage(HUNTER_SIZE, 'web-hunter-img');
-      root.append(image.canvas);
+      root.append(image.element);
       row.hunterBox.append(root);
       row.hunterStickers.push({ root, image });
     }

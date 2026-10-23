@@ -12,6 +12,13 @@
   --sticker: 54px;
 }
 
+/* Noch nicht aufgedeckt (deferred-reveal.ts): gesperrt – kein Stil, kein Layout, nichts zu
+   sehen –, hält aber mit geschätzter Höhe Platz (Scroll-Lage, Hochrücken der Reiterleiste). */
+.species-page [data-deferred] {
+  content-visibility: hidden;
+  contain-intrinsic-block-size: var(--deferred-height, 300px);
+}
+
 /* --- Kopf ------------------------------------------------------------------------------ */
 
 .species-intro {

@@ -32,9 +32,9 @@ async function seedFullJournal(context: BrowserContext, opts: { all?: boolean } 
   await seedRaw(context, state, 0);
 }
 
-/** Wurde das Bild des Stickers schon gezeichnet? (Leer ist es 1 × 1 Pixel groß.) */
-const drawn = (page: Page, id: string) =>
-  panel(page).locator(`[data-species="${id}"] canvas`).evaluate((c: HTMLCanvasElement) => c.width > 1);
+/** Wurde das Bild des Stickers schon gezeichnet? (Leer hat das `<img>` keine Quelle.) */
+const imageDrawn = (img: HTMLImageElement) => img.hasAttribute('src') && img.complete && img.naturalWidth > 1;
+const drawn = (page: Page, id: string) => panel(page).locator(`[data-species="${id}"] .sticker-img`).evaluate(imageDrawn);
 
 test('Bilder erst im Bild, matte Sticker aus der Leerlaufzeit, Messwerte', async ({ page, context }) => {
   await page.setViewportSize({ width: 1200, height: 700 });
@@ -67,7 +67,7 @@ test('Silhouetten werden gezeichnet, ohne die Art zu verraten', async ({ page, c
   await seedFullJournal(context, { all: false });
   await gotoTab(page, 'arten');
   const unknown = panel(page).locator('.species-group[data-genus="birds"] .species-cell.is-unknown').first();
-  await expect.poll(() => unknown.locator('canvas').evaluate((c: HTMLCanvasElement) => c.width > 1)).toBe(true);
+  await expect.poll(() => unknown.locator('.sticker-img').evaluate(imageDrawn)).toBe(true);
   await expect(unknown).not.toHaveAttribute('data-species');
   await expect(unknown.locator('.sticker-name')).toHaveText('???');
   // Kein unbekannter Sticker verrät Name oder ID – weder im Text noch in Attributen.

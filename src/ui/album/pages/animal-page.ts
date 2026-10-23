@@ -46,7 +46,7 @@ export function createAnimalPage(env: PageEnv): Subpage {
   hero.setAttribute('aria-hidden', 'true');
   const heroFace = el('span', 'sticker-face');
   const heroImage = createStickerImage(STICKER_BIG_SIZE);
-  heroFace.append(heroImage.canvas);
+  heroFace.append(heroImage.element);
   const heroGem = el('span', 'sticker-gem', '◆');
   hero.append(heroFace, heroGem);
   const headText = el('div', 'animal-head-text');

@@ -177,6 +177,30 @@ body:has(.album) {
   touch-action: pan-x pan-y pinch-zoom;
 }
 
+/*
+ * Verborgene Reiterseite (R3, Leistung): nicht `display: none`, sondern gesperrt wie eine
+ * weggedrehte Seite. So bleiben Stil und Layout erhalten, und der nächste Wechsel muss die
+ * Seite nicht von vorn auslegen (Arten: ≈ 1200 Objekte, bei 4× Drosselung ≈ 150 ms). Seiten,
+ * die noch nie zu sehen waren, kosten nichts (der gesperrte Teilbaum wird nicht ausgelegt).
+ * Absolut und ohne Höhe: zählt nicht zur Höhe der Ablage; unsichtbar auch für Screenreader.
+ */
+@supports (content-visibility: hidden) {
+  /* Ältere Engines (Safari < 18) behalten `display: none` – sonst legten sie verborgene
+     Reiter bei jeder Größenänderung voll aus. */
+  .album .spread-right > .album-tabpanel[hidden] {
+    display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 0;
+    min-height: 0;
+    overflow: hidden;
+    visibility: hidden;
+    content-visibility: hidden;
+  }
+}
+
 /* Reiterwechsel: kurzes Überblenden statt Umblättern (G-3). */
 .album-tabpanel.tab-fade {
   animation: album-tab-fade var(--tab-fade-ms) ease-out;

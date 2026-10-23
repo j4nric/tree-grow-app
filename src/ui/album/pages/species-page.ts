@@ -13,15 +13,19 @@
  * - Gemeinschaften: Liste mit Mitgliedern, Wirkung, Fortschritt und „besteht gerade“.
  * - Andenken: Hauptbaum-Arten als Samentütchen (★/✓/🔒) und Erinnerungen als Zettel.
  *
- * Leistung: Das Raster ist fest (eine Zelle je Art bzw. Pflanze, einmal gebaut); `update`
+ * Leistung: Das Raster ist fest (eine Zelle je Art bzw. Pflanze, einmal gebaut); beim ersten
+ * Zeigen ist nur der erste Bildschirm sichtbar, der Rest kommt Block für Block in Leerlaufzeit
+ * dazu (deferred-reveal.ts, R3). `update`
  * setzt nur Klassen, Texte und das Bild. Bilder zeichnet erst ein IntersectionObserver, wenn
  * die Zelle ins Bild kommt; matte Bilder und Silhouetten laufen über die IdleQueue
  * (sticker.ts). Gemeinschaften und Andenken entstehen nur bei Änderungen neu. Die Ansicht
  * (`toJournalView`) wird nur gerechnet, wenn sich die Auswertung oder `speciesPageKey` ändern.
  */
+import { COMMUNITIES } from '../../../content/communities';
 import { PLANTS } from '../../../content/plants';
 import { SPECIES } from '../../../content/species';
 import { evaluate } from '../../../core/formulas';
+import { IdleQueue } from '../../../render/idle';
 import { toJournalView } from '../../adapters';
 import { el, setAttr, setText, srOnly } from '../../dom';
 import { prefersReducedMotion } from '../../feedback';
@@ -44,6 +48,7 @@ import {
   speciesStickerVariant,
 } from './species-view';
 import { createTabPanel } from './tab-pages';
+import { createDeferredReveal, estimateGridHeight, initialGroupCount } from './deferred-reveal';
 import '../sticker.css';
 import './species-page.css';
 
@@ -76,6 +81,27 @@ interface Cell {
   variant: StickerVariant;
   family: string;
   visible: boolean;
+}
+
+/**
+ * So viele Zellen zeigt der erste Wechsel sofort – heute die erste Gattung (Vögel), die mit
+ * Kopf und Sprungmarken den sichtbaren Teil der Seite füllt (390 × 844, 1200 × 700). Die
+ * übrigen Gattungen und Abschnitte kommen Block für Block in Leerlaufzeit dazu, meist noch
+ * während die Seite hochrückt (deferred-reveal.ts, R3). Gemessen bei 4× Drosselung: zwei
+ * Gattungen kosten im Klick ≈ 20 ms mehr, drei ≈ 40 ms.
+ */
+export const SPECIES_FIRST_CELLS = 8;
+
+/** Geschätzte Höhen für Platzhalter (390 px): Abschnittskopf, eine Gemeinschaft, Andenken. */
+const SECTION_HEAD_EST_PX = 50;
+const COMMUNITY_EST_PX = 118;
+const KEEPSAKES_EST_PX = 900;
+
+/** Block bis zum Aufdecken sperren (species-page.css) und mit geschätzter Höhe Platz halten. */
+function placeholder(block: HTMLElement, heightPx: number): HTMLElement {
+  block.dataset.deferred = '';
+  block.style.setProperty('--deferred-height', `${Math.round(heightPx)}px`);
+  return block;
 }
 
 /** Sichtbar heißt: im Bild oder bis zu 200 px davor (beim Scrollen schon fertig). */
@@ -113,6 +139,7 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
     const count = el('span', 'species-jump-count');
     jump.append(el('span', '', label), count);
     jump.addEventListener('click', () => {
+      deferred.all();
       const target = sections.get(id)?.root;
       target?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
     });
@@ -170,7 +197,7 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
     const cell: Cell = { li, button, name, sr, entry: null, drawId: '', variant: 'silhouette', family: '', visible: observer === null };
     if (kind === 'animal') {
       cell.image = createStickerImage(STICKER_DRAW_SIZE);
-      face.append(cell.image.canvas);
+      face.append(cell.image.element);
       // Feste Neigung je Platz – unabhängig von der Art (die ID bleibt bei Silhouetten geheim).
       button.style.setProperty('--tilt', `${stickerTilt(`species-${index}`, index)}deg`);
     } else {
@@ -188,7 +215,10 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
   const groups = speciesGroups();
   const speciesCells: Cell[] = [];
   const groupCounts: { count: HTMLElement; indices: number[] }[] = [];
-  for (const group of groups) {
+  /** Blöcke unterhalb des ersten Bildschirms, in Reihenfolge (verborgen bis zum Aufdecken). */
+  const later: HTMLElement[] = [];
+  const firstGroups = initialGroupCount(groups.map((g) => g.indices.length), SPECIES_FIRST_CELLS);
+  for (const [groupIndex, group] of groups.entries()) {
     const box = el('div', 'species-group');
     box.dataset.genus = group.genus;
     const head = el('h4', 'species-group-title');
@@ -221,6 +251,7 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
     }
     box.append(head, grid);
     animals.root.append(box);
+    if (groupIndex >= firstGroups) later.push(placeholder(box, estimateGridHeight(group.indices.length)));
     groupCounts.push({ count, indices: group.indices });
   }
 
@@ -269,6 +300,21 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
   keepsakes.root.append(treeTitle, treeList, memoryTitle, memoryList, memoryEmpty);
 
   page.body.append(intro, jumps, ...[...sections.values()].map((s) => s.root));
+  later.push(
+    placeholder(plants.root, SECTION_HEAD_EST_PX + estimateGridHeight(PLANTS.length)),
+    placeholder(communities.root, SECTION_HEAD_EST_PX + COMMUNITIES.length * COMMUNITY_EST_PX),
+    placeholder(keepsakes.root, KEEPSAKES_EST_PX),
+  );
+  const deferred = createDeferredReveal(
+    later.length,
+    (i) => {
+      const block = later[i]!;
+      delete block.dataset.deferred;
+      block.style.removeProperty('--deferred-height');
+    },
+    // Zu sehen: nicht verborgen und nicht unter einer weggedrehten Seite (Unterseite offen).
+    () => !page.element.hidden && !page.element.closest('.turned-away'),
+  );
   if (canMeasure) performance.measure('album-species-build', { start: buildStart });
 
   // --- Darstellung -----------------------------------------------------------------------
@@ -448,6 +494,8 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
   let shownDpr = stickerDprEpoch();
 
   function update(_now: number, force = false): void {
+    // Erstes Zeigen: den Rest der Seite stückweise aufdecken (läuft nur, solange sie zu sehen ist).
+    deferred.start();
     // Pixeldichte gewechselt (Zoom, anderer Bildschirm): sichtbare Sticker gleich scharf neu –
     // der IntersectionObserver meldet sich erst beim nächsten Scrollen.
     if (shownDpr !== stickerDprEpoch()) {
@@ -469,6 +517,16 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
       measured = true;
       performance.measure('album-species-first-render', { start });
     }
+  }
+
+  // Vorwärmen (R3): Die erste Darstellung (Ansicht rechnen, alle Zellen beschriften, Gemeinschaften
+  // bauen) kostet bei 4× Drosselung 25–45 ms. In Leerlaufzeit nach dem Start erledigt, bleibt dem
+  // ersten Wechsel nur noch das Auslegen. Die verborgene Seite ist gesperrt (album.css) – das
+  // Beschriften kostet dort kein Layout, und Bilder zeichnet erst der IntersectionObserver.
+  if (typeof window !== 'undefined') {
+    new IdleQueue().schedule('warm', () => {
+      if (shownSerial === -1 && page.element.hidden) update(performance.now(), true);
+    });
   }
 
   return { page, update };

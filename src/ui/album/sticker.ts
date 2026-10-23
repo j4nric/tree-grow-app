@@ -1,8 +1,8 @@
 /**
  * StickerSlot: runder Aufkleber für Tiere und Pflanzen (docs/ALBUM_UI.md, D.4 und A.4 #39–50).
  *
- * - Tiere zeigen die Renderer-Zeichnung (`renderSpeciesSticker`) auf einem kleinen eigenen
- *   `<canvas>`. Gezeichnet wird **nur**, wenn sich Art, Variante, Größe oder Pixeldichte
+ * - Tiere zeigen die Renderer-Zeichnung (`renderSpeciesStickerUrl`) als kleines `<img>`
+ *   (kein Canvas: keine eigene Compositing-Ebene je Sticker). Gezeichnet wird **nur**, wenn sich Art, Variante, Größe oder Pixeldichte
  *   ändern – nie pro Frame. Matte Bilder (ruhende Arten) kosten das Entsättigen und laufen
  *   darum über die IdleQueue; bis dahin zeigt CSS das farbige Bild gedämpft.
  * - Zufriedenheit als Bogen im weißen Rand (`--arc`), Seltenheit über Edelstein und Randlinie,
@@ -13,7 +13,7 @@
  * DOM einmal bauen; `setAnimal`/`setPlant`/`setEmpty` setzen nur Geändertes.
  */
 import { IdleQueue } from '../../render/idle';
-import { renderSpeciesSticker, type StickerVariant } from '../../render/sticker';
+import { renderSpeciesStickerUrl, type StickerVariant } from '../../render/sticker';
 import { el, setAttr, setText, setVar } from '../dom';
 import { restartAnimation } from '../feedback';
 import { hyphenate } from '../hyphenate';
@@ -96,9 +96,16 @@ export function stickerDprEpoch(): number {
   return dprEpoch;
 }
 
-/** Ein Tier-Bild auf eigenem kleinen Canvas – zeichnet nur bei Änderung. */
+/**
+ * Ein Tier-Bild als `<img>` – zeichnet nur bei Änderung.
+ *
+ * Bewusst kein `<canvas>` (R3, Leistung): Chromium macht jedes 2D-Canvas zu einer eigenen
+ * Compositing-Ebene und dazu jeden darüberliegenden Bogen (`::before`) – über 70 Ebenen auf
+ * Nischen, über 100 auf Arten. Das `<img>` zeigt dieselben Pixel als Data-URL aus dem
+ * Sticker-Cache des Renderers (`renderSpeciesStickerUrl`) und malt mit der Seite.
+ */
 export interface StickerImage {
-  readonly canvas: HTMLCanvasElement;
+  readonly element: HTMLImageElement;
   /**
    * Bild setzen (leere ID: leeren). `muted` und `silhouette` kommen aus der IdleQueue. Bis
    * dahin zeigt `muted` das farbige Bild gedämpft (`preview`, Standard); mit `preview: false`
@@ -109,35 +116,36 @@ export interface StickerImage {
 }
 
 export function createStickerImage(size: number, className = 'sticker-img'): StickerImage {
-  const canvas = el('canvas', className);
-  canvas.setAttribute('aria-hidden', 'true');
-  canvas.width = 1;
-  canvas.height = 1;
+  const img = el('img', className);
+  img.setAttribute('aria-hidden', 'true');
+  img.alt = '';
+  img.draggable = false;
+  img.decoding = 'sync';
+  // Wie zuvor das Canvas: kein Wischen ab dem Bild (swipe.ts) – Kennzeichen statt Tag-Name.
+  img.dataset.stickerImage = '';
   const key = `sticker-${++serial}`;
   let shown = '';
+  const clear = () => {
+    img.removeAttribute('src');
+    img.dataset.empty = '';
+  };
+  clear();
   return {
-    canvas,
+    element: img,
     draw(id, variant, family, options) {
       const wanted = `${id}|${variant}|${dprEpoch}`;
       if (wanted === shown) return;
       shown = wanted;
       idle.cancel(key);
-      canvas.classList.remove('sticker-img-pending');
+      img.classList.remove('sticker-img-pending');
       if (!id) {
-        canvas.width = 1;
-        canvas.height = 1;
+        clear();
         return;
       }
       const paint = (v: StickerVariant) => {
-        const image = renderSpeciesSticker(id, size, { dpr: lastDpr, variant: v, family: family as never });
-        if (canvas.width !== image.width || canvas.height !== image.height) {
-          canvas.width = image.width;
-          canvas.height = image.height;
-        }
-        const c = canvas.getContext('2d');
-        if (!c) return;
-        c.clearRect(0, 0, canvas.width, canvas.height);
-        c.drawImage(image, 0, 0);
+        const url = renderSpeciesStickerUrl(id, size, { dpr: lastDpr, variant: v, family: family as never });
+        if (img.getAttribute('src') !== url) img.src = url;
+        if (img.dataset.empty !== undefined) delete img.dataset.empty;
       };
       if (variant === 'color') {
         paint('color');
@@ -145,15 +153,12 @@ export function createStickerImage(size: number, className = 'sticker-img'): Sti
       }
       // Matt erst in Leerlaufzeit; solange farbig mit CSS-Dämpfung (Silhouette: leer).
       if (variant === 'muted' && options?.preview !== false) paint('color');
-      else {
-        canvas.width = 1;
-        canvas.height = 1;
-      }
-      canvas.classList.add('sticker-img-pending');
+      else clear();
+      img.classList.add('sticker-img-pending');
       scheduleIdle(key, () => {
         if (shown !== wanted) return;
         paint(variant);
-        canvas.classList.remove('sticker-img-pending');
+        img.classList.remove('sticker-img-pending');
       });
     },
   };
@@ -192,7 +197,7 @@ export function createStickerSlot(options: StickerSlotOptions = {}): StickerSlot
   face.setAttribute('aria-hidden', 'true');
   const image = createStickerImage(STICKER_DRAW_SIZE);
   const emoji = el('span', 'sticker-emoji');
-  face.append(image.canvas, emoji);
+  face.append(image.element, emoji);
   const gem = el('span', 'sticker-gem', '◆');
   gem.setAttribute('aria-hidden', 'true');
   const night = el('span', 'sticker-night', '🌙');

@@ -5,6 +5,7 @@ import { animalKinds, spriteDefOf } from '../src/render/animals';
 import {
   clearStickerCache,
   renderSpeciesSticker,
+  renderSpeciesStickerUrl,
   SILHOUETTE_FILL,
   STICKER_CACHE_MAX,
   STICKER_FILL,
@@ -22,10 +23,22 @@ interface StubCanvas {
   height: number;
   calls: string[];
   getContext: (type: string, opts?: unknown) => CanvasRenderingContext2D;
+  toDataURL: (type?: string) => string;
+  encodes?: number;
 }
 
 function makeCanvas(): StubCanvas {
-  const canvas: StubCanvas = { width: 0, height: 0, calls: [], getContext: () => ctx };
+  const canvas: StubCanvas = {
+    width: 0,
+    height: 0,
+    calls: [],
+    getContext: () => ctx,
+    // PNG-Kodieren: protokolliert und eindeutig je Canvas (Größe + Zeichenbefehle).
+    toDataURL: (type?: string) => {
+      canvas.encodes = (canvas.encodes ?? 0) + 1;
+      return `data:${type ?? 'image/png'};${canvas.width}x${canvas.height};${canvas.calls.length}`;
+    },
+  };
   const store: Record<string | symbol, unknown> = {};
   const helper = { addColorStop: (o: number, c: string) => canvas.calls.push(`stop(${o},${c})`), data: new Uint8ClampedArray(16) };
   const fmt = (a: unknown) => (typeof a === 'number' ? a.toFixed(4) : typeof a === 'string' ? a : typeof a);
@@ -253,5 +266,34 @@ describe('stickerFit', () => {
       expect(f.y1, id).toBeLessThanOrEqual(def.y1 + 0.1);
       expect(stickerPose(kind), id).toBeLessThan(def.frames ?? 1);
     }
+  });
+});
+
+describe('renderSpeciesStickerUrl (Album-Bilder als <img>, R3)', () => {
+  it('kodiert jedes gecachte Bild genau einmal als PNG und liefert dann dieselbe URL', () => {
+    const url = renderSpeciesStickerUrl('fox', 48, { dpr: 2 });
+    expect(url.startsWith('data:image/png')).toBe(true);
+    const canvas = asStub(renderSpeciesSticker('fox', 48, { dpr: 2 }));
+    expect(canvas.encodes).toBe(1);
+    expect(renderSpeciesStickerUrl('fox', 48, { dpr: 2 })).toBe(url);
+    expect(canvas.encodes).toBe(1);
+  });
+
+  it('gleiche Gerätepixel → gleiche URL, andere Variante → eigenes Bild', () => {
+    const a = renderSpeciesStickerUrl('robin', 48, { dpr: 2 });
+    expect(renderSpeciesStickerUrl('robin', 96, { dpr: 1 })).toBe(a);
+    const silhouette = renderSpeciesStickerUrl('robin', 48, { dpr: 2, variant: 'silhouette' });
+    expect(asStub(renderSpeciesSticker('robin', 48, { dpr: 2, variant: 'silhouette' })).encodes).toBe(1);
+    expect(silhouette.startsWith('data:image/png')).toBe(true);
+  });
+
+  it('fällt mit dem Bild aus dem LRU: danach neu gezeichnet und neu kodiert', () => {
+    renderSpeciesStickerUrl('owl', 32);
+    const first = asStub(renderSpeciesSticker('owl', 32));
+    clearStickerCache();
+    renderSpeciesStickerUrl('owl', 32);
+    const second = asStub(renderSpeciesSticker('owl', 32));
+    expect(second).not.toBe(first);
+    expect(second.encodes).toBe(1);
   });
 });
