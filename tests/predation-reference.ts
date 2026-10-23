@@ -1,5 +1,5 @@
 import { HABITAT_SPECIES } from '../src/content/habitats';
-import { SPECIES, SPECIES_BY_ID } from '../src/content/species';
+import { KENNARTEN, SPECIES, SPECIES_BY_ID } from '../src/content/species';
 import { NICHE_IDS, type NicheId } from '../src/content/types';
 import { evaluateEcosystem, type Ecosystem } from '../src/core/formulas';
 import { random, randomInt, type RngHolder } from '../src/core/rng';
@@ -19,8 +19,8 @@ import { random, randomInt, type RngHolder } from '../src/core/rng';
 
 export const REFERENCE_SEED = 2026;
 
-/** Arten, die erst nach der Referenz dazukamen (Lebensräume, DESIGN_V2.md 23.4). */
-const LATER = new Set(HABITAT_SPECIES.map((s) => s.id));
+/** Arten, die erst nach der Referenz dazukamen (Lebensräume, DESIGN_V2.md 23.4; Kennarten, 26.3). */
+const LATER = new Set([...HABITAT_SPECIES, ...KENNARTEN].map((s) => s.id));
 export const REFERENCE_COUNT = 300;
 
 export interface ReferenceCase {

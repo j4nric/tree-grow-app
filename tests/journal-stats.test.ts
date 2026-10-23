@@ -3,7 +3,7 @@ import { MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../src/content/mem
 import { COMMUNITIES } from '../src/content/communities';
 import { PLANTS } from '../src/content/plants';
 import { SEASON_SECONDS, YEAR_SECONDS } from '../src/content/seasons';
-import { SPECIES } from '../src/content/species';
+import { COMMON_SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { MAIN_TREES } from '../src/content/trees';
 import { evaluate } from '../src/core/formulas';
@@ -54,7 +54,7 @@ describe('toJournalStats (Reiter „Statistik“)', () => {
     expect(statOf(stats, 'time').detail).toBe('0 Sek. Spielzeit · jetzt 🌱 Frühling');
     expect(statOf(stats, 'tree').value).toBe('🌳 Stieleiche');
     expect(statOf(stats, 'stage').value).toBe('Samen');
-    expect(statOf(stats, 'species').value).toBe(`0/${SPECIES.length}`);
+    expect(statOf(stats, 'species').value).toBe(`0/${COMMON_SPECIES.length}`);
     expect(statOf(stats, 'plants').value).toBe(`0/${PLANTS.length}`);
     expect(statOf(stats, 'communities').value).toBe(`0/${COMMUNITIES.length}`);
     expect(statOf(stats, 'memory').detail).toBe('wächst mit jedem Neuen Zyklus');
@@ -91,7 +91,7 @@ describe('toJournalStats (Reiter „Statistik“)', () => {
     expect(statOf(stats, 'harmony').value).toBe(`${formatNumber(Math.round(ev.harmony))} ⚖️`);
     // Gerundet wie die Seitenleiste – auch der Höchstwert.
     expect(statOf(stats, 'harmony').detail).toMatch(/ · Höchstwert 43$/);
-    expect(statOf(stats, 'species')).toMatchObject({ value: `2/${SPECIES.length}`, detail: '1 neu in diesem Zyklus' });
+    expect(statOf(stats, 'species')).toMatchObject({ value: `2/${COMMON_SPECIES.length}`, detail: '1 neu in diesem Zyklus' });
     expect(statOf(stats, 'memory')).toMatchObject({ value: '25', detail: '+25 % Wachstum und Samen' });
     expect(statOf(stats, 'regulars')).toMatchObject({ value: '1/1', detail: 'Blaumeise' });
   });

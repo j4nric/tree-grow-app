@@ -6,7 +6,7 @@
  * Hier stehen nur Anzeige-Entscheidungen (Texte, Symbole, Reihenfolge). Alle Zahlen
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
-import type { SiteId } from '../content/landscape';
+import { LANDSCAPE_SITES_BY_ID, type SiteId } from '../content/landscape';
 import { ABILITY_INFO } from '../content/abilities';
 import { CARE, CARE_BY_ID, type CareEffect } from '../content/care';
 import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
@@ -27,7 +27,7 @@ import {
 } from './weather-view';
 import { NICHES, NICHES_BY_ID } from '../content/niches';
 import { PLANT_GROUP_INFO, PLANTS, PLANTS_BY_ID, type Plant } from '../content/plants';
-import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
+import { COMMON_SPECIES, GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, isKennart, type Species } from '../content/species';
 import { STAGES } from '../content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../content/traits';
 import { VISITORS_BY_ID, VISITOR_FAREWELL_LABEL, VISITOR_HOST_LABEL, type Visitor, type VisitorEffect } from '../content/visitors';
@@ -92,7 +92,7 @@ import {
 import { formatDuration, formatNumber } from './format';
 import { animalStock, foodWebView, huntFoodText, overhuntNotes, preyIcon, stockEffectView } from './food-web-view';
 import { memoryBonusLabel, treeLabel } from './cycle-view';
-import { effectiveForestMemory } from '../core/landscape';
+import { effectiveForestMemory, landscapeUnlocked } from '../core/landscape';
 import { RARITY_LABELS, formatSigned, formatSignedPercent, isFullHappiness, isScarceFood, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
 import type {
@@ -202,6 +202,9 @@ export function conditionName(condition: Condition): string {
       return `${condition.min > 1 ? `${condition.min}× ` : ''}${GENUS_INFO[condition.genus].name}`;
     case 'unhunted':
       return `${TAG_NAMES[condition.tag]} ohne Jäger`;
+    case 'site':
+      // Kennarten (26.3): „Auwald am Fluss (alt)“ – Standorte sind mit der Landschaft bekannt.
+      return `${LANDSCAPE_SITES_BY_ID.get(condition.site)?.name ?? condition.site} (alt)`;
   }
 }
 
@@ -228,6 +231,8 @@ function conditionIcon(condition: Condition): string {
       return GENUS_INFO[condition.genus].icon;
     case 'unhunted':
       return preyIcon(condition.tag);
+    case 'site':
+      return LANDSCAPE_SITES_BY_ID.get(condition.site)?.icon ?? '🌲';
   }
 }
 
@@ -733,7 +738,9 @@ export function toJournalView(
   const slots = regularSlotsOf(state);
 
   let hiddenSpecies = 0;
-  const species: JournalEntryView[] = SPECIES.map((sp) => {
+  // Kennarten (26.3) erst mit der Landschaft – vorher weder Silhouette noch Zähler. Sie stehen
+  // hinten in SPECIES: Die Indizes der übrigen bleiben gleich (Raster der Seite Arten).
+  const species: JournalEntryView[] = journalSpecies(state).map((sp) => {
     const rarity = rarityKey(sp.rarity);
     const icon = GENUS_INFO[sp.genus].icon;
     if (!journal.species.includes(sp.id)) {
@@ -980,7 +987,7 @@ export function toJournalStats(state: GameState, evaluation: Readonly<Pick<Evalu
     {
       key: 'species',
       label: 'Entdeckte Arten',
-      value: ofTotal(known(SPECIES, journal.species), SPECIES.length),
+      value: ofTotal(known(journalSpecies(state), journal.species), journalSpecies(state).length),
       detail: newSpecies > 0 ? `${formatNumber(newSpecies)} neu in diesem Zyklus` : undefined,
     },
     { key: 'plants', label: 'Pflanzen', value: ofTotal(known(PLANTS, journal.plants), PLANTS.length) },
@@ -1319,6 +1326,14 @@ const PROVIDE_ICONS: Partial<Record<Tag, string>> = {
   feucht: '💧',
 };
 
+/**
+ * Arten im Naturtagebuch (Raster, Zähler): alle – vor der Freischaltung der Landschaft ohne die
+ * Kennarten (26.3, Spoiler-Regel). Die Kennarten stehen hinten in SPECIES (Inhaltstest).
+ */
+export function journalSpecies(state: Pick<GameState, 'meta'>): readonly Species[] {
+  return landscapeUnlocked(state) ? SPECIES : COMMON_SPECIES;
+}
+
 /** Namen aufzählen: „A“, „A und B“, „A, B und 2 weitere“. */
 export function listNames(names: readonly string[], max = 2): string {
   if (names.length <= 1) return names[0] ?? '';
@@ -1326,10 +1341,13 @@ export function listNames(names: readonly string[], max = 2): string {
   return `${names.slice(0, max).join(', ')} und ${formatNumber(names.length - max)} weitere`;
 }
 
-/** Arten, die schon im Ökosystem leben, zuerst – sie profitieren sofort. */
+/**
+ * Arten, die schon im Ökosystem leben, zuerst – sie profitieren sofort. Kennarten (26.3) nur,
+ * wenn sie gerade hier leben: Sonst verrieten Namen und Zähler sie vor der Landschaft.
+ */
 function byPresence(state: Pick<GameState, 'niches'>, species: readonly Species[]): Species[] {
   const present = species.filter((s) => hasSpecies(state, s.id));
-  return [...present, ...species.filter((s) => !present.includes(s))];
+  return [...present, ...species.filter((s) => !present.includes(s) && !isKennart(s.id))];
 }
 
 /**

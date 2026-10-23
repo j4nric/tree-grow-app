@@ -59,9 +59,12 @@ import { stateAt } from './helpers';
  * tests/tick.test.ts.
  */
 
-/** Ruhender Wald mit Gedächtnis (und optional Urwald). */
+/** Ruhender Wald mit Gedächtnis (und optional Urwald) – mit den Kapiteln, die das Laden ableitet (v16). */
 function site(id: SiteId, memory = 0, ancient = false, extra: Partial<LandscapeSite> = {}): LandscapeSite {
-  return { ...createSite(id), memory, ancient, ...extra };
+  const chronicle: LandscapeSite['chronicle'] = [];
+  if (ancient) chronicle.push({ chapter: 'ancient', cycle: null, season: null });
+  if (memory >= MAX_FOREST_MEMORY) chronicle.push({ chapter: 'memory', cycle: null, season: null });
+  return { ...createSite(id), memory, ancient, chronicle, ...extra };
 }
 
 /** Spielstand mit Landschaft: aktiver Wald `active` mit eigenem Gedächtnis `own`. */
@@ -92,12 +95,12 @@ function ancientHome(own = 300): GameState {
 
 describe('Spielstand v14: Startwerte', () => {
   it('SAVE_VERSION 14; neuer Stand: nur der Heimatwald, aktiv, ohne Korridore', () => {
-    expect(SAVE_VERSION).toBe(15);
+    expect(SAVE_VERSION).toBe(16);
     const state = stateAt(0);
     expect(state.version).toBe(SAVE_VERSION);
     expect(state.meta.landscape).toEqual({
       active: 'home',
-      sites: [{ id: 'home', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [] }],
+      sites: [{ id: 'home', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [], chronicle: [] }],
       corridors: [],
       freeCorridors: [],
       announced: false,
@@ -255,7 +258,10 @@ describe('Gründen, Wechseln, Korridore (24.5, 24.6)', () => {
     expect(l.sites.map((s) => s.id)).toEqual(['home', 'floodplain']);
     expect(l.sites[0]).toMatchObject({ memory: preview.memoryAfter, ancient: true, regulars: ['earthworm', 'robin', 'bee'], mainTree: 'oak' });
     expect(l.sites[0]!.fauna).toEqual(animals);
-    expect(l.sites[1]).toEqual({ id: 'floodplain', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [] });
+    expect(l.sites[1]).toEqual({ id: 'floodplain', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [], chronicle: [] });
+    // Kapitel „Uralt geworden“ im alten Wald, gestempelt mit dem endenden Zyklus (26.4).
+    expect(l.sites[0]!.chronicle).toEqual([{ chapter: 'ancient', cycle: 1, season: 'spring' }]);
+    expect(result.ok && result.chapters).toEqual([{ site: 'home', chapter: 'ancient' }]);
     expect(l.corridors).toEqual(['home-floodplain']);
     expect(l.freeCorridors).toEqual(['home-floodplain']);
     expect(state.meta.forestMemory).toBe(0);
@@ -343,7 +349,7 @@ describe('Gründen, Wechseln, Korridore (24.5, 24.6)', () => {
     expect(result).toMatchObject({ ok: true, site: 'home', founded: false });
     expect(state.meta.landscape).toEqual({
       active: 'home',
-      sites: [{ id: 'home', memory: 0, regulars: [], ancient: true, mainTree: 'oak', fauna: [] }],
+      sites: [{ id: 'home', memory: 0, regulars: [], ancient: true, mainTree: 'oak', fauna: [], chronicle: [{ chapter: 'ancient', cycle: 1, season: 'spring' }] }],
       corridors: [],
       freeCorridors: [],
       announced: false,
@@ -461,7 +467,7 @@ describe('Laden v14 (24.8)', () => {
     expect(loaded.state.meta.regulars).toEqual(['earthworm']);
     expect(loaded.state.meta.landscape).toEqual({
       active: 'home',
-      sites: [{ id: 'home', memory: 0, regulars: [], ancient: true, mainTree: 'oak', fauna: [] }],
+      sites: [{ id: 'home', memory: 0, regulars: [], ancient: true, mainTree: 'oak', fauna: [], chronicle: [{ chapter: 'ancient', cycle: null, season: null }] }],
       corridors: [],
       freeCorridors: [],
       announced: false,
@@ -511,7 +517,7 @@ describe('Laden v14 (24.8)', () => {
     )!.state;
     const l = loaded.meta.landscape;
     expect(l.sites.map((s) => s.id)).toEqual(['home', 'carr', 'floodplain']);
-    expect(l.sites[0]).toEqual({ id: 'home', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [] });
+    expect(l.sites[0]).toEqual({ id: 'home', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [], chronicle: [] });
     const carr = l.sites[1]!;
     expect(carr.memory).toBe(MAX_FOREST_MEMORY);
     expect(carr.ancient).toBe(false);

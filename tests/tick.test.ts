@@ -81,6 +81,7 @@ describe('tick', () => {
       seasons: [],
       weather: [],
       wildwechsel: [],
+      chapters: [],
     });
     expect(state.waypoint).toBe(1);
     expect(state.stage).toBe(1);
@@ -132,6 +133,7 @@ describe('tick', () => {
       seasons: [],
       weather: [],
       wildwechsel: [],
+      chapters: [],
     });
     expect(state.pendingEncounters[0]!.type).toBe('plant');
   });
@@ -393,7 +395,7 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
       active: 'floodplain',
       sites: [
         // Bestand der Nachbarn für Wildwechsel-Karten (24.6, Schritt B) über beide Korridore.
-        { id: 'home', memory: 600, regulars: [], ancient: true, mainTree: 'oak', fauna: ['owl', 'deer', 'jay', 'fox', 'woodpecker', 'bat'] },
+        { id: 'home', memory: 600, regulars: [], ancient: true, mainTree: 'oak', fauna: ['owl', 'deer', 'jay', 'fox', 'woodpecker', 'bat'], chronicle: [] },
         ...(['carr', 'beechwood', 'mountain', 'heath'] as const).map((id) => ({
           id,
           memory: 200,
@@ -401,8 +403,9 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
           ancient: false,
           mainTree: 'oak' as const,
           fauna: id === 'carr' ? ['treefrog', 'crestednewt', 'porcini', 'snail'] : [],
+          chronicle: [],
         })),
-        { id: 'floodplain', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [] },
+        { id: 'floodplain', memory: 0, regulars: [], ancient: false, mainTree: 'oak', fauna: [], chronicle: [] },
       ],
       corridors: ['home-floodplain', 'floodplain-carr'],
       freeCorridors: ['home-floodplain'],
@@ -416,7 +419,10 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     for (const pair of [live, average]) {
       expect(pair[0].stage).toBeGreaterThanOrEqual(5);
       expectSameRun(pair);
-      expect(pair[1].meta.landscape).toEqual(start.meta.landscape);
+      // Die Landschaft bleibt, nur die Chronik des aktiven Waldes wächst (26.4) – online wie offline.
+      const withoutChronicle = (l: GameState['meta']['landscape']) => ({ ...l, sites: l.sites.map((x) => ({ ...x, chronicle: [] })) });
+      expect(withoutChronicle(pair[1].meta.landscape)).toEqual(withoutChronicle(start.meta.landscape));
+      expect(pair[1].meta.landscape.sites.map((x) => x.chronicle)).toEqual(pair[0].meta.landscape.sites.map((x) => x.chronicle));
     }
     expect(weatherAt(live[0]).id).toBe(weatherOfDay(live[0].cycle, dayIndex(live[0].cycle.elapsed), 'floodplain'));
   });
@@ -434,8 +440,8 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
       start.meta.landscape = {
         active,
         sites: [
-          { id: 'home', memory: 600, regulars: [], ancient: true, mainTree: 'oak', fauna: ['owl', 'deer', 'jay', 'fox', 'woodpecker', 'toad', 'frog'] },
-          { id: active, memory: 0, regulars: [], ancient: false, mainTree: tree, fauna: [] },
+          { id: 'home', memory: 600, regulars: [], ancient: true, mainTree: 'oak', fauna: ['owl', 'deer', 'jay', 'fox', 'woodpecker', 'toad', 'frog'], chronicle: [] },
+          { id: active, memory: 0, regulars: [], ancient: false, mainTree: tree, fauna: [], chronicle: [] },
         ],
         corridors: [corridor],
         freeCorridors: [corridor],

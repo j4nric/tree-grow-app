@@ -10,8 +10,10 @@ import {
   JAY_SEEDS_FIRST_ANCIENT,
   LANDSCAPE_SITES_BY_ID,
   type CorridorKind,
+  type ForestSite,
   type SiteId,
 } from '../content/landscape';
+import { EVENTS_BY_ID } from '../content/events';
 import type { Tag } from '../content/types';
 import { STAGES } from '../content/stages';
 import { WEATHERS_BY_ID, type WeatherId } from '../content/weather';
@@ -79,6 +81,13 @@ export interface LandscapeSiteView {
   weather: string | null;
   /** Zeichen der häufigsten Wetterlage (für die Karte, z. B. „🌨️“) – null beim Heimatwald. */
   weatherIcon: string | null;
+  /**
+   * Ereignisse, die dieser Waldtyp öfter erlebt (`eventFactors` > 1, Phase 9, 1c), z. B.
+   * „🌧️ Regenreicher Frühling, 🐌 Schneckenjahr“ – null ohne Faktor.
+   */
+  events: string | null;
+  /** Nur die Zeichen dieser Ereignisse (für die Karte, z. B. „🌧️🐌“) – null ohne Faktor. */
+  eventIcons: string | null;
   /**
    * Erklärung zu Merkmalen, die der Wald immer bietet (Eigenheit „Feuchte“), z. B. „💧 Feuchte: …“;
    * null, wenn er keine bietet.
@@ -377,6 +386,7 @@ export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): 
       giftActive: gift !== null && choice.founded,
       weather: siteWeatherText(choice.id),
       weatherIcon: siteWeatherIcon(choice.id),
+      ...siteEventFields(data),
       habitatNote: siteHabitatNote(choice.id),
       ancientText: choice.founded
         ? choice.ancient
@@ -470,6 +480,41 @@ export function siteWeatherIcon(id: SiteId): string | null {
     if (f > 1 && (top === null || f > data.weather[top]!)) top = w;
   }
   return (top !== null ? WEATHERS_BY_ID.get(top)?.icon : undefined) ?? null;
+}
+
+/** Ein Ereignis, das ein Waldtyp öfter erlebt. */
+export interface SiteEventHint {
+  id: string;
+  icon: string;
+  name: string;
+}
+
+/**
+ * Ereignisse, die ein Waldtyp öfter erlebt (Phase 9, 1c; DESIGN_V2.md 26.2): alle mit Faktor > 1 in
+ * `eventFactors`, in der Reihenfolge der Daten. Symbol und Name aus den Ereignis-Daten; unbekannte
+ * IDs und ungültige Faktoren werden übergangen. Leer ohne Faktor (Heimatwald, Bergmischwald).
+ */
+export function siteEventHints(site: Pick<ForestSite, 'eventFactors'> | undefined): SiteEventHint[] {
+  const hints: SiteEventHint[] = [];
+  for (const [id, factor] of Object.entries(site?.eventFactors ?? {})) {
+    const event = EVENTS_BY_ID.get(id);
+    if (!event || !Number.isFinite(factor) || factor <= 1) continue;
+    hints.push({ id, icon: event.icon, name: event.name });
+  }
+  return hints;
+}
+
+/** „🌧️ Regenreicher Frühling, 🐌 Schneckenjahr“ – null ohne häufigere Ereignisse. */
+export function siteEventText(site: Pick<ForestSite, 'eventFactors'> | undefined): string | null {
+  const hints = siteEventHints(site);
+  return hints.length > 0 ? hints.map((h) => `${h.icon} ${h.name}`).join(', ') : null;
+}
+
+function siteEventFields(site: ForestSite | undefined): Pick<LandscapeSiteView, 'events' | 'eventIcons'> {
+  const hints = siteEventHints(site);
+  return hints.length > 0
+    ? { events: siteEventText(site), eventIcons: hints.map((h) => h.icon).join('') }
+    : { events: null, eventIcons: null };
 }
 
 /** Was ein Merkmal bedeutet, das ein Standort immer bietet (nur bekannte; Playtest Phase 7, K7). */

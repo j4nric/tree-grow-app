@@ -9,7 +9,8 @@
  * (`drawIds`) und landet nie im DOM.
  */
 import { NICHES_BY_ID } from '../../../content/niches';
-import { GENUS_INFO, SPECIES } from '../../../content/species';
+import { LANDSCAPE_SITES_BY_ID } from '../../../content/landscape';
+import { GENUS_INFO, SPECIES, kennartSite } from '../../../content/species';
 import { STAGES } from '../../../content/stages';
 import type { Genus, NicheId } from '../../../content/types';
 import { regularSlotsOf } from '../../../core/formulas';
@@ -90,6 +91,10 @@ export function silhouetteHint(state: Pick<GameState, 'stage'>, speciesIndex: nu
   const lines = [`Eine ${rarity} Art aus der Gattung ${genus.icon} ${genus.name}.`];
   if (niche) lines.push(`Sie sucht einen Platz in „${niche.icon} ${niche.name}“.`);
   const unlock = STAGES[sp.unlock];
+  // Kennart (26.3): sichtbar erst mit der Landschaft – dann sind die Wälder bekannt.
+  const home = kennartSite(sp);
+  const site = home !== null ? LANDSCAPE_SITES_BY_ID.get(home) : undefined;
+  if (site) lines.push(`Kennart: ${site.icon} ${site.name} – sie lebt nur dort und nur, wenn der Wald alt ist.`);
   if (unlock && state.stage < sp.unlock) lines.push(`Sie zeigt sich frühestens ab der Stufe „${unlock.name}“.`);
   else if (sp.appears && sp.appears.length > 0) lines.push('Sie kommt erst, wenn der Wald ihr besondere Bedingungen bietet.');
   else lines.push('Sie kann schon jetzt als Begegnung auftauchen – halte die Augen offen.');
