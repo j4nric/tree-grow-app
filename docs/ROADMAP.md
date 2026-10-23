@@ -964,6 +964,12 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   Spätspiel-Stand mit voller Landschaft – trägt die Chronik? Wird das Verweilen im Urwald als
   schön oder als Warten erlebt? Sind Kennarten zu selten? Danach Entscheidung über eine dritte
   Ebene (26.11). Abhängig: 4a
+  - Funde ui-dev erledigt (F2–F4, F6–F9): Kennart-Hinweis im alten Wald, Restzeit bis zum Winter
+    beim Verweilen (U:Standort, U:Neuer Zyklus), Kapitel als eigener Stempel und Abschluss als
+    Zettel mit Andenken, „Hier öfter“ markiert das Ereignis des Waldes (📜), Rückkehr-Kurzfassung
+    zählt Kapitel, Sprungmarke „Chroniken“ mit offenen Kapiteln, Tagebuch der Wälder mit
+    „Chronik“ oben und einklappbaren Stammgästen. Tests `tests/chronicle-view.test.ts`,
+    `e2e/chronicle-playtest.spec.ts`.
 
 Parallel: 1a, 1b, 1d und 2a sofort; 1c nach 1a; 2b nach 1a und 1d; 3a nach 2b; 2c nach 2b **und
 Phase 10, 3b**.

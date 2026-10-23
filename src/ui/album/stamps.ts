@@ -139,6 +139,13 @@ export function createStamps(
     node.dataset.kind = kind;
     if (options.error) node.classList.add('stamp-error');
     if (options.brief) node.classList.add('stamp-brief');
+    if (options.keepsake) {
+      // Vollständige Chronik: das Andenken als runder Sticker vor dem Text (F4).
+      node.classList.add('stamp-keepsake');
+      const icon = el('span', 'stamp-keepsake-icon', options.keepsake);
+      icon.setAttribute('aria-hidden', 'true');
+      node.append(icon);
+    }
     const body = el('p', 'stamp-text', stampDisplayText(text));
     // Steht der Rest woanders (Rückkehr-Zettel), hören Screenreader ihn trotzdem mit.
     if (options.spoken) body.append(srOnly(` ${options.spoken}`));

@@ -236,7 +236,7 @@ for (const width of [360, 390]) {
         .locator('.species-group[data-genus="birds"] .species-cell')
         .evaluateAll((cells) => cells.map((c) => Math.round(c.getBoundingClientRect().top)));
       expect(tops.filter((t) => t === tops[0]).length).toBe(5);
-      for (const h of await species(page).locator('.species-jump').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) {
+      for (const h of await species(page).locator('.species-jump:visible').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) {
         expect(h).toBeGreaterThanOrEqual(44);
       }
       // Sprungmarke „Gemeinschaften“: Abschnitt im Bild, nicht unter der Reiterleiste – und

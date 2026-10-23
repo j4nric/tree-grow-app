@@ -106,7 +106,8 @@ test('U:Standort zeigt sechs Zettel mit Stempel und Hinweis, vollständig das An
   await expect(chapter(page, 'first-snow').locator('[data-ref="chapter-stamp"]')).toBeHidden();
   await expect(chapter(page, 'first-snow')).toContainText('Erlebe hier einen Winter im Urwald.');
   // Offene Kennart ohne Namen (Spoiler-Regel).
-  await expect(chapter(page, 'kennart')).toContainText('zeigt sich nur, wenn er alt ist');
+  // Der Heimatwald steht im Urwald: Die Kennart kann jetzt kommen (Playtest Phase 9, F2).
+  await expect(chapter(page, 'kennart')).toContainText('Der Wald ist alt genug – jetzt kann sie jederzeit kommen.');
   await expect(chapter(page, 'kennart')).not.toContainText('Haselmaus');
   await expect(site(page).locator('[data-ref="site-keepsake"]')).toBeHidden();
 

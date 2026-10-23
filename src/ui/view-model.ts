@@ -627,6 +627,11 @@ export interface JournalLandscapeRowView {
   key: string;
   label: string;
   value: string;
+  /**
+   * Lange Liste eingeklappt (Playtest Phase 9, F9): Anfang der Liste und Knopf „und n weitere ›“;
+   * `value` bleibt der ganze Text (aufgeklappt, Screenreader).
+   */
+  collapsed?: { short: string; more: string };
 }
 
 /** Ein gegründeter Wald im Reiter „Landschaft“ (DESIGN_V2.md 24.11). */

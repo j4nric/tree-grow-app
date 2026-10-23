@@ -51,7 +51,16 @@ import { joinSentences } from './ui/format';
 import { dailyCompletedText } from './ui/daily-view';
 import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText } from './ui/cycle-view';
 import { createWildwechselMarks, wildwechselMarkOf } from './ui/wildwechsel-view';
-import { chapterNewsText, chaptersSince, chronicleMark, chronicleUnlockText, type ChronicleMark } from './ui/chronicle-view';
+import {
+  chapterNewsCount,
+  chapterNewsText,
+  chapterNotes,
+  chaptersSince,
+  chronicleMark,
+  chronicleUnlockText,
+  type ChapterNote,
+  type ChronicleMark,
+} from './ui/chronicle-view';
 import { initPreferences } from './ui/preferences';
 import { createSound } from './ui/sound';
 import { IMPORT_ERROR_TEXTS, NEWER_STORED_SAVE_TEXT, type SaveTransferCallbacks } from './ui/save-transfer';
@@ -413,12 +422,13 @@ function act(result: ActionResult, resolves: boolean, type?: PendingEncounterTyp
     album.notify(errorText(result.error, type), { error: true });
     return false;
   }
-  // Neue Kapitel der Waldchronik (Karte gewählt, Ereignis entschieden …): Stempel je Kapitel.
-  const chapterText = takeChapterNews();
-  if (unlocked.length > 0 || chapterText) sound.cue('achievement');
+  // Neue Kapitel der Waldchronik (Karte gewählt, Ereignis entschieden …): eigener Stempel (F4).
+  const chapters = takeChapterNews();
+  if (unlocked.length > 0 || chapters.length > 0) sound.cue('achievement');
   const regulars = result.regulars && result.regulars.length > 0 ? regularsArrivedText(result.regulars) : '';
-  const text = joinNotes(lead, discoveryText(result.discovered), regulars, chapterText, achievementUnlockedText(unlocked), dailyText);
+  const text = joinNotes(lead, discoveryText(result.discovered), regulars, achievementUnlockedText(unlocked), dailyText);
   if (text) album.notify(text);
+  showChapterNotes(chapters);
   return true;
 }
 
@@ -474,15 +484,24 @@ function takeLandscapeAnnouncement(): string {
 }
 
 /**
- * Neue Kapitel der Waldchroniken seit dem letzten Aufruf als Meldung („📜 Neues Kapitel im …“);
- * '' ohne neue Kapitel. Vor der Landschaft still (26.4) – der Stand rückt trotzdem nach.
+ * Neue Kapitel der Waldchroniken seit dem letzten Aufruf als Meldungen („📜 Neues Kapitel im …“);
+ * leer ohne neue Kapitel. Vor der Landschaft still (26.4) – der Stand rückt trotzdem nach.
  */
-function takeChapterNews(): string {
+function takeChapterNews(): ChapterNote[] {
   const news = chaptersSince(state, chapterMark);
   chapterMark = chronicleMark(state);
-  if (news.length === 0) return '';
+  if (news.length === 0) return [];
   invalidate('eco');
-  return chapterNewsText(state, news);
+  return chapterNotes(state, news);
+}
+
+/**
+ * Kapitel als eigene Stempel nach dem übrigen Hinweis (Playtest Phase 9, F4) – so stehen sie
+ * zuletzt und ganz. Eine vollständige Chronik ist ein hervorgehobener Zettel mit dem Andenken,
+ * der bis zum Schließen bleibt.
+ */
+function showChapterNotes(notes: readonly ChapterNote[]): void {
+  for (const note of notes) album.notify(note.text, note.keepsake ? { keepsake: note.keepsake.icon, keep: true } : undefined);
 }
 
 /** Mehrere Hinweise als ein Text (leere weglassen); '' wenn nichts bleibt. */
@@ -529,7 +548,7 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   // Freischaltung zuerst (sie fasst die Kapitel des Heimatwalds zusammen), dann neue Kapitel
   // des alten Waldes („Uralt geworden“) – beide im Hinweis des Zyklus statt als eigener Stempel.
   const landscapeText = takeLandscapeAnnouncement();
-  const chapterText = takeChapterNews();
+  const chapters = takeChapterNews();
   act(result, false);
   // Der Knopf ist jetzt ausgeblendet – Fokus auf die Überschrift des Bereichs statt auf body.
   album.focusCycle();
@@ -538,11 +557,11 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
     joinNotes(
       newCycleToast(result.preview.memoryGain, state.cycle.number, result.regulars, state.cycle.mainTree),
       result.site !== fromSite ? siteChangeText(result.site, result.founded) : '',
-      chapterText,
       achievementUnlockedText(result.achievements),
       landscapeText,
     ),
   );
+  showChapterNotes(chapters);
 }
 
 /**
@@ -738,11 +757,11 @@ function frame(now: number): void {
   // Neue Begegnung wartet: ein weiches „Pling“.
   if (report.encounters > 0) sound.cue('encounter');
   // Neue Kapitel der Chronik (Erster Schnee, Kennart, Voller Einklang): sofort speichern, Stempel.
-  let chapterText: string | null = null;
+  let chapters: ChapterNote[] = [];
   if (report.chapters.length > 0) {
     persist();
-    chapterText = takeChapterNews() || null;
-    if (chapterText) sound.cue('achievement');
+    chapters = takeChapterNews();
+    if (chapters.length > 0) sound.cue('achievement');
   }
   const tickNote = tickNoteText(report);
   // Automatisch abgelehnte Begegnungen: ihre Samen schweben am Vorrat hoch (wie von Hand).
@@ -757,7 +776,7 @@ function frame(now: number): void {
   // Erfolge: gedrosselt, bei Wegpunkten und Jahreszeiten sofort (Bedingungen wachsen nur –
   // seltener prüfen verschiebt höchstens den Hinweis, nie das Ergebnis).
   let achievementText: string | null = null;
-  if (report.waypoints > 0 || report.seasons.length > 0 || now - lastAchievementCheck >= ACHIEVEMENT_CHECK_MS) {
+  if (report.waypoints > 0 || report.seasons.length > 0 || report.chapters.length > 0 || now - lastAchievementCheck >= ACHIEVEMENT_CHECK_MS) {
     lastAchievementCheck = now;
     achievementText = achievementUnlockedText(checkAchievements(state));
     // Urwald erreicht (Erfolg) mit genug Gedächtnis: die Landschaft öffnet sich.
@@ -789,13 +808,15 @@ function frame(now: number): void {
   const bannerAchievement = stageChanged && !album.overlayOpen() ? achievementText : null;
   if (album.overlayOpen()) {
     // Ein Hinweisfeld im Dialog: alles in einem Text, sonst verdrängt der letzte die übrigen.
-    const text = joinNotes(tickNote, seasonText, chapterText, achievementText, dailyText);
+    const text = joinNotes(tickNote, seasonText, achievementText, dailyText);
     if (text) album.notify(text);
   } else {
     if (tickNote) album.noteText(tickNote);
-    const tickText = joinNotes(seasonText, chapterText, bannerAchievement ? null : achievementText, dailyText);
+    const tickText = joinNotes(seasonText, bannerAchievement ? null : achievementText, dailyText);
     if (tickText) album.notify(tickText);
   }
+  // Kapitel als eigener Stempel nach dem übrigen Hinweis (F4).
+  showChapterNotes(chapters);
 
   if (stageChanged) {
     shownStage = state.stage;
@@ -865,6 +886,8 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   // Offline geschriebene Kapitel (OfflineReport.chapters, 26.4): ein Punkt im Rückkehr-Bericht.
   // Öffnet sich die Landschaft gerade, nennt ihr Hinweis die Kapitel schon.
   const chapterText = report && report.chapters.length > 0 && !landscapeText ? chapterNewsText(state, report.chapters) : '';
+  // Kurzfassung des Berichts nennt sie gezählt (F7).
+  const chapterCount = chapterText && report ? chapterNewsCount(state, report.chapters) : 0;
   // Stand nachziehen – was der Bericht nennt (oder vor der Landschaft still blieb), ist gemeldet.
   chapterMark = chronicleMark(state);
   if (chapterText) {
@@ -890,7 +913,7 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
       // Desktop wie mobil nur die Kurzfassung, alles Weitere im Rückkehr-Bericht (ui/album/return-report.ts).
       const stages = { from: stageBefore, to: state.stage };
       const site = activeSite(state.meta.landscape);
-      const view = toReturnReportView({ away, report, waiting: state.pendingEncounters.length, stages, notes, site });
+      const view = toReturnReportView({ away, report, waiting: state.pendingEncounters.length, stages, notes, site, chapters: chapterCount });
       album.showReturnReport(view);
       extraNotice = '';
       // Die Begrüßung nennt die neue Stufe schon: kein zweites Stufen-Banner im nächsten Frame.

@@ -132,7 +132,10 @@ test('Letztes Kapitel online: Stempel, Andenken und Siegel – nach dem Neuladen
   state.meta.landscape.sites[0]!.chronicle = CHAPTER_IDS.filter((c) => c !== 'first-snow').map((c) => entry(c, 3, 'autumn'));
   await seedRaw(context, state, 0);
   await openGame(page);
-  await expect(stamps(page)).toContainText('📜 Neues Kapitel im Heimatwald: Erster Schnee im Urwald', { timeout: 10_000 });
+  // Abschluss als eigener Zettel mit dem Andenken (Playtest Phase 9, F4), der Erfolg im übrigen Hinweis.
+  const slip = stamps(page).locator('.stamp-keepsake');
+  await expect(slip).toContainText('📜 Die Chronik im Heimatwald ist vollständig! Letztes Kapitel: Erster Schnee im Urwald.', { timeout: 10_000 });
+  await expect(slip).toContainText('Die Eichel des Hähers');
   await expect(stamps(page)).toContainText('Eine Waldgeschichte');
 
   const check = async () => {
@@ -160,7 +163,8 @@ test('Letztes Kapitel online: Stempel, Andenken und Siegel – nach dem Neuladen
   expect(saved.find((e) => e.chapter === 'first-snow')).toEqual(entry('first-snow', 4, 'winter'));
   // Der Stempel kommt nach dem Neuladen nicht noch einmal.
   await page.waitForTimeout(500);
-  await expect(stamps(page)).not.toContainText('Neues Kapitel');
+  await expect(stamps(page)).not.toContainText('Kapitel');
+  await expect(stamps(page).locator('.stamp-keepsake')).toHaveCount(0);
 });
 
 // --- Kennarten vor der Landschaft: auch nicht über Hash, URL und Zähler ---------------------

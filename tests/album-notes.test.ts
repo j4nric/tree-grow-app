@@ -47,6 +47,8 @@ describe('Stempel oder Zettel', () => {
     expect(stampKind('x'.repeat(SLIP_MIN_CHARS + 1))).toBe('slip');
     // Zeichen, nicht UTF-16-Einheiten: Emoji zählen einfach.
     expect(stampKind('🌰'.repeat(SLIP_MIN_CHARS))).toBe('stamp');
+    // Vollständige Chronik (Playtest Phase 9, F4): immer ein Zettel mit Andenken.
+    expect(stampKind('kurz', { keepsake: '🪵' })).toBe('slip');
   });
 
   it('bleibende Meldungen sind immer Zettel – auch kurze', () => {

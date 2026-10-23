@@ -15,11 +15,15 @@
  */
 import { CHAPTER_IDS, CHRONICLE_CHAPTERS, type ChapterId } from '../content/chronicle';
 import { LANDSCAPE_SITES, LANDSCAPE_SITES_BY_ID, type Keepsake, type SiteId } from '../content/landscape';
-import { SEASONS } from '../content/seasons';
+import { SEASONS, SEASON_IDS, SEASON_SECONDS, YEAR_SECONDS } from '../content/seasons';
 import { SPECIES_BY_ID } from '../content/species';
 import {
+  activeSite,
+  ANCIENT_STAGE,
   chronicleComplete,
   chronicleOf,
+  hasChapter,
+  isSiteAncient,
   isSiteFounded,
   kennartOf,
   keepsakeOf,
@@ -29,8 +33,11 @@ import {
 } from '../core/landscape';
 import type { ChronicleEntry, GameState } from '../core/state';
 import { formatNumber } from './format';
+import { seasonTimeLeft } from './season-view';
 
 type ChronicleHolder = Pick<GameState, 'meta'>;
+/** Für Hinweise, die Stufe und Spielzeit des laufenden Zyklus brauchen (Kennart, Verweilen). */
+type CycleHolder = Pick<GameState, 'meta' | 'stage' | 'cycle'>;
 
 /** Kapitel je Wald (6) und in der ganzen Landschaft (36). */
 export const CHAPTERS_PER_SITE = CHAPTER_IDS.length;
@@ -121,6 +128,22 @@ export interface SiteChronicleView {
 const fraction = (n: number, total: number) => `${formatNumber(n)} / ${formatNumber(total)}`;
 
 /**
+ * Offene Kennart, wenn der Wald schon alt ist (Playtest Phase 9, F2): Der allgemeine Hinweis
+ * „zeigt sich nur, wenn er alt ist“ stimmte dann nicht mehr. Ohne Spoiler – nennt die Art nicht.
+ */
+export const KENNART_READY_HINT = 'Der Wald ist alt genug – jetzt kann sie jederzeit kommen.';
+/** Dasselbe für einen alten Wald, der gerade ruht (die Kennart kommt nur im aktiven Wald). */
+export const KENNART_READY_RESTING_HINT = 'Der Wald ist alt genug – wächst du wieder hier, kann sie jederzeit kommen.';
+
+/** Hinweis eines offenen Kapitels: der aus den Inhalten, bei der Kennart je nach Alter des Waldes. */
+function openChapterHint(state: ChronicleHolder, site: SiteId, chapter: ChapterId, hint: string): string {
+  if (chapter !== 'kennart') return hint;
+  // isSiteAncient liest `stage` nur für den aktiven Wald – ohne Stufe zählt nur „schon einmal Urwald“.
+  if (!isSiteAncient({ stage: -1, ...state }, site)) return hint;
+  return activeSite(landscapeOf(state)) === site ? KENNART_READY_HINT : KENNART_READY_RESTING_HINT;
+}
+
+/**
  * Chronik eines gegründeten Waldes für U:Standort und das Tagebuch der Wälder; null vor der
  * Landschaft und für Wälder, die noch nicht gegründet sind.
  */
@@ -135,7 +158,7 @@ export function siteChronicleView(state: ChronicleHolder, site: SiteId): SiteChr
       title: chapterTitle(site, c.id, entry !== undefined),
       written: entry !== undefined,
       date: entry ? chapterDate(entry) : null,
-      hint: entry ? null : c.hint,
+      hint: entry ? null : openChapterHint(state, site, c.id, c.hint),
     };
   });
   const written = chapters.filter((c) => c.written).length;
@@ -182,6 +205,41 @@ export function chronicleTargetText(state: ChronicleHolder, site: SiteId): strin
   return `${CHRONICLE_ICON} Chronik ${chronicleShortText(view)}`;
 }
 
+/** Index des Winters im Jahr (Frühling 0 … Winter 3). */
+const WINTER_START = SEASON_IDS.indexOf('winter') * SEASON_SECONDS;
+
+/**
+ * Spielzeit bis zum Beginn des nächsten Winters (> 0, höchstens ein Jahr): im Winter selbst bis
+ * zum Winter des nächsten Jahres – das Kapitel schreibt erst der Wechsel *zu* Winter (26.4).
+ */
+export function secondsToWinter(elapsed: number): number {
+  const t = Number.isFinite(elapsed) && elapsed > 0 ? elapsed : 0;
+  const inYear = t % YEAR_SECONDS;
+  const left = WINTER_START - inYear;
+  return left > 0 ? left : left + YEAR_SECONDS;
+}
+
+/**
+ * Worauf man beim Verweilen im Urwald wartet (Playtest Phase 9, F3): „❄️ Noch 1:19 min bis zum
+ * Winter – bleib, dann schreibt der Wald „Erster Schnee“.“ Nur, solange der aktive Wald im Urwald
+ * steht und sein Kapitel „Erster Schnee“ noch offen ist; sonst null (auch vor der Landschaft).
+ *
+ * `site`: der Wald, dessen Seite bzw. Ziel gezeigt wird – nur der aktive Wald kann verweilen.
+ * `away`: Der Zyklus soll woanders weitergehen (U:Neuer Zyklus mit anderem Ziel) – dann nennt der
+ * Hinweis den aktiven Wald beim Namen.
+ */
+export function firstSnowWaitText(state: CycleHolder, site?: SiteId, away = false): string | null {
+  if (!chronicleVisible(state) || state.stage < ANCIENT_STAGE) return null;
+  const active = activeSite(landscapeOf(state));
+  if (site !== undefined && site !== active) return null;
+  if (!isSiteFounded(state, active) || hasChapter(state, active, 'first-snow')) return null;
+  const left = seasonTimeLeft(secondsToWinter(state.cycle.elapsed));
+  const title = CHAPTER_SHORT['first-snow'];
+  return away
+    ? `❄️ Noch ${left} bis zum Winter – bleibst du, schreibt die Chronik ${siteIn(active)} „${title}“.`
+    : `❄️ Noch ${left} bis zum Winter – bleib, dann schreibt der Wald „${title}“.`;
+}
+
 /** Stand der Chronik je Wald (Zahl der Einträge) – für den Vergleich vorher/nachher. */
 export type ChronicleMark = Readonly<Partial<Record<SiteId, number>>>;
 
@@ -205,13 +263,8 @@ export function chaptersSince(state: ChronicleHolder, mark: ChronicleMark): Chap
   return news;
 }
 
-/**
- * Stempel bzw. Punkt im Rückkehr-Bericht für neue Kapitel (26.4 „Meldung“):
- * „📜 Neues Kapitel im Auwald am Fluss: Frühjahrshochwasser.“ – je Wald ein Satz; ist die
- * Chronik damit vollständig, dazu das Andenken. '' ohne Kapitel oder vor der Landschaft.
- */
-export function chapterNewsText(state: ChronicleHolder, news: readonly ChapterNews[]): string {
-  if (news.length === 0 || !chronicleVisible(state)) return '';
+/** Neue Kapitel je Wald (unbekannte Wälder übergangen, jedes Kapitel einmal). */
+function groupNews(news: readonly ChapterNews[]): Map<SiteId, ChapterId[]> {
   const bySite = new Map<SiteId, ChapterId[]>();
   for (const n of news) {
     if (!LANDSCAPE_SITES_BY_ID.has(n.site)) continue;
@@ -219,6 +272,17 @@ export function chapterNewsText(state: ChronicleHolder, news: readonly ChapterNe
     if (!list.includes(n.chapter)) list.push(n.chapter);
     bySite.set(n.site, list);
   }
+  return bySite;
+}
+
+/**
+ * Punkt im Rückkehr-Bericht für neue Kapitel (26.4 „Meldung“):
+ * „📜 Neues Kapitel im Auwald am Fluss: Frühjahrshochwasser.“ – je Wald ein Satz; ist die
+ * Chronik damit vollständig, dazu das Andenken. '' ohne Kapitel oder vor der Landschaft.
+ */
+export function chapterNewsText(state: ChronicleHolder, news: readonly ChapterNews[]): string {
+  if (news.length === 0 || !chronicleVisible(state)) return '';
+  const bySite = groupNews(news);
   const parts: string[] = [];
   for (const [site, chapters] of bySite) {
     const titles = chapters.map((c) => chapterTitle(site, c, true));
@@ -229,6 +293,55 @@ export function chapterNewsText(state: ChronicleHolder, news: readonly ChapterNe
     parts.push(text);
   }
   return parts.join(' ');
+}
+
+/** Eine Meldung neuer Kapitel als eigener Stempel (Playtest Phase 9, F4). */
+export interface ChapterNote {
+  text: string;
+  /** Andenken, wenn die Chronik damit vollständig ist – dann ein hervorgehobener Zettel. */
+  keepsake: Keepsake | null;
+}
+
+/**
+ * Neue Kapitel als eigene Meldungen statt im Sammelzettel (F4): ein Stempel für alle Wälder ohne
+ * Abschluss („📜 Neues Kapitel im Auwald am Fluss: Frühjahrshochwasser.“), je abgeschlossener
+ * Chronik ein eigener Zettel mit Andenken („📜 Die Chronik im Bergmischwald ist vollständig! …“).
+ * Leer ohne Kapitel oder vor der Landschaft.
+ */
+export function chapterNotes(state: ChronicleHolder, news: readonly ChapterNews[]): ChapterNote[] {
+  if (news.length === 0 || !chronicleVisible(state)) return [];
+  const bySite = groupNews(news);
+  const plain: string[] = [];
+  const done: ChapterNote[] = [];
+  for (const [site, chapters] of bySite) {
+    const titles = chapters.map((c) => chapterTitle(site, c, true));
+    const head = titles.length === 1 ? 'Neues Kapitel' : 'Neue Kapitel';
+    const keepsake = chronicleComplete(state, site) ? keepsakeOf(site) : null;
+    if (keepsake) {
+      const where = siteIn(site);
+      done.push({
+        text: `${CHRONICLE_ICON} Die Chronik ${where} ist vollständig! Letztes Kapitel: ${titles.join(', ')}. Andenken: ${keepsake.name} – „${keepsake.text}“`,
+        keepsake,
+      });
+    } else {
+      plain.push(`${CHRONICLE_ICON} ${head} ${siteIn(site)}: ${titles.join(', ')}.`);
+    }
+  }
+  return [...(plain.length > 0 ? [{ text: plain.join(' '), keepsake: null }] : []), ...done];
+}
+
+/** Zahl der gemeldeten neuen Kapitel (bekannte Wälder, je Wald jedes Kapitel einmal); 0 vor der Landschaft. */
+export function chapterNewsCount(state: ChronicleHolder, news: readonly ChapterNews[]): number {
+  if (!chronicleVisible(state)) return 0;
+  let n = 0;
+  for (const chapters of groupNews(news).values()) n += chapters.length;
+  return n;
+}
+
+/** Kurzfassung des Rückkehr-Berichts (F7): „📜 1 neues Kapitel“, „📜 3 neue Kapitel“; '' bei 0. */
+export function chapterCountText(n: number): string {
+  if (!(n > 0)) return '';
+  return n === 1 ? `${CHRONICLE_ICON} 1 neues Kapitel` : `${CHRONICLE_ICON} ${formatNumber(n)} neue Kapitel`;
 }
 
 /**
@@ -270,12 +383,14 @@ export function chronicleKeepsakes(state: ChronicleHolder): ChronicleKeepsakeVie
     if (complete && view?.keepsake) {
       return { key: site.id, icon: view.keepsake.icon, name: view.keepsake.name, site: `${label} · Chronik vollständig`, text: view.keepsake.text, complete: true };
     }
+    // Offene Kapitel beim Namen (Playtest Phase 9, F8) statt sechsmal desselben Satzes.
+    const isFounded = founded.has(site.id) && view !== null;
     return {
       key: site.id,
       icon: '?',
       name: '???',
-      site: founded.has(site.id) && view ? `${label} · ${view.count}` : `${label} · noch nicht gegründet`,
-      text: `Schreib die Chronik ${siteIn(site.id)} zu Ende – dann bleibt ein Andenken.`,
+      site: isFounded ? `${label} · ${view.count}` : `${label} · noch nicht gegründet`,
+      text: isFounded ? `Noch offen: ${view.open.join(', ')}.` : 'Mit der Gründung beginnt seine Chronik.',
       complete: false,
     };
   });

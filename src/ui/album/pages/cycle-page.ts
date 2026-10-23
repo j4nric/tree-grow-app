@@ -22,7 +22,7 @@ import { cycleViewKey, toCyclePanelView, treeChoiceFor, type CyclePanelView, typ
 import { el, setAttr, setText } from '../../dom';
 import { keepNumberWithIcon } from '../../format';
 import { newCycleButtonText, targetText } from '../../landscape-view';
-import { chronicleTargetText } from '../../chronicle-view';
+import { chronicleTargetText, firstSnowWaitText } from '../../chronicle-view';
 import { createBookmark } from '../bookmark';
 import { initialNav, pageNumber } from '../nav';
 import { createPage } from '../page';
@@ -101,6 +101,10 @@ export function createCyclePage(env: PageEnv): CyclePage {
   // Waldchronik des Ziel-Walds (26.7): „📜 Chronik 4 / 6 – offen: Erster Schnee, Kennart“.
   const targetChronicle = el('p', 'cyc-chronicle');
   targetChronicle.dataset.ref = 'cycle-chronicle';
+  // Verweilen im Urwald (Playtest Phase 9, F3): „❄️ Noch 1:19 min bis zum Winter – bleib, …“.
+  const dwell = el('p', 'cyc-chronicle cyc-dwell');
+  dwell.dataset.ref = 'cycle-dwell';
+  dwell.hidden = true;
   // Ziel-Wald ansehen: U:Standort auf Ebene 2 (B.6).
   const siteOpen = el('button', 'goals-more cyc-site-open');
   siteOpen.type = 'button';
@@ -167,7 +171,7 @@ export function createCyclePage(env: PageEnv): CyclePage {
   const regularItems = new Map<string, RegularItem>();
   let regularOrder = '';
 
-  page.body.append(now, gainBox, target, targetChronicle, siteOpen, trees, button, regulars);
+  page.body.append(now, gainBox, target, targetChronicle, dwell, siteOpen, trees, button, regulars);
 
   let view: CyclePanelView | null = null;
   let shownKey = '';
@@ -208,6 +212,14 @@ export function createCyclePage(env: PageEnv): CyclePage {
     setText(targetChronicle, chronicleText ?? '');
     siteOpen.hidden = target.hidden || !site;
     if (site) setText(siteOpen, `${site.name} ansehen ›`);
+    updateDwell(v);
+  }
+
+  /** Restzeit bis zum Winter, solange der aktive Wald im Urwald auf „Erster Schnee“ wartet (F3). */
+  function updateDwell(v: CyclePanelView): void {
+    const text = v.landscape && !target.hidden ? firstSnowWaitText(deps.state(), undefined, targetSite(v) !== undefined) : null;
+    dwell.hidden = text === null;
+    setText(dwell, text ?? '');
   }
 
   function createTreeItem(id: MainTreeId, icon: string, index: number): TreeItem {
@@ -388,6 +400,8 @@ export function createCyclePage(env: PageEnv): CyclePage {
       if (!force && t - last < REFRESH_MS) return;
       last = t;
       render();
+      // Die Restzeit ändert sich jede Sekunde, die übrige Ansicht kaum: nur sie nachziehen.
+      if (view) updateDwell(view);
     },
     reset: disarm,
     disarm,

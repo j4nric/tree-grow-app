@@ -385,6 +385,35 @@
   outline-offset: 2px;
 }
 
+/* Lange Liste im Tagebuch der Wälder (F9): „und 12 weitere ›“ klappt auf. */
+.lsc-collapsible-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  /* Tippfläche 44 px, ohne die Zeile zu strecken (der Rand ragt in die Nachbarzeilen). */
+  margin-block: -12px;
+  vertical-align: middle;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--r-button);
+  background: transparent;
+  color: var(--ink-green-dark);
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.lsc-collapsible-toggle:hover {
+  background: rgb(62 107 78 / 0.08);
+}
+
+.lsc-collapsible-toggle:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: 2px;
+}
+
 /* ---------- Korridore ---------- */
 
 .lsc-corridor-list {

@@ -505,27 +505,53 @@ export interface SiteEventHint {
   id: string;
   icon: string;
   name: string;
+  /**
+   * Schreibt dieses Ereignis das Kapitel „Ereignis des Waldes“ (Playtest Phase 9, F6)? Dann der
+   * Titel des Kapitels, wenn er mehr als nur der Name mit Artikel ist („Frühjahrshochwasser“),
+   * sonst '' („Das Käferjahr“ ↔ Käferjahr). Fehlt bei allen anderen.
+   */
+  chapter?: string;
 }
+
+/** „Das Käferjahr“ → „käferjahr“: Titel ohne Artikel, zum Vergleich mit dem Namen des Ereignisses. */
+const bareTitle = (title: string) => title.replace(/^(der|die|das)\s+/i, '').trim().toLowerCase();
 
 /**
  * Ereignisse, die ein Waldtyp öfter erlebt (Phase 9, 1c; DESIGN_V2.md 26.2): alle mit Faktor > 1 in
  * `eventFactors`, in der Reihenfolge der Daten. Symbol und Name aus den Ereignis-Daten; unbekannte
  * IDs und ungültige Faktoren werden übergangen. Leer ohne Faktor (Heimatwald, Bergmischwald).
  */
-export function siteEventHints(site: Pick<ForestSite, 'eventFactors'> | undefined): SiteEventHint[] {
+type EventSite = Pick<ForestSite, 'eventFactors'> & Partial<Pick<ForestSite, 'chronicleEvent' | 'chronicleEventTitle'>>;
+
+export function siteEventHints(site: EventSite | undefined): SiteEventHint[] {
   const hints: SiteEventHint[] = [];
   for (const [id, factor] of Object.entries(site?.eventFactors ?? {})) {
     const event = EVENTS_BY_ID.get(id);
     if (!event || !Number.isFinite(factor) || factor <= 1) continue;
-    hints.push({ id, icon: event.icon, name: event.name });
+    const hint: SiteEventHint = { id, icon: event.icon, name: event.name };
+    if (site?.chronicleEvent === id) {
+      const title = site.chronicleEventTitle ?? '';
+      hint.chapter = title && bareTitle(title) !== bareTitle(event.name) ? title : '';
+    }
+    hints.push(hint);
   }
   return hints;
 }
 
-/** „🌧️ Regenreicher Frühling, 🐌 Schneckenjahr“ – null ohne häufigere Ereignisse. */
-export function siteEventText(site: Pick<ForestSite, 'eventFactors'> | undefined): string | null {
+/** Ein Ereignis als Text; das Ereignis des Waldes mit „(📜 Kapitel „Frühjahrshochwasser“)“ (F6). */
+function eventHintText(h: SiteEventHint): string {
+  const base = `${h.icon} ${h.name}`;
+  if (h.chapter === undefined) return base;
+  return h.chapter ? `${base} (📜 Kapitel „${h.chapter}“)` : `${base} (📜 Kapitel)`;
+}
+
+/**
+ * „🌧️ Regenreicher Frühling (📜 Kapitel „Frühjahrshochwasser“), 🐌 Schneckenjahr“ – null ohne
+ * häufigere Ereignisse.
+ */
+export function siteEventText(site: EventSite | undefined): string | null {
   const hints = siteEventHints(site);
-  return hints.length > 0 ? hints.map((h) => `${h.icon} ${h.name}`).join(', ') : null;
+  return hints.length > 0 ? hints.map(eventHintText).join(', ') : null;
 }
 
 function siteEventFields(site: ForestSite | undefined): Pick<LandscapeSiteView, 'events' | 'eventIcons'> {
