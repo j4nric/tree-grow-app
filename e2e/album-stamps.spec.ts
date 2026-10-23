@@ -154,7 +154,8 @@ for (const viewport of [
     // Leiste liegt tief unten (unter Polaroid, Etiketten und Stufenleiste).
     expect((await tabButton(page, 'arten').boundingBox())!.y).toBeGreaterThan(viewport.height * 0.45);
     await openTab(page, 'arten');
-    await expect.poll(async () => (await page.locator('[data-ref="tabs"]').boundingBox())!.y).toBeLessThanOrEqual(1);
+    // Die Leiste klebt oben – mobil direkt unter der 30 px hohen Vorratsleiste (supply-bar.css).
+    await expect.poll(async () => (await page.locator('[data-ref="tabs"]').boundingBox())!.y).toBeLessThanOrEqual(31);
     // Titel der neuen Seite steht direkt unter der Leiste, darunter ist Platz für Inhalt.
     const title = (await pageTitle(page).boundingBox())!;
     expect(title.y).toBeLessThan(140);
