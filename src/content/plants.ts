@@ -2,9 +2,10 @@ import type { PlantGroup, Tag } from './types';
 
 /**
  * Begleitpflanzen um den Hauptbaum (docs/DESIGN_V2.md, Abschnitt 4). Zahlen ursprünglich
- * aus dem Prototyp (scripts/v2, entfernt in Schritt 2.10). Pflanzen kommen über die
- * Begegnung „Etwas keimt“ (gratis) oder werden mit Samen gesetzt; dieselbe Pflanze darf mehrfach wachsen. Sie sterben nicht –
- * ist der Pflanzring voll (`Stage.plantSlots`), heißt es ersetzen oder warten.
+ * aus dem Prototyp (scripts/v2, entfernt in Schritt 2.10). Pflanzen kommen seit Phase 10 nur
+ * über die Aussaat (sowing.ts, DESIGN_V2.md 27.6): Säen kostet Samen und öffnet eine Kartenwahl;
+ * dieselbe Pflanze darf mehrfach wachsen. Sie sterben nicht – ist der Pflanzring voll
+ * (`Stage.plantSlots`), ersetzt die neue Pflanze eine andere.
  */
 export interface Plant {
   id: string;
@@ -96,10 +97,3 @@ export const PLANTS: readonly Plant[] = [
 ];
 
 export const PLANTS_BY_ID: ReadonlyMap<string, Plant> = new Map(PLANTS.map((p) => [p.id, p]));
-
-/**
- * Pflanzen setzen kostet Samen: PLANT_COST_BASE · PLANT_COST_GROWTH^n, n = Begleitpflanzen,
- * die schon wachsen (Hauptbaum zählt nicht) → 20 · 38 · 72 · 137 · 261 · 495 … 🌰.
- */
-export const PLANT_COST_BASE = 20;
-export const PLANT_COST_GROWTH = 1.9;

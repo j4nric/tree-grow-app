@@ -12,16 +12,17 @@ import {
   chooseCard,
   chooseEventOption,
   declineEncounter,
+  discardSowing,
   farewellVisitor,
   hostVisitor,
-  plantSeed,
   research,
+  sow,
   recordDiscoveries,
   simulateOffline,
   startNewCycle,
   tick,
 } from '../src/core/tick';
-import { stateAt } from './helpers';
+import { plantFromSowing, stateAt } from './helpers';
 
 /**
  * Langzeit-Statistik `meta.stats` (Spielstand v8, DESIGN_V2.md 12.5): Zähler in den
@@ -186,11 +187,11 @@ describe('Gesamt-Wachstum über alle Zyklen (lifetimeGrowth)', () => {
 });
 
 describe('Zähler in den Aktionen', () => {
-  it('Karte wählen (Tier und Pflanze) zählt, Ablehnen und Fehlschläge nicht', () => {
+  it('Tierkarte wählen zählt, Ablehnen und Fehlschläge nicht', () => {
     const s = stateAt(2, [], 1);
     s.pendingEncounters = [
       { type: 'animal', cards: ['earthworm'], rerolls: 0 },
-      { type: 'plant', cards: ['moss'], rerolls: 0 },
+      { type: 'animal', cards: ['woodlouse'], rerolls: 0 },
       { type: 'animal', cards: ['robin'], rerolls: 0 },
     ];
     expect(chooseCard(s, 0, 5).ok).toBe(false);
@@ -200,17 +201,17 @@ describe('Zähler in den Aktionen', () => {
     expect(s.meta.stats.cardsChosen).toBe(2);
     expect(declineEncounter(s, 0).ok).toBe(true);
     expect(s.meta.stats.cardsChosen).toBe(2);
-    // Gekeimte Pflanzen zählen als Karte, nicht als gesetzt.
     expect(s.meta.stats.plantsPlanted).toBe(0);
   });
 
-  it('Pflanze setzen zählt nur bei Erfolg', () => {
+  it('Pflanze aus einer Aussaat setzen zählt nur bei Erfolg – Säen und Zurücklegen nicht', () => {
     const s = stateAt(2, [], 1);
-    expect(plantSeed(s, 'moss').ok).toBe(false); // zu teuer
-    s.seeds = 1e6;
-    expect(plantSeed(s, 'moss').ok).toBe(true);
-    expect(plantSeed(s, 'gibt-es-nicht').ok).toBe(false);
-    expect(s.meta.stats.plantsPlanted).toBe(1);
+    expect(sow(s).ok).toBe(true);
+    expect(discardSowing(s).ok).toBe(true);
+    expect(s.meta.stats.plantsPlanted).toBe(0);
+    expect(plantFromSowing(s, 'moss').ok).toBe(true);
+    expect(plantFromSowing(s, 'gibt-es-nicht').ok).toBe(false);
+    expect(s.meta.stats).toMatchObject({ plantsPlanted: 1, cardsChosen: 0 });
   });
 
   it('Ereignis entscheiden und Gast bewirten zählen, Ziehenlassen nicht', () => {
@@ -242,7 +243,7 @@ describe('Zähler in den Aktionen', () => {
     const s = stateAt(2, [], 1);
     s.seeds = 1e6;
     s.meta.stats.plantsPlanted = MAX_STAT_COUNT;
-    plantSeed(s, 'moss');
+    plantFromSowing(s, 'moss');
     expect(s.meta.stats.plantsPlanted).toBe(MAX_STAT_COUNT);
   });
 

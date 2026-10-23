@@ -26,6 +26,8 @@ import {
   test,
   waitForConfirm,
   waypoint,
+  sowButton,
+  sowNow,
 } from './fixtures';
 import type { BrowserContext, Page } from '@playwright/test';
 import { SAVE_KEY, codeFromJson } from '../src/core/save';
@@ -454,25 +456,23 @@ test.describe('Mobil (390×844)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Pflanzen: Begegnung „Etwas keimt“, Pflanzring, „Pflanze setzen“
+// Pflanzen: Aussaat (geschenkt an Wegpunkt 2, „🌱 Säen“), Pflanzring
 // ---------------------------------------------------------------------------
 
 const plantCard = (page: Page, plant: string) => encounter(page).locator(`[data-plant="${plant}"]`);
 const plantRing = (page: Page) => page.locator('[data-ref="plant-ring"]');
-const plantOpen = (page: Page) => page.locator('[data-ref="plant-open"]');
-const picker = (page: Page) => page.locator('[data-ref="page-plant-picker"]');
 
-test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring', async ({ page, context }) => {
-  // Keimling kurz vor Wegpunkt 2 – die festgelegte zweite Begegnung ist „Etwas keimt“.
+test('geschenkte Aussaat an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring', async ({ page, context }) => {
+  // Keimling kurz vor Wegpunkt 2 – dort öffnet sich die geschenkte erste Aussaat (27.5).
   await seedV3(context, { totalGrowth: waypoint(2) - 2, niches: { roots: ['earthworm'] } });
   await openGame(page);
   await expect(stageLabel(page)).toHaveText('Stufe: Keimling');
   await expect(plantRing(page)).toContainText('frei');
-  await expect(stack(page)).toHaveAttribute('aria-label', /1 Begegnung wartet/, { timeout: 8_000 });
+  await expect(stack(page)).toHaveText('🌱1 Zettel: Aussaat!', { timeout: 8_000 });
 
   await openStack(page);
-  await expect(encounter(page)).toContainText('Etwas keimt');
-  await expect(encounter(page)).toContainText('kostenlos im Pflanzring (0/1 belegt)');
+  await expect(encounter(page)).toContainText('Aussaat – zwei Samen, ein Platz');
+  await expect(encounter(page)).toContainText('Wähle einen Samen für den Pflanzring (0/1 belegt).');
   const cards = encounter(page).locator('[data-plant]');
   await expect(cards).toHaveCount(2);
   await expect(encounter(page)).not.toContainText('Unbekannt');
@@ -495,22 +495,25 @@ test('Pflanzen-Begegnung an Wegpunkt 2: Karte wählen, Pflanze wächst im Ring',
   const saved = await savedState(page);
   expect(saved.plants).toEqual(['moss']);
   expect(saved.pendingEncounters).toEqual([]);
+  expect(saved.cycle.sowing).toBeNull();
+  expect(saved.cycle.sowings).toBe(1);
 });
 
 test('Pflanzring voll: „Welche Pflanze weicht?“ ersetzt die gewählte Pflanze', async ({ page, context }) => {
   await seedV3(context, {
     totalGrowth: waypoint(3) + 1,
     plants: ['hazel', 'bramble'],
+    // Alter Stand mit „Etwas keimt“: lädt als offene Aussaat (27.9).
     pendingEncounters: [{ type: 'plant', cards: ['nettle', 'strawberry', 'fern'], rerolls: 0 }],
   });
   await openGame(page);
   await expect(stageLabel(page)).toHaveText('Stufe: Setzling');
   await expect(page.locator('[data-ref="plant-slots"]')).toHaveText('2/2 belegt');
-  // Ring voll: statt „Pflanze setzen“ ein Hinweis
-  await expect(plantOpen(page)).toBeHidden();
-  await expect(page.locator('[data-ref="plant-hint"]')).toContainText('Alle Plätze belegt');
+  // Eine Aussaat ist offen: Der Knopf öffnet sie.
+  await expect(sowButton(page)).toContainText('Aussaat offen');
+  await expect(page.locator('[data-ref="plant-hint"]')).toContainText('Eine Aussaat wartet');
 
-  await openStack(page);
+  await sowNow(page);
   const nettle = plantCard(page, 'nettle');
   await expect(nettle).toContainText('Pflanzring voll');
   await expect(nettle.getByRole('combobox', { name: 'Welche Pflanze weicht?' })).toBeVisible();
@@ -523,48 +526,45 @@ test('Pflanzring voll: „Welche Pflanze weicht?“ ersetzt die gewählte Pflanz
   await expect(plantRing(page)).toContainText('Hasel');
   await expect(plantRing(page)).not.toContainText('Brombeere');
   expect((await savedState(page)).plants).toEqual(['hazel', 'nettle']);
+  // Voller Ring: Säen bleibt möglich (tauschen), der Preis steigt mit jeder Aussaat.
+  await expect(sowButton(page)).toContainText('🌱 Säen (tauschen)');
 });
 
-test('Pflanze setzen mit genug Samen: Samen sinken, Pflanze wächst, Auswahl schließt', async ({ page, context }) => {
-  await seedV3(context, { totalGrowth: waypoint(3) + 1, seeds: 30 });
+test('Säen mit genug Samen: Preis mit Saatzeit, Samen sinken, Pflanze wächst', async ({ page, context }) => {
+  // Eine Pflanze wächst schon: Die geschenkte erste Aussaat gilt als benutzt (27.9), die zweite
+  // kostet im Frühling ⌈20 · 0,8⌉ = 16 🌰.
+  await seedV3(context, { totalGrowth: waypoint(3) + 1, seeds: 30, plants: ['moss'] });
   await openGame(page);
-  await expect(plantOpen(page)).toBeVisible();
-  await expect(plantOpen(page)).toContainText('20 🌰');
-  await plantOpen(page).click();
-
-  await expect(picker(page)).toBeVisible();
-  await expect(picker(page)).toContainText('Pflanzring 0/2 belegt');
-  await expect(picker(page).locator('[data-plant]')).toHaveCount(7); // Keimling- und Setzling-Pflanzen
+  await expect(sowButton(page)).toBeVisible();
+  await expect(sowButton(page)).toContainText('16 🌰');
+  await expect(sowButton(page)).toContainText('Saatzeit');
+  await sowNow(page);
+  // 30 − 16 = 14 🌰 (plus, was seitdem gewachsen ist).
+  expect(await readNumber(seedsValue(page))).toBeLessThan(20);
   await page.waitForTimeout(300); // Eingabesperre nach dem Öffnen
-  await picker(page).getByRole('button', { name: 'Hasel setzen für 20 Samen' }).click();
+  await encounter(page).getByRole('button', { name: /einkleben/ }).first().click();
 
-  await expect(picker(page)).toBeHidden();
-  await expect(plantRing(page).locator('[data-plant="hazel"]')).toContainText('Hasel');
-  await expect(page.locator('[data-ref="plant-slots"]')).toHaveText('1/2 belegt');
-  expect(await readNumber(seedsValue(page))).toBeLessThan(15);
-  // Die nächste Pflanze kostet mehr (20 · 1,9 = 38).
-  await expect(plantOpen(page)).toContainText('38 🌰');
-  // Fokus zurück auf „Pflanze setzen“
-  await expect(plantOpen(page)).toBeFocused();
+  await expect(encounter(page)).toBeHidden();
+  await expect(page.locator('[data-ref="plant-slots"]')).toHaveText('2/2 belegt');
+  // Die nächste Aussaat kostet mehr (⌈35 · 0,8⌉ = 28) und tauscht.
+  await expect(sowButton(page)).toContainText('28 🌰');
+  await expect(sowButton(page)).toContainText('tauschen');
   const saved = await savedState(page);
-  expect(saved.plants).toEqual(['hazel']);
-  expect(saved.seeds).toBeLessThan(15);
+  expect(saved.plants).toHaveLength(2);
+  expect(saved.seeds).toBeLessThan(20);
+  expect(saved.cycle.sowings).toBe(2);
 });
 
-test('Pflanze setzen mit zu wenig Samen: gesperrt mit Grund, nichts ändert sich', async ({ page, context }) => {
-  await seedV3(context, { totalGrowth: waypoint(3) + 1, seeds: 5 });
+test('Säen mit zu wenig Samen: Hinweis, Meldung, nichts ändert sich', async ({ page, context }) => {
+  await seedV3(context, { totalGrowth: waypoint(3) + 1, seeds: 5, plants: ['moss'] });
   await openGame(page);
-  await expect(page.locator('[data-ref="plant-hint"]')).toContainText('bis zur nächsten Pflanze');
-  await plantOpen(page).click();
-  await expect(picker(page)).toBeVisible();
-  await expect(picker(page).locator('[data-ref="picker-seeds"]')).toContainText('bis zur nächsten Pflanze');
-  const hazel = picker(page).locator('[data-plant="hazel"]');
-  await expect(hazel.getByRole('button', { name: 'Hasel: Nicht genug Samen' })).toBeDisabled();
-
-  await page.keyboard.press('Escape');
-  await expect(picker(page)).toBeHidden();
-  await expect(plantOpen(page)).toBeFocused();
-  expect((await savedState(page)).plants ?? []).toEqual([]);
+  await expect(page.locator('[data-ref="plant-hint"]')).toContainText('bis zur nächsten Aussaat');
+  await sowButton(page).click();
+  await expect(page.getByText('Nicht genug Samen.').first()).toBeVisible();
+  await expect(encounter(page)).toBeHidden();
+  const saved = await savedState(page);
+  expect(saved.plants).toEqual(['moss']);
+  expect(saved.cycle.sowing ?? null).toBeNull();
 });
 
 test.describe('Pflanzen mobil (390×844)', () => {
@@ -578,10 +578,7 @@ test.describe('Pflanzen mobil (390×844)', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   }
 
-  test('kein horizontales Scrollen: Pflanzring mit Mangel, U:Pflanze setzen, Pflanzen-Begegnung', async ({
-    page,
-    context,
-  }) => {
+  test('kein horizontales Scrollen: Pflanzring mit Mangel, offene Aussaat', async ({ page, context }) => {
     await seedV3(context, {
       totalGrowth: waypoint(6) + 1,
       seeds: 500,
@@ -594,13 +591,7 @@ test.describe('Pflanzen mobil (390×844)', () => {
     await expect(page.locator('[data-ref="plant-shortage"]')).toContainText('Zu wenig Licht');
     await expectNoHorizontalScroll(page);
 
-    await plantOpen(page).tap();
-    await settledSubpage(page, 'plant-picker');
-    await expectNoHorizontalScroll(page);
-    await picker(page).locator('[data-ref="bookmark"]').tap();
-    await expect(picker(page)).toBeHidden();
-
-    await stack(page).tap();
+    await sowButton(page).tap();
     await settledSubpage(page, 'encounter');
     await expect(plantCard(page, 'elder')).toBeVisible();
     await expectNoHorizontalScroll(page);

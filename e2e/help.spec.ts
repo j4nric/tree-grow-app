@@ -89,8 +89,8 @@ test('Spielanleitung: Inhaltsverzeichnis, Kapitel mit Zahlen aus dem Spiel, Blä
   await openCoverPage(page, 'guide');
   await expect(guide(page).getByRole('heading', { name: 'Spielanleitung' })).toBeFocused();
   await expect(guide(page).locator('[data-ref="bookmark"]')).toHaveText('‹ Umschlag');
-  await expect(guide(page).locator('[data-chapter]')).toHaveCount(19);
-  await expect(guide(page)).toContainText('19 Kapitel');
+  await expect(guide(page).locator('[data-chapter]')).toHaveCount(20);
+  await expect(guide(page)).toContainText('20 Kapitel');
 
   // Waldlandschaft: im neuen Spiel nur eine Andeutung (Spoiler-Regel).
   await openChapter(page, 'landscape');

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SPRING_SOWING_FACTOR } from '../src/content/sowing';
 import {
   CARDS_PER_ENCOUNTER,
   DECLINE_SEED_SECONDS,
@@ -9,7 +10,6 @@ import {
   INTERLUDE_WEIGHTS,
   MAX_PENDING_ENCOUNTERS,
   PLANT_WEIGHT_IN_RING,
-  PLANT_WEIGHT_RING_FULL,
   RARITY_WEIGHTS,
   REROLL_BASE_COST,
   SCRIPTED_ENCOUNTERS,
@@ -287,23 +287,24 @@ describe('Inhalte v2', () => {
     for (let i = 1; i < STAGES.length; i++) expect(STAGES[i]!.plantSlots).toBeGreaterThanOrEqual(STAGES[i - 1]!.plantSlots);
   });
 
-  it('Begegnungsgewichte: je Stufe, Spalten wie ENCOUNTER_TYPES, Tier und Pflanze immer möglich', () => {
+  it('Begegnungsgewichte: je Stufe, Spalten wie ENCOUNTER_TYPES, nur Tiere, Ereignisse und Gäste (27.5)', () => {
     expect(ENCOUNTER_WEIGHTS).toHaveLength(STAGES.length);
-    expect(ENCOUNTER_TYPES).toEqual(['animal', 'plant', 'event', 'visitor']);
+    expect(ENCOUNTER_TYPES).toEqual(['animal', 'event', 'visitor']);
     for (const w of ENCOUNTER_WEIGHTS) {
       expect(w).toHaveLength(ENCOUNTER_TYPES.length);
       expect(w[0]).toBeGreaterThan(0);
-      expect(w[1]).toBeGreaterThan(0);
       for (const x of w) expect(x).toBeGreaterThanOrEqual(0);
     }
-    for (const t of SCRIPTED_ENCOUNTERS) expect(['animal', 'plant']).toContain(t);
+    for (const t of SCRIPTED_ENCOUNTERS) expect(['animal', 'sowing']).toContain(t);
+    // Die geschenkte erste Aussaat kommt an Wegpunkt 2 – dort ist der Pflanzring schon offen.
+    SCRIPTED_ENCOUNTERS.forEach((t, i) => {
+      if (t === 'sowing') expect(STAGES.filter((st) => st.waypoint <= i + 1).at(-1)!.plantSlots).toBeGreaterThan(0);
+    });
   });
 
-  it('Vielfalt-Gewichte (DESIGN_V2.md 7.7): dämpfen nur, schließen nie aus', () => {
-    for (const w of [PLANT_WEIGHT_RING_FULL, PLANT_WEIGHT_IN_RING]) {
-      expect(w).toBeGreaterThan(0);
-      expect(w).toBeLessThanOrEqual(1);
-    }
+  it('Vielfalt-Gewicht der Aussaat (DESIGN_V2.md 7.7): dämpft nur, schließt nie aus', () => {
+    expect(PLANT_WEIGHT_IN_RING).toBeGreaterThan(0);
+    expect(PLANT_WEIGHT_IN_RING).toBeLessThanOrEqual(1);
   });
 
   it('Stufen, Nischen und Wegpunkte passen zusammen', () => {
@@ -429,10 +430,15 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
         case 'nextEncounter':
           expect(x.ids.length, where).toBeGreaterThan(0);
           expect(unique([...x.ids]), where).toBe(true);
-          for (const id of x.ids) {
-            if (x.type === 'animal') expect(SPECIES_BY_ID.has(id), `${where}: ${id}`).toBe(true);
-            else expect(PLANTS_BY_ID.has(id), `${where}: ${id}`).toBe(true);
-          }
+          // Seit Phase 10 (27.5) gibt kein Ereignis mehr eine Pflanzenbegegnung vor.
+          expect(x.type, where).toBe('animal');
+          for (const id of x.ids) expect(SPECIES_BY_ID.has(id), `${where}: ${id}`).toBe(true);
+          break;
+        case 'freeSowing':
+          // Geschenkte Aussaat (Vogelsaat): bekannte Pflanzen, je einmal.
+          expect(x.ids.length, where).toBeGreaterThan(0);
+          expect(unique([...x.ids]), where).toBe(true);
+          for (const id of x.ids) expect(PLANTS_BY_ID.has(id), `${where}: ${id}`).toBe(true);
           break;
       }
     };
@@ -444,9 +450,13 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
       // Bonus dabeistehen (z. B. Fliegenpilz im Pilzherbst).
       for (const o of e.options) {
         for (const x of o.effects) {
+          if (x.kind === 'freeSowing') {
+            // Alle vorgegebenen Pflanzen wachsen ab minStage.
+            for (const id of x.ids) expect(PLANTS_BY_ID.get(id)!.unlock, `${e.id}: ${id}`).toBeLessThanOrEqual(e.minStage);
+            continue;
+          }
           if (x.kind !== 'nextEncounter') continue;
           const ready = x.ids.filter((id) => {
-            if (x.type === 'plant') return PLANTS_BY_ID.get(id)!.unlock <= e.minStage;
             const s = SPECIES_BY_ID.get(id)!;
             // Offen ab der Stufe – oder die Option schafft selbst Platz (Krötenwanderung: Waldtümpel).
             const opens = o.effects.some((y) => y.kind === 'cycle' && y.effect.kind === 'slot' && y.effect.niche === s.niche);
@@ -495,7 +505,7 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
   });
 
   it('Takt: Ereignisse ab Junger Baum, Gäste ab Alter Baum – und dann gibt es immer welche ohne Bedingung', () => {
-    ENCOUNTER_WEIGHTS.forEach(([, , event, visitor], stage) => {
+    ENCOUNTER_WEIGHTS.forEach(([, event, visitor], stage) => {
       if (event > 0) {
         expect(stage).toBeGreaterThanOrEqual(3);
         expect(EVENTS.some((e) => e.minStage <= stage && !e.appears), `Stufe ${stage}`).toBe(true);
@@ -506,10 +516,10 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
       }
     });
     // Jedes Ereignis und jeder Gast kann auch gezogen werden.
-    for (const e of EVENTS) expect(ENCOUNTER_WEIGHTS[e.minStage]![2], e.id).toBeGreaterThan(0);
+    for (const e of EVENTS) expect(ENCOUNTER_WEIGHTS[e.minStage]![1], e.id).toBeGreaterThan(0);
     // Ereignisse und Gäste verdrängen höchstens ein Viertel der Begegnungen am Wegpunkt.
-    for (const [animal, plant, event, visitor] of ENCOUNTER_WEIGHTS) {
-      expect((event + visitor) / (animal + plant + event + visitor)).toBeLessThanOrEqual(0.25);
+    for (const [animal, event, visitor] of ENCOUNTER_WEIGHTS) {
+      expect((event + visitor) / (animal + event + visitor)).toBeLessThanOrEqual(0.25);
     }
     // Zwischenhalt (ab Hain): zusätzlich, in der Mitte zwischen zwei Wegpunkten.
     expect(INTERLUDE_STAGE).toBeGreaterThanOrEqual(4);
@@ -522,7 +532,7 @@ describe('Ereignisse und Durchreisende (DESIGN_V2.md 7.4, 7.5)', () => {
     // Ab dem Zwischenhalt gibt es Ereignisse und Gäste.
     expect(EVENTS.some((e) => e.minStage <= INTERLUDE_STAGE && !e.appears)).toBe(true);
     expect(VISITORS.some((v) => v.minStage <= INTERLUDE_STAGE && !v.appears)).toBe(true);
-    for (const v of VISITORS) expect(ENCOUNTER_WEIGHTS[v.minStage]![3], v.id).toBeGreaterThan(0);
+    for (const v of VISITORS) expect(ENCOUNTER_WEIGHTS[v.minStage]![2], v.id).toBeGreaterThan(0);
   });
 });
 
@@ -646,7 +656,19 @@ describe('Jahreszeiten: Inhalte (DESIGN_V2.md 16)', () => {
         expect(factor, `${s.id}: ${type}`).toBeLessThanOrEqual(2);
       }
     }
-    expect(SEASONS_BY_ID.get('spring')!.encounterFactors?.plant).toBeGreaterThan(1);
+  });
+
+  it('Saatzeit: nur der Frühling verbilligt die Aussaat, um höchstens die Hälfte (27.5)', () => {
+    for (const s of SEASONS) {
+      const f = s.sowingCostFactor;
+      if (s.id === 'spring') expect(f).toBe(SPRING_SOWING_FACTOR);
+      else expect(f, s.id).toBeUndefined();
+      if (f !== undefined) {
+        expect(f).toBeGreaterThanOrEqual(0.5);
+        expect(f).toBeLessThan(1);
+      }
+    }
+    expect(SEASONS_BY_ID.get('spring')!.summary).toContain('Aussaat −20 % 🌰');
   });
 
   it('Jahreszeiten von Ereignissen und Gästen verweisen auf gültige IDs', () => {

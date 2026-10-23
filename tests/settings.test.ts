@@ -12,7 +12,8 @@ import {
 import { EVENTS, SEED_SECONDS_MIN_SEEDS } from '../src/content/events';
 import { FOREST_MEMORY_BONUS, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { NICHES } from '../src/content/niches';
-import { PLANT_COST_BASE, PLANTS } from '../src/content/plants';
+import { PLANTS } from '../src/content/plants';
+import { SOWING_BASE, SOWING_GROWTH } from '../src/content/sowing';
 import { COMMON_SPECIES, SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { TRAIT_THRESHOLDS } from '../src/content/traits';
@@ -163,13 +164,14 @@ describe('Spielanleitung', () => {
   const sections = guideSections();
   const text = (id: string) => sections.find((s) => s.id === id)!.paragraphs.join(' ');
 
-  it('19 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
+  it('20 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
     expect(sections.map((s) => s.id)).toEqual([
       'growth',
       'encounters',
       'niches',
       'habitats',
       'predation',
+      'sowing',
       'plants',
       'communities',
       'harmony',
@@ -279,8 +281,12 @@ describe('Spielanleitung', () => {
     expect(text('encounters')).toContain(`Ablehnen bringt die Samen von ${formatNumber(DECLINE_SEED_SECONDS)} Sekunden, mindestens 5 🌰`);
     expect(text('encounters')).toContain(`${formatNumber(REROLL_BASE_COST)} 🌰`);
     expect(text('niches')).toContain(`${formatNumber(NICHES.length)} Nischen`);
-    expect(text('plants')).toContain(`${formatNumber(PLANTS.length)} verschiedene`);
-    expect(text('plants')).toContain(`${formatNumber(PLANT_COST_BASE)} 🌰`);
+    expect(text('sowing')).toContain(`${formatNumber(PLANTS.length)} verschiedene`);
+    expect(text('sowing')).toContain(`Danach kostet Säen ${formatNumber(SOWING_BASE)} 🌰, jede weitere Aussaat im Zyklus ×${formatNumber(SOWING_GROWTH)}`);
+    expect(text('sowing')).toContain('Im Frühling ist Saatzeit: Säen kostet 20 % weniger.');
+    expect(text('sowing')).toContain('„Saatgut sortieren“, „Samenbank“ und „Anzuchtbeet“');
+    expect(text('encounters')).toContain('Pflanzen kommen nicht über Begegnungen');
+    expect(JSON.stringify(sections)).not.toContain('keimt');
     // Vor der Landschaft ohne die Kennarten (26.3), danach alle.
     expect(text('communities')).toContain(`${formatNumber(COMMON_SPECIES.length)} Arten`);
     expect(guideSections({ landscape: true }).find((s) => s.id === 'communities')!.paragraphs.join(' ')).toContain(`${formatNumber(SPECIES.length)} Arten`);

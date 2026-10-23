@@ -4,7 +4,7 @@ import { SPECIES_BY_ID, type Species } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { evaluate, thresholdFor } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
-import { chooseEventOption, farewellVisitor, hostVisitor, tick, type TickReport } from '../src/core/tick';
+import { chooseEventOption, chooseSowing, farewellVisitor, hostVisitor, tick, type ActionResult, type TickReport } from '../src/core/tick';
 
 /**
  * Wachstumsbonus des Frühlings (0,1 = +10 % 🌿, DESIGN_V2.md 16.3). Jeder Zyklus beginnt im
@@ -79,6 +79,7 @@ export function tickToGrowth(state: GameState, target: number): TickReport {
     declinedSeeds: 0,
     regulars: [],
     interludes: 0,
+    sowings: 0,
     interludesReached: 0,
     expired: [],
     seasons: [],
@@ -89,7 +90,7 @@ export function tickToGrowth(state: GameState, target: number): TickReport {
   for (let i = 0; i < 1000 && state.totalGrowth < target; i++) {
     const rate = evaluate(state).growth;
     const r = tick(state, Math.max(1e-6, ((target - state.totalGrowth) / rate) * 1.01));
-    for (const k of ['waypoints', 'encounters', 'autoDeclined', 'declinedStackFull', 'declinedNoCards', 'declinedSeeds', 'interludes', 'interludesReached'] as const) {
+    for (const k of ['waypoints', 'encounters', 'autoDeclined', 'declinedStackFull', 'declinedNoCards', 'declinedSeeds', 'interludes', 'sowings', 'interludesReached'] as const) {
       total[k] += r[k];
     }
     total.regulars.push(...r.regulars);
@@ -103,9 +104,21 @@ export function tickToGrowth(state: GameState, target: number): TickReport {
 }
 
 /**
+ * Setzt eine Pflanze wie aus einer Aussaat (DESIGN_V2.md 27.6), ohne Kosten und Zufall: legt
+ * eine Aussaat mit genau dieser Karte offen (eine offene wird ersetzt) und wählt sie – bei
+ * vollem Ring anstelle von `replaceId`. Ersetzt in Tests das frühere `plantSeed`.
+ */
+export function plantFromSowing(state: GameState, plantId: string, replaceId?: string): ActionResult {
+  state.cycle.sowing = { cards: [plantId], rerolls: 0 };
+  const result = chooseSowing(state, 0, replaceId);
+  if (!result.ok) state.cycle.sowing = null;
+  return result;
+}
+
+/**
  * Löst ein Ereignis oder einen Gast an der Spitze der Warteschlange auf: Ereignis → erste
  * Option, Gast → bewirten, wenn die Samen reichen, sonst ziehen lassen. Gibt false
- * zurück, wenn dort eine Tier- oder Pflanzenbegegnung (oder nichts) wartet.
+ * zurück, wenn dort eine Tierbegegnung (oder nichts) wartet.
  */
 export function resolveSpecial(state: GameState): boolean {
   const type = state.pendingEncounters[0]?.type;

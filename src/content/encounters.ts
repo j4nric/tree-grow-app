@@ -1,7 +1,6 @@
-import type { EncounterType } from './types';
-
 /**
- * Begegnungen (docs/DESIGN_V2.md, Abschnitt 7): „Tier zieht ein“ und „Etwas keimt“.
+ * Begegnungen (docs/DESIGN_V2.md, Abschnitt 7 und 27.5): „Tier zieht ein“, Ereignisse und
+ * Gäste. Pflanzen kommen seit Phase 10 nur über die Aussaat (sowing.ts).
  * Samen-Kosten und -Erträge sind vorerst fest – das Design koppelt sie später an die
  * Kosten der nächsten Pflanze (Ablehnen 25 %, Neu würfeln 50 % von 20 🌰).
  */
@@ -43,46 +42,43 @@ export const RARITY_WEIGHTS: readonly (readonly [number, number, number, number]
 ];
 
 /**
- * Gewichte der Begegnungstypen je Stufe: [Tier, Pflanze, Ereignis, Durchreisende]
- * (Reihenfolge wie ENCOUNTER_TYPES). Ereignisse (events.ts) ab Junger Baum, Gäste
+ * Gewichte der Begegnungstypen je Stufe: [Tier, Ereignis, Durchreisende] (Reihenfolge wie
+ * ENCOUNTER_TYPES, DESIGN_V2.md 27.5). Ereignisse (events.ts) ab Junger Baum, Gäste
  * (visitors.ts) ab Alter Baum – bewusst nur 10–20 % der Wegpunkte, damit sie keine
  * Tierbegegnungen verdrängen; ab dem Hain kommt der Zwischenhalt dazu (unten,
  * DESIGN_V2.md 7.2). Kommt für Ereignis bzw. Gast kein Kandidat in Frage, gibt es
- * stattdessen ein Tier (sonst eine Pflanze).
+ * stattdessen ein Tier. Die Gewichte von „Etwas keimt“ (bis Phase 10) gingen an die Tiere.
  */
-export const ENCOUNTER_WEIGHTS: readonly (readonly [number, number, number, number])[] = [
-  [60, 40, 0, 0], // Samen
-  [60, 40, 0, 0], // Keimling
-  [60, 40, 0, 0], // Setzling
-  [65, 25, 10, 0], // Junger Baum
-  [60, 20, 10, 10], // Alter Baum
-  [60, 20, 10, 10], // Hain
-  [60, 20, 10, 10], // Wald
-  [60, 20, 10, 10], // Urwald
+export const ENCOUNTER_WEIGHTS: readonly (readonly [number, number, number])[] = [
+  [100, 0, 0], // Samen
+  [100, 0, 0], // Keimling
+  [100, 0, 0], // Setzling
+  [90, 10, 0], // Junger Baum
+  [80, 10, 10], // Alter Baum
+  [80, 10, 10], // Hain
+  [80, 10, 10], // Wald
+  [80, 10, 10], // Urwald
 ];
 
 /**
- * Ist der Pflanzring voll, keimt seltener etwas („im Schatten der Begleitpflanzen“):
- * Das Gewicht von „Etwas keimt“ wird mit diesem Faktor multipliziert. Grund: Mit vollem
- * Ring kann eine Pflanzenkarte nur noch ersetzen und lohnt sich oft nicht (Playtest:
- * lange Strecken ohne lohnende Wahl, DESIGN_V2.md 7.7).
- */
-export const PLANT_WEIGHT_RING_FULL = 0.5;
-
-/**
- * Gewicht einer Pflanzenkarte, deren Pflanze schon im Ring wächst (sonst 1). Neue Arten
- * im Ring sind meist die lohnendere und abwechslungsreichere Wahl; Duplikate bleiben
- * möglich (DESIGN_V2.md 7.7).
+ * Gewicht einer Pflanzenkarte der Aussaat, deren Pflanze schon im Ring wächst (sonst 1).
+ * Neue Arten im Ring sind meist die lohnendere und abwechslungsreichere Wahl; Duplikate
+ * bleiben möglich (DESIGN_V2.md 7.7, 27.5).
  */
 export const PLANT_WEIGHT_IN_RING = 0.35;
 
-/** Die ersten Begegnungen sind festgelegt (Einführung): Wegpunkt 1, 2, 3 … */
-export const SCRIPTED_ENCOUNTERS: readonly EncounterType[] = ['animal', 'plant', 'animal'];
+/**
+ * Festgelegte Wegpunkte (Einführung): Wegpunkt 1, 2, 3 … `'sowing'` ist keine Begegnung:
+ * Ist die geschenkte erste Aussaat des Zyklus noch frei und keine Aussaat offen, öffnet der
+ * Wegpunkt sie; sonst wird dort ein Tier gezogen (DESIGN_V2.md 27.5).
+ */
+export type ScriptedEncounter = 'animal' | 'sowing';
+export const SCRIPTED_ENCOUNTERS: readonly ScriptedEncounter[] = ['animal', 'sowing', 'animal'];
 
 /**
  * Zwischenhalt (Schritt 2.4, DESIGN_V2.md 7.2): Ab dieser Stufe kann auf halbem Weg
  * zwischen zwei Wegpunkten zusätzlich ein Ereignis oder ein Gast kommen – zusätzlich zur
- * Begegnung am Wegpunkt, ohne eine Tier- oder Pflanzenbegegnung zu verdrängen. Grund:
+ * Begegnung am Wegpunkt, ohne eine Tierbegegnung zu verdrängen. Grund:
  * Nach dem Hain wird der Takt lang (~4,5 min) und volle Nischen erlauben nur noch
  * Tausch; die längsten Strecken ohne lohnende Wahl lagen im Wald bei 12 min (90 %).
  */

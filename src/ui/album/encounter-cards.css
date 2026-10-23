@@ -1,6 +1,6 @@
 /* Begegnungs-Karten (encounter-cards.ts, docs/ALBUM_UI.md A.6): Kopf als Zettel, Sticker-Karten
    im Notizzettel-Stil, Optionen als große Knöpfe, „Neu würfeln“ und „Ablehnen“. Gilt auch für
-   die Pflanzenzettel auf U:Pflanze setzen (plant-offers.ts). */
+   die Pflanzenkarten der Aussaat. */
 
 /* ---------- Kopf als Zettel ---------- */
 
@@ -286,8 +286,7 @@
 
 /* ---------- Sticker-Karte im Notizzettel-Stil ---------- */
 
-.encounter-card,
-.picker-row {
+.encounter-card {
   --card-tilt: 0deg;
   position: relative;
   display: flex;
@@ -305,13 +304,11 @@
   list-style: none;
 }
 
-.encounter-card:has(:focus-visible),
-.picker-row:has(:focus-visible) {
+.encounter-card:has(:focus-visible) {
   box-shadow: 0 0 0 3px var(--tape), var(--sh-slip);
 }
 
-.encounter-card.chosen,
-.picker-row.chosen {
+.encounter-card.chosen {
   opacity: 0.6;
 }
 
@@ -320,8 +317,7 @@
 .encounter-card.rarity-special { box-shadow: 0 0 0 2px var(--gem-special), var(--sh-slip); }
 .encounter-card.rarity-legendary { box-shadow: 0 0 0 2px var(--gem-legendary), var(--sh-slip); }
 
-.encounter-card > *,
-.picker-row > * {
+.encounter-card > * {
   min-width: 0;
 }
 

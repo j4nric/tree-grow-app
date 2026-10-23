@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { evaluate, previewChoice } from '../src/core/formulas';
 import { allAnimals, createInitialState, type GameState } from '../src/core/state';
-import { chooseCard, declineEncounter, plantSeed, tick, unlockedPlants } from '../src/core/tick';
+import { chooseCard, chooseSowing, declineEncounter, discardSowing, sow, sowBlocker, tick } from '../src/core/tick';
 import { resolveSpecial } from './helpers';
 
 /**
@@ -28,10 +28,9 @@ function resolveForHarmony(state: GameState): void {
     if (choice) chooseCard(state, 0, choice.card, choice.replace);
     else declineEncounter(state, 0);
   }
-  // Die erste freigeschaltete Pflanze setzen, solange Samen und Ring reichen.
-  const first = unlockedPlants(state)[0];
-  while (first !== undefined && plantSeed(state, first).ok) {
-    // weiter
+  // Säen, solange Samen und Ring reichen: die erste Karte setzen (sonst zurücklegen).
+  for (let i = 0; i < 20 && (state.cycle.sowing || (state.plants.length < evaluate(state).plantSlots && sowBlocker(state) === null && sow(state).ok)); i++) {
+    if (!chooseSowing(state, 0).ok) discardSowing(state);
   }
 }
 

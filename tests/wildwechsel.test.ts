@@ -437,7 +437,10 @@ describe('Spielstände', () => {
 
   it('seit v15 nur das Feld via: Roundtrip gleich, sonst keine Felder an der Begegnung', () => {
     const state = landscapeState({ corridors: SPOKES, fauna: { beechwood: BEECH_FAUNA } });
+    // Wie im Spiel: Der Bestand eines Waldes steht im Tagebuch (das Laden filtert sonst, 24.6).
+    state.meta.journal.species.push(...BEECH_FAUNA);
     tick(state, 1800);
+    expect(state.pendingEncounters.some((e) => e.via)).toBe(true);
     const loaded = loadGame(serialize(state), 0)!.state;
     for (const e of loaded.pendingEncounters) {
       expect(Object.keys(e).sort()).toEqual(e.via ? ['cards', 'rerolls', 'type', 'via'] : ['cards', 'rerolls', 'type']);

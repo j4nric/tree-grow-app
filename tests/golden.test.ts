@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ARCHITECT } from '../src/content/abilities';
-import { ENCOUNTER_WEIGHTS, INTERLUDE_CHANCE, INTERLUDE_POSITION, INTERLUDE_STAGE, INTERLUDE_WEIGHTS, PLANT_WEIGHT_IN_RING, PLANT_WEIGHT_RING_FULL, RARITY_WEIGHTS, SCRIPTED_ENCOUNTERS } from '../src/content/encounters';
+import { ENCOUNTER_WEIGHTS, INTERLUDE_CHANCE, INTERLUDE_POSITION, INTERLUDE_STAGE, INTERLUDE_WEIGHTS, PLANT_WEIGHT_IN_RING, RARITY_WEIGHTS, SCRIPTED_ENCOUNTERS } from '../src/content/encounters';
 import { FOREST_MEMORY_BONUS, MEMORY_HARMONY_DIVISOR, MEMORY_PER_HARMONY_POINT, MEMORY_PER_NEW_SPECIES, MEMORY_PER_REGULAR_SLOT } from '../src/content/memory';
 import { NICHES } from '../src/content/niches';
 import { PLANTS } from '../src/content/plants';
@@ -9,7 +9,7 @@ import { STAGES } from '../src/content/stages';
 import { TRAITS, TRAIT_THRESHOLDS } from '../src/content/traits';
 import { MAIN_TREES } from '../src/content/trees';
 import { GENERA, NICHE_IDS, type Genus, type NicheId } from '../src/content/types';
-import { cycleMemoryGain, evaluateEcosystem, memoryHarmonyBonus, nicheSlots, plantCost, type Ecosystem, type Evaluation } from '../src/core/formulas';
+import { cycleMemoryGain, evaluateEcosystem, memoryHarmonyBonus, nicheSlots, sowingCostAt, type Ecosystem, type Evaluation } from '../src/core/formulas';
 
 /**
  * Abgleich Formeln ↔ Zahlen (ersetzt den Vergleich mit dem Referenzmodell scripts/v2,
@@ -207,11 +207,13 @@ describe('Formeln ↔ Zahlen: Golden-Tabelle', () => {
       plants: Object.fromEntries(
         PLANTS.map((p) => [p.id, `${p.group} ab ${p.unlock}: 🌿 ${p.growth} 🌰 ${p.seeds} ☀️ ${p.light} 💧 ${p.water} [${p.provides.join(', ')}]`]),
       ),
-      plantCost: Array.from({ length: 13 }, (_, n) => r(plantCost(n))),
+      // Aussaat (seit Phase 10, 2b, ersetzt „Pflanze setzen“ 20 · 1,9^n): Preis nach n Aussaaten,
+      // ohne Forschung und außerhalb des Frühlings (cycle.elapsed = 180 s = Sommer).
+      sowingCost: Array.from({ length: 17 }, (_, n) => sowingCostAt(n, [], 180)),
       rarityWeights: RARITY_WEIGHTS.map((w) => w.join(' ')),
       encounterWeights: ENCOUNTER_WEIGHTS.map((w) => w.join(' ')),
       scriptedEncounters: SCRIPTED_ENCOUNTERS.join(' '),
-      plantWeights: { ringFull: PLANT_WEIGHT_RING_FULL, inRing: PLANT_WEIGHT_IN_RING },
+      plantWeights: { inRing: PLANT_WEIGHT_IN_RING },
       interlude: { stage: INTERLUDE_STAGE, position: INTERLUDE_POSITION, chance: INTERLUDE_CHANCE, weights: INTERLUDE_WEIGHTS.join(' ') },
       traits: Object.fromEntries(GENERA.map((g) => [g, TRAITS[g].map((t) => t.text)])),
       memory: {

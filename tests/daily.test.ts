@@ -22,7 +22,6 @@ import {
   declineEncounter,
   farewellVisitor,
   hostVisitor,
-  plantSeed,
   rerollEncounter,
   research,
   simulateOffline,
@@ -30,7 +29,7 @@ import {
   tick,
 } from '../src/core/tick';
 import { addDays, grow, visit } from './daily-helpers';
-import { stateAt } from './helpers';
+import { plantFromSowing, stateAt } from './helpers';
 
 // Wälder bis zum Urwald wachsen zu lassen dauert unter Last länger als die Standardgrenze.
 vi.setConfig({ testTimeout: 60_000 });
@@ -194,7 +193,7 @@ describe('Fortschritt: aktiv und offline', () => {
     expect(chooseCard(state, 0, 0).ok).toBe(true);
     expect(hostVisitor(state, 0).ok).toBe(true);
     expect(state.meta.daily.goals[0]!.progress).toBe(2);
-    expect(plantSeed(state, 'moss').ok).toBe(true);
+    expect(plantFromSowing(state, 'moss').ok).toBe(true);
     state.harmonyPoints = 1e6;
     expect(research(state, 'compost').ok).toBe(true);
     expect(state.meta.daily.goals.map((g) => g.progress)).toEqual([2, 1, 1]);

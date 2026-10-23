@@ -175,7 +175,7 @@ describe('Markierung offener Begegnungen', () => {
     const list = [encounter(['vole', 'robin', 'fox'])];
     expect(marks.record(list, [card({ encounter: 0 })])).toBe(0);
     expect(marks.record(list, [card({ encounter: 5 })])).toBe(0);
-    expect(marks.record([{ type: 'plant', cards: ['a', 'b', 'owl'], rerolls: 0 }], [card({ encounter: 0 })])).toBe(0);
+    expect(marks.record([{ type: 'event', cards: ['a', 'b', 'owl'], rerolls: 0 }], [card({ encounter: 0 })])).toBe(0);
     expect(marks.lookup(list[0])).toBeNull();
   });
 
@@ -203,7 +203,7 @@ describe('Markierung offener Begegnungen', () => {
       const w = report.wildwechsel.find((x) => x.encounter > 0);
       if (!w) continue;
       const first = state.pendingEncounters[0]!;
-      if (first.type !== 'animal' && first.type !== 'plant') continue;
+      if (first.type !== 'animal') continue;
       const marks = createWildwechselMarks();
       expect(marks.record(state.pendingEncounters, report.wildwechsel)).toBe(report.wildwechsel.length);
       const target = state.pendingEncounters[w.encounter]!;

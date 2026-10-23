@@ -116,7 +116,7 @@ export interface LandscapeRun {
 /** Vielfalt der Begegnungen eines Zyklus (7.7) und Wildwechsel-Karten (24.6). */
 function varietyOf(result: RunResult) {
   const vs = result.variety;
-  const cards = vs.filter((v) => v.type === 'animal' || v.type === 'plant');
+  const cards = vs.filter((v) => v.type === 'animal' || v.type === 'sowing');
   const animals = vs.filter((v) => v.type === 'animal');
   const offered = new Set<string>();
   let rare = 0;

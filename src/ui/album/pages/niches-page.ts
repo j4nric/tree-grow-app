@@ -3,7 +3,7 @@
  *
  * Gattungen als Abzeichen mit Pips (Tipp → Haftnotiz), Stickerreihen je Nische am Baum und
  * je Lebensraum (verschlossen: grauer Name und Handschrift-Zeile, ggf. „Zur Pflege ›“), der
- * Pflanzring mit Messbändern und „Pflanze setzen“, dazu die Lesezeichen-Links zu
+ * Pflanzring mit Messbändern und „🌱 Säen“, dazu die Lesezeichen-Links zu
  * U:Harmonie (Lebensgemeinschaften) und U:Nahrungsnetz. Tipp auf einen Sticker blättert zu
  * U:Tier um.
  *
@@ -39,9 +39,10 @@ export const STICKER_TIP_KEY = 'tree-grow-sticker-tip-seen';
 const STICKER_TIP = 'Tippe auf einen Sticker, um umzublättern.';
 const VISITOR_TEXT = 'Zu Gast – zieht bald weiter und braucht keinen Platz.';
 
-/** Was der Reiter außer der Navigation braucht: Pflanzenwahl und Pflege (verbindet album/index.ts). */
+/** Was der Reiter außer der Navigation braucht: Säen und Pflege (verbindet album/index.ts). */
 export interface NichesActions {
-  openPlantPicker(): void;
+  /** „🌱 Säen“ bzw. „Aussaat offen ›“ (DESIGN_V2.md 27.6). */
+  sow(): void;
   /** „Zur Pflege ›“: Reiter Pflege bei der Maßnahme. */
   showCare(careId: string): void;
 }
@@ -49,7 +50,7 @@ export interface NichesActions {
 export interface NichesPage extends TabPage {
   /** Aktionen verbinden (album/index.ts). */
   connect(actions: NichesActions): void;
-  /** Knopf „Pflanze setzen“ (Fokusziel nach der Pflanzenwahl). */
+  /** Knopf „🌱 Säen“. */
   readonly plantButton: HTMLButtonElement;
 }
 
@@ -201,12 +202,12 @@ export function createNichesPage(env: PageEnv): NichesPage {
   const plantAction = el('div', 'ring-action');
   const plantButton = el('button', 'ring-button');
   plantButton.type = 'button';
-  plantButton.dataset.ref = 'plant-open';
-  // Blättert zu U:Pflanze setzen um – kein Dialog mehr (kein aria-haspopup).
-  const plantButtonText = el('span', '', '🌱 Pflanze setzen');
+  plantButton.dataset.ref = 'sow';
+  // Säen öffnet die Aussaat in U:Begegnung (Kartenwahl wie bei Tieren, einfache Fassung bis 4a).
+  const plantButtonText = el('span', '', '🌱 Säen');
   const plantButtonCost = el('span', 'ring-button-cost');
   plantButton.append(plantButtonText, plantButtonCost);
-  plantButton.addEventListener('click', () => actions?.openPlantPicker());
+  plantButton.addEventListener('click', () => actions?.sow());
   const plantHint = el('p', 'ring-plant-hint');
   plantHint.dataset.ref = 'plant-hint';
   plantAction.append(plantButton, plantHint);
@@ -508,10 +509,18 @@ export function createNichesPage(env: PageEnv): NichesPage {
     }
     groupBox.hidden = locked;
 
-    plantButton.hidden = !view.canOpenPicker;
-    setText(plantButtonCost, `· ${view.plantCostLabel} 🌰`);
+    plantButton.hidden = !view.canSow;
+    setText(plantButtonText, view.sowLabel);
+    const price = view.sowCost > 0 ? `${view.sowCostLabel} 🌰` : view.sowCostLabel;
+    setText(plantButtonCost, view.sowOpen ? '' : `· ${price}${view.sowSeason ? ' · Saatzeit' : ''}`);
     plantButton.classList.toggle('affordable', view.affordable);
-    setAttr(plantButton, 'aria-label', `Pflanze setzen – kostet ${view.plantCostLabel} Samen${view.affordable ? '' : ', noch nicht genug'}`);
+    setAttr(
+      plantButton,
+      'aria-label',
+      view.sowOpen
+        ? 'Aussaat offen – ansehen'
+        : `${view.sowLabel.replace('🌱 ', '')} – ${view.sowCost > 0 ? `kostet ${view.sowCostLabel} Samen` : 'gratis'}${view.affordable ? '' : ', noch nicht genug'}`,
+    );
     setText(plantHint, view.plantHint);
     plantHint.hidden = !view.plantHint;
     plantAction.hidden = locked;

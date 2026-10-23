@@ -65,7 +65,7 @@ describe('Speichern & Laden v2', () => {
     tick(state, 200);
     state.niches.roots = ['earthworm'];
     state.plants = ['moss'];
-    state.pendingEncounters[0] = { type: 'plant', cards: ['anemone', 'moss'], rerolls: 1 };
+    state.cycle.sowing = { cards: ['anemone', 'moss'], rerolls: 1 };
     state.meta.journal.species = ['earthworm'];
     state.meta.journal.plants = ['moss'];
     state.meta.forestMemory = 5;
@@ -553,7 +553,7 @@ describe('Robustes Laden v3: Pflanzen', () => {
     expect(deserialize(rawV4({ totalGrowth: 0, plants: ['moss'] }), 0)!.plants).toEqual([]);
   });
 
-  it('Pflanzen-Begegnungen: nur bekannte Pflanzen, unbekannte Typen fallen weg', () => {
+  it('Pflanzen-Begegnungen (bis Phase 10): nur bekannte Pflanzen, die erste wird die Aussaat, unbekannte Typen fallen weg', () => {
     const pending = [
       { type: 'plant', cards: ['hazel', 'drache', 'hazel', 'earthworm'], rerolls: 1 },
       { type: 'plant', cards: ['earthworm'], rerolls: 0 }, // Tier-ID in Pflanzen-Begegnung
@@ -562,16 +562,13 @@ describe('Robustes Laden v3: Pflanzen', () => {
       { type: 'plant', cards: ['moss', 'anemone', 'fern', 'nettle'], rerolls: 0 },
     ];
     // Junger Baum: Rotbuche (ab Alter Baum) ist gesperrt und fällt weg.
-    expect(
-      deserialize(rawV4({ pendingEncounters: [{ type: 'plant', cards: ['beech', 'birch'], rerolls: 0 }] }), 0)!
-        .pendingEncounters,
-    ).toEqual([{ type: 'plant', cards: ['birch'], rerolls: 0 }]);
+    const one = deserialize(rawV4({ pendingEncounters: [{ type: 'plant', cards: ['beech', 'birch'], rerolls: 0 }] }), 0)!;
+    expect(one.pendingEncounters).toEqual([]);
+    expect(one.cycle.sowing).toEqual({ cards: ['birch'], rerolls: 0 });
     const s = deserialize(rawV4({ pendingEncounters: pending }), 0)!;
-    expect(s.pendingEncounters).toEqual([
-      { type: 'plant', cards: ['hazel'], rerolls: 1 },
-      { type: 'animal', cards: ['robin'], rerolls: 0 },
-      { type: 'plant', cards: ['moss', 'anemone', 'fern'], rerolls: 0 },
-    ]);
+    expect(s.cycle.sowing).toEqual({ cards: ['hazel'], rerolls: 1 });
+    // Die zweite Pflanzenbegegnung zieht weiter (Samen); höchstens drei Begegnungen wie bisher.
+    expect(s.pendingEncounters).toEqual([{ type: 'animal', cards: ['robin'], rerolls: 0 }]);
   });
 });
 

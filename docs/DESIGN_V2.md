@@ -8059,6 +8059,28 @@ Preis der n-ten Aussaat im Zyklus (n = bisherige Aussaaten dieses Zyklus, `cycle
   `rerollSowing(state)`; Vorschau über das vorhandene `previewChoice`-Muster. `plantSeed`,
   `plantBlocker`, `nextPlantCost`, `PLANT_COST_BASE/GROWTH` entfallen (U:Pflanze setzen auch).
 
+**Umgesetzt (Phase 10, 2b):** wie oben (`core/tick.ts`, `core/formulas.ts`, `content/sowing.ts`).
+Festlegungen: (1) `chooseSowing(state, cardIndex, replaceId?)` wählt über den Index der Karte
+(wie `chooseCard`); Vorschau `previewSowing`, Sperrgrund `sowingChoiceBlocker`, beide aus
+`resolveSowing`. (2) Die Saatzeit ist Inhalt der Jahreszeit (`Season.sowingCostFactor`, Frühling =
+`SPRING_SOWING_FACTOR`), nicht ein Sonderfall in der Logik. Aufgerundet wird mit einer Toleranz von
+1e-9 (35 · 0,75 · 0,8 = 21, nicht 22). (3) Die Vogelsaat ist eine neue Ereignis-Wirkung
+`freeSowing` (statt `nextEncounter` mit `type: 'plant'`); sie öffnet sofort oder wartet in
+`cycle.freeSowing` und öffnet nach Wahl bzw. Zurücklegen der laufenden Aussaat. Eine wartende
+geschenkte Aussaat öffnet auch „Säen“ (gratis, ohne Zähler) – so bleibt eine aus einem alten Stand
+umgewandelte Vorgabe nie liegen. Passt keine der vorgegebenen Pflanzen (Stufe), wird normal gezogen.
+(4) Wegpunkt 2 öffnet das Geschenk vor der Prüfung der Warteschlange (es ist keine Begegnung und
+verdrängt keine); `TickReport.sowings` meldet es. (5) „Neu würfeln“ zieht mit der aktuellen
+Kartenzahl (`sowingCardCount`) – wer „Saatgut sortieren“ während einer offenen Aussaat erforscht,
+bekommt beim nächsten Wurf vier Karten. (6) Säen, Setzen und Zurücklegen zählen nicht zum
+Tagesziel „Entscheide N Begegnungen“; das Tagesziel `plant` zählt das Setzen (`chooseSowing`) und
+verlangt eine bezahlbare Aussaat (auch bei vollem Ring, dann als Tausch). Beim Vorschlag von
+„Entscheide N Begegnungen“ zählt der Wegpunkt der geschenkten Aussaat nicht mit.
+(7) Ein Zähler +Infinity (nur manipuliert) kostet Infinity, NaN/negativ zählen als 0.
+(8) Oberfläche (einfach, bis 4a): Die offene Aussaat liegt oben auf dem Zettelstapel („Aussaat!“,
+zählt als Zettel) und zeigt sich in U:Begegnung mit Pflanzenkarten; die Überschrift nennt die
+tatsächliche Kartenzahl („zwei Samen“ im Keimling).
+
 ### 27.7 Der Forschungsbaum
 
 **Regeln**
@@ -8331,6 +8353,14 @@ stehen. (6) Der Vorrat ist auch im Tick auf `MAX_HARMONY_POINTS` begrenzt (sonst
 den Stand); `harmonyEarned` zählt nur, was wirklich ankam. (7) Das Startguthaben rechnet mit der
 Harmonie des fertig geladenen Stands (mit Einzelwetter des Tages wie die Anzeige), die
 umgebuchten Knoten zählen mit.
+
+**Umgesetzt (Phase 10, 2b):** Schritt 4 der Migration und die gleiche Regel beim robusten Laden ab
+v17 – ohne neue Version, die v17-Felder gibt es seit 2a (`convertPlantEncounters` in `save.ts`, ganz
+am Ende von `loadGame`, weil das Zurücklegen Samen-Sekunden zur Rate des fertig geladenen Stands
+zahlt). Offene Pflanzenbegegnungen zählen wie bisher zu den höchstens drei geladenen Begegnungen.
+Eine `forced`-Vorgabe „Pflanze“ wird nur dann `freeSowing`, wenn die Vogelsaat in `cycle.seen` steht
+(wie `loadFreeSowing`), damit ein zweites Laden nichts ändert. Der Aussaat-Zähler bleibt: Die
+umgewandelte Begegnung war geschenkt.
 
 **Warum eine neue Version:** Ein v16-Spiel kennt weder Vorrat noch Forschung und würde beim
 Laden die Forschung verwerfen und `care` leer setzen – über die Synchronisierung ginge der Zyklus

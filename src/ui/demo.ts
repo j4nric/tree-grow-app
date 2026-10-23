@@ -87,7 +87,7 @@ const deps: AlbumDeps = {
       onDecline: () => say('Begegnung abgelehnt'),
       onReroll: () => say('neu gewürfelt'),
     },
-    plant: (id) => say(`Pflanze ${id} gesetzt`),
+    sow: () => say('Gesät'),
     buyCare: (id) => say(`Pflege ${id} gekauft`),
     newCycle: (tree, site) => say(`Neuer Zyklus mit ${tree}${site ? ` in ${site}` : ''}`),
     buildCorridor: (id) => say(`Korridor ${id} gebaut`),

@@ -18,13 +18,14 @@ import { DEFAULT_MAIN_TREE, MAIN_TREES_BY_ID, type MainTreeId } from '../content
 import {
   evaluate,
   harmonyMemoryGain,
+  declineReward,
   nicheSlots,
-  plantCost,
   plantSlots,
   regularSlots,
   regularSlotsOf,
   researchSowing,
   slotBonuses,
+  sowingCardCount,
   slotEffects,
   stageForWaypoint,
   thresholdFor,
@@ -95,10 +96,10 @@ export const MAX_CYCLE_NUMBER = 1e9;
 /**
  * v2 → v3: Prototyp-Stände (ohne Pflanzen) hatten keine Samen-Senke und bringen oft
  * Tausende 🌰 mit. Beim Laden wird der Bestand auf die Kosten der ersten zwei Pflanzen
- * begrenzt (20 + 38 = 58 🌰), damit niemand mit einem Schlag den Pflanzring füllt
- * (Empfehlung DESIGN_V2.md 15.4).
+ * begrenzt (20 + 38 = 58 🌰, „Pflanze setzen“ 20 · 1,9^n bis Phase 10), damit niemand mit einem
+ * Schlag den Pflanzring füllt (Empfehlung DESIGN_V2.md 15.4). Seit Phase 10 eine feste Zahl.
  */
-export const V2_SEED_CAP = plantCost(0) + plantCost(1);
+export const V2_SEED_CAP = 58;
 
 /** Ergebnis des Ladens: der Spielstand und ob er aus einem v1-Stand neu angelegt wurde. */
 export interface LoadResult {
@@ -146,7 +147,8 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
 
   const version = typeof data.version === 'number' && Number.isFinite(data.version) ? data.version : 1;
   if (version < 2) return migrateV1(data, now);
-  const state = loadV2(data, now, version);
+  const deferred: DeferredPlants = { encounters: [], forced: null };
+  const state = loadV2(data, now, version, deferred);
   if (version < 3) migrateV2(state);
   if (version < 4) migrateV3(state);
   if (version < 5) migrateV4(state);
@@ -176,6 +178,10 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   loadChronicles(isRecord(data.meta) ? data.meta.landscape : undefined, state, version);
   // v16 → v17 (Forschung, 27.9): Startguthaben aus der Harmonie des fertig geladenen Stands.
   if (version < 17) migrateV16(state);
+  // „Etwas keimt“ → Aussaat (27.9 Schritt 4; v16-Migration und robustes Laden ab v17 gleich):
+  // ganz zuletzt, denn das Zurücklegen weiterer Pflanzenbegegnungen zahlt Samen-Sekunden zur
+  // Rate des fertig geladenen Stands.
+  convertPlantEncounters(state, deferred);
   return { state, migratedFromV1: false, keepsake: false, memoryReweighted, achievementsBackfilled, landscapeUnlocked: landscapeUnlockedNow };
 }
 
@@ -554,7 +560,7 @@ function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) =>
  * Robustes Laden eines Stands ab v2 (DESIGN_V2.md, 12.3). Felder, die es in v2 noch
  * nicht gab (Pflanzen), fehlen dort einfach und bleiben leer.
  */
-function loadV2(data: Record<string, unknown>, now: number, version: number): GameState {
+function loadV2(data: Record<string, unknown>, now: number, version: number, deferred: DeferredPlants): GameState {
   const lastTick = finiteOr(data.lastTick, now);
   const state = createInitialState(now);
   state.version = SAVE_VERSION;
@@ -592,7 +598,7 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   // schaffen Plätze (ältere Stände: nur der Heimatwald, migrateV13 setzt `ancient`).
   state.meta.forestMemory = clampedOr(meta.forestMemory, 0, 0, MAX_FOREST_MEMORY);
   if (version >= 14) state.meta.landscape = loadLandscape(meta.landscape, state);
-  loadCycleExtras(cycle, state, knownPlants, version);
+  loadCycleExtras(cycle, state, knownPlants, version, deferred);
   if (version >= 14) settleLandscapeTrees(state, knownPlants);
   else state.meta.landscape = createLandscape(state.cycle.mainTree);
   // Platz-Boni aus Ereignissen, Pflege, der Baumart (seit v6) und der Landschaft (seit v14)
@@ -634,24 +640,24 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   }
 
   // Offene Begegnungen: ungültige Karten entfernen, leere verwerfen, höchstens 3.
-  // Pflanzen-Begegnungen („Etwas keimt“) haben Pflanzen-IDs als Karten, Ereignisse und
-  // Gäste genau eine ID (seit v5); alles andere (auch fehlender Typ) gilt als
-  // Tierbegegnung. Unbekannte Typen aus späteren Versionen verlieren so ihre Karten und
+  // Pflanzen-Begegnungen („Etwas keimt“, bis Phase 10) haben Pflanzen-IDs als Karten – sie
+  // werden gemerkt und am Ende von loadGame zur Aussaat (convertPlantEncounters, 27.9 Schritt 4).
+  // Ereignisse und Gäste haben genau eine ID (seit v5); alles andere (auch fehlender Typ) gilt
+  // als Tierbegegnung. Unbekannte Typen aus späteren Versionen verlieren so ihre Karten und
   // fallen weg.
   if (Array.isArray(data.pendingEncounters)) {
     for (const raw of data.pendingEncounters) {
-      if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) break;
+      if (state.pendingEncounters.length + deferred.encounters.length >= MAX_PENDING_ENCOUNTERS) break;
       if (!isRecord(raw)) continue;
-      const type = raw.type === 'plant' || raw.type === 'event' || raw.type === 'visitor' ? raw.type : 'animal';
+      if (raw.type === 'plant') {
+        // Pflanzenkarten müssen auf dieser Stufe freigeschaltet sein.
+        const cards = unique(stringArray(raw.cards).filter((id) => (PLANTS_BY_ID.get(id)?.unlock ?? Infinity) <= state.stage));
+        if (cards.length > 0) deferred.encounters.push({ cards, rerolls: Math.floor(clampedOr(raw.rerolls, 0, 0, MAX_REROLLS)) });
+        continue;
+      }
+      const type = raw.type === 'event' || raw.type === 'visitor' ? raw.type : 'animal';
       const valid: (id: string) => boolean =
-        type === 'plant'
-          ? // Pflanzenkarten müssen auf dieser Stufe freigeschaltet sein.
-            (id) => (PLANTS_BY_ID.get(id)?.unlock ?? Infinity) <= state.stage
-          : type === 'event'
-            ? (id) => EVENTS_BY_ID.has(id)
-            : type === 'visitor'
-              ? (id) => VISITORS_BY_ID.has(id)
-              : (id) => SPECIES_BY_ID.has(id);
+        type === 'event' ? (id) => EVENTS_BY_ID.has(id) : type === 'visitor' ? (id) => VISITORS_BY_ID.has(id) : (id) => SPECIES_BY_ID.has(id);
       const single = type === 'event' || type === 'visitor';
       const cards = unique(stringArray(raw.cards).filter(valid)).slice(0, single ? 1 : CARDS_PER_ENCOUNTER);
       if (cards.length === 0) continue;
@@ -981,7 +987,13 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringif
  * beides nicht: Was dort steht, zählt nicht (Frühling, Eiche) – so kürzt loadV2 die
  * Nischen auch nicht mit den Plätzen einer fremden Art.
  */
-function loadCycleExtras(raw: Record<string, unknown>, state: GameState, knownPlants: readonly string[], version: number): void {
+function loadCycleExtras(
+  raw: Record<string, unknown>,
+  state: GameState,
+  knownPlants: readonly string[],
+  version: number,
+  deferred: DeferredPlants,
+): void {
   const cycle: CycleState = createCycle(1);
   if (version >= 6) {
     // −Infinity und negative Werte → 0 (Frühling), +Infinity und sehr große → MAX_ELAPSED.
@@ -1038,14 +1050,17 @@ function loadCycleExtras(raw: Record<string, unknown>, state: GameState, knownPl
     if (!visitor || !(remaining > 0) || cycle.visitors.some((x) => x.id === v.id)) continue;
     cycle.visitors.push({ id: v.id, remaining: Math.min(remaining, visitor.stay) });
   }
-  if (isRecord(raw.forced) && (raw.forced.type === 'animal' || raw.forced.type === 'plant')) {
-    const type = raw.forced.type;
-    // Nur IDs, die ein Ereignis wirklich als nächste Begegnung desselben Typs vorgibt.
+  if (isRecord(raw.forced) && raw.forced.type === 'animal') {
+    // Nur IDs, die ein Ereignis wirklich als nächste Tierbegegnung vorgibt.
     const offered = new Set(
-      EVENTS.flatMap((e) => e.options.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'nextEncounter' && x.type === type ? x.ids : [])))),
+      EVENTS.flatMap((e) => e.options.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'nextEncounter' && x.type === 'animal' ? x.ids : [])))),
     );
     const ids = unique(stringArray(raw.forced.ids).filter((id) => offered.has(id)));
-    if (ids.length > 0) cycle.forced = { type, ids };
+    if (ids.length > 0) cycle.forced = { type: 'animal', ids };
+  } else if (isRecord(raw.forced) && raw.forced.type === 'plant') {
+    // Vorgabe „Etwas keimt“ (Vogelsaat bis Phase 10) → geschenkte Aussaat (27.9 Schritt 4).
+    const ids = unique(stringArray(raw.forced.ids).filter((id) => FREE_SOWING_IDS.has(id)));
+    if (ids.length > 0) deferred.forced = ids;
   }
   cycle.interlude = Math.floor(clampedOr(raw.interlude, 0, 0, WAYPOINT_COUNT));
   // Forschung (seit v17, 27.9): robust laden. Ältere Stände: Pflege-Ränge umbuchen (migrateCare).
@@ -1135,19 +1150,53 @@ function loadSowing(raw: unknown, stage: number, research: readonly string[]): S
   return { cards, rerolls: Math.floor(clampedOr(raw.rerolls, 0, 0, MAX_REROLLS)) };
 }
 
+/** Pflanzen, die irgendein Ereignis als geschenkte Aussaat vorgibt (Wirkung `freeSowing`). */
+const FREE_SOWING_IDS: ReadonlySet<string> = new Set(
+  EVENTS.flatMap((e) => e.options.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'freeSowing' ? x.ids : [])))),
+);
+
 /**
  * Geschenkte Aussaat der Vogelsaat (seit v17, 27.9): nur IDs, die ein in diesem Zyklus gezogenes
- * Ereignis als Pflanzen vorgibt (heute `nextEncounter` mit `type: 'plant'`), je einmal; sonst null.
+ * Ereignis als geschenkte Aussaat vorgibt (Wirkung `freeSowing`), je einmal; sonst null.
  */
 function loadFreeSowing(raw: unknown, seen: readonly string[]): { ids: string[] } | null {
   if (!isRecord(raw)) return null;
   const offered = new Set(
     EVENTS.filter((e) => seen.includes(e.id)).flatMap((e) =>
-      e.options.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'nextEncounter' && x.type === 'plant' ? x.ids : []))),
+      e.options.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'freeSowing' ? x.ids : []))),
     ),
   );
   const ids = unique(stringArray(raw.ids).filter((id) => offered.has(id)));
   return ids.length > 0 ? { ids } : null;
+}
+
+/**
+ * Was ein Stand noch an „Etwas keimt“ mitbringt (bis Phase 10): offene Pflanzenbegegnungen
+ * (Karten schon geprüft) und die Vorgabe `forced` vom Typ `'plant'` (IDs schon geprüft).
+ */
+interface DeferredPlants {
+  encounters: SowingState[];
+  forced: string[] | null;
+}
+
+/**
+ * „Etwas keimt“ → Aussaat (DESIGN_V2.md 27.9 Schritt 4; gleiche Regel für migrierte v16-Stände
+ * und beim robusten Laden ab v17, ohne neue Version – die v17-Felder gibt es schon): Die erste
+ * offene Pflanzenbegegnung wird die offene Aussaat (gleiche Karten und Würfe, höchstens
+ * sowingCardCount Karten), sofern keine offen ist; jede weitere zieht weiter wie Ablehnen
+ * (declineReward, Samen gutgeschrieben). Die Vorgabe `forced` Pflanze wird eine geschenkte
+ * Aussaat (`cycle.freeSowing`), sofern keine wartet. Der Aussaat-Zähler bleibt: geschenkt.
+ */
+function convertPlantEncounters(state: GameState, deferred: DeferredPlants): void {
+  for (const encounter of deferred.encounters) {
+    if (!state.cycle.sowing) {
+      state.cycle.sowing = { cards: encounter.cards.slice(0, sowingCardCount(state.cycle.research)), rerolls: encounter.rerolls };
+    } else {
+      state.seeds = Math.min(Number.MAX_VALUE, state.seeds + declineReward(state));
+    }
+  }
+  // Wie beim Laden von `freeSowing`: nur, wenn das Ereignis in diesem Zyklus gezogen wurde.
+  if (deferred.forced && !state.cycle.freeSowing) state.cycle.freeSowing = loadFreeSowing({ ids: deferred.forced }, state.cycle.seen);
 }
 
 /** Forschungsplan robust (seit v17): bekannte Knoten je einmal, `auto` nur echtes true. */

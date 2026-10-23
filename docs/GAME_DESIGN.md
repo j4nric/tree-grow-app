@@ -3,9 +3,9 @@
 > **Stand des Codes: v2 mit Pflanzen.** Der Code setzt den Prototyp aus
 > [`DESIGN_V2.md`](DESIGN_V2.md) (Roadmap-Schritte 1.1–1.4) und die Pflanzen aus
 > Schritt 2.1 um: Wachstum, Samen und Harmonie; Begegnungen an Wegpunkten mit
-> Kartenwahl („Tier zieht ein“ und „Etwas keimt“); 3 Gattungen × 3 Tiere; 14
+> Kartenwahl („Tier zieht ein“; „Etwas keimt“ bis Phase 10, seitdem die Aussaat, unten); 3 Gattungen × 3 Tiere; 14
 > Begleitpflanzen mit Licht-/Wasser-Versorgung, Pflanzring und „Pflanze setzen“
-> (20 · 1,9^n 🌰); Wegpunkte bei 3,5 · k^3,5 (seit dem Balancing 2.10, vorher 3,5 · k^3,4);
+> (20 · 1,9^n 🌰, seit Phase 10, 2b „🌱 Säen“); Wegpunkte bei 3,5 · k^3,5 (seit dem Balancing 2.10, vorher 3,5 · k^3,4);
 > Neuer Zyklus ab „Hain“ mit Naturtagebuch,
 > Waldgedächtnis und Stammgästen (Schritt 2.8, siehe `DESIGN_V2.md` Abschnitt 10);
 > Ereignisse mit Wahl und Durchreisende mit Zeit- und Zyklus-Boni, ab dem Hain mit
@@ -95,12 +95,36 @@
 > - **Migration v16 → v17:** Pflege-Ränge → Knoten (`CARE_TO_RESEARCH`), fehlende
 >   Voraussetzungen werden geschenkt (z. B. Humusschicht → Kompost), von zwei Kronen bleibt die
 >   Lichte; Startguthaben `round(10 · H)` ⚖️; Aussaat-Zähler = Begleitpflanzen im Ring.
-> - **Noch nicht (Phase 10, 2b):** Aussaat und „Begegnungen nur mit Tieren“ – bis dahin gibt es
->   „Etwas keimt“ und „Pflanze setzen“ wie bisher. Die Samen haben darum vorübergehend keine
->   große Senke mehr (Check-Lauf: Samenbestand beim Hain ~36 min Produktion statt ~8); die
->   Aussaat bringt sie zurück (Ziel ≤ 15 min, Messung 3a).
 > - **Oberfläche (Notlösung bis 4a):** Der Reiter „Pflege“ listet die Knoten flach (Ast, Wirkung,
 >   „Erforschen (x ⚖️)“, Sperrgrund); im Kopf „⚖️ Vorrat · +Zufluss/min · N erforschbar“.
+>
+> **Umgesetzt seit Phase 10, 2b (ohne neue Spielstand-Version):**
+> - **Begegnungen nur mit Tieren** (27.5): „Etwas keimt“ verlässt das Deck. Gewichte
+>   [Tier, Ereignis, Gast] je Stufe: Samen bis Setzling 100 : 0 : 0, Junger Baum 90 : 10 : 0, ab
+>   Alter Baum 80 : 10 : 10 (`ENCOUNTER_WEIGHTS`); `PLANT_WEIGHT_RING_FULL` entfällt. Kommt kein
+>   Tier in Frage, zieht die Begegnung weiter (10 Samen-Sekunden).
+> - **Aussaat** (27.6, `src/content/sowing.ts`): „🌱 Säen“ ab Keimling zieht sofort 3 Pflanzenkarten
+>   (`drawPlants`, schon wachsende ×0,35) und öffnet die Kartenwahl; die Karten liegen im Spielstand.
+>   Preis der Aussaat nach n Aussaaten im Zyklus: n = 0 gratis, sonst
+>   `⌈20 · 1,75^(n−1) · Rabatt · Saatzeit⌉` 🌰 – 20, 35, 62, 108, 188, 329, 575, 1.006 …; Rabatt
+>   „Samenbank“ −25 %, **Saatzeit** im Frühling ×0,8 (statt „Etwas keimt“ ×1,5). Jeder Kauf zählt,
+>   auch der Tausch im vollen Ring. Höchstens eine Aussaat offen; **Zurücklegen** bringt
+>   10 Samen-Sekunden (der Zähler bleibt), **Neu würfeln** 10 🌰 · 2^n („Anzuchtbeet“: der erste
+>   gratis), „Saatgut sortieren“: 4 Karten.
+> - **Geschenkte Aussaaten:** Wegpunkt 2 öffnet die erste Aussaat des Zyklus, falls sie noch frei
+>   ist (sonst ein Tier). Die 🫐 **Vogelsaat** („Sämlinge stehen lassen“) schenkt eine Aussaat mit
+>   bis zu zwei Karten aus Eberesche, Holunder, Brombeere – sie zählt nicht als Kauf und wartet,
+>   solange eine Aussaat offen ist (`cycle.freeSowing`).
+> - **„Pflanze setzen“ entfällt** (`plantSeed`, `nextPlantCost`, 20 · 1,9^n). Tagesziel `plant`:
+>   „Säe einmal aus und setze die Pflanze.“ Statistik: „Angenommene Begegnungen“ zählt nur
+>   Tierkarten, „Pflanzen gesät“ die aus Aussaaten gesetzten Pflanzen.
+> - **Laden alter Stände** (27.9 Schritt 4, gleiche Regel für v16 und v17): Die erste offene
+>   „Etwas keimt“-Begegnung wird die offene Aussaat, jede weitere zieht weiter (Samen), eine
+>   Vorgabe „Pflanze“ der Vogelsaat wird eine wartende geschenkte Aussaat.
+> - **Check-Lauf** (40 Durchgänge, Simulator sät bei freiem Ring und tauscht, wenn eine Pflanze
+>   verbessern könnte): Hain Harmonie / Wachstum 57,6 / 50,0 min, H am Hain 116,5 (+~6 gegenüber
+>   v16 – Stellschraube für 3a), Aussaaten bis Hain 13,6 / 12,5, Samenbestand beim Hain 8,8 / 5,1 min
+>   Produktion (Ziel ≤ 15), Samen-Höchststand vor dem Jungen Baum 255 / 227 🌰.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
@@ -116,7 +140,7 @@ Details, Pool, Regeln und Messungen: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 2
 
 - **Drei Ziele je Kalendertag** aus einem Pool von 9 Arten (Begegnungen entscheiden,
   Arten einer Gattung in einer Jahreszeit beobachten, Zufriedenheit einer Gattung, eine
-  Lebensgemeinschaft nach ihrem Rätselhinweis entdecken, Pflanze setzen, Pflege kaufen,
+  Lebensgemeinschaft nach ihrem Rätselhinweis entdecken, einmal säen und die Pflanze setzen, Knoten erforschen,
   Harmonie 5 min halten, Wachstum bzw. Samen sammeln) – nur, was auf der Stufe passt und in
   einem kurzen Besuch (5–15 min) sicher schaffbar ist. „Umbauen“ (Pflanze, Pflege,
   Lebensgemeinschaft) und „Halten“ (Zufriedenheit, Harmonie) nie am selben Tag.
@@ -280,11 +304,12 @@ Details, Begründung und Umsetzungsnotiz: [`DESIGN_V2.md`](DESIGN_V2.md), Abschn
 - Wirkungen wechseln an der Grenze, die Grafik blendet stufenlos über
   (`SceneInput.season = (elapsed / 180 − 0,5) mod 4`).
 - **Sanft, kein Warten:** Jede Jahreszeit bringt etwas; der einzige Abzug ist −10 % 🌿 im
-  Winter. Kosten und Samen-Sekunden hängen nie von der Jahreszeit ab.
+  Winter. Samen-Sekunden hängen nie von der Jahreszeit ab; einzige Ausnahme bei den Kosten ist
+  seit Phase 10 die Aussaat im Frühling (−20 %).
 
 | Jahreszeit | Wirkungen (Faktor 1) | Begegnungen |
 |---|---|---|
-| 🌱 Frühling | +10 % 🌿; Amphibien +15 % 😊 | „Etwas keimt“ × 1,5 (nur bei freiem Pflanzring); Kraniche, Regenreicher Frühling, Bienenschwarm, Krötenwanderung |
+| 🌱 Frühling | +10 % 🌿; Amphibien +15 % 😊; „Saatzeit“: Aussaat −20 % 🌰 (seit Phase 10, vorher „Etwas keimt“ × 1,5) | Kraniche, Regenreicher Frühling, Bienenschwarm, Krötenwanderung |
 | ☀️ Sommer | +2 ☀️; Insekten +10 % 😊 | Schwalben, Taubenschwänzchen, Hirschkäferflug, Mittsommer, Bienenschwarm |
 | 🍂 Herbst | +20 % 🌰; Pilze +15 % 😊 | Kraniche, Schwalben, Bergfinken, Seidenschwänze, Pilzherbst, Mastjahr |
 | ❄️ Winter | −10 % 🌿; Säugetiere +15 % 😊, Bodenleben +10 % 😊 | Zugvögel fort; Wintergäste Bergfinken und Seidenschwänze |

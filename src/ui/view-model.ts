@@ -214,6 +214,8 @@ export interface EncounterView {
   rerollDisabledReason?: string;
   /** Samen fürs Ablehnen; `null` = Ablehnen nicht möglich. */
   declineReward: number | null;
+  /** Beschriftung statt „Ablehnen“, z. B. „Zurücklegen“ bei der Aussaat. */
+  declineVerb?: string;
 }
 
 /** Ein Baustein der Harmonie, z. B. „Vielfalt 27“. Negative Werte sind Abzüge. */
@@ -458,35 +460,22 @@ export interface PlantRingView {
   groups: PlantGroupCountView[];
   /** Hinweis für den verschlossenen Ring, z. B. „öffnet bei „Keimling““. */
   unlockHint?: string;
-  /** Exakte Kosten der nächsten Pflanze in 🌰 (für Vergleiche mit dem Samenvorrat). */
-  plantCost: number;
-  /** Kosten zur Anzeige, aufgerundet, z. B. „138“. */
-  plantCostLabel: string;
-  /** Knopf „Pflanze setzen“ anbieten (Ring offen und nicht voll, Pflanzen verfügbar)? */
-  canOpenPicker: boolean;
-  /** Reichen die Samen gerade für die nächste Pflanze? */
+  /** Exakter Preis der nächsten Aussaat in 🌰 (0 = gratis; für Vergleiche mit dem Samenvorrat). */
+  sowCost: number;
+  /** Preis zur Anzeige, z. B. „35“ oder „gratis“. */
+  sowCostLabel: string;
+  /** Knopf „🌱 Säen“ anbieten (Ring offen, Pflanzen freigeschaltet)? */
+  canSow: boolean;
+  /** Ist gerade eine Aussaat offen? Dann heißt der Knopf „Aussaat offen ›“ und öffnet sie. */
+  sowOpen: boolean;
+  /** Beschriftung des Knopfs ohne Preis, z. B. „🌱 Säen“, „🌱 Säen (tauschen)“, „🌱 Aussaat offen ›“. */
+  sowLabel: string;
+  /** „Saatzeit“ im Frühling (Aussaat −20 %). */
+  sowSeason: boolean;
+  /** Reichen die Samen gerade für die nächste Aussaat (oder ist sie offen bzw. gratis)? */
   affordable: boolean;
-  /** Hinweis unter dem Knopf bzw. statt des Knopfs, z. B. „Noch 12 🌰“ oder „Alle Plätze belegt …“. */
+  /** Hinweis unter dem Knopf, z. B. „Noch 12 🌰 bis zur nächsten Aussaat“. */
   plantHint: string;
-}
-
-/** Eine Pflanze in der Auswahl „Pflanze setzen“. */
-export interface PlantOfferView {
-  card: CardView;
-  /** Exakte Kosten in 🌰 (für alle Pflanzen gleich: nextPlantCost). */
-  cost: number;
-  /** Kosten zur Anzeige, aufgerundet. */
-  costLabel: string;
-}
-
-/** Auswahl „Pflanze setzen“. */
-export interface PlantPickerView {
-  title: string;
-  /** z. B. „Pflanzring 1/3 belegt · nächste Pflanze 38 🌰“. */
-  subtitle: string;
-  /** Exakte Kosten der nächsten Pflanze – der Kopf zeigt live, ob die Samen reichen. */
-  cost: number;
-  offers: PlantOfferView[];
 }
 
 /** Stammgast-Schalter an einer entdeckten Art im Naturtagebuch. */

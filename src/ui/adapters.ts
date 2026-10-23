@@ -44,7 +44,6 @@ import {
 import {
   UNGUARDED_PENALTY,
   cardStatus,
-  choiceBlocker,
   communityChanges,
   declineReward,
   evaluate,
@@ -53,12 +52,15 @@ import {
   hasSpecies,
   lifetimeGrowth,
   memberOptions,
-  nextPlantCost,
   plantSlots,
   previewChoice,
-  previewPlant,
+  previewSowing,
   regularSlotsOf,
   rerollCost,
+  sowingChoiceBlocker,
+  sowingCost,
+  sowingRerollCost,
+  sowingSeasonFactor,
   secondsToNextWaypoint,
   slotEffects,
   waypointProgress,
@@ -66,6 +68,7 @@ import {
   type ChoiceError,
   type Evaluation,
   type FoodWebEntry,
+  type SowingChoiceError,
 } from '../core/formulas';
 import { allAnimals, type GameState } from '../core/state';
 import { achievementCountText, toJournalAchievements } from './achievement-view';
@@ -80,13 +83,13 @@ import {
   type ResearchBlocker,
   eventOptionSeeds,
   hostBlocker,
-  plantBlocker,
   regularBlocker,
+  rerollSowingBlocker,
+  sowBlocker,
   visitorSeeds,
   rerollBlocker,
   isTreeUnlocked,
   isTreeVisible,
-  unlockedPlants,
   type OfflineReport,
 } from '../core/tick';
 import { formatDuration, formatNumber } from './format';
@@ -120,7 +123,6 @@ import type {
   JournalView,
   NicheView,
   PlantGroupCountView,
-  PlantPickerView,
   PlantRingView,
   PlantSlotView,
   PreviewView,
@@ -552,7 +554,7 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
  * welche warten, wie viele (ein Countdown daneben wäre missverständlich).
  */
 export function progressHint(state: GameState): string {
-  const waiting = state.pendingEncounters.length;
+  const waiting = waitingNotes(state);
   if (waiting > 0) return waitingText(waiting);
   const seconds = secondsToNextWaypoint(state);
   if (allWaypointsReached(state) || !Number.isFinite(seconds)) return 'Alle Wegpunkte erreicht – dein Wald wächst weiter.';
@@ -1037,10 +1039,10 @@ function toLifetimeStats(state: GameState): JournalStatView[] {
       detail: harmonyTier(best),
       section: 'total',
     },
-    count('total-cards', 'Angenommene Begegnungen', s.cardsChosen, 'Tier- und Pflanzenkarten gewählt'),
+    count('total-cards', 'Angenommene Begegnungen', s.cardsChosen, 'Tierkarten gewählt'),
     count('total-events', 'Ereignisse entschieden', s.eventsDecided),
     count('total-visitors', 'Gäste bewirtet', s.visitorsHosted),
-    count('total-plants', 'Pflanzen gesetzt', s.plantsPlanted),
+    count('total-plants', 'Pflanzen gesät', s.plantsPlanted, 'aus Aussaaten gesetzt'),
     count('total-care', 'Knoten erforscht', s.careRanksBought),
     {
       key: 'total-trees',
@@ -1263,17 +1265,54 @@ export const REROLL_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof rero
   'wrong-type': 'Hier gibt es nichts neu zu würfeln',
 };
 
-/** Warum „Neu würfeln“ gerade nicht geht – Pflanzenbegegnung („Etwas keimt“). */
-export const PLANT_REROLL_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof rerollBlocker>>, string>> = {
-  'no-encounter': 'Diese Begegnung gibt es nicht mehr',
+/** Warum „Neu würfeln“ der Aussaat gerade nicht geht (rerollSowingBlocker). */
+export const SOWING_REROLL_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof rerollSowingBlocker>>, string>> = {
+  'no-sowing': 'Keine Aussaat offen',
   'no-cards': 'Keine passenden Pflanzen',
   'no-alternatives': 'Keine anderen Pflanzen verfügbar',
   'too-expensive': 'Nicht genug Samen',
-  'wrong-type': 'Hier gibt es nichts neu zu würfeln',
 };
 
-/** Überschrift der Begegnung „Etwas keimt“. */
-export const PLANT_ENCOUNTER_TITLE = 'Etwas keimt am Fuß des Baums …';
+/** Zahlwörter für die Überschrift der Aussaat (3 Karten, mit „Saatgut sortieren“ 4). */
+const CARD_WORDS: Readonly<Record<number, string>> = { 1: 'ein Samen', 2: 'zwei Samen', 3: 'drei Samen', 4: 'vier Samen' };
+
+/** Überschrift der Aussaat (27.12): „Aussaat – drei Samen, ein Platz“. */
+export function sowingTitle(cards: number): string {
+  return `Aussaat – ${CARD_WORDS[cards] ?? `${formatNumber(cards)} Samen`}, ein Platz`;
+}
+
+/** Die offene Aussaat für den Kartenwahl-Dialog (Pflanzenkarten). Null, wenn keine offen ist. */
+export function toSowingView(state: GameState, now: Readonly<Evaluation> = evaluate(state)): EncounterView | null {
+  const sowing = state.cycle.sowing;
+  if (!sowing) return null;
+  const cards = sowing.cards.map((_, c) => toSowingCardView(state, c, now)).filter((c): c is CardView => c !== null);
+  const blocker = rerollSowingBlocker(state);
+  const view: EncounterView = {
+    kind: 'plant',
+    title: sowingTitle(sowing.cards.length),
+    subtitle: sowingSubtitle(state, now),
+    cards,
+    rerollCost: sowingRerollCost(state),
+    canReroll: blocker === null,
+    declineReward: declineReward(state),
+    declineVerb: 'Zurücklegen',
+  };
+  if (blocker) view.rerollDisabledReason = SOWING_REROLL_BLOCKERS[blocker];
+  return view;
+}
+
+/**
+ * Vorderste Entscheidung für U:Begegnung und den Zettelstapel: die offene Aussaat zuerst (sie
+ * zählt nicht zu den drei Begegnungen, liegt aber oben, 27.12), sonst die erste Begegnung.
+ */
+export function toHeadView(state: GameState, now: Readonly<Evaluation> = evaluate(state)): EncounterView | null {
+  return state.cycle.sowing ? toSowingView(state, now) : toEncounterView(state, 0, now);
+}
+
+/** Zettel auf dem Stapel: offene Begegnungen plus die offene Aussaat. */
+export function waitingNotes(state: Pick<GameState, 'pendingEncounters' | 'cycle'>): number {
+  return state.pendingEncounters.length + (state.cycle.sowing ? 1 : 0);
+}
 
 /** Eine wartende Begegnung für den Kartenwahl-Dialog. Null, wenn es sie nicht gibt. */
 export function toEncounterView(
@@ -1285,28 +1324,24 @@ export function toEncounterView(
   if (!encounter) return null;
   if (encounter.type === 'event') return toEventView(state, encounterIndex, now);
   if (encounter.type === 'visitor') return toVisitorView(state, encounterIndex, now);
-  const isPlant = encounter.type === 'plant';
   const cards = encounter.cards
-    .map((_, c) =>
-      isPlant ? toPlantCardView(state, encounterIndex, c, now) : toCardView(state, encounterIndex, c, now),
-    )
+    .map((_, c) => toCardView(state, encounterIndex, c, now))
     .filter((c): c is CardView => c !== null);
   const blocker = rerollBlocker(state, encounterIndex);
   const view: EncounterView = {
-    kind: isPlant ? 'plant' : 'animal',
-    title: isPlant ? PLANT_ENCOUNTER_TITLE : encounterTitle(cards.map((c) => c.niche ?? '')),
+    kind: 'animal',
+    title: encounterTitle(cards.map((c) => c.niche ?? '')),
     cards,
     rerollCost: rerollCost(state, encounterIndex),
     canReroll: blocker === null,
     declineReward: declineReward(state),
   };
-  if (isPlant) view.subtitle = plantEncounterSubtitle(state, now);
-  if (blocker) view.rerollDisabledReason = (isPlant ? PLANT_REROLL_BLOCKERS : REROLL_BLOCKERS)[blocker];
+  if (blocker) view.rerollDisabledReason = REROLL_BLOCKERS[blocker];
   return view;
 }
 
 // ---------------------------------------------------------------------------
-// Pflanzen: Karten, Pflanzring, „Pflanze setzen“
+// Pflanzen: Karten der Aussaat, Pflanzring, „Säen“
 // ---------------------------------------------------------------------------
 
 /** Symbole für das, was Pflanzen bieten (nur Anzeige auf Pflanzenkarten). */
@@ -1446,23 +1481,20 @@ export const CHOICE_BLOCKERS: Readonly<Record<ChoiceError, string>> = {
   'would-evict': REPLACE_BLOCKED,
 };
 
-/** Grund für eine gesperrte Pflanzenkarte bzw. Ersetzen-Option. */
-function plantChoiceReason(error: ChoiceError): string {
-  return error === 'closed' ? 'Pflanzring noch verschlossen' : (CHOICE_BLOCKERS[error] ?? 'Nicht verfügbar');
+/** Grund für eine gesperrte Pflanzenkarte bzw. Ersetzen-Option der Aussaat. */
+function plantChoiceReason(error: SowingChoiceError): string {
+  if (error === 'closed') return 'Pflanzring noch verschlossen';
+  if (error === 'no-sowing') return 'Nicht verfügbar';
+  return CHOICE_BLOCKERS[error as ChoiceError] ?? 'Nicht verfügbar';
 }
 
 /**
- * Eine Pflanzenkarte der Begegnung „Etwas keimt“. Null, wenn es die Karte nicht gibt;
- * eine unbekannte Pflanze wird als gesperrte Karte gezeigt (Indizes passen zum Kern).
- * Ist der Ring voll, bietet die Karte jede Pflanze im Ring (einmal je Art) zum Ersetzen an.
+ * Eine Pflanzenkarte der offenen Aussaat. Null, wenn es die Karte nicht gibt; eine unbekannte
+ * Pflanze wird als gesperrte Karte gezeigt (Indizes passen zum Kern). Ist der Ring voll,
+ * bietet die Karte jede Pflanze im Ring (einmal je Art) zum Ersetzen an.
  */
-export function toPlantCardView(
-  state: GameState,
-  encounterIndex: number,
-  cardIndex: number,
-  now: Readonly<Evaluation> = evaluate(state),
-): CardView | null {
-  const id = state.pendingEncounters[encounterIndex]?.cards[cardIndex];
+export function toSowingCardView(state: GameState, cardIndex: number, now: Readonly<Evaluation> = evaluate(state)): CardView | null {
+  const id = state.cycle.sowing?.cards[cardIndex];
   if (id === undefined) return null;
   const plant = PLANTS_BY_ID.get(id);
   if (!plant) {
@@ -1478,14 +1510,14 @@ export function toPlantCardView(
     };
   }
   const card = plantCardBase(plant, state);
-  const status = cardStatus(state, encounterIndex, cardIndex);
-  if (status === 'full') {
+  const slots = plantSlots(state.stage);
+  if (slots > 0 && plant.unlock <= state.stage && state.plants.length >= slots) {
     const options = [...new Set(state.plants)].map((occupant) => {
       const option: ReplaceOptionView = { id: occupant, name: PLANTS_BY_ID.get(occupant)?.name ?? occupant };
-      const after = previewChoice(state, encounterIndex, cardIndex, occupant);
+      const after = previewSowing(state, cardIndex, occupant);
       if (after) option.preview = plantPreviewView(now, after);
       else if (occupant === plant.id) option.disabledReason = 'dieselbe Pflanze';
-      else option.disabledReason = plantChoiceReason(choiceBlocker(state, encounterIndex, cardIndex, occupant) ?? 'no-card');
+      else option.disabledReason = plantChoiceReason(sowingChoiceBlocker(state, cardIndex, occupant) ?? 'no-card');
       return option;
     });
     card.nicheFull = true;
@@ -1496,23 +1528,23 @@ export function toPlantCardView(
     if (!options.some((o) => !o.disabledReason)) card.disabledReason = 'Kein Tausch möglich';
     return card;
   }
-  const blocker = choiceBlocker(state, encounterIndex, cardIndex);
-  const after = blocker ? null : previewChoice(state, encounterIndex, cardIndex);
+  const blocker = sowingChoiceBlocker(state, cardIndex);
+  const after = blocker ? null : previewSowing(state, cardIndex);
   if (after) card.preview = plantPreviewView(now, after);
-  else if (blocker === 'closed' && plant.unlock > state.stage && plantSlots(state.stage) > 0) {
+  else if (blocker === 'closed' && plant.unlock > state.stage && slots > 0) {
     card.disabledReason = `Wächst erst ab „${STAGES[plant.unlock]?.name ?? '…'}“`;
   } else card.disabledReason = plantChoiceReason(blocker ?? 'no-card');
   return card;
 }
 
-/** Untertitel der Pflanzenbegegnung: gratis, und wie voll der Ring ist. */
-export function plantEncounterSubtitle(state: Pick<GameState, 'plants'>, now: Readonly<Evaluation>): string {
+/** Untertitel der Aussaat: wie voll der Ring ist (bei vollem Ring ersetzt die Pflanze eine andere). */
+export function sowingSubtitle(state: Pick<GameState, 'plants'>, now: Readonly<Evaluation>): string {
   const used = formatNumber(state.plants.length);
   const slots = formatNumber(now.plantSlots);
   if (now.plantSlots > 0 && state.plants.length >= now.plantSlots) {
-    return `Eine Pflanze keimt kostenlos – der Pflanzring ist voll (${used}/${slots}), sie ersetzt eine andere.`;
+    return `Wähle einen Samen – der Pflanzring ist voll (${used}/${slots}), die Pflanze ersetzt eine andere.`;
   }
-  return `Eine Pflanze keimt kostenlos im Pflanzring (${used}/${slots} belegt).`;
+  return `Wähle einen Samen für den Pflanzring (${used}/${slots} belegt).`;
 }
 
 /** Name der ersten Stufe mit Pflanzplätzen. */
@@ -1584,9 +1616,12 @@ export function plantRingView(state: GameState, evaluation: Readonly<Evaluation>
     supplyText: `☀️ Licht ${wholePercent(light.ratio)} · 💧 Wasser ${wholePercent(water.ratio)}`,
     meters: [light, water],
     groups,
-    plantCost: 0,
-    plantCostLabel: '',
-    canOpenPicker: capacity > 0 && state.plants.length < capacity && unlockedPlants(state).length > 0,
+    sowCost: 0,
+    sowCostLabel: '',
+    canSow: capacity > 0 && sowBlocker(state) !== 'stage',
+    sowOpen: false,
+    sowLabel: '',
+    sowSeason: false,
     affordable: false,
     plantHint: '',
   };
@@ -1600,62 +1635,38 @@ export function plantRingView(state: GameState, evaluation: Readonly<Evaluation>
   return ring;
 }
 
-/** Samen-abhängige Teile des Pflanzrings (Kosten, reicht es?, Hinweis). */
+/** Samen-abhängige Teile des Pflanzrings (Preis der Aussaat, reicht es?, Hinweis). */
 export function refreshPlantRing(ring: PlantRingView, state: GameState): void {
-  const cost = nextPlantCost(state);
-  ring.plantCost = cost;
-  ring.plantCostLabel = plantCostLabel(cost);
-  ring.affordable = state.seeds >= cost;
+  const cost = sowingCost(state);
+  ring.sowCost = cost;
+  ring.sowCostLabel = sowCostLabel(cost);
+  ring.sowOpen = state.cycle.sowing !== null;
+  ring.sowSeason = cost > 0 && !state.cycle.freeSowing && sowingSeasonFactor(state.cycle.elapsed) < 1;
+  ring.affordable = ring.sowOpen || state.seeds >= cost;
+  const full = ring.capacity > 0 && state.plants.length >= ring.capacity;
+  ring.sowLabel = ring.sowOpen ? '🌱 Aussaat offen ›' : full ? '🌱 Säen (tauschen)' : '🌱 Säen';
   if (ring.capacity <= 0) ring.plantHint = '';
-  else if (state.plants.length >= ring.capacity) {
-    ring.plantHint = 'Alle Plätze belegt – neue Pflanzen keimen über Begegnungen und ersetzen dann eine andere.';
-  } else if (!ring.canOpenPicker) ring.plantHint = 'Noch keine Pflanze zum Setzen freigeschaltet.';
-  else if (!ring.affordable) ring.plantHint = `Noch ${formatNumber(Math.ceil(cost - state.seeds))} 🌰 bis zur nächsten Pflanze`;
+  else if (!ring.canSow) ring.plantHint = 'Noch keine Pflanze zum Säen freigeschaltet.';
+  else if (ring.sowOpen) ring.plantHint = 'Eine Aussaat wartet auf deine Wahl.';
+  else if (!ring.affordable) ring.plantHint = `Noch ${formatNumber(Math.ceil(cost - state.seeds))} 🌰 bis zur nächsten Aussaat`;
+  else if (full) ring.plantHint = 'Der Pflanzring ist voll – eine neue Pflanze ersetzt eine andere.';
   else ring.plantHint = '';
 }
 
 /**
- * Pflanzkosten zur Anzeige: aufgerundet, damit „Noch X 🌰“ und die Kosten nie weniger
- * versprechen, als abgezogen wird. Vergleiche laufen immer mit dem exakten Wert.
+ * Preis der Aussaat zur Anzeige: „gratis“ oder aufgerundet (der Preis ist schon ganzzahlig),
+ * damit „Noch X 🌰“ und der Preis nie weniger versprechen, als abgezogen wird.
  */
-export function plantCostLabel(cost: number): string {
-  return formatNumber(Math.ceil(cost));
+export function sowCostLabel(cost: number): string {
+  return cost > 0 ? formatNumber(Math.ceil(cost)) : 'gratis';
 }
 
-/** Sperrgründe für „Pflanze setzen“ (plantBlocker). */
-export const PLANT_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof plantBlocker>>, string>> = {
-  'unknown-plant': 'Nicht verfügbar',
-  locked: 'Noch nicht freigeschaltet',
-  'ring-full': 'Pflanzring voll',
+/** Sperrgründe für „Säen“ (sowBlocker). */
+export const SOW_BLOCKERS: Readonly<Record<NonNullable<ReturnType<typeof sowBlocker>>, string>> = {
+  stage: 'Noch keine Pflanze zum Säen freigeschaltet',
+  open: 'Es ist schon eine Aussaat offen',
   'too-expensive': 'Nicht genug Samen',
 };
-
-/**
- * Auswahl „Pflanze setzen“: alle freigeschalteten Pflanzen mit Vorschau und Sperrgrund.
- * Die Kosten sind für alle gleich (nextPlantCost); reichen die Samen nicht, steht das in
- * `disabledReason` – wie viele fehlen, zeigt der Dialog live.
- */
-export function toPlantPickerView(state: GameState, now: Readonly<Evaluation> = evaluate(state)): PlantPickerView {
-  const cost = nextPlantCost(state);
-  const costLabel = plantCostLabel(cost);
-  const offers = unlockedPlants(state)
-    .map((id) => PLANTS_BY_ID.get(id))
-    .filter((p): p is Plant => p !== undefined)
-    .map((plant) => {
-      const card = plantCardBase(plant, state);
-      const after = previewPlant(state, plant.id);
-      if (after) card.preview = plantPreviewView(now, after);
-      const blocker = plantBlocker(state, plant.id);
-      if (blocker) card.disabledReason = PLANT_BLOCKERS[blocker];
-      return { card, cost, costLabel };
-    });
-  return {
-    title: 'Pflanze setzen',
-    subtitle: `Pflanzring ${formatNumber(state.plants.length)}/${formatNumber(now.plantSlots)} belegt · jede Pflanze kostet jetzt ${costLabel} 🌰`,
-    cost,
-    offers,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Szene: Tiere für den Renderer
@@ -1873,6 +1884,11 @@ export function eventOptionEffects(option: EventOption, seeds: number, journal: 
     else if (e.kind === 'habitat') lasting.unshift(TAG_NAMES[e.tag] ?? e.tag);
     else if (e.kind === 'cycle') lasting.push(bonusEffectLabel(e.effect));
     else if (e.kind === 'nextEncounter') out.push({ label: nextEncounterText(e.type, e.ids, journal), tone: 'good' });
+    else if (e.kind === 'freeSowing') {
+      // Gleiche Spoiler-Regel wie bei der nächsten Begegnung: Unbekanntes ohne Namen.
+      const plants = nextEncounterText('plant', e.ids, journal).replace(/^nächste Begegnung: /, '');
+      out.push({ label: `eine Aussaat gratis: ${plants}`, tone: 'good' });
+    }
   }
   if (lasting.length > 0) out.unshift({ label: `${lasting.join(', ')} – ${UNTIL_NEW_CYCLE}`, tone: 'good' });
   if (seeds > 0) out.push({ label: `+${seedsLabel(seeds)} 🌰 sofort`, tone: 'good' });
@@ -2136,6 +2152,12 @@ export function encounterActionKey(state: GameState, encounterIndex: number): st
   if (encounter.type === 'visitor') return `host:${hostBlocker(state, encounterIndex) ?? 'ok'}`;
   if (encounter.type === 'event') return 'event';
   return `reroll:${state.seeds >= rerollCost(state, encounterIndex)}`;
+}
+
+/** encounterActionKey für den vordersten Zettel: die offene Aussaat zuerst (27.12). */
+export function headActionKey(state: GameState): string {
+  if (state.cycle.sowing) return `sow:${state.seeds >= sowingRerollCost(state)}:${state.cycle.sowing.cards.join(',')}`;
+  return encounterActionKey(state, 0);
 }
 
 /** Restzeit für die Seitenleiste: ab einer Minute auf ganze Minuten aufgerundet. */

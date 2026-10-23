@@ -12,7 +12,7 @@ import {
 } from '../content/abilities';
 import { DAY_SECONDS, DAY_START_PHASE, NOCTURNAL_BY_SPECIES } from '../content/daytime';
 import { COMMUNITIES, type CommunityMember } from '../content/communities';
-import { DECLINE_SEED_SECONDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
+import { CARDS_PER_ENCOUNTER, DECLINE_SEED_SECONDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
 import { SEED_SECONDS_MIN_SEEDS } from '../content/events';
 import {
   FOREST_MEMORY_BONUS,
@@ -23,7 +23,8 @@ import {
 } from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
 import { RESEARCH, RESEARCH_BY_ID, type ResearchCycleEffect } from '../content/research';
-import { PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, type Plant } from '../content/plants';
+import { PLANTS_BY_ID, type Plant } from '../content/plants';
+import { MAX_SOWING_CARDS, SOWING_BASE, SOWING_GROWTH, SOWING_MIN_COST_FACTOR } from '../content/sowing';
 import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, STOCK_BASE, STOCK_RANGE } from '../content/predation';
 import { BASE_HAPPINESS, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
 import { SEASONS_BY_ID, type HappinessEffect, type SeasonId } from '../content/seasons';
@@ -661,14 +662,74 @@ export function plantSlots(stage: number): number {
   return STAGES[stage]?.plantSlots ?? 0;
 }
 
-/** Kosten der nächsten Pflanze, wenn schon `count` Begleitpflanzen wachsen: 20 · 1,9^count. */
-export function plantCost(count: number): number {
-  return PLANT_COST_BASE * Math.pow(PLANT_COST_GROWTH, Math.max(0, finite(count)));
+/**
+ * Grundpreis der Aussaat Nummer `n + 1` im Zyklus, wenn schon `n` Aussaaten waren (DESIGN_V2.md
+ * 27.6): n = 0 → 0 (die erste ist ein Geschenk), sonst SOWING_BASE · SOWING_GROWTH^(n−1) – ohne
+ * Rabatt, Saatzeit und Aufrunden (siehe sowingCostAt). Kaputte Werte (NaN, negativ) zählen als 0,
+ * +Infinity kostet Infinity (nie bezahlbar).
+ */
+export function sowingBaseCost(n: number): number {
+  if (Number.isNaN(n) || n < 1) return 0;
+  if (!Number.isFinite(n)) return Infinity;
+  return SOWING_BASE * Math.pow(SOWING_GROWTH, Math.floor(n) - 1);
 }
 
-/** Kosten der nächsten Pflanze in diesem Spielstand. */
-export function nextPlantCost(state: Pick<GameState, 'plants'>): number {
-  return plantCost(state.plants.length);
+/**
+ * Faktor auf den Aussaat-Preis aus der Forschung (`sowCost`, „Samenbank“ −25 %):
+ * max(SOWING_MIN_COST_FACTOR, 1 + Σ sowCost / 100).
+ */
+export function sowingDiscount(research: readonly string[] | undefined): number {
+  return Math.max(SOWING_MIN_COST_FACTOR, 1 + researchSowing(research, 'sowCost') / 100);
+}
+
+/** Faktor der Jahreszeit auf den Aussaat-Preis („Saatzeit“ im Frühling, fehlt = 1). */
+export function sowingSeasonFactor(elapsed: number): number {
+  const factor = SEASONS_BY_ID.get(seasonIdAt(elapsed))?.sowingCostFactor;
+  return factor !== undefined && Number.isFinite(factor) && factor > 0 ? factor : 1;
+}
+
+/** Rundungsrauschen beim Aufrunden (0,75 · 0,8 = 0,6000000000000001 → 35 · … darf nicht 22 werden). */
+const SOWING_CEIL_EPSILON = 1e-9;
+
+/**
+ * Preis der Aussaat nach `n` bisherigen Aussaaten (27.6):
+ * ⌈ SOWING_BASE · SOWING_GROWTH^(n−1) · Rabatt · Saatzeit ⌉ 🌰, die erste (n = 0) gratis.
+ * Aufgerundet auf ganze Samen (mit kleiner Toleranz gegen Gleitkomma-Rauschen); sehr große n
+ * ergeben Infinity (nie bezahlbar, aber kein NaN).
+ */
+export function sowingCostAt(n: number, research: readonly string[] | undefined, elapsed: number): number {
+  const raw = sowingBaseCost(n) * sowingDiscount(research) * sowingSeasonFactor(elapsed);
+  if (!(raw > 0)) return 0;
+  if (!Number.isFinite(raw)) return Infinity;
+  return Math.ceil(raw - SOWING_CEIL_EPSILON * Math.max(1, raw));
+}
+
+/**
+ * Was „Säen“ jetzt kostet: 0, solange eine geschenkte Aussaat (Vogelsaat, `cycle.freeSowing`)
+ * wartet, sonst sowingCostAt mit dem Zähler des Zyklus.
+ */
+export function sowingCost(state: Pick<GameState, 'cycle'>): number {
+  const c = state.cycle;
+  if (c.freeSowing) return 0;
+  return sowingCostAt(c.sowings, c.research, c.elapsed);
+}
+
+/** Karten je Aussaat: CARDS_PER_ENCOUNTER + Σ sowCards der Forschung, höchstens MAX_SOWING_CARDS. */
+export function sowingCardCount(research: readonly string[] | undefined): number {
+  const extra = Math.max(0, Math.floor(researchSowing(research, 'sowCards')));
+  return Math.min(MAX_SOWING_CARDS, CARDS_PER_ENCOUNTER + extra);
+}
+
+/**
+ * Kosten für „Neu würfeln“ der offenen Aussaat: wie bei Tieren REROLL_BASE_COST ·
+ * REROLL_COST_GROWTH^Würfe; mit `sowFreeReroll` (Anzuchtbeet) sind die ersten Würfe gratis,
+ * danach zählt die Verdopplung ab dem ersten bezahlten (10 · 2^(n−frei)).
+ */
+export function sowingRerollCost(state: Pick<GameState, 'cycle'>): number {
+  const rerolls = Math.max(0, state.cycle.sowing?.rerolls ?? 0);
+  const free = Math.max(0, Math.floor(researchSowing(state.cycle.research, 'sowFreeReroll')));
+  if (rerolls < free) return 0;
+  return REROLL_BASE_COST * Math.pow(REROLL_COST_GROWTH, rerolls - free);
 }
 
 /** Bekannte Arten des Ökosystems in Nischen-Reihenfolge (unbekannte IDs werden übersprungen). */
@@ -1344,23 +1405,15 @@ export function encounterType(state: GameState, encounterIndex: number): Pending
 }
 
 /**
- * Zustand einer Karte. Für Tierkarten zählt die Nische der Art, für Pflanzenkarten
- * („Etwas keimt“) der Pflanzring. Ob ein bestimmter Tausch erlaubt ist, sagt
+ * Zustand einer Tierkarte: Es zählt die Nische der Art (Pflanzen kommen seit Phase 10 nur
+ * über die Aussaat, resolveSowing). Ob ein bestimmter Tausch erlaubt ist, sagt
  * `choiceBlocker` (z. B. 'would-evict').
  */
 export function cardStatus(state: GameState, encounterIndex: number, cardIndex: number): CardStatus {
   const encounter = state.pendingEncounters[encounterIndex];
   const id = encounter?.cards[cardIndex];
   if (encounter === undefined || id === undefined) return 'invalid';
-  if (encounter.type === 'event' || encounter.type === 'visitor') return 'invalid';
-  if (encounter.type === 'plant') {
-    const plant = PLANTS_BY_ID.get(id);
-    if (!plant) return 'invalid';
-    const slots = plantSlots(state.stage);
-    // Gesperrte Pflanzen (später freigeschaltet) behandeln wie einen geschlossenen Ring.
-    if (slots <= 0 || plant.unlock > state.stage) return 'closed';
-    return state.plants.length < slots ? 'free' : 'full';
-  }
+  if (encounter.type !== 'animal') return 'invalid';
   const sp = SPECIES_BY_ID.get(id);
   if (!sp) return 'invalid';
   if (hasSpecies(state, sp.id)) return 'present';
@@ -1382,7 +1435,7 @@ export type ChoiceError =
   | 'closed'
   /** Nische voll, kein Tier zum Entlassen genannt. */
   | 'niche-full'
-  /** Pflanzring voll, keine Pflanze zum Ersetzen genannt. */
+  /** Pflanzring voll, keine Pflanze zum Ersetzen genannt (Aussaat, resolveSowing). */
   | 'ring-full'
   /** Der genannte Ersatz lebt nicht in dieser Nische bzw. wächst nicht im Pflanzring. */
   | 'invalid-replace'
@@ -1400,7 +1453,7 @@ export type ChoiceOutcome =
 /**
  * Rechnet die Wahl einer Karte durch, ohne den Spielstand zu ändern. Grundlage für
  * chooseCard, previewChoice und choiceBlocker – alle drei sind darum immer einig.
- * `replaceId`: bei Tierkarten eine Art der Nische, bei Pflanzenkarten eine Pflanze im Ring.
+ * `replaceId`: eine Art der Nische, die für die neue Art auszieht.
  */
 export function resolveChoice(
   state: GameState,
@@ -1415,12 +1468,6 @@ export function resolveChoice(
   if (status === 'present') return { ok: false, error: 'present' };
   if (status === 'closed') return { ok: false, error: 'closed' };
   const id = encounter.cards[cardIndex]!;
-  if (encounter.type === 'plant') {
-    if (replaceId === undefined && status === 'full') return { ok: false, error: 'ring-full' };
-    const plants = plantsAfterChoice(state, id, replaceId);
-    if (!plants) return { ok: false, error: 'invalid-replace' };
-    return { ok: true, niches: copyNiches(state.niches), plants };
-  }
   const sp = SPECIES_BY_ID.get(id)!;
   if (replaceId !== undefined && !(state.niches[sp.niche] ?? []).includes(replaceId)) {
     return { ok: false, error: 'invalid-replace' };
@@ -1447,7 +1494,7 @@ export function choiceBlocker(
 /**
  * Wie sähe das Ökosystem aus, wenn diese Karte gewählt würde? null genau dann, wenn
  * chooseCard die Wahl ablehnen würde (Grund: choiceBlocker). Für Vorschauen auf
- * Tier- und Pflanzenkarten (Zufriedenheit, Harmonie, 🌿/s, 🌰/s).
+ * Tierkarten (Zufriedenheit, Harmonie, 🌿/s, 🌰/s).
  */
 export function previewChoice(
   state: GameState,
@@ -1461,14 +1508,45 @@ export function previewChoice(
 }
 
 /**
- * Vorschau für „Pflanze setzen“ (Aktion plantSeed): das Ökosystem mit einer weiteren
- * Pflanze. Prüft weder Kosten noch Freischaltung (siehe plantBlocker); null bei
- * unbekannter Pflanze oder vollem Ring.
+ * Vorschau einer Karte der offenen Aussaat (Aktion chooseSowing): das Ökosystem mit dieser
+ * Pflanze im Ring (bei vollem Ring anstelle von `replaceId`). null genau dann, wenn
+ * chooseSowing die Wahl ablehnen würde (Grund: sowingChoiceBlocker).
  */
-export function previewPlant(state: GameState, plantId: string): Evaluation | null {
-  const plants = plantsAfterChoice(state, plantId);
-  if (!plants) return null;
-  return evaluateEcosystem(ecosystemOf(state, { plants }));
+export function previewSowing(state: GameState, cardIndex: number, replaceId?: string): Evaluation | null {
+  const outcome = resolveSowing(state, cardIndex, replaceId);
+  if (!outcome.ok) return null;
+  return evaluateEcosystem(ecosystemOf(state, { plants: outcome.plants }));
+}
+
+/** Warum eine Karte der Aussaat nicht gewählt werden kann. */
+export type SowingChoiceError = 'no-sowing' | 'no-card' | 'closed' | 'ring-full' | 'invalid-replace';
+
+/**
+ * Rechnet die Wahl einer Karte der offenen Aussaat durch, ohne den Spielstand zu ändern –
+ * Grundlage für chooseSowing, previewSowing und sowingChoiceBlocker. Ring frei: dazusetzen
+ * (`replaceId` nicht erlaubt); Ring voll: `replaceId` muss eine Pflanze im Ring nennen.
+ */
+export function resolveSowing(
+  state: GameState,
+  cardIndex: number,
+  replaceId?: string,
+): { ok: true; plants: string[] } | { ok: false; error: SowingChoiceError } {
+  const sowing = state.cycle.sowing;
+  if (!sowing) return { ok: false, error: 'no-sowing' };
+  const id = Number.isInteger(cardIndex) ? sowing.cards[cardIndex] : undefined;
+  const plant = id === undefined ? undefined : PLANTS_BY_ID.get(id);
+  if (!plant) return { ok: false, error: 'no-card' };
+  if (plantSlots(state.stage) <= 0 || plant.unlock > state.stage) return { ok: false, error: 'closed' };
+  if (replaceId === undefined && state.plants.length >= plantSlots(state.stage)) return { ok: false, error: 'ring-full' };
+  const plants = plantsAfterChoice(state, plant.id, replaceId);
+  if (!plants) return { ok: false, error: 'invalid-replace' };
+  return { ok: true, plants };
+}
+
+/** Warum diese Wahl der Aussaat nicht geht – null, wenn chooseSowing sie annähme. */
+export function sowingChoiceBlocker(state: GameState, cardIndex: number, replaceId?: string): SowingChoiceError | null {
+  const outcome = resolveSowing(state, cardIndex, replaceId);
+  return outcome.ok ? null : outcome.error;
 }
 
 /**

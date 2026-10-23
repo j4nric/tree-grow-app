@@ -298,7 +298,6 @@ for (const viewport of VIEWPORTS) {
       await expectFlat(page);
       await expect(page).toHaveURL(/#nischen$/);
 
-      await visit('plant-picker', () => page.locator('[data-ref="plant-open"]').click(), 'nischen');
       await visit('foodweb', () => page.locator('[data-ref="food-web-link"]').click(), 'nischen');
       await visit(
         'harmony',

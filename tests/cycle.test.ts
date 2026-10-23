@@ -12,7 +12,6 @@ import {
   drawAnimals,
   moveInRegulars,
   newCycleBlocker,
-  plantSeed,
   previewNewCycle,
   recordDiscoveries,
   regularBlocker,
@@ -23,7 +22,7 @@ import {
   toggleRegular,
 } from '../src/core/tick';
 import { GROWTH, HARMONY, RANDOM, runGame } from '../scripts/simulate';
-import { stateAt } from './helpers';
+import { plantFromSowing, stateAt } from './helpers';
 
 const HAIN_STAGE = NEW_CYCLE_MIN_STAGE;
 /** Wegpunkt des Hains – hier gilt die Hain-Regel aus 2.11 (Parameter von cycleMemoryGain). */
@@ -330,11 +329,10 @@ describe('H_max und neu entdeckte Arten', () => {
     expect(state.cycle.maxHarmony).toBe(best);
   });
 
-  it('Pflanze setzen führt H_max nach', () => {
+  it('Pflanze aus der Aussaat setzen führt H_max nach', () => {
     const state = stateAt(3, ['earthworm', 'bee'], 3);
-    state.seeds = 1000;
     const before = state.cycle.maxHarmony;
-    expect(plantSeed(state, 'hazel').ok).toBe(true);
+    expect(plantFromSowing(state, 'hazel').ok).toBe(true);
     expect(state.cycle.maxHarmony).toBeGreaterThanOrEqual(before);
     expect(state.cycle.maxHarmony).toBe(Math.max(before, evaluate(state).harmony));
   });

@@ -143,16 +143,7 @@ describe('Ereignisse: Wirkungen', () => {
     expect(state.cycle.forced).toBeNull();
   });
 
-  it('nextEncounter mit Pflanzen; passt nichts mehr, verfällt der Vorzug still', () => {
-    const plants = stateAt(4, ['robin', 'bluetit'], 3);
-    plants.waypoint = 14;
-    plants.cycle.forced = { type: 'plant', ids: ['rowan', 'elder', 'bramble'] };
-    const enc = drawEncounter(plants)!;
-    expect(enc.type).toBe('plant');
-    // Höchstens FORCED_MAX_CARDS (2) aus der Vorgabe, die dritte Karte ist eine andere Pflanze.
-    const fromForced = enc.cards.filter((id) => ['rowan', 'elder', 'bramble'].includes(id));
-    expect(fromForced).toHaveLength(2);
-    expect(enc.cards).toHaveLength(3);
+  it('nextEncounter: passt nichts mehr, verfällt der Vorzug still', () => {
 
     const none = stateAt(4, ['jay', 'squirrel'], 3);
     none.waypoint = 14;
@@ -164,9 +155,12 @@ describe('Ereignisse: Wirkungen', () => {
 
   it('festgelegte Wegpunkte (1–3) gehen dem Vorzug vor', () => {
     const state = stateAt(1, [], 3);
-    state.waypoint = 2; // festgelegt: Pflanze
+    state.waypoint = 2; // festgelegt: Aussaat (hier ohne Geschenk gezogen: ein Tier)
     state.cycle.forced = { type: 'animal', ids: ['earthworm'] };
-    expect(drawEncounter(state)!.type).toBe('plant');
+    expect(drawEncounter(state)!.type).toBe('animal');
+    expect(state.cycle.forced).not.toBeNull();
+    state.waypoint = 3; // festgelegt: Tier
+    expect(drawEncounter(state)!.type).toBe('animal');
     expect(state.cycle.forced).not.toBeNull();
   });
 });
@@ -358,7 +352,8 @@ describe('online gleich offline (mit Boni, Gästen und Zwischenhalt)', () => {
       while (resolveSpecial(state)) {
         // Ereignisse und Gäste auflösen
       }
-      state.pendingEncounters = state.pendingEncounters.filter((e) => e.type === 'animal' || e.type === 'plant');
+      state.pendingEncounters = state.pendingEncounters.filter((e) => e.type === 'animal');
+      state.cycle.sowing = null;
     }
     expect(Number.isFinite(state.seeds) && Number.isFinite(state.totalGrowth)).toBe(true);
     expect(state.cycle.seen.length).toBeGreaterThan(0);
@@ -472,7 +467,10 @@ describe('Speichern und Laden (v5)', () => {
     expect(s.cycle.bonuses).toEqual([{ source: 'windthrow', effect: { kind: 'light', amount: 3 } }]);
     expect(s.cycle.timed).toEqual([{ source: 'midsummer', effect: { kind: 'growth', pct: 30 }, remaining: 100 }]);
     expect(s.cycle.visitors).toEqual([{ id: 'cranes', remaining: 100 }]); // Wanderfalke nie gezogen
-    expect(s.cycle.forced).toEqual({ type: 'plant', ids: ['rowan'] }); // nur, was ein Ereignis vorgibt
+    // „Etwas keimt“ als Vorgabe (bis Phase 10) wird eine wartende Vogelsaat – nur, wenn die Vogelsaat
+    // gezogen wurde (hier nicht).
+    expect(s.cycle.forced).toBeNull();
+    expect(s.cycle.freeSowing).toBeNull();
     expect(s.pendingEncounters).toEqual([event('storm')]);
   });
 

@@ -17,11 +17,9 @@ import {
   growth,
   hasSpecies,
   memberOptions,
-  nextPlantCost,
   nicheOverflow,
   nicheSlots,
   nichesAfterChoice,
-  plantCost,
   plantSlots,
   plantsAfterChoice,
   secondsToNextWaypoint,
@@ -457,19 +455,6 @@ describe('Pflanzring und Kosten', () => {
     expect(plantSlots(99)).toBe(0);
     expect(plantSlots(-1)).toBe(0);
     expect(plantSlots(NaN)).toBe(0);
-  });
-
-  it('plantCost: 20 · 1,9^n', () => {
-    expect(plantCost(0)).toBe(20);
-    expect(plantCost(1)).toBeCloseTo(38);
-    expect(plantCost(2)).toBeCloseTo(72.2);
-    expect(Math.round(plantCost(8))).toBe(3397);
-    expect(plantCost(-3)).toBe(20);
-    expect(plantCost(NaN)).toBe(20);
-    expect(plantCost(2000)).toBe(Infinity); // nie bezahlbar, aber kein NaN
-    const state = stateAt(3);
-    state.plants = ['hazel', 'hazel'];
-    expect(nextPlantCost(state)).toBeCloseTo(72.2);
   });
 
   it('plantsAfterChoice: Duplikate erlaubt, Ring voll → nur mit Ersatz', () => {

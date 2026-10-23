@@ -25,7 +25,7 @@ export type DailyGoalKind =
   | 'seeds'
   /** Begegnungen entscheiden: Karte wählen, ablehnen, Ereignis entscheiden, Gast bewirten oder ziehen lassen. */
   | 'decide'
-  /** Eine Begleitpflanze für Samen setzen. */
+  /** Einmal säen und die Pflanze setzen (zählt das Setzen aus einer Aussaat, 27.5). */
   | 'plant'
   /** Einen Rang Pflege kaufen. */
   | 'care'
@@ -69,7 +69,7 @@ export const DAILY_GOALS: readonly DailyGoalTemplate[] = [
   { kind: 'observe', icon: '🔭', text: 'Beobachte {season} {species} {genus} in deinem Wald.', weight: 4, minStage: 1, offline: false },
   { kind: 'satisfaction', icon: '😊', text: 'Bring die Zufriedenheit {yourGenus} auf {n} %.', weight: 3, minStage: 1, offline: true, group: 'hold' },
   { kind: 'community', icon: '🧩', text: 'Ein Rätsel unter Arten › Gemeinschaften: „{hint}“ Entdecke diese Lebensgemeinschaft.', weight: 5, minStage: 1, offline: true, group: 'build' },
-  { kind: 'plant', icon: '🌱', text: 'Setze eine Begleitpflanze in den Pflanzring.', weight: 3, minStage: 1, offline: false, group: 'build' },
+  { kind: 'plant', icon: '🌱', text: 'Säe einmal aus und setze die Pflanze.', weight: 3, minStage: 1, offline: false, group: 'build' },
   { kind: 'care', icon: '🧤', text: 'Erforsche einen Knoten für deinen Wald.', weight: 3, minStage: 2, offline: false, group: 'build' },
   { kind: 'harmony', icon: '⚖️', text: 'Halte die Harmonie-Produktion {minutes} Minuten lang bei mindestens {harmony} ⚖️/min.', weight: 3, minStage: 1, offline: false, group: 'hold' },
   { kind: 'growth', icon: '🌿', text: 'Lass deinen Baum um {n} 🌿 wachsen.', weight: 1, minStage: 0, offline: false },

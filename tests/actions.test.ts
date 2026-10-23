@@ -1,32 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { REROLL_BASE_COST, REROLL_COST_GROWTH } from '../src/content/encounters';
 import { SEED_SECONDS_MIN_SEEDS } from '../src/content/events';
-import { PLANTS_BY_ID } from '../src/content/plants';
 import {
   cardStatus,
   choiceBlocker,
   declineReward,
-  encounterType,
   evaluate,
-  nextPlantCost,
   previewChoice,
-  previewPlant,
+  previewSowing,
   rerollCost,
+  sowingChoiceBlocker,
 } from '../src/core/formulas';
 import type { GameState } from '../src/core/state';
 import {
-  canPlant,
   canReroll,
   chooseCard,
+  chooseSowing,
   declineEncounter,
-  plantBlocker,
-  plantSeed,
   recordDiscoveries,
   rerollBlocker,
   rerollEncounter,
   unlockedPlants,
 } from '../src/core/tick';
-import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
+import { fakeSpecies, plantFromSowing, stateAt, withFakeSpecies } from './helpers';
 
 /** Junger Baum (Krone 2 Plätze) mit einer offenen Begegnung. */
 function withEncounter(animals: string[], cards: string[], seed = 1) {
@@ -168,159 +164,105 @@ describe('choiceBlocker, previewChoice und chooseCard sind sich einig', () => {
       check(state);
     });
   });
+});
+
+describe('sowingChoiceBlocker, previewSowing und chooseSowing sind sich einig', () => {
+  /** Alle Kombinationen aus Karte und Ersatz (auch unsinnige). */
+  function check(state: GameState): void {
+    const replaces = [undefined, 'gibt-es-nicht', 'earthworm', ...state.plants];
+    for (let c = -1; c <= 3; c++) {
+      for (const r of replaces) {
+        const blocker = sowingChoiceBlocker(state, c, r);
+        const preview = previewSowing(state, c, r);
+        const copy = structuredClone(state);
+        const result = chooseSowing(copy, c, r);
+        const label = [c, r].join('/');
+        expect(preview === null, label).toBe(blocker !== null);
+        expect(result.ok, label).toBe(blocker === null);
+        if (!result.ok) expect(result.error, label).toBe(blocker);
+        if (preview) expect(evaluate(copy).harmony, label).toBeCloseTo(preview.harmony, 9);
+        else expect(copy, label).toEqual(state);
+      }
+    }
+  }
 
   it('Pflanzenkarten mit freiem und vollem Ring', () => {
     const state = stateAt(2, ['earthworm']);
-    state.pendingEncounters.push({ type: 'plant', cards: ['hazel', 'gibt-es-nicht', 'moss'], rerolls: 0 });
+    state.cycle.sowing = { cards: ['hazel', 'gibt-es-nicht', 'moss', 'birch'], rerolls: 0 };
     check(state);
     state.plants = ['fern', 'moss'];
+    check(state);
+    state.cycle.sowing = null;
     check(state);
   });
 });
 
-describe('chooseCard: „Etwas keimt“ (Pflanzenkarten)', () => {
-  function withPlantEncounter(plants: string[], cards: string[], stage = 2) {
+describe('chooseSowing: Karten der Aussaat', () => {
+  function withSowing(plants: string[], cards: string[], stage = 2) {
     const state = stateAt(stage, ['earthworm']);
     state.plants = plants;
-    state.pendingEncounters.push({ type: 'plant', cards, rerolls: 0 });
+    state.cycle.sowing = { cards, rerolls: 0 };
     return state;
   }
 
-  it('freier Ring: Pflanze keimt kostenlos, Begegnung erledigt', () => {
-    const state = withPlantEncounter([], ['hazel', 'fern', 'nettle']);
+  it('freier Ring: Pflanze wird gesetzt, Aussaat erledigt, nichts kostet', () => {
+    const state = withSowing([], ['hazel', 'fern', 'nettle']);
     state.seeds = 3;
-    expect(encounterType(state, 0)).toBe('plant');
-    expect(encounterType(state, 1)).toBeUndefined();
-    expect(cardStatus(state, 0, 1)).toBe('free');
-    const preview = previewChoice(state, 0, 1)!;
-    expect(chooseCard(state, 0, 1)).toEqual({ ok: true });
+    const preview = previewSowing(state, 1)!;
+    expect(chooseSowing(state, 1)).toEqual({ ok: true, planted: 'fern' });
     expect(state.plants).toEqual(['fern']);
     expect(state.seeds).toBe(3);
-    expect(state.pendingEncounters).toHaveLength(0);
+    expect(state.cycle.sowing).toBeNull();
+    expect(state.meta.stats.plantsPlanted).toBe(1);
+    expect(state.meta.stats.cardsChosen).toBe(0);
     expect(evaluate(state).growth).toBeCloseTo(preview.growth);
     // Pflanzen landen nicht im Arten-Tagebuch.
     expect(state.meta.journal.species).toEqual(['earthworm']);
   });
 
   it('Duplikate sind erlaubt (kein „lebt schon hier“)', () => {
-    const state = withPlantEncounter(['hazel'], ['hazel']);
-    expect(cardStatus(state, 0, 0)).toBe('free');
-    expect(chooseCard(state, 0, 0).ok).toBe(true);
+    const state = withSowing(['hazel'], ['hazel']);
+    expect(chooseSowing(state, 0).ok).toBe(true);
     expect(state.plants).toEqual(['hazel', 'hazel']);
   });
 
   it('voller Ring: ohne Ersatz Fehler, mit Ersatz wird die Pflanze ersetzt', () => {
-    const state = withPlantEncounter(['moss', 'fern'], ['hazel']);
-    expect(cardStatus(state, 0, 0)).toBe('full');
-    expect(chooseCard(state, 0, 0)).toEqual({ ok: false, error: 'ring-full' });
-    expect(chooseCard(state, 0, 0, 'birch')).toEqual({ ok: false, error: 'invalid-replace' });
-    expect(chooseCard(state, 0, 0, 'earthworm')).toEqual({ ok: false, error: 'invalid-replace' });
-    expect(state.pendingEncounters).toHaveLength(1);
-    expect(chooseCard(state, 0, 0, 'fern')).toEqual({ ok: true });
+    const state = withSowing(['moss', 'fern'], ['hazel']);
+    expect(chooseSowing(state, 0)).toEqual({ ok: false, error: 'ring-full' });
+    expect(chooseSowing(state, 0, 'birch')).toEqual({ ok: false, error: 'invalid-replace' });
+    expect(chooseSowing(state, 0, 'earthworm')).toEqual({ ok: false, error: 'invalid-replace' });
+    expect(state.cycle.sowing).not.toBeNull();
+    expect(chooseSowing(state, 0, 'fern')).toEqual({ ok: true, planted: 'hazel' });
     expect(state.plants).toEqual(['moss', 'hazel']);
   });
 
   it('gesperrte Pflanze (erst auf späterer Stufe): Karte ist geschlossen', () => {
-    const state = withPlantEncounter([], ['birch', 'hazel']); // Setzling, Birke ab Junger Baum
-    expect(cardStatus(state, 0, 0)).toBe('closed');
-    expect(chooseCard(state, 0, 0)).toEqual({ ok: false, error: 'closed' });
-    expect(cardStatus(state, 0, 1)).toBe('free');
+    const state = withSowing([], ['birch', 'hazel']); // Setzling, Birke ab Junger Baum
+    expect(chooseSowing(state, 0)).toEqual({ ok: false, error: 'closed' });
+    expect(sowingChoiceBlocker(state, 1)).toBeNull();
   });
 
   it('Ersatz nur bei vollem Ring und nur durch eine andere Pflanze', () => {
-    const free = withPlantEncounter(['moss'], ['hazel', 'moss']);
-    expect(chooseCard(free, 0, 0, 'moss')).toEqual({ ok: false, error: 'invalid-replace' });
+    const free = withSowing(['moss'], ['hazel', 'moss']);
+    expect(chooseSowing(free, 0, 'moss')).toEqual({ ok: false, error: 'invalid-replace' });
     expect(free.plants).toEqual(['moss']);
-    const full = withPlantEncounter(['moss', 'fern'], ['hazel', 'moss']);
-    expect(chooseCard(full, 0, 1, 'moss')).toEqual({ ok: false, error: 'invalid-replace' });
-    expect(previewChoice(full, 0, 1, 'moss')).toBeNull();
-    expect(chooseCard(full, 0, 1, 'fern')).toEqual({ ok: true });
+    const full = withSowing(['moss', 'fern'], ['hazel', 'moss']);
+    expect(chooseSowing(full, 1, 'moss')).toEqual({ ok: false, error: 'invalid-replace' });
+    expect(previewSowing(full, 1, 'moss')).toBeNull();
+    expect(chooseSowing(full, 1, 'fern').ok).toBe(true);
     expect(full.plants).toEqual(['moss', 'moss']);
   });
 
-  it('unbekannte Pflanze, geschlossener Ring, Tier-ID in Pflanzen-Begegnung', () => {
-    const state = withPlantEncounter([], ['gibt-es-nicht', 'earthworm']);
-    expect(cardStatus(state, 0, 0)).toBe('invalid');
-    expect(chooseCard(state, 0, 0)).toEqual({ ok: false, error: 'no-card' });
-    expect(chooseCard(state, 0, 1)).toEqual({ ok: false, error: 'no-card' });
-    const seedStage = withPlantEncounter([], ['moss'], 0);
-    expect(cardStatus(seedStage, 0, 0)).toBe('closed');
-    expect(chooseCard(seedStage, 0, 0)).toEqual({ ok: false, error: 'closed' });
-  });
-
-  it('Ablehnen und Neu würfeln gehen auch bei Pflanzen-Begegnungen', () => {
-    const state = withPlantEncounter([], ['hazel', 'fern', 'nettle'], 3);
-    state.seeds = 100;
-    expect(rerollBlocker(state, 0)).toBeNull();
-    expect(rerollEncounter(state, 0)).toEqual({ ok: true });
-    const cards = state.pendingEncounters[0]!.cards;
-    expect(state.pendingEncounters[0]!.type).toBe('plant');
-    expect(cards).toHaveLength(3);
-    for (const id of cards) {
-      expect(PLANTS_BY_ID.get(id)!.unlock).toBeLessThanOrEqual(3);
-      expect(['hazel', 'fern', 'nettle']).not.toContain(id);
-    }
-    expect(state.seeds).toBe(100 - REROLL_BASE_COST);
-    const reward = declineReward(state);
-    expect(declineEncounter(state, 0)).toEqual({ ok: true });
-    expect(state.seeds).toBe(100 - REROLL_BASE_COST + reward);
-  });
-
-  it('Keimling: nur zwei Pflanzen – Neu würfeln brächte dieselben Karten', () => {
-    const state = withPlantEncounter([], ['anemone', 'moss'], 1);
-    state.seeds = 100;
-    expect(rerollBlocker(state, 0)).toBe('no-alternatives');
-  });
-});
-
-describe('plantSeed: Pflanzen mit Samen setzen', () => {
-  it('kostet 20 · 1,9^n und setzt die Pflanze in den Ring', () => {
-    const state = stateAt(3); // Junger Baum: 3 Plätze
-    state.seeds = 200;
-    expect(nextPlantCost(state)).toBe(20);
-    const preview = previewPlant(state, 'birch')!;
-    expect(plantSeed(state, 'birch')).toEqual({ ok: true });
-    expect(state.plants).toEqual(['birch']);
-    expect(state.seeds).toBe(180);
-    expect(evaluate(state).growth).toBeCloseTo(preview.growth);
-    expect(plantSeed(state, 'birch')).toEqual({ ok: true }); // Duplikat erlaubt
-    expect(state.seeds).toBeCloseTo(180 - 38);
-    expect(plantSeed(state, 'hazel')).toEqual({ ok: true });
-    expect(state.seeds).toBeCloseTo(180 - 38 - 72.2);
-    expect(state.plants).toEqual(['birch', 'birch', 'hazel']);
-    expect(plantBlocker(state, 'hazel')).toBe('ring-full');
-    expect(previewPlant(state, 'hazel')).toBeNull();
-  });
-
-  it('Fehler ändern nichts: unbekannt, gesperrt, Ring voll, zu teuer, NaN-Samen', () => {
-    const state = stateAt(2); // Setzling: 2 Plätze
-    state.seeds = 19.99;
-    const before = structuredClone(state);
-    expect(plantSeed(state, 'drache')).toEqual({ ok: false, error: 'unknown-plant' });
-    expect(plantSeed(state, 'birch')).toEqual({ ok: false, error: 'locked' }); // ab Junger Baum
-    expect(plantSeed(state, 'hazel')).toEqual({ ok: false, error: 'too-expensive' });
-    expect(state).toEqual(before);
-    state.seeds = NaN;
-    expect(canPlant(state, 'hazel')).toBe(false);
-    state.seeds = 1e6;
-    state.plants = ['moss', 'moss'];
-    expect(plantSeed(state, 'hazel')).toEqual({ ok: false, error: 'ring-full' });
-    const seedStage = stateAt(0);
-    seedStage.seeds = 1e6;
-    expect(plantBlocker(seedStage, 'moss')).toBe('locked');
-  });
-
-  it('genau genug Samen reichen; riesige Bestände bleiben endlich', () => {
-    const state = stateAt(1);
-    state.seeds = 20;
-    expect(canPlant(state, 'moss')).toBe(true);
-    expect(plantSeed(state, 'moss').ok).toBe(true);
-    expect(state.seeds).toBe(0);
-    const rich = stateAt(7);
-    rich.seeds = Number.MAX_VALUE;
-    for (let i = 0; i < 12; i++) expect(plantSeed(rich, 'beech').ok).toBe(true);
-    expect(Number.isFinite(rich.seeds)).toBe(true);
-    expect(plantBlocker(rich, 'beech')).toBe('ring-full');
+  it('unbekannte Pflanze, Tier-ID, geschlossener Ring, keine Aussaat', () => {
+    const state = withSowing([], ['gibt-es-nicht', 'earthworm']);
+    expect(chooseSowing(state, 0)).toEqual({ ok: false, error: 'no-card' });
+    expect(chooseSowing(state, 1)).toEqual({ ok: false, error: 'no-card' });
+    expect(chooseSowing(state, 0.5)).toEqual({ ok: false, error: 'no-card' });
+    const seedStage = withSowing([], ['moss'], 0);
+    expect(chooseSowing(seedStage, 0)).toEqual({ ok: false, error: 'closed' });
+    const none = stateAt(2);
+    expect(chooseSowing(none, 0)).toEqual({ ok: false, error: 'no-sowing' });
+    expect(previewSowing(none, 0)).toBeNull();
   });
 
   it('unlockedPlants je Stufe', () => {
@@ -331,23 +273,21 @@ describe('plantSeed: Pflanzen mit Samen setzen', () => {
 });
 
 describe('Naturtagebuch: Pflanzen und Lebensgemeinschaften', () => {
-  it('chooseCard und plantSeed merken Pflanzen und entdeckte Lebensgemeinschaften', () => {
+  it('chooseCard und chooseSowing merken Pflanzen und entdeckte Lebensgemeinschaften', () => {
     // Humusküche: Regenwurm, Rollassel, Pfifferling oder Steinpilz
     const state = withEncounter(['earthworm', 'woodlouse'], ['chanterelle']);
     expect(state.meta.journal.communities).toEqual([]);
     expect(chooseCard(state, 0, 0)).toEqual({ ok: true, discovered: ['humus'] });
     expect(state.meta.journal.communities).toEqual(['humus']);
-    // Pflanzenkarte keimt → im Tagebuch; Feuchter Grund braucht noch den Wurmfarn.
-    state.pendingEncounters.push({ type: 'plant', cards: ['moss'], rerolls: 0 });
-    expect(chooseCard(state, 0, 0)).toEqual({ ok: true });
+    // Pflanze aus einer Aussaat → im Tagebuch; Feuchter Grund braucht noch den Wurmfarn.
+    expect(plantFromSowing(state, 'moss')).toEqual({ ok: true, planted: 'moss' });
     expect(state.meta.journal.plants).toEqual(['moss']);
     state.niches.litter.push('slug');
-    state.seeds = 1e6;
-    expect(plantSeed(state, 'fern')).toEqual({ ok: true, discovered: ['damp-ground'] });
+    expect(plantFromSowing(state, 'fern')).toEqual({ ok: true, planted: 'fern', discovered: ['damp-ground'] });
     expect(state.meta.journal.plants).toEqual(['moss', 'fern']);
     expect(state.meta.journal.communities).toEqual(['humus', 'damp-ground']);
     // Doppelt gesetzt: kein doppelter Eintrag, nichts Neues entdeckt (kein `discovered`).
-    expect(plantSeed(state, 'fern')).toEqual({ ok: true });
+    expect(plantFromSowing(state, 'fern')).toEqual({ ok: true, planted: 'fern' });
     expect(state.meta.journal.plants).toEqual(['moss', 'fern']);
   });
 

@@ -31,7 +31,6 @@ export type PageRef =
   | { kind: 'animal'; id: string }
   | { kind: 'foodweb' }
   | { kind: 'harmony' }
-  | { kind: 'plant-picker' }
   | { kind: 'encounter' }
   | { kind: 'care-item'; id: string }
   | { kind: 'cycle' }
@@ -219,7 +218,6 @@ const SUBPAGE_OFFSETS: Readonly<Record<PageKind, number>> = {
   animal: 1,
   foodweb: 2,
   harmony: 3,
-  'plant-picker': 4,
   encounter: 5,
   'care-item': 1,
   cycle: 1,

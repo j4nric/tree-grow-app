@@ -16,7 +16,8 @@ import type { WildwechselMark } from '../wildwechsel-view';
 export interface AlbumActions {
   /** Kartenwahl der vordersten Begegnung: Wählen, Ablehnen, Neu würfeln. */
   encounter: EncounterCallbacks;
-  plant(plantId: string): void;
+  /** „🌱 Säen“ (DESIGN_V2.md 27.6): öffnet eine Aussaat bzw. die offene in U:Begegnung. */
+  sow(): void;
   /** Kauft den nächsten Rang einer Pflegemaßnahme; `true` bei Erfolg. */
   buyCare(id: string): boolean | void;
   newCycle(mainTree: MainTreeId, site?: SiteId): void;

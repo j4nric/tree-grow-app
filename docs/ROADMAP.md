@@ -1056,7 +1056,7 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   Laden) kommen mit **2b** – bis dahin zieht das Deck noch „Etwas keimt“, eine Umwandlung beim
   Laden würde laufende Begegnungen ohne Aussaat-Logik verstecken. Balancing-Checks der
   Samen-Senke vorübergehend gelockert (Messung 3a).
-- [ ] **2b** Aussaat und Begegnungen nur mit Tieren (`core-engineer`, 27.5/27.6): `sow`,
+- [x] **2b** Aussaat und Begegnungen nur mit Tieren (`core-engineer`, 27.5/27.6): `sow`,
   `sowBlocker`, `sowingCost`, `chooseSowing`, `discardSowing`, `rerollSowing`; Preis mit
   Geschenk, Frühling, `sowCost`; `sowCards`, `sowFreeReroll`; `ENCOUNTER_WEIGHTS` ohne
   Pflanzenspalte, `SCRIPTED_ENCOUNTERS` mit `'sowing'`, `PLANT_WEIGHT_RING_FULL` und
@@ -1066,6 +1066,27 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   PR:** Knopf „Säen“ statt U:Pflanze setzen, öffnet die vorhandene Kartenwahl. **Warum:**
   Feedback 1–2 – Pflanzen sind eine eigene Entscheidung des Spielers statt jeder siebten
   Begegnung, und die Samen bekommen mit dem steigenden Preis ihre Senke zurück. Abhängig: 2a
+  *Erledigt:* Aktionen `sow`, `sowBlocker`, `chooseSowing`, `discardSowing`, `rerollSowing`,
+  `rerollSowingBlocker` (`core/tick.ts`); Formeln `sowingCost`/`sowingCostAt` (Geschenk, Saatzeit
+  aus `Season.sowingCostFactor`, Samenbank, Aufrunden mit Toleranz), `sowingCardCount`,
+  `sowingRerollCost`, `resolveSowing`/`previewSowing`/`sowingChoiceBlocker` (`core/formulas.ts`);
+  `ENCOUNTER_WEIGHTS` [Tier, Ereignis, Gast], `SCRIPTED_ENCOUNTERS` mit `'sowing'` (Wegpunkt 2 öffnet
+  die geschenkte erste Aussaat, `TickReport.sowings`); neue Ereignis-Wirkung `freeSowing` für die
+  Vogelsaat (`ForcedEncounterType` nur `'animal'`, `PendingEncounterType` ohne `'plant'`);
+  `plantSeed`/`plantBlocker`/`nextPlantCost`/`PLANT_COST_*`/`PLANT_WEIGHT_RING_FULL` entfernt.
+  Laden: offene „Etwas keimt“-Begegnung → offene Aussaat (weitere ziehen weiter), `forced` Pflanze
+  → `freeSowing` – für v16 und v17 gleich, ohne neue Version (`convertPlantEncounters`, `save.ts`);
+  `loadFreeSowing` liest die Vogelsaat. Tagesziel `plant` und Statistik auf die Aussaat umgestellt.
+  **UI (einfach, 4a verfeinert):** Knopf „🌱 Säen · Preis“ im Pflanzring (Saatzeit, „tauschen“,
+  „Aussaat offen ›“), die offene Aussaat liegt obenauf im Zettelstapel („Aussaat!“) und nutzt die
+  Kartenwahl von U:Begegnung („Zurücklegen“ statt „Ablehnen“); U:Pflanze setzen entfällt;
+  Spielanleitung: Kapitel „Säen“, „Begegnungen“ nur Tiere. Simulator sät (frei: wenn eine Pflanze
+  verbessert; voll: wenn ein Tausch verbessern könnte) und wählt aus den gezogenen Karten.
+  Balancing-Checks: Samen-Höchststand (< 250, Check 260), Samenbestand beim Hain (< 10 min) und
+  Reserve mit Forschung (Hain < 10, Wald < 12 min) wieder auf den Grenzen vor 2a; **für 3b
+  markiert** (höheres H_max ohne „Etwas keimt“, 27.10): Gedächtnis-Vorsprung Harmonie/Wachstum
+  im Check > 8, erster Zyklus < 90, Urwald-Neustart < 115, Zyklus-2-Tempo Wachstum < 0,45.
+  Golden-Werte (`tests/tick.test.ts`, `golden.json`) neu aufgenommen. Tests: `tests/sowing.test.ts`.
 
 **Welle 3 – Messen und Balancing**
 

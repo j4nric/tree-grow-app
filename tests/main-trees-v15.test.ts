@@ -11,6 +11,7 @@ import { MAX_FOREST_MEMORY, SAVE_VERSION, createSite, type GameState, type Lands
 import {
   MAX_STAT_COUNT,
   chooseCard,
+  chooseSowing,
   drawEncounter,
   isTreeUnlocked,
   isTreeVisible,
@@ -309,11 +310,6 @@ describe('Wildwechsel-Markierung PendingEncounter.via (24.6)', () => {
       expect(other.meta.stats.wildwechselChosen).toBe(0);
       expect(checkAchievements(other)).not.toContain('wildwechsel-1');
     }
-    // Eine Pflanzenbegegnung mit (unsinnigem) via zählt nicht.
-    const plant = stateAt(2, [], 1);
-    plant.pendingEncounters = [{ type: 'plant', cards: ['moss'], rerolls: 0, via: { card: 0, corridor: 'home-beechwood' } }];
-    expect(chooseCard(plant, 0, 0).ok).toBe(true);
-    expect(plant.meta.stats.wildwechselChosen).toBe(0);
   });
 
   it('Zähler bleibt bei MAX_STAT_COUNT stehen', () => {
@@ -658,15 +654,15 @@ describe('„Zuerst gesehen“ meta.journal.firstSeen (25.10)', () => {
     expect(state.meta.journal.firstSeen.species.robin).toEqual({ cycle: 3, season: 'winter' });
   });
 
-  it('schon im Tagebuch (vor v15 entdeckt): kein Wert; Pflanzen über die Karte „Etwas keimt“', () => {
+  it('schon im Tagebuch (vor v15 entdeckt): kein Wert; Pflanzen über die Aussaat', () => {
     const state = stateAt(4, ['earthworm'], 1);
     state.meta.journal.species.push('robin');
     state.pendingEncounters = [{ type: 'animal', cards: ['robin'], rerolls: 0 }];
     expect(chooseCard(state, 0, 0).ok).toBe(true);
     expect(state.meta.journal.firstSeen.species).toEqual({});
     state.cycle.elapsed = SEASON_SECONDS; // Sommer
-    state.pendingEncounters = [{ type: 'plant', cards: ['hazel'], rerolls: 0 }];
-    expect(chooseCard(state, 0, 0).ok).toBe(true);
+    state.cycle.sowing = { cards: ['hazel'], rerolls: 0 };
+    expect(chooseSowing(state, 0).ok).toBe(true);
     expect(state.meta.journal.firstSeen.plants).toEqual({ hazel: { cycle: 1, season: 'summer' } });
   });
 

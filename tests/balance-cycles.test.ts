@@ -62,7 +62,9 @@ describe('Mehrere Zyklen (Waldgedächtnis, Stammgäste, Kartenpool)', () => {
     expect(speedup(HARMONY.id)).toBeGreaterThan(0.3);
     expect(speedup(HARMONY.id)).toBeLessThan(FULL ? 0.45 : 0.48);
     expect(speedup(GROWTH.id)).toBeGreaterThan(FULL ? 0.18 : 0.16);
-    expect(speedup(GROWTH.id)).toBeLessThan(FULL ? 0.37 : 0.4);
+    // Seit Phase 10, 2b (Begegnungen nur Tiere: H_max höher, mehr Gedächtnis, 27.10) im Check
+    // 0,42 – vorläufig < 0,45; Phase 10, 3b stellt die Gedächtnis-Schwellen nach (27.11).
+    expect(speedup(GROWTH.id)).toBeLessThan(FULL ? 0.37 : 0.45);
     for (const id of [HARMONY.id, GROWTH.id]) expect(hain(of(id), 2), id).toBeLessThan(hain(of(id), 1));
     // Der Zufallsspieler (nur im großen Lauf) steht für ruhige Gelegenheitsspieler: Zyklus 2
     // mindestens 20 % schneller (Seed-Fenster mit 40 Durchgängen: 0,19–0,26).
@@ -106,9 +108,11 @@ describe('Mehrere Zyklen (Waldgedächtnis, Stammgäste, Kartenpool)', () => {
     expect(total(HARMONY.id)).toBeGreaterThanOrEqual(total(GROWTH.id));
     // Erster Zyklus bis Hain: etwa zwei Stammgast-Plätze (je 25 Punkte), nicht vier
     // (seit 2.11 mit Harmonie-Bonus ~59; Seed-Fenster 55–61).
+    // Seit Phase 10, 2b im Check ~80 (H_max am Hain +5–7 ohne „Etwas keimt“, Vorab-Messung
+    // 27.10: ~+16 Punkte) – vorläufig < 90; Phase 10, 3b hebt ggf. die Schwellen (27.11).
     const first = mean(of(HARMONY.id).map((r) => r[0]!.memoryGain));
     expect(first).toBeGreaterThan(45);
-    expect(first).toBeLessThan(75);
+    expect(first).toBeLessThan(FULL ? 75 : 90);
   });
 });
 
@@ -177,8 +181,10 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
       const total = (id: string) => row(stage, id).runs.reduce((sum, run) => sum + run.reduce((a, c) => a + c.memoryGain, 0), 0) / RESTART_RUNS;
       // Seit v17 (Phase 10, 2a, Forschung mit ⚖️ statt Pflege mit 🌰) im Check nur ~23 (Wald):
       // Beide Spieler forschen jetzt mit Harmonie, der Wachstums-Spieler holt beim Gedächtnis auf.
-      // Vorläufig > 15; Phase 10, 3b misst neu und hebt ggf. die Gedächtnis-Schwellen (27.11).
-      expect(total(HARMONY.id) - total(GROWTH.id), `Stufe ${stage}`).toBeGreaterThan(FULL ? 30 : 15);
+      // Vorläufig > 15; seit 2b (Begegnungen nur Tiere: auch der Wachstums-Spieler bekommt mehr
+      // Arten und Harmonie) im Check ~15 (Urwald) – vorläufig > 8. Bleibt für Phase 10, 3b
+      // markiert: misst neu und hebt ggf. die Gedächtnis-Schwellen (27.11).
+      expect(total(HARMONY.id) - total(GROWTH.id), `Stufe ${stage}`).toBeGreaterThan(FULL ? 30 : 8);
       expect(restartGain(row(stage, HARMONY.id), 0), `Stufe ${stage}`).toBeGreaterThan(restartGain(row(stage, GROWTH.id), 0) + (FULL ? 10 : 2));
       // Großer Lauf: Zyklus 2 und 3 je ≥ 0,95, zusammen ≥ 0,97. Check (12 Durchgänge,
       // Seed-Fenster siehe oben): grob ≥ 0,82 je Zyklus und über beide Zyklen zusammen ≥ 0,86.
@@ -209,7 +215,9 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
     // (Urwald, Zyklus 1: 186,6). Steigt der Wert weiter, MEMORY_HARMONY_RULES prüfen (ROADMAP).
     const harmony = (stage: number) => restartGain(row(stage, HARMONY.id), 0);
     expect(harmony(URWALD) / harmony(HAIN)).toBeLessThan(FULL ? 1.5 : 1.9);
-    expect(harmony(URWALD)).toBeLessThan(FULL ? 95 : 100);
+    // Seit Phase 10, 2b (H_max höher ohne „Etwas keimt“, 27.10) im Check 105,5 – vorläufig < 115;
+    // Phase 10, 3b hebt die Gedächtnis-Schwellen T um ΔH_max (27.11, Stellschraube 1).
+    expect(harmony(URWALD)).toBeLessThan(FULL ? 95 : 115);
   });
 
   it('(d) Gelegenheitsspieler: später mehr Gedächtnis als im Hain, Zyklus 2 ≥ 20 % schneller (großer Lauf)', () => {

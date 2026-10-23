@@ -3,30 +3,34 @@ import { REROLL_BASE_COST } from '../src/content/encounters';
 import { PLANT_GROUP_INFO, PLANTS_BY_ID } from '../src/content/plants';
 import { SPECIES, SPECIES_BY_ID } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
-import { declineReward, evaluate, nextPlantCost, previewChoice, previewPlant } from '../src/core/formulas';
-import { MAX_OFFLINE_SECONDS, unlockedPlants } from '../src/core/tick';
+import { declineReward, evaluate, previewChoice, previewSowing, sowingCost } from '../src/core/formulas';
+import { MAX_OFFLINE_SECONDS } from '../src/core/tick';
 import { formatDuration, formatNumber } from '../src/ui/format';
-import { FOOD_ENOUGH, isFullHappiness, isScarceFood, preferredReplaceOption, seedsLine } from '../src/ui/view-format';
+import { FOOD_ENOUGH, isFullHappiness, isScarceFood, preferredReplaceOption } from '../src/ui/view-format';
 import type { CommunityHintView } from '../src/ui/view-model';
 import {
   communityListView,
   communityPreview,
   discoveryText,
   missingMembersText,
-  toPlantCardView,
-  PLANT_BLOCKERS,
-  PLANT_ENCOUNTER_TITLE,
-  PLANT_REROLL_BLOCKERS,
+  toSowingCardView,
+  toSowingView,
+  toHeadView,
+  headActionKey,
+  encounterActionKey,
+  waitingNotes,
+  sowingTitle,
+  SOW_BLOCKERS,
+  SOWING_REROLL_BLOCKERS,
   effectView,
   encounterTitle,
   harmonyTier,
   harmonyTierIndex,
   HARMONY_TIERS,
   listNames,
-  plantCostLabel,
+  sowCostLabel,
   plantProvidesViews,
   shortageHint,
-  toPlantPickerView,
   moodText,
   conditionViews,
   MOOD_REASON_BELOW,
@@ -701,22 +705,25 @@ describe('autoDeclineText', () => {
   });
 });
 
-describe('Pflanzen: Begegnung „Etwas keimt“', () => {
-  /** Spielstand mit Pflanzen und einer offenen Pflanzenbegegnung. */
+describe('Pflanzen: offene Aussaat in der Kartenwahl', () => {
+  /** Spielstand mit Pflanzen und einer offenen Aussaat. */
   function withPlantEncounter(stage: number, plants: string[], cards: string[], animals: string[] = []) {
     const state = stateAt(stage, animals);
     state.plants = [...plants];
-    state.pendingEncounters.push({ type: 'plant', cards, rerolls: 0 });
+    state.cycle.sowing = { cards, rerolls: 0 };
     return state;
   }
 
-  it('echte Pflanzenkarten: Gruppe, Kennzahlen, Vorschau aus previewChoice inkl. Versorgung', () => {
+  it('echte Pflanzenkarten: Gruppe, Kennzahlen, Vorschau aus previewSowing inkl. Versorgung', () => {
     const state = withPlantEncounter(2, ['hazel'], ['bramble', 'anemone', 'moss'], ['bee']);
     const now = evaluate(state);
-    const view = toEncounterView(state, 0)!;
+    const view = toSowingView(state)!;
     expect(view.kind).toBe('plant');
-    expect(view.title).toBe(PLANT_ENCOUNTER_TITLE);
-    expect(view.subtitle).toBe('Eine Pflanze keimt kostenlos im Pflanzring (1/2 belegt).');
+    expect(view.title).toBe('Aussaat – drei Samen, ein Platz');
+    expect(view.subtitle).toBe('Wähle einen Samen für den Pflanzring (1/2 belegt).');
+    expect(view.declineVerb).toBe('Zurücklegen');
+    expect(view.declineReward).toBe(declineReward(state));
+    expect(toHeadView(state)).toEqual(view);
     expect(view.cards.map((c) => c.name)).toEqual(['Brombeere', 'Buschwindröschen', 'Frauenhaarmoos']);
 
     const anemone = view.cards[1]!;
@@ -736,7 +743,7 @@ describe('Pflanzen: Begegnung „Etwas keimt“', () => {
       ['braucht Licht', '1'],
       ['braucht Wasser', '1'],
     ]);
-    const after = previewChoice(state, 0, 1)!;
+    const after = previewSowing(state, 1)!;
     expect(anemone.preview.harmonyDelta).toBeCloseTo(after.harmony - now.harmony, 9);
     expect(anemone.preview.growthDelta).toBeCloseTo(after.growth / now.growth - 1, 9);
     expect(anemone.preview.seedDelta).toBeCloseTo(after.seeds / now.seeds - 1, 9);
@@ -747,7 +754,7 @@ describe('Pflanzen: Begegnung „Etwas keimt“', () => {
 
   it('was die Pflanze Tieren bietet – gut, wenn ein lebendes Tier davon profitiert', () => {
     const state = withPlantEncounter(2, [], ['anemone', 'moss'], ['bee']);
-    const [anemone, moss] = toEncounterView(state, 0)!.cards;
+    const [anemone, moss] = toSowingView(state)!.cards;
     expect(anemone!.effects).toEqual([
       // Seit Schritt 2.2 profitieren mehr Arten (Tagpfauenauge, Wühlmaus, Reh, Glühwürmchen …).
       // Seit den Lebensräumen auch Rote Mauerbiene, Feldgrille, Feldmaus, Wildkaninchen, Rosenkäfer.
@@ -776,14 +783,14 @@ describe('Pflanzen: Begegnung „Etwas keimt“', () => {
     // Setzling hat 2 Plätze – zwei Haseln füllen den Ring.
     const state = withPlantEncounter(2, ['hazel', 'hazel'], ['bramble']);
     const now = evaluate(state);
-    const view = toEncounterView(state, 0)!;
+    const view = toSowingView(state)!;
     expect(view.subtitle).toMatch(/Pflanzring ist voll \(2\/2\)/);
     const card = view.cards[0]!;
     expect(card.nicheFull).toBe(true);
     expect(card.fullText).toBe('Pflanzring voll');
     expect(card.replacePrompt).toBe('Welche Pflanze weicht?');
     expect(card.replaceOptions!.map((o) => [o.id, o.name])).toEqual([['hazel', 'Hasel']]);
-    const after = previewChoice(state, 0, 0, 'hazel')!;
+    const after = previewSowing(state, 0, 'hazel')!;
     expect(card.replaceOptions![0]!.preview!.harmonyDelta).toBeCloseTo(after.harmony - now.harmony, 9);
     expect(card.preview).toEqual(card.replaceOptions![0]!.preview);
     expect(card.disabledReason).toBeUndefined();
@@ -791,7 +798,7 @@ describe('Pflanzen: Begegnung „Etwas keimt“', () => {
 
   it('Ring voll mit derselben Pflanze: Tausch gesperrt, mit Grund', () => {
     const state = withPlantEncounter(1, ['anemone'], ['anemone', 'moss']);
-    const [same, other] = toEncounterView(state, 0)!.cards;
+    const [same, other] = toSowingView(state)!.cards;
     expect(same!.replaceOptions).toEqual([{ id: 'anemone', name: 'Buschwindröschen', disabledReason: 'dieselbe Pflanze' }]);
     expect(same!.disabledReason).toBe('Kein Tausch möglich');
     expect(other!.disabledReason).toBeUndefined();
@@ -800,7 +807,7 @@ describe('Pflanzen: Begegnung „Etwas keimt“', () => {
 
   it('gesperrte Pflanze und unbekannte Pflanze', () => {
     const state = withPlantEncounter(2, [], ['birch', 'dodo-plant', 'hazel']);
-    const cards = toEncounterView(state, 0)!.cards;
+    const cards = toSowingView(state)!.cards;
     expect(cards[0]!.disabledReason).toBe('Wächst erst ab „Junger Baum“');
     expect(cards[0]!.preview).toEqual({ harmonyDelta: 0, growthDelta: 0 });
     expect(cards[1]!.name).toBe('Unbekannte Pflanze');
@@ -812,10 +819,34 @@ describe('Pflanzen: Begegnung „Etwas keimt“', () => {
     // Keimling: nur Buschwindröschen und Moos sind freigeschaltet
     const state = withPlantEncounter(1, [], ['anemone', 'moss']);
     state.seeds = 1000;
-    const view = toEncounterView(state, 0)!;
+    const view = toSowingView(state)!;
     expect(view.canReroll).toBe(false);
     expect(view.rerollDisabledReason).toBe('Keine anderen Pflanzen verfügbar');
-    expect(PLANT_REROLL_BLOCKERS['too-expensive']).toBe('Nicht genug Samen');
+    expect(SOWING_REROLL_BLOCKERS['too-expensive']).toBe('Nicht genug Samen');
+  });
+
+  it('vier Karten mit „Saatgut sortieren“; Anzuchtbeet: erster Wurf gratis', () => {
+    const state = withPlantEncounter(4, [], ['hazel', 'fern', 'nettle', 'beech']);
+    state.cycle.research = ['seed-sorting', 'nursery'];
+    const view = toSowingView(state)!;
+    expect(view.title).toBe('Aussaat – vier Samen, ein Platz');
+    expect(view.cards).toHaveLength(4);
+    expect(view.rerollCost).toBe(0);
+    expect(sowingTitle(2)).toBe('Aussaat – zwei Samen, ein Platz');
+    expect(sowingTitle(9)).toBe('Aussaat – 9 Samen, ein Platz');
+  });
+
+  it('vorderster Zettel: die offene Aussaat vor den Begegnungen; ohne Aussaat die erste Begegnung', () => {
+    const state = withPlantEncounter(2, [], ['hazel'], ['bee']);
+    state.pendingEncounters.push({ type: 'animal', cards: ['bluetit'], rerolls: 0 });
+    expect(waitingNotes(state)).toBe(2);
+    expect(toHeadView(state)!.kind).toBe('plant');
+    expect(headActionKey(state)).toMatch(/^sow:/);
+    state.cycle.sowing = null;
+    expect(waitingNotes(state)).toBe(1);
+    expect(toHeadView(state)!.kind).toBe('animal');
+    expect(headActionKey(state)).toBe(encounterActionKey(state, 0));
+    expect(toSowingView(state)).toBeNull();
   });
 });
 
@@ -832,7 +863,7 @@ describe('Pflanzring in der Übersicht', () => {
     const { ring } = ringOf(0, []);
     expect(ring.capacity).toBe(0);
     expect(ring.unlockHint).toBe('öffnet bei „Keimling“');
-    expect(ring.canOpenPicker).toBe(false);
+    expect(ring.canSow).toBe(false);
     expect(ring.plantHint).toBe('');
   });
 
@@ -842,7 +873,8 @@ describe('Pflanzring in der Übersicht', () => {
       ['hazel', 'Hasel', 'shrubs'],
       ['dodo-plant', 'Unbekannte Pflanze', 'unknown'],
     ]);
-    expect(ring.canOpenPicker).toBe(false);
+    expect(ring.canSow).toBe(true);
+    expect(ring.sowLabel).toBe('🌱 Säen (tauschen)');
   });
 
   it('Plätze, Pflanzen mit Gruppe, Gruppen-Zähler (Hauptbaum zählt als Baum)', () => {
@@ -887,91 +919,54 @@ describe('Pflanzring in der Übersicht', () => {
     expect(moss.meters[1]!.ratio).toBe(1);
   });
 
-  it('„Pflanze setzen“: Kosten, reicht es?, Hinweise – Samen per refresh aktualisiert', () => {
+  it('„🌱 Säen“: Preis, Saatzeit, reicht es?, Hinweise – Samen per refresh aktualisiert', () => {
     const { state, ring } = ringOf(2, ['hazel'], 10);
-    expect(ring.canOpenPicker).toBe(true);
-    expect(ring.plantCost).toBe(nextPlantCost(state));
-    expect(ring.plantCostLabel).toBe(formatNumber(Math.ceil(nextPlantCost(state))));
-    expect(ring.affordable).toBe(false);
-    expect(ring.plantHint).toBe(`Noch ${formatNumber(Math.ceil(nextPlantCost(state) - 10))} 🌰 bis zur nächsten Pflanze`);
-
+    // Die erste Aussaat ist gratis.
+    expect(ring.canSow).toBe(true);
+    expect(ring.sowCost).toBe(0);
+    expect(ring.sowCostLabel).toBe('gratis');
+    expect(ring.sowLabel).toBe('🌱 Säen');
+    expect(ring.affordable).toBe(true);
+    expect(ring.plantHint).toBe('');
+    // Dritte Aussaat im Frühling: ⌈35 · 0,8⌉ = 28 🌰, „Saatzeit“.
+    state.cycle.sowings = 2;
     const view = toEcosystemView(state, evaluate(state));
+    expect(view.plantRing.sowCost).toBe(sowingCost(state));
+    expect(view.plantRing.sowCost).toBe(28);
+    expect(view.plantRing.sowCostLabel).toBe('28');
+    expect(view.plantRing.sowSeason).toBe(true);
+    expect(view.plantRing.affordable).toBe(false);
+    expect(view.plantRing.plantHint).toBe(`Noch ${formatNumber(18)} 🌰 bis zur nächsten Aussaat`);
     state.seeds = 1000;
     refreshEcosystemView(view, state);
     expect(view.plantRing.affordable).toBe(true);
     expect(view.plantRing.plantHint).toBe('');
+    state.cycle.elapsed = 180; // Sommer: keine Saatzeit
+    refreshEcosystemView(view, state);
+    expect(view.plantRing.sowSeason).toBe(false);
+    expect(view.plantRing.sowCost).toBe(35);
+    // Offene Aussaat: Knopf öffnet sie.
+    state.cycle.sowing = { cards: ['hazel'], rerolls: 0 };
+    refreshEcosystemView(view, state);
+    expect(view.plantRing.sowOpen).toBe(true);
+    expect(view.plantRing.sowLabel).toBe('🌱 Aussaat offen ›');
+    expect(view.plantRing.affordable).toBe(true);
 
     const full = ringOf(2, ['hazel', 'hazel'], 1000).ring;
-    expect(full.canOpenPicker).toBe(false);
-    expect(full.plantHint).toMatch(/^Alle Plätze belegt/);
-  });
-});
-
-describe('Auswahl „Pflanze setzen“', () => {
-  it('alle freigeschalteten Pflanzen mit Kosten, Vorschau aus previewPlant und Sperrgrund', () => {
-    const state = stateAt(2);
-    state.plants = ['hazel'];
-    state.seeds = 1000;
-    const now = evaluate(state);
-    const view = toPlantPickerView(state);
-    const cost = nextPlantCost(state);
-    const label = formatNumber(Math.ceil(cost));
-    expect(view.title).toBe('Pflanze setzen');
-    expect(view.subtitle).toBe(`Pflanzring 1/2 belegt · jede Pflanze kostet jetzt ${label} 🌰`);
-    expect(view.cost).toBe(cost);
-    expect(view.offers.map((o) => o.card.id)).toEqual(unlockedPlants(state));
-    expect(view.offers.every((o) => o.cost === cost && o.costLabel === label && !o.card.disabledReason)).toBe(true);
-    const nettle = view.offers.find((o) => o.card.id === 'nettle')!.card;
-    const after = previewPlant(state, 'nettle')!;
-    expect(nettle.preview.harmonyDelta).toBeCloseTo(after.harmony - now.harmony, 9);
-    expect(nettle.preview.supply).toBe(after.supply);
-    expect(nettle.facts).toHaveLength(4);
-  });
-
-  it('nicht ganzzahlige Kosten: Sperre und Anzeige folgen dem exakten Wert, Anzeige aufgerundet', () => {
-    // 3 Pflanzen → 20 · 1,9³ = 137,18 🌰
-    const state = stateAt(4);
-    state.plants = ['hazel', 'bramble', 'anemone'];
-    const cost = nextPlantCost(state);
-    expect(cost).toBeCloseTo(137.18, 9);
-    expect(plantCostLabel(cost)).toBe('138');
-
-    state.seeds = 137.5; // reicht – exakt wie plantBlocker
-    let view = toPlantPickerView(state);
-    expect(view.offers.every((o) => o.costLabel === '138' && !o.card.disabledReason)).toBe(true);
-    expect(seedsLine(state.seeds, view.cost)).toBe('Du hast 137 🌰');
-    let ring = toEcosystemView(state, evaluate(state)).plantRing;
-    expect(ring.affordable).toBe(true);
-    expect(ring.plantHint).toBe('');
-
-    state.seeds = 137.1; // reicht knapp nicht
-    view = toPlantPickerView(state);
-    expect(view.offers.every((o) => o.card.disabledReason === 'Nicht genug Samen')).toBe(true);
-    expect(seedsLine(state.seeds, view.cost)).toBe('Du hast 137 🌰 – noch 1 🌰 bis zur nächsten Pflanze');
-    ring = toEcosystemView(state, evaluate(state)).plantRing;
-    expect(ring.affordable).toBe(false);
-    expect(ring.plantHint).toBe('Noch 1 🌰 bis zur nächsten Pflanze');
-  });
-
-  it('zu teuer und Ring voll', () => {
-    const poor = stateAt(2);
-    poor.seeds = 1;
-    expect(toPlantPickerView(poor).offers.every((o) => o.card.disabledReason === 'Nicht genug Samen')).toBe(true);
-
-    const full = stateAt(1);
-    full.plants = ['moss'];
-    full.seeds = 1000;
-    expect(toPlantPickerView(full).offers.every((o) => o.card.disabledReason === 'Pflanzring voll')).toBe(true);
-    expect(PLANT_BLOCKERS.locked).toBe('Noch nicht freigeschaltet');
+    expect(full.canSow).toBe(true);
+    expect(full.sowLabel).toBe('🌱 Säen (tauschen)');
+    expect(full.plantHint).toMatch(/^Der Pflanzring ist voll/);
+    expect(sowCostLabel(137.18)).toBe('138');
+    expect(SOW_BLOCKERS.open).toBe('Es ist schon eine Aussaat offen');
   });
 
   it('verändert den Spielstand nicht', () => {
     const state = stateAt(2, ['bee']);
     state.plants = ['hazel'];
-    state.pendingEncounters.push({ type: 'plant', cards: ['bramble', 'anemone'], rerolls: 0 });
+    state.cycle.sowing = { cards: ['bramble', 'anemone'], rerolls: 0 };
     const before = JSON.stringify(state);
-    toPlantPickerView(state);
-    toEncounterView(state, 0);
+    toSowingView(state);
+    toHeadView(state);
     toEcosystemView(state, evaluate(state));
     expect(JSON.stringify(state)).toBe(before);
   });
@@ -1150,17 +1145,15 @@ describe('Lebensgemeinschaften', () => {
     expect(discoveryText(['seed-couriers', 'flower-hem'])).toBe('Neue Lebensgemeinschaften: Samenboten und Blütensaum 🌱');
   });
 
-  it('Pflanzenkarten und „Pflanze setzen“ zeigen den Hinweis ebenfalls', () => {
+  it('Pflanzenkarten der Aussaat zeigen den Hinweis ebenfalls', () => {
     // Feuchter Grund: Frauenhaarmoos, Wurmfarn, Nacktschnecke oder Feuersalamander
     const state = stateAt(3, ['slug']);
     state.plants = ['moss'];
-    state.pendingEncounters.push({ type: 'plant', cards: ['fern', 'birch'], rerolls: 0 });
+    state.cycle.sowing = { cards: ['fern', 'birch'], rerolls: 0 };
     const hint = [completes('Feuchter Grund', 6)];
-    expect(toPlantCardView(state, 0, 0)!.preview.communities).toEqual(hint);
-    expect(toPlantCardView(state, 0, 1)!.preview.communities).toBeUndefined();
-    state.seeds = 1e6;
-    const offer = toPlantPickerView(state).offers.find((o) => o.card.id === 'fern')!;
-    expect(offer.card.preview.communities).toEqual(hint);
+    expect(toSowingCardView(state, 0)!.preview.communities).toEqual(hint);
+    expect(toSowingCardView(state, 1)!.preview.communities).toBeUndefined();
+    expect(toSowingCardView(state, 2)).toBeNull();
   });
 
   it('discoveryText: eine oder mehrere neue Gemeinschaften, sonst null', () => {
