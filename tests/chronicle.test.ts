@@ -4,11 +4,12 @@ import { CHAPTER_IDS, CHRONICLE_CHAPTERS, CHRONICLE_HARMONY, type ChapterId } fr
 import { NOCTURNAL_BY_SPECIES } from '../src/content/daytime';
 import { EVENTS_BY_ID } from '../src/content/events';
 import { HOME_SITE, LANDSCAPE_SITES, SITE_IDS, type SiteId } from '../src/content/landscape';
-import { EVENT_SEASONS, SEASON_SECONDS, YEAR_SECONDS } from '../src/content/seasons';
+import { PLANTS } from '../src/content/plants';
+import { EVENT_SEASONS, SEASON_IDS, SEASON_SECONDS, YEAR_SECONDS, type SeasonId } from '../src/content/seasons';
 import { COMMON_SPECIES, KENNARTEN, SPECIES, SPECIES_BY_ID, isKennart, kennartSite } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { checkAchievements, isAchieved, targetOf } from '../src/core/achievements';
-import { appearsContext, ecosystemOf, speciesAppears } from '../src/core/formulas';
+import { appearsContext, ecosystemOf, evaluateEcosystem, speciesAppears } from '../src/core/formulas';
 import {
   ANCIENT_STAGE,
   chronicleComplete,
@@ -231,6 +232,62 @@ describe('Kapitel an ihren Stellen (26.4)', () => {
     expect(chapters(skipped)).toContain('first-snow');
     expect(report.chapters.map((c) => c.chapter)).toEqual(chapters(skipped));
     expect(chronicleOf(skipped, 'home').find((e) => e.chapter === 'first-snow')!.season).toBe('winter');
+  });
+
+  it('„Voller Einklang“ im Schnellvorlauf: dieselbe Jahreszeit im Stempel wie Schritt für Schritt', () => {
+    /**
+     * Urwald hinter der Schonzeit, am Jahresanfang (Frühling), ohne Begegnungen und Zeit-Boni –
+     * der Mittel-Modus springt dann über ganze Jahre (skipYears). `drop`: so viele Arten (ab
+     * `offset`, reihum) fehlen, damit die Harmonie im Frühling knapp unter der Schwelle liegt.
+     */
+    const ids = COMMON_SPECIES.map((s) => s.id);
+    const make = (offset: number, drop: number) => {
+      const gone = new Set(Array.from({ length: drop }, (_, i) => ids[(offset + i) % ids.length]!));
+      const s = forest(ANCIENT_STAGE, { seed: 11, animals: ids.filter((id) => !gone.has(id)) });
+      s.plants = PLANTS.map((p) => p.id);
+      s.cycle.elapsed = 2 * YEAR_SECONDS;
+      s.pendingEncounters = [];
+      return s;
+    };
+    /** Harmonie je Jahreszeit, so wie tick sie an den Grenzen nachführt (Mittelwetter). */
+    const harmonies = (s: GameState) => {
+      const eco = ecosystemOf(s, {}, 'average');
+      return SEASON_IDS.map((id) => evaluateEcosystem({ ...eco, season: id }).harmony);
+    };
+    // Zustand suchen, in dem H_max erst nach dem Frühling (≥ CHRONICLE_HARMONY) wird: Arten
+    // reihum weglassen, bis der Frühling unter der Schwelle liegt – eine andere Jahreszeit
+    // muss dann noch darüber liegen. Deterministisch, robust gegen Balancing-Änderungen.
+    let found: { offset: number; drop: number } | null = null;
+    for (let offset = 0; offset < ids.length && !found; offset++) {
+      for (let drop = 0; drop < ids.length; drop++) {
+        const h = harmonies(make(offset, drop));
+        if (h[0]! >= CHRONICLE_HARMONY) continue;
+        if (Math.max(...h) >= CHRONICLE_HARMONY) found = { offset, drop };
+        break;
+      }
+    }
+    expect(found, 'Zustand mit H_max ≥ Schwelle erst nach dem Frühling').not.toBeNull();
+    const { offset, drop } = found!;
+    const h = harmonies(make(offset, drop));
+    // Erwartet: die erste Grenze ab Frühlingsbeginn (Sommer, Herbst, Winter, Frühling) mit
+    // Harmonie ≥ Schwelle – nie der Frühling selbst.
+    const expected = [1, 2, 3, 0].map((i) => SEASON_IDS[i]!).find((id) => h[SEASON_IDS.indexOf(id)]! >= CHRONICLE_HARMONY) as SeasonId;
+    expect(expected).not.toBe('spring');
+
+    const stepped = make(offset, drop);
+    expect(stepped.cycle.maxHarmony).toBeLessThan(CHRONICLE_HARMONY);
+    for (let i = 0; i < 12; i++) tick(stepped, SEASON_SECONDS, 'average');
+    const skipped = make(offset, drop);
+    const report = tick(skipped, 3 * YEAR_SECONDS, 'average');
+    // Ohne Wegpunkt und Bonus-Ablauf gilt der Schnellvorlauf (sonst prüfte der Test nichts).
+    expect(report.waypoints).toBe(0);
+    expect(skipped.cycle.elapsed).toBe(5 * YEAR_SECONDS);
+    const harmony = (s: GameState) => chronicleOf(s, HOME_SITE).find((e) => e.chapter === 'harmony');
+    expect(harmony(stepped)).toEqual({ chapter: 'harmony', cycle: 1, season: expected });
+    expect(harmony(skipped)).toEqual(harmony(stepped));
+    expect(chronicleOf(skipped, HOME_SITE)).toEqual(chronicleOf(stepped, HOME_SITE));
+    expect(report.chapters).toContainEqual({ site: HOME_SITE, chapter: 'harmony' });
+    expect(skipped.cycle.maxHarmony).toBeCloseTo(stepped.cycle.maxHarmony, 9);
   });
 
   it('„Ereignis des Waldes“: das Ereignis des aktiven Waldes, gleich welche Option – andere nicht', () => {
