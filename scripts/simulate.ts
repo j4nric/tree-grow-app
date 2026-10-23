@@ -367,6 +367,10 @@ export interface VarietyStat {
   rerollBlocked: string | null;
   /** Mindestens eine angebotene Karte verbessert Harmonie oder Wachstum. */
   worthwhile: boolean;
+  /** Eine Karte der ersten Ziehung kam als Wildwechsel über einen Korridor (24.6, `via`). */
+  wildwechsel?: boolean;
+  /** Karten der ersten Ziehung (Tier- und Pflanzenbegegnungen), für die Vielfalt der Landschaft (2c). */
+  ids?: string[];
 }
 
 export interface RunOptions {
@@ -906,6 +910,8 @@ function resolveAll(
         sameAsPrevious: sameCards(lastCards.get(variety) ?? {}, enc.type, enc.cards),
         rerollBlocked: rerollBlocker(state, 0),
         worthwhile: improves,
+        wildwechsel: enc.via !== undefined,
+        ids: [...enc.cards],
       });
       rememberCards(variety, enc.type, enc.cards);
       counts.encounters++;

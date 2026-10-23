@@ -396,12 +396,13 @@ Reihenfolge in Wellen; Zustandsänderungen (`SAVE_VERSION`) nacheinander, nie pa
       Gaben (Tierdetails)
     - [x] Meldung zur Freischaltung (`ui-dev`): zeigen, solange `landscapeAnnouncementDue(state)`,
       danach `markLandscapeAnnounced(state)` (24.8)
-  - [ ] Schritt B Wildwechsel (`core-engineer`, 24.11 Nr. 4) – fehlt: das Ziehen der
+  - [x] Schritt B Wildwechsel (`core-engineer`, 24.11 Nr. 4) – erledigt in Phase 7, 1a. Ursprünglich fehlte: das Ziehen der
     Wildwechsel-Karte aus `fauna` eines Nachbarn und das Gewicht der `featured`-Gattungen;
     bisher gibt es nur die Konstanten (`WILDWECHSEL_CHANCE`, `FEATURED_GENUS_WEIGHT` in
     `src/content/landscape.ts`) und das Schreiben von `fauna` beim Verlassen (`tick.ts`)
-  - [ ] Erfolge und Messung (`game-designer`, 24.11 Nr. 5; Bedingungen `core-engineer`, Nr. 6) –
-    fehlt: die fünf Erfolge aus 24.12 als Daten, die Bedingungsarten `forests`, `corridors`,
+  - [x] Erfolge und Messung (`game-designer`, 24.11 Nr. 5; Bedingungen `core-engineer`, Nr. 6) –
+    erledigt in Phase 7 (1b, 2a, 2b; Messung 2c). Ursprünglich fehlten:
+    die fünf Erfolge aus 24.12 als Daten, die Bedingungsarten `forests`, `corridors`,
     `ancientForests` in `core/achievements.ts` und die Messung des Wildwechsels (Vielfalt 7.7);
     die Messung der Landschaft ohne Wildwechsel ist da (24.7/24.10, #81, #85)
   - [ ] e2e (`qa-tester`, 24.11 Nr. 7) – teilweise: Gründen, Neuladen und Wechsel zurück mit
@@ -457,9 +458,18 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   (Erfolge `wildwechsel-1`, `landscape-trees`); die Wildwechsel-Karte zeigt ihren Weg auch nach
   dem Neuladen; Baumwahl je Ziel (Leitbaum beim Gründen vorausgewählt); „Zuerst gesehen“
   `meta.journal.firstSeen` für das Album (25.10)
-- [ ] **2c** Messung Wildwechsel (`game-designer`, 24.11 Nr. 5): Vielfalt der Karten (7.7) mit und
+- [x] **2c** Messung Wildwechsel (`game-designer`, 24.11 Nr. 5): Vielfalt der Karten (7.7) mit und
   ohne Wildwechsel, Chance 10 % prüfen, großer Lauf der Landschaft, 24.7/24.10 nachtragen;
-  Kiefernheide für den Wachstums-Spieler im Blick (heute −4,7 %, Grenze ±5 %). Abhängig: 1a
+  Kiefernheide für den Wachstums-Spieler im Blick (heute −4,7 %, Grenze ±5 %). Abhängig: 1a.
+  *Gemessen* (24.10 „Stand 2c“, `runLandscape({ wildwechsel })`, `withoutFeatured`,
+  `SIM_LANDSCAPE_WW`): Wildwechsel ist Überraschung, kein Tempo – Landschaft vollständig
+  14,2 h (ohne 14,0 h, Harmonie), 13,3 h (13,2 h, Wachstum); gleiches Set, Neu würfeln, lohnend
+  und Durststrecke unverändert, +0,5 verschiedene Arten und +0,1–0,2 seltene Karten je Zyklus,
+  1,3–1,5 gewählte Nachbar-Arten je Zyklus. Chance getroffen (9,8 / 16,3 / 26,1 % bei 10 / 20 /
+  30 %), gewählt wird mit jedem Korridor seltener (43 → 32 → 23 %) – **keine Zahl geändert**,
+  Ersetzen bleibt (1–2 Karten: 0,0 %). `wildwechsel-1` im Median im 1. Zyklus des 2. Waldes.
+  Waldtypen (24.7, jetzt 160 Durchgänge mit eigenem Wetter je Durchgang): alle ±3,8 %,
+  Kiefernheide Wachstum −3,8 % – ihr +2 ☀️ bleibt. Wachstum gegen Harmonie 6,5 / 6,8 % (< 10 %)
 
 **Welle 3 – Oberfläche, Waldtyp-Wetter, Messung**
 
@@ -471,18 +481,49 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   `isTreeVisible` und Sperre/Vorauswahl über `treeChoiceFor`; Symbol als Sticker (der Renderer
   bietet noch keine Baum-Sticker). Symbol in Karte und Tagebuch, Anleitung und Sichtbarkeit der
   Erfolge (`isAchievementVisible`, jetzt U:Erfolge) kamen schon mit 2a/2b
-- [ ] **3b** Waldtyp und Wetter – Design (`game-designer`): Gewichte der Wetterlagen je Standort
+- [x] **3b** Waldtyp und Wetter – Design (`game-designer`): Gewichte der Wetterlagen je Standort
   als Daten (Bergmischwald mehr Neuschnee, Auwald mehr Landregen, Kiefernheide mehr Dürre,
   Erlenbruch mehr Nebel; offene Frage 24.13). **Warum:** Die Waldtypen unterscheiden sich heute
   nur in Zahlen der Eigenheiten; ein eigenes Wetter macht sie sichtbar und spürbar anders, nutzt
   die fertige Wetter-Grafik und kostet keinen Spielstand. Die Kiefernheide bekommt so ihr
   Käferjahr (Dürre) – der Borkenkäfer passt zum Sand-Kiefernwald. Ziel ±5 % wie 24.7.
-  Abhängig: 2c (Messung ohne Wetter als Grundlage)
+  Abhängig: 2c (Messung ohne Wetter als Grundlage).
+  *Umgesetzt als Daten* (DESIGN_V2.md **24.14**): `ForestSite.weather` (Faktor je Wetterlage) und
+  `weatherSummary` in `src/content/landscape.ts`, noch ohne Wirkung, Inhaltstests in
+  `tests/landscape.test.ts`. Auwald 🌧️ × 2 / 🌡️ × 0,5, Erlenbruch 🌫️ × 2 / 🌡️ × 0,5,
+  Buchenhallen 🌫️ × 1,5 / 🌬️ × 0,5, Bergmischwald 🌨️ × 2 / 🌧️ × 1,5, Kiefernheide 🌡️ × 2,5 /
+  ☀️ × 1,5 / 🌧️ × 0,5, Heimatwald unverändert. Gemessen vorab (`scripts/site-weather.ts`,
+  `SIM_SITE_WEATHER=1 npx vitest run tests/site-weather-balance.test.ts`): alle Waldtypen ±3,5 %
+  (Kiefernheide Wachstum −3,8 → −3,4 %), Sommerdürre in der Heide 19,3 statt 9,4 %. **Befund:**
+  Das Käferjahr wird dadurch nicht häufiger (begrenzt durch „Käfer ungejagt“ und einmal je
+  Zyklus), es fällt nur öfter auf einen Dürretag – offene Frage in 24.13
 - [ ] **3c** Waldtyp und Wetter – Logik (`core-engineer`): `weatherOfDay` mit Standort-Gewichten,
-  Mittelwetter offline je Standort, Vorhersage; kein neues Feld. Abhängig: 3b, 2b gemergt
+  Mittelwetter offline je Standort, Vorhersage; kein neues Feld. Abhängig: 3b, 2b gemergt.
+  **Genaue Aufgabe** (DESIGN_V2.md 24.14, „Umsetzung“):
+  1. `core/weather.ts`: `siteWeatherWeights(season, site)` = `WEATHER_WEIGHTS[season][w] ×
+     (LANDSCAPE_SITES_BY_ID.get(site)?.weather[w] ?? 1)`, Reihenfolge wie `WEATHER_WEIGHTS`,
+     unbekannter Standort = Heimatwald. `rawWeather`, `weatherOfDayFromSeed`, `weatherOfDay`
+     bekommen `site = HOME_SITE` als letztes Argument; Regel „nie zwei rau“ prüft den Vortag am
+     selben Standort. Ohne Argument ändert sich nichts (Heimatwald hat keine Faktoren).
+  2. Standort = `activeSite(landscapeOf(state))` (fest während eines Zyklus) in `weatherAt`,
+     `weatherForecast`, `weatherDamping` (Standard), `averageWeatherEffects`;
+     `sceneWeather(cycle, site = HOME_SITE)`, `main.ts` übergibt den aktiven Wald.
+  3. Aufrufer mit Standort: `formulas.ts` (`ecosystemOf` mit `eco.site`, Cache-Schlüssel live
+     unverändert, „Mittel“ mit Standort `|w:avg:<Art>:<Standort>`), `tick.ts` (`reportSeason`,
+     Offline-Tage, `WEATHER_EVENT_FACTORS` beim Ziehen der Ereignisse).
+  4. Offline: `weatherProbabilities(season, gentle, site)` – Anteile und rauer Anteil der
+     Vorjahreszeit mit den Gewichten des Standorts; `averageWeatherEffectsFor(…, gentle, site)`.
+  5. Tests: Heimatwald/Stände ohne Landschaft Tag für Tag wie vor 3c; Häufigkeiten je Standort wie
+     24.14 (≥ 10 000 Tage, ±1 Punkt); nie zwei rau je Standort; Mittel = Σ p_eff × Wirkung je
+     Standort; Vorhersage, Szene und Ereignis-Gewichte nutzen den aktiven Wald; Wechsel mit
+     `startNewCycle` → neue Folge; kleine Ticks = großer Tick, `simulateOffline` im Mittel.
+  Keine neue Spielstand-Version, kein neues Feld. Danach klein (`ui-dev`): `weatherSummary` beim
+  Standort in Karte/U:Landschaft
 - [ ] **3d** Großer Lauf mit neuen Leitbäumen und Wetter je Standort (`game-designer`): 24.7,
   24.10 und 25.4 mit der echten Logik nachtragen; `scripts/site-trees.ts` und
-  `tests/site-trees-balance.test.ts` entfernen. Abhängig: 2b, 3c
+  `tests/site-trees-balance.test.ts` entfernen, ebenso `scripts/site-weather.ts` und
+  `tests/site-weather-balance.test.ts` (3b, Messung vor der Logik); 24.14 nachmessen.
+  Abhängig: 2b, 3c
 
 **Welle 4 – Absichern**
 

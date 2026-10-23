@@ -46,7 +46,11 @@
 > gewählter Wildwechsel-Karten sowie „Zuerst gesehen“ je Art und Pflanze (`DESIGN_V2.md`
 > 25.5, 24.6, 25.10); v14-Stände laden unverändert, der Zähler beginnt bei 0, „Zuerst gesehen“
 > leer. Ein gespeicherter Stand einer neueren Spielversion wird weder geladen
-> noch überschrieben.
+> noch überschrieben. Wildwechsel-Karten sind gemessen (`DESIGN_V2.md` 24.10, Phase 7 2c): Chance
+> 10 % je Korridor am aktiven Wald, höchstens 30 %, unverändert – sie ändern kein Tempo, nur die
+> Karten. Wetter je Waldtyp (Phase 7 3b, `DESIGN_V2.md` 24.14): Faktoren auf die Wetter-Gewichte
+> je Standort (z. B. Kiefernheide Dürre × 2,5, Bergmischwald Neuschnee × 2) stehen als Daten in
+> `src/content/landscape.ts` und wirken erst mit der Logik (3c); Waldtypen gemessen ±3,5 %.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:

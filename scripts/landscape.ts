@@ -18,12 +18,13 @@
  *
  * Ausführen: tests/landscape-balance.test.ts (SIM_LANDSCAPE=1 für den großen Lauf).
  */
-import { CORRIDORS, HOME_SITE, LANDSCAPE_SITES, type SiteId } from '../src/content/landscape';
+import { CORRIDORS, HOME_SITE, LANDSCAPE_SITES, type ForestSite, type SiteId } from '../src/content/landscape';
 import type { MainTreeId } from '../src/content/trees';
 import { regularSlotsOf } from '../src/core/formulas';
-import { effectiveForestMemory, jaySeeds } from '../src/core/landscape';
+import { SPECIES_BY_ID } from '../src/content/species';
+import { effectiveForestMemory, jaySeeds, wildwechselChance } from '../src/core/landscape';
 import { normalizeSeed, type RngHolder } from '../src/core/rng';
-import { createInitialState, createSite, MAX_FOREST_MEMORY, type GameState } from '../src/core/state';
+import { allAnimals, createInitialState, createSite, MAX_FOREST_MEMORY, type GameState } from '../src/core/state';
 import { buildCorridor, corridorBlocker, previewNewCycle, setRegulars, startNewCycle } from '../src/core/tick';
 import { formatTime, median, rankRegulars, runGame, type RunResult, type Strategy } from './simulate';
 
@@ -39,6 +40,12 @@ export interface LandscapeOptions {
   cycleMaxSeconds: number;
   /** Nur bis die Landschaft vollständig ist (alle Wälder, alle Korridore) statt bis alles voll ist. */
   stopWhenComplete?: boolean;
+  /**
+   * Wildwechsel-Karten (24.6). Standard: an. `false` leert vor jedem Zyklus den Bestand
+   * (`fauna`) aller Wälder – gewürfelt wird weiter (gleicher Zufall bis zum ersten Treffer),
+   * es gibt nur nie eine passende Art. Vergleich „ohne Wildwechsel“ (2c).
+   */
+  wildwechsel?: boolean;
 }
 
 export interface LandscapeCycle {
@@ -57,6 +64,26 @@ export interface LandscapeCycle {
   seedsPeak: number;
   totalGrowth: number;
   maxHarmony: number;
+  /** Wildwechsel-Chance am aktiven Wald (0 ohne Korridor, 24.6). */
+  wildwechselChance: number;
+  /** Tierbegegnungen (erste Ziehung) und davon mit Wildwechsel-Karte; gewählte Wildwechsel-Karten. */
+  animalEncounters: number;
+  wildwechselOffered: number;
+  wildwechselChosen: number;
+  /** Vielfalt (7.7) über die Begegnungen des Zyklus. */
+  sameSet: number;
+  cardEncounters: number;
+  rerollOpen: number;
+  fewCards: number;
+  worthwhile: number;
+  allEncounters: number;
+  /** Längste Strecke ohne lohnende Begegnung (s) im ganzen Zyklus. */
+  drought: number;
+  /** Verschiedene Arten auf den Tierkarten (erste Ziehung) und Karten seltener/legendärer Arten. */
+  distinctOffered: number;
+  rareOffered: number;
+  /** Arten im Wald beim Ende des Zyklus. */
+  speciesAtEnd: number;
 }
 
 export interface LandscapeRun {
@@ -81,6 +108,42 @@ export interface LandscapeRun {
   /** Hähersaat am Ende: verdient / ausgegeben. */
   jayEarned: number;
   jaySpent: number;
+}
+
+/** Vielfalt der Begegnungen eines Zyklus (7.7) und Wildwechsel-Karten (24.6). */
+function varietyOf(result: RunResult) {
+  const vs = result.variety;
+  const cards = vs.filter((v) => v.type === 'animal' || v.type === 'plant');
+  const animals = vs.filter((v) => v.type === 'animal');
+  const offered = new Set<string>();
+  let rare = 0;
+  for (const v of animals) {
+    for (const id of v.ids ?? []) {
+      offered.add(id);
+      if ((SPECIES_BY_ID.get(id)?.rarity ?? 0) >= 2) rare++;
+    }
+  }
+  let last = 0;
+  let drought = 0;
+  for (const v of vs) {
+    if (!v.worthwhile) continue;
+    drought = Math.max(drought, v.time - last);
+    last = v.time;
+  }
+  drought = Math.max(drought, result.final.time - last);
+  return {
+    animalEncounters: animals.length,
+    wildwechselOffered: animals.filter((v) => v.wildwechsel).length,
+    sameSet: vs.filter((v) => v.sameAsPrevious).length,
+    cardEncounters: cards.length,
+    rerollOpen: cards.filter((v) => v.rerollBlocked === null).length,
+    fewCards: cards.filter((v) => v.stage >= 2 && v.cards <= 2).length,
+    worthwhile: vs.filter((v) => v.worthwhile).length,
+    allEncounters: vs.length,
+    drought,
+    distinctOffered: offered.size,
+    rareOffered: rare,
+  };
 }
 
 function peaks(result: RunResult) {
@@ -109,8 +172,11 @@ export function siteRun(
   memory: number,
   maxSeconds = 6 * 3600,
   mainTree?: MainTreeId,
-): { seconds: number | null; hain: number | null; maxHarmony: number } {
+): { seconds: number | null; hain: number | null; maxHarmony: number; seen: string[] } {
   const state = createInitialState(0, seed);
+  // Eigenes Wetter je Durchgang (seit 2c): Das Wetter hängt an Zyklusnummer und Startzeit
+  // (21.4) – mit Startzeit 0 hätten alle Durchgänge dieselbe Wetterfolge.
+  state.cycle.startedAt = 1_700_000_000_000 + seed * 86_400_017;
   const tree = mainTree ?? LANDSCAPE_SITES.find((s) => s.id === site)!.leadTree ?? 'oak';
   state.meta.forestMemory = memory;
   // Alle Wälder gegründet (ruhend, Gedächtnis 0, keine Korridore): überall dieselben Gaben,
@@ -118,7 +184,7 @@ export function siteRun(
   for (const s of LANDSCAPE_SITES) if (s.id !== HOME_SITE) state.meta.landscape.sites.push(createSite(s.id));
   state.meta.landscape.active = site;
   const result = runGame(strategy, { seed, targetStage: 7, maxSeconds, care: true, mainTree: tree }, { state, rng: { rngState: normalizeSeed(seed * 7919 + 17) } });
-  return { seconds: result.stages[7]?.time ?? null, hain: result.stages[5]?.time ?? null, maxHarmony: state.cycle.maxHarmony };
+  return { seconds: result.stages[7]?.time ?? null, hain: result.stages[5]?.time ?? null, maxHarmony: state.cycle.maxHarmony, seen: [...state.cycle.seen] };
 }
 
 /** Sind alle Wälder gegründet und alle Korridore gebaut? */
@@ -143,6 +209,9 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
     const active = state.meta.landscape.active;
     const ownBefore = state.meta.forestMemory;
     const effective = effectiveForestMemory(state);
+    if (options.wildwechsel === false) for (const site of state.meta.landscape.sites) site.fauna = [];
+    const chance = wildwechselChance(state);
+    const chosenBefore = state.meta.stats.wildwechselChosen;
     const result = runGame(options.strategy, { seed: options.seed, targetStage: 7, maxSeconds: options.cycleMaxSeconds, care: true }, { state, rng });
     const seconds = result.final.time;
     const ancient = result.stages[7] !== null;
@@ -161,7 +230,9 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
     run.cycles.push({
       site: active, number: n, siteCycle: cyclesAt.get(active)!, seconds, ancient, ownBefore, effective, gain: preview.memoryGain,
       mainTree: state.cycle.mainTree, maxGrowth: p.growth, maxSeedsRate: p.seedsRate, seedsPeak: p.seeds,
-      totalGrowth: state.totalGrowth, maxHarmony: state.cycle.maxHarmony,
+      totalGrowth: state.totalGrowth, maxHarmony: state.cycle.maxHarmony, wildwechselChance: chance,
+      wildwechselChosen: state.meta.stats.wildwechselChosen - chosenBefore, speciesAtEnd: new Set(allAnimals(state)).size,
+      ...varietyOf(result),
     });
     const landscape = preview.landscape;
     if (run.unlockAt === null && landscape.unlockedAfter) run.unlockAt = time;
@@ -301,4 +372,85 @@ export function peakTable(rows: readonly LandscapeSummary[]): string {
       `| ${r.label} | ${sci(max(r, (x) => x.maxGrowth))} | ${sci(max(r, (x) => x.maxSeedsRate))} | ${sci(max(r, (x) => x.maxSeedsHeld))} | ${sci(max(r, (x) => x.maxCycleGrowth))} | ${sci(max(r, (x) => x.lifetimeGrowth))} | ${hours(max(r, (x) => x.totalSeconds))} |`,
   );
   return [head, sep, ...lines].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Wildwechsel und Vielfalt (2c, DESIGN_V2.md 24.6 / 7.7)
+// ---------------------------------------------------------------------------
+
+const pct = (x: number) => (Number.isFinite(x) ? `${(x * 100).toFixed(1).replace('.', ',')} %` : '–');
+const num = (x: number, d = 1) => (Number.isFinite(x) ? x.toFixed(d).replace('.', ',') : '–');
+
+/** Zyklen mit Korridor am aktiven Wald (nur dort kann es Wildwechsel geben). */
+function corridorCycles(run: LandscapeRun): LandscapeCycle[] {
+  return run.cycles.filter((c) => c.wildwechselChance > 0);
+}
+
+/** Summe einer Kennzahl über alle Zyklen aller Läufe (Filter optional). */
+function total(r: LandscapeSummary, f: (c: LandscapeCycle) => number, keep: (c: LandscapeCycle) => boolean = () => true): number {
+  let s = 0;
+  for (const run of r.runs) for (const c of run.cycles) if (keep(c)) s += f(c);
+  return s;
+}
+
+/**
+ * Zyklen bis zur ersten gewählten Wildwechsel-Karte, gezählt ab der Gründung des 2. Waldes
+ * (1 = schon im ersten Zyklus dort; Erfolg `wildwechsel-1`, Ziel ≤ 2). null = nie.
+ */
+export function cyclesToFirstWildwechsel(run: LandscapeRun): number | null {
+  const start = run.cycles.findIndex((c) => c.site !== HOME_SITE);
+  if (start < 0) return null;
+  const hit = run.cycles.findIndex((c, i) => i >= start && c.wildwechselChosen > 0);
+  return hit < 0 ? null : hit - start + 1;
+}
+
+/** Vielfalt der Begegnungen (7.7) in Zyklen mit Korridor – je Zeile eine Variante. */
+export function varietyLandscapeTable(rows: readonly LandscapeSummary[]): string {
+  const head =
+    '| Variante | Zyklen mit Korridor | Tierbegegnungen je Zyklus | mit Wildwechsel-Karte | gewählt je Zyklus | gleiches Set wie vorige | 1–2 Karten | Neu würfeln möglich | lohnend | Durststrecke je Zyklus Median / 90 % | Arten auf Karten je Zyklus | selten/legendär je Zyklus | Arten im Wald (Urwald) |';
+  const sep = '|---|---|---|---|---|---|---|---|---|---|---|---|---|';
+  const lines = rows.map((r) => {
+    const keep = (c: LandscapeCycle) => c.wildwechselChance > 0;
+    const n = total(r, () => 1, keep);
+    const cycles = r.runs.flatMap(corridorCycles);
+    const droughts = cycles.map((c) => c.drought);
+    const q90 = [...droughts].sort((a, b) => a - b)[Math.floor(0.9 * (droughts.length - 1))] ?? NaN;
+    return `| ${r.label} | ${num(n / r.runs.length, 0)} | ${num(total(r, (c) => c.animalEncounters, keep) / n)} | ${pct(total(r, (c) => c.wildwechselOffered, keep) / total(r, (c) => c.animalEncounters, keep))} | ${num(total(r, (c) => c.wildwechselChosen, keep) / n, 2)} | ${pct(total(r, (c) => c.sameSet, keep) / total(r, (c) => c.allEncounters, keep))} | ${pct(total(r, (c) => c.fewCards, keep) / total(r, (c) => c.cardEncounters, keep))} | ${pct(total(r, (c) => c.rerollOpen, keep) / total(r, (c) => c.cardEncounters, keep))} | ${pct(total(r, (c) => c.worthwhile, keep) / total(r, (c) => c.allEncounters, keep))} | ${formatTime(median(droughts))} / ${formatTime(q90)} | ${num(total(r, (c) => c.distinctOffered, keep) / n)} | ${num(total(r, (c) => c.rareOffered, keep) / n, 2)} | ${num(total(r, (c) => c.speciesAtEnd, keep) / n)} |`;
+  });
+  return [head, sep, ...lines].join('\n');
+}
+
+/** Wildwechsel je Chance (Korridore am aktiven Wald): Anteil Tierbegegnungen mit Karte, gewählt. */
+export function wildwechselChanceTable(rows: readonly LandscapeSummary[]): string {
+  const head = '| Spielweise | Chance | Zyklen | Tierbegegnungen | mit Wildwechsel-Karte | davon gewählt | erste gewählte: Zyklen ab 2. Wald (Median / 90 % / nie) |';
+  const sep = '|---|---|---|---|---|---|---|';
+  const lines: string[] = [];
+  for (const r of rows) {
+    const firsts = r.runs.map(cyclesToFirstWildwechsel);
+    const found = firsts.filter((x): x is number => x !== null).sort((a, b) => a - b);
+    const first = `${num(median(found), 0)} / ${num(found[Math.floor(0.9 * (found.length - 1))] ?? NaN, 0)} / ${firsts.length - found.length}`;
+    for (const chance of [0.1, 0.2, 0.3]) {
+      const keep = (c: LandscapeCycle) => Math.abs(c.wildwechselChance - chance) < 1e-9;
+      const n = total(r, () => 1, keep);
+      if (n === 0) continue;
+      const animals = total(r, (c) => c.animalEncounters, keep);
+      const offered = total(r, (c) => c.wildwechselOffered, keep);
+      lines.push(`| ${r.label} | ${Math.round(chance * 100)} % | ${n} | ${animals} | ${pct(offered / animals)} | ${pct(total(r, (c) => c.wildwechselChosen, keep) / offered)} | ${chance === 0.1 ? first : ''} |`);
+    }
+  }
+  return [head, sep, ...lines].join('\n');
+}
+
+/**
+ * Führt `fn` ohne die Gattungen der Waldtypen (`featured`, 24.6) aus – nur für Vergleichsläufe
+ * („wie vor Schritt B“). Ändert die Daten zur Laufzeit und stellt sie danach wieder her.
+ */
+export function withoutFeatured<T>(fn: () => T): T {
+  const saved = LANDSCAPE_SITES.map((s) => s.featured);
+  for (const s of LANDSCAPE_SITES) (s as { featured: ForestSite['featured'] }).featured = [];
+  try {
+    return fn();
+  } finally {
+    LANDSCAPE_SITES.forEach((s, i) => ((s as { featured: ForestSite['featured'] }).featured = saved[i]!));
+  }
 }
