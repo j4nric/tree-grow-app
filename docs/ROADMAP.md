@@ -834,13 +834,19 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   (10 / 8 von 160), Regenreicher Frühling, Krötennacht und Buchenmast werden dagegen spürbar
   (78–81 %, 47–50 %, 56–66 %) – bei allen Wäldern innerhalb ±3 % (vorab gemessen, 26.2). Nur
   Daten. Abhängig: nichts
-- [ ] **1b** Album-Folgeaufgaben (`ui-dev`, 26.9): PNG-Kodierung bei kaltem Cache auf dem ersten
+- [x] **1b** Album-Folgeaufgaben (`ui-dev`, 26.9): PNG-Kodierung bei kaltem Cache auf dem ersten
   Weg nach Arten messen (erst ab > 50 ms in einem Task handeln); `hidden="until-found"` mit
   `beforematch` für die aufgeschobenen Blöcke (`deferred-reveal.ts`), sonst wie heute;
   Safari-Notiz (kein `requestIdleCallback`, `setTimeout`-Ersatz in WebKit prüfen) in
   ALBUM_UI.md R3 und `render/idle.ts`; optional Landschaftskarte mit DejaVu Sans bei 125 %.
   **Warum:** Rest aus Phase 8, Schritt 14 / R3 – die Strg+F-Suche findet heute keine Art
-  unterhalb des ersten Bildschirms, und Safari ist ungemessen. Klein, eine PR. Abhängig: nichts
+  unterhalb des ersten Bildschirms, und Safari ist ungemessen. Klein, eine PR. Abhängig: nichts.
+  **Erledigt** (`claude/p9-album-folge`, ALBUM_UI.md R3 „Phase 9 / 1b“): Kodierung gemessen –
+  höchstens 24 ms in einem Task (Pixeldichte 3), keine Änderung; `hidden="until-found"` +
+  `beforematch` → alles aufdecken; Safari-Ersatz wartet jetzt auf den nächsten Frame
+  (`afterFramePost`, vorher mehrere Blöcke vor einem Frame); Kartenknöpfe am Desktop wachsen
+  mit der Textgröße (`5.875rem`), mobil Zustand bis drei Zeilen. WebKit war in der Testumgebung
+  nicht installierbar (gemessen in Chromium ohne `requestIdleCallback`).
 - [ ] **1c** Ereignis des Waldes anzeigen (`ui-dev`): U:Standort und Karte nennen die Ereignisse
   mit Faktor („Hier öfter: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr“, aus `eventFactors`);
   Spielanleitung „Landschaft“. **Warum:** Ein Gewicht, das niemand sieht, ist kein Charakter.
