@@ -31,6 +31,7 @@ import { el, setAttr, setText, srOnly } from '../../dom';
 import { prefersReducedMotion } from '../../feedback';
 import { hyphenate } from '../../hyphenate';
 import { RARITY_LABELS } from '../../view-format';
+import type { ChronicleKeepsakeView } from '../../chronicle-view';
 import type { JournalCommunityView, JournalEntryView, JournalKeepsakeView, JournalTreeView, JournalView } from '../../view-model';
 import { openNote } from '../note';
 import { STICKER_DRAW_SIZE, createStickerImage, stickerDprEpoch, type StickerImage } from '../sticker';
@@ -39,6 +40,8 @@ import type { StickerVariant } from '../../../render/sticker';
 import type { PageEnv, TabPage } from './registry';
 import {
   discoveredIn,
+  kennartCaption,
+  kennartIndices,
   ofCount,
   plantNote,
   silhouetteHint,
@@ -214,7 +217,8 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
 
   // --- Tiere -----------------------------------------------------------------------------
   const animals = sections.get('animals')!;
-  const groups = speciesGroups();
+  // Gattungen ohne Kennarten; die Kennarten bilden eine eigene Reihe dahinter (26.7).
+  const groups = speciesGroups(COMMON_SPECIES);
   const speciesCells: Cell[] = [];
   /** Raster je Zelle – Kennarten werden erst mit der Landschaft eingehängt. */
   const cellGrid = new Map<Cell, HTMLElement>();
@@ -222,45 +226,60 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
   /** Blöcke unterhalb des ersten Bildschirms, in Reihenfolge (verborgen bis zum Aufdecken). */
   const later: HTMLElement[] = [];
   const firstGroups = initialGroupCount(groups.map((g) => g.indices.length), SPECIES_FIRST_CELLS);
-  for (const [groupIndex, group] of groups.entries()) {
+  /** Eine Reihe im Raster (Gattung oder Kennarten) mit Kopf und Zähler. */
+  function groupBox(key: string, icon: string, label: string): { box: HTMLElement; grid: HTMLElement; count: HTMLElement } {
     const box = el('div', 'species-group');
-    box.dataset.genus = group.genus;
+    box.dataset.genus = key;
     const head = el('h4', 'species-group-title');
-    const icon = el('span', 'species-group-icon', group.icon);
-    icon.setAttribute('aria-hidden', 'true');
+    const iconNode = el('span', 'species-group-icon', icon);
+    iconNode.setAttribute('aria-hidden', 'true');
     const count = el('span', 'species-group-count');
-    count.dataset.ref = `species-count-${group.genus}`;
-    head.append(icon, el('span', '', group.label), count);
-    head.id = `species-genus-${group.genus}`;
+    count.dataset.ref = `species-count-${key}`;
+    head.append(iconNode, el('span', '', label), count);
+    head.id = `species-genus-${key}`;
     const grid = el('ul', 'species-grid');
     grid.setAttribute('aria-labelledby', head.id);
-    for (const index of group.indices) {
-      const cell = baseCell('animal', index);
-      const star = el('button', 'species-star');
-      star.type = 'button';
-      star.hidden = true;
-      const starIcon = el('span', 'species-star-icon', '☆');
-      starIcon.setAttribute('aria-hidden', 'true');
-      star.append(starIcon);
-      cell.star = star;
-      cell.starIcon = starIcon;
-      cell.li.append(star);
-      star.addEventListener('click', () => {
-        const id = cell.entry?.discovered ? cell.entry.key : null;
-        if (id && !star.disabled) env.deps.actions.toggleRegular(id);
-      });
-      cell.button.addEventListener('click', () => tapAnimal(index, cell));
-      speciesCells[index] = cell;
-      cellGrid.set(cell, grid);
-      // Kennarten (hinten in SPECIES, also hinten in ihrer Gattung) kommen erst mit der
-      // Landschaft ins Raster (render, 26.3) – vorher stehen sie nicht einmal im DOM.
-      if (index < COMMON_SPECIES.length) grid.append(cell.li);
-    }
     box.append(head, grid);
+    return { box, grid, count };
+  }
+
+  function animalCell(index: number, grid: HTMLElement): Cell {
+    const cell = baseCell('animal', index);
+    const star = el('button', 'species-star');
+    star.type = 'button';
+    star.hidden = true;
+    const starIcon = el('span', 'species-star-icon', '☆');
+    starIcon.setAttribute('aria-hidden', 'true');
+    star.append(starIcon);
+    cell.star = star;
+    cell.starIcon = starIcon;
+    cell.li.append(star);
+    star.addEventListener('click', () => {
+      const id = cell.entry?.discovered ? cell.entry.key : null;
+      if (id && !star.disabled) env.deps.actions.toggleRegular(id);
+    });
+    cell.button.addEventListener('click', () => tapAnimal(index, cell));
+    speciesCells[index] = cell;
+    cellGrid.set(cell, grid);
+    return cell;
+  }
+
+  for (const [groupIndex, group] of groups.entries()) {
+    const { box, grid, count } = groupBox(group.genus, group.icon, group.label);
+    for (const index of group.indices) grid.append(animalCell(index, grid).li);
     animals.root.append(box);
     if (groupIndex >= firstGroups) later.push(placeholder(box, estimateGridHeight(group.indices.length)));
     groupCounts.push({ count, indices: group.indices });
   }
+
+  // Reihe „Kennarten“ (26.7): erst mit der Landschaft – vorher stehen weder Reihe noch Zellen
+  // im DOM (render hängt sie ein). Unentdeckt als Silhouette mit ihrem Wald.
+  const kennarten = kennartIndices();
+  const kennartRow = groupBox('kennarten', '🔎', 'Kennarten');
+  kennartRow.box.classList.add('species-kennarten');
+  kennartRow.box.dataset.ref = 'species-kennarten';
+  for (const index of kennarten) animalCell(index, kennartRow.grid);
+  groupCounts.push({ count: kennartRow.count, indices: kennarten });
 
   function tapAnimal(index: number, cell: Cell): void {
     const entry = cell.entry;
@@ -304,7 +323,15 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
   const memoryList = el('ul', 'species-memories');
   memoryList.setAttribute('aria-labelledby', memoryTitle.id);
   const memoryEmpty = el('p', 'species-empty', 'Noch keine Erinnerungen – sie halten besondere Momente fest.');
-  keepsakes.root.append(treeTitle, treeList, memoryTitle, memoryList, memoryEmpty);
+  // Andenken der Waldchroniken (26.7) – erst mit der Landschaft.
+  const chronicleTitle = el('h4', 'species-group-title', 'Chroniken');
+  chronicleTitle.id = 'species-chronicles-title';
+  const chronicleList = el('ul', 'species-memories species-chronicles');
+  chronicleList.dataset.ref = 'species-chronicles';
+  chronicleList.setAttribute('aria-labelledby', chronicleTitle.id);
+  chronicleTitle.hidden = true;
+  chronicleList.hidden = true;
+  keepsakes.root.append(treeTitle, treeList, memoryTitle, memoryList, memoryEmpty, chronicleTitle, chronicleList);
 
   page.body.append(intro, jumps, ...[...sections.values()].map((s) => s.root));
   later.push(
@@ -337,13 +364,17 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
     cell.li.classList.toggle('is-away', known && !entry.present);
     setAttr(cell.button, 'data-family', entry.family);
     setAttr(cell.button, 'data-rarity', entry.rarity ?? 'common');
-    if (!prev || prev.name !== entry.name) setText(cell.name, known ? hyphenate(entry.name) : '???');
+    // Unentdeckte Kennart (26.7): ihr Wald statt „???“ – Standorte sind mit der Landschaft bekannt.
+    const caption = known ? null : kennartCaption(index);
+    if (!prev || prev.name !== entry.name) setText(cell.name, known ? hyphenate(entry.name) : caption ? hyphenate(caption) : '???');
     const rarity = RARITY_LABELS[entry.rarity ?? 'common'];
     setText(
       cell.sr,
       known
         ? [entry.name, rarity, entry.present ? 'lebt gerade hier' : '', entry.regular?.selected ? 'Stammgast' : ''].filter(Boolean).join(', ')
-        : `Unentdeckte Art, ${rarity}`,
+        : caption
+          ? `Unentdeckte Kennart, ${caption}`
+          : `Unentdeckte Art, ${rarity}`,
     );
     if (known) setAttr(cell.button, 'title', entry.facts.join(' · '));
     else cell.button.removeAttribute('title');
@@ -443,6 +474,23 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
     return li;
   }
 
+  function chronicleItem(k: ChronicleKeepsakeView): HTMLElement {
+    const li = el('li', `species-memory species-chronicle${k.complete ? ' is-complete' : ' is-unknown'}`);
+    li.dataset.chronicle = k.key;
+    const icon = el('span', 'species-memory-icon', k.icon);
+    icon.setAttribute('aria-hidden', 'true');
+    const body = el('div', 'species-memory-body');
+    const name = el('b', 'species-memory-name', k.complete ? hyphenate(k.name) : k.name);
+    if (!k.complete) {
+      name.setAttribute('aria-hidden', 'true');
+      body.append(srOnly('Andenken noch offen'));
+    }
+    body.append(name, el('span', 'species-chronicle-site', k.site));
+    if (k.text) body.append(el('span', 'species-memory-text', k.text));
+    li.append(icon, body);
+    return li;
+  }
+
   let communitySig = '';
   let keepsakeSig = '';
 
@@ -476,10 +524,14 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
         if (cell.li.isConnected) cell.li.remove();
         return;
       }
-      // Hinten anhängen hält die Reihenfolge: Kennarten stehen am Ende ihrer Gattung.
+      // Hinten anhängen hält die Reihenfolge (Kennarten in SPECIES-Reihenfolge = Wälder).
       if (!cell.li.parentElement) cellGrid.get(cell)?.append(cell.li);
       renderAnimal(cell, entry, i);
     });
+    // Reihe „Kennarten“ erst mit der Landschaft; nach dem Import eines älteren Stands wieder weg.
+    const showKennarten = kennarten.some((i) => view.species[i] !== undefined);
+    if (showKennarten && !kennartRow.box.isConnected) animals.root.append(kennartRow.box);
+    else if (!showKennarten && kennartRow.box.isConnected) kennartRow.box.remove();
     view.plants.forEach((entry, i) => {
       const cell = plantCells[i];
       if (cell) renderPlant(cell, entry);
@@ -490,9 +542,12 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
       communitySig = nextCommunities;
       communityList.replaceChildren(...view.communities.map(communityItem));
     }
-    const nextKeepsakes = JSON.stringify([view.trees, view.keepsakes]);
+    const nextKeepsakes = JSON.stringify([view.trees, view.keepsakes, view.chronicles]);
     if (nextKeepsakes !== keepsakeSig) {
       keepsakeSig = nextKeepsakes;
+      chronicleList.replaceChildren(...view.chronicles.map(chronicleItem));
+      chronicleTitle.hidden = view.chronicles.length === 0;
+      chronicleList.hidden = view.chronicles.length === 0;
       treeList.replaceChildren(...view.trees.map(treeItem));
       memoryList.replaceChildren(...view.keepsakes.map(memoryItem));
       memoryList.hidden = view.keepsakes.length === 0;

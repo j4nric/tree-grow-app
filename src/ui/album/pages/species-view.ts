@@ -10,7 +10,7 @@
  */
 import { NICHES_BY_ID } from '../../../content/niches';
 import { LANDSCAPE_SITES_BY_ID } from '../../../content/landscape';
-import { GENUS_INFO, SPECIES, kennartSite } from '../../../content/species';
+import { GENUS_INFO, SPECIES, kennartSite, type Species } from '../../../content/species';
 import { STAGES } from '../../../content/stages';
 import type { Genus, NicheId } from '../../../content/types';
 import { regularSlotsOf } from '../../../core/formulas';
@@ -54,6 +54,26 @@ export function speciesGroups(species: readonly { genus: Genus }[] = SPECIES): S
     if (indices.length > 0) groups.push({ genus, icon: GENUS_INFO[genus].icon, label: GENUS_INFO[genus].name, indices });
   }
   return groups;
+}
+
+/**
+ * Reihe „Kennarten“ (DESIGN_V2.md 26.7): Indizes der Kennarten in SPECIES – sie stehen hinten
+ * (Inhaltstest), die Gattungs-Gruppen der Seite bilden sich aus COMMON_SPECIES mit denselben
+ * Indizes. Gezeigt erst mit der Landschaft.
+ */
+export function kennartIndices(species: readonly Pick<Species, 'appears'>[] = SPECIES): number[] {
+  const out: number[] = [];
+  species.forEach((sp, i) => {
+    if (kennartSite(sp) !== null) out.push(i);
+  });
+  return out;
+}
+
+/** Beschriftung einer unentdeckten Kennart: ihr Wald („🌊 Auwald am Fluss“) statt „???“. */
+export function kennartCaption(speciesIndex: number): string | null {
+  const home = kennartSite(SPECIES[speciesIndex]);
+  const site = home !== null ? LANDSCAPE_SITES_BY_ID.get(home) : undefined;
+  return site ? `${site.icon} ${site.name}` : null;
 }
 
 /** Wie viele der Einträge an den Indizes entdeckt sind. */
@@ -131,6 +151,8 @@ export function speciesPageKey(state: GameState): string {
     state.meta.landscape.sites.map((s) => s.id),
     state.meta.landscape.active,
     state.meta.landscape.corridors,
+    // Waldchronik (26.7): Andenken vollständiger Chroniken im Abschnitt „Andenken“.
+    state.meta.landscape.sites.map((s) => s.chronicle?.length ?? 0),
     state.meta.achievements.length,
     state.cycle.number,
     state.cycle.mainTree,

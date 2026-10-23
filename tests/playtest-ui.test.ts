@@ -199,7 +199,8 @@ describe('Weiche Trennstellen in langen Namen', () => {
     const seen = new Set<unknown>();
     const walk = (value: unknown, key: string): void => {
       if (typeof value === 'string') {
-        if (key !== 'name') return;
+        // Namen und die Titel der Chronik-Kapitel je Wald (Zettel auf U:Standort, 26.7).
+        if (key !== 'name' && key !== 'chronicleEventTitle') return;
         for (const w of value.match(/[A-Za-zÄÖÜäöüß]+/g) ?? []) if (w.length >= MIN_HYPHENATED_WORD) words.add(w);
         return;
       }

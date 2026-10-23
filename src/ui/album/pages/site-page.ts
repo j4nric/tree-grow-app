@@ -3,7 +3,7 @@
  * Karte (oder einen Wald im Tagebuch, oder den Ziel-Wald auf U:Neuer Zyklus) blättert hierher.
  * Zeigt Waldtyp, Stimmungstext, Gedächtnis, Baum, Urwald, Eigenheit, Verzicht, Gabe, Wetter, die häufigeren
  * Ereignisse („Hier öfter“) und den Grund, falls er nicht wählbar ist; bei gegründeten Wäldern dazu Stammgäste und Tiere aus dem
- * Tagebuch. „Als Ziel wählen“ setzt das gemeinsame Ziel des nächsten Zyklus (`albumTarget`),
+ * Tagebuch und – mit der Landschaft – die Waldchronik (site-chronicle.ts). „Als Ziel wählen“ setzt das gemeinsame Ziel des nächsten Zyklus (`albumTarget`),
  * „Neuer Zyklus ›“ blättert zu U:Neuer Zyklus im Reiter „Ziele“.
  *
  * Einmal gebaut; `opened(ref)` füllt sie, `update` zieht nur bei neuer Ansicht bzw. neuem Ziel nach.
@@ -20,6 +20,7 @@ import { createPage } from '../page';
 import { initialNav, pageNumber } from '../nav';
 import type { PageEnv, Subpage } from './registry';
 import { siteAnnouncement, siteChoiceView, siteDiaryRows } from './landscape-page-view';
+import { createSiteChronicle } from './site-chronicle';
 import './landscape.css';
 
 export interface SitePage extends Subpage {
@@ -93,7 +94,10 @@ export function createSitePage(env: PageEnv): SitePage {
   live.dataset.ref = 'landscape-live';
   live.setAttribute('aria-live', 'polite');
 
-  page.body.append(type, text, lines, blocker, choice, diary, live);
+  // Waldchronik (26.7): sechs Zettel, Stempel mit Datum, Andenken – erst mit der Landschaft.
+  const chronicle = createSiteChronicle();
+
+  page.body.append(type, text, lines, blocker, choice, chronicle.element, diary, live);
 
   let id: SiteId | null = null;
   let shownView: LandscapeMapView | null = null;
@@ -162,6 +166,7 @@ export function createSitePage(env: PageEnv): SitePage {
     cycleOpen.hidden = !c.chosen;
 
     if (!fresh) return;
+    chronicle.show(env.deps.state(), site.id);
     const rows = siteDiaryRows(toJournalLandscapeView(env.deps.state()), site.id);
     const key = JSON.stringify(rows);
     diary.hidden = rows.length === 0;

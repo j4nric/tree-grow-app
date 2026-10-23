@@ -1,0 +1,851 @@
+/* Forschungsbaum (research-tree.ts, DESIGN_V2.md 27.12). Album-Optik: Handschrift für
+   Überschriften und Zahlen, Washi-Streifen in der Farbe des Asts, gestempelte Karten.
+   Zwei Darstellungen: [data-layout='list'] (mobil, Album-Seite) und [data-layout='grid']
+   (breit, 6 Äste × 5 Ebenen). Umgeschaltet nach der Breite des Baums, nicht des Fensters. */
+
+.research-tree {
+  container: research / inline-size;
+  min-width: 0;
+  color: var(--ink);
+  font-family: var(--font-text);
+}
+
+/* --- Kopf ----------------------------------------------------------------------------- */
+
+.research-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 12px;
+}
+
+.research-supply {
+  font-family: var(--font-hand);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-red);
+}
+
+.research-rate {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.research-count {
+  margin-left: auto;
+  padding: 2px 10px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.research-count.is-some {
+  border-style: solid;
+  border-color: var(--ink-green);
+  color: var(--ink-green);
+}
+
+/* --- Ast-Register (nur Liste) ------------------------------------------------------------ */
+
+.research-register {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0 0 14px;
+}
+
+.research-register-tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 4px 2px 6px;
+  border: 0;
+  border-top: 5px solid var(--branch-color);
+  border-radius: 0 0 8px 8px;
+  background: color-mix(in srgb, var(--branch-color) 14%, var(--paper));
+  color: var(--ink);
+  font-family: var(--font-text);
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(59, 58, 54, 0.15);
+}
+
+.research-register-icon {
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.research-register-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research-register-count {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: var(--r-pill);
+  background: var(--ink-green);
+  color: var(--paper);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+}
+
+.research-register-count:empty {
+  display: none;
+}
+
+@container research (max-width: 400px) {
+  .research-register-name {
+    display: none;
+  }
+}
+
+/* --- Brett --------------------------------------------------------------------------- */
+
+.research-board {
+  position: relative;
+}
+
+.research-links,
+.research-row-rule,
+.research-row-label {
+  display: none;
+}
+
+/* --- Ast (Liste) ---------------------------------------------------------------------- */
+
+.research-branch {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 14px;
+  scroll-margin-top: 12px;
+}
+
+.research-branch-title {
+  margin: 0 0 6px;
+  font-size: inherit;
+}
+
+.research-branch-toggle {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 4px 10px 4px 8px;
+  border: 0;
+  border-left: 6px solid var(--branch-color);
+  border-radius: 4px 10px 10px 4px;
+  background: color-mix(in srgb, var(--branch-color) 16%, var(--paper));
+  color: var(--ink);
+  font-family: var(--font-text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(59, 58, 54, 0.15);
+}
+
+.research-branch-heading {
+  display: none;
+}
+
+.research-branch-icon {
+  font-size: 20px;
+}
+
+.research-branch-name {
+  font-family: var(--font-hand);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.research-branch-summary {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+.research-branch-chevron {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  transform: rotate(90deg);
+  transition: transform 0.15s ease;
+}
+
+.research-branch.is-collapsed .research-branch-chevron {
+  transform: rotate(0deg);
+}
+
+.research-tree[data-layout='list'] .research-branch.is-collapsed .research-branch-body {
+  display: none;
+}
+
+/* Zweig: senkrechte Linie links, Ebenen daran */
+.research-branch-body {
+  position: relative;
+  padding: 2px 0 2px 20px;
+}
+
+.research-branch-body::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 18px;
+  left: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--branch-color);
+  opacity: 0.55;
+}
+
+.research-tier {
+  position: relative;
+  margin: 0 0 8px;
+}
+
+.research-tier-label {
+  position: relative;
+  display: inline-block;
+  margin: 4px 0 6px -4px;
+  padding: 0 8px;
+  font-family: var(--font-hand);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink-soft);
+  isolation: isolate;
+}
+
+.research-tier-label::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 4px 0 2px;
+  background: var(--tape);
+  opacity: 0.45;
+  transform: rotate(-1.2deg);
+}
+
+.research-tier-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.research-slot {
+  position: relative;
+  min-width: 0;
+}
+
+/* Ästchen vom Zweig zur Karte */
+.research-tree[data-layout='list'] .research-slot::before {
+  content: '';
+  position: absolute;
+  top: 26px;
+  left: -12px;
+  width: 12px;
+  height: 3px;
+  background: var(--branch-color);
+  opacity: 0.55;
+}
+
+/* --- Karte ---------------------------------------------------------------------------- */
+
+.research-node {
+  position: relative;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icon name action'
+    'icon summary action'
+    'refs refs refs';
+  align-items: center;
+  column-gap: 10px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 6px 8px 6px 8px;
+  border: 2px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 1px 3px rgba(59, 58, 54, 0.12);
+}
+
+.research-node-icon {
+  grid-area: icon;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 3px solid var(--photo);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--branch-color) 22%, var(--paper));
+  box-shadow: var(--sh-sticker);
+  font-size: 19px;
+  line-height: 1;
+}
+
+.research-node-name {
+  grid-area: name;
+  align-self: end;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: left;
+  overflow-wrap: break-word;
+  hyphens: manual;
+}
+
+button.research-node-name {
+  min-height: 30px;
+  cursor: pointer;
+  text-decoration: underline dotted var(--dash);
+  text-underline-offset: 3px;
+}
+
+.research-node-summary {
+  grid-area: summary;
+  align-self: start;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+
+.research-node-refs {
+  grid-area: refs;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.research-node-refs[hidden] {
+  display: none;
+}
+
+/* Sichtbar ein kleines Etikett, Trefferfläche 44 px hoch */
+.research-ref {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+}
+
+.research-ref-chip {
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--track);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.research-ref-word {
+  color: var(--ink-soft);
+}
+
+.research-ref.is-done .research-ref-word::before {
+  content: '✓ ';
+  color: var(--ink-green);
+}
+
+.research-ref.is-done {
+  color: var(--ink-soft);
+}
+
+.research-node-action {
+  grid-area: action;
+  justify-self: end;
+  max-width: 11.5em;
+  min-height: var(--tap);
+  padding: 4px 12px;
+  border: 2px solid var(--ink-green);
+  border-radius: var(--r-button);
+  background: var(--ink-green);
+  color: var(--paper);
+  font-family: var(--font-text);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 2px 0 var(--ink-green-dark);
+}
+
+.research-node-action[hidden] {
+  display: none;
+}
+
+.research-node-action:hover:not([aria-disabled='true']) {
+  background: var(--ink-green-dark);
+  border-color: var(--ink-green-dark);
+}
+
+.research-node-action:active:not([aria-disabled='true']) {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.research-node-action[aria-disabled='true'] {
+  border: 2px dashed var(--dash);
+  background: var(--paper);
+  color: var(--ink-soft);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.research-node.is-saving .research-node-action[aria-disabled='true'] {
+  border-color: var(--ink-red);
+  color: var(--ink-red);
+}
+
+.research-tree button:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Stempel „erforscht“ in der Farbe des Asts (Schrift abgedunkelt für den Kontrast) */
+.research-node-stamp {
+  grid-area: action;
+  justify-self: end;
+  padding: 2px 8px;
+  border: 2.5px solid color-mix(in srgb, var(--branch-color) 70%, #000);
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--branch-color) 55%, #000);
+  font-family: var(--font-hand);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
+  transform: rotate(var(--tilt-stamp));
+  white-space: nowrap;
+}
+
+.research-node-stamp[hidden] {
+  display: none;
+}
+
+/* --- Zustände --------------------------------------------------------------------------- */
+
+.research-node.is-researched {
+  border-color: color-mix(in srgb, var(--branch-color) 55%, var(--paper));
+  background: color-mix(in srgb, var(--branch-color) 12%, var(--paper));
+}
+
+.research-node.is-available {
+  border-color: var(--branch-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--branch-color) 30%, transparent), 0 1px 3px rgba(59, 58, 54, 0.12);
+}
+
+.research-node.is-locked {
+  border-style: dashed;
+  border-color: var(--dash);
+  background: var(--paper);
+}
+
+.research-node.is-locked .research-node-icon,
+.research-node.is-excluded .research-node-icon {
+  filter: grayscale(0.85);
+  opacity: 0.6;
+}
+
+.research-node.is-locked .research-node-name {
+  color: var(--ink-soft);
+}
+
+.research-node.is-excluded {
+  border-style: dashed;
+  border-color: var(--rule);
+  background: repeating-linear-gradient(-45deg, var(--paper) 0 7px, var(--track) 7px 9px);
+  box-shadow: none;
+}
+
+.research-node.is-excluded .research-node-name,
+.research-node.is-excluded .research-node-summary {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--dash);
+}
+
+/* --- Gabel: zwei halbe Karten mit „oder“ ---------------------------------------------- */
+
+.research-fork {
+  padding: 6px 6px 8px;
+  border: 2px dashed color-mix(in srgb, var(--branch-color) 70%, var(--dash));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--branch-color) 6%, var(--paper));
+}
+
+.research-fork-hint {
+  margin: 0 2px 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+
+.research-fork-hint::before {
+  content: '⑂ ';
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.research-fork.is-open .research-fork-hint {
+  color: var(--ink);
+}
+
+.research-fork-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 4px;
+}
+
+.research-fork-or {
+  align-self: center;
+  font-family: var(--font-hand);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.research-node-half {
+  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-areas:
+    'icon name'
+    'summary summary'
+    'refs refs'
+    'action action';
+  align-content: start;
+  row-gap: 4px;
+  column-gap: 6px;
+  padding: 6px;
+}
+
+.research-node-half .research-node-icon {
+  width: 30px;
+  height: 30px;
+  border-width: 2px;
+  font-size: 15px;
+}
+
+.research-node-half .research-node-name {
+  align-self: center;
+  font-size: 14px;
+}
+
+.research-node-half .research-node-summary {
+  font-size: 12.5px;
+}
+
+.research-node-half .research-node-action,
+.research-node-half .research-node-stamp {
+  justify-self: stretch;
+  max-width: none;
+  align-self: end;
+}
+
+.research-node-half .research-node-stamp {
+  justify-self: center;
+}
+
+/* Gewählter Weg kräftig, der andere blass */
+.research-fork[data-chosen='0'] .research-node-half:last-child,
+.research-fork[data-chosen='1'] .research-node-half:first-child {
+  opacity: 0.75;
+}
+
+/* Sehr schmal: Knopf unter den Text, halbe Karten mit dem Symbol über dem Namen */
+@container research (max-width: 340px) {
+  .research-tree[data-layout='list'] .research-node-half {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'icon'
+      'name'
+      'summary'
+      'refs'
+      'action';
+  }
+
+
+  .research-node:not(.research-node-half) {
+    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-areas:
+      'icon name'
+      'icon summary'
+      'refs refs'
+      'action action';
+  }
+
+  .research-node:not(.research-node-half) .research-node-action {
+    justify-self: stretch;
+    max-width: none;
+    margin-top: 4px;
+  }
+}
+
+/* Aufleuchten nach Sprung oder Erforschen */
+.research-flash {
+  animation: research-flash 0.9s ease-out;
+}
+
+@keyframes research-flash {
+  0% {
+    box-shadow: 0 0 0 6px var(--tape);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+body[data-motion='reduce'] .research-flash {
+  animation: none;
+}
+
+body[data-motion='reduce'] .research-branch-chevron {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .research-flash {
+    animation: none;
+  }
+
+  .research-branch-chevron {
+    transition: none;
+  }
+}
+
+/* =====================================================================================
+   Raster: sechs Äste × fünf Ebenen
+   ===================================================================================== */
+
+.research-tree[data-layout='grid'] .research-register {
+  display: none;
+}
+
+.research-tree[data-layout='grid'] .research-board {
+  display: grid;
+  grid-template-columns: 70px repeat(6, minmax(0, 1fr));
+  grid-template-rows: auto repeat(5, auto);
+  column-gap: 24px;
+}
+
+.research-tree[data-layout='grid'] .research-links {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.research-link {
+  fill: none;
+  stroke: var(--dash);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.research-link.is-any {
+  stroke-dasharray: 5 5;
+}
+
+.research-link.is-done {
+  stroke: var(--branch-color);
+  stroke-width: 3;
+}
+
+.research-link.is-off {
+  opacity: 0.3;
+}
+
+.research-tree[data-layout='grid'] .research-row-rule {
+  display: block;
+  grid-column: 1 / -1;
+  z-index: 0;
+  border-top: 2px dotted var(--rule);
+}
+
+.research-tree[data-layout='grid'] .research-row-label {
+  display: block;
+  grid-column: 1;
+  padding-top: 12px;
+  font-family: var(--font-hand);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink-soft);
+}
+
+.research-tree[data-layout='grid'] .research-branch {
+  display: grid;
+  grid-row: 1 / span var(--rows);
+  grid-template-rows: subgrid;
+  min-width: 0;
+  margin: 0;
+}
+
+.research-tree[data-layout='grid'] .research-branch-title {
+  grid-row: 1;
+  margin: 0 0 4px;
+}
+
+.research-tree[data-layout='grid'] .research-branch-toggle {
+  display: none;
+}
+
+.research-tree[data-layout='grid'] .research-branch-heading {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 0 8px;
+  text-align: center;
+  isolation: isolate;
+}
+
+.research-tree[data-layout='grid'] .research-branch-heading::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 8%;
+  right: 8%;
+  top: 18px;
+  height: 14px;
+  background: var(--branch-color);
+  opacity: 0.45;
+  transform: rotate(-1.5deg);
+}
+
+.research-tree[data-layout='grid'] .research-branch-summary {
+  font-size: 12px;
+  text-align: center;
+}
+
+.research-tree[data-layout='grid'] .research-branch-body {
+  display: contents;
+}
+
+.research-tree[data-layout='grid'] .research-branch-body::before {
+  display: none;
+}
+
+.research-tree[data-layout='grid'] .research-tier {
+  margin: 0;
+  padding: 12px 0;
+  min-width: 0;
+}
+
+.research-tree[data-layout='grid'] .research-tier-label {
+  display: none;
+}
+
+/* Raster: Karten kompakt und stehend (Symbol, Name, Wirkung, Knopf untereinander) */
+.research-tree[data-layout='grid'] .research-node {
+  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-areas:
+    'icon name'
+    'summary summary'
+    'refs refs'
+    'action action';
+  align-content: start;
+  row-gap: 4px;
+  column-gap: 6px;
+  padding: 6px;
+}
+
+.research-tree[data-layout='grid'] .research-node-icon {
+  width: 30px;
+  height: 30px;
+  border-width: 2px;
+  font-size: 15px;
+}
+
+.research-tree[data-layout='grid'] .research-node-name {
+  align-self: center;
+  font-size: 13.5px;
+}
+
+.research-tree[data-layout='grid'] .research-node-summary,
+.research-tree[data-layout='grid'] .research-fork-hint {
+  font-size: 12px;
+}
+
+.research-tree[data-layout='grid'] .research-node-action {
+  justify-self: stretch;
+  max-width: none;
+  padding: 4px 6px;
+  font-size: 12.5px;
+}
+
+.research-tree[data-layout='grid'] .research-node-stamp {
+  justify-self: center;
+  font-size: 18px;
+}
+
+.research-tree[data-layout='grid'] .research-ref {
+  font-size: 11.5px;
+}
+
+/* Raster: Gabel-Paar untereinander, „oder“ dazwischen (Spalten sind zu schmal für zwei) */
+.research-tree[data-layout='grid'] .research-fork {
+  padding: 4px;
+}
+
+.research-tree[data-layout='grid'] .research-fork-pair {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.research-tree[data-layout='grid'] .research-fork-or {
+  justify-self: center;
+  font-size: 17px;
+  line-height: 1.2;
+}

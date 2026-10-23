@@ -7718,6 +7718,12 @@ Jahreszeit); Andenken-Texte ≤ 120 Zeichen.
   Kennarten“ (erst mit der Landschaft sichtbar).
 - **Ziel-Hinweis:** U:Neuer Zyklus zeigt beim Ziel-Wald „Chronik 4 / 6 – offen: Erster Schnee,
   Kennart“, damit die Wahl des nächsten Waldes eine Geschichte hat.
+- **Umgesetzt (3a):** wie oben; Kennzahl als Zeile im Kopf des Reiters (rechts oben bleibt die
+  Hähersaat), das Tagebuch der Wälder als Zeile „Chronik“ je Wald. Ein nicht gegründeter Ziel-Wald
+  zeigt „Chronik 0 / 6 – ein neuer Wald beginnt seine Chronik.“ Offene Kapitel heißen kurz
+  Urwald, Erster Schnee, Ereignis, Kennart, Einklang, Gedächtnis. Andenken offener Chroniken
+  stehen in R:Arten als „???“ mit Wald und Stand. Mit der Freischaltung nennt der Hinweis die
+  schon geschriebenen Kapitel des Heimatwalds statt je eines Stempels.
 
 ### 26.8 Messplan und Ziele (Aufgabe 2c)
 

@@ -41,6 +41,10 @@
  *  site     Standort der Waldlandschaft: home, floodplain, carr, beechwood, mountain, heath
  *           (ohne Angabe: Heimatwald wie bisher); Auswahl auch im Menü
  *  jay      Häherflug bei dieser Sekunde (mit t für feste Bilder); Knopf „Häherflug“ spielt ihn ab
+ *  demo     'sowing' = Aussaat (DESIGN_V2.md 27.12): Samen fliegen zum Platz der jüngsten
+ *           Pflanze im Ring, die erst nach der Landung erscheint; ohne sow alle 4 s neu.
+ *           sow = Zeitpunkt in der Aussaat (s, mit t für feste Bilder); Knopf „Aussaat“
+ *           spielt sie ab. Noch nicht im Spiel (Phase 10, 4d).
  *  stickers 1 = Sticker-Tafel des Albums: alle Arten und Gäste farbig, matt und als
  *           Silhouette (ss = Größe in px, Standard 64; guide=1 zeigt die 80-%-Fläche);
  *           die Kennarten stehen am Ende
@@ -57,6 +61,9 @@ import { layoutFlora, LOW_SIZE, PLANT_SPECIES, type PlacedPlant } from './flora'
 import { paintPlant } from './flora-paint';
 import { RENDER_TREE_SPECIES } from './plant';
 import { showStickerSheet } from './sticker-demo';
+import { Sowing, sowingElapsed, sowingPlantVisible, type SowingStage } from './sowing';
+import { animalSize } from './anchors';
+import { makeLayout, placeMainTree } from './layout';
 import { normalizeWeather } from './weather';
 import { drawScene, siteParam, type SceneAnimal, type ScenePlant, type SceneVisitor, type TreeSpecies } from './tree';
 import { VISITOR_DEFS } from './visitor-sprites';
@@ -341,6 +348,40 @@ const jayAt = params.has('jay') ? Number(params.get('jay')) : null;
 let jayFlight: { startedAt: number } | undefined;
 let pendingJay = false;
 document.querySelector<HTMLButtonElement>('#jay')!.addEventListener('click', () => (pendingJay = true));
+/** Aussaat (?demo=sowing, ?sow=): Startzeit; ohne sow wiederholt sie sich alle 4 s. */
+const sowingDemo = params.get('demo') === 'sowing';
+const sowAt = params.has('sow') ? Number(params.get('sow')) : null;
+const SOW_LOOP = 4;
+let sowStart: number | null = null;
+let pendingSow = false;
+const sowing = new Sowing();
+const sowStage: SowingStage = { width: 0, groundY: 0, targetX: 0, targetY: 0, unit: 0, seed: 0 };
+let sowKey = '';
+const sowButton = document.querySelector<HTMLButtonElement>('#sow')!;
+sowButton.hidden = !sowingDemo;
+sowButton.addEventListener('click', () => (pendingSow = true));
+/** Ziel der Aussaat: Fuß der jüngsten Pflanze (sonst ein Platz rechts vom Stamm). */
+function updateSowStage(width: number, height: number, plants: ScenePlant[] | undefined): void {
+  const key = `${width}|${height}|${g}|${mainTree}|${plants?.length ?? 0}`;
+  if (key === sowKey) return;
+  sowKey = key;
+  const layout = makeLayout(width, height);
+  sowStage.width = width;
+  sowStage.groundY = layout.groundY;
+  sowStage.unit = animalSize(width, height);
+  sowStage.targetX = width * 0.72;
+  sowStage.targetY = layout.groundY + 2;
+  sowStage.seed = 0;
+  if (plants && plants.length > 0) {
+    const flora = layoutFlora(layout, g, plants, { main: placeMainTree(layout, g, mainTree), species: mainTree });
+    const last = flora.find((p) => p.index === plants.length - 1);
+    if (last) {
+      sowStage.targetX = last.x;
+      sowStage.targetY = last.y;
+      sowStage.seed = plants[plants.length - 1]!.slot;
+    }
+  }
+}
 /** Wachstum pro Sekunde (0 = steht). */
 const rate = Number(params.get('rate') ?? 0) || 0;
 /** Kamera (Zoom, Mitte); mit pan=1 kreist der Ausschnitt ständig. */
@@ -550,7 +591,19 @@ function frame(now: number): void {
     jayFlight = { startedAt: time };
   }
   const animals = animalsFor(g, set, happy, variant);
-  const plants = plantsFor(g, plantMode, vigor);
+  let plants = plantsFor(g, plantMode, vigor);
+  // Aussaat: Start festlegen; die jüngste Pflanze erscheint erst nach der Landung der Samen.
+  let sowU = Number.NaN;
+  if (sowingDemo) {
+    if (pendingSow) {
+      pendingSow = false;
+      sowStart = time;
+    }
+    const start = sowStart ?? (sowAt !== null ? time - sowAt : Math.floor(time / SOW_LOOP) * SOW_LOOP);
+    updateSowStage(rect.width, rect.height, plants);
+    sowU = sowingElapsed(time, start, reducedInput.checked);
+    if (plants && plants.length > 0 && !sowingPlantVisible(time, start, reducedInput.checked)) plants = plants.slice(0, -1);
+  }
   const t0 = performance.now();
   drawScene(ctx, rect.width, rect.height, {
     growth: g,
@@ -579,6 +632,11 @@ function frame(now: number): void {
         ? { zoom: camZoom, x: camCx + (camPan ? 0.1 * Math.cos(now / 700) : 0), y: camCy + (camPan ? 0.1 * Math.sin(now / 700) : 0) }
         : undefined,
   });
+  if (sowingDemo) {
+    if (Number.isNaN(sowU)) {
+      if (sowing.prepared) sowing.release();
+    } else sowing.draw(ctx, sowU, sowStage, dpr);
+  }
   const dt = performance.now() - t0;
   samples.push(dt);
   if (samples.length > 300) samples.shift();

@@ -918,7 +918,7 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
 
 **Welle 3 – Oberfläche**
 
-- [ ] **3a** Chronik und Kennarten im Album (`ui-dev`, 26.7): Abschnitt „Chronik“ auf
+- [x] **3a** Chronik und Kennarten im Album (`ui-dev`, 26.7): Abschnitt „Chronik“ auf
   U:Standort (sechs Zettel, Stempel mit Datum, Hinweise ohne Spoiler, Andenken), Kennzahl
   „📜 9 / 36 Kapitel“ und Wachssiegel auf der Karte, Spalte „Chronik“ im Tagebuch der Wälder,
   offene Kapitel beim Ziel-Wald in U:Neuer Zyklus, Reihe „Kennarten“ und Andenken in R:Arten
@@ -926,6 +926,19 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   Spielanleitung „Chroniken und Kennarten“, mobil 360 px ohne Querscrollen. **Warum:** Die
   Chronik ist eine Album-Funktion – erst als Seite zum Durchblättern wird sie zur Geschichte.
   Abhängig: 2b (Sticker aus 2a; ohne sie zeigt der Sticker die Gattung)
+  **Erledigt:** Texte und Ansichten rein in `ui/chronicle-view.ts` (Kennzahl, Zettel, Datum
+  „7. Zyklus · Winter“ / „schon früher“, offene Kapitel als Kurzname, Stempeltext, Andenken);
+  U:Standort `album/pages/site-chronicle.ts` (sechs Zettel, Stempel, Andenken als großer
+  Sticker, „Stempel-Effekt“ bei neuem Kapitel, ohne Bewegung bei reduzierter Bewegung), Karte
+  mit Wachssiegel (`site-seal`, Token `--wax`), Kennzahl `chronicle-total`, Zeile „Chronik“ im
+  Tagebuch der Wälder, `cycle-chronicle` auf U:Neuer Zyklus, R:Arten mit eigener Reihe
+  „🔎 Kennarten“ (Silhouette mit ihrem Wald, erst mit der Landschaft im DOM) und „Chroniken“ unter
+  Andenken (offen „???“ ohne Namen), Spielanleitung „Chroniken und Kennarten“ (nur mit der
+  Landschaft, ohne Kennart beim Namen). Stempel: `main.ts` vergleicht `chronicleOf` vorher/nachher
+  (`chronicleMark`/`chaptersSince`, kein neues Feld in core) nach Aktionen, Ticks und dem Neuen
+  Zyklus; offline `OfflineReport.chapters` als Punkt im Rückkehr-Bericht; die Freischaltung nennt
+  die still geschriebenen Kapitel („📜 Im Heimatwald stehen schon 3 Kapitel der Chronik.“). Tests
+  `tests/chronicle-view.test.ts`, `e2e/chronicle.spec.ts` (inkl. 360/390 px ohne Querscrollen)
 
 **Welle 4 – Absichern**
 
@@ -973,16 +986,26 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   `CARE_TO_RESEARCH`), Aussaat-Konstanten in `src/content/sowing.ts`, neue Wirkungen als Typ
   `ResearchEffect` in `research.ts` (keine Änderung an `content/types.ts` oder `core/`),
   `tests/research.test.ts`; drei neue Wörter in `ui/hyphenate.ts`.
-- [ ] **1b** Aussaat-Animation (`renderer`, 27.12): Samen (Ahornflügel, Pusteblume) fliegen vom
+- [x] **1b** Aussaat-Animation (`renderer`, 27.12): Samen (Ahornflügel, Pusteblume) fliegen vom
   Rand in den Pflanzring; einmal je Setzen, gecacht, reduzierte Bewegung ohne; zunächst nur in der
   Demo (`?demo=sowing`). **Warum:** Die Aussaat ersetzt ein Ereignis, das der Spieler „bekam“ –
   ein sichtbarer Moment macht den Kauf zum Säen. Unabhängig von allem. Abhängig: nichts
-- [ ] **1c** Forschungsbaum-Layout (`ui-dev`, 27.12): Reiter „Forschung“ als Ansicht aus
+- [x] **1c** Forschungsbaum-Layout (`ui-dev`, 27.12): Reiter „Forschung“ als Ansicht aus
   `RESEARCH` mit Platzhalter-Zuständen (Demo-Schalter), mobil 390 px (Äste aufklappbar, Zweig mit
   Ebenen, Gabel als zwei halbe Karten mit „oder“, Querverweise „braucht …“) und Desktop (Raster
   6 × 5, SVG-Verbindungen einmal je Layout); `aria-disabled`, 44-px-Treffer, kein Querscrollen
   bei 360 px. **Warum:** Die Baumdarstellung ist neu und auf dem Handy der heikle Teil; sie hängt
   nur an den Daten. Abhängig: 1a
+  *Erledigt:* reine Ansicht `src/ui/album/research-tree.ts` (+ `.css`), Abbildung Zustand →
+  Texte/Klassen/aria in `src/ui/research-view.ts` (inkl. `researchStatusFromBlocker` für 4a),
+  Beispielzustände in `src/ui/research-fixtures.ts`, Vorschau `src/ui/research-preview.html`
+  (`?state=start|middle|late&frame=full|page`). Umgeschaltet nach der **Breite des Baums** (nicht
+  des Fensters): Liste mit Ast-Register unter 940 px – auch die rechte Album-Seite bei 1200 px –,
+  Raster 6 × 5 darüber. Im Raster stehen Gabeln untereinander („oder“ dazwischen; Spalten zu schmal
+  für zwei halbe Karten), die SVG-Linien laufen als Leitungen in den Spaltenzwischenräumen (Weg B
+  rechts), damit keine Linie hinter einer Karte verschwindet. „Anderer Weg gewählt“ schlägt in der
+  Anzeige die Stufensperre. Tests: `tests/research-view.test.ts`, `e2e/research-tree.spec.ts`
+  (360/390/1200 px, eigener Vite-Server).
 
 **Welle 2 – Spielstand v17** (nacheinander)
 

@@ -6,6 +6,7 @@
  * Hier stehen nur Anzeige-Entscheidungen (Texte, Symbole, Reihenfolge). Alle Zahlen
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
+import { chronicleKeepsakes } from './chronicle-view';
 import { LANDSCAPE_SITES_BY_ID, type SiteId } from '../content/landscape';
 import { ABILITY_INFO } from '../content/abilities';
 import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_BY_ID, type ResearchEffect, type ResearchNode } from '../content/research';
@@ -839,12 +840,14 @@ export function toJournalView(
     communities: communities.filter((e) => e.discovered).length,
   };
   const trees = toJournalTrees(state);
+  const chronicles = chronicleKeepsakes(state);
   const tabCounts = {
     species: ofTotal(found.species, species.length),
     plants: ofTotal(found.plants, plants.length),
     communities: ofTotal(found.communities, communities.length),
-    // Andenken: Erinnerungen plus freigeschaltete Hauptbaum-Arten (die Eiche immer).
-    keepsakes: formatNumber(keepsakes.length + trees.filter((t) => t.unlocked).length),
+    // Andenken: Erinnerungen plus freigeschaltete Hauptbaum-Arten (die Eiche immer) plus die
+    // Andenken vollständiger Chroniken (26.7, erst mit der Landschaft).
+    keepsakes: formatNumber(keepsakes.length + trees.filter((t) => t.unlocked).length + chronicles.filter((c) => c.complete).length),
     achievements: achievementCountText(state),
     stats: '',
   };
@@ -865,6 +868,7 @@ export function toJournalView(
     communities,
     keepsakes,
     trees,
+    chronicles,
     stats: toJournalStats(state, evaluation),
     achievements: toJournalAchievements(state),
     tabCounts,
