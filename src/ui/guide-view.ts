@@ -245,10 +245,10 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       icon: '🌱',
       title: 'Säen',
       paragraphs: [
-        `Ab „${ringStage}“ wachsen Begleitpflanzen im Pflanzring – ${formatNumber(PLANTS.length)} verschiedene. Du bekommst sie durch Säen: „🌱 Säen“ im Reiter „Nischen“ zieht ${formatNumber(CARDS_PER_ENCOUNTER)} Pflanzenkarten, und du wählst eine davon.`,
+        `Ab „${ringStage}“ wachsen Begleitpflanzen im Pflanzring – ${formatNumber(PLANTS.length)} verschiedene. Du bekommst sie durch Säen: „🌱 Säen“ im Reiter „Nischen“ zieht meist ${formatNumber(CARDS_PER_ENCOUNTER)} Pflanzenkarten, und du wählst eine davon.`,
         `Die erste Aussaat jedes Zyklus ist ein Geschenk – der Wind bringt sie am zweiten Wegpunkt. Danach kostet Säen ${formatNumber(SOWING_BASE)} 🌰, jede weitere Aussaat im Zyklus ×${formatNumber(SOWING_GROWTH)}. ${springSowing}`,
         `Ist der Pflanzring voll, ersetzt die neue Pflanze eine andere – das zählt wie jede Aussaat. Passt keine Karte, legst du sie zurück: Das bringt die Samen von ${formatNumber(DECLINE_SEED_SECONDS)} Sekunden, der Preis der nächsten Aussaat bleibt aber gestiegen. Neu würfeln kostet wie bei Tieren. Es ist immer höchstens eine Aussaat offen.`,
-        `In der Forschung bringt ${all(sowingNodes)} mehr aus jeder Aussaat.`,
+        `In der Forschung ${sowingNodes.length === 1 ? 'bringt' : 'bringen'} ${all(sowingNodes)} mehr aus jeder Aussaat.`,
       ],
     },
     {

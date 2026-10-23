@@ -47,6 +47,7 @@ import {
   toSceneVisitors,
   toScenePlants,
   stageBannerView,
+  waitingNotes,
 } from './ui/adapters';
 import { achievementUnlockedText, achievementsBackfilledText } from './ui/achievement-view';
 import { toReturnReportView } from './ui/return-report-view';
@@ -907,13 +908,13 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   dailyGrowth = 0;
   dailyProduced = 0;
   if (report) {
-    const notice = catchUpNotice(away, report, state.pendingEncounters.length, { from: stageBefore, to: state.stage });
+    const notice = catchUpNotice(away, report, waitingNotes(state), { from: stageBefore, to: state.stage });
     if (notice?.kind === 'welcome') {
       // Eine Meldung für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt –
       // Desktop wie mobil nur die Kurzfassung, alles Weitere im Rückkehr-Bericht (ui/album/return-report.ts).
       const stages = { from: stageBefore, to: state.stage };
       const site = activeSite(state.meta.landscape);
-      const view = toReturnReportView({ away, report, waiting: state.pendingEncounters.length, stages, notes, site });
+      const view = toReturnReportView({ away, report, waiting: waitingNotes(state), stages, notes, site });
       album.showReturnReport(view);
       extraNotice = '';
       // Die Begrüßung nennt die neue Stufe schon: kein zweites Stufen-Banner im nächsten Frame.

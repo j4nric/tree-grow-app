@@ -72,6 +72,17 @@ describe('View: Ereignis', () => {
     expect(labels[1]).toBe('+123 🌰 sofort');
   });
 
+  it('Vogelsaat: „eine Aussaat gratis“ mit den Pflanzen, Unbekanntes ohne Namen', () => {
+    const birds = EVENTS_BY_ID.get('bird-sown')!;
+    const option = birds.options.find((o) => o.effects.some((x) => x.kind === 'freeSowing'))!;
+    const known = eventOptionEffects(option, 0, { species: [], plants: ['rowan', 'elder', 'bramble'] }).map((e) => e.label);
+    expect(known).toHaveLength(1);
+    expect(known[0]).toMatch(/^eine Aussaat gratis: .+ oder .+$/);
+    const none = eventOptionEffects(option, 0, { species: [], plants: [] }).map((e) => e.label);
+    expect(none).toHaveLength(1);
+    expect(none[0]).toMatch(/^eine Aussaat gratis: 3\u00a0unbekannte Pflanzen/);
+  });
+
   describe('nächste Begegnung: keine Spoiler für Unentdecktes (wie im Naturtagebuch)', () => {
     const fungi = ['chanterelle', 'porcini', 'tinder', 'flyagaric'];
 

@@ -554,7 +554,7 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
  * welche warten, wie viele (ein Countdown daneben wäre missverständlich).
  */
 export function progressHint(state: GameState): string {
-  const waiting = state.pendingEncounters.length;
+  const waiting = waitingNotes(state);
   if (waiting > 0) return waitingText(waiting);
   const seconds = secondsToNextWaypoint(state);
   if (allWaypointsReached(state) || !Number.isFinite(seconds)) return 'Alle Wegpunkte erreicht – dein Wald wächst weiter.';
@@ -1884,6 +1884,11 @@ export function eventOptionEffects(option: EventOption, seeds: number, journal: 
     else if (e.kind === 'habitat') lasting.unshift(TAG_NAMES[e.tag] ?? e.tag);
     else if (e.kind === 'cycle') lasting.push(bonusEffectLabel(e.effect));
     else if (e.kind === 'nextEncounter') out.push({ label: nextEncounterText(e.type, e.ids, journal), tone: 'good' });
+    else if (e.kind === 'freeSowing') {
+      // Gleiche Spoiler-Regel wie bei der nächsten Begegnung: Unbekanntes ohne Namen.
+      const plants = nextEncounterText('plant', e.ids, journal).replace(/^nächste Begegnung: /, '');
+      out.push({ label: `eine Aussaat gratis: ${plants}`, tone: 'good' });
+    }
   }
   if (lasting.length > 0) out.unshift({ label: `${lasting.join(', ')} – ${UNTIL_NEW_CYCLE}`, tone: 'good' });
   if (seeds > 0) out.push({ label: `+${seedsLabel(seeds)} 🌰 sofort`, tone: 'good' });
