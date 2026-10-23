@@ -1,3 +1,4 @@
+import { CARE_TO_RESEARCH, RESEARCH } from '../src/content/research';
 import { SEASONS_BY_ID } from '../src/content/seasons';
 import { SPECIES_BY_ID, type Species } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
@@ -111,4 +112,54 @@ export function resolveSpecial(state: GameState): boolean {
   if (type === 'event') return chooseEventOption(state, 0, 0).ok;
   if (type === 'visitor') return hostVisitor(state, 0).ok || farewellVisitor(state, 0).ok;
   return false;
+}
+
+/**
+ * Forschung wie aus Pflege-Rängen bis v16 (Migration v16 → v17, DESIGN_V2.md 27.9): die Knoten
+ * der Ränge (CARE_TO_RESEARCH) plus alle fehlenden Voraussetzungen, in RESEARCH-Reihenfolge –
+ * ein gültiger `cycle.research`, der auch Speichern und Laden übersteht. Ohne Stufenprüfung.
+ */
+export function researchFor(care: Readonly<Record<string, number>>): string[] {
+  const owned = new Set<string>();
+  for (const [id, ranks] of Object.entries(care)) for (const node of (CARE_TO_RESEARCH[id] ?? []).slice(0, ranks)) owned.add(node);
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const node of RESEARCH) {
+      if (!owned.has(node.id)) continue;
+      const missing = [...(node.requires ?? [])].filter((id) => !owned.has(id));
+      const any = node.requiresAny ?? [];
+      if (any.length > 0 && !any.some((id) => owned.has(id))) missing.push(any[0]!);
+      for (const id of missing) owned.add(id);
+      if (missing.length > 0) changed = true;
+    }
+  }
+  return RESEARCH.filter((n) => owned.has(n.id)).map((n) => n.id);
+}
+
+/**
+ * Macht aus einem gespeicherten v17-Stand (JSON-Objekt) das Format bis v16 (DESIGN_V2.md 27.9):
+ * Forschung → Pflege-Ränge (`cycle.care`, je Maßnahme die Zahl der Knoten ihrer Kette am Stück),
+ * ohne Vorrat, Aussaat-Felder, Forschungsplan und `harmonyEarned`. Für Tests älterer Stände.
+ */
+export function downgradeToV16(raw: Record<string, any>): Record<string, any> {
+  const research: string[] = Array.isArray(raw.cycle?.research) ? raw.cycle.research : [];
+  const care: Record<string, number> = {};
+  for (const [id, nodes] of Object.entries(CARE_TO_RESEARCH)) {
+    let rank = 0;
+    while (rank < nodes.length && research.includes(nodes[rank]!)) rank++;
+    if (rank > 0) care[id] = rank;
+  }
+  if (raw.cycle) {
+    raw.cycle.care = care;
+    delete raw.cycle.research;
+    delete raw.cycle.sowings;
+    delete raw.cycle.sowing;
+    delete raw.cycle.freeSowing;
+  }
+  delete raw.harmonyPoints;
+  if (raw.meta) {
+    delete raw.meta.research;
+    if (raw.meta.stats) delete raw.meta.stats.harmonyEarned;
+  }
+  return raw;
 }

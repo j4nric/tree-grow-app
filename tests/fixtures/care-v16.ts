@@ -1,37 +1,16 @@
-import type { CycleEffect } from './events';
-import { MEADOW_CARE, WALL_CARE } from './habitats';
-import type { Condition, Effect, NicheId, Tag } from './types';
+import type { ResearchCycleEffect } from '../../src/content/research';
+import type { Condition, NicheId, Tag } from '../../src/content/types';
 
 /**
- * Pflegemaßnahmen (docs/DESIGN_V2.md, Abschnitt 8). Reine Daten – die Logik steht in
- * src/core/tick.ts (buyCare, careBlocker) und formulas.ts (Wirkungen, DESIGN_V2.md 8.2).
- *
- * Pflege ist die Samen-Senke des Spiels: Jede Maßnahme hat 1–3 Stufen („Ränge“), die
- * nacheinander mit Samen gekauft werden. Ein gekaufter Rang wirkt bis zum Neuen Zyklus;
- * die Wirkungen aller gekauften Ränge addieren sich. Die Kosten steigen je Rang stark
- * (mindestens ×3), Rang 1 gibt es ab Setzling, Junger oder Alter Baum, spätere Ränge erst
- * ab Alter Baum, Hain oder Wald (`minStage`) – so wächst die Senke mit dem Einkommen mit,
- * und kein einzelner Kauf ist Pflicht.
- *
- * Frühes Spiel (Playtest, DESIGN_V2.md 8 und 15.4): Im Setzling ist der Pflanzring nach
- * zwei Pflanzen voll, bis zum Jungen Baum vergehen gut drei Minuten mit nur zwei
- * Begegnungen, und die Samen lagen brach (Bestand bis ~300, im Playtest 820). Zwei kleine
- * Ränge zu je 200 🌰 ab Setzling (Kompost, Laub liegen lassen) und günstigere Nistkästen
- * (650 statt 1.100 🌰) legen etwa jede Minute eine Entscheidung zwischen die Wegpunkte:
- * längste Pause in den ersten 6 Minuten im Median 1:41 → 1:08 min (Harmonie-Spieler), bei
- * gleichem Tempo. Kompost bringt bewusst Feuchte statt eines Platzes – ein Wurzelraum-Platz
- * für den ganzen Zyklus machte alle ~5 % schneller und den Wachstums-Spieler zu schnell.
- *
- * Wirkungen nutzen dieselben Typen wie die Ereignisse (events.ts):
- * - `cycle`: eine Wirkung bis zum Neuen Zyklus, Faktor 1. Für Pflege zusätzlich erlaubt:
- *   `growth`, `seeds`, `groupGrowth`, `groupSeeds` (dauerhaft statt nur `timed`).
- * - `habitat`: Das Ökosystem stellt das Merkmal bereit (1 Einheit wie eine Pflanze).
- * Negative Zahlen sind nur als bewusster „Verlierer“ einer Maßnahme erlaubt (Dichte Krone
- * kostet Licht) – jeder Rang bringt insgesamt etwas.
+ * Eingefrorene Pflege bis Spielstand v16 (src/content/care.ts und MEADOW_CARE/WALL_CARE aus
+ * habitats.ts, Stand vor Phase 10, 2a). Seit v17 ersetzt der Forschungsbaum die Pflege
+ * (DESIGN_V2.md 27.7); die Daten hier prüfen nur noch die Abbildung Pflege → Knoten
+ * (CARE_TO_RESEARCH, tests/research.test.ts) und die Migration v16 → v17 (tests/research-core.test.ts).
+ * NICHT ändern – sie beschreiben alte Spielstände.
  */
 
 /** Dauerhafte Wirkungen einer Maßnahme (Erweiterung von CycleEffect, events.ts). */
-export type CareCycleEffect = CycleEffect | Extract<Effect, { kind: 'growth' | 'seeds' | 'groupGrowth' | 'groupSeeds' }>;
+export type CareCycleEffect = ResearchCycleEffect;
 
 export type CareEffect = { kind: 'cycle'; effect: CareCycleEffect } | { kind: 'habitat'; tag: Tag };
 
@@ -66,7 +45,37 @@ const slot = (niche: NicheId, amount = 1): CareEffect => ({
   effect: { kind: 'slot', niche, amount },
 });
 
-export const CARE: readonly CareMeasure[] = [
+const MEADOW_CARE: CareMeasure = {
+    id: 'meadow', name: 'Waldwiese', icon: '🌾',
+    text: 'Einmal im Jahr gemäht, sonst in Ruhe gelassen – so blüht und zirpt die Lichtung.',
+    boughtText: 'Wiese angelegt',
+    ranks: [
+      { cost: 2_400, minStage: 3, summary: '+2 Plätze Waldwiese', effects: [slot('meadow', 2)] },
+      {
+        cost: 16_000, minStage: 5, summary: '+2 Plätze Waldwiese, +2 ☀️',
+        effects: [slot('meadow', 2), { kind: 'cycle', effect: { kind: 'light', amount: 2 } }],
+      },
+    ],
+};
+
+const WALL_CARE: CareMeasure = {
+    id: 'drystone-wall', name: 'Trockenmauer', icon: '🪨',
+    text: 'Lesesteine ohne Mörtel, in der Sonne geschichtet – jede Ritze ein Zuhause.',
+    boughtText: 'Mauer geschichtet',
+    ranks: [
+      {
+        cost: 12_000, minStage: 5, summary: '+2 Plätze Trockenmauer, +2 ☀️',
+        effects: [slot('wall', 2), { kind: 'cycle', effect: { kind: 'light', amount: 2 } }],
+      },
+      {
+        // 36.000 statt 32.000 🌰 aus dem Entwurf: Jeder Rang kostet mindestens das Dreifache (care.ts).
+        cost: 36_000, minStage: 6, summary: '+2 Plätze Trockenmauer, +2 ⚖️',
+        effects: [slot('wall', 2), { kind: 'cycle', effect: { kind: 'harmony', points: 2 } }],
+      },
+    ],
+};
+
+export const CARE_V16: readonly CareMeasure[] = [
   // --- ab Setzling (kleine Ränge, je 200 🌰) ------------------------------------
   {
     id: 'compost', name: 'Kompost', icon: '♻️',
@@ -209,4 +218,4 @@ export const CARE: readonly CareMeasure[] = [
   WALL_CARE,
 ];
 
-export const CARE_BY_ID: ReadonlyMap<string, CareMeasure> = new Map(CARE.map((c) => [c.id, c]));
+export const CARE_V16_BY_ID: ReadonlyMap<string, CareMeasure> = new Map(CARE_V16.map((c) => [c.id, c]));

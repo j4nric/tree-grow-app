@@ -28,7 +28,7 @@ import {
 /**
  * Viewport-Matrix des Albums (docs/ALBUM_UI.md, E.2 und F-13): die Kernabläufe bei 360 × 740,
  * 390 × 844 und 1200 × 700 – Reiterwechsel samt Hash, Umblättern zu jeder Unterseite und
- * zurück über Lesezeichen, Browser-Zurück und Escape, Begegnung einkleben, Pflege kaufen,
+ * zurück über Lesezeichen, Browser-Zurück und Escape, Begegnung einkleben, Forschung kaufen,
  * Neuer Zyklus, Umschlag-Seiten. Überall: kein Querscrollen, Bedienelemente mindestens
  * 44 px, Meldungen und Haftnotizen verdecken keine Navigation. Je Reiter ein Screenshot als
  * Anhang (nur zum Ansehen, kein Pixelvergleich).
@@ -55,7 +55,7 @@ const SMALL_OK = ['.species-star'];
 
 /**
  * Urwald mit Landschaft (fünf Reiter), Tiere in mehreren Nischen (Waldkauz für U:Tier und
- * Nahrungsnetz), viele Samen (Pflege), eine wartende Begegnung, Neuer Zyklus möglich. Beim
+ * Nahrungsnetz), viele Samen und ⚖️ (Forschung), eine wartende Begegnung, Neuer Zyklus möglich. Beim
  * Laden kommt der Sammelhinweis der Erfolge – eine Meldung, die nichts verdecken darf.
  */
 function richState(): GameState {
@@ -64,6 +64,7 @@ function richState(): GameState {
   state.waypoint = STAGES[ANCIENT]!.waypoint;
   state.totalGrowth = waypoint(state.waypoint) + 1;
   state.seeds = 50_000;
+  state.harmonyPoints = 50_000;
   state.cycle.number = 4;
   state.meta.forestMemory = 300;
   state.meta.achievements = ['ancient-forest'];
@@ -345,7 +346,7 @@ for (const viewport of VIEWPORTS) {
       await expect(tabButton(page, 'landschaft')).toHaveAttribute('aria-selected', 'true');
     });
 
-    test('Kernabläufe: Begegnung einkleben, Pflege kaufen, Neuer Zyklus, Neuladen behält Reiter und Stand', async ({ page, context }) => {
+    test('Kernabläufe: Begegnung einkleben, Forschung kaufen, Neuer Zyklus, Neuladen behält Reiter und Stand', async ({ page, context }) => {
       await seedRaw(context, richState(), 0);
       await gotoTab(page, 'nischen');
 
@@ -366,13 +367,12 @@ for (const viewport of VIEWPORTS) {
       await expect(page.locator('[data-species="woodpecker"]').first()).toBeVisible();
       expect((await savedState(page)).pendingEncounters).toEqual([]);
 
-      // Pflege: direkt in der Liste kaufen.
+      // Forschung (Reiter Pflege): direkt in der Liste erforschen – kostet ⚖️, nicht 🌰.
       await openTab(page, 'pflege');
       const item = tabPanel(page, 'pflege').locator('[data-care="leaf-litter"]');
-      const seedsBefore = (await savedState(page)).seeds as number;
       await item.locator('.care-buy').click();
-      await expect.poll(async () => (await savedState(page)).cycle.care?.['leaf-litter'] ?? 0).toBe(1);
-      expect((await savedState(page)).seeds).toBeLessThan(seedsBefore);
+      await expect.poll(async () => (await savedState(page)).cycle.research ?? []).toContain('leaf-litter');
+      expect((await savedState(page)).harmonyPoints).toBeLessThan(50_000);
       await expectNoHorizontalScroll(page, 'nach dem Kauf');
       await expectStampsFree(page, 'nach dem Kauf');
 

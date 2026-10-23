@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS } from '../src/content/achievements';
 import { COMMUNITIES } from '../src/content/communities';
-import { CARE } from '../src/content/care';
+import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_FORKS } from '../src/content/research';
 import {
   DECLINE_SEED_SECONDS,
   INTERLUDE_CHANCE,
@@ -253,15 +253,16 @@ describe('Spielanleitung', () => {
     expect(t).toContain(`${span(VISITORS.map((v) => v.stay / 60))} Minuten`);
   });
 
-  it('Pflege: Anzahl, Ränge, Stufe und die sich ausschließenden Kronen aus content', () => {
+  it('Forschung: Vorrat, Anzahl, Äste, Stufe und die Gabeln aus content (27.7)', () => {
     const t = text('care');
-    expect(t).toContain(`${formatNumber(CARE.length)} Pflegemaßnahmen`);
-    expect(t).toContain(`${span(CARE.map((c) => c.ranks.length))} Ränge`);
-    expect(t).toContain(`Ab „${STAGES[Math.min(...CARE.map((c) => c.ranks[0]!.minStage))]!.name}“`);
+    expect(t).toContain(`${formatNumber(RESEARCH.length)} Knoten in ${formatNumber(RESEARCH_BRANCHES.length)} Ästen`);
+    expect(t).toContain(`Ab „${STAGES[Math.min(...RESEARCH.map((n) => n.minStage))]!.name}“`);
+    expect(t).toContain('Vorrat ⚖️');
+    expect(t).toContain('Ausgeben senkt ihn nie');
     expect(t).toContain('bis zum Neuen Zyklus');
     expect(t).toContain('„Lichte Krone“ und „Dichte Krone“ schließen sich aus');
-    // Jedes Ausschluss-Paar genau einmal.
-    expect(t.match(/schließen sich aus/g)).toHaveLength(CARE.filter((c) => c.excludes?.length).length / 2);
+    // Jede Gabel genau einmal.
+    expect(t.match(/schließen sich aus/g)).toHaveLength(RESEARCH_FORKS.length);
   });
 
   it('Kennarten (26.3) erst mit der Landschaft beim Namen – auch nicht unter den Nachtaktiven', () => {

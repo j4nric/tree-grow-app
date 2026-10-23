@@ -1,6 +1,5 @@
 import { ACHIEVEMENTS_BY_ID } from '../content/achievements';
 import { CHAPTER_IDS, type ChapterId } from '../content/chronicle';
-import { CARE } from '../content/care';
 import { COMMUNITIES_BY_ID } from '../content/communities';
 import { DAILY_GOALS_BY_KIND, DAILY_GOAL_COUNT, type DailyGoalKind } from '../content/daily';
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
@@ -8,6 +7,8 @@ import { EVENTS, EVENTS_BY_ID, type CycleEffect, type TimedEffect } from '../con
 import { CORRIDORS_BY_ID, HOME_SITE, LANDSCAPE_UNLOCK_ACHIEVEMENT, MAX_SITE_FAUNA, SITE_IDS, type SiteId } from '../content/landscape';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY, V1_KEEPSAKE_MIN_ENERGY, V1_KEEPSAKE_MIN_STAGE, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { PLANTS_BY_ID } from '../content/plants';
+import { CARE_TO_RESEARCH, MIGRATION_HARMONY_MINUTES, RESEARCH, RESEARCH_BY_ID } from '../content/research';
+import { MAX_SOWINGS, MAX_SOWING_CARDS } from '../content/sowing';
 import { SPECIES_BY_ID } from '../content/species';
 import { SEASON_IDS, type SeasonId } from '../content/seasons';
 import { GENERA, NICHE_IDS, type Genus, type Tag } from '../content/types';
@@ -15,12 +16,14 @@ import { VISITORS_BY_ID } from '../content/visitors';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { DEFAULT_MAIN_TREE, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
 import {
+  evaluate,
   harmonyMemoryGain,
   nicheSlots,
   plantCost,
   plantSlots,
   regularSlots,
   regularSlotsOf,
+  researchSowing,
   slotBonuses,
   slotEffects,
   stageForWaypoint,
@@ -42,15 +45,24 @@ import {
 import { isDayKey } from './daily';
 import { isValidRngState, normalizeSeed } from './rng';
 import { normalizeElapsed } from './season';
-import { MAX_STAT_COUNT, interludeThreshold, isTreeUnlocked, recordDiscoveries } from './tick';
+import {
+  MAX_STAT_COUNT,
+  interludeThreshold,
+  isTreeUnlocked,
+  recordDiscoveries,
+  researchExcluded,
+  researchRequirementsMet,
+} from './tick';
 import {
   MAX_FOREST_MEMORY,
+  MAX_HARMONY_POINTS,
   SAVE_VERSION,
   createCycle,
   createDaily,
   createFirstSeen,
   createInitialState,
   createLandscape,
+  createResearchPlan,
   createSite,
   createStats,
   dailySeedOf,
@@ -66,6 +78,8 @@ import {
   type LandscapeState,
   type LifetimeStats,
   type PendingEncounter,
+  type ResearchPlan,
+  type SowingState,
   type TimedBonus,
 } from './state';
 
@@ -160,6 +174,8 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   // v15 → v16 (Waldchronik) und robustes Laden ab v16: ganz zuletzt, wenn Landschaft (`ancient`
   // auch aus migrateV13), Gedächtnis, Tagebuch und Zyklus-Nummer feststehen.
   loadChronicles(isRecord(data.meta) ? data.meta.landscape : undefined, state, version);
+  // v16 → v17 (Forschung, 27.9): Startguthaben aus der Harmonie des fertig geladenen Stands.
+  if (version < 17) migrateV16(state);
   return { state, migratedFromV1: false, keepsake: false, memoryReweighted, achievementsBackfilled, landscapeUnlocked: landscapeUnlockedNow };
 }
 
@@ -418,6 +434,19 @@ function migrateV14(state: GameState): void {
 }
 
 /**
+ * v16 → v17 (Forschung, DESIGN_V2.md 27.9), letzter Schritt: Startguthaben
+ * `round(MIGRATION_HARMONY_MINUTES · H)` ⚖️ mit der Harmonie des Stands (Gedächtnisfaktor
+ * nicht mitgerechnet). Wer gerade auf einen Pflege-Rang sparte, hat Samen statt Harmonie – die
+ * Samen bleiben ihm, die Forschung soll nicht bei 0 stehen. Die Pflege-Ränge sind da schon in
+ * Knoten umgebucht (loadCycleExtras, migrateCare) und zählen in H mit; `harmonyEarned` bleibt 0.
+ */
+function migrateV16(state: GameState): void {
+  const h = evaluate(state).harmony;
+  const credit = Number.isFinite(h) && h > 0 ? Math.round(MIGRATION_HARMONY_MINUTES * h) : 0;
+  state.harmonyPoints = Math.min(MAX_HARMONY_POINTS, credit);
+}
+
+/**
  * Waldchronik (DESIGN_V2.md 26.6). Für Stände vor v16 ist das die **Migration v15 → v16**: Jeder
  * Wald bekommt die Kapitel, die sich aus dem Stand ableiten lassen – ohne Datum (`cycle`/`season`
  * null): „Uralt geworden“, falls `ancient`, und „Ein Wald erinnert sich“, falls sein eigenes
@@ -493,7 +522,7 @@ export const PLAY_SECONDS_TOLERANCE = 1e-6;
  * `totalGrowth` (lifetimeGrowth). Baumarten nur bekannte, freigeschaltete (`unlocked`) und
  * je einmal, in gespeicherter Reihenfolge; die aktuelle kommt dazu, falls sie fehlt.
  */
-function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) => boolean): LifetimeStats {
+function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) => boolean, version: number): LifetimeStats {
   const r = isRecord(raw) ? raw : {};
   const amount = (value: unknown) => clampedOr(value, 0, 0, Number.MAX_VALUE);
   const count = (value: unknown) => Math.floor(clampedOr(value, 0, 0, MAX_STAT_COUNT));
@@ -513,6 +542,8 @@ function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) =>
     visitorsHosted: count(r.visitorsHosted),
     plantsPlanted: count(r.plantsPlanted),
     careRanksBought: count(r.careRanksBought),
+    // Seit v17 (gesammelte Harmonie); in älteren Ständen zählt ein solches Feld nicht (27.9).
+    harmonyEarned: version >= 17 ? amount(r.harmonyEarned) : 0,
     // Seit v15 (Wildwechsel-Markierung); ältere Stände setzt migrateV14 auf 0.
     wildwechselChosen: count(r.wildwechselChosen),
     grownTrees,
@@ -535,6 +566,9 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   if (version < 3) state.totalGrowth = v2GrowthToCurrent(state.totalGrowth);
   else if (version < 7) state.totalGrowth = v6GrowthToV7(state.totalGrowth);
   state.seeds = clampedOr(data.seeds, 0, 0, Number.MAX_VALUE);
+  // Seit v17: Harmonie-Vorrat, endlich und ≥ 0 (NaN, negativ, kein Zahl → 0; ±Infinity und zu
+  // groß → MAX_HARMONY_POINTS). Ältere Stände: Startguthaben in migrateV16.
+  state.harmonyPoints = version >= 17 ? clampedOr(data.harmonyPoints, 0, 0, MAX_HARMONY_POINTS) : 0;
   // Wegpunkt und Stufe immer aus dem Gesamt-Wachstum ableiten.
   state.waypoint = waypointsForGrowth(state.totalGrowth);
   state.stage = stageForWaypoint(state.waypoint);
@@ -688,7 +722,9 @@ function loadV2(data: Record<string, unknown>, now: number, version: number): Ga
   state.meta.journal.firstSeen = loadFirstSeen(journal.firstSeen, state);
   // Seit v8: Langzeit-Statistik (ältere Stände: migrateV7 setzt sie).
   const known = { meta: { ...state.meta, journal: { ...state.meta.journal, plants: [...state.meta.journal.plants, ...state.plants] } } };
-  state.meta.stats = loadStats(version >= 8 ? meta.stats : undefined, state, (id) => isTreeUnlocked(known, id));
+  state.meta.stats = loadStats(version >= 8 ? meta.stats : undefined, state, (id) => isTreeUnlocked(known, id), version);
+  // Seit v17: Forschungsplan (ältere Stände: leer, Schalter aus).
+  state.meta.research = version >= 17 ? loadResearchPlan(meta.research) : createResearchPlan();
   // Seit v9: Erfolge – nur bekannte IDs, je einmal, gespeicherte Reihenfolge (ältere Stände:
   // migrateV8). Ob sie erfüllt sind, lässt sich nicht prüfen (frühere Zyklen) – sie bleiben.
   state.meta.achievements =
@@ -1012,21 +1048,112 @@ function loadCycleExtras(raw: Record<string, unknown>, state: GameState, knownPl
     if (ids.length > 0) cycle.forced = { type, ids };
   }
   cycle.interlude = Math.floor(clampedOr(raw.interlude, 0, 0, WAYPOINT_COUNT));
-  // Pflege (Schritt 2.7, additiv in v5): fehlt das Feld, bleibt es leer. Nur bekannte
-  // Maßnahmen, Ränge ganzzahlig und höchstens bis zum letzten Rang, den die aktuelle Stufe
-  // erlaubt. Schließen sich Maßnahmen aus (Lichte/Dichte Krone), bleibt nur die erste in
-  // CARE-Reihenfolge. `requires` gilt bewusst nur beim Kauf, nicht beim Laden.
-  if (isRecord(raw.care)) {
-    for (const measure of CARE) {
-      if (!Object.hasOwn(raw.care, measure.id)) continue;
-      let allowed = 0;
-      while (allowed < measure.ranks.length && measure.ranks[allowed]!.minStage <= state.stage) allowed++;
-      const r = Math.floor(clampedOr(raw.care[measure.id], 0, 0, allowed));
-      if (r <= 0 || (measure.excludes ?? []).some((x) => (cycle.care[x] ?? 0) > 0)) continue;
-      cycle.care[measure.id] = r;
+  // Forschung (seit v17, 27.9): robust laden. Ältere Stände: Pflege-Ränge umbuchen (migrateCare).
+  cycle.research = sanitizeResearch(version >= 17 ? stringArray(raw.research) : migrateCare(raw.care, state.stage), state.stage);
+  // Aussaat (seit v17, 27.6/27.9; Logik ab Phase 10, 2b). Ältere Stände: Zähler = Begleitpflanzen
+  // im Ring (der Preis setzt dort fort, wo der Ring steht), nichts offen.
+  const sowings = raw.sowings;
+  cycle.sowings =
+    version >= 17 && typeof sowings === 'number' && Number.isInteger(sowings) && sowings >= 0 && sowings <= MAX_SOWINGS
+      ? sowings
+      : Math.min(MAX_SOWINGS, state.plants.length);
+  cycle.sowing = version >= 17 ? loadSowing(raw.sowing, state.stage, cycle.research) : null;
+  cycle.freeSowing = version >= 17 ? loadFreeSowing(raw.freeSowing, cycle.seen) : null;
+  state.cycle = cycle;
+}
+
+/**
+ * Migration v16 → v17, Schritt 1 (27.9): Pflege-Ränge (`cycle.care`, ID → Rang) → Knoten nach
+ * CARE_TO_RESEARCH. Ränge wie bis v16 ganzzahlig und höchstens bis zum letzten, den die Stufe
+ * erlaubt (die Knoten tragen die Stufe ihres Rangs); von zwei Kronen bleibt nur die erste in
+ * Tabellen-Reihenfolge (wie bis v16 in CARE-Reihenfolge). Danach werden fehlende
+ * Voraussetzungen geschenkt, soweit ihre Stufe erreicht ist (z. B. Humusschicht → Kompost) –
+ * niemand verliert eine Wirkung, die er schon hat. Ergebnis in RESEARCH-Reihenfolge (jede
+ * Voraussetzung steht dort vor dem Knoten); sanitizeResearch prüft danach wie beim Laden.
+ */
+function migrateCare(raw: unknown, stage: number): string[] {
+  const owned = new Set<string>();
+  if (!isRecord(raw)) return [];
+  const reachable = (id: string) => (RESEARCH_BY_ID.get(id)?.minStage ?? Infinity) <= stage;
+  for (const [careId, nodes] of Object.entries(CARE_TO_RESEARCH)) {
+    if (!Object.hasOwn(raw, careId)) continue;
+    let allowed = 0;
+    while (allowed < nodes.length && reachable(nodes[allowed]!)) allowed++;
+    const ranks = Math.floor(clampedOr(raw[careId], 0, 0, allowed));
+    if (ranks <= 0 || researchExcluded(RESEARCH_BY_ID.get(nodes[0]!)!, [...owned])) continue;
+    for (const id of nodes.slice(0, ranks)) owned.add(id);
+  }
+  // Geschenkte Voraussetzungen (wiederholt: eine geschenkte kann selbst welche brauchen).
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const node of RESEARCH) {
+      if (!owned.has(node.id)) continue;
+      const gift = (id: string) => {
+        if (owned.has(id) || !reachable(id) || researchExcluded(RESEARCH_BY_ID.get(id)!, [...owned])) return;
+        owned.add(id);
+        changed = true;
+      };
+      for (const id of node.requires ?? []) gift(id);
+      const any = node.requiresAny ?? [];
+      if (any.length > 0 && !any.some((id) => owned.has(id))) {
+        const first = any.find((id) => reachable(id) && !researchExcluded(RESEARCH_BY_ID.get(id)!, [...owned]));
+        if (first) gift(first);
+      }
     }
   }
-  state.cycle = cycle;
+  return RESEARCH.filter((n) => owned.has(n.id)).map((n) => n.id);
+}
+
+/**
+ * Erforschte Knoten robust (seit v17, 27.9), in gespeicherter (Kauf-)Reihenfolge: nur bekannte
+ * IDs, je einmal, Stufe erreicht; ein Knoten bleibt nur, wenn seine Voraussetzungen schon vor
+ * ihm stehen (so fällt alles, was an einem verworfenen Knoten hängt, mit) und kein früherer
+ * Knoten ihn ausschließt – von einer Gabel bleibt der zuerst gekaufte Weg. `condition` gilt nur
+ * beim Erforschen (wie bis v16 `requires` der Pflege). Höchstens alle Knoten von RESEARCH.
+ */
+function sanitizeResearch(raw: readonly string[], stage: number): string[] {
+  const out: string[] = [];
+  for (const id of raw) {
+    const node = RESEARCH_BY_ID.get(id);
+    if (!node || out.includes(id) || node.minStage > stage) continue;
+    if (researchExcluded(node, out) || !researchRequirementsMet(node, out)) continue;
+    out.push(id);
+  }
+  return out;
+}
+
+/**
+ * Offene Aussaat robust (seit v17, 27.9): nur bekannte, auf dieser Stufe freigeschaltete Pflanzen,
+ * verschieden, höchstens 3 + Σ `sowCards` der Forschung (≤ MAX_SOWING_CARDS); Würfe ganzzahlig
+ * ≥ 0 (höchstens MAX_REROLLS). Ohne gültige Karte null.
+ */
+function loadSowing(raw: unknown, stage: number, research: readonly string[]): SowingState | null {
+  if (!isRecord(raw)) return null;
+  const max = Math.min(MAX_SOWING_CARDS, CARDS_PER_ENCOUNTER + Math.max(0, Math.floor(researchSowing(research, 'sowCards'))));
+  const cards = unique(stringArray(raw.cards).filter((id) => (PLANTS_BY_ID.get(id)?.unlock ?? Infinity) <= stage)).slice(0, max);
+  if (cards.length === 0) return null;
+  return { cards, rerolls: Math.floor(clampedOr(raw.rerolls, 0, 0, MAX_REROLLS)) };
+}
+
+/**
+ * Geschenkte Aussaat der Vogelsaat (seit v17, 27.9): nur IDs, die ein in diesem Zyklus gezogenes
+ * Ereignis als Pflanzen vorgibt (heute `nextEncounter` mit `type: 'plant'`), je einmal; sonst null.
+ */
+function loadFreeSowing(raw: unknown, seen: readonly string[]): { ids: string[] } | null {
+  if (!isRecord(raw)) return null;
+  const offered = new Set(
+    EVENTS.filter((e) => seen.includes(e.id)).flatMap((e) =>
+      e.options.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'nextEncounter' && x.type === 'plant' ? x.ids : []))),
+    ),
+  );
+  const ids = unique(stringArray(raw.ids).filter((id) => offered.has(id)));
+  return ids.length > 0 ? { ids } : null;
+}
+
+/** Forschungsplan robust (seit v17): bekannte Knoten je einmal, `auto` nur echtes true. */
+function loadResearchPlan(raw: unknown): ResearchPlan {
+  const r = isRecord(raw) ? raw : {};
+  return { plan: unique(stringArray(r.plan).filter((id) => RESEARCH_BY_ID.has(id))), auto: r.auto === true };
 }
 
 /**

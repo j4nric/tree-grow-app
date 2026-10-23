@@ -3,9 +3,9 @@ import { SEASON_SECONDS } from '../src/content/seasons';
 import { STAGES } from '../src/content/stages';
 import { evaluate, evaluateEcosystem, nicheSlots, slotBonuses } from '../src/core/formulas';
 import type { GameState } from '../src/core/state';
-import { buyCare, chooseEventOption, drawAnimals, drawEncounter, eligibleEvents } from '../src/core/tick';
+import { chooseEventOption, research, drawAnimals, drawEncounter, eligibleEvents } from '../src/core/tick';
 import { scenePond, toEcosystemView, toSceneAnimals } from '../src/ui/adapters';
-import { stateAt } from './helpers';
+import { stateAt, researchFor } from './helpers';
 
 /**
  * Erweiterung Amphibien mit Waldtümpel (DESIGN_V2.md 5.5): reine Daten – geprüft wird,
@@ -13,16 +13,16 @@ import { stateAt } from './helpers';
  * Lebensgemeinschaften, Gattungsboni, Ereignisse) sie so umsetzt wie beschrieben.
  */
 
-/** Alter Baum im Frühling, optional mit Pflege-Rängen „Waldtümpel“ und viel Samen. */
+/** Alter Baum im Frühling, optional mit der Forschung „Waldtümpel“ (Ränge wie bis v16). */
 function oldTree(animals: string[] = [], pondRanks = 0, plants: string[] = []): GameState {
   const state = stateAt(4, animals, 7);
   state.plants = [...plants];
-  if (pondRanks > 0) state.cycle.care = { pond: pondRanks };
+  if (pondRanks > 0) state.cycle.research = researchFor({ pond: pondRanks });
   return state;
 }
 
 describe('Waldtümpel (Nische ohne Plätze aus der Stufe)', () => {
-  it('bleibt ohne Pflege oder Ereignis auf jeder Stufe zu – Amphibien werden nicht angeboten', () => {
+  it('bleibt ohne Forschung oder Ereignis auf jeder Stufe zu – Amphibien werden nicht angeboten', () => {
     for (let stage = 0; stage < STAGES.length; stage++) expect(nicheSlots(stage).pond, `Stufe ${stage}`).toBe(0);
     const state = oldTree();
     for (let i = 0; i < 30; i++) {
@@ -31,16 +31,16 @@ describe('Waldtümpel (Nische ohne Plätze aus der Stufe)', () => {
     }
   });
 
-  it('Pflege mit Plätzen: Stammgäste ziehen sofort ein, nicht erst am nächsten Wegpunkt', () => {
+  it('Forschung mit Plätzen: Stammgäste ziehen sofort ein, nicht erst am nächsten Wegpunkt', () => {
     const state = oldTree();
-    state.seeds = 1e6;
+    state.harmonyPoints = 1e6;
     state.meta.regulars = ['toad'];
     state.meta.journal.species.push('toad');
-    const result = buyCare(state, 'pond');
+    // Ohne neue Plätze: kein Feld `regulars`.
+    expect(research(state, 'compost')).not.toHaveProperty('regulars');
+    const result = research(state, 'pond');
     expect(result).toMatchObject({ ok: true, regulars: ['toad'] });
     expect(state.niches.pond).toEqual(['toad']);
-    // Ohne neue Plätze: kein Feld `regulars`.
-    expect(buyCare(state, 'compost')).not.toHaveProperty('regulars');
   });
 
   it('Regen-Tümpel im Jungen Baum: offen, aber leer – Hinweis, ab wann Bewohner kommen', () => {
@@ -53,15 +53,16 @@ describe('Waldtümpel (Nische ohne Plätze aus der Stufe)', () => {
     expect(toEcosystemView(state, evaluate(state)).niches.find((n) => n.id === 'pond')!.unlockHint).toBeUndefined();
   });
 
-  it('Pflege „Waldtümpel“: Rang 1 öffnet 2 Plätze, Rang 2 (Hain) zwei weitere', () => {
+  it('Forschung „Waldtümpel“ öffnet 2 Plätze, „Tümpel vertiefen“ (Hain) zwei weitere', () => {
     const state = oldTree();
-    state.seeds = 1e6;
-    expect(buyCare(state, 'pond').ok).toBe(true);
+    state.harmonyPoints = 1e6;
+    expect(research(state, 'compost').ok).toBe(true);
+    expect(research(state, 'pond').ok).toBe(true);
     expect(evaluate(state).slots.pond).toBe(2);
-    // Rang 2 erst ab dem Hain.
-    expect(buyCare(state, 'pond').ok).toBe(false);
+    // Tümpel vertiefen erst ab dem Hain.
+    expect(research(state, 'pond-deepen').ok).toBe(false);
     state.stage = 5;
-    expect(buyCare(state, 'pond').ok).toBe(true);
+    expect(research(state, 'pond-deepen').ok).toBe(true);
     expect(nicheSlots(state.stage, state.niches, slotBonuses(state)).pond).toBe(4);
   });
 
@@ -69,7 +70,7 @@ describe('Waldtümpel (Nische ohne Plätze aus der Stufe)', () => {
     const closed = oldTree();
     expect(scenePond(evaluate(closed))).toBe(false);
     const closedView = toEcosystemView(closed, evaluate(closed)).niches.find((n) => n.id === 'pond')!;
-    expect(closedView).toMatchObject({ label: 'Waldtümpel', capacity: 0, unlockHint: 'öffnet durch Pflege „Waldtümpel“ (ab „Alter Baum“)' });
+    expect(closedView).toMatchObject({ label: 'Waldtümpel', capacity: 0, unlockHint: 'öffnet durch Forschung „Waldtümpel“ (ab „Alter Baum“)' });
     // Playtest: Ab „Alter Baum“ führt „Zur Pflege“ direkt zur Maßnahme – davor (Junger Baum) nicht.
     expect(closedView.careLink).toBe('pond');
     const young = stateAt(3, [], 3);
@@ -144,7 +145,7 @@ describe('Amphibien im Ökosystem', () => {
     expect(two.traitTiers.amphibians).toBe(1);
     const state = oldTree(['toad', 'frog'], 2);
     state.stage = 5;
-    state.cycle.care = { pond: 2 };
+    state.cycle.research = researchFor({ pond: 2 });
     state.niches.pond.push('newt');
     const three = evaluate(state);
     expect(three.traitTiers.amphibians).toBe(2);

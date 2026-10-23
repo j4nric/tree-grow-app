@@ -21,7 +21,7 @@ import type { MainTreeId } from './trees';
  *   Waldgedächtnis nicht, und das Mittelwetter für offline ist exakt (alles linear).
  * - Raue Lagen (`rough`) tauschen Wachstum gegen Samen. Ihr Abzug wird gedämpft: je
  *   vertretener Gattung um DIVERSITY_DAMPING_PER_GENUS (höchstens DIVERSITY_DAMPING_MAX),
- *   mit der passenden Pflegemaßnahme (`protection`) zusätzlich halbiert.
+ *   mit dem passenden Forschungsknoten (`protection`) zusätzlich halbiert.
  * - Offline (simulateOffline, ab OFFLINE_AVERAGE_MIN_SECONDS) gilt das Mittelwetter der
  *   Jahreszeit statt Einzelwetter, für Nachtarten der Nachtanteil (NIGHT_SHARE).
  * - Samen-Sekunden (Ereignisse, Gäste) rechnen OHNE Wetter, wie ohne Jahreszeit.
@@ -42,7 +42,7 @@ export interface Weather {
   /** Raue Lage: Abzüge werden gedämpft, nie zwei raue Tage hintereinander. */
   rough?: boolean;
   /**
-   * Pflegemaßnahme (ID in care.ts), die ab Rang 1 den Abzug dieser rauen Lage zusätzlich
+   * Forschungsknoten (ID in research.ts), der erforscht den Abzug dieser rauen Lage zusätzlich
    * mit PROTECTION_FACTOR multipliziert.
    */
   protection?: string;
@@ -137,7 +137,7 @@ export const AFTER_ROUGH_WEATHER: WeatherId = 'mild';
 export const DIVERSITY_DAMPING_PER_GENUS = 0.1;
 /** Höchstens so viel Dämpfung durch Vielfalt (ab 5 Gattungen). */
 export const DIVERSITY_DAMPING_MAX = 0.5;
-/** Schutz durch die passende Pflegemaßnahme: Abzug × PROTECTION_FACTOR. */
+/** Schutz durch den passenden Forschungsknoten: Abzug × PROTECTION_FACTOR. */
 export const PROTECTION_FACTOR = 0.5;
 
 /**

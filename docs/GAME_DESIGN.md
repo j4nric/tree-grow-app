@@ -71,28 +71,40 @@
 > Waldtümpel“ (eine Platz-Wirkung in der eigenen Nische machte ihm selbst Platz und öffnete als
 > Stammgast einen geschlossenen Tümpel, 26.3).
 >
-> **Geplant (Phase 10, `DESIGN_V2.md` 27, Spielstand v17):** Begegnungen nur noch mit Tieren
-> (dazu Ereignisse und Gäste), Pflanzen über die **Aussaat** (Samen, `20 · 1,75^(n−1)` 🌰 je
-> Kauf im Zyklus, erste gratis), die Pflege wird ein **Forschungsbaum** (6 Äste, 32 Knoten,
-> 5 Gabeln) mit Kosten in **Harmonie** – die Harmonie wird zur Produktion in ⚖️/min (gleiche
-> Zahl wie heute), die einen Vorrat füllt; der Bonus `1 + p/100` richtet sich nach der
-> Produktion. Vorab-Messung und Ziele: `DESIGN_V2.md` 27.10/27.11. Bis zur Umsetzung gelten die
-> Zahlen oben. Die Daten liegen seit Phase 10, 1a bereit (`src/content/research.ts`: 32 Knoten
-> zu 80–2.500 ⚖️, ein ganzer Weg 21.260 ⚖️, davon 5.630 ⚖️ vor dem Hain; `src/content/sowing.ts`:
-> `SOWING_BASE` 20, `SOWING_GROWTH` 1,75, ab Keimling, Frühling × 0,8, Rabatt höchstens −75 %,
-> höchstens 4 Karten), sind aber noch nicht verdrahtet – es gilt weiter die Pflege aus `care.ts`.
+> **Phase 10 (`DESIGN_V2.md` 27, Spielstand v17):** Begegnungen nur noch mit Tieren (dazu
+> Ereignisse und Gäste), Pflanzen über die **Aussaat** (Samen, `20 · 1,75^(n−1)` 🌰 je Kauf im
+> Zyklus, erste gratis), die Pflege wird ein **Forschungsbaum** (6 Äste, 32 Knoten, 5 Gabeln) mit
+> Kosten in **Harmonie**. Vorab-Messung und Ziele: `DESIGN_V2.md` 27.10/27.11.
 >
-> **Geplant (Phase 10, `DESIGN_V2.md` 27, Spielstand v17):** Begegnungen nur noch mit Tieren
-> (dazu Ereignisse und Gäste), Pflanzen über die **Aussaat** (Samen, `20 · 1,75^(n−1)` 🌰 je
-> Kauf im Zyklus, erste gratis), die Pflege wird ein **Forschungsbaum** (6 Äste, 32 Knoten,
-> 5 Gabeln) mit Kosten in **Harmonie** – die Harmonie wird zur Produktion in ⚖️/min (gleiche
-> Zahl wie heute), die einen Vorrat füllt; der Bonus `1 + p/100` richtet sich nach der
-> Produktion. Vorab-Messung und Ziele: `DESIGN_V2.md` 27.10/27.11. Bis zur Umsetzung gelten die
-> Zahlen oben.
+> **Umgesetzt seit Phase 10, 2a (Spielstand v17):**
+> - **Harmonie als Produktion:** Die Harmonie H heißt jetzt Harmonie-Produktion p (⚖️/min, gleiche
+>   Zahl, gleiche Formel 9.1). Sie füllt den **Vorrat** `harmonyPoints` mit `p/60 · G` ⚖️ je
+>   Sekunde, `G = 1 + 1 % · wirksames Waldgedächtnis` (wie 🌿/🌰, höchstens ×11); online wie
+>   offline (`tick`, `simulateOffline`, bis 8 h). Der **Harmonie-Bonus** bleibt `1 + p/100` auf 🌿
+>   und 🌰 – aus der Produktion, ohne G, Ausgeben senkt ihn nie. H_max, Sperrklinke,
+>   Waldgedächtnis, Chronik und Erfolge rechnen unverändert mit p.
+> - **Forschung statt Pflege:** `cycle.research` (Knoten in Kauf-Reihenfolge) ersetzt
+>   `cycle.care`; ein Knoten wird einmal mit ⚖️ erforscht (`research`, Blocker in der Reihenfolge
+>   unbekannt, erforscht, Stufe, Gabel, Voraussetzung, Bedingung, Vorrat). Wirkungen wie die
+>   Pflege, dazu `happiness` je Gattung (Pilzgarten: Pilze +15 Prozentpunkte). Kosten 80–2.500 ⚖️
+>   je Knoten (`src/content/research.ts`), ein ganzer Weg 21.260 ⚖️, davon 5.630 ⚖️ vor dem Hain.
+>   Waldwiese und Trockenmauer stehen als Knoten in `src/content/habitats.ts`. Wetterschutz
+>   (Waldtümpel, Lichte Krone, Laub) gilt, sobald der gleichnamige Knoten erforscht ist.
+> - **Neuer Zyklus:** Vorrat, Forschung und Aussaat-Zähler beginnen neu; der Forschungsplan
+>   `meta.research.plan` merkt sich die Reihenfolge des letzten Zyklus (folgen: Phase 10, 4b).
+> - **Migration v16 → v17:** Pflege-Ränge → Knoten (`CARE_TO_RESEARCH`), fehlende
+>   Voraussetzungen werden geschenkt (z. B. Humusschicht → Kompost), von zwei Kronen bleibt die
+>   Lichte; Startguthaben `round(10 · H)` ⚖️; Aussaat-Zähler = Begleitpflanzen im Ring.
+> - **Noch nicht (Phase 10, 2b):** Aussaat und „Begegnungen nur mit Tieren“ – bis dahin gibt es
+>   „Etwas keimt“ und „Pflanze setzen“ wie bisher. Die Samen haben darum vorübergehend keine
+>   große Senke mehr (Check-Lauf: Samenbestand beim Hain ~36 min Produktion statt ~8); die
+>   Aussaat bringt sie zurück (Ziel ≤ 15 min, Messung 3a).
+> - **Oberfläche (Notlösung bis 4a):** Der Reiter „Pflege“ listet die Knoten flach (Ast, Wirkung,
+>   „Erforschen (x ⚖️)“, Sperrgrund); im Kopf „⚖️ Vorrat · +Zufluss/min · N erforschbar“.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
-> `scripts/simulate.ts`, `tests/balance.test.ts` (mit Pflege), `tests/balance-cycles.test.ts`
+> `scripts/simulate.ts`, `tests/balance.test.ts` (mit Forschung, bis v16 Pflege), `tests/balance-cycles.test.ts`
 > (mit Neustart in Hain, Wald, Urwald), `tests/seasons-balance.test.ts` und
 > `tests/daily-balance.test.ts` (Einstellungen in `tests/balance-setup.ts`, geteilte
 > Durchgänge in `tests/balance-runs.ts`). Großer Lauf mit allen Tabellen: `npm run balance`.

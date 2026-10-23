@@ -262,7 +262,7 @@ describe('Sichtbarkeit und Zähler', () => {
 
 describe('Spielstand (2a ohne neue Version)', () => {
   it('v14-Stand mit drei Wäldern lädt und bekommt forest-2 und ancient-2 bei der ersten Prüfung (catchUp)', () => {
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
     // Heimatwald 1000 Gedächtnis + Urwald = 12 🪶; Gründungen 3 + 5 = 8.
     const state = withLandscape(0, {
       active: 'carr',

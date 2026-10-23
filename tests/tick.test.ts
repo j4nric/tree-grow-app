@@ -18,7 +18,7 @@ import {
   tick,
 } from '../src/core/tick';
 import { dayIndex, weatherAt, weatherOfDay } from '../src/core/weather';
-import { SPRING_GROWTH, resolveSpecial, stateAt } from './helpers';
+import { SPRING_GROWTH, resolveSpecial, stateAt, researchFor } from './helpers';
 
 /**
  * Feste Wahl-Strategie für Golden Tests: erste Karte mit freiem Platz; sonst die erste
@@ -373,7 +373,7 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     // Hain mit allen drei Lebensräumen aus Pflege: Fuchs ↔ Kaninchen, Natter ↔ Frosch,
     // Falke und Schlingnatter ↔ Echsen, Reptilien im Sommer zufriedener.
     const start = stateAt(5, ['cricket', 'fieldmouse', 'rabbit', 'lizard', 'fox', 'wren', 'slowworm', 'sandlizard', 'grasssnake', 'smoothsnake', 'frog'], 1313);
-    start.cycle.care = { meadow: 2, 'deadwood-pile': 1, 'drystone-wall': 1, pond: 1 };
+    start.cycle.research = researchFor({ meadow: 2, 'deadwood-pile': 1, 'drystone-wall': 1, pond: 1 });
     start.plants = ['hazel', 'hazel'];
     const ev = evaluate(start);
     expect([ev.slots.meadow, ev.slots.deadwood, ev.slots.wall]).toEqual([4, 2, 2]);

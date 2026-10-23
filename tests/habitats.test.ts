@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { CARE, CARE_BY_ID } from '../src/content/care';
+import { RESEARCH, RESEARCH_BY_ID } from '../src/content/research';
 import { COMMUNITIES, COMMUNITIES_BY_ID } from '../src/content/communities';
 import { EVENTS, EVENTS_BY_ID } from '../src/content/events';
-import { HABITAT_CARE, HABITAT_COMMUNITIES, HABITAT_NICHES, HABITAT_SPECIES, REPTILE_TRAITS } from '../src/content/habitats';
+import { HABITAT_RESEARCH, HABITAT_COMMUNITIES, HABITAT_NICHES, HABITAT_SPECIES, REPTILE_TRAITS } from '../src/content/habitats';
 import { NICHES, NICHES_BY_ID } from '../src/content/niches';
 import { PLANTS_BY_ID } from '../src/content/plants';
 import {
@@ -135,44 +135,37 @@ describe('Lebensräume (DESIGN_V2.md 23)', () => {
     }
   });
 
-  it('Pflege öffnet jeden Lebensraum mit mindestens 2 Plätzen; Kosten steigen je Rang mindestens ×2', () => {
-    const measures = [...HABITAT_CARE, CARE_BY_ID.get('deadwood-pile')!];
-    for (const m of HABITAT_CARE) expect(CARE_BY_ID.get(m.id), m.id).toBe(m);
-    expect(unique(CARE.map((m) => m.id))).toBe(true);
+  it('Forschung öffnet jeden Lebensraum mit mindestens 2 Plätzen; Folgeknoten teurer und später', () => {
+    const nodes = [...HABITAT_RESEARCH, RESEARCH_BY_ID.get('deadwood-pile')!, RESEARCH_BY_ID.get('beetle-castle')!];
+    // Die Knoten aus habitats.ts stehen so in RESEARCH (eine Wahrheit).
+    for (const n of HABITAT_RESEARCH) expect(RESEARCH_BY_ID.get(n.id), n.id).toBe(n);
+    expect(unique(RESEARCH.map((n) => n.id))).toBe(true);
+    const slotsIn = (id: string, niche: string) =>
+      RESEARCH_BY_ID.get(id)!.effects.reduce((sum, e) => sum + (e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === niche ? e.effect.amount : 0), 0);
     for (const n of HABITAT_NICHES) {
-      const opener = measures.find((m) =>
-        m.ranks[0]!.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === n.id && e.effect.amount >= 2),
-      );
+      const opener = nodes.find((x) => !(x.requires ?? []).some((r) => slotsIn(r, n.id) > 0) && slotsIn(x.id, n.id) >= 2);
       expect(opener, n.id).toBeDefined();
     }
-    for (const m of measures) {
-      m.ranks.forEach((r, i) => {
-        expect(r.cost, m.id).toBeGreaterThan(0);
-        if (i > 0) {
-          expect(r.cost, m.id).toBeGreaterThanOrEqual(2 * m.ranks[i - 1]!.cost);
-          expect(r.minStage, m.id).toBeGreaterThan(m.ranks[i - 1]!.minStage);
-        }
-      });
+    for (const x of nodes) {
+      for (const r of x.requires ?? []) {
+        const req = RESEARCH_BY_ID.get(r)!;
+        if (!nodes.includes(req)) continue;
+        expect(x.cost, x.id).toBeGreaterThan(req.cost);
+        expect(x.minStage, x.id).toBeGreaterThan(req.minStage);
+      }
     }
-    // Totholzhaufen (erweitert): Rang 1 4.500 🌰 mit Totholz und 2 Plätzen, Rang 2 +1 Platz.
-    const pile = CARE_BY_ID.get('deadwood-pile')!;
-    expect(pile.ranks.map((r) => r.cost)).toEqual([4_500, 14_000]);
-    const pileSlots = pile.ranks.map((r) =>
-      r.effects.reduce((sum, e) => sum + (e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === 'deadwood' ? e.effect.amount : 0), 0),
-    );
-    expect(pileSlots).toEqual([2, 1]);
-    expect(pile.ranks[0]!.effects).toContainEqual({ kind: 'habitat', tag: 'totholz' });
-    // Waldwiese 2.400 / 16.000 🌰, Trockenmauer 12.000 / 36.000 🌰 (23.2; Entwurf 32.000, Rang 2 mindestens ×3).
-    expect(CARE_BY_ID.get('meadow')!.ranks.map((r) => [r.cost, r.minStage])).toEqual([[2_400, 3], [16_000, 5]]);
-    expect(CARE_BY_ID.get('drystone-wall')!.ranks.map((r) => [r.cost, r.minStage])).toEqual([[12_000, 5], [36_000, 6]]);
+    // Totholzhaufen (Alter Baum) mit Totholz und 2 Plätzen, Käferburg (Hain) +1 Platz.
+    expect([slotsIn('deadwood-pile', 'deadwood'), slotsIn('beetle-castle', 'deadwood')]).toEqual([2, 1]);
+    expect(RESEARCH_BY_ID.get('deadwood-pile')!.effects).toContainEqual({ kind: 'habitat', tag: 'totholz' });
+    // Waldwiese / Spätmahd, Trockenmauer / Mauer verlängern (27.7).
+    expect(['meadow', 'meadow-2'].map((id) => [RESEARCH_BY_ID.get(id)!.cost, RESEARCH_BY_ID.get(id)!.minStage])).toEqual([[600, 3], [980, 5]]);
+    expect(['drystone-wall', 'drystone-wall-2'].map((id) => [RESEARCH_BY_ID.get(id)!.cost, RESEARCH_BY_ID.get(id)!.minStage])).toEqual([[730, 5], [2_000, 6]]);
   });
 
   it('Lebensräume kommen nacheinander: Wiese (Junger Baum), Totholzhaufen (Alter Baum), Mauer (Hain)', () => {
     const firstStage = (niche: string) =>
       Math.min(
-        ...CARE.flatMap((m) =>
-          m.ranks.filter((r) => r.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === niche)).map((r) => r.minStage),
-        ),
+        ...RESEARCH.filter((n) => n.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === niche)).map((n) => n.minStage),
       );
     expect([firstStage('meadow'), firstStage('deadwood'), firstStage('wall')]).toEqual([3, 4, 5]);
     // Bewohner sind spätestens dann freigeschaltet, wenn ihr Lebensraum öffnen kann (mindestens einer).

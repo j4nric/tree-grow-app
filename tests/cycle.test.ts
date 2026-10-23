@@ -563,7 +563,10 @@ describe('Stammgäste', () => {
     expect(big.niches).toEqual(small.niches);
     expect(big.pendingEncounters).toEqual(small.pendingEncounters);
     expect(big.rngState).toBe(small.rngState);
-    expect(big.meta).toEqual(small.meta);
+    // Gesammelte Harmonie (v17) wird wie die Samen aufsummiert: gleich bis auf Rundung.
+    expect(big.meta.stats.harmonyEarned / small.meta.stats.harmonyEarned).toBeCloseTo(1, 9);
+    expect(big.harmonyPoints / small.harmonyPoints).toBeCloseTo(1, 9);
+    expect({ ...big.meta, stats: { ...big.meta.stats, harmonyEarned: 0 } }).toEqual({ ...small.meta, stats: { ...small.meta.stats, harmonyEarned: 0 } });
     expect(big.totalGrowth).toBeCloseTo(small.totalGrowth, 6);
     expect(big.seeds).toBeCloseTo(small.seeds, 6);
     // simulateOffline rechnet ab einem Tag mit dem Mittelwetter (DESIGN_V2.md 21.5): online im selben Modus.
@@ -577,8 +580,11 @@ describe('Stammgäste', () => {
     // Spielzeit wie Wachstum nur bis auf Rundung gleich (Schritte enden an anderen Halten).
     expect({ ...offline.cycle, elapsed: 0 }).toEqual({ ...online.cycle, elapsed: 0 });
     expect(offline.cycle.elapsed).toBeCloseTo(online.cycle.elapsed, 6);
-    // Langzeit-Statistik: Zähler, Spielzeit und abgeschlossene Zyklen exakt.
-    expect(offline.meta).toEqual(online.meta);
+    // Langzeit-Statistik: Zähler, Spielzeit und abgeschlossene Zyklen exakt; die gesammelte
+    // Harmonie (v17) wie die Samen bis auf Rundung.
+    expect(offline.meta.stats.harmonyEarned / online.meta.stats.harmonyEarned).toBeCloseTo(1, 9);
+    expect(offline.harmonyPoints / online.harmonyPoints).toBeCloseTo(1, 9);
+    expect({ ...offline.meta, stats: { ...offline.meta.stats, harmonyEarned: 0 } }).toEqual({ ...online.meta, stats: { ...online.meta.stats, harmonyEarned: 0 } });
     expect(offline.totalGrowth).toBeCloseTo(online.totalGrowth, 6);
     expect(offline.seeds).toBeCloseTo(online.seeds, 6);
   });

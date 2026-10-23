@@ -22,7 +22,7 @@ import {
 } from '../src/core/save';
 import { MAX_FOREST_MEMORY, SAVE_VERSION, createInitialState, type GameState } from '../src/core/state';
 import { interludeThreshold, previewNewCycle, recordDiscoveries, tick } from '../src/core/tick';
-import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
+import { downgradeToV16, fakeSpecies, researchFor, stateAt, withFakeSpecies } from './helpers';
 
 /** Gültiger aktueller Stand (SAVE_VERSION) als Rohdaten, einzelne Felder überschreibbar. */
 function rawV4(patch: Record<string, unknown> = {}): string {
@@ -71,7 +71,7 @@ describe('Speichern & Laden v2', () => {
     state.meta.forestMemory = 5;
     // Von Hand geändertes Ökosystem: H_max nachführen wie nach einer Aktion.
     recordDiscoveries(state);
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
     expect(deserialize(serialize(state), 999)).toEqual(state);
     expect(loadGame(serialize(state), 999)).toMatchObject({ migratedFromV1: false, keepsake: false });
   });
@@ -224,12 +224,12 @@ describe('Spielstand v11: Waldtümpel (Erweiterung Amphibien, DESIGN_V2.md 5.5)'
 
   it('Amphibien im Tümpel überstehen den Roundtrip; ohne Platz werden sie beim Laden entlassen', () => {
     const state = stateAt(4, ['earthworm', 'toad', 'newt'], 12);
-    state.cycle.care = { pond: 1 };
+    state.cycle.research = researchFor({ pond: 1 });
     const loaded = deserialize(serialize(state), 0)!;
     expect(loaded.niches.pond).toEqual(['toad', 'newt']);
     // Manipuliert: Tiere im Tümpel ohne Pflege oder Ereignis – kein Absturz, Tümpel leer.
     const noPond = JSON.parse(serialize(state));
-    noPond.cycle.care = {};
+    noPond.cycle.research = researchFor({});
     expect(deserialize(JSON.stringify(noPond), 0)!.niches.pond).toEqual([]);
   });
 });
@@ -242,10 +242,10 @@ describe('Migration v6 → v7 (Wegpunkt-Kurve 3,5 · k^3,5, Balancing 2.10)', ()
     state.plants = ['hazel'];
     state.seeds = 4321;
     state.cycle.elapsed = 1000;
-    state.cycle.care = { 'leaf-litter': 1 };
+    state.cycle.research = researchFor({ 'leaf-litter': 1 });
     state.cycle.interlude = k;
     patch(state);
-    const raw = JSON.parse(serialize(state));
+    const raw = downgradeToV16(JSON.parse(serialize(state)));
     raw.version = 6;
     raw.totalGrowth = v6Threshold(k) + share * (v6Threshold(k + 1) - v6Threshold(k));
     return JSON.stringify(raw);
@@ -262,7 +262,7 @@ describe('Migration v6 → v7 (Wegpunkt-Kurve 3,5 · k^3,5, Balancing 2.10)', ()
     }
   });
 
-  it('alles andere bleibt unverändert: Tiere, Pflanzen, Samen, Jahreszeit, Pflege, Zwischenhalt', () => {
+  it('alles andere bleibt unverändert: Tiere, Pflanzen, Samen, Jahreszeit, Pflege (jetzt Forschung), Zwischenhalt', () => {
     const s = loadGame(rawV6(20, 0.7), 0)!.state;
     expect(s.niches.roots).toEqual(['earthworm']);
     expect(s.niches.litter).toEqual(['robin']);
@@ -270,7 +270,8 @@ describe('Migration v6 → v7 (Wegpunkt-Kurve 3,5 · k^3,5, Balancing 2.10)', ()
     expect(s.plants).toEqual(['hazel']);
     expect(s.seeds).toBe(4321);
     expect(s.cycle.elapsed).toBe(1000);
-    expect(s.cycle.care).toEqual({ 'leaf-litter': 1 });
+    // Pflege bis v16 → Forschung (Migration v16 → v17, 27.9).
+    expect(s.cycle.research).toEqual(['leaf-litter']);
     // Der Zwischenhalt dieses Abschnitts war schon ausgewertet – er kommt nicht noch einmal.
     expect(s.cycle.interlude).toBe(20);
     expect(interludeThreshold(s)).toBe(Infinity);

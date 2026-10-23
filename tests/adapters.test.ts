@@ -70,8 +70,8 @@ describe('toEcosystemView', () => {
     expect(view.niches[3]!.unlockHint).toBe('öffnet bei „Junger Baum“');
     // Höhlen öffnen mit dem Alten Baum – oder früher durch Arten, die Plätze schaffen.
     expect(view.niches[5]!.unlockHint).toMatch(/^öffnet bei „Alter Baum“ – oder früher durch .*Borkenkäfer/);
-    // Der Waldtümpel hat keine Plätze aus der Stufe: Er öffnet durch die gleichnamige Pflege.
-    expect(view.niches[6]!.unlockHint).toBe('öffnet durch Pflege „Waldtümpel“ (ab „Alter Baum“)');
+    // Der Waldtümpel hat keine Plätze aus der Stufe: Er öffnet durch den gleichnamigen Forschungsknoten.
+    expect(view.niches[6]!.unlockHint).toBe('öffnet durch Forschung „Waldtümpel“ (ab „Alter Baum“)');
     expect(view.families.map((f) => [f.id, f.icon, f.count])).toEqual([
       ['birds', '🐦', 0],
       ['insects', '🐝', 0],

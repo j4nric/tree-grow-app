@@ -8,7 +8,7 @@ import { animalBounds, type SceneAnimal } from '../src/render/animals';
 import { makeLayout, placeMainTree } from '../src/render/layout';
 
 /**
- * Lebensräume in der Szene (DESIGN_V2.md 23.8): Mit gekaufter Pflege stehen Waldwiese und
+ * Lebensräume in der Szene (DESIGN_V2.md 23.8): Mit erforschten Knoten stehen Waldwiese und
  * Trockenmauer im Mittelgrund, der Totholzhaufen im Erdschnitt; ein Tippen auf einen
  * Bewohner im Vollbild öffnet seine Haftnotiz, „Im Album ansehen“ die Tierdetails. Die Lage
  * kommt aus denselben Ankerpunkten wie im Renderer (bei reduzierter Bewegung ruhen Tiere
@@ -19,7 +19,7 @@ async function seed(context: BrowserContext): Promise<void> {
   const state = createInitialState(Date.now(), 4242);
   // Hain: alle drei Lebensräume können offen sein.
   state.totalGrowth = waypoint(STAGES[5]!.waypoint) + 1;
-  state.cycle.care = { meadow: 1, 'deadwood-pile': 1, 'drystone-wall': 1 };
+  state.cycle.research = ['meadow', 'leaf-litter', 'deadwood-pile', 'drystone-wall'];
   state.niches.meadow = ['rabbit'];
   state.niches.deadwood = ['weasel'];
   state.niches.wall = ['sandlizard'];

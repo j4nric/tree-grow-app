@@ -9,7 +9,7 @@ import {
   SITE_IDS,
   type SiteId,
 } from '../src/content/landscape';
-import { CARE } from '../src/content/care';
+import { RESEARCH } from '../src/content/research';
 import { PLANTS } from '../src/content/plants';
 import { SEASON_IDS, SEASON_SECONDS } from '../src/content/seasons';
 import { SPECIES } from '../src/content/species';
@@ -95,7 +95,7 @@ function ancientHome(own = 300): GameState {
 
 describe('Spielstand v14: Startwerte', () => {
   it('SAVE_VERSION 14; neuer Stand: nur der Heimatwald, aktiv, ohne Korridore', () => {
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
     const state = stateAt(0);
     expect(state.version).toBe(SAVE_VERSION);
     expect(state.meta.landscape).toEqual({
@@ -624,9 +624,10 @@ describe('Große Zahlen (24.9): kein break_infinity.js', () => {
         sites: SITE_IDS.map((id) => site(id, MAX_FOREST_MEMORY, true)),
         corridors: CORRIDORS.map((c) => c.id),
       });
-      for (const m of CARE) {
-        if ((m.excludes ?? []).some((x) => (state.cycle.care[x] ?? 0) > 0)) continue;
-        state.cycle.care[m.id] = m.ranks.length;
+      // Alle Knoten, an jeder Gabel der erste Weg.
+      for (const n of RESEARCH) {
+        if ((n.excludes ?? []).some((x) => state.cycle.research.includes(x))) continue;
+        state.cycle.research.push(n.id);
       }
       // Pflanzring: die wüchsigste Pflanze, so oft es geht.
       const plant = [...PLANTS].filter((p) => p.unlock <= ANCIENT_STAGE).sort((a, b) => b.growth - a.growth)[0]!;

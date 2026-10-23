@@ -6,9 +6,9 @@ import type { Effect } from '../src/content/types';
 import { appearsContext, evaluate, evaluateEcosystem, nicheSlots, slotBonuses } from '../src/core/formulas';
 import { SAVE_KEY, deserialize, exportCode, importCode, loadGame, serialize, storedSaveIsNewer } from '../src/core/save';
 import { SAVE_VERSION, type GameState } from '../src/core/state';
-import { buyCare, chooseEventOption, drawAnimals, eligibleEvents, startNewCycle } from '../src/core/tick';
+import { chooseEventOption, research, drawAnimals, eligibleEvents, startNewCycle } from '../src/core/tick';
 import { isNewerSchema } from '../src/sync/policy';
-import { stateAt } from './helpers';
+import { downgradeToV16, researchFor, stateAt } from './helpers';
 import { MemoryStorage } from './memory-storage';
 
 /**
@@ -21,7 +21,7 @@ const HABITATS = ['meadow', 'deadwood', 'wall'] as const;
 
 /** Stand im Format v12: ohne die drei Nischen der Lebensräume. */
 function asV12(state: GameState, patch: (raw: Record<string, any>) => void = () => {}): string {
-  const raw = JSON.parse(serialize(state));
+  const raw = downgradeToV16(JSON.parse(serialize(state)));
   raw.version = 12;
   for (const n of HABITATS) delete raw.niches[n];
   patch(raw);
@@ -31,19 +31,19 @@ function asV12(state: GameState, patch: (raw: Record<string, any>) => void = () 
 /** Platz-Boni eines Stands als Wirkungen (für evaluateEcosystem ohne Jahreszeit und Wetter). */
 const slotBonusEffects = (state: GameState): Effect[] => slotBonuses(state).map((b) => ({ kind: 'slot', niche: b.niche, amount: b.amount }));
 
-/** Alter Baum mit viel Samen. */
+/** Spielstand mit viel Harmonie im Vorrat (Forschung, seit v17). */
 function rich(stage: number, animals: string[] = [], seed = 3): GameState {
   const state = stateAt(stage, animals, seed);
-  state.seeds = 1e6;
+  state.harmonyPoints = 1e6;
   return state;
 }
 
 describe('Spielstand v13 (DESIGN_V2.md 23.6)', () => {
   it('aktuelle Version mit den Lebensräumen (seit v13); neue Stände haben die drei Nischen leer', () => {
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
     const state = stateAt(0);
     for (const n of HABITATS) expect(state.niches[n], n).toEqual([]);
-    expect(state.version).toBe(16);
+    expect(state.version).toBe(17);
   });
 
   it('v12 → v13 ohne Pflege: Nischen leer und geschlossen, sonst unverändert', () => {
@@ -61,14 +61,14 @@ describe('Spielstand v13 (DESIGN_V2.md 23.6)', () => {
 
   it('v12 → v13 mit Totholzhaufen Rang 1 (3.500 🌰 bezahlt): Nische leer mit 2 Plätzen, Rang 2 im Hain mit 3', () => {
     const old = stateAt(4, [], 5);
-    old.cycle.care = { 'deadwood-pile': 1 };
+    old.cycle.research = researchFor({ 'deadwood-pile': 1 });
     const loaded = loadGame(asV12(old), 0)!.state;
-    expect(loaded.cycle.care).toEqual({ 'deadwood-pile': 1 });
+    expect(loaded.cycle.research).toEqual(['leaf-litter', 'deadwood-pile']); // seit v17: Forschung
     expect(loaded.niches.deadwood).toEqual([]);
     expect(evaluate(loaded).slots.deadwood).toBe(2);
     expect(nicheSlots(loaded.stage, loaded.niches, slotBonuses(loaded)).deadwood).toBe(2);
     const grove = stateAt(5, [], 5);
-    grove.cycle.care = { 'deadwood-pile': 2 };
+    grove.cycle.research = researchFor({ 'deadwood-pile': 2 });
     expect(evaluate(loadGame(asV12(grove), 0)!.state).slots.deadwood).toBe(3);
   });
 
@@ -104,7 +104,7 @@ describe('Spielstand v13 (DESIGN_V2.md 23.6)', () => {
 
   it('jede Version v2 … v12 lädt ohne Absturz, mit leeren Lebensräumen', () => {
     const base = stateAt(5, ['earthworm', 'robin'], 9);
-    base.cycle.care = { 'deadwood-pile': 1 };
+    base.cycle.research = researchFor({ 'deadwood-pile': 1 });
     for (let version = 2; version <= 12; version++) {
       const loaded = loadGame(asV12(base, (raw) => (raw.version = version)), 0);
       expect(loaded, `v${version}`).not.toBeNull();
@@ -115,7 +115,7 @@ describe('Spielstand v13 (DESIGN_V2.md 23.6)', () => {
 
   it('Roundtrip v13 mit Bewohnern aller drei Lebensräume', () => {
     const state = stateAt(5, ['cricket', 'kestrel', 'wren', 'weasel', 'sandlizard', 'grasssnake'], 4);
-    state.cycle.care = { meadow: 1, 'deadwood-pile': 1, 'drystone-wall': 1 };
+    state.cycle.research = researchFor({ meadow: 1, 'deadwood-pile': 1, 'drystone-wall': 1 });
     const loaded = deserialize(serialize(state), 0)!;
     expect(loaded.niches.meadow).toEqual(['cricket', 'kestrel']);
     expect(loaded.niches.deadwood).toEqual(['wren', 'weasel']);
@@ -125,7 +125,7 @@ describe('Spielstand v13 (DESIGN_V2.md 23.6)', () => {
 
   it('robust: kaputte Nischen, fremde Arten, falsche Nische, Duplikate und zu viele Bewohner', () => {
     const state = stateAt(5, [], 4);
-    state.cycle.care = { meadow: 1, 'drystone-wall': 1 };
+    state.cycle.research = researchFor({ meadow: 1, 'drystone-wall': 1 });
     const raw = JSON.parse(serialize(state));
     raw.niches.meadow = ['cricket', 'cricket', 'gibt-es-nicht', 42, null, 'fieldmouse', 'rabbit', 'lizard'];
     raw.niches.deadwood = 'kein Array';
@@ -136,16 +136,16 @@ describe('Spielstand v13 (DESIGN_V2.md 23.6)', () => {
     expect(loaded.niches.wall).toEqual([]);
     // Alle gespeicherten bekannten Arten haben hier gelebt – auch gekürzte bleiben im Tagebuch.
     for (const id of ['cricket', 'fieldmouse', 'rabbit', 'lizard', 'wren']) expect(loaded.meta.journal.species, id).toContain(id);
-    // Pflege mit NaN, negativ, unbekannt, zu hoch.
-    raw.cycle.care = { meadow: Number.NaN, 'drystone-wall': 99, 'unbekannt': 1, 'deadwood-pile': -3 };
+    // Forschung mit Unbekanntem, zu später Stufe, fehlender Voraussetzung.
+    raw.cycle.research = ['unbekannt', 'drystone-wall', 'drystone-wall-2', 'leaf-litter', 'deadwood-pile'];
     const careLoaded = loadGame(JSON.stringify(raw), 0)!.state;
-    expect(careLoaded.cycle.care).toEqual({ 'drystone-wall': 1 }); // Rang 2 erst ab Wald
+    expect(careLoaded.cycle.research).toEqual(['leaf-litter', 'deadwood-pile']); // Mauer braucht Wiese, Rang 2 erst ab Wald
     expect(careLoaded.niches.meadow).toEqual([]); // ohne Wiese keine Plätze
   });
 
   it('Neuer Zyklus leert die Lebensräume (Pflege beginnt von vorn)', () => {
     const state = stateAt(5, ['cricket', 'wren', 'sandlizard'], 4);
-    state.cycle.care = { meadow: 1, 'deadwood-pile': 1, 'drystone-wall': 1 };
+    state.cycle.research = researchFor({ meadow: 1, 'deadwood-pile': 1, 'drystone-wall': 1 });
     expect(startNewCycle(state, 1000).ok).toBe(true);
     for (const n of HABITATS) expect(state.niches[n], n).toEqual([]);
     expect(evaluate(state).slots).toMatchObject({ meadow: 0, deadwood: 0, wall: 0 });
@@ -159,11 +159,11 @@ describe('Schutz für ältere Clients: „Stand ist neuer“ (DESIGN_V2.md 22.8,
     expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a', schema: SAVE_VERSION }, SAVE_VERSION)).toBe(false);
     // Ein Code dieser Version mit Massenjahr-IDs und Lebensraum-Arten trägt die aktuelle Version (seit v15: 15).
     const state = stateAt(5, ['cricket'], 4);
-    state.cycle.care = { meadow: 1 };
+    state.cycle.research = researchFor({ meadow: 1 });
     state.cycle.seen = ['vole-year'];
     const code = exportCode(state);
     const imported = importCode(code, 0);
-    expect(imported.ok && imported.result.state.version).toBe(16);
+    expect(imported.ok && imported.result.state.version).toBe(17);
     expect(imported.ok && imported.result.state.cycle.seen).toEqual(['vole-year']);
     expect(imported.ok && imported.result.state.niches.meadow).toEqual(['cricket']);
   });
@@ -186,30 +186,33 @@ describe('Schutz für ältere Clients: „Stand ist neuer“ (DESIGN_V2.md 22.8,
 });
 
 describe('Lebensräume im Spiel (DESIGN_V2.md 23.2–23.5)', () => {
-  it('Waldwiese: Pflege ab Junger Baum öffnet 2 Plätze; ihre Arten kommen erst dann als Karten', () => {
+  it('Waldwiese: Forschung ab Junger Baum öffnet 2 Plätze; ihre Arten kommen erst dann als Karten', () => {
     const state = rich(3, [], 11);
     const meadowIds = new Set(['cricket', 'fieldmouse', 'rabbit', 'lizard']);
     for (let i = 0; i < 40; i++) expect(drawAnimals(state).some((id) => meadowIds.has(id))).toBe(false);
-    expect(buyCare(state, 'meadow').ok).toBe(true);
-    expect(state.seeds).toBe(1e6 - 2_400);
+    expect(research(state, 'meadow').ok).toBe(true);
+    expect(state.harmonyPoints).toBe(1e6 - 600);
     expect(evaluate(state).slots.meadow).toBe(2);
     let seen = false;
     for (let i = 0; i < 60 && !seen; i++) seen = drawAnimals(state).some((id) => meadowIds.has(id));
     expect(seen).toBe(true);
-    // Rang 2 erst im Hain.
-    expect(buyCare(state, 'meadow').ok).toBe(false);
+    // Spätmahd erst im Hain.
+    expect(research(state, 'meadow-2').ok).toBe(false);
   });
 
   it('Trockenmauer ab Hain (+2 Plätze, +2 ☀️), Totholzhaufen ab Alter Baum (Totholz, +2 Plätze)', () => {
     const old = rich(4);
-    expect(buyCare(old, 'drystone-wall').ok).toBe(false);
+    expect(research(old, 'meadow').ok).toBe(true);
+    expect(research(old, 'drystone-wall').ok).toBe(false);
+    expect(research(old, 'leaf-litter').ok).toBe(true);
     const light = evaluate(old).light;
-    expect(buyCare(old, 'deadwood-pile').ok).toBe(true);
+    expect(research(old, 'deadwood-pile').ok).toBe(true);
     expect(evaluate(old).slots.deadwood).toBe(2);
     expect(evaluate(old).light).toBe(light);
     const grove = rich(5);
+    expect(research(grove, 'meadow').ok).toBe(true);
     const before = evaluate(grove).light;
-    expect(buyCare(grove, 'drystone-wall').ok).toBe(true);
+    expect(research(grove, 'drystone-wall').ok).toBe(true);
     expect(evaluate(grove).slots.wall).toBe(2);
     expect(evaluate(grove).light).toBe(before + 2);
   });
@@ -223,13 +226,13 @@ describe('Lebensräume im Spiel (DESIGN_V2.md 23.2–23.5)', () => {
     expect(evaluate(state).slots.deadwood).toBe(1);
     expect(state.cycle.habitats).toContain('totholz');
     // Mit Pflege dazu: 2 + 1.
-    state.cycle.care = { 'deadwood-pile': 1 };
+    state.cycle.research = researchFor({ 'deadwood-pile': 1 });
     expect(evaluate(state).slots.deadwood).toBe(3);
   });
 
   it('Reptilien: Gattungsbonus ab 2 (+8 % 🌰), im Sommer +15 % Zufriedenheit, im Winter kein Abzug', () => {
     const state = stateAt(5, ['lizard', 'sandlizard'], 1);
-    state.cycle.care = { meadow: 1, 'drystone-wall': 1 };
+    state.cycle.research = researchFor({ meadow: 1, 'drystone-wall': 1 });
     const spring = evaluate(state);
     expect(spring.genusCounts.reptiles).toBe(2);
     expect(spring.traitTiers.reptiles).toBe(1);
@@ -245,12 +248,12 @@ describe('Lebensräume im Spiel (DESIGN_V2.md 23.2–23.5)', () => {
 
   it('Fuchs ↔ Kaninchen: der Fuchs frisst Kaninchen und hält ihren Fraß klein; ohne Fuchs sind sie ungejagt', () => {
     const alone = stateAt(4, ['rabbit'], 1);
-    alone.cycle.care = { meadow: 1 };
+    alone.cycle.research = researchFor({ meadow: 1 });
     expect(appearsContext(alone).unhunted.has('hasen')).toBe(true);
     const evAlone = evaluate(alone);
     expect(evAlone.foodWeb.find((f) => f.tag === 'hasen')).toMatchObject({ prey: ['rabbit'], hunters: [], state: 'unhunted' });
     const withFox = stateAt(4, ['rabbit', 'fox'], 1);
-    withFox.cycle.care = { meadow: 1 };
+    withFox.cycle.research = researchFor({ meadow: 1 });
     withFox.plants = ['hazel', 'hazel'];
     const ev = evaluate(withFox);
     expect(appearsContext(withFox).unhunted.has('hasen')).toBe(false);
@@ -262,30 +265,30 @@ describe('Lebensräume im Spiel (DESIGN_V2.md 23.2–23.5)', () => {
 
   it('Ringelnatter ↔ Amphibien: satt mit einem Frosch, der nichts verliert; erst eine zweite Natter würde überjagen', () => {
     const state = stateAt(5, ['grasssnake', 'frog'], 1);
-    state.cycle.care = { pond: 1, 'drystone-wall': 1 };
+    state.cycle.research = researchFor({ pond: 1, 'drystone-wall': 1 });
     const ev = evaluate(state);
     expect(ev.foodWeb.find((f) => f.tag === 'amphibien')).toMatchObject({ prey: ['frog'], hunters: ['grasssnake'], state: 'balanced' });
     expect(ev.animals.frog!.overhunt).toBe(0);
     expect(ev.animals.grasssnake!.food).toBe(1);
     // Ohne Amphibien hungert sie (kein Futter), ist aber keine Strafe für andere.
     const hungry = stateAt(5, ['grasssnake'], 1);
-    hungry.cycle.care = { 'drystone-wall': 1 };
+    hungry.cycle.research = researchFor({ 'drystone-wall': 1 });
     expect(evaluate(hungry).animals.grasssnake!.food).toBe(0);
   });
 
   it('Lebensgemeinschaft „Natter am Ufer“: Jäger und Gejagte zusammen bringen +6 ⚖️', () => {
     const state = stateAt(5, ['grasssnake', 'frog', 'newt'], 1);
-    state.cycle.care = { pond: 1, 'drystone-wall': 1 };
+    state.cycle.research = researchFor({ pond: 1, 'drystone-wall': 1 });
     expect(evaluate(state).communities.find((c) => c.id === 'snake-pond')).toMatchObject({ active: true, harmony: 6 });
   });
 
   it('Mäusejahr: auch die Feldmaus ruft Jäger; das Mauswiesel beendet „ungejagt“', () => {
     const mouse = stateAt(4, ['fieldmouse'], 1);
-    mouse.cycle.care = { meadow: 1 };
+    mouse.cycle.research = researchFor({ meadow: 1 });
     mouse.cycle.elapsed = 180 + 1; // Sommer
     expect(eligibleEvents(mouse).map((e) => e.id)).toContain('vole-year');
     const hunted = stateAt(4, ['fieldmouse', 'weasel'], 1);
-    hunted.cycle.care = { meadow: 1, 'deadwood-pile': 1 };
+    hunted.cycle.research = researchFor({ meadow: 1, 'deadwood-pile': 1 });
     hunted.cycle.elapsed = 180 + 1;
     expect(eligibleEvents(hunted).map((e) => e.id)).not.toContain('vole-year');
     // Die Einladung lädt auch das Mauswiesel ein (seine Nische darf noch zu sein).
@@ -299,7 +302,7 @@ describe('Lebensräume im Spiel (DESIGN_V2.md 23.2–23.5)', () => {
     const all = [...SPECIES_BY_ID.keys()];
     for (let stage = 0; stage < STAGES.length; stage++) {
       const state = stateAt(stage, all, 1);
-      state.cycle.care = { meadow: 2, 'deadwood-pile': 2, 'drystone-wall': 2, pond: 2 };
+      state.cycle.research = researchFor({ meadow: 2, 'deadwood-pile': 2, 'drystone-wall': 2, pond: 2 });
       const ev = evaluate(state);
       for (const n of [ev.growth, ev.seeds, ev.harmony, ev.supply]) expect(Number.isFinite(n), `Stufe ${stage}`).toBe(true);
       for (const a of Object.values(ev.animals)) {

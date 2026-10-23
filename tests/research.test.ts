@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CARE, CARE_BY_ID } from '../src/content/care';
+import { CARE_V16 as CARE, CARE_V16_BY_ID as CARE_BY_ID } from './fixtures/care-v16';
 import { CARDS_PER_ENCOUNTER, DECLINE_SEED_SECONDS } from '../src/content/encounters';
 import { EVENTS } from '../src/content/events';
 import { NICHES_BY_ID } from '../src/content/niches';

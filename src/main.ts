@@ -9,13 +9,13 @@ import { createInitialState, type GameState } from './core/state';
 import type { PendingEncounterType } from './core/state';
 import {
   chooseCard,
-  buyCare,
   chooseEventOption,
   declineEncounter,
   farewellVisitor,
   hostVisitor,
   plantSeed,
   rerollEncounter,
+  research,
   newCycleBlocker,
   simulateOffline,
   startNewCycle,
@@ -115,11 +115,12 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   'no-regular-slot': 'Alle Plätze für Stammgäste sind belegt.',
   'wrong-type': 'Das geht bei dieser Begegnung nicht.',
   'no-option': 'Diese Möglichkeit gibt es nicht.',
-  'unknown-care': 'Diese Pflege gibt es nicht.',
-  maxed: 'Diese Pflege ist schon voll ausgebaut.',
-  stage: 'Diese Pflege gibt es erst auf einer späteren Stufe.',
-  excluded: 'Das verträgt sich nicht mit einer anderen Pflege.',
-  requires: 'Dafür fehlt noch etwas im Ökosystem.',
+  'unknown-node': 'Diesen Forschungsknoten gibt es nicht.',
+  owned: 'Das ist schon erforscht.',
+  stage: 'Das lässt sich erst auf einer späteren Stufe erforschen.',
+  excluded: 'Du hast an dieser Gabel den anderen Weg gewählt.',
+  requires: 'Dafür fehlt noch ein anderer Forschungsknoten.',
+  condition: 'Dafür fehlt noch etwas im Ökosystem.',
   'already-active': 'Dieser Gast rastet schon hier.',
 };
 
@@ -131,8 +132,14 @@ const PLANT_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
   closed: 'Der Pflanzring ist noch verschlossen.',
 };
 
-function errorText(error: ActionError, type: PendingEncounterType | undefined): string {
-  return (type === 'plant' ? PLANT_ERROR_TEXTS[error] : undefined) ?? ERROR_TEXTS[error];
+/** Abweichende Texte für die Forschung (bezahlt mit ⚖️ statt 🌰). */
+const RESEARCH_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
+  'too-expensive': 'Nicht genug Harmonie im Vorrat.',
+};
+
+function errorText(error: ActionError, type: PendingEncounterType | 'research' | undefined): string {
+  const special = type === 'plant' ? PLANT_ERROR_TEXTS[error] : type === 'research' ? RESEARCH_ERROR_TEXTS[error] : undefined;
+  return special ?? ERROR_TEXTS[error];
 }
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
@@ -329,7 +336,8 @@ const album = createAlbum({
       },
     },
     plant,
-    buyCare: (id) => act(buyCare(state, id), false),
+    // Reiter „Pflege“ (Notliste der Forschung bis Phase 10, 4a): erforscht einen Knoten.
+    buyCare: (id) => act(research(state, id), false, 'research'),
     newCycle,
     buildCorridor: (id) => {
       // Korridor (DESIGN_V2.md 24.6): jederzeit, ändert das wirksame Gedächtnis.
@@ -386,7 +394,7 @@ function refreshSceneEcosystem(ev: Readonly<Evaluation>, rebuilt: boolean): void
  * `resolves`: Die Begegnung an der Spitze ist bei Erfolg erledigt.
  */
 /** `lead`: eigener Hinweis der Aktion (z. B. Korridor gebaut), vor den übrigen im selben Text. */
-function act(result: ActionResult, resolves: boolean, type?: PendingEncounterType, lead = ''): boolean {
+function act(result: ActionResult, resolves: boolean, type?: PendingEncounterType | 'research', lead = ''): boolean {
   let unlocked: string[] = [];
   let dailyText = '';
   if (result.ok) {

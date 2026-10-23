@@ -1,17 +1,16 @@
 /**
- * Unterseite „Pflegemaßnahme“ (docs/ALBUM_UI.md, A.8 #97 und B.3): vom Namen einer Zeile im
- * Reiter Pflege aus umgeblättert. Zeigt Stimmungstext, die Wirkung des nächsten Rangs
- * („öffnet …“, „schützt vor …“, Vorschau), alle Ränge, die Voraussetzungen mit Haken bzw.
- * Kreuz und den Kaufen-Knopf. Nach einem Kauf bleibt die Seite offen und zeigt den nächsten
- * Rang (bzw. den Stempel „voll ausgebaut“).
+ * Unterseite „Pflegemaßnahme“ (docs/ALBUM_UI.md, A.8 #97 und B.3), seit Spielstand v17 ein
+ * Forschungsknoten (Notlösung bis Phase 10, 4a): vom Namen einer Zeile im Reiter Pflege aus
+ * umgeblättert. Zeigt Stimmungstext, die Wirkung („öffnet …“, „schützt vor …“, Vorschau), die
+ * Voraussetzungen mit Haken bzw. Kreuz, den Harmonie-Vorrat und den Erforschen-Knopf. Nach dem
+ * Erforschen bleibt die Seite offen und zeigt den Stempel „erforscht“.
  *
  * Einmal gebaut; `opened(ref)` füllt sie, `update` zieht nur bei Änderungen nach.
  */
-import { CARE_BY_ID } from '../../../content/care';
+import { RESEARCH_BY_ID } from '../../../content/research';
 import { evaluate, type Evaluation } from '../../../core/formulas';
-import { nextCareRank } from '../../../core/tick';
-import { toCareItemView, type CareItemView } from '../../care-view';
-import { seedsLine } from '../../view-format';
+import { isResearched } from '../../../core/tick';
+import { harmonyWalletText, toCareItemView, type CareItemView } from '../../care-view';
 import { el, setText, srOnly } from '../../dom';
 import { prefersReducedMotion, restartAnimation } from '../../feedback';
 import { hyphenate } from '../../hyphenate';
@@ -29,7 +28,7 @@ const STATUS_TEXT: Record<CareItemView['item']['group'], string> = {
   buyable: 'Jetzt möglich',
   saving: 'Dafür sparen',
   locked: 'Noch nicht möglich',
-  maxed: 'Voll ausgebaut',
+  maxed: 'Erforscht',
 };
 
 const RANK_MARK: Record<'done' | 'next' | 'later', string> = { done: '✓', next: '➜', later: '·' };
@@ -43,7 +42,7 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
   const deps = env.deps;
   const page = createPage({
     kind: 'care-item',
-    title: 'Pflegemaßnahme',
+    title: 'Forschungsknoten',
     number: pageNumber({ ...initialNav('care'), stack: [{ kind: 'care-item', id: '' }] }),
     className: 'album-subpage care-item-page',
   });
@@ -67,7 +66,7 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
 
   // Was der nächste Rang bewirkt
   const effect = el('section', 'care-item-section');
-  const effectTitle = el('h3', 'care-section-title', 'Was der nächste Rang bewirkt');
+  const effectTitle = el('h3', 'care-section-title', 'Was der Knoten bewirkt');
   const pills = el('div', 'care-item-pills');
   const next = el('span', 'care-item-pill care-item-next');
   next.dataset.ref = 'care-item-next';
@@ -102,7 +101,7 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
   buy.dataset.ref = 'care-item-buy';
   const blocker = el('p', 'care-item-blocker');
   blocker.dataset.ref = 'care-item-blocker';
-  const maxed = el('span', 'care-item-maxed', 'voll ausgebaut');
+  const maxed = el('span', 'care-item-maxed', 'erforscht');
   maxed.dataset.ref = 'care-item-maxed';
   const status = srOnly();
   status.setAttribute('role', 'status');
@@ -144,12 +143,14 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
     },
   });
 
-  /** Schlüssel: Rang, Bezahlbarkeit bzw. Fehlbetrag – ändert sich der, wird neu gefüllt. */
+  /** Schlüssel: erforscht, Bezahlbarkeit bzw. Fehlbetrag – ändert sich der, wird neu gefüllt. */
   function itemKey(): string {
     const state = deps.state();
     if (!id) return '';
-    const cost = nextCareRank(state, id)?.cost;
-    return `${state.stage}|${cost === undefined ? '-' : cost <= state.seeds ? '1' : Math.ceil(cost - state.seeds)}`;
+    const cost = RESEARCH_BY_ID.get(id)?.cost;
+    const points = Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0;
+    const afford = cost === undefined || isResearched(state, id) ? '-' : cost <= points ? '1' : Math.ceil(cost - points);
+    return `${state.stage}|${state.cycle.research.join(',')}|${afford}`;
   }
 
   function refresh(now: number, force = false): void {
@@ -158,7 +159,7 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
     checkedAt = now;
     const state = deps.state();
     // Der Vorrat ändert sich laufend – nur der Text, gedrosselt wie die Seite.
-    setText(wallet, seedsLine(state.seeds, 0));
+    setText(wallet, harmonyWalletText(state));
     const ev = evaluate(state);
     const key = itemKey();
     if (!force && ev === shownEval && key === shownKey) return;
@@ -169,10 +170,10 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
   }
 
   function fill(): void {
-    const measure = id ? CARE_BY_ID.get(id) : undefined;
+    const measure = id ? RESEARCH_BY_ID.get(id) : undefined;
     if (!view) {
       // Nicht (mehr) in der Liste, z. B. nach dem Import eines älteren Stands.
-      page.setTitle(measure?.name ?? 'Pflegemaßnahme');
+      page.setTitle(measure?.name ?? 'Forschungsknoten');
       page.setMeta('');
       setText(statusLine, 'Gerade nicht verfügbar');
       for (const part of [flavor, effect, ranksSection, needsSection, footer]) part.hidden = true;
@@ -183,7 +184,7 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
     page.setMeta('');
     setText(icon, item.icon);
     icon.style.setProperty('--tilt', `${careTilt(item.id)}deg`);
-    setText(rank, item.group === 'maxed' ? `Rang ${view.ranks.length}/${view.ranks.length}` : item.rank);
+    setText(rank, item.rank);
     setText(statusLine, item.group === 'buyable' || item.group === 'maxed' ? STATUS_TEXT[item.group] : (item.blocker ?? STATUS_TEXT[item.group]));
     page.element.dataset.group = item.group;
 
@@ -203,7 +204,7 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
     if (previewText.data !== view.preview) previewText.data = view.preview;
     preview.hidden = !view.preview || item.group === 'maxed';
     effect.hidden = pills.hidden && protects.hidden && preview.hidden;
-    setText(effectTitle, item.next ? 'Was der nächste Rang bewirkt' : 'Was sie bewirkt');
+    setText(effectTitle, 'Was der Knoten bewirkt');
 
     // Ränge und Voraussetzungen: wenige Zeilen – neu bauen, wenn sich etwas ändert.
     ranksSection.hidden = view.ranks.length === 0;

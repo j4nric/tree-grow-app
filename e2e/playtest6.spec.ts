@@ -18,7 +18,7 @@ function grove(): GameState {
   state.waypoint = STAGES[GROVE]!.waypoint;
   state.totalGrowth = waypoint(state.waypoint) + 1;
   state.seeds = 5_000;
-  state.cycle.care = { meadow: 1 };
+  state.cycle.research = ['meadow'];
   state.niches.roots = ['earthworm', 'vole'];
   state.niches.meadow = ['fieldmouse'];
   state.meta.journal.species.push('earthworm', 'vole', 'fieldmouse');

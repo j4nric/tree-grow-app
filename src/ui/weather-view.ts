@@ -6,7 +6,7 @@
  * Reine Funktionen ohne DOM – alle Werte kommen aus core/weather.ts; getestet in
  * tests/weather-view.test.ts.
  */
-import { CARE_BY_ID } from '../content/care';
+import { RESEARCH_BY_ID } from '../content/research';
 import { HOME_SITE, LANDSCAPE_SITES_BY_ID, type SiteId } from '../content/landscape';
 import { NOCTURNAL_BY_SPECIES, type Nocturnal } from '../content/daytime';
 import type { TimedEffect } from '../content/events';
@@ -129,9 +129,9 @@ function spokenEffects(effects: readonly TimedEffect[]): string {
     .join(', ');
 }
 
-/** Name einer Pflegemaßnahme (Fallback: ID). */
+/** Name eines Forschungsknotens (Fallback: ID). */
 function careName(id: string): string {
-  return CARE_BY_ID.get(id)?.name ?? id;
+  return RESEARCH_BY_ID.get(id)?.name ?? id;
 }
 
 /** Name eines Hauptbaums (Fallback: ID). */
@@ -160,7 +160,7 @@ export function weatherDampingText(weather: Weather, damping: WeatherDamping, ma
 export function weatherTipText(weather: Weather, damping: WeatherDamping): string | null {
   if (!damping.rough || damping.immune) return null;
   const tips: string[] = [];
-  if (weather.protection && !damping.protectedBy) tips.push(`Pflege „${careName(weather.protection)}“ halbiert den Abzug.`);
+  if (weather.protection && !damping.protectedBy) tips.push(`Forschung „${careName(weather.protection)}“ halbiert den Abzug.`);
   if (damping.diversity < DIVERSITY_DAMPING_MAX) {
     tips.push(
       `Jede Gattung mit Tieren dämpft ihn um ${formatNumber(DIVERSITY_DAMPING_PER_GENUS * 100)} %, höchstens um ${formatNumber(DIVERSITY_DAMPING_MAX * 100)} %.`,
@@ -390,7 +390,7 @@ export function nightRateText(names: readonly string[]): string {
 }
 
 /**
- * Schutz einer Pflegemaßnahme vor rauem Wetter, z. B. „🛡️ Schützt vor 🌬️ Sturm – halbiert
+ * Schutz eines Forschungsknotens vor rauem Wetter, z. B. „🛡️ Schützt vor 🌬️ Sturm – halbiert
  * den Abzug“; null, wenn sie vor nichts schützt.
  */
 export function careProtectionText(careId: string): string | null {
