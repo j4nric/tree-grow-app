@@ -200,7 +200,7 @@ describe('Waldlandschaft: Ereignisse je Waldtyp (24.13, Phase 7, 3e)', () => {
       for (const s of LANDSCAPE_SITES) if (s.id !== HOME_SITE) state.meta.landscape.sites.push(createSite(s.id));
       state.meta.landscape.active = site;
       state.stage = stage;
-      expect(state.cycle.care ?? {}).toEqual({});
+      expect(state.cycle.research).toEqual([]);
       return nicheSlots(stage, state.niches, slotBonuses(state)).wall;
     };
     expect(wallAt('heath', 4)).toBe(0);

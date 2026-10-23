@@ -197,7 +197,7 @@ export interface WeatherDamping {
   genera: number;
   /** Dämpfung durch Vielfalt, 0 … DIVERSITY_DAMPING_MAX (0,3 = Abzug −30 %). */
   diversity: number;
-  /** Schützende Pflegemaßnahme (ID), wenn sie mindestens Rang 1 hat, sonst null. */
+  /** Schützender Forschungsknoten (ID), wenn er erforscht ist, sonst null. */
   protectedBy: string | null;
   /** Hauptbaum ist gegen diese Lage gefeit (Kiefer bei Frost): Abzug entfällt. */
   immune: boolean;
@@ -205,26 +205,24 @@ export interface WeatherDamping {
   factor: number;
 }
 
-/** Ist eine Pflegemaßnahme mindestens auf Rang 1? (Unsinnige Ränge zählen nicht.) */
-function hasCareRank(care: Readonly<Record<string, number>> | undefined, id: string | undefined): boolean {
-  if (id === undefined || !care || !Object.hasOwn(care, id)) return false;
-  const rank = care[id];
-  return typeof rank === 'number' && Number.isFinite(rank) && rank >= 1;
+/** Ist der Knoten erforscht? (Seit v17; bis v16 „Pflegemaßnahme mindestens auf Rang 1“.) */
+function isResearched(research: readonly string[] | undefined, id: string | undefined): boolean {
+  return id !== undefined && Array.isArray(research) && research.includes(id);
 }
 
 /**
- * Dämpfung einer Wetterlage aus Gattungszahl, Pflege und Hauptbaum:
+ * Dämpfung einer Wetterlage aus Gattungszahl, Forschung und Hauptbaum:
  * Abzug × (1 − min(0,5; 0,1 × Gattungen)) × (0,5 mit Schutz); Kiefer bei Frost: 0.
  */
 export function weatherDampingFor(
   weather: Weather,
   genera: number,
-  care: Readonly<Record<string, number>> | undefined,
+  research: readonly string[] | undefined,
   mainTree: string | undefined,
 ): WeatherDamping {
   const g = Number.isFinite(genera) && genera > 0 ? Math.floor(genera) : 0;
   const diversity = Math.min(DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS * g);
-  const protectedBy = weather.rough && hasCareRank(care, weather.protection) ? weather.protection! : null;
+  const protectedBy = weather.rough && isResearched(research, weather.protection) ? weather.protection! : null;
   const immune = !!weather.rough && mainTree !== undefined && (weather.immuneTrees ?? []).some((t) => t === mainTree);
   const factor = !weather.rough ? 1 : immune ? 0 : (1 - diversity) * (protectedBy !== null ? PROTECTION_FACTOR : 1);
   return { rough: !!weather.rough, genera: g, diversity, protectedBy, immune, factor };
@@ -235,7 +233,7 @@ export function weatherDamping(
   state: Pick<GameState, 'niches' | 'cycle'> & WeatherHolder,
   weather: Weather = weatherAt(state),
 ): WeatherDamping {
-  return weatherDampingFor(weather, generaWithAnimals(allAnimals(state)).length, state.cycle.care, state.cycle.mainTree);
+  return weatherDampingFor(weather, generaWithAnimals(allAnimals(state)).length, state.cycle.research, state.cycle.mainTree);
 }
 
 /** Wirkungen einer Wetterlage mit gedämpften Abzügen (Samen bleiben voll). */
@@ -291,7 +289,7 @@ export function weatherProbabilities(
 export function averageWeatherEffectsFor(
   season: SeasonId,
   genera: number,
-  care: Readonly<Record<string, number>> | undefined,
+  research: readonly string[] | undefined,
   mainTree: string | undefined,
   gentle = false,
   site: SiteId = HOME_SITE,
@@ -300,7 +298,7 @@ export function averageWeatherEffectsFor(
   for (const [id, p] of Object.entries(weatherProbabilities(season, gentle, site)) as [WeatherId, number][]) {
     if (!(p > 0)) continue;
     const weather = weatherById(id);
-    for (const e of dampedWeatherEffects(weather, weatherDampingFor(weather, genera, care, mainTree))) {
+    for (const e of dampedWeatherEffects(weather, weatherDampingFor(weather, genera, research, mainTree))) {
       out.push({ ...e, pct: e.pct * p });
     }
   }
@@ -316,7 +314,7 @@ export function averageWeatherEffects(
   return averageWeatherEffectsFor(
     season,
     generaWithAnimals(allAnimals(state)).length,
-    state.cycle.care,
+    state.cycle.research,
     state.cycle.mainTree,
     gentle,
     weatherSiteOf(state),

@@ -427,7 +427,7 @@ describe('Spielstand v16 (26.6)', () => {
   }
 
   it('SAVE_VERSION 16; Roundtrip gleich, zweites Laden ändert nichts', () => {
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
     const state = v16State();
     recordDiscoveries(state);
     const loaded = loadGame(serialize(state), 0)!.state;

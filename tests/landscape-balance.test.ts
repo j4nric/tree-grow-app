@@ -223,7 +223,7 @@ describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', { timeou
         lines.push(`| ${site.icon} ${site.name} | ${season} | ` + WEATHERS.map((w) => (share(w.id) > 0 ? `${(share(w.id) * 100).toFixed(1).replace('.', ',')} %` : '–')).join(' | ') + ` | ${(rough * 100).toFixed(1).replace('.', ',')} % |`);
       });
       const sum = (genera: number, kind: string, group?: string) =>
-        SEASON_IDS.reduce((a, s) => a + averageWeatherEffectsFor(s, genera, {}, 'oak', false, site.id).filter((e) => e.kind === kind && (group === undefined || ('group' in e && e.group === group))).reduce((b, e) => b + e.pct, 0), 0) / 4;
+        SEASON_IDS.reduce((a, s) => a + averageWeatherEffectsFor(s, genera, [], 'oak', false, site.id).filter((e) => e.kind === kind && (group === undefined || ('group' in e && e.group === group))).reduce((b, e) => b + e.pct, 0), 0) / 4;
       year.push(`| ${site.icon} ${site.name} | ${f(sum(0, 'growth'))} | ${f(sum(5, 'growth'))} | ${f(sum(0, 'seeds'))} | ${f(sum(0, 'groupGrowth', 'mosses'))} | ${f(sum(0, 'groupSeeds', 'flowers'))} |`);
     }
     console.log(`${lines.join('\n')}\n\n${year.join('\n')}`);

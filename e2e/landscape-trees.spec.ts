@@ -372,7 +372,8 @@ for (const live of [true, false]) {
         await prepare(context, { eventSource: live });
         const own = createInitialState(Date.now(), 21);
         own.seeds = 400;
-        // Junger Baum: Laubstreu (200 🌰) ist kaufbar.
+        own.harmonyPoints = 400;
+        // Junger Baum: Laubstreu (80 ⚖️) ist erforschbar.
         own.stage = STAGES.findIndex((s) => s.id === 'young-tree');
         own.waypoint = STAGES[own.stage]!.waypoint;
         own.totalGrowth = waypoint(own.waypoint) + 1;
@@ -405,7 +406,7 @@ for (const live of [true, false]) {
         // nächste Aktion will senden, der Server lehnt mit 422 `outdated-client` ab.
         await closeAccount(page);
         await openTab(page, 'pflege');
-        await page.locator('[data-ref="care"] [data-care="leaf-litter"]').getByRole('button', { name: 'Kaufen (200 🌰)' }).click();
+        await page.locator('[data-ref="care"] [data-care="leaf-litter"]').getByRole('button', { name: 'Erforschen (80 ⚖️)' }).click();
         await openCoverPage(page, 'account');
         await expect(sync).toContainText('Neue Spielversion – bitte neu laden', { timeout: 20_000 });
 

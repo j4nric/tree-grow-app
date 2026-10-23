@@ -4,7 +4,7 @@ import { animalPage, expect, niche, openGame, openTab, seedRaw, test, waypoint }
 
 /**
  * Lebensräume (DESIGN_V2.md 23.7 Punkt 5): Waldwiese, Totholzhaufen und Trockenmauer stehen
- * verschlossen in der Übersicht – mit Hinweis und „Zur Pflege“, sobald die Maßnahme in der
+ * verschlossen in der Übersicht – mit Hinweis und „Zur Pflege“, sobald der Knoten in der
  * Liste steht. Offen sind sie Nischen wie alle anderen (Kachel → Tierdetails).
  */
 
@@ -18,20 +18,20 @@ async function seed(context: BrowserContext, patch: (state: ReturnType<typeof cr
   await seedRaw(context, state, 0);
 }
 
-test('Mobil: verschlossene Waldwiese führt mit „Zur Pflege“ zur Maßnahme, nach dem Kauf ist sie offen', async ({ page, context }) => {
+test('Mobil: verschlossene Waldwiese führt mit „Zur Pflege“ zum Knoten, nach dem Erforschen ist sie offen', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seed(context, (state) => {
-    state.totalGrowth = waypoint(6) + 1; // Junger Baum: Waldwiese steht in der Pflege-Liste
-    state.seeds = 5_000;
+    state.totalGrowth = waypoint(6) + 1; // Junger Baum: Waldwiese steht in der Liste
+    state.harmonyPoints = 5_000;
   });
   await openGame(page);
 
   const meadow = niche(page, 'meadow');
   const wall = niche(page, 'wall');
   await expect(meadow).toContainText('🌾 Waldwiese');
-  await expect(meadow).toContainText('öffnet durch Pflege „Waldwiese“ (ab „Junger Baum“)');
+  await expect(meadow).toContainText('öffnet durch Forschung „Waldwiese“ (ab „Junger Baum“)');
   // Die Trockenmauer kommt erst im Hain: Hinweis ja, Knopf noch nicht.
-  await expect(wall).toContainText('öffnet durch Pflege „Trockenmauer“ (ab „Hain“)');
+  await expect(wall).toContainText('öffnet durch Forschung „Trockenmauer“ (ab „Hain“)');
   await expect(wall.locator('[data-ref="niche-care-link"]')).toBeHidden();
   await expect(niche(page, 'deadwood').locator('[data-ref="niche-care-link"]')).toBeHidden();
 
@@ -44,7 +44,8 @@ test('Mobil: verschlossene Waldwiese führt mit „Zur Pflege“ zur Maßnahme, 
   await expect(item.locator('[data-ref="care-opens"]')).toHaveText('Öffnet Lebensraum 🌾 Waldwiese');
 
   await item.locator('[data-buy-care="meadow"]').click();
-  // Rang 2 öffnet nichts mehr – nur noch Plätze.
+  // Erforscht: nichts mehr zu öffnen.
+  await expect(item).toContainText('erforscht');
   await expect(item.locator('[data-ref="care-opens"]')).toBeHidden();
   await openTab(page, 'nischen');
   await expect(meadow).toContainText('0/2 belegt');
@@ -61,7 +62,7 @@ for (const viewport of [
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await seed(context, (state) => {
       state.totalGrowth = waypoint(20) + 1; // Hain
-      state.cycle.care = { 'drystone-wall': 1 };
+      state.cycle.research = ['meadow', 'drystone-wall'];
       state.niches.wall = ['sandlizard'];
       state.meta.journal.species.push('sandlizard');
     });

@@ -9,13 +9,13 @@ import { MAX_ELAPSED } from '../src/core/season';
 import { SAVE_VERSION, createInitialState, createStats, type GameState } from '../src/core/state';
 import {
   MAX_STAT_COUNT,
-  buyCare,
   chooseCard,
   chooseEventOption,
   declineEncounter,
   farewellVisitor,
   hostVisitor,
   plantSeed,
+  research,
   recordDiscoveries,
   simulateOffline,
   startNewCycle,
@@ -58,6 +58,7 @@ describe('Startwerte', () => {
       visitorsHosted: 0,
       plantsPlanted: 0,
       careRanksBought: 0,
+      harmonyEarned: 0,
       wildwechselChosen: 0,
       grownTrees: ['oak'],
     });
@@ -122,7 +123,9 @@ describe('Spielzeit und Wachstum in tick', () => {
       if (mode === 'live') tick(offline, 2 * 3600);
       else simulateOffline(offline, 2 * 3600);
       expect(online.waypoint).toBeGreaterThan(NEW_CYCLE_MIN_STAGE);
-      expect(offline.meta.stats, mode).toEqual(online.meta.stats);
+      // Gesammelte Harmonie (v17) wie die Samen: gleich bis auf Rundung.
+      expect(offline.meta.stats.harmonyEarned / online.meta.stats.harmonyEarned, mode).toBeCloseTo(1, 9);
+      expect(offline.meta.stats, mode).toEqual({ ...online.meta.stats, harmonyEarned: offline.meta.stats.harmonyEarned });
       expect(offline.meta.stats.playSeconds).toBe(online.meta.stats.playSeconds);
       expect(lifetimeGrowth(offline) / lifetimeGrowth(online), mode).toBeCloseTo(1, 12);
     }
@@ -225,12 +228,13 @@ describe('Zähler in den Aktionen', () => {
     expect(s.meta.stats).toMatchObject({ eventsDecided: 1, visitorsHosted: 1, cardsChosen: 0 });
   });
 
-  it('Pflege-Ränge zählen je Kauf', () => {
+  it('erforschte Knoten zählen je Erfolg (Feld `careRanksBought` wie bis v16)', () => {
     const s = stateAt(5, ['earthworm', 'robin'], 1);
-    s.seeds = 1e9;
-    expect(buyCare(s, 'leaf-litter').ok).toBe(true);
-    expect(buyCare(s, 'leaf-litter').ok).toBe(true);
-    expect(buyCare(s, 'gibt-es-nicht').ok).toBe(false);
+    s.harmonyPoints = 1e9;
+    expect(research(s, 'leaf-litter').ok).toBe(true);
+    expect(research(s, 'leaf-litter').ok).toBe(false); // schon erforscht
+    expect(research(s, 'compost').ok).toBe(true);
+    expect(research(s, 'gibt-es-nicht').ok).toBe(false);
     expect(s.meta.stats.careRanksBought).toBe(2);
   });
 
@@ -293,7 +297,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
   }
 
   it('v7 → v8: Startwerte aus dem laufenden Zyklus, Zähler 0, ab Zyklus 2 auch die Eiche', () => {
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
     const s = loadGame(rawV7(), 0)!.state;
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.meta.stats).toEqual({
@@ -305,6 +309,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
       visitorsHosted: 0,
       plantsPlanted: 0,
       careRanksBought: 0,
+      harmonyEarned: 0,
       wildwechselChosen: 0,
       // Jeder erste Zyklus beginnt mit der Stieleiche – sie steht vorn.
       grownTrees: ['oak', 'pine'],
@@ -366,6 +371,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
       visitorsHosted: 0,
       plantsPlanted: 0,
       careRanksBought: 0,
+      harmonyEarned: 0,
       wildwechselChosen: 0,
       grownTrees: ['oak'],
     };
@@ -379,6 +385,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
       visitorsHosted: '__INF__',
       plantsPlanted: null,
       careRanksBought: true,
+      harmonyEarned: '__INF__',
       wildwechselChosen: -1,
       grownTrees: ['oak', 'drache', 'oak', 7, 'beech', 'fir', 'alder'],
     });
@@ -387,6 +394,7 @@ describe('Spielstand v8: Migration v7 → v8 und robustes Laden', () => {
       playSeconds: Number.MAX_VALUE,
       cardsChosen: 3,
       visitorsHosted: MAX_STAT_COUNT,
+      harmonyEarned: Number.MAX_VALUE,
       // Rotbuche ist nicht freigeschaltet (nicht im Tagebuch), Weißtanne und Schwarzerle nicht
       // (Standort nicht gegründet) – keine kann gewachsen sein.
       grownTrees: ['oak'],

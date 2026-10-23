@@ -10,7 +10,6 @@ import {
   NO_WATER_GROUP,
   RARITY_BOOST_POINTS,
 } from '../content/abilities';
-import { CARE, type CareCycleEffect } from '../content/care';
 import { DAY_SECONDS, DAY_START_PHASE, NOCTURNAL_BY_SPECIES } from '../content/daytime';
 import { COMMUNITIES, type CommunityMember } from '../content/communities';
 import { DECLINE_SEED_SECONDS, RARITY_WEIGHTS, REROLL_BASE_COST, REROLL_COST_GROWTH } from '../content/encounters';
@@ -23,6 +22,7 @@ import {
   MEMORY_PER_REGULAR_SLOT,
 } from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
+import { RESEARCH, RESEARCH_BY_ID, type ResearchCycleEffect } from '../content/research';
 import { PLANTS_BY_ID, PLANT_COST_BASE, PLANT_COST_GROWTH, type Plant } from '../content/plants';
 import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, STOCK_BASE, STOCK_RANGE } from '../content/predation';
 import { BASE_HAPPINESS, SPECIES, SPECIES_BY_ID, TAG_NAMES, type Species } from '../content/species';
@@ -127,7 +127,7 @@ export interface Ecosystem {
   /**
    * Wetter des Tages (DESIGN_V2.md 21.3) oder `'average'` = Mittelwetter der Jahreszeit
    * (offline, 21.5; braucht `season`), `'gentle-average'` = dasselbe in der Schonzeit. Wirkungen mit Faktor 1, Abzüge rauer Lagen gedämpft
-   * (Gattungen mit Tier, Pflege `care`, Hauptbaum). Fehlt es, wirkt kein Wetter.
+   * (Gattungen mit Tier, Forschung `research`, Hauptbaum). Fehlt es, wirkt kein Wetter.
    */
   weather?: WeatherId | AverageWeather;
   /**
@@ -136,8 +136,11 @@ export interface Ecosystem {
    * Fehlt er, wirkt keine Nacht.
    */
   night?: number;
-  /** Pflege-Ränge des Zyklus – nur für den Schutz vor rauen Lagen (Wirkungen stecken in extraEffects). */
-  care?: Readonly<Record<string, number>>;
+  /**
+   * Erforschte Knoten des Zyklus (seit v17): Schutz vor rauen Lagen und Wirkung `happiness`
+   * je Gattung (die übrigen Wirkungen stecken schon in extraEffects und habitats).
+   */
+  research?: readonly string[];
   /**
    * Standort des aktiven Waldes (DESIGN_V2.md 24.2): seine Eigenheiten wirken wie die des
    * Hauptbaums ab ihrer Stufe. Seine Merkmale stecken schon in `habitats`. Fehlt er: keine.
@@ -160,7 +163,7 @@ export interface SlotBonus {
 
 /** Laufender Zyklus, soweit evaluate ihn braucht (fehlt er, gibt es keine Zusatz-Wirkungen). */
 export type CycleExtras = Partial<
-  Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats' | 'care' | 'elapsed' | 'mainTree' | 'number' | 'startedAt'>
+  Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats' | 'research' | 'elapsed' | 'mainTree' | 'number' | 'startedAt'>
 >;
 
 /** Daten des Hauptbaums; unbekannte oder fehlende Arten → DEFAULT_MAIN_TREE (Eiche). */
@@ -226,31 +229,75 @@ export function slotBonuses(state: { stage: number; cycle?: CycleExtras; meta?: 
 }
 
 /**
- * Wirkungen der gekauften Pflege-Ränge (DESIGN_V2.md 8.2): je Maßnahme die Ränge
- * 0 … care[id]−1. Unbekannte IDs und unsinnige Ränge zählen nicht.
+ * Wirkungen der erforschten Knoten (DESIGN_V2.md 27.7): `cycle` wie bis v16 die Pflege,
+ * `habitat` als Merkmal, `happiness` je Gattung. Die Aussaat-Wirkungen (`sowCards`, `sowCost`,
+ * `sowFreeReroll`) wirken nur in der Aussaat, nicht hier. Unbekannte IDs zählen nicht, jeder
+ * Knoten höchstens einmal, in RESEARCH-Reihenfolge.
  */
-export function careEffects(care: Readonly<Record<string, number>> | undefined): { effects: CareCycleEffect[]; habitats: Tag[] } {
-  const effects: CareCycleEffect[] = [];
+export function researchEffects(research: readonly string[] | undefined): {
+  effects: ResearchCycleEffect[];
+  habitats: Tag[];
+  happiness: HappinessEffect[];
+} {
+  const effects: ResearchCycleEffect[] = [];
   const habitats: Tag[] = [];
-  if (!care) return { effects, habitats };
-  for (const measure of CARE) {
-    const ranks = Math.min(measure.ranks.length, Math.max(0, Math.floor(finite(care[measure.id] ?? 0))));
-    for (let r = 0; r < ranks; r++) {
-      for (const e of measure.ranks[r]!.effects) {
-        if (e.kind === 'cycle') effects.push(e.effect);
-        else habitats.push(e.tag);
-      }
+  const happiness: HappinessEffect[] = [];
+  if (!research || research.length === 0) return { effects, habitats, happiness };
+  // In fester RESEARCH-Reihenfolge, nicht in Kauf-Reihenfolge: Gleiche Knoten ergeben dieselben
+  // Summen bis aufs letzte Bit (der Cache-Schlüssel kennt nur die Menge).
+  const owned = new Set(research);
+  for (const node of RESEARCH) {
+    if (!owned.has(node.id)) continue;
+    for (const e of node.effects) {
+      if (e.kind === 'cycle') effects.push(e.effect);
+      else if (e.kind === 'habitat') habitats.push(e.tag);
+      else if (e.kind === 'happiness') happiness.push(e);
     }
   }
-  return { effects, habitats };
+  return { effects, habitats, happiness };
 }
 
-/** Zusatz-Wirkungen des Zyklus: Zyklus-Boni, Pflege, aktive Zeit-Boni, Wirkungen bewirteter Gäste. */
+/**
+ * Summe einer Aussaat-Wirkung (`sowCards`: amount, `sowCost`: pct, `sowFreeReroll`: amount)
+ * über die erforschten Knoten. Für die Aussaat (Phase 10, 2b); evaluate liest sie nicht.
+ */
+export function researchSowing(research: readonly string[] | undefined, kind: 'sowCards' | 'sowCost' | 'sowFreeReroll'): number {
+  let sum = 0;
+  for (const id of new Set(research ?? [])) {
+    for (const e of RESEARCH_BY_ID.get(id)?.effects ?? []) {
+      if (e.kind === 'sowCost' && kind === 'sowCost') sum += finite(e.pct);
+      else if ((e.kind === 'sowCards' || e.kind === 'sowFreeReroll') && e.kind === kind) sum += finite(e.amount);
+    }
+  }
+  return sum;
+}
+
+/** Sekunden je Minute: Die Harmonie-Produktion zählt in ⚖️/min (DESIGN_V2.md 27.3). */
+export const HARMONY_PRODUCTION_SECONDS = 60;
+
+/**
+ * Gedächtnisfaktor G des Harmonie-Ertrags (27.3): 1 + 1 % je Punkt wirksames Waldgedächtnis
+ * (wie bei 🌿 und 🌰, FOREST_MEMORY_BONUS), begrenzt auf 0 … MAX_FOREST_MEMORY.
+ */
+export function harmonyIncomeFactor(forestMemory: number): number {
+  return 1 + FOREST_MEMORY_BONUS * Math.min(MAX_FOREST_MEMORY, Math.max(0, finite(forestMemory)));
+}
+
+/**
+ * Ertrag in den Harmonie-Vorrat in ⚖️ je Sekunde (27.3): Produktion p = H (⚖️/min, nie unter 0)
+ * / 60 · G. Der Harmonie-Bonus auf 🌿/🌰 bleibt 1 + H/100 (evaluate) – ohne G, unabhängig vom Vorrat.
+ */
+export function harmonyIncome(harmony: number, forestMemory: number): number {
+  const p = Math.max(0, finite(harmony));
+  return (p / HARMONY_PRODUCTION_SECONDS) * harmonyIncomeFactor(forestMemory);
+}
+
+/** Zusatz-Wirkungen des Zyklus: Zyklus-Boni, Forschung, aktive Zeit-Boni, Wirkungen bewirteter Gäste. */
 export function cycleEffects(cycle: CycleExtras | undefined): Effect[] {
   const out: Effect[] = [];
   if (!cycle) return out;
   for (const b of cycle.bonuses ?? []) out.push(b.effect);
-  out.push(...careEffects(cycle.care).effects);
+  out.push(...researchEffects(cycle.research).effects);
   for (const t of cycle.timed ?? []) if (t.remaining > 0) out.push(t.effect);
   for (const v of cycle.visitors ?? []) {
     const visitor = VISITORS_BY_ID.get(v.id);
@@ -259,9 +306,9 @@ export function cycleEffects(cycle: CycleExtras | undefined): Effect[] {
   return out;
 }
 
-/** Zusätzliche Plätze aus Zyklus-Boni und Pflege (z. B. Sturmnacht: +1 Höhlen & Totholz). */
+/** Zusätzliche Plätze aus Zyklus-Boni und Forschung (z. B. Sturmnacht: +1 Höhlen & Totholz). */
 export function cycleSlotBonuses(cycle: CycleExtras | undefined): SlotBonus[] {
-  return slotBonusesOf([...(cycle?.bonuses ?? []).map((b) => b.effect), ...careEffects(cycle?.care).effects]);
+  return slotBonusesOf([...(cycle?.bonuses ?? []).map((b) => b.effect), ...researchEffects(cycle?.research).effects]);
 }
 
 /** Platz-Wirkungen unter den Zusatz-Wirkungen. */
@@ -291,7 +338,7 @@ export function ecosystemOf(
     // Wirksames Gedächtnis des aktiven Waldes (eigenes + Korridor-Zufluss, 24.6).
     forestMemory: effectiveForestMemory(state),
     extraEffects: cycleEffects(state.cycle),
-    habitats: [...(state.cycle?.habitats ?? []), ...careEffects(state.cycle?.care).habitats, ...siteHabitats(active)],
+    habitats: [...(state.cycle?.habitats ?? []), ...researchEffects(state.cycle?.research).habitats, ...siteHabitats(active)],
     guestGenera: genera,
     ...environmentOf(state.cycle, ambient, active),
     site: active,
@@ -306,7 +353,7 @@ function oldSiteField(state: Pick<GameState, 'stage' | 'meta'>): Pick<Ecosystem,
   return site !== undefined ? { oldSite: site } : {};
 }
 
-type Environment = Pick<Ecosystem, 'season' | 'mainTree' | 'weather' | 'night' | 'care'>;
+type Environment = Pick<Ecosystem, 'season' | 'mainTree' | 'weather' | 'night' | 'research'>;
 
 /**
  * Jahreszeit, Wetter und Nacht (aus der Spielzeit) und Hauptbaum des Zyklus – nur, was
@@ -322,13 +369,13 @@ function environmentOf(cycle: CycleExtras | undefined, ambient: AmbientMode, sit
     if (night > 0) out.night = night;
   }
   if (cycle?.mainTree !== undefined) out.mainTree = mainTreeOf(cycle.mainTree).id;
-  if (cycle?.care !== undefined) out.care = cycle.care;
+  if (cycle?.research !== undefined) out.research = cycle.research;
   return out;
 }
 
 /**
  * Wirkungen des Wetters (21.3/21.5) für ein Ökosystem, Faktor 1: Einzelwetter oder
- * Mittelwetter der Jahreszeit, Abzüge gedämpft nach Gattungen mit Tier, Pflege und Baumart.
+ * Mittelwetter der Jahreszeit, Abzüge gedämpft nach Gattungen mit Tier, Forschung und Baumart.
  */
 function ecosystemWeatherEffects(eco: Ecosystem, animals: readonly Species[]): Effect[] {
   if (eco.weather === undefined) return [];
@@ -336,10 +383,10 @@ function ecosystemWeatherEffects(eco: Ecosystem, animals: readonly Species[]): E
   const tree = eco.mainTree !== undefined ? mainTreeOf(eco.mainTree).id : undefined;
   if (eco.weather === 'average' || eco.weather === 'gentle-average') {
     const gentle = eco.weather === 'gentle-average';
-    return eco.season !== undefined ? averageWeatherEffectsFor(eco.season, genera, eco.care, tree, gentle, eco.site) : [];
+    return eco.season !== undefined ? averageWeatherEffectsFor(eco.season, genera, eco.research, tree, gentle, eco.site) : [];
   }
   const weather = weatherById(eco.weather);
-  return dampedWeatherEffects(weather, weatherDampingFor(weather, genera, eco.care, tree));
+  return dampedWeatherEffects(weather, weatherDampingFor(weather, genera, eco.research, tree));
 }
 
 export interface AnimalStatus {
@@ -692,7 +739,10 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const extraEffects = [...(eco.extraEffects ?? []), ...environment.effects];
   const happinessBonus = {} as Record<Genus, number>;
   for (const g of GENERA) happinessBonus[g] = 0;
-  for (const e of environment.happiness) if (e.genus in happinessBonus) happinessBonus[e.genus] += finite(e.points) / 100;
+  // Dazu die Forschung (27.7, z. B. Pilzgarten: Pilze +15 Prozentpunkte).
+  for (const e of [...environment.happiness, ...researchEffects(eco.research).happiness]) {
+    if (e.genus in happinessBonus) happinessBonus[e.genus] += finite(e.points) / 100;
+  }
   const demand = new Map<Tag, number>();
   for (const a of animals) for (const t of a.food) demand.set(t, (demand.get(t) ?? 0) + 1);
 
@@ -1069,7 +1119,7 @@ function ecosystemKey(state: GameState, ambient: AmbientMode | null): string {
   let key = `${state.stage}|${effectiveForestMemory(state)}|${(state.plants ?? []).join(',')}`;
   key += `|l:${activeSite(landscape)}|g:${giftSites(landscape).join(',')}`;
   // Jahreszeit, Wetter und Nacht nur als Index bzw. ID (nicht `elapsed` – sonst wäre der
-  // Cache jede Sekunde ungültig). Die Dämpfung hängt an Nischen, Pflege und Baumart – alle
+  // Cache jede Sekunde ungültig). Die Dämpfung hängt an Nischen, Forschung und Baumart – alle
   // im Schlüssel.
   if (state.cycle) {
     if (ambient !== null) {
@@ -1088,8 +1138,9 @@ function ecosystemKey(state: GameState, ambient: AmbientMode | null): string {
     key += `|h:${(c.habitats ?? []).join(',')}|v:${(c.visitors ?? []).map((v) => v.id).join(',')}`;
     if ((c.bonuses ?? []).length > 0) key += `|b:${keyJson(c.bonuses.map((b) => b.effect))}`;
     if ((c.timed ?? []).length > 0) key += `|t:${keyJson(c.timed.map((t) => t.effect))}`;
-    const care = Object.entries(c.care ?? {}).filter(([, r]) => r > 0);
-    if (care.length > 0) key += `|c:${care.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([id, r]) => `${id}=${r}`).join(',')}`;
+    // Forschung als Menge (Reihenfolge ändert keine Wirkung).
+    const research = [...new Set(c.research ?? [])].sort();
+    if (research.length > 0) key += `|r:${research.join(',')}`;
   }
   return key;
 }

@@ -19,7 +19,7 @@ import {
 import { HYPHENATION, MIN_HYPHENATED_WORD, SOFT_HYPHEN, hyphenate, stripHyphens } from '../src/ui/hyphenate';
 import { legendEntries, waitingText } from '../src/ui/view-format';
 import type { EncounterView } from '../src/ui/view-model';
-import { stateAt } from './helpers';
+import { stateAt, researchFor } from './helpers';
 
 const CONTENT_MODULES = import.meta.glob('../src/content/*.ts', { eager: true });
 
@@ -44,15 +44,15 @@ describe('Wartende Begegnungen in der Seitenleiste', () => {
   });
 });
 
-describe('Pflege: Rang eindeutig', () => {
-  it('nennt die gekauften Ränge – vor dem Kauf „Rang 0/2“, danach „Rang 1/2“', () => {
-    const state = stateAt(3, [], 1);
-    state.seeds = 1e6;
-    expect(toCareViews(state).find((v) => v.id === 'leaf-litter')!.rank).toBe('Rang 0/2');
-    state.cycle.care = { 'leaf-litter': 1 };
-    expect(toCareViews(state).find((v) => v.id === 'leaf-litter')!.rank).toBe('Rang 1/2');
-    state.cycle.care = { 'leaf-litter': 2 };
-    expect(toCareViews(state).find((v) => v.id === 'leaf-litter')!.rank).toBe('voll ausgebaut');
+describe('Forschung (Notliste im Reiter Pflege): Zustand eindeutig', () => {
+  it('nennt den Ast; erforschte Knoten stehen als „erledigt“ ohne Kosten', () => {
+    const state = stateAt(5, [], 1);
+    state.harmonyPoints = 1e6;
+    expect(toCareViews(state).find((v) => v.id === 'leaf-litter')).toMatchObject({ rank: '🪱 Boden', group: 'buyable' });
+    state.cycle.research = researchFor({ 'leaf-litter': 1 });
+    expect(toCareViews(state).find((v) => v.id === 'leaf-litter')).toMatchObject({ rank: '🪱 Boden', group: 'maxed', cost: null });
+    state.cycle.research = researchFor({ 'leaf-litter': 2 });
+    expect(toCareViews(state).find((v) => v.id === 'humus')).toMatchObject({ group: 'maxed', cost: null });
   });
 });
 

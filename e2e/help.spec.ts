@@ -105,7 +105,7 @@ test('Spielanleitung: Inhaltsverzeichnis, Kapitel mit Zahlen aus dem Spiel, Blä
     ['growth', /\d+ Wegpunkte/],
     ['seasons', 'Jeder Zyklus beginnt im Frühling'],
     ['events', 'höchstens einmal pro Zyklus'],
-    ['care', /\d+ Pflegemaßnahmen/],
+    ['care', /\d+ Knoten in \d+ Ästen/],
   ] as const) {
     await openChapter(page, id);
     await expect(chapterPage(page)).toContainText(text);

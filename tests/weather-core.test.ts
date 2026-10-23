@@ -46,7 +46,7 @@ import {
   weatherSeed,
 } from '../src/core/weather';
 import { generateDailyGoals } from '../src/core/daily';
-import { stateAt } from './helpers';
+import { stateAt, researchFor } from './helpers';
 
 /** Logik für Wetter und Nachtarten (DESIGN_V2.md 21, src/core/weather.ts). Daten: weather.test.ts. */
 
@@ -229,7 +229,7 @@ describe('Regeln (21.2)', () => {
   });
 
   it('Laden: Stand ohne cycle.startedAt rechnet mit 0, ohne Absturz (Wetter braucht keine eigene Version)', () => {
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
     const state = stateAt(4, ['owl'], 5);
     state.cycle.elapsed = 1234;
     const raw = JSON.parse(serialize(state));
@@ -248,27 +248,28 @@ describe('Dämpfung rauer Lagen (21.3)', () => {
   const storm = WEATHERS_BY_ID.get('storm')!;
   const frost = WEATHERS_BY_ID.get('frost')!;
 
-  it('je Gattung mit Tier −10 % des Abzugs, höchstens −50 %; Pflege halbiert; Kiefer nur bei Frost frei', () => {
-    expect(weatherDampingFor(storm, 0, {}, 'oak').factor).toBe(1);
-    expect(weatherDampingFor(storm, 1, {}, 'oak').factor).toBeCloseTo(0.9, 12);
-    expect(weatherDampingFor(storm, 5, {}, 'oak').factor).toBeCloseTo(0.5, 12);
-    expect(weatherDampingFor(storm, 6, {}, 'oak').diversity).toBe(DIVERSITY_DAMPING_MAX);
-    expect(weatherDampingFor(storm, 5, { 'light-crown': 1 }, 'oak')).toMatchObject({
+  it('je Gattung mit Tier −10 % des Abzugs, höchstens −50 %; Forschung halbiert; Kiefer nur bei Frost frei', () => {
+    expect(weatherDampingFor(storm, 0, [], 'oak').factor).toBe(1);
+    expect(weatherDampingFor(storm, 1, [], 'oak').factor).toBeCloseTo(0.9, 12);
+    expect(weatherDampingFor(storm, 5, [], 'oak').factor).toBeCloseTo(0.5, 12);
+    expect(weatherDampingFor(storm, 6, [], 'oak').diversity).toBe(DIVERSITY_DAMPING_MAX);
+    expect(weatherDampingFor(storm, 5, ['nest-boxes', 'light-crown'], 'oak')).toMatchObject({
       protectedBy: 'light-crown',
       factor: 0.5 * PROTECTION_FACTOR,
     });
-    // Falsche Maßnahme schützt nicht; Rang 0, NaN oder negativ zählen nicht.
-    const cares: Record<string, number>[] = [{ pond: 2 }, { 'light-crown': 0 }, { 'light-crown': NaN }, { 'light-crown': -1 }];
-    for (const care of cares) {
-      expect(weatherDampingFor(storm, 0, care, 'oak').protectedBy, JSON.stringify(care)).toBeNull();
+    // Falscher Knoten schützt nicht; der andere Weg der Gabel (Dichte Krone) auch nicht.
+    const researched: string[][] = [['pond', 'pond-deepen'], ['nest-boxes', 'dense-crown'], []];
+    for (const research of researched) {
+      expect(weatherDampingFor(storm, 0, research, 'oak').protectedBy, JSON.stringify(research)).toBeNull();
     }
-    expect(weatherDampingFor(frost, 0, {}, 'pine')).toMatchObject({ immune: true, factor: 0 });
-    expect(weatherDampingFor(storm, 0, {}, 'pine')).toMatchObject({ immune: false, factor: 1 });
+    expect(weatherDampingFor(storm, 0, undefined, 'oak').protectedBy).toBeNull();
+    expect(weatherDampingFor(frost, 0, [], 'pine')).toMatchObject({ immune: true, factor: 0 });
+    expect(weatherDampingFor(storm, 0, [], 'pine')).toMatchObject({ immune: false, factor: 1 });
     // Ruhige Lagen: immer Faktor 1. Unsinnige Gattungszahlen zählen als 0.
-    expect(weatherDampingFor(WEATHERS_BY_ID.get('rain')!, 6, { 'light-crown': 1 }, 'pine')).toMatchObject({ rough: false, factor: 1 });
-    expect(weatherDampingFor(storm, NaN, {}, 'oak').factor).toBe(1);
-    expect(weatherDampingFor(storm, -3, {}, 'oak').factor).toBe(1);
-    expect(weatherDampingFor(storm, 1e300, {}, 'oak').factor).toBeCloseTo(0.5, 12);
+    expect(weatherDampingFor(WEATHERS_BY_ID.get('rain')!, 6, ['nest-boxes', 'light-crown'], 'pine')).toMatchObject({ rough: false, factor: 1 });
+    expect(weatherDampingFor(storm, NaN, [], 'oak').factor).toBe(1);
+    expect(weatherDampingFor(storm, -3, [], 'oak').factor).toBe(1);
+    expect(weatherDampingFor(storm, 1e300, [], 'oak').factor).toBeCloseTo(0.5, 12);
   });
 
   it('Gattungen: nur echte Tiere, je Gattung einmal („zählt als Vogel“ und Gäste nicht)', () => {
@@ -291,7 +292,7 @@ describe('Dämpfung rauer Lagen (21.3)', () => {
     expect(live.avgHappiness).toBe(off.avgHappiness);
     expect(live.growth).toBeLessThan(off.growth);
     expect(live.seeds).toBeGreaterThan(off.seeds);
-    state.cycle.care = { 'light-crown': 1 };
+    state.cycle.research = researchFor({ 'light-crown': 1 });
     expect(evaluate(state).growthBonus - evaluate(state, 'off').growthBonus).toBeCloseTo(-0.0675, 12);
     expect(sumPct(weatherEffects(state), 'growth')).toBeCloseTo(-6.75, 12);
   });
@@ -417,7 +418,7 @@ describe('Nacht (21.4, 21.6)', () => {
 describe('Mittel offline (21.5)', () => {
   it('Mittelwetter = Σ p_eff × gedämpfte Wirkung', () => {
     const state = stateAt(5, ['vole'], 4);
-    state.cycle.care = { 'leaf-litter': 1 };
+    state.cycle.research = researchFor({ 'leaf-litter': 1 });
     for (const season of SEASON_IDS) {
       const p = weatherProbabilities(season);
       let growth = 0;
@@ -659,7 +660,7 @@ describe('Cache und Samen-Sekunden (21.9)', () => {
     // Pflege-Schutz ist im Schlüssel (über die Pflege-Ränge).
     state.cycle.elapsed = d1 * SEASON_SECONDS + 5;
     const unprotected = evaluate(state).growthBonus;
-    state.cycle.care = { 'light-crown': 1 };
+    state.cycle.research = researchFor({ 'light-crown': 1 });
     expect(evaluate(state).growthBonus).toBeGreaterThan(unprotected);
   });
 

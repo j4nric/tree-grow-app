@@ -4,21 +4,23 @@
  * - **Gerade wirksam:** aktive Boni aus Ereignissen und Gästen mit Restzeit und
  *   schrumpfendem Washi-Balken; Wirkungen bis zum Neuen Zyklus darunter. Fehlt, wenn nichts
  *   wirkt.
- * - **Pflegemaßnahmen:** sortiert kaufbar → sparen → gesperrt → ausgebaut (careOrder). Die
+ * - **Forschung** (seit Spielstand v17 eine flache Notliste, DESIGN_V2.md 27.7; der Baum folgt
+ *   in Phase 10, 4a): sortiert erforschbar → sparen → gesperrt → erforscht (careOrder). Die
  *   Reihenfolge bleibt stehen, solange Zeiger oder Tastaturfokus in der Liste sind oder ein
  *   Kauf weniger als CARE_HOLD_MS her ist. Jede Zeile: Symbol, Name (→ U:Pflegemaßnahme),
- *   Rang, Wirkung, „öffnet …“, Vorschau, Sperrgrund und „Kaufen (x)“.
- * - Kennzahl im Kopf („2 kaufbar“), Punkt am Reiter, wenn etwas kaufbar ist (`badge`).
+ *   Ast, Wirkung, „öffnet …“, Vorschau, Sperrgrund und „Erforschen (x ⚖️)“.
+ * - Kennzahl im Kopf (Vorrat, Zufluss, „2 erforschbar“), Punkt am Reiter, wenn etwas
+ *   erforschbar ist (`badge`).
  * - `reveal(id)` (von „Zur Pflege“): Zeile zeigen, Fokus auf den Namen, Aufleuchten.
  *
  * DOM einmal je Maßnahme bauen; `update` setzt nur Texte, Klassen und Reihenfolge.
  */
-import { CARE } from '../../../content/care';
+import { RESEARCH } from '../../../content/research';
 import { evaluate, type Evaluation } from '../../../core/formulas';
 import type { GameState } from '../../../core/state';
-import { nextCareRank } from '../../../core/tick';
+import { isResearched } from '../../../core/tick';
 import { activeBonusViews, toCareViews } from '../../adapters';
-import { CARE_GROUP_LABELS, CARE_HOLD_MS, barWidth, careOrder, carePreviewText, careSummaryText, careTabDot } from '../../care-view';
+import { CARE_GROUP_LABELS, CARE_HOLD_MS, barWidth, careOrder, carePreviewText, careSummaryText, careTabDot, harmonyWalletText } from '../../care-view';
 import { el, setText, setVar, srOnly } from '../../dom';
 import { prefersReducedMotion, restartAnimation } from '../../feedback';
 import { hyphenate } from '../../hyphenate';
@@ -43,21 +45,21 @@ export function careTilt(id: string): number {
   return (Math.abs(h) % 9) - 4;
 }
 
-/** Schlüssel, der sich ändert, sobald sich Bezahlbarkeit oder Fehlbetrag einer Maßnahme ändern. */
+/** Schlüssel, der sich ändert, sobald sich Bezahlbarkeit oder Fehlbetrag eines Knotens ändern. */
 function affordKey(state: GameState): string {
-  let key = `${state.stage}|`;
-  for (const m of CARE) {
-    const cost = nextCareRank(state, m.id)?.cost;
-    key += (cost === undefined ? '-' : cost <= state.seeds ? '1' : Math.ceil(cost - state.seeds)) + ',';
+  let key = `${state.stage}|${state.cycle.research.join(',')}|`;
+  const points = Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0;
+  for (const n of RESEARCH) {
+    key += (isResearched(state, n.id) ? '-' : n.cost <= points ? '1' : Math.ceil(n.cost - points)) + ',';
   }
   return key;
 }
 
 const GROUP_SR: Record<CareView['group'], string> = {
-  buyable: 'nächster Rang kaufbar',
-  saving: 'zu wenig Samen für den nächsten Rang',
+  buyable: 'erforschbar',
+  saving: 'zu wenig Harmonie',
   locked: 'gesperrt',
-  maxed: 'voll ausgebaut',
+  maxed: 'erforscht',
 };
 
 interface Row {
@@ -92,16 +94,16 @@ export function createCarePage(env: PageEnv): CarePage {
   active.hidden = true;
   active.firstElementChild!.setAttribute('aria-hidden', 'true');
 
-  // --- Pflegemaßnahmen -------------------------------------------------------------------
+  // --- Forschung (Notliste) ----------------------------------------------------------------
   const section = el('section', 'care-measures');
   section.dataset.ref = 'care';
   section.setAttribute('aria-labelledby', 'care-measures-title');
-  const listTitle = el('h3', 'care-section-title', 'Pflegemaßnahmen');
+  const listTitle = el('h3', 'care-section-title', 'Forschung');
   listTitle.id = 'care-measures-title';
   const hint = el('p', 'care-hint', 'Tippe auf einen Namen, um umzublättern.');
-  const empty = el('p', 'care-empty', 'Noch gibt es nichts zu pflegen – die ersten Maßnahmen kommen, wenn der Baum wächst.');
+  const empty = el('p', 'care-empty', 'Noch gibt es nichts zu erforschen – die ersten Knoten kommen, wenn der Baum wächst.');
   const list = el('ul', 'care-list');
-  list.setAttribute('aria-label', 'Pflegemaßnahmen');
+  list.setAttribute('aria-label', 'Forschung');
   // Statuszeile für Screenreader: Bestätigung nach dem Kauf (die schwebende ist verborgen).
   const status = srOnly();
   status.setAttribute('role', 'status');
@@ -223,7 +225,7 @@ export function createCarePage(env: PageEnv): CarePage {
     li.dataset.group = view.group;
     setText(row.nameText, hyphenate(view.name));
     setText(row.groupSr, view.group === 'maxed' ? '' : ` (${GROUP_SR[view.group]})`);
-    setText(row.rank, view.group === 'maxed' ? '✓ voll ausgebaut' : view.rank);
+    setText(row.rank, view.group === 'maxed' ? `✓ erforscht · ${view.rank}` : view.rank);
     setText(row.next, view.next ?? '');
     row.next.hidden = !view.next;
     setText(row.opens, view.opens ?? '');
@@ -278,13 +280,28 @@ export function createCarePage(env: PageEnv): CarePage {
       row.li.classList.toggle('care-group-start', group !== previous && previous !== null);
       previous = group;
     }
-    page.setMeta(careSummaryText(views));
+    updateMeta(true);
     empty.hidden = views.length > 0;
     hint.hidden = views.length === 0;
-    // Kaufen-Knopf nach dem letzten Rang verschwunden: Fokus auf den Namen der Maßnahme.
+    // Erforschen-Knopf nach dem Kauf verschwunden: Fokus auf den Namen des Knotens.
     if (focused instanceof HTMLButtonElement && focused.dataset.buyCare && focused.hidden) {
       rows.get(focused.dataset.buyCare)?.name.focus({ preventScroll: true });
     }
+  }
+
+  /**
+   * Kopf: Harmonie-Vorrat mit Zufluss und „N erforschbar“. Der Vorrat wächst laufend – auch
+   * wenn sich keine Zeile ändert –, darum gedrosselt wie die übrigen Zahlen neu gesetzt.
+   */
+  let metaText = '';
+  let metaAt = -Infinity;
+  function updateMeta(force = false, now = performance.now()): void {
+    if (!force && now - metaAt < REFRESH_MS) return;
+    metaAt = now;
+    const text = [harmonyWalletText(deps.state()), careSummaryText(views)].filter(Boolean).join(' · ');
+    if (text === metaText) return;
+    metaText = text;
+    page.setMeta(text);
   }
 
   /** Bestätigung: schwebender Text über dem Knopf, dazu die Statuszeile für Screenreader. */
@@ -386,6 +403,7 @@ export function createCarePage(env: PageEnv): CarePage {
       if (force) checkedAt = bonusAt = -Infinity;
       ensureViews(now);
       render();
+      updateMeta(force, now);
       updateBonuses(now);
     },
     badge(now) {

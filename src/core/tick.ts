@@ -11,7 +11,7 @@ import {
   PLANT_WEIGHT_RING_FULL,
   SCRIPTED_ENCOUNTERS,
 } from '../content/encounters';
-import { CARE_BY_ID, type CareMeasure, type CareRank } from '../content/care';
+import { RESEARCH_BY_ID, type ResearchNode } from '../content/research';
 import { EVENTS, EVENTS_BY_ID, type GameEvent } from '../content/events';
 import { WEATHER_EVENT_FACTORS } from '../content/predation';
 import { JOURNAL_SPECIES_WEIGHT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
@@ -51,6 +51,7 @@ import {
   ecosystemOf,
   evaluateEcosystem,
   evaluate,
+  harmonyIncome,
   nextPlantCost,
   nicheSlots,
   nichesAfterChoice,
@@ -74,6 +75,7 @@ import {
   ANCIENT_STAGE,
   activeSite,
   corridorBetween,
+  effectiveForestMemory,
   effectiveMemoryOf,
   featuredGenera,
   isSiteAncient,
@@ -100,6 +102,7 @@ import { GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, type WeatherId } from '../con
 import { dayIndex, nextNightChange, secondsToNightChange, weatherOfDay, weatherSeed, weatherOfDayFromSeed, weatherSiteOf, type AmbientMode, type WeatherHolder } from './weather';
 import {
   MAX_FOREST_MEMORY,
+  MAX_HARMONY_POINTS,
   allAnimals,
   createCycle,
   createSite,
@@ -183,6 +186,8 @@ export interface OfflineReport extends TickReport {
   averaged: boolean;
   growth: number;
   seeds: number;
+  /** Zufluss in den Harmonie-Vorrat (⚖️, DESIGN_V2.md 27.3) – für „+840 ⚖️“ in der Rückkehr-Meldung. */
+  harmony: number;
 }
 
 /** Restdauern ab hier gelten als abgelaufen (Rundung bei vielen kleinen Ticks). */
@@ -236,6 +241,9 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
   const chronicleSite = state.meta.landscape ? siteEntry(state.meta.landscape, activeSite(state.meta.landscape)) : undefined;
   const before = chronicleSite?.chronicle?.length ?? 0;
   const mode: AmbientMode = ambient === 'live' && dt > MAX_LIVE_SECONDS ? 'average' : ambient;
+  // Gedächtnisfaktor des Harmonie-Ertrags (27.3): ändert sich nur beim Neuen Zyklus und beim
+  // Korridorbau, also nie innerhalb eines Ticks.
+  const memory = effectiveForestMemory(state);
   // Kaputte Spielzeit (NaN, negativ, zu groß) nicht weiterschleppen.
   state.cycle.elapsed = normalizeElapsed(state.cycle.elapsed);
   let remaining = dt;
@@ -268,6 +276,8 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     if (Math.abs(toNight - remaining) <= SEASON_SNAP_SECONDS) toNight = remaining;
     const step = Math.min(remaining, toNext, toInterlude, toExpiry, toSeason, toNight);
     state.seeds = capped(state.seeds + ev.seeds * step);
+    // Harmonie-Vorrat (27.3): Produktion konstant bis zum nächsten Halt – wie die Samen.
+    addHarmonyPoints(state, harmonyIncome(ev.harmony, memory) * step);
     remaining -= step;
     countDown(state, step, report);
     // Spielzeit zuerst: Fällt die Grenze mit einem Wegpunkt zusammen, sieht die Begegnung
@@ -304,6 +314,20 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     for (const e of chronicleSite.chronicle.slice(before)) report.chapters.push({ site: chronicleSite.id, chapter: e.chapter });
   }
   return report;
+}
+
+/**
+ * Bucht Harmonie in den Vorrat (höchstens MAX_HARMONY_POINTS) und in die Statistik
+ * `harmonyEarned` (nur, was wirklich ankam). Kaputte Werte (NaN, fehlend) zählen als 0.
+ */
+function addHarmonyPoints(state: GameState, amount: number): void {
+  if (!(amount > 0)) return;
+  const before = Number.isFinite(state.harmonyPoints) && state.harmonyPoints > 0 ? state.harmonyPoints : 0;
+  const after = Math.min(MAX_HARMONY_POINTS, before + amount);
+  state.harmonyPoints = after;
+  const stats = state.meta.stats;
+  const earned = Number.isFinite(stats.harmonyEarned) && stats.harmonyEarned > 0 ? stats.harmonyEarned : 0;
+  stats.harmonyEarned = capped(earned + Math.max(0, after - before));
 }
 
 /** Obergrenze der Zähler in `meta.stats` (bleiben ganzzahlig). */
@@ -357,11 +381,14 @@ function skipYears(state: GameState, remaining: number, report: TickReport, mode
   const eco = ecosystemOf(state, {}, mode);
   let growth = 0;
   let seeds = 0;
+  let harmonyPoints = 0;
   const harmonies: number[] = [];
+  const memory = effectiveForestMemory(state);
   for (const id of SEASON_IDS) {
     const ev = evaluateEcosystem({ ...eco, season: id });
     growth += (ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth : 0) * SEASON_SECONDS;
     seeds += ev.seeds * SEASON_SECONDS;
+    harmonyPoints += harmonyIncome(ev.harmony, memory) * SEASON_SECONDS;
     harmonies.push(ev.harmony);
   }
   // Wegpunkt und Zwischenhalt: nur Jahre, nach denen die Schwelle noch nicht erreicht ist.
@@ -370,6 +397,7 @@ function skipYears(state: GameState, remaining: number, report: TickReport, mode
   }
   if (!(years >= 1)) return 0;
   state.seeds = capped(state.seeds + seeds * years);
+  addHarmonyPoints(state, harmonyPoints * years);
   state.totalGrowth = capped(state.totalGrowth + growth * years);
   state.cycle.elapsed = elapsed + years * YEAR_SECONDS;
   countDown(state, years * YEAR_SECONDS, report);
@@ -506,11 +534,19 @@ export function simulateOffline(state: GameState, seconds: number): OfflineRepor
   const total = Number.isFinite(seconds) ? Math.min(Math.max(seconds, 0), MAX_OFFLINE_SECONDS) : 0;
   const growthBefore = state.totalGrowth;
   const seedsBefore = state.seeds;
+  const harmonyBefore = Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0;
   // Ab einem Tag Abwesenheit: Mittelwetter und halbe Nachtwirkung (DESIGN_V2.md 21.5);
   // kürzere Lücken (Tab kurz verdeckt) wie online.
   const averaged = total >= OFFLINE_AVERAGE_MIN_SECONDS;
   const report = tick(state, total, averaged ? 'average' : 'live');
-  return { ...report, seconds: total, averaged, growth: state.totalGrowth - growthBefore, seeds: state.seeds - seedsBefore };
+  return {
+    ...report,
+    seconds: total,
+    averaged,
+    growth: state.totalGrowth - growthBefore,
+    seeds: state.seeds - seedsBefore,
+    harmony: Math.max(0, state.harmonyPoints - harmonyBefore),
+  };
 }
 
 /** Automatisches Ablehnen am Wegpunkt: Samen wie beim Ablehnen von Hand, im Bericht summiert. */
@@ -763,16 +799,21 @@ export type ActionError =
   | 'no-option'
   /** Gast: rastet schon (nur bei manipulierten Ständen denkbar). */
   | 'already-active'
-  /** Pflege (careBlocker): siehe CareBlocker. */
-  | CareBlocker;
+  /** Forschung (researchBlocker): siehe ResearchBlocker. */
+  | ResearchBlocker;
 
 /**
  * Ergebnis einer Spieleraktion. `discovered`: Lebensgemeinschaften, die durch die Aktion
  * zum ersten Mal entstanden sind (chooseCard, plantSeed) – für die Entdeckungs-Meldung.
  * Fehlt, wenn nichts Neues entdeckt wurde.
  */
-/** `regulars`: Stammgäste, die durch die Aktion eingezogen sind (Pflege mit Plätzen). */
-export type ActionResult = { ok: true; discovered?: string[]; seeds?: number; regulars?: string[] } | { ok: false; error: ActionError };
+/**
+ * `regulars`: Stammgäste, die durch die Aktion eingezogen sind (Forschung mit Plätzen).
+ * `harmony`: Änderung des Harmonie-Vorrats (Forschung: die Kosten, negativ).
+ */
+export type ActionResult =
+  | { ok: true; discovered?: string[]; seeds?: number; harmony?: number; regulars?: string[] }
+  | { ok: false; error: ActionError };
 
 const fail = (error: ActionError): ActionResult => ({ ok: false, error });
 
@@ -1399,6 +1440,10 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   state.meta.stats.completedCyclesGrowth = capped(state.meta.stats.completedCyclesGrowth + state.totalGrowth);
   state.totalGrowth = 0;
   state.seeds = 0;
+  // Forschung (27.8): Vorrat und Knoten gehören zum Zyklus; der Plan merkt sich die
+  // Reihenfolge (ein Zyklus ohne Forschung lässt den bisherigen Plan stehen).
+  if (state.cycle.research.length > 0) state.meta.research.plan = [...state.cycle.research];
+  state.harmonyPoints = 0;
   state.waypoint = 0;
   state.stage = 0;
   state.plants = [];
@@ -1688,67 +1733,84 @@ export function farewellVisitor(state: GameState, encounterIndex: number): Actio
 // Pflegemaßnahmen (DESIGN_V2.md 8, Umsetzungsnotiz 8.2)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Forschung (DESIGN_V2.md 27.7)
+// ---------------------------------------------------------------------------
+
 /**
- * Warum ein Pflege-Rang gerade nicht gekauft werden kann (Reihenfolge der Prüfung):
- * unbekannte Maßnahme, alle Ränge gekauft, Stufe zu niedrig, Gegenstück schon gekauft,
- * Bedingung nicht erfüllt, Samen reichen nicht.
+ * Warum ein Knoten gerade nicht erforscht werden kann (Reihenfolge der Prüfung, 27.7):
+ * unbekannter Knoten, schon erforscht, Stufe zu niedrig, anderer Weg der Gabel gewählt,
+ * Voraussetzung fehlt, Bedingung im Ökosystem nicht erfüllt, Vorrat reicht nicht.
  */
-export type CareBlocker = 'unknown-care' | 'maxed' | 'stage' | 'excluded' | 'requires' | 'too-expensive';
+export type ResearchBlocker = 'unknown-node' | 'owned' | 'stage' | 'excluded' | 'requires' | 'condition' | 'too-expensive';
 
-/** Gekaufte Ränge dieser Maßnahme (0 = noch keiner). */
-export function careRank(state: GameState, id: string): number {
-  const measure = CARE_BY_ID.get(id);
-  const rank = state.cycle.care[id] ?? 0;
-  return measure ? Math.min(measure.ranks.length, Math.max(0, Math.floor(Number.isFinite(rank) ? rank : 0))) : 0;
+/** Ist der Knoten in diesem Zyklus erforscht? */
+export function isResearched(state: Pick<GameState, 'cycle'>, id: string): boolean {
+  return state.cycle.research.includes(id);
 }
 
-/** Nächster kaufbarer Rang einer Maßnahme (undefined, wenn unbekannt oder voll ausgebaut). */
-export function nextCareRank(state: GameState, id: string): CareRank | undefined {
-  return CARE_BY_ID.get(id)?.ranks[careRank(state, id)];
+/** Sind die Voraussetzungen (`requires`: alle, `requiresAny`: einer) in `owned` erfüllt? */
+export function researchRequirementsMet(node: ResearchNode, owned: readonly string[]): boolean {
+  if ((node.requires ?? []).some((id) => !owned.includes(id))) return false;
+  const any = node.requiresAny ?? [];
+  return any.length === 0 || any.some((id) => owned.includes(id));
 }
 
-/** Warum der nächste Rang nicht gekauft werden kann – null, wenn es geht. Ändert nichts. */
-export function careBlocker(state: GameState, id: string): CareBlocker | null {
-  const measure: CareMeasure | undefined = CARE_BY_ID.get(id);
-  if (!measure) return 'unknown-care';
-  const next = measure.ranks[careRank(state, id)];
-  if (!next) return 'maxed';
-  if (state.stage < next.minStage) return 'stage';
-  if (measure.excludes?.some((other) => careRank(state, other) > 0)) return 'excluded';
-  if (measure.requires && !speciesAppears(appearsContext(ecosystemOf(state)), { appears: measure.requires })) return 'requires';
-  if (!(state.seeds >= next.cost)) return 'too-expensive';
+/** Schließt ein schon erforschter Knoten diesen aus (anderer Weg einer Gabel)? */
+export function researchExcluded(node: ResearchNode, owned: readonly string[]): boolean {
+  return (node.excludes ?? []).some((id) => owned.includes(id));
+}
+
+/** Kosten eines Knotens in ⚖️ (undefined, wenn unbekannt). */
+export function researchCost(id: string): number | undefined {
+  return RESEARCH_BY_ID.get(id)?.cost;
+}
+
+/** Warum der Knoten nicht erforscht werden kann – null, wenn es geht. Ändert nichts. */
+export function researchBlocker(state: GameState, id: string): ResearchBlocker | null {
+  const node = RESEARCH_BY_ID.get(id);
+  if (!node) return 'unknown-node';
+  const owned = state.cycle.research;
+  if (owned.includes(id)) return 'owned';
+  if (state.stage < node.minStage) return 'stage';
+  if (researchExcluded(node, owned)) return 'excluded';
+  if (!researchRequirementsMet(node, owned)) return 'requires';
+  if (node.condition && !speciesAppears(appearsContext(ecosystemOf(state)), { appears: node.condition })) return 'condition';
+  if (!(state.harmonyPoints >= node.cost)) return 'too-expensive';
   return null;
 }
 
 /**
- * Kauft den nächsten Rang einer Pflegemaßnahme: Samen abziehen, Rang erhöhen, H_max und
- * Tagebuch nachführen. Wirkt bis zum Neuen Zyklus; die Bedingung gilt nur beim Kauf.
- * `seeds` im Ergebnis: die Kosten (negativ).
+ * Erforscht einen Knoten: ⚖️ aus dem Vorrat abziehen, Knoten anhängen (Kauf-Reihenfolge),
+ * Stammgäste in neue Plätze, H_max und Tagebuch nachführen. Wirkt bis zum Neuen Zyklus; die
+ * Bedingung gilt nur beim Erforschen. Der Harmonie-Bonus hängt an der Produktion, nicht am
+ * Vorrat – Ausgeben senkt ihn nie (27.4). `harmony` im Ergebnis: die Kosten (negativ).
  */
-export function buyCare(state: GameState, id: string): ActionResult {
-  const blocker = careBlocker(state, id);
+export function research(state: GameState, id: string): ActionResult {
+  const blocker = researchBlocker(state, id);
   if (blocker) return fail(blocker);
-  const cost = nextCareRank(state, id)!.cost;
-  state.seeds = Math.max(0, state.seeds - cost);
-  state.cycle.care[id] = careRank(state, id) + 1;
+  const cost = RESEARCH_BY_ID.get(id)!.cost;
+  state.harmonyPoints = Math.max(0, state.harmonyPoints - cost);
+  state.cycle.research.push(id);
   countStat(state, 'careRanksBought');
   countDailyAction(state, 'care');
   // Neue Plätze (z. B. Waldtümpel, Nistkästen): Stammgäste ziehen sofort ein, nicht erst
   // am nächsten Wegpunkt.
   const regulars = moveInRegulars(state);
   const discovered = recordDiscoveries(state);
-  const result: ActionResult = { ok: true, seeds: -cost };
+  const result: ActionResult = { ok: true, harmony: -cost };
   if (discovered.length > 0) result.discovered = discovered;
   if (regulars.length > 0) result.regulars = regulars;
   return result;
 }
 
 /**
- * Vorschau: das Ökosystem mit dem nächsten Rang (wie previewPlant). Prüft weder Samen
- * noch Stufe (siehe careBlocker); null bei unbekannter oder voll ausgebauter Maßnahme.
+ * Vorschau: das Ökosystem mit diesem Knoten (wie previewPlant). Prüft weder Vorrat noch
+ * Stufe, Gabel oder Voraussetzung (siehe researchBlocker); null bei unbekanntem oder schon
+ * erforschtem Knoten.
  */
-export function previewCare(state: GameState, id: string): Evaluation | null {
-  if (!nextCareRank(state, id)) return null;
-  const care = { ...state.cycle.care, [id]: careRank(state, id) + 1 };
-  return evaluateEcosystem(ecosystemOf({ ...state, cycle: { ...state.cycle, care } }));
+export function previewResearch(state: GameState, id: string): Evaluation | null {
+  if (!RESEARCH_BY_ID.has(id) || isResearched(state, id)) return null;
+  const researched = [...state.cycle.research, id];
+  return evaluateEcosystem(ecosystemOf({ ...state, cycle: { ...state.cycle, research: researched } }));
 }

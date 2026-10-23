@@ -1,4 +1,3 @@
-import { CARE } from '../content/care';
 import {
   DAILY_GOALS,
   DAILY_GOALS_BY_KIND,
@@ -20,6 +19,7 @@ import {
 } from '../content/daily';
 import { MAX_PENDING_ENCOUNTERS } from '../content/encounters';
 import { PLANTS_BY_ID } from '../content/plants';
+import { RESEARCH } from '../content/research';
 import { SEASONS, SEASON_IDS, type SeasonId } from '../content/seasons';
 import { SPECIES_BY_ID } from '../content/species';
 import { GENERA, type Genus } from '../content/types';
@@ -28,6 +28,7 @@ import {
   ecosystemOf,
   evaluate,
   evaluateEcosystem,
+  harmonyIncome,
   plantCost,
   plantSlots,
   seedSeconds,
@@ -38,7 +39,8 @@ import {
 import { normalizeSeed, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import { seasonIdAt } from './season';
 import { allAnimals, type DailyGoal, type GameState } from './state';
-import { careBlocker, drawAnimals, nextCareRank } from './tick';
+import { effectiveForestMemory } from './landscape';
+import { drawAnimals, researchBlocker } from './tick';
 
 /*
  * Tagesziele (DESIGN_V2.md 20). Reine Funktionen über den Spielstand – keine Uhr, kein
@@ -226,14 +228,17 @@ function propose(template: DailyGoalTemplate, ctx: GenerationContext, rng: RngHo
       return { goal: goal('plant', 1), cost, plants: 1 };
     }
     case 'care': {
+      // Forschung (seit v17, 27.7): bezahlt mit ⚖️ – Vorrat plus Zufluss im Besuch, nicht mit
+      // dem Samen-Budget. Ein Ziel je Tag, darum kein eigenes Harmonie-Budget.
       let cheapest = Infinity;
-      for (const m of CARE) {
-        const blocker = careBlocker(state, m.id);
-        const rank = nextCareRank(state, m.id);
-        if ((blocker === null || blocker === 'too-expensive') && rank) cheapest = Math.min(cheapest, rank.cost);
+      for (const node of RESEARCH) {
+        const blocker = researchBlocker(state, node.id);
+        if (blocker === null || blocker === 'too-expensive') cheapest = Math.min(cheapest, node.cost);
       }
-      if (!(cheapest <= ctx.budget)) return null;
-      return { goal: goal('care', 1), cost: cheapest, plants: 0 };
+      const points = Number.isFinite(state.harmonyPoints) ? Math.max(0, state.harmonyPoints) : 0;
+      const available = points + harmonyIncome(ev.harmony, effectiveForestMemory(state)) * window;
+      if (!(cheapest <= available)) return null;
+      return { goal: goal('care', 1), cost: 0, plants: 0 };
     }
     case 'harmony': {
       // Schwelle: die niedrigste Harmonie über alle Jahreszeiten (ohne Zeit-Boni), auf 5 abgerundet.

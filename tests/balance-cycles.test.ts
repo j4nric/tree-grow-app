@@ -175,7 +175,10 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
       // (großer Lauf: Wald 250 / 236, Urwald 271 / 260), jetzt ~55–60 (großer Lauf: Wald 231 / 174,
       // Urwald 246 / 187; Check: Wald 47, Urwald 59 Punkte Vorsprung).
       const total = (id: string) => row(stage, id).runs.reduce((sum, run) => sum + run.reduce((a, c) => a + c.memoryGain, 0), 0) / RESTART_RUNS;
-      expect(total(HARMONY.id) - total(GROWTH.id), `Stufe ${stage}`).toBeGreaterThan(FULL ? 30 : 25);
+      // Seit v17 (Phase 10, 2a, Forschung mit ⚖️ statt Pflege mit 🌰) im Check nur ~23 (Wald):
+      // Beide Spieler forschen jetzt mit Harmonie, der Wachstums-Spieler holt beim Gedächtnis auf.
+      // Vorläufig > 15; Phase 10, 3b misst neu und hebt ggf. die Gedächtnis-Schwellen (27.11).
+      expect(total(HARMONY.id) - total(GROWTH.id), `Stufe ${stage}`).toBeGreaterThan(FULL ? 30 : 15);
       expect(restartGain(row(stage, HARMONY.id), 0), `Stufe ${stage}`).toBeGreaterThan(restartGain(row(stage, GROWTH.id), 0) + (FULL ? 10 : 2));
       // Großer Lauf: Zyklus 2 und 3 je ≥ 0,95, zusammen ≥ 0,97. Check (12 Durchgänge,
       // Seed-Fenster siehe oben): grob ≥ 0,82 je Zyklus und über beide Zyklen zusammen ≥ 0,86.

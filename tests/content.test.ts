@@ -28,7 +28,7 @@ import { slotEffects } from '../src/core/formulas';
 import { WAYPOINT_BASE, WAYPOINT_COUNT, WAYPOINT_POWER, WAYPOINT_THRESHOLDS, waypointThreshold } from '../src/content/waypoints';
 import { EVENTS, EVENTS_BY_ID, SEED_SECONDS_MIN_SEEDS, type EventEffect } from '../src/content/events';
 import { VISITORS, VISITORS_BY_ID } from '../src/content/visitors';
-import { CARE, CARE_BY_ID } from '../src/content/care';
+import { RESEARCH, RESEARCH_BY_ID } from '../src/content/research';
 import type { Condition, Effect } from '../src/content/types';
 import { MEMORY_HARMONY_DIVISOR, MEMORY_HARMONY_RULES, NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import {
@@ -100,11 +100,12 @@ describe('Inhalte v2', () => {
     // Nur Amphibien leben im Tümpel; alle Stufen der Gattung sind mit 5 Arten erreichbar.
     expect(SPECIES.filter((s) => s.niche === 'pond' && !isKennart(s.id))).toEqual(amphibians);
     expect(amphibians.length).toBe(TRAIT_THRESHOLDS[2]!);
-    // Volle Pflege öffnet 4 Plätze – den fünften bringt ein Ereignis (Regen, Krötenwanderung).
+    // Volle Forschung (Waldtümpel + Tümpel vertiefen) öffnet 4 Plätze – den fünften bringt ein
+    // Ereignis (Regen, Krötenwanderung).
     const pondSlots = (effects: readonly Effect[]) =>
       effects.reduce((n, e) => n + (e.kind === 'slot' && e.niche === 'pond' ? e.amount : 0), 0);
-    const pondCare = CARE_BY_ID.get('pond')!;
-    expect(pondSlots(pondCare.ranks.flatMap((r) => r.effects.flatMap((e) => (e.kind === 'cycle' ? [e.effect] : []))))).toBe(4);
+    const pondNodes = ['pond', 'pond-deepen'].map((id) => RESEARCH_BY_ID.get(id)!);
+    expect(pondSlots(pondNodes.flatMap((n) => n.effects.flatMap((e) => (e.kind === 'cycle' ? [e.effect] : []))))).toBe(4);
     for (const id of ['rain', 'toad-migration']) {
       const event = EVENTS.find((e) => e.id === id)!;
       const best = Math.max(...event.options.map((o) => pondSlots(o.effects.flatMap((e) => (e.kind === 'cycle' ? [e.effect] : [])))));
@@ -146,11 +147,9 @@ describe('Inhalte v2', () => {
       expect(s.unlock).toBeGreaterThanOrEqual(1);
       expect(s.unlock).toBeLessThan(STAGES.length);
       // Die Nische ist offen, sobald die Art freigeschaltet ist – oder (Waldtümpel) kann
-      // ab dann durch eine Pflegemaßnahme geöffnet werden.
-      const careOpens = CARE.some(
-        (m) =>
-          m.ranks[0]!.minStage <= s.unlock &&
-          m.ranks[0]!.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === s.niche),
+      // ab dann durch einen Forschungsknoten geöffnet werden.
+      const careOpens = RESEARCH.some(
+        (n) => n.minStage <= s.unlock && n.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === s.niche),
       );
       const open = NICHES_BY_ID.get(s.niche)!.slots[s.unlock]! > 0 || (NICHES_BY_ID.get(s.niche)!.opensEarly === true && careOpens);
       expect(open, `${s.id}: Nische offen ab unlock`).toBe(true);
@@ -227,15 +226,14 @@ describe('Inhalte v2', () => {
     }
   });
 
-  it('Waldtümpel: nie Plätze aus der Stufe, öffnet nur durch Pflege und Ereignisse (DESIGN_V2.md 5.5)', () => {
+  it('Waldtümpel: nie Plätze aus der Stufe, öffnet nur durch Forschung und Ereignisse (DESIGN_V2.md 5.5)', () => {
     const pond = NICHES_BY_ID.get('pond')!;
     expect(pond.slots.every((n) => n === 0)).toBe(true);
     expect(pond.opensEarly).toBe(true);
-    // Keine Art schafft Tümpelplätze – nur Pflege „Waldtümpel“ und die Ereignisse.
+    // Keine Art schafft Tümpelplätze – nur die Forschung „Waldtümpel“ und die Ereignisse.
     for (const s of SPECIES) expect(slotEffects(s).some((e) => e.niche === 'pond'), s.id).toBe(false);
-    const careRanks = CARE_BY_ID.get('pond')!.ranks;
-    expect(careRanks[0]!.effects).toContainEqual({ kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 2 } });
-    expect(careRanks[1]!.effects).toContainEqual({ kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 2 } });
+    expect(RESEARCH_BY_ID.get('pond')!.effects).toContainEqual({ kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 2 } });
+    expect(RESEARCH_BY_ID.get('pond-deepen')!.effects).toContainEqual({ kind: 'cycle', effect: { kind: 'slot', niche: 'pond', amount: 2 } });
     const pondEvents = EVENTS.filter((e) =>
       e.options.some((o) => o.effects.some((x) => x.kind === 'cycle' && x.effect.kind === 'slot' && x.effect.niche === 'pond')),
     );
@@ -537,127 +535,7 @@ describe('Lebensgemeinschaften: Inhalte', () => {
   });
 });
 
-describe('Pflegemaßnahmen (DESIGN_V2.md 8)', () => {
-  it('6–11 Maßnahmen, IDs eindeutig (auch gegenüber Arten, Pflanzen, Ereignissen, Gästen)', () => {
-    // 9 seit dem Playtest „frühes Spiel“ (Kompost ab Setzling, DESIGN_V2.md 8.1), 11 seit
-    // den Lebensräumen (Waldwiese, Trockenmauer, 23.2).
-    expect(CARE.length).toBeGreaterThanOrEqual(6);
-    expect(CARE.length).toBeLessThanOrEqual(11);
-    const ids = [
-      ...CARE.map((c) => c.id),
-      ...SPECIES.map((x) => x.id),
-      ...PLANTS.map((x) => x.id),
-      ...EVENTS.map((x) => x.id),
-      ...VISITORS.map((x) => x.id),
-    ];
-    expect(unique(ids)).toBe(true);
-    expect(unique(CARE.map((c) => c.name))).toBe(true);
-    expect(CARE_BY_ID.size).toBe(CARE.length);
-  });
-
-  it('jede Maßnahme hat eine kurze Bestätigung nach dem Kauf (boughtText)', () => {
-    for (const c of CARE) {
-      expect(c.boughtText.trim().length, c.id).toBeGreaterThan(0);
-      expect(c.boughtText.length, c.id).toBeLessThanOrEqual(30);
-    }
-    expect(unique(CARE.map((c) => c.boughtText))).toBe(true);
-  });
-
-  it('Name, Symbol, Text, Bedingungen und Ausschlüsse sind gültig', () => {
-    for (const c of CARE) {
-      expect(c.name.length, c.id).toBeGreaterThan(0);
-      expect(c.icon.length, c.id).toBeGreaterThan(0);
-      expect(c.text.length, c.id).toBeGreaterThan(0);
-      expect(c.text.length, c.id).toBeLessThanOrEqual(100);
-      for (const r of c.requires ?? []) {
-        expect(['tag', 'group', 'species', 'genus'], c.id).toContain(r.kind);
-        if (r.kind === 'species') expect(SPECIES_BY_ID.has(r.id) || PLANTS_BY_ID.has(r.id), c.id).toBe(true);
-        if (r.kind === 'genus') expect(GENERA, c.id).toContain(r.genus);
-        if (r.kind === 'group') expect(PLANT_GROUPS, c.id).toContain(r.group);
-        if (r.kind === 'tag') expect(TAG_NAMES[r.tag], c.id).toBeDefined();
-      }
-      // Ausschlüsse gelten in beide Richtungen.
-      for (const other of c.excludes ?? []) {
-        expect(CARE_BY_ID.get(other)?.excludes ?? [], `${c.id} ↔ ${other}`).toContain(c.id);
-        expect(other).not.toBe(c.id);
-      }
-    }
-  });
-
-  it('Ränge: 1–3, Kosten steigen stark, Freischaltung ab Setzling und nie rückwärts', () => {
-    for (const c of CARE) {
-      expect(c.ranks.length, c.id).toBeGreaterThanOrEqual(1);
-      expect(c.ranks.length, c.id).toBeLessThanOrEqual(3);
-      // Ab Setzling (seit dem Playtest „frühes Spiel“): kleine erste Ränge geben den
-      // Samen früh einen Zweck; teure Ränge erst ab Junger Baum.
-      expect(c.ranks[0]!.minStage, c.id).toBeGreaterThanOrEqual(2);
-      c.ranks.forEach((r, i) => {
-        expect(r.cost, `${c.id} Rang ${i + 1}`).toBeGreaterThanOrEqual(r.minStage <= 2 ? 100 : 500);
-        if (r.minStage <= 2) expect(r.cost, `${c.id} Rang ${i + 1} (Setzling)`).toBeLessThanOrEqual(400);
-        expect(r.cost, `${c.id} Rang ${i + 1}`).toBeLessThanOrEqual(50_000);
-        expect(r.minStage).toBeLessThan(STAGES.length);
-        expect(r.summary.length).toBeGreaterThan(0);
-        expect(r.effects.length).toBeGreaterThan(0);
-        if (i > 0) {
-          expect(r.cost, `${c.id} Rang ${i + 1}`).toBeGreaterThanOrEqual(3 * c.ranks[i - 1]!.cost);
-          expect(r.minStage).toBeGreaterThanOrEqual(c.ranks[i - 1]!.minStage);
-        }
-      });
-    }
-  });
-
-  it('Wirkungen: gültig, in Grenzen, jeder Rang bringt etwas (Abzüge nur bei Licht/Wasser)', () => {
-    for (const c of CARE) {
-      for (const r of c.ranks) {
-        let positive = 0;
-        for (const e of r.effects) {
-          if (e.kind === 'habitat') {
-            expect(TAG_NAMES[e.tag], c.id).toBeDefined();
-            positive++;
-            continue;
-          }
-          const x = e.effect;
-          switch (x.kind) {
-            case 'slot':
-              expect(NICHES_BY_ID.has(x.niche), c.id).toBe(true);
-              // Je Rang 1 Platz; nur eine Nische ohne Plätze aus der Stufe (Waldtümpel)
-              // öffnet mit 2 Plätzen, damit die Gattungsschwelle 2 erreichbar ist.
-              if (NICHES_BY_ID.get(x.niche)!.slots.some((n) => n > 0)) expect(x.amount, c.id).toBe(1);
-              else expect([1, 2], c.id).toContain(x.amount);
-              positive++;
-              break;
-            case 'light':
-            case 'water':
-              expect(Math.abs(x.amount), c.id).toBeLessThanOrEqual(3);
-              expect(x.amount, c.id).not.toBe(0);
-              if (x.amount > 0) positive++;
-              break;
-            case 'harmony':
-              expect(x.points, c.id).toBeGreaterThan(0);
-              expect(x.points, c.id).toBeLessThanOrEqual(5);
-              positive++;
-              break;
-            default:
-              expect(x.pct, c.id).toBeGreaterThan(0);
-              expect(x.pct, c.id).toBeLessThanOrEqual(40);
-              if (x.kind === 'groupGrowth' || x.kind === 'groupSeeds') expect(PLANT_GROUPS).toContain(x.group);
-              positive++;
-          }
-        }
-        expect(positive, `${c.id}: ${r.summary}`).toBeGreaterThan(0);
-      }
-    }
-  });
-
-  it('Samen-Senke: vor dem Hain gibt es mehr zu kaufen, als bis dahin verdient wird', () => {
-    // Bis zum Hain verdient der Harmonie-Spieler ~15.000 🌰 (DESIGN_V2.md 15.4) – es muss
-    // priorisiert werden. Danach bleibt die Senke bis zum Urwald groß.
-    const before = CARE.flatMap((c) => c.ranks.filter((r) => r.minStage < 5)).reduce((s, r) => s + r.cost, 0);
-    const later = CARE.flatMap((c) => c.ranks.filter((r) => r.minStage >= 5)).reduce((s, r) => s + r.cost, 0);
-    expect(before).toBeGreaterThan(15_000);
-    expect(later).toBeGreaterThan(100_000);
-  });
-});
+// Pflegemaßnahmen (DESIGN_V2.md 8) sind seit Spielstand v17 der Forschungsbaum: tests/research.test.ts.
 
 /** Ist die Wirkung ein Gewinn (> 0) oder ein Verzicht (< 0)? */
 function sign(e: SeasonEffect | TreeEffect): number {

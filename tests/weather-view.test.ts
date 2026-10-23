@@ -29,7 +29,7 @@ import {
   weatherBadgeEffects,
   weatherEffectLabel,
 } from '../src/ui/weather-view';
-import { stateAt } from './helpers';
+import { stateAt, researchFor } from './helpers';
 
 /** Fünf Gattungen (Säugetiere, Vögel, Insekten, Bodenleben, Pilze): Vielfalt dämpft −50 %. */
 const GROVE = ['vole', 'robin', 'bee', 'earthworm', 'chanterelle'];
@@ -98,8 +98,8 @@ describe('Wetter-Abzeichen', () => {
     expect(view.label).toBe('Wetter heute: Sturm, −7,5 % Wachstum, +25 % Samen. Details');
     expect(view.effects).toBe('Heute: −7,5 % 🌿 (statt −15 %) · +25 % 🌰');
     expect(view.damping).toBe('Abzug gedämpft: Vielfalt −50 % (5 Gattungen).');
-    // Vielfalt ist ausgeschöpft – nur die Pflege hilft noch.
-    expect(view.tip).toBe('Pflege „Lichte Krone“ halbiert den Abzug.');
+    // Vielfalt ist ausgeschöpft – nur die Forschung hilft noch.
+    expect(view.tip).toBe('Forschung „Lichte Krone“ halbiert den Abzug.');
     expect(view.forecast).toBe(forecastText(weatherForecast(state)));
     expect(view.title).toContain(WEATHERS_BY_ID.get('storm')!.text);
     expect(view.title).toContain('Morgen:');
@@ -108,7 +108,7 @@ describe('Wetter-Abzeichen', () => {
 
   it('mit Lichter Krone: Schutz im Text, kein Tipp mehr', () => {
     const state = stateOnWeather('storm', GROVE);
-    state.cycle.care = { 'light-crown': 1 };
+    state.cycle.research = researchFor({ 'light-crown': 1 });
     const view = toWeatherBadgeView(state);
     expect(view.text).toBe('🌬️ Sturm · −3,8 % 🌿 · +25 % 🌰');
     // Abzeichen und Erklärung runden gleich.

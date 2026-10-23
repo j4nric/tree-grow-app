@@ -5,10 +5,10 @@
  * der Nische. Hier wird nur nachgelesen, woran es gerade hängt, und daraus ein kurzer Satz.
  *
  * Spoiler-Regel: Es geht nur um entdeckte Arten. Genannt werden Nische, Stufe und die
- * Pflege, die Plätze schafft (steht ohnehin am verschlossenen Waldtümpel); Ereignisse,
+ * Forschung, die Plätze schafft (steht ohnehin am verschlossenen Waldtümpel); Ereignisse,
  * die ebenfalls Plätze bringen, bleiben eine Überraschung.
  */
-import { CARE, type CareMeasure } from '../content/care';
+import { RESEARCH, RESEARCH_BY_ID, type ResearchNode } from '../content/research';
 import { NICHES_BY_ID } from '../content/niches';
 import { SPECIES_BY_ID } from '../content/species';
 import { STAGES } from '../content/stages';
@@ -18,7 +18,7 @@ import { allAnimals, type GameState } from '../core/state';
 
 /** Grund, warum ein gewählter Stammgast gerade wartet. */
 export type RegularWait =
-  /** Die Nische hat keinen Platz und öffnet nicht mit dem Wachstum (Waldtümpel ohne Pflege). */
+  /** Die Nische hat keinen Platz und öffnet nicht mit dem Wachstum (Waldtümpel ohne Forschung). */
   | { kind: 'niche-closed'; niche: NicheId }
   /** Erst ab dieser Stufe (Freischalt-Stufe der Art oder Öffnung der Nische). */
   | { kind: 'stage'; stage: number }
@@ -27,14 +27,28 @@ export type RegularWait =
   /** Alles frei – zieht am nächsten Wegpunkt ein (gerade erst gewählt). */
   | { kind: 'next-waypoint' };
 
-/** Pflegemaßnahmen, deren erster Rang Plätze in der Nische schafft (z. B. „Waldtümpel“). */
-function careOpeners(niche: NicheId): CareMeasure[] {
-  return CARE.filter((m) =>
-    m.ranks[0]?.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === niche && e.effect.amount > 0),
+/** Schafft der Knoten Plätze in dieser Nische? */
+function opensNiche(node: ResearchNode, nicheId: NicheId): boolean {
+  return node.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === nicheId && e.effect.amount > 0);
+}
+
+/**
+ * Forschungsknoten, die als erste Plätze in der Nische schaffen (z. B. „Waldtümpel“, nicht
+ * „Tümpel vertiefen“, das am Waldtümpel hängt), in RESEARCH-Reihenfolge. Bis v16 der erste
+ * Rang einer Pflegemaßnahme.
+ */
+export function researchSlotNodes(nicheId: NicheId): ResearchNode[] {
+  return RESEARCH.filter(
+    (n) =>
+      opensNiche(n, nicheId) &&
+      ![...(n.requires ?? []), ...(n.requiresAny ?? [])].some((id) => {
+        const req = RESEARCH_BY_ID.get(id);
+        return !!req && opensNiche(req, nicheId);
+      }),
   );
 }
 
-/** Nischen ohne Plätze aus der Stufe: Sie öffnen in jedem Zyklus erst durch Pflege oder Ereignisse. */
+/** Nischen ohne Plätze aus der Stufe: Sie öffnen in jedem Zyklus erst durch Forschung oder Ereignisse. */
 export function nicheNeverOpensByStage(niche: NicheId): boolean {
   const n = NICHES_BY_ID.get(niche);
   return !!n && n.slots.every((s) => s <= 0);
@@ -76,27 +90,27 @@ function stageName(stage: number): string {
 }
 
 /**
- * Pflege, die die Nische öffnet, in Klammern, z. B. „(Pflege ab „Alter Baum“)“ – der Name
- * der Maßnahme nur, wenn er nicht schon der Name der Nische ist. Leer ohne Pflege.
+ * Forschung, die die Nische öffnet, in Klammern, z. B. „(Forschung ab „Alter Baum“)“ – der
+ * Name des Knotens nur, wenn er nicht schon der Name der Nische ist. Leer ohne Forschung.
  */
 function careHint(niche: NicheId): string {
-  const measure = careOpeners(niche)[0];
+  const measure = researchSlotNodes(niche)[0];
   if (!measure) return '';
-  const at = stageName(measure.ranks[0]!.minStage);
+  const at = stageName(measure.minStage);
   const name = NICHES_BY_ID.get(niche)?.name;
-  return measure.name === name ? ` (Pflege ab „${at}“)` : ` (Pflege „${measure.name}“ ab „${at}“)`;
+  return measure.name === name ? ` (Forschung ab „${at}“)` : ` (Forschung „${measure.name}“ ab „${at}“)`;
 }
 
 /**
  * Kurzer Satz zum Warten, z. B. „wartet auf den Waldtümpel“, „wartet auf „Alter Baum““.
- * Beim Waldtümpel vor der Stufe der Pflege mit Hinweis, ab wann sie geht.
+ * Beim Waldtümpel vor der Stufe der Forschung mit Hinweis, ab wann sie geht.
  */
 export function regularWaitText(state: GameState, wait: RegularWait): string {
   switch (wait.kind) {
     case 'niche-closed': {
       const phrase = NICHE_PHRASE[wait.niche];
-      const measure = careOpeners(wait.niche)[0];
-      const early = measure !== undefined && measure.ranks[0]!.minStage > state.stage;
+      const measure = researchSlotNodes(wait.niche)[0];
+      const early = measure !== undefined && measure.minStage > state.stage;
       const hint = early ? careHint(wait.niche) : '';
       if (phrase) return `wartet auf ${phrase.acc}${hint}`;
       return `wartet, bis „${NICHES_BY_ID.get(wait.niche)?.name ?? wait.niche}“ Plätze hat${hint}`;
@@ -113,7 +127,7 @@ export function regularWaitText(state: GameState, wait: RegularWait): string {
 /**
  * Hinweis für die Wahl fürs nächste Mal: Arten, deren Nische in jedem Zyklus erst wieder
  * angelegt werden muss, z. B. „zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist
- * (Pflege ab „Alter Baum“)“. null für alle anderen Arten.
+ * (Forschung ab „Alter Baum“)“. null für alle anderen Arten.
  */
 export function regularNextCycleHint(speciesId: string): string | null {
   const sp = SPECIES_BY_ID.get(speciesId);

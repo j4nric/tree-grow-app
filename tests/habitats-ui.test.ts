@@ -3,14 +3,14 @@ import { HABITAT_NICHES } from '../src/content/habitats';
 import { STAGES } from '../src/content/stages';
 import { evaluate } from '../src/core/formulas';
 import type { GameState } from '../src/core/state';
-import { buyCare } from '../src/core/tick';
+import { research } from '../src/core/tick';
 import { careOpensText, familyViews, isHabitatNiche, toCareViews, toEcosystemView, toJournalView } from '../src/ui/adapters';
 import { dailyGoalText } from '../src/ui/daily-view';
 import { guideSections } from '../src/ui/guide-view';
 import { HYPHENATION, hyphenate, stripHyphens } from '../src/ui/hyphenate';
 import { regularNextCycleHint, regularWaitReason, regularWaitText } from '../src/ui/regular-wait';
 import { NEWER_STORED_SAVE_TEXT } from '../src/ui/save-transfer';
-import { stateAt } from './helpers';
+import { stateAt, researchFor } from './helpers';
 
 /**
  * Lebensräume in der Oberfläche (DESIGN_V2.md 23.7 Punkt 5): verschlossene Nischen mit
@@ -42,7 +42,7 @@ describe('Nischenliste: drei verschlossene Lebensräume', () => {
       for (let stage = 1; stage < STAGES.length; stage++) {
         const view = niche(stateAt(stage), c.id);
         expect(view.capacity, `${c.id} Stufe ${stage}`).toBe(0);
-        expect(view.unlockHint).toBe(`öffnet durch Pflege „${c.name}“ (ab „${STAGES[c.from]!.name}“)`);
+        expect(view.unlockHint).toBe(`öffnet durch Forschung „${c.name}“ (ab „${STAGES[c.from]!.name}“)`);
         expect(view.careLink, `${c.id} Stufe ${stage}`).toBe(stage >= c.from ? c.care : undefined);
         // Die Maßnahme steht genau dann in der Pflege-Liste, wenn der Knopf erscheint.
         expect(care(stateAt(stage), c.care) !== undefined, `${c.care} Stufe ${stage}`).toBe(stage >= c.from);
@@ -52,8 +52,8 @@ describe('Nischenliste: drei verschlossene Lebensräume', () => {
 
   it('nach dem Kauf offen wie jede Nische: Plätze, kein Hinweis, kein Knopf; Bewohner mit Gattung', () => {
     const state = stateAt(YOUNG);
-    state.seeds = 1e6;
-    expect(buyCare(state, 'meadow').ok).toBe(true);
+    state.harmonyPoints = 1e6;
+    expect(research(state, 'meadow').ok).toBe(true);
     expect(niche(state, 'meadow')).toMatchObject({ capacity: 2, animals: [] });
     expect(niche(state, 'meadow').unlockHint).toBeUndefined();
     expect(niche(state, 'meadow').careLink).toBeUndefined();
@@ -89,11 +89,11 @@ describe('Pflegekarten: „Öffnet Lebensraum …“', () => {
     expect(care(grove, 'compost')!.opens).toBeNull();
   });
 
-  it('nach Rang 1 ist der Lebensraum offen: Rang 2 bringt nur noch Plätze', () => {
+  it('nach der Waldwiese ist der Lebensraum offen: die Spätmahd bringt nur noch Plätze', () => {
     const state = stateAt(GROVE);
-    state.seeds = 1e6;
-    expect(buyCare(state, 'meadow').ok).toBe(true);
-    const view = care(state, 'meadow')!;
+    state.harmonyPoints = 1e6;
+    expect(research(state, 'meadow').ok).toBe(true);
+    const view = care(state, 'meadow-2')!;
     expect(view.next).toBe('+2 Plätze Waldwiese, +2 ☀️');
     expect(view.opens).toBeNull();
   });
@@ -116,7 +116,7 @@ describe('Pflegekarten: „Öffnet Lebensraum …“', () => {
 describe('Gattung Reptilien in der Oberfläche', () => {
   it('Gattungsleiste: siebte Gattung mit 🦎 und Zähler', () => {
     const state = stateAt(GROVE, ['sandlizard', 'grasssnake']);
-    state.cycle.care = { 'drystone-wall': 1 };
+    state.cycle.research = researchFor({ 'drystone-wall': 1 });
     const reptiles = familyViews(evaluate(state)).find((f) => f.id === 'reptiles');
     expect(reptiles).toMatchObject({ icon: '🦎', label: 'Reptilien', count: 2 });
   });
@@ -141,16 +141,16 @@ describe('Gattung Reptilien in der Oberfläche', () => {
 
 describe('Stammgäste aus Lebensräumen', () => {
   it('Hinweis fürs nächste Mal nennt den Lebensraum mit Artikel', () => {
-    expect(regularNextCycleHint('lizard')).toBe('zieht im nächsten Zyklus erst ein, wenn die Waldwiese wieder angelegt ist (Pflege ab „Junger Baum“)');
-    expect(regularNextCycleHint('slowworm')).toBe('zieht im nächsten Zyklus erst ein, wenn der Totholzhaufen wieder angelegt ist (Pflege ab „Alter Baum“)');
-    expect(regularNextCycleHint('grasssnake')).toBe('zieht im nächsten Zyklus erst ein, wenn die Trockenmauer wieder angelegt ist (Pflege ab „Hain“)');
+    expect(regularNextCycleHint('lizard')).toBe('zieht im nächsten Zyklus erst ein, wenn die Waldwiese wieder angelegt ist (Forschung ab „Junger Baum“)');
+    expect(regularNextCycleHint('slowworm')).toBe('zieht im nächsten Zyklus erst ein, wenn der Totholzhaufen wieder angelegt ist (Forschung ab „Alter Baum“)');
+    expect(regularNextCycleHint('grasssnake')).toBe('zieht im nächsten Zyklus erst ein, wenn die Trockenmauer wieder angelegt ist (Forschung ab „Hain“)');
     expect(regularNextCycleHint('earthworm')).toBeNull();
   });
 
   it('wartender Stammgast: „wartet auf die Trockenmauer“, vor dem Hain mit Hinweis auf die Pflege', () => {
     const early = stateAt(OLD);
     early.meta.regulars = ['sandlizard'];
-    expect(regularWaitText(early, regularWaitReason(early, 'sandlizard')!)).toBe('wartet auf die Trockenmauer (Pflege ab „Hain“)');
+    expect(regularWaitText(early, regularWaitReason(early, 'sandlizard')!)).toBe('wartet auf die Trockenmauer (Forschung ab „Hain“)');
     const grove = stateAt(GROVE);
     grove.meta.regulars = ['wren'];
     expect(regularWaitText(grove, regularWaitReason(grove, 'wren')!)).toBe('wartet auf den Totholzhaufen');
@@ -162,10 +162,10 @@ describe('Spielanleitung „Lebensräume“', () => {
 
   it('nennt alle vier Lebensräume mit Pflege und Stufe, den Knopf und die Reptilien', () => {
     expect(text).toContain('4 Nischen wachsen nicht mit dem Baum');
-    expect(text).toContain('🌾 Waldwiese (Pflege „Waldwiese“ ab „Junger Baum“)');
-    expect(text).toContain('🪵 Totholzhaufen (Pflege „Totholzhaufen“ ab „Alter Baum“)');
-    expect(text).toContain('🪷 Waldtümpel (Pflege „Waldtümpel“ ab „Alter Baum“)');
-    expect(text).toContain('🪨 Trockenmauer (Pflege „Trockenmauer“ ab „Hain“)');
+    expect(text).toContain('🌾 Waldwiese (Forschung „Waldwiese“ ab „Junger Baum“)');
+    expect(text).toContain('🪵 Totholzhaufen (Forschung „Totholzhaufen“ ab „Alter Baum“)');
+    expect(text).toContain('🪷 Waldtümpel (Forschung „Waldtümpel“ ab „Alter Baum“)');
+    expect(text).toContain('🪨 Trockenmauer (Forschung „Trockenmauer“ ab „Hain“)');
     expect(text).toContain('„Zur Pflege“');
     expect(text).toContain('Öffnet Lebensraum');
     expect(text).toContain('bis zum Neuen Zyklus');

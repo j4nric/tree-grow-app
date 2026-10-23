@@ -19,7 +19,10 @@ import { normalizeSeed } from './rng';
  * `alder` in `MainTreeId`, der Wildwechsel-Markierung `PendingEncounter.via`, dem Zähler
  * `meta.stats.wildwechselChosen` und „Zuerst gesehen“ `meta.journal.firstSeen`, DESIGN_V2.md
  * 25.5, 24.6, 24.12, 25.10; seit v16 mit der Waldchronik `meta.landscape.sites[].chronicle`
- * und den Kennarten als neuem Wertebereich der Art-IDs, DESIGN_V2.md 26.6).
+ * und den Kennarten als neuem Wertebereich der Art-IDs, DESIGN_V2.md 26.6; seit v17 mit dem
+ * Harmonie-Vorrat `harmonyPoints`, der Forschung `cycle.research` statt der Pflege `cycle.care`,
+ * den Aussaat-Feldern `cycle.sowings`/`sowing`/`freeSowing`, dem Forschungsplan `meta.research`
+ * und `meta.stats.harmonyEarned`, DESIGN_V2.md 27.9).
  * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -28,7 +31,13 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
+
+/**
+ * Obergrenze für den Harmonie-Vorrat `harmonyPoints` (⚖️) beim Laden und im Tick
+ * (DESIGN_V2.md 27.9). Schützt vor manipulierten Ständen; im Spiel unerreichbar.
+ */
+export const MAX_HARMONY_POINTS = 1e12;
 
 /**
  * Obergrenze für das Waldgedächtnis beim Laden und Rechnen (+1 % je Punkt → höchstens
@@ -87,6 +96,28 @@ export interface ActiveVisitor {
   remaining: number;
 }
 
+/** Eine offene Aussaat (seit v17, DESIGN_V2.md 27.6). */
+export interface SowingState {
+  /** Pflanzen-IDs der Karten (1 … MAX_SOWING_CARDS). */
+  cards: string[];
+  /** In dieser Aussaat schon neu gewürfelt. */
+  rerolls: number;
+}
+
+/**
+ * Forschungsplan (seit v17, DESIGN_V2.md 27.8): Reihenfolge der im letzten Zyklus erforschten
+ * Knoten und der Schalter „Plan folgen“ (Logik: Phase 10, 4b). Überdauert den Neuen Zyklus.
+ */
+export interface ResearchPlan {
+  plan: string[];
+  auto: boolean;
+}
+
+/** Leerer Forschungsplan (neues Spiel, Migration v16 → v17). */
+export function createResearchPlan(): ResearchPlan {
+  return { plan: [], auto: false };
+}
+
 /** Vorgabe für die nächste Begegnung (Ereignis-Option `nextEncounter`). */
 export interface ForcedEncounter {
   type: ForcedEncounterType;
@@ -116,8 +147,13 @@ export interface LifetimeStats {
   visitorsHosted: number;
   /** Für Samen gesetzte Pflanzen (plantSeed; gekeimte zählen als Karte). */
   plantsPlanted: number;
-  /** Gekaufte Pflege-Ränge (buyCare). */
+  /**
+   * Erforschte Knoten (research; bis v16: gekaufte Pflege-Ränge). Name bleibt wegen des
+   * Erfolgs `care-10` (DESIGN_V2.md 27.9).
+   */
   careRanksBought: number;
+  /** Gesammelte Harmonie aller Zyklen in ⚖️ (seit v17, Zufluss in den Vorrat, DESIGN_V2.md 27.4). */
+  harmonyEarned: number;
   /** Gewählte Wildwechsel-Karten (chooseCard mit `PendingEncounter.via`, seit v15). */
   wildwechselChosen: number;
   /** Hauptbaum-Arten, die schon einmal Hauptbaum waren (inkl. der aktuellen), je einmal. */
@@ -154,6 +190,7 @@ export function createStats(mainTree: MainTreeId = DEFAULT_MAIN_TREE): LifetimeS
     visitorsHosted: 0,
     plantsPlanted: 0,
     careRanksBought: 0,
+    harmonyEarned: 0,
     wildwechselChosen: 0,
     grownTrees: [mainTree],
   };
@@ -319,11 +356,19 @@ export interface CycleState {
   /** Wegpunkt, nach dem der Zwischenhalt schon ausgewertet wurde (Start: 0). */
   interlude: number;
   /**
-   * Gekaufte Pflege-Ränge je Maßnahme (ID → 1 … ranks.length; fehlt = 0). Seit Schritt
-   * 2.7 additiv in v5: fehlt das Feld in einem gespeicherten v5-Stand, ergänzt das Laden
-   * ein leeres Objekt. Die Wirkungen kommen immer aus CARE_BY_ID.
+   * Erforschte Knoten in Kauf-Reihenfolge (seit v17, IDs aus RESEARCH_BY_ID, je einmal;
+   * ersetzt die Pflege-Ränge `care` bis v16). Die Wirkungen kommen immer aus RESEARCH_BY_ID.
    */
-  care: Record<string, number>;
+  research: string[];
+  /**
+   * Aussaaten dieses Zyklus (seit v17, DESIGN_V2.md 27.6): bezahlte und die geschenkte erste;
+   * die Vogelsaat zählt nicht. Ganzzahlig, 0 … MAX_SOWINGS. Logik: Phase 10, 2b.
+   */
+  sowings: number;
+  /** Offene Aussaat (höchstens eine): Karten = Pflanzen-IDs, Würfe dieser Aussaat. Sonst null. */
+  sowing: SowingState | null;
+  /** Geschenkte Aussaat aus der Vogelsaat, die auf eine freie Hand wartet (IDs zuerst). Sonst null. */
+  freeSowing: { ids: string[] } | null;
   /**
    * Spielzeit des Zyklus in Sekunden (seit v6, endlich und ≥ 0). Bestimmt die Jahreszeit
    * (DESIGN_V2.md 16.2): Jeder Zyklus beginnt im Frühling, offline läuft das Jahr mit.
@@ -338,11 +383,16 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 16;
+  version: 17;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
-  /** 🌰 Samen – einzige Währung. */
+  /** 🌰 Samen – kaufen Pflanzen, Gäste und Neu würfeln. */
   seeds: number;
+  /**
+   * ⚖️ Harmonie-Vorrat (seit v17, DESIGN_V2.md 27.3): Forschungswährung, Zyklus-Wert wie
+   * `seeds`. Wächst je Sekunde um Produktion/60 · Gedächtnisfaktor; endlich, 0 … MAX_HARMONY_POINTS.
+   */
+  harmonyPoints: number;
   /** Erreichte Wegpunkte (Begegnungen ausgelöst). */
   waypoint: number;
   /** Index in STAGES, immer aus `waypoint` abgeleitet. */
@@ -408,6 +458,8 @@ export interface GameState {
      * Korridore. `forestMemory` und `regulars` oben gehören immer dem **aktiven** Wald.
      */
     landscape: LandscapeState;
+    /** Forschungsplan (seit v17, DESIGN_V2.md 27.8). */
+    research: ResearchPlan;
   };
   /** Zeitpunkt des letzten Ticks (ms seit Epoch), für Offline-Fortschritt. */
   lastTick: number;
@@ -428,6 +480,7 @@ export function createInitialState(now: number, seed: number = now): GameState {
     version: SAVE_VERSION,
     totalGrowth: 0,
     seeds: 0,
+    harmonyPoints: 0,
     waypoint: 0,
     stage: 0,
     plants: [],
@@ -443,6 +496,7 @@ export function createInitialState(now: number, seed: number = now): GameState {
       achievements: [],
       daily: createDaily(dailySeedOf(seed)),
       landscape: createLandscape(),
+      research: createResearchPlan(),
     },
     lastTick: now,
   };
@@ -462,7 +516,10 @@ export function createCycle(number: number, now?: number, mainTree: MainTreeId =
     visitors: [],
     forced: null,
     interlude: 0,
-    care: {},
+    research: [],
+    sowings: 0,
+    sowing: null,
+    freeSowing: null,
     elapsed: 0,
     mainTree,
   };

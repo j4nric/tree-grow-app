@@ -106,7 +106,7 @@ test('Stammgäste wählen: Liste ab 25 Waldgedächtnis, Auswahl wird gespeichert
   expect((await savedState(page)).meta.regulars).toEqual(['earthworm']);
 });
 
-test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pflege ein', async ({ page, context }) => {
+test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Forschung ein', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   // Alter Baum, Tümpel noch nicht angelegt; Erdkröte gewählt, Grasfrosch nur entdeckt.
   const state = createInitialState(Date.now(), 7);
@@ -114,6 +114,8 @@ test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pf
   state.waypoint = 12;
   state.stage = 4;
   state.seeds = 10_000;
+  state.harmonyPoints = 10_000;
+  state.cycle.research = ['compost']; // Waldtümpel braucht Kompost
   state.niches.roots = ['earthworm'];
   state.meta.journal.species = ['earthworm', 'toad', 'frog'];
   state.meta.forestMemory = 50;
@@ -128,7 +130,7 @@ test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pf
   await expect(toadNote).toHaveText('wartet auf den Waldtümpel');
   await expect(toad).toHaveAccessibleDescription('wartet auf den Waldtümpel');
   await expect(regulars.locator('[data-regular="frog"]')).toHaveAccessibleDescription(
-    'zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)',
+    'zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Forschung ab „Alter Baum“)',
   );
   await expect(regulars.locator('[data-regular-note="earthworm"]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
@@ -140,7 +142,7 @@ test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Pf
   await page.locator('[data-ref="care"] [data-buy-care="pond"]').click();
   await expect.poll(async () => (await savedState(page)).niches.pond).toEqual(['toad']);
   await openGoalsPage(page, 'cycle');
-  await expect(toadNote).toHaveText('zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Pflege ab „Alter Baum“)');
+  await expect(toadNote).toHaveText('zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Forschung ab „Alter Baum“)');
   await expect(toad).toContainText('lebt hier');
   expect((await savedState(page)).niches.pond).toEqual(['toad']);
 });

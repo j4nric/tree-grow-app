@@ -1,7 +1,7 @@
 /**
- * Kaufen-Knopf der Pflege (R:Pflege und U:Pflegemaßnahme): gemeinsamer Schutz gegen
- * Doppelkäufe – Doppelklick, gehaltene Enter-Taste und Klicks kurz nach einem Kauf kaufen
- * keinen zweiten Rang, auch nicht über die jeweils andere Seite.
+ * Erforschen-Knopf (R:Pflege und U:Pflegemaßnahme, seit v17 Forschung): gemeinsamer Schutz
+ * gegen Doppelkäufe – Doppelklick, gehaltene Enter-Taste und Klicks kurz nach einem Kauf kaufen
+ * keinen zweiten Knoten, auch nicht über die jeweils andere Seite.
  */
 import { REPEAT_GUARD_MS, isDeliberateConfirm, isKeyRepeat } from '../../confirm';
 
@@ -38,7 +38,7 @@ export function wireBuyButton(button: HTMLButtonElement, options: BuyButtonOptio
 
 /** Text und Sperr-Hinweis des Knopfs setzen (nur bei Änderung). */
 export function setBuyButton(button: HTMLButtonElement, cost: string | null, canBuy: boolean, blocker: string | null): void {
-  const text = cost ? `Kaufen (${cost})` : '';
+  const text = cost ? `Erforschen (${cost})` : '';
   if (button.textContent !== text) button.textContent = text;
   button.hidden = !cost;
   const disabled = cost !== null && !canBuy;

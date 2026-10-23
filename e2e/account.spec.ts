@@ -82,6 +82,7 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
     await seedV3(contextA, {
       totalGrowth: waypoint(6) + 1, // Junger Baum: Laubstreu hat 2 Plätze
       seeds: 400,
+      harmonyPoints: 400,
       niches: { roots: ['earthworm'], litter: ['robin'] },
     });
     await openGame(a);
@@ -121,18 +122,18 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
     await expect(niche(b, 'litter')).toContainText('1/2 belegt');
     await expect(niche(b, 'roots')).toContainText('Regenwurm');
 
-    // Aktion in A: Pflege kaufen → B übernimmt sie (Live über Server-Sent Events).
+    // Aktion in A: Forschung (Reiter Pflege) → B übernimmt sie (Live über Server-Sent Events).
     await openTab(a, 'pflege');
     await a
       .locator('[data-ref="care"] [data-care="leaf-litter"]')
-      .getByRole('button', { name: 'Kaufen (200 🌰)' })
+      .getByRole('button', { name: 'Erforschen (80 ⚖️)' })
       .click();
     // A steht im Reiter Pflege (der Reiter Nischen schreibt nur, solange er sichtbar ist).
-    await expect(a.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('Rang 1/2');
+    await expect(a.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('erforscht');
     await expect(niche(b, 'litter')).toContainText('1/3 belegt', { timeout: 15_000 });
     await expect(stamps(b)).toContainText('Auf anderem Gerät weitergespielt – übernommen.');
     await openTab(b, 'pflege');
-    await expect(b.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('Rang 1/2');
+    await expect(b.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('erforscht');
 
     // Abmelden in B: Spiel bleibt, Formular wieder da.
     await openAccount(b);
@@ -206,7 +207,7 @@ syncTest('Abmelden mit noch nicht gesendeten Änderungen: erst Hinweis, dann tro
   const page = await context.newPage();
   try {
     await enableSync(context);
-    await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 400, niches: { roots: ['earthworm'], litter: ['robin'] } });
+    await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 400, harmonyPoints: 400, niches: { roots: ['earthworm'], litter: ['robin'] } });
     await openGame(page);
     await openAccount(page);
     await account(page).getByLabel('Benutzername').fill(name);
@@ -220,7 +221,7 @@ syncTest('Abmelden mit noch nicht gesendeten Änderungen: erst Hinweis, dann tro
     await openTab(page, 'pflege');
     await page
       .locator('[data-ref="care"] [data-care="leaf-litter"]')
-      .getByRole('button', { name: 'Kaufen (200 🌰)' })
+      .getByRole('button', { name: 'Erforschen (80 ⚖️)' })
       .click();
     await openAccount(page);
     const signOut = account(page).locator('[data-ref="account-signout"]');

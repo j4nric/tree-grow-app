@@ -1,19 +1,18 @@
-import { CARE } from '../src/content/care';
+import { RESEARCH } from '../src/content/research';
 import { EVENTS_BY_ID } from '../src/content/events';
 import { PLANTS } from '../src/content/plants';
 import { dayKeyFromNumber, dayNumber, updateDaily } from '../src/core/daily';
 import { evaluate, nextPlantCost, previewPlant } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
 import {
-  buyCare,
-  careBlocker,
   chooseCard,
   chooseEventOption,
   declineEncounter,
   farewellVisitor,
-  nextCareRank,
   plantBlocker,
   plantSeed,
+  research,
+  researchBlocker,
   tick,
 } from '../src/core/tick';
 
@@ -96,10 +95,8 @@ export function visit(state: GameState, day: string, seconds = 900): void {
       if (id) plantSeed(state, id);
     }
     if (goals.some((g) => g.kind === 'care')) {
-      const cheapest = CARE.filter((m) => careBlocker(state, m.id) === null).sort(
-        (a, b) => nextCareRank(state, a.id)!.cost - nextCareRank(state, b.id)!.cost,
-      )[0];
-      if (cheapest) buyCare(state, cheapest.id);
+      const cheapest = RESEARCH.filter((n) => researchBlocker(state, n.id) === null).sort((a, b) => a.cost - b.cost)[0];
+      if (cheapest) research(state, cheapest.id);
     }
     updateDaily(state, day, {});
     tick(state, 1);

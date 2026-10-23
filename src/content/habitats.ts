@@ -1,6 +1,6 @@
-import type { CareMeasure } from './care';
 import type { Community } from './communities';
 import type { Niche } from './niches';
+import type { ResearchNode } from './research';
 import type { Species } from './species';
 import type { TraitTier } from './traits';
 import type { NicheId } from './types';
@@ -8,11 +8,11 @@ import type { NicheId } from './types';
 /**
  * Lebensräume nach dem Muster Waldtümpel (docs/DESIGN_V2.md 23, Phase 6 Welle 3):
  * 🌾 Waldwiese, 🪵 Totholzhaufen und 🪨 Trockenmauer – je eine Nische ohne Plätze aus der
- * Stufe, die nur durch Pflege (und das Käferjahr) öffnet, mit eigenen Arten, einer
+ * Stufe, die nur durch Forschung (und das Käferjahr) öffnet, mit eigenen Arten, einer
  * Lebensgemeinschaft und der Gattung Reptilien.
  *
  * Verdrahtet seit Spielstand v13 (Schritt B, 23.7): Die Listen hier fließen in `NICHES`,
- * `SPECIES`, `TRAITS`, `COMMUNITIES` und `CARE` (der Totholzhaufen steht direkt in care.ts);
+ * `SPECIES`, `TRAITS`, `COMMUNITIES` und `RESEARCH` (der Totholzhaufen steht direkt in research.ts);
  * `GENUS_INFO`, `TAG_NAMES` und der Sommer (Reptilien +15 % 😊) stehen in ihren Dateien.
  * Inhaltstest: `tests/habitats.test.ts`.
  */
@@ -26,7 +26,7 @@ export type HabitatNicheId = Extract<NicheId, 'meadow' | 'deadwood' | 'wall'>;
 
 /**
  * Wie der Waldtümpel: keine Plätze aus der Stufe, `opensEarly` – Plätze kommen nur über
- * die Wirkung `slot` aus Pflege und Ereignissen. Karten zieht das Spiel nur für offene
+ * die Wirkung `slot` aus Forschung und Ereignissen. Karten zieht das Spiel nur für offene
  * Nischen, darum erscheinen die Bewohner erst mit ihrem Lebensraum.
  */
 export const HABITAT_NICHES: readonly (Niche & { id: HabitatNicheId })[] = [
@@ -210,43 +210,55 @@ export const HABITAT_COMMUNITIES: readonly Community[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Pflege (8.1): Lebensräume öffnen
+// Forschung (27.7, Ast 🌾 Offenland): Lebensräume öffnen
 // ---------------------------------------------------------------------------
 
 const slot = (niche: NicheId, amount: number) => ({ kind: 'cycle', effect: { kind: 'slot', niche, amount } }) as const;
+const light = (amount: number) => ({ kind: 'cycle', effect: { kind: 'light', amount } }) as const;
+
+// Ebenen (Index in STAGES) wie in research.ts.
+const YOUNG_TREE = 3;
+const GROVE = 5;
+const FOREST = 6;
 
 /**
- * Die zwei neuen Maßnahmen (in CARE eingereiht). Die erweiterte „Totholzhaufen“ (Rang 1
- * 4.500 🌰 mit +2 Plätzen Totholzhaufen, Rang 2 +1 Platz) steht direkt in care.ts.
+ * Knoten der Waldwiese (bis v16 die Pflegemaßnahme mit zwei Rängen; in RESEARCH eingereiht).
+ * Die Wirkungen sind 1:1 die der Ränge (Migration CARE_TO_RESEARCH, 27.9).
  */
-export const MEADOW_CARE: CareMeasure = {
-    id: 'meadow', name: 'Waldwiese', icon: '🌾',
+export const MEADOW_RESEARCH: readonly ResearchNode[] = [
+  {
+    id: 'meadow', branch: 'open', name: 'Waldwiese', icon: '🌾', minStage: YOUNG_TREE, cost: 600,
+    effects: [slot('meadow', 2)], summary: '+2 Plätze Waldwiese',
     text: 'Einmal im Jahr gemäht, sonst in Ruhe gelassen – so blüht und zirpt die Lichtung.',
     boughtText: 'Wiese angelegt',
-    ranks: [
-      { cost: 2_400, minStage: 3, summary: '+2 Plätze Waldwiese', effects: [slot('meadow', 2)] },
-      {
-        cost: 16_000, minStage: 5, summary: '+2 Plätze Waldwiese, +2 ☀️',
-        effects: [slot('meadow', 2), { kind: 'cycle', effect: { kind: 'light', amount: 2 } }],
-      },
-    ],
-};
+  },
+  {
+    id: 'meadow-2', branch: 'open', name: 'Spätmahd', icon: '🌿', minStage: GROVE, cost: 980,
+    requires: ['meadow'],
+    effects: [slot('meadow', 2), light(2)], summary: '+2 Plätze Waldwiese, +2 ☀️',
+    text: 'Gemäht wird erst im September, wenn alle Gräser ausgesamt haben.',
+    boughtText: 'Mahd verschoben',
+  },
+];
 
-export const WALL_CARE: CareMeasure = {
-    id: 'drystone-wall', name: 'Trockenmauer', icon: '🪨',
+/** Knoten der Trockenmauer (bis v16 die Pflegemaßnahme mit zwei Rängen). */
+export const WALL_RESEARCH: readonly ResearchNode[] = [
+  {
+    id: 'drystone-wall', branch: 'open', name: 'Trockenmauer', icon: '🪨', minStage: GROVE, cost: 730,
+    requires: ['meadow'],
+    effects: [slot('wall', 2), light(2)], summary: '+2 Plätze Trockenmauer, +2 ☀️',
     text: 'Lesesteine ohne Mörtel, in der Sonne geschichtet – jede Ritze ein Zuhause.',
     boughtText: 'Mauer geschichtet',
-    ranks: [
-      {
-        cost: 12_000, minStage: 5, summary: '+2 Plätze Trockenmauer, +2 ☀️',
-        effects: [slot('wall', 2), { kind: 'cycle', effect: { kind: 'light', amount: 2 } }],
-      },
-      {
-        // 36.000 statt 32.000 🌰 aus dem Entwurf: Jeder Rang kostet mindestens das Dreifache (care.ts).
-        cost: 36_000, minStage: 6, summary: '+2 Plätze Trockenmauer, +2 ⚖️',
-        effects: [slot('wall', 2), { kind: 'cycle', effect: { kind: 'harmony', points: 2 } }],
-      },
-    ],
-};
+  },
+  {
+    id: 'drystone-wall-2', branch: 'open', name: 'Mauer verlängern', icon: '🦎', minStage: FOREST, cost: 2_000,
+    requires: ['drystone-wall'],
+    effects: [slot('wall', 2), { kind: 'cycle', effect: { kind: 'harmony', points: 2 } }],
+    summary: '+2 Plätze Trockenmauer, +2 ⚖️',
+    text: 'Noch ein paar Lesesteine vom Feldrand – die Mauer wächst, die Eidechsen auch.',
+    boughtText: 'Mauer verlängert',
+  },
+];
 
-export const HABITAT_CARE: readonly CareMeasure[] = [MEADOW_CARE, WALL_CARE];
+/** Alle Knoten der Lebensräume Waldwiese und Trockenmauer (der Totholzhaufen steht in research.ts). */
+export const HABITAT_RESEARCH: readonly ResearchNode[] = [...MEADOW_RESEARCH, ...WALL_RESEARCH];
