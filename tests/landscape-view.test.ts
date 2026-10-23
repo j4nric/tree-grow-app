@@ -101,6 +101,11 @@ describe('Karte der Landschaft: Standorte', () => {
     expect(flood.giftActive).toBe(false);
     expect(flood.memory).toMatch(/^Beginnt mit 0 eigenem Gedächtnis · \d+ wirksam über Mühlbach$/);
     expect(flood.ancientText).toBeNull();
+    // Wetter des Waldtyps (24.14): Zeichen der häufigsten Lage + Kurztext; Heimatwald ohne.
+    expect(home.weather).toBeNull();
+    expect(flood.weather).toBe('🌧️ Oft Landregen, selten Dürre – der Fluss ist nie weit.');
+    expect(map.sites.find((s) => s.id === 'heath')!.weather).toBe('🌡️ Viel Sonne, im Sommer oft Dürre – dann schwärmen die Borkenkäfer.');
+    expect(map.sites.find((s) => s.id === 'carr')!.weather).toBe('🌫️ Oft Nebel über dem Wasser, selten Dürre.');
     expect(newCycleButtonText(flood)).toBe('Auwald am Fluss gründen (3 🪶)');
     expect(targetText(flood, '🌳 Heimatwald')).toContain('Der Gewinn dieses Zyklus geht noch an 🌳 Heimatwald.');
     // Leitbaum gesperrt: die Eiche wächst, der Grund steht dabei.

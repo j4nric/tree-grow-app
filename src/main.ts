@@ -770,8 +770,8 @@ function frame(now: number): void {
   scene.mainTree = state.cycle.mainTree;
   // Kulisse des aktiven Waldes der Landschaft (DESIGN_V2.md 24.11).
   scene.site = siteOverride ?? activeSite(state.meta.landscape);
-  // Wetter des Tages mit Überblendung am Tageswechsel (DESIGN_V2.md 21.8).
-  const weather = sceneWeather(state.cycle);
+  // Wetter des Tages im gezeigten Wald mit Überblendung am Tageswechsel (DESIGN_V2.md 21.8, 24.14).
+  const weather = sceneWeather(state.cycle, scene.site as SiteId);
   scene.weather = weatherOverride ?? weather.weather;
   scene.weatherPrevious = weatherOverride ?? weather.previous;
   scene.weatherBlend = weatherOverride ? 1 : weather.blend;

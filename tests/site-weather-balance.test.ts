@@ -15,6 +15,10 @@ import { env } from './balance-setup';
  *   SIM_SITE_WEATHER=1 npx vitest run tests/site-weather-balance.test.ts --silent=false
  *
  * Ziel wie 24.7: jeder Waldtyp ±5 % Zeit bis zum Urwald gegenüber dem Heimatwald.
+ *
+ * Achtung seit 3c: Der Kern rechnet die Standort-Faktoren selbst ein. Der Vergleich der
+ * Waldtypen (`siteRun` mit aktivem Standort) wendet sie hier doppelt an – keine neuen Zahlen
+ * damit messen. 3d ersetzt die Messung durch den großen Lauf und löscht diese Datei.
  */
 const ON = !!env.SIM_SITE_WEATHER;
 const SITE_RUNS = Number(env.SIM_SITE_WEATHER_RUNS ?? 80);

@@ -17,6 +17,7 @@ import {
   simulateOffline,
   tick,
 } from '../src/core/tick';
+import { dayIndex, weatherAt, weatherOfDay } from '../src/core/weather';
 import { SPRING_GROWTH, resolveSpecial, stateAt } from './helpers';
 
 /**
@@ -385,6 +386,7 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
   it('gleich in der Waldlandschaft (v14): Auwald aktiv, alle Gaben, Korridor-Zufluss', () => {
     // Alter Baum im Auwald: Eigenheit (+2 💧, Tümpel, Pilze −15 %), Merkmal Feuchte, Gaben aller
     // Wälder und wirksames Gedächtnis aus dem Zufluss – alles in evaluate, also online = offline.
+    // Seit 3c (24.14) auch das Wetter des Auwalds (oft Landregen) – live wie im Mittel.
     const start = stateAt(4, ['earthworm', 'robin', 'chanterelle', 'toad', 'frog', 'newt'], 1414);
     start.meta.forestMemory = 80;
     start.meta.landscape = {
@@ -416,6 +418,7 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
       expectSameRun(pair);
       expect(pair[1].meta.landscape).toEqual(start.meta.landscape);
     }
+    expect(weatherAt(live[0]).id).toBe(weatherOfDay(live[0].cycle, dayIndex(live[0].cycle.elapsed), 'floodplain'));
   });
 
   it('gleich mit den Hauptbäumen der Landschaft (v15): Schwarzerle im Erlenbruch, Weißtanne im Bergmischwald, Wildwechsel-Markierung', () => {

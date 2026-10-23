@@ -94,7 +94,7 @@ import { refreshDailyAfterNewCycle } from './daily';
 import { pick, random, randomInt, weightedIndex, type RngHolder } from './rng';
 import { MAX_ELAPSED, nextSeasonBoundary, normalizeElapsed, seasonIdAt, secondsToNextSeason } from './season';
 import { GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, type WeatherId } from '../content/weather';
-import { dayIndex, nextNightChange, secondsToNightChange, weatherOfDay, weatherSeed, weatherOfDayFromSeed, type AmbientMode } from './weather';
+import { dayIndex, nextNightChange, secondsToNightChange, weatherOfDay, weatherSeed, weatherOfDayFromSeed, weatherSiteOf, type AmbientMode, type WeatherHolder } from './weather';
 import {
   MAX_FOREST_MEMORY,
   allAnimals,
@@ -261,7 +261,7 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     // schon die neue Jahreszeit. An der Grenze exakt setzen (kein Rundungsdrift).
     if (step === toSeason) {
       state.cycle.elapsed = nextSeasonBoundary(state.cycle.elapsed);
-      reportSeason(report, seasonIdAt(state.cycle.elapsed), weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed)));
+      reportSeason(report, seasonIdAt(state.cycle.elapsed), weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed), weatherSiteOf(state)));
       // Die Jahreszeit hebt oder senkt die Harmonie: H_max hier nachführen.
       raiseMaxHarmony(state, evaluate(state, mode).harmony);
     } else if (step === toNight) {
@@ -360,12 +360,13 @@ function skipYears(state: GameState, remaining: number, report: TickReport, mode
   // mit dem Wetter dieser Tage (nur für den Text; gerechnet wurde ohne Einzelwetter).
   const reported = Math.min(years, Math.ceil(MAX_REPORTED_SEASONS / SEASON_IDS.length));
   const seed = weatherSeed(state.cycle);
+  const site = weatherSiteOf(state);
   const lastDay = dayIndex(state.cycle.elapsed);
   for (let y = reported - 1; y >= 0; y--) {
     const yearStart = lastDay - y * SEASON_IDS.length;
     for (let i = 1; i <= SEASON_IDS.length; i++) {
       const day = yearStart - SEASON_IDS.length + i;
-      reportSeason(report, SEASON_IDS[i % SEASON_IDS.length]!, weatherOfDayFromSeed(seed, day));
+      reportSeason(report, SEASON_IDS[i % SEASON_IDS.length]!, weatherOfDayFromSeed(seed, day, site));
     }
   }
   return years;
@@ -1450,13 +1451,13 @@ export function eligibleVisitors(state: GameState): Visitor[] {
 
 /**
  * Gewicht eines Ereignisses beim Ziehen (DESIGN_V2.md 22.6): Faktor aus
- * WEATHER_EVENT_FACTORS für das Wetter des laufenden Tages (`weatherOfDay` – eine reine
+ * WEATHER_EVENT_FACTORS für das Wetter des laufenden Tages im aktiven Wald (`weatherOfDay` – eine reine
  * Funktion von Zyklus und Spielzeit, darum online und im Mittelmodus offline gleich), sonst 1.
  * Ungültige Faktoren zählen als 1; im Modus `off` (ohne Wetter) gilt immer 1.
  */
-export function eventWeight(state: Pick<GameState, 'cycle'>, eventId: string, ambient: AmbientMode = 'live'): number {
+export function eventWeight(state: WeatherHolder, eventId: string, ambient: AmbientMode = 'live'): number {
   if (ambient === 'off') return 1;
-  const factors = WEATHER_EVENT_FACTORS[weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed))];
+  const factors = WEATHER_EVENT_FACTORS[weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed), weatherSiteOf(state))];
   const f = factors && Object.hasOwn(factors, eventId) ? factors[eventId] : undefined;
   return f !== undefined && Number.isFinite(f) && f > 0 ? f : 1;
 }

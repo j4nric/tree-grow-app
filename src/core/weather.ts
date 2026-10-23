@@ -1,5 +1,6 @@
 import { DAY_SECONDS, DAY_START_PHASE, NIGHT_END_PHASE, NIGHT_SHARE, NIGHT_START_PHASE, NOCTURNAL, type Nocturnal } from '../content/daytime';
 import type { TimedEffect } from '../content/events';
+import { HOME_SITE, LANDSCAPE_SITES_BY_ID, type SiteId } from '../content/landscape';
 import { SEASON_IDS, type SeasonId } from '../content/seasons';
 import { SPECIES_BY_ID } from '../content/species';
 import { GENERA, type Genus } from '../content/types';
@@ -17,9 +18,10 @@ import {
   type Weather,
   type WeatherId,
 } from '../content/weather';
+import { activeSite, landscapeOf } from './landscape';
 import { normalizeSeed, random } from './rng';
 import { MAX_ELAPSED, normalizeElapsed } from './season';
-import { allAnimals, type CycleState, type GameState } from './state';
+import { allAnimals, type CycleState, type GameState, type LandscapeState } from './state';
 
 /*
  * Wetter und Nacht (DESIGN_V2.md 21): reine Rechnungen über Zyklus und Spielzeit, wie
@@ -70,9 +72,31 @@ export function weatherRoll(seed: number, day: number): number {
   return random({ rngState: normalizeSeed((seed ^ Math.imul(validDay(day) >>> 0, 0x9e3779b1)) >>> 0) });
 }
 
-/** Wetter nach den Gewichten der Jahreszeit, ohne Regeln (Reihenfolge wie in den Daten). */
-export function rawWeather(seed: number, day: number): WeatherId {
-  const weights = Object.entries(WEATHER_WEIGHTS[seasonOfDay(day)]) as [WeatherId, number][];
+/**
+ * Gewichte der Wetterlagen einer Jahreszeit an einem Standort (24.14):
+ * WEATHER_WEIGHTS[Jahreszeit][w] × (ForestSite.weather[w] ?? 1), Reihenfolge wie in
+ * WEATHER_WEIGHTS. Ein Faktor wirkt nur auf Lagen, die in der Jahreszeit schon vorkommen.
+ * Unbekannter Standort → Heimatwald (keine Faktoren); ungültige Faktoren zählen als 1.
+ */
+export function siteWeatherWeights(season: SeasonId, site: SiteId = HOME_SITE): [WeatherId, number][] {
+  const factors = LANDSCAPE_SITES_BY_ID.get(site)?.weather ?? {};
+  return (Object.entries(WEATHER_WEIGHTS[season] ?? {}) as [WeatherId, number][]).map(([id, w]) => {
+    const f = Object.hasOwn(factors, id) ? factors[id] : undefined;
+    return [id, f !== undefined && Number.isFinite(f) && f >= 0 ? w * f : w];
+  });
+}
+
+/** Standort, an dem das Wetter eines Spielstands gezogen wird: der aktive Wald (fehlt die Landschaft → Heimatwald). */
+export function weatherSiteOf(state: { meta?: { landscape?: LandscapeState } }): SiteId {
+  return state.meta ? activeSite(landscapeOf(state as { meta: { landscape?: LandscapeState } })) : HOME_SITE;
+}
+
+/** Was die Wetter-Funktionen vom Spielstand brauchen: Zyklus und (optional) die Landschaft. */
+export type WeatherHolder = Pick<GameState, 'cycle'> & { meta?: { landscape?: LandscapeState } };
+
+/** Wetter nach den Gewichten der Jahreszeit am Standort, ohne Regeln (Reihenfolge wie in den Daten). */
+export function rawWeather(seed: number, day: number, site: SiteId = HOME_SITE): WeatherId {
+  const weights = siteWeatherWeights(seasonOfDay(day), site);
   const total = weights.reduce((s, [, w]) => s + Math.max(0, w), 0);
   if (!(total > 0)) return AFTER_ROUGH_WEATHER;
   let r = weatherRoll(seed, day) * total;
@@ -93,20 +117,21 @@ export function isRough(id: WeatherId): boolean {
 /**
  * Wetter an Tag n eines Zyklus (21.2/21.4): Tag 0 „Wechselhaft“, in der Schonzeit
  * (erstes Jahr) keine rauen Lagen, nach einem rauen Tag nie ein zweiter. Regel 3 prüft
- * das Rohwetter des Vortags – ohne Rekursion, und trotzdem nie zwei raue Tage.
+ * das Rohwetter des Vortags am selben Standort – ohne Rekursion, und trotzdem nie zwei raue
+ * Tage. Gewichte des Standorts `site` (24.14; Standard Heimatwald = Gewichte wie vor 3c).
  */
-export function weatherOfDay(cycle: WeatherCycle, day: number): WeatherId {
-  return weatherOfDayFromSeed(weatherSeed(cycle), day);
+export function weatherOfDay(cycle: WeatherCycle, day: number, site: SiteId = HOME_SITE): WeatherId {
+  return weatherOfDayFromSeed(weatherSeed(cycle), day, site);
 }
 
 /** Wie weatherOfDay, mit schon berechnetem Startwert (für viele Tage hintereinander). */
-export function weatherOfDayFromSeed(seed: number, day: number): WeatherId {
+export function weatherOfDayFromSeed(seed: number, day: number, site: SiteId = HOME_SITE): WeatherId {
   const n = validDay(day);
   if (n === 0) return FIRST_DAY_WEATHER;
-  const raw = rawWeather(seed, n);
+  const raw = rawWeather(seed, n, site);
   if (!isRough(raw)) return raw;
   if (n < GENTLE_DAYS) return AFTER_ROUGH_WEATHER;
-  if (n - 1 >= GENTLE_DAYS && isRough(rawWeather(seed, n - 1))) return AFTER_ROUGH_WEATHER;
+  if (n - 1 >= GENTLE_DAYS && isRough(rawWeather(seed, n - 1, site))) return AFTER_ROUGH_WEATHER;
   return raw;
 }
 
@@ -115,14 +140,17 @@ export function weatherById(id: WeatherId): Weather {
   return WEATHERS_BY_ID.get(id) ?? WEATHERS_BY_ID.get(AFTER_ROUGH_WEATHER) ?? WEATHERS[0]!;
 }
 
-/** Wetter des laufenden Tages. */
-export function weatherAt(state: Pick<GameState, 'cycle'>): Weather {
-  return weatherById(weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed)));
+/** Wetter des laufenden Tages im aktiven Wald. */
+export function weatherAt(state: WeatherHolder): Weather {
+  return weatherById(weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed), weatherSiteOf(state)));
 }
 
-/** Vorhersage: das Wetter von morgen (des nächsten Tages = der nächsten Jahreszeit). */
-export function weatherForecast(state: Pick<GameState, 'cycle'>): Weather {
-  return weatherById(weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed) + 1));
+/**
+ * Vorhersage: das Wetter von morgen (des nächsten Tages = der nächsten Jahreszeit) im aktiven
+ * Wald – der wechselt nur beim Neuen Zyklus, die Vorhersage gilt also.
+ */
+export function weatherForecast(state: WeatherHolder): Weather {
+  return weatherById(weatherOfDay(state.cycle, dayIndex(state.cycle.elapsed) + 1, weatherSiteOf(state)));
 }
 
 /** Wetter für die Grafik (`SceneInput.weather` / `weatherBlend`, 21.8). */
@@ -135,13 +163,13 @@ export interface SceneWeather {
   blend: number;
 }
 
-/** Wetter und Überblendung zur Spielzeit des Zyklus – für den Renderer, jeden Frame. */
-export function sceneWeather(cycle: WeatherCycle & Pick<CycleState, 'elapsed'>): SceneWeather {
+/** Wetter und Überblendung zur Spielzeit des Zyklus am Standort – für den Renderer, jeden Frame. */
+export function sceneWeather(cycle: WeatherCycle & Pick<CycleState, 'elapsed'>, site: SiteId = HOME_SITE): SceneWeather {
   const elapsed = normalizeElapsed(cycle.elapsed);
   const day = dayIndex(elapsed);
   const seed = weatherSeed(cycle);
-  const weather = weatherOfDayFromSeed(seed, day);
-  const previous = day > 0 ? weatherOfDayFromSeed(seed, day - 1) : weather;
+  const weather = weatherOfDayFromSeed(seed, day, site);
+  const previous = day > 0 ? weatherOfDayFromSeed(seed, day - 1, site) : weather;
   const inDay = elapsed - day * DAY_SECONDS;
   const blend = previous === weather ? 1 : Math.min(1, Math.max(0, inDay / WEATHER_BLEND_SECONDS));
   return { weather, previous, blend };
@@ -204,7 +232,7 @@ export function weatherDampingFor(
 
 /** Dämpfung für diesen Spielstand (Standard: das Wetter des laufenden Tages). */
 export function weatherDamping(
-  state: Pick<GameState, 'niches' | 'cycle'>,
+  state: Pick<GameState, 'niches' | 'cycle'> & WeatherHolder,
   weather: Weather = weatherAt(state),
 ): WeatherDamping {
   return weatherDampingFor(weather, generaWithAnimals(allAnimals(state)).length, state.cycle.care, state.cycle.mainTree);
@@ -216,7 +244,7 @@ export function dampedWeatherEffects(weather: Weather, damping: Pick<WeatherDamp
 }
 
 /** Gedämpfte Wirkungen einer Wetterlage für diesen Spielstand – Abzeichen und Tooltip. */
-export function weatherEffects(state: Pick<GameState, 'niches' | 'cycle'>, weather: Weather = weatherAt(state)): TimedEffect[] {
+export function weatherEffects(state: Pick<GameState, 'niches' | 'cycle'> & WeatherHolder, weather: Weather = weatherAt(state)): TimedEffect[] {
   return dampedWeatherEffects(weather, weatherDamping(state, weather));
 }
 
@@ -224,9 +252,9 @@ export function weatherEffects(state: Pick<GameState, 'niches' | 'cycle'>, weath
 // Mittelwetter (offline, 21.5)
 // ---------------------------------------------------------------------------
 
-/** Anteile der Wetterlagen einer Jahreszeit (Gewichte / Summe). */
-function weatherShares(season: SeasonId): [WeatherId, number][] {
-  const entries = (Object.entries(WEATHER_WEIGHTS[season] ?? {}) as [WeatherId, number][]).map(
+/** Anteile der Wetterlagen einer Jahreszeit am Standort (Gewichte / Summe). */
+function weatherShares(season: SeasonId, site: SiteId): [WeatherId, number][] {
+  const entries = siteWeatherWeights(season, site).map(
     ([id, w]) => [id, Number.isFinite(w) && w > 0 ? w : 0] as [WeatherId, number],
   );
   const total = entries.reduce((s, [, w]) => s + w, 0);
@@ -238,14 +266,19 @@ function weatherShares(season: SeasonId): [WeatherId, number][] {
  * Tage“ (nach der Schonzeit): p_eff(w) = p(w) × (1 − r_vor) für raue Lagen, r_vor =
  * Anteil rauer Lagen der Vorjahreszeit. „Wechselhaft“ bekommt den Rest. Summe 1.
  * `gentle` = Schonzeit (Tage 1 … GENTLE_DAYS − 1): raue Lagen ganz zu „Wechselhaft“.
+ * Anteile und rauer Anteil der Vorjahreszeit mit den Gewichten des Standorts `site` (24.14).
  */
-export function weatherProbabilities(season: SeasonId, gentle = false): Partial<Record<WeatherId, number>> {
+export function weatherProbabilities(
+  season: SeasonId,
+  gentle = false,
+  site: SiteId = HOME_SITE,
+): Partial<Record<WeatherId, number>> {
   const idx = Math.max(0, SEASON_IDS.indexOf(season));
   const prev = SEASON_IDS[(idx + SEASON_IDS.length - 1) % SEASON_IDS.length]!;
-  const roughPrev = gentle ? 1 : weatherShares(prev).reduce((s, [id, p]) => s + (isRough(id) ? p : 0), 0);
+  const roughPrev = gentle ? 1 : weatherShares(prev, site).reduce((s, [id, p]) => s + (isRough(id) ? p : 0), 0);
   const out: Partial<Record<WeatherId, number>> = {};
   let sum = 0;
-  for (const [id, p] of weatherShares(season)) {
+  for (const [id, p] of weatherShares(season, site)) {
     const pe = isRough(id) ? p * (1 - roughPrev) : p;
     out[id] = (out[id] ?? 0) + pe;
     sum += pe;
@@ -261,9 +294,10 @@ export function averageWeatherEffectsFor(
   care: Readonly<Record<string, number>> | undefined,
   mainTree: string | undefined,
   gentle = false,
+  site: SiteId = HOME_SITE,
 ): TimedEffect[] {
   const out: TimedEffect[] = [];
-  for (const [id, p] of Object.entries(weatherProbabilities(season, gentle)) as [WeatherId, number][]) {
+  for (const [id, p] of Object.entries(weatherProbabilities(season, gentle, site)) as [WeatherId, number][]) {
     if (!(p > 0)) continue;
     const weather = weatherById(id);
     for (const e of dampedWeatherEffects(weather, weatherDampingFor(weather, genera, care, mainTree))) {
@@ -273,9 +307,20 @@ export function averageWeatherEffectsFor(
   return out;
 }
 
-/** Mittelwetter einer Jahreszeit für diesen Spielstand (offline, 21.5; `gentle`: Schonzeit). */
-export function averageWeatherEffects(state: Pick<GameState, 'niches' | 'cycle'>, season: SeasonId, gentle = false): TimedEffect[] {
-  return averageWeatherEffectsFor(season, generaWithAnimals(allAnimals(state)).length, state.cycle.care, state.cycle.mainTree, gentle);
+/** Mittelwetter einer Jahreszeit für diesen Spielstand im aktiven Wald (offline, 21.5; `gentle`: Schonzeit). */
+export function averageWeatherEffects(
+  state: Pick<GameState, 'niches' | 'cycle'> & WeatherHolder,
+  season: SeasonId,
+  gentle = false,
+): TimedEffect[] {
+  return averageWeatherEffectsFor(
+    season,
+    generaWithAnimals(allAnimals(state)).length,
+    state.cycle.care,
+    state.cycle.mainTree,
+    gentle,
+    weatherSiteOf(state),
+  );
 }
 
 /** Mittelwetter: nach der Schonzeit (`average`) bzw. darin, ohne raue Lagen (`gentle-average`). */
