@@ -6037,6 +6037,30 @@ ebenso die Hähersaat.
 Wie bei den Baumarten (17.4) darf kein Waldtyp „der beste“ sein: Ziel ±5 % Zeit bis zum Urwald
 gegenüber dem Heimatwald bei gleichem Gedächtnis.
 
+**Stand 3d (Phase 7, echte Logik mit Wetter je Standort):** wie „Stand 2c“, jetzt mit dem
+Wetter des Waldtyps aus `core/weather.ts` (3c, 24.14) – keine Hilfsskripte mehr; „ohne“ =
+derselbe Lauf mit `withoutSiteWeather` (jeder Wald mit dem Wetter des Heimatwaldes, = Stand 2c).
+160 Durchgänge, Median, Gedächtnis 200; Käferjahr = Durchgänge mit Käferjahr bis zum Urwald:
+
+| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | Wachstum: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | Käferjahr H / W (ohne) |
+|---|---|---|---|---|---|---|---|---|
+| 🌳 Heimatwald | Stieleiche | 49:29 min | – | – | 41:12 min | – | – | 29 (29) / 28 (28) |
+| 🌊 Auwald am Fluss | Stieleiche | 49:28 min | ±0,0 % | ±0,0 % | 41:35 min | +0,9 % | +1,3 % | 37 (32) / 23 (24) |
+| 🌫️ Erlenbruch | Schwarzerle | 50:04 min | +1,2 % | +1,3 % | 40:57 min | −0,6 % | ±0,0 % | 43 (43) / 35 (30) |
+| 🍂 Buchenhallen | Rotbuche | 50:01 min | +1,1 % | +1,1 % | 40:42 min | −1,2 % | −1,7 % | 40 (34) / 25 (26) |
+| ⛰️ Bergmischwald | Weißtanne | 48:42 min | −1,6 % | −1,3 % | 41:45 min | +1,3 % | +1,2 % | 32 (41) / 23 (22) |
+| 🌲 Kiefernheide | Waldkiefer | 50:05 min | +1,2 % | +1,0 % | 39:48 min | **−3,4 %** | −3,8 % | 40 (41) / 38 (40) |
+
+Alle Waldtypen innerhalb **±3,4 %** (Ziel ±5 %), das Wetter verschiebt keinen um mehr als
+0,6 Punkte. Die Zahlen stimmen auf die Sekunde mit der Vorab-Messung aus 3b (24.14) überein –
+die Logik rechnet also wie das damalige Hilfsskript. **Keine Zahl geändert.** Die Kiefernheide
+bleibt für den Wachstums-Spieler der schnellste Wald, rückt aber zur Mitte (−3,8 → −3,4 %).
+Das Käferjahr streut je Wald zwischen 23 und 43 von 160 – ohne Muster durch das Wetter (s. 24.13).
+
+```bash
+SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Waldtypen --silent=false   # ~6 min
+```
+
 **Stand 2c (Phase 7, echte Logik):** wie „Stand Schritt A“ unten, aber mit `featured` (Schritt B),
 den Leitbäumen Weißtanne und Schwarzerle (2b) und **eigenem Wetter je Durchgang** (`siteRun`
 setzt jetzt eine Startzeit aus dem Seed; vorher hatten alle Durchgänge dieselbe Wetterfolge,
@@ -6284,7 +6308,43 @@ es reicht (zuerst die am aktiven Wald). Stammgäste wie `runCycles`.
 SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.test.ts -t Spielweisen --silent=false   # ~9 min
 SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Waldtypen --silent=false                        # ~2 min
 SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 SIM_LANDSCAPE_WW=on npx vitest run tests/landscape-balance.test.ts -t Wildwechsel --silent=false   # ~8 min je Variante (on, off, none)
+SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 SIM_LANDSCAPE_SITE_WEATHER=off npx vitest run tests/landscape-balance.test.ts -t Spielweisen --silent=false   # Vergleich ohne Wetter je Standort
+SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Häufigkeiten --silent=false   # Wetter je Standort (24.14), ~10 s
 ```
+
+**Stand 3d (Phase 7)** – echte Logik mit Wildwechsel, `featured`, den Leitbäumen Weißtanne und
+Schwarzerle und dem **Wetter je Standort** (3c); „ohne Standort-Wetter“ = `withoutSiteWeather`
+(ergibt genau die Zahlen von Stand 2c). Harmonie und Wachstum 20, Zufall 10 Durchgänge,
+dieselben Seeds; Median, kumulierte Spielzeit:
+
+| Spielweise | Freischaltung | 2. Wald | 3. | 4. | 5. | 6. Wald | Landschaft vollständig | alle Wälder voll | Zyklen | davon Ernte |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Harmonie | 4,5 h | 4,5 h | 6,5 h | 9,1 h | 11,0 h | 13,1 h | **14,2 h** | **16,5 h** | 66 | 30 (3,1 h) |
+| Wachstum | 4,4 h | 4,4 h | 5,7 h | 8,3 h | 10,3 h | 12,4 h | **13,3 h** | **15,5 h** | 72 | 34 (3,0 h) |
+| Zufall | 16,8 h | 16,8 h | 22,1 h | 28,9 h | 33,3 h | 37,0 h | 39,1 h | 43,3 h | 86 | 34,5 (5,3 h) |
+| *Harmonie ohne Standort-Wetter* | 4,5 h | 4,5 h | 6,4 h | 9,1 h | 11,0 h | 13,2 h | 14,2 h | 16,5 h | 66 | 30 (3,1 h) |
+| *Wachstum ohne Standort-Wetter* | 4,4 h | 4,4 h | 5,6 h | 8,3 h | 10,4 h | 12,4 h | 13,3 h | 15,5 h | 72 | 34 (3,0 h) |
+| *Zufall ohne Standort-Wetter* | 16,8 h | 16,8 h | 23,1 h | 29,2 h | 32,9 h | 36,6 h | 38,4 h | 42,6 h | 86,5 | 34 (5,5 h) |
+
+| Spielweise | erster Urwald: Heimatwald | 2. Wald | 3. | 4. | 5. | 6. Wald | 🌿/s max |
+|---|---|---|---|---|---|---|---|
+| Harmonie | 2:34:57 h | 58 min | 1:01:07 h | 35 min | 29 min | 21 min | 1,4 · 10^4 |
+| Wachstum | 2:13:43 h | 41 min | 1:03:01 h | 32 min | 22 min | 16 min | 1,4 · 10^4 |
+| Zufall | 4:11:28 h | 1:32:24 h | 1:38:36 h | 1:00:14 h | 49 min | 38 min | 1,1 · 10^4 |
+
+Höchste Harmonie je Wald: Harmonie-Spieler 308–312, Wachstum 288–297, Zufall 263–270.
+Größte Zahlen: 1,4 · 10^4 🌿/s, 1,3 · 10^6 🌰 Bestand, 9,1 · 10^7 Wachstum über alle Zyklen
+(Zufall) – weit unter 1e15 (24.9).
+
+- **Tempo:** Das Wetter je Standort ist **Charakter, kein Tempo** – Harmonie und Wachstum
+  vollständig nach 14,2 bzw. 13,3 h wie ohne (und wie Stand 2c), alle voll 16,5 / 15,5 h.
+  Einzelne Meilensteine verschieben sich um ±0,1 h, der Zufallsspieler um +0,7 h (39,1 gegen
+  38,4 h; 10 Durchgänge, Streuung). Gegenüber Schritt A (13,9 h) +0,3 h für den Harmonie-Spieler.
+- **Ziele:** (a) 2. Wald 0,37 × Heimatwald (58 min), danach 1:01 h (1,05 × – der Ring-Fall,
+  ≤ 1,1 ×), 35, 29, 21 min; (b) vollständig nach 14,2 h (Ziel 12–30 h); (d) Zahlen klein.
+- **Harmonie gegen Wachstum:** **6,4 %** (vollständig) bzw. **6,2 %** (alle voll) – vorher
+  6,5 / 6,8 % (2c), weiter unter 10 %. Kein Harmonie-Hebel nötig (24.13).
+
 
 **Stand 2c (Phase 7)** – echte Logik mit Wildwechsel, `featured` und den Leitbäumen Weißtanne
 und Schwarzerle (2b); sonst wie „Stand Schritt A“ (Harmonie und Wachstum 20, Zufall 10
@@ -6689,8 +6749,8 @@ In `src/content/achievements.ts` (`AchievementCondition`):
 - **Harmonie-Hebel in der Landschaft – gemessen, nicht umgesetzt (Option):** Mit der echten
   Logik ist der Wachstums-Spieler über die ganze Landschaft nur 5,1 % (vollständig) bzw.
   6,5 % (alle voll) schneller (24.10) – unter der vereinbarten Schwelle von 10 %. Nach Schritt B
-  (Wildwechsel, `featured`) und den neuen Leitbäumen (2c): 6,5 % bzw. 6,8 % – weiter darunter,
-  nicht umgesetzt. Bleibt als Option, falls spätere Inhalte den Abstand vergrößern: +1 🪶 je Wald, dessen
+  (Wildwechsel, `featured`) und den neuen Leitbäumen (2c): 6,5 % bzw. 6,8 %, mit dem Wetter je
+  Standort (3d): 6,4 % bzw. 6,2 % – weiter darunter, nicht umgesetzt. Bleibt als Option, falls spätere Inhalte den Abstand vergrößern: +1 🪶 je Wald, dessen
   höchste Harmonie einmal eine hohe Schwelle erreicht hat (Feld `bestHarmony` je Wald, neue
   Spielstand-Version). Achtung bei der Schwelle: Gemessen erreichen beide Spielweisen im
   Lauf der Landschaft in jedem Wald 288–311 (Harmonie 310–311, Wachstum 288–300) – eine
@@ -6704,10 +6764,26 @@ In `src/content/achievements.ts` (`AchievementCondition`):
   mehr verschiedene und seltene Karten (24.10, „Wildwechsel und Vielfalt“). Höher lohnt nicht:
   Schon bei 30 % wird nur noch jede vierte Wildwechsel-Karte gewählt (bei 10 %: 34–43 %) – die
   Nachbarn haben dann meist dieselben Arten wie der eigene Wald.
-- **Käferjahr der Kiefernheide (24.14):** Das häufigere Dürrewetter macht das Käferjahr dort
-  nicht messbar häufiger (es ist durch „Käfer ungejagt“ und „einmal je Zyklus“ begrenzt, nicht
-  durch das Wetter). Soll die Heide es sichtbar öfter haben, braucht es eine Regel für das
-  Ereignis selbst (z. B. Gewicht je Standort) – eigene Aufgabe, erst nach dem Playtest Phase 7.
+- **Käferjahr der Kiefernheide – entschieden in 3d: ja, als Gewicht je Standort** (Aufgabe 3e,
+  `core-engineer`). Gemessen (Kiefernheide, `siteRun` wie 24.7, 160 Durchgänge, Durchgänge mit
+  Käferjahr bis zum Urwald, Harmonie / Wachstum; Heimatwald 29 / 28):
+
+  | Variante | Käferjahr H / W | Zeit H / W |
+  |---|---|---|
+  | heute (Dürre × 2,5 im Wetter, Ereignis × 3 an Dürretagen) | 40 / 38 | 50:05 / 39:48 min |
+  | Ereignis × 10 an Dürretagen | 45 / 40 | 50:04 / 39:48 min |
+  | **Ereignis × 3 an jedem Tag in der Heide** | **71 / 52** | 50:04 / 39:43 min |
+  | ohne Bedingung „Käfer ungejagt“ | 67 / 79 | 50:12 / 40:10 min |
+
+  Die Annahme aus 3b („begrenzt durch ‚Käfer ungejagt‘ und einmal je Zyklus“) stimmt nur halb:
+  Das Wetter-Gewicht wirkt bloß an den ~19 % Sommertagen mit Dürre, darum hilft auch × 10 kaum.
+  Ein Gewicht des **Standorts** auf das Ereignis wirkt an jedem Sommertag und macht das Käferjahr
+  in der Heide fast doppelt so häufig wie im Heimatwald (44 / 33 % gegen 18 / 18 %), **ohne**
+  Tempo zu kosten (≤ 0,2 %). Die Bedingung bleibt (ohne sie ändert das Ereignis seinen Sinn:
+  Spechte als Antwort auf ungejagte Käfer). Warum ja: Die Heide verspricht im Kurztext „dann
+  schwärmen die Borkenkäfer“ – mit 3e hält sie es; der Spieler erlebt den Waldtyp als
+  Geschichte, nicht nur als Zahl. Klein: ein Datenfeld, ein Faktor in `eventWeight`, keine
+  Spielstand-Version. Spezifikation in ROADMAP Phase 7, 3e.
 
 ### 24.14 Waldtyp und Wetter (Phase 7, 3b)
 
@@ -6715,8 +6791,10 @@ In `src/content/achievements.ts` (`AchievementCondition`):
 > Kurztext `ForestSite.weatherSummary` in `src/content/landscape.ts` (Inhaltstests
 > `tests/landscape.test.ts`); `core/weather.ts` zieht mit `siteWeatherWeights` im aktiven Wald
 > (Logik-Tests `tests/site-weather-core.test.ts`), U:Standort zeigt die Wetter-Zeile.
-> Gemessen vorab mit der echten Logik über `scripts/site-weather.ts` (Gewichte des Standorts zur
-> Laufzeit) und `tests/site-weather-balance.test.ts`. Beantwortet die offene Frage aus 24.13.
+> Gemessen vorab (3b) über ein Hilfsskript, das die Gewichte zur Laufzeit tauschte; **nachgemessen
+> in 3d mit der Logik aus core/** (`tests/landscape-balance.test.ts`, „Häufigkeiten“ und
+> „Waldtypen“): alle Tabellen unten auf die Nachkommastelle gleich, das Hilfsskript ist entfernt.
+> Beantwortet die offene Frage aus 24.13.
 
 **Idee:** Die Waldtypen unterscheiden sich bisher in Zahlen (Eigenheit, Gabe, Leitbaum). Ein
 eigenes Wetter macht sie **sichtbar** anders – die Wetter-Grafik (21.8) ist fertig – und kostet
@@ -6830,6 +6908,8 @@ ungejagt“ (Hain, Sommer) und „einmal je Zyklus“ begrenzt; die Dürre (× 3
 nur, *wann* es kommt, nicht *ob*. In der Heide fällt es dadurch öfter auf einen Dürretag – die
 Geschichte „Dürre → Borkenkäfer“ stimmt im Bild, in der Zahl nicht. Soll die Heide es häufiger
 haben, braucht das Ereignis selbst eine Regel (offene Frage 24.13); für 3b bewusst nicht.
+**Entschieden in 3d:** Gewicht des Standorts auf das Ereignis, Kiefernheide Käferjahr × 3
+(24.13, Aufgabe 3e).
 
 **Warum diese Zahlen:** Faktor 2 (bzw. 2,5 für die Dürre der Heide) ist die kleinste Zahl, die
 man ohne Statistik bemerkt: In einem Zyklus bis zum Urwald (~16 Tage, vier Frühlinge) regnet es
@@ -6863,9 +6943,8 @@ dafür (raue Lagen tragen +15–25 % 🌰). Die Heide tauscht genau umgekehrt.
    ±1 Punkt); nie zwei raue Tage je Standort; Mittel = Σ p_eff × Wirkung je Standort; Vorhersage
    und Szene nutzen den aktiven Wald; Wechsel des Waldes mit `startNewCycle` → neue Folge;
    kleine Ticks = großer Tick und `simulateOffline` im Mittel je Standort (wie 21.5).
-6. Danach (3d, `game-designer`): `scripts/site-weather.ts` und
-   `tests/site-weather-balance.test.ts` entfernen, 24.7/24.10/24.14 mit der echten Logik
-   nachmessen (die ganze Landschaft – heute misst das Skript nur Läufe in einem Wald).
+6. Danach (3d, `game-designer`, **erledigt**): Hilfsskript und Messtest entfernt, 24.7/24.10/24.14
+   mit der echten Logik nachgemessen (die ganze Landschaft in 24.10 „Stand 3d“).
 
 **Oberfläche (klein, `ui-dev`, nach 3c):** `weatherSummary` als Zeile in der Karte bzw.
 U:Landschaft beim Standort („🌫️ Oft Nebel über dem Wasser, selten Dürre.“). Die Wetter-Notiz
@@ -6878,9 +6957,9 @@ braucht nichts Neues – sie zeigt das Wetter des Tages wie bisher.
 > **Stand:** umgesetzt mit Spielstand v15 (Phase 7, 2b): `fir` und `alder` in `MainTreeId`
 > und `src/content/trees.ts` (Werte wie 25.3), Freischaltung `unlockSite`, Leitbäume
 > Bergmischwald → Weißtanne und Erlenbruch → Schwarzerle, `TREE_SPECIES = RENDER_TREE_SPECIES`
-> (= `MAIN_TREE_IDS`), Laden wie 25.5, Erfolge 25.7. Offen: Baumwahl mit fünf Karten in der
-> Oberfläche (25.6 Nr. 3) und der große Lauf mit den neuen Leitbäumen (Nr. 5);
-> `scripts/site-trees.ts` misst bis dahin weiter (die Kandidaten sind jetzt dieselben Daten).
+> (= `MAIN_TREE_IDS`), Laden wie 25.5, Erfolge 25.7. Baumwahl mit fünf Karten (Nr. 3) im Album
+> (3a); der große Lauf mit den neuen Leitbäumen und dem Wetter je Standort (Nr. 5) in 3d
+> (24.7, 24.10 „Stand 3d“, 25.4 Nachtrag) – das Hilfsskript der Kandidaten ist entfernt.
 
 ### 25.1 Idee und Auswahl
 
@@ -6926,7 +7005,7 @@ Nur bestehende Wirkungsarten der Baum-Eigenheiten (17.3: `slot`, `light`, `water
 | 🎄 Weißtanne | Tannensamen | Laub (Nadelstreu), Wurzeln, Nadeln | Vögel +10 % 😊; ab Junger Baum +1 Platz Stamm & Rinde; winterfest | ab Alter Baum −1 ☀️ (Schattbaum, dichte Krone); keine Nüsse | Vögel, Rindenbewohner, Winter |
 | 🌿 Schwarzerle | Erlensamen | Laub, Wurzeln | Amphibien +10 % 😊; Blumen +15 % 🌿 (Stickstoff aus den Wurzelknöllchen); ab Junger Baum +1 Platz Waldtümpel (öffnet ihn auch ohne Pflege, `opensEarly`) | keine Nüsse; nicht winterfest | Amphibien, Blüten, nasse Wälder |
 
-Daten (für `src/content/trees.ts`; Wirkungen wie in `scripts/site-trees.ts`):
+Daten (heute so in `src/content/trees.ts`):
 
 ```ts
 { id: 'fir', name: 'Weißtanne', icon: '🎄', fruit: 'Tannensamen',
@@ -6970,15 +7049,11 @@ Heimatwald“, jeweils gegenüber Heimatwald mit Eiche):
 
 ### 25.4 Messung (echte Logik, ohne neue Logik)
 
-`tests/site-trees-balance.test.ts` (nur mit `SIM_SITE_TREES=1`, ~5 min) trägt die Kandidaten
-aus `scripts/site-trees.ts` zur Laufzeit in `MAIN_TREES_BY_ID` ein (ohne Freischaltung) und
+Vor 2b (Messung der Kandidaten, Hilfsskript in 3d entfernt): ein Messtest trug die Kandidaten
+zur Laufzeit in `MAIN_TREES_BY_ID` ein (ohne Freischaltung) und
 misst wie „Waldtypen im Vergleich“ (24.7): `siteRun`, alle Wälder gegründet (dieselben Gaben),
 mit Pflege, 80 Durchgänge, Median bis zum Urwald; Bezug Heimatwald mit Stieleiche. Ziel ±5 %.
 Die Zeilen „heute“ stimmen mit 24.7 überein – die Messung rechnet also wie dort.
-
-```bash
-SIM_SITE_TREES=1 npx vitest run tests/site-trees-balance.test.ts --silent=false
-```
 
 **Gedächtnis 200** (wie 24.7):
 
@@ -7020,6 +7095,15 @@ Lauf der Landschaft mit ihnen und mit Wildwechsel steht in 24.10 („Stand 2c“
 den neuen Leitbäumen in 24.7 („Stand 2c“: Bergmischwald −1,3 / +1,2 %, Erlenbruch +1,3 / 0,0 %).
 Wie erwartet kaum Änderung. Offen bleibt nur der Lauf mit dem Wetter je Standort (3d, nach 3c).
 
+**Nachtrag 3d (Phase 7, echte Logik mit Wetter je Standort):** Die Leitbäume in ihrem Wald mit
+dessen Wetter (24.7 „Stand 3d“, 160 Durchgänge, Gedächtnis 200, gegenüber Heimatwald mit
+Stieleiche): **Bergmischwald mit Weißtanne −1,6 / +1,3 %** (ohne Standort-Wetter −1,3 / +1,2 %),
+**Erlenbruch mit Schwarzerle +1,2 / −0,6 %** (+1,3 / 0,0 %) – Harmonie / Wachstum. Mehr Neuschnee
+im Bergwald hilft der winterfesten Tanne eine Spur, der Nebel im Bruch den Moosen; beide bleiben
+nah an der Mitte. In der ganzen Landschaft (24.10 „Stand 3d“) erreicht der Bergmischwald als
+5. Wald seinen ersten Urwald nach 29 min (Harmonie), der Erlenbruch als 4. nach 35 min – wie
+ohne Standort-Wetter. **Keine Zahl geändert.**
+
 ### 25.5 Spielstand: v15 – ja
 
 **Kein neues Feld**, aber ein neuer **Wertebereich**: `cycle.mainTree`,
@@ -7050,7 +7134,7 @@ Eiche weiter, gewachsene Arten gingen aus der Statistik verloren. Das ist der Fa
 | 2 | `core-engineer` | **v15:** `MainTreeId` + `MAIN_TREE_IDS` um `fir`, `alder`; Feld `unlockSite?: SiteId` in `MainTree` (content-Typ), `isTreeUnlocked` prüft es gegen `meta.landscape.sites`; beim Gründen gilt der Zielstandort für Vorauswahl und Prüfung schon als gegründet (`previewNewCycle(…).landscape.sites[].mainTree` = Leitbaum, `startNewCycle(…, 'fir', 'mountain')` gelingt); `leadTree` Bergmischwald `'fir'`, Erlenbruch `'alder'`; `TREE_SPECIES` = `MAIN_TREE_IDS`; Laden wie 25.5; Erfolge 25.7. Die Daten aus 25.3 kommen in diesem PR (die Felder sind neu) | 1; Wildwechsel gemergt (gleiche Stellen in `tick.ts`) |
 | 3 | `ui-dev` | Baumwahl mit fünf Karten (verborgen vor der Landschaft, danach gesperrt mit Hinweis), Hauptbaum-Symbol in der Karte der Landschaft und im Tagebuch-Reiter, Spielanleitung (Frucht-Texte über `fruit`), mobil 360 px ohne Querscrollen | 2 |
 | 4 | `qa-tester` | e2e: Bergmischwald gründen → Weißtanne vorausgewählt → Neuladen → Weißtanne wächst, Szene zeigt sie; Erlenbruch mit Schwarzerle: Tümpel ab Junger Baum ohne Pflege; v14-Spiel lehnt den v15-Stand ab | 3 |
-| 5 | `game-designer` | großer Lauf der Landschaft mit den neuen Leitbäumen (24.7, 24.10, 25.4 nachtragen), danach `scripts/site-trees.ts` und `tests/site-trees-balance.test.ts` entfernen | 2 |
+| 5 | `game-designer` | großer Lauf der Landschaft mit den neuen Leitbäumen (24.7, 24.10, 25.4 nachtragen), danach `scripts/site-trees.ts` und `tests/site-trees-balance.test.ts` entfernen – **erledigt in 3d** | 2 |
 
 > **Nr. 1 umgesetzt (`renderer`):** Wuchsformen `TREE_FORMS.fir` / `.alder` in
 > `src/render/plant.ts`, Farben und Zeichnungen in `src/render/species-fir-alder.ts`, Demo

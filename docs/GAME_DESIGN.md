@@ -50,7 +50,11 @@
 > 10 % je Korridor am aktiven Wald, höchstens 30 %, unverändert – sie ändern kein Tempo, nur die
 > Karten. Wetter je Waldtyp (Phase 7 3b, `DESIGN_V2.md` 24.14): Faktoren auf die Wetter-Gewichte
 > je Standort (z. B. Kiefernheide Dürre × 2,5, Bergmischwald Neuschnee × 2) stehen als Daten in
-> `src/content/landscape.ts` und wirken erst mit der Logik (3c); Waldtypen gemessen ±3,5 %.
+> `src/content/landscape.ts` und wirken seit 3c im aktiven Wald. Gemessen mit der echten Logik
+> (Phase 7 3d, `DESIGN_V2.md` 24.7 und 24.10 „Stand 3d“): Waldtypen ±3,4 % (Kiefernheide
+> Wachstum −3,4 %), Landschaft vollständig nach 14,2 h (Harmonie) bzw. 13,3 h (Wachstum) wie
+> ohne Standort-Wetter, Abstand 6,4 % – keine Zahl geändert. Die Kiefernheide bekommt das
+> Käferjahr × 3 als Gewicht des Standorts (Daten und Logik: Aufgabe 3e).
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:

@@ -492,8 +492,8 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   `weatherSummary` in `src/content/landscape.ts`, noch ohne Wirkung, Inhaltstests in
   `tests/landscape.test.ts`. Auwald 🌧️ × 2 / 🌡️ × 0,5, Erlenbruch 🌫️ × 2 / 🌡️ × 0,5,
   Buchenhallen 🌫️ × 1,5 / 🌬️ × 0,5, Bergmischwald 🌨️ × 2 / 🌧️ × 1,5, Kiefernheide 🌡️ × 2,5 /
-  ☀️ × 1,5 / 🌧️ × 0,5, Heimatwald unverändert. Gemessen vorab (`scripts/site-weather.ts`,
-  `SIM_SITE_WEATHER=1 npx vitest run tests/site-weather-balance.test.ts`): alle Waldtypen ±3,5 %
+  ☀️ × 1,5 / 🌧️ × 0,5, Heimatwald unverändert. Gemessen vorab (Hilfsskript, in 3d entfernt;
+  nachgemessen mit der Logik in 3d): alle Waldtypen ±3,5 %
   (Kiefernheide Wachstum −3,8 → −3,4 %), Sommerdürre in der Heide 19,3 statt 9,4 %. **Befund:**
   Das Käferjahr wird dadurch nicht häufiger (begrenzt durch „Käfer ungejagt“ und einmal je
   Zyklus), es fällt nur öfter auf einen Dürretag – offene Frage in 24.13
@@ -521,11 +521,44 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
   Standort in Karte/U:Landschaft. **Erledigt:** `siteWeatherWeights`, `weatherSiteOf` in
   `core/weather.ts`; Goldwerte Heimatwald, Tabelle 24.14 je Wald und online = offline in
   `tests/site-weather-core.test.ts`; U:Standort zeigt „Wetter: 🌫️ …“ (`site-weather`).
-- [ ] **3d** Großer Lauf mit neuen Leitbäumen und Wetter je Standort (`game-designer`): 24.7,
+- [x] **3d** Großer Lauf mit neuen Leitbäumen und Wetter je Standort (`game-designer`): 24.7,
   24.10 und 25.4 mit der echten Logik nachtragen; `scripts/site-trees.ts` und
   `tests/site-trees-balance.test.ts` entfernen, ebenso `scripts/site-weather.ts` und
   `tests/site-weather-balance.test.ts` (3b, Messung vor der Logik); 24.14 nachmessen.
-  Abhängig: 2b, 3c
+  Abhängig: 2b, 3c. *Gemessen* (24.7/24.10 „Stand 3d“, `tests/landscape-balance.test.ts` mit
+  `withoutSiteWeather` und `SIM_LANDSCAPE_SITE_WEATHER=off` als Vergleich, neuer Lauf
+  „Häufigkeiten“ für 24.14): Waldtypen alle ±3,4 % (Kiefernheide Wachstum −3,4 %, Bergmischwald
+  mit Weißtanne −1,6 / +1,3 %, Erlenbruch mit Schwarzerle +1,2 / −0,6 %); Landschaft vollständig
+  14,2 h (Harmonie), 13,3 h (Wachstum), 39,1 h (Zufall) – wie ohne Standort-Wetter; Wachstum
+  gegen Harmonie 6,4 / 6,2 % (< 10 %); Häufigkeiten 24.14 auf die Nachkommastelle wie vorab.
+  **Keine Zahl geändert.** Hilfsskripte entfernt. Offene Frage 24.13 (Käferjahr der Heide)
+  entschieden: ja, als Gewicht des Standorts → 3e
+- [ ] **3e** Käferjahr der Kiefernheide: Ereignis-Gewicht je Standort (`core-engineer`, 24.13).
+  **Warum:** Der Kurztext der Heide verspricht „dann schwärmen die Borkenkäfer“, das Wetter allein
+  macht das Käferjahr aber nicht häufiger (40 / 38 von 160 Durchgängen gegen 29 / 28 im
+  Heimatwald; das Wetter-Gewicht wirkt nur an Dürretagen). Gemessen mit einem Gewicht × 3 an jedem
+  Tag in der Heide: 71 / 52 von 160 (Harmonie / Wachstum), Zeit bis zum Urwald unverändert
+  (50:04 / 39:43 gegen 50:05 / 39:48 min). **Genaue Aufgabe:**
+  1. `src/content/landscape.ts`: neues Pflichtfeld `ForestSite.eventFactors:
+     Readonly<Record<string, number>>` – Faktor auf das Zieh-Gewicht eines Ereignisses (ID aus
+     `EVENTS`), solange dieser Wald aktiv ist; fehlt die ID: 1. Daten: Kiefernheide
+     `{ 'beetle-year': 3 }`, alle anderen Wälder `{}`. Doku-Kommentar wie bei `weather`.
+  2. `core/tick.ts`, `eventWeight(state, eventId, ambient)`: Ergebnis = Wetter-Faktor (wie heute;
+     im Modus `off` 1) × Standort-Faktor `LANDSCAPE_SITES_BY_ID.get(weatherSiteOf(state))
+     ?.eventFactors[eventId]` (nur endlich und > 0, sonst 1; `Object.hasOwn` wie beim Wetter). Der
+     Standort-Faktor gilt in **allen** Modi, auch `off` – er ist kein Wetter. Beispiel: Heide,
+     Dürretag → 3 × 3 = 9; Heide, Sonnentag → 3; Heimatwald, Dürretag → 3; Heide, `off` → 3.
+  3. Nichts sonst: Jahreszeit, Bedingung „Käfer ungejagt“, `minStage` und „einmal je Zyklus“
+     bleiben; kein Ereignis kommt dadurch außerhalb seiner Bedingungen. Keine neue
+     Spielstand-Version, kein neues Feld im Spielstand (der aktive Wald ist fest je Zyklus).
+  4. Tests: Inhalt (`tests/landscape.test.ts`) – Schlüssel nur bekannte Ereignis-IDs, Faktoren
+     endlich, > 1 und ≤ 3, Heimatwald `{}`; Logik (`tests/predation.test.ts`) – die Beispiele aus
+     Nr. 2, Heimatwald und Stände ohne Landschaft ziehen Ereignisse wie vorher (Goldwerte
+     unverändert), `pickEvent` in der Heide wählt das Käferjahr bei gleichem Zufall öfter.
+  5. Danach (`game-designer`, klein): 24.7-Lauf Käferjahr-Spalte nachmessen (Erwartung Heide
+     ~70 / ~50 von 160, Zeit ±0,5 %), 24.13 abhaken. Optional (Playtest): weitere Wälder mit
+     passendem Massenjahr (Auwald Schneckenjahr), erst nach dem Playtest Phase 7.
+  Abhängig: 3c
 
 **Welle 4 – Absichern**
 
