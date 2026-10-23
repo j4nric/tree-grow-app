@@ -721,8 +721,9 @@ export function createAlbum(deps: AlbumDeps): Album {
     get sceneVisible() {
       if (fullscreen.shown) return true;
       if (!polaroidInView) return false;
-      // Mobil liegt eine Unterseite über der ganzen Hauptansicht (außer beim Umblättern).
-      return !(book.layout === 'single' && nav.stack.length > 0 && !turn.busy);
+      // Mobil liegt eine Unterseite über der ganzen Hauptansicht (außer beim Umblättern von
+      // bzw. zu ihr – zwischen Ebene 1 und 2 bleibt sie weggedreht und verdeckt).
+      return !(book.layout === 'single' && nav.stack.length > 0 && (!turn.busy || spread.main.classList.contains(TURNED_AWAY)));
     },
     showSceneAnimal,
     replaced() {

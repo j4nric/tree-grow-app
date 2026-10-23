@@ -139,9 +139,23 @@ body:has(.album) {
   overflow: hidden;
 }
 
-/* Weggedrehte Seite: unsichtbar, aber mit Layout (Scroll-Lage bleibt erhalten). */
+/*
+ * Weggedrehte Seite: unsichtbar, aber mit Layout (Scroll-Lage bleibt erhalten).
+ * `content-visibility: hidden` sperrt zusätzlich den Teilbaum: Erbende Änderungen (`inert`,
+ * `visibility`) lösen dann keine Stil-Neuberechnung von Hunderten Elementen aus, und beim
+ * Zurückdrehen sind Stil und Layout noch da (S9, page-turn.ts). Die Höhe hält
+ * `contain-intrinsic-block-size: auto` – die zuletzt gezeigte Größe.
+ */
 .turned-away {
   visibility: hidden;
+  content-visibility: hidden;
+}
+
+.spread-main,
+.spread-right,
+.album-subpage,
+.cover {
+  contain-intrinsic-block-size: auto 0px;
 }
 
 /* Während der Drehung liegt die drehende Seite über der Unterseite. */

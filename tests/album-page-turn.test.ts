@@ -25,10 +25,11 @@ class FakeAnimation {
 function fakeElement() {
   const classes = new Set<string>();
   const animations: FakeAnimation[] = [];
+  const listeners = new Map<string, Set<(event: Event) => void>>();
   return {
     inert: false,
     hidden: false,
-    style: { willChange: '', transformOrigin: '', backfaceVisibility: '', transform: '' },
+    style: { willChange: '', transformOrigin: '', backfaceVisibility: '', transform: '', clipPath: '' },
     classList: {
       add: (c: string) => classes.add(c),
       remove: (...cs: string[]) => cs.forEach((c) => classes.delete(c)),
@@ -41,8 +42,23 @@ function fakeElement() {
       return a;
     },
     getBoundingClientRect: () => ({ top: 0, bottom: 800, height: 800, width: 400 }),
+    addEventListener(type: string, listener: (event: Event) => void) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(listener);
+    },
+    removeEventListener(type: string, listener: (event: Event) => void) {
+      listeners.get(type)?.delete(listener);
+    },
+    /** Eingabe auf der Seite: `true`, wenn sie durchkommt (nicht abgefangen). */
+    input(type: string): boolean {
+      let stopped = false;
+      const event = { cancelable: true, stopPropagation: () => (stopped = true), preventDefault: () => undefined } as unknown as Event;
+      for (const listener of listeners.get(type) ?? []) listener(event);
+      return !stopped;
+    },
   };
 }
+
 
 type FakeElement = ReturnType<typeof fakeElement>;
 const el = (e: FakeElement) => e as unknown as HTMLElement;
@@ -65,15 +81,41 @@ describe('PageTurn', () => {
     under.hidden = true;
     const done = turn.forward(el(front), el(under));
     expect(turn.busy).toBe(true);
-    expect(front.inert && under.inert).toBe(true);
+    expect(under.inert).toBe(true);
+    // Die drehende Seite bekommt `inert` erst am Ende (S9); bis dahin fängt sie Eingaben ab.
+    expect(front.inert).toBe(false);
+    expect(front.input('click')).toBe(false);
+    expect(front.input('pointerdown')).toBe(false);
     expect(front.classList.contains(TURNING)).toBe(true);
+    expect(front.animations).toHaveLength(1);
+    expect(front.style.willChange).toBe('transform');
     front.animations[0]!.finish();
     await done;
     expect(turn.busy).toBe(false);
     expect(front.classList.contains(TURNED_AWAY)).toBe(true);
     expect(front.classList.contains(TURNING)).toBe(false);
     expect(front.inert).toBe(true);
+    expect(front.input('click')).toBe(true);
     expect(under.hidden).toBe(false);
+    expect(under.inert).toBe(false);
+  });
+
+  it('zurück: die vordere Seite verliert `inert` gleich am Anfang, Eingaben bleiben gesperrt', async () => {
+    const turn = createPageTurn({ reducedMotion: () => false });
+    const front = fakeElement();
+    front.classList.add(TURNED_AWAY);
+    front.inert = true;
+    const under = fakeElement();
+    const done = turn.back(el(front), el(under));
+    expect(front.inert).toBe(false);
+    expect(front.classList.contains(TURNED_AWAY)).toBe(false);
+    expect(front.input('click')).toBe(false);
+    expect(under.inert).toBe(true);
+    front.animations[0]!.finish();
+    await done;
+    expect(front.input('click')).toBe(true);
+    expect(front.inert).toBe(false);
+    expect(under.hidden).toBe(true);
     expect(under.inert).toBe(false);
   });
 
@@ -97,6 +139,31 @@ describe('PageTurn', () => {
     expect(front.inert).toBe(false);
     expect(under.hidden).toBe(true);
     expect(under.inert).toBe(false);
+  });
+
+  it('lange, gescrollte Seite: Achse in der Mitte des sichtbaren Teils, Zuschnitt auf ihn', async () => {
+    const turn = createPageTurn({ reducedMotion: () => false });
+    const front = fakeElement();
+    // 3 000 px hoch, 500 px nach oben gescrollt; Fenster 800 px.
+    front.getBoundingClientRect = () => ({ top: -500, bottom: 2500, height: 3000, width: 400 });
+    const under = fakeElement();
+    const done = turn.forward(el(front), el(under));
+    expect(front.style.transformOrigin).toBe('0 900px');
+    expect(front.style.clipPath).toBe('inset(500px -120px 1700px -120px)');
+    front.animations[0]!.finish();
+    await done;
+    expect(front.style.clipPath).toBe('');
+    expect(front.style.transformOrigin).toBe('');
+  });
+
+  it('ganz sichtbare Seite: kein Zuschnitt', async () => {
+    const turn = createPageTurn({ reducedMotion: () => false });
+    const front = fakeElement();
+    const under = fakeElement();
+    const done = turn.forward(el(front), el(under));
+    expect(front.style.clipPath).toBe('');
+    front.animations[0]!.finish();
+    await done;
   });
 
   describe('drag (Wisch-Zurück)', () => {

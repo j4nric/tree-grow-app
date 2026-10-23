@@ -6,8 +6,13 @@
  *   sie verborgen (`turned-away`) und zurückgesetzt.
  * - Zurück: genau umgekehrt – die verlassene Seite dreht sich über die Unterseite zurück.
  * - Reduzierte Bewegung: Überblenden in `--fade-ms`, ohne 3D.
- * - Während des Blätterns sind beide Seiten `inert`. Nur ein Element animiert, `will-change`
- *   nur für die Dauer der Animation.
+ * - Während des Blätterns sind beide Seiten nicht bedienbar. Nur ein Element animiert,
+ *   `will-change` nur für die Dauer der Animation.
+ * - Leistung (S9): `inert` und `visibility` erben sich – an der großen Hauptansicht kostet jede
+ *   Änderung eine Stil-Neuberechnung des ganzen Teilbaums (bei 4× Drosselung 20–40 ms). Darum
+ *   bekommt die drehende Seite `inert` erst am Ende zusammen mit `turned-away` (album.css:
+ *   `content-visibility: hidden`, der Teilbaum wird dann nicht neu berechnet) und verliert es
+ *   beim Zurückdrehen gleich am Anfang. Während der Drehung fängt `guard()` die Eingaben ab.
  *
  * Die Werte kommen aus tokens.css (eine Quelle), mit den Prototyp-Werten als Ersatz.
  */
@@ -64,6 +69,26 @@ const SAFETY_MS = 200;
 export const HELD_MS = 1200;
 /** Dauer des Zurückschnappens (ms) über die volle Drehung; anteilig weniger. */
 const SNAP_MS = 220;
+/** Platz für den Schatten links und rechts der zugeschnittenen Seite (px, `--sh-turn` 30 + 40). */
+const SHADOW_ROOM = 120;
+
+/** Eingaben, die während einer Drehung an der drehenden Seite verpuffen. */
+const BLOCKED_EVENTS = ['click', 'auxclick', 'dblclick', 'contextmenu', 'pointerdown', 'pointerup', 'mousedown', 'mouseup'] as const;
+
+/**
+ * Drehende Seite nicht bedienbar machen, ohne `inert` (siehe oben): Zeiger und Klicks (auch
+ * per Tastatur ausgelöste) fängt ein Lauscher in der Capture-Phase ab. Gibt das Aufräumen zurück.
+ */
+function guard(front: HTMLElement): () => void {
+  const stop = (event: Event) => {
+    event.stopPropagation();
+    if (event.cancelable) event.preventDefault();
+  };
+  for (const type of BLOCKED_EVENTS) front.addEventListener(type, stop, true);
+  return () => {
+    for (const type of BLOCKED_EVENTS) front.removeEventListener(type, stop, true);
+  };
+}
 
 export function createPageTurn(options: PageTurnOptions): PageTurn {
   let busy = false;
@@ -79,15 +104,29 @@ export function createPageTurn(options: PageTurnOptions): PageTurn {
   let held: { front: HTMLElement; angle: number } | null = null;
 
   /**
-   * Senkrechte Drehachse: mitten im sichtbaren Teil der Seite. Bei einer langen, mit dem
-   * Fenster gescrollten Seite (mobil) läge die Mitte sonst weit außerhalb des Bildes.
+   * Drehachse und Zuschnitt setzen.
+   *
+   * - Senkrechte Drehachse: mitten im sichtbaren Teil der Seite. Bei einer langen, mit dem
+   *   Fenster gescrollten Seite (mobil) läge die Mitte sonst weit außerhalb des Bildes.
+   * - Zuschnitt (S9): Die Seite dreht sich zum Betrachter hin (z ≥ 0), die Perspektive
+   *   vergrößert also nur – nach außen, weg von der Drehachse. Was jetzt oberhalb oder
+   *   unterhalb des Fensters liegt, kommt darum nie ins Bild. Ohne Zuschnitt wäre die
+   *   3D-gedrehte Seite eine Compositing-Ebene in voller Höhe (mobil fast 3 000 px), die der
+   *   Compositor in jedem Frame verwaltet und rastert; mit `clip-path` nur der sichtbare
+   *   Streifen. Waagerecht bleibt Platz für den Schatten (`--sh-turn`).
    */
-  function origin(front: HTMLElement): string {
+  function place(front: HTMLElement): void {
     const rect = front.getBoundingClientRect();
     const visibleTop = Math.max(rect.top, 0);
     const visibleBottom = Math.min(rect.bottom, window.innerHeight);
     const middle = (visibleTop + visibleBottom) / 2 - rect.top;
-    return `0 ${Math.round(Number.isFinite(middle) ? middle : rect.height / 2)}px`;
+    front.style.transformOrigin = `0 ${Math.round(Number.isFinite(middle) ? middle : rect.height / 2)}px`;
+    const above = Math.floor(visibleTop - rect.top);
+    const below = Math.floor(rect.bottom - visibleBottom);
+    front.style.clipPath =
+      Number.isFinite(above) && Number.isFinite(below) && visibleBottom > visibleTop && (above > 0 || below > 0)
+        ? `inset(${Math.max(0, above)}px -${SHADOW_ROOM}px ${Math.max(0, below)}px -${SHADOW_ROOM}px)`
+        : '';
   }
 
   /** Inline-Stile und Drehklasse entfernen (Ende oder Abbruch einer Drehung). */
@@ -96,6 +135,7 @@ export function createPageTurn(options: PageTurnOptions): PageTurn {
     front.style.transformOrigin = '';
     front.style.backfaceVisibility = '';
     front.style.transform = '';
+    front.style.clipPath = '';
     front.classList.remove(TURNING);
   }
 
@@ -126,7 +166,7 @@ export function createPageTurn(options: PageTurnOptions): PageTurn {
     front.classList.remove(TURNED_AWAY);
     front.classList.add(TURNING);
     const width = front.getBoundingClientRect().width;
-    front.style.transformOrigin = origin(front);
+    place(front);
     front.style.backfaceVisibility = 'hidden';
     front.style.willChange = 'transform';
     const apply = (angle: number) => (front.style.transform = `perspective(${perspective}) rotateY(${angle}deg)`);
@@ -191,13 +231,27 @@ export function createPageTurn(options: PageTurnOptions): PageTurn {
     abortCurrent?.();
     const mine = ++generation;
     busy = true;
-    front.inert = true;
     under.inert = true;
     under.hidden = false;
     under.classList.remove(TURNED_AWAY);
     // Vorwärts: erst sichtbar machen, dann wegdrehen; zurück: sichtbar, dann zurückdrehen.
+    // `inert` der drehenden Seite: vorwärts erst am Ende, zurück schon jetzt weg (S9) –
+    // dazwischen sperrt `guard()`.
+    front.inert = false;
+    const unguard = guard(front);
     front.classList.remove(TURNED_AWAY);
     front.classList.add(TURNING);
+    let animation: Animation | null = null;
+    let wake: () => void = () => undefined;
+    abortCurrent = () => {
+      abortCurrent = null;
+      animation?.cancel();
+      unguard();
+      clean(front);
+      front.inert = false;
+      under.inert = false;
+      wake();
+    };
     const reduced = options.reducedMotion();
     const perspective = token('--turn-perspective', '1400px');
     const angle = token('--turn-angle', '-104deg');
@@ -219,20 +273,10 @@ export function createPageTurn(options: PageTurnOptions): PageTurn {
       runDuration = duration * Math.max(0.35, from / away);
     }
     if (!reduced) {
-      front.style.transformOrigin = origin(front);
+      place(front);
       front.style.backfaceVisibility = 'hidden';
     }
     front.style.willChange = reduced ? 'opacity' : 'transform';
-    let animation: Animation | null = null;
-    let wake: () => void = () => undefined;
-    abortCurrent = () => {
-      abortCurrent = null;
-      animation?.cancel();
-      clean(front);
-      front.inert = false;
-      under.inert = false;
-      wake();
-    };
     try {
       if (typeof front.animate === 'function') {
         animation = front.animate(frames, { duration: runDuration, easing, fill: 'forwards' });
@@ -252,8 +296,11 @@ export function createPageTurn(options: PageTurnOptions): PageTurn {
 
     function finish(): void {
       abortCurrent = null;
+      unguard();
       clean(front);
       if (direction === 'forward') {
+        // Beides in einem Zug: `turned-away` sperrt den Teilbaum, `inert` kostet dann nichts.
+        front.inert = true;
         front.classList.add(TURNED_AWAY);
         under.inert = false;
       } else {
