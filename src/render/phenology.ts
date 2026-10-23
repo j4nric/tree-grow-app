@@ -274,3 +274,59 @@ const GROUND_SNOW: Points = [
 export function groundSnow(season: number | null): number {
   return atRaw(GROUND_SNOW, season, 0);
 }
+
+/**
+ * Moorfrosch (Kennart des Erlenbruchs, DESIGN_V2.md 26.3): Zur Laichzeit im zeitigen
+ * Frühling sind die Männchen ein paar Tage himmelblau – kurz nach der Winterstarre, dann
+ * wieder braun. 0 braun – 1 blau; ohne Angabe braun.
+ */
+const MOORFROG_BLUE: Points = [
+  [0, 1],
+  [0.1, 1],
+  [0.35, 0],
+  [3.65, 0],
+  [3.85, 1],
+  [4, 1],
+];
+
+/** Blaues Hochzeitskleid des Moorfroschs 0–1. Ungerundete Jahreszeit. */
+export function moorfrogBlue(season: number | null): number {
+  return atRaw(MOORFROG_BLUE, season, 0);
+}
+
+/**
+ * Haselmaus: Winterschlaf von Mitte Herbst bis in den Frühling („schläft sieben Monate“) –
+ * länger als die Amphibien. 0 schläft – 1 wach.
+ */
+const DORMOUSE_AWAKE: Points = [
+  [0, 1],
+  [2.0, 1],
+  [2.3, 0],
+  [3.8, 0],
+  [3.98, 1],
+  [4, 1],
+];
+
+/** Wachheit der Haselmaus über das Jahr 0 (Winterschlaf) – 1. Ungerundete Jahreszeit. */
+export function dormouseAwake(season: number | null): number {
+  return atRaw(DORMOUSE_AWAKE, season);
+}
+
+/**
+ * Ziegenmelker: Zugvogel, von Spätfrühling bis Spätsommer im Wald; im Winter „in Afrika“.
+ * Er verschwindet in der Szene nicht (21.8), sondern ruht dann flach wie ein Stück Rinde.
+ * 0 ruht – 1 munter.
+ */
+const NIGHTJAR_SEASON: Points = [
+  [0, 1],
+  [1.9, 1],
+  [2.2, 0],
+  [3.8, 0],
+  [3.98, 1],
+  [4, 1],
+];
+
+/** Munterkeit des Ziegenmelkers über das Jahr 0–1. Ungerundete Jahreszeit. */
+export function nightjarSeason(season: number | null): number {
+  return atRaw(NIGHTJAR_SEASON, season);
+}

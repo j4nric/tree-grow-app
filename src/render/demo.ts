@@ -12,7 +12,8 @@
  *  plants   'stage' = Pflanzplätze je Stufe füllen (Standard), 'all' = alle 14 Pflanzen,
  *           'none' = leere Liste (Nachbarbäume als Kulisse), 'off' = keine Liste (wie bisher)
  *  vig      Versorgung aller Pflanzen 0–1; ohne Angabe: gemischte Werte
- *  gallery  1 = Übersicht aller Tier- und Pflanzenzeichnungen statt der Szene
+ *  gallery  1 = Übersicht aller Tier- und Pflanzenzeichnungen statt der Szene;
+ *           'kennarten' = nur die Kennarten mit allen Bildern (z. B. gs=120)
  *  ui=0     Bedienelemente ausblenden (für Screenshots)
  *  reduced  1 = weniger Bewegung
  *  t        feste Zeit in Sekunden (für reproduzierbare Screenshots). Achtung: Mit t
@@ -41,10 +42,17 @@
  *           (ohne Angabe: Heimatwald wie bisher); Auswahl auch im Menü
  *  jay      Häherflug bei dieser Sekunde (mit t für feste Bilder); Knopf „Häherflug“ spielt ihn ab
  *  stickers 1 = Sticker-Tafel des Albums: alle Arten und Gäste farbig, matt und als
- *           Silhouette (ss = Größe in px, Standard 64; guide=1 zeigt die 80-%-Fläche)
+ *           Silhouette (ss = Größe in px, Standard 64; guide=1 zeigt die 80-%-Fläche);
+ *           die Kennarten stehen am Ende
+ *  species  Kennarten (DESIGN_V2.md 26.3) in der Szene, kommagetrennt oder 'all':
+ *           dormouse, beaver, moorfrog, hericium, lynx, nightjar – auf den vordersten
+ *           Plätzen ihrer Nische (ersetzen die Art dort); Biber und Moorfrosch öffnen den
+ *           Waldtümpel.
+ *           Zusammen mit season (Moorfrosch blau im Frühling) und phase (Nachtarten)
  */
 
 import { animalKinds, SpriteCache } from './animals';
+import { isKennart, KENNART_DEFS, KENNART_HOME, KENNART_IDS, type KennartId } from './kennart-sprites';
 import { layoutFlora, LOW_SIZE, PLANT_SPECIES, type PlacedPlant } from './flora';
 import { paintPlant } from './flora-paint';
 import { RENDER_TREE_SPECIES } from './plant';
@@ -207,6 +215,17 @@ function animalsFor(g: number, set: string, happy: number | null, variant: numbe
       list.push({ id, family, niche, slot, happiness: h(list.length) });
     }
   }
+  // Kennarten (?species=): vorderste Plätze ihrer Nische (Platz 0, 1 …), die Art dort weicht.
+  const next: Record<string, number> = {};
+  for (const id of kennarten) {
+    const home = KENNART_HOME[id];
+    const slot = next[home.niche] ?? 0;
+    next[home.niche] = slot + 1;
+    const at = list.findIndex((a) => a.niche === home.niche && a.slot === slot);
+    const animal: SceneAnimal = { id, family: home.family, niche: home.niche, slot, happiness: happy ?? 0.9, rarity: 2 };
+    if (at >= 0) list[at] = animal;
+    else list.push(animal);
+  }
   return list;
 }
 
@@ -236,8 +255,13 @@ const set = params.get('set') ?? 'all';
 const variant = Number(params.get('v') ?? 0) || 0;
 const plantMode = params.get('plants') ?? 'stage';
 const vigor = params.has('vig') ? Number(params.get('vig')) : null;
-const gallery = params.get('gallery') === '1';
-const pond = params.get('pond') === '1';
+/** ?gallery=kennarten: nur die Kennarten, alle Bilder (groß mit gs=120). */
+const onlyKennarten = params.get('gallery') === 'kennarten';
+const gallery = params.get('gallery') === '1' || onlyKennarten;
+/** Kennarten in der Szene (?species=dormouse,lynx bzw. ?species=all). */
+const speciesParam = (params.get('species') ?? '').split(',').filter(Boolean);
+const kennarten: KennartId[] = speciesParam.includes('all') ? [...KENNART_IDS] : speciesParam.filter(isKennart);
+const pond = params.get('pond') === '1' || kennarten.some((id) => KENNART_HOME[id].niche === 'pond');
 const habitats = params.get('hab') === '1';
 const habitatCount = Math.max(0, Math.min(5, Math.round(Number(params.get('habn') ?? 4)) || 0));
 const habitatOpen = (niche: string) => habitats && SLOTS[niche]![Math.max(0, Math.min(7, Math.floor(g)))]! > 0;
@@ -385,7 +409,7 @@ function drawGallery(): void {
   ctx.fillStyle = '#e9efe2';
   ctx.fillRect(0, 0, rect.width, rect.height);
   const sprites = new SpriteCache();
-  const kinds = animalKinds();
+  const kinds = onlyKennarten ? [] : animalKinds();
   const sz = Number(params.get('gs') ?? 56);
   const cell = Math.round(sz * 2.15);
   const cols = Math.max(1, Math.floor(rect.width / cell));
@@ -404,7 +428,7 @@ function drawGallery(): void {
   // Durchreisende: alle Bilder je Zeichnung (Anzahl aus `frames` der SpriteDef)
   const vtop = Math.ceil(kinds.length / cols) * cell;
   let vi = 0;
-  for (const [kind, def] of Object.entries(VISITOR_DEFS)) {
+  for (const [kind, def] of onlyKennarten ? [] : Object.entries(VISITOR_DEFS)) {
     for (let fr = 0; fr < (def.frames ?? 2); fr++, vi++) {
       const cx = (vi % cols) * cell + cell / 2;
       const row = vtop + Math.floor(vi / cols) * cell;
@@ -417,8 +441,28 @@ function drawGallery(): void {
       ctx.fillText(`${kind.replace('visitor:', '')} ${fr}`, cx, row + cell - 6);
     }
   }
+  // Kennarten: alle Bilder je Zeichnung (Haselmaus/Ziegenmelker wach und schlafend, Moorfrosch braun und blau)
+  const ktop = vtop + Math.ceil(vi / cols) * cell;
+  let ki = 0;
+  for (const kind of KENNART_IDS) {
+    for (let fr = 0; fr < (KENNART_DEFS[kind].frames ?? 1); fr++, ki++) {
+      const cx = (ki % cols) * cell + cell / 2;
+      const row = ktop + Math.floor(ki / cols) * cell;
+      const cy = row + cell * 0.6;
+      const s = sprites.get(kind, fr, false, sz, dpr);
+      ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+      ctx.strokeRect(cx - s.ox, cy - s.oy, s.w, s.h);
+      ctx.drawImage(s.canvas, cx - s.ox, cy - s.oy, s.w, s.h);
+      ctx.fillStyle = '#334';
+      ctx.fillText(`${kind} ${fr}`, cx, row + cell - 6);
+    }
+  }
+  if (onlyKennarten) {
+    window.__demo.frames = 999;
+    return;
+  }
   // Pflanzen in einer Reihe darunter
-  const top = vtop + Math.ceil(vi / cols) * cell + 10;
+  const top = ktop + Math.ceil(ki / cols) * cell + 10;
   const ids = [...Object.keys(PLANT_SPECIES), 'shrub', 'flower'];
   const pcols = Math.max(1, Math.floor(rect.width / 130));
   ids.forEach((id, i) => {
@@ -553,6 +597,7 @@ if (params.get('stickers') === '1') {
   const entries: [string, Fam | undefined][] = [
     ...Object.values(BY_NICHE).flatMap((list) => list.map(([id, family]): [string, Fam] => [id, family])),
     ...VISITOR_IDS.map((id): [string, undefined] => [id, undefined]),
+    ...KENNART_IDS.map((id): [string, Fam] => [id, KENNART_HOME[id].family]),
   ];
   showStickerSheet(entries, params);
 } else if (gallery) {

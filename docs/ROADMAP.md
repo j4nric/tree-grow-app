@@ -853,11 +853,18 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
 
 **Welle 2 – Kennarten und Waldchronik (Spielstand v16)**
 
-- [ ] **2a** Zeichnungen der sechs Kennarten (`renderer`, 26.3/26.7): Haselmaus, Biber,
+- [x] **2a** Zeichnungen der sechs Kennarten (`renderer`, 26.3/26.7): Haselmaus, Biber,
   Moorfrosch (im Frühling blau), Ästiger Stachelbart, Luchs, Ziegenmelker – Szene und Sticker,
   Anker wie 23.8, Nachtarten wie 21.8; zunächst nur in der Demo (`?species=`), Test „jede Art
   hat eine eigene Zeichnung“ erst mit 2b. **Warum:** Sticker sind das Herz des Albums; die
-  Grafik ist der größte Brocken und hängt an nichts. Abhängig: nichts – frühe Welle möglich
+  Grafik ist der größte Brocken und hängt an nichts. Abhängig: nichts – frühe Welle möglich – umgesetzt in
+  `src/render/kennart-sprites.ts` (`KENNART_IDS`, `KENNART_DEFS`, `KENNART_PAINT`,
+  `KENNART_HOME`), schon in `animals.ts` und damit in `stickerKind` eingehängt: 2b muss nur die
+  Daten anlegen. Haselmaus und Ziegenmelker mit Schlafbild (tagsüber, Winterschlaf bzw. Zugzeit,
+  `nocturnal.ts` `sleeping`), Moorfrosch im zeitigen Frühling blau (`phenology.ts`
+  `moorfrogBlue`, überblendet; Sticker blau), Biber watet am Tümpelrand (hohe Watende passen
+  sich der Senke an). Demo: `?species=all|dormouse,…`, `?gallery=kennarten`, Sticker-Tafel;
+  Tests `tests/render-kennarten.test.ts`
 - [ ] **2b** Waldchronik und Kennarten, Spielstand v16 (`core-engineer`, 26.3–26.6): Bedingung
   `{ kind: 'site', site }` (Landschaft offen, aktiver Wald, alt oder jetzt Urwald); die sechs
   Kennarten als Daten aus 26.3 (Block „Kennarten“ in `species.ts`, zwei in `NOCTURNAL`);

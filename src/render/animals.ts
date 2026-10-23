@@ -12,8 +12,22 @@
 
 import { HABITAT_SCALE, PILE_STUMP_HALF, PILE_STUMP_IN, POND_DEPTH, POND_LIP, POND_WATER_Y, type AnchorResolver, type NicheAnchor } from './anchors';
 import { HABITAT_DEFS, HABITAT_INFO, pileSpriteName, REPTILE_INFO } from './habitat-sprites';
-import { batFlight, batFlying, nightWake, nocturnalPace, owlPose, paintBatFly } from './nocturnal';
-import { amphibianActivity, edgeBare, edgePetals, edgeSeedHeads, fireflySeason, groundSnow, insectActivity, pondIce, reptileActivity } from './phenology';
+import { KENNART_DEFS, KENNART_IDS, KENNART_INFO } from './kennart-sprites';
+import { batFlight, batFlying, nightWake, nocturnalPace, owlPose, paintBatFly, sleeping, SLEEPER_KINDS } from './nocturnal';
+import {
+  amphibianActivity,
+  dormouseAwake,
+  edgeBare,
+  edgePetals,
+  edgeSeedHeads,
+  fireflySeason,
+  groundSnow,
+  insectActivity,
+  moorfrogBlue,
+  nightjarSeason,
+  pondIce,
+  reptileActivity,
+} from './phenology';
 import { ell, eye, line, OUTLINE, outline, paintBird, poly, TAU, type BirdColors, type SpriteDef } from './sprite-kit';
 import { SPECIES_DEFS, SPECIES_INFO, type KindInfo } from './species-sprites';
 import { clamp, clamp01, hash2, smooth01 } from './util';
@@ -69,6 +83,8 @@ const KINDS: Record<string, KindInfo> = {
   // Lebensräume: Waldwiese, Totholzhaufen, Trockenmauer (habitat-sprites.ts)
   ...HABITAT_INFO,
   reptile: REPTILE_INFO,
+  // Kennarten der sechs Wälder (kennart-sprites.ts, DESIGN_V2.md 26.3)
+  ...KENNART_INFO,
 };
 
 /** Art-ID (src/content/species.ts) → Zeichnung. */
@@ -85,6 +101,7 @@ const SPECIES_KIND: Record<string, string> = {
   snail: 'snail',
   ...Object.fromEntries(Object.keys(SPECIES_INFO).map((k) => [k, k])),
   ...Object.fromEntries(Object.keys(HABITAT_INFO).map((k) => [k, k])),
+  ...Object.fromEntries(KENNART_IDS.map((k) => [k, k])),
 };
 
 const FAMILY_KIND: Record<AnimalFamily, string> = {
@@ -109,6 +126,8 @@ const SPECIES_RARITY: Record<string, number> = {
   wolf: 3,
   salamander: 3,
   honeyfungus: 3,
+  // Kennarten (26.3): alle „besonders“
+  ...Object.fromEntries(KENNART_IDS.map((k) => [k, 2])),
 };
 
 /** Alle Zeichnungen (Arten und Ersatz) – z. B. für eine Übersicht in der Demo. */
@@ -858,6 +877,7 @@ const DEFS: Record<string, SpriteDef> = {
   batFly: { x0: -0.72, y0: -0.4, x1: 0.72, y1: 0.3, paint: paintBatFly },
   ...SPECIES_DEFS,
   ...HABITAT_DEFS,
+  ...KENNART_DEFS,
   // Durchreisende (visitors.ts)
   ...VISITOR_DEFS,
 };
@@ -1041,7 +1061,22 @@ export interface AnimalFrame {
 }
 
 /** Jahreszeit-Werte dieses Frames (einmal je Frame gerechnet, keine Allokation). */
-const seasonNow = { season: Number.NaN as number | null, insects: 1, amphibians: 1, reptiles: 1, ice: 0, snow: 0, petals: 1, seeds: 0, bare: 0, glow: 1 };
+const seasonNow = {
+  season: Number.NaN as number | null,
+  insects: 1,
+  amphibians: 1,
+  reptiles: 1,
+  ice: 0,
+  snow: 0,
+  petals: 1,
+  seeds: 0,
+  bare: 0,
+  glow: 1,
+  /** Kennarten: Haselmaus wach (Winterschlaf), Ziegenmelker da, Moorfrosch blau. */
+  dormouse: 1,
+  nightjar: 1,
+  moorBlue: 0,
+};
 
 function updateSeason(season: number | null): void {
   if (seasonNow.season === season) return;
@@ -1055,6 +1090,19 @@ function updateSeason(season: number | null): void {
   seasonNow.seeds = edgeSeedHeads(season);
   seasonNow.bare = edgeBare(season);
   seasonNow.glow = fireflySeason(season);
+  seasonNow.dormouse = dormouseAwake(season);
+  seasonNow.nightjar = nightjarSeason(season);
+  seasonNow.moorBlue = moorfrogBlue(season);
+}
+
+/**
+ * Jahreszeitliche Wachheit für die Bewegung: Haselmaus (Winterschlaf) und Ziegenmelker
+ * (Zugzeit) nach eigener Kurve, alle anderen wie die Amphibien (Igel, Fledermaus).
+ */
+function seasonAwake(kind: string): number {
+  if (kind === 'dormouse') return clamp01(seasonNow.dormouse);
+  if (kind === 'nightjar') return clamp01(seasonNow.nightjar);
+  return clamp01(seasonNow.amphibians);
 }
 
 const NICHE_ORDER: Record<string, number> = { roots: 0, pond: 0.5, deadwood: 0.6, meadow: 0.7, wall: 0.8, litter: 1, edge: 2, bark: 3, hollows: 4, crown: 5 };
@@ -1757,7 +1805,9 @@ function planEntry(
       } else {
         // Sitzt im flachen Wasser am Rand: Kopf genau unter der Narbe, Füße im Wasser.
         // Leichtes Wippen (`sniff`, 0,05 S) eingerechnet.
-        e.size = S * info.size * place.scale;
+        // Hohe Watende (Biber) höchstens so groß, dass die Füße über dem Grund bleiben.
+        const fit = ((POND_DEPTH - POND_LIP - 0.07) * S) / Math.max(1e-6, def.y1 - def.y0);
+        e.size = Math.min(S * info.size * place.scale, fit);
         e.x = place.x;
         e.y = pond.lipY + S * 0.07 - def.y0 * e.size;
         e.after.push({ name: 'pondWade', x: place.x, y: pond.waterY, size: S * place.scale });
@@ -1825,11 +1875,17 @@ function drawEntry(
   const name = pose.sprite ?? e.kind;
   // Reptilien in der Winterstarre: halb versteckt in Ritzen und unter Reisig.
   const seen = e.reptile ? REPTILE_HIDDEN + (1 - REPTILE_HIDDEN) * clamp01(seasonNow.reptiles) : 1;
+  // Moorfrosch: im zeitigen Frühling blau (Bild 1 über Bild 0 geblendet, nur beim Wechsel zwei Blits).
+  const tint = e.kind === 'moorfrog' ? clamp01(seasonNow.moorBlue) : 0;
+  const base = tint > 0.99 ? 1 : pose.frame;
   if (muted < 0.99) {
-    blit(ctx, sprites.get(name, pose.frame, false, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, seen, f);
+    blit(ctx, sprites.get(name, base, false, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, seen, f);
+    if (tint > 0.01 && tint <= 0.99) blit(ctx, sprites.get(name, 1, false, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, seen * tint, f);
   }
   if (muted > 0.01) {
-    blit(ctx, sprites.get(name, pose.frame, true, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, (muted < 0.99 ? muted : 1) * seen, f);
+    const alpha = (muted < 0.99 ? muted : 1) * seen;
+    blit(ctx, sprites.get(name, base, true, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, alpha, f);
+    if (tint > 0.01 && tint <= 0.99) blit(ctx, sprites.get(name, 1, true, e.size, f.spriteDpr ?? f.dpr), pose.x, pose.y, pose.dir, pose.rot, alpha * tint, f);
   }
   for (const d of e.after) blit(ctx, sprites.get(d.name, 0, false, d.size, f.spriteDpr ?? f.dpr), d.x + wx, d.y, 1, 0, 1, f);
   if (e.shimmer === 3) drawSparkles(ctx, e, pose, muted, sprites, f);
@@ -1840,11 +1896,19 @@ function drawEntry(
  * Winterruhe. `happy` ist die schon begrenzte Zufriedenheit; `seasonNow` muss aktuell sein.
  */
 function placePose(e: PlanEntry, happy: number, S: number, f: Pick<AnimalFrame, 'time' | 'windSkew' | 'reducedMotion' | 'nocturnal'>): Pose {
-  const rest = e.insect ? clamp01(seasonNow.insects) : e.amphibian ? clamp01(seasonNow.amphibians) : e.reptile ? clamp01(seasonNow.reptiles) : 1;
+  const rest = e.insect
+    ? clamp01(seasonNow.insects)
+    : e.amphibian
+      ? clamp01(seasonNow.amphibians)
+      : e.reptile
+        ? clamp01(seasonNow.reptiles)
+        : SLEEPER_KINDS.has(e.kind)
+          ? seasonAwake(e.kind)
+          : 1;
   // Nachtarten: tagsüber ruhiger, nachts aktiver (nur mit Tageszeit; Igel und Fledermaus
   // halten Winterschlaf – wie die Amphibien von Spätherbst bis Vorfrühling).
   const wake = nightWake(f.nocturnal);
-  const awake = clamp01(seasonNow.amphibians);
+  const awake = seasonAwake(e.kind);
   const act = f.reducedMotion ? 0 : smooth01((happy - 0.2) / 0.6) * rest * nocturnalPace(e.kind, wake, awake);
   const pose = e.pose;
   pose.x = e.x + f.windSkew * e.windArm;
@@ -1869,6 +1933,8 @@ function placePose(e: PlanEntry, happy: number, S: number, f: Pick<AnimalFrame, 
       pose.sprite = 'batFly';
     }
   }
+  // Haselmaus und Ziegenmelker: tagsüber und in ihrer Ruhezeit das Schlafbild (Bild 1).
+  if (sleeping(e.kind, wake, awake)) pose.frame = 1;
   // Um die Körpermitte wenden (Molche): Beim Spiegeln bleibt die Mitte stehen.
   if (e.pivot && pose.dir !== e.dir) pose.x += (e.dir - pose.dir) * e.midX * e.size;
   // Eigenes Sprite (Flug) hat zwei Frames, sonst gilt die Zahl der Art.
