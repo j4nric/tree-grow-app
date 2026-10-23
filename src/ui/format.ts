@@ -59,3 +59,25 @@ export function formatDuration(seconds: number): string {
   if (m > 0) return `${formatNumber(m)} Min.`;
   return `${formatNumber(Math.floor(total))} Sek.`;
 }
+
+/**
+ * Anzeige-Text: Zahl und folgendes Symbol bleiben zusammen („2 🪶“ bricht nicht vor 🪶 um) –
+ * geschütztes Leerzeichen statt des normalen. Vorgelesen wird derselbe Text.
+ */
+export function keepNumberWithIcon(text: string): string {
+  return text.replace(/(\d) (?=\p{Extended_Pictographic})/gu, '$1\u00a0');
+}
+
+/** Endet der Text schon mit einem Satzzeichen (auch vor schließenden Anführungszeichen oder Klammern)? */
+const SENTENCE_END = /[.!?…:][“”"»)]*$/u;
+
+/**
+ * Mehrere Meldungen zu einer verbinden (Stempel, Rückkehr-Bericht): Jeder Teil endet mit einem
+ * Satzzeichen – sonst liefe „… und 1 weitere“ direkt in „🪶 Ein Eichelhäher …“ hinein. Leere
+ * Teile fallen weg. Ein einzelner Teil bleibt unverändert.
+ */
+export function joinSentences(...parts: readonly (string | null | undefined)[]): string {
+  const list = parts.map((p) => (p ?? '').trim()).filter((p) => p.length > 0);
+  if (list.length <= 1) return list[0] ?? '';
+  return list.map((p) => (SENTENCE_END.test(p) ? p : `${p}.`)).join(' ');
+}

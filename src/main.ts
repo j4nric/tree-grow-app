@@ -47,6 +47,7 @@ import {
 } from './ui/adapters';
 import { achievementUnlockedText, achievementsBackfilledText } from './ui/achievement-view';
 import { toReturnReportView } from './ui/return-report-view';
+import { joinSentences } from './ui/format';
 import { dailyCompletedText } from './ui/daily-view';
 import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText } from './ui/cycle-view';
 import { createWildwechselMarks, wildwechselMarkOf } from './ui/wildwechsel-view';
@@ -450,8 +451,9 @@ function takeLandscapeAnnouncement(): string {
 }
 
 /** Mehrere Hinweise als ein Text (leere weglassen); '' wenn nichts bleibt. */
+/** Meldungen verbinden – jeder Teil mit Satzzeichen (ui/format.ts, `joinSentences`). */
 function joinNotes(...parts: (string | null | undefined)[]): string {
-  return parts.filter(Boolean).join(' ');
+  return joinSentences(...parts);
 }
 
 /** „Pflanze setzen“: Samen ausgeben, Auswahl schließen, kurz zeigen, was passiert ist. */
@@ -514,7 +516,7 @@ function tickNoteText(report: TickReport): string | null {
     parts.push(tickDeclineText(report));
   }
   if (report.regulars.length > 0) parts.push(regularsArrivedText(report.regulars));
-  return parts.length > 0 ? parts.join(' ') : null;
+  return parts.length > 0 ? joinSentences(...parts) : null;
 }
 
 // --- Spielstand löschen (die Bestätigung per zweitem Klick macht die Oberfläche) --------
@@ -826,7 +828,8 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
       // Eine Meldung für beides, damit der Begrüßungstext den Zusatzhinweis nicht verdrängt –
       // Desktop wie mobil nur die Kurzfassung, alles Weitere im Rückkehr-Bericht (ui/album/return-report.ts).
       const stages = { from: stageBefore, to: state.stage };
-      const view = toReturnReportView({ away, report, waiting: state.pendingEncounters.length, stages, notes });
+      const site = activeSite(state.meta.landscape);
+      const view = toReturnReportView({ away, report, waiting: state.pendingEncounters.length, stages, notes, site });
       album.showReturnReport(view);
       extraNotice = '';
       // Die Begrüßung nennt die neue Stufe schon: kein zweites Stufen-Banner im nächsten Frame.
@@ -840,7 +843,7 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
       // bevor er gelesen ist.
       if (away > WELCOME_MIN_SECONDS) album.hideReturnReport();
       // Ein gemeinsamer Hinweis, damit sich zwei schwebende Texte nicht überdecken.
-      const text = [notice?.text ?? '', regularsArrivedText(report.regulars)].filter(Boolean).join(' ');
+      const text = joinSentences(notice?.text, regularsArrivedText(report.regulars));
       // Im offenen Dialog teilen sich beide Hinweise ein Feld: zusammenfassen.
       if (text && extraNotice && album.overlayOpen()) extraNotice = joinNotes(text, extraNotice);
       else if (text) album.noteText(text);

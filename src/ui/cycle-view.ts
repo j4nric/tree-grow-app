@@ -10,6 +10,7 @@ import {
   MEMORY_PER_NEW_SPECIES,
   NEW_CYCLE_MIN_STAGE,
 } from '../content/memory';
+import { LANDSCAPE_SITES_BY_ID } from '../content/landscape';
 import { NICHES_BY_ID } from '../content/niches';
 import { GENUS_INFO, SPECIES_BY_ID } from '../content/species';
 import { STAGES } from '../content/stages';
@@ -20,6 +21,7 @@ import { allAnimals, type GameState } from '../core/state';
 import { previewNewCycle, regularBlocker, type NewCycleBlocker } from '../core/tick';
 import { formatNumber } from './format';
 import { regularNextCycleHint, regularWaitReason, regularWaitText } from './regular-wait';
+import { siteInText } from './wildwechsel-view';
 import { activeSiteLabel, toLandscapeMapView, type LandscapeMapView, type LandscapeSiteView } from './landscape-view';
 
 /** Eine entdeckte Art in der Stammgäste-Auswahl. */
@@ -59,6 +61,12 @@ export interface TreeOptionView {
   hint: string | null;
   /** Art des laufenden Zyklus (vorausgewählt). */
   current: boolean;
+  /**
+   * Kurzer Zusatz auf dem Tütchen: „Wächst jetzt im Heimatwald“ an der laufenden Art bzw. mit
+   * einem Ziel in der Landschaft, warum eine Art vorausgewählt ist („Leitbaum im Bergmischwald
+   * …“, Playtest Phase 7, S5); sonst null.
+   */
+  note: string | null;
 }
 
 export interface CyclePanelView {
@@ -101,7 +109,7 @@ export interface CyclePanelView {
  */
 export function treeChoiceFor(
   view: Pick<CyclePanelView, 'trees' | 'defaultTree'>,
-  site: Pick<LandscapeSiteView, 'mainTree' | 'unlockedTrees'> | undefined,
+  site: Pick<LandscapeSiteView, 'id' | 'action' | 'mainTree' | 'unlockedTrees'> | undefined,
 ): { trees: TreeOptionView[]; current: MainTreeId } {
   if (!site) return { trees: view.trees, current: view.defaultTree };
   const open = new Set(site.unlockedTrees);
@@ -111,7 +119,27 @@ export function treeChoiceFor(
   });
   const usable = (id: MainTreeId) => trees.some((t) => t.id === id && t.unlocked);
   const current = usable(site.mainTree) ? site.mainTree : usable(view.defaultTree) ? view.defaultTree : (trees.find((t) => t.unlocked)?.id ?? view.defaultTree);
-  return { trees, current };
+  // Warum diese Art vorausgewählt ist – sonst wirkt die Wahl neben „wächst jetzt“ willkürlich.
+  const reason = current === site.mainTree ? preselectReason(site, view.trees.find((t) => t.id === current)?.unlocked ?? false) : null;
+  return { trees: reason ? trees.map((t) => (t.id === current ? { ...t, note: reason } : t)) : trees, current };
+}
+
+/**
+ * Grund der Vorauswahl im Ziel-Wald: beim Gründen der Leitbaum („Leitbaum im Bergmischwald – die
+ * Gründung schaltet sie frei, darum vorausgewählt.“), beim Wechsel die zuletzt dort gewachsene Art.
+ * Alle Hauptbäume sind feminin („die Weißtanne“) – „sie“ passt immer.
+ */
+function preselectReason(site: Pick<LandscapeSiteView, 'id' | 'action' | 'mainTree'>, unlockedBefore: boolean): string | null {
+  const where = siteInText(site.id);
+  if (site.action === 'found') {
+    const lead = LANDSCAPE_SITES_BY_ID.get(site.id)?.leadTree ?? MAIN_TREES[0]!.id;
+    if (lead !== site.mainTree) return null;
+    return unlockedBefore
+      ? `Leitbaum ${where} – darum vorausgewählt.`
+      : `Leitbaum ${where} – die Gründung schaltet sie frei, darum vorausgewählt.`;
+  }
+  if (site.action === 'switch') return `Zuletzt ${where} gewachsen – darum vorausgewählt.`;
+  return null;
 }
 
 /** „einer Eichel“, „einer Buchecker“, „einem Kiefernsamen“ (Dativ der Frucht). */
@@ -181,6 +209,7 @@ export function toCyclePanelView(state: GameState): CyclePanelView {
         unlocked,
         hint: unlocked ? null : t.unlockHint,
         current: id === preview.mainTree,
+        note: id === preview.mainTree ? (landscape ? `Wächst jetzt ${siteInText(landscape.active)}` : 'Wächst jetzt') : null,
       };
     }),
     landscape,

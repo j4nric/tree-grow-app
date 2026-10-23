@@ -10,6 +10,7 @@
  */
 import type { SiteId } from '../../../content/landscape';
 import { el, setAttr, setText, srOnly } from '../../dom';
+import { keepNumberWithIcon } from '../../format';
 import { restartAnimation } from '../../feedback';
 import { hyphenate } from '../../hyphenate';
 import { toJournalLandscapeView } from '../../journal-landscape-view';
@@ -49,12 +50,15 @@ export function createSitePage(env: PageEnv): SitePage {
   const tree = el('p', 'site-line');
   const ancient = el('p', 'site-line');
   const gains = el('p', 'site-line site-gain');
+  // Was „Feuchte“ in der Eigenheit bedeutet (Playtest Phase 7, K7).
+  const habitat = el('p', 'site-line site-habitat');
+  habitat.dataset.ref = 'site-habitat';
   const costs = el('p', 'site-line site-cost');
   const gift = el('p', 'site-line site-gift');
   // Wetter des Waldtyps (DESIGN_V2.md 24.14), z. B. „🌫️ Oft Nebel über dem Wasser, selten Dürre.“
   const weather = el('p', 'site-line site-weather');
   weather.dataset.ref = 'site-weather';
-  lines.append(memory, tree, ancient, gains, costs, gift, weather);
+  lines.append(memory, tree, ancient, gains, habitat, costs, gift, weather);
   const blocker = el('p', 'site-blocker');
   blocker.dataset.ref = 'site-blocker';
 
@@ -125,32 +129,32 @@ export function createSitePage(env: PageEnv): SitePage {
     }
     page.element.dataset.siteId = site.id;
     page.setTitle(`${site.icon} ${site.name}`);
-    page.setMeta(site.status);
+    page.setMeta(keepNumberWithIcon(site.status));
     page.element.classList.toggle('active', site.active);
     setText(type, hyphenate(site.forestType));
     setText(text, site.text);
-    setText(memory, site.memory);
-    setText(tree, site.tree);
-    ancient.hidden = site.ancientText === null;
-    setText(ancient, site.ancientText ?? '');
-    gains.hidden = site.gains === null;
-    setText(gains, site.gains ? `Eigenheit (nur hier): ${site.gains}` : '');
-    costs.hidden = site.costs === null;
-    setText(costs, site.costs ? `Verzicht (nur hier): ${site.costs}` : '');
-    gift.hidden = site.gift === null;
-    setText(gift, site.gift ? `Gabe (${site.giftActive ? 'wirkt schon' : 'nach der Gründung'}): ${site.gift}` : '');
+    // Zahl und Symbol bleiben zusammen („2 🪶“ bricht nicht vor 🪶 um, K5).
+    const line = (node: HTMLElement, value: string | null, prefix = '') => {
+      node.hidden = value === null;
+      setText(node, value === null ? '' : keepNumberWithIcon(`${prefix}${value}`));
+    };
+    line(memory, site.memory);
+    line(tree, site.tree);
+    line(ancient, site.ancientText);
+    line(gains, site.gains, 'Eigenheit (nur hier): ');
+    line(habitat, site.gains ? site.habitatNote : null);
+    line(costs, site.costs, 'Verzicht (nur hier): ');
+    line(gift, site.gift, `Gabe (${site.giftActive ? 'wirkt schon' : 'nach der Gründung'}): `);
     gift.classList.toggle('inactive', !site.giftActive);
-    weather.hidden = site.weather === null;
-    setText(weather, site.weather ? `Wetter: ${site.weather}` : '');
-    blocker.hidden = site.blocker === null;
-    setText(blocker, site.blocker ?? '');
+    line(weather, site.weather, 'Wetter: ');
+    line(blocker, site.blocker);
 
     const c = siteChoiceView(view, site, tgt);
     choice.hidden = !c.visible;
     choose.classList.toggle('chosen', c.chosen);
     setAttr(choose, 'aria-pressed', String(c.chosen));
     setText(choose, c.label);
-    setText(choiceHint, c.hint);
+    setText(choiceHint, keepNumberWithIcon(c.hint));
     cycleOpen.hidden = !c.chosen;
 
     if (!fresh) return;

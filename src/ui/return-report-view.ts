@@ -11,11 +11,12 @@
  *
  * Reine Ansichtslogik ohne DOM (Tests: tests/return-report-view.test.ts).
  */
+import type { SiteId } from '../content/landscape';
 import type { OfflineReport } from '../core/tick';
 import { averagedWeatherText } from './weather-view';
 import { reachedStage, welcomeAmount, welcomeText, type StageProgress } from './adapters';
 import { regularsArrivedText, withRegulars } from './cycle-view';
-import { formatDuration, formatNumber } from './format';
+import { formatDuration, formatNumber, joinSentences } from './format';
 import { wildwechselReturnText } from './wildwechsel-view';
 
 /** Was main.ts nach dem Nachrechnen über die Rückkehr weiß. */
@@ -27,6 +28,8 @@ export interface ReturnReportInput {
   /** Wartende Begegnungen im Stapel. */
   waiting: number;
   stages?: StageProgress;
+  /** Wald des Zyklus (Landschaft) – das gemittelte Wetter nennt ihn außerhalb des Heimatwalds. */
+  site?: SiteId;
   /** Zusatzhinweise in Reihenfolge (Erfolge, Landschaft, Tagesziele, Migration …); leere fallen weg. */
   notes?: readonly (string | null | undefined)[];
 }
@@ -46,6 +49,9 @@ export interface ReturnReportView {
   more: boolean;
 }
 
+/** Symbol vor dem Punkt „Wetter gemittelt“ im Bericht (eine Wetterzeile, kein Wachstum). */
+export const AVERAGED_WEATHER_ICON = '⛅';
+
 /** Verweis am Ende der Kurzfassung – der Bericht steht in der Seitenleiste. */
 export const RETURN_REPORT_MORE = 'mehr im Rückkehr-Bericht';
 
@@ -54,13 +60,16 @@ export function toReturnReportView(input: ReturnReportInput): ReturnReportView {
   const regulars = report.regulars ?? [];
   const notes = (input.notes ?? []).filter((n): n is string => !!n);
 
-  const welcome = welcomeText(away, report, waiting, stages);
-  const full = [withRegulars(welcome, regulars), ...notes].join(' ');
+  const welcome = welcomeText(away, report, waiting, stages, input.site);
+  // Jeder Teil mit Satzzeichen – sonst läuft eine Erfolgsliste in den nächsten Hinweis hinein.
+  const full = joinSentences(withRegulars(welcome, regulars), ...notes);
+  // Gemitteltes Wetter als eigener Punkt, mit Wetter-Symbol statt des üblichen 🌿 davor.
+  const weather = averagedWeatherText(report, input.site);
 
   // Punkte: Begrüßung ohne Wetter, dann Wetter, Stammgäste und die Zusatzhinweise einzeln.
   const details = [
     welcomeText(away, { ...report, averaged: false }, waiting, stages),
-    averagedWeatherText(report),
+    weather ? `${AVERAGED_WEATHER_ICON} ${weather}` : '',
     regularsArrivedText(regulars),
     // Wildwechsel (24.6): wie viele der wartenden Begegnungen ein Tier über Korridore bringen.
     wildwechselReturnText(report.wildwechsel?.length ?? 0),

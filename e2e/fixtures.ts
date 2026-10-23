@@ -349,12 +349,15 @@ export const openSavePage = (page: Page) => openCoverPage(page, 'save');
 
 /**
  * Wartet, bis im Album keine Animation mehr läuft (Umblättern, Umschlag, Überblenden) – statt
- * einer festen Wartezeit. Danach prüfen die Tests den Ruhezustand.
+ * einer festen Wartezeit. Danach prüfen die Tests den Ruhezustand. Endlose Animationen (z. B.
+ * die wandernden Spuren `lsc-trail` der Wildwechsel-Korridore auf der Karte) zählen nicht – sie
+ * enden nie und sind kein Übergang.
  */
 export async function albumAnimationsDone(page: Page): Promise<void> {
   await page.waitForFunction(() =>
     document.getAnimations().every((a) => {
       if (a.playState !== 'running') return true;
+      if (a.effect?.getComputedTiming().iterations === Infinity) return true;
       const target = (a.effect as KeyframeEffect | null)?.target;
       return !(target instanceof Element && target.closest('[data-ref="album"], [data-ref="cover"]'));
     }),

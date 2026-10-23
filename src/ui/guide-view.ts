@@ -46,6 +46,7 @@ import {
   FOUNDING_COSTS,
   JAY_SEEDS_FIRST_ANCIENT,
   JAY_SEEDS_MEMORY_STEP,
+  HOME_SITE,
   LANDSCAPE_SITES,
   LANDSCAPE_SITES_BY_ID,
   LANDSCAPE_UNLOCK_MEMORY,
@@ -55,6 +56,7 @@ import {
 import { MAX_FOREST_MEMORY } from '../core/state';
 import { HARMONY_TIERS, bonusEffectLabel, isHabitatNiche, listNames } from './adapters';
 import { fruitPhrase } from './cycle-view';
+import { siteWeatherText } from './landscape-view';
 import { formatDuration, formatNumber } from './format';
 
 export interface GuideSection {
@@ -290,6 +292,8 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
         ...WEATHERS.map((w) => `${w.icon} ${w.name}: ${w.summary}.`),
         `Raue Lagen (${all(roughWeathers.map((w) => w.name))}) bremsen das Wachstum, bringen dafür mehr Samen. Jede Gattung mit Tieren dämpft den Abzug um ${pct(DIVERSITY_DAMPING_PER_GENUS)}, höchstens um ${pct(DIVERSITY_DAMPING_MAX)}. Die passende Pflege halbiert ihn: ${all(protections)}.${immune.length > 0 ? ` ${all(immune)}.` : ''}`,
         `Zwei raue Tage folgen nie aufeinander, und in den ersten ${formatNumber(GENTLE_DAYS)} Tagen eines Zyklus bleibt es ruhig. Das Wetter neben der Jahreszeit unter dem Bild zeigt das Wetter von heute – antippen verrät, was den Abzug dämpft, und das Wetter von morgen. Warten lohnt sich nicht: Nichts wird billiger oder teurer.`,
+        // Wetter je Waldtyp (24.14) – erst mit der Landschaft (Spoiler-Regel).
+        ...(options.landscape === true ? siteWeatherParagraphs() : []),
       ],
     },
     {
@@ -361,6 +365,23 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
   ];
 }
 
+/** Standorte mit eigenem Wetter (ohne Heimatwald), in der Reihenfolge der Daten. */
+function weatherSites() {
+  return LANDSCAPE_SITES.filter((s) => s.weatherSummary);
+}
+
+/**
+ * Wetter je Waldtyp für das Kapitel „Wetter“ (DESIGN_V2.md 24.14): ein Satz zur Regel, dann je
+ * Wald eine Zeile mit dem Zeichen der häufigsten Lage („🌨️ Viel Neuschnee …“).
+ */
+function siteWeatherParagraphs(): string[] {
+  const home = LANDSCAPE_SITES.find((s) => s.id === HOME_SITE);
+  return [
+    `Jeder Waldtyp der Landschaft hat sein eigenes Wetter – es gilt, solange dort dein Zyklus wächst. Der ${home?.name ?? 'Heimatwald'} hat das gewohnte Wetter; die Notiz „Wetter heute“ nennt das Wetter des Waldes, in dem du gerade wächst:`,
+    ...weatherSites().map((s) => `${s.icon} ${s.name}: ${siteWeatherText(s.id) ?? s.weatherSummary}`),
+  ];
+}
+
 /**
  * Abschnitt „Waldlandschaft“ (DESIGN_V2.md 24): vor der Freischaltung nur eine Andeutung,
  * danach die Regeln mit Zahlen aus content/.
@@ -382,6 +403,8 @@ function landscapeSection(unlocked: boolean): GuideSection {
   const home = LANDSCAPE_SITES.find((s) => s.id === 'home');
   const spokes = CORRIDORS.filter((c) => c.sites.includes('home'));
   const ring = CORRIDORS.filter((c) => !c.sites.includes('home'));
+  // Beispiel fürs Wetter je Waldtyp: der Bergmischwald (Neuschnee), sonst der erste mit eigenem Wetter.
+  const weatherExample = weatherSites().find((s) => s.id === 'mountain') ?? weatherSites()[0];
   return {
     id: 'landscape',
     icon: '🪶',
@@ -391,6 +414,9 @@ function landscapeSection(unlocked: boolean): GuideSection {
       `🪶 Hähersaat verdienst du, statt sie zu sammeln: ${formatNumber(1)} je volle ${formatNumber(JAY_SEEDS_MEMORY_STEP)} Punkte eigenes Waldgedächtnis eines Waldes und ${formatNumber(JAY_SEEDS_FIRST_ANCIENT)} für den ersten ${ancient} dort. Einen neuen Wald gründest du nur aus dem ${ancient} und nur gleich neben dem Wald, in dem du gerade wächst. Er kostet ${all(FOUNDING_COSTS.map((c) => formatNumber(c)))} 🪶 (der 2. bis ${formatNumber(FOUNDING_COSTS.length + 1)}. Wald); der Korridor dorthin entsteht gratis.`,
       `Wechseln kannst du ab der Stufe „${cycleStage}“: Der Gewinn des Zyklus geht noch an den alten Wald, danach gelten Gedächtnis, Stammgäste und Eigenheit des neuen. Nichts geht verloren – ein Wald, den du verlässt, ruht und wartet auf dich.`,
       `Jeder Waldtyp hat eine Eigenheit mit Gewinn und Verzicht, die nur dort wirkt, und eine Gabe, die in allen Wäldern gilt, sobald er gegründet ist. Die Karte zeigt beides.`,
+      ...(weatherExample
+        ? [`Auch das Wetter hängt am Waldtyp, etwa ${weatherExample.icon} ${weatherExample.name}: ${siteWeatherText(weatherExample.id) ?? weatherExample.weatherSummary} Das kleine Zeichen an jedem Standort der Karte zeigt seine häufigste Lage, das Kapitel „Wetter“ alle Wälder.`]
+        : []),
       `Korridore verbinden zwei gegründete Wälder und lassen sich jederzeit bauen: ${formatNumber(spokes.length)} am ${home?.name ?? 'Heimatwald'} (je ${span(spokes.map((c) => c.cost))} 🪶) und ${formatNumber(ring.length)} im Ring (${span(ring.map((c) => c.cost))} 🪶). Über sie hilft das Gedächtnis der Nachbarn: ${pct(CORRIDOR_INFLOW)} ihres eigenen Gedächtnisses zählt mit, zusammen höchstens ${formatNumber(CORRIDOR_INFLOW_CAP)} – das wirksame Gedächtnis gibt Bonus und Stammgast-Plätze.`,
       `🦌 Wildwechsel: Jeder Korridor am Wald, in dem du gerade wächst, gibt ${pct(WILDWECHSEL_CHANCE)} Chance (zusammen höchstens ${pct(WILDWECHSEL_MAX_CHANCE)}), dass eine Tierbegegnung eine Art aus dem Nachbarwald zeigt – aus den Tieren, die dort lebten, als du ihn zuletzt verlassen hast. Es kommen nur Arten, die zu Stufe und Nischen passen und noch nicht bei dir leben, höchstens eine je Begegnung. Die Karte nennt den Weg, z. B. „kommt über die Schlehenhecke aus den Buchenhallen“; die Karte der Landschaft zeigt die Chance. Außerdem zeigt sich jeder Waldtyp öfter mit seinen typischen Gattungen, der Auwald etwa mit Amphibien und Vögeln.`,
     ],

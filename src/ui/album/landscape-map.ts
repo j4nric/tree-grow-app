@@ -6,7 +6,9 @@
  * Ziel des nächsten Zyklus.
  *
  * DOM einmal aufbauen, `update()` setzt nur Texte, Klassen und Attribute (kein innerHTML).
- * Zustand immer auch als Text im Knopf (nicht nur Farbe): „hier“, „gegründet“, „gründen · 3 🪶“.
+ * Zustand immer auch als Text im Knopf (nicht nur Farbe): „hier“, „gegründet“, „gründen · 3 🪶“,
+ * gesperrt mit Grund („erst im Urwald · 5 🪶“). Das Wetter des Waldtyps steht als kleines
+ * Zeichen an der Ecke, der Satz dazu als Tooltip und für Screenreader.
  *
  * **Zwei Lagen:** Breit (Doppelseite, Tablet) liegt die Karte quer (4 : 3) wie in den Daten.
  * Schmal im Hochformat (Handy) gilt eine eigene Lage über die volle Höhe (`PORTRAIT`):
@@ -18,6 +20,7 @@
  */
 import type { SiteId } from '../../content/landscape';
 import { el, setAttr, setText, srOnly } from '../dom';
+import { keepNumberWithIcon } from '../format';
 import { hyphenate } from '../hyphenate';
 import type { LandscapeCorridorView, LandscapeMapView, LandscapeSiteView } from '../landscape-view';
 import { isOtherTarget, siteButtonExtra } from './cycle-target';
@@ -98,6 +101,14 @@ export function createLandscapeMap(onSite: (id: SiteId) => void): LandscapeMap {
     const status = el('span', 'lsc-site-status');
     const state = srOnly();
     button.append(icon, name, status, state);
+    // Wetter des Waldtyps (24.14): Zeichen an der Ecke, der Satz als Tooltip und vorgelesen.
+    if (site.weather && site.weatherIcon) {
+      const weather = el('span', 'lsc-site-weather', site.weatherIcon);
+      weather.setAttribute('aria-hidden', 'true');
+      // Tooltip am Zeichen (Maus); vorgelesen als Teil des Knopfs – nicht doppelt als Beschreibung.
+      weather.title = `Wetter: ${site.weather}`;
+      button.append(weather, srOnly(`, Wetter: ${site.weather}`));
+    }
     button.addEventListener('click', () => onSite(site.id));
     map.append(button);
     const node = { button, name, status, state };
@@ -139,7 +150,7 @@ export function createLandscapeMap(onSite: (id: SiteId) => void): LandscapeMap {
       for (const s of view.sites) {
         const node = sites.get(s.id) ?? createSite(s);
         setText(node.name, hyphenate(s.name));
-        setText(node.status, s.status);
+        setText(node.status, keepNumberWithIcon(s.status));
         node.button.classList.toggle('active', s.active);
         node.button.classList.toggle('founded', s.founded);
         node.button.classList.toggle('unfounded', !s.founded);

@@ -4,7 +4,8 @@ import { SPECIES } from '../src/content/species';
 import { MAX_OFFLINE_SECONDS } from '../src/core/tick';
 import { welcomeText } from '../src/ui/adapters';
 import { withRegulars } from '../src/ui/cycle-view';
-import { RETURN_REPORT_MORE, returnStamp, toReturnReportView } from '../src/ui/return-report-view';
+import { joinSentences } from '../src/ui/format';
+import { AVERAGED_WEATHER_ICON, RETURN_REPORT_MORE, returnStamp, toReturnReportView } from '../src/ui/return-report-view';
 
 /** Rückkehr nach 3 Std.: Ertrag, gemitteltes Wetter, keine Besonderheiten. */
 const base = { seconds: 3 * 3600, growth: 12_400.7, seeds: 300.2, autoDeclined: 0, declinedSeeds: 0 };
@@ -33,7 +34,8 @@ describe('toReturnReportView', () => {
     expect(view.headline).toBe(view.summary.replace(` · ${RETURN_REPORT_MORE}`, ''));
     expect(view.details).toEqual([
       welcomeText(base.seconds, base, 2, { from: 3, to: 5 }),
-      'Wetter gemittelt.',
+      // Wetterzeile mit Wetter-Symbol statt des üblichen 🌿 davor (Playtest Phase 7, S3).
+      `${AVERAGED_WEATHER_ICON} Wetter gemittelt.`,
     ]);
     expect(toReturnReportView({ away: base.seconds, report: base, waiting: 1 }).summary).toContain('· 1 Begegnung wartet');
   });
@@ -43,18 +45,30 @@ describe('toReturnReportView', () => {
     const notes = ['🏅 Erfolg: „Wurzeln schlagen“', '', 'Tagesziele: Ein neuer Tag beginnt.', null, 'Die Landschaft ist offen.'];
     const report = { ...base, averaged: true, weather: [], regulars: [regular], autoDeclined: 2, declinedSeeds: 40 };
     const view = toReturnReportView({ away: base.seconds, report, waiting: 1, notes });
-    // Bisheriger Toast-Text (main.ts vor dem Bericht): Begrüßung + Stammgäste + Zusatzhinweise.
-    const before = [withRegulars(welcomeText(base.seconds, report, 1), [regular]), ...notes.filter(Boolean)].join(' ');
+    // Bisheriger Toast-Text (main.ts vor dem Bericht): Begrüßung + Stammgäste + Zusatzhinweise –
+    // jeder Teil mit Satzzeichen (Playtest Phase 7, S4: „… Wurzeln schlagen“. Tagesziele …“).
+    const before = joinSentences(withRegulars(welcomeText(base.seconds, report, 1), [regular]), ...notes);
     expect(view.full).toBe(before);
-    // Jeder Punkt kommt in der ganzen Meldung vor, und zusammen ergeben sie sie (ohne Lücken).
-    expect(view.details.join(' ')).toBe(before);
+    expect(view.full).toContain('„Wurzeln schlagen“. Tagesziele');
+    // Jeder Punkt kommt in der ganzen Meldung vor (ohne das Wetter-Symbol davor).
+    for (const d of view.details) expect(before).toContain(d.replace(`${AVERAGED_WEATHER_ICON} `, ''));
     expect(view.details).toHaveLength(6);
-    expect(view.details[1]).toBe('Wetter gemittelt.');
+    expect(view.details[1]).toBe(`${AVERAGED_WEATHER_ICON} Wetter gemittelt.`);
     expect(view.details[2]).toContain(SPECIES[0]!.name);
     expect(view.more).toBe(true);
     // Weitergezogene Begegnungen stehen nur in den Details – die Kurzfassung verweist darauf.
     expect(view.summary).not.toContain('zogen weiter');
     expect(view.summary.endsWith(RETURN_REPORT_MORE)).toBe(true);
+  });
+
+  it('nennt beim gemittelten Wetter den Wald, wenn der Zyklus nicht im Heimatwald wächst (S3)', () => {
+    const report = { ...base, averaged: true, weather: ['snow', 'snow', 'rain'] as const };
+    const view = toReturnReportView({ away: base.seconds, report: { ...report, weather: [...report.weather] }, waiting: 0, site: 'mountain' });
+    expect(view.details[1]).toBe(`${AVERAGED_WEATHER_ICON} Wetter im Bergmischwald gemittelt (2 × Neuschnee, 1 × Landregen).`);
+    expect(view.full).toContain('Wetter im Bergmischwald gemittelt (2 × Neuschnee, 1 × Landregen).');
+    // Heimatwald: wie bisher ohne Namen.
+    const home = toReturnReportView({ away: base.seconds, report: { ...report, weather: [...report.weather] }, waiting: 0, site: 'home' });
+    expect(home.details[1]).toBe(`${AVERAGED_WEATHER_ICON} Wetter gemittelt (2 × Neuschnee, 1 × Landregen).`);
   });
 
   it('gedeckelte Abwesenheit und Weiterziehen allein reichen für den Verweis', () => {

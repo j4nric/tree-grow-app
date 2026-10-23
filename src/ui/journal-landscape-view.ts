@@ -1,6 +1,6 @@
 /**
  * Tagebuch der Wälder im Album-Reiter „Landschaft“ (DESIGN_V2.md 24.3, 24.11): je gegründetem Wald Name,
- * Waldtyp, Gedächtnis eigen/wirksam, Urwald ja/nein, Leitbaum, Stammgäste und Tiere; dazu die
+ * Waldtyp, Gedächtnis eigen/wirksam, Urwald ja/nein, Leitbaum, Wetter, Stammgäste und Tiere; dazu die
  * gebauten Korridore und die Hähersaat-Bilanz.
  *
  * Reine Funktionen ohne DOM – getestet in tests/journal-landscape.test.ts. Alle Werte kommen
@@ -30,7 +30,7 @@ import {
 } from '../core/landscape';
 import { allAnimals, type GameState, type LandscapeSite } from '../core/state';
 import { formatNumber } from './format';
-import { CORRIDOR_ICONS } from './landscape-view';
+import { CORRIDOR_ICONS, siteWeatherText } from './landscape-view';
 import { RARITY_LABELS } from './view-format';
 import type {
   JournalCorridorView,
@@ -98,6 +98,7 @@ function siteView(state: GameState, entry: LandscapeSite, active: SiteId): Journ
   const data = LANDSCAPE_SITES_BY_ID.get(entry.id);
   const isActive = entry.id === active;
   const ancient = isSiteAncient(state, entry.id);
+  const weather = siteWeatherText(entry.id);
   const rows: JournalLandscapeRowView[] = [
     { key: 'memory', label: 'Waldgedächtnis', value: memoryText(ownMemory(state, entry.id), effectiveMemoryOf(state, entry.id)) },
     {
@@ -108,6 +109,8 @@ function siteView(state: GameState, entry: LandscapeSite, active: SiteId): Journ
         : `noch nicht – der erste bringt ${formatNumber(JAY_SEEDS_FIRST_ANCIENT)} 🪶`,
     },
     { key: 'lead', label: 'Leitbaum', value: treeName(data?.leadTree) },
+    // Wetter des Waldtyps (24.14) – der Heimatwald hat kein eigenes.
+    ...(weather ? [{ key: 'weather', label: 'Wetter', value: weather }] : []),
     isActive
       ? { key: 'tree', label: 'Hauptbaum jetzt', value: treeName(state.cycle.mainTree) }
       : { key: 'tree', label: 'Zuletzt gewachsen', value: treeName(entry.mainTree) },

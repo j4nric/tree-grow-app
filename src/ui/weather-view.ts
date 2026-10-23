@@ -7,6 +7,7 @@
  * tests/weather-view.test.ts.
  */
 import { CARE_BY_ID } from '../content/care';
+import { HOME_SITE, LANDSCAPE_SITES_BY_ID, type SiteId } from '../content/landscape';
 import { NOCTURNAL_BY_SPECIES, type Nocturnal } from '../content/daytime';
 import type { TimedEffect } from '../content/events';
 import { PLANT_GROUP_INFO } from '../content/plants';
@@ -23,6 +24,7 @@ import {
   type WeatherId,
 } from '../content/weather';
 import { evaluate, type Evaluation } from '../core/formulas';
+import { activeSite } from '../core/landscape';
 import { seasonIdAt } from '../core/season';
 import type { GameState } from '../core/state';
 import {
@@ -38,6 +40,8 @@ import {
 } from '../core/weather';
 import { formatNumber } from './format';
 import { seasonTimeLeft } from './season-view';
+import { siteWeatherText } from './landscape-view';
+import { siteInText } from './wildwechsel-view';
 import type { NightBadgeView, NightRateView } from './view-model';
 
 export type { NightBadgeView, NightRateView };
@@ -68,6 +72,11 @@ export interface WeatherBadgeView {
   tip: string | null;
   /** „Morgen: 🌫️ Nebel · +5 % 🌿 · Moose & Farne +30 % 🌿“. */
   forecast: string;
+  /**
+   * Wetter des Waldtyps (DESIGN_V2.md 24.14), wenn der Zyklus nicht im Heimatwald wächst, z. B.
+   * „Wetter im Bergmischwald: 🌨️ Viel Neuschnee im Winter, Steigungsregen am Hang.“; sonst null.
+   */
+  site: string | null;
   /** Tag oder Nacht, Restzeit und wirkende Nachtarten. */
   daytime: string;
   /** Hinweis zur Einstellung „Immer Tag“; null, wenn sie aus ist. */
@@ -239,6 +248,19 @@ export function daytimeText(state: GameState, happinessOf: HappinessOf = happine
 /** Hinweis zur Einstellung „Tageszeit: Immer Tag“ (19.1): Sie betrifft nur das Bild. */
 export const ALWAYS_DAY_NOTE = 'Einstellung „Immer Tag“: Nur das Bild bleibt hell – Nacht und Wetter wirken weiter.';
 
+/**
+ * Wetter-Zeile des aktiven Waldes für die Notiz „Wetter heute“ (24.14): warum es hier oft
+ * schneit oder neblig ist. Nur außerhalb des Heimatwalds (der hat kein eigenes Wetter).
+ */
+export function siteWeatherLine(state: Pick<GameState, 'meta'>): string | null {
+  const landscape = state.meta.landscape;
+  if (!landscape) return null;
+  const site = activeSite(landscape);
+  if (site === HOME_SITE || !LANDSCAPE_SITES_BY_ID.has(site)) return null;
+  const text = siteWeatherText(site);
+  return text ? `Wetter ${siteInText(site)}: ${text}` : null;
+}
+
 /** Abzeichen des Wetters zum Spielstand. `alwaysDay`: Einstellung „Tageszeit: Immer Tag“. */
 export function toWeatherBadgeView(
   state: GameState,
@@ -264,6 +286,7 @@ export function toWeatherBadgeView(
     damping: weatherDampingText(weather, damping, state.cycle.mainTree),
     tip: weatherTipText(weather, damping),
     forecast: forecastLine,
+    site: siteWeatherLine(state),
     daytime: daytimeText(state, happinessOf),
     daytimeNote: alwaysDay ? ALWAYS_DAY_NOTE : null,
     night: isNight(state.cycle.elapsed),
@@ -289,9 +312,11 @@ export function seasonWeatherChangeText(seasons: readonly SeasonId[], weathers: 
 /**
  * Satz für die Rückkehr-Meldung, wenn offline mit dem Mittelwetter gerechnet wurde (21.5):
  * „Wetter gemittelt (4 × Landregen, 1 × Sturm).“ Ohne besondere Tage nur „Wetter gemittelt.“;
- * leer, wenn nicht gemittelt wurde. Höchstens drei Lagen, die häufigsten zuerst.
+ * leer, wenn nicht gemittelt wurde. Höchstens drei Lagen, die häufigsten zuerst. Wächst der
+ * Zyklus in einem anderen Wald als dem Heimatwald (`site`), nennt der Satz ihn – das Wetter dort
+ * folgt seinem Waldtyp (24.14): „Wetter im Bergmischwald gemittelt (9 × Neuschnee).“
  */
-export function averagedWeatherText(report: { averaged?: boolean; weather?: readonly WeatherId[] }): string {
+export function averagedWeatherText(report: { averaged?: boolean; weather?: readonly WeatherId[] }, site?: SiteId): string {
   if (!report.averaged) return '';
   const counts = new Map<WeatherId, number>();
   for (const id of report.weather ?? []) {
@@ -303,7 +328,8 @@ export function averagedWeatherText(report: { averaged?: boolean; weather?: read
     .sort((a, b) => b[1] - a[1] || order.indexOf(a[0]) - order.indexOf(b[0]))
     .slice(0, 3)
     .map(([id, n]) => `${formatNumber(n)} × ${WEATHERS_BY_ID.get(id)!.name}`);
-  return list.length > 0 ? `Wetter gemittelt (${list.join(', ')}).` : 'Wetter gemittelt.';
+  const head = site && site !== HOME_SITE ? `Wetter ${siteInText(site)} gemittelt` : 'Wetter gemittelt';
+  return list.length > 0 ? `${head} (${list.join(', ')}).` : `${head}.`;
 }
 
 /**

@@ -20,6 +20,7 @@
  * Jede Meldung ist ein eigenes kleines Element (Meldungen kommen selten, nie pro Frame).
  */
 import { el, srOnly } from '../dom';
+import { keepNumberWithIcon } from '../format';
 import { toastDurationFor } from '../settings';
 import { stampDuration, stampKind, stampsToDrop, type NotifyOptions } from './stamp-rules';
 import './stamps.css';
@@ -68,7 +69,7 @@ const MOVE_MS = 140;
  * Vorgelesen wird derselbe Text (das geschützte Leerzeichen liest sich wie ein normales).
  */
 export function stampDisplayText(text: string): string {
-  return text.replace(/(\d) (?=\p{Extended_Pictographic})/gu, '$1\u00a0');
+  return keepNumberWithIcon(text);
 }
 
 export function createStamps(

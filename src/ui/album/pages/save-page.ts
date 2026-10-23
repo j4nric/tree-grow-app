@@ -4,7 +4,7 @@
  * Klick zur Bestätigung (ohne confirm()). Das Löschen selbst macht main.ts (`resetGame`).
  */
 import { el } from '../../dom';
-import { isDeliberateConfirm } from '../../confirm';
+import { confirmAgainText, isDeliberateConfirm } from '../../confirm';
 import { createSaveTransfer, type SaveTransfer } from '../../save-transfer';
 import { createBookmark } from '../bookmark';
 import { createPage } from '../page';
@@ -14,7 +14,6 @@ import './forms.css';
 import './save-page.css';
 
 const RESET_TEXT = 'Spielstand löschen';
-const RESET_CONFIRM_TEXT = 'Wirklich alles löschen? Zum Bestätigen erneut klicken';
 const RESET_ARM_MS = 4000;
 
 export interface SavePage extends Subpage {
@@ -62,7 +61,7 @@ export function createSavePage(env: PageEnv): SavePage {
   reset.addEventListener('click', (event) => {
     if (timer === undefined) {
       if (event.detail > 1) return;
-      reset.textContent = RESET_CONFIRM_TEXT;
+      reset.textContent = confirmAgainText('Wirklich alles löschen?');
       reset.classList.add('armed');
       armedAt = performance.now();
       timer = setTimeout(disarm, RESET_ARM_MS);

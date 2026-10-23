@@ -72,6 +72,16 @@
   color: var(--ink-soft);
 }
 
+/* Wildwechsel-Hinweis im Kopf: welche Karte über einen Korridor kam (K4). */
+.enc-head .encounter-route-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink-green);
+}
+
+.enc-head .encounter-route-hint[hidden],
 .enc-head .encounter-subtitle[hidden],
 .enc-head .encounter-hero-icon[hidden],
 .enc-head .encounter-facts[hidden],

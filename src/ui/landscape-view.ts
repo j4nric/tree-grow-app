@@ -12,6 +12,7 @@ import {
   type CorridorKind,
   type SiteId,
 } from '../content/landscape';
+import type { Tag } from '../content/types';
 import { STAGES } from '../content/stages';
 import { WEATHERS_BY_ID, type WeatherId } from '../content/weather';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
@@ -76,6 +77,13 @@ export interface LandscapeSiteView {
    * „🌫️ Oft Nebel über dem Wasser, selten Dürre.“ – null beim Heimatwald.
    */
   weather: string | null;
+  /** Zeichen der häufigsten Wetterlage (für die Karte, z. B. „🌨️“) – null beim Heimatwald. */
+  weatherIcon: string | null;
+  /**
+   * Erklärung zu Merkmalen, die der Wald immer bietet (Eigenheit „Feuchte“), z. B. „💧 Feuchte: …“;
+   * null, wenn er keine bietet.
+   */
+  habitatNote: string | null;
   /** Urwald-Zustand als Satz, z. B. „Hier war schon Urwald (+2 🪶).“; null, solange nicht gegründet. */
   ancientText: string | null;
   /** null = nicht wählbar (siehe blocker). */
@@ -207,12 +215,25 @@ export function landscapeErrorText(error: LandscapeError | 'cycle-locked'): stri
 }
 
 /** Kurzer Zustand im Knopf auf der Karte. */
-function siteStatus(choice: SiteChoice): string {
-  // Kurz (eine Zeile im Knopf); alles Weitere steht in den Angaben darunter.
+export function siteStatus(choice: SiteChoice): string {
+  // Kurz (eine Zeile im Knopf); alles Weitere steht in den Angaben darunter. Gesperrt mit dem
+  // Grund in zwei, drei Worten (Playtest Phase 7, K3) – der ganze Satz steht auf U:Standort.
   if (choice.active) return choice.ancient ? `hier · ${ANCIENT_NAME}` : 'hier';
   if (choice.founded) return choice.ancient ? `schon ${ANCIENT_NAME}` : 'gegründet';
-  if (choice.blocker === null) return `gründen · ${formatNumber(choice.cost ?? 0)} 🪶`;
-  return choice.cost !== null ? `gesperrt · ${formatNumber(choice.cost)} 🪶` : 'gesperrt';
+  const cost = choice.cost !== null ? ` · ${formatNumber(choice.cost)} 🪶` : '';
+  switch (choice.blocker) {
+    case null:
+      return `gründen · ${formatNumber(choice.cost ?? 0)} 🪶`;
+    case 'cycle-locked':
+    case 'needs-ancient-forest':
+      return `erst im ${ANCIENT_NAME}${cost}`;
+    case 'not-adjacent':
+      return `nicht nebenan${cost}`;
+    case 'not-enough-jay-seeds':
+      return `zu wenig 🪶${cost}`;
+    default:
+      return `gesperrt${cost}`;
+  }
 }
 
 function siteMemoryText(state: GameState, choice: SiteChoice, allowed: boolean): string {
@@ -355,6 +376,8 @@ export function toLandscapeMapView(state: GameState, preview: NewCyclePreview): 
       gift,
       giftActive: gift !== null && choice.founded,
       weather: siteWeatherText(choice.id),
+      weatherIcon: siteWeatherIcon(choice.id),
+      habitatNote: siteHabitatNote(choice.id),
       ancientText: choice.founded
         ? choice.ancient
           ? `Hier war schon ${ANCIENT_NAME}.`
@@ -434,10 +457,30 @@ export function activeSiteLabel(state: Pick<GameState, 'meta'>): string {
 export function siteWeatherText(id: SiteId): string | null {
   const data = LANDSCAPE_SITES_BY_ID.get(id);
   if (!data?.weatherSummary) return null;
+  const icon = siteWeatherIcon(id);
+  return icon ? `${icon} ${data.weatherSummary}` : data.weatherSummary;
+}
+
+/** Zeichen der Wetterlage mit dem größten Faktor (> 1) eines Standorts; null ohne Kurztext (Heimatwald). */
+export function siteWeatherIcon(id: SiteId): string | null {
+  const data = LANDSCAPE_SITES_BY_ID.get(id);
+  if (!data?.weatherSummary) return null;
   let top: WeatherId | null = null;
   for (const [w, f] of Object.entries(data.weather) as [WeatherId, number][]) {
     if (f > 1 && (top === null || f > data.weather[top]!)) top = w;
   }
-  const icon = top !== null ? WEATHERS_BY_ID.get(top)?.icon : undefined;
-  return icon ? `${icon} ${data.weatherSummary}` : data.weatherSummary;
+  return (top !== null ? WEATHERS_BY_ID.get(top)?.icon : undefined) ?? null;
+}
+
+/** Was ein Merkmal bedeutet, das ein Standort immer bietet (nur bekannte; Playtest Phase 7, K7). */
+const HABITAT_NOTES: Partial<Record<Tag, string>> = {
+  feucht:
+    '💧 Feuchte heißt: Der Boden ist hier immer nass – Tiere, die sich Feuchte wünschen, finden sie auch ohne Moos, Farn oder Waldtümpel.',
+};
+
+/** Erklärung zu den Merkmalen eines Standorts (z. B. „Feuchte“ im Auwald); null, wenn keine. */
+export function siteHabitatNote(id: SiteId): string | null {
+  const data = LANDSCAPE_SITES_BY_ID.get(id);
+  const notes = (data?.habitats ?? []).map((t) => HABITAT_NOTES[t]).filter((n): n is string => !!n);
+  return notes.length > 0 ? notes.join(' ') : null;
 }
