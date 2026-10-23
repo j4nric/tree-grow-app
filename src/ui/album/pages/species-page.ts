@@ -23,7 +23,7 @@
  */
 import { COMMUNITIES } from '../../../content/communities';
 import { PLANTS } from '../../../content/plants';
-import { SPECIES } from '../../../content/species';
+import { COMMON_SPECIES, SPECIES } from '../../../content/species';
 import { evaluate } from '../../../core/formulas';
 import { IdleQueue } from '../../../render/idle';
 import { toJournalView } from '../../adapters';
@@ -216,6 +216,8 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
   const animals = sections.get('animals')!;
   const groups = speciesGroups();
   const speciesCells: Cell[] = [];
+  /** Raster je Zelle – Kennarten werden erst mit der Landschaft eingehängt. */
+  const cellGrid = new Map<Cell, HTMLElement>();
   const groupCounts: { count: HTMLElement; indices: number[] }[] = [];
   /** Blöcke unterhalb des ersten Bildschirms, in Reihenfolge (verborgen bis zum Aufdecken). */
   const later: HTMLElement[] = [];
@@ -249,7 +251,10 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
       });
       cell.button.addEventListener('click', () => tapAnimal(index, cell));
       speciesCells[index] = cell;
-      grid.append(cell.li);
+      cellGrid.set(cell, grid);
+      // Kennarten (hinten in SPECIES, also hinten in ihrer Gattung) kommen erst mit der
+      // Landschaft ins Raster (render, 26.3) – vorher stehen sie nicht einmal im DOM.
+      if (index < COMMON_SPECIES.length) grid.append(cell.li);
     }
     box.append(head, grid);
     animals.root.append(box);
@@ -459,11 +464,21 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
       setText(jumpCounts.get(id)!, tabCounts[id]);
       setText(sections.get(id)!.count, tabCounts[id]);
     }
-    for (const group of groupCounts) setText(group.count, ofCount(discoveredIn(view.species, group.indices), group.indices.length));
-
-    view.species.forEach((entry, i) => {
-      const cell = speciesCells[i];
-      if (cell) renderAnimal(cell, entry, i);
+    // Vor der Landschaft fehlen die Kennarten in `view.species` (toJournalView, 26.3) – sie
+    // stehen hinten in SPECIES, die übrigen Indizes bleiben gleich. Ihre Plätze bleiben verborgen.
+    for (const group of groupCounts) {
+      const shown = group.indices.filter((i) => i < view.species.length);
+      setText(group.count, ofCount(discoveredIn(view.species, shown), shown.length));
+    }
+    speciesCells.forEach((cell, i) => {
+      const entry = view.species[i];
+      if (!entry) {
+        if (cell.li.isConnected) cell.li.remove();
+        return;
+      }
+      // Hinten anhängen hält die Reihenfolge: Kennarten stehen am Ende ihrer Gattung.
+      if (!cell.li.parentElement) cellGrid.get(cell)?.append(cell.li);
+      renderAnimal(cell, entry, i);
     });
     view.plants.forEach((entry, i) => {
       const cell = plantCells[i];

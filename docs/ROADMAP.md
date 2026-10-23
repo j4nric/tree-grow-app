@@ -883,7 +883,7 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   `moorfrogBlue`, überblendet; Sticker blau), Biber watet am Tümpelrand (hohe Watende passen
   sich der Senke an). Demo: `?species=all|dormouse,…`, `?gallery=kennarten`, Sticker-Tafel;
   Tests `tests/render-kennarten.test.ts`
-- [ ] **2b** Waldchronik und Kennarten, Spielstand v16 (`core-engineer`, 26.3–26.6): Bedingung
+- [x] **2b** Waldchronik und Kennarten, Spielstand v16 (`core-engineer`, 26.3–26.6): Bedingung
   `{ kind: 'site', site }` (Landschaft offen, aktiver Wald, alt oder jetzt Urwald); die sechs
   Kennarten als Daten aus 26.3 (Block „Kennarten“ in `species.ts`, zwei in `NOCTURNAL`);
   `ForestSite.kennart`, `.chronicleEvent`, `.keepsake`, `content/chronicle.ts`;
@@ -897,7 +897,16 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   nach der Landschaft bekommt Ziele, die zu Orten gehören – und ein Grund, im Urwald zu
   verweilen. Das Feld ist nötig, weil Kapitel wie „Erster Schnee“ und „Ereignis des Waldes“
   nicht aus dem Spielstand ableitbar sind; die Kennarten-IDs brauchen die Versionsprüfung
-  (Fall 25.5). Abhängig: 1a und 1d gemergt (gleiche Dateien `landscape.ts`, `achievements.ts`)
+  (Fall 25.5). Abhängig: 1a und 1d gemergt (gleiche Dateien `landscape.ts`, `achievements.ts`).
+  **Erledigt:** Daten (`content/chronicle.ts`, Kennarten in `species.ts` und `daytime.ts`,
+  Standorte in `landscape.ts`), Logik in `core/landscape.ts` (`writeChapter`,
+  `syncActiveChronicle`, `chronicleOf`, `completedChronicles`, `oldSiteOf`) und `core/tick.ts`,
+  Laden in `core/save.ts` (`loadChronicles`); Tests in `tests/chronicle.test.ts` (online =
+  offline für `first-snow` auch im Schnellvorlauf, Kennart nie vor der Landschaft, v2 … v15 laden),
+  Goldwerte unverändert (nur sechs neue Zeilen). Katalog 37 (27 ohne Landschaft). Sync-Server
+  ohne Änderung (vergleicht nur `schema`). Abweichung: Biber +2 💧 und Feuchte statt „+1 Platz
+  Waldtümpel“ (26.3). Kleine Oberfläche bis 3a: Kennarten vor der Landschaft unsichtbar im
+  Naturtagebuch und in der Spielanleitung
 - [ ] **2c** Messung Chronik und Kennarten (`game-designer`, 26.8): Chronik-Politik in
   `scripts/landscape.ts` (offene Kapitel zuerst, im Urwald bis zum Winter verweilen), großer Lauf
   Harmonie / Wachstum / Zufall, Ziele (a)–(f) aus 26.8; Stellschrauben Seltenheit der Kennarten,

@@ -82,6 +82,27 @@ export interface ForestSite {
   eventFactors: Readonly<Record<string, number>>;
   /** Lage auf der Landschaftskarte (0–1, x nach rechts, y nach unten). */
   position: { x: number; y: number };
+  /**
+   * Kennart (DESIGN_V2.md 26.3): Art-ID aus species.ts, die nur in diesem Wald lebt – und nur,
+   * wenn er alt ist (Bedingung `{ kind: 'site', site }` in ihrem `appears`).
+   */
+  kennart: string;
+  /**
+   * Ereignis des Waldes (Kapitel `signature` der Chronik, 26.4): ID aus EVENTS, die hier
+   * vorkommen kann. Gleich welche Option – entschieden im aktiven Wald.
+   */
+  chronicleEvent: string;
+  /** Titel dieses Kapitels in der Chronik („Frühjahrshochwasser“). */
+  chronicleEventTitle: string;
+  /** Andenken einer vollständigen Chronik (abgeleitet, nicht gespeichert; Text ≤ 120 Zeichen). */
+  keepsake: Keepsake;
+}
+
+/** Andenken einer vollständigen Waldchronik (26.4). */
+export interface Keepsake {
+  icon: string;
+  name: string;
+  text: string;
 }
 
 export type CorridorKind = 'hedge' | 'stream' | 'path' | 'ravine' | 'bridge';
@@ -112,6 +133,10 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     weatherSummary: '',
     eventFactors: {},
     position: { x: 0.5, y: 0.5 },
+    kennart: 'dormouse',
+    chronicleEvent: 'mast-year', chronicleEventTitle: 'Eichelmast – der Häher legt Vorräte an',
+    keepsake: { icon: '🌰', name: 'Die Eichel des Hähers',
+      text: 'Eine von Tausenden, die er versteckt und vergessen hat. Aus einer wie ihr wurde alles.' },
   },
   {
     id: 'floodplain', name: 'Auwald am Fluss', forestType: 'Hartholzaue', icon: '🌊',
@@ -136,6 +161,10 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // (braucht ungejagte Schnecken), spürbar ist der Regenreiche Frühling (× 3 brächte kaum mehr).
     eventFactors: { rain: 2, 'slug-year': 3 },
     position: { x: 0.85, y: 0.35 },
+    kennart: 'beaver',
+    chronicleEvent: 'rain', chronicleEventTitle: 'Frühjahrshochwasser',
+    keepsake: { icon: '🪵', name: 'Biberholz',
+      text: 'Ein Ast, rundum benagt, glatt wie gedrechselt.' },
   },
   {
     id: 'carr', name: 'Erlenbruch', forestType: 'Schwarzerlen-Bruchwald', icon: '🐸',
@@ -158,6 +187,10 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // Krötennacht: Im Bruch laichen sie sicher (26.2) – braucht die Erdkröte im Wald.
     eventFactors: { 'toad-migration': 3 },
     position: { x: 0.75, y: 0.8 },
+    kennart: 'moorfrog',
+    chronicleEvent: 'toad-migration', chronicleEventTitle: 'Die Krötennacht',
+    keepsake: { icon: '🌿', name: 'Erlenzäpfchen',
+      text: 'Klein, schwarz und hart – sie bleiben den ganzen Winter am Zweig.' },
   },
   {
     id: 'beechwood', name: 'Buchenhallen', forestType: 'Hallenbuchenwald', icon: '🍂',
@@ -181,6 +214,10 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // Buchenmast – und im Jahr danach die Mäuse (26.2). Mast × 3 kostete den Harmonie-Spieler zu viel.
     eventFactors: { 'mast-year': 2, 'vole-year': 3 },
     position: { x: 0.15, y: 0.35 },
+    kennart: 'hericium',
+    chronicleEvent: 'mast-year', chronicleEventTitle: 'Buchenmast',
+    keepsake: { icon: '🍂', name: 'Bucheckern-Becher',
+      text: 'Vier Klappen, außen stachelig, innen weich. Im Mastjahr liegen sie zu Tausenden.' },
   },
   {
     id: 'mountain', name: 'Bergmischwald', forestType: 'Buchen-Tannen-Fichtenwald', icon: '⛰️',
@@ -205,6 +242,10 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // Sein Charakter ist das Wetter: Schneebruch und Windwurf kommen ohnehin fast immer (26.2).
     eventFactors: {},
     position: { x: 0.5, y: 0.12 },
+    kennart: 'lynx',
+    chronicleEvent: 'snow-break', chronicleEventTitle: 'Schneebruch am Hang',
+    keepsake: { icon: '🎄', name: 'Tannenzapfen-Schuppe',
+      text: 'Tannenzapfen fallen nicht – sie zerfallen am Baum. Diese Schuppe hat der Wind gebracht.' },
   },
   {
     id: 'heath', name: 'Kiefernheide', forestType: 'Sand-Kiefernwald', icon: '🌲',
@@ -231,6 +272,10 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // Sommerdürre schwächt die Kiefern – die Borkenkäfer schwärmen hier öfter als anderswo (24.13).
     eventFactors: { 'beetle-year': 3 },
     position: { x: 0.25, y: 0.8 },
+    kennart: 'nightjar',
+    chronicleEvent: 'beetle-year', chronicleEventTitle: 'Das Käferjahr',
+    keepsake: { icon: '🌸', name: 'Heidekrautzweig',
+      text: 'Gepresst zwischen zwei Seiten, duftet er noch nach Spätsommer.' },
   },
 ];
 
