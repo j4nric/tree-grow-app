@@ -54,7 +54,13 @@
 > (Phase 7 3d, `DESIGN_V2.md` 24.7 und 24.10 „Stand 3d“): Waldtypen ±3,4 % (Kiefernheide
 > Wachstum −3,4 %), Landschaft vollständig nach 14,2 h (Harmonie) bzw. 13,3 h (Wachstum) wie
 > ohne Standort-Wetter, Abstand 6,4 % – keine Zahl geändert. Die Kiefernheide bekommt das
-> Käferjahr × 3 als Gewicht des Standorts (Daten und Logik: Aufgabe 3e).
+> Käferjahr × 3 als Gewicht des Standorts (Daten und Logik: Aufgabe 3e). Seit Phase 9, 1a
+> (`DESIGN_V2.md` 26.2) hat jeder Waldtyp sein Ereignis (`ForestSite.eventFactors`): Auwald
+> Regenreicher Frühling × 2 und Schneckenjahr × 3, Erlenbruch Krötenwanderung × 3, Buchenhallen
+> Mastjahr × 2 und Mäusejahr × 3, Kiefernheide Käferjahr × 3; dazu in der Kiefernheide ab Hain
+> +1 Platz Trockenmauer (öffnet die Mauer ohne Pflege). Gemessen (24.7 und 24.10 „Stand 1a“):
+> Waldtypen ±2,9 % (vorher ±3,6 %), Landschaft vollständig nach 14,0 h (Harmonie) bzw. 13,3 h
+> (Wachstum), Abstand 5,6 %.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
