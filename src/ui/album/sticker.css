@@ -87,7 +87,7 @@
   flex: none;
 }
 
-.sticker-img[width='1'] {
+.sticker-img[data-empty] {
   display: none;
 }
 

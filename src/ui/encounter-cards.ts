@@ -219,7 +219,7 @@ export function cardSticker(card: CardView, kind: 'animal' | 'plant', index: num
   if (kind === 'animal') {
     const image = createStickerImage(CARD_STICKER_SIZE);
     image.draw(card.id, 'color', card.family);
-    face.append(image.canvas);
+    face.append(image.element);
   } else {
     face.append(el('span', 'sticker-emoji', card.familyIcon));
   }

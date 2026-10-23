@@ -10,6 +10,10 @@
  *   `silhouette` (einfarbiger Schatten in --ink für unentdeckte Arten).
  * - Gecacht in einem eigenen LRU (höchstens 256 Bilder), getrennt vom SpriteCache der
  *   Szene. Zwei Aufrufe mit gleicher Art, Pixelgröße und Variante liefern dasselbe Canvas.
+ * - Für das Album auch als Bild-URL (`renderSpeciesStickerUrl`): Ein `<img>` ist für den
+ *   Browser ein gewöhnliches Bild, ein `<canvas>` dagegen eine eigene Compositing-Ebene
+ *   (Chromium hebt jedes 2D-Canvas heraus, dazu jedes darüberliegende Element). Die URL
+ *   wird einmal je Bild erzeugt und hängt am gecachten Canvas (fällt mit ihm aus dem LRU).
  *
  * Pflanzen bekommen bewusst keinen Renderer-Sticker (G-17): Das Album zeigt für sie das
  * Gruppen-Symbol.
@@ -173,6 +177,29 @@ export function renderSpeciesSticker(
   const px = Math.max(1, Math.min(1024, Math.round((Number.isFinite(size) ? Math.max(0, size) : 0) * dpr)));
   const kind = stickerKind(id, opts.family) ?? '';
   return stickerFor(kind, px, variant);
+}
+
+/** Data-URL je gecachtem Bild (fällt mit dem Canvas aus dem LRU). */
+const urls = new WeakMap<HTMLCanvasElement, string>();
+
+/**
+ * Wie `renderSpeciesSticker`, aber als Bild-URL (PNG, verlustfrei) für ein `<img>`. Eine
+ * Data-URL statt einer Blob-URL: Chromium lädt sie synchron, das Bild steht also im selben
+ * Frame wie bisher das Canvas (kein Aufblitzen), und es gibt nichts freizugeben. Gleiche
+ * Eingaben liefern dieselbe Zeichenkette – das Bild wird dann nur einmal dekodiert.
+ */
+export function renderSpeciesStickerUrl(
+  id: string,
+  size: number,
+  opts: { dpr?: number; variant?: StickerVariant; family?: AnimalFamily } = {},
+): string {
+  const canvas = renderSpeciesSticker(id, size, opts);
+  let url = urls.get(canvas);
+  if (url === undefined) {
+    url = canvas.toDataURL('image/png');
+    urls.set(canvas, url);
+  }
+  return url;
 }
 
 function stickerFor(kind: string, px: number, variant: StickerVariant): HTMLCanvasElement {

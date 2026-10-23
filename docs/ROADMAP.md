@@ -796,9 +796,12 @@ in `claude/album-ui` gemergt. Es gibt **keine Spielstand-Änderung** in dieser P
   Landschaftskarte hochkant, erster Start) und #118 (Umblättern ohne Stil-Neuberechnung der
   Hauptansicht). Messung 390 × 844 bei 4× CPU-Drosselung: Leerlauf ≈ 59 fps (alte UI ≈ 40),
   Dauerumblättern 39 → 44–46 fps.
-  Offen als Folgeaufgaben: erster Wechsel zu Arten (2 Long Tasks ≈ 200 ms bei 4× Drosselung),
-  Sticker-Canvas als eigene Compositing-Ebenen (ggf. `<img>`), Landschaftskarte am Desktop mit
-  DejaVu Sans bei 125 % (Bergmischwald knapp).
+  Offen als Folgeaufgaben: ~~erster Wechsel zu Arten (2 Long Tasks ≈ 200 ms bei 4× Drosselung)~~,
+  ~~Sticker-Canvas als eigene Compositing-Ebenen (ggf. `<img>`)~~ – erledigt in
+  `claude/leistung-arten` (ALBUM_UI.md R3: Sticker als `<img>`, Ebenen Nischen 78 → 12;
+  verborgene Reiterseiten gesperrt statt `display: none`; Arten stückweise aufgedeckt und
+  vorgewärmt; erster Wechsel ≈ 265 → ≈ 84 ms, erneuter Wechsel ohne Long Task, Umblättern
+  39–46 → 51 fps), Landschaftskarte am Desktop mit DejaVu Sans bei 125 % (Bergmischwald knapp).
 
 Parallel nach 1 und 4: 5, 6, 8, 9, 11; danach 7 und 10. Offene UI-Aufgaben aus Phase 7 (3a)
 möglichst im Album umsetzen (ALBUM_UI.md G.2 Nr. 1).
