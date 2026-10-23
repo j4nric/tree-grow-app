@@ -190,6 +190,8 @@ body[data-motion='reduce'] .scene-stamps .stage-banner.visible {
 
 .polaroid-caption {
   position: relative;
+  /* Breite der Bildunterschrift entscheidet über die Restzeit (Container-Abfrage unten). */
+  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -260,6 +262,18 @@ body[data-motion='reduce'] .scene-stamps .stage-banner.visible {
   color: var(--ink-red);
 }
 
+/*
+ * Schmale Bildunterschrift (mobil, Desktop mit Rückkehr-Zettel – Playtest Schritt 14 S3/S5):
+ * Die Restzeit steht dann nur in der Haftnotiz der Jahreszeit („noch 2:58 min“). Sonst stünde
+ * sie allein in einer weiteren Zeile, und mobil bräche die Bildunterschrift oft in zwei.
+ */
+@container (max-width: 380px) {
+  .polaroid-season .season-left,
+  .polaroid-season .caption-sep:has(+ .season-left) {
+    display: none;
+  }
+}
+
 /* Schmal: Jahreszeit und Wetter passen in eine Zeile unter die Stufe. */
 @media (max-width: 420px) {
   .polaroid .season-badge,
@@ -310,6 +324,14 @@ body[data-motion='reduce'] .scene-stamps .stage-banner.visible {
 .album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid {
   width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 560px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
   min-width: 250px;
+}
+
+/* Niedrige Fenster: Der Zettel ist dort kompakt (return-report.css) – das Polaroid darf größer
+   bleiben (Playtest Schritt 14 S3: bei 1200 × 700 waren es nur 269 px). */
+@media (max-height: 760px) {
+  .album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid {
+    width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 500px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+  }
 }
 
 /* Dann auch die Bildunterschrift kleiner: Jahreszeit und Wetter in einer Zeile unter der Stufe. */

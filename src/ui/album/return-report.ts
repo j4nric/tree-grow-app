@@ -30,6 +30,9 @@ export interface ReturnReport {
   readonly open: boolean;
 }
 
+/** Beginnt der Punkt schon mit einem Symbol? */
+const OWN_ICON = /^\p{Extended_Pictographic}/u;
+
 export function createReturnReport(env: PageEnv, focusFallback: () => HTMLElement | null): ReturnReport {
   // --- Zettel ---------------------------------------------------------------------------
   const slip = el('section', 'return-slip');
@@ -95,7 +98,14 @@ export function createReturnReport(env: PageEnv, focusFallback: () => HTMLElemen
       const key = view.details.join('\n');
       if (key !== shownDetails) {
         shownDetails = key;
-        list.replaceChildren(...view.details.map((text) => el('li', 'return-page-item', text)));
+        list.replaceChildren(
+          ...view.details.map((text) => {
+            const item = el('li', 'return-page-item', text);
+            // Eigenes Symbol am Anfang (🏅, 🎴 …): kein 🌿 davor (K14).
+            if (OWN_ICON.test(text)) item.classList.add('return-page-item-own');
+            return item;
+          }),
+        );
       }
       slip.hidden = false;
       restartAnimation(slip, 'fresh');

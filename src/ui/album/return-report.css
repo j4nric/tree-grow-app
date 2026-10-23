@@ -137,12 +137,21 @@ body[data-motion='reduce'] .return-slip.fresh {
   overflow-wrap: anywhere;
 }
 
+/* Zeilen, die schon mit einem eigenen Symbol beginnen (🏅, 🎴 …), bekommen keins dazu (K14). */
 .return-page-item::before {
   content: '🌿';
   position: absolute;
   left: 2px;
   top: 10px;
   font-size: 15px;
+}
+
+.return-page-item-own {
+  padding-left: 4px;
+}
+
+.return-page-item-own::before {
+  content: none;
 }
 
 .return-page-item:first-child {
@@ -157,6 +166,10 @@ body[data-motion='reduce'] .return-slip.fresh {
 .return-page-item:first-child::before {
   left: 12px;
   top: 12px;
+}
+
+.return-page-item-own:first-child {
+  padding-left: 14px;
 }
 
 .return-page-file {
@@ -182,4 +195,34 @@ body[data-motion='reduce'] .return-slip.fresh {
 .album[data-layout='spread'] .return-slip-actions {
   grid-column: 2;
   grid-row: 1;
+}
+
+/* Niedrige Fenster (Desktop bis 760 px Höhe, Playtest Schritt 14 S3): kompakter Zettel – die
+   Kurzfassung neben den Knöpfen, die Überschrift nur für Screenreader. So bleibt dem Polaroid
+   mehr Platz. */
+@media (max-height: 760px) {
+  .album[data-layout='spread'] .return-slip {
+    row-gap: 0;
+    padding: 10px 12px 8px 14px;
+  }
+
+  .album[data-layout='spread'] .return-slip-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .album[data-layout='spread'] .return-slip-summary {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .album[data-layout='spread'] .return-slip-actions {
+    flex-wrap: nowrap;
+  }
 }

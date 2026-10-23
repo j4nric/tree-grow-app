@@ -62,13 +62,14 @@ import { createSpread } from './spread';
 import { createStageBanner } from './stage-banner';
 import { createStageLadder } from './stage-ladder';
 import { attachSwipeBack } from './swipe';
+import { createStampPlacement } from './stamp-place';
 import { createStamps } from './stamps';
 import { createTabStrip } from './tab-strip';
 import { createTapeLabel } from './tape-label';
 import type { AlbumDeps, AlbumPart } from './types';
 import type { NotifyOptions } from './stamp-rules';
 import type { StageBannerView } from '../adapters';
-import { returnToastText, type ReturnReportView } from '../return-report-view';
+import { returnStamp, type ReturnReportView } from '../return-report-view';
 
 export type { AlbumDeps, AlbumActions, AlbumPart } from './types';
 export type { NotifyOptions } from './stamp-rules';
@@ -129,8 +130,8 @@ export interface Album {
   closePlantPicker(): void;
 }
 
-/** Mobil: Meldungen nur oben, solange die Hauptansicht höchstens so weit gescrollt ist (px). */
-const STAMPS_TOP_MAX_SCROLL = 48;
+/** Mobil: Liegt die Reiterleiste beim Reiterwechsel tiefer (Anteil der Höhe), rückt sie nach oben. */
+const REVEAL_TAB_BELOW = 0.45;
 
 export function createAlbum(deps: AlbumDeps): Album {
   const ctx: NavContext = { landscapeUnlocked: landscapeUnlocked(deps.state()) };
@@ -142,7 +143,11 @@ export function createAlbum(deps: AlbumDeps): Album {
   const triggers: (HTMLElement | null)[] = [];
 
   // --- Aufbau ---------------------------------------------------------------------------
-  const tabStrip = createTabStrip((tab) => dispatch({ type: 'tab', tab }));
+  const tabStrip = createTabStrip((tab) => {
+    const changed = tab !== nav.tab;
+    dispatch({ type: 'tab', tab });
+    if (changed) whenIdle(revealTab);
+  });
   const spread = createSpread(tabStrip.element);
   const cover = createCover({
     onClose: () => goBackTo((n) => !n.cover),
@@ -225,6 +230,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     () => deps.preferences.toastMs(),
     () => deps.preferences.reducedMotion,
     book.banners,
+    () => placeStamps(),
   );
   book.element.after(stamps.element);
 
@@ -232,19 +238,20 @@ export function createAlbum(deps: AlbumDeps): Album {
   const stageBanner = createStageBanner(polaroid.stamps);
   const notify = (text: string, options?: NotifyOptions): void => {
     if (!text) return;
-    placeStamps();
     stamps.show(text, options);
   };
-  /**
-   * Platz der Meldungen (C.5): oben über dem Bild nur, wo oben keine Navigation liegt – im
-   * Vollbild und mobil auf der Hauptansicht, solange nichts gescrollt ist (sonst klebt dort
-   * die Reiterleiste bzw. liegt das Lesezeichen einer Unterseite). Sonst unten.
-   */
+  /** Text des Willkommens-Stempels (weg, sobald U:Rückkehr-Bericht offen ist). */
+  let welcomeStamp = '';
+  // Platz der Meldungen (C.5): oben/unten, Ausweichen über Bestätigungen (stamp-place.ts).
+  const stampPlacement = createStampPlacement(stamps, {
+    layout: () => book.layout,
+    fullscreen: () => nav.fullscreen,
+    home: () => nav.stack.length === 0 && !nav.cover,
+    caption: polaroid.caption,
+  });
   function placeStamps(): void {
-    const homeTop = book.layout === 'single' && nav.stack.length === 0 && !nav.cover && window.scrollY < STAMPS_TOP_MAX_SCROLL;
-    stamps.setTop(nav.fullscreen || homeTop);
+    stampPlacement.place();
   }
-  window.addEventListener('scroll', placeStamps, { passive: true });
   // Reiter Nischen (Schritt 5): „Pflanze setzen“ blättert um, „Zur Pflege“ über den Reiter Pflege.
   tabs.niches.connect({
     openPlantPicker: () => dispatch({ type: 'open', page: { kind: 'plant-picker' } }),
@@ -519,6 +526,11 @@ export function createAlbum(deps: AlbumDeps): Album {
     }
     // Was jetzt oben liegt, sofort nachziehen (z. B. Reiterseite nach dem Schließen des Umschlags).
     refreshPages(performance.now());
+    // Der Willkommens-Stempel wiederholte nur, was der Bericht ausführlich sagt (S4).
+    if (welcomeStamp && next.stack.some((p) => p.kind === 'return-report')) {
+      stamps.dismiss(welcomeStamp);
+      welcomeStamp = '';
+    }
     placeStamps();
   }
 
@@ -576,6 +588,19 @@ export function createAlbum(deps: AlbumDeps): Album {
       page.hidden = !show;
       if (show) restartAnimation(page, 'tab-fade');
     }
+  }
+
+  /**
+   * Mobil nach einem Tipp auf einen Reiter (Playtest Schritt 14, S5): Die neue Seite soll zu
+   * sehen sein. Liegt die Reiterleiste tief unten (unter 45 % der Höhe), rückt sie nach oben;
+   * war die Seite weit gescrollt, beginnt die neue Seite oben unter der klebenden Leiste.
+   */
+  function revealTab(): void {
+    if (book.layout !== 'single' || nav.stack.length > 0 || nav.cover || nav.fullscreen) return;
+    // Natürliche Lage der Leiste (sie klebt, ihr Rechteck sagt dann nichts): direkt über der Seite.
+    const stripTop = spread.right.getBoundingClientRect().top - tabStrip.element.offsetHeight;
+    if (stripTop > -1 && stripTop < innerHeight * REVEAL_TAB_BELOW) return;
+    window.scrollTo({ top: Math.max(0, window.scrollY + stripTop), behavior: deps.preferences.reducedMotion ? 'auto' : 'smooth' });
   }
 
   function setOrientation(): void {
@@ -747,9 +772,12 @@ export function createAlbum(deps: AlbumDeps): Album {
     },
     showReturnReport(view) {
       returnReport.show(view);
-      // Kurzfassung als Stempel bzw. Zettel (höchstens drei Zeilen) – Desktop wie mobil;
-      // alles Weitere steht im Rückkehr-Bericht (C.8).
-      notify(returnToastText(view, true), { brief: true });
+      // Die Kurzfassung steht im Zettel – der Stempel grüßt nur (C.8, Playtest Schritt 14 S4).
+      // Er geht, sobald der Bericht aufgeschlagen ist.
+      if (welcomeStamp) stamps.dismiss(welcomeStamp);
+      const { text, spoken } = returnStamp(view);
+      welcomeStamp = text;
+      notify(text, { spoken });
     },
     hideReturnReport: () => returnReport.hide(),
     mountAccount(section) {
