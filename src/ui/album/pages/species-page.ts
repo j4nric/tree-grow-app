@@ -48,7 +48,7 @@ import {
   speciesStickerVariant,
 } from './species-view';
 import { createTabPanel } from './tab-pages';
-import { createDeferredReveal, estimateGridHeight, initialGroupCount } from './deferred-reveal';
+import { createDeferredReveal, deferBlock, estimateGridHeight, initialGroupCount, revealOnFind, showBlock } from './deferred-reveal';
 import '../sticker.css';
 import './species-page.css';
 
@@ -97,10 +97,12 @@ const SECTION_HEAD_EST_PX = 50;
 const COMMUNITY_EST_PX = 118;
 const KEEPSAKES_EST_PX = 900;
 
-/** Block bis zum Aufdecken sperren (species-page.css) und mit geschätzter Höhe Platz halten. */
+/**
+ * Block bis zum Aufdecken sperren (species-page.css, wo möglich `hidden="until-found"` für die
+ * Seitensuche) und mit geschätzter Höhe Platz halten.
+ */
 function placeholder(block: HTMLElement, heightPx: number): HTMLElement {
-  block.dataset.deferred = '';
-  block.style.setProperty('--deferred-height', `${Math.round(heightPx)}px`);
+  deferBlock(block, heightPx);
   return block;
 }
 
@@ -307,14 +309,12 @@ export function createSpeciesPage(env: PageEnv): SpeciesPage {
   );
   const deferred = createDeferredReveal(
     later.length,
-    (i) => {
-      const block = later[i]!;
-      delete block.dataset.deferred;
-      block.style.removeProperty('--deferred-height');
-    },
+    (i) => showBlock(later[i]!),
     // Zu sehen: nicht verborgen und nicht unter einer weggedrehten Seite (Unterseite offen).
     () => !page.element.hidden && !page.element.closest('.turned-away'),
   );
+  // Seitensuche (Strg+F) findet etwas in einem gesperrten Block: alles sofort aufdecken.
+  revealOnFind(later, () => deferred.all());
   if (canMeasure) performance.measure('album-species-build', { start: buildStart });
 
   // --- Darstellung -----------------------------------------------------------------------

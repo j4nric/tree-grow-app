@@ -169,7 +169,9 @@
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  width: 94px;
+  /* 94 px bei 16 px Grundschrift; wächst mit der Textgröße (125 %: „Bergmischwald“ und
+     „nicht nebenan · 9 🪶“ brauchen sonst drei Zeilen und werden abgeschnitten). */
+  width: 5.875rem;
   min-height: 64px;
   padding: 4px 3px;
   border: 2px dashed var(--dash);
@@ -326,7 +328,8 @@
     padding: 3px 2px;
   }
 
-  .album[data-layout='single'] .lsc-site-name {
+  .album[data-layout='single'] .lsc-site-name,
+  .album[data-layout='single'] .lsc-site-status {
     -webkit-line-clamp: 3;
     line-clamp: 3;
   }

@@ -92,3 +92,39 @@ test('Sprungmarken und Andenken: Samentütchen und Erinnerungen', async ({ page,
   await expect(keepsakes.locator(`[data-keepsake="${V1_KEEPSAKE_ID}"]`)).toContainText('Die alte Eiche');
   await expect(panel(page).locator('[data-jump="animals"] .species-jump-count')).toHaveText(`${SPECIES.length}/${SPECIES.length}`);
 });
+
+test('Ohne hidden="until-found" und requestIdleCallback (Safari): Sperre wie bisher, alles kommt', async ({ page, context }) => {
+  await context.addInitScript(() => {
+    delete (window as { requestIdleCallback?: unknown }).requestIdleCallback;
+    delete (HTMLElement.prototype as { onbeforematch?: unknown }).onbeforematch;
+    // Frame-Zähler und je aufgedecktem Block der Frame, nach dem es geschah.
+    const w = window as unknown as { __frame: number; __revealFrames: number[] };
+    w.__frame = 0;
+    w.__revealFrames = [];
+    const tick = (): void => {
+      w.__frame++;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    new MutationObserver((records) => {
+      for (const r of records) if (!(r.target as Element).hasAttribute('data-deferred')) w.__revealFrames.push(w.__frame);
+    }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-deferred'] });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedFullJournal(context);
+  await page.goto('/#nischen');
+  // Gleich nach dem Wechsel: gesperrt per data-deferred (eigene Regel), ohne `hidden`.
+  const before = await page.evaluate(() => {
+    (document.querySelector('[data-ref="tab-species"]') as HTMLElement).click();
+    const els = [...document.querySelectorAll<HTMLElement>('[data-ref="page-species"] [data-deferred]')];
+    return els.map((el) => ({ hidden: el.hasAttribute('hidden'), cv: getComputedStyle(el).contentVisibility }));
+  });
+  expect(before.length).toBeGreaterThan(0);
+  for (const b of before) expect(b).toEqual({ hidden: false, cv: 'hidden' });
+  // Der Ersatz (nach dem nächsten Frame, render/idle.ts) deckt alle Blöcke auf – je Frame einen.
+  await expect(panel(page).locator('[data-deferred]')).toHaveCount(0);
+  const frames = await page.evaluate(() => (window as unknown as { __revealFrames: number[] }).__revealFrames);
+  expect(frames.length).toBe(before.length);
+  expect(new Set(frames).size).toBe(frames.length);
+  await expect(panel(page).locator(`[data-species="${SPECIES[SPECIES.length - 1]!.id}"]`)).toBeAttached();
+});

@@ -269,6 +269,10 @@ for (const [width, height, scale, font] of [
   // Playtest Schritt 14 (S7): Handy mit breiter Schrift und 125 % – eigene Hochformat-Lage.
   [360, 740, 1.25, 'DejaVu Sans'],
   [390, 844, 1.25, 'DejaVu Sans'],
+  // Phase 9 / 1b: Desktop mit breiter Schrift und 125 % – Knöpfe wachsen mit (`5.875rem`),
+  // sonst „Berg-misch-…“ und „nicht nebenan · …“.
+  [1200, 700, 1.25, 'DejaVu Sans'],
+  [1280, 720, 1.25, 'DejaVu Sans'],
 ] as const) test(`${width} px, Schrift ${scale * 100} %${font ? ` ${font}` : ''}: Karte ohne Querscrollen, Standorte ≥ 44 px ohne Überlappung`, async ({ page, context }) => {
   await page.setViewportSize({ width, height });
   // Spätspiel wie im Playtest: vier Wälder, drei Korridore – lange Zustände („hier · Urwald“).
@@ -382,3 +386,4 @@ test('vor der Freischaltung: keine Karte', async ({ page, context }) => {
   expect(hidden).not.toContain('Korridore');
   expect(hidden).not.toContain('Wälder');
 });
+

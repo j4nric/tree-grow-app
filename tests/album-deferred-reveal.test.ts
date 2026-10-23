@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { IdleQueue, type IdlePost } from '../src/render/idle';
-import { ESTIMATE_COLUMNS, ESTIMATE_ROW_PX, ESTIMATE_TITLE_PX, createDeferredReveal, estimateGridHeight, initialGroupCount } from '../src/ui/album/pages/deferred-reveal';
+import {
+  ESTIMATE_COLUMNS,
+  ESTIMATE_ROW_PX,
+  ESTIMATE_TITLE_PX,
+  createDeferredReveal,
+  deferBlock,
+  estimateGridHeight,
+  initialGroupCount,
+  revealOnFind,
+  showBlock,
+  supportsHiddenUntilFound,
+  type DeferredBlock,
+} from '../src/ui/album/pages/deferred-reveal';
 
 /**
  * Stückweises Aufdecken des Reiters Arten (deferred-reveal.ts, R3): ein Block je Leerlauf-
@@ -95,5 +107,92 @@ describe('Arten: Platzhalter-Höhe gesperrter Blöcke', () => {
     expect(estimateGridHeight(1)).toBe(ESTIMATE_TITLE_PX + ESTIMATE_ROW_PX);
     expect(estimateGridHeight(ESTIMATE_COLUMNS)).toBe(ESTIMATE_TITLE_PX + ESTIMATE_ROW_PX);
     expect(estimateGridHeight(ESTIMATE_COLUMNS + 1)).toBe(ESTIMATE_TITLE_PX + 2 * ESTIMATE_ROW_PX);
+  });
+});
+
+/** Ersatz für ein HTMLElement: Attribute, Dataset, Stil-Eigenschaften, `beforematch`. */
+function fakeBlock() {
+  const attrs = new Map<string, string>();
+  const props = new Map<string, string>();
+  const listeners: { fn: () => void; once: boolean }[] = [];
+  const block: DeferredBlock & { fire(): void; attrs: Map<string, string>; props: Map<string, string> } = {
+    dataset: {} as DOMStringMap,
+    style: {
+      setProperty: (name: string, value: string | null) => void props.set(name, value ?? ''),
+      removeProperty: (name: string) => {
+        const old = props.get(name) ?? '';
+        props.delete(name);
+        return old;
+      },
+    },
+    setAttribute: (name, value) => void attrs.set(name, value),
+    getAttribute: (name) => attrs.get(name) ?? null,
+    removeAttribute: (name) => void attrs.delete(name),
+    addEventListener: (_type, fn, options) => void listeners.push({ fn, once: options?.once === true }),
+    fire() {
+      // Wie der Browser: erst `beforematch`, dann `hidden` entfernen.
+      for (const l of [...listeners]) {
+        l.fn();
+        if (l.once) listeners.splice(listeners.indexOf(l), 1);
+      }
+      attrs.delete('hidden');
+    },
+    attrs,
+    props,
+  };
+  return block;
+}
+
+describe('Arten: Seitensuche (hidden="until-found")', () => {
+  it('ohne DOM (Tests) gilt die Unterstützung als nicht vorhanden', () => {
+    expect(supportsHiddenUntilFound()).toBe(false);
+  });
+
+  it('mit Unterstützung: durchsuchbar verborgen, Höhe als Platzhalter', () => {
+    const b = fakeBlock();
+    deferBlock(b, 301.6, true);
+    expect(b.attrs.get('hidden')).toBe('until-found');
+    expect(b.dataset.deferred).toBe('until-found');
+    expect(b.props.get('--deferred-height')).toBe('302px');
+    showBlock(b);
+    expect(b.attrs.has('hidden')).toBe(false);
+    expect(b.dataset.deferred).toBeUndefined();
+    expect(b.props.has('--deferred-height')).toBe(false);
+  });
+
+  it('ohne Unterstützung: wie bisher nur die eigene Sperre, kein `hidden`', () => {
+    const b = fakeBlock();
+    deferBlock(b, 120, false);
+    expect(b.attrs.has('hidden')).toBe(false);
+    expect(b.dataset.deferred).toBe('');
+    expect(b.props.get('--deferred-height')).toBe('120px');
+    showBlock(b);
+    expect(b.dataset.deferred).toBeUndefined();
+  });
+
+  it('ein anderes `hidden` bleibt beim Aufdecken unangetastet', () => {
+    const b = fakeBlock();
+    deferBlock(b, 50, false);
+    b.setAttribute('hidden', '');
+    showBlock(b);
+    expect(b.attrs.get('hidden')).toBe('');
+  });
+
+  it('`beforematch` in einem Block deckt sofort alle auf – auch die davor', () => {
+    const { reveal, shown, runIdle } = setup(3);
+    const blocks = [fakeBlock(), fakeBlock(), fakeBlock()];
+    for (const b of blocks) deferBlock(b, 100, true);
+    revealOnFind(blocks, () => reveal.all());
+    reveal.start();
+    blocks[2]!.fire();
+    expect(shown).toEqual([0, 1, 2]);
+    expect(reveal.pending).toBe(0);
+    while (runIdle()) {
+      // geplanter Rückruf findet nichts mehr
+    }
+    expect(shown).toEqual([0, 1, 2]);
+    // Ein zweiter Fund (anderer Block) tut nichts mehr.
+    blocks[1]!.fire();
+    expect(shown).toEqual([0, 1, 2]);
   });
 });

@@ -13,10 +13,15 @@
 }
 
 /* Noch nicht aufgedeckt (deferred-reveal.ts): gesperrt – kein Stil, kein Layout, nichts zu
-   sehen –, hält aber mit geschätzter Höhe Platz (Scroll-Lage, Hochrücken der Reiterleiste). */
+   sehen –, hält aber mit geschätzter Höhe Platz (Scroll-Lage, Hochrücken der Reiterleiste).
+   Mit `hidden="until-found"` sperrt der Browser selbst (durchsuchbar für Strg+F); die eigene
+   Sperre gilt nur ohne. */
 .species-page [data-deferred] {
-  content-visibility: hidden;
   contain-intrinsic-block-size: var(--deferred-height, 300px);
+}
+
+.species-page [data-deferred]:not([hidden='until-found']) {
+  content-visibility: hidden;
 }
 
 /* --- Kopf ------------------------------------------------------------------------------ */
@@ -345,7 +350,9 @@
   list-style: none;
 }
 
-.species-communities[hidden],
+/* Nicht für `hidden="until-found"`: Der Abschnitt Gemeinschaften trägt dieselbe Klasse wie
+   seine Liste und ist bis zum Aufdecken so gesperrt – er muss Platz halten (deferred-reveal.ts). */
+.species-communities[hidden]:not([hidden='until-found']),
 .species-memories[hidden],
 .species-empty[hidden] {
   display: none;
