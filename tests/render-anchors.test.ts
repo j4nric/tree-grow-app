@@ -241,7 +241,7 @@ describe('Tier-Zeichnungen', () => {
     expect(animalKind({ id: 'chanterelle', family: 'fungi', niche: 'roots' })).toBe('chanterelle');
     expect(animalKind({ id: 'tinder', family: 'fungi', niche: 'bark' })).toBe('tinder');
     expect(animalKind({ id: 'raven', family: 'birds', niche: 'crown' })).toBe('bird');
-    expect(animalKind({ id: 'lynx', family: 'mammals', niche: 'edge' })).toBe('mammal');
+    expect(animalKind({ id: 'otter', family: 'mammals', niche: 'edge' })).toBe('mammal');
     // Hutpilze am Holz werden zu Konsolen, Konsolen am Boden zu Hutpilzen.
     expect(animalKind({ id: 'flyagaric', family: 'fungi', niche: 'bark' })).toBe('bracket');
     expect(animalKind({ id: 'tinder', family: 'fungi', niche: 'roots' })).toBe('mushroom');

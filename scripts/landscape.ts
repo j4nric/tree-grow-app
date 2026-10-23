@@ -172,7 +172,8 @@ export function siteRun(
   memory: number,
   maxSeconds = 6 * 3600,
   mainTree?: MainTreeId,
-): { seconds: number | null; hain: number | null; maxHarmony: number; seen: string[] } {
+  care = true,
+): { seconds: number | null; hain: number | null; maxHarmony: number; seen: string[]; communities: string[]; wall: number } {
   const state = createInitialState(0, seed);
   // Eigenes Wetter je Durchgang (seit 2c): Das Wetter hängt an Zyklusnummer und Startzeit
   // (21.4) – mit Startzeit 0 hätten alle Durchgänge dieselbe Wetterfolge.
@@ -183,8 +184,17 @@ export function siteRun(
   // der Vergleich misst nur Eigenheit, Merkmale und Leitbaum.
   for (const s of LANDSCAPE_SITES) if (s.id !== HOME_SITE) state.meta.landscape.sites.push(createSite(s.id));
   state.meta.landscape.active = site;
-  const result = runGame(strategy, { seed, targetStage: 7, maxSeconds, care: true, mainTree: tree }, { state, rng: { rngState: normalizeSeed(seed * 7919 + 17) } });
-  return { seconds: result.stages[7]?.time ?? null, hain: result.stages[5]?.time ?? null, maxHarmony: state.cycle.maxHarmony, seen: [...state.cycle.seen] };
+  const result = runGame(strategy, { seed, targetStage: 7, maxSeconds, care, mainTree: tree }, { state, rng: { rngState: normalizeSeed(seed * 7919 + 17) } });
+  return {
+    seconds: result.stages[7]?.time ?? null,
+    hain: result.stages[5]?.time ?? null,
+    maxHarmony: state.cycle.maxHarmony,
+    seen: [...state.cycle.seen],
+    // Frischer Spielstand: Das Tagebuch enthält genau die Lebensgemeinschaften dieses Zyklus.
+    communities: [...state.meta.journal.communities],
+    // Tiere auf der Trockenmauer im Urwald (26.2: öffnet der Mauer-Platz der Heide die Mauer?).
+    wall: state.niches.wall?.length ?? 0,
+  };
 }
 
 /** Sind alle Wälder gegründet und alle Korridore gebaut? */
@@ -467,5 +477,35 @@ export function withoutSiteWeather<T>(fn: () => T): T {
     return fn();
   } finally {
     LANDSCAPE_SITES.forEach((s, i) => ((s as { weather: ForestSite['weather'] }).weather = saved[i]!));
+  }
+}
+
+/**
+ * Führt `fn` ohne die Ereignis-Faktoren der Waldtypen aus (`ForestSite.eventFactors`, 24.13,
+ * 26.2) – nur für Vergleichsläufe („vor Phase 9, 1a“ bzw. „vor 3e“). Ändert die Daten zur
+ * Laufzeit (core/tick.ts liest sie bei jedem Zug) und stellt sie danach wieder her.
+ */
+export function withoutSiteEvents<T>(fn: () => T): T {
+  const saved = LANDSCAPE_SITES.map((s) => s.eventFactors);
+  for (const s of LANDSCAPE_SITES) (s as { eventFactors: ForestSite['eventFactors'] }).eventFactors = {};
+  try {
+    return fn();
+  } finally {
+    LANDSCAPE_SITES.forEach((s, i) => ((s as { eventFactors: ForestSite['eventFactors'] }).eventFactors = saved[i]!));
+  }
+}
+
+/**
+ * Führt `fn` mit den Eigenheiten eines Standorts ohne die Platz-Wirkung für `niche` aus – nur
+ * für Vergleichsläufe (26.2: Kiefernheide ohne den Mauer-Platz). Stellt die Daten danach wieder her.
+ */
+export function withoutSiteSlot<T>(site: SiteId, niche: string, fn: () => T): T {
+  const data = LANDSCAPE_SITES.find((s) => s.id === site)!;
+  const saved = data.traits;
+  (data as { traits: ForestSite['traits'] }).traits = saved.filter((t) => !(t.effect.kind === 'slot' && t.effect.niche === niche));
+  try {
+    return fn();
+  } finally {
+    (data as { traits: ForestSite['traits'] }).traits = saved;
   }
 }

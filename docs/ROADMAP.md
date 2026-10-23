@@ -823,7 +823,7 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
 
 **Welle 1 – Kleines zuerst** (ohne Spielstand-Änderung)
 
-- [ ] **1a** Ereignis und Lebensraum je Waldtyp (`game-designer`, 26.2): `eventFactors` Auwald
+- [x] **1a** Ereignis und Lebensraum je Waldtyp (`game-designer`, 26.2): `eventFactors` Auwald
   `{ rain: 2, 'slug-year': 3 }`, Erlenbruch `{ 'toad-migration': 3 }`, Buchenhallen
   `{ 'mast-year': 2, 'vole-year': 3 }`, Bergmischwald und Heimatwald `{}`, Kiefernheide wie
   bisher; Kiefernheide ab Hain +1 Platz Trockenmauer (Eigenheit `slot`), Kurztexte. Offiziellen
@@ -833,7 +833,12 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   mit einer Messung statt nach Gefühl: Das Schneckenjahr allein bliebe im Auwald unsichtbar
   (10 / 8 von 160), Regenreicher Frühling, Krötennacht und Buchenmast werden dagegen spürbar
   (78–81 %, 47–50 %, 56–66 %) – bei allen Wäldern innerhalb ±3 % (vorab gemessen, 26.2). Nur
-  Daten. Abhängig: nichts
+  Daten. Abhängig: nichts. **Erledigt:** Daten in `src/content/landscape.ts` (Kurztexte im
+  Wetter-Text und in der Eigenheit der Heide), Inhaltstests in `tests/landscape.test.ts`; der
+  offizielle Lauf (`tests/landscape-balance.test.ts`, „Waldtypen“ mit Spalten „ohne
+  Ereignis-Faktor“ und „Ereignis des Waldes“, neuer Lauf „Mauer-Platz“) bestätigt 26.2 auf die
+  Sekunde: alle Waldtypen ±2,9 % (24.7 „Stand 1a“). Der Mauer-Platz öffnet die Mauer ohne
+  Pflege; Sonnenmauer in der Heide 10 / 2 von 160 (vorher 3 / 0). Keine Zahl geändert
 - [x] **1b** Album-Folgeaufgaben (`ui-dev`, 26.9): PNG-Kodierung bei kaltem Cache auf dem ersten
   Weg nach Arten messen (erst ab > 50 ms in einem Task handeln); `hidden="until-found"` mit
   `beforematch` für die aufgeschobenen Blöcke (`deferred-reveal.ts`), sonst wie heute;
@@ -851,19 +856,29 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   mit Faktor („Hier öfter: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr“, aus `eventFactors`);
   Spielanleitung „Landschaft“. **Warum:** Ein Gewicht, das niemand sieht, ist kein Charakter.
   Abhängig: 1a
-- [ ] **1d** Erfolge der Tagesziele (`core-engineer`, Daten aus 26.5): Bedingungsart `daily`
+- [x] **1d** Erfolge der Tagesziele (`core-engineer`, Daten aus 26.5): Bedingungsart `daily`
   (`bestStreak` | `goalsDone` | `perfectDays`), Erfolge `daily-streak-7` „Sieben Morgen“ und
   `daily-50` „Fünfzig Handgriffe“, Nachtrag beim Laden wie 12.6, Tests. **Warum:** offene Frage
   20.8 – das tägliche Ritual bekommt ein sanftes Ziel ohne Zahlen-Belohnung; die Zähler stehen
-  seit v12 im Spielstand. Abhängig: nichts
+  seit v12 im Spielstand. Abhängig: nichts. **Erledigt:** ohne Spielstand-Änderung; Nachtrag bei der
+  ersten Prüfung nach dem Laden, ein erfülltes Tagesziel prüft die Erfolge sofort (ein Hinweis);
+  Tests in `tests/achievements-daily.test.ts` und `e2e/daily.spec.ts`. Katalog 34 (27 sichtbar ohne
+  Landschaft)
 
 **Welle 2 – Kennarten und Waldchronik (Spielstand v16)**
 
-- [ ] **2a** Zeichnungen der sechs Kennarten (`renderer`, 26.3/26.7): Haselmaus, Biber,
+- [x] **2a** Zeichnungen der sechs Kennarten (`renderer`, 26.3/26.7): Haselmaus, Biber,
   Moorfrosch (im Frühling blau), Ästiger Stachelbart, Luchs, Ziegenmelker – Szene und Sticker,
   Anker wie 23.8, Nachtarten wie 21.8; zunächst nur in der Demo (`?species=`), Test „jede Art
   hat eine eigene Zeichnung“ erst mit 2b. **Warum:** Sticker sind das Herz des Albums; die
-  Grafik ist der größte Brocken und hängt an nichts. Abhängig: nichts – frühe Welle möglich
+  Grafik ist der größte Brocken und hängt an nichts. Abhängig: nichts – frühe Welle möglich – umgesetzt in
+  `src/render/kennart-sprites.ts` (`KENNART_IDS`, `KENNART_DEFS`, `KENNART_PAINT`,
+  `KENNART_HOME`), schon in `animals.ts` und damit in `stickerKind` eingehängt: 2b muss nur die
+  Daten anlegen. Haselmaus und Ziegenmelker mit Schlafbild (tagsüber, Winterschlaf bzw. Zugzeit,
+  `nocturnal.ts` `sleeping`), Moorfrosch im zeitigen Frühling blau (`phenology.ts`
+  `moorfrogBlue`, überblendet; Sticker blau), Biber watet am Tümpelrand (hohe Watende passen
+  sich der Senke an). Demo: `?species=all|dormouse,…`, `?gallery=kennarten`, Sticker-Tafel;
+  Tests `tests/render-kennarten.test.ts`
 - [ ] **2b** Waldchronik und Kennarten, Spielstand v16 (`core-engineer`, 26.3–26.6): Bedingung
   `{ kind: 'site', site }` (Landschaft offen, aktiver Wald, alt oder jetzt Urwald); die sechs
   Kennarten als Daten aus 26.3 (Block „Kennarten“ in `species.ts`, zwei in `NOCTURNAL`);

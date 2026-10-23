@@ -128,8 +128,10 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     giftSummary: 'Ab Alter Baum +1 Platz Waldtümpel in allen Wäldern – Kröten wandern den Bach hinauf.',
     // Flussnebel und Landregen aus dem Westen; das Grundwasser steht hoch, Dürre ist selten.
     weather: { rain: 2, drought: 0.5 },
-    weatherSummary: 'Oft Landregen, selten Dürre – der Fluss ist nie weit.',
-    eventFactors: {},
+    weatherSummary: 'Oft Landregen, selten Dürre. Im Frühjahr steigt der Fluss – Regenreicher Frühling öfter.',
+    // Frühjahrshochwasser, danach Schnecken im Schlick (26.2). Das Schneckenjahr bleibt selten
+    // (braucht ungejagte Schnecken), spürbar ist der Regenreiche Frühling (× 3 brächte kaum mehr).
+    eventFactors: { rain: 2, 'slug-year': 3 },
     position: { x: 0.85, y: 0.35 },
   },
   {
@@ -149,8 +151,9 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     giftSummary: 'Amphibien +5 % 😊 in allen Wäldern – im Bruch laichen sie sicher.',
     // Über dem stehenden Wasser bildet sich an kühlen Tagen Nebel; der nasse Torf trocknet nie aus.
     weather: { fog: 2, drought: 0.5 },
-    weatherSummary: 'Oft Nebel über dem Wasser, selten Dürre.',
-    eventFactors: {},
+    weatherSummary: 'Oft Nebel über dem Wasser, selten Dürre – Krötennächte öfter.',
+    // Krötennacht: Im Bruch laichen sie sicher (26.2) – braucht die Erdkröte im Wald.
+    eventFactors: { 'toad-migration': 3 },
     position: { x: 0.75, y: 0.8 },
   },
   {
@@ -171,8 +174,9 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     giftSummary: 'Ab Hain +1 Platz Höhlen & Totholz in allen Wäldern – Spechte streifen weit umher.',
     // Unter dem geschlossenen Dach ist es windstill; im Herbst hängt der Nebel zwischen den Säulen.
     weather: { fog: 1.5, storm: 0.5 },
-    weatherSummary: 'Windstill unter dem Dach, im Herbst Nebel zwischen den Säulen.',
-    eventFactors: {},
+    weatherSummary: 'Windstill unter dem Dach, im Herbst Nebel zwischen den Säulen – Buchenmast öfter.',
+    // Buchenmast – und im Jahr danach die Mäuse (26.2). Mast × 3 kostete den Harmonie-Spieler zu viel.
+    eventFactors: { 'mast-year': 2, 'vole-year': 3 },
     position: { x: 0.15, y: 0.35 },
   },
   {
@@ -195,18 +199,21 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     // Steigungsregen am Hang, im Winter liegt viel Schnee.
     weather: { snow: 2, rain: 1.5 },
     weatherSummary: 'Viel Neuschnee im Winter, Steigungsregen am Hang.',
+    // Sein Charakter ist das Wetter: Schneebruch und Windwurf kommen ohnehin fast immer (26.2).
     eventFactors: {},
     position: { x: 0.5, y: 0.12 },
   },
   {
     id: 'heath', name: 'Kiefernheide', forestType: 'Sand-Kiefernwald', icon: '🌲',
     text: 'Lichte Kiefern auf Sand, dazwischen Heidekraut und summende Wildbienen. Wasser ist knapp, Sonne gibt es reichlich.',
-    summary: '+2 ☀️ · Blumen +10 % 🌰 · Insekten +10 % 😊 · −3 💧, Bodenleben −10 % 😊',
+    summary: '+2 ☀️ · Blumen +10 % 🌰 · Insekten +10 % 😊 · ab Hain +1 Platz Trockenmauer · −3 💧, Bodenleben −10 % 😊',
     leadTree: 'pine',
     traits: [
       { minStage: 0, effect: { kind: 'light', amount: 2 } },
       { minStage: 0, effect: { kind: 'groupSeeds', group: 'flowers', pct: 10 } },
       { minStage: 0, effect: { kind: 'happiness', genus: 'insects', points: 10 } },
+      // Sand, Sonne, Lesesteine: Die Mauer ist schon da – die Zauneidechse wartet nicht auf Pflege (26.2).
+      { minStage: 5, effect: { kind: 'slot', niche: 'wall', amount: 1 } },
       // Sandboden hält kein Wasser – Regenwürmer und Asseln finden kaum Feuchte.
       { minStage: 0, effect: { kind: 'water', amount: -3 } },
       { minStage: 0, effect: { kind: 'happiness', genus: 'soil', points: -10 } },

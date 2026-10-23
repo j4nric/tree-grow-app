@@ -5675,6 +5675,8 @@ jeder Bewohner ein eigener Streifen, gemeinsam kleiner, wenn es eng wird), Zeich
   Mauerbiene kommen erst ab Hain und brauchen Sonne. In späteren Zyklen helfen Stammgäste
   (sie ziehen ein, sobald die Mauer offen ist). Falls zu wenig: Ereignis „Sonnenbad“ (Hain,
   Frühling/Sommer) mit Einladung der Mauerbewohner – braucht eine Bedingung „Nische offen“.
+  **Phase 9, 1a:** Die Kiefernheide hat ab Hain +1 Platz Trockenmauer; dort entsteht die
+  Sonnenmauer in 10 / 2 von 160 Durchgängen (vorher 3 / 0, 24.7 „Stand 1a“). Kein „Sonnenbad“.
 - **Mäusejahr kommt selten** (Harmonie- und Wachstums-Spieler 0 %), weil gierige Spieler
   Mäuse meiden bzw. schnell bejagen. Gewollt: Es ist die Antwort auf einen Wald voller Mäuse
   ohne Jäger (Zufallsspieler 30 %, 22.9).
@@ -6038,6 +6040,55 @@ ebenso die Hähersaat.
 Wie bei den Baumarten (17.4) darf kein Waldtyp „der beste“ sein: Ziel ±5 % Zeit bis zum Urwald
 gegenüber dem Heimatwald bei gleichem Gedächtnis.
 
+**Stand 1a (Phase 9, Ereignis und Lebensraum je Waldtyp, 26.2):** wie „Stand 3e“, jetzt mit
+`eventFactors` für Auwald `{ rain: 2, 'slug-year': 3 }`, Erlenbruch `{ 'toad-migration': 3 }`
+und Buchenhallen `{ 'mast-year': 2, 'vole-year': 3 }` sowie dem Mauer-Platz der Kiefernheide
+(ab Hain +1 Platz Trockenmauer). Neue Spalten: „ohne Ereignis-Faktor“ = derselbe Lauf mit
+`withoutSiteEvents` (alle `eventFactors` leer, also auch ohne Käferjahr × 3 der Heide; der
+Mauer-Platz bleibt) und „Ereignis des Waldes“ = Durchgänge mit dem Ereignis bis zum Urwald, in
+Klammern ohne Faktor. 160 Durchgänge, Median, Gedächtnis 200:
+
+| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | ohne Ereignis-Faktor | Wachstum: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | ohne Ereignis-Faktor | Ereignis des Waldes H / W (ohne Faktor) | Käferjahr H / W (ohne Wetter) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 🌳 Heimatwald | Stieleiche | 49:29 min | – | – | – | 41:12 min | – | – | – | – | 29 (29) / 28 (28) |
+| 🌊 Auwald am Fluss | Stieleiche | 49:26 min | −0,1 % | +0,3 % | ±0,0 % | 41:16 min | +0,2 % | +1,3 % | +0,9 % | 🌧️ Regenreicher Frühling **125 (107) / 129 (107)**; 🐌 Schneckenjahr 10 (5) / 8 (3) | 37 (36) / 26 (24) |
+| 🐸 Erlenbruch | Schwarzerle | 50:04 min | +1,2 % | +1,6 % | +1,2 % | 41:05 min | −0,3 % | +0,1 % | −0,6 % | 🐸 Krötenwanderung **75 (53) / 80 (59)** | 40 (38) / 34 (28) |
+| 🍂 Buchenhallen | Rotbuche | 50:14 min | +1,5 % | +1,7 % | +1,1 % | 40:58 min | −0,6 % | −0,3 % | −1,2 % | 🌰 Mastjahr **89 (68) / 106 (77)**; 🐭 Mäusejahr 1 (0) / 1 (0) | 41 (39) / 21 (24) |
+| ⛰️ Bergmischwald | Weißtanne | 48:42 min | −1,6 % | −1,3 % | – | 41:45 min | +1,3 % | +1,2 % | – | – (Schneebruch, Windwurf ohnehin fast immer) | 32 (41) / 23 (22) |
+| 🌲 Kiefernheide | Waldkiefer | 49:54 min | +0,9 % | +1,1 % | +1,2 % | 40:00 min | **−2,9 %** | −3,2 % | −2,7 % | 🪲 Käferjahr **65 (34) / 51 (33)** | 65 (55) / 51 (55) |
+
+Die Zahlen stimmen auf die Sekunde und den Durchgang mit der Vorab-Messung in 26.2 überein
+(dort Heide +0,8 % statt +0,9 % – Rundung). Gegenüber „Stand 3e“: Auwald (Wachstum) +0,9 →
++0,2 %, Erlenbruch −0,6 → −0,3 %, Buchenhallen +1,1 / −1,2 → +1,5 / −0,6 %, Kiefernheide durch den
+Mauer-Platz +1,2 / −3,6 → +0,9 / −2,9 %; Heimatwald und Bergmischwald unverändert. Alle Waldtypen
+innerhalb **±2,9 %** (Ziel ±5 %, vorher ±3,6 %). Die Ereignisse werden spürbar: Regenreicher
+Frühling in 78 / 81 % der Durchgänge (vorher 67 %), Krötenwanderung 47 / 50 % (33 / 37 %),
+Mastjahr 56 / 66 % (43 / 48 %); Schneckenjahr und Mäusejahr bleiben die seltene Ausnahme
+(Bedingung „ungejagt“, 26.2). **Keine Zahl gegenüber dem Entwurf 26.2 geändert.** Landschaft
+(24.10 „Stand 1a“, 20 Durchgänge): vollständig 14,0 h (Harmonie), 13,3 h (Wachstum), 40,8 h
+(Zufall); Wachstum gegenüber Harmonie 5,6 / 7,4 % (< 10 %).
+
+**Mauer-Platz der Kiefernheide** (Harmonie / Wachstum, 160 Durchgänge, Gedächtnis 200;
+„ohne Pflege“ = derselbe Spieler kauft keine Pflege; „ohne Mauer-Platz“ mit `withoutSiteSlot`):
+
+| Variante | Urwald H / W | Sonnenmauer H / W | Mauer bewohnt im Urwald H / W |
+|---|---|---|---|
+| mit Mauer-Platz (Spiel) | 49:54 / 40:00 min | 10 / 2 | 143 / 120 |
+| ohne Mauer-Platz (vorher) | 50:04 / 39:43 min | 3 / 0 | 137 / 101 |
+| mit Mauer-Platz, ohne Pflege | 58:08 / 43:14 min | 0 / 0 | **155 / 146** |
+| ohne Mauer-Platz, ohne Pflege | 56:53 / 43:38 min | 0 / 0 | 0 / 0 |
+
+Der Platz **öffnet die Mauer ohne Pflege** (`opensEarly`, wie der Tümpel-Platz von Auwald und
+Erle): Ohne Pflege ist sie in 155 / 146 von 160 Durchgängen bewohnt, ohne den Platz nie. Die
+Sonnenmauer (drei Mitglieder) entsteht in der Heide jetzt in 10 / 2 von 160 Durchgängen
+(6 / 1 %, vorher 3 / 0) – häufiger, aber weiter selten: Mit einem Platz passt nur ein Tier,
+für die Gemeinschaft braucht es die Pflege „Trockenmauer“. Kein eigenes Ereignis „Sonnenbad“
+(26.10); der Mauer-Platz bleibt bei +1.
+
+```bash
+SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t "Waldtypen|Mauer-Platz" --silent=false   # ~12 min
+```
+
 **Stand 3e (Phase 7, Käferjahr je Standort):** wie „Stand 3d“, jetzt mit
 `ForestSite.eventFactors` (Kiefernheide Käferjahr × 3 an jedem Tag, 24.13). „ohne“ = derselbe
 Lauf mit `withoutSiteWeather` – der Standort-Faktor auf das Ereignis gilt dort weiter (er ist
@@ -6330,11 +6381,29 @@ es reicht (zuerst die am aktiven Wald). Stammgäste wie `runCycles`.
 
 ```bash
 SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 npx vitest run tests/landscape-balance.test.ts -t Spielweisen --silent=false   # ~9 min
-SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Waldtypen --silent=false                        # ~2 min
+SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Waldtypen --silent=false                        # ~10 min (seit 1a mit „ohne Ereignis-Faktor“)
+SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Mauer-Platz --silent=false                      # Kiefernheide und Sonnenmauer (26.2), ~5 min
 SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 SIM_LANDSCAPE_WW=on npx vitest run tests/landscape-balance.test.ts -t Wildwechsel --silent=false   # ~8 min je Variante (on, off, none)
 SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 SIM_LANDSCAPE_SITE_WEATHER=off npx vitest run tests/landscape-balance.test.ts -t Spielweisen --silent=false   # Vergleich ohne Wetter je Standort
 SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Häufigkeiten --silent=false   # Wetter je Standort (24.14), ~10 s
 ```
+
+**Stand 1a (Phase 9)** – wie „Stand 3d“, dazu das Käferjahr der Heide (3e), die Ereignisse
+je Waldtyp und der Mauer-Platz der Kiefernheide (26.2). Harmonie und Wachstum 20, Zufall 10
+Durchgänge, dieselben Seeds; Median, kumulierte Spielzeit:
+
+| Spielweise | Freischaltung | 2. Wald | 3. | 4. | 5. | 6. Wald | Landschaft vollständig | alle Wälder voll | Zyklen | davon Ernte |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Harmonie | 4,5 h | 4,5 h | 6,4 h | 9,1 h | 11,0 h | 13,1 h | **14,0 h** | **16,5 h** | 66 | 30 (3,1 h) |
+| Wachstum | 4,4 h | 4,4 h | 5,7 h | 8,2 h | 10,2 h | 12,2 h | **13,3 h** | **15,4 h** | 72 | 34 (3,0 h) |
+| Zufall | 16,8 h | 16,8 h | 22,9 h | 30,5 h | 34,3 h | 38,5 h | 40,8 h | 45,0 h | 86,5 | 34 (5,3 h) |
+
+Erster Urwald je Wald (Harmonie): 2:34:57 h, 58, 59, 35, 29, 21 min; höchste Harmonie je Wald
+309–311 (Harmonie), 290–297 (Wachstum), 263–275 (Zufall); größte Zahlen 1,5 · 10^4 🌿/s,
+1,1 · 10^6 🌰 Bestand, 8,7 · 10^7 Wachstum gesamt. **Tempo unverändert** im Rahmen von 26.8
+(±0,3 h): vollständig 14,2 → 14,0 h (Harmonie), 13,3 h (Wachstum), alle voll 16,5 / 15,4 h. Der
+Zufallsspieler 39,4 → 40,8 h (10 Durchgänge, Streuung wie in 3d ±0,7 h). Harmonie gegen
+Wachstum **5,6 %** (vollständig) bzw. **7,4 %** (alle voll), weiter unter 10 %.
 
 **Stand 3d (Phase 7)** – echte Logik mit Wildwechsel, `featured`, den Leitbäumen Weißtanne und
 Schwarzerle und dem **Wetter je Standort** (3c); „ohne Standort-Wetter“ = `withoutSiteWeather`
@@ -6770,7 +6839,7 @@ In `src/content/achievements.ts` (`AchievementCondition`):
   Logik mit 3c.
 - **Waldtyp und Lebensräume (23):** z. B. Kiefernheide +1 Platz Trockenmauer, Auwald +1 Platz
   Waldwiese (Auenwiese). Erst nach v13 messen. **Vorab gemessen und entschieden in 26.2** (Phase 9, 1a): Kiefernheide ja,
-  Auwald nein.
+  Auwald nein. Umgesetzt in 1a (Kiefernheide ab Hain +1 Platz Trockenmauer, öffnet die Mauer ohne Pflege).
 - **Harmonie-Hebel in der Landschaft – gemessen, nicht umgesetzt (Option):** Mit der echten
   Logik ist der Wachstums-Spieler über die ganze Landschaft nur 5,1 % (vollständig) bzw.
   6,5 % (alle voll) schneller (24.10) – unter der vereinbarten Schwelle von 10 %. Nach Schritt B
@@ -6787,6 +6856,7 @@ In `src/content/achievements.ts` (`AchievementCondition`):
 - **Weitere Massenjahre je Wald** (nach 3e): **entschieden in 26.2** – jeder Waldtyp bekommt sein
   Ereignis über `eventFactors` (Auwald Regenreicher Frühling × 2 und Schneckenjahr × 3, Erlenbruch
   Krötenwanderung × 3, Buchenhallen Mastjahr × 2 und Mäusejahr × 3, Bergmischwald keins).
+  Umgesetzt in Phase 9, 1a (24.7 „Stand 1a“, alle Waldtypen ±2,9 %).
 - **Wildwechsel-Chance – gemessen in 2c, bleibt 10 % je Korridor (höchstens 30 %):** Sie ändert
   kein Tempo (Landschaft vollständig 14,2 gegen 14,0 h ohne Wildwechsel, Harmonie) und keine
   Kennzahl aus 7.7; sie bringt im Mittel 1,3–1,5 gewählte Nachbar-Arten je Zyklus und etwas
@@ -7279,10 +7349,9 @@ meta.journal.firstSeen: {
 
 ## 26. Geschichten der Wälder (Phase 9)
 
-> **Stand:** Entwurf (Phase 9, Konzept). Noch nichts umgesetzt. Die Zahlen in 26.2 sind
-> **vorab gemessen** (echte Logik, `siteRun` wie 24.7, 160 Durchgänge, Gedächtnis 200; die
-> Daten wurden dafür nur im Messlauf getauscht, nichts committet) – Aufgabe 1a überträgt sie in
-> die Daten und misst mit dem offiziellen Lauf nach. Alles andere sind Startwerte, die 2c misst.
+> **Stand:** Entwurf (Phase 9, Konzept). **26.2 ist umgesetzt (1a):** Die vorab gemessenen
+> Zahlen stehen in den Daten (`src/content/landscape.ts`) und sind mit dem offiziellen Lauf
+> nachgemessen – auf die Sekunde gleich (24.7 „Stand 1a“). Alles andere sind Startwerte, die 2c misst.
 > Aufgaben und Reihenfolge: `docs/ROADMAP.md`, Phase 9.
 
 ### 26.1 Was nach der Landschaft trägt
@@ -7373,9 +7442,16 @@ Spielstand:
 | 🌊 Auwald: ab Junger Baum +1 Platz Waldwiese | +1,7 / +1,4 % (vorher −0,1 / +0,2 % mit den Faktoren oben) | **nein** – langsamer ohne neues Bild; der Auwald hat mit zwei Tümpel-Plätzen schon den stärksten Lebensraum |
 
 Der Mauer-Platz ist eine Eigenheit vom Typ `slot` (`{ minStage: 5, effect: { kind: 'slot',
-niche: 'wall', amount: 1 } }`), keine neue Wirkungsart. 1a prüft dabei, ob er die Mauer ohne
-Pflege öffnet (wie der Tümpel-Platz von Auwald und Erle) und wie oft die Sonnenmauer in der
-Heide jetzt entsteht; Kurztext der Heide: „… · ab Hain +1 Platz Trockenmauer · …“.
+niche: 'wall', amount: 1 } }`), keine neue Wirkungsart. Kurztext der Heide: „… · ab Hain +1
+Platz Trockenmauer · …“.
+
+**Umgesetzt und nachgemessen (1a, 24.7 „Stand 1a“):** Alle Zahlen der Tabellen oben bestätigt.
+Der Mauer-Platz öffnet die Mauer ohne Pflege (ohne Pflege bewohnt in 155 / 146 von 160
+Durchgängen, ohne den Platz nie; Inhaltstest in `tests/landscape.test.ts`). Die Sonnenmauer
+entsteht in der Heide in 10 / 2 von 160 Durchgängen (vorher 3 / 0) – häufiger, bleibt aber
+selten, weil ein Platz nur ein Tier trägt. Kurztexte im Wetter-Text (`weatherSummary`):
+„Oft Landregen, selten Dürre. Im Frühjahr steigt der Fluss – Regenreicher Frühling öfter.“,
+„… – Krötennächte öfter.“, „… – Buchenmast öfter.“
 
 ### 26.3 Kennarten – die seltenen Bewohner alter Wälder
 
@@ -7502,6 +7578,12 @@ Neue Erfolge, ohne Zahlen-Belohnung (18.1):
 - Neue Bedingungsarten `chronicles` (vollständige Chroniken, `'all'` = Zahl der Standorte) und
   `daily` (Schlüssel `bestStreak` | `goalsDone` | `perfectDays`); `journal` bekommt `what:
   'kennarten'`. Monoton; Nachtrag beim Laden wie 12.6. Katalog danach: 37 Erfolge.
+- **Stand (Phase 9, 1d):** Bedingungsart `daily` (`core/achievements.ts`, `valueOf`: ganzzahlig,
+  kaputte Zähler und fehlendes `meta.daily` zählen 0) sowie `daily-streak-7` und `daily-50` sind
+  umgesetzt – ohne neues Feld und ohne neue Spielstand-Version. Nachtrag: Die erste Prüfung nach
+  dem Laden (`catchUp` in `main.ts`) schaltet frei, was die Zähler schon erfüllen; ein erfülltes
+  Tagesziel prüft die Erfolge sofort, beide stehen im selben Hinweis. Katalog bis 2b: 34 Erfolge
+  (27 vor der Landschaft). Tests: `tests/achievements-daily.test.ts`, `e2e/daily.spec.ts`.
 
 ### 26.6 Spielstand v16
 
@@ -7612,7 +7694,7 @@ Wirkung der Kennarten. Nicht verstellt werden die Regeln der Landschaft (24.4–
 | Waldtyp und Lebensräume (24.13) | **entschieden** – Kiefernheide +1 Trockenmauer ab Hain ja, Auwald +1 Waldwiese nein (26.2) |
 | Nach der Landschaft (24.13) | **beantwortet** mit Kennarten und Chroniken; dritte Ebene (Klima-Epochen) erst, wenn 2c und der Playtest zeigen, dass die Chroniken zu früh enden |
 | Harmonie-Hebel in der Landschaft (24.13) | bleibt Option für Zahlen; als **Kapitel** „Voller Einklang“ umgesetzt (kein 🪶, kein Feld `bestHarmony`) |
-| Sonnenmauer zu selten (23.9) | wird mit dem Mauer-Platz der Heide in 1a mitgemessen; kein eigenes Ereignis „Sonnenbad“ |
+| Sonnenmauer zu selten (23.9) | gemessen in 1a: in der Heide 10 / 2 von 160 Durchgängen (vorher 3 / 0), sonst unverändert; kein eigenes Ereignis „Sonnenbad“ |
 | Mäusejahr selten (23.9) | bleibt gewollt; Buchenhallen erzählen es mit (× 3) |
 | Serie belohnen / Erfolge Tagesziele (20.8) | **entschieden** – zwei Erfolge (26.5) |
 | Erfolge „Alle Lebensräume“, „Nahrungsnetz im Gleichgewicht“ (23.9) | weiter offen – brauchen eigene Bedingungsarten; nicht in Phase 9 |

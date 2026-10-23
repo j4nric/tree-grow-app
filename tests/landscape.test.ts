@@ -27,6 +27,8 @@ import { MAIN_TREES_BY_ID, type TreeEffect } from '../src/content/trees';
 import { GENERA, NICHE_IDS, PLANT_GROUPS } from '../src/content/types';
 import { MAX_FOREST_MEMORY } from '../src/core/state';
 import { corridorBetween } from '../src/core/landscape';
+import { nicheSlots, slotBonuses } from '../src/core/formulas';
+import { createInitialState, createSite } from '../src/core/state';
 import { SEASON_IDS } from '../src/content/seasons';
 import { WEATHERS_BY_ID, WEATHER_WEIGHTS, type WeatherId } from '../src/content/weather';
 
@@ -173,6 +175,41 @@ describe('Waldlandschaft: Ereignisse je Waldtyp (24.13, Phase 7, 3e)', () => {
   it('Heimatwald ohne Faktoren, Kiefernheide Käferjahr × 3', () => {
     expect(LANDSCAPE_SITES_BY_ID.get(HOME_SITE)!.eventFactors).toEqual({});
     expect(LANDSCAPE_SITES_BY_ID.get('heath')!.eventFactors).toEqual({ 'beetle-year': 3 });
+  });
+
+  it('Jeder Waldtyp hat sein Ereignis (26.2, Phase 9, 1a); Heimatwald und Bergmischwald ohne', () => {
+    const factors = Object.fromEntries(LANDSCAPE_SITES.map((s) => [s.id, s.eventFactors]));
+    expect(factors).toEqual({
+      home: {},
+      floodplain: { rain: 2, 'slug-year': 3 },
+      carr: { 'toad-migration': 3 },
+      beechwood: { 'mast-year': 2, 'vole-year': 3 },
+      mountain: {},
+      heath: { 'beetle-year': 3 },
+    });
+    // Der Kurztext nennt das Ereignis (die Oberfläche zeigt die Faktoren in Aufgabe 1c).
+    expect(LANDSCAPE_SITES_BY_ID.get('floodplain')!.weatherSummary).toContain('Regenreicher Frühling öfter');
+    expect(LANDSCAPE_SITES_BY_ID.get('carr')!.weatherSummary).toContain('Krötennächte öfter');
+    expect(LANDSCAPE_SITES_BY_ID.get('beechwood')!.weatherSummary).toContain('Buchenmast öfter');
+  });
+
+  it('Kiefernheide: ab Hain +1 Platz Trockenmauer – öffnet die Mauer ohne Pflege (26.2)', () => {
+    const heath = LANDSCAPE_SITES_BY_ID.get('heath')!;
+    expect(heath.traits).toContainEqual({ minStage: 5, effect: { kind: 'slot', niche: 'wall', amount: 1 } });
+    expect(heath.summary).toContain('ab Hain +1 Platz Trockenmauer');
+    const wallAt = (site: (typeof SITE_IDS)[number], stage: number) => {
+      const state = createInitialState(0, 1);
+      for (const s of LANDSCAPE_SITES) if (s.id !== HOME_SITE) state.meta.landscape.sites.push(createSite(s.id));
+      state.meta.landscape.active = site;
+      state.stage = stage;
+      expect(state.cycle.care ?? {}).toEqual({});
+      return nicheSlots(stage, state.niches, slotBonuses(state)).wall;
+    };
+    expect(wallAt('heath', 4)).toBe(0);
+    expect(wallAt('heath', 5)).toBe(1);
+    expect(wallAt('heath', 7)).toBe(1);
+    // Nur in der Heide (Eigenheit, keine Gabe).
+    for (const site of SITE_IDS.filter((s) => s !== 'heath')) expect(wallAt(site, 7), site).toBe(0);
   });
 
   it('Schlüssel nur bekannte Ereignis-IDs, Faktoren endlich, > 1 und ≤ 3', () => {

@@ -212,25 +212,25 @@ describe('Sichtbarkeit und Zähler', () => {
     expect(isAchievementVisibleIn(byId('forest-2'), false, true)).toBe(true);
     expect(isAchievementVisibleIn(byId('forest-2'), true)).toBe(true);
     expect(isAchievementVisibleIn(byId('trees-all'), false)).toBe(true);
-    expect(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, false))).toHaveLength(25);
-    expect(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, true))).toHaveLength(32);
+    expect(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, false))).toHaveLength(27);
+    expect(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, true))).toHaveLength(34);
   });
 
-  it('Kacheln und Zähler: N/25 vor, N/32 nach der Freischaltung', () => {
+  it('Kacheln und Zähler: N/27 vor, N/34 nach der Freischaltung', () => {
     const before = withLandscape(5, { unlocked: false });
     const hidden = ACHIEVEMENTS.filter((a) => a.requires === 'landscape').length;
     expect(hidden).toBe(LANDSCAPE_IDS.length);
-    expect(ACHIEVEMENTS.length - hidden).toBe(25);
-    expect(achievementCountText(before)).toBe('0/25');
+    expect(ACHIEVEMENTS.length - hidden).toBe(27);
+    expect(achievementCountText(before)).toBe('0/27');
     const keys = toJournalAchievements(before).map((v) => v.key);
-    expect(keys).toHaveLength(25);
+    expect(keys).toHaveLength(27);
     for (const id of LANDSCAPE_IDS) expect(keys).not.toContain(id);
 
     const after = withLandscape(5);
     expect(landscapeUnlocked(after)).toBe(true);
-    expect(achievementCountText(after)).toBe('1/32');
+    expect(achievementCountText(after)).toBe('1/34');
     const tiles = toJournalAchievements(after);
-    expect(tiles).toHaveLength(32);
+    expect(tiles).toHaveLength(34);
     expect(tiles.filter((v) => !v.unlocked).slice(-LANDSCAPE_IDS.length).map((v) => v.key)).toEqual(LANDSCAPE_IDS);
     expect(tiles.find((v) => v.key === 'forest-2')!.progress).toBe('1/2');
     expect(tiles.find((v) => v.key === 'corridors-all')!.progress).toBe(`0/${CORRIDORS.length}`);
@@ -239,7 +239,7 @@ describe('Sichtbarkeit und Zähler', () => {
   it('vor der Freischaltung erreichte (importierte) Erfolge der Landschaft erscheinen und zählen', () => {
     const s = withLandscape(5, { unlocked: false });
     s.meta.achievements.push('forest-2');
-    expect(achievementCountText(s)).toBe('1/26');
+    expect(achievementCountText(s)).toBe('1/28');
     const tiles = toJournalAchievements(s);
     expect(tiles[0]).toMatchObject({ key: 'forest-2', unlocked: true });
     expect(tiles.filter((v) => LANDSCAPE_IDS.includes(v.key)).map((v) => v.key)).toEqual(['forest-2']);

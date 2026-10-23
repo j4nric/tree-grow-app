@@ -195,9 +195,9 @@ describe('Spielanleitung', () => {
 
   it('Erfolge: Anzahl aus content, Fundort Naturtagebuch, keine Eile', () => {
     const t = text('achievements');
-    // Vor der Freischaltung der Landschaft nur die sichtbaren (24.12): 25.
+    // Vor der Freischaltung der Landschaft nur die sichtbaren (24.12): 27.
     const visible = ACHIEVEMENTS.filter((a) => !a.requires).length;
-    expect(visible).toBe(25);
+    expect(visible).toBe(27);
     expect(t).toContain(`${formatNumber(visible)} leise Erfolge`);
     expect(t).toContain('Naturtagebuch');
     expect(t).toContain('Reiter „Ziele“ unter „Erfolge“');
@@ -205,11 +205,11 @@ describe('Spielanleitung', () => {
     expect(t).toContain('keine Zeitlimits');
   });
 
-  it('Erfolge nach der Freischaltung der Landschaft: alle (32)', () => {
+  it('Erfolge nach der Freischaltung der Landschaft: alle (34)', () => {
     const after = guideSections({ landscape: true }).find((s) => s.id === 'achievements')!.paragraphs.join(' ');
-    expect(ACHIEVEMENTS.length).toBe(32);
+    expect(ACHIEVEMENTS.length).toBe(34);
     expect(after).toContain(`${formatNumber(ACHIEVEMENTS.length)} leise Erfolge`);
-    expect(guideSections({ landscape: false }).find((s) => s.id === 'achievements')!.paragraphs.join(' ')).toContain('25 leise Erfolge');
+    expect(guideSections({ landscape: false }).find((s) => s.id === 'achievements')!.paragraphs.join(' ')).toContain('27 leise Erfolge');
   });
 
   it('Hauptbäume der Landschaft: erst nach der Freischaltung genannt, mit ihrem Wald (25.2)', () => {
