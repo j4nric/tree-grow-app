@@ -238,6 +238,24 @@
   line-height: 1;
 }
 
+/* Ereignisse des Waldtyps (Phase 9, 1c): Zeichen an der linken Ecke, Gegenstück zum Wetter. */
+.lsc-site-events {
+  position: absolute;
+  top: -9px;
+  left: -7px;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  min-width: 22px;
+  padding: 0 4px;
+  border-radius: 11px;
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+  font-size: 0.72rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .lsc-site.unfounded .lsc-site-icon {
   filter: grayscale(0.6);
   opacity: 0.75;

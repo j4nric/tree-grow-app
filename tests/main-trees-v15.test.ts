@@ -62,6 +62,14 @@ function landscape(
     memory: id === active || !unlocked ? 0 : MAX_FOREST_MEMORY,
     ancient: unlocked && id !== active,
     fauna: id === active ? [] : [...(opts.fauna?.[id] ?? [])],
+    // Was das Laden ab v16 ableitet: ruhende volle Urwälder haben „Uralt“ und „Gedächtnis“.
+    chronicle:
+      unlocked && id !== active
+        ? [
+            { chapter: 'ancient' as const, cycle: null, season: null },
+            { chapter: 'memory' as const, cycle: null, season: null },
+          ]
+        : [],
   }));
   state.meta.forestMemory = unlocked ? 300 : 0;
   if (unlocked) state.meta.achievements.push('ancient-forest');
@@ -426,11 +434,11 @@ describe('Spielstand v15 (25.5)', () => {
     return state;
   }
 
-  it('SAVE_VERSION 15; v15 mit Weißtanne und Schwarzerle lädt und behält beide (Roundtrip gleich)', () => {
-    expect(SAVE_VERSION).toBe(15);
+  it('SAVE_VERSION 16 (seit v15): Stand mit Weißtanne und Schwarzerle lädt und behält beide (Roundtrip gleich)', () => {
+    expect(SAVE_VERSION).toBe(16);
     const state = firState();
     recordDiscoveries(state);
-    expect(state.version).toBe(15);
+    expect(state.version).toBe(16);
     const loaded = loadGame(serialize(state), 0)!.state;
     expect(loaded).toEqual(state);
     expect(loaded.cycle.mainTree).toBe('fir');
@@ -544,13 +552,13 @@ describe('Spielstand v15 (25.5)', () => {
     expect(count('1e400')).toBe(MAX_STAT_COUNT);
   });
 
-  it('Schutz vor neueren Ständen: ein v14-Spiel lehnt v15 ab (Abgleich, Import), v15 lehnt v16 ab', () => {
+  it('Schutz vor neueren Ständen: ein v14-Spiel lehnt v15 ab (Abgleich, Import), dieses Spiel lehnt neuere ab', () => {
     // Ein v14-Client (Schema 14) blockiert den Abgleich mit diesem Stand.
     expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a', schema: SAVE_VERSION }, 14)).toBe(true);
     expect(isNewerSchema({ version: 1, actionVersion: 1, device: 'a', schema: SAVE_VERSION }, SAVE_VERSION)).toBe(false);
     const json = serialize(firState());
     expect(isNewerSave(json)).toBe(false);
-    const v16 = JSON.stringify({ ...JSON.parse(json), version: 16 });
+    const v16 = JSON.stringify({ ...JSON.parse(json), version: SAVE_VERSION + 1 });
     expect(isNewerSave(v16)).toBe(true);
     expect(importCode(codeFromJson(v16), 0)).toEqual({ ok: false, error: 'newer' });
     const storage = new MemoryStorage();

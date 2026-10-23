@@ -17,7 +17,7 @@ import {
   WEATHER_EVENT_FACTORS,
 } from '../src/content/predation';
 import { EVENT_SEASONS, SEASONS_BY_ID, SEASON_IDS, type SeasonId } from '../src/content/seasons';
-import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES } from '../src/content/species';
+import { GENUS_INFO, SPECIES, SPECIES_BY_ID, TAG_NAMES, isKennart } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { TRAITS } from '../src/content/traits';
 import { GENERA, NICHE_IDS, type Condition, type Tag } from '../src/content/types';
@@ -67,7 +67,8 @@ describe('Lebensräume (DESIGN_V2.md 23)', () => {
 
   it('14 Arten in SPECIES: eindeutige IDs, 3–5 je Lebensraum, nur gewöhnlich und selten (keine neue Fähigkeit)', () => {
     expect(HABITAT_SPECIES.length).toBe(14);
-    expect(SPECIES.length).toBe(51);
+    // 51 und seit Phase 9 die sechs Kennarten (DESIGN_V2.md 26.3).
+    expect(SPECIES.length).toBe(57);
     expect(unique(SPECIES.map((s) => s.id))).toBe(true);
     for (const s of HABITAT_SPECIES) {
       expect(SPECIES_BY_ID.get(s.id), s.id).toBe(s);
@@ -88,7 +89,8 @@ describe('Lebensräume (DESIGN_V2.md 23)', () => {
     }
     // Keine Gattung wird zu groß: höchstens 11 Arten je Gattung (Grundkatalog 6–8 + Lebensräume),
     // sonst verdünnt sie die Karten und ihr Gattungsbonus wird zu leicht.
-    for (const g of GENERA) expect(SPECIES.filter((s) => s.genus === g).length, g).toBeLessThanOrEqual(11);
+    // Kennarten (26.3) zählen nicht: Je Wald erscheint nur seine eine, und nur im alten Wald.
+    for (const g of GENERA) expect(SPECIES.filter((s) => s.genus === g && !isKennart(s.id)).length, g).toBeLessThanOrEqual(11);
     // Nur die Lebensraum-Arten wohnen in den neuen Nischen.
     for (const s of SPECIES) expect(HABITAT_IDS.has(s.niche), s.id).toBe(HABITAT_SPECIES_IDS.has(s.id));
     for (const n of HABITAT_NICHES) {
@@ -195,9 +197,10 @@ describe('Räuber und Beute (DESIGN_V2.md 22)', () => {
       expect(SPECIES.some((s) => s.provides.includes(tag)), `${tag}: Beute`).toBe(true);
       expect(SPECIES.some((s) => s.level === 'predator' && s.food.includes(tag)), `${tag}: Jäger`).toBe(true);
     }
-    // Die Ringelnatter jagt Amphibien; alle fünf Amphibien sind Beute.
+    // Die Ringelnatter jagt Amphibien; alle fünf Amphibien sind Beute (dazu der Moorfrosch, 26.3).
     expect(SPECIES_BY_ID.get('grasssnake')!.food).toEqual(['amphibien']);
-    const amphibians = SPECIES.filter((x) => x.genus === 'amphibians');
+    const amphibians = SPECIES.filter((x) => x.genus === 'amphibians' && !isKennart(x.id));
+    expect(SPECIES_BY_ID.get('moorfrog')!.provides).toContain('amphibien');
     expect(amphibians.length).toBe(5);
     for (const s of amphibians) expect(s.provides, s.id).toContain('amphibien');
     // Der Fuchs frisst Kaninchen und hält sie klein (−70 %); seine Kurzwirkung nennt es.

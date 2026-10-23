@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SPECIES } from '../src/content/species';
+import { SPECIES, kennartSite } from '../src/content/species';
+import { LANDSCAPE_SITES } from '../src/content/landscape';
 import { createAnchorResolver, POND_DEPTH, type AnchorResolver } from '../src/render/anchors';
 import { AnimalLayer, animalBounds, animalKind, animalKinds, animalRarity, spriteDefOf, type AnimalFrame, type SceneAnimal } from '../src/render/animals';
 import { isKennart, KENNART_DEFS, KENNART_HOME, KENNART_IDS, KENNART_INFO, KENNART_PAINT } from '../src/render/kennart-sprites';
@@ -9,8 +10,8 @@ import { dormouseAwake, moorfrogBlue, nightjarSeason } from '../src/render/pheno
 import { renderSpeciesSticker, stickerFit, stickerFrame, stickerKind, stickerPose } from '../src/render/sticker';
 
 /**
- * Kennarten (DESIGN_V2.md 26.3, ROADMAP Phase 9, 2a): sechs eigene Zeichnungen, schon vor
- * den Daten (2b) über ihre Art-IDs erreichbar – in der Szene und als Sticker.
+ * Kennarten (DESIGN_V2.md 26.3, ROADMAP Phase 9, 2a): sechs eigene Zeichnungen, über ihre
+ * Art-IDs erreichbar – in der Szene und als Sticker. Seit 2b stehen die Arten in den Daten.
  */
 
 // ---------------------------------------------------------------------------
@@ -148,7 +149,7 @@ describe('Kennarten: Zeichnungen', () => {
     expect(isKennart('toString')).toBe(false);
   });
 
-  it('jede Kennart hat schon vor den Daten (2b) ihre eigene Zeichnung in Szene und Album', () => {
+  it('jede Kennart hat ihre eigene Zeichnung in Szene und Album', () => {
     const kinds = new Set(animalKinds());
     for (const id of KENNART_IDS) {
       const { niche, family } = KENNART_HOME[id];
@@ -171,17 +172,19 @@ describe('Kennarten: Zeichnungen', () => {
     for (const id of KENNART_IDS) expect(paints.get(KENNART_PAINT[id]), id).toBe(id);
   });
 
-  it('kollidieren nicht mit Arten-IDs, die es schon gibt', () => {
-    const ids = new Set(SPECIES.map((s) => s.id));
-    // Sobald 2b die Kennarten in die Daten aufnimmt, müssen Nische und Gattung passen.
+  it('passen genau zu den Daten (2b): jede Kennart der Daten hat ihre Zeichnung, Nische, Gattung und Wald', () => {
+    // Scharf seit 2b: Die Kennarten der Daten sind genau KENNART_IDS – keine fehlt, keine zu viel.
+    const data = SPECIES.filter((s) => kennartSite(s) !== null);
+    expect(data.map((s) => s.id).sort()).toEqual([...KENNART_IDS].sort());
+    expect(LANDSCAPE_SITES.map((site) => site.kennart).sort()).toEqual([...KENNART_IDS].sort());
     for (const id of KENNART_IDS) {
-      const s = SPECIES.find((x) => x.id === id);
-      if (!s) {
-        expect(ids.has(id)).toBe(false);
-        continue;
-      }
+      const s = SPECIES.find((x) => x.id === id)!;
+      expect(s, id).toBeDefined();
       expect(s.niche, id).toBe(KENNART_HOME[id].niche);
       expect(s.genus, id).toBe(KENNART_HOME[id].family);
+      expect(kennartSite(s), id).toBe(KENNART_HOME[id].site);
+      expect(stickerKind(id, s.genus), id).toBe(id);
+      expect(animalKind({ id, family: s.genus, niche: s.niche }), id).toBe(id);
     }
   });
 

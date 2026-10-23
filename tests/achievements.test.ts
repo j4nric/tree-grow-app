@@ -6,7 +6,8 @@ import { EVENTS } from '../src/content/events';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { PLANTS } from '../src/content/plants';
 import { YEAR_SECONDS } from '../src/content/seasons';
-import { SPECIES } from '../src/content/species';
+import { COMMON_SPECIES, KENNARTEN, SPECIES } from '../src/content/species';
+import { CHAPTER_IDS } from '../src/content/chronicle';
 import { STAGES } from '../src/content/stages';
 import { MAIN_TREES } from '../src/content/trees';
 import { GENERA } from '../src/content/types';
@@ -59,9 +60,10 @@ function raw(state: GameState, patch: (data: Record<string, any>) => void): stri
 }
 
 describe('Inhalte', () => {
-  it('20–35 Erfolge, eindeutige IDs, Titel, Symbol und Beschreibung', () => {
+  it('20–40 Erfolge, eindeutige IDs, Titel, Symbol und Beschreibung', () => {
+    // Obergrenze seit Phase 9 (2b): 37 Erfolge, davon 27 ohne Landschaft (DESIGN_V2.md 26.5).
     expect(ACHIEVEMENTS.length).toBeGreaterThanOrEqual(20);
-    expect(ACHIEVEMENTS.length).toBeLessThanOrEqual(35);
+    expect(ACHIEVEMENTS.length).toBeLessThanOrEqual(40);
     expect(ACHIEVEMENTS_BY_ID.size).toBe(ACHIEVEMENTS.length);
     expect(new Set(ACHIEVEMENTS.map((a) => a.title)).size).toBe(ACHIEVEMENTS.length);
     for (const a of ACHIEVEMENTS) {
@@ -80,12 +82,12 @@ describe('Inhalte', () => {
       expect(Number.isFinite(target), a.id).toBe(true);
       if (c.kind === 'stage') expect(target, a.id).toBeLessThan(STAGES.length);
       if (c.kind === 'journal') {
-        const total = { species: SPECIES.length, plants: PLANTS.length, communities: COMMUNITIES.length }[c.what];
+        const total = { species: SPECIES.length, kennarten: SPECIES.length, plants: PLANTS.length, communities: COMMUNITIES.length }[c.what];
         expect(target, a.id).toBeLessThanOrEqual(total);
       }
       if (c.kind === 'genera') expect(target, a.id).toBeLessThanOrEqual(GENERA.length);
       if (c.kind === 'trees') expect(target, a.id).toBeLessThanOrEqual(MAIN_TREES.length);
-      if (c.kind === 'forests' || c.kind === 'ancientForests') expect(target, a.id).toBeLessThanOrEqual(SITE_IDS.length);
+      if (c.kind === 'forests' || c.kind === 'ancientForests' || c.kind === 'chronicles') expect(target, a.id).toBeLessThanOrEqual(SITE_IDS.length);
       if (c.kind === 'corridors') expect(target, a.id).toBeLessThanOrEqual(CORRIDORS.length);
       // Gekauft höchstens 10 − Gratis-Korridore: hinge an der Gründungs-Reihenfolge (24.12).
       if (c.kind === 'corridors' && c.bought) expect(c.atLeast, a.id).not.toBe('all');
@@ -107,7 +109,7 @@ describe('Inhalte', () => {
 
   it('decken das ganze Spiel ab (jede Bedingungsart mindestens einmal)', () => {
     const kinds = new Set(ACHIEVEMENTS.map((a) => a.condition.kind));
-    expect([...kinds].sort()).toEqual(['ancientForests', 'corridors', 'cycleTime', 'cycles', 'daily', 'forests', 'genera', 'journal', 'stage', 'stat', 'trees']);
+    expect([...kinds].sort()).toEqual(['ancientForests', 'chronicles', 'corridors', 'cycleTime', 'cycles', 'daily', 'forests', 'genera', 'journal', 'stage', 'stat', 'trees']);
   });
 });
 
@@ -144,8 +146,17 @@ describe('Bedingungen', () => {
     s.meta.journal.species.push('earthworm');
     expect(isAchieved(s, byId('species-5'))).toBe(true);
     expect(achievementProgress(s, byId('species-16'))).toEqual({ value: 5, target: 16 });
+    // „Alle Bewohner“ ohne Kennarten (26.3): erreichbar ohne Landschaft; Kennarten zählen eigens.
+    s.meta.journal.species = COMMON_SPECIES.map((x) => x.id);
+    expect(targetOf(byId('species-all').condition)).toBe(SPECIES.length - KENNARTEN.length);
+    expect(isAchieved(s, byId('species-all'))).toBe(true);
+    expect(valueOf(s, byId('kennarten-all').condition)).toBe(0);
+    s.meta.journal.species = [...KENNARTEN.map((x) => x.id), 'robin'];
+    expect(valueOf(s, byId('species-all').condition)).toBe(1);
+    expect(targetOf(byId('kennarten-all').condition)).toBe(6);
+    expect(isAchieved(s, byId('kennarten-all'))).toBe(true);
+    expect(isAchieved(s, byId('species-all'))).toBe(false);
     s.meta.journal.species = SPECIES.map((x) => x.id);
-    expect(targetOf(byId('species-all').condition)).toBe(SPECIES.length);
     expect(isAchieved(s, byId('species-all'))).toBe(true);
 
     s.meta.journal.plants = PLANTS.slice(0, 4).map((p) => p.id);
@@ -274,7 +285,13 @@ describe('checkAchievements', () => {
     const spokes = CORRIDORS.filter((c) => c.sites.includes('home')).map((c) => c.id);
     s.meta.landscape = {
       active: 'home',
-      sites: SITE_IDS.map((id) => ({ ...createSite(id), memory: 1000, ancient: true })),
+      // Jede Chronik vollständig (26.4).
+      sites: SITE_IDS.map((id) => ({
+        ...createSite(id),
+        memory: 1000,
+        ancient: true,
+        chronicle: CHAPTER_IDS.map((chapter) => ({ chapter, cycle: null, season: null })),
+      })),
       corridors: CORRIDORS.map((c) => c.id),
       freeCorridors: spokes,
       announced: true,
@@ -346,7 +363,7 @@ describe('Spielstand v9', () => {
   }
 
   it('v8 → v9: schaltet still frei, was der Stand erfüllt, und meldet die Anzahl', () => {
-    expect(SAVE_VERSION).toBe(15);
+    expect(SAVE_VERSION).toBe(16);
     const s = groveState(3);
     s.meta.stats.visitorsHosted = 2;
     s.cycle.number = 2;
@@ -506,7 +523,7 @@ describe('Oberfläche: Texte und Naturtagebuch', () => {
     expect(progressText(s, byId('harmony-150'))).toBe('59/150');
     expect(at('patience').progress).toBe('2 Std./10 Std.');
     expect(at('full-year').progress).toBe('0 Sek./12 Min.');
-    expect(progressText(s, byId('species-all'))).toBe(`3/${SPECIES.length}`);
+    expect(progressText(s, byId('species-all'))).toBe(`3/${COMMON_SPECIES.length}`);
     expect(achievementCountText(s)).toBe(`2/${visible.length}`);
   });
 

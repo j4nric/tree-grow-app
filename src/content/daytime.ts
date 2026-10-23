@@ -89,6 +89,21 @@ export const NOCTURNAL: readonly Nocturnal[] = [
     summary: 'nachts +6 % 🌿 (nicht im Winter)',
     text: 'Die leuchtenden Larven jagen nachts Schnecken am Waldsaum.',
   },
+  // Kennarten (DESIGN_V2.md 26.3), Startwerte für 2c: beide nicht im Winter.
+  {
+    species: 'dormouse', name: 'Nachtklettern',
+    effects: [{ kind: 'seeds', pct: 6 }],
+    seasons: ['spring', 'summer', 'autumn'],
+    summary: 'nachts +6 % 🌰 (nicht im Winter)',
+    text: 'Klettert nachts durch die Haselsträucher und verbreitet Samen. Den Winter verschläft sie im Nest am Boden.',
+  },
+  {
+    species: 'nightjar', name: 'Dämmerungsjagd',
+    effects: [{ kind: 'seeds', pct: 6 }],
+    seasons: ['spring', 'summer', 'autumn'],
+    summary: 'nachts +6 % 🌰 (nicht im Winter)',
+    text: 'Fängt in der Dämmerung Nachtfalter im Flug. Den Winter verbringt er in Afrika.',
+  },
 ];
 
 export const NOCTURNAL_BY_SPECIES: ReadonlyMap<string, Nocturnal> = new Map(NOCTURNAL.map((n) => [n.species, n]));

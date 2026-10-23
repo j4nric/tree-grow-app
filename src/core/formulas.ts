@@ -44,7 +44,7 @@ import {
   type Tag,
 } from '../content/types';
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
-import { activeSite, effectiveForestMemory, giftSites, landscapeOf, landscapeTraits, siteHabitats } from './landscape';
+import { activeSite, effectiveForestMemory, giftSites, landscapeOf, landscapeTraits, oldSiteOf, siteHabitats } from './landscape';
 import { normalizeElapsed, seasonIdAt, seasonIndex } from './season';
 import { MAX_FOREST_MEMORY, type CycleState, type GameState, type LandscapeState, type PendingEncounterType } from './state';
 import type { WeatherId } from '../content/weather';
@@ -145,6 +145,11 @@ export interface Ecosystem {
   site?: SiteId;
   /** Gegründete Wälder, deren Gabe wirkt (24.2, in allen Wäldern). Fehlt das Feld: keine. */
   gifts?: readonly SiteId[];
+  /**
+   * Der aktive Wald, wenn er für Kennarten alt genug ist (Bedingung `site`, DESIGN_V2.md 26.3:
+   * Landschaft frei, schon einmal Urwald oder jetzt Urwald – oldSiteOf). Fehlt: keine Kennart.
+   */
+  oldSite?: SiteId;
 }
 
 /** Platz-Wirkung (Nische, Anzahl). */
@@ -291,7 +296,14 @@ export function ecosystemOf(
     ...environmentOf(state.cycle, ambient, active),
     site: active,
     gifts: giftSites(landscape),
+    ...oldSiteField(state),
   };
+}
+
+/** `oldSite` für ecosystemOf – nur gesetzt, wenn die Bedingung `site` gilt (sonst bleibt das Feld weg). */
+function oldSiteField(state: Pick<GameState, 'stage' | 'meta'>): Pick<Ecosystem, 'oldSite'> {
+  const site = oldSiteOf(state);
+  return site !== undefined ? { oldSite: site } : {};
 }
 
 type Environment = Pick<Ecosystem, 'season' | 'mainTree' | 'weather' | 'night' | 'care'>;
@@ -723,6 +735,9 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
       case 'unhunted':
         // Für Wünsche nicht vorgesehen, aber gleich wie bei den Erscheinungsbedingungen.
         return unhunted.has(c.tag);
+      case 'site':
+        // Ebenso nur für Erscheinungsbedingungen (Kennarten).
+        return eco.oldSite !== undefined && eco.oldSite === c.site;
     }
   };
 
@@ -1111,6 +1126,8 @@ export interface AppearsContext {
   genera: Readonly<Record<Genus, number>>;
   /** Merkmale, die ein Tier bereitstellt, aber keines jagt oder klein hält (`unhunted`, 22.5). */
   unhunted: ReadonlySet<Tag>;
+  /** Alter aktiver Wald (Bedingung `site`, 26.3) – fehlt: keine Kennart erscheint. */
+  oldSite?: SiteId;
 }
 
 /** Merkmale, die der Hauptbaum auf dieser Stufe bereitstellt (ohne Art: wie die Eiche). */
@@ -1121,7 +1138,7 @@ export function mainTreeTags(eco: Pick<Ecosystem, 'stage' | 'mainTree'>): Tag[] 
   return tags;
 }
 
-export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants' | 'habitats' | 'mainTree'>): AppearsContext {
+export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants' | 'habitats' | 'mainTree' | 'oldSite'>): AppearsContext {
   const animals = speciesIn({ ...eco, forestMemory: 0 });
   const plants = plantsIn({ ...eco, forestMemory: 0 });
   const tags = new Set<Tag>(mainTreeTags(eco));
@@ -1134,7 +1151,9 @@ export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants
   for (const g of GENERA) genera[g] = 0;
   for (const a of animals) genera[a.genus]++;
   const ids = new Set<string>([...animals.map((a) => a.id), ...plants.map((p) => p.id)]);
-  return { tags, ids, groups, genera, unhunted: unhuntedTags(animals) };
+  const ctx: AppearsContext = { tags, ids, groups, genera, unhunted: unhuntedTags(animals) };
+  if (eco.oldSite !== undefined) ctx.oldSite = eco.oldSite;
+  return ctx;
 }
 
 /**
@@ -1147,7 +1166,7 @@ export function appearsContext(eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants
  * `eco` darf ein vorberechneter Kontext (appearsContext) sein.
  */
 export function speciesAppears(
-  eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants' | 'habitats' | 'mainTree'> | AppearsContext,
+  eco: Pick<Ecosystem, 'stage' | 'niches' | 'plants' | 'habitats' | 'mainTree' | 'oldSite'> | AppearsContext,
   sp: Pick<Species, 'appears'>,
 ): boolean {
   if (!sp.appears || sp.appears.length === 0) return true;
@@ -1167,6 +1186,8 @@ export function speciesAppears(
         return ctx.genera[c.genus] >= c.min;
       case 'unhunted':
         return ctx.unhunted.has(c.tag);
+      case 'site':
+        return ctx.oldSite !== undefined && ctx.oldSite === c.site;
     }
   };
   return sp.appears.every(met);

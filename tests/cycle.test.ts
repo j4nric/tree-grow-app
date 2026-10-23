@@ -435,6 +435,7 @@ describe('Neuer Zyklus', () => {
       site: 'home',
       founded: false,
       landscapeUnlocked: false,
+      chapters: [],
     });
     expect(state.meta.forestMemory).toBe(30 + gain);
     expect(state.meta.journal).toEqual(journal);

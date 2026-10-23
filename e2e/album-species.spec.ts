@@ -2,7 +2,7 @@ import type { BrowserContext, Page } from '@playwright/test';
 import { COMMUNITIES } from '../src/content/communities';
 import { V1_KEEPSAKE_ID } from '../src/content/memory';
 import { PLANTS } from '../src/content/plants';
-import { SPECIES } from '../src/content/species';
+import { COMMON_SPECIES, SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
 import { expect, gotoTab, seedRaw, tabPanel, test } from './fixtures';
@@ -40,13 +40,13 @@ test('Bilder erst im Bild, matte Sticker aus der Leerlaufzeit, Messwerte', async
   await page.setViewportSize({ width: 1200, height: 700 });
   await seedFullJournal(context);
   await gotoTab(page, 'arten');
-  await expect(panel(page).locator('[data-ref="journal-counts"]')).toContainText(`${SPECIES.length}/${SPECIES.length} Arten`);
+  await expect(panel(page).locator('[data-ref="journal-counts"]')).toContainText(`${COMMON_SPECIES.length}/${COMMON_SPECIES.length} Arten`);
 
   // Oben: farbig (lebt hier) sofort, matt (entdeckt, nicht da) etwas später – beides gezeichnet.
   await expect.poll(() => drawn(page, 'bluetit')).toBe(true);
   await expect.poll(() => drawn(page, 'robin')).toBe(true);
-  // Die letzte Gattung liegt weit unten: noch nicht gezeichnet …
-  const last = SPECIES[SPECIES.length - 1]!.id;
+  // Die letzte Gattung liegt weit unten: noch nicht gezeichnet … (ohne Landschaft ohne Kennarten, 26.3)
+  const last = COMMON_SPECIES[COMMON_SPECIES.length - 1]!.id;
   expect(await drawn(page, last)).toBe(false);
   // … bis sie ins Bild gescrollt wird.
   await panel(page).locator(`[data-species="${last}"]`).scrollIntoViewIfNeeded();
@@ -90,7 +90,7 @@ test('Sprungmarken und Andenken: Samentütchen und Erinnerungen', async ({ page,
   await expect(keepsakes.getByRole('heading', { name: /Andenken/ })).toBeInViewport();
   await expect(keepsakes.locator('[data-tree="oak"]')).toContainText('wächst in diesem Zyklus');
   await expect(keepsakes.locator(`[data-keepsake="${V1_KEEPSAKE_ID}"]`)).toContainText('Die alte Eiche');
-  await expect(panel(page).locator('[data-jump="animals"] .species-jump-count')).toHaveText(`${SPECIES.length}/${SPECIES.length}`);
+  await expect(panel(page).locator('[data-jump="animals"] .species-jump-count')).toHaveText(`${COMMON_SPECIES.length}/${COMMON_SPECIES.length}`);
 });
 
 test('Ohne hidden="until-found" und requestIdleCallback (Safari): Sperre wie bisher, alles kommt', async ({ page, context }) => {
@@ -126,5 +126,5 @@ test('Ohne hidden="until-found" und requestIdleCallback (Safari): Sperre wie bis
   const frames = await page.evaluate(() => (window as unknown as { __revealFrames: number[] }).__revealFrames);
   expect(frames.length).toBe(before.length);
   expect(new Set(frames).size).toBe(frames.length);
-  await expect(panel(page).locator(`[data-species="${SPECIES[SPECIES.length - 1]!.id}"]`)).toBeAttached();
+  await expect(panel(page).locator(`[data-species="${COMMON_SPECIES[COMMON_SPECIES.length - 1]!.id}"]`)).toBeAttached();
 });

@@ -61,6 +61,23 @@
 > +1 Platz Trockenmauer (öffnet die Mauer ohne Pflege). Gemessen (24.7 und 24.10 „Stand 1a“):
 > Waldtypen ±2,9 % (vorher ±3,6 %), Landschaft vollständig nach 14,0 h (Harmonie) bzw. 13,3 h
 > (Wachstum), Abstand 5,6 %.
+> Seit Spielstand v16 (Phase 9, 2b, `DESIGN_V2.md` 26.3–26.6) gibt es die **Waldchronik** (sechs
+> Kapitel je Wald in `meta.landscape.sites[].chronicle`) und die sechs **Kennarten** (Haselmaus,
+> Biber, Moorfrosch, Ästiger Stachelbart, Luchs, Ziegenmelker; je Wald eine, nur im alten Wald
+> und erst mit der Landschaft, Bedingung `site`). v15-Stände bekommen die Kapitel, die sich
+> ableiten lassen, ohne Datum („Uralt geworden“, „Ein Wald erinnert sich“). Startwerte aus 26.3/
+> 26.4 (`CHRONICLE_HARMONY` 250, Kennarten besonders ab Hain, +4–6 ⚖️, +5–6 % 🌿/🌰); gemessen
+> wird in Aufgabe 2c. Abweichung vom Entwurf: Der Biber bringt +2 💧 und Feuchte statt „+1 Platz
+> Waldtümpel“ (eine Platz-Wirkung in der eigenen Nische machte ihm selbst Platz und öffnete als
+> Stammgast einen geschlossenen Tümpel, 26.3).
+>
+> **Geplant (Phase 10, `DESIGN_V2.md` 27, Spielstand v17):** Begegnungen nur noch mit Tieren
+> (dazu Ereignisse und Gäste), Pflanzen über die **Aussaat** (Samen, `20 · 1,75^(n−1)` 🌰 je
+> Kauf im Zyklus, erste gratis), die Pflege wird ein **Forschungsbaum** (6 Äste, 32 Knoten,
+> 5 Gabeln) mit Kosten in **Harmonie** – die Harmonie wird zur Produktion in ⚖️/min (gleiche
+> Zahl wie heute), die einen Vorrat füllt; der Bonus `1 + p/100` richtet sich nach der
+> Produktion. Vorab-Messung und Ziele: `DESIGN_V2.md` 27.10/27.11. Bis zur Umsetzung gelten die
+> Zahlen oben.
 >
 > **Geplant (Phase 10, `DESIGN_V2.md` 27, Spielstand v17):** Begegnungen nur noch mit Tieren
 > (dazu Ereignisse und Gäste), Pflanzen über die **Aussaat** (Samen, `20 · 1,75^(n−1)` 🌰 je
@@ -434,14 +451,16 @@ Neustart erst im Wald oder Urwald: gleitende Schwelle seit Schritt 2.11b (oben).
 
 Details, Katalog und Regeln: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 18 (Spielstand: 12.6).
 
-- **25 leise Meilensteine** (`src/content/achievements.ts`): Stufen (Setzling, Hain,
-  Urwald), Tagebuch (Arten 5/16/alle, alle Gattungen, Pflanzen 5/alle, Lebensgemeinschaften
-  1/5/alle), beste Harmonie 30/60/150, Gäste 1/10, Ereignisse 5, Pflege-Ränge 10, Zyklen
-  1/3/10, drei Hauptbaum-Arten, ein volles Jahr in einem Zyklus, 10 Stunden Spielzeit.
-- **7 Erfolge der Waldlandschaft** (`DESIGN_V2.md` 24.12), verborgen bis zu ihrer
-  Freischaltung (danach 32): zweiter Wald, zweiter Urwald, Wildwechsel (eine gewählte
+- **27 leise Meilensteine** (`src/content/achievements.ts`): Stufen (Setzling, Hain,
+  Urwald), Tagebuch (Arten 5/16/alle – „alle“ ohne Kennarten, alle Gattungen, Pflanzen 5/alle,
+  Lebensgemeinschaften 1/5/alle), beste Harmonie 30/60/150, Gäste 1/10, Ereignisse 5,
+  Pflege-Ränge 10, Zyklen 1/3/10, drei Hauptbaum-Arten, ein volles Jahr in einem Zyklus,
+  10 Stunden Spielzeit, Tagesziele (sieben Morgen in Folge, fünfzig erfüllte Ziele).
+- **10 Erfolge der Waldlandschaft** (`DESIGN_V2.md` 24.12, 26.5), verborgen bis zu ihrer
+  Freischaltung (danach 37): zweiter Wald, zweiter Urwald, Wildwechsel (eine gewählte
   Wildwechsel-Karte, seit v15), gekaufter Korridor, jede Hauptbaum-Art (alle fünf, seit v15),
-  Urwald überall, alle Korridore.
+  Urwald überall, alle Korridore, eine vollständige Waldchronik, alle sechs Chroniken, alle
+  Kennarten im Naturtagebuch (die drei letzten seit v16).
 - Keine Belohnung in Zahlen, keine Zeitlimits, keine Namen von Unentdecktem.
 - Anzeige: Naturtagebuch, Reiter „Erfolge“ (erreichte mit Beschreibung, offene gedämpft
   mit Fortschritt „3/5“); leiser Hinweis „🏅 Erfolg: …“ beim Freischalten.

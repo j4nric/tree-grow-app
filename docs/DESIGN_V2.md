@@ -7365,7 +7365,9 @@ meta.journal.firstSeen: {
 
 > **Stand:** Entwurf (Phase 9, Konzept). **26.2 ist umgesetzt (1a):** Die vorab gemessenen
 > Zahlen stehen in den Daten (`src/content/landscape.ts`) und sind mit dem offiziellen Lauf
-> nachgemessen – auf die Sekunde gleich (24.7 „Stand 1a“). Alles andere sind Startwerte, die 2c misst.
+> nachgemessen – auf die Sekunde gleich (24.7 „Stand 1a“). **26.3–26.6 sind umgesetzt (2b,
+> Spielstand v16)** mit den Startwerten unten – eine Abweichung beim Biber (26.3). Alles andere
+> sind Startwerte, die 2c misst.
 > Aufgaben und Reihenfolge: `docs/ROADMAP.md`, Phase 9.
 
 ### 26.1 Was nach der Landschaft trägt
@@ -7467,6 +7469,15 @@ selten, weil ein Platz nur ein Tier trägt. Kurztexte im Wetter-Text (`weatherSu
 „Oft Landregen, selten Dürre. Im Frühjahr steigt der Fluss – Regenreicher Frühling öfter.“,
 „… – Krötennächte öfter.“, „… – Buchenmast öfter.“
 
+**Anzeige (1c):** Die Anhänge „… öfter“ sind wieder aus `weatherSummary` entfernt – „Wetter: …“
+ist nur Wetter (Auwald: „Oft Landregen, selten Dürre – im Frühjahr steigt der Fluss.“). Die
+Ereignisse stehen an genau einer Stelle, abgeleitet aus `eventFactors` (Faktor > 1, Symbol und
+Name aus den Ereignis-Daten, `siteEventHints` in `ui/landscape-view.ts`): U:Standort zeigt die
+Zeile „Hier öfter: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr“, die Karte die Zeichen als
+kleines Schild an der linken oberen Ecke des Standorts (gegenüber dem Wetter-Zeichen), den Satz
+als Tooltip und im Namen des Knopfs. Heimatwald und Bergmischwald zeigen nichts, die Heide
+„🪲 Käferjahr“. Die Spielanleitung („Waldlandschaft“) sagt es in einem Satz.
+
 ### 26.3 Kennarten – die seltenen Bewohner alter Wälder
 
 Eine **Kennart** ist in der Pflanzensoziologie die Art, an der man einen Waldtyp erkennt. Im
@@ -7477,7 +7488,7 @@ Urwald war – genau dann, wenn es heute keinen Grund mehr gibt.
 | Wald | Kennart | Gattung · Nische | Seltenheit · ab | Wünsche (`needs`) | Wirkung | Text |
 |---|---|---|---|---|---|---|
 | 🌳 Heimatwald | 🐭 **Haselmaus** (`dormouse`) | Säugetiere · Krone | besonders · Hain | Sträucher ≥ 1 | +6 % 🌰, +4 ⚖️, nachtaktiv | „Schläft sieben Monate im Jahr – und klettert in Sommernächten bis in die Haselspitzen.“ |
-| 🌊 Auwald | 🦫 **Biber** (`beaver`) | Säugetiere · Waldtümpel | besonders · Hain | Feuchte | +1 Platz Waldtümpel, +4 ⚖️ | „Er staut den Bach, und wo vorher ein Rinnsal war, quaken bald die Frösche.“ |
+| 🌊 Auwald | 🦫 **Biber** (`beaver`) | Säugetiere · Waldtümpel | besonders · Hain | ~~Feuchte~~ **≥ 2 Bäume** (Review 2b) | ~~+1 Platz Waldtümpel~~ **+2 💧, schafft Feuchte** (2b, siehe unten), +4 ⚖️ | „Er staut den Bach, und wo vorher ein Rinnsal war, quaken bald die Frösche.“ |
 | 🐸 Erlenbruch | 🐸 **Moorfrosch** (`moorfrog`) | Amphibien · Waldtümpel | besonders · Hain | Feuchte, Moose & Farne ≥ 1 | Moose & Farne +10 % 🌿, +6 ⚖️ | „Ein paar Tage im Frühling sind die Männchen himmelblau. Dann ist das ganze Bruch ein Konzert.“ |
 | 🍂 Buchenhallen | 🍄 **Ästiger Stachelbart** (`hericium`) | Pilze · Stamm & Rinde | besonders · Hain | Totholz, schattig | +6 % 🌿, +4 ⚖️ | „Wie ein weißer Korallenstock an einer toten Buche. Er wächst nur, wo der Wald sehr alt ist.“ |
 | ⛰️ Bergmischwald | 🐈 **Luchs** (`lynx`) | Säugetiere · Waldrand | besonders · Hain | Bäume ≥ 3; frisst Rehe | +6 % 🌿, hält Rehe klein (−30 % Fraß), +4 ⚖️ | „Pinselohren im Unterholz. Du siehst ihn nie – er sieht dich immer.“ |
@@ -7497,6 +7508,16 @@ Urwald war – genau dann, wenn es heute keinen Grund mehr gibt.
   Haselmaus und Ziegenmelker in `NOCTURNAL` (21.6) mit Startwert „nachts +6 % 🌰“, nicht im
   Winter (die Haselmaus schläft, der Ziegenmelker ist in Afrika).
   Startwerte – 2c misst sie (±5 % je Waldtyp, Landschaft ±0,3 h).
+- **Biber, Abweichung in 2b:** „+1 Platz Waldtümpel“ wäre eine Platz-Wirkung in der **eigenen**
+  Nische – der Biber machte sich selbst Platz, und als Stammgast (Einzug ohne
+  Erscheinungsbedingung, `moveInRegulars`) öffnete er einen geschlossenen Tümpel, den das Laden
+  danach wieder kürzte (Regel „Platz-Wirkungen nie in der eigenen Nische“, `tests/content.test.ts`).
+  Darum mit vorhandenen Wirkungsarten: +2 💧 und das Merkmal Feuchte (`provides`), +4 ⚖️. Sein
+  Wunsch ist darum nicht mehr Feuchte, sondern ≥ 2 Bäume (zum Fällen): Sonst deckte er seinen
+  eigenen Wunsch und wäre in jedem Wald zufrieden (Regel „eine Art deckt nie ihren eigenen
+  Wunsch“, `tests/content.test.ts`). Frage
+  an 2c / Game Design: genügt das als Bild „staut den Bach“, oder soll er Platz in einer anderen
+  Nische schaffen?
 - **Wildwechsel:** Erlaubt und gewollt. Eine Kennart im Bestand (`fauna`) ihres Waldes kann
   über einen Korridor in einen Nachbarwald wechseln – die Regel „Erscheinungsbedingung nein“
   (24.6) gilt unverändert. Das Kapitel „Kennart“ zählt aber nur in ihrem eigenen Wald.
@@ -7598,6 +7619,11 @@ Neue Erfolge, ohne Zahlen-Belohnung (18.1):
   dem Laden (`catchUp` in `main.ts`) schaltet frei, was die Zähler schon erfüllen; ein erfülltes
   Tagesziel prüft die Erfolge sofort, beide stehen im selben Hinweis. Katalog bis 2b: 34 Erfolge
   (27 vor der Landschaft). Tests: `tests/achievements-daily.test.ts`, `e2e/daily.spec.ts`.
+- **Stand (Phase 9, 2b):** Bedingungsarten `chronicles` (`completedChronicles`) und `journal:
+  'kennarten'`; `journal: 'species'` zählt Wert und Ziel ohne Kennarten (`COMMON_SPECIES`). Die
+  drei Erfolge stehen hinter `corridors-all` am Ende des Katalogs, alle mit `requires:
+  'landscape'`. **Katalog 37** (27 vor der Landschaft). Nachtrag beim Laden wie 12.6 über die
+  erste Prüfung nach dem Laden (`catchUp`); kein eigener Migrationsschritt nötig.
 
 ### 26.6 Spielstand v16
 
@@ -7637,6 +7663,36 @@ still weg – über den Sync ginge dem neuen Gerät das Tagebuch verloren (Fall 
   `chronicleComplete(state, site)`, `completedChronicles(state)`, `kennartOf(site)`;
   Bericht `TickReport.chapters` / `OfflineReport.chapters`
   (`{ site, chapter }[]`, für Stempel und Rückkehr-Bericht).
+
+**Umgesetzt (2b):**
+
+- **Kapitel schreiben** `writeChapter` (core/landscape.ts) – nur im aktiven Wald, je Kapitel einmal,
+  Stempel `cycle.number` und Jahreszeit. Stellen: `ancient`/`memory` in `startNewCycle` nach der
+  Gutschrift (Stempel: der endende Zyklus); `first-snow` an der Winter-Grenze in `tick` (auch im
+  Schnellvorlauf über ganze Jahre, dort in der Reihenfolge der Grenzen Sommer → Herbst → Winter →
+  Frühling, damit Stempel und Reihenfolge wie Schritt für Schritt sind); `signature` in
+  `chooseEventOption`; `kennart` und `harmony` in `raiseMaxHarmony` (`syncActiveChronicle`) – also
+  nach jeder Änderung am Ökosystem und an H_max, online = offline. `TickReport.chapters`
+  (= `OfflineReport.chapters`) und `NewCycleResult.chapters` melden neue Kapitel; Aktionen
+  (Karte, Ereignis) melden sie nicht eigens – die Oberfläche vergleicht `chronicleOf` vorher/nachher.
+- **Inhalt:** dazu `ForestSite.chronicleEventTitle` (Titel des Kapitels je Wald, Tabelle oben);
+  `content/chronicle.ts` mit `CHAPTER_IDS`, `CHRONICLE_CHAPTERS`, `CHRONICLE_HARMONY`;
+  `species.ts` mit `kennartSite`, `isKennart`, `KENNARTEN`, `COMMON_SPECIES`; Haselmaus und
+  Ziegenmelker in `NOCTURNAL` („Nachtklettern“, „Dämmerungsjagd“). Tests:
+  `tests/chronicle.test.ts`, der Abgleich mit den Zeichnungen in `tests/render-kennarten.test.ts`.
+- **Bedingung `site`:** `oldSiteOf(state)` → `Ecosystem.oldSite` (ecosystemOf) →
+  `AppearsContext.oldSite`; Teil-Stände ohne Erfolgsliste zählen als „nicht frei“.
+- **Laden:** `loadChronicles` läuft in `loadGame` ganz zuletzt (nach migrateV13, das `ancient`
+  setzt). Zusätzlich zur Liste oben: `first-snow` nur, wenn der Wald alt ist (`isSiteAncient`).
+  Die Hauptbäume ruhender Wälder lädt loadLandscape wie bisher; Kennarten-IDs sind gewöhnliche
+  Art-IDs (Tagebuch, Nischen, Bestand, Stammgäste).
+- **Sync-Server:** kennt keine feste Versionsgrenze – er vergleicht die gemeldete `schema`
+  (SAVE_VERSION des Spiels) mit der gespeicherten (`outdated-client`, 422). Mit v16 lehnt er
+  v15-Geräte ab, ohne Änderung am Server.
+- **Oberfläche (klein, bis 3a):** Vor der Landschaft fehlen die Kennarten im Naturtagebuch (Raster,
+  Zähler „n von m“, Statistik, Spielanleitung samt Nachtaktiven; sie stehen hinten in `SPECIES`,
+  das Raster hängt ihre Zellen erst danach ein) und in den Pflanzen-Hinweisen („… für A, B und
+  n weitere“); Silhouette danach mit Hinweis „Kennart: 🌊 Auwald am Fluss – …“.
 
 **Inhalt (`src/content/`):** `ForestSite.kennart: string`, `ForestSite.chronicleEvent: string`,
 `ForestSite.keepsake: { icon, name, text }`; neue Datei `content/chronicle.ts` mit

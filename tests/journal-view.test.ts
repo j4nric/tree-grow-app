@@ -2,13 +2,32 @@ import { describe, expect, it } from 'vitest';
 import { COMMUNITIES } from '../src/content/communities';
 import { MEMORY_PER_REGULAR_SLOT, V1_KEEPSAKE_ID } from '../src/content/memory';
 import { PLANTS } from '../src/content/plants';
-import { SPECIES } from '../src/content/species';
+import { COMMON_SPECIES, KENNARTEN, SPECIES } from '../src/content/species';
 import { evaluate } from '../src/core/formulas';
 import { toJournalView } from '../src/ui/adapters';
 import { stateAt } from './helpers';
 
 /** Alles, was im View steht, als Text – für Spoiler-Prüfungen. */
 const allText = (value: unknown) => JSON.stringify(value);
+
+describe('Kennarten im Naturtagebuch (26.3): erst mit der Landschaft', () => {
+  it('vorher weder Silhouette noch Zähler noch Name; danach als Silhouette, entdeckt mit Namen', () => {
+    const state = stateAt(5);
+    const before = toJournalView(state, evaluate(state));
+    expect(before.species).toHaveLength(COMMON_SPECIES.length);
+    expect(before.tabCounts.species).toBe(`0/${COMMON_SPECIES.length}`);
+    for (const k of KENNARTEN) expect(allText(before), k.name).not.toContain(k.name);
+    // Landschaft frei: Urwald-Erfolg und genug Gedächtnis im Heimatwald.
+    state.meta.achievements.push('ancient-forest');
+    state.meta.forestMemory = 300;
+    state.meta.journal.species.push('dormouse');
+    const after = toJournalView(state, evaluate(state));
+    expect(after.species).toHaveLength(SPECIES.length);
+    expect(after.tabCounts.species).toBe(`1/${SPECIES.length}`);
+    expect(after.species[SPECIES.findIndex((s) => s.id === 'dormouse')]).toMatchObject({ discovered: true, name: 'Haselmaus' });
+    expect(after.species[SPECIES.findIndex((s) => s.id === 'beaver')]).toMatchObject({ discovered: false, name: '???' });
+  });
+});
 
 describe('toJournalView (Naturtagebuch)', () => {
   it('Start: alles unentdeckt, Zähler 0/51 · 0/14 · 0/15, keine Namen und keine IDs', () => {
@@ -17,7 +36,9 @@ describe('toJournalView (Naturtagebuch)', () => {
     expect(view.counts).toBe('0/51 Arten · 0/14 Pflanzen · 0/15 Gemeinschaften');
     expect(view.meta).toBe('Zyklus 1 · Waldgedächtnis 0');
     expect(view.regulars).toBeNull();
-    expect(view.species).toHaveLength(SPECIES.length);
+    // Vor der Landschaft ohne die Kennarten (DESIGN_V2.md 26.3): sie stehen hinten in SPECIES.
+    expect(view.species).toHaveLength(COMMON_SPECIES.length);
+    expect(SPECIES.slice(COMMON_SPECIES.length)).toEqual(KENNARTEN);
     expect(view.plants).toHaveLength(PLANTS.length);
     expect(view.communities).toHaveLength(COMMUNITIES.length);
     expect(view.keepsakes).toEqual([]);
