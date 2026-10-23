@@ -7453,6 +7453,15 @@ selten, weil ein Platz nur ein Tier trägt. Kurztexte im Wetter-Text (`weatherSu
 „Oft Landregen, selten Dürre. Im Frühjahr steigt der Fluss – Regenreicher Frühling öfter.“,
 „… – Krötennächte öfter.“, „… – Buchenmast öfter.“
 
+**Anzeige (1c):** Die Anhänge „… öfter“ sind wieder aus `weatherSummary` entfernt – „Wetter: …“
+ist nur Wetter (Auwald: „Oft Landregen, selten Dürre – im Frühjahr steigt der Fluss.“). Die
+Ereignisse stehen an genau einer Stelle, abgeleitet aus `eventFactors` (Faktor > 1, Symbol und
+Name aus den Ereignis-Daten, `siteEventHints` in `ui/landscape-view.ts`): U:Standort zeigt die
+Zeile „Hier öfter: 🌧️ Regenreicher Frühling, 🐌 Schneckenjahr“, die Karte die Zeichen als
+kleines Schild an der linken oberen Ecke des Standorts (gegenüber dem Wetter-Zeichen), den Satz
+als Tooltip und im Namen des Knopfs. Heimatwald und Bergmischwald zeigen nichts, die Heide
+„🪲 Käferjahr“. Die Spielanleitung („Waldlandschaft“) sagt es in einem Satz.
+
 ### 26.3 Kennarten – die seltenen Bewohner alter Wälder
 
 Eine **Kennart** ist in der Pflanzensoziologie die Art, an der man einen Waldtyp erkennt. Im
