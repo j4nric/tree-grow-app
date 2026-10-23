@@ -8151,6 +8151,18 @@ werden Knoten-Daten.
 ohne Voraussetzung auf seiner ersten Ebene; jede heutige Pflege-Wirkung kommt genau einmal vor
 (Migrations-Tabelle 27.9 vollständig); Texte ≤ 120 Zeichen; Kosten je Ebene steigend.
 
+**Umgesetzt (Phase 10, 1a):** `src/content/research.ts` (`RESEARCH`, `RESEARCH_BY_ID`,
+`RESEARCH_BRANCHES` mit Farbe, `RESEARCH_FORKS` mit den zwei Wegen und der Abwägung als Frage,
+`CARE_TO_RESEARCH`, `MIGRATION_HARMONY_MINUTES`) und `src/content/sowing.ts` (Aussaat-Konstanten),
+Tests in `tests/research.test.ts`. Abweichungen von der Liste oben: Der Wasser-Ast hat keinen Knoten
+ohne Voraussetzung (der Waldtümpel braucht den Kompost) – geprüft wird darum, dass die erste Ebene
+eines Asts nur Voraussetzungen aus *anderen* Ästen auf *früherer* Ebene hat. „Kosten steigend“
+gilt entlang jeder Voraussetzung (Humusschicht, Hain, 430 ⚖️ ist billiger als der Totholzhaufen,
+Alter Baum, 600 ⚖️ – aber teurer als Kompost und Laub, die sie braucht). An der Krone schließt
+jeder Knoten eines Weges jeden des anderen aus (`excludes` auf allen drei Ebenen), damit der
+Blocker `'excluded'` statt `'requires'` meldet. Die Bedingung „≥ 1 Insekt“ steht als `condition`
+am Insektenhotel; seine Folgeknoten erben sie über `requires`.
+
 ### 27.8 Neuer Zyklus und Prestige
 
 | | wird zurückgesetzt | bleibt |
@@ -8216,7 +8228,7 @@ interface LifetimeStats {
 **Migration v16 → v17** (niemand verliert eine Wirkung, die er schon hat):
 
 1. `cycle.care` → `cycle.research` nach dieser Tabelle, danach fehlende **Voraussetzungen**
-   geschenkt hinzufügen (z. B. Wiese ohne Wildblumen-Saum → Wildblumen-Saum dazu), soweit ihre
+   geschenkt hinzufügen (z. B. Insektenhotel ohne Wildblumen-Saum → Wildblumen-Saum dazu), soweit ihre
    Stufe erreicht ist; Reihenfolge = Reihenfolge in `RESEARCH`. Von zwei Kronen bleibt wie bisher
    nur die erste (8.2).
 
