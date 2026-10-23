@@ -1922,7 +1922,8 @@ function renderMemory(sc: SizeCache, memory: number, look: SeasonLook | null, sp
   if (species === 'oak') {
     paintTree(c, tree, hazeWood(seasonWood(WOOD, look), 0.7), hazePalette(seasonLeaves(PALETTES[2]!, look), 0.7), look ? look.leaves : 1);
   } else {
-    paintSpeciesTree(c, tree, species, hazeWood(seasonWood(speciesWood(species, WOOD, WOOD, 1), look), 0.7), hazePalette(speciesLeaves(species, PALETTES[2]!, look), 0.7), speciesLeafAmount(species, look), 0, look);
+    const haze = species === 'fir' ? firHaze(0.7) : 0.7;
+    paintSpeciesTree(c, tree, species, hazeWood(seasonWood(speciesWood(species, WOOD, WOOD, 1), look), haze), hazePalette(speciesLeaves(species, PALETTES[2]!, look), haze), speciesLeafAmount(species, look), 0, look);
   }
   sc.memoryCanvas = canvas;
   sc.memoryRect = r;
@@ -1936,7 +1937,7 @@ function paintOldForest(sc: SizeCache, g: number, plants: readonly ScenePlant[] 
   const { layout, dpr } = sc;
   const withPlants = plants !== undefined;
   const main = placeMainTree(layout, g, species);
-  const trees = placeNeighbors(neighborTrees(g, layout, withPlants), layout, withPlants);
+  const trees = placeNeighbors(neighborTrees(g, layout, withPlants), layout, withPlants, species);
   const flora = plants && plants.length > 0 ? layoutFlora(layout, g, plants, { main, species }) : [];
   let rect: Rect | null = null;
   for (const n of trees) rect = unionRect(rect, ...treeBounds(n.tree));
@@ -1951,7 +1952,7 @@ function paintOldForest(sc: SizeCache, g: number, plants: readonly ScenePlant[] 
   const c = canvas.getContext('2d')!;
   c.setTransform(dpr, 0, 0, dpr, -r.x - sc.ox * dpr, -r.y - sc.oy * dpr);
   const leaves = look ? look.leaves : 1;
-  for (const n of trees) paintTree(c, n.tree, hazeWood(seasonWood(WOOD, look), n.haze), hazePalette(seasonLeaves(n.palette, look), n.haze), leaves);
+  for (const n of trees) paintNeighbor(c, n, look, leaves);
   for (const p of flora) paintPlant(c, p, look);
   if (main) paintMainTree(c, main, g, species, look);
   return {
@@ -2137,8 +2138,11 @@ function paintSpeciesTree(
   if (species === 'fir') {
     if (g > 0) paintFirBark(ctx, t.geo, t.x, t.y, t.scale, g);
     // Junge Tanne: dichterer, regelmäßiger Kegel (vollere Fächer).
-    const dense = g > 0 ? 1 + 0.6 * (1 - smooth01((g - 3.5) / 2)) : 1;
-    paintFirTiers(ctx, t.geo, t.x, t.y, t.scale, palette, look ? look.snow : 0, dense, wood.shade);
+    // Ferne Tanne (g = 0): etwas vollere Fächer, sonst scheint zu viel Himmel durch.
+    const dense = g > 0 ? 1 + 0.6 * (1 - smooth01((g - 3.5) / 2)) : 1.3;
+    // Ferne Tanne: weniger Schnee – sonst leuchtet sie im Dunst weiß wie ein Gespenst.
+    const snow = look ? look.snow * (g > 0 ? 1 : 0.55) : 0;
+    paintFirTiers(ctx, t.geo, t.x, t.y, t.scale, palette, snow, dense, wood.shade);
     if (g > 0) paintFirCones(ctx, t.geo, t.x, t.y, t.scale, g, look);
     return;
   }
@@ -2249,9 +2253,9 @@ function renderLayers(
   // --- Nachbarbäume: hintere Reihe blasser als die vordere ---
   const back = layerContext(sc.back, sc);
   let backRect: Rect | null = null;
-  for (const n of placeNeighbors(neighbors, layout, withPlants)) {
+  for (const n of placeNeighbors(neighbors, layout, withPlants, species)) {
     backRect = unionRect(backRect, ...treeBounds(n.tree));
-    paintTree(back, n.tree, hazeWood(seasonWood(WOOD, look), n.haze), hazePalette(seasonLeaves(n.palette, look), n.haze), leaves);
+    paintNeighbor(back, n, look, leaves);
   }
 
   // --- Hauptbaum bzw. Keimling ---
@@ -2291,9 +2295,44 @@ function renderLayers(
   }
 }
 
+/** Ein platzierter Nachbarbaum: Laubbaum (Eichen-Zeichnung) oder junge Weißtanne. */
+interface PlacedNeighbor {
+  tree: PlacedTree;
+  haze: number;
+  palette: LeafPalette;
+  fir: boolean;
+}
+
+/**
+ * Nachbarbäume um eine Weißtanne (Bergmischwald): meist junge Tannen, jeder vierte eine
+ * Buche bzw. ein Laubbaum – ein Mischwald, aber kein runder Laubwald um den Nadelbaum.
+ */
+export function neighborIsFir(species: TreeSpecies, seed: number): boolean {
+  return species === 'fir' && (seed - 1000) % 4 !== 3;
+}
+
+/**
+ * Dunst für ferne Tannen: Ihre dunklen, schmalen Nadeletagen und die silbrige Rinde
+ * werden mit dem vollen Dunst fast weiß und durchscheinend („Geisterbaum“) – sie bekommen
+ * nur die Hälfte davon und wirken so so fern wie die Laubbäume daneben.
+ */
+export function firHaze(haze: number): number {
+  return haze * 0.5;
+}
+
+/** Zeichnet einen Nachbarbaum (Ebene „hinten“ bzw. alter Wald im Zyklus-Übergang). */
+function paintNeighbor(ctx: CanvasRenderingContext2D, n: PlacedNeighbor, look: SeasonLook | null, leaves: number): void {
+  if (!n.fir) {
+    paintTree(ctx, n.tree, hazeWood(seasonWood(WOOD, look), n.haze), hazePalette(seasonLeaves(n.palette, look), n.haze), leaves);
+    return;
+  }
+  const haze = firHaze(n.haze);
+  paintSpeciesTree(ctx, n.tree, 'fir', hazeWood(seasonWood(speciesWood('fir', WOOD, WOOD, 1), look), haze), hazePalette(speciesLeaves('fir', n.palette, look), haze), 1, 0, look);
+}
+
 /** Nachbarbäume platziert, in Zeichenreihenfolge: hintere Reihe (blasser) zuerst. */
-function placeNeighbors(neighbors: NeighborTree[], layout: Layout, withPlants: boolean): { tree: PlacedTree; haze: number; palette: LeafPalette }[] {
-  const out: { tree: PlacedTree; haze: number; palette: LeafPalette }[] = [];
+function placeNeighbors(neighbors: NeighborTree[], layout: Layout, withPlants: boolean, species: TreeSpecies = 'oak'): PlacedNeighbor[] {
+  const out: PlacedNeighbor[] = [];
   for (const far of [true, false]) {
     // Als Kulisse hinter Begleitpflanzen: blasser und etwas kleiner.
     const haze = withPlants ? 0.62 : far ? 0.5 : 0.25;
@@ -2301,7 +2340,10 @@ function placeNeighbors(neighbors: NeighborTree[], layout: Layout, withPlants: b
     for (const n of neighbors) {
       if (n.far !== far) continue;
       const maxH = (baseY - layout.top) * (withPlants ? 0.42 : far ? 0.5 : 0.66);
-      out.push({ tree: placeTree(n.g, n.seed, n.x, baseY, maxH, layout.width * 0.14), haze, palette: PALETTES[n.seed % PALETTES.length]! });
+      const fir = neighborIsFir(species, n.seed);
+      // Junge Tanne: schlanker Kegel, etwas schmaler als ein Laubbaum.
+      const tree = fir ? placeTree(n.g, n.seed, n.x, baseY, maxH, layout.width * 0.09, TREE_FORMS.fir) : placeTree(n.g, n.seed, n.x, baseY, maxH, layout.width * 0.14);
+      out.push({ tree, haze, palette: PALETTES[n.seed % PALETTES.length]!, fir });
     }
   }
   return out;

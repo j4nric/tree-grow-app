@@ -32,17 +32,6 @@ function rnd(i: number, salt: number): number {
   return (hash2(i, salt) & 1023) / 1023;
 }
 
-/** Oberes und unteres Ende aller Blattbüschel (Baum-Einheiten). */
-function leafSpan(geo: PlantGeometry): [number, number] {
-  let top = Infinity;
-  let bottom = -Infinity;
-  for (const l of geo.leaves) {
-    if (l.y < top) top = l.y;
-    if (l.y > bottom) bottom = l.y;
-  }
-  return [top, Math.max(bottom, top + 1e-6)];
-}
-
 // ---------------------------------------------------------------------------
 // Weißtanne
 // ---------------------------------------------------------------------------
@@ -64,6 +53,59 @@ interface Spray {
 
 /** Stützpunkte je Fächer (mehr = feinere Fransen). */
 const SPRAY_STEPS = 7;
+
+/**
+ * Umriss der benadelten Leittrieb-Spitze (Zeichenpixel, x/y abwechselnd) oder null, wenn
+ * der Stamm nicht über die oberste Etage hinausragt. Schmal und spitz, mit kleinen
+ * Nadelbüscheln an den Flanken; die Etagen werden darüber gezeichnet.
+ */
+export function firLeaderSpire(
+  geo: PlantGeometry,
+  ox: number,
+  oy: number,
+  scale: number,
+  sprays: readonly { top: number[]; w: number }[],
+  dense = 1,
+): number[] | null {
+  // Oberste kräftige Etage – die kleinen, jungen Quirle darüber sitzen an der Spitze.
+  let maxW = 0;
+  for (const sp of sprays) maxW = Math.max(maxW, sp.w);
+  let sprayTop = Infinity;
+  for (const sp of sprays) {
+    if (sp.w < maxW * 0.4) continue;
+    for (let k = 1; k < sp.top.length; k += 2) sprayTop = Math.min(sprayTop, sp.top[k]!);
+  }
+  if (!Number.isFinite(sprayTop)) return null;
+  // Stammstücke (Ordnung 0), deren Ende über der obersten Etage liegt: von unten nach oben.
+  const trunk = geo.branches.filter((b) => (b.order ?? 0) === 0 && oy + b.y2 * scale < sprayTop + 2).sort((p, q) => q.y2 - p.y2);
+  if (trunk.length === 0) return null;
+  const tip = trunk[trunk.length - 1]!;
+  const tx = ox + tip.x2 * scale;
+  const ty = oy + tip.y2 * scale;
+  const low = trunk[0]!;
+  // Fuß: etwas unter der obersten Etage, damit die Spitze nahtlos aus ihr wächst.
+  const bx = ox + low.x1 * scale;
+  const by = Math.max(oy + low.y1 * scale, sprayTop + 1);
+  const len = by - ty;
+  if (len < 2) return null;
+  const hb = Math.max(1.4, Math.min(scale * 0.028, 6)) * Math.min(dense, 1.4);
+  const N = 6;
+  const right: number[] = [];
+  const left: number[] = [];
+  for (let k = 0; k <= N; k++) {
+    const t = k / N;
+    const x = bx + (tx - bx) * t;
+    const y = by + (ty - by) * t;
+    // Abwechselnd Büschel und Einzug: wirkt benadelt statt glatt.
+    const tuft = k % 2 === 1 ? 1.25 : 0.85;
+    const hw = k === N ? 0 : hb * Math.pow(1 - t, 0.6) * tuft;
+    right.push(x + hw, y + (k % 2 === 1 ? hw * 0.5 : 0));
+    left.push(x - hw, y + (k % 2 === 1 ? hw * 0.5 : 0));
+  }
+  const out: number[] = [...right];
+  for (let k = left.length - 4; k >= 0; k -= 2) out.push(left[k]!, left[k + 1]!);
+  return out;
+}
 
 /**
  * Nadelzweige der Weißtanne: Jedes Aststück ab dem ersten Seitenast trägt einen flachen,
@@ -144,6 +186,21 @@ export function paintFirTiers(
     sprays.push({ top, fringe: back, arm: armPts, w, tone: Math.floor(rnd(i, 33) * 2.999), r });
   });
   if (sprays.length === 0) return;
+  // Leittrieb: Das Stammstück über der obersten Etage trägt Nadeln (schmale, aufrechte
+  // Spitze) – sonst ragt es als kahle graue Linie über die Krone.
+  const spire = firLeaderSpire(geo, ox, oy, scale, sprays, dense);
+  if (spire) {
+    ctx.fillStyle = palette.shadow;
+    ctx.beginPath();
+    for (let k = 0; k < spire.length; k += 2) ctx[k === 0 ? 'moveTo' : 'lineTo'](spire[k]! + 0.6, spire[k + 1]! + 0.6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = palette.tones[0];
+    ctx.beginPath();
+    for (let k = 0; k < spire.length; k += 2) ctx[k === 0 ? 'moveTo' : 'lineTo'](spire[k]!, spire[k + 1]!);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   /** Umriss eines Fächers – verschoben um dy; mit `down` > 0 nur ein Band unter der Oberkante. */
   const outline = (sp: Spray, dy: number, down = 0) => {
@@ -281,40 +338,84 @@ export function paintFirBark(ctx: CanvasRenderingContext2D, geo: PlantGeometry, 
   ctx.globalAlpha = 1;
 }
 
+/** Punkt auf dem Astarm (zwei Teilstücke) bei Anteil `t` der Länge, in Baum-Einheiten. */
+function armPoint(b: { x1: number; y1: number; mx: number; my: number; x2: number; y2: number }, t: number): [number, number] {
+  const l1 = Math.hypot(b.mx - b.x1, b.my - b.y1);
+  const l2 = Math.hypot(b.x2 - b.mx, b.y2 - b.my);
+  const d = t * (l1 + l2);
+  if (d <= l1) {
+    const u = d / (l1 || 1);
+    return [b.x1 + (b.mx - b.x1) * u, b.y1 + (b.my - b.y1) * u];
+  }
+  const u = (d - l1) / (l2 || 1);
+  return [b.mx + (b.x2 - b.mx) * u, b.my + (b.y2 - b.my) * u];
+}
+
 /**
- * Aufrechte Tannenzapfen auf den Etagen der oberen Krone, erst ab Alter Baum (g ≥ 4).
- * Im Sommer grünlich-violett, im Herbst braun; im Winter zerfallen die meisten (nur
- * noch wenige Spindeln).
+ * Plätze der aufrechten Tannenzapfen (Zeichenpixel): x, y (Fuß), Breite, Höhe je Zapfen.
+ * Sie sitzen auf der Oberseite kräftiger Äste der oberen Krone, in kleinen Gruppen von
+ * zwei bis drei, nie über dem Wipfel oder frei in der Luft. Erst ab Alter Baum (g ≥ 4);
+ * im Winter zerfallen die meisten (`snow`).
+ */
+export function firConeSpots(geo: PlantGeometry, ox: number, oy: number, scale: number, g: number, snow = 0): number[] {
+  const want = Math.min(14, (g - 4) * 6) * (1 - 0.75 * snow);
+  if (want <= 0) return [];
+  // Kräftige, benadelte Äste erster Ordnung (am Stamm), oberes Drittel der Krone.
+  const cand: number[] = [];
+  let top = Infinity;
+  let bottom = -Infinity;
+  geo.branches.forEach((b) => {
+    if ((b.order ?? 0) !== 1 || (b.bare ?? 0) > 0.05) return;
+    top = Math.min(top, b.y1);
+    bottom = Math.max(bottom, b.y1);
+  });
+  if (!Number.isFinite(top)) return [];
+  const line = top + (bottom - top) * 0.36;
+  geo.branches.forEach((b, i) => {
+    if ((b.order ?? 0) !== 1 || (b.bare ?? 0) > 0.05 || b.y1 > line) return;
+    const len = Math.hypot(b.mx - b.x1, b.my - b.y1) + Math.hypot(b.x2 - b.mx, b.y2 - b.my);
+    // Nur Äste, die lang genug sind, um Zapfen zu tragen (nicht der jüngste Quirl).
+    if (len * scale < 14 || len < 0.06) return;
+    cand.push(i);
+  });
+  if (cand.length === 0) return [];
+  // Je Ast eine Gruppe; Anteil der tragenden Äste stufenlos aus `want`.
+  const groups = want / 2.4;
+  const share = Math.min(1, groups / cand.length);
+  const h = Math.max(4.5, Math.min(scale * 0.045, 13));
+  const w = Math.max(2.2, h * 0.4);
+  const out: number[] = [];
+  for (const i of cand) {
+    if (rnd(i, 91) > share) continue;
+    const b = geo.branches[i]!;
+    const len = Math.hypot(b.mx - b.x1, b.my - b.y1) + Math.hypot(b.x2 - b.mx, b.y2 - b.my);
+    const n = 2 + (hash2(i, 93) % 2);
+    const t0 = 0.3 + 0.2 * rnd(i, 92);
+    // Oberkante des Nadelfächers über dem Astarm (wie in `paintFirTiers`, ohne `dense`).
+    const sprayW = Math.min(len * scale * 1.4, scale * 0.24) * (0.85 + 0.3 * rnd(i, 31));
+    for (let k = 0; k < n; k++) {
+      const [x, y] = armPoint(b, Math.min(0.85, t0 + k * 0.09));
+      // Leicht verschieden hoch; der Fuß steckt in der Oberkante des Fächers.
+      const hk = h * (0.8 + 0.3 * rnd(i * 4 + k, 94));
+      out.push(ox + x * scale, oy + y * scale - sprayW * 0.16, w, hk);
+    }
+  }
+  return out;
+}
+
+/**
+ * Aufrechte Tannenzapfen auf den Ästen der oberen Krone, erst ab Alter Baum (g ≥ 4).
+ * Im Sommer dunkel graugrün, im Herbst braun; im Winter zerfallen die meisten.
  */
 export function paintFirCones(ctx: CanvasRenderingContext2D, geo: PlantGeometry, ox: number, oy: number, scale: number, g: number, look: SeasonLook | null): void {
-  const want = Math.min(14, (g - 4) * 6);
-  if (want <= 0) return;
-  const [top, bottom] = leafSpan(geo);
-  const line = top + (bottom - top) * 0.32;
-  const upper: number[] = [];
-  geo.leaves.forEach((l, i) => {
-    if (l.level >= 2 && l.y <= line) upper.push(i);
-  });
-  if (upper.length === 0) return;
-  const winter = look ? look.snow : 0;
-  const share = Math.min(1, (want * (1 - 0.75 * winter)) / upper.length);
-  const color = mix('#6c6a48', '#8a5c38', look ? Math.max(look.autumn, winter) : 0);
-  const cones: number[] = [];
-  for (const i of upper) {
-    if (rnd(i, 91) > share) continue;
-    const l = geo.leaves[i]!;
-    const R = l.r * scale * 0.8;
-    const h = Math.max(6, R * 0.8);
-    const w = Math.max(2.6, h * 0.36);
-    const x = ox + l.x * scale + (rnd(i, 92) - 0.5) * R * 1.4;
-    const y = oy + l.y * scale - R * 0.22;
-    cones.push(x, y, w, h);
-  }
+  const cones = firConeSpots(geo, ox, oy, scale, g, look ? look.snow : 0);
+  if (cones.length === 0) return;
+  const color = mix('#5b4a46', '#6a4428', look ? Math.max(look.autumn, look.snow) : 0);
   ctx.fillStyle = color;
   ctx.beginPath();
   for (let k = 0; k < cones.length; k += 4) {
     const [x, y, w, h] = [cones[k]!, cones[k + 1]!, cones[k + 2]!, cones[k + 3]!];
-    // Walze mit gerundeter Spitze, steht auf der Etage.
+    // Walze mit gerundeter Spitze, steht auf dem Ast.
     ctx.moveTo(x - w / 2, y);
     ctx.lineTo(x - w / 2, y - h + w / 2);
     ctx.arc(x, y - h + w / 2, w / 2, Math.PI, 0);
@@ -322,12 +423,12 @@ export function paintFirCones(ctx: CanvasRenderingContext2D, geo: PlantGeometry,
     ctx.closePath();
   }
   ctx.fill();
-  ctx.fillStyle = mix(color, '#e6dcc0', 0.35);
-  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = mix(color, '#d8ccae', 0.4);
+  ctx.globalAlpha = 0.6;
   ctx.beginPath();
   for (let k = 0; k < cones.length; k += 4) {
     const [x, y, w, h] = [cones[k]!, cones[k + 1]!, cones[k + 2]!, cones[k + 3]!];
-    ctx.rect(x - w * 0.32, y - h + w * 0.6, Math.max(0.6, w * 0.22), h - w * 0.9);
+    ctx.rect(x - w * 0.3, y - h + w * 0.6, Math.max(0.6, w * 0.2), Math.max(0.5, h - w * 0.9));
   }
   ctx.fill();
   ctx.globalAlpha = 1;
