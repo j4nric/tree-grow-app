@@ -20,6 +20,7 @@ import {
   WILDWECHSEL_MAX_CHANCE,
 } from '../src/content/landscape';
 import { ACHIEVEMENTS } from '../src/content/achievements';
+import { EVENTS_BY_ID } from '../src/content/events';
 import { GENUS_INFO, TAG_NAMES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { MAIN_TREES_BY_ID, type TreeEffect } from '../src/content/trees';
@@ -165,6 +166,24 @@ describe('Waldlandschaft: Wetter je Waldtyp (24.14, Daten für Phase 7, 3c)', ()
     expect(more('floodplain', 'rain', 'spring')).toBe(true);
     expect(more('heath', 'drought', 'summer')).toBe(true);
     expect(more('carr', 'fog', 'autumn')).toBe(true);
+  });
+});
+
+describe('Waldlandschaft: Ereignisse je Waldtyp (24.13, Phase 7, 3e)', () => {
+  it('Heimatwald ohne Faktoren, Kiefernheide Käferjahr × 3', () => {
+    expect(LANDSCAPE_SITES_BY_ID.get(HOME_SITE)!.eventFactors).toEqual({});
+    expect(LANDSCAPE_SITES_BY_ID.get('heath')!.eventFactors).toEqual({ 'beetle-year': 3 });
+  });
+
+  it('Schlüssel nur bekannte Ereignis-IDs, Faktoren endlich, > 1 und ≤ 3', () => {
+    for (const site of LANDSCAPE_SITES) {
+      for (const [id, f] of Object.entries(site.eventFactors)) {
+        expect(EVENTS_BY_ID.has(id), `${site.id} ${id}`).toBe(true);
+        expect(Number.isFinite(f), `${site.id} ${id}`).toBe(true);
+        expect(f, `${site.id} ${id}`).toBeGreaterThan(1);
+        expect(f, `${site.id} ${id}`).toBeLessThanOrEqual(3);
+      }
+    }
   });
 });
 
