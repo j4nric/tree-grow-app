@@ -85,6 +85,9 @@
   width: 118%;
   height: 118%;
   flex: none;
+  /* Kein „Bild sichern“-Menü beim langen Tippen (iOS) – das Bild ist Teil des Albums. */
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 .sticker-img[data-empty] {
