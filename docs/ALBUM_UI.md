@@ -187,7 +187,7 @@ Spalte „heute“: Datei und, falls vorhanden, `data-ref`.
 | 67 | Stapel: Zahl, Symbol der vordersten Begegnung (`stackIcon`), öffnet auf Wunsch, schwebt mobil | encounter-stack.ts | Z | **Zettelstapel** „2 Zettel: Besuch wartet!“ (Text aus `waitingText`, Symbol bleibt). Neue Zettel wackeln. `data-ref="encounter-stack"` bleibt. |
 | 68 | Dialog „Kartenwahl“: Art, Titel, Untertitel, großes Symbol und Eckdaten (Ereignis/Gast), Warteschlange mit Pips | encounter-dialog.ts | U:Begegnung | Unterseite mit Zettel-Optik im Kopf |
 | 69 | Tierkarte: Gattungsband, Seltenheit, Name, Nische, Vorschau-Chips, Bedingungen, Wirkungen, Gemeinschafts-Hinweise (`card-communities`), Hinweis (`card-note`), Wildwechsel-Zeile (1c) | encounter-dialog.ts | U:Begegnung | Karten als „Polaroid-Kärtchen“ mit Sticker; Knopf „Einkleben“ statt „Wählen“ (Text aus dem View-Model) |
-| 70 | Ersetzen bei voller Nische („Wen entlassen?“, bevorzugte Option, Sperrgrund) | encounter-dialog.ts | U:Begegnung | unverändert in der Karte |
+| 70 | Ersetzen bei voller Nische („Wer zieht weiter?“, bevorzugte Option, Sperrgrund) | encounter-dialog.ts | U:Begegnung | unverändert in der Karte |
 | 71 | Pflanzenbegegnung („Etwas keimt …“) mit eigenen Fehlertexten | adapters.ts, main.ts | U:Begegnung | gleiche Seite |
 | 72 | Ereignis mit Optionen | `toEventView` | U:Begegnung | Optionen als Karten |
 | 73 | Durchreisender Gast: bewirten / ziehen lassen | `toVisitorView` | U:Begegnung | zwei Karten |
@@ -327,7 +327,9 @@ als Ganzes:
 ```
 
 - Sobald die Etiketten aus dem Bild scrollen, erscheint über den Reitern eine schmale
-  **Vorratsleiste** mit Samen, Wachstum und Harmonie in Caveat 20 px (G-21).
+  **Vorratsleiste** mit Samen, Wachstum und Harmonie in Caveat 20 px (G-21). Umgesetzt in
+  `album/supply-bar.ts`: Sie erscheint, sobald die Reiterleiste klebt (Marke direkt über den
+  Reitern), und verschiebt nichts im Textfluss. U:Pflegemaßnahme zeigt den Vorrat am Knopf.
 - **Unterseiten auf dem Handy:** Wie im Prototyp dreht sich die **ganze Hauptseite**
   (Polaroid, Etiketten, Heft) um die linke Kante weg, darunter liegt die Unterseite in voller
   Höhe. Der Zettelstapel und die Stempel bleiben darüber.

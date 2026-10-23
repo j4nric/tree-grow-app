@@ -7,6 +7,10 @@
  * U:Harmonie (Lebensgemeinschaften) und U:Nahrungsnetz. Tipp auf einen Sticker blättert zu
  * U:Tier um.
  *
+ * Verschlossene Nischen ohne Pflege-Knopf (und der verschlossene Pflanzring) stehen
+ * zusammengefasst in einer aufklappbaren Zeile „Noch 10 Nischen … verschlossen“; die beiden
+ * Links erscheinen erst, wenn es dort etwas zu sehen gibt (Playtest Schritt 14, S10).
+ *
  * DOM einmal bauen; `update` läuft nur, solange die Seite sichtbar ist, und schreibt nur bei
  * neuer Ökosystem-Ansicht (Struktur) bzw. neuer Zahl (Pflanzring) – nie pro Frame neu.
  */
@@ -17,7 +21,15 @@ import { familyCountLabel, familyDescription, familyProgress, formatPercent, nic
 import type { AnimalView, CommunityListView, EcosystemView, FamilyView, FoodWebView, NicheView, PlantRingView } from '../../view-model';
 import { createNote, openNote } from '../note';
 import { createStickerSlot, type StickerKind, type StickerSlot } from '../sticker';
-import { nichesPageHeader, slotOpensDetails, splitNiches } from './niches-view';
+import {
+  LOCKED_SUMMARY_HINT,
+  ecosystemLinksVisible,
+  isQuietLocked,
+  lockedSummary,
+  nichesPageHeader,
+  slotOpensDetails,
+  splitNiches,
+} from './niches-view';
 import type { PageEnv, TabPage } from './registry';
 import { createTabPanel } from './tab-pages';
 import './niches-page.css';
@@ -122,6 +134,36 @@ export function createNichesPage(env: PageEnv): NichesPage {
   let treeOrder = '';
   let habitatOrder = '';
 
+  // --- Verschlossenes, zusammengefasst ----------------------------------------------------
+  const locked = el('details', 'niches-locked');
+  locked.dataset.ref = 'niches-locked';
+  const lockedSummaryEl = el('summary', 'niches-locked-summary');
+  const lockedIcon = el('span', 'niches-locked-icon', '🔒');
+  lockedIcon.setAttribute('aria-hidden', 'true');
+  const lockedText = el('span', 'niches-locked-text');
+  lockedText.dataset.ref = 'niches-locked-text';
+  const lockedHint = el('span', 'niches-locked-hint', LOCKED_SUMMARY_HINT);
+  const lockedArrow = el('span', 'niches-locked-arrow', '›');
+  lockedArrow.setAttribute('aria-hidden', 'true');
+  lockedSummaryEl.append(lockedIcon, lockedText, lockedHint, lockedArrow);
+  const lockedList = el('ul', 'nrow-list niches-locked-list');
+  // Pflanzring, solange er verschlossen ist: eine Zeile wie die Nischen.
+  const ringLockedRow = el('li', 'nrow is-locked');
+  ringLockedRow.dataset.ref = 'plant-ring-locked';
+  const ringLockedLabel = el('div', 'nrow-label');
+  ringLockedLabel.append(el('span', 'nrow-title', '🌱 Pflanzring'), el('span', 'nrow-count', 'verschlossen'));
+  const ringLockedHint = el('span', 'nrow-hint-text');
+  const ringLockedContent = el('div', 'nrow-content');
+  const ringLockedP = el('p', 'nrow-hint');
+  ringLockedP.append(ringLockedHint);
+  ringLockedContent.append(ringLockedP);
+  ringLockedRow.append(ringLockedLabel, ringLockedContent);
+  locked.append(lockedSummaryEl, lockedList);
+  let lockedOrder = '';
+  /** Verschlossene Nischen ohne Pflege-Knopf, in der Reihenfolge der Ansicht. */
+  let quietIds: string[] = [];
+  let ringLocked = false;
+
   // --- Pflanzring ------------------------------------------------------------------------
   const ring = section('Pflanzring', 'niches-ring');
   ring.root.dataset.ref = 'plant-ring';
@@ -195,7 +237,7 @@ export function createNichesPage(env: PageEnv): NichesPage {
   communityLink.summary.setAttribute('aria-hidden', 'true');
   const foodWebLink = link('food-web-link', 'Nahrungsnetz', 'food-web-summary', () => env.open({ kind: 'foodweb' }));
 
-  page.body.append(tip, links, families.root, tree.root, habitats.root, ring.root);
+  page.body.append(tip, links, families.root, tree.root, habitats.root, ring.root, locked);
 
   let shownSerial = -1;
   let shownView: EcosystemView | null = null;
@@ -375,7 +417,8 @@ export function createNichesPage(env: PageEnv): NichesPage {
     if (row.list.hidden !== (needed === 0)) row.list.hidden = needed === 0;
   }
 
-  function updateNiches(list: readonly NicheView[], target: HTMLElement, order: string): string {
+  /** Zeilen aller Nischen anlegen bzw. auffrischen (wohin sie gehören, entscheidet `place`). */
+  function updateRows(list: readonly NicheView[]): void {
     for (const niche of list) {
       let row = rows.get(niche.id);
       if (!row) {
@@ -384,14 +427,32 @@ export function createNichesPage(env: PageEnv): NichesPage {
       }
       updateRow(row, niche);
     }
-    const next = list.map((n) => n.id).join('|');
-    if (next !== order) target.replaceChildren(...list.map((n) => rows.get(n.id)!.root));
+  }
+
+  /** Zeilen in eine Liste hängen – nur, wenn sich Auswahl oder Reihenfolge ändert. */
+  function place(target: HTMLElement, ids: readonly string[], order: string, extra: HTMLElement[] = []): string {
+    const next = [...ids, ...extra.map(() => '+')].join('|');
+    if (next !== order) target.replaceChildren(...ids.map((id) => rows.get(id)!.root), ...extra);
     return next;
+  }
+
+  /** Zusammenfassung „Noch … verschlossen“: Zeilen, Text, ganz weg ohne Verschlossenes. */
+  function placeLocked(): void {
+    lockedOrder = place(lockedList, quietIds, lockedOrder, ringLocked ? [ringLockedRow] : []);
+    setText(lockedText, lockedSummary(quietIds.length, ringLocked));
+    const none = quietIds.length === 0 && !ringLocked;
+    if (locked.hidden !== none) locked.hidden = none;
+    if (none && locked.open) locked.open = false;
   }
 
   // --- Pflanzring --------------------------------------------------------------------------
   function updateRing(view: PlantRingView): void {
     const locked = view.capacity <= 0;
+    // Verschlossen: als Zeile in der Zusammenfassung statt als eigener Abschnitt.
+    ring.root.hidden = locked;
+    setText(ringLockedHint, view.unlockHint ?? '');
+    ringLockedP.hidden = !view.unlockHint;
+    ringLocked = locked;
     ring.root.classList.toggle('is-locked', locked);
     setText(ringCount, nicheSlotsLabel(view.plants.length, view.capacity));
     setText(ringHint, locked ? (view.unlockHint ?? '') : '');
@@ -457,7 +518,9 @@ export function createNichesPage(env: PageEnv): NichesPage {
   }
 
   // --- Links ---------------------------------------------------------------------------------
-  function updateLinks(communities: CommunityListView, foodWeb: FoodWebView): void {
+  function updateLinks(communities: CommunityListView, foodWeb: FoodWebView, niches: readonly NicheView[]): void {
+    const discovered = communities.items.filter((c) => c.discovered).length;
+    links.hidden = !ecosystemLinksVisible(niches, discovered);
     setText(communityLink.summary, communities.summary);
     setText(communitySr, `: ${communities.summaryText}`);
     setText(foodWebLink.summary, foodWeb.summary);
@@ -473,15 +536,22 @@ export function createNichesPage(env: PageEnv): NichesPage {
       shownView = view;
       page.setMeta(nichesPageHeader(view.niches));
       updateFamilies(view.families);
+      updateRows(view.niches);
       const split = splitNiches(view.niches);
-      treeOrder = updateNiches(split.tree, treeList, treeOrder);
-      habitatOrder = updateNiches(split.habitats, habitatList, habitatOrder);
-      habitats.root.hidden = split.habitats.length === 0;
+      const openIds = (list: NicheView[]) => list.filter((n) => !isQuietLocked(n)).map((n) => n.id);
+      const treeIds = openIds(split.tree);
+      const habitatIds = openIds(split.habitats);
+      treeOrder = place(treeList, treeIds, treeOrder);
+      habitatOrder = place(habitatList, habitatIds, habitatOrder);
+      tree.root.hidden = treeIds.length === 0;
+      habitats.root.hidden = habitatIds.length === 0;
+      quietIds = [...split.tree, ...split.habitats].filter(isQuietLocked).map((n) => n.id);
       const present = new Set(view.niches.map((n) => n.id));
       for (const id of [...rows.keys()]) if (!present.has(id)) rows.delete(id);
-      updateLinks(view.communities, view.foodWeb);
+      updateLinks(view.communities, view.foodWeb, view.niches);
     }
     updateRing(view.plantRing);
+    placeLocked();
     filled = true;
   }
 

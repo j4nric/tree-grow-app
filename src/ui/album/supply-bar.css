@@ -1,0 +1,89 @@
+/* Vorratsleiste (supply-bar.ts, docs/ALBUM_UI.md B.0): mobil über der klebenden Reiterleiste. */
+
+.supply-marker {
+  height: 0;
+}
+
+.supply-bar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  height: 0;
+}
+
+.supply-bar-inner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 16px;
+  height: 30px; /* = Abstand der Reiter unten */
+  padding: 0 12px;
+  overflow: hidden;
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-100%);
+  transition:
+    transform 0.18s ease-out,
+    opacity 0.18s ease-out,
+    visibility 0s linear 0.18s;
+}
+
+.supply-bar.shown .supply-bar-inner {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    transform 0.18s ease-out,
+    opacity 0.18s ease-out;
+}
+
+.supply-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.supply-icon {
+  font-family: var(--font-text);
+  font-size: 13px;
+}
+
+.supply-seeds .supply-value {
+  color: var(--ink-seed);
+}
+
+.supply-growth .supply-value {
+  color: var(--ink-green);
+}
+
+/* Die Reiter rücken unter die Leiste, solange sie zu sehen ist. */
+.album[data-layout='single'] .supply-bar.shown + .tab-strip {
+  top: 30px;
+}
+
+.album[data-layout='spread'] .supply-bar,
+.album[data-layout='spread'] .supply-marker {
+  display: none;
+}
+
+body[data-motion='reduce'] .supply-bar-inner {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:not([data-motion='full']) .supply-bar-inner {
+    transition: none;
+  }
+}

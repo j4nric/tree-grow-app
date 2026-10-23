@@ -11,6 +11,7 @@ import { CARE_BY_ID } from '../../../content/care';
 import { evaluate, type Evaluation } from '../../../core/formulas';
 import { nextCareRank } from '../../../core/tick';
 import { toCareItemView, type CareItemView } from '../../care-view';
+import { seedsLine } from '../../view-format';
 import { el, setText, srOnly } from '../../dom';
 import { prefersReducedMotion, restartAnimation } from '../../feedback';
 import { hyphenate } from '../../hyphenate';
@@ -105,7 +106,10 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
   maxed.dataset.ref = 'care-item-maxed';
   const status = srOnly();
   status.setAttribute('role', 'status');
-  footer.append(buy, blocker, maxed, status);
+  // Vorrat direkt am Knopf: Auf der Unterseite sind die Etiketten mobil nicht zu sehen (S6).
+  const wallet = el('p', 'care-item-wallet');
+  wallet.dataset.ref = 'care-item-wallet';
+  footer.append(buy, blocker, maxed, wallet, status);
 
   page.body.append(head, flavor, effect, ranksSection, needsSection, footer);
 
@@ -153,6 +157,8 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
     if (!force && now - checkedAt < REFRESH_MS) return;
     checkedAt = now;
     const state = deps.state();
+    // Der Vorrat ändert sich laufend – nur der Text, gedrosselt wie die Seite.
+    setText(wallet, seedsLine(state.seeds, 0));
     const ev = evaluate(state);
     const key = itemKey();
     if (!force && ev === shownEval && key === shownKey) return;
@@ -228,6 +234,7 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
     setText(blocker, item.blocker ?? '');
     blocker.hidden = !item.blocker;
     maxed.hidden = item.group !== 'maxed';
+    wallet.hidden = item.group === 'maxed';
   }
 
   return {
