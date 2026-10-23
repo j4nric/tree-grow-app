@@ -823,7 +823,7 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
 
 **Welle 1 – Kleines zuerst** (ohne Spielstand-Änderung)
 
-- [ ] **1a** Ereignis und Lebensraum je Waldtyp (`game-designer`, 26.2): `eventFactors` Auwald
+- [x] **1a** Ereignis und Lebensraum je Waldtyp (`game-designer`, 26.2): `eventFactors` Auwald
   `{ rain: 2, 'slug-year': 3 }`, Erlenbruch `{ 'toad-migration': 3 }`, Buchenhallen
   `{ 'mast-year': 2, 'vole-year': 3 }`, Bergmischwald und Heimatwald `{}`, Kiefernheide wie
   bisher; Kiefernheide ab Hain +1 Platz Trockenmauer (Eigenheit `slot`), Kurztexte. Offiziellen
@@ -833,7 +833,12 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   mit einer Messung statt nach Gefühl: Das Schneckenjahr allein bliebe im Auwald unsichtbar
   (10 / 8 von 160), Regenreicher Frühling, Krötennacht und Buchenmast werden dagegen spürbar
   (78–81 %, 47–50 %, 56–66 %) – bei allen Wäldern innerhalb ±3 % (vorab gemessen, 26.2). Nur
-  Daten. Abhängig: nichts
+  Daten. Abhängig: nichts. **Erledigt:** Daten in `src/content/landscape.ts` (Kurztexte im
+  Wetter-Text und in der Eigenheit der Heide), Inhaltstests in `tests/landscape.test.ts`; der
+  offizielle Lauf (`tests/landscape-balance.test.ts`, „Waldtypen“ mit Spalten „ohne
+  Ereignis-Faktor“ und „Ereignis des Waldes“, neuer Lauf „Mauer-Platz“) bestätigt 26.2 auf die
+  Sekunde: alle Waldtypen ±2,9 % (24.7 „Stand 1a“). Der Mauer-Platz öffnet die Mauer ohne
+  Pflege; Sonnenmauer in der Heide 10 / 2 von 160 (vorher 3 / 0). Keine Zahl geändert
 - [ ] **1b** Album-Folgeaufgaben (`ui-dev`, 26.9): PNG-Kodierung bei kaltem Cache auf dem ersten
   Weg nach Arten messen (erst ab > 50 ms in einem Task handeln); `hidden="until-found"` mit
   `beforematch` für die aufgeschobenen Blöcke (`deferred-reveal.ts`), sonst wie heute;

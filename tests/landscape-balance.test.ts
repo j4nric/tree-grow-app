@@ -12,10 +12,13 @@ import {
   varietyLandscapeTable,
   wildwechselChanceTable,
   withoutFeatured,
+  withoutSiteEvents,
+  withoutSiteSlot,
   withoutSiteWeather,
   type LandscapeSummary,
 } from '../scripts/landscape';
 import { LANDSCAPE_SITES, SITE_IDS } from '../src/content/landscape';
+import { EVENTS_BY_ID } from '../src/content/events';
 import { SEASON_IDS } from '../src/content/seasons';
 import { WEATHERS } from '../src/content/weather';
 import { averageWeatherEffectsFor, isRough, weatherOfDayFromSeed, weatherSeed } from '../src/core/weather';
@@ -56,7 +59,7 @@ const WW_VARIANTS = (env.SIM_LANDSCAPE_WW ?? 'on,off,none').split(',');
  */
 const SITE_WEATHER = env.SIM_LANDSCAPE_SITE_WEATHER !== 'off';
 const withSiteWeatherSetting = <T>(fn: () => T): T => (SITE_WEATHER ? fn() : withoutSiteWeather(fn));
-const pct = (x: number) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1).replace('.', ',')} %`;
+const pct = (x: number) => (Math.abs(x) < 0.0005 ? '±0,0 %' : `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1).replace('.', ',')} %`);
 
 describe('Waldlandschaft – Simulation (kurz)', { timeout: 120_000 }, () => {
   it('ein Harmonie-Spieler schaltet die Landschaft frei und gründet den zweiten Wald (echte Logik)', () => {
@@ -133,32 +136,64 @@ describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', { timeou
     }
   });
 
-  it('Waldtypen im Vergleich (wie die Baumarten, 17.4), mit und ohne Wetter je Standort, Käferjahr', () => {
-    const head = '| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | Wachstum: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | Käferjahr H / W (ohne) |';
-    const lines = [head, '|---|---|---|---|---|---|---|---|---|'];
+  it('Waldtypen im Vergleich (wie die Baumarten, 17.4), mit und ohne Wetter je Standort, Ereignis des Waldes', () => {
+    const head =
+      '| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | ohne Ereignis-Faktor | Wachstum: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | ohne Ereignis-Faktor | Ereignis des Waldes H / W (ohne Faktor) | Käferjahr H / W (ohne Wetter) |';
+    const lines = [head, '|---|---|---|---|---|---|---|---|---|---|---|---|'];
     const home: Record<string, number> = {};
     const cells: Record<string, string[]> = {};
     const beetle: Record<string, string[]> = {};
+    // Ereignis des Waldes (26.2): je Ereignis-ID mit Faktor die Durchgänge mit dem Ereignis bis zum Urwald.
+    const own: Record<string, Record<string, string[]>> = {};
     const deviations: string[] = [];
     const runs = (strategy: Strategy, site: (typeof SITE_IDS)[number]) => Array.from({ length: SITE_RUNS }, (_, k) => siteRun(strategy, site, 3000 + k, 200));
+    const count = (rs: { seen: string[] }[], id: string) => rs.filter((r) => r.seen.includes(id)).length;
     for (const strategy of [HARMONY, GROWTH]) {
       for (const site of SITE_IDS) {
         const withWeather = runs(strategy, site);
         const plain = withoutSiteWeather(() => runs(strategy, site));
+        const data = LANDSCAPE_SITES.find((s) => s.id === site)!;
+        const hasFactors = Object.keys(data.eventFactors).length > 0;
+        const noEvents = hasFactors ? withoutSiteEvents(() => runs(strategy, site)) : withWeather;
         const t = median(withWeather.map((r) => r.seconds ?? 6 * 3600));
         const t0 = median(plain.map((r) => r.seconds ?? 6 * 3600));
-        // Der Heimatwald hat keine Faktoren: mit und ohne gleich – Bezug für beide Spalten.
+        const tE = median(noEvents.map((r) => r.seconds ?? 6 * 3600));
+        // Der Heimatwald hat keine Faktoren: mit und ohne gleich – Bezug für alle Spalten.
         if (site === 'home') home[strategy.id] = t;
         const rel = t / home[strategy.id]! - 1;
-        (cells[site] ??= []).push(formatTime(t), pct(rel), pct(t0 / home[strategy.id]! - 1));
-        const count = (rs: { seen: string[] }[]) => rs.filter((r) => r.seen.includes('beetle-year')).length;
-        (beetle[site] ??= []).push(`${count(withWeather)} (${count(plain)})`);
+        (cells[site] ??= []).push(formatTime(t), pct(rel), pct(t0 / home[strategy.id]! - 1), hasFactors ? pct(tE / home[strategy.id]! - 1) : '–');
+        (beetle[site] ??= []).push(`${count(withWeather, 'beetle-year')} (${count(plain, 'beetle-year')})`);
+        for (const id of Object.keys(data.eventFactors)) ((own[site] ??= {})[id] ??= []).push(`${count(withWeather, id)} (${count(noEvents, id)})`);
         if (Math.abs(rel) >= 0.05) deviations.push(`${strategy.id} ${site} ${(rel * 100).toFixed(1)} %`);
       }
     }
-    for (const s of LANDSCAPE_SITES) lines.push(`| ${s.icon} ${s.name} | ${s.leadTree ?? 'oak'} | ${cells[s.id]!.join(' | ')} | ${beetle[s.id]!.join(' / ')} von ${SITE_RUNS} |`);
+    for (const s of LANDSCAPE_SITES) {
+      const ev = Object.entries(own[s.id] ?? {}).map(([id, c]) => `${EVENTS_BY_ID.get(id)?.icon ?? ''} ${c.join(' / ')}`).join('; ') || '–';
+      lines.push(`| ${s.icon} ${s.name} | ${s.leadTree ?? 'oak'} | ${cells[s.id]![0]} | ${cells[s.id]![1]} | ${cells[s.id]![2]} | ${cells[s.id]![3]} | ${cells[s.id]![4]} | ${cells[s.id]![5]} | ${cells[s.id]![6]} | ${cells[s.id]![7]} | ${ev} | ${beetle[s.id]!.join(' / ')} von ${SITE_RUNS} |`);
+    }
     console.log(lines.join('\n'));
     expect(deviations).toEqual([]);
+  });
+
+  it('Kiefernheide: Mauer-Platz ab Hain und Sonnenmauer (26.2, 23.9)', () => {
+    const lines = ['| Spielweise | Variante | Urwald | Sonnenmauer | Mauer bewohnt im Urwald | Tiere auf der Mauer (Median, bewohnt) |', '|---|---|---|---|---|---|'];
+    for (const strategy of [HARMONY, GROWTH]) {
+      const runs = (care = true) => Array.from({ length: SITE_RUNS }, (_, k) => siteRun(strategy, 'heath', 3000 + k, 200, undefined, undefined, care));
+      // „ohne Pflege“: Öffnet der Mauer-Platz allein die Mauer (wie der Tümpel-Platz von Auwald und Erle)?
+      const variants = [
+        ['mit Mauer-Platz', runs()],
+        ['ohne Mauer-Platz', withoutSiteSlot('heath', 'wall', () => runs())],
+        ['mit Mauer-Platz, ohne Pflege', runs(false)],
+        ['ohne Mauer-Platz, ohne Pflege', withoutSiteSlot('heath', 'wall', () => runs(false))],
+      ] as const;
+      for (const [label, rs] of variants) {
+        const housed = rs.filter((r) => r.wall > 0);
+        lines.push(
+          `| ${strategy.id} | ${label} | ${formatTime(median(rs.map((r) => r.seconds ?? 6 * 3600)))} | ${rs.filter((r) => r.communities.includes('sun-wall')).length} von ${SITE_RUNS} | ${housed.length} von ${SITE_RUNS} | ${housed.length > 0 ? median(housed.map((r) => r.wall)) : '–'} |`,
+        );
+      }
+    }
+    console.log(lines.join('\n'));
   });
 
   it('Wetter je Standort: Häufigkeiten nach den Regeln und Mittel über das Jahr (24.14, echte Logik)', () => {
