@@ -986,7 +986,7 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   `CARE_TO_RESEARCH`), Aussaat-Konstanten in `src/content/sowing.ts`, neue Wirkungen als Typ
   `ResearchEffect` in `research.ts` (keine Änderung an `content/types.ts` oder `core/`),
   `tests/research.test.ts`; drei neue Wörter in `ui/hyphenate.ts`.
-- [ ] **1b** Aussaat-Animation (`renderer`, 27.12): Samen (Ahornflügel, Pusteblume) fliegen vom
+- [x] **1b** Aussaat-Animation (`renderer`, 27.12): Samen (Ahornflügel, Pusteblume) fliegen vom
   Rand in den Pflanzring; einmal je Setzen, gecacht, reduzierte Bewegung ohne; zunächst nur in der
   Demo (`?demo=sowing`). **Warum:** Die Aussaat ersetzt ein Ereignis, das der Spieler „bekam“ –
   ein sichtbarer Moment macht den Kauf zum Säen. Unabhängig von allem. Abhängig: nichts
