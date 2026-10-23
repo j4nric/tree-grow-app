@@ -429,6 +429,8 @@ function runDaily(options: DailyUpdateOptions, float = true): string {
   const queued = state.pendingEncounters.length;
   const result = updateDaily(state, today(), options);
   if (!result.rolled && result.completed.length === 0) return '';
+  // Erfolge der Tagesziele (DESIGN_V2.md 26.5) gleich nach dem Zählen – im selben Hinweis.
+  const unlocked = result.completed.length > 0 ? checkAchievements(state) : [];
   persist();
   invalidate('eco');
   if (result.completed.length === 0) return '';
@@ -436,7 +438,7 @@ function runDaily(options: DailyUpdateOptions, float = true): string {
   invalidate('picker');
   sound.cue('achievement');
   if (float) album.floatSeeds(state.seeds - seedsBefore);
-  return dailyCompletedText(result.completed, result.perfect, state.meta.daily.streak);
+  return joinNotes(dailyCompletedText(result.completed, result.perfect, state.meta.daily.streak), achievementUnlockedText(unlocked));
 }
 
 /**

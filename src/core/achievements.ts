@@ -104,6 +104,9 @@ export function valueOf(state: GameState, condition: AchievementCondition, optio
     }
     case 'ancientForests':
       return foundedSites(state).filter((id) => isSiteAncient(state, id)).length;
+    case 'daily':
+      // Ganze Zähler (das Laden normalisiert sie schon); fehlt `meta.daily`, zählt 0.
+      return Math.floor(safe(state.meta.daily?.[condition.key]));
   }
 }
 

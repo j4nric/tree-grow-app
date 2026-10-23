@@ -107,7 +107,7 @@ describe('Inhalte', () => {
 
   it('decken das ganze Spiel ab (jede Bedingungsart mindestens einmal)', () => {
     const kinds = new Set(ACHIEVEMENTS.map((a) => a.condition.kind));
-    expect([...kinds].sort()).toEqual(['ancientForests', 'corridors', 'cycleTime', 'cycles', 'forests', 'genera', 'journal', 'stage', 'stat', 'trees']);
+    expect([...kinds].sort()).toEqual(['ancientForests', 'corridors', 'cycleTime', 'cycles', 'daily', 'forests', 'genera', 'journal', 'stage', 'stat', 'trees']);
   });
 });
 
@@ -269,6 +269,7 @@ describe('checkAchievements', () => {
     s.meta.stats = { ...createStats(), playSeconds: 1e300, bestHarmony: 1e300, visitorsHosted: 99, eventsDecided: 99, careRanksBought: 99, wildwechselChosen: 1, grownTrees: MAIN_TREES.map((t) => t.id) };
     s.cycle.number = 11;
     s.cycle.elapsed = YEAR_SECONDS;
+    s.meta.daily = { ...s.meta.daily, bestStreak: 1e300, goalsDone: 1e300, perfectDays: 1e300 };
     // Ganze Landschaft: alle Wälder Urwald, alle Korridore, die Speichen gratis.
     const spokes = CORRIDORS.filter((c) => c.sites.includes('home')).map((c) => c.id);
     s.meta.landscape = {

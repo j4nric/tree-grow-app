@@ -1,4 +1,4 @@
-import type { LifetimeStats } from '../core/state';
+import type { DailyState, LifetimeStats } from '../core/state';
 import { YEAR_SECONDS } from './seasons';
 
 /**
@@ -19,6 +19,9 @@ import { YEAR_SECONDS } from './seasons';
 
 /** Zählbare Felder der Langzeit-Statistik (`meta.stats`). */
 export type AchievementStat = Exclude<keyof LifetimeStats, 'grownTrees' | 'completedCyclesGrowth'>;
+
+/** Zähler der Tagesziele (`meta.daily`, seit v12) – alle wachsen nur (DESIGN_V2.md 26.5). */
+export type AchievementDailyKey = Extract<keyof DailyState, 'bestStreak' | 'goalsDone' | 'perfectDays'>;
 
 /** Zielwert: eine Anzahl oder „alle“ (wächst mit neuen Inhalten mit). */
 export type AchievementTarget = number | 'all';
@@ -46,7 +49,9 @@ export type AchievementCondition =
    */
   | { kind: 'corridors'; atLeast: AchievementTarget; bought?: boolean }
   /** Wälder, in denen schon einmal der Urwald erreicht wurde ('all' = SITE_IDS.length). */
-  | { kind: 'ancientForests'; atLeast: AchievementTarget };
+  | { kind: 'ancientForests'; atLeast: AchievementTarget }
+  /** Zähler der Tagesziele (`meta.daily`): längste Serie, erfüllte Ziele, perfekte Tage. */
+  | { kind: 'daily'; key: AchievementDailyKey; atLeast: number };
 
 export interface Achievement {
   /** Fest, Teil des Spielstands. */
@@ -101,6 +106,10 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'trees-all', icon: '🍂', title: 'Baumkundig', description: 'Drei Hauptbaum-Arten sind einmal gewachsen.', condition: { kind: 'trees', atLeast: 3 } },
   { id: 'full-year', icon: '🗓️', title: 'Ein ganzes Jahr', description: 'Ein Zyklus erlebt ein volles Jahr mit allen vier Jahreszeiten.', condition: { kind: 'cycleTime', atLeast: YEAR_SECONDS } },
   { id: 'patience', icon: '⏳', title: 'Geduld der Bäume', description: 'Zehn Stunden Spielzeit über alle Zyklen.', condition: { kind: 'stat', key: 'playSeconds', atLeast: PATIENCE_SECONDS } },
+  // --- Tagesziele (26.5) -----------------------------------------------------
+  // Sanftes Ritual: kein Andenken, keine Zahl. Die Zähler stehen seit v12 in `meta.daily`.
+  { id: 'daily-streak-7', icon: '🌅', title: 'Sieben Morgen', description: 'Sieben Tage in Folge ein Tagesziel erfüllt.', condition: { kind: 'daily', key: 'bestStreak', atLeast: 7 } },
+  { id: 'daily-50', icon: '🧺', title: 'Fünfzig Handgriffe', description: 'Fünfzig Tagesziele erfüllt.', condition: { kind: 'daily', key: 'goalsDone', atLeast: 50 } },
   // --- Landschaft ------------------------------------------------------------
   // Verborgen bis zur Freischaltung (24.12); Texte ohne Standorte, Korridore und Baumarten.
   { id: 'forest-2', icon: '🪶', title: 'Weite Wege', description: 'Ein zweiter Wald ist gegründet.', condition: { kind: 'forests', atLeast: 2 }, requires: 'landscape' },
