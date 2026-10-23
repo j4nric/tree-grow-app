@@ -78,9 +78,12 @@ describe('Inhalt: Kennarten (26.3)', () => {
       // Nie ein Wunsch `site` (die Bedingung ist nur fürs Erscheinen).
       expect(sp.needs.some((c) => c.kind === 'site'), sp.id).toBe(false);
     }
-    // Nur Kennarten tragen `site`; der Luchs braucht dazu das Reh.
+    // Nur Kennarten tragen `site`. Keine Kennart hat eine weitere Bedingung (Playtest Phase 9, 4b:
+    // „Reh“ sperrte den Luchs für Spieler ohne Reh) – jeder alte Wald zeigt seine Kennart.
     for (const s of SPECIES) expect(kennartSite(s) !== null, s.id).toBe(isKennart(s.id));
-    expect(SPECIES_BY_ID.get('lynx')!.appears).toContainEqual({ kind: 'species', id: 'deer' });
+    for (const k of KENNARTEN) expect(k.appears, k.id).toEqual([{ kind: 'site', site: kennartSite(k) }]);
+    // Der Luchs frisst weiter Rehe (Nahrungsnetz), braucht sie aber nicht zum Erscheinen.
+    expect(SPECIES_BY_ID.get('lynx')!.food).toContain('rehe');
     expect(COMMON_SPECIES.length + KENNARTEN.length).toBe(SPECIES.length);
   });
 
@@ -164,11 +167,13 @@ describe('Bedingung `site`: Kennarten nur im alten Wald und nie vor der Landscha
     expect(oldSiteOf(old)).toBe('floodplain');
     expect(speciesAppears(appearsContext(ecosystemOf(old)), SPECIES_BY_ID.get('beaver')!)).toBe(true);
     expect(speciesAppears(appearsContext(ecosystemOf(old)), SPECIES_BY_ID.get('dormouse')!)).toBe(false);
-    // Der Luchs braucht dazu das Reh.
+    // Der Luchs erscheint im alten Bergmischwald auch ohne Reh (Playtest Phase 9, 4b), mit Reh ebenso.
     const mountain = forest(5, { active: 'mountain', ancient: true });
-    expect(speciesAppears(appearsContext(ecosystemOf(mountain)), SPECIES_BY_ID.get('lynx')!)).toBe(false);
+    expect(speciesAppears(appearsContext(ecosystemOf(mountain)), SPECIES_BY_ID.get('lynx')!)).toBe(true);
     const withDeer = forest(5, { active: 'mountain', ancient: true, animals: ['deer'] });
     expect(speciesAppears(appearsContext(ecosystemOf(withDeer)), SPECIES_BY_ID.get('lynx')!)).toBe(true);
+    // Nur im alten: derselbe Wald, noch nie Urwald.
+    expect(speciesAppears(appearsContext(ecosystemOf(forest(5, { active: 'mountain' }))), SPECIES_BY_ID.get('lynx')!)).toBe(false);
   });
 
   it('wird im alten Wald wirklich gezogen (Haselmaus im Heimatwald)', () => {
