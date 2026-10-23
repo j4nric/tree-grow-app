@@ -435,10 +435,10 @@ describe('Spielstand v15 (25.5)', () => {
   }
 
   it('SAVE_VERSION 16 (seit v15): Stand mit Weißtanne und Schwarzerle lädt und behält beide (Roundtrip gleich)', () => {
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
     const state = firState();
     recordDiscoveries(state);
-    expect(state.version).toBe(16);
+    expect(state.version).toBe(17);
     const loaded = loadGame(serialize(state), 0)!.state;
     expect(loaded).toEqual(state);
     expect(loaded.cycle.mainTree).toBe('fir');
@@ -456,7 +456,8 @@ describe('Spielstand v15 (25.5)', () => {
     const loaded = loadGame(JSON.stringify(data), 0)!;
     expect(loaded.state.version).toBe(SAVE_VERSION);
     expect(loaded.state.meta.stats.wildwechselChosen).toBe(0);
-    expect(loaded.state).toEqual(loadGame(serialize(state), 0)!.state);
+    // Bis auf das Startguthaben der Forschung (Migration v16 → v17, 27.9) wie ein aktueller Stand.
+    expect(loaded.state).toEqual({ ...loadGame(serialize(state), 0)!.state, harmonyPoints: loaded.state.harmonyPoints });
     expect(loaded.landscapeUnlocked).toBe(false);
   });
 
@@ -631,7 +632,9 @@ describe('online = offline mit den neuen Hauptbäumen', { timeout: 60_000 }, () 
       expect(big.rngState, tree).toBe(small.rngState);
       expect(big.niches, tree).toEqual(small.niches);
       expect(big.totalGrowth / small.totalGrowth, tree).toBeCloseTo(1, 6);
-      expect(big.meta.stats, tree).toEqual({ ...small.meta.stats, playSeconds: big.meta.stats.playSeconds });
+      // Gesammelte Harmonie (v17) wie die Samen: gleich bis auf Rundung.
+      expect(big.meta.stats.harmonyEarned / small.meta.stats.harmonyEarned, tree).toBeCloseTo(1, 9);
+      expect(big.meta.stats, tree).toEqual({ ...small.meta.stats, playSeconds: big.meta.stats.playSeconds, harmonyEarned: big.meta.stats.harmonyEarned });
       expect(big.stage, tree).toBeGreaterThan(3);
     }
   });

@@ -8,7 +8,7 @@
  */
 import { LANDSCAPE_SITES_BY_ID, type SiteId } from '../content/landscape';
 import { ABILITY_INFO } from '../content/abilities';
-import { CARE, CARE_BY_ID, type CareEffect } from '../content/care';
+import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_BY_ID, type ResearchEffect, type ResearchNode } from '../content/research';
 import { COMMUNITIES, COMMUNITIES_BY_ID } from '../content/communities';
 import { EVENTS_BY_ID, type CycleEffect, type EventOption, type TimedEffect } from '../content/events';
 import { KEEPSAKE_INFO, MEMORY_PER_REGULAR_SLOT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
@@ -72,12 +72,11 @@ import type { SceneAnimal, ScenePlant, ScenePlantGroup, SceneVisitor } from '../
 import {
   MAX_OFFLINE_SECONDS,
   allWaypointsReached,
-  careBlocker,
-  careRank,
   chooseEventOption,
-  nextCareRank,
-  previewCare,
-  type CareBlocker,
+  isResearched,
+  previewResearch,
+  researchBlocker,
+  type ResearchBlocker,
   eventOptionSeeds,
   hostBlocker,
   plantBlocker,
@@ -92,6 +91,7 @@ import {
 import { formatDuration, formatNumber } from './format';
 import { animalStock, foodWebView, huntFoodText, overhuntNotes, preyIcon, stockEffectView } from './food-web-view';
 import { memoryBonusLabel, treeLabel } from './cycle-view';
+import { researchSlotNodes } from './regular-wait';
 import { effectiveForestMemory, landscapeUnlocked } from '../core/landscape';
 import { RARITY_LABELS, formatSigned, formatSignedPercent, isFullHappiness, isScarceFood, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
@@ -435,18 +435,8 @@ function slotProviders(nicheId: NicheId): string[] {
   );
 }
 
-/**
- * Pflegemaßnahmen, deren erster Rang Plätze in der Nische schafft (z. B. „Waldtümpel“) –
- * für Nischen ohne Plätze aus der Stufe und ohne Tiere, die sie öffnen.
- */
-function careSlotMeasures(nicheId: NicheId) {
-  return CARE.filter((m) =>
-    m.ranks[0]?.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === nicheId && e.effect.amount > 0),
-  );
-}
-
-function careSlotProviders(nicheId: NicheId): string[] {
-  return careSlotMeasures(nicheId).map((m) => `Pflege „${m.name}“ (ab „${STAGES[m.ranks[0]!.minStage]?.name ?? '?'}“)`);
+function researchSlotProviders(nicheId: NicheId): string[] {
+  return researchSlotNodes(nicheId).map((n) => `Forschung „${n.name}“ (ab „${STAGES[n.minStage]?.name ?? '?'}“)`);
 }
 
 /** Name der Stufe, ab der eine Nische Plätze hat (oder null, wenn nie). */
@@ -538,12 +528,12 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
         const who = openers.join(' oder ');
         view.unlockHint = view.unlockHint ? `${view.unlockHint} – oder früher durch ${who}` : `öffnet durch ${who}`;
       }
-      // Waldtümpel: öffnet nur durch Pflege (oder Ereignisse – die bleiben eine Überraschung).
-      const care = !view.unlockHint && niche.opensEarly ? careSlotProviders(niche.id) : [];
+      // Waldtümpel: öffnet nur durch Forschung (oder Ereignisse – die bleiben eine Überraschung).
+      const care = !view.unlockHint && niche.opensEarly ? researchSlotProviders(niche.id) : [];
       if (care.length > 0) {
         view.unlockHint = `öffnet durch ${care.join(' oder ')}`;
-        // Playtest Amphibien: Steht die Maßnahme schon in der Pflege-Liste, führt ein Knopf hin.
-        const ready = careSlotMeasures(niche.id).find((m) => m.ranks[0]!.minStage <= state.stage);
+        // Playtest Amphibien: Steht der Knoten schon in der Liste, führt ein Knopf hin.
+        const ready = researchSlotNodes(niche.id).find((n) => n.minStage <= state.stage);
         if (ready) view.careLink = ready.id;
       }
     } else if (animals.length === 0) {
@@ -1047,7 +1037,7 @@ function toLifetimeStats(state: GameState): JournalStatView[] {
     count('total-events', 'Ereignisse entschieden', s.eventsDecided),
     count('total-visitors', 'Gäste bewirtet', s.visitorsHosted),
     count('total-plants', 'Pflanzen gesetzt', s.plantsPlanted),
-    count('total-care', 'Pflege-Ränge gekauft', s.careRanksBought),
+    count('total-care', 'Knoten erforscht', s.careRanksBought),
     {
       key: 'total-trees',
       label: 'Gewachsene Hauptbaum-Arten',
@@ -2288,39 +2278,54 @@ export function toSceneVisitors(state: GameState): SceneVisitor[] {
 // Pflegemaßnahmen (Schritt 2.7)
 // ---------------------------------------------------------------------------
 
-/** Blocker-Texte für die Pflege-Liste; `requires` nennt die Bedingung der Maßnahme. */
-export function careBlockerText(blocker: CareBlocker, id: string): string {
-  const measure = CARE_BY_ID.get(id);
+/** Name eines Knotens in „…“ (unbekannte IDs wie sie sind). */
+function nodeName(id: string): string {
+  return `„${RESEARCH_BY_ID.get(id)?.name ?? id}“`;
+}
+
+/**
+ * Sperrgrund eines Forschungsknotens als deutscher Text (Liste und Unterseite): Stufe,
+ * anderer Weg der Gabel, fehlende Voraussetzungen, Bedingung, fehlende ⚖️.
+ */
+export function researchBlockerText(blocker: ResearchBlocker, id: string, state: GameState): string {
+  const node = RESEARCH_BY_ID.get(id);
+  const owned = state.cycle.research;
   switch (blocker) {
-    case 'unknown-care':
-      return 'Diese Pflege gibt es nicht';
-    case 'maxed':
-      return 'Voll ausgebaut';
+    case 'unknown-node':
+      return 'Diesen Knoten gibt es nicht';
+    case 'owned':
+      return 'Schon erforscht';
     case 'stage':
-      return 'Erst auf einer späteren Stufe';
+      return `Ab Stufe „${STAGES[node?.minStage ?? 0]?.name ?? ''}“`;
     case 'excluded': {
-      const other = measure?.excludes?.map((x) => CARE_BY_ID.get(x)?.name).filter(Boolean)[0];
-      return other ? `Verträgt sich nicht mit „${other}“` : 'Verträgt sich nicht mit anderer Pflege';
+      const other = (node?.excludes ?? []).find((x) => owned.includes(x));
+      return other ? `Anderer Weg gewählt: ${nodeName(other)}` : 'Anderer Weg gewählt';
     }
-    case 'requires':
-      return `Braucht ${(measure?.requires ?? []).map(conditionName).join(', ')}`;
+    case 'requires': {
+      const missing = (node?.requires ?? []).filter((x) => !owned.includes(x)).map(nodeName);
+      const any = node?.requiresAny ?? [];
+      if (any.length > 0 && !any.some((x) => owned.includes(x))) missing.push(any.map(nodeName).join(' oder '));
+      return `Braucht ${missing.join(', ')}`;
+    }
+    case 'condition':
+      return `Braucht ${(node?.condition ?? []).map(conditionName).join(', ')}`;
     case 'too-expensive':
-      return 'Nicht genug Samen';
+      // Aufgerundet, damit „Noch X“ nie weniger verspricht als nötig.
+      return `Noch ${formatNumber(Math.ceil((node?.cost ?? 0) - (Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0)))} ⚖️`;
   }
 }
 
-/** Kurze Bestätigung für den Kauf von Rang `rank` (1-basiert), z. B. „Nistkästen angebracht (Rang 2)“. */
-export function careBoughtText(id: string, rank: number): string {
-  const text = CARE_BY_ID.get(id)?.boughtText;
-  if (!text) return `${id}: Rang ${formatNumber(rank)}`;
-  return rank > 1 ? `${text} (Rang ${formatNumber(rank)})` : text;
+/** Ast eines Knotens als Etikett, z. B. „🪱 Boden“. */
+export function researchBranchLabel(node: ResearchNode): string {
+  const branch = RESEARCH_BRANCHES.find((b) => b.id === node.branch);
+  return branch ? `${branch.icon} ${branch.name}` : '';
 }
 
 /** Sortier-Rang der Gruppen: kaufbar zuerst, dann sparen, gesperrt, voll ausgebaut. */
 export const CARE_GROUP_ORDER: Readonly<Record<CareGroup, number>> = { buyable: 0, saving: 1, locked: 2, maxed: 3 };
 
 /**
- * Anzeige-Reihenfolge der Pflege-Liste: nach Gruppe, innerhalb von „kaufbar“ und
+ * Anzeige-Reihenfolge der Forschungs-Liste: nach Gruppe, innerhalb von „kaufbar“ und
  * „sparen“ nach Kosten (günstigste zuerst), sonst in Katalog-Reihenfolge (stabil).
  */
 export function sortCareViews(items: readonly CareView[]): CareView[] {
@@ -2341,7 +2346,7 @@ export function sortCareViews(items: readonly CareView[]): CareView[] {
 
 /**
  * Lebensräume (DESIGN_V2.md 23, 5.5): Nischen ohne Plätze aus der Stufe – Waldtümpel,
- * Waldwiese, Totholzhaufen, Trockenmauer. Sie öffnen nur durch Pflege oder Ereignisse.
+ * Waldwiese, Totholzhaufen, Trockenmauer. Sie öffnen nur durch Forschung oder Ereignisse.
  */
 export function isHabitatNiche(nicheId: NicheId): boolean {
   const niche = NICHES_BY_ID.get(nicheId);
@@ -2349,11 +2354,11 @@ export function isHabitatNiche(nicheId: NicheId): boolean {
 }
 
 /**
- * „Öffnet Lebensraum 🌾 Waldwiese“ auf der Pflegekarte: Der nächste Rang schafft Plätze in
+ * „Öffnet Lebensraum 🌾 Waldwiese“ auf der Forschungskarte: Der Knoten schafft Plätze in
  * einem Lebensraum, der gerade noch verschlossen ist. Ist er schon offen (z. B. durch ein
  * Ereignis), bleibt die Zeile weg – dann sagt „+2 Plätze …“ genug. null ohne solche Plätze.
  */
-export function careOpensText(effects: readonly CareEffect[], now: Readonly<Pick<Evaluation, 'slots'>>): string | null {
+export function careOpensText(effects: readonly ResearchEffect[], now: Readonly<Pick<Evaluation, 'slots'>>): string | null {
   const opened: string[] = [];
   for (const e of effects) {
     if (e.kind !== 'cycle' || e.effect.kind !== 'slot' || e.effect.amount <= 0) continue;
@@ -2367,39 +2372,34 @@ export function careOpensText(effects: readonly CareEffect[], now: Readonly<Pick
 }
 
 /**
- * Pflege-Liste für die Seitenleiste: alle Maßnahmen, die auf dieser Stufe schon gekauft
- * wurden oder deren nächster Rang höchstens eine Stufe entfernt ist. Mit Kosten,
- * Kurzwirkung, Blocker-Text und Vorschau (previewCare).
+ * Forschungs-Liste (Notliste im Reiter „Pflege“ bis Phase 10, 4a): alle erforschten Knoten
+ * und alle, deren Stufe erreicht ist – flach, je Knoten eine Zeile mit Ast, Kurzwirkung,
+ * Kosten in ⚖️, Sperrgrund und Vorschau (previewResearch). Erforschte Knoten stehen als
+ * „erledigt“ (Gruppe `maxed`), gesperrte (Gabel, Voraussetzung, Bedingung) als `locked`.
  */
 export function toCareViews(state: GameState, now: Readonly<Evaluation> = evaluate(state)): CareView[] {
   const out: CareView[] = [];
-  for (const measure of CARE) {
-    const rank = careRank(state, measure.id);
-    const next = nextCareRank(state, measure.id);
-    const first = measure.ranks[0]!;
-    // Ganz neue Maßnahmen erst zeigen, wenn ihre Stufe erreicht ist (nicht alles auf einmal).
-    if (rank === 0 && first.minStage > state.stage) continue;
-    const blocker = careBlocker(state, measure.id);
-    let blockerText = blocker ? careBlockerText(blocker, measure.id) : null;
-    if (blocker === 'stage' && next) blockerText = `Ab Stufe „${STAGES[next.minStage]?.name ?? ''}“`;
-    // Wie beim Pflanzring: aufgerundet, damit „Noch X“ nie weniger verspricht als nötig.
-    if (blocker === 'too-expensive' && next) blockerText = `Noch ${formatNumber(Math.ceil(next.cost - state.seeds))} 🌰`;
-    const after = next ? previewCare(state, measure.id) : null;
+  for (const node of RESEARCH) {
+    const owned = isResearched(state, node.id);
+    // Knoten späterer Ebenen erst zeigen, wenn ihre Stufe erreicht ist (nicht alles auf einmal).
+    if (!owned && node.minStage > state.stage) continue;
+    const blocker = researchBlocker(state, node.id);
+    const after = owned ? null : previewResearch(state, node.id);
     out.push({
-      id: measure.id,
-      icon: measure.icon,
-      name: measure.name,
-      rank: next ? `Rang ${rank}/${measure.ranks.length}` : 'voll ausgebaut',
-      next: next?.summary ?? null,
-      cost: next ? `${formatNumber(next.cost)} 🌰` : null,
-      costSeeds: next?.cost ?? null,
-      blocker: blocker === 'maxed' ? null : blockerText,
+      id: node.id,
+      icon: node.icon,
+      name: node.name,
+      rank: researchBranchLabel(node),
+      next: owned ? null : node.summary,
+      cost: owned ? null : `${formatNumber(node.cost)} ⚖️`,
+      costSeeds: owned ? null : node.cost,
+      blocker: blocker === null || blocker === 'owned' ? null : researchBlockerText(blocker, node.id, state),
       canBuy: blocker === null,
-      group: blocker === null ? 'buyable' : blocker === 'too-expensive' ? 'saving' : !next ? 'maxed' : 'locked',
-      boughtText: next ? careBoughtText(measure.id, rank + 1) : null,
-      protects: careProtectionText(measure.id),
-      protectsDetail: careProtectionDetail(measure.id),
-      opens: next ? careOpensText(next.effects, now) : null,
+      group: owned ? 'maxed' : blocker === null ? 'buyable' : blocker === 'too-expensive' ? 'saving' : 'locked',
+      boughtText: owned ? null : node.boughtText,
+      protects: careProtectionText(node.id),
+      protectsDetail: careProtectionDetail(node.id),
+      opens: owned ? null : careOpensText(node.effects, now),
       preview: after
         ? {
             harmonyDelta: after.harmony - now.harmony,

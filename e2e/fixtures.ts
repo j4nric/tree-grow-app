@@ -1,7 +1,7 @@
 import { test as base, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { WAYPOINT_THRESHOLDS } from '../src/content/waypoints';
 import { CONFIRM_MIN_MS } from '../src/ui/confirm';
-import { v7GrowthToV6 } from '../src/core/save';
+import { loadGame, v7GrowthToV6 } from '../src/core/save';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, createSite, type GameState } from '../src/core/state';
 
@@ -116,6 +116,14 @@ export interface SeedV3 {
   pendingEncounters?: { type: 'animal' | 'plant' | 'event' | 'visitor'; cards: string[]; rerolls: number }[];
   rngState?: number;
   forestMemory?: number;
+  /**
+   * Harmonie-Vorrat ⚖️ (seit v17, Forschung). Gesetzt: Der v3-Stand wird hier schon geladen
+   * (Migration bis v17) und mit diesem Vorrat als aktueller Stand abgelegt – sonst bekäme er
+   * das Startguthaben der Migration v16 → v17 (10 min Produktion).
+   */
+  harmonyPoints?: number;
+  /** Erforschte Knoten (seit v17, nur zusammen mit `harmonyPoints`). */
+  research?: string[];
   /** lastTick relativ zur Browser-Uhr beim Laden (ms, negativ = Vergangenheit). */
   lastTickOffsetMs?: number;
 }
@@ -159,7 +167,14 @@ export async function seedV3(context: BrowserContext, seed: SeedV3): Promise<voi
     rngState: seed.rngState ?? 123456789,
     meta: { forestMemory: seed.forestMemory ?? 0, journal: { species: [], keepsakes: [] } },
   };
-  await seedRaw(context, save, seed.lastTickOffsetMs ?? 0);
+  if (seed.harmonyPoints === undefined && seed.research === undefined) {
+    await seedRaw(context, save, seed.lastTickOffsetMs ?? 0);
+    return;
+  }
+  const state = loadGame(JSON.stringify(save), 0)!.state;
+  state.harmonyPoints = seed.harmonyPoints ?? 0;
+  if (seed.research) state.cycle.research = [...seed.research];
+  await seedRaw(context, state, seed.lastTickOffsetMs ?? 0);
 }
 
 /**

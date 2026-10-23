@@ -29,11 +29,12 @@ import { GENUS_INFO, SPECIES_BY_ID } from '../src/content/species';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { STAGES } from '../src/content/stages';
 import { GENERA, NICHE_IDS, type EncounterType, type Genus } from '../src/content/types';
-import { CARE } from '../src/content/care';
+import { RESEARCH, RESEARCH_BY_ID } from '../src/content/research';
 import { EVENTS_BY_ID } from '../src/content/events';
 import {
   cardStatus,
   evaluate,
+  harmonyIncome,
   nextPlantCost,
   plantSlots,
   previewChoice,
@@ -47,9 +48,6 @@ import { normalizeSeed, randomInt, type RngHolder } from '../src/core/rng';
 import { allAnimals, createInitialState, type GameState, type PendingEncounterType } from '../src/core/state';
 import {
   allWaypointsReached,
-  buyCare,
-  careBlocker,
-  careRank,
   chooseCard,
   chooseEventOption,
   declineEncounter,
@@ -58,13 +56,14 @@ import {
   hostVisitor,
   interludeThreshold,
   nextExpiry,
-  nextCareRank,
   isTreeUnlocked,
   plantSeed,
   previewNewCycle,
-  previewCare,
+  previewResearch,
   rerollBlocker,
   rerollEncounter,
+  research,
+  researchBlocker,
   setRegulars,
   startNewCycle,
   tick,
@@ -72,6 +71,7 @@ import {
 } from '../src/core/tick';
 import { seasonIndex, secondsToNextSeason } from '../src/core/season';
 import { secondsToNightChange, type AmbientMode } from '../src/core/weather';
+import { effectiveForestMemory } from '../src/core/landscape';
 import type { MainTreeId } from '../src/content/trees';
 
 // ---------------------------------------------------------------------------
@@ -263,7 +263,7 @@ export interface Counts {
   events: number;
   visitors: number;
   hosted: number;
-  /** Nur mit `care`: gekaufte Pflege-Ränge. */
+  /** Nur mit `care`: erforschte Knoten (bis v16 gekaufte Pflege-Ränge). */
   careBought: number;
   /** Eingezogene Stammgäste (ab Zyklus 2). */
   regulars: number;
@@ -304,13 +304,13 @@ export interface Snapshot {
   /** Samen aus Ereignissen und Gästen bzw. fürs Bewirten ausgegeben. */
   earnedExtras: number;
   spentVisitors: number;
-  /** Nur mit `care`: für Pflege ausgegeben. */
+  /** Nur mit `care`: für Forschung ausgegeben (⚖️; bis v16 🌰 für Pflege). */
   spentCare: number;
   /** Nur mit `daily`: Samen aus erfüllten Tageszielen (DESIGN_V2.md 20.6). */
   earnedDaily: number;
   /** Nur mit `daily`: erfüllte Tagesziele. */
   dailyDone: number;
-  /** Gekaufte Ränge je Maßnahme. */
+  /** Erforschte Knoten (ID → 1; bis v16 gekaufte Ränge je Maßnahme). */
   careRanks: Record<string, number>;
   /** Ereignisse und Gäste, die in diesem Zyklus schon gezogen wurden (`cycle.seen`). */
   seen: string[];
@@ -378,7 +378,7 @@ export interface RunOptions {
   /** Simulation endet mit Erreichen dieser Stufe. */
   targetStage: number;
   maxSeconds: number;
-  /** Pflegemaßnahmen kaufen (echte Logik, Schritt 2.7). Standard: aus – zum Vergleich. */
+  /** Forschen (echte Logik, seit v17 mit ⚖️; bis v16 Pflege mit 🌰). Standard: aus – zum Vergleich. */
   care?: boolean;
   /** Art des Hauptbaums (Standard: Stieleiche wie im ersten Zyklus). */
   mainTree?: MainTreeId;
@@ -513,7 +513,7 @@ export function runGame(
       discovered: state.meta.journal.communities.length,
       seeds: state.seeds,
       ...book,
-      careRanks: { ...state.cycle.care },
+      careRanks: Object.fromEntries(state.cycle.research.map((id) => [id, 1])),
       seen: [...state.cycle.seen],
       counts: { ...counts, rarityTaken: [...counts.rarityTaken] },
     };
@@ -534,7 +534,7 @@ export function runGame(
       counts.plantsBought,
       state.plants.join(','),
       NICHE_IDS.map((n) => state.niches[n].join(',')).join(';'),
-      JSON.stringify([c.care, c.bonuses, c.habitats, c.timed.map((t) => t.effect), c.visitors.map((v) => v.id)]),
+      JSON.stringify([c.research, c.bonuses, c.habitats, c.timed.map((t) => t.effect), c.visitors.map((v) => v.id)]),
       seasonIndex(c.elapsed),
     ].join('|');
     if (key !== planKey) {
@@ -554,19 +554,19 @@ export function runGame(
       act();
     }
     const plan = nextPlan();
-    // Pflege: kaufen, was die Strategie anspart, sobald es reicht (Pflanzen haben Vorrang).
+    // Forschung (seit v17 mit ⚖️ aus dem Vorrat): erforschen, was die Strategie anspart,
+    // sobald es reicht. Vorläufig (bis Phase 10, 3a) mit derselben Wahl wie früher die Pflege.
     let careNeed: number | null = null;
     if (options.care) {
       for (let target = careTarget(state, strategy); target; target = careTarget(state, strategy)) {
-        const cost = nextCareRank(state, target)!.cost;
-        const reserve = plan !== null ? nextPlantCost(state) : 0;
-        if (state.seeds < cost + reserve) {
-          careNeed = cost + reserve;
+        const cost = RESEARCH_BY_ID.get(target)!.cost;
+        if (state.harmonyPoints < cost) {
+          careNeed = cost;
           break;
         }
-        const before = state.seeds;
-        if (!buyCare(state, target).ok) break;
-        book.spentCare += before - state.seeds;
+        const before = state.harmonyPoints;
+        if (!research(state, target).ok) break;
+        book.spentCare += before - state.harmonyPoints;
         counts.careBought++;
         act();
       }
@@ -585,7 +585,8 @@ export function runGame(
     const toSeason = secondsToNextSeason(state.cycle.elapsed);
     // Sonnenuntergang und -aufgang (nur mit Einzelwetter): Nachtarten ändern die Raten.
     const toNight = ambient === 'live' ? secondsToNightChange(state.cycle.elapsed) : Infinity;
-    const toCare = careNeed !== null && ev.seeds > 0 ? Math.max(0, (careNeed - state.seeds) / ev.seeds) + 1e-6 : Infinity;
+    const harmonyRate = harmonyIncome(ev.harmony, effectiveForestMemory(state));
+    const toCare = careNeed !== null && harmonyRate > 0 ? Math.max(0, (careNeed - state.harmonyPoints) / harmonyRate) + 1e-6 : Infinity;
     const dt = Math.min(toWaypoint, toPlant, nextSample - time, nextExpiry(state), toInterlude, toSeason, toNight, toCare, options.maxSeconds - time);
     if (!(dt < Infinity)) break;
     const seedsBefore = state.seeds;
@@ -820,39 +821,39 @@ const CARE_SLOT_VALUE = 0.03;
 const CARE_HABITAT_VALUE = 0.02;
 
 /**
- * Welchen Pflege-Rang spart die Strategie als Nächstes an? Nur Ränge, die bis auf die
- * Samen kaufbar sind (careBlocker). Bewertende Strategien: bester Wert je Samen über
- * CYCLE_HORIZON (Vorschau mit der echten Logik, previewCare; Plätze und Merkmale
+ * Welchen Forschungsknoten spart die Strategie als Nächstes an? Nur Knoten, die bis auf den
+ * Vorrat erforschbar sind (researchBlocker). Bewertende Strategien: bester Wert je ⚖️ über
+ * CYCLE_HORIZON (Vorschau mit der echten Logik, previewResearch; Plätze und Merkmale
  * pauschal), nur wenn er etwas bringt. Zufallsspieler: ein beliebiger, aber je Zustand
- * fester Rang. null = nichts.
+ * fester Knoten. null = nichts. Vorläufig wie bis v16 die Pflege; Phase 10, 3a stellt die
+ * Wahl an den Gabeln nach Strategie ein.
  */
 function careTarget(state: GameState, strategy: Strategy): string | null {
-  const offers = CARE.filter((m) => {
-    const b = careBlocker(state, m.id);
+  const offers = RESEARCH.filter((n) => {
+    const b = researchBlocker(state, n.id);
     return b === null || b === 'too-expensive';
   });
   if (offers.length === 0) return null;
   if (!strategy.plantValue) {
-    const bought = CARE.reduce((sum, m) => sum + careRank(state, m.id), 0);
+    const bought = state.cycle.research.length;
     return offers[(bought * 5 + state.waypoint) % offers.length]!.id;
   }
   const now = evaluate(state);
   let top: string | null = null;
   let topValue = 0;
-  for (const m of offers) {
-    const next = nextCareRank(state, m.id)!;
-    const after = previewCare(state, m.id);
+  for (const n of offers) {
+    const after = previewResearch(state, n.id);
     if (!after) continue;
     let nominal = 0;
-    for (const e of next.effects) {
+    for (const e of n.effects) {
       if (e.kind === 'habitat') nominal += CARE_HABITAT_VALUE;
-      else if (e.effect.kind === 'slot') nominal += CARE_SLOT_VALUE;
+      else if (e.kind === 'cycle' && e.effect.kind === 'slot') nominal += CARE_SLOT_VALUE;
     }
     const gain =
       after.growth / Math.max(1e-9, now.growth) - 1 + SEED_VALUE * (after.seeds / Math.max(1e-9, now.seeds) - 1) + nominal;
-    const value = (CYCLE_HORIZON * gain) / next.cost;
+    const value = (CYCLE_HORIZON * gain) / n.cost;
     if (value > topValue) {
-      top = m.id;
+      top = n.id;
       topValue = value;
     }
   }
@@ -1493,13 +1494,13 @@ export function environmentTable(rows: readonly { label: string; summary: Summar
 }
 
 /**
- * Pflegemaßnahmen (Schritt 2.7, echte Logik): Vergleich ohne/mit Pflege – Stufenzeiten,
+ * Forschung (seit v17, echte Logik; bis v16 Pflege): Vergleich ohne/mit – Stufenzeiten,
  * Harmonie, Samenbestand (absolut und in Minuten Produktion) beim Hain und im Wald, für
- * Pflege ausgegeben, gekaufte Ränge je Maßnahme beim Hain / am Ende.
+ * Forschung ausgegeben (⚖️), Anteil der Durchgänge je Knoten beim Hain / am Ende.
  */
 export function careTable(without: Summary[], withCare: Summary[]): string {
   const lines = [
-    '| Strategie | Pflege | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | 🌰-Bestand beim Hain (min Produktion) | im Wald | für Pflege bis Hain / Wald | Ränge bis Hain / Urwald |',
+    '| Strategie | Forschung | Alter Baum | Hain | Wald | Urwald | ⚖️ beim Hain | 🌰-Bestand beim Hain (min Produktion) | im Wald | ⚖️ für Forschung bis Hain / Wald | Knoten bis Hain / Urwald |',
     '|---|---|---|---|---|---|---|---|---|---|---|',
   ];
   const bank = (s: Summary, stage: number) => {
@@ -1518,9 +1519,9 @@ export function careTable(without: Summary[], withCare: Summary[]): string {
       lines.push(`| ${s.strategy.name} | ${label} | ${times.join(' | ')} | ${fmt(stageStats(s, 5).harmony, 1)} | ${bank(s, 5)} | ${bank(s, 6)} | ${care} |`);
     }
   }
-  lines.push('', '| Maßnahme | ' + withCare.map((s) => `${s.strategy.name}: Ränge bis Hain / Urwald`).join(' | ') + ' |');
+  lines.push('', '| Knoten | ' + withCare.map((s) => `${s.strategy.name}: bis Hain / Urwald`).join(' | ') + ' |');
   lines.push('|---|' + withCare.map(() => '---|').join(''));
-  for (const c of CARE) {
+  for (const c of RESEARCH) {
     const cells = withCare.map((s) => {
       const at = (pick: (r: RunResult) => Snapshot | null) => fmt(mean(s.runs.map((r) => pick(r)?.careRanks[c.id] ?? 0)), 2);
       return `${at((r) => r.stages[5] ?? null)} / ${at((r) => r.final)}`;

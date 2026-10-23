@@ -275,13 +275,14 @@ test('voller Zyklus mit festem Seed: bis zum Hain, Neuer Zyklus, Stammgast zieht
     expect(after[key], key).toEqual(before[key]);
   }
   // Langzeit-Statistik: Zähler und Wachstum des abgeschlossenen Zyklus unverändert, die
-  // Spielzeit läuft ein paar Frames weiter.
+  // Spielzeit und die gesammelte Harmonie (v17) laufen ein paar Frames weiter.
   const { stats: statsAfter, ...metaAfter } = after.meta;
   const { stats: statsBefore, ...metaBefore } = before.meta;
   expect(metaAfter, 'meta').toEqual(metaBefore);
-  const { playSeconds: playAfter, ...countsAfter } = statsAfter;
-  const { playSeconds: playBefore, ...countsBefore } = statsBefore;
+  const { playSeconds: playAfter, harmonyEarned: earnedAfter, ...countsAfter } = statsAfter;
+  const { playSeconds: playBefore, harmonyEarned: earnedBefore, ...countsBefore } = statsBefore;
   expect(countsAfter, 'meta.stats').toEqual(countsBefore);
+  expect(earnedAfter).toBeGreaterThanOrEqual(earnedBefore);
   expect(countsAfter.cardsChosen).toBeGreaterThan(0);
   expect(countsAfter.grownTrees).toEqual(['oak']);
   expect(countsAfter.completedCyclesGrowth).toBeGreaterThan(0);

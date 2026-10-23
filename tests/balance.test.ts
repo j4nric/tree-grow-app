@@ -19,7 +19,7 @@ import {
 } from '../scripts/simulate';
 import { EVENTS } from '../src/content/events';
 import { VISITORS } from '../src/content/visitors';
-import { CARE } from '../src/content/care';
+import { RESEARCH } from '../src/content/research';
 import { CARE_RUNS, FULL, HAIN, MAX_SECONDS, RUNS, URWALD, WALD } from './balance-setup';
 import { firstCycle, firstCycleTarget } from './balance-runs';
 
@@ -197,16 +197,22 @@ describe('Frühes Spiel: Takt der Entscheidungen und Samen mit Zweck', () => {
     expect(earlyStats(harmony).pauseMedian).toBeLessThan((FULL ? 135 : 150));
   });
 
-  it('Samen stapeln sich vor dem Jungen Baum nicht (Höchststand im Mittel < 250 🌰, Check 260)', () => {
-    for (const s of [harmony, byId(GROWTH.id)]) expect(earlyStats(s).seedPeak, s.strategy.name).toBeLessThan(FULL ? 250 : 260);
+  it('Samen stapeln sich vor dem Jungen Baum nicht (Höchststand im Mittel < 400 🌰 bis Phase 10, 2b)', () => {
+    // Bis v16 < 250 🌰 (Check 260): Kompost und Laub kosteten 200 🌰. Seit v17 (Phase 10, 2a)
+    // kostet die Forschung ⚖️ – die Samen bekommen ihre Senke erst mit der Aussaat (2b, Ziel
+    // 27.11; Check-Lauf mit Forschung: Harmonie-Spieler ~313 🌰). Phase 10, 3a misst neu.
+    for (const s of [harmony, byId(GROWTH.id)]) expect(earlyStats(s).seedPeak, s.strategy.name).toBeLessThan(400);
   });
 });
 
 describe('Wirtschaft (Samen-Senke, Neu würfeln, Bewirten)', () => {
-  it('Samenbestand beim Hain unter 10 Minuten Produktion, Pflege wird gekauft', () => {
+  it('Samenbestand beim Hain unter 45 Minuten Produktion (bis Phase 10, 2b), Forschung wird gekauft', () => {
+    // Bis v16 unter 10 min: Die Pflege war die Samen-Senke. Seit v17 kostet die Forschung ⚖️;
+    // ohne Aussaat liegen beim Hain ~36 min Produktion (DESIGN_V2.md 27.6, Vorab-Messung 27.10).
+    // Die Aussaat (Phase 10, 2b) bringt die Senke zurück, Ziel 27.11: ≤ 15 min (Messung 3a).
     for (const s of [harmony, byId(GROWTH.id)]) {
       const st = stageStats(s, HAIN);
-      expect(st.seeds / st.seedsRate / 60, s.strategy.name).toBeLessThan(10);
+      expect(st.seeds / st.seedsRate / 60, s.strategy.name).toBeLessThan(45);
       expect(st.spentCare, s.strategy.name).toBeGreaterThan(0);
     }
   });
@@ -295,7 +301,7 @@ describe('Pflegemaßnahmen', () => {
     for (const s of withCare) for (const r of s.runs) expect(r.final.seeds).toBeGreaterThanOrEqual(0);
   });
 
-  it('senkt die Samenreserve beim Hain und im Wald deutlich (bewertende Strategien)', () => {
+  it('Forschung kostet ⚖️: Samenreserve wie ohne Forschung, bis die Aussaat kommt (bewertende Strategien)', () => {
     for (const id of [HARMONY.id, GROWTH.id]) {
       for (const stage of [HAIN, WALD]) {
         const before = stageStats(find(without, id), stage);
@@ -307,9 +313,12 @@ describe('Pflegemaßnahmen', () => {
         // Lebensräumen (Samen-Senke ab Junger Baum, 23.10) wieder 12 min. Gemessen (Phase 6,
         // DESIGN_V2.md 15.4 „Stand Balancing Phase 6“): Harmonie-Spieler im Wald 7,2 / 7,6 /
         // 8,3 min in drei Seed-Fenstern à 30 Durchgänge (Check-Fenster 7,2), großer Lauf siehe dort.
+        //
+        // Seit v17 (Phase 10, 2a) kostet die Forschung ⚖️ statt 🌰: Die Reserve ist wie ohne
+        // Forschung (Check: Harmonie-Spieler beim Hain 35,5 statt 35,2 min), bis die Aussaat
+        // (2b) die Senke zurückbringt – Ziel 27.11 ≤ 15 min, Messung Phase 10, 3a.
         const minutes = (st: typeof before) => st.seeds / st.seedsRate / 60;
-        expect(minutes(after), `${id}, Stufe ${stage}`).toBeLessThan(0.5 * minutes(before));
-        expect(minutes(after), `${id}, Stufe ${stage}`).toBeLessThan(stage === HAIN ? 10 : 12);
+        expect(minutes(after), `${id}, Stufe ${stage}`).toBeLessThan(1.25 * minutes(before));
         expect(after.spentCare, `${id}, Stufe ${stage}`).toBeGreaterThan(0);
       }
     }
@@ -328,7 +337,7 @@ describe('Pflegemaßnahmen', () => {
   it('kein Pflichtkauf: Harmonie- und Wachstums-Spieler setzen andere Schwerpunkte', () => {
     const ranksAt = (id: string, measure: string) =>
       find(withCare, id).runs.reduce((sum, r) => sum + (r.stages[HAIN]?.careRanks[measure] ?? 0), 0) / CARE_RUNS;
-    const different = CARE.filter((c) => Math.abs(ranksAt(HARMONY.id, c.id) - ranksAt(GROWTH.id, c.id)) >= 0.3);
+    const different = RESEARCH.filter((c) => Math.abs(ranksAt(HARMONY.id, c.id) - ranksAt(GROWTH.id, c.id)) >= 0.3);
     expect(different.length).toBeGreaterThanOrEqual(2);
     // Die Kronen schließen sich aus: Beide kommen vor (je Strategie oder über die Strategien).
     const crowns = ['light-crown', 'dense-crown'].map((m) => careStrategies.reduce((sum, s) => sum + ranksAt(s.id, m), 0));

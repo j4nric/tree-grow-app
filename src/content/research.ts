@@ -1,11 +1,13 @@
 import type { CycleEffect } from './events';
+import { HABITAT_RESEARCH } from './habitats';
 import type { HappinessEffect } from './seasons';
 import type { Condition, Effect, NicheId, Tag } from './types';
 
 /**
- * Forschungsbaum (docs/DESIGN_V2.md 27.7). Reine Daten – noch NICHT verdrahtet: Bis
- * Phase 10, 2a läuft die Pflege aus care.ts weiter; danach ersetzt dieser Baum sie
- * (`cycle.research` statt `cycle.care`, Kosten in ⚖️ Harmonie statt 🌰).
+ * Forschungsbaum (docs/DESIGN_V2.md 27.7). Reine Daten – die Logik steht in src/core/tick.ts
+ * (research, researchBlocker, previewResearch) und formulas.ts (researchEffects). Seit
+ * Spielstand v17 ersetzt der Baum die Pflege (`cycle.research` statt `cycle.care`, Kosten in
+ * ⚖️ Harmonie aus dem Vorrat `harmonyPoints` statt 🌰).
  *
  * - **Knoten statt Ränge:** Jeder Knoten wird einmal mit ⚖️ erforscht und wirkt bis zum
  *   Neuen Zyklus (wie Pflege). Die Wirkungen der 25 heutigen Pflege-Ränge sind 1:1 dieselben
@@ -20,7 +22,7 @@ import type { Condition, Effect, NicheId, Tag } from './types';
  *   Wahl für alle drei Ebenen.
  *
  * Wirkungen:
- * - `cycle` / `habitat` wie die Pflege (care.ts): Licht, Wasser, Plätze, Harmonie,
+ * - `cycle` / `habitat` wie bis v16 die Pflege: Licht, Wasser, Plätze, Harmonie,
  *   🌿/🌰/Gruppen-Boni bis zum Neuen Zyklus; Merkmal wie eine Pflanze.
  * - `happiness` wie bei Jahreszeiten (HappinessEffect, 16.3): +points Prozentpunkte
  *   Zufriedenheit für alle Tiere der Gattung, vor der Begrenzung auf 0–1.
@@ -31,7 +33,7 @@ import type { Condition, Effect, NicheId, Tag } from './types';
  *   `sowFreeReroll` die ersten amount Würfe je Aussaat kosten nichts.
  */
 
-/** Dauerhafte Wirkungen eines Knotens (wie CareCycleEffect in care.ts). */
+/** Dauerhafte Wirkungen eines Knotens (Erweiterung von CycleEffect, events.ts). */
 export type ResearchCycleEffect =
   | CycleEffect
   | Extract<Effect, { kind: 'growth' | 'seeds' | 'groupGrowth' | 'groupSeeds' }>;
@@ -304,34 +306,8 @@ export const RESEARCH: readonly ResearchNode[] = [
     text: 'Ein Hochhaus aus Schilf, Ziegeln und Hartholz – mit Warteliste.',
     boughtText: 'Großes Hotel eröffnet',
   },
-  // --- 🌾 Offenland -----------------------------------------------------------
-  {
-    id: 'meadow', branch: 'open', name: 'Waldwiese', icon: '🌾', minStage: YOUNG_TREE, cost: 600,
-    effects: [slot('meadow', 2)], summary: '+2 Plätze Waldwiese',
-    text: 'Einmal im Jahr gemäht, sonst in Ruhe gelassen – so blüht und zirpt die Lichtung.',
-    boughtText: 'Wiese angelegt',
-  },
-  {
-    id: 'meadow-2', branch: 'open', name: 'Spätmahd', icon: '🌿', minStage: GROVE, cost: 980,
-    requires: ['meadow'],
-    effects: [slot('meadow', 2), light(2)], summary: '+2 Plätze Waldwiese, +2 ☀️',
-    text: 'Gemäht wird erst im September, wenn alle Gräser ausgesamt haben.',
-    boughtText: 'Mahd verschoben',
-  },
-  {
-    id: 'drystone-wall', branch: 'open', name: 'Trockenmauer', icon: '🪨', minStage: GROVE, cost: 730,
-    requires: ['meadow'],
-    effects: [slot('wall', 2), light(2)], summary: '+2 Plätze Trockenmauer, +2 ☀️',
-    text: 'Lesesteine ohne Mörtel, in der Sonne geschichtet – jede Ritze ein Zuhause.',
-    boughtText: 'Mauer geschichtet',
-  },
-  {
-    id: 'drystone-wall-2', branch: 'open', name: 'Mauer verlängern', icon: '🦎', minStage: FOREST, cost: 2_000,
-    requires: ['drystone-wall'],
-    effects: [slot('wall', 2), harmony(2)], summary: '+2 Plätze Trockenmauer, +2 ⚖️',
-    text: 'Noch ein paar Lesesteine vom Feldrand – die Mauer wächst, die Eidechsen auch.',
-    boughtText: 'Mauer verlängert',
-  },
+  // --- 🌾 Offenland (Daten in habitats.ts: Waldwiese, Trockenmauer) -------------
+  ...HABITAT_RESEARCH,
   // --- 🌱 Saat ----------------------------------------------------------------
   {
     id: 'seed-sorting', branch: 'seed', name: 'Saatgut sortieren', icon: '🏷️', minStage: YOUNG_TREE, cost: 200,

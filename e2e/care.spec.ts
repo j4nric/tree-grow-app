@@ -2,112 +2,132 @@ import type { Page } from '@playwright/test';
 import { expect, gotoTab, niche, openGame, openTab, savedState, seedV3, test, waypoint } from './fixtures';
 
 /**
- * Pflegemaßnahmen (Schritt 2.7) im Reiter „Pflege“ des Albums (docs/ALBUM_UI.md, B.3): eine
- * Maßnahme kaufen, die Wirkung sehen (ein Platz mehr in der Laubstreu), Neuladen behält den
- * Rang. Die Unterseite U:Pflegemaßnahme prüft e2e/album-care.spec.ts.
+ * Forschung (seit Spielstand v17, DESIGN_V2.md 27.7) im Reiter „Pflege“ des Albums – bis zum
+ * Baum aus Phase 10, 4a eine flache Notliste: einen Knoten mit ⚖️ aus dem Vorrat erforschen,
+ * die Wirkung sehen (ein Platz mehr in der Laubstreu), Neuladen behält ihn. Die Unterseite
+ * prüft e2e/album-care.spec.ts.
  */
-test('Pflege kaufen: Samen weg, ein Platz mehr, nächster Rang gesperrt – auch nach dem Neuladen', async ({ page, context }) => {
+test('Erforschen: ⚖️ weg, ein Platz mehr, Knoten erledigt – auch nach dem Neuladen', async ({ page, context }) => {
   await seedV3(context, {
     totalGrowth: waypoint(6) + 1, // Junger Baum: Laubstreu hat 2 Plätze
-    seeds: 400,
+    harmonyPoints: 400,
     niches: { roots: ['earthworm'], litter: ['robin'] },
   });
   // Die Nischen-Seite schreibt nur, solange sie sichtbar ist (docs/ALBUM_UI.md, D.1).
   await gotoTab(page, 'nischen');
   await expect(niche(page, 'litter')).toContainText('1/2 belegt');
   await openTab(page, 'pflege');
+  await expect(page.locator('[data-ref="care-summary"]')).toContainText('⚖️ 400');
   const care = page.locator('[data-ref="care"]');
   const litter = care.locator('[data-care="leaf-litter"]');
   await expect(litter).toContainText('Laub liegen lassen');
-  await expect(litter).toContainText('Rang 0/2');
+  await expect(litter).toContainText('🪱 Boden');
   await expect(litter).toContainText('+1 Platz Laubstreu');
-  // Maßnahmen ab Alter Baum (z. B. Lichte Krone) stehen noch nicht in der Liste.
+  // Knoten ab Alter Baum (z. B. Lichte Krone) stehen noch nicht in der Liste.
   await expect(care.locator('[data-care="light-crown"]')).toHaveCount(0);
 
-  await litter.getByRole('button', { name: 'Kaufen (200 🌰)' }).click();
+  await litter.getByRole('button', { name: 'Erforschen (80 ⚖️)' }).click();
 
-  await expect(litter).toContainText('Rang 1/2');
-  await expect(litter.locator('[data-ref="care-blocker"]')).toHaveText('Ab Stufe „Hain“');
-  // Gesperrt per aria-disabled (nicht `disabled`): bleibt fokussierbar, Grund wird vorgelesen.
-  const locked = litter.getByRole('button', { name: /Kaufen/ });
-  await expect(locked).toHaveAttribute('aria-disabled', 'true');
-  await expect(locked).toHaveAccessibleName(/gesperrt: Ab Stufe „Hain“/);
-  await expect(locked).toBeDisabled();
-  // Klick auf den gesperrten Knopf kauft nichts.
-  await locked.click({ force: true });
-  await expect(litter).toContainText('Rang 1/2');
+  await expect(litter).toContainText('erforscht');
+  await expect(litter.locator('[data-buy-care="leaf-litter"]')).toBeHidden();
   const saved = await savedState(page);
-  expect(saved.cycle.care).toEqual({ 'leaf-litter': 1 });
-  expect(saved.seeds).toBeLessThan(300);
+  expect(saved.cycle.research).toEqual(['leaf-litter']);
+  expect(saved.harmonyPoints).toBeLessThan(400 - 80 + 20);
+  expect(saved.version).toBe(17);
 
   await openTab(page, 'nischen');
   await expect(niche(page, 'litter')).toContainText('1/3 belegt');
   await page.reload();
   await expect(niche(page, 'litter')).toContainText('1/3 belegt');
   await openTab(page, 'pflege');
-  await expect(care.locator('[data-care="leaf-litter"]')).toContainText('Rang 1/2');
-  expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 1 });
+  await expect(care.locator('[data-care="leaf-litter"]')).toContainText('erforscht');
+  expect((await savedState(page)).cycle.research).toEqual(['leaf-litter']);
 });
 
-test('Pflege per Tastatur: Fokus bleibt auf dem Knopf, nach dem letzten Rang auf dem Titel', async ({ page, context }) => {
+test('Gesperrter Knoten (Voraussetzung fehlt): aria-disabled mit Grund, Klick erforscht nichts', async ({ page, context }) => {
   await seedV3(context, {
-    totalGrowth: waypoint(20) + 1, // Hain: beide Ränge von „Laub liegen lassen“ kaufbar
-    seeds: 100_000,
+    totalGrowth: waypoint(12) + 1, // Alter Baum: Waldtümpel steht in der Liste, braucht Kompost
+    harmonyPoints: 5000,
+    niches: { roots: ['earthworm'] },
+  });
+  await gotoTab(page, 'pflege');
+  const care = page.locator('[data-ref="care"]');
+  const pond = care.locator('[data-care="pond"]');
+  await expect(pond.locator('[data-ref="care-blocker"]')).toHaveText('Braucht „Kompost“');
+  // Gesperrt per aria-disabled (nicht `disabled`): bleibt fokussierbar, Grund wird vorgelesen.
+  const locked = pond.getByRole('button', { name: /Erforschen/ });
+  await expect(locked).toHaveAttribute('aria-disabled', 'true');
+  await expect(locked).toHaveAccessibleName(/gesperrt: Braucht „Kompost“/);
+  await locked.click({ force: true });
+  await page.waitForTimeout(450);
+  expect((await savedState(page)).cycle.research ?? []).toEqual([]);
+  // Mit Kompost geht es.
+  await care.locator('[data-buy-care="compost"]').click();
+  await expect(pond.locator('[data-ref="care-blocker"]')).toBeHidden();
+  await expect(locked).not.toHaveAttribute('aria-disabled', 'true');
+  await page.waitForTimeout(450);
+  await locked.click();
+  await expect(pond).toContainText('erforscht');
+  await expect.poll(async () => (await savedState(page)).cycle.research).toEqual(['compost', 'pond']);
+});
+
+test('Forschung per Tastatur: nach dem Erforschen Fokus auf dem Titel', async ({ page, context }) => {
+  await seedV3(context, {
+    totalGrowth: waypoint(20) + 1, // Hain
+    harmonyPoints: 100_000,
     niches: { roots: ['earthworm'] },
   });
   await gotoTab(page, 'pflege');
   const litter = page.locator('[data-ref="care"] [data-care="leaf-litter"]');
   const buy = litter.locator('[data-buy-care="leaf-litter"]');
-  await expect(buy).toHaveText('Kaufen (200 🌰)');
+  await expect(buy).toHaveText('Erforschen (80 ⚖️)');
   await buy.focus();
   await page.keyboard.press('Enter');
-  await expect(litter).toContainText('Rang 1/2');
-  // Neu gebauter Knopf (nächster Rang) hat den Fokus übernommen.
-  await expect(buy).toHaveText(/Kaufen \(7[.,]000 🌰\)/);
-  await expect(buy).toBeFocused();
-  // Sperre gegen Doppelkäufe abwarten, dann den letzten Rang kaufen.
-  await page.waitForTimeout(450);
-  await page.keyboard.press('Enter');
-  await expect(litter).toContainText('voll ausgebaut');
+  await expect(litter).toContainText('erforscht');
   await expect(buy).toBeHidden();
   await expect(litter.locator('[data-care-title="leaf-litter"]')).toBeFocused();
-  expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 2 });
+  expect((await savedState(page)).cycle.research).toEqual(['leaf-litter']);
 });
 
-test('Pflege: Doppelklick und gehaltene Enter-Taste kaufen nur einen Rang', async ({ page, context }) => {
+test('Forschung: Doppelklick und gehaltene Enter-Taste erforschen nur einmal', async ({ page, context }) => {
   await seedV3(context, {
     totalGrowth: waypoint(20) + 1,
-    seeds: 100_000,
+    harmonyPoints: 100_000,
     niches: { roots: ['earthworm'] },
   });
   await gotoTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const litter = care.locator('[data-care="leaf-litter"]');
+  const harmonyBefore = (await savedState(page)).harmonyPoints as number;
   await litter.locator('[data-buy-care="leaf-litter"]').dblclick();
-  await expect(litter).toContainText('Rang 1/2');
+  await expect(litter).toContainText('erforscht');
   await page.waitForTimeout(450);
-  expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 1 });
+  const saved = await savedState(page);
+  expect(saved.cycle.research).toEqual(['leaf-litter']);
+  // Genau einmal bezahlt (dazu kommt nur der Zufluss der wenigen Sekunden).
+  expect(saved.harmonyPoints).toBeGreaterThan(harmonyBefore - 160);
 
   // Gehaltene Enter-Taste: Playwright meldet weitere keydown mit `repeat`.
-  const pond = care.locator('[data-care="pond"]');
-  await pond.locator('[data-buy-care="pond"]').focus();
+  const compost = care.locator('[data-care="compost"]');
+  await compost.locator('[data-buy-care="compost"]').focus();
   await page.keyboard.down('Enter');
   await page.keyboard.down('Enter');
   await page.keyboard.down('Enter');
   await page.keyboard.up('Enter');
-  await expect(pond).toContainText('Rang 1/2');
+  await expect(compost).toContainText('erforscht');
   await page.waitForTimeout(450);
-  expect((await savedState(page)).cycle.care).toEqual({ 'leaf-litter': 1, pond: 1 });
+  expect((await savedState(page)).cycle.research).toEqual(['leaf-litter', 'compost']);
 });
 
-/** data-care-IDs der Pflege-Liste in Anzeige-Reihenfolge. */
+/** data-care-IDs der Liste in Anzeige-Reihenfolge. */
 const careIds = (page: Page) =>
   page.locator('[data-ref="care"] [data-care]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.care!));
 
-test('Pflege: kaufbar zuerst, Reihenfolge bleibt beim Kauf stehen, Bestätigung schwebt', async ({ page, context }) => {
+test('Forschung: erforschbar zuerst, Reihenfolge bleibt beim Kauf stehen, Bestätigung schwebt', async ({ page, context }) => {
   await seedV3(context, {
     totalGrowth: waypoint(20) + 1, // Hain
-    seeds: 2600,
+    harmonyPoints: 2600,
+    research: ['wildflower-hem'],
     niches: { roots: ['earthworm'], edge: ['bee'] },
   });
   await gotoTab(page, 'pflege');
@@ -117,29 +137,28 @@ test('Pflege: kaufbar zuerst, Reihenfolge bleibt beim Kauf stehen, Bestätigung 
   const ranks = groups.map((g) => rank[g]!);
   expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
   expect(groups[0]).toBe('buyable');
-  await expect(page.locator('[data-ref="care-summary"]')).toHaveText(/\d+ kaufbar/);
+  await expect(page.locator('[data-ref="care-summary"]')).toHaveText(/\d+ erforschbar/);
   await expect(care.locator('[data-care="insect-hotel"] [data-ref="care-preview"]')).toContainText('+3 ⚖️');
 
   const order = await careIds(page);
   const boxes = care.locator('[data-buy-care="nest-boxes"]');
   await boxes.focus();
   await page.keyboard.press('Enter');
-  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('Rang 1/2');
+  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('erforscht');
   // Bestätigung: schwebender Hinweis und Statuszeile für Screenreader.
   await expect(page.locator('.float-layer')).toContainText('Nistkästen angebracht');
   await expect(care.getByRole('status')).toHaveText('Nistkästen angebracht');
   // Fokus in der Liste: nichts springt.
   expect(await careIds(page)).toEqual(order);
-  await expect(boxes).toBeFocused();
 
-  // Fokus verlässt die Liste → neu sortiert (Nistkästen ist jetzt zu teuer und rutscht nach hinten).
+  // Fokus verlässt die Liste → neu sortiert (Nistkästen ist erforscht und rutscht nach hinten).
   await page.locator('[data-ref="tab-care"]').focus();
   await expect.poll(async () => (await careIds(page)).indexOf('nest-boxes')).toBeGreaterThan(order.indexOf('nest-boxes'));
 });
 
-test('Pflege auf dem Handy: Kennzahl im Kopf, Punkt am Reiter, große Knöpfe, ohne Querscrollen', async ({ page, context }) => {
+test('Forschung auf dem Handy: Vorrat und Kennzahl im Kopf, Punkt am Reiter, große Knöpfe, ohne Querscrollen', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 1200, niches: { roots: ['earthworm'] } });
+  await seedV3(context, { totalGrowth: waypoint(6) + 1, harmonyPoints: 1200, niches: { roots: ['earthworm'] } });
   await openGame(page);
   // Punkt am Reiter schon, bevor die Seite offen ist (G-13).
   const dot = page.locator('[data-ref="tab-care"] .tab-dot');
@@ -147,31 +166,34 @@ test('Pflege auf dem Handy: Kennzahl im Kopf, Punkt am Reiter, große Knöpfe, o
   await openTab(page, 'pflege');
   const care = page.locator('[data-ref="care"]');
   const buy = care.locator('[data-buy-care="leaf-litter"]');
-  // Kompost 200, Laub 200, Nistkästen 650, Wildblumen-Saum 900 🌰.
-  await expect(page.locator('[data-ref="care-summary"]')).toHaveText('4 kaufbar');
+  // Junger Baum: Kompost 100, Laub 80, Saatgut sortieren 200, Nistkästen 250, Wildblumen-Saum 300, Waldwiese 600 ⚖️.
+  const summary = page.locator('[data-ref="care-summary"]');
+  await expect(summary).toContainText('6 erforschbar');
+  await expect(summary).toContainText(/⚖️ 1\.?2\d\d · \+\d+\/min/);
   await expect(buy).toBeVisible();
   expect((await buy.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect((await care.locator('[data-care-title="leaf-litter"]').boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
-  // Drei Käufe (zusammen 1.050 🌰), danach reicht es für nichts mehr: Punkt weg.
-  for (const id of ['compost', 'leaf-litter', 'nest-boxes']) {
+  // Drei Knoten (zusammen 1.150 ⚖️), danach reicht es für nichts mehr: Punkt weg.
+  for (const id of ['meadow', 'wildflower-hem', 'nest-boxes']) {
     await care.locator(`[data-buy-care="${id}"]`).click();
-    await expect(care.locator(`[data-care="${id}"]`)).toContainText(/Rang 1\/|voll ausgebaut/);
+    await expect(care.locator(`[data-care="${id}"]`)).toContainText('erforscht');
   }
-  await expect(page.locator('[data-ref="care-summary"]')).toHaveText('');
+  await expect(summary).not.toContainText('erforschbar');
   await expect(dot).toBeHidden();
 });
 
-test('Mobil: „Zur Pflege“ beim verschlossenen Waldtümpel öffnet die Pflege bei der Maßnahme', async ({ page, context }) => {
+test('Mobil: „Zur Pflege“ beim verschlossenen Waldtümpel öffnet die Forschung beim Knoten', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedV3(context, {
-    totalGrowth: waypoint(12) + 1, // Alter Baum: Pflege „Waldtümpel“ steht in der Liste
-    seeds: 10_000,
+    totalGrowth: waypoint(12) + 1, // Alter Baum: Forschung „Waldtümpel“ steht in der Liste
+    harmonyPoints: 10_000,
+    research: ['compost'],
     niches: { roots: ['earthworm'] },
   });
   await openGame(page);
   const pond = niche(page, 'pond');
-  await expect(pond).toContainText('öffnet durch Pflege „Waldtümpel“');
+  await expect(pond).toContainText('öffnet durch Forschung „Waldtümpel“');
   // Der Knopf am Hinweis führt hin (Playtest Amphibien): Reiter „Pflege“, Zeile im Bild.
   await pond.getByRole('button', { name: 'Zur Pflege: Waldtümpel öffnen' }).click();
   await expect(page.locator('[data-ref="tab-care"]')).toHaveAttribute('aria-selected', 'true');
@@ -185,10 +207,10 @@ test('Mobil: „Zur Pflege“ beim verschlossenen Waldtümpel öffnet die Pflege
   await expect(pond.locator('[data-ref="niche-care-link"]')).toBeHidden();
 });
 
-test('Pflege: nach einem Mausklick wird neu sortiert, sobald die Maus die Liste verlässt', async ({ page, context }) => {
+test('Forschung: nach einem Mausklick wird neu sortiert, sobald die Maus die Liste verlässt', async ({ page, context }) => {
   await seedV3(context, {
     totalGrowth: waypoint(20) + 1, // Hain
-    seeds: 2600,
+    harmonyPoints: 2600,
     niches: { roots: ['earthworm'], edge: ['bee'] },
   });
   await gotoTab(page, 'pflege');
@@ -196,7 +218,7 @@ test('Pflege: nach einem Mausklick wird neu sortiert, sobald die Maus die Liste 
   const order = await careIds(page);
   const boxes = care.locator('[data-buy-care="nest-boxes"]');
   await boxes.click();
-  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('Rang 1/2');
+  await expect(care.locator('[data-care="nest-boxes"]')).toContainText('erforscht');
   const note = page.locator('.float-layer .float-note').filter({ hasText: 'Nistkästen angebracht' });
   const noteBox = (await note.boundingBox())!;
   const nameBox = (await care.locator('[data-care="nest-boxes"] .care-name').boundingBox())!;
@@ -204,7 +226,7 @@ test('Pflege: nach einem Mausklick wird neu sortiert, sobald die Maus die Liste 
   // Direkt nach dem Kauf (Maus noch in der Liste, Haltezeit): nichts springt.
   expect(await careIds(page)).toEqual(order);
   // Maus raus – der per Klick fokussierte Knopf hält die Liste nicht fest; nach der
-  // Haltezeit rutscht „Nistkästen“ (jetzt zu teuer) nach hinten.
+  // Haltezeit rutscht „Nistkästen“ (jetzt erforscht) nach hinten.
   await page.mouse.move(5, 5);
   await expect.poll(async () => (await careIds(page)).indexOf('nest-boxes')).toBeGreaterThan(order.indexOf('nest-boxes'));
 });

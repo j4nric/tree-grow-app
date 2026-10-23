@@ -8271,6 +8271,21 @@ interface LifetimeStats {
 - `pendingEncounters` mit Typ `'plant'` in einem v17-Stand: wie Migration Schritt 4.
 - Ein v17-Stand mit `cycle.care` (manipuliert): `care` wird ignoriert.
 
+**Umgesetzt (Phase 10, 2a):** Spielstand v17 wie oben (`src/core/state.ts`, `save.ts`). Abweichungen
+und Festlegungen: (1) Schritt 4 der Migration (offene Pflanzenbegegnung → Aussaat, `forced`
+Pflanze → `freeSowing`) und die gleiche Regel beim robusten Laden kommen mit 2b – solange das
+Deck „Etwas keimt“ noch zieht, würde sie laufende Begegnungen in eine Aussaat ohne Logik und
+Oberfläche verschieben. (2) `cycle.research` wird in gespeicherter Reihenfolge in einem Durchgang
+geprüft: Ein Knoten bleibt nur, wenn seine Voraussetzungen *vor* ihm stehen und kein früherer
+Knoten ihn ausschließt (eine echte Kauf-Reihenfolge erfüllt das immer; die Migration schreibt in
+`RESEARCH`-Reihenfolge). (3) `cycle.sowing` mit zu vielen Karten wird gekürzt statt verworfen.
+(4) `freeSowing` gilt nur für IDs, die ein gezogenes Ereignis mit `nextEncounter` `type: 'plant'`
+vorgibt (2b stellt die Vogelsaat um). (5) Ein Neuer Zyklus ohne Forschung lässt den bisherigen Plan
+stehen. (6) Der Vorrat ist auch im Tick auf `MAX_HARMONY_POINTS` begrenzt (sonst änderte das Laden
+den Stand); `harmonyEarned` zählt nur, was wirklich ankam. (7) Das Startguthaben rechnet mit der
+Harmonie des fertig geladenen Stands (mit Einzelwetter des Tages wie die Anzeige), die
+umgebuchten Knoten zählen mit.
+
 **Warum eine neue Version:** Ein v16-Spiel kennt weder Vorrat noch Forschung und würde beim
 Laden die Forschung verwerfen und `care` leer setzen – über die Synchronisierung ginge der Zyklus
 verloren (Fall 25.5). Darum **v17**: `newer` beim Import, `outdated-client` (422) beim Sync

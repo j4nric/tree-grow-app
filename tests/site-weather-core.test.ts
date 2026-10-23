@@ -26,7 +26,7 @@ import {
   weatherSeed,
   weatherSiteOf,
 } from '../src/core/weather';
-import { stateAt } from './helpers';
+import { stateAt, researchFor } from './helpers';
 
 /**
  * Wetter je Waldtyp (DESIGN_V2.md 24.14, Phase 7, 3c): Gewichte des aktiven Waldes in
@@ -99,7 +99,7 @@ describe('Heimatwald unverändert (Goldwerte vor 3c)', () => {
     for (const s of SEASON_IDS) {
       for (const g of [false, true]) {
         probs += JSON.stringify(weatherProbabilities(s, g, HOME_SITE));
-        probs += JSON.stringify(averageWeatherEffectsFor(s, 3, { 'leaf-litter': 1 }, 'oak', g, HOME_SITE));
+        probs += JSON.stringify(averageWeatherEffectsFor(s, 3, ['leaf-litter'], 'oak', g, HOME_SITE));
       }
     }
     expect(fnv(probs)).toBe(GOLD_PROBABILITIES);
@@ -278,7 +278,7 @@ describe('Spielstand: aktiver Wald bestimmt das Wetter', () => {
   it('Mittel = Σ p_eff × gedämpfte Wirkung je Standort; evaluate „Mittel“ und Cache kennen den Wald', () => {
     for (const site of SITE_IDS) {
       const state = stateIn(site, 5, ['vole']);
-      state.cycle.care = { 'leaf-litter': 1 };
+      state.cycle.research = researchFor({ 'leaf-litter': 1 });
       for (const season of SEASON_IDS) {
         const p = weatherProbabilities(season, false, site);
         let growth = 0;

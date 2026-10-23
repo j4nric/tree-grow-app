@@ -17,7 +17,6 @@ import { evaluate, seedSeconds } from '../src/core/formulas';
 import { loadGame, serialize } from '../src/core/save';
 import { SAVE_VERSION, createInitialState, type DailyGoal, type GameState } from '../src/core/state';
 import {
-  buyCare,
   chooseCard,
   chooseEventOption,
   declineEncounter,
@@ -25,6 +24,7 @@ import {
   hostVisitor,
   plantSeed,
   rerollEncounter,
+  research,
   simulateOffline,
   startNewCycle,
   tick,
@@ -195,7 +195,8 @@ describe('Fortschritt: aktiv und offline', () => {
     expect(hostVisitor(state, 0).ok).toBe(true);
     expect(state.meta.daily.goals[0]!.progress).toBe(2);
     expect(plantSeed(state, 'moss').ok).toBe(true);
-    expect(buyCare(state, 'compost').ok).toBe(true);
+    state.harmonyPoints = 1e6;
+    expect(research(state, 'compost').ok).toBe(true);
     expect(state.meta.daily.goals.map((g) => g.progress)).toEqual([2, 1, 1]);
     const result = updateDaily(state, DAY, {});
     expect(result.completed.map((c) => c.goal.kind)).toEqual(['plant', 'care']);
@@ -487,8 +488,8 @@ describe('Spielstand v12', () => {
     const raw = JSON.stringify({ ...state, version: 11, meta });
     const a = loadGame(raw, 0)!.state;
     const b = loadGame(raw, 0)!.state;
-    expect(SAVE_VERSION).toBe(16);
-    expect(a.version).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
+    expect(a.version).toBe(17);
     expect(a.meta.daily).toMatchObject({ day: '', goals: [], streak: 0, bestStreak: 0, lastDay: '', goalsDone: 0, perfectDays: 0 });
     expect(a.meta.daily.seed).toBeGreaterThan(0);
     expect(b.meta.daily.seed).toBe(a.meta.daily.seed);

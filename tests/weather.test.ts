@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CARE } from '../src/content/care';
+import { RESEARCH } from '../src/content/research';
 import { DAY_SECONDS, DAY_START_PHASE, NIGHT_END_PHASE, NIGHT_SHARE, NIGHT_START_PHASE, NOCTURNAL } from '../src/content/daytime';
 import { SEASON_IDS } from '../src/content/seasons';
 import { SPECIES_BY_ID } from '../src/content/species';
@@ -38,8 +38,8 @@ describe('Wetter (Daten)', () => {
     }
   });
 
-  it('nur raue Lagen haben Abzüge – und jede bringt dafür Samen; Schutz ist eine echte Pflegemaßnahme', () => {
-    const careIds = new Set(CARE.map((c) => c.id));
+  it('nur raue Lagen haben Abzüge – und jede bringt dafür Samen; Schutz ist ein echter Forschungsknoten', () => {
+    const careIds = new Set(RESEARCH.map((c) => c.id));
     for (const w of WEATHERS) {
       const negative = w.effects.some((e) => e.pct < 0);
       expect(negative, w.id).toBe(!!w.rough);

@@ -4,7 +4,7 @@
  * trotzdem. Getestet in tests/settings.test.ts (Abschnitt „Spielanleitung“).
  */
 import { ACHIEVEMENTS } from '../content/achievements';
-import { CARE, CARE_BY_ID } from '../content/care';
+import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_BY_ID, RESEARCH_FORKS } from '../content/research';
 import { COMMUNITIES } from '../content/communities';
 import {
   CARDS_PER_ENCOUNTER,
@@ -55,6 +55,7 @@ import {
 } from '../content/landscape';
 import { MAX_FOREST_MEMORY } from '../core/state';
 import { HARMONY_TIERS, bonusEffectLabel, isHabitatNiche, listNames } from './adapters';
+import { researchSlotNodes } from './regular-wait';
 import { fruitPhrase } from './cycle-view';
 import { siteEventText, siteWeatherText } from './landscape-view';
 import { formatDuration, formatNumber } from './format';
@@ -127,7 +128,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
 
   const eventStage = stageName(Math.min(...EVENTS.map((e) => e.minStage)));
   const visitorStage = stageName(Math.min(...VISITORS.map((v) => v.minStage)));
-  const careStage = stageName(Math.min(...CARE.map((c) => c.ranks[0]!.minStage)));
+  const careStage = stageName(Math.min(...RESEARCH.map((n) => n.minStage)));
   const interludeStage = stageName(INTERLUDE_STAGE);
   const eventOptions = EVENTS.flatMap((e) => e.options);
   const timedEffects = eventOptions.flatMap((o) => o.effects.flatMap((x) => (x.kind === 'timed' ? [x] : [])));
@@ -139,21 +140,14 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
   const firstTimed = timedEffects[0];
   const timedExample = firstTimed ? `${bonusEffectLabel(firstTimed.effect)} für ${formatDuration(firstTimed.seconds)}` : '';
 
-  // Sich ausschließende Maßnahmen als Paare (jedes Paar nur einmal).
-  const exclusions: string[][] = [];
-  for (const measure of CARE) {
-    for (const other of measure.excludes ?? []) {
-      const name = CARE_BY_ID.get(other)?.name;
-      // In CARE-Reihenfolge: Das Paar zählt bei der zuerst genannten Maßnahme.
-      if (name && CARE.findIndex((c) => c.id === other) > CARE.indexOf(measure)) exclusions.push([measure.name, name]);
-    }
-  }
+  // Gabeln der Forschung (27.7): je Gabel die ersten Knoten beider Wege.
+  const forks = RESEARCH_FORKS.map((f) => f.paths.map((p) => RESEARCH_BY_ID.get(p[0]!)?.name ?? p[0]!));
 
   // Wetter und Nacht (DESIGN_V2.md 21): alles aus den Daten.
   const roughWeathers = WEATHERS.filter((w) => w.rough);
   const protections = roughWeathers
-    .filter((w) => w.protection && CARE_BY_ID.has(w.protection))
-    .map((w) => `„${CARE_BY_ID.get(w.protection!)!.name}“ bei ${w.name}`);
+    .filter((w) => w.protection && RESEARCH_BY_ID.has(w.protection))
+    .map((w) => `„${RESEARCH_BY_ID.get(w.protection!)!.name}“ bei ${w.name}`);
   const immune = roughWeathers.flatMap((w) =>
     (w.immuneTrees ?? []).map((t) => `Die ${MAIN_TREES.find((x) => x.id === t)?.name ?? t} ist gegen ${w.name} gefeit`),
   );
@@ -164,17 +158,15 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
     (n) => SPECIES.find((x) => x.id === n.species)?.name ?? n.species,
   );
 
-  // Lebensräume (DESIGN_V2.md 23, 5.5): Nischen ohne Plätze aus der Stufe, geöffnet durch Pflege.
+  // Lebensräume (DESIGN_V2.md 23, 5.5): Nischen ohne Plätze aus der Stufe, geöffnet durch Forschung.
   const habitats = NICHES.filter((n) => isHabitatNiche(n.id))
     .map((n) => {
-      const opener = CARE.find((m) =>
-        m.ranks[0]?.effects.some((e) => e.kind === 'cycle' && e.effect.kind === 'slot' && e.effect.niche === n.id && e.effect.amount > 0),
-      );
-      return { niche: n, opener, at: opener?.ranks[0]?.minStage ?? STAGES.length };
+      const opener = researchSlotNodes(n.id)[0];
+      return { niche: n, opener, at: opener?.minStage ?? STAGES.length };
     })
     .sort((a, b) => a.at - b.at);
   const habitatList = habitats.map(({ niche, opener, at }) =>
-    opener ? `${niche.icon} ${niche.name} (Pflege „${opener.name}“ ab „${stageName(at)}“)` : `${niche.icon} ${niche.name}`,
+    opener ? `${niche.icon} ${niche.name} (Forschung „${opener.name}“ ab „${stageName(at)}“)` : `${niche.icon} ${niche.name}`,
   );
   // Ereignisse, die einen Lebensraum öffnen – als Beispiel eines der neuen (Käferjahr), sonst der Tümpel.
   const opensHabitat = (e: (typeof EVENTS)[number], other: boolean) =>
@@ -339,11 +331,12 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
     {
       id: 'care',
       icon: '🧺',
-      title: 'Pflege',
+      title: 'Forschung',
       paragraphs: [
-        `Ab „${careStage}“ steckst du Samen in ${formatNumber(CARE.length)} Pflegemaßnahmen: ${listNames(CARE.map((c) => c.name), 3)}. Jede hat ${span(CARE.map((c) => c.ranks.length))} Ränge, die du nacheinander kaufst – jeder teurer als der vorige, spätere oft erst auf einer höheren Stufe.`,
-        `Gekaufte Ränge wirken bis zum Neuen Zyklus und addieren sich. Verkaufen geht nicht – überlege, was dein Wald gerade braucht.`,
-        ...exclusions.map((pair) => `${all(pair.map((n) => `„${n}“`))} schließen sich aus: Du kannst nur eine davon pflegen.`),
+        `Deine Harmonie ist eine Produktion: Sie füllt jede Minute einen Vorrat ⚖️ – so viele Punkte, wie die Harmonie gerade beträgt, mit dem Waldgedächtnis mehr. Der Harmonie-Bonus auf 🌿 und 🌰 hängt an der Produktion, Ausgeben senkt ihn nie.`,
+        `Ab „${careStage}“ erforschst du mit dem Vorrat ${formatNumber(RESEARCH.length)} Knoten in ${formatNumber(RESEARCH_BRANCHES.length)} Ästen: ${listNames(RESEARCH_BRANCHES.map((b) => b.name), RESEARCH_BRANCHES.length)}. Manche brauchen erst andere Knoten, spätere eine höhere Stufe.`,
+        `Erforschte Knoten wirken bis zum Neuen Zyklus; dann beginnen Vorrat und Forschung neu. Verkaufen geht nicht – überlege, was dein Wald gerade braucht.`,
+        ...forks.map((pair) => `${all(pair.map((n) => `„${n}“`))} schließen sich aus: Du wählst einen der beiden Wege.`),
       ],
     },
     {
