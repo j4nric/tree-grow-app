@@ -4670,7 +4670,8 @@ Abschnitt „Tagesziele“.
 - **Serie belohnen?** Bisher nur Anzeige und Statistik. Ein Andenken bei 7 bzw. 30 Tagen wäre
   möglich, ohne Zahlen-Belohnung (wie die Erfolge).
 - **Erfolge:** „7 Tage in Folge“ oder „50 Tagesziele“ als neue Erfolge (eine neue
-  Bedingungsart über `meta.daily`).
+  Bedingungsart über `meta.daily`). **Entschieden in 26.5** (Phase 9, 1d): beide als Erfolge, kein
+  Andenken, keine Zahl.
 - **Gezielter Spieler im Simulator:** Die Messung lässt Ziele nebenbei erfüllen. Ein Spieler,
   der Ziele jagt, bekäme höchstens die Obergrenze (≤ 4,6 %).
 
@@ -6768,7 +6769,8 @@ In `src/content/achievements.ts` (`AchievementCondition`):
   Kiefernheide mehr Dürre, Erlenbruch mehr Nebel, Buchenhallen windstill – Abschnitt **24.14**.
   Logik mit 3c.
 - **Waldtyp und Lebensräume (23):** z. B. Kiefernheide +1 Platz Trockenmauer, Auwald +1 Platz
-  Waldwiese (Auenwiese). Erst nach v13 messen.
+  Waldwiese (Auenwiese). Erst nach v13 messen. **Vorab gemessen und entschieden in 26.2** (Phase 9, 1a): Kiefernheide ja,
+  Auwald nein.
 - **Harmonie-Hebel in der Landschaft – gemessen, nicht umgesetzt (Option):** Mit der echten
   Logik ist der Wachstums-Spieler über die ganze Landschaft nur 5,1 % (vollständig) bzw.
   6,5 % (alle voll) schneller (24.10) – unter der vereinbarten Schwelle von 10 %. Nach Schritt B
@@ -6780,7 +6782,11 @@ In `src/content/achievements.ts` (`AchievementCondition`):
   Schwelle um 200 träfe beide; sie müsste bei ~305 liegen und wäre damit sehr knapp.
 - **Nach der Landschaft:** Im Modell ist alles nach ~20 h (Harmonie) bzw. ~50 h (Zufall)
   erreicht. Eine dritte Ebene sollte wieder in die Breite gehen (z. B. wechselnde
-  Klima-Epochen als Herausforderungen mit Andenken), nicht in die Höhe.
+  Klima-Epochen als Herausforderungen mit Andenken), nicht in die Höhe. **Phase 9 (26):** Kennarten und
+  Waldchroniken; Klima-Epochen bleiben Kandidat für danach.
+- **Weitere Massenjahre je Wald** (nach 3e): **entschieden in 26.2** – jeder Waldtyp bekommt sein
+  Ereignis über `eventFactors` (Auwald Regenreicher Frühling × 2 und Schneckenjahr × 3, Erlenbruch
+  Krötenwanderung × 3, Buchenhallen Mastjahr × 2 und Mäusejahr × 3, Bergmischwald keins).
 - **Wildwechsel-Chance – gemessen in 2c, bleibt 10 % je Korridor (höchstens 30 %):** Sie ändert
   kein Tempo (Landschaft vollständig 14,2 gegen 14,0 h ohne Wildwechsel, Harmonie) und keine
   Kennzahl aus 7.7; sie bringt im Mittel 1,3–1,5 gewählte Nachbar-Arten je Zyklus und etwas
@@ -7268,3 +7274,359 @@ meta.journal.firstSeen: {
 - **Robustes Laden:** nur bekannte IDs, die im Tagebuch stehen; Zyklus ganzzahlig in
   [1, laufender Zyklus]; Jahreszeit aus `SEASON_IDS`. Sonst fällt der Eintrag weg.
 - **Größe:** höchstens ein Eintrag je Art und Pflanze (heute 51 + 14), wenige KB.
+
+---
+
+## 26. Geschichten der Wälder (Phase 9)
+
+> **Stand:** Entwurf (Phase 9, Konzept). Noch nichts umgesetzt. Die Zahlen in 26.2 sind
+> **vorab gemessen** (echte Logik, `siteRun` wie 24.7, 160 Durchgänge, Gedächtnis 200; die
+> Daten wurden dafür nur im Messlauf getauscht, nichts committet) – Aufgabe 1a überträgt sie in
+> die Daten und misst mit dem offiziellen Lauf nach. Alles andere sind Startwerte, die 2c misst.
+> Aufgaben und Reihenfolge: `docs/ROADMAP.md`, Phase 9.
+
+### 26.1 Was nach der Landschaft trägt
+
+Nach ~14 h (Harmonie-Spieler, 24.10) ist die Landschaft vollständig, nach ~16,5 h sind alle
+Wälder voll. Danach gibt es heute nur noch Ernte: 8-Minuten-Urwälder ohne Gewinn (24.1, 24.10
+„davon Ernte“). Die Landschaft hat sechs Wälder mit eigenem Wetter, Leitbaum und Käferjahr –
+aber der Spieler **erlebt** sie kaum als Orte mit Geschichte: Ein Wald ist eine Zeile mit
+Gedächtnis, und wenn er voll ist, gibt es keinen Grund, zurückzukehren.
+
+Phase 9 antwortet darauf **in die Breite, nicht in die Höhe** (wie 24.1, 24.13 „Nach der
+Landschaft“):
+
+1. **Jeder Waldtyp bekommt sein Ereignis** (26.2) – die offene Frage „weitere Massenjahre je
+   Wald“, gemessen und entschieden. Klein, nur Daten.
+2. **Kennarten** (26.3): Jeder der sechs Wälder hat eine seltene Art, die nur dort lebt – und
+   nur, wenn der Wald alt ist. Sammelziel im Album, Grund für die Rückkehr, Stoff für den
+   Wildwechsel („Der Biber wandert den Mühlbach hinauf“).
+3. **Waldchronik** (26.4): Jeder Wald schreibt sein Tagebuch in sechs Kapiteln – erster
+   Urwald, erster Schnee im Urwald, das Ereignis des Waldes, die Kennart, voller Einklang,
+   volles Gedächtnis. Eine vollständige Chronik bringt ein Andenken. Das macht die Ernte zur
+   Geschichte: Jeder volle Wald hat noch Kapitel, und manche verlangen, **im Urwald zu
+   verweilen** statt sofort neu zu starten.
+4. **Kleine Rituale** (26.5): Erfolge für die Tagesziel-Serie (offene Frage 20.8).
+
+**Leitlinien**
+
+- **Keine neue Zahl, kein Multiplikator.** Belohnungen sind Andenken, Sticker, Erfolge und
+  Seiten im Album. Kennarten wirken wie andere besondere Arten – klein und gemessen (±5 %).
+- **Der erste Wald bleibt, wie er ist** (24.1): Kennarten erscheinen erst mit der
+  Landschaft; die Chronik wird vorher still mitgeschrieben und erst mit der Landschaft gezeigt.
+- **Kein Zwang, kein Verpassen:** Kein Kapitel ist an Uhrzeit oder Kalender gebunden, keines
+  kann verfallen; jedes ist mit gewöhnlichem Spiel erreichbar (Messziele 26.8).
+- **Ruhig:** Das einzige „Warten“ ist freiwillig und schön – einen Winter im Urwald erleben.
+- **Eine Spielstand-Version (v16)**, nur für die Chronik und den neuen Wertebereich der
+  Kennarten (26.6).
+
+### 26.2 Das Ereignis jedes Waldtyps (offene Frage aus 24.13 / Phase 7, 3e)
+
+**Frage:** Sollen weitere Wälder wie die Kiefernheide (Käferjahr × 3, 3e) ein Massenjahr über
+`ForestSite.eventFactors` häufiger ziehen – etwa das Schneckenjahr im Auwald?
+
+**Befund (vorab gemessen):** Die Massenjahre mit der Bedingung „ungejagt“ sind für Spieler,
+die gut wählen, **zu selten, als dass ein Gewicht sie zum Charakter eines Waldes machen
+könnte**. Das Schneckenjahr kommt im Auwald in 5 / 3 von 160 Durchgängen (Harmonie / Wachstum),
+mit × 3 in 10 / 8; das Mäusejahr in den Buchenhallen 0 / 0, mit × 3 in 1 / 1. Das Käferjahr
+funktioniert in der Heide nur, weil Käfer bis zum Hain fast immer ungejagt sind. Umgekehrt sind
+Sturm, Windwurf und Blitzschlag (~93 %) und Schneebruch (~80 %) schon fast in jedem Durchgang
+da – ein Faktor ändert dort nichts Spürbares. Spürbar wirken Ereignisse dazwischen: Regenreicher
+Frühling, Krötenwanderung, Mastjahr.
+
+**Entscheidung:** Jeder Waldtyp bekommt **sein** Ereignis – ein Massenjahr, wo es botanisch
+passt und messbar etwas bringt, sonst ein anderes vorhandenes Ereignis. Nur Daten
+(`eventFactors`, Faktoren > 1 und ≤ 3 wie der Inhaltstest verlangt), keine Logik, kein
+Spielstand:
+
+| Wald | `eventFactors` | Bild | Durchgänge mit dem Ereignis H / W (vorher) | Urwald gegenüber Heimatwald H / W (vorher) |
+|---|---|---|---|---|
+| 🌳 Heimatwald | `{}` (bleibt; Goldwerte) | – | – | – |
+| 🌊 Auwald am Fluss | `{ rain: 2, 'slug-year': 3 }` | Frühjahrshochwasser, danach Schnecken im Schlick | Regenreicher Frühling **125 / 129** (107 / 107); Schneckenjahr 10 / 8 (5 / 3) | −0,1 / +0,2 % (±0,0 / +0,9 %) |
+| 🐸 Erlenbruch | `{ 'toad-migration': 3 }` | Krötennacht – im Bruch laichen sie sicher (Gabe) | Krötenwanderung **75 / 80** (53 / 59) | +1,2 / −0,3 % (+1,2 / −0,6 %) |
+| 🍂 Buchenhallen | `{ 'mast-year': 2, 'vole-year': 3 }` | Buchenmast – und im Jahr danach die Mäuse | Mastjahr **89 / 106** (68 / 77); Mäusejahr 1 / 1 (0 / 0) | +1,5 / −0,6 % (+1,1 / −1,2 %) |
+| ⛰️ Bergmischwald | `{}` (bleibt) | sein Charakter ist das Wetter (Neuschnee, 24.14) | Schneebruch 129 / 134, Windwurf 149 / 155 – schon fast immer | −1,6 / +1,3 % (unverändert) |
+| 🌲 Kiefernheide | `{ 'beetle-year': 3 }` (seit 3e) | Käferjahr | Käferjahr 65 / 51 mit dem Mauer-Platz unten (71 / 52) | +0,8 / −2,9 % mit Mauer-Platz (+1,2 / −3,6 %) |
+
+- **Auwald:** Das Schneckenjahr bleibt selten (6 / 5 %), es ist die Ausnahme für Spieler, die
+  Schnecken ungejagt lassen – gewollt, die Bedingung gibt dem Ereignis seinen Sinn (22.5).
+  Spürbar ist der Regenreiche Frühling (78 / 81 % statt 67 %): „Jedes Frühjahr steigt das
+  Wasser“ (Kurztext) wird wahr. × 3 statt × 2 brächte kaum mehr (131 / 135) – also × 2.
+- **Erlenbruch:** Die Krötenwanderung (braucht die Erdkröte im Wald) wird mit × 3 vom
+  Drittel- zum Halbjahresereignis (47 / 50 %). Ein zusätzliches Schneckenjahr × 2 änderte
+  nichts (2 / 5 von 160) und entfällt.
+- **Buchenhallen:** Buchenmast ist *das* Ereignis des Hallenbuchenwalds; × 2 hebt es auf
+  56 / 66 %. × 3 (66 / 74 %) kostete den Harmonie-Spieler +2,1 % statt +1,5 % – also × 2. Das
+  Mäusejahr × 3 kostet nichts und erzählt die Folge der Mast (für den Zufallsspieler, bei dem
+  es in 30 % der Durchgänge kommt, 22.9).
+- **Bergmischwald:** kein Faktor. Windwurf × 3 (158 / 158 statt 149 / 155) und Schneebruch × 2
+  (139 / 142 statt 129 / 134) sind gemessen, aber nicht zu spüren.
+- **Kurztexte:** `weatherSummary` bzw. `summary` nennen das Ereignis („Im Frühjahr steigt der
+  Fluss – Regenreicher Frühling öfter“, „Krötennächte öfter“, „Buchenmast öfter“); die
+  Oberfläche zeigt die Faktoren in U:Standort (Aufgabe 1c).
+
+**Waldtyp und Lebensräume (offene Frage 24.13), mitgemessen:**
+
+| Variante | Urwald H / W gegenüber Heimatwald | Entscheidung |
+|---|---|---|
+| 🌲 Kiefernheide: ab Hain +1 Platz Trockenmauer | +0,8 / **−2,9 %** (vorher +1,2 / −3,6 %) | **ja** – Sand, Sonne, Zauneidechse; rückt die Heide für den Wachstums-Spieler zur Mitte und hilft der zu seltenen Sonnenmauer (23.9) |
+| 🌊 Auwald: ab Junger Baum +1 Platz Waldwiese | +1,7 / +1,4 % (vorher −0,1 / +0,2 % mit den Faktoren oben) | **nein** – langsamer ohne neues Bild; der Auwald hat mit zwei Tümpel-Plätzen schon den stärksten Lebensraum |
+
+Der Mauer-Platz ist eine Eigenheit vom Typ `slot` (`{ minStage: 5, effect: { kind: 'slot',
+niche: 'wall', amount: 1 } }`), keine neue Wirkungsart. 1a prüft dabei, ob er die Mauer ohne
+Pflege öffnet (wie der Tümpel-Platz von Auwald und Erle) und wie oft die Sonnenmauer in der
+Heide jetzt entsteht; Kurztext der Heide: „… · ab Hain +1 Platz Trockenmauer · …“.
+
+### 26.3 Kennarten – die seltenen Bewohner alter Wälder
+
+Eine **Kennart** ist in der Pflanzensoziologie die Art, an der man einen Waldtyp erkennt. Im
+Spiel hat jeder der sechs Wälder genau eine: Sie lebt **nur dort** und erscheint nur, wenn der
+Wald **alt** ist. Wer alle sechs sehen will, muss in jeden Wald zurückkehren, wenn er schon
+Urwald war – genau dann, wenn es heute keinen Grund mehr gibt.
+
+| Wald | Kennart | Gattung · Nische | Seltenheit · ab | Wünsche (`needs`) | Wirkung | Text |
+|---|---|---|---|---|---|---|
+| 🌳 Heimatwald | 🐭 **Haselmaus** (`dormouse`) | Säugetiere · Krone | besonders · Hain | Sträucher ≥ 1 | +6 % 🌰, +4 ⚖️, nachtaktiv | „Schläft sieben Monate im Jahr – und klettert in Sommernächten bis in die Haselspitzen.“ |
+| 🌊 Auwald | 🦫 **Biber** (`beaver`) | Säugetiere · Waldtümpel | besonders · Hain | Feuchte | +1 Platz Waldtümpel, +4 ⚖️ | „Er staut den Bach, und wo vorher ein Rinnsal war, quaken bald die Frösche.“ |
+| 🐸 Erlenbruch | 🐸 **Moorfrosch** (`moorfrog`) | Amphibien · Waldtümpel | besonders · Hain | Feuchte, Moose & Farne ≥ 1 | Moose & Farne +10 % 🌿, +6 ⚖️ | „Ein paar Tage im Frühling sind die Männchen himmelblau. Dann ist das ganze Bruch ein Konzert.“ |
+| 🍂 Buchenhallen | 🍄 **Ästiger Stachelbart** (`hericium`) | Pilze · Stamm & Rinde | besonders · Hain | Totholz, schattig | +6 % 🌿, +4 ⚖️ | „Wie ein weißer Korallenstock an einer toten Buche. Er wächst nur, wo der Wald sehr alt ist.“ |
+| ⛰️ Bergmischwald | 🐈 **Luchs** (`lynx`) | Säugetiere · Waldrand | besonders · Hain | Bäume ≥ 3; frisst Rehe | +6 % 🌿, hält Rehe klein (−30 % Fraß), +4 ⚖️ | „Pinselohren im Unterholz. Du siehst ihn nie – er sieht dich immer.“ |
+| 🌲 Kiefernheide | 🌙 **Ziegenmelker** (`nightjar`) | Vögel · Waldrand | besonders · Hain | sonnig; frisst Insekten | +5 % 🌰, +4 ⚖️, nachtaktiv | „Schnurrt in der Dämmerung wie eine Nähmaschine. Am Tag ist er ein Stück Kiefernrinde.“ |
+
+**Regeln**
+
+- **Neue Bedingung** `{ kind: 'site'; site: SiteId }` (nur in `appears`): wahr, wenn die
+  Landschaft freigeschaltet ist (`landscapeUnlocked`), `site` der aktive Wald ist **und** der
+  Wald alt ist – `isSiteAncient(state, site)` **oder** der laufende Zyklus steht im Urwald
+  (`stage ≥ 7`). Das Zweite macht schon den ersten Urwald eines Waldes zur Gelegenheit, wenn
+  man dort verweilt (passt zum Kapitel „Erster Schnee“, 26.4). Jede Kennart hat genau diese
+  Bedingung (dazu der Luchs `{ kind: 'species', id: 'deer' }`).
+- **Nur vorhandene Wirkungsarten**, keine Fähigkeit; Seltenheit 2 (besonders), Stufe 5 (Hain),
+  wie die Lebensraum-Arten (23.9 „keine neue Fähigkeit“). Biber: Platz-Wirkung wie andere
+  Platz-Arten (öffnet keinen geschlossenen Tümpel – im Auwald ist er ab Junger Baum offen).
+  Haselmaus und Ziegenmelker in `NOCTURNAL` (21.6) mit Startwert „nachts +6 % 🌰“, nicht im
+  Winter (die Haselmaus schläft, der Ziegenmelker ist in Afrika).
+  Startwerte – 2c misst sie (±5 % je Waldtyp, Landschaft ±0,3 h).
+- **Wildwechsel:** Erlaubt und gewollt. Eine Kennart im Bestand (`fauna`) ihres Waldes kann
+  über einen Korridor in einen Nachbarwald wechseln – die Regel „Erscheinungsbedingung nein“
+  (24.6) gilt unverändert. Das Kapitel „Kennart“ zählt aber nur in ihrem eigenen Wald.
+- **Stammgäste:** Eine Kennart kann Stammgast werden wie jede entdeckte Art. Gewollt: Wer sie
+  gefunden hat, darf sie behalten.
+- **Spoiler:** Vor der Freischaltung der Landschaft sind Kennarten unsichtbar (wie Weißtanne und
+  Schwarzerle, 25.2): nicht in Arten, nicht in „n von m“, nicht in Ereignis-Texten. Danach als
+  Silhouette mit Hinweis „Kennart des Auwalds – lebt nur im alten Auwald“ (Standorte sind dann
+  bekannt).
+- **Erfolg `species-all`** („Alle Bewohner“) zählt Kennarten **nicht** (`'all'` = alle Arten
+  ohne Bedingung `site`) – er bleibt ohne Landschaft erreichbar; wer ihn hat, behält ihn. Für
+  die Kennarten gibt es einen eigenen Erfolg (26.5).
+- **Botanik/Zoologie:** Die Haselmaus ist Leitart lichter Laubwälder mit Hasel; der Biber
+  gestaltet Auen wie kein anderes Tier; der Moorfrosch (*Rana arvalis*) färbt sich zur Laichzeit
+  blau und lebt in Bruchwäldern; der Ästige Stachelbart (*Hericium coralloides*) ist eine
+  „Urwaldreliktart“ alter Buchenwälder; der Luchs ist zurück im Bergwald; der Ziegenmelker brütet
+  am Boden lichter Kiefernheiden.
+
+### 26.4 Waldchronik – sechs Kapitel je Wald
+
+Jeder gegründete Wald führt eine **Chronik** mit sechs Kapiteln. Ein Kapitel wird einmal
+geschrieben und bleibt (monoton, wie Erfolge). Kapitel tragen Zyklus und Jahreszeit („im
+7. Zyklus, Winter“), sofern bekannt.
+
+| # | Kapitel (`ChapterId`) | Wann es geschrieben wird | Titel |
+|---|---|---|---|
+| 1 | `ancient` | der Wald wird zum ersten Mal Urwald gutgeschrieben (`ancient` wird wahr, `startNewCycle`) | „Uralt geworden“ |
+| 2 | `first-snow` | eine Jahreszeit wechselt zu **Winter**, während dieser Wald aktiv und der Zyklus im **Urwald** ist (an der Grenze, an der `tick` ohnehin hält – online = offline) | „Erster Schnee im Urwald“ |
+| 3 | `signature` | das Ereignis des Waldes (`ForestSite.chronicleEvent`) wird hier entschieden – gleich welche Option | je Wald, siehe unten |
+| 4 | `kennart` | die Kennart dieses Waldes lebt im Ökosystem, während er aktiv ist (Karte, Stammgast oder Wildwechsel) | „Die Kennart: Biber“ |
+| 5 | `harmony` | H_max dieses Zyklus erreicht **`CHRONICLE_HARMONY` = 250**, während der Wald aktiv ist | „Voller Einklang“ |
+| 6 | `memory` | das **eigene** Gedächtnis des Waldes erreicht `MAX_FOREST_MEMORY` (1000) | „Ein Wald erinnert sich“ |
+
+**Ereignis des Waldes** (`chronicleEvent`, Kapitel 3) – passend zu 26.2; der Heimatwald und der
+Bergmischwald bekommen eins ohne Faktor (ihre Goldwerte bleiben):
+
+| Wald | `chronicleEvent` | Titel |
+|---|---|---|
+| 🌳 Heimatwald | `mast-year` | „Eichelmast – der Häher legt Vorräte an“ |
+| 🌊 Auwald | `rain` | „Frühjahrshochwasser“ |
+| 🐸 Erlenbruch | `toad-migration` | „Die Krötennacht“ |
+| 🍂 Buchenhallen | `mast-year` | „Buchenmast“ |
+| ⛰️ Bergmischwald | `snow-break` | „Schneebruch am Hang“ |
+| 🌲 Kiefernheide | `beetle-year` | „Das Käferjahr“ |
+
+**Andenken:** Eine vollständige Chronik (6 / 6) bringt das Andenken des Waldes – **abgeleitet**
+aus der Chronik, nicht in `journal.keepsakes` gespeichert. Angezeigt in R:Arten → Andenken und
+als Siegel auf der Karte.
+
+| Wald | Andenken | Text |
+|---|---|---|
+| 🌳 Heimatwald | 🌰 Die Eichel des Hähers | „Eine von Tausenden, die er versteckt und vergessen hat. Aus einer wie ihr wurde alles.“ |
+| 🌊 Auwald | 🪵 Biberholz | „Ein Ast, rundum benagt, glatt wie gedrechselt.“ |
+| 🐸 Erlenbruch | 🌿 Erlenzäpfchen | „Klein, schwarz und hart – sie bleiben den ganzen Winter am Zweig.“ |
+| 🍂 Buchenhallen | 🍂 Bucheckern-Becher | „Vier Klappen, außen stachelig, innen weich. Im Mastjahr liegen sie zu Tausenden.“ |
+| ⛰️ Bergmischwald | 🎄 Tannenzapfen-Schuppe | „Tannenzapfen fallen nicht – sie zerfallen am Baum. Diese Schuppe hat der Wind gebracht.“ |
+| 🌲 Kiefernheide | 🌸 Heidekrautzweig | „Gepresst zwischen zwei Seiten, duftet er noch nach Spätsommer.“ |
+
+**Regeln**
+
+- **Warum diese sechs:** zwei kommen von selbst mit dem Weg durch die Landschaft (`ancient`,
+  `memory` – die Ernte bekommt ein Ziel), zwei sind Zufall mit Geduld (Ereignis, Kennart), eins
+  belohnt Harmonie ohne Zahl (die Option „Harmonie-Hebel“ aus 24.13 als Kapitel statt als 🪶),
+  eins belohnt **Verweilen**: Wer nach dem Urwald nicht sofort neu startet, erlebt den Winter.
+  Höchstens 12 min Spielzeit (ein Jahr), auch offline.
+- **Vor der Landschaft** schreibt der Heimatwald schon mit (still, ohne Meldung). Mit der
+  Freischaltung sieht der Spieler: „Die Chronik des Heimatwalds hat schon 3 Kapitel.“
+- **`CHRONICLE_HARMONY` = 250:** In der Landschaft erreichen alle Spielweisen in jedem Wald
+  288–312 (Harmonie, Wachstum) bzw. 263–270 (Zufall) (24.10) – 250 ist ein Ziel, keine Hürde.
+  2c prüft: ≥ 90 % der Wälder je Spielweise.
+- **Kein Kapitel kostet etwas** und keines lässt sich verlieren. Ein Kapitel des **aktiven**
+  Waldes wird geschrieben; ruhende Wälder schreiben nichts (sie erleben nichts).
+- **Meldung:** Stempel „📜 Neues Kapitel im Auwald: Frühjahrshochwasser“; offline geschriebene
+  Kapitel im Rückkehr-Bericht.
+
+### 26.5 Erfolge (Chronik, Kennarten, Tagesziele)
+
+Neue Erfolge, ohne Zahlen-Belohnung (18.1):
+
+| ID | Symbol | Titel | Beschreibung | Bedingung | sichtbar |
+|---|---|---|---|---|---|
+| `chronicle-1` | 📜 | Eine Waldgeschichte | „Die Chronik eines Waldes ist vollständig.“ | `{ kind: 'chronicles', atLeast: 1 }` | `requires: 'landscape'` |
+| `chronicle-all` | 📚 | Sechs Geschichten | „Jeder Wald der Landschaft hat seine Chronik.“ | `{ kind: 'chronicles', atLeast: 'all' }` | `requires: 'landscape'` |
+| `kennarten-all` | 🔎 | Kennerblick | „Jede Kennart steht im Naturtagebuch.“ | `{ kind: 'journal', what: 'kennarten', atLeast: 'all' }` | `requires: 'landscape'` |
+| `daily-streak-7` | 🌅 | Sieben Morgen | „Sieben Tage in Folge ein Tagesziel erfüllt.“ | `{ kind: 'daily', key: 'bestStreak', atLeast: 7 }` | immer |
+| `daily-50` | 🧺 | Fünfzig Handgriffe | „Fünfzig Tagesziele erfüllt.“ | `{ kind: 'daily', key: 'goalsDone', atLeast: 50 }` | immer |
+
+- **Tagesziele (offene Frage 20.8, „Serie belohnen?“ / „Erfolge“): entschieden – Erfolge, kein
+  Andenken, keine Zahl.** Die Serie bleibt ein sanftes Ritual: Wer sie verliert, verliert
+  nichts außer der Anzeige; `bestStreak` und `goalsDone` stehen schon im Spielstand
+  (`meta.daily`, v12). Andenken bleiben den Chroniken vorbehalten – sie sollen von Orten
+  erzählen, nicht von Pünktlichkeit.
+- Neue Bedingungsarten `chronicles` (vollständige Chroniken, `'all'` = Zahl der Standorte) und
+  `daily` (Schlüssel `bestStreak` | `goalsDone` | `perfectDays`); `journal` bekommt `what:
+  'kennarten'`. Monoton; Nachtrag beim Laden wie 12.6. Katalog danach: 37 Erfolge.
+
+### 26.6 Spielstand v16
+
+**Neues Feld** je Wald der Landschaft:
+
+```ts
+type ChapterId = 'ancient' | 'first-snow' | 'signature' | 'kennart' | 'harmony' | 'memory';
+
+interface ChronicleEntry {
+  chapter: ChapterId;
+  /** Zyklus (cycle.number) und Jahreszeit beim Schreiben; null = vor v16 (Migration). */
+  cycle: number | null;
+  season: SeasonId | null;
+}
+
+interface LandscapeSite {
+  // … wie v15
+  /** Waldchronik (26.4): je Kapitel höchstens ein Eintrag, in Schreib-Reihenfolge. */
+  chronicle: ChronicleEntry[];
+}
+```
+
+Dazu ein neuer **Wertebereich**: sechs Kennarten-IDs in `niches`, `meta.journal.species`,
+`firstSeen`, `regulars`, `sites[].fauna`. Ein v15-Spiel kennt sie nicht und würfe sie beim Laden
+still weg – über den Sync ginge dem neuen Gerät das Tagebuch verloren (Fall 25.5). Darum **v16**:
+`newer` beim Import, `outdated-client` beim Sync.
+
+- **Migration v15 → v16:** Für jeden Wald `chronicle` = abgeleitete Kapitel ohne Datum:
+  `ancient`, falls `ancient`; `memory`, falls eigenes Gedächtnis ≥ 1000 (aktiver Wald:
+  `meta.forestMemory`). Alles andere leer – nichts Erfundenes (wie `firstSeen`, 25.10).
+- **Robustes Laden ab v16:** nur bekannte `ChapterId`, je einmal; `cycle` ganzzahlig in
+  [1, laufender Zyklus] sonst null, `season` aus `SEASON_IDS` sonst null; `ancient`/`memory`
+  nur, wenn die Bedingung gilt (sonst weg), und **ergänzt**, wenn sie gilt und fehlen;
+  `kennart` nur, wenn die Kennart im Tagebuch steht. Höchstens 6 Einträge je Wald.
+- **Größe:** ≤ 36 kleine Einträge, < 2 KB.
+- **Schnittstellen (`core/landscape.ts`, rein):** `chronicleOf(state, site)`,
+  `chronicleComplete(state, site)`, `completedChronicles(state)`, `kennartOf(site)`;
+  Bericht `TickReport.chapters` / `OfflineReport.chapters`
+  (`{ site, chapter }[]`, für Stempel und Rückkehr-Bericht).
+
+**Inhalt (`src/content/`):** `ForestSite.kennart: string`, `ForestSite.chronicleEvent: string`,
+`ForestSite.keepsake: { icon, name, text }`; neue Datei `content/chronicle.ts` mit
+`CHRONICLE_CHAPTERS` (ID, Symbol, Titel, Hinweis für offene Kapitel) und `CHRONICLE_HARMONY`;
+die sechs Arten in `species.ts` (eigener Block „Kennarten“). Inhaltstests: jede Kennart hat
+genau eine Bedingung `site` auf ihren Wald und ist `kennart` genau dieses Waldes;
+`chronicleEvent` ist eine bekannte Ereignis-ID, die in diesem Wald vorkommen kann (Stufe,
+Jahreszeit); Andenken-Texte ≤ 120 Zeichen.
+
+### 26.7 Darstellung (Album)
+
+- **U:Standort → Abschnitt „Chronik“:** sechs kleine Zettel im Raster, geschriebene mit Stempel
+  und Datum („7. Zyklus · Winter“, ohne Datum „schon früher“), offene blass mit Hinweis ohne
+  Spoiler („Die Kennart dieses Waldes zeigt sich nur, wenn er alt ist.“, „Erlebe hier einen
+  Winter im Urwald.“). Vollständig: das Andenken als großer Sticker.
+- **R:Landschaft:** Kennzahl „📜 9 / 36 Kapitel“ im Kopf; auf der Karte ein Wachssiegel an
+  Wäldern mit vollständiger Chronik; Tagebuch der Wälder mit Spalte „Chronik 4 / 6“.
+- **R:Arten:** Kennarten als eigene Reihe „Kennarten“ (nach der Landschaft), Silhouette mit
+  Wald; Andenken der Chroniken im Abschnitt „Andenken“.
+- **Szene:** Kennarten wie andere Arten (Sticker + Zeichnung, `renderer`); Moorfrosch im
+  Frühling blau, Ziegenmelker und Haselmaus nachts sichtbar wie die anderen Nachtarten.
+- **Meldungen:** Stempel je Kapitel; Banderole nie. Spielanleitung: Kapitel „Chroniken und
+  Kennarten“ (erst mit der Landschaft sichtbar).
+- **Ziel-Hinweis:** U:Neuer Zyklus zeigt beim Ziel-Wald „Chronik 4 / 6 – offen: Erster Schnee,
+  Kennart“, damit die Wahl des nächsten Waldes eine Geschichte hat.
+
+### 26.8 Messplan und Ziele (Aufgabe 2c)
+
+`scripts/landscape.ts` bekommt eine **Chronik-Politik** nach „Landschaft vollständig“: Wald mit
+den meisten offenen Kapiteln zuerst; im Urwald verweilen bis zum nächsten Winter, wenn
+`first-snow` offen ist; sonst wie heute. Gemessen werden Harmonie, Wachstum (20 Durchgänge) und
+Zufall (10), Median:
+
+| Ziel | Grenze |
+|---|---|
+| (a) Tempo: Landschaft vollständig und Waldtypen (24.7) | ±0,3 h gegenüber „Stand 3e“ bzw. ±5 % je Wald |
+| (b) erste vollständige Chronik | spätestens 1 h nach „Landschaft vollständig“ |
+| (c) alle sechs Chroniken (Harmonie) | 18–26 h (≤ 1,6 × „Landschaft vollständig“); Zufall ≤ 60 h |
+| (d) keine Wand | jedes Kapitel im Median ≤ 3 Zyklen im passenden Wald, sobald es möglich ist; Kennart im Median ≤ 2 Zyklen nach „alt“ |
+| (e) Voller Einklang | ≥ 90 % der Wälder je Spielweise |
+| (f) Verweilen | Wartezeit für `first-snow` im Mittel ≤ 6 min je Wald |
+
+Stellschrauben, in dieser Reihenfolge: Seltenheit der Kennarten (2 → 1), `CHRONICLE_HARMONY`,
+Wirkung der Kennarten. Nicht verstellt werden die Regeln der Landschaft (24.4–24.6).
+
+### 26.9 Album-Folgeaufgaben aus Phase 8 (eine kleine `ui-dev`-Aufgabe)
+
+1. **PNG-Kodierung bei kaltem Cache messen:** Der erste Besuch von R:Arten kodiert jeden
+   Sticker einmal (`renderSpeciesStickerUrl` → `toDataURL('image/png')`, R3). Messen
+   (390 × 844, 4× Drosselung, Spätspiel, leerer LRU): Summe und längster Task der Kodierung.
+   Erst ab > 50 ms in einem Task handeln (Kodieren in der IdleQueue verteilen oder
+   `toBlob` + Object-URL); sonst nur das Ergebnis in ALBUM_UI.md R3 eintragen.
+2. **`hidden="until-found"` für aufgeschobene Blöcke:** Verborgene Blöcke (`deferred-reveal.ts`)
+   sind heute für die Seitensuche des Browsers (Strg+F) unsichtbar. Wo unterstützt, statt der
+   Sperre `hidden="until-found"` setzen und bei `beforematch` den Block (und die davor)
+   sofort aufdecken; sonst wie heute. Höhe und Scroll-Lage wie bisher prüfen.
+3. **Safari-Notiz:** Safari hat kein `requestIdleCallback`; `defaultIdlePost` nimmt dort
+   `setTimeout(…, 1)`. Prüfen (Playwright WebKit), dass Arten dabei keinen Long Task erzeugt
+   und alle Blöcke aufdeckt; das Verhalten als Notiz in ALBUM_UI.md R3 und im Kopf von
+   `render/idle.ts` festhalten.
+4. Optional, wenn es billig ist: Landschaftskarte am Desktop mit DejaVu Sans bei 125 %
+   („Bergmischwald“ knapp, Phase 8 Nr. 14).
+
+### 26.10 Offene Fragen früherer Abschnitte – Stand nach diesem Entwurf
+
+| Frage | Stand |
+|---|---|
+| Weitere Massenjahre je Wald (Phase 7, 3e; 24.13) | **entschieden** – 26.2 (Ereignis je Waldtyp, Schneckenjahr im Auwald mit, aber als seltene Ausnahme) |
+| Waldtyp und Lebensräume (24.13) | **entschieden** – Kiefernheide +1 Trockenmauer ab Hain ja, Auwald +1 Waldwiese nein (26.2) |
+| Nach der Landschaft (24.13) | **beantwortet** mit Kennarten und Chroniken; dritte Ebene (Klima-Epochen) erst, wenn 2c und der Playtest zeigen, dass die Chroniken zu früh enden |
+| Harmonie-Hebel in der Landschaft (24.13) | bleibt Option für Zahlen; als **Kapitel** „Voller Einklang“ umgesetzt (kein 🪶, kein Feld `bestHarmony`) |
+| Sonnenmauer zu selten (23.9) | wird mit dem Mauer-Platz der Heide in 1a mitgemessen; kein eigenes Ereignis „Sonnenbad“ |
+| Mäusejahr selten (23.9) | bleibt gewollt; Buchenhallen erzählen es mit (× 3) |
+| Serie belohnen / Erfolge Tagesziele (20.8) | **entschieden** – zwei Erfolge (26.5) |
+| Erfolge „Alle Lebensräume“, „Nahrungsnetz im Gleichgewicht“ (23.9) | weiter offen – brauchen eigene Bedingungsarten; nicht in Phase 9 |
+| „Besondere“ Lebensraum-Arten mit Fähigkeit (23.9) | weiter offen; die Kennarten kommen bewusst **ohne** Fähigkeit |
+| Silberweide (25.9) | weiter zurückgestellt (bräuchte einen 7. Standort) |
+| Neue Bäume nur am eigenen Standort wählbar? (25.9) | **entschieden: nein**, überall wählbar – der Playtest Phase 7 hatte dazu keinen Fund |
+| `break_infinity.js` (24.9) | unverändert nicht nötig – Phase 9 bringt keine neue Größenordnung |
+
+### 26.11 Bewusst nicht in Phase 9
+
+- **Dritte Prestige-Ebene / neuer Multiplikator:** widerspricht 24.1; die Chroniken verlängern
+  das Spiel um Ziele, nicht um Warten.
+- **Klima-Epochen** (24.13): reizvoll, aber groß (eigene Regeln, Herausforderungen, Andenken);
+  Kandidat für Phase 10 nach dem Playtest.
+- **Echtzeit-Rituale** (Uhrzeit, echte Jahreszeit, Login-Belohnungen): Tagesziele reichen;
+  Kalenderdruck passt nicht zum ruhigen Spiel.
+- **Neue Abhängigkeiten oder Server:** keine; alles läuft im Spielstand und offline.
