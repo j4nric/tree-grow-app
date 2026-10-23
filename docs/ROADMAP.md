@@ -555,8 +555,11 @@ Punkt 3 wird das Käferjahr über das häufigere Dürrewetter der Kiefernheide v
      endlich, > 1 und ≤ 3, Heimatwald `{}`; Logik (`tests/predation.test.ts`) – die Beispiele aus
      Nr. 2, Heimatwald und Stände ohne Landschaft ziehen Ereignisse wie vorher (Goldwerte
      unverändert), `pickEvent` in der Heide wählt das Käferjahr bei gleichem Zufall öfter.
-  5. Danach (`game-designer`, klein): 24.7-Lauf Käferjahr-Spalte nachmessen (Erwartung Heide
-     ~70 / ~50 von 160, Zeit ±0,5 %), 24.13 abhaken. Optional (Playtest): weitere Wälder mit
+  5. ✅ Danach (`game-designer`, klein): 24.7-Lauf Käferjahr-Spalte nachmessen (Erwartung Heide
+     ~70 / ~50 von 160, Zeit ±0,5 %), 24.13 abhaken. *Gemessen* (24.7 „Stand 3e“, 160
+     Durchgänge): Heide 71 / 52 von 160 (Heimatwald 29 / 28), Zeit 50:04 / 39:43 min (vorher
+     50:05 / 39:48; Wachstum −3,4 → −3,6 %), alle Waldtypen ±3,6 %; Landschaft 14,2 / 13,3 /
+     39,4 h, Wachstum gegen Harmonie 6,1 / 6,2 % (< 10 %). **Keine Zahl geändert.** Optional (Playtest): weitere Wälder mit
      passendem Massenjahr (Auwald Schneckenjahr), erst nach dem Playtest Phase 7.
   Abhängig: 3c. **Erledigt (Nr. 1–4):** `ForestSite.eventFactors` (Heide `{ 'beetle-year': 3 }`),
   `eventWeight` = Wetter-Faktor × Faktor des Waldes (auch im Modus `off`); Tests in
