@@ -1178,7 +1178,7 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
 
 **Welle 1 – Sofort und ohne Spielstand** (parallel)
 
-- [ ] **1a** Daten Ausbau und endlose Knoten (`game-designer`, 28.4/28.6): neue Datei
+- [x] **1a** Daten Ausbau und endlose Knoten (`game-designer`, 28.4/28.6): neue Datei
   `src/content/upgrades.ts` (Startpreise `b_n` je Nische, `UPGRADE_GROWTH = 1,15`,
   `NICHE_UPGRADE_PCT = 0,1`, Baumteile `rings`/`leaves`/`mycorrhiza` mit Startpreis 15, Wirkung je
   Stufe und Text, Meilensteine als Daten `{ level, kind: 'drawWeight' | 'slot' | 'rareWeight' |
@@ -1189,6 +1189,16 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   ≤ 120 Zeichen, wiederholbare Knoten ab Hain und nur hinter einer Gabel). **Warum:** Der `core-engineer`
   baut Welle 2 gegen feste Inhalte, `ui-dev` und `renderer` können sofort mit echten Namen und
   Zahlen skizzieren. Abhängig: nichts
+  *Erledigt:* `src/content/upgrades.ts` (`NICHE_UPGRADE_BASE`, `UPGRADE_GROWTH`, `NICHE_UPGRADE_PCT`,
+  `TREE_PARTS` mit Wirkung `treeGrowth`/`treeSeeds`/`companions` je Stufe, `NICHE_MILESTONES` und
+  Meilensteine je Baumteil als `UpgradeMilestone`, `MAX_UPGRADE_LEVEL` = 1.000, Typ `TreePartId`),
+  `src/content/offline.ts` (`OFFLINE_YIELD`, `OFFLINE_FULL_SECONDS`), in `research.ts` das Feld
+  `repeatable` am Knoten, `RESEARCH_REPEATABLE` (sechs Knoten), `REPEATABLE_RESEARCH_BASE`/`_GROWTH`,
+  `MAX_RESEARCH_RANK` = 200. **Bis 2b ausgeblendet:** die endlosen Knoten stehen nicht in `RESEARCH`
+  / `RESEARCH_BY_ID` (core, Ansicht und Simulator iterieren sie); 2b nimmt sie auf. Saat hängt an
+  der Gabel Samenbank/Anzuchtbeet (statt Benjeshecke, 28.6 nachgetragen), Offenland ohne Gabel an
+  Spätmahd/Trockenmauer; Baumteile mit Abzeichen 25/50/75 wie die Nischen. Tests
+  `tests/upgrades.test.ts`; core unverändert; ein neues Wort in `ui/hyphenate.ts` (Pilzgeflecht)
 - [x] **1b** Offline 10 % (`core-engineer`, 28.3): Ertragsfaktor `f` in `tick` (Raten und
   Halte-Rechnung, nie `elapsed`), `simulateOffline` = 60 s voll + Rest × `OFFLINE_YIELD`,
   `OfflineReport.yieldFactor`/`fullSeconds`; automatisches Weiterziehen zahlt Samen-Sekunden × `f`;

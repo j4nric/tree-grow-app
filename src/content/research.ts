@@ -1,7 +1,7 @@
 import type { CycleEffect } from './events';
 import { HABITAT_RESEARCH } from './habitats';
 import type { HappinessEffect } from './seasons';
-import type { Condition, Effect, NicheId, Tag } from './types';
+import type { Condition, Effect, NicheId, PlantGroup, Tag } from './types';
 
 /**
  * Forschungsbaum (docs/DESIGN_V2.md 27.7). Reine Daten – die Logik steht in src/core/tick.ts
@@ -80,6 +80,12 @@ export interface ResearchNode {
   text: string;
   /** Kurze Bestätigung nach dem Erforschen (UI: schwebender Hinweis). */
   boughtText: string;
+  /**
+   * Wiederholbarer Knoten (28.6): Rang r ≥ 0 ohne Obergrenze (außer MAX_RESEARCH_RANK).
+   * Kosten von Rang r → r+1 = ⌈ base · growth^r ⌉ ⚖️ (`cost` = base); `effects` gelten je Rang
+   * und werden mit dem Rang multipliziert. Nur in RESEARCH_REPEATABLE.
+   */
+  repeatable?: { base: number; growth: number };
 }
 
 export interface ResearchFork {
@@ -386,3 +392,84 @@ export const CARE_TO_RESEARCH: Readonly<Record<string, readonly string[]>> = {
 
 /** Startguthaben der Migration: so viele Minuten Produktion (round(10 · H), ohne G). */
 export const MIGRATION_HARMONY_MINUTES = 10;
+
+// --- ∞ Wiederholbare Knoten (DESIGN_V2.md 28.6) -------------------------------
+
+/** Kosten des ersten Rangs in ⚖️. */
+export const REPEATABLE_RESEARCH_BASE = 1_500;
+/** Jeder weitere Rang kostet das 1,3-Fache (steiler als der Ausbau: ⚖️ wächst nicht exponentiell). */
+export const REPEATABLE_RESEARCH_GROWTH = 1.3;
+/** Obergrenze eines Rangs beim robusten Laden (28.8). */
+export const MAX_RESEARCH_RANK = 200;
+
+const REPEATABLE = { base: REPEATABLE_RESEARCH_BASE, growth: REPEATABLE_RESEARCH_GROWTH } as const;
+const groupGrowth = (group: PlantGroup, pct: number): ResearchEffect =>
+  ({ kind: 'cycle', effect: { kind: 'groupGrowth', group, pct } });
+const groupSeeds = (group: PlantGroup, pct: number): ResearchEffect =>
+  ({ kind: 'cycle', effect: { kind: 'groupSeeds', group, pct } });
+
+/**
+ * Je Ast ein endloser Knoten am Ende (Zeile „∞“ unter der Wald-Ebene), ab Hain, hinter der
+ * Gabel des Asts (`requiresAny`: ein Knoten je Weg; Offenland ohne Gabel: Spätmahd oder
+ * Trockenmauer). Wirkung je Rang klein und nur 🌿/🌰 – nie Harmonie, ⚖️-Ertrag oder Plätze.
+ * `groupGrowth`/`groupSeeds` der Bäume gelten auch für den Hauptbaum.
+ *
+ * **Bis Phase 11, 2b ausgeblendet:** Die Knoten stehen bewusst NICHT in RESEARCH und
+ * RESEARCH_BY_ID – der core, die Ansicht und der Simulator iterieren RESEARCH und würden sie
+ * sonst als einmalige Knoten mit festen Kosten kaufen. 2b (Ränge in `cycle.researchRanks`,
+ * `researchCost`) nimmt sie auf.
+ */
+export const RESEARCH_REPEATABLE: readonly ResearchNode[] = [
+  {
+    id: 'soil-life', branch: 'soil', name: 'Bodenleben fördern', icon: '🐛', minStage: GROVE,
+    cost: REPEATABLE_RESEARCH_BASE, repeatable: REPEATABLE,
+    requiresAny: ['beetle-castle', 'fungus-garden'],
+    effects: [groupGrowth('trees', 1)], summary: 'Bäume +1 % 🌿 je Rang',
+    text: 'Wo Asseln, Würmer und Pilze arbeiten, wird jedes Blatt wieder zu Erde.',
+    boughtText: 'Bodenleben gefördert',
+  },
+  {
+    id: 'wet-care', branch: 'water', name: 'Feuchte halten', icon: '💦', minStage: GROVE,
+    cost: REPEATABLE_RESEARCH_BASE, repeatable: REPEATABLE,
+    requiresAny: ['pond-deepen', 'spring-brook'],
+    effects: [groupGrowth('mosses', 4), groupSeeds('mosses', 4)], summary: 'Moose & Farne +4 % 🌿 und 🌰 je Rang',
+    text: 'Ein Graben weniger, ein nasser Fleck mehr – das Moos wächst wieder.',
+    boughtText: 'Feuchte gehalten',
+  },
+  {
+    id: 'old-branches', branch: 'crown', name: 'Altäste stehen lassen', icon: '🦉', minStage: GROVE,
+    cost: REPEATABLE_RESEARCH_BASE, repeatable: REPEATABLE,
+    requiresAny: ['light-crown-2', 'dense-crown-2'],
+    effects: [groupSeeds('trees', 1)], summary: 'Bäume +1 % 🌰 je Rang',
+    text: 'Totes Holz in der Krone ist Lebensraum – niemand sägt es ab.',
+    boughtText: 'Altäste bleiben',
+  },
+  {
+    id: 'hem-abundance', branch: 'hem', name: 'Blütenfülle', icon: '🏵️', minStage: GROVE,
+    cost: REPEATABLE_RESEARCH_BASE, repeatable: REPEATABLE,
+    requiresAny: ['bloom-store', 'bee-wall'],
+    effects: [groupSeeds('flowers', 2)], summary: 'Blumen +2 % 🌰 je Rang',
+    text: 'Jedes Jahr ein paar neue Arten am Saum – die Wildbienen finden sie.',
+    boughtText: 'Saum blüht reicher',
+  },
+  {
+    id: 'meadow-care', branch: 'open', name: 'Wiese pflegen', icon: '🪻', minStage: GROVE,
+    cost: REPEATABLE_RESEARCH_BASE, repeatable: REPEATABLE,
+    requiresAny: ['meadow-2', 'drystone-wall'],
+    effects: [groupGrowth('flowers', 2)], summary: 'Blumen +2 % 🌿 je Rang',
+    text: 'Gemäht wird mit der Sense, das Heu bleibt liegen, bis es aussamt.',
+    boughtText: 'Wiese gepflegt',
+  },
+  {
+    id: 'seed-refine', branch: 'seed', name: 'Saatgut veredeln', icon: '🧺', minStage: GROVE,
+    cost: REPEATABLE_RESEARCH_BASE, repeatable: REPEATABLE,
+    requiresAny: ['seed-bank', 'nursery'],
+    effects: [groupSeeds('shrubs', 2)], summary: 'Sträucher +2 % 🌰 je Rang',
+    text: 'Nur die Samen der kräftigsten Sträucher kommen in die Tüte.',
+    boughtText: 'Saatgut veredelt',
+  },
+];
+
+export const RESEARCH_REPEATABLE_BY_ID: ReadonlyMap<string, ResearchNode> = new Map(
+  RESEARCH_REPEATABLE.map((n) => [n.id, n]),
+);
