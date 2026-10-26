@@ -317,6 +317,21 @@ function runPairs(start: GameState, seconds: number, step = 1): { live: [GameSta
   return { live: [small, big], average: [smallAvg, offline], report };
 }
 
+/**
+ * Lange Abwesenheiten (28.3): `chunks` × 8 h simulateOffline gegen dieselbe Zeit in Sekunden-Ticks
+ * mit dem Ertragsfaktor (offlineTick). Mit 10 % nach 60 s braucht es diese Länge, damit offline
+ * dieselben Stufen erreicht werden wie in runPairs online. Liefert [kleine Ticks, offline].
+ */
+function runOffline(start: GameState, chunks: number): [GameState, GameState] {
+  const small = structuredClone(start);
+  const offline = structuredClone(start);
+  for (let c = 0; c < chunks; c++) {
+    for (let i = 0; i < MAX_OFFLINE_SECONDS; i++) offlineTick(small, i, 1, 'average');
+    simulateOffline(offline, MAX_OFFLINE_SECONDS);
+  }
+  return [small, offline];
+}
+
 function expectSameRun([online, offline]: [GameState, GameState], digits = 6): void {
   expect(offline.waypoint).toBe(online.waypoint);
   expect(offline.stage).toBe(online.stage);
@@ -369,10 +384,14 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     expect(ev.supply).toBe(0.9);
     const { live, average } = runPairs(start, 3 * 3600);
     for (const pair of [live, average]) {
-      // Offline (10 % nach 60 s, 28.3) reicht die Zeit nicht für die Stufe – geprüft wird sie live.
+      // Offline (10 % nach 60 s, 28.3) reicht die Zeit hier nicht – die Stufe prüft runOffline unten.
       if (pair === live) expect(pair[0].stage).toBeGreaterThanOrEqual(5);
       expectSameRun(pair);
     }
+    // Offline (10 % nach 60 s, 28.3): zwei Abwesenheiten à 8 h bis zum Hain.
+    const away = runOffline(start, 2);
+    expect(away[0].stage).toBeGreaterThanOrEqual(5);
+    expectSameRun(away);
   });
 
   it('gleich mit Lebensräumen (v13): Wiese, Totholzhaufen, Mauer, Reptilien und neue Jagdpaare', () => {
@@ -423,7 +442,7 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     expect(ev.slots.pond).toBe(3);
     const { live, average } = runPairs(start, 2 * 3600);
     for (const pair of [live, average]) {
-      // Offline (10 % nach 60 s, 28.3) reicht die Zeit nicht für die Stufe – geprüft wird sie live.
+      // Offline (10 % nach 60 s, 28.3) reicht die Zeit hier nicht – die Stufe prüft runOffline unten.
       if (pair === live) expect(pair[0].stage).toBeGreaterThanOrEqual(5);
       expectSameRun(pair);
       // Die Landschaft bleibt, nur die Chronik des aktiven Waldes wächst (26.4) – online wie offline.
@@ -431,6 +450,10 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
       expect(withoutChronicle(pair[1].meta.landscape)).toEqual(withoutChronicle(start.meta.landscape));
       expect(pair[1].meta.landscape.sites.map((x) => x.chronicle)).toEqual(pair[0].meta.landscape.sites.map((x) => x.chronicle));
     }
+    // Offline (10 % nach 60 s, 28.3): 8 h Abwesenheit bis über den Hain hinaus.
+    const away = runOffline(start, 1);
+    expect(away[0].stage).toBeGreaterThanOrEqual(5);
+    expectSameRun(away);
     expect(weatherAt(live[0]).id).toBe(weatherOfDay(live[0].cycle, dayIndex(live[0].cycle.elapsed), 'floodplain'));
   });
 
@@ -464,9 +487,15 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
   });
 
   it('gleich mit Platz-Schaffern (Borkenkäfer öffnet Höhlen) über den Alten Baum hinaus', () => {
-    const { live, average } = runPairs(stateAt(3, ['barkbeetle', 'earthworm'], 4242), 2 * 3600);
+    const start = stateAt(3, ['barkbeetle', 'earthworm'], 4242);
+    const { live, average } = runPairs(start, 2 * 3600);
+    // Platz-Schaffer auch offline (10 % nach 60 s, 28.3): längere Abwesenheit, Alter Baum, Höhlen.
+    const away = runOffline(start, 1);
+    expect(away[0].stage).toBeGreaterThanOrEqual(4);
+    expect(evaluate(away[0]).slots.hollows).toBeGreaterThanOrEqual(2);
+    expectSameRun(away);
     for (const pair of [live, average]) {
-      // Offline (10 % nach 60 s, 28.3) reicht die Zeit nicht für die Stufe – geprüft wird sie live.
+      // Offline (10 % nach 60 s, 28.3) reicht die Zeit hier nicht – die Stufe prüft runOffline oben.
       if (pair === live) expect(pair[0].stage).toBeGreaterThanOrEqual(4);
       if (pair === live) expect(evaluate(pair[0]).slots.hollows).toBeGreaterThanOrEqual(2);
       expectSameRun(pair);
