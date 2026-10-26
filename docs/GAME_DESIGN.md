@@ -126,6 +126,20 @@
 >   v16 – Stellschraube für 3a), Aussaaten bis Hain 13,6 / 12,5, Samenbestand beim Hain 8,8 / 5,1 min
 >   Produktion (Ziel ≤ 15), Samen-Höchststand vor dem Jungen Baum 255 / 227 🌰.
 >
+> **Phase 11 – Wachsen und Ausbauen (`DESIGN_V2.md` 28, Entwurf, Spielstand v18 geplant, noch
+> nicht im Code):** Offline und im Hintergrund bringen Wachstum, Samen und Harmonie nach der ersten
+> Minute nur **10 %** (`OFFLINE_YIELD`), die Zeit läuft voll. Neue Samen-Senken ohne Obergrenze:
+> **Nischen-Ausbau** `⌈b_n · 1,15^L⌉` 🌰 (b_n 10 Wurzelraum … 600 Trockenmauer), je Stufe +0,1 % 🌿
+> und 🌰 je Tier der Nische × Zufriedenheit, Meilensteine 10 (Arten der Nische ×1,5 in den Karten),
+> 25 (+1 Platz), 50 (seltene ×2), Abzeichen 25/50/75; **Baum-Ausbau** Jahresringe (Hauptbaum
+> +0,4 % 🌿), Blattwerk (+1 % 🌰), Pilzgeflecht (Begleitpflanzen +0,5 %), Startpreis 15. Je
+> Forschungsast ein **wiederholbarer Knoten** (`⌈1.500 · 1,3^r⌉` ⚖️, ab Hain). Eine **Zielzeile**
+> nennt das nächste Ziel mit Zeit. Vorab-Messung (`DESIGN_V2.md` 28.2): heute ein Kauf alle
+> 2–8 min ab dem Jungen Baum, der Zufallsspieler gibt bis zum Hain 0,7 % seiner Samen aus, 8 h
+> offline tragen den Setzling bis zum Wald. Ziele: Takt 20–60 s, aktives Spiel 5–10 % schneller
+> (Hain 50–58 min), Wachstum ÷ Harmonie ≥ 0,85 (`DESIGN_V2.md` 28.10). Tabellen folgen nach der
+> Messung (Phase 11, 3a).
+>
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
 > `scripts/simulate.ts`, `tests/balance.test.ts` (mit Forschung, bis v16 Pflege), `tests/balance-cycles.test.ts`
