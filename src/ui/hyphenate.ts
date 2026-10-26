@@ -44,6 +44,7 @@ export const HYPHENATION: Readonly<Record<string, string>> = {
   Nachtschicht: 'Nacht|schicht',
   Nachtschmaus: 'Nacht|schmaus',
   Nacktschnecke: 'Nackt|schne|cke',
+  Pilzgeflecht: 'Pilz|ge|flecht',
   Regenreicher: 'Re|gen|rei|cher',
   Schlehenhecke: 'Schle|hen|he|cke',
   Schneckenwacht: 'Schne|cken|wacht',
