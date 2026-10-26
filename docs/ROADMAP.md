@@ -1199,12 +1199,16 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Feedback „viel zu viele Samen, offline höchstens 10 %“ – heute trägt eine Nacht den Baum vom
   Setzling bis zum Wald (28.2). Ohne Spielstand-Änderung, darum sofort. Abhängig: nichts (Konstanten
   notfalls im PR selbst anlegen, 1a übernimmt sie)
-- [ ] **1c** Layout Ausbau und Zielzeile (`ui-dev`, 28.9): R:Nischen mit Abschnitt „🌳 Dein Baum“,
+- [x] **1c** Layout Ausbau und Zielzeile (`ui-dev`, 28.9): R:Nischen mit Abschnitt „🌳 Dein Baum“,
   Fußzeile je Nische (Stufe, Meilenstein-Balken, Wirkung je Tier, Knopf), Kaufmenge ×1/×10/Max,
   verschlossene Nische ohne Knopf, Abzeichen am Etikett; Zielzeile im Polaroid-Kopf; reine Ansicht
   mit Beispielzuständen (Muster wie `research-fixtures.ts`), mobil 360/390 px ohne Querscrollen,
   44-px-Treffer, Desktop ≥ 900 px. **Warum:** Die Fußzeile macht jede Nischenkarte höher – das ist auf
   dem Handy der heikle Teil und hängt nur an den Daten. Abhängig: 1a (Namen; vorher Platzhalter)
+  **Erledigt:** Vorschau `/src/ui/upgrade-preview.html` (Beispielzustände Keimling/Hain/Urwald,
+  Platzhalter-Daten in `ui/upgrade-fixtures.ts` wie 1a), View-Modelle `ui/upgrade-view.ts`,
+  Bausteine `album/upgrade-panel.ts`; Tests `tests/upgrade-view.test.ts` und
+  `e2e/upgrade-preview.spec.ts` (360/390/1200 px). Noch nicht in `main.ts` – das macht 4b.
 - [ ] **1d** Baum-Ausbau im Bild (`renderer`, 28.9): Stammbreite, Kronenvolumen und Pilzhüte je
   10 Stufen, kleine Nischen-Details bei 25/50; Eingabe `scene.upgrades` (Schritte), in den
   Offscreen-Caches gezeichnet, neu nur beim Schrittwechsel; zunächst nur in der Demo

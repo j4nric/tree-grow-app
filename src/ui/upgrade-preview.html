@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ausbau-Vorschau – Vom Samen zum Wald</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <style>
+      /* Nur für die Vorschau: Karton, Kopf links (Polaroid), Seite rechts ab 900 px */
+      body {
+        background: var(--card, #e9dfc9);
+      }
+      .preview {
+        box-sizing: border-box;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 12px;
+      }
+      .preview-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 0 0 8px;
+        font: 700 13px var(--font-text, system-ui);
+      }
+      .preview-bar button {
+        min-height: 44px;
+        padding: 0 10px;
+        border: 2px solid var(--dash, #b9ad92);
+        border-radius: 10px;
+        background: var(--paper, #fff);
+        color: var(--ink, #3b3a36);
+        font: inherit;
+        cursor: pointer;
+      }
+      .preview-bar button[aria-pressed='true'] {
+        border-color: var(--ink-green, #3e6b4e);
+        background: var(--ink-green, #3e6b4e);
+        color: var(--paper, #fff);
+      }
+      .preview-bar button:focus-visible {
+        outline: 3px solid var(--ink, #3b3a36);
+        outline-offset: 2px;
+      }
+      .preview-log {
+        min-height: 1.4em;
+        margin: 0 0 10px;
+        font: 600 13px var(--font-text, system-ui);
+        color: var(--ink-soft, #6b6553);
+      }
+      .preview-book {
+        display: grid;
+        gap: 16px;
+        align-items: start;
+      }
+      .preview-head {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 0;
+        padding: 0 4px;
+      }
+      .preview-page {
+        box-sizing: border-box;
+        min-width: 0;
+        padding: 16px 14px 20px;
+        border-radius: 16px;
+        background: var(--paper, #fffdf7);
+        box-shadow: 0 8px 18px rgba(59, 58, 54, 0.15);
+      }
+      .preview-page .page-body {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .preview-title {
+        margin: 0;
+        font-family: var(--font-hand);
+        font-size: 30px;
+        line-height: 1.1;
+      }
+      @media (min-width: 900px) {
+        .preview[data-frame='full'] .preview-book {
+          grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+        }
+        .preview[data-frame='full'] .preview-page {
+          padding: 26px 30px;
+        }
+      }
+      .preview[data-frame='page'] .preview-book {
+        max-width: 470px;
+        margin: 0 auto;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Vorschau Ausbau und Zielzeile (Phase 11, 1c) mit Beispielzuständen – nicht im Spiel
+         eingebunden. Aufruf: `npx vite` → /src/ui/upgrade-preview.html?state=middle&amount=1 -->
+    <main class="preview" id="preview"></main>
+    <script type="module" src="./upgrade-preview.ts"></script>
+  </body>
+</html>
