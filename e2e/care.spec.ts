@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, gotoTab, niche, openGame, openTab, savedState, seedV3, test, waypoint } from './fixtures';
+import { SAVE_VERSION, expect, gotoTab, niche, openGame, openTab, savedState, seedV3, test, waypoint } from './fixtures';
 
 /**
  * Forschung (seit Spielstand v17, DESIGN_V2.md 27.7) im Reiter „Pflege“ des Albums – bis zum
@@ -34,7 +34,7 @@ test('Erforschen: ⚖️ weg, ein Platz mehr, Knoten erledigt – auch nach dem 
   const saved = await savedState(page);
   expect(saved.cycle.research).toEqual(['leaf-litter']);
   expect(saved.harmonyPoints).toBeLessThan(400 - 80 + 20);
-  expect(saved.version).toBe(17);
+  expect(saved.version).toBe(SAVE_VERSION);
 
   await openTab(page, 'nischen');
   await expect(niche(page, 'litter')).toContainText('1/3 belegt');

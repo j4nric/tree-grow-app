@@ -1248,7 +1248,7 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
 
 **Welle 2 – Spielstand v18 und Logik** (nacheinander)
 
-- [ ] **2a** Ausbau, Spielstand v18 (`core-engineer`, 28.4/28.8): **alle** v18-Felder (`cycle.upgrades`,
+- [x] **2a** Ausbau, Spielstand v18 (`core-engineer`, 28.4/28.8): **alle** v18-Felder (`cycle.upgrades`,
   `cycle.researchRanks`, `meta.upgrades.best`, `stats.upgradesBought`/`upgradeSeeds`), damit 2b den
   Typ nicht mehr ändert; Aktionen `upgradeNiche`, `upgradeTree`, `upgradeBlocker`, `upgradeCost`
   (mit `count`); Wirkung in `evaluate` (je Tier `0,1 % · L · z`, Hauptbaum, Begleitpflanzen),
@@ -1259,6 +1259,20 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   `main` spielbar bleibt. **Warum:** Feedback „Was mache ich mit den Samen? Nischen ausbauen, immer
   was zum Upgraden“; das Feld braucht die Versionsprüfung (Fall 25.5). Abhängig: 1a; Phase 10, 2b
   (gemergt)
+  **Erledigt:** `SAVE_VERSION` 18 mit allen Feldern aus 28.8 (`cycle.upgrades`,
+  `cycle.researchRanks`, `meta.upgrades.best`, `meta.stats.upgradesBought`/`upgradeSeeds`); reine
+  Regeln in `src/core/upgrades.ts` (Preis, Kaufmenge, Meilensteine, Plätze, ☀️/💧, Kartengewichte,
+  Cache-Schlüssel), Aktionen `upgradeNiche`, `upgradeTree`, `upgradeBlocker`, `upgradeCost`,
+  `upgradeAffordable` in `core/tick.ts`; Wirkung in `evaluateEcosystem` (Ökosystem-Feld `upgrades`),
+  Ausbau-Plätze als `SlotBonus.upgrade` in `slotBonuses` (nicheSlots zählt sie nur in schon offenen
+  Nischen), Gewichte in `drawAnimals` (nur mit Ausbau gewichtet – sonst gleicher Zufall);
+  Schlüssel `|u:` beider evaluate-Caches; Neuer Zyklus über `createCycle`; Migration v17 → v18 und
+  robustes Laden in `core/save.ts` (Ausbau vor den Nischen geladen, damit seine Plätze beim
+  Kürzen zählen). Server unverändert (vergleicht nur `schema`). Oberfläche: Zeile und Knopf je
+  offener Nische, Abschnitt „🌳 Dein Baum“, Meilenstein-Zettel (`upgradeMilestoneText`). Tests
+  `tests/upgrades-core.test.ts`, `tests/upgrade-ui.test.ts`, online = offline mit Ausbau in
+  `tests/tick.test.ts`, e2e `e2e/upgrades-basic.spec.ts`. Abweichung: 1 Mio. 🌰 reichen für
+  Wurzelraum 68, nicht 55 (28.8 korrigiert); Ränge zusätzlich erst ab ihrer Stufe (Hain)
 - [ ] **2b** Wiederholbare Knoten und Forschungsplan (`core-engineer`, 28.6; enthält Phase 10, 4b):
   Rang statt `'owned'` für wiederholbare Knoten, `researchCost`, `researchEffects` × Rang, Plan mit
   wiederholten IDs; `meta.research.auto`, Halt in `tick` bei Kosten des nächsten Plan-Eintrags,

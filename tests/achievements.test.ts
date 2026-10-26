@@ -363,7 +363,7 @@ describe('Spielstand v9', () => {
   }
 
   it('v8 → v9: schaltet still frei, was der Stand erfüllt, und meldet die Anzahl', () => {
-    expect(SAVE_VERSION).toBe(17);
+    expect(SAVE_VERSION).toBe(18);
     const s = groveState(3);
     s.meta.stats.visitorsHosted = 2;
     s.cycle.number = 2;

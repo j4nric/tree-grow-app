@@ -9001,7 +9001,8 @@ interface LifetimeStats {
 
 - **Migration v17 → v18:** `upgrades` leer (alle 0), `researchRanks` = {}, `meta.upgrades.best`
   leer, Statistik 0. Die Samen des Stands **bleiben** – wer mit vielen Samen aus der Zeit von
-  100 % offline kommt, hat einen großen ersten Einkauf (Logarithmus: 1 Mio. 🌰 ≈ Wurzelraum 55);
+  100 % offline kommt, hat einen großen ersten Einkauf (Logarithmus: 1 Mio. 🌰 ≈ Wurzelraum 68;
+  bis 2a stand hier 55 – nachgerechnet: Σ 10 · 1,15^L bis 68 ≈ 0,9 Mio.);
   kein Kürzen, niemand verliert etwas. Der Plan (`meta.research.plan`) bleibt.
 - **Robustes Laden ab v18:** Stufen und Ränge ganzzahlig, 0 … `MAX_UPGRADE_LEVEL` = 1.000 bzw.
   `MAX_RESEARCH_RANK` = 200, sonst 0; unbekannte Nischen, Teile und Knoten-IDs fallen weg; Ränge nur

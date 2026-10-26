@@ -95,7 +95,7 @@ function ancientHome(own = 300): GameState {
 
 describe('Spielstand v14: Startwerte', () => {
   it('SAVE_VERSION 14; neuer Stand: nur der Heimatwald, aktiv, ohne Korridore', () => {
-    expect(SAVE_VERSION).toBe(17);
+    expect(SAVE_VERSION).toBe(18);
     const state = stateAt(0);
     expect(state.version).toBe(SAVE_VERSION);
     expect(state.meta.landscape).toEqual({

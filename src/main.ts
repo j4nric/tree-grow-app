@@ -26,6 +26,8 @@ import {
   markLandscapeAnnounced,
   tick,
   toggleRegular,
+  upgradeNiche,
+  upgradeTree,
   type ActionError,
   type ActionResult,
   type TickReport,
@@ -50,6 +52,7 @@ import {
   toScenePlants,
   stageBannerView,
   waitingNotes,
+  upgradeMilestoneText,
 } from './ui/adapters';
 import { achievementUnlockedText, achievementsBackfilledText } from './ui/achievement-view';
 import { toReturnReportView } from './ui/return-report-view';
@@ -111,7 +114,7 @@ const syncUrl =
   readSyncUrl((window as unknown as { __VSZW_SYNC_URL__?: unknown }).__VSZW_SYNC_URL__) ?? readSyncUrl(import.meta.env.VITE_SYNC_URL);
 
 /** Wofür eine Aktion lief (für abweichende Fehlertexte). */
-type ActionKind = PendingEncounterType | 'research' | 'sowing';
+type ActionKind = PendingEncounterType | 'research' | 'sowing' | 'tree-upgrade';
 
 const ERROR_TEXTS: Record<ActionError, string> = {
   'no-encounter': 'Diese Begegnung gibt es nicht mehr.',
@@ -141,6 +144,7 @@ const ERROR_TEXTS: Record<ActionError, string> = {
   requires: 'Dafür fehlt noch ein anderer Forschungsknoten.',
   condition: 'Dafür fehlt noch etwas im Ökosystem.',
   'already-active': 'Dieser Gast rastet schon hier.',
+  unknown: 'Diesen Ausbau gibt es nicht.',
 };
 
 /** Abweichende Texte, wenn die Aktion die Aussaat betraf (DESIGN_V2.md 27.6). */
@@ -157,8 +161,20 @@ const RESEARCH_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
   'too-expensive': 'Nicht genug Harmonie im Vorrat.',
 };
 
+/** Abweichende Texte für den Baum-Ausbau (DESIGN_V2.md 28.4: gesperrt nur vor dem Keimling). */
+const TREE_UPGRADE_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
+  closed: 'Den Baum kannst du erst ab dem Keimling ausbauen.',
+};
+
 function errorText(error: ActionError, type: ActionKind | undefined): string {
-  const special = type === 'sowing' ? SOWING_ERROR_TEXTS[error] : type === 'research' ? RESEARCH_ERROR_TEXTS[error] : undefined;
+  const special =
+    type === 'sowing'
+      ? SOWING_ERROR_TEXTS[error]
+      : type === 'research'
+        ? RESEARCH_ERROR_TEXTS[error]
+        : type === 'tree-upgrade'
+          ? TREE_UPGRADE_ERROR_TEXTS[error]
+          : undefined;
   return special ?? ERROR_TEXTS[error];
 }
 
@@ -370,6 +386,11 @@ const album = createAlbum({
     sow: sowNow,
     // Reiter „Pflege“ (Notliste der Forschung bis Phase 10, 4a): erforscht einen Knoten.
     buyCare: (id) => act(research(state, id), false, 'research'),
+    // Ausbau (DESIGN_V2.md 28.4; einfache Fassung bis 4b): eine Stufe, Meilenstein als Meldung.
+    upgrade: (target) => {
+      const result = target.kind === 'niche' ? upgradeNiche(state, target.id) : upgradeTree(state, target.id);
+      act(result, false, target.kind === 'tree' ? 'tree-upgrade' : undefined, result.ok && result.upgrade ? upgradeMilestoneText(result.upgrade) : '');
+    },
     newCycle,
     buildCorridor: (id) => {
       // Korridor (DESIGN_V2.md 24.6): jederzeit, ändert das wirksame Gedächtnis.

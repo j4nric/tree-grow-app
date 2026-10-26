@@ -410,6 +410,21 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     }
   });
 
+  it('gleich mit Ausbau (v18): Tier-Bonus, Hauptbaum, Begleitpflanzen, Plätze, 💧 und Kartengewichte', () => {
+    // Junger Baum: Wurzelraum 50 (Platz, ×1,5 und seltene ×2 beim Ziehen), Krone 12, alle drei
+    // Baumteile über 25 (+1 Höhle – bleibt zu –, +1 Krone, +1 💧) – alles in evaluate und drawAnimals.
+    const start = stateAt(3, ['earthworm', 'vole', 'bluetit', 'bee'], 1818);
+    start.plants = ['hazel', 'fern'];
+    start.cycle.upgrades = { niches: { roots: 50, crown: 12 }, tree: { rings: 30, leaves: 26, mycorrhiza: 25 } };
+    const ev = evaluate(start);
+    expect([ev.slots.roots, ev.slots.crown, ev.slots.hollows]).toEqual([3, 4, 0]);
+    const { live, average } = runPairs(start, 2 * 3600);
+    // Online erreicht der Baum den Alten Baum; offline (10 % nach 60 s) zieht er wenigstens Karten.
+    expect(live[0].stage).toBeGreaterThanOrEqual(4);
+    expect(average[0].waypoint).toBeGreaterThan(start.waypoint);
+    for (const pair of [live, average]) expectSameRun(pair);
+  });
+
   it('gleich in der Waldlandschaft (v14): Auwald aktiv, alle Gaben, Korridor-Zufluss', () => {
     // Alter Baum im Auwald: Eigenheit (+2 💧, Tümpel, Pilze −15 %), Merkmal Feuchte, Gaben aller
     // Wälder und wirksames Gedächtnis aus dem Zufluss – alles in evaluate, also online = offline.

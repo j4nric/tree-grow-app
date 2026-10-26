@@ -47,7 +47,8 @@ import {
 import { WAYPOINT_COUNT, WAYPOINT_THRESHOLDS, waypointThreshold } from '../content/waypoints';
 import { activeSite, effectiveForestMemory, giftSites, landscapeOf, landscapeTraits, oldSiteOf, siteHabitats } from './landscape';
 import { normalizeElapsed, seasonIdAt, seasonIndex } from './season';
-import { MAX_FOREST_MEMORY, type CycleState, type GameState, type LandscapeState, type PendingEncounterType } from './state';
+import { MAX_FOREST_MEMORY, type CycleState, type GameState, type LandscapeState, type PendingEncounterType, type UpgradeLevels } from './state';
+import { nicheUpgradePct, treeUpgradePct, upgradeEnvironment, upgradeLevelsKey, upgradeSlotBonuses } from './upgrades';
 import type { WeatherId } from '../content/weather';
 import {
   averageWeatherEffectsFor,
@@ -154,17 +155,27 @@ export interface Ecosystem {
    * Landschaft frei, schon einmal Urwald oder jetzt Urwald – oldSiteOf). Fehlt: keine Kennart.
    */
   oldSite?: SiteId;
+  /**
+   * Ausbaustufen des Zyklus (seit v18, DESIGN_V2.md 28.4): je Tier einer ausgebauten Nische
+   * +0,1 % · L 🌿 und 🌰 (× z), Hauptbaum und Begleitpflanzen aus dem Baum-Ausbau, dazu Plätze,
+   * ☀️ und 💧 der Meilensteine. Fehlt das Feld: kein Ausbau.
+   */
+  upgrades?: UpgradeLevels;
 }
 
-/** Platz-Wirkung (Nische, Anzahl). */
+/**
+ * Platz-Wirkung (Nische, Anzahl). `upgrade`: Platz aus einem Ausbau-Meilenstein (28.4) – zählt
+ * nur, wenn die Nische ohne Ausbau-Plätze schon mindestens einen Platz hat (öffnet keine).
+ */
 export interface SlotBonus {
   niche: NicheId;
   amount: number;
+  upgrade?: boolean;
 }
 
 /** Laufender Zyklus, soweit evaluate ihn braucht (fehlt er, gibt es keine Zusatz-Wirkungen). */
 export type CycleExtras = Partial<
-  Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats' | 'research' | 'elapsed' | 'mainTree' | 'number' | 'startedAt'>
+  Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats' | 'research' | 'elapsed' | 'mainTree' | 'number' | 'startedAt' | 'upgrades'>
 >;
 
 /** Daten des Hauptbaums; unbekannte oder fehlende Arten → DEFAULT_MAIN_TREE (Eiche). */
@@ -215,8 +226,9 @@ export function environmentEffects(
  * Alle zusätzlichen Plätze eines Spielstands: Zyklus-Boni, Pflege, Eigenheiten des
  * Hauptbaums ab ihrer Stufe (z. B. Rotbuche: +1 Wurzelraum ab Alter Baum) und – seit v14 –
  * Eigenheit des aktiven Standorts und Gaben der Landschaft (z. B. Auwald: +2 Waldtümpel ab
- * Junger Baum). Gemeinsamer Helfer für evaluate, Kartenwahl, Stammgäste, vorgegebene
- * Begegnungen und das Laden.
+ * Junger Baum) und – seit v18 – Plätze der Ausbau-Meilensteine (`upgrade: true`, öffnen keine
+ * Nische). Gemeinsamer Helfer für evaluate, Kartenwahl, Stammgäste, vorgegebene Begegnungen und
+ * das Laden.
  */
 export function slotBonuses(state: { stage: number; cycle?: CycleExtras; meta?: { landscape?: LandscapeState } }): SlotBonus[] {
   const tree = state.cycle?.mainTree !== undefined ? mainTreeOf(state.cycle.mainTree) : null;
@@ -226,6 +238,7 @@ export function slotBonuses(state: { stage: number; cycle?: CycleExtras; meta?: 
   for (const t of [...(tree?.traits ?? []), ...site]) {
     if (t.minStage <= state.stage && t.effect.kind === 'slot') out.push({ niche: t.effect.niche, amount: t.effect.amount });
   }
+  out.push(...upgradeSlotBonuses(state.cycle?.upgrades));
   return out;
 }
 
@@ -345,6 +358,7 @@ export function ecosystemOf(
     site: active,
     gifts: giftSites(landscape),
     ...oldSiteField(state),
+    ...(state.cycle?.upgrades ? { upgrades: state.cycle.upgrades } : {}),
   };
 }
 
@@ -610,6 +624,8 @@ export function slotEffects(sp: Pick<Species, 'effects'>): { niche: NicheId; amo
  * Plätze je Nische auf einer Stufe. Mit `niches` zählen auch die Plätze, die Tiere
  * schaffen (Wirkung `slot`, z. B. Borkenkäfer → +1 Höhlen). Solche Plätze öffnen eine
  * geschlossene Nische nur, wenn sie `opensEarly` hat (DESIGN_V2.md, Abschnitt 3).
+ * Ausbau-Plätze (`upgrade`, 28.4) öffnen nie eine Nische: Sie zählen erst, wenn alle übrigen
+ * Quellen zusammen mindestens einen Platz geben.
  */
 export function nicheSlots(
   stage: number,
@@ -621,8 +637,14 @@ export function nicheSlots(
   if (!niches && bonus.length === 0) return slots;
   const extra = {} as Record<NicheId, number>;
   for (const id of NICHE_IDS) extra[id] = 0;
+  const upgrades = {} as Record<NicheId, number>;
+  for (const id of NICHE_IDS) upgrades[id] = 0;
   // Plätze aus Ereignissen (Zyklus-Boni) zählen wie die der Tiere (inkl. opensEarly).
-  for (const b of bonus) if (b.niche in extra) extra[b.niche] += finite(b.amount);
+  for (const b of bonus) {
+    if (!(b.niche in extra)) continue;
+    if (b.upgrade) upgrades[b.niche] += finite(b.amount);
+    else extra[b.niche] += finite(b.amount);
+  }
   for (const id of NICHE_IDS) {
     for (const sid of niches?.[id] ?? []) {
       const sp = SPECIES_BY_ID.get(sid);
@@ -631,6 +653,7 @@ export function nicheSlots(
   }
   for (const id of NICHE_IDS) {
     if (slots[id] > 0 || NICHES_BY_ID.get(id)!.opensEarly) slots[id] = Math.max(0, slots[id] + extra[id]);
+    if (slots[id] >= 1) slots[id] = Math.max(0, slots[id] + upgrades[id]);
   }
   return slots;
 }
@@ -798,6 +821,10 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   // Jahreszeit und Baumart wirken wie Zusatz-Wirkungen (Faktor 1); `happiness` unten je Tier.
   const environment = environmentEffects(eco.stage, eco.season, eco.mainTree, eco.site, eco.gifts);
   const extraEffects = [...(eco.extraEffects ?? []), ...environment.effects];
+  // Ausbau-Meilensteine mit ☀️/💧 (28.4, z. B. Pilzgeflecht 25: +1 💧) wie eine Forschungswirkung.
+  const upgradeEnv = upgradeEnvironment(eco.upgrades);
+  if (upgradeEnv.light !== 0) extraEffects.push({ kind: 'light', amount: upgradeEnv.light });
+  if (upgradeEnv.water !== 0) extraEffects.push({ kind: 'water', amount: upgradeEnv.water });
   const happinessBonus = {} as Record<Genus, number>;
   for (const g of GENERA) happinessBonus[g] = 0;
   // Dazu die Forschung (27.7, z. B. Pilzgarten: Pilze +15 Prozentpunkte).
@@ -1006,6 +1033,12 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   for (const a of animals) {
     const z = status[a.id]!.happiness;
     for (const e of a.effects) apply(e, z);
+    // Nischen-Ausbau (28.4): je Tier +0,1 % · L 🌿 und 🌰, × seine Zufriedenheit – wie eine eigene Tierwirkung.
+    const upgradePct = nicheUpgradePct(eco.upgrades, a.niche);
+    if (upgradePct > 0) {
+      apply({ kind: 'growth', pct: upgradePct }, z);
+      apply({ kind: 'seeds', pct: upgradePct }, z);
+    }
     const nocturnal = night > 0 ? NOCTURNAL_BY_SPECIES.get(a.id) : undefined;
     if (nocturnal && nocturnalInSeason(nocturnal, eco.season)) for (const e of nocturnal.effects) apply(e, z * night);
     if (fearful.has(a.id)) {
@@ -1104,11 +1137,20 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     companionGrowth += p.growth * (1 + groupGrowth[p.group]);
     companionSeeds += p.seeds * (1 + groupSeeds[p.group]);
   }
+  // Baum-Ausbau (28.4): Pilzgeflecht auf die Begleitpflanzen (vor V), Jahresringe und Blattwerk
+  // nur auf den Hauptbaum. Ohne Ausbau fällt nichts weg (bitgleich wie vor v18).
+  const companionUpgrade = treeUpgradePct(eco.upgrades, 'companions') / 100;
+  if (companionUpgrade > 0) {
+    companionGrowth *= 1 + companionUpgrade;
+    companionSeeds *= 1 + companionUpgrade;
+  }
+  const treeGrowthUpgrade = treeUpgradePct(eco.upgrades, 'treeGrowth') / 100;
+  const treeSeedsUpgrade = treeUpgradePct(eco.upgrades, 'treeSeeds') / 100;
   const factor = Math.max(MIN_GROWTH_FACTOR, 1 + growthBonus - damage);
-  const tree = stage.treeGrowth * (1 + groupGrowth.trees);
+  const tree = stage.treeGrowth * (treeGrowthUpgrade > 0 ? 1 + groupGrowth.trees + treeGrowthUpgrade : 1 + groupGrowth.trees);
   const growthScale = factor * multiplier * memory;
   const growth = (tree + supply * companionGrowth) * growthScale;
-  const treeSeeds = stage.treeSeeds * (1 + groupSeeds.trees);
+  const treeSeeds = stage.treeSeeds * (treeSeedsUpgrade > 0 ? 1 + groupSeeds.trees + treeSeedsUpgrade : 1 + groupSeeds.trees);
   const seedsScale = (1 + seedsBonus) * multiplier * memory;
   const seeds = (treeSeeds + supply * companionSeeds) * seedsScale;
 
@@ -1122,7 +1164,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
     animals: status,
     foodWeb,
     avgHappiness,
-    slots: nicheSlots(eco.stage, eco.niches, slotBonusesOf(extraEffects)),
+    slots: nicheSlots(eco.stage, eco.niches, [...slotBonusesOf(extraEffects), ...upgradeSlotBonuses(eco.upgrades)]),
     genusCounts,
     traitTiers,
     growthBonus,
@@ -1202,6 +1244,9 @@ function ecosystemKey(state: GameState, ambient: AmbientMode | null): string {
     // Forschung als Menge (Reihenfolge ändert keine Wirkung).
     const research = [...new Set(c.research ?? [])].sort();
     if (research.length > 0) key += `|r:${research.join(',')}`;
+    // Ausbaustufen (seit v18, 28.8) – ohne Ausbau kein Teil (Schlüssel wie vor v18).
+    const upgrades = upgradeLevelsKey(c.upgrades);
+    if (upgrades) key += `|u:${upgrades}`;
   }
   return key;
 }

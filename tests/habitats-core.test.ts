@@ -40,10 +40,10 @@ function rich(stage: number, animals: string[] = [], seed = 3): GameState {
 
 describe('Spielstand v13 (DESIGN_V2.md 23.6)', () => {
   it('aktuelle Version mit den Lebensräumen (seit v13); neue Stände haben die drei Nischen leer', () => {
-    expect(SAVE_VERSION).toBe(17);
+    expect(SAVE_VERSION).toBe(18);
     const state = stateAt(0);
     for (const n of HABITATS) expect(state.niches[n], n).toEqual([]);
-    expect(state.version).toBe(17);
+    expect(state.version).toBe(18);
   });
 
   it('v12 → v13 ohne Pflege: Nischen leer und geschlossen, sonst unverändert', () => {
@@ -163,7 +163,7 @@ describe('Schutz für ältere Clients: „Stand ist neuer“ (DESIGN_V2.md 22.8,
     state.cycle.seen = ['vole-year'];
     const code = exportCode(state);
     const imported = importCode(code, 0);
-    expect(imported.ok && imported.result.state.version).toBe(17);
+    expect(imported.ok && imported.result.state.version).toBe(18);
     expect(imported.ok && imported.result.state.cycle.seen).toEqual(['vole-year']);
     expect(imported.ok && imported.result.state.niches.meadow).toEqual(['cricket']);
   });

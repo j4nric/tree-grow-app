@@ -5,6 +5,7 @@ import type { SeasonId } from '../content/seasons';
 import { HOME_SITE, type SiteId } from '../content/landscape';
 import { DEFAULT_MAIN_TREE, type MainTreeId } from '../content/trees';
 import { NICHE_IDS, type Genus, type NicheId, type Tag } from '../content/types';
+import type { TreePartId } from '../content/upgrades';
 import { normalizeSeed } from './rng';
 
 /**
@@ -22,7 +23,9 @@ import { normalizeSeed } from './rng';
  * und den Kennarten als neuem Wertebereich der Art-IDs, DESIGN_V2.md 26.6; seit v17 mit dem
  * Harmonie-Vorrat `harmonyPoints`, der Forschung `cycle.research` statt der Pflege `cycle.care`,
  * den Aussaat-Feldern `cycle.sowings`/`sowing`/`freeSowing`, dem Forschungsplan `meta.research`
- * und `meta.stats.harmonyEarned`, DESIGN_V2.md 27.9).
+ * und `meta.stats.harmonyEarned`, DESIGN_V2.md 27.9; seit v18 mit dem Ausbau `cycle.upgrades`,
+ * den Rängen `cycle.researchRanks`, der Bestmarke `meta.upgrades.best` und
+ * `meta.stats.upgradesBought`/`upgradeSeeds`, DESIGN_V2.md 28.8).
  * Reine Daten, JSON-serialisierbar – kein DOM, keine Klassen.
  * Abgeleitete Werte (Zufriedenheit, Harmonie, Raten) werden NICHT gespeichert, sondern
  * mit `evaluate(state)` berechnet.
@@ -31,7 +34,7 @@ import { normalizeSeed } from './rng';
  * `meta.journal.communities` sind reine Ergänzungen; fehlen sie in einem v3-Stand,
  * ergänzt das Laden sie aus dem aktuellen Ökosystem (save.ts).
  */
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 
 /**
  * Obergrenze für den Harmonie-Vorrat `harmonyPoints` (⚖️) beim Laden und im Tick
@@ -122,6 +125,20 @@ export function createResearchPlan(): ResearchPlan {
   return { plan: [], auto: false };
 }
 
+/**
+ * Ausbaustufen (seit v18, DESIGN_V2.md 28.4/28.8): Nische bzw. Baumteil → Stufe (ganzzahlig,
+ * 1 … MAX_UPGRADE_LEVEL). Fehlende Einträge = Stufe 0; gespeichert werden nur Stufen > 0.
+ */
+export interface UpgradeLevels {
+  niches: Partial<Record<NicheId, number>>;
+  tree: Partial<Record<TreePartId, number>>;
+}
+
+/** Keine Ausbaustufen (neuer Zyklus, neues Spiel, Migration v17 → v18). */
+export function createUpgradeLevels(): UpgradeLevels {
+  return { niches: {}, tree: {} };
+}
+
 /** Vorgabe für die nächste Begegnung (Ereignis-Option `nextEncounter`). */
 export interface ForcedEncounter {
   type: ForcedEncounterType;
@@ -163,6 +180,10 @@ export interface LifetimeStats {
   harmonyEarned: number;
   /** Gewählte Wildwechsel-Karten (chooseCard mit `PendingEncounter.via`, seit v15). */
   wildwechselChosen: number;
+  /** Gekaufte Ausbaustufen aller Zyklen, Nischen und Baum (seit v18, DESIGN_V2.md 28.8). */
+  upgradesBought: number;
+  /** Für den Ausbau ausgegebene Samen aller Zyklen (seit v18). */
+  upgradeSeeds: number;
   /** Hauptbaum-Arten, die schon einmal Hauptbaum waren (inkl. der aktuellen), je einmal. */
   grownTrees: MainTreeId[];
 }
@@ -199,6 +220,8 @@ export function createStats(mainTree: MainTreeId = DEFAULT_MAIN_TREE): LifetimeS
     careRanksBought: 0,
     harmonyEarned: 0,
     wildwechselChosen: 0,
+    upgradesBought: 0,
+    upgradeSeeds: 0,
     grownTrees: [mainTree],
   };
 }
@@ -372,6 +395,16 @@ export interface CycleState {
    * die Vogelsaat zählt nicht. Ganzzahlig, 0 … MAX_SOWINGS. Zählt beim Öffnen (sow).
    */
   sowings: number;
+  /**
+   * Ausbaustufen dieses Zyklus (seit v18, DESIGN_V2.md 28.4): Nischen-Ausbau und Baum-Ausbau.
+   * Beginnen mit jedem Zyklus bei 0; die Bestmarke steht in `meta.upgrades.best`.
+   */
+  upgrades: UpgradeLevels;
+  /**
+   * Ränge der wiederholbaren Forschungsknoten (seit v18, DESIGN_V2.md 28.6): ID aus
+   * RESEARCH_REPEATABLE → Rang (ganzzahlig, 1 … MAX_RESEARCH_RANK). Logik ab Phase 11, 2b.
+   */
+  researchRanks: Record<string, number>;
   /** Offene Aussaat (höchstens eine): Karten = Pflanzen-IDs, Würfe dieser Aussaat. Sonst null. */
   sowing: SowingState | null;
   /** Geschenkte Aussaat aus der Vogelsaat, die auf eine freie Hand wartet (IDs zuerst). Sonst null. */
@@ -390,7 +423,7 @@ export interface CycleState {
 }
 
 export interface GameState {
-  version: 17;
+  version: 18;
   /** Gesamt-Wachstum in diesem Zyklus (bestimmt Wegpunkte und Stufe). */
   totalGrowth: number;
   /** 🌰 Samen – kaufen Aussaaten, Gäste und Neu würfeln. */
@@ -467,6 +500,11 @@ export interface GameState {
     landscape: LandscapeState;
     /** Forschungsplan (seit v17, DESIGN_V2.md 27.8). */
     research: ResearchPlan;
+    /**
+     * Ausbau über die Zyklen (seit v18, DESIGN_V2.md 28.8): höchste je erreichte Stufe je Nische
+     * und Baumteil – für Abzeichen, Tagebuch und Erfolge. Nie kleiner als die Stufe im Zyklus.
+     */
+    upgrades: { best: UpgradeLevels };
   };
   /** Zeitpunkt des letzten Ticks (ms seit Epoch), für Offline-Fortschritt. */
   lastTick: number;
@@ -504,6 +542,7 @@ export function createInitialState(now: number, seed: number = now): GameState {
       daily: createDaily(dailySeedOf(seed)),
       landscape: createLandscape(),
       research: createResearchPlan(),
+      upgrades: { best: createUpgradeLevels() },
     },
     lastTick: now,
   };
@@ -524,6 +563,8 @@ export function createCycle(number: number, now?: number, mainTree: MainTreeId =
     forced: null,
     interlude: 0,
     research: [],
+    upgrades: createUpgradeLevels(),
+    researchRanks: {},
     sowings: 0,
     sowing: null,
     freeSowing: null,
