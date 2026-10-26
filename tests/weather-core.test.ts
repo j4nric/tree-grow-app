@@ -46,7 +46,7 @@ import {
   weatherSeed,
 } from '../src/core/weather';
 import { generateDailyGoals } from '../src/core/daily';
-import { stateAt, researchFor } from './helpers';
+import { offlineTick, stateAt, researchFor } from './helpers';
 
 /** Logik für Wetter und Nachtarten (DESIGN_V2.md 21, src/core/weather.ts). Daten: weather.test.ts. */
 
@@ -490,7 +490,8 @@ describe('Mittel offline (21.5)', () => {
     const start = stateAt(3, ['owl', 'vole', 'robin'], 21);
     const small = structuredClone(start);
     const offline = structuredClone(start);
-    for (let i = 0; i < 2 * YEAR_SECONDS + 30; i++) tick(small, 1, 'average');
+    // Wie simulateOffline: erste 60 s voll, danach 10 % (28.3).
+    for (let i = 0; i < 2 * YEAR_SECONDS + 30; i++) offlineTick(small, i, 1);
     simulateOffline(offline, 2 * YEAR_SECONDS + 30);
     expect(offline.waypoint).toBe(small.waypoint);
     expect(offline.rngState).toBe(small.rngState);
@@ -522,13 +523,14 @@ describe('Mittel offline (21.5)', () => {
     const short = structuredClone(start);
     const shortOnline = structuredClone(start);
     const r = simulateOffline(short, OFFLINE_AVERAGE_MIN_SECONDS - 1);
-    tick(shortOnline, OFFLINE_AVERAGE_MIN_SECONDS - 1);
+    // Einzelwetter wie online, nur mit dem Ertragsfaktor der Abwesenheit (60 s voll, danach 10 %, 28.3).
+    offlineTick(shortOnline, 0, OFFLINE_AVERAGE_MIN_SECONDS - 1, 'live');
     expect(r.averaged).toBe(false);
     expect(short).toEqual(shortOnline);
     const long = structuredClone(start);
     const longAvg = structuredClone(start);
     expect(simulateOffline(long, OFFLINE_AVERAGE_MIN_SECONDS).averaged).toBe(true);
-    tick(longAvg, OFFLINE_AVERAGE_MIN_SECONDS, 'average');
+    offlineTick(longAvg, 0, OFFLINE_AVERAGE_MIN_SECONDS);
     expect(long).toEqual(longAvg);
   });
 
@@ -539,7 +541,8 @@ describe('Mittel offline (21.5)', () => {
     start.cycle.elapsed = 2 * YEAR_SECONDS;
     const live = structuredClone(start);
     const offline = structuredClone(start);
-    tick(live, 8 * 3600);
+    // Beide mit dem Ertragsfaktor der Abwesenheit (60 s voll, danach 10 %, 28.3).
+    offlineTick(live, 0, 8 * 3600, 'live');
     simulateOffline(offline, 8 * 3600);
     expect((offline.totalGrowth - start.totalGrowth) / (live.totalGrowth - start.totalGrowth)).toBeCloseTo(1, 1);
     expect(Math.abs((offline.seeds - start.seeds) / (live.seeds - start.seeds) - 1)).toBeLessThan(0.03);

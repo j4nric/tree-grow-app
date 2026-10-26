@@ -4,6 +4,7 @@ import { EVENTS, EVENTS_BY_ID, SEED_SECONDS_MIN_SEEDS } from '../src/content/eve
 import { VISITORS_BY_ID } from '../src/content/visitors';
 import { EVENT_SEASONS, SEASON_SECONDS } from '../src/content/seasons';
 import { STAGES } from '../src/content/stages';
+import { OFFLINE_YIELD } from '../src/content/offline';
 import { cardStatus, ecosystemOf, evaluate, evaluateEcosystem, seedSeconds, thresholdFor } from '../src/core/formulas';
 import { deserialize, loadGame, serialize, v6Threshold } from '../src/core/save';
 import { SAVE_VERSION, createCycle, type PendingEncounter } from '../src/core/state';
@@ -26,7 +27,7 @@ import {
   tick,
   visitorSeeds,
 } from '../src/core/tick';
-import { resolveSpecial, stateAt, tickToGrowth } from './helpers';
+import { offlineTick, resolveSpecial, stateAt, tickToGrowth } from './helpers';
 
 const event = (id: string): PendingEncounter => ({ type: 'event', cards: [id], rerolls: 0 });
 const guest = (id: string): PendingEncounter => ({ type: 'visitor', cards: [id], rerolls: 0 });
@@ -331,7 +332,8 @@ describe('online gleich offline (mit Boni, Gästen und Zwischenhalt)', () => {
     expect(big.seeds).toBeCloseTo(small.seeds, 4);
     // Mittel (offline, DESIGN_V2.md 21.5): kleine Ticks im selben Modus = simulateOffline.
     const offline = structuredClone(start);
-    for (let i = 0; i < 3 * 3600; i++) tick(online, 1, 'average');
+    // Dazu der Ertragsfaktor der Abwesenheit (28.3): erste 60 s voll, danach 10 %.
+    for (let i = 0; i < 3 * 3600; i++) offlineTick(online, i, 1);
     const report = simulateOffline(offline, 3 * 3600);
     expect(report.expired.sort()).toEqual(['midsummer', 'peregrine', 'rain']);
     expect(offline.waypoint).toBe(online.waypoint);
@@ -528,7 +530,9 @@ describe('Härtung (Review #31)', () => {
     // Mittel (offline ab einem Tag, DESIGN_V2.md 21.5): 20 min Frames = simulateOffline, wie
     // vor dem Wetter. Einzelwetter: 6 min Frames = ein großer Tick – genug für beide
     // Nachtgrenzen (81, 171 s), einen Tageswechsel (180 s) und die nächste Nacht (261 s).
-    for (let i = 0; i < 20 * 60 * 60; i++) tick(online, 1 / 60, 'average');
+    // Offline nach 60 s mit 10 % (28.3): die Frames mit demselben Faktor (Frame-Zähler statt
+    // aufsummierter Zeit, damit die 60-s-Grenze exakt zwischen zwei Frames liegt).
+    for (let i = 0; i < 20 * 60 * 60; i++) tick(online, 1 / 60, 'average', i < 60 * 60 ? 1 : OFFLINE_YIELD);
     for (let i = 0; i < 6 * 60 * 60; i++) tick(frames, 1 / 60);
     simulateOffline(offline, 20 * 60);
     tick(big, 6 * 60);
@@ -571,10 +575,13 @@ describe('Härtung (Review #31)', () => {
     const steps = 100;
     let expired: string[] = [];
     let waypoints = 0;
+    // Unter einem Tag wie online (Einzelwetter), nach 60 s mit 10 % (28.3) – wie simulateOffline.
+    const step = (toNext + 1) / steps;
     for (let i = 0; i < steps; i++) {
-      const r = tick(online, (toNext + 1) / steps);
-      expired = expired.concat(r.expired);
-      waypoints += r.waypoints;
+      for (const r of offlineTick(online, i * step, step, 'live')) {
+        expired = expired.concat(r.expired);
+        waypoints += r.waypoints;
+      }
     }
     const report = simulateOffline(offline, toNext + 1);
     expect(expired).toEqual(['midsummer']);

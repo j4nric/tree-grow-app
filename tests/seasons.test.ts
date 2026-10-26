@@ -40,6 +40,7 @@ import {
   unlockedTrees,
 } from '../src/core/tick';
 import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
+import { OFFLINE_FULL_SECONDS, OFFLINE_YIELD } from '../src/content/offline';
 
 /** Spielzeit am Anfang der Jahreszeit (im ersten Jahr). */
 const at = (season: SeasonId) => ({ spring: 0, summer: 1, autumn: 2, winter: 3 })[season] * SEASON_SECONDS;
@@ -303,7 +304,8 @@ describe('tick und Offline mit Jahreszeiten (DESIGN_V2.md 16.6)', () => {
       const seen: SeasonId[] = [];
       const weather: string[] = [];
       for (let i = 0; i < seconds * 60; i++) {
-        const r = tick(online, 1 / 60, mode);
+        // Offline (Mittel) nach 60 s mit 10 % (28.3); Frame-Zähler, damit die Grenze exakt liegt.
+        const r = tick(online, 1 / 60, mode, mode === 'average' && i >= 60 * 60 ? OFFLINE_YIELD : 1);
         seen.push(...r.seasons);
         weather.push(...r.weather);
       }
@@ -371,7 +373,10 @@ describe('tick und Offline mit Jahreszeiten (DESIGN_V2.md 16.6)', () => {
     const b = structuredClone(a);
     const report = simulateOffline(a, 8 * 3600);
     // Offline rechnet ab einem Tag mit dem Mittelwetter (21.5) – die Stunden-Schritte auch.
-    for (let h = 0; h < 8; h++) tick(b, 3600, 'average');
+    // Dazu der Ertragsfaktor (28.3): erste 60 s voll, danach 10 %.
+    tick(b, OFFLINE_FULL_SECONDS, 'average');
+    tick(b, 3600 - OFFLINE_FULL_SECONDS, 'average', OFFLINE_YIELD);
+    for (let h = 1; h < 8; h++) tick(b, 3600, 'average', OFFLINE_YIELD);
     expect(report.averaged).toBe(true);
     expect(report.weather.length).toBe(160);
     expect(report.seasons.length).toBe(160);

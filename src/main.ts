@@ -40,6 +40,8 @@ import {
   harmonyTierIndex,
   tickDeclineText,
   catchUpNotice,
+  offlineYieldHint,
+  reducedYield,
   WELCOME_MIN_SECONDS,
   discoveryText,
   toSceneAnimals,
@@ -51,6 +53,7 @@ import {
 } from './ui/adapters';
 import { achievementUnlockedText, achievementsBackfilledText } from './ui/achievement-view';
 import { toReturnReportView } from './ui/return-report-view';
+import { takeOfflineHint } from './ui/settings';
 import { joinSentences } from './ui/format';
 import { dailyCompletedText } from './ui/daily-view';
 import { CYCLE_LOCKED_TEXT, newCycleBlockerText, newCycleToast, regularsArrivedText } from './ui/cycle-view';
@@ -937,7 +940,9 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
       // Desktop wie mobil nur die Kurzfassung, alles Weitere im Rückkehr-Bericht (ui/album/return-report.ts).
       const stages = { from: stageBefore, to: state.stage };
       const site = activeSite(state.meta.landscape);
-      const view = toReturnReportView({ away, report, waiting: waitingNotes(state), stages, notes, site, chapters: chapterCount });
+      // Offline 10 % (28.3): einmal (Merker in den Einstellungen) die Regel dazu erklären.
+      const hint = reducedYield(report) && takeOfflineHint() ? offlineYieldHint(report.yieldFactor) : '';
+      const view = toReturnReportView({ away, report, waiting: waitingNotes(state), stages, notes: [...notes, hint], site, chapters: chapterCount });
       album.showReturnReport(view);
       extraNotice = '';
       // Die Begrüßung nennt die neue Stufe schon: kein zweites Stufen-Banner im nächsten Frame.

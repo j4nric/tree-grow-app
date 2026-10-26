@@ -2,8 +2,10 @@ import { CARE_TO_RESEARCH, RESEARCH } from '../src/content/research';
 import { SEASONS_BY_ID } from '../src/content/seasons';
 import { SPECIES_BY_ID, type Species } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
+import { OFFLINE_FULL_SECONDS, OFFLINE_YIELD } from '../src/content/offline';
 import { evaluate, thresholdFor } from '../src/core/formulas';
 import { createInitialState, type GameState } from '../src/core/state';
+import type { AmbientMode } from '../src/core/weather';
 import { chooseEventOption, chooseSowing, farewellVisitor, hostVisitor, tick, type ActionResult, type TickReport } from '../src/core/tick';
 
 /**
@@ -175,4 +177,22 @@ export function downgradeToV16(raw: Record<string, any>): Record<string, any> {
     if (raw.meta.stats) delete raw.meta.stats.harmonyEarned;
   }
   return raw;
+}
+
+/**
+ * Ein Abschnitt einer Abwesenheit wie in simulateOffline (DESIGN_V2.md 28.3): `from` Sekunden
+ * der Abwesenheit sind schon gerechnet, jetzt `dt` weitere – bis OFFLINE_FULL_SECONDS mit
+ * vollem Ertrag, danach mit OFFLINE_YIELD. Für „viele kleine Ticks = simulateOffline“.
+ */
+export function offlineTick(state: GameState, from: number, dt: number, ambient: AmbientMode = 'average'): TickReport[] {
+  const full = Math.max(0, Math.min(dt, OFFLINE_FULL_SECONDS - from));
+  const reports: TickReport[] = [];
+  if (full > 0) reports.push(tick(state, full, ambient, 1));
+  if (dt > full) reports.push(tick(state, dt - full, ambient, OFFLINE_YIELD));
+  return reports;
+}
+
+/** Ganze Abwesenheit in Schritten von `step` Sekunden (letzter Schritt ggf. kürzer), wie offlineTick. */
+export function offlineTicks(state: GameState, seconds: number, step: number, ambient: AmbientMode = 'average'): void {
+  for (let t = 0; t < seconds; t += step) offlineTick(state, t, Math.min(step, seconds - t), ambient);
 }

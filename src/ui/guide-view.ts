@@ -34,6 +34,7 @@ import { TRAIT_THRESHOLDS } from '../content/traits';
 import { VISITORS, VISITOR_FAREWELL_LABEL, VISITOR_HOST_LABEL } from '../content/visitors';
 import { GENERA } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
+import { OFFLINE_FULL_SECONDS, OFFLINE_YIELD } from '../content/offline';
 import { DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS, GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, WEATHERS } from '../content/weather';
 import { NOCTURNAL } from '../content/daytime';
 import { CHRONICLE_CHAPTERS, CHRONICLE_HARMONY } from '../content/chronicle';
@@ -56,6 +57,7 @@ import {
   WILDWECHSEL_MAX_CHANCE,
 } from '../content/landscape';
 import { MAX_FOREST_MEMORY } from '../core/state';
+import { MAX_OFFLINE_SECONDS } from '../core/tick';
 import { HARMONY_TIERS, bonusEffectLabel, isHabitatNiche, listNames } from './adapters';
 import { researchSlotNodes } from './regular-wait';
 import { fruitPhrase } from './cycle-view';
@@ -380,6 +382,15 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       paragraphs: [
         'Jeden Tag schlägt dir das Naturtagebuch zwei bis drei kleine Aufgaben vor, die zu deinem Wald passen und in einem kurzen Besuch zu schaffen sind. Erfüllte Ziele belohnen sich sofort mit ein paar Samen, manchmal mit einer Begegnung seltener Arten.',
         'Ziele zum Beobachten, Entscheiden oder Harmonie-Halten zählen nur, während du spielst; Zufriedenheit und Lebensgemeinschaften auch, wenn du weg warst. Die Ziele eines Tages bleiben beim Neuen Zyklus erhalten. Wer an aufeinanderfolgenden Tagen ein Ziel erfüllt, baut eine Serie auf – ein verpasster Tag setzt nur sie zurück.',
+      ],
+    },
+    {
+      // Offline 10 % (DESIGN_V2.md 28.3): ein Absatz mit der Regel.
+      id: 'offline',
+      icon: '💤',
+      title: 'Offline',
+      paragraphs: [
+        `Dein Wald wächst am schnellsten, während du zusiehst. Bist du weg – Spiel geschlossen, Tab im Hintergrund oder Rechner im Ruhezustand –, zählen die ersten ${formatNumber(OFFLINE_FULL_SECONDS)} Sekunden voll, danach wächst er mit ${pct(OFFLINE_YIELD)} der Kraft weiter: Wachstum, Samen und Harmonie-Vorrat. Die Zeit selbst läuft voll – Jahreszeiten, Wetter, Zeit-Boni und Gäste ziehen weiter wie sonst. Nachgerechnet werden höchstens ${formatDuration(MAX_OFFLINE_SECONDS)}.`,
       ],
     },
   ];
