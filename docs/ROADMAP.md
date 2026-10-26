@@ -1210,11 +1210,13 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Offscreen-Caches gezeichnet, neu nur beim Schrittwechsel; zunächst nur in der Demo
   (`?upgrades=rings:30,leaves:20`). **Warum:** In einem grafischen Incremental muss man den Ausbau
   sehen – und die Grafik hängt an nichts. Abhängig: nichts
-- [ ] **1e** Simulator vorbereiten (`game-designer`, Rest von Phase 10, 3a): Gabel-Wahl je
+- [x] **1e** Simulator vorbereiten (`game-designer`, Rest von Phase 10, 3a): Gabel-Wahl je
   Strategie statt Pflege-Reihenfolge, Aussaat-Tausch je Strategie, Takt-Kennzahl „Zeit zwischen zwei
   Käufen“ je Stufe (Median, längste), Anteil ausgegebener Samen, Sitzungsprofil (30 min aktiv / 8 h
   offline über `simulateOffline`). **Warum:** Die große Messung 3a braucht diese Kennzahlen; der
   Umbau hängt nur an Phase 10 (fertig). Abhängig: nichts; das Sitzungsprofil misst erst nach 1b 10 %
+  – **erledigt:** `forkChoice`, `sowPolicy`, `purchaseTable`, `economyTable`, `runSession`;
+  Ist-Stand in DESIGN_V2.md 28.10 („Simulator vorbereitet“)
 
 **Welle 2 – Spielstand v18 und Logik** (nacheinander)
 
