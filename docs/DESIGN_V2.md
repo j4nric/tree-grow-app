@@ -9109,6 +9109,48 @@ für die Frage „wie fühlt sich ein Tag an“.
 Nicht verstellt werden: Wegpunkt-Kurve (3), Formeln von Harmonie (9.1), Bonus (27.4) und
 Gedächtnis (10), `OFFLINE_YIELD` (Entscheidung des Spielers).
 
+**Simulator vorbereitet (Phase 11, 1e)** – nur Messwerkzeug, keine Zahl in `content/` geändert
+(`scripts/simulate.ts`, Tests `tests/simulate-tools.test.ts`):
+
+- **Gabel-Wahl je Strategie** (`forkChoice`): Ist eine Seite erforscht, gilt sie; sonst vergleicht
+  die Strategie die ersten Knoten beider Wege mit ihrem Maß (`researchValue`) und spart nur auf
+  den gewählten Weg. Maß: relativer Gewinn an 🌿, 0,4 × 🌰 und – neu, `researchHarmony` – ⚖️
+  (Harmonie-Spieler 1, Wachstum 0), Plätze/Merkmale pauschal wie bisher, Aussaat-Wirkungen neu
+  pauschal (−25 % Preis 0,03, +1 Karte 0,02, ein Wurf gratis 0,01). Zufall: je Zustand feste
+  Münze, ohne seinen Zufall zu verbrauchen.
+- **Aussaat je Strategie** (`sowPolicy`): bewertende Strategien wie bisher (`improve`: säen und
+  tauschen, wenn es verbessern kann); der Zufallsspieler (`spend`) füllt freie Plätze und tauscht
+  bei vollem Ring, sobald der Vorrat zwei Aussaaten deckt, mit zufälliger Karte.
+- **Kennzahlen:** `RunResult.purchases` (Zeit, Stufe, Art, Kosten); `purchaseStats`/`purchaseTable`
+  (Takt je Stufe: Median der Abstände zwischen zwei Kaufmomenten, gleichzeitige Käufe = einer;
+  längste Pause inkl. der offenen Strecke), `economyTable` (Anteil ausgegebener Samen, Bestand in
+  min Produktion, ⚖️-Vorrat in min Zufluss, Aussaaten, Knoten), `forkTable`; `runSession`
+  (Tag für Tag 30 min aktiv, dann 8 h über die echte `simulateOffline`, Rückkehr löst die
+  Warteschlange auf) und `offlineAfterStage`. Alles im Protokoll von `npm run balance`.
+
+**Ist-Stand vor Phase 11** (neuer Simulator, Spielstand v17, offline noch 100 %, 40 Durchgänge,
+Seeds 1000 + 7 i, Median; Anteile als Mittel):
+
+| Kennzahl | Harmonie | Wachstum | Zufall |
+|---|---|---|---|
+| Hain / Urwald | 57:24 min / 2:18 h | 49:49 min / 1:58 h | 1:25 h / 3:32 h |
+| H am Hain / Urwald | 116,8 / 195,4 | 105,9 / 176,8 | 88,0 / 149,3 |
+| 🌰 ausgegeben bis Hain / Urwald | 76 % / 78 % | 79 % / 79 % | 55 % / 70 % (alter Simulator 1 % / 2 %) |
+| 🌰-Bestand beim Hain (min Produktion) | 7,9 | 6,1 | 24,3 |
+| ⚖️-Vorrat beim Hain / Urwald (min Zufluss) | 4,5 / 6,9 | 4,6 / 5,7 | 9,5 / 14,0 |
+| Takt 🌰-Käufe, Median: Setzling / Junger Baum / Alter Baum / Hain / Wald | 31 s / 1:57 / 5:59 / 5:24 / 6:51 min | 30 s / 2:05 / 6:49 / 5:18 / 6:34 min | 45 s / 3:31 / 10:20 / 11:59 / 16:55 min |
+| längste Pause ohne 🌰-Kauf bis Hain (ab Setzling), Median / 90 % | 11:40 / 14:58 min | 10:24 / 13:42 min | 24:01 / 33:11 min |
+| Gabeln am Ende: Krone Licht / Boden Käferburg / Wasser Vertiefen / Saum Blütenvorrat / Saat Samenbank (Anteil Weg A) | 98 / 3 / 100 / 57 / 100 % | 90 / 0 / 100 / 53 / 100 % | 93 / 60 / 50 / 25 / 50 % |
+| 8 h offline am Hain (20 Durchgänge) | +16 Wegpunkte, Urwald | | |
+| Sitzung 30 min aktiv / 8 h offline, Tag 1 | Alter Baum nach 30 min, offline +22 Wegpunkte → Urwald | | Alter Baum, +24 → Urwald |
+
+Gegenüber dem alten Simulator (gleiche Seeds): Harmonie bis Hain 57:37 → 57:24 min, Urwald
+2:20:55 → 2:18:41 h; Zufall Hain 1:29:36 → 1:25:28 h (er sät jetzt). Zyklus 2 bis Hain im Check
+−49,5 % statt −47,9 % (Harmonie; Check-Grenze vorläufig 0,52, 3b stellt nach). Befunde für 3a:
+Der Takt verfehlt 20–60 s ab dem Jungen Baum um den Faktor 3–12; die Gabeln Krone, Boden
+(Pilzgarten), Wasser (Vertiefen) und Saat (Samenbank) sind für bewertende Strategien einseitig
+(27.11, Stellschraube 3) – die Aussaat-Wirkungen sind im Simulator nur pauschal bewertet.
+
 ### 28.11 Später, optional: Stufen-Tore und Aufträge der Tiere (Skizze, eigene Welle)
 
 Nicht Teil der ersten Umsetzung; erst nach dem Playtest 5b, wenn sich das Spiel trotz Ausbau

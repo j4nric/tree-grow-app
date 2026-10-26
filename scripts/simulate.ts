@@ -6,6 +6,10 @@
  * Baumarten und (runCycles) mehrere Zyklen mit Waldgedächtnis und Stammgästen. Das
  * frühere Referenzmodell scripts/v2/ ist seit Schritt 2.10 entfernt.
  *
+ * Kennzahlen für Phase 11 (1e, DESIGN_V2.md 28.10): Takt der Käufe (purchaseTable), Anteil
+ * ausgegebener Samen und Vorräte (economyTable), Gabel-Wahl (forkTable), Sitzungsprofil mit
+ * simulateOffline (runSession, offlineAfterStage).
+ *
  * Der Spieler löst jede Begegnung sofort auf (online) und sät, sobald die Samen reichen und
  * es sich nach seiner Strategie lohnt (planSow): bei freiem Ring, wenn eine freigeschaltete
  * Pflanze verbessert, bei vollem Ring, wenn ein Tausch verbessern könnte. Aus den gezogenen
@@ -31,7 +35,7 @@ import { GENUS_INFO, SPECIES_BY_ID } from '../src/content/species';
 import { NEW_CYCLE_MIN_STAGE } from '../src/content/memory';
 import { STAGES } from '../src/content/stages';
 import { GENERA, NICHE_IDS, type EncounterType, type Genus } from '../src/content/types';
-import { RESEARCH, RESEARCH_BY_ID } from '../src/content/research';
+import { RESEARCH, RESEARCH_BY_ID, RESEARCH_FORKS, type ResearchFork, type ResearchNode } from '../src/content/research';
 import { EVENTS_BY_ID } from '../src/content/events';
 import {
   cardStatus,
@@ -72,6 +76,7 @@ import {
   research,
   researchBlocker,
   setRegulars,
+  simulateOffline,
   sow,
   sowBlocker,
   startNewCycle,
@@ -151,6 +156,18 @@ export interface Strategy {
    * verbessert). null = Zufallsspieler: sät bei freiem Ring und wählt eine beliebige Karte.
    */
   plantValue: ((ev: Evaluation) => number) | null;
+  /**
+   * Forschung (Phase 11, 1e): Gewicht des relativen Harmonie-Gewinns neben Wachstum und Samen
+   * (researchValue). Der Harmonie-Spieler forscht auch für ⚖️ (1), der Wachstums-Spieler nur für
+   * 🌿 und 🌰 (0). An den Gabeln wählt jede Strategie mit demselben Maß (forkChoice).
+   */
+  researchHarmony: number;
+  /**
+   * Aussaat (Phase 11, 1e): `improve` – säen und tauschen, sobald eine Pflanze die eigene Wertung
+   * verbessern könnte; `spend` – Zufallsspieler: freien Ring immer füllen, bei vollem Ring
+   * tauschen, sobald der Vorrat zwei Aussaaten deckt (ein Rest bleibt für Würfeln und Gäste).
+   */
+  sowPolicy: 'improve' | 'spend';
 }
 
 const byHarmony = (ev: Evaluation) => ev.harmony + 1e-6 * ev.growth;
@@ -180,11 +197,13 @@ function canReroll(state: GameState): boolean {
 }
 
 /** Nimmt die beste Option, wenn sie verbessert; sonst einmal neu würfeln, sonst ablehnen. */
-function greedy(id: string, name: string, value: (ev: Evaluation) => number): Strategy {
+function greedy(id: string, name: string, value: (ev: Evaluation) => number, researchHarmony: number): Strategy {
   return {
     id,
     name,
     plantValue: value,
+    researchHarmony,
+    sowPolicy: 'improve',
     decide(state, options, current) {
       const top = best(options, (o) => value(o.ev));
       if (top && value(top.ev) > value(current)) return { kind: 'choose', option: top };
@@ -197,6 +216,8 @@ export const RANDOM: Strategy = {
   id: 'random',
   name: 'Zufällig',
   plantValue: null,
+  researchHarmony: 0,
+  sowPolicy: 'spend',
   decide(state, options, _current, rng) {
     const cards = state.pendingEncounters[0]!.cards;
     const card = randomInt(rng, cards.length);
@@ -209,13 +230,15 @@ export const RANDOM: Strategy = {
   },
 };
 
-export const HARMONY = greedy('harmony', 'Gierig nach Harmonie', byHarmony);
-export const GROWTH = greedy('growth', 'Gierig nach Wachstum', byGrowth);
+export const HARMONY = greedy('harmony', 'Gierig nach Harmonie', byHarmony, 1);
+export const GROWTH = greedy('growth', 'Gierig nach Wachstum', byGrowth, 0);
 
 export const RAREST: Strategy = {
   id: 'rarest',
   name: 'Immer die seltenste Karte',
   plantValue: byHarmony,
+  researchHarmony: 1,
+  sowPolicy: 'improve',
   decide(_state, options) {
     if (options.length === 0) return { kind: 'decline' };
     const rarity = (o: Option) => SPECIES_BY_ID.get(o.id)!.rarity;
@@ -229,6 +252,8 @@ export function stacker(genus: Genus): Strategy {
     id: `stack-${genus}`,
     name: `${GENUS_INFO[genus].name} stapeln`,
     plantValue: byHarmony,
+    researchHarmony: 1,
+    sowPolicy: 'improve',
     decide(state, options, current, rng) {
       // Pflanzen (Aussaat) wählt der Stapler wie der Harmonie-Spieler (decideSowing).
       const isOwn = (id: string) => SPECIES_BY_ID.get(id)!.genus === genus;
@@ -316,6 +341,9 @@ export interface Snapshot {
   discovered: number;
   /** Samen-Bestand. */
   seeds: number;
+  /** ⚖️-Vorrat (`harmonyPoints`) und sein Zufluss je Sekunde (mit Gedächtnis). */
+  harmonyPoints: number;
+  harmonyRate: number;
   /** Bisher verdient: passiv (Baum × Harmonie) und durch (automatisches) Ablehnen. */
   earnedPassive: number;
   earnedDecline: number;
@@ -360,8 +388,29 @@ export interface RunResult {
    * Spieler gezielt auf Pflege).
    */
   early: { actions: number[]; seedPeak: number };
+  /** Alle Käufe in zeitlicher Folge (Takt-Kennzahl „Zeit zwischen zwei Käufen“, DESIGN_V2.md 28.10). */
+  purchases: Purchase[];
   final: Snapshot;
 }
+
+/**
+ * Ein Kauf des Spielers: bezahlte Aussaat (`sow`; die erste gratis und geschenkte zählen nicht),
+ * Neu würfeln (`reroll`), Gast bewirten (`host`) – die 🌰-Käufe – und ein Forschungsknoten
+ * (`research`, ⚖️). `cost` in der jeweiligen Währung.
+ */
+export interface Purchase {
+  time: number;
+  stage: number;
+  kind: PurchaseKind;
+  cost: number;
+}
+
+export type PurchaseKind = 'sow' | 'reroll' | 'host' | 'research';
+
+/** Käufe mit Samen (Takt-Ziel 28.10: „Zeit zwischen zwei 🌰-Käufen“). */
+export const SEED_PURCHASES: readonly PurchaseKind[] = ['sow', 'reroll', 'host'];
+/** Alle Käufe (Samen und ⚖️). */
+export const ALL_PURCHASES: readonly PurchaseKind[] = ['sow', 'reroll', 'host', 'research'];
 
 /** Ein Punkt in RunResult.memoryPath. */
 export interface MemoryPathPoint {
@@ -504,6 +553,7 @@ export function runGame(
     variety: [],
     memoryPath: [],
     early: { actions: [], seedPeak: 0 },
+    purchases: [],
     final: null as unknown as Snapshot,
   };
   const act = () => {
@@ -534,6 +584,8 @@ export function runGame(
       communityHarmony: ev.breakdown.communities,
       discovered: state.meta.journal.communities.length,
       seeds: state.seeds,
+      harmonyPoints: state.harmonyPoints,
+      harmonyRate: harmonyIncome(ev.harmony, effectiveForestMemory(state)),
       ...book,
       careRanks: Object.fromEntries(state.cycle.research.map((id) => [id, 1])),
       seen: [...state.cycle.seen],
@@ -576,16 +628,18 @@ export function runGame(
   while (state.stage < options.targetStage && time < options.maxSeconds && !allWaypointsReached(state)) {
     // Säen, solange es sich lohnt und die Samen reichen (eine offene Aussaat zuerst auflösen).
     settleSowing();
-    for (let guard = 0; guard < 50 && nextPlan() && sowBlocker(state) === null; guard++) {
+    for (let guard = 0; guard < 50 && nextPlan() && sowBlocker(state) === null && state.seeds >= sowNeed(state, strategy); guard++) {
       const cost = sowingCost(state);
       if (!sow(state).ok) break;
       book.spentPlants += cost;
       counts.plantsBought++;
+      if (cost > 0) result.purchases.push({ time, stage: state.stage, kind: 'sow', cost });
       settleSowing();
     }
-    const plan = nextPlan() && sowBlocker(state) === 'too-expensive';
+    const blocker = sowBlocker(state);
+    const plan = nextPlan() && (blocker === 'too-expensive' || (blocker === null && state.seeds < sowNeed(state, strategy)));
     // Forschung (seit v17 mit ⚖️ aus dem Vorrat): erforschen, was die Strategie anspart,
-    // sobald es reicht. Vorläufig (bis Phase 10, 3a) mit derselben Wahl wie früher die Pflege.
+    // sobald es reicht – an den Gabeln nur den Weg, den sie wählt (careTarget, forkChoice).
     let careNeed: number | null = null;
     if (options.care) {
       for (let target = careTarget(state, strategy); target; target = careTarget(state, strategy)) {
@@ -598,12 +652,13 @@ export function runGame(
         if (!research(state, target).ok) break;
         book.spentCare += before - state.harmonyPoints;
         counts.careBought++;
+        result.purchases.push({ time, stage: state.stage, kind: 'research', cost: before - state.harmonyPoints });
         act();
       }
     }
     const ev = evaluate(state, ambient);
     // Bis die nächste geplante Aussaat bezahlbar ist (+1 µs gegen Rundung).
-    const toPlant = plan && ev.seeds > 0 ? Math.max(0, (sowingCost(state) - state.seeds) / ev.seeds) + 1e-6 : Infinity;
+    const toPlant = plan && ev.seeds > 0 ? Math.max(0, (sowNeed(state, strategy) - state.seeds) / ev.seeds) + 1e-6 : Infinity;
     const stageBefore = state.stage;
     const nextSample = (SAMPLE_MINUTES[sample] ?? Infinity) * 60;
     const toWaypoint = secondsToNextWaypoint(state, ambient);
@@ -638,7 +693,7 @@ export function runGame(
         result.gaps.push({ stage: state.stage, seconds: time - lastWaypointTime });
         lastWaypointTime = time;
         const n = counts.encounters;
-        resolveAll(state, strategy, rng, counts, book, result.decisions, result.variety, time);
+        resolveAll(state, strategy, rng, counts, book, result.decisions, result.variety, time, result.purchases);
         if (counts.encounters > n) act();
       }
       continue;
@@ -648,7 +703,7 @@ export function runGame(
     for (let s = stageBefore + 1; s <= state.stage; s++) result.stages[s] = snapshot();
     const arrive = state.waypoint >= cycleWaypoint ? previewNewCycle(state).memoryGain : null;
     const seen = counts.encounters;
-    resolveAll(state, strategy, rng, counts, book, result.decisions, result.variety, time);
+    resolveAll(state, strategy, rng, counts, book, result.decisions, result.variety, time, result.purchases);
     if (counts.encounters > seen) act();
     if (arrive !== null) {
       const after = previewNewCycle(state);
@@ -665,6 +720,7 @@ export function runGame(
           variety: result.variety.map((v) => ({ ...v })),
           memoryPath: [...result.memoryPath],
           early: { actions: [...result.early.actions], seedPeak: result.early.seedPeak },
+          purchases: result.purchases.map((p) => ({ ...p })),
           final: snapshot(),
         }),
         state: () => ({ state: structuredClone(state), rng: { ...rng } }),
@@ -806,6 +862,7 @@ function resolveExtra(
   book: { earnedExtras: number; spentVisitors: number },
   variety: VarietyStat[],
   time: number,
+  purchases: Purchase[],
 ): void {
   const enc = state.pendingEncounters[0]!;
   counts.encounters++;
@@ -837,6 +894,7 @@ function resolveExtra(
     if (hosted?.ok) {
       counts.hosted++;
       book.spentVisitors -= hosted.seeds ?? 0;
+      purchases.push({ time, stage: state.stage, kind: 'host', cost: -(hosted.seeds ?? 0) });
     } else {
       const result = farewellVisitor(state, 0);
       if (result.ok) book.earnedExtras += result.seeds ?? 0;
@@ -848,39 +906,98 @@ function resolveExtra(
 /** Pauschaler Wert (relativer Gewinn) eines Platzes bzw. Merkmals – wirkt erst, wenn genutzt. */
 const CARE_SLOT_VALUE = 0.03;
 const CARE_HABITAT_VALUE = 0.02;
+/**
+ * Pauschaler Wert der Aussaat-Wirkungen (wirken nicht in `evaluate`): −25 % Preis, +1 Karte,
+ * ein Wurf gratis – je Aussaat; geschätzt wie ein Platz, die Karte etwas weniger.
+ */
+const SOW_COST_VALUE = 0.03;
+const SOW_CARDS_VALUE = 0.02;
+const SOW_REROLL_VALUE = 0.01;
+
+/** Gabel und Weg (0 = A, 1 = B) je Knoten eines Gabel-Wegs. */
+const FORK_OF_NODE: ReadonlyMap<string, { fork: ResearchFork; index: number; side: 0 | 1 }> = new Map(
+  RESEARCH_FORKS.flatMap((fork, index) =>
+    fork.paths.flatMap((path, side) => path.map((id) => [id, { fork, index, side: side as 0 | 1 }] as const)),
+  ),
+);
+
+/** Bis auf den Vorrat erforschbar (researchBlocker null oder nur „zu teuer“)? */
+const researchOpen = (state: GameState, id: string) => {
+  const b = researchBlocker(state, id);
+  return b === null || b === 'too-expensive';
+};
+
+/**
+ * Wert eines Knotens für eine bewertende Strategie: relativer Gewinn an 🌿, 🌰 (SEED_VALUE) und –
+ * mit `researchHarmony` – ⚖️ über CYCLE_HORIZON je ⚖️ Kosten (Vorschau mit der echten Logik,
+ * previewResearch); Plätze, Merkmale und Aussaat-Wirkungen pauschal.
+ */
+export function researchValue(state: GameState, strategy: Strategy, node: ResearchNode, now = evaluate(state)): number {
+  const after = previewResearch(state, node.id);
+  if (!after) return -Infinity;
+  let nominal = 0;
+  for (const e of node.effects) {
+    if (e.kind === 'habitat') nominal += CARE_HABITAT_VALUE;
+    else if (e.kind === 'cycle' && e.effect.kind === 'slot') nominal += CARE_SLOT_VALUE;
+    else if (e.kind === 'sowCost') nominal += (SOW_COST_VALUE * -e.pct) / 25;
+    else if (e.kind === 'sowCards') nominal += SOW_CARDS_VALUE * e.amount;
+    else if (e.kind === 'sowFreeReroll') nominal += SOW_REROLL_VALUE * e.amount;
+  }
+  const rel = (a: number, b: number) => a / Math.max(1e-9, b) - 1;
+  const gain =
+    rel(after.growth, now.growth) +
+    SEED_VALUE * rel(after.seeds, now.seeds) +
+    strategy.researchHarmony * rel(after.harmony, now.harmony) +
+    nominal;
+  return (CYCLE_HORIZON * gain) / node.cost;
+}
+
+/**
+ * Gabel-Wahl je Strategie (Phase 11, 1e; ersetzt die alte Pflege-Reihenfolge, in der eine Gabel
+ * nur „nebenbei“ entschieden wurde): Ist eine Seite schon erforscht, gilt sie. Sonst vergleicht
+ * die Strategie die ersten Knoten beider Wege, die bis auf den Vorrat erforschbar sind, mit
+ * ihrem Maß (researchValue) und spart auf den besseren; ist nur einer offen, auf diesen. Der
+ * Zufallsspieler wirft eine je Zustand feste Münze (Wegpunkt und Gabel; ohne den Zufall der
+ * Strategie zu verbrauchen). null = noch keine Seite erreichbar.
+ */
+export function forkChoice(state: GameState, strategy: Strategy, fork: ResearchFork, index: number, now?: Evaluation): 0 | 1 | null {
+  const owned = forkSideOf(state.cycle.research, fork);
+  if (owned !== null) return owned;
+  const open = ([0, 1] as const).filter((side) => researchOpen(state, fork.paths[side][0]!));
+  if (open.length === 0) return null;
+  if (open.length === 1) return open[0]!;
+  if (!strategy.plantValue) return ((state.waypoint + index) % 2) as 0 | 1;
+  const ev = now ?? evaluate(state);
+  const value = (side: 0 | 1) => researchValue(state, strategy, RESEARCH_BY_ID.get(fork.paths[side][0]!)!, ev);
+  return value(1) > value(0) ? 1 : 0;
+}
 
 /**
  * Welchen Forschungsknoten spart die Strategie als Nächstes an? Nur Knoten, die bis auf den
- * Vorrat erforschbar sind (researchBlocker). Bewertende Strategien: bester Wert je ⚖️ über
- * CYCLE_HORIZON (Vorschau mit der echten Logik, previewResearch; Plätze und Merkmale
- * pauschal), nur wenn er etwas bringt. Zufallsspieler: ein beliebiger, aber je Zustand
- * fester Knoten. null = nichts. Vorläufig wie bis v16 die Pflege; Phase 10, 3a stellt die
- * Wahl an den Gabeln nach Strategie ein.
+ * Vorrat erforschbar sind, und an jeder Gabel nur der Weg, den die Strategie wählt
+ * (forkChoice). Bewertende Strategien: bester Wert je ⚖️ (researchValue), nur wenn er etwas
+ * bringt. Zufallsspieler: ein beliebiger, aber je Zustand fester Knoten. null = nichts.
  */
 function careTarget(state: GameState, strategy: Strategy): string | null {
-  const offers = RESEARCH.filter((n) => {
-    const b = researchBlocker(state, n.id);
-    return b === null || b === 'too-expensive';
-  });
+  const now = strategy.plantValue ? evaluate(state) : undefined;
+  const sides = new Map<string, 0 | 1 | null>();
+  const allowed = (node: ResearchNode) => {
+    const f = FORK_OF_NODE.get(node.id);
+    if (!f) return true;
+    if (!sides.has(f.fork.id)) sides.set(f.fork.id, forkChoice(state, strategy, f.fork, f.index, now));
+    const side = sides.get(f.fork.id);
+    return side === null || side === f.side;
+  };
+  const offers = RESEARCH.filter((n) => researchOpen(state, n.id) && allowed(n));
   if (offers.length === 0) return null;
   if (!strategy.plantValue) {
     const bought = state.cycle.research.length;
     return offers[(bought * 5 + state.waypoint) % offers.length]!.id;
   }
-  const now = evaluate(state);
   let top: string | null = null;
   let topValue = 0;
   for (const n of offers) {
-    const after = previewResearch(state, n.id);
-    if (!after) continue;
-    let nominal = 0;
-    for (const e of n.effects) {
-      if (e.kind === 'habitat') nominal += CARE_HABITAT_VALUE;
-      else if (e.kind === 'cycle' && e.effect.kind === 'slot') nominal += CARE_SLOT_VALUE;
-    }
-    const gain =
-      after.growth / Math.max(1e-9, now.growth) - 1 + SEED_VALUE * (after.seeds / Math.max(1e-9, now.seeds) - 1) + nominal;
-    const value = (CYCLE_HORIZON * gain) / n.cost;
+    const value = researchValue(state, strategy, n, now);
     if (value > topValue) {
       top = n.id;
       topValue = value;
@@ -889,12 +1006,23 @@ function careTarget(state: GameState, strategy: Strategy): string | null {
   return top;
 }
 
+/** `sowPolicy: 'spend'`: bei vollem Ring säen (tauschen), sobald der Vorrat so viele Aussaaten deckt. */
+export const SPEND_RESERVE = 2;
+
+/** Ab welchem Vorrat sät die Strategie (bei `spend` und vollem Ring mit Reserve, sonst der Preis)? */
+function sowNeed(state: GameState, strategy: Strategy): number {
+  const cost = sowingCost(state);
+  const full = state.plants.length >= plantSlots(state.stage);
+  return strategy.sowPolicy === 'spend' && full ? SPEND_RESERVE * cost : cost;
+}
+
 /**
- * Würde die Strategie jetzt säen (wenn die Samen reichen)? Bei freiem Ring: Zufallsspieler
- * immer, bewertende Strategien, wenn eine freigeschaltete Pflanze ihre Wertung verbessert. Bei
- * vollem Ring (Tausch, 27.6): Zufallsspieler nie, bewertende Strategien, wenn eine
- * freigeschaltete Pflanze eine im Ring mit Gewinn ersetzen könnte (Obergrenze dessen, was die
- * Karten bringen können). Vorläufig – Phase 10, 3a stellt Kauf und Tausch je Strategie ein.
+ * Würde die Strategie jetzt säen (wenn die Samen reichen)? Je Strategie (`sowPolicy`, Phase 11,
+ * 1e): `improve` – bei freiem Ring, wenn eine freigeschaltete Pflanze die eigene Wertung
+ * verbessert, bei vollem Ring (Tausch, 27.6), wenn eine freigeschaltete Pflanze eine im Ring mit
+ * Gewinn ersetzen könnte (Obergrenze dessen, was die Karten bringen können). `spend`
+ * (Zufallsspieler): freier Ring immer, voller Ring ab SPEND_RESERVE Aussaaten im Vorrat – die
+ * Wahl unter den Karten ist dann zufällig (decideSowing).
  */
 function planSow(state: GameState, strategy: Strategy, counts: Counts): boolean {
   void counts;
@@ -903,6 +1031,7 @@ function planSow(state: GameState, strategy: Strategy, counts: Counts): boolean 
   const pool = unlockedPlants(state);
   if (pool.length === 0) return false;
   const full = state.plants.length >= slots;
+  if (strategy.sowPolicy === 'spend') return true;
   if (!strategy.plantValue) return !full;
   const value = strategy.plantValue;
   const now = value(evaluate(state));
@@ -979,6 +1108,7 @@ function resolveAll(
   decisions: DecisionStat[],
   variety: VarietyStat[],
   time: number,
+  purchases: Purchase[],
 ): void {
   // Schutz gegen Endlosschleifen: jede Strategie würfelt höchstens einmal je Begegnung.
   for (let guard = 0; (state.pendingEncounters.length > 0 || state.cycle.sowing) && guard < 50; guard++) {
@@ -991,7 +1121,7 @@ function resolveAll(
     }
     const enc = state.pendingEncounters[0]!;
     if (enc.type === 'event' || enc.type === 'visitor') {
-      resolveExtra(state, strategy, rng, counts, book, variety, time);
+      resolveExtra(state, strategy, rng, counts, book, variety, time, purchases);
       continue;
     }
     const current = evaluate(state);
@@ -1020,6 +1150,7 @@ function resolveAll(
     if (action.kind === 'reroll' && rerollEncounter(state, 0).ok) {
       counts.rerolls++;
       book.spent += before - state.seeds;
+      purchases.push({ time, stage: state.stage, kind: 'reroll', cost: before - state.seeds });
       continue;
     }
     if (action.kind === 'choose') {
@@ -1198,6 +1329,13 @@ export function stageStats(summary: Summary, stage: number) {
     spent: m((s) => s.spent),
     spentPlants: m((s) => s.spentPlants),
     spentCare: m((s) => s.spentCare),
+    /** Anteil der bis hierher verdienten Samen, der ausgegeben wurde (Mittel je Durchgang, 28.10). */
+    seedSpendShare: m(seedSpendShare),
+    /** Samenbestand in Minuten Produktion (Mittel je Durchgang; 28.10: ≤ 5 min). */
+    seedMinutes: m((s) => s.seeds / Math.max(1e-9, s.seedsRate) / 60),
+    /** ⚖️-Vorrat und Vorrat in Minuten Zufluss (Mittel je Durchgang; 28.10: Hain ≤ 10, Urwald ≤ 15 min). */
+    harmonyPoints: m((s) => s.harmonyPoints),
+    harmonyMinutes: m((s) => s.harmonyPoints / Math.max(1e-9, s.harmonyRate) / 60),
     counts: {
       encounters: m((s) => s.counts.encounters),
       plantEncounters: m((s) => s.counts.plantEncounters),
@@ -1503,6 +1641,7 @@ export const TARGET_LABELS: readonly (string | null)[] = STAGES.map(
 export function report(summaries: Summary[], focusStage: number): string {
   const harmony = summaries.find((s) => s.strategy.id === 'harmony') ?? summaries[0]!;
   const random = summaries.find((s) => s.strategy.id === 'random');
+  const main = summaries.filter((s) => ['harmony', 'growth', 'random'].includes(s.strategy.id));
   const name = STAGES[focusStage]!.name;
   return [
     `#### Strategien beim Erreichen von „${name}“ (${harmony.runs.length} Durchgänge je Strategie)`,
@@ -1541,6 +1680,21 @@ export function report(summaries: Summary[], focusStage: number): string {
     earlyTable(summaries, 360),
     '',
     earlyTable(summaries),
+    '',
+    '#### Samen-Senke und Vorräte je Stufe (DESIGN_V2.md 28.10)',
+    '',
+    economyTable(main, [3, 4, 5, 6, 7]),
+    '',
+    '#### Gabel-Wahl beim Wald und am Ende (27.11: Weg A beim Harmonie-Spieler 25–75 %)',
+    '',
+    forkTable(summaries, 6),
+    '',
+    forkTable(summaries, 'final'),
+    '',
+    '#### Takt der Käufe – Gierig nach Harmonie (28.10: Median 20–60 s, längste Pause bis Hain ≤ 2 min)',
+    '',
+    purchaseTable(harmony),
+    ...(random ? ['', '#### Takt der Käufe – Zufällig', '', purchaseTable(random)] : []),
   ].join('\n');
 }
 
@@ -1826,4 +1980,308 @@ export function monteCarloBranches(
     for (const [s, run] of branchCycles(strategy, stages, { ...options, seed: 1000 + 7 * i })) out.get(s)!.push(run);
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Takt, Samen-Senke, Gabeln und Sitzungsprofil (Phase 11, 1e; DESIGN_V2.md 27.11, 28.10)
+// ---------------------------------------------------------------------------
+
+/** Samen bisher verdient (passiv, Ablehnen/Zurücklegen, Ereignisse und Gäste, Tagesziele). */
+export function seedsEarned(s: Snapshot): number {
+  return s.earnedPassive + s.earnedDecline + s.earnedExtras + s.earnedDaily;
+}
+
+/** Samen bisher ausgegeben (Aussaat, Neu würfeln, Bewirten). */
+export function seedsSpent(s: Snapshot): number {
+  return s.spentPlants + s.spent + s.spentVisitors;
+}
+
+/** Anteil der verdienten Samen, der ausgegeben wurde (0–1; ohne Einnahmen 0). */
+export function seedSpendShare(s: Snapshot): number {
+  const earned = seedsEarned(s);
+  return earned > 0 ? seedsSpent(s) / earned : 0;
+}
+
+/**
+ * Abstände zwischen zwei Käufen der Arten `kinds`, die in Stufe `stage` enden (s). Käufe im
+ * selben Augenblick (Wegpunkt: würfeln und bewirten; mehrere Aussaaten hintereinander) zählen
+ * als ein Kaufmoment – der Spieler erlebt sie als eine Pause. Der erste Abstand misst ab dem
+ * vorigen Kauf (auch aus einer früheren Stufe) bzw. ab Spielstart. `open`: die Strecke seit dem
+ * letzten Kauf, die beim Erreichen der nächsten Stufe (bzw. am Ende) noch läuft – sie zählt nur
+ * für die längste Pause (wie die Durststrecke, longestDrought).
+ * null, wenn die Stufe nie lief.
+ */
+export function purchaseGaps(
+  run: RunResult,
+  stage: number,
+  kinds: readonly PurchaseKind[] = SEED_PURCHASES,
+): { gaps: number[]; open: number } | null {
+  const start = run.stages[stage]?.time;
+  if (start === undefined) return null;
+  // Fenster [Beginn, Beginn der nächsten Stufe): Käufe direkt am Wegpunkt der neuen Stufe gehören zu ihr.
+  const next = run.stages[stage + 1]?.time;
+  const end = next ?? run.final.time;
+  const gaps: number[] = [];
+  let last = 0;
+  let any = false;
+  for (const p of run.purchases) {
+    if (!kinds.includes(p.kind)) continue;
+    if (next !== undefined ? p.time >= next : p.time > end) break;
+    if (any && p.time - last < 1e-6) continue;
+    if (p.time >= start) gaps.push(p.time - last);
+    last = p.time;
+    any = true;
+  }
+  return { gaps, open: Math.max(0, end - last) };
+}
+
+/** Längste Pause ohne Kauf (s) in Stufe `stage` eines Durchgangs, inkl. der offenen Strecke am Ende. */
+export function longestPurchasePause(run: RunResult, stage: number, kinds: readonly PurchaseKind[] = SEED_PURCHASES): number | null {
+  const g = purchaseGaps(run, stage, kinds);
+  if (!g) return null;
+  return Math.max(g.open, ...g.gaps);
+}
+
+/**
+ * Takt der Käufe je Stufe (DESIGN_V2.md 28.10, Ziel 20–60 s): Median aller Abstände zwischen
+ * zwei Kaufmomenten in der Stufe (alle Durchgänge zusammen), Käufe je Durchgang, die längste
+ * Pause je Durchgang (Median, 90 %, Maximum).
+ */
+export function purchaseStats(summary: Summary, stage: number, kinds: readonly PurchaseKind[] = SEED_PURCHASES) {
+  const per = summary.runs.map((r) => purchaseGaps(r, stage, kinds)).filter((g): g is { gaps: number[]; open: number } => g !== null);
+  const all = per.flatMap((g) => g.gaps);
+  const longest = per.map((g) => Math.max(g.open, ...g.gaps));
+  return {
+    runs: per.length,
+    perRun: per.length > 0 ? all.length / per.length : NaN,
+    median: median(all),
+    longestMedian: median(longest),
+    longestP90: quantile(longest, 0.9),
+    longestMax: longest.length > 0 ? Math.max(...longest) : NaN,
+  };
+}
+
+/** Längste Pause ohne Kauf je Durchgang über die Stufen `from` bis vor `beforeStage` (s). */
+export function longestPurchasePauseBefore(
+  run: RunResult,
+  beforeStage: number,
+  kinds: readonly PurchaseKind[] = SEED_PURCHASES,
+  from = SOWING_MIN_STAGE_FOR_TAKT,
+): number {
+  let longest = 0;
+  for (let s = from; s < beforeStage; s++) longest = Math.max(longest, longestPurchasePause(run, s, kinds) ?? 0);
+  return longest;
+}
+
+/**
+ * Ab dieser Stufe zählt der Takt der 🌰-Käufe: Im Keimling gibt es nur die geschenkte Aussaat
+ * (Wegpunkt 2) und nichts zu kaufen – die Pause bis zum Setzling ist kein Befund.
+ */
+export const SOWING_MIN_STAGE_FOR_TAKT = 2;
+
+/**
+ * Tabelle „Takt der Käufe“ je Stufe für eine Strategie: 🌰-Käufe (Aussaat, Neu würfeln,
+ * Bewirten) und alle Käufe (mit Forschung) – Median der Abstände, Käufe je Durchgang, längste
+ * Pause (Median / 90 % / max über die Durchgänge).
+ */
+export function purchaseTable(summary: Summary): string {
+  const lines = [
+    '| Stufe | 🌰-Käufe je Durchgang | Takt 🌰 Median | längste Pause 🌰 Median / 90 % / max | alle Käufe (mit ⚖️) je Durchgang | Takt alle Median | längste Pause alle Median / max |',
+    '|---|---|---|---|---|---|---|',
+  ];
+  for (let s = 1; s < STAGES.length - 1; s++) {
+    const seeds = purchaseStats(summary, s, SEED_PURCHASES);
+    if (seeds.runs === 0) continue;
+    const all = purchaseStats(summary, s, ALL_PURCHASES);
+    lines.push(
+      `| ${STAGES[s]!.name} | ${fmt(seeds.perRun, 1)} | ${formatTime(seeds.median)} | ${formatTime(seeds.longestMedian)} / ${formatTime(seeds.longestP90)} / ${formatTime(seeds.longestMax)} | ${fmt(all.perRun, 1)} | ${formatTime(all.median)} | ${formatTime(all.longestMedian)} / ${formatTime(all.longestMax)} |`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Samen-Senke und Vorräte je Strategie beim Erreichen der Stufen (28.10): Anteil der verdienten
+ * Samen ausgegeben, Samenbestand in Minuten Produktion, ⚖️-Vorrat in Minuten Zufluss, Aussaaten
+ * (gekauft inkl. der ersten gratis) und erforschte Knoten, längste Pause ohne 🌰-Kauf bis dorthin
+ * (ab Setzling, Median / 90 %).
+ */
+export function economyTable(summaries: Summary[], stages: readonly number[]): string {
+  const lines = [
+    '| Strategie | Stufe | erreicht nach | 🌰 ausgegeben | 🌰-Bestand (min Produktion) | ⚖️-Vorrat (min Zufluss) | Aussaaten | Knoten | längste Pause ohne 🌰-Kauf bis dahin Median / 90 % |',
+    '|---|---|---|---|---|---|---|---|---|',
+  ];
+  for (const s of summaries) {
+    for (const stage of stages) {
+      const st = stageStats(s, stage);
+      if (st.reachedShare === 0) continue;
+      const knots = mean(snapshotsAt(s, stage).map((x) => Object.keys(x.careRanks).length));
+      const pauses = s.runs.filter((r) => r.stages[stage]).map((r) => longestPurchasePauseBefore(r, stage));
+      lines.push(
+        `| ${s.strategy.name} | ${STAGES[stage]!.name} | ${formatTime(st.time)} | ${fmt(st.seedSpendShare * 100)} % | ${fmt(st.seedMinutes, 1)} | ${fmt(st.harmonyMinutes, 1)} | ${fmt(st.counts.plantsBought, 1)} | ${fmt(knots, 1)} | ${formatTime(median(pauses))} / ${formatTime(quantile(pauses, 0.9))} |`,
+      );
+    }
+  }
+  return lines.join('\n');
+}
+
+/** Welche Seite einer Gabel ist erforscht? 0 = Weg A, 1 = Weg B, null = keine. */
+export function forkSideOf(researched: readonly string[], fork: ResearchFork): 0 | 1 | null {
+  if (fork.paths[0].some((id) => researched.includes(id))) return 0;
+  if (fork.paths[1].some((id) => researched.includes(id))) return 1;
+  return null;
+}
+
+/**
+ * Anteile der Gabel-Wege (A / B / keiner) beim Erreichen einer Stufe bzw. am Ende des
+ * Durchgangs (`'final'`; 27.11: Weg A beim Harmonie-Spieler 25–75 %).
+ */
+export function forkStats(summary: Summary, at: number | 'final'): { fork: ResearchFork; a: number; b: number; none: number }[] {
+  const snaps = at === 'final' ? summary.runs.map((r) => r.final) : snapshotsAt(summary, at);
+  const n = Math.max(1, snaps.length);
+  return RESEARCH_FORKS.map((fork) => {
+    const sides = snaps.map((x) => forkSideOf(Object.keys(x.careRanks), fork));
+    return {
+      fork,
+      a: sides.filter((x) => x === 0).length / n,
+      b: sides.filter((x) => x === 1).length / n,
+      none: sides.filter((x) => x === null).length / n,
+    };
+  });
+}
+
+/** Tabelle der Gabel-Wahl: je Strategie und Gabel Anteil Weg A / B / offen (Stufe oder Ende). */
+export function forkTable(summaries: Summary[], at: number | 'final'): string {
+  const lines = [
+    `| Strategie | ${RESEARCH_FORKS.map((f) => `${f.name}: ${RESEARCH_BY_ID.get(f.paths[0][0]!)!.name} / ${RESEARCH_BY_ID.get(f.paths[1][0]!)!.name} / offen`).join(' | ')} |`,
+    `|---|${RESEARCH_FORKS.map(() => '---|').join('')}`,
+  ];
+  for (const s of summaries) {
+    const cells = forkStats(s, at).map((f) => `${fmt(f.a * 100)} / ${fmt(f.b * 100)} / ${fmt(f.none * 100)} %`);
+    lines.push(`| ${s.strategy.name} | ${cells.join(' | ')} |`);
+  }
+  return lines.join('\n');
+}
+
+/** Ein Tag im Sitzungsprofil: aktive Sitzung, dann Abwesenheit über simulateOffline. */
+export interface SessionDay {
+  day: number;
+  /** Stufe und Wegpunkt zu Beginn der aktiven Sitzung, an ihrem Ende. */
+  stageStart: number;
+  stageActive: number;
+  waypointsActive: number;
+  /** Käufe in der aktiven Sitzung (alle Arten). */
+  purchases: number;
+  /** Abwesenheit: Wegpunkte, Stufe danach, Erträge (aus dem OfflineReport). */
+  offlineSeconds: number;
+  offlineWaypoints: number;
+  stageOffline: number;
+  offlineSeeds: number;
+  offlineHarmony: number;
+  /** Bei der Rückkehr wartende Begegnungen und Aussaat (vor dem Auflösen). */
+  pendingOnReturn: number;
+  /** Samen und ⚖️-Vorrat bei der Rückkehr. */
+  seedsOnReturn: number;
+  harmonyOnReturn: number;
+}
+
+export interface SessionOptions {
+  seed: number;
+  /** Aktive Minuten je Tag (Standard 30) und Abwesenheit (Standard 8 h). */
+  activeSeconds?: number;
+  offlineSeconds?: number;
+  /** Höchstens so viele Tage (Standard 10). */
+  days?: number;
+  /** Endet mit Erreichen dieser Stufe (Standard: Urwald). */
+  targetStage?: number;
+  care?: boolean;
+  mainTree?: MainTreeId;
+}
+
+/**
+ * Sitzungsprofil „wie fühlt sich ein Tag an“ (DESIGN_V2.md 28.10): Tag für Tag
+ * `activeSeconds` aktiv (runGame mit derselben Strategie, Spielstand und Zufall laufen weiter),
+ * dann `offlineSeconds` Abwesenheit über die echte `simulateOffline` (welche Offline-Regel gilt,
+ * entscheidet allein der Core – nichts wird hier nachgebaut). Bei der Rückkehr löst der Spieler
+ * die wartenden Begegnungen und die Aussaat nach seiner Strategie auf, dann beginnt die nächste
+ * aktive Sitzung. Endet mit Erreichen von `targetStage` (auch offline) oder nach `days` Tagen.
+ */
+export function runSession(strategy: Strategy, options: SessionOptions): SessionDay[] {
+  const active = options.activeSeconds ?? 1800;
+  const offline = options.offlineSeconds ?? 8 * 3600;
+  const target = options.targetStage ?? STAGES.length - 1;
+  const state = createInitialState(0, options.seed);
+  if (options.mainTree) state.cycle.mainTree = options.mainTree;
+  const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
+  const days: SessionDay[] = [];
+  for (let day = 1; day <= (options.days ?? 10) && state.stage < target; day++) {
+    if (day > 1) resolveOnReturn(state, strategy, rng);
+    const stageStart = state.stage;
+    const waypointStart = state.waypoint;
+    const run = runGame(strategy, { seed: options.seed, targetStage: target, maxSeconds: active, care: options.care ?? true }, { state, rng });
+    const stageActive = state.stage;
+    const waypointsActive = state.waypoint - waypointStart;
+    const report = state.stage < target && !allWaypointsReached(state) ? simulateOffline(state, offline) : null;
+    days.push({
+      day,
+      stageStart,
+      stageActive,
+      waypointsActive,
+      purchases: run.purchases.length,
+      offlineSeconds: report?.seconds ?? 0,
+      offlineWaypoints: report?.waypoints ?? 0,
+      stageOffline: state.stage,
+      offlineSeeds: report?.seeds ?? 0,
+      offlineHarmony: report?.harmony ?? 0,
+      pendingOnReturn: state.pendingEncounters.length + (state.cycle.sowing ? 1 : 0),
+      seedsOnReturn: state.seeds,
+      harmonyOnReturn: state.harmonyPoints,
+    });
+  }
+  return days;
+}
+
+/** Rückkehr: wartende Begegnungen und Aussaat nach der Strategie auflösen (ohne Buchführung). */
+function resolveOnReturn(state: GameState, strategy: Strategy, rng: RngHolder): void {
+  const counts: Counts = {
+    encounters: 0, plantEncounters: 0, fullNiche: 0, rerolls: 0, declines: 0, autoDeclined: 0, rarityTaken: [0, 0, 0, 0],
+    plantsTaken: 0, plantsBought: 0, events: 0, visitors: 0, hosted: 0, careBought: 0, regulars: 0,
+  };
+  const book = { earnedDecline: 0, spent: 0, earnedExtras: 0, spentVisitors: 0 };
+  resolveAll(state, strategy, rng, counts, book, [], [], 0, []);
+}
+
+/**
+ * Abwesenheit ab einer Stufe (28.10, „8 h offline am Hain“): Durchgang bis `stage` (runGame,
+ * Begegnungen am Wegpunkt aufgelöst), dann `seconds` über simulateOffline.
+ */
+export function offlineAfterStage(
+  strategy: Strategy,
+  options: { seed: number; stage: number; seconds: number; care?: boolean; maxSeconds?: number },
+): { stage: number; waypoint: number; waypoints: number; stageAfter: number; seeds: number; harmony: number } {
+  const state = createInitialState(0, options.seed);
+  const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
+  runGame(strategy, { seed: options.seed, targetStage: options.stage, maxSeconds: options.maxSeconds ?? 6 * 3600, care: options.care ?? true }, { state, rng });
+  const stage = state.stage;
+  const waypoint = state.waypoint;
+  const report = simulateOffline(state, options.seconds);
+  return { stage, waypoint, waypoints: report.waypoints, stageAfter: state.stage, seeds: report.seeds, harmony: report.harmony };
+}
+
+/** Tabelle Sitzungsprofil: je Tag Median über die Durchgänge. */
+export function sessionTable(label: string, sessions: readonly SessionDay[][]): string {
+  const lines = [
+    '| Spieler | Tag | Durchgänge an diesem Tag | Stufe nach aktiv | Wegpunkte aktiv | Käufe aktiv | Wegpunkte offline | Stufe nach offline | 🌰 offline | ⚖️ offline | wartend bei Rückkehr |',
+    '|---|---|---|---|---|---|---|---|---|---|---|',
+  ];
+  const maxDays = Math.max(0, ...sessions.map((s) => s.length));
+  for (let d = 0; d < maxDays; d++) {
+    const rows = sessions.map((s) => s[d]).filter((x): x is SessionDay => x !== undefined);
+    const med = (f: (x: SessionDay) => number) => median(rows.map(f));
+    const stageName = (f: (x: SessionDay) => number) => STAGES[Math.round(med(f))]?.name ?? '–';
+    lines.push(
+      `| ${label} | ${d + 1} | ${fmt((rows.length / sessions.length) * 100)} % | ${stageName((x) => x.stageActive)} | ${fmt(med((x) => x.waypointsActive), 1)} | ${fmt(med((x) => x.purchases), 1)} | ${fmt(med((x) => x.offlineWaypoints), 1)} | ${stageName((x) => x.stageOffline)} | ${fmt(med((x) => x.offlineSeeds))} | ${fmt(med((x) => x.offlineHarmony))} | ${fmt(med((x) => x.pendingOnReturn), 1)} |`,
+    );
+  }
+  return lines.join('\n');
 }

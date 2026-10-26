@@ -59,8 +59,11 @@ describe('Mehrere Zyklen (Waldgedächtnis, Stammgäste, Kartenpool)', () => {
     // Ziele (großer Lauf, Schritt 2.11): Harmonie 30–45 %, Wachstum 18–37 %. Im Check
     // (40 Durchgänge) je Seed-Fenster gemessen (12 Fenster, H_max gerundet): Harmonie
     // 0,39–0,44, Wachstum 0,32–0,39 – dort 0,30–0,48 bzw. 0,16–0,40.
+    // Seit Phase 11, 1e (Simulator: Gabel-Wahl je Strategie, der Harmonie-Spieler forscht auch
+    // für ⚖️) im Check 0,495 statt 0,479 (Zyklus 2 bis Hain 29,0 statt 30,0 min) – vorläufig
+    // < 0,52; die Messung Phase 11, 3b stellt die Gedächtnis-Schwellen nach (27.11, 28.10).
     expect(speedup(HARMONY.id)).toBeGreaterThan(0.3);
-    expect(speedup(HARMONY.id)).toBeLessThan(FULL ? 0.45 : 0.48);
+    expect(speedup(HARMONY.id)).toBeLessThan(FULL ? 0.45 : 0.52);
     expect(speedup(GROWTH.id)).toBeGreaterThan(FULL ? 0.18 : 0.16);
     // Seit Phase 10, 2b (Begegnungen nur Tiere: H_max höher, mehr Gedächtnis, 27.10) im Check
     // 0,42 – vorläufig < 0,45; Phase 10, 3b stellt die Gedächtnis-Schwellen nach (27.11).
