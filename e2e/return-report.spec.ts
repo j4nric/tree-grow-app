@@ -74,6 +74,8 @@ for (const viewport of [
     await expect(stamps(page)).toHaveAttribute('role', 'status');
     const summary = await page.locator('[data-ref="return-report-summary"]').textContent();
     expect(summary).toMatch(/^Willkommen zurück! 3 Std\.: \+[\d.]+ 🌿/);
+    // Offline 10 % (DESIGN_V2.md 28.3): ehrlich in der Kurzfassung.
+    expect(summary).toContain('gemächlich (10 %)');
     // Der Zettel zeigt die Kurzfassung – der Stempel grüßt nur (Playtest Schritt 14, S4), kein
     // doppelter Text. Screenreader hören die Kurzfassung trotzdem (unsichtbarer Rest im Stempel).
     await expect(toast.locator('.stamp-text')).toHaveText(/^Willkommen zurück! 3 Std\./);
@@ -121,6 +123,9 @@ for (const viewport of [
     await expect(page.locator('[data-ref="stamp"]', { hasText: 'Willkommen zurück' })).toHaveCount(0);
     await expect(list(page)).toBeVisible();
     await expect(list(page)).toContainText('Willkommen zurück! In 3 Std.');
+    await expect(list(page)).toContainText('mit einem Zehntel der Kraft');
+    // Einmaliger Hinweis zur Regel (Merker in den Einstellungen, nicht im Spielstand).
+    await expect(list(page)).toContainText('Dein Wald wächst am schnellsten, während du zusiehst – im Hintergrund und offline mit 10 %.');
     await expect(list(page)).toContainText(/Wetter gemittelt( \(.+\))?\./);
     await expect(list(page)).toContainText(/Begegnungen? warte/);
     await expect(list(page)).toContainText('neue Erfolge');
@@ -148,6 +153,8 @@ test('Abheften direkt am Zettel: Fokus an die Überschrift der Seite', async ({ 
   await seedRaw(context, grove(), -3 * 3600_000);
   await openGame(page);
   await expect(report(page)).toBeVisible();
+  // Der einmalige Hinweis zur Offline-Regel (28.3) ist gemerkt – in den Einstellungen, nicht im Spielstand.
+  expect(await page.evaluate(() => localStorage.getItem('tree-grow-offline-hint-seen'))).toBe('1');
   await expect(fileButton(page)).toHaveText('Abheften');
   await fileButton(page).focus();
   await page.keyboard.press('Enter');
@@ -173,4 +180,5 @@ test('ohne Abwesenheit kein Rückkehr-Bericht', async ({ page, context }) => {
   await seedRaw(context, grove(), 0);
   await openGame(page);
   await expect(report(page)).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem('tree-grow-offline-hint-seen'))).toBeNull();
 });

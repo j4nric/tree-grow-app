@@ -22,7 +22,7 @@ import {
   startNewCycle,
   tick,
 } from '../src/core/tick';
-import { plantFromSowing, stateAt } from './helpers';
+import { offlineTick, plantFromSowing, stateAt } from './helpers';
 
 /**
  * Langzeit-Statistik `meta.stats` (Spielstand v8, DESIGN_V2.md 12.5): Zähler in den
@@ -120,15 +120,19 @@ describe('Spielzeit und Wachstum in tick', () => {
     for (const mode of ['live', 'average'] as const) {
       const online = structuredClone(start);
       const offline = structuredClone(start);
-      for (let i = 0; i < 2 * 3600; i++) tick(online, 1, mode);
+      // Offline mit dem Ertragsfaktor (60 s voll, danach 10 %, 28.3).
+      for (let i = 0; i < 2 * 3600; i++) {
+        if (mode === 'live') tick(online, 1, mode);
+        else offlineTick(online, i, 1);
+      }
       if (mode === 'live') tick(offline, 2 * 3600);
       else simulateOffline(offline, 2 * 3600);
-      expect(online.waypoint).toBeGreaterThan(NEW_CYCLE_MIN_STAGE);
+      if (mode === 'live') expect(online.waypoint).toBeGreaterThan(NEW_CYCLE_MIN_STAGE);
       // Gesammelte Harmonie (v17) wie die Samen: gleich bis auf Rundung.
       expect(offline.meta.stats.harmonyEarned / online.meta.stats.harmonyEarned, mode).toBeCloseTo(1, 9);
       expect(offline.meta.stats, mode).toEqual({ ...online.meta.stats, harmonyEarned: offline.meta.stats.harmonyEarned });
       expect(offline.meta.stats.playSeconds).toBe(online.meta.stats.playSeconds);
-      expect(lifetimeGrowth(offline) / lifetimeGrowth(online), mode).toBeCloseTo(1, 12);
+      expect(lifetimeGrowth(offline) / lifetimeGrowth(online), mode).toBeCloseTo(1, 11); // mit dem Faktor 0,1 etwas mehr Rundung
     }
   });
 

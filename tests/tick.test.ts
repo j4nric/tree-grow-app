@@ -21,7 +21,7 @@ import {
   tick,
 } from '../src/core/tick';
 import { dayIndex, weatherAt, weatherOfDay } from '../src/core/weather';
-import { SPRING_GROWTH, resolveSpecial, stateAt, researchFor } from './helpers';
+import { SPRING_GROWTH, offlineTick, resolveSpecial, stateAt, researchFor } from './helpers';
 
 /**
  * Feste Wahl-Strategie für Golden Tests: erste Karte mit freiem Platz; sonst die erste
@@ -297,7 +297,8 @@ describe('tick', () => {
 /**
  * Invariante seit Wetter und Nacht (DESIGN_V2.md 21.5), in zwei Hälften:
  * 1. viele kleine Ticks = ein großer Tick, beide mit Einzelwetter (`live`, wie online);
- * 2. simulateOffline = viele kleine Ticks im Modus „Mittel“ (`average`).
+ * 2. simulateOffline = viele kleine Ticks im Modus „Mittel“ (`average`), je Abschnitt mit dem
+ *    Ertragsfaktor der Abwesenheit (offlineTick: 60 s voll, danach 0,1; 28.3).
  * Online gegen offline gilt nur noch im Mittel (tests/weather.test.ts, Offline-Mittel).
  * `run` liefert beide Paare: [kleine live, großer live] und [kleine Mittel, offline].
  */
@@ -308,7 +309,8 @@ function runPairs(start: GameState, seconds: number, step = 1): { live: [GameSta
   const offline = structuredClone(start);
   for (let i = 0; i < seconds / step; i++) {
     tick(small, step);
-    tick(smallAvg, step, 'average');
+    // Wie simulateOffline: erste 60 s voll, danach OFFLINE_YIELD (28.3).
+    offlineTick(smallAvg, i * step, step, 'average');
   }
   tick(big, seconds);
   const report = simulateOffline(offline, seconds);
@@ -367,7 +369,8 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     expect(ev.supply).toBe(0.9);
     const { live, average } = runPairs(start, 3 * 3600);
     for (const pair of [live, average]) {
-      expect(pair[0].stage).toBeGreaterThanOrEqual(5);
+      // Offline (10 % nach 60 s, 28.3) reicht die Zeit nicht für die Stufe – geprüft wird sie live.
+      if (pair === live) expect(pair[0].stage).toBeGreaterThanOrEqual(5);
       expectSameRun(pair);
     }
   });
@@ -420,7 +423,8 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     expect(ev.slots.pond).toBe(3);
     const { live, average } = runPairs(start, 2 * 3600);
     for (const pair of [live, average]) {
-      expect(pair[0].stage).toBeGreaterThanOrEqual(5);
+      // Offline (10 % nach 60 s, 28.3) reicht die Zeit nicht für die Stufe – geprüft wird sie live.
+      if (pair === live) expect(pair[0].stage).toBeGreaterThanOrEqual(5);
       expectSameRun(pair);
       // Die Landschaft bleibt, nur die Chronik des aktiven Waldes wächst (26.4) – online wie offline.
       const withoutChronicle = (l: GameState['meta']['landscape']) => ({ ...l, sites: l.sites.map((x) => ({ ...x, chronicle: [] })) });
@@ -462,8 +466,9 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
   it('gleich mit Platz-Schaffern (Borkenkäfer öffnet Höhlen) über den Alten Baum hinaus', () => {
     const { live, average } = runPairs(stateAt(3, ['barkbeetle', 'earthworm'], 4242), 2 * 3600);
     for (const pair of [live, average]) {
-      expect(pair[0].stage).toBeGreaterThanOrEqual(4);
-      expect(evaluate(pair[0]).slots.hollows).toBeGreaterThanOrEqual(2);
+      // Offline (10 % nach 60 s, 28.3) reicht die Zeit nicht für die Stufe – geprüft wird sie live.
+      if (pair === live) expect(pair[0].stage).toBeGreaterThanOrEqual(4);
+      if (pair === live) expect(evaluate(pair[0]).slots.hollows).toBeGreaterThanOrEqual(2);
       expectSameRun(pair);
     }
   });

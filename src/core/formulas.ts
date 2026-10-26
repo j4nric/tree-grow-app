@@ -1645,11 +1645,21 @@ export function seedSeconds(state: GameState, seconds: number): number {
 
 /**
  * Samen für „Ablehnen“ (von Hand und automatisch): DECLINE_SEED_SECONDS Samen-Sekunden,
- * mindestens SEED_SECONDS_MIN_SEEDS (DESIGN_V2.md 7.9). Hängt von der Rate im Moment ab –
- * offline also genau so viel wie online am selben Wegpunkt.
+ * mindestens SEED_SECONDS_MIN_SEEDS (DESIGN_V2.md 7.9). Hängt von der Rate im Moment ab.
+ * `yieldFactor` (Ertragsfaktor offline, 28.3): Das automatische Weiterziehen zahlt
+ * DECLINE_SEED_SECONDS × f Samen-Sekunden (Mindestwert bleibt); ungültig zählt als 1.
  */
-export function declineReward(state: GameState): number {
-  return seedSeconds(state, DECLINE_SEED_SECONDS);
+export function declineReward(state: GameState, yieldFactor = 1): number {
+  return seedSeconds(state, DECLINE_SEED_SECONDS * normalizeYieldFactor(yieldFactor));
+}
+
+/**
+ * Ertragsfaktor (28.3) auf [0, 1] begrenzt; NaN, ±Infinity und Nicht-Zahlen zählen als 1
+ * (lieber voller Ertrag als ein kaputter Spielstand).
+ */
+export function normalizeYieldFactor(f: unknown): number {
+  if (typeof f !== 'number' || !Number.isFinite(f)) return 1;
+  return Math.min(1, Math.max(0, f));
 }
 
 /** Kosten für „Neu würfeln“ dieser Begegnung (verdoppelt sich je Wurf). */

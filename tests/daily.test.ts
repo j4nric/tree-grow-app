@@ -23,6 +23,7 @@ import {
   farewellVisitor,
   hostVisitor,
   rerollEncounter,
+  MAX_OFFLINE_SECONDS,
   research,
   simulateOffline,
   startNewCycle,
@@ -168,7 +169,7 @@ describe('Fortschritt: aktiv und offline', () => {
   it('Begegnungen zählen nur, wenn der Spieler entscheidet – nicht beim automatischen Ablehnen (online wie offline)', () => {
     const state = withGoals(stateAt(3), [goal('decide', 3)]);
     // Viel Zeit: Der Stapel läuft voll, überzählige Begegnungen werden automatisch abgelehnt.
-    const report = simulateOffline(state, 3600);
+    const report = simulateOffline(state, MAX_OFFLINE_SECONDS);
     expect(report.autoDeclined).toBeGreaterThan(0);
     updateDaily(state, DAY, { offline: true });
     expect(state.meta.daily.goals[0]!.progress).toBe(0);

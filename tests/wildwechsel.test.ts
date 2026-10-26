@@ -27,7 +27,7 @@ import {
   tick,
   type TickReport,
 } from '../src/core/tick';
-import { stateAt } from './helpers';
+import { offlineTick, stateAt } from './helpers';
 
 /**
  * Wildwechsel (DESIGN_V2.md 24.6, Schritt B): Karten aus dem Bestand (`fauna`) der Nachbarn
@@ -250,7 +250,11 @@ describe('Determinismus und online = offline', () => {
   /** Sammelt die Wildwechsel-Karten vieler kleiner Ticks. */
   function smallTicks(state: GameState, seconds: number, mode: 'live' | 'average'): TickReport['wildwechsel'] {
     const out: TickReport['wildwechsel'] = [];
-    for (let i = 0; i < seconds; i++) out.push(...tick(state, 1, mode).wildwechsel);
+    // Mittel = wie simulateOffline, also auch mit dem Ertragsfaktor (60 s voll, danach 10 %, 28.3).
+    for (let i = 0; i < seconds; i++) {
+      if (mode === 'live') out.push(...tick(state, 1, mode).wildwechsel);
+      else for (const r of offlineTick(state, i, 1)) out.push(...r.wildwechsel);
+    }
     return out;
   }
 

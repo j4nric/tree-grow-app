@@ -19,6 +19,7 @@ import { STAGES } from '../src/content/stages';
 import { TRAIT_THRESHOLDS } from '../src/content/traits';
 import { VISITORS } from '../src/content/visitors';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
+import { OFFLINE_FULL_SECONDS, OFFLINE_YIELD } from '../src/content/offline';
 import { HARMONY_DIVISOR, memoryHarmonyBonus } from '../src/core/formulas';
 import { LONG_NUMBER_LIMIT, formatNumber, getNumberStyle, setNumberStyle } from '../src/ui/format';
 import { guideSections, span } from '../src/ui/guide-view';
@@ -27,6 +28,7 @@ import {
   DEFAULT_SETTINGS,
   GUIDE_HINT_KEY,
   LONG_TOAST_MS,
+  OFFLINE_HINT_KEY,
   SETTINGS_KEY,
   TOAST_MS,
   effectiveReducedMotion,
@@ -35,6 +37,7 @@ import {
   saveSettings,
   serializeSettings,
   takeFirstStartHint,
+  takeOfflineHint,
   toastDuration,
   toastDurationFor,
   TOAST_BASE_CHARS,
@@ -128,6 +131,16 @@ describe('Einstellungen', () => {
     expect(takeFirstStartHint(throwing)).toBe(false);
     expect(takeFirstStartHint(null)).toBe(false);
   });
+
+  it('Hinweis zur Offline-Regel (28.3) nur einmal, eigener Merker', () => {
+    const storage = memoryStorage();
+    expect(takeFirstStartHint(storage)).toBe(true);
+    expect(takeOfflineHint(storage)).toBe(true);
+    expect(storage.data.get(OFFLINE_HINT_KEY)).toBe('1');
+    expect(takeOfflineHint(storage)).toBe(false);
+    expect(takeOfflineHint(throwing)).toBe(false);
+    expect(takeOfflineHint(null)).toBe(false);
+  });
 });
 
 describe('Zahlenformat', () => {
@@ -164,7 +177,7 @@ describe('Spielanleitung', () => {
   const sections = guideSections();
   const text = (id: string) => sections.find((s) => s.id === id)!.paragraphs.join(' ');
 
-  it('20 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
+  it('21 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
     expect(sections.map((s) => s.id)).toEqual([
       'growth',
       'encounters',
@@ -186,6 +199,7 @@ describe('Spielanleitung', () => {
       'care',
       'achievements',
       'daily',
+      'offline',
     ]);
     for (const s of sections) {
       expect(s.soon, s.id).toBeFalsy();
@@ -193,6 +207,15 @@ describe('Spielanleitung', () => {
       expect(s.title.length, s.id).toBeGreaterThan(0);
       expect(s.paragraphs.length, s.id).toBeGreaterThan(0);
     }
+  });
+
+  it('Offline (28.3): 60 s voll, danach 10 %, die Zeit läuft voll', () => {
+    const t = text('offline');
+    expect(t).toContain(`ersten ${formatNumber(OFFLINE_FULL_SECONDS)} Sekunden voll`);
+    expect(t).toContain('mit 10 % der Kraft');
+    expect(t).toContain('Tab im Hintergrund');
+    expect(t).toContain('Die Zeit selbst läuft voll');
+    expect(OFFLINE_YIELD).toBe(0.1);
   });
 
   it('Erfolge: Anzahl aus content, Fundort Naturtagebuch, keine Eile', () => {

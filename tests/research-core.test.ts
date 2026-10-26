@@ -27,7 +27,7 @@ import {
 } from '../src/core/tick';
 import { isNewerSchema } from '../src/sync/policy';
 import { CARE_V16, CARE_V16_BY_ID } from './fixtures/care-v16';
-import { stateAt } from './helpers';
+import { offlineTick, stateAt } from './helpers';
 
 /*
  * Forschung und Harmonie-Vorrat (DESIGN_V2.md 27.3, 27.4, 27.7–27.9; Phase 10, 2a).
@@ -296,7 +296,8 @@ describe('Harmonie-Vorrat: Ertrag p/60 · G (27.3)', () => {
     expect(big.meta.stats.harmonyEarned).toBeCloseTo(small.meta.stats.harmonyEarned, 6);
     const online = structuredClone(base);
     const offline = structuredClone(base);
-    for (let i = 0; i < 3600; i++) tick(online, 1, 'average');
+    // Wie simulateOffline: Mittelwetter, erste 60 s voll, danach 10 % (28.3).
+    for (let i = 0; i < 3600; i++) offlineTick(online, i, 1);
     const report = simulateOffline(offline, 3600);
     expect(offline.harmonyPoints).toBeCloseTo(online.harmonyPoints, 6);
     expect(offline.cycle.research).toEqual(online.cycle.research);

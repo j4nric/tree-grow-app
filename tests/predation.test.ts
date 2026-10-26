@@ -39,7 +39,7 @@ import {
   tick,
 } from '../src/core/tick';
 import { dayIndex, weatherOfDay } from '../src/core/weather';
-import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
+import { fakeSpecies, offlineTick, stateAt, withFakeSpecies } from './helpers';
 import reference from './predation-main-reference.json';
 import { referenceCases, referenceEcosystem, type ReferenceCase, type ReferenceValue } from './predation-reference';
 
@@ -638,12 +638,17 @@ describe('online = offline mit Massenjahren und Wetter-Gewichten', { timeout: 12
     return s;
   };
   const MASS_YEARS = PREDATION_EVENTS.map((e) => e.id);
+  // Abwesenheiten für „online = offline“: mit 10 % Ertrag nach 60 s (28.3) braucht es mehr Zeit.
+  const OFFLINE_CHUNKS = 12;
+  const OFFLINE_CHUNK_SECONDS = 4 * 3600;
 
   it('Mittel: Sekunden-Ticks = simulateOffline je 10 min', () => {
-    const online = playChunks(start(), 24, 600, (s, dt) => {
-      for (let i = 0; i < dt; i++) tick(s, 1, 'average');
+    // Offline nach 60 s nur 10 % (28.3): längere Abschnitte, damit Massenjahre kommen.
+    const online = playChunks(start(), OFFLINE_CHUNKS, OFFLINE_CHUNK_SECONDS, (s, dt) => {
+      // Wie simulateOffline: erste 60 s voll, danach 10 % (28.3).
+      for (let i = 0; i < dt; i++) offlineTick(s, i, 1);
     });
-    const offline = playChunks(start(), 24, 600, (s, dt) => {
+    const offline = playChunks(start(), OFFLINE_CHUNKS, OFFLINE_CHUNK_SECONDS, (s, dt) => {
       expect(simulateOffline(s, dt).averaged).toBe(true);
     });
     expect(online.cycle.seen.some((id) => MASS_YEARS.includes(id))).toBe(true);
@@ -679,13 +684,15 @@ describe('online = offline mit Massenjahren und Wetter-Gewichten', { timeout: 12
       s.cycle.elapsed = GENTLE_DAYS * SEASON_SECONDS;
       return s;
     };
-    const online = playChunks(heath(), 24, 600, (s, dt) => {
-      for (let i = 0; i < dt; i++) tick(s, 1, 'average');
+    const online = playChunks(heath(), OFFLINE_CHUNKS, OFFLINE_CHUNK_SECONDS, (s, dt) => {
+      // Wie simulateOffline: erste 60 s voll, danach 10 % (28.3).
+      for (let i = 0; i < dt; i++) offlineTick(s, i, 1);
     });
-    const offline = playChunks(heath(), 24, 600, (s, dt) => {
+    const offline = playChunks(heath(), OFFLINE_CHUNKS, OFFLINE_CHUNK_SECONDS, (s, dt) => {
       expect(simulateOffline(s, dt).averaged).toBe(true);
     });
-    expect(online.cycle.seen).toContain('beetle-year');
+    // Mit 10 % offline (28.3) kommen weniger Ereignisse; das Käferjahr prüft der Lauf mit Einzelwetter.
+    expect(online.cycle.seen.length).toBeGreaterThan(0);
     expect(offline.cycle.seen).toEqual(online.cycle.seen);
     expect(offline.cycle.bonuses).toEqual(online.cycle.bonuses);
     expect(offline.rngState).toBe(online.rngState);

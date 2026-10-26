@@ -127,7 +127,7 @@
 >   Produktion (Ziel ≤ 15), Samen-Höchststand vor dem Jungen Baum 255 / 227 🌰.
 >
 > **Phase 11 – Wachsen und Ausbauen (`DESIGN_V2.md` 28, Entwurf, Spielstand v18 geplant, noch
-> nicht im Code):** Offline und im Hintergrund bringen Wachstum, Samen und Harmonie nach der ersten
+> nicht im Code; Offline 10 % umgesetzt, siehe unten):** Offline und im Hintergrund bringen Wachstum, Samen und Harmonie nach der ersten
 > Minute nur **10 %** (`OFFLINE_YIELD`), die Zeit läuft voll. Neue Samen-Senken ohne Obergrenze:
 > **Nischen-Ausbau** `⌈b_n · 1,15^L⌉` 🌰 (b_n 10 Wurzelraum … 600 Trockenmauer), je Stufe +0,1 % 🌿
 > und 🌰 je Tier der Nische × Zufriedenheit, Meilensteine 10 (Arten der Nische ×1,5 in den Karten),
@@ -139,6 +139,26 @@
 > offline tragen den Setzling bis zum Wald. Ziele: Takt 20–60 s, aktives Spiel 5–10 % schneller
 > (Hain 50–58 min), Wachstum ÷ Harmonie ≥ 0,85 (`DESIGN_V2.md` 28.10). Tabellen folgen nach der
 > Messung (Phase 11, 3a).
+>
+> **Umgesetzt seit Phase 11, 1b (ohne Spielstand-Änderung, `DESIGN_V2.md` 28.3):**
+> - **Offline 10 %:** `simulateOffline` rechnet die ersten `OFFLINE_FULL_SECONDS` = **60 s** voll,
+>   den Rest bis 8 h mit dem Ertragsfaktor `OFFLINE_YIELD` = **0,1** (beide in
+>   `src/content/offline.ts`). Gilt für jede Nachrechnung: Spiel geschlossen, Tab im Hintergrund,
+>   Ruhezustand, Übernahme per Sync (Zeit seit dem Hochladen) – alle laufen über `catchUp` in
+>   `main.ts`. Kurze Lücken unter 60 s (Ruckler, Tab-Wechsel) kosten nichts.
+> - `tick(state, dt, ambient, f = 1)`: f wirkt auf 🌿/s, 🌰/s, ⚖️/s (auch im Schnellvorlauf über
+>   Jahre) und in der Halte-Rechnung (Zeit bis Wegpunkt und Zwischenhalt = fehlendes Wachstum ÷
+>   (Rate × f)); das automatische Weiterziehen zahlt `10 × f` Samen-Sekunden (Mindestwert bleibt).
+>   **Nie auf die Zeit:** `cycle.elapsed` (Jahreszeiten, Wetter, Tag/Nacht), Restzeiten von
+>   Zeit-Boni und Gästen, Chronik, `playSeconds`, Tageswechsel laufen voll. Viele kleine Ticks =
+>   ein großer Tick je f; online ist f = 1 (alle Golden-Werte unverändert). Ungültiges f zählt als
+>   1, Werte außerhalb [0, 1] werden begrenzt.
+> - Tagesziele offline unverändert (Wachstum, Samen, Entscheiden, Beobachten, Harmonie zählen
+>   offline nicht). `harmonyEarned` und das Gesamt-Wachstum zählen, was ankam.
+> - **Rückkehr-Bericht:** „… ist dein Wald gemächlich weitergewachsen – mit einem Zehntel der
+>   Kraft: +… 🌿“, Kurzfassung „gemächlich (10 %)“; einmal (Merker `tree-grow-offline-hint-seen`
+>   in den Einstellungen) der Hinweis „Dein Wald wächst am schnellsten, während du zusiehst – im
+>   Hintergrund und offline mit 10 %.“ Spielanleitung: neues Kapitel „Offline“.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
