@@ -88,6 +88,10 @@ import {
   sowBlocker,
   visitorSeeds,
   rerollBlocker,
+  upgradeBlocker,
+  upgradeCost,
+  upgradeLevelOf,
+  type UpgradeOutcome,
   isTreeUnlocked,
   isTreeVisible,
   type OfflineReport,
@@ -99,6 +103,8 @@ import { researchSlotNodes } from './regular-wait';
 import { effectiveForestMemory, landscapeUnlocked } from '../core/landscape';
 import { RARITY_LABELS, formatSigned, formatSignedPercent, isFullHappiness, isScarceFood, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
+import { NICHE_UPGRADE_PCT, TREE_PARTS, type TreePart } from '../content/upgrades';
+import { nextMilestone, type UpgradeTarget } from '../core/upgrades';
 import type {
   ActiveBonusView,
   CareGroup,
@@ -129,6 +135,7 @@ import type {
   Rarity,
   ReplaceOptionView,
   SupplyMeterView,
+  UpgradeView,
 } from './view-model';
 
 /** Seltenheit aus dem Kern (0–3) als Schlüssel des View-Models. */
@@ -545,8 +552,71 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
       const first = Math.min(...SPECIES.filter((s) => s.niche === niche.id).map((s) => s.unlock));
       if (first > state.stage) view.unlockHint = `Bewohner ab „${STAGES[first]?.name ?? '?'}“`;
     }
+    // Ausbau (28.4): nur offene Nischen (Sperre 'closed' = kein Knopf).
+    const target: UpgradeTarget = { kind: 'niche', id: niche.id };
+    if (inhabitable && upgradeBlocker(state, target) !== 'closed') {
+      const level = upgradeLevelOf(state, target);
+      view.upgrade = upgradeView(state, target, niche.icon, niche.name, `je Tier ${formatSignedPercent((NICHE_UPGRADE_PCT * level) / 100)}`);
+    }
     return view;
   });
+}
+
+/** Wirkung eines Baumteils auf seiner Stufe, z. B. „Baum +8,8 % 🌿“ (Wirkung linear je Stufe). */
+function treePartEffect(part: TreePart, level: number): string {
+  const pct = formatSignedPercent((part.effect.pct * level) / 100);
+  if (part.effect.kind === 'treeGrowth') return `Baum ${pct} 🌿`;
+  if (part.effect.kind === 'treeSeeds') return `Baum ${pct} 🌰`;
+  return `Pflanzen ${pct} 🌿 🌰`;
+}
+
+/** Baum-Ausbau (28.4): drei Zeilen ab dem Keimling, vorher keine. */
+export function treeUpgradeViews(state: GameState): UpgradeView[] {
+  return TREE_PARTS.flatMap((part) => {
+    const target: UpgradeTarget = { kind: 'tree', id: part.id };
+    if (upgradeBlocker(state, target) === 'closed') return [];
+    return [upgradeView(state, target, part.icon, part.name, treePartEffect(part, upgradeLevelOf(state, target)))];
+  });
+}
+
+function upgradeView(state: GameState, target: UpgradeTarget, icon: string, label: string, effect: string): UpgradeView {
+  const level = upgradeLevelOf(state, target);
+  const milestone = nextMilestone(target, level);
+  const cost = upgradeCost(state, target);
+  const view: UpgradeView = {
+    kind: target.kind,
+    id: target.id,
+    icon,
+    label,
+    level,
+    effect,
+    next: milestone ? `St. ${milestone.level}: ${milestone.summary}` : '',
+    cost,
+    costLabel: Number.isFinite(cost) ? formatNumber(cost) : '–',
+    affordable: false,
+  };
+  refreshUpgradeView(view, state);
+  return view;
+}
+
+/**
+ * Meldung nach einem Ausbau mit neuem Meilenstein, z. B. „🪱 Wurzelraum Stufe 25: +1 Platz,
+ * Abzeichen Bronze“ – '' ohne Meilenstein (dann reicht der Knopf als Rückmeldung).
+ */
+export function upgradeMilestoneText(outcome: Pick<UpgradeOutcome, 'target' | 'milestones'>): string {
+  if (outcome.milestones.length === 0) return '';
+  const { target } = outcome;
+  const info = target.kind === 'niche' ? NICHES.find((n) => n.id === target.id) : TREE_PARTS.find((p) => p.id === target.id);
+  const name = info ? `${info.icon} ${info.name}` : target.id;
+  const levels = [...new Set(outcome.milestones.map((m) => m.level))];
+  return levels
+    .map((level) => `${name} Stufe ${level}: ${outcome.milestones.filter((m) => m.level === level).map((m) => m.summary).join(', ')}`)
+    .join('. ');
+}
+
+/** Samen-abhängig: reicht es gerade für die nächste Stufe? */
+export function refreshUpgradeView(view: UpgradeView, state: GameState): void {
+  view.affordable = Number.isFinite(view.cost) && state.seeds >= view.cost;
 }
 
 /**
@@ -580,6 +650,7 @@ export function toEcosystemView(state: GameState, evaluation: Readonly<Evaluatio
     harmonyParts: harmonyParts(evaluation),
     families: familyViews(evaluation),
     niches: nicheViews(state, evaluation),
+    treeUpgrades: treeUpgradeViews(state),
     plantRing: plantRingView(state, evaluation),
     communities: communityListView(evaluation, state.meta.journal.communities),
     foodWeb: foodWebView(evaluation, state),
@@ -599,6 +670,8 @@ export function refreshEcosystemView(view: EcosystemView, state: GameState): voi
   view.progressHint = progressHint(state);
   view.pendingEncounters = state.pendingEncounters.length;
   refreshPlantRing(view.plantRing, state);
+  for (const niche of view.niches) if (niche.upgrade) refreshUpgradeView(niche.upgrade, state);
+  for (const part of view.treeUpgrades) refreshUpgradeView(part, state);
 }
 
 // ---------------------------------------------------------------------------

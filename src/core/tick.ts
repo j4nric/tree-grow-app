@@ -42,6 +42,19 @@ import { ENCOUNTER_TYPES, type EncounterType } from '../content/types';
 import { VISITORS, VISITORS_BY_ID, type Visitor } from '../content/visitors';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { OFFLINE_FULL_SECONDS, OFFLINE_YIELD } from '../content/offline';
+import { MAX_UPGRADE_LEVEL, TREE_UPGRADE_MIN_STAGE, type TreePartId, type UpgradeMilestone } from '../content/upgrades';
+import type { NicheId } from '../content/types';
+import {
+  affordableUpgrades,
+  hasDrawUpgrades,
+  isUpgradeTarget,
+  milestonesBetween,
+  upgradeBase,
+  upgradeCostFrom,
+  upgradeDrawWeight,
+  upgradeLevel,
+  type UpgradeTarget,
+} from './upgrades';
 import {
   activeCommunities,
   appearsContext,
@@ -355,6 +368,19 @@ function addHarmonyPoints(state: GameState, amount: number): void {
 
 /** Obergrenze der Zähler in `meta.stats` (bleiben ganzzahlig). */
 export const MAX_STAT_COUNT = Number.MAX_SAFE_INTEGER;
+
+/** Ergebnis eines Ausbau-Kaufs (28.4); die Samen stehen als `seeds` (negativ) im ActionResult. */
+export interface UpgradeOutcome {
+  target: UpgradeTarget;
+  /** Gekaufte Stufen (≥ 1). */
+  bought: number;
+  /** Ausgegebene Samen (> 0). */
+  spent: number;
+  /** Stufe nach dem Kauf. */
+  level: number;
+  /** Mit diesem Kauf erreichte Meilensteine (je einmal, nach Stufe). */
+  milestones: UpgradeMilestone[];
+}
 
 type StatCounter = Extract<
   keyof LifetimeStats,
@@ -782,7 +808,8 @@ export function allWaypointsReached(state: GameState): boolean {
  * dran, wenn die übrigen Arten nicht für alle Karten reichen.
  * Ab dem zweiten Zyklus ziehen Arten aus dem Naturtagebuch innerhalb ihrer Seltenheit mit
  * doppeltem Gewicht (DESIGN_V2.md, Abschnitt 10); im ersten Zyklus bleibt es gleichverteilt.
- * Gattungen des aktiven Waldtyps (`featured`, 24.6) zählen dazu × FEATURED_GENUS_WEIGHT.
+ * Gattungen des aktiven Waldtyps (`featured`, 24.6) zählen dazu × FEATURED_GENUS_WEIGHT, Arten
+ * ausgebauter Nischen × upgradeDrawWeight (ab Stufe 10 ×1,5, seltene ab 50 zusätzlich ×2, 28.4).
  * Wildwechsel-Karten kommen erst danach (drawWildwechsel, nur am Wegpunkt).
  * Zufall aus `rng` (Standard: der Spielstand selbst). `minRarity` (Standard 0): nur Arten ab
  * dieser Seltenheit (Belohnung der Tagesziele, DESIGN_V2.md 20).
@@ -804,7 +831,9 @@ export function drawAnimals(
   const journal = state.cycle.number > 1 ? new Set(state.meta.journal.species) : null;
   // Gattungen des Waldtyps (24.6): × FEATURED_GENUS_WEIGHT in ihrer Seltenheit, mit dem Tagebuch multipliziert.
   const featured = featuredGenera(state);
-  const weighted = journal !== null || featured.length > 0;
+  // Ausbau-Meilensteine (28.4): nur mit Ausbau gewichtet – ohne bleibt der Zug wie vor v18.
+  const upgrades = hasDrawUpgrades(state.cycle.upgrades) ? state.cycle.upgrades : undefined;
+  const weighted = journal !== null || featured.length > 0 || upgrades !== undefined;
   const cards: string[] = [];
   for (const pool of pools) {
     while (cards.length < CARDS_PER_ENCOUNTER) {
@@ -821,7 +850,9 @@ export function drawAnimals(
               rng,
               choices.map(
                 (s) =>
-                  (journal?.has(s.id) ? JOURNAL_SPECIES_WEIGHT : 1) * (featured.includes(s.genus) ? FEATURED_GENUS_WEIGHT : 1),
+                  (journal?.has(s.id) ? JOURNAL_SPECIES_WEIGHT : 1) *
+                  (featured.includes(s.genus) ? FEATURED_GENUS_WEIGHT : 1) *
+                  (upgrades ? upgradeDrawWeight(upgrades, s.niche, s.rarity) : 1),
               ),
             )
           ]!
@@ -867,7 +898,9 @@ export type ActionError =
   /** Gast: rastet schon (nur bei manipulierten Ständen denkbar). */
   | 'already-active'
   /** Forschung (researchBlocker): siehe ResearchBlocker. */
-  | ResearchBlocker;
+  | ResearchBlocker
+  /** Ausbau (upgradeBlocker): unbekannte Nische bzw. unbekannter Baumteil. */
+  | 'unknown';
 
 /**
  * Ergebnis einer Spieleraktion. `discovered`: Lebensgemeinschaften, die durch die Aktion
@@ -878,6 +911,7 @@ export type ActionError =
  * `seeds`: Samen, die die Aktion gebracht (Ereignis, Zurücklegen) bzw. gekostet hat (Säen: negativ).
  * `planted`: die aus einer Aussaat gesetzte Pflanze (chooseSowing; für die Aussaat-Animation, 4d).
  * `sowing`: Die Aktion hat eine Aussaat geöffnet (sow, Vogelsaat, wartende Vogelsaat danach).
+ * `upgrade`: Ausbau (upgradeNiche, upgradeTree): gekaufte Stufen, neue Stufe, erreichte Meilensteine.
  */
 export type ActionResult =
   | {
@@ -888,6 +922,7 @@ export type ActionResult =
       regulars?: string[];
       planted?: string;
       sowing?: boolean;
+      upgrade?: UpgradeOutcome;
     }
   | { ok: false; error: ActionError };
 
@@ -1646,6 +1681,8 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   // Reihenfolge (ein Zyklus ohne Forschung lässt den bisherigen Plan stehen).
   if (state.cycle.research.length > 0) state.meta.research.plan = [...state.cycle.research];
   state.harmonyPoints = 0;
+  // Ausbau (28.4): Stufen und Ränge beginnen mit dem neuen Zyklus (createCycle) bei 0; die
+  // Bestmarke `meta.upgrades.best` bleibt.
   state.waypoint = 0;
   state.stage = 0;
   state.plants = [];
@@ -2022,4 +2059,103 @@ export function previewResearch(state: GameState, id: string): Evaluation | null
   if (!RESEARCH_BY_ID.has(id) || isResearched(state, id)) return null;
   const researched = [...state.cycle.research, id];
   return evaluateEcosystem(ecosystemOf({ ...state, cycle: { ...state.cycle, research: researched } }));
+}
+
+// ---------------------------------------------------------------------------
+// Ausbau mit Samen (DESIGN_V2.md 28.4)
+// ---------------------------------------------------------------------------
+
+/** Warum ein Ausbau nicht geht: unbekanntes Ziel, Nische verschlossen (bzw. Baum vor dem Keimling), zu teuer. */
+export type UpgradeBlocker = 'unknown' | 'closed' | 'too-expensive';
+
+/**
+ * Hat die Nische ohne Ausbau-Plätze mindestens einen Platz (28.4)? Nur dann lässt sie sich
+ * ausbauen. Schließt sie sich wieder, bleibt ihre Stufe – sie ruht.
+ */
+export function nicheUpgradeOpen(state: GameState, niche: NicheId): boolean {
+  const bonus = slotBonuses(state).filter((b) => !b.upgrade);
+  return (nicheSlots(state.stage, state.niches, bonus)[niche] ?? 0) >= 1;
+}
+
+/** Stufe eines Ausbau-Ziels im laufenden Zyklus (unbekannt → 0). */
+export function upgradeLevelOf(state: Pick<GameState, 'cycle'>, target: UpgradeTarget): number {
+  return isUpgradeTarget(target) ? upgradeLevel(state.cycle.upgrades, target) : 0;
+}
+
+/**
+ * Preis der nächsten `count` Stufen in 🌰 (ohne Prüfung der Samen oder Sperre; count wie
+ * normalizeUpgradeCount: ganzzahlig ≥ 1). Unbekanntes Ziel oder über MAX_UPGRADE_LEVEL: Infinity.
+ */
+export function upgradeCost(state: Pick<GameState, 'cycle'>, target: UpgradeTarget, count = 1): number {
+  const base = upgradeBase(target);
+  if (base === undefined) return Infinity;
+  return upgradeCostFrom(base, upgradeLevelOf(state, target), count);
+}
+
+/**
+ * Wie viele der nächsten (höchstens `max`) Stufen sind gerade bezahlbar, und was kosten sie?
+ * Für „Max“ in der Kaufmenge (28.9). Unbekanntes Ziel: nichts.
+ */
+export function upgradeAffordable(state: GameState, target: UpgradeTarget, max = MAX_UPGRADE_LEVEL): { count: number; cost: number } {
+  const base = upgradeBase(target);
+  if (base === undefined) return { count: 0, cost: 0 };
+  return affordableUpgrades(base, upgradeLevelOf(state, target), state.seeds, max);
+}
+
+/**
+ * Warum `target` gerade nicht ausgebaut werden kann – null, wenn mindestens eine Stufe geht.
+ * Reihenfolge: unbekannt, verschlossen (Nische ohne eigenen Platz, Baum vor dem Keimling), zu teuer.
+ */
+export function upgradeBlocker(state: GameState, target: UpgradeTarget): UpgradeBlocker | null {
+  if (!isUpgradeTarget(target)) return 'unknown';
+  if (target.kind === 'niche' ? !nicheUpgradeOpen(state, target.id) : state.stage < TREE_UPGRADE_MIN_STAGE) return 'closed';
+  if (!(state.seeds >= upgradeCost(state, target))) return 'too-expensive';
+  return null;
+}
+
+/**
+ * Kauft bis zu `count` Stufen von `target`, solange die Samen reichen (in Reihenfolge, keine
+ * Rückerstattung). Bucht Statistik und Bestmarke, lässt Stammgäste in neue Plätze ziehen
+ * (Meilenstein 25) und führt H_max nach. `seeds` im Ergebnis: die Kosten (negativ).
+ */
+function buyUpgrade(state: GameState, target: UpgradeTarget, count: number): ActionResult {
+  const blocker = upgradeBlocker(state, target);
+  if (blocker) return fail(blocker);
+  const before = upgradeLevelOf(state, target);
+  const { count: bought, cost } = upgradeAffordable(state, target, count);
+  if (bought <= 0) return fail('too-expensive');
+  const level = before + bought;
+  state.seeds = Math.max(0, state.seeds - cost);
+  const best = state.meta.upgrades.best;
+  if (target.kind === 'niche') {
+    state.cycle.upgrades.niches[target.id] = level;
+    best.niches[target.id] = Math.max(level, upgradeLevel(best, target));
+  } else {
+    state.cycle.upgrades.tree[target.id] = level;
+    best.tree[target.id] = Math.max(level, upgradeLevel(best, target));
+  }
+  const stats = state.meta.stats;
+  stats.upgradesBought = Math.min(MAX_STAT_COUNT, (Number.isFinite(stats.upgradesBought) ? stats.upgradesBought : 0) + bought);
+  stats.upgradeSeeds = capped((Number.isFinite(stats.upgradeSeeds) ? stats.upgradeSeeds : 0) + cost);
+  // Neue Plätze (Meilenstein 25): Stammgäste ziehen sofort ein, nicht erst am nächsten Wegpunkt.
+  const regulars = moveInRegulars(state);
+  const discovered = recordDiscoveries(state);
+  const result: ActionResult = {
+    ok: true,
+    seeds: -cost,
+    upgrade: { target, bought, spent: cost, level, milestones: milestonesBetween(target, before, level) },
+  };
+  if (discovered.length > 0) result.discovered = discovered;
+  if (regulars.length > 0) result.regulars = regulars;
+  return result;
+}
+
+/** Nischen-Ausbau (28.4): bis zu `count` Stufen (Standard 1; Infinity = so viele wie bezahlbar). */
+export function upgradeNiche(state: GameState, niche: NicheId, count = 1): ActionResult {
+  return buyUpgrade(state, { kind: 'niche', id: niche }, count);
+}
+
+/** Baum-Ausbau (28.4): Jahresringe, Blattwerk oder Pilzgeflecht, bis zu `count` Stufen. */
+export function upgradeTree(state: GameState, part: TreePartId, count = 1): ActionResult {
+  return buyUpgrade(state, { kind: 'tree', id: part }, count);
 }

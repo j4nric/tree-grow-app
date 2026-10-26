@@ -126,8 +126,8 @@
 >   v16 – Stellschraube für 3a), Aussaaten bis Hain 13,6 / 12,5, Samenbestand beim Hain 8,8 / 5,1 min
 >   Produktion (Ziel ≤ 15), Samen-Höchststand vor dem Jungen Baum 255 / 227 🌰.
 >
-> **Phase 11 – Wachsen und Ausbauen (`DESIGN_V2.md` 28, Entwurf, Spielstand v18 geplant, noch
-> nicht im Code; Offline 10 % umgesetzt, siehe unten):** Offline und im Hintergrund bringen Wachstum, Samen und Harmonie nach der ersten
+> **Phase 11 – Wachsen und Ausbauen (`DESIGN_V2.md` 28, Spielstand v18; Offline 10 % und Ausbau
+> umgesetzt, siehe unten; wiederholbare Knoten und Zielzeile folgen mit 2b/2c):** Offline und im Hintergrund bringen Wachstum, Samen und Harmonie nach der ersten
 > Minute nur **10 %** (`OFFLINE_YIELD`), die Zeit läuft voll. Neue Samen-Senken ohne Obergrenze:
 > **Nischen-Ausbau** `⌈b_n · 1,15^L⌉` 🌰 (b_n 10 Wurzelraum … 600 Trockenmauer), je Stufe +0,1 % 🌿
 > und 🌰 je Tier der Nische × Zufriedenheit, Meilensteine 10 (Arten der Nische ×1,5 in den Karten),
@@ -140,7 +140,7 @@
 > (Hain 50–58 min), Wachstum ÷ Harmonie ≥ 0,85 (`DESIGN_V2.md` 28.10). Tabellen folgen nach der
 > Messung (Phase 11, 3a).
 >
-> *Daten (Phase 11, 1a, noch nicht verdrahtet):* Ausbau in `src/content/upgrades.ts`
+> *Daten (Phase 11, 1a; Ausbau seit 2a verdrahtet, endlose Knoten ab 2b):* Ausbau in `src/content/upgrades.ts`
 > (`NICHE_UPGRADE_BASE`, `UPGRADE_GROWTH`, `NICHE_UPGRADE_PCT`, `TREE_PARTS`, `NICHE_MILESTONES`,
 > `MAX_UPGRADE_LEVEL` = 1.000), Offline in `src/content/offline.ts` (`OFFLINE_YIELD` = 0,1,
 > `OFFLINE_FULL_SECONDS` = 60), die sechs endlosen Knoten als `RESEARCH_REPEATABLE` in
@@ -170,6 +170,41 @@
 >   Kraft: +… 🌿“, Kurzfassung „gemächlich (10 %)“; einmal (Merker `tree-grow-offline-hint-seen`
 >   in den Einstellungen) der Hinweis „Dein Wald wächst am schnellsten, während du zusiehst – im
 >   Hintergrund und offline mit 10 %.“ Spielanleitung: neues Kapitel „Offline“.
+>
+> **Umgesetzt seit Phase 11, 2a (Spielstand v18, `DESIGN_V2.md` 28.4/28.8):**
+> - **Nischen-Ausbau:** Preis der Stufe L → L+1 `⌈b_n · 1,15^L⌉` 🌰 (b_n: Wurzelraum 10,
+>   Laubstreu/Waldsaum 25, Krone/Stamm/Waldwiese 60, Höhlen/Totholzhaufen/Waldtümpel 250,
+>   Trockenmauer 600; Wurzelraum St. 1/10/25/50 = 10/36/287/9.424, Summe bis 10/25/50 =
+>   209/2.141/72.203). Je Tier der Nische +0,1 % · L 🌿 und 🌰, × seine Zufriedenheit (wie eine
+>   eigene Tierwirkung, additiv im Wachstums- bzw. Samenbonus). Nur offene Nischen: Sperre
+>   `'closed'`, solange die Nische **ohne** Ausbau-Plätze keinen Platz hat; schließt sie sich,
+>   ruht die Stufe.
+> - **Meilensteine je Nische:** 10 „Eingelebt“ (Arten der Nische ziehen innerhalb ihrer
+>   Seltenheit ×1,5 – mit Tagebuch ×2 und Waldtyp multipliziert), 25 „Gut bewohnt“ (+1 Platz),
+>   50 „Prachtnische“ (Arten ab selten zusätzlich ×2, zusammen ×3), Abzeichen 25/50/75.
+>   **Ausbau-Plätze öffnen nie eine Nische** – sie zählen erst, wenn alle übrigen Quellen
+>   (Stufe, Forschung, Ereignisse, Baumart, Standort, Tiere inkl. `opensEarly`) mindestens einen
+>   Platz geben.
+> - **Baum-Ausbau** (ab Keimling, Startpreis 15, Faktor 1,15): Jahresringe Hauptbaum +0,4 % 🌿 je
+>   Stufe (`tree · (1 + Gruppe Bäume + 0,004 L)`), ab 25 +1 Platz Höhlen; Blattwerk Hauptbaum +1 %
+>   🌰 je Stufe, ab 25 +1 Platz Krone; Pilzgeflecht Begleitpflanzen +0,5 % 🌿 und 🌰 je Stufe (vor
+>   der Versorgung V), ab 25 +1 💧.
+> - **Kauf:** `upgradeNiche`/`upgradeTree(state, id, count = 1)` kaufen in Reihenfolge bis zu
+>   `count` Stufen, solange die Samen reichen (Infinity = „Max“); kein Verkauf. Höchststufe
+>   `MAX_UPGRADE_LEVEL` = 1.000. Nach dem Kauf ziehen Stammgäste in neue Plätze.
+> - **Neuer Zyklus:** alle Stufen (und die Ränge der endlosen Knoten) beginnen bei 0; die
+>   höchste je erreichte Stufe bleibt (`meta.upgrades.best`), dazu die Statistik
+>   `upgradesBought`/`upgradeSeeds`.
+> - **Spielstand v18:** Migration v17 → v18 ohne Verlust (Ausbau leer, Samen bleiben – 1 Mio. 🌰
+>   reichen für Wurzelraum 68); robustes Laden: Stufen ganzzahlig 0 … 1.000, sonst 0, unbekannte
+>   Nischen und Teile fallen weg, Bestmarke nie unter der Stufe im Zyklus, Ränge nur für
+>   wiederholbare Knoten hinter ihrer Gabel (1 … 200). Ein v17-Gerät lehnt v18 ab (`newer`,
+>   `outdated-client`).
+> - **Oberfläche (einfach bis 4b):** im Reiter Nischen je offener Nische „St. 12 · je Tier +1,2 % ·
+>   St. 25: +1 Platz“ mit Knopf „Ausbauen · Preis 🌰“, oben „🌳 Dein Baum“ mit den drei Baumteilen;
+>   ein Meilenstein meldet sich als Zettel.
+> - Ohne Ausbau rechnen `evaluate` und das Kartenziehen bitgleich wie vor v18 (Golden-Werte
+>   unverändert). Zahlen sind Startwerte – gemessen wird in Phase 11, 3a.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:

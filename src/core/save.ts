@@ -7,7 +7,8 @@ import { EVENTS, EVENTS_BY_ID, type CycleEffect, type TimedEffect } from '../con
 import { CORRIDORS_BY_ID, HOME_SITE, LANDSCAPE_UNLOCK_ACHIEVEMENT, MAX_SITE_FAUNA, SITE_IDS, type SiteId } from '../content/landscape';
 import { V1_KEEPSAKE_ID, V1_KEEPSAKE_MEMORY, V1_KEEPSAKE_MIN_ENERGY, V1_KEEPSAKE_MIN_STAGE, NEW_CYCLE_MIN_STAGE } from '../content/memory';
 import { PLANTS_BY_ID } from '../content/plants';
-import { CARE_TO_RESEARCH, MIGRATION_HARMONY_MINUTES, RESEARCH, RESEARCH_BY_ID } from '../content/research';
+import { CARE_TO_RESEARCH, MAX_RESEARCH_RANK, MIGRATION_HARMONY_MINUTES, RESEARCH, RESEARCH_BY_ID, RESEARCH_REPEATABLE } from '../content/research';
+import { TREE_PART_IDS } from '../content/upgrades';
 import { MAX_SOWINGS, MAX_SOWING_CARDS } from '../content/sowing';
 import { SPECIES_BY_ID } from '../content/species';
 import { SEASON_IDS, type SeasonId } from '../content/seasons';
@@ -46,6 +47,7 @@ import {
 import { isDayKey } from './daily';
 import { isValidRngState, normalizeSeed } from './rng';
 import { normalizeElapsed } from './season';
+import { normalizeUpgradeLevel, upgradeLevel } from './upgrades';
 import {
   MAX_STAT_COUNT,
   interludeThreshold,
@@ -66,6 +68,7 @@ import {
   createResearchPlan,
   createSite,
   createStats,
+  createUpgradeLevels,
   dailySeedOf,
   type ChronicleEntry,
   type CycleBonus,
@@ -82,6 +85,7 @@ import {
   type ResearchPlan,
   type SowingState,
   type TimedBonus,
+  type UpgradeLevels,
 } from './state';
 
 export const SAVE_KEY = 'tree-grow-save';
@@ -182,6 +186,8 @@ export function loadGame(raw: string | null, now: number): LoadResult | null {
   // ganz zuletzt, denn das Zurücklegen weiterer Pflanzenbegegnungen zahlt Samen-Sekunden zur
   // Rate des fertig geladenen Stands.
   convertPlantEncounters(state, deferred);
+  // v17 → v18 (Ausbau, 28.8): nichts umzubuchen – Stufen, Ränge, Bestmarke und Statistik beginnen
+  // bei 0 (loadCycleExtras, loadV2, loadStats); Samen, Forschung und Plan bleiben, wie sie sind.
   return { state, migratedFromV1: false, keepsake: false, memoryReweighted, achievementsBackfilled, landscapeUnlocked: landscapeUnlockedNow };
 }
 
@@ -552,6 +558,9 @@ function loadStats(raw: unknown, state: GameState, unlocked: (id: MainTreeId) =>
     harmonyEarned: version >= 17 ? amount(r.harmonyEarned) : 0,
     // Seit v15 (Wildwechsel-Markierung); ältere Stände setzt migrateV14 auf 0.
     wildwechselChosen: count(r.wildwechselChosen),
+    // Seit v18 (Ausbau, 28.8); in älteren Ständen zählt ein solches Feld nicht.
+    upgradesBought: version >= 18 ? count(r.upgradesBought) : 0,
+    upgradeSeeds: version >= 18 ? amount(r.upgradeSeeds) : 0,
     grownTrees,
   };
 }
@@ -731,6 +740,8 @@ function loadV2(data: Record<string, unknown>, now: number, version: number, def
   state.meta.stats = loadStats(version >= 8 ? meta.stats : undefined, state, (id) => isTreeUnlocked(known, id), version);
   // Seit v17: Forschungsplan (ältere Stände: leer, Schalter aus).
   state.meta.research = version >= 17 ? loadResearchPlan(meta.research) : createResearchPlan();
+  // Seit v18: Bestmarke des Ausbaus, nie unter der Stufe im Zyklus (ältere Stände: leer).
+  state.meta.upgrades = { best: loadBestUpgrades(version >= 18 && isRecord(meta.upgrades) ? meta.upgrades.best : undefined, state.cycle.upgrades) };
   // Seit v9: Erfolge – nur bekannte IDs, je einmal, gespeicherte Reihenfolge (ältere Stände:
   // migrateV8). Ob sie erfüllt sind, lässt sich nicht prüfen (frühere Zyklen) – sie bleiben.
   state.meta.achievements =
@@ -1074,7 +1085,63 @@ function loadCycleExtras(
       : Math.min(MAX_SOWINGS, state.plants.length);
   cycle.sowing = version >= 17 ? loadSowing(raw.sowing, state.stage, cycle.research) : null;
   cycle.freeSowing = version >= 17 ? loadFreeSowing(raw.freeSowing, cycle.seen) : null;
+  // Seit v18 (28.8): Ausbaustufen und Ränge – vor den Nischen geladen, denn die Ausbau-Plätze
+  // zählen beim Kürzen mit (sie öffnen keine Nische, nicheSlots). Ältere Stände: leer.
+  cycle.upgrades = version >= 18 ? loadUpgradeLevels(raw.upgrades) : createUpgradeLevels();
+  cycle.researchRanks = version >= 18 ? loadResearchRanks(raw.researchRanks, cycle.research, state.stage) : {};
   state.cycle = cycle;
+}
+
+/**
+ * Ausbaustufen robust (seit v18, DESIGN_V2.md 28.8): nur bekannte Nischen (NICHE_IDS) und
+ * Baumteile (TREE_PART_IDS), Stufe ganzzahlig in 1 … MAX_UPGRADE_LEVEL – NaN, negativ, zu groß,
+ * Bruch oder Text zählen als 0 und fallen weg. Eine Stufe in einer gerade verschlossenen Nische
+ * bleibt (sie ruht, ihr Platz zählt nicht).
+ */
+function loadUpgradeLevels(raw: unknown): UpgradeLevels {
+  const r = isRecord(raw) ? raw : {};
+  const out = createUpgradeLevels();
+  const niches = isRecord(r.niches) ? r.niches : {};
+  const tree = isRecord(r.tree) ? r.tree : {};
+  for (const id of NICHE_IDS) {
+    const level = Object.hasOwn(niches, id) ? normalizeUpgradeLevel(niches[id]) : 0;
+    if (level > 0) out.niches[id] = level;
+  }
+  for (const id of TREE_PART_IDS) {
+    const level = Object.hasOwn(tree, id) ? normalizeUpgradeLevel(tree[id]) : 0;
+    if (level > 0) out.tree[id] = level;
+  }
+  return out;
+}
+
+/** Bestmarke des Ausbaus (seit v18): wie loadUpgradeLevels, dazu nie unter der Stufe im Zyklus. */
+function loadBestUpgrades(raw: unknown, cycle: UpgradeLevels): UpgradeLevels {
+  const best = loadUpgradeLevels(raw);
+  for (const id of NICHE_IDS) {
+    const level = Math.max(upgradeLevel(best, { kind: 'niche', id }), upgradeLevel(cycle, { kind: 'niche', id }));
+    if (level > 0) best.niches[id] = level;
+  }
+  for (const id of TREE_PART_IDS) {
+    const level = Math.max(upgradeLevel(best, { kind: 'tree', id }), upgradeLevel(cycle, { kind: 'tree', id }));
+    if (level > 0) best.tree[id] = level;
+  }
+  return best;
+}
+
+/**
+ * Ränge der wiederholbaren Knoten robust (seit v18, 28.8; Logik ab Phase 11, 2b): nur Knoten aus
+ * RESEARCH_REPEATABLE, deren Stufe erreicht ist und deren Voraussetzung (ein Gabel-Knoten des
+ * Asts) in `research` steht; Rang ganzzahlig in 1 … MAX_RESEARCH_RANK, sonst fällt er weg (0).
+ */
+function loadResearchRanks(raw: unknown, research: readonly string[], stage: number): Record<string, number> {
+  const r = isRecord(raw) ? raw : {};
+  const out: Record<string, number> = {};
+  for (const node of RESEARCH_REPEATABLE) {
+    if (!Object.hasOwn(r, node.id) || node.minStage > stage || !researchRequirementsMet(node, research)) continue;
+    const rank = r[node.id];
+    if (typeof rank === 'number' && Number.isInteger(rank) && rank >= 1 && rank <= MAX_RESEARCH_RANK) out[node.id] = rank;
+  }
+  return out;
 }
 
 /**

@@ -265,6 +265,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   // Reiter Nischen (Schritt 5): „Säen“ öffnet die Aussaat (main.ts), „Zur Pflege“ über den Reiter Pflege.
   tabs.niches.connect({
     sow: () => deps.actions.sow(),
+    upgrade: (target) => deps.actions.upgrade(target),
     showCare(id) {
       dispatch({ type: 'tab', tab: 'care' });
       tabs.care.reveal(id);

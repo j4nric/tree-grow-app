@@ -431,10 +431,10 @@ describe('Spielstand v15 (25.5)', () => {
   }
 
   it('SAVE_VERSION 16 (seit v15): Stand mit Weißtanne und Schwarzerle lädt und behält beide (Roundtrip gleich)', () => {
-    expect(SAVE_VERSION).toBe(17);
+    expect(SAVE_VERSION).toBe(18);
     const state = firState();
     recordDiscoveries(state);
-    expect(state.version).toBe(17);
+    expect(state.version).toBe(18);
     const loaded = loadGame(serialize(state), 0)!.state;
     expect(loaded).toEqual(state);
     expect(loaded.cycle.mainTree).toBe('fir');

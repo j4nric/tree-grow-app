@@ -3,7 +3,7 @@ import type { NicheId } from './types';
 /**
  * Ausbau mit Samen (docs/DESIGN_V2.md 28.4): Nischen-Ausbau und Baum-Ausbau. Reine Daten – die
  * Logik (`upgradeNiche`, `upgradeTree`, `upgradeBlocker`, `upgradeCost`, Wirkung in `evaluate`)
- * baut Phase 11, 2a in src/core. Bis dahin ist nichts davon verdrahtet.
+ * steht in src/core (core/upgrades.ts, formulas.ts, tick.ts; seit Phase 11, 2a).
  *
  * Preis der Stufe L → L+1 (L ≥ 0, ohne Obergrenze außer MAX_UPGRADE_LEVEL):
  *   ⌈ b · UPGRADE_GROWTH^L ⌉ 🌰    b = Startpreis (NICHE_UPGRADE_BASE bzw. TREE_PART.base)
@@ -49,6 +49,9 @@ export const TREE_PART_IDS: readonly TreePartId[] = ['rings', 'leaves', 'mycorrh
 
 /** Startpreis aller Baumteile in 🌰 (kein Sperrgrund ab Keimling). */
 export const TREE_UPGRADE_BASE = 15;
+
+/** Ab dieser Stufe (Index in STAGES, 1 = Keimling) lässt sich der Baum ausbauen; davor 'closed'. */
+export const TREE_UPGRADE_MIN_STAGE = 1;
 
 /**
  * Wirkung je Stufe eines Baumteils, in Prozent:

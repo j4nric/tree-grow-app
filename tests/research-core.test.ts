@@ -362,7 +362,7 @@ describe('Neuer Zyklus (27.8)', () => {
 
 describe('Spielstand v17: Speichern und robustes Laden (27.9)', () => {
   it('SAVE_VERSION 17; Roundtrip gleich, zweites Laden ändert nichts', () => {
-    expect(SAVE_VERSION).toBe(17);
+    expect(SAVE_VERSION).toBe(18);
     const state = rich(5, ['bee', 'earthworm']);
     for (const id of ['compost', 'pond', 'wildflower-hem', 'insect-hotel', 'seed-sorting']) expect(research(state, id).ok).toBe(true);
     state.harmonyPoints = 321.5;
@@ -371,7 +371,7 @@ describe('Spielstand v17: Speichern und robustes Laden (27.9)', () => {
     state.meta.research = { plan: ['compost', 'pond'], auto: true };
     state.meta.stats.harmonyEarned = 999.25;
     const loaded = deserialize(serialize(state), 0)!;
-    expect(loaded.version).toBe(17);
+    expect(loaded.version).toBe(18);
     expect(loaded.harmonyPoints).toBe(state.harmonyPoints);
     expect(loaded.cycle.research).toEqual(state.cycle.research);
     expect(loaded.cycle.sowings).toBe(3);

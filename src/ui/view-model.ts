@@ -339,6 +339,31 @@ export interface NicheView {
    * (Waldtümpel ab „Alter Baum“) – die Seitenleiste zeigt dann „Zur Pflege“.
    */
   careLink?: string;
+  /** Ausbau der Nische (DESIGN_V2.md 28.4) – fehlt, solange sie verschlossen ist. */
+  upgrade?: UpgradeView;
+}
+
+/**
+ * Ein Ausbau-Ziel mit einfachem Knopf „Ausbauen · Preis“ (Phase 11, 2a; die ausgefeilte
+ * Ansicht mit Kaufmenge und Meilenstein-Balken kommt mit 4b).
+ */
+export interface UpgradeView {
+  kind: 'niche' | 'tree';
+  id: string;
+  icon: string;
+  label: string;
+  /** Ausbaustufe im Zyklus (0 = noch nicht ausgebaut). */
+  level: number;
+  /** Wirkung der aktuellen Stufe, z. B. „je Tier +2,4 %“ oder „Baum +8,8 % 🌿“. */
+  effect: string;
+  /** Nächster Meilenstein, z. B. „St. 25: +1 Platz“; '' ohne. */
+  next: string;
+  /** Preis der nächsten Stufe in 🌰 (Infinity: keine weitere Stufe). */
+  cost: number;
+  /** Preis zur Anzeige, z. B. „287“. */
+  costLabel: string;
+  /** Reichen die Samen gerade für die nächste Stufe? */
+  affordable: boolean;
 }
 
 /** Alles, was die Ökosystem-Übersicht in der Seitenleiste zeigt. */
@@ -364,6 +389,8 @@ export interface EcosystemView {
   harmonyParts: HarmonyPartView[];
   families: FamilyView[];
   niches: NicheView[];
+  /** Baum-Ausbau (Jahresringe, Blattwerk, Pilzgeflecht) – leer vor dem Keimling. */
+  treeUpgrades: UpgradeView[];
   plantRing: PlantRingView;
   communities: CommunityListView;
   /** Nahrungsnetz: wer jagt wen (DESIGN_V2.md 22.7). */
