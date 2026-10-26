@@ -914,7 +914,9 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   Gefühl – die Startwerte in 26.3/26.4 sind Schätzungen. Abhängig: 2b. **Verschoben hinter
   Phase 10, 3b** (DESIGN_V2.md 27.13): Phase 10 stellt die Ökonomie um (Begegnungen nur Tiere,
   Aussaat, Forschung in ⚖️) und verschiebt nach der Vorab-Messung H_max und Gedächtnis
-  (27.10) – eine Chronik-Messung davor wäre sofort veraltet
+  (27.10) – eine Chronik-Messung davor wäre sofort veraltet. **Zusammengelegt mit Phase 11, 3c**
+  (DESIGN_V2.md 28.10): Phase 11 ändert die Ökonomie noch einmal (Ausbau, offline 10 %); gemessen
+  wird einmal danach, mit derselben Chronik-Politik
 
 **Welle 3 – Oberfläche**
 
@@ -970,6 +972,9 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
     zählt Kapitel, Sprungmarke „Chroniken“ mit offenen Kapiteln, Tagebuch der Wälder mit
     „Chronik“ oben und einklappbaren Stammgästen. Tests `tests/chronicle-view.test.ts`,
     `e2e/chronicle-playtest.spec.ts`.
+  - Übrige Funde (u. a. **F5**) bleiben eigene, kleine Aufgaben und hängen nicht an Phase 11.
+    Berührt ein Fund Zahlen (Seltenheit, Wirkungen), misst ihn Phase 11, 3a/3c mit, statt eine
+    eigene Messung zu starten.
 
 Parallel: 1a, 1b, 1d und 2a sofort; 1c nach 1a; 2b nach 1a und 1d; 3a nach 2b; 2c nach 2b **und
 Phase 10, 3b**.
@@ -1096,13 +1101,16 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   Harmonie / Wachstum / Zufall und Stapler), alle Ziele aus 27.11; Stellschrauben in der
   Reihenfolge aus 27.11; Tabellen 15.4, 27.10 und GAME_DESIGN.md nachtragen. **Warum:** Zahlen
   nie nach Gefühl – die Startwerte in 27.6/27.7 stammen aus einem Modell ohne Kartenwahl und ohne
-  Forschung, und die Vorab-Messung zeigt H_max +5 am Hain (Gedächtnis +~16). Abhängig: 2b
+  Forschung, und die Vorab-Messung zeigt H_max +5 am Hain (Gedächtnis +~16). Abhängig: 2b.
+  **→ Zusammengelegt mit Phase 11, 3a** (eine große Messung nach Ausbau und offline 10 %, DESIGN_V2.md
+  28.10): Die Simulator-Umstellung (Gabel-Wahl, Aussaat-Tausch je Strategie) beginnt sofort als
+  Phase 11, 1e; die Ziele aus 27.11 gelten dort weiter, ergänzt um 28.10
 - [ ] **3b** Messung Zyklen und Landschaft (`game-designer`, 27.11): `balance-cycles` (Zyklus 2,
   Neustart in Hain/Wald/Urwald), `scripts/landscape.ts` (Landschaft vollständig ±0,7 h, Waldtypen
   ±5 % wie 24.7, Knoten je Zyklus in vollen Wäldern mit G); falls nötig Gedächtnis-Schwellen
   (`MEMORY_HARMONY_RULES`) um ΔH_max heben; 10, 24.10 und 27 nachtragen. **Warum:** Der
   Gedächtnisfaktor auf den Ertrag (27.3) und die höhere Harmonie wirken erst über viele Zyklen.
-  Danach darf **Phase 9, 2c** (Chronik) messen. Abhängig: 3a
+  Danach darf **Phase 9, 2c** (Chronik) messen. Abhängig: 3a. **→ Zusammengelegt mit Phase 11, 3b**
 
 **Welle 4 – Oberfläche und Komfort**
 
@@ -1114,15 +1122,19 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   ⚖️, „Zur Forschung“ an verschlossenen Nischen, Spielanleitung (Begegnungen, Säen, Forschung,
   Harmonie), Statistik, Jahreszeiten- und Tagesziel-Texte; ALBUM_UI.md nachtragen. **Warum:** Der
   Baum und die zweite Währung müssen auf dem Handy lesbar sein, sonst ist die Abzweigung keine
-  Entscheidung. Abhängig: 1c, 2b (Zahlen aus 3a kommen nur als Daten)
+  Entscheidung. Abhängig: 1c, 2b (Zahlen aus 3a kommen nur als Daten). **→ Zusammengelegt mit
+  Phase 11, 4a** (gleich mit der Zeile „∞“ der wiederholbaren Knoten und dem Schalter aus 4c)
 - [ ] **4b** Forschungsplan (`core-engineer`, 27.8): `meta.research.auto`; in `tick` Halt, sobald
   der Vorrat die Kosten des nächsten geplanten Knotens erreicht, Kauf streng in Plan-Reihenfolge
   (warten bei fehlender Stufe, überspringen bei anders entschiedener Gabel); Aktion
   `setResearchAuto`; online = offline (Tests). **Warum:** Späte Zyklen dauern 8–20 min – 25
-  Klicks je Zyklus wären Pflicht statt Wahl. Abhängig: 2a
-- [ ] **4c** Schalter „Plan folgen“ und Plan-Nummern (`ui-dev`, 27.12). Klein. Abhängig: 4a, 4b
+  Klicks je Zyklus wären Pflicht statt Wahl. Abhängig: 2a. **→ Zusammengelegt mit Phase 11, 2b**
+  (der Plan muss die Ränge der wiederholbaren Knoten kennen – ein PR statt zwei in `tick`)
+- [ ] **4c** Schalter „Plan folgen“ und Plan-Nummern (`ui-dev`, 27.12). Klein. Abhängig: 4a, 4b.
+  **→ in Phase 11, 4a**
 - [ ] **4d** Aussaat-Animation einhängen (`renderer`): aus 1b beim Setzen aus einer Aussaat
-  (Bericht aus `chooseSowing`), Stufenbild unverändert. Abhängig: 1b, 2b
+  (Bericht aus `chooseSowing`), Stufenbild unverändert. Abhängig: 1b, 2b. Bleibt eigenständig und
+  kann sofort laufen (Phase 11 berührt die Aussaat nicht); gern im selben Zug wie Phase 11, 4d
 
 **Welle 5 – Absichern**
 
@@ -1130,12 +1142,168 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   Startguthaben, offene Pflanzenbegegnung → Aussaat-Zettel); Säen → Karte → Neuladen → gleiche
   Karten; Gabel wählen → andere Seite gesperrt → Neuladen; Neuer Zyklus setzt Vorrat und Baum
   zurück, Plan folgt; v16-Gerät lehnt v17 ab (`outdated-client`, `newer` beim Import); R:Forschung
-  bei 360/390 px ohne Querscrollen. Abhängig: 4a, 4c
+  bei 360/390 px ohne Querscrollen. Abhängig: 4a, 4c. **→ Zusammengelegt mit Phase 11, 5a**
 - [ ] **5b** Playtest Phase 10 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
   Fühlen sich die Gabeln wie Entscheidungen an? Ist „Säen“ zu teuer/zu billig, verlieren Samen ab
   dem Wald ihren Sinn? Versteht man Vorrat gegen Produktion? Offene Fragen 27.13 entscheiden.
-  Abhängig: 5a
+  Abhängig: 5a. **→ Zusammengelegt mit Phase 11, 5b**
 
 Parallel: 1a und 1b sofort; 1c nach 1a; 2a nach 1a und Phase 9, 2b; 2b nach 2a; 3a nach 2b; 3b
 nach 3a, danach Phase 9, 2c; 4a nach 1c und 2b (parallel zu 3a/3b); 4b nach 2a; 4c nach 4a und
 4b; 4d nach 1b und 2b; 5a nach 4a und 4c; 5b nach 5a.
+
+**Stand nach dem Konzept zu Phase 11** (DESIGN_V2.md 28): 3a/3b, 4a–4c, 5a/5b laufen in Phase 11
+mit (Hinweise an den Aufgaben); eigenständig bleibt nur 4d.
+
+## Phase 11 – Wachsen und Ausbauen
+
+Ziel: Das Spieler-Feedback nach Phase 10 umsetzen (DESIGN_V2.md **28**, Wortlaut in 28.1): „ziellos“,
+„viel zu viele Samen“, „mehr Incremental Game“, „immer was zum Upgraden“. **Offline bringt 10 %**
+der Erträge (die Zeit läuft voll); Samen bekommen zwei endlose Senken – den **Nischen-Ausbau**
+(je Stufe +0,1 % 🌿/🌰 je Tier, Meilensteine 10/25/50) und den **Baum-Ausbau** (Jahresringe,
+Blattwerk, Pilzgeflecht); jeder Forschungsast endet in einem **wiederholbaren Knoten** (⚖️); eine
+**Zielzeile** nennt immer das nächste Ziel mit Zeit. Rollen: 🌰 Menge, ⚖️ Qualität, Gedächtnis
+Prestige. Ziele mit Toleranz in 28.10 (Takt 20–60 s, aktives Spiel 5–10 % schneller, Abstand der
+Spielweisen und Gedächtnis wie heute). **Einzige Spielstand-Änderung: v18** (Welle 2). Keine neuen
+Abhängigkeiten, kein Server-Umbau (Versionsprüfung wie 25.5).
+
+**Zusammengelegt mit Phase 10 und 9** (Hinweise dort): eine große Messung statt zwei (Phase 10,
+3a/3b → 3a/3b hier; Phase 9, 2c → 3c), Forschungs-Oberfläche einmal mit der Zeile „∞“ (Phase 10,
+4a/4c → 4a), Forschungsplan mit Rängen (Phase 10, 4b → 2b), ein e2e und ein Playtest (Phase 10,
+5a/5b → 5a/5b). Eigenständig bleiben Phase 10, 4d (Aussaat-Animation einhängen) und die übrigen
+Funde aus Phase 9, 4b (F5).
+
+**Bewusst nicht:** bleibender Ausbau, Ausbau mit ⚖️, Prozent auf Harmonie/Gedächtnis, automatisches
+Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach dem Playtest.
+
+**Welle 1 – Sofort und ohne Spielstand** (parallel)
+
+- [ ] **1a** Daten Ausbau und endlose Knoten (`game-designer`, 28.4/28.6): neue Datei
+  `src/content/upgrades.ts` (Startpreise `b_n` je Nische, `UPGRADE_GROWTH = 1,15`,
+  `NICHE_UPGRADE_PCT = 0,1`, Baumteile `rings`/`leaves`/`mycorrhiza` mit Startpreis 15, Wirkung je
+  Stufe und Text, Meilensteine als Daten `{ level, kind: 'drawWeight' | 'slot' | 'rareWeight' |
+  'light' | 'water' | 'badge', … }`, `MAX_UPGRADE_LEVEL`), sechs wiederholbare Knoten in
+  `research.ts` (`repeatable: { base: 1500, growth: 1.3 }`, `requiresAny` Gabel des Asts, Wirkung je
+  Rang), `OFFLINE_YIELD = 0,1` und `OFFLINE_FULL_SECONDS = 60`; nur Typen, noch nicht verdrahtet.
+  Inhaltstests (Preise steigend, jeder Meilenstein einmal, jede Nische einen Startpreis, Texte
+  ≤ 120 Zeichen, wiederholbare Knoten ab Hain und nur hinter einer Gabel). **Warum:** Der `core-engineer`
+  baut Welle 2 gegen feste Inhalte, `ui-dev` und `renderer` können sofort mit echten Namen und
+  Zahlen skizzieren. Abhängig: nichts
+- [ ] **1b** Offline 10 % (`core-engineer`, 28.3): Ertragsfaktor `f` in `tick` (Raten und
+  Halte-Rechnung, nie `elapsed`), `simulateOffline` = 60 s voll + Rest × `OFFLINE_YIELD`,
+  `OfflineReport.yieldFactor`/`fullSeconds`; automatisches Weiterziehen zahlt Samen-Sekunden × `f`;
+  Tests: viele kleine Ticks = ein großer Tick je `f`, 30 s offline = voll, 2 h = 60 s + Rest × 0,1,
+  Jahreszeit/Wetter/Chronik nach 2 h gleich wie heute, Golden-Werte online unverändert,
+  Tagesziele offline unverändert. **Kleine UI-Anpassung im PR:** Rückkehr-Bericht mit „mit einem
+  Zehntel der Kraft“ und dem einmaligen Hinweis (28.3), Spielanleitung „Offline“. **Warum:**
+  Feedback „viel zu viele Samen, offline höchstens 10 %“ – heute trägt eine Nacht den Baum vom
+  Setzling bis zum Wald (28.2). Ohne Spielstand-Änderung, darum sofort. Abhängig: nichts (Konstanten
+  notfalls im PR selbst anlegen, 1a übernimmt sie)
+- [ ] **1c** Layout Ausbau und Zielzeile (`ui-dev`, 28.9): R:Nischen mit Abschnitt „🌳 Dein Baum“,
+  Fußzeile je Nische (Stufe, Meilenstein-Balken, Wirkung je Tier, Knopf), Kaufmenge ×1/×10/Max,
+  verschlossene Nische ohne Knopf, Abzeichen am Etikett; Zielzeile im Polaroid-Kopf; reine Ansicht
+  mit Beispielzuständen (Muster wie `research-fixtures.ts`), mobil 360/390 px ohne Querscrollen,
+  44-px-Treffer, Desktop ≥ 900 px. **Warum:** Die Fußzeile macht jede Nischenkarte höher – das ist auf
+  dem Handy der heikle Teil und hängt nur an den Daten. Abhängig: 1a (Namen; vorher Platzhalter)
+- [ ] **1d** Baum-Ausbau im Bild (`renderer`, 28.9): Stammbreite, Kronenvolumen und Pilzhüte je
+  10 Stufen, kleine Nischen-Details bei 25/50; Eingabe `scene.upgrades` (Schritte), in den
+  Offscreen-Caches gezeichnet, neu nur beim Schrittwechsel; zunächst nur in der Demo
+  (`?upgrades=rings:30,leaves:20`). **Warum:** In einem grafischen Incremental muss man den Ausbau
+  sehen – und die Grafik hängt an nichts. Abhängig: nichts
+- [ ] **1e** Simulator vorbereiten (`game-designer`, Rest von Phase 10, 3a): Gabel-Wahl je
+  Strategie statt Pflege-Reihenfolge, Aussaat-Tausch je Strategie, Takt-Kennzahl „Zeit zwischen zwei
+  Käufen“ je Stufe (Median, längste), Anteil ausgegebener Samen, Sitzungsprofil (30 min aktiv / 8 h
+  offline über `simulateOffline`). **Warum:** Die große Messung 3a braucht diese Kennzahlen; der
+  Umbau hängt nur an Phase 10 (fertig). Abhängig: nichts; das Sitzungsprofil misst erst nach 1b 10 %
+
+**Welle 2 – Spielstand v18 und Logik** (nacheinander)
+
+- [ ] **2a** Ausbau, Spielstand v18 (`core-engineer`, 28.4/28.8): **alle** v18-Felder (`cycle.upgrades`,
+  `cycle.researchRanks`, `meta.upgrades.best`, `stats.upgradesBought`/`upgradeSeeds`), damit 2b den
+  Typ nicht mehr ändert; Aktionen `upgradeNiche`, `upgradeTree`, `upgradeBlocker`, `upgradeCost`
+  (mit `count`); Wirkung in `evaluate` (je Tier `0,1 % · L · z`, Hauptbaum, Begleitpflanzen),
+  Ausbau-Plätze in `slotBonuses` (öffnen keine Nische), Licht/Wasser der Meilensteine, Gewichte in
+  `drawAnimals` (×1,5 ab 10, seltene ×2 ab 50); Cache-Schlüssel; Neuer Zyklus setzt zurück, `best`
+  bleibt; `SAVE_VERSION` 18, Migration v17 → v18, robustes Laden; Tests aus 28.8. **Kleine
+  UI-Anpassung im PR:** einfacher „Ausbauen · Preis“-Knopf je Nische und drei Baum-Zeilen, damit
+  `main` spielbar bleibt. **Warum:** Feedback „Was mache ich mit den Samen? Nischen ausbauen, immer
+  was zum Upgraden“; das Feld braucht die Versionsprüfung (Fall 25.5). Abhängig: 1a; Phase 10, 2b
+  (gemergt)
+- [ ] **2b** Wiederholbare Knoten und Forschungsplan (`core-engineer`, 28.6; enthält Phase 10, 4b):
+  Rang statt `'owned'` für wiederholbare Knoten, `researchCost`, `researchEffects` × Rang, Plan mit
+  wiederholten IDs; `meta.research.auto`, Halt in `tick` bei Kosten des nächsten Plan-Eintrags,
+  `setResearchAuto`; online = offline (auch mit `f` aus 1b). **Warum:** Nach dem letzten Knoten gibt es
+  heute nichts mehr für ⚖️ (28.2); der Plan muss die Ränge kennen, sonst wären es zwei PRs in
+  denselben Zeilen von `tick`. Abhängig: 2a (Feld `researchRanks`), 1b (Faktor in der Halte-Rechnung)
+- [ ] **2c** Zielzeile (`core-engineer`, 28.7): `nextGoal(state)` rein in `formulas.ts`
+  (Kandidaten, Meilenstein-Regel ≤ 120 s, billigster, Gleichstand, Zeit aus der Rate, `null` ohne
+  Kandidat), Erfolge `upgrade-25` „Gut bewohnt“, `upgrade-50` „Prachtnische“, `upgrades-all-10`
+  „Rundum eingelebt“ (alle offenen zehn Nischen in einem Zyklus ≥ 10) mit Bedingungsart `upgrade`
+  und Nachtrag beim Laden; Tests. **Warum:** „ziellos“ – die Zeile beantwortet „was jetzt?“ in einem
+  Satz; Erfolge geben dem Ausbau über den Zyklus hinaus ein Ziel. Abhängig: 2a
+
+**Welle 3 – Eine große Messung** (Phase 10, 3a/3b und Phase 9, 2c zusammengelegt)
+
+- [ ] **3a** Messung erster Zyklus (`game-designer`, 27.11 + 28.10): Simulator mit Ausbau-Strategie
+  („billigste Stufe zuerst“ mit Meilenstein-Regel; Zufall wählt zufällig), 500 Durchgänge Harmonie /
+  Wachstum / Zufall und Stapler; alle Ziele aus 27.11 und 28.10 (Takt 20–60 s, Anteil ausgegeben
+  ≥ 85 %, Tempo −5 bis −10 %, Wachstum ÷ Harmonie ≥ 0,85, H am Hain ±3); Stellschrauben in der
+  Reihenfolge 27.11, dann 28.10; Tabellen 15.4, 27.10, 28.2 und GAME_DESIGN.md nachtragen.
+  **Warum:** Zahlen nie nach Gefühl – die Startwerte stammen aus Stellvertreter-Szenarien und einem
+  Modell ohne Rückkopplung (28.2, 28.5). Einmal messen statt zweimal: Phase 10 allein zu messen
+  wäre nach dem Ausbau veraltet. Abhängig: 1e, 2a, 2b, 2c, 1b
+- [ ] **3b** Messung Zyklen, Landschaft und Offline-Tag (`game-designer`, 27.11/28.10):
+  `balance-cycles` (Zyklus 2, Neustart in Hain/Wald/Urwald, Gedächtnis-Vorsprung ≥ 15),
+  `scripts/landscape.ts` (Landschaft vollständig 12,5–14,5 h, Waldtypen ±5 %, Stufen und Ränge je
+  Zyklus mit G), Sitzungsprofil (8 h offline am Hain ≤ 1 Stufe); falls nötig
+  `MEMORY_HARMONY_RULES` heben (Platz-Meilensteine ab Wald). **Warum:** G hebt die Samen und damit die
+  Stufen späterer Zyklen; die Platz-Meilensteine wirken erst ab dem Wald. Abhängig: 3a
+- [ ] **3c** Messung Chronik und Kennarten (`game-designer`, = Phase 9, 2c, 26.8): wie dort
+  beschrieben, auf der Ökonomie nach 3a/3b. Abhängig: 3b
+
+**Welle 4 – Oberfläche** (parallel zu Welle 3; Zahlen aus 3a kommen nur als Daten)
+
+- [ ] **4a** Forschung im Album (`ui-dev`, = Phase 10, 4a + 4c, dazu 28.9): Layout aus Phase 10, 1c
+  an die echte Logik, Zeile „∞“ mit Rang-Stempel und Kosten, Schalter „Plan des letzten Zyklus
+  folgen“ mit Plan-Nummern (auch wiederholte Ränge), Kopf „⚖️ Vorrat · +110/min“, U:Harmonie,
+  Rückkehr-Meldung mit ⚖️, „Zur Forschung“ an verschlossenen Nischen, Spielanleitung; ALBUM_UI.md.
+  **Warum:** ein Umbau des Reiters statt zwei – die Zeile „∞“ gehört ins Raster von Anfang an.
+  Abhängig: Phase 10, 1c; 2b
+- [ ] **4b** Ausbau im Album (`ui-dev`, 28.9): Layout aus 1c an die echte Logik (Kaufmenge,
+  Bestätigung, Meilenstein-Stempel, Einkleben des neuen Platzes, Abzeichen in Tagebuch und
+  Statistik, Hinweis bei geschlossener Nische), Spielanleitung „Ausbau“; ALBUM_UI.md. **Warum:** Der
+  Ausbau ist die neue Hauptschleife – er muss sich auf dem Handy wie ein Griff anfühlen. Abhängig:
+  1c, 2a
+- [ ] **4c** Zielzeile und Rückkehr-Bericht (`ui-dev`, 28.7/28.9): Zeile im Polaroid-Kopf mit Sprung
+  zum Ziel, stabil zwischen Käufen, `aria-live` nur beim Wechsel; Rückkehr-Bericht endet mit der
+  Zielzeile („Genug für 6 Ausbaustufen“). Klein. Abhängig: 2c, 4b
+- [ ] **4d** Baum-Ausbau einhängen (`renderer`): aus 1d mit `scene.upgrades` aus dem Spielstand
+  (`main.ts`), Stufenbild unverändert; gern zusammen mit Phase 10, 4d. Abhängig: 1d, 2a
+
+**Welle 5 – Absichern** (Phase 10, 5a/5b zusammengelegt)
+
+- [ ] **5a** e2e Phase 10 + 11 (`qa-tester`): v16 lädt als v18 (über v17: Pflege → Knoten, offene
+  Pflanzenbegegnung → Aussaat), v17 lädt als v18 ohne Verlust; Ausbau kaufen → Meilenstein 25 →
+  neuer Platz → Neuladen bleibt; ×10/Max; verschlossene Nische ohne Knopf; Zielzeile springt;
+  Offline: Uhr 2 h vorstellen → Rückkehr-Bericht mit „Zehntel“, Jahreszeit weiter; Tab 30 s im
+  Hintergrund → kein Verlust; Gabel wählen → andere Seite gesperrt; Rang kaufen; Neuer Zyklus setzt
+  Ausbau, Ränge, Vorrat zurück, Abzeichen bleiben, Plan folgt; v17-Gerät lehnt v18 ab
+  (`outdated-client`, `newer` beim Import); R:Nischen und R:Forschung bei 360/390 px ohne
+  Querscrollen. Abhängig: 4a, 4b, 4c
+- [ ] **5b** Playtest Phase 10 + 11 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
+  Fühlt sich das Spiel noch ziellos an? Gibt es immer etwas zu kaufen, ohne Klick-Pflicht? Ist 10 %
+  offline fair? Fühlen sich die Gabeln wie Entscheidungen an, verlieren Samen ab dem Wald ihren Sinn?
+  Offene Fragen 27.13 und 28.12 entscheiden – auch, ob Welle 6 kommt. Abhängig: 5a
+
+**Welle 6 – Später, optional** (eigene Konzeptrunde nach 5b, 28.11)
+
+- [ ] **6a** Stufen-Tore (`game-designer` Konzept, dann `core-engineer`): z. B. Hain braucht 3 Nischen
+  auf Stufe 5; Wachstum sammelt sich, Wegpunkte warten. **Warum:** nur, falls 5b zeigt, dass der
+  Ausbau neben dem Wachsen herläuft statt es zu tragen. Abhängig: 5b
+- [ ] **6b** Aufträge der Tiere (`game-designer` Konzept, dann `core-engineer`/`ui-dev`, v19): ein
+  offener Wunsch eines Tiers („Wurzelraum auf 15“), Belohnung Zufriedenheit oder Samen-Sekunden.
+  **Warum:** lenkt den Ausbau erzählerisch statt über Zahlen. Abhängig: 5b
+
+Parallel: 1a, 1b, 1d und 1e sofort; 1c nach 1a; 2a nach 1a; 2b nach 2a und 1b; 2c nach 2a; 3a nach
+1e, 1b, 2a–2c; 3b nach 3a; 3c nach 3b; 4a nach 2b; 4b nach 1c und 2a; 4c nach 2c und 4b; 4d nach 1d
+und 2a; 5a nach 4a–4c; 5b nach 5a; Welle 6 nach 5b. Phase 10, 4d jederzeit.

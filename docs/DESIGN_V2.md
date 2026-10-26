@@ -8540,3 +8540,605 @@ Produktion, gleiche Zahl).
 - **Prozent-Boni auf die Harmonie-Produktion** (27.3).
 - **Neue Arten oder Pflanzen** – der Umbau soll erst gemessen werden.
 - **Klima-Epochen** (26.11) – weiter nach dem Playtest.
+
+---
+
+## 28. Wachsen und Ausbauen (Phase 11)
+
+> **Stand:** Entwurf (Phase 11, Konzept). Alle Zahlen sind **Startwerte** aus einer
+> Vorab-Messung auf der echten Logik ohne Code-Umbau (28.2) und einem kleinen
+> Wirtschaftsmodell auf diesen Messwerten (28.5); die echte Messung ist Aufgabe 3a/3b der
+> Phase 11 (zusammen mit Phase 10, 3a/3b). Spielstand **v18** (nach v17 aus Phase 10, 2a).
+> Aufgaben und Reihenfolge: `docs/ROADMAP.md`, Phase 11.
+
+### 28.1 Spieler-Feedback und Leitlinien
+
+Der Spieler hat nach Phase 10 (2a/2b) geschrieben (wörtlich):
+
+> „Das Spiel fühlt sich noch etwas ziellos an. Ich sammle schnell viel zu viele Samen (offline
+> sollten höchstens 10 % der Produktion erhalten bleiben). Es bleibt die Frage, was ich mit den
+> Samen machen kann, möglicherweise die Nischen ausbauen und upgraden? Weiterhin gefallen mir
+> die Upgrades in der Pflege nicht gut genug. Hier wäre mehr Incremental Game gut. Es sollte
+> immer was zum Upgraden geben.“
+
+Zugestimmt hat er diesen Vorschlägen: (1) offline 10 %, (2) Nischen-Ausbau und Baum-Ausbau mit
+Samen, endlos, mit Meilensteinen, (3) je Forschungsast ein endlos wiederholbarer Knoten,
+(4) eine Zielzeile, (5) später Stufen-Tore und Aufträge der Tiere.
+
+**Befund (28.2):** Offline bringt heute 100 % – acht Stunden Pause beim Setzling tragen den Baum
+bis zum **Wald**, eine Stunde Pause im Hain bringt ~75.000 🌰, doppelt so viel wie der ganze Weg
+bis zum Hain. Online kauft der Harmonie-Spieler bis zum Hain im Mittel **alle 2:24 min** etwas
+(Aussaat oder Knoten), zwischen Altem Baum und Hain nur **alle 3:46 min**, zwischen Wald und
+Urwald alle 8:13 min; der Zufallsspieler
+alle 5:14 min. Er gibt bis zum Hain **0,7 %** seiner Samen aus und sitzt beim Hain auf
+**55 min** Produktion, im Urwald auf 90 min. Nach dem letzten Knoten (Zufall: alle 25
+erreichbaren bis zum Urwald) gibt es für ⚖️ nichts mehr zu kaufen.
+
+**Leitlinien**
+
+- **Rollen der Währungen:** 🌰 **Samen = Menge** (Nischen- und Baum-Ausbau, Aussaat, Gäste,
+  Neu würfeln), ⚖️ **Harmonie = Qualität** (Forschung: Abzweigungen, Plätze, Wirkungen; neu ein
+  endloser Knoten je Ast), 🧠 **Gedächtnis = Prestige** (bleibt über den Zyklus). Nichts tauscht
+  die eine Währung in die andere (27.14).
+- **Immer etwas zu kaufen:** Im aktiven Spiel ist alle **20–60 s** etwas Bezahlbares da
+  (Median je Stufe), und die Zielzeile sagt, was und wann.
+- **Aktiv lohnt, abwesend ruht:** Offline wächst der Wald mit 10 %; die Zeit (Jahreszeiten,
+  Wetter, Tag und Nacht, Chronik, Restzeiten) läuft normal.
+- **Kleine Schritte, logarithmische Wirkung:** Ausbau kostet geometrisch (×1,15 je Stufe),
+  wirkt aber linear je Stufe – der Ertrag wächst mit dem Logarithmus der Samen. Kein
+  Multiplikator, der sich selbst füttert (24.1): Ausbau erhöht 🌿 und 🌰, **nie** die Harmonie,
+  das Gedächtnis oder die Hähersaat.
+- **Bekannte Wege für Logik:** Ausbau-Plätze sind Platz-Wirkungen wie die der Forschung
+  (`slotBonuses`), die Wirkung je Tier läuft durch `apply` wie eine Tierwirkung, die
+  wiederholbaren Knoten sind Forschungsknoten mit Rang.
+
+### 28.2 Vorab-Messung (echte Logik, ohne Code-Umbau)
+
+Gemessen auf `main` (Spielstand v17, Phase 10 2a/2b) mit `scripts/simulate.ts` (`runGame`, alle
+Systeme mit Forschung, Eiche, erster Zyklus bis Urwald, **100 Durchgänge** je Strategie, Seeds
+1000 + 7 i, Median; Anteil ausgegeben als Mittel). Über ein temporäres Testskript, nicht
+eingecheckt. „Käufe“ = Aussaaten + Knoten bis zur Stufe.
+
+**Samen heute (Harmonie-Spieler):**
+
+| Stufe | Zeit | 🌰/s | H | 🌰 verdient | Aussaat | Würfeln | Gäste | Bestand | Bestand in min Produktion | Anteil ausgegeben | ⚖️ Vorrat | ⚖️ ausgegeben | Käufe |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Setzling | 0:42 min | 0,67 | 49,7 | 27 | 0 | 0 | 0 | 27 | 0,7 | 0 % | 33 | 0 | 1 |
+| Junger Baum | 3:48 min | 2,16 | 66,5 | 388 | 179 | 0 | 0 | 249 | 1,9 | 42 % | 50 | 180 | 7 |
+| Alter Baum | 19:48 min | 7,76 | 89,8 | 5.153 | 2.312 | 20 | 0 | 1.680 | 4,6 | 61 % | 349 | 1.330 | 14 |
+| Hain | 57:30 min | 20,0 | 116,8 | 38.499 | 31.988 | 25 | 198 | 9.592 | 9,1 | 73 % | 771 | 4.930 | 24 |
+| Wald | 1:38 h | 55,5 | 154,2 | 140.915 | 102.500 | 30 | 4.258 | 35.073 | 10,7 | 75 % | 735 | 10.720 | 33 |
+| Urwald | 2:19 h | 96,2 | 193,5 | 342.428 | 296.620 | 30 | 11.279 | 72.782 | 13,3 | 78 % | – | 16.470 | 38 |
+
+**Wachstums- und Zufallsspieler** (gleiche Spalten, Auszug):
+
+| Stufe | Wachstum: Zeit / 🌰/s / Bestand in min / ausgegeben / Käufe | Zufall: Zeit / 🌰/s / Bestand in min / ausgegeben / Käufe |
+|---|---|---|
+| Alter Baum | 17:24 min / 4,4 / 3,7 / 72 % / 13 | 29:00 min / 7,3 / 21,6 / 0,6 % / 9 |
+| Hain | 49:48 min / 10,7 / 5,4 / 79 % / 20 | 1:29 h / 17,5 / 55,2 / 0,7 % / 17 |
+| Wald | 1:25 h / 29,2 / 9,7 / 76 % / 29 | 2:37 h / 40,9 / 77,0 / 1,4 % / 28 |
+| Urwald | 1:59 h / 56,1 / 13,5 / 74 % / 35 | 3:45 h / 80,7 / 90,5 / 1,6 % / 34 |
+
+- Die **gierigen** Strategien des Simulators säen, sobald eine Pflanze oder ein Tausch verbessern
+  *könnte* – sie geben 73–79 % aus, fast alles für die Aussaat. Der **Zufallsspieler** sät nur
+  selten und sammelt Samen ohne Ziel: genau das Gefühl aus dem Feedback. Ein echter Spieler liegt
+  dazwischen.
+- **Takt heute** (Käufe je Abschnitt): Harmonie bis Hain im Mittel alle 2:24 min, zwischen Altem
+  Baum und Hain alle 3:46 min, zwischen Hain und Wald alle 4:32 min, zwischen Wald und Urwald
+  alle 8:13 min; Zufall bis Hain alle 5:14 min. Das Ziel 20–60 s ist ab dem Jungen Baum um den
+  Faktor 3–10 verfehlt.
+- **⚖️ heute:** Der Vorrat liegt beim Hain und Wald bei ~6 min Produktion (Ziel ≤ 10 erfüllt);
+  der Zufallsspieler hat bis zum Urwald alle 25 erreichbaren Knoten (21.260 ⚖️) – danach
+  wächst der Vorrat ohne Verwendung.
+
+**Offline heute** (`simulateOffline` vom Stand beim Erreichen der Stufe, Harmonie-Spieler, 10
+Durchgänge, Median). Die Spalte „10 %“ ist ein **Näherungswert**: dieselbe Funktion mit einem
+Zehntel der Zeit (gleiche Erträge, aber kürzerer Jahreslauf) – die echte Regel (28.3) ist noch
+nicht gebaut.
+
+| Stand | Pause | 🌰 bei 100 % | 🌰 bei 10 % (≈) | ⚖️ 100 % / 10 % | Wegpunkte 100 % / 10 % | Stufe danach 100 % / 10 % |
+|---|---|---|---|---|---|---|
+| Setzling | 10 min | 571 | 43 | 566 / 57 | 5 / 1 | Junger Baum / Setzling |
+| Setzling | 1 h | 4.317 | 297 | 3.395 / 340 | 12 / 3 | Alter Baum / Junger Baum |
+| Setzling | 8 h | 58.216 | 3.307 | 27.160 / 2.716 | 31 / 10,5 | **Wald** / Alter Baum |
+| Junger Baum | 8 h | 117.430 | 8.173 | 33.782 / 3.373 | 30 / 9 | **Urwald** / Alter Baum |
+| Alter Baum | 1 h | 31.142 | 3.045 | 5.469 / 546 | 8,5 / 1 | Hain / Alter Baum |
+| Alter Baum | 8 h | 301.943 | 24.575 | 43.805 / 4.375 | 24 / 7 | Urwald / Alter Baum |
+| Hain | 10 min | 12.848 | 1.229 | 1.201 / 121 | 2 / 0 | Hain / Hain |
+| Hain | 1 h | 74.742 | 7.819 | 7.194 / 725 | 8 / 1 | Wald / Hain |
+| Hain | 8 h | 686.473 | 59.825 | 57.551 / 5.755 | 16 / 7 | Urwald / Hain |
+| Wald | 8 h | 1.776.985 | 172.571 | 81.556 / 8.174 | 8 / 7 | Urwald / Urwald |
+
+Mit 10 % wird aus einer Nacht im Hain ~60.000 🌰 – heute 1,5 × der ganze Weg bis zum Hain, mit
+10 % ein guter Einkauf für den Ausbau (28.5: etwa +8 Stufen je Nische), aber kein Sprung über
+zwei Stufen.
+
+**Empfindlichkeit** (Harmonie / Wachstum, 100 Durchgänge, Zeit bis Hain und Urwald, H am Hain,
+Gedächtnis-Vorschau am Hain): Stellvertreter für Ausbau-Wirkungen, zur Laufzeit in die Daten
+geschrieben.
+
+| Szenario | Hain H / W | Urwald H / W | Wachstum ÷ Harmonie Hain / Urwald | H Hain H / W | Gedächtnis Hain H / W |
+|---|---|---|---|---|---|
+| heute | 57:30 / 49:48 | 2:19:24 / 1:59:24 | 0,866 / 0,857 | 116,8 / 104,7 | 84 / 62 |
+| jedes Tier +1 % 🌿 und 🌰 (× z) | 54:12 / 46:54 (−5,7 / −5,8 %) | 2:07:18 / 1:50:42 | 0,865 / 0,870 | 116,4 / 106,7 | 84 / 66 |
+| jedes Tier +2 % 🌿 und 🌰 (× z) | 51:12 / 44:54 (−11 / −10 %) | 2:00:06 / 1:44:48 | 0,877 / 0,873 | 116,8 / 105,4 | 84 / 65 |
+| Tierwirkungen ×1,25 (nur 🌿/🌰-Wirkungen) | 54:00 / 45:42 | 2:07:18 / 1:46:42 | **0,846** / 0,838 | 116,0 / 105,7 | 84 / 67 |
+| Tierwirkungen ×1,5 | 49:54 / 42:00 | 1:56:18 / 1:36:12 | **0,842** / 0,827 | 116,3 / 105,8 | 84 / 68 |
+| Hauptbaum 🌿 und 🌰 +10 % | 53:36 / 46:00 (−6,8 / −7,6 %) | 2:10:30 / 1:49:36 | 0,858 / 0,840 | 116,1 / 105,4 | 84 / 65 |
+| Hauptbaum 🌿 und 🌰 +20 % | 50:00 / 43:30 | 2:02:18 / 1:44:18 | 0,870 / 0,853 | 115,6 / 106,8 | 83 / 66 |
+| +1 Platz Wurzelraum, Laubstreu, Waldsaum ab Öffnung | 52:42 / 45:12 (−8 / −9 %) | 2:07:06 / 1:46:42 | 0,858 / 0,839 | **120,3** / 107,6 | 86 / **76** |
+| +1 Platz in allen fünf Stufen-Nischen ab Öffnung | 52:36 / 45:12 | 2:06:36 / 1:46:06 | 0,859 / 0,838 | **120,7** / 107,6 | 86 / **76** |
+
+**Folgerungen für die Zahlen:**
+
+1. **Eine feste Wirkung je Tier** (× Zufriedenheit) beschleunigt beide Spielweisen gleich – das
+   Verhältnis Wachstum ÷ Harmonie bleibt (0,865–0,877). Eine **Verstärkung der Tierwirkungen**
+   bevorzugt dagegen den Wachstums-Spieler (er hält die Tiere mit den großen 🌿-Wirkungen) und
+   drückt das Verhältnis unter 0,85 (15.4). → Nischen-Ausbau als **fester Bonus je Tier** (28.4).
+2. **Plätze verschieben die Harmonie:** Drei Plätze ab Öffnung heben H am Hain um +3,5 und das
+   Gedächtnis des **Wachstums-Spielers** um +14 – der Vorsprung des Harmonie-Spielers schrumpft
+   von 22 auf 10 Punkte. → Der Platz-Meilenstein liegt bei **Stufe 25**, nicht 10 (28.4): Bis
+   zum Hain erreicht ihn höchstens der Wurzelraum.
+3. **Größenordnung:** +1 Prozentpunkt 🌿/🌰 je Tier ab Start ≈ −6 % bis Hain, −9 % bis Urwald;
+   Hauptbaum +10 % ≈ −7 %. Ausbau soll das aktive Spiel um **5–10 %** beschleunigen (28.10) –
+   also zeitgemittelt etwa „+1 % je Tier“ plus „Hauptbaum +5 %“.
+4. Harmonie und Gedächtnis bleiben bei reinen 🌿/🌰-Wirkungen unverändert (H ±0,8, Gedächtnis
+   Harmonie ±1) – die Sperrklinke, Chronik und Landschaft sind davon nicht berührt.
+
+### 28.3 Offline: 10 % Ertrag, volle Zeit
+
+**Regel:**
+
+```
+Abwesenheit a (s), höchstens MAX_OFFLINE_SECONDS = 8 h (wie heute):
+  die ersten OFFLINE_FULL_SECONDS = 60 s     Ertragsfaktor f = 1
+  der Rest                                   Ertragsfaktor f = OFFLINE_YIELD = 0,1
+Ertragsfaktor f wirkt auf:  Wachstum (totalGrowth), Samen-Produktion, Harmonie-Vorrat (Ertrag p/60 · G),
+                            Samen fürs automatische Weiterziehen (10 Samen-Sekunden zur Rate × f)
+Ertragsfaktor f wirkt NICHT auf: cycle.elapsed (Jahreszeiten, Wetter, Tag/Nacht, Jahr),
+                            Restzeiten von Zeit-Boni und Gästen, Chronik-Zeitpunkte,
+                            meta.stats.playSeconds, Tageswechsel
+```
+
+**Was ist „offline“?** Heute ruft `main.ts` `simulateOffline` auf, sobald mehr als
+`MAX_FRAME_SECONDS` (1 s) seit `state.lastTick` vergangen sind – in genau vier Fällen:
+
+| Fall | heute | ab Phase 11 |
+|---|---|---|
+| Spiel geschlossen, später geöffnet (`start` → `catchUp`) | offline, 100 % | offline, 10 % nach 60 s |
+| **Tab im Hintergrund** (`requestAnimationFrame` ruht; `visibilitychange` → `catchUp`) | offline, 100 % | offline, 10 % nach 60 s – „zuschauen“ heißt: Album sichtbar |
+| Ruhezustand / Rechner schlief, Tab sichtbar (`frame` erkennt die Wanduhr-Lücke) | offline, 100 % | offline, 10 % nach 60 s |
+| **Sync** zwischen Geräten (`adopt` → `adoptedLastTick(now − ageMs)` → `catchUp`) | offline, 100 % für die Zeit seit dem Hochladen | offline, 10 % nach 60 s – dieselbe Zeit, in der niemand diesen Stand spielte |
+| Kurzer Ruckler (Frame > 1 s, z. B. Speicherbereinigung, Tab-Wechsel für 20 s) | offline, 100 % | **voll** (unter 60 s) |
+| Fenster sichtbar, aber nicht im Fokus | online (rAF läuft) | online, 100 % – sichtbar zählt als zuschauen |
+| Import eines Codes (`importCode` ohne `keepClock`) | keine Offline-Zeit | unverändert |
+
+- **Warum 60 s voll:** Ein Tab-Wechsel zum Nachschlagen, ein Anruf, ein Ruckler sollen nichts
+  kosten; die Willkommen-Meldung erscheint ohnehin erst ab 60 s (`WELCOME_MIN_SECONDS`). Wer
+  alle 59 s den Tab wechselt, spielt eben – das ist kein Ausnutzen.
+- **Warum Hintergrund = offline:** Der Browser lässt im Hintergrund keine Frames laufen; das Spiel
+  sieht nur die Lücke. Eine Unterscheidung „geschlossen“ / „Hintergrund“ gäbe es nur über
+  Zeitstempel beim Verstecken – und wäre die Einladung, das Spiel in einem Hintergrund-Tab
+  laufen zu lassen. Die Spielfantasie: Der Wald wächst, wenn man hinsieht.
+- **Sync:** `adoptedLastTick` bleibt; der übernommene Stand rechnet die Zeit seit dem Hochladen
+  wie jede Abwesenheit. Wer auf dem Handy spielt und gleich darauf am Rechner übernimmt (Alter
+  < 60 s), verliert nichts.
+- **Determinismus (12.4, 21.5):** `f` ist ein **Faktor auf Erträge, nie auf die Zeit**.
+  `tick(state, dt, ambient, f = 1)` multipliziert die Raten (🌿/s, 🌰/s, ⚖️/s) mit `f` – auch in
+  der Halte-Rechnung (Zeit bis Wegpunkt, Zwischenhalt, Plan-Kauf). Damit gilt weiter: viele kleine
+  Ticks mit `f` = ein großer Tick mit `f`. `simulateOffline(state, s)` = `tick(min(s, 60), Modus, 1)`
+  + Ticks über den Rest mit `f = 0,1`, Modus „Mittel“ ab 180 s Gesamtzeit wie heute. Online ist
+  `f = 1` – alle Golden-Werte bleiben gleich.
+- **Was weiter läuft:** Jahreszeiten und Jahre (`skipYears` exakt wie heute), Mittelwetter, halbe
+  Nachtwirkung, Zeit-Boni und Gäste laufen ab, die Chronik schreibt „Erster Schnee im Urwald“ zur
+  echten Zeit, der Tag wechselt. Die Forschungsplan-Käufe (Phase 10, 4b) laufen mit dem kleineren
+  ⚖️-Ertrag. **Kein Ausbau offline** – Ausbau ist eine Handlung des Spielers.
+- **Stammgäste, Wegpunkte, Begegnungen** offline wie heute, nur seltener (weniger Wachstum).
+- **Tagesziele (20.3):** `growth`, `seeds`, `decide`, `observe`, `harmony` zählen offline schon
+  heute nicht (`offline: false`); `satisfaction` und `community` hängen am Zustand – keine Änderung.
+- **Erfolge und Statistik:** `patience` (10 h Spielzeit) zählt `playSeconds` = Zeit – unverändert,
+  Abwesenheit zählt weiter als Spielzeit (Bäume sind geduldig). `full-year` zählt `cycle.elapsed` –
+  unverändert. `harmonyEarned` und das Gesamt-Wachstum (`completedCyclesGrowth`) zählen, was
+  ankam (10 %). Kein Erfolg zählt Offline-Samen.
+- **Erste Rückkehr nach dem Update:** Die Lücke seit dem letzten Speichern eines v17-Stands wird
+  beim ersten Start schon mit 10 % nachgerechnet – die Regel gilt für jede Nachrechnung ab dem
+  Update; eine Übergangsregel ist nicht nötig (es geht um höchstens 8 h).
+
+**Rückkehr-Bericht** (`catchUpNotice`, Rückkehr-Bericht im Album, ab 60 s):
+
+> **Willkommen zurück!** Du warst 3 Std. 12 Min. fort. Ohne dich ist dein Wald gemächlich
+> weitergewachsen – mit einem Zehntel der Kraft: +1.240 🌿, +860 🌰, +36 ⚖️. Zwei Jahreszeiten
+> zogen vorüber (4 × Regen, 1 × Sturm, Wetter gemittelt). 2 Begegnungen warten auf dich.
+
+- Erste Zeile wie heute (Zeit, ggf. „max. 8 Std.“), neu der Halbsatz „mit einem Zehntel der
+  Kraft“ (ab der ersten Abwesenheit über 60 s; im Kurztext „gemächlich (10 %)“).
+- Einmal je Spielstand (Hinweis-Flag in den Einstellungen, nicht im Spielstand): „Dein Wald
+  wächst am schnellsten, während du zusiehst – im Hintergrund und offline mit 10 %.“
+- Hat sich offline genug für einen Ausbau gesammelt, endet der Bericht mit der Zielzeile
+  („Genug für 6 Ausbaustufen – Nächstes: 🪱 Wurzelraum St. 19 ›“).
+- Spielanleitung, Kapitel „Offline“: ein Absatz mit der Regel.
+
+**Zahlen:** `OFFLINE_YIELD = 0,1`, `OFFLINE_FULL_SECONDS = 60`, beide in `content/` (neue Datei
+`content/offline.ts` oder bei `MAX_OFFLINE_SECONDS`; der Wert ist Inhalt, die Anwendung Logik).
+
+### 28.4 Nischen-Ausbau und Baum-Ausbau (🌰)
+
+**Nischen-Ausbau.** Jede der zehn Nischen hat eine **Ausbaustufe** L ≥ 0 ohne Obergrenze.
+
+```
+Preis der Stufe L → L+1:   ⌈ b_n · 1,15^L ⌉ 🌰            (b_n = Startpreis der Nische)
+Wirkung:                  jedes Tier dieser Nische  +0,1 % 🌿 und +0,1 % 🌰 je Stufe, × seine Zufriedenheit z
+                          (also bei Stufe 25: je Tier +2,5 % · z – wie eine eigene Tierwirkung, Faktor z)
+```
+
+| Nische | öffnet (typisch) | b_n | Preis St. 1 / 10 / 25 / 50 | Summe bis 10 / 25 / 50 |
+|---|---|---|---|---|
+| 🪱 Wurzelraum | Keimling | 10 | 10 / 36 / 287 / 9.424 | 209 / 2.141 / 72.203 |
+| 🍂 Laubstreu, 🌼 Waldsaum | Setzling | 25 | 25 / 88 / 716 / 23.558 | 512 / 5.332 / 180.470 |
+| 🌳 Krone, 🪵 Stamm & Rinde | Junger Baum | 60 | 60 / 212 / 1.718 / 56.539 | 1.222 / 12.779 / 433.087 |
+| 🌾 Waldwiese | Forschung, Junger Baum | 60 | wie Krone | wie Krone |
+| 🕳️ Höhlen & Totholz, 🪵 Totholzhaufen, 🪷 Waldtümpel | Alter Baum (Stufe oder Forschung) | 250 | 250 / 880 / 7.157 / 235.578 | 5.081 / 53.211 / 1.804.452 |
+| 🪨 Trockenmauer | Forschung, Hain | 600 | 600 / 2.111 / 17.176 / 565.387 | 12.186 / 127.687 / 4.330.655 |
+
+- **Startpreis = etwa 30 s Samen** der Stufe, in der die Nische typisch öffnet (Keimling
+  ~0,3 🌰/s, Setzling 0,67, Junger Baum 2,2, Alter Baum 7,8, Hain 20 – 28.2). Der Startpreis hängt an der Nische,
+  nicht am Zeitpunkt: Wer den Tümpel früh erforscht, zahlt trotzdem 250.
+- **Faktor 1,15** (Cookie Clicker): Zehn Stufen kosten das 4-Fache, 25 Stufen das 33-Fache.
+  Mit `k` = 1,15 und `N` offenen Ausbau-Zielen liegt die Zeit zwischen zwei Käufen bei
+  ungefähr **(k − 1) · τ / N**, τ = Zeit, in der sich die Samenrate um den Faktor e hebt
+  (gemessen ~40 min zwischen Altem Baum und Wald) – unabhängig vom Startpreis. Bei 9 Nischen
+  und 3 Baumteilen: 0,15 · 40 min / 12 ≈ 30 s (28.5).
+- **Fester Bonus je Tier statt „Tierwirkung × (1 + x)“:** gemessen in 28.2 – er hält den Abstand
+  der Spielweisen und gibt auch Tieren ohne 🌿/🌰-Wirkung (Räuber, Zersetzer, Harmonie-Tiere)
+  einen Grund, in einer ausgebauten Nische zu leben. Er skaliert mit z, damit Harmonie
+  (zufriedene Tiere) weiter zählt.
+- **Nur 🌿 und 🌰.** Keine Harmonie, kein Licht, kein Wasser, keine Zufriedenheit: H_max, die
+  Sperrklinke, das Gedächtnis und alle Schwellen bleiben gleich (28.2, Folgerung 4).
+- **Gesperrte Nischen:** Ausbauen geht nur, solange die Nische ohne Ausbau-Platz mindestens
+  einen Platz hat (`nicheSlots` ohne die Ausbau-Plätze). Blocker `'closed'`. Schließt sich eine
+  Nische wieder (Höhlen ohne Borkenkäfer vor dem Alten Baum), bleibt die Stufe, ruht aber –
+  ihr Ausbau-Platz zählt nicht, die Tiere sind ohnehin fort.
+- **Kauf:** Aktion `upgradeNiche(state, niche, count = 1)` kauft bis zu `count` Stufen,
+  solange die Samen reichen (Rückgabe: gekaufte Stufen, ausgegebene Samen, neue Meilensteine);
+  `upgradeBlocker(state, target)` (`'closed' | 'too-expensive' | 'unknown'`),
+  `upgradeCost(state, target, count = 1)`. Kein Verkaufen, keine Rückerstattung.
+
+**Meilensteine je Nische**
+
+| Stufe | Name | Wirkung | Begründung |
+|---|---|---|---|
+| 10 | „Eingelebt“ | Arten dieser Nische ziehen **innerhalb ihrer Seltenheit** mit Gewicht ×1,5 (multipliziert mit Tagebuch ×2 und Waldtyp-Gattung, `drawAnimals`) | Wer ausbaut, sieht seine Nische öfter in den Karten – ohne Seltenheitsgewichte (7.3) zu ändern. Erreicht (Modell 28.5): Wurzelraum ~12 min, Laubstreu/Waldsaum ~25 min, Krone/Stamm ~45 min |
+| 25 | „Gut bewohnt“ | **+1 Platz** in dieser Nische | Platz-Wirkung wie Forschung (`slotBonuses`). Nicht bei 10: drei Plätze ab Öffnung heben H am Hain +3,5 und das Gedächtnis des Wachstums-Spielers +14 (28.2). Bei 25: bis zum Hain ~1 Platz (Wurzelraum), bis Wald ~3, bis Urwald ~6 |
+| 50 | „Prachtnische“ | Seltene, besondere und legendäre Arten dieser Nische **zusätzlich** ×2 (zusammen ×3); Abzeichen Silber | Spätziel über einen Zyklus hinaus (Wurzelraum 50 = 72.000 🌰 – im ersten Urwald möglich, wenn man sich festlegt) |
+| 25 / 50 / 75 | Abzeichen | Bronze / Silber / Gold am Nischen-Etikett und im Tagebuch; **bleiben** über den Zyklus (`meta.upgrades.best`) | Sammelziel ohne Wirkung – das Album erinnert, was man erreicht hat |
+
+**Verträglichkeit mit vorhandenen Platz-Wirkungen:** Der Ausbau-Platz ist ein `SlotBonus` neben
+Forschung (`cycleSlotBonuses`), Ereignissen, Eigenheiten von Baumart und Standort (`slotBonuses`)
+und Tieren (`slotEffects`, z. B. Buntspecht +1 Höhlen). Alle addieren sich; **einzige
+Sonderregel:** Ausbau-Plätze öffnen keine Nische (auch nicht bei `opensEarly`) – sie zählen erst,
+wenn die Summe der übrigen Quellen ≥ 1 ist. Damit bleiben alle Stellen, die Plätze lesen
+(`drawAnimals`, Stammgäste, `forced`, `nicheOverflow`, Laden), über einen Helfer richtig. Die
+Ausbau-Plätze gehen nie verloren (Stufen sinken im Zyklus nicht) – ein Überlauf kann nur
+entstehen, wenn sich die Nische schließt, und dafür gibt es die Regel heute schon.
+
+**Baum-Ausbau** – die zweite, immer billige Senke, drei Teile des Hauptbaums (Startpreis je
+15 🌰, Faktor 1,15, kein Sperrgrund ab Keimling):
+
+| Teil | ID | Wirkung je Stufe | Meilenstein 25 | Text |
+|---|---|---|---|---|
+| 🪵 Jahresringe | `rings` | Hauptbaum +0,4 % 🌿 (nur `tree` in 2.1, nicht die Begleitpflanzen) | +1 Platz 🕳️ Höhlen & Totholz (öffnet nichts, s. o.) | „Jedes Jahr ein Ring mehr – alte Stämme bekommen Höhlen.“ |
+| 🍃 Blattwerk | `leaves` | Hauptbaum +1 % 🌰 (`treeSeeds`) | +1 Platz 🌳 Krone | „Mehr Blätter, mehr Zucker – und im Herbst mehr Eicheln.“ |
+| 🍄 Pilzgeflecht | `mycorrhiza` | Begleitpflanzen +0,5 % 🌿 und 🌰 (vor der Versorgung V) | +1 💧 | „Feine Pilzfäden verbinden die Wurzeln – der Baum teilt mit seinen Nachbarn.“ |
+
+- Alle 10 Stufen eine **sichtbare Veränderung** im Bild (Renderer, 28.9): Stamm ein Stück dicker,
+  Krone voller, am Stammfuß mehr Pilzhüte. Stufe 50 / 75: Abzeichen wie bei den Nischen.
+- Warum der Hauptbaum nur +0,4 % 🌿: Er liefert am Hain ~70 % des Wachstums (16 von ~23 🌿/s
+  vor den Faktoren); „Hauptbaum +10 %“ macht schon −7 % bis zum Hain (28.2).
+- Name „Jahresringe“/„Blattwerk“ statt „Stamm“/„Krone“, damit sie nicht mit den Nischen Stamm &
+  Rinde und Krone verwechselt werden.
+- Aktion `upgradeTree(state, part, count = 1)`, gleiche Blocker und Rückgaben.
+
+**Wirkung in `evaluate` (für den `core-engineer`):**
+
+```
+je Tier a in Nische n:      apply({ growth: 0,1 · L_n }, z_a); apply({ seeds: 0,1 · L_n }, z_a)
+Hauptbaum:                  tree      = treeGrowth · (1 + groupGrowth.trees + 0,004 · L_rings)
+                            treeSeeds = treeSeeds  · (1 + groupSeeds.trees + 0,01  · L_leaves)
+Begleitpflanzen:            companionGrowth, companionSeeds  · (1 + 0,005 · L_mycorrhiza)
+Plätze, Licht, Wasser:      über slotBonuses / environment wie Forschung, nur ab Meilenstein
+```
+
+Beispiel (Hain, typischer Stand nach 28.5): Wurzelraum 25 mit Regenwurm (z 0,95), Maulwurf
+(0,80), Steinpilz (0,90): je +2,4 / +2,0 / +2,25 % → zusammen +6,6 % 🌿 und 🌰 aus einer Nische.
+
+**Neuer Zyklus: Ausbau beginnt neu** (wie Forschung, Aussaat und Samen):
+
+- **Warum zurücksetzen:** (1) Bleibende Stufen wären eine zweite Prestige-Ebene mit Multiplikator
+  (24.1) – Zyklus 2 begänne mit +25 % auf allen Tieren, der gemessene Abstand Zyklus 2 (−20 bis
+  −35 % bis zum Hain, 15.4) und die Landschaft (24.10) kippten. (2) **Jeder Zyklus beginnt mit
+  einem Kaufrausch:** die ersten Stufen kosten 10–30 🌰 – genau das, was den Anfang eines
+  Incremental Games trägt. (3) Das Gedächtnis hebt die Samen (×1,84 bei 84 Punkten, ×11 bei
+  1000), also erreicht jeder Zyklus **höhere** Stufen – der Fortschritt über die Zyklen ist
+  sichtbar („Zyklus 3: Wurzelraum 48“), ohne selbst ein Multiplikator zu sein (logarithmisch:
+  ×11 Samen ≈ +17 Stufen).
+- **Bleibt:** die höchste je erreichte Stufe je Nische und Baumteil (`meta.upgrades.best`) für
+  Abzeichen, Tagebuch und Erfolge.
+
+### 28.5 Wirtschaftsmodell: Stufen und Takt
+
+Grobes Modell (Skript im Scratchpad, nicht eingecheckt): Samenrate aus 28.2 (Median, zwischen den
+Stufen exponentiell), Anteil `s` der Einnahmen geht in den Ausbau, Kauf immer der billigsten
+Stufe; Öffnung der Nischen wie typisch (Waldwiese ~12 min, Höhlen ~20 min, Totholzhaufen
+~25 min, Tümpel ~35 min, Mauer ~65 min). Ohne Rückkopplung (Ausbau hebt die Rate nicht) – die
+Stufen sind darum eher zu niedrig geschätzt.
+
+| beim Erreichen | Wurzelraum | Laubstreu / Saum | Krone / Stamm | Wiese | Höhlen / Totholz / Tümpel | Mauer | Baumteile je |
+|---|---|---|---|---|---|---|---|
+| Junger Baum (3:48) | 4 | 0 | 0 | – | – | – | 2 |
+| Alter Baum (19:48) | 14 | 8 | 2 | 2 | 0 | – | 11–12 |
+| Hain (57:30) | 25 | 19 | 13 | 12 | 2 | – | 22 |
+| Wald (1:38 h) | 32 | 26 | 20 | 20 | 9 | 3 | 30 |
+| Urwald (2:19 h) | 39 | 32 | 26 | 26 | 15 | 9 | 36 |
+
+| Takt (Zeit zwischen zwei Ausbau-Käufen) | Keimling–Junger Baum | Junger–Alter Baum | Alter Baum–Hain | Hain–Wald | Wald–Urwald |
+|---|---|---|---|---|---|
+| Harmonie, s = 60 % | 21 s | 16 s | 22 s | 27 s | 31 s |
+| Harmonie, s = 40 % | 27 s | 20 s | 25 s | 29 s | 32 s |
+| Zufall (Rate aus 28.2), s = 90 % | 15 s | 15 s | 24 s | 35 s | 42 s |
+| **heute (Harmonie, alle Käufe, 28.2)** | 33 s | 2:17 min | 3:46 min | 4:32 min | 8:13 min |
+
+- Die Stufen hängen kaum am Anteil `s` (Logarithmus): Ob der Spieler 40 oder 60 % in den Ausbau
+  steckt, ändert den Wurzelraum am Hain um 2 Stufen.
+- Der Takt liegt mit **15–42 s** im Ziel 20–60 s (früh etwas schneller – gewollt, 3).
+- **Wirkung am Hain** (Modell): Mittel ~19 Stufen je Tier-Nische → je Tier ~+1,9 % · z; über die
+  Zeit bis zum Hain gemittelt etwa die Hälfte ≈ Szenario „+1 % je Tier“ (−6 %). Jahresringe 22 →
+  Hauptbaum +8,8 % (gemittelt ~+4 % ≈ −3 %), Pilzgeflecht +11 % auf Begleitpflanzen (~−1 %).
+  **Erwartet zusammen −8 bis −11 % bis zum Hain**, Ziel −5 bis −10 % (28.10) – Stellschraube 1
+  zuerst bei den Jahresringen.
+- **Eine Nacht offline mit 10 %** (Hain, ~60.000 🌰) kauft im Modell etwa +8 Stufen je offener
+  Nische – ein spürbarer Einkauf nach der Rückkehr, kein Stufensprung.
+
+### 28.6 Forschung: ein endloser Knoten je Ast (⚖️)
+
+Jeder der sechs Äste endet in einem **wiederholbaren Knoten** mit Rang r ≥ 0 ohne Obergrenze.
+Der Rest des Baums bleibt qualitativ (einmalige Knoten, Gabeln, 27.7).
+
+```
+Kosten von Rang r → r+1:   ⌈ 1.500 · 1,3^r ⌉ ⚖️   (1.500, 1.950, 2.536, 3.296, 4.285, 5.570, 7.241, 9.413 …)
+Wirkung:                   klein, je Rang gleich, nur 🌿/🌰 von Pflanzengruppen oder dem Hauptbaum
+Ebene:                     ab Hain; braucht den Gabel-Knoten seines Asts (einer der beiden Wege)
+```
+
+| Ast | ID | Name | braucht (einer davon) | Wirkung je Rang | Text |
+|---|---|---|---|---|---|
+| 🪱 Boden | `soil-life` | Bodenleben fördern | Käferburg, Pilzgarten | Bäume +1 % 🌿 (auch Hauptbaum) | „Wo Asseln, Würmer und Pilze arbeiten, wird jedes Blatt wieder zu Erde.“ |
+| 💧 Wasser | `wet-care` | Feuchte halten | Tümpel vertiefen, Quellbach | Moose & Farne +4 % 🌿 und 🌰 | „Ein Graben weniger, ein nasser Fleck mehr – das Moos wächst wieder.“ |
+| 🌳 Krone | `old-branches` | Altäste stehen lassen | Lichte Krone II, Dichte Krone II | Bäume +1 % 🌰 (auch Hauptbaum) | „Totes Holz in der Krone ist Lebensraum – niemand sägt es ab.“ |
+| 🌼 Saum | `hem-abundance` | Blütenfülle | Blütenvorrat, Wildbienenwand | Blumen +2 % 🌰 | „Jedes Jahr ein paar neue Arten am Saum – die Wildbienen finden sie.“ |
+| 🌾 Offenland | `meadow-care` | Wiese pflegen | Spätmahd, Trockenmauer | Blumen +2 % 🌿 | „Gemäht wird mit der Sense, das Heu bleibt liegen, bis es aussamt.“ |
+| 🌱 Saat | `seed-refine` | Saatgut veredeln | Benjeshecke | Sträucher +2 % 🌰 | „Nur die Samen der kräftigsten Sträucher kommen in die Tüte.“ |
+
+- **Warum ⚖️ und nicht 🌰:** Harmonie ist die Qualitätswährung; heute gibt es nach dem letzten
+  Knoten nichts mehr zu erforschen (Zufall: alle 21.260 ⚖️ bis zum Urwald, 28.2), und späte Zyklen
+  mit Gedächtnisfaktor G (×2–11) häufen ⚖️ ohne Verwendung.
+- **Warum ab Hain und hinter der Gabel:** Vor dem Hain reicht die Harmonie nicht einmal für den
+  qualitativen Baum (27.7); die Gabel ist die Entscheidung des Asts, der endlose Knoten setzt sie
+  fort. Er steht in der Ansicht unter der Wald-Ebene als eigene Zeile „∞“.
+- **Warum 1.500 · 1,3^r:** Im Urwald-Abschnitt fließen beim Harmonie-Spieler ~7.600 ⚖️ zu (40 min
+  · 190/min, G = 1) – etwa vier Ränge über alle Äste, so viel wie heute ein Wald-Knoten
+  (2.000–2.500). Steiler als der Ausbau (1,15), weil ⚖️ nicht exponentiell wächst (27.7, „Budget
+  der Stufe“). Wirkung je Rang ≈ ein Zehntel eines Gabel-Knotens; über einen Zyklus ein paar
+  Prozent – „Qualität“, nicht Tempo.
+- **Nie auf die Harmonie** (27.3): kein Rang erhöht H, ⚖️-Ertrag oder Plätze.
+- **Forschungsplan** (Phase 10, 4b): Der Plan merkt sich jeden Rang als eigenen Eintrag
+  (`plan: ['compost', …, 'soil-life', 'soil-life']`); „Plan folgen“ kauft sie in derselben
+  Reihenfolge. Neuer Zyklus: Ränge beginnen bei 0 (wie Knoten, 27.8).
+- **Aktionen:** `research(state, id)` kauft bei wiederholbaren Knoten den nächsten Rang
+  (Blocker `'owned'` entfällt für sie); `researchCost(state, id)`; Daten: `repeatable: { base:
+  1500, growth: 1.3 }` am Knoten, Wirkung je Rang als normale `ResearchEffect`-Liste, die
+  `researchEffects` mit dem Rang multipliziert.
+
+### 28.7 Zielzeile: immer das nächste lohnende Ziel
+
+**Text:** „Nächstes: 🌳 Krone St. 14 · 1,2k 🌰 · in 0:50“ – ist es bezahlbar: „Jetzt: 🌳 Krone
+St. 14 · 1,2k 🌰 ›“ (hervorgehoben). Meilenstein: „Nächstes: 🪱 Wurzelraum St. 25 (+1 Platz) ·
+2,9k 🌰 · in 1:40“. Tippen springt zum Ziel (R:Nischen, Eintrag aufleuchten).
+
+**Auswahlregel** (`nextGoal(state)` in `core/formulas.ts`, rein, ohne Zufall):
+
+1. **Kandidaten:** der nächste Ausbau jeder Nische ohne Sperrgrund, die drei Baumteile, und
+   „🌱 Säen“, wenn ein Pflanzplatz frei ist (kein Tausch, keine Gäste, kein Würfeln).
+2. **Meilenstein zuerst:** Ist ein Kandidat genau eine Stufe vor einem Meilenstein (10, 25, 50)
+   und in ≤ 120 s bezahlbar, gewinnt er (bei mehreren der billigste).
+3. **Sonst der billigste Kandidat** (Preis in 🌰). Gleichstand: Säen, dann Nischen in
+   `NICHE_IDS`-Reihenfolge, dann Baumteile.
+4. **Zeit:** `max(0, Preis − Samen) / 🌰/s` aus `evaluate` (live), angezeigt auf 5 s gerundet
+   („in 0:50“), ab 1 h „in über 1 Std.“, bei Rate 0 ohne Zeit.
+5. **Stabil:** Neu gewählt wird nur nach einem Kauf, beim Öffnen einer Nische, Stufenwechsel oder
+   Laden – nicht jeden Frame (sonst springt das Ziel, wenn die Rate schwankt). Dazwischen läuft
+   nur die Zeit herunter.
+6. **⚖️ daneben:** Ist ein Forschungsknoten bezahlbar, hängt die Zeile „· 🔍 2 erforschbar ›“ an
+   (Sprung zu R:Forschung). Keine eigene ⚖️-Zielwahl – die Forschung ist eine Entscheidung,
+   kein Countdown.
+
+**Warum „billigster“ statt „bester Wert“:** Ein Wert-Vergleich (🌿-Gewinn je 🌰) hängt an der
+Strategie und würde den Spieler zu einer Rechenaufgabe erziehen; „billigster“ ist im
+Incremental-Genre die Erwartung (nächster Klick), Meilensteine geben die Richtung. Wer anders
+will, kauft anders – die Zeile folgt ihm (Regel 5).
+
+### 28.8 Spielstand v18
+
+```ts
+type TreePartId = 'rings' | 'leaves' | 'mycorrhiza';
+
+interface CycleState {
+  // … wie v17
+  /** Ausbaustufen dieses Zyklus (28.4); fehlende Nische/Teil = 0. */
+  upgrades: { niches: Partial<Record<NicheId, number>>; tree: Partial<Record<TreePartId, number>> };
+  /** Ränge der wiederholbaren Forschungsknoten (28.6), ID → Rang ≥ 1. */
+  researchRanks: Record<string, number>;
+}
+
+interface Meta {
+  // … wie v17
+  /** Höchste je erreichte Ausbaustufe (Abzeichen 25/50/75), bleibt über den Zyklus. */
+  upgrades: { best: { niches: Partial<Record<NicheId, number>>; tree: Partial<Record<TreePartId, number>> } };
+}
+
+interface LifetimeStats {
+  // … wie v17
+  /** Gekaufte Ausbaustufen aller Zyklen (Nischen und Baum). */
+  upgradesBought: number;
+  /** Für Ausbau ausgegebene Samen aller Zyklen. */
+  upgradeSeeds: number;
+}
+```
+
+- **Migration v17 → v18:** `upgrades` leer (alle 0), `researchRanks` = {}, `meta.upgrades.best`
+  leer, Statistik 0. Die Samen des Stands **bleiben** – wer mit vielen Samen aus der Zeit von
+  100 % offline kommt, hat einen großen ersten Einkauf (Logarithmus: 1 Mio. 🌰 ≈ Wurzelraum 55);
+  kein Kürzen, niemand verliert etwas. Der Plan (`meta.research.plan`) bleibt.
+- **Robustes Laden ab v18:** Stufen und Ränge ganzzahlig, 0 … `MAX_UPGRADE_LEVEL` = 1.000 bzw.
+  `MAX_RESEARCH_RANK` = 200, sonst 0; unbekannte Nischen, Teile und Knoten-IDs fallen weg; Ränge nur
+  für wiederholbare Knoten, deren Voraussetzung in `cycle.research` steht (sonst 0); `best` ≥ der
+  Stufe im Zyklus (nachziehen); eine Stufe in einer gerade geschlossenen Nische bleibt (sie ruht).
+  Statistik endlich, ≥ 0.
+- **Versionsprüfung (25.5):** Ein v17-Spiel würde Ausbau und Ränge beim Laden verwerfen und über
+  die Synchronisierung den Zyklus verlieren – darum **v18**: `newer` beim Import, `outdated-client`
+  (422) beim Sync (KONTO.md, Server unverändert: er vergleicht nur `schema`). Größe: + < 1 KB.
+- **Neuer Zyklus:** `upgrades` und `researchRanks` leer; `meta.upgrades.best` bleibt; der Plan
+  schreibt Ränge mit.
+- **Cache-Schlüssel von `evaluate`:** enthält die Ausbaustufen (wie die Forschung).
+- **Tests (Vorschlag):** jede Version v2 … v17 lädt; v17 → v18 ohne Verlust (Samen, Forschung,
+  Plan); kaputte Werte (NaN, negativ, 1e9, Text) → 0 bzw. Grenze; Ausbau-Platz öffnet keine
+  geschlossene Nische (Tümpel, Höhlen vor dem Alten Baum); Platz-Summe mit Forschung, Eigenheit
+  und Tier; Preis- und Summenformel; `count` kauft nur, was bezahlbar ist; Meilensteine einmal;
+  `nextGoal` (Meilenstein-Regel, Gleichstand, Rate 0); online = offline mit `f` (viele kleine
+  Ticks = ein großer, je `f`); `simulateOffline` 30 s = voll, 2 h = 60 s voll + Rest × 0,1;
+  Jahreszeit nach 2 h offline gleich wie heute; Golden-Werte online unverändert.
+
+### 28.9 Darstellung (Skizze für `ui-dev` und `renderer`)
+
+**R:Nischen, mobil 390 px** (Ausbau sitzt dort, wo die Tiere sind):
+
+```
+┌ R:Nischen ───────────────────────────── ×1 · ×10 · Max ┐   Kaufmenge (gilt für alle Knöpfe)
+│ 🌳 Dein Baum                                            │   neuer Abschnitt ganz oben
+│  🪵 Jahresringe   St. 22  Baum +8,8 % 🌿   [ 82 🌰 ]   │   Zeile 48 px, Knopf ≥ 44 × 96 px
+│  🍃 Blattwerk     St. 21  Baum +21 % 🌰    [ 71 🌰 ]   │
+│  🍄 Pilzgeflecht  St. 22  Pflanzen +11 %   [ 82 🌰 ]   │
+│  ▸ nächster Meilenstein: Jahresringe 25 · +1 Höhle      │
+├─────────────────────────────────────────────────────────┤
+│ 🪱 Wurzelraum  2/3 Plätze                ⭑ Bronze       │   Kopf wie heute (+ Abzeichen)
+│ [Sticker] [Sticker] [frei]                              │   Stickerreihe wie heute
+│ St. 24 ▰▰▰▰▰▰▰▰▱ 25: +1 Platz   je Tier +2,4 %  [ 268 🌰 ] │   Fußzeile der Nische, 44 px
+├─────────────────────────────────────────────────────────┤
+│ 🪷 Waldtümpel  verschlossen                             │
+│ öffnet mit Forschung „Waldtümpel“ ›                     │   kein Knopf (Blocker 'closed')
+└─────────────────────────────────────────────────────────┘
+```
+
+- **Fußzeile je Nische:** links Stufe und ein schmaler Balken bis zum nächsten Meilenstein mit
+  dessen Wirkung („25: +1 Platz“), Mitte die Wirkung je Tier („je Tier +2,4 %“, Tipp → H mit
+  🌿/🌰 der Nische gesamt), rechts der Knopf mit Preis (bei ×10/Max: „+10 · 4,1k 🌰“ bzw.
+  „+7 · Max“). Zu teuer: Knopf blass mit „in 0:40“. Bei 360 px bricht die Wirkung unter die Stufe.
+- **Kaufmenge** ×1 / ×10 / Max oben rechts im Reiter, gemerkt in den Einstellungen (nicht im
+  Spielstand). Kauf: Aufleuchten der Zeile, schwebender Text „+1 Stufe“, Meilenstein mit
+  Stempel („Eingelebt!“, „Gut bewohnt – +1 Platz“) und Einkleben eines leeren Platzes.
+  Doppelklick-Schutz wie bei der Forschung; die Liste sortiert **nicht** um.
+- **„🌳 Dein Baum“ oben** in R:Nischen, weil der Baum die Mitte der Nischen ist und kein neuer
+  Reiter Platz in der Leiste kostet. Desktop (≥ 900 px): drei Baumteile nebeneinander als Karten.
+- **Tagebuch / Album:** Abzeichen am Nischen-Etikett (Bronze/Silber/Gold) und eine Zeile
+  „Höchste Ausbaustufen“ in der Statistik.
+
+**Zielzeile:** im Polaroid-Kopf (P) als eigene Zeile direkt unter dem Etikett „Samen“ (Desktop)
+bzw. unter der Stufenleiste neben dem Fortschrittshinweis (#23, mobil; bei < 380 px statt seiner,
+wenn keine Begegnung wartet). Immer sichtbar, Caveat klein, Tippen springt; `aria-live="polite"`
+nur bei Zielwechsel, nicht beim Countdown.
+
+**R:Forschung:** unter der Wald-Ebene eine Zeile „∞ immer weiter“ mit sechs Karten (je Ast),
+Rang als Zahl im Stempel („Rang 3“), Knopf „Erforschen · 3.296 ⚖️“; gesperrt mit „braucht
+Käferburg oder Pilzgarten“. Teil von Phase 10, 4a (zusammengelegt, ROADMAP).
+
+**Renderer:** Baum-Ausbau sichtbar – alle 10 Stufen Jahresringe: Stamm etwas breiter (+3 %
+Stammbreite je Schritt, höchstens +30 %), Blattwerk: Kronenvolumen +4 % je Schritt (höchstens
++40 %), Pilzgeflecht: 1 Pilzhut mehr am Stammfuß je Schritt (höchstens 6). Nischen 25/50: ein
+kleines Detail an der Nische (Wurzelraum: mehr Wurmgänge; Krone: Nistkasten; Saum: Blütenpunkte).
+Eingabe in die Szene: `scene.upgrades` (Schritte, nicht Stufen – ändert sich selten); gezeichnet
+in den vorhandenen Offscreen-Caches des Baums, neu nur beim Schrittwechsel. Liest weiter nur
+Szene-Daten, ändert nie den Spielstand.
+
+### 28.10 Ziele der Messung (Phase 11, 3a – zusammen mit Phase 10, 3a/3b)
+
+| Kennzahl (erster Zyklus, 500 Durchgänge, aktives Spiel) | heute (28.2) | Ziel |
+|---|---|---|
+| Hain Harmonie / Wachstum / Zufall | 57:30 / 49:48 / 1:29 h | 50–58 min / ≥ 0,85 × Harmonie / ≤ 1:40 h |
+| Urwald Harmonie | 2:19 h | 2:00–2:13 h (−5 bis −14 %) |
+| Wachstum ÷ Harmonie (Hain, Urwald) | 0,866 / 0,857 | ≥ 0,85 |
+| H am Hain (Harmonie) | 116,8 | ±3 (27.11, sonst Gedächtnis-Schwellen T) |
+| H am Wald / Urwald | 154 / 194 | ±5 (Platz-Meilensteine ab 25) |
+| Gedächtnis-Vorsprung Harmonie − Wachstum, Hain | 22 | ≥ 15 |
+| Takt: Median der Zeit zwischen zwei 🌰-Käufen je Stufe (Harmonie / Zufall) | 0:33–8:13 min (Mittel je Abschnitt) | **20–60 s**, längste Pause bis Hain ≤ 2 min |
+| Anteil der verdienten Samen ausgegeben bis Hain und bis Urwald (alle Strategien) | Hain 73 % (H) / 0,7 % (Z) | ≥ 85 % |
+| Samenbestand beim Erreichen einer Stufe | 9,1 / 55 min (H / Z) | ≤ 5 min Produktion |
+| ⚖️-Vorrat beim Hain / Urwald | 6,6 min / – | ≤ 10 min / ≤ 15 min |
+| Zyklus 2 bis Hain gegenüber Zyklus 1 | −28 % (27.11) | −20 bis −35 % |
+| Landschaft vollständig (24.10) | 14,2 / 13,3 h | 12,5–14,5 h, Abstand ≤ 10 % |
+| 8 h offline am Hain (Harmonie) | +16 Wegpunkte, Urwald | ≤ 8 Wegpunkte, ≤ 1 Stufe |
+
+**Simulator (3a):** Ausbau-Strategie „billigste Stufe zuerst“ (wie die Zielzeile) mit
+Meilenstein-Regel, Anteil gegen die Aussaat: Säen bleibt Vorrang, wenn die Strategie heute säen
+würde; der Zufallsspieler kauft zufällig unter den bezahlbaren Ausbau-Zielen. Zusätzlich ein
+**Sitzungsprofil** für die Landschaft: 30 min aktiv, 8 h offline (`simulateOffline` mit 10 %) –
+für die Frage „wie fühlt sich ein Tag an“.
+
+**Stellschrauben, in dieser Reihenfolge:**
+
+1. **Tempo:** Jahresringe 0,4 → 0,2–0,6 % je Stufe, dann Nischen-Bonus 0,1 → 0,05–0,15 % je
+   Stufe und Tier.
+2. **Takt / Senke:** Faktor 1,15 → 1,12–1,2, dann Startpreise b_n (alle mit einem Faktor).
+3. **Harmonie:** Platz-Meilenstein 25 → 30; sonst Gedächtnis-Schwellen T Wald/Urwald heben
+   (27.11, Stellschraube 1 dort).
+4. **⚖️:** Kosten der endlosen Knoten 1.500 → 1.000–2.500, Faktor 1,3 → 1,25–1,4.
+
+Nicht verstellt werden: Wegpunkt-Kurve (3), Formeln von Harmonie (9.1), Bonus (27.4) und
+Gedächtnis (10), `OFFLINE_YIELD` (Entscheidung des Spielers).
+
+### 28.11 Später, optional: Stufen-Tore und Aufträge der Tiere (Skizze, eigene Welle)
+
+Nicht Teil der ersten Umsetzung; erst nach dem Playtest 5b, wenn sich das Spiel trotz Ausbau
+noch „ziellos“ anfühlt.
+
+- **Stufen-Tore:** Eine Stufe öffnet erst, wenn eine Ausbau-Bedingung erfüllt ist – Beispiel
+  Hain: „3 Nischen auf Stufe 5“, Wald: „5 Nischen auf 15“, Urwald: „Jahresringe 30“. Bis dahin
+  sammelt sich das Wachstum (nichts geht verloren); die Stufenleiste zeigt ein Schloss mit der
+  Bedingung, die Zielzeile nennt sie. Offen: Was passiert offline vor einem Tor (Wachstum
+  sammelt, Wegpunkte warten – Determinismus bleibt); Gefahr: Ein Tor ist eine Pflicht, keine
+  Wahl – darum niedrige Schwellen, die der Ausbau ohnehin erreicht (Modell: Hain ~3 Nischen ≥ 12).
+- **Aufträge der Tiere:** Ein Tier im Ökosystem bittet um etwas („Die Rötelmaus wünscht sich
+  den Wurzelraum auf Stufe 15“, „Der Buntspecht möchte Jahresringe 20“). Erfüllt: +10 %
+  Zufriedenheit für dieses Tier bis zum Neuen Zyklus oder 60 Samen-Sekunden. Höchstens ein
+  Auftrag offen, neuer nach Erfüllung oder 10 min. Lenkt den Ausbau ohne Rechenaufgabe und
+  erzählt vom Ökosystem. Braucht ein Feld im Zyklus (v19) und Texte je Gattung.
+
+### 28.12 Risiken und offene Fragen
+
+| Risiko / Frage | Einschätzung | Umgang |
+|---|---|---|
+| Ausbau macht das aktive Spiel zu schnell | wahrscheinlich −8 bis −11 % (Modell) | Ziel −5 bis −10 %, Stellschraube 1 (28.10) |
+| Platz-Meilensteine heben H und das Gedächtnis des Wachstums-Spielers | sicher ab Wald | Meilenstein bei 25 (nicht 10); 3a misst H Wald/Urwald; sonst 30 oder T heben |
+| Klick-Pflicht alle 20–40 s über zwei Stunden | mittel | Kaufmenge ×10/Max, Zielzeile; später optional „Ausbau-Plan“ wie der Forschungsplan (nicht in Phase 11) |
+| 10 % offline fühlt sich als Strafe an | mittel | 60 s voll, ehrlicher Rückkehr-Text, die Nacht reicht für einen großen Einkauf (28.5) |
+| Hintergrund-Tab gilt als offline – Spieler, die den Tab offen lassen, sind enttäuscht | mittel | Hinweis einmal im Rückkehr-Bericht; Spielanleitung. Kein „im Hintergrund weiterrechnen“ (Browser drosseln ohnehin) |
+| Migration mit sehr vielen Samen (100 % offline) kauft sofort Silber-Abzeichen | sicher bei Altständen | einmalig, kosmetisch; kein Kürzen (niemand verliert etwas) |
+| Aussaat verliert gegen Ausbau | möglich | 3a misst Aussaaten bis Hain (Ziel 27.11: 8–15); sonst `SOWING_GROWTH` senken |
+| Zwei Senken + Forschung überfordern Einsteiger | gering | Ausbau erst ab Keimling, Zielzeile ab der ersten Stufe, Spielanleitung „Ausbau“ |
+| Stufen-Tore / Aufträge | offen | 28.11, nach Playtest |
+
+### 28.13 Bewusst nicht in Phase 11
+
+- **Bleibender Ausbau** über den Zyklus (zweite Prestige-Ebene, 24.1) – nur Abzeichen bleiben.
+- **Ausbau mit ⚖️** oder Forschung mit 🌰 (Rollen der Währungen, 28.1).
+- **Prozent auf Harmonie, Gedächtnis oder Hähersaat** aus dem Ausbau.
+- **Automatisches Ausbauen** (offline oder per Plan) – Ausbau ist das aktive Spiel.
+- **Neue Arten, Pflanzen, Nischen.**
