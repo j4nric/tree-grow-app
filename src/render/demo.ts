@@ -53,6 +53,10 @@
  *           Plätzen ihrer Nische (ersetzen die Art dort); Biber und Moorfrosch öffnen den
  *           Waldtümpel.
  *           Zusammen mit season (Moorfrosch blau im Frühling) und phase (Nachtarten)
+ *  upgrades Baum-Ausbau als Stufen (DESIGN_V2.md 28.9), kommagetrennt id:Stufe, z. B.
+ *           rings:30,leaves:20,mycorrhiza:10,roots:25,crown:50,edge:25 – je 10 Stufen
+ *           ein Schritt (Stamm, Krone, Pilzhüte), Nischen-Details ab 25/50. Noch nicht
+ *           im Spiel (Phase 11, 4d).
  */
 
 import { animalKinds, SpriteCache } from './animals';
@@ -65,7 +69,7 @@ import { Sowing, sowingElapsed, sowingPlantVisible, type SowingStage } from './s
 import { animalSize } from './anchors';
 import { makeLayout, placeMainTree } from './layout';
 import { normalizeWeather } from './weather';
-import { drawScene, siteParam, type SceneAnimal, type ScenePlant, type SceneVisitor, type TreeSpecies } from './tree';
+import { drawScene, siteParam, upgradesParam, type SceneAnimal, type ScenePlant, type SceneVisitor, type TreeSpecies } from './tree';
 import { VISITOR_DEFS } from './visitor-sprites';
 import { VISITOR_IDS } from './visitors';
 
@@ -391,6 +395,7 @@ const camCy = Number(params.get('cy') ?? 0.5);
 const camPan = params.get('pan') === '1';
 /** Wetter (?weather=, ?wprev=, ?wb=). */
 const weather = normalizeWeather(params.get('weather')) ?? undefined;
+const upgrades = upgradesParam(params.get('upgrades'));
 const weatherPrevious = normalizeWeather(params.get('wprev')) ?? undefined;
 const blendLoop = params.get('wb') === 'loop';
 const weatherBlendParam = params.has('wb') && !blendLoop ? Number(params.get('wb')) : undefined;
@@ -626,6 +631,7 @@ function frame(now: number): void {
     weatherPrevious,
     site,
     jayFlight,
+    upgrades,
     weatherBlend: blendLoop ? Math.abs(((time / 6) % 2) - 1) : weatherBlendParam,
     camera:
       camZoom > 1
