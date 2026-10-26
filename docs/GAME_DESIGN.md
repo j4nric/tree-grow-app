@@ -140,6 +140,17 @@
 > (Hain 50–58 min), Wachstum ÷ Harmonie ≥ 0,85 (`DESIGN_V2.md` 28.10). Tabellen folgen nach der
 > Messung (Phase 11, 3a).
 >
+> *Daten (Phase 11, 1a, noch nicht verdrahtet):* Ausbau in `src/content/upgrades.ts`
+> (`NICHE_UPGRADE_BASE`, `UPGRADE_GROWTH`, `NICHE_UPGRADE_PCT`, `TREE_PARTS`, `NICHE_MILESTONES`,
+> `MAX_UPGRADE_LEVEL` = 1.000), Offline in `src/content/offline.ts` (`OFFLINE_YIELD` = 0,1,
+> `OFFLINE_FULL_SECONDS` = 60), die sechs endlosen Knoten als `RESEARCH_REPEATABLE` in
+> `src/content/research.ts` (`MAX_RESEARCH_RANK` = 200). Sie stehen bis Phase 11, 2b bewusst
+> **nicht** in `RESEARCH`, damit core, Ansicht und Simulator sie nicht als einmalige Knoten kaufen.
+> Endlose Knoten: Bodenleben fördern (Bäume +1 % 🌿), Feuchte halten (Moose & Farne +4 % 🌿 und
+> 🌰), Altäste stehen lassen (Bäume +1 % 🌰), Blütenfülle (Blumen +2 % 🌰), Wiese pflegen (Blumen
+> +2 % 🌿), Saatgut veredeln (Sträucher +2 % 🌰) – je Rang, ab Hain, hinter der Gabel des Asts
+> (Offenland: Spätmahd oder Trockenmauer).
+>
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
 > `scripts/simulate.ts`, `tests/balance.test.ts` (mit Forschung, bis v16 Pflege), `tests/balance-cycles.test.ts`
