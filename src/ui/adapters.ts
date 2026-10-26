@@ -1790,7 +1790,7 @@ export type CatchUpNotice = { kind: 'welcome'; text: string; namesStage: boolean
 export function catchUpNotice(
   away: number,
   report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedStackFull' | 'declinedSeeds'> &
-    Partial<Pick<OfflineReport, 'averaged' | 'weather'>>,
+    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'yieldFactor' | 'fullSeconds'>>,
   waiting: number,
   stages?: StageProgress,
 ): CatchUpNotice {
@@ -1822,6 +1822,42 @@ export function welcomeAmount(value: number, icon: string): string {
 }
 
 /**
+ * Lief ein Teil der Abwesenheit mit kleinerem Ertrag (Offline 10 %, DESIGN_V2.md 28.3)?
+ * Nur, wenn mehr als die vollen Sekunden nachgerechnet wurden. Ältere Berichte ohne die
+ * Felder zählen als voll.
+ */
+export function reducedYield(report: Partial<Pick<OfflineReport, 'seconds' | 'yieldFactor' | 'fullSeconds'>>): boolean {
+  const { seconds, yieldFactor, fullSeconds } = report;
+  return (
+    typeof yieldFactor === 'number' && yieldFactor >= 0 && yieldFactor < 1 &&
+    typeof fullSeconds === 'number' && typeof seconds === 'number' && seconds > fullSeconds
+  );
+}
+
+/** Ertragsfaktor als Prozent für Texte: 0,1 → „10 %“. */
+export function yieldPercent(yieldFactor: number): string {
+  return `${formatNumber(Math.round(yieldFactor * 1000) / 10)} %`;
+}
+
+/** Halbsatz des Rückkehr-Berichts (28.3): „mit einem Zehntel der Kraft“ (sonst in Prozent). */
+export function yieldPhrase(yieldFactor: number): string {
+  return Math.abs(yieldFactor - 0.1) < 1e-9 ? 'mit einem Zehntel der Kraft' : `mit ${yieldPercent(yieldFactor)} der Kraft`;
+}
+
+/** Kurzfassung (28.3): „gemächlich (10 %)“. */
+export function yieldShort(yieldFactor: number): string {
+  return `gemächlich (${yieldPercent(yieldFactor)})`;
+}
+
+/**
+ * Einmaliger Hinweis zur Offline-Regel (28.3) – erscheint mit dem ersten Rückkehr-Bericht,
+ * der mit kleinerem Ertrag gerechnet wurde (Merker in den Einstellungen, ui/settings.ts).
+ */
+export function offlineYieldHint(yieldFactor: number): string {
+  return `Dein Wald wächst am schnellsten, während du zusiehst – im Hintergrund und offline mit ${yieldPercent(yieldFactor)}.`;
+}
+
+/**
  * Willkommens-Meldung nach Abwesenheit (DESIGN_V2.md, 7.6). Vorne steht, was gewachsen
  * ist (erreichte Stufe, Ertrag), dann die wartenden Begegnungen; weitergezogene stehen nur
  * als Nebensatz mit ihrem Dank in Samen – das soll sich nicht nach Verlust anfühlen.
@@ -1829,7 +1865,7 @@ export function welcomeAmount(value: number, icon: string): string {
 export function welcomeText(
   away: number,
   report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedSeeds'> &
-    Partial<Pick<OfflineReport, 'averaged' | 'weather'>>,
+    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'yieldFactor' | 'fullSeconds'>>,
   waiting: number,
   stages?: StageProgress,
   /** Wald des Zyklus – das gemittelte Wetter nennt ihn außerhalb des Heimatwalds (24.14). */
@@ -1841,7 +1877,15 @@ export function welcomeText(
   const yields = [welcomeAmount(report.growth, '🌿'), welcomeAmount(report.seeds, '🌰')].filter(Boolean);
   const yieldText = yields.length > 0 ? `: ${yields.join(', ')}` : '';
   const reached = reachedStage(stages);
-  const grew = reached ? `wuchs dein Baum bis zur Stufe „${reached}“` : 'ist dein Wald gewachsen';
+  // Offline 10 % (28.3): ehrlich sagen, dass der Wald ohne Zuschauer gemächlich wächst.
+  const slow = reducedYield(report) ? ` ${yieldPhrase(report.yieldFactor!)}` : '';
+  const grew = slow
+    ? reached
+      ? `wuchs dein Baum gemächlich bis zur Stufe „${reached}“ –${slow}`
+      : `ist dein Wald gemächlich weitergewachsen –${slow}`
+    : reached
+      ? `wuchs dein Baum bis zur Stufe „${reached}“`
+      : 'ist dein Wald gewachsen';
   let text = `Willkommen zurück! In ${formatDuration(report.seconds)}${capped} ${grew}${yieldText}.`;
   const n = report.autoDeclined;
   const thanks = `+${seedsLabel(Math.max(0, report.declinedSeeds))} 🌰`;

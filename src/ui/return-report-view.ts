@@ -15,7 +15,7 @@ import type { SiteId } from '../content/landscape';
 import type { OfflineReport } from '../core/tick';
 import { averagedWeatherText } from './weather-view';
 import { chapterCountText } from './chronicle-view';
-import { reachedStage, welcomeAmount, welcomeText, type StageProgress } from './adapters';
+import { reachedStage, reducedYield, welcomeAmount, welcomeText, yieldShort, type StageProgress } from './adapters';
 import { regularsArrivedText, withRegulars } from './cycle-view';
 import { formatDuration, formatNumber, joinSentences } from './format';
 import { wildwechselReturnText } from './wildwechsel-view';
@@ -25,7 +25,7 @@ export interface ReturnReportInput {
   /** Tatsächliche Abwesenheit in Sekunden (kann über der simulierten Zeit liegen). */
   away: number;
   report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedSeeds'> &
-    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'regulars' | 'wildwechsel'>>;
+    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'regulars' | 'wildwechsel' | 'yieldFactor' | 'fullSeconds'>>;
   /** Wartende Begegnungen im Stapel. */
   waiting: number;
   stages?: StageProgress;
@@ -84,6 +84,8 @@ export function toReturnReportView(input: ReturnReportInput): ReturnReportView {
   const greeting = `Willkommen zurück! ${formatDuration(report.seconds)}`;
   const head = `${greeting}${yields.length > 0 ? `: ${yields.join(', ')}` : ''}`;
   const parts = [head];
+  // Offline 10 % (28.3): „gemächlich (10 %)“ gleich hinter dem Ertrag.
+  if (reducedYield(report)) parts.push(yieldShort(report.yieldFactor!));
   const reached = reachedStage(stages);
   if (reached) parts.push(`Stufe „${reached}“`);
   if (waiting > 0) parts.push(waiting === 1 ? '1 Begegnung wartet' : `${formatNumber(waiting)} Begegnungen warten`);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { STAGES } from '../src/content/stages';
 import { SPECIES } from '../src/content/species';
 import { MAX_OFFLINE_SECONDS } from '../src/core/tick';
-import { welcomeText } from '../src/ui/adapters';
+import { catchUpNotice, offlineYieldHint, reducedYield, welcomeText, yieldPhrase } from '../src/ui/adapters';
 import { withRegulars } from '../src/ui/cycle-view';
 import { joinSentences } from '../src/ui/format';
 import { AVERAGED_WEATHER_ICON, RETURN_REPORT_MORE, returnStamp, toReturnReportView } from '../src/ui/return-report-view';
@@ -104,5 +104,43 @@ describe('returnStamp', () => {
   it('ohne Ertrag und ohne mehr: nichts zum Vorlesen dazu', () => {
     const view = toReturnReportView({ away: base.seconds, report: { ...base, growth: 0, seeds: 0 }, waiting: 0 });
     expect(returnStamp(view)).toEqual({ text: 'Willkommen zurück! 3 Std.', spoken: '' });
+  });
+});
+
+describe('Offline 10 % im Rückkehr-Bericht (28.3)', () => {
+  const slow = { ...base, yieldFactor: 0.1, fullSeconds: 60 };
+
+  it('Halbsatz „mit einem Zehntel der Kraft“ und Kurztext „gemächlich (10 %)“', () => {
+    expect(welcomeText(slow.seconds, slow, 0)).toBe(
+      'Willkommen zurück! In 3 Std. ist dein Wald gemächlich weitergewachsen – mit einem Zehntel der Kraft: +12.400 🌿, +300 🌰.',
+    );
+    expect(welcomeText(slow.seconds, slow, 0, { from: 3, to: 4 })).toContain(
+      `wuchs dein Baum gemächlich bis zur Stufe „${STAGES[4]!.name}“ – mit einem Zehntel der Kraft: +12.400 🌿`,
+    );
+    const view = toReturnReportView({ away: slow.seconds, report: slow, waiting: 2 });
+    expect(view.summary).toBe('Willkommen zurück! 3 Std.: +12.400 🌿, +300 🌰 · gemächlich (10 %) · 2 Begegnungen warten');
+    expect(view.details[0]).toContain('mit einem Zehntel der Kraft');
+    expect(returnStamp(view).text).toBe('Willkommen zurück! 3 Std.');
+    expect(catchUpNotice(slow.seconds, { ...slow, declinedStackFull: 0 }, 0)?.text).toContain('mit einem Zehntel der Kraft');
+  });
+
+  it('nur, wenn wirklich mehr als die vollen Sekunden gerechnet wurden', () => {
+    expect(reducedYield(slow)).toBe(true);
+    expect(reducedYield({ ...slow, seconds: 60 })).toBe(false);
+    expect(reducedYield({ ...slow, seconds: 30, fullSeconds: 30 })).toBe(false);
+    expect(reducedYield({ ...slow, yieldFactor: 1 })).toBe(false);
+    expect(reducedYield({ ...slow, yieldFactor: NaN })).toBe(false);
+    expect(reducedYield(base)).toBe(false);
+    expect(welcomeText(base.seconds, base, 0)).not.toContain('gemächlich');
+  });
+
+  it('andere Faktoren in Prozent, Hinweis nennt den Faktor', () => {
+    expect(yieldPhrase(0.1)).toBe('mit einem Zehntel der Kraft');
+    expect(yieldPhrase(0.25)).toBe('mit 25 % der Kraft');
+    expect(offlineYieldHint(0.1)).toBe('Dein Wald wächst am schnellsten, während du zusiehst – im Hintergrund und offline mit 10 %.');
+    // Der Hinweis steht als eigener Punkt im Bericht (main.ts hängt ihn an die Zusatzhinweise).
+    const view = toReturnReportView({ away: slow.seconds, report: slow, waiting: 0, notes: [offlineYieldHint(0.1)] });
+    expect(view.details).toContain(offlineYieldHint(0.1));
+    expect(view.more).toBe(true);
   });
 });

@@ -5,7 +5,7 @@ import { SEASON_SECONDS } from '../src/content/seasons';
 import { declineReward, evaluate, seedSeconds, seedSecondsRate, thresholdFor } from '../src/core/formulas';
 import type { GameState, PendingEncounter } from '../src/core/state';
 import { declineEncounter, simulateOffline, tick } from '../src/core/tick';
-import { stateAt } from './helpers';
+import { offlineTick, stateAt } from './helpers';
 
 /**
  * Ablehnen nach Samen-Sekunden (DESIGN_V2.md 7.9): 10 Samen-Sekunden, mindestens 5 🌰 –
@@ -162,13 +162,17 @@ describe('Ablehnen: überall derselbe Betrag', () => {
     expect(big.rngState).toBe(small.rngState);
     let onlineDeclined = 0;
     let onlineCount = 0;
-    for (let i = 0; i < 3600; i++) {
-      // simulateOffline rechnet mit dem Mittelwetter (DESIGN_V2.md 21.5): online im selben Modus.
-      const r = tick(online, 1, 'average');
-      onlineDeclined += r.declinedSeeds;
-      onlineCount += r.autoDeclined;
+    // 8 h: Mit 10 % Ertrag (28.3) kommen in einer Stunde zu wenige Wegpunkte.
+    const away = 8 * 3600;
+    for (let i = 0; i < away; i++) {
+      // simulateOffline rechnet mit dem Mittelwetter (DESIGN_V2.md 21.5) und nach 60 s mit 10 %
+      // (28.3): die kleinen Ticks im selben Modus und mit demselben Faktor.
+      for (const r of offlineTick(online, i, 1)) {
+        onlineDeclined += r.declinedSeeds;
+        onlineCount += r.autoDeclined;
+      }
     }
-    const report = simulateOffline(offline, 3600);
+    const report = simulateOffline(offline, away);
     expect(report.autoDeclined).toBe(onlineCount);
     expect(report.autoDeclined).toBeGreaterThan(1);
     expect(report.declinedSeeds).toBeCloseTo(onlineDeclined, 6);
