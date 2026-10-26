@@ -1209,11 +1209,18 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Platzhalter-Daten in `ui/upgrade-fixtures.ts` wie 1a), View-Modelle `ui/upgrade-view.ts`,
   Bausteine `album/upgrade-panel.ts`; Tests `tests/upgrade-view.test.ts` und
   `e2e/upgrade-preview.spec.ts` (360/390/1200 px). Noch nicht in `main.ts` – das macht 4b.
-- [ ] **1d** Baum-Ausbau im Bild (`renderer`, 28.9): Stammbreite, Kronenvolumen und Pilzhüte je
+- [x] **1d** Baum-Ausbau im Bild (`renderer`, 28.9): Stammbreite, Kronenvolumen und Pilzhüte je
   10 Stufen, kleine Nischen-Details bei 25/50; Eingabe `scene.upgrades` (Schritte), in den
   Offscreen-Caches gezeichnet, neu nur beim Schrittwechsel; zunächst nur in der Demo
   (`?upgrades=rings:30,leaves:20`). **Warum:** In einem grafischen Incremental muss man den Ausbau
   sehen – und die Grafik hängt an nichts. Abhängig: nichts
+  **Erledigt:** `src/render/upgrades.ts` – `SceneInput.upgrades` (Schritte; Nischen 0/1/2),
+  `sceneUpgradesFromLevels` für 4d, Demo `?upgrades=rings:100,leaves:100,mycorrhiza:60,roots:50,crown:50,edge:50`.
+  Stamm und Hauptäste breiter (dünne Zweige kaum), Krone mit größeren Büscheln (am Bildrand
+  rücken sie nach innen, Weißtanne: dichtere Fächer), Pilzhüte am Stammfuß (im tiefen Winter
+  ruhend), Wurmgänge (Wurzelraum), Nistkasten am Stamm bzw. Hauptast (Krone), Blütenpunkte
+  (Waldsaum, im Winter keine). Andere Nischen noch ohne Detail; der alte Wald im
+  Zyklus-Übergang bleibt ohne Ausbau
 - [ ] **1e** Simulator vorbereiten (`game-designer`, Rest von Phase 10, 3a): Gabel-Wahl je
   Strategie statt Pflege-Reihenfolge, Aussaat-Tausch je Strategie, Takt-Kennzahl „Zeit zwischen zwei
   Käufen“ je Stufe (Median, längste), Anteil ausgegebener Samen, Sitzungsprofil (30 min aktiv / 8 h
