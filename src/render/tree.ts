@@ -43,7 +43,7 @@ import { animalSize, createAnchorResolver, type AnchorResolver } from './anchors
 import { AnimalLayer, hitTestAnimals, type AnimalFrame, type AnimalHit, type SceneAnimal } from './animals';
 import { layoutFlora, type PlacedPlant, type ScenePlant } from './flora';
 import { paintNeedleClumps, paintPlant } from './flora-paint';
-import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, type Layout, type PlacedTree } from './layout';
+import { makeLayout, placeMainTree, placeRoots, placeTree, sproutScale, trunkFootHalf, type Layout, type PlacedTree } from './layout';
 import { paintLeaves, paintWood, TREE_FORMS, type LeafPalette, type WoodColors } from './plant';
 import { cycleElapsed, CycleTransition, type CycleGeometry, type OldForest } from './cycle';
 import { DayLayer, dayLevels, normalizeDayPhase, paintDaySky, tintCopy, tintInPlace, tintRgb, type DayFrame, type DayLevels } from './daylight';
@@ -71,6 +71,21 @@ import { createClouds, drawClouds, paintGrass, paintSky, paintSoil, SKY, type Cl
 import { paintSiteBackdrop, sceneSite, siteGround, type SceneSiteId } from './site-scenery';
 import { jayElapsed, JayFlight } from './jay-flight';
 import { clamp01, mix, mulberry32, smooth01 } from './util';
+import {
+  crownFactor,
+  crownLimits,
+  mushroomBounds,
+  mushroomSpots,
+  paintEdgeFlowers,
+  paintMushrooms,
+  paintNestBoxes,
+  paintWormBurrows,
+  upgradeLook,
+  upgradeMainTree,
+  upgradesKey,
+  type SceneUpgrades,
+  type UpgradeLook,
+} from './upgrades';
 import { VisitorLayer, type SceneVisitor, type VisitorFrame } from './visitors';
 import { ShearBands, windQuantum, windSkew } from './wind';
 import {
@@ -99,6 +114,7 @@ export type { TreeSpecies } from './plant';
 export { SCENE_WEATHERS, weatherParam, type SceneWeatherId } from './weather';
 export { SCENE_SITES, siteParam, type SceneSiteId } from './site-scenery';
 export { JAY_FLIGHT_REDUCED_SECONDS, JAY_FLIGHT_SECONDS } from './jay-flight';
+export { sceneUpgradesFromLevels, upgradesParam, type SceneUpgrades } from './upgrades';
 
 export interface SceneInput {
   /** Kontinuierlicher Wachstumswert aus core/formulas.ts `growth()`. */
@@ -251,6 +267,15 @@ export interface SceneInput {
    * Ohne Angabe ist alles synchron wie bisher.
    */
   idle?: IdleQueue;
+  /**
+   * Baum-Ausbau (DESIGN_V2.md 28.4/28.9, upgrades.ts) in **Schritten**, nicht Stufen:
+   * Jahresringe (Stamm +3 % je Schritt, höchstens +30 %), Blattwerk (Krone +4 % Volumen je
+   * Schritt, höchstens +40 %), Pilzgeflecht (ein Pilzhut am Stammfuß je Schritt, höchstens
+   * 6) und Nischen-Details 0/1/2 (ab Stufe 25/50: Wurmgänge, Nistkasten, Blütenpunkte).
+   * Gezeichnet in den gecachten Ebenen, neu nur bei einem Schrittwechsel. Ohne Angabe
+   * (oder alles 0) wie bisher. Umrechnen aus Stufen: `sceneUpgradesFromLevels`.
+   */
+  upgrades?: SceneUpgrades;
 }
 
 /** Überblendung der Kulisse bei einem Standortwechsel (s; bei weniger Bewegung kürzer). */
@@ -402,6 +427,8 @@ interface SizeCache {
   memoryVersion: number;
   /** Getönte Kopien für Tag und Nacht (null = keine). */
   tint: TintSet | null;
+  /** Ausbau-Schlüssel, mit dem die Ebenen gezeichnet sind (upgrades.ts, 0 = kein Ausbau). */
+  upgradesKey: number;
 }
 
 /**
@@ -511,6 +538,8 @@ interface Cache {
   shownSite: SceneSiteId | null;
   /** Wie oft die Kulisse gezeichnet wurde (für Tests: kein Neuzeichnen pro Frame). */
   staticBuilds: number;
+  /** Wie oft die Baum-Ebenen (Hintergrund, Nachbarn, Hauptbaum) gezeichnet wurden (für Tests). */
+  layerBuilds: number;
   /** Tönen in Leerlaufzeit (null = kein Auftrag) und Neuanfänge wegen neuer Tönungsstufe. */
   tintJob: TintJob | null;
   tintRestarts: number;
@@ -1145,6 +1174,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       siteFadeAlpha: 0,
       shownSite: null,
       staticBuilds: 0,
+      layerBuilds: 0,
       tintJob: null,
       tintRestarts: 0,
       detailNext: null,
@@ -1258,10 +1288,17 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
  */
 export function sceneCacheStats(
   canvas: HTMLCanvasElement,
-): { staticBuilds: number; tintBuilds: number; siteFade: boolean; jaySpriteBuilds: number; jayPrepared: boolean } | null {
+): { staticBuilds: number; layerBuilds: number; tintBuilds: number; siteFade: boolean; jaySpriteBuilds: number; jayPrepared: boolean } | null {
   const c = caches.get(canvas);
   return c
-    ? { staticBuilds: c.staticBuilds, tintBuilds: c.tintBuilds, siteFade: c.siteFade !== null, jaySpriteBuilds: c.jay.builds, jayPrepared: c.jay.prepared }
+    ? {
+        staticBuilds: c.staticBuilds,
+        layerBuilds: c.layerBuilds,
+        tintBuilds: c.tintBuilds,
+        siteFade: c.siteFade !== null,
+        jaySpriteBuilds: c.jay.builds,
+        jayPrepared: c.jay.prepared,
+      }
     : null;
 }
 
@@ -1519,6 +1556,9 @@ function updateLayers(
     (delta > 0 && (since > REDRAW_SETTLE_SECONDS || frames >= REDRAW_SETTLE_FRAMES));
   // Neue Pflanzenliste: alles neu (Nachbarbäume, Pilzfäden und Pflanzen hängen davon ab).
   const plantsChanged = !samePlants(sc.plantSig, input.plants);
+  // Baum-Ausbau: neu nur bei einem anderen Schritt (Zahl-Schlüssel, keine Allokation).
+  const upKey = upgradesKey(input.upgrades);
+  const upgradesChanged = upKey !== sc.upgradesKey;
   if (
     Number.isNaN(sc.growth) ||
     clockReset ||
@@ -1529,6 +1569,7 @@ function updateLayers(
     habitatsChanged ||
     siteChanged ||
     speciesChanged ||
+    upgradesChanged ||
     sc.withPlants !== (input.plants !== undefined)
   ) {
     // Pflanzen beim Wachsen höchstens alle PLANT_REDRAW_STEP; beim Nachziehen (kleine
@@ -1544,7 +1585,9 @@ function updateLayers(
       (settle && plantDelta >= PLANT_SETTLE_STEP);
     // Die Signatur hält fest, womit die Pflanzen zuletzt gezeichnet wurden.
     if (redrawPlants) sc.plantSig = input.plants ? input.plants.map(plantSig) : null;
-    renderLayers(sc, g, input.plants, redrawPlants, look, species);
+    renderLayers(sc, g, input.plants, redrawPlants, look, species, upgradeLook(input.upgrades));
+    sc.upgradesKey = upKey;
+    cache.layerBuilds++;
     sc.growth = g;
     sc.drawnAt = time;
     sc.framesSinceDraw = 0;
@@ -2042,6 +2085,7 @@ function buildSizeCache(
     staticVersion: 0,
     memoryVersion: 0,
     tint: null,
+    upgradesKey: 0,
   };
 
   paintStatic(sc, look, habitats, site);
@@ -2107,13 +2151,15 @@ function treeBounds(t: PlacedTree): [number, number, number, number] {
 const PINE_CLUMP_SCALE = 0.72;
 
 /** Hauptbaum der Art (Holz verholzt mit dem Alter, Laub je Jahreszeit). */
-function paintMainTree(ctx: CanvasRenderingContext2D, main: PlacedTree, g: number, species: TreeSpecies, look: SeasonLook | null): void {
+function paintMainTree(ctx: CanvasRenderingContext2D, main: PlacedTree, g: number, species: TreeSpecies, look: SeasonLook | null, up: UpgradeLook | null = null): void {
   const lignin = smooth01((g - 1) / 2);
   if (species === 'oak') {
     paintTree(ctx, main, seasonWood(mixWood(STEM, WOOD, lignin), look), seasonLeaves(PALETTES[0]!, look), look ? look.leaves : 1);
     return;
   }
-  paintSpeciesTree(ctx, main, species, seasonWood(speciesWood(species, STEM, WOOD, lignin), look), speciesLeaves(species, PALETTES[0]!, look), speciesLeafAmount(species, look), g, look);
+  // Weißtanne: Nadelfächer an den Ästen statt Blattbüscheln – Blattwerk macht sie dichter.
+  const fullness = up ? 1 + 0.5 * (crownFactor(up) - 1) : 1;
+  paintSpeciesTree(ctx, main, species, seasonWood(speciesWood(species, STEM, WOOD, lignin), look), speciesLeaves(species, PALETTES[0]!, look), speciesLeafAmount(species, look), g, look, fullness);
 }
 
 /**
@@ -2132,6 +2178,8 @@ function paintSpeciesTree(
   leaves: number,
   g: number,
   look: SeasonLook | null = null,
+  /** Weißtanne: Faktor auf die Fülle der Nadelfächer (Baum-Ausbau Blattwerk, 1 = ohne). */
+  fullness = 1,
 ): void {
   if (species === 'alder' && g > 0) paintStiltRoots(ctx, t.geo, t.x, t.y, t.scale, g, wood);
   paintWood(ctx, t.geo, t.x, t.y, t.scale, 1, wood);
@@ -2139,7 +2187,7 @@ function paintSpeciesTree(
     if (g > 0) paintFirBark(ctx, t.geo, t.x, t.y, t.scale, g);
     // Junge Tanne: dichterer, regelmäßiger Kegel (vollere Fächer).
     // Ferne Tanne (g = 0): etwas vollere Fächer, sonst scheint zu viel Himmel durch.
-    const dense = g > 0 ? 1 + 0.6 * (1 - smooth01((g - 3.5) / 2)) : 1.3;
+    const dense = (g > 0 ? 1 + 0.6 * (1 - smooth01((g - 3.5) / 2)) : 1.3) * fullness;
     // Ferne Tanne: weniger Schnee – sonst leuchtet sie im Dunst weiß wie ein Gespenst.
     const snow = look ? look.snow * (g > 0 ? 1 : 0.55) : 0;
     paintFirTiers(ctx, t.geo, t.x, t.y, t.scale, palette, snow, dense, wood.shade);
@@ -2214,6 +2262,7 @@ function renderLayers(
   redrawPlants: boolean,
   look: SeasonLook | null,
   species: TreeSpecies,
+  up: UpgradeLook | null = null,
 ): void {
   const leaves = look ? look.leaves : 1;
   const { dpr, layout } = sc;
@@ -2224,7 +2273,8 @@ function renderLayers(
   // Hauptbaum zuerst berechnen – Wurzeln und Tier-Ankerpunkte richten sich nach ihm.
   const scale1 = sproutScale(layout);
   sc.seedR = seedRadius(layout, scale1);
-  const main = placeMainTree(layout, g, species);
+  // Mit Ausbau (dickerer Stamm, vollere Krone) – Tiere und Wurzeln richten sich danach.
+  const main = mainTreeWithUpgrades(layout, g, species, up);
   sc.anchors = createAnchorResolver(layout, g, main);
 
   // --- Begleitpflanzen (eigene Ebene) ---
@@ -2241,9 +2291,16 @@ function renderLayers(
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.scenery, 0, 0);
   sceneTransform(bg, sc);
+  // Wurzelraum ausgebaut: Wurmgänge unter dem Wurzelwerk.
+  if (up && up.roots > 0) paintWormBurrows(bg, layout, up.roots);
   paintUnderground(bg, layout, g, scale1, main, withPlants ? sc.companionXs : neighbors.map((n) => n.x), species);
   bg.setTransform(1, 0, 0, 1, 0, 0);
   bg.drawImage(sc.grass, 0, sc.grassTop);
+  // Waldsaum ausgebaut: Blütenpunkte auf der Grasnarbe.
+  if (up && up.edge > 0) {
+    sceneTransform(bg, sc);
+    paintEdgeFlowers(bg, layout, up.edge, look);
+  }
   // Winter: dünne Schneedecke auf der Grasnarbe.
   if (look && look.snow > 0) {
     sceneTransform(bg, sc);
@@ -2274,11 +2331,16 @@ function renderLayers(
     sc.mainBox = treeBounds(main);
     sc.frontRect = toDeviceRect(unionRect(null, ...sc.mainBox), dpr, pw, ph, ox, oy);
     sc.crown = crownOf(sc.mainBox, sc);
-    paintMainTree(front, main, g, species, look);
+    paintMainTree(front, main, g, species, look, up);
     // Keimblätter verblassen, während die ersten Blattbüschel wachsen.
     const coty = 1 - clamp01((g - 1) / 0.8);
     if (coty > 0) {
       paintCotyledons(front, main.x + main.geo.tipX * main.scale, main.y + main.geo.tipY * main.scale, scale1 * 0.36 * coty, species);
+    }
+    // Krone ausgebaut: Nistkasten am Stamm (erst, wenn der Stamm breit genug ist).
+    if (up && up.crown > 0) {
+      const nb = paintNestBoxes(front, main, up.crown, layout);
+      if (nb) growFrontRect(sc, nb);
     }
   } else {
     sc.mainBox = null;
@@ -2293,6 +2355,26 @@ function renderLayers(
       oy,
     );
   }
+  // Pilzgeflecht ausgebaut: Pilzhüte am Stammfuß (vor Stamm und Gras).
+  if (up && up.mycorrhiza > 0) {
+    const foot = main ? trunkFootHalf(g, main) : scale1 * 0.04;
+    const spots = mushroomSpots(up.mycorrhiza, layout.cx, layout.groundY, foot, layout, g);
+    paintMushrooms(front, spots, look);
+    const mb = mushroomBounds(spots);
+    if (mb && !(look && look.snow > 0.5)) growFrontRect(sc, mb);
+  }
+}
+
+/** Erweitert den belegten Bereich der vorderen Ebene um einen Umriss in CSS-Pixeln. */
+function growFrontRect(sc: SizeCache, b: [number, number, number, number]): void {
+  const r = toDeviceRect(unionRect(null, ...b), sc.dpr, sc.pw, sc.ph, sc.ox, sc.oy);
+  if (r) sc.frontRect = sc.frontRect ? unionRect(sc.frontRect, r.x, r.y, r.x + r.w, r.y + r.h) : r;
+}
+
+/** Hauptbaum mit Baum-Ausbau (ohne Ausbau genau `placeMainTree`). */
+function mainTreeWithUpgrades(layout: Layout, g: number, species: TreeSpecies, up: UpgradeLook | null): PlacedTree | null {
+  const main = placeMainTree(layout, g, species);
+  return main && up ? upgradeMainTree(main, up, crownLimits(layout, main)) : main;
 }
 
 /** Ein platzierter Nachbarbaum: Laubbaum (Eichen-Zeichnung) oder junge Weißtanne. */
@@ -2519,7 +2601,10 @@ function paintUnderground(
 
 /** Szene für den Treffer-Test: Größe des Canvas (CSS-Pixel) und die Felder aus `SceneInput`. */
 export interface HitScene
-  extends Pick<SceneInput, 'growth' | 'time' | 'animals' | 'reducedMotion' | 'mainTree' | 'season' | 'dayPhase' | 'weather' | 'weatherPrevious' | 'weatherBlend'> {
+  extends Pick<
+    SceneInput,
+    'growth' | 'time' | 'animals' | 'reducedMotion' | 'mainTree' | 'season' | 'dayPhase' | 'weather' | 'weatherPrevious' | 'weatherBlend' | 'upgrades'
+  > {
   width: number;
   height: number;
 }
@@ -2548,10 +2633,10 @@ export function hitTestAnimal(scene: HitScene, camera: Readonly<CameraView> | nu
   const p = screenToScene(view, width, height, x, y);
   const g = Math.max(0, Number.isFinite(scene.growth) ? scene.growth : 0);
   const species = normalizeSpecies(scene.mainTree);
-  const key = `${width}x${height}/${species}`;
+  const key = `${width}x${height}/${species}/${upgradesKey(scene.upgrades)}`;
   if (!hitAnchors || hitAnchors.key !== key || Math.abs(hitAnchors.g - g) >= REDRAW_STEP) {
     const layout = makeLayout(width, height);
-    hitAnchors = { key, g, anchors: createAnchorResolver(layout, g, placeMainTree(layout, g, species)) };
+    hitAnchors = { key, g, anchors: createAnchorResolver(layout, g, mainTreeWithUpgrades(layout, g, species, upgradeLook(scene.upgrades))) };
   }
   const time = Number.isFinite(scene.time) ? scene.time : 0;
   const reduced = scene.reducedMotion === true;
