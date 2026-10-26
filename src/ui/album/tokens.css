@@ -77,6 +77,14 @@
   --happy-high: #7fb069;
   --happy-mid: #e0b44a;
   --happy-low: #c95f6f;
+
+  /* Ausbau-Abzeichen am Nischen-Etikett (Phase 11, 28.4) – Kontrast Schrift/Grund ≥ 4,5 : 1 */
+  --badge-bronze: #f1d6bb;
+  --badge-bronze-ink: #6b3f1d;
+  --badge-silver: #e3e6ea;
+  --badge-silver-ink: #41464e;
+  --badge-gold: #f7e08a;
+  --badge-gold-ink: #5e4700;
   /* Schrift */
   --font-hand: 'Caveat', 'Segoe Print', cursive; /* nur Überschriften und Zahlen */
   --font-text: 'Nunito', system-ui, sans-serif;
