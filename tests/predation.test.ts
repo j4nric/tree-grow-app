@@ -39,7 +39,7 @@ import {
   tick,
 } from '../src/core/tick';
 import { dayIndex, weatherOfDay } from '../src/core/weather';
-import { fakeSpecies, stateAt, withFakeSpecies } from './helpers';
+import { fakeSpecies, offlineTick, stateAt, withFakeSpecies } from './helpers';
 import reference from './predation-main-reference.json';
 import { referenceCases, referenceEcosystem, type ReferenceCase, type ReferenceValue } from './predation-reference';
 
@@ -638,12 +638,17 @@ describe('online = offline mit Massenjahren und Wetter-Gewichten', { timeout: 12
     return s;
   };
   const MASS_YEARS = PREDATION_EVENTS.map((e) => e.id);
+  // Abwesenheiten für „online = offline“: mit 10 % Ertrag nach 60 s (28.3) braucht es mehr Zeit.
+  const OFFLINE_CHUNKS = 12;
+  const OFFLINE_CHUNK_SECONDS = 4 * 3600;
 
   it('Mittel: Sekunden-Ticks = simulateOffline je 10 min', () => {
-    const online = playChunks(start(), 24, 600, (s, dt) => {
-      for (let i = 0; i < dt; i++) tick(s, 1, 'average');
+    // Offline nach 60 s nur 10 % (28.3): längere Abschnitte, damit Massenjahre kommen.
+    const online = playChunks(start(), OFFLINE_CHUNKS, OFFLINE_CHUNK_SECONDS, (s, dt) => {
+      // Wie simulateOffline: erste 60 s voll, danach 10 % (28.3).
+      for (let i = 0; i < dt; i++) offlineTick(s, i, 1);
     });
-    const offline = playChunks(start(), 24, 600, (s, dt) => {
+    const offline = playChunks(start(), OFFLINE_CHUNKS, OFFLINE_CHUNK_SECONDS, (s, dt) => {
       expect(simulateOffline(s, dt).averaged).toBe(true);
     });
     expect(online.cycle.seen.some((id) => MASS_YEARS.includes(id))).toBe(true);
@@ -673,16 +678,20 @@ describe('online = offline mit Massenjahren und Wetter-Gewichten', { timeout: 12
   });
 
   it('Kiefernheide (Faktor des Waldes, 3e): Sekunden-Ticks = simulateOffline bzw. großer Tick, Käferjahr kommt', () => {
-    const heath = () => {
-      const s = stateInSite('heath', 5, ['barkbeetle', 'vole', 'earthworm'], 31);
+    const heath = (seed = 31) => {
+      const s = stateInSite('heath', 5, ['barkbeetle', 'vole', 'earthworm'], seed);
       s.plants = ['hazel'];
       s.cycle.elapsed = GENTLE_DAYS * SEASON_SECONDS;
       return s;
     };
-    const online = playChunks(heath(), 24, 600, (s, dt) => {
-      for (let i = 0; i < dt; i++) tick(s, 1, 'average');
+    // Offline mit 10 % (28.3) kommen weniger Ereignisse: ein Startwert, bei dem das Käferjahr
+    // auch in 12 × 4 h kommt (31 bringt es erst mit vollem Ertrag, siehe Einzelwetter unten).
+    const OFFLINE_SEED = 14;
+    const online = playChunks(heath(OFFLINE_SEED), OFFLINE_CHUNKS, OFFLINE_CHUNK_SECONDS, (s, dt) => {
+      // Wie simulateOffline: erste 60 s voll, danach 10 % (28.3).
+      for (let i = 0; i < dt; i++) offlineTick(s, i, 1);
     });
-    const offline = playChunks(heath(), 24, 600, (s, dt) => {
+    const offline = playChunks(heath(OFFLINE_SEED), OFFLINE_CHUNKS, OFFLINE_CHUNK_SECONDS, (s, dt) => {
       expect(simulateOffline(s, dt).averaged).toBe(true);
     });
     expect(online.cycle.seen).toContain('beetle-year');

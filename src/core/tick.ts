@@ -41,6 +41,7 @@ import { DEFAULT_MAIN_TREE, MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from
 import { ENCOUNTER_TYPES, type EncounterType } from '../content/types';
 import { VISITORS, VISITORS_BY_ID, type Visitor } from '../content/visitors';
 import { WAYPOINT_COUNT } from '../content/waypoints';
+import { OFFLINE_FULL_SECONDS, OFFLINE_YIELD } from '../content/offline';
 import {
   activeCommunities,
   appearsContext,
@@ -53,6 +54,7 @@ import {
   evaluate,
   harmonyIncome,
   nicheSlots,
+  normalizeYieldFactor,
   nichesAfterChoice,
   rarityWeights,
   regularSlots,
@@ -197,6 +199,10 @@ export interface OfflineReport extends TickReport {
   seeds: number;
   /** Zufluss in den Harmonie-Vorrat (⚖️, DESIGN_V2.md 27.3) – für „+840 ⚖️“ in der Rückkehr-Meldung. */
   harmony: number;
+  /** Ertragsfaktor nach den vollen Sekunden (OFFLINE_YIELD, 28.3) – für „mit einem Zehntel der Kraft“. */
+  yieldFactor: number;
+  /** Davon mit vollem Ertrag gerechnete Sekunden (höchstens OFFLINE_FULL_SECONDS). */
+  fullSeconds: number;
 }
 
 /** Restdauern ab hier gelten als abgelaufen (Rundung bei vielen kleinen Ticks). */
@@ -226,8 +232,14 @@ export const MAX_LIVE_SECONDS = 100 * YEAR_SECONDS;
  * Jahreszeit (Tag 0 sein festes Wetter, Schonzeit ohne raue Lagen: averageWeatherOf) und
  * der halben Nachtwirkung ohne Nacht-Halte (offline), `off` ohne beides.
  * Ganze Jahre werden nur ohne Einzelwetter übersprungen.
+ *
+ * `yieldFactor` f (DESIGN_V2.md 28.3, offline 0,1 nach den ersten 60 s): Faktor auf die Erträge –
+ * Wachstum, Samen, Harmonie-Vorrat und die Samen fürs automatische Weiterziehen –, auch in der
+ * Halte-Rechnung (Zeit bis Wegpunkt und Zwischenhalt). Nie auf die Zeit: `cycle.elapsed`,
+ * Restdauern, Chronik und Spielzeit laufen voll. Darum gilt je f weiter: viele kleine Ticks =
+ * ein großer. Online ist f = 1; ungültig zählt als 1, Werte außerhalb von [0, 1] werden begrenzt.
  */
-export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'): TickReport {
+export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live', yieldFactor = 1): TickReport {
   const report: TickReport = {
     waypoints: 0,
     encounters: 0,
@@ -251,6 +263,7 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
   const chronicleSite = state.meta.landscape ? siteEntry(state.meta.landscape, activeSite(state.meta.landscape)) : undefined;
   const before = chronicleSite?.chronicle?.length ?? 0;
   const mode: AmbientMode = ambient === 'live' && dt > MAX_LIVE_SECONDS ? 'average' : ambient;
+  const f = normalizeYieldFactor(yieldFactor);
   // Gedächtnisfaktor des Harmonie-Ertrags (27.3): ändert sich nur beim Neuen Zyklus und beim
   // Korridorbau, also nie innerhalb eines Ticks.
   const memory = effectiveForestMemory(state);
@@ -263,14 +276,14 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
   while (remaining > 0) {
     // Lange Zeitsprünge: ganze Jahre am Stück, solange darin kein anderer Halt liegt
     // (nicht mit Einzelwetter – jedes Jahr hat anderes Wetter).
-    const years = mode === 'live' ? 0 : skipYears(state, remaining, report, mode);
+    const years = mode === 'live' ? 0 : skipYears(state, remaining, report, mode, f);
     if (years > 0) {
       remaining -= years * YEAR_SECONDS;
       continue;
     }
     const ev = evaluate(state, mode);
     const next = thresholdFor(state.waypoint + 1);
-    const rate = ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth : 0;
+    const rate = ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth * f : 0;
     const toNext = rate > 0 ? Math.max(0, next - state.totalGrowth) / rate : Infinity;
     const interlude = interludeThreshold(state);
     const toInterlude = rate > 0 && interlude < Infinity ? Math.max(0, interlude - state.totalGrowth) / rate : Infinity;
@@ -285,9 +298,9 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     let toNight = mode === 'live' ? secondsToNightChange(state.cycle.elapsed) : Infinity;
     if (Math.abs(toNight - remaining) <= SEASON_SNAP_SECONDS) toNight = remaining;
     const step = Math.min(remaining, toNext, toInterlude, toExpiry, toSeason, toNight);
-    state.seeds = capped(state.seeds + ev.seeds * step);
+    state.seeds = capped(state.seeds + ev.seeds * f * step);
     // Harmonie-Vorrat (27.3): Produktion konstant bis zum nächsten Halt – wie die Samen.
-    addHarmonyPoints(state, harmonyIncome(ev.harmony, memory) * step);
+    addHarmonyPoints(state, harmonyIncome(ev.harmony, memory) * f * step);
     remaining -= step;
     countDown(state, step, report);
     // Spielzeit zuerst: Fällt die Grenze mit einem Wegpunkt zusammen, sieht die Begegnung
@@ -309,7 +322,7 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     if (step === toNext) {
       // Wegpunkt genau erreicht (ohne Rundungsfehler, damit online und offline gleich zählen)
       state.totalGrowth = Math.max(state.totalGrowth, next);
-      reachWaypoint(state, report, mode);
+      reachWaypoint(state, report, mode, f);
     } else if (step === toInterlude) {
       state.totalGrowth = Math.max(state.totalGrowth, interlude);
       reachInterlude(state, report, mode);
@@ -375,7 +388,13 @@ function reportSeason(report: TickReport, id: SeasonId, weather: WeatherId): voi
  * weiterrechnen). Ohne diesen Vorlauf bräuchte ein riesiger Zeitsprung je 180 s eine
  * Runde; im Spiel (≤ 8 h offline) ändert er nur die Rundung.
  */
-function skipYears(state: GameState, remaining: number, report: TickReport, mode: Exclude<AmbientMode, 'live'>): number {
+function skipYears(
+  state: GameState,
+  remaining: number,
+  report: TickReport,
+  mode: Exclude<AmbientMode, 'live'>,
+  f: number,
+): number {
   const elapsed = state.cycle.elapsed;
   let years = Math.floor(remaining / YEAR_SECONDS);
   if (years < 1 || elapsed % YEAR_SECONDS !== 0) return 0;
@@ -396,9 +415,10 @@ function skipYears(state: GameState, remaining: number, report: TickReport, mode
   const memory = effectiveForestMemory(state);
   for (const id of SEASON_IDS) {
     const ev = evaluateEcosystem({ ...eco, season: id });
-    growth += (ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth : 0) * SEASON_SECONDS;
-    seeds += ev.seeds * SEASON_SECONDS;
-    harmonyPoints += harmonyIncome(ev.harmony, memory) * SEASON_SECONDS;
+    // Ertragsfaktor wie in tick (28.3): auf die Raten, nie auf die Zeit.
+    growth += (ev.growth > 0 && Number.isFinite(ev.growth) ? ev.growth * f : 0) * SEASON_SECONDS;
+    seeds += ev.seeds * f * SEASON_SECONDS;
+    harmonyPoints += harmonyIncome(ev.harmony, memory) * f * SEASON_SECONDS;
     harmonies.push(ev.harmony);
   }
   // Wegpunkt und Zwischenhalt: nur Jahre, nach denen die Schwelle noch nicht erreicht ist.
@@ -535,9 +555,11 @@ function capped(value: number): number {
 }
 
 /**
- * Simuliert die Zeit, in der das Spiel geschlossen war (höchstens 8 Stunden).
- * Begegnungen werden wie online gezogen; mehr als 3 offene werden automatisch
- * abgelehnt und als Samen gutgeschrieben. Ab OFFLINE_AVERAGE_MIN_SECONDS mit dem
+ * Simuliert die Zeit, in der das Spiel geschlossen war oder im Hintergrund lag (höchstens
+ * 8 Stunden). Die ersten OFFLINE_FULL_SECONDS zählen voll, der Rest mit dem Ertragsfaktor
+ * OFFLINE_YIELD (DESIGN_V2.md 28.3) – die Zeit selbst (Jahreszeiten, Wetter, Restdauern,
+ * Chronik) läuft immer voll. Begegnungen werden wie online gezogen; mehr als 3 offene werden
+ * automatisch abgelehnt und als Samen gutgeschrieben. Ab OFFLINE_AVERAGE_MIN_SECONDS mit dem
  * Mittelwetter je Jahreszeit und NIGHT_SHARE der Nachtwirkung (tick im Modus `average`).
  */
 export function simulateOffline(state: GameState, seconds: number): OfflineReport {
@@ -546,9 +568,12 @@ export function simulateOffline(state: GameState, seconds: number): OfflineRepor
   const seedsBefore = state.seeds;
   const harmonyBefore = Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0;
   // Ab einem Tag Abwesenheit: Mittelwetter und halbe Nachtwirkung (DESIGN_V2.md 21.5);
-  // kürzere Lücken (Tab kurz verdeckt) wie online.
+  // kürzere Lücken (Tab kurz verdeckt) wie online. Der Modus gilt für die ganze Abwesenheit.
   const averaged = total >= OFFLINE_AVERAGE_MIN_SECONDS;
-  const report = tick(state, total, averaged ? 'average' : 'live');
+  const mode: AmbientMode = averaged ? 'average' : 'live';
+  const fullSeconds = Math.min(total, OFFLINE_FULL_SECONDS);
+  const report = tick(state, fullSeconds, mode, 1);
+  if (total > fullSeconds) mergeReports(report, tick(state, total - fullSeconds, mode, OFFLINE_YIELD));
   return {
     ...report,
     seconds: total,
@@ -556,18 +581,44 @@ export function simulateOffline(state: GameState, seconds: number): OfflineRepor
     growth: state.totalGrowth - growthBefore,
     seeds: state.seeds - seedsBefore,
     harmony: Math.max(0, state.harmonyPoints - harmonyBefore),
+    yieldFactor: OFFLINE_YIELD,
+    fullSeconds,
   };
 }
 
-/** Automatisches Ablehnen am Wegpunkt: Samen wie beim Ablehnen von Hand, im Bericht summiert. */
-function autoDecline(state: GameState, report: TickReport): void {
-  const reward = declineReward(state);
+/**
+ * Hängt den Bericht `next` an `into` an (zwei Ticks hintereinander, simulateOffline). Indizes
+ * der Wildwechsel-Karten bleiben gültig: Ein Tick legt Begegnungen nur an, entfernt keine.
+ */
+function mergeReports(into: TickReport, next: TickReport): void {
+  into.waypoints += next.waypoints;
+  into.encounters += next.encounters;
+  into.autoDeclined += next.autoDeclined;
+  into.declinedStackFull += next.declinedStackFull;
+  into.declinedNoCards += next.declinedNoCards;
+  into.declinedSeeds = capped(into.declinedSeeds + next.declinedSeeds);
+  into.regulars.push(...next.regulars);
+  into.interludes += next.interludes;
+  into.sowings += next.sowings;
+  into.interludesReached += next.interludesReached;
+  into.expired.push(...next.expired);
+  for (let i = 0; i < next.seasons.length; i++) reportSeason(into, next.seasons[i]!, next.weather[i]!);
+  into.wildwechsel.push(...next.wildwechsel);
+  into.chapters.push(...next.chapters);
+}
+
+/**
+ * Automatisches Ablehnen (Weiterziehen) am Wegpunkt: Samen wie beim Ablehnen von Hand, offline
+ * nach den vollen Sekunden × f (28.3), im Bericht summiert.
+ */
+function autoDecline(state: GameState, report: TickReport, f: number): void {
+  const reward = declineReward(state, f);
   state.seeds = capped(state.seeds + reward);
   report.declinedSeeds = capped(report.declinedSeeds + reward);
   report.autoDeclined++;
 }
 
-function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMode = 'live'): void {
+function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMode = 'live', f = 1): void {
   state.waypoint++;
   state.stage = Math.max(state.stage, stageForWaypoint(state.waypoint));
   report.waypoints++;
@@ -585,14 +636,14 @@ function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMod
   }
   if (state.pendingEncounters.length >= MAX_PENDING_ENCOUNTERS) {
     // Warteschlange voll: überzählige Begegnung gleich ablehnen – nichts verfällt.
-    autoDecline(state, report);
+    autoDecline(state, report, f);
     report.declinedStackFull++;
     return;
   }
   const { encounter, wildwechsel } = drawEncounterWithRoute(state, ambient);
   if (!encounter) {
     // Keine Art kommt in Frage: wie Ablehnen.
-    autoDecline(state, report);
+    autoDecline(state, report, f);
     report.declinedNoCards++;
     return;
   }

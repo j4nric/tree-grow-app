@@ -26,7 +26,7 @@ import {
   weatherSeed,
   weatherSiteOf,
 } from '../src/core/weather';
-import { stateAt, researchFor } from './helpers';
+import { offlineTick, stateAt, researchFor } from './helpers';
 
 /**
  * Wetter je Waldtyp (DESIGN_V2.md 24.14, Phase 7, 3c): Gewichte des aktiven Waldes in
@@ -355,7 +355,8 @@ describe('Spielstand: aktiver Wald bestimmt das Wetter', () => {
 
       const avgSmall = structuredClone(start);
       const offline = structuredClone(start);
-      for (let i = 0; i < 2 * YEAR_SECONDS + 30; i++) tick(avgSmall, 1, 'average');
+      // Wie simulateOffline: erste 60 s voll, danach 10 % (28.3).
+      for (let i = 0; i < 2 * YEAR_SECONDS + 30; i++) offlineTick(avgSmall, i, 1);
       expect(simulateOffline(offline, 2 * YEAR_SECONDS + 30).averaged).toBe(2 * YEAR_SECONDS + 30 >= OFFLINE_AVERAGE_MIN_SECONDS);
       expect(offline.waypoint).toBe(avgSmall.waypoint);
       expect(offline.rngState).toBe(avgSmall.rngState);

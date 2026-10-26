@@ -22,7 +22,7 @@ import {
   toggleRegular,
 } from '../src/core/tick';
 import { GROWTH, HARMONY, RANDOM, runGame } from '../scripts/simulate';
-import { plantFromSowing, stateAt } from './helpers';
+import { offlineTick, plantFromSowing, stateAt } from './helpers';
 
 const HAIN_STAGE = NEW_CYCLE_MIN_STAGE;
 /** Wegpunkt des Hains – hier gilt die Hain-Regel aus 2.11 (Parameter von cycleMemoryGain). */
@@ -274,13 +274,15 @@ describe('Sperrklinke: die Vorschau sinkt nie (seit v10)', () => {
     };
     const online = make();
     const offline = make();
-    for (let i = 0; i < 3 * 3600; i++) {
-      tick(online, 1);
+    // Je drei Stunden eine Abwesenheit: erste 60 s voll, danach 10 % (28.3) – wie simulateOffline.
+    const chunk = 3 * 3600;
+    for (let i = 0; i < 3 * chunk; i++) {
+      offlineTick(online, i % chunk, 1);
       online.pendingEncounters = [];
     }
-    // Offline in Stunden-Stücken (Begegnungen dazwischen verworfen wie online).
+    // Offline in Drei-Stunden-Stücken (Begegnungen dazwischen verworfen wie online).
     for (let i = 0; i < 3; i++) {
-      simulateOffline(offline, 3600);
+      simulateOffline(offline, chunk);
       offline.pendingEncounters = [];
     }
     expect(online.waypoint).toBeGreaterThan(HAIN + 2);
@@ -568,7 +570,8 @@ describe('Stammgäste', () => {
     expect(big.totalGrowth).toBeCloseTo(small.totalGrowth, 6);
     expect(big.seeds).toBeCloseTo(small.seeds, 6);
     // simulateOffline rechnet ab einem Tag mit dem Mittelwetter (DESIGN_V2.md 21.5): online im selben Modus.
-    for (let i = 0; i < 2 * 3600; i++) tick(online, 1, 'average');
+    // Dazu der Ertragsfaktor der Abwesenheit (28.3): erste 60 s voll, danach 10 %.
+    for (let i = 0; i < 2 * 3600; i++) offlineTick(online, i, 1);
     const report = simulateOffline(offline, 2 * 3600);
     expect(report.regulars.length).toBeGreaterThan(0);
     expect(offline.niches).toEqual(online.niches);
@@ -595,7 +598,8 @@ describe('Stammgäste', () => {
     // Bis genau auf die Grenze: online in Sekunden-Schritten, offline in einem Stück.
     const seen: string[] = [];
     // Ein ganzer Tag offline: Mittelwetter (DESIGN_V2.md 21.5) – online im selben Modus.
-    for (let i = 0; i < SEASON_SECONDS; i++) seen.push(...tick(online, 1, 'average').seasons);
+    // Erste 60 s voll, danach 10 % (28.3) – wie simulateOffline.
+    for (let i = 0; i < SEASON_SECONDS; i++) for (const r of offlineTick(online, i, 1)) seen.push(...r.seasons);
     const report = simulateOffline(offline, SEASON_SECONDS);
     expect(report.averaged).toBe(true);
     expect(online.cycle.elapsed).toBe(SEASON_SECONDS);

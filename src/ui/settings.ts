@@ -29,6 +29,8 @@ export interface Settings {
 export const SETTINGS_KEY = 'tree-grow-settings';
 /** Merker: Der Hinweis „Neu hier? Spielanleitung öffnen“ wurde schon gezeigt. */
 export const GUIDE_HINT_KEY = 'tree-grow-guide-hint-seen';
+/** Merker: Der Hinweis zur Offline-Regel (10 %, DESIGN_V2.md 28.3) wurde schon gezeigt. */
+export const OFFLINE_HINT_KEY = 'tree-grow-offline-hint-seen';
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
   motion: 'auto',
@@ -127,6 +129,20 @@ export function takeFirstStartHint(storage: Pick<Storage, 'getItem' | 'setItem'>
   try {
     if (!storage || storage.getItem(GUIDE_HINT_KEY) === '1') return false;
     storage.setItem(GUIDE_HINT_KEY, '1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Einmaliger Hinweis zur Offline-Regel (28.3): beim ersten Rückkehr-Bericht mit kleinerem
+ * Ertrag. Merkt sich das Zeigen gleich; ohne Speicher nicht zeigen (sonst bei jeder Rückkehr).
+ */
+export function takeOfflineHint(storage: Pick<Storage, 'getItem' | 'setItem'> | null = safeStorage()): boolean {
+  try {
+    if (!storage || storage.getItem(OFFLINE_HINT_KEY) === '1') return false;
+    storage.setItem(OFFLINE_HINT_KEY, '1');
     return true;
   } catch {
     return false;

@@ -1199,7 +1199,7 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   der Gabel Samenbank/Anzuchtbeet (statt Benjeshecke, 28.6 nachgetragen), Offenland ohne Gabel an
   Spätmahd/Trockenmauer; Baumteile mit Abzeichen 25/50/75 wie die Nischen. Tests
   `tests/upgrades.test.ts`; core unverändert; ein neues Wort in `ui/hyphenate.ts` (Pilzgeflecht)
-- [ ] **1b** Offline 10 % (`core-engineer`, 28.3): Ertragsfaktor `f` in `tick` (Raten und
+- [x] **1b** Offline 10 % (`core-engineer`, 28.3): Ertragsfaktor `f` in `tick` (Raten und
   Halte-Rechnung, nie `elapsed`), `simulateOffline` = 60 s voll + Rest × `OFFLINE_YIELD`,
   `OfflineReport.yieldFactor`/`fullSeconds`; automatisches Weiterziehen zahlt Samen-Sekunden × `f`;
   Tests: viele kleine Ticks = ein großer Tick je `f`, 30 s offline = voll, 2 h = 60 s + Rest × 0,1,
@@ -1209,6 +1209,13 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Feedback „viel zu viele Samen, offline höchstens 10 %“ – heute trägt eine Nacht den Baum vom
   Setzling bis zum Wald (28.2). Ohne Spielstand-Änderung, darum sofort. Abhängig: nichts (Konstanten
   notfalls im PR selbst anlegen, 1a übernimmt sie)
+  **Erledigt** (`claude/p11-1b-offline`): `tick(…, f)` und `simulateOffline` = `tick(60 s, 1)` +
+  `tick(Rest, 0,1)` im selben Wetter-Modus; `declineReward(state, f)`, `normalizeYieldFactor`;
+  Konstanten in `src/content/offline.ts` (inhaltsgleich mit 1a). Alle Nachrechnungen
+  (Start, Tab zurück, Ruhezustand, Sync-Übernahme) laufen über `catchUp` → gleiche Regel; Server
+  rechnet nicht nach. Tests `tests/offline-yield.test.ts`, Helfer `offlineTick` in `tests/helpers.ts`
+  für „kleine Ticks = simulateOffline“; Rückkehr-Bericht, einmaliger Hinweis (Merker in den
+  Einstellungen), Kapitel „Offline“ der Spielanleitung (21 Kapitel)
 - [ ] **1c** Layout Ausbau und Zielzeile (`ui-dev`, 28.9): R:Nischen mit Abschnitt „🌳 Dein Baum“,
   Fußzeile je Nische (Stufe, Meilenstein-Balken, Wirkung je Tier, Knopf), Kaufmenge ×1/×10/Max,
   verschlossene Nische ohne Knopf, Abzeichen am Etikett; Zielzeile im Polaroid-Kopf; reine Ansicht
