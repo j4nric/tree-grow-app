@@ -8831,7 +8831,8 @@ entstehen, wenn sich die Nische schließt, und dafür gibt es die Regel heute sc
 | 🍄 Pilzgeflecht | `mycorrhiza` | Begleitpflanzen +0,5 % 🌿 und 🌰 (vor der Versorgung V) | +1 💧 | „Feine Pilzfäden verbinden die Wurzeln – der Baum teilt mit seinen Nachbarn.“ |
 
 - Alle 10 Stufen eine **sichtbare Veränderung** im Bild (Renderer, 28.9): Stamm ein Stück dicker,
-  Krone voller, am Stammfuß mehr Pilzhüte. Stufe 50 / 75: Abzeichen wie bei den Nischen.
+  Krone voller, am Stammfuß mehr Pilzhüte. Stufe 25 / 50 / 75: Abzeichen wie bei den Nischen
+  (Bronze / Silber / Gold; 1a: auch Bronze, damit Nischen und Baumteile gleich zählen).
 - Warum der Hauptbaum nur +0,4 % 🌿: Er liefert am Hain ~70 % des Wachstums (16 von ~23 🌿/s
   vor den Faktoren); „Hauptbaum +10 %“ macht schon −7 % bis zum Hain (28.2).
 - Name „Jahresringe“/„Blattwerk“ statt „Stamm“/„Krone“, damit sie nicht mit den Nischen Stamm &
@@ -8916,8 +8917,12 @@ Ebene:                     ab Hain; braucht den Gabel-Knoten seines Asts (einer 
 | 🌳 Krone | `old-branches` | Altäste stehen lassen | Lichte Krone II, Dichte Krone II | Bäume +1 % 🌰 (auch Hauptbaum) | „Totes Holz in der Krone ist Lebensraum – niemand sägt es ab.“ |
 | 🌼 Saum | `hem-abundance` | Blütenfülle | Blütenvorrat, Wildbienenwand | Blumen +2 % 🌰 | „Jedes Jahr ein paar neue Arten am Saum – die Wildbienen finden sie.“ |
 | 🌾 Offenland | `meadow-care` | Wiese pflegen | Spätmahd, Trockenmauer | Blumen +2 % 🌿 | „Gemäht wird mit der Sense, das Heu bleibt liegen, bis es aussamt.“ |
-| 🌱 Saat | `seed-refine` | Saatgut veredeln | Benjeshecke | Sträucher +2 % 🌰 | „Nur die Samen der kräftigsten Sträucher kommen in die Tüte.“ |
+| 🌱 Saat | `seed-refine` | Saatgut veredeln | Samenbank, Anzuchtbeet | Sträucher +2 % 🌰 | „Nur die Samen der kräftigsten Sträucher kommen in die Tüte.“ |
 
+- **Daten (Phase 11, 1a):** `RESEARCH_REPEATABLE` in `content/research.ts`, bis 2b nicht in
+  `RESEARCH`. Saat braucht die Gabel Samenbank/Anzuchtbeet (nicht die Benjeshecke, die keine
+  Gabel ist – Regel „hinter der Gabel“ vor der ersten Tabellenfassung); Offenland hat keine
+  Gabel, dort öffnen Spätmahd oder Trockenmauer.
 - **Warum ⚖️ und nicht 🌰:** Harmonie ist die Qualitätswährung; heute gibt es nach dem letzten
   Knoten nichts mehr zu erforschen (Zufall: alle 21.260 ⚖️ bis zum Urwald, 28.2), und späte Zyklen
   mit Gedächtnisfaktor G (×2–11) häufen ⚖️ ohne Verwendung.
