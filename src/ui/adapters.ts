@@ -584,7 +584,7 @@ function upgradeView(state: GameState, target: UpgradeTarget, icon: string, labe
   const milestone = nextMilestone(target, level);
   const cost = upgradeCost(state, target);
   const view: UpgradeView = {
-    kind: target.kind,
+    target,
     id: target.id,
     icon,
     label,

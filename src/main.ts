@@ -114,7 +114,7 @@ const syncUrl =
   readSyncUrl((window as unknown as { __VSZW_SYNC_URL__?: unknown }).__VSZW_SYNC_URL__) ?? readSyncUrl(import.meta.env.VITE_SYNC_URL);
 
 /** Wofür eine Aktion lief (für abweichende Fehlertexte). */
-type ActionKind = PendingEncounterType | 'research' | 'sowing' | 'upgrade';
+type ActionKind = PendingEncounterType | 'research' | 'sowing' | 'tree-upgrade';
 
 const ERROR_TEXTS: Record<ActionError, string> = {
   'no-encounter': 'Diese Begegnung gibt es nicht mehr.',
@@ -161,8 +161,20 @@ const RESEARCH_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
   'too-expensive': 'Nicht genug Harmonie im Vorrat.',
 };
 
+/** Abweichende Texte für den Baum-Ausbau (DESIGN_V2.md 28.4: gesperrt nur vor dem Keimling). */
+const TREE_UPGRADE_ERROR_TEXTS: Partial<Record<ActionError, string>> = {
+  closed: 'Den Baum kannst du erst ab dem Keimling ausbauen.',
+};
+
 function errorText(error: ActionError, type: ActionKind | undefined): string {
-  const special = type === 'sowing' ? SOWING_ERROR_TEXTS[error] : type === 'research' ? RESEARCH_ERROR_TEXTS[error] : undefined;
+  const special =
+    type === 'sowing'
+      ? SOWING_ERROR_TEXTS[error]
+      : type === 'research'
+        ? RESEARCH_ERROR_TEXTS[error]
+        : type === 'tree-upgrade'
+          ? TREE_UPGRADE_ERROR_TEXTS[error]
+          : undefined;
   return special ?? ERROR_TEXTS[error];
 }
 
@@ -377,7 +389,7 @@ const album = createAlbum({
     // Ausbau (DESIGN_V2.md 28.4; einfache Fassung bis 4b): eine Stufe, Meilenstein als Meldung.
     upgrade: (target) => {
       const result = target.kind === 'niche' ? upgradeNiche(state, target.id) : upgradeTree(state, target.id);
-      act(result, false, 'upgrade', result.ok && result.upgrade ? upgradeMilestoneText(result.upgrade) : '');
+      act(result, false, target.kind === 'tree' ? 'tree-upgrade' : undefined, result.ok && result.upgrade ? upgradeMilestoneText(result.upgrade) : '');
     },
     newCycle,
     buildCorridor: (id) => {

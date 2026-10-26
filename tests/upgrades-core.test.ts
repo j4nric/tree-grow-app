@@ -104,9 +104,30 @@ describe('Preise (28.4)', () => {
     const state = stateAt(1);
     for (const id of NICHE_IDS) expect(upgradeCost(state, { kind: 'niche', id })).toBe(NICHE_UPGRADE_BASE[id]);
     for (const id of TREE_PART_IDS) expect(upgradeCost(state, { kind: 'tree', id })).toBe(TREE_UPGRADE_BASE);
-    // 600 · 1,15 = 689,99… im Gleitkomma: aufgerundet trotzdem 690.
+    // 600 · 1,15 und 60 · 1,15 sind ganz – Gleitkomma-Rauschen darf nicht aufrunden.
     expect(upgradePrice(600, 1)).toBe(690);
     expect(upgradePrice(60, 1)).toBe(69);
+  });
+
+  it('hohe Stufen exakt: ⌈b · 23^L / 20^L⌉ mit ganzen Zahlen nachgerechnet', () => {
+    /** Exakter Preis mit BigInt (1,15 = 23/20). */
+    const exact = (base: number, level: number) => {
+      const num = BigInt(base) * 23n ** BigInt(level);
+      const den = 20n ** BigInt(level);
+      return Number((num + den - 1n) / den);
+    };
+    // Wurzelraum ab Stufe 120 (Preis 120 → 121): 10 · 1,15^120 = 192.194.450,019… → 192.194.451.
+    expect(upgradePrice(10, 120)).toBe(192_194_451);
+    expect(exact(10, 120)).toBe(192_194_451);
+    let checked = 0;
+    for (const base of [10, 15, 25, 60, 250, 600]) {
+      // Bis 1e12: darüber reicht die Genauigkeit von Math.pow(1,15, L) nicht mehr sicher für Einer.
+      for (let level = 0; base * Math.pow(1.15, level) < 1e12; level++) {
+        expect(upgradePrice(base, level), `${base} · 1,15^${level}`).toBe(exact(base, level));
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(900);
   });
 
   it('upgradeCost mit count = Summe der Einzelpreise ab der aktuellen Stufe', () => {

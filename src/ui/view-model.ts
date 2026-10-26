@@ -11,6 +11,7 @@
  * - Harmonie-Änderungen sind Punkte: 6 = +6 Harmonie.
  * - Texte (Namen, Wirkungen, Stimmungen) kommen fertig auf Deutsch.
  */
+import type { UpgradeTarget } from '../core/upgrades';
 import type { ChronicleKeepsakeView } from './chronicle-view';
 
 /** 🌙 an einer Nachtart (Kachel, Karte, Details). */
@@ -348,7 +349,8 @@ export interface NicheView {
  * Ansicht mit Kaufmenge und Meilenstein-Balken kommt mit 4b).
  */
 export interface UpgradeView {
-  kind: 'niche' | 'tree';
+  /** Nische oder Baumteil – geht beim Kauf unverändert an die Aktion. */
+  target: UpgradeTarget;
   id: string;
   icon: string;
   label: string;

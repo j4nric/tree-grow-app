@@ -129,7 +129,7 @@ function createUpgradeControl(onBuy: (target: UpgradeTarget) => void, title = fa
         target = null;
         return;
       }
-      target = { kind: view.kind, id: view.id } as UpgradeTarget;
+      target = view.target;
       root.dataset.upgrade = view.id;
       if (title) setText(name, `${view.icon} ${view.label}`);
       setText(info, [`St. ${formatNumber(view.level)}`, view.effect, view.next].filter(Boolean).join(' · '));

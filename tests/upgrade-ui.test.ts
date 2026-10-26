@@ -22,7 +22,7 @@ describe('Ausbau in der Ökosystem-Ansicht', () => {
     const roots = view.niches.find((n) => n.id === 'roots')!;
     expect(plain(roots.upgrade!.effect)).toBe('je Tier +2,4 %');
     expect(roots.upgrade).toMatchObject({
-      kind: 'niche',
+      target: { kind: 'niche', id: 'roots' },
       id: 'roots',
       level: 24,
       next: 'St. 25: +1 Platz',

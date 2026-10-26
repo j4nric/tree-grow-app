@@ -32,8 +32,15 @@ export interface UpgradeSlotBonus {
   upgrade: true;
 }
 
-/** Rundungsrauschen beim Aufrunden (600 · 1,15 = 689,9999… darf nicht 691 werden). */
-const PRICE_CEIL_EPSILON = 1e-9;
+/**
+ * Rundungsrauschen beim Aufrunden: Liegt der Gleitkomma-Preis nur um diesen Anteil (relativ,
+ * mindestens PRICE_NOISE_ABS) über einer ganzen Zahl, gilt er als diese Zahl (600 · 1,15 = 690,
+ * auch wenn das Produkt knapp darüber landet). Klein genug, dass echte Nachkommastellen großer
+ * Preise (Wurzelraum Stufe 120: 192.194.450,019…) weiter aufrunden – exakt bis ~1e12 🌰 (getestet),
+ * darüber begrenzt die Genauigkeit von Math.pow die Einerstelle.
+ */
+const PRICE_NOISE_REL = 3e-15;
+const PRICE_NOISE_ABS = 1e-9;
 
 /**
  * Eine Ausbaustufe robust: ganzzahlig in 0 … MAX_UPGRADE_LEVEL, sonst 0 (NaN, negativ, zu groß,
@@ -81,7 +88,8 @@ export function upgradePrice(base: number, level: number): number {
   if (l >= MAX_UPGRADE_LEVEL) return Infinity;
   const raw = base * Math.pow(UPGRADE_GROWTH, l);
   if (!Number.isFinite(raw)) return Infinity;
-  return Math.ceil(raw - PRICE_CEIL_EPSILON * Math.max(1, raw));
+  const whole = Math.floor(raw);
+  return raw - whole <= Math.max(PRICE_NOISE_ABS, raw * PRICE_NOISE_REL) ? whole : Math.ceil(raw);
 }
 
 /**
@@ -210,10 +218,14 @@ export function upgradeDrawWeight(levels: UpgradeLevels | undefined, niche: Nich
   return factor;
 }
 
+/** Erste Nischen-Stufe, ab der ein Meilenstein aufs Kartenziehen wirkt (10). */
+const FIRST_DRAW_MILESTONE = Math.min(
+  ...NICHE_MILESTONES.filter((m) => m.kind === 'drawWeight' || m.kind === 'rareWeight').map((m) => m.level),
+);
+
 /** Wirkt irgendein Ausbau aufs Kartenziehen (eine Nische ab ihrem ersten Gewichts-Meilenstein)? */
 export function hasDrawUpgrades(levels: UpgradeLevels | undefined): boolean {
-  const first = Math.min(...NICHE_MILESTONES.filter((m) => m.kind === 'drawWeight' || m.kind === 'rareWeight').map((m) => m.level));
-  return NICHE_IDS.some((id) => upgradeLevel(levels, { kind: 'niche', id }) >= first);
+  return NICHE_IDS.some((id) => upgradeLevel(levels, { kind: 'niche', id }) >= FIRST_DRAW_MILESTONE);
 }
 
 /**
