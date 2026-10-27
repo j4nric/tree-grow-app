@@ -15,8 +15,10 @@ import {
   withoutSiteEvents,
   withoutSiteSlot,
   withoutSiteWeather,
+  upgradeRankTable,
   type LandscapeSummary,
 } from '../scripts/landscape';
+import { MAX_UPGRADE_LEVEL } from '../src/content/upgrades';
 import { LANDSCAPE_SITES, SITE_IDS } from '../src/content/landscape';
 import { EVENTS_BY_ID } from '../src/content/events';
 import { SEASON_IDS } from '../src/content/seasons';
@@ -94,7 +96,7 @@ describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', { timeou
     console.log(`### Spielweisen, ${SITE_WEATHER ? 'mit' : 'ohne'} Wetter je Standort`);
     const complete = rows.map((r) => medianOrNull(r.runs.map((x) => x.completeAt)));
     const maxed = rows.map((r) => medianOrNull(r.runs.map((x) => x.allMaxedAt)));
-    console.log(`${milestoneTable(rows)}\n\n${firstCycleTable(rows)}\n\n${harmonyTable(rows)}\n\n${peakTable(rows)}`);
+    console.log(`${milestoneTable(rows)}\n\n${firstCycleTable(rows)}\n\n${harmonyTable(rows)}\n\n${peakTable(rows)}\n\n${upgradeRankTable(rows)}`);
     console.log(
       `Wachstum gegenüber Harmonie: vollständig ${((complete[0]! / complete[1]! - 1) * 100).toFixed(1)} % schneller, alle voll ${((maxed[0]! / maxed[1]! - 1) * 100).toFixed(1)} % schneller`,
     );
@@ -112,6 +114,8 @@ describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', { timeou
       for (const run of r.runs) {
         expect(run.maxGrowth).toBeLessThan(1e5);
         expect(run.lifetimeGrowth).toBeLessThan(1e9);
+        // Ausbau mit G (Phase 11, 3b): auch im Erntezyklus weit unter der Obergrenze der Stufen.
+        for (const c of run.cycles) expect(c.nicheLevelMax, r.label).toBeLessThan(MAX_UPGRADE_LEVEL / 2);
       }
     }
   });

@@ -1823,8 +1823,8 @@ function harmonyMemoryPoints(harmony: number, divisor: number, threshold: number
 /**
  * Regel des Waldgedächtnisses für den erreichten Wegpunkt (Schritt 2.11b, Sockel-Teiler seit
  * dem Abgleich mit der Sperrklinke): Teiler D, Schwelle T und Obergrenze C gleiten linear
- * zwischen den Stützstellen aus MEMORY_HARMONY_RULES (Hain, Wegpunkt 20: 5 / 100 / 45 →
- * Wald, 28: 6 / 148 / 48 → Urwald, 36: 7 / 164 / 48). Davor gilt die erste, danach die
+ * zwischen den Stützstellen aus MEMORY_HARMONY_RULES (seit Phase 11, 3b: Hain, Wegpunkt 20: 5 / 112 / 45 →
+ * Wald, 28: 6 / 168 / 48 → Urwald, 36: 7 / 196 / 48). Davor gilt die erste, danach die
  * letzte Stützstelle; NaN zählt wie Wegpunkt 0, Infinity wie der letzte.
  */
 export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {
@@ -1878,7 +1878,7 @@ export function harmonyMemoryGain(maxHarmony: number, waypoint: number): number 
  * gleitender Sockel-Teiler seit dem Abgleich mit der Sperrklinke): mit H = round(H_max):
  * `⌊H / D + min(C, 3 · max(0, H − T))⌋ + neue Arten`, Teiler D, Schwelle T und Obergrenze C
  * je erreichtem Wegpunkt `waypoint` (memoryHarmonyBonus, Zahlen in content/memory.ts). Im
- * Hain (5 / 100 / 45) ist das genau `⌊H / 5⌋ + min(45, 3 · max(0, H − 100))` wie in 2.11. Begrenzt, sodass der Bestand
+ * Hain (5 / 112 / 45, seit Phase 11, 3b; in 2.11 Schwelle 100) ist das `⌊H / 5⌋ + min(45, 3 · max(0, H − 112))`. Begrenzt, sodass der Bestand
  * MAX_FOREST_MEMORY nicht übersteigt. Negative Harmonie zählt als 0; NaN und Unsinn ergeben
  * 0 statt kaputter Spielstände.
  * Sperrklinke (seit v10): `bestHarmonyMemory` ist der beste Harmonie-Anteil, den der Zyklus

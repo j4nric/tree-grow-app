@@ -16,9 +16,12 @@ import { stateAt } from './helpers';
  * Kandidat, Anhang „erforschbar“.
  */
 
-/** Keimling mit vollem Pflanzring (kein „Säen“), ohne Samen. */
+/**
+ * Keimling mit vollem Pflanzring (kein „Säen“), ohne Samen, mit einer Wühlmaus im Wurzelraum
+ * (leere Nischen sind seit Phase 11, 3b nur mit Meilenstein Kandidat).
+ */
 function sprout(): GameState {
-  const s = stateAt(1);
+  const s = stateAt(1, ['vole']);
   s.plants = ['moss'].slice(0, plantSlots(1));
   s.seeds = 0;
   return s;
@@ -73,6 +76,38 @@ describe('nextGoal: Kandidaten', () => {
     nextGoal(s);
     researchAvailable(s);
     expect(JSON.stringify(s)).toBe(before);
+  });
+});
+
+describe('nextGoal: leere Nischen (Playtest Phase 11, 5b, Fund F1)', () => {
+  it('eine offene Nische ohne Tier ist kein Kandidat – der Ausbau wirkt je Tier', () => {
+    const s = stateAt(1);
+    s.plants = ['moss'].slice(0, plantSlots(1));
+    expect(s.niches.roots).toEqual([]);
+    expect(goalCandidates(s, 1).map((c) => c.target?.id)).toEqual(['rings', 'leaves', 'mycorrhiza']);
+    expect(nextGoal(s, 1)).toMatchObject({ kind: 'tree', target: { id: 'rings' } });
+    // Mit einem Tier ist sie wieder dabei (und als billigste das Ziel).
+    s.niches.roots = ['vole'];
+    expect(nextGoal(s, 1)).toMatchObject({ kind: 'niche', target: { id: 'roots' }, level: 1 });
+  });
+
+  it('leer, aber der nächste Kauf erreicht einen Meilenstein mit Wirkung: Kandidat', () => {
+    const s = stateAt(2);
+    s.plants = ['moss', 'fern'].slice(0, plantSlots(2));
+    s.cycle.upgrades.niches.roots = 24; // 25: +1 Platz
+    s.cycle.upgrades.niches.litter = 9; // 10: öfter in den Karten
+    s.seeds = 1e9;
+    expect(nextGoal(s, 0)).toMatchObject({ target: { id: 'litter' }, level: 10 });
+    const ids = goalCandidates(s, 0).map((c) => c.target?.id);
+    expect(ids).toContain('roots');
+    expect(ids).not.toContain('edge');
+  });
+
+  it('gäbe es sonst keinen Kandidaten, zählen leere Nischen doch', () => {
+    const s = stateAt(1);
+    s.plants = ['moss'].slice(0, plantSlots(1));
+    for (const id of ['rings', 'leaves', 'mycorrhiza'] as const) s.cycle.upgrades.tree[id] = MAX_UPGRADE_LEVEL;
+    expect(nextGoal(s, 1)).toMatchObject({ kind: 'niche', target: { id: 'roots' } });
   });
 });
 
@@ -149,7 +184,7 @@ describe('nextGoal: Auswahl', () => {
   });
 
   it('Gleichstand: Nischen in NICHE_IDS-Reihenfolge (Laubstreu vor Waldsaum), dann Baumteile', () => {
-    const s = stateAt(2);
+    const s = stateAt(2, ['vole', 'robin', 'bee']);
     s.plants = ['moss', 'fern'].slice(0, plantSlots(2));
     s.cycle.upgrades.niches.roots = 40;
     s.cycle.upgrades.tree = { rings: 30, leaves: 30, mycorrhiza: 30 };

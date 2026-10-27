@@ -54,6 +54,7 @@ import {
   previewSowing,
   regularSlots,
   sowingCost,
+  sowingRerollCost,
   secondsToNextWaypoint,
   type Evaluation,
 } from '../src/core/formulas';
@@ -76,6 +77,7 @@ import {
   previewNewCycle,
   previewResearch,
   rerollBlocker,
+  rerollSowing,
   rerollSowingBlocker,
   rerollEncounter,
   research,
@@ -182,6 +184,22 @@ export interface Strategy {
    * tauschen, sobald der Vorrat zwei Aussaaten deckt (ein Rest bleibt für Würfeln und Gäste).
    */
   sowPolicy: 'improve' | 'spend';
+  /**
+   * Feste Seite je Gabel (`ResearchFork.id` → 0 = Weg A, 1 = Weg B) statt der Wahl nach dem Maß
+   * (forkChoice) – nur zum Messen einer Gabel (Phase 11, 3b: Saat, Samenbank gegen Anzuchtbeet).
+   */
+  forks?: Readonly<Record<string, 0 | 1>>;
+  /**
+   * Samen (nur mit Ausbau): `goal` – kauft genau, was die Zielzeile nennt (nextGoal: Säen nur bei
+   * freiem Pflanzplatz, kein Tausch), sobald es bezahlbar ist, ohne Rücklage. Standard: die
+   * Ausbau-Strategie spendSeeds (Säen mit Vorrang, Tausch, Rücklage).
+   */
+  seedPolicy?: 'goal';
+}
+
+/** Strategie mit fester Seite an einer Gabel (Messung, Strategy.forks). */
+export function withFork(strategy: Strategy, fork: string, side: 0 | 1): Strategy {
+  return { ...strategy, id: `${strategy.id}-${fork}-${side === 0 ? 'a' : 'b'}`, forks: { ...strategy.forks, [fork]: side } };
 }
 
 const byHarmony = (ev: Evaluation) => ev.harmony + 1e-6 * ev.growth;
@@ -246,6 +264,12 @@ export const RANDOM: Strategy = {
 
 export const HARMONY = greedy('harmony', 'Gierig nach Harmonie', byHarmony, 1);
 export const GROWTH = greedy('growth', 'Gierig nach Wachstum', byGrowth, 0);
+/**
+ * Naiver Spieler „folgt der Zielzeile“ (Phase 11, 3b; Playtest 5b, Fund F1): Karten, Aussaat und
+ * Forschung wie der Harmonie-Spieler, die Samen aber nur für das, was die Zielzeile nennt
+ * (`seedPolicy: 'goal'`), sofort und ohne Rücklage – kein Tausch im vollen Ring.
+ */
+export const GOAL: Strategy = { ...greedy('goal', 'Folgt der Zielzeile', byHarmony, 1), seedPolicy: 'goal' };
 
 export const RAREST: Strategy = {
   id: 'rarest',
@@ -331,6 +355,8 @@ export interface Counts {
   regulars: number;
   /** Gekaufte Ausbaustufen (Nischen und Baum, Phase 11, 3a). */
   upgradesBought: number;
+  /** Gratis-Würfe der Aussaat (Anzuchtbeet, freeSowingReroll; Phase 11, 3b). */
+  sowingRerolls: number;
 }
 
 /** Schnappschuss des Durchgangs (beim Erreichen einer Stufe oder zu einer festen Zeit). */
@@ -580,6 +606,7 @@ export function runGame(
     careBought: 0,
     regulars: 0,
     upgradesBought: 0,
+    sowingRerolls: 0,
   };
   const result: RunResult = {
     stages: Array(STAGES.length).fill(null),
@@ -827,6 +854,8 @@ export interface CycleRun {
 export interface CycleOptions extends RunOptions {
   /** Anzahl Zyklen am Stück (jeder endet mit Erreichen von `targetStage`). */
   cycles: number;
+  /** Wird am Ende des letzten Zyklus mit dem Spielstand aufgerufen (offlineAfterStage mit `cycle`). */
+  afterLast?: (state: GameState, rng: RngHolder) => void;
 }
 
 /**
@@ -878,7 +907,10 @@ export function runCycles(strategy: Strategy, options: CycleOptions, first?: Che
       regulars,
       regularsMovedIn: result.final.counts.regulars,
     });
-    if (n === options.cycles) break;
+    if (n === options.cycles) {
+      options.afterLast?.(state, rng);
+      break;
+    }
     const ranked = rankRegulars(state, strategy);
     const started = startNewCycle(state, 0, isTreeUnlocked(state, options.mainTree ?? 'oak') ? options.mainTree : 'oak');
     if (!started.ok) throw new Error(`Neuer Zyklus gescheitert: ${started.error}`);
@@ -1035,6 +1067,8 @@ export function researchValue(state: GameState, strategy: Strategy, node: Resear
 export function forkChoice(state: GameState, strategy: Strategy, fork: ResearchFork, index: number, now?: Evaluation): 0 | 1 | null {
   const owned = forkSideOf(state.cycle.research, fork);
   if (owned !== null) return owned;
+  const forced = strategy.forks?.[fork.id];
+  if (forced !== undefined) return researchOpen(state, fork.paths[forced][0]!) ? forced : null;
   const open = ([0, 1] as const).filter((side) => researchOpen(state, fork.paths[side][0]!));
   if (open.length === 0) return null;
   if (open.length === 1) return open[0]!;
@@ -1195,6 +1229,17 @@ function spendSeeds(
   let wants: boolean | null = null;
   for (let guard = 0; guard < 2000; guard++) {
     const rate = evaluate(state, ambient).seeds;
+    if (strategy.seedPolicy === 'goal') {
+      // Wie die Zielzeile (nextGoal): Kandidaten mit „Säen“ bei freiem Platz, keine Rücklage.
+      upgradeGoals ??= goalCandidates(state, rate);
+      for (const g of upgradeGoals) g.seconds = secondsUntilAffordable(g.cost, state.seeds, rate);
+      const goal = cheapestGoal(upgradeGoals);
+      if (!goal) return Infinity;
+      if (goal.cost > state.seeds) return rate > 0 ? (goal.cost - state.seeds) / rate + 1e-6 : Infinity;
+      if (goal.kind === 'sow' ? !buySowing() : !buyUpgrade(goal.target!)) return Infinity;
+      upgradeGoals = null;
+      continue;
+    }
     const budget = state.seeds - seedReserve(rate);
     upgradeGoals ??= seedGoals(state, false, rate);
     for (const g of upgradeGoals) g.seconds = secondsUntilAffordable(g.cost, state.seeds, rate);
@@ -1244,7 +1289,8 @@ function sowingGoal(state: GameState, seedsPerSecond: number): NextGoal | null {
 /**
  * Wahl bei der offenen Aussaat: Zufallsspieler nimmt eine zufällige Karte (bei vollem Ring
  * zufällig ersetzen oder zurücklegen), bewertende Strategien die beste Platzierung, wenn sie
- * verbessert – sonst zurücklegen. Kein Neu würfeln.
+ * verbessert – sonst würfeln sie neu, wenn der Wurf gratis ist (freeSowingReroll), sonst
+ * zurücklegen.
  */
 function decideSowing(strategy: Strategy, state: GameState, options: Option[], current: Evaluation, rng: RngHolder): Option | null {
   if (!strategy.plantValue) {
@@ -1261,6 +1307,17 @@ function decideSowing(strategy: Strategy, state: GameState, options: Option[], c
 }
 
 /**
+ * Gratis-Wurf der Aussaat (Anzuchtbeet, `sowFreeReroll`; Phase 11, 3b): Bewertende Strategien
+ * würfeln eine Aussaat neu, wenn keine Karte verbessert und der Wurf nichts kostet – wie bei
+ * Tieren höchstens so oft, wie es Gratis-Würfe gibt. Bezahlte Würfe nutzt der Simulator bei
+ * der Aussaat nicht (wie bisher); der Zufallsspieler würfelt nie.
+ */
+function freeSowingReroll(state: GameState, strategy: Strategy): boolean {
+  if (!strategy.plantValue || !state.cycle.sowing) return false;
+  return sowingRerollCost(state) === 0 && rerollSowingBlocker(state) === null;
+}
+
+/**
  * Löst die offene Aussaat auf (falls eine offen ist; eine wartende Vogelsaat öffnet danach
  * und wird mit aufgelöst). Gibt zurück, ob etwas aufgelöst wurde.
  */
@@ -1271,19 +1328,28 @@ function resolveSowingNow(state: GameState, strategy: Strategy, rng: RngHolder, 
     const current = evaluate(state);
     const options = sowingOptionsFor(state);
     const cards = state.cycle.sowing.cards;
-    variety.push({
-      stage: state.stage,
-      time,
-      type: 'sowing',
-      cards: cards.length,
-      sameAsPrevious: sameCards(lastCards.get(variety) ?? {}, 'sowing', cards),
-      rerollBlocked: rerollSowingBlocker(state),
-      worthwhile: options.some((o) => o.ev.harmony > current.harmony + 1e-9 || o.ev.growth > current.growth + 1e-9),
-      ids: [...cards],
-    });
-    rememberCards(variety, 'sowing', cards);
-    counts.plantEncounters++;
+    const improves = options.some((o) => o.ev.harmony > current.harmony + 1e-9 || o.ev.growth > current.growth + 1e-9);
+    // Vielfalt (7.7) an der ersten Ziehung; nach einem Gratis-Wurf zählt „lohnend“ wie bei Tieren nach.
+    if (state.cycle.sowing.rerolls === 0) {
+      variety.push({
+        stage: state.stage,
+        time,
+        type: 'sowing',
+        cards: cards.length,
+        sameAsPrevious: sameCards(lastCards.get(variety) ?? {}, 'sowing', cards),
+        rerollBlocked: rerollSowingBlocker(state),
+        worthwhile: improves,
+        ids: [...cards],
+      });
+      rememberCards(variety, 'sowing', cards);
+      counts.plantEncounters++;
+    } else if (improves) variety[variety.length - 1]!.worthwhile = true;
     const choice = decideSowing(strategy, state, options, current, rng);
+    if (!choice && freeSowingReroll(state, strategy)) {
+      if (!rerollSowing(state).ok) throw new Error(`Neu würfeln der Aussaat gescheitert (${strategy.id})`);
+      counts.sowingRerolls++;
+      continue;
+    }
     if (choice) {
       if (!chooseSowing(state, choice.card, choice.replace).ok) throw new Error(`Ungültige Aussaat ${choice.id} (${strategy.id})`);
       counts.plantsTaken++;
@@ -1841,6 +1907,7 @@ export function report(summaries: Summary[], focusStage: number): string {
   const harmony = summaries.find((s) => s.strategy.id === 'harmony') ?? summaries[0]!;
   const random = summaries.find((s) => s.strategy.id === 'random');
   const main = summaries.filter((s) => ['harmony', 'growth', 'random'].includes(s.strategy.id));
+  const deep = summaries.filter((s) => s.runs.some((r) => r.stages[STAGES.length - 1] != null));
   const name = STAGES[focusStage]!.name;
   return [
     `#### Strategien beim Erreichen von „${name}“ (${harmony.runs.length} Durchgänge je Strategie)`,
@@ -1891,9 +1958,10 @@ export function report(summaries: Summary[], focusStage: number): string {
     '',
     '#### Gabel-Wahl beim Wald und am Ende (27.11: Weg A beim Harmonie-Spieler 25–75 %)',
     '',
-    forkTable(summaries, 6),
+    // Nur Strategien, die bis zum Urwald laufen (seit Phase 11, 3b die Stapler nur bis zum Hain).
+    forkTable(deep, 6),
     '',
-    forkTable(summaries, 'final'),
+    forkTable(deep, 'final'),
     '',
     '#### Takt der Käufe – Gierig nach Harmonie (28.10: Median 20–60 s, längste Pause bis Hain ≤ 2 min)',
     '',
@@ -2479,7 +2547,7 @@ export function runSession(strategy: Strategy, options: SessionOptions): Session
 function resolveOnReturn(state: GameState, strategy: Strategy, rng: RngHolder): void {
   const counts: Counts = {
     encounters: 0, plantEncounters: 0, fullNiche: 0, rerolls: 0, declines: 0, autoDeclined: 0, rarityTaken: [0, 0, 0, 0],
-    plantsTaken: 0, plantsBought: 0, plantsSwapped: 0, events: 0, visitors: 0, hosted: 0, careBought: 0, regulars: 0, upgradesBought: 0,
+    plantsTaken: 0, plantsBought: 0, plantsSwapped: 0, events: 0, visitors: 0, hosted: 0, careBought: 0, regulars: 0, upgradesBought: 0, sowingRerolls: 0,
   };
   const book = { earnedDecline: 0, spent: 0, earnedExtras: 0, spentVisitors: 0 };
   resolveAll(state, strategy, rng, counts, book, [], [], 0, []);
@@ -2487,19 +2555,26 @@ function resolveOnReturn(state: GameState, strategy: Strategy, rng: RngHolder): 
 
 /**
  * Abwesenheit ab einer Stufe (28.10, „8 h offline am Hain“): Durchgang bis `stage` (runGame,
- * Begegnungen am Wegpunkt aufgelöst), dann `seconds` über simulateOffline.
+ * Begegnungen am Wegpunkt aufgelöst), dann `seconds` über simulateOffline. Mit `cycle` > 1
+ * (Phase 11, 3b: Offline-Tag mit Waldgedächtnis) laufen davor `cycle − 1` Zyklen bis `stage`
+ * mit Neustart dort (runCycles, Stammgäste wie dort) – gemessen wird im Zyklus `cycle`.
  */
 export function offlineAfterStage(
   strategy: Strategy,
-  options: { seed: number; stage: number; seconds: number; care?: boolean; maxSeconds?: number },
-): { stage: number; waypoint: number; waypoints: number; stageAfter: number; seeds: number; harmony: number } {
-  const state = createInitialState(0, options.seed);
+  options: { seed: number; stage: number; seconds: number; care?: boolean; maxSeconds?: number; cycle?: number },
+): { stage: number; waypoint: number; waypoints: number; stageAfter: number; seeds: number; harmony: number; memory: number } {
+  let state = createInitialState(0, options.seed);
   const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
-  runGame(strategy, { seed: options.seed, targetStage: options.stage, maxSeconds: options.maxSeconds ?? 6 * 3600, care: options.care ?? true }, { state, rng });
+  const run = { seed: options.seed, targetStage: options.stage, maxSeconds: options.maxSeconds ?? 6 * 3600, care: options.care ?? true };
+  if ((options.cycle ?? 1) > 1) {
+    runCycles(strategy, { ...run, cycles: options.cycle!, afterLast: (s) => (state = s) });
+  } else {
+    runGame(strategy, run, { state, rng });
+  }
   const stage = state.stage;
   const waypoint = state.waypoint;
   const report = simulateOffline(state, options.seconds);
-  return { stage, waypoint, waypoints: report.waypoints, stageAfter: state.stage, seeds: report.seeds, harmony: report.harmony };
+  return { stage, waypoint, waypoints: report.waypoints, stageAfter: state.stage, seeds: report.seeds, harmony: report.harmony, memory: state.meta.forestMemory };
 }
 
 /** Tabelle Sitzungsprofil: je Tag Median über die Durchgänge. */

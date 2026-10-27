@@ -59,19 +59,13 @@ describe('Mehrere Zyklen (Waldgedächtnis, Stammgäste, Kartenpool)', () => {
     // Ziele (großer Lauf, Schritt 2.11): Harmonie 30–45 %, Wachstum 18–37 %. Im Check
     // (40 Durchgänge) je Seed-Fenster gemessen (12 Fenster, H_max gerundet): Harmonie
     // 0,39–0,44, Wachstum 0,32–0,39 – dort 0,30–0,48 bzw. 0,16–0,40.
-    // Seit Phase 11, 1e (Simulator: Gabel-Wahl je Strategie, der Harmonie-Spieler forscht auch
-    // für ⚖️) im Check 0,495 statt 0,479 (Zyklus 2 bis Hain 29,0 statt 30,0 min) – vorläufig
-    // < 0,52; die Messung Phase 11, 3b stellt die Gedächtnis-Schwellen nach (27.11, 28.10).
-    // Großer Lauf seit Phase 11, 3a ebenfalls vorläufig < 0,52: gemessen 0,478 (origin/main vor 3a
-    // 0,482, 500/200 Durchgänge) – das Ziel 0,45 stellt 3b über die Gedächtnis-Schwellen her.
+    // Phase 11, 3b (Gedächtnis-Schwellen 112 / 168 / 196 statt 100 / 148 / 164, DESIGN_V2.md 15.4):
+    // großer Lauf 0,433 (vorher 0,478), Check (40 Durchgänge) 0,449.
     expect(speedup(HARMONY.id)).toBeGreaterThan(0.3);
-    expect(speedup(HARMONY.id)).toBeLessThan(0.52);
+    expect(speedup(HARMONY.id)).toBeLessThan(FULL ? 0.45 : 0.48);
     expect(speedup(GROWTH.id)).toBeGreaterThan(FULL ? 0.18 : 0.16);
-    // Seit Phase 10, 2b (Begegnungen nur Tiere: H_max höher, mehr Gedächtnis, 27.10) im Check
-    // 0,42 – vorläufig < 0,45; Phase 10, 3b stellt die Gedächtnis-Schwellen nach (27.11).
-    // Großer Lauf seit Phase 11, 3a ebenfalls vorläufig < 0,45: gemessen 0,390 (origin/main vor 3a
-    // 0,394) – das Ziel 0,37 stellt 3b her.
-    expect(speedup(GROWTH.id)).toBeLessThan(0.45);
+    // Phase 11, 3b: großer Lauf 0,282 (vorher 0,390), Check 0,270.
+    expect(speedup(GROWTH.id)).toBeLessThan(FULL ? 0.37 : 0.4);
     for (const id of [HARMONY.id, GROWTH.id]) expect(hain(of(id), 2), id).toBeLessThan(hain(of(id), 1));
     // Der Zufallsspieler (nur im großen Lauf) steht für ruhige Gelegenheitsspieler: Zyklus 2
     // mindestens 20 % schneller (Seed-Fenster mit 40 Durchgängen: 0,19–0,26).
@@ -115,21 +109,18 @@ describe('Mehrere Zyklen (Waldgedächtnis, Stammgäste, Kartenpool)', () => {
     expect(total(HARMONY.id)).toBeGreaterThanOrEqual(total(GROWTH.id));
     // Erster Zyklus bis Hain: etwa zwei Stammgast-Plätze (je 25 Punkte), nicht vier
     // (seit 2.11 mit Harmonie-Bonus ~59; Seed-Fenster 55–61).
-    // Seit Phase 10, 2b im Check ~80 (H_max am Hain +5–7 ohne „Etwas keimt“, Vorab-Messung
-    // 27.10: ~+16 Punkte) – vorläufig < 90; Phase 10, 3b hebt ggf. die Schwellen (27.11).
-    // Großer Lauf seit Phase 11, 3a ebenfalls vorläufig < 90: gemessen 81,5 (origin/main vor 3a 81,0).
-    // Ziel < 75 bleibt – Phase 11, 3b hebt die Gedächtnis-Schwellen T (27.11, 28.10).
+    // Phase 11, 3b (Hain-Schwelle 100 → 112): großer Lauf 65,9 (vorher 81,5), Check 65,2.
     const first = mean(of(HARMONY.id).map((r) => r[0]!.memoryGain));
     expect(first).toBeGreaterThan(45);
-    expect(first).toBeLessThan(90);
+    expect(first).toBeLessThan(75);
   });
 });
 
 /**
  * Neuer Zyklus erst später (Schritt 2.11b, DESIGN_V2.md 10 und 15.4): Jeder Zyklus läuft bis
  * Hain, Wald oder Urwald, dann Neustart. Sockel-Teiler, Schwelle und Obergrenze gleiten mit
- * dem Wegpunkt (content/memory.ts, MEMORY_HARMONY_RULES; Hain 5 / 100 / 45 → Wald 6 / 148 /
- * 48 → Urwald 7 / 164 / 48, abgeglichen mit der Sperrklinke, Spielstand v10).
+ * dem Wegpunkt (content/memory.ts, MEMORY_HARMONY_RULES; Hain 5 / 112 / 45 → Wald 6 / 168 /
+ * 48 → Urwald 7 / 196 / 48 seit Phase 11, 3b; abgeglichen mit der Sperrklinke, Spielstand v10).
  *
  * Ziele: (a) ab Zyklus 2 ist die Harmonie-Spielweise in jeder Stufe mindestens gleichauf
  * (Wachstum/Harmonie über Zyklus 2 + 3 ≥ 0,97, je Zyklus ≥ 0,95), (b) ein späterer Neustart bringt moderat mehr Gedächtnis als
@@ -193,8 +184,8 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
       // Vorläufig > 15; seit 2b (Begegnungen nur Tiere: auch der Wachstums-Spieler bekommt mehr
       // Arten und Harmonie) im Check ~15 (Urwald) – vorläufig > 8. Bleibt für Phase 10, 3b
       // markiert: misst neu und hebt ggf. die Gedächtnis-Schwellen (27.11).
-      // Großer Lauf seit Phase 11, 3a vorläufig > 15 (Ziel > 30): gemessen Wald 36, Urwald 22,5 → 3b.
-      expect(total(HARMONY.id) - total(GROWTH.id), `Stufe ${stage}`).toBeGreaterThan(FULL ? 15 : 8);
+      // Phase 11, 3b: großer Lauf Wald 86,9, Urwald 71,3 (vorher 36 / 22,5), Check (12 Durchgänge) 86,8 / 60,6.
+      expect(total(HARMONY.id) - total(GROWTH.id), `Stufe ${stage}`).toBeGreaterThan(FULL ? 30 : 25);
       expect(restartGain(row(stage, HARMONY.id), 0), `Stufe ${stage}`).toBeGreaterThan(restartGain(row(stage, GROWTH.id), 0) + (FULL ? 10 : 2));
       // Großer Lauf: Zyklus 2 und 3 je ≥ 0,95, zusammen ≥ 0,97. Check (12 Durchgänge,
       // Seed-Fenster siehe oben): grob ≥ 0,82 je Zyklus und über beide Zyklen zusammen ≥ 0,86.
@@ -203,13 +194,12 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
       // 0,958 – Mittel 0,975 → 0,965, ein kleiner echter Effekt (~1 %; der Wachstums-Spieler
       // bekommt jetzt auch Amphibien-Karten), im Ziel „gleichauf“. Darum kombiniert geprüft
       // (DESIGN_V2.md 15.4, „Stand Playtest Amphibien“).
-      // Großer Lauf seit Phase 11, 3a vorläufig je Zyklus ≥ 0,92 und zusammen ≥ 0,93 (Ziel 0,95 /
-      // 0,97): gemessen Urwald, Zyklus 2 / 3 0,944 / 0,953 (origin/main vor 3a: Wald, Zyklus 2 0,930)
-      // – Phase 11, 3b (Gedächtnis-Schwellen, 27.11).
-      expect(ratio(stage, 1), `Stufe ${stage} Zyklus 2`).toBeGreaterThan(FULL ? 0.92 : 0.82);
-      expect(ratio(stage, 2), `Stufe ${stage} Zyklus 3`).toBeGreaterThan(FULL ? 0.92 : 0.82);
+      // Phase 11, 3b: großer Lauf Wald 1,197 / 1,270, Urwald 1,189 / 1,188 (vorher Urwald 0,944 /
+      // 0,951) – die Harmonie-Spielweise liegt ab Zyklus 2 deutlich vorn (offene Frage, 15.4).
+      expect(ratio(stage, 1), `Stufe ${stage} Zyklus 2`).toBeGreaterThan(FULL ? 0.95 : 0.82);
+      expect(ratio(stage, 2), `Stufe ${stage} Zyklus 3`).toBeGreaterThan(FULL ? 0.95 : 0.82);
       const later = (id: string) => restartTime(row(stage, id), 1) + restartTime(row(stage, id), 2);
-      expect(later(GROWTH.id) / later(HARMONY.id), `Stufe ${stage} Zyklus 2 + 3`).toBeGreaterThan(FULL ? 0.93 : 0.86);
+      expect(later(GROWTH.id) / later(HARMONY.id), `Stufe ${stage} Zyklus 2 + 3`).toBeGreaterThan(FULL ? 0.97 : 0.86);
     }
   });
 
@@ -228,11 +218,13 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
     // (Urwald, Zyklus 1: 186,6). Steigt der Wert weiter, MEMORY_HARMONY_RULES prüfen (ROADMAP).
     const harmony = (stage: number) => restartGain(row(stage, HARMONY.id), 0);
     expect(harmony(URWALD) / harmony(HAIN)).toBeLessThan(FULL ? 1.5 : 1.9);
-    // Seit Phase 10, 2b (H_max höher ohne „Etwas keimt“, 27.10) im Check 105,5 – vorläufig < 115;
-    // Phase 10, 3b hebt die Gedächtnis-Schwellen T um ΔH_max (27.11, Stellschraube 1).
-    // Großer Lauf seit Phase 11, 3a ebenfalls vorläufig < 115: gemessen 105,2 (origin/main vor 3a
-    // 105,7) – Ziel < 95 stellt 3b her.
-    expect(harmony(URWALD)).toBeLessThan(115);
+    // Ziel war < 95 (Phase 6: 93,5). Phase 11, 3b: 98,4 (vorher 105,2) – mit den Schwellen nicht
+    // weiter zu senken: Etwa 28 Punkte sind neue Arten bis zum Urwald, und die Sperrklinke hält den
+    // besten Wert des ganzen Verlaufs (der Harmonie-Spieler liegt überall knapp über der gleitenden
+    // Schwelle; Urwald-Schwelle 196 → 210 senkte den Gewinn in der Vorhersage nur um ~1 Punkt).
+    // Darum < 105 (großer Lauf) und weiter Urwald ≤ 1,5 × Hain (1,49) als eigentliche Grenze
+    // (DESIGN_V2.md 15.4, „Stand Phase 11, 3b“). Check 98,9 (Urwald / Hain 1,55).
+    expect(harmony(URWALD)).toBeLessThan(FULL ? 105 : 115);
   });
 
   it('(d) Gelegenheitsspieler: später mehr Gedächtnis als im Hain, Zyklus 2 ≥ 20 % schneller (großer Lauf)', () => {

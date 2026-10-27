@@ -20,13 +20,16 @@ import { CYCLES, CYCLE_RUNS, FULL, HAIN, MAX_SECONDS, RESTART_RUNS, RUNS, URWALD
 const KEPT_STAGES = [HAIN, WALD, URWALD] as const;
 
 /**
- * Wie weit eine Strategie im Spiel mit allen Systemen läuft: im großen Lauf alle bis zum
- * Urwald, im Check der Harmonie-Spieler bis zum Urwald, Wachstum und Zufall bis zum Wald,
- * die übrigen bis zum Hain (nur so weit, wie die Prüfungen schauen).
+ * Wie weit eine Strategie im Spiel mit allen Systemen läuft: der Harmonie-Spieler bis zum
+ * Urwald, Wachstum und Zufall im großen Lauf bis zum Urwald (im Check bis zum Wald), die übrigen
+ * (seltenste Karte, Stapler) nur bis zum Hain – nur so weit, wie Prüfungen und Tabellen schauen.
+ * Bis Phase 11, 3a liefen im großen Lauf auch die Stapler bis zum Urwald (nur für die Gabel-Tabellen
+ * „Wald“ und „Ende“; ~25 min der ~60 min von `npm run balance`).
  */
 export function firstCycleTarget(strategy: Strategy): number {
-  if (FULL || strategy === HARMONY) return URWALD;
-  return strategy === GROWTH || strategy === RANDOM ? WALD : HAIN;
+  if (strategy === HARMONY) return URWALD;
+  if (strategy === GROWTH || strategy === RANDOM) return FULL ? URWALD : WALD;
+  return HAIN;
 }
 
 const firstCycles = new Map<string, { runs: number; target: number; byStage: Map<number, RunResult[]> }>();
