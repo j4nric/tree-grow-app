@@ -176,6 +176,49 @@ test('Desktop 1200 × 700: linke Seite mit Rückkehr-Zettel passt ohne Scrollen,
   await expect(page.locator('[data-ref="return-report-details"]')).toBeInViewport({ ratio: 1 });
 });
 
+for (const width of [360, 390, 1200]) {
+  test(`${width} px: Bericht endet mit der Zielzeile (4c) – „Genug für N Ausbaustufen“, Sprung zum Ziel`, async ({ page, context }) => {
+    await page.setViewportSize({ width, height: width < 900 ? 740 : 700 });
+    await seedRaw(context, grove(), -3 * 3600_000);
+    await openGame(page);
+    const goal = report(page).locator('[data-ref="return-report-goal"]');
+    const short = goal.locator('.return-slip-goal-short');
+    await expect(short).toHaveText(/^🎯 Genug für [\d.]+\sAusbaustufen ›$/);
+    const steps = Number((await short.textContent())!.replace(/\D/g, ''));
+    expect(steps).toBeGreaterThan(1);
+    expect(await goal.getAttribute('aria-label')).toMatch(/^Genug für [\d.]+ Ausbaustufen – zum nächsten Ziel: /);
+    const box = (await goal.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    // Zettel: Ziel nach der Kurzfassung (die Knöpfe stehen am Desktop oben rechts).
+    const summaryBox = (await page.locator('[data-ref="return-report-summary"]').boundingBox())!;
+    expect(box.y + box.height / 2).toBeGreaterThan(summaryBox.y + summaryBox.height);
+    // Doppelseite: Die Zielzeile steht dann im Zettel (ganz, mit Ziel) statt unter den Etiketten.
+    if (width >= 900) {
+      await expect(page.locator('[data-ref="goal-line"]')).toBeHidden();
+      await expect(goal).toContainText(/ · (Jetzt|Nächstes): /);
+    } else {
+      await expect(page.locator('[data-ref="goal-line"]')).toBeVisible();
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+
+    // Unterseite: letzter Punkt ist das Ziel, mit Preis; „Zum Ziel ›“ springt.
+    await detailsButton(page).click();
+    const last = list(page).locator('li').last();
+    await expect(last).toHaveAttribute('data-ref', 'return-report-goal-item');
+    await expect(last).toHaveText(new RegExp(`^🎯 Genug für ${steps.toLocaleString('de-DE').replace('.', '\\.')}\\sAusbaustufen · (Jetzt|Nächstes): `));
+    await reportPage(page).locator('[data-ref="return-report-goal-jump"]').click();
+    await expect(reportPage(page)).toBeHidden();
+    await expect(page.locator('[data-ref="page-niches"]')).toBeVisible();
+    await expect(page.locator('.goal-flash')).toHaveCount(1);
+    await expect(page.locator('.goal-flash')).toBeInViewport();
+
+    // Der Zettel bleibt und zählt nach einem Kauf herunter.
+    await expect(report(page)).toBeVisible();
+    await page.locator('[data-ref="page-niches"] [data-ref="upgrade-buy"]:not([aria-disabled="true"])').first().click();
+    await expect(short).not.toHaveText(new RegExp(`für ${steps}\\s`));
+  });
+}
+
 test('ohne Abwesenheit kein Rückkehr-Bericht', async ({ page, context }) => {
   await seedRaw(context, grove(), 0);
   await openGame(page);

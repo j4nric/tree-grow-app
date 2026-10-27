@@ -151,3 +151,78 @@ test('Zielzeile (2c): nennt den billigsten Ausbau, springt zu den Nischen, wähl
   await expect(jump).toHaveText(/^Jetzt: 🪱 Wurzelraum St\. 2 · 12\s🌰 ›$/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
+
+/** Der Sprung der Zielzeile hat die Zeile ins Bild geholt, hebt sie hervor und setzt den Fokus. */
+async function expectRevealed(page: Page, row: ReturnType<Page['locator']>, focus: ReturnType<Page['locator']>): Promise<void> {
+  await expect(row).toHaveClass(/goal-flash/);
+  await expect(focus).toBeFocused();
+  // Ganz zu sehen und nicht unter der klebenden Reiterleiste bzw. Vorratsleiste.
+  await expect.poll(async () => {
+    const box = (await row.boundingBox())!;
+    const strip = (await page.locator('.tab-strip').boundingBox())!;
+    return box.y >= strip.y + strip.height - 1 && box.y < page.viewportSize()!.height;
+  }).toBe(true);
+}
+
+for (const width of [360, 390]) {
+  test(`${width} px: Zielzeile (4c) springt zum Baumteil; aria-live nur beim Zielwechsel`, async ({ page, context }) => {
+    await page.setViewportSize({ width, height: 740 });
+    // Junger Baum, Ring voll, Wurzelraum auf 30: der billigste Ausbau ist ein Baumteil.
+    const state = upgradeState(0);
+    state.plants = ['moss', 'fern', 'hazel'];
+    state.cycle.upgrades.niches.roots = 30;
+    state.meta.upgrades.best.niches.roots = 30;
+    await seedRaw(context, state, 0);
+    await gotoTab(page, 'ziele');
+    const line = page.locator('[data-ref="goal-line"]');
+    const jump = line.locator('[data-ref="goal-line-jump"]');
+    const live = line.locator('[aria-live="polite"]');
+    await expect(jump).toHaveText(/^Nächstes: 🪵 Jahresringe St\. 1 · 15\s🌰/);
+    // Beim Laden und während der Countdown läuft: nichts angesagt.
+    const before = await jump.textContent();
+    await expect.poll(() => jump.textContent(), { timeout: 15_000 }).not.toBe(before);
+    await expect(live).toBeEmpty();
+
+    await jump.click();
+    await expect(tabPanel(page, 'nischen')).toBeVisible();
+    const part = page.locator('[data-part="rings"]');
+    await expectRevealed(page, part, part.locator('.upgrade-part-title'));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+
+    // Warten, bis die Samen reichen, kaufen → neues Ziel (Stufe 2 oder ein anderer Baumteil), angesagt.
+    await expect(jump).toHaveText(/^Jetzt: 🪵 Jahresringe St\. 1/, { timeout: 30_000 });
+    await expect(live).toBeEmpty();
+    await part.locator('[data-ref="upgrade-buy"]').click();
+    await expect(jump).not.toHaveText(/Jahresringe St\. 1 /);
+    await expect(live).toHaveText(/^Nächstes Ziel: /);
+  });
+}
+
+test('Zielzeile (4c): Säen springt zum Pflanzring', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Leerer Pflanzring: die erste Aussaat ist gratis und gewinnt (kein Meilenstein in Reichweite).
+  const state = upgradeState(0);
+  state.cycle.upgrades.niches.roots = 30;
+  await seedRaw(context, state, 0);
+  await gotoTab(page, 'ziele');
+  const jump = page.locator('[data-ref="goal-line-jump"]');
+  await expect(jump).toHaveText(/^Jetzt: 🌱 Säen/);
+  await jump.click();
+  const ring = page.locator('[data-ref="plant-ring"]');
+  await expectRevealed(page, ring, ring.locator('.niches-heading'));
+  await expect(page.locator('[data-ref="sow"]')).toBeInViewport();
+});
+
+test('Zielzeile (4c): Meilenstein-Ziel springt zur Zeile der Nische', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Wurzelraum 24 mit 2.000 Samen und vollem Ring: Meilenstein 25 gewinnt (Regel 2).
+  const full = upgradeState(2000);
+  full.plants = ['moss', 'fern', 'hazel'];
+  await seedRaw(context, full, 0);
+  await gotoTab(page, 'arten');
+  const jump = page.locator('[data-ref="goal-line-jump"]');
+  await expect(jump).toHaveText(/^Jetzt: 🪱 Wurzelraum St\. 25 \(\+1 Platz\)/);
+  await jump.click();
+  await expect(tabPanel(page, 'nischen')).toBeVisible();
+  await expectRevealed(page, niche(page, 'roots'), niche(page, 'roots').locator('.nrow-title'));
+});

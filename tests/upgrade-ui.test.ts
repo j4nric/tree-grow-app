@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NICHE_MILESTONES, TREE_PARTS_BY_ID } from '../src/content/upgrades';
 import { evaluate, sowingCost } from '../src/core/formulas';
-import { nextGoal } from '../src/core/goal';
+import { affordableUpgradeSteps, nextGoal } from '../src/core/goal';
 import { upgradeCost, upgradeNiche, upgradeTree } from '../src/core/tick';
 import { goalCostNow, goalEpochKey, refreshEcosystemView, toEcosystemView, toGoalInput, toJournalStats } from '../src/ui/adapters';
 import {
@@ -15,7 +15,7 @@ import {
   upgradeMilestoneText,
   upgradePurchases,
 } from '../src/ui/upgrade-adapters';
-import { goalLineView, nicheFooterView, treeMilestoneHint, treePartView } from '../src/ui/upgrade-view';
+import { goalLineView, returnGoalView, nicheFooterView, treeMilestoneHint, treePartView } from '../src/ui/upgrade-view';
 import { stateAt } from './helpers';
 
 /*
@@ -209,5 +209,54 @@ describe('Zielzeile im Spiel (Phase 11, 2c)', () => {
     expect(goalCostNow({ kind: 'sow', target: null, level: null, cost: 0, milestones: [], seconds: 0 }, state)).toBe(sowingCost(state));
     state.cycle.upgrades.niches.roots = 1;
     expect(goalCostNow({ kind: 'niche', target: { kind: 'niche', id: 'roots' }, level: 1, cost: 10, milestones: [], seconds: 0 }, state)).toBe(12);
+  });
+});
+
+describe('Zielzeile und Rückkehr-Bericht (Phase 11, 4c)', () => {
+  const roots = { kind: 'niche' as const, id: 'roots', icon: '🪱', name: 'Wurzelraum', level: 25, cost: 287, milestone: '+1 Platz' };
+
+  it('aria-live: Schlüssel bleibt beim Countdown und beim Bezahlbar-Werden, wechselt mit dem Ziel', () => {
+    const a = goalLineView(roots, { seeds: 0, seedsPerSecond: 1 })!;
+    const b = goalLineView(roots, { seeds: 200, seedsPerSecond: 3 })!;
+    const c = goalLineView(roots, { seeds: 300, seedsPerSecond: 3 })!;
+    expect(a.text).not.toBe(b.text);
+    expect(a.key).toBe(b.key);
+    expect(c.key).toBe(a.key);
+    expect(c.ready).toBe(true);
+    expect(goalLineView({ ...roots, level: 26, milestone: undefined }, { seeds: 0, seedsPerSecond: 1 })!.key).not.toBe(a.key);
+    expect(goalLineView({ ...roots, id: 'litter' }, { seeds: 0, seedsPerSecond: 1 })!.key).not.toBe(a.key);
+  });
+
+  it('„Genug für N Ausbaustufen“ vorn, sonst die Zielzeile; ohne beides nichts', () => {
+    const many = returnGoalView(roots, { seeds: 2_000, seedsPerSecond: 1 }, 6)!;
+    expect(plain(many.text)).toBe('🎯 Genug für 6 Ausbaustufen ›');
+    expect(plain(many.detail)).toBe('🎯 Genug für 6 Ausbaustufen · Jetzt: 🪱 Wurzelraum St. 25 (+1 Platz) · 287 🌰');
+    expect(many.aria).toBe('Genug für 6 Ausbaustufen – zum nächsten Ziel: Wurzelraum Stufe 25');
+    expect(plain(returnGoalView(roots, { seeds: 300, seedsPerSecond: 1 }, 1)!.text)).toBe('🎯 Genug für eine Ausbaustufe ›');
+    expect(plain(returnGoalView(roots, { seeds: 1_234, seedsPerSecond: 1 }, 1_234)!.text)).toBe('🎯 Genug für 1.234 Ausbaustufen ›');
+
+    const wait = returnGoalView(roots, { seeds: 37, seedsPerSecond: 5 }, 0)!;
+    expect(plain(wait.text)).toBe('🎯 Nächstes: 🪱 Wurzelraum St. 25 ›');
+    expect(plain(wait.detail)).toMatch(/^🎯 Nächstes: 🪱 Wurzelraum St\. 25 \(\+1 Platz\) · 287 🌰 · in 0:50$/);
+    expect(wait.aria).toBe('Zum nächsten Ziel: Wurzelraum Stufe 25');
+
+    const sow = returnGoalView({ kind: 'sow', id: 'sow', icon: '🌱', name: 'Säen', level: null, cost: 0 }, { seeds: 0, seedsPerSecond: 0 }, 0)!;
+    expect(plain(sow.text)).toBe('🎯 Jetzt: 🌱 Säen ›');
+    expect(sow.aria).toBe('Zum nächsten Ziel: Säen');
+
+    expect(returnGoalView(null, { seeds: 0, seedsPerSecond: 0 }, 0)).toBeNull();
+    expect(returnGoalView(null, { seeds: 0, seedsPerSecond: 0 }, Number.NaN)).toBeNull();
+  });
+
+  it('im Spiel: Schritte aus affordableUpgradeSteps passen zur Zielzeile', () => {
+    const state = stateAt(1, ['earthworm']);
+    state.plants = ['moss'];
+    state.seeds = 100;
+    const goal = toGoalInput(nextGoal(state, 1)!);
+    const steps = affordableUpgradeSteps(state);
+    expect(steps).toBeGreaterThan(1);
+    const view = returnGoalView(goal, { seeds: state.seeds, seedsPerSecond: 1 }, steps)!;
+    expect(plain(view.text)).toBe(`🎯 Genug für ${steps} Ausbaustufen ›`);
+    expect(plain(view.detail)).toContain(`Jetzt: ${goal.icon} ${goal.name} St. 1`);
   });
 });
