@@ -186,21 +186,21 @@ describe('Forschung: wiederholbare Knoten (28.6)', () => {
     expect(RESEARCH_REPEATABLE_BY_ID.size).toBe(6);
     const ids = [
       ...RESEARCH.map((n) => n.id),
-      ...RESEARCH_REPEATABLE.map((n) => n.id),
       ...SPECIES.map((x) => x.id),
       ...PLANTS.map((x) => x.id),
       ...EVENTS.map((x) => x.id),
       ...VISITORS.map((x) => x.id),
     ];
     expect(unique(ids)).toBe(true);
-    expect(unique([...RESEARCH, ...RESEARCH_REPEATABLE].map((n) => n.name))).toBe(true);
-    expect(unique([...RESEARCH, ...RESEARCH_REPEATABLE].map((n) => n.icon))).toBe(true);
-    expect(unique([...RESEARCH, ...RESEARCH_REPEATABLE].map((n) => n.boughtText))).toBe(true);
+    expect(unique(RESEARCH.map((n) => n.name))).toBe(true);
+    expect(unique(RESEARCH.map((n) => n.icon))).toBe(true);
+    expect(unique(RESEARCH.map((n) => n.boughtText))).toBe(true);
   });
 
-  it('bis Phase 11, 2b ausgeblendet: nicht in RESEARCH / RESEARCH_BY_ID; dort ist kein Knoten wiederholbar', () => {
-    for (const n of RESEARCH_REPEATABLE) expect(RESEARCH_BY_ID.has(n.id), n.id).toBe(false);
-    for (const n of RESEARCH) expect(n.repeatable, n.id).toBeUndefined();
+  it('seit Phase 11, 2b in RESEARCH / RESEARCH_BY_ID (hinten); nur sie sind wiederholbar', () => {
+    for (const n of RESEARCH_REPEATABLE) expect(RESEARCH_BY_ID.get(n.id), n.id).toBe(n);
+    expect(RESEARCH.slice(-RESEARCH_REPEATABLE.length)).toEqual(RESEARCH_REPEATABLE);
+    expect(RESEARCH.filter((n) => n.repeatable).map((n) => n.id)).toEqual(RESEARCH_REPEATABLE.map((n) => n.id));
   });
 
   it('Kosten ⌈1.500 · 1,3^r⌉, Obergrenze 200 Ränge, `cost` = Startpreis', () => {
@@ -240,7 +240,7 @@ describe('Forschung: wiederholbare Knoten (28.6)', () => {
         // Offenland hat keine Gabel: seine zwei Hain-Knoten (Spätmahd, Trockenmauer) sind die Abzweigung.
         expect(n.branch).toBe('open');
         expect([...any].sort()).toEqual(
-          RESEARCH.filter((x) => x.branch === 'open' && x.minStage === HAIN).map((x) => x.id).sort(),
+          RESEARCH.filter((x) => x.branch === 'open' && x.minStage === HAIN && !x.repeatable).map((x) => x.id).sort(),
         );
       }
     }

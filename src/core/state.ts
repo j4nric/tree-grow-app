@@ -113,7 +113,9 @@ export interface SowingState {
 
 /**
  * Forschungsplan (seit v17, DESIGN_V2.md 27.8): Reihenfolge der im letzten Zyklus erforschten
- * Knoten und der Schalter „Plan folgen“ (Logik: Phase 10, 4b). Überdauert den Neuen Zyklus.
+ * Knoten (Kopie von `cycle.research`, wiederholbare je Rang ein Eintrag, 28.6) und der Schalter
+ * „Plan folgen“ (`auto`; Logik seit Phase 11, 2b in tick: nextPlannedResearch). Überdauert den
+ * Neuen Zyklus.
  */
 export interface ResearchPlan {
   plan: string[];
@@ -386,8 +388,11 @@ export interface CycleState {
   /** Wegpunkt, nach dem der Zwischenhalt schon ausgewertet wurde (Start: 0). */
   interlude: number;
   /**
-   * Erforschte Knoten in Kauf-Reihenfolge (seit v17, IDs aus RESEARCH_BY_ID, je einmal;
-   * ersetzt die Pflege-Ränge `care` bis v16). Die Wirkungen kommen immer aus RESEARCH_BY_ID.
+   * Erforschte Knoten in Kauf-Reihenfolge (seit v17, IDs aus RESEARCH_BY_ID; ersetzt die
+   * Pflege-Ränge `care` bis v16). Einmalige Knoten je einmal; wiederholbare (seit Phase 11, 2b)
+   * je gekauftem Rang ein Eintrag – nur für die Reihenfolge des Plans, der Rang selbst steht in
+   * `researchRanks` (beim Laden höchstens so viele Einträge wie Rang). Die Wirkungen kommen
+   * immer aus RESEARCH_BY_ID.
    */
   research: string[];
   /**
@@ -402,7 +407,8 @@ export interface CycleState {
   upgrades: UpgradeLevels;
   /**
    * Ränge der wiederholbaren Forschungsknoten (seit v18, DESIGN_V2.md 28.6): ID aus
-   * RESEARCH_REPEATABLE → Rang (ganzzahlig, 1 … MAX_RESEARCH_RANK). Logik ab Phase 11, 2b.
+   * RESEARCH_REPEATABLE → Rang (ganzzahlig, 1 … MAX_RESEARCH_RANK). Maßgeblich für Kosten und
+   * Wirkung (researchCost, researchEffects × Rang; Phase 11, 2b).
    */
   researchRanks: Record<string, number>;
   /** Offene Aussaat (höchstens eine): Karten = Pflanzen-IDs, Würfe dieser Aussaat. Sonst null. */

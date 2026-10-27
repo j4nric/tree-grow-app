@@ -1089,6 +1089,7 @@ function loadCycleExtras(
   // zählen beim Kürzen mit (sie öffnen keine Nische, nicheSlots). Ältere Stände: leer.
   cycle.upgrades = version >= 18 ? loadUpgradeLevels(raw.upgrades) : createUpgradeLevels();
   cycle.researchRanks = version >= 18 ? loadResearchRanks(raw.researchRanks, cycle.research, state.stage) : {};
+  cycle.research = trimRepeatableResearch(cycle.research, cycle.researchRanks);
   state.cycle = cycle;
 }
 
@@ -1191,17 +1192,38 @@ function migrateCare(raw: unknown, stage: number): string[] {
  * IDs, je einmal, Stufe erreicht; ein Knoten bleibt nur, wenn seine Voraussetzungen schon vor
  * ihm stehen (so fällt alles, was an einem verworfenen Knoten hängt, mit) und kein früherer
  * Knoten ihn ausschließt – von einer Gabel bleibt der zuerst gekaufte Weg. `condition` gilt nur
- * beim Erforschen (wie bis v16 `requires` der Pflege). Höchstens alle Knoten von RESEARCH.
+ * beim Erforschen (wie bis v16 `requires` der Pflege). Wiederholbare Knoten (28.6) stehen je
+ * Rang einmal da (höchstens MAX_RESEARCH_RANK-mal); ihre Zahl gleicht trimRepeatableResearch
+ * danach an die geladenen Ränge an.
  */
 function sanitizeResearch(raw: readonly string[], stage: number): string[] {
   const out: string[] = [];
+  const counts = new Map<string, number>();
   for (const id of raw) {
     const node = RESEARCH_BY_ID.get(id);
-    if (!node || out.includes(id) || node.minStage > stage) continue;
+    if (!node || node.minStage > stage) continue;
+    const count = counts.get(id) ?? 0;
+    if (node.repeatable ? count >= MAX_RESEARCH_RANK : count > 0) continue;
     if (researchExcluded(node, out) || !researchRequirementsMet(node, out)) continue;
+    counts.set(id, count + 1);
     out.push(id);
   }
   return out;
+}
+
+/**
+ * Wiederholbare Knoten in `research` (Plan-Reihenfolge, 28.6) höchstens so oft wie ihr Rang:
+ * Die Ränge (`researchRanks`) zählen, überzählige Einträge fallen hinten weg. Fehlen Einträge
+ * (Stand nur mit Rängen), bleibt es dabei – der Plan merkt sich dann weniger Ränge.
+ */
+function trimRepeatableResearch(research: readonly string[], ranks: Readonly<Record<string, number>>): string[] {
+  const counts = new Map<string, number>();
+  return research.filter((id) => {
+    if (!RESEARCH_BY_ID.get(id)?.repeatable) return true;
+    const count = (counts.get(id) ?? 0) + 1;
+    counts.set(id, count);
+    return count <= (ranks[id] ?? 0);
+  });
 }
 
 /**
@@ -1266,10 +1288,22 @@ function convertPlantEncounters(state: GameState, deferred: DeferredPlants): voi
   if (deferred.forced && !state.cycle.freeSowing) state.cycle.freeSowing = loadFreeSowing({ ids: deferred.forced }, state.cycle.seen);
 }
 
-/** Forschungsplan robust (seit v17): bekannte Knoten je einmal, `auto` nur echtes true. */
+/**
+ * Forschungsplan robust (seit v17): bekannte Knoten, einmalige je einmal, wiederholbare je Rang
+ * ein Eintrag (28.6, höchstens MAX_RESEARCH_RANK-mal); `auto` nur echtes true.
+ */
 function loadResearchPlan(raw: unknown): ResearchPlan {
   const r = isRecord(raw) ? raw : {};
-  return { plan: unique(stringArray(r.plan).filter((id) => RESEARCH_BY_ID.has(id))), auto: r.auto === true };
+  const counts = new Map<string, number>();
+  const plan = stringArray(r.plan).filter((id) => {
+    const node = RESEARCH_BY_ID.get(id);
+    if (!node) return false;
+    const count = counts.get(id) ?? 0;
+    if (node.repeatable ? count >= MAX_RESEARCH_RANK : count > 0) return false;
+    counts.set(id, count + 1);
+    return true;
+  });
+  return { plan, auto: r.auto === true };
 }
 
 /**

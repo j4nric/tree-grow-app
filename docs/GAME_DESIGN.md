@@ -127,7 +127,7 @@
 >   Produktion (Ziel ≤ 15), Samen-Höchststand vor dem Jungen Baum 255 / 227 🌰.
 >
 > **Phase 11 – Wachsen und Ausbauen (`DESIGN_V2.md` 28, Spielstand v18; Offline 10 % und Ausbau
-> umgesetzt, siehe unten; wiederholbare Knoten und Zielzeile folgen mit 2b/2c):** Offline und im Hintergrund bringen Wachstum, Samen und Harmonie nach der ersten
+> umgesetzt, siehe unten; wiederholbare Knoten und Forschungsplan seit 2b, Zielzeile folgt mit 2c):** Offline und im Hintergrund bringen Wachstum, Samen und Harmonie nach der ersten
 > Minute nur **10 %** (`OFFLINE_YIELD`), die Zeit läuft voll. Neue Samen-Senken ohne Obergrenze:
 > **Nischen-Ausbau** `⌈b_n · 1,15^L⌉` 🌰 (b_n 10 Wurzelraum … 600 Trockenmauer), je Stufe +0,1 % 🌿
 > und 🌰 je Tier der Nische × Zufriedenheit, Meilensteine 10 (Arten der Nische ×1,5 in den Karten),
@@ -140,12 +140,12 @@
 > (Hain 50–58 min), Wachstum ÷ Harmonie ≥ 0,85 (`DESIGN_V2.md` 28.10). Tabellen folgen nach der
 > Messung (Phase 11, 3a).
 >
-> *Daten (Phase 11, 1a; Ausbau seit 2a verdrahtet, endlose Knoten ab 2b):* Ausbau in `src/content/upgrades.ts`
+> *Daten (Phase 11, 1a; Ausbau seit 2a verdrahtet, endlose Knoten seit 2b):* Ausbau in `src/content/upgrades.ts`
 > (`NICHE_UPGRADE_BASE`, `UPGRADE_GROWTH`, `NICHE_UPGRADE_PCT`, `TREE_PARTS`, `NICHE_MILESTONES`,
 > `MAX_UPGRADE_LEVEL` = 1.000), Offline in `src/content/offline.ts` (`OFFLINE_YIELD` = 0,1,
 > `OFFLINE_FULL_SECONDS` = 60), die sechs endlosen Knoten als `RESEARCH_REPEATABLE` in
-> `src/content/research.ts` (`MAX_RESEARCH_RANK` = 200). Sie stehen bis Phase 11, 2b bewusst
-> **nicht** in `RESEARCH`, damit core, Ansicht und Simulator sie nicht als einmalige Knoten kaufen.
+> `src/content/research.ts` (`MAX_RESEARCH_RANK` = 200). Seit Phase 11, 2b stehen sie am Ende
+> von `RESEARCH` (die 32 einmaligen heißen `RESEARCH_ONCE`).
 > Endlose Knoten: Bodenleben fördern (Bäume +1 % 🌿), Feuchte halten (Moose & Farne +4 % 🌿 und
 > 🌰), Altäste stehen lassen (Bäume +1 % 🌰), Blütenfülle (Blumen +2 % 🌰), Wiese pflegen (Blumen
 > +2 % 🌿), Saatgut veredeln (Sträucher +2 % 🌰) – je Rang, ab Hain, hinter der Gabel des Asts
@@ -205,6 +205,33 @@
 >   ein Meilenstein meldet sich als Zettel.
 > - Ohne Ausbau rechnen `evaluate` und das Kartenziehen bitgleich wie vor v18 (Golden-Werte
 >   unverändert). Zahlen sind Startwerte – gemessen wird in Phase 11, 3a.
+>
+> **Umgesetzt seit Phase 11, 2b (ohne neue Spielstand-Version, `DESIGN_V2.md` 28.6/27.8; enthält
+> Phase 10, 4b):**
+> - **Wiederholbare Knoten:** je Ast einer (Tabelle oben), ab Hain hinter der Gabel des Asts. Rang
+>   r in `cycle.researchRanks`; Kosten von r → r+1 `⌈1.500 · 1,3^r⌉` ⚖️ = 1.500, 1.950, 2.536,
+>   3.296, 4.285, 5.570, 7.241, 9.413 … (`researchCost(state, id)`). Wirkung je Rang × r
+>   (`researchEffects(research, ranks)`, Bäume-Wirkungen auch auf den Hauptbaum), nie auf
+>   Harmonie, ⚖️-Ertrag oder Plätze. Höchstens `MAX_RESEARCH_RANK` = 200 Ränge (danach
+>   „erledigt“); Kosten über dem Vorrat-Maximum (1e12 ⚖️, ab Rang ~77) sind nie erreichbar.
+> - **Kauf:** `research(state, id)` kauft den nächsten Rang und hängt die ID je Rang einmal an
+>   `cycle.research` an (Kauf-Reihenfolge für den Plan). Neuer Zyklus: Ränge beginnen bei 0.
+> - **Forschungsplan:** Der Neue Zyklus merkt sich `cycle.research` als `meta.research.plan` –
+>   wiederholte IDs je Rang (`['compost', …, 'soil-life', 'soil-life']`). Schalter „Plan folgen“
+>   `meta.research.auto` (`setResearchAuto`): `tick` kauft streng in Plan-Reihenfolge, sobald der
+>   nächste Eintrag bezahlbar und erlaubt ist; fehlt die Stufe, eine erreichbare Voraussetzung oder
+>   eine Bedingung, **wartet** der Plan; ist der Eintrag unerreichbar (Gabel anders entschieden,
+>   auch über Voraussetzungen) oder voll ausgebaut, wird er **übersprungen**. Erledigt ist das
+>   k-te Vorkommen eines wiederholbaren Knotens ab Rang k. Von Hand forschen geht immer.
+> - **Halt in `tick`:** wie ein Wegpunkt – Zeit bis die Kosten des nächsten Plan-Eintrags erreicht
+>   sind = fehlende ⚖️ ÷ (⚖️/s × f), auch im Sprung über ganze Jahre. Darum gilt online = offline
+>   (viele kleine Ticks = ein großer = `simulateOffline`, auch mit 10 %). Der Plan zählt nicht für
+>   das Tagesziel „erforschen“ (nur Käufe von Hand). Gekaufte IDs stehen in `TickReport.research`.
+> - **Laden:** Verlauf und Plan dürfen wiederholbare IDs mehrfach enthalten (höchstens 200-mal,
+>   einmalige weiter je einmal); im Verlauf höchstens so oft wie der Rang. Stände aus 2a (Ränge
+>   ohne Verlaufseinträge) laden unverändert.
+> - **Oberfläche (einfach bis 4a):** In der Forschungsliste zeigt der Knoten „🪱 Boden · ∞ Rang 3“
+>   mit den Kosten des nächsten Rangs; die Zeile „∞“ im Baum und der Schalter folgen mit 4a.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:

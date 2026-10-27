@@ -11,7 +11,7 @@ import {
   SCRIPTED_ENCOUNTERS,
 } from '../content/encounters';
 import { MAX_SOWINGS, SOWING_MIN_STAGE } from '../content/sowing';
-import { RESEARCH_BY_ID, type ResearchNode } from '../content/research';
+import { MAX_RESEARCH_RANK, RESEARCH_BY_ID, type ResearchNode } from '../content/research';
 import { EVENTS, EVENTS_BY_ID, type GameEvent } from '../content/events';
 import { WEATHER_EVENT_FACTORS } from '../content/predation';
 import { JOURNAL_SPECIES_WEIGHT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
@@ -73,6 +73,8 @@ import {
   regularSlots,
   regularSlotsOf,
   rerollCost,
+  researchCostAt,
+  researchRank,
   resolveChoice,
   resolveSowing,
   seedSeconds,
@@ -187,6 +189,11 @@ export interface TickReport {
    * im aktiven Wald, also höchstens sechs. Für Stempel und Rückkehr-Bericht.
    */
   chapters: ChapterNews[];
+  /**
+   * Nach dem Forschungsplan automatisch erforschte Knoten (DESIGN_V2.md 27.8, `meta.research.auto`)
+   * in Kauf-Reihenfolge; wiederholbare je Rang ein Eintrag. Für Hinweis und Rückkehr-Bericht.
+   */
+  research: string[];
 }
 
 /** Eine Wildwechsel-Karte: diese Art kam über `corridor` aus dem Bestand von `from`. */
@@ -234,7 +241,9 @@ export const MAX_LIVE_SECONDS = 100 * YEAR_SECONDS;
  * Ereignisgesteuert: Die Raten sind konstant bis zum nächsten Halt – dem nächsten
  * Wegpunkt, dem Zwischenhalt (ab Hain, über das Gesamt-Wachstum wie Wegpunkte), dem
  * Ablauf eines Zeit-Bonus bzw. Gastes (kleinste Restdauer) oder dem Wechsel der
- * Jahreszeit (`cycle.elapsed`, dort exakt auf die Grenze gesetzt). Bis dahin wird in
+ * Jahreszeit (`cycle.elapsed`, dort exakt auf die Grenze gesetzt) oder – mit „Plan folgen“ –
+ * dem Erreichen der Kosten des nächsten Plan-Eintrags (27.8; gekauft wird am Anfang der nächsten
+ * Runde bzw. am Ende des Ticks). Bis dahin wird in
  * einem Schritt gerechnet. Darum liefern viele kleine Ticks und ein großer dasselbe Ergebnis
  * (bis auf Rundung). Deterministisch: Zeit kommt nur über `dt`, Zufall nur über
  * `state.rngState`.
@@ -269,6 +278,7 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     weather: [],
     wildwechsel: [],
     chapters: [],
+    research: [],
   };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
   // Chronik des aktiven Waldes (26.4): Was der Tick neu schreibt, meldet der Bericht. Im Tick
@@ -287,6 +297,9 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
   // gibt es endlich viele (Wegpunkte, je ein Zwischenhalt, endlich viele Boni, eine
   // Jahreszeitgrenze je SEASON_SECONDS, live zwei Nachtgrenzen je Tag).
   while (remaining > 0) {
+    // Forschungsplan (27.8): Was jetzt bezahlbar und erlaubt ist, wird vor dem Schritt gekauft –
+    // die neuen Wirkungen gelten ab hier, online wie offline.
+    followResearchPlan(state, report);
     // Lange Zeitsprünge: ganze Jahre am Stück, solange darin kein anderer Halt liegt
     // (nicht mit Einzelwetter – jedes Jahr hat anderes Wetter).
     const years = mode === 'live' ? 0 : skipYears(state, remaining, report, mode, f);
@@ -310,10 +323,17 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     // Sonnenuntergang und -aufgang: nur mit Einzelwetter ein Halt (die Nachtwirkung wechselt).
     let toNight = mode === 'live' ? secondsToNightChange(state.cycle.elapsed) : Infinity;
     if (Math.abs(toNight - remaining) <= SEASON_SNAP_SECONDS) toNight = remaining;
-    const step = Math.min(remaining, toNext, toInterlude, toExpiry, toSeason, toNight);
+    // Forschungsplan (27.8): Halt, sobald der Vorrat die Kosten des nächsten Plan-Eintrags
+    // erreicht – mit dem Zufluss × f wie Wegpunkte, darum online = offline.
+    const harmonyRate = harmonyIncome(ev.harmony, memory) * f;
+    const need = plannedResearchNeed(state);
+    const toResearch = need < Infinity && harmonyRate > 0 ? Math.max(0, need - harmonyPointsOf(state)) / harmonyRate : Infinity;
+    const step = Math.min(remaining, toNext, toInterlude, toExpiry, toSeason, toNight, toResearch);
     state.seeds = capped(state.seeds + ev.seeds * f * step);
     // Harmonie-Vorrat (27.3): Produktion konstant bis zum nächsten Halt – wie die Samen.
-    addHarmonyPoints(state, harmonyIncome(ev.harmony, memory) * f * step);
+    addHarmonyPoints(state, harmonyRate * step);
+    // Genau auf die Kosten setzen (Rundung), gekauft wird am Anfang der nächsten Runde.
+    if (step === toResearch) state.harmonyPoints = Math.max(harmonyPointsOf(state), need);
     remaining -= step;
     countDown(state, step, report);
     // Spielzeit zuerst: Fällt die Grenze mit einem Wegpunkt zusammen, sieht die Begegnung
@@ -343,6 +363,8 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
       state.totalGrowth = capped(state.totalGrowth + rate * step);
     }
   }
+  // Was genau am Ende bezahlbar wurde, gleich kaufen (wie in der nächsten Runde eines größeren Ticks).
+  followResearchPlan(state, report);
   // Langzeit-Statistik: die ganze Spielzeit (auch über MAX_ELAPSED hinaus), je Tick einmal.
   // Das Wachstum braucht hier nichts – es steht exakt in `totalGrowth` (lifetimeGrowth).
   state.meta.stats.playSeconds = capped(state.meta.stats.playSeconds + dt);
@@ -409,7 +431,8 @@ function reportSeason(report: TickReport, id: SeasonId, weather: WeatherId): voi
  * Schnellvorlauf über ganze Jahre (nur an einer Jahresgrenze, also zu Frühlingsbeginn):
  * Die Raten sind je Jahreszeit konstant, solange kein anderer Halt kommt – dann ergibt
  * ein Jahr genau 180 s × Σ Rate je Jahreszeit. Gesprungen wird nur über Jahre, in denen
- * weder Wegpunkt noch Zwischenhalt (über das Wachstum) noch der Ablauf eines Bonus liegt,
+ * weder Wegpunkt noch Zwischenhalt (über das Wachstum) noch der Ablauf eines Bonus noch der
+ * Halt des Forschungsplans (über den ⚖️-Zufluss, plannedResearchNeed) liegt,
  * und nie über MAX_ELAPSED hinaus. Gibt die übersprungenen Jahre zurück (0 = normal
  * weiterrechnen). Ohne diesen Vorlauf bräuchte ein riesiger Zeitsprung je 180 s eine
  * Runde; im Spiel (≤ 8 h offline) ändert er nur die Rundung.
@@ -451,6 +474,9 @@ function skipYears(
   for (const threshold of [thresholdFor(state.waypoint + 1), interludeThreshold(state)]) {
     if (growth > 0 && threshold < Infinity) years = Math.min(years, Math.ceil((threshold - state.totalGrowth) / growth) - 1);
   }
+  // Ebenso der Halt des Forschungsplans (27.8): kein Jahr, in dem der Vorrat die Kosten erreicht.
+  const need = plannedResearchNeed(state);
+  if (harmonyPoints > 0 && need < Infinity) years = Math.min(years, Math.ceil((need - harmonyPointsOf(state)) / harmonyPoints) - 1);
   if (!(years >= 1)) return 0;
   state.seeds = capped(state.seeds + seeds * years);
   addHarmonyPoints(state, harmonyPoints * years);
@@ -631,6 +657,7 @@ function mergeReports(into: TickReport, next: TickReport): void {
   for (let i = 0; i < next.seasons.length; i++) reportSeason(into, next.seasons[i]!, next.weather[i]!);
   into.wildwechsel.push(...next.wildwechsel);
   into.chapters.push(...next.chapters);
+  into.research.push(...next.research);
 }
 
 /**
@@ -1987,11 +2014,27 @@ export function farewellVisitor(state: GameState, encounterIndex: number): Actio
  * Warum ein Knoten gerade nicht erforscht werden kann (Reihenfolge der Prüfung, 27.7):
  * unbekannter Knoten, schon erforscht, Stufe zu niedrig, anderer Weg der Gabel gewählt,
  * Voraussetzung fehlt, Bedingung im Ökosystem nicht erfüllt, Vorrat reicht nicht.
+ * Wiederholbare Knoten (28.6) sind erst mit MAX_RESEARCH_RANK `owned`.
  */
 export type ResearchBlocker = 'unknown-node' | 'owned' | 'stage' | 'excluded' | 'requires' | 'condition' | 'too-expensive';
 
-/** Ist der Knoten in diesem Zyklus erforscht? */
+/** Rang eines wiederholbaren Knotens in diesem Zyklus (28.6); einmalige und unbekannte: 0. */
+export function researchRankOf(state: Pick<GameState, 'cycle'>, id: string): number {
+  return RESEARCH_BY_ID.get(id)?.repeatable ? researchRank(state.cycle.researchRanks, id) : 0;
+}
+
+/** Ist der Knoten in diesem Zyklus erforscht? Wiederholbare: mindestens Rang 1. */
 export function isResearched(state: Pick<GameState, 'cycle'>, id: string): boolean {
+  if (RESEARCH_BY_ID.get(id)?.repeatable) return researchRankOf(state, id) >= 1;
+  return state.cycle.research.includes(id);
+}
+
+/**
+ * Gibt es an diesem Knoten nichts mehr zu erforschen? Einmalige: erforscht; wiederholbare: erst
+ * mit MAX_RESEARCH_RANK (davor ist immer ein nächster Rang offen). Für Listen („erledigt“).
+ */
+export function researchComplete(state: Pick<GameState, 'cycle'>, id: string): boolean {
+  if (RESEARCH_BY_ID.get(id)?.repeatable) return researchRankOf(state, id) >= MAX_RESEARCH_RANK;
   return state.cycle.research.includes(id);
 }
 
@@ -2007,9 +2050,32 @@ export function researchExcluded(node: ResearchNode, owned: readonly string[]): 
   return (node.excludes ?? []).some((id) => owned.includes(id));
 }
 
-/** Kosten eines Knotens in ⚖️ (undefined, wenn unbekannt). */
-export function researchCost(id: string): number | undefined {
-  return RESEARCH_BY_ID.get(id)?.cost;
+/**
+ * Ist der Knoten in diesem Zyklus unerreichbar? Ausgeschlossen (Gabel) oder eine fehlende
+ * Voraussetzung ist selbst unerreichbar (bei `requiresAny` alle). Für den Forschungsplan:
+ * solche Einträge werden übersprungen, statt ewig zu warten (27.8).
+ */
+export function researchUnreachable(node: ResearchNode, owned: readonly string[], depth = 0): boolean {
+  if (researchExcluded(node, owned)) return true;
+  // Voraussetzungen stehen in RESEARCH immer weiter oben – tiefer kann es nicht gehen.
+  if (depth > RESEARCH_BY_ID.size) return false;
+  const gone = (id: string): boolean => {
+    if (owned.includes(id)) return false;
+    const req = RESEARCH_BY_ID.get(id);
+    return !req || researchUnreachable(req, owned, depth + 1);
+  };
+  if ((node.requires ?? []).some(gone)) return true;
+  const any = node.requiresAny ?? [];
+  return any.length > 0 && any.every(gone);
+}
+
+/**
+ * Kosten des nächsten Kaufs in ⚖️ (undefined, wenn unbekannt): einmalige Knoten `cost`,
+ * wiederholbare ⌈1.500 · 1,3^r⌉ für Rang r → r+1 (28.6), ab MAX_RESEARCH_RANK Infinity.
+ */
+export function researchCost(state: Pick<GameState, 'cycle'>, id: string): number | undefined {
+  const node = RESEARCH_BY_ID.get(id);
+  return node ? researchCostAt(node, researchRankOf(state, id)) : undefined;
 }
 
 /** Warum der Knoten nicht erforscht werden kann – null, wenn es geht. Ändert nichts. */
@@ -2017,12 +2083,12 @@ export function researchBlocker(state: GameState, id: string): ResearchBlocker |
   const node = RESEARCH_BY_ID.get(id);
   if (!node) return 'unknown-node';
   const owned = state.cycle.research;
-  if (owned.includes(id)) return 'owned';
+  if (node.repeatable ? researchRankOf(state, id) >= MAX_RESEARCH_RANK : owned.includes(id)) return 'owned';
   if (state.stage < node.minStage) return 'stage';
   if (researchExcluded(node, owned)) return 'excluded';
   if (!researchRequirementsMet(node, owned)) return 'requires';
   if (node.condition && !speciesAppears(appearsContext(ecosystemOf(state)), { appears: node.condition })) return 'condition';
-  if (!(state.harmonyPoints >= node.cost)) return 'too-expensive';
+  if (!(state.harmonyPoints >= researchCostAt(node, researchRankOf(state, id)))) return 'too-expensive';
   return null;
 }
 
@@ -2031,15 +2097,27 @@ export function researchBlocker(state: GameState, id: string): ResearchBlocker |
  * Stammgäste in neue Plätze, H_max und Tagebuch nachführen. Wirkt bis zum Neuen Zyklus; die
  * Bedingung gilt nur beim Erforschen. Der Harmonie-Bonus hängt an der Produktion, nicht am
  * Vorrat – Ausgeben senkt ihn nie (27.4). `harmony` im Ergebnis: die Kosten (negativ).
+ *
+ * Wiederholbare Knoten (28.6): kauft den nächsten Rang (`cycle.researchRanks`) und hängt die ID
+ * je Rang einmal an `cycle.research` an – so merkt sich der Plan beim Neuen Zyklus jeden Rang
+ * an seiner Stelle. Von Hand forschen geht immer, auch mit „Plan folgen“.
  */
 export function research(state: GameState, id: string): ActionResult {
+  return buyResearch(state, id, true);
+}
+
+/** Kauf eines Knotens; `byHand` zählt fürs Tagesziel (der Plan kauft nicht für den Spieler). */
+function buyResearch(state: GameState, id: string, byHand: boolean): ActionResult {
   const blocker = researchBlocker(state, id);
   if (blocker) return fail(blocker);
-  const cost = RESEARCH_BY_ID.get(id)!.cost;
+  const node = RESEARCH_BY_ID.get(id)!;
+  const rank = researchRankOf(state, id);
+  const cost = researchCostAt(node, rank);
   state.harmonyPoints = Math.max(0, state.harmonyPoints - cost);
+  if (node.repeatable) state.cycle.researchRanks[id] = rank + 1;
   state.cycle.research.push(id);
   countStat(state, 'careRanksBought');
-  countDailyAction(state, 'care');
+  if (byHand) countDailyAction(state, 'care');
   // Neue Plätze (z. B. Waldtümpel, Nistkästen): Stammgäste ziehen sofort ein, nicht erst
   // am nächsten Wegpunkt.
   const regulars = moveInRegulars(state);
@@ -2051,14 +2129,100 @@ export function research(state: GameState, id: string): ActionResult {
 }
 
 /**
- * Vorschau: das Ökosystem mit diesem Knoten (wie previewSowing). Prüft weder Vorrat noch
- * Stufe, Gabel oder Voraussetzung (siehe researchBlocker); null bei unbekanntem oder schon
- * erforschtem Knoten.
+ * Vorschau: das Ökosystem mit diesem Knoten (wie previewSowing), bei wiederholbaren mit dem
+ * nächsten Rang. Prüft weder Vorrat noch Stufe, Gabel oder Voraussetzung (siehe
+ * researchBlocker); null bei unbekanntem, schon erforschtem oder voll ausgebautem Knoten.
  */
 export function previewResearch(state: GameState, id: string): Evaluation | null {
-  if (!RESEARCH_BY_ID.has(id) || isResearched(state, id)) return null;
-  const researched = [...state.cycle.research, id];
-  return evaluateEcosystem(ecosystemOf({ ...state, cycle: { ...state.cycle, research: researched } }));
+  const node = RESEARCH_BY_ID.get(id);
+  if (!node) return null;
+  let cycle = state.cycle;
+  if (node.repeatable) {
+    const rank = researchRankOf(state, id);
+    if (rank >= MAX_RESEARCH_RANK) return null;
+    cycle = { ...cycle, research: [...cycle.research, id], researchRanks: { ...cycle.researchRanks, [id]: rank + 1 } };
+  } else {
+    if (isResearched(state, id)) return null;
+    cycle = { ...cycle, research: [...cycle.research, id] };
+  }
+  return evaluateEcosystem(ecosystemOf({ ...state, cycle }));
+}
+
+// ---------------------------------------------------------------------------
+// Forschungsplan (DESIGN_V2.md 27.8, 28.6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Nächster offener Eintrag des Forschungsplans (`meta.research.plan`, Reihenfolge des letzten
+ * Zyklus; wiederholbare Knoten je Rang ein Eintrag). Erledigt ist ein einmaliger Knoten, wenn er
+ * erforscht ist, das k-te Vorkommen eines wiederholbaren, wenn sein Rang ≥ k ist. Übersprungen
+ * werden unbekannte, unerreichbare (Gabel anders entschieden, researchUnreachable) und voll
+ * ausgebaute Einträge. `blocker`: null = jetzt kaufbar, `'too-expensive'` = sparen, sonst
+ * (Stufe, Voraussetzung, Bedingung) wartet der Plan. null, wenn nichts mehr offen ist.
+ */
+export function nextPlannedResearch(state: GameState): { index: number; id: string; blocker: ResearchBlocker | null } | null {
+  const plan = state.meta.research?.plan;
+  if (!Array.isArray(plan)) return null;
+  const owned = state.cycle.research;
+  const seen = new Map<string, number>();
+  for (let index = 0; index < plan.length; index++) {
+    const id = plan[index]!;
+    const node = RESEARCH_BY_ID.get(id);
+    if (!node) continue;
+    if (node.repeatable) {
+      const k = (seen.get(id) ?? 0) + 1;
+      seen.set(id, k);
+      if (researchRankOf(state, id) >= k) continue;
+    } else if (owned.includes(id)) {
+      continue;
+    }
+    const blocker = researchBlocker(state, id);
+    if (blocker === 'unknown-node' || blocker === 'owned' || blocker === 'excluded') continue;
+    if (blocker === 'requires' && researchUnreachable(node, owned)) continue;
+    return { index, id, blocker };
+  }
+  return null;
+}
+
+/**
+ * Kosten des nächsten Plan-Eintrags, auf den „Plan folgen“ gerade spart – der Halt in `tick`.
+ * Infinity, wenn der Plan aus ist, nichts offen ist, der Eintrag aus anderem Grund wartet oder
+ * die Kosten über MAX_HARMONY_POINTS liegen (nie erreichbar).
+ */
+export function plannedResearchNeed(state: GameState): number {
+  if (state.meta.research?.auto !== true) return Infinity;
+  const next = nextPlannedResearch(state);
+  if (!next || next.blocker !== 'too-expensive') return Infinity;
+  const cost = researchCost(state, next.id) ?? Infinity;
+  return cost <= MAX_HARMONY_POINTS ? cost : Infinity;
+}
+
+/**
+ * „Plan folgen“ (27.8): kauft streng in Plan-Reihenfolge, solange der nächste Eintrag bezahlbar
+ * und erlaubt ist. Gekaufte IDs und eingezogene Stammgäste kommen in den Bericht.
+ */
+function followResearchPlan(state: GameState, report: TickReport): void {
+  if (state.meta.research?.auto !== true) return;
+  // Jeder Kauf erledigt einen Eintrag – mehr Käufe als Einträge gibt es nicht.
+  for (let guard = state.meta.research.plan.length; guard >= 0; guard--) {
+    const next = nextPlannedResearch(state);
+    if (!next || next.blocker !== null) return;
+    const result = buyResearch(state, next.id, false);
+    if (!result.ok) return;
+    report.research.push(next.id);
+    if (result.regulars) report.regulars.push(...result.regulars);
+  }
+}
+
+/** Schalter „Plan des letzten Zyklus folgen“ (`meta.research.auto`, 27.8). Kauft selbst nichts – das macht `tick`. */
+export function setResearchAuto(state: GameState, on: boolean): ActionResult {
+  state.meta.research.auto = on === true;
+  return { ok: true };
+}
+
+/** Vorrat ⚖️ als endliche Zahl ≥ 0 (kaputte Werte zählen als 0). */
+function harmonyPointsOf(state: GameState): number {
+  return Number.isFinite(state.harmonyPoints) && state.harmonyPoints > 0 ? state.harmonyPoints : 0;
 }
 
 // ---------------------------------------------------------------------------
