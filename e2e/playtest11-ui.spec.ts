@@ -113,6 +113,15 @@ test('390 px: „+1 Stufe“ verschwindet beim Reiterwechsel; Restzeit zur näch
   await expect(goal).toHaveText(/^🎯 (Jetzt ›|in \d+:\d\d|›)/);
   const box = (await goal.boundingBox())!;
   expect(box.width).toBeGreaterThanOrEqual(44);
+  // Trefferfläche (::after) reicht bis an die Reiter heran, aber nicht darüber (supply-bar.css).
+  const hit = await goal.evaluate((node) => {
+    const r = node.getBoundingClientRect();
+    const after = getComputedStyle(node, '::after');
+    return r.height - parseFloat(after.bottom);
+  });
+  const tabTop = await page.locator('[data-ref="tabs"] [role="tab"]').first().evaluate((n) => n.getBoundingClientRect().top);
+  expect(hit).toBeGreaterThanOrEqual(36);
+  expect(box.y + hit).toBeLessThanOrEqual(tabTop + 0.5);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
   await goal.click();
   await expect(tabPanel(page, 'nischen')).toBeVisible();

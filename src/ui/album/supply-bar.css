@@ -92,9 +92,11 @@
 }
 
 /*
- * Ziel-Knopf rechts (Playtest Phase 11, F4): so hoch wie die Leiste, mindestens 44 px breit; die
- * Trefferfläche reicht per ::after über den 6-px-Rand der Reiterleiste (36 px hoch). Tiefer
- * läge sie über den Reitern – die Leiste bleibt bewusst 30 px hoch (Layout, scroll-padding).
+ * Ziel-Knopf rechts (Playtest Phase 11, F4): so hoch wie die Leiste, mindestens 44 px breit.
+ * Bewusste Ausnahme der 44-px-Höhe: Die Trefferfläche reicht per ::after nur über den 6-px-Rand
+ * der Reiterleiste (36 px hoch). Nach oben geht nichts (die Leiste klebt am oberen Fensterrand),
+ * tiefer läge sie über den Reitern (ab 36 px), und die Leiste bleibt 30 px hoch (Layout,
+ * scroll-padding-top in album.css). Gemessen in e2e/playtest11-ui.spec.ts.
  */
 .supply-goal {
   position: relative;
