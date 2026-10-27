@@ -1141,7 +1141,7 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
 
 **Welle 5 – Absichern**
 
-- [ ] **5a** e2e Phase 10 (`qa-tester`): v16-Stand lädt als v17 (Pflege-Ränge → Knoten,
+- [x] **5a** e2e Phase 10 (`qa-tester`): v16-Stand lädt als v17 (Pflege-Ränge → Knoten,
   Startguthaben, offene Pflanzenbegegnung → Aussaat-Zettel); Säen → Karte → Neuladen → gleiche
   Karten; Gabel wählen → andere Seite gesperrt → Neuladen; Neuer Zyklus setzt Vorrat und Baum
   zurück, Plan folgt; v16-Gerät lehnt v17 ab (`outdated-client`, `newer` beim Import); R:Forschung
@@ -1406,7 +1406,7 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
 
 **Welle 5 – Absichern** (Phase 10, 5a/5b zusammengelegt)
 
-- [ ] **5a** e2e Phase 10 + 11 (`qa-tester`): v16 lädt als v18 (über v17: Pflege → Knoten, offene
+- [x] **5a** e2e Phase 10 + 11 (`qa-tester`): v16 lädt als v18 (über v17: Pflege → Knoten, offene
   Pflanzenbegegnung → Aussaat), v17 lädt als v18 ohne Verlust; Ausbau kaufen → Meilenstein 25 →
   neuer Platz → Neuladen bleibt; ×10/Max; verschlossene Nische ohne Knopf; Zielzeile springt;
   Offline: Uhr 2 h vorstellen → Rückkehr-Bericht mit „Zehntel“, Jahreszeit weiter; Tab 30 s im
@@ -1414,6 +1414,15 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Ausbau, Ränge, Vorrat zurück, Abzeichen bleiben, Plan folgt; v17-Gerät lehnt v18 ab
   (`outdated-client`, `newer` beim Import); R:Nischen und R:Forschung bei 360/390 px ohne
   Querscrollen. Abhängig: 4a, 4b, 4c
+  **Erledigt:** neue Spec `e2e/phase11.spec.ts` für die Lücken – v16 → v18 (Pflege → Knoten,
+  Startguthaben, zwei Pflanzenbegegnungen → Aussaat + Samen, Neuladen ohne zweite Migration), v17 → v18
+  ohne Verlust, Tab 30 s im Hintergrund = online (Vergleich mit `tick`), Uhr 2 h vorstellen (Erträge
+  wie `simulateOffline`, „Zehntel“, Jahreszeit weiter), Gabel → andere Seite gesperrt → endloser
+  Knoten frei → Rang → Neuladen, Neuer Zyklus (Ausbau/Ränge/Vorrat 0, Abzeichen und Erfolg bleiben,
+  Plan kauft per Testuhr), R:Nischen/R:Forschung mit großen Zahlen bei 360/390 px. Schon abgedeckt
+  und nicht doppelt: Meilenstein 25, ×10/Max, verschlossene Nische, Zielzeile (`upgrades.spec.ts`),
+  Rang/Plan (`care.spec.ts`), `outdated-client`/`newer` (`chronicle-save.spec.ts`, SAVE_VERSION ∓ 1).
+  `upgrades.spec.ts` und `care.spec.ts` rechnen Preise jetzt aus content/core (3a ändert sie)
 - [ ] **5b** Playtest Phase 10 + 11 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
   Fühlt sich das Spiel noch ziellos an? Gibt es immer etwas zu kaufen, ohne Klick-Pflicht? Ist 10 %
   offline fair? Fühlen sich die Gabeln wie Entscheidungen an, verlieren Samen ab dem Wald ihren Sinn?
