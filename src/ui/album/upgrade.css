@@ -449,6 +449,24 @@
   }
 }
 
+/* Sprung der Zielzeile (4c): etwas länger und mit Rahmen, damit das Auge die Zeile findet,
+   nachdem die Seite gescrollt hat. Ebenfalls nur Farbe. */
+.goal-flash {
+  animation: goal-flash 1.6s ease-out;
+}
+
+@keyframes goal-flash {
+  0%,
+  35% {
+    background-color: var(--note-bg);
+    box-shadow: 0 0 0 3px var(--ink-green);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
 /* Einkleben eines neuen Platzes (Meilenstein „Gut bewohnt“): der leere Kreis wächst aus der
    Seite und leuchtet kurz; bei reduzierter Bewegung nur das Leuchten. */
 .sticker-slot.slot-arrive .sticker-empty {

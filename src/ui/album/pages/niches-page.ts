@@ -69,6 +69,12 @@ export interface NichesPage extends TabPage {
   connect(actions: NichesActions): void;
   /** Knopf „🌱 Säen“. */
   readonly plantButton: HTMLButtonElement;
+  /**
+   * Sprung der Zielzeile (28.7, Phase 11, 4c): Zeile der Nische bzw. des Baumteils – oder beim
+   * Säen den Pflanzring – ins Bild holen, kurz aufleuchten lassen und den Fokus auf den Namen
+   * setzen. false, wenn es die Zeile (noch) nicht gibt.
+   */
+  reveal(target: UpgradeTarget | 'sow'): boolean;
 }
 
 interface NicheRow {
@@ -208,6 +214,7 @@ export function createNichesPage(env: PageEnv): NichesPage {
   // --- Pflanzring ------------------------------------------------------------------------
   const ring = section('Pflanzring', 'niches-ring');
   ring.root.dataset.ref = 'plant-ring';
+  ring.head.tabIndex = -1;
   ring.root.setAttribute('aria-label', 'Pflanzring');
   const ringCount = el('span', 'niches-heading-meta');
   ringCount.dataset.ref = 'plant-slots';
@@ -653,9 +660,35 @@ export function createNichesPage(env: PageEnv): NichesPage {
     filled = true;
   }
 
+  function reveal(target: UpgradeTarget | 'sow'): boolean {
+    // Seite zuerst füllen (der Sprung kann vor dem ersten Auffrischen kommen).
+    update();
+    let row: HTMLElement | null;
+    let focus: HTMLElement | null;
+    if (target === 'sow') {
+      row = ring.root.hidden ? null : ring.root;
+      focus = ring.head;
+    } else if (target.kind === 'tree') {
+      row = ownTree.element.hidden ? null : ownTree.row(target.id);
+      focus = row?.querySelector<HTMLElement>('.upgrade-part-title') ?? null;
+    } else {
+      const r = rows.get(target.id);
+      row = r && r.root.isConnected && !r.footer.element.hidden ? r.root : null;
+      focus = r?.title ?? null;
+    }
+    if (!row) return false;
+    const reduce = env.deps.preferences.reducedMotion;
+    row.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    focus?.focus({ preventScroll: true });
+    // Nur Farbe, keine Bewegung – darum auch bei reduzierter Bewegung (wie nach einem Kauf).
+    restartAnimation(row, 'goal-flash');
+    return true;
+  }
+
   return {
     page,
     plantButton,
+    reveal,
     update,
     connect(next) {
       actions = next;

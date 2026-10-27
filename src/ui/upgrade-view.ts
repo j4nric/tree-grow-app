@@ -401,3 +401,53 @@ export function goalLineView(goal: GoalInput | null, ctx: Pick<UpgradeContext, '
     researchAria: n > 0 ? `Zur Forschung: ${n === 1 ? 'ein Knoten' : `${formatNumber(n)} Knoten`} erforschbar` : '',
   };
 }
+
+/** Ende des Rückkehr-Berichts (28.7/28.9): kurz am Zettel, ausführlich als letzter Punkt. */
+export interface ReturnGoalView {
+  /** Knopf am Zettel: „🎯 Genug für 6 Ausbaustufen ›“ bzw. „🎯 Nächstes: 🪵 Jahresringe St. 14 ›“. */
+  text: string;
+  /** Vorlesetext des Knopfs (nennt das Ziel, wohin der Sprung geht). */
+  aria: string;
+  /** Letzter Punkt in U:Rückkehr-Bericht – mit Preis bzw. Wartezeit wie die Zielzeile. */
+  detail: string;
+  /** Knopf am Zettel auf der Doppelseite: `detail` mit „›“ (ersetzt dort die Zielzeile im Kopf). */
+  full: string;
+}
+
+function stepsText(steps: number): string {
+  return steps === 1 ? 'eine Ausbaustufe' : `${formatNumber(steps)} Ausbaustufen`;
+}
+
+/**
+ * Wie der Rückkehr-Bericht endet: Reichen die Samen für Ausbaustufen (`steps`, billigste zuerst
+ * aus `affordableUpgradeSteps`), steht „Genug für 6 Ausbaustufen“ vorn; sonst die Zielzeile selbst
+ * („Nächstes: … in 0:50“). `null` ohne Ziel und ohne bezahlbare Stufe (vor dem Keimling).
+ */
+export function returnGoalView(goal: GoalInput | null, ctx: Pick<UpgradeContext, 'seeds' | 'seedsPerSecond'>, steps: number): ReturnGoalView | null {
+  const n = Number.isFinite(steps) ? Math.max(0, Math.floor(steps)) : 0;
+  const line = goalLineView(goal, ctx);
+  if (!goal || !line) {
+    if (n === 0) return null;
+    const enough = `Genug für ${stepsText(n)}`;
+    return { text: `🎯 ${enough} ›`, aria: `${enough} – zum Ausbau`, detail: `🎯 ${enough}.`, full: `🎯 ${enough} ›` };
+  }
+  const level = goal.level !== null ? ` St. ${formatNumber(goal.level)}` : '';
+  const what = `${goal.icon} ${goal.name}${level}`;
+  const lineText = line.text.replace(/\s*›$/, '');
+  const spokenGoal = `${goal.name}${goal.level !== null ? ` Stufe ${formatNumber(goal.level)}` : ''}`;
+  if (n > 0) {
+    const enough = `Genug für ${stepsText(n)}`;
+    return {
+      text: keepNumberWithIcon(`🎯 ${enough} ›`),
+      aria: `${enough} – zum nächsten Ziel: ${spokenGoal}`,
+      detail: keepNumberWithIcon(`🎯 ${enough} · ${lineText}`),
+      full: keepNumberWithIcon(`🎯 ${enough} · ${lineText} ›`),
+    };
+  }
+  return {
+    text: keepNumberWithIcon(`🎯 ${line.ready ? 'Jetzt' : 'Nächstes'}: ${what} ›`),
+    aria: `Zum nächsten Ziel: ${spokenGoal}`,
+    detail: keepNumberWithIcon(`🎯 ${lineText}`),
+    full: keepNumberWithIcon(`🎯 ${lineText} ›`),
+  };
+}

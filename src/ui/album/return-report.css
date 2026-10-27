@@ -70,6 +70,7 @@ body[data-motion='reduce'] .return-slip.fresh {
 
 .return-slip-details,
 .return-slip-close,
+.return-page-goal-jump,
 .return-page-file {
   min-width: var(--tap);
   min-height: var(--tap);
@@ -81,7 +82,8 @@ body[data-motion='reduce'] .return-slip.fresh {
   cursor: pointer;
 }
 
-.return-slip-details {
+.return-slip-details,
+.return-page-goal-jump {
   border: 0;
   background: var(--ink);
   color: var(--paper);
@@ -94,7 +96,8 @@ body[data-motion='reduce'] .return-slip.fresh {
   color: var(--ink);
 }
 
-.return-slip-details:hover {
+.return-slip-details:hover,
+.return-page-goal-jump:hover {
   background: var(--ink-green-dark);
 }
 
@@ -103,7 +106,57 @@ body[data-motion='reduce'] .return-slip.fresh {
   background: rgba(59, 58, 54, 0.08);
 }
 
+/* Ende des Berichts: die Zielzeile (Phase 11, 4c) – wie im Polaroid-Kopf in Caveat, als Sprung. */
+.return-slip-goal {
+  justify-self: start;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  max-width: 100%;
+  margin: 0 -6px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--r-button);
+  background: none;
+  color: var(--ink-green-dark);
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.1;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.return-slip-goal[hidden],
+.return-page-goal-jump[hidden],
+.return-page-goal[hidden] {
+  display: none;
+}
+
+.return-slip-goal-full {
+  display: none;
+}
+
+.album[data-layout='spread'] .return-slip-goal-short {
+  display: none;
+}
+
+.album[data-layout='spread'] .return-slip-goal-full {
+  display: inline;
+}
+
+/* Doppelseite: Solange der Zettel mit Ziel offen ist, steht die Zielzeile in ihm statt unter den
+   Etiketten – das Polaroid behält so seine Größe (polaroid.css). */
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden]) .return-slip-goal:not([hidden])) .goal-line {
+  display: none;
+}
+
+.return-slip-goal:hover {
+  text-decoration: underline;
+}
+
 .return-slip :focus-visible,
+.return-page-goal-jump:focus-visible,
 .return-page-file:focus-visible {
   outline: 3px solid var(--ink-green);
   outline-offset: 2px;
@@ -172,8 +225,19 @@ body[data-motion='reduce'] .return-slip.fresh {
   padding-left: 14px;
 }
 
-.return-page-file {
-  align-self: flex-start;
+/* Letzter Punkt: das Ziel, mit eigenem 🎯 (kein 🌿 davor), in Caveat. */
+.return-page-goal {
+  border-bottom: 0;
+  font-family: var(--font-hand);
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--ink-green-dark);
+}
+
+.return-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 6px;
 }
 
@@ -195,6 +259,11 @@ body[data-motion='reduce'] .return-slip.fresh {
 .album[data-layout='spread'] .return-slip-actions {
   grid-column: 2;
   grid-row: 1;
+}
+
+.album[data-layout='spread'] .return-slip-goal {
+  grid-column: 1 / -1;
+  grid-row: 3;
 }
 
 /* Niedrige Fenster (Desktop bis 760 px Höhe, Playtest Schritt 14 S3): kompakter Zettel – die
@@ -224,5 +293,10 @@ body[data-motion='reduce'] .return-slip.fresh {
 
   .album[data-layout='spread'] .return-slip-actions {
     flex-wrap: nowrap;
+  }
+
+  .album[data-layout='spread'] .return-slip-goal {
+    grid-row: 2;
+    font-size: 18px;
   }
 }

@@ -3,10 +3,10 @@ import { RESEARCH } from '../src/content/research';
 import { NICHE_IDS } from '../src/content/types';
 import { MAX_UPGRADE_LEVEL, NICHE_UPGRADE_BASE, TREE_UPGRADE_BASE } from '../src/content/upgrades';
 import { evaluate, plantSlots, sowingCost } from '../src/core/formulas';
-import { MILESTONE_GOAL_SECONDS, goalCandidates, nextGoal, researchAvailable, secondsUntilAffordable } from '../src/core/goal';
+import { MAX_AFFORDABLE_STEPS, MILESTONE_GOAL_SECONDS, affordableUpgradeSteps, goalCandidates, nextGoal, researchAvailable, secondsUntilAffordable } from '../src/core/goal';
 import type { GameState } from '../src/core/state';
 import { researchBlocker, upgradeBlocker, upgradeNiche } from '../src/core/tick';
-import { upgradePrice } from '../src/core/upgrades';
+import { upgradeBase, upgradePrice } from '../src/core/upgrades';
 import { stateAt } from './helpers';
 
 /*
@@ -203,5 +203,65 @@ describe('researchAvailable', () => {
     expect(researchAvailable(s)).toBe(expected);
     s.harmonyPoints = Number.NaN;
     expect(researchAvailable(s)).toBe(0);
+  });
+});
+
+describe('affordableUpgradeSteps (Rückkehr-Bericht „Genug für N Ausbaustufen“)', () => {
+  /** Unabhängig gerechnet: alle Einzelpreise der offenen Ziele, aufsteigend, so viele wie reichen. */
+  function expected(s: GameState): number {
+    const prices: number[] = [];
+    for (const c of goalCandidates(s, 0)) {
+      if (!c.target) continue;
+      const base = upgradeBase(c.target)!;
+      for (let l = c.level! - 1; l < c.level! + 60; l++) prices.push(upgradePrice(base, l));
+    }
+    prices.sort((a, b) => a - b);
+    let left = s.seeds;
+    let n = 0;
+    for (const p of prices) {
+      if (p > left) break;
+      left -= p;
+      n++;
+    }
+    return n;
+  }
+
+  it('billigste Stufe zuerst über Nischen und Baumteile = größte Zahl, ohne den Spielstand zu ändern', () => {
+    const s = sprout();
+    s.cycle.upgrades.niches.roots = 7;
+    s.cycle.upgrades.tree.leaves = 3;
+    for (const seeds of [0, 9, NICHE_UPGRADE_BASE.roots, 500, 4_321, 60_000]) {
+      s.seeds = seeds;
+      const before = JSON.stringify(s);
+      expect(affordableUpgradeSteps(s), String(seeds)).toBe(expected(s));
+      expect(JSON.stringify(s)).toBe(before);
+    }
+    s.seeds = 60_000;
+    expect(affordableUpgradeSteps(s)).toBeGreaterThan(10);
+  });
+
+  it('verschlossene Nischen zählen nicht; vor dem Keimling 0; kaputte Samen 0; gedeckelt', () => {
+    const seed = stateAt(0);
+    seed.seeds = 1e9;
+    expect(affordableUpgradeSteps(seed)).toBe(0);
+    const s = sprout();
+    s.seeds = Number.NaN;
+    expect(affordableUpgradeSteps(s)).toBe(0);
+    s.seeds = -5;
+    expect(affordableUpgradeSteps(s)).toBe(0);
+    s.seeds = 1e300;
+    expect(affordableUpgradeSteps(s)).toBe(MAX_AFFORDABLE_STEPS);
+    expect(affordableUpgradeSteps(s, 3)).toBe(3);
+    // Nur Wurzelraum und Baum offen: genau so viele, wie diese vier Ziele zusammen hergeben.
+    s.seeds = 2_000;
+    expect(affordableUpgradeSteps(s)).toBe(expected(s));
+  });
+
+  it('am Höchststand bleibt ein Ziel stehen', () => {
+    const s = sprout();
+    s.cycle.upgrades.niches.roots = MAX_UPGRADE_LEVEL;
+    for (const id of ['rings', 'leaves', 'mycorrhiza'] as const) s.cycle.upgrades.tree[id] = MAX_UPGRADE_LEVEL;
+    s.seeds = 1e300;
+    expect(affordableUpgradeSteps(s)).toBe(0);
   });
 });

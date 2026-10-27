@@ -6,7 +6,7 @@
  * - `createTreeUpgrades`     Abschnitt „🌳 Dein Baum“ (drei Baumteile, nächster Meilenstein)
  * - `createNicheFooter`      Fußzeile je Nische (Stufe, Meilenstein-Balken, Wirkung, Knopf)
  * - `createUpgradeBadge`     Abzeichen am Nischen-Etikett (Bronze/Silber/Gold)
- * - `createGoalLine`         Zielzeile mit Sprung, `aria-live` nur beim Zielwechsel
+ * - `createGoalLine`         Zielzeile mit Sprung (Ziel: `NichesPage.reveal`, 4c), `aria-live` nur beim Zielwechsel
  *
  * Die Texte kommen fertig aus `../upgrade-view.ts`. Im Spiel in R:Nischen (`pages/niches-page.ts`,
  * seit Phase 11, 4b), dazu in der Vorschau `upgrade-preview.html`.

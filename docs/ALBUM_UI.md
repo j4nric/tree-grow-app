@@ -393,7 +393,7 @@ Abstand. Ab 4 Plätzen bricht die Reihe um. Gattungen stehen als waagerecht scro
 Abstand. Gattungen und Pflanzring stehen nebeneinander, wenn die Seite breiter als 640 px ist.
 
 **Ausbau und Zielzeile (Phase 11, 1c; DESIGN_V2.md 28.9) – Ausbau im Spiel seit 4b, Zielzeile
-noch Vorschau (4c).** View-Modelle ohne DOM: `ui/upgrade-view.ts` (getestet in
+mit Sprung und Rückkehr-Bericht seit 4c.** View-Modelle ohne DOM: `ui/upgrade-view.ts` (getestet in
 `tests/upgrade-view.test.ts`); Spielstand → Eingaben: `ui/upgrade-adapters.ts` (Käufe je
 Kaufmenge aus `upgradeCost`/`upgradeAffordable`, Abzeichen aus `meta.upgrades.best`, Stempeltext,
 Statistik; getestet in `tests/upgrade-ui.test.ts`); `ui/upgrade-fixtures.ts` (Beispielzustände
@@ -433,6 +433,15 @@ auf echten Inhalten und Preisen aus core – nur das Ziel ahmt `nextGoal` nach, 
   Tippen springt zur Zeile (Aufleuchten, Fokus auf den Namen). Countdown auf 5 s gerundet, ab
   1 h „über 1 Std.“, ohne Rate ohne Zeit. `aria-live="polite"` sagt nur einen Zielwechsel an,
   nicht den Countdown; das Ziel bleibt zwischen Käufen stehen (28.7, Regel 5).
+  **Im Spiel (4c):** gewählt mit `nextGoal` neu nur bei neuem `goalEpochKey` (Kauf, Säen,
+  Forschung, Stufe, Zyklus), ersetztem Spielstand oder einer Rückkehr; dazwischen laufen nur Preis
+  und Wartezeit mit. Der Sprung (`jumpToGoal` in `album/index.ts`, auch aus Unterseite oder
+  Umschlag) schlägt R:Nischen auf und ruft `NichesPage.reveal`: Zeile der Nische bzw. des
+  Baumteils – beim Säen der Pflanzring – mittig ins Bild (bei reduzierter Bewegung ohne
+  Gleiten), Fokus auf den Namen, `goal-flash` (1,6 s Notizgelb mit grünem Rahmen, nur Farbe).
+  Angesagt wird ein neuer Schlüssel `Art:Ziel:Stufe` – also nach einem Kauf, nie beim Countdown
+  oder wenn das Ziel bezahlbar wird; beim ersten Füllen nichts. e2e: `e2e/upgrades.spec.ts`
+  (Baumteil bei 360/390 px, Säen, Meilenstein-Nische).
 - **Juice:** Aufleuchten der Zeile (nur Farbe, auch bei reduzierter Bewegung), schwebend
   „+1 Stufe“ / „+10 Stufen“ über der Zeile und „−287 🌰“ über dem Samen-Etikett; der Balken
   gleitet (bei reduzierter Bewegung ohne Übergang). Meilenstein als Stempel (C.5), z. B.
@@ -805,6 +814,19 @@ steht ja im Zettel; Screenreader hören sie im Stempel mit (unsichtbarer Rest). 
 U:Rückkehr-Bericht verschwindet der Stempel. Am Desktop unter 760 px Höhe ist der Zettel
 kompakt (Kurzfassung neben den Knöpfen), damit das Polaroid groß bleibt. Die Regeln zum
 Ersetzen bzw. Ausblenden bei späterer Rückkehr bleiben wie in main.ts.
+
+**Ende mit der Zielzeile (Phase 11, 4c; DESIGN_V2.md 28.7/28.9):** Der Zettel endet mit einem
+Knopf `return-report-goal` in Caveat: „🎯 Genug für 6 Ausbaustufen ›“ – so viele Stufen, wie die
+Samen bei „billigste Stufe zuerst“ über alle offenen Nischen und Baumteile bezahlen
+(`affordableUpgradeSteps` in `core/goal.ts`, ohne Säen) – bzw. ohne bezahlbare Stufe „🎯 Nächstes:
+🪵 Jahresringe St. 14 ›“ (`returnGoalView` in `ui/upgrade-view.ts`). Er springt wie die Zielzeile.
+Auf der Doppelseite zeigt er die ganze Zeile („… · Jetzt: 🌱 Säen · 0 🌰 ›“) und ersetzt die
+Zielzeile unter den Etiketten, solange der Zettel offen ist – das Polaroid wird dadurch nicht
+kleiner (1200 × 700: ≈ 280 px statt 264 px mit Zettel und Zielzeile aus 2c); „🔍 erforschbar“
+steht dann nur am Reiter-Punkt. U:Rückkehr-Bericht: letzter Punkt `return-report-goal-item` mit
+Preis bzw. Wartezeit, dazu „Zum Ziel ›“ neben „Abheften“. Die Zahl wird bei neuem Bericht und
+nach jedem Kauf neu gezählt (nicht je Frame); Preis und Wartezeit laufen mit. Nach einer Rückkehr
+wählt die Zielzeile neu (wie beim Laden). e2e: `e2e/return-report.spec.ts` (360/390/1200 px).
 
 ---
 
