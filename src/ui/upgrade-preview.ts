@@ -1,5 +1,6 @@
 /**
- * Vorschau Ausbau und Zielzeile (Phase 11, 1c) – nicht im Spiel eingebunden.
+ * Vorschau Ausbau und Zielzeile (Phase 11, 1c; seit 4b auf echten Daten) – nicht im Spiel
+ * eingebunden; im Spiel steht der Ausbau in R:Nischen (`album/pages/niches-page.ts`).
  * Aufruf: `npx vite` → /src/ui/upgrade-preview.html
  *
  * Query-Parameter:
@@ -9,8 +10,8 @@
  *   wie eine Album-Seite (~470 px)
  * - `live=1` – Samen wachsen jede Sekunde um die Rate (Countdown sichtbar)
  *
- * „Ausbauen“ funktioniert hier mit dem Platzhalter-Zustand (Samen sinken, Stufe steigt,
- * Meilenstein 25 klebt einen leeren Platz ein); im Spiel macht das ab 4b die Aktion
+ * „Ausbauen“ funktioniert hier mit dem Beispielzustand (Samen sinken, Stufe steigt, ein
+ * Platz-Meilenstein klebt einen leeren Platz ein); im Spiel macht das die Aktion
  * `upgradeNiche`/`upgradeTree` des Spielstands.
  */
 import { SPECIES_BY_ID } from '../content/species';
@@ -26,13 +27,13 @@ import { el, setText } from './dom';
 import { createFloatLayer, restartAnimation } from './feedback';
 import { formatNumber, formatRate } from './format';
 import { initPreferences } from './preferences';
+import { MILESTONE_NAMES, type TreePartId } from '../content/upgrades';
+import { NICHES } from '../content/niches';
 import {
   fixtureUpgradeState,
-  PLACEHOLDER_NICHE_MILESTONES,
-  PLACEHOLDER_NICHES,
-  PLACEHOLDER_TREE_PARTS,
+  NICHE_MILESTONE_INPUTS,
+  TREE_PART_INPUTS,
   UPGRADE_FIXTURES,
-  type PlaceholderTreePartId,
   type UpgradeFixtureId,
   type UpgradeFixtureInput,
   type UpgradePageState,
@@ -43,7 +44,6 @@ import type { AnimalView } from './view-model';
 
 initPreferences();
 
-const MILESTONE_STAMPS: Readonly<Record<number, string>> = { 10: 'Eingelebt!', 25: 'Gut bewohnt – +1 Platz', 50: 'Prachtnische!' };
 
 const params = new URLSearchParams(location.search);
 const fixtureIds = Object.keys(UPGRADE_FIXTURES) as UpgradeFixtureId[];
@@ -189,7 +189,8 @@ function animalView(id: string, happiness: number): AnimalView {
 }
 
 function buildRow(id: string): Row {
-  const data = PLACEHOLDER_NICHES.find((n) => n.id === id)!;
+  const niche = NICHES.find((n) => n.id === id)!;
+  const data = { icon: niche.icon, label: niche.name };
   const li = el('li', 'nrow');
   li.dataset.niche = id;
   const label = el('div', 'nrow-label');
@@ -274,7 +275,7 @@ function buy(kind: 'niche' | 'tree', id: string): void {
   input = { ...input, seeds: input.seeds - cost };
   let anchor: HTMLElement | null;
   if (kind === 'tree') {
-    const part = id as PlaceholderTreePartId;
+    const part = id as TreePartId;
     input = { ...input, tree: { ...input.tree, [part]: { ...input.tree[part], level: to } } };
     anchor = treeUpgrades.row(id);
   } else {
@@ -282,8 +283,8 @@ function buy(kind: 'niche' | 'tree', id: string): void {
       ...input,
       niches: input.niches.map((n) => {
         if (n.id !== id) return n;
-        // Meilenstein 25 „Gut bewohnt“: +1 Platz (Einkleben eines leeren Platzes).
-        const slot = from < 25 && to >= 25 ? 1 : 0;
+        // Platz-Meilenstein (25 „Gut bewohnt“): +1 Platz (Einkleben eines leeren Platzes).
+        const slot = NICHE_MILESTONE_INPUTS.some((m) => m.summary === '+1 Platz' && m.level > from && m.level <= to) ? 1 : 0;
         return { ...n, level: to, capacity: n.capacity + slot };
       }),
     };
@@ -295,9 +296,10 @@ function buy(kind: 'niche' | 'tree', id: string): void {
   const rect = anchor?.getBoundingClientRect();
   if (rect) {
     floats.spawn(count === 1 ? '+1 Stufe' : `+${formatNumber(count)} Stufen`, rect.right - 60, rect.top);
-    const milestones = kind === 'tree' ? PLACEHOLDER_TREE_PARTS.find((p) => p.id === id)!.milestones : PLACEHOLDER_NICHE_MILESTONES;
+    const milestones = kind === 'tree' ? TREE_PART_INPUTS.find((p) => p.id === id)!.milestones : NICHE_MILESTONE_INPUTS;
     const reached = milestones.filter((m) => m.level > from && m.level <= to && !m.badge).pop();
-    if (reached) floats.spawn(kind === 'niche' ? MILESTONE_STAMPS[reached.level] ?? reached.summary : `${reached.summary}!`, rect.left + rect.width / 2, rect.top + 12, 'note');
+    const title = kind === 'niche' && reached ? MILESTONE_NAMES[reached.level] : undefined;
+    if (reached) floats.spawn(title ? `${title}! ${reached.summary}` : `${reached.summary}!`, rect.left + rect.width / 2, rect.top + 12, 'note');
   }
   log.textContent = `Ausgebaut: ${count === 1 ? 'eine Stufe' : `${formatNumber(count)} Stufen`} für ${formatNumber(cost)} Samen.`;
 }

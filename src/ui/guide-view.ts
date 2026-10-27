@@ -35,6 +35,16 @@ import { VISITORS, VISITOR_FAREWELL_LABEL, VISITOR_HOST_LABEL } from '../content
 import { GENERA } from '../content/types';
 import { WAYPOINT_COUNT } from '../content/waypoints';
 import { OFFLINE_FULL_SECONDS, OFFLINE_YIELD } from '../content/offline';
+import {
+  BADGE_NAMES,
+  MILESTONE_NAMES,
+  NICHE_MILESTONES,
+  NICHE_UPGRADE_BASE,
+  NICHE_UPGRADE_PCT,
+  TREE_PARTS,
+  TREE_UPGRADE_BASE,
+  UPGRADE_GROWTH,
+} from '../content/upgrades';
 import { DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS, GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, WEATHERS } from '../content/weather';
 import { NOCTURNAL } from '../content/daytime';
 import { CHRONICLE_CHAPTERS, CHRONICLE_HARMONY } from '../content/chronicle';
@@ -332,9 +342,10 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       icon: '🌰',
       title: 'Samen',
       paragraphs: [
-        `Samen sammelst du nebenbei – mehr Pflanzen und Harmonie bringen mehr. Du gibst sie für neue Pflanzen und fürs Neu würfeln aus; Ablehnen bringt welche zurück. Nichts verfällt.`,
+        `Samen sammelst du nebenbei – mehr Pflanzen und Harmonie bringen mehr. Du gibst sie für neue Pflanzen, fürs Neu würfeln und für den Ausbau aus; Ablehnen bringt welche zurück. Nichts verfällt.`,
       ],
     },
+    upgradeSection(),
     {
       id: 'events',
       icon: '⛈️',
@@ -395,6 +406,30 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       ],
     },
   ];
+}
+
+/**
+ * Kapitel „Ausbau“ (DESIGN_V2.md 28.4/28.9): Nischen- und Baum-Ausbau, Preise, Kaufmenge,
+ * Meilensteine und Abzeichen – alle Zahlen und Namen aus content/upgrades.ts.
+ */
+function upgradeSection(): GuideSection {
+  const bases = Object.values(NICHE_UPGRADE_BASE);
+  const effects = NICHE_MILESTONES.filter((m) => m.kind !== 'badge');
+  const milestones = effects.map((m) => `Stufe ${formatNumber(m.level)} „${MILESTONE_NAMES[m.level] ?? m.summary}“: ${m.summary}`);
+  const parts = TREE_PARTS.map((p) => `${p.icon} ${p.name} (${p.summary} je Stufe)`);
+  const partMilestones = TREE_PARTS.flatMap((p) => p.milestones.filter((m) => m.kind !== 'badge').map((m) => `${p.name} ${formatNumber(m.level)}: ${m.summary}`));
+  const badges = NICHE_MILESTONES.filter((m) => m.kind === 'badge').map((m) => `${m.kind === 'badge' ? BADGE_NAMES[m.badge] : ''} ab Stufe ${formatNumber(m.level)}`);
+  return {
+    id: 'upgrades',
+    icon: '🪺',
+    title: 'Ausbau',
+    paragraphs: [
+      `Wohin mit den Samen? In den Ausbau – er hat kein Ende. Im Reiter „Nischen“ baust du jede offene Nische aus: Je Stufe bekommt jedes Tier dort +${formatNumber(NICHE_UPGRADE_PCT)} % Wachstum und Samen, mal seiner Zufriedenheit. Ganz oben unter „🌳 Dein Baum“ wachsen ${all(parts)}.`,
+      `Die erste Stufe kostet je nach Nische ${span(bases)} 🌰, an deinem Baum ${formatNumber(TREE_UPGRADE_BASE)} 🌰; jede weitere ${formatNumber(Math.round((UPGRADE_GROWTH - 1) * 100))} % mehr als die vorige. Oben rechts im Reiter wählst du, wie viel ein Knopf kauft: ×1, ×10 oder Max – so viele Stufen, wie die Samen reichen. Reicht es noch nicht, steht am Knopf, wie lange es dauert.`,
+      `Meilensteine jeder Nische: ${all(milestones)}. Am Baum: ${all(partMilestones)}. Ein Platz aus dem Ausbau zählt nur in einer Nische, die schon offen ist – verschlossene Nischen lassen sich erst ausbauen, wenn sie sich öffnen.`,
+      `Mit dem Neuen Zyklus beginnt der Ausbau von vorn. Was bleibt, sind die Abzeichen – ${all(badges)} –, am Etikett der Nische und in der Statistik unter „Höchste Ausbaustufen“.`,
+    ],
+  };
 }
 
 /** Standorte mit eigenem Wetter (ohne Heimatwald), in der Reihenfolge der Daten. */

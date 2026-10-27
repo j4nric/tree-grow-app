@@ -59,9 +59,11 @@ const TABS: readonly TabHash[] = ['nischen', 'arten', 'pflege', 'ziele', 'landsc
 /**
  * Bekannte Ausnahmen der 44-px-Regel (mit Grund). Der Stammgast-Stern auf dem Sticker im
  * Reiter Arten ist 26 px groß, seine Trefferfläche per ::before 44 px – er sitzt auf der
- * Ecke des 48-px-Stickers und würde sonst dessen Fläche überdecken.
+ * Ecke des 48-px-Stickers und würde sonst dessen Fläche überdecken. Die Wirkungszeile der
+ * Ausbau-Fußzeile (`.upgrade-effect`) ist schmal 28 px hoch, ihre Trefferfläche per ::after
+ * 44 px (oben und unten je 8 px) – volle Höhe würde jede Nischenkarte auf dem Handy strecken.
  */
-const SMALL_OK = ['.species-star'];
+const SMALL_OK = ['.species-star', '.upgrade-effect'];
 
 /**
  * Urwald mit Landschaft (fünf Reiter), Tiere in mehreren Nischen (Waldkauz für U:Tier und

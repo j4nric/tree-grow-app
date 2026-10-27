@@ -54,8 +54,8 @@ export function lockedSummary(niches: number, ringLocked: boolean): string {
   return `Noch ${count}${ring ? ` und ${ring}` : ''} verschlossen`;
 }
 
-/** Zusatz unter der Zeile: Wann sich das Verschlossene öffnet. */
-export const LOCKED_SUMMARY_HINT = 'Sie öffnen sich, während der Baum wächst.';
+/** Zusatz unter der Zeile: Wann sich das Verschlossene öffnet (und dass erst dann der Ausbau geht, 28.9). */
+export const LOCKED_SUMMARY_HINT = 'Sie öffnen sich, während der Baum wächst – dann lassen sie sich auch ausbauen.';
 
 /**
  * Lesezeichen-Links „Lebensgemeinschaften“ und „Nahrungsnetz“ erst, wenn es dort etwas zu

@@ -1,12 +1,18 @@
 /**
  * Beispielzustände für Ausbau und Zielzeile (Vorschau `upgrade-preview.html` und Tests).
  *
- * PLATZHALTER bis Phase 11, 2a/2c: Die Daten hier spiegeln `content/upgrades.ts` aus 1a
- * (Startpreise, Faktor 1,15, Meilensteine, Baumteile – DESIGN_V2.md 28.4) und ahmen
- * `upgradeCost`, `upgradeBlocker` und `nextGoal` (28.7) nach, damit die Vorschau stimmige
- * Zustände zeigt. Im Spiel kommt der Zustand aus dem Spielstand – diese Datei wird dort nicht
- * benutzt. In 4b ersetzen die echten Inhalte die PLACEHOLDER_*-Werte.
+ * Auf echten Daten (seit Phase 11, 4b): Namen, Startpreise, Meilensteine und Baumteile aus
+ * `content/upgrades.ts` und `content/niches.ts`, Preise und Kaufmengen aus den reinen Regeln in
+ * `core/upgrades.ts` (`upgradePrice`, `upgradeCostFrom`, `affordableUpgrades`). Nur die Auswahl
+ * des Ziels (`previewGoal`) ahmt `nextGoal` (28.7) nach, bis Phase 11, 2c es liefert. Im Spiel
+ * kommt der Zustand aus dem Spielstand (`upgrade-adapters.ts`) – diese Datei wird dort nicht
+ * benutzt.
  */
+import { NICHES } from '../content/niches';
+import type { NicheId } from '../content/types';
+import { NICHE_MILESTONES, NICHE_UPGRADE_BASE, NICHE_UPGRADE_PCT, TREE_PARTS, type TreePartId } from '../content/upgrades';
+import { affordableUpgrades, upgradeCostFrom, upgradePrice } from '../core/upgrades';
+import { milestoneInputs, treePartWho } from './upgrade-adapters';
 import type {
   BuyAmount,
   GoalInput,
@@ -18,91 +24,35 @@ import type {
 } from './upgrade-view';
 
 // ---------------------------------------------------------------------------------------
-// Platzhalter-Inhalte (wie content/upgrades.ts aus 1a)
+// Echte Inhalte in der Form der Ansicht
 // ---------------------------------------------------------------------------------------
 
-export const PLACEHOLDER_UPGRADE_GROWTH = 1.15;
-export const PLACEHOLDER_NICHE_UPGRADE_PCT = 0.1;
-/** Kauf „Max“ höchstens so viele Stufen auf einmal (Schutz vor Endlosschleifen). */
-const MAX_BATCH = 1_000;
+/** Meilensteine jeder Nische (10/25/50, Abzeichen 25/50/75). */
+export const NICHE_MILESTONE_INPUTS: readonly UpgradeMilestoneInput[] = milestoneInputs(NICHE_MILESTONES);
 
-export type PlaceholderNicheId = 'roots' | 'litter' | 'edge' | 'crown' | 'bark' | 'hollows' | 'pond' | 'meadow' | 'deadwood' | 'wall';
-export type PlaceholderTreePartId = 'rings' | 'leaves' | 'mycorrhiza';
+/** Baumteile ohne Stufe und Kauf, mit Startpreis. */
+export const TREE_PART_INPUTS: readonly (Omit<TreePartInput, 'level' | 'best' | 'purchase'> & { base: number })[] = TREE_PARTS.map((part) => ({
+  id: part.id,
+  icon: part.icon,
+  name: part.name,
+  ...treePartWho(part),
+  pctPerLevel: part.effect.pct,
+  text: part.text,
+  base: part.base,
+  milestones: milestoneInputs(part.milestones),
+}));
 
-export const PLACEHOLDER_NICHES: readonly { id: PlaceholderNicheId; icon: string; label: string; base: number }[] = [
-  { id: 'roots', icon: '🪱', label: 'Wurzelraum', base: 10 },
-  { id: 'litter', icon: '🍂', label: 'Laubstreu', base: 25 },
-  { id: 'edge', icon: '🌼', label: 'Waldsaum', base: 25 },
-  { id: 'crown', icon: '🌳', label: 'Krone', base: 60 },
-  { id: 'bark', icon: '🪵', label: 'Stamm & Rinde', base: 60 },
-  { id: 'hollows', icon: '🕳️', label: 'Höhlen & Totholz', base: 250 },
-  { id: 'pond', icon: '🪷', label: 'Waldtümpel', base: 250 },
-  { id: 'meadow', icon: '🌾', label: 'Waldwiese', base: 60 },
-  { id: 'deadwood', icon: '🪵', label: 'Totholzhaufen', base: 250 },
-  { id: 'wall', icon: '🪨', label: 'Trockenmauer', base: 600 },
-];
-
-const BADGES: readonly UpgradeMilestoneInput[] = [
-  { level: 25, summary: 'Abzeichen Bronze', badge: 'bronze' },
-  { level: 50, summary: 'Abzeichen Silber', badge: 'silver' },
-  { level: 75, summary: 'Abzeichen Gold', badge: 'gold' },
-];
-
-export const PLACEHOLDER_NICHE_MILESTONES: readonly UpgradeMilestoneInput[] = [
-  { level: 10, summary: 'öfter in den Karten' },
-  { level: 25, summary: '+1 Platz' },
-  BADGES[0]!,
-  { level: 50, summary: 'Seltene öfter' },
-  BADGES[1]!,
-  BADGES[2]!,
-];
-
-export const PLACEHOLDER_TREE_PARTS: readonly (Omit<TreePartInput, 'level' | 'best' | 'purchase'> & { base: number })[] = [
-  {
-    id: 'rings', icon: '🪵', name: 'Jahresringe', who: 'Baum', pctPerLevel: 0.4, icons: '🌿', base: 15,
-    text: 'Jedes Jahr ein Ring mehr – alte Stämme bekommen Höhlen.',
-    milestones: [{ level: 25, summary: '+1 Höhle' }, ...BADGES],
-  },
-  {
-    id: 'leaves', icon: '🍃', name: 'Blattwerk', who: 'Baum', pctPerLevel: 1, icons: '🌰', base: 15,
-    text: 'Mehr Blätter, mehr Zucker – und im Herbst mehr Eicheln.',
-    milestones: [{ level: 25, summary: '+1 Platz Krone' }, ...BADGES],
-  },
-  {
-    id: 'mycorrhiza', icon: '🍄', name: 'Pilzgeflecht', who: 'Pflanzen', pctPerLevel: 0.5, icons: '', base: 15,
-    text: 'Feine Pilzfäden verbinden die Wurzeln – der Baum teilt mit seinen Nachbarn.',
-    milestones: [{ level: 25, summary: '+1 💧' }, ...BADGES],
-  },
-];
-
-// ---------------------------------------------------------------------------------------
-// Nachgeahmte Logik (später core: upgradeCost, nextGoal)
-// ---------------------------------------------------------------------------------------
-
-/** Preis der Stufe L → L+1: ⌈b · 1,15^L⌉ 🌰. */
-export function placeholderPrice(base: number, level: number): number {
-  return Math.ceil(base * PLACEHOLDER_UPGRADE_GROWTH ** level);
+/** Name und Symbol einer Nische aus content/. */
+function nicheInfo(id: NicheId): { icon: string; label: string } {
+  const niche = NICHES.find((n) => n.id === id);
+  return { icon: niche?.icon ?? '❔', label: niche?.name ?? id };
 }
 
-/** Summe von `count` Stufen ab `level`. */
-export function placeholderCost(base: number, level: number, count: number): number {
-  let sum = 0;
-  for (let i = 0; i < count; i++) sum += placeholderPrice(base, level + i);
-  return sum;
-}
-
-/** Was der Knopf bei der Kaufmenge kauft (Max: so viele, wie die Samen reichen, sonst eine). */
-export function placeholderPurchase(base: number, level: number, amount: BuyAmount, seeds: number): UpgradePurchase {
-  if (amount !== 'max') return { count: amount, cost: placeholderCost(base, level, amount) };
-  let count = 0;
-  let cost = 0;
-  while (count < MAX_BATCH) {
-    const next = placeholderPrice(base, level + count);
-    if (cost + next > seeds) break;
-    cost += next;
-    count++;
-  }
-  return count > 0 ? { count, cost } : { count: 1, cost: placeholderPrice(base, level) };
+/** Was der Knopf bei der Kaufmenge kauft (wie `upgradePurchases` im Spiel, nur ohne Spielstand). */
+export function previewPurchase(base: number, level: number, amount: BuyAmount, seeds: number): UpgradePurchase {
+  if (amount !== 'max') return { count: amount, cost: upgradeCostFrom(base, level, amount) };
+  const affordable = affordableUpgrades(base, level, seeds, Infinity);
+  return affordable.count > 0 ? affordable : { count: 1, cost: upgradePrice(base, level) };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -110,7 +60,7 @@ export function placeholderPurchase(base: number, level: number, amount: BuyAmou
 // ---------------------------------------------------------------------------------------
 
 export interface UpgradeFixtureNiche {
-  id: PlaceholderNicheId;
+  id: NicheId;
   level: number;
   best?: number;
   /** Plätze; 0 = verschlossen (Blocker `'closed'`). */
@@ -128,7 +78,7 @@ export interface UpgradeFixtureInput {
   harmony: number;
   /** Bezahlbare Forschungsknoten (Zielzeile „🔍 2 erforschbar ›“). */
   research: number;
-  tree: Readonly<Record<PlaceholderTreePartId, { level: number; best?: number }>>;
+  tree: Readonly<Record<TreePartId, { level: number; best?: number }>>;
   niches: readonly UpgradeFixtureNiche[];
 }
 
@@ -148,25 +98,27 @@ export interface UpgradePageState {
 
 const MILESTONE_GOAL_SECONDS = 120;
 
-/** Wie `nextGoal` (28.7): Meilenstein in ≤ 120 s zuerst, sonst der billigste; Nischen vor Baumteilen. */
-export function placeholderGoal(state: Pick<UpgradePageState, 'ctx' | 'tree' | 'niches'>): GoalInput | null {
+/**
+ * Wie `nextGoal` (28.7, kommt mit Phase 11, 2c): Meilenstein in ≤ 120 s zuerst, sonst der
+ * billigste; Nischen vor Baumteilen.
+ */
+export function previewGoal(state: Pick<UpgradePageState, 'ctx' | 'tree' | 'niches'>): GoalInput | null {
   const candidates: (GoalInput & { atMilestone: boolean })[] = [];
   const add = (kind: 'niche' | 'tree', id: string, icon: string, name: string, base: number, level: number, milestones: readonly UpgradeMilestoneInput[]) => {
     const target = level + 1;
     const at = milestones.filter((m) => m.level === target && !m.badge);
     candidates.push({
-      kind, id, icon, name, level: target, cost: placeholderPrice(base, level),
+      kind, id, icon, name, level: target, cost: upgradePrice(base, level),
       milestone: at.length > 0 ? at.map((m) => m.summary).join(' · ') : undefined,
       atMilestone: at.length > 0,
     });
   };
   for (const n of state.niches) {
     if (n.purchase === null) continue;
-    const base = PLACEHOLDER_NICHES.find((p) => p.id === n.id)!.base;
-    add('niche', n.id, n.icon, n.label, base, n.level, n.milestones);
+    add('niche', n.id, n.icon, n.label, NICHE_UPGRADE_BASE[n.id as NicheId], n.level, n.milestones);
   }
   for (const t of state.tree) {
-    const base = PLACEHOLDER_TREE_PARTS.find((p) => p.id === t.id)!.base;
+    const base = TREE_PART_INPUTS.find((p) => p.id === t.id)!.base;
     add('tree', t.id, t.icon, t.name, base, t.level, t.milestones);
   }
   if (candidates.length === 0) return null;
@@ -184,34 +136,34 @@ export function placeholderGoal(state: Pick<UpgradePageState, 'ctx' | 'tree' | '
 /** Beispielzustand → Eingaben der Ansicht. */
 export function fixtureUpgradeState(input: UpgradeFixtureInput, amount: BuyAmount): UpgradePageState {
   const ctx: UpgradeContext = { seeds: input.seeds, seedsPerSecond: input.seedsPerSecond, amount };
-  const tree: TreePartInput[] = PLACEHOLDER_TREE_PARTS.map(({ base, ...part }) => {
-    const { level, best } = input.tree[part.id as PlaceholderTreePartId];
-    return { ...part, level, best: Math.max(level, best ?? 0), purchase: placeholderPurchase(base, level, amount, input.seeds) };
+  const tree: TreePartInput[] = TREE_PART_INPUTS.map(({ base, ...part }) => {
+    const { level, best } = input.tree[part.id as TreePartId];
+    return { ...part, level, best: Math.max(level, best ?? 0), purchase: previewPurchase(base, level, amount, input.seeds) };
   });
   const niches: UpgradeFixtureNicheState[] = input.niches.map((n) => {
-    const data = PLACEHOLDER_NICHES.find((p) => p.id === n.id)!;
+    const data = nicheInfo(n.id);
     return {
       id: n.id,
       icon: data.icon,
       label: data.label,
       level: n.level,
       best: Math.max(n.level, n.best ?? 0),
-      milestones: PLACEHOLDER_NICHE_MILESTONES,
-      pctPerLevel: PLACEHOLDER_NICHE_UPGRADE_PCT,
+      milestones: NICHE_MILESTONE_INPUTS,
+      pctPerLevel: NICHE_UPGRADE_PCT,
       happiness: n.animals.map((a) => a.happiness),
-      purchase: n.capacity > 0 ? placeholderPurchase(data.base, n.level, amount, input.seeds) : null,
+      purchase: n.capacity > 0 ? previewPurchase(NICHE_UPGRADE_BASE[n.id], n.level, amount, input.seeds) : null,
       capacity: n.capacity,
       animals: n.animals,
       unlockHint: n.unlockHint,
     };
   });
   const partial = { ctx, tree, niches };
-  return { ...partial, goal: placeholderGoal(partial), research: input.research };
+  return { ...partial, goal: previewGoal(partial), research: input.research };
 }
 
 export type UpgradeFixtureId = 'start' | 'middle' | 'late';
 
-const closed = (id: PlaceholderNicheId, unlockHint: string): UpgradeFixtureNiche => ({ id, level: 0, capacity: 0, animals: [], unlockHint });
+const closed = (id: NicheId, unlockHint: string): UpgradeFixtureNiche => ({ id, level: 0, capacity: 0, animals: [], unlockHint });
 
 /** Die drei Beispielstände der Vorschau. */
 export const UPGRADE_FIXTURES: Readonly<Record<UpgradeFixtureId, { name: string; input: UpgradeFixtureInput }>> = {

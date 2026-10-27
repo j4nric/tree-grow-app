@@ -66,19 +66,20 @@ const throwing = {
 describe('Einstellungen', () => {
   it('Standard: Automatisch, kurz, normale Hinweisdauer, Klang aus, Tag und Nacht wechseln', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
-    expect(DEFAULT_SETTINGS).toEqual({ motion: 'auto', numbers: 'short', longToasts: false, sound: 'off', daytime: 'cycle' });
+    expect(DEFAULT_SETTINGS).toEqual({ motion: 'auto', numbers: 'short', longToasts: false, sound: 'off', daytime: 'cycle', buyAmount: 1 });
   });
 
   it('robust: kaputtes JSON und unbekannte Werte → Standard (feldweise)', () => {
     expect(parseSettings('{kaputt')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('[1,2]')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('"on"')).toEqual(DEFAULT_SETTINGS);
-    expect(parseSettings(JSON.stringify({ motion: 'turbo', numbers: 'long', longToasts: 'ja', sound: 'laut', daytime: 'dunkel' }))).toEqual({
+    expect(parseSettings(JSON.stringify({ motion: 'turbo', numbers: 'long', longToasts: 'ja', sound: 'laut', daytime: 'dunkel', buyAmount: 5 }))).toEqual({
       motion: 'auto',
       numbers: 'long',
       longToasts: false,
       sound: 'off',
       daytime: 'cycle',
+      buyAmount: 1,
     });
     // Ältere Einstellungen ohne Klang und Tageszeit: Klang bleibt aus, Tag und Nacht wechseln.
     expect(parseSettings(JSON.stringify({ motion: 'on', numbers: 'short', longToasts: true }))).toEqual({
@@ -87,15 +88,21 @@ describe('Einstellungen', () => {
       longToasts: true,
       sound: 'off',
       daytime: 'cycle',
+      buyAmount: 1,
     });
   });
 
   it('Roundtrip über serializeSettings', () => {
     for (const sound of ['off', 'quiet', 'normal'] as const) {
       for (const daytime of ['cycle', 'day'] as const) {
-        const s = { motion: 'on' as const, numbers: 'long' as const, longToasts: true, sound, daytime };
+        const s = { motion: 'on' as const, numbers: 'long' as const, longToasts: true, sound, daytime, buyAmount: 10 as const };
         expect(parseSettings(serializeSettings(s))).toEqual(s);
       }
+    }
+    // Kaufmenge des Ausbaus (28.9): alle drei Werte bleiben erhalten.
+    for (const buyAmount of [1, 10, 'max'] as const) {
+      const s = { ...DEFAULT_SETTINGS, buyAmount };
+      expect(parseSettings(serializeSettings(s))).toEqual(s);
     }
   });
 
@@ -114,9 +121,9 @@ describe('Einstellungen', () => {
 
   it('Laden und Speichern, auch ohne funktionierenden Speicher', () => {
     const storage = memoryStorage();
-    saveSettings({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet', daytime: 'day' }, storage);
+    saveSettings({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet', daytime: 'day', buyAmount: 'max' }, storage);
     expect(storage.data.get(SETTINGS_KEY)).toBeTruthy();
-    expect(loadSettings(storage)).toEqual({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet', daytime: 'day' });
+    expect(loadSettings(storage)).toEqual({ motion: 'off', numbers: 'long', longToasts: true, sound: 'quiet', daytime: 'day', buyAmount: 'max' });
     expect(loadSettings(throwing)).toEqual(DEFAULT_SETTINGS);
     expect(() => saveSettings(DEFAULT_SETTINGS, throwing)).not.toThrow();
     expect(loadSettings(null)).toEqual(DEFAULT_SETTINGS);
@@ -177,7 +184,7 @@ describe('Spielanleitung', () => {
   const sections = guideSections();
   const text = (id: string) => sections.find((s) => s.id === id)!.paragraphs.join(' ');
 
-  it('21 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
+  it('22 Abschnitte, keine Platzhalter „kommt bald“ mehr', () => {
     expect(sections.map((s) => s.id)).toEqual([
       'growth',
       'encounters',
@@ -194,6 +201,7 @@ describe('Spielanleitung', () => {
       'weather',
       'night',
       'seeds',
+      'upgrades',
       'events',
       'visitors',
       'care',
@@ -207,6 +215,20 @@ describe('Spielanleitung', () => {
       expect(s.title.length, s.id).toBeGreaterThan(0);
       expect(s.paragraphs.length, s.id).toBeGreaterThan(0);
     }
+  });
+
+  it('Ausbau (28.4/28.9): Wirkung, Preise, Kaufmenge, Meilensteine und Abzeichen aus content', () => {
+    const t = text('upgrades');
+    expect(t).toContain('+0,1 % Wachstum und Samen');
+    expect(t).toContain('🪵 Jahresringe');
+    expect(t).toContain('10–600 🌰');
+    expect(t).toContain('15 % mehr als die vorige');
+    expect(t).toContain('×1, ×10 oder Max');
+    expect(t).toContain('Stufe 25 „Gut bewohnt“: +1 Platz');
+    expect(t).toContain('Jahresringe 25: +1 Platz Höhlen');
+    expect(t).toContain('Gold ab Stufe 75');
+    expect(t).toContain('Höchste Ausbaustufen');
+    expect(text('seeds')).toContain('für den Ausbau');
   });
 
   it('Offline (28.3): 60 s voll, danach 10 %, die Zeit läuft voll', () => {

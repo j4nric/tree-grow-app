@@ -392,16 +392,22 @@ Abstand. Ab 4 Plätzen bricht die Reihe um. Gattungen stehen als waagerecht scro
 **Skizze Desktop:** Die Namensspalte ist 150 px breit, die Sticker sind 54 px groß mit 8 px
 Abstand. Gattungen und Pflanzring stehen nebeneinander, wenn die Seite breiter als 640 px ist.
 
-**Ausbau und Zielzeile (Phase 11, 1c; DESIGN_V2.md 28.9) – Layout, noch nicht im Spiel.**
-Reine Ansicht mit Beispielzuständen: `ui/upgrade-view.ts` (View-Modelle ohne DOM, getestet in
-`tests/upgrade-view.test.ts`), `ui/upgrade-fixtures.ts` (PLATZHALTER für `content/upgrades.ts`
-aus 1a und für `upgradeCost`/`nextGoal` – in 4b durch den Spielstand ersetzt),
-`album/upgrade-panel.ts` + `upgrade.css` (DOM-Bausteine), Vorschau
+**Ausbau und Zielzeile (Phase 11, 1c; DESIGN_V2.md 28.9) – Ausbau im Spiel seit 4b, Zielzeile
+noch Vorschau (4c).** View-Modelle ohne DOM: `ui/upgrade-view.ts` (getestet in
+`tests/upgrade-view.test.ts`); Spielstand → Eingaben: `ui/upgrade-adapters.ts` (Käufe je
+Kaufmenge aus `upgradeCost`/`upgradeAffordable`, Abzeichen aus `meta.upgrades.best`, Stempeltext,
+Statistik; getestet in `tests/upgrade-ui.test.ts`); `ui/upgrade-fixtures.ts` (Beispielzustände
+auf echten Inhalten und Preisen aus core – nur das Ziel ahmt `nextGoal` nach, bis 2c);
+`album/upgrade-panel.ts` + `upgrade.css` (DOM-Bausteine), eingebunden in
+`album/pages/niches-page.ts` (e2e: `e2e/upgrades.spec.ts`, 360/390 px), Vorschau
 `/src/ui/upgrade-preview.html?state=start|middle|late&amount=1|10|max&frame=full|page&live=1`
 (e2e: `e2e/upgrade-preview.spec.ts`, 360/390/1200 px).
 
 - **Kopf des Reiters:** Überschrift und rechts die Kaufmenge ×1 / ×10 / Max (`buy-amount`,
-  Knöpfe mit `aria-pressed`); gilt für alle Knöpfe, gemerkt später in den Einstellungen.
+  Knöpfe mit `aria-pressed`) im Seitenkopf neben dem Zähler (mobil darunter); gilt für alle
+  Knöpfe, gemerkt in den Einstellungen (`settings.buyAmount`, nicht im Spielstand); ausgeblendet,
+  solange sich nichts ausbauen lässt (vor dem Keimling). ×1/×10 kaufen genau so viele Stufen
+  (der Knopf ist blass, bis die Samen reichen), Max so viele, wie die Samen reichen.
 - **„🌳 Dein Baum“** ganz oben: drei Zeilen (Jahresringe, Blattwerk, Pilzgeflecht) mit Stufe in
   Caveat, Wirkung („Baum +8,8 % 🌿“), schmalem Meilenstein-Balken und Knopf; darunter
   „▸ nächster Meilenstein: Jahresringe 25 · +1 Höhle“ (Baumteil mit den wenigsten fehlenden
@@ -417,7 +423,9 @@ aus 1a und für `upgradeCost`/`nextGoal` – in 4b durch den Spielstand ersetzt)
   „in 0:40“ darunter. Doppelklick-Schutz: ein Kauf je Frame. Preise über `formatNumber`
   („1.240 🌰“) statt „1,2k“ aus der Skizze – deutsches Zahlenformat wie überall.
 - **Verschlossene Nische:** keine Fußzeile, kein Knopf (Blocker `'closed'`), nur die
-  Handschrift-Zeile.
+  Handschrift-Zeile; die Zusammenfassung „Noch … verschlossen“ sagt dazu, dass sie sich nach dem
+  Öffnen auch ausbauen lassen. Ihr Abzeichen aus früheren Zyklen bleibt am Etikett.
+- **Höchste Stufe** (`MAX_UPGRADE_LEVEL`): Knopf „Höchste Stufe“, blass, ohne Wartezeit.
 - **Abzeichen** am Etikett unter „2/3 belegt“: „⭑ Bronze/Silber/Gold“ nach der besten je
   erreichten Stufe (25/50/75); Farben als Tokens `--badge-*` (Kontrast ≥ 4,5 : 1).
 - **Zielzeile** (`goal-line`) unter den Etiketten: „Nächstes: 🌳 Krone St. 14 · 1.240 🌰 · in
@@ -426,8 +434,21 @@ aus 1a und für `upgradeCost`/`nextGoal` – in 4b durch den Spielstand ersetzt)
   1 h „über 1 Std.“, ohne Rate ohne Zeit. `aria-live="polite"` sagt nur einen Zielwechsel an,
   nicht den Countdown; das Ziel bleibt zwischen Käufen stehen (28.7, Regel 5).
 - **Juice:** Aufleuchten der Zeile (nur Farbe, auch bei reduzierter Bewegung), schwebend
-  „+1 Stufe“ und beim Meilenstein „Gut bewohnt – +1 Platz“; der Balken gleitet (bei reduzierter
-  Bewegung ohne Übergang). Stempel und Einkleben des Platzes mit Animation kommen in 4b.
+  „+1 Stufe“ / „+10 Stufen“ über der Zeile und „−287 🌰“ über dem Samen-Etikett; der Balken
+  gleitet (bei reduzierter Bewegung ohne Übergang). Meilenstein als Stempel (C.5), z. B.
+  „🪱 Wurzelraum: Gut bewohnt! +1 Platz · Abzeichen Bronze“ bzw. „🪵 Jahresringe 25: +1 Platz
+  Höhlen“ – ein Abzeichen, das ein früherer Zyklus schon brachte, nennt er nicht noch einmal.
+  Ein neuer Platz (auch durch Stufe oder Ereignis) klebt sich ein: Der leere Kreis wächst aus der
+  Seite (`slot-arrive`; bei reduzierter Bewegung nur ein kurzes Leuchten). Keine Bestätigungsfrage
+  vor dem Kauf: Ausbau ist die Hauptschleife und soll sich wie ein Griff anfühlen; Schutz bieten
+  der blasse Knopf (kauft nichts) und ein Kauf je Frame.
+- **Statistik** (Ziele → Statistik, „Über alle Zyklen“): „Ausbaustufen gekauft“ (mit 🌰) und
+  „Höchste Ausbaustufen“ (höchste Bestmarke mit Abzeichen, Zahl der Abzeichen, drei weitere).
+- **Bild** (Phase 11, 4d mit erledigt): `main.ts` setzt `scene.upgrades` aus `cycle.upgrades`
+  (`sceneUpgradesFromLevels`), sobald das Album ein neues Ökosystem meldet – also nach jedem Kauf,
+  nie pro Frame; der Renderer zeichnet nur beim Schrittwechsel neu.
+- **Spielanleitung:** Kapitel „🪺 Ausbau“ nach „Samen“ (22 Kapitel), alle Zahlen aus
+  `content/upgrades.ts`.
 
 ### B.2 Reiter „Arten“ – „Wer war schon da?“ · „23 von 53 Arten“
 

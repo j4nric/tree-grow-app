@@ -90,10 +90,6 @@ import {
   sowBlocker,
   visitorSeeds,
   rerollBlocker,
-  upgradeBlocker,
-  upgradeCost,
-  upgradeLevelOf,
-  type UpgradeOutcome,
   isTreeUnlocked,
   isTreeVisible,
   type OfflineReport,
@@ -105,8 +101,10 @@ import { researchSlotNodes } from './regular-wait';
 import { effectiveForestMemory, landscapeUnlocked } from '../core/landscape';
 import { RARITY_LABELS, formatSigned, formatSignedPercent, isFullHappiness, isScarceFood, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
-import { NICHE_UPGRADE_PCT, TREE_PARTS, type TreePart } from '../content/upgrades';
-import { nextMilestone, upgradeLevelsKey, type UpgradeTarget } from '../core/upgrades';
+import { nicheUpgradeView, refreshUpgradeView, treeUpgradeViews, upgradeBadgeCount, upgradeBestEntries } from './upgrade-adapters';
+import { TREE_PARTS } from '../content/upgrades';
+import { upgradeLevelsKey } from '../core/upgrades';
+import { upgradeCost } from '../core/tick';
 import type { NextGoal } from '../core/goal';
 import type { GoalInput } from './upgrade-view';
 import type {
@@ -139,7 +137,6 @@ import type {
   Rarity,
   ReplaceOptionView,
   SupplyMeterView,
-  UpgradeView,
 } from './view-model';
 
 /** Seltenheit aus dem Kern (0–3) als Schlüssel des View-Models. */
@@ -556,66 +553,10 @@ export function nicheViews(state: GameState, evaluation: Readonly<Evaluation>): 
       const first = Math.min(...SPECIES.filter((s) => s.niche === niche.id).map((s) => s.unlock));
       if (first > state.stage) view.unlockHint = `Bewohner ab „${STAGES[first]?.name ?? '?'}“`;
     }
-    // Ausbau (28.4): nur offene Nischen (Sperre 'closed' = kein Knopf).
-    const target: UpgradeTarget = { kind: 'niche', id: niche.id };
-    if (inhabitable && upgradeBlocker(state, target) !== 'closed') {
-      const level = upgradeLevelOf(state, target);
-      view.upgrade = upgradeView(state, target, niche.icon, niche.name, `je Tier ${formatSignedPercent((NICHE_UPGRADE_PCT * level) / 100)}`);
-    }
+    // Ausbau (28.4/28.9): an jeder bewohnbaren Nische; verschlossen ohne Knopf (open: false).
+    if (inhabitable) view.upgrade = nicheUpgradeView(state, niche.id, animals.filter((a) => !a.visitor).map((a) => a.happiness));
     return view;
   });
-}
-
-/** Wirkung eines Baumteils auf seiner Stufe, z. B. „Baum +8,8 % 🌿“ (Wirkung linear je Stufe). */
-function treePartEffect(part: TreePart, level: number): string {
-  const pct = formatSignedPercent((part.effect.pct * level) / 100);
-  if (part.effect.kind === 'treeGrowth') return `Baum ${pct} 🌿`;
-  if (part.effect.kind === 'treeSeeds') return `Baum ${pct} 🌰`;
-  return `Pflanzen ${pct} 🌿 🌰`;
-}
-
-/** Baum-Ausbau (28.4): drei Zeilen ab dem Keimling, vorher keine. */
-export function treeUpgradeViews(state: GameState): UpgradeView[] {
-  return TREE_PARTS.flatMap((part) => {
-    const target: UpgradeTarget = { kind: 'tree', id: part.id };
-    if (upgradeBlocker(state, target) === 'closed') return [];
-    return [upgradeView(state, target, part.icon, part.name, treePartEffect(part, upgradeLevelOf(state, target)))];
-  });
-}
-
-function upgradeView(state: GameState, target: UpgradeTarget, icon: string, label: string, effect: string): UpgradeView {
-  const level = upgradeLevelOf(state, target);
-  const milestone = nextMilestone(target, level);
-  const cost = upgradeCost(state, target);
-  const view: UpgradeView = {
-    target,
-    id: target.id,
-    icon,
-    label,
-    level,
-    effect,
-    next: milestone ? `St. ${milestone.level}: ${milestone.summary}` : '',
-    cost,
-    costLabel: Number.isFinite(cost) ? formatNumber(cost) : '–',
-    affordable: false,
-  };
-  refreshUpgradeView(view, state);
-  return view;
-}
-
-/**
- * Meldung nach einem Ausbau mit neuem Meilenstein, z. B. „🪱 Wurzelraum Stufe 25: +1 Platz,
- * Abzeichen Bronze“ – '' ohne Meilenstein (dann reicht der Knopf als Rückmeldung).
- */
-export function upgradeMilestoneText(outcome: Pick<UpgradeOutcome, 'target' | 'milestones'>): string {
-  if (outcome.milestones.length === 0) return '';
-  const { target } = outcome;
-  const info = target.kind === 'niche' ? NICHES.find((n) => n.id === target.id) : TREE_PARTS.find((p) => p.id === target.id);
-  const name = info ? `${info.icon} ${info.name}` : target.id;
-  const levels = [...new Set(outcome.milestones.map((m) => m.level))];
-  return levels
-    .map((level) => `${name} Stufe ${level}: ${outcome.milestones.filter((m) => m.level === level).map((m) => m.summary).join(', ')}`)
-    .join('. ');
 }
 
 /**
@@ -645,11 +586,6 @@ export function goalEpochKey(state: GameState): string {
 /** Aktueller Preis des gehaltenen Ziels (die Aussaat wird z. B. nach dem Frühling teurer). */
 export function goalCostNow(goal: NextGoal, state: GameState): number {
   return goal.target === null ? sowingCost(state) : upgradeCost(state, goal.target);
-}
-
-/** Samen-abhängig: reicht es gerade für die nächste Stufe? */
-export function refreshUpgradeView(view: UpgradeView, state: GameState): void {
-  view.affordable = Number.isFinite(view.cost) && state.seeds >= view.cost;
 }
 
 /**
@@ -1150,6 +1086,7 @@ function toLifetimeStats(state: GameState): JournalStatView[] {
     count('total-visitors', 'Gäste bewirtet', s.visitorsHosted),
     count('total-plants', 'Pflanzen gesät', s.plantsPlanted, 'aus Aussaaten gesetzt'),
     count('total-care', 'Knoten erforscht', s.careRanksBought),
+    ...toUpgradeStats(state),
     {
       key: 'total-trees',
       label: 'Gewachsene Hauptbaum-Arten',
@@ -1159,6 +1096,31 @@ function toLifetimeStats(state: GameState): JournalStatView[] {
     },
     ...toDailyStats(state),
   ];
+}
+
+/**
+ * Ausbau im Abschnitt „Über alle Zyklen“ (DESIGN_V2.md 28.9): gekaufte Stufen und „Höchste
+ * Ausbaustufen“ aus `meta.upgrades.best` mit Abzeichen (bleiben über den Zyklus).
+ */
+function toUpgradeStats(state: GameState): JournalStatView[] {
+  const s = state.meta.stats;
+  const bought = Math.floor(shown(s.upgradesBought));
+  const spent = shown(s.upgradeSeeds);
+  const best = upgradeBestEntries(state);
+  const badges = upgradeBadgeCount(state);
+  const [top, ...rest] = best;
+  const others = rest.slice(0, 3).map((e) => `${e.name} ${formatNumber(e.level)}${e.badge ? ` (${e.badge})` : ''}`);
+  const bestView: JournalStatView = {
+    key: 'total-upgrade-best',
+    label: 'Höchste Ausbaustufen',
+    value: top ? `${top.name} ${formatNumber(top.level)}${top.badge ? ` · ${top.badge}` : ''}` : '–',
+    detail: top ? [badges > 0 ? plural(badges, 'Abzeichen', 'Abzeichen') : '', others.join(', ')].filter(Boolean).join(' · ') : 'noch nichts ausgebaut',
+    section: 'total',
+  };
+  if (!bestView.detail) delete bestView.detail;
+  const boughtView: JournalStatView = { key: 'total-upgrades', label: 'Ausbaustufen gekauft', value: formatNumber(bought), section: 'total' };
+  if (spent > 0) boughtView.detail = `für ${formatNumber(Math.ceil(spent))} 🌰`;
+  return [boughtView, bestView];
 }
 
 /** Tagesziele im Abschnitt „Über alle Zyklen“ (seit v12): erfüllte Ziele, beste Serie, perfekte Tage. */
