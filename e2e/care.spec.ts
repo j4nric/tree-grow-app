@@ -1,3 +1,6 @@
+import { RESEARCH_BY_ID } from '../src/content/research';
+import { researchCostAt } from '../src/core/formulas';
+import { formatNumber } from '../src/ui/format';
 import {
   SAVE_VERSION,
   expect,
@@ -26,6 +29,8 @@ import {
 
 /** „Erforschen · ⚖️ 80“ – mit geschütztem Leerzeichen zwischen Symbol und Zahl. */
 const buyText = (cost: string) => new RegExp(`^Erforschen · ⚖️\\s${cost.replace('.', '\\.')}$`);
+/** Kosten des Knotens bzw. seines Rangs `rank` (aus content/core, nicht fest – Balancing 3a). */
+const costOf = (id: string, rank = 0) => formatNumber(researchCostAt(RESEARCH_BY_ID.get(id)!, rank));
 
 test('Erforschen: ⚖️ weg, ein Platz mehr, Stempel „erforscht“ – auch nach dem Neuladen', async ({ page, context }) => {
   await seedV3(context, {
@@ -93,7 +98,7 @@ test('Gesperrter Knoten (Voraussetzung fehlt): aria-disabled mit Grund, Klick er
   // Mit Kompost geht es.
   await researchAction(page, 'compost').click();
   await expect(locked).toHaveAttribute('aria-disabled', 'false');
-  await expect(locked).toHaveText(buyText('1.000'));
+  await expect(locked).toHaveText(buyText(costOf('pond')));
   await page.waitForTimeout(450);
   await locked.click();
   await expect(pond).toHaveClass(/is-researched/);
@@ -108,7 +113,7 @@ test('Forschung per Tastatur: nach dem Erforschen Fokus auf dem Namen, Bestätig
   });
   await gotoTab(page, 'forschung');
   const buy = researchAction(page, 'leaf-litter');
-  await expect(buy).toHaveText(buyText('80'));
+  await expect(buy).toHaveText(buyText(costOf('leaf-litter')));
   await buy.focus();
   await page.keyboard.press('Enter');
   await expect(researchNode(page, 'leaf-litter')).toHaveClass(/is-researched/);
@@ -150,7 +155,8 @@ test('Forschung: Doppelklick und gehaltene Enter-Taste erforschen nur einmal', a
 test('Zeile „∞“: Rang-Stempel, Kosten des nächsten Rangs, Neuladen; unerreichbare Ränge', async ({ page, context }) => {
   await seedV3(context, {
     totalGrowth: waypoint(20) + 1, // Hain
-    harmonyPoints: 4_000,
+    // Genug für zwei Ränge, nicht für den dritten.
+    harmonyPoints: researchCostAt(RESEARCH_BY_ID.get('soil-life')!, 0) + researchCostAt(RESEARCH_BY_ID.get('soil-life')!, 1) + 100,
     research: ['compost', 'leaf-litter', 'deadwood-pile', 'beetle-castle'],
     niches: { roots: ['earthworm'] },
   });
@@ -158,11 +164,11 @@ test('Zeile „∞“: Rang-Stempel, Kosten des nächsten Rangs, Neuladen; unerr
   const soil = researchNode(page, 'soil-life');
   await expect(soil.locator('xpath=ancestor::*[contains(@class,"research-tier-repeat")]')).toContainText('∞ immer weiter');
   await expect(soil.locator('.research-node-stamp')).toBeHidden();
-  await expect(researchAction(page, 'soil-life')).toHaveText(buyText('1.500'));
+  await expect(researchAction(page, 'soil-life')).toHaveText(buyText(costOf('soil-life', 0)));
   await researchAction(page, 'soil-life').click();
   await expect(soil.locator('.research-node-stamp')).toHaveText('Rang 1');
-  // Der Knopf bleibt: nächster Rang 1.950 ⚖️ (Vorrat reicht noch).
-  await expect(researchAction(page, 'soil-life')).toHaveText(buyText('1.950'));
+  // Der Knopf bleibt: nächster Rang (Vorrat reicht noch).
+  await expect(researchAction(page, 'soil-life')).toHaveText(buyText(costOf('soil-life', 1)));
   await page.waitForTimeout(450);
   await researchAction(page, 'soil-life').click();
   await expect(soil.locator('.research-node-stamp')).toHaveText('Rang 2');

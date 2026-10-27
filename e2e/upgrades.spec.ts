@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test';
 import { STAGES } from '../src/content/stages';
 import { createInitialState } from '../src/core/state';
+import { upgradeBase, upgradeCostFrom, type UpgradeTarget } from '../src/core/upgrades';
+import { formatNumber } from '../src/ui/format';
 import {
   expect,
   gotoTab,
@@ -22,6 +24,17 @@ import {
  * und Abzeichen, verschlossene Nische ohne Knopf, Statistik „Höchste Ausbaustufen“ – mobil
  * bei 360 und 390 px ohne Querscrollen, Knöpfe ≥ 44 px.
  */
+
+/**
+ * Preis von `count` Stufen ab Stufe `level` – aus core/content statt fest im Test, damit
+ * Balancing-Änderungen (Phase 11, 3a) die Tests nicht brechen.
+ */
+const price = (target: UpgradeTarget, level: number, count = 1) => upgradeCostFrom(upgradeBase(target)!, level, count);
+const ROOTS: UpgradeTarget = { kind: 'niche', id: 'roots' };
+const RINGS: UpgradeTarget = { kind: 'tree', id: 'rings' };
+const LEAVES: UpgradeTarget = { kind: 'tree', id: 'leaves' };
+/** Regulärer Ausdruck für eine deutsch formatierte Zahl (Punkt als Tausender maskiert). */
+const num = (n: number) => formatNumber(n).replace(/\./g, '\\.');
 
 /** Junger Baum, ein Regenwurm, Wurzelraum kurz vor Meilenstein 25. */
 function upgradeState(seeds: number) {
@@ -61,14 +74,16 @@ async function noOverflow(page: Page): Promise<void> {
 for (const width of [360, 390]) {
   test(`${width} px: Meilenstein 25 mit Stempel, neuem Platz und Abzeichen; ×10 und Max; bleibt nach dem Neuladen`, async ({ page, context }, info) => {
     await page.setViewportSize({ width, height: 800 });
-    await seedRaw(context, upgradeState(2000), 0);
+    // Genug für Meilenstein 25, zehn Jahresringe und sechs Stufen Blattwerk (Max).
+    const seeds = price(ROOTS, 24) + price(RINGS, 0, 10) + price(LEAVES, 0, 6);
+    await seedRaw(context, upgradeState(seeds), 0);
     await gotoTab(page, 'nischen');
     const panel = tabPanel(page, 'nischen');
     const roots = niche(page, 'roots');
     const footer = roots.locator('[data-ref="niche-upgrade"]');
     await expect(footer.locator('.upgrade-level-text')).toHaveText('St. 24');
     await expect(footer.locator('.upgrade-progress-label')).toHaveText('25: +1 Platz');
-    await expect(footer.locator('[data-ref="upgrade-buy"]')).toContainText('Ausbauen · 287 🌰');
+    await expect(footer.locator('[data-ref="upgrade-buy"]')).toContainText(`Ausbauen · ${formatNumber(price(ROOTS, 24))} 🌰`);
     await expect(roots.locator('[data-ref="upgrade-badge"]')).toBeHidden();
     // Verschlossene Nische (Höhlen vor dem Alten Baum): keine Fußzeile, kein Knopf.
     await expect(niche(page, 'hollows').locator('[data-ref="niche-upgrade"]')).toBeHidden();
@@ -106,7 +121,7 @@ for (const width of [360, 390]) {
     expect(saved.cycle.upgrades.tree.rings).toBe(10);
     expect(saved.cycle.upgrades.tree.leaves).toBeGreaterThan(5);
     expect(saved.meta.upgrades.best.niches.roots).toBe(25);
-    expect(saved.seeds).toBeLessThan(2000);
+    expect(saved.seeds).toBeLessThan(seeds);
 
     // Neuladen: Stufen bleiben, die Kaufmenge auch (Einstellung, nicht Spielstand).
     await page.reload();
@@ -127,7 +142,7 @@ test('Zu teuer: blass mit Wartezeit, kauft nicht; Statistik „Höchste Ausbaust
   await expect(roots.locator('[data-ref="upgrade-badge"]')).toHaveText('⭑ Silber');
   await button.click({ force: true });
   await expect(roots.locator('.upgrade-level-text')).toHaveText('St. 24');
-  expect(Number(await seedsValue(page).textContent().then((t) => (t ?? '').replace(/\D/g, '') || '0'))).toBeLessThan(287);
+  expect(Number(await seedsValue(page).textContent().then((t) => (t ?? '').replace(/\D/g, '') || '0'))).toBeLessThan(price(ROOTS, 24));
 
   const stats = await openGoalsPage(page, 'stats');
   await expect(stats.locator('[data-stat="total-upgrade-best"]')).toContainText('Wurzelraum 52 · Silber');
@@ -141,14 +156,14 @@ test('Zielzeile (2c): nennt den billigsten Ausbau, springt zu den Nischen, wähl
   await gotoTab(page, 'ziele');
   const line = page.locator('[data-ref="goal-line"]');
   const jump = line.locator('[data-ref="goal-line-jump"]');
-  await expect(jump).toHaveText(/^Jetzt: 🪱 Wurzelraum St\. 1 · 10\s🌰 ›$/);
+  await expect(jump).toHaveText(new RegExp(`^Jetzt: 🪱 Wurzelraum St\\. 1 · ${num(price(ROOTS, 0))}\\s🌰 ›$`));
   expect((await jump.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await jump.click();
   await expect(tabPanel(page, 'nischen')).toBeVisible();
   // Kauf in der Fußzeile der Nische (4b) → die Zielzeile wählt neu.
   await niche(page, 'roots').locator('[data-ref="niche-upgrade"] [data-ref="upgrade-buy"]').click();
   await expect(niche(page, 'roots').locator('.upgrade-level-text')).toHaveText('St. 1');
-  await expect(jump).toHaveText(/^Jetzt: 🪱 Wurzelraum St\. 2 · 12\s🌰 ›$/);
+  await expect(jump).toHaveText(new RegExp(`^Jetzt: 🪱 Wurzelraum St\\. 2 · ${num(price(ROOTS, 1))}\\s🌰 ›$`));
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
 
@@ -177,7 +192,7 @@ for (const width of [360, 390]) {
     const line = page.locator('[data-ref="goal-line"]');
     const jump = line.locator('[data-ref="goal-line-jump"]');
     const live = line.locator('[aria-live="polite"]');
-    await expect(jump).toHaveText(/^Nächstes: 🪵 Jahresringe St\. 1 · 15\s🌰/);
+    await expect(jump).toHaveText(new RegExp(`^Nächstes: 🪵 Jahresringe St\\. 1 · ${num(price(RINGS, 0))}\\s🌰`));
     // Beim Laden und während der Countdown läuft: nichts angesagt.
     const before = await jump.textContent();
     await expect.poll(() => jump.textContent(), { timeout: 15_000 }).not.toBe(before);
@@ -215,8 +230,8 @@ test('Zielzeile (4c): Säen springt zum Pflanzring', async ({ page, context }) =
 
 test('Zielzeile (4c): Meilenstein-Ziel springt zur Zeile der Nische', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  // Wurzelraum 24 mit 2.000 Samen und vollem Ring: Meilenstein 25 gewinnt (Regel 2).
-  const full = upgradeState(2000);
+  // Wurzelraum 24 mit genug Samen für Stufe 25 und vollem Ring: Meilenstein 25 gewinnt (Regel 2).
+  const full = upgradeState(price(ROOTS, 24) + 100);
   full.plants = ['moss', 'fern', 'hazel'];
   await seedRaw(context, full, 0);
   await gotoTab(page, 'arten');
