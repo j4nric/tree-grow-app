@@ -9,6 +9,10 @@
  * Kennzahlen für Phase 11 (1e, DESIGN_V2.md 28.10): Takt der Käufe (purchaseTable), Anteil
  * ausgegebener Samen und Vorräte (economyTable), Gabel-Wahl (forkTable), Sitzungsprofil mit
  * simulateOffline (runSession, offlineAfterStage).
+ * Seit Phase 11, 3a baut der Spieler mit Samen aus (Nischen und Baum, `RunOptions.upgrades`,
+ * Standard wie `care`): Ausbau-Strategie spendSeeds (Zielzeile: billigstes Ziel zuerst mit
+ * Meilenstein-Regel, Säen mit Vorrang, Zufallsspieler zufällig unter den bezahlbaren, Rücklage
+ * SEED_RESERVE_SECONDS); Ausbaustufen in upgradeTable.
  *
  * Der Spieler löst jede Begegnung sofort auf (online) und sät, sobald die Samen reichen und
  * es sich nach seiner Strategie lohnt (planSow): bei freiem Ring, wenn eine freigeschaltete
@@ -37,6 +41,7 @@ import { STAGES } from '../src/content/stages';
 import { GENERA, NICHE_IDS, type EncounterType, type Genus } from '../src/content/types';
 import { RESEARCH, RESEARCH_BY_ID, RESEARCH_FORKS, type ResearchFork, type ResearchNode } from '../src/content/research';
 import { EVENTS_BY_ID } from '../src/content/events';
+import { REROLL_BASE_COST } from '../src/content/encounters';
 import {
   cardStatus,
   evaluate,
@@ -84,11 +89,18 @@ import {
   startNewCycle,
   tick,
   unlockedPlants,
+  upgradeCost,
+  upgradeLevelOf,
+  upgradeNiche,
+  upgradeTree,
 } from '../src/core/tick';
 import { seasonIndex, secondsToNextSeason } from '../src/core/season';
 import { secondsToNightChange, type AmbientMode } from '../src/core/weather';
 import { effectiveForestMemory } from '../src/core/landscape';
+import { goalCandidates, MILESTONE_GOAL_SECONDS, secondsUntilAffordable, type NextGoal } from '../src/core/goal';
+import { upgradeMilestones } from '../src/core/upgrades';
 import type { MainTreeId } from '../src/content/trees';
+import { TREE_PART_IDS } from '../src/content/upgrades';
 
 // ---------------------------------------------------------------------------
 // Optionen einer Begegnung
@@ -307,6 +319,8 @@ export interface Counts {
   /** Aus Aussaaten gesetzte Pflanzen und vom Spieler ausgelöste Aussaaten („Säen“, auch die erste gratis). */
   plantsTaken: number;
   plantsBought: number;
+  /** … davon in den vollen Ring getauscht (Aussaat ersetzt eine Pflanze, 27.6). */
+  plantsSwapped: number;
   /** Ereignisse, Gäste, davon bewirtet. */
   events: number;
   visitors: number;
@@ -315,6 +329,8 @@ export interface Counts {
   careBought: number;
   /** Eingezogene Stammgäste (ab Zyklus 2). */
   regulars: number;
+  /** Gekaufte Ausbaustufen (Nischen und Baum, Phase 11, 3a). */
+  upgradesBought: number;
 }
 
 /** Schnappschuss des Durchgangs (beim Erreichen einer Stufe oder zu einer festen Zeit). */
@@ -357,6 +373,10 @@ export interface Snapshot {
   spentVisitors: number;
   /** Nur mit `care`: für Forschung ausgegeben (⚖️; bis v16 🌰 für Pflege). */
   spentCare: number;
+  /** Für Ausbau ausgegeben (🌰, Nischen und Baum; Phase 11, 3a). */
+  spentUpgrades: number;
+  /** Ausbaustufen je Nische und Baumteil (fehlend = 0). */
+  upgradeLevels: Record<string, number>;
   /** Nur mit `daily`: Samen aus erfüllten Tageszielen (DESIGN_V2.md 20.6). */
   earnedDaily: number;
   /** Nur mit `daily`: erfüllte Tagesziele. */
@@ -397,8 +417,8 @@ export interface RunResult {
 
 /**
  * Ein Kauf des Spielers: bezahlte Aussaat (`sow`; die erste gratis und geschenkte zählen nicht),
- * Neu würfeln (`reroll`), Gast bewirten (`host`) – die 🌰-Käufe – und ein Forschungsknoten
- * (`research`, ⚖️). `cost` in der jeweiligen Währung.
+ * Neu würfeln (`reroll`), Gast bewirten (`host`), eine Ausbaustufe (`upgrade`, Phase 11, 3a) – die
+ * 🌰-Käufe – und ein Forschungsknoten oder Rang (`research`, ⚖️). `cost` in der jeweiligen Währung.
  */
 export interface Purchase {
   time: number;
@@ -407,12 +427,12 @@ export interface Purchase {
   cost: number;
 }
 
-export type PurchaseKind = 'sow' | 'reroll' | 'host' | 'research';
+export type PurchaseKind = 'sow' | 'reroll' | 'host' | 'upgrade' | 'research';
 
 /** Käufe mit Samen (Takt-Ziel 28.10: „Zeit zwischen zwei 🌰-Käufen“). */
-export const SEED_PURCHASES: readonly PurchaseKind[] = ['sow', 'reroll', 'host'];
+export const SEED_PURCHASES: readonly PurchaseKind[] = ['sow', 'reroll', 'host', 'upgrade'];
 /** Alle Käufe (Samen und ⚖️). */
-export const ALL_PURCHASES: readonly PurchaseKind[] = ['sow', 'reroll', 'host', 'research'];
+export const ALL_PURCHASES: readonly PurchaseKind[] = ['sow', 'reroll', 'host', 'upgrade', 'research'];
 
 /** Ein Punkt in RunResult.memoryPath. */
 export interface MemoryPathPoint {
@@ -453,6 +473,11 @@ export interface RunOptions {
   maxSeconds: number;
   /** Forschen (echte Logik, seit v17 mit ⚖️; bis v16 Pflege mit 🌰). Standard: aus – zum Vergleich. */
   care?: boolean;
+  /**
+   * Ausbau mit Samen (Phase 11, 3a; DESIGN_V2.md 28.4, 28.10): Nischen und Baum ausbauen nach
+   * der Ausbau-Strategie (spendSeeds). Standard: wie `care` – „alle Systeme“ heißt mit Ausbau.
+   */
+  upgrades?: boolean;
   /** Art des Hauptbaums (Standard: Stieleiche wie im ersten Zyklus). */
   mainTree?: MainTreeId;
   /**
@@ -520,7 +545,14 @@ export function runGame(
   const rng: RngHolder = from?.rng ?? { rngState: normalizeSeed(options.seed * 7919 + 17) };
   let time = 0;
   let lastWaypointTime = 0;
-  const book = { earnedPassive: 0, earnedDecline: 0, spent: 0, spentPlants: 0, earnedExtras: 0, spentVisitors: 0, spentCare: 0, earnedDaily: 0, dailyDone: 0 };
+  const book = {
+    earnedPassive: 0, earnedDecline: 0, spent: 0, spentPlants: 0, earnedExtras: 0, spentVisitors: 0, spentCare: 0, spentUpgrades: 0,
+    earnedDaily: 0, dailyDone: 0,
+  };
+  const upgrades = options.upgrades ?? options.care ?? false;
+  // Eigener Zufall für die Ausbau-Wahl des Zufallsspielers: Begegnungen ziehen dieselben Karten
+  // wie ohne Ausbau (Seed, Zyklus), damit sich Läufe mit und ohne Ausbau vergleichen lassen.
+  const upgradeRng: RngHolder = { rngState: normalizeSeed(options.seed * 104_729 + 31 * state.cycle.number + 5) };
   // Tagesziele (nur mit `daily`): Belohnungen getrennt verbuchen.
   const daily = (activeSeconds: number, produced?: { growth: number; seeds: number }) => {
     if (!options.daily) return;
@@ -541,11 +573,13 @@ export function runGame(
     rarityTaken: [0, 0, 0, 0],
     plantsTaken: 0,
     plantsBought: 0,
+    plantsSwapped: 0,
     events: 0,
     visitors: 0,
     hosted: 0,
     careBought: 0,
     regulars: 0,
+    upgradesBought: 0,
   };
   const result: RunResult = {
     stages: Array(STAGES.length).fill(null),
@@ -589,6 +623,7 @@ export function runGame(
       harmonyPoints: state.harmonyPoints,
       harmonyRate: harmonyIncome(ev.harmony, effectiveForestMemory(state)),
       ...book,
+      upgradeLevels: upgradeLevelsOf(state),
       // Einmalige Knoten 1, wiederholbare ihr Rang (28.6).
       careRanks: Object.fromEntries(state.cycle.research.map((id) => [id, researchRankOf(state, id) || 1])),
       seen: [...state.cycle.seen],
@@ -628,23 +663,51 @@ export function runGame(
     book.earnedDecline += Math.max(0, state.seeds - before);
   };
 
+  /** Säen (bezahlt oder gratis) und die Aussaat nach der Strategie auflösen. */
+  const buySowing = (): boolean => {
+    const cost = sowingCost(state);
+    if (!sow(state).ok) return false;
+    book.spentPlants += cost;
+    counts.plantsBought++;
+    if (cost > 0) result.purchases.push({ time, stage: state.stage, kind: 'sow', cost });
+    settleSowing();
+    return true;
+  };
+  /** Eine Ausbaustufe kaufen (Phase 11, 3a). */
+  const buyUpgrade = (target: NonNullable<NextGoal['target']>): boolean => {
+    const res = target.kind === 'niche' ? upgradeNiche(state, target.id, 1) : upgradeTree(state, target.id, 1);
+    if (!res.ok) return false;
+    const cost = -(res.seeds ?? 0);
+    book.spentUpgrades += cost;
+    counts.upgradesBought++;
+    result.purchases.push({ time, stage: state.stage, kind: 'upgrade', cost });
+    act();
+    return true;
+  };
+
+  // Ausbau-Halte (spendSeeds): nur Samen und Stufen ändern sich – die letzte Forschungs-Entscheidung gilt weiter.
+  let goalStop = false;
+  let lastCare: { need: number | null } | null = null;
   while (state.stage < options.targetStage && time < options.maxSeconds && !allWaypointsReached(state)) {
     // Säen, solange es sich lohnt und die Samen reichen (eine offene Aussaat zuerst auflösen).
     settleSowing();
-    for (let guard = 0; guard < 50 && nextPlan() && sowBlocker(state) === null && state.seeds >= sowNeed(state, strategy); guard++) {
-      const cost = sowingCost(state);
-      if (!sow(state).ok) break;
-      book.spentPlants += cost;
-      counts.plantsBought++;
-      if (cost > 0) result.purchases.push({ time, stage: state.stage, kind: 'sow', cost });
-      settleSowing();
+    let plan = false;
+    if (!upgrades) {
+      for (let guard = 0; guard < 50 && nextPlan() && sowBlocker(state) === null && state.seeds >= sowNeed(state, strategy); guard++) {
+        if (!buySowing()) break;
+      }
+      const blocker = sowBlocker(state);
+      plan = nextPlan() && (blocker === 'too-expensive' || (blocker === null && state.seeds < sowNeed(state, strategy)));
     }
-    const blocker = sowBlocker(state);
-    const plan = nextPlan() && (blocker === 'too-expensive' || (blocker === null && state.seeds < sowNeed(state, strategy)));
     // Forschung (seit v17 mit ⚖️ aus dem Vorrat): erforschen, was die Strategie anspart,
     // sobald es reicht – an den Gabeln nur den Weg, den sie wählt (careTarget, forkChoice).
     let careNeed: number | null = null;
-    if (options.care) {
+    // Halt nur für einen Ausbau-Kauf (Phase 11, 3a): Am Ökosystem hat sich nichts geändert außer
+    // Samen und Ausbaustufen – die Forschung wird nicht neu bewertet, solange der Vorrat für das
+    // angesparte Ziel nicht reicht (Laufzeit; ohne Ausbau gibt es diese Halte nicht).
+    if (options.care && goalStop && lastCare && (lastCare.need === null || state.harmonyPoints < lastCare.need)) {
+      careNeed = lastCare.need;
+    } else if (options.care) {
       for (let target = careTarget(state, strategy); target; target = careTarget(state, strategy)) {
         const cost = researchCost(state, target) ?? Infinity;
         if (state.harmonyPoints < cost) {
@@ -659,9 +722,13 @@ export function runGame(
         act();
       }
     }
+    lastCare = { need: careNeed };
+    // Mit Ausbau (Phase 11, 3a): Ziele nach der Ausbau-Strategie kaufen, solange es reicht; sonst
+    // bis dahin warten (Halt, sobald die Samen reichen). Nach der Forschung: Sie ändert die Rate.
+    const toGoal = upgrades ? spendSeeds(state, strategy, nextPlan, upgradeRng, ambient, buySowing, buyUpgrade) : Infinity;
     const ev = evaluate(state, ambient);
     // Bis die nächste geplante Aussaat bezahlbar ist (+1 µs gegen Rundung).
-    const toPlant = plan && ev.seeds > 0 ? Math.max(0, (sowNeed(state, strategy) - state.seeds) / ev.seeds) + 1e-6 : Infinity;
+    const toPlant = plan && ev.seeds > 0 ? Math.max(0, (sowNeed(state, strategy) - state.seeds) / ev.seeds) + 1e-6 : toGoal;
     const stageBefore = state.stage;
     const nextSample = (SAMPLE_MINUTES[sample] ?? Infinity) * 60;
     const toWaypoint = secondsToNextWaypoint(state, ambient);
@@ -674,7 +741,9 @@ export function runGame(
     const toNight = ambient === 'live' ? secondsToNightChange(state.cycle.elapsed) : Infinity;
     const harmonyRate = harmonyIncome(ev.harmony, effectiveForestMemory(state));
     const toCare = careNeed !== null && harmonyRate > 0 ? Math.max(0, (careNeed - state.harmonyPoints) / harmonyRate) + 1e-6 : Infinity;
-    const dt = Math.min(toWaypoint, toPlant, nextSample - time, nextExpiry(state), toInterlude, toSeason, toNight, toCare, options.maxSeconds - time);
+    const others = Math.min(toWaypoint, nextSample - time, nextExpiry(state), toInterlude, toSeason, toNight, toCare, options.maxSeconds - time);
+    const dt = Math.min(toPlant, others);
+    goalStop = upgrades && toGoal < others;
     if (!(dt < Infinity)) break;
     const seedsBefore = state.seeds;
     const growthBefore = state.totalGrowth;
@@ -1048,6 +1117,130 @@ function planSow(state: GameState, strategy: Strategy, counts: Counts): boolean 
   return false;
 }
 
+/** Rücklage der Ausbau-Strategie in Samen-Sekunden (spendSeeds; teuerster Gast: 60). */
+export const SEED_RESERVE_SECONDS = 60;
+
+/** Rücklage in 🌰 bei dieser Samenrate: SEED_RESERVE_SECONDS Samen-Sekunden plus ein Wurf. */
+export function seedReserve(seedsPerSecond: number): number {
+  const rate = Number.isFinite(seedsPerSecond) && seedsPerSecond > 0 ? seedsPerSecond : 0;
+  return SEED_RESERVE_SECONDS * rate + REROLL_BASE_COST;
+}
+
+/** Ausbaustufen je Ziel (Nischen- und Baumteil-IDs, nur Stufen > 0) für Schnappschüsse und Tabellen. */
+export function upgradeLevelsOf(state: GameState): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const id of NICHE_IDS) {
+    const level = state.cycle.upgrades.niches[id] ?? 0;
+    if (level > 0) out[id] = level;
+  }
+  for (const id of TREE_PART_IDS) {
+    const level = state.cycle.upgrades.tree[id] ?? 0;
+    if (level > 0) out[id] = level;
+  }
+  return out;
+}
+
+/**
+ * Kandidaten der Ausbau-Strategie: die Ausbau-Ziele der Zielzeile (goalCandidates, 28.7 Regel 1)
+ * und „Säen“, wenn die Strategie heute säen würde (planSow: bei freiem Ring wie die Zielzeile,
+ * bei vollem Ring auch der Tausch, 27.6). „Säen“ steht vorn: Bei Gleichstand gewinnt es (Regel 3).
+ */
+export function seedGoals(state: GameState, wantsSow: boolean, seedsPerSecond: number): NextGoal[] {
+  const list = goalCandidates(state, seedsPerSecond).filter((c) => c.kind !== 'sow');
+  const sow = wantsSow ? sowingGoal(state, seedsPerSecond) : null;
+  if (sow) list.unshift(sow);
+  return list;
+}
+
+/**
+ * Auswahl wie die Zielzeile (nextGoal, 28.7 Regel 2 und 3): Ein Kandidat genau vor einem
+ * Meilenstein mit Wirkung, der in ≤ MILESTONE_GOAL_SECONDS bezahlbar ist, gewinnt (der billigste
+ * davon); sonst der billigste. Gleichstand: der frühere (Säen, Nischen, Baumteile).
+ */
+export function cheapestGoal(candidates: readonly NextGoal[]): NextGoal | null {
+  const soon = candidates.filter((c) => c.milestones.length > 0 && c.seconds <= MILESTONE_GOAL_SECONDS);
+  const pool = soon.length > 0 ? soon : candidates;
+  let top: NextGoal | null = null;
+  for (const c of pool) if (top === null || c.cost < top.cost) top = c;
+  return top;
+}
+
+/**
+ * Ausbau-Strategie (Phase 11, 3a; DESIGN_V2.md 28.10, „Simulator“): kauft Ziele, solange die
+ * Samen reichen, und liefert die Sekunden, bis das nächste Ziel bezahlbar ist (+1 µs gegen
+ * Rundung; Infinity ohne Ziel).
+ *
+ * - **Bewertende Strategien** folgen der Zielzeile: billigstes Ziel zuerst mit Meilenstein-Regel
+ *   (cheapestGoal). Die Aussaat steht mit ihrem Preis unter den Kandidaten, wenn die Strategie
+ *   heute säen würde, und hat **Vorrang**, sobald sie bezahlbar ist.
+ * - **Zufallsspieler:** Ein freier Platz im Ring hat Vorrang (er füllt ihn immer, `spend`); sonst
+ *   kauft er zufällig unter den bezahlbaren Zielen (Ausbau und Tausch, eigener Zufall `rng`) und
+ *   wartet, wenn keins reicht, auf das billigste.
+ * - **Rücklage** (alle Strategien): Gekauft wird nur, was eine Rücklage von SEED_RESERVE_SECONDS
+ *   Samen-Sekunden plus einem Wurf (REROLL_BASE_COST) übrig lässt – sonst wären Neu würfeln und
+ *   Bewirten am nächsten Wegpunkt nie bezahlbar (7.7; der teuerste Gast kostet 60 Samen-Sekunden).
+ */
+function spendSeeds(
+  state: GameState,
+  strategy: Strategy,
+  wantsSow: () => boolean,
+  rng: RngHolder,
+  ambient: AmbientMode,
+  buySowing: () => boolean,
+  buyUpgrade: (target: NonNullable<NextGoal['target']>) => boolean,
+): number {
+  // Ausbau-Ziele einmal je Halt (goalCandidates prüft je Ziel die Sperre – teuer); nach einem Kauf
+  // ändert sich nur das gekaufte Ziel, nach dem Säen wird neu gerechnet (Ring, Merkmale).
+  let upgradeGoals: NextGoal[] | null = null;
+  let wants: boolean | null = null;
+  for (let guard = 0; guard < 2000; guard++) {
+    const rate = evaluate(state, ambient).seeds;
+    const budget = state.seeds - seedReserve(rate);
+    upgradeGoals ??= seedGoals(state, false, rate);
+    for (const g of upgradeGoals) g.seconds = secondsUntilAffordable(g.cost, state.seeds, rate);
+    // Ob die Strategie säen würde, ändert sich nur mit dem Säen (planSow hängt nicht am Ausbau).
+    wants ??= wantsSow();
+    const sowGoal = wants ? sowingGoal(state, rate) : null;
+    const candidates = sowGoal ? [sowGoal, ...upgradeGoals] : upgradeGoals;
+    let goal: NextGoal | null;
+    if (strategy.plantValue) {
+      goal = sowGoal && sowGoal.cost <= budget ? sowGoal : cheapestGoal(candidates);
+    } else if (sowGoal && state.plants.length < plantSlots(state.stage)) {
+      goal = sowGoal;
+    } else {
+      const affordable = candidates.filter((c) => c.cost <= budget);
+      goal = affordable.length > 0 ? affordable[randomInt(rng, affordable.length)]! : cheapestGoal(candidates.map((c) => ({ ...c, milestones: [] })));
+    }
+    if (!goal) return Infinity;
+    // Gratis (geschenkte Aussaat, Vogelsaat) geht immer; sonst bis Preis + Rücklage warten.
+    if (goal.cost > 0 && goal.cost > budget) return rate > 0 ? (goal.cost - budget) / rate + 1e-6 : Infinity;
+    if (goal.kind === 'sow') {
+      if (!buySowing()) return Infinity;
+      upgradeGoals = null;
+      wants = null;
+    } else {
+      const target = goal.target!;
+      if (!buyUpgrade(target)) return Infinity;
+      // Nur dieses Ziel ändert sich (Preis, Stufe, Meilenstein); fällt es weg, neu rechnen.
+      const level = upgradeLevelOf(state, target) + 1;
+      const cost = upgradeCost(state, target);
+      if (Number.isFinite(cost)) {
+        goal.level = level;
+        goal.cost = cost;
+        goal.milestones = upgradeMilestones(target).filter((m) => m.level === level && m.kind !== 'badge');
+      } else upgradeGoals = null;
+    }
+  }
+  return Infinity;
+}
+
+/** „Säen“ als Ziel (Preis der nächsten Aussaat, Zeit bis bezahlbar); null ohne endlichen Preis. */
+function sowingGoal(state: GameState, seedsPerSecond: number): NextGoal | null {
+  const cost = sowingCost(state);
+  if (!Number.isFinite(cost)) return null;
+  return { kind: 'sow', target: null, level: null, cost, milestones: [], seconds: secondsUntilAffordable(cost, state.seeds, seedsPerSecond) };
+}
+
 /**
  * Wahl bei der offenen Aussaat: Zufallsspieler nimmt eine zufällige Karte (bei vollem Ring
  * zufällig ersetzen oder zurücklegen), bewertende Strategien die beste Platzierung, wenn sie
@@ -1094,6 +1287,7 @@ function resolveSowingNow(state: GameState, strategy: Strategy, rng: RngHolder, 
     if (choice) {
       if (!chooseSowing(state, choice.card, choice.replace).ok) throw new Error(`Ungültige Aussaat ${choice.id} (${strategy.id})`);
       counts.plantsTaken++;
+      if (choice.replace !== undefined) counts.plantsSwapped++;
     } else {
       discardSowing(state);
       counts.declines++;
@@ -1344,6 +1538,8 @@ export function stageStats(summary: Summary, stage: number) {
       plantEncounters: m((s) => s.counts.plantEncounters),
       plantsTaken: m((s) => s.counts.plantsTaken),
       plantsBought: m((s) => s.counts.plantsBought),
+      plantsSwapped: m((s) => s.counts.plantsSwapped),
+      upgradesBought: m((s) => s.counts.upgradesBought),
       fullNiche: m((s) => s.counts.fullNiche),
       rerolls: m((s) => s.counts.rerolls),
       declines: m((s) => s.counts.declines),
@@ -1591,8 +1787,8 @@ export function stageTable(summary: Summary, targets: readonly (string | null)[]
 /** Samen-Verlauf über die Spielzeit (Mittel über alle Durchgänge, die so lange liefen). */
 export function seedTable(summary: Summary): string {
   const lines = [
-    '| Zeit | Stufe (Median) | Bestand 🌰 | verdient passiv | verdient Ablehnen | ausgegeben Pflanzen | ausgegeben Neu würfeln | Pflanzen (gesetzt / gekeimt) | Bestand in Minuten Produktion |',
-    '|---|---|---|---|---|---|---|---|---|',
+    '| Zeit | Stufe (Median) | Bestand 🌰 | verdient passiv | verdient Ablehnen | ausgegeben Pflanzen | ausgegeben Neu würfeln | ausgegeben Ausbau | Pflanzen (gesetzt / gekeimt) | Bestand in Minuten Produktion |',
+    '|---|---|---|---|---|---|---|---|---|---|',
   ];
   SAMPLE_MINUTES.forEach((minutes, i) => {
     const xs = summary.runs.map((r) => r.samples[i]).filter((s): s is Snapshot => s != null);
@@ -1600,7 +1796,7 @@ export function seedTable(summary: Summary): string {
     const m = (f: (s: Snapshot) => number) => mean(xs.map(f));
     const stage = STAGES[Math.round(median(xs.map((s) => s.stage)))]!.name;
     lines.push(
-      `| ${minutes} min | ${stage} | ${fmt(m((s) => s.seeds))} | ${fmt(m((s) => s.earnedPassive))} | ${fmt(m((s) => s.earnedDecline))} | ${fmt(m((s) => s.spentPlants))} | ${fmt(m((s) => s.spent))} | ${fmt(m((s) => s.counts.plantsBought), 1)} / ${fmt(m((s) => s.counts.plantsTaken), 1)} | ${fmt(m((s) => s.seeds) / Math.max(m((s) => s.seedsRate), 1e-9) / 60, 1)} |`,
+      `| ${minutes} min | ${stage} | ${fmt(m((s) => s.seeds))} | ${fmt(m((s) => s.earnedPassive))} | ${fmt(m((s) => s.earnedDecline))} | ${fmt(m((s) => s.spentPlants))} | ${fmt(m((s) => s.spent))} | ${fmt(m((s) => s.spentUpgrades ?? 0))} | ${fmt(m((s) => s.counts.plantsBought), 1)} / ${fmt(m((s) => s.counts.plantsTaken), 1)} | ${fmt(m((s) => s.seeds) / Math.max(m((s) => s.seedsRate), 1e-9) / 60, 1)} |`,
     );
   });
   return lines.join('\n');
@@ -1687,6 +1883,11 @@ export function report(summaries: Summary[], focusStage: number): string {
     '#### Samen-Senke und Vorräte je Stufe (DESIGN_V2.md 28.10)',
     '',
     economyTable(main, [3, 4, 5, 6, 7]),
+    '',
+    '#### Ausbaustufen beim Erreichen der Stufen – Gierig nach Harmonie (Modell 28.5)',
+    '',
+    upgradeTable(harmony, [3, 4, 5, 6, 7]),
+    ...(random ? ['', '#### Ausbaustufen – Zufällig', '', upgradeTable(random, [3, 4, 5, 6, 7])] : []),
     '',
     '#### Gabel-Wahl beim Wald und am Ende (27.11: Weg A beim Harmonie-Spieler 25–75 %)',
     '',
@@ -1994,9 +2195,9 @@ export function seedsEarned(s: Snapshot): number {
   return s.earnedPassive + s.earnedDecline + s.earnedExtras + s.earnedDaily;
 }
 
-/** Samen bisher ausgegeben (Aussaat, Neu würfeln, Bewirten). */
+/** Samen bisher ausgegeben (Aussaat, Neu würfeln, Bewirten, Ausbau). */
 export function seedsSpent(s: Snapshot): number {
-  return s.spentPlants + s.spent + s.spentVisitors;
+  return s.spentPlants + s.spent + s.spentVisitors + (s.spentUpgrades ?? 0);
 }
 
 /** Anteil der verdienten Samen, der ausgegeben wurde (0–1; ohne Einnahmen 0). */
@@ -2111,19 +2312,49 @@ export function purchaseTable(summary: Summary): string {
  */
 export function economyTable(summaries: Summary[], stages: readonly number[]): string {
   const lines = [
-    '| Strategie | Stufe | erreicht nach | 🌰 ausgegeben | 🌰-Bestand (min Produktion) | ⚖️-Vorrat (min Zufluss) | Aussaaten | Knoten | längste Pause ohne 🌰-Kauf bis dahin Median / 90 % |',
-    '|---|---|---|---|---|---|---|---|---|',
+    '| Strategie | Stufe | erreicht nach | H | 🌰 ausgegeben (davon Ausbau) | 🌰-Bestand (min Produktion) | ⚖️-Vorrat (min Zufluss) | Aussaaten (Tausch) | Knoten (Ränge) | Ausbaustufen | längste Pause ohne 🌰-Kauf bis dahin Median / 90 % |',
+    '|---|---|---|---|---|---|---|---|---|---|---|',
   ];
   for (const s of summaries) {
     for (const stage of stages) {
       const st = stageStats(s, stage);
       if (st.reachedShare === 0) continue;
-      const knots = mean(snapshotsAt(s, stage).map((x) => Object.keys(x.careRanks).length));
+      const snaps = snapshotsAt(s, stage);
+      const knots = mean(snaps.map((x) => Object.keys(x.careRanks).length));
+      const ranks = mean(snaps.map((x) => repeatableRanks(x)));
+      const upgradeShare = mean(snaps.map((x) => (seedsEarned(x) > 0 ? (x.spentUpgrades ?? 0) / seedsEarned(x) : 0)));
       const pauses = s.runs.filter((r) => r.stages[stage]).map((r) => longestPurchasePauseBefore(r, stage));
       lines.push(
-        `| ${s.strategy.name} | ${STAGES[stage]!.name} | ${formatTime(st.time)} | ${fmt(st.seedSpendShare * 100)} % | ${fmt(st.seedMinutes, 1)} | ${fmt(st.harmonyMinutes, 1)} | ${fmt(st.counts.plantsBought, 1)} | ${fmt(knots, 1)} | ${formatTime(median(pauses))} / ${formatTime(quantile(pauses, 0.9))} |`,
+        `| ${s.strategy.name} | ${STAGES[stage]!.name} | ${formatTime(st.time)} | ${fmt(st.harmony, 1)} | ${fmt(st.seedSpendShare * 100)} % (${fmt(upgradeShare * 100)} %) | ${fmt(st.seedMinutes, 1)} | ${fmt(st.harmonyMinutes, 1)} | ${fmt(st.counts.plantsBought, 1)} (${fmt(st.counts.plantsSwapped, 1)}) | ${fmt(knots, 1)} (${fmt(ranks, 1)}) | ${fmt(st.counts.upgradesBought)} | ${formatTime(median(pauses))} / ${formatTime(quantile(pauses, 0.9))} |`,
       );
     }
+  }
+  return lines.join('\n');
+}
+
+/** Gekaufte Ränge der wiederholbaren Forschungsknoten in einem Schnappschuss (28.6). */
+export function repeatableRanks(s: Snapshot): number {
+  let n = 0;
+  for (const [id, rank] of Object.entries(s.careRanks)) if (RESEARCH_BY_ID.get(id)?.repeatable) n += rank;
+  return n;
+}
+
+/**
+ * Ausbaustufen je Nische und Baumteil beim Erreichen der Stufen (Mittel; Phase 11, 3a, Vergleich
+ * mit dem Modell 28.5) und Anteil der Durchgänge mit Meilenstein 25 (+1 Platz) in einer Nische.
+ */
+export function upgradeTable(summary: Summary, stages: readonly number[]): string {
+  const ids = [...NICHE_IDS, ...TREE_PART_IDS];
+  const lines = [
+    `| Stufe | ${ids.join(' | ')} | Nischen mit Stufe ≥ 25 (Ø) |`,
+    `|---|${ids.map(() => '---|').join('')}---|`,
+  ];
+  for (const stage of stages) {
+    const snaps = snapshotsAt(summary, stage);
+    if (snaps.length === 0) continue;
+    const at = (id: string) => mean(snaps.map((x) => x.upgradeLevels?.[id] ?? 0));
+    const slot25 = mean(snaps.map((x) => NICHE_IDS.filter((n) => (x.upgradeLevels?.[n] ?? 0) >= 25).length));
+    lines.push(`| ${STAGES[stage]!.name} | ${ids.map((id) => fmt(at(id), 1)).join(' | ')} | ${fmt(slot25, 1)} |`);
   }
   return lines.join('\n');
 }
@@ -2248,7 +2479,7 @@ export function runSession(strategy: Strategy, options: SessionOptions): Session
 function resolveOnReturn(state: GameState, strategy: Strategy, rng: RngHolder): void {
   const counts: Counts = {
     encounters: 0, plantEncounters: 0, fullNiche: 0, rerolls: 0, declines: 0, autoDeclined: 0, rarityTaken: [0, 0, 0, 0],
-    plantsTaken: 0, plantsBought: 0, events: 0, visitors: 0, hosted: 0, careBought: 0, regulars: 0,
+    plantsTaken: 0, plantsBought: 0, plantsSwapped: 0, events: 0, visitors: 0, hosted: 0, careBought: 0, regulars: 0, upgradesBought: 0,
   };
   const book = { earnedDecline: 0, spent: 0, earnedExtras: 0, spentVisitors: 0 };
   resolveAll(state, strategy, rng, counts, book, [], [], 0, []);

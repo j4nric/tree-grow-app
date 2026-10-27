@@ -49,9 +49,11 @@ const unique = <T>(xs: readonly T[]): boolean => new Set(xs).size === xs.length;
 const HAIN = STAGES.findIndex((s) => s.id === 'grove');
 
 describe('Ausbau: Konstanten und Preise (28.4)', () => {
-  it('Faktor 1,15, +0,1 % je Stufe und Tier, Obergrenze 1.000', () => {
-    expect(UPGRADE_GROWTH).toBe(1.15);
-    expect(NICHE_UPGRADE_PCT).toBe(0.1);
+  // Werte seit der Messung Phase 11, 3a (DESIGN_V2.md 28.10): Faktor 1,2 statt 1,15, +0,06 % statt
+  // +0,1 %, Startpreise ×2 – gewollt (Takt 20–60 s, Tempo −5 bis −14 %).
+  it('Faktor 1,2, +0,06 % je Stufe und Tier, Obergrenze 1.000', () => {
+    expect(UPGRADE_GROWTH).toBe(1.2);
+    expect(NICHE_UPGRADE_PCT).toBe(0.06);
     expect(MAX_UPGRADE_LEVEL).toBe(1_000);
     // Auch die höchste Stufe bleibt eine endliche Zahl (CLAUDE.md, große Zahlen).
     expect(Number.isFinite(price(600, MAX_UPGRADE_LEVEL))).toBe(true);
@@ -68,13 +70,13 @@ describe('Ausbau: Konstanten und Preise (28.4)', () => {
 
   it('Startpreise wie in der Tabelle 28.4 (frühe Nischen billiger)', () => {
     expect(NICHE_UPGRADE_BASE).toEqual({
-      roots: 10, litter: 25, edge: 25, crown: 60, bark: 60, meadow: 60,
-      hollows: 250, deadwood: 250, pond: 250, wall: 600,
+      roots: 20, litter: 50, edge: 50, crown: 120, bark: 120, meadow: 120,
+      hollows: 500, deadwood: 500, pond: 500, wall: 1_200,
     });
     // Preise Stufe 1 / 10 / 25 / 50 und Summen bis 10 / 25 / 50 (Wurzelraum, Mauer).
-    expect([1, 10, 25, 50].map((k) => price(10, k - 1))).toEqual([10, 36, 287, 9_424]);
-    expect([10, 25, 50].map((k) => sum(10, k))).toEqual([209, 2_141, 72_203]);
-    expect([1, 10, 25, 50].map((k) => price(600, k - 1))).toEqual([600, 2_111, 17_176, 565_387]);
+    expect([1, 10, 25, 50].map((k) => price(20, k - 1))).toEqual([20, 104, 1_590, 151_674]);
+    expect([10, 25, 50].map((k) => sum(20, k))).toEqual([522, 9_448, 909_966]);
+    expect([1, 10, 25, 50].map((k) => price(1_200, k - 1))).toEqual([1_200, 6_192, 95_397, 9_100_439]);
   });
 
   it('Preise steigen streng mit jeder Stufe (Nischen und Baumteile)', () => {
@@ -86,12 +88,12 @@ describe('Ausbau: Konstanten und Preise (28.4)', () => {
 });
 
 describe('Ausbau: Baumteile (28.4)', () => {
-  it('drei Teile, eindeutig, Startpreis 15, Name/Symbol/Kurzwirkung, Text ≤ 120 Zeichen', () => {
+  it('drei Teile, eindeutig, Startpreis 30, Name/Symbol/Kurzwirkung, Text ≤ 120 Zeichen', () => {
     expect(TREE_PARTS.map((p) => p.id)).toEqual(['rings', 'leaves', 'mycorrhiza']);
     expect(TREE_PART_IDS).toEqual(TREE_PARTS.map((p) => p.id));
     expect(TREE_PARTS_BY_ID.size).toBe(3);
     expect(unique(TREE_PARTS.map((p) => p.name))).toBe(true);
-    expect(TREE_UPGRADE_BASE).toBe(15);
+    expect(TREE_UPGRADE_BASE).toBe(30);
     for (const p of TREE_PARTS) {
       expect(p.base, p.id).toBe(TREE_UPGRADE_BASE);
       expect(p.name.length, p.id).toBeGreaterThan(0);

@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
+import { NICHE_UPGRADE_BASE, NICHE_UPGRADE_PCT } from '../src/content/upgrades';
+import { upgradeCostFrom, upgradePrice } from '../src/core/upgrades';
+import { previewPurchase, UPGRADE_FIXTURES } from '../src/ui/upgrade-fixtures';
+import { formatCountdown } from '../src/ui/upgrade-view';
 
 /**
  * Ausbau-Vorschau (Phase 11, 1c): `src/ui/upgrade-preview.html` mit den drei Beispielzuständen
@@ -30,6 +34,18 @@ const VIEWPORTS = [
   { width: 1200, height: 700 },
 ];
 const STATES = ['start', 'middle', 'late'] as const;
+
+/**
+ * Erwartete Zahlen aus content/core statt fest (seit Phase 11, 3a ändern sich Preise und
+ * Prozente mit der Messung): Beispielzustand „Mitte“, Wurzelraum 24 → 25, Waldsaum 9 → 10.
+ */
+const MIDDLE = UPGRADE_FIXTURES.middle.input;
+const de = (n: number) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(n);
+const ROOTS_25 = upgradePrice(NICHE_UPGRADE_BASE.roots, 24);
+const EDGE_10 = upgradePrice(NICHE_UPGRADE_BASE.edge, 9);
+const EDGE_X10 = upgradeCostFrom(NICHE_UPGRADE_BASE.edge, 9, 10);
+const EDGE_MAX = previewPurchase(NICHE_UPGRADE_BASE.edge, 9, 'max', MIDDLE.seeds).count;
+const ROOTS_Z = MIDDLE.niches.find((n) => n.id === 'roots')!.animals.reduce((sum, a) => sum + a.happiness, 0);
 
 async function open(page: Page, query: string): Promise<void> {
   await page.goto(`${base}?${query}`);
@@ -87,9 +103,9 @@ test('Verschlossene Nische ohne Knopf, Abzeichen am Etikett, Wirkung als Haftnot
   await expect(roots.locator('.upgrade-level-text')).toHaveText('St. 24');
   await expect(roots.locator('.upgrade-progress-label')).toHaveText('25: +1 Platz');
   await expect(roots.locator('.upgrade-button')).toHaveAttribute('aria-disabled', 'true');
-  await expect(roots.locator('.upgrade-button-wait')).toHaveText('in 0:05');
+  await expect(roots.locator('.upgrade-button-wait')).toHaveText(`in ${formatCountdown((ROOTS_25 - MIDDLE.seeds) / MIDDLE.seedsPerSecond)}`);
   await roots.locator('.upgrade-effect').click();
-  await expect(page.locator('[data-ref="niche-upgrade-note"]')).toContainText('3 Tiere, zusammen +6,4 %');
+  await expect(page.locator('[data-ref="niche-upgrade-note"]')).toContainText(`3 Tiere, zusammen +${de(24 * NICHE_UPGRADE_PCT * ROOTS_Z)} %`);
 
   // Balken: Füllung als Anteil (Wurzelraum 24 von 10 → 25: 14/15)
   const fill = await roots.locator('.upgrade-progress-fill').evaluate((e) => getComputedStyle(e).getPropertyValue('--progress'));
@@ -100,15 +116,16 @@ test('Kaufmenge ×10/Max beschriftet alle Knöpfe; aria-disabled kauft nicht', a
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page, 'state=middle');
   const edge = page.locator('.nrow[data-niche="edge"] .upgrade-button');
-  await expect(edge).toHaveText(/^Ausbauen · 88/);
+  await expect(edge).toHaveText(new RegExp(`^Ausbauen · ${de(EDGE_10)}`));
   await page.locator('.buy-amount-option[data-amount="10"]').click();
   await expect(page.locator('.buy-amount-option[data-amount="10"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(edge).toHaveText(/^\+10 · 1\.790/);
+  expect(EDGE_X10).toBeGreaterThan(MIDDLE.seeds);
+  await expect(edge).toHaveText(new RegExp(`^\\+10 · ${de(EDGE_X10).replace('.', '\\.')}`));
   await expect(edge).toHaveAttribute('aria-disabled', 'true');
   await edge.click({ force: true });
   await expect(page.locator('.nrow[data-niche="edge"] .upgrade-level-text')).toHaveText('St. 9');
   await page.locator('.buy-amount-option[data-amount="max"]').click();
-  await expect(edge).toHaveText('+2 · Max');
+  await expect(edge).toHaveText(`+${EDGE_MAX} · Max`);
   await expect(page).toHaveURL(/amount=max/);
 });
 
@@ -117,14 +134,14 @@ test('Kauf: Stufe steigt, Samen sinken, Meilenstein 25 klebt einen Platz ein; Zi
   await open(page, 'state=middle');
   // Waldsaum 9 → 10 ist das Ziel (Meilenstein, bezahlbar)
   const goal = page.locator('[data-ref="goal-line-jump"]');
-  await expect(goal).toHaveText('Jetzt: 🌼 Waldsaum St. 10 (öfter in den Karten) · 88 🌰 ›');
+  await expect(goal).toHaveText(`Jetzt: 🌼 Waldsaum St. 10 (öfter in den Karten) · ${de(EDGE_10)} 🌰 ›`);
   await expect(goal).toHaveClass(/is-ready/);
   await expect(page.locator('[data-ref="goal-line-research"]')).toHaveText('🔍 2 erforschbar ›');
   await goal.click();
   await expect(page.locator('.nrow[data-niche="edge"] .nrow-title')).toBeFocused();
   await page.locator('.nrow[data-niche="edge"] .upgrade-button').click();
   await expect(page.locator('.nrow[data-niche="edge"] .upgrade-level-text')).toHaveText('St. 10');
-  await expect(page.locator('[data-ref="seeds"]')).toHaveText('152');
+  await expect(page.locator('[data-ref="seeds"]')).toHaveText(de(MIDDLE.seeds - EDGE_10));
   await expect(goal).not.toHaveText(/Waldsaum St\. 10/);
   // aria-live sagt den Zielwechsel an
   await expect(page.locator('[data-ref="goal-line"] [aria-live="polite"]')).not.toBeEmpty();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NICHE_MILESTONES, TREE_PARTS_BY_ID } from '../src/content/upgrades';
+import { NICHE_MILESTONES, NICHE_UPGRADE_BASE, NICHE_UPGRADE_PCT, TREE_PARTS_BY_ID } from '../src/content/upgrades';
 import { evaluate, sowingCost } from '../src/core/formulas';
 import { affordableUpgradeSteps, nextGoal } from '../src/core/goal';
 import { upgradeCost, upgradeNiche, upgradeTree } from '../src/core/tick';
@@ -33,16 +33,17 @@ describe('Ausbau in der Ökosystem-Ansicht', () => {
     state.cycle.upgrades.niches.roots = 24;
     const view = toEcosystemView(state, evaluate(state));
     const roots = view.niches.find((n) => n.id === 'roots')!.upgrade!;
-    expect(roots).toMatchObject({ target: { kind: 'niche', id: 'roots' }, id: 'roots', label: 'Wurzelraum', level: 24, best: 24, open: true, pctPerLevel: 0.1 });
+    expect(roots).toMatchObject({ target: { kind: 'niche', id: 'roots' }, id: 'roots', label: 'Wurzelraum', level: 24, best: 24, open: true, pctPerLevel: NICHE_UPGRADE_PCT });
     expect(roots.happiness).toHaveLength(1);
     const footer = nicheFooterView({ ...roots, purchase: purchaseFor(roots.purchases, 1) }, { seeds: 0, seedsPerSecond: 1, amount: 1 });
     expect(footer.closed).toBe(false);
     expect(footer.levelText).toBe('St. 24');
     expect(footer.progress.label).toBe('25: +1 Platz');
-    expect(plain(footer.effectText)).toBe('je Tier +2,4 %');
-    expect(plain(footer.button!.label)).toBe('Ausbauen · 287 🌰');
+    // Zahlen seit der Messung Phase 11, 3a: 24 · 0,06 % = 1,44 %, Stufe 25 kostet ⌈20 · 1,2²⁴⌉ = 1.590 🌰.
+    expect(plain(footer.effectText)).toBe('je Tier +1,4 %');
+    expect(plain(footer.button!.label)).toBe('Ausbauen · 1.590 🌰');
     expect(footer.button!.affordable).toBe(false);
-    expect(footer.button!.wait).toBe('in 4:50');
+    expect(footer.button!.wait).toBe('in 26:30');
     // Laubstreu vor dem Setzling: verschlossen (keine Fußzeile), aber eine Ansicht fürs Abzeichen.
     const litter = view.niches.find((n) => n.id === 'litter')!.upgrade!;
     expect(litter.open).toBe(false);
@@ -54,9 +55,9 @@ describe('Ausbau in der Ökosystem-Ansicht', () => {
     const target = { kind: 'niche', id: 'roots' } as const;
     state.seeds = 5;
     let p = upgradePurchases(state, target);
-    expect(p['1']).toEqual({ count: 1, cost: 10 });
+    expect(p['1']).toEqual({ count: 1, cost: NICHE_UPGRADE_BASE.roots });
     expect(p['10']).toEqual({ count: 10, cost: upgradeCost(state, target, 10) });
-    expect(p.max).toEqual({ count: 1, cost: 10 });
+    expect(p.max).toEqual({ count: 1, cost: NICHE_UPGRADE_BASE.roots });
     state.seeds = upgradeCost(state, target, 7);
     p = upgradePurchases(state, target);
     expect(p.max).toEqual({ count: 7, cost: state.seeds });
@@ -177,9 +178,9 @@ describe('Zielzeile im Spiel (Phase 11, 2c)', () => {
     state.cycle.upgrades.niches.roots = 24;
     state.seeds = 10_000;
     const goal = nextGoal(state, 1)!;
-    expect(toGoalInput(goal)).toEqual({ kind: 'niche', id: 'roots', icon: '🪱', name: 'Wurzelraum', level: 25, cost: 287, milestone: '+1 Platz' });
+    expect(toGoalInput(goal)).toEqual({ kind: 'niche', id: 'roots', icon: '🪱', name: 'Wurzelraum', level: 25, cost: 1_590, milestone: '+1 Platz' });
     const line = goalLineView(toGoalInput(goal), { seeds: 10_000, seedsPerSecond: 1 }, 2)!;
-    expect(plain(line.text)).toBe('Jetzt: 🪱 Wurzelraum St. 25 (+1 Platz) · 287 🌰 ›');
+    expect(plain(line.text)).toBe('Jetzt: 🪱 Wurzelraum St. 25 (+1 Platz) · 1.590 🌰 ›');
     expect(line.research).toBe('🔍 2 erforschbar ›');
     // Baumteil ohne Meilenstein, Säen ohne Stufe.
     const tree = toGoalInput({ kind: 'tree', target: { kind: 'tree', id: 'leaves' }, level: 3, cost: 20, milestones: [], seconds: 0 });
@@ -208,7 +209,7 @@ describe('Zielzeile im Spiel (Phase 11, 2c)', () => {
     state.cycle.sowings = 1;
     expect(goalCostNow({ kind: 'sow', target: null, level: null, cost: 0, milestones: [], seconds: 0 }, state)).toBe(sowingCost(state));
     state.cycle.upgrades.niches.roots = 1;
-    expect(goalCostNow({ kind: 'niche', target: { kind: 'niche', id: 'roots' }, level: 1, cost: 10, milestones: [], seconds: 0 }, state)).toBe(12);
+    expect(goalCostNow({ kind: 'niche', target: { kind: 'niche', id: 'roots' }, level: 1, cost: 20, milestones: [], seconds: 0 }, state)).toBe(24);
   });
 });
 

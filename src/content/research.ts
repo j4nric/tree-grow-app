@@ -158,8 +158,10 @@ export const RESEARCH_ONCE: readonly ResearchNode[] = [
   {
     id: 'beetle-castle', branch: 'soil', name: 'Käferburg', icon: '🪲', minStage: GROVE, cost: 850,
     requires: ['deadwood-pile'], excludes: ['fungus-garden'],
-    effects: [slot('bark'), slot('deadwood'), harmony(2)],
-    summary: '+1 Platz Stamm & Rinde, +1 Platz Totholzhaufen, +2 ⚖️',
+    // +3 ⚖️ statt +2 seit Phase 11, 3a: Mit +2 nahm der Harmonie-Spieler fast nie die Käferburg (4 %,
+    // Ziel 25–75 %, DESIGN_V2.md 27.11 Stellschraube 3).
+    effects: [slot('bark'), slot('deadwood'), harmony(3)],
+    summary: '+1 Platz Stamm & Rinde, +1 Platz Totholzhaufen, +3 ⚖️',
     text: 'Halb eingegrabene Eichenstämme – darin wachsen Hirschkäferlarven fünf Jahre lang.',
     boughtText: 'Käferburg gebaut',
   },
@@ -195,12 +197,15 @@ export const RESEARCH_ONCE: readonly ResearchNode[] = [
   {
     id: 'spring-brook', branch: 'water', name: 'Quellbach', icon: '🏞️', minStage: GROVE, cost: 1_370,
     requires: ['pond'], excludes: ['pond-deepen'],
+    // Seit Phase 11, 3a +3 ⚖️, Moose & Farne +40 % statt +30 %, Amphibien +15 % statt +10 %: Vorher
+    // wählte der Harmonie-Spieler fast immer „Tümpel vertiefen“ (99 %, Ziel 25–75 %, 27.11).
     effects: [
       water(3),
-      { kind: 'cycle', effect: { kind: 'groupGrowth', group: 'mosses', pct: 30 } },
-      { kind: 'happiness', genus: 'amphibians', points: 10 },
+      { kind: 'cycle', effect: { kind: 'groupGrowth', group: 'mosses', pct: 40 } },
+      { kind: 'happiness', genus: 'amphibians', points: 15 },
+      harmony(3),
     ],
-    summary: '+3 💧, Moose & Farne +30 % 🌿, Amphibien +10 % 😊',
+    summary: '+3 💧, Moose & Farne +40 % 🌿, Amphibien +15 % 😊, +3 ⚖️',
     text: 'Ein Rinnsal sickert aus dem Hang und hält Moos und Farn das ganze Jahr nass.',
     boughtText: 'Quellbach freigelegt',
   },
@@ -221,7 +226,10 @@ export const RESEARCH_ONCE: readonly ResearchNode[] = [
   {
     id: 'dense-crown', branch: 'crown', name: 'Dichte Krone', icon: '🌳', minStage: OLD_TREE, cost: 550,
     requires: ['nest-boxes'], excludes: LIGHT_PATH,
-    effects: [slot('crown'), light(-2)], summary: '+1 Platz Krone, −2 ☀️',
+    // Seit Phase 11, 3a zusätzlich +1 Platz Höhlen und +1 ⚖️, −1 statt −2 ☀️: Vorher nahm der
+    // Harmonie-Spieler fast immer die Lichte Krone (94 %, Ziel 25–75 %, 27.11).
+    effects: [slot('crown'), slot('hollows'), light(-1), harmony(1)],
+    summary: '+1 Platz Krone, +1 Platz Höhlen, −1 ☀️, +1 ⚖️',
     text: 'Ein Dach aus Blättern, unter dem Vögel sicher brüten.',
     boughtText: 'Krone dicht gelassen',
   },

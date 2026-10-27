@@ -1,3 +1,4 @@
+import { SOWING_BASE, SOWING_GROWTH, SPRING_SOWING_FACTOR } from '../src/content/sowing';
 import {
   SAVE_VERSION,
   back,
@@ -546,8 +547,9 @@ test('Säen mit genug Samen: Preis mit Saatzeit, Samen sinken, Pflanze wächst',
 
   await expect(encounter(page)).toBeHidden();
   await expect(page.locator('[data-ref="plant-slots"]')).toHaveText('2/2 belegt');
-  // Die nächste Aussaat kostet mehr (⌈35 · 0,8⌉ = 28) und tauscht.
-  await expect(sowButton(page)).toContainText('28 🌰');
+  // Die nächste Aussaat kostet mehr (⌈SOWING_BASE · SOWING_GROWTH · Saatzeit⌉, seit Phase 11, 3a
+  // ⌈32 · 0,8⌉ = 26) und tauscht.
+  await expect(sowButton(page)).toContainText(`${Math.ceil(SOWING_BASE * SOWING_GROWTH * SPRING_SOWING_FACTOR - 1e-9)} 🌰`);
   await expect(sowButton(page)).toContainText('tauschen');
   const saved = await savedState(page);
   expect(saved.plants).toHaveLength(2);

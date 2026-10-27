@@ -269,7 +269,7 @@ Setzling, weil dort die Begleitpflanzen wachsen und Bienen und Falter leben.
 ## 4. Pflanzen
 
 > **Geplant (Phase 10, 27.5/27.6):** „Etwas keimt“ und „Pflanze setzen“ werden durch die
-> **Aussaat** ersetzt – Kauf mit Samen, Preis je Kauf `20 · 1,75^(n−1)` 🌰 (die erste im Zyklus
+> **Aussaat** ersetzt – Kauf mit Samen, Preis je Kauf `20 · 1,6^(n−1)` 🌰 (bis Phase 11, 3a: 1,75) (die erste im Zyklus
 > gratis), danach die bekannte Kartenwahl. Bis zur Umsetzung gilt dieser Abschnitt.
 
 Pflanzen haben **Wachstum**, **Samen**, **Licht-** und **Wasserbedarf** und bieten
@@ -2173,19 +2173,24 @@ sie in Nischen-Reihenfolge.
 
 ```bash
 npm run check      # Balancing-Tests mit wenigen Durchgängen (feste Seeds), ~80 s CPU, ~30 s auf 4 Kernen
-npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200, Neustart 200), alle Tabellen, ~18 min auf 4 Kernen
+npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200, Neustart 200, mit/ohne Ausbau 200), alle Tabellen, ~60 min auf 4 Kernen (seit Phase 11, 3a; vorher ~18 min)
 ```
 
-Die Tests liegen in vier Dateien, die Vitest parallel rechnet (Einstellungen in
+Die Tests liegen in fünf Dateien, die Vitest parallel rechnet (Einstellungen in
 `tests/balance-setup.ts`): `balance.test.ts` (alle Strategien mit allen Systemen, dazu
-„Pflegemaßnahmen“ mit/ohne Pflege), `seasons-balance.test.ts` (Baumarten),
+„Pflegemaßnahmen“ mit/ohne Pflege und seit Phase 11, 3a „Ausbau, Takt und Samen-Senke“),
+`balance-upgrades.test.ts` (seit 3a, nur großer Lauf: mit gegen ohne Ausbau), `seasons-balance.test.ts` (Baumarten),
 `balance-cycles.test.ts` (drei Zyklen bis Hain, dazu „Neustart in Hain, Wald oder Urwald“,
 seit 2.11b) und `daily-balance.test.ts` (Tagesziele). Bis Phase 6 waren Pflege
 (`balance-care.test.ts`) und Neustart (`balance-restart.test.ts`) eigene Dateien; zusammengelegt,
 weil sie dieselben Durchgänge brauchen (siehe „Laufzeit der Balancing-Tests“ unten). Im Check: 40 Durchgänge (Harmonie-Spieler bis
 Urwald, Wachstum und Zufall bis Wald, die übrigen bis Hain), Pflege 30, Baumarten 30,
 Zyklen 40 (seit 2.11, vorher 20), Neustart 12. Geprüft wird (Grenzen im Check etwas weiter, wo die Stichprobe streut):
-Stufenzeiten des Harmonie-Spielers 0,8–1,25 × Ziel, Hain 55–65 min, Setzling 40–50 s;
+Stufenzeiten des Harmonie-Spielers 0,8–1,25 × Ziel, Hain 50–58 min (seit Phase 11, 3a; vorher
+55–65), Setzling 40–50 s; seit 3a (28.10): ≥ 85 % der Samen ausgegeben und Bestand ≤ 5 min ab dem
+Alten Baum, Takt 🌰 20–60 s ab dem Alten Baum, längste Pause bis Hain ≤ 2 min, ⚖️-Vorrat ≤ 10 / 15 min,
+8–15 Aussaaten bis Hain (≥ 2 Tausch), Gabeln 25–75 % (ohne Saat), mit gegen ohne Ausbau: Urwald
+2:00–2:13 h, H ±3 / ±5, Gedächtnis-Vorsprung ≥ 15;
 Takt bis Hain im Median 10 s – 8 min, nie über 15 min; Harmonie-Strategie hat die höchste
 Harmonie; kein Gattungs-Stapeln mehr als 10 % schneller; Wachstums-Spieler schneller, aber
 höchstens ~15 % und mindestens 3 Punkte weniger Harmonie; Pflanzen und Pflege als
@@ -2214,6 +2219,39 @@ gleicher H_max bringt ein späterer Wegpunkt nie mehr (H_max 0–400, Grundlage 
 in 12.7), Ziel (e) an typischen Verläufen (Urwald-Schwelle ≤ 174 − 10, Bonus über dem Sockel
 Harmonie 30 / Wachstum 0), dazu die Sperrklinke selbst (gleiche H_max über mehrere
 Wegpunkte, online = offline, ein ganzer simulierter Zyklus je Strategie bis zum Urwald).
+
+#### Stand Phase 11, 3a – Ausbau, Takt und Samen-Senke (500 Durchgänge)
+
+`npm run balance` auf `claude/p11-3a-messung` (Spielstand v18, offline 10 %, Ausbau, endlose Knoten,
+Zielzeile): **alle Prüfungen grün** – die Zyklen-Grenzen des großen Laufs (vier Prüfungen), die schon
+`origin/main` verfehlte, stehen vorläufig auf den Check-Grenzen (3b). Simulator, Stellschrauben,
+Ergebnisse gegen die Ziele und Lücken: 28.10, „Messung 3a“. Geänderte Zahlen in `src/content/`:
+`UPGRADE_GROWTH` 1,15 → 1,2, `NICHE_UPGRADE_BASE` ×2 (20 / 50 / 120 / 500 / 1.200),
+`TREE_UPGRADE_BASE` 15 → 30, `NICHE_UPGRADE_PCT` 0,1 → 0,06, `SOWING_GROWTH` 1,75 → 1,6, Käferburg
++3 ⚖️, Dichte Krone (+1 Platz Höhlen, −1 ☀️, +1 ⚖️), Quellbach (+40 % Moose & Farne, Amphibien
++15 %, +3 ⚖️).
+
+| Kennzahl (Harmonie / Wachstum / Zufall) | Stand 1e (40 Durchgänge, v17, ohne Ausbau) | Phase 11, 3a |
+|---|---|---|
+| Hain | 57:24 / 49:49 min / 1:25 h | 54:27 / 48:48 min / 1:17 h |
+| Urwald | 2:18 / 1:58 / 3:32 h | 2:02 / 1:49 / 3:02 h |
+| H am Hain / Urwald (Harmonie) | 116,8 / 195,4 | 118,5 / 201,7 |
+| 🌰 ausgegeben bis Hain | 76 / 79 / 55 % | 96 / 96 / 97 % |
+| 🌰-Bestand beim Hain (min Produktion) | 7,9 / 6,1 / 24,3 | 1,1 / 1,2 / 1,3 |
+| Takt 🌰 Median Alter Baum / Hain / Wald (Harmonie) | 5:59 / 5:24 / 6:51 min | 23 / 28 / 33 s |
+| längste Pause ohne 🌰-Kauf bis Hain (Harmonie, Median) | 11:40 min | 1:44 min |
+| Gabeln Weg A (Harmonie): Krone / Boden / Wasser / Saum / Saat | 98 / 3 / 100 / 57 / 100 % | 62 / 61 / 66 / 38 / 100 % |
+| Zyklus 2 bis Hain (Harmonie) | −49,5 % (Check) | −47,8 % |
+
+**Laufzeit:** Ein Durchgang mit Ausbau hält etwa doppelt so oft (jeder Ausbau-Kauf ist ein Halt,
+Takt 15–50 s) und kostet ~1,55× (Harmonie bis Urwald ~0,67 s statt ~0,43 s auf `origin/main`). Der
+Simulator bewertet die Forschung an reinen Ausbau-Halten nicht neu (`goalStop`, ohne Ausbau
+unverändert) und rechnet die Ausbau-Ziele je Halt einmal (`spendSeeds`). `npm run balance` dauert
+damit **59 min** auf 4 Kernen (erster Lauf vor diesen beiden Kürzungen 78 min; laut CLAUDE.md
+vorher ~18 min). Der Engpass ist `balance.test.ts` (11 Strategien bis zum Urwald und der Vergleich
+„Pflegemaßnahmen“ in einem Worker); die übrigen Dateien sind nach ~30 min fertig. Vorschlag: die
+Stapler im großen Lauf nur bis zum Hain (ihre Prüfungen schauen nur dorthin) oder in eine eigene
+Datei – das bräuchte eine Absprache, weil sich Tabellen der Doku ändern.
 
 #### Stand Balancing Phase 6 – Gedächtnis-Puffer, Samenreserve, Laufzeit der Tests (500 Durchgänge)
 
@@ -7886,7 +7924,7 @@ in fast immer derselben Reihenfolge (27.10, Tabelle „Pflege heute“).
 | Frage | Entscheidung | Abschnitt |
 |---|---|---|
 | Was wird aus „Etwas keimt“? | Entfällt aus dem Begegnungs-Deck; seine Gewichte gehen an „Tier zieht ein“. Wegpunkt 2 öffnet stattdessen die erste (geschenkte) Aussaat. | 27.5 |
-| Wie kauft man Pflanzen? | Knopf **„🌱 Säen“**: kostet Samen, öffnet die bekannte Kartenwahl (3 Pflanzenkarten). Preis `20 · 1,75^(n−1)` 🌰 für die n-te Aussaat des Zyklus, die erste ist gratis; Zähler je Zyklus. | 27.6 |
+| Wie kauft man Pflanzen? | Knopf **„🌱 Säen“**: kostet Samen, öffnet die bekannte Kartenwahl (3 Pflanzenkarten). Preis `20 · 1,6^(n−1)` 🌰 (bis Phase 11, 3a: 1,75) für die n-te Aussaat des Zyklus, die erste ist gratis; Zähler je Zyklus. | 27.6 |
 | Voller Pflanzring? | Säen bleibt möglich: Die Karte ersetzt eine Pflanze (Vorschau wie heute) oder wird zurückgelegt (10 Samen-Sekunden wie Ablehnen). | 27.6 |
 | Ab wann? | Ab Keimling (erster Pflanzplatz). | 27.6 |
 | Was ist Harmonie? | **Produktion** `p` = heutige Harmonie H in ⚖️ pro Minute; sie füllt einen **Vorrat** ⚖️ mit `p/60 · G` je Sekunde (G = Faktor des Waldgedächtnisses). | 27.3 |
@@ -8007,14 +8045,16 @@ beim Kauf fest und liegen im Spielstand (`cycle.sowing`) – Neuladen würfelt n
 ```
 Preis der n-ten Aussaat im Zyklus (n = bisherige Aussaaten dieses Zyklus, `cycle.sowings`):
   n = 0:   0                                   die erste ist ein Geschenk (Wegpunkt 2 öffnet sie)
-  n ≥ 1:   ⌈ 20 · 1,75^(n−1) · (1 − Rabatt) · Saatzeit ⌉ 🌰
+  n ≥ 1:   ⌈ 20 · 1,6^(n−1) · (1 − Rabatt) · Saatzeit ⌉ 🌰       (bis Phase 11, 3a: 1,75^(n−1))
            Rabatt: Forschung „Samenbank“ 25 %; Saatzeit: im Frühling × 0,8, sonst × 1
 ```
 
 | n | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 🌰 | 20 | 35 | 62 | 108 | 188 | 329 | 575 | 1.006 | 1.760 | 3.079 | 5.388 | 9.429 | 16.501 | 28.876 | 50.532 | 88.431 |
-| Summe bis dahin (inkl. Geschenk) | 20 | 55 | 117 | 225 | 413 | 742 | 1.317 | 2.323 | 4.083 | 7.162 | 12.550 | 21.979 | 38.480 | 67.356 | 117.888 | 206.319 |
+| 🌰 seit 3a (1,6) | 20 | 32 | 52 | 82 | 132 | 210 | 336 | 537 | 859 | 1.375 | 2.200 | 3.519 | 5.630 | 9.008 | 14.412 | 23.059 |
+| Summe bis dahin seit 3a | 20 | 52 | 104 | 186 | 318 | 528 | 864 | 1.401 | 2.260 | 3.635 | 5.835 | 9.354 | 14.984 | 23.992 | 38.404 | 61.463 |
+| 🌰 bis 3a (1,75) | 20 | 35 | 62 | 108 | 188 | 329 | 575 | 1.006 | 1.760 | 3.079 | 5.388 | 9.429 | 16.501 | 28.876 | 50.532 | 88.431 |
+| Summe bis dahin bis 3a (inkl. Geschenk) | 20 | 55 | 117 | 225 | 413 | 742 | 1.317 | 2.323 | 4.083 | 7.162 | 12.550 | 21.979 | 38.480 | 67.356 | 117.888 | 206.319 |
 
 **Warum 20 · 1,75^(n−1) und je Kauf (nicht je Ringplatz):**
 
@@ -8033,6 +8073,11 @@ Preis der n-ten Aussaat im Zyklus (n = bisherige Aussaaten dieses Zyklus, `cycle
   billig bleibt. 1,9 macht die Urwald-Plätze nach ein paar Tauschen unbezahlbar (300 Tsd.+),
   mit 1,6 kosten 13 Aussaaten zusammen nur ~9.400 statt ~22.000 🌰 – zu wenig Senke. 1,75 liegt dazwischen; 3a misst mit tauschenden
   Strategien nach.
+- **Seit Phase 11, 3a: 1,6** (27.11, Stellschraube 2). Die Samen-Senke ist jetzt der Ausbau (28.4);
+  die Aussaat konkurriert mit ihm um denselben Vorrat (Simulator: billigstes Ziel zuerst, Aussaat
+  mit Vorrang, sobald bezahlbar). Mit 1,75 säte der Wachstums-Spieler bis zum Hain nur 7,3-mal
+  (Ziel 8–15, davon ≥ 2 Tausch), mit 1,6 8,5-mal (2,6 Tausch), der Harmonie-Spieler 9,4-mal
+  (3,2 Tausch); 100 Durchgänge, Messung in 28.10 („Messung 3a“).
 - **Geschenkte erste Aussaat:** Ohne Pflanzenbegegnung an Wegpunkt 2 kam der Setzling im Modell
   bei 0:54 statt 0:46 min (die erste Pflanze kostete ~2 min Samen); mit dem Geschenk bei 0:44 min
   – der Sweetspot ~45 s (3) bleibt.
@@ -8109,14 +8154,14 @@ tatsächliche Kartenzahl („zwei Samen“ im Keimling).
 | 🪱 Boden | `leaf-litter` | Laub liegen lassen | Setzling | 80 | – | +1 Platz Laubstreu | Laub R1 |
 | 🪱 Boden | `deadwood-pile` | Totholzhaufen | Alter Baum | 600 | Laub liegen lassen | Totholz, +2 Plätze Totholzhaufen | Totholz R1 |
 | 🪱 Boden | `humus` | Humusschicht | Hain | 430 | Kompost, Laub liegen lassen | +2 💧, +3 ⚖️ | Laub R2 |
-| 🪱 Boden | `beetle-castle` ⟂ | Käferburg | Hain | 850 | Totholzhaufen | +1 Platz Stamm & Rinde, +1 Platz Totholzhaufen, +2 ⚖️ | Totholz R2 |
+| 🪱 Boden | `beetle-castle` ⟂ | Käferburg | Hain | 850 | Totholzhaufen | +1 Platz Stamm & Rinde, +1 Platz Totholzhaufen, +3 ⚖️ (bis 3a +2) | Totholz R2 |
 | 🪱 Boden | `fungus-garden` ⟂ | Pilzgarten | Hain | 850 | Totholzhaufen, Kompost | Pilze +15 % 😊, Bäume +10 % 🌿, +2 ⚖️ | **neu** |
 | 💧 Wasser | `pond` | Waldtümpel | Alter Baum | 1.000 | Kompost | Feuchte, +3 💧, +2 Plätze Waldtümpel | Tümpel R1 |
 | 💧 Wasser | `pond-deepen` ⟂ | Tümpel vertiefen | Hain | 1.370 | Waldtümpel | +3 💧, +2 ⚖️, +2 Plätze Waldtümpel | Tümpel R2 |
-| 💧 Wasser | `spring-brook` ⟂ | Quellbach | Hain | 1.370 | Waldtümpel | +3 💧, Moose & Farne +30 % 🌿, Amphibien +10 % 😊 | **neu** |
+| 💧 Wasser | `spring-brook` ⟂ | Quellbach | Hain | 1.370 | Waldtümpel | +3 💧, Moose & Farne +40 % 🌿, Amphibien +15 % 😊, +3 ⚖️ (bis 3a +30 %, +10 %, ohne ⚖️) | **neu** |
 | 🌳 Krone | `nest-boxes` | Nistkästen | Junger Baum | 250 | – | Baumhöhle, +1 Platz Höhlen | Nistkästen R1 |
 | 🌳 Krone | `light-crown` ⟂ | Lichte Krone | Alter Baum | 550 | Nistkästen | +3 ☀️ | Lichte Krone R1 |
-| 🌳 Krone | `dense-crown` ⟂ | Dichte Krone | Alter Baum | 550 | Nistkästen | +1 Platz Krone, −2 ☀️ | Dichte Krone R1 |
+| 🌳 Krone | `dense-crown` ⟂ | Dichte Krone | Alter Baum | 550 | Nistkästen | +1 Platz Krone, +1 Platz Höhlen, −1 ☀️, +1 ⚖️ (bis 3a +1 Platz Krone, −2 ☀️) | Dichte Krone R1 |
 | 🌳 Krone | `nest-boxes-2` | Mehr Nistkästen | Hain | 670 | Nistkästen | +1 Platz Krone | Nistkästen R2 |
 | 🌳 Krone | `light-crown-2` / `dense-crown-2` | Lichte / Dichte Krone II | Hain | 830 | Stufe I desselben Wegs | +2 ☀️ / Bäume +10 % 🌿 | Kronen R2 |
 | 🌳 Krone | `light-crown-3` / `dense-crown-3` | Lichte / Dichte Krone III | Wald | 2.500 | Stufe II desselben Wegs | +2 ☀️ / Bäume +10 % 🌿 | Kronen R3 |
@@ -8168,8 +8213,8 @@ Die IDs der Knoten mit gleicher Wirkung wie heute übernehmen, wo es geht, die I
 | Gabel | Weg A | Weg B | Abwägung |
 |---|---|---|---|
 | Krone (Alter Baum, gilt für I–III) | Licht: +3/+2/+2 ☀️ | Dichte: +1 Platz Krone, −2 ☀️, dann Bäume +10/+10 % 🌿 | wie heute (8): Sonne für Saum, Wiese, Mauer – oder Vögel und Bäume |
-| Boden (Hain) | Käferburg: 2 Plätze (Stamm & Rinde, Totholzhaufen) | Pilzgarten: Pilze zufriedener, Bäume +10 % 🌿 | neue Arten (Vielfalt, Gemeinschaft Totholz-Kette) – oder die Pilze, die man schon hat, und Wachstum |
-| Wasser (Hain) | Tümpel vertiefen: 2 Plätze Waldtümpel | Quellbach: Moose & Farne +30 % 🌿, Amphibien +10 % 😊 | mehr Amphibien – oder bessere Amphibien und ein Grund für Farne im Ring |
+| Boden (Hain) | Käferburg: 2 Plätze (Stamm & Rinde, Totholzhaufen), +3 ⚖️ | Pilzgarten: Pilze zufriedener, Bäume +10 % 🌿 | neue Arten (Vielfalt, Gemeinschaft Totholz-Kette) – oder die Pilze, die man schon hat, und Wachstum |
+| Wasser (Hain) | Tümpel vertiefen: 2 Plätze Waldtümpel | Quellbach: Moose & Farne +40 % 🌿, Amphibien +15 % 😊, +3 ⚖️ | mehr Amphibien – oder bessere Amphibien und ein Grund für Farne im Ring |
 | Saum (Hain) | Blütenvorrat: +25 % 🌰 auf Blumen und Sträucher | Wildbienenwand: Insekten +10 % 😊, +2 ⚖️ | Samen (für Aussaaten) – oder Harmonie (für Forschung) |
 | Saat (Alter Baum) | Samenbank: Aussaat −25 % | Anzuchtbeet: erstes Neu würfeln gratis | mehr Aussaaten – oder bessere Karten je Aussaat |
 
@@ -8437,6 +8482,23 @@ eine Obergrenze für die Wahl aus 3 Karten – und tauscht nicht über die Aussa
   Forschung in ⚖️ statt Pflege in 🌰 (Kaufzeitpunkte sind auf heute abgestimmt, 27.7), der
   Gedächtnisfaktor G in späten Zyklen und die neuen Knoten.
 
+**Echte Messung (Phase 10, 3a – zusammengelegt mit Phase 11, 3a; 500 Durchgänge, mit Kartenwahl,
+Aussaat-Tausch, Forschung nach Strategie und dem Ausbau aus Phase 11; Zahlen und Tabelle in 28.10,
+„Messung 3a“):**
+
+| Stufe | Zeit H / W / Z | H beim Erreichen H / W / Z | Aussaaten (Tausch) H | Knoten H |
+|---|---|---|---|---|
+| Setzling | 0:44 / 0:44 / 0:47 min | 49,7 / 49,7 / 42,7 | 1,0 | 0 |
+| Junger Baum | 4:17 / 4:03 / 4:54 min | 68,7 / 67,1 / 54,9 | 3,0 (0,8) | 2,0 |
+| Alter Baum | 20:10 / 17:58 / 27:14 min | 89,3 / 84,6 / 67,4 | 6,0 (2,2) | 5,7 |
+| Hain | 54:27 / 48:48 min / 1:17:14 h | 118,5 / 105,1 / 86,2 | 10,1 (3,8) | 11,2 |
+| Wald | 1:29:52 / 1:20:14 / 2:12:28 h | 162,4 / 139,0 / 115,5 | 13,0 (4,8) | 18,0 |
+| Urwald | 2:02:07 / 1:49:13 / 3:02:02 h | 201,7 / 175,5 / 146,2 | 14,9 (5,2) | 22,0 |
+
+H_max am Hain (Neustart-Vorschau, Harmonie) 121,5 gegenüber ~110 vor Phase 10 – mehr als die +3 aus
+27.11; die Gedächtnis-Schwellen T zieht 3b mit der Zyklen-Messung nach (28.10, „Lücken“).
+Lebensgemeinschaften beim Hain entdeckt (Harmonie) 2,37.
+
 ### 27.11 Ziele der echten Messung (Phase 10, 3a/3b) und Stellschrauben
 
 | Kennzahl (erster Zyklus, 500 Durchgänge, alle Systeme) | heute | Ziel |
@@ -8685,6 +8747,20 @@ geschrieben.
 4. Harmonie und Gedächtnis bleiben bei reinen 🌿/🌰-Wirkungen unverändert (H ±0,8, Gedächtnis
    Harmonie ±1) – die Sperrklinke, Chronik und Landschaft sind davon nicht berührt.
 
+**Nachgemessen in Phase 11, 3a** (500 Durchgänge, gleiche Spalten wie „Samen heute“, Harmonie-Spieler,
+mit Ausbau und den Zahlen aus 28.10, „Messung 3a“):
+
+| Stufe | Zeit | 🌰/s | H | Bestand in min Produktion | Anteil ausgegeben (davon Ausbau) | Aussaaten (Tausch) | ⚖️ Vorrat (min Zufluss) | ab hier bis zur nächsten Stufe: 🌰-Käufe / Takt |
+|---|---|---|---|---|---|---|---|---|
+| Junger Baum | 4:17 min | 3,2 | 68,7 | 1,0 | 57 % (46 %) | 3,0 (0,8) | 1,2 | 60 / 15 s |
+| Alter Baum | 20:10 min | 10,0 | 89,3 | 1,0 | 91 % (86 %) | 6,0 (2,2) | 2,3 | 87 / 23 s |
+| Hain | 54:27 min | 26,9 | 118,5 | 1,1 | 96 % (90 %) | 10,1 (3,8) | 5,0 | 73 / 28 s |
+| Wald | 1:30 h | 67,9 | 162,4 | 1,2 | 97 % (88 %) | 13,0 (4,8) | 3,3 | 59 / 33 s |
+| Urwald | 2:02 h | 124,4 | 201,7 | 1,3 | 97 % (88 %) | 14,9 (5,2) | 5,1 | – |
+
+Zufallsspieler: Hain 1:17 h, 97 % ausgegeben, Bestand 1,3 min (heute 1:29 h, 0,7 %, 55 min). 8 h
+offline am Hain: 7 Wegpunkte, keine Stufe (heute 16 Wegpunkte bis zum Urwald).
+
 ### 28.3 Offline: 10 % Ertrag, volle Zeit
 
 **Regel:**
@@ -8764,6 +8840,20 @@ Ertragsfaktor f wirkt NICHT auf: cycle.elapsed (Jahreszeiten, Wetter, Tag/Nacht,
 ### 28.4 Nischen-Ausbau und Baum-Ausbau (🌰)
 
 **Nischen-Ausbau.** Jede der zehn Nischen hat eine **Ausbaustufe** L ≥ 0 ohne Obergrenze.
+
+> **Seit der Messung Phase 11, 3a (28.10):** Faktor **1,2** statt 1,15, Startpreise **×2**
+> (Wurzelraum 20, Laubstreu/Waldsaum 50, Krone/Stamm/Waldwiese 120, Höhlen/Totholzhaufen/Tümpel
+> 500, Trockenmauer 1.200, Baumteile 30), Nischen-Bonus **+0,06 %** statt +0,1 % je Stufe und Tier.
+> Die Tabelle unten zeigt die Startwerte; die heutigen Preise:
+>
+> | Nische | b_n | Preis St. 1 / 10 / 25 / 50 | Summe bis 10 / 25 / 50 |
+> |---|---|---|---|
+> | 🪱 Wurzelraum | 20 | 20 / 104 / 1.590 / 151.674 | 522 / 9.448 / 909.966 |
+> | 🍂 Laubstreu, 🌼 Waldsaum | 50 | 50 / 258 / 3.975 / 379.185 | 1.301 / 23.609 / 2.274.882 |
+> | 🌳 Krone, 🪵 Stamm & Rinde, 🌾 Waldwiese | 120 | 120 / 620 / 9.540 / 910.044 | 3.118 / 56.646 / 5.459.684 |
+> | 🕳️ Höhlen, 🪵 Totholzhaufen, 🪷 Waldtümpel | 500 | 500 / 2.580 / 39.749 / 3.791.850 | 12.981 / 236.000 / 22.748.617 |
+> | 🪨 Trockenmauer | 1.200 | 1.200 / 6.192 / 95.397 / 9.100.439 | 31.153 / 566.390 / 54.596.654 |
+> | 🪵🍃🍄 Baumteile | 30 | 30 / 155 / 2.385 / 227.511 | 782 / 14.170 / 1.364.939 |
 
 ```
 Preis der Stufe L → L+1:   ⌈ b_n · 1,15^L ⌉ 🌰            (b_n = Startpreis der Nische)
@@ -9172,6 +9262,98 @@ Der Takt verfehlt 20–60 s ab dem Jungen Baum um den Faktor 3–12; die Gabeln 
 (Pilzgarten), Wasser (Vertiefen) und Saat (Samenbank) sind für bewertende Strategien einseitig
 (27.11, Stellschraube 3) – die Aussaat-Wirkungen sind im Simulator nur pauschal bewertet.
 
+**Messung 3a (Phase 11, erster Zyklus)** – `npm run balance`, 500 Durchgänge je Strategie (Seeds
+1000 + 7 i, Eiche, alle Systeme mit Forschung und Ausbau; „mit / ohne Ausbau“ 200 Durchgänge in
+`tests/balance-upgrades.test.ts`; Mediane, Anteile als Mittel). Offline 10 % (1b), Ausbau (2a),
+endlose Knoten und Plan (2b), Zielzeile (2c) sind drin.
+
+*Simulator (3a):* Die **Ausbau-Strategie** folgt der Zielzeile: Kandidaten aus `goalCandidates`
+(core/goal.ts), Auswahl wie `nextGoal` (Meilenstein mit Wirkung in ≤ 120 s, sonst der billigste;
+`cheapestGoal`, Test gegen `nextGoal`). „Säen“ steht mit seinem Preis unter den Kandidaten, wenn die
+Strategie heute säen würde (bei vollem Ring der Tausch), und hat **Vorrang**, sobald es bezahlbar
+ist. Der **Zufallsspieler** füllt einen freien Platz im Ring zuerst und kauft sonst zufällig unter
+den bezahlbaren Zielen (eigener Zufall, die Karten bleiben dieselben wie ohne Ausbau). Alle kaufen
+nur, was eine **Rücklage** von 60 Samen-Sekunden plus einem Wurf übrig lässt (`SEED_RESERVE_SECONDS`)
+– ohne sie war am nächsten Wegpunkt Bewirten nur noch in 4 % der Fälle bezahlbar und Neu würfeln oft
+zu teuer (7.7). Endlose Knoten stehen in `RESEARCH` und werden wie alle Knoten nach Wert je ⚖️
+erforscht. Ausbau-Käufe zählen im Takt (`SEED_PURCHASES`), im Anteil ausgegebener Samen und in
+neuen Tabellen (`economyTable` mit Ausbau-Anteil, Tausch und Rängen; `upgradeTable`).
+
+*Stellschrauben* (je 100 Durchgänge Harmonie / Wachstum / Zufall, dann der große Lauf):
+
+| Schritt (Reihenfolge 27.11, dann 28.10) | Befund vorher | Änderung | danach |
+|---|---|---|---|
+| 27.11/1 Tempo, H_max | H am Hain 114 (heute 116,8 ±3) | – | – |
+| 27.11/2 Samen-Senke | Aussaaten bis Hain: Wachstum 7,3 (Ziel 8–15) | `SOWING_GROWTH` 1,75 → **1,6** | 8,5 (2,6 Tausch) |
+| 27.11/3 Gabeln (Harmonie, Weg A) | Krone 94 %, Boden 4 %, Wasser 99 %, Saum 37 %, Saat 100 % | Käferburg +2 → **+3 ⚖️**; Dichte Krone **+1 Platz Höhlen, −1 statt −2 ☀️, +1 ⚖️**; Quellbach **+3 ⚖️**, Moose & Farne +30 → **+40 %**, Amphibien +10 → **+15 %** | 62 / 61 / 66 / 38 / 100 % (500) |
+| 27.11/4 Spielweisen-Abstand | Wachstum ÷ Harmonie 0,90 | – | – |
+| 28.10/1 Tempo | Urwald 1:52 h (−19,6 % gegen ohne Ausbau), Hain 52:42 | Jahresringe 0,2: Urwald nur +2 min (bleibt 0,4); **Nischen-Bonus 0,1 → 0,06 %** | siehe 28.10/2 |
+| 28.10/2 Takt | Takt Junger / Alter Baum 9 / 11 s | **`UPGRADE_GROWTH` 1,15 → 1,2**, **Startpreise ×2** (Wurzelraum 20 … Mauer 1.200, Baumteile 30) | 15 / 23 s |
+| 28.10/3 Harmonie | H am Hain 118,0 (ohne Ausbau 117,8) | – | – |
+| 28.10/4 ⚖️ | Vorrat Hain 5,0 / Urwald 5,1 min | – | – |
+
+*Ergebnis gegen die Ziele (500 Durchgänge):*
+
+| Kennzahl | heute (28.2) | Ziel | gemessen 3a | |
+|---|---|---|---|---|
+| Hain Harmonie / Wachstum / Zufall | 57:30 / 49:48 / 1:29 h | 50–58 min / ≥ 0,85 × H / ≤ 1:40 h | 54:27 / 48:48 min / 1:17 h | ✓ |
+| Urwald Harmonie | 2:19 h | 2:00–2:13 h | 2:02 h | ✓ |
+| Tempo gegen ohne Ausbau (200 Durchgänge) | – | −5 bis −10 % | Hain −4,2 %, Urwald −11,3 % (gegen 28.2: −5,3 % / −12,4 %) | ≈ |
+| Wachstum ÷ Harmonie (Hain, Urwald) | 0,866 / 0,857 | ≥ 0,85 | 0,896 / 0,894 | ✓ |
+| H am Hain (Harmonie) | 116,8 | ±3 | 118,5 (ohne Ausbau 117,8) | ✓ |
+| H Wald / Urwald | 154 / 194 | ±5 gegen ohne Ausbau | 162 / 202 (ohne 161 / 202) | ✓ |
+| Gedächtnis-Vorsprung Harmonie − Wachstum am Hain | 22 | ≥ 15 | 21,5 (81,5 − 60,0) | ✓ |
+| Takt 🌰 Median (Harmonie) Setzling / Junger B. / Alter B. / Hain / Wald | 0:33–8:13 min | 20–60 s | 13 / 15 / 23 / 28 / 33 s | ✓ ab Alter Baum |
+| Takt 🌰 Median (Zufall) | – | 20–60 s | 14 / 19 / 31 / 44 / 50 s | ✓ ab Alter Baum |
+| längste Pause ohne 🌰-Kauf bis Hain (Median, ab Setzling) | 11:40 min | ≤ 2 min | 1:44 (Harmonie), 1:35 min (Zufall) | ✓ |
+| 🌰 ausgegeben bis Hain / Urwald (H / W / Z) | 73 % / 0,7 % | ≥ 85 % | 96 / 96 / 97 % · 97 / 97 / 98 % (Ausbau 86–93 %) | ✓ |
+| Samenbestand beim Erreichen einer Stufe | 9,1 / 55 min | ≤ 5 min | 1,0–1,5 min | ✓ |
+| ⚖️-Vorrat Hain / Urwald (Harmonie) | 6,6 / – | ≤ 10 / ≤ 15 min | 5,0 / 5,1 (Zufall 6,0 / 6,6) | ✓ |
+| Aussaaten bis Hain (Tausch), 27.11 | – | 8–15 (≥ 2) | 10,1 (3,8) / 8,9 (3,0) / 10,6 (4,0) | ✓ |
+| Knoten bis Hain (Harmonie), 27.11 | 10–11 | 9–13 | 11,2 | ✓ |
+| Gabeln, Weg A beim Harmonie-Spieler, 27.11 | 98 / 3 / 100 / 57 / 100 % | 25–75 % | Krone 62, Boden 61, Wasser 66, Saum 38, **Saat 100 %** | Lücke Saat |
+| Setzling, Durststrecke 90 %, Pause frühes Spiel, 27.11 | 0:46 / 8:38 / 1:08 | 40–50 s / < 15 / ≤ 1:30 min | 44 s / 6:44 / 46 s | ✓ |
+| 8 h offline am Hain (100 Durchgänge) | +16 Wegpunkte, Urwald | ≤ 8 WP, ≤ 1 Stufe | 7 Wegpunkte, 0 Stufen (71.163 🌰, 5.830 ⚖️) | ✓ |
+| Zyklus 2 bis Hain (Harmonie / Wachstum / Zufall) | −28 % | −20 bis −35 % | −47,8 / −39,0 / −22,5 % | ✗ → 3b |
+
+*Weitere Werte:* Ausbaustufen beim Hain (Harmonie) Wurzelraum 20, Laubstreu/Saum 15, Krone/Stamm/
+Wiese 11, Höhlen/Totholz/Tümpel 3, Baumteile je 18; beim Urwald 30 / 25 / 20 / 13, Mauer 8,
+Baumteile 28 – etwa 5 Stufen unter dem Modell 28.5 (Faktor 1,2 statt 1,15), Platz-Meilenstein 25 im
+Urwald in 2,8 Nischen. 145 / 271 Ausbau-Käufe bis Hain / Urwald. Sitzungsprofil (Harmonie, 100
+Durchgänge): Tag 1 nach 30 min Alter Baum, die Nacht (8 h, 10 %) trägt bis zum Hain; Tag 2 Wald,
+die Nacht bis zum Urwald (vorher Tag 1 offline bis zum Urwald). Baumarten Hain gegenüber Eiche:
+Buche +1,1 %, Kiefer +0,7 % (Harmonie). Tagesziele: Anteil an den Samen der ersten Stunde ≤ 1,3 %.
+
+*Lücken und Vorschläge:*
+
+- **Gabel Saat (Samenbank 100 %):** Der Simulator würfelt Aussaaten nie neu, darum ist das
+  Anzuchtbeet („erstes Neu würfeln je Aussaat gratis“) nur pauschal bewertet (0,01 gegen 0,03 der
+  Samenbank) – jede Zahl am Knoten verschiebt nur diese Pauschalen. Vorschlag: Simulator würfelt
+  eine Aussaat neu, wenn keine Karte verbessert und der Wurf gratis ist; danach messen (3b) oder im
+  Playtest 5b entscheiden. Keine Zahl geändert.
+- **Takt im Setzling und Jungen Baum 13–19 s:** unter 20 s – der „Kaufrausch“ zu Beginn jedes
+  Zyklus (28.4) ist gewollt; die Startpreise ×2 haben ihn von 9–11 s gehoben.
+- **Tempo am Hain −4,2 % gegen ohne Ausbau** (−5,3 % gegen 28.2): Hain und Urwald hängen zusammen
+  (die Wirkung wächst mit der Zeit, Urwald etwa das 2,5-Fache); −5 % am Hain hieße Urwald unter
+  2:00 h. Gewählt: die absoluten Ziele (Hain 50–58 min, Urwald 2:00–2:13 h). Der Wachstums-Spieler
+  gewinnt bis zum Hain fast nichts (−0,3 %; Urwald −6 %), weil der Nischen-Bonus mit der
+  Zufriedenheit wirkt – der Abstand der Spielweisen wächst (0,896 statt 0,866), im Sinne von 27.4.
+- **Endlose Knoten im ersten Zyklus:** Harmonie- und Wachstums-Spieler erforschen bis zum Urwald
+  keinen Rang (die einmaligen Knoten bringen je ⚖️ mehr), der Zufallsspieler 2,8. Der ⚖️-Vorrat
+  bleibt trotzdem klein (≤ 6,6 min). Gemessen werden die Ränge mit dem Gedächtnisfaktor G in 3b.
+- **Zyklen (3b):** Die Grenzen des großen Laufs zu Zyklus 2 und Gedächtnis (Zyklus 2 Harmonie
+  ≤ 45 % und Wachstum ≤ 37 % schneller, erster Gewinn < 75, Vorsprung Wald/Urwald > 30,
+  Urwald-Gewinn < 95, Neustart Zyklus 2 ≥ 0,95) verfehlte schon `origin/main` vor 3a (0,482 / 0,394 /
+  81,0 / – / 105,7 / Wald 0,930); 3a ändert sie kaum (0,478 / 0,390 / 81,5 / Urwald 22,5 / 105,2 /
+  Urwald 0,944). Sie stehen vorläufig auf den Check-Grenzen
+  (`tests/balance-cycles.test.ts`, „Phase 11, 3b“); H_max am Hain 121,5 gegenüber ~110 aus 27.11 –
+  3b hebt die Schwellen T (Stellschraube 27.11/1) mit einer eigenen Zyklen-Messung.
+- **Tagesziele:** Die Obergrenze (zweimal alle Ziele zur Rate am Ende der ersten Stunde) liegt mit
+  dem Ausbau bei bis zu 5,1 % (vorher 4,3–4,8 %), weil die Samenrate steiler steigt; der echte Anteil
+  bleibt ≤ 1,3 %. Grenze der Obergrenze 5 → 6 % (`tests/daily-balance.test.ts`).
+- **Laufzeit:** Ein Durchgang mit Ausbau kostet ~1,55× (doppelt so viele Halte); `npm run balance`
+  dauert darum länger (siehe 15.4, „Stand Phase 11, 3a“).
+
 ### 28.11 Später, optional: Stufen-Tore und Aufträge der Tiere (Skizze, eigene Welle)
 
 Nicht Teil der ersten Umsetzung; erst nach dem Playtest 5b, wenn sich das Spiel trotz Ausbau
@@ -9193,13 +9375,13 @@ noch „ziellos“ anfühlt.
 
 | Risiko / Frage | Einschätzung | Umgang |
 |---|---|---|
-| Ausbau macht das aktive Spiel zu schnell | wahrscheinlich −8 bis −11 % (Modell) | Ziel −5 bis −10 %, Stellschraube 1 (28.10) |
+| Ausbau macht das aktive Spiel zu schnell | wahrscheinlich −8 bis −11 % (Modell); gemessen mit Startwerten Urwald −20 % | 3a: Faktor 1,2, Startpreise ×2, Nischen-Bonus 0,06 % → Hain −4 %, Urwald −11 % (28.10) |
 | Platz-Meilensteine heben H und das Gedächtnis des Wachstums-Spielers | sicher ab Wald | Meilenstein bei 25 (nicht 10); 3a misst H Wald/Urwald; sonst 30 oder T heben |
 | Klick-Pflicht alle 20–40 s über zwei Stunden | mittel | Kaufmenge ×10/Max, Zielzeile; später optional „Ausbau-Plan“ wie der Forschungsplan (nicht in Phase 11) |
 | 10 % offline fühlt sich als Strafe an | mittel | 60 s voll, ehrlicher Rückkehr-Text, die Nacht reicht für einen großen Einkauf (28.5) |
 | Hintergrund-Tab gilt als offline – Spieler, die den Tab offen lassen, sind enttäuscht | mittel | Hinweis einmal im Rückkehr-Bericht; Spielanleitung. Kein „im Hintergrund weiterrechnen“ (Browser drosseln ohnehin) |
 | Migration mit sehr vielen Samen (100 % offline) kauft sofort Silber-Abzeichen | sicher bei Altständen | einmalig, kosmetisch; kein Kürzen (niemand verliert etwas) |
-| Aussaat verliert gegen Ausbau | möglich | 3a misst Aussaaten bis Hain (Ziel 27.11: 8–15); sonst `SOWING_GROWTH` senken |
+| Aussaat verliert gegen Ausbau | gemessen: Wachstum 7,3 Aussaaten bis Hain | 3a: `SOWING_GROWTH` 1,6 → 8,9–10,6 (Ziel 8–15) |
 | Zwei Senken + Forschung überfordern Einsteiger | gering | Ausbau erst ab Keimling, Zielzeile ab der ersten Stufe, Spielanleitung „Ausbau“ |
 | Stufen-Tore / Aufträge | offen | 28.11, nach Playtest |
 

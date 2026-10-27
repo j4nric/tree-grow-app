@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RESEARCH } from '../src/content/research';
 import { NICHE_IDS } from '../src/content/types';
+import { SEASON_SECONDS } from '../src/content/seasons';
 import { MAX_UPGRADE_LEVEL, NICHE_UPGRADE_BASE, TREE_UPGRADE_BASE } from '../src/content/upgrades';
 import { evaluate, plantSlots, sowingCost } from '../src/core/formulas';
 import { MAX_AFFORDABLE_STEPS, MILESTONE_GOAL_SECONDS, affordableUpgradeSteps, goalCandidates, nextGoal, researchAvailable, secondsUntilAffordable } from '../src/core/goal';
@@ -76,8 +77,9 @@ describe('nextGoal: Kandidaten', () => {
 });
 
 describe('nextGoal: Auswahl', () => {
-  it('ohne Meilenstein in Reichweite: der billigste (Wurzelraum 10 vor Baumteilen 15)', () => {
-    expect(nextGoal(sprout(), 0.3)).toMatchObject({ kind: 'niche', target: { id: 'roots' }, level: 1, cost: 10 });
+  it('ohne Meilenstein in Reichweite: der billigste (Wurzelraum 20 vor Baumteilen 30)', () => {
+    expect(NICHE_UPGRADE_BASE.roots).toBeLessThan(TREE_UPGRADE_BASE);
+    expect(nextGoal(sprout(), 0.3)).toMatchObject({ kind: 'niche', target: { id: 'roots' }, level: 1, cost: NICHE_UPGRADE_BASE.roots });
   });
 
   it('Meilenstein in ≤ 120 s gewinnt, auch wenn er teurer ist; darüber der billigste', () => {
@@ -135,6 +137,9 @@ describe('nextGoal: Auswahl', () => {
     const s = stateAt(1);
     s.plants = [];
     s.cycle.sowings = 1;
+    // Sommer (ohne Saatzeit-Rabatt): Die zweite Aussaat kostet SOWING_BASE = 20 wie Wurzelraum 1
+    // (seit Phase 11, 3a; im Frühling gibt es mit 1,2 je Stufe keinen gleich teuren Wurzelraum).
+    s.cycle.elapsed = SEASON_SECONDS;
     const sow = sowingCost(s);
     const level = Array.from({ length: 60 }, (_, l) => l).find((l) => upgradePrice(NICHE_UPGRADE_BASE.roots, l) === sow);
     expect(level, `Wurzelraum-Stufe mit Preis ${sow}`).toBeDefined();
@@ -148,47 +153,44 @@ describe('nextGoal: Auswahl', () => {
     s.plants = ['moss', 'fern'].slice(0, plantSlots(2));
     s.cycle.upgrades.niches.roots = 40;
     s.cycle.upgrades.tree = { rings: 30, leaves: 30, mycorrhiza: 30 };
+    expect(NICHE_UPGRADE_BASE.litter).toBe(NICHE_UPGRADE_BASE.edge);
     expect(nextGoal(s, 1)).toMatchObject({ target: { kind: 'niche', id: 'litter' }, cost: NICHE_UPGRADE_BASE.litter });
-    // Nische und Baumteil gleich teuer: die Nische.
-    const pair = (() => {
-      for (let a = 0; a < 80; a++) for (let b = 0; b < 80; b++) if (upgradePrice(NICHE_UPGRADE_BASE.roots, a) === upgradePrice(TREE_UPGRADE_BASE, b)) return [a, b] as const;
-      return null;
-    })();
-    expect(pair).not.toBeNull();
-    const t = sprout();
-    t.cycle.upgrades.niches.roots = pair![0];
-    t.cycle.upgrades.tree = { rings: pair![1], leaves: pair![1], mycorrhiza: pair![1] };
-    expect(nextGoal(t, 1e-9)!.target).toEqual({ kind: 'niche', id: 'roots' });
+    // Nische und Baumteil gleich teuer: die Nische. Mit Faktor 1,2 und den Startpreisen 20/30
+    // (seit Phase 11, 3a) haben Wurzelraum und Baumteile nie denselben Preis – darum prüft der
+    // Test die Reihenfolge, die bei Gleichstand gilt: Nischen stehen vor den Baumteilen, und
+    // gewählt wird der erste der billigsten (wie oben bei Laubstreu/Waldsaum).
+    const kinds = goalCandidates(s, 1).map((c) => c.kind);
+    expect(kinds.lastIndexOf('niche')).toBeLessThan(kinds.indexOf('tree'));
   });
 
   it('Zeit: fehlende Samen ÷ Rate; Vorgabe ist die Live-Rate aus evaluate', () => {
     const s = sprout();
     s.seeds = 4;
-    expect(nextGoal(s, 2)).toMatchObject({ cost: 10, seconds: 3 });
+    expect(nextGoal(s, 2)).toMatchObject({ cost: 20, seconds: 8 });
     const rate = evaluate(s).seeds;
     expect(rate).toBeGreaterThan(0);
-    expect(nextGoal(s)!.seconds).toBeCloseTo(6 / rate, 9);
+    expect(nextGoal(s)!.seconds).toBeCloseTo(16 / rate, 9);
   });
 
   it('Grenzfälle: NaN-Samen zählen als 0, NaN/negative Rate wie 0, riesige Samen = jetzt', () => {
     const s = sprout();
     s.seeds = Number.NaN;
-    expect(nextGoal(s, 1)).toMatchObject({ cost: 10, seconds: 10 });
+    expect(nextGoal(s, 1)).toMatchObject({ cost: 20, seconds: 20 });
     expect(nextGoal(s, Number.NaN)!.seconds).toBe(Infinity);
     expect(nextGoal(s, -5)!.seconds).toBe(Infinity);
     s.seeds = 1e300;
-    expect(nextGoal(s, 0)).toMatchObject({ cost: 10, seconds: 0 });
+    expect(nextGoal(s, 0)).toMatchObject({ cost: 20, seconds: 0 });
     expect(secondsUntilAffordable(10, Infinity, 0)).toBe(0);
     expect(secondsUntilAffordable(10, -3, 1)).toBe(10);
   });
 
   it('nach einem Kauf: die nächste Stufe bzw. ein anderes Ziel', () => {
     const s = sprout();
-    s.seeds = 10;
+    s.seeds = 20;
     expect(nextGoal(s, 0)).toMatchObject({ target: { id: 'roots' }, level: 1 });
     expect(upgradeNiche(s, 'roots').ok).toBe(true);
-    // Wurzelraum 2 kostet ⌈11,5⌉ = 12, Baumteile 15.
-    expect(nextGoal(s, 0)).toMatchObject({ target: { id: 'roots' }, level: 2, cost: 12 });
+    // Wurzelraum 2 kostet 20 · 1,2 = 24, Baumteile 30.
+    expect(nextGoal(s, 0)).toMatchObject({ target: { id: 'roots' }, level: 2, cost: 24 });
   });
 });
 

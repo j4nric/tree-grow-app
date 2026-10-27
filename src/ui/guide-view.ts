@@ -73,6 +73,7 @@ import { researchSlotNodes } from './regular-wait';
 import { fruitPhrase } from './cycle-view';
 import { siteEventText, siteWeatherText } from './landscape-view';
 import { formatDuration, formatNumber } from './format';
+import { formatPlusPercent } from './upgrade-view';
 
 export interface GuideSection {
   id: string;
@@ -425,7 +426,7 @@ function upgradeSection(): GuideSection {
     icon: '🪺',
     title: 'Ausbau',
     paragraphs: [
-      `Wohin mit den Samen? In den Ausbau – er hat kein Ende. Im Reiter „Nischen“ baust du jede offene Nische aus: Je Stufe bekommt jedes Tier dort +${formatNumber(NICHE_UPGRADE_PCT)} % Wachstum und Samen, mal seiner Zufriedenheit. Ganz oben unter „🌳 Dein Baum“ wachsen ${all(parts)}.`,
+      `Wohin mit den Samen? In den Ausbau – er hat kein Ende. Im Reiter „Nischen“ baust du jede offene Nische aus: Je Stufe bekommt jedes Tier dort ${formatPlusPercent(NICHE_UPGRADE_PCT)} Wachstum und Samen, mal seiner Zufriedenheit. Ganz oben unter „🌳 Dein Baum“ wachsen ${all(parts)}.`,
       `Die erste Stufe kostet je nach Nische ${span(bases)} 🌰, an deinem Baum ${formatNumber(TREE_UPGRADE_BASE)} 🌰; jede weitere ${formatNumber(Math.round((UPGRADE_GROWTH - 1) * 100))} % mehr als die vorige. Oben rechts im Reiter wählst du, wie viel ein Knopf kauft: ×1, ×10 oder Max – so viele Stufen, wie die Samen reichen. Reicht es noch nicht, steht am Knopf, wie lange es dauert.`,
       `Meilensteine jeder Nische: ${all(milestones)}. Am Baum: ${all(partMilestones)}. Ein Platz aus dem Ausbau zählt nur in einer Nische, die schon offen ist – verschlossene Nischen lassen sich erst ausbauen, wenn sie sich öffnen.`,
       `Mit dem Neuen Zyklus beginnt der Ausbau von vorn. Was bleibt, sind die Abzeichen – ${all(badges)} –, am Etikett der Nische und in der Statistik unter „Höchste Ausbaustufen“.`,

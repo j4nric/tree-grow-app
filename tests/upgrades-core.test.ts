@@ -5,9 +5,11 @@ import { NICHE_IDS } from '../src/content/types';
 import {
   MAX_UPGRADE_LEVEL,
   NICHE_UPGRADE_BASE,
+  NICHE_UPGRADE_PCT,
   TREE_PARTS,
   TREE_PART_IDS,
   TREE_UPGRADE_BASE,
+  UPGRADE_GROWTH,
 } from '../src/content/upgrades';
 import {
   evaluate,
@@ -85,14 +87,16 @@ function toV17(state: GameState): string {
   return JSON.stringify(raw);
 }
 
+// Zahlen seit der Messung Phase 11, 3a (DESIGN_V2.md 28.10): Faktor 1,2 statt 1,15, Startpreise ×2
+// (Wurzelraum 20, Baumteile 30). Die Tabellen hier folgen der Tabelle 28.4.
 describe('Preise (28.4)', () => {
   it('Tabelle 28.4: Preis der Stufe 1 / 10 / 25 / 50 und Summen bis 10 / 25 / 50', () => {
     const rows: [number, number[], number[]][] = [
-      [10, [10, 36, 287, 9_424], [209, 2_141, 72_203]],
-      [25, [25, 88, 716, 23_558], [512, 5_332, 180_470]],
-      [60, [60, 212, 1_718, 56_539], [1_222, 12_779, 433_087]],
-      [250, [250, 880, 7_157, 235_578], [5_081, 53_211, 1_804_452]],
-      [600, [600, 2_111, 17_176, 565_387], [12_186, 127_687, 4_330_655]],
+      [20, [20, 104, 1_590, 151_674], [522, 9_448, 909_966]],
+      [50, [50, 258, 3_975, 379_185], [1_301, 23_609, 2_274_882]],
+      [120, [120, 620, 9_540, 910_044], [3_118, 56_646, 5_459_684]],
+      [500, [500, 2_580, 39_749, 3_791_850], [12_981, 236_000, 22_748_617]],
+      [1_200, [1_200, 6_192, 95_397, 9_100_439], [31_153, 566_390, 54_596_654]],
     ];
     for (const [base, prices, sums] of rows) {
       expect([1, 10, 25, 50].map((l) => upgradePrice(base, l - 1)), String(base)).toEqual(prices);
@@ -100,42 +104,45 @@ describe('Preise (28.4)', () => {
     }
   });
 
-  it('Startpreise aus den Daten: Nischen b_n, Baumteile 15 🌰', () => {
+  it('Startpreise aus den Daten: Nischen b_n, Baumteile 30 🌰', () => {
     const state = stateAt(1);
     for (const id of NICHE_IDS) expect(upgradeCost(state, { kind: 'niche', id })).toBe(NICHE_UPGRADE_BASE[id]);
     for (const id of TREE_PART_IDS) expect(upgradeCost(state, { kind: 'tree', id })).toBe(TREE_UPGRADE_BASE);
-    // 600 · 1,15 und 60 · 1,15 sind ganz – Gleitkomma-Rauschen darf nicht aufrunden.
-    expect(upgradePrice(600, 1)).toBe(690);
-    expect(upgradePrice(60, 1)).toBe(69);
+    // Ganze Preise bleiben ganz: 1.200 · 1,2 und 120 · 1,2; 125 · 1,2³ = 216 liegt als
+    // Gleitkommazahl knapp darunter (215,999…) und rundet auf 216.
+    expect(upgradePrice(1_200, 1)).toBe(1_440);
+    expect(upgradePrice(120, 1)).toBe(144);
+    expect(upgradePrice(125, 3)).toBe(216);
   });
 
-  it('hohe Stufen exakt: ⌈b · 23^L / 20^L⌉ mit ganzen Zahlen nachgerechnet', () => {
-    /** Exakter Preis mit BigInt (1,15 = 23/20). */
+  it('hohe Stufen exakt: ⌈b · 6^L / 5^L⌉ mit ganzen Zahlen nachgerechnet', () => {
+    expect(UPGRADE_GROWTH).toBe(1.2);
+    /** Exakter Preis mit BigInt (1,2 = 6/5). */
     const exact = (base: number, level: number) => {
-      const num = BigInt(base) * 23n ** BigInt(level);
-      const den = 20n ** BigInt(level);
+      const num = BigInt(base) * 6n ** BigInt(level);
+      const den = 5n ** BigInt(level);
       return Number((num + den - 1n) / den);
     };
-    // Wurzelraum ab Stufe 120 (Preis 120 → 121): 10 · 1,15^120 = 192.194.450,019… → 192.194.451.
-    expect(upgradePrice(10, 120)).toBe(192_194_451);
-    expect(exact(10, 120)).toBe(192_194_451);
+    // Wurzelraum ab Stufe 120 (Preis 120 → 121): 20 · 1,2^120 = 63.500.847.475,6… → 63.500.847.476.
+    expect(upgradePrice(20, 120)).toBe(63_500_847_476);
+    expect(exact(20, 120)).toBe(63_500_847_476);
     let checked = 0;
-    for (const base of [10, 15, 25, 60, 250, 600]) {
-      // Bis 1e12: darüber reicht die Genauigkeit von Math.pow(1,15, L) nicht mehr sicher für Einer.
-      for (let level = 0; base * Math.pow(1.15, level) < 1e12; level++) {
-        expect(upgradePrice(base, level), `${base} · 1,15^${level}`).toBe(exact(base, level));
+    for (const base of [20, 30, 50, 120, 500, 1_200]) {
+      // Bis 1e12: darüber reicht die Genauigkeit von Math.pow(1,2, L) nicht mehr sicher für Einer.
+      for (let level = 0; base * Math.pow(1.2, level) < 1e12; level++) {
+        expect(upgradePrice(base, level), `${base} · 1,2^${level}`).toBe(exact(base, level));
         checked++;
       }
     }
-    expect(checked).toBeGreaterThan(900);
+    expect(checked).toBeGreaterThan(700);
   });
 
   it('upgradeCost mit count = Summe der Einzelpreise ab der aktuellen Stufe', () => {
     const state = stateAt(1);
     state.cycle.upgrades.niches.roots = 9;
-    expect(upgradeCost(state, ROOTS)).toBe(36);
-    expect(upgradeCost(state, ROOTS, 3)).toBe(upgradePrice(10, 9) + upgradePrice(10, 10) + upgradePrice(10, 11));
-    expect(upgradeCost(state, ROOTS, 16)).toBe(sumTo(10, 25) - sumTo(10, 9));
+    expect(upgradeCost(state, ROOTS)).toBe(104);
+    expect(upgradeCost(state, ROOTS, 3)).toBe(upgradePrice(20, 9) + upgradePrice(20, 10) + upgradePrice(20, 11));
+    expect(upgradeCost(state, ROOTS, 16)).toBe(sumTo(20, 25) - sumTo(20, 9));
   });
 
   it('Grenzfälle: Stufe NaN/±Infinity/MAX, kaputter Startpreis, Kaufmenge 0/NaN/Infinity, unbekanntes Ziel', () => {
@@ -151,7 +158,7 @@ describe('Preise (28.4)', () => {
     expect(normalizeUpgradeCount(2.9)).toBe(2);
     expect(normalizeUpgradeCount(Infinity)).toBe(MAX_UPGRADE_LEVEL);
     expect(upgradeCostFrom(10, MAX_UPGRADE_LEVEL - 1, 2)).toBe(Infinity);
-    // Alle 1.000 Stufen zusammen: riesig, aber endlich (10 · 1,15^999 ≈ 1e61).
+    // Alle 1.000 Stufen zusammen: riesig, aber endlich (10 · 1,2^999 ≈ 1e80).
     expect(upgradeCostFrom(10, 0, Infinity)).toBeGreaterThan(1e60);
     expect(Number.isFinite(upgradeCostFrom(10, 0, Infinity))).toBe(true);
     const state = stateAt(1);
@@ -162,8 +169,8 @@ describe('Preise (28.4)', () => {
   it('affordableUpgrades kauft in Reihenfolge, nur was die Samen tragen', () => {
     expect(affordableUpgrades(10, 0, 0, 5)).toEqual({ count: 0, cost: 0 });
     expect(affordableUpgrades(10, 0, 10, 5)).toEqual({ count: 1, cost: 10 });
-    expect(affordableUpgrades(10, 0, 209, Infinity)).toEqual({ count: 10, cost: 209 });
-    expect(affordableUpgrades(10, 0, 208.9, Infinity)).toEqual({ count: 9, cost: sumTo(10, 9) });
+    expect(affordableUpgrades(20, 0, 522, Infinity)).toEqual({ count: 10, cost: 522 });
+    expect(affordableUpgrades(20, 0, 521.9, Infinity)).toEqual({ count: 9, cost: sumTo(20, 9) });
     expect(affordableUpgrades(10, 0, NaN, 5)).toEqual({ count: 0, cost: 0 });
     expect(affordableUpgrades(10, 0, Infinity, Infinity).count).toBe(MAX_UPGRADE_LEVEL);
     expect(affordableUpgrades(10, 0, Number.MAX_VALUE, Infinity).count).toBe(MAX_UPGRADE_LEVEL);
@@ -181,10 +188,10 @@ describe('Aktionen upgradeNiche, upgradeTree, upgradeBlocker (28.4)', () => {
     const sprout = stateAt(1);
     expect(upgradeBlocker(sprout, ROOTS)).toBe('too-expensive');
     expect(upgradeBlocker(sprout, RINGS)).toBe('too-expensive');
-    sprout.seeds = 10;
+    sprout.seeds = NICHE_UPGRADE_BASE.roots;
     expect(upgradeBlocker(sprout, ROOTS)).toBeNull();
     expect(upgradeBlocker(sprout, RINGS)).toBe('too-expensive');
-    sprout.seeds = 15;
+    sprout.seeds = TREE_UPGRADE_BASE;
     expect(upgradeBlocker(sprout, RINGS)).toBeNull();
     // Laubstreu öffnet erst beim Setzling, Waldtümpel nur mit Forschung, Höhlen beim Alten Baum.
     expect(upgradeBlocker(sprout, { kind: 'niche', id: 'litter' })).toBe('closed');
@@ -201,34 +208,34 @@ describe('Aktionen upgradeNiche, upgradeTree, upgradeBlocker (28.4)', () => {
     const state = stateAt(1);
     state.seeds = 100;
     const result = upgradeNiche(state, 'roots', 10);
-    // 10 + 12 + 14 + 16 + 18 + 21 = 91; die siebte Stufe (24) reicht nicht mehr.
+    // 20 + 24 + 29 = 73; die vierte Stufe (35) reicht nicht mehr.
     expect(result).toEqual({
       ok: true,
-      seeds: -91,
-      upgrade: { target: ROOTS, bought: 6, spent: 91, level: 6, milestones: [] },
+      seeds: -73,
+      upgrade: { target: ROOTS, bought: 3, spent: 73, level: 3, milestones: [] },
     });
-    expect(state.seeds).toBe(9);
-    expect(upgradeLevelOf(state, ROOTS)).toBe(6);
-    expect(state.meta.upgrades.best.niches.roots).toBe(6);
-    expect(state.meta.stats.upgradesBought).toBe(6);
-    expect(state.meta.stats.upgradeSeeds).toBe(91);
+    expect(state.seeds).toBe(27);
+    expect(upgradeLevelOf(state, ROOTS)).toBe(3);
+    expect(state.meta.upgrades.best.niches.roots).toBe(3);
+    expect(state.meta.stats.upgradesBought).toBe(3);
+    expect(state.meta.stats.upgradeSeeds).toBe(73);
     // Nichts mehr bezahlbar: nichts geändert.
-    state.seeds = 23;
+    state.seeds = 34;
     expect(upgradeNiche(state, 'roots')).toEqual({ ok: false, error: 'too-expensive' });
-    expect(state.seeds).toBe(23);
-    expect(upgradeLevelOf(state, ROOTS)).toBe(6);
+    expect(state.seeds).toBe(34);
+    expect(upgradeLevelOf(state, ROOTS)).toBe(3);
     // Standard: eine Stufe; kaputte Kaufmenge wie 1.
     state.seeds = 1000;
     expect(upgradeNiche(state, 'roots', NaN).ok).toBe(true);
-    expect(upgradeLevelOf(state, ROOTS)).toBe(7);
+    expect(upgradeLevelOf(state, ROOTS)).toBe(4);
     expect(upgradeNiche(state, 'roots', 0).ok).toBe(true);
-    expect(upgradeLevelOf(state, ROOTS)).toBe(8);
+    expect(upgradeLevelOf(state, ROOTS)).toBe(5);
   });
 
   it('Max (count = Infinity) kauft alles Bezahlbare, upgradeAffordable sagt es vorher', () => {
     const state = stateAt(1);
-    state.seeds = sumTo(15, 25) + 3;
-    expect(upgradeAffordable(state, RINGS)).toEqual({ count: 25, cost: sumTo(15, 25) });
+    state.seeds = sumTo(TREE_UPGRADE_BASE, 25) + 3;
+    expect(upgradeAffordable(state, RINGS)).toEqual({ count: 25, cost: sumTo(TREE_UPGRADE_BASE, 25) });
     const result = upgradeTree(state, 'rings', Infinity);
     expect(result.ok && result.upgrade?.bought).toBe(25);
     expect(state.seeds).toBe(3);
@@ -346,13 +353,13 @@ describe('Wirkung in evaluate (28.4)', () => {
     expect(evaluateEcosystem({ ...base, upgrades: levels({ roots: 0 }, { rings: 0 }) })).toEqual(evaluateEcosystem(base));
   });
 
-  it('je Tier +0,1 % · L · z auf 🌿 und 🌰', () => {
+  it('je Tier +NICHE_UPGRADE_PCT % · L · z auf 🌿 und 🌰 (seit 3a 0,06 %)', () => {
     const base = eco(5, { niches: { ...emptyNiches(), roots: ['earthworm', 'mole'], crown: ['bluetit'] } });
     const before = evaluateEcosystem(base);
     const after = evaluateEcosystem({ ...base, upgrades: levels({ roots: 25 }) });
     const z = before.animals.earthworm!.happiness + before.animals.mole!.happiness;
-    expect(after.growthBonus - before.growthBonus).toBeCloseTo(0.025 * z, 12);
-    expect(after.seedsBonus - before.seedsBonus).toBeCloseTo(0.025 * z, 12);
+    expect(after.growthBonus - before.growthBonus).toBeCloseTo((25 * NICHE_UPGRADE_PCT / 100) * z, 12);
+    expect(after.seedsBonus - before.seedsBonus).toBeCloseTo((25 * NICHE_UPGRADE_PCT / 100) * z, 12);
     // Nur 🌿 und 🌰: Harmonie, Zufriedenheit, Licht, Wasser unverändert.
     expect(after.harmony).toBe(before.harmony);
     expect(after.animals).toEqual(before.animals);
@@ -474,7 +481,7 @@ describe('Neuer Zyklus (28.4)', () => {
     expect(state.meta.stats.upgradesBought).toBe(bought);
     expect(bought).toBe(42);
     // Ein frischer Zyklus beginnt wieder beim Startpreis.
-    expect(upgradeCost(state, ROOTS)).toBe(10);
+    expect(upgradeCost(state, ROOTS)).toBe(NICHE_UPGRADE_BASE.roots);
   });
 });
 
@@ -546,9 +553,9 @@ describe('Spielstand v18 (28.8)', () => {
     const loaded = loadGame(toV17(state), 0)!.state;
     expect(loaded.seeds).toBe(1e6);
     upgradeNiche(loaded, 'roots', Infinity);
-    // Logarithmus: 1 Mio. 🌰 ≈ Wurzelraum 68 (Σ 10 · 1,15^L ≈ 10 · 1,15^68 / 0,15).
-    expect(upgradeLevelOf(loaded, ROOTS)).toBe(68);
-    expect(loaded.seeds).toBeLessThan(upgradePrice(10, 68));
+    // Logarithmus: 1 Mio. 🌰 ≈ Wurzelraum 50 (Σ 20 · 1,2^L ≈ 20 · 1,2^50 / 0,2; bis 3a: 68).
+    expect(upgradeLevelOf(loaded, ROOTS)).toBe(50);
+    expect(loaded.seeds).toBeLessThan(upgradePrice(20, 50));
   });
 
   it('jede Version v2 … v17 lädt als v18 ohne Ausbau', () => {

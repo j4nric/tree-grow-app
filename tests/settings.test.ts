@@ -219,10 +219,12 @@ describe('Spielanleitung', () => {
 
   it('Ausbau (28.4/28.9): Wirkung, Preise, Kaufmenge, Meilensteine und Abzeichen aus content', () => {
     const t = text('upgrades');
-    expect(t).toContain('+0,1 % Wachstum und Samen');
+    // Zahlen seit der Messung Phase 11, 3a (+0,06 %, Startpreise ×2, Faktor 1,2; DESIGN_V2.md 28.10).
+    expect(t).toContain('+0,06 % Wachstum und Samen');
     expect(t).toContain('🪵 Jahresringe');
-    expect(t).toContain('10–600 🌰');
-    expect(t).toContain('15 % mehr als die vorige');
+    expect(t).toContain('20–1.200 🌰');
+    expect(t).toContain('an deinem Baum 30 🌰');
+    expect(t).toContain('20 % mehr als die vorige');
     expect(t).toContain('×1, ×10 oder Max');
     expect(t).toContain('Stufe 25 „Gut bewohnt“: +1 Platz');
     expect(t).toContain('Jahresringe 25: +1 Platz Höhlen');

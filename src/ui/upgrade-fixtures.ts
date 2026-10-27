@@ -188,12 +188,14 @@ export const UPGRADE_FIXTURES: Readonly<Record<UpgradeFixtureId, { name: string;
     },
   },
   // Hain, typischer Stand nach 28.5 (Skizze 28.9): Wurzelraum kurz vor 25, Waldsaum vor 10.
+  // Samen und Rate seit Phase 11, 3a (Preise ×2, Faktor 1,2; Hain ~27 🌰/s): Waldsaum 10 ist
+  // bezahlbar, Wurzelraum 25 (1.590 🌰) in ~3 s.
   middle: {
     name: 'Mitte (Hain)',
     input: {
       stageName: 'Hain',
-      seeds: 240,
-      seedsPerSecond: 20,
+      seeds: 1_500,
+      seedsPerSecond: 30,
       growthPerSecond: 236,
       harmony: 62,
       research: 2,

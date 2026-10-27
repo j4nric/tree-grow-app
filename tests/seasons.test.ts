@@ -417,8 +417,9 @@ describe('Ziehen nach Jahreszeit (DESIGN_V2.md 16.4)', () => {
     const spring = stateWith(3, [], 'spring');
     const summer = stateWith(3, [], 'summer');
     spring.cycle.sowings = summer.cycle.sowings = 4;
-    expect(sowingCost(spring)).toBe(86); // ⌈107,1875 · 0,8⌉
-    expect(sowingCost(summer)).toBe(108);
+    // Faktor 1,6 seit Phase 11, 3a: 20 · 1,6³ = 81,92.
+    expect(sowingCost(spring)).toBe(66); // ⌈81,92 · 0,8⌉ = ⌈65,536⌉
+    expect(sowingCost(summer)).toBe(82);
   });
 
   it('Kraniche nicht im Winter, Bergfinken nicht im Frühling; Ereignisse nach ihrer Jahreszeit', () => {

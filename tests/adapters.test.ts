@@ -928,15 +928,15 @@ describe('Pflanzring in der Übersicht', () => {
     expect(ring.sowLabel).toBe('🌱 Säen');
     expect(ring.affordable).toBe(true);
     expect(ring.plantHint).toBe('');
-    // Dritte Aussaat im Frühling: ⌈35 · 0,8⌉ = 28 🌰, „Saatzeit“.
+    // Dritte Aussaat im Frühling: ⌈32 · 0,8⌉ = 26 🌰, „Saatzeit“ (Faktor 1,6 seit Phase 11, 3a).
     state.cycle.sowings = 2;
     const view = toEcosystemView(state, evaluate(state));
     expect(view.plantRing.sowCost).toBe(sowingCost(state));
-    expect(view.plantRing.sowCost).toBe(28);
-    expect(view.plantRing.sowCostLabel).toBe('28');
+    expect(view.plantRing.sowCost).toBe(26);
+    expect(view.plantRing.sowCostLabel).toBe('26');
     expect(view.plantRing.sowSeason).toBe(true);
     expect(view.plantRing.affordable).toBe(false);
-    expect(view.plantRing.plantHint).toBe(`Noch ${formatNumber(18)} 🌰 bis zur nächsten Aussaat`);
+    expect(view.plantRing.plantHint).toBe(`Noch ${formatNumber(16)} 🌰 bis zur nächsten Aussaat`);
     state.seeds = 1000;
     refreshEcosystemView(view, state);
     expect(view.plantRing.affordable).toBe(true);
@@ -944,7 +944,7 @@ describe('Pflanzring in der Übersicht', () => {
     state.cycle.elapsed = 180; // Sommer: keine Saatzeit
     refreshEcosystemView(view, state);
     expect(view.plantRing.sowSeason).toBe(false);
-    expect(view.plantRing.sowCost).toBe(35);
+    expect(view.plantRing.sowCost).toBe(32);
     // Offene Aussaat: Knopf öffnet sie.
     state.cycle.sowing = { cards: ['hazel'], rerolls: 0 };
     refreshEcosystemView(view, state);

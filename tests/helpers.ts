@@ -1,4 +1,4 @@
-import { CARE_TO_RESEARCH, RESEARCH } from '../src/content/research';
+import { CARE_TO_RESEARCH, RESEARCH, type ResearchEffect } from '../src/content/research';
 import { SEASONS_BY_ID } from '../src/content/seasons';
 import { SPECIES_BY_ID, type Species } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
@@ -199,4 +199,16 @@ export function offlineTick(state: GameState, from: number, dt: number, ambient:
 /** Ganze Abwesenheit in Schritten von `step` Sekunden (letzter Schritt ggf. kürzer), wie offlineTick. */
 export function offlineTicks(state: GameState, seconds: number, step: number, ambient: AmbientMode = 'average'): void {
   for (let t = 0; t < seconds; t += step) offlineTick(state, t, Math.min(step, seconds - t), ambient);
+}
+
+/** Steckt die Wirkung `e` (mindestens so stark) in `effects`? ⚖️, ☀️, 💧: gleiche Art, Wert ≥. */
+export function coversEffect(effects: readonly ResearchEffect[], e: ResearchEffect): boolean {
+  if (e.kind === 'cycle') {
+    const x = e.effect;
+    if (x.kind === 'harmony') return effects.some((f) => f.kind === 'cycle' && f.effect.kind === 'harmony' && f.effect.points >= x.points);
+    if (x.kind === 'light' || x.kind === 'water') {
+      return effects.some((f) => f.kind === 'cycle' && f.effect.kind === x.kind && f.effect.amount >= x.amount);
+    }
+  }
+  return effects.some((f) => JSON.stringify(f) === JSON.stringify(e));
 }

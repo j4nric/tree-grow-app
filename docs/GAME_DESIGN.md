@@ -72,8 +72,8 @@
 > Stammgast einen geschlossenen Tümpel, 26.3).
 >
 > **Phase 10 (`DESIGN_V2.md` 27, Spielstand v17):** Begegnungen nur noch mit Tieren (dazu
-> Ereignisse und Gäste), Pflanzen über die **Aussaat** (Samen, `20 · 1,75^(n−1)` 🌰 je Kauf im
-> Zyklus, erste gratis), die Pflege wird ein **Forschungsbaum** (6 Äste, 32 Knoten, 5 Gabeln) mit
+> Ereignisse und Gäste), Pflanzen über die **Aussaat** (Samen, `20 · 1,6^(n−1)` 🌰 je Kauf im
+> Zyklus, erste gratis; bis Phase 11, 3a 1,75), die Pflege wird ein **Forschungsbaum** (6 Äste, 32 Knoten, 5 Gabeln) mit
 > Kosten in **Harmonie**. Vorab-Messung und Ziele: `DESIGN_V2.md` 27.10/27.11.
 >
 > **Umgesetzt seit Phase 10, 2a (Spielstand v17):**
@@ -106,7 +106,8 @@
 > - **Aussaat** (27.6, `src/content/sowing.ts`): „🌱 Säen“ ab Keimling zieht sofort 3 Pflanzenkarten
 >   (`drawPlants`, schon wachsende ×0,35) und öffnet die Kartenwahl; die Karten liegen im Spielstand.
 >   Preis der Aussaat nach n Aussaaten im Zyklus: n = 0 gratis, sonst
->   `⌈20 · 1,75^(n−1) · Rabatt · Saatzeit⌉` 🌰 – 20, 35, 62, 108, 188, 329, 575, 1.006 …; Rabatt
+>   `⌈20 · 1,6^(n−1) · Rabatt · Saatzeit⌉` 🌰 – 20, 32, 52, 82, 132, 210, 336, 537 … (seit
+>   Phase 11, 3a; vorher 1,75: 20, 35, 62, 108 …); Rabatt
 >   „Samenbank“ −25 %, **Saatzeit** im Frühling ×0,8 (statt „Etwas keimt“ ×1,5). Jeder Kauf zählt,
 >   auch der Tausch im vollen Ring. Höchstens eine Aussaat offen; **Zurücklegen** bringt
 >   10 Samen-Sekunden (der Zähler bleibt), **Neu würfeln** 10 🌰 · 2^n („Anzuchtbeet“: der erste
@@ -129,16 +130,17 @@
 > **Phase 11 – Wachsen und Ausbauen (`DESIGN_V2.md` 28, Spielstand v18; Offline 10 % und Ausbau
 > umgesetzt, siehe unten; wiederholbare Knoten und Forschungsplan seit 2b, Zielzeile seit 2c):** Offline und im Hintergrund bringen Wachstum, Samen und Harmonie nach der ersten
 > Minute nur **10 %** (`OFFLINE_YIELD`), die Zeit läuft voll. Neue Samen-Senken ohne Obergrenze:
-> **Nischen-Ausbau** `⌈b_n · 1,15^L⌉` 🌰 (b_n 10 Wurzelraum … 600 Trockenmauer), je Stufe +0,1 % 🌿
+> **Nischen-Ausbau** `⌈b_n · 1,2^L⌉` 🌰 (b_n 20 Wurzelraum … 1.200 Trockenmauer), je Stufe +0,06 % 🌿
 > und 🌰 je Tier der Nische × Zufriedenheit, Meilensteine 10 (Arten der Nische ×1,5 in den Karten),
 > 25 (+1 Platz), 50 (seltene ×2), Abzeichen 25/50/75; **Baum-Ausbau** Jahresringe (Hauptbaum
-> +0,4 % 🌿), Blattwerk (+1 % 🌰), Pilzgeflecht (Begleitpflanzen +0,5 %), Startpreis 15. Je
+> +0,4 % 🌿), Blattwerk (+1 % 🌰), Pilzgeflecht (Begleitpflanzen +0,5 %), Startpreis 30 (Zahlen
+> seit der Messung 3a; Startwerte waren 1,15, b_n 10 … 600, +0,1 %, 15). Je
 > Forschungsast ein **wiederholbarer Knoten** (`⌈1.500 · 1,3^r⌉` ⚖️, ab Hain). Eine **Zielzeile**
 > nennt das nächste Ziel mit Zeit. Vorab-Messung (`DESIGN_V2.md` 28.2): heute ein Kauf alle
 > 2–8 min ab dem Jungen Baum, der Zufallsspieler gibt bis zum Hain 0,7 % seiner Samen aus, 8 h
 > offline tragen den Setzling bis zum Wald. Ziele: Takt 20–60 s, aktives Spiel 5–10 % schneller
-> (Hain 50–58 min), Wachstum ÷ Harmonie ≥ 0,85 (`DESIGN_V2.md` 28.10). Tabellen folgen nach der
-> Messung (Phase 11, 3a).
+> (Hain 50–58 min), Wachstum ÷ Harmonie ≥ 0,85 (`DESIGN_V2.md` 28.10). Gemessen in Phase 11, 3a
+> (Tabellen unten, „Umgesetzt seit Phase 11, 3a“).
 >
 > *Daten (Phase 11, 1a; Ausbau seit 2a verdrahtet, endlose Knoten seit 2b):* Ausbau in `src/content/upgrades.ts`
 > (`NICHE_UPGRADE_BASE`, `UPGRADE_GROWTH`, `NICHE_UPGRADE_PCT`, `TREE_PARTS`, `NICHE_MILESTONES`,
@@ -175,7 +177,8 @@
 > - **Nischen-Ausbau:** Preis der Stufe L → L+1 `⌈b_n · 1,15^L⌉` 🌰 (b_n: Wurzelraum 10,
 >   Laubstreu/Waldsaum 25, Krone/Stamm/Waldwiese 60, Höhlen/Totholzhaufen/Waldtümpel 250,
 >   Trockenmauer 600; Wurzelraum St. 1/10/25/50 = 10/36/287/9.424, Summe bis 10/25/50 =
->   209/2.141/72.203). Je Tier der Nische +0,1 % · L 🌿 und 🌰, × seine Zufriedenheit (wie eine
+>   209/2.141/72.203 – **Startwerte; seit 3a Faktor 1,2 und b_n ×2, Tabelle unten**). Je Tier der
+>   Nische +0,1 % · L (seit 3a +0,06 % · L) 🌿 und 🌰, × seine Zufriedenheit (wie eine
 >   eigene Tierwirkung, additiv im Wachstums- bzw. Samenbonus). Nur offene Nischen: Sperre
 >   `'closed'`, solange die Nische **ohne** Ausbau-Plätze keinen Platz hat; schließt sie sich,
 >   ruht die Stufe.
@@ -185,7 +188,7 @@
 >   **Ausbau-Plätze öffnen nie eine Nische** – sie zählen erst, wenn alle übrigen Quellen
 >   (Stufe, Forschung, Ereignisse, Baumart, Standort, Tiere inkl. `opensEarly`) mindestens einen
 >   Platz geben.
-> - **Baum-Ausbau** (ab Keimling, Startpreis 15, Faktor 1,15): Jahresringe Hauptbaum +0,4 % 🌿 je
+> - **Baum-Ausbau** (ab Keimling, Startpreis 15, Faktor 1,15; seit 3a 30 und 1,2): Jahresringe Hauptbaum +0,4 % 🌿 je
 >   Stufe (`tree · (1 + Gruppe Bäume + 0,004 L)`), ab 25 +1 Platz Höhlen; Blattwerk Hauptbaum +1 %
 >   🌰 je Stufe, ab 25 +1 Platz Krone; Pilzgeflecht Begleitpflanzen +0,5 % 🌿 und 🌰 je Stufe (vor
 >   der Versorgung V), ab 25 +1 💧.
@@ -196,7 +199,7 @@
 >   höchste je erreichte Stufe bleibt (`meta.upgrades.best`), dazu die Statistik
 >   `upgradesBought`/`upgradeSeeds`.
 > - **Spielstand v18:** Migration v17 → v18 ohne Verlust (Ausbau leer, Samen bleiben – 1 Mio. 🌰
->   reichen für Wurzelraum 68); robustes Laden: Stufen ganzzahlig 0 … 1.000, sonst 0, unbekannte
+>   reichen für Wurzelraum 68, seit 3a für 50); robustes Laden: Stufen ganzzahlig 0 … 1.000, sonst 0, unbekannte
 >   Nischen und Teile fallen weg, Bestmarke nie unter der Stufe im Zyklus, Ränge nur für
 >   wiederholbare Knoten hinter ihrer Gabel (1 … 200). Ein v17-Gerät lehnt v18 ab (`newer`,
 >   `outdated-client`).
@@ -246,7 +249,7 @@
 >   (0 = jetzt, ohne Rate keine Zeit); `null` vor dem Keimling. `researchAvailable(state)` zählt
 >   die Knoten ohne Sperrgrund (`researchBlocker`) für den Anhang „🔍 2 erforschbar ›“.
 > - **Oberfläche (einfach bis 4c):** Zeile unter den Etiketten im Polaroid-Kopf („Nächstes: 🪱
->   Wurzelraum St. 25 (+1 Platz) · 287 🌰 · in 1:40“ bzw. „Jetzt: … ›“), Tippen öffnet den Reiter
+>   Wurzelraum St. 25 (+1 Platz) · 1.590 🌰 · in 1:40“ bzw. „Jetzt: … ›“), Tippen öffnet den Reiter
 >   Nischen bzw. Forschung. Neu gewählt nur nach Kauf, Säen, Forschung, Stufen- oder
 >   Zykluswechsel und Laden; dazwischen laufen Preis und Zeit nur mit.
 > - **Drei Erfolge des Ausbaus** (Bedingungsart `upgrade`): „Gut bewohnt“ (eine Nische auf
@@ -254,9 +257,42 @@
 >   `meta.upgrades.best`, darum beim ersten Prüfen nach dem Laden nachgetragen – und „Rundum
 >   eingelebt“ (alle zehn Nischen in einem Zyklus auf 10, geprüft vor dem Neuen Zyklus).
 >
+> **Gemessen in Phase 11, 3a (ohne Spielstand-Änderung, nur Zahlen in `src/content/`; `DESIGN_V2.md`
+> 28.10 „Messung 3a“, 27.10, 28.2, 15.4):** 500 Durchgänge je Strategie mit Ausbau-Strategie im
+> Simulator (billigstes Ziel zuerst wie die Zielzeile, Säen mit Vorrang, Zufall zufällig unter den
+> bezahlbaren, Rücklage 60 Samen-Sekunden).
+>
+> | Zahl | Startwert | seit 3a | Grund (gemessen) |
+> |---|---|---|---|
+> | `UPGRADE_GROWTH` | 1,15 | **1,2** | Takt im Jungen/Alten Baum 9/11 s → 15/23 s (Ziel 20–60 s) |
+> | `NICHE_UPGRADE_BASE` | 10 / 25 / 60 / 250 / 600 | **20 / 50 / 120 / 500 / 1.200** | Kaufrausch am Anfang ruhiger (Takt Setzling 13 s), kaum Tempo-Wirkung |
+> | `TREE_UPGRADE_BASE` | 15 | **30** | wie die Nischen |
+> | `NICHE_UPGRADE_PCT` | 0,1 % | **0,06 %** | Urwald 1:52 h → 2:02 h (Ziel 2:00–2:13 h); Jahresringe 0,4 % bleiben (0,2 brachte nur +2 min) |
+> | `SOWING_GROWTH` | 1,75 | **1,6** | Aussaaten bis Hain neben dem Ausbau: Wachstum 7,3 → 8,9 (Ziel 8–15, ≥ 2 Tausch) |
+> | Käferburg | +2 ⚖️ | **+3 ⚖️** | Gabel Boden: Harmonie-Spieler 4 % → 61 % Käferburg |
+> | Dichte Krone | +1 Platz Krone, −2 ☀️ | **+1 Platz Krone, +1 Platz Höhlen, −1 ☀️, +1 ⚖️** | Gabel Krone: 94 % → 62 % Lichte Krone |
+> | Quellbach | +3 💧, Moose & Farne +30 %, Amphibien +10 % | **… +40 %, +15 %, +3 ⚖️** | Gabel Wasser: 99 % → 66 % Tümpel vertiefen |
+>
+> Nischen-Ausbau heute: Wurzelraum St. 1/10/25/50 = 20/104/1.590/151.674 🌰, Summe bis 10/25/50 =
+> 522/9.448/909.966; Baumteile 30/155/2.385/227.511; je Tier +0,06 % · L. Aussaat 20, 32, 52, 82, 132,
+> 210, 336, 537 … 🌰.
+>
+> | Ergebnis (Harmonie / Wachstum / Zufall) | Hain | Urwald | H am Hain | 🌰 ausgegeben bis Hain | Bestand | Takt 🌰 Alter Baum / Hain / Wald |
+> |---|---|---|---|---|---|---|
+> | Phase 11 vor 3a (28.2, ohne Ausbau) | 57:30 / 49:48 min / 1:29 h | 2:19 h (H) | 116,8 | 73 % / – / 0,7 % | 9,1 / – / 55 min | 3:46–8:13 min |
+> | **3a** | **54:27 / 48:48 min / 1:17 h** | **2:02 / 1:49 / 3:02 h** | **118,5** | **96 / 96 / 97 %** | **1,1–1,3 min** | **23 / 28 / 33 s** |
+>
+> Alle Ziele aus 27.11 und 28.10 für den ersten Zyklus erfüllt (Wachstum ÷ Harmonie 0,896 / 0,894,
+> ⚖️-Vorrat ≤ 6,6 min, 8 h offline am Hain 7 Wegpunkte und keine Stufe, Gedächtnis-Vorsprung 21,5)
+> bis auf: Gabel Saat (Samenbank 100 % – der Simulator würfelt Aussaaten nicht neu, Anzuchtbeet nur
+> pauschal bewertet), Takt im Setzling/Jungen Baum 13–15 s (Kaufrausch, gewollt), Tempo am Hain
+> gegen „ohne Ausbau“ −4,2 % (absolut im Ziel). Zyklus 2 (−47,8 %) und die Gedächtnis-Grenzen misst
+> und stellt 3b nach.
+>
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
-> `scripts/simulate.ts`, `tests/balance.test.ts` (mit Forschung, bis v16 Pflege), `tests/balance-cycles.test.ts`
+> `scripts/simulate.ts`, `tests/balance.test.ts` (mit Forschung und seit Phase 11, 3a mit Ausbau, bis v16 Pflege),
+> `tests/balance-upgrades.test.ts` (mit gegen ohne Ausbau), `tests/balance-cycles.test.ts`
 > (mit Neustart in Hain, Wald, Urwald), `tests/seasons-balance.test.ts` und
 > `tests/daily-balance.test.ts` (Einstellungen in `tests/balance-setup.ts`, geteilte
 > Durchgänge in `tests/balance-runs.ts`). Großer Lauf mit allen Tabellen: `npm run balance`.

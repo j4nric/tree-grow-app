@@ -27,7 +27,7 @@ import {
 } from '../src/core/tick';
 import { isNewerSchema } from '../src/sync/policy';
 import { CARE_V16, CARE_V16_BY_ID } from './fixtures/care-v16';
-import { offlineTick, stateAt } from './helpers';
+import { coversEffect, offlineTick, stateAt } from './helpers';
 
 /*
  * Forschung und Harmonie-Vorrat (DESIGN_V2.md 27.3, 27.4, 27.7–27.9; Phase 10, 2a).
@@ -154,8 +154,10 @@ describe('Forschung: Erforschen und Wirkung', () => {
     const before = evaluate(state);
     research(state, 'dense-crown');
     const after = evaluate(state);
-    expect(after.light).toBeCloseTo(Math.max(0, before.light - 2));
+    // Seit Phase 11, 3a −1 statt −2 ☀️, dazu +1 Platz Höhlen (Gabel Krone, 27.11).
+    expect(after.light).toBeCloseTo(Math.max(0, before.light - 1));
     expect(after.slots.crown).toBe(before.slots.crown + 1);
+    expect(after.slots.hollows).toBe(before.slots.hollows + 1);
     const dark = rich(4);
     dark.cycle.research = ['nest-boxes', 'dense-crown'];
     dark.stage = 0; // Samen: 0 Licht
@@ -509,11 +511,13 @@ describe('Migration v16 → v17 (27.9)', () => {
           const any = node(id).requiresAny ?? [];
           expect(any.length === 0 || any.some((p) => before.includes(p)), `${label}: ${id}`).toBe(true);
         });
-        // Jede Wirkung der gekauften Ränge steckt in den Knoten.
+        // Jede Wirkung der gekauften Ränge steckt in den Knoten – mindestens so stark (Phase 11, 3a
+        // hat Käferburg und Dichte Krone gestärkt: mehr ⚖️, weniger Schatten).
         const effects = researchEffects(research);
+        const owned = effects.effects.map((effect) => ({ kind: 'cycle' as const, effect }));
         for (const r of measure.ranks.slice(0, rank)) {
           for (const e of r.effects) {
-            if (e.kind === 'cycle') expect(effects.effects, label).toContainEqual(e.effect);
+            if (e.kind === 'cycle') expect(coversEffect(owned, e), `${label}: ${JSON.stringify(e)}`).toBe(true);
             else expect(effects.habitats, label).toContain(e.tag);
           }
         }
