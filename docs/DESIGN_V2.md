@@ -8592,8 +8592,8 @@ Produktion, gleiche Zahl).
 | Zwei Währungen überfordern Einsteiger | gering | ⚖️ erst ab Setzling sichtbar (vorher nur „Harmonie 50/min“), Spielanleitung, erster Knoten mit Hinweis „Harmonie ausgeben“ |
 | Phase 9 (v16) läuft parallel | sicher | 2a erst nach Phase 9, 2b; Phase 9, 2c (Chronik-Messung) erst nach Phase 10, 3b |
 | Gedächtnisfaktor G auf den Ertrag macht späte Zyklen „zu reich“ | gering | gleiche Skalierung wie heute die Samen (27.3); 3b prüft Knoten je Zyklus in der Landschaft |
-| Ereignis-Option „+N ⚖️“ als Sofort-Harmonie (Harmonie-Sekunden)? | offen | nicht in Phase 10; nach dem Playtest 5b |
-| Urwald-Ebene im Baum (Krönung je Ast)? | offen | erst, wenn 3b zeigt, dass im Urwald ⚖️ übrig bleiben |
+| Ereignis-Option „+N ⚖️“ als Sofort-Harmonie (Harmonie-Sekunden)? | Playtest 5b: nicht nötig (⚖️ nie knapp, Vorrat 300–1.000) | Empfehlung: nicht einführen (`docs/playtest/phase11.md`) |
+| Urwald-Ebene im Baum (Krönung je Ast)? | Playtest 5b: im Wald ~1.000 ⚖️ übrig, aber die Zeile „∞“ ist dafür da | Empfehlung: nein; neu prüfen, falls 3b Ränge auch in späten Zyklen liegen bleiben sieht |
 
 ### 27.14 Bewusst nicht in Phase 10
 
@@ -9383,7 +9383,7 @@ noch „ziellos“ anfühlt.
 | Migration mit sehr vielen Samen (100 % offline) kauft sofort Silber-Abzeichen | sicher bei Altständen | einmalig, kosmetisch; kein Kürzen (niemand verliert etwas) |
 | Aussaat verliert gegen Ausbau | gemessen: Wachstum 7,3 Aussaaten bis Hain | 3a: `SOWING_GROWTH` 1,6 → 8,9–10,6 (Ziel 8–15) |
 | Zwei Senken + Forschung überfordern Einsteiger | gering | Ausbau erst ab Keimling, Zielzeile ab der ersten Stufe, Spielanleitung „Ausbau“ |
-| Stufen-Tore / Aufträge | offen | 28.11, nach Playtest |
+| Stufen-Tore / Aufträge | Playtest 5b: Ausbau trägt das Wachsen; Zielzeile kurzsichtig | Empfehlung: Stufen-Tore nicht nötig; Aufträge erst nach den Funden F1/F4 (`docs/playtest/phase11.md`) neu bewerten |
 
 ### 28.13 Bewusst nicht in Phase 11
 

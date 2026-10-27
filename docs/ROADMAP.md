@@ -1148,7 +1148,7 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   Karten; Gabel wählen → andere Seite gesperrt → Neuladen; Neuer Zyklus setzt Vorrat und Baum
   zurück, Plan folgt; v16-Gerät lehnt v17 ab (`outdated-client`, `newer` beim Import); R:Forschung
   bei 360/390 px ohne Querscrollen. Abhängig: 4a, 4c. **→ Zusammengelegt mit Phase 11, 5a**
-- [ ] **5b** Playtest Phase 10 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
+- [x] **5b** Playtest Phase 10 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
   Fühlen sich die Gabeln wie Entscheidungen an? Ist „Säen“ zu teuer/zu billig, verlieren Samen ab
   dem Wald ihren Sinn? Versteht man Vorrat gegen Produktion? Offene Fragen 27.13 entscheiden.
   Abhängig: 5a. **→ Zusammengelegt mit Phase 11, 5b**
@@ -1448,19 +1448,30 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   und nicht doppelt: Meilenstein 25, ×10/Max, verschlossene Nische, Zielzeile (`upgrades.spec.ts`),
   Rang/Plan (`care.spec.ts`), `outdated-client`/`newer` (`chronicle-save.spec.ts`, SAVE_VERSION ∓ 1).
   `upgrades.spec.ts` und `care.spec.ts` rechnen Preise jetzt aus content/core (3a ändert sie)
-- [ ] **5b** Playtest Phase 10 + 11 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
+- [x] **5b** Playtest Phase 10 + 11 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
   Fühlt sich das Spiel noch ziellos an? Gibt es immer etwas zu kaufen, ohne Klick-Pflicht? Ist 10 %
   offline fair? Fühlen sich die Gabeln wie Entscheidungen an, verlieren Samen ab dem Wald ihren Sinn?
   Offene Fragen 27.13 und 28.12 entscheiden – auch, ob Welle 6 kommt. Abhängig: 5a
+  **Erledigt:** Bericht `docs/playtest/phase11.md` (Screenshots in `docs/playtest/phase11/`):
+  Zielzeilen-Spieler per Testuhr bei 1200/390 px bis Wald bzw. Hain, Neuer Zyklus, 8 h offline,
+  360 px und große Zahlen. *Kurzfazit:* nicht mehr ziellos (Zielzeile immer da, Kauf alle ≤ 45 s,
+  längste Pause 90 s), aber kurzsichtig wie ein Laufband; keine Klick-Pflicht (nichts geht
+  verloren); 10 % offline fair (8 h ≈ 40–45 min aktiv); Gabeln lesen sich als Wahl; Samen tragen
+  auch im Wald. Empfehlungen: 27.13 Sofort-⚖️ und Urwald-Ebene nein; 28.12 so lassen; Welle 6:
+  6a nicht nötig, 6b erst nach F1/F4 neu bewerten. Funde: F1 Zielzeile schlägt Nischen ohne Tier
+  vor (`game-designer`/`core-engineer`), F2 mobil „erforschbar ›“ landet bei zugeklappten Ästen,
+  F3–F6, F8, F9 kleine Anzeige-Funde (`ui-dev`), F7 optional (`game-designer`)
 
 **Welle 6 – Später, optional** (eigene Konzeptrunde nach 5b, 28.11)
 
 - [ ] **6a** Stufen-Tore (`game-designer` Konzept, dann `core-engineer`): z. B. Hain braucht 3 Nischen
   auf Stufe 5; Wachstum sammelt sich, Wegpunkte warten. **Warum:** nur, falls 5b zeigt, dass der
   Ausbau neben dem Wachsen herläuft statt es zu tragen. Abhängig: 5b
+  **Playtest 5b:** nicht nötig – der Ausbau trägt das Wachsen (`docs/playtest/phase11.md`).
 - [ ] **6b** Aufträge der Tiere (`game-designer` Konzept, dann `core-engineer`/`ui-dev`, v19): ein
   offener Wunsch eines Tiers („Wurzelraum auf 15“), Belohnung Zufriedenheit oder Samen-Sekunden.
   **Warum:** lenkt den Ausbau erzählerisch statt über Zahlen. Abhängig: 5b
+  **Playtest 5b:** später, erst nach F1/F4 (Zielzeile) neu bewerten.
 
 Parallel: 1a, 1b, 1d und 1e sofort; 1c nach 1a; 2a nach 1a; 2b nach 2a und 1b; 2c nach 2a; 3a nach
 1e, 1b, 2a–2c; 3b nach 3a; 3c nach 3b; 4a nach 2b; 4b nach 1c und 2a; 4c nach 2c und 4b; 4d nach 1d
