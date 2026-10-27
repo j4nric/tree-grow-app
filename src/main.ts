@@ -33,7 +33,7 @@ import {
   type ActionResult,
   type TickReport,
 } from './core/tick';
-import { drawScene, hitTestAnimal, siteParam, weatherParam, type AnimalHit, type HitScene, type SceneInput } from './render/tree';
+import { drawScene, hitTestAnimal, siteParam, SowingCue, sowingSlot, weatherParam, type AnimalHit, type HitScene, type SceneInput } from './render/tree';
 import { IdleQueue } from './render/idle';
 import { CanvasSizer } from './render/canvas-size';
 import type { CanvasSize } from './render/resize';
@@ -292,6 +292,9 @@ const scene: SceneInput = {
   idle: new IdleQueue(),
 };
 
+/** Aussaat-Animation (Phase 10, 4d): wartet nach dem Setzen, bis die Szene zu sehen ist. */
+const sowingCue = new SowingCue();
+
 /** Demo/Tests: `?weather=<id>` zeigt dieses Wetter statt des Tageswetters (nur das Bild). */
 const weatherOverride = weatherParam(location.search);
 /** Demo/Tests: `?site=<id>` zeigt die Kulisse dieses Waldtyps (nur das Bild, DESIGN_V2.md 24.11). */
@@ -355,8 +358,14 @@ const album = createAlbum({
       onChoose: (cardIndex, replaceId) => {
         // Die offene Aussaat liegt obenauf (U:Begegnung zeigt sie zuerst, 27.12).
         if (state.cycle.sowing) {
+          const before = state.plants.slice();
           const result = chooseSowing(state, cardIndex, replaceId);
-          if (act(result, true, 'sowing') && result.ok && result.planted) album.plantFeedback(result.planted);
+          if (act(result, true, 'sowing') && result.ok && result.planted) {
+            // Aussaat-Animation (Phase 10, 4d): Samen fliegen zum Platz der neuen Pflanze, sobald
+            // die Szene zu sehen ist (Takt wie scene.time); bei weniger Bewegung zeigt der Renderer nichts.
+            sowingCue.plant(sowingSlot(before, state.plants, result.planted), performance.now() / 1000);
+            album.plantFeedback(result.planted);
+          }
           return;
         }
         const type = state.pendingEncounters[0]?.type;
@@ -601,6 +610,9 @@ function newCycle(mainTree: MainTreeId, site?: SiteId): void {
   shownStage = state.stage;
   // Gleicher Takt wie scene.time (rAF-Zeitstempel / 1000); das Feld darf stehen bleiben.
   scene.cycleTransition = { startedAt: performance.now() / 1000, fromGrowth, fromPlants, fromTree };
+  // Eine laufende Aussaat gehört zum alten Pflanzring.
+  scene.sowing = undefined;
+  sowingCue.clear();
   // Neuer Wald gegründet: ein Eichelhäher trägt die Eichel durchs Bild (Hähersaat, 24.11).
   if (result.founded) scene.jayFlight = { startedAt: performance.now() / 1000 };
   album.closeEncounters();
@@ -665,6 +677,8 @@ function replaceState(next: GameState): void {
   // Laufende Übergangs-Sequenz und offene Bestätigungen gehören zum alten Stand.
   scene.cycleTransition = undefined;
   scene.jayFlight = undefined;
+  scene.sowing = undefined;
+  sowingCue.clear();
   shownStage = state.stage;
   album.replaced();
   // Tagesziele des neuen Stands (Tageswechsel; Import zählt nicht als aktives Spiel).
@@ -686,6 +700,8 @@ function adoptState(next: GameState): void {
   chapterMark = chronicleMark(state);
   scene.cycleTransition = undefined;
   scene.jayFlight = undefined;
+  scene.sowing = undefined;
+  sowingCue.clear();
   shownStage = state.stage;
   album.adopted(headOf() !== head);
   catchUp();
@@ -918,6 +934,8 @@ function frame(now: number): void {
   scene.camera = album.fullscreen ? camera.view : undefined;
   // Szene nicht zu sehen (Polaroid weggescrollt, mobil unter einer Unterseite): nicht
   // zeichnen. Spiel, Kamera und Klang laufen weiter.
+  // Gesetzte Aussaat starten, sobald die Szene zu sehen ist (nur dann eine neue Zuweisung).
+  if (sowingCue.pending) scene.sowing = sowingCue.take(scene.time, album.sceneVisible) ?? scene.sowing;
   if (album.sceneVisible) drawScene(ctx, size.width, size.height, scene);
   // Klang folgt der Szene (Jahreszeit, Harmoniestufe); gedrosselt, still ohne Web Audio.
   sound.update({ season: scene.season ?? 0, harmonyTier: scene.harmonyTier ?? 0 }, scene.time);

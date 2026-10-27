@@ -70,6 +70,7 @@ import { seedGlowAlpha, SeedGlow } from './seed-glow';
 import { createClouds, drawClouds, paintGrass, paintSky, paintSoil, SKY, type Cloud } from './scenery';
 import { paintSiteBackdrop, sceneSite, siteGround, type SceneSiteId } from './site-scenery';
 import { jayElapsed, JayFlight } from './jay-flight';
+import { Sowing, sowingElapsed, sowingPlantVisible, type SowingStage } from './sowing';
 import { clamp01, mix, mulberry32, smooth01 } from './util';
 import {
   crownFactor,
@@ -114,6 +115,7 @@ export type { TreeSpecies } from './plant';
 export { SCENE_WEATHERS, weatherParam, type SceneWeatherId } from './weather';
 export { SCENE_SITES, siteParam, type SceneSiteId } from './site-scenery';
 export { JAY_FLIGHT_REDUCED_SECONDS, JAY_FLIGHT_SECONDS } from './jay-flight';
+export { SOWING_CUE_WAIT, SOWING_SECONDS, SowingCue, sowingSlot } from './sowing';
 export { sceneUpgradesFromLevels, upgradesParam, type SceneUpgrades } from './upgrades';
 
 export interface SceneInput {
@@ -259,6 +261,15 @@ export interface SceneInput {
    * gilt als „jetzt“; danach und davor: nichts. Das Feld darf gesetzt bleiben.
    */
   jayFlight?: { startedAt: number };
+  /**
+   * Aussaat (sowing.ts, DESIGN_V2.md 27.12): ab `startedAt` (Sekunden, Takt wie `time`) fliegen
+   * Samen vom Bildrand zum Platz `slot` (wie `ScenePlant.slot`) und sinken ein; die Pflanze auf
+   * diesem Platz erscheint erst mit der Landung (SOWING_SECONDS insgesamt). Die übrigen
+   * Pflanzen behalten ihre Lage. Bei `reducedMotion` nichts – die Pflanze steht sofort da.
+   * Ein Start bis 1 s in der Zukunft gilt als „jetzt“; davor und danach: Szene wie ohne das
+   * Feld. Das Feld darf gesetzt bleiben.
+   */
+  sowing?: { startedAt: number; slot: number };
   /**
    * Warteschlange für Arbeit in Leerlaufzeit (idle.ts). Mit Angabe entstehen nicht eilige
    * Neuaufbauten – neue Jahreszeit-Stufe, Tönung (Tag und Nacht, Wetter) und die scharfen
@@ -429,6 +440,14 @@ interface SizeCache {
   tint: TintSet | null;
   /** Ausbau-Schlüssel, mit dem die Ebenen gezeichnet sind (upgrades.ts, 0 = kein Ausbau). */
   upgradesKey: number;
+  /**
+   * Aussaat: Platz, für den der Fuß der Pflanze (`sowX`, `sowY`, CSS-Pixel; NaN = nicht im
+   * Bild) gemerkt ist, und der Platz, der in der Pflanzen-Ebene fehlt (−1 = keiner).
+   */
+  sowSlot: number;
+  sowX: number;
+  sowY: number;
+  plantsHidden: number;
 }
 
 /**
@@ -522,6 +541,16 @@ interface Cache {
   /** Häherflug (Sprites nur während des Flugs) und Zeitpunkt darin (NaN = keiner). */
   jay: JayFlight;
   jayU: number;
+  /**
+   * Aussaat: Samen (Sprites nur während der Aussaat), Zeitpunkt darin (NaN = keine), Platz
+   * (−1 = keiner), versteckter Platz bis zur Landung (−1 = keiner) und die Bühne (ein Objekt,
+   * je Frame nur Zahlen gesetzt).
+   */
+  sow: Sowing;
+  sowU: number;
+  sowSlot: number;
+  sowHidden: number;
+  sowStage: SowingStage;
   /**
    * Überblendung beim Standortwechsel: Kopie der alten Kulisse (wie gezeigt, samt Tönung),
    * Beginn, Frames mit stehender Zeit, Zeit des letzten Frames und der Ebenen-Satz, zu dem
@@ -1166,6 +1195,11 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       rimeOffset: 0,
       jay: new JayFlight(),
       jayU: Number.NaN,
+      sow: new Sowing(),
+      sowU: Number.NaN,
+      sowSlot: -1,
+      sowHidden: -1,
+      sowStage: { width: 0, groundY: 0, targetX: 0, targetY: 0, unit: 0, seed: 0 },
       siteFade: null,
       siteFadeAt: 0,
       siteFadeFrames: 0,
@@ -1248,6 +1282,15 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   const detail = cache.detail;
   const sc = cam && detail && detail.layout.width === width && detail.layout.height === height && covers(detail, cam) ? detail : base;
 
+  // Aussaat: Zeitpunkt (NaN = keine) und bis zur Landung versteckter Platz – vor den Ebenen,
+  // die ohne diese Pflanze gezeichnet werden. Nur Zahlen, keine Allokation.
+  const sw = input.sowing;
+  const sowSlot = sw && Number.isFinite(sw.slot) && sw.slot >= 0 ? Math.floor(sw.slot) : -1;
+  const reducedNow = input.reducedMotion === true;
+  cache.sowU = sowSlot >= 0 ? sowingElapsed(input.time, sw!.startedAt, reducedNow) : Number.NaN;
+  cache.sowSlot = Number.isNaN(cache.sowU) ? -1 : sowSlot;
+  cache.sowHidden = cache.sowSlot >= 0 && !sowingPlantVisible(input.time, sw!.startedAt, reducedNow) ? sowSlot : -1;
+  if (Number.isNaN(cache.sowU) && cache.sow.prepared) cache.sow.release();
   updateLayers(sc, base, cache, input, g, time, look, idle);
   cache.shownSite = sc.site;
   cache.siteFadeAlpha = stepSiteFade(cache, sc, time, input.reducedMotion === true);
@@ -1288,7 +1331,17 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
  */
 export function sceneCacheStats(
   canvas: HTMLCanvasElement,
-): { staticBuilds: number; layerBuilds: number; tintBuilds: number; siteFade: boolean; jaySpriteBuilds: number; jayPrepared: boolean } | null {
+): {
+  staticBuilds: number;
+  layerBuilds: number;
+  tintBuilds: number;
+  siteFade: boolean;
+  jaySpriteBuilds: number;
+  jayPrepared: boolean;
+  sowSpriteBuilds: number;
+  sowPathBuilds: number;
+  sowPrepared: boolean;
+} | null {
   const c = caches.get(canvas);
   return c
     ? {
@@ -1298,6 +1351,9 @@ export function sceneCacheStats(
         siteFade: c.siteFade !== null,
         jaySpriteBuilds: c.jay.builds,
         jayPrepared: c.jay.prepared,
+        sowSpriteBuilds: c.sow.spriteBuilds,
+        sowPathBuilds: c.sow.pathBuilds,
+        sowPrepared: c.sow.prepared,
       }
     : null;
 }
@@ -1555,7 +1611,9 @@ function updateLayers(
     (delta >= REDRAW_STEP && (since >= REDRAW_MIN_INTERVAL || frames >= REDRAW_MIN_FRAMES)) ||
     (delta > 0 && (since > REDRAW_SETTLE_SECONDS || frames >= REDRAW_SETTLE_FRAMES));
   // Neue Pflanzenliste: alles neu (Nachbarbäume, Pilzfäden und Pflanzen hängen davon ab).
-  const plantsChanged = !samePlants(sc.plantSig, input.plants);
+  // Aussaat: Pflanze bis zur Landung versteckt (neu bei Beginn und Landung) und Ziel gemerkt.
+  const plantsChanged =
+    !samePlants(sc.plantSig, input.plants) || sc.plantsHidden !== cache.sowHidden || (cache.sowSlot >= 0 && sc.sowSlot !== cache.sowSlot);
   // Baum-Ausbau: neu nur bei einem anderen Schritt (Zahl-Schlüssel, keine Allokation).
   const upKey = upgradesKey(input.upgrades);
   const upgradesChanged = upKey !== sc.upgradesKey;
@@ -1585,7 +1643,7 @@ function updateLayers(
       (settle && plantDelta >= PLANT_SETTLE_STEP);
     // Die Signatur hält fest, womit die Pflanzen zuletzt gezeichnet wurden.
     if (redrawPlants) sc.plantSig = input.plants ? input.plants.map(plantSig) : null;
-    renderLayers(sc, g, input.plants, redrawPlants, look, species, upgradeLook(input.upgrades));
+    renderLayers(sc, g, input.plants, redrawPlants, look, species, upgradeLook(input.upgrades), cache.sowSlot, cache.sowHidden);
     sc.upgradesKey = upKey;
     cache.layerBuilds++;
     sc.growth = g;
@@ -1826,6 +1884,17 @@ function compose(ctx: CanvasRenderingContext2D, sc: SizeCache, cache: Cache, inp
   // Übergang zum Neuen Zyklus ganz oben (außerhalb des Zeitfensters: nichts).
   if (!Number.isNaN(cache.cycleU) && cache.cycle.prepared) {
     cache.cycle.draw(ctx, cache.cycleU, reduced, cycleGeometry(sc), sx, sy, m.tx, m.ty);
+  }
+  // Aussaat: Samen fliegen zum Platz der neuen Pflanze (nur, wenn sie im Bild ist).
+  if (!Number.isNaN(cache.sowU) && sc.sowSlot === cache.sowSlot && Number.isFinite(sc.sowX)) {
+    const st = cache.sowStage;
+    st.width = layout.width;
+    st.groundY = layout.groundY;
+    st.targetX = sc.sowX;
+    st.targetY = sc.sowY;
+    st.unit = animalSize(layout.width, layout.height);
+    st.seed = cache.sowSlot;
+    cache.sow.draw(ctx, cache.sowU, st, dpr, spriteDpr, sx, sy, m.tx, m.ty);
   }
   // Häherflug beim Gründen eines Waldes ganz oben (über dem verblassenden alten Wald).
   if (!Number.isNaN(cache.jayU)) {
@@ -2086,6 +2155,10 @@ function buildSizeCache(
     memoryVersion: 0,
     tint: null,
     upgradesKey: 0,
+    sowSlot: -1,
+    sowX: Number.NaN,
+    sowY: Number.NaN,
+    plantsHidden: -1,
   };
 
   paintStatic(sc, look, habitats, site);
@@ -2263,6 +2336,9 @@ function renderLayers(
   look: SeasonLook | null,
   species: TreeSpecies,
   up: UpgradeLook | null = null,
+  /** Aussaat: Platz, dessen Fuß gemerkt wird, und Platz, der (noch) nicht gezeichnet wird (−1 = keiner). */
+  sowSlot = -1,
+  hidden = -1,
 ): void {
   const leaves = look ? look.leaves : 1;
   const { dpr, layout } = sc;
@@ -2279,7 +2355,14 @@ function renderLayers(
 
   // --- Begleitpflanzen (eigene Ebene) ---
   if (redrawPlants || sc.withPlants !== withPlants) {
-    const flora = plants && plants.length > 0 ? layoutFlora(layout, g, plants, { main, anchors: sc.anchors, species }) : [];
+    // Lage aus der ganzen Liste (die übrigen Pflanzen rücken nicht), die ausgesäte fehlt nur im Bild.
+    const all = plants && plants.length > 0 ? layoutFlora(layout, g, plants, { main, anchors: sc.anchors, species }) : [];
+    const sown = sowSlot >= 0 ? all.find((p) => p.slot === sowSlot) : undefined;
+    sc.sowSlot = sowSlot;
+    sc.sowX = sown ? sown.x : Number.NaN;
+    sc.sowY = sown ? sown.y : Number.NaN;
+    sc.plantsHidden = hidden;
+    const flora = hidden >= 0 ? all.filter((p) => p.slot !== hidden) : all;
     sc.companionXs = flora.filter((p) => p.tree).map((p) => p.x);
     sc.plantsRect = renderPlants(sc, flora, look);
     sc.plantsGrowth = g;
