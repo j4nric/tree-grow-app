@@ -18,7 +18,7 @@ import './tab-strip.css';
 export const TAB_ICONS: Readonly<Record<TabId, string>> = {
   niches: '🏡',
   species: '🦋',
-  care: '💧',
+  care: '🔍',
   goals: '🎯',
   landscape: '🗺️',
 };

@@ -70,7 +70,7 @@ import {
   type FoodWebEntry,
   type SowingChoiceError,
 } from '../core/formulas';
-import { allAnimals, type GameState } from '../core/state';
+import { MAX_HARMONY_POINTS, allAnimals, type GameState } from '../core/state';
 import { achievementCountText, toJournalAchievements } from './achievement-view';
 import type { SceneAnimal, ScenePlant, ScenePlantGroup, SceneVisitor } from '../render/tree';
 import {
@@ -109,7 +109,6 @@ import type { NextGoal } from '../core/goal';
 import type { GoalInput } from './upgrade-view';
 import type {
   ActiveBonusView,
-  CareGroup,
   CareView,
   AnimalView,
   CardView,
@@ -1858,7 +1857,7 @@ export type CatchUpNotice = { kind: 'welcome'; text: string; namesStage: boolean
 export function catchUpNotice(
   away: number,
   report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedStackFull' | 'declinedSeeds'> &
-    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'yieldFactor' | 'fullSeconds'>>,
+    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'yieldFactor' | 'fullSeconds' | 'harmony'>>,
   waiting: number,
   stages?: StageProgress,
 ): CatchUpNotice {
@@ -1933,7 +1932,7 @@ export function offlineYieldHint(yieldFactor: number): string {
 export function welcomeText(
   away: number,
   report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedSeeds'> &
-    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'yieldFactor' | 'fullSeconds'>>,
+    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'yieldFactor' | 'fullSeconds' | 'harmony'>>,
   waiting: number,
   stages?: StageProgress,
   /** Wald des Zyklus – das gemittelte Wetter nennt ihn außerhalb des Heimatwalds (24.14). */
@@ -1942,7 +1941,8 @@ export function welcomeText(
   // Simuliert werden höchstens MAX_OFFLINE_SECONDS – die Meldung nennt die tatsächliche Zeit.
   const capped = report.seconds < away ? ` (max. ${formatDuration(MAX_OFFLINE_SECONDS)})` : '';
   // Einträge, die gerundet 0 wären, fallen weg („+0 🌰“ wirkt wie ein Fehler).
-  const yields = [welcomeAmount(report.growth, '🌿'), welcomeAmount(report.seeds, '🌰')].filter(Boolean);
+  // Harmonie-Vorrat (27.3): „+840 ⚖️“ – der Zufluss für die Forschung.
+  const yields = [welcomeAmount(report.growth, '🌿'), welcomeAmount(report.seeds, '🌰'), welcomeAmount(report.harmony ?? 0, '⚖️')].filter(Boolean);
   const yieldText = yields.length > 0 ? `: ${yields.join(', ')}` : '';
   const reached = reachedStage(stages);
   // Offline 10 % (28.3): ehrlich sagen, dass der Wald ohne Zuschauer gemächlich wächst.
@@ -2447,9 +2447,13 @@ export function researchBlockerText(blocker: ResearchBlocker, id: string, state:
     }
     case 'condition':
       return `Braucht ${(node?.condition ?? []).map(conditionName).join(', ')}`;
-    case 'too-expensive':
+    case 'too-expensive': {
+      const cost = researchCost(state, id) ?? 0;
+      // Nächster Rang über dem größten Vorrat (28.6): kein ewiges „Noch …“.
+      if (!(cost <= MAX_HARMONY_POINTS)) return 'Unerreichbar – mehr, als der Vorrat je fassen kann';
       // Aufgerundet, damit „Noch X“ nie weniger verspricht als nötig.
-      return `Noch ${formatNumber(Math.ceil((researchCost(state, id) ?? 0) - (Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0)))} ⚖️`;
+      return `Noch ${formatNumber(Math.ceil(cost - (Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0)))} ⚖️`;
+    }
   }
 }
 
@@ -2457,29 +2461,6 @@ export function researchBlockerText(blocker: ResearchBlocker, id: string, state:
 export function researchBranchLabel(node: ResearchNode): string {
   const branch = RESEARCH_BRANCHES.find((b) => b.id === node.branch);
   return branch ? `${branch.icon} ${branch.name}` : '';
-}
-
-/** Sortier-Rang der Gruppen: kaufbar zuerst, dann sparen, gesperrt, voll ausgebaut. */
-export const CARE_GROUP_ORDER: Readonly<Record<CareGroup, number>> = { buyable: 0, saving: 1, locked: 2, maxed: 3 };
-
-/**
- * Anzeige-Reihenfolge der Forschungs-Liste: nach Gruppe, innerhalb von „kaufbar“ und
- * „sparen“ nach Kosten (günstigste zuerst), sonst in Katalog-Reihenfolge (stabil).
- */
-export function sortCareViews(items: readonly CareView[]): CareView[] {
-  const cost = (v: CareView) => v.costSeeds ?? 0;
-  return items
-    .map((item, index) => ({ item, index }))
-    .sort((a, b) => {
-      const g = CARE_GROUP_ORDER[a.item.group] - CARE_GROUP_ORDER[b.item.group];
-      if (g !== 0) return g;
-      if (a.item.group === 'buyable' || a.item.group === 'saving') {
-        const c = cost(a.item) - cost(b.item);
-        if (c !== 0) return c;
-      }
-      return a.index - b.index;
-    })
-    .map((x) => x.item);
 }
 
 /**
@@ -2510,46 +2491,55 @@ export function careOpensText(effects: readonly ResearchEffect[], now: Readonly<
 }
 
 /**
- * Forschungs-Liste (Notliste im Reiter „Pflege“ bis Phase 10, 4a): alle erforschten Knoten
- * und alle, deren Stufe erreicht ist – flach, je Knoten eine Zeile mit Ast, Kurzwirkung,
- * Kosten in ⚖️, Sperrgrund und Vorschau (previewResearch). Erforschte Knoten stehen als
- * „erledigt“ (Gruppe `maxed`), gesperrte (Gabel, Voraussetzung, Bedingung) als `locked`.
+ * Ein Forschungsknoten als Zeile bzw. Kopf von U:Forschungsknoten: Ast (mit Rang des endlosen
+ * Knotens „· ∞ Rang 3“), Kurzwirkung, Kosten des nächsten Kaufs in ⚖️, Sperrgrund und Vorschau
+ * (previewResearch). Erforschte Knoten (wiederholbare: höchster Rang) stehen als „erledigt“
+ * (Gruppe `maxed`), gesperrte (Stufe, Gabel, Voraussetzung, Bedingung) als `locked`.
+ */
+export function toCareView(state: GameState, node: ResearchNode, now: Readonly<Evaluation> = evaluate(state)): CareView {
+  // Wiederholbare Knoten (28.6) sind erst mit dem höchsten Rang „erledigt“; davor zeigt die
+  // Zeile den Rang und die Kosten des nächsten.
+  const owned = researchComplete(state, node.id);
+  const blocker = researchBlocker(state, node.id);
+  const after = owned ? null : previewResearch(state, node.id);
+  const cost = researchCost(state, node.id) ?? node.cost;
+  // „∞ Rang 3“ bricht nicht um (geschützte Leerzeichen).
+  const rank = node.repeatable ? ` · ∞\u00a0Rang\u00a0${formatNumber(researchRankOf(state, node.id))}` : '';
+  return {
+    id: node.id,
+    icon: node.icon,
+    name: node.name,
+    rank: researchBranchLabel(node) + rank,
+    next: owned ? null : node.summary,
+    cost: owned ? null : `${formatNumber(cost)} ⚖️`,
+    costSeeds: owned ? null : cost,
+    blocker: blocker === null || blocker === 'owned' ? null : researchBlockerText(blocker, node.id, state),
+    canBuy: blocker === null,
+    group: owned ? 'maxed' : blocker === null ? 'buyable' : blocker === 'too-expensive' ? 'saving' : 'locked',
+    boughtText: owned ? null : node.boughtText,
+    protects: careProtectionText(node.id),
+    protectsDetail: careProtectionDetail(node.id),
+    opens: owned ? null : careOpensText(node.effects, now),
+    preview: after
+      ? {
+          harmonyDelta: after.harmony - now.harmony,
+          growthDelta: now.growth > 0 ? after.growth / now.growth - 1 : 0,
+          seedDelta: now.seeds > 0 ? after.seeds / now.seeds - 1 : 0,
+        }
+      : null,
+  };
+}
+
+/**
+ * Forschungs-Liste: alle erforschten Knoten und alle, deren Stufe erreicht ist (Tests und
+ * Auswertungen; der Reiter „Forschung“ zeigt seit Phase 11, 4a den ganzen Baum).
  */
 export function toCareViews(state: GameState, now: Readonly<Evaluation> = evaluate(state)): CareView[] {
   const out: CareView[] = [];
   for (const node of RESEARCH) {
-    // Wiederholbare Knoten (28.6) sind erst mit dem höchsten Rang „erledigt“; davor zeigt die
-    // Zeile den Rang und die Kosten des nächsten (die Zeile „∞“ folgt in Phase 11, 4a).
-    const owned = researchComplete(state, node.id);
     // Knoten späterer Ebenen erst zeigen, wenn ihre Stufe erreicht ist (nicht alles auf einmal).
-    if (!owned && node.minStage > state.stage) continue;
-    const blocker = researchBlocker(state, node.id);
-    const after = owned ? null : previewResearch(state, node.id);
-    const cost = researchCost(state, node.id) ?? node.cost;
-    const rank = node.repeatable ? ` · ∞ Rang ${formatNumber(researchRankOf(state, node.id))}` : '';
-    out.push({
-      id: node.id,
-      icon: node.icon,
-      name: node.name,
-      rank: researchBranchLabel(node) + rank,
-      next: owned ? null : node.summary,
-      cost: owned ? null : `${formatNumber(cost)} ⚖️`,
-      costSeeds: owned ? null : cost,
-      blocker: blocker === null || blocker === 'owned' ? null : researchBlockerText(blocker, node.id, state),
-      canBuy: blocker === null,
-      group: owned ? 'maxed' : blocker === null ? 'buyable' : blocker === 'too-expensive' ? 'saving' : 'locked',
-      boughtText: owned ? null : node.boughtText,
-      protects: careProtectionText(node.id),
-      protectsDetail: careProtectionDetail(node.id),
-      opens: owned ? null : careOpensText(node.effects, now),
-      preview: after
-        ? {
-            harmonyDelta: after.harmony - now.harmony,
-            growthDelta: now.growth > 0 ? after.growth / now.growth - 1 : 0,
-            seedDelta: now.seeds > 0 ? after.seeds / now.seeds - 1 : 0,
-          }
-        : null,
-    });
+    if (!researchComplete(state, node.id) && node.minStage > state.stage) continue;
+    out.push(toCareView(state, node, now));
   }
   return out;
 }

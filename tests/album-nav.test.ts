@@ -224,7 +224,9 @@ describe('Verlauf und Hash', () => {
 
   it('Hash ↔ Reiter', () => {
     for (const tab of TAB_IDS) expect(tabFromHash(hashOf(tab), open)).toBe(tab);
-    expect(hashOf('care')).toBe('#pflege');
+    expect(hashOf('care')).toBe('#forschung');
+    // Früherer Name des Reiters (Lesezeichen) führt weiter zur Forschung.
+    expect(tabFromHash('#pflege', open)).toBe('care');
     expect(tabFromHash('#Ziele', open)).toBe('goals');
     expect(tabFromHash('arten', open)).toBe('species');
   });

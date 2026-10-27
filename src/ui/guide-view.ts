@@ -4,7 +4,7 @@
  * trotzdem. Getestet in tests/settings.test.ts (Abschnitt „Spielanleitung“).
  */
 import { ACHIEVEMENTS } from '../content/achievements';
-import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_ONCE, RESEARCH_REPEATABLE, RESEARCH_BY_ID, RESEARCH_FORKS } from '../content/research';
+import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_ONCE, RESEARCH_REPEATABLE, RESEARCH_BY_ID, RESEARCH_FORKS, REPEATABLE_RESEARCH_BASE, REPEATABLE_RESEARCH_GROWTH } from '../content/research';
 import { COMMUNITIES } from '../content/communities';
 import {
   CARDS_PER_ENCOUNTER,
@@ -235,8 +235,8 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       icon: '🌾',
       title: 'Lebensräume',
       paragraphs: [
-        `${formatNumber(habitats.length)} Nischen wachsen nicht mit dem Baum – du legst sie als Lebensräume mit Pflege selbst an: ${all(habitatList)}. Jeder hat eigene Bewohner, die erst als Karten kommen, wenn er offen ist.`,
-        'Im Reiter „Nischen“ steht ein verschlossener Lebensraum mit einem Hinweis. Sobald seine Pflege in der Liste steht, führt „Zur Pflege“ direkt dorthin – bei der Maßnahme steht dann „Öffnet Lebensraum …“.',
+        `${formatNumber(habitats.length)} Nischen wachsen nicht mit dem Baum – du legst sie als Lebensräume mit Forschung selbst an: ${all(habitatList)}. Jeder hat eigene Bewohner, die erst als Karten kommen, wenn er offen ist.`,
+        'Im Reiter „Nischen“ steht ein verschlossener Lebensraum mit einem Hinweis. Sobald sein Knoten auf deiner Stufe erforschbar wäre, führt „Zur Forschung“ direkt zu seinem Knoten – auf dessen Seite steht „Öffnet Lebensraum …“.',
         'Die Plätze bleiben bis zum Neuen Zyklus. Danach legst du den Lebensraum neu an; Stammgäste, die dort wohnen, ziehen ein, sobald er wieder offen ist.',
         `${GENUS_INFO.reptiles.icon} ${GENUS_INFO.reptiles.name} – ${formatNumber(reptiles.length)} Arten – leben nur in Lebensräumen: ${all(reptileHomes)}. Sie sind wechselwarm: Im Sommer sonnen sie sich (+${formatNumber(REPTILE_SUMMER_HAPPINESS)} Prozentpunkte Zufriedenheit), im Winter halten sie Winterstarre, ganz ohne Nachteil.`,
       ],
@@ -369,13 +369,14 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
     },
     {
       id: 'care',
-      icon: '🧺',
+      icon: '🔍',
       title: 'Forschung',
       paragraphs: [
         `Deine Harmonie ist eine Produktion: Sie füllt jede Minute einen Vorrat ⚖️ – so viele Punkte, wie die Harmonie gerade beträgt, mit dem Waldgedächtnis mehr. Der Harmonie-Bonus auf 🌿 und 🌰 hängt an der Produktion, Ausgeben senkt ihn nie.`,
-        `Ab „${careStage}“ erforschst du mit dem Vorrat ${formatNumber(RESEARCH_ONCE.length)} Knoten in ${formatNumber(RESEARCH_BRANCHES.length)} Ästen: ${listNames(RESEARCH_BRANCHES.map((b) => b.name), RESEARCH_BRANCHES.length)}. Manche brauchen erst andere Knoten, spätere eine höhere Stufe.`,
-        `Am Ende jedes Asts wartet ab „${stageName(Math.min(...RESEARCH_REPEATABLE.map((n) => n.minStage)))}“ ein endloser Knoten (∞): Du erforschst ihn Rang für Rang, jeder Rang wirkt ein wenig mehr und kostet mehr.`,
-        `Erforschte Knoten wirken bis zum Neuen Zyklus; dann beginnen Vorrat und Forschung neu. Verkaufen geht nicht – überlege, was dein Wald gerade braucht.`,
+        `Ab „${careStage}“ erforschst du im Reiter „Forschung“ mit dem Vorrat ${formatNumber(RESEARCH_ONCE.length)} Knoten in ${formatNumber(RESEARCH_BRANCHES.length)} Ästen: ${listNames(RESEARCH_BRANCHES.map((b) => b.name), RESEARCH_BRANCHES.length)}. Jeder Ast ist ein Zweig von oben nach unten; manche Knoten brauchen erst andere – auch aus anderen Ästen („braucht …“ springt dorthin) –, spätere eine höhere Stufe. Tippe auf einen Namen, um alles über den Knoten zu lesen.`,
+        `Am Ende jedes Asts wartet ab „${stageName(Math.min(...RESEARCH_REPEATABLE.map((n) => n.minStage)))}“ in der Zeile „∞ immer weiter“ ein endloser Knoten: Du erforschst ihn Rang für Rang, der Stempel zeigt den Rang. Jeder Rang wirkt ein wenig mehr und kostet ${formatNumber(Math.round((REPEATABLE_RESEARCH_GROWTH - 1) * 100))} % mehr als der vorige (Rang 1: ${formatNumber(REPEATABLE_RESEARCH_BASE)} ⚖️). Kostet ein Rang mehr, als der Vorrat je fassen kann, steht dort „unerreichbar“.`,
+        `Erforschte Knoten und Ränge wirken bis zum Neuen Zyklus; dann beginnen Vorrat und Forschung neu. Verkaufen geht nicht – überlege, was dein Wald gerade braucht.`,
+        `Der Neue Zyklus merkt sich, in welcher Reihenfolge du geforscht hast – auch jeden Rang. Mit „Plan des letzten Zyklus folgen“ erforscht der Wald diesen Plan von selbst, sobald der Vorrat reicht, auch wenn du weg bist; die kleinen Nummern an den Karten zeigen die Reihenfolge. Eine anders entschiedene Gabel überspringt der Plan, auf eine fehlende Stufe wartet er. Von Hand forschen geht immer.`,
         ...forks.map((pair) => `${all(pair.map((n) => `„${n}“`))} schließen sich aus: Du wählst einen der beiden Wege.`),
       ],
     },

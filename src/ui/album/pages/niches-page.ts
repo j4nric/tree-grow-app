@@ -2,7 +2,7 @@
  * Reiter „Nischen“ – „Wer wohnt wo?“ · „9 von 14 Plätzen“ (docs/ALBUM_UI.md, B.1 und A.4).
  *
  * Gattungen als Abzeichen mit Pips (Tipp → Haftnotiz), Stickerreihen je Nische am Baum und
- * je Lebensraum (verschlossen: grauer Name und Handschrift-Zeile, ggf. „Zur Pflege ›“), der
+ * je Lebensraum (verschlossen: grauer Name und Handschrift-Zeile, ggf. „Zur Forschung ›“), der
  * Pflanzring mit Messbändern und „🌱 Säen“, dazu die Lesezeichen-Links zu
  * U:Harmonie (Lebensgemeinschaften) und U:Nahrungsnetz. Tipp auf einen Sticker blättert zu
  * U:Tier um.
@@ -55,7 +55,7 @@ const VISITOR_TEXT = 'Zu Gast – zieht bald weiter und braucht keinen Platz.';
 export interface NichesActions {
   /** „🌱 Säen“ bzw. „Aussaat offen ›“ (DESIGN_V2.md 27.6). */
   sow(): void;
-  /** „Zur Pflege ›“: Reiter Pflege bei der Maßnahme. */
+  /** „Zur Forschung ›“: Reiter Forschung beim Knoten. */
   showCare(careId: string): void;
   /**
    * „Ausbauen“ (DESIGN_V2.md 28.4/28.9): `count` Stufen einer Nische bzw. eines Baumteils
@@ -69,6 +69,12 @@ export interface NichesPage extends TabPage {
   connect(actions: NichesActions): void;
   /** Knopf „🌱 Säen“. */
   readonly plantButton: HTMLButtonElement;
+  /**
+   * Sprung der Zielzeile (28.7, Phase 11, 4c): Zeile der Nische bzw. des Baumteils – oder beim
+   * Säen den Pflanzring – ins Bild holen, kurz aufleuchten lassen und den Fokus auf den Namen
+   * setzen. false, wenn es die Zeile (noch) nicht gibt.
+   */
+  reveal(target: UpgradeTarget | 'sow'): boolean;
 }
 
 interface NicheRow {
@@ -208,6 +214,7 @@ export function createNichesPage(env: PageEnv): NichesPage {
   // --- Pflanzring ------------------------------------------------------------------------
   const ring = section('Pflanzring', 'niches-ring');
   ring.root.dataset.ref = 'plant-ring';
+  ring.head.tabIndex = -1;
   ring.root.setAttribute('aria-label', 'Pflanzring');
   const ringCount = el('span', 'niches-heading-meta');
   ringCount.dataset.ref = 'plant-slots';
@@ -412,11 +419,11 @@ export function createNichesPage(env: PageEnv): NichesPage {
     list.setAttribute('aria-label', `Plätze in ${niche.label}`);
     const hint = el('p', 'nrow-hint');
     const hintText = el('span', 'nrow-hint-text');
-    const care = el('button', 'nrow-care', 'Zur Pflege ›');
+    const care = el('button', 'nrow-care', 'Zur Forschung ›');
     care.type = 'button';
     care.dataset.ref = 'niche-care-link';
     care.hidden = true;
-    care.setAttribute('aria-label', `Zur Pflege: ${niche.label} öffnen`);
+    care.setAttribute('aria-label', `Zur Forschung: ${niche.label} öffnen`);
     care.addEventListener('click', () => {
       const id = care.dataset.careLink;
       if (id) actions?.showCare(id);
@@ -653,9 +660,35 @@ export function createNichesPage(env: PageEnv): NichesPage {
     filled = true;
   }
 
+  function reveal(target: UpgradeTarget | 'sow'): boolean {
+    // Seite zuerst füllen (der Sprung kann vor dem ersten Auffrischen kommen).
+    update();
+    let row: HTMLElement | null;
+    let focus: HTMLElement | null;
+    if (target === 'sow') {
+      row = ring.root.hidden ? null : ring.root;
+      focus = ring.head;
+    } else if (target.kind === 'tree') {
+      row = ownTree.element.hidden ? null : ownTree.row(target.id);
+      focus = row?.querySelector<HTMLElement>('.upgrade-part-title') ?? null;
+    } else {
+      const r = rows.get(target.id);
+      row = r && r.root.isConnected && !r.footer.element.hidden ? r.root : null;
+      focus = r?.title ?? null;
+    }
+    if (!row) return false;
+    const reduce = env.deps.preferences.reducedMotion;
+    row.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    focus?.focus({ preventScroll: true });
+    // Nur Farbe, keine Bewegung – darum auch bei reduzierter Bewegung (wie nach einem Kauf).
+    restartAnimation(row, 'goal-flash');
+    return true;
+  }
+
   return {
     page,
     plantButton,
+    reveal,
     update,
     connect(next) {
       actions = next;

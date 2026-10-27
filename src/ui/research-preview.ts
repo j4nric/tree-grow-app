@@ -6,10 +6,11 @@
  * - `state=start|middle|late` – Beispielzustand (research-fixtures.ts)
  * - `frame=full|page` – volle Breite oder so schmal wie eine Album-Seite (~470 px)
  *
- * „Erforschen“ funktioniert hier mit dem Platzhalter-Zustand (Vorrat sinkt, Knoten wird
- * erforscht); im Spiel macht das ab 4a die Aktion `research` des Spielstands.
+ * „Erforschen“ funktioniert hier mit dem Beispielzustand (Vorrat sinkt, Knoten wird erforscht,
+ * Rang steigt); im Spiel macht das die Aktion `research` des Spielstands (Reiter „Forschung“).
  */
 import { RESEARCH_BY_ID } from '../content/research';
+import { researchCostAt } from '../core/formulas';
 import { createResearchTree } from './album/research-tree';
 import './album/tokens.css';
 import { el } from './dom';
@@ -39,12 +40,16 @@ log.setAttribute('role', 'status');
 const tree = createResearchTree({
   onResearch(id) {
     const node = RESEARCH_BY_ID.get(id)!;
-    input = { ...input, harmony: input.harmony - node.cost, researched: [...input.researched, id] };
+    const rank = input.ranks?.[id] ?? 0;
+    const cost = researchCostAt(node, rank);
+    input = node.repeatable
+      ? { ...input, harmony: input.harmony - cost, ranks: { ...input.ranks, [id]: rank + 1 } }
+      : { ...input, harmony: input.harmony - cost, researched: [...input.researched, id] };
     log.textContent = `${node.icon} ${node.boughtText}`;
     render();
   },
   onOpen(id) {
-    log.textContent = `Unterseite „${RESEARCH_BY_ID.get(id)!.name}“ kommt mit Phase 10, 4a.`;
+    log.textContent = `Im Spiel blättert das zu „${RESEARCH_BY_ID.get(id)!.name}“ um (U:Forschungsknoten).`;
   },
 });
 

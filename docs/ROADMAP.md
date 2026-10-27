@@ -1116,7 +1116,7 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
 
 **Welle 4 – Oberfläche und Komfort**
 
-- [ ] **4a** Forschung, Harmonie und Aussaat im Album (`ui-dev`, 27.12): Reiter „Pflege“ →
+- [x] **4a** Forschung, Harmonie und Aussaat im Album (`ui-dev`, 27.12): Reiter „Pflege“ →
   „Forschung“ (Layout aus 1c an die echte Logik: Zustände, Vorschau, „Noch 120 ⚖️ · ~1 min“,
   Bestätigung und Doppelklick-Schutz wie die Pflege), U:Forschungsknoten statt U:Pflegemaßnahme,
   Kopf „⚖️ Vorrat · +110/min“, Etikett und U:Harmonie (Produktion, Vorrat, Bonus), Knopf „🌱
@@ -1126,6 +1126,8 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   Baum und die zweite Währung müssen auf dem Handy lesbar sein, sonst ist die Abzweigung keine
   Entscheidung. Abhängig: 1c, 2b (Zahlen aus 3a kommen nur als Daten). **→ Zusammengelegt mit
   Phase 11, 4a** (gleich mit der Zeile „∞“ der wiederholbaren Knoten und dem Schalter aus 4c)
+  **Erledigt mit Phase 11, 4a** (Forschung, Kopf, U:Harmonie, Rückkehr-Meldung, „Zur Forschung“,
+  Spielanleitung; Säen-Knopf und Aussaat-Zettel kamen schon mit Phase 10, 2b)
 - [x] **4b** Forschungsplan (`core-engineer`, 27.8): `meta.research.auto`; in `tick` Halt, sobald
   der Vorrat die Kosten des nächsten geplanten Knotens erreicht, Kauf streng in Plan-Reihenfolge
   (warten bei fehlender Stufe, überspringen bei anders entschiedener Gabel); Aktion
@@ -1133,15 +1135,15 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   Klicks je Zyklus wären Pflicht statt Wahl. Abhängig: 2a. **→ Zusammengelegt mit Phase 11, 2b**
   (der Plan muss die Ränge der wiederholbaren Knoten kennen – ein PR statt zwei in `tick`)
   **Erledigt mit Phase 11, 2b** (`nextPlannedResearch`, `setResearchAuto`, Halt in `tick`)
-- [ ] **4c** Schalter „Plan folgen“ und Plan-Nummern (`ui-dev`, 27.12). Klein. Abhängig: 4a, 4b.
-  **→ in Phase 11, 4a**
+- [x] **4c** Schalter „Plan folgen“ und Plan-Nummern (`ui-dev`, 27.12). Klein. Abhängig: 4a, 4b.
+  **→ in Phase 11, 4a** – **Erledigt mit Phase 11, 4a**
 - [ ] **4d** Aussaat-Animation einhängen (`renderer`): aus 1b beim Setzen aus einer Aussaat
   (Bericht aus `chooseSowing`), Stufenbild unverändert. Abhängig: 1b, 2b. Bleibt eigenständig und
   kann sofort laufen (Phase 11 berührt die Aussaat nicht); gern im selben Zug wie Phase 11, 4d
 
 **Welle 5 – Absichern**
 
-- [ ] **5a** e2e Phase 10 (`qa-tester`): v16-Stand lädt als v17 (Pflege-Ränge → Knoten,
+- [x] **5a** e2e Phase 10 (`qa-tester`): v16-Stand lädt als v17 (Pflege-Ränge → Knoten,
   Startguthaben, offene Pflanzenbegegnung → Aussaat-Zettel); Säen → Karte → Neuladen → gleiche
   Karten; Gabel wählen → andere Seite gesperrt → Neuladen; Neuer Zyklus setzt Vorrat und Baum
   zurück, Plan folgt; v16-Gerät lehnt v17 ab (`outdated-client`, `newer` beim Import); R:Forschung
@@ -1363,12 +1365,32 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
 
 **Welle 4 – Oberfläche** (parallel zu Welle 3; Zahlen aus 3a kommen nur als Daten)
 
-- [ ] **4a** Forschung im Album (`ui-dev`, = Phase 10, 4a + 4c, dazu 28.9): Layout aus Phase 10, 1c
+- [x] **4a** Forschung im Album (`ui-dev`, = Phase 10, 4a + 4c, dazu 28.9): Layout aus Phase 10, 1c
   an die echte Logik, Zeile „∞“ mit Rang-Stempel und Kosten, Schalter „Plan des letzten Zyklus
   folgen“ mit Plan-Nummern (auch wiederholte Ränge), Kopf „⚖️ Vorrat · +110/min“, U:Harmonie,
   Rückkehr-Meldung mit ⚖️, „Zur Forschung“ an verschlossenen Nischen, Spielanleitung; ALBUM_UI.md.
   **Warum:** ein Umbau des Reiters statt zwei – die Zeile „∞“ gehört ins Raster von Anfang an.
   Abhängig: Phase 10, 1c; 2b
+  **Erledigt:** Reiter „Pflege“ heißt „Forschung“ (🔍, Hash `#forschung`, `#pflege` führt weiter;
+  interne Kennung `care` bleibt) und zeigt den Baum aus 1c statt der Notliste
+  (`album/pages/care-page.ts`); Spielstand → Baum in `ui/research-state.ts` (Blocker einmal je
+  Stufe/Forschung/Auswertung, „erforschbar“/„sparen“ danach nur aus dem Vorrat, Kosten und Rang,
+  offene Plan-Nummern je Rang). Zeile „∞ immer weiter“ unter der Wald-Ebene (Liste und Raster 6 × 6),
+  Stempel „Rang 3“ neben „Erforschen · ⚖️ 3.296“, über `MAX_HARMONY_POINTS` „unerreichbar“ (auch
+  `researchBlockerText`, U:Forschungsknoten). Schalter „Plan des letzten Zyklus folgen“
+  (`AlbumActions.setResearchAuto`) mit Zeile „Als Nächstes (Nr. 3) …“; Plan-Käufe
+  (`TickReport.research`) speichern sofort und melden sich dezent („🔍 Nach Plan erforscht: …“,
+  offline als Punkt im Rückkehr-Bericht). Kauf mit Doppelklick-Schutz (`care-buy.ts`), Aufleuchten,
+  schwebender Bestätigung, Fokus auf den Namen. U:Forschungsknoten für alle Knoten (auch spätere
+  Stufen, `toCareView`); U:Harmonie oben Produktion/Vorrat/Bonus; Rückkehr-Meldung „+840 ⚖️“;
+  „Zur Forschung ›“ an verschlossenen Nischen; Spielanleitung „🔍 Forschung“ (Reiter, ∞, Plan).
+  Die alte Liste (`careOrder`, `sortCareViews`, Gruppen-Etiketten) ist entfernt. Echte 44-px-Treffer:
+  Name der Karte (negativer Rand statt Pseudo-Fläche), Reiter mindestens 44 px breit („Ziele“ bei
+  360 px), kein neuer Eintrag in `SMALL_OK`. Äste klappen nur mobil (Fenster < 640 px) anfangs zu.
+  Tests: `tests/research-state.test.ts`, `tests/research-view.test.ts` (Zeile „∞“, Plan-Nummern),
+  `tests/care-view.test.ts`, `tests/return-report-view.test.ts`, `tests/album-nav.test.ts`; e2e
+  `e2e/care.spec.ts` (neu: Baum, ∞, unerreichbar, Plan), `e2e/album-care.spec.ts` und die übrigen
+  Specs auf `#forschung` und die Karten-Helfer in `e2e/fixtures.ts`
 - [x] **4b** Ausbau im Album (`ui-dev`, 28.9): Layout aus 1c an die echte Logik (Kaufmenge,
   Bestätigung, Meilenstein-Stempel, Einkleben des neuen Platzes, Abzeichen in Tagebuch und
   Statistik, Hinweis bei geschlossener Nische), Spielanleitung „Ausbau“; ALBUM_UI.md. **Warum:** Der
@@ -1388,9 +1410,19 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Ziel bleibt nachgeahmt bis 2c). Tests `tests/upgrade-ui.test.ts`, `tests/upgrade-view.test.ts`,
   `tests/settings.test.ts`, `tests/journal-stats.test.ts`; e2e `e2e/upgrades.spec.ts` (ersetzt
   `upgrades-basic.spec.ts`, 360/390 px). 4d gleich mit erledigt (siehe dort)
-- [ ] **4c** Zielzeile und Rückkehr-Bericht (`ui-dev`, 28.7/28.9): Zeile im Polaroid-Kopf mit Sprung
+- [x] **4c** Zielzeile und Rückkehr-Bericht (`ui-dev`, 28.7/28.9): Zeile im Polaroid-Kopf mit Sprung
   zum Ziel, stabil zwischen Käufen, `aria-live` nur beim Wechsel; Rückkehr-Bericht endet mit der
   Zielzeile („Genug für 6 Ausbaustufen“). Klein. Abhängig: 2c, 4b
+  **Erledigt:** Sprung `jumpToGoal` (album/index.ts) → `NichesPage.reveal`: Nische, Baumteil bzw.
+  Pflanzring (Säen) mittig ins Bild, Fokus auf den Namen, Aufleuchten `goal-flash`; Ziel neu nur
+  bei `goalEpochKey`, Ersetzen des Spielstands oder Rückkehr; `aria-live` nur bei neuem Ziel
+  (geprüft, auch e2e). Rückkehr-Bericht endet mit „🎯 Genug für N Ausbaustufen ›“
+  (`affordableUpgradeSteps` in `core/goal.ts`: billigste Stufe zuerst über alle offenen Ziele =
+  größtmögliche Zahl) bzw. der Zielzeile (`returnGoalView`), letzter Punkt und „Zum Ziel ›“ auf
+  U:Rückkehr-Bericht. Feinschliff 2c: Auf der Doppelseite ersetzt der Zettel-Knopf die Zielzeile im
+  Kopf, solange er offen ist – Polaroid bei 1200 × 700 wieder größer. ALBUM_UI.md B.1/C.8. Tests
+  `tests/goal.test.ts`, `tests/upgrade-ui.test.ts`, `e2e/upgrades.spec.ts`,
+  `e2e/return-report.spec.ts`
 - [x] **4d** Baum-Ausbau einhängen (`renderer`): aus 1d mit `scene.upgrades` aus dem Spielstand
   (`main.ts`), Stufenbild unverändert; gern zusammen mit Phase 10, 4d. Abhängig: 1d, 2a
   **Erledigt mit 4b:** `refreshSceneEcosystem` in `main.ts` setzt `scene.upgrades =
@@ -1399,7 +1431,7 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
 
 **Welle 5 – Absichern** (Phase 10, 5a/5b zusammengelegt)
 
-- [ ] **5a** e2e Phase 10 + 11 (`qa-tester`): v16 lädt als v18 (über v17: Pflege → Knoten, offene
+- [x] **5a** e2e Phase 10 + 11 (`qa-tester`): v16 lädt als v18 (über v17: Pflege → Knoten, offene
   Pflanzenbegegnung → Aussaat), v17 lädt als v18 ohne Verlust; Ausbau kaufen → Meilenstein 25 →
   neuer Platz → Neuladen bleibt; ×10/Max; verschlossene Nische ohne Knopf; Zielzeile springt;
   Offline: Uhr 2 h vorstellen → Rückkehr-Bericht mit „Zehntel“, Jahreszeit weiter; Tab 30 s im
@@ -1407,6 +1439,15 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Ausbau, Ränge, Vorrat zurück, Abzeichen bleiben, Plan folgt; v17-Gerät lehnt v18 ab
   (`outdated-client`, `newer` beim Import); R:Nischen und R:Forschung bei 360/390 px ohne
   Querscrollen. Abhängig: 4a, 4b, 4c
+  **Erledigt:** neue Spec `e2e/phase11.spec.ts` für die Lücken – v16 → v18 (Pflege → Knoten,
+  Startguthaben, zwei Pflanzenbegegnungen → Aussaat + Samen, Neuladen ohne zweite Migration), v17 → v18
+  ohne Verlust, Tab 30 s im Hintergrund = online (Vergleich mit `tick`), Uhr 2 h vorstellen (Erträge
+  wie `simulateOffline`, „Zehntel“, Jahreszeit weiter), Gabel → andere Seite gesperrt → endloser
+  Knoten frei → Rang → Neuladen, Neuer Zyklus (Ausbau/Ränge/Vorrat 0, Abzeichen und Erfolg bleiben,
+  Plan kauft per Testuhr), R:Nischen/R:Forschung mit großen Zahlen bei 360/390 px. Schon abgedeckt
+  und nicht doppelt: Meilenstein 25, ×10/Max, verschlossene Nische, Zielzeile (`upgrades.spec.ts`),
+  Rang/Plan (`care.spec.ts`), `outdated-client`/`newer` (`chronicle-save.spec.ts`, SAVE_VERSION ∓ 1).
+  `upgrades.spec.ts` und `care.spec.ts` rechnen Preise jetzt aus content/core (3a ändert sie)
 - [ ] **5b** Playtest Phase 10 + 11 (`qa-tester`, Funde an `ui-dev` / `renderer` / `game-designer`):
   Fühlt sich das Spiel noch ziellos an? Gibt es immer etwas zu kaufen, ohne Klick-Pflicht? Ist 10 %
   offline fair? Fühlen sich die Gabeln wie Entscheidungen an, verlieren Samen ab dem Wald ihren Sinn?

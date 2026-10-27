@@ -1,83 +1,51 @@
 /**
- * Reiter „Pflege“ – „Was tun wir für den Wald?“ (docs/ALBUM_UI.md, B.3 und A.8 #95–100).
+ * Reiter „Forschung“ (früher „Pflege“; docs/ALBUM_UI.md B.3, DESIGN_V2.md 27.12 und 28.9,
+ * ROADMAP Phase 11, 4a). Die interne Kennung bleibt `care` (Navigation, Spielstand-unabhängig).
  *
  * - **Gerade wirksam:** aktive Boni aus Ereignissen und Gästen mit Restzeit und
  *   schrumpfendem Washi-Balken; Wirkungen bis zum Neuen Zyklus darunter. Fehlt, wenn nichts
  *   wirkt.
- * - **Forschung** (seit Spielstand v17 eine flache Notliste, DESIGN_V2.md 27.7; der Baum folgt
- *   in Phase 10, 4a): sortiert erforschbar → sparen → gesperrt → erforscht (careOrder). Die
- *   Reihenfolge bleibt stehen, solange Zeiger oder Tastaturfokus in der Liste sind oder ein
- *   Kauf weniger als CARE_HOLD_MS her ist. Jede Zeile: Symbol, Name (→ U:Pflegemaßnahme),
- *   Ast, Wirkung, „öffnet …“, Vorschau, Sperrgrund und „Erforschen (x ⚖️)“.
- * - Kennzahl im Kopf (Vorrat, Zufluss, „2 erforschbar“), Punkt am Reiter, wenn etwas
+ * - **Plan:** Schalter „Plan des letzten Zyklus folgen“ (`meta.research.auto`) mit einer Zeile,
+ *   was als Nächstes dran ist. Ohne Plan (erster Zyklus) nur ein kurzer Hinweis.
+ * - **Forschungsbaum** (album/research-tree.ts) mit dem Zustand aus dem Spielstand
+ *   (research-state.ts): Äste, Ebenen, Gabeln, Zeile „∞“ mit Rang-Stempel, Plan-Nummern.
+ *   Erforschen mit Doppelklick-Schutz (care-buy.ts), Aufleuchten, schwebender Bestätigung und
+ *   Statuszeile; der Baum hat feste Plätze, nichts sortiert um. Name → U:Forschungsknoten.
+ * - Seitenkopf „⚖️ 1.234 · +110/min · 3 erforschbar“, Punkt am Reiter, wenn etwas
  *   erforschbar ist (`badge`).
- * - `reveal(id)` (von „Zur Pflege“): Zeile zeigen, Fokus auf den Namen, Aufleuchten.
+ * - `reveal(id)` (von „Zur Forschung“): Ast aufklappen, Fokus auf den Namen, Aufleuchten.
  *
- * DOM einmal je Maßnahme bauen; `update` setzt nur Texte, Klassen und Reihenfolge.
+ * DOM einmal bauen; `update` setzt nur Texte, Klassen und Attribute (gedrosselt).
  */
-import { RESEARCH } from '../../../content/research';
-import { evaluate, type Evaluation } from '../../../core/formulas';
-import type { GameState } from '../../../core/state';
-import { researchComplete, researchCost } from '../../../core/tick';
-import { activeBonusViews, toCareViews } from '../../adapters';
-import { CARE_GROUP_LABELS, CARE_HOLD_MS, barWidth, careOrder, carePreviewText, careSummaryText, careTabDot, harmonyWalletText } from '../../care-view';
+import { RESEARCH_BY_ID } from '../../../content/research';
+import { evaluate } from '../../../core/formulas';
+import { activeBonusViews } from '../../adapters';
+import { barWidth, harmonyWalletText } from '../../care-view';
 import { el, setText, setVar, srOnly } from '../../dom';
 import { prefersReducedMotion, restartAnimation } from '../../feedback';
 import { hyphenate } from '../../hyphenate';
-import type { ActiveBonusView, CareView } from '../../view-model';
+import { createResearchTree } from '../research-tree';
+import { createResearchStateSource, researchPlanView } from '../../research-state';
+import { researchHeader, type ResearchTreeState } from '../../research-view';
+import type { ActiveBonusView } from '../../view-model';
 import type { PageEnv, TabPage } from './registry';
-import { setBuyButton, wireBuyButton } from './care-buy';
+import { wireBuyButton } from './care-buy';
 import { createTabPanel } from './tab-pages';
 import './care-page.css';
 
-/** Zahlen (Restzeit, „Noch X 🌰“) höchstens so oft neu – wie die übrigen Seiten. */
+/** Zahlen (Restzeit, „Noch X ⚖️“) höchstens so oft neu – wie die übrigen Seiten. */
 const REFRESH_MS = 200;
 
 export interface CarePage extends TabPage {
-  /** Zeile der Maßnahme zeigen, Fokus auf ihren Namen, kurz aufleuchten. false, wenn sie fehlt. */
+  /** Knoten zeigen, Fokus auf seinen Namen, kurz aufleuchten. false, wenn es ihn nicht gibt. */
   reveal(id: string): boolean;
 }
 
-/** Leichte, feste Schräglage je Maßnahme (−4° … +4°) für das Symbol-Sticker. */
+/** Leichte, feste Schräglage je Knoten (−4° … +4°) für das Symbol-Sticker (U:Forschungsknoten). */
 export function careTilt(id: string): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
   return (Math.abs(h) % 9) - 4;
-}
-
-/** Schlüssel, der sich ändert, sobald sich Bezahlbarkeit oder Fehlbetrag eines Knotens ändern. */
-function affordKey(state: GameState): string {
-  let key = `${state.stage}|${state.cycle.research.join(',')}|`;
-  const points = Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0;
-  for (const n of RESEARCH) {
-    // Wiederholbare Knoten (28.6): Kosten des nächsten Rangs.
-    const cost = researchCost(state, n.id) ?? Infinity;
-    key += (researchComplete(state, n.id) ? '-' : cost <= points ? '1' : Math.ceil(cost - points)) + ',';
-  }
-  return key;
-}
-
-const GROUP_SR: Record<CareView['group'], string> = {
-  buyable: 'erforschbar',
-  saving: 'zu wenig Harmonie',
-  locked: 'gesperrt',
-  maxed: 'erforscht',
-};
-
-interface Row {
-  id: string;
-  li: HTMLLIElement;
-  name: HTMLButtonElement;
-  nameText: HTMLElement;
-  groupSr: HTMLElement;
-  rank: HTMLElement;
-  next: HTMLElement;
-  opens: HTMLElement;
-  blocker: HTMLElement;
-  preview: HTMLElement;
-  previewText: Text;
-  buy: HTMLButtonElement;
-  view: CareView;
 }
 
 export function createCarePage(env: PageEnv): CarePage {
@@ -96,246 +64,126 @@ export function createCarePage(env: PageEnv): CarePage {
   active.hidden = true;
   active.firstElementChild!.setAttribute('aria-hidden', 'true');
 
-  // --- Forschung (Notliste) ----------------------------------------------------------------
+  // --- Forschungsplan ------------------------------------------------------------------
+  const plan = el('section', 'research-plan');
+  plan.dataset.ref = 'research-plan';
+  plan.setAttribute('aria-label', 'Forschungsplan');
+  const planSwitch = el('label', 'research-plan-switch');
+  const planInput = el('input');
+  planInput.type = 'checkbox';
+  planInput.setAttribute('role', 'switch');
+  planInput.dataset.ref = 'research-auto';
+  const planStatusId = 'research-plan-status';
+  planInput.setAttribute('aria-describedby', planStatusId);
+  planSwitch.append(planInput, el('span', 'research-plan-label', 'Plan des letzten Zyklus folgen'));
+  const planStatus = el('p', 'research-plan-status');
+  planStatus.id = planStatusId;
+  planStatus.dataset.ref = 'research-plan-status';
+  plan.append(planSwitch, planStatus);
+  planInput.addEventListener('change', () => {
+    deps.actions.setResearchAuto(planInput.checked);
+    refresh(performance.now(), true);
+  });
+
+  // --- Forschungsbaum ------------------------------------------------------------------
   const section = el('section', 'care-measures');
   section.dataset.ref = 'care';
   section.setAttribute('aria-labelledby', 'care-measures-title');
   const listTitle = el('h3', 'care-section-title', 'Forschung');
   listTitle.id = 'care-measures-title';
   const hint = el('p', 'care-hint', 'Tippe auf einen Namen, um umzublättern.');
-  const empty = el('p', 'care-empty', 'Noch gibt es nichts zu erforschen – die ersten Knoten kommen, wenn der Baum wächst.');
-  const list = el('ul', 'care-list');
-  list.setAttribute('aria-label', 'Forschung');
   // Statuszeile für Screenreader: Bestätigung nach dem Kauf (die schwebende ist verborgen).
   const status = srOnly();
   status.setAttribute('role', 'status');
-  section.append(listTitle, hint, empty, list, status);
-  page.body.append(active, section);
+
+  let shown: ResearchTreeState | null = null;
+  let boughtText = '';
+  let boughtIcon = '';
+  let hadFocus = false;
+
+  const tree = createResearchTree({
+    // Im Album steht der Vorrat schon im Seitenkopf (und mobil in der Vorratsleiste).
+    head: false,
+    onResearch: () => undefined,
+    onOpen: (id) => env.open({ kind: 'care-item', id }),
+    bindAction(button, id) {
+      wireBuyButton(button, {
+        id: () => id,
+        canBuy: () => shown?.nodes[id]?.status === 'available',
+        before() {
+          // Vor dem Kauf merken: Danach kann der Knopf schon verborgen sein (Fokus weg).
+          hadFocus = document.activeElement === button;
+          const node = RESEARCH_BY_ID.get(id);
+          boughtText = node?.boughtText ?? '';
+          boughtIcon = node?.icon ?? '';
+        },
+        buy: (researchId) => deps.actions.buyCare(researchId),
+        bought: () => confirmBuy(id),
+      });
+    },
+  });
+  section.append(listTitle, hint, tree.root, status);
+  page.body.append(active, plan, section);
 
   // --- Zustand -------------------------------------------------------------------------
-  let views: CareView[] = [];
-  let viewsEval: Readonly<Evaluation> | null = null;
-  let viewsKey = '';
+  const source = createResearchStateSource();
   let checkedAt = -Infinity;
-  /** Zählt neue Ansichten; die Seite zeichnet nur, wenn er sich geändert hat. */
-  let version = 0;
-  let shownVersion = -1;
-  const rows = new Map<string, Row>();
-  let order: string[] = [];
-  let pointerInside = false;
-  let holdUntil = 0;
-  let holdTimer: ReturnType<typeof setTimeout> | undefined;
   let bonusAt = -Infinity;
-  let boughtText: string | null = null;
-  let boughtIcon = '';
+  let metaText = '';
 
   deps.preferences.onChange(() => {
-    // Zahlenformat geändert: Ansichten neu.
-    viewsKey = '';
+    // Zahlenformat geändert: alles neu.
     bonusKey = '';
     checkedAt = -Infinity;
     bonusAt = -Infinity;
   });
 
-  /** Ansichten nachziehen, wenn sich Ökosystem, Stufe oder Bezahlbarkeit geändert haben. */
-  function ensureViews(now: number, force = false): void {
-    if (!force && now - checkedAt < REFRESH_MS) return;
-    checkedAt = now;
+  let drawn: ResearchTreeState | null = null;
+
+  /** Zustand neu (gedrosselt); `apply`: Baum, Kopf und Plan zeichnen, falls neu. */
+  function refresh(now: number, force = false, apply = true): ResearchTreeState {
+    if (force || !shown || now - checkedAt >= REFRESH_MS) {
+      checkedAt = now;
+      const state = deps.state();
+      shown = source(state, evaluate(state));
+    }
+    if (apply && shown !== drawn) draw(shown);
+    return shown;
+  }
+
+  function draw(next: ResearchTreeState): void {
+    drawn = next;
     const state = deps.state();
-    const ev = evaluate(state);
-    const key = affordKey(state);
-    if (!force && ev === viewsEval && key === viewsKey) return;
-    viewsEval = ev;
-    viewsKey = key;
-    views = toCareViews(state, ev);
-    version++;
+    tree.update(next);
+    const header = researchHeader(next);
+    const text = [harmonyWalletText(state), header.count > 0 ? header.available : ''].filter(Boolean).join(' · ');
+    if (text !== metaText) {
+      metaText = text;
+      page.setMeta(text);
+    }
+    const planView = researchPlanView(state, next.perMinute);
+    planSwitch.hidden = !planView.hasPlan;
+    if (planInput.checked !== planView.on) planInput.checked = planView.on;
+    setText(planStatus, planView.status);
+    plan.classList.toggle('is-on', planView.on && planView.hasPlan);
   }
 
-  // --- Zeilen --------------------------------------------------------------------------
-
-  /** Fokus per Tastatur in der Liste? Ein per Maus fokussierter Knopf zählt nicht. */
-  const keyboardFocusInside = () => {
-    const focused = document.activeElement;
-    if (!(focused instanceof HTMLElement) || !list.contains(focused)) return false;
-    try {
-      return focused.matches(':focus-visible');
-    } catch {
-      return true;
-    }
-  };
-  const frozen = () => pointerInside || performance.now() < holdUntil || keyboardFocusInside();
-
-  function buildRow(view: CareView): Row {
-    const li = el('li', 'care-row');
-    li.dataset.care = view.id;
-    const icon = el('span', 'care-icon', view.icon);
-    icon.setAttribute('aria-hidden', 'true');
-    icon.style.setProperty('--tilt', `${careTilt(view.id)}deg`);
-    const head = el('div', 'care-head');
-    const name = el('button', 'care-open');
-    name.type = 'button';
-    name.dataset.careTitle = view.id;
-    const nameText = el('span', 'care-name');
-    const arrow = el('span', 'care-open-arrow', '›');
-    arrow.setAttribute('aria-hidden', 'true');
-    const groupSr = srOnly();
-    name.append(nameText, arrow, groupSr);
-    name.addEventListener('click', () => env.open({ kind: 'care-item', id: view.id }));
-    const rank = el('span', 'care-rank');
-    head.append(name, rank);
-
-    const body = el('div', 'care-body');
-    const next = el('p', 'care-next');
-    const opens = el('p', 'care-opens');
-    opens.dataset.ref = 'care-opens';
-    const blocker = el('p', 'care-blocker');
-    blocker.dataset.ref = 'care-blocker';
-    body.append(next, opens, blocker);
-
-    const preview = el('p', 'care-preview');
-    preview.dataset.ref = 'care-preview';
-    const previewText = document.createTextNode('');
-    preview.append(srOnly('Vorschau: '), previewText);
-
-    const buy = el('button', 'care-buy');
-    buy.type = 'button';
-    buy.dataset.buyCare = view.id;
-    const row: Row = { id: view.id, li, name, nameText, groupSr, rank, next, opens, blocker, preview, previewText, buy, view };
-    wireBuyButton(buy, {
-      id: () => row.id,
-      canBuy: () => row.view.canBuy,
-      before(_id, now) {
-        // Text vor dem Kauf merken: danach zeigt die Zeile schon den nächsten Rang.
-        boughtText = row.view.boughtText;
-        boughtIcon = row.view.icon;
-        // Kurz festhalten, damit die Zeile nicht unter dem Finger wegspringt.
-        holdUntil = now + CARE_HOLD_MS;
-        clearTimeout(holdTimer);
-        holdTimer = setTimeout(release, CARE_HOLD_MS + 20);
-      },
-      buy: (id) => deps.actions.buyCare(id),
-      bought: () => confirmBuy(row, boughtText, boughtIcon),
-    });
-    li.append(icon, head, body, buy, preview);
-    return row;
-  }
-
-  function fillRow(row: Row, view: CareView): void {
-    row.view = view;
-    const li = row.li;
-    for (const group of ['buyable', 'saving', 'locked', 'maxed'] as const) li.classList.toggle(`care-${group}`, group === view.group);
-    li.dataset.group = view.group;
-    setText(row.nameText, hyphenate(view.name));
-    setText(row.groupSr, view.group === 'maxed' ? '' : ` (${GROUP_SR[view.group]})`);
-    setText(row.rank, view.group === 'maxed' ? `✓ erforscht · ${view.rank}` : view.rank);
-    setText(row.next, view.next ?? '');
-    row.next.hidden = !view.next;
-    setText(row.opens, view.opens ?? '');
-    row.opens.hidden = !view.opens;
-    setText(row.blocker, view.blocker ?? '');
-    row.blocker.hidden = !view.blocker;
-    // Vorschau nur, wo ein Kauf in Reichweite ist – gesperrte Zeilen bleiben kurz.
-    const preview = view.group === 'buyable' || view.group === 'saving' ? carePreviewText(view.preview) : '';
-    if (row.previewText.data !== preview) row.previewText.data = preview;
-    row.preview.hidden = !preview;
-    setBuyButton(row.buy, view.cost, view.canBuy, view.blocker);
-  }
-
-  /** Zeilen an die Ansichten anpassen; Reihenfolge nur ändern, wenn nicht festgehalten. */
-  function render(force = false): void {
-    if (!force && shownVersion === version) return;
-    shownVersion = version;
-    const focused = document.activeElement;
-    const byId = new Map(views.map((v) => [v.id, v]));
-    for (const [id, row] of rows) {
-      if (!byId.has(id)) {
-        row.li.remove();
-        rows.delete(id);
-      }
-    }
-    for (const view of views) {
-      let row = rows.get(view.id);
-      if (!row) {
-        row = buildRow(view);
-        rows.set(view.id, row);
-      }
-      fillRow(row, view);
-    }
-    const nextOrder = careOrder(views, order, frozen());
-    if (nextOrder.join('|') !== order.join('|') || list.childElementCount !== nextOrder.length) {
-      order = nextOrder;
-      // Nur verschieben, was nicht schon an seinem Platz steht (Fokus bleibt erhalten).
-      let at: ChildNode | null = list.firstChild;
-      for (const id of order) {
-        const li = rows.get(id)!.li;
-        if (li === at) at = at.nextSibling;
-        else list.insertBefore(li, at);
-      }
-    }
-    // Handschrift-Überschrift über der ersten Zeile jeder Gruppe.
-    let previous: string | null = null;
-    for (const id of order) {
-      const row = rows.get(id)!;
-      const group = row.view.group;
-      if (group !== previous) row.li.dataset.groupLabel = CARE_GROUP_LABELS[group];
-      else delete row.li.dataset.groupLabel;
-      row.li.classList.toggle('care-group-start', group !== previous && previous !== null);
-      previous = group;
-    }
-    updateMeta(true);
-    empty.hidden = views.length > 0;
-    hint.hidden = views.length === 0;
-    // Erforschen-Knopf nach dem Kauf verschwunden: Fokus auf den Namen des Knotens.
-    if (focused instanceof HTMLButtonElement && focused.dataset.buyCare && focused.hidden) {
-      rows.get(focused.dataset.buyCare)?.name.focus({ preventScroll: true });
-    }
-  }
-
-  /**
-   * Kopf: Harmonie-Vorrat mit Zufluss und „N erforschbar“. Der Vorrat wächst laufend – auch
-   * wenn sich keine Zeile ändert –, darum gedrosselt wie die übrigen Zahlen neu gesetzt.
-   */
-  let metaText = '';
-  let metaAt = -Infinity;
-  function updateMeta(force = false, now = performance.now()): void {
-    if (!force && now - metaAt < REFRESH_MS) return;
-    metaAt = now;
-    const text = [harmonyWalletText(deps.state()), careSummaryText(views)].filter(Boolean).join(' · ');
-    if (text === metaText) return;
-    metaText = text;
-    page.setMeta(text);
-  }
-
-  /** Bestätigung: schwebender Text über dem Knopf, dazu die Statuszeile für Screenreader. */
-  function confirmBuy(row: Row, text: string | null, icon: string): void {
-    // Gleich neu zeichnen (nächster Rang, Fokus), dann aufleuchten.
-    ensureViews(performance.now(), true);
-    render(true);
-    if (!prefersReducedMotion()) restartAnimation(row.li, 'care-flash');
-    if (!text) return;
+  /** Bestätigung: Aufleuchten, schwebender Text über dem Knopf, Statuszeile für Screenreader. */
+  function confirmBuy(id: string): void {
+    refresh(performance.now(), true);
+    const card = tree.card(id);
+    const action = tree.action(id);
+    if (card && !prefersReducedMotion()) restartAnimation(card, 'research-flash');
+    // Knopf weg (einmaliger Knoten erforscht): Fokus auf den Namen statt auf body.
+    if (action && hadFocus && action.hidden) tree.focusName(id);
+    if (!boughtText) return;
+    const text = boughtText;
     setText(status, '');
     requestAnimationFrame(() => setText(status, text));
-    const anchor = row.buy.hidden ? row.li : row.buy;
-    const rect = anchor.getBoundingClientRect();
-    const top = row.li.getBoundingClientRect().top;
-    if (rect.width > 0) env.float(`${icon} ${text}`, rect.left + rect.width / 2, top - 6);
+    const anchor = action && !action.hidden ? action : card;
+    const rect = anchor?.getBoundingClientRect();
+    if (rect && rect.width > 0) env.float(`${boughtIcon} ${text}`, rect.left + rect.width / 2, rect.top - 6);
   }
-
-  /** Festhalten vorbei: neu sortieren, falls sich die Reihenfolge geändert hätte. */
-  function release(): void {
-    setTimeout(() => {
-      if (frozen()) return;
-      if (careOrder(views, order, false).join('|') !== order.join('|')) render(true);
-    }, 0);
-  }
-  list.addEventListener('pointerenter', () => (pointerInside = true));
-  list.addEventListener('pointerleave', () => {
-    pointerInside = false;
-    release();
-  });
-  list.addEventListener('focusout', (event) => {
-    if (!list.contains(event.relatedTarget as Node | null)) release();
-  });
 
   // --- Gerade wirksam ------------------------------------------------------------------
   let bonusKey = '';
@@ -388,29 +236,22 @@ export function createCarePage(env: PageEnv): CarePage {
   }
 
   function reveal(id: string): boolean {
-    ensureViews(performance.now(), true);
-    render(true);
-    const row = rows.get(id);
-    if (!row) return false;
-    row.li.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
-    row.name.focus({ preventScroll: true });
-    if (!prefersReducedMotion()) restartAnimation(row.li, 'care-flash');
-    return true;
+    refresh(performance.now(), true);
+    return tree.reveal(id);
   }
 
   return {
     page,
     update(now, force) {
       // Nach einer Änderung bzw. beim Zeigen nicht auf die Drosselung warten.
-      if (force) checkedAt = bonusAt = -Infinity;
-      ensureViews(now);
-      render();
-      updateMeta(force, now);
+      if (force) bonusAt = -Infinity;
+      refresh(now, force);
       updateBonuses(now);
     },
     badge(now) {
-      ensureViews(now);
-      return careTabDot(views);
+      // Nur den Zustand – gezeichnet wird, wenn der Reiter sichtbar ist (update).
+      const s = refresh(now, false, false);
+      return Object.values(s.nodes).some((n) => n.status === 'available');
     },
     reveal,
   };

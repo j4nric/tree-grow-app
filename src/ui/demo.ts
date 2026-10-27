@@ -89,6 +89,7 @@ const deps: AlbumDeps = {
     },
     sow: () => say('Gesät'),
     buyCare: (id) => say(`Pflege ${id} gekauft`),
+    setResearchAuto: (on) => say(`Plan folgen: ${on ? 'an' : 'aus'}`),
     upgrade: (target) => {
       say(`${target.id} ausgebaut`);
       return null;

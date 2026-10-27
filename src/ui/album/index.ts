@@ -70,8 +70,8 @@ import { createTapeLabel } from './tape-label';
 import type { AlbumDeps, AlbumPart } from './types';
 import type { NotifyOptions } from './stamp-rules';
 import { goalCostNow, goalEpochKey, toGoalInput, waitingNotes, type StageBannerView } from '../adapters';
-import { nextGoal, researchAvailable, type NextGoal } from '../../core/goal';
-import { goalLineView } from '../upgrade-view';
+import { affordableUpgradeSteps, nextGoal, researchAvailable, type NextGoal } from '../../core/goal';
+import { goalLineView, returnGoalView } from '../upgrade-view';
 import { createGoalLine } from './upgrade-panel';
 import { returnStamp, type ReturnReportView } from '../return-report-view';
 
@@ -190,14 +190,15 @@ export function createAlbum(deps: AlbumDeps): Album {
     // „Mehr ›“ erst, wenn es U:Harmonie gibt (Schritt 5).
     { onMore: () => dispatch({ type: 'open', page: { kind: 'harmony' } }), available: () => subpages.has('harmony') },
   );
-  // Zielzeile (DESIGN_V2.md 28.7, einfache Fassung aus Phase 11, 2c – Sprung zum Eintrag und
-  // Rückkehr-Bericht folgen mit 4c): unter den Etiketten, Tippen öffnet R:Nischen bzw. R:Forschung.
+  // Zielzeile (DESIGN_V2.md 28.7, Phase 11, 2c/4c): unter den Etiketten; Tippen springt zur
+  // Zeile in R:Nischen (Nische, Baumteil bzw. Pflanzring), „erforschbar ›“ öffnet R:Forschung.
   const goalLine = createGoalLine(
-    () => dispatch({ type: 'tab', tab: 'niches' }),
+    () => jumpToGoal(),
     () => dispatch({ type: 'tab', tab: 'care' }),
   );
   const ladder = createStageLadder();
-  const returnReport = createReturnReport(env, () => focusTarget());
+  // Der Rückkehr-Bericht endet mit demselben Ziel (4c) und springt genauso.
+  const returnReport = createReturnReport(env, () => focusTarget(), () => jumpToGoal());
   spread.left.append(polaroid.element, labels, goalLine.element, ladder.element, returnReport.slip);
   // Mobil: Vorratsleiste über den klebenden Reitern (B.0, G.2-14).
   const supply = createSupplyBar();
@@ -271,7 +272,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   function placeStamps(): void {
     stampPlacement.place();
   }
-  // Reiter Nischen (Schritt 5): „Säen“ öffnet die Aussaat (main.ts), „Zur Pflege“ über den Reiter Pflege.
+  // Reiter Nischen (Schritt 5): „Säen“ öffnet die Aussaat (main.ts), „Zur Forschung“ über den Reiter Forschung.
   tabs.niches.connect({
     sow: () => deps.actions.sow(),
     upgrade: (target, count) => deps.actions.upgrade(target, count),
@@ -690,6 +691,10 @@ export function createAlbum(deps: AlbumDeps): Album {
   let researchCount = 0;
   let researchKey = '';
 
+  /** Ende des Rückkehr-Berichts neu rechnen (neues Ziel bzw. neuer Bericht). */
+  let reportGoalDirty = true;
+  let reportSteps = 0;
+
   function showGoal(view: EcosystemView): void {
     const state = deps.state();
     const epoch = goalEpochKey(state);
@@ -699,6 +704,7 @@ export function createAlbum(deps: AlbumDeps): Album {
       goalState = state;
       goal = nextGoal(state, view.seedsPerSec);
       researchKey = '';
+      reportGoalDirty = true;
     }
     const rKey = `${epoch}|${Math.floor(state.harmonyPoints)}`;
     if (rKey !== researchKey) {
@@ -706,7 +712,32 @@ export function createAlbum(deps: AlbumDeps): Album {
       researchCount = researchAvailable(state);
     }
     const input = goal ? toGoalInput({ ...goal, cost: goalCostNow(goal, state) }) : null;
-    goalLine.update(input && Number.isFinite(input.cost) ? goalLineView(input, { seeds: view.seeds, seedsPerSecond: view.seedsPerSec }, researchCount) : null);
+    const shown = input && Number.isFinite(input.cost) ? input : null;
+    const ctx = { seeds: view.seeds, seedsPerSecond: view.seedsPerSec };
+    goalLine.update(goalLineView(shown, ctx, researchCount));
+    // Rückkehr-Bericht (4c): „Genug für N Ausbaustufen“ – nur bei neuem Ziel oder neuem Bericht
+    // gerechnet, nicht je Frame (nach einem Kauf zählt er weiter herunter).
+    if (returnReport.open) {
+      if (reportGoalDirty) {
+        reportGoalDirty = false;
+        reportSteps = affordableUpgradeSteps(state);
+      }
+      // Preis und Wartezeit laufen mit (schreibt nur geänderte Texte).
+      returnReport.setGoal(returnGoalView(shown, ctx, reportSteps));
+    }
+  }
+
+  /**
+   * Sprung zum Ziel (28.7, Phase 11, 4c): R:Nischen aufschlagen (auch aus einer Unterseite oder
+   * dem Umschlag), dann die Zeile der Nische bzw. des Baumteils – beim Säen den Pflanzring – ins
+   * Bild holen und kurz aufleuchten lassen. Ohne Ziel bleibt es beim Reiter.
+   */
+  function jumpToGoal(): void {
+    const target = goal ? (goal.target ?? 'sow') : null;
+    dispatch({ type: 'tab', tab: 'niches' });
+    whenIdle(() => {
+      if (!target || nav.tab !== 'niches' || nav.stack.length > 0 || !tabs.niches.reveal(target)) tabs[nav.tab].page.focusTitle();
+    });
   }
 
   // --- Seiten aktualisieren (D.1) ------------------------------------------------------
@@ -835,6 +866,9 @@ export function createAlbum(deps: AlbumDeps): Album {
     },
     showReturnReport(view) {
       returnReport.show(view);
+      // Rückkehr = wie Laden: Ziel neu wählen (28.7, Regel 5); der Bericht endet damit.
+      goalEpoch = null;
+      reportGoalDirty = true;
       // Die Kurzfassung steht im Zettel – der Stempel grüßt nur (C.8, Playtest Schritt 14 S4).
       // Er geht, sobald der Bericht aufgeschlagen ist.
       if (welcomeStamp) stamps.dismiss(welcomeStamp);

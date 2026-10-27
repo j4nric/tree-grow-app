@@ -49,7 +49,7 @@ test('Mit dem ersten Tier: offene Nische einzeln, Links da, Rest weiter zusammen
   const a = (await panel.locator('[data-ref="communities-link"]').boundingBox())!;
   const b = (await panel.locator('[data-ref="food-web-link"]').boundingBox())!;
   expect(Math.abs(a.x - b.x)).toBeLessThanOrEqual(1);
-  // Junger Baum: Waldwiese hat „Zur Pflege ›“ und steht einzeln; Höhlen (Alter Baum) zusammengefasst.
+  // Junger Baum: Waldwiese hat „Zur Forschung ›“ und steht einzeln; Höhlen (Alter Baum) zusammengefasst.
   await expect(niche(page, 'meadow')).toBeVisible();
   await expect(niche(page, 'hollows')).toBeHidden();
   await expect(panel.locator('[data-ref="niches-locked-text"]')).toHaveText(/^Noch \d+ Nischen verschlossen$/);

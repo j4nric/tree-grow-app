@@ -1,7 +1,8 @@
 /* Forschungsbaum (research-tree.ts, DESIGN_V2.md 27.12). Album-Optik: Handschrift für
    Überschriften und Zahlen, Washi-Streifen in der Farbe des Asts, gestempelte Karten.
    Zwei Darstellungen: [data-layout='list'] (mobil, Album-Seite) und [data-layout='grid']
-   (breit, 6 Äste × 5 Ebenen). Umgeschaltet nach der Breite des Baums, nicht des Fensters. */
+   (breit, 6 Äste × 5 Ebenen und die Zeile „∞“). Umgeschaltet nach der Breite des Baums,
+   nicht des Fensters. */
 
 .research-tree {
   container: research / inline-size;
@@ -18,6 +19,10 @@
   align-items: baseline;
   gap: 4px 12px;
   margin: 0 0 12px;
+}
+
+.research-head[hidden] {
+  display: none;
 }
 
 .research-supply {
@@ -327,8 +332,10 @@
   hyphens: manual;
 }
 
+/* Echte Trefferfläche 44 px; die negativen Ränder halten die Karte so flach wie vorher. */
 button.research-node-name {
-  min-height: 30px;
+  min-height: var(--tap);
+  margin-block: -7px;
   cursor: pointer;
   text-decoration: underline dotted var(--dash);
   text-underline-offset: 3px;
@@ -511,6 +518,77 @@ button.research-node-name {
   text-decoration-color: var(--dash);
 }
 
+/* Nächster Rang über dem größten Vorrat: ruhig, ohne Rot */
+.research-node.is-unreachable .research-node-action[aria-disabled='true'] {
+  border-color: var(--dash);
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* --- Plan-Nummern (27.8) -------------------------------------------------------------- */
+
+.research-node-plan {
+  position: absolute;
+  z-index: 2;
+  top: -9px;
+  left: -7px;
+  max-width: calc(100% + 4px);
+  min-width: 20px;
+  padding: 0 5px;
+  overflow: hidden;
+  border: 2px solid var(--paper);
+  border-radius: var(--r-pill);
+  background: var(--ink-soft);
+  color: var(--paper);
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.research-node-plan[hidden] {
+  display: none;
+}
+
+.research-tree[data-plan='on'] .research-node-plan {
+  background: var(--ink);
+}
+
+.research-tree[data-plan='on'] .research-node.is-plan-next .research-node-plan {
+  background: var(--ink-green);
+}
+
+/* --- Zeile „∞“: endlose Knoten (28.6/28.9) --------------------------------------------- */
+
+.research-tier-repeat .research-tier-label {
+  color: var(--ink);
+}
+
+.research-node.is-repeatable {
+  grid-template-areas:
+    'icon name stamp'
+    'icon summary action'
+    'refs refs refs';
+  row-gap: 2px;
+  border-style: double;
+  border-width: 4px;
+}
+
+.research-node.is-repeatable.is-locked,
+.research-node.is-repeatable.is-excluded {
+  border-style: dashed;
+  border-width: 2px;
+}
+
+.research-node.is-repeatable .research-node-stamp {
+  grid-area: stamp;
+  align-self: start;
+  font-size: 17px;
+}
+
 /* --- Gabel: zwei halbe Karten mit „oder“ ---------------------------------------------- */
 
 .research-fork {
@@ -626,6 +704,15 @@ button.research-node-name {
     max-width: none;
     margin-top: 4px;
   }
+
+  .research-node.is-repeatable {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'icon name stamp'
+      'icon summary summary'
+      'refs refs refs'
+      'action action action';
+  }
 }
 
 /* Aufleuchten nach Sprung oder Erforschen */
@@ -671,7 +758,7 @@ body[data-motion='reduce'] .research-branch-chevron {
 .research-tree[data-layout='grid'] .research-board {
   display: grid;
   grid-template-columns: 70px repeat(6, minmax(0, 1fr));
-  grid-template-rows: auto repeat(5, auto);
+  grid-template-rows: auto repeat(var(--tiers, 6), auto);
   column-gap: 24px;
 }
 
@@ -848,4 +935,24 @@ body[data-motion='reduce'] .research-branch-chevron {
   justify-self: center;
   font-size: 17px;
   line-height: 1.2;
+}
+
+/* Raster: endlose Karten stehend wie die übrigen, Rang-Stempel unter dem Namen */
+.research-tree[data-layout='grid'] .research-node.is-repeatable {
+  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-areas:
+    'icon name'
+    'stamp stamp'
+    'summary summary'
+    'refs refs'
+    'action action';
+}
+
+.research-tree[data-layout='grid'] .research-node.is-repeatable .research-node-stamp {
+  justify-self: center;
+  font-size: 16px;
+}
+
+.research-tree[data-layout='grid'] .research-row-label.is-repeat {
+  color: var(--ink);
 }

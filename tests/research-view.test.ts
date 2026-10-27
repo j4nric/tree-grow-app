@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RESEARCH_ONCE, RESEARCH_BRANCHES, RESEARCH_BY_ID, RESEARCH_FORKS } from '../src/content/research';
+import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_BY_ID, RESEARCH_FORKS, RESEARCH_REPEATABLE } from '../src/content/research';
 import { fixtureState, RESEARCH_FIXTURES } from '../src/ui/research-fixtures';
 import {
   assignLanes,
@@ -10,6 +10,8 @@ import {
   researchLayout,
   researchNodeView,
   researchStatusFromBlocker,
+  planBadge,
+  REPEAT_TIER_LABEL,
   type ResearchSlot,
   type ResearchTreeState,
 } from '../src/ui/research-view';
@@ -25,15 +27,35 @@ const slotIds = (slot: ResearchSlot): string[] => (slot.kind === 'node' ? [slot.
 describe('researchLayout', () => {
   const layout = researchLayout();
 
-  it('sechs Äste, fünf Ebenen (Setzling bis Wald)', () => {
+  it('sechs Äste, fünf Ebenen (Setzling bis Wald) und darunter die Zeile „∞“', () => {
     expect(layout.branches.map((b) => b.branch.id)).toEqual(RESEARCH_BRANCHES.map((b) => b.id));
     expect(layout.stages).toEqual([2, 3, 4, 5, 6]);
+    expect(layout.rows).toBe(6);
+    expect(REPEAT_TIER_LABEL).toBe('∞ immer weiter');
+  });
+
+  it('Zeile „∞“: je Ast genau der endlose Knoten, als letzte Zeile', () => {
+    for (const b of layout.branches) {
+      const last = b.tiers[b.tiers.length - 1]!;
+      expect(last.repeat).toBe(true);
+      expect(last.row).toBe(layout.stages.length);
+      const ids = last.slots.map((slot) => (slot.kind === 'node' ? slot.id : ''));
+      expect(ids).toEqual(RESEARCH_REPEATABLE.filter((n) => n.branch === b.branch.id).map((n) => n.id));
+      expect(b.tiers.filter((t) => t.repeat)).toHaveLength(1);
+    }
+    // „requiresAny“ zum endlosen Knoten wird eine gestrichelte Linie im eigenen Ast
+    expect(layout.edges).toContainEqual({ from: 'beetle-castle', to: 'soil-life', any: true });
+    expect(layout.edges).toContainEqual({ from: 'fungus-garden', to: 'soil-life', any: true });
   });
 
   it('jeder Knoten steht genau einmal auf der Ebene seiner Stufe im eigenen Ast', () => {
     const seen: string[] = [];
     for (const b of layout.branches) {
       for (const tier of b.tiers) {
+        if (tier.repeat) {
+          seen.push(...tier.slots.flatMap(slotIds));
+          continue;
+        }
         expect(tier.row).toBe(layout.stages.indexOf(tier.stage));
         for (const slot of tier.slots) {
           for (const id of slotIds(slot)) {
@@ -45,7 +67,7 @@ describe('researchLayout', () => {
         }
       }
     }
-    expect(seen.sort()).toEqual(RESEARCH_ONCE.map((n) => n.id).sort());
+    expect(seen.sort()).toEqual(RESEARCH.map((n) => n.id).sort());
   });
 
   it('Gabeln als Paar Weg A / Weg B; die Frage nur an der ersten Ebene', () => {
@@ -192,6 +214,7 @@ describe('Kopf und Ast-Zusammenfassung', () => {
   it('Vorrat, Produktion, erforschbar', () => {
     const h = researchHeader(state([], 2, 1_234.7, 110));
     expect(h).toEqual({ supply: `⚖️${NBSP}1.234`, rate: '+110/min', available: '2 erforschbar', count: 2 });
+    expect(researchHeader(state([], 2, 0, 110.7)).rate).toBe('+110/min');
     expect(researchHeader(state([], 2, 0)).available).toBe('nichts erforschbar');
   });
 });
@@ -222,5 +245,61 @@ describe('Anzeige-Zustand an Gabeln', () => {
     expect(researchNodeView('dense-crown-3', s).status).toBe('excluded');
     // der eigene Weg bleibt nach Stufe gesperrt
     expect(researchNodeView('light-crown-3', s).actionText).toBe('ab Wald');
+  });
+});
+
+describe('Zeile „∞“: Rang, Kosten, unerreichbar', () => {
+  const base = (rank: number, harmony: number, cost: number): ResearchTreeState => {
+    const s = state(['compost', 'deadwood-pile', 'beetle-castle'], 5, harmony, 100);
+    return { ...s, nodes: { ...s.nodes, 'soil-life': { status: cost <= harmony ? 'available' : 'saving', rank, cost } } };
+  };
+
+  it('Rang 0: kein Stempel, Knopf mit Kosten des ersten Rangs', () => {
+    const v = researchNodeView('soil-life', base(0, 2_000, 1_500));
+    expect(v).toMatchObject({ repeatable: true, showStamp: false, showAction: true, disabled: false, actionText: `Erforschen · ⚖️${NBSP}1.500` });
+    expect(v.actionLabel).toBe('Bodenleben fördern: Rang 1 erforschen, 1.500 Harmonie');
+    expect(v.classes).toContain('is-repeatable');
+  });
+
+  it('Rang 3: Stempel „Rang 3“ neben dem Knopf für Rang 4; zu wenig ⚖️ mit Wartezeit', () => {
+    const v = researchNodeView('soil-life', base(3, 296, 3_296));
+    expect(v).toMatchObject({ showStamp: true, stampText: 'Rang 3', showAction: true, disabled: true, status: 'saving' });
+    expect(v.actionText).toBe(`Noch 3.000${NBSP}⚖️ · ~30 Min.`);
+    expect(v.statusText).toBe('Rang 3, zu wenig Harmonie');
+  });
+
+  it('über dem größten Vorrat: „unerreichbar“ statt ewig „Noch …“', () => {
+    const v = researchNodeView('soil-life', base(90, 1e9, 2e13));
+    expect(v.actionText).toBe('unerreichbar');
+    expect(v.classes).toContain('is-unreachable');
+    expect(v.reason).toBe('Unerreichbar: Rang 91 kostet mehr Harmonie, als der Vorrat je fassen kann.');
+    expect(v.disabled).toBe(true);
+  });
+
+  it('höchster Rang: Stempel, kein Knopf', () => {
+    const s = state([], 5);
+    const v = researchNodeView('soil-life', { ...s, nodes: { ...s.nodes, 'soil-life': { status: 'researched', rank: 200, cost: Infinity } } });
+    expect(v).toMatchObject({ showStamp: true, stampText: 'Rang 200', showAction: false, statusText: 'höchster Rang 200' });
+  });
+
+  it('Ast-Kopf nennt den Rang', () => {
+    expect(branchSummary('soil', base(3, 0, 3_296)).text).toBe('3 / 5 erforscht · ∞ Rang 3');
+  });
+});
+
+describe('Plan-Nummern', () => {
+  it('eine Nummer, mehrere (wiederholte Ränge) und gekürzt', () => {
+    expect(planBadge(undefined, false, 'X')).toBeNull();
+    expect(planBadge([], false, 'X')).toBeNull();
+    expect(planBadge([3], true, 'Kompost')).toEqual({ text: '3', label: 'Kompost steht im Plan an Stelle 3 – als Nächstes.', next: true });
+    expect(planBadge([7, 12], false, 'Bodenleben fördern')!.label).toBe('Bodenleben fördern steht im Plan an den Stellen 7 und 12.');
+    expect(planBadge([7, 12, 15, 20, 21], false, 'B')!.text).toBe('7 · 12 · 15 +2');
+  });
+
+  it('an der Karte: Klasse und vorlesbar in der Statuszeile', () => {
+    const s = state([], 5);
+    const v = researchNodeView('compost', { ...s, nodes: { ...s.nodes, compost: { status: 'available', plan: [1], planNext: true } } });
+    expect(v.classes).toEqual(expect.arrayContaining(['has-plan', 'is-plan-next']));
+    expect(v.plan!.text).toBe('1');
   });
 });
