@@ -4,14 +4,15 @@ import { SEASON_SECONDS } from '../src/content/seasons';
 import { COMMON_SPECIES } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { createInitialState, createSite, type ChronicleEntry, type GameState } from '../src/core/state';
-import { expect, openGame, openGoalsPage, openLandscapeSite, openTab, seedRaw, stamps, subpage, tabPanel, test, waypoint } from './fixtures';
+import { card, encounter, expect, openGame, openGoalsPage, openLandscapeSite, openStack, openTab, seedRaw, stamps, subpage, tabPanel, test, waypoint } from './fixtures';
 
 /**
  * Funde aus dem Playtest Phase 9 (4b) an ui-dev: Kennart-Hinweis im alten Wald (F2), Verweilen
  * im Urwald mit Restzeit bis zum Winter (F3), Kapitel als eigener Stempel und Abschluss als
  * Zettel mit Andenken (F4), „Hier öfter“ markiert das Ereignis des Waldes (F6), Kurzfassung
  * des Rückkehr-Berichts zählt Kapitel (F7), Sprungmarke „Chroniken“ (F8), Tagebuch der Wälder
- * mit „Chronik“ oben und einklappbaren Stammgästen (F9).
+ * mit „Chronik“ oben und einklappbaren Stammgästen (F9), Kennart-Karte hervorgehoben und Ereignis
+ * des Waldes mit Kapitel-Hinweis in U:Begegnung (F5).
  */
 
 const ANCIENT = STAGES.findIndex((s) => s.id === 'ancient-forest');
@@ -157,3 +158,78 @@ test('F9: Tagebuch der Wälder – „Chronik“ oben, lange Stammgast-Listen ei
   expect((await regulars.textContent())!.replaceAll('­', '')).toContain(last);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
+
+/** Kein Querscrollen der Seite, Treffer ≥ 44 px und nichts ragt aus dem Bild. */
+async function checkMobile(page: Page, width: number): Promise<void> {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  for (const box of await encounter(page)
+    .locator('.card-choose:visible')
+    .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()))) {
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  for (const ref of ['encounter-chapter', 'encounter-kennart-hint']) {
+    const hint = encounter(page).locator(`[data-ref="${ref}"]:visible`);
+    if ((await hint.count()) === 0) continue;
+    const box = (await hint.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+  }
+}
+
+for (const [width, height] of [
+  [360, 740],
+  [390, 844],
+  [1200, 700],
+] as const) {
+  test(`F5: U:Begegnung – Kennart-Karte hervorgehoben, mit Kapitel und Text für Screenreader (${width} px)`, async ({ page, context }) => {
+    await page.setViewportSize({ width, height });
+    const state = playtestState();
+    // Die Haselmaus (Kennart des Heimatwalds) liegt hinten – am Handy oft außerhalb der Reihe.
+    state.pendingEncounters = [{ type: 'animal', cards: ['earthworm', 'dormouse'], rerolls: 0 }];
+    await seed(context, state);
+    await openGame(page);
+    await openStack(page);
+    const kennart = card(page, 'dormouse');
+    await expect(kennart).toHaveClass(/\bkennart\b/);
+    await expect(kennart).toHaveAttribute('data-kennart', 'home');
+    await expect(card(page, 'earthworm')).not.toHaveClass(/\bkennart\b/);
+    await expect(card(page, 'earthworm').locator('[data-ref="card-kennart"]')).toHaveCount(0);
+    await expect(kennart.locator('[data-ref="card-kennart"]')).toHaveText(/^🔎\s*Kennart:?\s*Lebt nur im alten Heimatwald\.$/);
+    await expect(kennart.locator('[data-ref="card-kennart-chapter"]')).toHaveText('📜 Zieht sie ein, schreibt der Wald das Kapitel „Die Kennart: Haselmaus“.');
+    // Der Kopf nennt sie, auch wenn die Karte außerhalb liegt.
+    await expect(encounter(page).locator('[data-ref="encounter-kennart-hint"]')).toHaveText('🔎 Kennart dabei: Haselmaus');
+    // Screenreader: Der Knopf beschreibt die Karte als Kennart mit Wald und Kapitel.
+    const choose = kennart.locator('.card-choose');
+    await expect(choose).toHaveAccessibleDescription(/Kennart\s*:\s*Lebt nur im alten Heimatwald\..*Kapitel „Die Kennart: Haselmaus“/);
+    await checkMobile(page, width);
+    await page.screenshot({ path: `test-results/f5-kennart-${width}.png` });
+  });
+
+  test(`F5: U:Begegnung – Ereignis des Waldes schreibt ein Kapitel der Chronik (${width} px)`, async ({ page, context }) => {
+    await page.setViewportSize({ width, height });
+    const state = playtestState({ homeChapters: ['ancient'] });
+    state.pendingEncounters = [
+      { type: 'event', cards: ['mast-year'], rerolls: 0 },
+      { type: 'event', cards: ['storm'], rerolls: 0 },
+    ];
+    await seed(context, state);
+    await openGame(page);
+    await openStack(page);
+    const hint = encounter(page).locator('[data-ref="encounter-chapter"]');
+    await expect(hint).toBeVisible();
+    await expect(hint).toHaveText('📜 Schreibt ein Kapitel der Chronik: „Eichelmast – der Häher legt Vorräte an“ – gleich, wie du dich entscheidest.');
+    await checkMobile(page, width);
+    for (const box of await encounter(page)
+      .locator('.option-choose:visible')
+      .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()))) {
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    }
+    await page.screenshot({ path: `test-results/f5-event-${width}.png` });
+    // Entschieden: Kapitel geschrieben; das nächste Ereignis (Sturm) schreibt keins.
+    await encounter(page).getByRole('button', { name: 'Eicheln liegen lassen' }).click();
+    await expect(stamps(page)).toContainText('📜 Neues Kapitel im Heimatwald: Eichelmast – der Häher legt Vorräte an');
+    await expect(encounter(page).locator('.encounter-title')).not.toHaveText(/Mast/);
+    await expect(hint).toBeHidden();
+  });
+}

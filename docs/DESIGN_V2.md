@@ -7870,6 +7870,12 @@ Jahreszeit); Andenken-Texte ≤ 120 Zeichen.
   „Frühjahrshochwasser“)“). Die Kurzfassung des Rückkehr-Berichts zählt neue Kapitel; R:Arten hat
   die Sprungmarke „Chroniken“, offene Andenken nennen ihre offenen Kapitel; im Tagebuch der Wälder
   steht „Chronik“ oben, lange Stammgast-Listen sind eingeklappt (erste 8 + „und n weitere ›“).
+- **F5 (U:Begegnung):** Eine Kennart-Karte ist hervorgehoben (doppelter Moosrand, Band „🔎 Kennart“
+  mit „Lebt nur im alten Auwald am Fluss.“); ist ihr Kapitel offen, sagt die Karte „📜 Zieht sie ein,
+  schreibt der Wald das Kapitel „Die Kennart: Biber“.“ (über Wildwechsel im fremden Wald: „… schreibt
+  nur der Wald, in dem sie zu Hause ist.“). Der Kopf nennt „🔎 Kennart dabei: Biber“. Das Ereignis
+  des Waldes trägt im Kopf „📜 Schreibt ein Kapitel der Chronik: „Frühjahrshochwasser“ – gleich, wie
+  du dich entscheidest.“, solange das Kapitel offen ist. Beides erst mit der Landschaft.
 
 ### 26.8 Messplan und Ziele (Aufgabe 2c)
 

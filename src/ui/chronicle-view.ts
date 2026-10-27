@@ -16,7 +16,7 @@
 import { CHAPTER_IDS, CHRONICLE_CHAPTERS, type ChapterId } from '../content/chronicle';
 import { LANDSCAPE_SITES, LANDSCAPE_SITES_BY_ID, type Keepsake, type SiteId } from '../content/landscape';
 import { SEASONS, SEASON_IDS, SEASON_SECONDS, YEAR_SECONDS } from '../content/seasons';
-import { SPECIES_BY_ID } from '../content/species';
+import { SPECIES_BY_ID, kennartSite } from '../content/species';
 import {
   activeSite,
   ANCIENT_STAGE,
@@ -238,6 +238,60 @@ export function firstSnowWaitText(state: CycleHolder, site?: SiteId, away = fals
   return away
     ? `❄️ Noch ${left} bis zum Winter – bleibst du, schreibt die Chronik ${siteIn(active)} „${title}“.`
     : `❄️ Noch ${left} bis zum Winter – bleib, dann schreibt der Wald „${title}“.`;
+}
+
+/** „im alten Auwald am Fluss“, „in den alten Buchenhallen“ (Kennart-Karte, F5). */
+export function siteInOld(id: SiteId): string {
+  const name = LANDSCAPE_SITES_BY_ID.get(id)?.name ?? id;
+  return `${SITE_IN[id] ?? 'in'} alten ${name}`;
+}
+
+/**
+ * Markierung einer Kennart auf ihrer Karte in U:Begegnung (Playtest Phase 9, F5). `label` steht
+ * sichtbar als Band („Kennart“), `text` darunter und vollständig für Screenreader; `chapter`
+ * nennt das Kapitel, das ihr Einzug schreibt (nur offen und nur im eigenen, aktiven Wald) bzw.
+ * dass es nur dort zählt (Wildwechsel).
+ */
+export interface KennartMarkView {
+  site: SiteId;
+  icon: string;
+  label: string;
+  /** „Lebt nur im alten Auwald am Fluss.“ */
+  text: string;
+  /** „📜 Zieht sie ein, schreibt der Wald das Kapitel „Die Kennart: Biber“.“ – sonst fehlt es. */
+  chapter?: string;
+}
+
+export const KENNART_ICON = '🔎';
+export const KENNART_LABEL = 'Kennart';
+
+/** Kennart-Markierung für eine Tierkarte; null für andere Arten und vor der Landschaft. */
+export function kennartMark(state: ChronicleHolder, speciesId: string): KennartMarkView | null {
+  if (!chronicleVisible(state)) return null;
+  const site = kennartSite(SPECIES_BY_ID.get(speciesId));
+  if (site === null || !LANDSCAPE_SITES_BY_ID.has(site)) return null;
+  const mark: KennartMarkView = { site, icon: KENNART_ICON, label: KENNART_LABEL, text: `Lebt nur ${siteInOld(site)}.` };
+  if (!hasChapter(state, site, 'kennart')) {
+    const title = chapterTitle(site, 'kennart', true);
+    mark.chapter =
+      activeSite(landscapeOf(state)) === site
+        ? `${CHRONICLE_ICON} Zieht sie ein, schreibt der Wald das Kapitel „${title}“.`
+        : `${CHRONICLE_ICON} Ihr Kapitel „${title}“ schreibt nur der Wald, in dem sie zu Hause ist.`;
+  }
+  return mark;
+}
+
+/**
+ * Hinweis im Kopf von U:Begegnung, wenn das Ereignis das Kapitel „Ereignis des Waldes“ schreibt
+ * (Playtest Phase 9, F5): „📜 Schreibt ein Kapitel der Chronik: „Frühjahrshochwasser“ – gleich, wie
+ * du dich entscheidest.“ Nur im aktiven Wald, solange das Kapitel offen ist; sonst null (auch vor
+ * der Landschaft – dort schreibt der Heimatwald still mit).
+ */
+export function signatureChapterText(state: ChronicleHolder, eventId: string): string | null {
+  if (!chronicleVisible(state)) return null;
+  const site = activeSite(landscapeOf(state));
+  if (LANDSCAPE_SITES_BY_ID.get(site)?.chronicleEvent !== eventId || hasChapter(state, site, 'signature')) return null;
+  return `${CHRONICLE_ICON} Schreibt ein Kapitel der Chronik: „${chapterTitle(site, 'signature', false)}“ – gleich, wie du dich entscheidest.`;
 }
 
 /** Stand der Chronik je Wald (Zahl der Einträge) – für den Vergleich vorher/nachher. */
