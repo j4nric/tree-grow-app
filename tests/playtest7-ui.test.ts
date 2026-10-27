@@ -206,7 +206,9 @@ describe('Kann-Funde', () => {
 
   it('K5: Zahl und Symbol bleiben zusammen', () => {
     expect(keepNumberWithIcon('der erste bringt 2 🪶.')).toBe('der erste bringt 2 🪶.');
-    expect(keepNumberWithIcon('(3 🪶) · +10 % 🌿')).toBe('(3 🪶) · +10 % 🌿');
+    expect(keepNumberWithIcon('(3 🪶) · +10 % 🌿')).toBe('(3 🪶) · +10 % 🌿');
+    // Playtest Phase 11, F5: auch „%“ bleibt an der Zahl.
+    expect(keepNumberWithIcon('Pflanzen +11,5 % 🌿')).toBe('Pflanzen +11,5\u00a0% 🌿');
     expect(keepNumberWithIcon('Gründen 🪶')).toBe('Gründen 🪶');
   });
 

@@ -103,10 +103,13 @@
 
 /* --- Meilenstein-Balken --------------------------------------------------------------- */
 
+/* Schmal (360 px, lange Preise): Beschriftung als Ganzes unter den Balken statt Buchstabe für
+   Buchstabe daneben (Playtest Phase 11, F6). */
 .upgrade-progress {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px 6px;
   min-width: 0;
 }
 
@@ -132,12 +135,16 @@
 }
 
 .upgrade-progress-label {
-  min-width: 0;
+  flex: 1 1 auto;
+  /* Unter ~7 Zeichen Breite lieber in die nächste Zeile (volle Breite) als zerfallen. */
+  min-width: min(100%, 7em);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
   color: var(--ink-soft);
-  overflow-wrap: anywhere;
+  /* Erst ganze Wörter umbrechen, lange Wörter mit Silbentrennung („Meilen-steine“). */
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .upgrade-progress.is-done .upgrade-progress-label {
@@ -182,9 +189,15 @@
 .upgrade-level {
   grid-area: level;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 2px 8px;
   min-width: 0;
+}
+
+/* Balken und Beschriftung brauchen Platz; sonst unter „St. 150“. */
+.upgrade-level > .upgrade-progress {
+  flex: 1 1 8em;
 }
 
 .upgrade-effect {

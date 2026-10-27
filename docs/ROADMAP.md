@@ -1452,6 +1452,12 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Fühlt sich das Spiel noch ziellos an? Gibt es immer etwas zu kaufen, ohne Klick-Pflicht? Ist 10 %
   offline fair? Fühlen sich die Gabeln wie Entscheidungen an, verlieren Samen ab dem Wald ihren Sinn?
   Offene Fragen 27.13 und 28.12 entscheiden – auch, ob Welle 6 kommt. Abhängig: 5a
+  - Funde ui-dev erledigt (F2–F6, F8, F9): „🔍 erforschbar ›“ ohne Zahl, springt zum billigsten
+    bezahlbaren Knoten (Ast auf, Fokus, Aufleuchten); Äste klappen bei neu Erforschbarem auf,
+    selbst zugeklappte nicht; „Wald in ~22 Min.“ unter der Stufenleiste, mobil „🎯“ in der
+    Vorratsleiste; „%“ und „in 0:20“ brechen nicht mehr ab; „alle Meilensteine“ umbricht ganz;
+    Zahlen jenseits der Billion („Brd.“, „Trio.“, „Trd.“, ab 1e24 „1,23·10²⁴“); „+1 Stufe“ geht
+    beim Reiterwechsel mit (`e2e/playtest11-ui.spec.ts`)
 
 **Welle 6 – Später, optional** (eigene Konzeptrunde nach 5b, 28.11)
 

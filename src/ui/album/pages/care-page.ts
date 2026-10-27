@@ -39,6 +39,8 @@ const REFRESH_MS = 200;
 export interface CarePage extends TabPage {
   /** Knoten zeigen, Fokus auf seinen Namen, kurz aufleuchten. false, wenn es ihn nicht gibt. */
   reveal(id: string): boolean;
+  /** „🔍 erforschbar ›“: den billigsten bezahlbaren Knoten zeigen; false, wenn keiner da ist. */
+  revealAvailable(): boolean;
 }
 
 /** Leichte, feste Schräglage je Knoten (−4° … +4°) für das Symbol-Sticker (U:Forschungsknoten). */
@@ -240,6 +242,12 @@ export function createCarePage(env: PageEnv): CarePage {
     return tree.reveal(id);
   }
 
+  function revealAvailable(): boolean {
+    refresh(performance.now(), true);
+    const id = tree.firstAvailable();
+    return id !== null && tree.reveal(id);
+  }
+
   return {
     page,
     update(now, force) {
@@ -254,5 +262,6 @@ export function createCarePage(env: PageEnv): CarePage {
       return Object.values(s.nodes).some((n) => n.status === 'available');
     },
     reveal,
+    revealAvailable,
   };
 }

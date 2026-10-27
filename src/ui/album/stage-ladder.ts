@@ -1,7 +1,8 @@
 /**
  * StageLadder: Stufenleiste auf der linken Seite (docs/ALBUM_UI.md, A.2 #22–23): alle 8
  * Stufen (Desktop), Balken mit der Lage des Baums und darunter der Fortschrittshinweis
- * (`progress-hint`, z. B. „Nächste Begegnung in 1:20“). Mobil nur Balken und Hinweis.
+ * (`progress-hint`, z. B. „Nächste Begegnung in 1:20“), daneben die Zeit bis zur nächsten Stufe
+ * (`stage-eta`, „Wald in ~22 Min.“). Mobil nur Balken und Hinweise.
  */
 import { el, setAttr, setText } from '../dom';
 import { ladderProgress, ladderSteps } from './stage-ladder-view';
@@ -13,6 +14,8 @@ export interface StageLadderInput {
   /** Anteil 0–1 bis zum nächsten Wegpunkt. */
   waypointProgress: number;
   hint: string;
+  /** Mittelfristiges Ziel „Wald in ~22 Min.“ (Playtest Phase 11, F4); leer = ausgeblendet. */
+  eta?: string;
 }
 
 export interface StageLadder {
@@ -38,7 +41,13 @@ export function createStageLadder(): StageLadder {
   track.append(bar);
   const hint = el('p', 'stage-ladder-hint');
   hint.dataset.ref = 'progress-hint';
-  root.append(names, track, hint);
+  // Rechts daneben (bricht schmal darunter): die Zeit bis zur nächsten Stufe.
+  const eta = el('p', 'stage-ladder-eta');
+  eta.dataset.ref = 'stage-eta';
+  eta.hidden = true;
+  const hints = el('div', 'stage-ladder-hints');
+  hints.append(hint, eta);
+  root.append(names, track, hints);
 
   let shownStage = -1;
 
@@ -61,6 +70,9 @@ export function createStageLadder(): StageLadder {
       setAttr(track, 'aria-valuenow', String(Math.round(pct)));
       setText(hint, input.hint);
       hint.hidden = !input.hint;
+      const etaText = input.eta ?? '';
+      setText(eta, etaText);
+      eta.hidden = !etaText;
     },
   };
 }

@@ -181,7 +181,7 @@ describe('Zielzeile im Spiel (Phase 11, 2c)', () => {
     expect(toGoalInput(goal)).toEqual({ kind: 'niche', id: 'roots', icon: '🪱', name: 'Wurzelraum', level: 25, cost: 1_590, milestone: '+1 Platz' });
     const line = goalLineView(toGoalInput(goal), { seeds: 10_000, seedsPerSecond: 1 }, 2)!;
     expect(plain(line.text)).toBe('Jetzt: 🪱 Wurzelraum St. 25 (+1 Platz) · 1.590 🌰 ›');
-    expect(line.research).toBe('🔍 2 erforschbar ›');
+    expect(line.research).toBe('🔍 erforschbar ›');
     // Baumteil ohne Meilenstein, Säen ohne Stufe.
     const tree = toGoalInput({ kind: 'tree', target: { kind: 'tree', id: 'leaves' }, level: 3, cost: 20, milestones: [], seconds: 0 });
     expect(tree).toEqual({ kind: 'tree', id: 'leaves', icon: '🍃', name: 'Blattwerk', level: 3, cost: 20 });

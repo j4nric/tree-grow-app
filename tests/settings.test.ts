@@ -171,6 +171,24 @@ describe('Zahlenformat', () => {
     expect(formatNumber(3e12)).toMatch(/Bio\./);
   });
 
+  it('kürzt jenseits der Billion lesbar (Brd., Trio., Trd.) und darüber wissenschaftlich', () => {
+    for (const style of ['short', 'long'] as const) {
+      expect(formatNumber(1.234e12, style)).toBe('1,23\u00a0Bio.');
+      expect(formatNumber(1.234e15, style)).toBe('1,23\u00a0Brd.');
+      expect(formatNumber(5.6e18, style)).toBe('5,6\u00a0Trio.');
+      expect(formatNumber(7e21, style)).toBe('7\u00a0Trd.');
+      expect(formatNumber(1e30, style)).toBe('1·10³⁰');
+      expect(formatNumber(1.234e24, style)).toBe('1,23·10²⁴');
+      expect(formatNumber(-3e15, style)).toBe('-3\u00a0Brd.');
+    }
+    // Rundet die Kurzform auf 1000, springt sie in die nächste Stufe statt „1000 Bio.“.
+    expect(formatNumber(999.999e12)).toBe('1\u00a0Brd.');
+    expect(formatNumber(999.999e6)).toBe('1\u00a0Mrd.');
+    expect(formatNumber(999.999e21)).toBe('1·10²⁴');
+    expect(formatNumber(9.999e29)).toBe('1·10³⁰');
+    expect(formatNumber(1e300)).toBe('1·10³⁰⁰');
+  });
+
   it('Sonderwerte: NaN → „–“, ±Infinity → „∞“ bzw. „−∞“', () => {
     for (const style of ['short', 'long'] as const) {
       expect(formatNumber(Number.NaN, style)).toBe('–');

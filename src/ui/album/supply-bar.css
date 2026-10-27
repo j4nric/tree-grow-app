@@ -19,7 +19,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px 16px;
+  gap: 4px min(16px, 3vw);
   height: 30px; /* = Abstand der Reiter unten */
   padding: 0 12px;
   overflow: hidden;
@@ -50,9 +50,32 @@
 
 .supply-item {
   display: inline-flex;
+  flex: none;
   align-items: baseline;
   gap: 4px;
   min-width: 0;
+}
+
+/* Wird es eng (360 px, große Zahlen), gibt zuerst das Wachstum nach – Samen und Ziel bleiben. */
+.supply-growth {
+  flex: 0 1 auto;
+}
+
+.supply-growth .supply-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.supply-bar-inner {
+  container-type: inline-size;
+}
+
+@container (max-width: 380px) {
+  .supply-item,
+  .supply-goal {
+    font-size: 18px;
+  }
 }
 
 .supply-icon {
@@ -66,6 +89,48 @@
 
 .supply-growth .supply-value {
   color: var(--ink-green);
+}
+
+/*
+ * Ziel-Knopf rechts (Playtest Phase 11, F4): so hoch wie die Leiste, mindestens 44 px breit; die
+ * Trefferfläche reicht per ::after über den 6-px-Rand der Reiterleiste (36 px hoch). Tiefer
+ * läge sie über den Reitern – die Leiste bleibt bewusst 30 px hoch (Layout, scroll-padding).
+ */
+.supply-goal {
+  position: relative;
+  flex: none;
+  align-self: stretch;
+  min-width: var(--tap);
+  margin: 0 -8px 0 auto;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 0 0 10px 10px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.supply-goal::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 -6px;
+}
+
+.supply-goal.is-ready {
+  background: var(--note-bg);
+  color: var(--ink-green-dark);
+}
+
+.supply-goal:focus-visible {
+  outline: 3px solid var(--ink-green);
+  outline-offset: -3px;
+}
+
+.supply-goal[hidden] {
+  display: none;
 }
 
 /* Die Reiter rücken unter die Leiste, solange sie zu sehen ist. */

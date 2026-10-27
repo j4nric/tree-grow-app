@@ -357,6 +357,11 @@ export interface EcosystemView {
    * Begegnungen, stattdessen „2 Begegnungen warten“ (kein Countdown daneben).
    */
   progressHint: string;
+  /**
+   * Mittelfristiges Ziel unter der Stufenleiste: „Wald in ~22 Min.“ (aus der aktuellen Rate,
+   * Playtest Phase 11, F4); leer auf der letzten Stufe oder ohne Wachstum.
+   */
+  stageEta: string;
   /** Wartende Begegnungen auf dem Stapel (0 = keine) – die Seitenleiste zeigt dann einen Knopf. */
   pendingEncounters: number;
   growthPerSec: number;
