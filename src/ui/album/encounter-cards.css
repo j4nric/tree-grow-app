@@ -81,6 +81,27 @@
   color: var(--ink-green);
 }
 
+/* Kennart dabei (F5) und Ereignis des Waldes schreibt ein Kapitel (F5). */
+.enc-head .encounter-kennart-hint,
+.enc-head .encounter-chapter {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink-green-dark);
+  overflow-wrap: anywhere;
+}
+
+.enc-head .encounter-chapter {
+  padding: 4px 9px;
+  border-left: 3px solid var(--wax);
+  border-radius: 0 var(--r-button) var(--r-button) 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.enc-head .encounter-kennart-hint[hidden],
+.enc-head .encounter-chapter[hidden],
 .enc-head .encounter-route-hint[hidden],
 .enc-head .encounter-subtitle[hidden],
 .enc-head .encounter-hero-icon[hidden],
@@ -382,6 +403,80 @@
   font-size: 13px;
   font-weight: 700;
   color: var(--ink-soft);
+}
+
+/* Kennart (F5): doppelter Moosrand und ein Band mit ihrem Wald */
+.encounter-card.kennart {
+  box-shadow: 0 0 0 2px var(--ink-green-dark), 0 0 0 5px #e3edd8, var(--sh-slip);
+}
+
+.encounter-card.kennart:has(:focus-visible) {
+  box-shadow: 0 0 0 2px var(--ink-green-dark), 0 0 0 6px var(--tape), var(--sh-slip);
+}
+
+.card-kennart {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  padding: 5px 9px;
+  border-radius: var(--r-button);
+  background: #e3edd8;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink-green-dark);
+}
+
+.card-kennart-band {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--ink-green-dark);
+  color: #fff;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+
+.card-kennart-icon {
+  display: inline-block;
+  text-transform: none;
+}
+
+.encounter-card.kennart .card-kennart-icon {
+  animation: enc-kennart-look 1.8s ease-in-out 2;
+}
+
+@keyframes enc-kennart-look {
+  0%,
+  60%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: scale(1.18) rotate(-8deg);
+  }
+}
+
+.card-kennart-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.card-kennart-chapter {
+  margin: 0;
+  padding: 4px 9px;
+  border-left: 3px solid var(--wax);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
 /* Wildwechsel (1c): kam über einen Korridor */
@@ -828,6 +923,7 @@
 }
 
 body[data-motion='reduce'] .encounter-cards.dealing .encounter-card,
+body[data-motion='reduce'] .encounter-card.kennart .card-kennart-icon,
 body[data-motion='reduce'] .encounter-card.wildwechsel .card-route-icon {
   animation: none;
 }

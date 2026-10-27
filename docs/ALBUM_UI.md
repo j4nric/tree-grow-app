@@ -185,8 +185,8 @@ Spalte „heute“: Datei und, falls vorhanden, `data-ref`.
 | # | Element und Funktion heute | heute | Ort | Ziel im Album |
 |---|---|---|---|---|
 | 67 | Stapel: Zahl, Symbol der vordersten Begegnung (`stackIcon`), öffnet auf Wunsch, schwebt mobil | encounter-stack.ts | Z | **Zettelstapel** „2 Zettel: Besuch wartet!“ (Text aus `waitingText`, Symbol bleibt). Neue Zettel wackeln. `data-ref="encounter-stack"` bleibt. |
-| 68 | Dialog „Kartenwahl“: Art, Titel, Untertitel, großes Symbol und Eckdaten (Ereignis/Gast), Warteschlange mit Pips | encounter-dialog.ts | U:Begegnung | Unterseite mit Zettel-Optik im Kopf |
-| 69 | Tierkarte: Gattungsband, Seltenheit, Name, Nische, Vorschau-Chips, Bedingungen, Wirkungen, Gemeinschafts-Hinweise (`card-communities`), Hinweis (`card-note`), Wildwechsel-Zeile (1c) | encounter-dialog.ts | U:Begegnung | Karten als „Polaroid-Kärtchen“ mit Sticker; Knopf „Einkleben“ statt „Wählen“ (Text aus dem View-Model) |
+| 68 | Dialog „Kartenwahl“: Art, Titel, Untertitel, großes Symbol und Eckdaten (Ereignis/Gast), Warteschlange mit Pips | encounter-dialog.ts | U:Begegnung | Unterseite mit Zettel-Optik im Kopf. Phase 9, F5: `encounter-chapter` („📜 Schreibt ein Kapitel der Chronik …“ beim Ereignis des Waldes) und `encounter-kennart-hint` („🔎 Kennart dabei: …“) |
+| 69 | Tierkarte: Gattungsband, Seltenheit, Name, Nische, Vorschau-Chips, Bedingungen, Wirkungen, Gemeinschafts-Hinweise (`card-communities`), Hinweis (`card-note`), Wildwechsel-Zeile (1c) | encounter-dialog.ts | U:Begegnung | Karten als „Polaroid-Kärtchen“ mit Sticker; Knopf „Einkleben“ statt „Wählen“ (Text aus dem View-Model). Kennart (Phase 9, F5): doppelter Moosrand, Band `card-kennart` „🔎 Kennart – Lebt nur im alten …“, ggf. Kapitel-Zeile `card-kennart-chapter`; beides in `aria-describedby` des Knopfs |
 | 70 | Ersetzen bei voller Nische („Wer zieht weiter?“, bevorzugte Option, Sperrgrund) | encounter-dialog.ts | U:Begegnung | unverändert in der Karte |
 | 71 | Pflanzenbegegnung („Etwas keimt …“) mit eigenen Fehlertexten | adapters.ts, main.ts | U:Begegnung | gleiche Seite |
 | 72 | Ereignis mit Optionen | `toEventView` | U:Begegnung | Optionen als Karten |

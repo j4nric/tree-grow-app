@@ -972,7 +972,15 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
     zählt Kapitel, Sprungmarke „Chroniken“ mit offenen Kapiteln, Tagebuch der Wälder mit
     „Chronik“ oben und einklappbaren Stammgästen. Tests `tests/chronicle-view.test.ts`,
     `e2e/chronicle-playtest.spec.ts`.
-  - Übrige Funde (u. a. **F5**) bleiben eigene, kleine Aufgaben und hängen nicht an Phase 11.
+  - [x] Fund **F5** erledigt (`ui-dev`): In U:Begegnung trägt eine Kennart-Karte einen doppelten
+    Moosrand und das Band „🔎 Kennart – Lebt nur im alten …“, dazu die Zeile, welches Kapitel ihr
+    Einzug schreibt („📜 Zieht sie ein, schreibt der Wald das Kapitel „Die Kennart: Biber“.“; im
+    fremden Wald: zählt nur zu Hause); der Kopf nennt „🔎 Kennart dabei: …“, der Knopf
+    „Einkleben“ beschreibt beides für Screenreader. Das Ereignis des Waldes zeigt im Kopf „📜
+    Schreibt ein Kapitel der Chronik: „Frühjahrshochwasser“ – gleich, wie du dich entscheidest.“
+    (nur offen, nur im aktiven Wald, nie vor der Landschaft). Tests
+    `tests/encounter-chronicle.test.ts`, `e2e/chronicle-playtest.spec.ts` (F5, 360/390/1200 px).
+  - Übrige Funde bleiben eigene, kleine Aufgaben und hängen nicht an Phase 11.
     Berührt ein Fund Zahlen (Seltenheit, Wirkungen), misst ihn Phase 11, 3a/3c mit, statt eine
     eigene Messung zu starten.
 
@@ -1176,7 +1184,7 @@ Abhängigkeiten, kein Server-Umbau (Versionsprüfung wie 25.5).
 3a/3b → 3a/3b hier; Phase 9, 2c → 3c), Forschungs-Oberfläche einmal mit der Zeile „∞“ (Phase 10,
 4a/4c → 4a), Forschungsplan mit Rängen (Phase 10, 4b → 2b), ein e2e und ein Playtest (Phase 10,
 5a/5b → 5a/5b). Eigenständig bleiben Phase 10, 4d (Aussaat-Animation einhängen) und die übrigen
-Funde aus Phase 9, 4b (F5).
+Funde aus Phase 9, 4b (F5, inzwischen erledigt).
 
 **Bewusst nicht:** bleibender Ausbau, Ausbau mit ⚖️, Prozent auf Harmonie/Gedächtnis, automatisches
 Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach dem Playtest.

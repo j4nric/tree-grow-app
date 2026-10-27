@@ -300,8 +300,16 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
   const routeHint = el('p', 'encounter-route-hint');
   routeHint.dataset.ref = 'encounter-route-hint';
   routeHint.hidden = true;
+  // Kennart (Playtest Phase 9, F5): Auch sie liegt am Handy oft außerhalb – der Kopf nennt sie.
+  const kennartHint = el('p', 'encounter-kennart-hint');
+  kennartHint.dataset.ref = 'encounter-kennart-hint';
+  kennartHint.hidden = true;
+  // Ereignis des Waldes (F5): Diese Entscheidung schreibt ein Kapitel der Chronik.
+  const chapterHint = el('p', 'encounter-chapter');
+  chapterHint.dataset.ref = 'encounter-chapter';
+  chapterHint.hidden = true;
   const headText = el('div', 'encounter-head-text');
-  headText.append(kind, title, subtitle, routeHint, factList, queue);
+  headText.append(kind, title, subtitle, chapterHint, routeHint, kennartHint, factList, queue);
 
   // Legende der Symbole: „?“-Knopf mit Haftnotiz (A.6 #75).
   const legendButton = el('button', 'enc-legend-button');
@@ -549,6 +557,31 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
     top.append(cardSticker(card, encounterKind === 'plant' ? 'plant' : 'animal', index), names);
     item.append(tapeStrip(), top);
 
+    const describedBy: string[] = [];
+    if (card.kennart) {
+      // Kennart (F5): Band „🔎 Kennart“ mit ihrem Wald; Symbol nur Zierde, der Text ist vorlesbar.
+      const mark = card.kennart;
+      const box = el('p', 'card-kennart');
+      box.dataset.ref = 'card-kennart';
+      box.id = `${prefix}-card-${index}-kennart`;
+      const band = el('span', 'card-kennart-band');
+      const icon = el('span', 'card-kennart-icon', mark.icon);
+      icon.setAttribute('aria-hidden', 'true');
+      band.append(icon, el('span', '', mark.label));
+      box.append(band, srOnly(': '), el('span', 'card-kennart-text', mark.text));
+      item.classList.add('kennart');
+      item.dataset.kennart = mark.site;
+      item.append(box);
+      describedBy.push(box.id);
+      if (mark.chapter) {
+        const chapter = el('p', 'card-kennart-chapter', mark.chapter);
+        chapter.dataset.ref = 'card-kennart-chapter';
+        chapter.id = `${prefix}-card-${index}-chapter`;
+        item.append(chapter);
+        describedBy.push(chapter.id);
+      }
+    }
+
     let routeId = '';
     if (card.route) {
       // Wildwechsel: Symbol nur als Zierde, für Screenreader „Wildwechsel:“ als Text davor.
@@ -638,7 +671,8 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
       choose.setAttribute('aria-label', card.disabledReason ? `${base} – gesperrt: ${card.disabledReason}` : base);
     };
     refresh();
-    if (routeId) choose.setAttribute('aria-describedby', routeId);
+    if (routeId) describedBy.push(routeId);
+    if (describedBy.length > 0) choose.setAttribute('aria-describedby', describedBy.join(' '));
     select?.addEventListener('change', refresh);
 
     choose.addEventListener('click', () => {
@@ -687,6 +721,11 @@ export function createEncounterSheet(callbacks: EncounterCallbacks, options: Enc
     const routed = view.cards.find((c) => c.route);
     setText(routeHint, routed ? `${WILDWECHSEL_ICON} Wildwechsel: ${routed.name} ${routed.route}` : '');
     routeHint.hidden = !routed;
+    const kennart = view.cards.find((c) => c.kennart);
+    setText(kennartHint, kennart?.kennart ? `${kennart.kennart.icon} ${kennart.kennart.label} dabei: ${kennart.name}` : '');
+    kennartHint.hidden = !kennart;
+    setText(chapterHint, view.chapter ?? '');
+    chapterHint.hidden = !view.chapter;
     setText(heroIcon, view.icon ?? '');
     heroIcon.hidden = !view.icon;
     head.classList.toggle('has-hero', Boolean(view.icon));

@@ -6,7 +6,7 @@
  * Hier stehen nur Anzeige-Entscheidungen (Texte, Symbole, Reihenfolge). Alle Zahlen
  * (Zufriedenheit, Harmonie, Vorschau, Kosten) kommen aus core/formulas.ts.
  */
-import { chronicleKeepsakes } from './chronicle-view';
+import { chronicleKeepsakes, kennartMark, signatureChapterText } from './chronicle-view';
 import { LANDSCAPE_SITES_BY_ID, type SiteId } from '../content/landscape';
 import { ABILITY_INFO } from '../content/abilities';
 import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_BY_ID, type ResearchEffect, type ResearchNode } from '../content/research';
@@ -1289,6 +1289,8 @@ export function toCardView(
     preview,
     flavor: sp.text,
   };
+  const kennart = kennartMark(state, sp.id);
+  if (kennart) card.kennart = kennart;
   if (status === 'full') {
     card.nicheFull = true;
     card.replaceOptions = replaceOptions;
@@ -2113,11 +2115,13 @@ export function toEventView(
       chooseLabel: option.label,
     };
   });
+  const chapter = signatureChapterText(state, event.id);
   return {
     kind: 'event',
     title: event.name,
     icon: event.icon,
     subtitle: event.text,
+    ...(chapter ? { chapter } : {}),
     cards,
     rerollCost: null,
     canReroll: false,

@@ -12,7 +12,7 @@
  * - Texte (Namen, Wirkungen, Stimmungen) kommen fertig auf Deutsch.
  */
 import type { NicheUpgradeView, TreeUpgradeView } from './upgrade-adapters';
-import type { ChronicleKeepsakeView } from './chronicle-view';
+import type { ChronicleKeepsakeView, KennartMarkView } from './chronicle-view';
 
 /** 🌙 an einer Nachtart (Kachel, Karte, Details). */
 export interface NightBadgeView {
@@ -166,6 +166,8 @@ export interface CardView {
    * Buchenhallen“ (ohne Symbol). Nur, solange die Oberfläche weiß, dass die Karte so kam.
    */
   route?: string;
+  /** Kennart (26.3): Band „🔎 Kennart“, ihr Wald und ggf. das Kapitel, das sie schreibt (F5). */
+  kennart?: KennartMarkView;
   /** Karte kann nicht gewählt werden (mit Begründung). */
   disabledReason?: string;
   /** Text des Knopfs statt „Wählen“ (Ereignis-Optionen, „Bewirten (−40 🌰)“). */
@@ -206,6 +208,8 @@ export interface EncounterView {
   icon?: string;
   /** Kurze Eckdaten unter dem Untertitel, z. B. „🐦 Vögel“, „rastet 8 Min.“. */
   facts?: string[];
+  /** Ereignis des Waldes (26.4): „📜 Schreibt ein Kapitel der Chronik: …“ – nur, solange es offen ist (F5). */
+  chapter?: string;
   cards: CardView[];
   /** Kosten fürs Neuwürfeln in 🌰; `null` = Neuwürfeln hier nicht möglich (Ereignisse). */
   rerollCost: number | null;
