@@ -102,7 +102,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'visitor-1', icon: '🫖', title: 'Gastfreundschaft', description: 'Ein Gast auf der Durchreise wurde bewirtet.', condition: { kind: 'stat', key: 'visitorsHosted', atLeast: 1 } },
   { id: 'visitor-10', icon: '🏡', title: 'Rastplatz für viele', description: 'Zehn Gäste wurden bewirtet.', condition: { kind: 'stat', key: 'visitorsHosted', atLeast: 10 } },
   { id: 'events-5', icon: '🌦️', title: 'Wind und Wetter', description: 'Fünf Ereignisse wurden entschieden.', condition: { kind: 'stat', key: 'eventsDecided', atLeast: 5 } },
-  { id: 'care-10', icon: '🧤', title: 'Behutsame Hände', description: 'Zehn Forschungsknoten wurden erforscht.', condition: { kind: 'stat', key: 'careRanksBought', atLeast: 10 } },
+  { id: 'care-10', icon: '🧤', title: 'Behutsame Hände', description: 'Zehnmal wurde geforscht – Knoten und Ränge zählen.', condition: { kind: 'stat', key: 'careRanksBought', atLeast: 10 } },
   // --- Zyklen und Zeit -------------------------------------------------------
   { id: 'cycle-1', icon: '🔄', title: 'Ein neuer Anfang', description: 'Der erste Zyklus ist abgeschlossen.', condition: { kind: 'cycles', atLeast: 1 } },
   { id: 'cycle-3', icon: '🌙', title: 'Im Kreislauf', description: 'Drei Zyklen sind abgeschlossen.', condition: { kind: 'cycles', atLeast: 3 } },

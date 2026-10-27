@@ -41,7 +41,7 @@ import { normalizeSeed, random, randomInt, weightedIndex, type RngHolder } from 
 import { seasonIdAt } from './season';
 import { allAnimals, type DailyGoal, type GameState } from './state';
 import { effectiveForestMemory } from './landscape';
-import { drawAnimals, researchBlocker } from './tick';
+import { drawAnimals, researchBlocker, researchCost } from './tick';
 
 /*
  * Tagesziele (DESIGN_V2.md 20). Reine Funktionen über den Spielstand – keine Uhr, kein
@@ -244,11 +244,14 @@ function propose(template: DailyGoalTemplate, ctx: GenerationContext, rng: RngHo
     }
     case 'care': {
       // Forschung (seit v17, 27.7): bezahlt mit ⚖️ – Vorrat plus Zufluss im Besuch, nicht mit
-      // dem Samen-Budget. Ein Ziel je Tag, darum kein eigenes Harmonie-Budget.
+      // dem Samen-Budget. Ein Ziel je Tag, darum kein eigenes Harmonie-Budget. Folgt der Spieler
+      // dem Forschungsplan (27.8), kauft der Plan – ein Ziel „erforschen“ wäre dann keins.
+      if (state.meta.research?.auto === true) return null;
       let cheapest = Infinity;
       for (const node of RESEARCH) {
         const blocker = researchBlocker(state, node.id);
-        if (blocker === null || blocker === 'too-expensive') cheapest = Math.min(cheapest, node.cost);
+        // Wiederholbare Knoten (28.6): Kosten des nächsten Rangs.
+        if (blocker === null || blocker === 'too-expensive') cheapest = Math.min(cheapest, researchCost(state, node.id) ?? Infinity);
       }
       const points = Number.isFinite(state.harmonyPoints) ? Math.max(0, state.harmonyPoints) : 0;
       const available = points + harmonyIncome(ev.harmony, effectiveForestMemory(state)) * window;

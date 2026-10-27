@@ -88,6 +88,8 @@ export function tickToGrowth(state: GameState, target: number): TickReport {
     weather: [],
     wildwechsel: [],
     chapters: [],
+    discovered: [],
+    research: [],
   };
   for (let i = 0; i < 1000 && state.totalGrowth < target; i++) {
     const rate = evaluate(state).growth;
@@ -101,6 +103,8 @@ export function tickToGrowth(state: GameState, target: number): TickReport {
     total.weather.push(...r.weather);
     total.wildwechsel.push(...r.wildwechsel);
     total.chapters.push(...r.chapters);
+    total.discovered.push(...r.discovered);
+    total.research.push(...r.research);
   }
   return total;
 }

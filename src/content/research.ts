@@ -12,6 +12,8 @@ import type { Condition, Effect, NicheId, PlantGroup, Tag } from './types';
  * - **Knoten statt Ränge:** Jeder Knoten wird einmal mit ⚖️ erforscht und wirkt bis zum
  *   Neuen Zyklus (wie Pflege). Die Wirkungen der 25 heutigen Pflege-Ränge sind 1:1 dieselben
  *   Daten (Tabelle CARE_TO_RESEARCH); neu sind 7 Knoten.
+ * - **Ausnahme: sechs wiederholbare Knoten** (28.6, `repeatable`, am Ende von RESEARCH): je Ast
+ *   einer mit Rang r ≥ 0 (`cycle.researchRanks`), Kosten ⌈base · growth^r⌉, Wirkung × Rang.
  * - **Ebene = Stufe** (`minStage`, Index in STAGES): Setzling 2, Junger Baum 3, Alter Baum 4,
  *   Hain 5, Wald 6.
  * - **Voraussetzungen:** `requires` (alle), `requiresAny` (mindestens einer), auch über Äste
@@ -121,8 +123,11 @@ export const RESEARCH_BRANCHES: readonly ResearchBranch[] = [
 const LIGHT_PATH = ['light-crown', 'light-crown-2', 'light-crown-3'];
 const DENSE_PATH = ['dense-crown', 'dense-crown-2', 'dense-crown-3'];
 
-/** Alle 32 Knoten, je Ast nach Ebene; Voraussetzungen stehen immer weiter oben. */
-export const RESEARCH: readonly ResearchNode[] = [
+/**
+ * Die 32 einmaligen Knoten, je Ast nach Ebene; Voraussetzungen stehen immer weiter oben. Die
+ * sechs wiederholbaren (RESEARCH_REPEATABLE) hängt RESEARCH dahinter an.
+ */
+export const RESEARCH_ONCE: readonly ResearchNode[] = [
   // --- 🪱 Boden ---------------------------------------------------------------
   {
     id: 'compost', branch: 'soil', name: 'Kompost', icon: '♻️', minStage: SAPLING, cost: 100,
@@ -345,8 +350,6 @@ export const RESEARCH: readonly ResearchNode[] = [
   },
 ];
 
-export const RESEARCH_BY_ID: ReadonlyMap<string, ResearchNode> = new Map(RESEARCH.map((n) => [n.id, n]));
-
 /** Die fünf Gabeln (27.7, „Die fünf Gabeln“). */
 export const RESEARCH_FORKS: readonly ResearchFork[] = [
   {
@@ -414,10 +417,9 @@ const groupSeeds = (group: PlantGroup, pct: number): ResearchEffect =>
  * Trockenmauer). Wirkung je Rang klein und nur 🌿/🌰 – nie Harmonie, ⚖️-Ertrag oder Plätze.
  * `groupGrowth`/`groupSeeds` der Bäume gelten auch für den Hauptbaum.
  *
- * **Bis Phase 11, 2b ausgeblendet:** Die Knoten stehen bewusst NICHT in RESEARCH und
- * RESEARCH_BY_ID – der core, die Ansicht und der Simulator iterieren RESEARCH und würden sie
- * sonst als einmalige Knoten mit festen Kosten kaufen. 2b (Ränge in `cycle.researchRanks`,
- * `researchCost`) nimmt sie auf.
+ * Seit Phase 11, 2b stehen sie am Ende von RESEARCH (und in RESEARCH_BY_ID). Der Rang steht in
+ * `cycle.researchRanks`; Kosten, Sperre und Wirkung × Rang rechnet der core (researchCost,
+ * researchBlocker, researchEffects) – wer RESEARCH durchläuft, prüft `repeatable`.
  */
 export const RESEARCH_REPEATABLE: readonly ResearchNode[] = [
   {
@@ -473,3 +475,11 @@ export const RESEARCH_REPEATABLE: readonly ResearchNode[] = [
 export const RESEARCH_REPEATABLE_BY_ID: ReadonlyMap<string, ResearchNode> = new Map(
   RESEARCH_REPEATABLE.map((n) => [n.id, n]),
 );
+
+/**
+ * Alle 38 Knoten: die einmaligen (RESEARCH_ONCE), dahinter die sechs wiederholbaren
+ * (RESEARCH_REPEATABLE, 28.6). Voraussetzungen stehen immer weiter oben.
+ */
+export const RESEARCH: readonly ResearchNode[] = [...RESEARCH_ONCE, ...RESEARCH_REPEATABLE];
+
+export const RESEARCH_BY_ID: ReadonlyMap<string, ResearchNode> = new Map(RESEARCH.map((n) => [n.id, n]));
