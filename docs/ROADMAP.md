@@ -1385,9 +1385,19 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Ziel bleibt nachgeahmt bis 2c). Tests `tests/upgrade-ui.test.ts`, `tests/upgrade-view.test.ts`,
   `tests/settings.test.ts`, `tests/journal-stats.test.ts`; e2e `e2e/upgrades.spec.ts` (ersetzt
   `upgrades-basic.spec.ts`, 360/390 px). 4d gleich mit erledigt (siehe dort)
-- [ ] **4c** Zielzeile und Rückkehr-Bericht (`ui-dev`, 28.7/28.9): Zeile im Polaroid-Kopf mit Sprung
+- [x] **4c** Zielzeile und Rückkehr-Bericht (`ui-dev`, 28.7/28.9): Zeile im Polaroid-Kopf mit Sprung
   zum Ziel, stabil zwischen Käufen, `aria-live` nur beim Wechsel; Rückkehr-Bericht endet mit der
   Zielzeile („Genug für 6 Ausbaustufen“). Klein. Abhängig: 2c, 4b
+  **Erledigt:** Sprung `jumpToGoal` (album/index.ts) → `NichesPage.reveal`: Nische, Baumteil bzw.
+  Pflanzring (Säen) mittig ins Bild, Fokus auf den Namen, Aufleuchten `goal-flash`; Ziel neu nur
+  bei `goalEpochKey`, Ersetzen des Spielstands oder Rückkehr; `aria-live` nur bei neuem Ziel
+  (geprüft, auch e2e). Rückkehr-Bericht endet mit „🎯 Genug für N Ausbaustufen ›“
+  (`affordableUpgradeSteps` in `core/goal.ts`: billigste Stufe zuerst über alle offenen Ziele =
+  größtmögliche Zahl) bzw. der Zielzeile (`returnGoalView`), letzter Punkt und „Zum Ziel ›“ auf
+  U:Rückkehr-Bericht. Feinschliff 2c: Auf der Doppelseite ersetzt der Zettel-Knopf die Zielzeile im
+  Kopf, solange er offen ist – Polaroid bei 1200 × 700 wieder größer. ALBUM_UI.md B.1/C.8. Tests
+  `tests/goal.test.ts`, `tests/upgrade-ui.test.ts`, `e2e/upgrades.spec.ts`,
+  `e2e/return-report.spec.ts`
 - [x] **4d** Baum-Ausbau einhängen (`renderer`): aus 1d mit `scene.upgrades` aus dem Spielstand
   (`main.ts`), Stufenbild unverändert; gern zusammen mit Phase 10, 4d. Abhängig: 1d, 2a
   **Erledigt mit 4b:** `refreshSceneEcosystem` in `main.ts` setzt `scene.upgrades =

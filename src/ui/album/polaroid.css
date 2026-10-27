@@ -364,3 +364,15 @@ body[data-motion='reduce'] .scene-stamps .stage-banner.visible {
     width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 556px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
   }
 }
+
+/* Rückkehr-Zettel mit Ziel (Phase 11, 4c): Die Zielzeile steht dann im Zettel statt unter den
+   Etiketten (return-report.css) – das Polaroid gibt nur die Zeile im Zettel ab. */
+.album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden]) .return-slip-goal:not([hidden])) .polaroid {
+  width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 610px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+}
+
+@media (max-height: 760px) {
+  .album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden]) .return-slip-goal:not([hidden])) .polaroid {
+    width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 550px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+  }
+}
