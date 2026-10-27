@@ -18,8 +18,13 @@ export interface Floats {
   plant(plantId: string): void;
   /** „−35 🌰“ über dem Samen-Etikett (ausgegebene Samen, z. B. Säen). */
   spent(amount: number): void;
-  /** Hinweis an Bildschirm-Koordinaten (z. B. Bestätigung nach einem Kauf). */
+  /**
+   * Hinweis an Bildschirm-Koordinaten (z. B. Bestätigung nach einem Kauf). Gehört zur Seite,
+   * auf der er steht – `clearPage` nimmt ihn beim Seitenwechsel mit (Playtest Phase 11, F9).
+   */
   note(text: string, x: number, y: number): void;
+  /** Hinweise der bisherigen Seite entfernen (Reiter- bzw. Seitenwechsel). */
+  clearPage(): void;
 }
 
 export function createFloats(canvas: HTMLCanvasElement): Floats {
@@ -54,6 +59,7 @@ export function createFloats(canvas: HTMLCanvasElement): Floats {
       const ringAt = topCenter(document.querySelector('[data-ref="plant-ring"]'), true);
       if (ringAt) layer.spawn(`🌱 ${PLANTS_BY_ID.get(plantId)?.name ?? ''}`, ringAt.x, ringAt.y + 24);
     },
-    note: (text, x, y) => layer.spawn(text, x, y, 'note'),
+    note: (text, x, y) => layer.spawn(text, x, y, 'note', true),
+    clearPage: () => layer.clearScoped(),
   };
 }

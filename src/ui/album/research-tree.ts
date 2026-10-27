@@ -73,6 +73,11 @@ export interface ResearchTree {
   update(state: ResearchTreeState): void;
   /** Knoten zeigen: Ast aufklappen, Fokus, Aufleuchten. false, wenn es ihn nicht gibt. */
   reveal(id: string): boolean;
+  /**
+   * Der Knoten, den „🔍 erforschbar ›“ zeigt: der billigste bezahlbare (einmalige vor Rängen,
+   * bei Gleichstand der erste im Baum); null, wenn nichts bezahlbar ist.
+   */
+  firstAvailable(): string | null;
   /** Karte eines Knotens (Aufleuchten, Lage der Bestätigung). */
   card(id: string): HTMLElement | undefined;
   /** Knopf eines Knotens. */
@@ -306,7 +311,11 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
     const parts: BranchParts = { id: branch.id, section, toggle, toggleSummary, headSummary, body, tab, tabCount, name: branch.name, nodeIds: b.nodeIds };
     toggle.addEventListener('click', () => {
       userToggled = true;
-      setOpen(parts, toggle.getAttribute('aria-expanded') !== 'true');
+      const open = toggle.getAttribute('aria-expanded') !== 'true';
+      setOpen(parts, open);
+      // Selbst zugeklappt: nicht mehr von allein aufklappen (siehe update).
+      if (open) userClosed.delete(parts.id);
+      else userClosed.add(parts.id);
     });
     branches.set(branch.id, parts);
   });
@@ -346,6 +355,14 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
   // --- Auf- und Zuklappen ----------------------------------------------------------------
   let userToggled = false;
   let initialOpenDone = false;
+  /**
+   * Knoten, die schon einmal erforschbar waren. Wird ein Knoten zum ersten Mal erforschbar,
+   * klappt sein Ast auf (Playtest Phase 11, F2) – einmal, nicht bei jedem Schwanken des
+   * Vorrats, und nie ein Ast, den der Spieler selbst zugeklappt hat.
+   */
+  const seenAvailable = new Set<string>();
+  const userClosed = new Set<string>();
+  let lastState: ResearchTreeState | null = null;
 
   function setOpen(parts: BranchParts, open: boolean): void {
     setAttr(parts.toggle, 'aria-expanded', String(open));
@@ -501,6 +518,20 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
       path.classList.toggle('is-off', off);
     }
 
+    lastState = state;
+    const fresh = new Set<string>();
+    for (const [id, view] of shown) {
+      if (view !== 'available' || seenAvailable.has(id)) continue;
+      seenAvailable.add(id);
+      fresh.add(id);
+    }
+    if (initialOpenDone || userToggled) {
+      for (const id of fresh) {
+        const branch = branches.get(RESEARCH_BY_ID.get(id)?.branch ?? '');
+        if (branch && !userClosed.has(branch.id)) setOpen(branch, true);
+      }
+    }
+
     if (!initialOpenDone && !userToggled) {
       initialOpenDone = true;
       // Nach der Breite des Fensters (mobil), nicht des Baums: Am Desktop ist die Album-Seite
@@ -514,10 +545,27 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
     }
   }
 
+  function firstAvailable(): string | null {
+    if (!lastState) return null;
+    let best: { id: string; repeat: boolean; cost: number } | null = null;
+    // Reihenfolge des Baums: Äste von links nach rechts, darin die Ebenen von oben.
+    for (const b of layout.branches) {
+      for (const id of b.nodeIds) {
+        const s = lastState.nodes[id];
+        if (s?.status !== 'available') continue;
+        const node = RESEARCH_BY_ID.get(id)!;
+        const c = { id, repeat: !!node.repeatable, cost: s.cost ?? node.cost };
+        if (!best || (best.repeat && !c.repeat) || (best.repeat === c.repeat && c.cost < best.cost)) best = c;
+      }
+    }
+    return best?.id ?? null;
+  }
+
   return {
     root,
     update,
     reveal,
+    firstAvailable,
     card: (id) => nodes.get(id)?.card,
     action: (id) => nodes.get(id)?.action,
     focusName(id) {

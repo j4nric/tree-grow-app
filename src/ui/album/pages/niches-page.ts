@@ -272,7 +272,10 @@ export function createNichesPage(env: PageEnv): NichesPage {
     summary.dataset.ref = summaryRef;
     const arrow = el('span', 'niches-link-arrow', '›');
     arrow.setAttribute('aria-hidden', 'true');
-    button.append(title, summary, arrow);
+    // Kurzfassung und Pfeil bleiben zusammen – sonst rutscht „›“ bei 360 px allein in eine Zeile.
+    const tail = el('span', 'niches-link-tail');
+    tail.append(summary, arrow);
+    button.append(title, tail);
     button.addEventListener('click', open);
     links.append(button);
     return { button, summary };

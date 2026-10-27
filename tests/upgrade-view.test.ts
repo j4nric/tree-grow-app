@@ -119,7 +119,7 @@ describe('Fußzeile je Nische', () => {
     expect(view.closed).toBe(false);
     expect(view.levelText).toBe('St. 24');
     expect(view.progress.label).toBe('25: +1 Platz');
-    expect(view.effectText).toBe('je Tier +2,4 %');
+    expect(view.effectText).toBe(`je Tier +2,4${NBSP}%`);
     // 2,4 · (0,95 + 0,8 + 0,9) = 6,36 → „+6,4 %“
     expect(view.effectLines[0]).toBe('3 Tiere, zusammen +6,4 % 🌿 und +6,4 % 🌰.');
     expect(view.button?.wait).toBe('in 0:05');
@@ -128,7 +128,7 @@ describe('Fußzeile je Nische', () => {
 
   it('Stufe 0 und leere Nische', () => {
     const view = nicheFooterView(niche({ level: 0, best: 0, happiness: [] }), ctx(0, 1));
-    expect(view.effectText).toBe('+0,1 % je Stufe');
+    expect(view.effectText).toBe(`+0,1${NBSP}% je Stufe`);
     expect(view.effectLines).toEqual(['Je Stufe bekommt jedes Tier hier +0,1 % 🌿 und 🌰 – noch wohnt niemand hier.']);
     expect(view.badge).toBeNull();
   });
@@ -146,9 +146,9 @@ describe('„🌳 Dein Baum“', () => {
   it('Wirkung je Baumteil wie in der Skizze 28.9', () => {
     const views = parts.map((p) => treePartView(p, ctx(240, 20)));
     expect(views.map((v) => [v.title, v.levelText, v.effectText])).toEqual([
-      ['🪵 Jahresringe', 'St. 22', `Baum +8,8 %${NBSP}🌿`],
-      ['🍃 Blattwerk', 'St. 21', `Baum +21 %${NBSP}🌰`],
-      ['🍄 Pilzgeflecht', 'St. 22', `Pflanzen +11 %${NBSP}🌿${NBSP}🌰`],
+      ['🪵 Jahresringe', 'St. 22', `Baum +8,8${NBSP}%${NBSP}🌿`],
+      ['🍃 Blattwerk', 'St. 21', `Baum +21${NBSP}%${NBSP}🌰`],
+      ['🍄 Pilzgeflecht', 'St. 22', `Pflanzen +11${NBSP}%${NBSP}🌿${NBSP}🌰`],
     ]);
     expect(views[0]!.progress.label).toBe('25: +1 Platz Höhlen');
   });
@@ -161,7 +161,7 @@ describe('„🌳 Dein Baum“', () => {
 
   it('Stufe 0 nennt die Wirkung je Stufe', () => {
     const part = { ...TREE_PART_INPUTS[2]!, level: 0, best: 0, purchase: { count: 1, cost: 15 } };
-    expect(treePartView(part, ctx(0)).effectText).toBe(`Pflanzen +0,5 %${NBSP}🌿${NBSP}🌰 je Stufe`);
+    expect(treePartView(part, ctx(0)).effectText).toBe(`Pflanzen +0,5${NBSP}%${NBSP}🌿${NBSP}🌰 je Stufe`);
   });
 });
 
@@ -172,13 +172,14 @@ describe('Zielzeile', () => {
     expect(goalLineView(goal, ctx(1000, 5))).toMatchObject({
       key: 'niche:crown:14',
       ready: false,
-      text: `Nächstes: 🌳 Krone St. 14 · 1.240${NBSP}🌰 · in 0:50`,
+      text: `Nächstes: 🌳 Krone St. 14 · 1.240${NBSP}🌰 · in${NBSP}0:50`,
       research: '',
     });
     expect(goalLineView(goal, ctx(1300, 5))).toMatchObject({ ready: true, text: `Jetzt: 🌳 Krone St. 14 · 1.240${NBSP}🌰 ›` });
     const milestone = goalLineView({ ...goal, id: 'roots', icon: '🪱', name: 'Wurzelraum', level: 25, cost: 2900, milestone: '+1 Platz' }, ctx(2400, 5), 2);
-    expect(milestone?.text).toBe(`Nächstes: 🪱 Wurzelraum St. 25 (+1 Platz) · 2.900${NBSP}🌰 · in 1:40`);
-    expect(milestone?.research).toBe('🔍 2 erforschbar ›');
+    expect(milestone?.text).toBe(`Nächstes: 🪱 Wurzelraum St. 25 (+1 Platz) · 2.900${NBSP}🌰 · in${NBSP}1:40`);
+    expect(milestone?.research).toBe('🔍 erforschbar ›');
+    expect(milestone?.researchAria).toBe('Erforschbar: 2 Knoten zur Wahl – zur Forschung');
     expect(milestone?.announce).toBe('Nächstes Ziel: Wurzelraum St. 25 (+1 Platz), 2.900 Samen');
   });
 

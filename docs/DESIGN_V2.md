@@ -9059,9 +9059,10 @@ St. 14 · 1,2k 🌰 ›“ (hervorgehoben). Meilenstein: „Nächstes: 🪱 Wurz
 5. **Stabil:** Neu gewählt wird nur nach einem Kauf, beim Öffnen einer Nische, Stufenwechsel oder
    Laden – nicht jeden Frame (sonst springt das Ziel, wenn die Rate schwankt). Dazwischen läuft
    nur die Zeit herunter.
-6. **⚖️ daneben:** Ist ein Forschungsknoten bezahlbar, hängt die Zeile „· 🔍 2 erforschbar ›“ an
-   (Sprung zu R:Forschung). Keine eigene ⚖️-Zielwahl – die Forschung ist eine Entscheidung,
-   kein Countdown.
+6. **⚖️ daneben:** Ist ein Forschungsknoten bezahlbar, hängt die Zeile „· 🔍 erforschbar ›“ an
+   (Sprung zu R:Forschung beim billigsten bezahlbaren Knoten). Ohne Zahl (Playtest Phase 11, F3):
+   Sie zählte Knoten, die nur je einzeln bezahlbar sind; vorgelesen „N Knoten zur Wahl“. Keine
+   eigene ⚖️-Zielwahl – die Forschung ist eine Entscheidung, kein Countdown.
 
 **Warum „billigster“ statt „bester Wert“:** Ein Wert-Vergleich (🌿-Gewinn je 🌰) hängt an der
 Strategie und würde den Spieler zu einer Rechenaufgabe erziehen; „billigster“ ist im

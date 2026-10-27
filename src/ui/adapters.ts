@@ -61,6 +61,7 @@ import {
   sowingCost,
   sowingRerollCost,
   sowingSeasonFactor,
+  secondsToNextStage,
   secondsToNextWaypoint,
   slotEffects,
   waypointProgress,
@@ -600,6 +601,19 @@ export function progressHint(state: GameState): string {
 }
 
 /**
+ * Mittelfristiges Ziel (Playtest Phase 11, F4): „Wald in ~22 Min.“ – Zeit bis zur nächsten
+ * Wachstumsstufe bei der aktuellen Rate, auf ganze Minuten aufgerundet („~“, weil Ausbau und
+ * Jahreszeiten die Rate noch ändern). Leer auf der letzten Stufe oder ohne Wachstum.
+ */
+export function stageEtaText(state: GameState, growthPerSec: number): string {
+  const next = STAGES[state.stage + 1];
+  const seconds = secondsToNextStage(state, growthPerSec);
+  if (!next || !Number.isFinite(seconds)) return '';
+  if (seconds < 60) return `${next.name} in unter 1 Min.`;
+  return `${next.name} in ~${formatDuration(Math.ceil(seconds / 60) * 60)}`;
+}
+
+/**
  * Alles für die Seitenleiste. `evaluation` ist `evaluate(state)` – wird übergeben,
  * damit main.ts sie nur einmal pro Frame holt.
  */
@@ -608,6 +622,7 @@ export function toEcosystemView(state: GameState, evaluation: Readonly<Evaluatio
     stageName: STAGES[state.stage]?.name ?? STAGES[0]!.name,
     stageProgress: 0,
     progressHint: '',
+    stageEta: '',
     pendingEncounters: 0,
     growthPerSec: evaluation.growth,
     seeds: 0,
@@ -636,6 +651,7 @@ export function refreshEcosystemView(view: EcosystemView, state: GameState): voi
   view.seeds = state.seeds;
   view.stageProgress = waypointProgress(state);
   view.progressHint = progressHint(state);
+  view.stageEta = stageEtaText(state, view.growthPerSec);
   view.pendingEncounters = state.pendingEncounters.length;
   refreshPlantRing(view.plantRing, state);
   for (const niche of view.niches) if (niche.upgrade) refreshUpgradeView(niche.upgrade, state);

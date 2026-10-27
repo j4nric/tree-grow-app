@@ -247,7 +247,8 @@
 >   (`MILESTONE_GOAL_SECONDS`) bezahlbar, gewinnt der billigste davon; sonst der billigste
 >   Kandidat. Gleichstand: Säen, Nischen, Baumteile. Zeit = fehlende Samen ÷ 🌰/s aus `evaluate`
 >   (0 = jetzt, ohne Rate keine Zeit); `null` vor dem Keimling. `researchAvailable(state)` zählt
->   die Knoten ohne Sperrgrund (`researchBlocker`) für den Anhang „🔍 2 erforschbar ›“.
+>   die Knoten ohne Sperrgrund (`researchBlocker`) für den Anhang „🔍 erforschbar ›“ (die Zahl
+>   wird seit Playtest Phase 11, F3 nur vorgelesen: „N Knoten zur Wahl“).
 > - **Oberfläche (einfach bis 4c):** Zeile unter den Etiketten im Polaroid-Kopf („Nächstes: 🪱
 >   Wurzelraum St. 25 (+1 Platz) · 1.590 🌰 · in 1:40“ bzw. „Jetzt: … ›“), Tippen öffnet den Reiter
 >   Nischen bzw. Forschung. Neu gewählt nur nach Kauf, Säen, Forschung, Stufen- oder

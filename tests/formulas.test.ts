@@ -22,6 +22,7 @@ import {
   nichesAfterChoice,
   plantSlots,
   plantsAfterChoice,
+  secondsToNextStage,
   secondsToNextWaypoint,
   stageForWaypoint,
   stageProgress,
@@ -569,6 +570,18 @@ describe('Wegpunkte und Stufen', () => {
     const done = stateAt(7);
     expect(waypointProgress(done)).toBe(1);
     expect(secondsToNextWaypoint(done)).toBe(Infinity);
+  });
+
+  it('secondsToNextStage: Restwachstum bis zum Wegpunkt der nächsten Stufe durch die Rate', () => {
+    const state = stateAt(2);
+    state.totalGrowth = thresholdFor(STAGES[2]!.waypoint) + 10;
+    const rest = thresholdFor(STAGES[3]!.waypoint) - state.totalGrowth;
+    expect(secondsToNextStage(state, 4)).toBeCloseTo(rest / 4);
+    // Standard-Rate wie secondsToNextWaypoint (live).
+    expect(secondsToNextStage(state)).toBeCloseTo(rest / evaluate(state).growth);
+    expect(secondsToNextStage(state, 0)).toBe(Infinity);
+    expect(secondsToNextStage(state, Number.NaN)).toBe(Infinity);
+    expect(secondsToNextStage(stateAt(STAGES.length - 1), 4)).toBe(Infinity);
   });
 });
 

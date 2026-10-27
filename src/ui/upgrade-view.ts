@@ -272,7 +272,10 @@ export function nicheFooterView(input: NicheUpgradeInput, ctx: UpgradeContext): 
   const perAnimal = input.pctPerLevel * level;
   const animals = input.happiness.length;
   const total = input.happiness.reduce((sum, z) => sum + perAnimal * Math.min(1, Math.max(0, z)), 0);
-  const effectText = level > 0 ? `je Tier ${formatPlusPercent(perAnimal)}` : `${formatPlusPercent(input.pctPerLevel)} je Stufe`;
+  // „+2,4 %“ bricht nicht vor „%“ um (360 px).
+  const effectText = keepNumberWithIcon(
+    level > 0 ? `je Tier ${formatPlusPercent(perAnimal)}` : `${formatPlusPercent(input.pctPerLevel)} je Stufe`,
+  );
   const effectLines =
     animals === 0
       ? [`Je Stufe bekommt jedes Tier hier ${formatPlusPercent(input.pctPerLevel)} 🌿 und 🌰 – noch wohnt niemand hier.`]
@@ -333,7 +336,7 @@ export function treePartView(input: TreePartInput, ctx: UpgradeContext): TreePar
     id: input.id,
     title: `${input.icon} ${input.name}`,
     levelText: `St. ${formatNumber(level)}`,
-    effectText: effect,
+    effectText: keepNumberWithIcon(effect),
     text: input.text,
     progress: milestoneProgress(level, input.milestones),
     button: input.purchase ? upgradeButtonView(input.name, input.purchase, ctx) : null,
@@ -382,7 +385,12 @@ export interface GoalLineView {
   text: string;
   /** Ansage bei Zielwechsel (ohne Countdown). */
   announce: string;
-  /** „🔍 2 erforschbar ›“, leer ohne bezahlbaren Knoten. */
+  /**
+   * Kurzfassung für die klebende Vorratsleiste (mobil, Playtest Phase 11, F4): „🎯 Jetzt ›“
+   * bzw. „🎯 in 0:50“ („🎯 ›“ ohne Rate).
+   */
+  short: string;
+  /** „🔍 erforschbar ›“, leer ohne bezahlbaren Knoten (ohne Zahl, Playtest Phase 11, F3). */
   research: string;
   researchAria: string;
 }
@@ -400,15 +408,21 @@ export function goalLineView(goal: GoalInput | null, ctx: Pick<UpgradeContext, '
   const price = seedPrice(goal.cost);
   const ready = goal.cost <= ctx.seeds;
   const wait = ready ? '' : waitText(goal.cost, ctx.seeds, ctx.seedsPerSecond);
-  const text = ready ? `Jetzt: ${what} · ${price} ›` : `Nächstes: ${what} · ${price}${wait ? ` · ${wait}` : ''}`;
+  // „in 0:20“ bleibt zusammen (sonst „in“ am Zeilenende, „0:20“ allein darunter).
+  const waitShown = wait.replace(' ', '\u00a0');
+  const text = ready ? `Jetzt: ${what} · ${price} ›` : `Nächstes: ${what} · ${price}${waitShown ? ` · ${waitShown}` : ''}`;
   const n = Math.max(0, Math.floor(researchAvailable));
   return {
     key: goalKey(goal),
     ready,
     text: keepNumberWithIcon(text),
     announce: `${ready ? 'Jetzt möglich' : 'Nächstes Ziel'}: ${goal.name}${level}${milestone}, ${formatNumber(Math.ceil(goal.cost))} Samen`,
-    research: n > 0 ? `🔍 ${formatNumber(n)} erforschbar ›` : '',
-    researchAria: n > 0 ? `Zur Forschung: ${n === 1 ? 'ein Knoten' : `${formatNumber(n)} Knoten`} erforschbar` : '',
+    short: ready ? '🎯 Jetzt ›' : wait ? `🎯 ${wait}` : '🎯 ›',
+    // Ohne Zahl (Playtest Phase 11, F3): „10 erforschbar“ zählte Knoten, die je *einzeln*
+    // bezahlbar sind – nach einem Kauf war oft keiner mehr übrig. Die Zahl steht vorgelesen
+    // als „zur Wahl“ und sichtbar im Kopf der Forschung, wo jede Karte ihren Preis zeigt.
+    research: n > 0 ? '🔍 erforschbar ›' : '',
+    researchAria: n > 0 ? `Erforschbar: ${n === 1 ? 'ein Knoten' : `${formatNumber(n)} Knoten`} zur Wahl – zur Forschung` : '',
   };
 }
 

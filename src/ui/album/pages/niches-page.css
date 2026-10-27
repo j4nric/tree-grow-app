@@ -498,6 +498,13 @@
   line-height: 1.1;
 }
 
+.niches-link-tail {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0 8px;
+  white-space: nowrap;
+}
+
 .niches-link-summary {
   color: var(--ink-soft);
 }
