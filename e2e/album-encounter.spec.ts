@@ -125,6 +125,22 @@ test('„🌱 Säen“: erste Aussaat gratis, Kartenwahl in U:Begegnung, danach 
   await expect(sowButton(page)).toContainText('Saatzeit');
 });
 
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`Setzen aus der Aussaat spielt die Aussaat-Animation ohne Fehler (Phase 10, 4d; Bewegung: ${reducedMotion})`, async ({ page, context }) => {
+    await page.emulateMedia({ reducedMotion });
+    await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 30, plants: ['fern'] });
+    await openGame(page);
+    const sheet = await sowNow(page);
+    const cards = (await savedState(page)).cycle.sowing.cards as string[];
+    await sheet.getByRole('button', { name: /einkleben/ }).first().click();
+    await expect(encounter(page)).toBeHidden();
+    // Flug (~2,7 s) abwarten: die Szene läuft weiter, die Pflanze steht im Spielstand.
+    await page.waitForTimeout(3000);
+    expect((await savedState(page)).plants).toEqual(['fern', cards[0]]);
+    await expect(page.locator('canvas').first()).toBeVisible();
+  });
+}
+
 test('offene Aussaat: Zettel „Aussaat!“ oben auf dem Stapel, „‹ Später“ legt sie zurück, Neuladen behält die Karten', async ({ page, context }) => {
   // Eine „Etwas keimt“-Begegnung aus einem alten Stand wird beim Laden die offene Aussaat (27.9).
   await seedV3(context, {

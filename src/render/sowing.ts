@@ -13,8 +13,10 @@
  * Größe und Auflösung gezeichnet. Pro Frame: wenige drawImage mit Transformation, keine
  * Allokation.
  *
- * Noch nicht im Spiel eingehängt (Phase 10, 4d) – zu sehen in der Render-Demo
- * (`demo.html?demo=sowing`).
+ * Im Spiel (Phase 10, 4d) über `SceneInput.sowing` eingehängt: main.ts merkt den Platz
+ * (`sowingSlot`) nach `chooseSowing` in einem `SowingCue` und startet, sobald die Szene zu
+ * sehen ist; drawScene versteckt die Pflanze bis zur Landung
+ * und zeichnet die Samen über der Szene. In der Render-Demo: `demo.html?demo=sowing`.
  */
 
 import { ell, line, TAU } from './sprite-kit';
@@ -56,6 +58,65 @@ export function sowingElapsed(time: number, startedAt: number, reducedMotion: bo
 export function sowingPlantVisible(time: number, startedAt: number, reducedMotion: boolean): boolean {
   const u = sowingElapsed(time, startedAt, reducedMotion);
   return !(u < SOWING_LAND_SECONDS);
+}
+
+/**
+ * Platz (Index im Pflanzring, = `ScenePlant.slot`) der Pflanze, die eine Aussaat gerade
+ * gesetzt hat: der erste Platz, an dem nach dem Setzen `planted` steht und vorher etwas
+ * anderes (frei oder ersetzt). -1, wenn nichts gesetzt wurde (kein `planted`, unverändert).
+ */
+export function sowingSlot(before: readonly string[], after: readonly string[], planted: string | undefined): number {
+  if (!planted) return -1;
+  for (let i = 0; i < after.length; i++) {
+    if (after[i] === planted && before[i] !== planted) return i;
+  }
+  return -1;
+}
+
+/** So lange (s) wartet eine gesetzte Aussaat darauf, dass die Szene zu sehen ist. */
+export const SOWING_CUE_WAIT = 8;
+
+/**
+ * Auslöser für `SceneInput.sowing`: merkt sich nach dem Setzen aus einer Aussaat den Platz
+ * und gibt die Aussaat erst heraus, wenn die Szene zu sehen ist (mobil liegt nach dem Setzen
+ * oft eine Seite darüber) – spätestens SOWING_CUE_WAIT s nach dem Setzen, sonst verfällt sie
+ * und die Pflanze steht einfach da. Allokation nur beim Herausgeben.
+ */
+export class SowingCue {
+  private slot = -1;
+  private at = Number.NaN;
+
+  /** Wartet eine Aussaat? */
+  get pending(): boolean {
+    return this.slot >= 0;
+  }
+
+  /** Nach dem Setzen: Platz (`sowingSlot`, −1 = nichts gesetzt) und Zeit (s, Takt wie `time`). */
+  plant(slot: number, time: number): void {
+    if (Number.isFinite(slot) && slot >= 0 && Number.isFinite(time)) {
+      this.slot = Math.floor(slot);
+      this.at = time;
+    }
+  }
+
+  /** Je Frame: die Aussaat für die Szene, sobald sie zu sehen ist (einmal), sonst undefined. */
+  take(time: number, visible: boolean): { startedAt: number; slot: number } | undefined {
+    if (this.slot < 0) return undefined;
+    if (!(time - this.at <= SOWING_CUE_WAIT)) {
+      this.clear();
+      return undefined;
+    }
+    if (!visible) return undefined;
+    const sowing = { startedAt: time, slot: this.slot };
+    this.clear();
+    return sowing;
+  }
+
+  /** Verwerfen (Neuer Zyklus, anderer Spielstand). */
+  clear(): void {
+    this.slot = -1;
+    this.at = Number.NaN;
+  }
 }
 
 /** Bahn eines Samens: kubische Bézierkurve vom Rand zum Ziel plus Pendeln quer dazu. */

@@ -1137,9 +1137,18 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   **Erledigt mit Phase 11, 2b** (`nextPlannedResearch`, `setResearchAuto`, Halt in `tick`)
 - [x] **4c** Schalter „Plan folgen“ und Plan-Nummern (`ui-dev`, 27.12). Klein. Abhängig: 4a, 4b.
   **→ in Phase 11, 4a** – **Erledigt mit Phase 11, 4a**
-- [ ] **4d** Aussaat-Animation einhängen (`renderer`): aus 1b beim Setzen aus einer Aussaat
+- [x] **4d** Aussaat-Animation einhängen (`renderer`): aus 1b beim Setzen aus einer Aussaat
   (Bericht aus `chooseSowing`), Stufenbild unverändert. Abhängig: 1b, 2b. Bleibt eigenständig und
   kann sofort laufen (Phase 11 berührt die Aussaat nicht); gern im selben Zug wie Phase 11, 4d
+  *Erledigt* (`claude/p10-4d-aussaat`): neues Feld `SceneInput.sowing = { startedAt, slot }`
+  (render/tree.ts). main.ts merkt nach `chooseSowing` den Platz der neuen Pflanze (`sowingSlot`:
+  Vorher/Nachher von `state.plants`) in einem `SowingCue` und startet, sobald die Szene zu sehen ist
+  (mobil nach dem Zurückscrollen, verfällt nach 8 s); Neuer Zyklus, Löschen/Import und
+  Konto-Abgleich verwerfen sie. drawScene versteckt die Pflanze bis zur Landung – Lage aus der
+  ganzen Liste, die übrigen rücken nicht –, die Ebenen entstehen nur bei Beginn und Landung neu;
+  Bahnen einmal je Aussaat, Sprites nur während der Aussaat. Weniger Bewegung: nichts fliegt, kein
+  zusätzliches Neuzeichnen. Stufenbild und Szene nach der Aussaat unverändert. Tests
+  `tests/render-sowing-scene.test.ts`, e2e in `album-encounter.spec.ts` (mit und ohne Bewegung)
 
 **Welle 5 – Absichern**
 
