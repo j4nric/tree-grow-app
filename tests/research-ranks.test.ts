@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_RESEARCH_RANK, RESEARCH_BY_ID, RESEARCH_REPEATABLE } from '../src/content/research';
 import { WAYPOINT_COUNT } from '../src/content/waypoints';
+import { generateDailyGoals } from '../src/core/daily';
 import { effectiveForestMemory } from '../src/core/landscape';
 import { evaluate, harmonyIncome, researchCostAt, researchEffects, researchRank, thresholdFor } from '../src/core/formulas';
 import { deserialize, loadGame, serialize } from '../src/core/save';
@@ -212,6 +213,45 @@ describe('Forschungsplan (27.8, 28.6)', () => {
     // Was an einem ausgeschlossenen Knoten hängt, ist ebenfalls unerreichbar.
     state.meta.research.plan = ['light-crown-2', 'humus'];
     expect(nextPlannedResearch(state)).toMatchObject({ index: 1, id: 'humus' });
+  });
+
+  it('Review #153: unerreichbarer Eintrag mit fehlender Stufe blockiert den Plan nicht', () => {
+    const state = stateAt(4);
+    state.cycle.research = ['nest-boxes', 'dense-crown'];
+    state.meta.research = { plan: ['nest-boxes', 'light-crown', 'light-crown-2', 'compost'], auto: true };
+    state.harmonyPoints = 1e6;
+    // Lichte Krone II (ab Hain) ist durch die Dichte Krone ausgeschlossen – nicht warten, überspringen.
+    expect(nextPlannedResearch(state)).toEqual({ index: 3, id: 'compost', blocker: null });
+    expect(tick(state, 1e-9).research).toEqual(['compost']);
+    expect(nextPlannedResearch(state)).toBeNull();
+  });
+
+  it('Plan-Käufe melden neue Lebensgemeinschaften wie ein Kauf von Hand', () => {
+    const state = grove();
+    state.meta.research = { plan: ['humus', 'pond', 'soil-life'], auto: true };
+    state.harmonyPoints = 1e6;
+    const byHand = structuredClone(state);
+    const expected = ['humus', 'pond', 'soil-life'].flatMap((id) => {
+      const r = research(byHand, id);
+      return r.ok ? (r.discovered ?? []) : [];
+    });
+    const report = tick(state, 1e-9);
+    expect(report.research).toEqual(['humus', 'pond', 'soil-life']);
+    expect(report.discovered).toEqual(expected);
+  });
+
+  it('mit „Plan folgen“ schlägt der Tag kein Ziel „erforschen“ vor', () => {
+    let withCare = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const state = grove(seed);
+      state.harmonyPoints = 1e5;
+      const day = `2026-10-${String((seed % 28) + 1).padStart(2, '0')}`;
+      if (generateDailyGoals(state, day).some((g) => g.kind === 'care')) withCare++;
+      state.meta.research.auto = true;
+      expect(generateDailyGoals(state, day).some((g) => g.kind === 'care'), String(seed)).toBe(false);
+    }
+    // Ohne Plan kommt das Ziel vor – sonst prüfte der Test nichts.
+    expect(withCare).toBeGreaterThan(0);
   });
 
   it('setResearchAuto schaltet nur den Schalter; ohne ihn kauft tick nichts', () => {

@@ -226,7 +226,9 @@
 > - **Halt in `tick`:** wie ein Wegpunkt – Zeit bis die Kosten des nächsten Plan-Eintrags erreicht
 >   sind = fehlende ⚖️ ÷ (⚖️/s × f), auch im Sprung über ganze Jahre. Darum gilt online = offline
 >   (viele kleine Ticks = ein großer = `simulateOffline`, auch mit 10 %). Der Plan zählt nicht für
->   das Tagesziel „erforschen“ (nur Käufe von Hand). Gekaufte IDs stehen in `TickReport.research`.
+>   das Tagesziel „erforschen“ (nur Käufe von Hand; mit „Plan folgen“ wird es gar nicht
+>   vorgeschlagen). Gekaufte IDs stehen in `TickReport.research`, neue Lebensgemeinschaften in
+>   `TickReport.discovered`. Der Erfolg „Behutsame Hände“ zählt Knoten und Ränge.
 > - **Laden:** Verlauf und Plan dürfen wiederholbare IDs mehrfach enthalten (höchstens 200-mal,
 >   einmalige weiter je einmal); im Verlauf höchstens so oft wie der Rang. Stände aus 2a (Ränge
 >   ohne Verlaufseinträge) laden unverändert.

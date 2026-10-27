@@ -1296,7 +1296,10 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Forschungsliste „🪱 Boden · ∞ Rang 3“ mit Kosten des nächsten Rangs; Vorschau-Baum
   (`research-view.ts`) zeigt nur `RESEARCH_ONCE` (Zeile „∞“ = 4a); kein Schalter (4a). Tests
   `tests/research-ranks.test.ts`, online = offline mit Plan in `tests/tick.test.ts`, Liste in
-  `tests/care-view.test.ts`
+  `tests/care-view.test.ts`. Nach Review: Unerreichbares wird vor der Stufe geprüft (sonst wartete
+  der Plan ewig), Plan-Käufe melden neue Lebensgemeinschaften (`TickReport.discovered`), mit „Plan
+  folgen“ kein Tagesziel „erforschen“, Erfolg `care-10` zählt Knoten und Ränge (Text), Anleitung
+  nennt 32 Knoten plus die endlosen
 - [ ] **2c** Zielzeile (`core-engineer`, 28.7): `nextGoal(state)` rein in `formulas.ts`
   (Kandidaten, Meilenstein-Regel ≤ 120 s, billigster, Gleichstand, Zeit aus der Rate, `null` ohne
   Kandidat), Erfolge `upgrade-25` „Gut bewohnt“, `upgrade-50` „Prachtnische“, `upgrades-all-10`

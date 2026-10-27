@@ -92,6 +92,7 @@ describe('tick', () => {
       weather: [],
       wildwechsel: [],
       chapters: [],
+      discovered: [],
       research: [],
     });
     expect(state.waypoint).toBe(1);
@@ -150,6 +151,7 @@ describe('tick', () => {
       weather: [],
       wildwechsel: [],
       chapters: [],
+      discovered: [],
       research: [],
     });
     expect(state.pendingEncounters).toEqual([]);

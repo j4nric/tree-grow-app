@@ -244,7 +244,9 @@ function propose(template: DailyGoalTemplate, ctx: GenerationContext, rng: RngHo
     }
     case 'care': {
       // Forschung (seit v17, 27.7): bezahlt mit ⚖️ – Vorrat plus Zufluss im Besuch, nicht mit
-      // dem Samen-Budget. Ein Ziel je Tag, darum kein eigenes Harmonie-Budget.
+      // dem Samen-Budget. Ein Ziel je Tag, darum kein eigenes Harmonie-Budget. Folgt der Spieler
+      // dem Forschungsplan (27.8), kauft der Plan – ein Ziel „erforschen“ wäre dann keins.
+      if (state.meta.research?.auto === true) return null;
       let cheapest = Infinity;
       for (const node of RESEARCH) {
         const blocker = researchBlocker(state, node.id);

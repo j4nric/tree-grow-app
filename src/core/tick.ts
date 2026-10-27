@@ -190,6 +190,11 @@ export interface TickReport {
    */
   chapters: ChapterNews[];
   /**
+   * Durch Käufe des Forschungsplans zum ersten Mal entstandene Lebensgemeinschaften (wie
+   * `ActionResult.discovered`) – für die Entdeckungs-Meldung.
+   */
+  discovered: string[];
+  /**
    * Nach dem Forschungsplan automatisch erforschte Knoten (DESIGN_V2.md 27.8, `meta.research.auto`)
    * in Kauf-Reihenfolge; wiederholbare je Rang ein Eintrag. Für Hinweis und Rückkehr-Bericht.
    */
@@ -278,6 +283,7 @@ export function tick(state: GameState, dt: number, ambient: AmbientMode = 'live'
     weather: [],
     wildwechsel: [],
     chapters: [],
+    discovered: [],
     research: [],
   };
   if (!(dt > 0) || !Number.isFinite(dt)) return report;
@@ -657,6 +663,7 @@ function mergeReports(into: TickReport, next: TickReport): void {
   for (let i = 0; i < next.seasons.length; i++) reportSeason(into, next.seasons[i]!, next.weather[i]!);
   into.wildwechsel.push(...next.wildwechsel);
   into.chapters.push(...next.chapters);
+  into.discovered.push(...next.discovered);
   into.research.push(...next.research);
 }
 
@@ -2176,9 +2183,11 @@ export function nextPlannedResearch(state: GameState): { index: number; id: stri
     } else if (owned.includes(id)) {
       continue;
     }
+    // Unerreichbar (Gabel anders, auch über Voraussetzungen) vor allem anderen – researchBlocker
+    // meldet zuerst die Stufe, sonst wartete der Plan auf einen Knoten, der nie kommt.
+    if (researchUnreachable(node, owned)) continue;
     const blocker = researchBlocker(state, id);
     if (blocker === 'unknown-node' || blocker === 'owned' || blocker === 'excluded') continue;
-    if (blocker === 'requires' && researchUnreachable(node, owned)) continue;
     return { index, id, blocker };
   }
   return null;
@@ -2211,6 +2220,7 @@ function followResearchPlan(state: GameState, report: TickReport): void {
     if (!result.ok) return;
     report.research.push(next.id);
     if (result.regulars) report.regulars.push(...result.regulars);
+    if (result.discovered) report.discovered.push(...result.discovered);
   }
 }
 
