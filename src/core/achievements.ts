@@ -4,8 +4,9 @@ import { CORRIDORS, CORRIDORS_BY_ID, LANDSCAPE_SITES_BY_ID, SITE_IDS, type SiteI
 import { PLANTS, PLANTS_BY_ID } from '../content/plants';
 import { COMMON_SPECIES, KENNARTEN, SPECIES_BY_ID } from '../content/species';
 import { MAIN_TREES, MAIN_TREES_BY_ID, type MainTreeId } from '../content/trees';
-import { GENERA } from '../content/types';
+import { GENERA, NICHE_IDS } from '../content/types';
 import { completedChronicles, isSiteAncient, landscapeOf, landscapeUnlocked } from './landscape';
+import { upgradeLevel } from './upgrades';
 import type { GameState } from './state';
 
 /*
@@ -44,6 +45,8 @@ export function targetOf(condition: AchievementCondition): number {
       return all(condition.atLeast, SITE_IDS.length);
     case 'corridors':
       return all(condition.atLeast, CORRIDORS.length);
+    case 'upgrade':
+      return all(condition.atLeast, NICHE_IDS.length);
     default:
       return condition.atLeast;
   }
@@ -126,6 +129,11 @@ export function valueOf(state: GameState, condition: AchievementCondition, optio
       return Math.floor(safe(state.meta.daily?.[condition.key]));
     case 'chronicles':
       return completedChronicles(state).length;
+    case 'upgrade': {
+      // Bestmarke bzw. Stufen des Zyklus; fehlt das Feld (kaputter Stand), zählt 0.
+      const levels = condition.inCycle ? state.cycle.upgrades : state.meta.upgrades?.best;
+      return NICHE_IDS.filter((id) => upgradeLevel(levels, { kind: 'niche', id }) >= condition.level).length;
+    }
   }
 }
 

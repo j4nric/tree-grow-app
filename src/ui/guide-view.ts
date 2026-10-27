@@ -371,7 +371,7 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       icon: '🏅',
       title: 'Erfolge',
       paragraphs: [
-        `${formatNumber(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, options.landscape === true)).length)} leise Erfolge begleiten dich durch das ganze Spiel: Stufen, Einträge im Naturtagebuch, Harmonie, Gäste, Tagesziele, Zyklen und Spielzeit. Du findest sie im Reiter „Ziele“ unter „Erfolge“ – offene mit ihrem Fortschritt.`,
+        `${formatNumber(ACHIEVEMENTS.filter((a) => isAchievementVisibleIn(a, options.landscape === true)).length)} leise Erfolge begleiten dich durch das ganze Spiel: Stufen, Einträge im Naturtagebuch, Harmonie, Gäste, Ausbau, Tagesziele, Zyklen und Spielzeit. Du findest sie im Reiter „Ziele“ unter „Erfolge“ – offene mit ihrem Fortschritt.`,
         'Es gibt keine Eile: Erfolge haben keine Zeitlimits, bringen keine Belohnung in Zahlen und gehen nie verloren, auch nicht beim Neuen Zyklus. Sie kommen ganz von selbst, Schritt für Schritt.',
       ],
     },

@@ -8971,6 +8971,19 @@ Strategie und würde den Spieler zu einer Rechenaufgabe erziehen; „billigster�
 Incremental-Genre die Erwartung (nächster Klick), Meilensteine geben die Richtung. Wer anders
 will, kauft anders – die Zeile folgt ihm (Regel 5).
 
+**Stand 2c (umgesetzt):** `nextGoal(state, rate?)` steht in `core/goal.ts` statt in
+`formulas.ts` – die Kandidaten brauchen `upgradeBlocker`/`sowBlocker`/`researchBlocker` aus
+`tick.ts`, das selbst von `formulas.ts` abhängt. Regel 2 zählt nur Meilensteine **mit Wirkung**
+(Nischen 10/25/50, Baumteile 25), reine Abzeichen (Baumteil 50/75, Nische 75) nicht. „Säen“
+zählt auch bei einer wartenden Vogelsaat (Preis 0). Regel 6 zählt `researchAvailable(state)` über
+`researchBlocker` – die Ränge aus 2b kommen damit ohne Änderung mit. Regel 5 entscheidet die
+Oberfläche (`goalEpochKey` in `ui/adapters.ts`); dazwischen folgt der Preis des gehaltenen Ziels
+dem Spielstand (Aussaat nach dem Frühling). Dazu drei Erfolge mit Bedingungsart `upgrade`
+(`upgrade-25` „Gut bewohnt“, `upgrade-50` „Prachtnische“ über `meta.upgrades.best`,
+`upgrades-all-10` „Rundum eingelebt“ über `cycle.upgrades`) – kein neues Feld, kein
+`SAVE_VERSION`-Wechsel: `meta.achievements` ist eine Liste von IDs, neue Erfolge trägt die erste
+Prüfung nach dem Laden nach (wie 12.6). Katalog danach: 40 Erfolge (30 ohne Landschaft).
+
 ### 28.8 Spielstand v18
 
 ```ts

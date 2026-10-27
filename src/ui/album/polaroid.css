@@ -344,3 +344,23 @@ body[data-motion='reduce'] .scene-stamps .stage-banner.visible {
 .album[data-layout='spread'] .spread-left:has(.return-slip:not([hidden])) .polaroid .weather-badge {
   font-size: 18px;
 }
+
+/* Zielzeile unter den Etiketten (DESIGN_V2.md 28.7, Phase 11, 2c): eine Zeile mit 44-px-Treffer
+   plus Abstand mehr auf der linken Seite – das Polaroid gibt diese Höhe ab (Breite × 5/3). */
+.album[data-layout='spread'] .spread-left:has(.goal-line:not([hidden])) .polaroid {
+  width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 440px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+}
+
+.album[data-layout='spread'] .spread-left:has(.goal-line:not([hidden])):has(.return-slip:not([hidden])) .polaroid {
+  width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 622px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+}
+
+@media (max-height: 760px) {
+  .album[data-layout='spread'] .spread-left:has(.goal-line:not([hidden])) .polaroid {
+    width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 436px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+  }
+
+  .album[data-layout='spread'] .spread-left:has(.goal-line:not([hidden])):has(.return-slip:not([hidden])) .polaroid {
+    width: min(calc(100% + 2 * var(--paper-bleed-x)), calc(524px + 2 * var(--paper-bleed-x)), calc((100dvh - 556px) * 5 / 3 + 24px + 2 * var(--paper-bleed-x)));
+  }
+}

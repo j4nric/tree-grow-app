@@ -42,3 +42,20 @@ test('Nische und Baum ausbauen: Stufe steigt, Samen sinken, bleibt nach dem Neul
   await expect(niche(page, 'roots').locator('[data-ref="upgrade"]')).toContainText('St. 1');
   await expect(tabPanel(page, 'nischen').locator('[data-upgrade="rings"]')).toContainText('St. 1');
 });
+
+test('Zielzeile (2c): nennt den billigsten Ausbau, springt zu den Nischen, wählt nach dem Kauf neu', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Junger Baum mit vollem Pflanzring (kein „Säen“), Regenwurm im Wurzelraum.
+  await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 200, plants: ['moss', 'fern', 'hazel'], niches: { roots: ['earthworm'] } });
+  await gotoTab(page, 'ziele');
+  const line = page.locator('[data-ref="goal-line"]');
+  const jump = line.locator('[data-ref="goal-line-jump"]');
+  await expect(jump).toHaveText(/^Jetzt: 🪱 Wurzelraum St\. 1 · 10\s🌰 ›$/);
+  expect((await jump.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await jump.click();
+  await expect(page.locator('#tab-niches, [data-tab="niches"]').first()).toBeVisible();
+  await expect(tabPanel(page, 'nischen')).toBeVisible();
+  await niche(page, 'roots').locator('[data-ref="upgrade-button"]').click();
+  await expect(jump).toHaveText(/^Jetzt: 🪱 Wurzelraum St\. 2 · 12\s🌰 ›$/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+});

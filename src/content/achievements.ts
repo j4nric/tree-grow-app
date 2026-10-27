@@ -10,8 +10,9 @@ import { YEAR_SECONDS } from './seasons';
  * - Titel und Beschreibung nennen nie Namen von Arten, Pflanzen, Lebensgemeinschaften
  *   oder Gästen – offene Erfolge sind im Naturtagebuch sichtbar und dürfen nichts verraten.
  * - Bedingungen sind deklarativ und **monoton**: Was einmal erfüllt ist, bleibt es während
- *   des laufenden Zyklus (Tagebuch und Langzeit-Statistik wachsen nur). Nur `stage` und
- *   `cycleTime` beginnen beim Neuen Zyklus neu – startNewCycle prüft darum vorher.
+ *   des laufenden Zyklus (Tagebuch und Langzeit-Statistik wachsen nur). Nur `stage`,
+ *   `cycleTime` und `upgrade` mit `inCycle` beginnen beim Neuen Zyklus neu – startNewCycle
+ *   prüft darum vorher.
  * - Erfolge der Waldlandschaft tragen `requires: 'landscape'` und nennen auch keine
  *   Standorte, Korridore oder Baumarten.
  * - IDs sind Teil des Spielstands (`meta.achievements`): nie umbenennen, nur ergänzen.
@@ -56,7 +57,13 @@ export type AchievementCondition =
   /** Zähler der Tagesziele (`meta.daily`): längste Serie, erfüllte Ziele, perfekte Tage. */
   | { kind: 'daily'; key: AchievementDailyKey; atLeast: number }
   /** Wälder mit vollständiger Chronik (6 / 6 Kapitel, 26.4; 'all' = SITE_IDS.length). */
-  | { kind: 'chronicles'; atLeast: AchievementTarget };
+  | { kind: 'chronicles'; atLeast: AchievementTarget }
+  /**
+   * Nischen mit Ausbaustufe ≥ `level` (DESIGN_V2.md 28.4; 'all' = NICHE_IDS.length). Ohne
+   * `inCycle` zählt die Bestmarke `meta.upgrades.best` (bleibt über den Zyklus, darum auch beim
+   * Laden nachgetragen), mit `inCycle` nur die Stufen des laufenden Zyklus (`cycle.upgrades`).
+   */
+  | { kind: 'upgrade'; level: number; atLeast: AchievementTarget; inCycle?: boolean };
 
 export interface Achievement {
   /** Fest, Teil des Spielstands. */
@@ -103,6 +110,11 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'visitor-10', icon: '🏡', title: 'Rastplatz für viele', description: 'Zehn Gäste wurden bewirtet.', condition: { kind: 'stat', key: 'visitorsHosted', atLeast: 10 } },
   { id: 'events-5', icon: '🌦️', title: 'Wind und Wetter', description: 'Fünf Ereignisse wurden entschieden.', condition: { kind: 'stat', key: 'eventsDecided', atLeast: 5 } },
   { id: 'care-10', icon: '🧤', title: 'Behutsame Hände', description: 'Zehn Forschungsknoten wurden erforscht.', condition: { kind: 'stat', key: 'careRanksBought', atLeast: 10 } },
+  // --- Ausbau (28.4) ---------------------------------------------------------
+  // Ein Ziel über den Zyklus hinaus: die Bestmarke bleibt, „Rundum eingelebt“ gilt je Zyklus.
+  { id: 'upgrade-25', icon: '🏠', title: 'Gut bewohnt', description: 'Eine Nische ist auf Stufe 25 ausgebaut.', condition: { kind: 'upgrade', level: 25, atLeast: 1 } },
+  { id: 'upgrade-50', icon: '🏰', title: 'Prachtnische', description: 'Eine Nische ist auf Stufe 50 ausgebaut.', condition: { kind: 'upgrade', level: 50, atLeast: 1 } },
+  { id: 'upgrades-all-10', icon: '🏘️', title: 'Rundum eingelebt', description: 'In einem Zyklus sind alle Nischen auf Stufe 10 ausgebaut.', condition: { kind: 'upgrade', level: 10, atLeast: 'all', inCycle: true } },
   // --- Zyklen und Zeit -------------------------------------------------------
   { id: 'cycle-1', icon: '🔄', title: 'Ein neuer Anfang', description: 'Der erste Zyklus ist abgeschlossen.', condition: { kind: 'cycles', atLeast: 1 } },
   { id: 'cycle-3', icon: '🌙', title: 'Im Kreislauf', description: 'Drei Zyklen sind abgeschlossen.', condition: { kind: 'cycles', atLeast: 3 } },

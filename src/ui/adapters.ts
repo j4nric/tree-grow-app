@@ -104,7 +104,9 @@ import { effectiveForestMemory, landscapeUnlocked } from '../core/landscape';
 import { RARITY_LABELS, formatSigned, formatSignedPercent, isFullHappiness, isScarceFood, preferredReplaceOption, seedsLabel, waitingText } from './view-format';
 import type { Genus } from '../content/types';
 import { NICHE_UPGRADE_PCT, TREE_PARTS, type TreePart } from '../content/upgrades';
-import { nextMilestone, type UpgradeTarget } from '../core/upgrades';
+import { nextMilestone, upgradeLevelsKey, type UpgradeTarget } from '../core/upgrades';
+import type { NextGoal } from '../core/goal';
+import type { GoalInput } from './upgrade-view';
 import type {
   ActiveBonusView,
   CareGroup,
@@ -612,6 +614,35 @@ export function upgradeMilestoneText(outcome: Pick<UpgradeOutcome, 'target' | 'm
   return levels
     .map((level) => `${name} Stufe ${level}: ${outcome.milestones.filter((m) => m.level === level).map((m) => m.summary).join(', ')}`)
     .join('. ');
+}
+
+/**
+ * Ziel aus `nextGoal` (core/goal.ts) als Eingabe der Zielzeile (upgrade-view.ts): Symbol und
+ * Name aus den Inhalten, Meilenstein als Kurzform („+1 Platz“).
+ */
+export function toGoalInput(goal: NextGoal): GoalInput {
+  const milestone = goal.milestones.length > 0 ? goal.milestones.map((m) => m.summary).join(' · ') : undefined;
+  if (goal.target === null) return { kind: 'sow', id: 'sow', icon: '🌱', name: 'Säen', level: null, cost: goal.cost };
+  const { target } = goal;
+  const info = target.kind === 'niche' ? NICHES_BY_ID.get(target.id) : TREE_PARTS.find((p) => p.id === target.id);
+  const input: GoalInput = { kind: target.kind, id: target.id, icon: info?.icon ?? '', name: info?.name ?? target.id, level: goal.level, cost: goal.cost };
+  if (milestone) input.milestone = milestone;
+  return input;
+}
+
+/**
+ * Wann die Zielzeile neu wählt (28.7, Regel 5): nach einem Kauf (Ausbau, Säen, Forschung),
+ * beim Öffnen einer Nische (Stufe, Forschung), Stufenwechsel, Neuer Zyklus oder Laden – nicht
+ * bei jeder Schwankung der Rate. Ändert sich dieser Schlüssel, wird neu gewählt.
+ */
+export function goalEpochKey(state: GameState): string {
+  const c = state.cycle;
+  return [c.number, state.stage, upgradeLevelsKey(c.upgrades), state.plants.length, c.sowings, c.sowing ? 1 : 0, c.freeSowing ? 1 : 0, c.research.length].join('|');
+}
+
+/** Aktueller Preis des gehaltenen Ziels (die Aussaat wird z. B. nach dem Frühling teurer). */
+export function goalCostNow(goal: NextGoal, state: GameState): number {
+  return goal.target === null ? sowingCost(state) : upgradeCost(state, goal.target);
 }
 
 /** Samen-abhängig: reicht es gerade für die nächste Stufe? */
