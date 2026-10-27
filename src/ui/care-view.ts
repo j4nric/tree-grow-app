@@ -9,7 +9,7 @@ import { STAGES } from '../content/stages';
 import { appearsContext, ecosystemOf, evaluate, harmonyIncome, speciesAppears, type Evaluation } from '../core/formulas';
 import { effectiveForestMemory } from '../core/landscape';
 import type { GameState } from '../core/state';
-import { isResearched } from '../core/tick';
+import { researchComplete, researchCost } from '../core/tick';
 import { conditionName, sortCareViews, toCareViews } from './adapters';
 import { formatNumber } from './format';
 import { formatSigned, formatSignedPercent } from './view-format';
@@ -126,7 +126,7 @@ export function toCareItemView(state: GameState, id: string, now: Readonly<Evalu
   if (!item) return null;
   const stageName = (index: number) => STAGES[index]?.name ?? '';
   const requirements: CareRequirement[] = [];
-  if (!isResearched(state, id)) {
+  if (!researchComplete(state, id)) {
     const owned = state.cycle.research;
     const name = (x: string) => RESEARCH_BY_ID.get(x)?.name ?? x;
     requirements.push({ key: 'stage', met: state.stage >= node.minStage, text: `Stufe „${stageName(node.minStage)}“` });
@@ -148,11 +148,13 @@ export function toCareItemView(state: GameState, id: string, now: Readonly<Evalu
       });
     }
     const points = Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0;
-    const missing = Math.ceil(node.cost - points);
+    // Wiederholbare Knoten (28.6): Kosten des nächsten Rangs.
+    const cost = researchCost(state, id) ?? node.cost;
+    const missing = Math.ceil(cost - points);
     requirements.push({
       key: 'harmony',
       met: missing <= 0,
-      text: missing > 0 ? `${formatNumber(node.cost)} ⚖️ (noch ${formatNumber(missing)} ⚖️)` : `${formatNumber(node.cost)} ⚖️`,
+      text: missing > 0 ? `${formatNumber(cost)} ⚖️ (noch ${formatNumber(missing)} ⚖️)` : `${formatNumber(cost)} ⚖️`,
     });
   }
   return { item, text: node.text, preview: carePreviewText(item.preview), ranks: [], requirements };

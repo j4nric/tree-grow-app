@@ -6,7 +6,8 @@ import { HAIN, MAX_SECONDS, URWALD, WALD } from './balance-setup';
  * Die geteilten Durchgänge der Balancing-Tests (tests/balance-runs.ts) müssen genau dieselben
  * Ergebnisse liefern wie eigene Läufe – sonst würden die Tests etwas anderes messen als vorher.
  */
-describe('Geteilte Balancing-Durchgänge (Checkpoints im Simulator)', () => {
+// Je Fall mehrere ganze Läufe (~5 s allein) – unter Last reichen die üblichen 5 s nicht.
+describe('Geteilte Balancing-Durchgänge (Checkpoints im Simulator)', { timeout: 30_000 }, () => {
   it('runStages: je Ziel-Stufe dasselbe Ergebnis wie ein eigener Lauf', () => {
     const options = { seed: 1007, maxSeconds: MAX_SECONDS, care: true };
     const shared = runStages(HARMONY, [HAIN, WALD], options);

@@ -629,6 +629,9 @@ function tickNoteText(report: TickReport): string | null {
     parts.push(tickDeclineText(report));
   }
   if (report.regulars.length > 0) parts.push(regularsArrivedText(report.regulars));
+  // Käufe des Forschungsplans (27.8) können Lebensgemeinschaften entstehen lassen.
+  const discovered = discoveryText(report.discovered);
+  if (discovered) parts.push(discovered);
   return parts.length > 0 ? joinSentences(...parts) : null;
 }
 

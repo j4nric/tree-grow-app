@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_BY_ID, RESEARCH_FORKS } from '../src/content/research';
+import { RESEARCH_ONCE, RESEARCH_BRANCHES, RESEARCH_BY_ID, RESEARCH_FORKS } from '../src/content/research';
 import { fixtureState, RESEARCH_FIXTURES } from '../src/ui/research-fixtures';
 import {
   assignLanes,
@@ -45,7 +45,7 @@ describe('researchLayout', () => {
         }
       }
     }
-    expect(seen.sort()).toEqual(RESEARCH.map((n) => n.id).sort());
+    expect(seen.sort()).toEqual(RESEARCH_ONCE.map((n) => n.id).sort());
   });
 
   it('Gabeln als Paar Weg A / Weg B; die Frage nur an der ersten Ebene', () => {

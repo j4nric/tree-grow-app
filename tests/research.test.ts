@@ -10,6 +10,8 @@ import {
   RESEARCH_BRANCHES,
   RESEARCH_BY_ID,
   RESEARCH_FORKS,
+  RESEARCH_ONCE,
+  RESEARCH_REPEATABLE,
   type ResearchNode,
 } from '../src/content/research';
 import {
@@ -38,13 +40,16 @@ const HAIN = STAGES.findIndex((s) => s.id === 'grove');
 /** Kosten aller Knoten ohne die zweite Seite jeder Gabel (= ein vollständiger Weg). */
 function onePathCost(maxStage: number): number {
   const skipped = new Set(RESEARCH_FORKS.flatMap((f) => f.paths[1]));
-  return RESEARCH.filter((n) => !skipped.has(n.id) && n.minStage <= maxStage).reduce((s, n) => s + n.cost, 0);
+  return RESEARCH_ONCE.filter((n) => !skipped.has(n.id) && n.minStage <= maxStage).reduce((s, n) => s + n.cost, 0);
 }
 
 describe('Forschungsbaum: Aufbau (27.7)', () => {
-  it('6 Äste, 32 Knoten, 5 Gabeln; IDs eindeutig, auch gegenüber Arten, Pflanzen, Ereignissen, Gästen', () => {
+  it('6 Äste, 32 einmalige + 6 wiederholbare Knoten, 5 Gabeln; IDs eindeutig, auch gegenüber Arten, Pflanzen, Ereignissen, Gästen', () => {
     expect(RESEARCH_BRANCHES).toHaveLength(6);
-    expect(RESEARCH).toHaveLength(32);
+    expect(RESEARCH_ONCE).toHaveLength(32);
+    // Seit Phase 11, 2b: die endlosen Knoten (28.6) hinten angehängt, sonst keiner wiederholbar.
+    expect(RESEARCH).toEqual([...RESEARCH_ONCE, ...RESEARCH_REPEATABLE]);
+    expect(RESEARCH_ONCE.every((n) => n.repeatable === undefined)).toBe(true);
     expect(RESEARCH_FORKS).toHaveLength(5);
     expect(RESEARCH_BY_ID.size).toBe(RESEARCH.length);
     expect(unique(RESEARCH.map((n) => n.name))).toBe(true);
@@ -309,8 +314,8 @@ describe('Forschungsbaum: Pflege → Knoten (Migration 27.9)', () => {
     }
     expect(ranks).toBe(25);
     expect(unique(mapped)).toBe(true);
-    // 25 Ränge → 25 Knoten, dazu 7 neue.
-    expect(RESEARCH.length - mapped.length).toBe(7);
+    // 25 Ränge → 25 Knoten, dazu 7 neue (ohne die wiederholbaren aus Phase 11).
+    expect(RESEARCH_ONCE.length - mapped.length).toBe(7);
   });
 
   it('Rang 1 behält die ID der Maßnahme (Album-Verweise „Zur Forschung“)', () => {

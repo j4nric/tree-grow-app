@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS } from '../src/content/achievements';
 import { COMMUNITIES } from '../src/content/communities';
-import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_FORKS } from '../src/content/research';
+import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_FORKS, RESEARCH_ONCE } from '../src/content/research';
 import {
   DECLINE_SEED_SECONDS,
   INTERLUDE_CHANCE,
@@ -302,7 +302,7 @@ describe('Spielanleitung', () => {
 
   it('Forschung: Vorrat, Anzahl, Äste, Stufe und die Gabeln aus content (27.7)', () => {
     const t = text('care');
-    expect(t).toContain(`${formatNumber(RESEARCH.length)} Knoten in ${formatNumber(RESEARCH_BRANCHES.length)} Ästen`);
+    expect(t).toContain(`${formatNumber(RESEARCH_ONCE.length)} Knoten in ${formatNumber(RESEARCH_BRANCHES.length)} Ästen`);
     expect(t).toContain(`Ab „${STAGES[Math.min(...RESEARCH.map((n) => n.minStage))]!.name}“`);
     expect(t).toContain('Vorrat ⚖️');
     expect(t).toContain('Ausgeben senkt ihn nie');

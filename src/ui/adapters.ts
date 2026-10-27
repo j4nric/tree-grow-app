@@ -77,9 +77,11 @@ import {
   MAX_OFFLINE_SECONDS,
   allWaypointsReached,
   chooseEventOption,
-  isResearched,
   previewResearch,
   researchBlocker,
+  researchComplete,
+  researchCost,
+  researchRankOf,
   type ResearchBlocker,
   eventOptionSeeds,
   hostBlocker,
@@ -2396,7 +2398,7 @@ export function researchBlockerText(blocker: ResearchBlocker, id: string, state:
     case 'unknown-node':
       return 'Diesen Knoten gibt es nicht';
     case 'owned':
-      return 'Schon erforscht';
+      return node?.repeatable ? 'Höchster Rang erreicht' : 'Schon erforscht';
     case 'stage':
       return `Ab Stufe „${STAGES[node?.minStage ?? 0]?.name ?? ''}“`;
     case 'excluded': {
@@ -2413,7 +2415,7 @@ export function researchBlockerText(blocker: ResearchBlocker, id: string, state:
       return `Braucht ${(node?.condition ?? []).map(conditionName).join(', ')}`;
     case 'too-expensive':
       // Aufgerundet, damit „Noch X“ nie weniger verspricht als nötig.
-      return `Noch ${formatNumber(Math.ceil((node?.cost ?? 0) - (Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0)))} ⚖️`;
+      return `Noch ${formatNumber(Math.ceil((researchCost(state, id) ?? 0) - (Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0)))} ⚖️`;
   }
 }
 
@@ -2482,19 +2484,23 @@ export function careOpensText(effects: readonly ResearchEffect[], now: Readonly<
 export function toCareViews(state: GameState, now: Readonly<Evaluation> = evaluate(state)): CareView[] {
   const out: CareView[] = [];
   for (const node of RESEARCH) {
-    const owned = isResearched(state, node.id);
+    // Wiederholbare Knoten (28.6) sind erst mit dem höchsten Rang „erledigt“; davor zeigt die
+    // Zeile den Rang und die Kosten des nächsten (die Zeile „∞“ folgt in Phase 11, 4a).
+    const owned = researchComplete(state, node.id);
     // Knoten späterer Ebenen erst zeigen, wenn ihre Stufe erreicht ist (nicht alles auf einmal).
     if (!owned && node.minStage > state.stage) continue;
     const blocker = researchBlocker(state, node.id);
     const after = owned ? null : previewResearch(state, node.id);
+    const cost = researchCost(state, node.id) ?? node.cost;
+    const rank = node.repeatable ? ` · ∞ Rang ${formatNumber(researchRankOf(state, node.id))}` : '';
     out.push({
       id: node.id,
       icon: node.icon,
       name: node.name,
-      rank: researchBranchLabel(node),
+      rank: researchBranchLabel(node) + rank,
       next: owned ? null : node.summary,
-      cost: owned ? null : `${formatNumber(node.cost)} ⚖️`,
-      costSeeds: owned ? null : node.cost,
+      cost: owned ? null : `${formatNumber(cost)} ⚖️`,
+      costSeeds: owned ? null : cost,
       blocker: blocker === null || blocker === 'owned' ? null : researchBlockerText(blocker, node.id, state),
       canBuy: blocker === null,
       group: owned ? 'maxed' : blocker === null ? 'buyable' : blocker === 'too-expensive' ? 'saving' : 'locked',

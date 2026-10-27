@@ -1124,12 +1124,13 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   Baum und die zweite Währung müssen auf dem Handy lesbar sein, sonst ist die Abzweigung keine
   Entscheidung. Abhängig: 1c, 2b (Zahlen aus 3a kommen nur als Daten). **→ Zusammengelegt mit
   Phase 11, 4a** (gleich mit der Zeile „∞“ der wiederholbaren Knoten und dem Schalter aus 4c)
-- [ ] **4b** Forschungsplan (`core-engineer`, 27.8): `meta.research.auto`; in `tick` Halt, sobald
+- [x] **4b** Forschungsplan (`core-engineer`, 27.8): `meta.research.auto`; in `tick` Halt, sobald
   der Vorrat die Kosten des nächsten geplanten Knotens erreicht, Kauf streng in Plan-Reihenfolge
   (warten bei fehlender Stufe, überspringen bei anders entschiedener Gabel); Aktion
   `setResearchAuto`; online = offline (Tests). **Warum:** Späte Zyklen dauern 8–20 min – 25
   Klicks je Zyklus wären Pflicht statt Wahl. Abhängig: 2a. **→ Zusammengelegt mit Phase 11, 2b**
   (der Plan muss die Ränge der wiederholbaren Knoten kennen – ein PR statt zwei in `tick`)
+  **Erledigt mit Phase 11, 2b** (`nextPlannedResearch`, `setResearchAuto`, Halt in `tick`)
 - [ ] **4c** Schalter „Plan folgen“ und Plan-Nummern (`ui-dev`, 27.12). Klein. Abhängig: 4a, 4b.
   **→ in Phase 11, 4a**
 - [ ] **4d** Aussaat-Animation einhängen (`renderer`): aus 1b beim Setzen aus einer Aussaat
@@ -1273,12 +1274,32 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   `tests/upgrades-core.test.ts`, `tests/upgrade-ui.test.ts`, online = offline mit Ausbau in
   `tests/tick.test.ts`, e2e `e2e/upgrades-basic.spec.ts`. Abweichung: 1 Mio. 🌰 reichen für
   Wurzelraum 68, nicht 55 (28.8 korrigiert); Ränge zusätzlich erst ab ihrer Stufe (Hain)
-- [ ] **2b** Wiederholbare Knoten und Forschungsplan (`core-engineer`, 28.6; enthält Phase 10, 4b):
+- [x] **2b** Wiederholbare Knoten und Forschungsplan (`core-engineer`, 28.6; enthält Phase 10, 4b):
   Rang statt `'owned'` für wiederholbare Knoten, `researchCost`, `researchEffects` × Rang, Plan mit
   wiederholten IDs; `meta.research.auto`, Halt in `tick` bei Kosten des nächsten Plan-Eintrags,
   `setResearchAuto`; online = offline (auch mit `f` aus 1b). **Warum:** Nach dem letzten Knoten gibt es
   heute nichts mehr für ⚖️ (28.2); der Plan muss die Ränge kennen, sonst wären es zwei PRs in
   denselben Zeilen von `tick`. Abhängig: 2a (Feld `researchRanks`), 1b (Faktor in der Halte-Rechnung)
+  **Erledigt** (ohne neue Spielstand-Version – `cycle.researchRanks` und `meta.research.auto` gab es
+  schon): die sechs Knoten am Ende von `RESEARCH` (einmalige: `RESEARCH_ONCE`); `researchCost(state,
+  id)` mit `researchCostAt` (⌈1.500 · 1,3^r⌉, ab Rang 200 Infinity), `researchRank`,
+  `researchRankOf`, `researchComplete` (erst Rang 200 „erledigt“); `researchBlocker` meldet `'owned'`
+  nur noch beim höchsten Rang; `research` kauft den nächsten Rang und hängt die ID je Rang an
+  `cycle.research` an – so schreibt der Neue Zyklus den Plan mit wiederholten IDs ohne neues Feld;
+  `researchEffects(research, ranks)` × Rang (auch `happiness`, Ökosystem-Feld `researchRanks`),
+  Cache-Schlüssel `|rr:`. Plan: `nextPlannedResearch` (erledigt / überspringen bei Gabel, auch über
+  Voraussetzungen, `researchUnreachable` / warten / sparen), `plannedResearchNeed`, Kauf am Anfang
+  jeder Runde und am Ende von `tick`, Halt = fehlende ⚖️ ÷ (Zufluss × f), auch in `skipYears`;
+  `TickReport.research`; Plan-Käufe zählen nicht fürs Tagesziel. Laden: Verlauf höchstens so oft wie
+  der Rang, Plan je wiederholbarem Knoten ≤ 200 Einträge. Simulator: Kosten über `researchCost`,
+  `careRanks` mit Rang (bietet die Ränge wie jeden Knoten an – Messung in 3a). Oberfläche minimal:
+  Forschungsliste „🪱 Boden · ∞ Rang 3“ mit Kosten des nächsten Rangs; Vorschau-Baum
+  (`research-view.ts`) zeigt nur `RESEARCH_ONCE` (Zeile „∞“ = 4a); kein Schalter (4a). Tests
+  `tests/research-ranks.test.ts`, online = offline mit Plan in `tests/tick.test.ts`, Liste in
+  `tests/care-view.test.ts`. Nach Review: Unerreichbares wird vor der Stufe geprüft (sonst wartete
+  der Plan ewig), Plan-Käufe melden neue Lebensgemeinschaften (`TickReport.discovered`), mit „Plan
+  folgen“ kein Tagesziel „erforschen“, Erfolg `care-10` zählt Knoten und Ränge (Text), Anleitung
+  nennt 32 Knoten plus die endlosen
 - [ ] **2c** Zielzeile (`core-engineer`, 28.7): `nextGoal(state)` rein in `formulas.ts`
   (Kandidaten, Meilenstein-Regel ≤ 120 s, billigster, Gleichstand, Zeit aus der Rate, `null` ohne
   Kandidat), Erfolge `upgrade-25` „Gut bewohnt“, `upgrade-50` „Prachtnische“, `upgrades-all-10`
