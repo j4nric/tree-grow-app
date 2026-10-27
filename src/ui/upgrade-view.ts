@@ -86,9 +86,19 @@ function round1(value: number): number {
   return r === 0 ? 0 : r;
 }
 
-/** „+2,4 %“. */
+const fine = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });
+
+/**
+ * „+2,4 %“; unter 1 % mit bis zu zwei Nachkommastellen („+0,06 %“ je Nischen-Stufe seit
+ * Phase 11, 3a – mit einer Stelle stünde dort „+0,1 %“).
+ */
 export function formatPlusPercent(value: number): string {
-  return `+${formatNumber(round1(Math.max(0, value)))} %`;
+  const v = Math.max(0, value);
+  if (v < 1) {
+    const r = Math.round(v * 100) / 100;
+    return `+${fine.format(r === 0 ? 0 : r)} %`;
+  }
+  return `+${formatNumber(round1(v))} %`;
 }
 
 /**
@@ -235,7 +245,7 @@ export interface NicheUpgradeInput extends UpgradeTargetInput {
   id: string;
   icon: string;
   label: string;
-  /** Prozentpunkte 🌿/🌰 je Tier und Stufe (`NICHE_UPGRADE_PCT`, 0,1). */
+  /** Prozentpunkte 🌿/🌰 je Tier und Stufe (`NICHE_UPGRADE_PCT`, 0,06). */
   pctPerLevel: number;
   /** Zufriedenheit z (0–1) der Tiere, die hier wohnen (Gäste nicht). */
   happiness: readonly number[];

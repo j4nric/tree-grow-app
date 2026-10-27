@@ -58,8 +58,10 @@ function sowable(stage: number, seeds = 1e6, seed = 1): GameState {
 }
 
 describe('Aussaat: Preis (27.6)', () => {
-  it('Tabelle 27.6: die erste gratis, dann ⌈20 · 1,75^(n−1)⌉', () => {
-    const table = [0, 20, 35, 62, 108, 188, 329, 575, 1006, 1760, 3079, 5388, 9429, 16501, 28876, 50532, 88431];
+  // Faktor 1,6 statt 1,75 seit der Messung Phase 11, 3a (DESIGN_V2.md 27.11 Stellschraube 2):
+  // Neben dem Ausbau säte der Wachstums-Spieler bis zum Hain sonst zu selten (Ziel 8–15).
+  it('Tabelle 27.6: die erste gratis, dann ⌈20 · 1,6^(n−1)⌉', () => {
+    const table = [0, 20, 32, 52, 82, 132, 210, 336, 537, 859, 1375, 2200, 3519, 5630, 9008, 14412, 23059];
     expect(table.map((_, n) => sowingCostAt(n, [], SUMMER))).toEqual(table);
     expect(sowingBaseCost(2)).toBe(SOWING_BASE * SOWING_GROWTH);
   });
@@ -68,11 +70,13 @@ describe('Aussaat: Preis (27.6)', () => {
     expect(SEASONS_BY_ID.get('spring')!.sowingCostFactor).toBe(SPRING_SOWING_FACTOR);
     expect(sowingSeasonFactor(SPRING)).toBe(SPRING_SOWING_FACTOR);
     expect(sowingSeasonFactor(SUMMER)).toBe(1);
-    expect(sowingCostAt(2, [], SPRING)).toBe(28); // 35 · 0,8
-    expect(sowingCostAt(3, [], SPRING)).toBe(49); // ⌈61,25 · 0,8⌉ = ⌈49⌉
-    expect(sowingCostAt(2, ['seed-sorting', 'seed-bank'], SUMMER)).toBe(27); // ⌈26,25⌉
-    // Beispiel aus content/sowing.ts: 35 · 0,75 · 0,8 = 21 (nicht 22 durch 0,6000000000000001).
-    expect(sowingCostAt(2, ['seed-sorting', 'seed-bank'], SPRING)).toBe(21);
+    expect(sowingCostAt(2, [], SPRING)).toBe(26); // ⌈32 · 0,8⌉ = ⌈25,6⌉
+    expect(sowingCostAt(3, [], SPRING)).toBe(41); // ⌈51,2 · 0,8⌉ = ⌈40,96⌉
+    expect(sowingCostAt(2, ['seed-sorting', 'seed-bank'], SUMMER)).toBe(24); // 32 · 0,75
+    // Beispiel aus content/sowing.ts: ⌈32 · 0,75 · 0,8⌉ = ⌈19,2⌉ = 20.
+    expect(sowingCostAt(2, ['seed-sorting', 'seed-bank'], SPRING)).toBe(20);
+    // 20 · 0,75 · 0,8 = 12 (nicht 13 durch 0,6000000000000001).
+    expect(sowingCostAt(1, ['seed-sorting', 'seed-bank'], SPRING)).toBe(12);
     expect(sowingCostAt(0, ['seed-bank'], SPRING)).toBe(0);
   });
 
@@ -82,7 +86,7 @@ describe('Aussaat: Preis (27.6)', () => {
     expect(sowingDiscount(['seed-bank', 'seed-bank', 'nope'])).toBe(0.75); // je Knoten einmal
     expect(SOWING_MIN_COST_FACTOR).toBeGreaterThan(0);
     for (const n of [NaN, -3, -Infinity]) expect(sowingCostAt(n, [], SUMMER), String(n)).toBe(0);
-    expect(sowingCostAt(2.9, [], SUMMER)).toBe(35);
+    expect(sowingCostAt(2.9, [], SUMMER)).toBe(32);
     expect(sowingCostAt(5000, [], SUMMER)).toBe(Infinity);
     expect(sowingCostAt(Infinity, [], SUMMER)).toBe(Infinity);
     expect(sowingCostAt(MAX_SOWINGS, [], SUMMER)).toBeGreaterThan(1e40);
@@ -92,7 +96,7 @@ describe('Aussaat: Preis (27.6)', () => {
     const state = sowable(3);
     expect(sowingCost(state)).toBe(0);
     state.cycle.sowings = 3;
-    expect(sowingCost(state)).toBe(62);
+    expect(sowingCost(state)).toBe(52);
     state.cycle.freeSowing = { ids: ['rowan'] };
     expect(sowingCost(state)).toBe(0);
   });
@@ -135,7 +139,7 @@ describe('Aussaat: säen, wählen, zurücklegen, neu würfeln (27.6)', () => {
     expect(state.seeds).toBe(80);
     expect(state.cycle.sowings).toBe(2);
     expect(discardSowing(state).ok).toBe(true);
-    expect(sowingCost(state)).toBe(35);
+    expect(sowingCost(state)).toBe(32);
   });
 
   it('Keimling: nur zwei Pflanzen – zwei Karten, Neu würfeln brächte dieselben', () => {

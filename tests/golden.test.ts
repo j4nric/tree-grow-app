@@ -207,7 +207,8 @@ describe('Formeln ↔ Zahlen: Golden-Tabelle', () => {
       plants: Object.fromEntries(
         PLANTS.map((p) => [p.id, `${p.group} ab ${p.unlock}: 🌿 ${p.growth} 🌰 ${p.seeds} ☀️ ${p.light} 💧 ${p.water} [${p.provides.join(', ')}]`]),
       ),
-      // Aussaat (seit Phase 10, 2b, ersetzt „Pflanze setzen“ 20 · 1,9^n): Preis nach n Aussaaten,
+      // Aussaat (seit Phase 10, 2b, ersetzt „Pflanze setzen“ 20 · 1,9^n; Faktor 1,6 statt 1,75 seit
+      // Phase 11, 3a): Preis nach n Aussaaten,
       // ohne Forschung und außerhalb des Frühlings (cycle.elapsed = 180 s = Sommer).
       sowingCost: Array.from({ length: 17 }, (_, n) => sowingCostAt(n, [], 180)),
       rarityWeights: RARITY_WEIGHTS.map((w) => w.join(' ')),

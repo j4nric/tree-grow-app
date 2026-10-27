@@ -9,7 +9,11 @@ import {
   decisionStats,
   earlyStats,
   extrasTable,
+  forkStats,
+  longestPurchasePauseBefore,
+  median,
   monteCarlo,
+  purchaseStats,
   report,
   runGame,
   stageStats,
@@ -63,7 +67,7 @@ describe('Balancing v2 (echte Logik, alle Systeme)', () => {
     expect(b).toEqual(a);
   });
 
-  it('Stufenzeiten des Harmonie-Spielers: 0,8–1,25 × Ziel (Keimling < 30 s), Hain 55–65 min (Check 52–68)', () => {
+  it('Stufenzeiten des Harmonie-Spielers: 0,8–1,25 × Ziel (Keimling < 30 s), Hain 50–58 min (Check 48–60)', () => {
     for (const t of STAGE_TARGETS) {
       const st = stageStats(harmony, t.stage);
       if (st.reachedShare < 1) continue; // Urwald nur im großen Lauf
@@ -74,11 +78,12 @@ describe('Balancing v2 (echte Logik, alle Systeme)', () => {
       expect(st.time, `Stufe ${t.stage} (${t.label})`).toBeGreaterThan(0.8 * t.seconds);
       expect(st.time, `Stufe ${t.stage} (${t.label})`).toBeLessThan(1.25 * t.seconds);
     }
-    // Ziel 55–65 min (großer Lauf). Im Check (wenige Durchgänge, feste Seeds) schwankt der
-    // Median je nach Seed-Startwert um gut ±1 min (z. B. 65,5 min) – dort 52–68 min.
+    // Ziel seit Phase 11 (DESIGN_V2.md 28.10, Ausbau macht das aktive Spiel 5–10 % schneller):
+    // 50–58 min (großer Lauf; bis Phase 10 55–65 min). Im Check (wenige Durchgänge, feste Seeds)
+    // schwankt der Median je nach Seed-Startwert um gut ±1 min – dort 48–60 min.
     const hain = stageStats(harmony, HAIN).time;
-    expect(hain).toBeGreaterThan((FULL ? 55 : 52) * 60);
-    expect(hain).toBeLessThan((FULL ? 65 : 68) * 60);
+    expect(hain).toBeGreaterThan((FULL ? 50 : 48) * 60);
+    expect(hain).toBeLessThan((FULL ? 58 : 60) * 60);
   });
 
   it('erste Minuten: Setzling nach etwa 45 s (40–50 s, mit Frühlingsbonus)', () => {
@@ -236,6 +241,76 @@ describe('Wirtschaft (Samen-Senke, Neu würfeln, Bewirten)', () => {
   });
 });
 
+/**
+ * Ausbau, Takt und Samen-Senke (Phase 11, 3a; DESIGN_V2.md 28.10 und 27.11): Mit dem Nischen- und
+ * Baum-Ausbau gibt es immer etwas zu kaufen. Gemessen auf denselben Durchgängen wie oben (alle
+ * Systeme, Ausbau-Strategie „billigste Stufe zuerst“ mit Meilenstein-Regel, Zufall zufällig unter
+ * den bezahlbaren). Tempo und Harmonie gegenüber „ohne Ausbau“: tests/balance-upgrades.test.ts.
+ * Im Check mit Abstand (40 Durchgänge; Wachstum und Zufall nur bis zum Wald).
+ */
+describe('Ausbau, Takt und Samen-Senke (Phase 11, 3a)', () => {
+  const reached = (s: Summary, stage: number) => stageStats(s, stage).reachedShare === 1;
+
+  it('Samen werden ausgegeben: ≥ 85 % der verdienten bis zu jeder Stufe ab dem Alten Baum, Bestand ≤ 5 min Produktion', () => {
+    for (const s of main) {
+      for (const stage of [4, HAIN, WALD, URWALD]) {
+        if (!reached(s, stage)) continue;
+        const st = stageStats(s, stage);
+        expect(st.seedSpendShare, `${s.strategy.name}, Stufe ${stage}`).toBeGreaterThan(0.85);
+        expect(st.seedMinutes, `${s.strategy.name}, Stufe ${stage}`).toBeLessThan(5);
+      }
+    }
+  });
+
+  it('Takt: Median zwischen zwei 🌰-Käufen 20–60 s ab dem Alten Baum (Check 15–70 s), längste Pause bis Hain ≤ 2 min', () => {
+    // Setzling und Junger Baum liegen bei 13–19 s – der „Kaufrausch“ am Anfang (28.4), gewollt.
+    for (const s of [harmony, byId(RANDOM.id)]) {
+      for (const stage of [4, HAIN, WALD]) {
+        // Nur ganze Abschnitte (die nächste Stufe ist in jedem Durchgang erreicht).
+        if (!reached(s, stage + 1)) continue;
+        const st = purchaseStats(s, stage);
+        expect(st.median, `${s.strategy.name}, Stufe ${stage}`).toBeGreaterThan(FULL ? 20 : 15);
+        expect(st.median, `${s.strategy.name}, Stufe ${stage}`).toBeLessThan(FULL ? 60 : 70);
+      }
+      const pauses = s.runs.map((r) => longestPurchasePauseBefore(r, HAIN));
+      expect(median(pauses), s.strategy.name).toBeLessThan(FULL ? 120 : 130);
+    }
+  });
+
+  it('⚖️-Vorrat beim Hain ≤ 10 min, beim Urwald ≤ 15 min Zufluss', () => {
+    for (const s of main) {
+      expect(stageStats(s, HAIN).harmonyMinutes, s.strategy.name).toBeLessThan(10);
+      if (reached(s, URWALD)) expect(stageStats(s, URWALD).harmonyMinutes, s.strategy.name).toBeLessThan(15);
+    }
+  });
+
+  it('Aussaat neben dem Ausbau: 8–15 Aussaaten bis zum Hain, davon ≥ 2 Tausch (27.11)', () => {
+    for (const s of main) {
+      const c = stageStats(s, HAIN).counts;
+      expect(c.plantsBought, s.strategy.name).toBeGreaterThan(FULL ? 8 : 7.5);
+      expect(c.plantsBought, s.strategy.name).toBeLessThan(15);
+      expect(c.plantsSwapped, s.strategy.name).toBeGreaterThan(2);
+    }
+  });
+
+  it('Gabeln: Weg A beim Harmonie-Spieler 25–75 % (großer Lauf; ohne Saat – Lücke 28.10)', () => {
+    if (!FULL) return;
+    for (const f of forkStats(harmony, 'final')) {
+      if (f.fork.id === 'seed') continue;
+      expect(f.a, f.fork.id).toBeGreaterThan(0.25);
+      expect(f.a, f.fork.id).toBeLessThan(0.75);
+    }
+  });
+
+  it('jede Strategie baut aus, ohne NaN', () => {
+    for (const s of summaries) {
+      const c = stageStats(s, HAIN).counts;
+      expect(c.upgradesBought, s.strategy.name).toBeGreaterThan(50);
+      for (const r of s.runs) expect(Number.isFinite(r.final.spentUpgrades), s.strategy.name).toBe(true);
+    }
+  });
+});
+
 /** Anteil der Kartenbegegnungen vor `beforeStage`, bei denen Neu würfeln zu teuer war. */
 function rerollTooExpensiveBefore(s: Summary, beforeStage: number): number {
   const vs = s.runs.flatMap((r) => r.variety.filter((v) => v.stage < beforeStage && v.type === 'animal'));
@@ -294,7 +369,8 @@ describe('Pflegemaßnahmen', () => {
   const careStrategies = [HARMONY, GROWTH, RANDOM];
   const options = { targetStage: FULL ? URWALD : WALD, maxSeconds: MAX_SECONDS };
   // Ohne Pflege brauchen die Prüfungen nur die bewertenden Strategien; alle drei nur fürs Protokoll.
-  const without = monteCarlo(FULL ? careStrategies : [HARMONY, GROWTH], CARE_RUNS, options);
+  // Seit Phase 11, 3a bauen beide Seiten aus (`upgrades`): Der Vergleich misst nur die Forschung.
+  const without = monteCarlo(FULL ? careStrategies : [HARMONY, GROWTH], CARE_RUNS, { ...options, upgrades: true });
   const withCare = careStrategies.map((s) => firstCycle(s, CARE_RUNS, options.targetStage));
   const find = (list: typeof without, id: string) => list.find((s) => s.strategy.id === id)!;
 

@@ -37,17 +37,18 @@ const niche = (over: Partial<NicheUpgradeInput> = {}): NicheUpgradeInput => ({
 });
 
 describe('Preise der Vorschau aus core (wie 28.4)', () => {
-  it('Wurzelraum 10 / 36 / 287, Summe bis 10 = 209', () => {
-    expect(upgradePrice(10, 0)).toBe(10);
-    expect(upgradePrice(10, 9)).toBe(36);
-    expect(upgradePrice(10, 24)).toBe(287);
-    expect(upgradeCostFrom(10, 0, 10)).toBe(209);
+  // Wurzelraum seit der Messung Phase 11, 3a: Startpreis 20, Faktor 1,2 (vorher 10 / 36 / 287, 209).
+  it('Wurzelraum 20 / 104 / 1.590, Summe bis 10 = 522', () => {
+    expect(upgradePrice(20, 0)).toBe(20);
+    expect(upgradePrice(20, 9)).toBe(104);
+    expect(upgradePrice(20, 24)).toBe(1_590);
+    expect(upgradeCostFrom(20, 0, 10)).toBe(522);
   });
 
   it('Max kauft so viele, wie die Samen reichen, sonst eine Stufe', () => {
-    expect(previewPurchase(10, 0, 'max', 209)).toEqual({ count: 10, cost: 209 });
-    expect(previewPurchase(10, 0, 'max', 5)).toEqual({ count: 1, cost: 10 });
-    expect(previewPurchase(10, 0, 10, 0)).toEqual({ count: 10, cost: 209 });
+    expect(previewPurchase(20, 0, 'max', 522)).toEqual({ count: 10, cost: 522 });
+    expect(previewPurchase(20, 0, 'max', 5)).toEqual({ count: 1, cost: 20 });
+    expect(previewPurchase(20, 0, 10, 0)).toEqual({ count: 10, cost: 522 });
   });
 });
 
@@ -189,8 +190,8 @@ describe('Zielzeile', () => {
   it('Beispielzustände: Meilenstein in ≤ 120 s gewinnt, sonst der billigste', () => {
     // Hain: Waldsaum 9 → 10 ist ein Meilenstein und bezahlbar
     expect(fixtureUpgradeState(UPGRADE_FIXTURES.middle.input, 1).goal).toMatchObject({ id: 'edge', level: 10, milestone: 'öfter in den Karten' });
-    // Keimling: kein Meilenstein in Reichweite → billigster (Pilzgeflecht 15)
-    expect(fixtureUpgradeState(UPGRADE_FIXTURES.start.input, 1).goal).toMatchObject({ id: 'mycorrhiza', level: 1, cost: 15 });
+    // Keimling: kein Meilenstein in Reichweite → billigster (Pilzgeflecht 30, Startpreis seit 3a)
+    expect(fixtureUpgradeState(UPGRADE_FIXTURES.start.input, 1).goal).toMatchObject({ id: 'mycorrhiza', level: 1, cost: 30 });
   });
 });
 

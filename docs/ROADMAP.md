@@ -1095,7 +1095,7 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
 
 **Welle 3 – Messen und Balancing**
 
-- [ ] **3a** Messung erster Zyklus (`game-designer`, 27.10/27.11): `scripts/simulate.ts` auf
+- [x] **3a** Messung erster Zyklus (`game-designer`, 27.10/27.11): `scripts/simulate.ts` auf
   Aussaat (Kauf und Tausch je Strategie, Wahl aus den gezogenen Karten) und Forschung (Wahl an
   den Gabeln nach Strategie, Kauf sobald bezahlbar) umstellen; großer Lauf (500 Durchgänge,
   Harmonie / Wachstum / Zufall und Stapler), alle Ziele aus 27.11; Stellschrauben in der
@@ -1105,6 +1105,8 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   **→ Zusammengelegt mit Phase 11, 3a** (eine große Messung nach Ausbau und offline 10 %, DESIGN_V2.md
   28.10): Die Simulator-Umstellung (Gabel-Wahl, Aussaat-Tausch je Strategie) beginnt sofort als
   Phase 11, 1e; die Ziele aus 27.11 gelten dort weiter, ergänzt um 28.10
+  **Erledigt mit Phase 11, 3a** (Stellschrauben 27.11: `SOWING_GROWTH` 1,6, drei Gabel-Seiten
+  gestärkt; Tabelle 27.10 „Echte Messung“)
 - [ ] **3b** Messung Zyklen und Landschaft (`game-designer`, 27.11): `balance-cycles` (Zyklus 2,
   Neustart in Hain/Wald/Urwald), `scripts/landscape.ts` (Landschaft vollständig ±0,7 h, Waldtypen
   ±5 % wie 24.7, Knoten je Zyklus in vollen Wäldern mit G); falls nötig Gedächtnis-Schwellen
@@ -1319,7 +1321,7 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
 
 **Welle 3 – Eine große Messung** (Phase 10, 3a/3b und Phase 9, 2c zusammengelegt)
 
-- [ ] **3a** Messung erster Zyklus (`game-designer`, 27.11 + 28.10): Simulator mit Ausbau-Strategie
+- [x] **3a** Messung erster Zyklus (`game-designer`, 27.11 + 28.10): Simulator mit Ausbau-Strategie
   („billigste Stufe zuerst“ mit Meilenstein-Regel; Zufall wählt zufällig), 500 Durchgänge Harmonie /
   Wachstum / Zufall und Stapler; alle Ziele aus 27.11 und 28.10 (Takt 20–60 s, Anteil ausgegeben
   ≥ 85 %, Tempo −5 bis −10 %, Wachstum ÷ Harmonie ≥ 0,85, H am Hain ±3); Stellschrauben in der
@@ -1327,12 +1329,35 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   **Warum:** Zahlen nie nach Gefühl – die Startwerte stammen aus Stellvertreter-Szenarien und einem
   Modell ohne Rückkopplung (28.2, 28.5). Einmal messen statt zweimal: Phase 10 allein zu messen
   wäre nach dem Ausbau veraltet. Abhängig: 1e, 2a, 2b, 2c, 1b
+  **Erledigt** (`claude/p11-3a-messung`, DESIGN_V2.md 28.10 „Messung 3a“, 27.10, 28.2, 15.4,
+  GAME_DESIGN.md): Simulator mit Ausbau-Strategie (`spendSeeds`: Zielzeilen-Auswahl über
+  `goalCandidates`/`cheapestGoal`, Säen mit Vorrang, Zufall zufällig unter den bezahlbaren, Rücklage
+  60 Samen-Sekunden; Ausbau-Käufe im Takt, `upgradeTable`, Tausch und Ränge in `economyTable`),
+  neuer Vergleich mit/ohne Ausbau `tests/balance-upgrades.test.ts`, Prüfungen 28.10 in
+  `tests/balance.test.ts`. **Zahlen:** `UPGRADE_GROWTH` 1,15 → 1,2, Startpreise ×2 (Wurzelraum 20 …
+  Mauer 1.200, Baumteile 30), `NICHE_UPGRADE_PCT` 0,1 → 0,06, `SOWING_GROWTH` 1,75 → 1,6, Käferburg
+  +3 ⚖️, Dichte Krone (+1 Platz Höhlen, −1 ☀️, +1 ⚖️), Quellbach (+40 % Moose & Farne, Amphibien
+  +15 %, +3 ⚖️). **Kernzahlen** (500 Durchgänge, Harmonie / Wachstum / Zufall): Hain 54:27 /
+  48:48 min / 1:17 h, Urwald 2:02 / 1:49 / 3:02 h, Wachstum ÷ Harmonie 0,896 / 0,894, H am Hain 118,5
+  (ohne Ausbau 117,8), Takt 🌰 ab Alter Baum 23 / 28 / 33 s (Zufall 31 / 44 / 50 s), längste Pause bis
+  Hain 1:44 min, 96–98 % der Samen ausgegeben, Bestand 1,1–1,5 min, ⚖️-Vorrat ≤ 6,6 min, 10,1 / 8,9 /
+  10,6 Aussaaten bis Hain, Gabeln Krone/Boden/Wasser/Saum 62/61/66/38 % Weg A, 8 h offline am Hain 7
+  Wegpunkte, keine Stufe. **Offen** (28.10, „Lücken“): Gabel Saat 100 % Samenbank (Simulator würfelt
+  Aussaaten nicht neu), Takt Setzling/Junger Baum 13–15 s (Kaufrausch), endlose Ränge im ersten
+  Zyklus nur beim Zufallsspieler; die Zyklen-Grenzen des großen Laufs (vier Prüfungen, schon auf `origin/main`
+  verfehlt) stehen vorläufig auf den Check-Grenzen → 3b. Kleine UI-Anpassung: `formatPlusPercent`
+  zeigt unter 1 % zwei Nachkommastellen („+0,06 %“), Spielanleitung nutzt sie.
 - [ ] **3b** Messung Zyklen, Landschaft und Offline-Tag (`game-designer`, 27.11/28.10):
   `balance-cycles` (Zyklus 2, Neustart in Hain/Wald/Urwald, Gedächtnis-Vorsprung ≥ 15),
   `scripts/landscape.ts` (Landschaft vollständig 12,5–14,5 h, Waldtypen ±5 %, Stufen und Ränge je
   Zyklus mit G), Sitzungsprofil (8 h offline am Hain ≤ 1 Stufe); falls nötig
   `MEMORY_HARMONY_RULES` heben (Platz-Meilensteine ab Wald). **Warum:** G hebt die Samen und damit die
   Stufen späterer Zyklen; die Platz-Meilensteine wirken erst ab dem Wald. Abhängig: 3a
+  **Aus 3a übernommen:** Im großen Lauf stehen sechs Zyklen-Grenzen vorläufig auf den Check-Werten
+  (`tests/balance-cycles.test.ts`, „Phase 11, 3b“: Zyklus 2 Harmonie < 0,52 statt 0,45, Wachstum
+  < 0,45 statt 0,37, erster Gewinn < 90 statt 75, Vorsprung > 15 statt 30, Neustart-Verhältnis
+  ≥ 0,92/0,93 statt 0,95/0,97, Urwald-Gewinn < 115 statt 95) – H_max am Hain 121,5 statt ~110 (27.11, Stellschraube 1:
+  Schwellen T heben); Gabel Saat erst messbar, wenn der Simulator Aussaaten neu würfelt
 - [ ] **3c** Messung Chronik und Kennarten (`game-designer`, = Phase 9, 2c, 26.8): wie dort
   beschrieben, auf der Ökonomie nach 3a/3b. Abhängig: 3b
 

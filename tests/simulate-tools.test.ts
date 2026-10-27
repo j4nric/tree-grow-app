@@ -5,6 +5,8 @@ import {
   HARMONY,
   RANDOM,
   SEED_PURCHASES,
+  SEED_RESERVE_SECONDS,
+  cheapestGoal,
   forkChoice,
   forkSideOf,
   longestPurchasePause,
@@ -15,6 +17,8 @@ import {
   purchaseStats,
   runGame,
   runSession,
+  seedGoals,
+  seedReserve,
   seedSpendShare,
   sessionTable,
   type Purchase,
@@ -22,7 +26,9 @@ import {
   type Snapshot,
   type Summary,
 } from '../scripts/simulate';
+import { REROLL_BASE_COST } from '../src/content/encounters';
 import { RESEARCH_FORKS } from '../src/content/research';
+import { goalCandidates, nextGoal } from '../src/core/goal';
 import { createInitialState } from '../src/core/state';
 import { MAX_OFFLINE_SECONDS } from '../src/core/tick';
 import { FULL, HAIN, MAX_SECONDS, RUNS } from './balance-setup';
@@ -97,6 +103,10 @@ describe('Echte Durchgänge: Käufe, Gabeln, Aussaat je Strategie', () => {
       expect(kinds('research')).toBe(r.final.counts.careBought);
       expect(kinds('reroll')).toBe(r.final.counts.rerolls);
       expect(kinds('host')).toBe(r.final.counts.hosted);
+      // Ausbau (Phase 11, 3a): jede Stufe ein Kauf, Kosten = ausgegebene Samen.
+      expect(kinds('upgrade')).toBe(r.final.counts.upgradesBought);
+      const upgradeSeeds = r.purchases.filter((p) => p.kind === 'upgrade').reduce((sum, p) => sum + p.cost, 0);
+      expect(upgradeSeeds).toBeCloseTo(r.final.spentUpgrades, 6);
       // Bezahlte Aussaaten: alle gekauften außer der ersten gratis.
       expect(kinds('sow')).toBeLessThanOrEqual(r.final.counts.plantsBought);
       expect(kinds('sow')).toBeGreaterThanOrEqual(r.final.counts.plantsBought - 1);
@@ -129,6 +139,49 @@ describe('Echte Durchgänge: Käufe, Gabeln, Aussaat je Strategie', () => {
     const share = median(random.runs.map((r) => seedSpendShare(r.stages[HAIN]!)));
     expect(share).toBeGreaterThan(0.3);
     expect(median(random.runs.map((r) => r.stages[HAIN]!.counts.plantsBought))).toBeGreaterThan(8);
+  });
+});
+
+describe('Ausbau-Strategie (Phase 11, 3a): Zielzeile, Rücklage, Säen mit Vorrang', () => {
+  it('cheapestGoal wählt wie nextGoal (Meilenstein in ≤ 120 s, sonst der billigste, Gleichstand: der frühere)', () => {
+    const state = createInitialState(0, 1);
+    state.stage = 1;
+    state.plants = ['moss'];
+    state.cycle.upgrades.niches.roots = 9;
+    for (const rate of [0.01, 0.3, 1, 1e3]) {
+      for (const seeds of [0, 50, 1e4]) {
+        state.seeds = seeds;
+        expect(cheapestGoal(goalCandidates(state, rate)), `${rate} ${seeds}`).toEqual(nextGoal(state, rate));
+      }
+    }
+  });
+
+  it('seedGoals: Säen nur, wenn die Strategie säen würde – vorn (Gleichstand: Säen zuerst)', () => {
+    const state = createInitialState(0, 1);
+    state.stage = 2;
+    state.plants = ['moss', 'moss'];
+    expect(seedGoals(state, false, 1).some((g) => g.kind === 'sow')).toBe(false);
+    const goals = seedGoals(state, true, 1);
+    expect(goals[0]!.kind).toBe('sow');
+    expect(goals.filter((g) => g.kind === 'sow')).toHaveLength(1);
+  });
+
+  it('Rücklage: 60 Samen-Sekunden plus ein Wurf', () => {
+    expect(seedReserve(0)).toBe(REROLL_BASE_COST);
+    expect(seedReserve(2)).toBe(SEED_RESERVE_SECONDS * 2 + REROLL_BASE_COST);
+    expect(seedReserve(NaN)).toBe(REROLL_BASE_COST);
+  });
+
+  it('ohne Ausbau (upgrades: false) kauft der Simulator keine Stufe; mit Ausbau baut er aus', () => {
+    const opts = { seed: 1007, targetStage: 4, maxSeconds: MAX_SECONDS, care: true };
+    const off = runGame(HARMONY, { ...opts, upgrades: false });
+    expect(off.final.counts.upgradesBought).toBe(0);
+    expect(off.final.spentUpgrades).toBe(0);
+    const on = runGame(HARMONY, opts);
+    expect(on.final.counts.upgradesBought).toBeGreaterThan(20);
+    expect(Object.keys(on.final.upgradeLevels)).toContain('roots');
+    // Der Zufallsspieler baut mit eigenem Zufall aus – deterministisch je Seed.
+    expect(runGame(RANDOM, opts)).toEqual(runGame(RANDOM, opts));
   });
 });
 

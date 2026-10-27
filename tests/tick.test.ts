@@ -594,7 +594,8 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
   // 75,94). Seit Räuber und Beute (DESIGN_V2.md 22: Bestand, Überjagung, Massenjahre) rechnet
   // auch `off` anders – Wetter-Gewichte wirken in `off` nicht, darum nur noch festgelegte Werte.
   // Phase 10, 2b (27.5): ohne „Etwas keimt“ – mehr Tierbegegnungen, Pflanzen nur noch über die
-  // Aussaat (vorher 21 / 165733899 / 159325 / 32553 / 76,25).
+  // Aussaat (vorher 21 / 165733899 / 159325 / 32553 / 76,25). Phase 11, 3a: Aussaat-Faktor 1,6
+  // statt 1,75 – billigere Aussaaten, nur der Samenbestand ändert sich (vorher 82883).
   it('ohne Wetter und Nacht (`off`): festgelegte Ergebnisse (seit Räuber und Beute)', () => {
     const state = play(2026, 'off');
     expect({
@@ -603,11 +604,12 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
       totalGrowth: Math.round(state.totalGrowth),
       seeds: Math.round(state.seeds),
       harmony: Math.round(evaluate(state).harmony * 100) / 100,
-    }).toEqual({ waypoint: 22, rngState: 1485770136, totalGrowth: 191379, seeds: 82883, harmony: 101.06 });
+    }).toEqual({ waypoint: 22, rngState: 1485770136, totalGrowth: 191379, seeds: 83089, harmony: 101.06 });
   });
 
   // Neu aufgenommen in Phase 10, 2b (27.5): „Etwas keimt“ entfällt, die feste Strategie sät
   // (erste Karte) – mehr Tiere, gemischte Pflanzen statt fünfmal Hasel, darum höhere Harmonie.
+  // Phase 11, 3a: Aussaat-Faktor 1,6 statt 1,75 – nur der Samenbestand ändert sich (vorher 152357).
   it('liefert festgelegte Ergebnisse', () => {
     const state = play(2026);
     const ev = evaluate(state);
@@ -710,7 +712,7 @@ describe('Golden Test: fester Seed + feste Wahl-Strategie', () => {
           "rowan",
         ],
         "rngState": 726052072,
-        "seeds": 152357,
+        "seeds": 152563,
         "stage": 5,
         "totalGrowth": 259184,
         "waypoint": 24,

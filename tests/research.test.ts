@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CARE_V16 as CARE, CARE_V16_BY_ID as CARE_BY_ID } from './fixtures/care-v16';
+import { coversEffect } from './helpers';
 import { CARDS_PER_ENCOUNTER, DECLINE_SEED_SECONDS } from '../src/content/encounters';
 import { EVENTS } from '../src/content/events';
 import { NICHES_BY_ID } from '../src/content/niches';
@@ -294,6 +295,12 @@ describe('Forschungsbaum: Wirkungen (27.7)', () => {
   });
 });
 
+/**
+ * Knoten aus der Pflege (bis v16), deren Wirkung die Messung Phase 11, 3a gestärkt hat:
+ * Käferburg +3 statt +2 ⚖️, Dichte Krone zusätzlich +1 Platz Höhlen und +1 ⚖️, −1 statt −2 ☀️.
+ */
+const REBALANCED_3A = ['beetle-castle', 'dense-crown'];
+
 describe('Forschungsbaum: Pflege → Knoten (Migration 27.9)', () => {
   it('jede heutige Pflege-Stufe hat genau einen Knoten mit gleicher Wirkung und gleicher Stufe', () => {
     expect(Object.keys(CARE_TO_RESEARCH).sort()).toEqual(CARE.map((c) => c.id).sort());
@@ -304,10 +311,17 @@ describe('Forschungsbaum: Pflege → Knoten (Migration 27.9)', () => {
       expect(ids.length, c.id).toBe(c.ranks.length);
       c.ranks.forEach((r, i) => {
         const n = node(ids[i]!);
+        const label = `${c.id} Rang ${i + 1} → ${n?.id}`;
         expect(n, `${c.id} Rang ${i + 1}`).toBeDefined();
-        expect(n.effects, `${c.id} Rang ${i + 1} → ${n.id}`).toEqual(r.effects);
-        expect(n.minStage, `${c.id} Rang ${i + 1} → ${n.id}`).toBe(r.minStage);
-        expect(n.summary, `${c.id} Rang ${i + 1} → ${n.id}`).toBe(r.summary);
+        if (REBALANCED_3A.includes(n.id)) {
+          // Gabel-Seiten, die Phase 11, 3a gestärkt hat (27.11 Stellschraube 3): mindestens die
+          // Wirkung des Rangs, nie weniger (gleiche Plätze und Merkmale, ⚖️ und ☀️ nicht kleiner).
+          for (const e of r.effects) expect(coversEffect(n.effects, e), `${label}: ${JSON.stringify(e)}`).toBe(true);
+        } else {
+          expect(n.effects, label).toEqual(r.effects);
+          expect(n.summary, label).toBe(r.summary);
+        }
+        expect(n.minStage, label).toBe(r.minStage);
         ranks++;
       });
       mapped.push(...ids);
@@ -365,8 +379,8 @@ describe('Aussaat-Konstanten (27.6)', () => {
   /** Preis ohne Rabatt und Saatzeit, wie in 27.6 (n ≥ 1). */
   const price = (n: number): number => Math.ceil(SOWING_BASE * Math.pow(SOWING_GROWTH, n - 1));
 
-  it('Preistabelle aus DESIGN_V2.md 27.6', () => {
-    const table = [20, 35, 62, 108, 188, 329, 575, 1_006, 1_760, 3_079, 5_388, 9_429, 16_501, 28_876, 50_532, 88_431];
+  it('Preistabelle aus DESIGN_V2.md 27.6 (Faktor 1,6 seit Phase 11, 3a)', () => {
+    const table = [20, 32, 52, 82, 132, 210, 336, 537, 859, 1_375, 2_200, 3_519, 5_630, 9_008, 14_412, 23_059];
     expect(table.map((_, i) => price(i + 1))).toEqual(table);
   });
 
