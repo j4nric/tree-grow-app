@@ -98,10 +98,10 @@ describe('Inhalt: Kennarten (26.3)', () => {
 });
 
 describe('Inhalt: Chronik (26.4)', () => {
-  it('sechs Kapitel mit Symbol, Titel und Hinweis ohne Namen; Schwelle 250', () => {
+  it('sechs Kapitel mit Symbol, Titel und Hinweis ohne Namen; Schwelle 230 (gemessen in Phase 11, 3c)', () => {
     expect(CHAPTER_IDS).toEqual(['ancient', 'first-snow', 'signature', 'kennart', 'harmony', 'memory']);
     expect(CHRONICLE_CHAPTERS.map((c) => c.id)).toEqual([...CHAPTER_IDS]);
-    expect(CHRONICLE_HARMONY).toBe(250);
+    expect(CHRONICLE_HARMONY).toBe(230);
     const names = [...SPECIES, ...LANDSCAPE_SITES].map((x) => x.name);
     for (const c of CHRONICLE_CHAPTERS) {
       expect(c.icon.length, c.id).toBeGreaterThan(0);
@@ -320,7 +320,7 @@ describe('Kapitel an ihren Stellen (26.4)', () => {
     expect(chronicleOf(state, 'floodplain').at(-1)).toEqual({ chapter: 'kennart', cycle: 1, season: 'spring' });
   });
 
-  it('„Voller Einklang“: H_max ≥ 250 im aktiven Wald; darunter nicht', () => {
+  it('„Voller Einklang“: H_max ≥ CHRONICLE_HARMONY im aktiven Wald; darunter nicht', () => {
     const state = forest(5);
     state.cycle.maxHarmony = CHRONICLE_HARMONY - 0.5;
     recordDiscoveries(state);

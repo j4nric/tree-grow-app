@@ -907,7 +907,7 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   ohne Änderung (vergleicht nur `schema`). Abweichung: Biber +2 💧 und Feuchte statt „+1 Platz
   Waldtümpel“ (26.3). Kleine Oberfläche bis 3a: Kennarten vor der Landschaft unsichtbar im
   Naturtagebuch und in der Spielanleitung
-- [ ] **2c** Messung Chronik und Kennarten (`game-designer`, 26.8): Chronik-Politik in
+- [x] **2c** Messung Chronik und Kennarten (`game-designer`, 26.8): Chronik-Politik in
   `scripts/landscape.ts` (offene Kapitel zuerst, im Urwald bis zum Winter verweilen), großer Lauf
   Harmonie / Wachstum / Zufall, Ziele (a)–(f) aus 26.8; Stellschrauben Seltenheit der Kennarten,
   `CHRONICLE_HARMONY`, Wirkungen; 24.7/24.10 und 26 nachtragen. **Warum:** Zahlen nie nach
@@ -917,6 +917,8 @@ Zustandsänderungen nacheinander, nie parallel. **Einzige Spielstand-Änderung d
   (27.10) – eine Chronik-Messung davor wäre sofort veraltet. **Zusammengelegt mit Phase 11, 3c**
   (DESIGN_V2.md 28.10): Phase 11 ändert die Ökonomie noch einmal (Ausbau, offline 10 %); gemessen
   wird einmal danach, mit derselben Chronik-Politik
+  **Erledigt mit Phase 11, 3c** (DESIGN_V2.md 26.8 „Messung 2c“): `CHRONICLE_HARMONY` 250 → 230,
+  Kennarten unverändert; offen: Käferjahr der Kiefernheide als Kapitel (Vorschlag in 26.8)
 
 **Welle 3 – Oberfläche**
 
@@ -1373,8 +1375,21 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   11,7 h statt 12,5–14,5 h (schon vor 3b 11,6 h, Folge des Ausbaus; Landschafts-Regeln gesperrt),
   Abstand der Spielweisen ab Zyklus 2 (Wachstum ÷ Harmonie ~1,15–1,35), endlose Ränge bei bewertenden
   Spielern nie gekauft, 8 h offline in Zyklus 3 1,5 Stufen, Gabel Saat Geschmack (< 1 % Unterschied)
-- [ ] **3c** Messung Chronik und Kennarten (`game-designer`, = Phase 9, 2c, 26.8): wie dort
+- [x] **3c** Messung Chronik und Kennarten (`game-designer`, = Phase 9, 2c, 26.8): wie dort
   beschrieben, auf der Ökonomie nach 3a/3b. Abhängig: 3b
+  **Erledigt** (`claude/p11-3c-chronik`, DESIGN_V2.md 26.8 „Messung 2c“, 28.10 „Messung 3c“, 24.10,
+  GAME_DESIGN.md): Chronik-Politik in `scripts/landscape.ts` (Option `chronicles`: meiste offene
+  Kapitel zuerst, im Urwald bis zum Winter verweilen, bis alle Chroniken voll; Vergleich `attentive`),
+  Kennzahlen (`chronicleSummaryTable`, `chapterTable`, `chronicleSiteTable`), großer Lauf „Chronik und
+  Kennarten“ in `tests/landscape-balance.test.ts` (`SIM_LANDSCAPE=1`). **Zahlen:** `CHRONICLE_HARMONY`
+  250 → **230**, Rotbuche Pilze +15 → **+20 % 😊** (Buchenhallen +5,7 → +3,7 %); Seltenheit der
+  Kennarten geprüft und belassen. **Ergebnis:** alle Chroniken nach 15,7 / 15,2 / 42,9 h (H / W / Z,
+  ≤ 1,6 × „vollständig“), Kennart nach 1–2 alten Zyklen (Zufall 2–2,5), Voller Einklang 100 % der
+  Wälder, Verweilen 3 / 3 / 9 min. Lücken aus 3b: (a) Gründungskosten gesperrt (24.4) – Ziel
+  „Landschaft vollständig“ auf 11–14,5 h angepasst, (b) erledigt, (c) gemessen („alle Würfe gratis“
+  < 1 %), keine Zahl. **Offen:** Käferjahr der Kiefernheide als Kapitel (Harmonie 18 Zyklen;
+  Vorschlag Hitzewelle oder Hinweis, Product Owner), erste Chronik ~2,5 h nach „vollständig“ (Ziel b,
+  hängt am Gedächtnis), Verweilen des Zufallsspielers 9 min
 
 **Welle 4 – Oberfläche** (parallel zu Welle 3; Zahlen aus 3a kommen nur als Daten)
 

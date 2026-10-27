@@ -67,7 +67,7 @@
 > und erst mit der Landschaft, Bedingung `site`). v15-Stände bekommen die Kapitel, die sich
 > ableiten lassen, ohne Datum („Uralt geworden“, „Ein Wald erinnert sich“). Startwerte aus 26.3/
 > 26.4 (`CHRONICLE_HARMONY` 250, Kennarten besonders ab Hain, +4–6 ⚖️, +5–6 % 🌿/🌰); gemessen
-> wird in Aufgabe 2c. Abweichung vom Entwurf: Der Biber bringt +2 💧 und Feuchte statt „+1 Platz
+> in Aufgabe 2c (= Phase 11, 3c): `CHRONICLE_HARMONY` **230**, Kennarten unverändert (unten). Abweichung vom Entwurf: Der Biber bringt +2 💧 und Feuchte statt „+1 Platz
 > Waldtümpel“ (eine Platz-Wirkung in der eigenen Nische machte ihm selbst Platz und öffnete als
 > Stammgast einen geschlossenen Tümpel, 26.3).
 >
@@ -300,6 +300,19 @@
 > Landschaft 11,7 h (Ziel 12,5–14,5 h, schon vorher 11,6 h), Abstand der Spielweisen ab Zyklus 2,
 > endlose Ränge, Offline-Tag mit Gedächtnis, Gabel Saat (Unterschied < 1 %).
 >
+> **Gemessen in Phase 11, 3c (Chronik und Kennarten = Phase 9, 2c; ohne Spielstand-Änderung;
+> `DESIGN_V2.md` 26.8 „Messung 2c“, 28.10 „Messung 3c“, 24.10):** Chronik-Politik im Simulator
+> (offene Kapitel zuerst, im Urwald bis zum Winter verweilen). `CHRONICLE_HARMONY` 250 → **230**
+> („Voller Einklang“: Zufall bei „Landschaft vollständig“ 45 → 88 % der Wälder, Wachstum nach 1–2
+> statt 2–4 Zyklen); Kennarten unverändert (Median 1–2 alte Zyklen, Seltenheit 1 wäre schlechter);
+> **Rotbuche Pilze +15 → +20 % 😊** (Buchenhallen +5,7 → +3,7 %, alle Waldtypen in ±5 %). Alle sechs
+> Chroniken nach 15,7 / 15,2 / 42,9 h (Harmonie / Wachstum / Zufall; ≤ 1,6 × „vollständig“),
+> Verweilen für „Erster Schnee“ 3 / 3 / 9 min je Wald. Ziel „Landschaft vollständig“ auf 11–14,5 h
+> angepasst (Gründungskosten sind Landschafts-Regel, gesperrt). Offen: das Käferjahr der
+> Kiefernheide als Kapitel (Harmonie 18 Zyklen – Vorschlag Hitzewelle oder Hinweis), erste Chronik
+> erst ~2,5 h nach „vollständig“ (am Gedächtnis), Gabel Saat bleibt Geschmack („alle Würfe gratis“
+> < 1 %).
+>
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
 > `scripts/simulate.ts`, `tests/balance.test.ts` (mit Forschung und seit Phase 11, 3a mit Ausbau, bis v16 Pflege),
@@ -521,7 +534,7 @@ steht im Bereich „Neuer Zyklus“ (Radiogruppe, gesperrte Arten mit Hinweis).
 | Art | Frucht | Gewinn | Verzicht |
 |---|---|---|---|
 | 🌳 Stieleiche | Eichel (Nüsse ab Alter Baum) | +1 Platz Krone (ab Junger Baum); Insekten +10 % 😊 | – |
-| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum |
+| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +20 % 😊 (seit Phase 11, 3c; vorher +15 %) | −2 ☀️ ab Alter Baum |
 | 🌲 Waldkiefer | Kiefernsamen | +1 ☀️, +1 💧; winterfest (kein Winter-Abzug); Merkmal Nadeln | keine Nüsse |
 | 🎄 Weißtanne | Tannensamen | Vögel +10 % 😊; +1 Platz Stamm & Rinde (ab Junger Baum); winterfest; Merkmal Nadeln | −1 ☀️ ab Alter Baum; keine Nüsse |
 | 🌿 Schwarzerle | Erlensamen | Amphibien +10 % 😊; Blumen +15 % 🌿; +1 Platz Waldtümpel ab Junger Baum (öffnet ihn ohne Pflege) | keine Nüsse; nicht winterfest |

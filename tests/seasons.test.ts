@@ -202,7 +202,7 @@ describe('Hauptbaum-Arten (DESIGN_V2.md 17.3)', () => {
     expect(environmentEffects(0, undefined, 'oak').happiness).toEqual([{ kind: 'happiness', genus: 'insects', points: 10 }]);
   });
 
-  it('Buche: +1 Platz Wurzelraum und −2 ☀️ erst ab Alter Baum, Pilze +15 % 😊', () => {
+  it('Buche: +1 Platz Wurzelraum und −2 ☀️ erst ab Alter Baum, Pilze +20 % 😊 (seit Phase 11, 3c)', () => {
     // Seit Schritt 2.10 ab Alter Baum (vorher ab Keimling, DESIGN_V2.md 17.3).
     expect(evaluate(stateWith(3, [], 'spring', 'beech')).slots.roots).toBe(2);
     expect(evaluate(stateWith(3, [], 'spring', 'oak')).slots.roots).toBe(2);
@@ -210,7 +210,7 @@ describe('Hauptbaum-Arten (DESIGN_V2.md 17.3)', () => {
     expect(evaluate(stateWith(4, [], 'spring', 'oak')).slots.roots).toBe(3);
     expect(evaluate(stateWith(3, [], 'spring', 'beech')).light).toBe(5);
     expect(evaluate(stateWith(4, [], 'spring', 'beech')).light).toBe(7 - 2);
-    expect(environmentEffects(0, undefined, 'beech').happiness).toEqual([{ kind: 'happiness', genus: 'fungi', points: 15 }]);
+    expect(environmentEffects(0, undefined, 'beech').happiness).toEqual([{ kind: 'happiness', genus: 'fungi', points: 20 }]);
   });
 
   it('Buche: der zusätzliche Platz gilt auch beim Wählen einer Karte', () => {

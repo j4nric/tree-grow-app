@@ -4295,7 +4295,7 @@ alle gleich.
 | Art | Frucht | Gewinn | Verzicht | passt zu |
 |---|---|---|---|---|
 | 🌳 Stieleiche | Eichel (Nüsse ab Alter Baum) | +1 Platz Krone (ab Junger Baum); Insekten +10 % 😊 | – (ausgewogen) | Vielfalt, Vögel und Säugetiere (Nüsse) |
-| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum (dichtes Dach) | Pilze, Bodenleben, Schattenpflanzen |
+| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +20 % 😊 (bis Phase 11, 3c +15 %) | −2 ☀️ ab Alter Baum (dichtes Dach) | Pilze, Bodenleben, Schattenpflanzen |
 | 🌲 Waldkiefer | Kiefernsamen | +1 ☀️, +1 💧 (genügsam); winterfest: kein Winter-Abzug; Merkmal Nadeln | keine Nüsse | Blüten, Insekten, Licht; Waldameise |
 
 **Balancing 2.10:** Rotbuche +1 Wurzelraum erst ab Alter Baum (vorher ab Keimling) –
@@ -6528,6 +6528,27 @@ Buchenhallen liegt für den Harmonie-Spieler knapp außerhalb ±5 % (Stand 1a: +
 Hain ausgeglichen (+1,1 %, 17.4), mit Ausbau und Gedächtnis bis zum Urwald nicht mehr – eine Messung
 der Baumarten bis zum Urwald gehört zu 17.4 (offen, eigene Aufgabe).
 
+**Waldtypen (Phase 11, 3c; Rotbuche Pilze +15 → +20 % 😊, 28.10 „Messung 3c“)** – derselbe Lauf
+(160 Durchgänge, Gedächtnis 200, Leitbaum); nur die Buchenhallen ändern sich:
+
+| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | ohne Ereignis-Faktor | Wachstum: Urwald | gegenüber Heimatwald |
+|---|---|---|---|---|---|---|---|
+| 🌳 Heimatwald | Eiche | 38:14 min | ±0,0 % | ±0,0 % | – | 33:50 min | ±0,0 % |
+| 🌊 Auwald am Fluss | Eiche | 37:47 min | −1,2 % | −0,2 % | −1,6 % | 33:45 min | −0,3 % |
+| 🐸 Erlenbruch | Schwarzerle | 38:59 min | +2,0 % | +3,6 % | +2,0 % | 33:55 min | +0,2 % |
+| 🍂 Buchenhallen | Rotbuche | 39:39 min | **+3,7 %** | +4,2 % | +2,8 % | 32:49 min | −3,0 % |
+| ⛰️ Bergmischwald | Weißtanne | 39:20 min | +2,9 % | +3,2 % | – | 34:04 min | +0,7 % |
+| 🌲 Kiefernheide | Kiefer | 39:44 min | +3,9 % | +3,3 % | +3,7 % | 33:41 min | −0,5 % |
+
+Alle Waldtypen wieder innerhalb ±5 % (der Test „Waldtypen“ ist grün). Buchenmast 98 / 99 von 160
+Durchgängen (vorher 89 / 106 in 1a). Die Varianten der Rotbuche stehen in 28.10 „Messung 3c“.
+
+**Stand Phase 11, 3c** (Chronik-Politik ab „vollständig“, `CHRONICLE_HARMONY` 230, Rotbuche +20 %;
+dieselben Seeds): Bis „Landschaft vollständig“ spielt der Simulator wie oben – Freischaltung 3,4 /
+4,2 / 13,0 h, vollständig **11,7 / 12,1 / 37,6 h** (Harmonie / Wachstum / Zufall; 3b 11,7 / 12,2 /
+37,3 h), erster Urwald je Wald (Harmonie) 2:01:41 h, 40, 44, 28, 24, 19 min. Danach Chroniken bis
+15,7 / 15,2 / 42,9 h, alle Wälder voll 14,6 / 15,0 / 42,9 h (26.8, „Messung 2c“).
+
 **Stand 1a (Phase 9)** – wie „Stand 3d“, dazu das Käferjahr der Heide (3e), die Ereignisse
 je Waldtyp und der Mauer-Platz der Kiefernheide (26.2). Harmonie und Wachstum 20, Zufall 10
 Durchgänge, dieselben Seeds; Median, kumulierte Spielzeit:
@@ -7493,7 +7514,9 @@ meta.journal.firstSeen: {
 > Zahlen stehen in den Daten (`src/content/landscape.ts`) und sind mit dem offiziellen Lauf
 > nachgemessen – auf die Sekunde gleich (24.7 „Stand 1a“). **26.3–26.6 sind umgesetzt (2b,
 > Spielstand v16)** mit den Startwerten unten – eine Abweichung beim Biber (26.3). Alles andere
-> sind Startwerte, die 2c misst.
+> sind Startwerte, die 2c misst. **Gemessen in 2c (= Phase 11, 3c, 26.8):** `CHRONICLE_HARMONY`
+> 250 → 230, Kennarten unverändert (besonders ab Hain, Wirkungen wie unten); offen: das Käferjahr
+> der Kiefernheide als Kapitel (26.8, Vorschlag).
 > Aufgaben und Reihenfolge: `docs/ROADMAP.md`, Phase 9.
 
 ### 26.1 Was nach der Landschaft trägt
@@ -7634,7 +7657,9 @@ Urwald war – genau dann, wenn es heute keinen Grund mehr gibt.
   Platz-Arten (öffnet keinen geschlossenen Tümpel – im Auwald ist er ab Junger Baum offen).
   Haselmaus und Ziegenmelker in `NOCTURNAL` (21.6) mit Startwert „nachts +6 % 🌰“, nicht im
   Winter (die Haselmaus schläft, der Ziegenmelker ist in Afrika).
-  Startwerte – 2c misst sie (±5 % je Waldtyp, Landschaft ±0,3 h).
+  Startwerte – 2c misst sie (±5 % je Waldtyp, Landschaft ±0,3 h). **Gemessen (Phase 11, 3c):**
+  unverändert – die Kennart kommt im Median nach 1–2 alten Zyklen (Zufall 2–2,5), Seltenheit 1
+  wäre schlechter (26.8).
 - **Biber, Abweichung in 2b:** „+1 Platz Waldtümpel“ wäre eine Platz-Wirkung in der **eigenen**
   Nische – der Biber machte sich selbst Platz, und als Stammgast (Einzug ohne
   Erscheinungsbedingung, `moveInRegulars`) öffnete er einen geschlossenen Tümpel, den das Laden
@@ -7685,7 +7710,7 @@ geschrieben und bleibt (monoton, wie Erfolge). Kapitel tragen Zyklus und Jahresz
 | 2 | `first-snow` | eine Jahreszeit wechselt zu **Winter**, während dieser Wald aktiv und der Zyklus im **Urwald** ist (an der Grenze, an der `tick` ohnehin hält – online = offline) | „Erster Schnee im Urwald“ |
 | 3 | `signature` | das Ereignis des Waldes (`ForestSite.chronicleEvent`) wird hier entschieden – gleich welche Option | je Wald, siehe unten |
 | 4 | `kennart` | die Kennart dieses Waldes lebt im Ökosystem, während er aktiv ist (Karte, Stammgast oder Wildwechsel) | „Die Kennart: Biber“ |
-| 5 | `harmony` | H_max dieses Zyklus erreicht **`CHRONICLE_HARMONY` = 250**, während der Wald aktiv ist | „Voller Einklang“ |
+| 5 | `harmony` | H_max dieses Zyklus erreicht **`CHRONICLE_HARMONY` = 230** (bis Phase 11, 3c: 250), während der Wald aktiv ist | „Voller Einklang“ |
 | 6 | `memory` | das **eigene** Gedächtnis des Waldes erreicht `MAX_FOREST_MEMORY` (1000) | „Ein Wald erinnert sich“ |
 
 **Ereignis des Waldes** (`chronicleEvent`, Kapitel 3) – passend zu 26.2; der Heimatwald und der
@@ -7724,7 +7749,9 @@ als Siegel auf der Karte.
   Freischaltung sieht der Spieler: „Die Chronik des Heimatwalds hat schon 3 Kapitel.“
 - **`CHRONICLE_HARMONY` = 250:** In der Landschaft erreichen alle Spielweisen in jedem Wald
   288–312 (Harmonie, Wachstum) bzw. 263–270 (Zufall) (24.10) – 250 ist ein Ziel, keine Hürde.
-  2c prüft: ≥ 90 % der Wälder je Spielweise.
+  2c prüft: ≥ 90 % der Wälder je Spielweise. **Gemessen (2c = Phase 11, 3c, 26.8): 230** – nach
+  Phase 10/11 erreichen Wachstum 269–277 und Zufall 245–268; mit 250 hatte der Zufall „Voller
+  Einklang“ bei „Landschaft vollständig“ erst in 45 % der Wälder.
 - **Kein Kapitel kostet etwas** und keines lässt sich verlieren. Ein Kapitel des **aktiven**
   Waldes wird geschrieben; ruhende Wälder schreiben nichts (sie erleben nichts).
 - **Meldung:** Stempel „📜 Neues Kapitel im Auwald: Frühjahrshochwasser“; offline geschriebene
@@ -7909,6 +7936,106 @@ dessen alte Zyklen vor der Freischaltung mitzählen), Zufall bis 7. Ziel (d) „
 allen Kennarten darüber (Frage an 2c, nicht an den Luchs). Tempo praktisch unberührt:
 „Landschaft vollständig“ je Lauf Harmonie ±0,1 h (12,9–14,7 h), Wachstum ≤ +0,3 h, Zufall
 ≤ +0,8 h (je ein Seed; der Zufall läuft nach der ersten anderen Karte auseinander).
+
+**Messung 2c (= Phase 11, 3c) – auf der Ökonomie nach Phase 11, 3a/3b.** `scripts/landscape.ts`,
+Option `chronicles` (Chronik-Politik oben, genau wie geplant): Bis „Landschaft vollständig“ spielt
+der Simulator wie in 24.10; danach wählt er den Wald mit den meisten offenen Kapiteln (Kapitel, die
+erst der Neustart schreibt, zählen schon; Gleichstand: kleinstes eigenes Gedächtnis), verweilt im
+Urwald bis zum nächsten Winter, wenn „Erster Schnee“ dort offen ist (nach dem letzten Wegpunkt
+gibt es keine Begegnungen mehr – nur die Zeit läuft, `tick` schreibt das Kapitel an der Grenze), und
+spielt, bis alle sechs Chroniken vollständig sind. Harmonie und Wachstum 20, Zufall 10 Durchgänge,
+Seeds 1001 + k wie 24.10; Median. „Zyklen bis zum Kapitel“ zählt ab „möglich und zu sehen“: Kennart
+= alte Zyklen des Waldes mit freier Landschaft (1 = gleich im ersten), alle anderen = Zyklen im Wald
+mit freier Landschaft (0 = schon vorher still geschrieben, nur im Heimatwald). Test:
+`tests/landscape-balance.test.ts`, „Chronik und Kennarten“ (`SIM_LANDSCAPE=1`, ~1 h, ein Kern).
+
+*Stellschrauben* (Reihenfolge oben):
+
+| Schritt | Befund vorher | Änderung | danach |
+|---|---|---|---|
+| 1. Seltenheit der Kennarten 2 → 1 | Kennart nach 1–2 alten Zyklen (Harmonie, Wachstum), Zufall 2–2,5 | geprüft, **verworfen**: Zufall 10 Durchgänge mit Seltenheit 1 → 3–8,5 alte Zyklen (Auwald 8,5) – unter den vielen seltenen Arten (Seltenheit 1) geht die Kennart unter; bei „besonders“ ist der Topf klein | bleibt 2 |
+| 2. `CHRONICLE_HARMONY` | Höchste H je Wald jetzt Wachstum 269–280 (Phase 9: 288–297), Zufall 245–268 – die Schwelle 250 lag für den Zufall auf Kante: „Voller Einklang“ bei „Landschaft vollständig“ in 45 % der Wälder, im Mittel nach 8,5–24 Zyklen; Wachstum 3–4 Zyklen | **250 → 230** (Abstand zum Wachstums-Spieler wieder ~40, zum Zufall ~25) | Zufall bei „vollständig“ 88 %, Wachstum 1–2 Zyklen |
+| 3. Wirkung der Kennarten | Tempo unberührt (vollständig 11,7 / 12,1 / 37,6 h gegen 11,7 / 12,2 / 37,3 h in 3b) | – | – |
+
+Vorhersage für die Schwelle aus denselben Läufen (H_max je Zyklus, Zyklen bis zum ersten Zyklus mit
+H_max ≥ T im Wald, Median über Heimatwald … Kiefernheide; Anteil der Wälder bei „vollständig“):
+
+| T | Harmonie | Wachstum | Zufall | Zufall: Wälder bei „vollständig“ |
+|---|---|---|---|---|
+| 250 | 1–2 | 2–4 | 6,5–24 | 45 % |
+| 240 | 1–2 | 1–3 | 4,5–12,5 | 70 % |
+| **230** | **1–1,5** | **1–2** | **4–10** | **90 %** |
+| 220 | 1–2 | 1–2 | 2,5–9,5 | 97 % |
+| 200 | 1 | 1 | 1–9 | 100 % |
+
+Unter 230 gewinnt nur der Zufall, und das Kapitel wird für bewertende Spieler zum zweiten „Uralt
+geworden“; beim Zufall hängt es am Gedächtnis (H steigt mit G), nicht an der Schwelle – auch 200
+brauchte im Auwald 9 Zyklen.
+
+*Ergebnis gegen die Ziele* (mit 230 und der Rotbuche aus 28.10 „Messung 3c“):
+
+| Ziel | Grenze | Harmonie | Wachstum | Zufall | |
+|---|---|---|---|---|---|
+| (a) Landschaft vollständig | ±0,3 h gegen 3b (11,7 / 12,2 / 37,3 h) | 11,7 h | 12,1 h | 37,6 h | ✓ |
+| (a) Waldtypen | ±5 % | siehe 24.10 „Waldtypen (Phase 11, 3c)“ | | | ✓ |
+| (b) erste vollständige Chronik | ≤ 1 h nach „vollständig“ | +2:30 h (14,1 h) | +2:23 h (14,6 h) | +4:40 h | ✗ (s. u.) |
+| (c) alle sechs Chroniken | ≤ 1,6 × „vollständig“; Zufall ≤ 60 h | 15,7 h (1,34 ×) | 15,2 h (1,25 ×) | 42,9 h (1,15 ×) | ✓ (18–26 h ✗, s. u.) |
+| (d) Kennart | Median ≤ 2 alte Zyklen | 1–2 | 1–2 | 2–2,5 | ✓ / Zufall ≈ |
+| (d) übrige Kapitel | Median ≤ 3 Zyklen | Kiefernheide „Das Käferjahr“ **18** (90 %: 34) | Kiefernheide **6** (90 %: 20) | Kiefernheide 3, Einklang 4–11 | ✗ Käferjahr |
+| (e) Voller Einklang | ≥ 90 % der Wälder | 100 % (bei „vollständig“ 100 %) | 100 % (100 %) | 100 % (88 %) | ✓ |
+| (f) Verweilen für „Erster Schnee“ | im Mittel ≤ 6 min je Wald | 3 min (max. 3) | 3 min (max. 4) | 9 min (max. 12) | ✓ / Zufall ✗ |
+
+| Spielweise | Kapitel | 🌳 Heimatwald | 🌊 Auwald | 🐸 Erlenbruch | 🍂 Buchenhallen | ⛰️ Bergmischwald | 🌲 Kiefernheide |
+|---|---|---|---|---|---|---|---|
+| Harmonie | Ereignis | 0 | 1 / 2 | 1 / 2 | 1 / 3 | 1 / 2 | **18 / 34** (1× nie) |
+| Harmonie | Kennart | 1 / 1 | 2 / 2 | 2 / 2 | 2 / 2 | 2 / 3 | 2 / 2 |
+| Harmonie | Einklang | 0 / 1 | 1 / 2 | 1,5 / 2 | 1 / 1 | 1 / 1 | 1 / 1 |
+| Harmonie | Gedächtnis | 8 / 9 | 11 / 12 | 11 / 12 | 11 / 11 | 11 / 12 | 11 / 11 |
+| Wachstum | Ereignis | 0 | 1 / 1 | 1 / 3 | 1 / 3 | 1 / 2 (1× nie) | **6 / 20** |
+| Wachstum | Kennart | 1 / 1 | 2 / 3 | 2 / 2 | 2 / 2 | 2 / 2 | 2 / 3 |
+| Wachstum | Einklang | 1 / 2 | 2 / 3 | 2 / 3 | 2 / 3 | 2 / 3 | 2 / 3 |
+| Zufall | Ereignis | 0 | 1 / 1 | 2 / 5 | 1 / 1 | 1 / 2 | 3 / 12 |
+| Zufall | Kennart | 2 / 4 | 2,5 / 6 | 2 / 7 | 2 / 4 | 2 / 3 | 2 / 5 |
+| Zufall | Einklang | 4 / 4 | 11 / 13 | 10 / 11 | 8,5 / 11 | 8 / 11 | 8,5 / 10 |
+
+(Median / 90 % der Zyklen; „Uralt geworden“ immer im ersten Zyklus; „Erster Schnee“ im ersten
+Urwald nach „vollständig“, weil die Politik dann verweilt.) Chronik vollständig je Wald (Harmonie):
+14,3–14,5 h, Kiefernheide 15,6 h. Höchste H je Wald: Harmonie 314–322, Wachstum 269–277, Zufall
+245–268.
+
+*Bewertung und offene Punkte:*
+
+- **Das Gedächtnis bestimmt das Ende, nicht der Zufall.** Kennart, Einklang und (außer der Heide)
+  das Ereignis kommen in den ersten ein bis drei Zyklen eines Waldes. Jede Chronik wird erst mit
+  „Ein Wald erinnert sich“ voll – 11–12 Zyklen im Wald. Darum (b) ✗: Die Politik „meiste offene
+  Kapitel zuerst“ verteilt die Zyklen gleichmäßig, die erste Chronik kommt mit dem ersten vollen
+  Gedächtnis (~2,5 h nach „vollständig“). (b) ist mit den Stellschrauben dieser Aufgabe nicht
+  erreichbar (keine wirkt auf das Gedächtnis); wer gezielt einen Wald füllt, hat seine erste Chronik
+  früher. **Vorschlag:** Ziel (b) auf „≤ 3 h nach vollständig“ setzen oder die Politik „nächste
+  Chronik zuerst“ messen – kein Grund für eine Zahl.
+- **(c) unten verfehlt, oben gehalten:** Alle Chroniken nach 15,7 h statt 18–26 h, weil die Landschaft
+  mit dem Ausbau früher vollständig ist (11,7 statt 14 h, 28.10). Das Verhältnis (≤ 1,6 ×) hält; die
+  Chroniken verlängern das Spiel um ~4 h über „vollständig“ hinaus und enden mit „alle Wälder voll“
+  (14,6 h) plus der Heide. Kein Ziel, das eine Wand rechtfertigt.
+- **Kiefernheide, „Das Käferjahr“ (d ✗):** Das Massenjahr braucht ungejagte Käfer (22.5). Bewertende
+  Spieler halten Käferjäger (Buntspecht) – als Stammgast und als Karte im Zyklus. Ein
+  *aufmerksamer* Harmonie-Spieler, der in der Heide keine Käferjäger als Stammgäste mitnimmt
+  (`attentive`, 20 Durchgänge), braucht immer noch 9,5 Zyklen (90 %: 19) – die Karte im Zyklus nimmt
+  er weiter. Keine der drei Stellschrauben wirkt hier. **Vorschlag (Product Owner):** (1) das
+  Kapitel-Ereignis der Heide auf ein Ereignis ohne Bedingung legen – die **Hitzewelle** kommt in der
+  Heide in 69 % der Zyklen (Harmonie, Median 1,5 Zyklen), Titel z. B. „Hitzesommer auf dem Sand“;
+  das Käferjahr × 3 bleibt Charakter der Heide (26.2); nur Daten (`chronicleEvent`,
+  `chronicleEventTitle`), kein Spielstand (geschriebene Kapitel bleiben). Oder (2) das Käferjahr
+  behalten und den Hinweis des offenen Kapitels in der Heide um die Bedingung ergänzen („… kommt
+  nur, wenn die Käfer hier keine Jäger haben“) – braucht ein Feld je Wald (`content`) und die Anzeige
+  (`ui-dev`); der Spieler muss dann bewusst auf den Specht verzichten (Messung oben: ohne Specht-
+  Stammgast allein noch 9,5 Zyklen).
+- **Verweilen (f):** Harmonie und Wachstum warten im Mittel 3 min (ihre Erntezyklen enden meist im
+  Sommer oder Herbst), der Zufall 9 min – seine Zyklen dauern länger, er kommt oft im Winter an und
+  wartet dann fast ein Jahr. Gesperrt (Jahreszeiten, 16); 12 min bleiben die Obergrenze aus 26.4.
+- **Biber (Frage aus 26.3):** +2 💧 und Feuchte erzählen „staut den Bach“ ausreichend (Amphibien
+  finden Feuchte); die Kennart kommt im Auwald nach 2 alten Zyklen wie die anderen – keine Änderung.
+- **Luchs ohne Reh:** 2 alte Zyklen (Harmonie, Wachstum), Zufall 2 – bestätigt die Messung oben.
 
 ### 26.9 Album-Folgeaufgaben aus Phase 8 (eine kleine `ui-dev`-Aufgabe)
 
@@ -9292,7 +9419,7 @@ Szene-Daten, ändert nie den Spielstand.
 | Samenbestand beim Erreichen einer Stufe | 9,1 / 55 min (H / Z) | ≤ 5 min Produktion |
 | ⚖️-Vorrat beim Hain / Urwald | 6,6 min / – | ≤ 10 min / ≤ 15 min |
 | Zyklus 2 bis Hain gegenüber Zyklus 1 | −28 % (27.11) | −20 bis −35 % |
-| Landschaft vollständig (24.10) | 14,2 / 13,3 h | 12,5–14,5 h, Abstand ≤ 10 % |
+| Landschaft vollständig (24.10) | 14,2 / 13,3 h | 12,5–14,5 h, Abstand ≤ 10 % (seit 3c: **11–14,5 h**, „Messung 3c“) |
 | 8 h offline am Hain (Harmonie) | +16 Wegpunkte, Urwald | ≤ 8 Wegpunkte, ≤ 1 Stufe |
 
 **Simulator (3a):** Ausbau-Strategie „billigste Stufe zuerst“ (wie die Zielzeile) mit
@@ -9553,6 +9680,59 @@ in 12.7) – verworfen.
   Pauschal-Bewertung im Simulator (0,03 gegen 0,01). Vorschlag: im Playtest 5b fragen, ob das
   Anzuchtbeet als Wahl spürbar ist – sonst eine stärkere Wirkung (z. B. „alle Würfe der Aussaat
   gratis“).
+
+**Messung 3c (Phase 11, Chronik und Kennarten; = Phase 9, 2c)** – die Chronik selbst steht in 26.8
+(„Messung 2c“); hier die drei offenen Lücken aus 3b. `scripts/landscape.ts` (Option `chronicles`),
+`tests/landscape-balance.test.ts` (20 / 10 Durchgänge, Seeds 1001 + k; Waldtypen 160 Durchgänge,
+Gedächtnis 200), Gabel Saat mit `withFork` (200 Durchgänge, Seeds 1000 + 7 i, erster Zyklus bis Urwald).
+
+*(a) Landschaft vollständig 11,7 h statt 12,5–14,5 h – Ziel angepasst, keine Zahl.* Die
+Gründungskosten (`FOUNDING_COSTS`) stehen in 24.4 – den „Regeln der Landschaft (24.4–24.6)“, die
+27.11 und 26.8 ausdrücklich sperren; 28.10 hebt die Sperre nicht auf. Sie wären auch die falsche
+Schraube: Jede 🪶 mehr nimmt die Luft aus 24.4 („alles kostet höchstens 63 von 72“, heute 9 🪶) und
+verlängert nur das Warten auf die nächste Gründung, nicht das Spiel darin. Die Landschaft ist
+schneller, weil der Ausbau (3a) jeden Urwald schneller macht (Heimatwald 2:35 → 2:02 h) – gewollt
+(„mehr Incremental Game“, 28.1). Die Chroniken tragen das Spiel danach bis 15,7 h (Harmonie, 26.8),
+also bis in den alten Zielbereich. **Ziele neu:** Landschaft vollständig **11–14,5 h** (28.10),
+24.10 (b) **11–30 h** (Test „Spielweisen“: > 11 h), Abstand ≤ 10 % bleibt (4,1 %). 24.10 (a) „nie
+langsamer als ~1,1 ×“: Der 3. Wald liegt seit 3b bei 1,1002 × des 2. (40 → 44 min) – die Prüfung
+nimmt das „~“ jetzt als ≤ 1,11 ×.
+
+*(b) Buchenhallen +5,7 % – Rotbuche nachgestellt.* Ursache war der Leitbaum (3b). Varianten der
+Rotbuche (160 Durchgänge je Zelle; Urwald mit Gedächtnis 200 gegenüber der Eiche im Heimatwald,
+erster Zyklus bis Hain gegenüber der Eiche):
+
+| Rotbuche | Harmonie: Heimatwald / Buchenhallen / Hain Zyklus 1 | Wachstum: Heimatwald / Buchenhallen / Hain Zyklus 1 |
+|---|---|---|
+| heute (Pilze +15 %, −2 ☀️ und +1 Wurzelraum ab Alter Baum) | +6,4 / **+5,7** / +0,8 % | −2,2 / −3,0 / −1,7 % |
+| −1 statt −2 ☀️ | +4,6 / +6,0 / +1,2 % | −3,1 / −4,7 / −3,1 % |
+| Wurzelraum ab Junger Baum | +2,0 / −0,1 / −3,3 % | **−5,7 / −6,0 / −6,4 %** |
+| **Pilze +20 %** | **+2,5 / +3,7 / +0,2 %** | **−2,7 / −3,0 / −2,6 %** |
+| Pilze +25 % | +1,5 / +2,3 / −0,5 % | −2,5 / −3,0 / −2,8 % |
+
+Gewählt: **Pilze +15 → +20 % 😊** (`trees.ts`). Der kleinste Schritt, der alle Zellen in ±5 % bringt;
+der Harmonie-Spieler gewinnt, der Wachstums-Spieler kaum (Pilze geben Zufriedenheit, die Harmonie
+wirkt). Das Licht ist nicht die Ursache (−1 ☀️ macht die Buchenhallen sogar langsamer), der frühere
+Wurzelraum-Platz brächte den alten Vorsprung des Wachstums-Spielers zurück (15.4, Schritt 2.10).
+Erzählung: Buchenwälder sind Pilzwälder – unter der Buche sind sie noch zufriedener.
+Waldtypen danach −1,2 … +3,9 % (24.10, „Waldtypen (Phase 11, 3c)“). Erster Zyklus (`npm run
+balance`): BAUMARTEN_PLATZHALTER.
+
+*(c) Gabel Saat – gemessen, keine Zahl.* Erzwungene Seite, 200 Durchgänge, Urwald (Median):
+
+| Anzuchtbeet | Harmonie: Samenbank / Anzuchtbeet | Würfe je Zyklus | Wachstum: Samenbank / Anzuchtbeet | Würfe |
+|---|---|---|---|---|
+| heute: erster Wurf je Aussaat gratis | 2:01:22 / 2:02:13 h (+0,7 %) | 0,18 | 1:49:08 / 1:50:28 h (+1,2 %) | 0,28 |
+| alle Würfe gratis (`sowFreeReroll` 99) | 2:01:22 / 2:02:23 h (+0,8 %) | 10,4 | 1:49:08 / 1:49:20 h (+0,2 %) | 1,8 |
+
+„Alle Würfe gratis“ ändert das Tempo nicht: Der Simulator würfelt, solange keine Karte verbessert
+(dann 10 Würfe je Zyklus), findet damit aber kaum Besseres als mit einem Wurf – die Aussaat zeigt
+nach „Saatgut sortieren“ schon 4 Karten (`MAX_SOWING_CARDS`), „+1 Karte“ ginge nicht. Beide Seiten
+sind innerhalb 1 % gleich; die 100 % Samenbank des Harmonie-Spielers bleiben die Pauschal-Bewertung
+des Simulators (0,03 gegen 0,01), nicht ein Unterschied im Spiel. Unbegrenzte Gratis-Würfe hätten
+dafür einen Preis im Spielgefühl: Sie laden zum Durchklicken ein, bis die eine beste Pflanze kommt.
+**Vorschlag:** Anzuchtbeet so lassen; die Frage „spürbar als Wahl?“ gehört in den nächsten Playtest
+(5b fand die Gabeln „lesen sich als Wahl“).
 
 ### 28.11 Später, optional: Stufen-Tore und Aufträge der Tiere (Skizze, eigene Welle)
 

@@ -22,10 +22,13 @@ import { CORRIDORS, HOME_SITE, LANDSCAPE_SITES, type ForestSite, type SiteId } f
 import type { MainTreeId } from '../src/content/trees';
 import { regularSlotsOf } from '../src/core/formulas';
 import { SPECIES_BY_ID } from '../src/content/species';
-import { effectiveForestMemory, hasChapter, jaySeeds, wildwechselChance } from '../src/core/landscape';
+import { EVENTS_BY_ID } from '../src/content/events';
+import { chronicleOf, completedChronicles, effectiveForestMemory, hasChapter, jaySeeds, landscapeUnlocked, wildwechselChance } from '../src/core/landscape';
+import { CHAPTER_IDS, type ChapterId } from '../src/content/chronicle';
+import { SEASON_IDS, YEAR_SECONDS, SEASON_SECONDS } from '../src/content/seasons';
 import { normalizeSeed, type RngHolder } from '../src/core/rng';
 import { allAnimals, createInitialState, createSite, MAX_FOREST_MEMORY, type GameState } from '../src/core/state';
-import { buildCorridor, corridorBlocker, previewNewCycle, setRegulars, startNewCycle } from '../src/core/tick';
+import { buildCorridor, corridorBlocker, previewNewCycle, setRegulars, startNewCycle, tick } from '../src/core/tick';
 import { FOREST_MEMORY_BONUS } from '../src/content/memory';
 import { NICHE_IDS } from '../src/content/types';
 import { TREE_PART_IDS } from '../src/content/upgrades';
@@ -49,6 +52,30 @@ export interface LandscapeOptions {
    * es gibt nur nie eine passende Art. Vergleich „ohne Wildwechsel“ (2c).
    */
   wildwechsel?: boolean;
+  /**
+   * Chronik-Politik (Phase 9, 2c / Phase 11, 3c; DESIGN_V2.md 26.8): Ab „Landschaft vollständig“
+   * (1) den Wald mit den meisten offenen Kapiteln wählen (Gleichstand: kleinstes eigenes
+   * Gedächtnis, dann der aktive), (2) im Urwald bis zum nächsten Winter verweilen, wenn dort
+   * „Erster Schnee“ offen ist, und (3) spielen, bis alle Chroniken vollständig sind (statt bis
+   * „alle Wälder voll“). Vorher wie ohne – „Landschaft vollständig“ ändert sich nicht.
+   */
+  chronicles?: boolean;
+  /**
+   * Nur mit `chronicles`: ein aufmerksamer Spieler, der weiß, dass ein Massenjahr ungejagte Beute
+   * braucht (22.5). Ist das Ereignis des nächsten Waldes ein Massenjahr (Bedingung `unhunted`) und
+   * sein Kapitel offen, nimmt er keine Jäger dieser Beute als Stammgäste mit (26.8, Vergleich).
+   */
+  attentive?: boolean;
+}
+
+/** Wann ein Kapitel geschrieben wurde (Chronik-Messung, 26.8). */
+export interface ChapterHit {
+  /** Kumulierte Spielzeit (s). */
+  time: number;
+  /** Zyklen in diesem Wald bis dahin (1 = schon im ersten). */
+  siteCycle: number;
+  /** Alte Zyklen in diesem Wald mit freier Landschaft (Kennart möglich, 26.3) bis dahin. */
+  oldCycle: number;
 }
 
 export interface LandscapeCycle {
@@ -57,6 +84,8 @@ export interface LandscapeCycle {
   number: number;
   siteCycle: number;
   seconds: number;
+  /** Davon im Urwald verweilt (Chronik-Politik, „Erster Schnee“). */
+  dwell: number;
   ancient: boolean;
   ownBefore: number;
   effective: number;
@@ -87,6 +116,8 @@ export interface LandscapeCycle {
   rareOffered: number;
   /** Arten im Wald beim Ende des Zyklus. */
   speciesAtEnd: number;
+  /** Ereignisse, die in diesem Zyklus kamen (Kapitel „Ereignis des Waldes“, 26.8). */
+  events: string[];
   /**
    * Ausbau und endlose Knoten am Ende des Zyklus (Phase 11, 3b: „Stufen und Ränge je Zyklus mit
    * G“): mittlere und höchste Ausbaustufe der Nischen, mittlere Stufe der Baumteile, Ränge der
@@ -125,6 +156,45 @@ export interface LandscapeRun {
   /** Alte Zyklen je Wald (Zyklus erreicht den Urwald) und davon der erste mit Kapitel „Kennart“ (26.3, 26.8 d). */
   oldCycles: Partial<Record<SiteId, number>>;
   kennartAt: Partial<Record<SiteId, number>>;
+  /** Chronik (26.8): Kapitel je Wald, vollständige Chroniken, Verweilen für „Erster Schnee“. */
+  chapters: Partial<Record<SiteId, Partial<Record<ChapterId, ChapterHit>>>>;
+  chronicleAt: Partial<Record<SiteId, number>>;
+  firstChronicleAt: number | null;
+  allChroniclesAt: number | null;
+  /** Verweilen im Urwald bis zum Winter (s) je Wald (nur mit `chronicles`). */
+  dwell: Partial<Record<SiteId, number>>;
+  /** Wälder mit Kapitel „Voller Einklang“ bei „Landschaft vollständig“. */
+  harmonyAtComplete: number | null;
+}
+
+/** Sekunden bis zum Beginn des nächsten Winters (Jahreszeitgrenze, 26.4 „Erster Schnee“). */
+export function secondsToWinter(elapsed: number): number {
+  const start = SEASON_IDS.indexOf('winter') * SEASON_SECONDS;
+  const t = (((start - elapsed) % YEAR_SECONDS) + YEAR_SECONDS) % YEAR_SECONDS;
+  return t > 1e-9 ? t : YEAR_SECONDS;
+}
+
+/**
+ * Beute, die das Ereignis des Waldes braucht (Massenjahr mit Bedingung `unhunted`, 22.5), solange
+ * sein Kapitel „Ereignis des Waldes“ offen ist – sonst null (Politik `attentive`).
+ */
+export function huntedPreyOf(state: GameState, site: SiteId): string | null {
+  if (hasChapter(state, site, 'signature')) return null;
+  const event = EVENTS_BY_ID.get(LANDSCAPE_SITES.find((s) => s.id === site)?.chronicleEvent ?? '');
+  const c = event?.appears?.find((x) => x.kind === 'unhunted');
+  return c && c.kind === 'unhunted' ? c.tag : null;
+}
+
+/** Jagt diese Art die Beute `tag` (Räuber frisst sie oder hält sie klein, wie huntedTags in core)? */
+export function hunts(id: string, tag: string): boolean {
+  const sp = SPECIES_BY_ID.get(id);
+  if (!sp) return false;
+  return (sp.level === 'predator' && (sp.food as readonly string[]).includes(tag)) || sp.effects.some((e) => e.kind === 'control' && e.tag === tag);
+}
+
+/** Offene Kapitel eines Waldes. */
+export function openChapters(state: GameState, site: SiteId): number {
+  return CHAPTER_IDS.length - chronicleOf(state, site).length;
 }
 
 /** Vielfalt der Begegnungen eines Zyklus (7.7) und Wildwechsel-Karten (24.6). */
@@ -240,11 +310,28 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
   const state = createInitialState(0, options.seed);
   const rng: RngHolder = { rngState: normalizeSeed(options.seed * 7919 + 17) };
   const cyclesAt = new Map<SiteId, number>();
+  const oldAt = new Map<SiteId, number>();
   let time = 0;
   const run: LandscapeRun = {
     cycles: [], unlockAt: null, foundedAt: { home: 0 }, allFoundedAt: null, completeAt: null, allMaxedAt: null,
     firstCycle: {}, bestHarmony: {}, maxGrowth: 0, maxSeedsRate: 0, maxSeedsHeld: 0, maxCycleGrowth: 0, lifetimeGrowth: 0,
     totalSeconds: 0, jayEarned: 0, jaySpent: 0, oldCycles: {}, kennartAt: {},
+    chapters: {}, chronicleAt: {}, firstChronicleAt: null, allChroniclesAt: null, dwell: {}, harmonyAtComplete: null,
+  };
+  /** Neu geschriebene Kapitel und vollständige Chroniken festhalten (nach jedem Zyklus und Neustart). */
+  const recordChapters = () => {
+    for (const entry of state.meta.landscape.sites) {
+      const hits = (run.chapters[entry.id] ??= {});
+      for (const e of entry.chronicle ?? []) {
+        if (hits[e.chapter]) continue;
+        hits[e.chapter] = { time, siteCycle: cyclesAt.get(entry.id) ?? 0, oldCycle: oldAt.get(entry.id) ?? 0 };
+      }
+    }
+    for (const id of completedChronicles(state)) {
+      if (run.chronicleAt[id] === undefined) run.chronicleAt[id] = time;
+      if (run.firstChronicleAt === null) run.firstChronicleAt = time;
+    }
+    if (run.allChroniclesAt === null && completedChronicles(state).length === LANDSCAPE_SITES.length) run.allChroniclesAt = time;
   };
 
   for (let n = 1; n <= options.maxCycles; n++) {
@@ -254,6 +341,7 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
     if (options.wildwechsel === false) for (const site of state.meta.landscape.sites) site.fauna = [];
     const chance = wildwechselChance(state);
     const chosenBefore = state.meta.stats.wildwechselChosen;
+    const unlocked = landscapeUnlocked(state);
     const result = runGame(options.strategy, { seed: options.seed, targetStage: 7, maxSeconds: options.cycleMaxSeconds, care: true }, { state, rng });
     const seconds = result.final.time;
     const ancient = result.stages[7] !== null;
@@ -268,14 +356,27 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
     cyclesAt.set(active, (cyclesAt.get(active) ?? 0) + 1);
     if (ancient && run.firstCycle[active] === undefined) run.firstCycle[active] = seconds;
     if (ancient) run.oldCycles[active] = (run.oldCycles[active] ?? 0) + 1;
+    if (ancient && unlocked) oldAt.set(active, (oldAt.get(active) ?? 0) + 1);
     if (run.kennartAt[active] === undefined && hasChapter(state, active, 'kennart')) run.kennartAt[active] = run.oldCycles[active] ?? 0;
+    // Chronik-Politik (26.8): im Urwald bis zum Winter verweilen, wenn „Erster Schnee“ hier offen ist.
+    // Nach dem letzten Wegpunkt gibt es keine Begegnungen mehr – die Zeit läuft nur weiter.
+    let dwelt = 0;
+    if (options.chronicles && run.completeAt !== null && ancient && !hasChapter(state, active, 'first-snow')) {
+      dwelt = secondsToWinter(state.cycle.elapsed) + 1e-3;
+      tick(state, dwelt);
+      if (!hasChapter(state, active, 'first-snow')) throw new Error('Erster Schnee nicht geschrieben');
+      time += dwelt;
+      run.dwell[active] = (run.dwell[active] ?? 0) + dwelt;
+    }
+    recordChapters();
 
     const preview = previewNewCycle(state);
     run.cycles.push({
       site: active, number: n, siteCycle: cyclesAt.get(active)!, seconds, ancient, ownBefore, effective, gain: preview.memoryGain,
-      mainTree: state.cycle.mainTree, maxGrowth: p.growth, maxSeedsRate: p.seedsRate, seedsPeak: p.seeds,
+      mainTree: state.cycle.mainTree, dwell: dwelt, maxGrowth: p.growth, maxSeedsRate: p.seedsRate, seedsPeak: p.seeds,
       totalGrowth: state.totalGrowth, maxHarmony: state.cycle.maxHarmony, wildwechselChance: chance,
       wildwechselChosen: state.meta.stats.wildwechselChosen - chosenBefore, speciesAtEnd: new Set(allAnimals(state)).size,
+      events: state.cycle.seen.filter((id) => EVENTS_BY_ID.has(id)),
       ...varietyOf(result),
       ...upgradesOf(result),
     });
@@ -297,7 +398,25 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
         next = HOME_SITE; // von hier aus liegt kein freier Standort daneben
       }
     }
-    if (!founding && next === active && landscape.sites.filter((s) => s.founded).length > 1) {
+    const chronicling = options.chronicles === true && run.completeAt !== null;
+    if (chronicling) {
+      // Chronik-Politik (26.8): die meisten offenen Kapitel zuerst, dann das kleinste Gedächtnis.
+      // Kapitel, die erst der Neustart schreibt (Urwald, Gedächtnis), zählen schon als geschrieben.
+      const open = (id: SiteId) => {
+        const c = choice(id);
+        let n = openChapters(state, id);
+        if (id === active && ancient && !hasChapter(state, id, 'ancient')) n--;
+        if (c.memory >= MAX_FOREST_MEMORY && !hasChapter(state, id, 'memory')) n--;
+        return n;
+      };
+      let best = choice(active);
+      for (const s of landscape.sites) {
+        if (!s.founded) continue;
+        const d = open(s.id) - open(best.id);
+        if (d > 0 || (d === 0 && s.memory < best.memory)) best = s;
+      }
+      next = best.id;
+    } else if (!founding && next === active && landscape.sites.filter((s) => s.founded).length > 1) {
       let best = choice(active);
       for (const s of landscape.sites) if (s.founded && s.memory < best.memory) best = s;
       next = best.id;
@@ -306,7 +425,9 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
     if (run.allMaxedAt === null && landscape.sites.every((s) => s.founded && s.memory >= MAX_FOREST_MEMORY)) {
       run.allMaxedAt = time;
     }
-    if (run.allMaxedAt !== null || (options.stopWhenComplete && run.completeAt !== null)) break;
+    if (options.chronicles) {
+      if (run.allChroniclesAt !== null) break;
+    } else if (run.allMaxedAt !== null || (options.stopWhenComplete && run.completeAt !== null)) break;
 
     const started = startNewCycle(state, 0, undefined, next);
     if (!started.ok) throw new Error(`Neuer Zyklus gescheitert: ${started.error}`);
@@ -323,8 +444,16 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
         if (!buildCorridor(state, open[0]!.id).ok) break;
       }
     }
-    if (run.completeAt === null && complete(state)) run.completeAt = time;
-    if (!setRegulars(state, ranked.slice(0, regularSlotsOf(state))).ok) throw new Error('Stammgäste nicht wählbar');
+    if (run.completeAt === null && complete(state)) {
+      run.completeAt = time;
+      run.harmonyAtComplete = state.meta.landscape.sites.filter((e) => hasChapter(state, e.id, 'harmony')).length;
+    }
+    recordChapters();
+    if (options.chronicles && run.allChroniclesAt !== null) break;
+    let regulars = ranked;
+    const prey = options.attentive && chronicling ? huntedPreyOf(state, next) : null;
+    if (prey !== null) regulars = ranked.filter((id) => !hunts(id, prey));
+    if (!setRegulars(state, regulars.slice(0, regularSlotsOf(state))).ok) throw new Error('Stammgäste nicht wählbar');
   }
   run.totalSeconds = time;
   const seeds = jaySeeds(state);
@@ -569,4 +698,91 @@ export function withoutSiteSlot<T>(site: SiteId, niche: string, fn: () => T): T 
   } finally {
     (data as { traits: ForestSite['traits'] }).traits = saved;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Chronik und Kennarten (Phase 9, 2c / Phase 11, 3c; DESIGN_V2.md 26.8)
+// ---------------------------------------------------------------------------
+
+/** Quantil, wobei „nie“ (null/undefined) als unendlich zählt. */
+function quantileOrNull(values: readonly (number | null | undefined)[], q: number): number | null {
+  const xs = values.map((x) => (x === null || x === undefined ? Infinity : x)).sort((a, b) => a - b);
+  if (xs.length === 0) return null;
+  const v = xs[Math.floor(q * (xs.length - 1))]!;
+  return Number.isFinite(v) ? v : null;
+}
+
+/**
+ * Maß eines Kapitels für Ziel (d) „keine Wand“: Zyklen im passenden Wald, bis es geschrieben ist,
+ * gezählt ab dem Zeitpunkt, an dem es möglich und zu sehen ist – Kennart: alte Zyklen mit freier
+ * Landschaft (26.3); alle anderen: Zyklen im Wald mit freier Landschaft (0 = schon vorher still
+ * geschrieben, nur im Heimatwald). null = nie.
+ */
+export function chapterCycles(run: LandscapeRun, site: SiteId, chapter: ChapterId): number | null {
+  const hit = run.chapters[site]?.[chapter];
+  if (!hit) return null;
+  if (chapter === 'kennart') return hit.oldCycle;
+  // Zyklen dieses Waldes, die vor der Freischaltung begannen (nur der Heimatwald hat welche).
+  let start = 0;
+  let before = 0;
+  for (const c of run.cycles) {
+    if (c.site === site && (run.unlockAt === null || start < run.unlockAt - 1e-6)) before++;
+    start += c.seconds + (c.dwell ?? 0);
+  }
+  return Math.max(0, hit.siteCycle - before);
+}
+
+/** Kennzahlen (b), (c), (e), (f) aus 26.8 je Spielweise. */
+export function chronicleSummaryTable(rows: readonly LandscapeSummary[]): string {
+  const head =
+    '| Spielweise | Läufe | Landschaft vollständig | erste Chronik (nach vollständig) | alle sechs Chroniken | ÷ vollständig | alle Wälder voll | Zyklen | Verweilen je Wald Ø / max | Einklang: Wälder bei vollständig / am Ende |';
+  const lines = [head, '|---|---|---|---|---|---|---|---|---|---|'];
+  for (const r of rows) {
+    const complete = medianOrNull(r.runs.map((x) => x.completeAt));
+    const first = medianOrNull(r.runs.map((x) => x.firstChronicleAt));
+    const firstAfter = medianOrNull(r.runs.map((x) => (x.firstChronicleAt === null || x.completeAt === null ? null : x.firstChronicleAt - x.completeAt)));
+    const all = medianOrNull(r.runs.map((x) => x.allChroniclesAt));
+    const ratio = medianOrNull(r.runs.map((x) => (x.allChroniclesAt === null || x.completeAt === null ? null : x.allChroniclesAt / x.completeAt)));
+    const dwells = r.runs.flatMap((x) => Object.values(x.dwell));
+    const harmonyEnd = r.runs.map((x) => LANDSCAPE_SITES.filter((s) => x.chapters[s.id]?.harmony).length);
+    const harmonyComplete = r.runs.map((x) => x.harmonyAtComplete ?? 0);
+    const share = (xs: number[]) => pct(xs.reduce((a, b) => a + b, 0) / (xs.length * LANDSCAPE_SITES.length));
+    lines.push(
+      `| ${r.label} | ${r.runs.length} | ${hours(complete)} | ${hours(first)} (+${minutes(firstAfter)}) | ${hours(all)} | ${ratio === null ? '–' : num(ratio, 2)} | ${hours(medianOrNull(r.runs.map((x) => x.allMaxedAt)))} | ${median(r.runs.map((x) => x.cycles.length))} | ${minutes(mean(dwells))} / ${minutes(Math.max(0, ...dwells))} | ${share(harmonyComplete)} / ${share(harmonyEnd)} |`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Ziel (d) je Kapitel und Wald: Zyklen bis zum Kapitel ab „möglich“ (chapterCycles), Median / 90 %
+ * und Zahl der Läufe ohne das Kapitel. Kennart = alte Zyklen mit freier Landschaft.
+ */
+export function chapterTable(rows: readonly LandscapeSummary[], chapters: readonly ChapterId[] = CHAPTER_IDS): string {
+  const head = `| Spielweise | Kapitel | ${LANDSCAPE_SITES.map((s) => `${s.icon} ${s.name}`).join(' | ')} |`;
+  const lines = [head, `|---|---|${LANDSCAPE_SITES.map(() => '---').join('|')}|`];
+  const cell = (xs: (number | null)[]) => {
+    const never = xs.filter((x) => x === null).length;
+    const m = medianOrNull(xs);
+    const q = quantileOrNull(xs, 0.9);
+    return `${m === null ? 'nie' : num(m, m % 1 === 0 ? 0 : 1)} / ${q === null ? 'nie' : q}${never > 0 ? ` (${never}× nie)` : ''}`;
+  };
+  for (const r of rows) {
+    for (const ch of chapters) {
+      lines.push(`| ${r.label} | ${ch} | ${LANDSCAPE_SITES.map((s) => cell(r.runs.map((run) => chapterCycles(run, s.id, ch)))).join(' | ')} |`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/** Vollständige Chronik je Wald (kumulierte Spielzeit, Median) und Verweilen je Wald (Mittel). */
+export function chronicleSiteTable(rows: readonly LandscapeSummary[]): string {
+  const head = `| Spielweise | ${LANDSCAPE_SITES.map((s) => `${s.icon} ${s.name}`).join(' | ')} |`;
+  const lines = [head, `|---|${LANDSCAPE_SITES.map(() => '---').join('|')}|`];
+  for (const r of rows) {
+    lines.push(`| ${r.label}: Chronik vollständig | ${LANDSCAPE_SITES.map((s) => hours(medianOrNull(r.runs.map((x) => x.chronicleAt[s.id])))).join(' | ')} |`);
+    lines.push(`| ${r.label}: Verweilen Ø | ${LANDSCAPE_SITES.map((s) => minutes(mean(r.runs.map((x) => x.dwell[s.id] ?? 0)))).join(' | ')} |`);
+    lines.push(`| ${r.label}: höchste H | ${LANDSCAPE_SITES.map((s) => Math.round(median(r.runs.map((x) => x.bestHarmony[s.id] ?? 0)))).join(' | ')} |`);
+  }
+  return lines.join('\n');
 }
