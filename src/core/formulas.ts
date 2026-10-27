@@ -1470,6 +1470,19 @@ export function secondsToNextWaypoint(state: GameState, ambient: AmbientMode = '
   return rate > 0 ? Math.max(0, next - state.totalGrowth) / rate : Infinity;
 }
 
+/**
+ * Sekunden bis zur nächsten Wachstumsstufe bei gleichbleibender Rate (mittelfristiges Ziel
+ * „Wald in ~22 Min.“, Playtest Phase 11, F4). `rate` = Wachstum/s (Standard: wie
+ * secondsToNextWaypoint). Infinity auf der letzten Stufe oder ohne Rate.
+ */
+export function secondsToNextStage(state: GameState, rate: number = evaluate(state).growth): number {
+  const next = STAGES[state.stage + 1];
+  if (!next) return Infinity;
+  const target = thresholdFor(next.waypoint);
+  if (!Number.isFinite(target)) return Infinity;
+  return rate > 0 && Number.isFinite(rate) ? Math.max(0, target - state.totalGrowth) / rate : Infinity;
+}
+
 /** Fortschritt zur nächsten Stufe in [0, 1] (linear im Gesamt-Wachstum). 1 auf der letzten Stufe. */
 export function stageProgress(state: GameState): number {
   const current = STAGES[state.stage];

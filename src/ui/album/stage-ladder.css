@@ -60,7 +60,25 @@ body[data-motion='reduce'] .stage-ladder-bar {
   color: var(--ink-soft);
 }
 
-.stage-ladder-hint[hidden] {
+.stage-ladder-hints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+}
+
+/* Mittelfristiges Ziel (Playtest Phase 11, F4): „Wald in ~22 Min.“ – rechts, bricht nie in sich. */
+.stage-ladder-eta {
+  margin: 0 0 0 auto;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-green);
+  white-space: nowrap;
+}
+
+.stage-ladder-hint[hidden],
+.stage-ladder-eta[hidden] {
   display: none;
 }
 
@@ -74,6 +92,7 @@ body[data-motion='reduce'] .stage-ladder-bar {
   border-radius: 5px;
 }
 
-.album[data-layout='spread'] .stage-ladder-hint {
+.album[data-layout='spread'] .stage-ladder-hint,
+.album[data-layout='spread'] .stage-ladder-eta {
   font-size: 13px;
 }

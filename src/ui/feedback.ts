@@ -66,11 +66,13 @@ export function createFloatLayer(parent: HTMLElement) {
    * `note`: kurzer Hinweissatz statt einer Zahl – bleibt länger stehen, darf umbrechen
    * und steigt nur wenig (z. B. „Niemand zog ein · +5 🌰“).
    */
-  function spawn(text: string, x: number, y: number, variant?: 'note'): void {
+  function spawn(text: string, x: number, y: number, variant?: 'note', scoped = false): void {
     while (layer.childElementCount >= MAX_FLOATS) layer.firstElementChild!.remove();
 
     const el = document.createElement('span');
     el.className = variant === 'note' ? 'float-number float-note' : 'float-number';
+    // An eine Seite gebunden (z. B. „+1 Stufe“ über einem Knopf): geht beim Seitenwechsel mit.
+    if (scoped) el.dataset.scoped = 'page';
     el.textContent = text;
     // Leichte seitliche Drift, damit schnelle Klicks nicht exakt übereinanderliegen
     const drift = prefersReducedMotion() ? 0 : Math.round((Math.random() - 0.5) * 24);
@@ -86,5 +88,10 @@ export function createFloatLayer(parent: HTMLElement) {
     setTimeout(remove, variant === 'note' ? NOTE_FALLBACK_MS : FLOAT_FALLBACK_MS);
   }
 
-  return { spawn };
+  /** Seitengebundene Notizen entfernen (Reiter- bzw. Seitenwechsel). */
+  function clearScoped(): void {
+    for (const node of layer.querySelectorAll('[data-scoped="page"]')) node.remove();
+  }
+
+  return { spawn, clearScoped };
 }

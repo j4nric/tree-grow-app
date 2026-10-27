@@ -136,7 +136,7 @@ test('Kauf: Stufe steigt, Samen sinken, Meilenstein 25 klebt einen Platz ein; Zi
   const goal = page.locator('[data-ref="goal-line-jump"]');
   await expect(goal).toHaveText(`Jetzt: 🌼 Waldsaum St. 10 (öfter in den Karten) · ${de(EDGE_10)} 🌰 ›`);
   await expect(goal).toHaveClass(/is-ready/);
-  await expect(page.locator('[data-ref="goal-line-research"]')).toHaveText('🔍 2 erforschbar ›');
+  await expect(page.locator('[data-ref="goal-line-research"]')).toHaveText('🔍 erforschbar ›');
   await goal.click();
   await expect(page.locator('.nrow[data-niche="edge"] .nrow-title')).toBeFocused();
   await page.locator('.nrow[data-niche="edge"] .upgrade-button').click();

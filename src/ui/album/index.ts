@@ -191,17 +191,18 @@ export function createAlbum(deps: AlbumDeps): Album {
     { onMore: () => dispatch({ type: 'open', page: { kind: 'harmony' } }), available: () => subpages.has('harmony') },
   );
   // Zielzeile (DESIGN_V2.md 28.7, Phase 11, 2c/4c): unter den Etiketten; Tippen springt zur
-  // Zeile in R:Nischen (Nische, Baumteil bzw. Pflanzring), „erforschbar ›“ öffnet R:Forschung.
+  // Zeile in R:Nischen (Nische, Baumteil bzw. Pflanzring), „erforschbar ›“ öffnet R:Forschung beim
+  // billigsten bezahlbaren Knoten (jumpToResearch).
   const goalLine = createGoalLine(
     () => jumpToGoal(),
-    () => dispatch({ type: 'tab', tab: 'care' }),
+    () => jumpToResearch(),
   );
   const ladder = createStageLadder();
   // Der Rückkehr-Bericht endet mit demselben Ziel (4c) und springt genauso.
   const returnReport = createReturnReport(env, () => focusTarget(), () => jumpToGoal());
   spread.left.append(polaroid.element, labels, goalLine.element, ladder.element, returnReport.slip);
   // Mobil: Vorratsleiste über den klebenden Reitern (B.0, G.2-14).
-  const supply = createSupplyBar();
+  const supply = createSupplyBar(() => jumpToGoal());
   tabStrip.element.before(supply.marker, supply.element);
 
   // Reiterseiten (eine Zeile je Seite in pages/registry.ts).
@@ -480,6 +481,8 @@ export function createAlbum(deps: AlbumDeps): Album {
     nav = next;
     if (record) albumHistory.sync(historyDepth(next));
     if (prev.tab !== next.tab) albumHistory.setHash(hashOf(next.tab));
+    // „+1 Stufe“ & Co. gehören zur alten Seite – nicht über der neuen stehen lassen.
+    if (prev.tab !== next.tab || prev.stack.length !== next.stack.length || prev.cover !== next.cover) floats.clearPage();
     placeStamps();
     void render(prev, next).finally(drain);
   }
@@ -672,7 +675,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     labelNotes.update(view);
     showGoal(view);
     supply.update({ seeds: view.seeds, growthPerSec: view.growthPerSec, harmony: view.harmony });
-    ladder.update({ stage: state.stage, waypoint: state.waypoint, waypointProgress: view.stageProgress, hint: view.progressHint });
+    ladder.update({ stage: state.stage, waypoint: state.waypoint, waypointProgress: view.stageProgress, hint: view.progressHint, eta: view.stageEta });
     const site = activeSite(state.meta.landscape);
     if (site !== shownSite) {
       shownSite = site;
@@ -714,7 +717,9 @@ export function createAlbum(deps: AlbumDeps): Album {
     const input = goal ? toGoalInput({ ...goal, cost: goalCostNow(goal, state) }) : null;
     const shown = input && Number.isFinite(input.cost) ? input : null;
     const ctx = { seeds: view.seeds, seedsPerSecond: view.seedsPerSec };
-    goalLine.update(goalLineView(shown, ctx, researchCount));
+    const line = goalLineView(shown, ctx, researchCount);
+    goalLine.update(line);
+    supply.setGoal(line ? { text: line.short, ready: line.ready, label: line.announce } : null);
     // Rückkehr-Bericht (4c): „Genug für N Ausbaustufen“ – nur bei neuem Ziel oder neuem Bericht
     // gerechnet, nicht je Frame (nach einem Kauf zählt er weiter herunter).
     if (returnReport.open) {
@@ -737,6 +742,18 @@ export function createAlbum(deps: AlbumDeps): Album {
     dispatch({ type: 'tab', tab: 'niches' });
     whenIdle(() => {
       if (!target || nav.tab !== 'niches' || nav.stack.length > 0 || !tabs.niches.reveal(target)) tabs[nav.tab].page.focusTitle();
+    });
+  }
+
+  /**
+   * „🔍 erforschbar ›“ (Playtest Phase 11, F2): R:Forschung aufschlagen und den billigsten
+   * bezahlbaren Knoten zeigen – Ast aufklappen, hinscrollen, aufleuchten. Mobil sind Äste
+   * sonst oft zugeklappt, und die Seite stand oben beim (leeren) ersten Ast.
+   */
+  function jumpToResearch(): void {
+    dispatch({ type: 'tab', tab: 'care' });
+    whenIdle(() => {
+      if (nav.tab !== 'care' || nav.stack.length > 0 || !tabs.care.revealAvailable()) tabs[nav.tab].page.focusTitle();
     });
   }
 

@@ -334,6 +334,13 @@ als Ganzes:
   **Vorratsleiste** mit Samen, Wachstum und Harmonie in Caveat 20 px (G-21). Umgesetzt in
   `album/supply-bar.ts`: Sie erscheint, sobald die Reiterleiste klebt (Marke direkt über den
   Reitern), und verschiebt nichts im Textfluss. U:Forschungsknoten zeigt den Vorrat am Knopf.
+  Rechts darin der Knopf **„🎯 in 0:40“** bzw. hervorgehoben „🎯 Jetzt ›“ (Playtest Phase 11,
+  F4): springt wie die Zielzeile, die beim Scrollen in R:Nischen sonst weg ist. Die Leiste bleibt
+  30 px hoch; der Knopf ist ≥ 44 px breit, seine Trefferfläche reicht über den 6-px-Rand der
+  Reiterleiste (36 px hoch) – tiefer läge sie über den Reitern. Wird es eng (360 px, große
+  Zahlen), kürzt zuerst das Wachstum.
+- Unter der Stufenleiste rechts neben dem Fortschrittshinweis das mittelfristige Ziel
+  **„Wald in ~22 Min.“** (`stage-eta`, aus der aktuellen Rate, `secondsToNextStage`).
 - **Unterseiten auf dem Handy:** Wie im Prototyp dreht sich die **ganze Hauptseite**
   (Polaroid, Etiketten, Heft) um die linke Kante weg, darunter liegt die Unterseite in voller
   Höhe. Der Zettelstapel und die Stempel bleiben darüber.
@@ -433,7 +440,9 @@ auf echten Inhalten und Preisen aus core – nur das Ziel ahmt `nextGoal` nach, 
 - **Abzeichen** am Etikett unter „2/3 belegt“: „⭑ Bronze/Silber/Gold“ nach der besten je
   erreichten Stufe (25/50/75); Farben als Tokens `--badge-*` (Kontrast ≥ 4,5 : 1).
 - **Zielzeile** (`goal-line`) unter den Etiketten: „Nächstes: 🌳 Krone St. 14 · 1.240 🌰 · in
-  0:50“ bzw. hervorgehoben „Jetzt: … ›“, Meilenstein in Klammern; daneben „🔍 2 erforschbar ›“.
+  0:50“ bzw. hervorgehoben „Jetzt: … ›“, Meilenstein in Klammern; daneben „🔍 erforschbar ›“
+  (ohne Zahl – sie zählte Knoten, die nur je einzeln bezahlbar sind, Playtest Phase 11, F3; der
+  Sprung zeigt den billigsten bezahlbaren Knoten: Ast aufklappen, hinscrollen, aufleuchten).
   Tippen springt zur Zeile (Aufleuchten, Fokus auf den Namen). Countdown auf 5 s gerundet, ab
   1 h „über 1 Std.“, ohne Rate ohne Zeit. `aria-live="polite"` sagt nur einen Zielwechsel an,
   nicht den Countdown; das Ziel bleibt zwischen Käufen stehen (28.7, Regel 5).
@@ -507,6 +516,8 @@ Symbol 🔍). Umsetzung: `album/pages/care-page.ts` (interne Kennung bleibt `car
    Rang mehr als der größte Vorrat (`MAX_HARMONY_POINTS`), steht dort ruhig „unerreichbar“ statt
    eines ewigen „Noch …“. Der Ast-Kopf nennt „4 / 5 erforscht · ∞ Rang 3 · 1 erforschbar“.
    Mobil (Fenster < 640 px) sind anfangs nur Äste mit Erforschbarem offen; Ast-Register oben.
+   Wird später ein Knoten zum ersten Mal erforschbar, klappt sein Ast auf – außer der Spieler hat
+   ihn selbst zugeklappt (Playtest Phase 11, F2).
    Breiter als 940 px (Baumbreite) Raster 6 × 6 mit SVG-Linien, die Zeile „∞“ als letzte.
 4. Kauf direkt an der Karte (kein Dialog): Doppelklick-Schutz, Aufleuchten, schwebende
    Bestätigung, Statuszeile. Tipp auf den Namen → **U:Forschungsknoten** (früher

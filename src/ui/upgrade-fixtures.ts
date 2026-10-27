@@ -76,7 +76,7 @@ export interface UpgradeFixtureInput {
   seedsPerSecond: number;
   growthPerSecond: number;
   harmony: number;
-  /** Bezahlbare Forschungsknoten (Zielzeile „🔍 2 erforschbar ›“). */
+  /** Bezahlbare Forschungsknoten (Zielzeile „🔍 erforschbar ›“, vorgelesen mit Zahl). */
   research: number;
   tree: Readonly<Record<TreePartId, { level: number; best?: number }>>;
   niches: readonly UpgradeFixtureNiche[];
