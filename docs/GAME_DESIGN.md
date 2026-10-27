@@ -290,6 +290,16 @@
 > gegen „ohne Ausbau“ −4,2 % (absolut im Ziel). Zyklus 2 (−47,8 %) und die Gedächtnis-Grenzen misst
 > und stellt 3b nach.
 >
+> **Gemessen in Phase 11, 3b (ohne Spielstand-Änderung; `DESIGN_V2.md` 28.10 „Messung 3b“, 15.4,
+> 24.10):** Gedächtnis-Schwellen `MEMORY_HARMONY_RULES` 100 / 148 / 164 → **112 / 168 / 196**
+> (Tabelle unten bei „Schwellen nachgezogen“). Zyklus 2 bis Hain −43,3 / −28,2 / −22,7 %
+> (Harmonie / Wachstum / Zufall, Ziel 30–45 / 18–37 / ≥ 20 %). **Zielzeile** (Playtest 5b, F1):
+> Nischen ohne Tier sind nur Kandidat, wenn der nächste Kauf einen Meilenstein mit Wirkung erreicht
+> oder es sonst keinen gäbe – erster Zyklus Hain 53:57 / 48:44 min / 1:17 h, Urwald 2:01 / 1:48 /
+> 3:03 h; wer nur der Zielzeile folgt, kommt nach 54:38 min zum Hain (Harmonie 54:04). Offen:
+> Landschaft 11,7 h (Ziel 12,5–14,5 h, schon vorher 11,6 h), Abstand der Spielweisen ab Zyklus 2,
+> endlose Ränge, Offline-Tag mit Gedächtnis, Gabel Saat (Unterschied < 1 %).
+>
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
 > `scripts/simulate.ts`, `tests/balance.test.ts` (mit Forschung und seit Phase 11, 3a mit Ausbau, bis v16 Pflege),
@@ -618,6 +628,40 @@ im Urwald ist beim Harmonie-Spieler meist voll (48); gestiegen ist der Gewinn du
 H_max und neue Arten. Eine Obergrenze 46 brächte nur −0,8 Punkte Puffer, senkte Wachstum ÷
 Harmonie im Urwald um ~0,01 (Grenze 0,95) und kostete in der Landschaft −2 Punkte je
 Urwald-Zyklus (`DESIGN_V2.md` 15.4, „Stand Balancing Phase 6“).
+
+### Schwellen nachgezogen (Phase 11, 3b, umgesetzt)
+
+Seit Phase 10 und 11 (Begegnungen nur Tiere, Ausbau) liegt die Harmonie höher: Harmonie-Spieler
+beim Hain / Wald / Urwald H_max 122 / 167 / 206 (vorher ~110 / ~147 / ~174), Wachstum 108 / 144 /
+182. Gehoben sind nur die Schwellen T (Stellschraube 1 aus `DESIGN_V2.md` 27.11) – mit derselben
+Lage zur typischen Harmonie wie vorher; Teiler, Obergrenzen und Formel bleiben. Messung und
+Varianten: `DESIGN_V2.md` 15.4, „Stand Phase 11, 3b“, und 28.10, „Messung 3b“.
+
+| Zahl (`MEMORY_HARMONY_RULES`) | vorher | jetzt |
+|---|---|---|
+| Hain (Wegpunkt 20): Teiler / Schwelle / Obergrenze | 5 / 100 / 45 (voll ab 115) | 5 / **112** / 45 (Bonus ab 113, voll ab 127) |
+| Wald (Wegpunkt 28) | 6 / 148 / 48 (ab 164) | 6 / **168** / 48 (ab 169, voll ab 184) |
+| Urwald (Wegpunkt 36) | 7 / 164 / 48 (ab 180) | 7 / **196** / 48 (ab 197, voll ab 212) |
+| je Wegpunkt Hain → Wald / Wald → Urwald | Schwelle +6 / +2 | Schwelle **+7 / +3,5** |
+
+| Kennzahl (großer Lauf, 200 Durchgänge) | vorher (3a) | jetzt | Ziel |
+|---|---|---|---|
+| Zyklus 2 schneller bis Hain, Harmonie / Wachstum / Zufall | 47,8 / 39,0 / 22,5 % | **43,3 / 28,2 / 22,7 %** | 30–45 / 18–37 / ≥ 20 % |
+| Gedächtnis Zyklus 1 bis Hain, Harmonie / Wachstum / Zufall | 81,5 / 60,0 / 34,6 | **65,9 / 42,9 / 32,3** | Harmonie < 75 |
+| Hain Wachstum / Harmonie, Zyklus 1 / 2 / 3 | 0,903 / 1,056 / 1,108 | 0,912 / 1,155 / 1,346 | ≥ 0,85 / ≥ 0,97 / ≥ 1 |
+| Neustart Wald: Gedächtnis-Vorsprung über drei Zyklen; Wachstum / Harmonie Zyklus 2 / 3 | 36,4; 0,991 / 1,014 | **86,9; 1,197 / 1,270** | > 30; ≥ 0,95 |
+| Neustart Urwald: dasselbe | 22,5; 0,944 / 0,951 | **71,3; 1,189 / 1,188** | > 30; ≥ 0,95 |
+| Gewinn Zyklus 1 Urwald (Harmonie), Urwald / Hain | 105,2; 1,29 | 98,4; 1,49 | < 95 (verfehlt, s. u.); ≤ 1,5 |
+
+- **Urwald-Gewinn 98,4 statt < 95:** Mit den Schwellen nicht weiter zu senken – ~28 Punkte sind
+  neue Arten bis zum Urwald, und die Sperrklinke hält den besten Wert des ganzen Verlaufs. Grenze
+  im großen Lauf jetzt < 105; die eigentliche Grenze bleibt Urwald ≤ 1,5 × Hain.
+- **Offen:** Ab Zyklus 2 liegt die Harmonie-Spielweise deutlich vorn (Wachstum ÷ Harmonie 1,15–1,35
+  statt „gleichauf“, ~1,0–1,1). Die Ziele sind nur Untergrenzen; ob der Abstand gewollt ist,
+  entscheidet der Playtest (`DESIGN_V2.md` 15.4).
+- **Bestehende Spielstände:** Die Sperrklinke wird beim Laden auf den Wert zur Hain-Regel begrenzt
+  (`core/save.ts`). Ein laufender Zyklus mit gemerktem Wert über der neuen Grenze sieht die
+  Vorschau einmal sinken – kein Absturz, kein Formatwechsel.
 
 ## Schritt 2.11: Harmonie lohnt sich über die Zyklen (v2, umgesetzt)
 

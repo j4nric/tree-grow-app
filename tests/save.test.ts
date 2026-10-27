@@ -114,8 +114,8 @@ describe('Speichern & Laden v2', () => {
 
 describe('Spielstand v10: Sperrklinke der Vorschau (cycle.bestHarmonyMemory)', () => {
   /**
-   * Wald (Wegpunkt 28) mit H_max 120, erreicht schon im Hain: dort brachte das 24 + 45 = 69
-   * Punkte, mit der Wald-Regel (Teiler 6, Schwelle 148) nur noch 20.
+   * Wald (Wegpunkt 28) mit H_max 120, erreicht schon im Hain: dort brachte das 24 + 24 = 48
+   * Punkte (Schwelle 112 seit Phase 11, 3b), mit der Wald-Regel (Teiler 6, Schwelle 168) nur noch 20.
    */
   function forestState(): GameState {
     const state = stateAt(5, ['earthworm', 'robin', 'bee'], 21);
@@ -142,11 +142,11 @@ describe('Spielstand v10: Sperrklinke der Vorschau (cycle.bestHarmonyMemory)', (
     const state = forestState();
     expect(state.cycle.maxHarmony).toBe(120);
     expect(harmonyMemoryGain(120, 28)).toBe(20);
-    expect(state.cycle.bestHarmonyMemory).toBe(69);
-    expect(previewNewCycle(state).memoryGain).toBe(69 + 3);
+    expect(state.cycle.bestHarmonyMemory).toBe(48);
+    expect(previewNewCycle(state).memoryGain).toBe(48 + 3);
     const loaded = deserialize(serialize(state), 0)!;
     expect(loaded).toEqual(state);
-    expect(previewNewCycle(loaded).memoryGain).toBe(69 + 3);
+    expect(previewNewCycle(loaded).memoryGain).toBe(48 + 3);
   });
 
   it('v9 → v10: Startwert ist die aktuelle Vorschau – niemand bekommt weniger als vorher', () => {
@@ -158,7 +158,7 @@ describe('Spielstand v10: Sperrklinke der Vorschau (cycle.bestHarmonyMemory)', (
     // Genau die Vorschau, die der v9-Stand zeigte (Formel ohne Sperrklinke).
     expect(previewNewCycle(s).memoryGain).toBe(cycleMemoryGain(120, 3, s.meta.forestMemory, 28));
     // Ein v9-Stand mit einem (unbekannten) Feld zählt es nicht.
-    expect(loadGame(raw(state, 9, { bestHarmonyMemory: 69 }), 0)!.state.cycle.bestHarmonyMemory).toBe(20);
+    expect(loadGame(raw(state, 9, { bestHarmonyMemory: 48 }), 0)!.state.cycle.bestHarmonyMemory).toBe(20);
     // Danach als v10 verlustfrei weiter.
     expect(deserialize(serialize(s), 0)).toEqual(s);
   });
@@ -169,15 +169,15 @@ describe('Spielstand v10: Sperrklinke der Vorschau (cycle.bestHarmonyMemory)', (
     // Fehlend oder Unsinn → 0, dann hebt das Laden auf die aktuelle Vorschau (20).
     expect(load(undefined)).toBe(20);
     expect(load(null)).toBe(20);
-    expect(load('69')).toBe(20);
+    expect(load('48')).toBe(20);
     expect(load(-5)).toBe(20);
     expect(load(0)).toBe(20);
     // Gültig: bleibt, Brüche abgerundet.
-    expect(load(50.7)).toBe(50);
-    // Mehr, als H_max an irgendeinem Wegpunkt bringt (Hain-Regel: 69), ist manipuliert.
-    expect(load(500)).toBe(69);
-    expect(load(1e300)).toBe(69);
-    expect(deserialize(raw(state, SAVE_VERSION).replace('"bestHarmonyMemory":69', '"bestHarmonyMemory":1e400'), 0)!.cycle.bestHarmonyMemory).toBe(69);
+    expect(load(40.7)).toBe(40);
+    // Mehr, als H_max an irgendeinem Wegpunkt bringt (Hain-Regel: 48), ist manipuliert.
+    expect(load(500)).toBe(48);
+    expect(load(1e300)).toBe(48);
+    expect(deserialize(raw(state, SAVE_VERSION).replace('"bestHarmonyMemory":48', '"bestHarmonyMemory":1e400'), 0)!.cycle.bestHarmonyMemory).toBe(48);
     // Riesige H_max: nie über MAX_FOREST_MEMORY.
     const huge = deserialize(raw(state, SAVE_VERSION, { maxHarmony: 1e12, bestHarmonyMemory: 1e12 }), 0)!;
     expect(huge.cycle.bestHarmonyMemory).toBe(MAX_FOREST_MEMORY);

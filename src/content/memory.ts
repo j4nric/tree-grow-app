@@ -66,7 +66,8 @@ export interface MemoryHarmonyRule {
  * Waldgedächtnis beim Neuen Zyklus je Stufe (DESIGN_V2.md 10 und 15.4, „Stand Abgleich
  * Sperrklinke“): Stützstellen am Wegpunkt einer Stufe, dazwischen gleiten Teiler, Schwelle und
  * Obergrenze linear mit jedem Wegpunkt (memoryHarmonyBonus in core/formulas.ts). Davor gilt
- * die erste, danach die letzte Stützstelle. Der Hain bleibt wie in 2.11 (5 / 100 / 45).
+ * die erste, danach die letzte Stützstelle. Der Hain hatte bis Phase 11, 3b die Werte aus 2.11 (5 / 100 / 45).
+ * Die Zahlen im folgenden Absatz sind der Stand des Abgleichs mit der Sperrklinke (vor Phase 10).
  *
  * Warum so: Seit der Sperrklinke (Spielstand v10) zählt der beste Wert des ganzen Verlaufs.
  * Beide Spielweisen halten damit ihren Wert vom Ende des Hain-Wegpunkts fest (H_max ~115
@@ -88,11 +89,19 @@ export interface MemoryHarmonyRule {
  * Schwelle bis 164 blieb der Wachstums-Spieler im Urwald ab Zyklus 2 im Mittel mehrerer
  * Seed-Fenster ≥ 3 % schneller; eine Schwelle von 180 läge über der Harmonie des typischen
  * Harmonie-Spielers.
+ *
+ * Phase 11, 3b (DESIGN_V2.md 27.11 Stellschraube 1, 28.10): Seit Phase 10 und 11 (Begegnungen nur
+ * Tiere, Ausbau) liegt die Harmonie des Harmonie-Spielers höher – Hain 122 statt ~110, Wald 167
+ * statt ~147, Urwald 206 statt ~174 (Wachstum 108 / 144 / 182). Die Schwellen sind darum mit
+ * derselben Lage zur typischen Harmonie gehoben: Hain 100 → 112, Wald 148 → 168 (der Harmonie-
+ * Spieler überholt sie im Lauf der Stufe; ganzzahlig +7 je Wegpunkt), Urwald 164 → 196 (~10 unter
+ * dem Harmonie-Spieler, Ziel e; der Wachstums-Spieler liegt überall darunter). Sockel-Teiler und
+ * Obergrenzen bleiben – die Formel auch. Gemessen: DESIGN_V2.md 15.4, „Stand Phase 11, 3b“.
  */
 export const MEMORY_HARMONY_RULES: readonly MemoryHarmonyRule[] = [
-  { stage: 'grove', divisor: MEMORY_HARMONY_DIVISOR, threshold: 100, maxPoints: 45 },
-  { stage: 'forest', divisor: 6, threshold: 148, maxPoints: 48 },
-  { stage: 'ancient-forest', divisor: 7, threshold: 164, maxPoints: 48 },
+  { stage: 'grove', divisor: MEMORY_HARMONY_DIVISOR, threshold: 112, maxPoints: 45 },
+  { stage: 'forest', divisor: 6, threshold: 168, maxPoints: 48 },
+  { stage: 'ancient-forest', divisor: 7, threshold: 196, maxPoints: 48 },
 ];
 
 /** Waldgedächtnis beim Neuen Zyklus: Punkte je Art, die in diesem Zyklus neu ins Tagebuch kam. */

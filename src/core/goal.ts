@@ -56,9 +56,14 @@ export function secondsUntilAffordable(cost: number, seeds: number, perSecond: n
  * wenn ein Pflanzplatz frei ist und Säen nicht an Stufe oder offener Aussaat scheitert; der
  * nächste Ausbau jeder Nische ohne Sperrgrund (NICHE_IDS-Reihenfolge); die drei Baumteile.
  * Unbezahlbar teure Stufen (über MAX_UPGRADE_LEVEL) fallen weg.
+ *
+ * Leere Nischen (offen, aber ohne Tier) bringen mit dem Ausbau nichts (+% je Tier, 28.4): Sie
+ * sind nur Kandidat, wenn der nächste Kauf einen Meilenstein mit Wirkung erreicht – oder wenn es
+ * sonst gar keinen Kandidaten gäbe (Playtest Phase 11, 5b, Fund F1).
  */
 export function goalCandidates(state: GameState, seedsPerSecond: number): NextGoal[] {
   const out: NextGoal[] = [];
+  const empty: NextGoal[] = [];
   const seconds = (cost: number) => secondsUntilAffordable(cost, state.seeds, seedsPerSecond);
   const blocked = sowBlocker(state);
   if (blocked !== 'stage' && blocked !== 'open' && state.plants.length < plantSlots(state.stage)) {
@@ -70,9 +75,11 @@ export function goalCandidates(state: GameState, seedsPerSecond: number): NextGo
     const cost = upgradeCost(state, target);
     if (!Number.isFinite(cost)) continue;
     const level = upgradeLevelOf(state, target) + 1;
-    out.push({ kind: target.kind, target, level, cost, milestones: effectMilestonesAt(target, level), seconds: seconds(cost) });
+    const goal: NextGoal = { kind: target.kind, target, level, cost, milestones: effectMilestonesAt(target, level), seconds: seconds(cost) };
+    const unused = target.kind === 'niche' && (state.niches[target.id]?.length ?? 0) === 0 && goal.milestones.length === 0;
+    (unused ? empty : out).push(goal);
   }
-  return out;
+  return out.length > 0 ? out : empty;
 }
 
 /**

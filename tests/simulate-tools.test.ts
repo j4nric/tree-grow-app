@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALL_PURCHASES,
+  GOAL,
   GROWTH,
   HARMONY,
   RANDOM,
@@ -21,6 +22,7 @@ import {
   seedReserve,
   seedSpendShare,
   sessionTable,
+  withFork,
   type Purchase,
   type RunResult,
   type Snapshot,
@@ -134,6 +136,44 @@ describe('Echte Durchgänge: Käufe, Gabeln, Aussaat je Strategie', () => {
     expect(forkChoice(createInitialState(0, 1), HARMONY, RESEARCH_FORKS[crown]!, crown)).toBeNull();
   });
 
+  it('feste Gabel-Seite (withFork, Messung 3b): Saat B statt A, sonst wie die Strategie', () => {
+    const seedFork = RESEARCH_FORKS.findIndex((f) => f.id === 'seed');
+    const state = createInitialState(0, 1);
+    state.stage = 4; // Alter Baum: Samenbank und Anzuchtbeet sind erforschbar (bis auf den Vorrat)
+    state.cycle.research = ['seed-sorting'];
+    const nursery = withFork(HARMONY, 'seed', 1);
+    expect(nursery.id).toBe('harmony-seed-b');
+    expect(forkChoice(state, HARMONY, RESEARCH_FORKS[seedFork]!, seedFork)).toBe(0);
+    expect(forkChoice(state, nursery, RESEARCH_FORKS[seedFork]!, seedFork)).toBe(1);
+    // Ist die andere Seite schon erforscht, gilt sie – auch für die feste Seite.
+    state.cycle.research = ['seed-sorting', 'seed-bank'];
+    expect(forkChoice(state, nursery, RESEARCH_FORKS[seedFork]!, seedFork)).toBe(0);
+    // Noch nicht erreichbar: nichts entschieden.
+    expect(forkChoice(createInitialState(0, 1), nursery, RESEARCH_FORKS[seedFork]!, seedFork)).toBeNull();
+  });
+
+  it('Zielzeilen-Spieler (GOAL): kauft nur, was die Zielzeile nennt – kein Tausch, nie eine leere Nische ohne Meilenstein', () => {
+    const run = runGame(GOAL, { seed: 1007, targetStage: HAIN, maxSeconds: MAX_SECONDS, care: true });
+    expect(run.stages[HAIN]).not.toBeNull();
+    expect(run.final.counts.plantsSwapped).toBe(0);
+    expect(run.final.counts.upgradesBought).toBeGreaterThan(50);
+    // Ohne Rücklage gibt er (fast) alles aus.
+    expect(seedSpendShare(run.final)).toBeGreaterThan(0.9);
+  });
+
+  it('Gratis-Wurf der Aussaat: nur mit Anzuchtbeet und nur bewertende Strategien', () => {
+    // Selten: Bewertende Strategien säen nur, wenn eine Pflanze verbessern kann – meist passt dann
+    // eine Karte. Seed 1028 (Zielzeilen-Spieler bis zum Urwald) würfelt einmal gratis.
+    const opts = { seed: 1028, targetStage: 7, maxSeconds: MAX_SECONDS, care: true };
+    const withNursery = runGame(withFork(GOAL, 'seed', 1), opts);
+    expect(Object.keys(withNursery.final.careRanks)).toContain('nursery');
+    expect(withNursery.final.counts.sowingRerolls).toBeGreaterThan(0);
+    // Höchstens ein Gratis-Wurf je Aussaat.
+    expect(withNursery.final.counts.sowingRerolls).toBeLessThanOrEqual(withNursery.final.counts.plantEncounters);
+    expect(harmony.runs.every((r) => r.final.counts.sowingRerolls === 0)).toBe(true);
+    expect(random.runs.every((r) => r.final.counts.sowingRerolls === 0)).toBe(true);
+  });
+
   it('der Zufallsspieler sät und tauscht (sowPolicy spend) – er sitzt nicht mehr auf seinen Samen', () => {
     // Bis Phase 11, 1e säte er nur in freie Plätze: ~1 % ausgegeben bis Hain (28.2).
     const share = median(random.runs.map((r) => seedSpendShare(r.stages[HAIN]!)));
@@ -215,17 +255,33 @@ describe('Sitzungsprofil (aktiv / offline über simulateOffline)', () => {
     expect(off.seeds).toBeGreaterThan(0);
   });
 
+  it('Abwesenheit im zweiten Zyklus: mit Waldgedächtnis, Stand am Hain', () => {
+    const off = offlineAfterStage(HARMONY, { seed: 1007, stage: HAIN, seconds: 3600, cycle: 2 });
+    expect(off.stage).toBeGreaterThanOrEqual(HAIN);
+    expect(off.memory).toBeGreaterThan(0);
+    expect(offlineAfterStage(HARMONY, { seed: 1007, stage: HAIN, seconds: 3600 }).memory).toBe(0);
+  });
+
   it.skipIf(!FULL)('Protokoll: ein Tag mit 30 min aktiv und 8 h offline (Harmonie, Zufall) und 8 h offline am Hain', () => {
     const n = Math.min(RUNS, 100);
     for (const s of [HARMONY, RANDOM]) {
       console.log(sessionTable(s.name, Array.from({ length: n }, (_, i) => runSession(s, { seed: 1000 + 7 * i }))));
     }
-    const off = Array.from({ length: n }, (_, i) => offlineAfterStage(HARMONY, { seed: 1000 + 7 * i, stage: HAIN, seconds: 8 * 3600 }));
-    console.log(
-      `8 h offline am Hain (Harmonie, ${n} Durchgänge, Median): ${median(off.map((o) => o.waypoints))} Wegpunkte, ` +
-        `${median(off.map((o) => o.stageAfter - o.stage))} Stufen, ${Math.round(median(off.map((o) => o.seeds)))} 🌰, ${Math.round(median(off.map((o) => o.harmony)))} ⚖️ ` +
-        `(Ziel 28.10: ≤ 8 Wegpunkte, ≤ 1 Stufe)`,
-    );
-    expect(off.length).toBe(n);
+    // Phase 11, 3b: auch in Zyklus 2 und 3 (Neustart am Hain, mit Waldgedächtnis G).
+    for (const s of [HARMONY, GROWTH]) {
+      for (const cycle of [1, 2, 3]) {
+        const off = Array.from({ length: n }, (_, i) => offlineAfterStage(s, { seed: 1000 + 7 * i, stage: HAIN, seconds: 8 * 3600, cycle }));
+        const stages = off.map((o) => o.stageAfter - o.stage);
+        console.log(
+          `8 h offline am Hain (${s.name}, Zyklus ${cycle}, Gedächtnis ${Math.round(median(off.map((o) => o.memory)))}, ${n} Durchgänge, Median): ` +
+            `${median(off.map((o) => o.waypoints))} Wegpunkte, ${median(stages)} Stufen (> 1 Stufe: ${Math.round((100 * stages.filter((x) => x > 1).length) / n)} %), ` +
+            `${Math.round(median(off.map((o) => o.seeds)))} 🌰, ${Math.round(median(off.map((o) => o.harmony)))} ⚖️ (Ziel 28.10: ≤ 8 Wegpunkte, ≤ 1 Stufe)`,
+        );
+        // Ziel 28.10 (erster Zyklus): höchstens eine Stufe offline (im Median). Mit Gedächtnis wächst
+        // auch offline alles schneller – Zyklus 2 / 3 (Harmonie, Phase 11, 3b): 12 / 15,5 Wegpunkte,
+        // 1 / 1,5 Stufen. Nur protokolliert; offene Frage in DESIGN_V2.md 28.10, „Messung 3b“.
+        if (cycle === 1) expect(median(stages), `${s.id} Zyklus ${cycle}`).toBeLessThanOrEqual(1);
+      }
+    }
   }, 3_600_000);
 });

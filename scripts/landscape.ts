@@ -26,7 +26,10 @@ import { effectiveForestMemory, hasChapter, jaySeeds, wildwechselChance } from '
 import { normalizeSeed, type RngHolder } from '../src/core/rng';
 import { allAnimals, createInitialState, createSite, MAX_FOREST_MEMORY, type GameState } from '../src/core/state';
 import { buildCorridor, corridorBlocker, previewNewCycle, setRegulars, startNewCycle } from '../src/core/tick';
-import { formatTime, median, rankRegulars, runGame, type RunResult, type Strategy } from './simulate';
+import { FOREST_MEMORY_BONUS } from '../src/content/memory';
+import { NICHE_IDS } from '../src/content/types';
+import { TREE_PART_IDS } from '../src/content/upgrades';
+import { formatTime, mean, median, rankRegulars, repeatableRanks, runGame, type RunResult, type Strategy } from './simulate';
 
 /** Reihenfolge der Gründungen (frei wählbar im Spiel). */
 export const FOUND_ORDER: readonly SiteId[] = ['floodplain', 'beechwood', 'heath', 'carr', 'mountain'];
@@ -84,6 +87,17 @@ export interface LandscapeCycle {
   rareOffered: number;
   /** Arten im Wald beim Ende des Zyklus. */
   speciesAtEnd: number;
+  /**
+   * Ausbau und endlose Knoten am Ende des Zyklus (Phase 11, 3b: „Stufen und Ränge je Zyklus mit
+   * G“): mittlere und höchste Ausbaustufe der Nischen, mittlere Stufe der Baumteile, Ränge der
+   * wiederholbaren Knoten, Ausbau-Käufe und erforschte Knoten im Zyklus.
+   */
+  nicheLevel: number;
+  nicheLevelMax: number;
+  treeLevel: number;
+  ranks: number;
+  upgradesBought: number;
+  nodes: number;
 }
 
 export interface LandscapeRun {
@@ -146,6 +160,21 @@ function varietyOf(result: RunResult) {
     drought,
     distinctOffered: offered.size,
     rareOffered: rare,
+  };
+}
+
+/** Ausbau und Ränge am Ende des Zyklus (LandscapeCycle, Phase 11, 3b). */
+function upgradesOf(result: RunResult) {
+  const f = result.final;
+  const level = (id: string) => f.upgradeLevels?.[id] ?? 0;
+  const niches = NICHE_IDS.map(level);
+  return {
+    nicheLevel: mean(niches),
+    nicheLevelMax: Math.max(...niches),
+    treeLevel: mean(TREE_PART_IDS.map(level)),
+    ranks: repeatableRanks(f),
+    upgradesBought: f.counts.upgradesBought,
+    nodes: Object.keys(f.careRanks).length,
   };
 }
 
@@ -248,6 +277,7 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
       totalGrowth: state.totalGrowth, maxHarmony: state.cycle.maxHarmony, wildwechselChance: chance,
       wildwechselChosen: state.meta.stats.wildwechselChosen - chosenBefore, speciesAtEnd: new Set(allAnimals(state)).size,
       ...varietyOf(result),
+      ...upgradesOf(result),
     });
     const landscape = preview.landscape;
     if (run.unlockAt === null && landscape.unlockedAfter) run.unlockAt = time;
@@ -387,6 +417,32 @@ export function peakTable(rows: readonly LandscapeSummary[]): string {
       `| ${r.label} | ${sci(max(r, (x) => x.maxGrowth))} | ${sci(max(r, (x) => x.maxSeedsRate))} | ${sci(max(r, (x) => x.maxSeedsHeld))} | ${sci(max(r, (x) => x.maxCycleGrowth))} | ${sci(max(r, (x) => x.lifetimeGrowth))} | ${hours(max(r, (x) => x.totalSeconds))} |`,
   );
   return [head, sep, ...lines].join('\n');
+}
+
+/** Zyklen (laufende Nummer im ganzen Spiel), für die upgradeRankTable eine Zeile zeigt. */
+export const UPGRADE_TABLE_CYCLES: readonly number[] = [1, 2, 3, 5, 10, 20, 30, 40, 50, 60, 70];
+
+/**
+ * Ausbau und endlose Knoten je Zyklus mit dem Gedächtnisfaktor G (Phase 11, 3b; DESIGN_V2.md
+ * 28.10): je Zyklus-Nummer Median über die Läufe – wirksames Gedächtnis zu Beginn (G = 1 + FOREST_MEMORY_BONUS
+ * je Punkt), Zeit bis zum Ende des Zyklus, Ausbaustufen (Nischen Mittel / höchste, Baumteile),
+ * Ausbau-Käufe, Ränge der wiederholbaren Knoten und erforschte Knoten am Ende des Zyklus.
+ */
+export function upgradeRankTable(rows: readonly LandscapeSummary[], numbers: readonly number[] = UPGRADE_TABLE_CYCLES): string {
+  const head = '| Spielweise | Zyklus | Läufe | wirksames Gedächtnis (G) | Dauer | Nischen-Stufe Ø / max | Baumteile Ø | Ausbau-Käufe | Ränge ∞ | Knoten |';
+  const lines = [head, '|---|---|---|---|---|---|---|---|---|---|'];
+  for (const r of rows) {
+    for (const n of numbers) {
+      const cs = r.runs.map((run) => run.cycles[n - 1]).filter((c): c is LandscapeCycle => c !== undefined);
+      if (cs.length === 0) continue;
+      const m = (f: (c: LandscapeCycle) => number) => median(cs.map(f));
+      const g = m((c) => c.effective);
+      lines.push(
+        `| ${r.label} | ${n} | ${cs.length} | ${Math.round(g)} (×${num(1 + FOREST_MEMORY_BONUS * g, 2)}) | ${minutes(m((c) => c.seconds))} | ${num(m((c) => c.nicheLevel))} / ${Math.round(m((c) => c.nicheLevelMax))} | ${num(m((c) => c.treeLevel))} | ${Math.round(m((c) => c.upgradesBought))} | ${num(m((c) => c.ranks))} | ${Math.round(m((c) => c.nodes))} |`,
+      );
+    }
+  }
+  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------

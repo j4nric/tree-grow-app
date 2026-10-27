@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GROWTH, HARMONY, formatTime, mean, monteCarlo, stageStats, type Summary } from '../scripts/simulate';
+import { GOAL, GROWTH, HARMONY, formatTime, mean, monteCarlo, stageStats, type Summary } from '../scripts/simulate';
 import { FULL, HAIN, MAX_SECONDS, RUNS, URWALD, WALD } from './balance-setup';
 
 /**
@@ -67,5 +67,30 @@ describe.skipIf(!FULL)('Ausbau gegen ohne Ausbau (Phase 11, 3a, großer Lauf)', 
       }
     }
     expect(memoryAtHain(rows[0]!.with) - memoryAtHain(rows[1]!.with)).toBeGreaterThan(15);
+  });
+});
+
+/**
+ * Naiver Spieler „folgt der Zielzeile“ (Phase 11, 3b; Playtest 5b, Fund F1): Karten und Forschung
+ * wie der Harmonie-Spieler, Samen nur für das, was die Zielzeile nennt (kein Tausch, keine
+ * Rücklage). Ziel: Wer der Zielzeile folgt, liegt nahe am Harmonie-Spieler (≤ 10 % langsamer bis
+ * Hain und Wald) – sie führt nicht in die Irre (vorher schlug sie leere Nischen vor).
+ */
+describe.skipIf(!FULL)('Zielzeilen-Spieler (Phase 11, 3b, großer Lauf)', () => {
+  const goal = FULL ? monteCarlo([GOAL], runs, { ...options, upgrades: true })[0]! : null;
+
+  it('Protokoll und Tempo nahe am Harmonie-Spieler (≤ 10 % langsamer bis Hain und Wald)', () => {
+    const h = rows[0]!.with;
+    const g = goal!;
+    const lines = ['| Strategie | Hain | Wald | Urwald | H Hain / Wald / Urwald | Aussaaten bis Hain (Tausch) | Ausbau-Käufe bis Hain |', '|---|---|---|---|---|---|---|'];
+    for (const s of [h, g]) {
+      const st = stageStats(s, HAIN);
+      const harmony = [HAIN, WALD, URWALD].map((x) => stageStats(s, x).harmony.toFixed(1).replace('.', ',')).join(' / ');
+      lines.push(
+        `| ${s.strategy.name} | ${formatTime(time(s, HAIN))} | ${formatTime(time(s, WALD))} | ${formatTime(time(s, URWALD))} | ${harmony} | ${st.counts.plantsBought.toFixed(1).replace('.', ',')} (${st.counts.plantsSwapped.toFixed(1).replace('.', ',')}) | ${Math.round(st.counts.upgradesBought)} |`,
+      );
+    }
+    console.log(lines.join('\n'));
+    for (const st of [HAIN, WALD]) expect(time(g, st) / time(h, st), `Stufe ${st}`).toBeLessThan(1.1);
   });
 });

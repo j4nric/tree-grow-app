@@ -2173,7 +2173,7 @@ sie in Nischen-Reihenfolge.
 
 ```bash
 npm run check      # Balancing-Tests mit wenigen Durchgängen (feste Seeds), ~80 s CPU, ~30 s auf 4 Kernen
-npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200, Neustart 200, mit/ohne Ausbau 200), alle Tabellen, ~60 min auf 4 Kernen (seit Phase 11, 3a; vorher ~18 min)
+npm run balance    # großer Lauf: 500 Durchgänge (Baumarten 300, Zyklen 200, Neustart 200, mit/ohne Ausbau 200), alle Tabellen, ~38 min auf 4 Kernen (seit Phase 11, 3b: Stapler nur bis Hain; 3a ~60 min, davor ~18 min)
 ```
 
 Die Tests liegen in fünf Dateien, die Vitest parallel rechnet (Einstellungen in
@@ -2219,6 +2219,36 @@ gleicher H_max bringt ein späterer Wegpunkt nie mehr (H_max 0–400, Grundlage 
 in 12.7), Ziel (e) an typischen Verläufen (Urwald-Schwelle ≤ 174 − 10, Bonus über dem Sockel
 Harmonie 30 / Wachstum 0), dazu die Sperrklinke selbst (gleiche H_max über mehrere
 Wegpunkte, online = offline, ein ganzer simulierter Zyklus je Strategie bis zum Urwald).
+
+#### Stand Phase 11, 3b – Gedächtnis-Schwellen, Zielzeile, Zyklen (500 / 200 Durchgänge)
+
+`npm run balance` auf `claude/p11-3b-zyklen`: **alle Prüfungen grün**, die Zyklen-Grenzen des großen
+Laufs stehen wieder auf den Zielen (Zyklus 2 Harmonie < 0,45, Wachstum < 0,37, erster Gewinn < 75,
+Vorsprung > 30, Neustart ≥ 0,95 / 0,97) – bis auf den Urwald-Gewinn (< 105 statt < 95, Begründung in
+28.10 „Messung 3b“). Geändert: `MEMORY_HARMONY_RULES` Schwellen 100 / 148 / 164 → **112 / 168 / 196**;
+Zielzeile ohne leere Nischen (`core/goal.ts`, Playtest 5b, F1). Varianten und Lücken: 28.10.
+
+| Kennzahl (Harmonie / Wachstum / Zufall) | Stand 3a | Phase 11, 3b |
+|---|---|---|
+| Hain, Zyklus 1 / 2 / 3 (Harmonie, 200 Durchgänge) | 54:19 / 28:21 / 18:22 min | 54:04 / 30:41 / 20:14 min |
+| Zyklus 2 schneller bis Hain | 47,8 / 39,0 / 22,5 % | 43,3 / 28,2 / 22,7 % |
+| Gedächtnis Zyklus 1 bis Hain | 81,5 / 60,0 / 34,6 | 65,9 / 42,9 / 32,3 |
+| Hain Wachstum ÷ Harmonie Zyklus 1 / 2 / 3 | 0,903 / 1,056 / 1,108 | 0,912 / 1,155 / 1,346 |
+| Neustart Wald: Ziel-Stufe je Zyklus (Harmonie); Gewinn Zyklus 1 H / W / Z | 1:29:28 / 40:55 / 26:26; 96,0 / 79,4 / 49,1 | 1:29:09 / 42:26 / 27:18; 87,5 / 58,8 / 42,0 |
+| Neustart Urwald: dasselbe | 2:02:03 / 52:00 / 32:25; 105,2 / 94,2 / 59,8 | 2:01:22 / 52:11 / 33:03; 98,4 / 69,3 / 49,0 |
+| Vorsprung über drei Zyklen Wald / Urwald | 36,4 / 22,5 | 86,9 / 71,3 |
+| Wachstum ÷ Harmonie Zyklus 2 / 3, Wald · Urwald | 0,991 / 1,014 · 0,944 / 0,951 | 1,197 / 1,270 · 1,189 / 1,188 |
+| erster Zyklus Hain / Urwald (500 Durchgänge) | 54:27 / 48:48 min / 1:17 h · 2:02 / 1:49 / 3:02 h | 53:57 / 48:44 min / 1:17 h · 2:01 / 1:48 / 3:03 h |
+| H am Hain (Harmonie); Gabeln Weg A Krone / Boden / Wasser / Saum / Saat | 118,5; 62 / 61 / 66 / 38 / 100 % | 118,9; 67 / 61 / 65 / 42 / 100 % |
+
+Die Zeilen des ersten Zyklus verschieben sich nur durch die Zielzeile (der Simulator kauft keine
+Stufen leerer Nischen mehr); die Schwellen wirken erst beim Neuen Zyklus.
+
+**Laufzeit:** Die Stapler und „Immer die seltenste Karte“ laufen im großen Lauf nur noch bis zum Hain
+(`firstCycleTarget`, `tests/balance-runs.ts`) – ihre Prüfungen und Tabellen schauen nur dorthin; die
+Gabel-Tabellen „Wald“ und „Ende“ zeigen nur noch Harmonie, Wachstum und Zufall. `npm run balance`
+dauert damit **~38 min** auf 4 Kernen (3a: 59 min). Neu im großen Lauf: der Zielzeilen-Spieler
+(`tests/balance-upgrades.test.ts`) und 8 h offline am Hain in Zyklus 1–3 (`tests/simulate-tools.test.ts`).
 
 #### Stand Phase 11, 3a – Ausbau, Takt und Samen-Senke (500 Durchgänge)
 
@@ -6440,6 +6470,64 @@ SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 SIM_LANDSCAPE_SITE_WEATHER=off npx vitest 
 SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Häufigkeiten --silent=false   # Wetter je Standort (24.14), ~10 s
 ```
 
+**Stand Phase 11, 3b** – Ausbau (3a), Zielzeile ohne leere Nischen und Gedächtnis-Schwellen
+112 / 168 / 196 (28.10, „Messung 3b“). Harmonie und Wachstum 20, Zufall 10 Durchgänge, dieselben
+Seeds; „alte Schwellen“ = dieselbe Logik mit 100 / 148 / 164 (in einer Kopie gerechnet):
+
+| Spielweise | Freischaltung | 2. Wald | 3. | 4. | 5. | 6. Wald | Landschaft vollständig | alle Wälder voll | Zyklen | davon Ernte |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Harmonie | 3,4 h | 3,4 h | 4,9 h | 7,0 h | 8,8 h | 10,8 h | **11,7 h** | **14,4 h** | 67 | 31 (3,3 h) |
+| Wachstum | 4,2 h | 4,2 h | 5,7 h | 7,7 h | 9,4 h | 11,5 h | **12,2 h** | **14,7 h** | 73 | 35 (3,3 h) |
+| Zufall | 13,0 h | 13,0 h | 19,5 h | 26,8 h | 31,3 h | 35,2 h | 37,3 h | 41,9 h | 97 | 36,5 (5,8 h) |
+| *Harmonie, alte Schwellen* | 3,4 h | 3,4 h | 4,8 h | 6,9 h | 8,7 h | 10,7 h | 11,6 h | 14,2 h | 67 | 31 (3,3 h) |
+| *Wachstum, alte Schwellen* | 3,1 h | 3,1 h | 4,5 h | 6,6 h | 8,3 h | 10,4 h | 11,3 h | 13,6 h | 72 | 35 (3,3 h) |
+| *Zufall, alte Schwellen* | 8,5 h | 8,5 h | 12,3 h | 17,8 h | 21,1 h | 24,8 h | 26,3 h | 30,8 h | 83 | 36 (5,7 h) |
+
+Erster Urwald je Wald (Harmonie): 2:01:41 h, 40, 44, 28, 23, 19 min (Wachstum 1:46:29 h, 37, 43, 26,
+21, 15 min); höchste Harmonie je Wald 316–319 / 264–280 / 250–272; größte Zahlen 1,7 · 10^4 🌿/s,
+5,6 · 10^3 🌰/s, 9,9 · 10^7 Wachstum gesamt (Zufall) – weit unter 1e15.
+
+**Ausbau und Ränge je Zyklus mit G** (`upgradeRankTable`, Median; Zyklus-Nummer im ganzen Spiel):
+
+| Spielweise | Zyklus | wirksames Gedächtnis (G) | Dauer | Nischen-Stufe Ø / max | Baumteile Ø | Ausbau-Käufe | Ränge ∞ | Knoten |
+|---|---|---|---|---|---|---|---|---|
+| Harmonie | 1 | 0 (×1,00) | 2:01:41 h | 18,0 / 30 | 28,0 | 266 | 0 | 22 |
+| Harmonie | 2 | 106 (×2,05) | 53 min | 18,4 / 31 | 28,0 | 269 | 0 | 22 |
+| Harmonie | 10 | 526 (×6,26) | 12 min | 17,6 / 29 | 26,5 | 256 | 0 | 21 |
+| Harmonie | 30 | 950 (×10,50) | 7 min | 17,8 / 29 | 27,0 | 259 | 0 | 20 |
+| Harmonie | 60 | 1000 (×11,00) | 6 min | 19,0 / 30 | 28,0 | 274 | 0 | 20 |
+| Wachstum | 1 / 10 / 60 | 0 / 410 / 1000 | 1:46 h / 14 / 6 min | 14,4 / 13,4 / 14,3 (max 25–27) | 25,0 / 22,7 / 24,3 | 219 / 202 / 216 | 0 | 20 / 18 / 17 |
+| Zufall | 1 / 10 / 60 | 0 / 144 / 1000 | 3:13 h / 1:11 h / 10 min | 16,8 / 20,5 / 18,9 (max 31–33) | 29,5 / 31,0 / 28,7 | 251 / 298 / 276 | 3 / 2 / 1 | 23 / 23 / 20 |
+
+- **Tempo:** vollständig nach **11,7 h** (Harmonie) – unter dem Ziel 12,5–14,5 h (28.10). Schon mit
+  den alten Schwellen 11,6 h: Der Ausbau hat den Heimatwald-Urwald von 2:35 auf 2:02 h verkürzt (3a),
+  jede Gründung kommt früher. Die neuen Schwellen kosten vor allem den Wachstums- und den
+  Zufallsspieler Gedächtnis (+0,9 h / +11 h vollständig); Harmonie gegen Wachstum jetzt **−4,5 %**
+  (Harmonie schneller, Ziel Abstand ≤ 10 %). Ziel (a) knapp verfehlt: 3. Wald 44 min = 1,1002 × des
+  2. (40 min; alte Schwellen 1,11 ×). Die Stellschrauben der Landschaft sind laut 27.11 gesperrt –
+  offen (28.10, „Lücken“).
+- **Ausbau mit G:** Die Stufen laufen nicht davon – mit G werden die Zyklen kürzer, die Stufen am
+  Urwald bleiben bei Nischen Ø 13–21 (höchste 25–33), Baumteile 22–31, weit unter `MAX_UPGRADE_LEVEL`
+  (Test: < 500). **Endlose Knoten:** Harmonie- und Wachstums-Spieler erforschen keinen Rang, der
+  Zufallsspieler 1–3 je Zyklus.
+
+**Waldtypen (Phase 11, 3b; 160 Durchgänge, Gedächtnis 200, Leitbaum):**
+
+| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | ohne Ereignis-Faktor | Wachstum: Urwald | gegenüber Heimatwald |
+|---|---|---|---|---|---|---|---|
+| 🌳 Heimatwald | Eiche | 38:14 min | ±0,0 % | ±0,0 % | – | 33:50 min | ±0,0 % |
+| 🌊 Auwald am Fluss | Eiche | 37:47 min | −1,2 % | −0,2 % | −1,6 % | 33:45 min | −0,3 % |
+| 🐸 Erlenbruch | Schwarzerle | 38:59 min | +2,0 % | +3,6 % | +2,0 % | 33:55 min | +0,2 % |
+| 🍂 Buchenhallen | Rotbuche | 40:24 min | **+5,7 %** | +5,9 % | +5,4 % | 32:50 min | −3,0 % |
+| ⛰️ Bergmischwald | Weißtanne | 39:20 min | +2,9 % | +3,2 % | – | 34:04 min | +0,7 % |
+| 🌲 Kiefernheide | Kiefer | 39:44 min | +3,9 % | +3,3 % | +3,7 % | 33:41 min | −0,5 % |
+
+Buchenhallen liegt für den Harmonie-Spieler knapp außerhalb ±5 % (Stand 1a: +1,5 %). Ursache ist der
+**Leitbaum**, nicht der Wald: Buchenhallen mit Eiche −1,1 %, Heimatwald mit Rotbuche +6,4 %
+(Wachstum −0,6 / −2,2 %). Blumen −15 → −10 % 🌰 brachte nur 0,5 Punkte. Die Rotbuche ist bis zum
+Hain ausgeglichen (+1,1 %, 17.4), mit Ausbau und Gedächtnis bis zum Urwald nicht mehr – eine Messung
+der Baumarten bis zum Urwald gehört zu 17.4 (offen, eigene Aufgabe).
+
 **Stand 1a (Phase 9)** – wie „Stand 3d“, dazu das Käferjahr der Heide (3e), die Ereignisse
 je Waldtyp und der Mauer-Platz der Kiefernheide (26.2). Harmonie und Wachstum 20, Zufall 10
 Durchgänge, dieselben Seeds; Median, kumulierte Spielzeit:
@@ -9049,7 +9137,11 @@ St. 14 · 1,2k 🌰 ›“ (hervorgehoben). Meilenstein: „Nächstes: 🪱 Wurz
 **Auswahlregel** (`nextGoal(state)` in `core/formulas.ts`, rein, ohne Zufall):
 
 1. **Kandidaten:** der nächste Ausbau jeder Nische ohne Sperrgrund, die drei Baumteile, und
-   „🌱 Säen“, wenn ein Pflanzplatz frei ist (kein Tausch, keine Gäste, kein Würfeln).
+   „🌱 Säen“, wenn ein Pflanzplatz frei ist (kein Tausch, keine Gäste, kein Würfeln). **Seit
+   Phase 11, 3b** (Playtest 5b, Fund F1): Eine offene Nische **ohne Tier** ist nur Kandidat, wenn
+   der nächste Kauf einen Meilenstein mit Wirkung erreicht – der Ausbau wirkt je Tier (28.4), in
+   einer leeren Nische bringt er nichts. Gäbe es sonst gar keinen Kandidaten, zählen leere Nischen
+   doch.
 2. **Meilenstein zuerst:** Ist ein Kandidat genau eine Stufe vor einem Meilenstein (10, 25, 50)
    und in ≤ 120 s bezahlbar, gewinnt er (bei mehreren der billigste).
 3. **Sonst der billigste Kandidat** (Preis in 🌰). Gleichstand: Säen, dann Nischen in
@@ -9354,6 +9446,113 @@ Buche +1,1 %, Kiefer +0,7 % (Harmonie). Tagesziele: Anteil an den Samen der erst
   bleibt ≤ 1,3 %. Grenze der Obergrenze 5 → 6 % (`tests/daily-balance.test.ts`).
 - **Laufzeit:** Ein Durchgang mit Ausbau kostet ~1,55× (doppelt so viele Halte); `npm run balance`
   dauert darum länger (siehe 15.4, „Stand Phase 11, 3a“).
+
+**Messung 3b (Phase 11, Zyklen, Landschaft und Offline-Tag)** – `npm run balance` (500 / Zyklen und
+Neustart 200 Durchgänge, Seeds 1000 + 7 i) und `tests/landscape-balance.test.ts` (20 / 10
+Durchgänge, Seeds 1001 + k). Vorher = Stand 3a auf `origin/main` (dieselben Seeds, für die
+Landschaft dieselbe Logik mit den alten Schwellen in einer Kopie gerechnet).
+
+*Simulator (3b):* (1) **Gratis-Wurf der Aussaat** – bewertende Strategien würfeln eine Aussaat neu,
+wenn keine Karte verbessert und der Wurf nichts kostet (Anzuchtbeet; `freeSowingReroll`, Zähler
+`sowingRerolls`). (2) **Feste Gabel-Seite** zum Messen (`withFork`, `Strategy.forks`). (3) **Naiver
+Spieler „folgt der Zielzeile“** (`GOAL`: Karten und Forschung wie der Harmonie-Spieler, Samen nur
+für `nextGoal`, sofort, ohne Rücklage und ohne Tausch). (4) **Offline-Tag in Zyklus 2 und 3**
+(`offlineAfterStage(…, { cycle })`). (5) **Ausbau und Ränge je Zyklus** in der Landschaft
+(`upgradeRankTable`). (6) Im großen Lauf laufen die Stapler und „seltenste Karte“ nur noch bis zum
+Hain (ihre Prüfungen schauen nur dorthin; Gabel-Tabellen „Wald“/„Ende“ nur für Harmonie, Wachstum,
+Zufall) – `npm run balance` 59 → ~38 min.
+
+*Zielzeile (Playtest 5b, Fund F1, kleine core-Änderung in `core/goal.ts`):* Offene Nischen ohne
+Tier sind kein Kandidat mehr, außer der nächste Kauf erreicht einen Meilenstein mit Wirkung oder es
+gäbe sonst keinen (28.7, Regel 1). Der Simulator nutzt dieselbe Auswahl. Wirkung im ersten Zyklus
+(500 Durchgänge): Hain Harmonie / Wachstum / Zufall 54:27 → **53:57** / 48:48 → **48:44** min /
+1:17 h → **1:17 h**, Urwald 2:02 → **2:01** h; Ausbau-Käufe bis Hain 145 → 139. Der Zielzeilen-
+Spieler liegt nahe am Harmonie-Spieler: **Hain 54:38 min, Wald 1:30:49 h, Urwald 2:02:55 h**
+(Harmonie 54:04 / 1:29:09 / 2:01:22, 200 Durchgänge) – der Playtest-Bot (1:18 h / 2:15 h) spielte
+die Karten offenbar schwächer, nicht die Zielzeile. Er sät nur 5,0-mal bis Hain (Tausch 0,1): Die
+Zielzeile nennt „Säen“ nur bei freiem Platz (Regel 1).
+
+*Stellschraube (27.11/1): Gedächtnis-Schwellen T* – `MEMORY_HARMONY_RULES` Hain 100 → **112**, Wald
+148 → **168**, Urwald 164 → **196** (Teiler 5/6/7 und Obergrenzen 45/48/48 bleiben). Grund: H_max
+des Harmonie-Spielers beim Hain / Wald / Urwald 121,9 / 166,6 / 206,4 statt ~110 / ~147 / ~174
+(Wachstum 108,3 / 144,0 / 181,5); die Schwellen stehen wieder ~10 unter dem Harmonie-Spieler
+(Urwald, Ziel e) bzw. knapp darüber (Wald – er überholt sie im Lauf der Stufe), der Wachstums-
+Spieler liegt überall darunter. Wald 168 statt 166: ganzzahlig +7 je Wegpunkt (bei krummer Schwelle
+und krummer Obergrenze brachte ein Punkt Harmonie kurz vor „voll“ nach dem Abrunden nichts).
+
+| Variante (T Hain / Wald / Urwald, 200 Durchgänge) | Zyklus 2 schneller H / W | Gewinn Zyklus 1 Hain H / W | Urwald-Gewinn H; Urwald ÷ Hain | Vorsprung Wald / Urwald | W ÷ H Neustart Urwald Z2 / Z3 |
+|---|---|---|---|---|---|
+| 100 / 148 / 164 (3a) | 47,8 / 39,0 % | 81,5 / 60,0 | 105,2; 1,29 | 36,4 / 22,5 | 0,944 / 0,951 |
+| 110 / 158 / 174 | 43,8 / 28,3 % | 68,2 / 45,7 | 103,7; 1,52 | 70,7 / 43,4 | 1,001 / 1,042 |
+| 110 / 160 / 192 | 43,8 / 28,3 % | 68,2 / 45,7 | 100,9; 1,48 | 72,4 / 62,9 | 1,115 / 1,152 |
+| 110 / 166 / 196 (mit neuer Zielzeile) | 45,3 / 28,5 % | 69,9 / 44,7 | 100,0; 1,43 | 79,3 / 65,0 | 1,158 / 1,154 |
+| 111 / 167 / 195 | 45,3 / 28,4 % | 67,9 / 43,7 | 99,3; 1,46 | 84,1 / 70,2 | 1,166 / 1,186 |
+| **112 / 168 / 196 (gewählt)** | **43,3 / 28,2 %** | **65,9 / 42,9** | **98,4; 1,49** | **86,9 / 71,3** | **1,189 / 1,188** |
+
+Zyklus 2 bis Hain springt im Median in Stufen (Wegpunkte): 110 und 111 ergeben 45,3 %, erst 112
+bleibt mit Abstand unter 45 %. Die Obergrenze zu senken (z. B. Hain 104 / 36) hätte den Wachstums-
+Spieler geschont, verletzt aber „ein späterer Wegpunkt bringt nie mehr“ (Grundlage der Ladegrenze
+in 12.7) – verworfen.
+
+*Ergebnis gegen die Ziele:*
+
+| Kennzahl | vorher (3a) | Ziel | gemessen 3b | |
+|---|---|---|---|---|
+| Zyklus 2 bis Hain schneller, Harmonie / Wachstum / Zufall | 47,8 / 39,0 / 22,5 % | 30–45 / 18–37 / ≥ 20 % | 43,3 / 28,2 / 22,7 % | ✓ |
+| Gedächtnis-Gewinn Zyklus 1 bis Hain (Harmonie) | 81,5 | < 75 | 65,9 | ✓ |
+| Gedächtnis-Vorsprung am Hain (Vorschau, 28.10) | 21,5 | ≥ 15 | 23,0 (65,9 − 42,9) | ✓ |
+| Neustart Wald / Urwald: Vorsprung über drei Zyklen | 36,4 / 22,5 | > 30 | 86,9 / 71,3 | ✓ |
+| Neustart Wald / Urwald: Wachstum ÷ Harmonie Zyklus 2 / 3 | 0,991 / 1,014 · 0,944 / 0,951 | ≥ 0,95 (zusammen ≥ 0,97) | 1,197 / 1,270 · 1,189 / 1,188 | ✓ (s. u.) |
+| Hain Wachstum ÷ Harmonie Zyklus 1 / 2 / 3 | 0,903 / 1,056 / 1,108 | ≥ 0,85 / 0,97 / 1 | 0,912 / 1,155 / 1,346 | ✓ (s. u.) |
+| Urwald-Gewinn (Harmonie); Urwald ÷ Hain | 105,2; 1,29 | < 95; ≤ 1,5 | 98,4; 1,49 | ✗ / ✓ |
+| Zufall: Zyklus 2 schneller Wald / Urwald; Gewinn Hain < Wald < Urwald | 31,2 / 38,2 % | ≥ 20 % | 30,5 / 34,8 %; 32,3 < 42,0 < 49,0 | ✓ |
+| 8 h offline am Hain, Zyklus 1 (Harmonie, 100) | 7 WP, 0 Stufen | ≤ 8 WP, ≤ 1 Stufe | 7 WP, 0 Stufen | ✓ |
+| … Zyklus 2 / 3 (Gedächtnis 64 / 132) | – | (28.10 nennt nur Zyklus 1) | 12 / 15,5 WP, 1 / 1,5 Stufen (> 1 Stufe: 0 / 50 %) | offen |
+| Landschaft vollständig, Harmonie / Wachstum | 11,6 / 11,3 h (alte Schwellen) | 12,5–14,5 h, Abstand ≤ 10 % | **11,7 / 12,2 h**, Harmonie 4,5 % schneller | ✗ Tempo / ✓ Abstand |
+| Erster Urwald je neuem Wald ≤ 1,1 × des vorigen (24.10 a) | 40 → 44 min (1,10 ×, alte Schwellen 1,11 ×) | ≤ 1,1 × | 40 → 44 min: 1,1002 × | ✗ knapp |
+| Waldtypen ±5 % (Leitbaum, 160 Durchgänge, Harmonie) | Stand 1a: −0,9 … +1,5 % | ±5 % | −1,2 … +3,9 %, **Buchenhallen +5,7 %** (Rotbuche, 24.10) | ✗ knapp |
+| Gabel Saat (Harmonie, 200 Durchgänge erzwungen) | Samenbank 100 % | 25–75 % | Samenbank / Anzuchtbeet ≤ 1 % Unterschied | Geschmack |
+
+*Lücken und Vorschläge:*
+
+- **Abstand der Spielweisen ab Zyklus 2:** Die Harmonie-Spielweise liegt ab Zyklus 2 deutlich vorn
+  (Hain Wachstum ÷ Harmonie 1,155 / 1,346, Neustart Wald/Urwald ~1,2) – vorher „gleichauf“ (~1,0–1,1).
+  Grund: Der Wachstums-Spieler liegt jetzt unter allen Schwellen und bekommt fast nur Sockel und
+  Arten (Hain 42,9 statt 60,0). Die Ziele sind Untergrenzen und halten; 28.1 „Abstand wie heute“
+  hält nur im ersten Zyklus (0,912). **Entscheidung für den Product Owner / Playtest:** so lassen
+  (Harmonie lohnt sich spürbar) oder die Schwellen für Wald/Urwald etwas senken (dann sinkt der
+  Vorsprung, Urwald ÷ Hain steigt nicht).
+- **Urwald-Gewinn 98,4 statt < 95:** Mit T nicht zu erreichen – ~28 Punkte sind neue Arten bis zum
+  Urwald, und die Sperrklinke hält den besten Wert des ganzen Verlaufs (der Harmonie-Spieler liegt
+  überall knapp über der gleitenden Schwelle; Urwald-Schwelle 196 → 210 senkte den Gewinn in der
+  Vorhersage nur um ~1 Punkt). Grenze im großen Lauf jetzt < 105; Urwald ≤ 1,5 × Hain bleibt (1,49).
+- **Landschaft zu schnell (11,7 h statt 12,5–14,5 h):** Schon mit den alten Schwellen 11,6 h – der
+  Ausbau (3a, Heimatwald-Urwald 2:35 → 2:02 h) hat sie verkürzt; die neuen Schwellen verlangsamen
+  nur den Wachstums-Spieler (+0,9 h). Die Stellschrauben der Landschaft (24.4–24.6) sind laut 27.11
+  gesperrt; Vorschlag (eigene Aufgabe): Gründungskosten in Hähersaat um ~10 % heben oder 24.10 (b)
+  auf „11–14,5 h“ anpassen. Ziel (a) verfehlt um 0,5 s (3. Wald 1,1002 × des 2.; schon vorher 1,11 ×).
+- **Buchenhallen +5,7 % (Harmonie):** Ursache ist die Rotbuche als Leitbaum (Heimatwald mit Rotbuche
+  +6,4 %, Buchenhallen mit Eiche −1,1 %); bis zum Hain ist sie ausgeglichen (17.4). Vorschlag: eigene
+  Messung der Baumarten bis zum Urwald (mit Ausbau und Gedächtnis), dann die Rotbuche nachstellen –
+  nicht die Waldtypen.
+- **Großer Landschafts-Lauf** (`SIM_LANDSCAPE=1`, nicht Teil von `npm run balance`): verfehlt damit
+  Ziel (a) um 0,5 s, (b) „> 12 h“ (11,7 h) und Waldtypen ±5 % – die Grenzen bleiben bewusst stehen.
+- **Ränge der endlosen Knoten:** Harmonie- und Wachstums-Spieler erforschen auch in der Landschaft
+  mit G bis ×11 **keinen** Rang (Zufall 1–3); die Ausbaustufen bleiben je Zyklus gleich (Nischen
+  Ø 17–19, höchste 29–31, Baumteile 26–28, ~250 Käufe), weil Zyklen mit G kürzer werden – kein
+  Durchgehen der Stufen, aber die ⚖️-Senke „∞“ greift für bewertende Spieler nie. Vorschlag: Wert der
+  endlosen Knoten im Simulator prüfen (Bewertung je ⚖️ gegen die einmaligen Knoten) oder Startpreis
+  1.500 → 1.000 (28.10, Stellschraube 4) – erst nach dem Playtest.
+- **Offline-Tag mit Gedächtnis:** 8 h am Hain bringen in Zyklus 3 im Median 1,5 Stufen (Zyklus 1: 0).
+  Folgt aus G (alles wächst schneller, auch offline); `OFFLINE_YIELD` ist gesperrt (28.10).
+  Geprüft wird ≤ 1 Stufe nur für Zyklus 1; Zyklus 2/3 im Protokoll.
+- **Gabel Saat:** Mit Gratis-Wurf und erzwungener Seite (200 Durchgänge, Harmonie / Wachstum)
+  unterscheiden sich Samenbank und Anzuchtbeet um < 1 % (Urwald +0,7 / +0,8 % mit Anzuchtbeet). Der
+  Gratis-Wurf greift fast nie (0–1 je Durchgang bis Urwald): Bewertende Spieler säen nur, wenn eine
+  Pflanze verbessern kann, und dann passt meist eine Karte. Keine Zahl geändert; die 100 % sind die
+  Pauschal-Bewertung im Simulator (0,03 gegen 0,01). Vorschlag: im Playtest 5b fragen, ob das
+  Anzuchtbeet als Wahl spürbar ist – sonst eine stärkere Wirkung (z. B. „alle Würfe der Aussaat
+  gratis“).
 
 ### 28.11 Später, optional: Stufen-Tore und Aufträge der Tiere (Skizze, eigene Welle)
 

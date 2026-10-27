@@ -1349,7 +1349,7 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Zyklus nur beim Zufallsspieler; die Zyklen-Grenzen des großen Laufs (vier Prüfungen, schon auf `origin/main`
   verfehlt) stehen vorläufig auf den Check-Grenzen → 3b. Kleine UI-Anpassung: `formatPlusPercent`
   zeigt unter 1 % zwei Nachkommastellen („+0,06 %“), Spielanleitung nutzt sie.
-- [ ] **3b** Messung Zyklen, Landschaft und Offline-Tag (`game-designer`, 27.11/28.10):
+- [x] **3b** Messung Zyklen, Landschaft und Offline-Tag (`game-designer`, 27.11/28.10):
   `balance-cycles` (Zyklus 2, Neustart in Hain/Wald/Urwald, Gedächtnis-Vorsprung ≥ 15),
   `scripts/landscape.ts` (Landschaft vollständig 12,5–14,5 h, Waldtypen ±5 %, Stufen und Ränge je
   Zyklus mit G), Sitzungsprofil (8 h offline am Hain ≤ 1 Stufe); falls nötig
@@ -1360,6 +1360,19 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   < 0,45 statt 0,37, erster Gewinn < 90 statt 75, Vorsprung > 15 statt 30, Neustart-Verhältnis
   ≥ 0,92/0,93 statt 0,95/0,97, Urwald-Gewinn < 115 statt 95) – H_max am Hain 121,5 statt ~110 (27.11, Stellschraube 1:
   Schwellen T heben); Gabel Saat erst messbar, wenn der Simulator Aussaaten neu würfelt
+  **Erledigt** (`claude/p11-3b-zyklen`, DESIGN_V2.md 28.10 „Messung 3b“, 15.4, 24.10, GAME_DESIGN.md):
+  `MEMORY_HARMONY_RULES` Schwellen 100 / 148 / 164 → **112 / 168 / 196** (Teiler, Obergrenzen, Formel
+  bleiben). Zyklus 2 bis Hain −43,3 / −28,2 / −22,7 % (H / W / Z), erster Gewinn 65,9, Vorsprung Wald /
+  Urwald 86,9 / 71,3, Neustart-Verhältnisse ≥ 1,19 – die vorläufigen Grenzen stehen wieder auf den
+  Zielen; Urwald-Gewinn 98,4 (Ziel < 95 mit T nicht erreichbar, Grenze < 105, Urwald ÷ Hain 1,49).
+  Mit umgesetzt aus Playtest 5b (Fund F1): **Zielzeile** überspringt leere Nischen (kleine
+  core-Änderung `core/goal.ts`, Tests `tests/goal.test.ts`), Simulator-Spieler „folgt der Zielzeile“
+  (Hain 54:38, Wald 1:30:49 – nahe am Harmonie-Spieler). Simulator: Gratis-Wurf der Aussaat, feste
+  Gabel-Seite, Offline-Tag in Zyklus 2/3, Ausbau und Ränge je Zyklus in der Landschaft; Stapler im
+  großen Lauf nur bis Hain (`npm run balance` ~60 → ~38 min). **Offen** (28.10 „Lücken“): Landschaft
+  11,7 h statt 12,5–14,5 h (schon vor 3b 11,6 h, Folge des Ausbaus; Landschafts-Regeln gesperrt),
+  Abstand der Spielweisen ab Zyklus 2 (Wachstum ÷ Harmonie ~1,15–1,35), endlose Ränge bei bewertenden
+  Spielern nie gekauft, 8 h offline in Zyklus 3 1,5 Stufen, Gabel Saat Geschmack (< 1 % Unterschied)
 - [ ] **3c** Messung Chronik und Kennarten (`game-designer`, = Phase 9, 2c, 26.8): wie dort
   beschrieben, auf der Ökonomie nach 3a/3b. Abhängig: 3b
 
