@@ -6,6 +6,7 @@
  * Reine Funktionen (plus robustes Laden/Speichern) – getestet in tests/settings.test.ts.
  */
 import type { NumberStyle } from './format';
+import { BUY_AMOUNTS, type BuyAmount } from './upgrade-view';
 
 /** Bewegung reduzieren: automatisch (prefers-reduced-motion), immer an oder immer aus. */
 export type MotionSetting = 'auto' | 'on' | 'off';
@@ -24,6 +25,8 @@ export interface Settings {
   sound: SoundLevel;
   /** Tag-Nacht-Wechsel in der Szene oder immer Tag (nur Grafik). */
   daytime: DaytimeSetting;
+  /** Kaufmenge der Ausbau-Knöpfe in R:Nischen (DESIGN_V2.md 28.9): ×1, ×10 oder Max. */
+  buyAmount: BuyAmount;
 }
 
 export const SETTINGS_KEY = 'tree-grow-settings';
@@ -38,6 +41,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   longToasts: false,
   sound: 'off',
   daytime: 'cycle',
+  buyAmount: 1,
 };
 
 /** Anzeigedauer der Hinweise (Toasts) in ms. */
@@ -64,6 +68,7 @@ export function parseSettings(raw: string | null | undefined): Settings {
     longToasts: typeof record.longToasts === 'boolean' ? record.longToasts : DEFAULT_SETTINGS.longToasts,
     sound: SOUND_LEVELS.includes(record.sound as SoundLevel) ? (record.sound as SoundLevel) : DEFAULT_SETTINGS.sound,
     daytime: DAYTIME_SETTINGS.includes(record.daytime as DaytimeSetting) ? (record.daytime as DaytimeSetting) : DEFAULT_SETTINGS.daytime,
+    buyAmount: BUY_AMOUNTS.includes(record.buyAmount as BuyAmount) ? (record.buyAmount as BuyAmount) : DEFAULT_SETTINGS.buyAmount,
   };
 }
 
@@ -74,6 +79,7 @@ export function serializeSettings(settings: Settings): string {
     longToasts: settings.longToasts,
     sound: settings.sound,
     daytime: settings.daytime,
+    buyAmount: settings.buyAmount,
   });
 }
 

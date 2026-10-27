@@ -4,9 +4,9 @@
  *
  * Diese Datei kennt kein DOM und keine Spielinhalte: Sie bildet einen übergebenen Zustand
  * (Stufe, beste Stufe, Meilensteine, Preis der gewählten Kaufmenge, Samen und Samenrate) auf
- * Texte, Balken, Abzeichen und aria-Angaben ab. Den Zustand liefert ab Phase 11, 2a/2c der
- * Spielstand (`upgradeCost`, `upgradeBlocker`, `nextGoal`); bis dahin Beispielzustände aus
- * `upgrade-fixtures.ts`. Das DOM baut `album/upgrade-panel.ts`.
+ * Texte, Balken, Abzeichen und aria-Angaben ab. Im Spiel liefert den Zustand der Spielstand
+ * über `upgrade-adapters.ts` (seit Phase 11, 4b), in der Vorschau `upgrade-fixtures.ts`. Das
+ * DOM baut `album/upgrade-panel.ts`.
  */
 import { formatNumber, keepNumberWithIcon } from './format';
 
@@ -209,6 +209,10 @@ export interface UpgradeButtonView {
 
 export function upgradeButtonView(name: string, purchase: UpgradePurchase, ctx: UpgradeContext): UpgradeButtonView {
   const count = Math.max(1, Math.floor(purchase.count));
+  // Höchststufe (MAX_UPGRADE_LEVEL) bzw. ×10 darüber hinaus: kein Preis, nie bezahlbar.
+  if (!Number.isFinite(purchase.cost)) {
+    return { label: 'Höchste Stufe', affordable: false, wait: '', count, cost: purchase.cost, aria: `${name}: höchste Stufe erreicht` };
+  }
   const affordable = purchase.cost <= ctx.seeds;
   const price = seedPrice(purchase.cost);
   let label: string;

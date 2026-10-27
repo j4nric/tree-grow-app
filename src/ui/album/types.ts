@@ -7,6 +7,7 @@ import type { MainTreeId } from '../../content/trees';
 import type { SiteId } from '../../content/landscape';
 import type { Evaluation } from '../../core/formulas';
 import type { GameState } from '../../core/state';
+import type { UpgradeOutcome } from '../../core/tick';
 import type { UpgradeTarget } from '../../core/upgrades';
 import type { EncounterCallbacks } from '../encounter-cards';
 import type { Preferences } from '../preferences';
@@ -21,8 +22,12 @@ export interface AlbumActions {
   sow(): void;
   /** Kauft den nächsten Rang einer Pflegemaßnahme; `true` bei Erfolg. */
   buyCare(id: string): boolean | void;
-  /** Ausbau (DESIGN_V2.md 28.4): eine Stufe einer Nische bzw. eines Baumteils. */
-  upgrade(target: UpgradeTarget): void;
+  /**
+   * Ausbau (DESIGN_V2.md 28.4/28.9): `count` Stufen einer Nische bzw. eines Baumteils
+   * (Infinity = so viele, wie die Samen reichen). Ergebnis für Aufleuchten, „+1 Stufe“ und
+   * Einkleben; null, wenn nichts gekauft wurde.
+   */
+  upgrade(target: UpgradeTarget, count: number): UpgradeOutcome | null;
   newCycle(mainTree: MainTreeId, site?: SiteId): void;
   buildCorridor(id: string): void;
   toggleRegular(speciesId: string): void;

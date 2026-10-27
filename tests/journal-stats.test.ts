@@ -38,8 +38,11 @@ describe('toJournalStats (Reiter „Statistik“)', () => {
     expect(stats.map((s) => s.key)).toEqual([
       'cycle', 'time', 'tree', 'stage', 'growth', 'seeds', 'harmony', 'species', 'plants', 'communities', 'memory', 'regulars',
       'total-time', 'total-growth', 'total-harmony', 'total-cards', 'total-events', 'total-visitors', 'total-plants',
-      'total-care', 'total-trees', 'total-daily-goals', 'total-daily-streak',
+      'total-care', 'total-upgrades', 'total-upgrade-best', 'total-trees', 'total-daily-goals', 'total-daily-streak',
     ]);
+    // Ausbau (28.9): noch nichts gekauft, keine Bestmarke.
+    expect(statOf(stats, 'total-upgrades')).toEqual({ key: 'total-upgrades', label: 'Ausbaustufen gekauft', value: '0', section: 'total' });
+    expect(statOf(stats, 'total-upgrade-best')).toMatchObject({ value: '–', detail: 'noch nichts ausgebaut' });
     // Tagesziele (seit v12): noch nichts erfüllt.
     expect(statOf(stats, 'total-daily-goals')).toMatchObject({ value: '0', detail: 'an 0 Tagen alle' });
     expect(statOf(stats, 'total-daily-streak').value).toBe('0 Tage');

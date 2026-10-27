@@ -1313,16 +1313,33 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Rückkehr-Meldung mit ⚖️, „Zur Forschung“ an verschlossenen Nischen, Spielanleitung; ALBUM_UI.md.
   **Warum:** ein Umbau des Reiters statt zwei – die Zeile „∞“ gehört ins Raster von Anfang an.
   Abhängig: Phase 10, 1c; 2b
-- [ ] **4b** Ausbau im Album (`ui-dev`, 28.9): Layout aus 1c an die echte Logik (Kaufmenge,
+- [x] **4b** Ausbau im Album (`ui-dev`, 28.9): Layout aus 1c an die echte Logik (Kaufmenge,
   Bestätigung, Meilenstein-Stempel, Einkleben des neuen Platzes, Abzeichen in Tagebuch und
   Statistik, Hinweis bei geschlossener Nische), Spielanleitung „Ausbau“; ALBUM_UI.md. **Warum:** Der
   Ausbau ist die neue Hauptschleife – er muss sich auf dem Handy wie ein Griff anfühlen. Abhängig:
   1c, 2a
+  **Erledigt:** `ui/upgrade-adapters.ts` (Spielstand → Eingaben der Ansicht, Käufe je Kaufmenge
+  aus `upgradeCost`/`upgradeAffordable`, Stempeltext, Statistik), R:Nischen mit den Bausteinen aus
+  1c statt der 2a-Zeilen (`album/pages/niches-page.ts`: Kaufmenge im Seitenkopf, gemerkt als
+  `settings.buyAmount`; „🌳 Dein Baum“; Fußzeile und Abzeichen je Nische), Aktion
+  `AlbumActions.upgrade(target, count)` mit Ergebnis (Infinity = Max). Rückmeldung: Aufleuchten,
+  „+1 Stufe“, „−x 🌰“, Meilenstein-Stempel (Abzeichen nur, wenn neu), neuer Platz klebt sich ein
+  (`slot-arrive`, ruhig bei reduzierter Bewegung). „Bestätigung“ als sichtbare Rückmeldung, ohne
+  Rückfrage (Griff statt Dialog; blasser Knopf kauft nichts, ein Kauf je Frame). Statistik
+  „Ausbaustufen gekauft“ und „Höchste Ausbaustufen“, Abzeichen am Etikett auch an verschlossenen
+  Nischen, Hinweis „dann lassen sie sich auch ausbauen“ an der Zusammenfassung, Spielanleitung
+  „🪺 Ausbau“ (22 Kapitel). `ui/upgrade-fixtures.ts` auf echten Inhalten und core-Preisen (nur das
+  Ziel bleibt nachgeahmt bis 2c). Tests `tests/upgrade-ui.test.ts`, `tests/upgrade-view.test.ts`,
+  `tests/settings.test.ts`, `tests/journal-stats.test.ts`; e2e `e2e/upgrades.spec.ts` (ersetzt
+  `upgrades-basic.spec.ts`, 360/390 px). 4d gleich mit erledigt (siehe dort)
 - [ ] **4c** Zielzeile und Rückkehr-Bericht (`ui-dev`, 28.7/28.9): Zeile im Polaroid-Kopf mit Sprung
   zum Ziel, stabil zwischen Käufen, `aria-live` nur beim Wechsel; Rückkehr-Bericht endet mit der
   Zielzeile („Genug für 6 Ausbaustufen“). Klein. Abhängig: 2c, 4b
-- [ ] **4d** Baum-Ausbau einhängen (`renderer`): aus 1d mit `scene.upgrades` aus dem Spielstand
+- [x] **4d** Baum-Ausbau einhängen (`renderer`): aus 1d mit `scene.upgrades` aus dem Spielstand
   (`main.ts`), Stufenbild unverändert; gern zusammen mit Phase 10, 4d. Abhängig: 1d, 2a
+  **Erledigt mit 4b:** `refreshSceneEcosystem` in `main.ts` setzt `scene.upgrades =
+  sceneUpgradesFromLevels(cycle.upgrades)`, sobald das Ökosystem neu ausgewertet ist (nach jedem
+  Kauf, Laden, Neuem Zyklus) – nie pro Frame. Phase 10, 4d (Aussaat-Animation) bleibt offen
 
 **Welle 5 – Absichern** (Phase 10, 5a/5b zusammengelegt)
 

@@ -279,66 +279,6 @@
   outline-offset: 2px;
 }
 
-/* --- Ausbau (Phase 11, 2a: einfache Fassung) ------------------------------------------ */
-
-.nrow-upgrade {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 10px;
-  margin-top: 4px;
-}
-
-.nrow-upgrade[hidden],
-.nrow-upgrade-name[hidden] {
-  display: none;
-}
-
-.nrow-upgrade-name {
-  flex-basis: 100%;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.nrow-upgrade-info {
-  flex: 1 1 12em;
-  min-width: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink-soft);
-  overflow-wrap: anywhere;
-}
-
-.nrow-upgrade-button {
-  min-height: var(--tap);
-  padding: 0 12px;
-  border: 2px dashed var(--dash);
-  border-radius: var(--r-button);
-  background: var(--track);
-  color: var(--ink-soft);
-  font-family: var(--font-text);
-  font-weight: 800;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.nrow-upgrade-button.affordable {
-  border: 2px solid var(--ink-green);
-  background: var(--ink-green);
-  color: var(--paper);
-}
-
-.nrow-upgrade-button:focus-visible {
-  outline: 3px solid var(--ink-green);
-  outline-offset: 2px;
-}
-
-.tree-upgrade-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 /* --- Pflanzring ---------------------------------------------------------------------- */
 
 .ring-hint {

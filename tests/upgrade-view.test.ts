@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  fixtureUpgradeState,
-  PLACEHOLDER_NICHE_MILESTONES,
-  PLACEHOLDER_TREE_PARTS,
-  placeholderCost,
-  placeholderPrice,
-  placeholderPurchase,
-  UPGRADE_FIXTURES,
-} from '../src/ui/upgrade-fixtures';
+import { upgradeCostFrom, upgradePrice } from '../src/core/upgrades';
+import { fixtureUpgradeState, NICHE_MILESTONE_INPUTS, previewPurchase, TREE_PART_INPUTS, UPGRADE_FIXTURES } from '../src/ui/upgrade-fixtures';
 import {
   badgeOf,
   badgeView,
@@ -28,7 +21,7 @@ import {
 
 const NBSP = '\u00a0';
 const ctx = (seeds: number, seedsPerSecond = 1, amount: UpgradeContext['amount'] = 1): UpgradeContext => ({ seeds, seedsPerSecond, amount });
-const M = PLACEHOLDER_NICHE_MILESTONES;
+const M = NICHE_MILESTONE_INPUTS;
 
 const niche = (over: Partial<NicheUpgradeInput> = {}): NicheUpgradeInput => ({
   id: 'roots',
@@ -43,18 +36,18 @@ const niche = (over: Partial<NicheUpgradeInput> = {}): NicheUpgradeInput => ({
   ...over,
 });
 
-describe('Platzhalter-Preise (wie 28.4)', () => {
+describe('Preise der Vorschau aus core (wie 28.4)', () => {
   it('Wurzelraum 10 / 36 / 287, Summe bis 10 = 209', () => {
-    expect(placeholderPrice(10, 0)).toBe(10);
-    expect(placeholderPrice(10, 9)).toBe(36);
-    expect(placeholderPrice(10, 24)).toBe(287);
-    expect(placeholderCost(10, 0, 10)).toBe(209);
+    expect(upgradePrice(10, 0)).toBe(10);
+    expect(upgradePrice(10, 9)).toBe(36);
+    expect(upgradePrice(10, 24)).toBe(287);
+    expect(upgradeCostFrom(10, 0, 10)).toBe(209);
   });
 
   it('Max kauft so viele, wie die Samen reichen, sonst eine Stufe', () => {
-    expect(placeholderPurchase(10, 0, 'max', 209)).toEqual({ count: 10, cost: 209 });
-    expect(placeholderPurchase(10, 0, 'max', 5)).toEqual({ count: 1, cost: 10 });
-    expect(placeholderPurchase(10, 0, 10, 0)).toEqual({ count: 10, cost: 209 });
+    expect(previewPurchase(10, 0, 'max', 209)).toEqual({ count: 10, cost: 209 });
+    expect(previewPurchase(10, 0, 'max', 5)).toEqual({ count: 1, cost: 10 });
+    expect(previewPurchase(10, 0, 10, 0)).toEqual({ count: 10, cost: 209 });
   });
 });
 
@@ -154,20 +147,20 @@ describe('„🌳 Dein Baum“', () => {
     expect(views.map((v) => [v.title, v.levelText, v.effectText])).toEqual([
       ['🪵 Jahresringe', 'St. 22', `Baum +8,8 %${NBSP}🌿`],
       ['🍃 Blattwerk', 'St. 21', `Baum +21 %${NBSP}🌰`],
-      ['🍄 Pilzgeflecht', 'St. 22', 'Pflanzen +11 %'],
+      ['🍄 Pilzgeflecht', 'St. 22', `Pflanzen +11 %${NBSP}🌿${NBSP}🌰`],
     ]);
-    expect(views[0]!.progress.label).toBe('25: +1 Höhle');
+    expect(views[0]!.progress.label).toBe('25: +1 Platz Höhlen');
   });
 
   it('nächster Meilenstein: der Teil mit den wenigsten fehlenden Stufen', () => {
-    expect(treeMilestoneHint(parts)).toBe('nächster Meilenstein: Jahresringe 25 · +1 Höhle');
+    expect(treeMilestoneHint(parts)).toBe('nächster Meilenstein: Jahresringe 25 · +1 Platz Höhlen');
     const done = parts.map((p) => ({ ...p, level: 80 }));
     expect(treeMilestoneHint(done)).toBe('');
   });
 
   it('Stufe 0 nennt die Wirkung je Stufe', () => {
-    const part = { ...PLACEHOLDER_TREE_PARTS[2]!, level: 0, best: 0, purchase: { count: 1, cost: 15 } };
-    expect(treePartView(part, ctx(0)).effectText).toBe('Pflanzen +0,5 % je Stufe');
+    const part = { ...TREE_PART_INPUTS[2]!, level: 0, best: 0, purchase: { count: 1, cost: 15 } };
+    expect(treePartView(part, ctx(0)).effectText).toBe(`Pflanzen +0,5 %${NBSP}🌿${NBSP}🌰 je Stufe`);
   });
 });
 

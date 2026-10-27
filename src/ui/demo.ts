@@ -89,7 +89,10 @@ const deps: AlbumDeps = {
     },
     sow: () => say('Gesät'),
     buyCare: (id) => say(`Pflege ${id} gekauft`),
-    upgrade: (target) => say(`${target.id} ausgebaut`),
+    upgrade: (target) => {
+      say(`${target.id} ausgebaut`);
+      return null;
+    },
     newCycle: (tree, site) => say(`Neuer Zyklus mit ${tree}${site ? ` in ${site}` : ''}`),
     buildCorridor: (id) => say(`Korridor ${id} gebaut`),
     toggleRegular: (id) => say(`Stammgast ${id} umgeschaltet`),

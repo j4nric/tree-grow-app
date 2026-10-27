@@ -371,6 +371,12 @@
 
 /* --- Kopf des Reiters: Überschrift und Kaufmenge -------------------------------------- */
 
+/* Im Spiel: im Seitenkopf von R:Nischen rechts neben Überschrift und Zähler (bricht mobil um). */
+.page-head > .buy-amount {
+  align-self: center;
+  margin-left: auto;
+}
+
 .upgrade-page-head {
   display: flex;
   flex-wrap: wrap;
@@ -443,6 +449,41 @@
   }
 }
 
+/* Einkleben eines neuen Platzes (Meilenstein „Gut bewohnt“): der leere Kreis wächst aus der
+   Seite und leuchtet kurz; bei reduzierter Bewegung nur das Leuchten. */
+.sticker-slot.slot-arrive .sticker-empty {
+  animation: slot-arrive 700ms var(--turn-ease, ease-out);
+}
+
+@keyframes slot-arrive {
+  0% {
+    transform: scale(0.2) rotate(-25deg);
+    opacity: 0;
+    background-color: var(--note-bg);
+  }
+  55% {
+    transform: scale(1.15) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    background-color: transparent;
+  }
+}
+
+@keyframes slot-arrive-glow {
+  0% {
+    background-color: var(--note-bg);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+body[data-motion='reduce'] .sticker-slot.slot-arrive .sticker-empty {
+  animation: slot-arrive-glow 700ms ease-out;
+}
+
 body[data-motion='reduce'] .upgrade-progress-fill {
   transition: none;
 }
@@ -450,5 +491,9 @@ body[data-motion='reduce'] .upgrade-progress-fill {
 @media (prefers-reduced-motion: reduce) {
   body:not([data-motion='full']) .upgrade-progress-fill {
     transition: none;
+  }
+
+  body:not([data-motion='full']) .sticker-slot.slot-arrive .sticker-empty {
+    animation: slot-arrive-glow 700ms ease-out;
   }
 }

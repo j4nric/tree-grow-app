@@ -52,8 +52,9 @@ import {
   toScenePlants,
   stageBannerView,
   waitingNotes,
-  upgradeMilestoneText,
 } from './ui/adapters';
+import { upgradeBestLevel, upgradeMilestoneText } from './ui/upgrade-adapters';
+import { sceneUpgradesFromLevels } from './render/upgrades';
 import { achievementUnlockedText, achievementsBackfilledText } from './ui/achievement-view';
 import { toReturnReportView } from './ui/return-report-view';
 import { takeOfflineHint } from './ui/settings';
@@ -386,10 +387,14 @@ const album = createAlbum({
     sow: sowNow,
     // Reiter „Pflege“ (Notliste der Forschung bis Phase 10, 4a): erforscht einen Knoten.
     buyCare: (id) => act(research(state, id), false, 'research'),
-    // Ausbau (DESIGN_V2.md 28.4; einfache Fassung bis 4b): eine Stufe, Meilenstein als Meldung.
-    upgrade: (target) => {
-      const result = target.kind === 'niche' ? upgradeNiche(state, target.id) : upgradeTree(state, target.id);
-      act(result, false, target.kind === 'tree' ? 'tree-upgrade' : undefined, result.ok && result.upgrade ? upgradeMilestoneText(result.upgrade) : '');
+    // Ausbau (DESIGN_V2.md 28.4/28.9): Kaufmenge aus R:Nischen, Meilenstein als Stempel.
+    upgrade: (target, count) => {
+      const bestBefore = upgradeBestLevel(state, target);
+      const result = target.kind === 'niche' ? upgradeNiche(state, target.id, count) : upgradeTree(state, target.id, count);
+      const outcome = result.ok ? (result.upgrade ?? null) : null;
+      if (!act(result, false, target.kind === 'tree' ? 'tree-upgrade' : undefined, outcome ? upgradeMilestoneText(outcome, bestBefore) : '')) return null;
+      if (outcome) album.floatSpent(outcome.spent);
+      return outcome;
     },
     newCycle,
     buildCorridor: (id) => {
@@ -435,6 +440,9 @@ function refreshSceneEcosystem(ev: Readonly<Evaluation>, rebuilt: boolean): void
   scene.plants = toScenePlants(state, ev);
   scene.visitors = toSceneVisitors(state);
   scene.harmonyTier = harmonyTierIndex(ev.harmony);
+  // Ausbau im Bild (DESIGN_V2.md 28.9, Phase 11, 4d): Schritte aus den Stufen; neu gezeichnet
+  // wird nur beim Schrittwechsel (render/upgrades.ts, Schlüssel im Baum-Cache).
+  scene.upgrades = sceneUpgradesFromLevels({ ...state.cycle.upgrades.niches, ...state.cycle.upgrades.tree });
 }
 
 // --- Aktionen ------------------------------------------------------------------------

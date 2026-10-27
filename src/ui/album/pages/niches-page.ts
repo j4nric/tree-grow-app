@@ -11,9 +11,12 @@
  * zusammengefasst in einer aufklappbaren Zeile „Noch 10 Nischen … verschlossen“; die beiden
  * Links erscheinen erst, wenn es dort etwas zu sehen gibt (Playtest Schritt 14, S10).
  *
- * Ausbau (DESIGN_V2.md 28.4, einfache Fassung aus Phase 11, 2a – die ausgefeilte Ansicht kommt
- * mit 4b): je offener Nische eine Zeile „St. 12 · je Tier +1,2 %“ mit Knopf „Ausbauen · Preis“,
- * dazu oben „🌳 Dein Baum“ mit Jahresringen, Blattwerk und Pilzgeflecht.
+ * Ausbau (DESIGN_V2.md 28.4/28.9, Phase 11, 4b; Bausteine aus `../upgrade-panel.ts`): Kaufmenge
+ * ×1 / ×10 / Max im Seitenkopf (gemerkt in den Einstellungen), oben „🌳 Dein Baum“ mit
+ * Jahresringen, Blattwerk und Pilzgeflecht, je offener Nische eine Fußzeile mit Stufe,
+ * Meilenstein-Balken, Wirkung und Knopf, das Abzeichen am Etikett. Kauf: Aufleuchten,
+ * „+1 Stufe“, ein neuer Platz klebt sich ein; den Meilenstein-Stempel zeigt main.ts. Die Liste
+ * sortiert nie um; Kaufen geht nur, wenn die Samen für die gewählte Menge reichen.
  *
  * DOM einmal bauen; `update` läuft nur, solange die Seite sichtbar ist, und schreibt nur bei
  * neuer Ökosystem-Ansicht (Struktur) bzw. neuer Zahl (Pflanzring) – nie pro Frame neu.
@@ -22,8 +25,12 @@ import { el, setAttr, setText, setVar, srOnly } from '../../dom';
 import { restartAnimation } from '../../feedback';
 import { formatNumber } from '../../format';
 import { familyCountLabel, familyDescription, familyProgress, formatPercent, nicheSlotsLabel } from '../../view-format';
-import type { AnimalView, CommunityListView, EcosystemView, FamilyView, FoodWebView, NicheView, PlantRingView, UpgradeView } from '../../view-model';
+import type { AnimalView, CommunityListView, EcosystemView, FamilyView, FoodWebView, NicheView, PlantRingView } from '../../view-model';
+import type { UpgradeOutcome } from '../../../core/tick';
 import type { UpgradeTarget } from '../../../core/upgrades';
+import { purchaseFor, upgradeFloatText } from '../../upgrade-adapters';
+import { nicheFooterView, treeMilestoneHint, treePartView, type BuyAmount, type UpgradeContext } from '../../upgrade-view';
+import { createBuyAmountSwitch, createNicheFooter, createTreeUpgrades, createUpgradeBadge, type NicheFooter, type UpgradeBadgeEl } from '../upgrade-panel';
 import { createNote, openNote } from '../note';
 import { createStickerSlot, type StickerKind, type StickerSlot } from '../sticker';
 import {
@@ -50,8 +57,11 @@ export interface NichesActions {
   sow(): void;
   /** „Zur Pflege ›“: Reiter Pflege bei der Maßnahme. */
   showCare(careId: string): void;
-  /** „Ausbauen“: eine Stufe einer Nische bzw. eines Baumteils (DESIGN_V2.md 28.4). */
-  upgrade(target: UpgradeTarget): void;
+  /**
+   * „Ausbauen“ (DESIGN_V2.md 28.4/28.9): `count` Stufen einer Nische bzw. eines Baumteils
+   * (Infinity = Max). Ergebnis für die Rückmeldung an der Zeile; null ohne Kauf.
+   */
+  upgrade(target: UpgradeTarget, count: number): UpgradeOutcome | null;
 }
 
 export interface NichesPage extends TabPage {
@@ -70,13 +80,10 @@ interface NicheRow {
   hintText: HTMLElement;
   care: HTMLButtonElement;
   slots: StickerSlot[];
-  upgrade: UpgradeControl;
-}
-
-/** Zeile „St. 12 · je Tier +1,2 % · St. 25: +1 Platz“ mit Knopf „Ausbauen · 287 🌰“. */
-interface UpgradeControl {
-  root: HTMLElement;
-  set(view: UpgradeView | undefined): void;
+  /** Zuletzt gezeigte Zahl der Plätze (neue Plätze kleben sich ein). */
+  shownSlots: number;
+  footer: NicheFooter;
+  badge: UpgradeBadgeEl;
 }
 
 interface FamilyBadge {
@@ -107,42 +114,9 @@ function section(title: string, className: string): { root: HTMLElement; head: H
   return { root, head };
 }
 
-function createUpgradeControl(onBuy: (target: UpgradeTarget) => void, title = false): UpgradeControl {
-  const root = el('div', 'nrow-upgrade');
-  root.dataset.ref = 'upgrade';
-  const name = el('span', 'nrow-upgrade-name');
-  name.hidden = !title;
-  const info = el('span', 'nrow-upgrade-info');
-  const button = el('button', 'nrow-upgrade-button');
-  button.type = 'button';
-  button.dataset.ref = 'upgrade-button';
-  root.append(name, info, button);
-  let target: UpgradeTarget | null = null;
-  button.addEventListener('click', () => {
-    if (target) onBuy(target);
-  });
-  return {
-    root,
-    set(view) {
-      root.hidden = !view;
-      if (!view) {
-        target = null;
-        return;
-      }
-      target = view.target;
-      root.dataset.upgrade = view.id;
-      if (title) setText(name, `${view.icon} ${view.label}`);
-      setText(info, [`St. ${formatNumber(view.level)}`, view.effect, view.next].filter(Boolean).join(' · '));
-      setText(button, `Ausbauen · ${view.costLabel} 🌰`);
-      button.classList.toggle('affordable', view.affordable);
-      button.disabled = !Number.isFinite(view.cost);
-      setAttr(
-        button,
-        'aria-label',
-        `${view.label} ausbauen auf Stufe ${formatNumber(view.level + 1)} – kostet ${view.costLabel} Samen${view.affordable ? '' : ', noch nicht genug'}`,
-      );
-    },
-  };
+/** Kaufmenge → Stufen für die Aktion (Max = so viele, wie die Samen reichen). */
+function countOf(amount: BuyAmount): number {
+  return amount === 'max' ? Infinity : amount;
 }
 
 export function createNichesPage(env: PageEnv): NichesPage {
@@ -176,13 +150,19 @@ export function createNichesPage(env: PageEnv): NichesPage {
   let familyOrder = '';
   let selectedFamily: string | null = null;
 
-  // --- Dein Baum (Baum-Ausbau, 28.4) -----------------------------------------------------
-  const ownTree = section('🌳 Dein Baum', 'niches-own-tree');
-  ownTree.root.dataset.ref = 'tree-upgrades';
-  const ownTreeList = el('div', 'tree-upgrade-list');
-  ownTree.root.append(ownTreeList);
-  const treeControls = new Map<string, UpgradeControl>();
-  const buyUpgrade = (target: UpgradeTarget) => actions?.upgrade(target);
+  // --- Ausbau: Kaufmenge und „Dein Baum“ (28.4/28.9) -------------------------------------
+  const preferences = env.deps.preferences;
+  let amount: BuyAmount = preferences.settings.buyAmount;
+  const amountSwitch = createBuyAmountSwitch((next) => {
+    if (next === amount) return;
+    amount = next;
+    preferences.update({ buyAmount: next });
+    if (current) updateUpgrades(current);
+  });
+  amountSwitch.element.hidden = true;
+  page.header.append(amountSwitch.element);
+  const ownTree = createTreeUpgrades((id) => buyUpgrade({ kind: 'tree', id: id as Extract<UpgradeTarget, { kind: 'tree' }>['id'] }));
+  ownTree.element.hidden = true;
 
   // --- Nischen und Lebensräume -----------------------------------------------------------
   const tree = section('Am Baum', 'niches-tree');
@@ -298,7 +278,7 @@ export function createNichesPage(env: PageEnv): NichesPage {
   communityLink.summary.setAttribute('aria-hidden', 'true');
   const foodWebLink = link('food-web-link', 'Nahrungsnetz', 'food-web-summary', () => env.open({ kind: 'foodweb' }));
 
-  page.body.append(tip, links, families.root, ownTree.root, tree.root, habitats.root, ring.root, locked);
+  page.body.append(tip, links, families.root, ownTree.element, tree.root, habitats.root, ring.root, locked);
 
   let shownSerial = -1;
   let shownView: EcosystemView | null = null;
@@ -442,10 +422,13 @@ export function createNichesPage(env: PageEnv): NichesPage {
       if (id) actions?.showCare(id);
     });
     hint.append(hintText, care);
-    const upgrade = createUpgradeControl(buyUpgrade);
-    content.append(list, hint, upgrade.root);
-    li.append(label, content);
-    return { root: li, title, count, list, hint, hintText, care, slots: [], upgrade };
+    content.append(list, hint);
+    const badge = createUpgradeBadge();
+    label.append(badge.element);
+    const target = { kind: 'niche', id: niche.id } as UpgradeTarget;
+    const footer = createNicheFooter(() => buyUpgrade(target));
+    li.append(label, content, footer.element);
+    return { root: li, title, count, list, hint, hintText, care, slots: [], shownSlots: -1, footer, badge };
   }
 
   function updateRow(row: NicheRow, niche: NicheView): void {
@@ -469,13 +452,17 @@ export function createNichesPage(env: PageEnv): NichesPage {
       row.slots.push(slot);
       row.list.append(slot.element);
     }
+    // Neuer Platz (Ausbau-Meilenstein, Stufe, Ereignis): der leere Platz klebt sich ein (28.9).
+    const arrive = filled && row.shownSlots > 0 ? row.shownSlots : needed;
     row.slots.forEach((slot, i) => {
       const hidden = i >= needed;
       if (slot.element.hidden !== hidden) slot.element.hidden = hidden;
       const animal = hidden ? undefined : niche.animals[i];
       if (animal) slot.setAnimal(animal, i, filled);
       else slot.setEmpty();
+      if (!hidden && !animal && i >= arrive) restartAnimation(slot.element, 'slot-arrive');
     });
+    row.shownSlots = needed;
     if (row.list.hidden !== (needed === 0)) row.list.hidden = needed === 0;
   }
 
@@ -589,19 +576,42 @@ export function createNichesPage(env: PageEnv): NichesPage {
 
   // --- Ausbau: jeden Durchlauf (Samen ändern „reicht es?“), nur geänderte Texte schreiben -----
   function updateUpgrades(view: EcosystemView): void {
-    for (const niche of view.niches) rows.get(niche.id)?.upgrade.set(niche.upgrade);
-    for (const part of view.treeUpgrades) {
-      let control = treeControls.get(part.id);
-      if (!control) {
-        control = createUpgradeControl(buyUpgrade, true);
-        treeControls.set(part.id, control);
-        ownTreeList.append(control.root);
+    const ctx: UpgradeContext = { seeds: view.seeds, seedsPerSecond: view.seedsPerSec, amount };
+    let open = false;
+    for (const niche of view.niches) {
+      const row = rows.get(niche.id);
+      const up = niche.upgrade;
+      if (!row) continue;
+      if (!up) {
+        row.footer.element.hidden = true;
+        row.badge.update(null);
+        continue;
       }
-      control.set(part);
+      const footer = nicheFooterView({ ...up, purchase: up.open ? purchaseFor(up.purchases, amount) : null }, ctx);
+      row.footer.update(footer);
+      row.badge.update(footer.badge);
+      open ||= up.open;
     }
-    const shown = new Set(view.treeUpgrades.map((p) => p.id));
-    for (const [id, control] of treeControls) if (!shown.has(id)) control.set(undefined);
-    ownTree.root.hidden = view.treeUpgrades.length === 0;
+    const parts = view.treeUpgrades.map((p) => ({ ...p, purchase: purchaseFor(p.purchases, amount) }));
+    ownTree.update(
+      parts.map((p) => treePartView(p, ctx)),
+      treeMilestoneHint(parts),
+    );
+    ownTree.element.hidden = parts.length === 0;
+    open ||= parts.length > 0;
+    amountSwitch.update(amount);
+    if (amountSwitch.element.hidden === open) amountSwitch.element.hidden = !open;
+  }
+
+  /** Kauf mit der gewählten Menge; Rückmeldung an der Zeile (Aufleuchten, „+1 Stufe“). */
+  function buyUpgrade(target: UpgradeTarget): void {
+    const outcome = actions?.upgrade(target, countOf(amount)) ?? null;
+    if (!outcome) return;
+    const anchor = target.kind === 'tree' ? ownTree.row(target.id) : (rows.get(target.id)?.footer.element ?? null);
+    if (target.kind === 'tree') ownTree.flash(target.id);
+    else rows.get(target.id)?.footer.flash();
+    const rect = anchor?.getBoundingClientRect();
+    if (rect && rect.width > 0) env.float(upgradeFloatText(outcome.bought), rect.right - 56, rect.top);
   }
 
   // --- Links ---------------------------------------------------------------------------------
