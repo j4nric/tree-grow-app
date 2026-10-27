@@ -15,7 +15,7 @@ test('Ereignis und Gast wählen: Boni erscheinen mit Restzeit und bleiben nach d
     ],
   });
   // Boni stehen im Reiter „Pflege“ (Abschnitt „Gerade wirksam“).
-  await gotoTab(page, 'pflege');
+  await gotoTab(page, 'forschung');
   const bonuses = page.locator('[data-ref="bonuses"]');
   await expect(bonuses).toBeHidden();
 
@@ -98,7 +98,7 @@ test('Ereignis- und Gast-Karten: große Knöpfe mit Wirkungszeile, Tastatur, mob
   await expect(d).toBeHidden();
 
   // Aktive Boni (Reiter „Pflege“, „Gerade wirksam“): je Quelle eine Zeile, Zeit-Boni mit Restzeit-Balken.
-  await openTab(page, 'pflege');
+  await openTab(page, 'forschung');
   const bonuses = page.locator('[data-ref="bonuses"]');
   await expect(bonuses.locator('[data-bonus="timed:rain"]')).toContainText('+25 % 🌿');
   await expect(bonuses.locator('[data-bonus="visitor:bramblings"]')).toContainText('+12 % 🌿, +12 % 🌰');
@@ -117,7 +117,7 @@ test('Aktive Boni: Wirkungen derselben Quelle stehen in einer Zeile, ohne Balken
   await openStack(page);
   await encounter(page).getByRole('button', { name: 'Totholz liegen lassen' }).click();
   await expect(encounter(page)).toBeHidden();
-  await openTab(page, 'pflege');
+  await openTab(page, 'forschung');
   const bonuses = page.locator('[data-ref="bonuses"]');
   await expect(bonuses.locator('.care-bonus')).toHaveCount(1);
   await expect(bonuses.locator('[data-bonus="cycle:storm"]')).toContainText('Totholz, +1 Platz Höhlen & Totholz');

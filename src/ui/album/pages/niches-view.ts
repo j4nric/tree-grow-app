@@ -34,7 +34,7 @@ export function splitNiches<T extends Pick<NicheView, 'id'>>(niches: readonly T[
 }
 
 /**
- * Verschlossen und (noch) nichts zu tun: kein Platz, kein Tier und kein „Zur Pflege ›“. Solche
+ * Verschlossen und (noch) nichts zu tun: kein Platz, kein Tier und kein „Zur Forschung ›“. Solche
  * Nischen fasst der Reiter in einer Zeile zusammen (Playtest Schritt 14, S10) – beim ersten
  * Start sonst eine Wand aus zehn grauen Zeilen. Verschlossene Lebensräume mit Pflege-Knopf
  * bleiben einzeln stehen, weil man dort etwas tun kann.

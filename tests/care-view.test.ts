@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { RESEARCH, RESEARCH_BY_ID } from '../src/content/research';
 import { research } from '../src/core/tick';
-import { researchBlockerText, sortCareViews, toCareViews } from '../src/ui/adapters';
-import { barWidth, careOrder, carePreviewText, careSummaryText, careTabDot, harmonyWalletText, toCareItemView } from '../src/ui/care-view';
+import { researchBlockerText, toCareViews } from '../src/ui/adapters';
+import { barWidth, carePreviewText, harmonyWalletText, toCareItemView } from '../src/ui/care-view';
 import { formatSignedPercent } from '../src/ui/view-format';
-import type { CareView } from '../src/ui/view-model';
 import { stateAt } from './helpers';
 
 /*
@@ -18,9 +17,9 @@ describe('View: Forschungs-Notliste', () => {
     state.cycle.research = ['compost', 'leaf-litter', 'deadwood-pile', 'beetle-castle'];
     state.harmonyPoints = 3_000;
     const row = () => toCareViews(state).find((v) => v.id === 'soil-life')!;
-    expect(row()).toMatchObject({ rank: '🪱 Boden · ∞ Rang 0', cost: '1.500 ⚖️', costSeeds: 1_500, canBuy: true, group: 'buyable' });
+    expect(row()).toMatchObject({ rank: '🪱 Boden · ∞\u00a0Rang\u00a00', cost: '1.500 ⚖️', costSeeds: 1_500, canBuy: true, group: 'buyable' });
     expect(research(state, 'soil-life').ok).toBe(true);
-    expect(row()).toMatchObject({ rank: '🪱 Boden · ∞ Rang 1', cost: '1.950 ⚖️', canBuy: false, group: 'saving', blocker: 'Noch 450 ⚖️' });
+    expect(row()).toMatchObject({ rank: '🪱 Boden · ∞\u00a0Rang\u00a01', cost: '1.950 ⚖️', canBuy: false, group: 'saving', blocker: 'Noch 450 ⚖️' });
     expect(row().preview!.growthDelta).toBeGreaterThan(0);
     expect(toCareItemView(state, 'soil-life')!.requirements.at(-1)).toMatchObject({ met: false, text: '1.950 ⚖️ (noch 450 ⚖️)' });
     state.cycle.researchRanks = { 'soil-life': 200 };
@@ -106,60 +105,17 @@ describe('View: Forschungs-Notliste', () => {
     expect(group('wildflower-hem')).toBe('saving'); // 300 ⚖️
   });
 
-  it('Sortierung: Gruppen in fester Folge, erforschbare und zu teure nach Kosten', () => {
-    const state = stateAt(4, ['bee'], 1);
-    state.harmonyPoints = 400;
-    const sorted = sortCareViews(toCareViews(state));
-    const order = ['buyable', 'saving', 'locked', 'maxed'];
-    const groups = sorted.map((v) => v.group);
-    expect(groups).toEqual([...groups].sort((a, b) => order.indexOf(a) - order.indexOf(b)));
-    const buyable = sorted.filter((v) => v.group === 'buyable').map((v) => v.costSeeds!);
-    expect(buyable).toEqual([...buyable].sort((a, b) => a - b));
-    expect(buyable[0]).toBe(80);
-    const saving = sorted.filter((v) => v.group === 'saving').map((v) => v.costSeeds!);
-    expect(saving).toEqual([...saving].sort((a, b) => a - b));
-  });
-
-  it('Reihenfolge bleibt stehen, solange die Liste festgehalten ist', () => {
-    const view = (id: string, group: CareView['group'], costSeeds: number | null): CareView => ({
-      id, icon: '', name: id, rank: '', next: null, cost: null, costSeeds, blocker: null,
-      canBuy: group === 'buyable', group, boughtText: null, preview: null,
-    });
-    const before = [view('a', 'buyable', 100), view('b', 'buyable', 200), view('c', 'saving', 300)];
-    const order = careOrder(before, [], false);
-    expect(order).toEqual(['a', 'b', 'c']);
-    // „a“ erforscht; „d“ ist neu dazugekommen.
-    const after = [view('a', 'maxed', null), view('b', 'buyable', 200), view('c', 'saving', 300), view('d', 'buyable', 50)];
-    expect(careOrder(after, order, true)).toEqual(['a', 'b', 'c', 'd']);
-    expect(careOrder(after, order, false)).toEqual(['d', 'b', 'c', 'a']);
-    expect(careOrder(after.slice(1), order, true)).toEqual(['b', 'c', 'd']);
-  });
-
-  it('Bestätigung nach dem Erforschen, Zusammenfassung und Vorrat im Kopf', () => {
+  it('Bestätigung nach dem Erforschen und Vorrat im Kopf', () => {
     const state = stateAt(3, ['earthworm', 'bluetit'], 1);
     state.harmonyPoints = 200;
     const views = toCareViews(state);
     expect(views.find((v) => v.id === 'leaf-litter')!.boughtText).toBe(RESEARCH_BY_ID.get('leaf-litter')!.boughtText);
-    // Kompost (100), Laub (80), Saatgut sortieren (200).
-    expect(careSummaryText(views)).toBe('3 erforschbar');
-    state.harmonyPoints = 0;
-    expect(careSummaryText(toCareViews(state))).toBe('');
-    expect(careSummaryText(views.map((v) => ({ ...v, group: 'maxed' as const })))).toBe('alles erforscht');
     state.harmonyPoints = 1234.9;
     expect(harmonyWalletText(state, { harmony: 60 })).toBe('⚖️ 1.234 · +60/min');
     state.meta.forestMemory = 100; // Gedächtnisfaktor ×2 auf den Zufluss
     expect(harmonyWalletText(state, { harmony: 60 })).toBe('⚖️ 1.234 · +120/min');
     state.harmonyPoints = Number.NaN;
     expect(harmonyWalletText(state, { harmony: -5 })).toBe('⚖️ 0 · +0/min');
-  });
-
-  it('Punkt am Reiter nur, wenn etwas erforschbar ist', () => {
-    const state = stateAt(3, [], 1);
-    state.harmonyPoints = 300;
-    expect(careTabDot(toCareViews(state))).toBe(true);
-    state.harmonyPoints = 0;
-    expect(careTabDot(toCareViews(state))).toBe(false);
-    expect(careTabDot([])).toBe(false);
   });
 
   it('Balkenbreite: begrenzt auf 0–100 %, eine Nachkommastelle', () => {
@@ -214,7 +170,7 @@ describe('View: U:Pflegemaßnahme (Forschungsknoten)', () => {
     expect(boxes.requirements.find((r) => r.key === 'harmony')).toEqual({ key: 'harmony', met: false, text: '600 ⚖️ (noch 500 ⚖️)' });
   });
 
-  it('erforscht: keine Voraussetzungen; unbekannt oder noch nicht dran: null', () => {
+  it('erforscht: keine Voraussetzungen; unbekannt: null; spätere Stufe: mit Sperrgrund', () => {
     const state = stateAt(5, [], 1);
     state.harmonyPoints = 1e6;
     research(state, 'compost');
@@ -222,6 +178,23 @@ describe('View: U:Pflegemaßnahme (Forschungsknoten)', () => {
     expect(compost.item.group).toBe('maxed');
     expect(compost.requirements).toEqual([]);
     expect(toCareItemView(state, 'gibt-es-nicht')).toBeNull();
-    expect(toCareItemView(stateAt(1, [], 1), 'compost')).toBeNull();
+    // Der Baum zeigt alle Knoten – auch U:Forschungsknoten öffnet sich vor der Stufe.
+    const early = toCareItemView(stateAt(1, [], 1), 'compost')!;
+    expect(early.item).toMatchObject({ group: 'locked', canBuy: false });
+    expect(early.requirements.find((r) => r.key === 'stage')!.met).toBe(false);
+  });
+
+  it('wiederholbar: Rang am Kopf, Kosten des nächsten Rangs; über dem größten Vorrat „unerreichbar“', () => {
+    const state = stateAt(5, ['bee'], 1);
+    state.cycle.research = ['compost', 'leaf-litter', 'deadwood-pile', 'beetle-castle'];
+    state.harmonyPoints = 1e6;
+    expect(research(state, 'soil-life').ok).toBe(true);
+    const view = toCareItemView(state, 'soil-life')!;
+    expect(view.item.rank).toBe('🪱 Boden · ∞\u00a0Rang\u00a01');
+    expect(view.item.cost).toBe('1.950 ⚖️');
+    state.cycle.researchRanks['soil-life'] = 120;
+    const far = toCareItemView(state, 'soil-life')!;
+    expect(far.item.blocker).toBe('Unerreichbar – mehr, als der Vorrat je fassen kann');
+    expect(far.requirements.find((r) => r.key === 'harmony')!.text).toMatch(/unerreichbar/);
   });
 });

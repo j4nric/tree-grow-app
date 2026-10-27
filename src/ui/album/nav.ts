@@ -13,16 +13,16 @@ export const TAB_IDS: readonly TabId[] = ['niches', 'species', 'care', 'goals', 
 export const TAB_LABELS: Readonly<Record<TabId, string>> = {
   niches: 'Nischen',
   species: 'Arten',
-  care: 'Pflege',
+  care: 'Forschung',
   goals: 'Ziele',
   landscape: 'Landschaft',
 };
 
-/** Hash je Reiter (`#pflege`); beim Neuladen öffnet das Album diesen Reiter. */
+/** Hash je Reiter (`#forschung`); beim Neuladen öffnet das Album diesen Reiter. */
 export const TAB_HASHES: Readonly<Record<TabId, string>> = {
   niches: 'nischen',
   species: 'arten',
-  care: 'pflege',
+  care: 'forschung',
   goals: 'ziele',
   landscape: 'landschaft',
 };
@@ -188,7 +188,12 @@ export function historyDepth(nav: AlbumNav): number {
   return (nav.cover ? 1 : 0) + nav.stack.length + (nav.fullscreen ? 1 : 0);
 }
 
-/** Hash eines Reiters, z. B. „#pflege“. */
+/**
+ * Frühere Hashes (Lesezeichen): Der Reiter „Pflege“ heißt seit Phase 11, 4a „Forschung“.
+ */
+const LEGACY_HASHES: Readonly<Record<string, TabId>> = { pflege: 'care' };
+
+/** Hash eines Reiters, z. B. „#forschung“. */
 export function hashOf(tab: TabId): string {
   return `#${TAB_HASHES[tab]}`;
 }
@@ -199,7 +204,7 @@ export function hashOf(tab: TabId): string {
  */
 export function tabFromHash(hash: string, ctx: NavContext): TabId {
   const key = hash.replace(/^#/, '').trim().toLowerCase();
-  const tab = TAB_IDS.find((id) => TAB_HASHES[id] === key);
+  const tab = TAB_IDS.find((id) => TAB_HASHES[id] === key) ?? LEGACY_HASHES[key];
   if (!tab || !tabVisible(tab, ctx)) return 'niches';
   return tab;
 }

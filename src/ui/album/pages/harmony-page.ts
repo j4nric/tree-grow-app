@@ -10,7 +10,8 @@ import { el, setAttr, setText, srOnly } from '../../dom';
 import { restartAnimation } from '../../feedback';
 import { formatNumber } from '../../format';
 import { hyphenate } from '../../hyphenate';
-import { formatHarmonyPart, formatMultiplier, toneOf } from '../../view-format';
+import { formatHarmonyPart, toneOf } from '../../view-format';
+import { harmonyOverview } from '../../care-view';
 import type { CommunityListView, CommunityView, EcosystemView, HarmonyPartView } from '../../view-model';
 import { createBookmark } from '../bookmark';
 import { HARMONY_NOTE_TEXT } from '../notes-text';
@@ -43,9 +44,21 @@ export function createHarmonyPage(env: PageEnv): Subpage {
   const bookmark = createBookmark(() => env.back());
   page.element.prepend(bookmark.element);
 
+  // Oben drei Zeilen (DESIGN_V2.md 27.12): Produktion, Vorrat, Bonus.
+  const overview = el('dl', 'harmony-overview');
+  overview.dataset.ref = 'harmony-overview';
+  const overviewRow = (term: string, ref: string): HTMLElement => {
+    const row = el('div', 'harmony-overview-row');
+    const value = el('dd', 'harmony-overview-value');
+    value.dataset.ref = ref;
+    row.append(el('dt', 'harmony-overview-term', term), value);
+    overview.append(row);
+    return value;
+  };
+  const production = overviewRow('Produktion', 'harmony-production');
+  const supply = overviewRow('Vorrat', 'harmony-supply');
+  const factor = overviewRow('Bonus', 'harmony-factor');
   const intro = el('p', 'sub-intro', HARMONY_NOTE_TEXT);
-  const factor = el('p', 'sub-emphasis');
-  factor.dataset.ref = 'harmony-factor';
 
   // Zusammensetzung
   const parts = block('Woraus sie sich zusammensetzt', 'harmony-parts');
@@ -71,7 +84,7 @@ export function createHarmonyPage(env: PageEnv): Subpage {
   tiers.append(tierList);
   const tierRows: { root: HTMLLIElement; label: HTMLElement; range: HTMLElement }[] = [];
 
-  page.body.append(intro, factor, parts, communities, tiers);
+  page.body.append(overview, intro, parts, communities, tiers);
 
   let shownView: EcosystemView | null = null;
   /** Nach dem ersten Füllen – vorher kein Aufleuchten. */
@@ -181,13 +194,26 @@ export function createHarmonyPage(env: PageEnv): Subpage {
     });
   }
 
-  function update(): void {
+  /** Vorrat wächst laufend: gedrosselt wie die übrigen Zahlen. */
+  let overviewAt = -Infinity;
+  function updateOverview(now: number, force = false): void {
+    const view = env.eco.view;
+    if (!view || (!force && now - overviewAt < 200)) return;
+    overviewAt = now;
+    const o = harmonyOverview(env.deps.state(), view.harmony, view.harmonyMultiplier);
+    setText(production, o.production);
+    setText(supply, o.supply);
+    setText(factor, o.bonus);
+  }
+
+  function update(now = performance.now(), force = false): void {
+    updateOverview(now, force);
     const view = env.eco.view;
     if (!view || view === shownView) return;
     shownView = view;
+    updateOverview(now, true);
     const harmony = Math.round(view.harmony);
     page.setMeta(`${formatNumber(harmony)} ⚖️ · ${view.harmonyTier}`);
-    setText(factor, `jetzt: Wachstum ${formatMultiplier(view.harmonyMultiplier)}`);
     updateParts(view.harmonyParts, view.harmony);
     updateCommunities(view.communities);
     updateTiers(view.harmony);
@@ -198,7 +224,7 @@ export function createHarmonyPage(env: PageEnv): Subpage {
     page,
     bookmark,
     opened() {
-      update();
+      update(performance.now(), true);
       page.element.scrollTop = 0;
     },
     update,

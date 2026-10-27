@@ -257,7 +257,7 @@ test.describe('Reiter und Hash (C.2)', () => {
     await seedRaw(context, landscapeState(), 0);
     await openGame(page);
     await expect(tabButton(page, 'nischen')).toHaveAttribute('aria-selected', 'true');
-    for (const tab of ['arten', 'pflege', 'ziele', 'landschaft', 'nischen'] as const) {
+    for (const tab of ['arten', 'forschung', 'ziele', 'landschaft', 'nischen'] as const) {
       await openTab(page, tab);
       await expect(page).toHaveURL(new RegExp(`#${tab}$`));
       // Genau eine Reiterseite ist zu sehen.
@@ -265,7 +265,7 @@ test.describe('Reiter und Hash (C.2)', () => {
     }
     // Reiterwechsel legt keine Verlaufseinträge an (nur Unterseiten tun das).
     const length = await page.evaluate(() => history.length);
-    await openTab(page, 'pflege');
+    await openTab(page, 'forschung');
     await openTab(page, 'arten');
     expect(await page.evaluate(() => history.length)).toBe(length);
 
@@ -309,7 +309,7 @@ test.describe('Reiter und Hash (C.2)', () => {
     await expect(tabPanel(page, 'landschaft')).toBeHidden();
     await expect(page).toHaveURL(/#nischen$/);
     // Ein späterer Hash-Wechsel auf die gesperrte Landschaft bleibt ebenso auf Nischen.
-    await openTab(page, 'pflege');
+    await openTab(page, 'forschung');
     await page.evaluate(() => (location.hash = '#landschaft'));
     await expect(tabButton(page, 'nischen')).toHaveAttribute('aria-selected', 'true');
     await expect(tabPanel(page, 'landschaft')).toBeHidden();

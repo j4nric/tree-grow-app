@@ -1,6 +1,6 @@
-/* Reiter „Pflege“ und Unterseite „Pflegemaßnahme“ (care-page.ts, care-item-page.ts).
-   Album-Optik: Handschrift-Überschriften mit Washi-Streifen, Symbol als Sticker,
-   gepunktete Trennlinien, gestrichelte Etiketten, gelber Zettel für „Gerade wirksam“. */
+/* Reiter „Forschung“ und Unterseite „Forschungsknoten“ (care-page.ts, care-item-page.ts; den Baum
+   zeichnet album/research-tree.css). Album-Optik: Handschrift-Überschriften mit Washi-Streifen,
+   Symbol als Sticker, gestrichelte Etiketten, gelber Zettel für „Gerade wirksam“. */
 
 /* --- gemeinsame Bausteine -------------------------------------------------------------- */
 
@@ -244,7 +244,105 @@ body[data-motion='reduce'] .care-bonus-fill {
   }
 }
 
-/* --- Pflegemaßnahmen ----------------------------------------------------------------- */
+/* --- Forschungsplan: Schalter „Plan des letzten Zyklus folgen“ ------------------------------ */
+
+.research-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 10px 8px;
+  border: 2px dashed var(--dash);
+  border-radius: 10px;
+}
+
+.research-plan.is-on {
+  border-style: solid;
+  border-color: var(--ink-green);
+}
+
+.research-plan-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.research-plan-switch[hidden] {
+  display: none;
+}
+
+/* Schalter als Pille; das echte Kästchen bleibt bedienbar und fokussierbar */
+.research-plan-switch input {
+  flex: none;
+  position: relative;
+  width: 46px;
+  height: 26px;
+  margin: 0;
+  border: 2px solid var(--ink-soft);
+  border-radius: var(--r-pill);
+  background: var(--track);
+  appearance: none;
+  cursor: pointer;
+}
+
+.research-plan-switch input::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+  transition: transform 0.15s ease;
+}
+
+.research-plan-switch input:checked {
+  border-color: var(--ink-green);
+  background: var(--ink-green);
+}
+
+.research-plan-switch input:checked::after {
+  background: var(--paper);
+  transform: translateX(20px);
+}
+
+.research-plan-switch input:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.research-plan-label {
+  min-width: 0;
+}
+
+.research-plan-status {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
+.research-plan.is-on .research-plan-status {
+  color: var(--ink);
+}
+
+body[data-motion='reduce'] .research-plan-switch input::after {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .research-plan-switch input::after {
+    transition: none;
+  }
+}
+
+/* --- Forschungsbaum ------------------------------------------------------------------- */
 
 .care-measures {
   display: flex;
@@ -253,261 +351,18 @@ body[data-motion='reduce'] .care-bonus-fill {
   min-width: 0;
 }
 
-.care-hint,
-.care-empty {
+.care-hint {
   margin: 0;
   font-size: 12px;
   font-weight: 700;
   color: var(--ink-soft);
 }
 
-.care-empty {
-  font-family: var(--font-hand);
-  font-size: 21px;
-  font-weight: 700;
-}
-
-.care-hint[hidden],
-.care-empty[hidden] {
+.care-hint[hidden] {
   display: none;
 }
 
-.care-list {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.care-row {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  grid-template-areas:
-    'label label label'
-    'icon head head'
-    'icon body body'
-    '. preview preview'
-    '. buy buy';
-  align-items: center;
-  column-gap: 10px;
-  padding: 8px 4px 10px;
-  border-bottom: 2px dotted var(--rule);
-  border-radius: 6px;
-}
-
-.care-row:last-child {
-  border-bottom: 0;
-}
-
-/* Handschrift-Überschrift über der ersten Zeile jeder Gruppe */
-.care-row[data-group-label]::before {
-  content: attr(data-group-label);
-  grid-area: label;
-  margin: 4px 0 2px;
-  font-family: var(--font-hand);
-  font-weight: 700;
-  font-size: 19px;
-  line-height: 1;
-  color: var(--ink-faint);
-}
-
-.care-row.care-group-start {
-  margin-top: 4px;
-}
-
-.care-icon {
-  grid-area: icon;
-  align-self: start;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border: 3px solid var(--photo);
-  border-radius: 50%;
-  background: var(--tab-care);
-  box-shadow: var(--sh-sticker);
-  font-size: 22px;
-  line-height: 1;
-  transform: rotate(var(--tilt, 0deg));
-}
-
-.care-head {
-  grid-area: head;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 8px;
-  min-width: 0;
-}
-
-/* Name als Knopf: blättert zu U:Pflegemaßnahme */
-.care-open {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  min-height: var(--tap);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink);
-  font-family: var(--font-text);
-  font-size: 15px;
-  font-weight: 800;
-  text-align: left;
-  text-decoration: underline dotted var(--dash);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-  cursor: pointer;
-}
-
-.care-open:hover {
-  color: var(--ink-green-dark);
-}
-
-.care-open:focus-visible {
-  outline: 3px solid var(--ink-green);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.care-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.care-open-arrow {
-  font-family: var(--font-hand);
-  font-size: 20px;
-  line-height: 0.8;
-  color: var(--ink-soft);
-}
-
-/* Rang als kleines gestricheltes Etikett */
-.care-rank {
-  flex: none;
-  padding: 0 7px;
-  border: 1.5px dashed var(--dash);
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 18px;
-  color: var(--ink-soft);
-  white-space: nowrap;
-}
-
-.care-maxed .care-rank {
-  border-color: var(--ink-green);
-  color: var(--ink-green);
-}
-
-.care-body {
-  grid-area: body;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  font-size: 13px;
-}
-
-.care-body p {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.care-body p[hidden],
-.care-preview[hidden] {
-  display: none;
-}
-
-.care-opens {
-  font-weight: 800;
-  color: var(--ink-green);
-}
-
-.care-blocker {
-  font-weight: 700;
-  color: var(--ink-soft);
-}
-
-.care-saving .care-blocker {
-  color: var(--ink-seed);
-}
-
-.care-row .care-buy {
-  grid-area: buy;
-  margin-top: 6px;
-}
-
-.album[data-layout='spread'] .care-row .care-buy {
-  margin-top: 0;
-}
-
-.care-preview {
-  grid-area: preview;
-  margin: 2px 0 0;
-  font-family: var(--font-hand);
-  font-weight: 700;
-  font-size: 19px;
-  line-height: 1.1;
-  color: var(--ink-green);
-}
-
-.care-locked .care-head,
-.care-locked .care-body,
-.care-locked .care-icon {
-  opacity: 0.7;
-}
-
-.care-locked .care-icon,
-.care-maxed .care-icon {
-  background: var(--track);
-}
-
-/* Voll ausgebaut: ruhige Zeile */
-.care-maxed .care-open {
-  font-weight: 700;
-  color: var(--ink-soft);
-}
-
-.care-maxed .care-body:not(:has(p:not([hidden]))) {
-  display: none;
-}
-
-.album[data-layout='spread'] .care-row {
-  grid-template-columns: 48px minmax(0, 1fr) auto;
-  grid-template-areas:
-    'label label label'
-    'icon head buy'
-    'icon body buy'
-    '. preview preview';
-  column-gap: 14px;
-}
-
-.album[data-layout='spread'] .care-icon {
-  width: 48px;
-  height: 48px;
-  font-size: 24px;
-}
-
-/* Ganz schmal: kleineres Symbol */
-@media (max-width: 380px) {
-  .care-row {
-    grid-template-columns: 40px minmax(0, 1fr) auto;
-    column-gap: 8px;
-  }
-
-  .care-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 20px;
-  }
-}
-
-/* --- U:Pflegemaßnahme -------------------------------------------------------------------- */
+/* --- U:Forschungsknoten ------------------------------------------------------------------- */
 
 .care-item-page .page-body {
   display: flex;

@@ -128,6 +128,10 @@ export interface SeedV3 {
   harmonyPoints?: number;
   /** Erforschte Knoten (seit v17, nur zusammen mit `harmonyPoints`). */
   research?: string[];
+  /** Ränge der wiederholbaren Knoten (28.6, nur zusammen mit `harmonyPoints`); je Rang steht die ID in `research`. */
+  researchRanks?: Record<string, number>;
+  /** Forschungsplan des letzten Zyklus und Schalter „Plan folgen“ (27.8, nur zusammen mit `harmonyPoints`). */
+  researchPlan?: { plan: string[]; auto: boolean };
   /** lastTick relativ zur Browser-Uhr beim Laden (ms, negativ = Vergangenheit). */
   lastTickOffsetMs?: number;
 }
@@ -178,6 +182,8 @@ export async function seedV3(context: BrowserContext, seed: SeedV3): Promise<voi
   const state = loadGame(JSON.stringify(save), 0)!.state;
   state.harmonyPoints = seed.harmonyPoints ?? 0;
   if (seed.research) state.cycle.research = [...seed.research];
+  if (seed.researchRanks) state.cycle.researchRanks = { ...seed.researchRanks };
+  if (seed.researchPlan) state.meta.research = { plan: [...seed.researchPlan.plan], auto: seed.researchPlan.auto };
   await seedRaw(context, state, seed.lastTickOffsetMs ?? 0);
 }
 
@@ -225,14 +231,27 @@ export const sowButton = (page: Page) => page.locator('[data-ref="sow"]');
 export const card = (page: Page, species: string) => encounter(page).locator(`[data-species="${species}"]`);
 
 /** Reiter des Albums über ihren Hash (docs/ALBUM_UI.md, C.2). */
-export type TabHash = 'nischen' | 'arten' | 'pflege' | 'ziele' | 'landschaft';
+export type TabHash = 'nischen' | 'arten' | 'forschung' | 'ziele' | 'landschaft';
 const TAB_IDS: Record<TabHash, string> = {
   nischen: 'niches',
   arten: 'species',
-  pflege: 'care',
+  forschung: 'care',
   ziele: 'goals',
   landschaft: 'landscape',
 };
+
+/**
+ * Karte eines Forschungsknotens im Reiter „Forschung“ (Baum, Phase 11, 4a) und ihr Knopf
+ * „Erforschen · ⚖️ 80“. Mobil (< 640 px) sind anfangs nur Äste mit Erforschbarem offen –
+ * `openBranch` klappt einen Ast auf.
+ */
+export const researchNode = (page: Page, id: string) => page.locator(`[data-ref="care"] .research-node[data-node="${id}"]`);
+export const researchName = (page: Page, id: string) => page.locator(`[data-ref="care"] [data-research-name="${id}"]`);
+export const researchAction = (page: Page, id: string) => page.locator(`[data-ref="care"] [data-research-action="${id}"]`);
+export async function openBranch(page: Page, branch: string): Promise<void> {
+  const toggle = page.locator(`[data-ref="care"] .research-branch[data-branch="${branch}"] .research-branch-toggle`);
+  if ((await toggle.isVisible()) && (await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+}
 
 export const tabButton = (page: Page, tab: TabHash) => page.locator(`[data-ref="tab-${TAB_IDS[tab]}"]`);
 export const tabPanel = (page: Page, tab: TabHash) => page.locator(`[data-ref="page-${TAB_IDS[tab]}"]`);
@@ -305,7 +324,7 @@ export async function openTab(page: Page, tab: TabHash): Promise<void> {
   await expect(tabPanel(page, tab)).toBeVisible();
 }
 
-/** Öffnet das Album direkt in einem Reiter (Hash, z. B. `/#pflege`) und wartet auf den Game Loop. */
+/** Öffnet das Album direkt in einem Reiter (Hash, z. B. `/#forschung`) und wartet auf den Game Loop. */
 export async function gotoTab(page: Page, tab: TabHash): Promise<void> {
   await page.goto(`/#${tab}`);
   await expect(stageLabel(page)).toContainText('Stufe:');

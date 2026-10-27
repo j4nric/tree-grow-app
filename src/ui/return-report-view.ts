@@ -25,7 +25,7 @@ export interface ReturnReportInput {
   /** Tatsächliche Abwesenheit in Sekunden (kann über der simulierten Zeit liegen). */
   away: number;
   report: Pick<OfflineReport, 'seconds' | 'growth' | 'seeds' | 'autoDeclined' | 'declinedSeeds'> &
-    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'regulars' | 'wildwechsel' | 'yieldFactor' | 'fullSeconds'>>;
+    Partial<Pick<OfflineReport, 'averaged' | 'weather' | 'regulars' | 'wildwechsel' | 'yieldFactor' | 'fullSeconds' | 'harmony'>>;
   /** Wartende Begegnungen im Stapel. */
   waiting: number;
   stages?: StageProgress;
@@ -80,7 +80,7 @@ export function toReturnReportView(input: ReturnReportInput): ReturnReportView {
   ].filter((d): d is string => !!d);
 
   // Kurzfassung: Dauer, Ertrag, erreichte Stufe, wartende Begegnungen.
-  const yields = [welcomeAmount(report.growth, '🌿'), welcomeAmount(report.seeds, '🌰')].filter(Boolean);
+  const yields = [welcomeAmount(report.growth, '🌿'), welcomeAmount(report.seeds, '🌰'), welcomeAmount(report.harmony ?? 0, '⚖️')].filter(Boolean);
   const greeting = `Willkommen zurück! ${formatDuration(report.seconds)}`;
   const head = `${greeting}${yields.length > 0 ? `: ${yields.join(', ')}` : ''}`;
   const parts = [head];

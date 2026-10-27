@@ -337,7 +337,7 @@ export interface NicheView {
   unlockHint?: string;
   /**
    * Pflegemaßnahme, die diese verschlossene Nische öffnet und schon gekauft werden kann
-   * (Waldtümpel ab „Alter Baum“) – die Seitenleiste zeigt dann „Zur Pflege“.
+   * (Waldtümpel ab „Alter Baum“) – die Seite zeigt dann „Zur Forschung“.
    */
   careLink?: string;
   /**

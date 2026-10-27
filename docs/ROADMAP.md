@@ -1114,7 +1114,7 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
 
 **Welle 4 – Oberfläche und Komfort**
 
-- [ ] **4a** Forschung, Harmonie und Aussaat im Album (`ui-dev`, 27.12): Reiter „Pflege“ →
+- [x] **4a** Forschung, Harmonie und Aussaat im Album (`ui-dev`, 27.12): Reiter „Pflege“ →
   „Forschung“ (Layout aus 1c an die echte Logik: Zustände, Vorschau, „Noch 120 ⚖️ · ~1 min“,
   Bestätigung und Doppelklick-Schutz wie die Pflege), U:Forschungsknoten statt U:Pflegemaßnahme,
   Kopf „⚖️ Vorrat · +110/min“, Etikett und U:Harmonie (Produktion, Vorrat, Bonus), Knopf „🌱
@@ -1124,6 +1124,8 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   Baum und die zweite Währung müssen auf dem Handy lesbar sein, sonst ist die Abzweigung keine
   Entscheidung. Abhängig: 1c, 2b (Zahlen aus 3a kommen nur als Daten). **→ Zusammengelegt mit
   Phase 11, 4a** (gleich mit der Zeile „∞“ der wiederholbaren Knoten und dem Schalter aus 4c)
+  **Erledigt mit Phase 11, 4a** (Forschung, Kopf, U:Harmonie, Rückkehr-Meldung, „Zur Forschung“,
+  Spielanleitung; Säen-Knopf und Aussaat-Zettel kamen schon mit Phase 10, 2b)
 - [x] **4b** Forschungsplan (`core-engineer`, 27.8): `meta.research.auto`; in `tick` Halt, sobald
   der Vorrat die Kosten des nächsten geplanten Knotens erreicht, Kauf streng in Plan-Reihenfolge
   (warten bei fehlender Stufe, überspringen bei anders entschiedener Gabel); Aktion
@@ -1131,8 +1133,8 @@ Prozent-Boni auf die Harmonie-Produktion (27.14).
   Klicks je Zyklus wären Pflicht statt Wahl. Abhängig: 2a. **→ Zusammengelegt mit Phase 11, 2b**
   (der Plan muss die Ränge der wiederholbaren Knoten kennen – ein PR statt zwei in `tick`)
   **Erledigt mit Phase 11, 2b** (`nextPlannedResearch`, `setResearchAuto`, Halt in `tick`)
-- [ ] **4c** Schalter „Plan folgen“ und Plan-Nummern (`ui-dev`, 27.12). Klein. Abhängig: 4a, 4b.
-  **→ in Phase 11, 4a**
+- [x] **4c** Schalter „Plan folgen“ und Plan-Nummern (`ui-dev`, 27.12). Klein. Abhängig: 4a, 4b.
+  **→ in Phase 11, 4a** – **Erledigt mit Phase 11, 4a**
 - [ ] **4d** Aussaat-Animation einhängen (`renderer`): aus 1b beim Setzen aus einer Aussaat
   (Bericht aus `chooseSowing`), Stufenbild unverändert. Abhängig: 1b, 2b. Bleibt eigenständig und
   kann sofort laufen (Phase 11 berührt die Aussaat nicht); gern im selben Zug wie Phase 11, 4d
@@ -1338,12 +1340,32 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
 
 **Welle 4 – Oberfläche** (parallel zu Welle 3; Zahlen aus 3a kommen nur als Daten)
 
-- [ ] **4a** Forschung im Album (`ui-dev`, = Phase 10, 4a + 4c, dazu 28.9): Layout aus Phase 10, 1c
+- [x] **4a** Forschung im Album (`ui-dev`, = Phase 10, 4a + 4c, dazu 28.9): Layout aus Phase 10, 1c
   an die echte Logik, Zeile „∞“ mit Rang-Stempel und Kosten, Schalter „Plan des letzten Zyklus
   folgen“ mit Plan-Nummern (auch wiederholte Ränge), Kopf „⚖️ Vorrat · +110/min“, U:Harmonie,
   Rückkehr-Meldung mit ⚖️, „Zur Forschung“ an verschlossenen Nischen, Spielanleitung; ALBUM_UI.md.
   **Warum:** ein Umbau des Reiters statt zwei – die Zeile „∞“ gehört ins Raster von Anfang an.
   Abhängig: Phase 10, 1c; 2b
+  **Erledigt:** Reiter „Pflege“ heißt „Forschung“ (🔍, Hash `#forschung`, `#pflege` führt weiter;
+  interne Kennung `care` bleibt) und zeigt den Baum aus 1c statt der Notliste
+  (`album/pages/care-page.ts`); Spielstand → Baum in `ui/research-state.ts` (Blocker einmal je
+  Stufe/Forschung/Auswertung, „erforschbar“/„sparen“ danach nur aus dem Vorrat, Kosten und Rang,
+  offene Plan-Nummern je Rang). Zeile „∞ immer weiter“ unter der Wald-Ebene (Liste und Raster 6 × 6),
+  Stempel „Rang 3“ neben „Erforschen · ⚖️ 3.296“, über `MAX_HARMONY_POINTS` „unerreichbar“ (auch
+  `researchBlockerText`, U:Forschungsknoten). Schalter „Plan des letzten Zyklus folgen“
+  (`AlbumActions.setResearchAuto`) mit Zeile „Als Nächstes (Nr. 3) …“; Plan-Käufe
+  (`TickReport.research`) speichern sofort und melden sich dezent („🔍 Nach Plan erforscht: …“,
+  offline als Punkt im Rückkehr-Bericht). Kauf mit Doppelklick-Schutz (`care-buy.ts`), Aufleuchten,
+  schwebender Bestätigung, Fokus auf den Namen. U:Forschungsknoten für alle Knoten (auch spätere
+  Stufen, `toCareView`); U:Harmonie oben Produktion/Vorrat/Bonus; Rückkehr-Meldung „+840 ⚖️“;
+  „Zur Forschung ›“ an verschlossenen Nischen; Spielanleitung „🔍 Forschung“ (Reiter, ∞, Plan).
+  Die alte Liste (`careOrder`, `sortCareViews`, Gruppen-Etiketten) ist entfernt. Echte 44-px-Treffer:
+  Name der Karte (negativer Rand statt Pseudo-Fläche), Reiter mindestens 44 px breit („Ziele“ bei
+  360 px), kein neuer Eintrag in `SMALL_OK`. Äste klappen nur mobil (Fenster < 640 px) anfangs zu.
+  Tests: `tests/research-state.test.ts`, `tests/research-view.test.ts` (Zeile „∞“, Plan-Nummern),
+  `tests/care-view.test.ts`, `tests/return-report-view.test.ts`, `tests/album-nav.test.ts`; e2e
+  `e2e/care.spec.ts` (neu: Baum, ∞, unerreichbar, Plan), `e2e/album-care.spec.ts` und die übrigen
+  Specs auf `#forschung` und die Karten-Helfer in `e2e/fixtures.ts`
 - [x] **4b** Ausbau im Album (`ui-dev`, 28.9): Layout aus 1c an die echte Logik (Kaufmenge,
   Bestätigung, Meilenstein-Stempel, Einkleben des neuen Platzes, Abzeichen in Tagebuch und
   Statistik, Hinweis bei geschlossener Nische), Spielanleitung „Ausbau“; ALBUM_UI.md. **Warum:** Der

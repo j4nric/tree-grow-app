@@ -35,7 +35,7 @@ Gliederung:
 5. **Begegnungen** liegen als gestapelte Notizzettel bereit („2 Zettel“). Neue Zettel
    wackeln kurz. Erst Antippen öffnet die Wahl. Die Regeln bleiben gleich (Stapel voll,
    automatisch ablehnen).
-6. **Reiter:** Nischen, Arten, Pflege, Ziele, Landschaft. Landschaft erscheint erst nach der
+6. **Reiter:** Nischen, Arten, Forschung (bis Phase 11 „Pflege“), Ziele, Landschaft. Landschaft erscheint erst nach der
    Freischaltung. Der **Buchumschlag** (Menü) enthält Einstellungen, Spielanleitung,
    Konto/Sync und Export/Import. Alles andere sind Unterseiten.
 7. **Tier-Sticker** kommen aus den vorhandenen Renderer-Zeichnungen: einmal auf ein kleines
@@ -145,7 +145,7 @@ Spalte „heute“: Datei und, falls vorhanden, `data-ref`.
 | 35 | Gattungs-Detailzeile (aria-live) beim Antippen eines Abzeichens | `.family-detail` | H | H am Abzeichen |
 | 36 | Nischenliste: Titel mit Symbol, „2/3 Plätze“, „voll“ | `.niche`, `data-niche` | R:Nischen | Stickerreihe (Spalte für den Namen, rechts die Sticker); Kopfzeile der Seite „9 von 14 Plätzen“ |
 | 37 | Hinweis bei verschlossener oder leerer Nische („öffnet beim Alten Baum“) | `.niche-hint` | R:Nischen (+H) | grauer Nischenname und Handschrift-Zeile; ein langer Text wird in einer H gekürzt |
-| 38 | „Zur Pflege“ an verschlossenen Nischen (Waldtümpel); öffnet die Pflege bei der Maßnahme | `niche-care-link`, `carePanel.reveal` | R:Nischen → R:Pflege | Link-Knopf; wechselt zum Reiter Pflege, scrollt zur Maßnahme und lässt sie aufleuchten |
+| 38 | „Zur Forschung“ (bis Phase 11 „Zur Pflege“) an verschlossenen Nischen (Waldtümpel); öffnet die Forschung beim Knoten | `niche-care-link`, `CarePage.reveal` | R:Nischen → R:Forschung | Link-Knopf; wechselt zum Reiter Forschung, klappt den Ast auf, Fokus auf den Namen, Karte leuchtet auf |
 | 39 | Tier-Kachel: Gattungssymbol, Name, Zufriedenheit % und Stimmung (gekürzt, Tooltip), Ring `--h`, Seltenheit, Gattungsfarbe, Ankunftsanimation | `.slot.filled`, `data-species` | R:Nischen | **Sticker** mit Tierzeichnung (D.4). Zufriedenheit als Bogen im weißen Rand, Seltenheit über Randfarbe und Edelstein, Name klein darunter. Ankommen = „Einkleben“-Animation. `data-species` bleibt. |
 | 40 | Kachel ist ein Knopf und öffnet die Tierdetails | `.slot-open` | U:Tier | Tipp auf den Sticker blättert zu U:Tier um |
 | 41 | Bestand der Beute („Bestand reichlich“) | `.slot-stock` | U:Tier | im Kopf von U:Tier, dazu ein farbiger Punkt am Sticker (niedrig/gut/hoch) |
@@ -218,16 +218,20 @@ Spalte „heute“: Datei und, falls vorhanden, `data-ref`.
 | 93 | Pfeiltasten in der Reiterleiste | journal-dialog.ts | R | auf die Album-Reiter übertragen (C.1) |
 | 94 | Hinweisfeld, „Schließen“ | – | S / – | Stempelschicht; „Schließen“ entfällt |
 
-### A.8 Pflege und Boni
+### A.8 Pflege und Boni (seit Phase 11, 4a: Forschung und Boni)
+
+Seit Spielstand v17 ist die Pflege die Forschung (DESIGN_V2.md 27.7); seit Phase 11, 4a zeigt der
+Reiter „Forschung“ den Baum statt der Liste. Die Zeilen 95–99 beschreiben den Stand davor, die
+Spalte „Ziel im Album“ den heutigen.
 
 | # | Element und Funktion heute | heute | Ort | Ziel im Album |
 |---|---|---|---|---|
-| 95 | Pflege-Liste aufklappbar, mobil zu; Zusammenfassung „2 kaufbar“ / „alles ausgebaut“ | care-panel.ts `care`, `care-summary` | R:Pflege | Reiterseite. Die Zusammenfassung steht in der Kopfzeile, der Reiter trägt einen Punkt, wenn etwas kaufbar ist. |
-| 96 | Sortierung kaufbar → sparen → gesperrt → ausgebaut; Reihenfolge bleibt bei Zeiger/Fokus/kurz nach dem Kauf | `careOrder`, `CARE_HOLD_MS` | R:Pflege | übernehmen |
-| 97 | Zeile: Symbol, Name, Rang (✓), nächster Rang, „öffnet …“, „schützt vor …“, Vorschau, Sperrgrund, „Kaufen (x)“ | `care-opens`, `care-protects`, `care-preview`, `care-blocker` | R:Pflege + U:Pflegemaßnahme | Auf der Seite stehen Name, Rang, Vorschau und der Kaufen-Knopf. Tipp auf den Namen → U:Pflegemaßnahme mit allen Zeilen und Kaufen-Knopf. Die `data-ref` bleiben auf der Reiterseite, weil die Zeilen dort stehen. |
-| 98 | Nach dem Kauf: Aufleuchten, schwebende Bestätigung, Screenreader-Status | care-panel.ts | R:Pflege | bleibt (Stempel „gekauft“ als Juice) |
-| 99 | `reveal(id)` (von „Zur Pflege“) | care-panel.ts | R:Pflege | Reiterwechsel, Scroll und Aufleuchten |
-| 100 | Aktive Boni: je Quelle Restzeit und schrumpfender Balken, „bis zum Neuen Zyklus“ | bonus-panel.ts `bonuses` | R:Pflege | Abschnitt „Gerade wirksam“ oben auf R:Pflege (nur sichtbar, wenn ein Bonus wirkt) |
+| 95 | Pflege-Liste aufklappbar, mobil zu; Zusammenfassung „2 kaufbar“ / „alles ausgebaut“ | care-panel.ts `care`, `care-summary` | R:Forschung | Reiterseite mit dem Forschungsbaum. Kopfzeile „⚖️ 1.234 · +110/min · 3 erforschbar“ (`care-summary`), Punkt am Reiter, wenn etwas erforschbar ist (auch ein nächster Rang). |
+| 96 | Sortierung kaufbar → sparen → gesperrt → ausgebaut; Reihenfolge bleibt bei Zeiger/Fokus/kurz nach dem Kauf | `careOrder`, `CARE_HOLD_MS` | R:Forschung | entfällt: Der Baum hat feste Plätze (Äste, Ebenen, Zeile „∞“), nichts sortiert um. |
+| 97 | Zeile: Symbol, Name, Rang (✓), nächster Rang, „öffnet …“, „schützt vor …“, Vorschau, Sperrgrund, „Kaufen (x)“ | `care-opens`, `care-protects`, `care-preview`, `care-blocker` | R:Forschung + U:Forschungsknoten | Karte im Baum: Symbol, Name (Knopf → U:Forschungsknoten), Kurzwirkung, „braucht …“, Stempel („erforscht“ bzw. „Rang 3“) und Knopf „Erforschen · ⚖️ 550“ bzw. „Noch 120 ⚖️ · ~1 Min.“, Sperrgrund, „anderer Weg gewählt“ oder „unerreichbar“. U:Forschungsknoten zeigt alle Zeilen, auch für Knoten späterer Stufen. |
+| 98 | Nach dem Kauf: Aufleuchten, schwebende Bestätigung, Screenreader-Status | care-panel.ts | R:Forschung | bleibt: Karte leuchtet auf, Bestätigung schwebt über dem Knopf, Statuszeile; Doppelklick-Schutz aus `care-buy.ts`; verschwindet der Knopf, springt der Fokus auf den Namen. |
+| 99 | `reveal(id)` (von „Zur Pflege“) | care-panel.ts | R:Forschung | Reiterwechsel, Ast aufklappen, Scroll, Fokus und Aufleuchten |
+| 100 | Aktive Boni: je Quelle Restzeit und schrumpfender Balken, „bis zum Neuen Zyklus“ | bonus-panel.ts `bonuses` | R:Forschung | Abschnitt „Gerade wirksam“ oben auf R:Forschung (nur sichtbar, wenn ein Bonus wirkt) |
 
 ### A.9 Ziele: Tagesziele, Neuer Zyklus, Stammgäste
 
@@ -318,7 +322,7 @@ als Ganzes:
 [48,3/s Wachstum] [1.240 Samen] [62 Harmonie ⓘ]   ← Etiketten
 ▬▬▬▬▬▬▬▬▬░░░░░ noch 1:20 bis zum Wegpunkt          ← Stufenleiste schmal
 (Zettel „Während du weg warst …“, falls vorhanden)
- Nischen | Arten | Pflege | Ziele | Landschaft     ← Reiter (klebt oben beim Scrollen)
+ Nischen | Arten | Forschung | Ziele | Landschaft  ← Reiter (klebt oben beim Scrollen)
 ┌ Heftseite ────────────────────────────────┐
 │  … Inhalt des Reiters …                    │
 └───────────────────────────────────────────┘
@@ -329,7 +333,7 @@ als Ganzes:
 - Sobald die Etiketten aus dem Bild scrollen, erscheint über den Reitern eine schmale
   **Vorratsleiste** mit Samen, Wachstum und Harmonie in Caveat 20 px (G-21). Umgesetzt in
   `album/supply-bar.ts`: Sie erscheint, sobald die Reiterleiste klebt (Marke direkt über den
-  Reitern), und verschiebt nichts im Textfluss. U:Pflegemaßnahme zeigt den Vorrat am Knopf.
+  Reitern), und verschiebt nichts im Textfluss. U:Forschungsknoten zeigt den Vorrat am Knopf.
 - **Unterseiten auf dem Handy:** Wie im Prototyp dreht sich die **ganze Hauptseite**
   (Polaroid, Etiketten, Heft) um die linke Kante weg, darunter liegt die Unterseite in voller
   Höhe. Der Zettelstapel und die Stempel bleiben darüber.
@@ -369,7 +373,7 @@ und rechts eine kurze Kennzahl.
 3. **Baum-Nischen:** Stickerreihen Wurzeln, Laubstreu, Waldsaum, Krone, Stamm & Rinde,
    Höhlen. Verschlossene Nischen zeigen grauen Namen und eine Handschrift-Zeile.
 4. **Lebensräume:** Waldtümpel, Waldwiese, Totholzhaufen, Trockenmauer. Verschlossene haben
-   den Link „Zur Pflege ›“.
+   den Link „Zur Forschung ›“.
 5. **Pflanzring:** Plätze als Sticker, Messbänder für Licht und Wasser, Mangel-Notiz,
    Gruppen-Etiketten, Knopf „🌱 Pflanze setzen · 120 🌰“ → U:Pflanze setzen.
 6. **Lesezeichen-Links:** „Lebensgemeinschaften · +8 ⚖️ ›“ → U:Harmonie; „Nahrungsnetz ·
@@ -472,17 +476,39 @@ Nische und die Stufe bzw. „besondere Bedingungen“, nie Namen oder ID. Die ec
 bleibt im Skript. Zeichnen: siehe ROADMAP Phase 8, Schritt 7 (IntersectionObserver, IdleQueue,
 Messwerte).
 
-### B.3 Reiter „Pflege“ – „Was tun wir für den Wald?“ · „2 kaufbar“
+### B.3 Reiter „Forschung“ – „Was erforschen wir?“ · „⚖️ 1.234 · +110/min · 3 erforschbar“
+
+Bis Phase 11, 4a hieß der Reiter „Pflege“ (Hash `#pflege` führt weiter hierher, neu `#forschung`,
+Symbol 🔍). Umsetzung: `album/pages/care-page.ts` (interne Kennung bleibt `care`), Baum aus
+`album/research-tree.ts`, Zustand aus dem Spielstand in `ui/research-state.ts` (DESIGN_V2.md 27.12,
+28.9).
 
 1. **Gerade wirksam** (Boni mit Restzeit-Balken). Fehlt, wenn kein Bonus wirkt.
-2. **Pflegemaßnahmen** sortiert wie heute. Jede Zeile hat Symbol, Name und Rang, eine
-   Vorschau und „Kaufen (x)“ bzw. den Sperrgrund. Tipp auf den Namen → U:Pflegemaßnahme mit
-   nächstem Rang, „öffnet …“, „schützt vor …“ und Kaufen.
+2. **Forschungsplan:** Schalter „Plan des letzten Zyklus folgen“ (`meta.research.auto`, echtes
+   Kästchen mit `role="switch"` im Etikett, Trefferfläche 44 px) und darunter eine Zeile: „Aus – du
+   forschst selbst. Der Plan hat 12 Schritte …“, „Als Nächstes (Nr. 3): 🪲 Käferburg – noch 120 ⚖️
+   · ~1 Min.“, „… – gleich.“, „… – wartet auf die Stufe.“, „Plan erledigt …“ oder „… – unerreichbar,
+   hier hält der Plan.“. Ohne Plan (erster Zyklus) nur der Satz, dass der Neue Zyklus ihn schreibt.
+   Geplante Knoten tragen oben links ein kleines Etikett mit ihren offenen **Plan-Nummern** – bei
+   den endlosen Knoten je Rang eine („10 · 12 +3“); der nächste Eintrag grün, bei ausgeschaltetem
+   Plan alle blass. Vorgelesen über die Statuszeile der Karte („… steht im Plan an Stelle 3“).
+3. **Forschungsbaum:** sechs Äste mit Ebenen „ab Setzling“ … „ab Wald“ und darunter die Zeile
+   **„∞ immer weiter · ab Hain“** mit dem endlosen Knoten des Asts (doppelter Rand, Stempel
+   „Rang 3“ neben dem Knopf für den nächsten Rang „Erforschen · ⚖️ 3.296“). Kostet der nächste
+   Rang mehr als der größte Vorrat (`MAX_HARMONY_POINTS`), steht dort ruhig „unerreichbar“ statt
+   eines ewigen „Noch …“. Der Ast-Kopf nennt „4 / 5 erforscht · ∞ Rang 3 · 1 erforschbar“.
+   Mobil (Fenster < 640 px) sind anfangs nur Äste mit Erforschbarem offen; Ast-Register oben.
+   Breiter als 940 px (Baumbreite) Raster 6 × 6 mit SVG-Linien, die Zeile „∞“ als letzte.
+4. Kauf direkt an der Karte (kein Dialog): Doppelklick-Schutz, Aufleuchten, schwebende
+   Bestätigung, Statuszeile. Tipp auf den Namen → **U:Forschungsknoten** (früher
+   U:Pflegemaßnahme) mit Wirkung, Vorschau, Voraussetzungen, Vorrat und Knopf.
+5. **Plan-Käufe** (`TickReport.research`) melden sich dezent: „🔍 Nach Plan erforscht: 🪲 Käferburg
+   und 🐛 Bodenleben fördern ×2“ schwebt über dem Bild (bzw. als Stempel, wenn das Bild nicht zu
+   sehen ist); offline als Punkt im Rückkehr-Bericht.
 
-**Skizze mobil:** Eine Zeile pro Maßnahme, der Kaufen-Knopf rechts mit mindestens 44 px. Die
-Vorschau steht in einer eigenen Zeile.
-
-**Skizze Desktop:** wie mobil, nur breiter. Gesperrte Maßnahmen sind wie heute gedämpft.
+**U:Harmonie** bekommt oben drei Zeilen (27.12): *Produktion* („110/min“), *Vorrat* („⚖️ 1.234 ·
++217/min (Gedächtnis ×1,97)“) und *Bonus* („Wachstum ×2,10 – aus der Produktion, Ausgeben senkt
+ihn nicht“). Der **Rückkehr-Bericht** nennt den Zufluss in den Vorrat („+840 ⚖️“) neben 🌿 und 🌰.
 
 ### B.4 Reiter „Ziele“ – „Was haben wir vor?“ · „🔥 4 Tage“
 
@@ -557,7 +583,7 @@ der Landschaft im DOM), Andenken der Chroniken `species-chronicles` (`data-chron
 | Harmonie | Harmonie-H „Mehr ›“, Nischen | 1 | A.3 #31–32 |
 | Pflanze setzen | Nischen | 1 | A.6 #81 |
 | Begegnung | Zettelstapel (von überall) | 1 | A.6 #68–80 |
-| Pflegemaßnahme | Pflege | 1 | A.8 #97 |
+| Forschungsknoten (früher Pflegemaßnahme) | Forschung | 1 | A.8 #97 |
 | Neuer Zyklus | Ziele, Landschaft | 1 | A.9 #102–105 |
 | Erfolge, Statistik | Ziele | 1 | A.7 #89, #91 |
 | Standort | Landschaft, U:Neuer Zyklus | 1 oder 2 | A.10 #110 |
@@ -850,10 +876,10 @@ src/ui/album/
   pages/
     niches-page.ts    R:Nischen        animal-page.ts      U:Tier
     species-page.ts   R:Arten          harmony-page.ts     U:Harmonie
-    care-page.ts      R:Pflege         food-web-page.ts    U:Nahrungsnetz
+    care-page.ts      R:Forschung      food-web-page.ts    U:Nahrungsnetz
     goals-page.ts     R:Ziele          plant-picker-page.ts U:Pflanze setzen
     landscape-page.ts R:Landschaft     encounter-page.ts   U:Begegnung
-    cycle-page.ts     U:Neuer Zyklus   care-item-page.ts   U:Pflegemaßnahme
+    cycle-page.ts     U:Neuer Zyklus   care-item-page.ts   U:Forschungsknoten
     achievements-page.ts, stats-page.ts, site-page.ts, return-report-page.ts,
     guide-page.ts, settings-page.ts, account-page.ts, save-page.ts
 ```

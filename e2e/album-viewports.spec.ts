@@ -7,6 +7,7 @@ import {
   expect,
   gotoTab,
   note,
+  openBranch,
   openCover,
   openTab,
   overlaps,
@@ -54,7 +55,7 @@ const VIEWPORTS = [
 ] as const;
 
 const ANCIENT = STAGES.findIndex((s) => s.id === 'ancient-forest');
-const TABS: readonly TabHash[] = ['nischen', 'arten', 'pflege', 'ziele', 'landschaft'];
+const TABS: readonly TabHash[] = ['nischen', 'arten', 'forschung', 'ziele', 'landschaft'];
 
 /**
  * Bekannte Ausnahmen der 44-px-Regel (mit Grund). Der Stammgast-Stern auf dem Sticker im
@@ -311,11 +312,11 @@ for (const viewport of VIEWPORTS) {
       );
     });
 
-    test('Pflege, Ziele, Landschaft: Unterseiten umblättern und zurück', async ({ page, context }) => {
+    test('Forschung, Ziele, Landschaft: Unterseiten umblättern und zurück', async ({ page, context }) => {
       await seedRaw(context, richState(), 0);
-      await gotoTab(page, 'pflege');
+      await gotoTab(page, 'forschung');
       const visit = visitor(page);
-      await visit('care-item', () => tabPanel(page, 'pflege').locator('[data-care-title="leaf-litter"]').click(), 'pflege');
+      await visit('care-item', () => tabPanel(page, 'forschung').locator('[data-research-name="leaf-litter"]').click(), 'forschung');
 
       await openTab(page, 'ziele');
       for (const kind of ['cycle', 'achievements', 'stats']) {
@@ -378,10 +379,10 @@ for (const viewport of VIEWPORTS) {
       await expect(page.locator('[data-species="woodpecker"]').first()).toBeVisible();
       expect((await savedState(page)).pendingEncounters).toEqual([]);
 
-      // Forschung (Reiter Pflege): direkt in der Liste erforschen – kostet ⚖️, nicht 🌰.
-      await openTab(page, 'pflege');
-      const item = tabPanel(page, 'pflege').locator('[data-care="leaf-litter"]');
-      await item.locator('.care-buy').click();
+      // Forschung: direkt im Baum erforschen – kostet ⚖️, nicht 🌰.
+      await openTab(page, 'forschung');
+      await openBranch(page, 'soil');
+      await tabPanel(page, 'forschung').locator('[data-research-action="leaf-litter"]').click();
       await expect.poll(async () => (await savedState(page)).cycle.research ?? []).toContain('leaf-litter');
       expect((await savedState(page)).harmonyPoints).toBeLessThan(50_000);
       await expectNoHorizontalScroll(page, 'nach dem Kauf');

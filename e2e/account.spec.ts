@@ -1,7 +1,7 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
 import { codeFromJson, exportCode, importCode, serialize } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
-import { SAVE_VERSION, expect, niche, openCover, openCoverPage, openGame, openTab, readNumber, seedsValue, seedV3, stamps, subpage, test, waypoint } from './fixtures';
+import { expect, niche, openCover, openCoverPage, openGame, openTab, readNumber, researchAction, researchNode, SAVE_VERSION, seedsValue, seedV3, stamps, subpage, test, waypoint } from './fixtures';
 
 /**
  * Konto und Gerätesync: Ohne VITE_SYNC_URL (so ist das e2e-Build gebaut) gibt es kein
@@ -122,18 +122,15 @@ syncTest('zwei Geräte, ein Konto: Aktion in A erscheint in B', async ({ browser
     await expect(niche(b, 'litter')).toContainText('1/2 belegt');
     await expect(niche(b, 'roots')).toContainText('Regenwurm');
 
-    // Aktion in A: Forschung (Reiter Pflege) → B übernimmt sie (Live über Server-Sent Events).
-    await openTab(a, 'pflege');
-    await a
-      .locator('[data-ref="care"] [data-care="leaf-litter"]')
-      .getByRole('button', { name: 'Erforschen (80 ⚖️)' })
-      .click();
-    // A steht im Reiter Pflege (der Reiter Nischen schreibt nur, solange er sichtbar ist).
-    await expect(a.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('erforscht');
+    // Aktion in A: Forschung (Reiter Forschung) → B übernimmt sie (Live über Server-Sent Events).
+    await openTab(a, 'forschung');
+    await researchAction(a, 'leaf-litter').click();
+    // A steht im Reiter Forschung (der Reiter Nischen schreibt nur, solange er sichtbar ist).
+    await expect(researchNode(a, 'leaf-litter')).toHaveClass(/is-researched/);
     await expect(niche(b, 'litter')).toContainText('1/3 belegt', { timeout: 15_000 });
     await expect(stamps(b)).toContainText('Auf anderem Gerät weitergespielt – übernommen.');
-    await openTab(b, 'pflege');
-    await expect(b.locator('[data-ref="care"] [data-care="leaf-litter"]')).toContainText('erforscht');
+    await openTab(b, 'forschung');
+    await expect(researchNode(b, 'leaf-litter')).toHaveClass(/is-researched/);
 
     // Abmelden in B: Spiel bleibt, Formular wieder da.
     await openAccount(b);
@@ -218,11 +215,8 @@ syncTest('Abmelden mit noch nicht gesendeten Änderungen: erst Hinweis, dann tro
 
     // Offline eine Aktion: Sie kann nicht gesendet werden.
     await context.setOffline(true);
-    await openTab(page, 'pflege');
-    await page
-      .locator('[data-ref="care"] [data-care="leaf-litter"]')
-      .getByRole('button', { name: 'Erforschen (80 ⚖️)' })
-      .click();
+    await openTab(page, 'forschung');
+    await researchAction(page, 'leaf-litter').click();
     await openAccount(page);
     const signOut = account(page).locator('[data-ref="account-signout"]');
     await signOut.click();

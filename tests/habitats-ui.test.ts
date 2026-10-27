@@ -160,13 +160,13 @@ describe('Stammgäste aus Lebensräumen', () => {
 describe('Spielanleitung „Lebensräume“', () => {
   const text = guideSections().find((s) => s.id === 'habitats')!.paragraphs.join(' ');
 
-  it('nennt alle vier Lebensräume mit Pflege und Stufe, den Knopf und die Reptilien', () => {
+  it('nennt alle vier Lebensräume mit Forschung und Stufe, den Knopf und die Reptilien', () => {
     expect(text).toContain('4 Nischen wachsen nicht mit dem Baum');
     expect(text).toContain('🌾 Waldwiese (Forschung „Waldwiese“ ab „Junger Baum“)');
     expect(text).toContain('🪵 Totholzhaufen (Forschung „Totholzhaufen“ ab „Alter Baum“)');
     expect(text).toContain('🪷 Waldtümpel (Forschung „Waldtümpel“ ab „Alter Baum“)');
     expect(text).toContain('🪨 Trockenmauer (Forschung „Trockenmauer“ ab „Hain“)');
-    expect(text).toContain('„Zur Pflege“');
+    expect(text).toContain('„Zur Forschung“');
     expect(text).toContain('Öffnet Lebensraum');
     expect(text).toContain('bis zum Neuen Zyklus');
     expect(text).toContain('🦎 Reptilien – 5 Arten – leben nur in Lebensräumen: Waldwiese, Totholzhaufen und Trockenmauer');
