@@ -8942,6 +8942,13 @@ Ebene:                     ab Hain; braucht den Gabel-Knoten seines Asts (einer 
   (Blocker `'owned'` entfällt für sie); `researchCost(state, id)`; Daten: `repeatable: { base:
   1500, growth: 1.3 }` am Knoten, Wirkung je Rang als normale `ResearchEffect`-Liste, die
   `researchEffects` mit dem Rang multipliziert.
+- **Umsetzung (Phase 11, 2b):** Der Rang steht in `cycle.researchRanks` (maßgeblich für Kosten und
+  Wirkung); `cycle.research` bekommt je gekauftem Rang die ID einmal angehängt (Kauf-Reihenfolge) –
+  daraus schreibt der Neue Zyklus den Plan wie bisher, ohne neues Feld und ohne neue Version.
+  `'owned'` meldet `researchBlocker` erst beim höchsten Rang (`MAX_RESEARCH_RANK`). „Plan folgen“
+  hält in `tick` bei den Kosten des nächsten Eintrags (fehlende ⚖️ ÷ Zufluss × f, 28.3); der Plan
+  wartet bei fehlender Stufe, Voraussetzung oder Bedingung und überspringt Unerreichbares (andere
+  Gabel, auch über Voraussetzungen). Plan-Käufe zählen nicht fürs Tagesziel.
 
 ### 28.7 Zielzeile: immer das nächste lohnende Ziel
 

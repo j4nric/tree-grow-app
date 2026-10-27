@@ -9,7 +9,7 @@
  */
 import { RESEARCH_BY_ID } from '../../../content/research';
 import { evaluate, type Evaluation } from '../../../core/formulas';
-import { isResearched } from '../../../core/tick';
+import { researchComplete, researchCost } from '../../../core/tick';
 import { harmonyWalletText, toCareItemView, type CareItemView } from '../../care-view';
 import { el, setText, srOnly } from '../../dom';
 import { prefersReducedMotion, restartAnimation } from '../../feedback';
@@ -147,9 +147,10 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
   function itemKey(): string {
     const state = deps.state();
     if (!id) return '';
-    const cost = RESEARCH_BY_ID.get(id)?.cost;
+    // Wiederholbare Knoten (28.6): Kosten des nächsten Rangs.
+    const cost = researchCost(state, id);
     const points = Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0;
-    const afford = cost === undefined || isResearched(state, id) ? '-' : cost <= points ? '1' : Math.ceil(cost - points);
+    const afford = cost === undefined || researchComplete(state, id) ? '-' : cost <= points ? '1' : Math.ceil(cost - points);
     return `${state.stage}|${state.cycle.research.join(',')}|${afford}`;
   }
 

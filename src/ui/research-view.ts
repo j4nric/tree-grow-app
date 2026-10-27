@@ -6,9 +6,12 @@
  * aria-Angaben ab. Den Zustand liefert ab Phase 10, 4a der Spielstand (Blocker aus
  * `researchBlocker`, siehe `researchStatusFromBlocker`); bis dahin Beispielzustände aus
  * `research-fixtures.ts`. Das DOM baut `album/research-tree.ts`.
+ *
+ * Nur die einmaligen Knoten (RESEARCH_ONCE): Die wiederholbaren (28.6) bekommen in Phase 11, 4a
+ * eine eigene Zeile „∞“ unter der Wald-Ebene; bis dahin stehen sie nur in der Liste (adapters.ts).
  */
 import {
-  RESEARCH,
+  RESEARCH_ONCE,
   RESEARCH_BRANCHES,
   RESEARCH_BY_ID,
   RESEARCH_FORKS,
@@ -147,9 +150,9 @@ let cachedLayout: ResearchLayout | null = null;
 /** Der feste Aufbau des Baums – einmal berechnet. */
 export function researchLayout(): ResearchLayout {
   if (cachedLayout) return cachedLayout;
-  const stages = [...new Set(RESEARCH.map((n) => n.minStage))].sort((a, b) => a - b);
+  const stages = [...new Set(RESEARCH_ONCE.map((n) => n.minStage))].sort((a, b) => a - b);
   const branches = RESEARCH_BRANCHES.map((branch): ResearchBranchLayout => {
-    const nodes = RESEARCH.filter((n) => n.branch === branch.id);
+    const nodes = RESEARCH_ONCE.filter((n) => n.branch === branch.id);
     const tiers: ResearchTier[] = [];
     for (const stage of stages) {
       const slots: ResearchSlot[] = [];
@@ -172,7 +175,7 @@ export function researchLayout(): ResearchLayout {
     return { branch, tiers, nodeIds: nodes.map((n) => n.id) };
   });
   const edges: ResearchEdge[] = [];
-  for (const node of RESEARCH) {
+  for (const node of RESEARCH_ONCE) {
     for (const from of node.requires ?? []) {
       if (RESEARCH_BY_ID.get(from)?.branch === node.branch) edges.push({ from, to: node.id, any: false });
     }
@@ -413,7 +416,7 @@ export function branchSummary(branch: ResearchBranchId, state: ResearchTreeState
   researched: number;
   total: number;
 } {
-  const ids = RESEARCH.filter((n) => n.branch === branch).map((n) => n.id);
+  const ids = RESEARCH_ONCE.filter((n) => n.branch === branch).map((n) => n.id);
   const researched = ids.filter((id) => statusOf(state, id).status === 'researched').length;
   const available = ids.filter((id) => statusOf(state, id).status === 'available').length;
   // Ausgeschlossene Knoten zählen nicht mit – sie sind in diesem Zyklus nicht erreichbar.
@@ -424,7 +427,7 @@ export function branchSummary(branch: ResearchBranchId, state: ResearchTreeState
 
 /** Kopf des Reiters: „⚖️ 1.234“, „+110/min“, „3 erforschbar“. */
 export function researchHeader(state: ResearchTreeState): { supply: string; rate: string; available: string; count: number } {
-  const count = RESEARCH.filter((n) => statusOf(state, n.id).status === 'available').length;
+  const count = RESEARCH_ONCE.filter((n) => statusOf(state, n.id).status === 'available').length;
   return {
     supply: costText(Math.floor(state.harmony)),
     rate: `+${formatNumber(state.perMinute)}/min`,

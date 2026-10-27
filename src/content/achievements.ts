@@ -109,7 +109,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'visitor-1', icon: '🫖', title: 'Gastfreundschaft', description: 'Ein Gast auf der Durchreise wurde bewirtet.', condition: { kind: 'stat', key: 'visitorsHosted', atLeast: 1 } },
   { id: 'visitor-10', icon: '🏡', title: 'Rastplatz für viele', description: 'Zehn Gäste wurden bewirtet.', condition: { kind: 'stat', key: 'visitorsHosted', atLeast: 10 } },
   { id: 'events-5', icon: '🌦️', title: 'Wind und Wetter', description: 'Fünf Ereignisse wurden entschieden.', condition: { kind: 'stat', key: 'eventsDecided', atLeast: 5 } },
-  { id: 'care-10', icon: '🧤', title: 'Behutsame Hände', description: 'Zehn Forschungsknoten wurden erforscht.', condition: { kind: 'stat', key: 'careRanksBought', atLeast: 10 } },
+  { id: 'care-10', icon: '🧤', title: 'Behutsame Hände', description: 'Zehnmal wurde geforscht – Knoten und Ränge zählen.', condition: { kind: 'stat', key: 'careRanksBought', atLeast: 10 } },
   // --- Ausbau (28.4) ---------------------------------------------------------
   // Ein Ziel über den Zyklus hinaus: die Bestmarke bleibt, „Rundum eingelebt“ gilt je Zyklus.
   { id: 'upgrade-25', icon: '🏠', title: 'Gut bewohnt', description: 'Eine Nische ist auf Stufe 25 ausgebaut.', condition: { kind: 'upgrade', level: 25, atLeast: 1 } },

@@ -22,7 +22,7 @@ import {
   MEMORY_PER_REGULAR_SLOT,
 } from '../content/memory';
 import { NICHES_BY_ID } from '../content/niches';
-import { RESEARCH, RESEARCH_BY_ID, type ResearchCycleEffect } from '../content/research';
+import { MAX_RESEARCH_RANK, RESEARCH, RESEARCH_BY_ID, type ResearchCycleEffect, type ResearchNode } from '../content/research';
 import { PLANTS_BY_ID, type Plant } from '../content/plants';
 import { MAX_SOWING_CARDS, SOWING_BASE, SOWING_GROWTH, SOWING_MIN_COST_FACTOR } from '../content/sowing';
 import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, STOCK_BASE, STOCK_RANGE } from '../content/predation';
@@ -144,6 +144,11 @@ export interface Ecosystem {
    */
   research?: readonly string[];
   /**
+   * Ränge der wiederholbaren Knoten (seit v18, 28.6) – für `happiness` je Rang wie `research`.
+   * Fehlt es, zählen alle Ränge als 0.
+   */
+  researchRanks?: Readonly<Record<string, number>>;
+  /**
    * Standort des aktiven Waldes (DESIGN_V2.md 24.2): seine Eigenheiten wirken wie die des
    * Hauptbaums ab ihrer Stufe. Seine Merkmale stecken schon in `habitats`. Fehlt er: keine.
    */
@@ -175,7 +180,10 @@ export interface SlotBonus {
 
 /** Laufender Zyklus, soweit evaluate ihn braucht (fehlt er, gibt es keine Zusatz-Wirkungen). */
 export type CycleExtras = Partial<
-  Pick<CycleState, 'bonuses' | 'timed' | 'visitors' | 'habitats' | 'research' | 'elapsed' | 'mainTree' | 'number' | 'startedAt' | 'upgrades'>
+  Pick<
+    CycleState,
+    'bonuses' | 'timed' | 'visitors' | 'habitats' | 'research' | 'researchRanks' | 'elapsed' | 'mainTree' | 'number' | 'startedAt' | 'upgrades'
+  >
 >;
 
 /** Daten des Hauptbaums; unbekannte oder fehlende Arten → DEFAULT_MAIN_TREE (Eiche). */
@@ -243,12 +251,47 @@ export function slotBonuses(state: { stage: number; cycle?: CycleExtras; meta?: 
 }
 
 /**
+ * Rang eines wiederholbaren Knotens (28.6) aus `cycle.researchRanks`: ganzzahlig in
+ * 0 … MAX_RESEARCH_RANK; fehlend, kaputt (NaN, Text, negativ) → 0, darüber → Obergrenze.
+ */
+export function researchRank(ranks: Readonly<Record<string, number>> | undefined, id: string): number {
+  const r = ranks && Object.hasOwn(ranks, id) ? ranks[id] : undefined;
+  if (typeof r !== 'number' || !(r >= 1)) return 0;
+  return Math.min(MAX_RESEARCH_RANK, Math.floor(r));
+}
+
+/**
+ * Kosten in ⚖️ für Rang `rank` → `rank` + 1 eines wiederholbaren Knotens (28.6):
+ * ⌈ base · growth^rank ⌉ (1.500, 1.950, 2.536 …; JS: 1.500 · 1,3² = 2.535,000…05 → 2.536).
+ * Einmalige Knoten: `cost`. Ab MAX_RESEARCH_RANK (und bei kaputtem Rang): Infinity.
+ */
+export function researchCostAt(node: ResearchNode, rank: number): number {
+  if (!node.repeatable) return node.cost;
+  if (!(rank >= 0) || rank >= MAX_RESEARCH_RANK) return Infinity;
+  return Math.ceil(node.repeatable.base * node.repeatable.growth ** Math.floor(rank));
+}
+
+/** Wirkung × k (Rang eines wiederholbaren Knotens): Prozent, Menge bzw. Punkte multipliziert. */
+function scaleCycleEffect(e: ResearchCycleEffect, k: number): ResearchCycleEffect {
+  if (k === 1) return e;
+  if ('pct' in e) return { ...e, pct: e.pct * k } as ResearchCycleEffect;
+  if ('amount' in e) return { ...e, amount: e.amount * k } as ResearchCycleEffect;
+  if ('points' in e) return { ...e, points: e.points * k } as ResearchCycleEffect;
+  return e;
+}
+
+/**
  * Wirkungen der erforschten Knoten (DESIGN_V2.md 27.7): `cycle` wie bis v16 die Pflege,
  * `habitat` als Merkmal, `happiness` je Gattung. Die Aussaat-Wirkungen (`sowCards`, `sowCost`,
  * `sowFreeReroll`) wirken nur in der Aussaat, nicht hier. Unbekannte IDs zählen nicht, jeder
- * Knoten höchstens einmal, in RESEARCH-Reihenfolge.
+ * einmalige Knoten höchstens einmal, in RESEARCH-Reihenfolge. Wiederholbare Knoten (28.6) wirken
+ * mit ihrem Rang aus `ranks` (Wirkung × Rang; Merkmale einmal) – ihre IDs in `research` (je
+ * Rang ein Eintrag, nur für den Plan) zählen dafür nicht.
  */
-export function researchEffects(research: readonly string[] | undefined): {
+export function researchEffects(
+  research: readonly string[] | undefined,
+  ranks?: Readonly<Record<string, number>>,
+): {
   effects: ResearchCycleEffect[];
   habitats: Tag[];
   happiness: HappinessEffect[];
@@ -256,16 +299,17 @@ export function researchEffects(research: readonly string[] | undefined): {
   const effects: ResearchCycleEffect[] = [];
   const habitats: Tag[] = [];
   const happiness: HappinessEffect[] = [];
-  if (!research || research.length === 0) return { effects, habitats, happiness };
+  if ((!research || research.length === 0) && (!ranks || Object.keys(ranks).length === 0)) return { effects, habitats, happiness };
   // In fester RESEARCH-Reihenfolge, nicht in Kauf-Reihenfolge: Gleiche Knoten ergeben dieselben
   // Summen bis aufs letzte Bit (der Cache-Schlüssel kennt nur die Menge).
-  const owned = new Set(research);
+  const owned = new Set(research ?? []);
   for (const node of RESEARCH) {
-    if (!owned.has(node.id)) continue;
+    const times = node.repeatable ? researchRank(ranks, node.id) : owned.has(node.id) ? 1 : 0;
+    if (times <= 0) continue;
     for (const e of node.effects) {
-      if (e.kind === 'cycle') effects.push(e.effect);
+      if (e.kind === 'cycle') effects.push(scaleCycleEffect(e.effect, times));
       else if (e.kind === 'habitat') habitats.push(e.tag);
-      else if (e.kind === 'happiness') happiness.push(e);
+      else if (e.kind === 'happiness') happiness.push(times === 1 ? e : { ...e, points: e.points * times });
     }
   }
   return { effects, habitats, happiness };
@@ -311,7 +355,7 @@ export function cycleEffects(cycle: CycleExtras | undefined): Effect[] {
   const out: Effect[] = [];
   if (!cycle) return out;
   for (const b of cycle.bonuses ?? []) out.push(b.effect);
-  out.push(...researchEffects(cycle.research).effects);
+  out.push(...researchEffects(cycle.research, cycle.researchRanks).effects);
   for (const t of cycle.timed ?? []) if (t.remaining > 0) out.push(t.effect);
   for (const v of cycle.visitors ?? []) {
     const visitor = VISITORS_BY_ID.get(v.id);
@@ -322,7 +366,7 @@ export function cycleEffects(cycle: CycleExtras | undefined): Effect[] {
 
 /** Zusätzliche Plätze aus Zyklus-Boni und Forschung (z. B. Sturmnacht: +1 Höhlen & Totholz). */
 export function cycleSlotBonuses(cycle: CycleExtras | undefined): SlotBonus[] {
-  return slotBonusesOf([...(cycle?.bonuses ?? []).map((b) => b.effect), ...researchEffects(cycle?.research).effects]);
+  return slotBonusesOf([...(cycle?.bonuses ?? []).map((b) => b.effect), ...researchEffects(cycle?.research, cycle?.researchRanks).effects]);
 }
 
 /** Platz-Wirkungen unter den Zusatz-Wirkungen. */
@@ -352,7 +396,7 @@ export function ecosystemOf(
     // Wirksames Gedächtnis des aktiven Waldes (eigenes + Korridor-Zufluss, 24.6).
     forestMemory: effectiveForestMemory(state),
     extraEffects: cycleEffects(state.cycle),
-    habitats: [...(state.cycle?.habitats ?? []), ...researchEffects(state.cycle?.research).habitats, ...siteHabitats(active)],
+    habitats: [...(state.cycle?.habitats ?? []), ...researchEffects(state.cycle?.research, state.cycle?.researchRanks).habitats, ...siteHabitats(active)],
     guestGenera: genera,
     ...environmentOf(state.cycle, ambient, active),
     site: active,
@@ -368,7 +412,7 @@ function oldSiteField(state: Pick<GameState, 'stage' | 'meta'>): Pick<Ecosystem,
   return site !== undefined ? { oldSite: site } : {};
 }
 
-type Environment = Pick<Ecosystem, 'season' | 'mainTree' | 'weather' | 'night' | 'research'>;
+type Environment = Pick<Ecosystem, 'season' | 'mainTree' | 'weather' | 'night' | 'research' | 'researchRanks'>;
 
 /**
  * Jahreszeit, Wetter und Nacht (aus der Spielzeit) und Hauptbaum des Zyklus – nur, was
@@ -385,6 +429,7 @@ function environmentOf(cycle: CycleExtras | undefined, ambient: AmbientMode, sit
   }
   if (cycle?.mainTree !== undefined) out.mainTree = mainTreeOf(cycle.mainTree).id;
   if (cycle?.research !== undefined) out.research = cycle.research;
+  if (cycle?.researchRanks && Object.keys(cycle.researchRanks).length > 0) out.researchRanks = cycle.researchRanks;
   return out;
 }
 
@@ -828,7 +873,7 @@ export function evaluateEcosystem(eco: Ecosystem): Evaluation {
   const happinessBonus = {} as Record<Genus, number>;
   for (const g of GENERA) happinessBonus[g] = 0;
   // Dazu die Forschung (27.7, z. B. Pilzgarten: Pilze +15 Prozentpunkte).
-  for (const e of [...environment.happiness, ...researchEffects(eco.research).happiness]) {
+  for (const e of [...environment.happiness, ...researchEffects(eco.research, eco.researchRanks).happiness]) {
     if (e.genus in happinessBonus) happinessBonus[e.genus] += finite(e.points) / 100;
   }
   const demand = new Map<Tag, number>();
@@ -1244,11 +1289,24 @@ function ecosystemKey(state: GameState, ambient: AmbientMode | null): string {
     // Forschung als Menge (Reihenfolge ändert keine Wirkung).
     const research = [...new Set(c.research ?? [])].sort();
     if (research.length > 0) key += `|r:${research.join(',')}`;
+    // Ränge der wiederholbaren Knoten (28.6) – ohne Rang kein Teil (Schlüssel wie vor 2b).
+    const ranks = researchRanksKey(c.researchRanks);
+    if (ranks) key += `|rr:${ranks}`;
     // Ausbaustufen (seit v18, 28.8) – ohne Ausbau kein Teil (Schlüssel wie vor v18).
     const upgrades = upgradeLevelsKey(c.upgrades);
     if (upgrades) key += `|u:${upgrades}`;
   }
   return key;
+}
+
+/** Ränge > 0 als „id=r“, sortiert (fester Schlüssel unabhängig von der Kauf-Reihenfolge). */
+function researchRanksKey(ranks: Readonly<Record<string, number>> | undefined): string {
+  if (!ranks) return '';
+  return Object.keys(ranks)
+    .filter((id) => researchRank(ranks, id) > 0)
+    .sort()
+    .map((id) => `${id}=${researchRank(ranks, id)}`)
+    .join(',');
 }
 
 /**

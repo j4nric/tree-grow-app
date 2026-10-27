@@ -18,7 +18,7 @@
 import { RESEARCH } from '../../../content/research';
 import { evaluate, type Evaluation } from '../../../core/formulas';
 import type { GameState } from '../../../core/state';
-import { isResearched } from '../../../core/tick';
+import { researchComplete, researchCost } from '../../../core/tick';
 import { activeBonusViews, toCareViews } from '../../adapters';
 import { CARE_GROUP_LABELS, CARE_HOLD_MS, barWidth, careOrder, carePreviewText, careSummaryText, careTabDot, harmonyWalletText } from '../../care-view';
 import { el, setText, setVar, srOnly } from '../../dom';
@@ -50,7 +50,9 @@ function affordKey(state: GameState): string {
   let key = `${state.stage}|${state.cycle.research.join(',')}|`;
   const points = Number.isFinite(state.harmonyPoints) ? state.harmonyPoints : 0;
   for (const n of RESEARCH) {
-    key += (isResearched(state, n.id) ? '-' : n.cost <= points ? '1' : Math.ceil(n.cost - points)) + ',';
+    // Wiederholbare Knoten (28.6): Kosten des nächsten Rangs.
+    const cost = researchCost(state, n.id) ?? Infinity;
+    key += (researchComplete(state, n.id) ? '-' : cost <= points ? '1' : Math.ceil(cost - points)) + ',';
   }
   return key;
 }

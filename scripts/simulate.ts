@@ -75,6 +75,8 @@ import {
   rerollEncounter,
   research,
   researchBlocker,
+  researchCost,
+  researchRankOf,
   setRegulars,
   simulateOffline,
   sow,
@@ -587,7 +589,8 @@ export function runGame(
       harmonyPoints: state.harmonyPoints,
       harmonyRate: harmonyIncome(ev.harmony, effectiveForestMemory(state)),
       ...book,
-      careRanks: Object.fromEntries(state.cycle.research.map((id) => [id, 1])),
+      // Einmalige Knoten 1, wiederholbare ihr Rang (28.6).
+      careRanks: Object.fromEntries(state.cycle.research.map((id) => [id, researchRankOf(state, id) || 1])),
       seen: [...state.cycle.seen],
       counts: { ...counts, rarityTaken: [...counts.rarityTaken] },
     };
@@ -643,7 +646,7 @@ export function runGame(
     let careNeed: number | null = null;
     if (options.care) {
       for (let target = careTarget(state, strategy); target; target = careTarget(state, strategy)) {
-        const cost = RESEARCH_BY_ID.get(target)!.cost;
+        const cost = researchCost(state, target) ?? Infinity;
         if (state.harmonyPoints < cost) {
           careNeed = cost;
           break;
@@ -949,7 +952,7 @@ export function researchValue(state: GameState, strategy: Strategy, node: Resear
     SEED_VALUE * rel(after.seeds, now.seeds) +
     strategy.researchHarmony * rel(after.harmony, now.harmony) +
     nominal;
-  return (CYCLE_HORIZON * gain) / node.cost;
+  return (CYCLE_HORIZON * gain) / (researchCost(state, node.id) ?? node.cost);
 }
 
 /**

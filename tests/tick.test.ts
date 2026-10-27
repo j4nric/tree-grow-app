@@ -92,6 +92,8 @@ describe('tick', () => {
       weather: [],
       wildwechsel: [],
       chapters: [],
+      discovered: [],
+      research: [],
     });
     expect(state.waypoint).toBe(1);
     expect(state.stage).toBe(1);
@@ -149,6 +151,8 @@ describe('tick', () => {
       weather: [],
       wildwechsel: [],
       chapters: [],
+      discovered: [],
+      research: [],
     });
     expect(state.pendingEncounters).toEqual([]);
   });
@@ -423,6 +427,22 @@ describe('simulateOffline', { timeout: 60_000 }, () => {
     expect(live[0].stage).toBeGreaterThanOrEqual(4);
     expect(average[0].waypoint).toBeGreaterThan(start.waypoint);
     for (const pair of [live, average]) expectSameRun(pair);
+  });
+
+  it('gleich mit Forschungsplan (27.8) und wiederholbaren Rängen (28.6): Käufe am Halt', () => {
+    // Hain mit Boden-Gabel; „Plan folgen“ kauft Ränge und Humus, sobald der Vorrat reicht.
+    const start = stateAt(5, ['earthworm', 'robin', 'bee', 'vole', 'chanterelle'], 2121);
+    start.cycle.research = ['compost', 'leaf-litter', 'deadwood-pile', 'beetle-castle'];
+    start.meta.research = { plan: [...start.cycle.research, 'soil-life', 'humus', 'soil-life', 'soil-life'], auto: true };
+    start.harmonyPoints = 1_200;
+    const { live, average } = runPairs(start, 2 * 3600);
+    expect(live[0].cycle.researchRanks['soil-life']).toBeGreaterThanOrEqual(1);
+    for (const pair of [live, average]) {
+      expectSameRun(pair);
+      expect(pair[1].cycle.research).toEqual(pair[0].cycle.research);
+      expect(pair[1].cycle.researchRanks).toEqual(pair[0].cycle.researchRanks);
+      expect(pair[1].harmonyPoints).toBeCloseTo(pair[0].harmonyPoints, 6);
+    }
   });
 
   it('gleich in der Waldlandschaft (v14): Auwald aktiv, alle Gaben, Korridor-Zufluss', () => {

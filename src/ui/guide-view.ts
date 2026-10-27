@@ -4,7 +4,7 @@
  * trotzdem. Getestet in tests/settings.test.ts (Abschnitt „Spielanleitung“).
  */
 import { ACHIEVEMENTS } from '../content/achievements';
-import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_BY_ID, RESEARCH_FORKS } from '../content/research';
+import { RESEARCH, RESEARCH_BRANCHES, RESEARCH_ONCE, RESEARCH_REPEATABLE, RESEARCH_BY_ID, RESEARCH_FORKS } from '../content/research';
 import { COMMUNITIES } from '../content/communities';
 import {
   CARDS_PER_ENCOUNTER,
@@ -361,7 +361,8 @@ export function guideSections(options: GuideOptions = {}): GuideSection[] {
       title: 'Forschung',
       paragraphs: [
         `Deine Harmonie ist eine Produktion: Sie füllt jede Minute einen Vorrat ⚖️ – so viele Punkte, wie die Harmonie gerade beträgt, mit dem Waldgedächtnis mehr. Der Harmonie-Bonus auf 🌿 und 🌰 hängt an der Produktion, Ausgeben senkt ihn nie.`,
-        `Ab „${careStage}“ erforschst du mit dem Vorrat ${formatNumber(RESEARCH.length)} Knoten in ${formatNumber(RESEARCH_BRANCHES.length)} Ästen: ${listNames(RESEARCH_BRANCHES.map((b) => b.name), RESEARCH_BRANCHES.length)}. Manche brauchen erst andere Knoten, spätere eine höhere Stufe.`,
+        `Ab „${careStage}“ erforschst du mit dem Vorrat ${formatNumber(RESEARCH_ONCE.length)} Knoten in ${formatNumber(RESEARCH_BRANCHES.length)} Ästen: ${listNames(RESEARCH_BRANCHES.map((b) => b.name), RESEARCH_BRANCHES.length)}. Manche brauchen erst andere Knoten, spätere eine höhere Stufe.`,
+        `Am Ende jedes Asts wartet ab „${stageName(Math.min(...RESEARCH_REPEATABLE.map((n) => n.minStage)))}“ ein endloser Knoten (∞): Du erforschst ihn Rang für Rang, jeder Rang wirkt ein wenig mehr und kostet mehr.`,
         `Erforschte Knoten wirken bis zum Neuen Zyklus; dann beginnen Vorrat und Forschung neu. Verkaufen geht nicht – überlege, was dein Wald gerade braucht.`,
         ...forks.map((pair) => `${all(pair.map((n) => `„${n}“`))} schließen sich aus: Du wählst einen der beiden Wege.`),
       ],

@@ -13,6 +13,24 @@ import { stateAt } from './helpers';
  */
 
 describe('View: Forschungs-Notliste', () => {
+  it('wiederholbare Knoten (28.6): Rang am Ast, Kosten des nächsten Rangs, nie „erledigt“ vor Rang 200', () => {
+    const state = stateAt(5, ['bee'], 1);
+    state.cycle.research = ['compost', 'leaf-litter', 'deadwood-pile', 'beetle-castle'];
+    state.harmonyPoints = 3_000;
+    const row = () => toCareViews(state).find((v) => v.id === 'soil-life')!;
+    expect(row()).toMatchObject({ rank: '🪱 Boden · ∞ Rang 0', cost: '1.500 ⚖️', costSeeds: 1_500, canBuy: true, group: 'buyable' });
+    expect(research(state, 'soil-life').ok).toBe(true);
+    expect(row()).toMatchObject({ rank: '🪱 Boden · ∞ Rang 1', cost: '1.950 ⚖️', canBuy: false, group: 'saving', blocker: 'Noch 450 ⚖️' });
+    expect(row().preview!.growthDelta).toBeGreaterThan(0);
+    expect(toCareItemView(state, 'soil-life')!.requirements.at(-1)).toMatchObject({ met: false, text: '1.950 ⚖️ (noch 450 ⚖️)' });
+    state.cycle.researchRanks = { 'soil-life': 200 };
+    expect(row()).toMatchObject({ group: 'maxed', cost: null, canBuy: false });
+    expect(researchBlockerText('owned', 'soil-life', state)).toBe('Höchster Rang erreicht');
+    // Ohne Gabel gesperrt wie jeder Knoten.
+    const fresh = stateAt(5, [], 1);
+    expect(toCareViews(fresh).find((v) => v.id === 'soil-life')).toMatchObject({ group: 'locked' });
+  });
+
   it('zeigt nur Knoten ab ihrer Stufe, mit Ast, Kosten in ⚖️, Wirkung und Blocker', () => {
     expect(toCareViews(stateAt(1, [], 1))).toEqual([]);
     // Setzling: nur Kompost und Laub.
