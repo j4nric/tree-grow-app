@@ -8,6 +8,7 @@ import {
   openGoalsPage,
   savedState,
   seedRaw,
+  seedV3,
   seedsValue,
   stamps,
   tabPanel,
@@ -131,4 +132,22 @@ test('Zu teuer: blass mit Wartezeit, kauft nicht; Statistik „Höchste Ausbaust
   const stats = await openGoalsPage(page, 'stats');
   await expect(stats.locator('[data-stat="total-upgrade-best"]')).toContainText('Wurzelraum 52 · Silber');
   await expect(stats.locator('[data-stat="total-upgrades"]')).toContainText('Ausbaustufen gekauft');
+});
+
+test('Zielzeile (2c): nennt den billigsten Ausbau, springt zu den Nischen, wählt nach dem Kauf neu', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Junger Baum mit vollem Pflanzring (kein „Säen“), Regenwurm im Wurzelraum.
+  await seedV3(context, { totalGrowth: waypoint(6) + 1, seeds: 200, plants: ['moss', 'fern', 'hazel'], niches: { roots: ['earthworm'] } });
+  await gotoTab(page, 'ziele');
+  const line = page.locator('[data-ref="goal-line"]');
+  const jump = line.locator('[data-ref="goal-line-jump"]');
+  await expect(jump).toHaveText(/^Jetzt: 🪱 Wurzelraum St\. 1 · 10\s🌰 ›$/);
+  expect((await jump.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await jump.click();
+  await expect(tabPanel(page, 'nischen')).toBeVisible();
+  // Kauf in der Fußzeile der Nische (4b) → die Zielzeile wählt neu.
+  await niche(page, 'roots').locator('[data-ref="niche-upgrade"] [data-ref="upgrade-buy"]').click();
+  await expect(niche(page, 'roots').locator('.upgrade-level-text')).toHaveText('St. 1');
+  await expect(jump).toHaveText(/^Jetzt: 🪱 Wurzelraum St\. 2 · 12\s🌰 ›$/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });

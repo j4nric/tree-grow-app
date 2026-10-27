@@ -127,7 +127,7 @@
 >   Produktion (Ziel ≤ 15), Samen-Höchststand vor dem Jungen Baum 255 / 227 🌰.
 >
 > **Phase 11 – Wachsen und Ausbauen (`DESIGN_V2.md` 28, Spielstand v18; Offline 10 % und Ausbau
-> umgesetzt, siehe unten; wiederholbare Knoten und Forschungsplan seit 2b, Zielzeile folgt mit 2c):** Offline und im Hintergrund bringen Wachstum, Samen und Harmonie nach der ersten
+> umgesetzt, siehe unten; wiederholbare Knoten und Forschungsplan seit 2b, Zielzeile seit 2c):** Offline und im Hintergrund bringen Wachstum, Samen und Harmonie nach der ersten
 > Minute nur **10 %** (`OFFLINE_YIELD`), die Zeit läuft voll. Neue Samen-Senken ohne Obergrenze:
 > **Nischen-Ausbau** `⌈b_n · 1,15^L⌉` 🌰 (b_n 10 Wurzelraum … 600 Trockenmauer), je Stufe +0,1 % 🌿
 > und 🌰 je Tier der Nische × Zufriedenheit, Meilensteine 10 (Arten der Nische ×1,5 in den Karten),
@@ -234,6 +234,25 @@
 >   ohne Verlaufseinträge) laden unverändert.
 > - **Oberfläche (einfach bis 4a):** In der Forschungsliste zeigt der Knoten „🪱 Boden · ∞ Rang 3“
 >   mit den Kosten des nächsten Rangs; die Zeile „∞“ im Baum und der Schalter folgen mit 4a.
+>
+> **Umgesetzt seit Phase 11, 2c (ohne Spielstand-Änderung, `DESIGN_V2.md` 28.7):**
+> - **Zielzeile** `nextGoal(state, rate?)` in `src/core/goal.ts` (eigene Datei, weil sie die
+>   Sperrgründe aus `tick.ts` braucht): Kandidaten sind „🌱 Säen“ (Pflanzplatz frei, keine Aussaat
+>   offen, ab Keimling), die nächste Stufe jeder Nische ohne Sperre (`NICHE_IDS`-Reihenfolge) und
+>   die drei Baumteile. Ist ein Kandidat genau eine Stufe vor einem Meilenstein **mit Wirkung**
+>   (Nischen 10/25/50, Baumteile 25 – reine Abzeichen zählen nicht) und in **≤ 120 s**
+>   (`MILESTONE_GOAL_SECONDS`) bezahlbar, gewinnt der billigste davon; sonst der billigste
+>   Kandidat. Gleichstand: Säen, Nischen, Baumteile. Zeit = fehlende Samen ÷ 🌰/s aus `evaluate`
+>   (0 = jetzt, ohne Rate keine Zeit); `null` vor dem Keimling. `researchAvailable(state)` zählt
+>   die Knoten ohne Sperrgrund (`researchBlocker`) für den Anhang „🔍 2 erforschbar ›“.
+> - **Oberfläche (einfach bis 4c):** Zeile unter den Etiketten im Polaroid-Kopf („Nächstes: 🪱
+>   Wurzelraum St. 25 (+1 Platz) · 287 🌰 · in 1:40“ bzw. „Jetzt: … ›“), Tippen öffnet den Reiter
+>   Nischen bzw. Forschung. Neu gewählt nur nach Kauf, Säen, Forschung, Stufen- oder
+>   Zykluswechsel und Laden; dazwischen laufen Preis und Zeit nur mit.
+> - **Drei Erfolge des Ausbaus** (Bedingungsart `upgrade`): „Gut bewohnt“ (eine Nische auf
+>   Stufe 25), „Prachtnische“ (eine Nische auf 50) – beide über die Bestmarke
+>   `meta.upgrades.best`, darum beim ersten Prüfen nach dem Laden nachgetragen – und „Rundum
+>   eingelebt“ (alle zehn Nischen in einem Zyklus auf 10, geprüft vor dem Neuen Zyklus).
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
@@ -600,13 +619,14 @@ Neustart erst im Wald oder Urwald: gleitende Schwelle seit Schritt 2.11b (oben).
 
 Details, Katalog und Regeln: [`DESIGN_V2.md`](DESIGN_V2.md), Abschnitt 18 (Spielstand: 12.6).
 
-- **27 leise Meilensteine** (`src/content/achievements.ts`): Stufen (Setzling, Hain,
+- **30 leise Meilensteine** (`src/content/achievements.ts`): Stufen (Setzling, Hain,
   Urwald), Tagebuch (Arten 5/16/alle – „alle“ ohne Kennarten, alle Gattungen, Pflanzen 5/alle,
   Lebensgemeinschaften 1/5/alle), beste Harmonie 30/60/150, Gäste 1/10, Ereignisse 5,
-  Pflege-Ränge 10, Zyklen 1/3/10, drei Hauptbaum-Arten, ein volles Jahr in einem Zyklus,
+  Pflege-Ränge 10, Ausbau (eine Nische auf 25 bzw. 50, alle Nischen eines Zyklus auf 10; seit
+  Phase 11, 2c), Zyklen 1/3/10, drei Hauptbaum-Arten, ein volles Jahr in einem Zyklus,
   10 Stunden Spielzeit, Tagesziele (sieben Morgen in Folge, fünfzig erfüllte Ziele).
 - **10 Erfolge der Waldlandschaft** (`DESIGN_V2.md` 24.12, 26.5), verborgen bis zu ihrer
-  Freischaltung (danach 37): zweiter Wald, zweiter Urwald, Wildwechsel (eine gewählte
+  Freischaltung (danach 40): zweiter Wald, zweiter Urwald, Wildwechsel (eine gewählte
   Wildwechsel-Karte, seit v15), gekaufter Korridor, jede Hauptbaum-Art (alle fünf, seit v15),
   Urwald überall, alle Korridore, eine vollständige Waldchronik, alle sechs Chroniken, alle
   Kennarten im Naturtagebuch (die drei letzten seit v16).

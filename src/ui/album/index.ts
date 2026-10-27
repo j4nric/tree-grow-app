@@ -69,7 +69,10 @@ import { createSupplyBar } from './supply-bar';
 import { createTapeLabel } from './tape-label';
 import type { AlbumDeps, AlbumPart } from './types';
 import type { NotifyOptions } from './stamp-rules';
-import { waitingNotes, type StageBannerView } from '../adapters';
+import { goalCostNow, goalEpochKey, toGoalInput, waitingNotes, type StageBannerView } from '../adapters';
+import { nextGoal, researchAvailable, type NextGoal } from '../../core/goal';
+import { goalLineView } from '../upgrade-view';
+import { createGoalLine } from './upgrade-panel';
 import { returnStamp, type ReturnReportView } from '../return-report-view';
 
 export type { AlbumDeps, AlbumActions, AlbumPart } from './types';
@@ -187,9 +190,15 @@ export function createAlbum(deps: AlbumDeps): Album {
     // „Mehr ›“ erst, wenn es U:Harmonie gibt (Schritt 5).
     { onMore: () => dispatch({ type: 'open', page: { kind: 'harmony' } }), available: () => subpages.has('harmony') },
   );
+  // Zielzeile (DESIGN_V2.md 28.7, einfache Fassung aus Phase 11, 2c – Sprung zum Eintrag und
+  // Rückkehr-Bericht folgen mit 4c): unter den Etiketten, Tippen öffnet R:Nischen bzw. R:Forschung.
+  const goalLine = createGoalLine(
+    () => dispatch({ type: 'tab', tab: 'niches' }),
+    () => dispatch({ type: 'tab', tab: 'care' }),
+  );
   const ladder = createStageLadder();
   const returnReport = createReturnReport(env, () => focusTarget());
-  spread.left.append(polaroid.element, labels, ladder.element, returnReport.slip);
+  spread.left.append(polaroid.element, labels, goalLine.element, ladder.element, returnReport.slip);
   // Mobil: Vorratsleiste über den klebenden Reitern (B.0, G.2-14).
   const supply = createSupplyBar();
   tabStrip.element.before(supply.marker, supply.element);
@@ -660,6 +669,7 @@ export function createAlbum(deps: AlbumDeps): Album {
     if (lastHarmony !== null && harmonyRounded > lastHarmony) harmony.pop();
     lastHarmony = harmonyRounded;
     labelNotes.update(view);
+    showGoal(view);
     supply.update({ seeds: view.seeds, growthPerSec: view.growthPerSec, harmony: view.harmony });
     ladder.update({ stage: state.stage, waypoint: state.waypoint, waypointProgress: view.stageProgress, hint: view.progressHint });
     const site = activeSite(state.meta.landscape);
@@ -669,6 +679,34 @@ export function createAlbum(deps: AlbumDeps): Album {
       book.setForestName(name);
       cover.setForestName(name);
     }
+  }
+
+  // --- Zielzeile (28.7) ----------------------------------------------------------------
+  /** Gewähltes Ziel; neu gewählt nur, wenn sich `goalEpochKey` ändert (Regel 5). */
+  let goal: NextGoal | null = null;
+  let goalEpoch: string | null = null;
+  let goalState: unknown = null;
+  /** Erforschbare Knoten: neu gezählt bei neuem Ziel oder wenn der Vorrat um ein ⚖️ wächst. */
+  let researchCount = 0;
+  let researchKey = '';
+
+  function showGoal(view: EcosystemView): void {
+    const state = deps.state();
+    const epoch = goalEpochKey(state);
+    // Ein ersetzter Spielstand (Laden, Import, Sync) wählt immer neu.
+    if (epoch !== goalEpoch || state !== goalState) {
+      goalEpoch = epoch;
+      goalState = state;
+      goal = nextGoal(state, view.seedsPerSec);
+      researchKey = '';
+    }
+    const rKey = `${epoch}|${Math.floor(state.harmonyPoints)}`;
+    if (rKey !== researchKey) {
+      researchKey = rKey;
+      researchCount = researchAvailable(state);
+    }
+    const input = goal ? toGoalInput({ ...goal, cost: goalCostNow(goal, state) }) : null;
+    goalLine.update(input && Number.isFinite(input.cost) ? goalLineView(input, { seeds: view.seeds, seedsPerSecond: view.seedsPerSec }, researchCount) : null);
   }
 
   // --- Seiten aktualisieren (D.1) ------------------------------------------------------

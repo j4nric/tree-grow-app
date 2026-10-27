@@ -1300,12 +1300,22 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   der Plan ewig), Plan-Käufe melden neue Lebensgemeinschaften (`TickReport.discovered`), mit „Plan
   folgen“ kein Tagesziel „erforschen“, Erfolg `care-10` zählt Knoten und Ränge (Text), Anleitung
   nennt 32 Knoten plus die endlosen
-- [ ] **2c** Zielzeile (`core-engineer`, 28.7): `nextGoal(state)` rein in `formulas.ts`
+- [x] **2c** Zielzeile (`core-engineer`, 28.7): `nextGoal(state)` rein in `formulas.ts`
   (Kandidaten, Meilenstein-Regel ≤ 120 s, billigster, Gleichstand, Zeit aus der Rate, `null` ohne
   Kandidat), Erfolge `upgrade-25` „Gut bewohnt“, `upgrade-50` „Prachtnische“, `upgrades-all-10`
   „Rundum eingelebt“ (alle offenen zehn Nischen in einem Zyklus ≥ 10) mit Bedingungsart `upgrade`
   und Nachtrag beim Laden; Tests. **Warum:** „ziellos“ – die Zeile beantwortet „was jetzt?“ in einem
   Satz; Erfolge geben dem Ausbau über den Zyklus hinaus ein Ziel. Abhängig: 2a
+  **Erledigt:** `nextGoal`, `goalCandidates`, `researchAvailable`, `MILESTONE_GOAL_SECONDS` in
+  `src/core/goal.ts` (eigene Datei: braucht die Sperrgründe aus `tick.ts`; 28.7 „Stand 2c“);
+  Meilenstein-Regel nur für Meilensteine mit Wirkung (keine reinen Abzeichen). Bedingungsart
+  `upgrade` (`level`, `atLeast`, `inCycle`) in `content/achievements.ts`/`core/achievements.ts`,
+  drei Erfolge (jetzt 40, ohne Landschaft 30), ohne `SAVE_VERSION`-Wechsel – Nachtrag über die
+  Bestmarke bei der ersten Prüfung nach dem Laden. **Kleine UI-Anpassung:** Zielzeile
+  (`createGoalLine`/`goalLineView` aus 1c) unter den Etiketten, Tippen öffnet R:Nischen bzw.
+  R:Forschung, neu gewählt nach `goalEpochKey` (Regel 5); Sprung zum Eintrag, Rückkehr-Bericht
+  und Feinschliff bleiben 4c. Spielanleitung „Erfolge“ nennt den Ausbau. Tests
+  `tests/goal.test.ts`, `tests/achievements-upgrade.test.ts`, `tests/upgrade-ui.test.ts`
 
 **Welle 3 – Eine große Messung** (Phase 10, 3a/3b und Phase 9, 2c zusammengelegt)
 

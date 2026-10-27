@@ -10,7 +10,8 @@ import { COMMON_SPECIES, KENNARTEN, SPECIES } from '../src/content/species';
 import { CHAPTER_IDS } from '../src/content/chronicle';
 import { STAGES } from '../src/content/stages';
 import { MAIN_TREES } from '../src/content/trees';
-import { GENERA } from '../src/content/types';
+import { GENERA, NICHE_IDS } from '../src/content/types';
+import { MAX_UPGRADE_LEVEL } from '../src/content/upgrades';
 import { VISITORS } from '../src/content/visitors';
 import {
   achievementProgress,
@@ -61,7 +62,7 @@ function raw(state: GameState, patch: (data: Record<string, any>) => void): stri
 
 describe('Inhalte', () => {
   it('20–40 Erfolge, eindeutige IDs, Titel, Symbol und Beschreibung', () => {
-    // Obergrenze seit Phase 9 (2b): 37 Erfolge, davon 27 ohne Landschaft (DESIGN_V2.md 26.5).
+    // Obergrenze seit Phase 11 (2c): 40 Erfolge, davon 30 ohne Landschaft (DESIGN_V2.md 26.5, 28.4).
     expect(ACHIEVEMENTS.length).toBeGreaterThanOrEqual(20);
     expect(ACHIEVEMENTS.length).toBeLessThanOrEqual(40);
     expect(ACHIEVEMENTS_BY_ID.size).toBe(ACHIEVEMENTS.length);
@@ -92,6 +93,11 @@ describe('Inhalte', () => {
       // Gekauft höchstens 10 − Gratis-Korridore: hinge an der Gründungs-Reihenfolge (24.12).
       if (c.kind === 'corridors' && c.bought) expect(c.atLeast, a.id).not.toBe('all');
       if (c.kind === 'stat') expect(Object.keys(createStats()), a.id).toContain(c.key);
+      if (c.kind === 'upgrade') {
+        expect(target, a.id).toBeLessThanOrEqual(NICHE_IDS.length);
+        expect(c.level, a.id).toBeGreaterThan(0);
+        expect(c.level, a.id).toBeLessThanOrEqual(MAX_UPGRADE_LEVEL);
+      }
     }
   });
 
@@ -109,7 +115,7 @@ describe('Inhalte', () => {
 
   it('decken das ganze Spiel ab (jede Bedingungsart mindestens einmal)', () => {
     const kinds = new Set(ACHIEVEMENTS.map((a) => a.condition.kind));
-    expect([...kinds].sort()).toEqual(['ancientForests', 'chronicles', 'corridors', 'cycleTime', 'cycles', 'daily', 'forests', 'genera', 'journal', 'stage', 'stat', 'trees']);
+    expect([...kinds].sort()).toEqual(['ancientForests', 'chronicles', 'corridors', 'cycleTime', 'cycles', 'daily', 'forests', 'genera', 'journal', 'stage', 'stat', 'trees', 'upgrade']);
   });
 });
 
@@ -281,6 +287,8 @@ describe('checkAchievements', () => {
     s.cycle.number = 11;
     s.cycle.elapsed = YEAR_SECONDS;
     s.meta.daily = { ...s.meta.daily, bestStreak: 1e300, goalsDone: 1e300, perfectDays: 1e300 };
+    // Jede Nische auf der höchsten Ausbaustufe (Bestmarke und Zyklus).
+    for (const id of NICHE_IDS) s.cycle.upgrades.niches[id] = s.meta.upgrades.best.niches[id] = MAX_UPGRADE_LEVEL;
     // Ganze Landschaft: alle Wälder Urwald, alle Korridore, die Speichen gratis.
     const spokes = CORRIDORS.filter((c) => c.sites.includes('home')).map((c) => c.id);
     s.meta.landscape = {
