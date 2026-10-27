@@ -19,6 +19,7 @@ import {
   rerollSowing,
   sow,
   research,
+  setResearchAuto,
   newCycleBlocker,
   simulateOffline,
   startNewCycle,
@@ -57,6 +58,7 @@ import { upgradeBestLevel, upgradeMilestoneText } from './ui/upgrade-adapters';
 import { sceneUpgradesFromLevels } from './render/upgrades';
 import { achievementUnlockedText, achievementsBackfilledText } from './ui/achievement-view';
 import { toReturnReportView } from './ui/return-report-view';
+import { planResearchText } from './ui/research-state';
 import { takeOfflineHint } from './ui/settings';
 import { joinSentences } from './ui/format';
 import { dailyCompletedText } from './ui/daily-view';
@@ -385,8 +387,12 @@ const album = createAlbum({
       },
     },
     sow: sowNow,
-    // Reiter „Pflege“ (Notliste der Forschung bis Phase 10, 4a): erforscht einen Knoten.
+    // Reiter „Forschung“ (Phase 11, 4a): erforscht einen Knoten bzw. den nächsten Rang.
     buyCare: (id) => act(research(state, id), false, 'research'),
+    // „Plan des letzten Zyklus folgen“ (27.8): Kaufen macht der Tick (Hinweis in tickNoteText).
+    setResearchAuto: (on) => {
+      act(setResearchAuto(state, on), false);
+    },
     // Ausbau (DESIGN_V2.md 28.4/28.9): Kaufmenge aus R:Nischen, Meilenstein als Stempel.
     upgrade: (target, count) => {
       const bestBefore = upgradeBestLevel(state, target);
@@ -629,7 +635,9 @@ function tickNoteText(report: TickReport): string | null {
     parts.push(tickDeclineText(report));
   }
   if (report.regulars.length > 0) parts.push(regularsArrivedText(report.regulars));
-  // Käufe des Forschungsplans (27.8) können Lebensgemeinschaften entstehen lassen.
+  // Käufe des Forschungsplans (27.8): dezent nennen; sie können Lebensgemeinschaften entstehen lassen.
+  const planned = planResearchText(report.research);
+  if (planned) parts.push(planned);
   const discovered = discoveryText(report.discovered);
   if (discovered) parts.push(discovered);
   return parts.length > 0 ? joinSentences(...parts) : null;
@@ -806,10 +814,10 @@ function frame(now: number): void {
   // Tagesziele: tatsächlich gutgeschriebenes Wachstum und erzeugte Samen (ohne automatisches Ablehnen).
   dailyGrowth += Math.max(0, state.totalGrowth - growthBefore);
   dailyProduced += Math.max(0, state.seeds - seedsBefore - report.declinedSeeds);
-  if (report.waypoints > 0 || report.encounters > 0 || report.interludesReached > 0 || report.expired.length > 0) {
-    // Neue Begegnung, Zwischenhalt (auch ohne Ergebnis – der Zufall ist verbraucht) oder
-    // abgelaufener Bonus: gleich speichern, damit Neuladen nichts neu würfelt, und
-    // Ansichten neu bauen.
+  if (report.waypoints > 0 || report.encounters > 0 || report.interludesReached > 0 || report.expired.length > 0 || report.research.length > 0) {
+    // Neue Begegnung, Zwischenhalt (auch ohne Ergebnis – der Zufall ist verbraucht),
+    // abgelaufener Bonus oder Kauf des Forschungsplans: gleich speichern, damit Neuladen
+    // nichts neu würfelt, und Ansichten neu bauen.
     persist();
     invalidate('encounter', 'eco');
   }
@@ -930,6 +938,12 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
   const stageBefore = state.stage;
   const report = away > MAX_FRAME_SECONDS ? simulateOffline(state, away) : null;
   if (report) wildwechselMarks.record(state.pendingEncounters, report.wildwechsel);
+  // Offline nach Plan erforscht (27.8): ein Punkt im Rückkehr-Bericht, Ansichten neu.
+  const plannedText = report ? joinNotes(planResearchText(report.research), discoveryText(report.discovered)) : '';
+  if (report && report.research.length > 0) {
+    persist();
+    invalidate('eco');
+  }
   // Erfolge aus der Offline-Zeit (dieselben wie online, nur auf einmal): ein Hinweis
   // zusammen mit der Begrüßung bzw. dem Zusatzhinweis – nach der Migration v8 → v9 in
   // einem Satz mit den nachgetragenen.
@@ -958,6 +972,7 @@ function catchUp(extraNotice = '', achievementsBackfilled = 0): void {
     achievementsBackfilledText(achievementsBackfilled, unlocked),
     landscapeText,
     chapterText,
+    plannedText,
     // Tagesziele: Tageswechsel und nur Ziele, die offline zählen dürfen (Zustände des Waldes).
     runDaily({ offline: true }),
   ];

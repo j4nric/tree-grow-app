@@ -7,6 +7,40 @@
   gap: 16px;
 }
 
+/* Produktion, Vorrat, Bonus (27.12) */
+.harmony-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 2px dashed var(--dash);
+  border-radius: 10px;
+}
+
+.harmony-overview-row {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.harmony-overview-term {
+  font-family: var(--font-hand);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink-soft);
+}
+
+.harmony-overview-value {
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
 .harmony-parts,
 .hcom-list,
 .harmony-tier-list {

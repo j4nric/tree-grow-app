@@ -272,7 +272,7 @@ export function createAlbum(deps: AlbumDeps): Album {
   function placeStamps(): void {
     stampPlacement.place();
   }
-  // Reiter Nischen (Schritt 5): „Säen“ öffnet die Aussaat (main.ts), „Zur Pflege“ über den Reiter Pflege.
+  // Reiter Nischen (Schritt 5): „Säen“ öffnet die Aussaat (main.ts), „Zur Forschung“ über den Reiter Forschung.
   tabs.niches.connect({
     sow: () => deps.actions.sow(),
     upgrade: (target, count) => deps.actions.upgrade(target, count),

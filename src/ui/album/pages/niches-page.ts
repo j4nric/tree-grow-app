@@ -2,7 +2,7 @@
  * Reiter „Nischen“ – „Wer wohnt wo?“ · „9 von 14 Plätzen“ (docs/ALBUM_UI.md, B.1 und A.4).
  *
  * Gattungen als Abzeichen mit Pips (Tipp → Haftnotiz), Stickerreihen je Nische am Baum und
- * je Lebensraum (verschlossen: grauer Name und Handschrift-Zeile, ggf. „Zur Pflege ›“), der
+ * je Lebensraum (verschlossen: grauer Name und Handschrift-Zeile, ggf. „Zur Forschung ›“), der
  * Pflanzring mit Messbändern und „🌱 Säen“, dazu die Lesezeichen-Links zu
  * U:Harmonie (Lebensgemeinschaften) und U:Nahrungsnetz. Tipp auf einen Sticker blättert zu
  * U:Tier um.
@@ -55,7 +55,7 @@ const VISITOR_TEXT = 'Zu Gast – zieht bald weiter und braucht keinen Platz.';
 export interface NichesActions {
   /** „🌱 Säen“ bzw. „Aussaat offen ›“ (DESIGN_V2.md 27.6). */
   sow(): void;
-  /** „Zur Pflege ›“: Reiter Pflege bei der Maßnahme. */
+  /** „Zur Forschung ›“: Reiter Forschung beim Knoten. */
   showCare(careId: string): void;
   /**
    * „Ausbauen“ (DESIGN_V2.md 28.4/28.9): `count` Stufen einer Nische bzw. eines Baumteils
@@ -419,11 +419,11 @@ export function createNichesPage(env: PageEnv): NichesPage {
     list.setAttribute('aria-label', `Plätze in ${niche.label}`);
     const hint = el('p', 'nrow-hint');
     const hintText = el('span', 'nrow-hint-text');
-    const care = el('button', 'nrow-care', 'Zur Pflege ›');
+    const care = el('button', 'nrow-care', 'Zur Forschung ›');
     care.type = 'button';
     care.dataset.ref = 'niche-care-link';
     care.hidden = true;
-    care.setAttribute('aria-label', `Zur Pflege: ${niche.label} öffnen`);
+    care.setAttribute('aria-label', `Zur Forschung: ${niche.label} öffnen`);
     care.addEventListener('click', () => {
       const id = care.dataset.careLink;
       if (id) actions?.showCare(id);

@@ -3,14 +3,15 @@
  *
  * Diese Datei kennt kein DOM: Sie ordnet die Daten aus `content/research.ts` in Äste, Ebenen
  * und Gabeln und bildet einen übergebenen Zustand je Knoten auf Texte, Klassen und
- * aria-Angaben ab. Den Zustand liefert ab Phase 10, 4a der Spielstand (Blocker aus
- * `researchBlocker`, siehe `researchStatusFromBlocker`); bis dahin Beispielzustände aus
+ * aria-Angaben ab. Den Zustand liefert im Spiel der Spielstand (`research-state.ts`: Blocker aus
+ * `researchBlocker`, Rang, Kosten, Plan); die Vorschau nimmt Beispielzustände aus
  * `research-fixtures.ts`. Das DOM baut `album/research-tree.ts`.
  *
- * Nur die einmaligen Knoten (RESEARCH_ONCE): Die wiederholbaren (28.6) bekommen in Phase 11, 4a
- * eine eigene Zeile „∞“ unter der Wald-Ebene; bis dahin stehen sie nur in der Liste (adapters.ts).
+ * Die wiederholbaren Knoten (28.6) stehen je Ast in einer eigenen Zeile „∞ immer weiter“ unter
+ * der Wald-Ebene (Phase 11, 4a): Stempel „Rang 3“, Knopf mit den Kosten des nächsten Rangs.
  */
 import {
+  RESEARCH,
   RESEARCH_ONCE,
   RESEARCH_BRANCHES,
   RESEARCH_BY_ID,
@@ -21,6 +22,7 @@ import {
   type ResearchNode,
 } from '../content/research';
 import { STAGES } from '../content/stages';
+import { MAX_HARMONY_POINTS } from '../core/state';
 import { conditionName } from './adapters';
 import { formatDuration, formatNumber, keepNumberWithIcon } from './format';
 
@@ -45,6 +47,14 @@ export interface ResearchNodeState {
   status: ResearchStatus;
   /** Nur bei `locked`: der erste Grund. */
   lock?: ResearchLock;
+  /** Kosten des nächsten Kaufs (wiederholbare: nächster Rang); fehlt → `cost` aus den Daten. */
+  cost?: number;
+  /** Rang eines wiederholbaren Knotens (28.6); fehlt → 0. */
+  rank?: number;
+  /** Offene Einträge des Forschungsplans für diesen Knoten (Plan-Nummern ab 1, aufsteigend). */
+  plan?: readonly number[];
+  /** Der nächste offene Eintrag des Plans gehört zu diesem Knoten. */
+  planNext?: boolean;
 }
 
 export interface ResearchTreeState {
@@ -56,6 +66,8 @@ export interface ResearchTreeState {
   stage: number;
   /** Zustand je Knoten-ID; fehlende Knoten gelten als gesperrt (Stufe). */
   nodes: Readonly<Record<string, ResearchNodeState>>;
+  /** „Plan folgen“ an (Plan-Nummern kräftig) bzw. aus (blass). Fehlt → aus. */
+  planActive?: boolean;
 }
 
 /** Blocker des Spielstands (27.7) → Zustand der Ansicht – für das Einhängen in 4a. */
@@ -106,9 +118,11 @@ export type ResearchSlot =
 export interface ResearchTier {
   /** Stufe (Index in STAGES). */
   stage: number;
-  /** Zeile im Desktop-Raster (0 = oberste Ebene). */
+  /** Zeile im Desktop-Raster (0 = oberste Ebene; die Zeile „∞“ ist die letzte). */
   row: number;
   slots: readonly ResearchSlot[];
+  /** Zeile „∞ immer weiter“ mit dem wiederholbaren Knoten des Asts (28.6, 28.9). */
+  repeat?: boolean;
 }
 
 export interface ResearchBranchLayout {
@@ -127,8 +141,10 @@ export interface ResearchEdge {
 }
 
 export interface ResearchLayout {
-  /** Alle Ebenen (Stufen) aufsteigend – die Zeilen des Rasters. */
+  /** Alle Ebenen (Stufen) der einmaligen Knoten aufsteigend – die Zeilen des Rasters. */
   stages: readonly number[];
+  /** Zeilen des Rasters: die Ebenen und darunter die Zeile „∞“. */
+  rows: number;
   branches: readonly ResearchBranchLayout[];
   edges: readonly ResearchEdge[];
 }
@@ -172,10 +188,15 @@ export function researchLayout(): ResearchLayout {
       }
       if (slots.length > 0) tiers.push({ stage, row: stages.indexOf(stage), slots });
     }
-    return { branch, tiers, nodeIds: nodes.map((n) => n.id) };
+    // Zeile „∞“: der endlose Knoten des Asts unter der Wald-Ebene.
+    const repeat = RESEARCH.filter((n) => n.repeatable && n.branch === branch.id);
+    if (repeat.length > 0) {
+      tiers.push({ stage: repeat[0]!.minStage, row: stages.length, slots: repeat.map((n) => ({ kind: 'node', id: n.id })), repeat: true });
+    }
+    return { branch, tiers, nodeIds: [...nodes, ...repeat].map((n) => n.id) };
   });
   const edges: ResearchEdge[] = [];
-  for (const node of RESEARCH_ONCE) {
+  for (const node of RESEARCH) {
     for (const from of node.requires ?? []) {
       if (RESEARCH_BY_ID.get(from)?.branch === node.branch) edges.push({ from, to: node.id, any: false });
     }
@@ -183,7 +204,7 @@ export function researchLayout(): ResearchLayout {
       if (RESEARCH_BY_ID.get(from)?.branch === node.branch) edges.push({ from, to: node.id, any: true });
     }
   }
-  cachedLayout = { stages, branches, edges };
+  cachedLayout = { stages, rows: stages.length + 1, branches, edges };
   return cachedLayout;
 }
 
@@ -191,6 +212,9 @@ export function researchLayout(): ResearchLayout {
 export function tierLabel(stage: number): string {
   return `ab ${STAGES[stage]?.name ?? '?'}`;
 }
+
+/** Etikett der Zeile „∞“ (28.9). */
+export const REPEAT_TIER_LABEL = '∞ immer weiter';
 
 // ---------------------------------------------------------------------------------------
 // Abbildung Zustand → Ansicht
@@ -223,7 +247,7 @@ export interface ResearchNodeView {
   classes: readonly string[];
   /** Der Knopf ist nicht bedienbar (`aria-disabled="true"`). */
   disabled: boolean;
-  /** Knopf sichtbar (nicht bei „erforscht“). */
+  /** Knopf sichtbar (nicht bei „erforscht“ bzw. beim höchsten Rang). */
   showAction: boolean;
   /** Sichtbarer Knopftext. */
   actionText: string;
@@ -231,8 +255,15 @@ export interface ResearchNodeView {
   actionLabel: string;
   /** Sperr- bzw. Zustandsgrund als ganzer Satz (vorlesbar, sichtbar klein) – null bei erforschbar. */
   reason: string | null;
-  /** Kurzer Zustand für Screenreader („erforscht“, „gesperrt“ …). */
+  /** Kurzer Zustand für Screenreader („erforscht“, „gesperrt“, „Rang 3“ …). */
   statusText: string;
+  /** Stempel: „erforscht“ bzw. bei wiederholbaren „Rang 3“. */
+  stampText: string;
+  showStamp: boolean;
+  /** Wiederholbarer Knoten (Zeile „∞“). */
+  repeatable: boolean;
+  /** Plan-Nummer(n) als kleines Etikett („3“, „7 · 12 · 15“, „7 · 12 · 15 +4“); null ohne Plan. */
+  plan: { text: string; label: string; next: boolean } | null;
   /** Voraussetzungen aus anderen Ästen. */
   crossRefs: readonly ResearchCrossRef[];
 }
@@ -251,7 +282,7 @@ function statusOf(state: ResearchTreeState, id: string): ResearchNodeState {
   const s = rawStatusOf(state, id);
   if (s.status !== 'locked') return s;
   const node = RESEARCH_BY_ID.get(id);
-  return node && (node.excludes ?? []).some((x) => isResearched(state, x)) ? { status: 'excluded' } : s;
+  return node && (node.excludes ?? []).some((x) => isResearched(state, x)) ? { ...s, status: 'excluded' } : s;
 }
 
 const nameOf = (id: string): string => RESEARCH_BY_ID.get(id)?.name ?? id;
@@ -291,15 +322,43 @@ export function waitText(shortfall: number, perMinute: number): string {
   return `~${formatDuration(Math.max(1, Math.ceil((shortfall / perMinute) * 60)))}`;
 }
 
+/** Höchstens so viele Plan-Nummern stehen an einer Karte, der Rest als „+4“. */
+export const PLAN_NUMBERS_SHOWN = 3;
+
+/**
+ * Plan-Etikett einer Karte: die offenen Plan-Nummern („3“; wiederholbare je Rang eine:
+ * „7 · 12 · 15 +4“). null ohne offene Einträge.
+ */
+export function planBadge(plan: readonly number[] | undefined, next: boolean, name: string): ResearchNodeView['plan'] {
+  if (!plan || plan.length === 0) return null;
+  const shown = plan.slice(0, PLAN_NUMBERS_SHOWN).map((n) => formatNumber(n));
+  const rest = plan.length - shown.length;
+  const text = `${shown.join(' · ')}${rest > 0 ? ` +${formatNumber(rest)}` : ''}`;
+  const where =
+    plan.length === 1
+      ? `an Stelle ${shown[0]}`
+      : `an den Stellen ${joinNames(plan.map((n) => formatNumber(n)), 'und')}`;
+  return { text, label: `${name} steht im Plan ${where}${next ? ' – als Nächstes' : ''}.`, next };
+}
+
+/** Ist der nächste Rang nie bezahlbar (Kosten über dem größten Vorrat, 28.6/MAX_HARMONY_POINTS)? */
+export function researchUnaffordable(cost: number): boolean {
+  return !(cost <= MAX_HARMONY_POINTS);
+}
+
 export function researchNodeView(id: string, state: ResearchTreeState): ResearchNodeView {
   const node = RESEARCH_BY_ID.get(id);
   if (!node) throw new Error(`Unbekannter Forschungsknoten: ${id}`);
   const s = statusOf(state, id);
   const name = node.name;
-  const cost = costText(node.cost);
+  const repeatable = !!node.repeatable;
+  const rank = repeatable ? Math.max(0, Math.floor(s.rank ?? 0)) : 0;
+  const nextCost = s.cost ?? node.cost;
+  const cost = costText(nextCost);
   const classes: string[] = [`is-${s.status}`];
   const fork = FORK_OF.get(id);
   if (fork) classes.push('is-fork');
+  if (repeatable) classes.push('is-repeatable');
 
   const crossRefs: ResearchCrossRef[] = [...(node.requires ?? []), ...(node.requiresAny ?? [])]
     .map((rid) => RESEARCH_BY_ID.get(rid)!)
@@ -315,25 +374,38 @@ export function researchNodeView(id: string, state: ResearchTreeState): Research
       };
     });
 
+  // Wiederholbare: „Rang 4 erforschen“ – der Rang, den der Kauf bringt.
+  const what = repeatable ? `${name}: Rang ${formatNumber(rank + 1)} erforschen` : `${name} erforschen`;
   let actionText = `Erforschen · ${cost}`;
-  let actionLabel = `${name} erforschen, ${formatNumber(node.cost)} Harmonie`;
+  let actionLabel = `${what}, ${formatNumber(nextCost)} Harmonie`;
   let reason: string | null = null;
   let disabled = true;
+  let statusText = STATUS_SR[s.status];
 
   switch (s.status) {
     case 'researched':
       actionText = 'erforscht';
-      actionLabel = `${name}: erforscht`;
+      actionLabel = repeatable ? `${name}: höchster Rang erreicht` : `${name}: erforscht`;
+      if (repeatable) statusText = `höchster Rang ${formatNumber(rank)}`;
       break;
     case 'available':
       disabled = false;
       break;
     case 'saving': {
-      const shortfall = Math.max(0, Math.ceil(node.cost - state.harmony));
+      if (researchUnaffordable(nextCost)) {
+        // Rang über dem größten Vorrat: kein ewiges „Noch …“, das nie kommt.
+        actionText = 'unerreichbar';
+        reason = `Unerreichbar: Rang ${formatNumber(rank + 1)} kostet mehr Harmonie, als der Vorrat je fassen kann.`;
+        actionLabel = `${name}: ${reason}`;
+        classes.push('is-unreachable');
+        statusText = 'unerreichbar';
+        break;
+      }
+      const shortfall = Math.max(0, Math.ceil(nextCost - state.harmony));
       const wait = waitText(shortfall, state.perMinute);
       actionText = keepNumberWithIcon(`Noch ${formatNumber(shortfall)} ⚖️${wait ? ` · ${wait}` : ''}`);
       reason = `Es fehlen noch ${formatNumber(shortfall)} Harmonie${wait ? ` (${wait.replace('~', 'etwa ')})` : ''}.`;
-      actionLabel = `${name} erforschen, ${formatNumber(node.cost)} Harmonie – ${reason}`;
+      actionLabel = `${what}, ${formatNumber(nextCost)} Harmonie – ${reason}`;
       break;
     }
     case 'locked': {
@@ -365,6 +437,14 @@ export function researchNodeView(id: string, state: ResearchTreeState): Research
     }
   }
 
+  // Rang-Stempel ab Rang 1 – neben dem Knopf für den nächsten Rang.
+  const showStamp = repeatable ? rank >= 1 : s.status === 'researched';
+  const stampText = repeatable ? `Rang ${formatNumber(rank)}` : 'erforscht';
+  if (repeatable && rank >= 1 && s.status !== 'researched') statusText = `Rang ${formatNumber(rank)}, ${statusText}`;
+  const plan = planBadge(s.plan, s.planNext === true, name);
+  if (plan) classes.push('has-plan');
+  if (plan?.next) classes.push('is-plan-next');
+
   return {
     id,
     status: s.status,
@@ -374,7 +454,11 @@ export function researchNodeView(id: string, state: ResearchTreeState): Research
     actionText,
     actionLabel,
     reason,
-    statusText: STATUS_SR[s.status],
+    statusText,
+    stampText,
+    showStamp,
+    repeatable,
+    plan,
     crossRefs,
   };
 }
@@ -409,7 +493,11 @@ export function researchForkView(forkId: string, state: ResearchTreeState): Rese
   return { id: fork.id, chosen, hint, label };
 }
 
-/** Kopf eines Asts: „2 / 6 erforscht · 1 erforschbar“. */
+/**
+ * Kopf eines Asts: „2 / 6 erforscht · 1 erforschbar“, mit Rang des endlosen Knotens
+ * „· ∞ Rang 3“. Gezählt (erforscht / gesamt) werden die einmaligen Knoten; „erforschbar“
+ * zählt auch den nächsten Rang.
+ */
 export function branchSummary(branch: ResearchBranchId, state: ResearchTreeState): {
   text: string;
   available: number;
@@ -418,19 +506,24 @@ export function branchSummary(branch: ResearchBranchId, state: ResearchTreeState
 } {
   const ids = RESEARCH_ONCE.filter((n) => n.branch === branch).map((n) => n.id);
   const researched = ids.filter((id) => statusOf(state, id).status === 'researched').length;
-  const available = ids.filter((id) => statusOf(state, id).status === 'available').length;
+  const repeat = RESEARCH.filter((n) => n.repeatable && n.branch === branch).map((n) => n.id);
+  const available = [...ids, ...repeat].filter((id) => statusOf(state, id).status === 'available').length;
   // Ausgeschlossene Knoten zählen nicht mit – sie sind in diesem Zyklus nicht erreichbar.
   const total = ids.filter((id) => statusOf(state, id).status !== 'excluded').length;
-  const text = `${researched} / ${total} erforscht${available > 0 ? ` · ${available} erforschbar` : ''}`;
+  const rank = repeat.reduce((sum, id) => sum + Math.max(0, Math.floor(rawStatusOf(state, id).rank ?? 0)), 0);
+  const text =
+    `${researched} / ${total} erforscht` +
+    (rank > 0 ? ` · ∞ Rang ${formatNumber(rank)}` : '') +
+    (available > 0 ? ` · ${available} erforschbar` : '');
   return { text, available, researched, total };
 }
 
-/** Kopf des Reiters: „⚖️ 1.234“, „+110/min“, „3 erforschbar“. */
+/** Kopf des Reiters: „⚖️ 1.234“, „+110/min“, „3 erforschbar“ (auch nächste Ränge). */
 export function researchHeader(state: ResearchTreeState): { supply: string; rate: string; available: string; count: number } {
-  const count = RESEARCH_ONCE.filter((n) => statusOf(state, n.id).status === 'available').length;
+  const count = RESEARCH.filter((n) => statusOf(state, n.id).status === 'available').length;
   return {
     supply: costText(Math.floor(state.harmony)),
-    rate: `+${formatNumber(state.perMinute)}/min`,
+    rate: `+${formatNumber(Math.floor(state.perMinute))}/min`,
     available: count === 0 ? 'nichts erforschbar' : `${count} erforschbar`,
     count,
   };

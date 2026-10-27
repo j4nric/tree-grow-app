@@ -3,7 +3,6 @@ import { STAGES } from '../src/content/stages';
 import { codeFromJson, exportCode, serialize } from '../src/core/save';
 import { createInitialState, createSite, type GameState, type LandscapeSite } from '../src/core/state';
 import {
-  SAVE_VERSION,
   back,
   expect,
   gotoTab,
@@ -15,6 +14,8 @@ import {
   openSavePage,
   openTab,
   readNumber,
+  researchAction,
+  SAVE_VERSION,
   savedState,
   seedRaw,
   seedsValue,
@@ -405,8 +406,8 @@ for (const live of [true, false]) {
         // Live: Die Änderungsmeldung nennt die neuere Version → sofort anhalten. Ohne Abo: Die
         // nächste Aktion will senden, der Server lehnt mit 422 `outdated-client` ab.
         await closeAccount(page);
-        await openTab(page, 'pflege');
-        await page.locator('[data-ref="care"] [data-care="leaf-litter"]').getByRole('button', { name: 'Erforschen (80 ⚖️)' }).click();
+        await openTab(page, 'forschung');
+        await researchAction(page, 'leaf-litter').click();
         await openCoverPage(page, 'account');
         await expect(sync).toContainText('Neue Spielversion – bitte neu laden', { timeout: 20_000 });
 

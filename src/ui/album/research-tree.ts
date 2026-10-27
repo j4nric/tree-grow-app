@@ -3,15 +3,19 @@
  *
  * Eigenständige Ansicht: baut das DOM einmal aus `RESEARCH` / `RESEARCH_BRANCHES` /
  * `RESEARCH_FORKS` (Aufbau aus `research-view.ts`), `update(state)` setzt danach nur Texte,
- * Klassen und Attribute. Noch nicht im Reiter eingehängt (das ist 4a) – zu sehen in
- * `src/ui/research-preview.html`.
+ * Klassen und Attribute. Im Spiel steht er im Reiter „Forschung“ (album/pages/care-page.ts,
+ * Phase 11, 4a), zum Ausprobieren in `src/ui/research-preview.html`.
+ *
+ * Unter der Wald-Ebene steht je Ast der endlose Knoten in der Zeile „∞ immer weiter“ (28.9):
+ * Stempel „Rang 3“ neben dem Knopf für den nächsten Rang. Geplante Knoten tragen ihre
+ * Plan-Nummer(n) als kleines Etikett oben links (27.8).
  *
  * Zwei Darstellungen desselben DOM, umgeschaltet nach der Breite des Baums (nicht des
  * Fensters – im Album ist die rechte Seite schmaler als der Bildschirm):
  * - **Liste** (schmal, z. B. 360/390 px oder eine Album-Seite): Ast-Register oben (Sprung
  *   zum Ast), darunter die Äste als aufklappbare Abschnitte mit senkrechtem Zweig, Knoten
  *   als Karten gruppiert nach Ebenen („ab Alter Baum“). Gabeln: zwei halbe Karten mit
- *   „oder“. Unter 640 px sind anfangs nur Äste mit erforschbarem Knoten offen.
+ *   „oder“. Mobil (Fenster unter 640 px) sind anfangs nur Äste mit erforschbarem Knoten offen.
  * - **Raster** (ab GRID_MIN_WIDTH): sechs Spalten (Äste) × fünf Zeilen (Ebenen), dünne
  *   SVG-Linien zwischen Karten desselben Asts, einmal je Layout gezeichnet (ResizeObserver),
  *   nie je Frame.
@@ -32,6 +36,7 @@ import {
   researchLayout,
   researchNodeView,
   tierLabel,
+  REPEAT_TIER_LABEL,
   type ResearchSlot,
   type ResearchTreeState,
 } from '../research-view';
@@ -39,7 +44,7 @@ import './research-tree.css';
 
 /** Ab dieser Breite des Baums (px) das Raster 6 × 5 statt der Liste. */
 export const GRID_MIN_WIDTH = 940;
-/** Unter dieser Breite sind anfangs nur Äste mit erforschbarem Knoten offen. */
+/** Unter dieser Fensterbreite (mobil) sind anfangs nur Äste mit erforschbarem Knoten offen. */
 export const COLLAPSE_BELOW = 640;
 /** Abstand der ersten Linien-Spur vom Spaltenrand und zwischen Spuren (px). */
 const LANE_FIRST = 5;
@@ -48,8 +53,15 @@ const LANE_STEP = 5;
 export type ResearchTreeLayoutMode = 'grid' | 'list';
 
 export interface ResearchTreeOptions {
-  /** Knopf „Erforschen“ (nur bei erforschbaren Knoten). */
+  /** Knopf „Erforschen“ (nur bei erforschbaren Knoten). Ohne `bindAction` per Klick. */
   onResearch(id: string): void;
+  /**
+   * Eigene Verdrahtung des Knopfs (im Spiel: Doppelklick-Schutz und Bestätigung aus
+   * pages/care-buy.ts). Ersetzt den einfachen Klick auf `onResearch`.
+   */
+  bindAction?(button: HTMLButtonElement, id: string): void;
+  /** Kopf (Vorrat, Produktion, erforschbar) zeigen – im Album steht er schon im Seitenkopf. */
+  head?: boolean;
   /** Name angetippt → U:Forschungsknoten (4a). Ohne: Name ist kein Knopf. */
   onOpen?(id: string): void;
   /** Darstellung erzwingen (Tests); Standard: nach Breite. */
@@ -61,6 +73,12 @@ export interface ResearchTree {
   update(state: ResearchTreeState): void;
   /** Knoten zeigen: Ast aufklappen, Fokus, Aufleuchten. false, wenn es ihn nicht gibt. */
   reveal(id: string): boolean;
+  /** Karte eines Knotens (Aufleuchten, Lage der Bestätigung). */
+  card(id: string): HTMLElement | undefined;
+  /** Knopf eines Knotens. */
+  action(id: string): HTMLButtonElement | undefined;
+  /** Fokus auf den Namen eines Knotens (nach dem Kauf, wenn der Knopf verschwindet). */
+  focusName(id: string): void;
   /** Beobachter lösen. */
   destroy(): void;
 }
@@ -70,6 +88,7 @@ interface NodeParts {
   card: HTMLElement;
   status: HTMLElement;
   stamp: HTMLElement;
+  plan: HTMLElement;
   reason: HTMLElement;
   action: HTMLButtonElement;
   focusTarget: HTMLElement;
@@ -103,6 +122,7 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
   const root = el('section', 'research-tree');
   root.setAttribute('aria-label', 'Forschungsbaum');
   root.dataset.layout = options.layout === 'grid' ? 'grid' : 'list';
+  root.dataset.plan = 'off';
 
   // --- Kopf: Vorrat, Produktion, erforschbar ---------------------------------------------
   const head = el('div', 'research-head');
@@ -110,6 +130,7 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
   const rate = el('span', 'research-rate');
   const count = el('span', 'research-count');
   head.append(supply, rate, count);
+  head.hidden = options.head === false;
 
   // --- Ast-Register (nur Liste) -----------------------------------------------------------
   const register = el('nav', 'research-register');
@@ -117,6 +138,7 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
 
   // --- Brett: Raster bzw. Liste ----------------------------------------------------------
   const board = el('div', 'research-board');
+  board.style.setProperty('--tiers', String(layout.rows));
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('class', 'research-links');
   svg.setAttribute('aria-hidden', 'true');
@@ -124,11 +146,11 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
   board.append(svg);
 
   // Zeilenköpfe und Trennlinien der Ebenen (nur Raster)
-  layout.stages.forEach((stage, row) => {
+  [...layout.stages.map(tierLabel), REPEAT_TIER_LABEL].forEach((text, row) => {
     const rule = el('div', 'research-row-rule');
     rule.style.gridRow = String(row + 2);
     rule.setAttribute('aria-hidden', 'true');
-    const label = el('div', 'research-row-label', tierLabel(stage));
+    const label = el('div', row === layout.stages.length ? 'research-row-label is-repeat' : 'research-row-label', text);
     label.style.gridRow = String(row + 2);
     label.setAttribute('aria-hidden', 'true');
     board.append(rule, label);
@@ -153,6 +175,7 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
     if (options.onOpen) {
       const b = el('button', 'research-node-name');
       b.type = 'button';
+      b.dataset.researchName = id;
       b.append(el('span', 'research-node-name-text', hyphenate(node.name)));
       b.setAttribute('aria-label', `${node.name} – Details`);
       b.addEventListener('click', () => options.onOpen?.(id));
@@ -165,19 +188,28 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
     const summary = el('p', 'research-node-summary', node.summary);
     const stamp = el('span', 'research-node-stamp', 'erforscht');
     stamp.setAttribute('aria-hidden', 'true');
+    // Plan-Nummer(n): sichtbar klein, vorgelesen über die Statuszeile.
+    const plan = el('span', 'research-node-plan');
+    plan.setAttribute('aria-hidden', 'true');
+    plan.hidden = true;
     const reason = el('p', 'research-node-reason sr-only');
 
     const refs: NodeParts['refs'] = [];
     const refList = el('ul', 'research-node-refs');
     const action = el('button', 'research-node-action');
     action.type = 'button';
-    action.addEventListener('click', () => {
-      if (action.getAttribute('aria-disabled') === 'true') return;
-      options.onResearch(id);
-    });
+    action.dataset.researchAction = id;
+    if (options.bindAction) {
+      options.bindAction(action, id);
+    } else {
+      action.addEventListener('click', () => {
+        if (action.getAttribute('aria-disabled') === 'true') return;
+        options.onResearch(id);
+      });
+    }
 
-    card.append(icon, nameEl, status, summary);
-    const parts: NodeParts = { id, card, status, stamp, reason, action, focusTarget: nameEl, refs, baseClass };
+    card.append(plan, icon, nameEl, status, summary);
+    const parts: NodeParts = { id, card, status, stamp, plan, reason, action, focusTarget: nameEl, refs, baseClass };
     nodes.set(id, parts);
     // Querverweise erst bauen, wenn alle Knoten stehen (siehe unten) – hier nur die Liste.
     card.append(refList, stamp, reason, action);
@@ -212,7 +244,7 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
     section.dataset.branch = branch.id;
     section.style.setProperty('--branch-color', branch.color);
     section.style.gridColumn = String(col + 2);
-    section.style.setProperty('--rows', String(layout.stages.length + 1));
+    section.style.setProperty('--rows', String(layout.rows + 1));
     const titleId = `${uid}-${branch.id}-title`;
     const bodyId = `${uid}-${branch.id}-body`;
     section.setAttribute('aria-labelledby', titleId);
@@ -240,12 +272,13 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
     const body = el('div', 'research-branch-body');
     body.id = bodyId;
     for (const tier of b.tiers) {
-      const t = el('div', 'research-tier');
+      const t = el('div', tier.repeat ? 'research-tier research-tier-repeat' : 'research-tier');
       t.dataset.stage = String(tier.stage);
       t.style.gridRow = String(tier.row + 2);
-      const label = el('p', 'research-tier-label', tierLabel(tier.stage));
+      const text = tier.repeat ? `${REPEAT_TIER_LABEL} · ${tierLabel(tier.stage)}` : tierLabel(tier.stage);
+      const label = el('p', 'research-tier-label', text);
       const list = el('ul', 'research-tier-slots');
-      list.setAttribute('aria-label', `${branch.name}, ${tierLabel(tier.stage)}`);
+      list.setAttribute('aria-label', `${branch.name}, ${tier.repeat ? `${REPEAT_TIER_LABEL}, ${tierLabel(tier.stage)}` : tierLabel(tier.stage)}`);
       for (const slot of tier.slots) list.append(buildSlot(slot, branch.color));
       t.append(label, list);
       body.append(t);
@@ -413,6 +446,8 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
     setText(rate, h.rate);
     setText(count, h.available);
     count.classList.toggle('is-some', h.count > 0);
+    const planMode = state.planActive ? 'on' : 'off';
+    if (root.dataset.plan !== planMode) root.dataset.plan = planMode;
 
     const shown = new Map<string, string>();
     for (const parts of nodes.values()) {
@@ -425,9 +460,12 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
         if (flashing) parts.card.classList.add('research-flash');
       }
       parts.card.dataset.status = view.status;
-      setText(parts.status, `, ${view.statusText}`);
+      setText(parts.status, `, ${view.statusText}${view.plan ? `. ${view.plan.label}` : ''}`);
       setText(parts.reason, view.reason ?? '');
-      parts.stamp.hidden = view.status !== 'researched';
+      parts.stamp.hidden = !view.showStamp;
+      setText(parts.stamp, view.stampText);
+      parts.plan.hidden = !view.plan;
+      setText(parts.plan, view.plan?.text ?? '');
       parts.action.hidden = !view.showAction;
       setText(parts.action, view.actionText);
       setAttr(parts.action, 'aria-label', view.actionLabel);
@@ -465,7 +503,9 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
 
     if (!initialOpenDone && !userToggled) {
       initialOpenDone = true;
-      const width = root.getBoundingClientRect().width || (typeof window !== 'undefined' ? window.innerWidth : 0);
+      // Nach der Breite des Fensters (mobil), nicht des Baums: Am Desktop ist die Album-Seite
+      // schmaler als 640 px, dort bleiben trotzdem alle Äste offen.
+      const width = typeof window !== 'undefined' ? window.innerWidth : root.getBoundingClientRect().width;
       const narrow = width > 0 && width < COLLAPSE_BELOW;
       const anyAvailable = [...branches.values()].some((b) => b.section.classList.contains('has-available'));
       for (const parts of branches.values()) {
@@ -478,6 +518,11 @@ export function createResearchTree(options: ResearchTreeOptions): ResearchTree {
     root,
     update,
     reveal,
+    card: (id) => nodes.get(id)?.card,
+    action: (id) => nodes.get(id)?.action,
+    focusName(id) {
+      nodes.get(id)?.focusTarget.focus({ preventScroll: true });
+    },
     destroy() {
       if (pending) cancelAnimationFrame(pending);
       observer?.disconnect();

@@ -1,24 +1,24 @@
-import { expect, gotoTab, parseGermanNumber, savedState, seedV3, subpage, test, waypoint } from './fixtures';
+import { expect, gotoTab, openBranch, parseGermanNumber, researchAction, researchName, researchNode, savedState, seedV3, subpage, test, waypoint } from './fixtures';
 
 /**
- * Unterseite „Pflegemaßnahme“ (docs/ALBUM_UI.md, A.8 #97 und B.3), seit Spielstand v17 ein
- * Forschungsknoten (Notlösung bis Phase 10, 4a): Tipp auf den Namen blättert um; dort stehen
- * Wirkung, Voraussetzungen, Vorrat und Erforschen. Danach bleibt die Seite offen, „‹ Pflege“
- * führt zurück an den Namen.
+ * Unterseite „Forschungsknoten“ (früher U:Forschungsknoten; docs/ALBUM_UI.md, A.8 #97 und B.3):
+ * Tipp auf den Namen einer Karte im Forschungsbaum blättert um; dort stehen Wirkung,
+ * Voraussetzungen, Vorrat und Erforschen. Danach bleibt die Seite offen, „‹ Forschung“ führt
+ * zurück an den Namen.
  */
 
 const care = (page: import('@playwright/test').Page) => page.locator('[data-ref="care"]');
 
-test('U:Pflegemaßnahme (Forschungsknoten): umblättern, Wirkung, Voraussetzungen, erforschen, zurück an den Namen', async ({ page, context }) => {
+test('U:Forschungsknoten (Forschungsknoten): umblättern, Wirkung, Voraussetzungen, erforschen, zurück an den Namen', async ({ page, context }) => {
   await page.setViewportSize({ width: 1200, height: 700 });
   await seedV3(context, {
-    totalGrowth: waypoint(20) + 1, // Hain: Humusschicht steht in der Liste, braucht Kompost und Laub
+    totalGrowth: waypoint(20) + 1, // Hain: Humusschicht, braucht Kompost und Laub
     harmonyPoints: 8000,
     research: ['leaf-litter'],
     niches: { roots: ['earthworm'] },
   });
-  await gotoTab(page, 'pflege');
-  const name = care(page).locator('[data-care-title="humus"]');
+  await gotoTab(page, 'forschung');
+  const name = researchName(page, 'humus');
   await name.click();
 
   const sub = subpage(page, 'care-item');
@@ -26,7 +26,7 @@ test('U:Pflegemaßnahme (Forschungsknoten): umblättern, Wirkung, Voraussetzunge
   await expect(sub).not.toHaveAttribute('inert', '');
   await expect(sub.locator('.page-title')).toHaveText('Humusschicht');
   await expect(sub.locator('.page-title')).toBeFocused();
-  await expect(sub.locator('[data-ref="bookmark"]')).toHaveText('‹ Pflege');
+  await expect(sub.locator('[data-ref="bookmark"]')).toHaveText('‹ Forschung');
   await expect(sub.locator('[data-ref="care-item-rank"]')).toHaveText('🪱 Boden');
   await expect(sub.locator('[data-ref="care-item-status"]')).toHaveText('Braucht „Kompost“');
   await expect(sub.locator('[data-ref="care-item-next"]')).toHaveText('+2 💧, +3 ⚖️');
@@ -41,11 +41,11 @@ test('U:Pflegemaßnahme (Forschungsknoten): umblättern, Wirkung, Voraussetzunge
   const buy = sub.locator('[data-ref="care-item-buy"]');
   await expect(buy).toHaveText('Erforschen (430 ⚖️)');
   await expect(buy).toHaveAttribute('aria-disabled', 'true');
-  // Kompost in der Liste erforschen, dann zurück zur Humusschicht.
+  // Kompost im Baum erforschen, dann zurück zur Humusschicht.
   await sub.locator('[data-ref="bookmark"]').click();
   await expect(sub).toBeHidden();
-  await care(page).locator('[data-buy-care="compost"]').click();
-  await expect(care(page).locator('[data-care="compost"]')).toContainText('erforscht');
+  await researchAction(page, 'compost').click();
+  await expect(researchNode(page, 'compost')).toContainText('erforscht');
   await name.click();
   await expect(sub).toBeVisible();
   await expect(needs.locator('[data-need="requires:compost"]')).toHaveClass(/care-need-met/);
@@ -63,19 +63,21 @@ test('U:Pflegemaßnahme (Forschungsknoten): umblättern, Wirkung, Voraussetzunge
   await sub.locator('[data-ref="bookmark"]').click();
   await expect(sub).toBeHidden();
   await expect(name).toBeFocused();
-  await expect(care(page).locator('[data-care="humus"]')).toContainText('erforscht');
+  await expect(researchNode(page, 'humus')).toContainText('erforscht');
 });
 
-test('U:Pflegemaßnahme mobil: Sperrgründe mit Kreuz, gesperrter Knopf, Escape, kein Querscrollen bei 360 px', async ({ page, context }) => {
+test('U:Forschungsknoten mobil: Sperrgründe mit Kreuz, gesperrter Knopf, Escape, kein Querscrollen bei 360 px', async ({ page, context }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await seedV3(context, {
-    totalGrowth: waypoint(12) + 1, // Alter Baum: Insektenhotel steht in der Liste
+    totalGrowth: waypoint(12) + 1, // Alter Baum: Insektenhotel (Saum)
     harmonyPoints: 100,
     research: ['wildflower-hem'],
     niches: { roots: ['earthworm'] },
   });
-  await gotoTab(page, 'pflege');
-  await care(page).locator('[data-care-title="insect-hotel"]').click();
+  await gotoTab(page, 'forschung');
+  // Mobil sind anfangs nur Äste mit Erforschbarem offen.
+  await openBranch(page, 'hem');
+  await researchName(page, 'insect-hotel').click();
   const sub = subpage(page, 'care-item');
   await expect(sub).toBeVisible();
   await expect(sub).not.toHaveAttribute('inert', '');
@@ -95,18 +97,20 @@ test('U:Pflegemaßnahme mobil: Sperrgründe mit Kreuz, gesperrter Knopf, Escape,
 
   await page.keyboard.press('Escape');
   await expect(sub).toBeHidden();
-  await expect(care(page).locator('[data-care-title="insect-hotel"]')).toBeFocused();
+  await expect(researchName(page, 'insect-hotel')).toBeFocused();
 });
 
-test('Reiter Pflege bei 360 px: kein Querscrollen, Knöpfe mindestens 44 px', async ({ page, context }) => {
+test('Reiter Forschung bei 360 px: kein Querscrollen, Knöpfe mindestens 44 px', async ({ page, context }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await seedV3(context, {
     totalGrowth: waypoint(20) + 1, // Hain: viele Knoten, lange Kosten
     harmonyPoints: 3000,
     niches: { roots: ['earthworm'], edge: ['bee'] },
   });
-  await gotoTab(page, 'pflege');
-  await expect(care(page).locator('[data-care]').first()).toBeVisible();
+  await gotoTab(page, 'forschung');
+  await expect(care(page).locator('.research-node').first()).toBeVisible();
+  // Alle Äste auf: jede Karte zählt.
+  for (const branch of ['soil', 'water', 'crown', 'hem', 'open', 'seed']) await openBranch(page, branch);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   const heights = await care(page)
     .locator('button:visible')
@@ -119,22 +123,22 @@ test('Reiter Pflege bei 360 px: kein Querscrollen, Knöpfe mindestens 44 px', as
  * Vorratsleiste (docs/ALBUM_UI.md B.0, G.2-14; Playtest Schritt 14, S6): Mobil erscheint über
  * den klebenden Reitern eine schmale Leiste mit Samen, Wachstum und Harmonie, sobald die
  * Etiketten weggescrollt sind. Forschen kostet seit v17 ⚖️, nicht 🌰 – die Samen bleiben.
- * U:Pflegemaßnahme zeigt den Harmonie-Vorrat am Erforschen-Knopf.
+ * U:Forschungsknoten zeigt den Harmonie-Vorrat am Erforschen-Knopf.
  */
-test('Mobil: Vorratsleiste beim Scrollen in der Pflege, Forschen lässt die Samen stehen', async ({ page, context }) => {
+test('Mobil: Vorratsleiste beim Scrollen in der Forschung, Forschen lässt die Samen stehen', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedV3(context, {
-    totalGrowth: waypoint(20) + 1, // Hain: lange Liste
+    totalGrowth: waypoint(20) + 1, // Hain: langer Baum
     harmonyPoints: 3000,
     niches: { roots: ['earthworm'], edge: ['bee'] },
   });
-  await gotoTab(page, 'pflege');
+  await gotoTab(page, 'forschung');
   const bar = page.locator('[data-ref="supply-bar"]');
   const inner = bar.locator('.supply-bar-inner');
   // Oben (Etiketten im Bild): keine Leiste.
   await expect(inner).toBeHidden();
   // Weit nach unten: Leiste da, die Reiter kleben darunter.
-  const last = care(page).locator('[data-buy-care]').last();
+  const last = care(page).locator('[data-research-action]:visible').last();
   await last.scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, 300));
   await expect(inner).toBeVisible();
@@ -146,7 +150,7 @@ test('Mobil: Vorratsleiste beim Scrollen in der Pflege, Forschen lässt die Same
   expect(barBox.y).toBeLessThanOrEqual(1);
   expect(tabsBox.y).toBeGreaterThanOrEqual(barBox.y + barBox.height - 1);
   // Erforschen: die Samen bleiben (die Forschung kostet ⚖️).
-  const buy = care(page).locator('[data-buy-care]:not([aria-disabled="true"])').first();
+  const buy = care(page).locator('[data-research-action][aria-disabled="false"]:visible').first();
   await buy.scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, 200));
   await buy.click();
@@ -160,12 +164,12 @@ test('Mobil: Vorratsleiste beim Scrollen in der Pflege, Forschen lässt die Same
   await expect(inner).toBeHidden();
 });
 
-test('Desktop: keine Vorratsleiste (Etiketten stehen daneben); U:Pflegemaßnahme zeigt den Harmonie-Vorrat', async ({ page, context }) => {
+test('Desktop: keine Vorratsleiste (Etiketten stehen daneben); U:Forschungsknoten zeigt den Harmonie-Vorrat', async ({ page, context }) => {
   await page.setViewportSize({ width: 1200, height: 700 });
   await seedV3(context, { totalGrowth: waypoint(12) + 1, harmonyPoints: 1234, niches: { roots: ['earthworm'] } });
-  await gotoTab(page, 'pflege');
+  await gotoTab(page, 'forschung');
   await expect(page.locator('[data-ref="supply-bar"]')).toBeHidden();
-  await care(page).locator('[data-care-title="insect-hotel"]').click();
+  await researchName(page, 'insect-hotel').click();
   const sub = subpage(page, 'care-item');
   await expect(sub.locator('[data-ref="care-item-wallet"]')).toHaveText(/^⚖️ 1\.2\d\d · \+\d+\/min$/);
 });

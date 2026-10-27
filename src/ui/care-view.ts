@@ -1,18 +1,17 @@
 /**
- * Ansichtslogik des Reiters „Pflege“ (docs/ALBUM_UI.md, A.8 und B.3) – rein, ohne DOM, mit
- * Vitest geprüft. Seit Spielstand v17 eine flache Notliste der Forschung (DESIGN_V2.md 27.7;
- * der Baum folgt in Phase 10, 4a); die Album-Seiten R:Pflege und U:Pflegemaßnahme
- * (album/pages/care-page.ts, care-item-page.ts) bauen daraus ihr DOM.
+ * Ansichtslogik rund um die Forschung (docs/ALBUM_UI.md, A.8 und B.3) – rein, ohne DOM, mit
+ * Vitest geprüft: Vorrat im Seitenkopf, Vorschau-Zeile und U:Forschungsknoten
+ * (album/pages/care-item-page.ts). Den Baum im Reiter „Forschung“ speist research-state.ts.
  */
 import { RESEARCH_BY_ID } from '../content/research';
 import { STAGES } from '../content/stages';
-import { appearsContext, ecosystemOf, evaluate, harmonyIncome, speciesAppears, type Evaluation } from '../core/formulas';
+import { appearsContext, ecosystemOf, evaluate, harmonyIncome, harmonyIncomeFactor, speciesAppears, type Evaluation } from '../core/formulas';
 import { effectiveForestMemory } from '../core/landscape';
-import type { GameState } from '../core/state';
+import { MAX_HARMONY_POINTS, type GameState } from '../core/state';
 import { researchComplete, researchCost } from '../core/tick';
-import { conditionName, sortCareViews, toCareViews } from './adapters';
+import { conditionName, toCareView } from './adapters';
 import { formatNumber } from './format';
-import { formatSigned, formatSignedPercent } from './view-format';
+import { formatMultiplier, formatSigned, formatSignedPercent } from './view-format';
 import type { CareView } from './view-model';
 
 /**
@@ -28,14 +27,6 @@ export function carePreviewText(preview: CareView['preview']): string {
   return parts.join(' / ');
 }
 
-/** Kennzahl im Seitenkopf, z. B. „2 erforschbar“ oder „alles erforscht“; sonst leer. */
-export function careSummaryText(items: readonly CareView[]): string {
-  const buyable = items.filter((i) => i.group === 'buyable').length;
-  if (buyable > 0) return `${formatNumber(buyable)} erforschbar`;
-  if (items.length > 0 && items.every((i) => i.group === 'maxed')) return 'alles erforscht';
-  return '';
-}
-
 /**
  * Harmonie-Vorrat mit Zufluss für den Seitenkopf, z. B. „⚖️ 1.234 · +110/min“ (DESIGN_V2.md
  * 27.3/27.12; der Zufluss mit Gedächtnisfaktor, also ⚖️ je Minute in den Vorrat).
@@ -46,34 +37,28 @@ export function harmonyWalletText(state: GameState, ev: Readonly<Pick<Evaluation
   return `⚖️ ${formatNumber(Math.floor(points))} · +${formatNumber(Math.floor(perMinute))}/min`;
 }
 
-/** Punkt am Reiter „Pflege“ (G-13): Ist gerade etwas erforschbar? */
-export function careTabDot(items: readonly CareView[]): boolean {
-  return items.some((i) => i.group === 'buyable');
+/** Drei Zeilen oben auf U:Harmonie (DESIGN_V2.md 27.12): Produktion, Vorrat, Bonus. */
+export interface HarmonyOverview {
+  production: string;
+  supply: string;
+  bonus: string;
 }
 
 /**
- * Reihenfolge der Zeilen: frisch sortiert – oder, solange die Liste „festgehalten“ ist,
- * die bisherige Reihenfolge (verschwundene Einträge raus, neue sortiert hinten an).
+ * „110/min“ (Produktion = Harmonie, Summe der Bausteine), „⚖️ 1.234 · +217/min (Gedächtnis
+ * ×1,97)“ (Vorrat mit Zufluss; Gedächtnis nur, wenn es den Zufluss hebt) und „Wachstum ×2,10 –
+ * aus der Produktion, Ausgeben senkt ihn nicht“ (27.4).
  */
-export function careOrder(items: readonly CareView[], previous: readonly string[], frozen: boolean): string[] {
-  const sorted = sortCareViews(items).map((i) => i.id);
-  if (!frozen || previous.length === 0) return sorted;
-  const present = new Set(sorted);
-  const kept = previous.filter((id) => present.has(id));
-  const known = new Set(kept);
-  return [...kept, ...sorted.filter((id) => !known.has(id))];
+export function harmonyOverview(state: GameState, harmony: number, multiplier: number): HarmonyOverview {
+  const production = Math.max(0, Number.isFinite(harmony) ? harmony : 0);
+  const factor = harmonyIncomeFactor(effectiveForestMemory(state));
+  const memory = factor > 1.005 ? ` (Gedächtnis ${formatMultiplier(factor)})` : '';
+  return {
+    production: `${formatNumber(Math.round(production))}/min`,
+    supply: `${harmonyWalletText(state, { harmony: production })}${memory}`,
+    bonus: `Wachstum ${formatMultiplier(multiplier)} – aus der Produktion, Ausgeben senkt ihn nicht`,
+  };
 }
-
-/** So lange (ms) bleibt die Reihenfolge nach einem Kauf stehen – auch ohne Zeiger/Fokus. */
-export const CARE_HOLD_MS = 1500;
-
-/** Kleine Überschrift über der ersten Zeile jeder Gruppe (Handschrift). */
-export const CARE_GROUP_LABELS: Readonly<Record<CareView['group'], string>> = {
-  buyable: 'jetzt möglich',
-  saving: 'dafür sparen',
-  locked: 'noch nicht möglich',
-  maxed: 'erledigt',
-};
 
 /** Balkenbreite in Prozent mit einer Nachkommastelle (CSS-Variable). */
 export function barWidth(progress: number): string {
@@ -81,7 +66,7 @@ export function barWidth(progress: number): string {
   return `${Math.round(clamped * 1000) / 10}%`;
 }
 
-// --- U:Pflegemaßnahme (seit v17: ein Forschungsknoten) -------------------------------
+// --- U:Forschungsknoten (früher U:Pflegemaßnahme) --------------------------------------
 
 /** Ein Rang der Maßnahme: gekauft, als nächster dran oder später (seit v17 nicht mehr genutzt). */
 export interface CareRankLine {
@@ -116,14 +101,13 @@ export interface CareItemView {
 }
 
 /**
- * Alles für die Unterseite eines Forschungsknotens. null, wenn es ihn nicht gibt oder er auf
- * dieser Stufe noch nicht in der Liste steht.
+ * Alles für die Unterseite eines Forschungsknotens – auch für Knoten späterer Stufen (der Baum
+ * zeigt alle). null, wenn es ihn nicht gibt.
  */
 export function toCareItemView(state: GameState, id: string, now: Readonly<Evaluation> = evaluate(state)): CareItemView | null {
   const node = RESEARCH_BY_ID.get(id);
   if (!node) return null;
-  const item = toCareViews(state, now).find((v) => v.id === id);
-  if (!item) return null;
+  const item = toCareView(state, node, now);
   const stageName = (index: number) => STAGES[index]?.name ?? '';
   const requirements: CareRequirement[] = [];
   if (!researchComplete(state, id)) {
@@ -154,7 +138,11 @@ export function toCareItemView(state: GameState, id: string, now: Readonly<Evalu
     requirements.push({
       key: 'harmony',
       met: missing <= 0,
-      text: missing > 0 ? `${formatNumber(cost)} ⚖️ (noch ${formatNumber(missing)} ⚖️)` : `${formatNumber(cost)} ⚖️`,
+      text: !(cost <= MAX_HARMONY_POINTS)
+        ? `${formatNumber(cost)} ⚖️ (unerreichbar – mehr, als der Vorrat je fassen kann)`
+        : missing > 0
+          ? `${formatNumber(cost)} ⚖️ (noch ${formatNumber(missing)} ⚖️)`
+          : `${formatNumber(cost)} ⚖️`,
     });
   }
   return { item, text: node.text, preview: carePreviewText(item.preview), ranks: [], requirements };

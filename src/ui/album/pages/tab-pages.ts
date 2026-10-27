@@ -8,7 +8,7 @@ import { TAB_LABELS, initialNav, pageNumber, type TabId } from '../nav';
 export const TAB_TITLES: Readonly<Record<TabId, string>> = {
   niches: 'Wer wohnt wo?',
   species: 'Wer war schon da?',
-  care: 'Was tun wir für den Wald?',
+  care: 'Was erforschen wir?',
   goals: 'Was haben wir vor?',
   landscape: 'Unsere Wälder',
 };

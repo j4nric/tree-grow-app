@@ -20,8 +20,10 @@ export interface AlbumActions {
   encounter: EncounterCallbacks;
   /** „🌱 Säen“ (DESIGN_V2.md 27.6): öffnet eine Aussaat bzw. die offene in U:Begegnung. */
   sow(): void;
-  /** Kauft den nächsten Rang einer Pflegemaßnahme; `true` bei Erfolg. */
+  /** Erforscht einen Knoten (wiederholbare: den nächsten Rang); `true` bei Erfolg. */
   buyCare(id: string): boolean | void;
+  /** Schalter „Plan des letzten Zyklus folgen“ (DESIGN_V2.md 27.8); kaufen tut der Tick. */
+  setResearchAuto(on: boolean): void;
   /**
    * Ausbau (DESIGN_V2.md 28.4/28.9): `count` Stufen einer Nische bzw. eines Baumteils
    * (Infinity = so viele, wie die Samen reichen). Ergebnis für Aufleuchten, „+1 Stufe“ und

@@ -1,7 +1,8 @@
 /**
- * Unterseite „Pflegemaßnahme“ (docs/ALBUM_UI.md, A.8 #97 und B.3), seit Spielstand v17 ein
- * Forschungsknoten (Notlösung bis Phase 10, 4a): vom Namen einer Zeile im Reiter Pflege aus
- * umgeblättert. Zeigt Stimmungstext, die Wirkung („öffnet …“, „schützt vor …“, Vorschau), die
+ * Unterseite „Forschungsknoten“ (früher U:Pflegemaßnahme; docs/ALBUM_UI.md, A.8 #97 und B.3,
+ * DESIGN_V2.md 27.12): vom Namen einer Karte im Reiter „Forschung“ aus umgeblättert – für jeden
+ * Knoten des Baums, auch spätere Stufen. Wiederholbare Knoten zeigen „∞ Rang 3“ und die Kosten
+ * des nächsten Rangs. Zeigt Stimmungstext, die Wirkung („öffnet …“, „schützt vor …“, Vorschau), die
  * Voraussetzungen mit Haken bzw. Kreuz, den Harmonie-Vorrat und den Erforschen-Knopf. Nach dem
  * Erforschen bleibt die Seite offen und zeigt den Stempel „erforscht“.
  *
@@ -47,7 +48,7 @@ export function createCareItemPage(env: PageEnv): CareItemPage {
     className: 'album-subpage care-item-page',
   });
   const bookmark = createBookmark(() => env.back());
-  bookmark.setLabel('Pflege');
+  bookmark.setLabel('Forschung');
   page.element.prepend(bookmark.element);
 
   // Kopf: großes Symbol als Sticker, Rang-Etikett und Zustand.

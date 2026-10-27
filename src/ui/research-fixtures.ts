@@ -1,12 +1,13 @@
 /**
  * Beispielzustände für den Forschungsbaum (Vorschau `research-preview.html` und Tests).
  *
- * PLATZHALTER bis Phase 10, 4a: Die Ableitung hier ahmt die Blocker-Reihenfolge aus 27.7
- * nach (erforscht, Stufe, Gabel, Voraussetzung, Bedingung, zu teuer), damit die Vorschau
- * stimmige Zustände zeigt. Im Spiel kommt der Zustand aus `researchBlocker` des Spielstands
- * (`researchStatusFromBlocker`) – diese Datei wird dort nicht benutzt.
+ * Die Ableitung hier ahmt die Blocker-Reihenfolge aus 27.7 nach (erforscht, Stufe, Gabel,
+ * Voraussetzung, Bedingung, zu teuer), damit die Vorschau stimmige Zustände zeigt – ohne
+ * Spielstand. Im Spiel kommt der Zustand aus `research-state.ts` (researchBlocker, Rang, Plan);
+ * diese Datei wird dort nicht benutzt.
  */
 import { RESEARCH } from '../content/research';
+import { researchCostAt } from '../core/formulas';
 import type { ResearchNodeState, ResearchTreeState } from './research-view';
 
 export interface ResearchFixtureInput {
@@ -16,13 +17,20 @@ export interface ResearchFixtureInput {
   researched: readonly string[];
   /** Bedingungen (z. B. ≥ 1 Insekt) erfüllt? Standard: ja. */
   conditionsMet?: boolean;
+  /** Ränge der wiederholbaren Knoten (Zeile „∞“). */
+  ranks?: Readonly<Record<string, number>>;
+  /** Forschungsplan (Plan-Nummern an den Karten); `planActive`: Schalter an. */
+  plan?: readonly string[];
+  planActive?: boolean;
 }
 
 export function fixtureState(input: ResearchFixtureInput): ResearchTreeState {
   const owned = new Set(input.researched);
   const nodes: Record<string, ResearchNodeState> = {};
   for (const node of RESEARCH) {
-    if (owned.has(node.id)) nodes[node.id] = { status: 'researched' };
+    const rank = input.ranks?.[node.id] ?? 0;
+    const cost = researchCostAt(node, rank);
+    if (owned.has(node.id) && !node.repeatable) nodes[node.id] = { status: 'researched' };
     else if (input.stage < node.minStage) nodes[node.id] = { status: 'locked', lock: 'stage' };
     else if ((node.excludes ?? []).some((id) => owned.has(id))) nodes[node.id] = { status: 'excluded' };
     else if (
@@ -31,10 +39,25 @@ export function fixtureState(input: ResearchFixtureInput): ResearchTreeState {
     )
       nodes[node.id] = { status: 'locked', lock: 'requires' };
     else if (node.condition && input.conditionsMet === false) nodes[node.id] = { status: 'locked', lock: 'condition' };
-    else if (node.cost > input.harmony) nodes[node.id] = { status: 'saving' };
+    else if (cost > input.harmony) nodes[node.id] = { status: 'saving' };
     else nodes[node.id] = { status: 'available' };
+    if (node.repeatable) Object.assign(nodes[node.id]!, { rank, cost });
   }
-  return { harmony: input.harmony, perMinute: input.perMinute, stage: input.stage, nodes };
+  // Plan-Nummern: offene Einträge (einmalige nicht erforscht, wiederholbare je Rang).
+  const seen = new Map<string, number>();
+  let next = true;
+  (input.plan ?? []).forEach((id, index) => {
+    const k = (seen.get(id) ?? 0) + 1;
+    seen.set(id, k);
+    const state = nodes[id];
+    if (!state || state.status === 'excluded') return;
+    const done = state.rank !== undefined ? state.rank >= k : state.status === 'researched';
+    if (done) return;
+    state.plan = [...(state.plan ?? []), index + 1];
+    if (next) state.planNext = true;
+    next = false;
+  });
+  return { harmony: input.harmony, perMinute: input.perMinute, stage: input.stage, nodes, planActive: input.planActive === true };
 }
 
 export type ResearchFixtureId = 'start' | 'middle' | 'late';
@@ -74,6 +97,10 @@ export const RESEARCH_FIXTURES: Readonly<Record<ResearchFixtureId, { name: strin
         'meadow', 'meadow-2', 'drystone-wall',
         'seed-sorting', 'nursery', 'dead-hedge',
       ],
+      // Zeile „∞“: Boden schon auf Rang 3, Krone auf Rang 1; der Plan des letzten Zyklus folgt.
+      ranks: { 'soil-life': 3, 'old-branches': 1 },
+      plan: ['soil-life', 'soil-life', 'soil-life', 'old-branches', 'soil-life', 'wet-care', 'soil-life', 'old-branches'],
+      planActive: true,
     },
   },
 };

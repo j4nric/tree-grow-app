@@ -1,6 +1,5 @@
 import { createInitialState } from '../src/core/state';
 import {
-  SAVE_VERSION,
   back,
   expect,
   gotoTab,
@@ -8,6 +7,8 @@ import {
   openGoalsPage,
   openTab,
   pageTitle,
+  researchAction,
+  SAVE_VERSION,
   savedState,
   seedRaw,
   seedV3,
@@ -138,8 +139,8 @@ test('Mobil: Amphibien-Stammgast wartet auf den Waldtümpel und zieht mit der Fo
   // Tümpel anlegen: Die Kröte zieht sofort ein, statt zu warten steht der Hinweis fürs nächste Mal da.
   await back(page);
   await openTab(page, 'nischen');
-  await niche(page, 'pond').getByRole('button', { name: 'Zur Pflege: Waldtümpel öffnen' }).click();
-  await page.locator('[data-ref="care"] [data-buy-care="pond"]').click();
+  await niche(page, 'pond').getByRole('button', { name: 'Zur Forschung: Waldtümpel öffnen' }).click();
+  await researchAction(page, 'pond').click();
   await expect.poll(async () => (await savedState(page)).niches.pond).toEqual(['toad']);
   await openGoalsPage(page, 'cycle');
   await expect(toadNote).toHaveText('zieht im nächsten Zyklus erst ein, wenn der Waldtümpel wieder angelegt ist (Forschung ab „Alter Baum“)');

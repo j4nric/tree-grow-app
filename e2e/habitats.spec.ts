@@ -1,14 +1,13 @@
-import type { BrowserContext, Page } from '@playwright/test';
+import type { BrowserContext } from '@playwright/test';
 import { createInitialState } from '../src/core/state';
-import { animalPage, expect, niche, openGame, openTab, seedRaw, test, waypoint } from './fixtures';
+import { animalPage, expect, niche, openGame, openTab, researchAction, researchName, researchNode, seedRaw, test, waypoint } from './fixtures';
 
 /**
  * Lebensräume (DESIGN_V2.md 23.7 Punkt 5): Waldwiese, Totholzhaufen und Trockenmauer stehen
- * verschlossen in der Übersicht – mit Hinweis und „Zur Pflege“, sobald der Knoten in der
+ * verschlossen in der Übersicht – mit Hinweis und „Zur Forschung“, sobald der Knoten in der
  * Liste steht. Offen sind sie Nischen wie alle anderen (Kachel → Tierdetails).
  */
 
-const care = (page: Page) => page.locator('[data-ref="care"]');
 
 async function seed(context: BrowserContext, patch: (state: ReturnType<typeof createInitialState>) => void): Promise<void> {
   const state = createInitialState(Date.now(), 777);
@@ -18,10 +17,10 @@ async function seed(context: BrowserContext, patch: (state: ReturnType<typeof cr
   await seedRaw(context, state, 0);
 }
 
-test('Mobil: verschlossene Waldwiese führt mit „Zur Pflege“ zum Knoten, nach dem Erforschen ist sie offen', async ({ page, context }) => {
+test('Mobil: verschlossene Waldwiese führt mit „Zur Forschung“ zum Knoten, nach dem Erforschen ist sie offen', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seed(context, (state) => {
-    state.totalGrowth = waypoint(6) + 1; // Junger Baum: Waldwiese steht in der Liste
+    state.totalGrowth = waypoint(6) + 1; // Junger Baum: Waldwiese ist dran
     state.harmonyPoints = 5_000;
   });
   await openGame(page);
@@ -35,18 +34,16 @@ test('Mobil: verschlossene Waldwiese führt mit „Zur Pflege“ zum Knoten, nac
   await expect(wall.locator('[data-ref="niche-care-link"]')).toBeHidden();
   await expect(niche(page, 'deadwood').locator('[data-ref="niche-care-link"]')).toBeHidden();
 
-  const link = meadow.getByRole('button', { name: 'Zur Pflege: Waldwiese öffnen' });
+  const link = meadow.getByRole('button', { name: 'Zur Forschung: Waldwiese öffnen' });
   expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await link.click();
-  const item = care(page).locator('[data-care="meadow"]');
-  await expect(item.locator('[data-care-title="meadow"]')).toBeFocused();
+  const item = researchNode(page, 'meadow');
+  await expect(researchName(page, 'meadow')).toBeFocused();
   await expect(item).toBeInViewport();
-  await expect(item.locator('[data-ref="care-opens"]')).toHaveText('Öffnet Lebensraum 🌾 Waldwiese');
+  await expect(item.locator('.research-node-summary')).toContainText('Waldwiese');
 
-  await item.locator('[data-buy-care="meadow"]').click();
-  // Erforscht: nichts mehr zu öffnen.
-  await expect(item).toContainText('erforscht');
-  await expect(item.locator('[data-ref="care-opens"]')).toBeHidden();
+  await researchAction(page, 'meadow').click();
+  await expect(item).toHaveClass(/is-researched/);
   await openTab(page, 'nischen');
   await expect(meadow).toContainText('0/2 belegt');
   await expect(meadow.locator('[data-ref="niche-care-link"]')).toBeHidden();

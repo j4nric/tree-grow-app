@@ -143,4 +143,11 @@ describe('Offline 10 % im Rückkehr-Bericht (28.3)', () => {
     expect(view.details).toContain(offlineYieldHint(0.1));
     expect(view.more).toBe(true);
   });
+
+  it('Harmonie-Vorrat (27.3): „+840 ⚖️“ in Kurzfassung und Begrüßung, 0 fällt weg', () => {
+    const view = toReturnReportView({ away: base.seconds, report: { ...base, harmony: 840.6 }, waiting: 0 });
+    expect(view.summary).toBe('Willkommen zurück! 3 Std.: +12.400 🌿, +300 🌰, +840 ⚖️');
+    expect(view.full).toContain('+12.400 🌿, +300 🌰, +840 ⚖️.');
+    expect(toReturnReportView({ away: base.seconds, report: { ...base, harmony: 0 }, waiting: 0 }).summary).not.toContain('⚖️');
+  });
 });

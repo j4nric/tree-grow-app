@@ -11,6 +11,8 @@
 .tab {
   position: relative;
   flex: none;
+  /* Kurze Namen („Ziele“) bleiben auch in der engen Stufe mindestens 44 px breit. */
+  min-width: var(--tap);
   min-height: var(--tap);
   padding: 0 12px;
   border: 0;
@@ -49,7 +51,7 @@
   outline-offset: -3px;
 }
 
-/* Punkt: hier gibt es etwas (Pflege kaufbar, Neuer Zyklus möglich) */
+/* Punkt: hier gibt es etwas (etwas erforschbar, Neuer Zyklus möglich) */
 .tab-dot {
   position: absolute;
   top: 6px;
