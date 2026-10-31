@@ -12,11 +12,15 @@ export type ChapterId = 'ancient' | 'first-snow' | 'signature' | 'kennart' | 'ha
 export const CHAPTER_IDS: readonly ChapterId[] = ['ancient', 'first-snow', 'signature', 'kennart', 'harmony', 'memory'];
 
 /**
- * Kapitel „Voller Einklang“: H_max eines Zyklus im aktiven Wald erreicht diesen Wert. In der
- * Landschaft erreichen alle Spielweisen 263–312 (24.10) – ein Ziel, keine Hürde. Startwert,
- * gemessen in Aufgabe 2c (26.8, Ziel e).
+ * Kapitel „Voller Einklang“: H_max eines Zyklus im aktiven Wald erreicht diesen Wert – ein Ziel,
+ * keine Hürde. Gemessen in Phase 11, 3c (= Phase 9, 2c; DESIGN_V2.md 26.8): Mit Ausbau und
+ * Gedächtnis-Schwellen erreicht der Wachstums-Spieler je Wald höchstens 266–280, der Zufall-Spieler
+ * 254–268. Mit 250 brauchte der Wachstums-Spieler im Median 3–4 Zyklen je Wald, der Zufall-Spieler
+ * 6,5–24 (das letzte Kapitel in 8 von 10 Läufen); mit 230 sind es 1–2 bzw. 4–10, und bei
+ * „Landschaft vollständig“ haben 100 / 100 / 90 % der Wälder das Kapitel. Der erste Urwald liegt bei
+ * H_max ~206 (Harmonie) – ohne Landschaft bleibt es ein Ziel.
  */
-export const CHRONICLE_HARMONY = 250;
+export const CHRONICLE_HARMONY = 230;
 
 export interface ChronicleChapter {
   id: ChapterId;

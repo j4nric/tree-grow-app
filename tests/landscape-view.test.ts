@@ -113,7 +113,8 @@ describe('Karte der Landschaft: Standorte', () => {
     expect(flood.eventIcons).toBe('🌧️🐌');
     expect(home.events).toBeNull();
     expect(home.eventIcons).toBeNull();
-    expect(map.sites.find((s) => s.id === 'heath')!.events).toBe('🪲 Käferjahr (📜 Kapitel)');
+    // Seit Phase 11, 3c ist das Ereignis der Heide die Hitzewelle (ohne Faktor): Käferjahr ohne Markierung.
+    expect(map.sites.find((s) => s.id === 'heath')!.events).toBe('🪲 Käferjahr');
     expect(map.sites.find((s) => s.id === 'mountain')!.events).toBeNull();
     for (const s of map.sites) expect(s.weather ?? '', s.id).not.toContain('öfter');
     expect(newCycleButtonText(flood)).toBe('Auwald am Fluss gründen (3 🪶)');
@@ -131,10 +132,14 @@ describe('Karte der Landschaft: Standorte', () => {
       carr: '🐸 Krötenwanderung (📜 Kapitel „Die Krötennacht“)',
       beechwood: '🌰 Mastjahr (📜 Kapitel „Buchenmast“), 🐭 Mäusejahr',
       mountain: null,
-      heath: '🪲 Käferjahr (📜 Kapitel)',
+      heath: '🪲 Käferjahr',
     });
-    // Playtest Phase 9, F6: Das Ereignis des Waldes ist markiert; „Das Käferjahr“ ist nur der Name mit Artikel.
-    expect(siteEventHints(byId('heath'))).toEqual([{ id: 'beetle-year', icon: '🪲', name: 'Käferjahr', chapter: '' }]);
+    // Playtest Phase 9, F6: Das Ereignis des Waldes ist markiert; „Das Käferjahr“ ist nur der Name mit
+    // Artikel (bis Phase 11, 3c das Kapitel der Heide, seitdem die Hitzewelle ohne Faktor).
+    expect(siteEventHints(byId('heath'))).toEqual([{ id: 'beetle-year', icon: '🪲', name: 'Käferjahr' }]);
+    expect(siteEventHints({ eventFactors: { 'beetle-year': 3 }, chronicleEvent: 'beetle-year', chronicleEventTitle: 'Das Käferjahr' })).toEqual([
+      { id: 'beetle-year', icon: '🪲', name: 'Käferjahr', chapter: '' },
+    ]);
     expect(siteEventHints(byId('floodplain'))).toEqual([
       { id: 'rain', icon: '🌧️', name: 'Regenreicher Frühling', chapter: 'Frühjahrshochwasser' },
       { id: 'slug-year', icon: '🐌', name: 'Schneckenjahr' },

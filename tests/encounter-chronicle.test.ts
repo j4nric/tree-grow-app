@@ -74,7 +74,9 @@ describe('F5: Ereignis des Waldes schreibt ein Kapitel', () => {
     expect(signatureChapterText(landscape('floodplain'), 'rain')).toBe(
       '📜 Schreibt ein Kapitel der Chronik: „Frühjahrshochwasser“ – gleich, wie du dich entscheidest.',
     );
-    expect(signatureChapterText(landscape('heath'), 'beetle-year')).toContain('„Das Käferjahr“');
+    expect(signatureChapterText(landscape('heath'), 'heatwave')).toContain('„Hitzesommer auf dem Sand“');
+    // Seit Phase 11, 3c schreibt das Käferjahr in der Heide kein Kapitel mehr (26.8 „Messung 3c“).
+    expect(signatureChapterText(landscape('heath'), 'beetle-year')).toBeNull();
   });
 
   it('nicht für andere Ereignisse, andere Wälder, ein geschriebenes Kapitel oder vor der Landschaft', () => {
