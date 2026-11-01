@@ -78,7 +78,7 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(flood.locator('.lsc-site-events')).toHaveText('🌧️🐌');
   await expect(flood.locator('.lsc-site-events')).toHaveAttribute('title', 'Hier öfter: 🌧️ Regenreicher Frühling (📜 Kapitel „Frühjahrshochwasser“), 🐌 Schneckenjahr');
   await expect(flood).toHaveAccessibleName(/hier öfter: 🌧️ Regenreicher Frühling \(📜 Kapitel „Frühjahrshochwasser“\), 🐌 Schneckenjahr/);
-  await expect(map.locator('[data-site="heath"] .lsc-site-events')).toHaveAttribute('title', 'Hier öfter: 🪲 Käferjahr (📜 Kapitel)');
+  await expect(map.locator('[data-site="heath"] .lsc-site-events')).toHaveAttribute('title', 'Hier öfter: 🪲 Käferjahr');
   await expect(map.locator('[data-site="home"] .lsc-site-events')).toHaveCount(0);
   await expect(map.locator('[data-site="mountain"] .lsc-site-events')).toHaveCount(0);
   await expect(map.locator('[data-ref="landscape-target"]')).toContainText('der nächste Baum keimt hier');

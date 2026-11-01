@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { GROWTH, HARMONY, RANDOM, formatTime, median, runCycles, type Strategy } from '../scripts/simulate';
 import {
+  chapterCycles,
+  chapterTable,
+  chronicleSiteTable,
+  chronicleSummaryTable,
+  dwellsOf,
+  harmonyShare,
+  lastChapterTable,
+  secondsToWinter,
   firstCycleOf,
   firstCycleTable,
   harmonyTable,
@@ -43,9 +51,16 @@ const RUNS = Number(env.SIM_LANDSCAPE_RUNS ?? 20);
 const SITE_RUNS = Number(env.SIM_LANDSCAPE_SITE_RUNS ?? 160);
 const options = { maxCycles: 250, cycleMaxSeconds: 6 * 3600 };
 
-function summary(label: string, strategy: Strategy, runs = RUNS, wildwechsel = true): LandscapeSummary {
-  return { label, runs: Array.from({ length: runs }, (_, k) => runLandscape({ ...options, strategy, seed: 1001 + k, wildwechsel })) };
+function summary(label: string, strategy: Strategy, runs = RUNS, wildwechsel = true, chronicles = false, chronicleFocus = false): LandscapeSummary {
+  return { label, runs: Array.from({ length: runs }, (_, k) => runLandscape({ ...options, strategy, seed: 1001 + k, wildwechsel, chronicles, chronicleFocus })) };
 }
+
+/**
+ * Chronik-Messung (26.8): SIM_LANDSCAPE_CHRONICLE wählt die Zeilen (Standard alle, einzeln, um
+ * parallel zu rechnen): harmony, growth, random mit der Chronik-Politik; harmony-focus,
+ * growth-focus zusätzlich „eine Chronik fertig machen“ (Vergleich zu Ziel b).
+ */
+const CHRONICLE_ROWS = (env.SIM_LANDSCAPE_CHRONICLE ?? 'harmony,growth,random,harmony-focus,growth-focus').split(',');
 
 /**
  * Wildwechsel-Varianten (2c): `on` = Spiel heute, `off` = ohne Wildwechsel-Karten (Bestand der
@@ -73,6 +88,15 @@ describe('Waldlandschaft – Simulation (kurz)', { timeout: 120_000 }, () => {
     // Der zweite Wald startet mit Zufluss über den Gratis-Korridor, nicht bei 0.
     expect(second?.effective).toBeGreaterThan(0);
     expect(second?.ownBefore).toBe(0);
+  });
+});
+
+describe('Chronik-Politik (26.8)', () => {
+  it('Zeit bis zum nächsten Winter: Winter beginnt bei 540 s im Jahr von 720 s; an der Grenze ein ganzes Jahr', () => {
+    expect(secondsToWinter(0)).toBe(540);
+    expect(secondsToWinter(600)).toBe(660);
+    expect(secondsToWinter(540)).toBe(720);
+    expect(secondsToWinter(720 * 3 + 539)).toBeCloseTo(1);
   });
 });
 
@@ -117,6 +141,44 @@ describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', { timeou
         // Ausbau mit G (Phase 11, 3b): auch im Erntezyklus weit unter der Obergrenze der Stufen.
         for (const c of run.cycles) expect(c.nicheLevelMax, r.label).toBeLessThan(MAX_UPGRADE_LEVEL / 2);
       }
+    }
+  });
+
+  it('Chronik und Kennarten (26.8; Phase 9, 2c = Phase 11, 3c)', () => {
+    const make: Record<string, () => LandscapeSummary> = {
+      harmony: () => summary('Harmonie', HARMONY, RUNS, true, true),
+      growth: () => summary('Wachstum', GROWTH, RUNS, true, true),
+      random: () => summary('Zufall', RANDOM, Math.min(RUNS, 10), true, true),
+      'harmony-focus': () => summary('Harmonie, eine Chronik zuerst', HARMONY, RUNS, true, true, true),
+      'growth-focus': () => summary('Wachstum, eine Chronik zuerst', GROWTH, RUNS, true, true, true),
+    };
+    const rows = CHRONICLE_ROWS.map((id) => make[id]!());
+    console.log(
+      `### Chronik und Kennarten\n\n${milestoneTable(rows)}\n\n${chronicleSummaryTable(rows)}\n\n${chapterTable(rows)}\n\n${chronicleSiteTable(rows)}\n\n${lastChapterTable(rows)}`,
+    );
+    for (const r of rows) {
+      const complete = medianOrNull(r.runs.map((x) => x.completeAt))!;
+      const all = medianOrNull(r.runs.map((x) => x.allChroniclesAt));
+      expect(all, r.label).not.toBeNull();
+      // (c) alle sechs Chroniken ≤ 1,6 × „Landschaft vollständig“; Zufall ≤ 60 h.
+      expect(all!, r.label).toBeLessThanOrEqual(1.6 * complete);
+      if (r.label === 'Zufall') expect(all!).toBeLessThanOrEqual(60 * 3600);
+      // (e) Voller Einklang in ≥ 90 % der Wälder (am Ende; bei „Landschaft vollständig“ im Protokoll).
+      expect(harmonyShare(r), r.label).toBeGreaterThanOrEqual(0.9);
+      // Zufall: (d) und (f) nur im Protokoll – er erreicht H 230 erst mit viel Gedächtnis (4–10
+      // Zyklen je Wald) und kommt mit ~10-min-Zyklen meist kurz nach Winteranfang in den Urwald
+      // (Verweilen ~8 min); beides kostet ihn keine Zeit bis „alle Chroniken“ (26.8 „Messung 3c“).
+      if (r.label.startsWith('Zufall')) continue;
+      // (d) keine Wand: Kennart ≤ 2 alte Zyklen, Ereignis und Voller Einklang ≤ 3 Zyklen (Median je Wald).
+      for (const s of LANDSCAPE_SITES) {
+        const m = (ch: 'kennart' | 'signature' | 'harmony') => medianOrNull(r.runs.map((x) => chapterCycles(x, s.id, ch)));
+        expect(m('kennart'), `${r.label} ${s.id} kennart`).toBeLessThanOrEqual(2);
+        expect(m('signature'), `${r.label} ${s.id} signature`).toBeLessThanOrEqual(3);
+        expect(m('harmony'), `${r.label} ${s.id} harmony`).toBeLessThanOrEqual(3);
+      }
+      // (f) Verweilen für „Erster Schnee“ im Mittel ≤ 6 min je Wald.
+      const dwells = dwellsOf(r);
+      expect(dwells.reduce((a, b) => a + b, 0) / dwells.length, r.label).toBeLessThanOrEqual(6 * 60);
     }
   });
 

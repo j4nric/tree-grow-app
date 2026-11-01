@@ -273,7 +273,11 @@ export const LANDSCAPE_SITES: readonly ForestSite[] = [
     eventFactors: { 'beetle-year': 3 },
     position: { x: 0.25, y: 0.8 },
     kennart: 'nightjar',
-    chronicleEvent: 'beetle-year', chronicleEventTitle: 'Das Käferjahr',
+    // Kapitel „Das Ereignis des Waldes“ (26.4): bis Phase 11, 3c das Käferjahr. Das braucht ungejagte
+    // Käfer – der Buntspecht reist aber fast immer als Stammgast mit, und der Harmonie-Spieler wartete
+    // im Median 14,5 Zyklen (26.8 „Messung 3c“). Die Hitzewelle kommt an Dürretagen doppelt so oft
+    // und Dürre ist hier häufig; das Käferjahr bleibt das häufigere Ereignis der Heide (eventFactors).
+    chronicleEvent: 'heatwave', chronicleEventTitle: 'Hitzesommer auf dem Sand',
     keepsake: { icon: '🌸', name: 'Heidekrautzweig',
       text: 'Gepresst zwischen zwei Seiten, duftet er noch nach Spätsommer.' },
   },

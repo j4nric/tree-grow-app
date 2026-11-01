@@ -66,8 +66,14 @@
 > Biber, Moorfrosch, Ästiger Stachelbart, Luchs, Ziegenmelker; je Wald eine, nur im alten Wald
 > und erst mit der Landschaft, Bedingung `site`). v15-Stände bekommen die Kapitel, die sich
 > ableiten lassen, ohne Datum („Uralt geworden“, „Ein Wald erinnert sich“). Startwerte aus 26.3/
-> 26.4 (`CHRONICLE_HARMONY` 250, Kennarten besonders ab Hain, +4–6 ⚖️, +5–6 % 🌿/🌰); gemessen
-> wird in Aufgabe 2c. Abweichung vom Entwurf: Der Biber bringt +2 💧 und Feuchte statt „+1 Platz
+> 26.4 (`CHRONICLE_HARMONY` 250, Kennarten besonders ab Hain, +4–6 ⚖️, +5–6 % 🌿/🌰). **Gemessen in
+> Phase 11, 3c** (= Phase 9, 2c; `DESIGN_V2.md` 26.8 „Messung 3c“, Chronik-Politik in
+> `scripts/landscape.ts`): `CHRONICLE_HARMONY` 250 → **230** (Wachstum brauchte 3–4 Zyklen je Wald,
+> Zufall 6,5–24; jetzt 1–2 bzw. 4–10) und das Ereignis des Waldes der Kiefernheide Käferjahr →
+> **Hitzewelle** („Hitzesommer auf dem Sand“; das Käferjahr braucht ungejagte Käfer, der Buntspecht
+> reist als Stammgast mit – Median 14,5 Zyklen, jetzt 1). Kennarten unverändert (Median 1–2 alte
+> Zyklen). Alle sechs Chroniken nach 14,6 h (Harmonie; „alle Wälder voll“ 14,6 h), 15,0 h (Wachstum),
+> 42,5 h (Zufall); Tempo der Landschaft unverändert. Abweichung vom Entwurf: Der Biber bringt +2 💧 und Feuchte statt „+1 Platz
 > Waldtümpel“ (eine Platz-Wirkung in der eigenen Nische machte ihm selbst Platz und öffnete als
 > Stammgast einen geschlossenen Tümpel, 26.3).
 >
