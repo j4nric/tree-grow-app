@@ -65,7 +65,10 @@ export function createSitePage(env: PageEnv): SitePage {
   // Ereignisse, die der Waldtyp öfter erlebt (Phase 9, 1c), z. B. „Hier öfter: 🐸 Krötenwanderung“.
   const events = el('p', 'site-line site-events');
   events.dataset.ref = 'site-events';
-  lines.append(memory, tree, ancient, gains, habitat, costs, gift, weather, events);
+  // Ereignis des Waldes, wenn es nicht unter „Hier öfter“ steht, z. B. „📜 Kapitel: 🌡️ Hitzewelle (…)“.
+  const chapterEvent = el('p', 'site-line site-chapter-event');
+  chapterEvent.dataset.ref = 'site-chapter-event';
+  lines.append(memory, tree, ancient, gains, habitat, costs, gift, weather, events, chapterEvent);
   const blocker = el('p', 'site-blocker');
   blocker.dataset.ref = 'site-blocker';
 
@@ -159,6 +162,7 @@ export function createSitePage(env: PageEnv): SitePage {
     gift.classList.toggle('inactive', !site.giftActive);
     line(weather, site.weather, 'Wetter: ');
     line(events, site.events, 'Hier öfter: ');
+    line(chapterEvent, site.chapterEvent, '📜 Kapitel: ');
     line(blocker, site.blocker);
 
     const c = siteChoiceView(view, site, tgt);

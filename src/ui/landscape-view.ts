@@ -90,6 +90,14 @@ export interface LandscapeSiteView {
   /** Nur die Zeichen dieser Ereignisse (für die Karte, z. B. „🌧️🐌“) – null ohne Faktor. */
   eventIcons: string | null;
   /**
+   * Ereignis, das das Kapitel „Ereignis des Waldes“ schreibt, wenn es nicht schon unter „Hier
+   * öfter“ steht (dort trägt es „📜 Kapitel“), z. B. „🌡️ Hitzewelle („Hitzesommer auf dem Sand“)“;
+   * die Oberfläche setzt „📜 Kapitel: “ davor. Sonst null.
+   */
+  chapterEvent: string | null;
+  /** Zeichen für die Karte: immer „📜“ (das Ereignis nennt der Titel) – null wie `chapterEvent`. */
+  chapterEventIcon: string | null;
+  /**
    * Erklärung zu Merkmalen, die der Wald immer bietet (Eigenheit „Feuchte“), z. B. „💧 Feuchte: …“;
    * null, wenn er keine bietet.
    */
@@ -554,11 +562,37 @@ export function siteEventText(site: EventSite | undefined): string | null {
   return hints.length > 0 ? hints.map(eventHintText).join(', ') : null;
 }
 
-function siteEventFields(site: ForestSite | undefined): Pick<LandscapeSiteView, 'events' | 'eventIcons'> {
+/**
+ * Das Ereignis des Waldes (Kapitel der Chronik, DESIGN_V2.md 26.7), wenn es nicht unter „Hier öfter“
+ * steht – etwa das Mastjahr im Heimatwald oder die Hitzewelle der Kiefernheide, die dort nicht öfter
+ * kommen. `chapter` wie in `siteEventHints`. Null, wenn es dort schon markiert ist, oder ohne Angabe.
+ */
+export function siteChapterEventHint(site: EventSite | undefined): SiteEventHint | null {
+  const id = site?.chronicleEvent;
+  if (!id) return null;
+  const event = EVENTS_BY_ID.get(id);
+  if (!event || siteEventHints(site).some((h) => h.id === id)) return null;
+  const title = site.chronicleEventTitle ?? '';
+  return { id, icon: event.icon, name: event.name, chapter: title && bareTitle(title) !== bareTitle(event.name) ? title : '' };
+}
+
+/** „🌡️ Hitzewelle („Hitzesommer auf dem Sand“)“ – ohne „📜 Kapitel: “ davor; null wie `siteChapterEventHint`. */
+export function siteChapterEventText(site: EventSite | undefined): string | null {
+  const h = siteChapterEventHint(site);
+  if (!h) return null;
+  return h.chapter ? `${h.icon} ${h.name} („${h.chapter}“)` : `${h.icon} ${h.name}`;
+}
+
+function siteEventFields(site: ForestSite | undefined): Pick<LandscapeSiteView, 'events' | 'eventIcons' | 'chapterEvent' | 'chapterEventIcon'> {
   const hints = siteEventHints(site);
-  return hints.length > 0
-    ? { events: siteEventText(site), eventIcons: hints.map((h) => h.icon).join('') }
-    : { events: null, eventIcons: null };
+  const chapter = siteChapterEventHint(site) !== null;
+  return {
+    events: hints.length > 0 ? siteEventText(site) : null,
+    eventIcons: hints.length > 0 ? hints.map((h) => h.icon).join('') : null,
+    chapterEvent: siteChapterEventText(site),
+    // Einheitlich 📜 statt des Ereignis-Symbols: nicht mit dem Wetter-Zeichen zu verwechseln (Heide: 🌡️).
+    chapterEventIcon: chapter ? '📜' : null,
+  };
 }
 
 /** Was ein Merkmal bedeutet, das ein Standort immer bietet (nur bekannte; Playtest Phase 7, K7). */

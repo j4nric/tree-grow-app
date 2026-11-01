@@ -18,6 +18,8 @@ import {
   siteChangeText,
   siteEventHints,
   siteEventText,
+  siteChapterEventHint,
+  siteChapterEventText,
   splitSiteSummary,
   targetText,
   toLandscapeMapView,
@@ -155,6 +157,41 @@ describe('Karte der Landschaft: Standorte', () => {
     expect(siteEventHints({ eventFactors: { rain: 1, storm: 0.5, 'mast-year': Number.NaN, 'gibt-es-nicht': 3 } })).toEqual([]);
     expect(siteEventText({ eventFactors: {} })).toBeNull();
     expect(siteEventHints(undefined)).toEqual([]);
+  });
+
+  it('Kapitel-Ereignis ohne Faktor: eigene Angabe statt „Hier öfter“ (Heimatwald, Bergmischwald, Kiefernheide)', () => {
+    const texts = Object.fromEntries(LANDSCAPE_SITES.map((s) => [s.id, siteChapterEventText(s)]));
+    expect(texts).toEqual({
+      home: '🌰 Mastjahr („Eichelmast – der Häher legt Vorräte an“)',
+      floodplain: null,
+      carr: null,
+      beechwood: null,
+      mountain: '🌨️ Schneebruch („Schneebruch am Hang“)',
+      heath: '🌡️ Hitzewelle („Hitzesommer auf dem Sand“)',
+    });
+    // Aus den Daten: Jeder Wald nennt sein Kapitel-Ereignis genau einmal – unter „Hier öfter“ oder eigen.
+    for (const site of LANDSCAPE_SITES) {
+      const marked = siteEventHints(site).filter((h) => h.chapter !== undefined).map((h) => h.id);
+      const own = siteChapterEventHint(site)?.id;
+      expect([...marked, ...(own ? [own] : [])], site.id).toEqual([site.chronicleEvent]);
+    }
+    // Titel nur der Name mit Artikel: ohne Klammer.
+    expect(siteChapterEventText({ eventFactors: {}, chronicleEvent: 'beetle-year', chronicleEventTitle: 'Das Käferjahr' })).toBe('🪲 Käferjahr');
+    // Schon unter „Hier öfter“, unbekannt oder ohne Angabe: null.
+    expect(siteChapterEventHint({ eventFactors: { 'beetle-year': 3 }, chronicleEvent: 'beetle-year', chronicleEventTitle: 'X' })).toBeNull();
+    expect(siteChapterEventHint({ eventFactors: {}, chronicleEvent: 'gibt-es-nicht', chronicleEventTitle: 'X' })).toBeNull();
+    expect(siteChapterEventHint({ eventFactors: {} })).toBeNull();
+    expect(siteChapterEventHint(undefined)).toBeNull();
+    // Faktor ≤ 1 zählt nicht als „öfter“: dann eigene Angabe.
+    expect(siteChapterEventHint({ eventFactors: { heatwave: 1 }, chronicleEvent: 'heatwave', chronicleEventTitle: 'Die Hitzewelle' })).toEqual({
+      id: 'heatwave', icon: '🌡️', name: 'Hitzewelle', chapter: '',
+    });
+    // Im View-Model: Text und Zeichen für Karte und U:Standort.
+    const map = mapOf(withLandscape(ANCIENT_STAGE))!;
+    const heath = map.sites.find((s) => s.id === 'heath')!;
+    expect([heath.events, heath.chapterEvent, heath.chapterEventIcon]).toEqual(['🪲 Käferjahr', '🌡️ Hitzewelle („Hitzesommer auf dem Sand“)', '📜']);
+    const flood = map.sites.find((s) => s.id === 'floodplain')!;
+    expect([flood.chapterEvent, flood.chapterEventIcon]).toEqual([null, null]);
   });
 
   it('Sperrgründe als deutsche Sätze', () => {

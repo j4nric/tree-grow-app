@@ -594,6 +594,17 @@ Zeile „Chronik“ (`data-row="chronicle"`) im Tagebuch der Wälder. U:Standort
 `cycle-chronicle`. R:Arten: Reihe `species-kennarten` (Zähler `species-count-kennarten`, erst mit
 der Landschaft im DOM), Andenken der Chroniken `species-chronicles` (`data-chronicle`).
 
+**Ereignisse am Standort (Phase 9, 1c und F6; Kapitel-Hinweis):** „Hier öfter“ nennt nur
+Ereignisse mit Faktor > 1 in `eventFactors` (Karte: Zeichen oben links `.lsc-site-events`, Titel
+und vorgelesen „hier öfter: …“; U:Standort: Zeile `site-events`). Steht das Ereignis des Waldes
+(`chronicleEvent`) darunter, trägt es dort „(📜 Kapitel „…“)“. Sonst – Heimatwald (Mastjahr),
+Bergmischwald (Schneebruch), Kiefernheide (Hitzewelle) – steht es getrennt: auf der Karte als
+Zeichen „📜“ unten links `.lsc-site-chapter` (einheitlich, damit es nicht mit dem Wetter-Zeichen
+verwechselt wird – etwa 🌡️ in der Heide; gegenüber dem Wachssiegel, Rand in `--wax`, Titel
+„📜 Kapitel: 🌡️ Hitzewelle („Hitzesommer auf dem Sand“)“, vorgelesen „Kapitel der Chronik: …“),
+auf U:Standort als eigene Zeile `site-chapter-event` mit demselben Text. View-Model:
+`chapterEvent`/`chapterEventIcon` aus `siteChapterEventText`/`siteChapterEventHint`.
+
 ### B.6 Unterseiten-Übersicht
 
 | Unterseite | erreichbar von | Ebene | Inhalt |
