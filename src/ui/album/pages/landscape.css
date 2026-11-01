@@ -256,6 +256,23 @@
   white-space: nowrap;
 }
 
+/* Ereignis des Waldes ohne Faktor (Kapitel der Chronik): untere linke Ecke, gegenüber dem Siegel. */
+.lsc-site-chapter {
+  position: absolute;
+  bottom: -12px;
+  left: -10px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--wax);
+  border-radius: 50%;
+  background: var(--photo);
+  box-shadow: var(--sh-sticker);
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
 .lsc-site.unfounded .lsc-site-icon {
   filter: grayscale(0.6);
   opacity: 0.75;
