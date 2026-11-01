@@ -232,7 +232,7 @@ describe('Karte der Landschaft: Standorte', () => {
     });
     poor.meta.forestMemory = 260;
     const m4 = mapOf(poor)!;
-    expect(m4.sites.find((s) => s.id === 'heath')!.blocker).toMatch(/^Gründen kostet 5 🪶 – nach diesem Zyklus hast du \d+ 🪶\.$/);
+    expect(m4.sites.find((s) => s.id === 'heath')!.blocker).toMatch(/^Gründen kostet 6 🪶 – nach diesem Zyklus hast du \d+ 🪶\.$/);
   });
 
   it('wirksames Gedächtnis gegründeter Wälder: heute wie im Tagebuch, Zyklus-Gewinn benannt', () => {
@@ -287,7 +287,7 @@ describe('Karte der Landschaft: Korridore', () => {
 
   it('gebaut, baubar, gesperrt – nur zwischen gegründeten Wäldern in der Liste', () => {
     const map = mapOf(state())!;
-    expect(map.available).toBe(7);
+    expect(map.available).toBe(6);
     const byId = new Map(map.corridors.map((c) => [c.id, c]));
     expect(byId.get('home-floodplain')!.state).toBe('built');
     expect(byId.get('home-floodplain')!.note).toBe('verbunden – Weg der Häher, gratis');
@@ -381,7 +381,7 @@ describe('Spielanleitung: Waldlandschaft', () => {
     expect(s.title).toBe('Waldlandschaft und Hähersaat');
     for (const site of LANDSCAPE_SITES) expect(text).toContain(site.name);
     expect(text).toContain('ab 250 Waldgedächtnis');
-    expect(text).toContain('3, 5, 7, 9 und 11 🪶');
+    expect(text).toContain('3, 6, 7, 9 und 10 🪶');
     expect(text).toContain('50 %');
     expect(text).toContain('höchstens 500');
     // Phase 9, 1c: jeder Wald erlebt eigene Ereignisse öfter – Beispiel aus den Daten.

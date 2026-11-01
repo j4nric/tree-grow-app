@@ -130,22 +130,22 @@
       "perHarmonyPoint": 3,
       "harmonyBonusByWaypoint": [
         "Wegpunkt 20: Sockel je 5, über 112, höchstens 45 (Panel ab 113, voll ab 127)",
-        "Wegpunkt 21: Sockel je 5.125, über 119, höchstens 45.375 (Panel ab 120, voll ab 135)",
-        "Wegpunkt 22: Sockel je 5.25, über 126, höchstens 45.75 (Panel ab 127, voll ab 142)",
-        "Wegpunkt 23: Sockel je 5.375, über 133, höchstens 46.125 (Panel ab 134, voll ab 149)",
-        "Wegpunkt 24: Sockel je 5.5, über 140, höchstens 46.5 (Panel ab 141, voll ab 156)",
-        "Wegpunkt 25: Sockel je 5.625, über 147, höchstens 46.875 (Panel ab 148, voll ab 163)",
-        "Wegpunkt 26: Sockel je 5.75, über 154, höchstens 47.25 (Panel ab 155, voll ab 170)",
-        "Wegpunkt 27: Sockel je 5.875, über 161, höchstens 47.625 (Panel ab 162, voll ab 177)",
-        "Wegpunkt 28: Sockel je 6, über 168, höchstens 48 (Panel ab 169, voll ab 184)",
-        "Wegpunkt 29: Sockel je 6.125, über 171.5, höchstens 48 (Panel ab 172, voll ab 188)",
-        "Wegpunkt 30: Sockel je 6.25, über 175, höchstens 48 (Panel ab 176, voll ab 191)",
-        "Wegpunkt 31: Sockel je 6.375, über 178.5, höchstens 48 (Panel ab 179, voll ab 195)",
-        "Wegpunkt 32: Sockel je 6.5, über 182, höchstens 48 (Panel ab 183, voll ab 198)",
-        "Wegpunkt 33: Sockel je 6.625, über 185.5, höchstens 48 (Panel ab 186, voll ab 202)",
-        "Wegpunkt 34: Sockel je 6.75, über 189, höchstens 48 (Panel ab 190, voll ab 205)",
-        "Wegpunkt 35: Sockel je 6.875, über 192.5, höchstens 48 (Panel ab 193, voll ab 209)",
-        "Wegpunkt 36: Sockel je 7, über 196, höchstens 48 (Panel ab 197, voll ab 212)"
+        "Wegpunkt 21: Sockel je 5.125, über 121, höchstens 44.375 (Panel ab 122, voll ab 136)",
+        "Wegpunkt 22: Sockel je 5.25, über 130, höchstens 43.75 (Panel ab 131, voll ab 145)",
+        "Wegpunkt 23: Sockel je 5.375, über 139, höchstens 43.125 (Panel ab 140, voll ab 154)",
+        "Wegpunkt 24: Sockel je 5.5, über 148, höchstens 42.5 (Panel ab 149, voll ab 163)",
+        "Wegpunkt 25: Sockel je 5.625, über 157, höchstens 41.875 (Panel ab 158, voll ab 171)",
+        "Wegpunkt 26: Sockel je 5.75, über 166, höchstens 41.25 (Panel ab 167, voll ab 180)",
+        "Wegpunkt 27: Sockel je 5.875, über 175, höchstens 40.625 (Panel ab 176, voll ab 189)",
+        "Wegpunkt 28: Sockel je 6, über 184, höchstens 40 (Panel ab 185, voll ab 198)",
+        "Wegpunkt 29: Sockel je 6.125, über 185.5, höchstens 40 (Panel ab 186, voll ab 199)",
+        "Wegpunkt 30: Sockel je 6.25, über 187, höchstens 40 (Panel ab 188, voll ab 201)",
+        "Wegpunkt 31: Sockel je 6.375, über 188.5, höchstens 40 (Panel ab 189, voll ab 202)",
+        "Wegpunkt 32: Sockel je 6.5, über 190, höchstens 40 (Panel ab 191, voll ab 204)",
+        "Wegpunkt 33: Sockel je 6.625, über 191.5, höchstens 40 (Panel ab 192, voll ab 205)",
+        "Wegpunkt 34: Sockel je 6.75, über 193, höchstens 40 (Panel ab 194, voll ab 207)",
+        "Wegpunkt 35: Sockel je 6.875, über 194.5, höchstens 40 (Panel ab 195, voll ab 208)",
+        "Wegpunkt 36: Sockel je 7, über 196, höchstens 40 (Panel ab 197, voll ab 210)"
       ],
       "perNewSpecies": 1,
       "perRegularSlot": 25,
@@ -182,13 +182,13 @@
           "H_max 120 → 21",
           "H_max 130 → 23",
           "H_max 140 → 25",
-          "H_max 150 → 57",
-          "H_max 155 → 73",
-          "H_max 160 → 75",
-          "H_max 165 → 76",
-          "H_max 174 → 78",
-          "H_max 180 → 79",
-          "H_max 195 → 81"
+          "H_max 150 → 33",
+          "H_max 155 → 49",
+          "H_max 160 → 65",
+          "H_max 165 → 72",
+          "H_max 174 → 74",
+          "H_max 180 → 75",
+          "H_max 195 → 77"
         ],
         "Wegpunkt 28": [
           "H_max 4.4 → 0",
@@ -206,9 +206,9 @@
           "H_max 155 → 25",
           "H_max 160 → 26",
           "H_max 165 → 27",
-          "H_max 174 → 47",
-          "H_max 180 → 66",
-          "H_max 195 → 80"
+          "H_max 174 → 29",
+          "H_max 180 → 30",
+          "H_max 195 → 65"
         ],
         "Wegpunkt 32": [
           "H_max 4.4 → 0",
@@ -228,7 +228,7 @@
           "H_max 165 → 25",
           "H_max 174 → 26",
           "H_max 180 → 27",
-          "H_max 195 → 69"
+          "H_max 195 → 45"
         ],
         "Wegpunkt 36": [
           "H_max 4.4 → 0",

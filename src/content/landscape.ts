@@ -325,8 +325,14 @@ export const LANDSCAPE_UNLOCK_MEMORY = 250;
 export const JAY_SEEDS_MEMORY_STEP = 100;
 /** 🪶 Hähersaat für den ersten Urwald in einem Wald (je Wald einmal). */
 export const JAY_SEEDS_FIRST_ANCIENT = 2;
-/** Kosten des 2., 3., … 6. Waldes (Gründung nur aus einem Urwald, 24.4). */
-export const FOUNDING_COSTS: readonly number[] = [3, 5, 7, 9, 11];
+/**
+ * Kosten des 2., 3., … 6. Waldes (Gründung nur aus einem Urwald, 24.4). Bis Phase 11, 3d 3 / 5 / 7 /
+ * 9 / 11: Der 3. Wald (fast immer der Erlenbruch, vom Auwald aus über den Ring) begann mit kaum
+ * Zufluss und brauchte bis zum Urwald 1,22 × so lange wie der 2. (Ziel ≤ 1,1 ×). Ein 🪶 mehr für ihn
+ * lässt den Auwald einen Zyklus länger wachsen (Zufluss 123 → ~165): 1,00 ×. Der 6. Wald kostet
+ * dafür einen weniger – Summe 35 und Luft 9 wie bisher (DESIGN_V2.md 24.10, „Stand Phase 11, 3d“).
+ */
+export const FOUNDING_COSTS: readonly number[] = [3, 6, 7, 9, 10];
 
 /**
  * Korridor-Zufluss: Anteil des eigenen Waldgedächtnisses eines verbundenen Nachbarn, der im

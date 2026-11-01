@@ -97,11 +97,18 @@ export interface MemoryHarmonyRule {
  * Spieler überholt sie im Lauf der Stufe; ganzzahlig +7 je Wegpunkt), Urwald 164 → 196 (~10 unter
  * dem Harmonie-Spieler, Ziel e; der Wachstums-Spieler liegt überall darunter). Sockel-Teiler und
  * Obergrenzen bleiben – die Formel auch. Gemessen: DESIGN_V2.md 15.4, „Stand Phase 11, 3b“.
+ *
+ * Phase 11, 3d (Urwald-Gewinn des Harmonie-Spielers 98,4–99,5 statt < 95): Die Sperrklinke hält
+ * meist einen Wert aus den Wegpunkten zwischen Hain und Wald – dort stieg die Schwelle (+7 je
+ * Wegpunkt) langsamer als seine Harmonie (+6–8) und der Bonus blieb voll. Darum Wald-Schwelle
+ * 168 → **184** (+9 je Wegpunkt, danach +1,5) und die Obergrenzen von Wald und Urwald 48 → **40**
+ * (sie sinken, ein späterer Wegpunkt bringt also weiter nie mehr). Die Urwald-Schwelle bleibt
+ * 196 (Ziel e). Urwald-Gewinn 99,5 → 93,7; Hain unverändert (DESIGN_V2.md 28.10, „Messung 3d“).
  */
 export const MEMORY_HARMONY_RULES: readonly MemoryHarmonyRule[] = [
   { stage: 'grove', divisor: MEMORY_HARMONY_DIVISOR, threshold: 112, maxPoints: 45 },
-  { stage: 'forest', divisor: 6, threshold: 168, maxPoints: 48 },
-  { stage: 'ancient-forest', divisor: 7, threshold: 196, maxPoints: 48 },
+  { stage: 'forest', divisor: 6, threshold: 184, maxPoints: 40 },
+  { stage: 'ancient-forest', divisor: 7, threshold: 196, maxPoints: 40 },
 ];
 
 /** Waldgedächtnis beim Neuen Zyklus: Punkte je Art, die in diesem Zyklus neu ins Tagebuch kam. */

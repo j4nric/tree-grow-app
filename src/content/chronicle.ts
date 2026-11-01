@@ -22,6 +22,15 @@ export const CHAPTER_IDS: readonly ChapterId[] = ['ancient', 'first-snow', 'sign
  */
 export const CHRONICLE_HARMONY = 230;
 
+/**
+ * Kapitel „Ein Wald erinnert sich“: eigenes Waldgedächtnis dieses Waldes ≥ diesem Wert (geschrieben
+ * beim Neuen Zyklus, der es erreicht). Bis Phase 11, 3d das volle Gedächtnis (MAX_FOREST_MEMORY,
+ * 1000) – es war in jedem Lauf das letzte Kapitel, und die erste vollständige Chronik kam erst
+ * 2,0–2,4 h nach „Landschaft vollständig“ (DESIGN_V2.md 26.8, Ziel b: ≤ 1 h). Mit 800: +0,4 h
+ * (Harmonie, 20 Läufe), Hähersaat und Ernte bleiben bei 1000.
+ */
+export const CHRONICLE_MEMORY = 800;
+
 export interface ChronicleChapter {
   id: ChapterId;
   icon: string;
@@ -40,7 +49,7 @@ export const CHRONICLE_CHAPTERS: readonly ChronicleChapter[] = [
   { id: 'signature', icon: '📅', title: 'Das Ereignis des Waldes', hint: 'Jeder Wald hat sein eigenes Ereignis – entscheide es hier einmal.' },
   { id: 'kennart', icon: '🔎', title: 'Die Kennart', hint: 'Die Kennart dieses Waldes zeigt sich nur, wenn er alt ist.' },
   { id: 'harmony', icon: '⚖️', title: 'Voller Einklang', hint: `Bring die Harmonie hier einmal auf ${CHRONICLE_HARMONY}.` },
-  { id: 'memory', icon: '🧠', title: 'Ein Wald erinnert sich', hint: 'Fülle das Gedächtnis dieses Waldes ganz.' },
+  { id: 'memory', icon: '🧠', title: 'Ein Wald erinnert sich', hint: `Bring das Gedächtnis dieses Waldes auf ${CHRONICLE_MEMORY}.` },
 ];
 
 export const CHRONICLE_CHAPTERS_BY_ID: ReadonlyMap<ChapterId, ChronicleChapter> = new Map(CHRONICLE_CHAPTERS.map((c) => [c.id, c]));

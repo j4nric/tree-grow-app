@@ -1836,8 +1836,8 @@ function harmonyMemoryPoints(harmony: number, divisor: number, threshold: number
 /**
  * Regel des Waldgedächtnisses für den erreichten Wegpunkt (Schritt 2.11b, Sockel-Teiler seit
  * dem Abgleich mit der Sperrklinke): Teiler D, Schwelle T und Obergrenze C gleiten linear
- * zwischen den Stützstellen aus MEMORY_HARMONY_RULES (seit Phase 11, 3b: Hain, Wegpunkt 20: 5 / 112 / 45 →
- * Wald, 28: 6 / 168 / 48 → Urwald, 36: 7 / 196 / 48). Davor gilt die erste, danach die
+ * zwischen den Stützstellen aus MEMORY_HARMONY_RULES (seit Phase 11, 3d: Hain, Wegpunkt 20: 5 / 112 / 45 →
+ * Wald, 28: 6 / 184 / 40 → Urwald, 36: 7 / 196 / 40). Davor gilt die erste, danach die
  * letzte Stützstelle; NaN zählt wie Wegpunkt 0, Infinity wie der letzte.
  */
 export function memoryHarmonyBonus(waypoint: number): MemoryHarmonyBonus {

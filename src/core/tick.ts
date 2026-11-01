@@ -15,6 +15,7 @@ import { MAX_RESEARCH_RANK, RESEARCH_BY_ID, type ResearchNode } from '../content
 import { EVENTS, EVENTS_BY_ID, type GameEvent } from '../content/events';
 import { WEATHER_EVENT_FACTORS } from '../content/predation';
 import { JOURNAL_SPECIES_WEIGHT, NEW_CYCLE_MIN_STAGE } from '../content/memory';
+import { CHRONICLE_MEMORY } from '../content/chronicle';
 import { PLANTS, PLANTS_BY_ID } from '../content/plants';
 import { SPECIES, SPECIES_BY_ID } from '../content/species';
 import {
@@ -516,7 +517,8 @@ function skipYears(
 
 /**
  * Kapitel „Erster Schnee im Urwald“ (26.4): Die Jahreszeit ist gerade zu Winter gewechselt und
- * der Zyklus steht im Urwald – geschrieben im aktiven Wald (auch vor der Landschaft, still).
+ * der Zyklus steht im Urwald – oder der Zyklus erreicht den Urwald im Winter (seit Phase 11, 3d,
+ * reachWaypoint). Geschrieben im aktiven Wald (auch vor der Landschaft, still).
  */
 function writeFirstSnow(state: GameState): void {
   if (state.stage >= ANCIENT_STAGE) writeChapter(state, activeSite(state.meta.landscape), 'first-snow', 'winter');
@@ -682,6 +684,9 @@ function reachWaypoint(state: GameState, report: TickReport, ambient: AmbientMod
   state.waypoint++;
   state.stage = Math.max(state.stage, stageForWaypoint(state.waypoint));
   report.waypoints++;
+  // „Erster Schnee im Urwald“ (26.4, seit Phase 11, 3d): Erreicht der Zyklus den Urwald mitten im
+  // Winter, liegt der Schnee schon – das Kapitel gilt sofort, nicht erst beim nächsten Winteranfang.
+  if (seasonIdAt(state.cycle.elapsed) === 'winter') writeFirstSnow(state);
   // Stammgäste ziehen in frei gewordene Plätze (auch die der neuen Stufe), bevor die
   // Karten gezogen werden – so bietet die Begegnung sie nicht noch einmal an.
   report.regulars.push(...moveInRegulars(state));
@@ -1673,10 +1678,11 @@ export function startNewCycle(state: GameState, now: number, mainTree?: MainTree
   if (state.stage >= ANCIENT_STAGE) fromEntry.ancient = true;
   fromEntry.mainTree = state.cycle.mainTree;
   // Chronik des alten Waldes (26.4), gestempelt mit dem endenden Zyklus: „Uralt geworden“, sobald
-  // er als Urwald gutgeschrieben ist, „Ein Wald erinnert sich“ mit vollem eigenen Gedächtnis.
+  // er als Urwald gutgeschrieben ist, „Ein Wald erinnert sich“ ab CHRONICLE_MEMORY eigenem
+  // Gedächtnis (bis Phase 11, 3d: voll, MAX_FOREST_MEMORY).
   const chronicleBefore = new Map(landscape.sites.map((s) => [s.id, s.chronicle?.length ?? 0]));
   if (fromEntry.ancient) writeChapter(state, from, 'ancient');
-  if (state.meta.forestMemory >= MAX_FOREST_MEMORY) writeChapter(state, from, 'memory');
+  if (state.meta.forestMemory >= CHRONICLE_MEMORY) writeChapter(state, from, 'memory');
   const founded = !choice.founded && target !== from;
   if (target !== from) {
     // Den alten Wald ruhen lassen: Gedächtnis, Stammgäste und Bestand parken.

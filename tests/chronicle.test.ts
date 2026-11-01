@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS_BY_ID } from '../src/content/achievements';
-import { CHAPTER_IDS, CHRONICLE_CHAPTERS, CHRONICLE_HARMONY, type ChapterId } from '../src/content/chronicle';
+import { CHAPTER_IDS, CHRONICLE_CHAPTERS, CHRONICLE_HARMONY, CHRONICLE_MEMORY, type ChapterId } from '../src/content/chronicle';
 import { NOCTURNAL_BY_SPECIES } from '../src/content/daytime';
 import { EVENTS_BY_ID } from '../src/content/events';
 import { HOME_SITE, LANDSCAPE_SITES, SITE_IDS, type SiteId } from '../src/content/landscape';
@@ -9,7 +9,7 @@ import { EVENT_SEASONS, SEASON_IDS, SEASON_SECONDS, YEAR_SECONDS, type SeasonId 
 import { COMMON_SPECIES, KENNARTEN, SPECIES, SPECIES_BY_ID, isKennart, kennartSite } from '../src/content/species';
 import { STAGES } from '../src/content/stages';
 import { checkAchievements, isAchieved, targetOf } from '../src/core/achievements';
-import { appearsContext, ecosystemOf, evaluateEcosystem, speciesAppears } from '../src/core/formulas';
+import { appearsContext, ecosystemOf, evaluateEcosystem, speciesAppears, thresholdFor } from '../src/core/formulas';
 import {
   ANCIENT_STAGE,
   chronicleComplete,
@@ -102,6 +102,7 @@ describe('Inhalt: Chronik (26.4)', () => {
     expect(CHAPTER_IDS).toEqual(['ancient', 'first-snow', 'signature', 'kennart', 'harmony', 'memory']);
     expect(CHRONICLE_CHAPTERS.map((c) => c.id)).toEqual([...CHAPTER_IDS]);
     expect(CHRONICLE_HARMONY).toBe(230);
+    expect(CHRONICLE_MEMORY).toBe(800); // Phase 11, 3d (vorher das volle Gedächtnis)
     const names = [...SPECIES, ...LANDSCAPE_SITES].map((x) => x.name);
     for (const c of CHRONICLE_CHAPTERS) {
       expect(c.icon.length, c.id).toBeGreaterThan(0);
@@ -219,6 +220,43 @@ describe('Kapitel an ihren Stellen (26.4)', () => {
     grove.cycle.elapsed = 3 * SEASON_SECONDS - 10;
     tick(grove, 20);
     expect(chapters(grove)).toEqual([]);
+  });
+
+  it('„Erster Schnee im Urwald“ auch, wenn der Zyklus im Winter den Urwald erreicht (Phase 11, 3d) – online = offline', () => {
+    // Stand im Wald, kurz vor dem Wegpunkt des Urwalds, zur Jahreszeit `elapsed`.
+    const make = (elapsed: number) => {
+      const s = forest(ANCIENT_STAGE - 1, { seed: 31 });
+      const urwald = STAGES[ANCIENT_STAGE]!.waypoint;
+      s.waypoint = urwald - 1;
+      s.totalGrowth = thresholdFor(urwald) - 1e-6;
+      s.cycle.elapsed = elapsed;
+      return s;
+    };
+    const winter = 3 * SEASON_SECONDS + 10;
+    const online = make(winter);
+    const report = tick(online, 1, 'average');
+    expect(online.stage).toBe(ANCIENT_STAGE);
+    expect(chronicleOf(online, 'home')).toEqual([{ chapter: 'first-snow', cycle: 1, season: 'winter' }]);
+    expect(report.chapters).toEqual([{ site: 'home', chapter: 'first-snow' }]);
+    const offline = make(winter);
+    expect(simulateOffline(offline, 1).chapters).toEqual(report.chapters);
+    expect(chronicleOf(offline, 'home')).toEqual(chronicleOf(online, 'home'));
+    // Im Herbst angekommen: erst die Grenze zum Winter schreibt das Kapitel (wie bisher).
+    const autumn = make(2 * SEASON_SECONDS + 10);
+    tick(autumn, 1, 'average');
+    expect(autumn.stage).toBe(ANCIENT_STAGE);
+    expect(chapters(autumn)).not.toContain('first-snow');
+    tick(autumn, SEASON_SECONDS, 'average');
+    expect(chronicleOf(autumn, 'home').find((e) => e.chapter === 'first-snow')).toEqual({ chapter: 'first-snow', cycle: 1, season: 'winter' });
+    // Ein Wegpunkt im Winter unterhalb des Urwalds schreibt nichts.
+    const forestStage = forest(ANCIENT_STAGE - 2, { seed: 31 });
+    const wald = STAGES[ANCIENT_STAGE - 1]!.waypoint;
+    forestStage.waypoint = wald - 1;
+    forestStage.totalGrowth = thresholdFor(wald) - 1e-6;
+    forestStage.cycle.elapsed = winter;
+    tick(forestStage, 1, 'average');
+    expect(forestStage.stage).toBe(ANCIENT_STAGE - 1);
+    expect(chapters(forestStage)).not.toContain('first-snow');
   });
 
   it('Schnellvorlauf über ganze Jahre schreibt dasselbe wie Schritt für Schritt (Jahreszeit im Stempel)', () => {
@@ -354,6 +392,25 @@ describe('Kapitel an ihren Stellen (26.4)', () => {
     const r = startNewCycle(grove, 1);
     expect(r.ok && r.chapters).toEqual([]);
     expect(chapters(grove)).toEqual([]);
+  });
+
+  it(`„Ein Wald erinnert sich“ ab CHRONICLE_MEMORY (${CHRONICLE_MEMORY}) eigenem Gedächtnis, nicht erst voll (Phase 11, 3d)`, () => {
+    expect(CHRONICLE_MEMORY).toBeLessThan(MAX_FOREST_MEMORY);
+    expect(CHRONICLE_MEMORY % 100).toBe(0);
+    const below = forest(5);
+    below.meta.forestMemory = CHRONICLE_MEMORY - 1;
+    startNewCycle(below, 1);
+    expect(chapters(below, HOME_SITE)).not.toContain('memory');
+    const at = forest(5);
+    at.meta.forestMemory = CHRONICLE_MEMORY;
+    const result = startNewCycle(at, 1);
+    expect(result.ok && result.chapters).toEqual([{ site: 'home', chapter: 'memory' }]);
+    // Laden: ein ruhender Wald mit so viel Gedächtnis bekommt das Kapitel ohne Datum dazu.
+    const rest = forest(5, { active: 'carr' });
+    rest.meta.landscape.sites.find((x) => x.id === HOME_SITE)!.memory = CHRONICLE_MEMORY;
+    expect(chronicleOf(loadGame(serialize(rest), 0)!.state, HOME_SITE)).toEqual([undated('ancient'), undated('memory')]);
+    rest.meta.landscape.sites.find((x) => x.id === HOME_SITE)!.memory = CHRONICLE_MEMORY - 1;
+    expect(chronicleOf(loadGame(serialize(rest), 0)!.state, HOME_SITE)).toEqual([undated('ancient')]);
   });
 
   it('ruhende Wälder schreiben nichts; ein Kapitel steht nur einmal', () => {

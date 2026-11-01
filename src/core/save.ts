@@ -1,5 +1,5 @@
 import { ACHIEVEMENTS_BY_ID } from '../content/achievements';
-import { CHAPTER_IDS, type ChapterId } from '../content/chronicle';
+import { CHAPTER_IDS, CHRONICLE_MEMORY, type ChapterId } from '../content/chronicle';
 import { COMMUNITIES_BY_ID } from '../content/communities';
 import { DAILY_GOALS_BY_KIND, DAILY_GOAL_COUNT, type DailyGoalKind } from '../content/daily';
 import { CARDS_PER_ENCOUNTER, MAX_PENDING_ENCOUNTERS } from '../content/encounters';
@@ -462,14 +462,15 @@ function migrateV16(state: GameState): void {
  * Waldchronik (DESIGN_V2.md 26.6). Für Stände vor v16 ist das die **Migration v15 → v16**: Jeder
  * Wald bekommt die Kapitel, die sich aus dem Stand ableiten lassen – ohne Datum (`cycle`/`season`
  * null): „Uralt geworden“, falls `ancient`, und „Ein Wald erinnert sich“, falls sein eigenes
- * Gedächtnis voll ist (aktiver Wald: `meta.forestMemory`). Alles andere bleibt leer, nichts
- * Erfundenes; was ein älterer Stand unter `chronicle` mitbringt, zählt nicht.
+ * Gedächtnis CHRONICLE_MEMORY erreicht (aktiver Wald: `meta.forestMemory`; bis Phase 11, 3d: voll).
+ * Alles andere bleibt leer, nichts Erfundenes; was ein älterer Stand unter `chronicle` mitbringt,
+ * zählt nicht.
  *
  * **Robustes Laden ab v16:** je Wald der erste gespeicherte Eintrag gleicher ID (wie
  * loadLandscape); nur bekannte Kapitel, je einmal, in gespeicherter Reihenfolge; `cycle`
  * ganzzahlig in [1, laufender Zyklus], sonst null; `season` aus SEASON_IDS, sonst null.
  * Kapitel mit prüfbarer Bedingung nur, wenn sie gilt: `ancient` (Wald als Urwald gutgeschrieben),
- * `memory` (eigenes Gedächtnis voll), `kennart` (seine Kennart steht im Tagebuch), `first-snow`
+ * `memory` (eigenes Gedächtnis ≥ CHRONICLE_MEMORY), `kennart` (seine Kennart steht im Tagebuch), `first-snow`
  * (der Wald ist alt – ohne Urwald kein Schnee im Urwald). Fehlen `ancient` oder `memory`, obwohl
  * die Bedingung gilt, werden sie ohne Datum ergänzt (hinten). Höchstens sechs Einträge je Wald.
  */
@@ -480,7 +481,7 @@ function loadChronicles(raw: unknown, state: GameState, version: number): void {
     const stored = rawSites.find((s): s is Record<string, unknown> => isRecord(s) && s.id === site.id);
     const holds: Partial<Record<ChapterId, boolean>> = {
       ancient: site.ancient,
-      memory: ownMemory(state, site.id) >= MAX_FOREST_MEMORY,
+      memory: ownMemory(state, site.id) >= CHRONICLE_MEMORY,
       kennart: journal.has(kennartOf(site.id) ?? ''),
       'first-snow': isSiteAncient(state, site.id),
     };

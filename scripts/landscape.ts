@@ -22,7 +22,7 @@ import { CORRIDORS, HOME_SITE, LANDSCAPE_SITES, type ForestSite, type SiteId } f
 import type { MainTreeId } from '../src/content/trees';
 import { regularSlotsOf } from '../src/core/formulas';
 import { SPECIES_BY_ID } from '../src/content/species';
-import { CHAPTER_IDS, type ChapterId } from '../src/content/chronicle';
+import { CHAPTER_IDS, CHRONICLE_MEMORY, type ChapterId } from '../src/content/chronicle';
 import { SEASON_IDS, SEASON_SECONDS, YEAR_SECONDS } from '../src/content/seasons';
 import { completedChronicles, effectiveForestMemory, hasChapter, isSiteAncient, jaySeeds, landscapeUnlocked, wildwechselChance } from '../src/core/landscape';
 import { normalizeSeed, type RngHolder } from '../src/core/rng';
@@ -400,7 +400,7 @@ export function runLandscape(options: LandscapeOptions): LandscapeRun {
       const open = (id: SiteId) => {
         let k = openChapters(state, id);
         if (id === active && ancient && !hasChapter(state, id, 'ancient')) k--;
-        if (id === active && choice(id).memory >= MAX_FOREST_MEMORY && !hasChapter(state, id, 'memory')) k--;
+        if (id === active && choice(id).memory >= CHRONICLE_MEMORY && !hasChapter(state, id, 'memory')) k--;
         return k;
       };
       let best = choice(active);

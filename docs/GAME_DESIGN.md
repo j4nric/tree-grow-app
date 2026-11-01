@@ -117,7 +117,7 @@
 >   „Samenbank“ −25 %, **Saatzeit** im Frühling ×0,8 (statt „Etwas keimt“ ×1,5). Jeder Kauf zählt,
 >   auch der Tausch im vollen Ring. Höchstens eine Aussaat offen; **Zurücklegen** bringt
 >   10 Samen-Sekunden (der Zähler bleibt), **Neu würfeln** 10 🌰 · 2^n („Anzuchtbeet“: der erste
->   gratis), „Saatgut sortieren“: 4 Karten.
+>   gratis, seit Phase 11, 3d dazu Pflanzen +8 % 🌰), „Saatgut sortieren“: 4 Karten.
 > - **Geschenkte Aussaaten:** Wegpunkt 2 öffnet die erste Aussaat des Zyklus, falls sie noch frei
 >   ist (sonst ein Tier). Die 🫐 **Vogelsaat** („Sämlinge stehen lassen“) schenkt eine Aussaat mit
 >   bis zu zwei Karten aus Eberesche, Holunder, Brombeere – sie zählt nicht als Kauf und wartet,
@@ -305,6 +305,23 @@
 > 3:03 h; wer nur der Zielzeile folgt, kommt nach 54:38 min zum Hain (Harmonie 54:04). Offen:
 > Landschaft 11,7 h (Ziel 12,5–14,5 h, schon vorher 11,6 h), Abstand der Spielweisen ab Zyklus 2,
 > endlose Ränge, Offline-Tag mit Gedächtnis, Gabel Saat (Unterschied < 1 %).
+>
+> **Phase 11, 3d – Lücken geschlossen (ohne Spielstand-Änderung; `DESIGN_V2.md` 28.10 „Messung 3d“,
+> 24.10, 26.8):**
+>
+> | Zahl | vorher | jetzt | gemessen |
+> |---|---|---|---|
+> | Anzuchtbeet (`nursery`) | erstes Neu würfeln gratis | dazu **Pflanzen +8 % 🌰** (`NURSERY_SEEDS_PCT`) | Gabel Saat: Samenbank 100 % → **51 %** (Harmonie, 500); erzwungen beide Seiten gleich schnell |
+> | Rotbuche: Pilze 😊 | +15 % | **+20 %** | bis Urwald gegen Eiche +5,0 → **+1,7 %** (Gedächtnis 200), erster Zyklus +7,6 → +2,2 % |
+> | `MEMORY_HARMONY_RULES` Wald / Urwald | 6 / 168 / 48 · 7 / 196 / 48 | **6 / 184 / 40 · 7 / 196 / 40** | Urwald-Gewinn Zyklus 1 98,4 → **93,7** (< 95); Hain unverändert |
+> | `FOUNDING_COSTS` (2.–6. Wald) | 3 / 5 / 7 / 9 / 11 | **3 / 6 / 7 / 9 / 10** (Summe 35, Luft 9 🪶) | Landschaft vollständig 11,7 / 12,2 → **13,0 / 12,3 h**; 3. Wald 1,10 → **1,00 ×** des 2. |
+> | `CHRONICLE_MEMORY` (Kapitel „Ein Wald erinnert sich“) | volles Gedächtnis 1000 | **800** | erste Chronik +2:23 → **+0:25 h** nach „vollständig“ |
+> | „Erster Schnee im Urwald“ (core) | nur an der Grenze zum Winter | auch, wenn der Zyklus den Urwald **im Winter** erreicht | Verweilen je Wald ≤ 1 min |
+>
+> Die Gründungskosten sind eine Ausnahme von der Sperre der Landschafts-Regeln (27.11): Die
+> Landschaft war durch den Ausbau zu schnell, alle Zyklus-Stellschrauben stehen im Ziel; geändert
+> sind nur Preise, nicht Regeln. Offen: alle sechs Chroniken 14,2 h statt 18–26 h (Ziel jetzt nur
+> „≤ 1,6 × vollständig“, widerspricht sonst „erste Chronik ≤ 1 h“), Weißtanne bis Urwald +5,5 %.
 >
 > Ab „Vision“ beschreibt dieses Dokument **v1** (Wasser/Licht/Energie, Upgrades,
 > Klick-Button) und ist nur noch historisch. Simulator und Balancing laufen auf v2:
@@ -527,7 +544,7 @@ steht im Bereich „Neuer Zyklus“ (Radiogruppe, gesperrte Arten mit Hinweis).
 | Art | Frucht | Gewinn | Verzicht |
 |---|---|---|---|
 | 🌳 Stieleiche | Eichel (Nüsse ab Alter Baum) | +1 Platz Krone (ab Junger Baum); Insekten +10 % 😊 | – |
-| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum |
+| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +20 % 😊 (bis Phase 11, 3d: +15 %) | −2 ☀️ ab Alter Baum |
 | 🌲 Waldkiefer | Kiefernsamen | +1 ☀️, +1 💧; winterfest (kein Winter-Abzug); Merkmal Nadeln | keine Nüsse |
 | 🎄 Weißtanne | Tannensamen | Vögel +10 % 😊; +1 Platz Stamm & Rinde (ab Junger Baum); winterfest; Merkmal Nadeln | −1 ☀️ ab Alter Baum; keine Nüsse |
 | 🌿 Schwarzerle | Erlensamen | Amphibien +10 % 😊; Blumen +15 % 🌿; +1 Platz Waldtümpel ab Junger Baum (öffnet ihn ohne Pflege) | keine Nüsse; nicht winterfest |
@@ -646,9 +663,9 @@ Varianten: `DESIGN_V2.md` 15.4, „Stand Phase 11, 3b“, und 28.10, „Messung 
 | Zahl (`MEMORY_HARMONY_RULES`) | vorher | jetzt |
 |---|---|---|
 | Hain (Wegpunkt 20): Teiler / Schwelle / Obergrenze | 5 / 100 / 45 (voll ab 115) | 5 / **112** / 45 (Bonus ab 113, voll ab 127) |
-| Wald (Wegpunkt 28) | 6 / 148 / 48 (ab 164) | 6 / **168** / 48 (ab 169, voll ab 184) |
-| Urwald (Wegpunkt 36) | 7 / 164 / 48 (ab 180) | 7 / **196** / 48 (ab 197, voll ab 212) |
-| je Wegpunkt Hain → Wald / Wald → Urwald | Schwelle +6 / +2 | Schwelle **+7 / +3,5** |
+| Wald (Wegpunkt 28) | 6 / 148 / 48 (ab 164) | 6 / **168** / 48 (ab 169, voll ab 184); seit 3d **6 / 184 / 40** (ab 185, voll ab 198) |
+| Urwald (Wegpunkt 36) | 7 / 164 / 48 (ab 180) | 7 / **196** / 48 (ab 197, voll ab 212); seit 3d **7 / 196 / 40** (voll ab 210) |
+| je Wegpunkt Hain → Wald / Wald → Urwald | Schwelle +6 / +2 | Schwelle **+7 / +3,5** (seit 3d +9 / +1,5) |
 
 | Kennzahl (großer Lauf, 200 Durchgänge) | vorher (3a) | jetzt | Ziel |
 |---|---|---|---|
@@ -661,7 +678,9 @@ Varianten: `DESIGN_V2.md` 15.4, „Stand Phase 11, 3b“, und 28.10, „Messung 
 
 - **Urwald-Gewinn 98,4 statt < 95:** Mit den Schwellen nicht weiter zu senken – ~28 Punkte sind
   neue Arten bis zum Urwald, und die Sperrklinke hält den besten Wert des ganzen Verlaufs. Grenze
-  im großen Lauf jetzt < 105; die eigentliche Grenze bleibt Urwald ≤ 1,5 × Hain.
+  im großen Lauf jetzt < 105; die eigentliche Grenze bleibt Urwald ≤ 1,5 × Hain. **Geschlossen in
+  3d:** Der beste Wert stammte meist aus den Wegpunkten zwischen Hain und Wald (Schwelle stieg
+  langsamer als die Harmonie) – Wald-Schwelle 184 und Obergrenzen 40 ergeben 93,7 (Grenze < 95).
 - **Offen:** Ab Zyklus 2 liegt die Harmonie-Spielweise deutlich vorn (Wachstum ÷ Harmonie 1,15–1,35
   statt „gleichauf“, ~1,0–1,1). Die Ziele sind nur Untergrenzen; ob der Abstand gewollt ist,
   entscheidet der Playtest (`DESIGN_V2.md` 15.4).

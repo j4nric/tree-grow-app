@@ -76,7 +76,7 @@ test('Neuer Zyklus mit der Rotbuche: Auswahl, Sperrhinweis, Spielstand und Anzei
   await expect(radio('pine')).toBeDisabled();
   // Eigenheit bzw. Sperrhinweis als Beschreibung des Knopfs (aria-describedby).
   await expect(radio('pine')).toHaveAccessibleDescription('Lass einmal eine Waldkiefer im Pflanzring wachsen.');
-  await expect(radio('beech')).toHaveAccessibleDescription(/Pilze \+15 %/);
+  await expect(radio('beech')).toHaveAccessibleDescription(/Pilze \+20 %/);
   await expect(radio('beech')).toHaveAccessibleName('Rotbuche');
 
   // Wahl per Klick auf den Namen; die Gruppe wird dabei nicht neu gebaut (Fokus bleibt).

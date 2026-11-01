@@ -47,7 +47,7 @@ import {
 } from '../content/upgrades';
 import { DIVERSITY_DAMPING_MAX, DIVERSITY_DAMPING_PER_GENUS, GENTLE_DAYS, OFFLINE_AVERAGE_MIN_SECONDS, WEATHERS } from '../content/weather';
 import { NOCTURNAL } from '../content/daytime';
-import { CHRONICLE_CHAPTERS, CHRONICLE_HARMONY } from '../content/chronicle';
+import { CHRONICLE_CHAPTERS, CHRONICLE_HARMONY, CHRONICLE_MEMORY } from '../content/chronicle';
 import { REPTILE_SUMMER_HAPPINESS } from '../content/habitats';
 import { OVERHUNT_MAX_UNITS, OVERHUNT_PENALTY, PREDATION_EVENTS, STOCK_BASE, STOCK_RANGE } from '../content/predation';
 import { isAchievementVisibleIn } from '../core/achievements';
@@ -466,7 +466,7 @@ function chronicleSection(): GuideSection {
     title: 'Chroniken und Kennarten',
     paragraphs: [
       `Jeder Wald der Landschaft schreibt eine Chronik in ${formatNumber(CHRONICLE_CHAPTERS.length)} Kapiteln: ${all(titles)}. Ein Kapitel schreibt nur der Wald, in dem du gerade wächst – einmal und für immer, auch während das Spiel geschlossen ist. Keines kostet etwas, keines verfällt.`,
-      `„Erster Schnee“ verlangt Geduld: Bleib nach dem ${ancient} noch, bis der Winter kommt, statt gleich neu zu beginnen. „Voller Einklang“ heißt eine höchste Harmonie von ${formatNumber(CHRONICLE_HARMONY)} in einem Zyklus, „Ein Wald erinnert sich“ das volle eigene Gedächtnis von ${formatNumber(MAX_FOREST_MEMORY)}. Das Ereignis des Waldes entscheidest du, wenn es dort als Begegnung kommt – gleich wie; welches es ist, nennt der Standort mit „📜 Kapitel“.`,
+      `„Erster Schnee“ verlangt manchmal Geduld: Erreichst du den ${ancient} im Winter, liegt der Schnee schon – sonst bleib, bis der Winter kommt, statt gleich neu zu beginnen. „Voller Einklang“ heißt eine höchste Harmonie von ${formatNumber(CHRONICLE_HARMONY)} in einem Zyklus, „Ein Wald erinnert sich“ ein eigenes Gedächtnis von ${formatNumber(CHRONICLE_MEMORY)}. Das Ereignis des Waldes entscheidest du, wenn es dort als Begegnung kommt – gleich wie; welches es ist, nennt der Standort mit „📜 Kapitel“.`,
       `Jeder neue Eintrag kommt als Stempel „📜 Neues Kapitel“ mit Zyklus und Jahreszeit. Der Standort zeigt die Chronik als sechs Zettel – offene mit einem Hinweis. Die Karte zählt alle ${formatNumber(sites * CHRONICLE_CHAPTERS.length)} Kapitel; eine vollständige Chronik bekommt ein Wachssiegel und schenkt dir ein Andenken (Reiter „Arten“ → Andenken).`,
       `🔎 Kennarten: Jeder der ${formatNumber(sites)} Wälder hat eine seltene Art, die nur dort lebt – und nur, wenn der Wald alt ist: Er war schon einmal ${ancient}, oder dein Zyklus steht dort gerade im ${ancient}. Im Reiter „Arten“ stehen sie in einer eigenen Reihe, unentdeckt als Silhouette mit ihrem Wald. Wandert eine Kennart über einen Korridor in einen anderen Wald, zählt ihr Kapitel trotzdem nur in ihrem eigenen.`,
     ],

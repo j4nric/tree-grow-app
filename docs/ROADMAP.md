@@ -1402,6 +1402,26 @@ Ausbauen, neue Arten (28.13). Stufen-Tore und Aufträge erst als Welle 6 nach de
   Chronik +2,4 h (Gedächtnis-Kapitel; „eine Chronik zuerst“ +1,1 h), (c) absolut 14,6 statt 18–26 h
   (Landschaft zu schnell, Folgeaufgabe), Zufall: Einklang 4–10 Zyklen, Verweilen 8 min (Vorschlag
   „Erster Schnee“ auch bei Ankunft im Winter, `core-engineer`)
+- [x] **3d** Lücken schließen (`game-designer`, kleine core-Änderungen erlaubt; 28.10 „Lücken“ aus
+  3b, 26.8 „Messung 3c“): (1) Landschaft vollständig 11,7 / 12,2 h → 12,5–14,5 h, 3. Wald ≤ 1,1 ×
+  2. Wald, alle sechs Chroniken 18–26 h; (2) Waldtypen ±5 % (Buchenhallen +5,7 %, Rotbuche – Baumarten
+  bis Urwald messen, 17.4); (3) Gabel Saat 25–75 % (Anzuchtbeet stärken); (4) Urwald-Gewinn < 95
+  (Grenze in `tests/balance-cycles.test.ts` zurück auf das Ziel) oder begründet dokumentieren;
+  (5) erste Chronik ≤ 1 h nach „vollständig“ (z. B. `CHRONICLE_MEMORY` < 1000) und „Erster Schnee“
+  auch bei Ankunft im Urwald im Winter. Kein Spielstand-Wechsel. **Warum:** die offenen Ziele aus
+  3b/3c, die nicht am Playtest hängen. Abhängig: 3c
+  **Erledigt** (`claude/p11-luecken`, DESIGN_V2.md 28.10 „Messung 3d“, 24.10, 26.8, 15.4,
+  GAME_DESIGN.md): Anzuchtbeet dazu **Pflanzen +8 % 🌰** (Gabel Saat Samenbank 100 → 51 %), Rotbuche
+  Pilze **+15 → +20 % 😊** (bis Urwald +5,0 → +1,7 %, Buchenhallen +5,7 → +2,0 %),
+  `MEMORY_HARMONY_RULES` Wald **6 / 184 / 40**, Urwald **7 / 196 / 40** (Urwald-Gewinn 98,4 → 93,7,
+  Grenze wieder < 95), `FOUNDING_COSTS` **3 / 6 / 7 / 9 / 10** (Ausnahme von der Sperre: nur Preise,
+  Summe und Luft gleich; vollständig 11,7 / 12,2 → 13,0 / 12,3 h, 3. ÷ 2. Wald 1,10 → 1,00),
+  `CHRONICLE_MEMORY` **800** (erste Chronik +2:23 → +0:25 h). Kleine core-Änderungen: „Erster Schnee“
+  auch bei Ankunft im Urwald im Winter (`reachWaypoint`), Kapitel „Ein Wald erinnert sich“ ab
+  `CHRONICLE_MEMORY` (`startNewCycle`, `loadChronicles`); Tests in `tests/chronicle.test.ts`. Kein
+  Spielstand-Wechsel. **Offen:** alle sechs Chroniken 14,2 h – Ziel (c) jetzt nur „≤ 1,6 ×
+  vollständig“ (absolut 18–26 h widerspricht „erste Chronik ≤ 1 h“, Frage an den Product Owner),
+  Weißtanne bis Urwald +5,5 % (Vorschlag Vögel +15 %), Zufall nur im Protokoll
 
 **Welle 4 – Oberfläche** (parallel zu Welle 3; Zahlen aus 3a kommen nur als Daten)
 
