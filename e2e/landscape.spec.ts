@@ -81,6 +81,14 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(map.locator('[data-site="heath"] .lsc-site-events')).toHaveAttribute('title', 'Hier öfter: 🪲 Käferjahr');
   await expect(map.locator('[data-site="home"] .lsc-site-events')).toHaveCount(0);
   await expect(map.locator('[data-site="mountain"] .lsc-site-events')).toHaveCount(0);
+  // Ereignis des Waldes ohne Faktor: eigenes Zeichen (untere Ecke), nicht unter „Hier öfter“.
+  const heathChapter = map.locator('[data-site="heath"] .lsc-site-chapter');
+  await expect(heathChapter).toHaveText('🌡️');
+  await expect(heathChapter).toHaveAttribute('title', '📜 Kapitel: 🌡️ Hitzewelle („Hitzesommer auf dem Sand“)');
+  await expect(map.locator('[data-site="heath"]')).toHaveAccessibleName(/hier öfter: 🪲 Käferjahr\s*, Kapitel der Chronik: 🌡️ Hitzewelle \(„Hitzesommer auf dem Sand“\)/);
+  await expect(map.locator('[data-site="home"] .lsc-site-chapter')).toHaveAttribute('title', '📜 Kapitel: 🌰 Mastjahr („Eichelmast – der Häher legt Vorräte an“)');
+  await expect(map.locator('[data-site="mountain"] .lsc-site-chapter')).toHaveAttribute('title', '📜 Kapitel: 🌨️ Schneebruch („Schneebruch am Hang“)');
+  await expect(flood.locator('.lsc-site-chapter')).toHaveCount(0);
   await expect(map.locator('[data-ref="landscape-target"]')).toContainText('der nächste Baum keimt hier');
 
   // Tipp auf den Standort blättert zu U:Standort um – dort stehen alle Angaben.
@@ -93,6 +101,7 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(site.locator('[data-ref="site-weather"]')).toHaveText('Wetter: 🌧️ Oft Landregen, selten Dürre – im Frühjahr steigt der Fluss.');
   // Ereignisse des Waldtyps (Phase 9, 1c): eigene Zeile, aus eventFactors.
   await expect(site.locator('[data-ref="site-events"]')).toHaveText('Hier öfter: 🌧️ Regenreicher Frühling (📜 Kapitel „Frühjahrshochwasser“), 🐌 Schneckenjahr');
+  await expect(site.locator('[data-ref="site-chapter-event"]')).toBeHidden();
   await expect(site.locator('[data-ref="site-cycle-open"]')).toBeHidden();
   const choose = site.locator('[data-ref="site-choose"]');
   await expect(choose).toHaveText('Als Ziel wählen');
@@ -161,6 +170,9 @@ test('vom Hain aus zurück in den Heimatwald wechseln: Gedächtnis kommt mit', a
   const mountain = await openLandscapeSite(page, 'mountain');
   await expect(mountain.locator('[data-ref="site-blocker"]')).toContainText('Nur aus dem Urwald');
   await expect(mountain.locator('[data-ref="site-choose"]')).toBeHidden();
+  // Kapitel-Ereignis ohne Faktor: eigene Zeile statt „Hier öfter“.
+  await expect(mountain.locator('[data-ref="site-events"]')).toBeHidden();
+  await expect(mountain.locator('[data-ref="site-chapter-event"]')).toHaveText('📜 Kapitel: 🌨️ Schneebruch („Schneebruch am Hang“)');
   // Der Grund wird angesagt (Live-Ansage, A.10 #110).
   await expect(mountain.locator('[data-ref="landscape-live"]')).toContainText('Bergmischwald: Nur aus dem Urwald');
   // Escape blättert zurück, der Fokus geht an den Standort-Knopf.
