@@ -109,6 +109,13 @@ const FOREST = 6;
 const slot = (niche: NicheId, amount = 1): ResearchEffect => ({ kind: 'cycle', effect: { kind: 'slot', niche, amount } });
 const light = (amount: number): ResearchEffect => ({ kind: 'cycle', effect: { kind: 'light', amount } });
 const water = (amount: number): ResearchEffect => ({ kind: 'cycle', effect: { kind: 'water', amount } });
+/**
+ * Anzuchtbeet (Gabel Saat): Pflanzen +8 % 🌰 je Gruppe (Phase 11, 3d). Bis dahin nur „erstes Neu
+ * würfeln gratis“ – das griff im Simulator fast nie (0–1 je Zyklus), der Harmonie-Spieler wählte
+ * immer die Samenbank. Mit 8 % wählt er in 50 % der Durchgänge die Samenbank (7 %: 80 %), erzwungen
+ * sind beide Seiten bis zum Urwald gleich schnell (DESIGN_V2.md 28.10, „Messung 3d“).
+ */
+export const NURSERY_SEEDS_PCT = 8;
 const harmony = (points: number): ResearchEffect => ({ kind: 'cycle', effect: { kind: 'harmony', points } });
 
 export const RESEARCH_BRANCHES: readonly ResearchBranch[] = [
@@ -344,7 +351,14 @@ export const RESEARCH_ONCE: readonly ResearchNode[] = [
   {
     id: 'nursery', branch: 'seed', name: 'Anzuchtbeet', icon: '🪴', minStage: OLD_TREE, cost: 500,
     requires: ['seed-sorting'], excludes: ['seed-bank'],
-    effects: [{ kind: 'sowFreeReroll', amount: 1 }], summary: 'Erstes Neu würfeln je Aussaat gratis',
+    effects: [
+      { kind: 'sowFreeReroll', amount: 1 },
+      // Vorgezogene Pflanzen blühen und fruchten früher – alle vier Gruppen.
+      ...(['trees', 'shrubs', 'flowers', 'mosses'] as const).map(
+        (group): ResearchEffect => ({ kind: 'cycle', effect: { kind: 'groupSeeds', group, pct: NURSERY_SEEDS_PCT } }),
+      ),
+    ],
+    summary: `Erstes Neu würfeln je Aussaat gratis, Pflanzen +${NURSERY_SEEDS_PCT} % 🌰`,
     text: 'Erst im Schutz vorziehen, dann auspflanzen – was nicht taugt, kommt auf den Kompost.',
     boughtText: 'Anzuchtbeet angelegt',
   },

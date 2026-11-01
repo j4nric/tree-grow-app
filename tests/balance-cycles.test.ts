@@ -218,13 +218,11 @@ describe('Neustart in Hain, Wald oder Urwald (Waldgedächtnis mit Schwelle je St
     // (Urwald, Zyklus 1: 186,6). Steigt der Wert weiter, MEMORY_HARMONY_RULES prüfen (ROADMAP).
     const harmony = (stage: number) => restartGain(row(stage, HARMONY.id), 0);
     expect(harmony(URWALD) / harmony(HAIN)).toBeLessThan(FULL ? 1.5 : 1.9);
-    // Ziel war < 95 (Phase 6: 93,5). Phase 11, 3b: 98,4 (vorher 105,2) – mit den Schwellen nicht
-    // weiter zu senken: Etwa 28 Punkte sind neue Arten bis zum Urwald, und die Sperrklinke hält den
-    // besten Wert des ganzen Verlaufs (der Harmonie-Spieler liegt überall knapp über der gleitenden
-    // Schwelle; Urwald-Schwelle 196 → 210 senkte den Gewinn in der Vorhersage nur um ~1 Punkt).
-    // Darum < 105 (großer Lauf) und weiter Urwald ≤ 1,5 × Hain (1,49) als eigentliche Grenze
-    // (DESIGN_V2.md 15.4, „Stand Phase 11, 3b“). Check 98,9 (Urwald / Hain 1,55).
-    expect(harmony(URWALD)).toBeLessThan(FULL ? 105 : 115);
+    // Ziel < 95 (Phase 6: 93,5). Phase 11, 3b: 98,4 (vorläufig < 105) – die Sperrklinke hielt meist
+    // einen Wert aus den Wegpunkten zwischen Hain und Wald, wo die Schwelle langsamer stieg als die
+    // Harmonie. Phase 11, 3d: Wald-Schwelle 184, Obergrenzen Wald/Urwald 40 – großer Lauf 93,7
+    // (DESIGN_V2.md 28.10, „Messung 3d“).
+    expect(harmony(URWALD)).toBeLessThan(FULL ? 95 : 110);
   });
 
   it('(d) Gelegenheitsspieler: später mehr Gedächtnis als im Hain, Zyklus 2 ≥ 20 % schneller (großer Lauf)', () => {

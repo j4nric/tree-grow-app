@@ -2220,6 +2220,15 @@ in 12.7), Ziel (e) an typischen Verläufen (Urwald-Schwelle ≤ 174 − 10, Bonu
 Harmonie 30 / Wachstum 0), dazu die Sperrklinke selbst (gleiche H_max über mehrere
 Wegpunkte, online = offline, ein ganzer simulierter Zyklus je Strategie bis zum Urwald).
 
+#### Stand Phase 11, 3d – Lücken geschlossen (500 / 200 Durchgänge)
+
+`npm run balance` auf `claude/p11-luecken`: **alle 79 Prüfungen grün**, der Urwald-Gewinn wieder mit
+der Grenze < 95 (93,7). Geändert: `MEMORY_HARMONY_RULES` Wald 6 / 168 / 48 → **6 / 184 / 40**, Urwald
+7 / 196 / 48 → **7 / 196 / 40** (Hain unverändert), Anzuchtbeet +8 % 🌰 für Pflanzen, Rotbuche Pilze
++20 % 😊. Hain Zyklus 1 / 2 / 3 (Harmonie) 54:04 / 30:38 / 20:18 min (−43,4 / −28,4 / −23,0 % in Zyklus 2
+für Harmonie / Wachstum / Zufall), Gewinn Zyklus 1 Hain / Wald / Urwald 66,0 / 83,9 / 93,7, Urwald ÷
+Hain 1,42. Tabellen und Begründung: 28.10, „Messung 3d“.
+
 #### Stand Phase 11, 3b – Gedächtnis-Schwellen, Zielzeile, Zyklen (500 / 200 Durchgänge)
 
 `npm run balance` auf `claude/p11-3b-zyklen`: **alle Prüfungen grün**, die Zyklen-Grenzen des großen
@@ -4295,7 +4304,7 @@ alle gleich.
 | Art | Frucht | Gewinn | Verzicht | passt zu |
 |---|---|---|---|---|
 | 🌳 Stieleiche | Eichel (Nüsse ab Alter Baum) | +1 Platz Krone (ab Junger Baum); Insekten +10 % 😊 | – (ausgewogen) | Vielfalt, Vögel und Säugetiere (Nüsse) |
-| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +15 % 😊 | −2 ☀️ ab Alter Baum (dichtes Dach) | Pilze, Bodenleben, Schattenpflanzen |
+| 🍂 Rotbuche | Buchecker (Nüsse ab Alter Baum) | +1 Platz Wurzelraum (ab Alter Baum); Pilze +20 % 😊 (bis Phase 11, 3d: +15 %) | −2 ☀️ ab Alter Baum (dichtes Dach) | Pilze, Bodenleben, Schattenpflanzen |
 | 🌲 Waldkiefer | Kiefernsamen | +1 ☀️, +1 💧 (genügsam); winterfest: kein Winter-Abzug; Merkmal Nadeln | keine Nüsse | Blüten, Insekten, Licht; Waldameise |
 
 **Balancing 2.10:** Rotbuche +1 Wurzelraum erst ab Alter Baum (vorher ab Keimling) –
@@ -5978,7 +5987,7 @@ Hähersaat (verfügbar) = verdient − Kosten aller gegründeten Wälder − Kos
 
 | Ausgabe | Kosten 🪶 |
 |---|---|
-| 2. / 3. / 4. / 5. / 6. Wald gründen | 3 / 5 / 7 / 9 / 11 (`FOUNDING_COSTS`) – zusammen 35 |
+| 2. / 3. / 4. / 5. / 6. Wald gründen | 3 / 6 / 7 / 9 / 10 (`FOUNDING_COSTS`; bis Phase 11, 3d: 3 / 5 / 7 / 9 / 11, 24.10 „Stand Phase 11, 3d“) – zusammen 35 |
 | Korridore: fünf Speichen am Heimatwald | je 2 |
 | Korridore im Ring: Altwasser, Wallhecke, Wildpfad / Bachschlucht / Grünbrücke | 3 / 4 / 5 |
 | **alles** | **63** (weniger die Korridore, die mit einer Gründung kommen, 24.5) |
@@ -6470,6 +6479,44 @@ SIM_LANDSCAPE=1 SIM_LANDSCAPE_RUNS=20 SIM_LANDSCAPE_SITE_WEATHER=off npx vitest 
 SIM_LANDSCAPE=1 npx vitest run tests/landscape-balance.test.ts -t Häufigkeiten --silent=false   # Wetter je Standort (24.14), ~10 s
 SIM_LANDSCAPE=1 SIM_LANDSCAPE_CHRONICLE=harmony npx vitest run tests/landscape-balance.test.ts -t "Chronik und Kennarten" --silent=false   # Chronik-Politik (26.8), je Zeile einzeln
 ```
+
+**Stand Phase 11, 3d** – Anzuchtbeet, Rotbuche, Gedächtnis-Regeln Wald 6 / 184 / 40 und Urwald
+7 / 196 / 40, Gründungskosten **3 / 6 / 7 / 9 / 10** (28.10, „Messung 3d“; die Preise sind eine
+begründete Ausnahme von der Sperre der Landschafts-Regeln, Summe und Luft bleiben). Harmonie und
+Wachstum 20, Zufall 10 Läufe, dieselben Seeds:
+
+| Spielweise | Freischaltung | 2. Wald | 3. | 4. | 5. | 6. Wald | Landschaft vollständig | alle Wälder voll | Zyklen | davon Ernte |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Harmonie | 3,5 h | 3,5 h | 5,3 h | 7,3 h | 9,5 h | 12,1 h | **13,0 h** | **15,3 h** | 72 | 35 (3,7 h) |
+| Wachstum | 4,1 h | 4,1 h | 6,0 h | 8,0 h | 9,8 h | 11,6 h | **12,3 h** | **15,3 h** | 79 | 36 (3,4 h) |
+| Zufall | 13,1 h | 13,1 h | 20,6 h | 26,7 h | 32,1 h | 35,8 h | 38,3 h | 43,0 h | 104,5 | 39 (6,2 h) |
+
+| Spielweise | erster Urwald: Heimatwald | 2. Wald | 3. | 4. | 5. | 6. Wald |
+|---|---|---|---|---|---|---|
+| Harmonie | 2:00:52 h | 40 min | 40 min | 29 min | 23 min | 17 min |
+| Wachstum | 1:47:12 h | 38 min | 34 min | 24 min | 19 min | 16 min |
+| Zufall | 3:12:46 h | 1:11:11 h | 59 min | 47 min | 38 min | 31 min |
+
+Höchste Harmonie je Wald 313–321 / 266–275 / 261–270; größte Zahlen 1,7 · 10^4 🌿/s, 6,4 · 10^5 🌰
+Bestand, 1,1 · 10^8 Wachstum gesamt (Zufall). Ziele: (a) 2. Wald 0,33 × Heimatwald, danach ≤ 1,0 ×
+des vorigen (3b: 3. Wald 1,1002 ×); (b) vollständig nach 13,0 h (Ziel 28.10: 12,5–14,5 h); Wachstum
+5,4 % schneller als Harmonie (3b: Harmonie 4,5 % schneller), „alle voll“ gleichauf. Ausbau und Ränge
+je Zyklus wie in 3b (Nischen Ø 13–21, Baumteile 23–31, Ränge ∞ nur beim Zufall).
+
+**Waldtypen (Phase 11, 3d; 160 Durchgänge, Gedächtnis 200, Leitbaum):**
+
+| Wald | Leitbaum | Harmonie: Urwald | gegenüber Heimatwald | ohne Standort-Wetter | ohne Ereignis-Faktor | Wachstum: Urwald | gegenüber Heimatwald |
+|---|---|---|---|---|---|---|---|
+| 🌳 Heimatwald | Eiche | 38:16 min | ±0,0 % | ±0,0 % | – | 33:38 min | ±0,0 % |
+| 🌊 Auwald am Fluss | Eiche | 37:47 min | −1,3 % | −0,6 % | −1,5 % | 33:59 min | +1,0 % |
+| 🐸 Erlenbruch | Schwarzerle | 39:05 min | +2,1 % | +2,7 % | +1,6 % | 33:48 min | +0,5 % |
+| 🍂 Buchenhallen | Rotbuche | 39:03 min | **+2,0 %** (3b: +5,7 %) | +2,4 % | +2,2 % | 32:49 min | −2,4 % |
+| ⛰️ Bergmischwald | Weißtanne | 39:13 min | +2,4 % | +3,0 % | – | 33:56 min | +0,9 % |
+| 🌲 Kiefernheide | Kiefer | 39:44 min | +3,8 % | +3,0 % | +3,5 % | 33:47 min | +0,4 % |
+
+Alle Waldtypen innerhalb ±5 % (Prüfung im großen Lauf grün); die Rotbuche ist nachgestellt (Pilze +20 %
+😊, 28.10 „Messung 3d“, dort auch die Baumarten bis zum Urwald). Mauer-Platz der Heide wie in 3b
+(Sonnenmauer 20 von 160 Läufen mit, 4 ohne).
 
 **Stand Phase 11, 3b** – Ausbau (3a), Zielzeile ohne leere Nischen und Gedächtnis-Schwellen
 112 / 168 / 196 (28.10, „Messung 3b“). Harmonie und Wachstum 20, Zufall 10 Durchgänge, dieselben
@@ -7687,11 +7734,11 @@ geschrieben und bleibt (monoton, wie Erfolge). Kapitel tragen Zyklus und Jahresz
 | # | Kapitel (`ChapterId`) | Wann es geschrieben wird | Titel |
 |---|---|---|---|
 | 1 | `ancient` | der Wald wird zum ersten Mal Urwald gutgeschrieben (`ancient` wird wahr, `startNewCycle`) | „Uralt geworden“ |
-| 2 | `first-snow` | eine Jahreszeit wechselt zu **Winter**, während dieser Wald aktiv und der Zyklus im **Urwald** ist (an der Grenze, an der `tick` ohnehin hält – online = offline) | „Erster Schnee im Urwald“ |
+| 2 | `first-snow` | eine Jahreszeit wechselt zu **Winter**, während dieser Wald aktiv und der Zyklus im **Urwald** ist (an der Grenze, an der `tick` ohnehin hält – online = offline); seit Phase 11, 3d auch, wenn der Zyklus den Urwald **im Winter erreicht** (Wegpunkt, `reachWaypoint`) | „Erster Schnee im Urwald“ |
 | 3 | `signature` | das Ereignis des Waldes (`ForestSite.chronicleEvent`) wird hier entschieden – gleich welche Option | je Wald, siehe unten |
 | 4 | `kennart` | die Kennart dieses Waldes lebt im Ökosystem, während er aktiv ist (Karte, Stammgast oder Wildwechsel) | „Die Kennart: Biber“ |
 | 5 | `harmony` | H_max dieses Zyklus erreicht **`CHRONICLE_HARMONY` = 230** (bis Phase 11, 3c: 250), während der Wald aktiv ist | „Voller Einklang“ |
-| 6 | `memory` | das **eigene** Gedächtnis des Waldes erreicht `MAX_FOREST_MEMORY` (1000) | „Ein Wald erinnert sich“ |
+| 6 | `memory` | das **eigene** Gedächtnis des Waldes erreicht **`CHRONICLE_MEMORY` = 800** (bis Phase 11, 3d: `MAX_FOREST_MEMORY`, 1000; 26.8 „Messung 3d“) | „Ein Wald erinnert sich“ |
 
 **Ereignis des Waldes** (`chronicleEvent`, Kapitel 3) – passend zu 26.2; der Heimatwald und der
 Bergmischwald bekommen eins ohne Faktor (ihre Goldwerte bleiben):
@@ -7904,7 +7951,7 @@ Zufall (10), Median:
 |---|---|
 | (a) Tempo: Landschaft vollständig und Waldtypen (24.7) | ±0,3 h gegenüber „Stand 3e“ bzw. ±5 % je Wald |
 | (b) erste vollständige Chronik | spätestens 1 h nach „Landschaft vollständig“ |
-| (c) alle sechs Chroniken (Harmonie) | 18–26 h (≤ 1,6 × „Landschaft vollständig“); Zufall ≤ 60 h |
+| (c) alle sechs Chroniken (Harmonie) | ≤ 1,6 × „Landschaft vollständig“; Zufall ≤ 60 h (bis Phase 11, 3d dazu absolut 18–26 h – widerspricht (b), 28.10 „Messung 3d“) |
 | (d) keine Wand | jedes Kapitel im Median ≤ 3 Zyklen im passenden Wald, sobald es möglich ist; Kennart im Median ≤ 2 Zyklen nach „alt“ |
 | (e) Voller Einklang | ≥ 90 % der Wälder je Spielweise |
 | (f) Verweilen | Wartezeit für `first-snow` im Mittel ≤ 6 min je Wald |
@@ -8026,6 +8073,22 @@ Chronik-Wert in den Daten (`chronicleEvent`) und berührt weder Tempo noch Käfe
   (on/off/none), „Heute“, Mauer-Platz und Wetter-Häufigkeiten grün; „Spielweisen“ und „Waldtypen“
   verfehlen wie in 3b (gleiche Zahlen) 3. Wald 1,1002 × des 2. bzw. Buchenhallen +5,7 % – die
   Lücken aus 28.10, nicht Teil von 3c. `npm run balance` grün.
+
+**Messung 3d (Phase 11, Lücken aus 3c)** – Einzelheiten in 28.10 „Messung 3d“. Geändert:
+`CHRONICLE_MEMORY` = **800** (Kapitel „Ein Wald erinnert sich“ statt bei vollem Gedächtnis) und
+„Erster Schnee“ auch, wenn der Zyklus den Urwald im Winter erreicht (core); dazu die Landschaft
+(vollständig 13,0 / 12,3 / 38,3 h). Gegen die Ziele:
+
+| Ziel | 3c | 3d | |
+|---|---|---|---|
+| (b) erste Chronik nach vollständig (Harmonie / Wachstum / Zufall) | +2:23 / +2:20 / +4:32 h | **+25 / +53 min** / +1:19 h | ✓ H/W (jetzt im großen Lauf geprüft) |
+| (c) alle sechs (Harmonie / Wachstum / Zufall); ÷ vollständig | 14,6 / 15,0 / 42,5 h; 1,25 | 14,2 / 13,9 / 40,7 h; 1,09 / 1,11 / 1,05 | ✓ (≤ 1,6 ×; absolut gestrichen) |
+| (d) Kapitel ≤ 3 Zyklen, Kennart ≤ 2 (Median, Harmonie / Wachstum) | ✓ | ✓ (Einklang Wachstum 1–3, Kennart 1–2) | ✓ |
+| (e) Voller Einklang ≥ 90 % | 100 / 100 / 90 % bei vollständig | 100 / 100 / 90 % | ✓ |
+| (f) Verweilen je Wald (alle Wälder) / nur Wälder mit Warten | – / 3 / 3 / 8 min | ≤ 1 min / 3 / 3 / 9 min | ✓ |
+
+Letztes Kapitel bleibt meist „Ein Wald erinnert sich“ (Harmonie 19 von 20 Läufen), aber in
+verschiedenen Wäldern; mit „eine Chronik zuerst“ ist die erste nach 13 min fertig.
 
 ### 26.9 Album-Folgeaufgaben aus Phase 8 (eine kleine `ui-dev`-Aufgabe)
 
@@ -8383,7 +8446,7 @@ tatsächliche Kartenzahl („zwei Samen“ im Keimling).
 | 🌾 Offenland | `drystone-wall-2` | Mauer verlängern | Wald | 2.000 | Trockenmauer | +2 Plätze Trockenmauer, +2 ⚖️ | Mauer R2 |
 | 🌱 Saat | `seed-sorting` | Saatgut sortieren | Junger Baum | 200 | – | Aussaat zeigt 4 statt 3 Karten | **neu** |
 | 🌱 Saat | `seed-bank` ⟂ | Samenbank | Alter Baum | 500 | Saatgut sortieren | Aussaat −25 % 🌰 | **neu** |
-| 🌱 Saat | `nursery` ⟂ | Anzuchtbeet | Alter Baum | 500 | Saatgut sortieren | erstes Neu würfeln je Aussaat gratis | **neu** |
+| 🌱 Saat | `nursery` ⟂ | Anzuchtbeet | Alter Baum | 500 | Saatgut sortieren | erstes Neu würfeln je Aussaat gratis; seit Phase 11, 3d dazu Pflanzen +8 % 🌰 (28.10 „Messung 3d“) | **neu** |
 | 🌱 Saat | `dead-hedge` | Benjeshecke | Hain | 760 | Saatgut sortieren, Nistkästen | Sträucher +30 % 🌰, +2 ⚖️ | **neu** |
 
 Die IDs der Knoten mit gleicher Wirkung wie heute übernehmen, wo es geht, die ID der Maßnahme
@@ -8421,7 +8484,7 @@ Die IDs der Knoten mit gleicher Wirkung wie heute übernehmen, wo es geht, die I
 | Boden (Hain) | Käferburg: 2 Plätze (Stamm & Rinde, Totholzhaufen), +3 ⚖️ | Pilzgarten: Pilze zufriedener, Bäume +10 % 🌿 | neue Arten (Vielfalt, Gemeinschaft Totholz-Kette) – oder die Pilze, die man schon hat, und Wachstum |
 | Wasser (Hain) | Tümpel vertiefen: 2 Plätze Waldtümpel | Quellbach: Moose & Farne +40 % 🌿, Amphibien +15 % 😊, +3 ⚖️ | mehr Amphibien – oder bessere Amphibien und ein Grund für Farne im Ring |
 | Saum (Hain) | Blütenvorrat: +25 % 🌰 auf Blumen und Sträucher | Wildbienenwand: Insekten +10 % 😊, +2 ⚖️ | Samen (für Aussaaten) – oder Harmonie (für Forschung) |
-| Saat (Alter Baum) | Samenbank: Aussaat −25 % | Anzuchtbeet: erstes Neu würfeln gratis | mehr Aussaaten – oder bessere Karten je Aussaat |
+| Saat (Alter Baum) | Samenbank: Aussaat −25 % | Anzuchtbeet: erstes Neu würfeln gratis, Pflanzen +8 % 🌰 (seit Phase 11, 3d) | mehr Aussaaten – oder bessere Karten je Aussaat |
 
 **Neue Wirkungen (für den `core-engineer`):**
 
@@ -9670,6 +9733,156 @@ in 12.7) – verworfen.
   Pauschal-Bewertung im Simulator (0,03 gegen 0,01). Vorschlag: im Playtest 5b fragen, ob das
   Anzuchtbeet als Wahl spürbar ist – sonst eine stärkere Wirkung (z. B. „alle Würfe der Aussaat
   gratis“).
+
+**Messung 3d (Phase 11, Lücken schließen)** – die offenen Ziele aus „Messung 3b“ (oben) und 26.8
+„Messung 3c“, ohne Spielstand-Wechsel. Reihenfolge so, dass sich die Wirkungen nicht verdecken:
+erst der erste Zyklus (Gabel Saat), dann die Baumart (Rotbuche), dann das Gedächtnis (Urwald-Gewinn),
+erst danach die Landschaft (sie hängt an allen dreien) und zuletzt die Chronik. Je Schritt eigene
+Läufe mit der echten Logik (Seeds wie im großen Lauf: erster Zyklus 1000 + 7 i, Waldtypen 3000 + k,
+Landschaft 1001 + k), am Ende alles gemeinsam (`npm run balance`, `SIM_LANDSCAPE=1`).
+
+| # | Lücke | vorher | Änderung | nachher | Ziel |
+|---|---|---|---|---|---|
+| 1 | Gabel Saat, Anteil Samenbank (Harmonie, 200 Durchgänge) | 100 % | Anzuchtbeet: dazu **Pflanzen +8 % 🌰** (`NURSERY_SEEDS_PCT`, `groupSeeds` je Gruppe) | **51 %** (500: 51 %; Wachstum 2 %, Zufall 60 %) | 25–75 % |
+| 2 | Rotbuche gegen Eiche bis Urwald, Harmonie (Gedächtnis 200 / erster Zyklus) | +5,0 % / +7,6 % | Pilze **+15 → +20 %** 😊 | **+1,7 % / +2,2 %** | ±5 % |
+| 2 | Buchenhallen gegen Heimatwald (Waldtypen, 160 Durchgänge, Harmonie) | +5,7 % | (Rotbuche) | **+2,0 %** (Wachstum −2,4 %; alle Wälder −1,3 … +3,8 %) | ±5 % |
+| 3 | Urwald-Gewinn Zyklus 1 (Harmonie, 200 Durchgänge, Mittel) | 98,4 (mit Anzuchtbeet 99,5) | Wald-Schwelle **168 → 184**, Obergrenze Wald und Urwald **48 → 40** | **93,7** | < 95 |
+| 4 | Landschaft vollständig (Harmonie / Wachstum, 20 Läufe) | 11,7 / 12,2 h | (Gedächtnis aus 3), Gründungskosten **3 / 5 / 7 / 9 / 11 → 3 / 6 / 7 / 9 / 10** | **13,0 / 12,3 h**, Wachstum 5,4 % schneller | 12,5–14,5 h, Abstand ≤ 10 % |
+| 4 | 3. Wald ÷ 2. Wald, erster Urwald (Harmonie) | 1,1002 (mit 3 allein: 1,22) | (Gründungskosten) | **40 → 40 min (1,00)** | ≤ 1,1 |
+| 5 | erste vollständige Chronik nach „vollständig“ (Harmonie / Wachstum) | +2:23 / +2:20 h | **`CHRONICLE_MEMORY` = 800** (vorher volles Gedächtnis 1000), kleine core-Logik | **+25 / +53 min** („eine Chronik zuerst“ +13 min; Zufall +1:19 h) | ≤ 1 h |
+| 5 | Verweilen für „Erster Schnee“, Mittel je Wald (Harmonie / Wachstum / Zufall) | 3 / 3 / 8 min | „Erster Schnee“ auch, wenn der Zyklus den Urwald **im Winter** erreicht (core) | je Wald ≤ 1 min (alle drei); nur Wälder mit Warten 3 / 3 / 9 min | ≤ 6 min |
+| – | alle sechs Chroniken (Harmonie) | 14,6 h = 1,25 × | – | 14,2 h = 1,09 × (Wachstum 13,9 h, Zufall 40,7 h) | 18–26 h, ≤ 1,6 × (s. u.) |
+
+*1. Gabel Saat.* Der Simulator bewertet Samenbank und Gratis-Wurf nur pauschal (0,03 gegen 0,01 je
+Knoten, 1e) – jede Zahl am Gratis-Wurf verschob nur diese Pauschale, und gewürfelt wurde fast nie (3b:
+0–1 je Durchgang). Das Anzuchtbeet braucht darum eine Wirkung, die `evaluate` sieht und die vom
+Zustand abhängt. Gemessen (Harmonie, 60–100 Durchgänge je Variante, Anteil Samenbank / Urwald):
+
+| Variante Anzuchtbeet (zusätzlich zum Gratis-Wurf) | Samenbank | Urwald | Bemerkung |
+|---|---|---|---|
+| ohne (heute) | 100 % | 2:01:22 h | |
+| Pflanzen +10 / +5 / +3 % 🌿 | 0 / 0 / 1 % | 1:55:57 / 2:00:13 / 2:00:55 h | Bäume tragen ~80 % des 🌿 der Pflanzen, Anteil kaum gestreut – Kippkante bei ~2,3 % |
+| Bäume +8 % 🌿 / Sträucher +10 % 🌿 / Bäume und Sträucher +5 % 🌿 | 0 / 100 / 0 % | | dasselbe, nur für eine Gruppe |
+| +2 / +3 ⚖️ | 0 / 0 % | 2:02:20 / 2:01:46 h | kippt bei H = 50 · ⚖️ (H beim Alter Baum 88–98); Urwald-Gewinn +1,3 / +2,8 |
+| **Pflanzen +8 % 🌰** (gewählt) | **50 %** (+7 %: 80 %) | 2:01:55 h | Anteil der Pflanzen an 🌰 streut (beim Alter Baum 5,8–8,6 % je +10 %) |
+
+Erzwungen (100 Durchgänge, Harmonie): Samenbank 2:01:43 h, Anzuchtbeet 2:01:29 h bis zum Urwald –
+beide Seiten gleich stark, die Wahl ist Geschmack (mehr Aussaaten oder kräftigere Pflanzen), wie
+die Frage der Gabel. 200 Durchgänge mit allen Änderungen: Samenbank **51 %**, Hain 54:04 min,
+Urwald 2:01:25 h (vorher 54:04 / 2:01:22), Gratis-Würfe 0,47 je Durchgang.
+
+*2. Rotbuche (17.4 bis zum Urwald, echte Logik, Heimatwald, Leitbaum gegen Eiche):*
+
+| Baumart (Heimatwald) | Harmonie, Gedächtnis 200: Urwald / Hain | Wachstum, Gedächtnis 200 | Harmonie, erster Zyklus: Urwald / Hain | Wachstum, erster Zyklus |
+|---|---|---|---|---|
+| Eiche | 38:16 / 17:56 min | 33:38 min | 2:01:00 h / 54:30 min | 1:47:17 h |
+| Rotbuche vorher (Pilze +15 %) | +5,0 % / +3,9 % | −1,4 % | +7,6 % / +5,4 % | – |
+| Rotbuche, Licht −1 statt −2 | +4,5 % / +4,4 % | – | – | – |
+| **Rotbuche (Pilze +20 %)** | **+1,7 % / +0,9 %** | **−1,7 %** | **+2,2 % / +1,3 %** | **−1,6 %** |
+| Waldkiefer | +4,1 % / +1,4 % | +0,3 % | +1,2 % / +0,2 % | −0,6 % |
+| Weißtanne | **+5,5 %** / +3,4 % | +1,2 % | +3,8 % / +2,0 % | +0,3 % |
+| Schwarzerle | +4,5 % / +4,4 % | +1,0 % | +2,5 % / +3,5 % | +2,1 % |
+
+(160 / 100 Durchgänge, Seeds 3000 + k, `siteRun` mit allen Wäldern gegründet, also allen Gaben.)
+Großer Lauf bis zum Hain (`tests/seasons-balance.test.ts`, 300 Durchgänge): Buche +0,6 % (Harmonie),
+−2,7 % (Wachstum); Kiefer +0,8 / −3,5 %.
+
+Die Buche verlor erst mit Ausbau und Gedächtnis den Anschluss: Ihr −2 ☀️ ab Alter Baum kostet Blumen
+und Saum, und die Pilze (+15 %) holten das bis zum Hain (+1,1 %, 3a), nicht mehr bis zum Urwald. Licht
+−2 → −1 brachte nur 0,5 Punkte (+4,5 %); Pilze +20 % holt die Buche auf +1,7 % (Gedächtnis 200) bzw.
++2,2 % (erster Zyklus) – der Wachstums-Spieler bleibt bei −1,7 %. Der Verzicht (−2 ☀️) bleibt, er ist
+der Charakter des dichten Dachs.
+
+*3. Urwald-Gewinn.* Neu ausgewertet (Wegpunkt und H_max an jedem Wegpunkt ab Hain, 200 Durchgänge;
+Sperrklinke mit beliebigen Regeln nachgerechnet, da der erste Zyklus von den Regeln nicht abhängt):
+Der beste Wert des Harmonie-Spielers liegt in ~30 % der Durchgänge an den Wegpunkten 20–23, in 17 %
+erst am Urwald. Zwischen Hain und Wald stieg die Schwelle +7 je Wegpunkt, seine Harmonie +6–8 (121 →
+166) – der Bonus blieb dort fast voll (45–48). Die Urwald-Schwelle darf nicht steigen (Ziel e: ~10
+unter der typischen Harmonie 206; 3b: 196 → 210 brachte −1 bis −3), also: Wald-Schwelle 168 → **184**
+(+9 je Wegpunkt bis zum Wald, danach +1,5) und die Obergrenzen von Wald und Urwald **48 → 40**. Die
+Obergrenzen sinken – ein späterer Wegpunkt bringt also weiter nie mehr (Prüfung H 0–400 in
+`tests/cycle.test.ts`); der Hain bleibt (5 / 112 / 45). Vorhersage aus den Pfaden 93,0–93,8,
+nachgerechnet mit der echten Logik **93,7**. Gewählt aus einem Raster (Wald-Schwelle 168–196,
+Obergrenzen 30–48): kleinste Änderung mit sicherem Abstand; 184 / 48 / 36 (93,6–95,3) oder 176 / 40 /
+36 (93,4–93,9) lagen knapper. Neustart im Hain bleibt gleich (Zyklus 2, Vorsprung am Hain), Wald −5,3
+Punkte (Harmonie).
+
+Großer Lauf (`npm run balance`, 500 / Zyklen 200 Durchgänge), Zyklen-Kennzahlen gegen 3b:
+
+| Kennzahl (Harmonie / Wachstum / Zufall) | 3b | 3d | Ziel |
+|---|---|---|---|
+| Gewinn Zyklus 1: Hain / Wald / Urwald (Harmonie) | 65,9 / 87,5 / 98,4 | **66,0 / 83,9 / 93,7** | Urwald < 95, ≤ 1,5 × Hain (1,42) |
+| Gewinn Zyklus 1 Urwald, Wachstum / Zufall | 69,3 / 49,0 | 65,1 / 48,9 | Hain < Wald < Urwald ✓ |
+| Zyklus 2 schneller bis Hain | 43,3 / 28,2 / 22,7 % | 43,4 / 28,4 / 23,0 % | 30–45 / 18–37 / ≥ 20 % |
+| Vorsprung über drei Zyklen Wald / Urwald | 86,9 / 71,3 | 85,3 / 73,9 | > 30 |
+| Wachstum ÷ Harmonie Zyklus 2 / 3, Wald · Urwald | 1,197 / 1,270 · 1,189 / 1,188 | 1,169 / 1,269 · 1,188 / 1,228 | ≥ 0,95 |
+| erster Zyklus Hain / Urwald (500) | 53:57 / 48:44 min / 1:17 h · 2:01 / 1:48 / 3:03 h | 53:56 / 48:59 min / 1:17 h · 2:01 / 1:49 / 3:02 h | 50–58 min, 2:00–2:13 h |
+| Gabel Saat Samenbank (Harmonie / Wachstum / Zufall, 500) | 100 / 100 / 50 % | **51** / 2 / 60 % | 25–75 % (Harmonie) |
+
+Alle Prüfungen grün (79), die Grenze des Urwald-Gewinns im großen Lauf steht wieder auf < 95
+(`tests/balance-cycles.test.ts`, im Check < 110).
+
+*4. Landschaft – Ausnahme bei den Regeln der Landschaft.* 27.11 und 26.8 sperren die Regeln der
+Landschaft (24.4–24.6), damit die erste Ebene nicht über die zweite eingestellt wird. Hier ist es
+umgekehrt: Die Landschaft war zu schnell, weil der Ausbau (3a) die Zyklen verkürzt hat, und alle
+Stellschrauben des Zyklus stehen im Ziel (Urwald 2:00–2:13 h). Gesenkt hat sie schon Schritt 3 (der
+Harmonie-Spieler bekommt je Urwald-Zyklus ~6 Gedächtnis weniger): vollständig 11,7 → 12,4 h – aber
+der 3. Wald brauchte nun 48 statt 40 min (1,22 ×): Er ist fast immer der Erlenbruch, vom Auwald aus
+über den Ring gegründet, und beginnt nur mit dem Zufluss des Auwalds (wirksam ~123 gegen ~133 beim
+Auwald). Geändert sind darum nur die **Preise** (`FOUNDING_COSTS`), nicht die Regeln: der 3. Wald
+kostet 6 statt 5 🪶 (der Auwald wächst einen Zyklus länger, Zufluss ~165), der 6. Wald 10 statt 11 –
+Summe 35 und Luft 9 🪶 (24.4) bleiben gleich. Varianten (Harmonie, 20 Läufe):
+
+| `FOUNDING_COSTS` | vollständig | alle voll | erster Urwald 2. / 3. Wald | 3. ÷ 2. |
+|---|---|---|---|---|
+| 3 / 5 / 7 / 9 / 11 (mit Schritt 1–3) | 12,4 h | 15,3 h | 39,5 / 48,1 min | 1,22 |
+| 3 / 6 / 7 / 9 / 11 | 13,0 h | 15,4 h | 39,5 / 39,6 min | 1,00 |
+| 3 / 6 / 8 / 10 / 12 (+10 %, Vorschlag 3b) | 12,5 h | 14,8 h | 39,5 / 39,6 min | 1,00 |
+| **3 / 6 / 7 / 9 / 10 (gewählt)** | **13,0 h** | **15,3 h** | 39,5 / 39,6 min | **1,00** |
+
+„+10 %“ wäre nicht langsamer: Später gegründete Wälder starten mit mehr Zufluss und holen die Zeit
+wieder auf. Wachstum (3 / 6 / 7 / 9 / 11): vollständig 12,7 h, 3. ÷ 2. 0,89.
+
+Landschaft (`SIM_LANDSCAPE=1`, 20 / Zufall 10 Läufe; Tabellen in 24.10 „Stand Phase 11, 3d“):
+vollständig Harmonie / Wachstum / Zufall **13,0 / 12,3 / 38,3 h** (3b: 11,7 / 12,2 / 37,3 h),
+Wachstum 5,4 % schneller (Ziel ≤ 10 %); erster Urwald je Wald (Harmonie) 2:00:52 h, **40, 40**, 29, 23,
+17 min. Der Wachstums-Spieler liegt mit 12,3 h knapp unter 12,5 h – gemessen wird die Spanne am
+Harmonie-Spieler (24.10 b, 27.11: „±0,7 h, Abstand ≤ 10 %“), für den Wachstums-Spieler gilt der Abstand.
+
+*5. Chronik.* (b) Mit dem vollen Gedächtnis (1000) als Kapitel war „Ein Wald erinnert sich“ in jedem
+Lauf das letzte Kapitel; die Politik „kleinstes Gedächtnis zuerst“ füllt alle Wälder fast gleichzeitig.
+`CHRONICLE_MEMORY` = 800 (Harmonie, 20 Läufe): erste Chronik +0,4 h nach „vollständig“ (mit 1000: +2,0 h
+nach den Schritten 1–4), alle sechs 14,2 h (1,09 ×). Hähersaat und Ernte bleiben bei 1000 (24.4); das
+Kapitel ist ein Meilenstein auf dem Weg, kein zweites „voll“. Kleine core-Logik: `startNewCycle`
+schreibt ab `CHRONICLE_MEMORY`, `loadChronicles` leitet das Kapitel mit derselben Grenze ab (ältere
+Stände bekommen es ohne Datum, wenn ihr Wald ≥ 800 hat – keine neue Version, das Kapitel ist
+abgeleitet). (f) „Erster Schnee“ schreibt `reachWaypoint` auch, wenn der Zyklus den Urwald im Winter
+erreicht (der Schnee liegt schon), online = offline (Test in `tests/chronicle.test.ts`).
+
+(c) **Alle sechs Chroniken 18–26 h absolut ist mit (b) nicht vereinbar** – darum geändert auf
+„≤ 1,6 × vollständig“ allein: Die absolute Spanne stammt aus der Zeit, als die Landschaft ~14 h
+dauerte (1,3–1,85 ×). Länger würde es nur mit einem späten Kapitel – genau die Wand, die (d) und (b)
+verbieten. Die Länge kommt aus der Landschaft (jetzt 13,0 h, im Ziel); die Chronik ist eine
+Ziel-Liste darüber, kein Streckmittel. **Frage an den Product Owner:** Soll das Endspiel nach
+„vollständig“ länger tragen (dann eher eine neue Ebene oder Aufträge, 28.11, als ein höheres Kapitel)?
+
+*Restlücken nach 3d:*
+
+- **Weißtanne bis zum Urwald +5,5 %** (Heimatwald, Gedächtnis 200, Harmonie; erster Zyklus +3,8 %) –
+  neu sichtbar durch die Messung der Baumarten; ihr Wald (Bergmischwald) liegt mit seinen
+  Eigenheiten bei +2,4 %, die Waldtypen halten ±5 %. Vorschlag (eigene kleine Messung): Vögel +10 →
+  +15 % 😊, wie bei der Rotbuche die Gewinn-Seite, nicht der Verzicht.
+- **Alle sechs Chroniken absolut** (14,2 h statt 18–26 h): Ziel (c) auf „≤ 1,6 ×“ umgestellt, Frage an
+  den Product Owner (oben).
+- **Wachstum vollständig 12,3 h** (unter 12,5 h): Die Spanne gilt für den Harmonie-Spieler (24.10 b);
+  der Abstand (5,4 %) hält.
+- **Zufall:** erste Chronik +1:19 h, Voller Einklang 4–14 Zyklen je Wald (er erreicht H 230 erst mit
+  viel Gedächtnis), Verweilen in Wäldern mit Warten 9 min (er kommt oft kurz nach Winterende an) – wie
+  in 3c nur im Protokoll; Voller Einklang ist nie sein letztes Kapitel.
+- **Gabel Saat beim Wachstums-Spieler 98 % Anzuchtbeet** (er wertet ⚖️ nicht, 🌰 aber schon) – das Ziel
+  gilt dem Harmonie-Spieler; der Zufall wählt 60 / 40.
+- Aus 3b unverändert offen (nicht Teil von 3d): Abstand der Spielweisen ab Zyklus 2, endlose Ränge bei
+  bewertenden Spielern, 8 h offline in Zyklus 3.
 
 ### 28.11 Später, optional: Stufen-Tore und Aufträge der Tiere (Skizze, eigene Welle)
 

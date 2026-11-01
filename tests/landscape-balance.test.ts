@@ -160,7 +160,8 @@ describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', { timeou
       const complete = medianOrNull(r.runs.map((x) => x.completeAt))!;
       const all = medianOrNull(r.runs.map((x) => x.allChroniclesAt));
       expect(all, r.label).not.toBeNull();
-      // (c) alle sechs Chroniken ≤ 1,6 × „Landschaft vollständig“; Zufall ≤ 60 h.
+      // (c) alle sechs Chroniken ≤ 1,6 × „Landschaft vollständig“; Zufall ≤ 60 h. Die absolute Spanne
+      // 18–26 h (26.8) gilt seit Phase 11, 3d nicht mehr – sie widerspricht (b) (28.10 „Messung 3d“).
       expect(all!, r.label).toBeLessThanOrEqual(1.6 * complete);
       if (r.label === 'Zufall') expect(all!).toBeLessThanOrEqual(60 * 3600);
       // (e) Voller Einklang in ≥ 90 % der Wälder (am Ende; bei „Landschaft vollständig“ im Protokoll).
@@ -169,6 +170,11 @@ describe.skipIf(!LARGE)('Waldlandschaft – Simulation (großer Lauf)', { timeou
       // Zyklen je Wald) und kommt mit ~10-min-Zyklen meist kurz nach Winteranfang in den Urwald
       // (Verweilen ~8 min); beides kostet ihn keine Zeit bis „alle Chroniken“ (26.8 „Messung 3c“).
       if (r.label.startsWith('Zufall')) continue;
+      // (b) erste vollständige Chronik spätestens 1 h nach „Landschaft vollständig“ (seit Phase 11, 3d
+      // mit CHRONICLE_MEMORY 800: Harmonie +25 min, Wachstum +53 min; mit 1000 +2,0–2,4 h).
+      const first = medianOrNull(r.runs.map((x) => (x.firstChronicleAt === null || x.completeAt === null ? null : x.firstChronicleAt - x.completeAt)));
+      expect(first, `${r.label} erste Chronik`).not.toBeNull();
+      expect(first!, `${r.label} erste Chronik`).toBeLessThanOrEqual(3600);
       // (d) keine Wand: Kennart ≤ 2 alte Zyklen, Ereignis und Voller Einklang ≤ 3 Zyklen (Median je Wald).
       for (const s of LANDSCAPE_SITES) {
         const m = (ch: 'kennart' | 'signature' | 'harmony') => medianOrNull(r.runs.map((x) => chapterCycles(x, s.id, ch)));

@@ -163,8 +163,8 @@ describe('Rechenregeln (24.4, 24.6)', () => {
       corridors: ['home-floodplain', 'floodplain-carr', 'home-carr'],
       free: ['home-floodplain', 'floodplain-carr'],
     });
-    // 2 + 2 (Heimatwald) + 10 + 2 (Auwald) + 0 (Bruch); Gründungen 3 + 5, gekauft: Wiesengraben 2.
-    expect(jaySeeds(state)).toEqual({ earned: 16, spent: 10, available: 6 });
+    // 2 + 2 (Heimatwald) + 10 + 2 (Auwald) + 0 (Bruch); Gründungen 3 + 6 (seit Phase 11, 3d), gekauft: Wiesengraben 2.
+    expect(jaySeeds(state)).toEqual({ earned: 16, spent: 11, available: 5 });
   });
 
   it('Hähersaat: der aktive Wald zählt als Urwald, sobald die Stufe erreicht ist; höchstens MAX_JAY_SEEDS', () => {
@@ -237,7 +237,7 @@ describe('Gründen, Wechseln, Korridore (24.5, 24.6)', () => {
     expect(previewNewCycle(grove).landscape.sites.find((s) => s.id === 'floodplain')!.blocker).toBe('needs-ancient-forest');
     const early = withLandscape(4, { own: 400 });
     expect(previewNewCycle(early).landscape.sites.find((s) => s.id === 'floodplain')!.blocker).toBe('cycle-locked');
-    const ring = withLandscape(ANCIENT_STAGE, { active: 'floodplain', own: 0, sites: [site('home', 400, true)], corridors: ['home-floodplain'], free: ['home-floodplain'] });
+    const ring = withLandscape(ANCIENT_STAGE, { active: 'floodplain', own: 0, sites: [site('home', 500, true)], corridors: ['home-floodplain'], free: ['home-floodplain'] });
     const p = previewNewCycle(ring).landscape;
     expect(p.sites.find((s) => s.id === 'beechwood')!.blocker).toBe('not-adjacent');
     expect(p.sites.find((s) => s.id === 'carr')).toMatchObject({ blocker: null, cost: FOUNDING_COSTS[1], freeCorridor: 'floodplain-carr' });
@@ -359,12 +359,12 @@ describe('Gründen, Wechseln, Korridore (24.5, 24.6)', () => {
   it('Korridor bauen: nur zwischen gegründeten Wäldern, Kosten aus der Hähersaat, wirkt sofort', () => {
     const state = withLandscape(3, {
       own: 400,
-      sites: [site('home', 0, true), site('floodplain', 200), site('carr', 0)],
+      sites: [site('home', 0, true), site('floodplain', 300), site('carr', 0)],
       corridors: ['home-floodplain', 'home-carr'],
       free: ['home-floodplain', 'home-carr'],
       active: 'home',
     });
-    // 4 + 2 + 2 = 8 verdient, 3 + 5 = 8 ausgegeben.
+    // 4 + 2 + 3 = 9 verdient, 3 + 6 = 9 ausgegeben.
     expect(jaySeeds(state).available).toBe(0);
     expect(corridorBlocker(state, 'floodplain-carr')).toBe('not-enough-jay-seeds');
     expect(corridorBlocker(state, 'home-beechwood')).toBe('site-locked');
@@ -374,7 +374,7 @@ describe('Gründen, Wechseln, Korridore (24.5, 24.6)', () => {
     expect(jaySeeds(state).available).toBe(3);
     const before = effectiveMemoryOf(state, 'carr');
     expect(buildCorridor(state, 'floodplain-carr')).toEqual({ ok: true });
-    expect(effectiveMemoryOf(state, 'carr')).toBe(before + 100);
+    expect(effectiveMemoryOf(state, 'carr')).toBe(before + 150);
     expect(jaySeeds(state).available).toBe(0);
     expect(buildCorridor(state, 'floodplain-carr')).toEqual({ ok: false, error: 'corridor-built' });
     expect(landscapeCorridors(state).map((c) => c.id)).toEqual(CORRIDORS.map((c) => c.id));
@@ -424,7 +424,7 @@ describe('Laden v14 (24.8)', () => {
   function landscapeState(): GameState {
     const state = withLandscape(4, {
       active: 'floodplain',
-      own: 520, // bezahlt alles: 4 + 2 (Heimatwald) + 5 (Auwald) ≥ 3 + 5 + 2
+      own: 520, // bezahlt alles: 4 + 2 (Heimatwald) + 5 (Auwald) ≥ 3 + 6 + 2
       sites: [site('home', 400, true, { regulars: ['earthworm', 'robin'], fauna: ['earthworm', 'robin', 'bee'] }), site('carr', 50)],
       corridors: ['home-floodplain', 'floodplain-carr', 'home-carr'],
       free: ['home-floodplain', 'floodplain-carr'],
@@ -545,7 +545,7 @@ describe('Laden v14 (24.8)', () => {
     const state = landscapeState();
     const loaded = loadGame(
       raw(state, (d) => {
-        d.meta.forestMemory = 600; // bezahlt beide Gründungen: 6 + 2 (Urwald im Heimatwald) = 8
+        d.meta.forestMemory = 700; // bezahlt beide Gründungen: 7 + 2 (Urwald im Heimatwald) = 9
         d.meta.landscape.sites[0].memory = 30.9; // ohne Korridor: 1 Platz
         d.meta.landscape.sites[0].regulars = ['earthworm', 'robin', 'bee', 'toad', 'frog'];
         d.meta.landscape.corridors = [];

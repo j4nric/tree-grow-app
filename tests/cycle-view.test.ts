@@ -39,24 +39,24 @@ describe('View-Model „Neuer Zyklus“', () => {
 
   it('Regel nennt Teiler und erste Harmonie mit Bonus am erreichten Wegpunkt', () => {
     const wald = stateAt(6, ['earthworm']);
-    // Wegpunkt 28: Teiler 6, Schwelle 168 → ⌊140 / 6⌋ + 2 Arten = 23 + 2 = 25 (ohne gemerkten Wert).
+    // Wegpunkt 28: Teiler 6, Schwelle 184 (seit Phase 11, 3d) → ⌊140 / 6⌋ + 2 Arten = 23 + 2 = 25 (ohne gemerkten Wert).
     wald.cycle.maxHarmony = 140;
     wald.cycle.bestHarmonyMemory = 0;
     wald.cycle.newSpecies = ['earthworm', 'robin'];
     const view = toCyclePanelView(wald);
-    expect(view.memoryRule).toBe(MEMORY_RULE.replace('je 5 Punkte', 'je 6 Punkte').replace('ab 113', 'ab 169').replace('bis 127', 'bis 184'));
+    expect(view.memoryRule).toBe(MEMORY_RULE.replace('je 5 Punkte', 'je 6 Punkte').replace('ab 113', 'ab 185').replace('bis 127', 'bis 198'));
     expect(view.gain).toBe('+25 Waldgedächtnis (+25 %)');
-    // Wegpunkt 23: Teiler 5,375 (angezeigt 5,4), Schwelle 133 → „ab 134“, voll ab 149.
+    // Wegpunkt 23: Teiler 5,375 (angezeigt 5,4), Schwelle 139 → „ab 140“, voll ab 154.
     wald.waypoint = 23;
     wald.stage = 5;
-    expect(toCyclePanelView(wald).memoryRule).toBe(MEMORY_RULE.replace('je 5 Punkte', 'je 5,4 Punkte').replace('ab 113', 'ab 134').replace('bis 127', 'bis 149'));
+    expect(toCyclePanelView(wald).memoryRule).toBe(MEMORY_RULE.replace('je 5 Punkte', 'je 5,4 Punkte').replace('ab 113', 'ab 140').replace('bis 127', 'bis 154'));
     const urwald = stateAt(7, ['earthworm']);
     urwald.cycle.maxHarmony = 140;
     urwald.cycle.bestHarmonyMemory = 0;
     urwald.cycle.newSpecies = ['earthworm', 'robin'];
     // Oben angekommen: kein Hinweis mehr aufs Steigen.
     expect(toCyclePanelView(urwald).memoryRule).toBe(
-      'Waldgedächtnis: 1 Punkt je 7 Punkte höchster Harmonie und je neue Art. Höchste Harmonie ab 197 zählt extra: etwa +3 je Punkt (bis 212).',
+      'Waldgedächtnis: 1 Punkt je 7 Punkte höchster Harmonie und je neue Art. Höchste Harmonie ab 197 zählt extra: etwa +3 je Punkt (bis 210).',
     );
     expect(toCyclePanelView(urwald).gain).toBe('+22 Waldgedächtnis (+22 %)'); // ⌊140 / 7⌋ + 2
   });
@@ -65,11 +65,11 @@ describe('View-Model „Neuer Zyklus“', () => {
     let w = 0;
     const base = (h: number) => Math.floor(h / memoryHarmonyBonus(w).divisor);
     const shown = (wp: number) => Number(/ab (\d+) zählt extra/.exec(memoryRuleText(memoryHarmonyBonus(wp)))![1]);
-    // Wegpunkt 23 (Teiler 5,375, Schwelle 133): ab 134, dort +3 über dem Sockel.
+    // Wegpunkt 23 (Teiler 5,375, Schwelle 139): ab 140, dort +3 über dem Sockel.
     w = 23;
-    expect(shown(23)).toBe(134);
-    expect(cycleMemoryGain(134, 0, 0, 23)).toBe(base(134) + 3);
-    expect(cycleMemoryGain(133, 0, 0, 23)).toBe(base(133));
+    expect(shown(23)).toBe(140);
+    expect(cycleMemoryGain(140, 0, 0, 23)).toBe(base(140) + 3);
+    expect(cycleMemoryGain(139, 0, 0, 23)).toBe(base(139));
     for (w = 20; w <= 36; w++) {
       const h = shown(w);
       expect(cycleMemoryGain(h, 0, 0, w), `Wegpunkt ${w}, H ${h}`).toBeGreaterThan(base(h));

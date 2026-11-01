@@ -100,7 +100,7 @@ export const MAIN_TREES: readonly MainTree[] = [
   {
     id: 'beech', name: 'Rotbuche', icon: '🍂', fruit: 'Buchecker',
     text: 'Unter ihrem dichten Dach ist es kühl und feucht – ein Paradies für Pilze und Moose.',
-    summary: 'Schattig · Pilze +15 % 😊 · ab Alter Baum: Bucheckern, +1 Platz Wurzelraum, −2 ☀️',
+    summary: 'Schattig · Pilze +20 % 😊 · ab Alter Baum: Bucheckern, +1 Platz Wurzelraum, −2 ☀️',
     unlockPlant: 'beech',
     unlockHint: 'Lass einmal eine Rotbuche im Pflanzring wachsen.',
     tags: ['laub', 'wurzeln'],
@@ -110,7 +110,10 @@ export const MAIN_TREES: readonly MainTree[] = [
       // Wurzelwerk trägt erst der große Baum. Ab Keimling war die Buche für Wachstums-
       // Spieler 7 % schneller als die Eiche (Schritt 2.10, DESIGN_V2.md 15.4).
       { minStage: 4, effect: { kind: 'slot', niche: 'roots', amount: 1 } },
-      { minStage: 0, effect: { kind: 'happiness', genus: 'fungi', points: 15 } },
+      // Pilze +20 statt +15 seit Phase 11, 3d: Mit Ausbau und Gedächtnis war die Rotbuche bis zum
+      // Urwald 5–8 % langsamer als die Eiche (Harmonie; Licht −1 statt −2 brachte nur 0,5 Punkte),
+      // mit +20 sind es +1,7 % (Gedächtnis 200) bzw. +2,2 % (erster Zyklus) – DESIGN_V2.md 17.4.
+      { minStage: 0, effect: { kind: 'happiness', genus: 'fungi', points: 20 } },
       // Die Krone schließt sich erst, wenn der Baum groß ist – vorher kein Verzicht.
       { minStage: 4, effect: { kind: 'light', amount: -2 } },
     ],

@@ -232,9 +232,9 @@ test('Korridor bauen: Altwasser zwischen Auwald und Erlenbruch', async ({ page, 
   );
   await gotoTab(page, 'landschaft');
   const map = page.locator('[data-ref="landscape"]');
-  // Verdient 6 + 2 + 3 + 2 + 2 = 15, ausgegeben 3 + 5 = 8.
+  // Verdient 6 + 2 + 3 + 2 + 2 = 15, ausgegeben 3 + 6 = 9 (Gründungskosten seit Phase 11, 3d).
   const meta = tabPanel(page, 'landschaft').locator('.page-meta');
-  await expect(meta).toHaveText('🪶 7 Hähersaat');
+  await expect(meta).toHaveText('🪶 6 Hähersaat');
   const row = map.locator('li[data-corridor="floodplain-carr"]');
   await expect(row).toBeVisible();
   const build = row.getByRole('button', { name: 'Altwasser bauen, 3 Hähersaat' });
@@ -249,12 +249,12 @@ test('Korridor bauen: Altwasser zwischen Auwald und Erlenbruch', async ({ page, 
   await waitForConfirm(page);
   await armed.click();
   await expect(stamps(page)).toContainText('Altwasser gebaut');
-  await expect(meta).toHaveText('🪶 4 Hähersaat');
+  await expect(meta).toHaveText('🪶 3 Hähersaat');
   await expect(row).toContainText('verbunden');
   // Tagebuch der Wälder: Hähersaat-Tabelle zieht mit.
   const table = map.locator('[data-ref="landscape-jay-seeds"]');
-  await expect(table.locator('[data-row="spent"]')).toContainText('11 🪶');
-  await expect(table.locator('[data-row="available"]')).toContainText('4 🪶');
+  await expect(table.locator('[data-row="spent"]')).toContainText('12 🪶');
+  await expect(table.locator('[data-row="available"]')).toContainText('3 🪶');
   const after = await savedState(page);
   expect(after.meta.landscape.corridors).toContain('floodplain-carr');
   expect(after.meta.landscape.freeCorridors).not.toContain('floodplain-carr');

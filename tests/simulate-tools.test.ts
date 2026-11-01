@@ -142,8 +142,10 @@ describe('Echte Durchgänge: Käufe, Gabeln, Aussaat je Strategie', () => {
     state.stage = 4; // Alter Baum: Samenbank und Anzuchtbeet sind erforschbar (bis auf den Vorrat)
     state.cycle.research = ['seed-sorting'];
     const nursery = withFork(HARMONY, 'seed', 1);
+    const bank = withFork(HARMONY, 'seed', 0);
     expect(nursery.id).toBe('harmony-seed-b');
-    expect(forkChoice(state, HARMONY, RESEARCH_FORKS[seedFork]!, seedFork)).toBe(0);
+    // Frei wählt der Harmonie-Spieler je Zustand (seit Phase 11, 3d etwa halb und halb), fest gilt die Seite.
+    expect(forkChoice(state, bank, RESEARCH_FORKS[seedFork]!, seedFork)).toBe(0);
     expect(forkChoice(state, nursery, RESEARCH_FORKS[seedFork]!, seedFork)).toBe(1);
     // Ist die andere Seite schon erforscht, gilt sie – auch für die feste Seite.
     state.cycle.research = ['seed-sorting', 'seed-bank'];
