@@ -8022,6 +8022,10 @@ Chronik-Wert in den Daten (`chronicleEvent`) und berührt weder Tempo noch Käfe
   Seltenheit 2 → 1 nicht gedreht – Harmonie/Wachstum halten das Ziel, die Kennart ist beim Zufall
   nie das letzte Kapitel, und häufigere Kennarten änderten die Ökonomie (Ziel a).
 - **Biber (26.3, Frage an 2c):** nicht gemessen, nur Bild – bleibt beim Playtest.
+- **Großer Landschafts-Lauf** (`SIM_LANDSCAPE=1`, alle Tests, nach 3c): Chronik, Wildwechsel
+  (on/off/none), „Heute“, Mauer-Platz und Wetter-Häufigkeiten grün; „Spielweisen“ und „Waldtypen“
+  verfehlen wie in 3b (gleiche Zahlen) 3. Wald 1,1002 × des 2. bzw. Buchenhallen +5,7 % – die
+  Lücken aus 28.10, nicht Teil von 3c. `npm run balance` grün.
 
 ### 26.9 Album-Folgeaufgaben aus Phase 8 (eine kleine `ui-dev`-Aufgabe)
 
