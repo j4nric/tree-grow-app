@@ -120,7 +120,7 @@ export function createLandscapeMap(onSite: (id: SiteId) => void): LandscapeMap {
       events.title = `Hier öfter: ${site.events}`;
       button.append(events, srOnly(`, hier öfter: ${site.events}`));
     }
-    // Ereignis des Waldes, das nicht öfter kommt (Kapitel der Chronik): Zeichen an der unteren linken
+    // Ereignis des Waldes, das nicht öfter kommt (Kapitel der Chronik): „📜“ an der unteren linken
     // Ecke – getrennt von „Hier öfter“, gegenüber dem Wachssiegel.
     if (site.chapterEvent && site.chapterEventIcon) {
       const chapter = el('span', 'lsc-site-chapter', site.chapterEventIcon);

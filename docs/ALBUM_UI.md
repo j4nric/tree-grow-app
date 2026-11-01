@@ -599,7 +599,8 @@ Ereignisse mit Faktor > 1 in `eventFactors` (Karte: Zeichen oben links `.lsc-sit
 und vorgelesen „hier öfter: …“; U:Standort: Zeile `site-events`). Steht das Ereignis des Waldes
 (`chronicleEvent`) darunter, trägt es dort „(📜 Kapitel „…“)“. Sonst – Heimatwald (Mastjahr),
 Bergmischwald (Schneebruch), Kiefernheide (Hitzewelle) – steht es getrennt: auf der Karte als
-Zeichen unten links `.lsc-site-chapter` (gegenüber dem Wachssiegel, Rand in `--wax`, Titel
+Zeichen „📜“ unten links `.lsc-site-chapter` (einheitlich, damit es nicht mit dem Wetter-Zeichen
+verwechselt wird – etwa 🌡️ in der Heide; gegenüber dem Wachssiegel, Rand in `--wax`, Titel
 „📜 Kapitel: 🌡️ Hitzewelle („Hitzesommer auf dem Sand“)“, vorgelesen „Kapitel der Chronik: …“),
 auf U:Standort als eigene Zeile `site-chapter-event` mit demselben Text. View-Model:
 `chapterEvent`/`chapterEventIcon` aus `siteChapterEventText`/`siteChapterEventHint`.

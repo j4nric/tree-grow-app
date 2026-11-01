@@ -81,9 +81,10 @@ test('Freischaltung beim Laden, dann aus dem Urwald den Auwald gründen', async 
   await expect(map.locator('[data-site="heath"] .lsc-site-events')).toHaveAttribute('title', 'Hier öfter: 🪲 Käferjahr');
   await expect(map.locator('[data-site="home"] .lsc-site-events')).toHaveCount(0);
   await expect(map.locator('[data-site="mountain"] .lsc-site-events')).toHaveCount(0);
-  // Ereignis des Waldes ohne Faktor: eigenes Zeichen (untere Ecke), nicht unter „Hier öfter“.
+  // Ereignis des Waldes ohne Faktor: eigenes Zeichen 📜 (untere Ecke), nicht unter „Hier öfter“;
+  // das Ereignis mit Symbol steht im Titel und im vorgelesenen Namen.
   const heathChapter = map.locator('[data-site="heath"] .lsc-site-chapter');
-  await expect(heathChapter).toHaveText('🌡️');
+  await expect(heathChapter).toHaveText('📜');
   await expect(heathChapter).toHaveAttribute('title', '📜 Kapitel: 🌡️ Hitzewelle („Hitzesommer auf dem Sand“)');
   await expect(map.locator('[data-site="heath"]')).toHaveAccessibleName(/hier öfter: 🪲 Käferjahr\s*, Kapitel der Chronik: 🌡️ Hitzewelle \(„Hitzesommer auf dem Sand“\)/);
   await expect(map.locator('[data-site="home"] .lsc-site-chapter')).toHaveAttribute('title', '📜 Kapitel: 🌰 Mastjahr („Eichelmast – der Häher legt Vorräte an“)');

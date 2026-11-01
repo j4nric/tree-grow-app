@@ -189,7 +189,7 @@ describe('Karte der Landschaft: Standorte', () => {
     // Im View-Model: Text und Zeichen für Karte und U:Standort.
     const map = mapOf(withLandscape(ANCIENT_STAGE))!;
     const heath = map.sites.find((s) => s.id === 'heath')!;
-    expect([heath.events, heath.chapterEvent, heath.chapterEventIcon]).toEqual(['🪲 Käferjahr', '🌡️ Hitzewelle („Hitzesommer auf dem Sand“)', '🌡️']);
+    expect([heath.events, heath.chapterEvent, heath.chapterEventIcon]).toEqual(['🪲 Käferjahr', '🌡️ Hitzewelle („Hitzesommer auf dem Sand“)', '📜']);
     const flood = map.sites.find((s) => s.id === 'floodplain')!;
     expect([flood.chapterEvent, flood.chapterEventIcon]).toEqual([null, null]);
   });

@@ -95,7 +95,7 @@ export interface LandscapeSiteView {
    * die Oberfläche setzt „📜 Kapitel: “ davor. Sonst null.
    */
   chapterEvent: string | null;
-  /** Nur das Zeichen dieses Ereignisses (für die Karte, z. B. „🌡️“) – null wie `chapterEvent`. */
+  /** Zeichen für die Karte: immer „📜“ (das Ereignis nennt der Titel) – null wie `chapterEvent`. */
   chapterEventIcon: string | null;
   /**
    * Erklärung zu Merkmalen, die der Wald immer bietet (Eigenheit „Feuchte“), z. B. „💧 Feuchte: …“;
@@ -585,12 +585,13 @@ export function siteChapterEventText(site: EventSite | undefined): string | null
 
 function siteEventFields(site: ForestSite | undefined): Pick<LandscapeSiteView, 'events' | 'eventIcons' | 'chapterEvent' | 'chapterEventIcon'> {
   const hints = siteEventHints(site);
-  const chapter = siteChapterEventHint(site);
+  const chapter = siteChapterEventHint(site) !== null;
   return {
     events: hints.length > 0 ? siteEventText(site) : null,
     eventIcons: hints.length > 0 ? hints.map((h) => h.icon).join('') : null,
     chapterEvent: siteChapterEventText(site),
-    chapterEventIcon: chapter?.icon ?? null,
+    // Einheitlich 📜 statt des Ereignis-Symbols: nicht mit dem Wetter-Zeichen zu verwechseln (Heide: 🌡️).
+    chapterEventIcon: chapter ? '📜' : null,
   };
 }
 
