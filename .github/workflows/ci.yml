@@ -103,7 +103,9 @@ jobs:
         run: npm ci --prefix server --no-audit --no-fund
       # Ein Cache für Chromium lohnt nicht: Die System-Bibliotheken (apt) bräuchten trotzdem
       # `install-deps`, gemessen 18–23 s gegenüber 20 s für alles zusammen.
-      - run: npx playwright install --with-deps chromium
+      # Ohne --with-deps: Das Runner-Image hat die Bibliotheken schon, und apt
+      # hängt so nicht an den Ubuntu-Spiegeln (am 11.11.2026 stundenlang nicht auflösbar).
+      - run: npx playwright install chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
