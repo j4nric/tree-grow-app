@@ -10,3 +10,5 @@ blob-report/
 
 # Temporäre Worktrees von Claude-Subagenten
 .claude/worktrees/
+# Vom Eintrag für den vorderen Caddy (setup.sh), nur kurz während des Laufs
+deploy/.site-*.caddy

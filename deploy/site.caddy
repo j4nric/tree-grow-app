@@ -1,0 +1,18 @@
+# Eintrag von „Vom Samen zum Wald“ im vorderen Caddy des Servers (Muster aus
+# skat-roguelite ADR 0024). setup.sh setzt den Hostnamen ein, prüft den Eintrag einzeln und
+# legt ihn als vszw.caddy ins gemeinsame Docker-Volume `caddy-sites`; der vordere Caddy
+# (Haushalt-App, Label edge.caddy=true) liest jede *.caddy-Datei daraus
+# (`import /etc/caddy/sites/*.caddy`) und lädt ohne Neustart neu.
+#
+# Der vordere Caddy erreicht vszw-sync über das gemeinsame Netzwerk `edge` (Alias vszw-sync,
+# docker-compose.proxy-net.yml). Jeder Hostname darf auf dem ganzen Server nur einmal
+# vorkommen, sonst lehnt der vordere Caddy die neue Konfiguration ab.
+#
+# Den Platzhalter für den Hostnamen in der Zeile unten ersetzt setup.sh durch den echten Namen,
+# bevor die Datei ins Volume kommt (der vordere Caddy kennt die Variable nicht).
+{$SYNC_PUBLIC_HOST} {
+	# flush_interval -1: Server-Sent Events (/api/events) sofort weiterreichen.
+	reverse_proxy vszw-sync:8787 {
+		flush_interval -1
+	}
+}

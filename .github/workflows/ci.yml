@@ -55,6 +55,26 @@ jobs:
       - run: npm run typecheck --prefix server
       - run: npm run build
 
+  # Eintrag für den vorderen Caddy (deploy/site.caddy) und die eigene Caddyfile mit demselben
+  # Caddy-Image wie auf dem Server prüfen; setup.sh setzt dort den echten Hostnamen ein.
+  caddy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: deploy/site.caddy prüfen
+        run: >-
+          docker run --rm -e SYNC_PUBLIC_HOST=sync.62-83-23-90.sslip.io
+          -v "$PWD/deploy/site.caddy:/etc/caddy/Caddyfile:ro" caddy:2.11.7-alpine
+          caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: deploy/Caddyfile prüfen
+        run: >-
+          docker run --rm -e SYNC_PUBLIC_HOST=sync.62-83-23-90.sslip.io
+          -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11.7-alpine
+          caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: deploy/setup.sh prüfen (Syntax)
+        run: bash -n deploy/setup.sh
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 30
