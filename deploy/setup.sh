@@ -13,6 +13,11 @@
 #          auf dem Server (nginx, Caddy …)
 #   4. legt deploy/.env an (eine vorhandene bleibt unverändert), startet die vszw-Container und gibt aus,
 #      was im vorhandenen Proxy zu ergänzen ist – fremde Konfigurationen ändert es nie.
+#      Betriebsart B mit Proxy-Container: vszw-sync hängt zusätzlich im gemeinsamen Netzwerk
+#      `edge`, und unser Eintrag deploy/site.caddy kommt als vszw.caddy ins gemeinsame Volume
+#      `caddy-sites`, das der vordere Caddy (Label edge.caddy=true) importiert. Der vordere
+#      Caddy prüft die ganze Konfiguration und lädt neu; lehnt er ab, kommt der vorige Eintrag
+#      zurück und setup.sh bricht ab (Muster aus skat-roguelite ADR 0024).
 #   5. nennt die URL für die Repository-Variable VITE_SYNC_URL.
 #   6. erzeugt ein ADMIN_BACKUP_TOKEN für die Sicherung außerhalb des Servers, falls es in
 #      deploy/.env fehlt (neue .env: dort eingetragen; vorhandene .env: nur Anleitung zum
@@ -174,10 +179,20 @@ if [[ -n "$PROXY_NETWORK" ]] && ! docker network inspect "$PROXY_NETWORK" >/dev/
 fi
 
 COMPOSE=(docker compose)
+# EDGE=1: Eintrag im vorderen Caddy über Netzwerk `edge` und Volume `caddy-sites`.
+EDGE=0
 if [[ "$MODE" == A ]]; then
   COMPOSE+=(--profile caddy)
 elif [[ -n "$PROXY_NETWORK" ]]; then
   COMPOSE+=(-f docker-compose.yml -f docker-compose.proxy-net.yml)
+  EDGE=1
+  # Gemeinsames Netzwerk aller Apps mit dem vorderen Caddy (docker-compose.proxy-net.yml
+  # bindet es als external ein, also muss es vor dem Start existieren).
+  if ! docker network inspect edge >/dev/null 2>&1; then
+    say ""
+    say "Lege das gemeinsame Docker-Netzwerk edge an (vorderer Caddy ↔ Apps)."
+    docker network create edge >/dev/null
+  fi
 else
   if ! running vszw-sync && port_busy "$SYNC_PORT"; then
     fail "Port ${SYNC_PORT} ist schon belegt. Anderen Port wählen: SYNC_PORT=8790 ./setup.sh"
@@ -231,46 +246,79 @@ for _ in $(seq 1 30); do
 done
 if [[ "$ok" == 1 ]]; then say "Sync-Server läuft."; else say "Sync-Server antwortet noch nicht – siehe: docker logs vszw-sync"; fi
 
+# --- Eintrag im vorderen Caddy (deploy/site.caddy → Volume caddy-sites/vszw.caddy) ----
+# Erst einzeln prüfen, den vorigen Eintrag als .prev behalten (endet nicht auf .caddy, wird
+# also nicht importiert), dann den vorderen Caddy die ganze Konfiguration prüfen und neu laden
+# lassen. Lehnt er ab, kommt der vorige Eintrag zurück und setup.sh bricht ab; der vordere
+# Caddy läuft mit seinem alten Stand weiter.
+SITE_IMAGE=caddy:2.11.7-alpine
+SITE_NAME=vszw.caddy
+SITE_RENDERED=""
+EDGE_STATE=""
+install_site() {
+  [[ "$SYNC_PUBLIC_HOST" =~ ^[A-Za-z0-9.-]+$ ]] \
+    || fail "SYNC_PUBLIC_HOST „${SYNC_PUBLIC_HOST}“ ist kein gültiger Hostname."
+  # Im Ordner deploy/ statt /tmp: ein Docker aus Snap sähe /tmp des Hosts nicht.
+  SITE_RENDERED="$(mktemp "$PWD/.site-XXXXXX.caddy")"
+  trap 'rm -f "${SITE_RENDERED:-}"' EXIT
+  # Der vordere Caddy kennt SYNC_PUBLIC_HOST nicht – den Namen fest einsetzen.
+  sed "s/{\$SYNC_PUBLIC_HOST}/${SYNC_PUBLIC_HOST}/g" site.caddy > "$SITE_RENDERED"
+  chmod 644 "$SITE_RENDERED"
+  grep -q '{\$' "$SITE_RENDERED" \
+    && fail "deploy/site.caddy enthält noch einen Platzhalter, den setup.sh nicht ersetzt."
+
+  docker volume inspect caddy-sites >/dev/null 2>&1 || docker volume create caddy-sites >/dev/null
+  docker run --rm -v caddy-sites:/sites -v "$SITE_RENDERED:/new.caddy:ro" "$SITE_IMAGE" sh -euc "
+    caddy validate --config /new.caddy --adapter caddyfile >/dev/null 2>&1 || { caddy validate --config /new.caddy --adapter caddyfile; exit 1; }
+    if [ -f /sites/$SITE_NAME ]; then cp /sites/$SITE_NAME /sites/$SITE_NAME.prev; else rm -f /sites/$SITE_NAME.prev; fi
+    cp /new.caddy /sites/$SITE_NAME
+  " || fail "deploy/site.caddy ist ungültig (siehe oben) – nichts eingespielt."
+  rm -f "$SITE_RENDERED"
+
+  local front
+  front="$(docker ps -q --filter label=edge.caddy=true | head -n 1)"
+  if [[ -z "$front" ]]; then
+    EDGE_STATE=stored
+    say ""
+    say "Warnung: Noch kein vorderer Caddy mit Label edge.caddy=true. Der Eintrag liegt als"
+    say "${SITE_NAME} im Volume caddy-sites und gilt, sobald dieser Caddy startet."
+  elif docker exec "$front" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
+    docker exec "$front" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+    EDGE_STATE=loaded
+    say ""
+    say "Vorderer Caddy: Eintrag ${SITE_NAME} geladen."
+  else
+    docker exec "$front" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile || true
+    docker run --rm -v caddy-sites:/sites "$SITE_IMAGE" sh -euc "
+      if [ -f /sites/$SITE_NAME.prev ]; then mv /sites/$SITE_NAME.prev /sites/$SITE_NAME; else rm -f /sites/$SITE_NAME; fi
+    "
+    fail "Der vordere Caddy lehnt deploy/site.caddy ab (siehe oben, z. B. ${SYNC_PUBLIC_HOST} doppelt);
+  der vorige Eintrag ist wieder da, der vordere Caddy läuft unverändert weiter."
+  fi
+}
+if [[ "$EDGE" == 1 ]]; then
+  install_site
+fi
+
 # --- Was im vorhandenen Proxy zu tun ist ---------------------------------------------
 if [[ "$MODE" == B ]]; then
   say ""
   say "================================================================================"
-  if [[ -n "$PROXY_CONTAINER" && "$PROXY_IMAGE" == *caddy* ]]; then
-    CADDYFILE="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}' "$PROXY_CONTAINER" || true)"
-    if [[ -z "$CADDYFILE" ]]; then
-      dir="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/etc/caddy"}}{{.Source}}{{end}}{{end}}' "$PROXY_CONTAINER" || true)"
-      [[ -n "$dir" ]] && CADDYFILE="${dir}/Caddyfile"
+  if [[ "$EDGE" == 1 && -n "$PROXY_CONTAINER" && "$PROXY_IMAGE" == *caddy* ]]; then
+    say "Vorhandener Caddy im Container „${PROXY_CONTAINER}“."
+    say ""
+    if [[ "$EDGE_STATE" == loaded ]]; then
+      say "Unser Eintrag (deploy/site.caddy, ${SYNC_PUBLIC_HOST} → vszw-sync:8787) ist als"
+      say "${SITE_NAME} im Volume caddy-sites und im vorderen Caddy geladen. Nichts weiter zu tun."
+    else
+      say "Unser Eintrag (deploy/site.caddy, ${SYNC_PUBLIC_HOST} → vszw-sync:8787) liegt als"
+      say "${SITE_NAME} im Volume caddy-sites. Der vordere Caddy trägt noch nicht das Label"
+      say "edge.caddy=true; das bringt das Deployment der Haushalt-App (Import von"
+      say "/etc/caddy/sites/*.caddy, Netzwerk edge). Bis dahin leitet ihr alter Block in ihrer"
+      say "Caddyfile weiter über das Netzwerk ${PROXY_NETWORK}."
     fi
-    say "Vorhandener Caddy im Container „${PROXY_CONTAINER}“. Noch zu tun (nichts davon automatisch):"
     say ""
-    say "1) Der Caddy-Container tritt dem Netzwerk ${PROXY_NETWORK} bei – dauerhaft im Compose der"
-    say "   anderen App (networks: ${PROXY_NETWORK}: external: true), dann deren Deployment."
-    say "   Übergangsweise von Hand (geht beim Neuerstellen des Containers verloren):"
-    say "     docker network connect ${PROXY_NETWORK} ${PROXY_CONTAINER}"
-    say ""
-    say "2) Dieser Block in seine Caddyfile:"
-    say ""
-    say "${SYNC_PUBLIC_HOST} {"
-    say "	reverse_proxy vszw-sync:8787 {"
-    say "		flush_interval -1"
-    say "	}"
-    say "}"
-    say ""
-    say "So spielst du ihn sicher ein (Caddyfile auf dem Host: ${CADDYFILE:-<Pfad unbekannt – docker inspect ${PROXY_CONTAINER}>}):"
-    say ""
-    say "  CADDYFILE='${CADDYFILE:-/pfad/zur/Caddyfile}'"
-    say "  BACKUP=\"\$CADDYFILE.bak-\$(date +%Y%m%d-%H%M%S)\""
-    say "  sudo cp \"\$CADDYFILE\" \"\$BACKUP\""
-    say "  printf '\\n%s {\\n\\treverse_proxy vszw-sync:8787 {\\n\\t\\tflush_interval -1\\n\\t}\\n}\\n' '${SYNC_PUBLIC_HOST}' | sudo tee -a \"\$CADDYFILE\" >/dev/null"
-    say "  docker exec ${PROXY_CONTAINER} caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile"
-    say "  docker exec ${PROXY_CONTAINER} caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile"
-    say ""
-    say "Rückgängig (falls validate oder reload scheitert):"
-    say "  sudo cp \"\$BACKUP\" \"\$CADDYFILE\""
-    say "  docker exec ${PROXY_CONTAINER} caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile"
-    say ""
-    say "(cp und tee -a behalten die Datei bei – wichtig, wenn sie einzeln in den Container"
-    say " eingebunden ist. Nicht mit sed -i oder einem Editor bearbeiten, der sie ersetzt.)"
+    say "vszw-sync hängt in ${PROXY_NETWORK} und in edge (Alias vszw-sync in beiden)."
   else
     say "Noch zu tun: im vorhandenen Reverse-Proxy einen Eintrag ergänzen, der"
     if [[ -n "$PROXY_NETWORK" ]]; then
@@ -286,7 +334,12 @@ if [[ "$MODE" == B ]]; then
 fi
 
 say ""
-say "Spätere Updates mit demselben Befehl:  ${COMPOSE[*]} up -d --build"
+if [[ "$EDGE" == 1 ]]; then
+  say "Spätere Updates: erneut ./setup.sh (spielt auch den Eintrag im vorderen Caddy ein)."
+  say "Nur die Container neu bauen:  ${COMPOSE[*]} up -d --build"
+else
+  say "Spätere Updates mit demselben Befehl:  ${COMPOSE[*]} up -d --build"
+fi
 say ""
 say "Als Repository-Variable VITE_SYNC_URL eintragen (GitHub → Settings → Secrets and"
 say "variables → Actions → Variables), danach den Pages-Workflow neu starten:"

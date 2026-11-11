@@ -244,15 +244,17 @@ cd tree-grow-app/deploy
      Datenbank erreichbar);
    - **80/443 gehören einem Proxy direkt auf dem Server:** Betriebsart B, nur
      `127.0.0.1:8787`;
-5. gibt aus, was im vorhandenen Proxy zu ergänzen ist (bei Caddy im Container: Beitritt zu
-   `vszw-proxy`, den fertigen Block und die Befehle zum sicheren Einspielen samt Rückweg) – **fremde Dateien ändert es
-   nie** – und nennt am Ende die URL für `VITE_SYNC_URL`.
+5. spielt bei Caddy im Container unseren Eintrag `deploy/site.caddy` in den vorderen Caddy ein
+   (gemeinsames Netzwerk `edge`, Volume `caddy-sites`, siehe unten „Eigener Eintrag im
+   vorderen Caddy“), sonst gibt es aus, was im vorhandenen Proxy zu ergänzen ist – **fremde
+   Dateien ändert es nie** – und nennt am Ende die URL für `VITE_SYNC_URL`.
 
 Erzwingen bzw. vorgeben: `MODE=B`, `PROXY_NETWORK=<netz>` (Standard `vszw-proxy`; ein
 anderes nur bewusst), `SYNC_PORT=8790`, `SYNC_PUBLIC_HOST=…` (jeweils vor `./setup.sh`).
 Nennt eine ältere `deploy/.env` noch ein fremdes Netzwerk (z. B. `haushalt-prod-intern`),
 bricht `setup.sh` mit einem Hinweis ab – dann die Zeile auf `PROXY_NETWORK=vszw-proxy`
-ändern. Spätere Updates: den Befehl verwenden, den `setup.sh` am Ende nennt.
+ändern. Spätere Updates: den Befehl verwenden, den `setup.sh` am Ende nennt (bei Caddy im
+Container wieder `./setup.sh`, damit auch der Eintrag im vorderen Caddy aktuell ist).
 
 Alle Container, Volumes und Netzwerke heißen `vszw-…` (`vszw-sync`, `vszw-caddy`,
 `vszw-data`, `vszw-net`, `vszw-proxy`), laufen mit `restart: unless-stopped` und Limits
@@ -275,6 +277,36 @@ lange Lesezeit für `/api/events`.
 
 **Caddy im Docker-Container einer anderen App** (häufigster Fall, z. B. ein Container
 `haushalt-prod-caddy-1` aus dem Compose-Projekt `haushalt-prod` belegt 80/443).
+
+##### Eigener Eintrag im vorderen Caddy (Netzwerk `edge`, Volume `caddy-sites`)
+
+Seit November 2026 liefert jede App ihren Eintrag für den vorderen Caddy selbst (Muster aus
+skat-roguelite ADR 0024). Der vordere Caddy (Haushalt-App) liest jede Datei `*.caddy` aus dem
+gemeinsamen Docker-Volume `caddy-sites` (`import /etc/caddy/sites/*.caddy`), trägt das Label
+`edge.caddy=true` und erreicht alle Apps über das gemeinsame Netzwerk `edge`. Ein neuer
+Hostname braucht damit nur noch einen PR in diesem Repository.
+
+Unser Eintrag steht in `deploy/site.caddy` (Hostname als Platzhalter `{$SYNC_PUBLIC_HOST}`).
+`./setup.sh` erledigt in Betriebsart B mit Proxy-Container:
+
+1. legt das Netzwerk `edge` an, falls es fehlt, und startet `vszw-sync` zusätzlich darin
+   (Alias `vszw-sync`, `docker-compose.proxy-net.yml`); `vszw-proxy` bleibt vorerst;
+2. setzt den Hostnamen ein, prüft den Eintrag einzeln (`caddy validate`), legt das Volume
+   `caddy-sites` an, falls es fehlt, und kopiert den Eintrag als `vszw.caddy` hinein (der
+   vorige bleibt als `vszw.caddy.prev`, wird also nicht importiert);
+3. sucht den vorderen Caddy (`docker ps --filter label=edge.caddy=true`), lässt ihn die ganze
+   Konfiguration prüfen und lädt sie ohne Neustart neu (`caddy reload`). Lehnt er ab (z. B.
+   doppelter Hostname), kommt der vorige Eintrag zurück und `setup.sh` bricht mit einer
+   Fehlermeldung ab; der vordere Caddy läuft mit seinem alten Stand weiter. Gibt es noch keinen
+   Caddy mit dem Label, bleibt der Eintrag nur im Volume liegen (Warnung) und gilt, sobald er
+   startet.
+
+Jeder Hostname darf auf dem ganzen Server nur einmal vorkommen. Deshalb enthält der Eintrag
+genau den Namen des bisherigen Blocks in der Caddyfile der Haushalt-App; diesen Block entfernt
+ein späterer PR dort, wenn alle Apps ihren Eintrag ausgerollt haben. Bis dahin gilt der
+bisherige Weg unten weiter.
+
+##### Bisheriger Weg (bis der alte Block entfernt ist)
 
 `vszw-sync` und der Caddy treffen sich im **eigenen** Netzwerk `vszw-proxy` – nie im internen
 Netzwerk der anderen App (`haushalt-prod-intern`), denn dort wären deren Datenbank und andere

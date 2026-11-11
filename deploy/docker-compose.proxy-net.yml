@@ -3,10 +3,16 @@
 # `vszw-sync:8787` erreichbar – ohne Port auf dem Host. Der Proxy-Container tritt diesem
 # Netzwerk bei (im Compose seiner App: `networks: vszw-proxy: external: true`).
 #
+# Zusätzlich hängt vszw-sync mit demselben Alias im gemeinsamen Netzwerk `edge`, über das der
+# vordere Caddy (Label edge.caddy=true) alle Apps erreicht; unseren Eintrag dort liefert
+# deploy/site.caddy (setup.sh spielt ihn ein). vszw-proxy bleibt, bis der alte Block in der
+# Caddyfile der Haushalt-App entfernt ist. Der Alias muss in `edge` eindeutig sein.
+#
 # Nie das interne Netzwerk der anderen App verwenden: Dort wären z. B. deren Datenbank und
 # andere Dienste für vszw-sync erreichbar (und umgekehrt).
 #
 #   docker network create vszw-proxy      # deploy/setup.sh erledigt das, falls es fehlt
+#   docker network create edge            # ebenso
 #   docker compose -f docker-compose.yml -f docker-compose.proxy-net.yml up -d --build
 
 services:
@@ -18,8 +24,14 @@ services:
       proxy:
         aliases:
           - vszw-sync
+      edge:
+        aliases:
+          - vszw-sync
 
 networks:
   proxy:
     name: ${PROXY_NETWORK:-vszw-proxy}
+    external: true
+  edge:
+    name: edge
     external: true

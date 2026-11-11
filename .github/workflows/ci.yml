@@ -55,8 +55,29 @@ jobs:
       - run: npm run typecheck --prefix server
       - run: npm run build
 
-  e2e:
+  # Eintrag für den vorderen Caddy (deploy/site.caddy) und die eigene Caddyfile mit demselben
+  # Caddy-Image wie auf dem Server prüfen; setup.sh setzt dort den echten Hostnamen ein.
+  caddy:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: deploy/site.caddy prüfen
+        run: >-
+          docker run --rm -e SYNC_PUBLIC_HOST=sync.62-83-23-90.sslip.io
+          -v "$PWD/deploy/site.caddy:/etc/caddy/Caddyfile:ro" caddy:2.11.7-alpine
+          caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: deploy/Caddyfile prüfen
+        run: >-
+          docker run --rm -e SYNC_PUBLIC_HOST=sync.62-83-23-90.sslip.io
+          -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11.7-alpine
+          caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: deploy/setup.sh prüfen (Syntax)
+        run: bash -n deploy/setup.sh
+
+  e2e:
+    # Playwright 1.56 unterstützt ubuntu-latest (26.04) noch nicht.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -82,7 +103,9 @@ jobs:
         run: npm ci --prefix server --no-audit --no-fund
       # Ein Cache für Chromium lohnt nicht: Die System-Bibliotheken (apt) bräuchten trotzdem
       # `install-deps`, gemessen 18–23 s gegenüber 20 s für alles zusammen.
-      - run: npx playwright install --with-deps chromium
+      # Ohne --with-deps: Das Runner-Image hat die Bibliotheken schon, und apt
+      # hängt so nicht an den Ubuntu-Spiegeln (am 11.11.2026 stundenlang nicht auflösbar).
+      - run: npx playwright install chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
