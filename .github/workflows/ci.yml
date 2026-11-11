@@ -76,7 +76,8 @@ jobs:
         run: bash -n deploy/setup.sh
 
   e2e:
-    runs-on: ubuntu-latest
+    # Playwright 1.56 unterstützt ubuntu-latest (26.04) noch nicht.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
